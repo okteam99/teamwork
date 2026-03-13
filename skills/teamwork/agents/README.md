@@ -36,7 +36,7 @@ Subagent 启动后，必须按顺序读取：
 
 ```
 所有 subagent 产出的代码必须遵守：
-├── 项目 STANDARDS.md 中的编码规范
+├── 项目 standards/common.md + 对应技术栈规范（backend.md / frontend.md）中的编码规范
 ├── KNOWLEDGE.md 中的项目特定规则（如有）
 ├── 禁止遗留 TODO/FIXME/占位符
 ├── 禁止输出不完整的代码片段
@@ -84,7 +84,6 @@ Subagent 返回给主对话的内容必须包含：
 
 PMO 使用 Task 工具启动 subagent，prompt 结构：
 
-**多子项目模式**：
 ```
 你是 Teamwork 协作框架中的 {角色名}。
 
@@ -101,20 +100,6 @@ PMO 使用 Task 工具启动 subagent，prompt 结构：
 - 任务：{具体任务描述}
 
 ⚠️ 所有文档和代码操作都在子项目路径下进行，不要操作其他子项目的文件。
-```
-
-**单项目模式**：
-```
-你是 Teamwork 协作框架中的 {角色名}。
-
-请先读取以下文件了解执行规范：
-1. {agents/README.md 的绝对路径}
-2. {agents/角色规范.md 的绝对路径}
-
-然后读取项目文件并执行任务：
-- 功能：F{编号}-{功能名}
-- 项目根目录：{项目根目录路径}
-- 任务：{具体任务描述}
 ```
 
 ### 3.2 启动前检查
@@ -138,7 +123,18 @@ Subagent 返回后，PMO 必须：
 │   └── 无 → 继续
 ├── 3. 输出合并的 PMO 阶段摘要
 ├── 4. 自动流转到下一阶段
-└── 5. 如果 subagent 执行失败 → 降级为主对话内执行，不能卡住流程
+└── 5. Subagent 异常处理（见下方失败分类）
+
+🔴 Subagent 失败分类与恢复路径：
+├── Task 工具报错（工具调用本身失败）
+│   └── → 立即降级为主对话内执行，PMO 将任务交给当前角色在主对话中完成
+├── 产出不完整（缺少必需文件，如无代码只有报告）
+│   └── → PMO 在主对话内补充缺失部分，或要求当前角色补全
+├── 产出质量不达标（Review 发现严重问题 / 测试全部失败）
+│   └── → 不算失败，走正常打回机制（RULES.md 八-B），由上游角色修正后重新执行
+├── Subagent 报告上游阻塞（如「缺少 PRD 中的 xxx 定义」）
+│   └── → 触发打回机制，不降级
+└── 🔴 核心原则：Subagent 异常不能卡住整个流程，降级后仍需完成该阶段任务
 ```
 
 ---
@@ -156,4 +152,5 @@ Subagent 返回后，PMO 必须：
 | [integration-test.md](./integration-test.md) | QA | 集成测试 | QA 前置检查通过后触发 |
 
 > 后续扩展新 subagent 时，在本目录新增对应 `.md` 文件并更新此表。
-> ⚠️ Feature Planning 流程不使用 Subagent（需要与用户交互，PM 在主对话中执行）。
+> ⚠️ Feature Planning 流程中 PM 在主对话中执行（需要与用户交互）。PM 与用户讨论达成共识后，有 UI 的子项目先启动 Designer Subagent（全景重建模式）验收全景设计，确认后再更新 PROJECT.md 并拆解 ROADMAP。
+> 🌐 工作区级 Feature Planning：PM 先与用户确认 teamwork_space.md 架构变更，然后对每个受影响的有 UI 子项目，依次启动 Designer Subagent（全景重建模式）。每个子项目的全景设计独立确认后，再更新 PROJECT.md 并拆解 ROADMAP。

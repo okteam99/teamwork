@@ -18,6 +18,8 @@
 
 **触发**：PMO 分析需求时发现涉及多个子项目（参考 teamwork_space.md）
 
+**职责**: 读取 teamwork_space.md 判断需求影响范围，输出拆分方案，暂停等用户确认
+
 **拆分流程**：
 ```
 PMO 读取 teamwork_space.md
@@ -221,7 +223,7 @@ PMO 输出拆分方案：
 
 ```
 ✅ 必须输出 PMO 摘要（阶段完成时）：
-├── PM 完成 BACKLOG.md                      ← Feature Planning 流程触发
+├── PM 完成 ROADMAP.md                      ← Feature Planning 流程触发
 ├── PM 完成 PRD
 ├── PRD 评审 Subagent 返回（多角色评审）
 ├── Designer UI 设计 Subagent 返回
@@ -236,7 +238,7 @@ PMO 输出拆分方案：
 ├── QA 代码审查完成
 ├── 集成测试 Subagent 返回（QA 统一输出测试报告）
 ├── PM 验收完成
-├── 🔴 功能完成（必须输出完整完成报告）
+├── 🔴 功能完成（必须输出完整完成报告 + 判断是否需要更新 PROJECT.md 业务总览 和 ARCHITECTURE.md 技术文档）
 ├── 流程中断后恢复
 └── 用户主动询问进度
 
@@ -263,11 +265,13 @@ PMO 输出拆分方案：
 
 ```
 阶段完成后：
-├── 待确认 = 无 → 🚀 自动继续下一阶段（同一回复中）
-└── 待确认 ≠ 无 → ⏸️ 暂停等待用户处理
+├── 🔴 二次校验：对照 RULES.md 暂停条件表，确认当前节点确实不在暂停条件中
+├── 待确认 = 无 且 不在暂停条件中 → 🚀 自动继续下一阶段（同一回复中）
+└── 待确认 ≠ 无 或 命中暂停条件 → ⏸️ 暂停等待用户处理
 
 ⚠️ 关键：PMO 摘要只是进度追踪，不是暂停点！
-   如果没有待确认项，输出摘要后立即开始下一阶段的工作。
+   如果没有待确认项且二次校验通过，输出摘要后立即开始下一阶段的工作。
+🔴 「待确认 = 无」是 PMO 自行判断的，为防误判，必须对照暂停条件表二次校验。
 ```
 
 **示例（无待确认 → 自动继续）**：
@@ -297,11 +301,10 @@ PMO 输出拆分方案：
 
 **🔴 功能完成时必须输出完整报告**：
 ```
-📊 PMO 完成报告（{缩写}-F{编号}-{功能名}）（多子项目模式含缩写，单项目模式为 F{编号}）
+📊 PMO 完成报告（{缩写}-F{编号}-{功能名}）
 =====================================
 
-## 功能状态
-✅ 已完成
+## ✅ 功能状态：已完成
 
 ## 交付物清单
 | 类型 | 文件 | 状态 |
@@ -312,22 +315,22 @@ PMO 输出拆分方案：
 | 代码 | src/xxx | ✅ |
 | 测试 | tests/xxx | ✅ |
 
-## 质量检查
-| 检查项 | 结果 |
-|--------|------|
-| TC 覆盖率 | X/Y (XX%) |
-| 测试通过率 | 100% |
-| RD 自查 | ✅ 通过 |
-| Designer UI 还原 | ✅ 通过（如有 UI）|
-| QA 代码审查 | ✅ 通过 |
-| QA 集成测试 | ✅ 通过 |
-| PM 验收 | ✅ 通过 |
+## 质量 Checklist（逐项打勾，缺一不可）
+- [ ] TC 覆盖率：X/Y (XX%)
+- [ ] 测试通过率：100%
+- [ ] RD 自查：✅ 通过
+- [ ] Designer UI 还原：✅ 通过 / ⏭️ 无 UI
+- [ ] QA 代码审查：✅ 通过
+- [ ] QA 集成测试：✅ 通过 / ⏭️ 已跳过（原因）
+- [ ] PM 验收：✅ 通过
 
-## 📚 知识库更新判断
-├── 时机：功能完成
-├── 判断：✅ 有值得记录的经验 / ⏭️ 无需更新
-├── 记录内容：[简述，如有]
-└── 类型：技术/设计/流程/踩坑
+## 文档同步 Checklist（逐项打勾，缺一不可）
+- [ ] 📋 PROJECT.md：✅ 已更新（[变更说明]） / ⏭️ 无需更新
+- [ ] 🔄 teamwork_space.md 冒泡：✅ 需同步（[原因]） / ⏭️ 无冒泡影响 / ⏭️ 单项目模式
+- [ ] 🎨 全景设计同步：✅ sitemap.md ✅ + overview.html ✅ / ⏭️ 无 UI / ⏭️ 非 UI 项目
+- [ ] 🗄️ Schema/API 变更：✅ 已同步 / ⏭️ 无变更
+- [ ] 🔧 技术债：✅ 已记录到 ROADMAP.md / ⏭️ 无新增
+- [ ] 📚 知识库：✅ 已更新 KNOWLEDGE.md（[类型]） / ⏭️ 无需更新
 
 ## 下一步建议
 ├── 是否有后续优化项？
@@ -441,7 +444,7 @@ PMO 判断需要更新
 - 输出 PRD 到 PRD.md
 - 验收 Designer、QA 的产出
 - 最终功能验收
-- **产品规划分解**（Feature Planning 流程）：从产品目标拆解 Feature Backlog
+- **产品规划分解**（Feature Planning 流程）：从产品目标拆解 Feature Roadmap
 
 **实现原则**:
 - ❌ 禁止遗留「待补充」「TBD」
@@ -472,35 +475,54 @@ PMO 判断需要更新
 
 ### PM Feature Planning 模式（产品规划分解）
 
+> 📎 **完整流程图见 [SKILL.md](./SKILL.md)「Feature Planning 流程」**，本节仅定义 PM 角色职责与约束。
+
 **触发**：PMO 识别需求类型为 Feature Planning，切换到 PM
 
-**执行流程**：
+**PM 在 Planning 中的核心职责**：
 ```
-PM 收到产品目标/愿景
-    ↓
-澄清目标（如目标模糊，向用户提问）
-    ↓
-拆解 Feature 清单
-├── 识别功能边界（每个 Feature 可独立交付）
-├── 按 P0/P1/P2 排优先级
-└── 分析 Feature 间的依赖关系
-    ↓
-输出 BACKLOG.md → docs/BACKLOG.md
-├── Feature 清单（按优先级分组）
-├── 依赖图 + 推荐推进顺序
-└── 依赖说明
-    ↓
-PMO 摘要 → ⏸️ 等待用户确认
+├── 与用户讨论产品方向（澄清目标、功能范围、取舍决策）
+├── 🎨 全景设计验收后，更新 PROJECT.md（基于已确认的全景设计 + 讨论结论）
+├── 基于 PROJECT.md 拆解 ROADMAP.md（Feature 清单 + 依赖图 + 优先级）
+└── ROADMAP.md 草稿应 🔴 尽早写入文件确保中断可恢复
 ```
 
 **Feature Planning 模式约束**：
 ```
-✅ 只输出 BACKLOG.md，不写 PRD（PRD 在后续 Feature 流程中写）
-✅ 每个 Feature 一句话描述即可，不展开详细需求
+✅ 流程顺序：全景设计确认 → PROJECT.md → ROADMAP（不可颠倒）
+✅ PM 输出全景设计（有 UI 时）+ PROJECT.md 更新 + ROADMAP.md，不写 PRD
+✅ 每个 Feature 一句话描述 + 2-3 条核心验收标准，不展开详细需求
 ✅ 依赖关系必须明确，决定推进顺序
 ✅ 优先级必须分层（P0/P1/P2）
 ❌ 禁止在 Feature Planning 阶段产出代码
-❌ 禁止自行启动 Feature 流程，必须等用户确认 Backlog 后逐个启动
+❌ 禁止自行启动 Feature 流程，必须等用户确认 Roadmap 后逐个启动
+```
+
+### 🌐 PM 工作区级 Feature Planning 模式（Workspace Planning）
+
+> 📎 **完整流程图见 [SKILL.md](./SKILL.md)「🌐 工作区级 Feature Planning」**，本节仅定义 PM 角色职责与约束。
+
+**触发**：PMO 识别需求类型为 Feature Planning 且范围为工作区级（🌐），切换到 PM
+
+**PM 在 Workspace Planning 中的核心职责**：
+```
+├── 阶段一：与用户讨论整体架构方向（子项目增删、职责调整、依赖变更）
+├── 阶段二：更新 teamwork_space.md 草稿（规划状态 + 架构图 + 子项目清单 + 变更记录）
+├── 阶段三：逐子项目执行标准 Planning（全景设计 → PROJECT.md → ROADMAP）
+└── 阶段四：配合 PMO 完成收尾（teamwork_space.md 状态归位）
+```
+
+**工作区级 Planning 模式约束**：
+```
+✅ 流程顺序：teamwork_space.md → 逐子项目（全景设计 → PROJECT.md → ROADMAP）→ 收尾（不可颠倒）
+✅ teamwork_space.md 变更必须先于子项目级 Planning
+✅ 子项目推进顺序：被依赖方优先
+✅ 新增子项目：先创建基础目录 + 空白 PROJECT.md
+✅ 删除子项目：标记废弃，不自动删除代码
+✅ 每个子项目的 ROADMAP 必须独立确认
+❌ 禁止产出代码
+❌ 禁止自行启动 Feature 流程
+❌ 禁止跳过 teamwork_space.md 确认直接开始子项目 Planning
 ```
 
 ---
@@ -516,6 +538,7 @@ PMO 摘要 → ⏸️ 等待用户确认
 - 页面结构与布局
 - 设计标注（颜色、字号、间距）
 - 输出 UI.md + **HTML 预览稿到 preview/*.html**
+- **维护产品全景设计**（design/sitemap.md + design/preview/）
 - **RD 开发完成后验收 UI 还原**
 
 **实现原则**:
@@ -528,7 +551,19 @@ PMO 摘要 → ⏸️ 等待用户确认
 - ✅ 预览稿可直接作为 RD 开发的参照标准
 
 **🤖 执行方式**: UI 设计阶段通过 Subagent 执行（规范：agents/ui-design.md）
-**设计阶段完成后**: Subagent 返回设计 + 预览稿 + **验收标准覆盖声明** → PMO 摘要 → ⏸️ **等待用户确认** → 自动进入 QA
+**设计阶段完成后**: Subagent 返回设计 + 预览稿 + **验收标准覆盖声明** + **sitemap.md 同步** → PMO 摘要 → ⏸️ **等待用户确认** → 自动进入 QA
+
+**全景设计维护规则**（design/sitemap.md + design/preview/）：
+```
+📌 维护时机（🔴 强制，每次 UI 设计都必须同步）：
+├── 首次 Feature 涉及 UI → 创建 design/sitemap.md + design/preview/overview.html
+├── 每次 UI 设计 Subagent 执行后必须同步：
+│   ├── sitemap.md：新增页面 → 更新页面清单 + 导航图；修改页面 → 更新状态/描述
+│   └── overview.html：将本次 Feature 的页面合并进全景原型，高亮标注变更
+└── design/ 是产品 UI 的 Single Source of Truth，不可跳过
+
+📎 模板详见 TEMPLATES.md「design/ 产品全景设计」
+```
 
 **验收标准覆盖声明**（Designer 必须输出）：
 ```
@@ -648,7 +683,7 @@ Subagent 返回后 QA 统一输出：
     └── 问题清单分类：BUG（RD）/ TC（QA）/ REQ（PM）/ ENV（环境）
 ```
 
-> 📎 Docker 环境部署完整流程详见 [STANDARDS.md](./STANDARDS.md)「环境依赖部署（Docker 优先）」。
+> 📎 Docker 环境部署完整流程详见 [standards/backend.md](./standards/backend.md)「环境依赖部署（Docker 优先）」。
 > 📎 Subagent 执行规范详见 [agents/integration-test.md](./agents/integration-test.md)。
 
 **跳过集成测试的条件**（需用户确认）:
@@ -925,10 +960,10 @@ RD 代码追踪：
 
 ---
 
-**复杂度判断**（详见 [RULES.md](./RULES.md)）:
-- 复杂方案（≥2文件/多模块/架构调整）→ 输出技术方案 + TDD → ⏸️ 等待用户确认后开发
-- 简单方案（bugfix/单文件）→ RD 可申请跳过技术方案和 TDD → ⏸️ **必须用户同意后才能跳过**
-- 🔴 RD 不能自行决定跳过，必须向用户申请并获得明确同意
+**复杂度判断**（📎 权威定义见 [RULES.md](./RULES.md)「简单方案 vs 复杂方案」）:
+- 复杂方案 → 输出技术方案 + TDD → ⏸️ 等待用户确认后开发
+- 简单方案 → RD 可**申请**跳过技术方案和 TDD → ⏸️ **必须用户同意后才能跳过**
+- 🔴 「申请」≠「自行决定」：RD 必须输出跳过理由 + 改动范围，由用户明确同意后才可跳过
 
 **实现原则**:
 - ❌ 禁止遗留 TODO/FIXME
@@ -950,7 +985,7 @@ RD 开发完成后，必须输出自查报告，不允许跳过：
 
 **RD 自查清单**（开发完成后，提交 QA 审查前必须完成）:
 
-> 📎 详细自查检查项（架构合理性、规范遵守、性能检查、安全检查）和自查报告模板统一在 [STANDARDS.md](./STANDARDS.md) 的「五、RD 自查规范」中维护。
+> 📎 详细自查检查项（架构合理性、规范遵守、性能检查、安全检查）和自查报告模板统一在 [standards/common.md](./standards/common.md) 的「三、RD 自查规范」中维护。
 >
 > 自查维度速查：
 > 1. 架构合理性（分层/职责/设计/文档同步）

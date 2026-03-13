@@ -19,7 +19,9 @@
 ├── docs/features/F{编号}-{功能名}/PRD.md    ← 需求文档
 ├── docs/features/F{编号}-{功能名}/TC.md     ← 测试用例
 ├── docs/features/F{编号}-{功能名}/TECH.md   ← 技术方案
-├── .claude/skills/teamwork/STANDARDS.md      ← 开发规范
+├── .claude/skills/teamwork/standards/common.md   ← 通用开发规范
+├── .claude/skills/teamwork/standards/backend.md  ← 后端规范（后端项目加载）
+├── .claude/skills/teamwork/standards/frontend.md ← 前端规范（前端项目加载）
 │
 可选文件（存在则读取）：
 ├── docs/features/F{编号}-{功能名}/UI.md     ← UI 设计
@@ -44,7 +46,7 @@ Step 2: 运行测试，确认全部失败（预期行为）
 
 Step 3: 实现功能代码，让测试逐步通过
 ├── 遵循 TECH.md 中的技术方案
-├── 遵循 STANDARDS.md 中的编码规范
+├── 遵循 standards/common.md 中的编码规范 + 对应技术栈规范（backend.md / frontend.md）
 ├── 遵循 KNOWLEDGE.md 中的项目特定规则（如有）
 └── 遵循 ARCHITECTURE.md 中的架构约定（如有）
 
@@ -80,7 +82,7 @@ Step 5: 如有 UI → 根据 UI.md / preview/*.html 还原页面
 
 ### 3.3 RD 自查
 
-开发完成后，必须执行完整自查。自查维度参考 STANDARDS.md「五、RD 自查规范」。
+开发完成后，必须执行完整自查。自查维度参考 standards/common.md「三、RD 自查规范」。
 
 ```
 自查维度（全部必查）：
