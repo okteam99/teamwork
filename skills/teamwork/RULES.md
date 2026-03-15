@@ -29,6 +29,11 @@
 | **Roadmap 确认** | Feature Planning 流程 | PM 完成 ROADMAP.md 后，必须等用户确认优先级和依赖关系 |
 | **🌐 teamwork_space.md 架构确认** | 工作区级 Feature Planning | PM 更新 teamwork_space.md 草稿后，必须等用户确认架构变更 |
 | **🌐 Workspace Planning 收尾** | 工作区级 Feature Planning | 所有子项目 Planning 完成后，PMO 更新 teamwork_space.md 收尾，必须等用户最终确认 |
+| **PL 讨论结论确认** | Product Lead 讨论模式 | PL 与用户讨论完毕，输出结论摘要后，必须等用户确认结论再进入执行 |
+| **CHG 变更记录确认** | Product Lead 执行模式 | PL 产出 CHG 变更记录后，必须等用户确认变更范围和影响评估 |
+| **变更影响评估确认** | 变更级联（Level 2/3） | PL 输出变更影响评估报告后，必须等用户确认后才能启动级联更新 |
+| **全景设计确认** | Feature Planning / Feature 流程 | Designer Subagent 产出全景设计（sitemap.md + overview.html）后，必须等用户确认 |
+| **UI 还原验收** | Feature 流程（有 UI） | Designer 验收 RD 的 UI 实现，每轮修改后需用户确认（最多 3 轮） |
 
 ### ✅ 无需暂停，自主完成（仅限执行阶段内的具体工作）
 
@@ -241,6 +246,20 @@ PMO → 结束流程（输出 Bugfix 记录）
 | 多文件修复 | RD（开发阶段） | 开发 → RD 自查 → QA 完整验证 → 验收 |
 
 ---
+
+### Bug 修复闭环验证（PMO 必须执行）
+
+```
+Bug 修复闭环检查（缺一不可）：
+├── 1️⃣ QA 验证用例全部通过（简化流程 / 完整流程均需）
+├── 2️⃣ 回归测试：确认修复未引入新问题
+│   ├── 简单 Bug → RD 确认相关测试用例仍通过
+│   └── 复杂 Bug → 运行受影响模块的完整测试套件
+├── 3️⃣ BUG-REPORT.md 状态更新为「✅ 已修复」+ 填写修复方案
+├── 4️⃣ PM 文档同步检查完成
+├── 5️⃣ 知识库更新判断完成
+└── 6️⃣ PMO 输出 Bugfix 记录（见下方格式）
+```
 
 ### PMO Bugfix 记录格式
 
@@ -481,6 +500,77 @@ PMO 更新 teamwork_space.md 收尾：
     用户逐个通过 /teamwork [Feature 需求] 启动 Feature 流程
 ```
 
+### 问题排查流程自动流转
+
+```
+/teamwork [问题描述，方向不明确]
+    ↓
+PMO 识别为「问题排查」类型
+    ↓ 🚀 自动
+    └── 🔄 PMO 派发指定角色（RD/PM/Designer）开始排查
+
+指定角色执行排查梳理
+    ├── 技术问题 → RD 代码追踪 + 分析
+    ├── 需求/业务问题 → PM 梳理
+    └── UI/交互问题 → Designer 梳理
+    ↓
+输出梳理报告（含建议后续动作方案）
+    ↓ ⏸️ 等待用户确认后续动作
+
+用户选择：
+├── Feature 流程 → 切换到 PM 写 PRD
+├── Bugfix 流程 → 切换到 RD 走 Bug 处理流程
+└── 不处理 → PMO 记录结论，流程结束
+```
+
+### Product Lead 流程自动流转
+
+```
+PMO 识别为产品方向讨论（非四种标准流程）
+    ↓ 🚀 自动
+    └── 🔄 切换到 Product Lead 讨论模式
+
+PL 与用户讨论产品方向（业务架构、收入模型、产品定位）
+    ↓
+PL 输出讨论结论摘要
+    ↓ ⏸️ 等待用户确认讨论结论
+
+用户确认结论 → PL 写入 product-overview 文档
+    ↓
+PMO 判断后续动作：
+    ├── 结论产生 CHG 变更 → PL 切换到执行模式
+    │   ├── PL 输出 CHG 变更记录 + 变更影响评估报告
+    │   ├── ⏸️ 等待用户确认变更范围
+    │   └── 用户确认 → PMO 启动 Feature Planning 级联
+    ├── 结论需要规划落地 → PMO 启动 Feature Planning 流程
+    └── 纯讨论无后续 → PMO 输出总结，流程结束
+```
+
+### Designer 流程规则
+
+```
+Designer 在以下场景触发：
+
+🎨 Feature 流程（增量模式）：
+├── PRD 评审通过 + 需要 UI → PMO 启动 Designer Subagent
+├── 产出：UI.md + preview/*.html + sitemap.md 同步 + overview.html 同步
+├── PMO 摘要 → ⏸️ 等待用户确认设计稿
+└── 用户确认后 → 继续 QA 编写 TC
+
+🎨 Feature Planning（全景重建模式）：
+├── PM 与用户讨论达成共识 → PMO 启动 Designer Subagent（全景重建）
+├── 产出：design/sitemap.md + design/preview/overview.html（全新重建）
+├── PMO 摘要 → ⏸️ 等待用户确认全景设计
+└── 用户确认后 → PM 继续更新 PROJECT.md → 拆解 ROADMAP
+
+🎨 UI 还原验收（Feature 流程收尾阶段）：
+├── RD 开发完成 + 有 UI → Designer 验收 UI 实现
+├── 比对 UI.md / preview/*.html 与实际代码
+├── 发现偏差 → 输出修改清单 → RD 修复 → 再次验收
+├── 🔴 最多 3 轮验收（见 REVIEWS.md）
+└── 验收通过 → 继续后续流程
+```
+
 ### 功能完成时 PMO 必须执行
 
 ```
@@ -493,6 +583,14 @@ PMO 更新 teamwork_space.md 收尾：
    ├── 判断结果为「✅ 有」→ 提取知识并更新 docs/KNOWLEDGE.md
    ├── 判断结果为「⏭️ 无需更新」→ 也必须显式输出该判断
    └── 禁止静默跳过此章节！
+   📎 KNOWLEDGE.md 写入触发条件（满足任一即必须写入）：
+   ├── 发现项目特有的技术约束或限制（如"该框架不支持 XX"）
+   ├── 用户明确表达的偏好或设计决策（如"我们用 snake_case"）
+   ├── 踩过的坑（如"XX 库在 YY 场景下会崩溃"）
+   ├── 非标准的环境配置或部署注意事项
+   ├── Bug 修复中发现的隐含业务规则
+   ├── 与第三方系统集成时的特殊约定
+   └── 跨子项目的共享约定或通信协议
 4️⃣ 🗄️ Schema / API 变更判断（🔴 必须输出，不得跳过！）
    ├── 本次是否涉及数据库 schema 变更？
    │   ├── 是 → 确认迁移文件已提交（up/down）+ database-schema.md 已同步
@@ -631,6 +729,15 @@ Subagent 返回后，PMO 必须：
 ├── 3. 输出合并的 PMO 阶段摘要
 ├── 4. 🚀 自动流转到下一阶段
 └── 5. subagent 失败 → 降级为主对话内执行，不能卡住流程
+
+⏱️ 超时参考阈值（不是硬限制，仅供 PMO 判断异常）：
+├── PRD Review / TC Review Subagent → 预期 3-5 分钟
+├── Architect Tech Review Subagent → 预期 5-8 分钟
+├── RD Develop Subagent → 预期 10-30 分钟（视功能复杂度）
+├── Architect Code Review Subagent → 预期 5-10 分钟
+├── Designer UI Subagent → 预期 5-15 分钟
+├── Integration Test Subagent → 预期 10-20 分钟
+└── 超过预期 2 倍时间无响应 → PMO 标记为疑似超时，降级到主对话执行
 ```
 
 ---
@@ -967,6 +1074,7 @@ PRD 打回更新后的级联影响：
 ```
 用户可通过命令主动切换角色：
 ├── /teamwork pm      → 切换到 PM
+├── /teamwork pl      → 切换到 Product Lead
 ├── /teamwork designer → 切换到 Designer
 ├── /teamwork qa      → 切换到 QA
 ├── /teamwork rd      → 切换到 RD

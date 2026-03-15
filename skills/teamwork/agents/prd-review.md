@@ -1,6 +1,8 @@
 # 多角色 Subagent：PRD 评审
 
 > 本文件定义 PRD 多角色评审 subagent 的执行规范。PMO 启动 subagent 时，让 subagent 先读取 `agents/README.md`，再读取本文件。
+>
+> `last-synced: 2026-03-15` · 对齐 SKILL.md / ROLES.md / RULES.md / REVIEWS.md
 
 ---
 

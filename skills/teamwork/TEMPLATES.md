@@ -1682,52 +1682,67 @@ graph LR
 
 ---
 
-## 规划状态
+## 产品规划引用（有 product-overview/ 时）
 
-> Workspace 级 Feature Planning 进行中时，PMO 维护此字段。非 Planning 状态下此章节可省略。
+> teamwork_space.md 的上游输入。状态同步自 product-overview 文档头部的规划状态表。
+> 只有 ✅ 已确认 的文档内容才会驱动 teamwork_space.md 的子项目规划。
+
+| 文档 | 路径 | 规划状态 |
+|------|------|----------|
+| 业务架构与产品规划 | 📎 [`product-overview/{项目名}_业务架构与产品规划.md`](product-overview/) | 📝 草稿 / 🔄 讨论中 / ✅ 已确认 |
+| 执行手册 | 📎 [`product-overview/{项目名}_执行手册.md`](product-overview/) | 📝 草稿 / 🔄 讨论中 / ✅ 已确认 |
+
+> 无 product-overview/ 的项目可省略此章节。
+> 规划状态含义：📝 初创未讨论 → 🔄 有活跃议题讨论中 → ✅ 用户确认可作为执行依据
+
+---
+
+## 规划状态
 
 | 字段 | 值 |
 |------|---|
 | 状态 | ✅ 正常 |
+| 当前阶段 | 初始化 / 架构规划中 / 开发中 |
 | 最近规划 | - |
 | 受影响子项目 | - |
 
 > 状态值：✅ 正常 / 📝 规划中 / ⏸️ 架构待确认 / 🔄 子项目 Planning 中 / ✅ 已完成
+> 当前阶段：初始化（仅引用 product-overview）→ 架构规划中（定义子项目）→ 开发中（正常运转）
+
+---
+
+## 执行线概览（有 product-overview/ 时）
+
+> 从执行手册中提取的执行线列表，作为后续子项目规划的输入。
+> 阶段 1（初始化）时只列执行线，不映射子项目（因为子项目尚未定义）。
+> 阶段 2（架构规划后）填入执行线 → 子项目映射。
+
+| 执行线 | 使命 | 对应子项目 | 当前阶段 |
+|--------|------|-----------|----------|
+| Line 1 · XXX | [从执行手册提取] | 待规划 / SUB_A, SUB_B | Phase 0 |
+| Line 2 · YYY | [从执行手册提取] | 待规划 / SUB_C | Phase 0 |
+
+> 一条执行线可以映射多个子项目，一个子项目也可以被多条执行线覆盖。
 
 ---
 
 ## 项目架构全景
 
-> 使用 Mermaid 展示子项目构成和依赖关系，一图看清全局。
+> 阶段 1（初始化）时此章节为空或仅包含占位说明。
+> 阶段 2（架构规划后）由 PM 在首次 Workspace Planning 中填入。
 
-```mermaid
-flowchart TB
-    subgraph 前端层
-        WEB[🖥️ web-app<br/>React + TypeScript<br/>用户界面交互]
-        ADMIN[📊 admin-panel<br/>Vue + TypeScript<br/>后台管理系统]
-    end
-    subgraph 服务层
-        AUTH[🔐 auth-service<br/>Go + Gin<br/>认证鉴权服务]
-    end
-    WEB -->|调用认证接口| AUTH
-    ADMIN -->|调用认证接口| AUTH
-
-    click WEB "packages/web-app/docs/PROJECT.md" "查看 Web App 项目总览"
-    click ADMIN "packages/admin/docs/PROJECT.md" "查看 Admin Panel 项目总览"
-    click AUTH "packages/auth-service/docs/PROJECT.md" "查看 Auth Service 项目总览"
-```
-
-> 依赖方向决定跨项目需求的推进顺序：被依赖方优先开发。
+（首次 Workspace Planning 后填入 Mermaid 架构图）
 
 ---
 
 ## 子项目清单
 
+> 阶段 1（初始化）时此表为空。
+> 阶段 2（架构规划后）由 PM 在首次 Workspace Planning 中填入。
+
 | 缩写 | 名称 | 简介 | 技术栈 | 需要 UI | 项目详情 |
 |------|------|------|--------|---------|----------|
-| AUTH | auth-service | 认证鉴权服务：登录、注册、Token 管理 | Go + Gin | 否 | 📎 [`PROJECT.md`](packages/auth-service/docs/PROJECT.md) |
-| WEB | web-app | 前端 Web 应用：用户界面交互 | React + TypeScript | 是 | 📎 [`PROJECT.md`](packages/web-app/docs/PROJECT.md) |
-| ADMIN | admin-panel | 后台管理系统：数据管理、运营配置 | Vue + TypeScript | 是 | 📎 [`PROJECT.md`](packages/admin/docs/PROJECT.md) |
+| （首次 Workspace Planning 后填入） | | | | | |
 
 ---
 
@@ -1737,7 +1752,7 @@ flowchart TB
 
 | 需求描述 | 涉及子项目 | 各子项目 Feature | 推进顺序 | 联调依赖 | 状态 |
 |----------|-----------|-----------------|----------|----------|------|
-| 用户登录 | AUTH, WEB | AUTH-F001, WEB-F001 | AUTH → WEB | WEB 依赖 AUTH 的 /api/v1/login 接口 | 进行中 |
+| （开发启动后填入） | | | | | |
 
 ---
 
@@ -1745,16 +1760,78 @@ flowchart TB
 
 | 日期 | 变更类型 | 变更内容 | 确认状态 |
 |------|----------|----------|----------|
-| YYYY-MM-DD | 初始化 | 自动扫描生成 | ⏸️ 待用户确认 / ✅ 已确认 |
-| YYYY-MM-DD | Workspace Planning | 产品方向调整：[简述] | 📝 规划中 / ✅ 已完成 |
+| YYYY-MM-DD | 初始化 | 从 product-overview 生成 / 自动扫描生成 | ⏸️ 待用户确认 / ✅ 已确认 |
+| YYYY-MM-DD | Workspace Planning | 首次架构规划：定义子项目结构 | 📝 规划中 / ✅ 已完成 |
+```
+
+### teamwork_space.md 生命周期
+
+```
+teamwork_space.md 随项目演进经历三个阶段：
+
+阶段 1 · 初始化（首次启动 teamwork 时自动创建）
+├── 触发：PMO 首次承接需求，发现无 teamwork_space.md
+├── 内容：
+│   ├── 有 product-overview/ → 引用产品规划文档 + 从执行手册提取执行线列表
+│   ├── 无 product-overview/ 但有代码目录 → 扫描生成子项目清单（走旧扫描逻辑）
+│   └── 都没有 → 创建空骨架，等用户定义
+├── 子项目清单：空（待 Workspace Planning 定义）
+├── 架构全景图：空
+├── 执行线映射中「对应子项目」列：全部标记「待规划」
+└── ⏸️ 用户确认后进入阶段 2
+
+阶段 2 · 架构规划（首次 Workspace Planning 或首个 CHG 执行时）
+├── 触发：用户确认开始架构规划 / 执行 CHG
+├── PM 在 Workspace Planning 中填入：
+│   ├── 子项目清单（缩写、名称、技术栈、简介）
+│   ├── 项目架构全景 Mermaid 图
+│   ├── 执行线 → 子项目映射
+│   └── 各子项目 ROADMAP 骨架
+├── ⏸️ 用户确认后进入阶段 3
+└── 此时可以创建 packages/ 等代码目录结构
+
+阶段 3 · 开发期（正常运转）
+├── 随 Feature 开发和变更级联不断更新
+├── 跨项目需求追踪表开始使用
+├── 变更记录持续维护
+└── 自上而下 / 自下而上双向更新
 ```
 
 ### teamwork_space.md 自动生成规则
 
 ```
-PMO 自动扫描项目结构生成 teamwork_space.md 的逻辑：
+PMO 首次生成 teamwork_space.md 的逻辑（按优先级判断项目状态）：
 
-扫描策略（按优先级）：
+路径 A：无 product-overview/、无代码目录（全新项目）
+├── PMO 创建 product-overview/ 目录 + teamwork_space.md 空骨架
+├── PMO 调度 Product Lead（引导模式）
+│   ├── PL 分析用户输入 → 主动产出产品架构草案 → 用户迭代确认
+│   ├── 产出 {项目名}_业务架构与产品规划.md
+│   ├── PL 基于已确认架构 → 主动推导执行方案草案 → 用户迭代确认
+│   ├── 产出 {项目名}_执行手册.md
+│   └── PL 更新 teamwork_space.md：填入产品规划引用 + 执行线列表
+├── ⏸️ 用户确认 teamwork_space.md
+└── 完成初始化 → 阶段 1
+
+路径 B：有 product-overview/（产品规划已存在，首次启动 teamwork）
+├── 读取执行手册 → 提取执行线列表（名称 + 使命）
+├── 填入「产品规划引用」章节
+├── 填入「执行线概览」章节（对应子项目列标记「待规划」）
+├── 其余章节留空
+└── ⏸️ 用户确认
+
+路径 C：无 product-overview/ 但有代码目录（已有代码的项目）
+├── 扫描项目结构生成子项目清单（走下方扫描策略）
+├── 「产品规划引用」和「执行线概览」章节省略
+├── 直接填入子项目清单和架构图
+└── ⏸️ 用户确认
+
+路径 D：无 product-overview/、无代码、用户不需要产品规划（纯技术项目）
+├── 创建空骨架
+├── 询问用户定义项目名
+└── ⏸️ 用户确认
+
+路径 B 扫描策略（按优先级）：
 ├── 1. monorepo 标志目录：packages/、apps/、services/、modules/、projects/
 ├── 2. 工作区配置文件：
 │   ├── package.json 中的 workspaces 字段
