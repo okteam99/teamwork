@@ -148,7 +148,9 @@ product-overview 规划状态        →    对 teamwork_space.md 的影响
 ├── 规划状态（状态表，见上方）
 ├── 执行线总览与依赖关系图（所有执行线一览 + Mermaid 依赖关系图）
 ├── 执行线定义（每条线：使命 + 各阶段行动项 + 跨线协作）
-│   └── 🔴 执行线是业务价值视角的「要做什么」，不绑定子项目缩写或 Feature 编号
+│   ├── 🔴 执行线是业务价值视角的「要做什么」，不绑定子项目缩写或 Feature 编号
+│   └── 🔴 每条线覆盖「把事情做成」的完整路径：不只是功能开发，
+│       包含运营、推广、内容、生态建设等所有必要工作
 ├── 待执行变更记录（CHG 表，讨论模式产出）
 └── 规划议题追踪（议题表，见上方）
 
@@ -1188,6 +1190,8 @@ Workspace Planning 完成 ✅
 | PL 结论待确认 | 阶段：⏸️ PL 结论待确认 | 下一步：用户确认后 PL 写入文档 / 进入执行模式 |
 | PL 执行模式 | 阶段：PL 变更评估中 | 下一步：⏸️ 等待用户确认 CHG 变更记录 |
 | CHG 待确认 | 阶段：⏸️ CHG 待确认 | 下一步：用户确认后启动 Feature Planning 级联 |
+| ⏳ 等待外部依赖 | 阶段：⏳ 等待外部依赖（DEP-XXX） | 下一步：依赖就绪后恢复推进 |
+| 外部依赖已就绪 | 阶段：外部依赖已就绪 | 下一步：⏸️ 用户确认后恢复 Feature 流程 |
 
 ### 用户回复处理
 
@@ -1725,6 +1729,7 @@ PMO 阶段摘要
 | PRD-REVIEW.md | PRD 多角色评审完成后 | PMO 汇总 | `{docs_root}/features/{缩写}-F{编号}-{功能名}/` |
 | TC-REVIEW.md | TC 多角色评审完成后 | PMO 汇总 | `{docs_root}/features/{缩写}-F{编号}-{功能名}/` |
 | BUG-REPORT.md | RD Bug 排查完成后 | RD | `{docs_root}/features/{缩写}-F{编号}-{功能名}/bugfix/` |
+| README.md（模块级） | 架构师 Tech Review 时创建或更新（模块技术架构 + 业务架构说明） | 架构师 | `{模块目录}/docs/README.md` |
 | ARCHITECTURE.md | 技术全景索引 + 架构师 Code Review 后更新（技术视角，给技术团队看） | 架构师（RD 视角切换） | `{docs_root}/architecture/` |
 | database-schema.md | schema 变更时同步（ARCHITECTURE.md 子文档，按需创建） | 架构师 | `{docs_root}/architecture/` |
 | api-design.md | API 变更时同步（ARCHITECTURE.md 子文档，按需创建） | 架构师 | `{docs_root}/architecture/` |
@@ -1738,6 +1743,8 @@ PMO 阶段摘要
 | integration_test/ | 首次集成测试时生成 | QA | `{docs_root}/integration_test/`（compose + 前置数据） |
 | ROADMAP.md | Feature Planning 流程时 PM 基于 PROJECT.md 生成（含 Wave 执行批次 + 并行度）+ Feature 完成时更新状态 + 追加技术债（如有） | PM / PMO | `{docs_root}/ROADMAP.md`（项目级） |
 | PROJECT.md | 初始化时创建（基础版本）+ Feature Planning 时 PM 同步更新 + Feature 完成后 PMO 更新（业务视角，给老板看） | PM / PMO | 各 `{子项目路径}/docs/PROJECT.md` |
+| .teamwork_localconfig.md | 首次启动时引导用户创建（本地配置，不提交 git） | 用户 | 项目根目录 |
+| DEPENDENCY-REQUESTS.md | 开发过程中发现跨模块依赖时创建 | PMO | `{子项目路径}/docs/DEPENDENCY-REQUESTS.md` |
 
 ---
 
@@ -1780,6 +1787,36 @@ RD: TECH 文档是否需要整理？
 │   ├── 发现 1 个子项目 → 提示用户确认，生成 teamwork_space.md（含该子项目）
 │   └── 未发现子项目 → 询问用户定义项目名，生成 teamwork_space.md（作为单个子项目）
 └── 🔴 禁止在用户确认前写入 teamwork_space.md！
+```
+
+**Step 0-A2: 检查 `.teamwork_localconfig.md`（多人协作配置）**：
+```
+如果 .teamwork_localconfig.md 存在：
+├── 读取当前用户负责的子项目列表
+├── scope = all → 用户负责所有子项目
+├── scope = 指定子项目列表 → 用户只负责列出的子项目
+├── 后续 PMO 分析需求时优先聚焦用户负责的子项目
+└── 输出提示：「👤 当前负责模块：[子项目列表] / 全部」
+
+如果不存在或为空：
+├── ⏸️ 提示用户选择负责的子项目（可多选，或选择「全部」）
+├── 用户选择后生成 .teamwork_localconfig.md
+└── 🔴 此文件为本地配置，应加入 .gitignore，不提交到仓库
+```
+
+**Step 0-A3: 扫描外部依赖请求（用户负责的子项目）**：
+```
+🔴 scope = all 时跳过此步骤（自己负责所有模块，不存在跨人依赖）
+
+scope = 指定子项目时，遍历用户负责的子项目，检查 {子项目路径}/docs/DEPENDENCY-REQUESTS.md：
+├── 存在且有未解决请求（状态 ≠ ✅ 已完成）：
+│   ├── 汇总所有待处理的外部依赖请求
+│   ├── 按优先级排序（🔴 阻塞 > 🟡 影响进度 > 🟢 非紧急）
+│   └── ⏸️ 提醒用户：
+│       「📬 你负责的模块有 N 条外部依赖请求待处理：
+│        [请求列表摘要]
+│        建议优先处理阻塞级请求。是否先处理依赖请求，还是继续新需求？」
+└── 不存在或无待处理请求 → 跳过
 ```
 
 **Step 0-B: 加载本地知识库（如存在）**：
@@ -1891,13 +1928,19 @@ mkdir -p {子项目路径}/docs/architecture
 ✅ CLAUDE.md 已更新（自动加载规则已注入）
 ✅ 基础目录已创建
 📦 项目空间：已加载（X 个子项目）
+👤 当前负责模块：[子项目列表] / 全部
 📚 本地知识库：已加载 / 无历史知识
 
 子项目列表：
-| 缩写 | 名称 | 技术栈 | 需要 UI |
-|------|------|--------|---------|
-| AUTH | auth-service | Go + Gin | 否 |
-| WEB | web-app | React + TS | 是 |
+| 缩写 | 名称 | 技术栈 | 需要 UI | 我负责 |
+|------|------|--------|---------|--------|
+| AUTH | auth-service | Go + Gin | 否 | ✅ |
+| WEB | web-app | React + TS | 是 | ✅ |
+| ADMIN | admin-panel | React + TS | 是 | — |
+
+📬 外部依赖请求（如有）：
+├── [🔴 阻塞] AUTH 请求你的 WEB 模块提供 SSO 回调接口（来自 @张三）
+└── [🟢 非紧急] ADMIN 请求你的 AUTH 模块开放角色查询 API（来自 @李四）
 
 知识库摘要（如有）：
 ├── 全局：[跨项目经验]
