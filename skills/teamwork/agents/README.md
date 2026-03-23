@@ -98,6 +98,9 @@ PMO 使用 Task 工具启动 subagent，prompt 结构：
 - 文档目录：{子项目路径}/docs/features/{缩写}-F{编号}-{功能名}/
 - 项目根目录：{项目根目录路径}
 - 任务：{具体任务描述}
+- 子项目类型：{business / midplatform}（midplatform 时需关注消费方影响）
+  📎 PMO 从 teamwork_space.md「子项目」表的「类型」列读取
+- 业务关联：{无 / BG-xxx-业务目标}（跨项目 Feature 时提供）
 
 ⚠️ 所有文档和代码操作都在子项目路径下进行，不要操作其他子项目的文件。
 ```
@@ -143,11 +146,13 @@ Subagent 返回后，PMO 必须：
 
 | 文件 | 角色 | 阶段 | 说明 |
 |------|------|------|------|
-| [prd-review.md](./prd-review.md) | 多角色 | PRD 多角色评审 | PM 输出 PRD 后触发 |
+| [pl-pm-discuss.md](./pl-pm-discuss.md) | PL + PM | PL-PM 协同讨论（🆕 Teams 模式） | PM 输出 PRD 初稿后触发，PMO 交替启动 PL/PM 两个 Agent |
+| [prd-review.md](./prd-review.md) | 多角色 | PRD 多角色评审 | PL-PM 讨论收敛 + PRD 定稿后触发 |
 | [tc-review.md](./tc-review.md) | 多角色 | TC 多角色评审 | QA 输出 TC 后触发 |
 | [arch-tech-review.md](./arch-tech-review.md) | 架构师 | 技术方案 Review | RD 输出技术方案后触发 |
 | [rd-develop.md](./rd-develop.md) | RD | TDD 开发 + 自查 | 技术方案用户确认后触发 |
 | [arch-code-review.md](./arch-code-review.md) | 架构师 | Code Review + 架构文档更新 | TDD Subagent 完成后触发 |
+| [qa-code-review.md](./qa-code-review.md) | QA | 代码审查（读代码 + TC 逐条验证） | 架构师 Code Review 通过 + UI 验收通过（如有）后触发 |
 | [ui-design.md](./ui-design.md) | Designer | UI 设计 | PRD 用户确认后 + 需要 UI 时触发 |
 | [integration-test.md](./integration-test.md) | QA | 集成测试 | QA 前置检查通过后触发 |
 
