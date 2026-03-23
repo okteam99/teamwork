@@ -516,10 +516,13 @@ PMO 识别需求应路由到中台子项目的信号：
 ├── 技术类需求（框架升级、构建优化、SDK 封装）
 └── teamwork_space.md 中已有 midplatform 子项目匹配该职责
 
-路由到 midplatform 子项目后的 PMO 行为差异（仅此三点，其余完全不变）：
+路由到 midplatform 子项目后的 PMO 行为差异（仅此四点，其余完全不变）：
 ├── 1. 提示 PM 在 PRD 中补充「消费方分析」章节（模板见 TEMPLATES.md）
-├── 2. PL-PM Teams 讨论时，PL 额外关注「通用性」和「对消费方的影响」
-└── 3. Feature 完成时，PMO 提醒是否需要通知消费方子项目启动接入
+├── 2. 纯技术性 Feature → 建议 PM 使用「技术类 PRD 模板」（模板见 TEMPLATES.md）
+│      识别信号：CI/CD、部署、monorepo 配置、共享中间件、监控、域名、构建工具等
+│      🔴 仅建议，PM 可选择标准模板；非 INFRA 子项目的纯技术 Feature 也可选用技术类模板
+├── 3. PL-PM Teams 讨论时，PL 额外关注「通用性」和「对消费方的影响」
+└── 4. Feature 完成时，PMO 提醒是否需要通知消费方子项目启动接入
 ```
 
 

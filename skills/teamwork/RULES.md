@@ -34,6 +34,7 @@
 | **CHG 变更记录确认** | Product Lead 执行模式 | PL 产出 CHG 变更记录后，必须等用户确认变更范围和影响评估 |
 | **变更影响评估确认** | 变更级联（Level 2/3） | PL 输出变更影响评估报告后，必须等用户确认后才能启动级联更新 |
 | **全景设计确认** | Feature Planning / Feature 流程 | Designer Subagent 产出全景设计（sitemap.md + overview.html）后，必须等用户确认 |
+| **INFRA 影响面确认** | INFRA Feature 或技术类 PRD 影响 ≥3 个子项目 | 架构师 Review / PRD 评审发现影响面过大，需用户确认后继续 |
 | **UI 还原验收** | Feature 流程（有 UI） | Designer 验收 RD 的 UI 实现，每轮修改后需用户确认（最多 3 轮） |
 | **外部依赖就绪恢复** | Feature 被阻塞后依赖就绪 | 依赖就绪后 PMO 提醒用户，必须用户确认后才恢复 Feature 流程 |
 
@@ -1356,6 +1357,8 @@ PMO 判断阻塞类型：
 ├── 存储位置：teamwork_space.md「跨项目需求追踪」表的「业务关联 ID」列（唯一权威来源）
 ├── 反向引用：各子项目 Feature 的 STATUS.md「业务关联」字段引用 BG-xxx
 ├── 单子项目 Feature 不分配 BG（STATUS.md 业务关联字段填 -）
+├── INFRA（及其他 midplatform）Feature 不默认建 BG——midplatform Feature 天然服务多个子项目，
+│   只有当其他子项目需要主动配合改动时才分配 BG（如「迁移 CI 系统，各子项目需更新配置」）
 ├── PMO 分配时读取 teamwork_space.md 已有 BG 编号，取最大值 +1
 └── 🔴 冲突防护：PMO 分配 BG 编号后，立即写入 teamwork_space.md 并提交。
     分配前必须重新读取 teamwork_space.md 获取最新编号（不可使用缓存值）。
