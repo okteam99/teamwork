@@ -17,12 +17,15 @@ Four workflow types are supported:
 
 ### Key Features
 
-- **7 Subagent-automated stages**: PRD Review, TC Review, UI Design, Architect TECH Review, TDD Dev + Self-check, Architect Code Review, Integration Testing
+- **9 Subagent-automated stages**: PL-PM Discussion, PRD Review, TC Review, UI Design, Architect TECH Review, TDD Dev + Self-check, Architect Code Review, QA Code Review, Integration Testing
+- **PL-PM Teams Discussion**: After PM drafts the PRD, PL and PM engage in multi-round Agent-based discussion to converge and finalize the PRD before review
 - **Product Lead role**: Three modes — Guided Init (build product-overview from scratch), Discussion (product direction with CHG records), Execution (cascade changes across sub-projects)
 - **Multi-role review**: PRD and TC are automatically reviewed from multiple perspectives via Subagent
 - **Product-wide UI design**: design/sitemap.md + design/preview/overview.html as single source of truth for product UI
 - **Change cascade**: 3-level impact assessment (L1 Feature / L2 Module / L3 Direction) with bottom-up escalation
-- **Multi-project mode**: teamwork_space.md orchestrates multiple sub-projects with cross-project dependency tracking
+- **Multi-project mode**: teamwork_space.md orchestrates multiple sub-projects with business / midplatform types and cross-project dependency tracking
+- **Midplatform sub-project support**: midplatform-type sub-projects automatically trigger consumer analysis, compatibility review, and enhanced evaluation processes
+- **Feature status tracking**: STATUS.md in each Feature directory serves as single source of truth for status; PMO auto-updates on every stage transition
 - **Pause-point control**: Key decision nodes wait for explicit user confirmation
 - **Knowledge accumulation**: Lessons learned are captured in KNOWLEDGE.md after each feature
 - **TDD-driven development**: Tests are written before implementation code
@@ -67,12 +70,14 @@ teamwork/
 │       ├── TEMPLATES.md          # Document templates (PRD/TC/TECH/ROADMAP etc.)
 │       ├── agents/               # Subagent specs
 │       │   ├── README.md             # Common conventions
+│       │   ├── pl-pm-discuss.md      # PL-PM collaborative discussion (Teams mode)
 │       │   ├── prd-review.md         # PRD multi-role review
 │       │   ├── tc-review.md          # TC multi-role review
 │       │   ├── ui-design.md          # Designer UI design (incremental + full rebuild)
 │       │   ├── arch-tech-review.md   # Architect TECH review
 │       │   ├── rd-develop.md         # RD TDD development + self-check
 │       │   ├── arch-code-review.md   # Architect Code Review + arch doc update
+│       │   ├── qa-code-review.md     # QA code review (read code + TC verification)
 │       │   └── integration-test.md   # QA integration testing
 │       └── standards/            # Coding standards by tech stack
 │           ├── common.md             # Shared: TDD checklist, architecture, self-check
@@ -88,7 +93,9 @@ teamwork/
 ```
 PMO analysis → identify type → switch role
   ↓
-PM → PRD
+PM → PRD draft
+  ↓
+🤖 PL-PM Teams discussion (Subagent: PL review + PM response, multi-round convergence) → PRD finalized
   ↓
 🤖 PRD multi-role review (Subagent: RD / Designer / QA / PMO perspectives)
   ↓
@@ -114,7 +121,7 @@ RD → technical plan
   ↓
 Designer → UI implementation review (if UI, max 3 rounds)
   ↓
-QA → code review
+🤖 QA → code review (Subagent: read code + TC verification)
   ↓
 QA → integration test pre-check → 🤖 integration test (Subagent)
   ↓

@@ -17,12 +17,15 @@ Teamwork 通过模拟 **PMO / Product Lead / PM / Designer / QA / RD / 资深架
 
 ### 核心特性
 
-- **7 个 Subagent 自动化阶段**：PRD 评审、TC 评审、UI 设计、架构师 TECH Review、TDD 开发+自查、架构师 Code Review、集成测试
+- **9 个 Subagent 自动化阶段**：PL-PM 协同讨论、PRD 评审、TC 评审、UI 设计、架构师 TECH Review、TDD 开发+自查、架构师 Code Review、QA 代码审查、集成测试
+- **PL-PM Teams 讨论**：PM 输出 PRD 初稿后，PL 与 PM 通过多轮 Agent 交替讨论收敛定稿，再进入评审
 - **Product Lead 角色**：三种模式 — 引导模式（从零构建产品规划）、讨论模式（产品方向讨论 + CHG 变更记录）、执行模式（变更级联评估）
 - **多角色评审机制**：PRD 和 TC 均通过多视角 Subagent 自动评审
 - **产品全景设计**：design/sitemap.md + design/preview/overview.html 作为产品 UI 的 Single Source of Truth
 - **变更级联规则**：三级影响评估（L1 功能级 / L2 业务模块级 / L3 方向级）+ 自下而上影响升级
-- **多子项目模式**：teamwork_space.md 统筹多个子项目，跨项目需求追踪与依赖管理
+- **多子项目模式**：teamwork_space.md 统筹多个子项目，支持 business / midplatform 两种子项目类型，跨项目需求追踪与依赖管理
+- **中台子项目支持**：midplatform 类型子项目自动触发消费方分析、兼容性评审等增强流程
+- **Feature 状态追踪**：每个 Feature 目录下的 STATUS.md 作为状态 Single Source of Truth，PMO 每次阶段流转自动更新
 - **完整的暂停点控制**：关键决策节点等待用户确认
 - **知识库积累**：每个功能完成后自动沉淀知识到 KNOWLEDGE.md
 - **TDD 驱动开发**：先写测试再写代码，确保代码质量
@@ -67,12 +70,14 @@ teamwork/
 │       ├── TEMPLATES.md          # 文档模板（PRD/TC/TECH/ROADMAP 等）
 │       ├── agents/               # Subagent 规范
 │       │   ├── README.md             # 通用规范
+│       │   ├── pl-pm-discuss.md      # PL-PM 协同讨论（Teams 模式）
 │       │   ├── prd-review.md         # PRD 多角色评审
 │       │   ├── tc-review.md          # TC 多角色评审
 │       │   ├── ui-design.md          # Designer UI 设计（增量模式 + 全景重建模式）
 │       │   ├── arch-tech-review.md   # 架构师技术方案 Review
 │       │   ├── rd-develop.md         # RD TDD 开发 + 自查
 │       │   ├── arch-code-review.md   # 架构师 Code Review + 架构文档更新
+│       │   ├── qa-code-review.md     # QA 代码审查（读代码 + TC 逐条验证）
 │       │   └── integration-test.md   # QA 集成测试
 │       └── standards/            # 按技术栈拆分的编码规范
 │           ├── common.md             # 通用：TDD 检查清单、架构规范、自查规范
@@ -88,7 +93,9 @@ teamwork/
 ```
 PMO 分析 → 识别类型 → 切换角色
   ↓
-PM → PRD
+PM → PRD 初稿
+  ↓
+🤖 PL-PM Teams 讨论（Subagent：PL 审查 + PM 回应，多轮收敛）→ PRD 定稿
   ↓
 🤖 PRD 多角色评审（Subagent：RD / Designer / QA / PMO 四个视角）
   ↓
@@ -114,7 +121,7 @@ RD → 技术方案
   ↓
 Designer → UI 还原验收（如有 UI，最多 3 轮）
   ↓
-QA → 代码审查
+🤖 QA → 代码审查（Subagent：读代码 + TC 逐条验证）
   ↓
 QA → 集成测试前置检查 → 🤖 集成测试（Subagent）
   ↓
