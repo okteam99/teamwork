@@ -27,7 +27,7 @@
 ├── docs/features/F{编号}-{功能名}/UI.md     ← 核对技术方案是否支撑 UI 设计
 ├── docs/features/F{编号}-{功能名}/preview/  ← HTML 预览稿
 ├── docs/KNOWLEDGE.md                         ← 项目知识库
-└── docs/architecture/{项目}/ARCHITECTURE.md  ← 核对与现有架构的一致性
+└── docs/architecture/ARCHITECTURE.md  ← 核对与现有架构的一致性
 ```
 
 ---
@@ -88,20 +88,27 @@ Step 4: 按 Review 维度逐项审查技术方案
 Step 5: 如发现问题，尝试内部修正：
 ├── 可直接修正（明确的小错误/遗漏）→ 修正 TECH.md 并在报告中说明
 └── 需要 RD 重大修改 → 记录到问题清单
-Step 6: 更新 database-schema.md 设计层内容（涉及 schema 变更时）
-├── 读取 docs/architecture/database-schema.md
-├── 更新「设计原则」章节（如有新增跨 Feature 的 schema 设计标准）
-├── 更新「ER 关系图」（新增表/关联关系变更时）
-├── 更新「核心表说明」（新增表结构 / 修改字段定义 / 索引变更）
-├── 🔴 仅更新设计层内容（表结构、ER 图、设计原则），不更新实现层（Model 映射、SQL 引用点）
-│   └── 实现层内容在 Code Review 阶段由架构师补充（代码写完后才知道）
-├── 无 schema 变更 → 注明「database-schema.md 无需更新」
-└── 不存在时 → 按 TEMPLATES.md 模板创建
+Step 6: 更新架构子文档设计层内容（按技术方案涉及的范围）
+├── database-schema.md（涉及 schema 变更时）：
+│   ├── 更新「设计原则」章节（如有新增跨 Feature 的 schema 设计标准）
+│   ├── 更新「ER 关系图」（新增表/关联关系变更时）
+│   ├── 更新「核心表说明」（新增表结构 / 修改字段定义 / 索引变更）
+│   └── 不存在时 → 按 TEMPLATES.md 模板创建
+├── api-design.md（涉及 API 变更时）：
+│   ├── 更新「接口清单」（新增/修改的 API 端点）
+│   ├── 更新「版本策略」（如有 Breaking Change）
+│   └── 不存在时 → 按 TEMPLATES.md 模板创建
+├── deployment.md（涉及部署/基础设施变更时）：
+│   ├── 更新部署架构 / 环境配置
+│   └── 不存在时 → 按 TEMPLATES.md 模板创建
+├── 🔴 仅更新设计层内容（结构、接口定义、设计原则），不更新实现层细节
+│   └── 实现层（Model 映射、SQL 引用点、具体代码路径）在 Code Review 阶段补充
+├── 无架构子文档变更 → 注明「架构子文档无需更新」
+└── ARCHITECTURE.md 本体 → 不修改（等 Code Review 阶段统一更新）
 Step 7: 检查模块文档是否需要更新
 ├── 定位技术方案涉及的代码模块目录
 ├── 检查 {模块目录}/docs/README.md 是否需要更新
-├── 需要更新 → 记录到 Review 报告「文档更新建议」，由 RD 开发阶段或 Code Review 阶段执行
-└── 📎 ARCHITECTURE.md 本体的更新仍在 Code Review 阶段执行
+└── 需要更新 → 记录到 Review 报告「文档更新建议」，由 RD 开发阶段或 Code Review 阶段执行
 Step 8: 输出 Review 报告
 ```
 

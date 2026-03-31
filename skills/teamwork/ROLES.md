@@ -1326,12 +1326,12 @@ RD 在以下情况必须标记「⚠️ 上游影响」：
 架构文档两阶段更新分工：
 
 阶段 1：Tech Review 后（arch-tech-review Subagent 执行）
-├── database-schema.md 设计层更新：
-│   ├── 设计原则（跨 Feature 的 schema 设计标准）
-│   ├── ER 关系图（新增表/关联关系）
-│   ├── 核心表说明（表结构、字段、索引）
-│   └── 🔴 仅更新设计层，不更新 Model 映射和 SQL 引用点
-├── ARCHITECTURE.md → 不修改（等 Code Review）
+├── 架构子文档设计层更新（按技术方案涉及的范围）：
+│   ├── database-schema.md（涉及 schema 变更时）→ 表结构、ER 图、设计原则
+│   ├── api-design.md（涉及 API 变更时）→ 接口清单、版本策略
+│   ├── deployment.md（涉及部署变更时）→ 部署架构、环境配置
+│   └── 🔴 仅更新设计层，不更新实现层细节（Model 映射、SQL 引用点、代码路径）
+├── ARCHITECTURE.md 本体 → 不修改（等 Code Review）
 
 阶段 2：Code Review 后（arch-code-review Subagent 执行）
 ├── ARCHITECTURE.md 更新：
@@ -1368,7 +1368,7 @@ RD 在以下情况必须标记「⚠️ 上游影响」：
 │
 ├── 4️⃣ 架构文档更新：
 │   ├── 更新内容：[具体更新了什么 / 无需更新]
-│   └── 更新文件：docs/architecture/{项目}/ARCHITECTURE.md
+│   └── 更新文件：docs/architecture/ARCHITECTURE.md
 │
 ├── Review 结论：✅ 通过 / ⚠️ 有建议 / ❌ 需修改
 └── 修改后结论：✅ 通过（如修改后重新 Review）

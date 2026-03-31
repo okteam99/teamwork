@@ -23,7 +23,7 @@
 │
 可选文件（存在则读取）：
 ├── docs/KNOWLEDGE.md                         ← 项目知识库（了解项目背景）
-└── docs/architecture/{项目}/ARCHITECTURE.md  ← 架构文档（了解现有架构）
+└── docs/architecture/ARCHITECTURE.md  ← 架构文档（了解现有架构）
 ```
 
 ---

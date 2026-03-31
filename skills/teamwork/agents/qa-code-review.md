@@ -27,7 +27,7 @@
 ├── 架构师 Code Review 报告（Subagent 返回内容中）  ← 了解已发现的架构问题
 │
 可选文件（存在则读取）：
-├── docs/architecture/{项目}/ARCHITECTURE.md       ← 理解模块结构
+├── docs/architecture/ARCHITECTURE.md       ← 理解模块结构
 ├── .claude/skills/teamwork/standards/backend.md   ← 后端测试规范（后端项目加载）
 └── .claude/skills/teamwork/standards/frontend.md  ← 前端测试规范（前端项目加载）
 ```

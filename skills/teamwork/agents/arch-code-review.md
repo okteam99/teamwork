@@ -26,7 +26,7 @@
 ├── RD 自查报告（Subagent 返回内容中）         ← 了解自查已发现的问题
 │
 可选文件（存在则读取）：
-├── docs/architecture/{项目}/ARCHITECTURE.md  ← 核对与现有架构的一致性
+├── docs/architecture/ARCHITECTURE.md  ← 核对与现有架构的一致性
 ├── docs/features/F{编号}-{功能名}/UI.md     ← 核对 UI 相关实现
 ├── docs/KNOWLEDGE.md                         ← 项目知识库
 └── docs/features/F{编号}-{功能名}/TC.md     ← 核对测试覆盖
@@ -87,7 +87,7 @@ Step 4: 如发现问题，尝试内部修正：
 └── 大问题（架构不合理、方案偏离等）→ 记录到问题清单
 Step 5: 更新架构文档
 ├── ARCHITECTURE.md：
-│   ├── 读取 docs/architecture/{项目}/ARCHITECTURE.md
+│   ├── 读取 docs/architecture/ARCHITECTURE.md
 │   ├── 根据代码变更更新相关章节（模块说明、架构图、目录结构等）
 │   ├── 更新「最后更新」字段
 │   └── 无架构变更则注明「ARCHITECTURE.md 无需更新」
@@ -122,7 +122,7 @@ Step 6: 输出 Review 报告
 ## 五、架构文档更新规则
 
 ```
-📁 架构文档位置：docs/architecture/{项目}/
+📁 架构文档位置：docs/architecture/
 
 🔴 两阶段更新分工（database-schema.md）：
 ├── Tech Review 后（arch-tech-review）→ 更新设计层：表结构、ER 图、设计原则
@@ -172,7 +172,7 @@ ARCHITECTURE.md 更新规则（仅 Code Review 阶段执行）：
 │
 ├── 4️⃣ 架构文档更新：
 │   ├── 更新内容：[具体更新了什么 / 无需更新]
-│   └── 更新文件：docs/architecture/{项目}/ARCHITECTURE.md
+│   └── 更新文件：docs/architecture/ARCHITECTURE.md
 │
 ├── Review 结论：✅ 通过 / ⚠️ 有建议 / ❌ 需修改
 └── 修改说明（如有内部修正）：[修正了哪些文件的什么问题]

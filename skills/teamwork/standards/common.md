@@ -100,7 +100,7 @@
 ### 架构文档维护规则
 
 > **维护责任人**：资深架构师（在架构师 Code Review Subagent 中执行）
-> **文档位置**：`docs/architecture/{项目}/ARCHITECTURE.md`
+> **文档位置**：`docs/architecture/ARCHITECTURE.md`
 
 ```
 ❌ 禁止：

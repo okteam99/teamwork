@@ -30,7 +30,7 @@ PMO 在启动 prompt 中通过 `模式：增量` 或 `模式：全景重建` 指
 可选文件（存在则读取）：
 ├── docs/design/sitemap.md                    ← 产品全景页面地图（了解现有页面全貌）
 ├── docs/KNOWLEDGE.md                         ← 项目知识库（设计偏好）
-├── docs/architecture/{项目}/ARCHITECTURE.md  ← 架构文档（了解现有页面结构）
+├── docs/architecture/ARCHITECTURE.md  ← 架构文档（了解现有页面结构）
 └── 项目现有页面文件                            ← 基于现有页面迭代（PMO 在 prompt 中指定）
 ```
 
@@ -45,7 +45,7 @@ PMO 在启动 prompt 中通过 `模式：增量` 或 `模式：全景重建` 指
 ├── docs/design/sitemap.md                    ← 旧版页面地图（了解历史，但会被重建覆盖）
 ├── docs/design/preview/overview.html         ← 旧版全景原型（了解历史，但会被重建覆盖）
 ├── docs/KNOWLEDGE.md                         ← 项目知识库（设计偏好）
-└── docs/architecture/{项目}/ARCHITECTURE.md  ← 架构文档（了解技术约束）
+└── docs/architecture/ARCHITECTURE.md  ← 架构文档（了解技术约束）
 
 ⚠️ 注意：全景重建在 ROADMAP 拆解之前执行，此时新 ROADMAP 尚不存在。
 重建依据来自 PM 与用户的讨论结论（由 PMO 在启动 prompt 中提供）。
