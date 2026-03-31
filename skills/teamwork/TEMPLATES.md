@@ -2480,36 +2480,20 @@ scope:
 | 期望完成 | 2026-03-20 |
 | 状态 | ⏳ 待处理 |
 
-**业务场景**：
+**业务场景**（请求方填写）：
 用户在 WEB 端通过第三方 SSO 登录后，SSO Provider 回调到 AUTH 服务验证身份并签发 Token，WEB 拿到 Token 后完成登录流程。
 
-**期望被依赖方实现**：
-AUTH 模块新增 SSO 回调端点，验证 SSO Provider 的回调参数，创建或关联本地用户，签发 JWT Token。
+**期望能力**（请求方填写 — 描述需要什么，不定义怎么实现）：
+- AUTH 模块能接收 SSO Provider 的回调，验证授权码有效性
+- 自动创建或关联本地用户
+- 返回可用于后续请求的认证凭证
 
-**接口定义**（请求方期望的契约，被依赖方可调整）：
+**接口定义**（被依赖方处理时填写）：
+
+> 📎 由被依赖方根据自身架构设计，请求方不预设接口形态。
 
 ```
-POST /api/v1/auth/sso/callback
-
-请求参数：
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| provider | string | 是 | SSO 提供方标识（如 google, github） |
-| code | string | 是 | SSO 授权码 |
-| redirect_uri | string | 是 | 回调地址（需校验白名单） |
-
-返回（成功 200）：
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| access_token | string | JWT Token |
-| user_id | string | 本地用户 ID |
-| is_new_user | boolean | 是否为首次 SSO 登录创建的新用户 |
-
-返回（失败 401）：
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| error | string | 错误码（invalid_code / provider_error / redirect_mismatch） |
-| message | string | 人可读的错误描述 |
+（被依赖方在此填写实际接口设计：端点、请求参数、返回字段、错误码）
 ```
 
 **处理记录**：
