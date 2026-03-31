@@ -154,7 +154,11 @@ RD 开发完成（测试通过）
 │   ├── 是否有设计不足（该抽象没抽象）
 │   └── 扩展点是否合理
 ├── 文档同步
-│   └── 新增/修改的模块是否已更新到 ARCHITECTURE.md
+│   ├── 新增/修改的模块是否已更新到 ARCHITECTURE.md
+│   └── 决策归属检查：本次开发中产生的设计决策是否放对了位置？
+│       ├── 跨 Feature 的架构标准 → architecture/（ARCHITECTURE.md 或子文档的「设计原则」）
+│       ├── 单 Feature 的技术选型 → TECH.md
+│       └── 📎 判断标准：这个决策在下一个 Feature 中还需要遵守吗？是 → architecture
 └── 数据源验证（禁止凭假设编码，必须追溯确认）
     ├── 跨服务字段：读取其他服务的 JSON/protobuf 字段时，追溯到源端确认字段名和值域
     ├── DB Schema：SQL 引用的列必须确认存在于目标表（不同表的列集不同，如 projects 有 deleted_at 但 agents 没有）
