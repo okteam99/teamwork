@@ -151,6 +151,43 @@
 ### P2 (可选)
 -
 
+## 业务流程图 / 交互时序图（按需必填）
+
+> 满足以下任一条件时必须画图，不能只用文字描述：
+> - 用户操作超过 3 步且有分支路径
+> - 涉及 2 个及以上系统/服务交互
+> - 有状态流转（如订单状态、审批流）
+> - 有异步流程或回调
+>
+> 不满足以上条件的简单功能可省略本节。
+> 📎 图表规范见 standards/common.md「五、文档流程图规范」，统一使用 Mermaid。
+
+### 业务流程（flowchart，多步骤/有分支时必填）
+```mermaid
+flowchart TD
+    A[起始] --> B{判断}
+    B -->|条件1| C[步骤]
+    B -->|条件2| D[步骤]
+```
+
+### 系统交互时序（sequenceDiagram，多系统交互时必填）
+```mermaid
+sequenceDiagram
+    participant U as 用户
+    participant C as 客户端
+    participant S as 服务端
+    U->>C: 操作
+    C->>S: 请求
+    S-->>C: 响应
+```
+
+### 状态流转（stateDiagram，有状态机时必填）
+```mermaid
+stateDiagram-v2
+    [*] --> 状态A
+    状态A --> 状态B: 触发条件
+```
+
 ## 验收标准
 - [ ]
 
