@@ -155,6 +155,7 @@ Subagent 返回后，PMO 必须：
 | [qa-code-review.md](./qa-code-review.md) | QA | 代码审查（读代码 + TC 逐条验证） | 架构师 Code Review 通过 + UI 验收通过（如有）后触发 |
 | [ui-design.md](./ui-design.md) | Designer | UI 设计 | PRD 用户确认后 + 需要 UI 时触发 |
 | [integration-test.md](./integration-test.md) | QA | 集成测试 | QA 前置检查通过后触发 |
+| [qa-e2e.md](./qa-e2e.md) | QA | E2E 端到端验收（AI 浏览器操作） | QA 集成测试通过 + 子项目 E2E = 是 时触发 |
 
 > 后续扩展新 subagent 时，在本目录新增对应 `.md` 文件并更新此表。
 > ⚠️ Feature Planning 流程中 PM 在主对话中执行（需要与用户交互）。PM 与用户讨论达成共识后，有 UI 的子项目先启动 Designer Subagent（全景重建模式）验收全景设计，确认后再更新 PROJECT.md 并拆解 ROADMAP。

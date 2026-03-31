@@ -2,7 +2,7 @@
 
 > 本文件定义 PL-PM 协同讨论的执行规范。使用两个独立 Agent 实例交替讨论，通过文件系统传递观点。PMO 在主对话中负责编排。
 >
-> `last-synced: 2026-03-22` · 对齐 SKILL.md / ROLES.md / RULES.md
+> `last-synced: 2026-03-30` · 对齐 SKILL.md / ROLES.md / RULES.md
 
 ---
 

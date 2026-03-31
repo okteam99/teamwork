@@ -2,7 +2,7 @@
 
 > 本文件定义架构师技术方案 Review subagent 的执行规范。PMO 启动 subagent 时，让 subagent 先读取 `agents/README.md`，再读取本文件。
 >
-> `last-synced: 2026-03-15` · 对齐 SKILL.md / ROLES.md / RULES.md / REVIEWS.md
+> `last-synced: 2026-03-30` · 对齐 SKILL.md / ROLES.md / RULES.md / REVIEWS.md
 
 ---
 
@@ -61,7 +61,12 @@
 │   ├── 迁移方案是否合理（新增表/字段/索引/约束）
 │   ├── 是否有破坏性变更（删列/改类型），风险是否可控
 │   ├── 是否声明了 up/down 迁移策略
-│   └── 是否需要数据迁移（非纯 DDL）
+│   ├── 是否需要数据迁移（非纯 DDL）
+│   └── 🔴 Schema 影响分析完整性（TECH.md「Schema 影响分析」表）：
+│       ├── 影响分析表是否列出了所有引用变更表的 Model/Struct？
+│       ├── 是否覆盖了所有子项目（不仅是当前子项目）？
+│       ├── 验证方法：独立 grep 项目代码，对照 TECH.md 影响分析表查漏
+│       └── database-schema.md「Model/Struct 映射」表是否与影响分析一致？
 ├── API 版本策略（如涉及 API 变更）
 │   ├── 是否为 Breaking Change，是否需要升版本号
 │   ├── 旧版本废弃计划是否合理
@@ -83,11 +88,11 @@ Step 4: 按 Review 维度逐项审查技术方案
 Step 5: 如发现问题，尝试内部修正：
 ├── 可直接修正（明确的小错误/遗漏）→ 修正 TECH.md 并在报告中说明
 └── 需要 RD 重大修改 → 记录到问题清单
-Step 6: 维护代码所属技术栈模块的 {模块目录}/docs/README.md
+Step 6: 检查模块文档是否需要更新
 ├── 定位技术方案涉及的代码模块目录
-├── {模块目录}/docs/README.md 不存在 → 创建 docs/ 目录并生成 README.md
-├── {模块目录}/docs/README.md 已存在 → 增量更新受影响的部分
-└── 内容包括：技术选型、分层结构、核心组件、承接的业务能力、业务流程、领域模型
+├── 检查 {模块目录}/docs/README.md 是否需要更新
+├── 需要更新 → 记录到 Review 报告「文档更新建议」，由 RD 开发阶段或 Code Review 阶段执行
+└── 📎 技术方案 Review 阶段只产出建议，不直接修改文件（ARCHITECTURE.md 同理）
 Step 7: 输出 Review 报告
 ```
 

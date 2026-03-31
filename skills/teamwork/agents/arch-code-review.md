@@ -2,7 +2,7 @@
 
 > 本文件定义架构师 Code Review subagent 的执行规范。PMO 启动 subagent 时，让 subagent 先读取 `agents/README.md`，再读取本文件。
 >
-> `last-synced: 2026-03-15` · 对齐 SKILL.md / ROLES.md / RULES.md / standards/
+> `last-synced: 2026-03-30` · 对齐 SKILL.md / ROLES.md / RULES.md / standards/
 
 ---
 
@@ -53,7 +53,19 @@
 │   └── 复杂逻辑是否有足够注释
 ├── 性能与安全
 │   ├── 是否有 RD 自查遗漏的性能隐患（N+1/全表扫描/内存泄漏）
-│   └── 是否有 RD 自查遗漏的安全风险（注入/XSS/越权）
+│   ├── 是否有 RD 自查遗漏的安全风险（注入/XSS/越权）
+│   └── 🔴 并发写入安全（涉及数据库写操作时必审）：
+│       ├── TOCTOU：是否存在「先 SELECT 判断 → 再 UPDATE」的竞态模式？
+│       ├── 原子性：余额/库存/计数器是否用原子 SQL 而非先读后写？
+│       ├── 锁策略：并发写同一行时有无乐观锁/悲观锁保护？
+│       ├── 事务粒度：事务内是否包含外部调用导致长事务？
+│       └── 幂等性：写入接口重复调用是否安全？
+├── 🔴 Schema 同步验证（涉及数据库变更时必审）：
+│   ├── 对照 TECH.md「Schema 影响分析」表，逐行验证每个受影响 Model/Struct 是否有对应代码变更
+│   ├── 每个变更的 Struct 的所有 SQL 查询（SELECT/RETURNING/INSERT）列列表是否与 Struct 字段匹配
+│   ├── 迁移文件是否可逆（up + down 都有且合理）
+│   ├── database-schema.md 是否已同步更新（Model 映射表 + SQL 引用点 + 变更记录）
+│   └── 影响分析表有遗漏 → 标记为 🔴 阻塞项，RD 必须补全后重新 Review
 └── 架构文档同步
     ├── 新增/修改的模块是否需要更新 ARCHITECTURE.md
     └── 架构调整是否需要记录设计决策

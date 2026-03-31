@@ -1,6 +1,6 @@
 # 集成测试 Subagent 规范
 
-> `last-synced: 2026-03-15` · 对齐 SKILL.md / ROLES.md / RULES.md / standards/backend.md
+> `last-synced: 2026-03-30` · 对齐 SKILL.md / ROLES.md / RULES.md / standards/backend.md
 
 ## 角色定位
 
@@ -51,6 +51,22 @@ Subagent 启动时 PMO 提供：
 ├── Redis 连接是否正常（如有）
 ├── API 服务是否可达
 └── 异常 → 记录到问题清单，继续可执行的测试
+```
+
+### Step 2.5: 迁移验证（涉及 schema 变更时执行）
+
+```
+前置判断：检查 TECH.md 是否包含「数据库变更」章节 → 无此章节则跳过 Step 2.5
+有此章节时执行：
+├── 验证迁移文件可执行：运行 migration up，确认无报错
+├── 验证 ORM 映射正确：对 TECH.md「Schema 影响分析」表中的每个 Model/Struct：
+│   ├── 执行一条简单 SELECT 查询（如 SELECT * FROM {表} LIMIT 1）
+│   └── 确认 ORM 反序列化无报错（字段匹配 → 成功 / 缺列 → 报错 → ❌）
+├── 验证迁移可回滚（如环境允许）：运行 migration down，确认无报错
+│   └── 回滚后重新 up，确认可重新执行
+├── 跨子项目影响验证：
+│   └── 对影响分析表中「其他子项目」的 Model，同样执行 SELECT 验证 ORM 映射
+└── 每项记录：验证项 | 目标表 | 受影响 Model | 结果（✅/❌）
 ```
 
 ### Step 3: 执行 API 接口测试

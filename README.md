@@ -1,12 +1,12 @@
 # Teamwork
 
-多角色协作开发框架，为 Claude Code 提供完整的软件开发流程管理能力。
+AI Agent 团队协作开发框架 — 7 个专业 AI Agent 组成虚拟开发团队，一个人驱动从产品规划到交付的完整软件研发流程。
 
 [English](./README-EN.md)
 
 ## 概述
 
-Teamwork 通过模拟 **PMO / Product Lead / PM / Designer / QA / RD / 资深架构师** 七种角色，在 Claude Code 中实现结构化的软件开发协作流程。
+Teamwork 将 Claude Code 变成一支完整的 AI 开发团队：**PMO / Product Lead / PM / Designer / QA / RD / 资深架构师** 七个专业 Agent 各司其职，像真实团队一样协作，用户只需提出需求和做关键决策。
 
 支持四种流程类型：
 

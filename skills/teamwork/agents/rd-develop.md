@@ -2,7 +2,7 @@
 
 > 本文件定义 RD subagent 的执行规范。PMO 启动 subagent 时，让 subagent 先读取 `agents/README.md`，再读取本文件。
 >
-> `last-synced: 2026-03-15` · 对齐 SKILL.md / ROLES.md / RULES.md / standards/
+> `last-synced: 2026-03-30` · 对齐 SKILL.md / ROLES.md / RULES.md / standards/
 
 ---
 
@@ -98,15 +98,20 @@ Step 5: 如有 UI → 根据 UI.md / preview/*.html 还原页面
 │   ├── API 规范（如有新接口）
 │   ├── 测试规范（命名/覆盖率）
 │   └── 代码规范（命名/注释/格式）
-├── 3. 性能检查
+├── 🔴 3. Schema 同步验证（涉及数据库变更时必查）
+│   ├── 对照 TECH.md「Schema 影响分析」表，逐行确认每个 Model/Struct 已同步更新
+│   ├── 每个 Struct 的所有 SQL 查询（query_as/SELECT/RETURNING）列列表与字段完全匹配
+│   ├── database-schema.md「Model 映射」表 + 「SQL 引用点」表是否已同步更新
+│   └── 📎 详细规范见 standards/backend.md「数据库迁移规范 → 跨子项目 Schema 同步」
+├── 4. 性能检查
 │   ├── 数据库查询（N+1/索引/分页）
 │   ├── 代码效率（循环/内存/缓存）
 │   └── 并发安全（如涉及）
-├── 4. 安全检查
+├── 5. 安全检查
 │   ├── 注入防护（SQL/XSS）
 │   ├── 认证鉴权（接口权限）
 │   └── 敏感数据处理
-└── 5. 验收标准覆盖
+└── 6. 验收标准覆盖
     ├── 逐条对照 PRD 验收标准
     └── 每条标准标注实现状态
 ```

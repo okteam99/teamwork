@@ -490,7 +490,15 @@ try {
 ├── TECH.md 中必须声明是否涉及 schema 变更
 │   └── 涉及 → 列出变更内容（新增表/字段/索引/约束）
 ├── 迁移完成后同步更新 ARCHITECTURE.md → database-schema.md
-└── 破坏性变更（删列/改类型/删表）必须在 TECH.md 中标注风险
+├── 破坏性变更（删列/改类型/删表）必须在 TECH.md 中标注风险
+└── 🔴 跨子项目 Schema 同步（新增/修改/删除列时必查）：
+    ├── TECH.md 必须包含「数据库变更 → Schema 影响分析」章节（模板见 TEMPLATES.md）
+    ├── 影响分析来源：database-schema.md「Model/Struct 映射」表 + grep 全项目代码
+    ├── 核对 Struct 字段列表与数据库列完全一致（字段名 + 类型 + 可空性）
+    ├── 核对所有引用该 Struct 的 SQL 查询列列表与字段匹配（缺列 → ORM 报错 → 500）
+    ├── 架构师技术 Review 独立验证影响分析完整性（不依赖 RD 自查）
+    ├── 架构师 Code Review 对照影响分析表逐项验证代码变更
+    └── 变更完成后同步更新 database-schema.md（Model 映射表 + SQL 引用点 + 变更记录）
 
 ❌ 禁止：
 ├── 手动连线上数据库执行 DDL
@@ -499,20 +507,34 @@ try {
 └── 不写 down 回滚脚本
 ```
 
+### Schema 变更链条术语对照
+
+| 阶段 | Agent 文件 | 使用术语 | 验证重点 |
+|------|-----------|---------|---------|
+| TECH.md 编写 | — | Schema 影响分析 | 列出所有受影响 Model/Struct 和 SQL |
+| 架构师 Tech Review | arch-tech-review.md | Schema 影响分析完整性 | 验证分析是否遗漏（独立 grep 对照） |
+| RD 开发 | rd-develop.md | Schema 同步验证 | 代码是否已按影响分析表同步 |
+| 架构师 Code Review | arch-code-review.md | Schema 同步验证 | 代码变更是否与影响分析表一致 |
+| 集成测试 | integration-test.md | 迁移验证 | 运行时验证 ORM/SQL 映射正确性 |
+
+> 📎 各阶段术语不同是因为验证角度不同，但校验基准统一为 TECH.md「Schema 影响分析」表。
+
 ### 迁移与开发流程的衔接
 
 ```
-TECH.md 声明 schema 变更
+TECH.md 声明 schema 变更 + 填写「Schema 影响分析」表
     ↓
-架构师技术评审 → 检查迁移方案合理性
+架构师技术评审 → 检查迁移方案合理性 + 🔴 独立验证影响分析完整性
     ↓
-RD 编写迁移文件 + 单元测试
+RD 编写迁移文件 + 同步所有受影响 Model/Struct/SQL + 单元测试
     ↓
-RD 自查 → 验证 up/down 均可执行
+RD 自查 → 对照影响分析表逐项确认 + 验证 up/down 可执行
     ↓
-Code Review → 架构师确认迁移文件
+Code Review → 🔴 对照影响分析表逐项验证代码变更 + 确认迁移文件
     ↓
-PMO 完成报告 → 确认 database-schema.md 已同步
+集成测试 → 🔴 迁移验证（ORM 映射正确性 + 跨子项目 Model 可查询）
+    ↓
+PMO 完成报告 → 确认 database-schema.md 已同步（含 Model 映射表 + SQL 引用点）
 ```
 
 ---
