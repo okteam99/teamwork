@@ -243,8 +243,8 @@ mkdir -p {子项目路径}/docs/architecture
 | ADMIN | admin-panel | React + TS | 是 | — |
 
 📬 外部依赖请求（如有）：
-├── [🔴 阻塞] AUTH 请求你的 WEB 模块提供 SSO 回调接口（来自 @张三）
-└── [🟢 非紧急] ADMIN 请求你的 AUTH 模块开放角色查询 API（来自 @李四）
+├── [🔴 阻塞] WEB 请求你的 AUTH 模块提供 SSO 回调接口
+└── [🟢 非紧急] ADMIN 请求你的 AUTH 模块开放角色查询 API
 
 知识库摘要（如有）：
 ├── 全局：[跨项目经验]
