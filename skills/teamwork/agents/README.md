@@ -91,7 +91,7 @@ PMO 使用 Task 工具启动 subagent，prompt 结构：
 1. {agents/README.md 的绝对路径}
 2. {agents/角色规范.md 的绝对路径}
 
-然后读取项目文件并执行任务：
+## 任务信息
 - 功能：{缩写}-F{编号}-{功能名}
 - 子项目：{子项目缩写}
 - 子项目路径：{子项目根目录绝对路径}
@@ -102,7 +102,34 @@ PMO 使用 Task 工具启动 subagent，prompt 结构：
   📎 PMO 从 teamwork_space.md「子项目」表的「类型」列读取
 - 业务关联：{无 / BG-xxx-业务目标}（跨项目 Feature 时提供）
 
+## 关键上下文（PMO 必须注入，Subagent 不需自行查找）
+
+🔴 PMO 在启动 Subagent 前，必须读取以下文件并将关键内容直接注入 prompt，
+   而不是只传路径让 Subagent 自己去读。减少 Subagent 读错/漏读的风险。
+
+按角色注入内容：
+├── RD 开发 Subagent → 注入 PRD 验收标准 + TC 用例清单 + TECH 技术方案全文
+├── 架构师 Tech Review → 注入 TECH 技术方案全文 + ARCHITECTURE.md 核心章节
+├── 架构师 Code Review → 注入 TECH 技术方案要点 + RD 自查报告 + 修改文件清单
+├── QA 代码审查 → 注入 TC 用例清单 + RD 修改文件清单
+├── PRD 评审 → 注入 PRD 全文
+├── TC 评审 → 注入 TC 全文 + PRD 验收标准
+├── Designer UI 设计 → 注入 PRD 全文 + 验收标准 + 现有 sitemap.md（如有）
+├── 集成测试 → 注入 TC 中的后端用例 + API 端点清单
+└── E2E 验收 → 注入 TC 中的核心用户场景
+
+注入格式：在 prompt 的「关键上下文」区块中用 markdown 引用块包裹内容。
+```
+
 ⚠️ 所有文档和代码操作都在子项目路径下进行，不要操作其他子项目的文件。
+
+### 启动前自问（PMO 必须确认）
+
+```
+Subagent 启动前，PMO 快速自检：
+├── 关键上下文是否已注入 prompt？（不是只传路径）
+├── 该 Subagent 需要哪些文件？我都读过了吗？
+└── 有没有 KNOWLEDGE.md 中的相关经验需要传递？
 ```
 
 ### 3.2 启动前检查
@@ -128,16 +155,24 @@ Subagent 返回后，PMO 必须：
 ├── 4. 自动流转到下一阶段
 └── 5. Subagent 异常处理（见下方失败分类）
 
-🔴 Subagent 失败分类与恢复路径：
-├── Task 工具报错（工具调用本身失败）
-│   └── → 立即降级为主对话内执行，PMO 将任务交给当前角色在主对话中完成
-├── 产出不完整（缺少必需文件，如无代码只有报告）
-│   └── → PMO 在主对话内补充缺失部分，或要求当前角色补全
-├── 产出质量不达标（Review 发现严重问题 / 测试全部失败）
-│   └── → 不算失败，走正常打回机制（RULES.md 八-B），由上游角色修正后重新执行
-├── Subagent 报告上游阻塞（如「缺少 PRD 中的 xxx 定义」）
-│   └── → 触发打回机制，不降级
-└── 🔴 核心原则：Subagent 异常不能卡住整个流程，降级后仍需完成该阶段任务
+🔴 Subagent 返回状态分级处理（参考 superpowers 升级策略）：
+
+| 返回状态 | 判断依据 | PMO 处理 |
+|----------|----------|----------|
+| ✅ DONE | 产出完整 + 无上游问题 | 正常流转到下一阶段 |
+| ⚠️ DONE_WITH_CONCERNS | 产出完整但报告了非阻塞性 concerns | 读 concerns，关键的先处理再流转 |
+| 🔄 NEEDS_CONTEXT | Subagent 报告缺少上下文（如「缺少 PRD 中的 xxx」） | PMO 补充上下文 → 重新 dispatch（不降级） |
+| 🔁 QUALITY_ISSUE | 产出质量不达标（Review 严重问题 / 测试全失败） | 走正常打回机制（RULES.md 八-B） |
+| ❌ BLOCKED | Subagent 报告上游阻塞 | 触发打回机制，不降级 |
+| 💥 FAILED | Task 工具报错 / 产出不完整 | 降级为主对话内执行 |
+
+🔴 BLOCKED/FAILED 升级策略（不是无脑重试）：
+├── 缺上下文 → PMO 补充后重新 dispatch（同一 Subagent）
+├── 任务太大 → PMO 拆分为更小的步骤，分步执行
+├── 真的做不了 → 降级到主对话内执行
+└── 🔴 永远不要在不改变任何条件的情况下重试同一个 Subagent
+
+🔴 核心原则：Subagent 异常不能卡住整个流程，降级后仍需完成该阶段任务
 ```
 
 ---
