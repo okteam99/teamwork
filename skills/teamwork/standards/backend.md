@@ -509,15 +509,16 @@ try {
 
 ### Schema 变更链条术语对照
 
-| 阶段 | Agent 文件 | 使用术语 | 验证重点 |
-|------|-----------|---------|---------|
-| TECH.md 编写 | — | Schema 影响分析 | 列出所有受影响 Model/Struct 和 SQL |
-| 架构师 Tech Review | arch-tech-review.md | Schema 影响分析完整性 | 验证分析是否遗漏（独立 grep 对照） |
-| RD 开发 | rd-develop.md | Schema 同步验证 | 代码是否已按影响分析表同步 |
-| 架构师 Code Review | arch-code-review.md | Schema 同步验证 | 代码变更是否与影响分析表一致 |
-| 集成测试 | integration-test.md | 迁移验证 | 运行时验证 ORM/SQL 映射正确性 |
+| 阶段 | Agent 文件 | 使用术语 | 验证重点 | database-schema.md 操作 |
+|------|-----------|---------|---------|------------------------|
+| TECH.md 编写 | — | Schema 影响分析 | 列出所有受影响 Model/Struct 和 SQL | — |
+| 架构师 Tech Review | arch-tech-review.md | Schema 影响分析完整性 | 验证分析是否遗漏（独立 grep 对照） | 🔴 更新设计层（表结构、ER 图、设计原则） |
+| RD 开发 | rd-develop.md | Schema 同步验证 | 代码是否已按影响分析表同步 | — |
+| 架构师 Code Review | arch-code-review.md | Schema 同步验证 | 代码变更是否与影响分析表一致 | 🔴 补充实现层（Model 映射、SQL 引用点） |
+| 集成测试 | integration-test.md | 迁移验证 | 运行时验证 ORM/SQL 映射正确性 | — |
 
 > 📎 各阶段术语不同是因为验证角度不同，但校验基准统一为 TECH.md「Schema 影响分析」表。
+> 📎 database-schema.md 两阶段更新：设计层（Tech Review 后写入）→ 实现层（Code Review 后补充）。
 
 ### 迁移与开发流程的衔接
 
@@ -526,15 +527,19 @@ TECH.md 声明 schema 变更 + 填写「Schema 影响分析」表
     ↓
 架构师技术评审 → 检查迁移方案合理性 + 🔴 独立验证影响分析完整性
     ↓
+🔴 架构师更新 database-schema.md 设计层（表结构 + ER 图 + 设计原则）
+    ↓
 RD 编写迁移文件 + 同步所有受影响 Model/Struct/SQL + 单元测试
     ↓
 RD 自查 → 对照影响分析表逐项确认 + 验证 up/down 可执行
     ↓
 Code Review → 🔴 对照影响分析表逐项验证代码变更 + 确认迁移文件
     ↓
+🔴 架构师补充 database-schema.md 实现层（Model 映射表 + SQL 引用点）
+    ↓
 集成测试 → 🔴 迁移验证（ORM 映射正确性 + 跨子项目 Model 可查询）
     ↓
-PMO 完成报告 → 确认 database-schema.md 已同步（含 Model 映射表 + SQL 引用点）
+PMO 完成报告 → 确认 database-schema.md 已完整同步（设计层 + 实现层）
 ```
 
 ---

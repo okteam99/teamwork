@@ -86,10 +86,17 @@ Step 4: 如发现问题，尝试内部修正：
 ├── 小问题（命名不规范、注释缺失等）→ 直接修正代码并在报告中说明
 └── 大问题（架构不合理、方案偏离等）→ 记录到问题清单
 Step 5: 更新架构文档
-├── 读取 docs/architecture/{项目}/ARCHITECTURE.md
-├── 根据代码变更更新相关章节
-├── 更新「最后更新」字段
-└── 无架构变更则注明「架构文档无需更新」
+├── ARCHITECTURE.md：
+│   ├── 读取 docs/architecture/{项目}/ARCHITECTURE.md
+│   ├── 根据代码变更更新相关章节（模块说明、架构图、目录结构等）
+│   ├── 更新「最后更新」字段
+│   └── 无架构变更则注明「ARCHITECTURE.md 无需更新」
+├── database-schema.md 实现层补充（涉及 schema 变更时）：
+│   ├── 📎 设计层内容（表结构、ER 图、设计原则）已在 Tech Review 阶段更新
+│   ├── 补充「Model/Struct 映射」表（RD 实际创建/修改的 Model + 文件路径）
+│   ├── 补充「SQL 查询引用点」表（实际的 SQL 查询 + 文件路径 + 行号）
+│   ├── 更新「变更记录」
+│   └── 无 schema 变更则注明「database-schema.md 无需更新」
 Step 6: 输出 Review 报告
 ```
 
@@ -115,9 +122,13 @@ Step 6: 输出 Review 报告
 ## 五、架构文档更新规则
 
 ```
-📁 架构文档位置：docs/architecture/{项目}/ARCHITECTURE.md
+📁 架构文档位置：docs/architecture/{项目}/
 
-更新规则：
+🔴 两阶段更新分工（database-schema.md）：
+├── Tech Review 后（arch-tech-review）→ 更新设计层：表结构、ER 图、设计原则
+└── Code Review 后（本阶段）→ 补充实现层：Model/Struct 映射、SQL 引用点
+
+ARCHITECTURE.md 更新规则（仅 Code Review 阶段执行）：
 ├── 新增模块 → 在「核心模块说明」中添加
 ├── 架构调整 → 更新架构图 + 记录设计决策
 ├── 目录结构变化 → 更新「目录结构」章节

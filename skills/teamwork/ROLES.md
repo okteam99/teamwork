@@ -1318,16 +1318,32 @@ RD 在以下情况必须标记「⚠️ 上游影响」：
     └── 架构调整是否需要记录设计决策
 ```
 
-**🔴 ARCHITECTURE.md 唯一 Owner：架构师（全阶段）**：
-> 📎 任何阶段对 ARCHITECTURE.md 的修改都必须由架构师执行。arch-tech-review 阶段仅记录架构变更建议到 Review 报告，不直接修改；RD 开发阶段只读不写。所有实际修改统一在架构师 Code Review 完成后执行（最高频修改时机）。
+**🔴 架构文档唯一 Owner：架构师（全阶段），两阶段更新**：
+
+> 📎 任何阶段对 architecture/ 目录下文档的修改都必须由架构师执行。RD 开发阶段只读不写。
 
 ```
-Code Review 完成后，必须检查并更新 docs/architecture/ 下的架构文档：
-├── 新增模块 → 在 ARCHITECTURE.md「核心模块说明」中添加
-├── 架构调整 → 更新架构图 + 记录设计决策
-├── 目录结构变化 → 更新「目录结构」章节
-├── 无架构变更 → 在 Review 报告中注明「架构文档无需更新」
-└── 更新后在 ARCHITECTURE.md 的「最后更新」字段记录日期和简述
+架构文档两阶段更新分工：
+
+阶段 1：Tech Review 后（arch-tech-review Subagent 执行）
+├── database-schema.md 设计层更新：
+│   ├── 设计原则（跨 Feature 的 schema 设计标准）
+│   ├── ER 关系图（新增表/关联关系）
+│   ├── 核心表说明（表结构、字段、索引）
+│   └── 🔴 仅更新设计层，不更新 Model 映射和 SQL 引用点
+├── ARCHITECTURE.md → 不修改（等 Code Review）
+
+阶段 2：Code Review 后（arch-code-review Subagent 执行）
+├── ARCHITECTURE.md 更新：
+│   ├── 新增模块 → 在「核心模块说明」中添加
+│   ├── 架构调整 → 更新架构图 + 记录设计决策
+│   ├── 目录结构变化 → 更新「目录结构」章节
+│   ├── 无架构变更 → 注明「架构文档无需更新」
+│   └── 更新后在「最后更新」字段记录日期和简述
+├── database-schema.md 实现层补充：
+│   ├── Model/Struct 映射表（RD 实际创建的 Model + 文件路径）
+│   ├── SQL 查询引用点（实际 SQL + 文件路径 + 行号）
+│   └── 变更记录
 ```
 
 **Review 输出格式**：
