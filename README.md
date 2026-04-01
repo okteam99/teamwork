@@ -1,12 +1,12 @@
 # Teamwork
 
-AI Agent 团队协作开发框架 — 7 个专业 AI Agent 组成虚拟开发团队，一个人驱动从产品规划到交付的完整软件研发流程。
+AI Agent 团队协作开发框架 — 8 个专业 AI Agent 组成虚拟开发团队，一个人驱动从产品规划到交付的完整软件研发流程。
 
 [English](./README-EN.md)
 
 ## 概述
 
-Teamwork 将 Claude Code 变成一支完整的 AI 开发团队：**PMO / Product Lead / PM / Designer / QA / RD / 资深架构师** 七个专业 Agent 各司其职，像真实团队一样协作，用户只需提出需求和做关键决策。
+Teamwork 将 Claude Code 变成一支完整的 AI 开发团队：**PMO / Product Lead / PM / Designer / QA / QA Lead / RD / 架构师** 八个专业 Agent 各司其职，像真实团队一样协作，用户只需提出需求和做关键决策。
 
 支持四种流程类型：
 
@@ -17,7 +17,7 @@ Teamwork 将 Claude Code 变成一支完整的 AI 开发团队：**PMO / Product
 
 ### 核心特性
 
-- **9 个 Subagent 自动化阶段**：PL-PM 协同讨论、PRD 评审、TC 评审、UI 设计、架构师 TECH Review、TDD 开发+自查、架构师 Code Review、QA 代码审查、集成测试
+- **11 个 Subagent 自动化阶段**：PL-PM 协同讨论、PRD 评审、TC 评审、UI 设计、架构师 TECH Review、TDD 开发+自查、架构师 Code Review、QA 代码审查、集成测试、E2E 端到端验收、QA Lead 质量总结
 - **PL-PM Teams 讨论**：PM 输出 PRD 初稿后，PL 与 PM 通过多轮 Agent 交替讨论收敛定稿，再进入评审
 - **Product Lead 角色**：三种模式 — 引导模式（从零构建产品规划）、讨论模式（产品方向讨论 + CHG 变更记录）、执行模式（变更级联评估）
 - **多角色评审机制**：PRD 和 TC 均通过多视角 Subagent 自动评审
