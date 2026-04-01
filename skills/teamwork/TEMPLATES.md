@@ -67,7 +67,8 @@
 │   │   ├── design/                        # 🎨 产品全景设计（有 UI 的子项目按需创建）
 │   │   │   ├── sitemap.md                 # 页面地图：页面清单 + 导航结构
 │   │   │   └── preview/                   # 全景交互原型（产品级 HTML 预览）
-│   │   │       └── overview.html          # 产品全景页面流
+│   │   │       ├── overview.html          # 全景入口（缩略卡片 + 跳转）
+│   │   │       └── {页面名}.html         # 各核心页面完整交互原型（可互相跳转）
 │   │   ├── features/
 │   │   │   └── WEB-F001-登录页面/
 │   │   │       ├── STATUS.md             # 🔴 Feature 状态标记
@@ -1246,20 +1247,27 @@ flowchart TD
 
 ```
 📁 design/preview/ 目录说明：
-├── overview.html          ← 产品全景页面流（展示核心页面和跳转关系）
-├── navigation-flow.html   ← 导航结构交互原型（可选）
-└── 其他全景级原型
+├── overview.html          ← 全景入口（缩略卡片 + 流程路径 + 跳转到各页面）
+├── {页面名}.html          ← 各核心页面的完整交互原型（可相互跳转）
+│   ├── login.html         ← 登录页
+│   ├── register.html      ← 注册页
+│   ├── dashboard.html     ← 首页/仪表盘
+│   └── ...                ← 其他核心页面
+└── 用户打开 overview.html → 点击卡片跳转到各页面 → 页面间可互相跳转体验完整流程
 
 ⚠️ 与 Feature 级 preview/ 的区别：
-├── design/preview/：产品级全貌，展示页面之间的关系和整体布局
-└── features/{编号}/preview/：单功能级细节，展示具体页面的交互状态
+├── design/preview/：产品级多页交互原型，可体验完整用户流程
+├── features/{编号}/preview/：单功能级细节，展示具体页面的各种状态（正常/加载/空/错误）
+└── 两者关系：design/preview/ 是全景权威版本，Feature preview/ 是开发参照
 
 📌 维护时机（🔴 强制，每次 UI 设计都必须执行）：
-├── 初始化时：Designer 根据 PROJECT.md 业务流程生成初始页面地图
-├── 每次 UI 设计 Subagent 执行后：
+├── Feature Planning 全景重建时：Designer 从零重建全部页面 HTML + overview.html
+├── 每次 Feature UI 设计后：
 │   ├── 同步 sitemap.md 页面清单和导航图
-│   └── 同步 overview.html 全景交互原型（将本次 Feature 页面合并进全景视图）
-└── design/ 是产品 UI 的 Single Source of Truth，Feature 级 preview/ 仅为开发参照
+│   ├── 新增页面 → 在 design/preview/ 中创建对应 HTML
+│   ├── 修改页面 → 同步更新 design/preview/ 中对应 HTML
+│   └── 更新 overview.html 全景入口（新增/变更页面高亮标注）
+└── design/ 是产品 UI 的 Single Source of Truth
 ```
 
 ---

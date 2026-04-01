@@ -124,13 +124,20 @@ Step 4: 🔴 从零重建 design/sitemap.md（页面地图）
 ├── 重绘 Mermaid 导航图（体现新的页面结构和跳转关系）
 ├── 标记已删除/废弃的页面（如旧版本存在但新方向不再需要）
 └── 写入 docs/design/sitemap.md
-Step 5: 🔴 从零重建 design/preview/overview.html（全景交互原型）
-├── 基于新版 sitemap.md 重建全景视图
-├── 所有页面用缩略卡片展示（标注：页面名、路由、状态）
-├── 体现页面间的跳转关系（可点击导航）
-├── 用颜色区分：✅ 已有页面 / 🔵 新规划的页面 / 🔴 被废弃的页面
-├── 使用 Tailwind CSS，可直接在浏览器打开
-└── 写入 docs/design/preview/overview.html
+Step 5: 🔴 从零重建 design/preview/ 多页交互原型
+├── 5a. 为每个核心页面产出独立 HTML 文件：
+│   ├── 每个页面一个完整 HTML（不是缩略卡片，是可交互的页面原型）
+│   ├── 覆盖主流程涉及的所有页面（注册、登录、Dashboard、核心功能页等）
+│   ├── 页面间通过链接可相互跳转（<a href="./xxx.html">），形成可体验的流程
+│   ├── 每页使用统一设计语言（Tailwind CSS）、统一导航结构
+│   ├── 文件命名：{页面名}.html（如 login.html、dashboard.html、offer-list.html）
+│   └── 写入 docs/design/preview/{页面名}.html
+├── 5b. 产出 overview.html 作为全景入口：
+│   ├── 展示所有页面的缩略卡片 + 页面间跳转关系图
+│   ├── 每个卡片可点击跳转到对应的完整页面 HTML
+│   ├── 用颜色区分：✅ 已有页面 / 🔵 新规划的页面 / 🔴 被废弃的页面
+│   ├── 标注核心用户流程路径（如：注册 → 审核 → 登录 → 首页 → 核心操作）
+│   └── 写入 docs/design/preview/overview.html
 Step 6: 输出重建摘要
 ```
 
@@ -157,16 +164,19 @@ Step 6: 输出重建摘要
 **全景重建模式约束**：
 ```
 🔴 强制要求：
-├── 必须从零重建 sitemap.md 和 overview.html，不是增量修补
+├── 必须从零重建 sitemap.md + design/preview/ 全部文件，不是增量修补
 ├── 必须覆盖 PROJECT.md 中描述的所有业务流程对应的页面
 ├── 必须标注每个页面与 ROADMAP Feature 的对应关系
-├── 被废弃的页面（旧方向有、新方向没有）必须明确标记，不能静默删除
+├── 每个核心页面必须有独立的完整 HTML 原型（不只是缩略卡片）
+├── 页面之间必须可通过链接相互跳转，形成可体验的完整流程
+├── overview.html 作为全景入口，卡片可点击跳转到各页面 HTML
 ├── overview.html 必须用颜色区分页面状态（已完成/规划中/废弃）
+├── 被废弃的页面必须明确标记，不能静默删除
 └── 使用 Tailwind CSS，可直接在浏览器打开
 
 ❌ 禁止：
-├── 产出 Feature 级 UI.md 或 preview/（这是增量模式的职责）
-├── 在全景重建中编写具体页面的详细设计
+├── 产出 Feature 级 UI.md（这是增量模式的职责）
+├── 只产出 overview.html 不产出各页面独立 HTML（单文件总览不够，要多页可交互原型）
 ├── 保留与新 PROJECT.md 不一致的旧页面（必须标记废弃或删除）
 └── 跳过 ROADMAP 中任何规划 Feature 的页面
 ```
@@ -210,17 +220,22 @@ preview/
 ├── 不存在 → 创建初始版本
 ├── 已存在 → 将本次 Feature 的页面合并进全景原型
 │
-├── 全景原型内容要求：
-│   ├── 所有已设计页面的缩略视图（卡片式布局）
-│   ├── 页面间的跳转关系（可点击导航）
+├── overview.html 更新：
+│   ├── 将本次 Feature 新增/变更的页面合并进全景入口
+│   ├── 新增页面的卡片链接到 Feature 级 preview/ 中的完整 HTML
 │   ├── 当前 Feature 新增/变更的页面高亮标注
-│   ├── 每个页面卡片标注：页面名、路由、对应 Feature、状态
 │   └── 使用 Tailwind CSS，可直接在浏览器打开
 │
+├── design/preview/ 页面级 HTML 更新（如本 Feature 涉及全景页面变更）：
+│   ├── 新增页面 → 在 design/preview/ 中创建对应 HTML（与 Feature preview/ 保持一致）
+│   ├── 修改页面 → 同步更新 design/preview/ 中对应 HTML
+│   └── 📎 design/preview/ 中的页面 HTML 是全景级权威版本，Feature preview/ 是开发参照
+│
 └── 设计原则：
-    ├── 全景原型是「产品 UI 地图」，不是每个页面的完整复制
-    ├── 每个页面用缩略卡片展示核心布局，点击可跳转到 Feature 级完整预览
-    └── 重点体现页面之间的关系和导航结构
+    ├── overview.html 是「全景入口」— 缩略卡片 + 跳转关系 + 流程路径
+    ├── design/preview/{页面名}.html 是「完整页面原型」— 可交互、可体验完整流程
+    ├── 两者通过链接串联：overview → 各页面 HTML → 页面间互相跳转
+    └── 用户打开 overview.html 即可浏览整个产品的交互原型
 ```
 
 #### 5.1.4 增量模式执行摘要
