@@ -37,6 +37,12 @@ Four workflow types are supported:
 npx skills add okteam99/teamwork
 ```
 
+## Upgrade
+
+```bash
+npx skills update okteam99/teamwork
+```
+
 ## Usage
 
 ```bash

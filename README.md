@@ -37,6 +37,12 @@ Teamwork 将 Claude Code 变成一支完整的 AI 开发团队：**PMO / Product
 npx skills add okteam99/teamwork
 ```
 
+## 升级
+
+```bash
+npx skills update okteam99/teamwork
+```
+
 ## 使用
 
 ```bash
