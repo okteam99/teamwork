@@ -1,6 +1,8 @@
 # 集成测试 Subagent 规范
 
 > `last-synced: 2026-03-30` · 对齐 SKILL.md / ROLES.md / RULES.md / standards/backend.md
+>
+> **默认执行引擎：Codex CLI**（Codex 不可用时自动降级为 Claude Task，见 agents/README.md §三）
 
 ## 角色定位
 

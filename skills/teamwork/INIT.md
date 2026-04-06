@@ -230,6 +230,16 @@ mkdir -p {子项目路径}/docs/architecture
 - 现有架构文档
 - **子项目结构（如果 Step 0-A 扫描到多子项目）**
 
+### Step 3.5: Codex 环境检测
+
+```
+执行：which codex && codex --version 2>/dev/null
+
+├── ✅ 输出版本号 → codex_available = true
+├── ❌ 命令不存在 → codex_available = false
+└── 结果记入初始化报告
+```
+
 ### Step 4: 输出初始化报告
 
 **初始化完成报告**：
@@ -244,6 +254,8 @@ mkdir -p {子项目路径}/docs/architecture
 🏗️ 架构文档：已加载 / 已自动生成基础版本
 🗄️ 数据库 Schema：已加载 / 已自动生成 / 无数据库
 📚 本地知识库：已加载 / 无历史知识
+🤖 Codex CLI：✅ 可用（v{版本}）→ QA 代码审查 + 集成测试将使用 Codex 执行
+   / ❌ 未安装 → 所有 Subagent 使用 Claude（💡 安装 Codex 可节省 token：npm install -g @openai/codex）
 
 子项目列表：
 | 缩写 | 名称 | 技术栈 | 需要 UI | 我负责 |
