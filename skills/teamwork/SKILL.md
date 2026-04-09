@@ -64,11 +64,12 @@ PMO 根据当前阶段判断需要加载的文件：
 | 需求涉及 product-overview | [PRODUCT-OVERVIEW-INTEGRATION.md](./PRODUCT-OVERVIEW-INTEGRATION.md) |
 | 写文档（PRD/TC/UI/TECH/STATUS） | [TEMPLATES.md](./TEMPLATES.md) |
 | 启动评审 Subagent（PRD/TC/UI 验收） | [REVIEWS.md](./REVIEWS.md) |
+| 启动任意 Subagent | [agents/README.md](./agents/README.md)（🔴 含 Codex 引擎选择规则，PMO 必须在启动前读取） |
 | 后端开发阶段 | [standards/common.md](./standards/common.md) + [standards/backend.md](./standards/backend.md) |
 | 前端开发阶段 | [standards/common.md](./standards/common.md) + [standards/frontend.md](./standards/frontend.md) |
 
 > 🔴 不在上述场景中的文件不加载，减少上下文负担。
-> 🔴 agents/*.md 由 Subagent 自行加载，PMO 不需主动加载。
+> 🔴 agents/*.md 中的角色规范文件由 Subagent 自行加载，但 agents/README.md（通用规范 + 引擎选择）由 PMO 在启动 Subagent 前加载。
 
 ### 大文件精确读取指引
 
@@ -602,6 +603,7 @@ PMO 判断派发角色（见下表）
 >
 > **流程概要**：用户报告 Bug → RD 排查出报告 → PMO 判断简单/复杂 → 简化流程或完整流程。
 > **⚠️ 流转规则**：RD 修复完成后必须流转到 PMO 总结，不能直接标记"已完成"。
+> **🔴 Bug 流程合规确认**：PMO 判断完简单/复杂后，必须输出完整阶段链作为 checklist（详见 RULES.md §三），逐项对照执行，禁止凭记忆流转。
 
 ---
 
@@ -820,12 +822,14 @@ Workspace Planning 完成 ✅
 ```
 ---
 🔄 Teamwork 模式 | 流程：Feature | 子项目：[缩写] | 角色：[当前角色] | 功能：[{缩写}-F编号-功能名] | 阶段：[当前阶段] | 下一步：[下一步事项]
+📁 /绝对路径/[子项目]/docs/features/[功能目录]/
 ```
 
 **多子项目模式示例**：
 ```
 ---
 🔄 Teamwork 模式 | 流程：Feature | 子项目：AUTH | 角色：RD | 功能：AUTH-F001-用户登录 | 阶段：🤖 Subagent 执行中 | 下一步：🤖 自动进入架构师 Code Review
+📁 /Users/dev/projects/myapp/auth-service/docs/features/AUTH-F001-用户登录/
 ```
 
 **跨项目需求拆分阶段的状态行**：
@@ -854,12 +858,19 @@ Workspace Planning 完成 ✅
 ```
 ---
 🔄 Teamwork 模式 | 流程：Bug 处理 | 子项目：[缩写]（多子项目时）| 角色：[当前角色] | Bug：BUG-{编号}-{简述} | 阶段：[当前阶段] | 下一步：[下一步事项]
+📁 /绝对路径/[子项目]/docs/features/[功能目录]/bugfix/[BUG编号]/
 ```
 
 **问题排查流程状态行格式**：
 ```
 ---
 🔄 Teamwork 模式 | 流程：问题排查 | 子项目：[缩写] | 角色：[当前角色] | 阶段：[当前阶段] | 下一步：[下一步事项]
+```
+
+**🔴 状态行第二行 = 📁 功能目录路径**：
+```
+状态行固定两行：第一行是流程状态，第二行是 📁 功能目录的绝对路径。
+🔴 必须输出绝对路径（以 / 开头），不能用相对路径。绝对路径在终端中可 Cmd+Click 直接打开。
 ```
 
 **下一步说明规则**：

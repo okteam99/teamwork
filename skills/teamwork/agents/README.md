@@ -116,27 +116,31 @@ PMO 在首次需要启动 Codex Subagent 时，执行环境检测：
 
 ### 3.0.2 PMO 启动 Codex Subagent
 
-PMO 使用 Bash 工具调用 Codex CLI，命令格式：
+PMO 使用 Bash 工具调用 Codex CLI `exec` 子命令（非交互模式）：
 
 ```bash
-codex -q \
+codex exec \
   --full-auto \
-  -f "{agents/README.md 绝对路径}" \
-  -f "{agents/角色规范.md 绝对路径}" \
-  "{任务描述 prompt}"
+  "{任务描述 prompt，含文件读取指令}"
 ```
 
 参数说明：
 ```
-├── -q：quiet 模式，减少冗余输出
-├── --full-auto：全自动执行，无需人工确认
-├── -f：附加文件，Codex 会读取这些文件作为上下文
-└── 最后的字符串：任务 prompt（与 Claude Task 的 prompt 结构一致）
+├── exec：非交互模式，结果输出到 stdout，适合 Subagent 场景
+├── --full-auto：全自动执行（= -a on-request -s workspace-write），无需人工确认
+└── 最后的字符串：任务 prompt（必须在 prompt 中指示 Codex 读取所需文件）
+
+⚠️ 旧语法已废弃：
+├── ❌ -q（quiet）→ exec 模式默认非交互，不需要
+├── ❌ -f（附加文件）→ 改为在 prompt 中写明「先读取以下文件：{绝对路径}」
+└── ❌ codex "{prompt}"（无 exec）→ 会启动交互式 TUI，不适合 Subagent
 ```
 
 **🔴 Codex prompt 必须包含**：
 ```
 ├── 角色定位（你是 Teamwork 协作框架中的 {角色}）
+├── 🔴 文件读取指令（替代旧 -f 参数）：
+│   └── 「先读取以下文件了解规范：1. {agents/README.md 绝对路径} 2. {agents/角色规范.md 绝对路径}」
 ├── 任务信息（功能编号、子项目路径、文档目录）
 ├── 关键上下文（与 Claude Task 相同的注入内容）
 ├── 输出格式要求（与对应 agents/*.md 中定义的格式一致）
@@ -178,6 +182,7 @@ codex -q \
 
 ```
 Codex 执行失败时的降级流程：
+├── Codex 命令语法错误（如使用了已废弃的 -q/-f 参数）→ 降级为 Claude Task
 ├── Codex 命令执行超时（>5min）→ 终止进程，降级为 Claude Task
 ├── Codex 输出为空或格式不符 → 降级为 Claude Task
 ├── Codex 返回错误码 → 输出错误信息，降级为 Claude Task

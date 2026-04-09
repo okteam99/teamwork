@@ -1,5 +1,5 @@
 {
-  "description": "Teamwork hooks: auto-restore feature state on session start, save state before compaction, check STATUS.md sync on stop",
+  "description": "Teamwork hooks: auto-restore feature state on session start, save state before compaction, auto-recover after compaction, check STATUS.md sync on stop",
   "hooks": {
     "SessionStart": [
       {
@@ -20,6 +20,18 @@
           {
             "type": "prompt",
             "prompt": "[Teamwork PreCompact — 状态保存] Context 即将压缩。如果当前有进行中的 Feature，你必须立即执行以下操作（缺一不可）：\n\n1. 更新该 Feature 的 STATUS.md：写入「当前阶段」「当前角色」「最后更新」（精确到日期时间）\n2. 更新 ROADMAP.md 中对应 Feature 行的「当前阶段」列\n3. 如果有未完成的 Subagent 任务，在 STATUS.md 中记录 Subagent 执行状态\n\n🔴 这两个文件是跨会话恢复的唯一依据。不更新 = 下次恢复时丢失进度，等于白做。\n🔴 更新完成后输出：「✅ Teamwork 状态已保存到 STATUS.md + ROADMAP.md」"
+          }
+        ]
+      }
+    ],
+    "PostCompact": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/post-compact.sh",
+            "timeout": 10
           }
         ]
       }
