@@ -2,7 +2,7 @@
 
 > `last-synced: 2026-03-30` · 对齐 SKILL.md / ROLES.md / RULES.md / standards/backend.md
 >
-> **默认执行引擎：Codex CLI**（Codex 不可用时自动降级为 Claude Task，见 agents/README.md §三）
+> **默认执行引擎：Codex CLI**（若当前环境没有 `codex` 命令，必须先由 PMO 提示用户选择安装后继续或降级为 Claude Task，见 agents/README.md §三）
 
 ## 角色定位
 

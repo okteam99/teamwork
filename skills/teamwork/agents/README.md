@@ -78,117 +78,104 @@ Subagent 返回给主对话的内容必须包含：
 
 ---
 
-## 三、执行引擎选择（Codex / Claude）
+## 三、执行引擎选择（Codex CLI / Claude）
 
 ### 3.0 引擎分配原则
 
-部分 Subagent 默认使用 OpenAI Codex CLI 执行以节省 Claude token，适用条件：
+部分 Subagent 默认使用 `codex` CLI 执行以节省 Claude token，适用条件：
 ```
-✅ 适合 Codex 的 Subagent：
+✅ 适合 Codex CLI 的 Subagent：
 ├── 工作模式为「执行 + 验证」（跑命令、读代码、对照清单检查）
+├── 代码审查任务
 ├── 输入输出格式明确，不需要复杂的产品/架构判断
 ├── 不需要多角色视角或深度上下文理解
 └── 见 §四 表格「默认引擎」列
 
-❌ 不适合 Codex 的 Subagent：
+❌ 不适合 Codex CLI 的 Subagent：
 ├── 需要深度理解 PRD/架构/产品方向（评审类、设计类）
 ├── 需要多角色扮演（PL-PM 讨论、多角色评审）
-├── 需要浏览器操作（E2E 验收）
+├── 需要浏览器操作或复杂 API 链路验证（E2E 验收）
 └── 需要架构级判断力（架构师 Review、QA Lead 总结）
 ```
 
-### 3.0.1 Codex 环境检测
+### 3.0.1 Codex CLI 环境检测
 
-PMO 在首次需要启动 Codex Subagent 时，执行环境检测：
+PMO 在首次需要启动默认引擎为 Codex CLI 的 Subagent 时，执行环境检测：
 
 ```
-检测命令：which codex && codex --version
+检测方式：检查 `codex --version` 命令是否可用
 
-├── ✅ 命令存在 + 版本输出正常 → Codex 可用，按默认引擎启动
-├── ❌ 命令不存在 → 引导用户安装：
+├── ✅ 命令可用 → Codex CLI 已安装，按默认引擎启动
+├── ❌ 命令不可用 → 引导用户安装：
 │   └── PMO 输出：
-│       「当前 Subagent（{名称}）默认使用 Codex 执行以节省 Claude token，但检测到 Codex CLI 未安装。
-│       💡 建议：安装 Codex CLI（npm install -g @openai/codex），安装后重新执行。
+│       「当前 Subagent（{名称}）默认使用 Codex CLI 执行以节省 Claude token，但检测到当前环境没有 `codex` 命令。
+│       💡 建议：先安装并确认 `codex --version` 可用后继续。
 │       🔀 或者：输入「用 Claude」跳过 Codex，本次降级为 Claude Task 执行。」
 │       → ⏸️ 等待用户选择
 └── 检测结果缓存：同一会话内只检测一次，结果记入会话上下文
 ```
 
-### 3.0.2 PMO 启动 Codex Subagent
+### 3.0.2 PMO 启动 Codex CLI Subagent
 
-PMO 使用 Bash 工具调用 Codex CLI `exec` 子命令（非交互模式）：
+PMO 使用宿主环境的子任务能力启动 Subagent；当默认引擎为 Codex CLI 时，由该 Subagent 在自己的执行上下文中调用 `codex` 完成任务：
 
-```bash
-codex exec \
-  --full-auto \
-  "{任务描述 prompt，含文件读取指令}"
+```
+PMO 启动时的 prompt 应说明：
+└── 「本次任务默认使用 Codex CLI 执行；如环境缺少 `codex`，暂停并等待用户选择安装或降级为 Claude。」
 ```
 
-参数说明：
+**🔴 Codex CLI 配置**：
 ```
-├── exec：非交互模式，结果输出到 stdout，适合 Subagent 场景
-├── --full-auto：全自动执行（= -a on-request -s workspace-write），无需人工确认
-└── 最后的字符串：任务 prompt（必须在 prompt 中指示 Codex 读取所需文件）
-
-⚠️ 旧语法已废弃：
-├── ❌ -q（quiet）→ exec 模式默认非交互，不需要
-├── ❌ -f（附加文件）→ 改为在 prompt 中写明「先读取以下文件：{绝对路径}」
-└── ❌ codex "{prompt}"（无 exec）→ 会启动交互式 TUI，不适合 Subagent
-```
-
-**🔴 Codex prompt 必须包含**：
-```
-├── 角色定位（你是 Teamwork 协作框架中的 {角色}）
-├── 🔴 文件读取指令（替代旧 -f 参数）：
-│   └── 「先读取以下文件了解规范：1. {agents/README.md 绝对路径} 2. {agents/角色规范.md 绝对路径}」
-├── 任务信息（功能编号、子项目路径、文档目录）
-├── 关键上下文（与 Claude Task 相同的注入内容）
-├── 输出格式要求（与对应 agents/*.md 中定义的格式一致）
-└── 🔴 额外约束：「输出必须是纯文本格式，包含完整的报告结构」
+├── 命令入口：`codex`
+├── 项目配置：如项目已有 `.codex/` 配置则沿用
+└── 用户配置：如用户环境已配置 Codex CLI，则按用户配置执行
 ```
 
 ### 3.0.3 引擎合规检查（Stop hook 辅助）
 
-**PMO 启动默认引擎为 Codex 的 Subagent 时，必须先检查引擎选择：**
+**PMO 启动默认引擎为 Codex CLI 的 Subagent 时，必须先检查引擎选择：**
 
 ```
 🔴 启动前引擎检查（QA 代码审查 / 集成测试 必须执行）：
-├── Step 1: 检查 Codex 是否可用（which codex）
+├── Step 1: 检查 `codex` 是否可用（`codex --version`）
 ├── Step 2: 根据结果选择引擎：
-│   ├── Codex 可用 → 🔴 必须使用 Codex，禁止使用 Claude Task
-│   ├── Codex 不可用 → 输出警告（见下方）→ 降级为 Claude Task
-│   └── 用户本会话已明确说过「用 Claude」→ 允许使用 Claude Task（不再重复警告）
-└── Step 3: 如果 PMO 对 Codex 默认的 Subagent 使用了 Claude Task 且未输出降级说明 → 违规
+│   ├── Codex CLI 可用 → 默认使用 Codex CLI 执行
+│   │   └── PMO 判断本次任务不适合 Codex CLI（如上下文过重、需要跨文件深度关联）
+│   │       → ⏸️ 必须暂停向用户说明原因 + 推荐方案：
+│   │         「Codex CLI 可用，但本次 {Subagent 名称} 任务 {具体原因}，建议使用 Claude Task 执行。
+│   │          选择：1️⃣ 用 Claude（推荐） 2️⃣ 仍用 Codex CLI」
+│   │       → 用户确认后执行
+│   ├── Codex CLI 不可用 → 输出警告并暂停，让用户选择安装后继续或本次降级为 Claude Task
+│   └── 用户本会话已明确说过「用 Claude」→ 允许使用 Claude Task（不再重复询问）
+└── Step 3: 如果 PMO 对默认引擎为 Codex CLI 的 Subagent 跳过 Codex 且未经用户确认 → 违规
 ```
 
-**⚠️ Codex 不可用时的警告输出（每次降级都必须输出）：**
+**⚠️ Codex CLI 不可用时的警告输出（必须暂停等用户选择）：**
 
 ```
-⚠️ Codex 未就绪提醒
-├── 当前 Subagent「{名称}」默认使用 Codex 执行以节省 Claude token
-├── 检测结果：Codex CLI 未安装
-├── 本次降级为 Claude Task 执行（功能不受影响，但会消耗更多 Claude token）
+⚠️ Codex CLI 未就绪提醒
+├── 当前 Subagent「{名称}」默认使用 Codex CLI 执行以节省 Claude token
+├── 检测结果：当前环境没有 `codex` 命令
 │
-├── 💡 如需启用 Codex（推荐），请完成以下准备：
-│   ├── 1. 安装 Node.js 18+（如未安装）
-│   ├── 2. 运行：npm install -g @openai/codex
-│   ├── 3. 配置 API Key：export OPENAI_API_KEY="your-key"
-│   └── 4. 验证：codex --version
+├── 💡 建议：
+│   ├── 1. 安装 Codex CLI
+│   ├── 2. 确认 `codex --version` 可用
+│   └── 3. 安装完成后回复继续，我会按默认引擎重试
 │
-└── 安装完成后，后续的 QA 代码审查和集成测试将自动使用 Codex 执行
+└── 🔀 也可以选择：本次直接降级为 Claude Task 执行
 ```
 
 ### 3.0.4 降级机制
 
 ```
-Codex 执行失败时的降级流程：
-├── Codex 命令语法错误（如使用了已废弃的 -q/-f 参数）→ 降级为 Claude Task
-├── Codex 命令执行超时（>5min）→ 终止进程，降级为 Claude Task
-├── Codex 输出为空或格式不符 → 降级为 Claude Task
-├── Codex 返回错误码 → 输出错误信息，降级为 Claude Task
-└── 降级时 PMO 输出：「Codex 执行异常（{原因}），降级为 Claude Task 重新执行。」
+Codex CLI 执行失败时的降级流程：
+├── `codex` 命令不可用 → ⏸️ 提示用户安装或选择 Claude
+├── `codex` 命令执行超时（>5min）→ 输出错误并请求用户决定是否改用 Claude
+├── `codex` 输出为空或格式不符 → 输出异常并请求用户决定是否改用 Claude
+├── `codex` 返回错误 → 输出错误信息并请求用户决定是否改用 Claude
+└── 用户明确选择「用 Claude」后，PMO 再以 Claude Task 重新执行
 
-🔴 降级是自动的，不需要用户确认。降级后的 Claude Task 使用完全相同的 prompt。
+🔴 因环境缺失导致的降级必须由用户选择；不能未经确认自动从 Codex CLI 切到 Claude。
 ```
 
 ---
@@ -197,7 +184,7 @@ Codex 执行失败时的降级流程：
 
 ### 4.1 启动方式
 
-PMO 使用 Task 工具（Claude）或 Bash 工具（Codex）启动 subagent，prompt 结构：
+PMO 使用宿主环境支持的子任务工具启动 subagent。引擎只决定 subagent 内部优先调用 `codex` CLI 还是直接用 Claude 完成任务，prompt 结构如下：
 
 ```
 你是 Teamwork 协作框架中的 {角色名}。
@@ -231,7 +218,7 @@ PMO 使用 Task 工具（Claude）或 Bash 工具（Codex）启动 subagent，pr
 ├── TC 评审 → 注入 TC 全文 + PRD 验收标准
 ├── Designer UI 设计 → 注入 PRD 全文 + 验收标准 + 现有 sitemap.md（如有）
 ├── 集成测试 → 注入 TC 中的后端用例 + API 端点清单
-└── E2E 验收 → 注入 TC 中的核心用户场景
+└── E2E 验收 → 注入 TC.md「E2E Scenarios」章节 + 执行方式 + 前置条件
 
 注入格式：在 prompt 的「关键上下文」区块中用 markdown 引用块包裹内容。
 ```
@@ -302,10 +289,10 @@ Subagent 返回后，PMO 必须：
 | [arch-tech-review.md](./arch-tech-review.md) | 架构师 | 技术方案 Review | Claude | RD 输出技术方案后触发 |
 | [rd-develop.md](./rd-develop.md) | RD | TDD 开发 + 自查 | Claude | 技术方案用户确认后触发 |
 | [arch-code-review.md](./arch-code-review.md) | 架构师 | Code Review + 架构文档更新 | Claude | TDD Subagent 完成后触发 |
-| [qa-code-review.md](./qa-code-review.md) | QA | 代码审查（读代码 + TC 逐条验证） | **Codex** | 架构师 Code Review 通过后触发 |
+| [qa-code-review.md](./qa-code-review.md) | QA | 代码审查（读代码 + TC 逐条验证） | **Codex CLI** | 架构师 Code Review 通过后触发 |
 | [ui-design.md](./ui-design.md) | Designer | UI 设计 | Claude | PRD 用户确认后 + 需要 UI 时触发 |
-| [integration-test.md](./integration-test.md) | QA | 集成测试 | **Codex** | QA 前置检查通过后触发 |
-| [qa-e2e.md](./qa-e2e.md) | QA | E2E 端到端验收（AI 浏览器操作） | Claude | QA 集成测试通过 + 子项目 E2E = 是 时触发 |
+| [integration-test.md](./integration-test.md) | QA | 集成测试 | **Codex CLI** | QA 前置检查通过后触发 |
+| [qa-e2e.md](./qa-e2e.md) | QA | E2E 端到端验收（browser / api / mixed） | Claude | QA 集成测试通过 + TC.md E2E 判断 = 需要 时触发 |
 | [qa-lead-review.md](./qa-lead-review.md) | QA Lead | 质量总结（全局审查测试体系完整性） | Claude | 🔴 每个 Feature 必须触发 |
 
 > 后续扩展新 subagent 时，在本目录新增对应 `.md` 文件并更新此表。
