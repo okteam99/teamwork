@@ -1,5 +1,5 @@
 {
-  "description": "Teamwork hooks: auto-restore feature state on session start, save state before compaction, auto-recover after compaction, check STATUS.md sync on stop",
+  "description": "Teamwork hooks: auto-restore on session start, save state before compaction, auto-recover after compaction, check STATUS.md on stop. Additional scripts (post-subagent.sh, post-feature.sh) are called by PMO during workflow execution.",
   "hooks": {
     "SessionStart": [
       {
@@ -8,7 +8,7 @@
           {
             "type": "command",
             "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/session-restore.sh",
-            "timeout": 10
+            "timeout": 20
           }
         ]
       }
@@ -31,7 +31,7 @@
           {
             "type": "command",
             "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/post-compact.sh",
-            "timeout": 10
+            "timeout": 20
           }
         ]
       }
@@ -43,7 +43,7 @@
           {
             "type": "command",
             "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/post-stop.sh",
-            "timeout": 10
+            "timeout": 20
           }
         ]
       }

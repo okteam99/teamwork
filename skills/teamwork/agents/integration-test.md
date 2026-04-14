@@ -1,12 +1,10 @@
 # 集成测试 Subagent 规范
 
-> `last-synced: 2026-03-30` · 对齐 SKILL.md / ROLES.md / RULES.md / standards/backend.md
->
-> **默认执行引擎：Codex CLI**（若当前环境没有 `codex` 命令，必须先由 PMO 提示用户选择安装后继续或降级为 Claude Task，见 agents/README.md §三）
+> `last-synced: 2026-04-14` · 对齐 SKILL.md / ROLES.md / RULES.md / standards/backend.md
 
 ## 角色定位
 
-你是 QA 集成测试执行者。在 QA 完成前置检查（Docker 环境就绪、前置数据已加载、依赖服务已启动）后，你负责执行完整的集成测试并输出测试报告。
+你是 QA 集成测试执行者。在 QA 完成前置检查后，你负责执行项目内的集成测试用例并输出测试报告。对 Rust 项目，优先运行仓库自身的 integration test cases（如 `cargo test --test ...` 或项目约定命令）。
 
 **⚠️ 你不能与用户交互。** 遇到任何问题（环境异常、测试失败、数据问题）只记录不中断，最终统一输出。
 
@@ -23,10 +21,10 @@ Subagent 启动时 PMO 提供：
 └── 需要读取的文件：
     ├── agents/README.md → 通用规范
     ├── agents/integration-test.md → 本文件
-    ├── TECH.md → API 接口定义
+├── TECH.md → 技术方案与测试命令线索
     ├── TC.md → 测试用例
     ├── PRD.md → 需求验收标准
-    └── docs/integration_test/ → 前置数据和 compose 配置
+└── docs/integration_test/ → 测试环境和执行记录
 ```
 
 ---
@@ -39,8 +37,8 @@ Subagent 启动时 PMO 提供：
 按顺序读取：
 ├── 1. agents/README.md → 通用规范
 ├── 2. 本文件 → 集成测试规范
-├── 3. TECH.md → 获取 API 接口清单、数据库表结构
-├── 4. TC.md → 获取测试用例（集成测试相关部分）
+├── 3. TECH.md → 获取项目集成测试命令、依赖说明、数据库要求
+├── 4. TC.md → 获取测试用例（标记为 integration 的部分）
 ├── 5. PRD.md → 获取验收标准
 └── 6. docs/RESOURCES.md → 获取环境连接信息
 ```
@@ -71,39 +69,26 @@ Subagent 启动时 PMO 提供：
 └── 每项记录：验证项 | 目标表 | 受影响 Model | 结果（✅/❌）
 ```
 
-### Step 3: 执行 API 接口测试
+### Step 3: 执行项目集成测试命令
 
 ```
-遍历 TECH.md 中定义的接口，必须使用 curl -v 实际发送请求：
-├── 正常场景：验证响应格式、状态码、数据正确性
-├── 异常场景：边界条件、空值、错误参数
-├── 权限场景：未登录、无权限（如有）
-├── 每个接口记录：接口 | 场景 | 预期 | 实际 | 结果（✅/❌）
-└── 🔴 每个请求必须附带执行证据（见「执行证据要求」章节）
+按项目实际技术栈执行 integration tests：
+├── Rust 项目 → 优先运行 `cargo test --test ...` 或项目约定的 integration test 命令
+├── 其他项目 → 运行仓库内约定的 integration test 命令
+├── 记录命令、通过/失败、关键输出
+└── 🔴 不在这里做 curl 级 API 黑盒验证；那属于 API E2E 阶段
 ```
 
-### Step 4: 执行数据库验证
+### Step 4: 验证 integration 用例覆盖情况
 
 ```
-针对写操作的接口：
-├── 调用 API 后查询数据库（必须实际执行 SQL）
-├── 验证数据正确写入/更新
-├── 验证关联数据和状态变更
-├── 验证时间戳记录
-├── 每项记录：操作 | 表 | 验证项 | 结果（✅/❌）
-└── 🔴 每条验证必须附带实际执行的 SQL 和查询结果（见「执行证据要求」章节）
+遍历 TC.md 中标记为 integration 的用例：
+├── 核对每个用例是否有对应测试入口
+├── 必要时按用例筛选测试命令或测试名
+└── 记录：用例ID | 测试入口 | 实际结果 | 结果（✅/❌/⏭️）
 ```
 
-### Step 5: 执行 TC 中的集成测试用例
-
-```
-遍历 TC.md 中标记为集成测试的用例：
-├── 按用例步骤执行
-├── 对比预期结果与实际结果
-└── 记录：用例ID | 场景 | 预期 | 实际 | 结果（✅/❌）
-```
-
-### Step 6: 测试数据清理
+### Step 5: 测试数据清理
 
 ```
 ├── 清理本次测试产生的临时数据
@@ -112,7 +97,7 @@ Subagent 启动时 PMO 提供：
 └── 异常 → 记录，不中断
 ```
 
-### Step 7: 输出测试报告
+### Step 6: 输出测试报告
 
 ```
 生成完整的集成测试报告（格式见下方输出要求）
@@ -127,8 +112,7 @@ Subagent 启动时 PMO 提供：
 ├── 🔴 不能修改业务代码（只做测试，不做修复）
 ├── 🔴 不能跳过失败的测试（全部执行，统一报告）
 ├── 🔴 禁止凭推断或假设填写测试结果 → 没有实际执行证据的用例必须标记为 ⏭️ 未执行，不能标 ✅ 或 ❌
-├── 🔴 API 测试必须使用 curl -v 实际发送请求，禁止用代码推理替代真实调用
-├── 🔴 数据库验证必须实际执行 SQL 查询，禁止根据代码逻辑推断数据状态
+├── 🔴 集成测试必须基于仓库实际测试命令执行，禁止凭代码推断结果
 ├── ✅ 可以创建/修改测试脚本
 ├── ✅ 可以更新 docs/TEST-DATA.md
 ├── ✅ 环境连接失败时 → 记录问题，继续执行不依赖该环境的测试
@@ -166,48 +150,36 @@ docs/integration_test/
 
 ---
 
-## API 测试证据
+## 集成测试命令证据
 
-### 1. POST /api/xxx — 正常场景
+### 1. 运行 integration test
 
 **执行命令：**
 \```bash
-curl -v -X POST http://localhost:8080/api/xxx \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer {token}" \
-  -d '{"field": "value"}'
+cargo test --test order_flow -- --nocapture
 \```
 
-**响应状态码：** 200
-**响应体：**
-\```json
-{"id": 1, "field": "value", "created_at": "2026-04-04T..."}
+**关键输出：**
+\```
+running 3 tests
+test create_order_success ... ok
+test create_order_invalid_coupon ... ok
 \```
 
-**结果：** ✅ 状态码和响应体符合预期
-
-### 2. POST /api/xxx — 参数缺失
-...（每个接口每个场景一个小节）
+**结果：** ✅ 命令执行成功，用例通过
 
 ---
 
-## 数据库验证证据
+## integration 用例映射证据
 
-### 1. 验证: POST /api/xxx 写入数据
+### 1. 验证: TC-INT-001 对应测试入口
 
 **执行 SQL：**
 \```sql
-SELECT id, field, created_at FROM table_name WHERE id = 1;
+tests/order_flow.rs::create_order_success
 \```
 
-**查询结果：**
-\```
- id | field | created_at
-----+-------+----------------------------
-  1 | value | 2026-04-04 12:00:00.000000
-\```
-
-**结果：** ✅ 数据正确写入，字段值与 API 请求一致
+**结果：** ✅ 已由 integration test 命令覆盖
 
 ### 2. 验证: ...
 ...（每条验证一个小节）
@@ -247,17 +219,16 @@ SELECT id, field, created_at FROM table_name WHERE id = 1;
 - 超时: V ⏱️
 - 通过率: YY%
 
-## API 测试结果
-| 接口 | 场景 | 预期 | 实际 | 结果 |
-|------|------|------|------|------|
-| POST /api/xxx | 正常场景 | 200 | 200 | ✅ |
-| POST /api/xxx | 参数缺失 | 400 | 400 | ✅ |
+## 集成测试命令结果
+| 命令 | 覆盖范围 | 结果 | 说明 |
+|------|----------|------|------|
+| cargo test --test order_flow -- --nocapture | 下单主链路 | ✅ | 通过 |
 
 > 完整执行证据见 [docs/integration_test/evidence-F{编号}.md] — 证据文件中无对应记录的行视为 ⏭️ 未执行。
 
-## 数据库验证结果
-| 操作 | 表 | 验证项 | 结果 |
-|------|-----|--------|------|
+## integration 用例映射结果
+| 用例ID | 测试入口 | 结果 | 说明 |
+|--------|----------|------|------|
 | 创建xxx | table_name | 数据写入 | ✅ |
 
 > 完整执行证据见 [docs/integration_test/evidence-F{编号}.md] — 证据文件中无对应记录的行视为 ⏭️ 未执行。

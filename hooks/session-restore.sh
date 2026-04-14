@@ -5,11 +5,20 @@
 
 set -euo pipefail
 
-# --- Find teamwork project root (look for teamwork_space.md) ---
+# --- Logging helper ---
+log_warn() {
+  echo "[teamwork-hook][warn] $1" >&2
+}
+
+# --- Find teamwork project root ---
 find_teamwork_root() {
   local dir="${PWD}"
   while [ "$dir" != "/" ]; do
     if [ -f "$dir/teamwork_space.md" ]; then
+      echo "$dir"
+      return 0
+    fi
+    if [ -d "$dir/docs/features" ]; then
       echo "$dir"
       return 0
     fi
@@ -41,7 +50,12 @@ while IFS= read -r status_file; do
   [ -f "$status_file" ] || continue
 
   # Read current phase
-  phase=$(grep -m1 '当前阶段' "$status_file" 2>/dev/null | sed 's/.*|[[:space:]]*//' | sed 's/[[:space:]]*|.*//' || true)
+  phase_raw=$(grep -m1 '当前阶段' "$status_file" 2>/dev/null || true)
+  if [[ "$phase_raw" == *"|"* ]]; then
+    phase=$(echo "$phase_raw" | sed 's/.*|[[:space:]]*//' | sed 's/[[:space:]]*|.*//')
+  else
+    phase=""
+  fi
 
   # Skip completed features
   if [[ "$phase" == *"已完成"* ]] || [[ "$phase" == *"Bugfix 已完成"* ]]; then

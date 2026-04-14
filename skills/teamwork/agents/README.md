@@ -76,106 +76,65 @@ Subagent 返回给主对话的内容必须包含：
 └── 4. 角色报告（如 RD 自查报告，格式见各角色规范）
 ```
 
+### 2.5 危险命令红线
+
+```
+🔴 所有 Subagent 禁止执行以下操作（无论任何理由）：
+
+| 类别 | 禁止命令/模式 | 说明 |
+|------|--------------|------|
+| 删除 | rm -rf /、rm -rf ~、rm -rf ./* | 递归强删根目录/家目录/当前目录 |
+| 删除 | 未限定路径的 rm -rf（如 rm -rf $VAR 且 $VAR 可能为空） | 变量为空时等价于 rm -rf / |
+| Git | git push --force（主分支）、git reset --hard（未确认） | 不可逆的仓库操作 |
+| 数据库 | DROP DATABASE、DROP TABLE（生产环境） | 不可逆的数据破坏 |
+| 数据库 | TRUNCATE TABLE（未经确认） | 清空全表数据 |
+| 系统 | chmod -R 777、chown -R | 大范围权限变更 |
+| 网络 | curl | bash、wget | sh | 远程脚本盲执行 |
+| 凭证 | 将 API Key/密码/token 写入代码或日志 | 凭证泄露 |
+
+✅ 白名单（允许执行）：
+├── rm -rf 构建产物目录（dist/、build/、target/、node_modules/）
+├── rm -rf 测试临时目录（明确以 test-tmp/ 或 .tmp/ 开头的路径）
+├── git push --force 到个人 feature 分支（非 main/master/develop）
+└── DROP/TRUNCATE 在测试数据库中执行（连接串含 test/mock）
+
+🔴 遇到不在白名单内的危险命令：
+├── 立即停止执行
+├── 记录到上游问题清单
+└── 返回 ⚠️ DONE_WITH_CONCERNS，由 PMO 决定是否暂停让用户确认
+```
+
 ---
 
-## 三、执行引擎选择（Codex CLI / Claude）
+## 三、Codex CLI 调用规范（仅 Codex Code Review 使用）
 
-### 3.0 引擎分配原则
+Codex CLI 仅用于 **Codex Code Review Subagent**（[codex-code-review.md](./codex-code-review.md)）的独立外部代码审查。其他 Subagent 统一使用 Claude Task 执行。
 
-部分 Subagent 默认使用 `codex` CLI 执行以节省 Claude token，适用条件：
-```
-✅ 适合 Codex CLI 的 Subagent：
-├── 工作模式为「执行 + 验证」（跑命令、读代码、对照清单检查）
-├── 代码审查任务
-├── 输入输出格式明确，不需要复杂的产品/架构判断
-├── 不需要多角色视角或深度上下文理解
-└── 见 §四 表格「默认引擎」列
-
-❌ 不适合 Codex CLI 的 Subagent：
-├── 需要深度理解 PRD/架构/产品方向（评审类、设计类）
-├── 需要多角色扮演（PL-PM 讨论、多角色评审）
-├── 需要浏览器操作或复杂 API 链路验证（E2E 验收）
-└── 需要架构级判断力（架构师 Review、QA Lead 总结）
-```
-
-### 3.0.1 Codex CLI 环境检测
-
-PMO 在首次需要启动默认引擎为 Codex CLI 的 Subagent 时，执行环境检测：
+### 可用性检测（INIT.md Step 3.5 完成，结果缓存至会话结束）
 
 ```
-检测方式：检查 `codex --version` 命令是否可用
-
-├── ✅ 命令可用 → Codex CLI 已安装，按默认引擎启动
-├── ❌ 命令不可用 → 引导用户安装：
-│   └── PMO 输出：
-│       「当前 Subagent（{名称}）默认使用 Codex CLI 执行以节省 Claude token，但检测到当前环境没有 `codex` 命令。
-│       💡 建议：先安装并确认 `codex --version` 可用后继续。
-│       🔀 或者：输入「用 Claude」跳过 Codex，本次降级为 Claude Task 执行。」
-│       → ⏸️ 等待用户选择
-└── 检测结果缓存：同一会话内只检测一次，结果记入会话上下文
+├── codex_cli_available = true → Codex Code Review 正常执行
+├── codex_cli_available = false → PMO 启动 Codex Code Review 时 ⏸️ 提示用户：
+│   「Codex CLI 不可用。选择：
+│     1️⃣ 解决环境问题后继续
+│     2️⃣ 降级到 Claude Sonnet 执行同等 Review
+│     3️⃣ 跳过 Codex Review」
+├── 选择 2️⃣ 时：使用 codex-code-review.md §五 相同的 prompt 模板，执行引擎改为 Claude Sonnet Subagent
+└── 跳过 Codex Review 不阻塞后续流程（记录跳过原因即可）
 ```
 
-### 3.0.2 PMO 启动 Codex CLI Subagent
+### CLI 配置
 
-PMO 使用宿主环境的子任务能力启动 Subagent；当默认引擎为 Codex CLI 时，由该 Subagent 在自己的执行上下文中调用 `codex` 完成任务：
-
-```
-PMO 启动时的 prompt 应说明：
-└── 「本次任务默认使用 Codex CLI 执行；如环境缺少 `codex`，暂停并等待用户选择安装或降级为 Claude。」
-```
-
-**🔴 Codex CLI 配置**：
 ```
 ├── 命令入口：`codex`
-├── 项目配置：如项目已有 `.codex/` 配置则沿用
-└── 用户配置：如用户环境已配置 Codex CLI，则按用户配置执行
+├── 如项目已有 `.codex/` 配置则沿用
+└── 如用户环境已配置则按用户配置执行
 ```
 
-### 3.0.3 引擎合规检查（Stop hook 辅助）
-
-**PMO 启动默认引擎为 Codex CLI 的 Subagent 时，必须先检查引擎选择：**
+### 异常处理
 
 ```
-🔴 启动前引擎检查（QA 代码审查 / 集成测试 必须执行）：
-├── Step 1: 检查 `codex` 是否可用（`codex --version`）
-├── Step 2: 根据结果选择引擎：
-│   ├── Codex CLI 可用 → 默认使用 Codex CLI 执行
-│   │   └── PMO 判断本次任务不适合 Codex CLI（如上下文过重、需要跨文件深度关联）
-│   │       → ⏸️ 必须暂停向用户说明原因 + 推荐方案：
-│   │         「Codex CLI 可用，但本次 {Subagent 名称} 任务 {具体原因}，建议使用 Claude Task 执行。
-│   │          选择：1️⃣ 用 Claude（推荐） 2️⃣ 仍用 Codex CLI」
-│   │       → 用户确认后执行
-│   ├── Codex CLI 不可用 → 输出警告并暂停，让用户选择安装后继续或本次降级为 Claude Task
-│   └── 用户本会话已明确说过「用 Claude」→ 允许使用 Claude Task（不再重复询问）
-└── Step 3: 如果 PMO 对默认引擎为 Codex CLI 的 Subagent 跳过 Codex 且未经用户确认 → 违规
-```
-
-**⚠️ Codex CLI 不可用时的警告输出（必须暂停等用户选择）：**
-
-```
-⚠️ Codex CLI 未就绪提醒
-├── 当前 Subagent「{名称}」默认使用 Codex CLI 执行以节省 Claude token
-├── 检测结果：当前环境没有 `codex` 命令
-│
-├── 💡 建议：
-│   ├── 1. 安装 Codex CLI
-│   ├── 2. 确认 `codex --version` 可用
-│   └── 3. 安装完成后回复继续，我会按默认引擎重试
-│
-└── 🔀 也可以选择：本次直接降级为 Claude Task 执行
-```
-
-### 3.0.4 降级机制
-
-```
-Codex CLI 执行失败时的降级流程：
-├── `codex` 命令不可用 → ⏸️ 提示用户安装或选择 Claude
-├── `codex` 命令执行超时（>5min）→ 输出错误并请求用户决定是否改用 Claude
-├── `codex` 输出为空或格式不符 → 输出异常并请求用户决定是否改用 Claude
-├── `codex` 返回错误 → 输出错误信息并请求用户决定是否改用 Claude
-└── 用户明确选择「用 Claude」后，PMO 再以 Claude Task 重新执行
-
-🔴 因环境缺失导致的降级必须由用户选择；不能未经确认自动从 Codex CLI 切到 Claude。
+Codex CLI 执行中出错（超时/返回异常/输出为空）→ ⏸️ 用户选择：重试 / 跳过 Codex Review
 ```
 
 ---
@@ -184,7 +143,9 @@ Codex CLI 执行失败时的降级流程：
 
 ### 4.1 启动方式
 
-PMO 使用宿主环境支持的子任务工具启动 subagent。引擎只决定 subagent 内部优先调用 `codex` CLI 还是直接用 Claude 完成任务，prompt 结构如下：
+PMO 使用宿主环境支持的子任务工具启动 subagent。
+
+**Prompt 结构**：
 
 ```
 你是 Teamwork 协作框架中的 {角色名}。
@@ -209,21 +170,37 @@ PMO 使用宿主环境支持的子任务工具启动 subagent。引擎只决定 
 🔴 PMO 在启动 Subagent 前，必须读取以下文件并将关键内容直接注入 prompt，
    而不是只传路径让 Subagent 自己去读。减少 Subagent 读错/漏读的风险。
 
+🔴 如果项目根目录存在 `CLAUDE.md` / `AGENTS.md` / `GEMINI.md`，PMO 必须先读取并提炼与当前任务相关的仓库级约束，再一并注入 prompt。仓库级约束优先于 teamwork 默认规则。
+
 按角色注入内容：
 ├── RD 开发 Subagent → 注入 PRD 验收标准 + TC 用例清单 + TECH 技术方案全文
 ├── 架构师 Tech Review → 注入 TECH 技术方案全文 + ARCHITECTURE.md 核心章节
 ├── 架构师 Code Review → 注入 TECH 技术方案要点 + RD 自查报告 + 修改文件清单
+├── Codex Code Review → 注入 PRD 验收标准 + TECH 核心设计 + TC 用例摘要 + 代码变更文件（🔴 不注入架构师 CR 报告）
 ├── QA 代码审查 → 注入 TC 用例清单 + RD 修改文件清单
 ├── PRD 评审 → 注入 PRD 全文
 ├── TC 评审 → 注入 TC 全文 + PRD 验收标准
 ├── Designer UI 设计 → 注入 PRD 全文 + 验收标准 + 现有 sitemap.md（如有）
-├── 集成测试 → 注入 TC 中的后端用例 + API 端点清单
-└── E2E 验收 → 注入 TC.md「E2E Scenarios」章节 + 执行方式 + 前置条件
+├── 集成测试 → 注入 TC 中标记为 integration 的用例 + 项目集成测试命令
+├── API E2E → 注入 TC.md「API E2E Scenarios」章节 + API base URL + 前置条件
+└── Browser E2E → 注入 TC.md「Browser E2E Scenarios」章节 + 页面地址 + 前置条件
 
 注入格式：在 prompt 的「关键上下文」区块中用 markdown 引用块包裹内容。
-```
+若存在仓库级规则文件，放在「关键上下文」最前面，标题标注为「仓库级约束」。
 
-⚠️ 所有文档和代码操作都在子项目路径下进行，不要操作其他子项目的文件。
+## 编辑范围约束（PMO 必须注入 prompt）
+
+🔴 你只能操作以下路径，其他路径一律禁止读写：
+- 允许读写：{子项目路径}/（功能代码 + 测试 + 配置）
+- 允许读写：{子项目路径}/docs/features/{功能目录}/（文档产出）
+- 允许只读：{项目根目录}/docs/（ARCHITECTURE.md / KNOWLEDGE.md 等共享文档）
+- 允许只读：{项目根目录}/.claude/skills/teamwork/standards/（开发规范）
+- 🚫 禁止：其他子项目路径
+- 🚫 禁止：.env / .env.* / credentials.* / *secret* 等敏感文件
+- 🚫 禁止：.git/ 目录直接操作（通过 git 命令操作）
+
+违反时：立即停止 → 记录到问题清单 → 返回 DONE_WITH_CONCERNS
+```
 
 ### 启动前自问（PMO 必须确认）
 
@@ -283,17 +260,24 @@ Subagent 返回后，PMO 必须：
 
 | 文件 | 角色 | 阶段 | 默认引擎 | 说明 |
 |------|------|------|----------|------|
+| **Chain Subagents（一体化执行，减少 PMO relay）** | | | | |
+| [dev-chain.md](./dev-chain.md) | RD + 架构师 | 🔗 RD 开发+自查 → 架构师 CR → 修复循环 | Claude | 技术方案确认后触发，内部包含修复循环≤3 轮 |
+| [verify-chain.md](./verify-chain.md) | QA | 🔗 QA 审查 → 单元测试 → 集成测试 → API E2E | Claude | Dev Chain 通过后触发，只验证不修复 |
+| [codex-code-review.md](./codex-code-review.md) | Codex（外部） | 🤖 Codex 独立代码审查 | Codex CLI | Dev Chain 通过后触发，独立于架构师 CR 的外部视角 |
+| **单阶段 Subagents** | | | | |
 | [pl-pm-discuss.md](./pl-pm-discuss.md) | PL + PM | PL-PM 协同讨论（🆕 Teams 模式） | Claude | PM 输出 PRD 初稿后触发 |
 | [prd-review.md](./prd-review.md) | 多角色 | PRD 多角色评审 | Claude | PL-PM 讨论收敛 + PRD 定稿后触发 |
 | [tc-review.md](./tc-review.md) | 多角色 | TC 多角色评审 | Claude | QA 输出 TC 后触发 |
 | [arch-tech-review.md](./arch-tech-review.md) | 架构师 | 技术方案 Review | Claude | RD 输出技术方案后触发 |
-| [rd-develop.md](./rd-develop.md) | RD | TDD 开发 + 自查 | Claude | 技术方案用户确认后触发 |
-| [arch-code-review.md](./arch-code-review.md) | 架构师 | Code Review + 架构文档更新 | Claude | TDD Subagent 完成后触发 |
-| [qa-code-review.md](./qa-code-review.md) | QA | 代码审查（读代码 + TC 逐条验证） | **Codex CLI** | 架构师 Code Review 通过后触发 |
 | [ui-design.md](./ui-design.md) | Designer | UI 设计 | Claude | PRD 用户确认后 + 需要 UI 时触发 |
-| [integration-test.md](./integration-test.md) | QA | 集成测试 | **Codex CLI** | QA 前置检查通过后触发 |
-| [qa-e2e.md](./qa-e2e.md) | QA | E2E 端到端验收（browser / api / mixed） | Claude | QA 集成测试通过 + TC.md E2E 判断 = 需要 时触发 |
+| [qa-e2e.md](./qa-e2e.md) | QA | Browser E2E 端到端验收（AI 浏览器） | Claude | Verify Chain 通过 + 用户确认执行 Browser E2E 时触发 |
 | [qa-lead-review.md](./qa-lead-review.md) | QA Lead | 质量总结（全局审查测试体系完整性） | Claude | 🔴 每个 Feature 必须触发 |
+| **Chain 内部引用的子规范（不单独启动）** | | | | |
+| [rd-develop.md](./rd-develop.md) | RD | TDD 开发 + 自查 | — | Dev Chain 内部引用 |
+| [arch-code-review.md](./arch-code-review.md) | 架构师 | Code Review + 架构文档更新 | — | Dev Chain 内部引用 |
+| [qa-code-review.md](./qa-code-review.md) | QA | 代码审查（读代码 + TC 逐条验证） | — | Verify Chain 内部引用 |
+| [integration-test.md](./integration-test.md) | QA | 集成测试 | — | Verify Chain 内部引用 |
+| [api-e2e.md](./api-e2e.md) | QA | API E2E 端到端验收（curl/httpie） | — | Verify Chain 内部引用 |
 
 > 后续扩展新 subagent 时，在本目录新增对应 `.md` 文件并更新此表。
 > ⚠️ Feature Planning 流程中 PM 在主对话中执行（需要与用户交互）。PM 与用户讨论达成共识后，有 UI 的子项目先启动 Designer Subagent（全景重建模式）验收全景设计，确认后再更新 PROJECT.md 并拆解 ROADMAP。

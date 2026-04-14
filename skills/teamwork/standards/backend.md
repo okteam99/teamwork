@@ -151,55 +151,33 @@ assert db_user["created_at"] is not None
     └── 重置被修改的数据状态
 ```
 
-#### 4. 环境依赖部署（Docker 优先）
+#### 4. 环境依赖部署（通过测试脚本）
+
+> 📎 测试脚本接口约定详见 [common.md](./common.md)「三、测试脚本约定」。
+> RD 在开发阶段创建根级 `scripts/test-env-setup.sh`，封装全局环境准备逻辑（Docker/本地/远程均可）。
 
 ```
-📋 集成测试环境准备（按优先级执行）：
+📋 RD 创建 test-env-setup.sh 时的实现指南（后端项目）：
 
-Step 1: 检测 Docker 环境
-├── 执行 `docker --version` 和 `docker compose version`
-├── ✅ 已安装 → Step 2
-└── ❌ 未安装 → ⏸️ 提示用户安装 Docker：
-    ├── macOS: 「请安装 Docker Desktop: https://www.docker.com/products/docker-desktop」
-    ├── Linux: 「请执行: curl -fsSL https://get.docker.com | sh」
-    └── 用户确认安装完成后 → 重新检测 → Step 2
+典型实现（Docker 优先）：
+├── 检测 Docker 环境
+│   ├── ✅ 可用 → 使用 docker-compose
+│   └── ❌ 不可用 → 检查 docs/RESOURCES.md 是否有远程环境
+│       ├── 有 → 使用远程环境
+│       └── 无 → 退出码非 0 + stderr 输出「需要 Docker 或远程环境配置」
+├── 启动依赖服务（DB/Redis/MQ）
+│   ├── docker-compose.test.yml（放在 docs/integration_test/ 下）
+│   ├── 等待健康检查（最多 60 秒）
+│   └── 加载前置数据（init.sql / seed.redis 等）
+├── 验证连通性
+│   ├── 数据库连接 ✅
+│   ├── Redis 连接 ✅（如有）
+│   └── API 服务可达 ✅
+└── 成功时 stdout 最后一行输出环境信息 JSON：
+    {"db_url": "...", "redis_url": "...", "api_base": "http://localhost:8080"}
 
-Step 2: 检查 docs/integration_test/ 目录
-├── ✅ 已有 docker-compose.test.yml → 使用已有配置
-│   └── `docker compose -f docs/integration_test/docker-compose.test.yml up -d`
-└── ❌ 没有 → Step 3
-
-Step 3: 根据 TECH.md 中的技术栈自动生成测试环境
-├── 创建 docs/integration_test/ 目录结构
-├── 分析依赖项（数据库类型、Redis、MQ 等）
-├── 生成 docker-compose.test.yml，包含：
-│   ├── 数据库服务（MySQL/PostgreSQL/MongoDB 等）
-│   ├── 缓存服务（Redis 等，如需要）
-│   ├── 消息队列（RabbitMQ/Kafka 等，如需要）
-│   ├── 端口映射、健康检查
-│   └── volumes 挂载前置数据目录（如 ./pg:/docker-entrypoint-initdb.d）
-├── 生成前置数据文件（init.sql / seed.redis 等）
-├── 写入 docs/integration_test/
-└── `docker compose -f docs/integration_test/docker-compose.test.yml up -d`
-
-Step 4: 等待服务就绪 + 加载前置数据
-├── 健康检查（最多等待 60 秒）
-├── ✅ 全部就绪：
-│   ├── 数据库：init.sql 通过 volume 挂载自动执行（Docker 首次启动时）
-│   ├── Redis：`redis-cli < docs/integration_test/redis/seed.redis`（如有）
-│   ├── MongoDB：`mongosh < docs/integration_test/mongo/init.js`（如有）
-│   ├── 将连接信息写入 docs/RESOURCES.md
-│   └── → 进入测试
-└── ❌ 启动失败 → 输出日志 → ⏸️ 用户确认处理方式
-
-⚠️ Docker 不可用时的降级方案：
-├── 检查 docs/RESOURCES.md 是否有远程环境配置
-├── 有 → 使用远程环境
-└── 无 → ⏸️ 暂停，请求用户提供：
-    ├── 数据库连接信息（host/port/user/password）
-    ├── 第三方服务配置（如需要）
-    └── 测试账号（如无法自主注册）
-    └── 用户提供后 → 写入 docs/RESOURCES.md → 后续自动复用
+🔴 脚本必须满足接口约定：退出码 0/非 0、幂等、无交互、JSON 输出。
+   具体实现自由（Docker/K8s/本地进程/远程连接均可）。
 ```
 
 ### 集成测试报告
@@ -245,18 +223,17 @@ Step 4: 等待服务就绪 + 加载前置数据
 ### 失败处理流程
 
 ```
-集成测试失败：
+集成测试失败（Verify Chain 返回后由 PMO 处理）：
     ↓
-判断失败类型：
-    ├── 代码 Bug → RD 自动修复 → 重新测试
-    ├── Docker 容器异常 → `docker compose logs` 排查 → 重启容器 → 重新测试
-    ├── 环境问题 → 尝试自动恢复 → 重新测试
+判断失败类型（根据 Verify Chain 报告）：
+    ├── 代码 Bug (QUALITY_ISSUE) → PMO dispatch RD Fix → 重新 dispatch Verify Chain
+    ├── 环境问题 (BLOCKED) → ⏸️ 用户排查 → 修复后 PMO 重新预检 + dispatch
     ├── 需求理解偏差 → ⏸️ 用户确认 → 决定修复方案
     └── 测试用例问题 → ⏸️ 用户确认 → 调整用例或跳过
 
 测试完成后清理（可选）：
-    ├── `docker compose -f docker-compose.test.yml down` 停止并移除容器
-    └── 保留容器供后续测试复用（默认保留）
+    ├── 执行根级 scripts/test-env-teardown.sh（如存在）
+    └── 默认保留环境供后续测试复用
 ```
 
 ---
@@ -492,7 +469,7 @@ try {
 ├── 迁移完成后同步更新 ARCHITECTURE.md → database-schema.md
 ├── 破坏性变更（删列/改类型/删表）必须在 TECH.md 中标注风险
 └── 🔴 跨子项目 Schema 同步（新增/修改/删除列时必查）：
-    ├── TECH.md 必须包含「数据库变更 → Schema 影响分析」章节（模板见 TEMPLATES.md）
+    ├── TECH.md 必须包含「数据库变更 → Schema 影响分析」章节（模板见 templates/tech.md）
     ├── 影响分析来源：database-schema.md「Model/Struct 映射」表 + grep 全项目代码
     ├── 核对 Struct 字段列表与数据库列完全一致（字段名 + 类型 + 可空性）
     ├── 核对所有引用该 Struct 的 SQL 查询列列表与字段匹配（缺列 → ORM 报错 → 500）

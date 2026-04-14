@@ -99,7 +99,7 @@
 
 ### 架构文档维护规则
 
-> **维护责任人**：资深架构师（在架构师 Code Review Subagent 中执行）
+> **维护责任人**：资深架构师（在 Dev Chain 的架构师 Code Review 阶段执行）
 > **文档位置**：`docs/architecture/ARCHITECTURE.md`
 
 ```
@@ -119,7 +119,248 @@
 
 ---
 
-## 三、RD 自查规范
+## 三、测试脚本约定
+
+> RD 在开发阶段负责创建/维护测试脚本。规范只约定脚本接口（名称 + 行为），不约定实现细节（Docker/K8s/本地均可）。
+> PMO 和 Verify Chain 通过脚本与测试环境交互，不直接执行 docker-compose 等底层命令。
+
+### 两层脚本结构（Monorepo）
+
+```
+monorepo/                                  # 仓库根目录
+├── scripts/                               # 根级：全局环境（跨子项目共享）
+│   ├── test-env-setup.sh                  # 启动全部依赖服务（DB/Redis/MQ + 各子项目服务）
+│   ├── test-env-check.sh                  # 全局连通性检查
+│   └── test-env-teardown.sh               # 全局清理（可选）
+│
+├── packages/
+│   ├── api/
+│   │   └── scripts/                       # 子项目级：只管自己的测试执行
+│   │       ├── test-unit.sh               # 子项目单元测试
+│   │       ├── test-integration.sh        # 子项目集成测试（假定全局环境已就绪）
+│   │       └── test-api-e2e.sh            # 子项目 API E2E
+│   ├── web/
+│   │   └── scripts/
+│   │       ├── test-unit.sh
+│   │       └── test-browser-e2e.sh        # Browser E2E（可选）
+│   └── shared/
+│       └── scripts/
+│           └── test-unit.sh
+
+分层原则：
+├── 根级脚本（scripts/）→ 环境启停，跨子项目共享
+│   ├── 启动全部基础设施（DB/Redis/MQ/对象存储 等）
+│   ├── 启动各子项目服务（按依赖顺序）
+│   └── 加载全局前置数据
+├── 子项目脚本（packages/{name}/scripts/）→ 测试执行，只管自己
+│   ├── 假定全局环境已就绪，不负责启动环境
+│   └── 只运行本子项目的测试
+└── PMO 调用顺序：根级 setup → 子项目 test-*
+```
+
+### 脚本接口规范
+
+```
+🔴 所有脚本必须满足：
+├── 退出码：0 = 成功，非 0 = 失败
+├── 幂等：重复执行不出错
+├── 无交互：不能 read stdin / 弹确认框（Subagent 内无法交互）
+└── stdout/stderr：失败时输出足够的诊断信息
+
+【根级脚本】
+
+scripts/test-env-setup.sh（全局环境准备）：
+├── 职责：启动全部依赖服务 + 各子项目服务、加载前置数据、等待健康检查
+├── 成功时 stdout 最后一行输出 JSON：
+│   {"db_url": "...", "redis_url": "...", "services": {"api": "http://localhost:8080", "web": "http://localhost:3000"}}
+├── 可选参数：--skip-if-running（已在运行则跳过，加速重复调用）
+└── 实现自由：Docker Compose、本地进程、远程环境均可
+
+scripts/test-env-check.sh（全局连通性检查）：
+├── 职责：验证全局环境仍然可用（DB/Redis/各服务端口 可达）
+├── 轻量快速：只做 ping/连接测试，不启动服务
+├── 成功时 stdout 输出检查结果
+└── 用途：Verify Chain 内部复核（PMO 预检到 Subagent 启动有时间差）
+
+scripts/test-env-teardown.sh（全局清理，可选）：
+├── 职责：停止所有服务、清理测试数据
+└── 默认保留环境供后续测试复用
+
+【子项目脚本】
+
+{subproject}/scripts/test-unit.sh（子项目单元测试）：
+├── 职责：运行本子项目全量单元测试
+├── 底层命令由项目决定（cargo test --lib / npm test / pytest 等）
+└── 🔴 不依赖全局环境——纯代码级测试
+
+{subproject}/scripts/test-integration.sh（子项目集成测试）：
+├── 职责：运行本子项目集成测试（假定全局环境已就绪）
+├── 🔴 不负责启动环境——必须先由根级 test-env-setup.sh 完成
+└── 输出测试结果 + 覆盖报告到 stdout
+
+{subproject}/scripts/test-api-e2e.sh（子项目 API E2E）：
+├── 职责：逐场景验证本子项目 API 链路（假定全局环境已就绪）
+├── 参数：可选传入 TC.md 路径以读取 API E2E Scenarios
+└── 输出完整 request/response 到 stdout
+
+{subproject}/scripts/test-browser-e2e.sh（Browser E2E，可选）：
+├── 职责：浏览器自动化测试
+├── 内部处理 playwright/puppeteer 安装检测
+└── 输出截图/录屏路径 + 测试结果
+```
+
+### RD 创建时机
+
+```
+RD 在 TDD 开发阶段创建测试脚本：
+
+根级脚本（首次创建后持续维护，新增子项目依赖时更新）：
+├── scripts/test-env-setup.sh     ← 首次有集成测试需求时创建
+├── scripts/test-env-check.sh     ← 与 test-env-setup.sh 同步创建
+└── scripts/test-env-teardown.sh  ← 可选
+
+子项目脚本（每个子项目按需创建）：
+├── test-unit.sh          ← 编写单元测试时同步创建
+├── test-integration.sh   ← 编写集成测试时创建
+├── test-api-e2e.sh       ← QA 在 TC.md 定义 API E2E 场景后创建
+└── test-browser-e2e.sh   ← QA 在 TC.md 定义 Browser E2E 场景后创建（如需）
+
+🔴 Dev Chain 自查检查项：测试脚本是否存在且可执行
+   RD 自查 → 确认根级 + 子项目脚本存在 + 至少本地跑通一次
+   架构师 CR → 确认脚本接口符合约定（退出码/幂等/无交互）
+```
+
+### PMO 预检流程（分层，所有流程统一引用）
+
+> 🔴 PMO 在 dispatch **任何 Subagent** 之前，必须完成对应级别的预检。
+> 不同流程/阶段所需的预检级别不同（见 RULES.md 各流程流转链中的标注）。
+> L1 是最小集，L2 包含 L1，L3 包含 L1+L2。
+
+#### L1 基础预检（所有流程、所有 Subagent dispatch 前必做）
+
+```
+🔴 任何 Subagent dispatch 前都必须完成 L1。包括 Micro 流程的 RD Subagent。
+
+Step 1: 扫描仓库级约束文件
+├── 检查项目根目录是否存在 CLAUDE.md / AGENTS.md / GEMINI.md
+├── 如存在 → 读取并提炼与当前任务相关的约束
+│   ├── 特别关注：保护标记（如 REMOVED / bugfix / read-only / @protected）
+│   ├── 特别关注：必须执行的检查（如 git log、lint gate）
+│   └── 特别关注：文件编辑限制（如 某些文件需要 review 才能改）
+└── 记录到预检报告
+
+Step 2: 扫描项目约定的辅助脚本与 CI 配置
+├── 📎 .claude/hooks/ 由宿主环境自动触发，PMO 不需要关注
+├── 检查 .github/workflows/、.husky/ 等 CI/CD 配置（如存在）
+│   ├── 提取与当前改动相关的检查逻辑（lint gate、test gate 等）
+│   └── PMO 主动执行对应检查（如 gate 要求 git log → PMO 执行 git log）
+└── 检查项目根目录是否有自定义 gate 脚本（如 Makefile check、pre-commit 配置）
+
+Step 3: 被修改文件的上下文检查
+├── git log -n 5 {每个被修改文件}（了解近期改动历史）
+├── grep 保护标记（Step 1 中提取的模式）在被修改文件中
+│   ├── 命中保护标记 → ⏸️ 告知用户，等确认后继续
+│   └── 无命中 → 继续
+└── 检查被修改文件是否有关联的 gate/hook 需要执行
+
+✅ L1 通过 → 记录预检结果 → 可 dispatch Subagent
+```
+
+#### L2 测试环境预检（Dev Chain / Verify Chain dispatch 前必做，包含 L1）
+
+```
+在 L1 基础上增加以下步骤：
+
+Step 4: 检查根级脚本存在性
+├── scripts/test-env-setup.sh 存在且可执行 → 继续
+└── ❌ 不存在 → ⏸️ 提示「RD 未创建全局环境脚本，需要补充」
+
+Step 5: 检查子项目脚本存在性
+├── {subproject}/scripts/test-unit.sh 存在 → 继续
+└── ❌ 不存在 → ⏸️ 提示「子项目缺少测试脚本」
+
+Step 6: 运行中服务版本一致性检查
+├── 检查是否有本地 server 进程在运行（如 lsof -i :{常用端口}）
+├── 如有 → 检查运行的 binary/进程是否是改动后编译的版本
+│   ├── 方法：对比进程启动时间 vs 最后编译时间、或检查 binary hash
+│   ├── 版本一致 → 继续
+│   └── ❌ 版本不一致 → ⏸️ 告知用户「当前运行的是改动前的版本，需要重启才能验证新代码」
+│       └── 提供方案：重启命令（如 ./dev_local.sh --stop && ./dev_local.sh）
+└── 无 server 运行 → 继续（后续可能需要启动）
+
+Step 7: 执行 scripts/test-env-setup.sh（根级环境准备）
+├── ✅ 退出码 0 → 解析输出的环境信息 JSON → 继续
+└── ❌ 非 0 → 输出错误日志 → ⏸️ 用户排查
+
+Step 8: 执行 scripts/test-env-check.sh（验证全局环境健康）
+├── ✅ 退出码 0 → 环境就绪
+└── ❌ → 重试 test-env-setup.sh → 仍失败 → ⏸️ 用户排查
+
+✅ L2 通过 → 将环境信息 + 子项目路径注入 Subagent prompt → dispatch
+```
+
+#### L3 E2E 预检（Verify Chain 中需要 API E2E / Browser E2E 时，包含 L1+L2）
+
+```
+在 L2 基础上增加以下步骤：
+
+Step 9: API 服务可达性检查
+├── curl -s {API base URL}/health（或约定的 health check 端点）
+├── ✅ 返回 200 → 继续
+└── ❌ 不可达 → ⏸️ 告知用户启动/重启 server
+
+Step 10: 项目约定的 E2E 前置状态检查
+├── 读取 L1 Step 1 中提取的仓库级约束，查找 E2E 相关的项目约定
+│   （如开发账号缓存、测试数据初始化、token 刷新等——具体由项目 CLAUDE.md / KNOWLEDGE.md 定义）
+├── 如 TC.md 要求特定账号策略（新账号 / 指定角色）→ 确认前置条件满足
+└── 记录到预检报告
+
+Step 11: 数据库连通性检查
+├── 检查 DB 端口是否可达（如 pg_isready -p {port}）
+├── ✅ 可达 → 继续
+└── ❌ 不可达 → ⏸️ 用户排查
+
+✅ L3 通过 → 预检完成，可执行 E2E 验证
+```
+
+#### 预检报告输出格式
+
+```
+📋 PMO 预检报告（级别：L{1/2/3}）
+====================================
+├── 仓库级约束：{已读取 / 无约束文件}
+├── CI/Gate 扫描：{已检查 / 无相关配置}
+├── 保护标记检查：{无命中 / 命中 X 处（已确认）}
+├── 被改文件 git log：{已检查 N 个文件}
+├── 测试脚本：{根级 ✅/❌，子项目 ✅/❌}（L2+）
+├── 服务版本：{一致 / 需重启 / 无运行服务}（L2+）
+├── 环境健康：{✅ / ❌ 原因}（L2+）
+├── API 可达：{✅ / ❌}（L3）
+├── DB 连通：{✅ / ❌}（L3）
+└── ⚠️ Concerns：{无 / 列表}
+```
+
+#### 各流程预检级别速查
+
+```
+| 流程 | Subagent | 预检级别 |
+|------|----------|----------|
+| Micro | RD Subagent | L1 |
+| 敏捷需求 | Dev Chain | L2 |
+| 敏捷需求 | Verify Chain | L2（含 E2E 时升级 L3） |
+| Feature | Dev Chain | L2 |
+| Feature | Codex Code Review | L1 |
+| Feature | Verify Chain | L2（含 E2E 时升级 L3） |
+| Feature | Browser E2E | L3 |
+| Bug | Dev Chain | L2 |
+| Bug | Verify Chain | L2（含 E2E 时升级 L3） |
+| 问题排查 | 各 Subagent | L1 |
+| Feature Planning | Designer Subagent | L1 |
+```
+
+---
+
+## 四、RD 自查规范
 
 > RD 开发完成后、提交 QA 审查前，必须完成自查并输出自查报告。
 

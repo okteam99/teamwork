@@ -137,7 +137,7 @@ Step 6: PMO 汇总讨论报告
 3. {architecture_path} — 代码架构现状
 4. {knowledge_path} — 项目知识库（如存在）
 
-PRD 模板规范见 {skill_path}/TEMPLATES.md。
+PRD 模板规范见 {skill_path}/templates/prd.md。
 {midplatform_flag}
 输出到：{feature_path}/PRD.md
 ```
