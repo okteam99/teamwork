@@ -4,19 +4,53 @@
 
 ---
 
-## 一、Subagent 适用原则
+## 一、执行方式决策（PMO 必读）
+
+> 🔴 PMO 在每个阶段开始前，必须确认该阶段的执行方式（Subagent / 主对话）。
+> 禁止凭"感觉"判断——查下表。
+
+### 执行方式速查表
 
 ```
-✅ 适合用 Subagent 的阶段：
-├── 输入明确（所有依赖文件已就绪）
-├── 无用户交互（无暂停点）
-├── 输出明确（代码/报告/文档）
-└── 阶段内部可自闭环
+| 阶段 | 执行方式 | 推荐模型 | 原因 |
+|------|----------|----------|------|
+| Plan Stage（PM写PRD+PL-PM讨论+技术评审） | 🤖 Subagent | Sonnet | 一体化产出定稿 PRD |
+| Designer UI 设计 | 🤖 Subagent | Opus | 需要设计审美 + HTML 产出质量 |
+| QA 编写 TC | 主对话 | — | 可能需要与用户交互 |
+| TC 技术评审 | 主对话（角色切换） | — | 轻量任务 |
+| RD 技术方案 | 主对话 | — | 可能需要与用户交互 |
+| 架构师方案评审 | 主对话（角色切换） | — | 轻量任务 |
+| Dev Stage（RD TDD+单测） | 🤖 Subagent | Opus | 核心编码，质量要求最高 |
+| Review Stage（架构师CR∥Codex∥QA审查） | 🤖 Subagent | Sonnet | 三 review 并行，校验型 |
+| UI 还原验收（Designer↔RD） | 主对话 | — | 多轮交互 |
+| ~~Codex Code Review~~ | 已合入 Review Stage | — | 不再独立 dispatch |
+| Test Stage（QA+测试） | 🤖 Subagent | Sonnet | 校验型任务：跑测试+对照 checklist+解析输出 |
+| Browser E2E | 🤖 Subagent | Sonnet | 执行型任务：发请求+校验 response |
+| ~~QA Lead 质量总结~~ | 已移除 | — | Test Stage 通过后直接 PM 验收 |
+| PM 验收 | 主对话 | — | 需要与用户交互 |
 
-❌ 不适合用 Subagent 的阶段：
-├── 需要用户确认（暂停点）
+📎 推荐模型说明：
+├── Opus：需要创造性产出（代码/设计）或复杂架构判断的任务
+├── Sonnet：校验型/执行型任务（跑测试、对照 checklist、结构化讨论）
+├── —（主对话）：继承当前会话模型，不单独指定
+└── PMO dispatch Subagent 时通过 Task 工具的 model 参数指定
+```
+
+### 判断原则
+
+```
+什么时候用 Subagent（🤖）：
+├── 任务重（预期 >5 分钟执行时间），冷启动开销占比低
+├── 产出大（大量代码/HTML/测试输出），放主对话会挤占 context
+├── 需要外部工具（Codex CLI / AI 浏览器）
+└── 内部可自闭环（无暂停点，输入输出都明确）
+
+什么时候在主对话执行：
+├── 任务轻（预期 <5 分钟），冷启动开销占比高
+├── 需要与用户交互（暂停点）
 ├── 涉及多角色多轮交互（如 UI 还原验收 Designer↔RD 循环）
-└── 需要实时感知主对话上下文变化
+├── 需要实时感知主对话上下文变化
+└── 评审/审查类任务（读+判断+出报告，无大量产出）
 ```
 
 ---
@@ -108,7 +142,7 @@ Subagent 返回给主对话的内容必须包含：
 
 ## 三、Codex CLI 调用规范（仅 Codex Code Review 使用）
 
-Codex CLI 仅用于 **Codex Code Review Subagent**（[codex-code-review.md](./codex-code-review.md)）的独立外部代码审查。其他 Subagent 统一使用 Claude Task 执行。
+Codex CLI 仅用于 **Codex Code Review Subagent**（[review-stage.md](./review-stage.md)）的独立外部代码审查。各阶段的执行方式（Subagent / 主对话）见上方 §一「执行方式速查表」。
 
 ### 可用性检测（INIT.md Step 3.5 完成，结果缓存至会话结束）
 
@@ -119,7 +153,7 @@ Codex CLI 仅用于 **Codex Code Review Subagent**（[codex-code-review.md](./co
 │     1️⃣ 解决环境问题后继续
 │     2️⃣ 降级到 Claude Sonnet 执行同等 Review
 │     3️⃣ 跳过 Codex Review」
-├── 选择 2️⃣ 时：使用 codex-code-review.md §五 相同的 prompt 模板，执行引擎改为 Claude Sonnet Subagent
+├── 选择 2️⃣ 时：使用 review-stage.md §五 相同的 prompt 模板，执行引擎改为 Claude Sonnet Subagent
 └── 跳过 Codex Review 不阻塞后续流程（记录跳过原因即可）
 ```
 
@@ -174,12 +208,12 @@ PMO 使用宿主环境支持的子任务工具启动 subagent。
 
 按角色注入内容：
 ├── RD 开发 Subagent → 注入 PRD 验收标准 + TC 用例清单 + TECH 技术方案全文
-├── 架构师 Tech Review → 注入 TECH 技术方案全文 + ARCHITECTURE.md 核心章节
+├── 架构师方案评审 → 注入 TECH 技术方案全文 + ARCHITECTURE.md 核心章节
 ├── 架构师 Code Review → 注入 TECH 技术方案要点 + RD 自查报告 + 修改文件清单
 ├── Codex Code Review → 注入 PRD 验收标准 + TECH 核心设计 + TC 用例摘要 + 代码变更文件（🔴 不注入架构师 CR 报告）
 ├── QA 代码审查 → 注入 TC 用例清单 + RD 修改文件清单
-├── PRD 评审 → 注入 PRD 全文
-├── TC 评审 → 注入 TC 全文 + PRD 验收标准
+├── PRD 技术评审 → 注入 PRD 全文
+├── TC 技术评审 → 注入 TC 全文 + PRD 验收标准
 ├── Designer UI 设计 → 注入 PRD 全文 + 验收标准 + 现有 sitemap.md（如有）
 ├── 集成测试 → 注入 TC 中标记为 integration 的用例 + 项目集成测试命令
 ├── API E2E → 注入 TC.md「API E2E Scenarios」章节 + API base URL + 前置条件
@@ -256,29 +290,34 @@ Subagent 返回后，PMO 必须：
 
 ---
 
-## 五、当前已定义的 Subagent
+## 五、目录结构索引
 
-| 文件 | 角色 | 阶段 | 默认引擎 | 说明 |
-|------|------|------|----------|------|
-| **Chain Subagents（一体化执行，减少 PMO relay）** | | | | |
-| [dev-chain.md](./dev-chain.md) | RD + 架构师 | 🔗 RD 开发+自查 → 架构师 CR → 修复循环 | Claude | 技术方案确认后触发，内部包含修复循环≤3 轮 |
-| [verify-chain.md](./verify-chain.md) | QA | 🔗 QA 审查 → 单元测试 → 集成测试 → API E2E | Claude | Dev Chain 通过后触发，只验证不修复 |
-| [codex-code-review.md](./codex-code-review.md) | Codex（外部） | 🤖 Codex 独立代码审查 | Codex CLI | Dev Chain 通过后触发，独立于架构师 CR 的外部视角 |
-| **单阶段 Subagents** | | | | |
-| [pl-pm-discuss.md](./pl-pm-discuss.md) | PL + PM | PL-PM 协同讨论（🆕 Teams 模式） | Claude | PM 输出 PRD 初稿后触发 |
-| [prd-review.md](./prd-review.md) | 多角色 | PRD 多角色评审 | Claude | PL-PM 讨论收敛 + PRD 定稿后触发 |
-| [tc-review.md](./tc-review.md) | 多角色 | TC 多角色评审 | Claude | QA 输出 TC 后触发 |
-| [arch-tech-review.md](./arch-tech-review.md) | 架构师 | 技术方案 Review | Claude | RD 输出技术方案后触发 |
-| [ui-design.md](./ui-design.md) | Designer | UI 设计 | Claude | PRD 用户确认后 + 需要 UI 时触发 |
-| [qa-e2e.md](./qa-e2e.md) | QA | Browser E2E 端到端验收（AI 浏览器） | Claude | Verify Chain 通过 + 用户确认执行 Browser E2E 时触发 |
-| [qa-lead-review.md](./qa-lead-review.md) | QA Lead | 质量总结（全局审查测试体系完整性） | Claude | 🔴 每个 Feature 必须触发 |
-| **Chain 内部引用的子规范（不单独启动）** | | | | |
-| [rd-develop.md](./rd-develop.md) | RD | TDD 开发 + 自查 | — | Dev Chain 内部引用 |
-| [arch-code-review.md](./arch-code-review.md) | 架构师 | Code Review + 架构文档更新 | — | Dev Chain 内部引用 |
-| [qa-code-review.md](./qa-code-review.md) | QA | 代码审查（读代码 + TC 逐条验证） | — | Verify Chain 内部引用 |
-| [integration-test.md](./integration-test.md) | QA | 集成测试 | — | Verify Chain 内部引用 |
-| [api-e2e.md](./api-e2e.md) | QA | API E2E 端到端验收（curl/httpie） | — | Verify Chain 内部引用 |
+```
+stages/          ← Stage 定义（PMO dispatch 的单位）
+├── plan-stage.md              PM 写 PRD + PL-PM 讨论 + 多角色技术评审
+├── blueprint-stage.md        QA 写 TC + TC 评审 + RD 技术方案 + 架构师评审
+├── dev-stage.md              RD TDD 开发 + 单元测试
+├── review-stage.md           架构师 CR ∥ Codex Review ∥ QA 代码审查（并行）
+├── test-stage.md             集成测试 ∥ API E2E（并行）
+├── ui-design-stage.md          当前 Feature UI 设计
+├── panorama-design-stage.md           全景设计同步更新（sitemap + overview）
+└── browser-e2e-stage.md             Browser E2E 端到端验收
 
-> 后续扩展新 subagent 时，在本目录新增对应 `.md` 文件并更新此表。
+agents/          ← 任务单元规范（被 stage 内部引用，不被 PMO 直接 dispatch）
+├── README.md（本文件）  执行方式速查 + 通用约束 + PMO dispatch 规范
+├── rd-develop.md        RD TDD 开发 + 自查
+├── arch-code-review.md  架构师 Code Review + 架构文档更新
+├── qa-code-review.md    QA 代码审查（读代码 + TC 逐条验证）
+├── integration-test.md  集成测试
+└── api-e2e.md           API E2E 端到端验收
+
+roles/           ← 角色定义（职责 + 输出标准 + 反模式）
+├── pmo.md       含 PRD 技术评审规范
+├── pm.md        含 PRD 技术评审维度
+├── qa.md        含 TC 技术评审规范
+├── rd.md        含 架构师方案评审规范
+├── designer.md
+└── product-lead.md
+```
 > ⚠️ Feature Planning 流程中 PM 在主对话中执行（需要与用户交互）。PM 与用户讨论达成共识后，有 UI 的子项目先启动 Designer Subagent（全景重建模式）验收全景设计，确认后再更新 PROJECT.md 并拆解 ROADMAP。
 > 🌐 工作区级 Feature Planning：PM 先与用户确认 teamwork_space.md 架构变更，然后对每个受影响的有 UI 子项目，依次启动 Designer Subagent（全景重建模式）。每个子项目的全景设计独立确认后，再更新 PROJECT.md 并拆解 ROADMAP。

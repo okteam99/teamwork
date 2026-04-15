@@ -1,320 +1,189 @@
 # Teamwork 初始化流程
 
-> 🔴 **每次** `/teamwork` 启动时都必须读取本文件并执行 Step 0 + Step 1。
-> Step 2-4 仅在首次初始化（项目空间未创建）时执行。
+> 🔴 每次 `/teamwork` 启动时必须按顺序执行「启动必做」3 步。
+> 「按需加载」由各角色在执行阶段自行加载，不在启动时执行。
+> 「首次初始化」仅在 teamwork_space.md 不存在时执行。
 
-## 每次启动必执行
+---
 
-### Step 0: 加载项目空间定义 + 本地知识库
+## 启动必做（每次，按顺序执行）
 
-🔴 **穷举检查原则**：PMO 判定某个文件/目录"不存在"之前，必须检查所有合理位置（项目根、docs/、各子项目路径等），禁止只查一个路径就下结论。判定"未初始化"是高影响结论，错误判定会浪费用户多轮对话。
-
-**Step 0-A: 检查 `teamwork_space.md` 文件**：
-```
-🔴 搜索路径（按优先级顺序，找到即停止）：
-├── 1. {项目根目录}/teamwork_space.md          ← 标准位置
-├── 2. {项目根目录}/docs/teamwork_space.md      ← 兼容位置
-└── 3. 🔴 两个位置都必须实际执行 ls/find 检查，禁止只查一个就判定不存在
-
-如果找到 teamwork_space.md：
-├── 读取文件内容
-├── 加载子项目清单、职责、依赖关系
-├── 后续 PMO 分析需求时参考此文件
-└── 输出提示：「📦 已加载项目空间定义（X 个子项目）— 路径：{实际路径}」
-
-如果两个位置都不存在：
-├── 自动扫描项目结构（详见 templates/ 自动生成规则）
-├── 扫描结果判断：
-│   ├── 发现 ≥2 个子项目 → 生成 teamwork_space.md 草稿 → ⏸️ 必须暂停等用户确认后才能写入
-│   ├── 发现 1 个子项目 → 提示用户确认，生成 teamwork_space.md（含该子项目）
-│   └── 未发现子项目 → 询问用户定义项目名，生成 teamwork_space.md（作为单个子项目）
-├── 🔴 生成位置：{项目根目录}/teamwork_space.md（标准位置）
-└── 🔴 禁止在用户确认前写入 teamwork_space.md！
-```
-
-**Step 0-A2: 检查 `.teamwork_localconfig.md`（多人协作配置）**：
-```
-如果 .teamwork_localconfig.md 存在：
-├── 读取当前用户负责的子项目列表
-├── scope = all → 用户负责所有子项目
-├── scope = 指定子项目列表 → 用户只负责列出的子项目
-├── 后续 PMO 分析需求时优先聚焦用户负责的子项目
-└── 输出提示：「👤 当前负责模块：[子项目列表] / 全部」
-
-如果不存在或为空：
-├── ⏸️ 提示用户选择负责的子项目（可多选，或选择「全部」）
-├── 用户选择后生成 .teamwork_localconfig.md
-└── 🔴 此文件为本地配置，应加入 .gitignore，不提交到仓库
-```
-
-**Step 0-A3: 扫描外部依赖请求（用户负责的子项目）**：
-```
-🔴 scope = all 时跳过此步骤（自己负责所有模块，不存在跨人依赖）
-
-scope = 指定子项目时，遍历用户负责的子项目，检查 {子项目路径}/docs/DEPENDENCY-REQUESTS.md：
-├── 存在且有未解决请求（状态 ≠ ✅ 已完成）：
-│   ├── 汇总所有待处理的外部依赖请求
-│   ├── 按优先级排序（🔴 阻塞 > 🟡 影响进度 > 🟢 非紧急）
-│   └── ⏸️ 提醒用户：
-│       「📬 你负责的模块有 N 条外部依赖请求待处理：
-│        [请求列表摘要]
-│        建议优先处理阻塞级请求。是否先处理依赖请求，还是继续新需求？」
-└── 不存在或无待处理请求 → 跳过
-```
-
-**Step 0-B: 加载本地知识库（如存在）**：
-```
-├── 读取全局 docs/KNOWLEDGE.md（如存在）
-├── 读取各子项目 {子项目路径}/docs/KNOWLEDGE.md（如存在）
-└── 输出提示：「📚 已加载知识库（全局 + X 个子项目）」
-```
-
-**Step 0-C: 加载/创建项目总览（PROJECT.md — 业务视角，给老板看）**：
-```
-遍历 teamwork_space.md 中的子项目清单
-├── 对每个子项目检查 {子项目路径}/docs/PROJECT.md：
-│   ├── 存在 → 读取并加载为该子项目上下文
-│   └── 不存在 → 扫描子项目结构，自动生成基础版本
-│       ├── 根据子项目代码推断：功能模块划分（用业务语言描述）
-│       ├── 留空待补充：项目简介、核心业务流程、关键业务决策
-│       ├── 🔴 不写技术栈、代码分层等技术细节（那些属于 ARCHITECTURE.md）
-│       └── 写入 {子项目路径}/docs/PROJECT.md
-├── 确保 teamwork_space.md 的子项目清单中包含各 PROJECT.md 链接
-├── 对有 UI 的子项目（前端/客户端），检查 {子项目路径}/docs/design/sitemap.md：
-│   ├── 存在 → 加载
-│   └── 不存在 → 暂不创建（首次 Feature 涉及 UI 设计时由 Designer 创建）
-└── 输出提示：「📋 已加载 N 个子项目总览（从 teamwork_space.md 进入全景）」
-```
-
-**Step 0-C2: 加载/创建架构文档（ARCHITECTURE.md — 技术视角，给技术团队看）**：
-```
-遍历 teamwork_space.md 中的子项目清单
-├── 对每个子项目检查 {子项目路径}/docs/architecture/ARCHITECTURE.md：
-│   ├── 存在 → 读取并加载为该子项目技术上下文
-│   └── 不存在 → 扫描子项目代码结构，自动生成基础版本（模板见 templates/architecture.md）
-│       ├── 根据代码扫描推断：技术栈（语言、框架、数据库）
-│       ├── 根据目录结构推断：分层架构、核心模块
-│       ├── 生成架构图（Mermaid）
-│       ├── 🔴 与 PROJECT.md 互补：ARCHITECTURE.md 写技术细节，PROJECT.md 写业务概览
-│       └── 写入 {子项目路径}/docs/architecture/ARCHITECTURE.md
-└── 输出提示：「🏗️ 已加载 N 个子项目架构文档（从 ARCHITECTURE.md 了解技术全景）」
-
-⚠️ 初始化创建的 ARCHITECTURE.md 是基于代码扫描的基础版本：
-├── 技术栈概览 → 从 package.json / go.mod / requirements.txt / Cargo.toml 等推断
-├── 目录结构 → 从实际目录生成
-├── 分层与职责 → 从目录命名推断（如 controllers/ services/ models/）
-├── 核心模块说明 → 留空（首次 Code Review 时由架构师填充）
-└── 后续由架构师在 Code Review 阶段持续更新和完善
-```
-
-**Step 0-C3: 加载/创建数据库 Schema 文档（database-schema.md）**：
-```
-遍历 teamwork_space.md 中的子项目清单
-├── 对每个子项目，检测是否有数据库：
-│   ├── 扫描信号（满足任一即判定有数据库）：
-│   │   ├── 存在 migrations/ 或 db/migrate/ 目录
-│   │   ├── 存在 ORM Model 定义文件（models/ entities/ schema/ 等目录）
-│   │   ├── package.json / go.mod / Cargo.toml 等引用了数据库驱动（如 pg, mysql, sqlx, prisma, typeorm, gorm, sqlalchemy）
-│   │   └── 存在 docker-compose 中的数据库服务定义
-│   │
-│   ├── 无数据库 → 跳过
-│   └── 有数据库 → 检查 {子项目路径}/docs/architecture/database-schema.md：
-│       ├── 存在 → 读取并加载
-│       └── 不存在 → 扫描代码自动生成基础版本（模板见 templates/architecture.md）
-│           ├── 扫描 ORM Model/Struct 定义 → 提取表名、字段、类型
-│           ├── 扫描 migration 文件 → 提取建表语句、索引、约束
-│           ├── 生成 ER 关系图（Mermaid erDiagram）
-│           ├── 生成 Model/Struct 映射表（文件路径 + ORM 框架）
-│           ├── 🔴 以代码为准：migration 文件和 ORM Model 是 schema 的真实来源
-│           └── 写入 {子项目路径}/docs/architecture/database-schema.md
-│
-└── 输出提示：「🗄️ 已加载 N 个子项目数据库 Schema（M 个无数据库已跳过）」
-
-⚠️ 初始化创建的 database-schema.md 是基于代码扫描的基础版本：
-├── ER 关系图 → 从 Model 定义的外键/关联关系推断
-├── 核心表说明 → 从 migration + Model 字段生成（字段、类型、索引）
-├── Model/Struct 映射表 → grep 所有引用该表的 Model/Struct 及文件路径
-├── SQL 查询引用点 → 留空（首次 Code Review 时由架构师填充）
-└── 后续由架构师在 Code Review 阶段持续更新和完善
-```
-
-**Step 0-D: 加载 ROADMAP.md + 扫描 Feature STATUS.md + 一致性校验**：
-```
-🔴 本步骤由三部分组成：① 加载 ROADMAP → ② 扫描 STATUS.md → ③ 交叉校验
-
-① 加载各子项目 ROADMAP.md：
-├── 遍历 teamwork_space.md 中的子项目清单
-├── 读取 {子项目路径}/docs/ROADMAP.md（如存在）
-├── 提取每个 Feature 行：编号、名称、状态（待启动/进行中/已完成）、当前阶段、Wave 归属
-├── 不存在 → 记录，不阻塞
-└── 同时读取全局 docs/ROADMAP.md（如存在，跨子项目规划）
-
-② 扫描 Feature STATUS.md：
-├── 🔴 扫描路径：必须遍历 teamwork_space.md 中所有子项目的 docs/features/ 目录
-│   ├── 正确：{子项目路径}/docs/features/*/STATUS.md（多子项目模式）
-│   └── 错误：项目根/docs/features/（根级目录在多子项目模式下不是 Feature 存放位置）
-├── 遍历所有 {子项目路径}/docs/features/*/STATUS.md：
-│   ├── 存在 → 读取当前阶段、当前角色、最后更新、阻塞状态
-│   ├── 不存在但目录有 PRD.md 等文件 → 根据文件存在情况推断阶段，创建 STATUS.md
-│   └── 排除「当前阶段」为「✅ 已完成」的 Feature
-
-③ 一致性校验（ROADMAP vs STATUS.md vs teamwork_space.md）：
-├── 校验 1: ROADMAP 标记「进行中」但 docs/features/ 无对应目录
-│   → ⚠️ 输出警告：「ROADMAP 中 {Feature} 标记为进行中，但未找到工作目录」
-├── 校验 2: docs/features/ 有进行中 Feature 但 ROADMAP 状态为「待启动」
-│   → ⚠️ 输出警告：「{Feature} 已在开发但 ROADMAP 未同步，建议更新 ROADMAP」
-├── 校验 3: teamwork_space.md 完成度与 ROADMAP 实际统计不一致
-│   → ⚠️ 输出警告：「{子项目} teamwork_space.md 完成度 X/Y 与 ROADMAP 实际 A/B 不一致」
-└── 有警告时汇总到恢复报告，由用户决定是否修复；无警告时输出「✅ 一致性校验通过」
-
-汇总为 Feature 看板输出（按最后更新时间降序）：
-📋 Feature 状态看板
-| 子项目 | Feature | ROADMAP 状态 | STATUS.md 阶段 | 当前角色 | 最后更新 |
-|--------|---------|-------------|----------------|----------|----------|
-| ... | ... | ... | ... | ... | ... |
-
-有进行中 Feature → 询问用户从哪里继续
-无进行中 Feature → 等待新需求
-```
-
-**知识参考场景**：
-```
-├── PM 编写 PRD 时 → 参考「需求澄清」相关知识
-├── Designer 设计时 → 参考「用户设计偏好」
-├── QA Test Plan / Write Cases 时 → 参考「测试重点」知识
-├── RD 技术方案时 → 参考「技术决策」和「踩坑记录」
-└── 所有角色 → 遵守「项目特定规则」
-```
-
-### Step 1: 自动注入/更新 CLAUDE.md（🔴 每次启动必执行）
+### Step 1: 校验 CLAUDE.md（🔴 最先做）
 
 **检查项目根目录的 `CLAUDE.md` 文件**：
-- 如果不存在 → 创建并写入 Teamwork 规则
-- 如果存在但无 `<!-- teamwork-rules-v` 版本标记 → 追加 Teamwork 规则
-- 如果已有版本标记但版本号 < 当前版本（v7） → 替换整个 `## Teamwork 协作模式` 段落
-- 如果版本号 = 当前版本 → 跳过
+- 不存在 → 创建并写入下方内容
+- 存在 → 读取 `## Teamwork 协作模式` 段落，对照下方模板校验内容完整性
+  - 段落缺失 → 追加
+  - 内容不符合预期（缺失/被篡改/旧版本）→ 替换为预期内容
+  - 完整匹配 → 跳过
 
 **写入内容**：
 ```markdown
-<!-- teamwork-rules-v7 -->
 ## Teamwork 协作模式
 
 本项目使用 Teamwork 多角色协作流程。
 启动方式：`/teamwork [需求]` 或 `/teamwork 继续`。
-所有流程规范、角色定义、红线约束详见 skill 目录：`.claude/skills/teamwork/`，入口为 SKILL.md。
+详细规范见 skill 目录：`.claude/skills/teamwork/`，入口为 SKILL.md。
 🔴 激活后必须先读取 INIT.md 完成初始化检查，再接收需求。
+
+### 🔴 PMO 每次阶段变更必做（3 件事，缺一不可）
+
+1. 输出 1 行校验：`📋 {A} → {B}（📖 {🚀/⏸️}，来源：flow-transitions.md L{行号} "{原文}"）`
+   🔴 必须引用 flow-transitions.md 的实际行号+原文片段，禁止只写"查 ✅"。编造行号 = 伪造证据。
+2. 🚀自动 → 直接执行，禁止询问 | ⏸️暂停 → 给建议+理由，等确认
+3. 按顺序逐步走，禁止跳过/合并/自创步骤
+
+### 🔴 绝对红线（13 条）
+
+1. PMO 禁止写代码/改文件（即使只改一行也必须启 RD Subagent）
+2. 流程只有六种：Feature / Bug / 问题排查 / Feature Planning / 敏捷需求 / Micro
+3. 禁止擅自简化：每种需求走完整流程，用户明确说「跳过」才可豁免
+4. 所有用户输入必须由 PMO 先承接
+5. 暂停点必须等用户明确确认
+6. 需求类型只能填规定的六种
+7. 使用流程只能填规定的六种
+8. Feature Planning 只产出文档，禁止产出代码
+9. 闭环验证：声称"已完成"必须附带实际命令输出
+10. 暂停点必须给建议（💡）和理由（📝）
+11. PMO 未输出初步分析前禁止写操作
+12. 非暂停点（🚀）禁止插入确认/询问
+13. Subagent dispatch 前必须完成对应级别预检（L1/L2/L3）
+
+### 工作原则
+
+1. 不要假设用户清楚自己想要什么。动机或目标不清晰时，停下来讨论，不要带着猜测往前跑。
+2. 目标清晰但路径不是最短的，直接说并建议更好的办法。
+3. 遇到问题追根因，不打补丁。每个决策都要能回答"为什么"。
+4. 输出说重点，砍掉一切不改变决策的信息。
 ```
 
-🔴 **注入内容约束**：
-├── CLAUDE.md 中的 Teamwork 段落必须控制在 5 行以内，只做指针
-├── 所有规范细节（红线、激活条件、流程说明、Hooks）全部在 skill 目录内管理
-├── 禁止在 CLAUDE.md 中重复 SKILL.md / INIT.md / RULES.md 的内容
-└── 版本号仅在指针内容本身变化时才升级（规范内容变化不需要动 CLAUDE.md）
+### Step 2: 加载项目空间
 
-## 仅首次初始化时执行（teamwork_space.md 不存在时）
+```
+🔴 穷举检查原则：判定"不存在"前必须检查所有合理位置，禁止只查一个路径就下结论。
 
-### Step 2: 创建基础目录
+检查 teamwork_space.md：
+├── 搜索：{项目根}/teamwork_space.md → {项目根}/docs/teamwork_space.md
+├── 找到 → 读取，加载子项目清单
+├── 未找到 → 进入「首次初始化」流程（见下方）
+└── 输出：「📦 已加载项目空间（X 个子项目）」
 
-**创建目录**（teamwork_space.md 已确认后）：
+检查 .teamwork_localconfig.md（多人协作）：
+├── 存在 → 读取 scope（all / 指定子项目列表）
+├── 不存在 → 默认 scope=all（单人模式），不提示不打断
+└── 用户主动说"我只负责 XX" → 那时再创建 localconfig
+```
+
+### Step 3: 扫描进度 + 输出看板
+
+```
+扫描各子项目 docs/features/*/STATUS.md：
+├── 读取当前阶段、当前角色、最后更新、阻塞状态
+├── 排除「✅ 已完成」的 Feature
+├── 不存在但目录有 PRD.md → 推断阶段，创建 STATUS.md
+└── 汇总为 Feature 看板（按最后更新降序）
+
+📋 Feature 状态看板
+| 子项目 | Feature | 当前阶段 | 当前角色 | 最后更新 |
+|--------|---------|----------|----------|----------|
+
+🔴 有进行中 Feature → 必须给出优先级建议（💡 + 📝 理由），不能只列状态
+无进行中 Feature → 等待新需求
+```
+
+---
+
+## 按需加载（不在启动时执行，角色需要时加载）
+
+| 文件 | 加载时机 | 加载者 |
+|------|----------|--------|
+| docs/KNOWLEDGE.md | 各角色执行时参考 | 当前角色 |
+| docs/architecture/ARCHITECTURE.md | RD 技术方案 / 架构师 Review / Dev Stage | RD / 架构师 Subagent |
+| docs/architecture/database-schema.md | RD 涉及 DB 变更时 | RD Subagent |
+| docs/PROJECT.md | PM 编写 PRD / PL 讨论产品方向 | PM / PL |
+| design/sitemap.md + overview.html | Designer 设计阶段 | Designer Subagent |
+| docs/ROADMAP.md | Feature Planning / PMO 完成报告 | PM / PMO |
+| DEPENDENCY-REQUESTS.md | scope ≠ all（多人协作）时扫描外部依赖 | PMO |
+
+**按需加载规则**：
+```
+├── 各角色 Subagent 启动时，PMO 在 prompt 中注入所需文件（见 agents/README.md §四）
+├── 主对话角色切换时，PMO 按需读取相关文件
+├── 不存在的文件：记录但不阻塞，首次需要时由对应角色创建
+│   ├── ARCHITECTURE.md 不存在 → Dev Stage 首次执行时扫描代码自动生成基础版
+│   ├── database-schema.md 不存在 → RD 涉及 DB 时扫描 migration/Model 自动生成
+│   ├── PROJECT.md 不存在 → PM 首次 Feature Planning 时创建
+│   └── KNOWLEDGE.md 不存在 → 无历史知识，正常执行
+└── 自动生成的文档为基础版本，后续由架构师在 Code Review 阶段持续完善
+```
+
+---
+
+## 首次初始化（teamwork_space.md 不存在时）
+
+### 创建项目空间
+
+```
+扫描项目结构：
+├── ≥2 个子项目 → 生成 teamwork_space.md 草稿 → ⏸️ 用户确认后写入
+├── 1 个子项目 → 提示确认，生成 teamwork_space.md
+└── 未发现子项目 → 询问用户定义项目名
+🔴 禁止在用户确认前写入 teamwork_space.md
+```
+
+### 创建基础目录
+
 ```bash
-# 全局目录
 mkdir -p docs/decisions
-
-# 各子项目目录（根据 teamwork_space.md 中的路径）
 mkdir -p {子项目路径}/docs/features
 mkdir -p {子项目路径}/docs/architecture
 ```
 
-### Step 3: 项目扫描
-
-扫描项目，自动识别：
-- 项目类型（Web/Mobile/Server/全栈）
-- 技术栈（语言、框架）
-- 是否需要 UI
-- 现有架构文档
-- **子项目结构（如果 Step 0-A 扫描到多子项目）**
-
-### Step 3.5: Codex CLI 环境检测（用于 Codex Code Review）
+### 项目扫描
 
 ```
-检查 Codex CLI 是否已安装（仅 Codex Code Review 阶段使用，其他 Subagent 不依赖）：
-├── 方式：检查 `codex --version` 命令是否可用
-├── ✅ 命令可用 → codex_cli_available = true
-├── ❌ 命令不可用 → codex_cli_available = false
-└── 结果记入初始化报告
-
-💡 未安装时建议：
-安装 Codex CLI，并确认 `codex --version` 可执行
-（不安装也不影响其他流程，仅 Codex Code Review 阶段会跳过）
+自动识别：项目类型 / 技术栈 / 是否需要 UI / 子项目结构
 ```
 
-### Step 4: 输出初始化报告
+### Codex CLI 检测
 
-**初始化完成报告**：
+```
+codex --version 可用 → codex_cli_available = true
+不可用 → false（不影响其他流程，仅 Codex Code Review 跳过）
+```
+
+### 输出初始化报告
+
 ```
 📋 Teamwork 初始化完成
 ================================
-
-✅ CLAUDE.md 已更新（自动加载规则已注入）
-✅ 基础目录已创建
+✅ CLAUDE.md 已校验
 📦 项目空间：已加载（X 个子项目）
-👤 当前负责模块：[子项目列表] / 全部
-🏗️ 架构文档：已加载 / 已自动生成基础版本
-🗄️ 数据库 Schema：已加载 / 已自动生成 / 无数据库
-📚 本地知识库：已加载 / 无历史知识
-🤖 Codex CLI：✅ 可用 → Codex Code Review 阶段可正常执行
-   / ❌ 未安装 → Codex Code Review 阶段由用户选择：解决后继续 / 降级 Sonnet / 跳过
+🤖 Codex CLI：✅ 可用 / ❌ 未安装
 
-子项目列表：
-| 缩写 | 名称 | 技术栈 | 需要 UI | 我负责 |
-|------|------|--------|---------|--------|
-| AUTH | auth-service | Go + Gin | 否 | ✅ |
-| WEB | web-app | React + TS | 是 | ✅ |
-| ADMIN | admin-panel | React + TS | 是 | — |
-
-📬 外部依赖请求（如有）：
-├── [🔴 阻塞] WEB 请求你的 AUTH 模块提供 SSO 回调接口
-└── [🟢 非紧急] ADMIN 请求你的 AUTH 模块开放角色查询 API
-
-知识库摘要（如有）：
-├── 全局：[跨项目经验]
-├── AUTH：[子项目经验]
-└── WEB：[子项目经验]
+| 缩写 | 名称 | 技术栈 | 需要 UI |
+|------|------|--------|---------|
 
 请输入需求开始第一个功能。
 ```
 
-### Step 4-C: 已初始化项目恢复报告（情况 C 专用）
+### 已初始化项目恢复报告（teamwork_space.md 存在时替代初始化报告）
 
-> 当 teamwork_space.md 已存在时（情况 C），跳过 Step 1-3，直接执行 Step 0 全部子步骤后输出此报告。
-> 🔴 此报告替代 Step 4 的首次初始化报告，PMO 必须使用此模板输出，禁止自由发挥。
+> Step 3 扫描完成后直接输出此报告。
 
 ```
 📋 Teamwork 项目恢复
 ================================
+📦 项目空间：{路径}（{X} 个子项目）
 
-📦 项目空间：{teamwork_space.md 实际路径}（{X} 个子项目）
-
-📊 子项目进度概览（从 teamwork_space.md 读取）：
-| 缩写 | 名称 | 完成度 | 当前状态 |
-|------|------|--------|----------|
-| SDK  | aon-sdk | 10/16 (63%) | Wave 2 进行中 |
-| ... | ... | ... | ... |
-
-📋 进行中 Feature（从各子项目 docs/features/*/STATUS.md 扫描）：
+📋 进行中 Feature：
 | 子项目 | Feature | 当前阶段 | 当前角色 | 最后更新 |
 |--------|---------|----------|----------|----------|
-| SVC-CORE | F003-xxx | RD 开发 | RD | 2025-04-10 |
-| ... | ... | ... | ... | ... |
-（无进行中 Feature 时输出：✅ 当前无进行中 Feature）
 
-📚 知识库：已加载 / 无
-🤖 Codex CLI：✅ 可用（Codex Code Review 可用） / ❌ 未安装（Codex Code Review 降级 Sonnet 或跳过）
+💡 建议：{优先推进项 + 理由}
 
 可选操作：
-├── 📝 提交新需求（Feature / Bug / 问题排查 / Feature Planning / 敏捷需求）
-├── 🔄 继续进行中的 Feature（指定子项目或 Feature 编号）
-└── 📋 查看某子项目 ROADMAP（查看下一批待启动 Feature）
+├── 📝 提交新需求
+├── 🔄 继续进行中的 Feature
+└── 📋 查看某子项目 ROADMAP
 ```
-
----

@@ -158,7 +158,7 @@ SessionStart / PreCompact / PostCompact / Stop（详见 hooks/hooks.json）
 ### 问题诊断
 
 一个最简单的 Feature（如"把配置项 A 从 true 改为 false"），当前必须走完 12 个阶段：
-PRD → PL-PM 讨论 → PRD 评审 → 设计 → TC → 技术方案 → 架构师 Review → TDD 开发 → Code Review → QA 审查 → 集成测试 → QA Lead 总结 → PM 验收
+PRD → PL-PM 讨论 → PRD 技术评审 → 设计 → TC → 技术方案 → 架构师方案评审 → TDD 开发 → Code Review → QA 审查 → 集成测试 → QA Lead 总结 → PM 验收
 
 豁免条件极严格（必须用户说"跳过流程"），而大多数用户不会意识到需要主动说这句话。
 
@@ -226,7 +226,7 @@ PMO 初步分析后，如果同时满足以下全部条件：
 
 **解决方式**：
 - 移除了 Codex CLI 作为通用执行引擎的设计，所有 Subagent 统一使用 Claude Task 执行
-- 新增了独立的 **Codex Code Review** 阶段（agents/codex-code-review.md），Codex CLI 仅用于该阶段的外部独立代码审查
+- 新增了独立的 **Codex Code Review** 阶段（stages/review-stage.md），Codex CLI 仅用于该阶段的外部独立代码审查
 - agents/README.md §三 改为 Codex Code Review 专用的 CLI 调用规范
 - INIT.md Step 3.5 保留检测但限定用途为 Codex Code Review
 - agents/qa-code-review.md、integration-test.md 移除了"默认执行引擎：Codex CLI"标注
@@ -555,3 +555,179 @@ rm -f "$ROOT/.teamwork_lock" 2>/dev/null
 ---
 
 > 以上方案均为建议，请逐条确认是否执行。确认后我可以直接动手修改对应文件。
+
+---
+
+## 问题 8：角色与执行方式耦合（2026-04-15 新增）
+
+### 问题诊断
+
+当前 agents/ 目录混合了两种不同性质的文件：
+- **真正的 Subagent spec**：dev-stage.md、test-stage.md、review-stage.md、pl-pm-discuss-stage.md、ui-design-stage.md、browser-e2e-stage.md — 这些由 PMO 通过 Task 工具 dispatch
+- **主对话角色规范**：prd-review.md、tc-review.md、arch-tech-review.md — 这些在主对话中 PMO 切换角色执行，不是 Subagent
+
+同时 ROLES.md（1,635 行）把所有角色定义集中在一个文件里，每个角色包含：触发条件、职责、输出标准、模板、反模式。PMO 每次只需要当前角色的定义，但被迫读到不相关角色的内容。
+
+### 优化方案
+
+#### 8A：roles/ 与 agents/ 分离
+
+```
+roles/                    ← 角色定义（职责 + 输出标准 + 触发条件）
+├── pmo.md               ← PMO（从 ROLES.md L7-523 提取，517 行 → 精简到 ~200 行，模板引用 templates/）
+├── product-lead.md      ← PL（从 ROLES.md L524-766 提取，243 行）
+├── pm.md                ← PM（L767-918，152 行）+ prd-review.md 内容合并
+├── designer.md          ← Designer（L919-1002，84 行）
+├── qa.md                ← QA（L1003-1160，158 行）+ tc-review.md 内容合并
+├── rd.md                ← RD + 架构师（L1161-1530，370 行）+ arch-tech-review.md 内容合并
+└── anti-patterns.md     ← 反模式集中（L1531-1607，77 行）
+
+agents/                   ← 只保留 Subagent spec + 通用规范
+├── README.md            ← 执行方式速查表 + 通用执行约束（保持不变）
+├── dev-stage.md         ← 🤖 Subagent（保持）
+├── test-stage.md      ← 🤖 Subagent（保持）
+├── review-stage.md ← 🤖 Subagent（保持）
+├── pl-pm-discuss-stage.md     ← 🤖 Subagent（保持）
+├── ui-design-stage.md         ← 🤖 Subagent（保持）
+├── browser-e2e-stage.md            ← 🤖 Subagent（保持）
+└── （Chain 内部子规范保持不变）
+
+移出 agents/ → 合并到 roles/：
+├── prd-review.md → roles/pm.md（PRD 技术评审维度）
+├── tc-review.md → roles/qa.md（TC 技术评审维度）
+├── arch-tech-review.md → roles/rd.md（架构师方案评审维度）
+└── qa-lead-review.md → 归档删除（已从流程移除）
+```
+
+#### 执行步骤
+
+1. 创建 roles/ 目录
+2. 从 ROLES.md 按角色拆分为独立文件，同时精简（PMO 的模板引用 templates/，不内联）
+3. 把 agents/ 里 3 个主对话 spec 的内容合并到对应 roles/ 文件
+4. ROLES.md 改为索引文件（~30 行，指向 roles/*.md）
+5. 更新所有引用（SKILL.md / RULES.md / agents/README.md / REVIEWS.md）
+6. agents/README.md §五 文件索引更新（移除已迁出的文件）
+
+#### 预期收益
+
+- 角色定义按需加载：PMO dispatch RD 时只读 roles/rd.md，不用加载 1,635 行的 ROLES.md
+- agents/ 目录干净：只有真正被 Task 工具 dispatch 的 Subagent spec
+- 主对话评审规范跟随角色：PM 的 PRD 技术评审维度在 roles/pm.md 里，不在 agents/prd-review.md 里
+- ROLES.md 从 1,635 行变成 ~30 行索引
+
+#### 预估工作量
+
+~30 分钟（主要是拆文件 + 更新引用）
+
+#### 优先级
+
+P2（架构优化，不影响功能正确性，但显著降低 token 消耗）
+
+---
+
+## 问题 9：Review 分散在三个 Stage 中（2026-04-15 新增）
+
+### 问题诊断
+
+三个代码审查活动散落在不同 stage 里，无法并行：
+- 架构师 Code Review → 在 Dev Stage 内部（串行在 RD 开发后）
+- Codex Review → 独立 stage（review-stage.md）
+- QA 代码审查 → 在 Test Stage 内部（串行在测试前）
+
+### 优化方案
+
+#### 拆为 Dev → Review → Test 三段式
+
+```
+stages/
+├── dev-stage.md          ← RD 开发 + 单元测试（TDD：写测试→实现→跑测试确认通过）
+├── review-stage.md       ← 🆕 三个 review 并行：
+│   ├── 架构师 Code Review（从 Dev Stage 拆出）
+│   ├── Codex Review（从独立 stage 合入）
+│   └── QA 代码审查（从 Test Stage 拆出）
+│   └── 汇合：有问题 → RD 修复 → PMO 判断重跑哪些 review
+├── test-stage.md         ← 从 test-stage.md 改名，集成级测试：
+│   ├── 集成测试 ┐
+│   └── API E2E  ┘ 并行（单元测试已在 Dev Stage 完成）
+├── pl-pm-discuss-stage.md
+├── ui-design-stage.md
+└── browser-e2e-stage.md
+
+删除：review-stage.md（合入 review-stage.md）
+```
+
+#### 流转链变化
+
+```
+Feature 流程：
+... → Dev Stage（纯 RD 开发）→ Review Stage（三 review 并行）→ Test Stage（三测试并行）→ Browser E2E → PM 验收
+
+修复循环：
+Review Stage 有问题 → RD 修复 → 重跑 Review Stage（PMO 判断重跑哪些 review）
+Test Stage 有问题 → RD 修复 → 重跑 Test Stage
+```
+
+#### 关键设计决策
+
+架构师 CR 修复循环的变化：
+- 当前：Dev Stage 内部 RD 写代码 → 架构师 CR → 发现问题 → RD 立即修 → 架构师再审（零 PMO relay）
+- 改后：Dev Stage 只管 RD 写代码 → PMO dispatch Review Stage → 架构师发现问题 → PMO dispatch RD 修 → PMO dispatch Review Stage 重跑（每轮 2 次 PMO relay）
+
+代价：修复循环多了 PMO relay 开销。
+收益：三个 review 并行，总时间从串行 3 段降为并行 1 段；三个 review 的发现可以合并为 1 轮修复。
+
+#### 执行步骤
+
+1. 创建 stages/review-stage.md（三 review 并行定义）
+2. 改写 stages/dev-stage.md（去掉架构师 CR 和修复循环）
+3. 改写 stages/test-stage.md → 重命名为 test-stage.md（去掉 QA 代码审查）
+4. 删除 stages/review-stage.md（合入 review-stage.md）
+5. 改写 flow-transitions.md（Feature + 敏捷流程）
+6. 改写 RULES.md 流转链
+7. 更新所有引用
+
+#### 预估工作量
+
+~45 分钟
+
+#### 优先级
+
+P1（显著提升并行度，减少 review 总耗时）
+```
+
+---
+
+## 问题 10：v7 重构后的待清理项（2026-04-15）
+
+### ✅ 已完成
+- flow-transitions.md 完整重写（8 stage 结构）
+- RULES.md Feature 流转链重写
+- stages/ 目录 8 个 stage 文件就绪
+- roles/ 目录 6 个角色文件就绪
+- agents/ 只保留 README.md + 5 个任务单元规范
+
+### 待下轮执行
+
+1. **STATUS-LINE.md 阶段对照表更新**
+   - 当前表还是旧阶段名（Dev Stage / Verify Stage 已更新，但整体结构需适配 8 stage）
+   - 需要新增 Plan Stage / Blueprint Stage / Panorama Design Stage / Review Stage / Test Stage 的状态行显示
+
+2. **ui-design-stage.md 内容重写**
+   - 当前还是从旧 agents/ui-design.md 复制的原始内容（包含全景维护规则等已拆出的内容）
+   - 需要按新 stage 格式重写（只做 Feature UI，不动全景）
+
+3. **旧引用清理**
+   - 散落在 RULES.md / FLOWS.md / REVIEWS.md 等文件中的旧阶段名、旧路径
+   - grep "PL-PM Teams 讨论" / "TC 技术评审" / "架构师方案评审" 等旧的主对话阶段名 → 更新为对应 stage 名
+
+4. **agents/README.md 速查表完整更新**
+   - 速查表需要反映 8 stage 结构（部分已更新，需完整检查）
+
+5. **INIT.md CLAUDE.md 模板更新**
+   - 模板中的流程描述需要适配 8 stage
+
+6. **templates/status.md 更新**
+   - 阶段合法值列表需要适配 8 stage
+
+7. **敏捷需求流程的 RULES.md 流转链更新**
+   - 当前敏捷流转链还有旧内容，需要适配新 stage 结构

@@ -40,7 +40,7 @@ Subagent 启动时 PMO 提供：
 ├── TC.md「Browser E2E 前置条件」中用户提供的值（账号等）
 └── 需要读取的文件：
     ├── agents/README.md
-    ├── agents/qa-e2e.md
+    ├── stages/browser-e2e-stage.md
     ├── TC.md（Browser E2E Scenarios 章节）
     ├── PRD.md
     └── UI.md（如有）
@@ -92,6 +92,6 @@ Step 4: 输出Browser E2E 验收报告
 |---|------|------|------|------|
 
 ## 结论
-├── ✅ 通过 → 进入 QA Lead 质量总结
+├── ✅ 通过 → 进入 PM 验收
 └── ❌ 未通过 → RD 修复后重新Browser E2E
 ```

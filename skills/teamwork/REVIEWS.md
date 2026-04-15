@@ -15,12 +15,12 @@
 
 ---
 
-## 一、PRD 评审流程
+## 一、PRD 技术评审流程
 
-**PM 写完 PRD 初稿后，先经 PL-PM Teams 讨论（规范：agents/pl-pm-discuss.md）收敛定稿，再由 PMO 启动 Subagent 执行多角色评审**（规范：agents/prd-review.md）：
+**PM 写完 PRD 初稿后，先经 PL-PM Teams 讨论（规范：stages/pl-pm-discuss-stage.md）收敛定稿，再执行多角色评审**（规范：agents/prd-review.md，执行方式见 agents/README.md §一）：
 
-**Step 0**: PM 输出 PRD 初稿 → 🤖 PL-PM Teams 讨论 → PRD 定稿 → 📊 PMO 摘要（标注讨论结论）
-**Step 1**: 🤖 PMO 自动启动 Subagent，输入定稿 PRD（讨论收敛后无需用户确认，直接触发）
+**Step 0**: PM 输出 PRD 初稿 → PL-PM Teams 讨论 → PRD 定稿 → 📊 PMO 摘要（标注讨论结论）
+**Step 1**: PMO 自动执行评审（讨论收敛后无需用户确认，直接触发）
 **Step 2**: RD 评审（技术角度）
 **Step 3**: Designer 评审（设计角度，如需 UI）
 **Step 4**: QA 评审（测试角度）
@@ -76,7 +76,7 @@
 ### 评审输出格式
 
 ```
-📋 PRD 评审汇总（F{编号}-{功能名}）
+📋 PRD 技术评审汇总（F{编号}-{功能名}）
 =====================================
 
 ## RD 评审
@@ -146,9 +146,9 @@ PMO 结论: ✅ 可控 / ⚠️ 有风险
 
 ---
 
-## 二、TC 评审流程
+## 二、TC 技术评审流程
 
-**QA 写完用例后，PMO 自动启动 Subagent 执行多角色评审**（规范：agents/tc-review.md）：
+**QA 写完用例后，PMO 自动执行多角色评审**（规范：agents/tc-review.md，执行方式见 agents/README.md §一）：
 
 **Step 1**: QA 输出用例
 **Step 2**: PM 评审（需求角度）
@@ -184,7 +184,7 @@ PMO 结论: ✅ 可控 / ⚠️ 有风险
 ### 评审输出格式
 
 ```
-📋 TC 评审汇总（F{编号}-{功能名}）
+📋 TC 技术评审汇总（F{编号}-{功能名}）
 =====================================
 
 ## PM 评审（需求角度）
@@ -223,7 +223,7 @@ Designer 结论: ✅ 通过 / ❌ 有问题
 ### 评审角色动态选择
 
 ```
-TC 评审角色：
+TC 技术评审角色：
 ├── 需要 UI → PM + RD + Designer（3 角色）
 └── 不需要 UI → PM + RD（2 角色）
 
@@ -249,7 +249,7 @@ TC 评审角色：
 
 ## 三、UI 还原验收流程
 
-**Dev Chain 完成后触发（如有 UI），最多 3 轮验收循环**
+**Dev Stage 完成后触发（如有 UI），最多 3 轮验收循环**
 
 ### 验收检查项
 
@@ -377,11 +377,11 @@ Designer 验收（第 1 轮）
 ```
 Bug 评审规则：
 ├── 简单 Bug（RD 直接修复）
-│   ├── 跳过 PRD/TC 评审（无需新文档）
+│   ├── 跳过 PRD/TC 技术评审（无需新文档）
 │   └── QA 验证修复结果即可
 ├── 复杂 Bug（走完整流程）
-│   ├── PRD 评审 → 复用 Feature PRD 评审流程（角色 + 维度不变）
-│   ├── TC 评审 → 复用 Feature TC 评审流程（如有新增用例）
+│   ├── PRD 技术评审 → 复用 Feature PRD 技术评审流程（角色 + 维度不变）
+│   ├── TC 技术评审 → 复用 Feature TC 技术评审流程（如有新增用例）
 │   └── Code Review / 集成测试 → 同 Feature 流程
 └── PMO 在 Bug 判断阶段决定复杂度（判断标准见 RULES.md）
 ```

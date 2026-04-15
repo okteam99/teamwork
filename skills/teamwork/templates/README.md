@@ -33,7 +33,7 @@
    - 📄 [pl-pm-feedback.md](./pl-pm-feedback.md) - PL 反馈、PM 回应
 
 3. **评审阶段**
-   - 📄 [prd.md](./prd.md) - PRD 评审（含评审记录）
+   - 📄 [prd.md](./prd.md) - PRD 技术评审（含评审记录）
 
 4. **设计阶段（有 UI 时）**
    - 📄 [ui.md](./ui.md) - UI 设计文档

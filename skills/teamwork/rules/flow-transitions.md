@@ -1,41 +1,34 @@
 # 阶段状态转移表
 
-> 🔴 PMO/各角色在阶段切换前，必须对照此表确认流转类型。不在表中的转移路径为非法。
+> 🔴 PMO 在阶段切换前，必须对照此表确认流转类型。不在表中的转移路径为非法。
 > 每行的「流转」列标明：🚀自动 = 不暂停直接流转；⏸️暂停 = 等用户确认；🔀条件 = 按条件决定。
-> 此文件为阶段转移的权威定义，Pre-flight Check 必须查此表。
+> 此文件为阶段转移的权威定义，校验行必须引用此表的行号+原文。
 
 ## Feature 流程
 
 | 当前阶段 | 允许的下一阶段 | 流转 | 条件 |
 |----------|---------------|------|------|
-| PMO 初步分析 | PM 编写 PRD | ⏸️暂停 | 用户确认流程类型+方案后切换 |
-| PM 编写 PRD | PL-PM Teams 讨论 | 🚀自动 | PRD 初稿完成 |
-| PL-PM Teams 讨论 | PRD 评审 | 🔀条件 | 共识 → 🚀自动；分歧 → ⏸️用户决策 |
-| PRD 评审 | PRD 待确认 | ⏸️暂停 | 评审 Subagent 完成，等用户确认 |
-| PRD 待确认 | Designer 设计 / QA Test Plan | ⏸️暂停 | 用户确认（有 UI → Designer；无 UI → QA） |
-| Designer 设计 | UI 待确认 | ⏸️暂停 | 设计 Subagent 完成，等用户确认 |
-| UI 待确认 | QA Test Plan | ⏸️暂停 | 用户确认 |
-| QA Test Plan | QA Write Cases | 🚀自动 | Plan 完成 |
-| QA Write Cases | TC 评审 | 🚀自动 | 三类 Case 完成（BDD + API E2E + Browser E2E） |
-| TC 评审 | RD 技术方案 | 🔀条件 | 无阻塞项 → 🚀自动；有阻塞项 → ⏸️用户确认处理方式 |
-| RD 技术方案 | 架构师 Review | 🚀自动 | 技术方案完成 |
-| 架构师 Review | 技术方案待确认 | ⏸️暂停 | Review Subagent 完成，等用户确认 |
-| 技术方案待确认 | RD 实现计划 | ⏸️暂停 | 用户确认 |
-| RD 实现计划 | 🔗 Dev Chain | 🚀自动 | 实现计划完成 |
-| 🔗 Dev Chain | UI 还原验收 / Codex Review | 🚀自动 | DONE（有 UI → UI 验收；无 UI → Codex Review） |
-| 🔗 Dev Chain | ⏸️ 用户决策 | ⏸️暂停 | QUALITY_ISSUE / FAILED（内部≤3 轮修复未解决） |
-| UI 还原验收 | Codex Review | ⏸️暂停 | 用户确认通过 |
-| UI 还原验收 | 🔗 Dev Chain (RD Fix) | 🔁回退 | 有问题 → RD 修复 |
-| Codex Review | 🔗 Verify Chain | 🚀自动 | DONE / DONE_WITH_CONCERNS |
-| Codex Review | RD Fix → 重跑 Codex Review | 🔁回退 | NEEDS_FIX（三方修复流程，≤3 轮） |
-| Codex Review | ⏸️ 用户决策 | ⏸️暂停 | FAILED（Codex CLI 不可用） / 超 3 轮未收敛 |
-| 🔗 Verify Chain | QA Browser E2E / QA Lead 质量总结 | 🚀自动 | DONE（有 Browser E2E → ⏸️ 用户确认；无 → QA Lead） |
-| 🔗 Verify Chain | RD Fix → 重新 Verify Chain | 🔁回退 | QUALITY_ISSUE → RD 修复后重跑（≤3 轮 Verify-Fix 循环） |
-| 🔗 Verify Chain | ⏸️ 用户处理 | ⏸️暂停 | BLOCKED（环境问题） |
-| QA Browser E2E | QA Lead 质量总结 | 🚀自动 | 通过 |
+| PMO 初步分析 | 🔗 Plan Stage | ⏸️暂停 | 用户确认流程类型+方案后启动 |
+| 🔗 Plan Stage | PRD 待确认 | ⏸️暂停 | Plan Stage 返回定稿 PRD，等用户确认 |
+| 🔗 Plan Stage (分歧) | PRD 待确认 | ⏸️暂停 | 有 PL-PM 分歧项，用户逐项决策后确认 |
+| PRD 待确认 | 🔗 UI Design Stage / 🔗 Blueprint Stage | ⏸️暂停 | 用户确认（有 UI → UI Design；无 UI → Blueprint） |
+| 🔗 UI Design Stage | UI 待确认 | ⏸️暂停 | 设计完成，等用户确认 |
+| UI 待确认 | 🔗 UI Design Stage (修订) / 🔗 Panorama Design Stage / 🔗 Blueprint Stage | ⏸️暂停 | 有问题→重跑 Design（≤3轮）；通过+涉及全景→Panorama；通过+不涉及→Blueprint |
+| 🔗 Panorama Design Stage | 全景待确认 | ⏸️暂停 | 全景更新完成，等用户确认 |
+| 全景待确认 | 🔗 Blueprint Stage | ⏸️暂停 | 用户确认全景 |
+| 🔗 Blueprint Stage | 方案待确认 | ⏸️暂停 | Blueprint 返回 TC + TECH.md + 评审报告 |
+| 🔗 Blueprint Stage (concerns) | 方案待确认 | ⏸️暂停 | 有 concerns，用户确认处理方式 |
+| 方案待确认 | 🔗 Dev Stage | ⏸️暂停 | 用户确认技术方案 |
+| 🔗 Dev Stage | 🔗 Review Stage | 🚀自动 | DONE（单测全绿） |
+| 🔗 Dev Stage | ⏸️ 用户决策 | ⏸️暂停 | FAILED（单测持续失败/环境异常） |
+| 🔗 Review Stage | 🔗 Test Stage | 🚀自动 | DONE（三个 review 均通过） |
+| 🔗 Review Stage (NEEDS_FIX) | RD Fix → PMO 判断重跑哪些 review | 🔁回退 | ≤3 轮修复循环 |
+| 🔗 Review Stage (FAILED) | ⏸️ 用户决策 | ⏸️暂停 | Codex CLI 不可用 / 超 3 轮 |
+| 🔗 Test Stage | QA Browser E2E / PM 验收 | 🚀自动 | DONE（有 Browser E2E → ⏸️用户确认；无→PM 验收） |
+| 🔗 Test Stage (QUALITY_ISSUE) | RD Fix → 重跑 Test Stage | 🔁回退 | ≤3 轮 |
+| 🔗 Test Stage (BLOCKED) | ⏸️ 用户处理 | ⏸️暂停 | 环境问题 |
+| QA Browser E2E | PM 验收 | 🚀自动 | 通过 |
 | QA Browser E2E | RD Fix → 重新 Browser E2E | 🔁回退 | 功能缺陷（≤3 轮） |
-| QA Lead 质量总结 | PM 验收 | 🚀自动 | 通过（无阻塞项或仅有建议） |
-| QA Lead 质量总结 | RD 开发+自查 | 🔁回退 | 有阻塞项 → RD 补充测试（≤2 轮） |
 | PM 验收 | ✅ 已完成 | 🚀自动 | 验收通过 + PMO 完成报告 |
 
 ## Bug 处理流程
@@ -85,18 +78,19 @@
 
 ## 敏捷需求流程
 
-> 🔴 敏捷需求 = Feature 子集。除精简 PRD 外，所有阶段复用 Feature 定义。砍掉 7 个环节：PL-PM 讨论、PRD 评审、Designer、TC 评审、技术方案、架构师方案 Review、QA Lead。
+> 🔴 敏捷需求 = Feature 子集。砍掉 Plan Stage 内的 PL-PM 讨论+技术评审、UI Design/Panorama Stage、Blueprint Stage。
 
 | 当前阶段 | 允许的下一阶段 | 流转 | 条件 |
 |----------|---------------|------|------|
 | PMO 分析 | 精简 PRD 编写 | ⏸️暂停 | 用户确认走敏捷需求流程 |
-| 精简 PRD 编写 | QA Test Plan | 🚀自动 | PRD 完成 |
+| 精简 PRD 编写 | PRD 待确认 | ⏸️暂停 | PRD 完成，等用户确认 |
+| PRD 待确认 | QA Test Plan | ⏸️暂停 | 用户确认 PRD |
 | QA Test Plan | QA Write Cases | 🚀自动 | Plan 完成 |
-| QA Write Cases | RD 实现计划 | 🚀自动 | 三类 Case 完成（🔴 敏捷砍掉 TC 评审，直接流转 RD） |
-| RD 实现计划 | 🔗 Dev Chain | 🚀自动 | 实现计划完成 |
-| 🔗 Dev Chain | Codex Review | 🚀自动 | DONE |
-| Codex Review | 🔗 Verify Chain | 🚀自动 | DONE（🔴 敏捷砍掉 QA Lead，其余与 Feature 一致） |
-| _后续 QA → PM 验收阶段复用 Feature 流程转移表_ | | | |
+| QA Write Cases | RD 实现计划 | 🚀自动 | Case 完成（🔴 敏捷砍掉 TC 技术评审+架构师评审） |
+| RD 实现计划 | 🔗 Dev Stage | 🚀自动 | 实现计划完成 |
+| 🔗 Dev Stage | 🔗 Review Stage | 🚀自动 | DONE（与 Feature 一致） |
+| 🔗 Review Stage | 🔗 Test Stage | 🚀自动 | DONE（与 Feature 一致） |
+| _后续 Test Stage → Browser E2E → PM 验收复用 Feature 流程转移表_ | | | |
 
 ## Micro 流程
 
@@ -106,7 +100,7 @@
 |----------|---------------|------|------|
 | PMO 分析 | Micro 变更说明 | ⏸️暂停 | 用户确认走 Micro 流程 |
 | Micro 变更说明 | 🤖 RD Subagent | 🚀自动 | 变更说明完成 |
-| 🤖 RD Subagent | 用户验收 | ⏸️暂停 | Subagent 返回 DONE（PMO 输出摘要后等用户验收） |
+| 🤖 RD Subagent | 用户验收 | ⏸️暂停 | Subagent 返回 DONE |
 | 🤖 RD Subagent | ⏸️ 升级确认 | ⏸️暂停 | 发现需要逻辑变更 → 升级为敏捷或 Feature |
 | 用户验收 | ✅ 已完成 | 🚀自动 | 用户确认通过 + PMO 完成报告 |
 

@@ -99,7 +99,7 @@
 
 ### 架构文档维护规则
 
-> **维护责任人**：资深架构师（在 Dev Chain 的架构师 Code Review 阶段执行）
+> **维护责任人**：资深架构师（在 Dev Stage 的架构师 Code Review 阶段执行）
 > **文档位置**：`docs/architecture/ARCHITECTURE.md`
 
 ```
@@ -122,7 +122,7 @@
 ## 三、测试脚本约定
 
 > RD 在开发阶段负责创建/维护测试脚本。规范只约定脚本接口（名称 + 行为），不约定实现细节（Docker/K8s/本地均可）。
-> PMO 和 Verify Chain 通过脚本与测试环境交互，不直接执行 docker-compose 等底层命令。
+> PMO 和 Test Stage 通过脚本与测试环境交互，不直接执行 docker-compose 等底层命令。
 
 ### 两层脚本结构（Monorepo）
 
@@ -180,7 +180,7 @@ scripts/test-env-check.sh（全局连通性检查）：
 ├── 职责：验证全局环境仍然可用（DB/Redis/各服务端口 可达）
 ├── 轻量快速：只做 ping/连接测试，不启动服务
 ├── 成功时 stdout 输出检查结果
-└── 用途：Verify Chain 内部复核（PMO 预检到 Subagent 启动有时间差）
+└── 用途：Test Stage 内部复核（PMO 预检到 Subagent 启动有时间差）
 
 scripts/test-env-teardown.sh（全局清理，可选）：
 ├── 职责：停止所有服务、清理测试数据
@@ -225,7 +225,7 @@ RD 在 TDD 开发阶段创建测试脚本：
 ├── test-api-e2e.sh       ← QA 在 TC.md 定义 API E2E 场景后创建
 └── test-browser-e2e.sh   ← QA 在 TC.md 定义 Browser E2E 场景后创建（如需）
 
-🔴 Dev Chain 自查检查项：测试脚本是否存在且可执行
+🔴 Dev Stage 自查检查项：测试脚本是否存在且可执行
    RD 自查 → 确认根级 + 子项目脚本存在 + 至少本地跑通一次
    架构师 CR → 确认脚本接口符合约定（退出码/幂等/无交互）
 ```
@@ -256,7 +256,13 @@ Step 2: 扫描项目约定的辅助脚本与 CI 配置
 │   └── PMO 主动执行对应检查（如 gate 要求 git log → PMO 执行 git log）
 └── 检查项目根目录是否有自定义 gate 脚本（如 Makefile check、pre-commit 配置）
 
-Step 3: 被修改文件的上下文检查
+Step 3: Feature 编号冲突检查（新建 Feature 时必做）
+├── grep ROADMAP.md 中已占用的编号（如 grep "F0[0-9][0-9]" {子项目}/docs/ROADMAP.md）
+├── 输出已占用编号列表 → 取最大值 +1 作为新编号
+├── 未做即提议编号 = 违规
+└── 非新建 Feature 场景 → 跳过
+
+Step 4: 被修改文件的上下文检查
 ├── git log -n 5 {每个被修改文件}（了解近期改动历史）
 ├── grep 保护标记（Step 1 中提取的模式）在被修改文件中
 │   ├── 命中保护标记 → ⏸️ 告知用户，等确认后继续
@@ -266,20 +272,20 @@ Step 3: 被修改文件的上下文检查
 ✅ L1 通过 → 记录预检结果 → 可 dispatch Subagent
 ```
 
-#### L2 测试环境预检（Dev Chain / Verify Chain dispatch 前必做，包含 L1）
+#### L2 测试环境预检（Dev Stage / Test Stage dispatch 前必做，包含 L1）
 
 ```
 在 L1 基础上增加以下步骤：
 
-Step 4: 检查根级脚本存在性
+Step 5: 检查根级脚本存在性
 ├── scripts/test-env-setup.sh 存在且可执行 → 继续
 └── ❌ 不存在 → ⏸️ 提示「RD 未创建全局环境脚本，需要补充」
 
-Step 5: 检查子项目脚本存在性
+Step 6: 检查子项目脚本存在性
 ├── {subproject}/scripts/test-unit.sh 存在 → 继续
 └── ❌ 不存在 → ⏸️ 提示「子项目缺少测试脚本」
 
-Step 6: 运行中服务版本一致性检查
+Step 7: 运行中服务版本一致性检查
 ├── 检查是否有本地 server 进程在运行（如 lsof -i :{常用端口}）
 ├── 如有 → 检查运行的 binary/进程是否是改动后编译的版本
 │   ├── 方法：对比进程启动时间 vs 最后编译时间、或检查 binary hash
@@ -288,34 +294,34 @@ Step 6: 运行中服务版本一致性检查
 │       └── 提供方案：重启命令（如 ./dev_local.sh --stop && ./dev_local.sh）
 └── 无 server 运行 → 继续（后续可能需要启动）
 
-Step 7: 执行 scripts/test-env-setup.sh（根级环境准备）
+Step 8: 执行 scripts/test-env-setup.sh（根级环境准备）
 ├── ✅ 退出码 0 → 解析输出的环境信息 JSON → 继续
 └── ❌ 非 0 → 输出错误日志 → ⏸️ 用户排查
 
-Step 8: 执行 scripts/test-env-check.sh（验证全局环境健康）
+Step 9: 执行 scripts/test-env-check.sh（验证全局环境健康）
 ├── ✅ 退出码 0 → 环境就绪
 └── ❌ → 重试 test-env-setup.sh → 仍失败 → ⏸️ 用户排查
 
 ✅ L2 通过 → 将环境信息 + 子项目路径注入 Subagent prompt → dispatch
 ```
 
-#### L3 E2E 预检（Verify Chain 中需要 API E2E / Browser E2E 时，包含 L1+L2）
+#### L3 E2E 预检（Test Stage 中需要 API E2E / Browser E2E 时，包含 L1+L2）
 
 ```
 在 L2 基础上增加以下步骤：
 
-Step 9: API 服务可达性检查
+Step 10: API 服务可达性检查
 ├── curl -s {API base URL}/health（或约定的 health check 端点）
 ├── ✅ 返回 200 → 继续
 └── ❌ 不可达 → ⏸️ 告知用户启动/重启 server
 
-Step 10: 项目约定的 E2E 前置状态检查
+Step 11: 项目约定的 E2E 前置状态检查
 ├── 读取 L1 Step 1 中提取的仓库级约束，查找 E2E 相关的项目约定
 │   （如开发账号缓存、测试数据初始化、token 刷新等——具体由项目 CLAUDE.md / KNOWLEDGE.md 定义）
 ├── 如 TC.md 要求特定账号策略（新账号 / 指定角色）→ 确认前置条件满足
 └── 记录到预检报告
 
-Step 11: 数据库连通性检查
+Step 12: 数据库连通性检查
 ├── 检查 DB 端口是否可达（如 pg_isready -p {port}）
 ├── ✅ 可达 → 继续
 └── ❌ 不可达 → ⏸️ 用户排查
@@ -346,14 +352,14 @@ Step 11: 数据库连通性检查
 | 流程 | Subagent | 预检级别 |
 |------|----------|----------|
 | Micro | RD Subagent | L1 |
-| 敏捷需求 | Dev Chain | L2 |
-| 敏捷需求 | Verify Chain | L2（含 E2E 时升级 L3） |
-| Feature | Dev Chain | L2 |
+| 敏捷需求 | Dev Stage | L2 |
+| 敏捷需求 | Test Stage | L2（含 E2E 时升级 L3） |
+| Feature | Dev Stage | L2 |
 | Feature | Codex Code Review | L1 |
-| Feature | Verify Chain | L2（含 E2E 时升级 L3） |
+| Feature | Test Stage | L2（含 E2E 时升级 L3） |
 | Feature | Browser E2E | L3 |
-| Bug | Dev Chain | L2 |
-| Bug | Verify Chain | L2（含 E2E 时升级 L3） |
+| Bug | Dev Stage | L2 |
+| Bug | Test Stage | L2（含 E2E 时升级 L3） |
 | 问题排查 | 各 Subagent | L1 |
 | Feature Planning | Designer Subagent | L1 |
 ```
@@ -565,7 +571,7 @@ RD 开发完成（测试通过）
 ├── 实现覆盖：阅读实现代码，确认逻辑是否处理了 TC 描述的场景
 ├── 测试覆盖：阅读测试代码，确认测试是否验证了 TC 的预期行为
 ├── 🔴 不能只看测试通过率，要看测试断言是否验证了正确的东西
-└── 🔴 不能因为架构师 Review 通过就跳过代码阅读
+└── 🔴 不能因为架构师方案评审 通过就跳过代码阅读
 
 TC 验证率: X/Y (XX%)
 ├── 实现覆盖率: X/Y
@@ -653,6 +659,6 @@ flowchart TD
     B -->|Bug| D[RD 排查]
     B -->|Feature Planning| E[PM 规划 Roadmap]
     C --> C2[🤖 PL-PM Teams 讨论]
-    C2 --> F[🤖 PRD 评审]
+    C2 --> F[🤖 PRD 技术评审]
     F --> G[⏸️ 用户确认]
 ```

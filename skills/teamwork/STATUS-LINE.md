@@ -42,7 +42,12 @@
 
 ```
 第一行：🔄 Teamwork 模式 | 流程：[...] | 角色：[...] | 阶段：[...] | 下一步：[...]
-可选追加字段：子项目 / 功能 / Bug / 跨项目需求 / 涉及 / 受影响子项目
+🔴 必填追加字段（按流程类型）：
+├── Feature / 敏捷需求 → 功能：{缩写}-F{编号}-{功能名}（🔴 必填，不可省略）
+├── Bug 处理 → Bug：BUG-{编号}-{简述}（🔴 必填）
+├── Micro → 功能：Micro-{简述}（🔴 必填）
+└── 问题排查 / Feature Planning → 无功能编号时可省略
+可选追加字段：子项目 / 跨项目需求 / 涉及 / 受影响子项目
 
 第二行（按场景决定）：
 ├── 有明确功能目录 / bugfix 目录 → 必须输出 📁 绝对路径
@@ -59,17 +64,25 @@
 └── 只有在当前阶段确实没有可点击目录/文件时，才允许省略第二行
 ```
 
-### 多子项目模式（Feature 流程）
+### Feature / 敏捷需求流程（🔴 功能字段必填）
 
 ```
 ---
-🔄 Teamwork 模式 | 流程：Feature | 子项目：[缩写] | 角色：[当前角色] | 功能：[{缩写}-F编号-功能名] | 阶段：[当前阶段] | 下一步：[下一步事项]
+🔄 Teamwork 模式 | 流程：Feature | 角色：[当前角色] | 功能：[{缩写}-F{编号}-{功能名}] | 阶段：[当前阶段] | 下一步：[下一步事项]
+📁 /绝对路径/docs/features/[功能目录]/
+
+多子项目时追加子项目字段：
+🔄 Teamwork 模式 | 流程：Feature | 子项目：[缩写] | 角色：[当前角色] | 功能：[{缩写}-F{编号}-{功能名}] | 阶段：[当前阶段] | 下一步：[下一步事项]
 📁 /绝对路径/[子项目]/docs/features/[功能目录]/
 ```
 
 **示例**：
 ```
 ---
+🔄 Teamwork 模式 | 流程：Feature | 角色：PM | 功能：API-F001-用户认证 | 阶段：PRD 编写中 | 下一步：🤖 自动进入 PL-PM Teams 讨论
+📁 /Users/dev/projects/myapp/docs/features/API-F001-用户认证/
+
+（多子项目）
 🔄 Teamwork 模式 | 流程：Feature | 子项目：AUTH | 角色：RD | 功能：AUTH-F001-用户登录 | 阶段：🤖 Subagent 执行中 | 下一步：🤖 自动进入架构师 Code Review
 📁 /Users/dev/projects/myapp/auth-service/docs/features/AUTH-F001-用户登录/
 ```
@@ -162,32 +175,26 @@
 
 | 阶段 | 状态行显示 | 下一步 |
 |------|-----------|--------|
-| PMO 初步分析 | 阶段：PMO 分析中 | 下一步：切换到 PM/RD/指定角色 |
-| PM 编写 PRD | 阶段：PRD 编写中 | 下一步：🤖 自动进入 PL-PM Teams 讨论 |
-| PL-PM Teams 讨论 | 阶段：🤖 PL-PM 讨论中（Teams） | 下一步：共识 → PRD 评审 / 分歧 → ⏸️ 用户决策 |
-| PRD 评审 | 阶段：🤖 Subagent 执行中 | 下一步：⏸️ 等待用户确认 |
-| PRD 待确认 | 阶段：⏸️ PRD 待确认 | 下一步：用户确认后进入 Designer/QA |
-| Designer 设计 | 阶段：🤖 Subagent 执行中 | 下一步：⏸️ 等待用户确认 |
-| UI 待确认 | 阶段：⏸️ UI 待确认 | 下一步：用户确认后进入 QA |
-| ⚠️ _UI 跳过规则_ | _PRD「需要 UI: 否」→ PMO 自动跳过 Designer 设计 + UI 待确认 + UI 还原验收；PRD 未标注 → PMO 询问用户_ | _（非阶段，仅规则说明）_ |
-| QA Test Plan | 阶段：测试策略规划中 | 下一步：自动进入 QA Write Cases |
-| QA Write Cases | 阶段：编写三类 Case 中 | 下一步：🤖 自动进入 TC 评审（Subagent）（Feature）/ 直接流转 RD（敏捷） |
-| TC 评审 | 阶段：🤖 Subagent 执行中 | 下一步：无阻塞项 → 自动进入 RD 技术方案 / 有阻塞项 → ⏸️ 等待用户确认 |
-| RD 技术方案 | 阶段：技术方案中 | 下一步：🤖 自动进入架构师 Review（Subagent） |
-| 架构师 Review | 阶段：🤖 Subagent 执行中 | 下一步：⏸️ 等待用户确认 |
-| 技术方案待确认 | 阶段：⏸️ 方案待确认 | 下一步：用户确认后进入 RD 实现计划 |
-| RD 实现计划 | 阶段：实现计划中 | 下一步：自动进入 🔗 Dev Chain |
-| 🔗 Dev Chain | 阶段：🤖 Dev Chain 执行中（RD 开发+架构师 CR） | 下一步：有 UI → UI 验收 / 无 UI → Codex Review |
-| UI 还原验收 | 阶段：UI 验收中 | 下一步：🤖 自动进入 Codex Review |
-| Codex Review | 阶段：🤖 Codex Review 执行中 | 下一步：通过 → 环境预检 + Verify Chain / 有问题 → 三方修复流程 |
-| 🔗 Verify Chain | 阶段：🤖 Verify Chain 执行中（QA 审查+测试+E2E） | 下一步：通过 → Browser E2E 判断 / 有问题 → RD Fix |
-| QA Browser E2E | 阶段：🤖 Browser E2E 执行中（AI 浏览器） | 下一步：通过或跳过 → QA Lead 质量总结 / 有问题 → RD 修复 |
-| QA Lead 质量总结 | 阶段：🤖 QA Lead 审查中 | 下一步：通过 → PM 验收 / 有阻塞项 → RD 补充测试 |
-| PM 验收 | 阶段：PM 验收中 | 下一步：自动进入 PMO 完成报告（含 PROJECT.md 更新判断 + 全景设计同步确认） |
-| 功能完成 | 阶段：✅ 已完成 | 下一步：无（功能已完成）|
-| _以下为敏捷需求流程唯一差异阶段_ | | |
-| 精简 PRD 编写 | 阶段：PRD 编写中（精简版） | 下一步：自动进入 QA Test Plan |
-| _敏捷需求的其他阶段（QA/RD/架构师CR/PM验收）复用上方 Feature 定义，不另设专用阶段_ | | |
+| **Feature 流程（8 Stage）** | | |
+| PMO 初步分析 | 阶段：PMO 分析中 | 下一步：🔗 Plan Stage |
+| 🔗 Plan Stage | 阶段：🤖 Plan Stage 执行中（PRD+讨论+评审） | 下一步：⏸️ 等待用户确认 PRD |
+| PRD 待确认 | 阶段：⏸️ PRD 待确认 | 下一步：用户确认后进入 UI Design / Blueprint |
+| 🔗 UI Design Stage | 阶段：🤖 UI Design 执行中 | 下一步：⏸️ 等待用户确认设计 |
+| UI 待确认 | 阶段：⏸️ UI 待确认 | 下一步：Panorama Design / Blueprint |
+| 🔗 Panorama Design Stage | 阶段：🤖 全景设计更新中 | 下一步：⏸️ 等待用户确认全景 |
+| 全景待确认 | 阶段：⏸️ 全景待确认 | 下一步：Blueprint Stage |
+| ⚠️ _UI 跳过规则_ | _PRD「需要 UI: 否」→ 跳过 UI Design + Panorama，直接 Blueprint_ | _（非阶段）_ |
+| 🔗 Blueprint Stage | 阶段：🤖 Blueprint 执行中（TC+技术方案+评审） | 下一步：⏸️ 等待用户确认方案 |
+| 方案待确认 | 阶段：⏸️ 方案待确认 | 下一步：用户确认后进入 Dev Stage |
+| 🔗 Dev Stage | 阶段：🤖 Dev Stage 执行中（RD TDD+单测） | 下一步：🚀 Review Stage |
+| 🔗 Review Stage | 阶段：🤖 Review Stage 执行中（架构师CR∥Codex∥QA审查） | 下一步：🚀 Test Stage / NEEDS_FIX → RD 修复 |
+| 🔗 Test Stage | 阶段：🤖 Test Stage 执行中（集成∥E2E） | 下一步：Browser E2E 判断 / PM 验收 |
+| 🔗 Browser E2E Stage | 阶段：🤖 Browser E2E 执行中 | 下一步：通过 → PM 验收 / 有问题 → RD 修复 |
+| PM 验收 | 阶段：PM 验收中 | 下一步：PMO 完成报告 |
+| 功能完成 | 阶段：✅ 已完成 | 下一步：无 |
+| **敏捷需求流程差异阶段** | | |
+| 精简 PRD 编写 | 阶段：PRD 编写中（精简版） | 下一步：⏸️ 等待用户确认 PRD |
+| _敏捷后续（Dev→Review→Test→PM验收）复用 Feature 定义_ | | |
 | _以下为 Micro 流程专用阶段_ | | |
 | Micro 变更说明 | 阶段：Micro 变更说明中 | 下一步：🤖 启动 RD Subagent |
 | 🤖 RD Subagent（Micro） | 阶段：🤖 RD 执行改动中 | 下一步：⏸️ 等待用户验收 |
@@ -311,7 +318,7 @@ PMO: 收到，让我先分析一下这个需求的性质...
 ├── 📂 文档路径：{子项目}/docs/features/{前缀}-F{编号}-admin-aid统一/
 ├── 影响范围：待评估（需梳理 aid 使用情况）
 ├── 使用流程：Feature 流程
-├── 阶段链：PRD → PL-PM 讨论 → PRD 评审 → ...（完整 Feature 链）
+├── 阶段链：PRD → PL-PM 讨论 → PRD 技术评审 → ...（完整 Feature 链）
 ├── ⏸️ 请确认：(1) 走 Feature 流程 (2) 以上分析和影响范围
 └── 🔄 切换到：PM（用户确认后）
 └── ✅ 自检通过

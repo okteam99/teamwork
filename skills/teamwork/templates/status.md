@@ -28,44 +28,40 @@
 | 当前待确认项 | {暂停点时填写具体待确认内容，非暂停点填 无} |
 | 回退路径 | {如有 🔁 回退可能则填写，否则填 无} |
 
-> 📎 此段是 compact 后恢复的关键锚点。PMO 读取 STATUS.md 即可获得当前阶段的完整流转信息，无需重读 RULES.md 转移表。
+> 📎 此段是 compact 后恢复的关键锚点。但 compact 恢复时必须跟 flow-transitions.md 交叉校验（见 gate-checks.md）。
 > 🔴「禁止跳转到」是硬约束：PMO 流转时如果目标阶段出现在禁止列表中 → 必须阻塞并报错。
 > 🔴「当前待确认项」是流程中断恢复的关键：即使对话被信息查询打断，PMO 可通过此字段恢复待确认上下文。
+> 🔴 **禁止在 STATUS.md 中复写或改写流程链**。只能记录当前阶段的流转约束字段，不能自行给节点加 ⏸️/🚀 注释。流程链的权威定义在 flow-transitions.md，STATUS.md 复写会成为"衍生权威"导致循环论证。
 
 ## 阶段历史
 
 | 阶段 | 进入时间 | 退出时间 | 备注 |
 |------|----------|----------|------|
-| PM 编写 PRD | {时间} | {时间} | |
-| PL-PM Teams 讨论 | {时间} | {时间} | |
-| PRD 评审 | {时间} | {时间} | |
+| PMO 初步分析 | {时间} | {时间} | |
+| 🔗 Plan Stage | {时间} | {时间} | PM 写 PRD + PL-PM 讨论 + 技术评审 |
 | PRD 待确认 | {时间} | {时间} | |
-| Designer 设计 | {时间} | {时间} | 无 UI 时跳过 |
+| 🔗 UI Design Stage | {时间} | {时间} | 无 UI 时跳过 |
 | UI 待确认 | {时间} | {时间} | 无 UI 时跳过 |
-| QA Test Plan | {时间} | {时间} | |
-| QA Write Cases | {时间} | {时间} | BDD + API E2E + Browser E2E |
-| TC 评审 | {时间} | {时间} | |
-| RD 技术方案 | {时间} | {时间} | |
-| 架构师 Review | {时间} | {时间} | |
-| 技术方案待确认 | {时间} | {时间} | |
-| RD 实现计划 | {时间} | {时间} | |
-| 🔗 Dev Chain | {时间} | {时间} | 内含 RD 开发+自查 → 架构师 CR → 修复循环 |
-| UI 还原验收 | {时间} | {时间} | 无 UI 时跳过 |
-| Codex Review | {时间} | {时间} | 外部独立代码审查（Codex CLI） |
-| 🔗 Verify Chain | {时间} | {时间} | 内含 QA 审查 → 单元测试 → 集成测试 → API E2E |
-| QA Browser E2E | {时间} | {时间} | 可选，PMO 建议+用户确认；TC.md 无浏览器行为时跳过 |
+| 🔗 Panorama Design Stage | {时间} | {时间} | 不涉及全景时跳过 |
+| 全景待确认 | {时间} | {时间} | 不涉及全景时跳过 |
+| 🔗 Blueprint Stage | {时间} | {时间} | QA TC + 技术方案 + 评审 |
+| 方案待确认 | {时间} | {时间} | |
+| 🔗 Dev Stage | {时间} | {时间} | RD TDD + 单测 |
+| 🔗 Review Stage | {时间} | {时间} | 架构师 CR ∥ Codex ∥ QA 审查 |
+| 🔗 Test Stage | {时间} | {时间} | 集成测试 ∥ API E2E |
+| 🔗 Browser E2E Stage | {时间} | {时间} | 可选 |
 | PM 验收 | {时间} | {时间} | |
 | ✅ 已完成 | {时间} | - | |
 ```
 
-**当前阶段的合法值**（对齐 SKILL.md「阶段与下一步对照表」的「阶段」列，唯一权威来源）：
+**当前阶段的合法值**（对齐 STATUS-LINE.md「阶段与下一步对照表」，唯一权威来源）：
 ```
-PM 编写 PRD → PL-PM Teams 讨论 → PRD 评审 → PRD 待确认 →
-Designer 设计 → UI 待确认 →
-QA Test Plan → QA Write Cases → TC 评审 → RD 技术方案 → 架构师 Review →
-技术方案待确认 → RD 实现计划 → 🔗 Dev Chain →
-UI 还原验收 → Codex Review → 🔗 Verify Chain → QA Browser E2E →
-PM 验收 → ✅ 已完成
+Feature 流程：
+PMO 初步分析 → 🔗 Plan Stage → PRD 待确认 →
+🔗 UI Design Stage → UI 待确认 → 🔗 Panorama Design Stage → 全景待确认 →
+🔗 Blueprint Stage → 方案待确认 →
+🔗 Dev Stage → 🔗 Review Stage → 🔗 Test Stage →
+🔗 Browser E2E Stage → PM 验收 → ✅ 已完成
 
 Micro 流程：Micro 变更说明 → 🤖 RD Subagent → 用户验收 → ✅ 已完成
 
