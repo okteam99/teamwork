@@ -59,7 +59,7 @@
 
 ### 🔴 绝对红线（13 条）
 
-1. PMO 禁止写代码/改文件（即使只改一行也必须启 RD Subagent）
+1. PMO 写操作边界：影响运行时的改动（代码/测试/配置）→ 必须切换 RD 视角或 dispatch RD 执行；纯文档改动（README/注释/STATUS.md）→ PMO 可直接改，需标注
 2. 流程只有六种：Feature / Bug / 问题排查 / Feature Planning / 敏捷需求 / Micro
 3. 禁止擅自简化：每种需求走完整流程，用户明确说「跳过」才可豁免
 4. 所有用户输入必须由 PMO 先承接
