@@ -1,7 +1,7 @@
 # Blueprint Stage：技术规格（QA 写 TC + TC 技术评审 + RD 写技术方案 + 架构师评审）
 
 > PMO 在用户确认 PRD 后（Designer 完成后，如有 UI）启动本 Stage。
-> 内部完成 QA 测试规格 + RD 技术方案 + 多角色评审，一次性返回全部规格文档。
+> 🤖 作为 Subagent 执行：内部 4 步闭环，一次性返回全部规格文档。
 > 🔴 目标：产出"怎么测 + 怎么做"的完整蓝图，Dev Stage 按此执行。
 
 ---
@@ -9,13 +9,16 @@
 ## 一、设计意图
 
 ```
-Blueprint Stage = 开发前的完整技术规格
+Blueprint Stage = 开发前的完整技术规格（🤖 Subagent 一次性执行）
 ├── QA 视角：怎么测（TC）
 ├── RD 视角：怎么做（TECH.md）
 ├── 架构师视角：方案是否合理
+├── 4 步内部闭环，子步骤间用轻量标记（📌 Blueprint 1/4 → 2/4 → 3/4 → 4/4）
+├── 有阻塞问题 → 返回 DONE_WITH_CONCERNS → PMO ⏸️ 用户确认
 └── 产出后交给用户确认，确认后 Dev Stage 按蓝图执行
 
-PMO relay 从 4 次（QA→评审→RD→架构师）降为 1 次。
+收益：主对话 context 不被 TC/TECH 撑写过程占用，PMO 只收到最终产出。
+用户干预：评审有阻塞时 Subagent 返回 DONE_WITH_CONCERNS，PMO 暂停等用户决策。
 ```
 
 ---
@@ -61,7 +64,7 @@ PMO 启动时必须注入：
 ├── templates/tc.md
 ├── docs/features/F{编号}-{功能名}/PRD.md（已确认）
 ├── docs/features/F{编号}-{功能名}/UI.md（如有）
-├── .claude/skills/teamwork/standards/common.md
+├── {SKILL_ROOT}/standards/common.md
 │
 可选文件：
 ├── docs/architecture/ARCHITECTURE.md
@@ -92,6 +95,7 @@ PMO 启动时必须注入：
 ## 五、红线
 
 ```
+🔴 进度可见：每个 Step 必须报告进度（TodoWrite 或 markdown 进度块），禁止黑盒执行
 🔴 TC 必须用 BDD/Gherkin 格式
 🔴 TC 技术评审不可跳过
 🔴 架构师方案评审不可跳过（无论方案多简单）

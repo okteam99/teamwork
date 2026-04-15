@@ -18,18 +18,18 @@
 | 全景待确认 | 🔗 Blueprint Stage | ⏸️暂停 | 用户确认全景 |
 | 🔗 Blueprint Stage | 方案待确认 | ⏸️暂停 | Blueprint 返回 TC + TECH.md + 评审报告 |
 | 🔗 Blueprint Stage (concerns) | 方案待确认 | ⏸️暂停 | 有 concerns，用户确认处理方式 |
-| 方案待确认 | 🔗 Dev Stage | ⏸️暂停 | 用户确认技术方案 |
+| 方案待确认 | 🔗 Dev Stage | ⏸️暂停 | 用户确认技术方案（📎 worktree=auto 时 PMO 在此处创建 worktree） |
 | 🔗 Dev Stage | 🔗 Review Stage | 🚀自动 | DONE（单测全绿） |
 | 🔗 Dev Stage | ⏸️ 用户决策 | ⏸️暂停 | FAILED（单测持续失败/环境异常） |
 | 🔗 Review Stage | 🔗 Test Stage | 🚀自动 | DONE（三个 review 均通过） |
 | 🔗 Review Stage (NEEDS_FIX) | RD Fix → PMO 判断重跑哪些 review | 🔁回退 | ≤3 轮修复循环 |
 | 🔗 Review Stage (FAILED) | ⏸️ 用户决策 | ⏸️暂停 | Codex CLI 不可用 / 超 3 轮 |
-| 🔗 Test Stage | QA Browser E2E / PM 验收 | 🚀自动 | DONE（有 Browser E2E → ⏸️用户确认；无→PM 验收） |
+| 🔗 Test Stage | 🔗 Browser E2E Stage / PM 验收 | 🚀自动 | DONE（有 Browser E2E → ⏸️用户确认；无→PM 验收） |
 | 🔗 Test Stage (QUALITY_ISSUE) | RD Fix → 重跑 Test Stage | 🔁回退 | ≤3 轮 |
 | 🔗 Test Stage (BLOCKED) | ⏸️ 用户处理 | ⏸️暂停 | 环境问题 |
-| QA Browser E2E | PM 验收 | 🚀自动 | 通过 |
-| QA Browser E2E | RD Fix → 重新 Browser E2E | 🔁回退 | 功能缺陷（≤3 轮） |
-| PM 验收 | ✅ 已完成 | 🚀自动 | 验收通过 + PMO 完成报告 |
+| 🔗 Browser E2E Stage | PM 验收 | 🚀自动 | 通过 |
+| 🔗 Browser E2E Stage | RD Fix → 重新 Browser E2E | 🔁回退 | 功能缺陷（≤3 轮） |
+| PM 验收 | ✅ 已完成 | 🚀自动 | 验收通过 + PMO 完成报告（📎 worktree=auto 时 PMO 在此处清理 worktree） |
 
 ## Bug 处理流程
 
@@ -78,16 +78,16 @@
 
 ## 敏捷需求流程
 
-> 🔴 敏捷需求 = Feature 子集。砍掉 Plan Stage 内的 PL-PM 讨论+技术评审、UI Design/Panorama Stage、Blueprint Stage。
+> 🔴 敏捷需求 = Feature 精简版。砍掉 PL-PM 讨论+技术评审、UI Design/Panorama、完整 Blueprint（含评审）。
+> 用 BlueprintLite Stage（轻量蓝图：简化 TC + 实现计划，无评审）替代完整 Blueprint。
+> Dev Stage 保持不变——始终按蓝图执行，不区分 Feature/敏捷模式。
 
 | 当前阶段 | 允许的下一阶段 | 流转 | 条件 |
 |----------|---------------|------|------|
 | PMO 分析 | 精简 PRD 编写 | ⏸️暂停 | 用户确认走敏捷需求流程 |
 | 精简 PRD 编写 | PRD 待确认 | ⏸️暂停 | PRD 完成，等用户确认 |
-| PRD 待确认 | QA Test Plan | ⏸️暂停 | 用户确认 PRD |
-| QA Test Plan | QA Write Cases | 🚀自动 | Plan 完成 |
-| QA Write Cases | RD 实现计划 | 🚀自动 | Case 完成（🔴 敏捷砍掉 TC 技术评审+架构师评审） |
-| RD 实现计划 | 🔗 Dev Stage | 🚀自动 | 实现计划完成 |
+| PRD 待确认 | 🔗 BlueprintLite Stage | ⏸️暂停 | 用户确认 PRD |
+| 🔗 BlueprintLite Stage | 🔗 Dev Stage | 🚀自动 | DONE（简化 TC + 实现计划就绪） |
 | 🔗 Dev Stage | 🔗 Review Stage | 🚀自动 | DONE（与 Feature 一致） |
 | 🔗 Review Stage | 🔗 Test Stage | 🚀自动 | DONE（与 Feature 一致） |
 | _后续 Test Stage → Browser E2E → PM 验收复用 Feature 流程转移表_ | | | |

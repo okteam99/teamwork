@@ -1,0 +1,28 @@
+// review-log.jsonl 格式定义
+// 位置：{子项目路径}/docs/features/{功能目录}/review-log.jsonl
+// PMO 在每个 stage 完成时追加一行，不修改已有行。
+// PMO 流转前读取此文件输出 Review Dashboard。
+//
+// 每行一个 JSON 对象，字段定义：
+
+{
+  "stage": "plan-stage | ui-design-stage | panorama-design-stage | blueprint-stage | dev-stage | review-stage | test-stage | browser-e2e-stage",
+  "status": "DONE | DONE_WITH_CONCERNS | NEEDS_FIX | QUALITY_ISSUE | BLOCKED | FAILED | SKIPPED",
+  "timestamp": "2026-04-15T14:30:00",
+  "commit": "abc1234",
+  "summary": "简述产出或问题",
+  "concerns": ["非阻塞问题1", "非阻塞问题2"],
+  "stale": false
+}
+
+// stale 判定规则：
+// - PMO 在写入新的 dev-stage 行时，将之前所有 review-stage / test-stage 行标记为 stale: true
+//   （代码变了，之前的审查/测试结果可能失效）
+// - 重跑 stage 后写入新行，旧行自然被新行覆盖（读取时取每个 stage 的最新一行）
+
+// 示例：
+// {"stage":"plan-stage","status":"DONE","timestamp":"2026-04-15T10:00:00","commit":"","summary":"PRD 定稿 13 条 AC","concerns":[],"stale":false}
+// {"stage":"blueprint-stage","status":"DONE","timestamp":"2026-04-15T11:00:00","commit":"","summary":"TC 15 条 + TECH.md 定稿","concerns":[],"stale":false}
+// {"stage":"dev-stage","status":"DONE","timestamp":"2026-04-15T12:00:00","commit":"a1b2c3d","summary":"单测 47/47 通过","concerns":[],"stale":false}
+// {"stage":"review-stage","status":"DONE","timestamp":"2026-04-15T13:00:00","commit":"a1b2c3d","summary":"架构师CR✅ Codex✅ QA审查✅","concerns":[],"stale":false}
+// {"stage":"test-stage","status":"DONE","timestamp":"2026-04-15T14:00:00","commit":"a1b2c3d","summary":"集成✅ API E2E✅","concerns":[],"stale":false}

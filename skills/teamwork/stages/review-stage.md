@@ -53,7 +53,7 @@ PMO 启动时注入（三个 review 共用）：
 ├── docs/features/F{编号}-{功能名}/TECH.md          ← 技术方案
 ├── Dev Stage 执行报告（RD 自查报告）
 ├── 代码变更文件列表（git diff --name-only）
-├── .claude/skills/teamwork/standards/common.md     ← 通用开发规范
+├── {SKILL_ROOT}/standards/common.md                ← 通用开发规范
 │
 各 review 专属输入：
 ├── 架构师 CR → 额外注入 ARCHITECTURE.md
@@ -66,6 +66,8 @@ PMO 启动时注入（三个 review 共用）：
 ## 四、执行流程
 
 ```
+🔴 进度追踪：每个 Step 开始时报告进度（宿主支持 TodoWrite 时使用，否则输出 markdown 进度块），禁止黑盒执行。
+
 Step 1: 读取本文件 + agents/README.md
 
 Step 2: 并行启动三个 review
@@ -122,31 +124,54 @@ Codex Review 独立性保障：
 
 ---
 
-## 七、输出格式
+## 七、输出与落盘
 
-```
-📋 Review Stage 执行报告（F{编号}-{功能名}）
-================================================
+> 🔴 Review Stage 完成后必须将结论落盘到 `{功能目录}/REVIEW.md`，不能只返回给 PMO。
 
-## 执行概况
-├── 最终状态：{DONE / DONE_WITH_CONCERNS / NEEDS_FIX / FAILED}
-├── 架构师 CR：{PASS / NEEDS_FIX / 未执行}
-├── Codex Review：{PASS / NEEDS_FIX / FAILED / 跳过}
-├── QA 代码审查：{PASS / NEEDS_FIX / 未执行}
-└── 合并问题数：🔴 {x} / 🟡 {y} / 🟢 {z}
+**落盘文件**：`docs/features/{功能目录}/REVIEW.md`
 
-## 架构师 Code Review 报告
-{按 agents/arch-code-review.md 输出格式}
+```markdown
+# {功能名} - Code Review 汇总
 
-## Codex Review 报告
-{按原 review-stage.md §七 输出格式}
+## 状态
+{DONE / DONE_WITH_CONCERNS / NEEDS_FIX}（{日期}）
 
-## QA 代码审查报告
-{按 agents/qa-code-review.md 输出格式}
+## 审查概况
+| 审查方 | 状态 | 问题数 |
+|--------|------|--------|
+| 架构师 CR | {PASS / NEEDS_FIX} | 🔴{x} 🟡{y} 🟢{z} |
+| Codex Review | {PASS / NEEDS_FIX / FAILED / 跳过} | 🔴{x} 🟡{y} 🟢{z} |
+| QA 代码审查 | {PASS / NEEDS_FIX} | 🔴{x} 🟡{y} 🟢{z} |
 
 ## 合并问题清单（去重后）
-| # | 来源 | 严重程度 | 文件 | 问题 | 建议 |
-|---|------|----------|------|------|------|
+| # | 来源 | 严重程度 | 文件 | 位置 | 问题 | 建议 | 状态 |
+|---|------|----------|------|------|------|------|------|
+| 1 | 架构师 | 🔴 | src/... | L42 | ... | ... | 待修复/已修复/忽略 |
+
+## 架构师 Code Review 详情
+{按 agents/arch-code-review.md 输出格式}
+
+## Codex Review 详情
+{按 Codex prompt 模板输出格式}
+
+## QA 代码审查详情
+{按 agents/qa-code-review.md 输出格式}
+
+## 修复记录（如有）
+| 轮次 | 修复内容 | 重跑范围 | 结果 |
+|------|----------|----------|------|
+
+## ARCHITECTURE.md 更新
+{已更新 / 无需更新}
+```
+
+**PMO 返回报告**（同时返回给 PMO 用于流转决策）：
+```
+📋 Review Stage 执行报告（F{编号}-{功能名}）
+├── 最终状态：{DONE / DONE_WITH_CONCERNS / NEEDS_FIX / FAILED}
+├── 合并问题数：🔴 {x} / 🟡 {y} / 🟢 {z}
+├── 落盘文件：docs/features/{功能目录}/REVIEW.md
+└── 详见 REVIEW.md
 ```
 
 ---
@@ -154,6 +179,7 @@ Codex Review 独立性保障：
 ## 八、红线
 
 ```
+🔴 进度可见：每个 Step 必须报告进度（TodoWrite 或 markdown 进度块），禁止黑盒执行
 🔴 独立性：Codex 不看架构师 CR 报告，三个 review 互不锚定
 🔴 完整性：每个 review 必须按各自规范完整执行，不能因为另一个 review 通过就简化
 🔴 不修复：Review Stage 只审查不改代码，发现问题返回 PMO 安排 RD 修复

@@ -518,6 +518,52 @@ PMO 判断需要更新
 
 ---
 
+## review-log.jsonl 管理规范
+
+> PMO 维护每个 Feature 的 review-log.jsonl，用于追踪各 stage 完成状态。
+
+### 写入时机
+
+```
+PMO 在每个 stage 返回后，追加一行到 {功能目录}/review-log.jsonl：
+├── stage: 刚完成的 stage 名
+├── status: stage 返回状态（DONE / NEEDS_FIX / FAILED 等）
+├── timestamp: 当前时间
+├── commit: 当前 HEAD commit hash（dev-stage 之后的 stage 必填）
+├── summary: 一句话产出摘要
+├── concerns: 非阻塞问题列表
+└── stale: false
+
+🔴 stale 标记规则：
+├── 写入新的 dev-stage 行时 → 之前所有 review-stage / test-stage 行标记 stale: true
+└── 重跑 stage 后写入新行 → 自然覆盖旧行（读取时取每个 stage 的最新非 stale 行）
+```
+
+### 读取时机（Review Dashboard）
+
+```
+PMO 在以下时机读取 review-log.jsonl 输出 dashboard：
+├── 每次阶段流转前（作为校验的一部分）
+├── /teamwork status 查询时
+└── PMO 完成报告时
+
+📋 Review Dashboard（F{编号}）
+| Stage | Status | Commit | Stale | Summary |
+|-------|--------|--------|-------|---------|
+| plan-stage | ✅ DONE | — | — | PRD 定稿 |
+| dev-stage | ✅ DONE | a1b2c3d | — | 单测 47/47 |
+| review-stage | ✅ DONE | a1b2c3d | — | 三审通过 |
+| test-stage | ⏳ | — | — | 待执行 |
+
+🔴 有 stale 行时高亮警告：「review-stage 结果基于 commit {old}，当前已有新 commit {new}，建议重跑」
+```
+
+### 格式模板
+
+📎 见 templates/review-log.jsonl
+
+---
+
 ## 反模式（Anti-patterns）
 
 | 反模式 | 正确做法 |

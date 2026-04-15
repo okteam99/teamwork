@@ -93,6 +93,13 @@ scope:
   - WEB
 -->
 
+## Git Worktree 策略
+<!-- worktree: off / auto / manual（默认 off） -->
+<!-- off = 不使用 worktree，所有 Feature 在主分支开发 -->
+<!-- auto = PMO 在 Dev Stage 前自动创建 worktree，Feature 完成后自动清理 -->
+<!-- manual = PMO 提醒用户自行管理 worktree，不自动创建/清理 -->
+worktree: off
+
 ## 备注
 <!-- 可选：记录当前阶段重点、临时分工调整等 -->
 \`\`\`

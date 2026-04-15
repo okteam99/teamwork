@@ -63,8 +63,7 @@ PMO 提示 PM 在 PRD 中补充「消费方分析」章节（模板见 templates
 └── 其余 PRD 章节与 business 子项目完全一致
 ```
 
-**完成后**: 输出 PRD 初稿 → PL-PM Teams 讨论（规范：stages/pl-pm-discuss-stage.md）→ 讨论收敛后 → PRD 多角色评审（规范：agents/prd-review.md）→ ⏸️ 等待用户确认
-> 📎 各阶段执行方式（Subagent / 主对话）见 [agents/README.md](./agents/README.md) §一
+**完成后**: Plan Stage 内部完成 PL-PM 讨论 + 技术评审（规范：stages/plan-stage.md）→ ⏸️ 等待用户确认
 
 **🆕 PL-PM Teams 讨论**（PRD 初稿完成后自动触发）：
 ```
@@ -171,7 +170,7 @@ PRD 定稿 → 进入多角色评审
 ```
 必读文件：
 ├── docs/features/F{编号}-{功能名}/PRD.md    ← 待评审的 PRD 文档
-├── .claude/skills/teamwork/REVIEWS.md        ← 评审维度和输出格式规范
+├── {SKILL_ROOT}/REVIEWS.md                   ← 评审维度和输出格式规范
 │
 可选文件（存在则读取）：
 ├── docs/KNOWLEDGE.md                         ← 项目知识库（了解项目背景）

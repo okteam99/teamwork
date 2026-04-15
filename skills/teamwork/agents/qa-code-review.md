@@ -23,13 +23,13 @@
 ├── docs/features/F{编号}-{功能名}/TC.md          ← 理解每个测试场景的验证意图
 ├── docs/features/F{编号}-{功能名}/PRD.md         ← 核对需求完整覆盖
 ├── docs/features/F{编号}-{功能名}/TECH.md        ← 理解技术方案和代码结构
-├── .claude/skills/teamwork/standards/common.md    ← QA 代码审查检查项 + TDD 规范
+├── {SKILL_ROOT}/standards/common.md               ← QA 代码审查检查项 + TDD 规范
 ├── 架构师 Code Review 报告（Subagent 返回内容中）  ← 了解已发现的架构问题
 │
 可选文件（存在则读取）：
 ├── docs/architecture/ARCHITECTURE.md       ← 理解模块结构
-├── .claude/skills/teamwork/standards/backend.md   ← 后端测试规范（后端项目加载）
-└── .claude/skills/teamwork/standards/frontend.md  ← 前端测试规范（前端项目加载）
+├── {SKILL_ROOT}/standards/backend.md              ← 后端测试规范（后端项目加载）
+└── {SKILL_ROOT}/standards/frontend.md             ← 前端测试规范（前端项目加载）
 ```
 
 ---

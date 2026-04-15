@@ -223,10 +223,10 @@ assert db_user["created_at"] is not None
 ### 失败处理流程
 
 ```
-集成测试失败（Verify Stage 返回后由 PMO 处理）：
+集成测试失败（Test Stage 返回后由 PMO 处理）：
     ↓
-判断失败类型（根据 Verify Stage 报告）：
-    ├── 代码 Bug (QUALITY_ISSUE) → PMO dispatch RD Fix → 重新 dispatch Verify Stage
+判断失败类型（根据 Test Stage 报告）：
+    ├── 代码 Bug (QUALITY_ISSUE) → PMO dispatch RD Fix → 重新 dispatch Test Stage
     ├── 环境问题 (BLOCKED) → ⏸️ 用户排查 → 修复后 PMO 重新预检 + dispatch
     ├── 需求理解偏差 → ⏸️ 用户确认 → 决定修复方案
     └── 测试用例问题 → ⏸️ 用户确认 → 调整用例或跳过
@@ -489,7 +489,7 @@ try {
 | 阶段 | Agent 文件 | 使用术语 | 验证重点 | database-schema.md 操作 |
 |------|-----------|---------|---------|------------------------|
 | TECH.md 编写 | — | Schema 影响分析 | 列出所有受影响 Model/Struct 和 SQL | — |
-| 架构师方案评审 | arch-tech-review.md | Schema 影响分析完整性 | 验证分析是否遗漏（独立 grep 对照） | 🔴 更新设计层（表结构、ER 图、设计原则） |
+| Blueprint Stage 架构师方案评审 | roles/rd.md | Schema 影响分析完整性 | 验证分析是否遗漏（独立 grep 对照） | 🔴 更新设计层（表结构、ER 图、设计原则） |
 | RD 开发 | rd-develop.md | Schema 同步验证 | 代码是否已按影响分析表同步 | — |
 | 架构师 Code Review | arch-code-review.md | Schema 同步验证 | 代码变更是否与影响分析表一致 | 🔴 补充实现层（Model 映射、SQL 引用点） |
 | 集成测试 | integration-test.md | 迁移 + ORM 映射验证 | 运行时验证迁移可执行 + ORM/SQL 映射正确性 | — |

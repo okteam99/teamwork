@@ -79,11 +79,11 @@
 **示例**：
 ```
 ---
-🔄 Teamwork 模式 | 流程：Feature | 角色：PM | 功能：API-F001-用户认证 | 阶段：PRD 编写中 | 下一步：🤖 自动进入 PL-PM Teams 讨论
+🔄 Teamwork 模式 | 流程：Feature | 角色：PMO | 功能：API-F001-用户认证 | 阶段：PMO 分析中 | 下一步：🔗 Plan Stage
 📁 /Users/dev/projects/myapp/docs/features/API-F001-用户认证/
 
 （多子项目）
-🔄 Teamwork 模式 | 流程：Feature | 子项目：AUTH | 角色：RD | 功能：AUTH-F001-用户登录 | 阶段：🤖 Subagent 执行中 | 下一步：🤖 自动进入架构师 Code Review
+🔄 Teamwork 模式 | 流程：Feature | 子项目：AUTH | 角色：RD | 功能：AUTH-F001-用户登录 | 阶段：🤖 Dev Stage 执行中（RD TDD+单测） | 下一步：🚀 Review Stage
 📁 /Users/dev/projects/myapp/auth-service/docs/features/AUTH-F001-用户登录/
 ```
 
@@ -194,6 +194,8 @@
 | 功能完成 | 阶段：✅ 已完成 | 下一步：无 |
 | **敏捷需求流程差异阶段** | | |
 | 精简 PRD 编写 | 阶段：PRD 编写中（精简版） | 下一步：⏸️ 等待用户确认 PRD |
+| PRD 待确认（敏捷） | 阶段：⏸️ PRD 待确认 | 下一步：用户确认后进入 BlueprintLite |
+| 🔗 BlueprintLite Stage | 阶段：BlueprintLite 执行中（简化TC+实现计划） | 下一步：🚀 Dev Stage |
 | _敏捷后续（Dev→Review→Test→PM验收）复用 Feature 定义_ | | |
 | _以下为 Micro 流程专用阶段_ | | |
 | Micro 变更说明 | 阶段：Micro 变更说明中 | 下一步：🤖 启动 RD Subagent |

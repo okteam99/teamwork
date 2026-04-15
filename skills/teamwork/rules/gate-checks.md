@@ -11,8 +11,8 @@
 格式：📋 {当前阶段} → {目标阶段}（📖 {🚀自动/⏸️暂停/🔀条件}，来源：flow-transitions.md L{行号} "{原文}"）
 
 示例：
-📋 PM 编写 PRD → PL-PM Teams 讨论（📖 🚀自动，来源：flow-transitions.md L12 "PM 编写 PRD | PL-PM Teams 讨论 | 🚀自动"）
-📋 PRD 技术评审 → PRD 待确认（📖 ⏸️暂停，来源：flow-transitions.md L14 "PRD 技术评审 | PRD 待确认 | ⏸️暂停"）
+📋 PMO 初步分析 → 🔗 Plan Stage（📖 ⏸️暂停，来源：flow-transitions.md L10 "PMO 初步分析 | 🔗 Plan Stage | ⏸️暂停"）
+📋 🔗 Plan Stage → PRD 待确认（📖 ⏸️暂停，来源：flow-transitions.md L11 "🔗 Plan Stage | PRD 待确认 | ⏸️暂停"）
 ```
 
 **🔴 规则**：
@@ -22,7 +22,28 @@
 ├── ⏸️暂停 → 必须等用户明确确认后才能继续
 ├── 校验不通过（不在转移表中）→ 🔴 禁止流转，输出原因
 ├── 缺少校验行直接切换阶段 → 违反红线 #5
-└── 免输出场景：同一阶段内的子步骤 / Subagent 内部步骤
+└── 免输出场景：同一 Stage 内的子步骤 / Subagent 内部步骤（见下方「Stage 内部轻量标记」）
+```
+
+## Stage 内部轻量进度标记
+
+**Stage 内部子步骤（如 Blueprint 内的 QA→评审→RD→架构师）不需要完整流转校验，改用轻量标记。**
+
+```
+格式：📌 {Stage名} {当前步/总步}: {子步骤名}
+
+示例：
+📌 Blueprint 1/4: QA 编写测试用例
+📌 Blueprint 2/4: TC 多角色评审
+📌 Blueprint 3/4: RD 编写技术方案
+📌 Blueprint 4/4: 架构师方案评审
+
+规则：
+├── 不需要引用 flow-transitions.md 行号（子步骤不在转移表中）
+├── 不需要更新 STATUS.md（Stage 级别才更新，不是子步骤级别）
+├── 不需要输出阶段摘要（Stage 完成时统一输出）
+├── 子步骤间有内部评审问题 → 内部循环修复，不暂停不上报（除非超 3 轮）
+└── 减少的开销：每个 Stage 内部省去 N-1 次完整校验 + N-1 次 STATUS.md 更新
 ```
 
 ## 🔴 门禁检查（校验行之外，PMO 还需确认）
@@ -30,7 +51,7 @@
 ```
 PMO 启动阶段 X 前：
 ├── 1. 项目根目录 CLAUDE.md / AGENTS.md / GEMINI.md → 存在则读取提取约束
-├── 2. 前置阶段产物存在（PRD 确认→QA/Designer，TC 技术评审→RD 技术方案，技术方案→RD 开发，架构师 CR→QA 审查）
+├── 2. 前置阶段产物存在（Plan Stage→Blueprint/UI Design，Blueprint Stage→Dev Stage，Dev Stage→Review Stage，Review Stage→Test Stage）
 ├── 3. 暂停点已获用户确认
 └── 4. 不通过 → 🔴 禁止进入，输出缺失项
 

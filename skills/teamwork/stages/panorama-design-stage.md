@@ -34,6 +34,8 @@ PMO 在 UI Design Stage 用户确认后判断：
 ## 三、执行模式
 
 ```
+🔴 进度追踪：每个 Step 开始时报告进度（宿主支持 TodoWrite 时使用，否则输出 markdown 进度块），禁止黑盒执行。
+
 增量模式（Feature 流程，默认）：
 ├── 读取现有 sitemap.md + overview.html
 ├── 将本次 Feature 的页面合并进全景
@@ -61,6 +63,7 @@ PMO 在 UI Design Stage 用户确认后判断：
 ## 五、红线
 
 ```
+🔴 进度可见：每个 Step 必须报告进度（TodoWrite 或 markdown 进度块），禁止黑盒执行
 🔴 design/ 是产品 UI 的 Single Source of Truth，不可跳过更新
 🔴 每次更新必须输出 sitemap.md + overview.html，两者都更新
 ```

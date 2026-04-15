@@ -27,9 +27,9 @@ PMO 启动时必须注入：
 ├── docs/features/F{编号}-{功能名}/PRD.md           ← 需求文档
 ├── docs/features/F{编号}-{功能名}/TC.md            ← 测试用例
 ├── docs/features/F{编号}-{功能名}/TECH.md          ← 技术方案
-├── .claude/skills/teamwork/standards/common.md     ← 通用开发规范
-├── .claude/skills/teamwork/standards/backend.md    ← 后端规范（后端项目加载）
-├── .claude/skills/teamwork/standards/frontend.md   ← 前端规范（前端项目加载）
+├── {SKILL_ROOT}/standards/common.md                ← 通用开发规范
+├── {SKILL_ROOT}/standards/backend.md               ← 后端规范（后端项目加载）
+├── {SKILL_ROOT}/standards/frontend.md              ← 前端规范（前端项目加载）
 │
 可选文件（存在则读取）：
 ├── docs/features/F{编号}-{功能名}/UI.md            ← UI 设计
@@ -42,6 +42,8 @@ PMO 启动时必须注入：
 ## 三、执行流程
 
 ```
+🔴 进度追踪：每个 Step 开始时报告进度（宿主支持 TodoWrite 时使用，否则输出 markdown 进度块），禁止黑盒执行。
+
 Step 1: 读取所有输入文件
         ├── agents/README.md + dev-stage.md（本文件）
         ├── agents/rd-develop.md
@@ -81,9 +83,40 @@ Step 3: 产出汇总
 
 ---
 
-## 五、红线
+## 五、Worktree 集成（PMO 预检阶段执行，非 Subagent 内部）
 
 ```
+🔴 以下逻辑由 PMO 在 dispatch Dev Stage Subagent 之前执行，不是 Subagent 内部步骤。
+
+worktree 策略读取：从 .teamwork_localconfig.md 的 worktree 字段获取（off/auto/manual）
+
+├── worktree = off → 跳过，直接 dispatch Subagent
+├── worktree = manual → PMO 提醒用户：
+│   💡 建议为 F{编号} 创建 worktree：git worktree add ../feature-{编号} -b feature/{编号}
+│   ⏸️ 等待用户确认已创建 / 跳过
+├── worktree = auto → PMO 自动执行：
+│   1. 检查 worktree 是否已存在：git worktree list | grep feature-{编号}
+│   2. 不存在 → 创建：git worktree add ../feature-{编号} -b feature/{编号}
+│   3. 已存在 → 复用
+│   4. 📁 记录 worktree 路径到 STATUS.md（新增字段：worktree_path）
+│   5. dispatch Subagent 时 cwd 设为 worktree 路径
+
+worktree 清理（PMO 在 Feature 完成时执行）：
+├── worktree = auto → PMO 完成报告阶段自动执行：
+│   1. git worktree remove ../feature-{编号}（如已 merge）
+│   2. git branch -d feature/{编号}（可选，分支已 merge 时）
+├── worktree = manual → PMO 提醒用户清理
+└── worktree = off → 无操作
+
+Review Stage / Test Stage 也使用同一 worktree 路径执行。
+```
+
+---
+
+## 六、红线
+
+```
+🔴 进度可见：每个 Step 必须报告进度（TodoWrite 或 markdown 进度块），禁止黑盒执行
 🔴 TDD 必须执行：先写测试再写实现，禁止先写实现再补测试
 🔴 单测必须通过：Dev Stage 返回前单测必须全绿，不能带着失败的测试返回
 🔴 不做 Code Review：架构审查在 Review Stage 执行，Dev Stage 不含 CR
@@ -92,7 +125,7 @@ Step 3: 产出汇总
 
 ---
 
-## 六、输出格式
+## 七、输出格式
 
 ```
 📋 Dev Stage 执行报告（F{编号}-{功能名}）

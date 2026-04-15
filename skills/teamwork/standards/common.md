@@ -250,7 +250,7 @@ Step 1: 扫描仓库级约束文件
 └── 记录到预检报告
 
 Step 2: 扫描项目约定的辅助脚本与 CI 配置
-├── 📎 .claude/hooks/ 由宿主环境自动触发，PMO 不需要关注
+├── 📎 宿主 hooks（.claude/hooks/ 或 .codex/hooks/）由宿主环境自动触发，PMO 不需要关注
 ├── 检查 .github/workflows/、.husky/ 等 CI/CD 配置（如存在）
 │   ├── 提取与当前改动相关的检查逻辑（lint gate、test gate 等）
 │   └── PMO 主动执行对应检查（如 gate 要求 git log → PMO 执行 git log）
@@ -571,7 +571,7 @@ RD 开发完成（测试通过）
 ├── 实现覆盖：阅读实现代码，确认逻辑是否处理了 TC 描述的场景
 ├── 测试覆盖：阅读测试代码，确认测试是否验证了 TC 的预期行为
 ├── 🔴 不能只看测试通过率，要看测试断言是否验证了正确的东西
-└── 🔴 不能因为架构师方案评审 通过就跳过代码阅读
+└── 🔴 不能因为 Blueprint Stage 架构师评审通过就跳过代码阅读
 
 TC 验证率: X/Y (XX%)
 ├── 实现覆盖率: X/Y
@@ -658,7 +658,6 @@ flowchart TD
     B -->|Feature| C[PM 编写 PRD]
     B -->|Bug| D[RD 排查]
     B -->|Feature Planning| E[PM 规划 Roadmap]
-    C --> C2[🤖 PL-PM Teams 讨论]
-    C2 --> F[🤖 PRD 技术评审]
-    F --> G[⏸️ 用户确认]
+    C --> C2[🔗 Plan Stage<br/>PM PRD + PL-PM 讨论 + 评审]
+    C2 --> G[⏸️ 用户确认 PRD]
 ```

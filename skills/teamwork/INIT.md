@@ -8,22 +8,46 @@
 
 ## 启动必做（每次，按顺序执行）
 
-### Step 1: 校验 CLAUDE.md（🔴 最先做）
+### Step 1: 检测宿主环境 + 校验指令文件（🔴 最先做）
 
-**检查项目根目录的 `CLAUDE.md` 文件**：
+**Step 1.1: 检测宿主环境并设定 SKILL_ROOT**
+
+```
+检测当前 AI 工具：
+├── 存在 Task 工具 + .claude/ 目录 → 宿主 = Claude Code
+│   └── SKILL_ROOT = .claude/skills/teamwork
+│   └── HOST_INSTRUCTION_FILE = CLAUDE.md
+├── 存在 .codex/ 目录 或 codex 命令可用 → 宿主 = Codex CLI
+│   └── SKILL_ROOT = .agents/skills/teamwork
+│   └── HOST_INSTRUCTION_FILE = AGENTS.md
+├── 存在 .gemini/ 目录 → 宿主 = Gemini CLI
+│   └── SKILL_ROOT = .gemini/skills/teamwork（如支持）
+│   └── HOST_INSTRUCTION_FILE = GEMINI.md
+└── 均不匹配 → 宿主 = 通用
+    └── SKILL_ROOT = 从 SKILL.md 所在目录推断
+    └── HOST_INSTRUCTION_FILE = AGENTS.md（开放标准）
+
+输出：「🔧 宿主环境：{宿主名} | SKILL_ROOT={路径}」
+```
+
+**Step 1.2: 校验宿主指令文件**
+
+检查项目根目录的 `{HOST_INSTRUCTION_FILE}` 文件：
 - 不存在 → 创建并写入下方内容
 - 存在 → 读取 `## Teamwork 协作模式` 段落，对照下方模板校验内容完整性
   - 段落缺失 → 追加
   - 内容不符合预期（缺失/被篡改/旧版本）→ 替换为预期内容
   - 完整匹配 → 跳过
 
+🔴 如果项目根同时存在多个指令文件（CLAUDE.md + AGENTS.md），则**每个文件都写入**相同内容，确保不同工具都能读到。
+
 **写入内容**：
 ```markdown
-## Teamwork 协作模式
+## Teamwork AI 开发团队
 
-本项目使用 Teamwork 多角色协作流程。
+本项目使用 Teamwork 流程框架：一个 AI 以完整团队方式工作，在不同阶段切换专业视角（PMO/PM/QA/RD/架构师等），通过质量门禁确保产出质量。
 启动方式：`/teamwork [需求]` 或 `/teamwork 继续`。
-详细规范见 skill 目录：`.claude/skills/teamwork/`，入口为 SKILL.md。
+详细规范见 skill 目录：`{SKILL_ROOT}/`，入口为 SKILL.md。
 🔴 激活后必须先读取 INIT.md 完成初始化检查，再接收需求。
 
 ### 🔴 PMO 每次阶段变更必做（3 件事，缺一不可）
@@ -69,9 +93,15 @@
 └── 输出：「📦 已加载项目空间（X 个子项目）」
 
 检查 .teamwork_localconfig.md（多人协作）：
-├── 存在 → 读取 scope（all / 指定子项目列表）
-├── 不存在 → 默认 scope=all（单人模式），不提示不打断
+├── 存在 → 读取 scope（all / 指定子项目列表）+ worktree 策略（off/auto/manual）
+├── 不存在 → 默认 scope=all（单人模式），worktree=off，不提示不打断
 └── 用户主动说"我只负责 XX" → 那时再创建 localconfig
+
+检查 worktree 环境（worktree ≠ off 时）：
+├── 执行 git worktree list → 检测当前是否在某个 Feature worktree 中
+├── 在 worktree 中 → 记录当前 worktree 对应的 Feature 编号
+├── 不在 worktree 中 → 正常（Dev Stage 前按策略创建）
+└── git 不可用 → worktree 降级为 off，输出提示
 ```
 
 ### Step 3: 扫描进度 + 输出看板

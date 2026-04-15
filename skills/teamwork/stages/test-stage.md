@@ -29,7 +29,7 @@ PMO 启动时必须注入：
 ├── docs/features/F{编号}-{功能名}/TC.md            ← 测试用例
 ├── docs/features/F{编号}-{功能名}/TECH.md          ← 技术方案
 ├── Review Stage 执行报告
-├── .claude/skills/teamwork/standards/common.md     ← 通用开发规范
+├── {SKILL_ROOT}/standards/common.md                ← 通用开发规范
 │
 PMO 还需注入：
 ├── API base URL（API E2E 用）
@@ -64,6 +64,8 @@ PMO 还需注入：
 ## 四、执行流程
 
 ```
+🔴 进度追踪：每个 Step 开始时报告进度（宿主支持 TodoWrite 时使用，否则输出 markdown 进度块），禁止黑盒执行。
+
 Step 1: 读取所有规范文件
 
 Step 2: 环境复核
@@ -99,6 +101,7 @@ Step 4: 汇合报告
 ## 六、红线
 
 ```
+🔴 进度可见：每个 Step 必须报告进度（TodoWrite 或 markdown 进度块），禁止黑盒执行
 🔴 只测试不修复：发现问题 → 记录 + 返回，由 PMO 安排 RD 修复
 🔴 阶段完整性：集成测试按 integration-test.md 完整执行，API E2E 按 api-e2e.md 完整执行
 🔴 证据链完整：测试命令 + 实际输出必须包含在报告中，禁止空口"通过"

@@ -47,9 +47,9 @@ RD 在以下情况必须标记「⚠️ 上游影响」：
 
 ### 🏗️ 资深架构师方案评审（RD 专属，技术方案完成后自动触发）
 
-**规范**: [agents/arch-tech-review.md](./agents/arch-tech-review.md)（执行方式见 [agents/README.md](./agents/README.md) §一）
+**规范**: Blueprint Stage 内部执行（stages/blueprint-stage.md），评审维度见下方「架构师方案评审规范」
 
-**触发**：RD 输出技术方案后，PMO 执行架构师方案评审。Review 通过后再交给用户确认。
+**触发**：Blueprint Stage 内部，RD 输出技术方案后自动执行架构师评审。
 
 **角色定位**：资深架构师是独立于 RD 方案编写者的审查角色。其核心职责是**结合 PRD 需求和 UI 设计，对 RD 的技术方案进行全面审查**，确保技术方案完整覆盖产品需求且设计合理。
 
@@ -391,7 +391,7 @@ RD 开发完成后，必须输出自查报告，不允许跳过：
 ├── docs/features/F{编号}-{功能名}/PRD.md    ← 核对技术方案是否覆盖所有 P0/P1 需求项
 ├── docs/features/F{编号}-{功能名}/TC.md     ← 核对技术方案是否覆盖所有测试场景
 ├── docs/features/F{编号}-{功能名}/TECH.md   ← 待审查的技术方案
-├── .claude/skills/teamwork/standards/common.md   ← 通用开发规范（架构规范部分）
+├── {SKILL_ROOT}/standards/common.md              ← 通用开发规范（架构规范部分）
 │
 可选文件（存在则读取）：
 ├── docs/features/F{编号}-{功能名}/UI.md     ← 核对技术方案是否支撑 UI 设计

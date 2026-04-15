@@ -1,6 +1,30 @@
 # Changelog
 
-## v7（当前）
+## v7.2（当前）
+- 效率优化（减少流程税）：
+  - Stage 内部子步骤简化 PMO relay：跨 Stage 保留完整校验，Stage 内部改用轻量标记（📌 Blueprint 1/4）
+  - Subagent 输入改文件路径优先：减少 PMO 摘要转述的信息衰减，Subagent 自行读原文
+  - Blueprint Stage 改为 Subagent 执行：4 步内部闭环，主对话 context 不被占用
+  - 敏捷需求新增 BlueprintLite Stage（轻量蓝图：QA 简化 TC + RD 实现计划，无评审），替代原 3 步独立执行，Dev Stage 保持单一职责
+- 叙事重构：从"虚拟团队"改为"角色视角 + 流程规范"定位
+  - SKILL.md description: "AI Agent Team" → "AI-driven structured development process with role-based perspectives"
+  - README 中英文同步更新：强调角色视角切换和质量门禁，而非团队协作
+  - INIT.md 写入模板：从"多角色协作流程"改为"结构化开发流程"
+- 跨宿主兼容（Claude Code / Codex CLI / Gemini CLI）：
+  - 硬编码路径 `.claude/skills/teamwork/` → `{SKILL_ROOT}` 变量（~20 处）
+  - INIT.md 宿主环境检测 + 指令文件自适应写入（CLAUDE.md / AGENTS.md / GEMINI.md）
+  - agents/README.md §四 dispatch 抽象层（Task 工具 / Codex agent spawn / 主对话降级）
+  - codex-agents/ 目录：6 个 Codex 自定义 agent toml 定义
+  - TodoWrite 降级：宿主不支持时回退 markdown 进度块
+  - hooks 双宿主：Codex 版去掉 PreCompact/PostCompact
+  - install.sh 安装脚本：自动检测宿主 + 一键部署
+  - SKILL.md 新增「宿主环境适配」章节
+
+## v7.1
+- 问题 10 清理：STATUS-LINE.md 阶段对照表 / templates/status.md 显示名映射 / agents/README.md 速查表 / gate-checks.md 示例 / 全局旧阶段名引用清理
+- 问题 11 Worktree 集成：.teamwork_localconfig.md 新增 worktree 策略字段（off/auto/manual），INIT.md 启动检测，Dev Stage worktree 创建/清理生命周期，flow-transitions.md 标注 worktree 触发点
+
+## v7
 - 8 Stage 架构重构：
   - stages/ 目录（8 个 stage）：Plan / UI Design / Panorama Design / Blueprint / Dev / Review / Test / Browser E2E
   - agents/ 只保留任务单元规范（被 stage 引用，不被 PMO 直接 dispatch）

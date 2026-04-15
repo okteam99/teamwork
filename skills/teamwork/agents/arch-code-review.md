@@ -20,9 +20,9 @@
 必读文件：
 ├── docs/features/F{编号}-{功能名}/TECH.md   ← 核对代码是否按技术方案实现
 ├── docs/features/F{编号}-{功能名}/PRD.md    ← 核对实现是否覆盖需求
-├── .claude/skills/teamwork/standards/common.md   ← 通用开发规范（架构/代码规范部分）
-├── .claude/skills/teamwork/standards/backend.md  ← 后端规范（后端项目加载）
-├── .claude/skills/teamwork/standards/frontend.md ← 前端规范（前端项目加载）
+├── {SKILL_ROOT}/standards/common.md              ← 通用开发规范（架构/代码规范部分）
+├── {SKILL_ROOT}/standards/backend.md             ← 后端规范（后端项目加载）
+├── {SKILL_ROOT}/standards/frontend.md            ← 前端规范（前端项目加载）
 ├── RD 自查报告（Subagent 返回内容中）         ← 了解自查已发现的问题
 │
 可选文件（存在则读取）：

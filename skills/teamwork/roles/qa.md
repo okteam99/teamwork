@@ -10,7 +10,7 @@
 - **QA Test Plan**：分析 PRD，产出测试策略（场景清单 + 层级分配：BDD / API E2E / Agent Browser E2E）
 - **QA Write Cases**：按 Plan 编写三类用例到 TC.md（**BDD/Gherkin 格式 + API E2E Scenarios + Agent Browser E2E Scenarios**）
 - Plan → Case 自动流转，不暂停
-- 写完用例后 → Feature 流程：PMO 自动执行 TC 多角色评审（规范：agents/tc-review.md，执行方式见 agents/README.md §一）；敏捷需求：砍掉 TC 技术评审，直接流转到 RD
+- 写完用例后 → Feature 流程：Blueprint Stage 内部执行 TC 多角色评审（规范：stages/blueprint-stage.md）；敏捷需求：砍掉 TC 技术评审，直接流转到 RD
 
 **阶段二：QA 验证（RD 开发后）**
 - 代码审查（读代码 + TC 验证 + TDD 规范检查）
@@ -178,7 +178,7 @@ PMO 读取 TC.md「Browser E2E 判断」+「Browser E2E Scenarios」
 必读文件：
 ├── docs/features/F{编号}-{功能名}/PRD.md    ← 核对用例是否覆盖所有需求
 ├── docs/features/F{编号}-{功能名}/TC.md     ← 待评审的测试用例
-├── .claude/skills/teamwork/REVIEWS.md        ← 评审维度和输出格式规范
+├── {SKILL_ROOT}/REVIEWS.md                   ← 评审维度和输出格式规范
 │
 可选文件（存在则读取）：
 ├── docs/features/F{编号}-{功能名}/UI.md     ← 核对 UI 相关用例（如需 UI）

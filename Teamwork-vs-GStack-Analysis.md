@@ -1,8 +1,10 @@
 # Teamwork vs GStack - 深度对比与借鉴建议
 
-> 调研日期：2026-04-14
+> 调研日期：2026-04-15（基于 Teamwork Stage 化重构后版本；初版调研 2026-04-14）
 > 对象：Teamwork Skill（本仓库） vs [garrytan/gstack](https://github.com/garrytan/gstack)
-> 结论：GStack 更像“单人超级开发者工具箱”，Teamwork 更像“多角色流程治理系统”。两者不是替代关系。Teamwork 应该吸收 GStack 的交付闭环、独立审查、浏览器/性能/部署能力，但不应复制其松散多入口模型。
+> 结论：GStack 更像"单人超级开发者工具箱"，Teamwork 更像"多角色流程治理系统"。两者不是替代关系。Teamwork 应该吸收 GStack 的交付闭环、独立审查、浏览器/性能/部署能力，但不应复制其松散多入口模型。
+>
+> **2026-04-15 更新**：Teamwork 完成 Stage 化重构（roles/ + rules/ + stages/ 三级拆分 + Micro 流程）。本文部分建议已失效或需要重新锚定到新结构，详见 §11「重构后修订」。
 
 ---
 
@@ -533,6 +535,101 @@ GStack 可借鉴 = review dashboard + ship/deploy/qa/benchmark/learn 工具链
 2. Release Chain
 
 这两个落地后，Teamwork 的最大短板会从“验收后断链”变成“有完整交付报告但部署验证还可增强”。后续再逐步补 QA Health、Deploy Dry-run、Benchmark、Learning JSONL。
+
+---
+
+## 11. 重构后修订（2026-04-15）
+
+Teamwork 于 2026-04-15 完成架构重构，以下内容同步更新：
+
+### 11.1 角色数量与构成
+
+- 旧文多处写「8 个角色」，包含 QA Lead，**已失效**。
+- 当前角色共 **7 个**：PMO / Product Lead / PM / Designer / QA / RD / 架构师（RD 与架构师合并在 `roles/rd.md`，架构师职责为方案评审 + Code Review）。
+- 第 3 节对比表「角色模型」行、第 64 行描述需按 7 角色修正。
+
+### 11.2 流程数量（五 → 六）
+
+- 新增 **Micro 流程**（微调通道）：零逻辑变更 + 白名单改动类型（资源替换 / 文案 / 样式 / 配置常量 / 注释文档）。
+- 准入门禁：PMO 匹配到 Micro 后必须核查 5 项准入条件，任一不满足 → 升级为敏捷需求。
+- Micro 也必须走完整链路：PMO 分析 → ⏸️ 用户确认 → RD Subagent 执行 → ⏸️ 用户验收。不存在"直接改"。
+
+### 11.3 目录结构变化（核心）
+
+Stage 化拆分带来的新能力接入机会：
+
+```
+skills/teamwork/
+├── roles/          # 7 角色定义（pmo/product-lead/pm/designer/qa/rd.md）
+├── rules/          # 核心规则（flow-transitions / gate-checks / naming）
+├── stages/         # 🔑 Stage 规范（plan/blueprint/panorama/ui-design/dev/review/test/browser-e2e）
+├── agents/         # 任务单元（被 stage 内部引用，非 PMO 直接 dispatch）
+│   ├── rd-develop.md / arch-code-review.md / qa-code-review.md
+│   ├── integration-test.md / api-e2e.md
+│   └── README.md
+```
+
+**已删除的 agent**（旧文多处引用，全部失效）：
+- `dev-chain.md` / `verify-chain.md` → 合并进 `stages/dev-stage.md` 与 `stages/test-stage.md`
+- `codex-code-review.md` → 合并进 `stages/review-stage.md`
+- `prd-review.md` / `tc-review.md` → 合并进 PM/QA 角色规范 + `REVIEWS.md`
+- `arch-tech-review.md` → 合并进 `stages/blueprint-stage.md`
+- `ui-design.md` → 拆成 `stages/ui-design-stage.md` + `stages/panorama-design-stage.md`
+- `qa-e2e.md` → 重命名为 `stages/browser-e2e-stage.md`
+- `qa-lead-review.md` / `pl-pm-discuss.md` → QA Lead 角色废弃；PL-PM 讨论逻辑迁入 `roles/product-lead.md` 与 `roles/pm.md`
+
+### 11.4 旧建议的现状映射
+
+| 原建议（§6/§7） | 旧引用 | 当前应落在 |
+|---|---|---|
+| 危险命令红线 | `agents/README.md` 2.5 | 仍在 `agents/README.md`（OK） |
+| 编辑范围约束 | PMO 启动 prompt | 改看 `rules/gate-checks.md` |
+| Codex Review | `agents/codex-code-review.md` | **已合并**到 `stages/review-stage.md`，升级 gate 应改该 Stage |
+| Dev Chain / Verify Chain | `agents/dev-chain.md` / `verify-chain.md` | **已合并**到 `stages/dev-stage.md` / `stages/test-stage.md` |
+| API E2E | `agents/api-e2e.md` | 仍在（OK），但由 `stages/test-stage.md` 调度 |
+
+### 11.5 借鉴优先级重锚（基于 Stage 架构）
+
+> 新原则：**所有 GStack 能力吸收，优先以 Stage 形态接入，而非新增 Agent**。
+
+**P0（零架构冲突，立刻可做）**：
+
+1. **`stages/release-stage.md`**（替代原 P0「`agents/release-chain.md`」建议）
+   - 位置：接在 PM 验收之后
+   - 产出：Review Readiness Dashboard + PR body + release report
+   - 第一版不做自动 merge/deploy
+
+2. **`templates/review-log.jsonl`** + PMO dispatch 规范
+   - 每个评审 stage（PRD Review / TC Review / Arch CR / Codex Review / QA CR / Integration / API E2E / Browser E2E）写一行
+   - PMO 每次流转读取并输出简版 dashboard
+   - 用 commit hash 判定 stale
+
+3. **Cross-model Review Gate 升级到 `stages/review-stage.md`**
+   - 大 diff (>200 行) 或敏感路径（auth / payment / security / migration）→ Codex structured review 必跑
+   - 普通 Feature → adversarial 非阻塞
+   - Micro → 默认跳过
+   - 输出 synthesis 表（Claude Arch / QA / Codex 三列对齐）
+
+**P1（下个迭代）**：
+
+4. **`stages/deploy-stage.md`**（仅 dry-run，不实际部署）
+5. **QA Health Score** 挂在 `stages/browser-e2e-stage.md` 与 `stages/test-stage.md`
+6. **`docs/teamwork-learnings.jsonl`**（机器可读，保留 KNOWLEDGE.md）
+
+**P2**：
+
+7. **`stages/benchmark-stage.md`**（轻量：TTFB/FCP/LCP/资源体积）
+8. **`stages/canary-stage.md`**（post-merge 健康检查）
+9. **Proactive routing 建议**（不破坏 PMO 单入口，只在意图识别时给出 Stage 建议）
+
+### 11.6 新结论
+
+重构带来两个关键变化：
+
+1. **新能力接入更便宜**：Stage 作为独立单元存在，新增 Release / Deploy / Canary / Benchmark 不需要改 PMO 主流程，只需：新增 `stages/{name}-stage.md` + 在 `rules/flow-transitions.md` 加一行流转规则 + 在对应流程的阶段链插入位置。
+2. **Micro 流程填补了小改动的合规空白**：过去"纯移植 / 资源替换"用户常要求跳过流程，Micro 流程给了合法通道（但仍有 PMO 确认 + RD Subagent + 用户验收），避免了 GStack 那种「`/ship` 可以跳过 review」的治理漏洞。
+
+P0 仍是 Review Readiness Dashboard + Release Stage。第二优先级的重点从"补齐交付闭环"演变为"基于 Stage 架构规模化吸收 GStack 能力"。
 
 ---
 

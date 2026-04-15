@@ -74,34 +74,57 @@ Micro 流程：Micro 变更说明 → 🤖 RD Subagent → 用户验收 → ✅ 
 
 | 规范名 | 状态行进行中显示 | 说明 |
 |--------|-----------------|------|
-| PM 编写 PRD | PRD 编写中 | |
-| PL-PM Teams 讨论 | 🤖 PL-PM 讨论中（Teams） | |
-| RD 技术方案 | 技术方案中 | |
-| 技术方案待确认 | ⏸️ 方案待确认 | 简写 |
-| RD 开发+自查 | 🤖 Subagent 执行中 | 同其他 Subagent 阶段 |
-| QA 集成测试前置检查 | 环境准备中 | |
-| RD Bug 排查 | Bug 排查中 | Bug 处理流程 |
-| PMO Bug 判断 | PMO 流程判断 | Bug 处理流程 |
-| QA 补充用例 | QA 补充用例中 | Bug 处理流程 |
-| RD Bug 修复 | Bug 修复中 | Bug 处理流程 |
-| RD Bug 自查 | Bug 自查中 | Bug 处理流程 |
-| QA Bug 验证 | QA 验证中 | Bug 处理流程 |
-| PM 文档同步 | 文档同步检查中 | Bug 处理流程 |
-| PMO Bug 总结 | PMO 总结中 | Bug 处理流程 |
-| 问题排查梳理 | 问题排查中 | 问题排查流程 |
-| 排查待确认 | ⏸️ 排查待确认 | 问题排查流程 |
-| PM Roadmap 编写 | Roadmap 编写中 | Feature Planning |
-| Roadmap 待确认 | ⏸️ Roadmap 待确认 | Feature Planning |
-| 🌐 Workspace 架构讨论 | 架构讨论中 | Workspace Planning |
-| 🌐 teamwork_space.md 待确认 | ⏸️ teamwork_space.md 待确认 | Workspace Planning |
-| 🌐 子项目 Planning 中 | 子项目 [缩写] Planning | Workspace Planning |
-| 🌐 Workspace Planning 收尾 | ⏸️ 最终确认 | Workspace Planning |
-| PL 引导模式 | PL 引导（草案迭代中） | PL 模式 |
-| PL 讨论模式 | PL 讨论中 | PL 模式 |
-| PL 结论待确认 | ⏸️ PL 结论待确认 | PL 模式 |
-| PL 执行模式 | PL 变更评估中 | PL 模式 |
-| CHG 待确认 | ⏸️ CHG 待确认 | PL 模式 |
-| ⏳ 等待外部依赖 | ⏳ 等待外部依赖（DEP-XXX） | 通用 |
+| **Feature 流程（8 Stage）** | | |
+| PMO 初步分析 | PMO 分析中 | |
+| 🔗 Plan Stage | 🤖 Plan Stage 执行中（PRD+讨论+评审） | Subagent |
+| PRD 待确认 | ⏸️ PRD 待确认 | |
+| 🔗 UI Design Stage | 🤖 UI Design 执行中 | Subagent（无 UI 时跳过） |
+| UI 待确认 | ⏸️ UI 待确认 | 无 UI 时跳过 |
+| 🔗 Panorama Design Stage | 🤖 全景设计更新中 | Subagent（不涉及全景时跳过） |
+| 全景待确认 | ⏸️ 全景待确认 | 不涉及全景时跳过 |
+| 🔗 Blueprint Stage | 🤖 Blueprint 执行中（TC+技术方案+评审） | 主对话多阶段 |
+| 方案待确认 | ⏸️ 方案待确认 | |
+| 🔗 Dev Stage | 🤖 Dev Stage 执行中（RD TDD+单测） | Subagent |
+| 🔗 Review Stage | 🤖 Review Stage 执行中（架构师CR∥Codex∥QA审查） | Subagent |
+| 🔗 Test Stage | 🤖 Test Stage 执行中（集成∥E2E） | Subagent |
+| 🔗 Browser E2E Stage | 🤖 Browser E2E 执行中 | Subagent（可选） |
+| PM 验收 | PM 验收中 | 主对话 |
+| ✅ 已完成 | ✅ 已完成 | 终态 |
+| **敏捷需求流程差异阶段** | | |
+| 精简 PRD 编写 | PRD 编写中（精简版） | PM 直接写精简 PRD |
+| **Micro 流程** | | |
+| Micro 变更说明 | Micro 变更说明中 | |
+| 🤖 RD Subagent（Micro） | 🤖 RD 执行改动中 | Subagent |
+| 用户验收（Micro） | ⏸️ 用户验收中 | |
+| **Bug 处理流程** | | |
+| RD Bug 排查 | Bug 排查中 | |
+| PMO Bug 判断 | PMO 流程判断 | |
+| QA 补充用例 | QA 补充用例中 | |
+| RD Bug 修复 | Bug 修复中 | |
+| RD Bug 自查 | Bug 自查中 | |
+| QA Bug 验证 | QA 验证中 | |
+| PM 文档同步 | 文档同步检查中 | |
+| PMO Bug 总结 | PMO 总结中 | |
+| **问题排查流程** | | |
+| 问题排查梳理 | 问题排查中 | |
+| 排查待确认 | ⏸️ 排查待确认 | |
+| **Feature Planning** | | |
+| PM Roadmap 编写 | Roadmap 编写中 | |
+| Roadmap 待确认 | ⏸️ Roadmap 待确认 | |
+| **Workspace Planning** | | |
+| 🌐 Workspace 架构讨论 | 架构讨论中 | |
+| 🌐 teamwork_space.md 待确认 | ⏸️ teamwork_space.md 待确认 | |
+| 🌐 子项目 Planning 中 | 子项目 [缩写] Planning | |
+| 🌐 Workspace Planning 收尾 | ⏸️ 最终确认 | |
+| **PL 模式** | | |
+| PL 引导模式 | PL 引导（草案迭代中） | |
+| PL 讨论模式 | PL 讨论中 | |
+| PL 结论待确认 | ⏸️ PL 结论待确认 | |
+| PL 执行模式 | PL 变更评估中 | |
+| CHG 待确认 | ⏸️ CHG 待确认 | |
+| **通用特殊状态** | | |
+| ⏳ 等待外部依赖 | ⏳ 等待外部依赖（DEP-XXX） | 适用所有流程 |
+| 外部依赖已就绪 | 外部依赖已就绪 | |
 
 > 📎 未列出的阶段，显示名 = 规范名 + "中"后缀（如 "PM 验收" → "PM 验收中"）。
 

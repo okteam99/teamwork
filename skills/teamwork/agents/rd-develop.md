@@ -21,9 +21,9 @@
 ├── docs/features/F{编号}-{功能名}/PRD.md    ← 需求文档
 ├── docs/features/F{编号}-{功能名}/TC.md     ← 测试用例
 ├── docs/features/F{编号}-{功能名}/TECH.md   ← 技术方案
-├── .claude/skills/teamwork/standards/common.md   ← 通用开发规范
-├── .claude/skills/teamwork/standards/backend.md  ← 后端规范（后端项目加载）
-├── .claude/skills/teamwork/standards/frontend.md ← 前端规范（前端项目加载）
+├── {SKILL_ROOT}/standards/common.md              ← 通用开发规范
+├── {SKILL_ROOT}/standards/backend.md             ← 后端规范（后端项目加载）
+├── {SKILL_ROOT}/standards/frontend.md            ← 前端规范（前端项目加载）
 │
 可选文件（存在则读取）：
 ├── docs/features/F{编号}-{功能名}/UI.md     ← UI 设计

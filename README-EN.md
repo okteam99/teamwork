@@ -1,12 +1,12 @@
 # Teamwork
 
-Multi-role collaborative development framework for Claude Code.
+Your AI dev team — one AI works as a full team, with role-based perspectives and quality-gated stages.
 
 [中文文档](./README.md)
 
 ## Overview
 
-Teamwork simulates **7 specialized roles** — PMO / Product Lead / PM / Designer / QA / RD / Senior Architect — to deliver structured software development workflows inside Claude Code.
+Teamwork lets one AI work as a complete development team. Each role represents a professional direction of concern — PM ensures requirement completeness, QA ensures test coverage, RD ensures implementation quality, Architect ensures technical soundness, Designer ensures user experience. PMO orchestrates the process and manages information flow between stages. Not multiple AIs having meetings — it ensures every artifact is examined from enough professional angles. Users only need to state requirements and make decisions at key checkpoints. Compatible with Claude Code, Codex CLI, and other AI coding tools.
 
 Four workflow types are supported:
 

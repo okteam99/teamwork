@@ -58,7 +58,7 @@ PMO 启动时必须注入：
 ├── roles/pm.md                                     ← PM 角色 + PRD 技术评审规范
 ├── roles/product-lead.md                           ← PL 角色（讨论用）
 ├── templates/prd.md                                ← PRD 模板
-├── .claude/skills/teamwork/standards/common.md     ← 通用开发规范
+├── {SKILL_ROOT}/standards/common.md                ← 通用开发规范
 │
 可选文件（存在则读取）：
 ├── docs/PROJECT.md                                 ← 产品总览
@@ -90,6 +90,7 @@ PMO 启动时必须注入：
 ## 五、红线
 
 ```
+🔴 进度可见：每个 Step 必须报告进度（TodoWrite 或 markdown 进度块），禁止黑盒执行
 🔴 PL-PM 讨论独立性：PL 和 PM 各自表达观点，不能一方主导
 🔴 技术评审完整性：必须按 roles/pm.md 的评审维度（RD/Designer/QA/PMO）完整执行
 🔴 PRD 质量：不能留 TBD / 待补充，验收标准必须量化可验证

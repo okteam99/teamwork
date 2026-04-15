@@ -706,28 +706,42 @@ P1（显著提升并行度，减少 review 总耗时）
 - roles/ 目录 6 个角色文件就绪
 - agents/ 只保留 README.md + 5 个任务单元规范
 
-### 待下轮执行
+### ✅ v7.1 清理已完成（2026-04-15）
 
-1. **STATUS-LINE.md 阶段对照表更新**
-   - 当前表还是旧阶段名（Dev Stage / Verify Stage 已更新，但整体结构需适配 8 stage）
-   - 需要新增 Plan Stage / Blueprint Stage / Panorama Design Stage / Review Stage / Test Stage 的状态行显示
+1. ✅ **STATUS-LINE.md 阶段对照表更新** — 示例更新为 8-stage 阶段名
+2. ✅ **ui-design-stage.md 内容重写** — 已在 v7 重构中完成（只做 Feature UI，全景拆到 Panorama Stage）
+3. ✅ **旧引用清理** — RULES.md / FLOWS.md / REVIEWS.md / SKILL.md / STATUS-LINE.md / agents/README.md / standards/ / gate-checks.md 中的旧阶段名全部更新
+4. ✅ **agents/README.md 速查表完整更新** — 反映 8-stage 结构，Blueprint Stage 合并 4 个旧行
+5. ✅ **INIT.md CLAUDE.md 模板更新** — 已适配（红线 13 条+8-stage 引用 flow-transitions.md）
+6. ✅ **templates/status.md 更新** — 显示名映射表完整重写，按流程分组
+7. ✅ **敏捷需求流程的 RULES.md 流转链** — 已正确引用 8-stage 名称
 
-2. **ui-design-stage.md 内容重写**
-   - 当前还是从旧 agents/ui-design.md 复制的原始内容（包含全景维护规则等已拆出的内容）
-   - 需要按新 stage 格式重写（只做 Feature UI，不动全景）
+---
 
-3. **旧引用清理**
-   - 散落在 RULES.md / FLOWS.md / REVIEWS.md 等文件中的旧阶段名、旧路径
-   - grep "PL-PM Teams 讨论" / "TC 技术评审" / "架构师方案评审" 等旧的主对话阶段名 → 更新为对应 stage 名
+## 问题 11：Worktree 集成（2026-04-15 新增）
 
-4. **agents/README.md 速查表完整更新**
-   - 速查表需要反映 8 stage 结构（部分已更新，需完整检查）
+### ✅ 已完成（2026-04-15）
 
-5. **INIT.md CLAUDE.md 模板更新**
-   - 模板中的流程描述需要适配 8 stage
+### 需求
 
-6. **templates/status.md 更新**
-   - 阶段合法值列表需要适配 8 stage
+每个 Feature 使用独立 git worktree，代码隔离，并行开发不冲突。
 
-7. **敏捷需求流程的 RULES.md 流转链更新**
-   - 当前敏捷流转链还有旧内容，需要适配新 stage 结构
+### 方案（已实施）
+
+**INIT.md 启动时检查**：
+- .teamwork_localconfig.md 增加 worktree 策略字段（auto/manual/off，默认 off）
+- 检查当前是否在某个 Feature worktree 中（git worktree list）
+- 输出到启动报告
+
+**Dev Stage 集成**：
+- worktree=auto → PMO 预检时自动创建：`git worktree add ../feature-{编号} -b feature/{编号}`
+- Dev/Review/Test Stage 在 worktree 目录中执行
+- Feature 完成后 PMO 清理 worktree：`git worktree remove ../feature-{编号}`
+
+**flow-transitions.md 变化**：
+- Dev Stage 前增加 worktree 创建检查（L2 预检的一部分）
+- PM 验收后增加 worktree 清理步骤
+
+### 优先级
+
+P2（增强功能，不影响核心流程）

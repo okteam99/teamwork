@@ -207,7 +207,7 @@ PMO 识别为 Feature Planning 后，进一步判断范围：
 │   ├── 读取 ROADMAP.md，对比本次需求与已有 Feature 的描述 + 核心验收标准
 │   ├── 有冲突 → 列出冲突点 + ⏸️ 用户确认处理方式
 │   └── 无冲突 → 「✅ 无跨 Feature 冲突」
-├── 阶段链（Feature）：PRD → PL-PM 讨论 → PRD 技术评审 → Designer → QA (Plan+Case) → TC 技术评审 → 技术方案 → 架构师方案评审 → 🔗 Dev Stage (RD 开发+自查+架构师 CR) → Codex Review → 🔗 Test Stage (QA 审查+单元测试+集成测试+API E2E) → Browser E2E(可选) → PM 验收
+├── 阶段链（Feature）：🔗 Plan Stage → 🔗 UI Design Stage → 🔗 Panorama Design Stage → 🔗 Blueprint Stage → 🔗 Dev Stage → 🔗 Review Stage（架构师CR∥Codex∥QA审查）→ 🔗 Test Stage（集成∥E2E）→ Browser E2E(可选) → PM 验收
 │   └── 自动跳过：Designer（PRD「需要 UI: 否」时）
 ├── ⏸️ 请确认：(1) 走 {流程名} 流程 (2) 以上分析和影响范围
 └── 🔄 切换到：{角色名}（用户确认后）
@@ -475,10 +475,10 @@ PMO → 总结 + 知识库更新 → 输出 Bugfix 记录 → 完成 ✅
 
 | 情况 | 起点 | 后续流程 |
 |------|------|----------|
-| 需求理解偏差 | PM（PRD 阶段） | PRD → 设计 → TC → 开发 → 🔴 架构师 CR → 验收 |
-| 涉及 UI 变更 | Designer（设计阶段） | 设计 → TC → 开发 → 🔴 架构师 CR → 验收 |
-| 涉及架构变更 | RD（技术方案阶段） | 技术方案 → 🔴 架构师方案评审 → 开发 → 🔴 架构师 CR → 验收 |
-| 多文件修复 | RD（开发阶段） | 开发 → RD 自查 → 🔴 架构师 CR → QA 完整验证 → 验收 |
+| 需求理解偏差 | PM（Plan Stage） | Plan Stage → UI Design → Blueprint → Dev → Review → Test → 验收 |
+| 涉及 UI 变更 | Designer（UI Design Stage） | UI Design → Panorama → Blueprint → Dev → Review → Test → 验收 |
+| 涉及架构变更 | RD（Blueprint Stage） | Blueprint（含架构师方案评审）→ Dev → Review → Test → 验收 |
+| 多文件修复 | RD（Dev Stage） | Dev → Review Stage（架构师 CR ∥ Codex ∥ QA 审查）→ Test → 验收 |
 
 ### Bug 修复闭环验证（PMO 必须执行）
 
@@ -731,15 +731,14 @@ PM 编写精简 PRD（需求描述 + 验收标准 + 影响范围 + 接口变更 
     ↓
 ⏸️ 等待用户确认 PRD
     ↓ 用户确认后
-🔄 自动流转到 QA
-QA Test Plan（测试策略：场景清单 + 层级分配）
-    ↓ 自动流转（不暂停）
-QA Write Cases（BDD case + API E2E case + Agent Browser E2E case）
+🔗 BlueprintLite Stage（主对话快速执行）
+    QA 简化版 TC + RD 实现计划（无评审）
+    ↓ 🚀 自动
+📋 PMO L2 预检
     ↓
-🔄 自动流转到 RD
-RD 实现计划（文件清单 + 改动要点）→ 自动进入 🔗 Dev Stage（🤖 Subagent，与 Feature 一致）
+🔗 Dev Stage（🤖 Subagent，与 Feature 一致）
     ↓
-🔗 Dev Stage 通过 → Codex Review → 🔗 Test Stage（与 Feature 一致）
+🔗 Dev Stage 通过 → 🔗 Review Stage → 🔗 Test Stage（与 Feature 一致）
     ↓
 Test Stage 通过 → Browser E2E（可选）
     ↓
@@ -752,8 +751,9 @@ PMO 完成报告
 完成 ✅
 ```
 
-> **与 Feature 流程的差异**：敏捷需求砍掉 PL-PM 讨论、PRD 技术评审、Designer 设计、技术方案文档、架构师方案评审、TC 技术评审共 6 个环节。
-> 所有执行类环节（QA Plan+Case、RD Subagent、架构师 CR、QA 验证）的行为和产出标准与 Feature 流程完全一致。
+> **与 Feature 流程的差异**：敏捷需求砍掉 PL-PM 讨论+技术评审、UI Design/Panorama、完整 Blueprint（含评审）。
+> 用 BlueprintLite Stage（轻量蓝图：简化 TC + 实现计划，无评审）替代，Dev Stage 保持不变。
+> 后半段（Dev → Review → Test → PM 验收）的行为和产出标准与 Feature 流程完全一致。
 
 ### PMO 敏捷需求分析输出格式
 
@@ -770,7 +770,7 @@ PMO 完成报告
 │   ├── 无架构变更：✅
 │   ├── 不影响其他功能：✅
 │   └── 方案明确：✅ [一句话方案]
-├── 阶段链：精简 PRD → ⏸️ 用户确认 PRD → QA (Plan+Case) → 🔗 Dev Stage (RD+架构师 CR) → Codex Review → 🔗 Test Stage (QA 审查+测试+E2E) → Browser E2E(可选) → PM 验收（与 Feature 一致）
+├── 阶段链：精简 PRD → ⏸️ → QA (Plan+Case) → 🔗 Dev Stage → 🔗 Review Stage → 🔗 Test Stage → Browser E2E(可选) → PM 验收
 ├── ⏸️ 请确认走敏捷需求流程
 └── ✅ 自检通过
 ```
@@ -798,7 +798,7 @@ PMO 完成报告
 
 🔴 敏捷需求事后审计（PMO 完成报告前必须检查）：
 ├── 实际改动文件数 ≤ 5？（数 git diff 的物理文件，含新建文件）
-├── 阶段链是否完整？（精简 PRD → QA Plan+Case → Dev Stage (RD+架构师 CR) → Codex Review → Test Stage (QA 审查+测试+E2E) → PM 验收）
+├── 阶段链是否完整？（精简 PRD → QA Plan+Case → Dev Stage → Review Stage → Test Stage → PM 验收）
 ├── 任何一项不满足 → PMO 在完成报告中标注 ⚠️ 流程偏离，记录偏离原因
 └── 严重偏离（如跳过 3 个以上阶段或文件数超标 2 倍以上）→ 本次不出完成报告，要求补走流程
 ```

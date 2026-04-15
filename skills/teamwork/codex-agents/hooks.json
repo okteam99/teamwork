@@ -1,0 +1,29 @@
+{
+  "description": "Teamwork hooks for Codex CLI: auto-restore on session start, check STATUS.md on stop. Note: Codex has no PreCompact/PostCompact hooks — STATUS.md mechanism handles state persistence.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .agents/skills/teamwork/hooks/session-restore.sh",
+            "timeout": 20
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .agents/skills/teamwork/hooks/post-stop.sh",
+            "timeout": 20
+          }
+        ]
+      }
+    ]
+  }
+}

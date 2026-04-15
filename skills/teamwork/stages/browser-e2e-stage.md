@@ -51,6 +51,8 @@ Subagent 启动时 PMO 提供：
 ## 四、执行流程
 
 ```
+🔴 进度追踪：每个 Step 开始时报告进度（宿主支持 TodoWrite 时使用，否则输出 markdown 进度块），禁止黑盒执行。
+
 Step 1: 读取 TC.md「Browser E2E Scenarios」章节
 Step 2: 执行前置条件准备
 Step 3: 逐场景执行浏览器验证
@@ -71,7 +73,15 @@ Step 4: 输出Browser E2E 验收报告
 
 ---
 
-## 五、输出格式
+## 五、红线
+
+```
+🔴 进度可见：每个 Step 必须报告进度（TodoWrite 或 markdown 进度块），禁止黑盒执行
+```
+
+---
+
+## 六、输出格式
 
 ```
 📋 QA Browser E2E 验收报告（F{编号}-{功能名}）
