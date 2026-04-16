@@ -8,33 +8,51 @@ Your AI dev team — one AI works as a full team, with role-based perspectives a
 
 Teamwork lets one AI work as a complete development team. Each role represents a professional direction of concern — PM ensures requirement completeness, QA ensures test coverage, RD ensures implementation quality, Architect ensures technical soundness, Designer ensures user experience. PMO orchestrates the process and manages information flow between stages. Not multiple AIs having meetings — it ensures every artifact is examined from enough professional angles. Users only need to state requirements and make decisions at key checkpoints. Compatible with Claude Code, Codex CLI, and other AI coding tools.
 
-Four workflow types are supported:
+Six workflow types are supported:
 
 - **Feature** — Full cycle: requirements → design → development → testing → acceptance
 - **Bug Fix** — Investigate → assess → fix → verify → sync docs
-- **Issue Investigation** — Root cause analysis with recommended next steps
+- **Issue Investigation** — Root cause analysis with recommended next steps (no code output)
 - **Feature Planning** — Decompose product goals into a prioritized ROADMAP with Wave-based execution batches and dependency tracking
+- **Agile** — Streamlined flow for small changes (≤5 files, no UI/architecture changes, clear approach)
+- **Micro** — Minimal channel for zero-logic changes (assets, copy, styles, config constants)
+
+### Design Philosophy
+
+The core challenge of software engineering isn't writing code — it's examining the same artifact from multiple professional angles. Each Teamwork role represents a professional direction of concern (PM→requirement completeness, QA→test coverage, RD→implementation quality, Architect→technical soundness, Designer→user experience, PL→product direction). PMO orchestrates the process and manages information flow.
+
+Why multi-role switching works: create-critique cycles (PM writes PRD → PL critiques from business angle → PM revises), attention reallocation (switching roles = switching checklists = activating different evaluation dimensions), and forced re-reading (role switches force the AI to re-read the same document with new questions).
 
 ### Key Features
 
-- **9 Subagent-automated stages**: PL-PM Discussion, PRD Review, TC Review, UI Design, Architect TECH Review, TDD Dev + Self-check, Architect Code Review, QA Code Review, Integration Testing
-- **PL-PM Teams Discussion**: After PM drafts the PRD, PL and PM engage in multi-round Agent-based discussion to converge and finalize the PRD before review
+- **8-Stage architecture**: Plan / UI Design / Panorama Design / Blueprint / Dev / Review / Test / Browser E2E, each with dedicated specs and quality gates
+- **BlueprintLite Stage**: Lightweight blueprint for agile flow (QA simplified TC + RD implementation plan, no reviews), keeping Dev Stage uniform across all flow types
+- **Strict stage transition verification**: Cross-Stage transitions must cite `flow-transitions.md` source text + line number; Stage-internal steps use lightweight markers (📌 Blueprint 1/4) to reduce process tax
+- **PMO pre-checks & hard gates**: L1/L2/L3 pre-checks required before dispatch; no write operations before PMO initial analysis
+- **PMO write boundary**: Runtime-affecting changes must follow full process (with quality gates); documentation changes PMO can make directly with annotation
+- **Cross-host compatibility**: Supports Claude Code / Codex CLI / Gemini CLI via `{SKILL_ROOT}` variable and host auto-detection (includes install.sh for one-click deployment)
+- **File-path-first Subagent input**: Subagents read original files directly instead of relying on PMO summary relay, reducing information decay
+- **Blueprint Stage as Subagent**: 4-step internal loop runs in Subagent, keeping main dialog context free
+- **Worktree integration**: Optional git worktree strategy (off/auto/manual), Dev Stage auto-creates/cleans Feature branch worktrees
 - **Product Lead role**: Three modes — Guided Init (build product-overview from scratch), Discussion (product direction with CHG records), Execution (cascade changes across sub-projects)
-- **Multi-role review**: PRD and TC are automatically reviewed from multiple perspectives via Subagent
-- **Product-wide UI design**: design/sitemap.md + design/preview/overview.html as single source of truth for product UI
 - **Change cascade**: 3-level impact assessment (L1 Feature / L2 Module / L3 Direction) with bottom-up escalation
+- **Multi-role review**: PRD / TC / technical plans reviewed from multiple professional perspectives
+- **Product-wide UI design**: design/sitemap.md + design/preview/overview.html as single source of truth for product UI
 - **Multi-project mode**: teamwork_space.md orchestrates multiple sub-projects with business / midplatform types and cross-project dependency tracking
-- **Midplatform sub-project support**: midplatform-type sub-projects automatically trigger consumer analysis, compatibility review, and enhanced evaluation processes
-- **Feature status tracking**: STATUS.md in each Feature directory serves as single source of truth for status; PMO auto-updates on every stage transition
-- **Pause-point control**: Key decision nodes wait for explicit user confirmation
-- **Knowledge accumulation**: Lessons learned are captured in KNOWLEDGE.md after each feature
+- **Feature status tracking**: STATUS.md in each Feature directory serves as single source of truth; PMO auto-updates on every stage transition
+- **Closed-loop verification**: "Done" claims must include actual command output (test/build results)
+- **Pause-point control**: Key decision nodes wait for explicit user confirmation, must include recommendations (💡) and rationale (📝)
 - **TDD-driven development**: Tests are written before implementation code
-- **State recovery**: Sessions can resume from interruption by checking document states
+- **State recovery**: Sessions can resume from interruption via `CONTEXT-RECOVERY.md`
 
 ## Installation
 
 ```bash
+# Auto-detects host environment (Claude Code / Codex CLI)
 npx skills add okteam99/teamwork
+
+# Or manual install
+bash skills/teamwork/install.sh
 ```
 
 ## Upgrade
@@ -55,12 +73,37 @@ npx skills update okteam99/teamwork
 # Report a bug
 /teamwork login page returns 500 error on mobile
 
-# Check current status
-/teamwork pmo
+# Small change (agile: ≤5 files, clear approach)
+/teamwork add CSV export button to user list
+
+# Micro change (zero-logic: assets/copy/config)
+/teamwork replace the homepage logo with new image
+
+# Check current status / resume interrupted flow
+/teamwork status
+/teamwork continue
+
+# Switch role
+/teamwork pm | designer | qa | rd | pmo
 
 # Exit teamwork mode
 /teamwork exit
 ```
+
+> Note: Product Lead is dispatched automatically by PMO. Flow type is auto-detected by PMO.
+
+## Cross-Host Compatibility
+
+Teamwork auto-detects the host environment via `{SKILL_ROOT}` variable:
+
+| Host | Detection | SKILL_ROOT | Instruction File |
+|------|-----------|------------|------------------|
+| Claude Code | Task tool + .claude/ dir | .claude/skills/teamwork | CLAUDE.md |
+| Codex CLI | .codex/ or .agents/ dir | .agents/skills/teamwork | AGENTS.md |
+| Gemini CLI | .gemini/ dir | .gemini/skills/teamwork | GEMINI.md |
+| Generic | None matched | Inferred from SKILL.md | AGENTS.md |
+
+Subagent dispatch adapts to host: Claude Code uses Task tool, Codex CLI uses agent toml spawn, hosts without Subagent support fall back to main-dialog execution.
 
 ## File Structure
 
@@ -68,72 +111,133 @@ npx skills update okteam99/teamwork
 teamwork/
 ├── skills/
 │   └── teamwork/
-│       ├── SKILL.md              # Entry point — workflow, state, red lines
-│       ├── ROLES.md              # Role definitions (PMO/PL/PM/Designer/QA/RD/Architect)
-│       ├── RULES.md              # Core rules (pause, flow, Subagent, change handling)
-│       ├── REVIEWS.md            # Review process specs (PRD/TC/UI acceptance)
+│       ├── SKILL.md              # Entry point — red lines, file index, quick nav
+│       ├── INIT.md               # 🔴 Must-read on every start (host detection + workspace + board)
+│       ├── FLOWS.md              # Flow specs: 6 flow types with selection & execution rules
+│       ├── ROLES.md              # Role index (→ roles/*.md)
+│       ├── RULES.md              # Core rules: pause, transition, change, closed-loop verification
+│       ├── REVIEWS.md            # Review specs (PRD / TC / UI acceptance)
 │       ├── STANDARDS.md          # Coding standards index
-│       ├── TEMPLATES.md          # Document templates (PRD/TC/TECH/ROADMAP etc.)
-│       ├── agents/               # Subagent specs
-│       │   ├── README.md             # Common conventions
-│       │   ├── pl-pm-discuss.md      # PL-PM collaborative discussion (Teams mode)
-│       │   ├── prd-review.md         # PRD multi-role review
-│       │   ├── tc-review.md          # TC multi-role review
-│       │   ├── ui-design.md          # Designer UI design (incremental + full rebuild)
-│       │   ├── arch-tech-review.md   # Architect TECH review
-│       │   ├── rd-develop.md         # RD TDD development + self-check
-│       │   ├── arch-code-review.md   # Architect Code Review + arch doc update
-│       │   ├── qa-code-review.md     # QA code review (read code + TC verification)
-│       │   └── integration-test.md   # QA integration testing
-│       └── standards/            # Coding standards by tech stack
-│           ├── common.md             # Shared: TDD checklist, architecture, self-check
-│           ├── backend.md            # Backend: TDD, API, logging, DB migration
-│           └── frontend.md           # Frontend: test layers, E2E, component testing
-├── README.md                     # Chinese documentation (default)
-├── README-EN.md                  # English documentation
+│       ├── STATUS-LINE.md        # Status line format + user intent detection + stage mapping
+│       ├── TEMPLATES.md          # Document template index
+│       ├── CONTEXT-RECOVERY.md   # Session interruption recovery mechanism
+│       ├── install.sh            # One-click install (auto-detects host)
+│       │
+│       ├── roles/                # Role definitions (loaded on demand)
+│       │   ├── pmo.md
+│       │   ├── product-lead.md
+│       │   ├── pm.md
+│       │   ├── designer.md
+│       │   ├── qa.md
+│       │   └── rd.md             # RD + Architect (design review + Code Review)
+│       │
+│       ├── rules/                # Split core rules
+│       │   ├── flow-transitions.md   # 🔴 Stage transition table (single source of truth)
+│       │   ├── gate-checks.md        # PMO pre-checks (L1/L2/L3) + Stage-internal markers
+│       │   └── naming.md             # Naming conventions
+│       │
+│       ├── stages/               # Stage specs (loaded by PMO on dispatch)
+│       │   ├── plan-stage.md         # PM/QA plan + test cases
+│       │   ├── panorama-design-stage.md
+│       │   ├── ui-design-stage.md
+│       │   ├── blueprint-stage.md    # Tech plan + architect review (Subagent loop)
+│       │   ├── blueprint-lite-stage.md # Agile-only lightweight blueprint
+│       │   ├── dev-stage.md          # RD TDD dev + self-check + worktree integration
+│       │   ├── review-stage.md       # Architect CR + Codex Review
+│       │   ├── test-stage.md         # QA code review + integration test + API E2E
+│       │   └── browser-e2e-stage.md  # Browser E2E (optional)
+│       │
+│       ├── agents/               # Task units (referenced by stages)
+│       │   ├── README.md             # Dispatch conventions + host-adaptive dispatch
+│       │   ├── rd-develop.md
+│       │   ├── arch-code-review.md
+│       │   ├── qa-code-review.md
+│       │   ├── integration-test.md
+│       │   └── api-e2e.md
+│       │
+│       ├── codex-agents/         # Codex CLI custom agent definitions
+│       │   ├── README.md
+│       │   ├── rd-developer.toml
+│       │   ├── reviewer.toml
+│       │   ├── tester.toml
+│       │   ├── planner.toml
+│       │   ├── designer.toml
+│       │   ├── e2e-runner.toml
+│       │   └── hooks.json
+│       │
+│       ├── standards/            # Coding standards by tech stack
+│       │   ├── common.md             # Shared: TDD checklist, architecture, self-check
+│       │   ├── backend.md            # Backend: TDD, API, logging, DB migration
+│       │   └── frontend.md           # Frontend: test layers, E2E, component testing
+│       │
+│       └── templates/            # Document templates
+│           ├── prd.md / tc.md / tech.md / ui.md
+│           ├── architecture.md / project.md / roadmap.md
+│           ├── teamwork-space.md / config.md / dependency.md
+│           ├── status.md / bug-report.md / knowledge.md / retro.md
+│           ├── e2e-registry.md / pl-pm-feedback.md
+│           └── README.md
+│
+├── README.md / README-EN.md
 └── .gitignore
 ```
 
-## Feature Workflow
+## Feature Workflow (8-Stage)
 
 ```
-PMO analysis → identify type → switch role
+PMO analysis → type identification + cross-Feature conflict check → ⏸️ User confirms
   ↓
 PM → PRD draft
   ↓
-🤖 PL-PM Teams discussion (Subagent: PL review + PM response, multi-round convergence) → PRD finalized
+🤖 PL-PM collaborative discussion (multi-round convergence) → PRD finalized
   ↓
-🤖 PRD multi-role review (Subagent: RD / Designer / QA / PMO perspectives)
+🤖 PRD technical review (PM / RD / Designer / QA / PMO perspectives)
   ↓
 ⏸️ User confirms PRD
   ↓
-🤖 Designer → UI design (Subagent, if UI needed) + sync product-wide design
+🔗 UI Design Stage (if UI needed) → sync product-wide design
   ↓
 ⏸️ User confirms design
   ↓
-QA → TC (BDD/Gherkin format)
+🔗 Plan Stage (QA Test Plan + BDD Cases)
   ↓
-🤖 TC multi-role review (Subagent: PM / RD / Designer perspectives)
+🤖 TC technical review → auto-transition if no blockers
   ↓
-RD → technical plan
+🔗 Blueprint Stage (RD tech plan → Architect review, Subagent loop)
   ↓
-🤖 Architect → TECH review (Subagent)
+⏸️ User confirms tech plan (complex solutions only)
   ↓
-⏸️ User confirms technical plan (complex solutions only)
+🔗 Dev Stage (RD TDD dev + unit tests + self-check, with actual test output)
   ↓
-🤖 RD → TDD development + self-check (Subagent)
+🔗 Review Stage (Architect Code Review + Codex Review, parallel)
   ↓
-🤖 Architect → Code Review + architecture doc update (Subagent)
+🔗 Test Stage (QA code review + integration test + API E2E, with actual output)
   ↓
-Designer → UI implementation review (if UI, max 3 rounds)
+🔗 Browser E2E Stage (if UI, optional)
   ↓
-🤖 QA → code review (Subagent: read code + TC verification)
-  ↓
-QA → integration test pre-check → 🤖 integration test (Subagent)
+Designer → UI acceptance review (if UI, max 3 rounds)
   ↓
 PM → final acceptance
   ↓
 PMO → completion report (knowledge + tech debt + schema/API + PROJECT.md + design sync)
+```
+
+## Agile Workflow
+
+```
+PMO analysis → identified as agile (≤5 files, no UI/arch changes, clear approach) → ⏸️ User confirms
+  ↓
+PM → simplified PRD (core requirements + acceptance criteria) → ⏸️ User confirms
+  ↓
+🔗 BlueprintLite Stage (QA simplified TC + RD implementation plan, main dialog, no reviews)
+  ↓
+🔗 Dev Stage (RD TDD dev, same as Feature flow)
+  ↓
+🔗 Review Stage (Architect CR, same as Feature flow)
+  ↓
+PM → acceptance
+  ↓
+PMO → completion report
 ```
 
 ## Feature Planning Workflow
@@ -203,6 +307,29 @@ Product Lead assessment → Change level determination
 ### Change Cascade & Bottom-Up Impact Escalation
 
 During development, if the current Feature conflicts with upstream documents (e.g., existing ROADMAP Features conflict, product architecture needs adjustment), PM/RD triggers **bottom-up impact escalation**. PMO traces upward to find the highest-level document requiring change, PL evaluates, then cascades downward.
+
+## Collaboration Model
+
+### Single-user mode (default)
+One user + one AI session operating the entire project. `.teamwork_localconfig.md` scope is for focusing attention, not concurrency control.
+
+### Multi-user mode (experimental)
+Multiple users each using independent AI sessions on different sub-projects. Constraints: one session per sub-project at a time, non-overlapping scopes, cross-project coordination by one user.
+
+## Red Lines (Summary)
+
+Full red lines in [SKILL.md](./skills/teamwork/SKILL.md), core 13 points:
+
+1. **PMO write boundary**: Runtime-affecting changes (code/tests/config) → must follow process with full quality gates; documentation changes PMO can make directly with annotation
+2. **Six flow types only**: Feature / Bug / Issue Investigation / Feature Planning / Agile / Micro
+3. **No unauthorized simplification**: Each requirement follows its full flow; "simple" is not a reason to skip stages
+4. **PMO receives all input**: All user input goes through PMO first
+5. **Pause points must wait**: Including Micro's user confirmation and acceptance
+6. **Closed-loop verification**: "Done" must include actual command output
+7. **Pause points must advise**: Recommendations (💡) + rationale (📝) required
+8. **Write operation hard gate**: No write operations before PMO initial analysis
+9. **No unauthorized pauses**: Auto-transition nodes (🚀) cannot insert questions
+10. **PMO pre-check required**: L1/L2/L3 pre-checks before any Subagent dispatch
 
 ## License
 
