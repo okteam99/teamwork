@@ -1,0 +1,114 @@
+{
+  "_schema_version": "v7.3",
+  "_description": "Feature 级流转状态机快照（机读权威源）。STATUS.md 从本文件渲染人读视图。",
+  "_instructions": {
+    "location": ".teamwork/state/{feature_id}.json（仓库根目录的 .teamwork/ 下，跨子项目用 {子项目缩写}-F{编号}-{功能名}.json 作为文件名）",
+    "updated_by": "PMO（每次流转前读、每次流转后写）",
+    "human_readable_view": "{子项目}/docs/features/{功能目录}/STATUS.md 保留为人读视图，PMO 更新后同步"
+  },
+
+  "feature_id": "AUTH-F042-email-login",
+  "sub_project": "AUTH",
+  "flow_type": "Feature",
+
+  "current_stage": "dev",
+  "completed_stages": ["plan", "ui_design", "blueprint"],
+  "legal_next_stages": ["review"],
+  "forbidden_transitions": ["test", "browser_e2e", "pm_acceptance"],
+
+  "stage_contracts": {
+    "plan": {
+      "input_satisfied": true,
+      "process_satisfied": true,
+      "output_satisfied": true,
+      "artifacts": {
+        "PRD.md": "confirmed",
+        "PRD-REVIEW.md": "done"
+      },
+      "completed_at": "2026-04-18T09:00:00Z"
+    },
+    "ui_design": {
+      "input_satisfied": true,
+      "process_satisfied": true,
+      "output_satisfied": true,
+      "artifacts": {
+        "UI.md": "confirmed",
+        "preview/login.html": "done",
+        "preview/login-error.html": "done"
+      },
+      "completed_at": "2026-04-18T09:30:00Z"
+    },
+    "blueprint": {
+      "input_satisfied": true,
+      "process_satisfied": true,
+      "output_satisfied": true,
+      "artifacts": {
+        "TC.md": "confirmed",
+        "TC-REVIEW.md": "done",
+        "TECH.md": "confirmed"
+      },
+      "completed_at": "2026-04-18T10:00:00Z"
+    },
+    "dev": {
+      "input_satisfied": true,
+      "process_satisfied": false,
+      "output_satisfied": false,
+      "artifacts": {},
+      "started_at": "2026-04-18T10:05:00Z"
+    }
+  },
+
+  "planned_execution": {
+    "plan": {
+      "approach": "main-conversation",
+      "rationale": "需要与用户多轮讨论澄清需求",
+      "steps": ["PM 起草 PRD", "PL-PM 讨论", "多视角技术评审"],
+      "loaded_role_specs": ["roles/pm.md", "roles/product-lead.md", "roles/qa.md"],
+      "loaded_standards": ["standards/common.md"],
+      "key_context": {
+        "historical_decisions": "选 PostgreSQL（Plan Stage PL-PM 讨论 R2 共识项 #3）",
+        "current_focus": "-",
+        "cross_feature_constraints": "-",
+        "identified_risks": "密码 hash 算法选择（KNOWLEDGE.md L42）",
+        "degradation_grants": "-",
+        "priority": "质量优先"
+      }
+    },
+    "dev": {
+      "approach": "subagent",
+      "rationale": "改动 >10 文件（涉及中间件/路由/模型/测试），隔离主对话",
+      "steps": [
+        "读输入（PRD/TC/TECH）",
+        "写单元测试骨架（红）",
+        "实现核心逻辑（绿）",
+        "写集成测试代码",
+        "跑单测确认全绿",
+        "RD 自查"
+      ],
+      "loaded_role_specs": ["roles/rd.md", "agents/rd-develop.md"],
+      "loaded_standards": ["standards/common.md", "standards/backend.md"],
+      "dispatch_file": "docs/features/AUTH-F042-email-login/dispatch_log/007-rd-develop.md"
+    }
+  },
+
+  "blocking": {
+    "pending_user_confirmations": [],
+    "pending_external_deps": []
+  },
+
+  "executor_history": [
+    {"stage": "plan", "executor": "main-conversation", "completed_at": "2026-04-18T09:00:00Z"},
+    {"stage": "ui_design", "executor": "subagent", "completed_at": "2026-04-18T09:30:00Z", "dispatch_file": "dispatch_log/001-designer.md"},
+    {"stage": "blueprint", "executor": "main-conversation", "completed_at": "2026-04-18T10:00:00Z"}
+  ],
+
+  "worktree": {
+    "strategy": "auto",
+    "path": "../feature-AUTH-F042-email-login",
+    "branch": "feature/AUTH-F042-email-login"
+  },
+
+  "created_at": "2026-04-18T08:50:00Z",
+  "updated_at": "2026-04-18T10:05:00Z",
+  "updated_by": "pmo"
+}

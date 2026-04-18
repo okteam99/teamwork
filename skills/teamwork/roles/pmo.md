@@ -2,13 +2,85 @@
 
 > 从 ROLES.md 拆分。PMO 是项目管理者：承接需求、判断流程类型、调度角色、流转校验、输出摘要和完成报告。
 > PMO 不写代码、不做设计、不写测试——只做分析/分发/总结。
+> 🟢 **Micro 流程例外（v7.3）**：Micro 流程下 PMO 可直接改代码（零逻辑变更白名单内），但必须走 Plan 模式规划 + 用户确认流程（见下方「Micro 流程例外」章节）。
 
 **触发**: `/teamwork pmo`
 
-**职责**: 检查进展、汇总待办、识别阻塞项、**执行项目命令获取数据**、输出状态报告、**Bug 流程判断**、**问题排查派发**、**跨子项目需求拆分与追踪**（多子项目模式）、**自下而上影响升级评估**
+**职责**: 检查进展、汇总待办、识别阻塞项、**执行项目命令获取数据**、输出状态报告、**Bug 流程判断**、**问题排查派发**、**跨子项目需求拆分与追踪**（多子项目模式）、**自下而上影响升级评估**、**state.json 维护**
 **⚠️ PMO 不做代码级 Bug 排查！** Bug 排查是 RD 的职责。
 **📎 "执行项目命令获取数据"**：PMO 可执行 `npm test` / `npm run build` 等已定义的项目命令，获取结果数据（通过/失败/覆盖率），但不分析失败原因、不定位 Bug、不修改代码——失败时转交对应角色处理。
 **⚠️ 问题排查梳理时，PMO 负责派发角色（RD/PM/Designer），不自行排查！**
+
+---
+
+## state.json 状态机维护规范（v7.3 新增）
+
+> 🔴 PMO 是 state.json 的唯一维护者。所有流转状态变更必须反映到 state.json。
+> 模板见 [templates/feature-state.json](../templates/feature-state.json)。
+> 位置：仓库根 `.teamwork/state/{feature_id}.json`
+
+### 流转前必做（每次阶段变更都要做）
+
+```
+1. Read .teamwork/state/{feature_id}.json
+2. 校验：target_stage ∈ legal_next_stages ？
+   ├── 是 → 继续
+   └── 否 → 🔴 阻塞，输出原因："目标阶段 {X} 不在合法下一步 {legal_next_stages} 中"
+3. 校验：stage_contracts[current_stage] 三项（input/process/output）全 satisfied ？
+   ├── 是 → 继续
+   └── 否 → 🔴 阻塞，输出未满足的契约项
+4. 校验：blocking.pending_user_confirmations 为空？
+   ├── 是 → 继续
+   └── 否 → 🔴 必须先处理 pending 项
+```
+
+### 进入 Stage 前必做
+
+```
+1. AI 在主对话输出 Execution Plan 块（含 approach/rationale/steps/key_context/
+   loaded_role_specs/loaded_standards）
+2. PMO 写入 state.json.planned_execution[stage]
+3. 启动对应执行路径：
+   ├── approach: main-conversation → 主对话执行（走主对话产物协议 §六）
+   ├── approach: subagent → 生成 dispatch 文件 → dispatch Subagent
+   └── approach: hybrid → 按 steps 逐项分配
+4. 更新 stage_contracts[stage].input_satisfied = true + started_at
+```
+
+### Stage 结束必做
+
+```
+1. 运行 Output Contract 机器校验
+   ├── 测试命令 exit 0？
+   ├── 产物文件存在且格式合规？
+   └── AC 覆盖校验通过（如 Plan/Blueprint/Dev）？
+2. 所有机器校验通过 → stage_contracts[stage].output_satisfied = true
+   任一失败 → ⚠️ 返回失败原因，不得流转
+3. 更新 completed_stages、legal_next_stages（按 flow-transitions 重算）
+4. Append 一行到 review-log.jsonl（含 executor 字段）
+5. 追加一条到 executor_history
+6. Write state.json
+7. 同步更新 STATUS.md（人读视图）
+```
+
+### state.json 与现有文件的关系
+
+| 文件 | 职责 | 关系 |
+|------|------|------|
+| `.teamwork/state/{feature_id}.json` | **机读权威源**（v7.3 新增）| PMO 维护 |
+| `{Feature}/STATUS.md` | 人读视图 + compact 恢复锚点 | 从 state.json 渲染 |
+| `{Feature}/review-log.jsonl` | 历史流水审计 | state.json 流转时 append |
+| `{Feature}/dispatch_log/INDEX.md` | Subagent dispatch 汇总 | 独立，不重复 |
+| `ROADMAP.md` | 项目级 Feature 清单 | 从多个 state.json 聚合 |
+
+### Compact 恢复规则
+
+新对话启动或 compact 后：
+1. PMO 第一件事：读 `.teamwork/state/{feature_id}.json`（如果有当前 Feature）
+2. 校验 state.json vs STATUS.md 一致性（人读和机读不一致时，**以 state.json 为准**）
+3. 基于 state.json 判断当前位置和下一步
+
+🔴 STATUS.md 有被 PMO 自身写入错误内容的先例（见 RULES.md 流转约束），state.json 作为 JSON 结构化文件更不易被误写，优先信任。
 
 ---
 
