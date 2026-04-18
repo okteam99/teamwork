@@ -1,111 +1,159 @@
-# QA Subagent：Browser E2E 验收
+# Browser E2E Stage：浏览器端到端验收
 
-> 本文件定义 QA Browser E2E 验收 subagent 的执行规范。PMO 启动 subagent 时，让 subagent 先读取 `agents/README.md`，再读取本文件。
->
-> `last-synced: 2026-04-11` · 对齐 SKILL.md / ROLES.md / RULES.md / templates/tc.md
+> API E2E 通过且 TC.md 标注需要 Browser E2E 时，进入本 Stage。从最终用户视角验证真实页面的完整业务链路。
+> 🔴 契约优先：执行方式由 AI 自主规划（半自动特性推荐主对话）。
 
 ---
 
-## 一、角色定位
+## 本 Stage 职责
 
-你是 Teamwork 协作框架中的 **QA Browser E2E 验收员**，负责从最终用户视角验证真实页面上的完整业务链路。你通过 AI 浏览器操作页面、截图取证，不看代码。
+通过 AI 浏览器操作真实页面、截图取证，验证用户视角的业务链路。不看代码。
 
-与其他阶段的区别：
+与其他测试阶段的区别：
 ```
 项目集成测试 → 跑项目内 integration test cases（代码级）
-API E2E → curl/httpie 验证真实 API 链路（调用方视角）
-Browser E2E → AI 浏览器操作真实页面（最终用户视角） ← 你在这里
+API E2E → 脚本验证真实 API 链路（调用方视角）
+Browser E2E → 浏览器操作真实页面（最终用户视角） ← 本 Stage
 ```
 
 ---
 
-## 二、触发条件
+## Input Contract
+
+### 必读文件（按顺序）
 
 ```
-├── API E2E 已通过
-├── TC.md「Agent Browser E2E 判断」= 需要
-├── Agent Browser E2E 必须执行（TC.md 明确标注「无浏览器行为」时合法跳过）
-├── PMO 已收集 TC.md「Agent Browser E2E 前置条件」中标注为「用户提供」的项
-└── PMO 确认页面可访问
+├── {SKILL_ROOT}/agents/README.md
+├── {SKILL_ROOT}/stages/browser-e2e-stage.md（本文件）
+├── {SKILL_ROOT}/roles/qa.md
+├── {Feature}/TC.md（Browser E2E Scenarios 章节）
+├── {Feature}/PRD.md
+└── {Feature}/UI.md（如有）
 ```
+
+### Additional Context
+
+- 应用访问地址（URL）
+- 功能编号和名称
+- TC.md「Browser E2E 前置条件」中用户提供的值（账号 / 测试数据等）
+
+### Key Context
+
+- 历史决策锚点
+- 本轮聚焦点
+- 已识别风险
+- 降级授权
+- 优先级 / 容忍度
+
+### 前置依赖
+
+- API E2E 已通过（或 TC.md 标注 API E2E 不适用）
+- TC.md「Browser E2E 判断」= 需要
+- PMO 已收集 TC.md「Browser E2E 前置条件」中"用户提供"的项
+- PMO 确认页面可访问
+- state.json.current_stage == "browser_e2e"
 
 ---
 
-## 三、输入
+## Process Contract
 
-> 🔴 PMO 必须先按 [Dispatch 文件协议](../agents/README.md#dispatch-文件协议) 生成 `{Feature}/dispatch_log/{NNN}-browser-e2e.md`，
-> 下方文件清单作为该 dispatch 文件的「Input files」段落内容。未生成 dispatch 文件不得 dispatch。
+### 必做动作
 
-```
-Input files（写入 dispatch 文件）：
-├── agents/README.md
-├── stages/browser-e2e-stage.md（本文件）
-├── docs/features/F{编号}-{功能名}/TC.md（Browser E2E Scenarios 章节）
-├── docs/features/F{编号}-{功能名}/PRD.md
-└── docs/features/F{编号}-{功能名}/UI.md（如有）
+1. **读取 TC.md 的 Browser E2E Scenarios 章节**
+2. **执行前置条件准备**（登录、测试数据等）
+3. **逐场景浏览器验证**
+   - 导航页面
+   - 执行用户操作
+   - 验证页面可观测结果
+   - 每个场景截图取证（通过和失败都要）
+4. **输出 Browser E2E 验收报告**
 
-Additional inline context（写入 dispatch 文件）：
-├── 应用访问地址
-├── 功能编号和名称（F{编号}-{功能名}）
-└── TC.md「Browser E2E 前置条件」中用户提供的值（账号等）
-```
+### 过程硬规则
 
----
-
-## 四、执行流程
-
-```
-🔴 进度追踪：每个 Step 开始时报告进度（宿主支持 TodoWrite 时使用，否则输出 markdown 进度块），禁止黑盒执行。
-
-Step 1: 读取 TC.md「Browser E2E Scenarios」章节
-Step 2: 执行前置条件准备
-Step 3: 逐场景执行浏览器验证
-    ├── 导航页面
-    ├── 执行用户操作
-    ├── 验证页面可观测结果
-    └── 每个场景截图取证
-Step 4: 输出Browser E2E 验收报告
-```
-
-强制要求：
-```
-├── 必须按 TC.md 中的 FE-E2E 场景逐条验证
-├── 每个场景必须截图取证（通过和失败都要）
-├── 失败场景必须记录「实际结果」和「预期结果」差异
-└── 不修改任何代码或配置
-```
+- 🔴 **角色规范必读且 cite**：必读 `roles/qa.md`，产出前 cite 要点
+- 🔴 **按 TC 逐条执行**：必须按 FE-E2E 场景逐条验证
+- 🔴 **每个场景必须截图**：通过和失败都要（作为审计证据）
+- 🔴 **失败场景必须记录差异**：实际结果 vs 预期结果
+- 🔴 **不修改任何代码或配置**：只验证不修改
 
 ---
 
-## 五、红线
+## Output Contract
 
-```
-🔴 进度可见：每个 Step 必须报告进度（TodoWrite 或 markdown 进度块），禁止黑盒执行
-```
+### 必须产出的文件
+
+| 文件路径 | 格式 | 必需内容 |
+|---------|------|---------|
+| `{Feature}/browser-e2e-result.md` | Markdown + YAML frontmatter | `executor`, `started_at`, `completed_at`, `scenarios[]`（含 screenshot_path） |
+| `{Feature}/browser-e2e-screenshots/*.png` | PNG | 每场景至少 1 张截图 |
+
+### 机器可校验条件
+
+- [ ] browser-e2e-result.md 存在且 YAML frontmatter 可解析
+- [ ] `scenarios[]` 数量 ≥ TC.md 中 Browser E2E Scenarios 数量
+- [ ] 每个 scenario 有 `screenshot_path`
+- [ ] 每个 scenario 有 `expected` 和 `actual` 字段
+- [ ] 失败 scenario 有 `diff` 字段
+
+### Done 判据
+
+- 所有 TC Browser E2E 场景已执行
+- 所有通过 scenario 有截图；失败 scenario 有截图 + diff
+- `state.json.stage_contracts.browser_e2e.output_satisfied = true`
+
+### 返回状态
+
+| 状态 | 条件 | 后续 |
+|------|------|------|
+| ✅ DONE | 所有 scenario 通过 | 进入 PM 验收 |
+| ❌ NOT_PASS | 有 scenario 失败 | RD 修复 → 重新 Browser E2E（≤3 轮） |
 
 ---
 
-## 六、输出格式
+## AI Plan 模式指引（非强制）
+
+- **方案 A（推荐，默认）**：主对话执行
+  - Browser E2E 半自动，需要用户观察浏览器行为
+  - 截图和失败诊断适合在主对话实时处理
+  - 可用 Claude Code 的 `mcp__gstack__*` 或 `mcp__Claude_in_Chrome__*` 工具
+
+- **方案 B**：Subagent 执行
+  - 适合：无人值守批量执行（如 CI 集成）
+  - 需要预先配置好浏览器环境和凭据
+
+🔴 AI 开始本 Stage 前必须输出 Execution Plan 块。
+
+---
+
+## 执行报告模板
 
 ```
-📋 QA Browser E2E 验收报告（F{编号}-{功能名}）
+📋 Browser E2E 验收报告（F{编号}-{功能名}）
 ============================================
 
 ## 概况
+├── 最终状态：{DONE / NOT_PASS}
+├── 执行方式：{主对话 / Subagent}
 ├── 应用地址：{URL}
 ├── 场景数：{总数}
-├── 通过：{数量}
-└── 失败：{数量}
+├── 通过：{N}
+└── 失败：{M}
 
 ## 场景验证结果
-| # | FE-E2E 编号 | 场景 | 结果 | 说明 |
-|---|-------------|------|------|------|
+| # | FE-E2E 编号 | 场景 | 结果 | 截图路径 | 说明 |
+|---|-------------|------|------|---------|------|
 
 ## 缺陷/阻塞项
-| # | 编号 | 分类 | 问题 | 建议 |
-|---|------|------|------|------|
+| # | 编号 | 分类 | 问题 | 预期 | 实际 | 差异 | 建议 |
+|---|------|------|------|------|------|------|------|
+
+## Output Contract 校验
+├── browser-e2e-result.md：✅
+├── 所有场景有截图：✅
+├── 失败场景有 diff：✅
+└── scenario 数 ≥ TC 场景数：✅
 
 ## 结论
 ├── ✅ 通过 → 进入 PM 验收
-└── ❌ 未通过 → RD 修复后重新Browser E2E
+└── ❌ 未通过 → RD 修复后重新 Browser E2E
 ```

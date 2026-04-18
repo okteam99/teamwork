@@ -1,145 +1,165 @@
-# Test Stage：集成测试 + API E2E（并行执行，🟡 可选 Stage）
+# Test Stage：集成测试 + API E2E（🟡 可选 Stage）
 
-> Review Stage 通过后，PMO **先询问用户是否立即执行 Test Stage**，获得确认后再启动本 Stage。
-> 并行执行集成测试和 API E2E，一次性返回全部测试结果。
-> 🔴 单元测试已在 Dev Stage 完成，本 Stage 不重跑单测。
-> 🔴 QA 代码审查已在 Review Stage 完成，本 Stage 只跑测试。
->
-> 🟡 **可选 Stage 说明**：Test Stage 是可选阶段，PMO 在执行前必须询问用户。
-> 典型场景：多个 Feature 并行开发，用户可能希望全部开发完成后统一测试，而不是每个 Feature 完成后立即测试。
-> 📎 详细的前置确认流程见 [roles/pmo.md](../roles/pmo.md#test-stage-前置确认pmo-专属)。
+> Review Stage 通过后进入本 Stage。PMO 在启动前必须询问用户（可能需要延后到多 Feature 合并测试）。
+> 🔴 单元测试已在 Dev Stage 完成；QA 代码审查已在 Review Stage 完成。本 Stage 只跑测试。
+> 🔴 契约优先：环境准备 / 集成测试 / API E2E 的执行方式由 AI 自主规划。
 
 ---
 
-## 一、设计意图
+## 本 Stage 职责
 
-```
-Test Stage = 纯测试执行（不审代码、不写代码）
-├── 集成测试：验证跨模块/跨服务的交互
-├── API E2E：验证完整 API 链路（TC.md 标注需要时执行）
-└── 并行执行，总时间 = 最长的那个测试
-```
+验证代码在真实环境下的行为：
+- 集成测试：跨模块/跨服务交互
+- API E2E：完整 API 链路（按 TC.md「API E2E 判断」决定是否执行）
 
----
-
-## 二、输入文件
-
-> 🔴 Test Stage 两路并行 = 两个独立 Subagent dispatch，PMO 必须按 [Dispatch 文件协议](../agents/README.md#dispatch-文件协议) **分别生成两个 dispatch 文件**：
-> - `{Feature}/dispatch_log/{NNN}-integration-test.md`
-> - `{Feature}/dispatch_log/{NNN+1}-api-e2e.md`（TC.md 标注不适用时可省略）
->
-> 两个文件的「Meta > Batch」字段填同一批次 ID（如 `test-round-1`）。
-> 未生成 dispatch 文件不得 dispatch。
-
-```
-两个 dispatch 文件共用的 Input files（各自写入自己的 dispatch 文件）：
-├── agents/README.md                                ← 通用规范
-├── stages/test-stage.md                            ← 本文件
-├── docs/features/F{编号}-{功能名}/PRD.md           ← 需求文档
-├── docs/features/F{编号}-{功能名}/TC.md            ← 测试用例
-├── docs/features/F{编号}-{功能名}/TECH.md          ← 技术方案
-├── Review Stage 执行报告（路径注入）
-├── {SKILL_ROOT}/standards/common.md                ← 通用开发规范
-│
-各 dispatch 专属追加：
-├── integration-test dispatch → agents/integration-test.md
-└── api-e2e dispatch → agents/api-e2e.md
-│
-写入 Additional inline context（非文件路径）：
-├── API base URL（API E2E 用）
-├── TC.md 中 API E2E 判断结果（需要/不适用）
-├── PMO 环境预检结果
-├── 子项目路径
-└── 子项目 scripts/ 目录下可用的测试脚本清单
-```
+📎 可选 Stage 说明见 [roles/pmo.md#test-stage-前置确认](../roles/pmo.md)。
 
 ---
 
-## 三、内部并行结构
+## Input Contract
+
+### 必读文件（按顺序）
 
 ```
-┌─────────────────────────┬─────────────────────────┐
-│ 集成测试                │ API E2E（如需）         │
-│ agents/integration-     │ agents/api-e2e.md       │
-│ test.md                 │                         │
-│                         │                         │
-│ ├── 环境复核            │ ├── 逐场景验证 API 链路 │
-│ ├── 执行 test-          │ └── 输出 API E2E 报告   │
-│ │   integration.sh      │                         │
-│ └── 输出集成测试报告    │ （TC.md 标注不适用 →   │
-│                         │   跳过，不执行）         │
-└────────────┬────────────┴────────────┬────────────┘
-             ↓                         ↓
-                    PMO 汇合报告
+├── {SKILL_ROOT}/agents/README.md
+├── {SKILL_ROOT}/stages/test-stage.md（本文件）
+├── {SKILL_ROOT}/agents/integration-test.md       ← 集成测试规范
+├── {SKILL_ROOT}/agents/api-e2e.md                ← API E2E 规范（脚本化）
+├── {SKILL_ROOT}/roles/qa.md                      ← QA 角色规范
+├── {SKILL_ROOT}/standards/common.md
+├── {Feature}/PRD.md
+├── {Feature}/TC.md（含 API E2E 判断结果）
+├── {Feature}/TECH.md
+├── {Feature}/REVIEW.md                           ← Review Stage 产出
+└── 项目 scripts/（test-env-check.sh / test-env-setup.sh 等）
 ```
+
+### Additional Context
+
+- API base URL（API E2E 用）
+- TC.md 中「API E2E 判断」结果（需要 / 不适用）
+- 子项目路径
+- 子项目 scripts/ 目录下可用的测试脚本清单
+
+### Key Context
+
+- 历史决策锚点（如既定测试环境、共享数据库）
+- 跨 Feature 约束（并行 Feature 不要污染共享数据）
+- 已识别风险（KNOWLEDGE 中相关陷阱）
+- 降级授权
+- 优先级 / 容忍度
+
+### 前置依赖
+
+- `state.json.stage_contracts.review.output_satisfied == true`
+- 用户已确认启动 Test Stage（非延后/跳过）
+- state.json.current_stage == "test"
 
 ---
 
-## 四、执行流程
+## Process Contract
 
-```
-🔴 进度追踪：每个 Step 开始时报告进度（宿主支持 TodoWrite 时使用，否则输出 markdown 进度块），禁止黑盒执行。
+### 必做动作
 
-Step 1: 读取所有规范文件
+1. **环境准备**（🔴 独立步骤）
+   - 执行 `scripts/test-env-check.sh` 确认环境健康
+   - 不健康 → 尝试 `test-env-setup.sh`
+   - 仍失败 → BLOCKED 返回
+   - 环境信息（端口 / DSN / 测试账号）结构化落盘到 `{Feature}/test-env.json`
 
-Step 2: 环境复核
-        ├── 执行根级 scripts/test-env-check.sh
-        ├── ✅ 健康 → 继续
-        └── ❌ 不健康 → 尝试 test-env-setup.sh → 仍失败 → BLOCKED 返回
+2. **集成测试**
+   - 按 `agents/integration-test.md`
+   - 跑已有集成测试命令（不生成新脚本）
+   - 产出证据文件：`docs/integration_test/evidence-F{编号}.md`
 
-Step 3: 并行执行测试
-        ├── 集成测试（按 agents/integration-test.md）
-        └── API E2E（按 agents/api-e2e.md，TC.md 标注需要时执行）
+3. **API E2E**（TC.md 标注需要时）
+   - 按 `agents/api-e2e.md` 的脚本化方式
+   - 生成 Python 脚本：`{子项目}/tests/e2e/F{编号}-{功能名}/api-e2e.py`
+   - 脚本 py_compile 自检 → 执行 → 解读 JSON 输出
+   - 产出报告 + 更新 e2e-registry
 
-Step 4: 汇合报告
-        ├── 整理所有测试结果
-        ├── 确定返回状态
-        └── 输出 Test Stage 执行报告
-```
+### 过程硬规则
 
----
-
-## 五、返回状态
-
-```
-| 状态 | 条件 | PMO 处理 |
-|------|------|----------|
-| ✅ DONE | 全部测试通过 | 继续 → Browser E2E 判断 / PM 验收 |
-| 🔁 QUALITY_ISSUE | 代码问题导致测试失败 | RD 修复 → 重跑 Test Stage（≤3 轮） |
-| ❌ BLOCKED | 环境问题 | ⏸️ 用户处理环境 |
-| ⚠️ DONE_WITH_CONCERNS | TC 本身问题 | ⏸️ 用户确认 |
-```
-
----
-
-## 六、红线
-
-```
-🔴 进度可见：每个 Step 必须报告进度（TodoWrite 或 markdown 进度块），禁止黑盒执行
-🔴 只测试不修复：发现问题 → 记录 + 返回，由 PMO 安排 RD 修复
-🔴 阶段完整性：集成测试按 integration-test.md 完整执行，API E2E 按 api-e2e.md 完整执行
-🔴 证据链完整：测试命令 + 实际输出必须包含在报告中，禁止空口"通过"
-🔴 API E2E 脚本化交付（v7.2）：
-  ├── Subagent 必须生成 `{子项目}/tests/e2e/F{编号}/api-e2e.py` 脚本
-  ├── 脚本必须通过 py_compile 语法自检后才能执行
-  ├── 脚本 + README.md 必须 git commit 作为 Feature 交付物
-  └── P0/P1 级必须注册到 e2e-registry（REGISTRY.md + REG case 文件）
-🔴 API E2E 必须包含完整 request/response（在脚本 evidence 字段 + 证据文件中体现）
-```
-
-### Expected deliverables（写入 dispatch 文件）
-
-```
-├── 📁 集成测试证据文件：docs/integration_test/evidence-F{编号}.md
-├── 📁 API E2E 脚本：{子项目}/tests/e2e/F{编号}-{功能名}/api-e2e.py（+ README.md）
-├── 📁 API E2E 执行输出：JSON 结构化结果（写入 dispatch Result 段）
-├── 📝 e2e-registry 更新：REGISTRY.md 新增行 + 对应 REG-{N}-{名称}.md case 文件
-└── 📋 Test Stage 执行报告（含上述产物指针）
-```
+- 🔴 **角色规范必读且 cite**：必读 `roles/qa.md` + `agents/integration-test.md` + `agents/api-e2e.md`
+- 🔴 **只测试不修复**：发现问题 → 记录 + 返回，由 PMO 安排 RD 修复
+- 🔴 **阶段完整性**：集成测试按 `integration-test.md` 完整执行；API E2E 按 `api-e2e.md` 完整执行
+- 🔴 **证据链完整**：测试命令 + 实际输出必须在报告中，禁止空口"通过"
+- 🔴 **API E2E 脚本化交付**（v7.2）：
+  - 必须生成 `tests/e2e/F{编号}/api-e2e.py` 脚本
+  - 脚本必须通过 py_compile 语法自检
+  - 脚本 + README.md 必须 git commit
+  - P0/P1 级必须注册到 e2e-registry（REGISTRY.md + REG case）
+- 🔴 **API E2E 断言**：每场景至少覆盖 4 类断言（status / body / DB / 副作用）中的 2 类；所有环境值走 env var；DB 校验走只读 DSN
 
 ---
 
-## 七、输出格式
+## Output Contract
+
+### 必须产出的文件
+
+| 文件路径 | 格式 | 必需内容 |
+|---------|------|---------|
+| `{Feature}/test-env.json` | JSON | `started_at`, `health_check: pass`, `base_url`, `db_dsn`（脱敏）, `test_accounts[]` |
+| `docs/integration_test/evidence-F{编号}.md` | Markdown | 执行命令 + 完整输出 + 通过率 |
+| `{子项目}/tests/e2e/F{编号}-{功能名}/api-e2e.py` | Python 脚本 | 4 类断言覆盖、env var 输入、JSON 结构化 evidence |
+| `{子项目}/tests/e2e/F{编号}-{功能名}/README.md` | Markdown | 脚本执行指南 + env 要求 |
+| `{子项目}/docs/e2e/REGISTRY.md`（更新） | Markdown 表 | 新增 REG-{N} 行（脚本路径、最后跑通） |
+| `{子项目}/docs/e2e/cases/REG-{N}-{名称}.md` | Markdown | 自包含 case 文件 |
+| `{Feature}/test-report.md`（或 dispatch Result 段）| Markdown | 汇总执行结果 |
+
+### 机器可校验条件
+
+- [ ] `{Feature}/test-env.json` 存在且 JSON 可解析
+- [ ] 集成测试实际执行：`grep "PASSED" docs/integration_test/evidence-F{编号}.md` 命中
+- [ ] API E2E 脚本存在且 `python -m py_compile` 通过
+- [ ] API E2E 执行：JSON evidence 字段含 request + response
+- [ ] 所有涉及的测试命令 exit 0
+- [ ] e2e-registry 已更新（如适用）
+
+### Done 判据
+
+- 环境准备成功
+- 集成测试全部通过
+- API E2E（如需）脚本化交付 + 全部通过
+- `state.json.stage_contracts.test.output_satisfied = true`
+
+### 返回状态
+
+| 状态 | 条件 | 后续 |
+|------|------|------|
+| ✅ DONE | 全部测试通过 | → Browser E2E 判断 / PM 验收 |
+| 🔁 QUALITY_ISSUE | 代码问题导致测试失败 | RD 修复 → 重跑 Test Stage（≤3 轮）|
+| ❌ BLOCKED | 环境问题 | PMO ⏸️ 用户处理 |
+| ⚠️ DONE_WITH_CONCERNS | TC 本身问题 | PMO ⏸️ 用户确认 |
+
+---
+
+## AI Plan 模式指引
+
+典型方案：
+
+- **方案 A（推荐）**：环境主对话 + API E2E Subagent
+  - 环境准备：主对话启动（需要调试、端口冲突修复、凭据处理），落盘 test-env.json
+  - 集成测试：如命令简单快速 → 主对话；如执行时间长 → Subagent
+  - API E2E：Subagent 生成脚本 + 执行（脚本化任务天然适合隔离）
+  - 好处：环境调试保留 context，E2E 隔离不污染主对话
+
+- **方案 B**：全部 Subagent
+  - 环境由 Subagent 自己跑 `test-env-check.sh`
+  - 适合：CI 环境稳定、无需人工介入
+
+- **方案 C**：全部主对话
+  - 适合：小 Feature / 测试命令快速
+
+🔴 AI 开始本 Stage 前必须输出 Execution Plan 块。
+
+### 环境信息交接
+
+无论选哪种方案，`{Feature}/test-env.json` 必须落盘。若集成测试/API E2E 走 Subagent，dispatch 文件的 Input files 必须含此 JSON 路径。Subagent 启动第一步应 ping health endpoint 确认环境活着。
+
+---
+
+## 执行报告模板
 
 ```
 📋 Test Stage 执行报告（F{编号}-{功能名}）
@@ -147,6 +167,8 @@ Step 4: 汇合报告
 
 ## 执行概况
 ├── 最终状态：{DONE / QUALITY_ISSUE / BLOCKED / DONE_WITH_CONCERNS}
+├── 执行方式：环境{主对话/Subagent} + 集成{主对话/Subagent} + API E2E {主对话/Subagent}
+├── 环境：{健康 / 失败 / 降级}
 ├── 集成测试：{通过/失败/未执行}
 ├── API E2E：{通过/失败/TC 标注不适用/未执行}
 └── 中止点：{如有}
@@ -156,6 +178,13 @@ Step 4: 汇合报告
 
 ## API E2E 报告（如执行）
 {按 agents/api-e2e.md 输出格式}
+
+## Output Contract 校验
+├── test-env.json：✅ 可解析
+├── 集成测试证据：✅ 含实际输出
+├── API E2E 脚本 py_compile：✅
+├── e2e-registry 更新：✅ / ⏭️ 无需
+└── 所有测试 exit 0：✅
 
 ## 问题清单（如有）
 | # | 发现阶段 | 问题类型 | 描述 | 建议处理 |

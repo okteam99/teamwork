@@ -1,134 +1,180 @@
-# Dev Stage：RD TDD 开发 + 单元测试
+# Dev Stage：代码实现 + 单元测试
 
-> PMO 在技术方案用户确认后启动本 Stage。RD 按 TDD 流程开发 + 跑单测确认通过，一次性返回代码 + 测试 + 自查报告。
-> 🔴 架构师 Code Review 已拆到 Review Stage 并行执行，Dev Stage 不含 CR。
-
----
-
-## 一、设计意图
-
-```
-Dev Stage 职责：RD 写代码 + 写测试 + 跑单测 + 自查
-├── TDD 流程：先写测试（红）→ 实现（绿）→ 重构
-├── 单元测试必须在本 Stage 内通过
-├── 集成测试代码也在本 Stage 写，但执行在 Test Stage
-└── 产出：代码 + 测试代码 + RD 自查报告
-```
+> Blueprint 通过后进入本 Stage。按方案/需求/设计稿/参考用例实现代码，完成单测 + 集成测代码。
+> 🔴 契约优先：**Dev Stage 由 AI 自主决定执行方式**（主对话 / Subagent / 混合，按规模判断）。
+> 🔴 架构师 Code Review 在 Review Stage 并行执行，Dev Stage 不含 CR。
 
 ---
 
-## 二、输入文件
+## 本 Stage 职责
 
-> 🔴 PMO 必须先按 [Dispatch 文件协议](../agents/README.md#dispatch-文件协议) 生成 `{Feature}/dispatch_log/{NNN}-rd-develop.md`，
-> 下方文件清单作为该 dispatch 文件的「Input files」段落内容。未生成 dispatch 文件不得 dispatch。
+完整按 PRD / UI / TC / TECH 实现代码；写单元测试 + 集成测试代码；跑完单测确认全绿；集成测在 Test Stage 执行但代码本 Stage 写完。
+
+---
+
+## Input Contract
+
+### 必读文件（按顺序）
 
 ```
-Input files（写入 dispatch 文件）：
-├── agents/README.md                                ← 通用规范
-├── stages/dev-stage.md                             ← 本文件
-├── agents/rd-develop.md                            ← RD 开发规范
-├── docs/features/F{编号}-{功能名}/PRD.md           ← 需求文档
-├── docs/features/F{编号}-{功能名}/TC.md            ← 测试用例
-├── docs/features/F{编号}-{功能名}/TECH.md          ← 技术方案
-├── {SKILL_ROOT}/standards/common.md                ← 通用开发规范
-├── {SKILL_ROOT}/standards/backend.md               ← 后端规范（后端项目加载）
-├── {SKILL_ROOT}/standards/frontend.md              ← 前端规范（前端项目加载）
-│
-可选文件（存在则读取）：
-├── docs/features/F{编号}-{功能名}/UI.md            ← UI 设计
-├── docs/KNOWLEDGE.md                               ← 项目知识库
-└── docs/architecture/ARCHITECTURE.md               ← 架构文档
+├── {SKILL_ROOT}/agents/README.md
+├── {SKILL_ROOT}/stages/dev-stage.md（本文件）
+├── {SKILL_ROOT}/agents/rd-develop.md（RD 开发规范）
+├── {SKILL_ROOT}/roles/rd.md
+├── {SKILL_ROOT}/standards/common.md                 ← 必读
+├── {SKILL_ROOT}/standards/backend.md                ← 后端项目必读
+├── {SKILL_ROOT}/standards/frontend.md               ← 前端项目必读
+├── {Feature}/PRD.md                                 ← 需求（AC 结构化）
+├── {Feature}/TC.md                                  ← 测试用例（tests[] 含 covers_ac）
+├── {Feature}/TECH.md                                ← 技术方案
+└── {Feature}/UI.md + preview/*.html（如有）
+
+可选：
+├── docs/KNOWLEDGE.md
+└── docs/architecture/ARCHITECTURE.md
+```
+
+### Key Context（逐项判断，无则 `-`）
+
+- 历史决策锚点：既定约定、技术栈限制、已有模式
+- 本轮聚焦点：重派或修复场景必填
+- 跨 Feature 约束：禁改文件列表（其他 Feature 正在修改的）
+- 已识别风险：KNOWLEDGE.md 中的陷阱（N+1、缓存击穿、并发等）
+- 降级授权：例如 worktree 失败授权主分支直接执行
+- 优先级 / 容忍度
+
+### 前置依赖
+
+- `{Feature}/PRD.md` + `TC.md` + `TECH.md` 存在且 `state.json.stage_contracts.blueprint.output_satisfied == true`
+- state.json.current_stage == "dev"
+- Worktree 策略已处理（见下方"Worktree 集成"）
+
+---
+
+## Process Contract
+
+### 必做动作
+
+1. **完整按方案实现**
+   - 按 TECH.md 的文件清单和改动要点实现
+   - 对照 UI.md / preview/*.html（如有）还原 UI
+   - 对照 PRD AC 逐条检查功能覆盖
+   - 对照 TC.md 确保每条 test 的实现存在
+
+2. **TDD 开发**（推荐，弱约束）
+   - 推荐"先写测试（红）→ 实现（绿）→ 重构"
+   - 机器无法校验时序，但推荐在主对话日志记录"先写 test X 再实现 Y"
+   - 弱约束不代表可跳过测试
+
+3. **写完整测试代码**
+   - 单元测试：每条 TC.md 中 level=unit 的 test 必须实现
+   - 集成测试代码：level=integration 的 test 写代码（执行在 Test Stage）
+   - API E2E case：level=e2e 的 test 预留结构（脚本化在 Test Stage 完成）
+
+4. **跑单元测试**
+   - 🔴 Dev Stage 返回前单测必须全绿
+   - 实际测试命令 + 输出作为产物证据
+
+5. **RD 自查**（按 `agents/rd-develop.md`）
+   - 对照 TC.md 逐条验证
+   - 架构规范 / 安全 / 性能自查
+
+### 过程硬规则
+
+- 🔴 **角色规范必读且 cite**：必读 `roles/rd.md` + `agents/rd-develop.md`，产出前 cite 关键要点
+- 🔴 **Standards 强制加载**：`common.md` 必读；按项目类型加载 `backend.md` 或 `frontend.md`，Execution Plan 中声明已加载
+- 🔴 **完整按方案**：禁止偏离 TECH.md（如需偏离，必须在产出报告中显式标注 + 理由）
+- 🔴 **单测全绿**：Dev Stage 返回前单测必须通过，带着失败测试返回 = FAILED
+- 🔴 **不做 Code Review**：架构师 CR / QA CR 在 Review Stage
+- 🔴 **实际测试输出**：自查报告必须附测试命令 + 结果，禁止空口"通过"
+- 🔴 **无 TODO/FIXME/占位符**：产出代码不能留 TODO（非本 Feature 范围的例外，显式标注）
+
+---
+
+## Output Contract
+
+### 必须产出的文件
+
+| 文件路径 | 格式 | 必需内容 |
+|---------|------|---------|
+| `{子项目}/src/**/*` | 代码 | 按 TECH.md 文件清单的新增/修改 |
+| `{子项目}/tests/unit/**/*` | 代码 | 每条 TC.md level=unit 的 test 实现 |
+| `{子项目}/tests/integration/**/*` | 代码 | 每条 TC.md level=integration 的 test 代码（未执行） |
+| `{Feature}/dev-report.md`（或 dispatch Result 段） | Markdown | 代码变更清单 + 测试输出 + RD 自查报告 |
+
+### 机器可校验条件（🔴 硬门禁）
+
+- [ ] 单测：`npm test` / `pytest tests/unit` / `go test ./...` 等 exit 0
+- [ ] Typecheck：`npm run typecheck` / `mypy` / `tsc --noEmit` exit 0（如项目有配置）
+- [ ] Lint：`npm run lint` / `ruff check` / `golangci-lint run` exit 0（如项目有配置）
+- [ ] 无 TODO/FIXME：`grep -rE "TODO|FIXME" {变更文件}` 为空（除非标注"out-of-scope"）
+- [ ] 代码实际落盘（不是只在对话中展示）
+- [ ] 测试文件与 TC.md `tests[]` 对应
+
+### Done 判据
+
+- 所有产出文件存在
+- 上述所有机器校验 exit 0
+- RD 自查通过（含验证证据）
+- `state.json.stage_contracts.dev.output_satisfied = true`
+
+### 返回状态
+
+| 状态 | 条件 | 后续 |
+|------|------|------|
+| ✅ DONE | 单测全绿 + 自查通过 | 进入 Review Stage |
+| ⚠️ DONE_WITH_CONCERNS | 单测通过但有非阻塞问题（上游文档疑似有误等）| PMO 判断是否暂停 |
+| 💥 FAILED | 环境异常 / 无法编译 / 单测持续失败 | PMO 降级处理 |
+
+---
+
+## AI Plan 模式指引（本 Stage 特别重要）
+
+### Dev Stage 执行方式自主决策指引
+
+Blueprint 完成后，AI 根据**规模和复杂度**自主判断执行方式。参考准则：
+
+| 条件 | 推荐方案 |
+|------|---------|
+| 改动 ≤ 3 文件 + 逻辑简单（无多模块联动）| 主对话实现（节省冷启动） |
+| 改动复杂 / 产出 >500 行 / 多模块联动 | Subagent（隔离主对话） |
+| 严格 TDD 红-绿循环 + 独立聚焦 | Subagent（独立 context） |
+| 涉及多轮调试 / 探索 / 环境问题 | 主对话（保留调试上下文） |
+| 涉及跨 Feature / 需要和其他进行中 Feature 对照 | 主对话（累积 context 有用） |
+
+AI 开始 Dev 前必须在主对话显式声明：
+```
+## 🧭 Execution Plan: Dev Stage
+- Approach: {主对话 / Subagent / 混合}
+- Rationale: {基于规模/复杂度的判断}
+- Steps: ...
+- Expected Output: ...（列 Output Contract 项）
+- Loaded Role Specs & Standards:
+  - roles/rd.md, agents/rd-develop.md
+  - standards/common.md, standards/{backend|frontend}.md
+```
+
+Plan 决策写入 `state.json.planned_execution.dev`。
+
+### Worktree 集成（PMO 执行，不受 Subagent/主对话影响）
+
+```
+worktree 策略（从 .teamwork_localconfig.md 读取）：
+
+├── off → 跳过
+├── manual → PMO 提醒用户创建
+└── auto → PMO 自动创建 + 记录到 STATUS.md
+
+AI 选主对话方案时：cwd 切到 worktree 路径执行
+AI 选 Subagent 方案时：dispatch 文件 cwd 字段写入 worktree 路径
+
+Review / Test Stage 复用同一 worktree。
+PMO 在 Feature 完成时清理（auto 模式）或提醒用户（manual 模式）。
 ```
 
 ---
 
-## 三、执行流程
-
-```
-🔴 进度追踪：每个 Step 开始时报告进度（宿主支持 TodoWrite 时使用，否则输出 markdown 进度块），禁止黑盒执行。
-
-Step 1: 读取所有输入文件
-        ├── agents/README.md + dev-stage.md（本文件）
-        ├── agents/rd-develop.md
-        └── 项目文件（PRD/TC/TECH/standards）
-
-Step 2: 【RD】按 rd-develop.md 完整执行 TDD 开发
-        ├── TDD Red-Green-Refactor
-        ├── 写单元测试 + 集成测试代码 + API E2E case
-        ├── 跑单元测试确认全部通过
-        ├── RD 自查（对照 TC 逐条验证）
-        └── 🔴 必须包含实际测试运行输出
-
-Step 3: 产出汇总
-        ├── 代码变更清单（新增/修改文件列表）
-        ├── 测试运行输出（单测全绿的证据）
-        ├── RD 自查报告
-        └── 确定返回状态
-```
-
----
-
-## 四、返回状态
-
-```
-├── ✅ DONE
-│   ├── 条件：单测全部通过 + RD 自查通过
-│   └── 返回：代码 + 测试 + RD 自查报告
-│
-├── ⚠️ DONE_WITH_CONCERNS
-│   ├── 条件：单测通过但有非阻塞性问题（如上游文档疑似有误）
-│   └── 返回：代码 + 报告 + concerns 清单
-│
-└── 💥 FAILED
-    ├── 条件：环境异常 / 无法编译 / 单测持续失败
-    └── 返回：错误信息（PMO 降级处理）
-```
-
----
-
-## 五、Worktree 集成（PMO 预检阶段执行，非 Subagent 内部）
-
-```
-🔴 以下逻辑由 PMO 在 dispatch Dev Stage Subagent 之前执行，不是 Subagent 内部步骤。
-
-worktree 策略读取：从 .teamwork_localconfig.md 的 worktree 字段获取（off/auto/manual）
-
-├── worktree = off → 跳过，直接 dispatch Subagent
-├── worktree = manual → PMO 提醒用户：
-│   💡 建议为 F{编号} 创建 worktree：git worktree add ../feature-{编号} -b feature/{编号}
-│   ⏸️ 等待用户确认已创建 / 跳过
-├── worktree = auto → PMO 自动执行：
-│   1. 检查 worktree 是否已存在：git worktree list | grep feature-{编号}
-│   2. 不存在 → 创建：git worktree add ../feature-{编号} -b feature/{编号}
-│   3. 已存在 → 复用
-│   4. 📁 记录 worktree 路径到 STATUS.md（新增字段：worktree_path）
-│   5. dispatch Subagent 时 cwd 设为 worktree 路径
-
-worktree 清理（PMO 在 Feature 完成时执行）：
-├── worktree = auto → PMO 完成报告阶段自动执行：
-│   1. git worktree remove ../feature-{编号}（如已 merge）
-│   2. git branch -d feature/{编号}（可选，分支已 merge 时）
-├── worktree = manual → PMO 提醒用户清理
-└── worktree = off → 无操作
-
-Review Stage / Test Stage 也使用同一 worktree 路径执行。
-```
-
----
-
-## 六、红线
-
-```
-🔴 进度可见：每个 Step 必须报告进度（TodoWrite 或 markdown 进度块），禁止黑盒执行
-🔴 TDD 必须执行：先写测试再写实现，禁止先写实现再补测试
-🔴 单测必须通过：Dev Stage 返回前单测必须全绿，不能带着失败的测试返回
-🔴 不做 Code Review：架构审查在 Review Stage 执行，Dev Stage 不含 CR
-🔴 实际输出：自查报告必须附带测试命令 + 结果，禁止空口"通过"
-```
-
----
-
-## 七、输出格式
+## 执行报告模板
 
 ```
 📋 Dev Stage 执行报告（F{编号}-{功能名}）
@@ -136,16 +182,30 @@ Review Stage / Test Stage 也使用同一 worktree 路径执行。
 
 ## 执行概况
 ├── 最终状态：{DONE / DONE_WITH_CONCERNS / FAILED}
+├── 执行方式：{主对话 / Subagent / 混合}（来自 Execution Plan）
 ├── 单元测试：{通过数/总数}
+├── Typecheck：{pass / fail / 无配置}
+├── Lint：{pass / fail / 无配置}
 └── 实际测试输出：{测试命令 + 结果}
 
 ## RD 自查报告
-{按 rd-develop.md 输出格式}
+{按 agents/rd-develop.md 输出格式}
 
 ## 代码变更清单
-| 文件 | 操作 | 说明 |
-|------|------|------|
+| 文件 | 操作 | 说明 | TECH.md 对应章节 |
+|------|------|------|------------------|
+
+## 测试覆盖
+| TC ID | 测试文件 | 测试函数 | covers_ac | 通过 |
+|-------|---------|---------|-----------|------|
+
+## Output Contract 校验
+├── 单测：✅ X/X 通过
+├── Typecheck：✅ / ⏭️ 无配置
+├── Lint：✅ / ⏭️ 无配置
+├── 无 TODO：✅
+└── TC↔test 对应：✅ 全覆盖
 
 ## Concerns（如有）
-{非阻塞性问题清单}
+{非阻塞性问题}
 ```

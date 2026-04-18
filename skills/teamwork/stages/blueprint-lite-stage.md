@@ -1,94 +1,128 @@
 # BlueprintLite Stage：轻量蓝图（敏捷需求专用）
 
-> 敏捷需求流程中，用户确认精简 PRD 后启动本 Stage。
-> 产出简化版 TC + 实现计划，为 Dev Stage 提供蓝图。
+> 敏捷需求流程中，用户确认精简 PRD 后进入本 Stage。产出简化版 TC + 实现计划，为 Dev Stage 提供蓝图。
 > 🔴 不做 TC 技术评审、不做架构师评审（敏捷砍掉的环节）。
+> 🔴 契约优先：执行方式由 AI 在 Plan 模式自主规划（推荐主对话）。
 
 ---
 
-## 一、设计意图
+## 本 Stage 职责
 
-```
-BlueprintLite = 敏捷需求的轻量蓝图
-├── 保持"先规划后编码"的原则（Dev Stage 不该边想边写）
-├── 但砍掉 Feature 流程中的重量级评审环节
-├── QA 视角写简化 TC + RD 视角写实现计划（保持专业方向一致性）
-├── 主对话快速执行（无需 Subagent，预期 3-5 分钟）
-└── Dev Stage 保持不变——不管 Feature 还是敏捷，它收到的都是"已有蓝图"
-```
+敏捷需求的轻量蓝图：保持"先规划后编码"，但砍掉 Feature 流程的重量级评审。QA 写简化 TC + RD 写实现计划。
 
 ---
 
-## 二、输入文件
+## Input Contract
 
-> ℹ️ 本 Stage 由 PMO 在主对话直接执行，不 dispatch Subagent，因此**不生成 dispatch 文件**。
-> 但 PMO 需按清单顺序加载下方文件（缺失则报错或降级）。
-> 若未来改为 Subagent 执行，再按 [Dispatch 文件协议](../agents/README.md#dispatch-文件协议) 生成 `{Feature}/dispatch_log/{NNN}-blueprint-lite.md`。
+### 必读文件（按顺序）
 
 ```
-PMO 执行时加载：
-├── stages/blueprint-lite-stage.md（本文件）
-├── roles/qa.md（TC 编写规范部分）
-├── roles/rd.md（实现计划规范部分）
-├── templates/tc.md（TC 模板，用精简版）
-├── docs/features/{功能目录}/PRD.md（已确认的精简 PRD）
-│
-可选文件（存在则读取）：
+├── {SKILL_ROOT}/stages/blueprint-lite-stage.md（本文件）
+├── {SKILL_ROOT}/roles/qa.md（TC 编写规范）
+├── {SKILL_ROOT}/roles/rd.md（实现计划规范）
+├── {SKILL_ROOT}/templates/tc.md（精简版）
+├── {SKILL_ROOT}/standards/common.md
+└── {Feature}/PRD.md（已确认的精简 PRD）
+
+可选：
 ├── docs/architecture/ARCHITECTURE.md
 └── docs/KNOWLEDGE.md
 ```
 
----
+### Key Context（逐项判断，无则 `-`）
 
-## 三、执行流程
+- 历史决策锚点、本轮聚焦点、跨 Feature 约束、已识别风险、降级授权、优先级
 
-```
-📌 BlueprintLite 1/2: QA 编写简化版 TC
-├── 按 PRD 验收标准逐条写 BDD 用例
-├── 只覆盖核心场景（正常流程 + 主要异常）
-├── 不要求完整的边界/并发/性能场景（Feature 流程才需要）
-├── 产出：TC.md（精简版，标注「敏捷-精简」）
+### 前置依赖
 
-📌 BlueprintLite 2/2: RD 编写实现计划
-├── 文件清单（新增/修改文件列表）
-├── 改动要点（每个文件的核心变更说明）
-├── 测试策略（单测 + 集成测试覆盖点）
-├── 产出：嵌入 BlueprintLite 执行报告（不独立 TECH.md 文件）
-```
+- `{Feature}/PRD.md` 存在且确认（敏捷精简版）
+- `state.json.current_stage == "blueprint_lite"`
+- Feature 类型 = 敏捷需求（满足准入条件：≤5 文件 + 无 UI + 无架构变更）
 
 ---
 
-## 四、返回状态
+## Process Contract
 
-```
-├── ✅ DONE → TC.md + 实现计划就绪，进入 Dev Stage
-├── ⚠️ DONE_WITH_CONCERNS → PRD 有歧义但可继续（记录 concerns）
-└── 💥 FAILED → PRD 不够清晰无法产出蓝图 → PMO ⏸️ 用户补充
-```
+### 必做动作
+
+1. **QA 编写简化版 TC**
+   - 按 PRD 验收标准逐条写 BDD 用例
+   - 只覆盖核心场景（正常流程 + 主要异常）
+   - 不要求完整的边界/并发/性能场景
+   - TC.md frontmatter 填 `tests[]`（与 Feature 流程相同结构）
+
+2. **RD 编写实现计划**
+   - 文件清单（新增/修改）
+   - 改动要点（每个文件的核心变更）
+   - 测试策略（单测 + 集成测覆盖点）
+
+### 过程硬规则
+
+- 🔴 **角色规范必读且 cite**：QA → `roles/qa.md`；RD → `roles/rd.md`
+- 🔴 **不做评审**：BlueprintLite 不含 TC 技术评审和架构师评审（敏捷核心精简点）
+- 🔴 **不替代 Blueprint**：Feature 流程仍走完整 Blueprint Stage
+- 🔴 **TC 质量下限**：即使精简，每条 PRD AC 至少对应 1 条 BDD 用例（AC→test 覆盖仍强制）
+- 🔴 **Dev Stage 不变**：BlueprintLite 产出后，Dev Stage 按标准流程执行
 
 ---
 
-## 五、红线
+## Output Contract
 
-```
-🔴 不做评审：BlueprintLite 不含 TC 技术评审和架构师评审（这是敏捷的核心精简点）
-🔴 不替代 Blueprint：Feature 流程仍走完整 Blueprint Stage（含评审）
-🔴 TC 质量底线：即使精简，每条 PRD 验收标准至少对应 1 条 BDD 用例
-🔴 Dev Stage 不变：BlueprintLite 产出后，Dev Stage 按标准流程执行（TDD+单测）
-```
+### 必须产出的文件
+
+| 文件路径 | 格式 | 必需字段 |
+|---------|------|---------|
+| `{Feature}/TC.md` | Markdown + YAML frontmatter | `feature_id`, `tests[]`（含 covers_ac） |
+| `{Feature}/IMPL-PLAN.md`（或嵌入执行报告） | Markdown | 文件清单、改动要点、测试策略 |
+
+### 机器可校验条件
+
+- [ ] TC.md frontmatter 可 YAML 解析
+- [ ] 每条 PRD AC 有对应测试（`covers_ac` 反查覆盖）
+- [ ] TC 用例数 ≥ PRD AC 数
+- [ ] 实现计划包含文件清单（至少 1 个文件）
+
+### Done 判据
+
+- 产出文件存在且通过格式校验
+- AC↔test 覆盖校验通过
+- `state.json.stage_contracts.blueprint_lite.output_satisfied = true`
+
+### 返回状态
+
+| 状态 | 条件 | 后续 |
+|------|------|------|
+| ✅ DONE | TC + 实现计划就绪 | 进入 Dev Stage |
+| ⚠️ DONE_WITH_CONCERNS | PRD 有歧义但可继续 | PMO ⏸️ 用户确认 |
+| 💥 FAILED | PRD 不够清晰无法产出蓝图 | PMO ⏸️ 用户补充 |
 
 ---
 
-## 六、输出格式
+## AI Plan 模式指引（非强制）
+
+- **推荐方案**：主对话直接执行（敏捷流程的精髓就是快速闭环，Subagent 冷启动不值得）
+- **可选方案**：Subagent 一次性产出（如果主对话 context 已很满）
+
+🔴 AI 开始本 Stage 前必须在主对话输出 Execution Plan 块。
+
+---
+
+## 执行报告模板
 
 ```
 📋 BlueprintLite 执行报告（{功能编号}-{功能名}）
 ================================================
 
-## TC 概况
-├── 用例数：{N} 条 BDD
-├── 覆盖 AC：{M}/{总 AC}
+## 执行概况
+├── 最终状态：{DONE / DONE_WITH_CONCERNS / FAILED}
+├── 执行方式：{主对话 / Subagent}
+├── TC：{N} 条 BDD，覆盖 AC {M}/{总 AC}
 └── 标注：敏捷-精简（不含边界/并发/性能场景）
+
+## TC 概况
+├── 用例数：{N}
+├── 覆盖 AC：{M}/{总 AC}
+└── Covers_ac 反查：✅ 全覆盖
 
 ## 实现计划
 | 文件 | 操作 | 改动要点 |
@@ -97,6 +131,11 @@ PMO 执行时加载：
 ## 测试策略
 ├── 单测：{覆盖点}
 └── 集成测试：{覆盖点}
+
+## Output Contract 校验
+├── TC YAML：✅
+├── AC 覆盖：✅
+└── 文件清单：✅
 
 ## Concerns（如有）
 ```
