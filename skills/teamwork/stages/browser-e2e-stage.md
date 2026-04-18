@@ -110,18 +110,11 @@ Browser E2E → 浏览器操作真实页面（最终用户视角） ← 本 Stag
 
 ---
 
-## AI Plan 模式指引（非强制）
+## AI Plan 模式指引
 
-- **方案 A（推荐，默认）**：主对话执行
-  - Browser E2E 半自动，需要用户观察浏览器行为
-  - 截图和失败诊断适合在主对话实时处理
-  - 可用 Claude Code 的 `mcp__gstack__*` 或 `mcp__Claude_in_Chrome__*` 工具
+📎 Execution Plan 3 行格式 → [SKILL.md](../SKILL.md#-ai-plan-模式规范v73-新增)。
 
-- **方案 B**：Subagent 执行
-  - 适合：无人值守批量执行（如 CI 集成）
-  - 需要预先配置好浏览器环境和凭据
-
-🔴 AI 开始本 Stage 前必须输出 Execution Plan 块。
+本 Stage 默认 `main-conversation`（半自动需用户观察，可用 `mcp__gstack__*` 或 `mcp__Claude_in_Chrome__*`）。典型偏离：无人值守 CI 批量执行 → `subagent`。
 
 ---
 

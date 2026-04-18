@@ -4,74 +4,65 @@
 
 ---
 
-## 一、执行方式决策（PMO 必读）
+## 一、执行方式参考（默认推荐 + 判断原则）
 
-> 🔴 PMO 在每个阶段开始前，必须确认该阶段的执行方式（Subagent / 主对话）。
-> 禁止凭"感觉"判断——查下表。
+> 🟢 **v7.3**：执行方式由 AI Plan 模式动态决策（见 SKILL.md「AI Plan 模式规范」+ 红线 #14）。
+> 下表是**默认推荐**，AI 可按场景偏离，在 Execution Plan 中说明理由即可。
+> Micro 流程例外（见 SKILL.md 红线 #1 Micro 例外）：PMO 主对话直接改，无需 Plan。
 
-### 执行方式速查表
-
-```
-| 阶段 | 执行方式 | 推荐模型 | 原因 |
-|------|----------|----------|------|
-| Plan Stage（PM写PRD+PL-PM讨论+技术评审） | 🤖 Subagent | Opus | PRD 是需求源头，属"创造性产出 + 复杂业务判断"，错一行下游 10 倍返工；🔴 禁止降级 Sonnet |
-| Designer UI 设计 | 🤖 Subagent | Opus | 需要设计审美 + HTML 产出质量 |
-| Blueprint Stage（QA TC + TC 评审 + RD TECH + 架构师评审） | 🤖 Subagent | Opus | 技术方案 + 架构师评审 + Schema 影响分析，属"复杂架构判断"，错一步 Dev/Review 连锁返工；🔴 禁止降级 Sonnet |
-| Dev Stage（RD TDD+单测） | 🤖 Subagent | Opus | 核心编码，质量要求最高 |
-| Review Stage（架构师CR∥Codex∥QA审查） | 🤖 Subagent | Sonnet | 三 review 并行，校验型 |
-| UI 还原验收（Designer↔RD） | 主对话 | — | 多轮交互 |
-| ~~Codex Code Review~~ | 已合入 Review Stage | — | 不再独立 dispatch |
-| Test Stage（QA+测试） | 🤖 Subagent | Sonnet | 校验型任务：跑测试+对照 checklist+解析输出 |
-| Browser E2E | 🤖 Subagent | Sonnet | 执行型任务：发请求+校验 response |
-| ~~QA Lead 质量总结~~ | 已移除 | — | Test Stage 通过后直接 PM 验收 |
-| PM 验收 | 主对话 | — | 需要与用户交互 |
-
-📎 推荐模型说明：
-├── 🔴 Opus 必选（方案源头阶段）：Plan Stage / Blueprint Stage / Dev Stage / Designer UI
-│   └── 红线：产出源头不得用 Sonnet，否则下游全是在优化错误的前提
-├── Sonnet 可选（校验型/执行型）：Review / Test / Browser E2E / API E2E
-├── —（主对话）：继承当前会话模型，不单独指定
-└── PMO dispatch Subagent 时按宿主方式指定模型（Claude: Task model 参数 / Codex: agent toml model 字段）
-```
-
-📌 PMO 模型建议（硬性建议）：
+### 执行方式默认推荐
 
 ```
-├── PMO 在主对话执行，skill 无法强制指定模型，继承用户会话模型
-├── 🔴 强烈建议用户将会话模型设为 Opus
-│   └── 理由：PMO 承担调度判断（降级决策 / 分级处理 / 打回触发 / Key Context 6 类判断），
-│       模型能力直接影响方案质量与问题识别，Sonnet 主对话易漏判上游文档缺陷
-├── 🔴 会话模型为 Sonnet 时，PMO 必须在首次启动时输出 WARN 日志：
-│   ⚠️ WARN [pmo-model-downgrade]
-│   ├── reason   : 主对话模型为 Sonnet，非推荐 Opus
-│   ├── impact   : 调度判断能力受限，降级决策 / 打回触发 / 上游问题识别可能漏判
-│   ├── action   : 关键阶段（Plan / Blueprint / Review 汇总）决策请人工复核
-│   └── suggest  : 建议切换会话至 Opus 后再进入 Plan / Blueprint Stage
-└── 模型降级 ≠ 流程跳过：Sonnet 主对话仍需严格执行所有 PMO 规范，只是质量风险需用户背书
+| 阶段 | 默认 approach | 推荐模型 | 判断 |
+|------|--------------|---------|------|
+| Plan Stage（PRD + PL-PM + 评审） | main-conversation | Opus | 多视角 prompt 切换；需用户介入讨论；主对话累积 context 有价值 |
+| UI Design Stage | subagent | Opus | HTML 产出量大，主对话 context 会被挤占 |
+| Panorama Design Stage | subagent | Opus | 同上 |
+| Blueprint Stage（TC + TECH + 架构师评审）| main-conversation | Opus | 多视角 prompt 切换；需用户参与方案讨论 |
+| BlueprintLite Stage | main-conversation | 继承 | 敏捷流程精髓就是快速闭环 |
+| Dev Stage | AI 自主按规模判断 | Opus 推荐 | ≤3 文件 → main；>10 文件/多模块 → subagent |
+| Review Stage（架构师 / QA / Codex）| hybrid | Sonnet | 架构师主对话（保留上下文 + 怀疑者视角）+ QA/Codex Subagent（独立视角）|
+| Test Stage（环境 / 集成 / API E2E）| hybrid | Sonnet | 环境主对话（便于调试）+ API E2E Subagent（脚本化）|
+| Browser E2E | main-conversation | Sonnet | 半自动需用户观察；无人值守 CI 可切 subagent |
+| UI 还原验收（Designer↔RD）| main-conversation | 继承 | 多轮交互 |
+| PM 验收 | main-conversation | 继承 | 需用户交互 |
 ```
 
-🔴 模型选型变更红线：
-├── 把 Plan / Blueprint / Dev / Designer UI 从 Opus 改回 Sonnet 必须附证据：
-│   ├── 该 Feature 属于 Micro 流程（无架构变更、改动 ≤ 20 行、无新增依赖）
-│   ├── 或 Blueprint-Lite（简化方案，明确无跨 Feature/子项目影响）
-│   └── 或用户显式授权降级（对话中明确"本 Feature 可用 Sonnet"）
-└── 无证据的降级 → Review Stage 必须阻塞 + 追溯改动记录
-
-### 判断原则
+### 模型偏好说明
 
 ```
-什么时候用 Subagent（🤖）：
-├── 任务重（预期 >5 分钟执行时间），冷启动开销占比低
-├── 产出大（大量代码/HTML/测试输出），放主对话会挤占 context
+├── Opus 推荐：创造性产出 / 复杂业务判断 / 复杂架构判断的 Stage
+│   （Plan / Blueprint / Dev / Designer UI / Panorama）
+├── Sonnet 可用：校验型 / 执行型任务（Review / Test / Browser E2E / API E2E）
+├── —（主对话继承）：主对话任务继承当前会话模型
+└── PMO dispatch Subagent 时按宿主指定模型（Claude: Task model / Codex: agent toml model）
+```
+
+📌 PMO 自身模型（主对话）：
+```
+├── PMO 在主对话执行，继承用户会话模型
+├── 建议：关键 Feature 使用 Opus 主对话（PMO 承担调度判断）
+└── 若主对话是 Sonnet：不影响流程执行，但 Plan / Blueprint 等判断密集 Stage 建议人工复核
+```
+
+### AI Plan 偏离指引
+
+```
+何时偏离默认 approach（Plan 中说明理由）：
+
+偏向 Subagent：
+├── 任务预期 >5 分钟，冷启动税占比低
+├── 产出量大（大量代码/HTML/测试输出），主对话 context 紧张
 ├── 需要外部工具（Codex CLI / AI 浏览器）
-└── 内部可自闭环（无暂停点，输入输出都明确）
+├── 需要独立视角防创建者偏见
+└── 任务可自闭环，输入输出明确
 
-什么时候在主对话执行：
-├── 任务轻（预期 <5 分钟），冷启动开销占比高
-├── 需要与用户交互（暂停点）
-├── 涉及多角色多轮交互（如 UI 还原验收 Designer↔RD 循环）
+偏向主对话：
+├── 任务轻（预期 <5 分钟），冷启动不划算
+├── 需要与用户多轮交互（暂停点）
+├── 多角色多轮互动（如 UI 还原 Designer↔RD 循环）
 ├── 需要实时感知主对话上下文变化
-└── 评审/审查类任务（读+判断+出报告，无大量产出）
+└── 评审/审查类任务（读+判断+短报告）
 ```
 
 ---

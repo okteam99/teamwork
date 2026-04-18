@@ -121,25 +121,11 @@
 
 ---
 
-## AI Plan 模式指引（非强制）
+## AI Plan 模式指引
 
-典型执行方案（AI 可参考也可创新）：
+📎 默认推荐 approach、偏离条件、Execution Plan 3 行格式 → 见 [SKILL.md「AI Plan 模式规范」](../SKILL.md#-ai-plan-模式规范v73-新增) + [agents/README.md §一](../agents/README.md#一执行方式参考默认推荐--判断原则)。
 
-- **方案 A（推荐，多数场景）**：主对话直接执行
-  - 适合：需要与用户多轮讨论澄清需求的场景
-  - 多视角通过 prompt 切换（PM→PL→各视角评审）
-  - 产出直接落盘到 `{Feature}/` 目录
-  - 节省 Subagent 冷启动开销
-
-- **方案 B**：Subagent 一次性产出
-  - 适合：需求已十分清晰、用户不介入讨论、要求快速产出
-  - 按 [Dispatch 文件协议](../agents/README.md#四dispatch-文件协议) 生成 dispatch 文件
-  - Subagent 内部完成 PM/PL/评审全流程
-
-- **方案 C**：混合模式
-  - 主对话做 PM-PL 讨论（需人机交互），Subagent 做技术评审（独立视角）
-
-🔴 AI 开始本 Stage 前必须在主对话输出 [Execution Plan](../SKILL.md#ai-plan-模式规范) 块。
+本 Stage 默认 `main-conversation`（多视角 prompt 切换 + 用户讨论）。典型偏离：需求极清晰、无用户介入 → `subagent`。
 
 ---
 

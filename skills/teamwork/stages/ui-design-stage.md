@@ -111,20 +111,11 @@
 
 ---
 
-## AI Plan 模式指引（非强制）
+## AI Plan 模式指引
 
-典型方案：
+📎 Execution Plan 3 行格式 → [SKILL.md](../SKILL.md#-ai-plan-模式规范v73-新增)。
 
-- **方案 A（推荐）**：Subagent 一次性产出
-  - 适合：HTML 产出量大（多页面 × 多状态），主对话 context 会被挤占
-  - 按 [Dispatch 文件协议](../agents/README.md#四dispatch-文件协议) 生成 dispatch 文件
-  - 推荐模型：Opus（设计审美 + HTML 质量）
-
-- **方案 B**：主对话执行
-  - 适合：小改动（只改一个页面、一两个状态）
-  - 用户需要边讨论边调整
-
-🔴 AI 开始本 Stage 前必须输出 Execution Plan 块。
+本 Stage 默认 `subagent`（HTML 产出量大，主对话 context 易被挤占；推荐 Opus）。典型偏离：小改动（1-2 页面）+ 用户需边讨论边调整 → `main-conversation`。
 
 ---
 

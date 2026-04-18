@@ -130,31 +130,19 @@
 
 ## AI Plan 模式指引（本 Stage 特别重要）
 
-### Dev Stage 执行方式自主决策指引
+📎 Execution Plan 3 行格式 → [SKILL.md](../SKILL.md#-ai-plan-模式规范v73-新增)。
 
-Blueprint 完成后，AI 根据**规模和复杂度**自主判断执行方式。参考准则：
+本 Stage 默认 **AI 自主按规模/复杂度决定** approach（Dev Stage 是改造的核心自主决策点）：
 
-| 条件 | 推荐方案 |
-|------|---------|
-| 改动 ≤ 3 文件 + 逻辑简单（无多模块联动）| 主对话实现（节省冷启动） |
-| 改动复杂 / 产出 >500 行 / 多模块联动 | Subagent（隔离主对话） |
-| 严格 TDD 红-绿循环 + 独立聚焦 | Subagent（独立 context） |
-| 涉及多轮调试 / 探索 / 环境问题 | 主对话（保留调试上下文） |
-| 涉及跨 Feature / 需要和其他进行中 Feature 对照 | 主对话（累积 context 有用） |
+| 条件 | 推荐 |
+|------|------|
+| 改动 ≤ 3 文件 + 逻辑简单（无多模块联动）| `main-conversation`（省冷启动）|
+| 改动复杂 / 产出 >500 行 / 多模块联动 | `subagent`（隔离主对话）|
+| 严格 TDD 红-绿循环 + 独立聚焦 | `subagent`（独立 context）|
+| 多轮调试 / 探索 / 环境问题 | `main-conversation`（保留调试 context）|
+| 跨 Feature / 需对照其他进行中 Feature | `main-conversation`（累积 context 有用）|
 
-AI 开始 Dev 前必须在主对话显式声明：
-```
-## 🧭 Execution Plan: Dev Stage
-- Approach: {主对话 / Subagent / 混合}
-- Rationale: {基于规模/复杂度的判断}
-- Steps: ...
-- Expected Output: ...（列 Output Contract 项）
-- Loaded Role Specs & Standards:
-  - roles/rd.md, agents/rd-develop.md
-  - standards/common.md, standards/{backend|frontend}.md
-```
-
-Plan 决策写入 `state.json.planned_execution.dev`。
+Plan 的 Rationale 必须说明"基于规模/复杂度的判断"。Plan 写入 `state.json.planned_execution.dev`。
 
 ### Worktree 集成（PMO 执行，不受 Subagent/主对话影响）
 

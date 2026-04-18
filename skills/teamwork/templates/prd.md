@@ -2,7 +2,8 @@
 
 > 🔴 v7.3 契约化更新：PRD 文件头必须包含 YAML frontmatter，将 `acceptance_criteria[]` 结构化为机器可读。
 > 原因：AC 与 TC 测试反查绑定（`tests[].covers_ac`）是防止"需求→代码"漂移的关键机制。
-> 机器校验脚本 `scripts/verify-ac.sh`（示例见 `templates/verify-ac.example.sh`）会校验每条 AC 都有对应测试且通过。
+> 机器校验脚本 `{SKILL_ROOT}/templates/verify-ac.py` 会校验每条 AC 都有对应测试。直接调用，无需各项目复制：
+> `python3 {SKILL_ROOT}/templates/verify-ac.py {Feature 目录}`
 
 ## PRD.md（标准模板）
 

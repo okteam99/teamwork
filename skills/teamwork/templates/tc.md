@@ -2,7 +2,8 @@
 
 > 🔴 v7.3 契约化更新：TC 文件头必须包含 YAML frontmatter，将 `tests[]` 结构化为机器可读。
 > 每条 test 通过 `covers_ac[]` 字段反查到 PRD 的 AC id。
-> 机器校验脚本 `scripts/verify-ac.sh` 会校验 PRD 每条 AC 都有至少一个 test 覆盖且通过。
+> 机器校验脚本 `{SKILL_ROOT}/templates/verify-ac.py` 会校验 PRD 每条 AC 至少有一个 test 覆盖。直接调用：
+> `python3 {SKILL_ROOT}/templates/verify-ac.py {Feature 目录}`
 
 ## TC.md（BDD/Gherkin 格式）
 
@@ -50,7 +51,7 @@ tests:
 
 > 🔴 v7.3：本节是 frontmatter `tests[]` 的人读视图。
 > 反查 PRD.md frontmatter 的 `acceptance_criteria[]`，确保每条 AC 都在"用例 ID"列有至少 1 个对应测试。
-> 机器校验：`scripts/verify-ac.sh {Feature}` 自动检查覆盖完整性。
+> 机器校验：`python3 {SKILL_ROOT}/templates/verify-ac.py {Feature}` 自动检查覆盖完整性。
 
 | AC ID（PRD）| 需求描述 | 优先级 | 覆盖测试（对应 frontmatter `tests[].id`）| 状态 |
 |-------------|---------|--------|------------------------------------------|------|

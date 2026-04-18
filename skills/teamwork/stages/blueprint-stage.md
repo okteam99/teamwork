@@ -106,7 +106,7 @@
 ### 机器可校验条件
 
 - [ ] TC.md frontmatter 可 YAML 解析（`yq '.tests[].id' TC.md` 成功）
-- [ ] 每条 PRD AC 在 TC.md 中至少有 1 个 test 的 `covers_ac` 包含它（`scripts/verify-ac-coverage.sh` 通过）
+- [ ] 每条 PRD AC 在 TC.md 中至少有 1 个 test 的 `covers_ac` 包含它（`python3 {SKILL_ROOT}/templates/verify-ac.py {Feature}` exit 0）
 - [ ] TC 用例数 ≥ PRD AC 数
 - [ ] TECH.md 含"文件清单"章节且至少列出 1 个文件
 - [ ] 无 TBD / TODO / 占位符
@@ -128,24 +128,11 @@
 
 ---
 
-## AI Plan 模式指引（非强制）
+## AI Plan 模式指引
 
-典型方案：
+📎 Execution Plan 3 行格式 → [SKILL.md「AI Plan 模式规范」](../SKILL.md#-ai-plan-模式规范v73-新增)。默认 approach → [agents/README.md §一](../agents/README.md#一执行方式参考默认推荐--判断原则)。
 
-- **方案 A（推荐）**：主对话执行 4 步闭环
-  - 适合：多数场景。4 步在主对话串行走完，多视角通过 prompt 切换
-  - 节省 Subagent 冷启动
-  - 用户可随时介入讨论
-
-- **方案 B**：Subagent 一次性闭环
-  - 适合：需求十分清晰、无需用户介入讨论、要求主对话 context 隔离
-  - 按 [Dispatch 文件协议](../agents/README.md#四dispatch-文件协议) 生成 dispatch 文件
-  - 4 步内部执行，最终返回全部产物
-
-- **方案 C**：混合模式
-  - TC 和 TECH 在主对话讨论起草，架构师评审用 Subagent 做独立审查
-
-🔴 AI 开始本 Stage 前必须在主对话输出 Execution Plan 块，并声明"已加载 Loaded Role Specs & Standards"清单。
+本 Stage 默认 `main-conversation`（4 步闭环：QA TC → TC 评审 → RD TECH → 架构师评审，全程多视角 prompt 切换）。典型偏离：需求极清晰 → `subagent` 一次闭环；或 `hybrid`（TC/TECH 主对话起草 + 架构师评审 Subagent 独立审）。
 
 ---
 

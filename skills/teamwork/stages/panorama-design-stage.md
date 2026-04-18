@@ -109,16 +109,11 @@ Feature Planning 流程触发：
 
 ---
 
-## AI Plan 模式指引（非强制）
+## AI Plan 模式指引
 
-- **方案 A（推荐）**：Subagent 执行
-  - 全景 HTML 产出量大，Subagent 隔离主对话
-  - 默认沿用 Designer Subagent（Opus）
+📎 Execution Plan 3 行格式 → [SKILL.md](../SKILL.md#-ai-plan-模式规范v73-新增)。
 
-- **方案 B**：主对话执行
-  - 适合：仅增量合并一两个页面、主对话有用户介入需要
-
-🔴 AI 开始本 Stage 前必须输出 Execution Plan 块。
+本 Stage 默认 `subagent`（全景 HTML 产出量大；沿用 Designer Subagent，Opus）。典型偏离：仅增量合并 1-2 页面 → `main-conversation`。
 
 ---
 

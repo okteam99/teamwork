@@ -1,6 +1,33 @@
 # Changelog
 
-## v7.3（当前）
+## v7.3.1（当前）—— v7.3 收尾
+
+前序 v7.3 改造完成后发现三个未对齐点，本次小版本收尾修复，不引入新机制。
+
+- **agents/README.md §一 速查表与 AI Plan 模式对齐**（消除双权威冲突）：
+  - 章节标题从「执行方式决策（PMO 必读）」改为「执行方式参考（默认推荐 + 判断原则）」
+  - 删除"PMO 查下表决定 / 禁止凭感觉判断"的硬绑定语言
+  - 表头从「执行方式」改为「默认 approach」，标识 🤖/主对话 改为 main-conversation/subagent/hybrid/AI 自主
+  - 删除"🔴 禁止降级 Sonnet"等与"AI 自主"冲突的硬规则
+  - 新增"AI Plan 偏离指引"章节，说明何时偏离默认 approach
+- **Execution Plan 从 6 字段精简为 3 行核心**（去除重复仪式）：
+  - Plan 只保留 Approach / Rationale / Role specs loaded 三项
+  - Steps / Expected Output / Key Context 由各 Stage 契约、dispatch 文件、产物 frontmatter 承载（不重复）
+  - SKILL.md 新增 3 个典型示例（Plan Stage / Dev Stage / Review Stage）
+  - 每个 Feature × 8 Stage 的仪式文字量从 ~160 行降至 ~24 行
+- **各 Stage 的 Plan 指引段落精简**（单一权威指向）：
+  - plan/blueprint/blueprint-lite/ui-design/panorama/browser-e2e 的"AI Plan 模式指引"压缩到 2-3 行，指向 SKILL.md 和 agents/README.md §一
+  - dev/review/test 保留本 Stage 特殊的 approach 判断逻辑（规模/复杂度/三视角独立性/环境独立性）
+  - SKILL.md 中原"典型 approach 选择指引"表删除（和 agents/README.md §一 重复）
+- **verify-ac.py 从示例脚本落地为可直接跑的标准实现**：
+  - 新增 `templates/verify-ac.py`（Python 3 标准库实现，无 yq / 外部工具依赖）
+  - 自带 YAML frontmatter 简化解析器，同时兼容 PyYAML（如已装）
+  - 自测覆盖：文件缺失 / 覆盖通过 / 覆盖不完整 三种场景 exit code 分别为 1 / 0 / 3
+  - 可直接从 `{SKILL_ROOT}/templates/verify-ac.py` 调用，项目无需复制
+  - 删除旧 `templates/verify-ac.example.sh`（示例化处理太弱，实际没人落地）
+  - prd.md / tc.md / blueprint-stage.md 所有引用更新
+
+## v7.3
 - **Stage 三契约化（规范契约，不规范过程）**：
   - 每个 Stage 文件重构为 Input Contract / Process Contract / Output Contract 三段式
   - 删除所有 Stage 对"必须 Subagent 执行"的硬绑定

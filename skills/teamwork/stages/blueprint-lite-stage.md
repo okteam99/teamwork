@@ -98,12 +98,11 @@
 
 ---
 
-## AI Plan 模式指引（非强制）
+## AI Plan 模式指引
 
-- **推荐方案**：主对话直接执行（敏捷流程的精髓就是快速闭环，Subagent 冷启动不值得）
-- **可选方案**：Subagent 一次性产出（如果主对话 context 已很满）
+📎 Execution Plan 3 行格式 → [SKILL.md](../SKILL.md#-ai-plan-模式规范v73-新增)。
 
-🔴 AI 开始本 Stage 前必须在主对话输出 Execution Plan 块。
+本 Stage 默认 `main-conversation`（敏捷流程精髓是快速闭环，Subagent 冷启动不划算）。仅当主对话 context 已紧张时切 `subagent`。
 
 ---
 

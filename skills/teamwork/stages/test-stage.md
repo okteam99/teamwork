@@ -136,26 +136,18 @@
 
 ## AI Plan 模式指引
 
-典型方案：
+📎 Execution Plan 3 行格式 → [SKILL.md](../SKILL.md#-ai-plan-模式规范v73-新增)。
 
-- **方案 A（推荐）**：环境主对话 + API E2E Subagent
-  - 环境准备：主对话启动（需要调试、端口冲突修复、凭据处理），落盘 test-env.json
-  - 集成测试：如命令简单快速 → 主对话；如执行时间长 → Subagent
-  - API E2E：Subagent 生成脚本 + 执行（脚本化任务天然适合隔离）
-  - 好处：环境调试保留 context，E2E 隔离不污染主对话
+本 Stage 默认 `hybrid`（环境主对话 + API E2E Subagent）：
+- 环境准备主对话（需调试端口/凭据/健康检查，落盘 test-env.json）
+- 集成测试：命令快 → 主对话；耗时 → Subagent
+- API E2E：Subagent（脚本化任务天然适合隔离）
 
-- **方案 B**：全部 Subagent
-  - 环境由 Subagent 自己跑 `test-env-check.sh`
-  - 适合：CI 环境稳定、无需人工介入
+典型偏离：CI 环境稳定 → 全 `subagent`（含环境自动起）；小 Feature/测试命令快 → 全 `main-conversation`。
 
-- **方案 C**：全部主对话
-  - 适合：小 Feature / 测试命令快速
+### 环境信息交接（任何 approach 都适用）
 
-🔴 AI 开始本 Stage 前必须输出 Execution Plan 块。
-
-### 环境信息交接
-
-无论选哪种方案，`{Feature}/test-env.json` 必须落盘。若集成测试/API E2E 走 Subagent，dispatch 文件的 Input files 必须含此 JSON 路径。Subagent 启动第一步应 ping health endpoint 确认环境活着。
+`{Feature}/test-env.json` 必须落盘。集成测试 / API E2E 走 Subagent 时，dispatch 文件的 Input files 必须含此 JSON 路径。Subagent 启动第一步应 ping health endpoint 确认环境活着。
 
 ---
 

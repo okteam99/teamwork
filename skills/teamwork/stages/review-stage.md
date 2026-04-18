@@ -162,34 +162,28 @@ Codex 独立性保障：
 
 ---
 
-## AI Plan 模式指引（非强制）
+## AI Plan 模式指引
 
-典型方案：
+📎 Execution Plan 3 行格式 → [SKILL.md](../SKILL.md#-ai-plan-模式规范v73-新增)。
 
-- **方案 A（混合，推荐）**：主对话做架构师视角 + Subagent 并行做 QA/Codex
-  - 架构师视角需要项目全局上下文（ARCHITECTURE 演化、历史决策），主对话保留此类累积
-  - QA 和 Codex 需要独立视角，Subagent 天然 fresh context
-  - 架构师审查时加"怀疑者视角" prompt 防鼓掌（不读 Dev 自查报告，只看代码+TECH）
+本 Stage 默认 `hybrid`（架构师主对话 + QA/Codex 并行 Subagent）。
 
-- **方案 B**：全部主对话
-  - 适合：小改动 / 主对话 context 足够
-  - 三视角通过 prompt 显式切换 + context 清洗（"进入 {视角} 模式，暂时忘记其他视角的判断"）
-  - 风险：创建者偏见，需要加强 prompt 约束
+三路分工理由：
+- 架构师视角需项目全局上下文（ARCHITECTURE 演化、历史决策），主对话保留累积
+- QA / Codex 视角需独立性，Subagent 天然 fresh context
+- 架构师主对话时加「怀疑者视角」prompt 防鼓掌（见下方）
 
-- **方案 C**：全部 Subagent（三路并行）
-  - 适合：大改动 / 主对话 context 紧张 / 要求最强独立性
-  - 按 [Dispatch 文件协议](../agents/README.md#四dispatch-文件协议) 生成三个 dispatch 文件，Batch 同批次 ID
+典型偏离：
+- 小改动 / 主对话 context 足够 → 三视角全 `main-conversation`（需清洗 context 防创建者偏见）
+- 大改动 / 要求最强独立性 → 三视角全 `subagent`（Dispatch 文件 Batch 字段同批次）
 
-🔴 不论哪种方案，Output Contract 的独立性校验都适用（机器校验三份报告结构）。
+🔴 不论哪种 approach，Output Contract 的独立性校验（三份产物独立 generated_at / files_read / 不互相引用）都必须满足。
 
-🔴 AI 开始本 Stage 前必须输出 Execution Plan 块，明确三个视角各自用什么 approach。
+### 架构师主对话 Review 防鼓掌机制（approach 含 main-conversation 时必做）
 
-### 架构师主对话 Review 防鼓掌机制
-
-若架构师视角选主对话执行，**必须**：
 - 开始前显式声明"进入架构师审查模式，采用怀疑者视角"
 - 不读 RD 自查报告（只看代码 diff + TECH.md + ARCHITECTURE.md）
-- 强制产出 ≥3 条批评；若确实无，显式说明"代码高质量，具体未发现"+ 审查过的维度清单
+- 强制产出 ≥3 条批评；若确实无，显式说明"代码高质量，未发现"+ 审查过的维度清单
 
 ---
 
