@@ -9,7 +9,7 @@
 - 创建功能目录 `docs/features/F{编号}-{功能名}/`
 - 输出 PRD 到 PRD.md
 
-> 📎 功能目录创建后，PMO 自动创建 STATUS.md（初始阶段：PM 编写 PRD）并同步更新 ROADMAP.md 当前阶段列。详见 PMO 章节。
+> 📎 功能目录创建后，PMO 自动创建 state.json（v7.3.2，初始 current_stage: plan）并同步更新 ROADMAP.md 当前阶段列。详见 PMO 章节。
 - 验收 Designer、QA 的产出
 - 最终功能验收
 - **产品规划分解**（Feature Planning 流程）：从产品目标拆解 Feature Roadmap

@@ -6,12 +6,13 @@
 
 | 文件名 | 模板类型 | 用途 | 加载时机 |
 |--------|---------|------|----------|
-| prd.md | PRD + PRD (技术) | 产品需求文档（标准 + 技术类变体） | Feature Planning 后 PM 编写 |
-| tc.md | TC + TC-REVIEW | 测试用例文档与评审记录 | 需求评审后 QA 编写 |
+| prd.md | PRD + PRD (技术) | 产品需求文档（含 YAML frontmatter acceptance_criteria[]） | Feature Planning 后 PM 编写 |
+| tc.md | TC + TC-REVIEW | 测试用例文档（含 YAML frontmatter tests[].covers_ac） | 需求评审后 QA 编写 |
 | tech.md | TECH | 技术方案设计 | PRD 确认后 RD 编写 |
 | ui.md | UI | UI 设计文档 | 需求明确后 Designer 设计 |
-| status.md | STATUS | Feature 阶段状态追踪 | Feature 创建时初始化 |
-| roadmap.md | ROADMAP | 产品执行路线图 | Feature Planning 完成时 PM 编写 |
+| **feature-state.json** | Feature 状态机（v7.3.2，替代原 status.md） | 机读权威 + 人读详情 | Feature 创建时 PMO 初始化 |
+| verify-ac.py | AC↔test 覆盖校验脚本 | 机器校验入口 | Blueprint/Dev Output Contract 调用 |
+| roadmap.md | ROADMAP | 产品执行路线图（全局 Feature 清单人读视图） | Feature Planning 完成时 PM 编写 |
 | project.md | PROJECT | 子项目业务总览 | 项目初始化时创建 |
 | architecture.md | ARCHITECTURE + database-schema | 技术架构设计 | 项目初始化时创建 |
 | knowledge.md | KNOWLEDGE | 项目本地知识库 | 项目初始化时创建 |
@@ -45,8 +46,10 @@
 6. **技术方案阶段**
    - 📄 [tech.md](./tech.md) - 技术方案设计
 
-7. **状态追踪**
-   - 📄 [status.md](./status.md) - Feature 阶段状态（全流程）
+7. **状态追踪（v7.3.2）**
+   - 📄 [feature-state.json](./feature-state.json) - Feature 流转状态机（机读权威 + 人读详情）
+   - 📄 [verify-ac.py](./verify-ac.py) - AC↔test 覆盖校验脚本
+   - 全局视图见 [roadmap.md](./roadmap.md)
 
 8. **E2E 回归**
    - 📄 [e2e-registry.md](./e2e-registry.md) - E2E 测试用例与注册

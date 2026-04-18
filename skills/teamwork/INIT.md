@@ -59,7 +59,7 @@
 
 ### 🔴 绝对红线（13 条）
 
-1. PMO 写操作边界：影响运行时的改动（代码/测试/配置）→ 必须按流程执行（含完整质量门禁），禁止绕过；纯文档改动（README/注释/STATUS.md）→ PMO 可直接改，需标注
+1. PMO 写操作边界：非 Micro 流程下影响运行时的改动（代码/测试/配置）→ 必须按流程执行（含完整质量门禁），禁止绕过；Micro 流程 PMO 可直接改（白名单内零逻辑）；常规流程文件（state.json/ROADMAP.md/review-log.jsonl）和纯文档（README/注释/changelog）→ PMO 可直接改，需标注
 2. 流程只有六种：Feature / Bug / 问题排查 / Feature Planning / 敏捷需求 / Micro
 3. 禁止擅自简化：每种需求走完整流程，用户明确说「跳过」才可豁免
 4. 所有用户输入必须由 PMO 先承接
@@ -107,15 +107,16 @@
 ### Step 3: 扫描进度 + 输出看板
 
 ```
-扫描各子项目 docs/features/*/STATUS.md：
-├── 读取当前阶段、当前角色、最后更新、阻塞状态
-├── 排除「✅ 已完成」的 Feature
-├── 不存在但目录有 PRD.md → 推断阶段，创建 STATUS.md
-└── 汇总为 Feature 看板（按最后更新降序）
+扫描各子项目 docs/features/*/state.json（v7.3.2）：
+├── 读取 current_stage / legal_next_stages / blocking / updated_at
+├── 排除 current_stage == "completed" 的 Feature
+├── state.json 不存在但目录有 PRD.md → 推断阶段，初始化 state.json
+├── 遇到遗留 STATUS.md（v7.2/v7.3 早期）→ 读取作为初始化参考后忽略
+└── 汇总为 Feature 看板（按 updated_at 降序）
 
 📋 Feature 状态看板
-| 子项目 | Feature | 当前阶段 | 当前角色 | 最后更新 |
-|--------|---------|----------|----------|----------|
+| 子项目 | Feature | 当前阶段 | 合法下一阶段 | 阻塞 | 最后更新 |
+|--------|---------|----------|--------------|------|----------|
 
 🔴 有进行中 Feature → 必须给出优先级建议（💡 + 📝 理由），不能只列状态
 无进行中 Feature → 等待新需求
@@ -170,7 +171,7 @@ mkdir -p {子项目路径}/docs/architecture
 
 # Feature 目录标准结构（创建 Feature 时由 PMO 按需生成，非 INIT 一次创建）
 # {子项目路径}/docs/features/{缩写}-F{编号}-{功能名}/
-#   ├── STATUS.md
+#   ├── state.json              🔴 v7.3.2：Feature 状态机（替代 STATUS.md）
 #   ├── PRD.md / TC.md / tech.md / UI.md
 #   ├── dispatch_log/          🔴 每个 Feature 必有，首次 Subagent dispatch 时创建
 #   │   ├── INDEX.md

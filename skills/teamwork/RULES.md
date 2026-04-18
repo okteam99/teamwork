@@ -22,15 +22,16 @@
 
 ---
 
-## PMO 热路径索引（compact 后优先读此段 + STATUS.md）
+## PMO 热路径索引（compact 后优先读此段 + state.json）
 
 > 🔴 PMO 日常流转只需查阅以上 3 条 + 按需查索引，无需通读全文。
-> Compact 后恢复时：先读 STATUS.md「流转约束」段 → 如需详细规则再按索引定位读取。
+> Compact 后恢复时：先读 `{Feature}/state.json` → 如需详细规则再按索引定位读取。
+> 🟢 v7.3.2：STATUS.md 已废弃，state.json 是 Feature 状态的单一权威。
 
 | 需要做什么 | 读哪里 | 行范围 |
 |-----------|--------|--------|
 | 判断是否需要暂停 | §一 暂停条件 | 本文件开头 |
-| 阶段流转前校验 | rules/gate-checks.md | 1 行流转校验 + 门禁检查 + STATUS.md 更新 |
+| 阶段流转前校验 | rules/gate-checks.md | 1 行流转校验 + 门禁检查 + state.json 更新 |
 | 查合法转移路径 | rules/flow-transitions.md | 6 种流程 + PL 模式 + 通用特殊状态 |
 | Bug 简单/复杂判断 | FLOWS.md「Bug 处理流程」 | 判断表 + 简化/完整流程 + 闭环验证 |
 | 功能完成收尾 | §四 功能完成时 PMO 必须执行 | `### 功能完成时 PMO 必须执行` |
@@ -44,7 +45,7 @@
 | 文件 | 内容 | 加载时机 |
 |------|------|----------|
 | [rules/flow-transitions.md](./rules/flow-transitions.md) | 阶段状态转移表（6 种流程 + PL 模式） | PMO 流转校验时 |
-| [rules/gate-checks.md](./rules/gate-checks.md) | 1 行流转校验 + 门禁检查 + STATUS.md 更新 | PMO 每次阶段变更时 |
+| [rules/gate-checks.md](./rules/gate-checks.md) | 1 行流转校验 + 门禁检查 + state.json 更新 | PMO 每次阶段变更时 |
 | [rules/naming.md](./rules/naming.md) | 编号规则（功能/Bug/优化/决策/变更/BG） | PMO 分配编号时 |
 
 ---
@@ -268,7 +269,7 @@ PMO/当前角色在暂停点输出时，必须同时满足以下 4 条：
 > 此表覆盖全部六类流程（Feature / Bug 处理 / 问题排查 / Feature Planning / 敏捷需求 / Micro）+ PL 模式 + 通用特殊状态。
 
 
-> 📎 1 行流转校验格式、门禁检查、STATUS.md 流转约束更新规则的权威定义见 [rules/gate-checks.md](./rules/gate-checks.md)。
+> 📎 1 行流转校验格式、门禁检查、state.json 更新规则的权威定义见 [rules/gate-checks.md](./rules/gate-checks.md)。
 > PMO 每次阶段变更必须查阅该文件。
 ### Feature 流转逻辑（8 Stage 模型）
 
@@ -429,7 +430,7 @@ PM 基于 PROJECT.md 拆解 ROADMAP
     ↓
     用户逐个通过 /teamwork [Feature 需求] 启动 Feature 流程
     ↓
-    每个 Feature 完成时 → 在完成报告步骤 8️⃣ 中同步更新 STATUS.md + ROADMAP.md（详见自动流转规则）
+    每个 Feature 完成时 → 在完成报告步骤 8️⃣ 中同步更新 state.json + ROADMAP.md（详见自动流转规则）
 ```
 
 ### 🌐 工作区级 Feature Planning 流程自动流转
@@ -633,7 +634,7 @@ Step 2: 全景设计同步（用户确认 Step 1 后自动触发）
    ├── 无 UI 的子项目 → 显式输出「⏭️ 非 UI 项目，跳过」
    └── ⚠️ 若 Subagent 摘要标注 sitemap 或 overview.html 未更新但本次有 UI 变更 → PMO 补充同步
 8️⃣ 📝 Feature 状态同步（🔴 必须执行！）
-   ├── 更新 STATUS.md → 当前阶段设为「✅ 已完成」，记录完成时间
+   ├── 更新 {Feature}/state.json → current_stage 设为「completed」，completed_at 填完成时间
    ├── 更新 ROADMAP.md → 对应 Feature 行状态设为「已完成」，当前阶段设为「-」
    ├── 更新 teamwork_space.md 子项目清单「完成度」列 → 重新统计 ROADMAP.md 中已完成/总数
    ├── 以上三者必须同步更新
@@ -728,8 +729,8 @@ Step 2: 全景设计同步（用户确认 Step 1 后自动触发）
 🔟 📐 文档一致性校验（每完成 3 个 Feature 后触发，或用户主动请求。🔴 触发时必须执行！）
    ├── 抽查 PROJECT.md 与实际代码功能是否一致（功能模块描述是否过时）
    ├── 抽查全景设计 sitemap.md 与实际页面路由是否一致
-   ├── 抽查 ROADMAP.md Feature 状态 + 当前阶段是否与 STATUS.md 一致
-   ├── 抽查各 Feature STATUS.md 是否与实际进度一致
+   ├── 抽查 ROADMAP.md Feature 状态 + 当前阶段是否与 {Feature}/state.json 一致
+   ├── 抽查各 Feature state.json 是否与实际进度一致（代码/文件状态 vs stage_contracts）
    ├── 多子项目模式：抽查 teamwork_space.md 架构图与子项目实际职责是否一致
    ├── 发现漂移 → 列出差异清单 → ⏸️ 用户确认是否修正
    └── 无漂移 → 显式输出「✅ 文档一致性校验通过」
@@ -766,7 +767,7 @@ Step 2: 全景设计同步（用户确认 Step 1 后自动触发）
 1. 当前阶段产出（PRD/TC/代码等）
 2. 1 行流转校验（见 rules/gate-checks.md）
 3. PMO 阶段摘要
-4. 🔴 同步更新 STATUS.md 流转约束段（见 §四 STATUS.md 流转约束同步更新）
+4. 🔴 同步更新 {Feature}/state.json（current_stage / legal_next_stages / stage_contracts，见 roles/pmo.md「state.json 状态机维护规范」）
 5. 根据「待确认」决定行为：
    ├── 待确认 = 无 → 🚀 立即开始下一阶段（同一回复中继续）
    └── 待确认 ≠ 无 → ⏸️ 暂停等待用户处理
@@ -1152,14 +1153,14 @@ PRD 打回更新后的级联影响：
 跨 Stage 切换（如 Plan Stage → Blueprint Stage）：
 ├── 输出当前角色的产出/状态
 ├── 完整流转校验（📋 校验行）
-├── 更新 STATUS.md
+├── 更新 {Feature}/state.json
 ├── 更新状态行显示新角色
 └── 如有待确认项，必须先处理完再切换
 
 Stage 内部切换（如 Blueprint 内 QA → RD）：
 ├── 轻量标记（📌 Blueprint 3/4: RD 编写技术方案）
 ├── 不输出完整校验行
-├── 不更新 STATUS.md
+├── 不更新 state.json（Stage 级别才更新）
 ├── 状态行角色字段更新为当前子步骤角色
 └── 上一子步骤产出直接传递，不做 PMO 摘要中转
 ```

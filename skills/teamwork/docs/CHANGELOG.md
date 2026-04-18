@@ -1,6 +1,45 @@
 # Changelog
 
-## v7.3.1（当前）—— v7.3 收尾
+## v7.3.2（当前）—— STATUS.md 废弃，state.json 成为 Feature 目录唯一状态文件
+
+背景：v7.3 引入 state.json 做机读权威源，但保留 STATUS.md 作为"人读视图 + compact 恢复锚点"，导致字段重叠、双源头维护、恢复规则歧义。v7.3.2 彻底砍掉 STATUS.md，让 state.json 同时承担机读权威和人读详情（JSON 本身可读），ROADMAP.md 继续承担全局人读视图。
+
+- **state.json 位置迁移**：从仓库根 `.teamwork/state/{feature_id}.json` 移到 `{Feature}/state.json`
+  - 和 PRD/TC/TECH 等 Feature 产物同目录，单 Feature 查询无需跨目录
+  - 跨 Feature 聚合依然可行（glob `docs/features/*/state.json`）
+- **STATUS.md 废弃**：
+  - `templates/status.md` 删除
+  - `TEMPLATES.md` / `templates/README.md` 索引移除 status.md，新增 feature-state.json 和 verify-ac.py
+  - 新 Feature 不再创建 STATUS.md，state.json 承担原职责
+- **遗留 STATUS.md 处理**（向后兼容）：
+  - 不删除已有文件（保留历史）
+  - PMO 不再维护它
+  - state.json 不存在但 STATUS.md 存在 → PMO 基于 STATUS.md 信息初始化 state.json 后忽略
+- **规则更新**（所有对 STATUS.md 的引用全面替换）：
+  - `SKILL.md` 红线 #1 / #14 / 热路径索引 / 文件索引
+  - `RULES.md` §四流转链 / 功能完成 8️⃣ / 抽查规则 / 角色交接 / PMO 摘要更新
+  - `rules/gate-checks.md` 原「STATUS.md 流转约束同步更新」段改写为「state.json 流转状态同步更新」
+  - `rules/naming.md` Feature 目录标准结构 + BG 反向引用字段 + CHG 记录位置
+  - `roles/pmo.md` state.json 维护规范全段重写（位置、流转前后、compact 恢复、遗留文件处理）
+  - `roles/pm.md` 功能目录初始化描述
+  - `stages/dev-stage.md` worktree 记录位置
+  - `CONTEXT-RECOVERY.md` 恢复决策树 / Feature 看板 / compact 快速路径
+  - `STATUS-LINE.md` compact 恢复快速路径 / 待确认恢复规则
+  - `INIT.md` 扫描进度 / Feature 目录结构 / 红线 #1
+  - `templates/feature-state.json` 位置字段 + 替代说明
+  - `templates/roadmap.md` / `templates/teamwork-space.md` 引用更新
+  - `codex-agents/hooks.json` 描述更新
+- **验证**：
+  - `grep -r "STATUS\.md"` 剩余都是 v7.3.2 明确标注的"遗留说明"或"废弃说明"
+  - `grep -r "\.teamwork/state"` 零命中（位置已全迁移）
+  - `templates/status.md` 文件已删除
+
+简化效果：
+- Feature 状态维护点从 4 处降到 3 处（state.json + review-log.jsonl + ROADMAP.md）
+- 双权威冲突彻底消除
+- Compact 恢复单一锚点（state.json），不再需要和 flow-transitions.md 交叉校验 STATUS.md
+
+## v7.3.1 —— v7.3 收尾
 
 前序 v7.3 改造完成后发现三个未对齐点，本次小版本收尾修复，不引入新机制。
 

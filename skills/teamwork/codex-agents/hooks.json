@@ -1,5 +1,5 @@
 {
-  "description": "Teamwork hooks for Codex CLI: auto-restore on session start, check STATUS.md on stop. Note: Codex has no PreCompact/PostCompact hooks — STATUS.md mechanism handles state persistence.",
+  "description": "Teamwork hooks for Codex CLI: auto-restore on session start, check Feature state.json on stop. Note: Codex has no PreCompact/PostCompact hooks — {Feature}/state.json mechanism handles state persistence (v7.3.2).",
   "hooks": {
     "SessionStart": [
       {

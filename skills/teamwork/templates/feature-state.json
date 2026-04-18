@@ -1,10 +1,10 @@
 {
-  "_schema_version": "v7.3",
-  "_description": "Feature 级流转状态机快照（机读权威源）。STATUS.md 从本文件渲染人读视图。",
+  "_schema_version": "v7.3.2",
+  "_description": "Feature 级流转状态机快照（机读权威源 + 人读可查）。v7.3.2 起替代 STATUS.md 成为 Feature 目录唯一状态文件。",
   "_instructions": {
-    "location": ".teamwork/state/{feature_id}.json（仓库根目录的 .teamwork/ 下，跨子项目用 {子项目缩写}-F{编号}-{功能名}.json 作为文件名）",
+    "location": "{子项目}/docs/features/{功能目录}/state.json（Feature 目录内，与 PRD/TC/TECH 等产物同级）",
     "updated_by": "PMO（每次流转前读、每次流转后写）",
-    "human_readable_view": "{子项目}/docs/features/{功能目录}/STATUS.md 保留为人读视图，PMO 更新后同步"
+    "human_readable_view": "全局看 ROADMAP.md 的 Feature 清单；单 Feature 细节直接看本 JSON。STATUS.md 已在 v7.3.2 废弃。"
   },
 
   "feature_id": "AUTH-F042-email-login",

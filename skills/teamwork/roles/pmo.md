@@ -13,16 +13,17 @@
 
 ---
 
-## state.json 状态机维护规范（v7.3 新增）
+## state.json 状态机维护规范（v7.3.2）
 
 > 🔴 PMO 是 state.json 的唯一维护者。所有流转状态变更必须反映到 state.json。
 > 模板见 [templates/feature-state.json](../templates/feature-state.json)。
-> 位置：仓库根 `.teamwork/state/{feature_id}.json`
+> 位置：`{子项目}/docs/features/{功能目录}/state.json`（与 PRD/TC/TECH 同目录）
+> 🟢 v7.3.2：state.json 替代 STATUS.md 成为 Feature 目录唯一状态文件。STATUS.md 已废弃。
 
 ### 流转前必做（每次阶段变更都要做）
 
 ```
-1. Read .teamwork/state/{feature_id}.json
+1. Read {Feature}/state.json
 2. 校验：target_stage ∈ legal_next_stages ？
    ├── 是 → 继续
    └── 否 → 🔴 阻塞，输出原因："目标阶段 {X} 不在合法下一步 {legal_next_stages} 中"
@@ -37,8 +38,7 @@
 ### 进入 Stage 前必做
 
 ```
-1. AI 在主对话输出 Execution Plan 块（含 approach/rationale/steps/key_context/
-   loaded_role_specs/loaded_standards）
+1. AI 在主对话输出 Execution Plan 块（3 行核心：Approach / Rationale / Role specs loaded）
 2. PMO 写入 state.json.planned_execution[stage]
 3. 启动对应执行路径：
    ├── approach: main-conversation → 主对话执行（走主对话产物协议 §六）
@@ -53,34 +53,44 @@
 1. 运行 Output Contract 机器校验
    ├── 测试命令 exit 0？
    ├── 产物文件存在且格式合规？
-   └── AC 覆盖校验通过（如 Plan/Blueprint/Dev）？
+   └── AC 覆盖校验通过（python3 {SKILL_ROOT}/templates/verify-ac.py）？
 2. 所有机器校验通过 → stage_contracts[stage].output_satisfied = true
    任一失败 → ⚠️ 返回失败原因，不得流转
 3. 更新 completed_stages、legal_next_stages（按 flow-transitions 重算）
 4. Append 一行到 review-log.jsonl（含 executor 字段）
 5. 追加一条到 executor_history
 6. Write state.json
-7. 同步更新 STATUS.md（人读视图）
+7. 更新 ROADMAP.md 对应 Feature 行的"当前阶段"列
 ```
 
 ### state.json 与现有文件的关系
 
 | 文件 | 职责 | 关系 |
 |------|------|------|
-| `.teamwork/state/{feature_id}.json` | **机读权威源**（v7.3 新增）| PMO 维护 |
-| `{Feature}/STATUS.md` | 人读视图 + compact 恢复锚点 | 从 state.json 渲染 |
+| `{Feature}/state.json` | **机读权威源 + 单 Feature 详情**（v7.3.2 起）| PMO 维护 |
 | `{Feature}/review-log.jsonl` | 历史流水审计 | state.json 流转时 append |
 | `{Feature}/dispatch_log/INDEX.md` | Subagent dispatch 汇总 | 独立，不重复 |
-| `ROADMAP.md` | 项目级 Feature 清单 | 从多个 state.json 聚合 |
+| `ROADMAP.md` | **全局人读视图**（Feature 清单 + 当前阶段列）| PMO 流转时同步 |
+
+🟢 **v7.3.2 简化**：Feature 状态不再双源维护。
+- 人想看全局 → `ROADMAP.md`
+- 人想看某 Feature 详情 → 直接打开 `{Feature}/state.json`（JSON 格式化后可读）
+- AI 恢复状态 → 同上
 
 ### Compact 恢复规则
 
 新对话启动或 compact 后：
-1. PMO 第一件事：读 `.teamwork/state/{feature_id}.json`（如果有当前 Feature）
-2. 校验 state.json vs STATUS.md 一致性（人读和机读不一致时，**以 state.json 为准**）
-3. 基于 state.json 判断当前位置和下一步
+1. PMO 第一件事：读 `{Feature}/state.json`（如果有当前 Feature）
+2. 基于 state.json 判断当前位置、合法下一步、未满足的契约
+3. （可选）和 `rules/flow-transitions.md` 交叉校验 legal_next_stages
 
-🔴 STATUS.md 有被 PMO 自身写入错误内容的先例（见 RULES.md 流转约束），state.json 作为 JSON 结构化文件更不易被误写，优先信任。
+🟢 v7.3.2 起 state.json 是 Feature 状态的单一权威，不再需要与 STATUS.md 交叉校验。
+
+### 遇到遗留 STATUS.md 文件（v7.2/v7.3 迁移）
+
+- 不删已有 STATUS.md（保留历史）
+- PMO 不再更新它
+- state.json 不存在而 STATUS.md 存在 → PMO 基于 STATUS.md 信息初始化 state.json，然后忽略 STATUS.md
 
 ---
 
@@ -393,17 +403,19 @@ PMO 输出拆分方案：
 ├── 📌 下一步：[下一阶段]
 ├── 🔴 待确认：[列出待确认项，无则显示「无」]
 ├── 📋 整体进度：[已完成阶段数]/[总阶段数]
-└── 📝 状态同步：STATUS.md ✅ / ROADMAP.md ✅
+└── 📝 状态同步：state.json ✅ / ROADMAP.md ✅
 ```
 
-**🔴 PMO 阶段流转时必须同步更新**：
+**🔴 PMO 阶段流转时必须同步更新**（v7.3.2）：
 ```
-├── STATUS.md（Feature 目录内）
-│   ├── 更新「当前阶段」「当前角色」「最后更新」
-│   └── 在「阶段历史」表更新前一阶段退出时间 + 新阶段进入时间
-├── ROADMAP.md（如存在）
+├── {Feature}/state.json（Feature 级机读权威）
+│   ├── 更新 current_stage / completed_stages / legal_next_stages
+│   ├── 更新 stage_contracts[stage] 和 executor_history
+│   └── 更新 updated_at / updated_by
+├── {Feature}/review-log.jsonl（append 一行，含 executor 字段）
+├── ROADMAP.md（全局视图）
 │   └── 更新对应 Feature 行的「当前阶段」列
-└── 🔴 两者必须同步，STATUS.md 是 Feature 级 Source of Truth，ROADMAP.md 是全局视图
+└── 🔴 三处必须同步，state.json 是 Feature 级 Source of Truth
 ```
 
 ---
@@ -459,8 +471,7 @@ A. 立即执行 Test Stage
    └── 后续照常：Test Stage → Browser E2E 判断 → PM 验收
 
 B. 延后批量测试
-   ├── PMO 在 STATUS.md 当前 Feature 的「阶段历史」追加一行：
-   │   └── ⏸️ Test Stage 延后（由用户决定）| 延后时间 | 关联批次 ID
+   ├── PMO 更新 state.json：blocking.pending_external_deps 追加 {type: "test-deferred", batch_id: "..."}
    ├── review-log.jsonl 追加一行 test-stage 记录，status = DEFERRED
    ├── 🔴 仍然推进到 PM 验收（PM 验收可以在无 Test Stage 证据时进行，
    │   但 PMO 必须在完成报告中明确标注「Test Stage 延后，尚未执行」）
@@ -498,7 +509,7 @@ PMO 批量执行时机：
 ```
 ├── PMO 不得自行默认选择 A（必须询问用户）
 ├── PMO 不得把「立即执行」作为默认行为悄悄进入 Test Stage
-├── 选择 B/C 后，STATUS.md 和 review-log.jsonl 必须同步记录
+├── 选择 B/C 后，state.json 和 review-log.jsonl 必须同步记录
 ├── 选择 B 后，PMO 完成报告必须显式标明「待测试」状态，不得伪装为「已完成」
 ├── 选择 C 时用户必须提供理由，PMO 不得接受空白理由
 └── 多 Feature 并行时，PMO 应主动提示「当前还有 N 个 Feature 处于延后待测状态」

@@ -278,7 +278,7 @@
 无论哪种，PMO 处理完后必须恢复之前的流程上下文，禁止因中间插入了 Q&A 就丢失待确认状态。
 
 🔴 强制规则：
-├── 处理完补充信息/查询后，必须重新输出之前的待确认项（或引用 STATUS.md 中的「当前待确认项」字段）
+├── 处理完补充信息/查询后，必须重新输出之前的待确认项（或引用 state.json 中的 blocking.pending_user_confirmations）
 ├── 禁止将用户对查询的回复（如「需要」「有」「对」）自动绑定为流程确认或直接执行指令
 ├── 回答中禁止包含「要我做 X 吗？」等暗示直接执行的追问（见 RULES.md「暂停点提问必须锚定流程」）
 └── 正确模式：回答查询 → 「回到之前的待确认项：{重新输出选项}，请确认走哪个流程？」
@@ -338,11 +338,11 @@ PMO: 收到，让我先分析一下这个需求的性质...
 **上下文压缩（compact）后，PMO 按以下最小路径恢复执行：**
 
 ```
-1. 读取当前 Feature 的 STATUS.md「流转约束」段
-   → 获得：当前流程、合法下一阶段、流转条件、是否暂停点、回退路径
+1. 读取当前 Feature 的 state.json（v7.3.2）
+   → 获得：current_stage / legal_next_stages / stage_contracts / blocking / planned_execution
 2. 读取 RULES.md「PMO 热路径索引」（文件前 21 行）
    → 获得：按需定位具体规则的行范围索引
 3. 如需详细规则 → 按索引定位读取 RULES.md 对应段落（非全文）
 ```
 
-**🔴 PreCompact 保存要求**：PMO 在每次阶段流转时已同步更新 STATUS.md 流转约束段（见 RULES.md §四），因此 compact 发生时无需额外保存操作——STATUS.md 始终持有最新执行约束。
+**🔴 PreCompact 保存要求**：PMO 在每次阶段流转时已同步更新 state.json（见 RULES.md §四），因此 compact 发生时无需额外保存操作——state.json 始终持有最新执行约束。

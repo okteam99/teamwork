@@ -7,11 +7,12 @@
 所有模板已按用途分类存放到 `templates/` 目录：
 
 - **README.md** — 模板索引与快速导航
-- **prd.md** — PRD 模板（标准 + 技术类变体）+ PRD-REVIEW 评审记录
-- **tc.md** — 测试用例（BDD/Gherkin）+ TC-REVIEW 评审记录
+- **prd.md** — PRD 模板（标准 + 技术类变体，含 YAML frontmatter AC 结构）
+- **tc.md** — 测试用例（BDD/Gherkin，含 YAML frontmatter tests[] 结构）
 - **tech.md** — 技术方案设计
 - **ui.md** — UI 设计文档
-- **status.md** — Feature 阶段状态追踪
+- **feature-state.json** — Feature 流转状态机（v7.3.2 起，替代原 status.md）
+- **verify-ac.py** — AC↔test 覆盖校验脚本（标准实现）
 - **roadmap.md** — 产品执行路线图
 - **project.md** — 子项目业务总览
 - **architecture.md** — 技术架构设计（含 database-schema 等子文档）

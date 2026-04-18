@@ -151,7 +151,7 @@ worktree 策略（从 .teamwork_localconfig.md 读取）：
 
 ├── off → 跳过
 ├── manual → PMO 提醒用户创建
-└── auto → PMO 自动创建 + 记录到 STATUS.md
+└── auto → PMO 自动创建 + 记录到 state.json 的 worktree 字段
 
 AI 选主对话方案时：cwd 切到 worktree 路径执行
 AI 选 Subagent 方案时：dispatch 文件 cwd 字段写入 worktree 路径

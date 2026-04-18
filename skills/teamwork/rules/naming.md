@@ -13,10 +13,11 @@
 ├── 编号在各子项目内独立递增
 ├── 目录名：{缩写}-F{编号}-{功能名}
 ├── 目录位置：{子项目路径}/docs/features/{缩写}-F{编号}-{功能名}/
-├── 标准子目录结构：
-│   ├── STATUS.md                  Feature 状态 SSOT
-│   ├── PRD.md                     产品需求文档
-│   ├── TC.md                      测试用例文档
+├── 标准子目录结构（v7.3.2）：
+│   ├── state.json                 Feature 状态 SSOT（v7.3.2 起替代 STATUS.md）
+│   ├── review-log.jsonl           阶段流水审计
+│   ├── PRD.md                     产品需求文档（YAML frontmatter 含 acceptance_criteria[]）
+│   ├── TC.md                      测试用例文档（YAML frontmatter 含 tests[].covers_ac）
 │   ├── tech.md                    技术方案
 │   ├── UI.md                      UI 设计（如有）
 │   ├── dispatch_log/              🔴 Subagent dispatch 文件目录（每次 dispatch 一个文件 + INDEX.md）
@@ -87,7 +88,7 @@
 分配规则：
 ├── 分配者：PL（执行模式下输出 CHG 变更记录时分配）
 ├── 编号在各子项目内独立递增
-├── 记录位置：变更记录文件 + STATUS.md「变更记录」表
+├── 记录位置：变更记录文件 + 各 Feature state.json 的 change_history 段（如适用）
 └── PMO 在 Feature Planning 级联时引用 CHG 编号追踪变更落地
 ```
 
@@ -101,8 +102,8 @@
 ├── 分配者：PMO（跨子项目需求拆分时自动分配）
 ├── 编号全局递增（跨所有子项目唯一）
 ├── 存储位置：teamwork_space.md「跨项目需求追踪」表的「业务关联 ID」列（唯一权威来源）
-├── 反向引用：各子项目 Feature 的 STATUS.md「业务关联」字段引用 BG-xxx
-├── 单子项目 Feature 不分配 BG（STATUS.md 业务关联字段填 -）
+├── 反向引用：各子项目 Feature 的 state.json 新增顶层字段 business_group: "BG-xxx"
+├── 单子项目 Feature 不分配 BG（state.json 的 business_group 字段置 null）
 ├── INFRA/midplatform Feature 不默认建 BG——只有当其他子项目需要主动配合改动时才分配
 ├── PMO 分配时读取 teamwork_space.md 已有 BG 编号，取最大值 +1
 └── 🔴 冲突防护：分配前必须重新读取 teamwork_space.md 获取最新编号（不可用缓存值）

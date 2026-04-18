@@ -46,7 +46,7 @@ PM 编写 PRD / PL-PM 讨论中 / Designer 设计 / QA Test Plan / QA Write Case
 RD 实现计划 / RD 开发中 / Code Review / QA 审查中 / 集成测试中 / PM 验收中 /
 ⏳ 等待外部依赖 / ✅ 已完成
 \`\`\`
-> 🔴 ROADMAP 的「当前阶段」使用简化名称（空间有限），STATUS.md 中有完整阶段历史。
+> 🔴 ROADMAP 的「当前阶段」使用简化名称（空间有限），完整阶段历史见 {Feature}/state.json 的 executor_history[] 和 review-log.jsonl。
 
 ### Wave N ...
 
