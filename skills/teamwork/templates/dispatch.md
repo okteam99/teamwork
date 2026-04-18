@@ -1,5 +1,9 @@
 # Dispatch 文件模板
 
+> 📎 **适用范围（v7.3）**：本协议仅适用于 **Subagent dispatch** 场景。
+> 主对话直接执行任务的产物走「主对话产物协议」（见 `agents/README.md §六`）。
+> AI 在 Stage 开始时用 Plan 模式决定执行方式（主对话 / Subagent / 混合），选择 Subagent 方案时才生成本协议的 dispatch 文件。
+
 > 每次 Subagent dispatch 由 PMO 先生成此文件，Subagent 读取后执行，完成时 append Result 区域。
 > 位置：`docs/features/{Feature}/dispatch_log/{序号}-{subagent-id}.md`
 > 命名规则：序号从 001 起，三位数字，补零；subagent-id 见 agents/README.md §一 速查表（如 rd-develop / arch-code-review / qa-code-review / integration-test / api-e2e / blueprint / designer）

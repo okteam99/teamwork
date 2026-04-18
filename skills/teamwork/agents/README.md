@@ -534,6 +534,116 @@ Subagent 返回后，PMO 必须：
 
 ---
 
+## 六、主对话产物协议（v7.3 新增）
+
+> 🔴 **协议缺口补齐**：Dispatch 协议（§四）只覆盖 Subagent 执行场景。v7.3 契约化改造后，许多 Stage 可以主对话直接执行（由 AI Plan 模式决定）。主对话执行时的产物必须按本协议落盘，不能只存在对话记忆中。
+
+### 6.1 适用场景
+
+本协议适用于**主对话内执行**的任务：
+- Plan Stage PRD 起草、PL-PM 讨论、多视角技术评审
+- Blueprint Stage TC / TECH 起草、技术评审
+- Review Stage 架构师 Code Review（若选主对话 approach）
+- Test Stage 环境启动
+- Browser E2E 执行（默认）
+- UI 还原验收、PM 验收（原本就在主对话）
+- 任何 AI Execution Plan 声明的 "approach: 主对话" 任务
+
+📎 Subagent 执行场景仍走 Dispatch 文件协议（§四）。
+
+### 6.2 产物文件命名约定
+
+按任务类型：
+
+| 任务 | 产物文件路径 | 格式 |
+|------|------------|------|
+| Plan Stage（PRD） | `{Feature}/PRD.md` | Markdown + YAML frontmatter（含 acceptance_criteria）|
+| Plan Stage（技术评审）| `{Feature}/PRD-REVIEW.md` | Markdown |
+| Plan Stage（PL-PM 讨论）| `{Feature}/discuss/PL-FEEDBACK-R{N}.md` + `PM-RESPONSE-R{N}.md` | Markdown |
+| Blueprint Stage（TC）| `{Feature}/TC.md` | Markdown + YAML frontmatter（含 tests[]）|
+| Blueprint Stage（TECH）| `{Feature}/TECH.md` | Markdown |
+| Blueprint Stage（评审）| `{Feature}/TC-REVIEW.md` + `TECH-REVIEW.md`（或尾部段）| Markdown |
+| Review Stage 架构师 | `{Feature}/review-arch.md` | Markdown + YAML frontmatter |
+| Test Stage 环境 | `{Feature}/test-env.json` | JSON |
+| Browser E2E | `{Feature}/browser-e2e-result.md` + `browser-e2e-screenshots/*.png` | Markdown + YAML + PNG |
+| PM 验收 | `{Feature}/acceptance.md` | Markdown + YAML frontmatter |
+
+### 6.3 产物文件必需字段（YAML frontmatter）
+
+每份主对话产物文件头部必须包含 frontmatter：
+
+```yaml
+---
+executor: main-conversation
+task: {任务名，如 "review-arch"}
+feature: {feature_id}
+started_at: {ISO 8601 时间戳}
+completed_at: {ISO 8601 时间戳}
+status: DONE | DONE_WITH_CONCERNS | BLOCKED | FAILED
+files_read:           # 审计：本次任务读过的文件（对应 Subagent 侧 "Files read"）
+  - {绝对或相对路径}
+concerns: []          # 非阻塞问题清单
+---
+
+# 产物正文...
+```
+
+🔴 **硬规则**：
+- `executor: main-conversation` 必填（区别于 Subagent 产物的 `executor: subagent`）
+- `started_at` / `completed_at` 必填（审计 + 独立性校验）
+- `files_read[]` 必填（证明"角色规范必读且 cite"硬规则已遵守）
+- `status` 必填（无状态字段 = 产物不完整）
+
+### 6.4 Key Context 在主对话任务中的复用
+
+主对话执行任务时，同样需要 Key Context 6 类（§四 4.1 Dispatch 文件的 Key Context）：
+- 历史决策锚点 / 本轮聚焦点 / 跨 Feature 约束 / 已识别风险 / 降级授权 / 优先级
+
+主对话任务的 Key Context 写法：
+- **方式 A（推荐）**：写入 `state.json.planned_execution[{stage}].key_context`
+- **方式 B**：在主对话输出 Execution Plan 块时显式输出一个 🎯 Key Context section
+
+无论哪种方式，PMO 必须逐项判断 6 类，无则写 `-`（证明已判断）。
+
+### 6.5 review-log.jsonl schema 扩展
+
+主对话任务完成后，PMO 必须 append 一行到 `{Feature}/review-log.jsonl`：
+
+```json
+{
+  "stage": "plan | review-arch | test-env | browser-e2e | ...",
+  "executor": "main-conversation",
+  "status": "DONE | ...",
+  "timestamp": "2026-04-18T10:30:00Z",
+  "artifact_path": "{Feature}/review-arch.md",
+  "summary": "一句话摘要"
+}
+```
+
+新增字段 `executor`：可选值 `"main-conversation"` | `"subagent"`。区分执行来源，便于审计和统计。
+
+### 6.6 与 Dispatch 文件协议的对比
+
+| 协议项 | Subagent dispatch 文件（§四）| 主对话产物文件（§六）|
+|-------|-----------------------------|-------------------|
+| 入参记录 | dispatch 文件 Input files + Key Context 段 | Execution Plan 块 + 主对话产物 frontmatter 的 files_read[] |
+| 中途进度 | Progress Log（dispatch 内 append） | 对话本身可见（无需额外记录） |
+| 产出 | Subagent 写 Result 段 | 产物文件本身（含 frontmatter）|
+| 审计 | `dispatch_log/INDEX.md` 汇总 | `review-log.jsonl` 行 + 产物 frontmatter |
+| 降级 WARN | 写入 dispatch 文件 Result 段 | 写入产物 frontmatter 的 `concerns[]` + review-log |
+
+### 6.7 独立性保证（三视角评审场景）
+
+Review Stage 要求三视角独立。如果架构师视角选主对话执行（推荐），需要配合：
+- 开始前**显式清洗 context**："进入 code review 模式，采用怀疑者视角"
+- 只读 Input Contract 列出的文件，不读其他视角的 review 报告
+- 产物 frontmatter 的 `files_read[]` 必须列出已读文件（审计证据）
+- 产物的 `generated_at` 时间戳必须与其他视角的 review 产物不同
+
+这是 stages/review-stage.md Output Contract 的硬校验项。
+
+---
+
 ## 五、目录结构索引
 
 ```
