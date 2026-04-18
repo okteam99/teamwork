@@ -1,8 +1,36 @@
 # TC 模板
 
+> 🔴 v7.3 契约化更新：TC 文件头必须包含 YAML frontmatter，将 `tests[]` 结构化为机器可读。
+> 每条 test 通过 `covers_ac[]` 字段反查到 PRD 的 AC id。
+> 机器校验脚本 `scripts/verify-ac.sh` 会校验 PRD 每条 AC 都有至少一个 test 覆盖且通过。
+
 ## TC.md（BDD/Gherkin 格式）
 
 ```markdown
+---
+feature_id: "{缩写}-F{编号}-{功能名}"
+status: draft  # draft | pending_review | confirmed
+tests:
+  - id: T-001
+    file: tests/unit/auth/login.test.ts
+    function: test_AC1_email_login_happy_path
+    covers_ac: ["AC-1"]
+    level: unit  # unit | integration | api-e2e | fe-e2e
+    priority: P0
+  - id: T-002
+    file: tests/unit/auth/login.test.ts
+    function: test_AC2_password_wrong_shows_red
+    covers_ac: ["AC-2"]
+    level: unit
+    priority: P0
+  - id: T-003
+    file: tests/integration/auth.test.ts
+    function: test_AC1_integration
+    covers_ac: ["AC-1"]
+    level: integration
+    priority: P0
+---
+
 # {功能名称} - 测试用例
 
 ## 状态
@@ -20,12 +48,16 @@
 
 ## 需求覆盖矩阵
 
-| 需求项 | 优先级 | 用例 ID | 状态 |
-|--------|--------|---------|------|
-| 需求1 | P0 | TC-001, TC-002 | ✅ |
-| 需求2 | P1 | TC-003 | ✅ |
+> 🔴 v7.3：本节是 frontmatter `tests[]` 的人读视图。
+> 反查 PRD.md frontmatter 的 `acceptance_criteria[]`，确保每条 AC 都在"用例 ID"列有至少 1 个对应测试。
+> 机器校验：`scripts/verify-ac.sh {Feature}` 自动检查覆盖完整性。
 
-覆盖率: X/Y (XX%)
+| AC ID（PRD）| 需求描述 | 优先级 | 覆盖测试（对应 frontmatter `tests[].id`）| 状态 |
+|-------------|---------|--------|------------------------------------------|------|
+| AC-1 | 邮箱登录 | P0 | T-001, T-003 | ✅ |
+| AC-2 | 密码错误提示 | P0 | T-002 | ✅ |
+
+覆盖率: {覆盖 AC 数} / {PRD AC 总数} ({百分比})
 
 ---
 

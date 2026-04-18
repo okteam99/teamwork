@@ -1,8 +1,28 @@
 # PRD 模板
 
+> 🔴 v7.3 契约化更新：PRD 文件头必须包含 YAML frontmatter，将 `acceptance_criteria[]` 结构化为机器可读。
+> 原因：AC 与 TC 测试反查绑定（`tests[].covers_ac`）是防止"需求→代码"漂移的关键机制。
+> 机器校验脚本 `scripts/verify-ac.sh`（示例见 `templates/verify-ac.example.sh`）会校验每条 AC 都有对应测试且通过。
+
 ## PRD.md（标准模板）
 
 ```markdown
+---
+feature_id: "{缩写}-F{编号}-{功能名}"
+status: draft  # draft | pending_review | confirmed
+acceptance_criteria:
+  - id: AC-1
+    description: "用户能用邮箱和密码登录"
+    priority: P0
+    test_refs: []  # Blueprint Stage 产出 TC 时填入测试 ID
+    ui_refs: []    # UI Design Stage 产出时填入页面/状态（如 "login-page/normal"）
+  - id: AC-2
+    description: "密码错误显示红色提示"
+    priority: P0
+    test_refs: []
+    ui_refs: []
+---
+
 # {功能名称}
 
 ## 状态
@@ -70,7 +90,14 @@ stateDiagram-v2
 \`\`\`
 
 ## 验收标准
-- [ ]
+
+> 🔴 v7.3 起，验收标准必须与 frontmatter 的 `acceptance_criteria[]` 一一对应（id 一致、description 一致）。
+> 本 section 是人读视图，frontmatter 是机读源头。修改 AC 必须同步改两处（工具可校验一致性）。
+
+| ID | 描述 | 优先级 | 覆盖测试（填到 frontmatter test_refs） |
+|----|------|--------|---------------------------------------|
+| AC-1 | {description} | P0 | {测试 ID，如 T-001, T-002} |
+| AC-2 | {description} | P0 | |
 
 ## 埋点需求（前端/客户端功能必填）
 > ⚠️ 纯后端功能可标注「不适用」
@@ -114,8 +141,24 @@ stateDiagram-v2
 > 🔴 适用于纯技术性 Feature（CI/CD、monorepo 配置、共享中间件、监控、部署等）。
 > PMO 路由到 INFRA 子项目时默认建议使用此模板；其他子项目的纯技术 Feature 也可选用。
 > 与标准 PRD 的区别：跳过用户故事、业务流程图、埋点，增加技术背景和影响范围。
+> 🔴 v7.3：技术类 PRD 同样需要 frontmatter，AC 描述的是"技术验收条件"。
 
 ```markdown
+---
+feature_id: "{缩写}-F{编号}-{功能名}"
+status: draft
+prd_variant: technical  # 标注为技术类变体
+acceptance_criteria:
+  - id: AC-1
+    description: "所有子项目可编译通过"
+    priority: P0
+    test_refs: []
+  - id: AC-2
+    description: "CI 流水线全绿"
+    priority: P0
+    test_refs: []
+---
+
 # {功能名称}
 
 ## 状态
@@ -157,9 +200,14 @@ stateDiagram-v2
 > 需要配合改动的子项目应评估是否建立 BG 业务关联。
 
 ## 验收标准（技术维度）
-- [ ] <!-- 示例：所有子项目可编译通过 -->
-- [ ] <!-- 示例：CI 流水线全绿 -->
-- [ ] <!-- 示例：Docker 镜像可构建并通过冒烟测试 -->
+
+> 🔴 与 frontmatter 的 `acceptance_criteria[]` 保持一致（id / description）。
+
+| ID | 描述（技术维度）| 优先级 | 覆盖测试 |
+|----|---------------|--------|---------|
+| AC-1 | 所有子项目可编译通过 | P0 | {测试 ID} |
+| AC-2 | CI 流水线全绿 | P0 | |
+| AC-3 | Docker 镜像可构建并通过冒烟测试 | P0 | |
 
 ## 消费方分析（中台子项目必填）
 
