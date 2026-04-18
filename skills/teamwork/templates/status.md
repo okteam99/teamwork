@@ -99,8 +99,7 @@ Micro 流程：Micro 变更说明 → 🤖 RD Subagent → 用户验收 → ✅ 
 | 精简 PRD 编写 | 💬 PRD 编写中（精简版） | main-conversation | PM 直接写精简 PRD |
 | **Micro 流程（v7.3 放宽）** | | | |
 | Micro 变更说明 | 💬 Micro 变更说明中 | main-conversation | PMO 起草说明 |
-| Execution Plan | 💬 AI Plan 生成中 | main-conversation | AI 输出 approach + steps |
-| 执行改动 | 💬/🤖 改动中 | AI 自主 | 可直接主对话改（v7.3 放宽） |
+| 执行改动 | 💬 PMO 直接改动中 | main-conversation | v7.3：无需 Plan / 无需 Subagent |
 | 用户验收（Micro） | ⏸️ 用户验收中 | — | |
 | **Bug 处理流程** | | |
 | RD Bug 排查 | Bug 排查中 | |

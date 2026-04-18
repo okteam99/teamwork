@@ -819,12 +819,12 @@ PMO 完成报告
 ## 六、Micro 流程（微调流程）
 
 > 🎯 目的：为"纯替换/纯资源/零逻辑"类改动提供合法的轻量通道，消除 PMO 因"改动太小不值得走敏捷"而擅自越界的动机。
-> 🟢 **v7.3 放宽**：Micro 流程下 PMO 可直接改代码（不再强制 Subagent），但必须走 AI Plan 模式规划 + 用户确认流程。PMO 不写代码的红线在 Micro 流程下不适用。
+> 🟢 **v7.3 放宽**：Micro 流程下 PMO 可直接改代码，**无需启 Subagent，也不要求输出 Execution Plan**。真正轻量通道，只保留最小闭环。PMO 不写代码的红线在 Micro 流程下不适用。
 
 ### Micro 流程链路
 
 ```
-PMO 分析 → ⏸️ 用户确认走 Micro（含流程步骤描述）→ AI Execution Plan → PMO 执行改动（主对话 / Subagent 由 Plan 决定）→ 用户验收 → 完成
+PMO 分析 → ⏸️ 用户确认走 Micro（含流程步骤描述）→ PMO 直接改动 → 用户验收 → 完成
 ```
 
 ### Micro 流程自动流转
@@ -836,16 +836,10 @@ PMO 初步分析（判断符合 Micro 准入条件）
     ↓
 ⏸️ 等待用户确认走 Micro 流程（🔴 必须由用户确认，PMO 不可自行决定）
     ↓ 用户确认
-🧭 AI 输出 Execution Plan（approach / rationale / steps / loaded specs / key context）
-   ├── approach: main-conversation → PMO 主对话直接改
-   ├── approach: subagent → PMO 生成 dispatch 文件 → RD Subagent 改
-   └── approach: hybrid → 按 steps 分配
-    ↓ 🚀 自动
-执行改动
-    ├── 读取变更说明 + loaded role specs + standards
-    ├── 执行改动（按 Plan approach）
+PMO 直接执行改动（无需 Execution Plan / 无需 dispatch 文件）
+    ├── 按变更清单改文件
     ├── 跑项目已有测试（如有）确认无回归
-    └── 产物落盘（主对话产物协议 §六 或 dispatch 协议 §四）
+    └── 产出改动摘要（主对话内）
     ↓
 📊 PMO 阶段摘要
     ↓
@@ -873,11 +867,10 @@ Micro 需求完成 ✅
 │   ├── [文件1]：[改动摘要]
 │   └── [文件2]：[改动摘要]
 ├── 📋 流程步骤描述（v7.3 必填）：
-│   1. AI 输出 Execution Plan（含 approach 选择：main-conversation / subagent）
-│   2. 按 Plan 执行改动（读 role specs / standards → 改 → 跑已有测试）
-│   3. 用户验收（手测/目视确认）
-│   4. PMO 完成报告（含事后审计）
-├── 阶段链：PMO 分析 → AI Execution Plan → 执行改动 → 用户验收
+│   1. PMO 直接执行改动（按变更清单改文件，跑已有测试）
+│   2. 用户验收（手测/目视确认）
+│   3. PMO 完成报告（含事后审计）
+├── 阶段链：PMO 分析 → 用户确认 → PMO 直接改动 → 用户验收
 ├── ⏸️ 请确认走 Micro 流程
 └── ✅ 自检通过
 ```
@@ -906,19 +899,19 @@ Micro 需求完成 ✅
 
 ```
 🔴 强制规则（v7.3 调整）：
-├── 🟢 PMO 可直接改代码（v7.3 放宽，不再强制 Subagent）
-│   └── 前提：必须先输出 Execution Plan + 用户确认流程
-├── 执行方式由 AI Plan 模式决定（main-conversation / subagent / hybrid）
-│   └── 典型：改 1-2 个资源文件 → main-conversation；批量改 10+ 个图标 → subagent
+├── 🟢 PMO 可直接改代码（v7.3 放宽，不强制 Subagent，也不要求 Execution Plan）
+├── 前提：用户已确认走 Micro 流程（含流程步骤描述）
 ├── 用户验收前禁止 commit/push（→ 红线 #5 同样适用）
-├── 用户在任何时候可以要求升级为敏捷或 Feature 流程
+└── 用户在任何时候可以要求升级为敏捷或 Feature 流程
 │
-🔴 砍掉的环节（与敏捷的差异）：
+🔴 砍掉的环节（与敏捷/Feature 的差异）：
 ├── QA Plan + Case（零逻辑 → 无需测试设计）
 ├── 架构师 CR（零逻辑 → 无架构风险）
 ├── Codex Review（零逻辑 → 无需独立审查）
 ├── Test Stage（零逻辑 → 无需代码审查+测试链）
-└── 保留的：PMO 分析 + 流程步骤描述 + 用户确认 + Execution Plan + 执行 + 用户验收（最小闭环）
+├── Execution Plan（零逻辑 → 不需要规划 approach）
+├── Dispatch 文件（PMO 直接改，无需 dispatch）
+└── 保留的：PMO 分析 + 流程步骤描述 + 用户确认 + 执行 + 用户验收（最小闭环）
 │
 🔴 升级条件（Micro 执行过程中发现任一情况 → 必须暂停升级）：
 ├── 执行中发现需要修改逻辑代码
@@ -929,7 +922,6 @@ Micro 需求完成 ✅
 🔴 Micro 事后审计（PMO 完成报告前必须检查）：
 ├── 实际改动是否仍满足 Micro 准入条件？
 ├── 有无逻辑变更混入？
-├── Execution Plan 是否存在且被遵守？
-├── 阶段链是否完整？（分析 → 用户确认 → Plan → 执行 → 用户验收）
+├── 阶段链是否完整？（分析 → 用户确认 → 执行 → 用户验收）
 └── 任何偏离 → 标注 ⚠️ 流程偏离 + 记录原因
 ```
