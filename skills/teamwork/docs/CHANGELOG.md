@@ -1,6 +1,86 @@
 # Changelog
 
-## v7.3.3（当前）—— Stage 耗时度量闭环
+## v7.3.4（当前）—— 暂停点压缩（P0）：UI+全景合并 + 验收+commit+push 合并
+
+背景：v7.3.3 跑 Feature 发现典型流程有 6-8 个暂停点，反复打断用户。前期讨论后确认走「方案 A：批量确认」，本次是 P0 阶段：合并两组暂停点（UI+全景、PM 验收+commit+push）。核心原则不变——**人类在关键节点把关**，但关键节点更集中、更聚焦。
+
+### 合并 1：UI Design + Panorama Design → 一个「设计批」暂停点
+
+**原因**：Feature UI 和全景增量同步是同一次设计讨论的两面（风格/配色/布局/语言对齐），分两次确认让用户反复打断。
+
+- **重构 stages/ui-design-stage.md**：
+  - 职责扩展为"Feature UI + 全景增量同步"一次性产出
+  - 🔴 全景是产品真相，修改必须谨慎：默认增量合并（append / modify-in-place），禁止重写
+  - 新增硬规则：
+    - 对全景的任何修改必须在 sitemap.md 添加标红注释 `<!-- 🟡 {日期}: {FeatureID} 变更摘要 -->`
+    - 执行报告必须列出全景 diff（sitemap 页面清单 + overview.html DOM 差异摘要）
+    - 不允许删除现有页面或导航（属于 Feature Planning 范畴）
+    - 结构性变更红线（删页面/重构导航/改核心业务流程状态机）→ DONE_WITH_CONCERNS，建议走 Planning
+  - Output Contract 新增「全景同步状态」必填字段（同步了 / 显式跳过，二选一）
+- **重构 stages/panorama-design-stage.md**：
+  - 定位收窄为"Feature Planning 流程的全景重建模式"专用
+  - Feature 流程不再触发本 Stage
+  - 保留差异清单、风险提示、用户授权必达等硬规则
+- **flow-transitions.md 更新**：Feature 流程的 UI 待确认 / 全景待确认 两行合并为「设计批 待确认」一行
+
+### 合并 2：PM 验收 + commit + push → 一个合并暂停点（3 选 1）
+
+**原因**：PM 验收通过 → 手动问用户是否 commit → 手动问是否 push，三步是连续决策，合并一个暂停点更顺。
+**原则**：PMO 可以自动 commit（本地），**push 由用户决定**（保留用户控制远程推送的权力）。
+
+- **roles/pmo.md 新增「PM 验收 + commit + push 合并暂停点」章节**：
+  - PMO 在 PM 完成验收后自动执行本地 commit（含所有 Feature 产物 + 规范的 commit message）
+  - 合并暂停点给用户 **3 选 1**：
+    - 1️⃣ ✅ 通过 → 自动 commit + push（推到 origin/{branch}）
+    - 2️⃣ ✅ 通过 → 仅本地 commit，不 push（用户稍后手动推送）
+    - 3️⃣ ❌ 不通过 → 补充信息，回到对应阶段修复
+  - push 失败不吞错：⏸️ 报告原因让用户手动处理
+  - 3️⃣ 修复派发规则：按问题类型回退到 Review / Test / Plan / UI Design 对应 Stage；commit 保留不 revert；每轮修复 append 新 commit + 新 retry 记录
+- **RULES.md §七 Git 提交规则升级**：
+  - 从"用户要求时提交"改为"PM 验收通过后 PMO 自动 commit"
+  - commit 产物清单扩充（含 state.json / review-log.jsonl / dispatch_log/ / retros/ 等审计产物）
+  - commit message 模板标准化（含 AC 覆盖 / Review 通过情况 / 测试通过情况 / 耗时偏差摘要）
+  - 🔴 push 硬规则：PMO 禁止自动 push；必须用户显式选择；禁止 push --force 到主分支
+- **flow-transitions.md 更新**：Feature 流程的「PM 验收 → ✅ 已完成」改为「PM 验收 → 验收+commit+push 待处理 → ✅ 已完成」
+- **完成报告模板新增「📦 Commit & Push 状态」段**：记录 commit hash / 分支 / push 状态
+- **state.json schema 扩展（v7.3.4）**：
+  - `_schema_version` 升级到 v7.3.4
+  - `_instructions.stage_enum_v7_3_4`：Feature 流程合法 current_stage 枚举
+  - `_instructions.commit_push_tracking`：stage_contracts.pm_acceptance 新增 commit_hash / push_status 字段
+
+### 暂停点数量变化
+
+```
+改前（v7.3.3 / 典型 Feature）：6-8 个暂停点
+  流程确认 + PRD + UI + 全景 + 方案 + Test 前置 + Browser E2E? + PM 验收 + push?
+
+改后（v7.3.4 / 典型 Feature）：4-5 个暂停点
+  流程确认 + PRD + 设计批(UI+全景) + 方案 + [Test 前置] + [Browser E2E?] + 验收+commit+push(3 选 1)
+  （方括号是按 localconfig / TC 标注自动判断，多数情况不打扰用户）
+
+典型简单 Feature（无 UI）：3 个暂停点
+  流程确认 + PRD + 方案 + 验收+commit+push(3 选 1)
+
+数量砍 30-50%，保留的是真正需要人类把关的契约核心。
+```
+
+### 未动的（保留 P1/P2 观察后再决定）
+
+- 方案 A 的 #5（Blueprint 按复杂度决定暂停）— P2，风险相对高，等 P0 跑几个 Feature 验证
+- 方案 A 的 #6（Test Stage 前置配置化）— P1，先观察用户对 A/B/C 三选一的实际选择分布
+- 其他非压缩类改进（PMO 拆分、validator 等）— 前几轮讨论否掉了，不做
+
+### 文件变更
+
+- `skills/teamwork/stages/ui-design-stage.md`（重构：扩展为 UI + 全景增量）
+- `skills/teamwork/stages/panorama-design-stage.md`（重构：仅保留全景重建模式）
+- `skills/teamwork/rules/flow-transitions.md`（Feature 流程合并行）
+- `skills/teamwork/RULES.md`（§四 Feature 流转逻辑 + §七 Git 提交规则升级）
+- `skills/teamwork/FLOWS.md`（阶段链 + 流程步骤描述）
+- `skills/teamwork/roles/pmo.md`（新增「PM 验收 + commit + push 合并暂停点」章节 + 完成报告加 Commit & Push 状态段）
+- `skills/teamwork/templates/feature-state.json`（schema v7.3.4 + 新字段说明）
+
+## v7.3.3 —— Stage 耗时度量闭环
 
 背景：之前 dispatch.md 有预估（"预计 20-30 分钟"）但 Stage 结束没统计实际耗时。v7.3 改造完成后无法用数据验证效果，只能凭感觉判断"是快了还是慢了"。本次补齐耗时度量闭环，让每个 Feature 跑完自动有数据可复盘。
 

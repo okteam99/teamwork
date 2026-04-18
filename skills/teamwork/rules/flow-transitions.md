@@ -12,10 +12,8 @@
 | 🔗 Plan Stage | PRD 待确认 | ⏸️暂停 | Plan Stage 返回定稿 PRD，等用户确认 |
 | 🔗 Plan Stage (分歧) | PRD 待确认 | ⏸️暂停 | 有 PL-PM 分歧项，用户逐项决策后确认 |
 | PRD 待确认 | 🔗 UI Design Stage / 🔗 Blueprint Stage | ⏸️暂停 | 用户确认（有 UI → UI Design；无 UI → Blueprint） |
-| 🔗 UI Design Stage | UI 待确认 | ⏸️暂停 | 设计完成，等用户确认 |
-| UI 待确认 | 🔗 UI Design Stage (修订) / 🔗 Panorama Design Stage / 🔗 Blueprint Stage | ⏸️暂停 | 有问题→重跑 Design（≤3轮）；通过+涉及全景→Panorama；通过+不涉及→Blueprint |
-| 🔗 Panorama Design Stage | 全景待确认 | ⏸️暂停 | 全景更新完成，等用户确认 |
-| 全景待确认 | 🔗 Blueprint Stage | ⏸️暂停 | 用户确认全景 |
+| 🔗 UI Design Stage | 设计批 待确认 | ⏸️暂停 | v7.3.4 合并：Feature UI + 全景增量同步一次性产出，一个暂停点 |
+| 设计批 待确认 | 🔗 UI Design Stage (修订) / 🔗 Blueprint Stage | ⏸️暂停 | 有问题→重跑 UI（≤3 轮）；通过→Blueprint |
 | 🔗 Blueprint Stage | 方案待确认 | ⏸️暂停 | Blueprint 返回 TC + TECH.md + 评审报告 |
 | 🔗 Blueprint Stage (concerns) | 方案待确认 | ⏸️暂停 | 有 concerns，用户确认处理方式 |
 | 方案待确认 | 🔗 Dev Stage | ⏸️暂停 | 用户确认技术方案（📎 worktree=auto 时 PMO 在此处创建 worktree） |
@@ -29,7 +27,8 @@
 | 🔗 Test Stage (BLOCKED) | ⏸️ 用户处理 | ⏸️暂停 | 环境问题 |
 | 🔗 Browser E2E Stage | PM 验收 | 🚀自动 | 通过 |
 | 🔗 Browser E2E Stage | RD Fix → 重新 Browser E2E | 🔁回退 | 功能缺陷（≤3 轮） |
-| PM 验收 | ✅ 已完成 | 🚀自动 | 验收通过 + PMO 完成报告（📎 worktree=auto 时 PMO 在此处清理 worktree） |
+| PM 验收 | 验收+commit+push 待处理 | ⏸️暂停 | v7.3.4 合并：PM 验收通过 → PMO 自动 commit → 询问是否 push，三步一个暂停点 |
+| 验收+commit+push 待处理 | ✅ 已完成 | ⏸️暂停 | 用户决定 push / 不 push；之后 PMO 输出完成报告（📎 worktree=auto 时 PMO 在此处清理 worktree）|
 
 ## Bug 处理流程
 

@@ -575,6 +575,167 @@ PMO 批量执行时机：
 请确认上述问题后继续。
 ```
 
+## PM 验收 + commit + push 合并暂停点（v7.3.4）
+
+> 🟢 v7.3.4：原独立的 PM 验收暂停点合并了验收判断 + 自动 commit + push 询问，一个暂停点完成三件事。
+> 🔴 push 由用户决定：PMO 不得自动 push；仅 commit 到本地分支 / worktree。
+
+### 执行流程
+
+```
+PM 完成验收判断（在 PM 角色的主对话 session 中，参照 roles/pm.md「验收」）
+    ↓
+PMO 接管，自动执行本地 commit：
+├── 1. 校验 Feature 产物完整性（见下方 commit 产物清单）
+├── 2. 生成结构化 commit message（见下方模板）
+├── 3. 在对应 worktree / 主仓库执行 `git add` + `git commit`
+│   └── 🔴 仅 commit，禁止 push
+├── 4. 记录 commit hash 到 state.json.executor_history 对应项
+    ↓
+📊 PMO 输出合并摘要（见下方模板）
+    ↓
+⏸️ 用户 3 选 1：
+├── 1️⃣ ✅ 通过 → 自动 commit + push（默认远程分支）
+│   └── PMO 执行 `git push origin {branch}`
+│       └── push 失败 → ⏸️ 报告失败原因，让用户手动处理
+├── 2️⃣ ✅ 通过 → 仅本地 commit（不 push）
+│   └── PMO 在完成报告中标注「⚠️ 尚未 push，用户保留决定」
+└── 3️⃣ ❌ 不通过 → 补充信息 → 回到上一阶段
+    ├── PMO 让用户说明问题（具体哪个 AC / 哪个文件 / 什么错误）
+    ├── 根据问题类型派发：
+    │   ├── 功能缺陷 → 回到 Review Stage（RD 修复）
+    │   ├── 测试遗漏 → 回到 Test Stage
+    │   ├── 需求理解偏差 → 回到 Plan Stage（需求修订）
+    │   └── UI/设计不符 → 回到 UI Design Stage
+    └── 🔴 commit 保留（不回滚），后续修复继续 commit
+    ↓ 用户选 1/2 后
+PMO 完成报告（见下方）
+```
+
+### commit 产物清单（PMO 校验必做）
+
+```
+必须在 commit 中包含：
+├── Feature 代码（src/** + tests/**）
+├── Feature 文档：docs/features/{功能目录}/**（全部）
+├── 更新的共享文档（如有）：
+│   ├── docs/architecture/ARCHITECTURE.md
+│   ├── docs/architecture/database-schema.md
+│   ├── docs/KNOWLEDGE.md
+│   ├── docs/ROADMAP.md
+│   ├── docs/PROJECT.md
+│   ├── design/sitemap.md
+│   ├── design/preview/overview.html
+│   ├── docs/decisions/*.md
+│   └── teamwork_space.md
+├── E2E 脚本（如适用）：{子项目}/tests/e2e/F{编号}-{功能名}/**
+└── dispatch_log/ 和 state.json（审计痕迹）
+
+禁止 commit：
+├── .env / .env.* / credentials.* / *secret*
+├── 大型二进制文件（>10MB）
+├── 本地临时文件（.DS_Store / *.swp）
+```
+
+### commit message 模板
+
+```
+{type}({scope}): {summary}
+
+{body 描述本次 Feature 交付内容}
+
+AC 覆盖：
+- AC-1: {description}
+- AC-2: {description}
+
+关联：
+- Feature: {缩写}-F{编号}-{功能名}
+- BG: BG-{xxx}（如有业务关联）
+- 流程: Feature / 敏捷 / Micro / Bug
+
+Review 通过情况：
+- 架构师 CR: ✅
+- QA 代码审查: ✅
+- Codex Review: ✅ / ⏭️ 跳过（原因）
+
+测试通过情况：
+- 单元测试: {N/M}
+- 集成测试: ✅ / ⏸️ 延后（批次 ID）/ ⏭️ 跳过（原因）
+- API E2E: ✅ / ⏭️
+- Browser E2E: ✅ / ⏭️
+
+{可选：Co-Authored-By / Refs 等}
+```
+
+type 取值：`feat` / `fix` / `refactor` / `docs` / `test` / `chore` / `perf`
+scope 取值：子项目缩写（如 `AUTH` / `WEB` / `INFRA`）
+
+### PMO 合并摘要模板（暂停点输出）
+
+```
+📊 PM 验收 + commit 完成，等待 push 决策
+================================================
+
+## 验收结果
+├── ✅ PM 验收：通过
+├── ✅ Feature 产物完整性校验：通过
+└── ✅ 本地 commit 已完成
+    ├── commit hash: {abc1234}
+    ├── 分支: {branch}
+    ├── 变更文件数: {N}
+    └── commit message: {第一行 summary}
+
+## ⏸️ 请 3 选 1：
+├── 1️⃣ ✅ 通过 → 自动 commit + push（推到远程 origin/{branch}）
+├── 2️⃣ ✅ 通过 → 仅本地 commit（不 push，由你稍后手动推送）
+└── 3️⃣ ❌ 不通过 → 补充信息
+    （说明哪个 AC / 哪个文件 / 什么错误，PMO 会派发到对应阶段修复）
+
+💡 建议：选 1️⃣（默认推送，保持远程同步）
+📝 理由：
+├── 所有 AC 覆盖 ✅ + 所有测试通过 ✅
+├── 架构师 CR + QA 审查 + Codex Review 三路均 PASS
+└── Feature 已完整交付，remote 同步降低丢失风险
+
+🔀 其他选项：
+├── 2️⃣ 适合：多个 Feature 批量 push / push 前还想自己 review 一次
+└── 3️⃣ 适合：用户在浏览器实际操作后发现问题
+```
+
+### PMO 2️⃣ 选择（仅 commit）后的完成报告备注
+
+```
+## ⚠️ 推送状态：仅本地 commit
+├── commit hash: {abc1234}
+├── 分支: {branch}
+├── 远程状态: 尚未 push
+├── 建议：用户完成后续操作后手动执行
+│   └── git push origin {branch}
+└── PMO 不主动 push（用户显式保留决定）
+```
+
+### 3️⃣ 不通过 → 修复派发规则
+
+```
+PMO 基于用户补充信息判断类型，派发到对应阶段：
+
+| 问题类型 | 派发阶段 | 状态变更 |
+|---------|---------|---------|
+| 功能缺陷（实现错误）| Review Stage（重新 Review + RD 修复）| state.json 回退到 dev 完成后 |
+| 测试覆盖遗漏 | Test Stage（补测试）| state.json 回退到 review 完成后 |
+| 需求理解偏差 | Plan Stage（PRD 修订）| state.json 回退到 plan（重走后续全流程）|
+| UI/设计不符 | UI Design Stage（设计修改）| state.json 回退到 ui_design |
+| 文档缺漏 | 对应角色补文档（不回退 Stage）| 原地修复 |
+
+🔴 重要：
+├── commit 保留（不 revert）—— 记录用户首次验收的真实状态
+├── 修复后的代码作为新 commit append，不篡改历史
+├── 修复完成后再次进入「验收+commit+push」暂停点（允许多轮）
+└── 每轮修复 PMO 必须在 review-log.jsonl 追加一条 retry 记录
+```
+
+---
+
 **🔴 功能完成时必须输出完整报告**：
 ```
 📊 PMO 完成报告（{缩写}-F{编号}-{功能名}）
@@ -641,6 +802,16 @@ PMO 批量执行时机：
 - **可能原因**：[基于过程观察的客观分析，如"Plan Stage 超预估因需求讨论来回 3 轮"]
 - **建议后续优化**：[可操作的建议，如"PRD 模板增加「已决策」预填段，减少 Plan 阶段讨论轮次"]
 - **AI 耗时 vs 用户等待**：AI 实际耗时 {total - user_wait} min，占 {百分比}%
+
+## 📦 Commit & Push 状态（v7.3.4 必填）
+├── 本地 commit：✅ {commit hash}
+├── 分支：{branch 名}
+├── commit message（首行）：{type}({scope}): {summary}
+├── 变更文件数：{N}
+├── 远程 push：
+│   ├── ✅ 已推送 origin/{branch}（用户选择 1️⃣）
+│   └── ⚠️ 仅本地（用户选择 2️⃣，尚未 push）
+└── 建议：{如仅本地 → "建议后续执行 git push origin {branch}"}
 
 ## 下一步建议
 ├── 是否有后续优化项？

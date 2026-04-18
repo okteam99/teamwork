@@ -207,19 +207,19 @@ PMO 识别为 Feature Planning 后，进一步判断范围：
 │   ├── 读取 ROADMAP.md，对比本次需求与已有 Feature 的描述 + 核心验收标准
 │   ├── 有冲突 → 列出冲突点 + ⏸️ 用户确认处理方式
 │   └── 无冲突 → 「✅ 无跨 Feature 冲突」
-├── 阶段链（Feature）：🔗 Plan Stage → 🔗 UI Design Stage → 🔗 Panorama Design Stage → 🔗 Blueprint Stage → 🔗 Dev Stage → 🔗 Review Stage（架构师CR∥Codex∥QA审查）→ 🟡 Test Stage 前置确认 → 🔗 Test Stage(可选：立即/延后/跳过) → Browser E2E(可选) → PM 验收
+├── 阶段链（Feature，v7.3.4）：🔗 Plan Stage → 🔗 UI Design Stage（含全景增量同步）→ 🔗 Blueprint Stage → 🔗 Dev Stage → 🔗 Review Stage（架构师CR∥Codex∥QA审查）→ 🟡 Test Stage 前置确认 → 🔗 Test Stage(可选：立即/延后/跳过) → Browser E2E(可选) → 🔗 PM 验收 + commit + push（合并暂停点，3 选 1）
 │   └── 自动跳过：Designer（PRD「需要 UI: 否」时）
 ├── 📋 流程步骤描述（v7.3 必填，让用户基于步骤确认流程）：
 │   1. Plan Stage：PM 起草 PRD（AC 结构化）+ PL-PM 讨论 + 多视角技术评审 → ⏸️ 用户确认
-│   2. UI Design Stage（如需 UI）：Designer 产出 UI.md + HTML 预览 → ⏸️ 用户确认
-│   3. Panorama Design Stage（涉及全景时）：同步 sitemap + overview → ⏸️ 用户确认
-│   4. Blueprint Stage：QA TC（AC-test 绑定）+ RD TECH + 架构师评审 → ⏸️ 用户确认
-│   5. Dev Stage：按方案实现 + TDD + 单测全绿（AI 决定执行方式）→ 🚀 自动
-│   6. Review Stage：三视角独立评审（架构师/QA/Codex）→ 🚀 自动
-│   7. Test Stage：环境准备 + 集成测试 + API E2E → 🚀 自动
-│   8. Browser E2E（如需）：→ ⏸️ 用户确认
-│   9. PM 验收 → ⏸️ 用户确认
-│   10. PMO 完成报告
+│   2. UI Design Stage（如需 UI，v7.3.4 合并）：Designer 产出 UI.md + HTML 预览 + 全景增量同步 → ⏸️ 用户确认「设计批」（UI + 全景一起审）
+│   3. Blueprint Stage：QA TC（AC-test 绑定）+ RD TECH + 架构师评审 → ⏸️ 用户确认
+│   4. Dev Stage：按方案实现 + TDD + 单测全绿（AI 决定执行方式）→ 🚀 自动
+│   5. Review Stage：三视角独立评审（架构师/QA/Codex）→ 🚀 自动
+│   6. Test Stage：环境准备 + 集成测试 + API E2E → 🚀 自动
+│   7. Browser E2E（如需）：→ ⏸️ 用户确认
+│   8. PM 验收 + commit + push（v7.3.4 合并暂停点）：
+│       PM 判断 → PMO 自动本地 commit → ⏸️ 3 选 1（push / 仅 commit / 不通过修复）
+│   9. PMO 完成报告
 ├── ⏸️ 请确认：(1) 走 {流程名} 流程（基于步骤描述）(2) 以上分析和影响范围
 └── 🔄 切换到：{角色名}（用户确认后）
 

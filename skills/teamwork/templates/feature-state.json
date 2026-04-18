@@ -1,11 +1,13 @@
 {
-  "_schema_version": "v7.3.3",
-  "_description": "Feature 级流转状态机快照（机读权威源 + 人读可查）。v7.3.2 起替代 STATUS.md。v7.3.3 新增耗时度量字段。",
+  "_schema_version": "v7.3.4",
+  "_description": "Feature 级流转状态机快照（机读权威源 + 人读可查）。v7.3.2 起替代 STATUS.md。v7.3.3 新增耗时度量字段。v7.3.4 合并暂停点：ui_design 含全景增量同步 + pm_acceptance 含 commit/push。",
   "_instructions": {
     "location": "{子项目}/docs/features/{功能目录}/state.json（Feature 目录内，与 PRD/TC/TECH 等产物同级）",
     "updated_by": "PMO（每次流转前读、每次流转后写）",
     "human_readable_view": "全局看 ROADMAP.md 的 Feature 清单；单 Feature 细节直接看本 JSON。STATUS.md 已在 v7.3.2 废弃。",
-    "duration_metrics": "v7.3.3 新增：stage_contracts.started_at / completed_at + duration_minutes。executor_history 每条记录 estimated/actual duration + variance。Feature 完成时聚合为耗时统计报告。"
+    "duration_metrics": "v7.3.3 新增：stage_contracts.started_at / completed_at + duration_minutes。executor_history 每条记录 estimated/actual duration + variance。Feature 完成时聚合为耗时统计报告。",
+    "stage_enum_v7_3_4": "Feature 流程合法 current_stage 枚举：plan | ui_design（含全景增量）| blueprint | dev | review | test | browser_e2e | pm_acceptance（含 commit + push 询问）| completed。panorama_design 仅用于 Feature Planning 流程的全景重建模式。",
+    "commit_push_tracking": "v7.3.4：stage_contracts.pm_acceptance 新增 commit_hash / push_status（pushed | local_only | pending）字段记录验收暂停点 3 选 1 结果。"
   },
 
   "feature_id": "AUTH-F042-email-login",
