@@ -70,32 +70,38 @@ Micro 流程：Micro 变更说明 → 🤖 RD Subagent → 用户验收 → ✅ 
 
 > 🔴 STATUS.md「当前阶段」使用上述阶段名（无 emoji 前缀）。PMO 阶段摘要中的「状态行显示」可带 emoji（如 🤖、⏸️），但 STATUS.md 字段值必须与此处一致。
 
-**显示名映射**（状态行「阶段」字段的进行中显示 → 规范名对照）：
+**显示名映射**（状态行「阶段」字段的进行中显示 → 规范名对照）
 
-| 规范名 | 状态行进行中显示 | 说明 |
-|--------|-----------------|------|
-| **Feature 流程（8 Stage）** | | |
-| PMO 初步分析 | PMO 分析中 | |
-| 🔗 Plan Stage | 🤖 Plan Stage 执行中（PRD+讨论+评审） | Subagent |
-| PRD 待确认 | ⏸️ PRD 待确认 | |
-| 🔗 UI Design Stage | 🤖 UI Design 执行中 | Subagent（无 UI 时跳过） |
-| UI 待确认 | ⏸️ UI 待确认 | 无 UI 时跳过 |
-| 🔗 Panorama Design Stage | 🤖 全景设计更新中 | Subagent（不涉及全景时跳过） |
-| 全景待确认 | ⏸️ 全景待确认 | 不涉及全景时跳过 |
-| 🔗 Blueprint Stage | 🤖 Blueprint 执行中（TC+技术方案+评审） | 主对话多阶段 |
-| 方案待确认 | ⏸️ 方案待确认 | |
-| 🔗 Dev Stage | 🤖 Dev Stage 执行中（RD TDD+单测） | Subagent |
-| 🔗 Review Stage | 🤖 Review Stage 执行中（架构师CR∥Codex∥QA审查） | Subagent |
-| 🔗 Test Stage | 🤖 Test Stage 执行中（集成∥E2E） | Subagent |
-| 🔗 Browser E2E Stage | 🤖 Browser E2E 执行中 | Subagent（可选） |
-| PM 验收 | PM 验收中 | 主对话 |
-| ✅ 已完成 | ✅ 已完成 | 终态 |
-| **敏捷需求流程差异阶段** | | |
-| 精简 PRD 编写 | PRD 编写中（精简版） | PM 直接写精简 PRD |
-| **Micro 流程** | | |
-| Micro 变更说明 | Micro 变更说明中 | |
-| 🤖 RD Subagent（Micro） | 🤖 RD 执行改动中 | Subagent |
-| 用户验收（Micro） | ⏸️ 用户验收中 | |
+> 🟢 v7.3：执行方式从"硬绑定"改为"AI Plan 模式自主决定"。显示名里的图标根据 state.json.planned_execution[stage].approach 动态渲染：
+> - `approach: main-conversation` → 💬 图标
+> - `approach: subagent` → 🤖 图标
+> - `approach: hybrid` → 💬🤖 图标
+
+| 规范名 | 状态行进行中显示 | 默认推荐 approach | 备注 |
+|--------|-----------------|------------------|------|
+| **Feature 流程（8 Stage）** | | | |
+| PMO 初步分析 | PMO 分析中 | — | |
+| 🔗 Plan Stage | 💬/🤖 Plan Stage 执行中（PRD+讨论+评审） | main-conversation | 多视角 prompt 切换 |
+| PRD 待确认 | ⏸️ PRD 待确认 | — | |
+| 🔗 UI Design Stage | 🤖/💬 UI Design 执行中 | subagent | 无 UI 时跳过 |
+| UI 待确认 | ⏸️ UI 待确认 | — | 无 UI 时跳过 |
+| 🔗 Panorama Design Stage | 🤖/💬 全景设计更新中 | subagent | 不涉及全景时跳过 |
+| 全景待确认 | ⏸️ 全景待确认 | — | 不涉及全景时跳过 |
+| 🔗 Blueprint Stage | 💬/🤖 Blueprint 执行中（TC+TECH+评审） | main-conversation | 多视角 prompt 切换 |
+| 方案待确认 | ⏸️ 方案待确认 | — | |
+| 🔗 Dev Stage | 💬/🤖 Dev Stage 执行中（按方案实现+TDD+单测） | AI 自主 | 按规模/复杂度决定 |
+| 🔗 Review Stage | 💬🤖 Review Stage 执行中（架构师CR∥Codex∥QA审查） | hybrid | 架构师主对话 + QA/Codex Subagent |
+| 🔗 Test Stage | 💬🤖 Test Stage 执行中（集成∥E2E） | hybrid | 环境主对话 + API E2E Subagent |
+| 🔗 Browser E2E Stage | 💬/🤖 Browser E2E 执行中 | main-conversation | 半自动（可选） |
+| PM 验收 | 💬 PM 验收中 | main-conversation | 人交互 |
+| ✅ 已完成 | ✅ 已完成 | — | 终态 |
+| **敏捷需求流程差异阶段** | | | |
+| 精简 PRD 编写 | 💬 PRD 编写中（精简版） | main-conversation | PM 直接写精简 PRD |
+| **Micro 流程（v7.3 放宽）** | | | |
+| Micro 变更说明 | 💬 Micro 变更说明中 | main-conversation | PMO 起草说明 |
+| Execution Plan | 💬 AI Plan 生成中 | main-conversation | AI 输出 approach + steps |
+| 执行改动 | 💬/🤖 改动中 | AI 自主 | 可直接主对话改（v7.3 放宽） |
+| 用户验收（Micro） | ⏸️ 用户验收中 | — | |
 | **Bug 处理流程** | | |
 | RD Bug 排查 | Bug 排查中 | |
 | PMO Bug 判断 | PMO 流程判断 | |

@@ -1,6 +1,57 @@
 # Changelog
 
-## v7.2（当前）
+## v7.3（当前）
+- **Stage 三契约化（规范契约，不规范过程）**：
+  - 每个 Stage 文件重构为 Input Contract / Process Contract / Output Contract 三段式
+  - 删除所有 Stage 对"必须 Subagent 执行"的硬绑定
+  - 执行方式（主对话 / Subagent / 混合）由 AI 在 Plan 模式每次 Stage 开始时自主规划
+  - 多视角独立性从"规则要求"转为"产物结构约束"：三份 review 产物独立 generated_at、独立 files_read、不互相引用（grep 校验）
+  - 覆盖文件：stages/{plan, blueprint, blueprint-lite, dev, review, test, ui-design, panorama-design, browser-e2e}-stage.md 全部重写
+- **AI Plan 模式规范**（SKILL.md 新增章节 + 红线 #14）：
+  - AI 必须在每个 Stage 开始前输出 Execution Plan 块（含 Approach / Rationale / Steps / Expected Output / Loaded Role Specs & Standards / Key Context）
+  - Plan 写入 state.json.planned_execution[stage]，审计可追溯
+  - 硬规则：角色切换时必须 cite 对应 roles/*.md 的关键要点（防止凭记忆执行）
+  - 实际执行偏离 Plan 时必须更新 Plan + 记录偏离理由
+- **AC↔Test 结构化绑定（消除需求→代码漂移根源）**：
+  - PRD.md 头部新增 YAML frontmatter：acceptance_criteria[]（id/description/priority/test_refs/ui_refs）
+  - TC.md 头部新增 YAML frontmatter：tests[]（id/file/function/covers_ac/level/priority）
+  - 新增 templates/verify-ac.example.sh 作为覆盖校验脚本示例
+  - Output Contract 硬要求：每条 PRD AC 至少有 1 个 covers_ac 测试 + 所有测试通过
+- **主对话产物协议（补齐 Subagent 协议反面）**：
+  - agents/README.md §六 新增：主对话直接执行任务的产物落盘规范
+  - YAML frontmatter 必填：executor/task/feature/started_at/completed_at/status/files_read/concerns
+  - 覆盖场景：Plan Stage PRD 起草、Blueprint TC/TECH、Review 架构师视角、Test 环境启动、Browser E2E、UI 还原验收、PM 验收
+  - templates/dispatch.md 顶部加适用范围声明：仅适用于 Subagent dispatch
+  - review-log.jsonl schema 扩展：新增 executor / artifact_path / dispatch_file 字段
+- **state.json 机读状态机**（模板 + PMO 维护规范）：
+  - 新增 templates/feature-state.json 定义 Feature 级流转状态机
+  - 位置：.teamwork/state/{feature_id}.json
+  - 字段：current_stage / completed_stages / legal_next_stages / stage_contracts（input/process/output satisfied）/ planned_execution / blocking / executor_history / worktree
+  - roles/pmo.md 新增「state.json 维护规范」：流转前读、流转后写，机器校验 target ∈ legal_next_stages
+  - 与 STATUS.md 的关系：state.json 是机读权威源，STATUS.md 是人读视图，compact 恢复以 state.json 为准
+- **流程确认必须展示步骤**（SKILL.md 红线 #15）：
+  - PMO 初步分析中，选定流程类型后必须给出「本流程的完整步骤描述」（阶段链 + 每步做什么 + 暂停点）
+  - 用户基于步骤描述确认流程类型
+  - 不给步骤描述直接问「走什么流程」= 违规
+- **Micro 流程放宽**（FLOWS.md §六 + SKILL.md 红线 #1）：
+  - PMO 可直接改代码（白名单内零逻辑变更），不再强制 Subagent
+  - 前提：必须输出 Execution Plan + 用户确认流程 + 流程步骤描述
+  - 执行方式由 AI Plan 决定（典型：改 1-2 文件主对话，批量 10+ 文件 Subagent）
+  - 事后审计扩展：检查 Execution Plan 是否存在且被遵守
+- **RULES.md §四流转链描述与实际实现对齐**：
+  - 删除滞后的"Dev 含架构师 CR"、"Test 含 QA 审查"、"Codex 独立 Stage"描述
+  - 更新为 v7.3 契约化后的准确流转链（Dev → Review 三路独立 → Test 环境独立 → Browser E2E → PM 验收）
+- **status.md 显示名映射动态化**：
+  - 显示名图标根据 state.json.planned_execution[stage].approach 动态渲染
+  - 💬 = main-conversation / 🤖 = subagent / 💬🤖 = hybrid
+  - 默认推荐列标注每个 Stage 的推荐 approach（但 AI 可按场景创新）
+- 不做的改动（保留）：
+  - 六种流程分类不变
+  - dispatch 文件协议（v7.2）保留，Subagent 场景继续用
+  - Key Context 6 类结构保留，在主对话任务中同样必需
+  - Feature Planning / 工作区级 Planning / 问题排查流程规则不变
+
+## v7.2
 - Subagent Progress 可见性三段式协议（主对话 TodoWrite 预声明 + Progress Log 实时自述 + 事后回放）：
   - 背景：通用宿主 API 下 Subagent → 主对话无实时通道（同步阻塞模型），用户主对话黑盒等待体感差；plan 模式 / TodoWrite 在 Subagent 内不回流主对话
   - 三段式替代实时流：

@@ -209,7 +209,18 @@ PMO 识别为 Feature Planning 后，进一步判断范围：
 │   └── 无冲突 → 「✅ 无跨 Feature 冲突」
 ├── 阶段链（Feature）：🔗 Plan Stage → 🔗 UI Design Stage → 🔗 Panorama Design Stage → 🔗 Blueprint Stage → 🔗 Dev Stage → 🔗 Review Stage（架构师CR∥Codex∥QA审查）→ 🟡 Test Stage 前置确认 → 🔗 Test Stage(可选：立即/延后/跳过) → Browser E2E(可选) → PM 验收
 │   └── 自动跳过：Designer（PRD「需要 UI: 否」时）
-├── ⏸️ 请确认：(1) 走 {流程名} 流程 (2) 以上分析和影响范围
+├── 📋 流程步骤描述（v7.3 必填，让用户基于步骤确认流程）：
+│   1. Plan Stage：PM 起草 PRD（AC 结构化）+ PL-PM 讨论 + 多视角技术评审 → ⏸️ 用户确认
+│   2. UI Design Stage（如需 UI）：Designer 产出 UI.md + HTML 预览 → ⏸️ 用户确认
+│   3. Panorama Design Stage（涉及全景时）：同步 sitemap + overview → ⏸️ 用户确认
+│   4. Blueprint Stage：QA TC（AC-test 绑定）+ RD TECH + 架构师评审 → ⏸️ 用户确认
+│   5. Dev Stage：按方案实现 + TDD + 单测全绿（AI 决定执行方式）→ 🚀 自动
+│   6. Review Stage：三视角独立评审（架构师/QA/Codex）→ 🚀 自动
+│   7. Test Stage：环境准备 + 集成测试 + API E2E → 🚀 自动
+│   8. Browser E2E（如需）：→ ⏸️ 用户确认
+│   9. PM 验收 → ⏸️ 用户确认
+│   10. PMO 完成报告
+├── ⏸️ 请确认：(1) 走 {流程名} 流程（基于步骤描述）(2) 以上分析和影响范围
 └── 🔄 切换到：{角色名}（用户确认后）
 
 ---
@@ -736,7 +747,7 @@ PM 编写精简 PRD（需求描述 + 验收标准 + 影响范围 + 接口变更 
     ↓ 🚀 自动
 📋 PMO L2 预检
     ↓
-🔗 Dev Stage（🤖 Subagent，与 Feature 一致）
+🔗 Dev Stage（AI Plan 模式规划执行方式，按规模/复杂度选主对话/Subagent/混合）
     ↓
 🔗 Dev Stage 通过 → 🔗 Review Stage → 🟡 Test Stage 前置确认 → 🔗 Test Stage(可选，与 Feature 一致)
     ↓
@@ -808,12 +819,12 @@ PMO 完成报告
 ## 六、Micro 流程（微调流程）
 
 > 🎯 目的：为"纯替换/纯资源/零逻辑"类改动提供合法的轻量通道，消除 PMO 因"改动太小不值得走敏捷"而擅自越界的动机。
-> 🔴 Micro 流程仍然要求 PMO 不写代码、用户参与确认——只是砍掉了 QA 和架构师环节。
+> 🟢 **v7.3 放宽**：Micro 流程下 PMO 可直接改代码（不再强制 Subagent），但必须走 AI Plan 模式规划 + 用户确认流程。PMO 不写代码的红线在 Micro 流程下不适用。
 
 ### Micro 流程链路
 
 ```
-PMO 分析 → ⏸️ 用户确认走 Micro → RD Subagent 执行改动 → 用户验收 → 完成
+PMO 分析 → ⏸️ 用户确认走 Micro（含流程步骤描述）→ AI Execution Plan → PMO 执行改动（主对话 / Subagent 由 Plan 决定）→ 用户验收 → 完成
 ```
 
 ### Micro 流程自动流转
@@ -821,17 +832,20 @@ PMO 分析 → ⏸️ 用户确认走 Micro → RD Subagent 执行改动 → 用
 ```
 PMO 初步分析（判断符合 Micro 准入条件）
     ↓
-📋 PMO 输出分析 + Micro 准入条件逐项检查
+📋 PMO 输出分析 + Micro 准入条件逐项检查 + 📋 流程步骤描述
     ↓
 ⏸️ 等待用户确认走 Micro 流程（🔴 必须由用户确认，PMO 不可自行决定）
     ↓ 用户确认
-PMO 编写 Micro 变更说明（改什么、怎么改、影响范围）
+🧭 AI 输出 Execution Plan（approach / rationale / steps / loaded specs / key context）
+   ├── approach: main-conversation → PMO 主对话直接改
+   ├── approach: subagent → PMO 生成 dispatch 文件 → RD Subagent 改
+   └── approach: hybrid → 按 steps 分配
     ↓ 🚀 自动
-🤖 RD Subagent 执行改动（🔴 必须启 Subagent，PMO 禁止自己改）
-    ├── 读取变更说明
-    ├── 执行改动
+执行改动
+    ├── 读取变更说明 + loaded role specs + standards
+    ├── 执行改动（按 Plan approach）
     ├── 跑项目已有测试（如有）确认无回归
-    └── 返回执行报告
+    └── 产物落盘（主对话产物协议 §六 或 dispatch 协议 §四）
     ↓
 📊 PMO 阶段摘要
     ↓
@@ -858,7 +872,12 @@ Micro 需求完成 ✅
 ├── 变更清单：
 │   ├── [文件1]：[改动摘要]
 │   └── [文件2]：[改动摘要]
-├── 阶段链：PMO 分析 → RD Subagent 改动 → 用户验收
+├── 📋 流程步骤描述（v7.3 必填）：
+│   1. AI 输出 Execution Plan（含 approach 选择：main-conversation / subagent）
+│   2. 按 Plan 执行改动（读 role specs / standards → 改 → 跑已有测试）
+│   3. 用户验收（手测/目视确认）
+│   4. PMO 完成报告（含事后审计）
+├── 阶段链：PMO 分析 → AI Execution Plan → 执行改动 → 用户验收
 ├── ⏸️ 请确认走 Micro 流程
 └── ✅ 自检通过
 ```
@@ -886,9 +905,11 @@ Micro 需求完成 ✅
 ### Micro 流程规则
 
 ```
-🔴 强制规则：
-├── PMO 禁止自己执行改动（→ 红线 #1 同样适用于 Micro）
-├── 必须启动 RD Subagent 执行改动，即使只改一行
+🔴 强制规则（v7.3 调整）：
+├── 🟢 PMO 可直接改代码（v7.3 放宽，不再强制 Subagent）
+│   └── 前提：必须先输出 Execution Plan + 用户确认流程
+├── 执行方式由 AI Plan 模式决定（main-conversation / subagent / hybrid）
+│   └── 典型：改 1-2 个资源文件 → main-conversation；批量改 10+ 个图标 → subagent
 ├── 用户验收前禁止 commit/push（→ 红线 #5 同样适用）
 ├── 用户在任何时候可以要求升级为敏捷或 Feature 流程
 │
@@ -897,10 +918,10 @@ Micro 需求完成 ✅
 ├── 架构师 CR（零逻辑 → 无架构风险）
 ├── Codex Review（零逻辑 → 无需独立审查）
 ├── Test Stage（零逻辑 → 无需代码审查+测试链）
-└── 保留的：PMO 分析 + 用户确认 + RD 执行 + 用户验收（最小闭环）
+└── 保留的：PMO 分析 + 流程步骤描述 + 用户确认 + Execution Plan + 执行 + 用户验收（最小闭环）
 │
 🔴 升级条件（Micro 执行过程中发现任一情况 → 必须暂停升级）：
-├── RD 执行中发现需要修改逻辑代码
+├── 执行中发现需要修改逻辑代码
 ├── 实际改动超出变更清单范围
 ├── 已有测试因改动而失败
 └── 升级时 PMO 输出升级原因 → ⏸️ 用户确认走敏捷或 Feature
@@ -908,6 +929,7 @@ Micro 需求完成 ✅
 🔴 Micro 事后审计（PMO 完成报告前必须检查）：
 ├── 实际改动是否仍满足 Micro 准入条件？
 ├── 有无逻辑变更混入？
-├── 阶段链是否完整？（分析 → RD Subagent → 用户验收）
+├── Execution Plan 是否存在且被遵守？
+├── 阶段链是否完整？（分析 → 用户确认 → Plan → 执行 → 用户验收）
 └── 任何偏离 → 标注 ⚠️ 流程偏离 + 记录原因
 ```

@@ -178,69 +178,78 @@ PMO/当前角色在暂停点输出时，必须同时满足以下 4 条：
 > PMO 每次阶段变更只需输出 1 行校验（格式见 [rules/gate-checks.md](./rules/gate-checks.md)）。
 > 🔴 流转类型必须通过查 rules/flow-transitions.md 获取，禁止凭记忆填写。
 
-### RD 完成后完整流转链（单一权威参考）
+### RD 完成后完整流转链（v7.3 更新，与 stages/*.md 实际实现一致）
 
 ```
-📋 RD 开发完成后完整流转链（Build-Verify 两阶段模型）：
-
-🔴 设计原则：
-├── Dev Stage：RD 开发 + 架构师 CR + 内部修复循环 → 一个 Subagent 完成
-├── Test Stage：QA 审查 + 单元测试 + 集成测试 + API E2E → 一个 Subagent 完成
-├── Build 不过不能进 Verify（架构有问题时验证需求覆盖没有意义）
-└── Verify 只验证不修复 → 发现问题返回 PMO → PMO dispatch RD 修复 → 重新 Verify
+📋 流转链设计原则（v7.3 契约化后）：
+├── 每个 Stage 定义 Input Contract / Process Contract / Output Contract
+├── 执行方式由 AI Plan 模式在每个 Stage 开始时决定（main-conversation / subagent / hybrid）
+├── Dev Stage 不含 CR（架构师 CR 已拆到 Review Stage 并行）
+├── Review Stage 三路独立视角（架构师 / QA / Codex），独立性由产物结构约束保证
+├── Test Stage 环境独立（默认主对话起环境，集成测试 + API E2E 可 Subagent）
+└── Build 不过不能进 Verify → 发现问题返回 PMO 安排修复 → 重新 Verify
 
 📋 PMO L2 预检（见 common.md「PMO 预检流程」）
   ↓
 
-🤖 Dev Stage Subagent（规范：stages/dev-stage.md）
-  ├── 内部流程：RD TDD 开发+自查 → 架构师 Code Review → 修复循环（≤3 轮）
+🔗 Dev Stage（规范：stages/dev-stage.md）
+  ├── 执行方式：AI 自主决定（按规模/复杂度）
+  ├── 内部：按 TECH/TC 实现 + TDD（弱约束）+ 单测全绿 + RD 自查
   ├── ✅ DONE → 继续
   ├── ⚠️ DONE_WITH_CONCERNS → PMO 判断是否需要用户确认
   └── 🔁 QUALITY_ISSUE → ⏸️ 用户决策
+  ↓
+
+🔗 Review Stage（规范：stages/review-stage.md，三视角独立）
+  ├── 架构师 Review：默认主对话（保留架构上下文 + 怀疑者视角防鼓掌）
+  ├── QA 代码审查：默认 Subagent（独立视角，可用不同模型）
+  ├── Codex Review：Subagent（外部工具，🔴 不读架构师报告）
+  ├── 三份产物结构独立：不同 generated_at / files_read / 无交叉引用
+  ├── ✅ DONE → 继续
+  ├── ⚠️ DONE_WITH_CONCERNS → PMO 评估，非阻塞则继续
+  ├── 🔁 NEEDS_FIX → RD 修复 → 重跑相关视角（≤3 轮）
+  └── ❌ FAILED（Codex 不可用且降级失败）→ ⏸️ 用户
   ↓
   → 有 UI？
     ├── 是 → Designer UI 还原验收（最多 3 轮，每轮 ⏸️ 用户确认）
     │         └── 通过 ↓
     └── 否 ↓
-
-🤖 Codex Code Review Subagent（规范：stages/review-stage.md）
-  ├── 输入：PRD + TECH + TC + 代码变更（🔴 不给架构师 CR 报告，保持独立性）
-  ├── ✅ DONE → 继续
-  ├── ⚠️ DONE_WITH_CONCERNS → PMO 评估，非阻塞则继续
-  ├── 🔁 NEEDS_FIX → 三方修复流程：RD 出方案 → 架构师审核 → 修复 → 重跑 Codex（≤3 轮）
-  └── ❌ FAILED → ⏸️ 用户选择：重试 / 跳过
-  ↓
-  📋 PMO L2 预检（含 E2E 时升级 L3）（见 common.md「PMO 预检流程」）
+  📋 PMO L2 预检（含 E2E 时升级 L3）
   ↓
 
 🟡 Test Stage 前置确认（PMO 必须执行，见 roles/pmo.md「Test Stage 前置确认」）
-  ├── A. 🚀 立即执行 → 继续启动 Test Stage Subagent
+  ├── A. 🚀 立即执行 → 继续启动 Test Stage
   ├── B. ⏸️ 延后批量测试 → 跳过本次 Test Stage，review-log 记 DEFERRED，直接进入 PM 验收
   │       └── 完成报告标「⚠️ 待测试」而非「✅ 已完成」
   └── C. ⏭️ 跳过（需理由）→ review-log 记 SKIPPED + reason，直接进入 PM 验收
   ↓（仅 A 分支继续）
 
-🤖 Test Stage Subagent（规范：stages/test-stage.md）
-  ├── 内部流程：QA 代码审查 → 单元测试门禁 → 集成测试 → API E2E
+🔗 Test Stage（规范：stages/test-stage.md）
+  ├── 环境准备（默认主对话）：scripts/test-env-check.sh → 落盘 test-env.json
+  ├── 集成测试（可 Subagent 或主对话）：按 agents/integration-test.md
+  ├── API E2E（默认 Subagent）：脚本化交付（tests/e2e/F{编号}/api-e2e.py）
   ├── ✅ DONE → 继续
-  ├── 🔁 QUALITY_ISSUE（代码问题）→ PMO dispatch RD Fix → 重新 Test Stage
+  ├── 🔁 QUALITY_ISSUE（代码问题）→ PMO 安排 RD 修复 → 重新 Test Stage
   │   └── 🔴 Verify-Fix 循环最多 3 轮，超出 → ⏸️ 用户
   ├── ❌ BLOCKED（环境问题）→ ⏸️ 用户处理环境
   └── ⚠️ DONE_WITH_CONCERNS（TC 问题等）→ ⏸️ 用户确认
   ↓
   → PMO 读取 TC.md「Browser E2E 判断」章节：
     ├── Browser E2E = 需要 → PMO 给出建议 → ⏸️ 用户确认是否执行
-    │   ├── 用户确认执行 → 🤖 QA Browser E2E 验收（Subagent，AI 浏览器）
+    │   ├── 用户确认执行 → 🔗 Browser E2E Stage（默认主对话，需观察 / AI 浏览器）
     │   ├── 用户明确跳过 → 记录原因 ↓
     │   └── 通过 ↓
     └── Browser E2E = 不需要 / 无浏览器行为 → 自动跳过 ↓
   → PM 验收 → ✅ 已完成
 
 🔴 Verify-Fix 循环规则：
-├── Test Stage 返回 QUALITY_ISSUE → PMO dispatch 小型 RD Fix Subagent
-├── RD Fix 完成 → PMO 重新 dispatch Test Stage（默认全量重跑）
+├── Test Stage 返回 QUALITY_ISSUE → PMO 安排修复（主对话或 Subagent 由 AI 决定）
+├── 修复完成 → PMO 重新进入 Test Stage（默认全量重跑）
 ├── 如果修复范围极小且 Test Stage 建议断点续跑 → PMO 可选择从断点开始
 └── 最多 3 轮 Verify-Fix 循环，超出 → ⏸️ 用户决策
+
+🔴 每个 Stage 开始前：AI 必须输出 Execution Plan 块（见 SKILL.md「AI Plan 模式规范」）。
+   Plan 写入 state.json.planned_execution。
 ```
 
 ### 流转条件
