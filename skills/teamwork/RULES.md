@@ -250,7 +250,13 @@ PMO/当前角色在暂停点输出时，必须同时满足以下 4 条：
 └── 最多 3 轮 Verify-Fix 循环，超出 → ⏸️ 用户决策
 
 🔴 每个 Stage 开始前：AI 必须输出 Execution Plan 块（见 SKILL.md「AI Plan 模式规范」）。
-   Plan 写入 state.json.planned_execution。
+   Plan 写入 state.json.planned_execution（含 estimated_minutes）。
+
+🔴 v7.3.3 耗时度量闭环：
+├── 进入 Stage：PMO 记录 state.json.stage_contracts[stage].started_at
+├── Stage 完成：PMO 计算 duration_minutes、variance_pct，写入 state.json + append review-log
+├── PMO 阶段摘要必须包含「⏱️ 实际耗时：N min（预估 M min，偏差 ±X%）」行
+└── Feature 完成报告必须包含「⏱️ 耗时统计」章节（表格 + 超预估分析）
 ```
 
 ### 流转条件
@@ -639,6 +645,14 @@ Step 2: 全景设计同步（用户确认 Step 1 后自动触发）
    ├── 更新 teamwork_space.md 子项目清单「完成度」列 → 重新统计 ROADMAP.md 中已完成/总数
    ├── 以上三者必须同步更新
    └── 有业务关联（BG-xxx）→ 更新 teamwork_space.md 跨项目需求追踪表中对应 BG 行的状态
+
+8️⃣-D ⏱️ 耗时统计（v7.3.3，🔴 必须输出，不得跳过！）
+   ├── 从 state.json.executor_history 聚合所有 Stage 的 duration / estimated / variance
+   ├── 生成耗时统计表（每行一个 Stage + 合计行）
+   ├── 列出超预估 > +50% 的 Stage（加 ⚠️ 标识）
+   ├── 基于数据给出可操作的优化建议（非空洞总结）
+   ├── 区分 AI 耗时 vs 用户等待（user_wait_seconds 聚合）
+   └── 本章节数据沉淀到 docs/retros/{Feature}.md，支持跨 Feature 趋势分析
 8️⃣-A 🔄 流程复盘（🔴 必须输出，不得跳过！）
    ├── 📂 复盘文件存储：
    │   ├── 路径：{子项目路径}/docs/retros/{缩写}-F{编号}-{功能名}.md

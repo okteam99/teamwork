@@ -123,9 +123,11 @@
 
 ## AI Plan 模式指引
 
-📎 默认推荐 approach、偏离条件、Execution Plan 3 行格式 → 见 [SKILL.md「AI Plan 模式规范」](../SKILL.md#-ai-plan-模式规范v73-新增) + [agents/README.md §一](../agents/README.md#一执行方式参考默认推荐--判断原则)。
+📎 Execution Plan 4 行格式（含 Estimated）→ [SKILL.md「AI Plan 模式规范」](../SKILL.md#-ai-plan-模式规范v73-新增)。默认 approach → [agents/README.md §一](../agents/README.md#一执行方式参考默认推荐--判断原则)。
 
 本 Stage 默认 `main-conversation`（多视角 prompt 切换 + 用户讨论）。典型偏离：需求极清晰、无用户介入 → `subagent`。
+
+**Expected duration baseline（v7.3.3）**：20-40 min（主对话 / 含 PL-PM 讨论）；需求清晰走 Subagent 一次闭环可降至 15-20 min。AI 在 Execution Plan 的 `Estimated` 字段按本 Feature 规模（预期 AC 数、讨论复杂度）校准。
 
 ---
 

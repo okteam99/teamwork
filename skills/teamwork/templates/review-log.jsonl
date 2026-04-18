@@ -9,7 +9,19 @@
   "stage": "plan-stage | ui-design-stage | panorama-design-stage | blueprint-stage | blueprint-lite-stage | dev-stage | review-stage | review-arch | review-qa | review-codex | test-stage | test-env | test-integration | test-api-e2e | browser-e2e-stage | pm-acceptance | micro-change",
   "status": "DONE | DONE_WITH_CONCERNS | NEEDS_FIX | QUALITY_ISSUE | BLOCKED | FAILED | SKIPPED | DEFERRED",
   "executor": "main-conversation | subagent | hybrid",   // v7.3 新增：执行来源
-  "timestamp": "2026-04-15T14:30:00",
+
+  // 时间度量（v7.3.3 新增）
+  "started_at": "2026-04-15T13:45:00",   // Stage 开始时间（ISO 8601）
+  "timestamp": "2026-04-15T14:30:00",    // Stage 完成时间（= completed_at，保留旧字段名向后兼容）
+  "duration_minutes": 45,                 // 实际耗时（分钟，整数，四舍五入）
+  "estimated_minutes": 30,                // AI 在 Execution Plan 中预估的耗时（来自 planned_execution[stage].estimated_minutes）
+  "variance_pct": 50,                     // 偏差百分比 = (actual - estimated) / estimated * 100，整数，正值超预估，负值欠预估
+
+  // 补充度量（v7.3.3 新增）
+  "dispatches_count": 1,                  // 本 Stage dispatch 了几次 Subagent（主对话执行为 0）
+  "retry_count": 0,                       // 本 Stage 因 QUALITY_ISSUE/NEEDS_FIX 重跑的次数
+  "user_wait_seconds": 120,               // 本 Stage 等用户响应的累计秒数（区分 AI 耗时和人机协作延迟）
+
   "commit": "abc1234",
   "summary": "简述产出或问题",
   "artifact_path": "{Feature}/review-arch.md",          // v7.3 新增：主产物文件路径（如适用）
@@ -19,6 +31,16 @@
   "skip_reason": "...",                      // 仅 status=SKIPPED 时必填（用户提供的跳过理由）
   "stale": false
 }
+
+// 耗时字段计算规则：
+// - started_at：Stage 进入时 PMO 记录（planned_execution 写入时）
+// - timestamp：Stage 完成时 PMO 记录（contracts.output_satisfied = true 时）
+// - duration_minutes = (timestamp - started_at) / 60，向上取整到分钟
+// - estimated_minutes：从 state.json.planned_execution[stage].estimated_minutes 拷贝
+// - variance_pct：重跑多次时累计（包含 retry 时间），不是单次的
+// - dispatches_count：计入所有 dispatch（含 retry 重新 dispatch）
+// - retry_count：Stage 内部修复循环次数（Review NEEDS_FIX / Test QUALITY_ISSUE 等）
+// - user_wait_seconds：暂停点到用户确认之间的累计时长；无暂停点为 0
 
 // stale 判定规则：
 // - PMO 在写入新的 dev-stage 行时，将之前所有 review-stage / test-stage 行标记为 stale: true
@@ -30,16 +52,11 @@
 // - 用户选择 B（延后批量测试）→ status = DEFERRED，附 batch_id
 // - 用户选择 C（跳过）→ status = SKIPPED，附 skip_reason
 
-// 示例（v7.3 含 executor 字段）：
-// {"stage":"plan-stage","status":"DONE","executor":"main-conversation","timestamp":"2026-04-15T10:00:00","commit":"","summary":"PRD 定稿 13 条 AC","artifact_path":"{Feature}/PRD.md","concerns":[],"stale":false}
-// {"stage":"blueprint-stage","status":"DONE","executor":"main-conversation","timestamp":"2026-04-15T11:00:00","commit":"","summary":"TC 15 条 + TECH.md 定稿","artifact_path":"{Feature}/TC.md","concerns":[],"stale":false}
-// {"stage":"dev-stage","status":"DONE","executor":"subagent","timestamp":"2026-04-15T12:00:00","commit":"a1b2c3d","summary":"单测 47/47 通过","dispatch_file":"dispatch_log/007-rd-develop.md","concerns":[],"stale":false}
-// {"stage":"review-arch","status":"DONE","executor":"main-conversation","timestamp":"2026-04-15T13:00:00","commit":"a1b2c3d","summary":"架构师 CR（主对话，怀疑者视角）","artifact_path":"{Feature}/review-arch.md","concerns":[],"stale":false}
-// {"stage":"review-qa","status":"DONE","executor":"subagent","timestamp":"2026-04-15T13:05:00","commit":"a1b2c3d","summary":"QA 代码审查","dispatch_file":"dispatch_log/008-qa-code-review.md","concerns":[],"stale":false}
-// {"stage":"review-codex","status":"DONE","executor":"subagent","timestamp":"2026-04-15T13:10:00","commit":"a1b2c3d","summary":"Codex 独立审查","dispatch_file":"dispatch_log/009-codex-review.md","concerns":[],"stale":false}
-// {"stage":"test-env","status":"DONE","executor":"main-conversation","timestamp":"2026-04-15T13:30:00","commit":"a1b2c3d","summary":"环境健康（test-env.json 落盘）","artifact_path":"{Feature}/test-env.json","concerns":[],"stale":false}
-// {"stage":"test-integration","status":"DONE","executor":"subagent","timestamp":"2026-04-15T14:00:00","commit":"a1b2c3d","summary":"集成测试 ✅","dispatch_file":"dispatch_log/010-integration-test.md","concerns":[],"stale":false}
-// {"stage":"test-api-e2e","status":"DONE","executor":"subagent","timestamp":"2026-04-15T14:05:00","commit":"a1b2c3d","summary":"API E2E 脚本化 ✅","dispatch_file":"dispatch_log/011-api-e2e.md","concerns":[],"stale":false}
-// {"stage":"test-stage","status":"DEFERRED","executor":"main-conversation","timestamp":"2026-04-16T09:15:00","commit":"a1b2c3d","summary":"用户选择延后批量测试","concerns":[],"batch_id":"test-batch-2026-04-16-1","stale":false}
-// {"stage":"test-stage","status":"SKIPPED","executor":"main-conversation","timestamp":"2026-04-16T10:00:00","commit":"a1b2c3d","summary":"用户跳过","concerns":[],"skip_reason":"紧急 hotfix，手动已验过","stale":false}
-// {"stage":"micro-change","status":"DONE","executor":"main-conversation","timestamp":"2026-04-17T08:30:00","commit":"b2c3d4e","summary":"替换 favicon","artifact_path":"src/public/favicon.ico","concerns":[],"stale":false}
+// 示例（v7.3.3 含耗时度量字段）：
+// {"stage":"plan-stage","status":"DONE","executor":"main-conversation","started_at":"2026-04-15T09:15:00","timestamp":"2026-04-15T10:00:00","duration_minutes":45,"estimated_minutes":30,"variance_pct":50,"dispatches_count":0,"retry_count":0,"user_wait_seconds":450,"commit":"","summary":"PRD 定稿 13 条 AC","artifact_path":"{Feature}/PRD.md","concerns":[],"stale":false}
+// {"stage":"blueprint-stage","status":"DONE","executor":"main-conversation","started_at":"2026-04-15T10:05:00","timestamp":"2026-04-15T11:00:00","duration_minutes":55,"estimated_minutes":35,"variance_pct":57,"dispatches_count":0,"retry_count":1,"user_wait_seconds":180,"commit":"","summary":"TC 15 条 + TECH.md 定稿（1 轮修订）","artifact_path":"{Feature}/TC.md","concerns":[],"stale":false}
+// {"stage":"dev-stage","status":"DONE","executor":"subagent","started_at":"2026-04-15T11:05:00","timestamp":"2026-04-15T12:00:00","duration_minutes":55,"estimated_minutes":45,"variance_pct":22,"dispatches_count":1,"retry_count":0,"user_wait_seconds":0,"commit":"a1b2c3d","summary":"单测 47/47 通过","dispatch_file":"dispatch_log/007-rd-develop.md","concerns":[],"stale":false}
+// {"stage":"review-arch","status":"DONE","executor":"main-conversation","started_at":"2026-04-15T12:05:00","timestamp":"2026-04-15T12:20:00","duration_minutes":15,"estimated_minutes":15,"variance_pct":0,"dispatches_count":0,"retry_count":0,"user_wait_seconds":0,"commit":"a1b2c3d","summary":"架构师 CR（主对话，怀疑者视角）","artifact_path":"{Feature}/review-arch.md","concerns":[],"stale":false}
+// {"stage":"review-qa","status":"DONE","executor":"subagent","started_at":"2026-04-15T12:05:00","timestamp":"2026-04-15T12:15:00","duration_minutes":10,"estimated_minutes":12,"variance_pct":-17,"dispatches_count":1,"retry_count":0,"user_wait_seconds":0,"commit":"a1b2c3d","summary":"QA 代码审查","dispatch_file":"dispatch_log/008-qa-code-review.md","concerns":[],"stale":false}
+// {"stage":"test-stage","status":"DEFERRED","executor":"main-conversation","started_at":"2026-04-16T09:15:00","timestamp":"2026-04-16T09:15:00","duration_minutes":0,"estimated_minutes":30,"variance_pct":null,"dispatches_count":0,"retry_count":0,"user_wait_seconds":0,"commit":"a1b2c3d","summary":"用户选择延后批量测试","concerns":[],"batch_id":"test-batch-2026-04-16-1","stale":false}
+// {"stage":"micro-change","status":"DONE","executor":"main-conversation","started_at":"2026-04-17T08:25:00","timestamp":"2026-04-17T08:30:00","duration_minutes":5,"estimated_minutes":5,"variance_pct":0,"dispatches_count":0,"retry_count":0,"user_wait_seconds":60,"commit":"b2c3d4e","summary":"替换 favicon","artifact_path":"src/public/favicon.ico","concerns":[],"stale":false}

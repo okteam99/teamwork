@@ -145,6 +145,8 @@
 
 典型偏离：CI 环境稳定 → 全 `subagent`（含环境自动起）；小 Feature/测试命令快 → 全 `main-conversation`。
 
+**Expected duration baseline（v7.3.3）**：环境准备 2-5 min；集成测试 5-15 min；API E2E 脚本化 10-25 min（脚本生成 + 执行）。总计 hybrid 默认 15-30 min；环境异常 BLOCKED 时另计。
+
 ### 环境信息交接（任何 approach 都适用）
 
 `{Feature}/test-env.json` 必须落盘。集成测试 / API E2E 走 Subagent 时，dispatch 文件的 Input files 必须含此 JSON 路径。Subagent 启动第一步应 ping health endpoint 确认环境活着。

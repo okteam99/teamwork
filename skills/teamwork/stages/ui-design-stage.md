@@ -113,9 +113,11 @@
 
 ## AI Plan 模式指引
 
-📎 Execution Plan 3 行格式 → [SKILL.md](../SKILL.md#-ai-plan-模式规范v73-新增)。
+📎 Execution Plan 4 行格式（含 Estimated）→ [SKILL.md](../SKILL.md#-ai-plan-模式规范v73-新增)。
 
 本 Stage 默认 `subagent`（HTML 产出量大，主对话 context 易被挤占；推荐 Opus）。典型偏离：小改动（1-2 页面）+ 用户需边讨论边调整 → `main-conversation`。
+
+**Expected duration baseline（v7.3.3）**：Subagent 20-40 min（N 页面 × 4 状态 × HTML 产出）；主对话小改 8-15 min。
 
 ---
 

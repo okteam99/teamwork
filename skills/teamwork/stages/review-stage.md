@@ -179,6 +179,8 @@ Codex 独立性保障：
 
 🔴 不论哪种 approach，Output Contract 的独立性校验（三份产物独立 generated_at / files_read / 不互相引用）都必须满足。
 
+**Expected duration baseline（v7.3.3）**：hybrid（默认）10-20 min（三路并行，墙钟 = max(架构师, QA, Codex)）；全 subagent 约 15-25 min（冷启动税）；全主对话 8-15 min（小改动）。如发生 NEEDS_FIX 重跑，每轮 +5-10 min。
+
 ### 架构师主对话 Review 防鼓掌机制（approach 含 main-conversation 时必做）
 
 - 开始前显式声明"进入架构师审查模式，采用怀疑者视角"

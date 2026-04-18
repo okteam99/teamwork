@@ -100,9 +100,11 @@
 
 ## AI Plan 模式指引
 
-📎 Execution Plan 3 行格式 → [SKILL.md](../SKILL.md#-ai-plan-模式规范v73-新增)。
+📎 Execution Plan 4 行格式（含 Estimated）→ [SKILL.md](../SKILL.md#-ai-plan-模式规范v73-新增)。
 
 本 Stage 默认 `main-conversation`（敏捷流程精髓是快速闭环，Subagent 冷启动不划算）。仅当主对话 context 已紧张时切 `subagent`。
+
+**Expected duration baseline（v7.3.3）**：8-15 min（主对话精简 TC + 实现计划）。
 
 ---
 

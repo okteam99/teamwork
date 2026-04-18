@@ -1,10 +1,11 @@
 {
-  "_schema_version": "v7.3.2",
-  "_description": "Feature 级流转状态机快照（机读权威源 + 人读可查）。v7.3.2 起替代 STATUS.md 成为 Feature 目录唯一状态文件。",
+  "_schema_version": "v7.3.3",
+  "_description": "Feature 级流转状态机快照（机读权威源 + 人读可查）。v7.3.2 起替代 STATUS.md。v7.3.3 新增耗时度量字段。",
   "_instructions": {
     "location": "{子项目}/docs/features/{功能目录}/state.json（Feature 目录内，与 PRD/TC/TECH 等产物同级）",
     "updated_by": "PMO（每次流转前读、每次流转后写）",
-    "human_readable_view": "全局看 ROADMAP.md 的 Feature 清单；单 Feature 细节直接看本 JSON。STATUS.md 已在 v7.3.2 废弃。"
+    "human_readable_view": "全局看 ROADMAP.md 的 Feature 清单；单 Feature 细节直接看本 JSON。STATUS.md 已在 v7.3.2 废弃。",
+    "duration_metrics": "v7.3.3 新增：stage_contracts.started_at / completed_at + duration_minutes。executor_history 每条记录 estimated/actual duration + variance。Feature 完成时聚合为耗时统计报告。"
   },
 
   "feature_id": "AUTH-F042-email-login",
@@ -25,7 +26,9 @@
         "PRD.md": "confirmed",
         "PRD-REVIEW.md": "done"
       },
-      "completed_at": "2026-04-18T09:00:00Z"
+      "started_at": "2026-04-18T08:20:00Z",
+      "completed_at": "2026-04-18T09:00:00Z",
+      "duration_minutes": 40
     },
     "ui_design": {
       "input_satisfied": true,
@@ -36,7 +39,9 @@
         "preview/login.html": "done",
         "preview/login-error.html": "done"
       },
-      "completed_at": "2026-04-18T09:30:00Z"
+      "started_at": "2026-04-18T09:05:00Z",
+      "completed_at": "2026-04-18T09:30:00Z",
+      "duration_minutes": 25
     },
     "blueprint": {
       "input_satisfied": true,
@@ -47,7 +52,9 @@
         "TC-REVIEW.md": "done",
         "TECH.md": "confirmed"
       },
-      "completed_at": "2026-04-18T10:00:00Z"
+      "started_at": "2026-04-18T09:35:00Z",
+      "completed_at": "2026-04-18T10:00:00Z",
+      "duration_minutes": 25
     },
     "dev": {
       "input_satisfied": true,
@@ -62,6 +69,7 @@
     "plan": {
       "approach": "main-conversation",
       "rationale": "需要与用户多轮讨论澄清需求",
+      "estimated_minutes": 30,
       "steps": ["PM 起草 PRD", "PL-PM 讨论", "多视角技术评审"],
       "loaded_role_specs": ["roles/pm.md", "roles/product-lead.md", "roles/qa.md"],
       "loaded_standards": ["standards/common.md"],
@@ -77,6 +85,7 @@
     "dev": {
       "approach": "subagent",
       "rationale": "改动 >10 文件（涉及中间件/路由/模型/测试），隔离主对话",
+      "estimated_minutes": 45,
       "steps": [
         "读输入（PRD/TC/TECH）",
         "写单元测试骨架（红）",
@@ -97,9 +106,43 @@
   },
 
   "executor_history": [
-    {"stage": "plan", "executor": "main-conversation", "completed_at": "2026-04-18T09:00:00Z"},
-    {"stage": "ui_design", "executor": "subagent", "completed_at": "2026-04-18T09:30:00Z", "dispatch_file": "dispatch_log/001-designer.md"},
-    {"stage": "blueprint", "executor": "main-conversation", "completed_at": "2026-04-18T10:00:00Z"}
+    {
+      "stage": "plan",
+      "executor": "main-conversation",
+      "started_at": "2026-04-18T08:20:00Z",
+      "completed_at": "2026-04-18T09:00:00Z",
+      "duration_minutes": 40,
+      "estimated_minutes": 30,
+      "variance_pct": 33,
+      "dispatches_count": 0,
+      "retry_count": 0,
+      "user_wait_seconds": 450
+    },
+    {
+      "stage": "ui_design",
+      "executor": "subagent",
+      "started_at": "2026-04-18T09:05:00Z",
+      "completed_at": "2026-04-18T09:30:00Z",
+      "duration_minutes": 25,
+      "estimated_minutes": 25,
+      "variance_pct": 0,
+      "dispatches_count": 1,
+      "retry_count": 0,
+      "user_wait_seconds": 120,
+      "dispatch_file": "dispatch_log/001-designer.md"
+    },
+    {
+      "stage": "blueprint",
+      "executor": "main-conversation",
+      "started_at": "2026-04-18T09:35:00Z",
+      "completed_at": "2026-04-18T10:00:00Z",
+      "duration_minutes": 25,
+      "estimated_minutes": 35,
+      "variance_pct": -29,
+      "dispatches_count": 0,
+      "retry_count": 0,
+      "user_wait_seconds": 60
+    }
   ],
 
   "worktree": {
@@ -108,7 +151,7 @@
     "branch": "feature/AUTH-F042-email-login"
   },
 
-  "created_at": "2026-04-18T08:50:00Z",
+  "created_at": "2026-04-18T08:00:00Z",
   "updated_at": "2026-04-18T10:05:00Z",
   "updated_by": "pmo"
 }

@@ -14,6 +14,25 @@
 
 ## 一、流程效率指标
 
+### 1.1 耗时度量（v7.3.3，从 state.json.executor_history 聚合）
+
+| Stage | 预估 | 实际 | 偏差 | dispatches | retry | user_wait |
+|-------|------|------|------|------------|-------|-----------|
+| Plan | 30 min | 45 min | +50% ⚠️ | 0 | 0 | 7.5 min |
+| UI Design | 25 min | 22 min | -12% | 1 | 0 | 2 min |
+| Blueprint | 35 min | 55 min | +57% ⚠️ | 0 | 1 | 3 min |
+| Dev | 45 min | 50 min | +11% | 1 | 0 | 0 |
+| Review | 15 min | 12 min | -20% | 2 | 0 | 0 |
+| Test | 25 min | 28 min | +12% | 2 | 0 | 1 min |
+| PM 验收 | 5 min | 8 min | +60% ⚠️ | 0 | 0 | 6 min |
+| **合计** | **180 min** | **220 min** | **+22%** | **6** | **1** | **19.5 min** |
+
+- **AI 实际耗时**：{总耗时 - user_wait} = 200.5 min（占 91%）
+- **用户等待**：19.5 min（占 9%）
+- **超预估 Stage**：Plan / Blueprint / PM 验收 → 后续考虑如何预估更准或优化流程
+
+### 1.2 其他指标
+
 | 指标 | 数据 | 备注 |
 |------|------|------|
 | 打回轮次 | X 轮 | [主要原因：Code Review 发现 XX / QA 发现 YY] |

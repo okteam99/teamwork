@@ -111,9 +111,11 @@ Feature Planning 流程触发：
 
 ## AI Plan 模式指引
 
-📎 Execution Plan 3 行格式 → [SKILL.md](../SKILL.md#-ai-plan-模式规范v73-新增)。
+📎 Execution Plan 4 行格式（含 Estimated）→ [SKILL.md](../SKILL.md#-ai-plan-模式规范v73-新增)。
 
 本 Stage 默认 `subagent`（全景 HTML 产出量大；沿用 Designer Subagent，Opus）。典型偏离：仅增量合并 1-2 页面 → `main-conversation`。
+
+**Expected duration baseline（v7.3.3）**：增量模式 15-25 min；全景重建模式 30-50 min（Feature Planning 场景）。
 
 ---
 

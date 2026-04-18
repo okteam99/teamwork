@@ -130,9 +130,11 @@
 
 ## AI Plan 模式指引
 
-📎 Execution Plan 3 行格式 → [SKILL.md「AI Plan 模式规范」](../SKILL.md#-ai-plan-模式规范v73-新增)。默认 approach → [agents/README.md §一](../agents/README.md#一执行方式参考默认推荐--判断原则)。
+📎 Execution Plan 4 行格式（含 Estimated）→ [SKILL.md「AI Plan 模式规范」](../SKILL.md#-ai-plan-模式规范v73-新增)。默认 approach → [agents/README.md §一](../agents/README.md#一执行方式参考默认推荐--判断原则)。
 
 本 Stage 默认 `main-conversation`（4 步闭环：QA TC → TC 评审 → RD TECH → 架构师评审，全程多视角 prompt 切换）。典型偏离：需求极清晰 → `subagent` 一次闭环；或 `hybrid`（TC/TECH 主对话起草 + 架构师评审 Subagent 独立审）。
+
+**Expected duration baseline（v7.3.3）**：25-45 min（主对话 4 步闭环）；Subagent 一次闭环 30-60 min（冷启动）。AI 在 Execution Plan 的 `Estimated` 字段按本 Feature 规模（AC 数、TECH 预期文件数）校准。
 
 ---
 

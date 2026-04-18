@@ -116,6 +116,8 @@ Browser E2E → 浏览器操作真实页面（最终用户视角） ← 本 Stag
 
 本 Stage 默认 `main-conversation`（半自动需用户观察，可用 `mcp__gstack__*` 或 `mcp__Claude_in_Chrome__*`）。典型偏离：无人值守 CI 批量执行 → `subagent`。
 
+**Expected duration baseline（v7.3.3）**：每场景 2-3 min（含截图 + 验证），3-5 个场景合计 10-20 min。失败场景 diff 分析 +3-5 min。
+
 ---
 
 ## 执行报告模板

@@ -1,6 +1,52 @@
 # Changelog
 
-## v7.3.2（当前）—— STATUS.md 废弃，state.json 成为 Feature 目录唯一状态文件
+## v7.3.3（当前）—— Stage 耗时度量闭环
+
+背景：之前 dispatch.md 有预估（"预计 20-30 分钟"）但 Stage 结束没统计实际耗时。v7.3 改造完成后无法用数据验证效果，只能凭感觉判断"是快了还是慢了"。本次补齐耗时度量闭环，让每个 Feature 跑完自动有数据可复盘。
+
+- **state.json schema 扩展**（templates/feature-state.json）：
+  - `stage_contracts[stage]` 新增 `started_at` / `completed_at` / `duration_minutes`
+  - `executor_history[]` 每条扩展为 `started_at / completed_at / duration_minutes / estimated_minutes / variance_pct / dispatches_count / retry_count / user_wait_seconds`
+  - `planned_execution[stage]` 新增 `estimated_minutes` 字段（来自 AI Execution Plan）
+- **review-log.jsonl schema 扩展**（templates/review-log.jsonl）：
+  - 新增 6 字段：`started_at / duration_minutes / estimated_minutes / variance_pct / dispatches_count / retry_count / user_wait_seconds`
+  - 示例更新为含耗时数据的完整行
+  - 新增字段计算规则说明
+- **AI Execution Plan 扩展为 4 行**（SKILL.md 「AI Plan 模式规范」）：
+  - 新增第 4 行 `Estimated: {N} min`
+  - AI 基于本 Feature 规模（AC 数、文件数）动态估算
+  - 3 个典型示例全部更新
+- **PMO 阶段摘要加耗时行**（roles/pmo.md）：
+  - 每次 Stage 完成后的 PMO 摘要必须包含「⏱️ 实际耗时：N min（预估 M min，偏差 ±X%）」
+  - 偏差 > +50% 自动加 ⚠️ 标识；偏差 < -30% 加 🟢 标识（预估过保守）
+- **Feature 完成报告加耗时统计章节**（roles/pmo.md / RULES.md 8️⃣-D）：
+  - 耗时统计表：每行一个 Stage + 合计（预估/实际/偏差/dispatches/retry/用户等待）
+  - 耗时分析段：超预估 Stage 列表 + 客观原因 + 可操作优化建议
+  - 区分 AI 实际耗时 vs 用户等待时间
+- **各 stages/*.md 加 Expected duration baseline**：
+  - plan-stage: 20-40 min（主对话）/ 15-20 min（Subagent）
+  - blueprint-stage: 25-45 min（主对话）/ 30-60 min（Subagent）
+  - blueprint-lite-stage: 8-15 min
+  - ui-design-stage: Subagent 20-40 min / 主对话 8-15 min
+  - panorama-design-stage: 增量 15-25 min / 重建 30-50 min
+  - dev-stage: 主对话 ≤3 文件 15-25 min / Subagent 中等 30-60 min / 大改 60-120 min
+  - review-stage: hybrid 10-20 min（三路并行墙钟）/ 全 subagent 15-25 min
+  - test-stage: hybrid 15-30 min（环境 2-5 + 集成 5-15 + API E2E 10-25）
+  - browser-e2e-stage: 每场景 2-3 min，总计 10-20 min
+- **retros/*.md 模板加耗时度量段**（templates/retro.md）：
+  - §1.1 耗时度量表（从 state.json.executor_history 聚合）
+  - 跨 Feature 趋势分析：多个 retros 对比可发现规律（哪个 Stage 总是超预估）
+- **RULES.md 8️⃣-D 新增**：Feature 完成报告必须输出耗时统计，不得跳过
+
+核心收益：
+- 每个 Feature 自动产出耗时数据，不再靠感觉判断
+- 多个 Feature 跑完后可做横向对比（"Blueprint 总是超预估" → 设计有问题）
+- Retro 从"主观经验记录"变成"数据驱动改进"
+- v7.3 系列改造的净效果有数据可测（本轮加字段，下一个真 Feature 跑完即有数据）
+
+Micro 流程不强制输出耗时（本身已是最短路径，加统计反成仪式）。
+
+## v7.3.2 —— STATUS.md 废弃，state.json 成为 Feature 目录唯一状态文件
 
 背景：v7.3 引入 state.json 做机读权威源，但保留 STATUS.md 作为"人读视图 + compact 恢复锚点"，导致字段重叠、双源头维护、恢复规则歧义。v7.3.2 彻底砍掉 STATUS.md，让 state.json 同时承担机读权威和人读详情（JSON 本身可读），ROADMAP.md 继续承担全局人读视图。
 

@@ -144,6 +144,8 @@
 
 Plan 的 Rationale 必须说明"基于规模/复杂度的判断"。Plan 写入 `state.json.planned_execution.dev`。
 
+**Expected duration baseline（v7.3.3）**：主对话 ≤3 文件改动 15-25 min；Subagent 中等规模（5-10 文件）30-60 min；大改动（>10 文件 / 多模块）60-120 min。AI 在 `Estimated` 字段按 TECH.md 的文件清单数和复杂度校准。
+
 ### Worktree 集成（PMO 执行，不受 Subagent/主对话影响）
 
 ```
