@@ -19,8 +19,11 @@ Dev Stage 职责：RD 写代码 + 写测试 + 跑单测 + 自查
 
 ## 二、输入文件
 
+> 🔴 PMO 必须先按 [Dispatch 文件协议](../agents/README.md#dispatch-文件协议) 生成 `{Feature}/dispatch_log/{NNN}-rd-develop.md`，
+> 下方文件清单作为该 dispatch 文件的「Input files」段落内容。未生成 dispatch 文件不得 dispatch。
+
 ```
-PMO 启动时必须注入：
+Input files（写入 dispatch 文件）：
 ├── agents/README.md                                ← 通用规范
 ├── stages/dev-stage.md                             ← 本文件
 ├── agents/rd-develop.md                            ← RD 开发规范

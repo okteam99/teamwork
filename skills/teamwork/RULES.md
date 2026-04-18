@@ -213,6 +213,13 @@ PMO/当前角色在暂停点输出时，必须同时满足以下 4 条：
   📋 PMO L2 预检（含 E2E 时升级 L3）（见 common.md「PMO 预检流程」）
   ↓
 
+🟡 Test Stage 前置确认（PMO 必须执行，见 roles/pmo.md「Test Stage 前置确认」）
+  ├── A. 🚀 立即执行 → 继续启动 Test Stage Subagent
+  ├── B. ⏸️ 延后批量测试 → 跳过本次 Test Stage，review-log 记 DEFERRED，直接进入 PM 验收
+  │       └── 完成报告标「⚠️ 待测试」而非「✅ 已完成」
+  └── C. ⏭️ 跳过（需理由）→ review-log 记 SKIPPED + reason，直接进入 PM 验收
+  ↓（仅 A 分支继续）
+
 🤖 Test Stage Subagent（规范：stages/test-stage.md）
   ├── 内部流程：QA 代码审查 → 单元测试门禁 → 集成测试 → API E2E
   ├── ✅ DONE → 继续
@@ -302,7 +309,12 @@ PMO/当前角色在暂停点输出时，必须同时满足以下 4 条：
 
 📋 PMO L3 预检（如需 E2E）
     ↓
-🔗 Test Stage（stages/test-stage.md）
+🟡 Test Stage 前置确认（PMO 必询问，见 roles/pmo.md「Test Stage 前置确认」）
+    ├── A. 立即执行 → ↓ 继续
+    ├── B. 延后批量测试 → 记 DEFERRED，跳过本 Stage 直接进入 PM 验收
+    └── C. 跳过（需理由）→ 记 SKIPPED + 原因，直接进入 PM 验收
+    ↓（仅 A 分支进入下方 Test Stage）
+🔗 Test Stage（stages/test-stage.md，🟡 可选 Stage）
     内部：集成测试 ∥ API E2E（并行）
     ├── DONE → 🚀 自动
     ├── QUALITY_ISSUE → RD 修复 → 重跑（≤3 轮）
@@ -1110,8 +1122,17 @@ PRD 打回更新后的级联影响：
 
 🔴 自动流转不可跳过的 Stage（即使无待确认项也必须显式执行）：
 ├── Review Stage（架构师 CR ∥ Codex ∥ QA 审查）→ 禁止以「改动小」为由跳过
-├── Test Stage（集成测试 ∥ API E2E）→ 禁止跳过
 └── 违反 = 流程不完整，PMO 必须回退到被跳过的 Stage 补执行
+
+🟡 可选 Stage（默认执行，但允许用户在前置确认点延后或跳过）：
+├── Test Stage（集成测试 ∥ API E2E）
+│   ├── PMO 必须先执行「Test Stage 前置确认」，询问用户选择 A/B/C
+│   │   └── 📎 前置确认流程见 roles/pmo.md「Test Stage 前置确认」
+│   ├── A. 立即执行 → 按标准流程推进
+│   ├── B. 延后批量测试 → 记录到 _deferred-tests.md 批次表，进入 PM 验收（功能状态标「⚠️ 待测试」）
+│   └── C. 跳过（需理由）→ review-log 标 SKIPPED + 原因，进入 PM 验收
+├── 🔴 PMO 无权代替用户决定跳过 Test Stage，默认行为是执行（选项 A）
+└── 🔴 选择 B/C 后，PMO 完成报告必须显式标注 Test Stage 状态，禁止伪装为「✅ 已完成」
 ```
 
 ### 角色交接规则

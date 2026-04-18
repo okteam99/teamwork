@@ -167,6 +167,15 @@
 mkdir -p docs/decisions
 mkdir -p {子项目路径}/docs/features
 mkdir -p {子项目路径}/docs/architecture
+
+# Feature 目录标准结构（创建 Feature 时由 PMO 按需生成，非 INIT 一次创建）
+# {子项目路径}/docs/features/{缩写}-F{编号}-{功能名}/
+#   ├── STATUS.md
+#   ├── PRD.md / TC.md / tech.md / UI.md
+#   ├── dispatch_log/          🔴 每个 Feature 必有，首次 Subagent dispatch 时创建
+#   │   ├── INDEX.md
+#   │   └── {NNN}-{subagent}.md
+#   └── bugfix/ optimization/  （可选）
 ```
 
 ### 项目扫描

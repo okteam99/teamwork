@@ -21,6 +21,7 @@
 | dependency.md | DEPENDENCY-REQUESTS | 跨子项目依赖请求追踪 | 需要依赖时创建 |
 | e2e-registry.md | E2E REGISTRY + ENVIRONMENT + REG case | E2E 回归测试中心 | Feature 完成时创建 |
 | pl-pm-feedback.md | PL-FEEDBACK + PM-RESPONSE | PL-PM 讨论反馈 | Feature 讨论阶段产出 |
+| dispatch.md | DISPATCH + INDEX | Subagent dispatch 文件（含 INDEX.md 模板） | 每次 Subagent dispatch 前 PMO 生成 |
 
 ## 按流程查看模板
 
@@ -49,6 +50,9 @@
 
 8. **E2E 回归**
    - 📄 [e2e-registry.md](./e2e-registry.md) - E2E 测试用例与注册
+
+9. **Subagent Dispatch 记录（贯穿全流程）**
+   - 📄 [dispatch.md](./dispatch.md) - 每次 Subagent dispatch 的文件化交接（PMO 生成 + Subagent append Result）
 
 ### 项目级文档
 

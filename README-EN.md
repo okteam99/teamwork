@@ -32,6 +32,8 @@ Why multi-role switching works: create-critique cycles (PM writes PRD → PL cri
 - **PMO write boundary**: Runtime-affecting changes must follow full process (with quality gates); documentation changes PMO can make directly with annotation
 - **Cross-host compatibility**: Supports Claude Code / Codex CLI / Gemini CLI via `{SKILL_ROOT}` variable and host auto-detection (includes install.sh for one-click deployment)
 - **File-path-first Subagent input**: Subagents read original files directly instead of relying on PMO summary relay, reducing information decay
+- **Dispatch file protocol**: Every Subagent dispatch generates one markdown file (`{Feature}/dispatch_log/{NNN}-{subagent}.md`) — the file is both input and audit record; Subagent prompt shrinks to ~5 lines (just pointing to the dispatch file). Full INDEX aggregate view, parallel/re-dispatch/degradation all traceable
+- **Degradation WARN logs**: Every fallback path (failed Subagent dispatch, Codex CLI unavailable, host lacking TodoWrite, worktree unavailable, etc.) must emit a structured WARN log — silent degradation is treated as a violation of closed-loop verification
 - **Blueprint Stage as Subagent**: 4-step internal loop runs in Subagent, keeping main dialog context free
 - **Worktree integration**: Optional git worktree strategy (off/auto/manual), Dev Stage auto-creates/cleans Feature branch worktrees
 - **Product Lead role**: Three modes — Guided Init (build product-overview from scratch), Discussion (product direction with CHG records), Execution (cascade changes across sub-projects)

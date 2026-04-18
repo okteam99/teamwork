@@ -14,9 +14,9 @@
 ```
 | 阶段 | 执行方式 | 推荐模型 | 原因 |
 |------|----------|----------|------|
-| Plan Stage（PM写PRD+PL-PM讨论+技术评审） | 🤖 Subagent | Sonnet | 一体化产出定稿 PRD |
+| Plan Stage（PM写PRD+PL-PM讨论+技术评审） | 🤖 Subagent | Opus | PRD 是需求源头，属"创造性产出 + 复杂业务判断"，错一行下游 10 倍返工；🔴 禁止降级 Sonnet |
 | Designer UI 设计 | 🤖 Subagent | Opus | 需要设计审美 + HTML 产出质量 |
-| Blueprint Stage（QA TC + TC 评审 + RD TECH + 架构师评审） | 🤖 Subagent | Sonnet | 4 步内部闭环，有阻塞 → DONE_WITH_CONCERNS 回 PMO ⏸️ 用户 |
+| Blueprint Stage（QA TC + TC 评审 + RD TECH + 架构师评审） | 🤖 Subagent | Opus | 技术方案 + 架构师评审 + Schema 影响分析，属"复杂架构判断"，错一步 Dev/Review 连锁返工；🔴 禁止降级 Sonnet |
 | Dev Stage（RD TDD+单测） | 🤖 Subagent | Opus | 核心编码，质量要求最高 |
 | Review Stage（架构师CR∥Codex∥QA审查） | 🤖 Subagent | Sonnet | 三 review 并行，校验型 |
 | UI 还原验收（Designer↔RD） | 主对话 | — | 多轮交互 |
@@ -27,11 +27,35 @@
 | PM 验收 | 主对话 | — | 需要与用户交互 |
 
 📎 推荐模型说明：
-├── Opus：需要创造性产出（代码/设计）或复杂架构判断的任务
-├── Sonnet：校验型/执行型任务（跑测试、对照 checklist、结构化讨论）
+├── 🔴 Opus 必选（方案源头阶段）：Plan Stage / Blueprint Stage / Dev Stage / Designer UI
+│   └── 红线：产出源头不得用 Sonnet，否则下游全是在优化错误的前提
+├── Sonnet 可选（校验型/执行型）：Review / Test / Browser E2E / API E2E
 ├── —（主对话）：继承当前会话模型，不单独指定
 └── PMO dispatch Subagent 时按宿主方式指定模型（Claude: Task model 参数 / Codex: agent toml model 字段）
 ```
+
+📌 PMO 模型建议（硬性建议）：
+
+```
+├── PMO 在主对话执行，skill 无法强制指定模型，继承用户会话模型
+├── 🔴 强烈建议用户将会话模型设为 Opus
+│   └── 理由：PMO 承担调度判断（降级决策 / 分级处理 / 打回触发 / Key Context 6 类判断），
+│       模型能力直接影响方案质量与问题识别，Sonnet 主对话易漏判上游文档缺陷
+├── 🔴 会话模型为 Sonnet 时，PMO 必须在首次启动时输出 WARN 日志：
+│   ⚠️ WARN [pmo-model-downgrade]
+│   ├── reason   : 主对话模型为 Sonnet，非推荐 Opus
+│   ├── impact   : 调度判断能力受限，降级决策 / 打回触发 / 上游问题识别可能漏判
+│   ├── action   : 关键阶段（Plan / Blueprint / Review 汇总）决策请人工复核
+│   └── suggest  : 建议切换会话至 Opus 后再进入 Plan / Blueprint Stage
+└── 模型降级 ≠ 流程跳过：Sonnet 主对话仍需严格执行所有 PMO 规范，只是质量风险需用户背书
+```
+
+🔴 模型选型变更红线：
+├── 把 Plan / Blueprint / Dev / Designer UI 从 Opus 改回 Sonnet 必须附证据：
+│   ├── 该 Feature 属于 Micro 流程（无架构变更、改动 ≤ 20 行、无新增依赖）
+│   ├── 或 Blueprint-Lite（简化方案，明确无跨 Feature/子项目影响）
+│   └── 或用户显式授权降级（对话中明确"本 Feature 可用 Sonnet"）
+└── 无证据的降级 → Review Stage 必须阻塞 + 追溯改动记录
 
 ### 判断原则
 
@@ -105,6 +129,21 @@ Subagent 返回给主对话的内容必须包含：
 ├── 2. 产出清单（代码文件、测试文件、报告）
 ├── 3. 问题清单（上游文档问题 / 遗留问题，无则写「无」）
 └── 4. 角色报告（如 RD 自查报告，格式见各角色规范）
+```
+
+### 2.5 Progress Log 实时维护（🔴 硬规则）
+
+```
+Subagent 执行过程中必须实时维护 dispatch 文件的 Progress Log 段：
+├── 🔴 每个 Step 开始时立即 append `- [HH:MM:SS] step-start Step N: {名}`
+├── 🔴 每个 Step 完成时立即 append `- [HH:MM:SS] step-done Step N（耗时 MmSs）`
+├── 🔴 异常事件立即 append（step-concern / step-blocked / degradation）
+├── 🚫 禁止：等全部跑完后一次性补 Progress Log（崩溃时会丢失中段记录）
+├── 🚫 禁止：忽略时间戳（无法评估每步耗时）
+└── 目的：为主对话「事后回放」提供时间轴；失败/超时场景下是排查根因的第一手资料
+
+Progress Log 缺失或断档 → PMO 在阶段摘要中标注「进度不可追溯」WARN。
+格式详见 templates/dispatch.md §Progress Log 段。
 ```
 
 ### 2.5 危险命令红线
@@ -188,88 +227,262 @@ PMO 根据宿主环境选择 Subagent dispatch 方式：
 
 🔴 核心原则：dispatch 方式不同，但 prompt 内容和输入输出格式完全一致。
    下方的 Prompt 结构适用于所有宿主。
+
+🔴 降级兜底必须输出 WARN 日志（硬规则，无例外）：
+触发任何降级路径时，PMO 必须在主对话输出一条结构化 WARN 提示：
+
+⚠️ WARN [degradation-fallback]
+├── reason    : {为什么触发降级：Subagent 失败 / 宿主不支持 / Codex 不可用 等}
+├── from      : {原计划路径：如 Claude Task Subagent / Codex agent / 并行 dispatch}
+├── to        : {实际兜底路径：如 主对话执行 / Sonnet 降级 / 串行执行}
+├── stage     : {当前 Stage 名}
+└── impact    : {影响评估：失去并行 / 模型能力差异 / 需要补充监控 等}
+
+适用的降级场景（非穷举）：
+├── Subagent dispatch 失败 → 主对话执行（见 §五 FAILED 兜底）
+├── Codex CLI 不可用 → Sonnet 执行 Review
+├── 宿主不支持 TodoWrite → 输出 markdown 进度块
+├── git worktree 不可用 → worktree=off 降级
+├── PreCompact/PostCompact hooks 不存在 → 跳过
+└── 任何「首选方案不可用 → 走兜底方案」的路径
+
+🎯 目的：降级是正确但不正常的路径，必须可观测、可追溯。
+       静默降级会让用户误以为一切正常，埋下质量风险。
 ```
 
-**Prompt 结构**（所有宿主通用）：
+### Dispatch 文件协议（所有宿主通用，🔴 硬规则）
+
+Teamwork 采用**文件化 dispatch**：PMO 不再在 Task/Agent prompt 里塞长文本，而是把所有 dispatch 信息写到一个 markdown 文件，Subagent 读该文件执行，完成时 append Result 回同一文件。
+
+```
+核心原则：
+├── 🔴 一次 Subagent dispatch = 生成一个 dispatch 文件
+├── 🔴 dispatch 文件 = Subagent 入参 + 审计记录（同一份，消除重复劳动）
+├── 🔴 Subagent prompt 极简（~5 行），只含 dispatch 文件路径
+├── 🔴 Subagent 必须 append Result 区域，否则视为 FAILED
+└── 🔴 PMO 写入 dispatch 文件是 Subagent dispatch 的前置条件（未写 = 不得 dispatch）
+```
+
+**dispatch 文件位置**：
+
+```
+{子项目路径}/docs/features/{缩写}-F{编号}-{功能名}/dispatch_log/
+├── 001-blueprint.md           # 序号从 001 起，三位数字
+├── 002-rd-develop.md          # {subagent-id} 见 §一 速查表
+├── 003-arch-code-review.md    # 并行 dispatch 各用独立文件
+├── 004-codex-review.md        # 同批次标注 Batch 字段
+├── 005-qa-code-review.md
+└── INDEX.md                   # 汇总索引（每次 dispatch 完成后 append 一行）
+```
+
+**dispatch 文件模板**：见 `{SKILL_ROOT}/templates/dispatch.md`（含完整字段定义和 INDEX 模板）。
+
+**Subagent prompt 极简结构**（替代原来的长 prompt 结构）：
 
 ```
 你是 Teamwork 协作框架中的 {角色名}。
 
-请先读取以下文件了解执行规范：
-1. {agents/README.md 的绝对路径}
-2. {agents/角色规范.md 的绝对路径}
+请读取以下 dispatch 文件并按其内容执行任务：
+{dispatch 文件绝对路径}
 
-## 任务信息
-- 功能：{缩写}-F{编号}-{功能名}
-- 子项目：{子项目缩写}
-- 子项目路径：{子项目根目录绝对路径}
-- 文档目录：{子项目路径}/docs/features/{缩写}-F{编号}-{功能名}/
-- 项目根目录：{项目根目录路径}
-- 任务：{具体任务描述}
-- 子项目类型：{business / midplatform}（midplatform 时需关注消费方影响）
-  📎 PMO 从 teamwork_space.md「子项目」表的「类型」列读取
-- 业务关联：{无 / BG-xxx-业务目标}（跨项目 Feature 时提供）
-
-## 关键上下文（文件路径优先，短文档直接注入）
-
-🔴 策略：**传文件路径让 Subagent 自己读原文**，而不是 PMO 摘要后注入。
-   Subagent 的 context 是干净的，有充足空间读完整文件。PMO 摘要转述会造成信息衰减。
-
-```
-注入策略（二选一，PMO 按文件大小判断）：
-├── 文件路径模式（默认）：在 prompt 中列出文件绝对路径，Subagent 自行 Read
-│   适用：PRD / TC / TECH / ARCHITECTURE.md / standards/*.md 等长文档
-│   好处：零信息损失，PMO prompt 更短
-│
-├── 内容直接注入模式：PMO 读取后将内容注入 prompt
-│   适用：仓库级约束（CLAUDE.md/AGENTS.md/GEMINI.md）、短配置、关键摘要
-│   好处：Subagent 不需额外 Read 调用，高优先级内容确保被看到
-│
-└── 🔴 无论哪种模式，PMO 必须在 prompt 中列出完整的文件清单（路径+用途），
-    Subagent 报告中也必须列出实际读取的文件（可追踪）
+🔴 执行规则：
+1. 严格按 dispatch 文件的 "Input files" 清单按序读取
+2. 产出满足 "Expected deliverables" 列出的所有交付物
+3. 🔴 执行过程中必须实时维护 dispatch 文件的 "Progress Log" 段：
+   每个 Step 开始/完成时 append 一行时间戳 + 事件，禁止最后一次性补全
+4. 完成后在 dispatch 文件末尾 append "Subagent Result" 区域（格式见文件末尾模板）
+5. 未 append Result 视为 FAILED；Progress Log 缺失 → PMO 标记「进度不可追溯」WARN
 ```
 
-🔴 仓库级约束（CLAUDE.md / AGENTS.md / GEMINI.md）始终用内容直接注入模式——短小、高优先级、必须确保 Subagent 看到。
+**关键字段责任划分**：
 
-按 Stage / 任务的文件清单（PMO 传路径，Subagent 自行读取）：
-├── Plan Stage → PRD.md（如已有草稿）、PROJECT.md、KNOWLEDGE.md
+| 字段 | 谁填 | 何时填 |
+|------|------|--------|
+| Meta（Feature/时间/宿主/model/pre-check） | PMO | dispatch 前 |
+| Task（任务描述） | PMO | dispatch 前 |
+| Input files（按序读取的文件清单） | PMO | dispatch 前 |
+| Additional inline context | PMO | dispatch 前（仓库级约束 / 短配置） |
+| **🎯 Key Context（6 类关键点）** | **PMO** | **dispatch 前（逐项判断，无则写 `-`）** |
+| Edit scope constraints | PMO | dispatch 前（复制模板标准段） |
+| Expected deliverables | PMO | dispatch 前 |
+| **Progress Log（每步开始/完成 append）** | **Subagent** | **执行中实时 append，禁止最后一次性补全** |
+| Return format | PMO | dispatch 前（复制模板标准段） |
+| **Subagent Result** | **Subagent** | **完成前 append** |
+
+**PMO 启动前自问（变更版）**：
+
+```
+Subagent 启动前，PMO 快速自检：
+├── dispatch 文件是否已生成并保存到 dispatch_log/？（未生成 = 不得 dispatch）
+├── Input files 清单是否完整覆盖任务所需上下文？
+├── 仓库级约束（CLAUDE.md/AGENTS.md/GEMINI.md）是否已作为 Additional inline context 注入？
+├── 🎯 Key Context 6 类关键点是否逐项判断？（无则写 `-`，证明已判断）
+│   1. 历史决策锚点（用户已拍板的选择）
+│   2. 本轮聚焦点（重派/修复必填）
+│   3. 跨 Feature 约束（禁改文件 / 兼容要求）
+│   4. 已识别风险 / 历史陷阱（预检 / KNOWLEDGE.md / 历史 Bug）
+│   5. 降级授权（预先授权的降级路径）
+│   6. 优先级 / 容忍度（进度 vs 质量）
+├── 📣 主对话 TodoWrite 是否已预声明本次 Subagent 的 Step 列表？
+│   ├── 内容从 stage 文件「执行流程」章节抽取
+│   ├── 粒度对齐 Expected deliverables（用户能一眼看到「接下来做哪 N 步」）
+│   └── 宿主不支持 TodoWrite → 降级输出 markdown 进度块（并走 WARN 日志）
+└── KNOWLEDGE.md 中相关经验是否已作为 Input files 之一？
+```
+
+**🔴 Key Context 硬规则**：
+
+```
+├── 字段必须完整（6 个子项全部出现，无内容写「-」）
+├── 严禁留空或删除字段 → 无判断痕迹 = Subagent 返回 NEEDS_CONTEXT
+├── 只写 Input files 里读不到的信息
+│   ├── ✅ 用户在 Plan Stage 拍板「用 PostgreSQL 不用 MySQL」（附 PL-PM 纪要引用）
+│   ├── ❌ 复制 PRD 的验收标准进来（Subagent 会读 PRD.md）
+│   └── ❌ 「请注意代码质量」这种废话
+├── 必须附证据链（来源文件 + 位置）
+│   └── 反例：「用户说要用 PostgreSQL」→ 无来源，不可追溯
+└── 反模式防范：
+    ├── PMO 偷懒 → 全写「-」 → 审查环节会发现（Review/Test 暴露后追责）
+    └── PMO 过度写 → 把主对话思考负担转嫁给 Subagent → 6 类边界严格约束
+```
+
+**注入策略（写进 dispatch 文件）**：
+
+```
+├── 长文档（PRD / TC / TECH / ARCHITECTURE.md / standards/*.md）→ 放 Input files
+│   好处：零信息损失，Subagent 自行 Read 原文
+│
+├── 短文档 / 仓库级约束（CLAUDE.md / AGENTS.md / GEMINI.md / 短配置）
+│   → 放 Additional inline context，PMO 直接复制原文到 dispatch 文件
+│   好处：确保高优先级内容被看到，不依赖 Subagent 主动 Read
+│
+└── 🔴 Subagent Result 的 Files read 字段必须列出实际读取的文件清单（可追溯）
+```
+
+**按 Stage / 任务的 Input files 建议**（PMO 填 dispatch 文件时参考）：
+
+```
+├── Plan Stage → PRD.md（如有草稿）、PROJECT.md、KNOWLEDGE.md
 ├── UI Design Stage → PRD.md + design/sitemap.md + design/preview/*.html（相关页面）
-├── Blueprint Stage → PRD.md + UI.md（如有）+ ARCHITECTURE.md
-├── Dev Stage → PRD.md + TC.md + TECH.md + standards/*.md
+├── Blueprint Stage → PRD.md + UI.md（如有）+ ARCHITECTURE.md + KNOWLEDGE.md
+├── BlueprintLite Stage → 简化 PRD.md + ARCHITECTURE.md（相关章节）
+├── Dev Stage → PRD.md + TC.md + TECH.md + standards/{common,backend/frontend}.md
 ├── Review Stage：
-│   ├── 架构师 CR → TECH.md + ARCHITECTURE.md + RD 自查报告 + git diff 文件清单
-│   ├── Codex Review → PRD.md + TECH.md + TC.md + 代码变更文件（🔴 不传架构师 CR 报告）
+│   ├── 架构师 CR → TECH.md + ARCHITECTURE.md + dispatch_log/{RD dispatch}.md（含自查报告）+ git diff 文件清单
+│   ├── Codex Review → PRD.md + TECH.md + TC.md + 代码变更文件（🔴 不传架构师 CR 报告避免偏见）
 │   └── QA 代码审查 → TC.md + git diff 文件清单
 ├── Test Stage → TC.md（integration/E2E 章节）+ TECH.md（测试命令）
 └── Browser E2E → TC.md（Browser E2E Scenarios 章节）+ 页面地址
+```
 
-## 编辑范围约束（PMO 必须注入 prompt）
+**Edit scope constraints 标准段**（PMO 直接复制到 dispatch 文件）：
 
+```
 🔴 你只能操作以下路径，其他路径一律禁止读写：
 - 允许读写：{子项目路径}/（功能代码 + 测试 + 配置）
-- 允许读写：{子项目路径}/docs/features/{功能目录}/（文档产出）
+- 允许读写：{子项目路径}/docs/features/{功能目录}/（文档产出，含 dispatch_log/）
 - 允许只读：{项目根目录}/docs/（ARCHITECTURE.md / KNOWLEDGE.md 等共享文档）
 - 允许只读：{SKILL_ROOT}/standards/（开发规范）
 - 🚫 禁止：其他子项目路径
 - 🚫 禁止：.env / .env.* / credentials.* / *secret* 等敏感文件
 - 🚫 禁止：.git/ 目录直接操作（通过 git 命令操作）
 
-违反时：立即停止 → 记录到问题清单 → 返回 DONE_WITH_CONCERNS
+违反时：立即停止 → 记录到 Subagent Result 的 Concerns → 返回 DONE_WITH_CONCERNS
 ```
 
-### 启动前自问（PMO 必须确认）
+### Dispatch 文件生命周期
 
 ```
-Subagent 启动前，PMO 快速自检：
-├── 关键上下文是否已注入 prompt？（不是只传路径）
-├── 该 Subagent 需要哪些文件？我都读过了吗？
-└── 有没有 KNOWLEDGE.md 中的相关经验需要传递？
+├── dispatch 前：PMO 生成文件，保存到 dispatch_log/
+├── dispatch 中：Subagent 读文件执行（多次 Read 不占 prompt token）
+├── dispatch 后：Subagent append Result → PMO 读 Result 确认状态
+├── PMO 扫 INDEX.md 追加一行（时间、状态、降级、文件链接）
+└── Feature ✅ 完成：PMO 复盘所有 dispatch，教训写入 KNOWLEDGE.md；dispatch_log/ 保留
+```
+
+### Progress 可见性协议（🔴 硬规则）
+
+Subagent → 主对话的**实时通道在通用宿主 API 下不存在**（dispatch 是同步阻塞：PMO 发 → 主对话挂起 → Subagent 跑完 → 返回）。为此 teamwork 采用「前置预声明 + 中途自述 + 事后回放」三段式替代实时流，禁止依赖任何宿主特有的「peek 运行中会话」能力。
+
+```
+三段式 Progress 协议：
+
+┌─ 阶段 1：dispatch 前（PMO 职责） ────────────────────────┐
+│ 🔴 PMO 必须在主对话 TodoWrite 预声明 Subagent Step 列表   │
+│ ├── 内容来源：stage 文件「执行流程」章节                │
+│ ├── 粒度：对齐 Expected deliverables                    │
+│ ├── 宿主不支持 TodoWrite → 输出 markdown 进度块 + WARN   │
+│ └── 目的：dispatch 前用户已看到「接下来做哪 N 步」        │
+└──────────────────────────────────────────────────────────┘
+
+┌─ 阶段 2：dispatch 中（Subagent 职责） ───────────────────┐
+│ 🔴 Subagent 必须在 dispatch 文件 Progress Log 段实时记录  │
+│ ├── 每步开始：`- [HH:MM:SS] step-start Step N: {名}`     │
+│ ├── 每步完成：`- [HH:MM:SS] step-done Step N（耗时 XmXs）`│
+│ ├── 异常事件：step-concern / step-blocked / degradation │
+│ ├── 禁止：最后一次性补全（崩溃时会丢失）                 │
+│ └── 目的：构建「黑匣子记录」，供事后回放 + 失败排查       │
+└──────────────────────────────────────────────────────────┘
+
+┌─ 阶段 3：dispatch 后（PMO 职责） ────────────────────────┐
+│ 🔴 PMO 读 Progress Log 转成主对话可见的时间轴            │
+│ ├── step-start/step-done → 主对话 TodoWrite 状态更新     │
+│ ├── step-concern / degradation / step-blocked → 高亮提示 │
+│ ├── 总耗时 + 每步耗时展示在 PMO 阶段摘要                 │
+│ └── 目的：用户看到「计划 → 等待（但清楚在等什么） →       │
+│     时间轴回放」，而不是「黑盒 → 突然完成」              │
+└──────────────────────────────────────────────────────────┘
+```
+
+**用户体验目标对照**：
+
+```
+❌ 差体感：「PMO 正在等 Subagent 返回...」→ 几分钟到几十分钟黑盒
+✅ 好体感：
+   ├── dispatch 前：主对话 TodoList 里出现 N 个待办项（计划可见）
+   ├── dispatch 中：主对话状态是「等待中」，但用户看到待办列表清楚知道在等什么
+   └── dispatch 后：TodoList 批量变 ✅（或有 ⚠️/❌），异常事件附带解释
+```
+
+**可选加强：切分 Subagent 粒度（按需启用，不默认）**
+
+对于体感特别差的长 Stage（典型是 Test Stage 总耗时 >15 分钟），PMO 可将「一次 dispatch」拆成「多次短 dispatch」：
+
+```
+├── 适用条件（同时满足才切分）：
+│   ├── Stage 整体预期 >15 分钟
+│   ├── 内部步骤之间无强上下文依赖（切分不损失信息）
+│   └── 用户明确表达对该 Stage 过程敏感
+├── 切分方式：
+│   ├── Test Stage 例：环境复核 Subagent → 集成测试 Subagent → API E2E Subagent
+│   └── 每个 Subagent 用独立 dispatch 文件，Batch 字段标同批次
+├── 代价：
+│   ├── 多次冷启动开销（每次 ~10-30s）
+│   └── PMO 维护中间状态（需在主对话做串联）
+└── 🔴 不作为默认，只在用户显式要求或 Stage 明确属于「用户盯盘型」时启用
+```
+
+### Subagent 未 append Result 的处理
+
+```
+情况 1：Subagent 返回但未 append → PMO 视为 FAILED
+├── PMO 在 dispatch 文件末尾 append 自己的 Result 段
+│   ├── Status: FAILED (Subagent did not append Result)
+│   ├── Completed at: {PMO 接管时间}
+│   └── Degradation: ⚠️ WARN [missing-result-append]
+└── 按 §五 FAILED 兜底：降级主对话执行，输出 WARN 日志
+
+情况 2：Subagent 卡死/超时 → PMO 超时兜底
+├── 同情况 1 处理
+└── dispatch 文件保留，便于后续排查 Subagent 行为异常根因
 ```
 
 ### 4.2 启动前检查
 
 ```
 PMO 启动 subagent 前必须确认：
+├── 🔴 dispatch 文件已生成并保存到 {Feature}/dispatch_log/（未生成 = 不得 dispatch）
+├── dispatch 文件的 Input files 清单完整覆盖任务所需上下文
 ├── 所有前置阶段已完成（如技术方案已确认）
 ├── 所需文件已生成且路径正确
 ├── 用户已确认可以进入该阶段
@@ -281,13 +494,22 @@ PMO 启动 subagent 前必须确认：
 
 ```
 Subagent 返回后，PMO 必须：
-├── 1. 检查返回内容是否完整（代码 + 报告）
-├── 2. 检查是否有上游问题需要打回
+├── 1. 🔴 读取 dispatch 文件，确认 Subagent Result 区域已 append
+│   ├── 未 append → 视为 FAILED，按 §四「Subagent 未 append Result 的处理」执行
+│   └── 已 append → 按 Status 字段分级处理
+├── 2. 🔴 读取 dispatch 文件的 Progress Log 段，转成主对话时间轴回放
+│   ├── 把 step-start/step-done 映射为主对话 TodoWrite 状态更新
+│   ├── 高亮异常事件（step-concern / step-blocked / degradation）
+│   ├── 展示总耗时 + 每步耗时（便于后续优化 / 排查卡点）
+│   └── Progress Log 缺失或断档 → 在 PMO 摘要中标注「进度不可追溯」WARN
+├── 3. 检查返回内容是否完整（代码 + 报告 + Result 字段全填）
+├── 4. 检查是否有上游问题需要打回
 │   ├── 有 → 触发打回机制（RULES.md 八-B）
 │   └── 无 → 继续
-├── 3. 输出合并的 PMO 阶段摘要
-├── 4. 自动流转到下一阶段
-└── 5. Subagent 异常处理（见下方失败分类）
+├── 5. 🔴 更新 dispatch_log/INDEX.md：追加一行记录本次 dispatch 结果
+├── 6. 输出合并的 PMO 阶段摘要（含 Progress Log 时间轴回放）
+├── 7. 自动流转到下一阶段
+└── 8. Subagent 异常处理（见下方失败分类）
 
 🔴 Subagent 返回状态分级处理（参考 superpowers 升级策略）：
 
@@ -303,10 +525,11 @@ Subagent 返回后，PMO 必须：
 🔴 BLOCKED/FAILED 升级策略（不是无脑重试）：
 ├── 缺上下文 → PMO 补充后重新 dispatch（同一 Subagent）
 ├── 任务太大 → PMO 拆分为更小的步骤，分步执行
-├── 真的做不了 → 降级到主对话内执行
+├── 真的做不了 → 降级到主对话内执行（🔴 必须输出 WARN 日志，见 §四 降级 WARN 规则）
 └── 🔴 永远不要在不改变任何条件的情况下重试同一个 Subagent
 
-🔴 核心原则：Subagent 异常不能卡住整个流程，降级后仍需完成该阶段任务
+🔴 核心原则：Subagent 异常不能卡住整个流程，降级后仍需完成该阶段任务，
+   但所有降级必须有 WARN 日志可追溯（静默降级 = 隐藏问题 = 违反红线 #9 闭环验证）
 ```
 
 ---

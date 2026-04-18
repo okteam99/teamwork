@@ -20,18 +20,21 @@ UI Design Stage = 单个 Feature 的 UI 设计
 
 ## 二、输入文件
 
+> 🔴 PMO 必须先按 [Dispatch 文件协议](../agents/README.md#dispatch-文件协议) 生成 `{Feature}/dispatch_log/{NNN}-designer.md`，
+> 下方文件清单作为该 dispatch 文件的「Input files」段落内容。未生成 dispatch 文件不得 dispatch。
+
 ```
-PMO 启动时必须注入：
+Input files（写入 dispatch 文件）：
 ├── agents/README.md                                ← 通用规范
 ├── stages/ui-design-stage.md                       ← 本文件
 ├── roles/designer.md                               ← Designer 角色规范
 ├── docs/features/F{编号}-{功能名}/PRD.md           ← 已确认的 PRD
 ├── templates/ui.md                                 ← UI 设计模板
 │
-🔴 全景基准（存在时必须注入，不是可选）：
+🔴 全景基准（存在时必须写入，不是可选）：
 ├── design/sitemap.md                               ← 全景页面地图（Designer 必须参照风格/配色/布局）
 ├── design/preview/{相关页面}.html                   ← 全景中与本 Feature 同名的预览稿（如 onboarding.html）
-│   └── PMO 根据 PRD 涉及的页面，从 design/preview/ 中筛选对应的全景 HTML 注入
+│   └── PMO 根据 PRD 涉及的页面，从 design/preview/ 中筛选对应的全景 HTML 写入
 │
 可选文件：
 ├── docs/KNOWLEDGE.md                               ← 用户设计偏好

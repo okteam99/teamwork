@@ -55,8 +55,11 @@ Blueprint Stage = 开发前的完整技术规格（🤖 Subagent 一次性执行
 
 ## 三、输入文件
 
+> 🔴 PMO 必须先按 [Dispatch 文件协议](../agents/README.md#dispatch-文件协议) 生成 `{Feature}/dispatch_log/{NNN}-blueprint.md`，
+> 下方文件清单作为该 dispatch 文件的「Input files」段落内容。未生成 dispatch 文件不得 dispatch。
+
 ```
-PMO 启动时必须注入：
+Input files（写入 dispatch 文件）：
 ├── agents/README.md
 ├── stages/blueprint-stage.md（本文件）
 ├── roles/qa.md（含 TC 技术评审规范）

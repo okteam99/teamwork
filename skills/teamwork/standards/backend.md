@@ -404,24 +404,157 @@ assert db_user["created_at"] is not None
 ### 非预期分支日志规则
 
 ```
-⚠️ 必须打 WARN 日志：
+⚠️ 必须打 WARN 日志（硬规则，无例外）：
+├── 🔴 降级/兜底逻辑触发（任何 fallback 路径）
+│   ├── 主服务失败降级到备用服务
+│   ├── 新实现失败降级到旧实现
+│   ├── 远程调用失败使用本地缓存/默认值
+│   ├── Subagent/Agent dispatch 失败降级到主对话执行
+│   ├── 首选配置不可用降级到次选配置
+│   └── 任何「A 方案失败 → B 方案继续」的兜底路径
 ├── 进入 else/default 等兜底分支
 ├── 参数为空或无效，使用默认值
 ├── 重试逻辑触发
-├── 降级处理触发
 ├── 缓存未命中走数据库
 └── 任何「理论上不应该走到」的代码路径
 
 ❌ 必须打 ERROR 日志：
 ├── 捕获到异常（即使已处理）
-├── 外部服务调用失败
+├── 🔴 调用三方 / 外部服务返回异常（任何非预期响应，含 HTTP 非 2xx、业务错误码、超时、连接失败、协议错误、反序列化失败）
 ├── 数据校验失败
 ├── 业务规则冲突
 └── 任何需要开发人员关注的异常情况
 ```
 
+**🔴 三方 / 外部服务调用异常 ERROR 日志规则（硬规则）**
+
+```
+范围定义（"调用三方 / 其他服务"）：
+├── 外部第三方 API（支付、短信、OAuth、地图、IM、推送等）
+├── 公司内部其他服务（gRPC / HTTP / MQ / RPC 跨服务调用）
+├── 云厂商 SDK 调用（OSS / S3 / Redis 云版 / 云数据库等托管服务）
+├── 外部中间件调用（Kafka / RabbitMQ / Elasticsearch / 消息队列等）
+└── 任何"跨进程边界"的网络调用（本进程内函数调用不在此范围）
+
+触发 ERROR 日志的"返回异常"定义（满足任一即触发）：
+├── HTTP 状态码非 2xx（含 3xx 非预期跳转、4xx、5xx）
+├── 业务响应码表示失败（如 code != 0 / success == false / 约定失败码）
+├── 网络层异常（超时 / 连接拒绝 / DNS 失败 / TLS 错误）
+├── 响应体反序列化失败（JSON 解析错误 / schema 不匹配）
+├── 响应字段缺失或类型不符合约定
+├── 限流 / 熔断 / 降级信号（即便下游返回 200 但业务语义是失败）
+└── 任何"调用方认为不符合预期"的响应
+
+日志级别：ERROR（不得降为 WARN/INFO，不得静默）
+
+必须字段（缺一不可）：
+├── 调用目标：服务名 / 接口名 / 方法（如 payment-service / POST /v1/pay）
+├── 请求标识：traceId / spanId（分布式追踪必备）
+├── 请求摘要：请求参数（敏感字段脱敏）
+├── 响应摘要：HTTP 状态码 + 响应体（或错误对象的 message/code/stack）
+├── 耗时：duration_ms
+├── 重试信息（如有）：当前重试次数 / 最大次数
+└── 业务上下文：user_id / order_id 等业务标识
+
+评审门禁：
+├── Code Review 时，所有跨进程调用点必须验证是否有 ERROR 日志
+├── try/catch 包住外部调用但 catch 里没打 ERROR → 阻塞 CR
+├── 仅依靠 APM / sidecar 自动上报 ≠ 免除打日志义务
+│   （业务上下文无法被 APM 采集，必须在代码里显式写 ERROR 日志）
+└── 外部调用被降级兜底时：
+    ├── 先打 ERROR 日志（记录异常本身）
+    └── 再打 WARN 日志（记录降级动作）—— 两条都必须，缺一不可
+
+🎯 目的：跨服务边界是故障定位的关键切面。
+       静默失败的外部调用 = 排查时毫无头绪 = MTTR 飙升。
+       降级可以兜业务可用性，但不能兜可观测性。
+```
+
 **示例**：
 ```javascript
+// ✅ 正确：外部调用异常 ERROR 日志（+ 降级时叠加 WARN）
+const start = Date.now();
+try {
+    const resp = await paymentClient.pay({ orderId, amount });
+    if (resp.code !== 0) {
+        logger.error("Payment service returned business error", {
+            target: "payment-service",
+            endpoint: "POST /v1/pay",
+            traceId: ctx.traceId,
+            request: { orderId, amount },
+            response: { code: resp.code, msg: resp.msg },
+            durationMs: Date.now() - start,
+            orderId,
+            userId: ctx.userId,
+        });
+        throw new BusinessError(resp.code, resp.msg);
+    }
+    return resp.data;
+} catch (e) {
+    logger.error("Payment service call failed", {
+        target: "payment-service",
+        endpoint: "POST /v1/pay",
+        traceId: ctx.traceId,
+        request: { orderId, amount },
+        error: { message: e.message, stack: e.stack },
+        durationMs: Date.now() - start,
+        orderId,
+        userId: ctx.userId,
+    });
+    throw e;
+}
+
+// ❌ 错误：吞掉异常 / 只打 WARN / 无业务上下文
+try {
+    return await paymentClient.pay({ orderId, amount });
+} catch (e) {
+    logger.warn("payment failed");  // 级别错 + 无上下文 + 无 traceId + 无耗时
+    return null;                     // 静默兜底，排查时毫无线索
+}
+```
+
+**🔴 降级兜底逻辑 WARN 日志规则（硬规则）**
+
+```
+任何降级/兜底逻辑（fallback）必须打 WARN 日志，缺一不可：
+
+├── 触发条件：代码进入「A 失败 → 走 B 兜底」的任何分支
+├── 日志级别：WARN（不得降为 INFO/DEBUG，不得静默）
+├── 必须字段：
+│   ├── 降级原因（为什么触发降级：原始异常/不可用信号）
+│   ├── 降级前方案（原本期望走的路径）
+│   ├── 降级后方案（实际执行的兜底路径）
+│   └── 业务上下文（trace_id / 用户 ID / 业务标识）
+└── 评审门禁：Code Review 时，所有 fallback/catch-and-continue
+    代码路径必须验证是否有 WARN 日志，缺失即阻塞
+
+🎯 目的：降级是「正确但不正常」的路径，必须可观测、可告警、可追溯。
+       静默降级 = 掩盖问题 = 生产事故来源。
+```
+
+**示例**：
+```javascript
+// ✅ 正确：降级逻辑 + WARN 日志
+try {
+    result = await primaryService.call(req);
+} catch (e) {
+    logger.warn("Primary service failed, falling back to secondary", {
+        reason: e.message,
+        from: "primary-service",
+        to: "secondary-service",
+        traceId: ctx.traceId,
+        userId: ctx.userId,
+    });
+    result = await secondaryService.call(req);
+}
+
+// ❌ 错误：静默降级
+try {
+    result = await primaryService.call(req);
+} catch (e) {
+    result = await secondaryService.call(req);  // 无日志，问题无法追溯
+}
+
 // WARN - 非预期但可处理
 if (user == null) {
     logger.warn("User not found, using default", { userId, default: "guest" });

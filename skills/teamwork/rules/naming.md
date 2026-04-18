@@ -13,7 +13,37 @@
 ├── 编号在各子项目内独立递增
 ├── 目录名：{缩写}-F{编号}-{功能名}
 ├── 目录位置：{子项目路径}/docs/features/{缩写}-F{编号}-{功能名}/
+├── 标准子目录结构：
+│   ├── STATUS.md                  Feature 状态 SSOT
+│   ├── PRD.md                     产品需求文档
+│   ├── TC.md                      测试用例文档
+│   ├── tech.md                    技术方案
+│   ├── UI.md                      UI 设计（如有）
+│   ├── dispatch_log/              🔴 Subagent dispatch 文件目录（每次 dispatch 一个文件 + INDEX.md）
+│   │   ├── INDEX.md
+│   │   ├── 001-{subagent-id}.md
+│   │   ├── 002-{subagent-id}.md
+│   │   └── ...
+│   ├── bugfix/                    关联 Bug 报告（可选）
+│   └── optimization/              关联优化报告（可选）
 └── 文档内引用时使用完整格式 {缩写}-F{编号}-{功能名}
+```
+
+## Dispatch 文件编号
+
+```
+格式：{三位数字序号}-{subagent-id}.md
+示例：001-blueprint.md, 002-rd-develop.md, 003-arch-code-review.md, 004-codex-review.md, 005-qa-code-review.md...
+
+规则：
+├── 分配者：PMO（每次 Subagent dispatch 前生成 dispatch 文件时分配）
+├── 编号在单个 Feature 的 dispatch_log/ 目录内递增，跨 Feature 不共享
+├── 并行 dispatch（同 Stage 同批次）各占一个序号，Batch 字段标注同批次
+├── 重新 dispatch（NEEDS_CONTEXT 补充后）→ 新序号 + 新文件，Previous dispatch 字段指向前次
+├── subagent-id 取自 agents/README.md §一 执行方式速查表：
+│   blueprint / rd-develop / arch-code-review / codex-review / qa-code-review
+│   integration-test / api-e2e / designer / pm-prd / qa-plan 等
+└── INDEX.md 固定位于 dispatch_log/ 根下，不参与序号
 ```
 
 ## Bug 编号

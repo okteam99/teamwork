@@ -51,10 +51,13 @@ Plan Stage 模式（一体化执行）：
 
 ## 三、输入文件
 
+> 🔴 PMO 必须先按 [Dispatch 文件协议](../agents/README.md#dispatch-文件协议) 生成 `{Feature}/dispatch_log/{NNN}-pm-prd.md`，
+> 下方文件清单作为该 dispatch 文件的「Input files」段落内容。未生成 dispatch 文件不得 dispatch。
+
 ```
-PMO 启动时必须注入：
+Input files（写入 dispatch 文件）：
 ├── agents/README.md                                ← 通用规范
-├── stages/prd-stage.md                             ← 本文件
+├── stages/plan-stage.md                            ← 本文件
 ├── roles/pm.md                                     ← PM 角色 + PRD 技术评审规范
 ├── roles/product-lead.md                           ← PL 角色（讨论用）
 ├── templates/prd.md                                ← PRD 模板

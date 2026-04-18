@@ -207,7 +207,7 @@ PMO 识别为 Feature Planning 后，进一步判断范围：
 │   ├── 读取 ROADMAP.md，对比本次需求与已有 Feature 的描述 + 核心验收标准
 │   ├── 有冲突 → 列出冲突点 + ⏸️ 用户确认处理方式
 │   └── 无冲突 → 「✅ 无跨 Feature 冲突」
-├── 阶段链（Feature）：🔗 Plan Stage → 🔗 UI Design Stage → 🔗 Panorama Design Stage → 🔗 Blueprint Stage → 🔗 Dev Stage → 🔗 Review Stage（架构师CR∥Codex∥QA审查）→ 🔗 Test Stage（集成∥E2E）→ Browser E2E(可选) → PM 验收
+├── 阶段链（Feature）：🔗 Plan Stage → 🔗 UI Design Stage → 🔗 Panorama Design Stage → 🔗 Blueprint Stage → 🔗 Dev Stage → 🔗 Review Stage（架构师CR∥Codex∥QA审查）→ 🟡 Test Stage 前置确认 → 🔗 Test Stage(可选：立即/延后/跳过) → Browser E2E(可选) → PM 验收
 │   └── 自动跳过：Designer（PRD「需要 UI: 否」时）
 ├── ⏸️ 请确认：(1) 走 {流程名} 流程 (2) 以上分析和影响范围
 └── 🔄 切换到：{角色名}（用户确认后）
@@ -738,9 +738,9 @@ PM 编写精简 PRD（需求描述 + 验收标准 + 影响范围 + 接口变更 
     ↓
 🔗 Dev Stage（🤖 Subagent，与 Feature 一致）
     ↓
-🔗 Dev Stage 通过 → 🔗 Review Stage → 🔗 Test Stage（与 Feature 一致）
+🔗 Dev Stage 通过 → 🔗 Review Stage → 🟡 Test Stage 前置确认 → 🔗 Test Stage(可选，与 Feature 一致)
     ↓
-Test Stage 通过 → Browser E2E（可选）
+Test Stage 通过 / 延后 / 跳过 → Browser E2E（可选）
     ↓
 🔄 自动流转到 PM
 PM 验收
@@ -770,7 +770,7 @@ PMO 完成报告
 │   ├── 无架构变更：✅
 │   ├── 不影响其他功能：✅
 │   └── 方案明确：✅ [一句话方案]
-├── 阶段链：精简 PRD → ⏸️ → QA (Plan+Case) → 🔗 Dev Stage → 🔗 Review Stage → 🔗 Test Stage → Browser E2E(可选) → PM 验收
+├── 阶段链：精简 PRD → ⏸️ → QA (Plan+Case) → 🔗 Dev Stage → 🔗 Review Stage → 🟡 Test Stage 前置确认 → 🔗 Test Stage(可选) → Browser E2E(可选) → PM 验收
 ├── ⏸️ 请确认走敏捷需求流程
 └── ✅ 自检通过
 ```
@@ -798,7 +798,7 @@ PMO 完成报告
 
 🔴 敏捷需求事后审计（PMO 完成报告前必须检查）：
 ├── 实际改动文件数 ≤ 5？（数 git diff 的物理文件，含新建文件）
-├── 阶段链是否完整？（精简 PRD → QA Plan+Case → Dev Stage → Review Stage → Test Stage → PM 验收）
+├── 阶段链是否完整？（精简 PRD → QA Plan+Case → Dev Stage → Review Stage → Test Stage 前置确认[→ Test Stage/延后/跳过] → PM 验收）
 ├── 任何一项不满足 → PMO 在完成报告中标注 ⚠️ 流程偏离，记录偏离原因
 └── 严重偏离（如跳过 3 个以上阶段或文件数超标 2 倍以上）→ 本次不出完成报告，要求补走流程
 ```

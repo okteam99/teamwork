@@ -34,7 +34,8 @@
 │ ├── 代码规范            │ ├── 安全漏洞            │ ├── TDD 规范检查        │
 │ ├── 性能/安全           │ ├── 第三方依赖真实性    │ ├── 集成测试覆盖检查    │
 │ └── ARCHITECTURE.md     │ ├── 并发安全            │ ├── 用户行为边界        │
-│     同步更新            │ └── 代码质量            │ └── 架构文档一致性      │
+│     同步更新            │ └── 代码质量            │ ├── 设计-代码一致性     │
+│                         │                         │ └── 架构文档一致性      │
 └────────────┬────────────┴────────────┬────────────┴────────────┬────────────┘
              ↓                         ↓                         ↓
                         PMO 汇合三份报告
@@ -44,21 +45,31 @@
 
 ## 三、输入文件
 
+> 🔴 Review Stage 三路并行 = 三个独立 Subagent dispatch，PMO 必须按 [Dispatch 文件协议](../agents/README.md#dispatch-文件协议) **分别生成三个 dispatch 文件**：
+> - `{Feature}/dispatch_log/{NNN}-arch-code-review.md`
+> - `{Feature}/dispatch_log/{NNN+1}-codex-review.md`
+> - `{Feature}/dispatch_log/{NNN+2}-qa-code-review.md`
+>
+> 三个文件的「Meta > Batch」字段填同一批次 ID（如 `review-round-1`），方便 INDEX 汇合查阅。
+> 未生成三个 dispatch 文件不得 dispatch。
+
 ```
-PMO 启动时注入（三个 review 共用）：
+三个 dispatch 文件共用的 Input files（各自写入自己的 dispatch 文件）：
 ├── agents/README.md                                ← 通用规范
 ├── stages/review-stage.md                          ← 本文件
 ├── docs/features/F{编号}-{功能名}/PRD.md           ← 需求文档
 ├── docs/features/F{编号}-{功能名}/TC.md            ← 测试用例
 ├── docs/features/F{编号}-{功能名}/TECH.md          ← 技术方案
-├── Dev Stage 执行报告（RD 自查报告）
-├── 代码变更文件列表（git diff --name-only）
+├── Dev Stage 执行报告（RD 自查报告，路径注入）
+├── 代码变更文件列表（git diff --name-only 结果，inline 写入 Additional inline context）
 ├── {SKILL_ROOT}/standards/common.md                ← 通用开发规范
 │
-各 review 专属输入：
-├── 架构师 CR → 额外注入 ARCHITECTURE.md
-├── Codex Review → 🔴 不注入架构师 CR 报告（保持独立性）
-└── QA 代码审查 → 额外注入 TC 完整内容
+各 review 专属输入（各自 dispatch 文件额外追加）：
+├── 架构师 CR dispatch → 额外追加 docs/architecture/ARCHITECTURE.md
+├── Codex Review dispatch → 🔴 严禁追加 架构师 CR 报告（保持独立性）
+└── QA 代码审查 dispatch → 额外追加 TC 完整内容（已在共用清单中即可）
+                           + 🟡 UI.md（存在时必附，用于设计-代码一致性核对）
+                           + 🟡 preview/*.html（存在时附）
 ```
 
 ---

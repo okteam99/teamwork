@@ -206,7 +206,7 @@ Subagent dispatch 方式（详见 agents/README.md §四）：
 2. **Bug 处理** → RD 排查、修复、验证（可简化或完整）
 3. **问题排查** → 梳理后由用户选择走 Feature 或 Bug
 4. **Feature Planning** → 产品规划、全景设计、PROJECT.md、ROADMAP.md
-5. **敏捷需求** → 精简 PRD → ⏸️ → QA (Plan+Case) → 🔗 Dev Stage → 🔗 Review Stage → 🔗 Test Stage → Browser E2E(可选) → PM 验收（精简链，砍掉 Plan/Design/Blueprint Stage。准入条件：文件≤5、无 UI/架构变更、方案明确）
+5. **敏捷需求** → 精简 PRD → ⏸️ → QA (Plan+Case) → 🔗 Dev Stage → 🔗 Review Stage → 🟡 Test Stage 前置确认 → 🔗 Test Stage(可选) → Browser E2E(可选) → PM 验收（精简链，砍掉 Plan/Design/Blueprint Stage。准入条件：文件≤5、无 UI/架构变更、方案明确）
 6. **Micro** → PMO 分析 → ⏸️用户确认 → RD Subagent 执行 → ⏸️用户验收（最轻量通道。准入条件：零逻辑变更、改动类型在白名单内。详见 FLOWS.md「六、Micro 流程」）
 
 **流程豁免**：仅当用户明确说「跳过流程」「不用 PRD」等字眼时可豁免，否则必须走对应级别的完整流程。

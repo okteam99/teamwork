@@ -21,6 +21,10 @@ BlueprintLite = 敏捷需求的轻量蓝图
 
 ## 二、输入文件
 
+> ℹ️ 本 Stage 由 PMO 在主对话直接执行，不 dispatch Subagent，因此**不生成 dispatch 文件**。
+> 但 PMO 需按清单顺序加载下方文件（缺失则报错或降级）。
+> 若未来改为 Subagent 执行，再按 [Dispatch 文件协议](../agents/README.md#dispatch-文件协议) 生成 `{Feature}/dispatch_log/{NNN}-blueprint-lite.md`。
+
 ```
 PMO 执行时加载：
 ├── stages/blueprint-lite-stage.md（本文件）

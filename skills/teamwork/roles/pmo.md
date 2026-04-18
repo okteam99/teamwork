@@ -334,17 +334,120 @@ PMO 输出拆分方案：
 └── 🔴 两者必须同步，STATUS.md 是 Feature 级 Source of Truth，ROADMAP.md 是全局视图
 ```
 
+---
+
+### 🟡 Test Stage 前置确认（PMO 专属）
+
+**触发**：Review Stage 返回 ✅ DONE（或 DONE_WITH_CONCERNS 且用户已确认继续），即将进入 Test Stage 前
+
+**设计意图**：
+```
+Test Stage 是可选 Stage。多个 Feature 并行开发时，用户可能希望：
+├── 场景 A：每个 Feature 完成后立即跑集成测试 + API E2E（默认推荐）
+└── 场景 B：所有 Feature 都完成 Review Stage 后，一次性批量跑测试
+    （适合需求之间有耦合、测试环境搭建/数据准备成本高、或希望减少上下文切换）
+
+🔴 PMO 无权自行决定跳过 Test Stage，必须询问用户。
+🔴 用户唯一合法跳过途径 = 在本前置确认点明确说「延后」或「跳过」。
+```
+
+**前置确认输出格式**：
+```
+🟡 Test Stage 前置确认（{缩写}-F{编号}-{功能名}）
+=========================================
+
+## 当前状态
+├── ✅ Review Stage：已通过（架构师 CR / Codex / QA 审查）
+├── 📦 Commit：{HEAD short hash}
+└── 📋 待执行：Test Stage（集成测试 ∥ API E2E）
+
+## 并行 Feature 状态（如存在）
+| Feature | 当前阶段 | Test Stage 状态 |
+|---------|----------|-----------------|
+| {F001}  | ...      | ⏳ 待测试 / ✅ 已测 / ⏭️ 延后 |
+| ...     | ...      | ...             |
+
+## 请选择
+├── A. 🚀 立即执行 Test Stage（推荐：单 Feature 或独立性强时）
+├── B. ⏸️ 延后，先进入 PM 验收，稍后统一批量测试
+│       └── 适用场景：多 Feature 并行、希望完成后统一测试
+└── C. ⏭️ 本 Feature 跳过 Test Stage（需说明原因，PMO 记录到 review-log.jsonl）
+        └── ⚠️ 跳过后 PMO 完成报告的「QA 项目集成测试」项将标记 ⏭️ + 原因
+
+---
+⏸️ 请回复 A / B / C（或自然语言说明）后继续。
+```
+
+**用户选择后的处理**：
+
+```
+A. 立即执行 Test Stage
+   ├── PMO 按 RULES.md「Test Stage Subagent」自动流转规则推进
+   ├── review-log.jsonl 追加 test-stage 记录
+   └── 后续照常：Test Stage → Browser E2E 判断 → PM 验收
+
+B. 延后批量测试
+   ├── PMO 在 STATUS.md 当前 Feature 的「阶段历史」追加一行：
+   │   └── ⏸️ Test Stage 延后（由用户决定）| 延后时间 | 关联批次 ID
+   ├── review-log.jsonl 追加一行 test-stage 记录，status = DEFERRED
+   ├── 🔴 仍然推进到 PM 验收（PM 验收可以在无 Test Stage 证据时进行，
+   │   但 PMO 必须在完成报告中明确标注「Test Stage 延后，尚未执行」）
+   ├── PMO 完成报告中：
+   │   ├── 「QA 项目集成测试」标 ⏸️ 延后（批次 {ID}）
+   │   └── 「功能状态」标 ⚠️ 待测试（非 ✅ 已完成）
+   └── PMO 维护「延后测试批次表」（见下文「延后批次追踪」）
+
+C. 跳过 Test Stage
+   ├── PMO 要求用户说明跳过原因（必填）
+   ├── review-log.jsonl 追加 test-stage 记录，status = SKIPPED + reason
+   ├── PMO 完成报告中：
+   │   └── 「QA 项目集成测试」标 ⏭️ 跳过（原因：{用户理由}）
+   └── 🔴 PMO 必须在完成报告中醒目警示：本 Feature 未执行 Test Stage
+```
+
+**延后批次追踪（选择 B 时 PMO 维护）**：
+
+```
+文件位置：{docs_root}/features/_deferred-tests.md（PMO 维护）
+
+格式：
+| 批次 ID | Feature | Review 完成时间 | Commit | 延后原因 | 批量执行时间 | 状态 |
+|---------|---------|-----------------|--------|----------|--------------|------|
+| test-batch-2026-04-16-1 | F001-登录 | 2026-04-16 | abc123 | 与 F002 并行 | - | ⏳ 待测 |
+| test-batch-2026-04-16-1 | F002-注册 | 2026-04-16 | def456 | 与 F001 并行 | - | ⏳ 待测 |
+
+PMO 批量执行时机：
+├── 用户主动触发：「现在统一测试延后的 Feature」
+├── 每次新 Feature 进入 Test Stage 前置确认时，PMO 提示当前有 N 个延后待测
+└── PMO 完成报告（单 Feature）时，如存在未测批次 → 在「下一步建议」中提示
+```
+
+**🔴 Test Stage 前置确认红线**：
+```
+├── PMO 不得自行默认选择 A（必须询问用户）
+├── PMO 不得把「立即执行」作为默认行为悄悄进入 Test Stage
+├── 选择 B/C 后，STATUS.md 和 review-log.jsonl 必须同步记录
+├── 选择 B 后，PMO 完成报告必须显式标明「待测试」状态，不得伪装为「已完成」
+├── 选择 C 时用户必须提供理由，PMO 不得接受空白理由
+└── 多 Feature 并行时，PMO 应主动提示「当前还有 N 个 Feature 处于延后待测状态」
+```
+
+---
+
 ### ⚡ PMO 自动推进规则
 
 ```
 阶段完成后：
 ├── 🔴 二次校验：对照 RULES.md 暂停条件表，确认当前节点确实不在暂停条件中
-├── 待确认 = 无 且 不在暂停条件中 → 🚀 自动继续下一阶段（同一回复中）
-└── 待确认 ≠ 无 或 命中暂停条件 → ⏸️ 暂停等待用户处理
+├── 🟡 Test Stage 前置校验：若下一步 = Test Stage，必须先输出「Test Stage 前置确认」
+│   并等待用户选择 A/B/C，不得自动进入 Test Stage
+├── 待确认 = 无 且 不在暂停条件中 且 不在 Test Stage 前 → 🚀 自动继续下一阶段（同一回复中）
+└── 待确认 ≠ 无 或 命中暂停条件 或 处于 Test Stage 前置确认 → ⏸️ 暂停等待用户处理
 
 ⚠️ 关键：PMO 摘要只是进度追踪，不是暂停点！
-   如果没有待确认项且二次校验通过，输出摘要后立即开始下一阶段的工作。
+   如果没有待确认项且二次校验通过（且不处于 Test Stage 前置确认），输出摘要后立即开始下一阶段的工作。
 🔴 「待确认 = 无」是 PMO 自行判断的，为防误判，必须对照暂停条件表二次校验。
+🟡 Test Stage 前置确认是强制暂停点，等价于「待确认 ≠ 无」。
 ```
 
 **示例（无待确认 → 自动继续）**：
@@ -392,20 +495,25 @@ PMO 输出拆分方案：
 - [ ] 架构师 Code Review：✅ 已执行 / ⏭️ 简单 Bug 跳过
 - [ ] QA 代码审查：✅ 已执行 / ⏭️ 简单 Bug 跳过
 - [ ] 单元测试门禁：✅ 全部通过（附实际输出） / ⏭️ 简单 Bug 跳过
-- [ ] QA 项目集成测试：✅ 已执行（附实际输出） / ⏭️ 用户确认跳过（原因：____）
-- [ ] QA API E2E：✅ 已执行 / ⏭️ TC.md 标注不适用（原因：____）
+- [ ] 🟡 Test Stage 前置确认：✅ 已执行（用户选择：A/B/C）
+- [ ] QA 项目集成测试：✅ 已执行（附实际输出） / ⏸️ 延后批量测试（批次 ID：____） / ⏭️ 用户确认跳过（原因：____）
+- [ ] QA API E2E：✅ 已执行 / ⏸️ 延后批量测试（批次 ID：____） / ⏭️ TC.md 标注不适用（原因：____）
 - [ ] QA Browser E2E：✅ 已执行 / ⏭️ 用户确认跳过（原因：____） / ⏭️ TC.md 标注无浏览器行为
 - [ ] PM 验收：✅ 已执行
 
 ## 质量 Checklist（逐项打勾，缺一不可）
 - [ ] TC 覆盖率：X/Y (XX%)
-- [ ] 测试通过率：100%
+- [ ] 测试通过率：100% / ⏸️ 延后
 - [ ] RD 自查：✅ 通过（含验证证据）
 - [ ] Designer UI 还原：✅ 通过 / ⏭️ 无 UI
 - [ ] QA 代码审查：✅ 通过
 - [ ] 单元测试门禁：✅ 全部通过（含实际输出）
-- [ ] QA 项目集成测试：✅ 通过（含实际输出） / ⏭️ 用户确认跳过（原因）
+- [ ] QA 项目集成测试：✅ 通过（含实际输出） / ⏸️ 延后批量测试 / ⏭️ 用户确认跳过（原因）
 - [ ] PM 验收：✅ 通过
+
+> 🟡 若 Test Stage 为「延后」或「跳过」，功能状态栏必须标注：
+> ├── 延后 → ⚠️ 待测试（批次 ID：____），不得标「✅ 已完成」
+> └── 跳过 → ⚠️ 未测试（原因：____），不得标「✅ 已完成」
 
 ## 文档同步 Checklist（逐项打勾，缺一不可）
 - [ ] 📋 PROJECT.md：✅ 已更新（[变更说明]） / ⏭️ 无需更新
@@ -527,16 +635,23 @@ PMO 判断需要更新
 ```
 PMO 在每个 stage 返回后，追加一行到 {功能目录}/review-log.jsonl：
 ├── stage: 刚完成的 stage 名
-├── status: stage 返回状态（DONE / NEEDS_FIX / FAILED 等）
+├── status: stage 返回状态（DONE / NEEDS_FIX / FAILED / DEFERRED / SKIPPED 等）
 ├── timestamp: 当前时间
 ├── commit: 当前 HEAD commit hash（dev-stage 之后的 stage 必填）
 ├── summary: 一句话产出摘要
 ├── concerns: 非阻塞问题列表
+├── batch_id: 延后批次 ID（仅 test-stage status=DEFERRED 时必填）
+├── skip_reason: 跳过原因（仅 status=SKIPPED 时必填）
 └── stale: false
 
 🔴 stale 标记规则：
 ├── 写入新的 dev-stage 行时 → 之前所有 review-stage / test-stage 行标记 stale: true
 └── 重跑 stage 后写入新行 → 自然覆盖旧行（读取时取每个 stage 的最新非 stale 行）
+
+🟡 test-stage 的三种合法 status（由前置确认选择决定）：
+├── DONE / QUALITY_ISSUE / BLOCKED / DONE_WITH_CONCERNS → 用户选择 A（立即执行）的正常返回
+├── DEFERRED → 用户选择 B（延后批量测试），必须同时写 batch_id
+└── SKIPPED → 用户选择 C（跳过），必须同时写 skip_reason
 ```
 
 ### 读取时机（Review Dashboard）
@@ -553,9 +668,10 @@ PMO 在以下时机读取 review-log.jsonl 输出 dashboard：
 | plan-stage | ✅ DONE | — | — | PRD 定稿 |
 | dev-stage | ✅ DONE | a1b2c3d | — | 单测 47/47 |
 | review-stage | ✅ DONE | a1b2c3d | — | 三审通过 |
-| test-stage | ⏳ | — | — | 待执行 |
+| test-stage | ⏳ / ⏸️ DEFERRED / ⏭️ SKIPPED / ✅ DONE | a1b2c3d | — | 待执行 / 延后批次{ID} / 跳过:{原因} / 通过 |
 
 🔴 有 stale 行时高亮警告：「review-stage 结果基于 commit {old}，当前已有新 commit {new}，建议重跑」
+🟡 test-stage 为 DEFERRED 或 SKIPPED 时，Dashboard 以黄色标识，Feature 完成报告必须同步标注「⚠️ 待测试 / ⚠️ 未测试」
 ```
 
 ### 格式模板

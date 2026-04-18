@@ -7,11 +7,13 @@
 
 {
   "stage": "plan-stage | ui-design-stage | panorama-design-stage | blueprint-stage | dev-stage | review-stage | test-stage | browser-e2e-stage",
-  "status": "DONE | DONE_WITH_CONCERNS | NEEDS_FIX | QUALITY_ISSUE | BLOCKED | FAILED | SKIPPED",
+  "status": "DONE | DONE_WITH_CONCERNS | NEEDS_FIX | QUALITY_ISSUE | BLOCKED | FAILED | SKIPPED | DEFERRED",
   "timestamp": "2026-04-15T14:30:00",
   "commit": "abc1234",
   "summary": "简述产出或问题",
   "concerns": ["非阻塞问题1", "非阻塞问题2"],
+  "batch_id": "test-batch-2026-04-16-1",   // 仅 test-stage 且 status=DEFERRED 时必填，对应 _deferred-tests.md 批次表
+  "skip_reason": "...",                      // 仅 status=SKIPPED 时必填（用户提供的跳过理由）
   "stale": false
 }
 
@@ -19,6 +21,11 @@
 // - PMO 在写入新的 dev-stage 行时，将之前所有 review-stage / test-stage 行标记为 stale: true
 //   （代码变了，之前的审查/测试结果可能失效）
 // - 重跑 stage 后写入新行，旧行自然被新行覆盖（读取时取每个 stage 的最新一行）
+//
+// test-stage 三态说明（由 PMO「Test Stage 前置确认」的用户选择决定）：
+// - 用户选择 A（立即执行）→ status = DONE / QUALITY_ISSUE / BLOCKED / DONE_WITH_CONCERNS
+// - 用户选择 B（延后批量测试）→ status = DEFERRED，附 batch_id
+// - 用户选择 C（跳过）→ status = SKIPPED，附 skip_reason
 
 // 示例：
 // {"stage":"plan-stage","status":"DONE","timestamp":"2026-04-15T10:00:00","commit":"","summary":"PRD 定稿 13 条 AC","concerns":[],"stale":false}
@@ -26,3 +33,5 @@
 // {"stage":"dev-stage","status":"DONE","timestamp":"2026-04-15T12:00:00","commit":"a1b2c3d","summary":"单测 47/47 通过","concerns":[],"stale":false}
 // {"stage":"review-stage","status":"DONE","timestamp":"2026-04-15T13:00:00","commit":"a1b2c3d","summary":"架构师CR✅ Codex✅ QA审查✅","concerns":[],"stale":false}
 // {"stage":"test-stage","status":"DONE","timestamp":"2026-04-15T14:00:00","commit":"a1b2c3d","summary":"集成✅ API E2E✅","concerns":[],"stale":false}
+// {"stage":"test-stage","status":"DEFERRED","timestamp":"2026-04-16T09:15:00","commit":"a1b2c3d","summary":"用户选择延后批量测试","concerns":[],"batch_id":"test-batch-2026-04-16-1","stale":false}
+// {"stage":"test-stage","status":"SKIPPED","timestamp":"2026-04-16T10:00:00","commit":"a1b2c3d","summary":"用户跳过","concerns":[],"skip_reason":"紧急 hotfix，手动已验过","stale":false}

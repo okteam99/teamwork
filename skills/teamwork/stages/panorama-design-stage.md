@@ -19,9 +19,13 @@ PMO 在 UI Design Stage 用户确认后判断：
 
 ## 二、输入文件
 
+> 🔴 PMO 必须先按 [Dispatch 文件协议](../agents/README.md#dispatch-文件协议) 生成 `{Feature}/dispatch_log/{NNN}-designer-panorama.md`，
+> 下方文件清单作为该 dispatch 文件的「Input files」段落内容。未生成 dispatch 文件不得 dispatch。
+
 ```
+Input files（写入 dispatch 文件）：
 ├── agents/README.md
-├── stages/panorama-stage.md（本文件）
+├── stages/panorama-design-stage.md（本文件）
 ├── roles/designer.md
 ├── 本次 Feature 的 UI.md + preview/*.html（UI Design Stage 产出）
 ├── 现有 design/sitemap.md（如存在）
