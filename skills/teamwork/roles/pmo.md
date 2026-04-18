@@ -468,26 +468,26 @@ Test Stage 是可选 Stage。多个 Feature 并行开发时，用户可能希望
 | {F001}  | ...      | ⏳ 待测试 / ✅ 已测 / ⏭️ 延后 |
 | ...     | ...      | ...             |
 
-## 请选择
-├── A. 🚀 立即执行 Test Stage（推荐：单 Feature 或独立性强时）
-├── B. ⏸️ 延后，先进入 PM 验收，稍后统一批量测试
-│       └── 适用场景：多 Feature 并行、希望完成后统一测试
-└── C. ⏭️ 本 Feature 跳过 Test Stage（需说明原因，PMO 记录到 review-log.jsonl）
-        └── ⚠️ 跳过后 PMO 完成报告的「QA 项目集成测试」项将标记 ⏭️ + 原因
+## 💡 推荐：1（立即执行 Test Stage，单 Feature 或独立性强时适用）
 
----
-⏸️ 请回复 A / B / C（或自然语言说明）后继续。
+⏸️ 请选择（回复数字即可）
+1. 🚀 立即执行 Test Stage ← 💡 推荐
+2. ⏸️ 延后，先进入 PM 验收，稍后统一批量测试（适用：多 Feature 并行）
+3. ⏭️ 本 Feature 跳过 Test Stage（需说明原因，PMO 记录到 review-log.jsonl）
+4. 其他指示（自由输入）
+
+⚠️ 选 3 后 PMO 完成报告的「QA 项目集成测试」项将标记 ⏭️ + 原因
 ```
 
 **用户选择后的处理**：
 
 ```
-A. 立即执行 Test Stage
+1. 立即执行 Test Stage
    ├── PMO 按 RULES.md「Test Stage Subagent」自动流转规则推进
    ├── review-log.jsonl 追加 test-stage 记录
    └── 后续照常：Test Stage → Browser E2E 判断 → PM 验收
 
-B. 延后批量测试
+2. 延后批量测试
    ├── PMO 更新 state.json：blocking.pending_external_deps 追加 {type: "test-deferred", batch_id: "..."}
    ├── review-log.jsonl 追加一行 test-stage 记录，status = DEFERRED
    ├── 🔴 仍然推进到 PM 验收（PM 验收可以在无 Test Stage 证据时进行，
@@ -497,7 +497,7 @@ B. 延后批量测试
    │   └── 「功能状态」标 ⚠️ 待测试（非 ✅ 已完成）
    └── PMO 维护「延后测试批次表」（见下文「延后批次追踪」）
 
-C. 跳过 Test Stage
+3. 跳过 Test Stage
    ├── PMO 要求用户说明跳过原因（必填）
    ├── review-log.jsonl 追加 test-stage 记录，status = SKIPPED + reason
    ├── PMO 完成报告中：
@@ -540,7 +540,7 @@ PMO 批量执行时机：
 阶段完成后：
 ├── 🔴 二次校验：对照 RULES.md 暂停条件表，确认当前节点确实不在暂停条件中
 ├── 🟡 Test Stage 前置校验：若下一步 = Test Stage，必须先输出「Test Stage 前置确认」
-│   并等待用户选择 A/B/C，不得自动进入 Test Stage
+│   并等待用户选择 1/2/3，不得自动进入 Test Stage
 ├── 待确认 = 无 且 不在暂停条件中 且 不在 Test Stage 前 → 🚀 自动继续下一阶段（同一回复中）
 └── 待确认 ≠ 无 或 命中暂停条件 或 处于 Test Stage 前置确认 → ⏸️ 暂停等待用户处理
 
@@ -685,21 +685,21 @@ scope 取值：子项目缩写（如 `AUTH` / `WEB` / `INFRA`）
     ├── 变更文件数: {N}
     └── commit message: {第一行 summary}
 
-## ⏸️ 请 3 选 1：
-├── 1️⃣ ✅ 通过 → 自动 commit + push（推到远程 origin/{branch}）
-├── 2️⃣ ✅ 通过 → 仅本地 commit（不 push，由你稍后手动推送）
-└── 3️⃣ ❌ 不通过 → 补充信息
-    （说明哪个 AC / 哪个文件 / 什么错误，PMO 会派发到对应阶段修复）
-
-💡 建议：选 1️⃣（默认推送，保持远程同步）
+💡 建议：1（默认推送，保持远程同步）
 📝 理由：
 ├── 所有 AC 覆盖 ✅ + 所有测试通过 ✅
 ├── 架构师 CR + QA 审查 + Codex Review 三路均 PASS
 └── Feature 已完整交付，remote 同步降低丢失风险
 
-🔀 其他选项：
-├── 2️⃣ 适合：多个 Feature 批量 push / push 前还想自己 review 一次
-└── 3️⃣ 适合：用户在浏览器实际操作后发现问题
+⏸️ 请选择（回复数字即可）
+1. ✅ 通过 → 自动 commit + push（推到远程 origin/{branch}） ← 💡 推荐
+2. ✅ 通过 → 仅本地 commit（不 push，由你稍后手动推送）
+3. ❌ 不通过 → 补充信息（说明哪个 AC / 哪个文件 / 什么错误，PMO 会派发到对应阶段修复）
+4. 其他指示（自由输入）
+
+📌 选项说明：
+├── 2 适合：多个 Feature 批量 push / push 前还想自己 review 一次
+└── 3 适合：用户在浏览器实际操作后发现问题
 ```
 
 ### PMO 2️⃣ 选择（仅 commit）后的完成报告备注
@@ -756,7 +756,7 @@ PMO 基于用户补充信息判断类型，派发到对应阶段：
 - [ ] 架构师 Code Review：✅ 已执行 / ⏭️ 简单 Bug 跳过
 - [ ] QA 代码审查：✅ 已执行 / ⏭️ 简单 Bug 跳过
 - [ ] 单元测试门禁：✅ 全部通过（附实际输出） / ⏭️ 简单 Bug 跳过
-- [ ] 🟡 Test Stage 前置确认：✅ 已执行（用户选择：A/B/C）
+- [ ] 🟡 Test Stage 前置确认：✅ 已执行（用户选择：1/2/3）
 - [ ] QA 项目集成测试：✅ 已执行（附实际输出） / ⏸️ 延后批量测试（批次 ID：____） / ⏭️ 用户确认跳过（原因：____）
 - [ ] QA API E2E：✅ 已执行 / ⏸️ 延后批量测试（批次 ID：____） / ⏭️ TC.md 标注不适用（原因：____）
 - [ ] QA Browser E2E：✅ 已执行 / ⏭️ 用户确认跳过（原因：____） / ⏭️ TC.md 标注无浏览器行为
