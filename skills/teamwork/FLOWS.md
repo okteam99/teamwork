@@ -207,6 +207,23 @@ PMO 识别为 Feature Planning 后，进一步判断范围：
 │   ├── 读取 ROADMAP.md，对比本次需求与已有 Feature 的描述 + 核心验收标准
 │   ├── 有冲突 → 列出冲突点 + ⏸️ 用户确认处理方式
 │   └── 无冲突 → 「✅ 无跨 Feature 冲突」
+├── 🔍 跨项目依赖识别（v7.3.9+P0-8 新增，多子项目模式时必须执行）：
+│   ├── 扫描需求描述 / PRD 初稿中的上游依赖信号：
+│   │   "调用 / 访问 / 接入 / 对接 / 需要 / 依赖 ... 其他子项目的 ..."
+│   ├── 识别到上游依赖（场景 A：本 Feature 需上游模块已有或新开发能力）：
+│   │   ├── 🔴 **优先**在**上游子项目** `{upstream}/docs/DEPENDENCY-REQUESTS.md` 追加 DEP-N 条目
+│   │   │   （格式遵循 templates/dependency.md，PMO Write 时必须先 Read 模板为格式基准）
+│   │   ├── 🔴 禁止在当前 Feature 目录自创 DEPS.md / DEPENDENCIES.md / 其他非标文件
+│   │   ├── 当前 Feature state.json.blocking.pending_external_deps 引用 DEP 编号
+│   │   └── 上游子项目无 DEPENDENCY-REQUESTS.md → 新建（Read templates/dependency.md 为基准）
+│   ├── 识别到横跨多子项目（场景 B：需求 naturally 横跨 · 没有"主 Feature"）：
+│   │   └── 走现有「🔀 跨子项目需求拆分」流程（roles/pmo.md § 跨子项目需求拆分）
+│   └── 无跨项目依赖 → 「✅ 无跨项目依赖」
+├── 📋 本轮拟产出文档清单（v7.3.9+P0-7 强化格式权威露出）：
+│   ├── 列出本次分析后即将产出的文档（state.json / PRD / DEPENDENCY-REQUESTS / ...）
+│   ├── 每份对应 templates/ 模板路径（例：state.json → templates/feature-state.json）
+│   ├── 🔴 PMO 声明：Write 前必 Read 对应模板为格式基准；禁止以 peer Feature 为格式参考
+│   └── 📎 详见 [TEMPLATES.md § 格式权威红线](./TEMPLATES.md#-格式权威红线v739p0-7-新增)
 ├── 阶段链（Feature，v7.3.4）：🔗 Plan Stage → 🔗 UI Design Stage（含全景增量同步）→ 🔗 Blueprint Stage → 🔗 Dev Stage → 🔗 Review Stage（架构师CR∥Codex∥QA审查）→ 🟡 Test Stage 前置确认 → 🔗 Test Stage(可选：立即/延后/跳过) → Browser E2E(可选) → 🔗 PM 验收 + commit + push（合并暂停点，3 选 1）
 │   └── 自动跳过：Designer（PRD「需要 UI: 否」时）
 ├── 📋 流程步骤描述（v7.3 必填，让用户基于步骤确认流程）：

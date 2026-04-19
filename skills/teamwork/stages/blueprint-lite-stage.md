@@ -63,6 +63,7 @@
 - 🔴 **不替代 Blueprint**：Feature 流程仍走完整 Blueprint Stage
 - 🔴 **TC 质量下限**：即使精简，每条 PRD AC 至少对应 1 条 BDD 用例（AC→test 覆盖仍强制）
 - 🔴 **Dev Stage 不变**：BlueprintLite 产出后，Dev Stage 按标准流程执行
+- 🔴 **Stage 完成前 git 干净** → 统一遵循 [rules/gate-checks.md § Stage 完成前 git 干净](../rules/gate-checks.md#-stage-完成前-git-干净v739-硬规则p0-集中化)（本 Stage commit message：`F{编号}: BlueprintLite Stage - {简述}`；典型产物：TC.md / IMPL-PLAN.md）
 
 ---
 

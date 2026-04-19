@@ -97,6 +97,7 @@
 - 🔴 **状态覆盖**：每页必须覆盖正常 / 空 / 加载 / 错误
 - 🔴 **验收标准覆盖声明必出**：逐条对照 PRD AC
 - 🔴 **结构性变更红线**：若本 Feature 涉及"删除现有页面" / "重构导航" / "修改核心业务流程状态机" → **停止本 Stage** → 返回 DONE_WITH_CONCERNS，建议用户走 Feature Planning 而非 Feature 流程（结构性变更不应在单 Feature 里做）
+- 🔴 **Stage 完成前 git 干净** → 统一遵循 [rules/gate-checks.md § Stage 完成前 git 干净](../rules/gate-checks.md#-stage-完成前-git-干净v739-硬规则p0-集中化)（本 Stage commit message：`F{编号}: UI Design Stage - {简述}`；典型产物：UI.md / preview/*.html / 全景增量 sitemap/overview；HTML 预览稿是后续 Blueprint / Dev / Review 的基准）
 
 ---
 

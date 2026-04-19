@@ -53,6 +53,32 @@
 
 ## Process Contract
 
+### Stage 入口 Preflight：懒装依赖（P0 新增）
+
+> 🟢 **P0 懒装依赖模型**：Feature worktree 创建时不装依赖（见 plan-stage.md）。进入 Dev Stage 第一件事是检测依赖并按需安装。
+
+```
+1. 检测依赖产物是否存在：
+   ├── Node 项目    → 检查 node_modules/ 是否存在且与 package.json 一致
+   ├── Python 项目  → 检查 .venv / site-packages 是否存在且与 requirements.txt / pyproject.toml 一致
+   ├── Go 项目      → 检查 $GOPATH/pkg/mod（模块缓存通常共享，一般无需额外动作）
+   └── 其他 → 参照项目 README / ARCHITECTURE.md
+
+2. 不存在 / 不一致 → 尝试低代价路径：
+   ├── 从父 worktree symlink（Linux/macOS）：ln -s ../主仓/node_modules ./node_modules
+   │   └── 成功 → 跳过 install，节省 1-5 分钟
+   └── symlink 不可用 / 失败 → 跑完整 install（npm install / pip install / uv sync / pnpm install）
+
+3. install 失败 → BLOCKED（报告具体错误给 PMO 安排解决）
+
+4. 成功后将依赖状态记录到 state.json.stage_contracts.dev.dependency_install：
+   ├── method: "symlink" | "fresh-install" | "skipped"
+   ├── duration_seconds: N
+   └── installed_at: ISO 时间戳
+```
+
+🔴 **规则**：Dev Stage 开始"完整按方案实现"之前，依赖必须就绪（或显式 skip 的理由写入 state.json）。不允许在 TDD 循环中临时装依赖导致不稳定。
+
 ### 必做动作
 
 1. **完整按方案实现**
@@ -88,6 +114,7 @@
 - 🔴 **不做 Code Review**：架构师 CR / QA CR 在 Review Stage
 - 🔴 **实际测试输出**：自查报告必须附测试命令 + 结果，禁止空口"通过"
 - 🔴 **无 TODO/FIXME/占位符**：产出代码不能留 TODO（非本 Feature 范围的例外，显式标注）
+- 🔴 **Stage 完成前 git 干净** → 统一遵循 [rules/gate-checks.md § Stage 完成前 git 干净](../rules/gate-checks.md#-stage-完成前-git-干净v739-硬规则p0-集中化)（本 Stage commit message：`F{编号}: Dev Stage - {简述}`；给 Review Stage 提供稳定 diff 锚点）
 
 ---
 
@@ -146,20 +173,31 @@ Plan 的 Rationale 必须说明"基于规模/复杂度的判断"。Plan 写入 `
 
 **Expected duration baseline（v7.3.3）**：主对话 ≤3 文件改动 15-25 min；Subagent 中等规模（5-10 文件）30-60 min；大改动（>10 文件 / 多模块）60-120 min。AI 在 `Estimated` 字段按 TECH.md 的文件清单数和复杂度校准。
 
-### Worktree 集成（PMO 执行，不受 Subagent/主对话影响）
+### Worktree 集成（PMO 执行，v7.3.8 改为校验存在；创建已前移到 Plan Stage 入口）
 
 ```
-worktree 策略（从 .teamwork_localconfig.md 读取）：
+前提：worktree=auto 时 worktree 已在 Plan Stage 入口创建（见 stages/plan-stage.md §Worktree 集成）
+Dev Stage 入口 PMO 只做校验 + 使用，不再负责创建。
 
-├── off → 跳过
-├── manual → PMO 提醒用户创建
-└── auto → PMO 自动创建 + 记录到 state.json 的 worktree 字段
+worktree 校验流程：
+├── 读 state.json.worktree.{strategy, path, branch}
+├── strategy == "off" → 跳过，主分支执行
+├── strategy == "auto" / "manual"：
+│   ├── 路径存在 + 分支检出正确 → ✅ 沿用
+│   ├── 路径缺失（被误删 / 机器迁移）→ 🔴 补建 worktree（auto 时自动，manual 时提醒用户）
+│   │   并在 state.json.concerns 追加 "worktree 丢失已补建" WARN
+│   └── 分支不匹配（被手动 checkout）→ 🔴 恢复分支并继续
+└── cwd 切换到 worktree 路径（Subagent 执行时 dispatch 文件 cwd 字段同步写入）
 
-AI 选主对话方案时：cwd 切到 worktree 路径执行
-AI 选 Subagent 方案时：dispatch 文件 cwd 字段写入 worktree 路径
+Review / Test / Browser E2E Stage 复用同一 worktree（不再创建）。
+PMO 在 Feature 完成（commit+push 之后）清理：
+├── auto 模式 → 询问用户 "是否清理 worktree"（不自动删，保留检视机会）
+└── manual 模式 → 提醒用户自行清理
 
-Review / Test Stage 复用同一 worktree。
-PMO 在 Feature 完成时清理（auto 模式）或提醒用户（manual 模式）。
+为什么 Dev Stage 不再负责创建（v7.3.8 修订）：
+├── 前移到 Plan Stage 后，PRD/UI/Blueprint 所有产物都在 feature 分支
+├── Dev Stage 入口 worktree 必然已存在（正常流转顺序）
+└── 补建逻辑作为异常分支保留（机器迁移 / 用户误删 / off→auto 中途切换）
 ```
 
 ---

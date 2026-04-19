@@ -20,6 +20,13 @@
 - ✅ 验收标准具体可执行
 - ✅ 前端/客户端功能必须定义用户行为埋点
 
+**🔴 PRD 格式权威（v7.3.9+P0-7 新增）**：
+- 🔴 起草 PRD 前**必须 Read `templates/prd.md`** 作为格式 / frontmatter / AC schema 基准
+- 🔴 **禁止**在对话里说"先参考最近一个 Feature 的 PRD 格式"或"照着 F0xx/PRD.md 抄一份"
+- 🔴 peer Feature 的 PRD 可作**内容参考**（类似需求怎么写 AC、消费方分析怎么组织）；格式 / 章节结构 / YAML frontmatter **只认 templates/prd.md**
+- 🔴 发现 peer Feature 与 templates/prd.md 格式不一致 → templates/ 优先，并在 concerns 记录漂移
+- 📎 详见 [TEMPLATES.md § 格式权威红线](../TEMPLATES.md#-格式权威红线v739p0-7-新增)
+
 **🔴 埋点规则**（前端/客户端功能强制）：
 ```
 涉及前端或客户端的功能，PRD 必须包含埋点需求章节：

@@ -11,6 +11,13 @@
 **📎 "执行项目命令获取数据"**：PMO 可执行 `npm test` / `npm run build` 等已定义的项目命令，获取结果数据（通过/失败/覆盖率），但不分析失败原因、不定位 Bug、不修改代码——失败时转交对应角色处理。
 **⚠️ 问题排查梳理时，PMO 负责派发角色（RD/PM/Designer），不自行排查！**
 
+**🔴 格式权威守门（v7.3.9+P0-7 新增）**：PMO 作为流转守门员，对每次新建/更新产物文档负责格式合规性。
+- 🔴 新建 state.json / PRD.md / TC.md / TECH.md 等产物时，**必须 Read `templates/` 对应模板**作为格式基准
+- 🔴 **禁止**在 Execution Plan / 对话里说"先参考最近一个 Feature 的 X 格式"——这是 P0-7 明令违规
+- 🔴 peer Feature 产物仅可作**内容参考**（AC 写法、业务套路、架构决策历史）；格式 / frontmatter / schema **只认 templates/**
+- 🔴 发现 peer Feature 与 templates/ 格式不一致 → templates/ 优先，并在 concerns 记录漂移
+- 📎 详见 [TEMPLATES.md § 格式权威红线](../TEMPLATES.md#-格式权威红线v739p0-7-新增)
+
 ---
 
 ## state.json 状态机维护规范（v7.3.2）
@@ -170,7 +177,62 @@ PMO 读取影响描述，评估影响层级：
 
 ---
 
-### 🔀 跨子项目需求拆分（PMO 专属，多子项目模式）
+### 🔗 跨项目依赖识别（PMO 专属，v7.3.9+P0-8 新增）
+
+**触发**：PMO 初步分析需求时，识别到**当前 Feature 单一归属子项目**但**需要另一子项目提供能力**（场景 A，区别于下方"跨子项目需求拆分"场景 B）。
+
+**识别信号**：需求描述 / PRD 初稿 / 用户对话中出现 "调用 / 访问 / 接入 / 对接 / 需要 / 依赖 ... {其他子项目}的 {能力}"。
+
+**两种场景区分（必读）**：
+```
+场景 A：单 Feature 上游依赖（本章节覆盖）
+├── 本 Feature 归属明确的子项目（如 PTR-F004 在 apps/partner/）
+├── 需要上游子项目（如 services/core-api/ · services/platform-api/）提供已有或新开发能力
+├── 处理方式：在上游子项目 {upstream}/docs/DEPENDENCY-REQUESTS.md 追加 DEP-N 条目
+└── 适用大多数"下游消费方 Feature"
+
+场景 B：横跨多子项目的新需求（走下方「跨子项目需求拆分」）
+├── 需求 naturally 横跨多子项目，没有明确的"主 Feature"归属
+├── 例：新增一条端到端业务链路，三个子项目各自有新能力
+├── 处理方式：PMO 拆分为多个并行 Feature，各走各的流程
+└── 对应 ROADMAP 的跨项目追踪表
+```
+
+**场景 A 处理流程**：
+```
+PMO 识别到上游依赖信号
+    ↓
+🔴 Read templates/dependency.md → 锁定 DEPENDENCY-REQUESTS.md 格式基准
+    ↓
+确认上游子项目路径（从 teamwork_space.md）
+    ↓
+检查 {upstream}/docs/DEPENDENCY-REQUESTS.md 是否存在
+├── 存在 → Read 取最新 DEP 编号，准备 append
+└── 不存在 → 新建（Read templates/dependency.md 为基准 · 🔴 禁止抄其他子项目的 DEPENDENCY-REQUESTS 为格式参考）
+    ↓
+Write {upstream}/docs/DEPENDENCY-REQUESTS.md · 追加 DEP-N 条目：
+├── 请求方 = 本 Feature 所在子项目
+├── 关联 Feature = 本 Feature 编号
+├── 期望能力（消费方描述需要什么 · 不预设实现）
+├── 接口定义留空（由上游方处理时填写）
+└── 状态 = ⏳ 待处理
+    ↓
+本 Feature state.json.blocking.pending_external_deps 引用 DEP-N 编号
+    ↓
+PMO 告知用户：上游 DEP-N 已登记，上游方启动 teamwork 时 PMO 会扫描提醒
+```
+
+**场景 A 硬规则**：
+- 🔴 DEPENDENCY-REQUESTS.md **只放上游子项目目录**（`{upstream}/docs/`），不放消费方 Feature 目录
+- 🔴 **禁止**在消费方 Feature 目录自创 DEPS.md / DEPENDENCIES.md / 其他非标文件名
+- 🔴 Write 前必 Read `templates/dependency.md` 为格式基准（P0-7 红线）
+- 🔴 多条上游依赖 → 多条 DEP 条目（可能分散到不同上游子项目），不要合并成一个大文件
+
+**与场景 B 的决策点**：用户或 PMO 无法判定时 → ⏸️ 列出两种场景的特征，让用户选。
+
+---
+
+### 🔀 跨子项目需求拆分（PMO 专属，多子项目模式 · 场景 B）
 
 **触发**：PMO 分析需求时发现涉及多个子项目（参考 teamwork_space.md）
 
@@ -575,44 +637,366 @@ PMO 批量执行时机：
 请确认上述问题后继续。
 ```
 
-## PM 验收 + commit + push 合并暂停点（v7.3.4）
+---
 
-> 🟢 v7.3.4：原独立的 PM 验收暂停点合并了验收判断 + 自动 commit + push 询问，一个暂停点完成三件事。
-> 🔴 push 由用户决定：PMO 不得自动 push；仅 commit 到本地分支 / worktree。
+### ⚡ auto 模式暂停点豁免规则（v7.3.9+P0-11 新增）
 
-### 执行流程
+> 🔴 入口：用户通过 `/teamwork auto [需求]` 开启 AUTO_MODE（详见 [INIT.md Step 0](../INIT.md#step-0-解析-teamwork-命令行-v739p0-11-新增)）。
+> 🔴 作用域：**单次命令周期**。不持久化、不写 localconfig、不写 state.json。
+
+### 触发时机
+
+```
+PMO 在每个 ⏸️ 暂停点判定分支：
+1. 检查 AUTO_MODE 当前值
+   ├── false（默认） → 走 ⏸️ 原流程，等用户确认
+   └── true → 进入下方 2
+2. 对照"强制保留清单"判定
+   ├── 命中任一强制保留项 → 仍 ⏸️，输出「⚡ auto 模式但此暂停点强制保留」提示行
+   └── 未命中 → ✅ 豁免：按 💡 建议自动执行 + 输出 ⚡ auto skip 日志行
+```
+
+### 🔴 元规则：意图承载豁免（v7.3.9+P0-11-A 修订）
+
+```
+判定暂停点保留 / 豁免前，先问一句：
+"这个暂停点需要用户给出的决策内容，是不是已经被 auto 命令本身承载了？"
+
+├── 是（只是「是否继续/恢复/启动」类）→ ✅ 豁免
+│   └── 例：外部依赖已就绪 → 恢复 / 阶段切换确认 / Planning 最终汇总
+└── 否（需要新的业务判断 / 技术分歧 / 破坏性授权 / 红线处理）→ 🔴 保留
+    └── 例：PM 验收三选项 / Ship push 授权 / MUST-CHANGE / 破坏性操作 / 红线触发
+
+🔴 反模式：把所有 ⏸️ 都当强制保留 → auto 模式坍缩为手动模式，违反设计意图
+🔴 反模式：auto 命令里明说"推进到 X 完成"，却被中间"恢复确认"卡住 → 把用户的命令意图当空气
+```
+
+### ✅ 豁免暂停点（按 💡 建议自动推进）
+
+| 暂停点 | 豁免动作 | 归类 |
+|--------|---------|------|
+| PMO 初步分析 → Plan Stage 入口 preflight | 按 💡 推荐的流程类型 + 方案自动进入 preflight | 意图承载 |
+| Plan Stage 入口 preflight（4 硬门禁全 ✅）| 采用当前 preflight 配置，自动进入 Plan Stage | 意图承载 |
+| PRD 待确认 | 按 💡（有 UI → UI Design / 无 UI → Blueprint）自动流转 | 意图承载 |
+| 设计批待确认 | 按 💡（有问题 → 重跑 / 通过 → Blueprint）自动流转 | 意图承载 |
+| 方案待确认 | 自动进入 Dev Stage | 意图承载 |
+| 问题排查梳理 → 排查待确认 | 按 💡 推荐路径（Feature / Bug / 结束）自动流转 | 意图承载 |
+| Roadmap 待确认 / teamwork_space.md 待确认 / Workspace Planning 收尾 | 按 💡 自动确认 | 意图承载 |
+| 精简 PRD 待确认（敏捷）| 自动进入 BlueprintLite | 意图承载 |
+| Micro 分析 → Micro 变更说明 | 按 💡 自动进入 | 意图承载 |
+| 阶段完成 → 下一阶段切换 | 自动流转（本来就是 🚀自动，auto 不影响）| 本就自动 |
+| **外部依赖已就绪 → 恢复流程**（P0-11-A 修订）| auto 命令已承载"恢复"意图 → 按 💡 自动恢复 | 意图承载 |
+| **Test Stage → Browser E2E Stage**（有 Browser E2E 场景，P0-11-B 新增）| **默认跳过 Browser E2E，直接进 PM 验收**；留痕到 state.json + review-log.jsonl | 成本取舍 |
+
+### 🟡 Browser E2E auto 默认跳过（P0-11-B 新增专项规则）
+
+```
+触发：AUTO_MODE=true + Test Stage 完成 + TC.md 标注有 Browser E2E AC
+    ↓
+PMO 默认决策：⏭️ 跳过 Browser E2E Stage，直接进 PM 验收
+    ↓
+留痕（3 处同步）：
+├── state.json.stage_contracts.browser_e2e = {
+│     status: "SKIPPED_BY_AUTO",
+│     skipped_at: "{timestamp}",
+│     skip_reason: "AUTO_MODE 默认跳过 Browser E2E（P0-11-B）"
+│   }
+├── review-log.jsonl append：
+│   { stage: "browser_e2e", status: "SKIPPED", skip_reason: "AUTO_MODE 默认跳过", commit: "{HEAD}" }
+└── PMO 输出 ⚡ auto skip 日志：
+    ⚡ auto skip: Browser E2E Stage | 💡 auto 默认跳过 | 📝 避免 headless 浏览器启动成本；PM 验收可选择不通过回退补跑
+
+后续影响：
+├── PM 验收暂停点模板中「Browser E2E 状态」标注 ⏭️ 跳过（auto 默认）
+├── PMO 完成报告「QA Browser E2E」行必须显式标注：⏭️ AUTO_MODE 默认跳过（非通过）
+└── 用户验收时可选 3（不通过）+ 理由「需补 Browser E2E」→ PMO 派发 Browser E2E Stage 补跑
+
+例外（不跳过的场景）：
+├── 用户命令显式包含 "含 browser e2e" / "跑 e2e" / "跑 browser" 关键词 → 不跳过
+├── TC.md 在 Browser E2E AC 条目显式标注 `required_even_in_auto: true` → 不跳过
+└── 手动模式（AUTO_MODE=false）→ 走原 flow-transitions.md L29-L30 正常流程
+```
+
+**设计理由**：Browser E2E 启动成本高（headless 浏览器 / MCP 握手 / 脚本录制回放），auto 场景多为快速推进验证主流程，默认跳过符合高频意图；留痕 + PM 验收兜底保证"必要时可回退补跑"。
+
+
+### 🔴 强制保留暂停点（即便 AUTO_MODE=true 也不豁免）
+
+> 🔴 修订原则（P0-11-A）：仅需要**新决策内容**的暂停点才保留。"是否继续/恢复/启动"类 → 由 auto 命令语境承载 → 豁免。
+
+| # | 暂停点 | 强制保留理由 |
+|---|--------|------------|
+| 1 | PM 验收三选项（通过+Ship / 通过暂不 Ship / 不通过） | 业务判断，非 PMO 可替用户决 |
+| 2 | Ship Stage `ship_policy=confirm` 下的 merge + push 待确认 | ship_policy 是 Ship 专属细粒度控制，auto 不覆盖 |
+| 3 | Ship Stage worktree 清理待确认 | 用户偏好不可替决 |
+| 4 | Ship Stage 冲突 / FAILED（PMO 解不了）| 破坏性动作，需用户定夺 |
+| 5 | Dev Stage / Test Stage BLOCKED / FAILED | 环境/逻辑异常，人工诊断 |
+| 6 | Review Stage 架构师输出 MUST-CHANGE | 架构级重大决策 |
+| 7 | Blueprint Stage / Review Stage concerns 需用户判断 | 非阻塞问题但需人判断价值 |
+| 8 | PL-PM 分歧项（Plan Stage 分歧分支）| 设计/产品分歧不可替决 |
+| 9 | Test Stage 前置确认（立即 / 延后 / 跳过）| 跨 Feature 节奏决策 |
+| 10 | Micro 流程「用户验收」和「升级确认」 | Micro 唯一把关点 + 规模升级需用户拍板 |
+| 11 | 13 条绝对红线触发时 | 红线不容豁免 |
+| 12 | 破坏性 git / DB 操作（force push / hard reset / drop 表 / 删分支）| 不可逆操作 |
+| 13 | 用户消息出现「？/ 确认下 / 等我看看 / 核对一下 / 先等等」等意图不确定语气 | 用户明确想参与决策 |
+
+> 🗑️ P0-11-A 移除项：
+> - ~~外部依赖已就绪 → 恢复流程~~ → 归入豁免（auto 命令已承载"恢复"意图）
+> - ~~Planning / PL 模式的最终确认~~ → 归入豁免（上方"Roadmap / teamwork_space / Workspace Planning 收尾"行覆盖）
+
+### 跳过日志格式
+
+```
+⚡ auto skip: {决策简述} | 💡 {建议原文} | 📝 {理由}
+```
+
+**示例**：
+```
+⚡ auto skip: PRD 待确认 → UI Design Stage | 💡 PRD 有 UI 标记，按 PRD 中「需要 UI: 是」路径进入 UI Design | 📝 无分歧项，无 MUST-CHANGE，符合豁免条件
+```
+
+### 强制保留命中时的提示格式
+
+```
+⚡ auto 模式已开启，但此暂停点强制保留
+├── 暂停点：{暂停点名}
+├── 保留理由：{对照强制保留清单第 N 项：{理由}}
+└── ⏸️ 仍需用户确认，请从以下选项中选择...
+```
+
+### PMO 自检清单（每次暂停点判定必过）
+
+```
+□ AUTO_MODE 当前值已读取？
+□ 已对照"强制保留清单 15 条"逐项核对？
+□ 若豁免 → 已按 💡 建议生成决策内容 + 输出 ⚡ auto skip 日志行？
+□ 若保留 → 已输出「强制保留」提示 + 原 ⏸️ 暂停点模板？
+□ 用户消息中是否含「停/暂停/manual/等一下/先等等」？含则立即 AUTO_MODE=false
+```
+
+### 运行时关闭
+
+用户在任意消息中出现下列关键词 → PMO 立即 `AUTO_MODE=false`，当前和后续暂停点恢复 ⏸️：
+- `停` / `暂停` / `manual` / `等一下` / `先等等` / `先确认一下` / `让我看看`
+
+关闭后输出：
+```
+⚡ AUTO_MODE 已关闭（触发词：「{关键词}」）| 当前暂停点改为 ⏸️ 等确认
+```
+
+---
+
+## Plan Stage 入口 Preflight（v7.3.9 PMO 专属）
+
+> 🔴 v7.3.9 新增：用户确认流程类型 → PMO 执行 Plan Stage 入口 preflight → 1 次暂停给用户确认 → 进入 Plan Stage 主流程。
+> 规范见 [stages/plan-stage.md#stage-入口-preflight](../stages/plan-stage.md#stage-入口-preflightv739-新增)。
+
+### 为什么 PMO 必须做这件事（设计背景）
+
+```
+Feature 的所有产物（PRD / UI / TC / TECH / 代码 / 测试）都从 Plan Stage 开始累积。
+如果 worktree 基于错误的 base 分支（陈旧 main 而非 origin/staging），
+到 Ship Stage rebase onto staging 时会遇到大规模冲突——此时产物已成定局，回退代价极高。
+Preflight 在 Plan Stage 入口锁定 base，防止后期灾难。
+```
+
+### PMO Preflight 执行清单（4 项硬门禁，P0 简化）
+
+> **P0 简化说明**：v7.3.9 原设计 6 项（3 硬 + 3 软）。P0 审计收敛为 **4 项硬门禁 + 0 软提示**：
+> - 原软提示 "工作区干净" 实为硬条件（worktree 继承脏状态代价大）→ 升级为硬门禁
+> - 原软提示 "merge_target 解析" 在级联无分歧时无需交互 → 自动接受，展示不暂停
+> - 原软提示 "Feature 编号命名" 由 PMO 初步分析阶段承担 → preflight 不重复问
+>
+> 结果：暂停次数从"至多 3 次"降到"最多 1 次（仅真冲突时）"。
+
+**🔴 4 项硬门禁：**
+
+| # | 校验项 | 命令 / 来源 | 失败处理 |
+|---|--------|------------|---------|
+| 1 | worktree 策略无残留 | 读 state.json.worktree（当前 / 上一 Feature） | ⏸️ 提示用户沿用 / 清理 |
+| 2 | 分支名无冲突（分支名从 Feature 全名自动派生为 `feature/{全名}`） | `git branch --list "feature/{全名}"` + `git worktree list \| grep` | ⏸️ 追问续用 / 改名 / 删除重建 |
+| 3 | base 分支可达（merge_target 级联自动解析） | `git fetch origin {merge_target}` + `git rev-parse --verify origin/{merge_target}` | BLOCKED → 用户 fetch / 检查 remote |
+| 4 | **工作区干净（P0 升级为硬门禁）** | `git status --porcelain` 必须为空 | ⏸️ 暂停：stash / commit / restore 三选一 |
+
+**自动派生 / 接受项（不触发暂停）：**
+
+```
+- 分支名：PMO 按 "feature/{Feature 全名}" 自动派生，无需用户确认命名
+- merge_target：按 state.json > localconfig > 默认 staging 级联自动解析
+  └── 仅当 state.json 与 localconfig 显式冲突时才暂停询问
+- Feature 编号：由 PMO 初步分析阶段产出，preflight 直接沿用
+```
+
+### PMO Preflight 暂停点模板（1 次暂停）
+
+```
+⏸️ Plan Stage 入口 Preflight 确认
+
+📋 Preflight 结果（4 硬门禁，P0 简化）
+├── Feature: {编号}-{功能名}（自动沿用，来自 PMO 初步分析）
+├── 合并目标 (merge_target): {staging}（自动解析：{state.json | localconfig | 默认}，无分歧）
+├── Worktree 策略: {auto | manual | off}（门禁 1）
+├── 分支名: feature/{全名}（自动派生；本地 {✅ 可用 / ⚠️ 已存在}）（门禁 2）
+├── Base 分支: origin/{merge_target}（{✅ 可达 / ❌ 需 fetch}）（门禁 3）
+├── 工作区干净: {✅ 干净 / ⚠️ 有未提交改动}（门禁 4）
+└── 🔴 硬门禁: {全部通过 / 第 N 项未通过}
+
+💡 建议: {基于结果的具体建议}
+📝 理由: {为什么}
+
+请选择:
+1. ✅ 确认启动 Plan Stage（采用当前 preflight 配置）
+2. 🔧 修改配置（改分支名 / 切换 worktree 策略 / 改 merge_target）
+3. ⏸️ 暂停处理 git 环境后重跑 preflight
+4. 其他指示
+```
+
+### Preflight 通过后 PMO 动作（auto 模式）
+
+```bash
+git fetch origin {merge_target}
+git worktree add ../feature-{全名} -b feature/{全名} "origin/{merge_target}"   # v7.3.9 显式 base
+cd ../feature-{全名}
+```
+
+同时写入 state.json：
+- `state.json.worktree.{strategy, path, branch, base_branch, created_at}`
+- `state.json.merge_target` + `_merge_target_source`
+- `state.json.stage_contracts.plan_preflight.{checks, output_satisfied, started_at, completed_at}`
+
+---
+
+## PM 验收三选项 + Ship Stage（v7.3.9）
+
+> 🟢 v7.3.9 版本变更：v7.3.4 的 "PM 验收 + commit + push 合并暂停点" 拆为两段：
+> 1. **PM 验收暂停点**（本段）——3 选 1：通过+Ship / 通过但暂不 Ship / 不通过
+> 2. **Ship Stage**（独立 Stage，规范见 [stages/ship-stage.md](../stages/ship-stage.md)）——PMO 自主执行合并流程
+>
+> 🔴 各 Stage 完成前必须 git 干净（v7.3.9 硬规则）：PMO 在每个 Stage 的 `output_satisfied=true` 之前执行 `git status --porcelain` 校验，非空则 auto-commit 遗留改动，commit message 按 `F{编号}: {Stage 名} Stage - {简述}` 模板生成。
+>
+> 🔴 Ship Stage 冲突解决例外（红线 #1 例外）：Ship Stage 是 PMO 唯一可直接解冲突的 Stage（仅限消除 git 冲突标记，解完必须单测全绿）。
+
+### PM 验收暂停点执行流程
 
 ```
 PM 完成验收判断（在 PM 角色的主对话 session 中，参照 roles/pm.md「验收」）
     ↓
-PMO 接管，自动执行本地 commit：
-├── 1. 校验 Feature 产物完整性（见下方 commit 产物清单）
-├── 2. 生成结构化 commit message（见下方模板）
-├── 3. 在对应 worktree / 主仓库执行 `git add` + `git commit`
-│   └── 🔴 仅 commit，禁止 push
-├── 4. 记录 commit hash 到 state.json.executor_history 对应项
-    ↓
-📊 PMO 输出合并摘要（见下方模板）
+PMO 接管，输出 PM 验收摘要 + 3 选 1 暂停点（见下方模板）
     ↓
 ⏸️ 用户 3 选 1：
-├── 1️⃣ ✅ 通过 → 自动 commit + push（默认远程分支）
-│   └── PMO 执行 `git push origin {branch}`
-│       └── push 失败 → ⏸️ 报告失败原因，让用户手动处理
-├── 2️⃣ ✅ 通过 → 仅本地 commit（不 push）
-│   └── PMO 在完成报告中标注「⚠️ 尚未 push，用户保留决定」
-└── 3️⃣ ❌ 不通过 → 补充信息 → 回到上一阶段
+├── 1️⃣ ✅ 通过 + Ship → 进入 Ship Stage
+│   ├── state.json.current_stage = "ship"
+│   └── 按 stages/ship-stage.md 执行（PMO 自主，无需再启 Subagent）
+│
+├── 2️⃣ ✅ 通过 → 仅 commit + push feature 分支，暂不合入 merge_target
+│   ├── PMO 执行：前序遗留 auto-commit（如有）+ git push origin {feature branch}
+│   ├── state.json.ship = { shipped: false, status: "deferred" }
+│   ├── state.json.current_stage = "completed"（但 shipped=false）
+│   └── PMO 输出完成报告 + 标注「⚠️ 尚未合入 {merge_target}，用户保留 Ship 决定」
+│      🟡 可通过 `/teamwork ship F{编号}` 触发后续 Ship Stage
+│
+└── 3️⃣ ❌ 不通过（有建议）→ 补充信息 → 回退 RD Fix
     ├── PMO 让用户说明问题（具体哪个 AC / 哪个文件 / 什么错误）
     ├── 根据问题类型派发：
     │   ├── 功能缺陷 → 回到 Review Stage（RD 修复）
     │   ├── 测试遗漏 → 回到 Test Stage
     │   ├── 需求理解偏差 → 回到 Plan Stage（需求修订）
     │   └── UI/设计不符 → 回到 UI Design Stage
-    └── 🔴 commit 保留（不回滚），后续修复继续 commit
-    ↓ 用户选 1/2 后
-PMO 完成报告（见下方）
+    ├── 🔴 前序 commit 保留（不 revert）
+    └── 🔴 修复循环 ≤3 轮
 ```
 
-### commit 产物清单（PMO 校验必做）
+### PM 验收暂停点模板
+
+```
+📊 PM 验收完成，等待 Ship 决策
+============================================
+
+## 验收结果
+├── ✅ PM 验收：通过
+├── ✅ Feature 产物完整性校验：通过
+└── 📦 Feature 分支：{worktree.branch} @ {HEAD short hash}
+
+## Merge 目标（v7.3.9）
+├── merge_target: {staging / main / ...}（来源：{state.json / .teamwork_localconfig.md / 默认}）
+├── 合并策略：no-ff
+└── rebase 预处理：{默认 false / true（配置启用）}
+
+💡 建议：1（所有质量门禁通过，推荐直接 Ship）
+📝 理由：
+├── 所有 AC 覆盖 ✅ + 所有测试通过 ✅
+├── 架构师 CR + QA 审查 + Codex Review 三路均 PASS
+└── merge_target 同步是保护工作成果最稳妥的方式
+
+⏸️ 请选择（回复数字即可）
+
+1. ✅ 通过 + Ship → 进入 Ship Stage（PMO 执行净化 + push feature + 合入 {merge_target}） ← 💡 推荐
+2. ✅ 通过但暂不 Ship → 仅 push feature 分支归档，暂不合入 {merge_target}
+3. ❌ 不通过（有建议）→ 说明哪个 AC / 哪个文件 / 什么错误，PMO 派发修复
+4. 其他指示（自由输入）
+
+📌 选项说明：
+├── 1：所有质量门禁通过且希望立即集成 → 推荐
+├── 2：想等别的 Feature 一起 Ship / 产品侧要求分批 / 先让别人 review feature 分支
+└── 3：用户在浏览器或实操后发现问题（回退循环 ≤3 轮）
+```
+
+### 选 1（通过 + Ship）后的处理
+
+```
+1. state.json.current_stage = "ship"
+2. state.json.stage_contracts.pm_acceptance.output_satisfied = true
+3. state.json.ship.merge_target = {读配置链，见 ship-stage.md Input Contract}
+4. review-log.jsonl append: { stage: "pm_acceptance", status: "DONE", decision: "ship" }
+5. 按 stages/ship-stage.md 执行 Step 1-6
+   └── Ship Stage 完成后 PMO 输出 Feature 完成报告（含 shipped=true, merge_commit, pushed 字段）
+```
+
+### 选 2（通过但暂不 Ship）后的处理
+
+```
+1. 前序遗留 auto-commit（如有）：
+   ├── cd {worktree.path}（或主工作区）
+   ├── git status --porcelain → 有业务改动 → git add + commit "F{编号}: Ship deferred - residual"
+   └── 白名单临时文件清理（同 ship-stage.md Step 1 规则）
+2. git push origin {worktree.branch}
+   └── push 失败 → ⏸️ 报告错误，让用户手动处理
+3. state.json.ship = {
+     "merge_target": "{配置值}",
+     "status": "deferred",
+     "shipped": false,
+     "pushed": true,
+     "sanitize_log": {...},
+     "deferred_reason": "用户在 PM 验收选 2"
+   }
+4. state.json.current_stage = "completed"（即便 shipped=false，Feature 流程主干完成）
+5. review-log.jsonl append: { stage: "pm_acceptance", status: "DONE", decision: "defer-ship" }
+6. PMO 输出 Feature 完成报告（⚠️ 醒目标注 shipped=false + 后续操作提示）
+7. /teamwork 看板上该 Feature 标注「⏳ 待 Ship」
+```
+
+### 选 3（不通过）修复派发规则
+
+```
+PMO 基于用户补充信息判断类型，派发到对应阶段：
+
+| 问题类型 | 派发阶段 | 状态变更 |
+|---------|---------|---------|
+| 功能缺陷（实现错误）| Review Stage（重新 Review + RD 修复）| state.json 回退到 dev 完成后 |
+| 测试覆盖遗漏 | Test Stage（补测试）| state.json 回退到 review 完成后 |
+| 需求理解偏差 | Plan Stage（PRD 修订）| state.json 回退到 plan（重走后续全流程）|
+| UI/设计不符 | UI Design Stage（设计修改）| state.json 回退到 ui_design |
+| 文档缺漏 | 对应角色补文档（不回退 Stage）| 原地修复 |
+
+🔴 规则：
+├── 前序 commit 保留（不 revert）—— 记录用户首次验收的真实状态
+├── 修复后的代码作为新 commit append，不篡改历史
+├── 修复完成后再次进入「PM 验收暂停点」（允许多轮）
+├── 每轮修复 PMO 必须在 review-log.jsonl 追加一条 retry 记录
+└── 循环 ≤3 轮，超 3 轮 → ⏸️ 用户决策
+```
+
+### commit 产物清单（各 Stage auto-commit + Ship Stage 净化共用）
 
 ```
 必须在 commit 中包含：
@@ -635,14 +1019,29 @@ PMO 完成报告（见下方）
 ├── .env / .env.* / credentials.* / *secret*
 ├── 大型二进制文件（>10MB）
 ├── 本地临时文件（.DS_Store / *.swp）
+
+Ship Stage 灰名单策略（v7.3.9）：
+├── 灰名单 = 不在 .gitignore 也非业务代码（未知扩展名 / build 产物）
+├── PMO 默认不清理不 commit，只在 Merge 预览报告里 ⚠️ 列出
+└── 用户决定：加 .gitignore / 手动 commit / 删除
 ```
 
 ### commit message 模板
 
+**各 Stage auto-commit**（v7.3.9 硬规则产物）：
 ```
-{type}({scope}): {summary}
+F{编号}: {Stage 名} Stage - {简述}
 
-{body 描述本次 Feature 交付内容}
+{body：改动概要}
+
+关联：
+- Feature: {缩写}-F{编号}-{功能名}
+- Stage: {stage 名}
+```
+
+**Ship Stage merge commit**（`git merge --no-ff`）：
+```
+Merge {feature branch} into {merge_target} (F{编号}-{功能名})
 
 AC 覆盖：
 - AC-1: {description}
@@ -663,75 +1062,29 @@ Review 通过情况：
 - 集成测试: ✅ / ⏸️ 延后（批次 ID）/ ⏭️ 跳过（原因）
 - API E2E: ✅ / ⏭️
 - Browser E2E: ✅ / ⏭️
-
-{可选：Co-Authored-By / Refs 等}
 ```
 
 type 取值：`feat` / `fix` / `refactor` / `docs` / `test` / `chore` / `perf`
 scope 取值：子项目缩写（如 `AUTH` / `WEB` / `INFRA`）
 
-### PMO 合并摘要模板（暂停点输出）
+### Ship Stage PMO 职责速查
+
+> 📎 完整规范见 [stages/ship-stage.md](../stages/ship-stage.md)。
 
 ```
-📊 PM 验收 + commit 完成，等待 push 决策
-================================================
+Step 1: 净化（分类处理 uncommitted / 白名单临时 / 灰名单 / 分支异常）
+Step 2: git push origin {feature branch}
+Step 3: rebase origin/{merge_target}（可选，ship_rebase_before_push=true 时）
+Step 4: 切 merge_target + git merge --no-ff {feature branch}
+Step 5: ⏸️ 暂停点 → 用户 2 选 1（merge+push / 仅 merge）
+Step 6: ⏸️ worktree 清理询问（worktree=off 跳过）
+→ ✅ shipped=true, current_stage=completed
 
-## 验收结果
-├── ✅ PM 验收：通过
-├── ✅ Feature 产物完整性校验：通过
-└── ✅ 本地 commit 已完成
-    ├── commit hash: {abc1234}
-    ├── 分支: {branch}
-    ├── 变更文件数: {N}
-    └── commit message: {第一行 summary}
-
-💡 建议：1（默认推送，保持远程同步）
-📝 理由：
-├── 所有 AC 覆盖 ✅ + 所有测试通过 ✅
-├── 架构师 CR + QA 审查 + Codex Review 三路均 PASS
-└── Feature 已完整交付，remote 同步降低丢失风险
-
-⏸️ 请选择（回复数字即可）
-1. ✅ 通过 → 自动 commit + push（推到远程 origin/{branch}） ← 💡 推荐
-2. ✅ 通过 → 仅本地 commit（不 push，由你稍后手动推送）
-3. ❌ 不通过 → 补充信息（说明哪个 AC / 哪个文件 / 什么错误，PMO 会派发到对应阶段修复）
-4. 其他指示（自由输入）
-
-📌 选项说明：
-├── 2 适合：多个 Feature 批量 push / push 前还想自己 review 一次
-└── 3 适合：用户在浏览器实际操作后发现问题
-```
-
-### PMO 2️⃣ 选择（仅 commit）后的完成报告备注
-
-```
-## ⚠️ 推送状态：仅本地 commit
-├── commit hash: {abc1234}
-├── 分支: {branch}
-├── 远程状态: 尚未 push
-├── 建议：用户完成后续操作后手动执行
-│   └── git push origin {branch}
-└── PMO 不主动 push（用户显式保留决定）
-```
-
-### 3️⃣ 不通过 → 修复派发规则
-
-```
-PMO 基于用户补充信息判断类型，派发到对应阶段：
-
-| 问题类型 | 派发阶段 | 状态变更 |
-|---------|---------|---------|
-| 功能缺陷（实现错误）| Review Stage（重新 Review + RD 修复）| state.json 回退到 dev 完成后 |
-| 测试覆盖遗漏 | Test Stage（补测试）| state.json 回退到 review 完成后 |
-| 需求理解偏差 | Plan Stage（PRD 修订）| state.json 回退到 plan（重走后续全流程）|
-| UI/设计不符 | UI Design Stage（设计修改）| state.json 回退到 ui_design |
-| 文档缺漏 | 对应角色补文档（不回退 Stage）| 原地修复 |
-
-🔴 重要：
-├── commit 保留（不 revert）—— 记录用户首次验收的真实状态
-├── 修复后的代码作为新 commit append，不篡改历史
-├── 修复完成后再次进入「验收+commit+push」暂停点（允许多轮）
-└── 每轮修复 PMO 必须在 review-log.jsonl 追加一条 retry 记录
+冲突解决权限（红线 #1 例外，仅 Ship Stage）：
+├── 可解：git 冲突标记 / 格式冲突 / import 顺序 / 注释冲突
+├── 必须升级：同一函数内多方修改 / 跨文件协同变更 / 解完需改其他文件
+├── 判定标准：解完单测全绿 = 可解；失败或需扩改 = 升级 FAIL
+└── 升级后用户 3 选 1：a 手工 / b 启 RD Subagent / c 取消 Ship
 ```
 
 ---
@@ -803,15 +1156,20 @@ PMO 基于用户补充信息判断类型，派发到对应阶段：
 - **建议后续优化**：[可操作的建议，如"PRD 模板增加「已决策」预填段，减少 Plan 阶段讨论轮次"]
 - **AI 耗时 vs 用户等待**：AI 实际耗时 {total - user_wait} min，占 {百分比}%
 
-## 📦 Commit & Push 状态（v7.3.4 必填）
-├── 本地 commit：✅ {commit hash}
-├── 分支：{branch 名}
-├── commit message（首行）：{type}({scope}): {summary}
-├── 变更文件数：{N}
-├── 远程 push：
-│   ├── ✅ 已推送 origin/{branch}（用户选择 1️⃣）
-│   └── ⚠️ 仅本地（用户选择 2️⃣，尚未 push）
-└── 建议：{如仅本地 → "建议后续执行 git push origin {branch}"}
+## 📦 Commit / Push / Ship 状态（v7.3.9 必填）
+├── Feature 分支：{worktree.branch} @ {HEAD short hash}
+├── feature 分支 push：✅ 已推送 origin/{branch} / ⚠️ 仅本地
+├── Ship 状态（v7.3.9 新增）：
+│   ├── 选 1 (Ship 完成)：✅ shipped=true，merge_commit={sha}，已合入 {merge_target}
+│   │   └── merge_target push：✅ 已推送 origin/{merge_target} / 💤 仅本地 merge
+│   ├── 选 2 (暂不 Ship)：⏳ shipped=false，feature 已 push 但未合入 {merge_target}
+│   │   └── 后续：/teamwork ship F{编号} 可触发 Ship Stage
+│   └── 选 3 (不通过)：不出现在完成报告中（会回退到前序 Stage 继续循环）
+├── Ship 净化记录（如 shipped=true）：
+│   ├── residual commits：{N}（⚠️ 有 → 提示前序 Stage 漏 commit）
+│   ├── 清理临时文件：{M}
+│   └── 灰名单文件（未处理）：{K}
+└── 建议：{如 shipped=false → "建议后续 /teamwork ship 合入 merge_target"}
 
 ## 下一步建议
 ├── 是否有后续优化项？

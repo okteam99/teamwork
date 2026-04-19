@@ -14,6 +14,13 @@
 - TC.md → 理解测试场景
 - ARCHITECTURE.md → 理解架构
 
+**🔴 TECH / TC 格式权威（v7.3.9+P0-7 新增）**：
+- 🔴 起草 TECH.md 前**必须 Read `templates/tech.md`**；起草 TC.md 前**必须 Read `templates/tc.md`**（含 YAML frontmatter tests[] 结构）
+- 🔴 **禁止**说"参考上一个 Feature 的 TECH/TC 格式起草"——格式要 authoritative 回 templates/
+- 🔴 peer Feature 的 TECH/TC 可作**内容参考**（类似模块的实现路径、类似业务的测试套路复用）；格式 / 字段 / covers_ac 反查规范 **只认 templates/tc.md + templates/tech.md**
+- 🔴 发现 peer Feature 与 templates/ 格式不一致 → templates/ 优先，并在 concerns 记录漂移
+- 📎 详见 [TEMPLATES.md § 格式权威红线](../TEMPLATES.md#-格式权威红线v739p0-7-新增)
+
 **职责**:
 - 技术方案到 TECH.md
 - **测试先行**（后端 TDD，前端也要求测试先行）

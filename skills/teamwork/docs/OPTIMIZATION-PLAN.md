@@ -729,7 +729,7 @@ P1（显著提升并行度，减少 review 总耗时）
 ### 方案（已实施）
 
 **INIT.md 启动时检查**：
-- .teamwork_localconfig.md 增加 worktree 策略字段（auto/manual/off，默认 off）
+- .teamwork_localconfig.md 增加 worktree 策略字段（off/auto/manual，默认 off）
 - 检查当前是否在某个 Feature worktree 中（git worktree list）
 - 输出到启动报告
 
@@ -745,3 +745,69 @@ P1（显著提升并行度，减少 review 总耗时）
 ### 优先级
 
 P2（增强功能，不影响核心流程）
+
+---
+
+## 问题 12：⚡ auto 模式一次性总开关（2026-04-19 新增 · P0-11）
+
+### ✅ 已完成（2026-04-19）
+
+### 需求
+
+teamwork 暂停点密集（单个 Feature 10+ 次 ⏸️），对"我心里有数、按你建议推"的场景体验重。需要一次性总开关让 PMO 按 💡 自动推进，但保留关键决策的强制暂停。
+
+### 方案（已实施）
+
+**入口（INIT.md Step 0）**：
+- `/teamwork auto [需求]` / `auto 继续` / `auto ship F{编号}` → AUTO_MODE=true
+- 其他形式（`/teamwork [需求]` / `/teamwork 继续` / `/teamwork` 无参）→ AUTO_MODE=false
+
+**作用域**：**单次命令周期**（仅本次 /teamwork 生命周期）
+- 用户重新 /teamwork（不带 auto）→ 自动重置
+- 运行时用户消息含「停 / 暂停 / manual / 等一下 / 先等等」→ 立即关闭
+- compact 后 → 默认 false
+- 🔴 **不持久化**到 localconfig / state.json（避免"以为关了其实没关"的事故面）
+
+**豁免范围**（按 💡 自动推进）：
+- 普通方案 / PRD / UI / TC / TECH 草稿 review 后流转
+- 阶段切换、Plan Stage 入口 preflight（4 硬门禁全 ✅ 时）
+- dispatch 前检、review 结果接受、摘要流转
+- 非强制保留的 ⏸️
+
+**强制保留 15 项**（即便 AUTO_MODE=true 也必须 ⏸️）：
+- PM 验收三选项 / Ship 关键操作（ship_policy=confirm 下）/ Ship worktree 清理 / Ship 冲突
+- Dev / Test BLOCKED 或 FAILED、Review FAILED
+- PL-PM 分歧 / Blueprint concerns / MUST-CHANGE
+- Micro 用户验收与升级确认
+- 外部依赖已就绪恢复
+- Planning / PL 模式最终确认
+- 13 红线触发 / 破坏性 git / DB 操作
+- 用户消息含「？/ 确认下 / 等我看看 / 核对一下」等意图不确定语气
+
+**ship_policy 正交**：auto 是 session 级总开关，ship_policy 是 Ship Stage 细粒度；auto **不覆盖** `ship_policy=confirm`。
+
+**显示与日志**：
+- STATUS-LINE 第一行在 `🔄 Teamwork 模式` 与 `|` 间插入 `⚡ AUTO` 徽章（AUTO_MODE=true 时）
+- 每个豁免暂停点输出 `⚡ auto skip: {决策简述} | 💡 {建议} | 📝 {理由}`
+- 命中强制保留时输出「⚡ auto 模式已开启，但此暂停点强制保留」提示
+
+### 影响文件
+
+- `INIT.md`：Step 0 命令行解析
+- `roles/pmo.md`：新增「⚡ auto 模式暂停点豁免规则」章节
+- `rules/flow-transitions.md`：顶部新增「⚡ auto 模式豁免速查」块
+- `STATUS-LINE.md`：第一行 ⚡ AUTO 徽章 + 规则 + 示例
+- `docs/CHANGELOG.md`：P0-11 条目 + P0 影响面更新
+
+### 与 P0-9 的对称设计
+
+| 设计 | 默认 | 显式 opt-in 时机 |
+|------|------|----------------|
+| P0-9 worktree | off | 改 localconfig `worktree: auto/manual` |
+| P0-11 auto 模式 | false | 每次 /teamwork auto [需求] |
+
+两者都刻意不把复杂性藏在默认值里，由用户显式开启，自担理解成本。
+
+### 优先级
+
+P0（高频场景体验问题，收益面大）

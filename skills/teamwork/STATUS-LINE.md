@@ -41,18 +41,35 @@
 ### 状态行格式规范
 
 ```
-第一行：🔄 Teamwork 模式 | 流程：[...] | 角色：[...] | 阶段：[...] | 下一步：[...]
+第一行：🔄 Teamwork 模式 [⚡ AUTO] | 流程：[...] | 角色：[...] | 阶段：[...] | 下一步：[...]
 🔴 必填追加字段（按流程类型）：
 ├── Feature / 敏捷需求 → 功能：{缩写}-F{编号}-{功能名}（🔴 必填，不可省略）
 ├── Bug 处理 → Bug：BUG-{编号}-{简述}（🔴 必填）
 ├── Micro → 功能：Micro-{简述}（🔴 必填）
 └── 问题排查 / Feature Planning → 无功能编号时可省略
 可选追加字段：子项目 / 跨项目需求 / 涉及 / 受影响子项目
+🔴 ⚡ AUTO 徽章（v7.3.9+P0-11 新增）：
+├── AUTO_MODE=true → 在「🔄 Teamwork 模式」与「|」之间插入「⚡ AUTO」
+├── AUTO_MODE=false（默认）→ 不插入
+└── 触发来源：/teamwork auto [需求]（详见 INIT.md Step 0）
 
 第二行（按场景决定）：
 ├── 有明确功能目录 / bugfix 目录 → 必须输出 📁 绝对路径
 ├── 无功能目录但有工作区状态文件 → 输出该状态文件或工作区文档绝对路径
 └── 纯讨论/梳理阶段暂时没有落盘目录 → 第二行可省略
+
+第三行（分支 / worktree 状态，v7.3.9+P0 新增）：
+├── Feature / 敏捷 / Bug（worktree=auto/manual）→ 🌿 分支：{branch} → {merge_target} | worktree：{worktree.path}
+├── Feature / 敏捷 / Bug（worktree=off）→ 📍 当前分支：{branch} → {merge_target}（⚠️ 未启用 worktree，并行 Feature 请注意隔离）
+├── Micro（worktree=off）→ 📍 当前分支：{当前分支名}（⚠️ Micro 直接改主分支，操作前确认工作区干净）
+├── Micro（worktree=auto/manual）→ 🌿 分支：chore/{简述} → {merge_target} | worktree：{worktree.path}
+├── Planning（Roadmap / Workspace 架构 / 跨项目拆分）→ 📍 当前分支：{当前分支名}（Planning 阶段不改代码，分支仅供参考）
+├── Bug 修复阶段（复杂 Bug 已走 Feature 流程）→ 🌿 分支：bugfix/{编号}-{简述} → {merge_target} | worktree：{path}
+├── 问题排查 / PL 纯讨论 / Plan Stage preflight 之前 → 可省略（无分支语义或 worktree 未建）
+└── 字段取值优先级：
+    ├── state.json.worktree.{path, branch} + state.json.merge_target → 首选
+    ├── state.json 缺失时 → 回退 `git branch --show-current` 实时渲染，不虚构
+    └── 🔴 禁止把 worktree.path 写成相对路径或省略 worktree 字段伪装成 off
 ```
 
 ### 状态行规则
@@ -61,7 +78,22 @@
 ├── 「流程」字段只表示六种标准流程，不承载「工作区级」「PL 模式」等扩展语义
 ├── 「工作区级」「PL 讨论中」「PL 变更评估中」等信息写入阶段字段
 ├── 第二行路径必须是绝对路径（以 / 开头），不能用相对路径
-└── 只有在当前阶段确实没有可点击目录/文件时，才允许省略第二行
+├── 只有在当前阶段确实没有可点击目录/文件时，才允许省略第二行
+├── 第三行在「分支 + merge_target」语义存在时必须输出；无 worktree 时用 📍 警示
+├── 🌿 = 已启用 worktree 隔离（安全），📍 = 直接在分支上操作（谨慎）
+└── ⚡ AUTO 徽章仅在 AUTO_MODE=true 时在第一行显示；默认不显示
+```
+
+**⚡ AUTO 徽章示例**（v7.3.9+P0-11）：
+
+```
+AUTO_MODE=true：
+🔄 Teamwork 模式 ⚡ AUTO | 流程：Feature | 角色：PMO | 功能：API-F001-用户认证 | 阶段：PRD 待确认 | 下一步：⚡ 自动进入 UI Design
+📁 /Users/dev/projects/myapp/docs/features/API-F001-用户认证/
+🌿 分支：feature/API-F001-用户认证 → staging | worktree：/Users/dev/projects/myapp-worktrees/API-F001-用户认证
+
+AUTO_MODE=false（默认，不显示徽章）：
+🔄 Teamwork 模式 | 流程：Feature | 角色：PMO | 功能：API-F001-用户认证 | 阶段：⏸️ PRD 待确认 | 下一步：⏸️ 等待用户确认
 ```
 
 ### Feature / 敏捷需求流程（🔴 功能字段必填）
@@ -70,10 +102,12 @@
 ---
 🔄 Teamwork 模式 | 流程：Feature | 角色：[当前角色] | 功能：[{缩写}-F{编号}-{功能名}] | 阶段：[当前阶段] | 下一步：[下一步事项]
 📁 /绝对路径/docs/features/[功能目录]/
+🌿 分支：feature/[{缩写}-F{编号}-{功能名}] → [merge_target] | worktree：/绝对路径/[worktree 目录]
 
 多子项目时追加子项目字段：
 🔄 Teamwork 模式 | 流程：Feature | 子项目：[缩写] | 角色：[当前角色] | 功能：[{缩写}-F{编号}-{功能名}] | 阶段：[当前阶段] | 下一步：[下一步事项]
 📁 /绝对路径/[子项目]/docs/features/[功能目录]/
+🌿 分支：feature/[{缩写}-F{编号}-{功能名}] → [merge_target] | worktree：/绝对路径/[worktree 目录]
 ```
 
 **示例**：
@@ -81,10 +115,17 @@
 ---
 🔄 Teamwork 模式 | 流程：Feature | 角色：PMO | 功能：API-F001-用户认证 | 阶段：PMO 分析中 | 下一步：🔗 Plan Stage
 📁 /Users/dev/projects/myapp/docs/features/API-F001-用户认证/
+🌿 分支：feature/API-F001-用户认证 → staging | worktree：/Users/dev/projects/myapp-worktrees/API-F001-用户认证
 
 （多子项目）
 🔄 Teamwork 模式 | 流程：Feature | 子项目：AUTH | 角色：RD | 功能：AUTH-F001-用户登录 | 阶段：🤖 Dev Stage 执行中（RD TDD+单测） | 下一步：🚀 Review Stage
 📁 /Users/dev/projects/myapp/auth-service/docs/features/AUTH-F001-用户登录/
+🌿 分支：feature/AUTH-F001-用户登录 → staging | worktree：/Users/dev/projects/myapp/auth-service-worktrees/AUTH-F001-用户登录
+
+（worktree=off 退化示例，并行 Feature 时不推荐）
+🔄 Teamwork 模式 | 流程：Feature | 角色：RD | 功能：API-F001-用户认证 | 阶段：🤖 Dev Stage 执行中 | 下一步：🚀 Review Stage
+📁 /Users/dev/projects/myapp/docs/features/API-F001-用户认证/
+📍 当前分支：feature/API-F001-用户认证 → staging（⚠️ 未启用 worktree，并行 Feature 请注意隔离）
 ```
 
 ### 跨项目需求拆分阶段
@@ -122,6 +163,7 @@
 ---
 🔄 Teamwork 模式 | 流程：Bug 处理 | 子项目：[缩写]（多子项目时）| 角色：[当前角色] | Bug：BUG-{编号}-{简述} | 阶段：[当前阶段] | 下一步：[下一步事项]
 📁 /绝对路径/[子项目]/docs/features/[功能目录]/bugfix/[BUG编号]/
+🌿 分支：bugfix/[BUG编号]-[简述] → [merge_target] | worktree：/绝对路径/[worktree 目录]
 ```
 
 ### 问题排查流程状态行格式
@@ -129,6 +171,7 @@
 ```
 ---
 🔄 Teamwork 模式 | 流程：问题排查 | 子项目：[缩写] | 角色：[当前角色] | 阶段：[当前阶段] | 下一步：[下一步事项]
+（第三行：问题排查不改代码，分支语义可省略；如已切到特定分支排查可输出 📍 当前分支：xxx）
 ```
 
 ### 敏捷需求流程状态行格式
@@ -137,6 +180,27 @@
 ---
 🔄 Teamwork 模式 | 流程：敏捷需求 | 子项目：[缩写] | 角色：[当前角色] | 功能：[{缩写}-A{编号}-功能名] | 阶段：[当前阶段] | 下一步：[下一步事项]
 📁 /绝对路径/[子项目]/docs/features/[功能目录]/
+🌿 分支：feature/[{缩写}-A{编号}-功能名] → [merge_target] | worktree：/绝对路径/[worktree 目录]
+```
+
+### Micro 流程状态行格式
+
+```
+---
+🔄 Teamwork 模式 | 流程：Micro | 子项目：[缩写]（多子项目时）| 角色：[当前角色] | 功能：Micro-{简述} | 阶段：[当前阶段] | 下一步：[下一步事项]
+📁 /绝对路径/[子项目]/（或具体改动文件路径）
+📍 当前分支：{当前分支名}（⚠️ Micro 直接改主分支，操作前确认工作区干净）
+
+worktree=auto/manual 变体（单文件零逻辑变更也可选 off 跳过 worktree）：
+🌿 分支：chore/{简述} → [merge_target] | worktree：/绝对路径/[worktree 目录]
+```
+
+**示例**：
+```
+---
+🔄 Teamwork 模式 | 流程：Micro | 角色：PMO | 功能：Micro-修复 README 拼写 | 阶段：Micro 变更说明中 | 下一步：🤖 启动 RD Subagent
+📁 /Users/dev/projects/myapp/README.md
+📍 当前分支：main（⚠️ Micro 直接改主分支，操作前确认工作区干净）
 ```
 
 ### 第二行路径规则
@@ -148,6 +212,19 @@
 ├── Bug → bugfix 目录
 ├── 工作区级 Planning / 跨项目拆分 → teamwork_space.md
 └── 纯问题排查且尚未产出文档 → 可省略第二行
+```
+
+### 第三行分支规则
+
+```
+默认优先输出 state.json 中的 worktree + merge_target 组合。
+渲染决策：
+├── state.json.worktree.strategy == "auto" / "manual" + path 存在 → 🌿 分支：... | worktree：...
+├── state.json.worktree.strategy == "off" → 📍 当前分支：... → {merge_target}
+├── Micro 默认 off → 📍 当前分支：{git branch --show-current}（用户显式开启 worktree=auto 时才走 🌿 分支）
+├── Plan Stage preflight 之前 worktree 尚未创建 → 省略第三行或标注"worktree 待创建"
+├── 问题排查 / PL 纯讨论 / 初始 PMO 分析 → 可省略
+└── 🔴 禁止：worktree.path 用相对路径 / 伪造 state.json 字段 / 混用 🌿 和 📍 语义
 ```
 
 ### 下一步说明规则

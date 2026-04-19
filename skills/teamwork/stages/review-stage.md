@@ -50,7 +50,7 @@ QA 视角 额外读：
 
 - 本轮聚焦点（重跑时必填：上一轮问题清单）
 - 已识别风险
-- 降级授权（Codex CLI 不可用 → 降级 Sonnet）
+- 降级授权（Codex CLI 不可用 → 🟢 AI 自主判断适合的降级模式，参考 agents/README.md §三「降级路径决策」）
 - 优先级 / 容忍度
 
 ### 前置依赖
@@ -80,9 +80,17 @@ QA 视角 额外读：
    - 产出 `review-qa.md`
    - 维度：TC 逐条覆盖 / TDD 规范 / 集成测试代码完整性 / 设计-代码一致性
 
-4. **外部独立审查**（Codex 或等效）
+4. **外部独立审查**（🔴 统一走 codex CLI 独立 spawn，v7.3.9+P0 强化）
+   - 🔴 **宿主判断**：无论 PMO 所在宿主是 Claude Code 还是 Codex CLI，外部视角**都通过 codex CLI 独立 spawn fresh session 执行**（独立性来源于 session 隔离 + 可选跨模型）
+     ```
+     ├── Claude Code 宿主 → 通过 Task/MCP 调 codex 子进程（codex CLI fresh session）
+     ├── Codex CLI 宿主   → 在 prompt 中 spawn 独立的 codex 子 agent（.codex/agents/*.toml，fresh context）
+     │   └── 🔴 禁止："外部视角 = Codex 主对话自审"——必须是独立 spawn，不能在当前 session 内叙述
+     ├── 两种宿主的独立性保证一致：fresh context + 独立 dispatch 文件 + 独立 generated_at
+     └── codex CLI 不可用（两宿主都会遇到）→ 进入降级分支（见 agents/README.md §三）
+     ```
    - 按 `agents/codex-review.md`（如无则按 `review-stage.md` 中的 prompt 模板）
-   - 产出 `review-codex.md`
+   - 产出 `review-codex.md`（frontmatter：`perspective: external-codex`, `executor: codex-cli-subprocess`（Claude 宿主）/`codex-cli-subagent`（Codex 宿主））
    - 维度：逻辑正确性 / 安全漏洞 / 第三方依赖真实性 / 并发安全 / 代码质量
 
 5. **汇合到 REVIEW.md**（PMO 职责）
@@ -100,6 +108,7 @@ QA 视角 额外读：
 - 🔴 **完整性**：每个视角按各自规范完整执行，不能因为另一个视角已通过就简化
 - 🔴 **不修复**：Review 只审不改，发现问题返回 PMO 安排 RD 修复
 - 🔴 **循环控制**：修复-重跑循环 ≤3 轮
+- 🔴 **Stage 完成前 git 干净** → 统一遵循 [rules/gate-checks.md § Stage 完成前 git 干净](../rules/gate-checks.md#-stage-完成前-git-干净v739-硬规则p0-集中化)（本 Stage commit message：`F{编号}: Review Stage - fix {简述}`；每轮修复独立 commit；auto_commit 为**数组**字段，多轮 QUALITY_ISSUE 修复 append）
 
 ### 多视角独立性（产物结构保证）
 

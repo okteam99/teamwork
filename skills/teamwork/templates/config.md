@@ -95,10 +95,43 @@ scope:
 
 ## Git Worktree 策略
 <!-- worktree: off / auto / manual（默认 off） -->
-<!-- off = 不使用 worktree，所有 Feature 在主分支开发 -->
-<!-- auto = PMO 在 Dev Stage 前自动创建 worktree，Feature 完成后自动清理 -->
+<!-- off = 不使用 worktree，所有 Feature 在主分支开发【默认·保守】 -->
+<!-- auto = PMO 在 Plan Stage 入口自动创建 worktree（v7.3.8 前移），Feature 完成后询问用户清理 -->
 <!-- manual = PMO 提醒用户自行管理 worktree，不自动创建/清理 -->
+<!-- -->
+<!-- 保留 off 为默认的原因（v7.3.9+P0-9 决策）： -->
+<!--   - megarepo：每个 worktree 是全量 checkout，多 Feature 并行时磁盘/索引代价高 -->
+<!--   - IDE review：worktree 在 sibling 目录下，IDEA/VS Code 跨 worktree 搜索/跳转不便 -->
+<!--   - 工具链忽略：.worktree/ 内嵌方案需每个工具单独配排除（tsc/eslint/jest/docker...） -->
+<!--   - 选 auto/manual 前建议先用 P0-10 的 worktree_base + IDE workspace 自动配置（待实施） -->
 worktree: off
+
+## Ship 策略（v7.3.9 新增）
+
+### 合并目标分支
+<!-- merge_target: Feature 完成后合并的目标分支。默认 staging。 -->
+<!-- 解析优先级：state.json.merge_target > 本文件 merge_target > 默认 staging -->
+<!-- 常见值：staging / develop / main（单分支模型） -->
+merge_target: staging
+
+### Rebase 策略
+<!-- ship_rebase_before_push: Ship Stage push feature 分支前是否 rebase onto 目标分支。 -->
+<!-- false（默认，多人场景推荐）= 保留原 feature 分支历史，通过 merge --no-ff 合并 -->
+<!-- true（单人场景可选）= push 前 rebase 最新 target，线性历史更干净但可能覆盖他人改动 -->
+ship_rebase_before_push: false
+
+### Ship 策略
+<!-- ship_policy: auto / confirm（默认 confirm） -->
+<!-- confirm = Ship Stage 每个关键操作（rebase/merge/push）前都需要用户确认 -->
+<!-- auto = 信任 PMO 自主执行，仅在冲突/异常时暂停 -->
+ship_policy: confirm
+
+### Worktree 清理策略
+<!-- worktree_cleanup: ask / keep / remove（默认 ask） -->
+<!-- ask = Ship 完成后询问用户（推荐） -->
+<!-- keep = 默认保留 worktree 便于复查 -->
+<!-- remove = 默认清理 worktree（仅建议稳定流程用） -->
+worktree_cleanup: ask
 
 ## 备注
 <!-- 可选：记录当前阶段重点、临时分工调整等 -->

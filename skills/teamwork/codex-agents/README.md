@@ -16,3 +16,5 @@
 | planner.toml | Plan Stage | PM PRD + PL-PM 讨论 + 评审 |
 | designer.toml | UI Design / Panorama | Designer UI 设计 |
 | e2e-runner.toml | Browser E2E Stage | 浏览器端到端测试 |
+| **prd-reviewer.toml** | Plan Stage（PRD 交叉评审） | 外部视角审查 PRD.md（详见 templates/codex-cross-review.md）|
+| **blueprint-reviewer.toml** | Blueprint Stage（TC+TECH 交叉评审）| 外部视角审查 TC.md + TECH.md（详见 templates/codex-cross-review.md）|

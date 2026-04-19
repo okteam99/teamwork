@@ -8,6 +8,74 @@
 
 ## 启动必做（每次，按顺序执行）
 
+### Step 0: 解析 /teamwork 命令行（🔴 v7.3.9+P0-11 新增）
+
+**解析规则（第一个 token 决定 AUTO_MODE）**：
+
+```
+/teamwork auto [需求]         → AUTO_MODE=true，需求 = "[需求]"
+/teamwork auto 继续           → AUTO_MODE=true，继续进行中 Feature
+/teamwork auto ship F{编号}   → AUTO_MODE=true，Ship Stage（仍受 ship_policy 约束）
+/teamwork [需求]              → AUTO_MODE=false（手动，默认）
+/teamwork 继续                → AUTO_MODE=false
+/teamwork（无参）              → AUTO_MODE=false，输出看板
+```
+
+**AUTO_MODE 作用域 = 单次命令周期**（仅本次 /teamwork 生命周期有效）：
+
+```
+├── 用户重新输入 /teamwork（不带 auto）→ AUTO_MODE 自动重置为 false
+├── 运行中用户消息含「停 / 暂停 / manual / 等一下 / 先等等」→ 立即 AUTO_MODE=false，当前和后续 ⏸️ 恢复
+├── 会话跨 compact 后 → AUTO_MODE 默认 false（需重新 /teamwork auto ... 开启）
+└── 🔴 不写入 localconfig / state.json（不持久化，避免"以为关了其实没关"的事故面）
+```
+
+**AUTO_MODE=true 时 PMO 行为变更（速查）**：
+
+```
+🔴 元规则（P0-11-A）：暂停点需要的"决策内容"如果已被 auto 命令承载（「是否继续/恢复/启动」类）→ 豁免；
+   若需新的业务判断 / 技术分歧 / 破坏性授权 / 红线处理 → 保留。
+
+✅ 豁免（按 💡 自动推进，不等用户）：
+├── 普通方案 / PRD / UI / TC / TECH 草稿 review 后流转
+├── 阶段切换（Stage A → Stage B）
+├── Plan Stage 入口 preflight（4 硬门禁全 ✅ 时）
+├── dispatch 前检 / review 结果接受 / 摘要流转
+├── 外部依赖已就绪 → 恢复流程（P0-11-A：auto 命令已承载"恢复"意图）
+├── Planning / PL 模式最终汇总确认（P0-11-A：auto 命令已承载"推进"意图）
+├── 🟡 Test Stage → Browser E2E Stage（P0-11-B：auto 默认跳过 Browser E2E，留痕后直接进 PM 验收）
+└── 非强制保留的 ⏸️ 暂停点（见 flow-transitions.md 顶部豁免表）
+
+🔴 强制保留（仍 ⏸️，不受 auto 影响）：
+1. Ship Stage ship_policy=confirm 下的 rebase / merge / push
+2. 破坏性 git / DB 操作（force push / hard reset / drop 表 / 删分支）
+3. 需求类型 / 使用流程识别有歧义或多候选
+4. 13 条绝对红线触发时
+5. 架构师 Review 输出 MUST-CHANGE
+6. 用户消息出现「？/ 确认下 / 等我看看 / 核对一下」等意图不确定语气
+7. Blueprint Stage / Review Stage concerns 需用户判断
+8. Micro 流程「用户验收」和「升级确认」
+9. PM 验收三选项
+10. Ship Stage 冲突解不了 / push 拒绝
+11. Dev / Test Stage BLOCKED 或 FAILED / Review Stage FAILED
+```
+
+**反模式（P0-11-A 实战教训）**：
+- ❌ auto 命令明说"推进到 Blueprint 完成"，却被中间"外部依赖恢复确认"卡住 → 把用户命令意图当空气
+- ❌ 把所有 ⏸️ 都当强制保留 → auto 模式坍缩为手动模式，违反设计意图
+
+**Browser E2E auto 默认跳过（P0-11-B 新增）**：
+- `AUTO_MODE=true` + `TC.md` 含 Browser E2E AC → **默认跳过 Browser E2E Stage**，直接进 PM 验收
+- 留痕：`state.json.stage_contracts.browser_e2e = {status: "SKIPPED_BY_AUTO", skipped_at, skip_reason}` + `review-log.jsonl` 追加一行
+- PM 验收 / 完成报告必须显式标注「⚠️ Browser E2E 已按 auto 模式跳过」
+- 例外（不跳过）：命令含「含 browser e2e / 带 e2e / run e2e」关键词、`TC.md required_even_in_auto=true`、手动模式
+
+**跳过日志**：每跳过一个暂停点，PMO 输出一行 `⚡ auto skip: {决策简述} | 💡 {建议} | 📝 {理由}`，便于事后追溯。
+
+📎 详见 `roles/pmo.md`「⚡ auto 模式暂停点豁免规则」+「🟡 Browser E2E auto 默认跳过」章节、`STATUS-LINE.md` 状态行 `⚡ AUTO` 徽章、`rules/flow-transitions.md` 顶部「auto 模式豁免速查」块。
+
+---
+
 ### Step 1: 检测宿主环境 + 校验指令文件（🔴 最先做）
 
 **Step 1.1: 检测宿主环境并设定 SKILL_ROOT**
@@ -59,7 +127,7 @@
 
 ### 🔴 绝对红线（13 条）
 
-1. PMO 写操作边界：非 Micro 流程下影响运行时的改动（代码/测试/配置）→ 必须按流程执行（含完整质量门禁），禁止绕过；Micro 流程 PMO 可直接改（白名单内零逻辑）；常规流程文件（state.json/ROADMAP.md/review-log.jsonl）和纯文档（README/注释/changelog）→ PMO 可直接改，需标注
+1. PMO 写操作边界：非 Micro 流程下影响运行时的改动（代码/测试/配置）→ 必须按流程执行（含完整质量门禁），禁止绕过；Micro 流程 PMO 可直接改（白名单内零逻辑）；常规流程文件（state.json/ROADMAP.md/review-log.jsonl）和纯文档（README/注释/changelog）→ PMO 可直接改，需标注。🆕 Ship Stage 例外（v7.3.9）：rebase/merge 过程中的 git 冲突标记（`<<<<<<<` / `=======` / `>>>>>>>`）PMO 可直接解决（本地或 feature 分支），前提是：（a）所有前序 Stage 已 DONE 且单测全绿；（b）冲突仅为 git marker 合并，不涉及新增逻辑；（c）解决后需重跑单测确认未破坏。不满足则升级为⏸️ 用户决策
 2. 流程只有六种：Feature / Bug / 问题排查 / Feature Planning / 敏捷需求 / Micro
 3. 禁止擅自简化：每种需求走完整流程，用户明确说「跳过」才可豁免
 4. 所有用户输入必须由 PMO 先承接
@@ -94,13 +162,14 @@
 
 检查 .teamwork_localconfig.md（多人协作）：
 ├── 存在 → 读取 scope（all / 指定子项目列表）+ worktree 策略（off/auto/manual）
-├── 不存在 → 默认 scope=all（单人模式），worktree=off，不提示不打断
+├── 不存在 → 默认 scope=all（单人模式），worktree=off（v7.3.9+P0-9 决策保留保守默认），不提示不打断
+│   └── 用户如需并行 Feature 隔离 → 主动改 localconfig 为 auto/manual（详见 templates/config.md 决策说明）
 └── 用户主动说"我只负责 XX" → 那时再创建 localconfig
 
 检查 worktree 环境（worktree ≠ off 时）：
 ├── 执行 git worktree list → 检测当前是否在某个 Feature worktree 中
 ├── 在 worktree 中 → 记录当前 worktree 对应的 Feature 编号
-├── 不在 worktree 中 → 正常（Dev Stage 前按策略创建）
+├── 不在 worktree 中 → 正常（📎 v7.3.8：Plan Stage 入口按策略创建，不再等到 Dev Stage；v7.3.9：创建走 preflight 暂停点，base 显式指向 origin/{merge_target}）
 └── git 不可用 → worktree 降级为 off，输出提示
 ```
 

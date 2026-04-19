@@ -84,3 +84,68 @@ state.json 缺失 → PMO 基于 Feature 目录现有文件和 flow-transitions.
 🟢 v7.3.2：state.json 已替代 STATUS.md 成为 Feature 目录唯一状态文件。
    遇到遗留的 STATUS.md → 不删（历史保留），但 PMO 不再更新。
 ```
+
+---
+
+## 🔴 Stage 完成前 git 干净（v7.3.9 硬规则，P0 集中化）
+
+**所有 Stage 在 `output_satisfied=true` 之前，PMO 必须执行 git 干净检查。本规则是所有 Stage 的统一门禁，各 Stage md 仅作引用。**
+
+### 通用校验流程
+
+```
+PMO 执行：git status --porcelain
+
+├── 空输出 → ✅ 继续流转，写 output_satisfied=true
+└── 非空输出 → PMO auto-commit（不询问用户，不等待）：
+    1. git add -A
+    2. git commit -m "F{编号}: {Stage 名} - {简述}"
+    3. 将 commit hash 写入 state.json.stage_contracts.{stage}.auto_commit
+       ├── 单值字段（plan / ui_design / blueprint / blueprint_lite / dev / browser_e2e / ship）
+       │   → auto_commit: "{hash}"（覆盖写；同 Stage 若触发多次则保留最后一次）
+       └── 数组字段（review / test）
+           → auto_commit: [...]（append；多轮 QUALITY_ISSUE 修复各一条）
+    4. commit 成功后才允许 output_satisfied=true
+```
+
+### 各 Stage 的 commit message 规范
+
+```
+├── Plan Stage         : "F{编号}: Plan Stage - {简述}"           （例：PRD / PRD-REVIEW / discuss 产物）
+├── UI Design Stage    : "F{编号}: UI Design Stage - {简述}"      （例：UI.md / preview/*.html / sitemap）
+├── Blueprint Stage    : "F{编号}: Blueprint Stage - {简述}"      （例：TC.md / TECH.md / 评审文件）
+├── BlueprintLite Stage: "F{编号}: BlueprintLite Stage - {简述}"  （例：TC.md / IMPL-PLAN.md）
+├── Dev Stage          : "F{编号}: Dev Stage - {简述}"            （例：功能代码 + 单测）
+├── Review Stage       : "F{编号}: Review Stage - fix {简述}"     （每轮修复独立 commit）
+├── Test Stage         : "F{编号}: Test Stage - {简述}"           （例：测试脚本 / 环境修复 / 回归补测）
+├── Browser E2E Stage  : "F{编号}: Browser E2E Stage - {简述}"    （例：截图 / 测试报告）
+└── Ship Stage         : 见 stages/ship-stage.md（Ship 有专属 commit 链）
+```
+
+### 设计动机
+
+```
+├── 给下一 Stage 提供稳定 diff 锚点（Review 看 Dev 的 diff、Ship 看完整历史）
+├── 避免改动悬浮在工作区，防止 Compact 或会话崩溃丢失进度
+├── 给 Ship Stage sanitize_log 留下可追溯的原子 commit 单元
+└── auto_commit 数组 / 单值字段差异源于 QUALITY_ISSUE 循环语义：
+    Review / Test 可多轮修复 → 数组；其他 Stage 单次产出 → 单值
+```
+
+### 免除场景（不触发 auto-commit 的例外）
+
+```
+├── Stage 报 BLOCKED / FAILED 返回：由 PMO 根据情况决定是否 commit
+├── 纯讨论阶段（无文件产出）：git status --porcelain 自然为空，无需特殊处理
+└── 用户明确要求"本次改动不 commit"：PMO 暂停并记录用户决策，不强制 auto-commit
+```
+
+### 各 Stage md 引用格式
+
+各 Stage md 的「过程硬规则」章节只需保留一行引用：
+
+```
+- 🔴 **Stage 完成前 git 干净** → 遵循 [rules/gate-checks.md#stage-完成前-git-干净v739-硬规则p0-集中化](../rules/gate-checks.md#-stage-完成前-git-干净v739-硬规则p0-集中化)
+```
+
+不再在各 Stage md 中重复 6 行详细流程，避免文案多点漂移。

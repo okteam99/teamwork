@@ -1,6 +1,374 @@
 # Changelog
 
-## v7.3.6（当前）—— 多决策点支持：数字决策点 + 字母选项（`1A 2B`）
+## v7.3.9 + P0 简化（当前）
+
+> P0 是 v7.3.9 落地后的一轮"反刍"简化：抽取重复描述、收敛 preflight 暂停点、修正依赖安装时机表述。无破坏性变更，向前兼容 v7.3.9 state.json 与 localconfig。
+
+### P0-1：auto-commit 硬规则集中化（rules/gate-checks.md + 8 个 Stage md）
+
+- 问题：v7.3.9 在 8 个 Stage md（plan / ui_design / blueprint / blueprint_lite / dev / review / test / browser_e2e）中各重复一遍 5-7 行的 "Stage 完成前 git 干净" 流程描述。改文案需改 8 处，用户读 Stage 文件看到大段重复。
+- 处理：将完整规则抽取到 `rules/gate-checks.md § Stage 完成前 git 干净`（含通用流程、各 Stage commit message 规范、单值/数组字段语义、免除场景）。各 Stage md 只保留一行引用 + 本 Stage commit message 示例。
+- 收益：文案减少 ~35 行；单一修改点；引用链从分散变为集中。
+
+### P0-2：Preflight 从 6 项砍到 4 项（plan-stage.md + pmo.md + flow-transitions.md + feature-state.json）
+
+- 问题：v7.3.9 原设计"3 硬门禁 + 3 软提示"，实践发现：
+  - "工作区干净" 是硬条件（worktree 继承脏状态代价大），不应软化
+  - "merge_target 解析" 在级联无分歧时无需交互
+  - "分支命名" 可从 Feature 全名自动派生
+  - 最多 3 次暂停，用户体验冗长
+- 处理：收敛为 **4 项硬门禁 + 0 软提示**：
+  - 门禁 1：worktree 策略无残留
+  - 门禁 2：分支名无冲突（分支名自动派生）
+  - 门禁 3：base 分支可达（merge_target 自动解析）
+  - 门禁 4：**工作区干净（P0 升级为硬门禁）**
+  - 暂停点：最多 1 次（仅真冲突时）
+- 收益：preflight 交互次数从"至多 3 次"降到"最多 1 次"。plan-stage.md / pmo.md 的校验表 + 暂停点模板同步更新。flow-transitions.md L11-12 更新 preflight 描述。feature-state.json 的 plan_preflight.checks 增加说明注释。
+
+### P0-3：懒装依赖模型（plan-stage.md + dev-stage.md + test-stage.md）
+
+- 问题：v7.3.9 描述 Feature worktree 创建时需装依赖（npm/pip/build），隐含 ~分钟级冷启动成本。实际只有 Dev / Test Stage 需要依赖，其他 Stage（Plan / Blueprint / Review）纯文档产出，空壳 worktree 就能跑。把依赖安装绑在 worktree 创建上是过早优化为保守。
+- 处理：
+  - `plan-stage.md` worktree 创建段补 "🟢 P0 懒装依赖模型" 说明：worktree 创建不装依赖
+  - `dev-stage.md` 新增 "Stage 入口 Preflight：懒装依赖" 段：检测 → symlink 或 install → 记录到 `state.json.stage_contracts.dev.dependency_install`
+  - `test-stage.md` 环境准备段补"懒装依赖兜底"：Dev 跳过场景下在 Test 入口补装
+- 收益：Feature worktree 创建开销统一 ~1-2s（无 npm/pip 等待），Plan / Blueprint / Review 等纯文档 Stage 无冷启动税；依赖安装发生在真正需要它的 Stage 入口（单次付费）。
+
+### P0-5：状态行第三行 —— 分支 / worktree 语义（STATUS-LINE.md）
+
+- 问题：v7.3.9 状态行只有流程 / 角色 / 功能 / 阶段 / 下一步 + 功能目录路径两行。worktree 启用后，用户肉眼看不到"现在在哪个 worktree、绑定哪个分支、合入目标是什么"——必须翻 state.json 或跑 `git status` 才能确认。并行 Feature 或 Micro 直接改主分支的场景下，这种不可见性容易导致误操作（例如误以为还在 worktree，实际已回到主分支）。
+- 处理：`STATUS-LINE.md` 新增第三行规范：
+  - 🌿 = 启用了 worktree 隔离（安全）：`🌿 分支：{branch} → {merge_target} | worktree：{path}`
+  - 📍 = 直接在分支上操作（谨慎）：`📍 当前分支：{branch} → {merge_target}（⚠️ ...）`
+  - 各流程（Feature / 敏捷 / Bug / Micro / Planning / 问题排查）模板与示例同步更新
+  - 字段取值优先 state.json.worktree + merge_target，缺失时回退 `git branch --show-current`
+- 收益：PMO 每次回复都把分支 / worktree / merge_target 显式化，Micro 场景用 📍+⚠️ 做软兜底防误操作；并行 Feature 场景 worktree 路径直出，减少"在哪改"的混淆。
+
+### P0-6：Codex CLI 宿主兼容性审计（browser-e2e-stage.md + review-stage.md + agents/README.md + templates/codex-cross-review.md + dispatch.md + review-log.jsonl + plan-stage.md + blueprint-stage.md + flow-transitions.md）
+
+- 问题：审计各 Stage 在 Codex CLI 宿主下的可跑通性，发现 3 处强耦合 Claude 生态的表述：
+  - **P0-6-A（Browser E2E 工具硬编码）**：`browser-e2e-stage.md` 隐含 `mcp__Claude_in_Chrome__*` / `mcp__gstack__*`，Codex CLI 宿主无此 MCP，Stage 直接跑不通
+  - **P0-6-B（Review Stage 外部视角在 Codex 宿主下坍缩为自审）**：Codex CLI 宿主若"用自己当 Codex 外部视角"，则失去 session 隔离的独立性保证，"外部视角"名存实亡
+  - **P0-6-C（降级模型硬编码 Sonnet）**：多处文档把"Codex CLI 不可用"的降级路径写死为"Sonnet fallback"，Codex 宿主用户没有 Sonnet 可降，该表述不成立
+- 处理：
+  - **P0-6-A**：`browser-e2e-stage.md` 新增"浏览器工具宿主适配"块：Claude Code 宿主用 MCP，Codex CLI 宿主走 Playwright/puppeteer 子进程，通用宿主无浏览器工具时降级为 ⏸️ 用户手动验收（带 WARN 日志 + `executor: user-manual` frontmatter）
+  - **P0-6-B**：`review-stage.md` 步骤 4 + `agents/README.md §三` + `templates/codex-cross-review.md §二/§六` 统一规则——无论宿主是 Claude Code 还是 Codex CLI，外部视角**都通过 codex CLI 独立 spawn fresh session**（Claude 宿主：Task/MCP 调 codex 子进程；Codex 宿主：prompt 内 spawn `.codex/agents/*.toml` 子 agent）；🔴 明令禁止"外部视角 = Codex 主对话自审"
+  - **P0-6-C**："Sonnet fallback" 全部替换为 "🟢 AI 自主规划等效独立审查"，并在 `agents/README.md §三` 新增"降级路径决策（🟢 AI 自主判断）"段：列决策维度（宿主可用模型清单 / 独立性强度 / 任务复杂度 / 成本 / 历史降级）+ 典型可行模式（fresh context 同宿主 / 低成本模型 / 并行双模型投票 / PMO 自审最弱兜底）；要求 AI 在 Execution Plan 或 concerns 写明降级决策理由
+  - 同步扫清：`flow-transitions.md` L25 / `plan-stage.md` L225 / `blueprint-stage.md` L96 / `templates/dispatch.md` L78 + L260 + 降级汇总表 / `templates/review-log.jsonl` 示例注释
+- 收益：三处"Claude 独有"表述转为宿主无关语义；Codex CLI 宿主可走全流程；外部视角独立性的来源从"不同模型"重定义为"fresh session 隔离"（可叠加跨模型做强形式）；降级策略从硬编码转为 AI 自主决策 + 理由留痕。
+
+### P0-7：文档基准锚定（templates/ 格式权威 · TEMPLATES.md + roles/pmo+pm+rd.md + plan-stage.md）
+
+- 问题：实战观察发现 AI 在起草 PRD / state.json / TECH 时倾向于"先参考最近一个 Feature 的格式"而非 Read `templates/` 中的模板。后果：
+  - peer Feature 的产物可能装的是老 schema（state.json 尤其敏感，v7.3.2 / v7.3.9 / P0 都有增量字段），抄过去 = 漂移放大
+  - peer Feature 可能被手动改过格式，漂移会扩散到新 Feature
+  - templates/ 下模板齐全但没有任何文档声明它是"格式唯一真相源"，AI 的最近邻检索本能占上风
+- 处理：新增"格式权威"契约，显式规定 templates/ 为唯一格式真相源：
+  - `TEMPLATES.md` 顶部新增"🔴 格式权威红线"块：templates/ = 格式唯一真相源 / 禁止以 peer Feature 产物为格式基准 / peer Feature 仅可作内容参考 / state.json 特别注意
+  - `roles/pmo.md` 顶部（职责段后）加"🔴 格式权威守门"：PMO 作为流转守门员对格式合规性负责，禁止在 Execution Plan 说"先参考最近一份 X 格式"
+  - `roles/pm.md` 实现原则后加"🔴 PRD 格式权威"：起草 PRD 前 Read templates/prd.md 为基准
+  - `roles/rd.md` 开发前必读后加"🔴 TECH / TC 格式权威"：起草前 Read templates/tech.md + templates/tc.md 为基准
+  - `stages/plan-stage.md` PM 起草 PRD 步骤内插入"格式基准锚定"子条（v7.3.9+P0-7 硬规则）
+- 收益：AI 的"抄邻居"本能被显式红线拦截；三角色（PMO 守门 / PM 起草 PRD / RD 起草 TECH+TC）都有对应条款；peer Feature 仅可作内容参考的语义清晰；state.json schema 漂移风险收敛。
+
+### P0-8：跨项目依赖识别前置（FLOWS.md + roles/pmo.md + templates/dependency.md + stages/plan-stage.md）
+
+- 问题：实战观察到 AI 在消费方 Feature 识别到"需要其他子项目能力"时，自由发挥：
+  - 自创 DEPS.md（非 teamwork 标准文件名）
+  - 放在消费方 Feature 目录（应放**上游子项目** `{upstream}/docs/DEPENDENCY-REQUESTS.md`）
+  - 不读 templates/dependency.md 为格式基准（叠加违反 P0-7）
+- 根因：templates/dependency.md 模板齐全，但 PMO 初步分析输出格式里没有「🔍 跨项目依赖识别」触发项；roles/pmo.md 的"跨子项目需求拆分"只覆盖场景 B（横跨多子项目 naturally），没显式区分场景 A（单 Feature 上游依赖）
+- 处理：显式区分两种场景 + 前置触发 + 强绑定 templates/dependency.md：
+  - `FLOWS.md` PMO 初步分析输出格式新增「🔍 跨项目依赖识别」项（和「🔍 跨 Feature 冲突检查」并列）：扫描上游依赖信号 → 场景 A（上游 `DEPENDENCY-REQUESTS.md` 追加 DEP-N）/ 场景 B（走跨子项目拆分）/ 无依赖
+  - `FLOWS.md` 同时新增「📋 本轮拟产出文档清单」项（强化 P0-7 格式权威露出）：每份产物对应 templates/ 路径，PMO 声明 Write 前必 Read 模板
+  - `roles/pmo.md` 新增「🔗 跨项目依赖识别」专门章节，详述场景 A 处理流程与硬规则：DEPENDENCY-REQUESTS.md 只放上游子项目目录 / 禁止消费方 Feature 目录自创文件 / 多条依赖分散到多个上游子项目
+  - `templates/dependency.md` 顶部加"何时触发使用"说明（消费方 / 被依赖方各自触发点）+ 回链 roles/pmo.md
+  - `stages/plan-stage.md` PM 起草 PRD 步骤加「跨项目依赖前置」硬规则：PM 发现上游依赖 → 立即通知 PMO 走场景 A（而非等 PRD 写完再补）
+- 收益：消费方 Feature 遇上游依赖有明确流程可套；DEPENDENCY-REQUESTS.md 回到标准位置（上游子项目目录）；templates/dependency.md 触达面打开；P0-7 格式权威在 PMO 初步分析模板里露出，触达面从"藏在 roles/ 里"升级到"每次初分析都显式"。
+
+### P0-11-B：auto 模式默认跳过 Browser E2E Stage（roles/pmo.md + rules/flow-transitions.md + INIT.md）
+
+- 触发：Browser E2E Stage 启动成本显著（headless 浏览器冷启动 / MCP 握手 / 脚本录制回放），auto 模式下默认应倾向"快速走完主干"。用户明确要求："auto 模式默认不启动 browser-e2e"。
+- 处理（3 文件，新增"默认跳过 + 可逃逸 + 必留痕"三件套）：
+  - **默认跳过条件**：`AUTO_MODE=true` + Test Stage 完成 + `TC.md` 含 Browser E2E AC → **跳过 Browser E2E Stage**，直接进 PM 验收
+  - **留痕（三处，便于事后追溯 / PM 验收判断）**：
+    - `state.json.stage_contracts.browser_e2e = {status: "SKIPPED_BY_AUTO", skipped_at, skip_reason}`
+    - `review-log.jsonl` 追加一行 `{event: "browser_e2e_skipped_by_auto", feature_id, timestamp}`
+    - PMO 输出 `⚡ auto skip: Browser E2E Stage | 💡 直接进 PM 验收 | 📝 AUTO_MODE 默认跳过` 日志
+  - **显式标注（PM 验收 / 完成报告）**：PM 验收摘要和完成报告必须打出「⚠️ Browser E2E 已按 auto 模式跳过」提醒
+  - **用户逃逸路径（两种）**：
+    - PM 验收时选"3 返修"+ 备注「跑 Browser E2E」→ 下轮补跑
+    - 下轮命令带「含 browser e2e / 带 e2e / run e2e」关键词 → 例外命中，不跳过
+  - **例外（不跳过）**：命令关键词命中 / `TC.md required_even_in_auto=true` / 手动模式（AUTO_MODE=false，原流程不变）
+  - **文件落点**：
+    - `roles/pmo.md` 豁免表新增 Browser E2E 行 + 新增「🟡 Browser E2E auto 默认跳过（P0-11-B 新增专项规则）」专章（含触发 / 留痕 / 标注 / 逃逸 / 例外 / 设计理由）
+    - `rules/flow-transitions.md` 顶部 auto 豁免速查增补 Browser E2E 子块
+    - `INIT.md` Step 0 速查表补一条"Browser E2E auto 默认跳过"规则
+- 设计理由：
+  - Browser E2E 启动成本明显高于其他 Stage（浏览器进程 / 录屏 / 网络往返），auto 的设计目标是"压暂停点"而非"压成本"，但 Browser E2E 是单 Stage 成本占比最高的一环，跳过的 ROI 显著
+  - PM 验收本就是 auto 模式下的强制保留点（业务决策），Browser E2E 缺失由 PM 在验收时决定是否补跑，链路闭环
+  - 三处留痕确保"跳过"可审计、可回溯、不静默
+- 收益：auto 模式全链路时长显著缩短（省去 Browser E2E Stage 整段）；用户可通过"关键词显式要 E2E"或"PM 验收补跑"双通道保留覆盖能力；跳过决策留痕三处，事后可查。
+- 兼容性：手动模式（AUTO_MODE=false）流程完全不变；`TC.md required_even_in_auto=true` 是显式覆盖开关，向前兼容。
+
+### P0-11-A：auto 模式豁免/保留边界修订（实战漏洞修复 · INIT.md + roles/pmo.md + flow-transitions.md）
+
+- 触发：P0-11 落地首轮实战，用户 `/teamwork auto ... 推进到 Blueprint 完成` 命令被中间"外部依赖已就绪 → 恢复流程"暂停点卡住。根因：P0-11 原强制保留清单把"外部依赖恢复"归为保留，与 auto 模式设计意图直接冲突。
+- 根因分析：
+  - 暂停点的本质 = 请求用户给出**决策内容**
+  - 若决策内容已被 `/teamwork auto [推进/恢复/继续...]` 命令语境承载 → 再停下来要一次确认 = 把命令意图当空气
+  - 强制保留的合理边界 = 需要**新**决策内容（业务判断 / 技术分歧 / 破坏性授权 / 红线处理）
+- 处理（3 文件）：
+  - **新增元规则「意图承载豁免」** 写进 `roles/pmo.md` + `rules/flow-transitions.md` + `INIT.md`：判定前先问「此暂停点需要的决策内容是否已被 auto 命令承载？」；是则豁免，否则保留
+  - **从强制保留清单移除 2 项**（归入豁免）：
+    - ~~外部依赖已就绪 → 恢复流程~~ → 豁免：auto 命令已承载"恢复"意图
+    - ~~Planning / PL 模式的最终确认~~ → 豁免：auto 命令已承载"推进"意图（且原豁免表已有 Roadmap / teamwork_space / Workspace Planning 收尾行覆盖）
+  - **新增 Test Stage 前置确认 到强制保留**（原遗漏补齐）：跨 Feature 节奏决策，需用户判断立即 / 延后 / 跳过
+  - 强制保留清单从 15 项收敛到 **13 项**（边界更锐利）
+  - **反模式样例**写进文档：「auto 命令明说推进到 X，却被中间恢复确认卡住 = 把用户意图当空气」
+- 收益：
+  - auto 模式实战可用——用户给定终点的命令不会被"你确定要继续吗"类暂停点坍缩
+  - 强制保留语义从"列表式枚举"升级为"决策类型判定"，新暂停点上线时可按元规则快速归类
+  - 反模式样例给 PMO 自检提供具体参照
+
+### P0-11：⚡ auto 模式（一次性总开关，INIT.md + roles/pmo.md + flow-transitions.md + STATUS-LINE.md）
+
+- 背景：teamwork 暂停点密集（Feature 流程单次跑全流程 10+ 次 ⏸️），对"我已经心里有数、按你建议走"的场景体验重。需要一个一次性总开关让 PMO 按 💡 自动推进，同时保留关键决策的强制暂停。
+- 设计取舍（6 点均按用户"按建议"确认）：
+  1. **入口命令**：`/teamwork auto [需求]` / `/teamwork auto 继续` / `/teamwork auto ship F{编号}`（第一个 token 为 `auto` 开启）
+  2. **作用域**：单次命令周期（仅本次 /teamwork 生命周期有效）；用户重新 `/teamwork`（不带 auto）自动重置；compact 后默认 false；**不写 localconfig / state.json**（避免"以为关了其实没关"）
+  3. **豁免范围**：普通方案 review / 阶段切换 / preflight 默认值 / PRD-UI-TC-TECH 草稿 review / dispatch 前检 / review 结果接受
+  4. **强制保留 15 项**（按 roles/pmo.md 强制保留清单）：PM 验收三选项 / Ship 关键操作 / Blueprint concerns / MUST-CHANGE / 破坏性操作 / 13 红线 / Micro 用户验收 / 外部依赖解锁 / 意图不确定语气 等
+  5. **与 ship_policy 正交**：auto 是 session 级总开关，ship_policy 是 Ship Stage 细粒度；auto **不覆盖** `ship_policy=confirm`
+  6. **关闭方式**：命令级（下次不带 auto 即手动）+ 运行时（用户消息含「停 / 暂停 / manual / 等一下 / 先等等」立即关闭）
+- 处理（5 文件）：
+  - `INIT.md` 启动必做前加 **Step 0**：解析 `/teamwork auto` 命令行 + 速查豁免与强制保留清单
+  - `roles/pmo.md` 在 "⚡ PMO 自动推进规则" 后新增 **"⚡ auto 模式暂停点豁免规则"** 章节：触发时机 / 豁免表 / 强制保留 15 项表 / 跳过日志格式 / 强制保留命中提示格式 / PMO 自检清单 / 运行时关闭
+  - `rules/flow-transitions.md` 顶部新增 **"⚡ auto 模式豁免速查"** 块：列出所有强制保留行号+理由；给出典型豁免示例（其余默认豁免）
+  - `STATUS-LINE.md` 第一行格式增加可选 **`⚡ AUTO` 徽章**（AUTO_MODE=true 时在 `🔄 Teamwork 模式` 和 `|` 之间显示）+ 状态行规则 + 示例
+  - 跳过日志：`⚡ auto skip: {决策简述} | 💡 {建议} | 📝 {理由}` 每次豁免输出一行，便于追溯
+- 收益：
+  - 一次性开关覆盖高频 ⏸️，用户体验从"每步都要回确认"降到"关键处再决策"
+  - 作用域仅 per-command，不污染 localconfig，降低"隐藏状态"事故面
+  - 强制保留清单明确兜底所有破坏性 / 业务判断 / 红线场景
+  - 跳过日志 + 徽章让"auto 到底替我做了什么"完全可见
+  - 与 P0-9（worktree 默认 off）形成对称：worktree 需显式 opt-in，auto 也需显式 opt-in；不隐藏复杂性
+
+### P0-9：worktree 保留默认 off（设计决策 · templates/config.md + INIT.md 决策注释）
+
+- 背景：曾考虑把 worktree 默认从 off 翻转到 auto（让新用户开箱即得并行隔离），深入讨论后回撤，**保留 off 为默认**。
+- 回撤理由（四个税点，默认 auto 让新用户透明付费不合理）：
+  1. **megarepo 全量 checkout 代价**：`git worktree add` 不支持按子目录稀疏 checkout（需额外配 `git sparse-checkout`）；大仓并行 3 个 Feature = 3 份全量工作树（每份 ~GB 量级），磁盘 / IDE 索引 / 工具链遍历开销显著
+  2. **IDE review 不便**：worktree 在 sibling 目录下，IDEA 单 Project 窗口看不到其他 worktree 的代码 / 文档；VS Code 需要 Multi-root Workspace 配置；跨 worktree Cmd+Click / 搜索被割裂
+  3. **`.worktree/` 内嵌方案的隐性长尾**：即便内嵌到项目根 + `.gitignore`，仍需为每个扫描项目根的工具（tsc / eslint / prettier / jest / pytest / webpack / nx / turbo / docker / IDE LSP / CI find-grep）单独维护排除规则——新工具加入默认踩坑
+  4. **默认 auto 把复杂性隐藏**：用户不理解 worktree 语义时遇到上述问题会困惑，把选择权还给用户（显式 opt-in）更稳
+- 处理：保持 off 为默认 + 把决策理由注释到 localconfig 模板：
+  - `templates/config.md` 保留 `worktree: off`；注释块新增"保留 off 为默认的原因"四点说明，引导用户 opt-in 前先评估 P0-10 的 worktree_base + IDE workspace 自动配置（待实施）
+  - `INIT.md` localconfig 不存在分支保持"默认 scope=all，worktree=off"，加提示"如需并行 Feature 隔离，主动改 localconfig 为 auto/manual"
+  - `docs/OPTIMIZATION-PLAN.md` 历史记录段保持"默认 off"
+- 收益：对初学者友好（不引入 worktree 的 megarepo / IDE review / 工具链忽略复杂性）；有需要的用户显式配置 auto/manual 时自担理解成本；为 P0-10（worktree 路径合法性 + 分组 `../.{repo}-worktrees/` + IDE workspace 自动生成）铺好 opt-in 路径。
+
+### P0 影响面（非破坏性）
+
+```
+├── state.json schema：兼容（P0-3 新增 dev.dependency_install 可选字段；P0-2 plan_preflight.checks._note 注释；P0-5 复用既有 worktree + merge_target 字段；P0-6 无 schema 变化；P0-7 无 schema 变化，纯契约文档加强；P0-8 复用既有 blocking.pending_external_deps 字段；P0-9 决策保留默认 off · 无默认值改动；P0-11 AUTO_MODE 纯运行时状态，不写 state.json / localconfig）
+├── localconfig：无新增字段（P0-11 刻意不持久化 AUTO_MODE）
+├── 历史 Feature：完全兼容（P0 是描述修正 + 文案抽取 + 渲染增强 + 宿主适配 + 格式权威契约 + 依赖识别前置 + 一次性 auto 总开关，不改流程语义）
+└── CI / 工具链：无影响（P0-6-A 浏览器工具为宿主可选，项目未启用 Browser E2E 不受影响；P0-7/P0-8/P0-11 纯文档与运行时规则；P0-9 设计决策）
+```
+
+### P0 后未涉及的内容
+
+```
+- Ship Stage / PM 验收三选项 / merge_target 三层解析：保持 v7.3.9 定义
+- 红线 #1 例外条款：保持 v7.3.9 定义
+- Micro 流程 worktree 方案：暂缓（见 docs 讨论，待真实需求再做）
+```
+
+---
+
+## v7.3.9 —— PM 验收三选项 + Ship Stage + 每阶段 auto-commit + Plan Stage 入口 Preflight
+
+背景：v7.3.4 的 PM 验收合并暂停点（验收 + commit + push 三项打包）存在 3 个结构性缺陷：
+1. **合并目标缺省硬编码**：push 目标默认 `origin/{feature branch}`，用户真正的目标分支（staging / develop）无处配置，合入动作被迫延后到命令行手工解决
+2. **单暂停点承载过多决策**：验收 + commit 策略 + push 策略 + 目标分支挤在一个暂停点，用户必须一次回答完，错一个选项回退代价极高
+3. **冲突 / 净化 / rebase 无流程位**：push 前是否需要 rebase、feature 分支有无需要净化的残留 commit（debug 文件、合并遗留）、冲突解决授权——这些本质是 Ship 流程问题，塞在 PM 验收里越想越不对
+
+同时在使用过程中发现另一个风险源：**Feature 的全部产物（PRD/UI/TC/TECH/代码/测试）都从 Plan Stage 开始累积**。如果 worktree 基于错误的 base 分支（陈旧 main 而非 origin/staging），到 Ship 时 rebase onto staging 会遇到大规模冲突——此时产物已成定局，回退代价高于 Ship 本身。v7.3.8 的"前移 worktree 创建"只解决了隔离问题，没解决 base 问题。
+
+本版把 v7.3.4 的 PM 验收合并暂停点**拆解成 3 段**，并在 Plan Stage 入口加一层 preflight：
+
+```
+v7.3.4（旧）：PM 验收 → ⏸️（3 选 1 全打包）→ 完成 / 合入
+v7.3.9（新）：PM 验收 → ⏸️ 3 选 1（业务判断）→ Ship Stage（PMO 自主合并） → ⏸️ 2 选 1（push 目标分支或仅本地）→ ⏸️ worktree 清理 → 完成
+            ↑
+            Plan Stage 入口 preflight（v7.3.9 新增）提前锁定 base 分支，防止 Ship 时灾难
+```
+
+### 1) PM 验收三选项（roles/pmo.md + rules/flow-transitions.md）
+
+- **选 1**：通过 + Ship → 进入 Ship Stage（独立 Stage）
+- **选 2**：通过但暂不 Ship → PMO 执行 `git push origin {feature branch}` 归档 `shipped: false`，后续可 `/teamwork ship F{编号}` 触发
+- **选 3**：不通过（有建议）→ 按问题类型回退（功能缺陷 → Review Stage / 测试遗漏 → Test Stage / UI 不符 → UI Design / 需求偏差 → Plan Stage），前序 commit 保留，修复循环 ≤3 轮
+
+### 2) Ship Stage（新建独立 Stage，stages/ship-stage.md）
+
+- **PMO 自主执行 Step 1-4**：净化 → push feature → rebase 可选（`ship_rebase_before_push` 默认 false，多人场景兼容）→ 本地 merge --no-ff onto `merge_target`
+- **单一暂停点 2 选 1**：merge + push `{merge_target}` / 仅本地 merge 不 push
+- **worktree 清理暂停点**：worktree ≠ off 时询问清理 / 保留
+- **冲突授权**（红线 #1 例外）：PMO 可直接解 git marker 冲突（前提：前序 DONE + 单测全绿 + 解完重跑单测）；不满足升级 ⏸️ 用户决策
+- **Sanitize 日志**：residual_commits（待审）/ cleaned_files（已处理）/ suspicious_files（灰名单仅报不动，用户决定）
+
+### 3) 每阶段 auto-commit 硬规则（stages/dev-stage.md + review-stage.md + test-stage.md + browser-e2e-stage.md）
+
+- 每个 Stage `output_satisfied=true` 之前 PMO 执行 `git status --porcelain`
+- 非空 → PMO auto-commit `git add -A && git commit -m "F{编号}: {Stage} Stage - {简述}"`，commit hash 写入 `state.json.stage_contracts.{stage}.auto_commit`（单值）或 `auto_commit[]`（多轮修复）
+- 目的：每个 Stage 产物落地即 commit，Ship Stage 不再需要"一次性收拾"所有遗留改动；同时给 Review Stage 提供稳定 diff 锚点
+
+### 4) Plan Stage 入口 Preflight（stages/plan-stage.md + roles/pmo.md）
+
+- PMO 在用户确认流程类型后、Plan Stage 产物诞生前执行 6 项校验：
+  - 🔴 硬门禁：worktree 策略无残留 / 分支名无冲突 / base 分支可达
+  - 🟡 软提示：工作区干净 / merge_target 解析清晰 / Feature 编号命名合规
+- **worktree 创建显式指定 base**（v7.3.9 关键改动）：
+  ```bash
+  git fetch origin {merge_target}
+  git worktree add ../feature-{全名} -b feature/{全名} "origin/{merge_target}"
+  ```
+- state.json 新增 `stage_contracts.plan_preflight` 记录 6 项校验结果 + base_branch
+
+### 5) merge_target 配置三层解析（templates/config.md + feature-state.json）
+
+- 优先级：`state.json.merge_target` > `.teamwork_localconfig.md` 中 `merge_target` > 默认 `staging`
+- 新增 localconfig 字段：`merge_target` / `ship_rebase_before_push` / `ship_policy` / `worktree_cleanup`
+- state.json 新增顶层 `ship` 块（sanitize_log / rebase_status / merge_commit_hash / push_status / worktree_cleanup / shipped）
+
+### 6) 红线 #1 例外条款（INIT.md + SKILL.md）
+
+- v7.3.9 新增 Ship Stage 冲突解决例外：PMO 可直接解 git marker 冲突，前提：前序 DONE + 单测全绿 + 解完重跑单测通过
+- 不满足则升级为 ⏸️ 用户决策
+
+### 7) flow-transitions.md 更新
+
+- PM 验收行拆为 5 行（PM 验收三选项 / Ship Stage / merge+push 待确认 / worktree 清理待确认 / Ship Stage 冲突回退）
+- PMO 初步分析 → Plan Stage 之间插入 Plan Stage 入口 preflight 暂停点
+
+### 为什么这样拆（设计取舍）
+
+| 候选设计 | 评估 |
+|---------|------|
+| ~~PM 验收暂停点内嵌 Ship 策略~~（v7.3.4）| 单点决策过多，回退代价高，用户体感卡 |
+| ~~Ship 整个走 Subagent~~ | Feature 最后一步，主对话 context 已沉淀，新 Subagent 要 /clear 反而丢失一致性 |
+| **Ship Stage 由 PMO 自主执行 + 两段暂停** ✅ | 决策维度清晰（业务判断 vs 合入策略 vs 清理策略），每段单点决策 |
+| ~~Ship 时一次性 commit 所有 Stage 遗留~~ | 破坏 Stage 边界，diff 锚点模糊，review 困难 |
+| **每 Stage 独立 auto-commit + Ship 仅净化** ✅ | Stage 产物落地即 commit，Ship 只解决 git 异常 |
+
+### 不改动项（仍保留）
+
+- Worktree 创建触发点仍在 Plan Stage 入口（v7.3.8 定稿）
+- 默认 `worktree` 值仍为 `off`
+- PMO 非 Micro 流程下不得改代码的红线 #1 主干不变（仅加 Ship Stage 例外）
+- Review / Test / Browser E2E 的产物契约不变（只加 auto-commit 过程规则）
+
+### 操作影响
+
+- **新 Feature**：经历 6 步（preflight → Plan → ... → PM 验收 → Ship → 清理），每步暂停点用 1/2/3 编号单点决策
+- **进行中 Feature**（v7.3.8 及之前启动）：到达 PM 验收时按新流程分叉（无 preflight 重跑），已累积的 commit 由 auto-commit 硬规则补齐
+- **单分支用户**（merge_target = main）：ship_rebase_before_push = true 更合适，通过 localconfig 显式配置
+
+## v7.3.8 —— Worktree 创建时机前移至 Plan Stage 入口
+
+背景：v7.1 引入 worktree 集成，触发点放在"方案待确认 → Dev Stage"的流转（即 Blueprint 结束后）。这意味着 **Plan Stage 的 PRD/discuss/评审产物、UI Design 的 UI.md、Blueprint 的 TC/TECH**——一整套 Feature 早期文档都**落在 main 分支上**。这违反了 worktree 隔离的初衷：
+- 用户拒绝 PRD → 一堆文档孤儿留在 main，要么 revert 要么保留
+- v7.3.7 引入的 Codex 交叉评审读的是主分支 PRD，受 main 并发修改干扰
+- 跨 Feature 并行时 Plan 阶段文档互相污染（F042 的 PRD 在 F043 工作区可见）
+
+本版把 worktree 创建触发点从 Dev Stage 前移到 **Plan Stage 入口**（"PMO 初步分析 → Plan Stage"的流转上），让 Feature 一启动就进入自己的分支。
+
+- **rules/flow-transitions.md**：Feature 流程触发点从第 19 行（方案待确认 → Dev Stage）移到第 11 行（PMO 初步分析 → Plan Stage）；敏捷需求流程对应在"PMO 分析 → 精简 PRD 编写"触发；Micro 流程在"PMO 分析 → Micro 变更说明"触发（分支名用 `chore/*`）
+- **stages/plan-stage.md**：新增 §Worktree 集成段（触发时机 / auto 命令 / state.json 写入 / 降级链），前置依赖增补 "worktree 已创建切换" 条款
+- **stages/dev-stage.md**：§Worktree 集成改为"校验存在 + 必要时补建"；补建场景（路径缺失 / 分支不匹配）作为异常分支保留，触发时写 WARN 到 state.json.concerns
+- **INIT.md**：修正 "Dev Stage 前按策略创建" → "Plan Stage 入口按策略创建"
+
+### 为什么是 Plan Stage 入口而不是其他点
+
+| 候选 | 评估 |
+|------|------|
+| ~~Dev Stage 入口~~（v7.3.7 前）| Plan/UI/Blueprint 产物已落 main，隔离迟到 |
+| ~~PMO 初步分析之前~~ | 用户还没确认流程类型，可能跳流程（走 Bug / 问题排查），空建 worktree 浪费 |
+| **PMO 初步分析确认后，Plan Stage 入口** ✅ | 流程类型已定，第一份产物（PRD）就入 feature 分支 |
+| ~~按 Stage 动态切换~~ | 每阶段切 worktree 碎片化，state.json 记录复杂度爆炸 |
+
+### 分支命名规范（v7.3.8 正式化）
+
+| 流程 | 分支名 | worktree 路径 |
+|------|--------|--------------|
+| Feature | `feature/{子项目缩写}-F{编号}-{功能名}` | `../feature-{...}` |
+| 敏捷需求 | `feature/{子项目缩写}-F{编号}-{功能名}`（同 Feature）| `../feature-{...}` |
+| Bug 处理 | `bugfix/{子项目缩写}-B{编号}-{摘要}` | `../bugfix-{...}` |
+| Micro | `chore/{Micro 摘要}` | `../chore-{...}` |
+| 问题排查 | （按需，通常不建）| - |
+
+### 降级链（auto → manual → off）
+
+每档降级必须写 WARN 到 `state.json.concerns`：
+- `auto` 失败（git 不可用 / worktree add 错误 / 磁盘不足）→ 降 `manual`
+- `manual` 用户 2 次未响应 → 降 `off`
+- `off` → 所有阶段在当前工作区执行，跨 Feature 约束回退为人工注意力（原 v7.3.7 行为）
+
+### 不改动项（仍保留）
+
+- **默认值** 仍为 `off`（降低新用户门槛；建议 1 未落地）——已启用 teamwork 的用户可显式改为 auto
+- **清理时机** 仍在 commit+push 完成后，PMO 询问用户（不自动删）
+- **命令规范** 仍用标准 `git worktree add/remove/list`
+
+### 操作影响
+
+- **新 Feature**：启动即进入 feature 分支，所有阶段产物自然隔离
+- **进行中 Feature**（v7.3.7 及之前启动）：不做迁移，保持原路径完成
+- **worktree=off 用户**：零影响，行为不变
+
+## v7.3.7 —— PRD/Blueprint Codex 交叉评审 + Progress Log 实时轮询
+
+本版解决两个独立问题：
+1. Codex 交叉评审之前只存在于 Review Stage（代码审查），Plan Stage 的 PRD 和 Blueprint Stage 的 TC+TECH 缺少外部视角保底，导致同模型多角色评审的注意力盲点无法被捕获
+2. v7.2 建立的 Progress Log 三段式协议声明"Subagent → 主对话无实时通道"——这是**反事实陈述**，文件系统本身就是天然的异步实时通道。主对话读 dispatch 文件可随时获取进度，无需宿主 API 支持
+
+### 1) Codex 交叉评审扩展到 Plan / Blueprint Stage
+
+- **新建 `codex-agents/prd-reviewer.toml`**：Plan Stage PRD 外部评审 agent，独立性通过产物 frontmatter (`perspective: external-codex` + `files_read` grep) 强制，`sandbox_mode = read-only`
+- **新建 `codex-agents/blueprint-reviewer.toml`**：Blueprint Stage TC+TECH 外部评审 agent，Step 5 在 4 步内部闭环（QA TC → TC 评审 → RD TECH → 架构师评审）之后执行
+- **新建 `templates/codex-cross-review.md`**（230 行）：6 项 checklist (C1-C6) 针对 PRD 和 TC+TECH 两个变体、YAML 输出 schema、PMO 整合流程（ADOPT/REJECT/DEFER 分类）、降级处理、成本治理
+- **stages/plan-stage.md**：多视角评审 4 → 5（加 Codex），新增 pmo-internal-review.md 作为 dispatch 前置（≥3 条实质 finding），PRD-REVIEW.md 尾部加「Codex 交叉评审整合」section
+- **stages/blueprint-stage.md**：4 步闭环后追加 Step 5 Codex 交叉评审；TC-REVIEW/TECH-REVIEW 分别 append Codex 整合段；独立性 grep 校验加入机器可校验清单
+- **templates/review-log.jsonl**：stage 枚举新增 `plan-codex-review` / `blueprint-codex-review`；补两者建行规则 + 示例行
+- **codex-agents/README.md**：索引表增补两行
+
+### 2) Progress Log 升级：四段式协议，支持运行中轮询
+
+- **templates/dispatch.md Progress Log 段修订**：
+  - 双重目的明确：运行中（主对话并发 Read）+ 运行后（PMO 时间轴回放）
+  - 🔴 新增 **Append 语义硬规则**：`f.write() + f.flush() + os.fsync()` / shell `>>` / Edit 工具，禁止 buffered I/O 导致主对话读到空段误判卡死
+  - 反模式表新增 2 条：buffered append、主对话绕过 Progress Log 读 session JSONL
+- **templates/dispatch.md PMO 使用流程新增 Step 2.5（Subagent 运行中 — 主对话按需轮询）**：
+  - 触发条件：用户问进度 / >5min dispatch / 并行多路
+  - 读法：offset 跳到 Progress Log 段 + 增量对比
+  - 节奏上限：用户触发即读，不建议 <10s tight loop
+  - 🔴 显式禁止读 subagent session JSONL 当进度源（格式不稳定、非协议产物）
+- **设计原则 #8 修订**：三段式 → **四段式**（前置预声明 / 中途自述 / 运行中轮询 / 事后回放）；删除"无实时通道"的反事实陈述
+- **agents/README.md §2.5 + §五 Progress 可见性协议**同步修订：四段式协议、flush 语义、运行中轮询明细（相同修订在两个文件落地保证一致）
+
+### 为什么要纠正"无实时通道"陈述
+
+v7.2 起的原版陈述是基于宿主 Task/Agent API 同步阻塞推出的。这个推论本身没错——宿主 API 确实同步。但结论错了：**Subagent 和主对话共享文件系统**，Subagent 写 dispatch 文件、主对话随时 Read 同一文件，这就是异步实时通道。v7.3.7 前用户问"Subagent 现在到哪步了？"时，主对话会引用不存在的"规范禁止读 transcript"搪塞，实际上协议允许的正确操作是 **Read dispatch 文件的 Progress Log 段**。本版把这个隐含能力显式化为协议条款。
+
+### 操作影响
+
+- **Subagent 作者**：原有 Progress Log 逻辑照跑，仅需保证 append 时 flush（Python 加 `f.flush(); os.fsync(f.fileno())`；shell/Edit 天然满足）
+- **主对话 / PMO**：用户问进度时可直接 `Read {dispatch 文件} → offset=Progress Log 段` 返回增量；并行 dispatch 依次读 N 个文件
+- **Plan / Blueprint Stage 执行**：内部评审结束后多一步 Codex dispatch + 整合（预估 +5-10min），Codex 不可用按 agents/README.md §三 三选一降级
+
+## v7.3.6 —— 多决策点支持：数字决策点 + 字母选项（`1A 2B`）
 
 背景：v7.3.5 单决策点编号化后，实际使用中遇到**一个暂停点需要同时确认多个独立决策**的场景（如 PRD 评审收尾时「PRD 通过？」+「排期方案？」同时浮现）。v7.3.5 没定义多决策点格式，AI 自发用 `①②③` 分隔决策点，但圆圈数字需要输入法切换，用户打字不便。
 

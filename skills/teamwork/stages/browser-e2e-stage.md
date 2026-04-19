@@ -75,6 +75,7 @@ Browser E2E → 浏览器操作真实页面（最终用户视角） ← 本 Stag
 - 🔴 **每个场景必须截图**：通过和失败都要（作为审计证据）
 - 🔴 **失败场景必须记录差异**：实际结果 vs 预期结果
 - 🔴 **不修改任何代码或配置**：只验证不修改
+- 🔴 **Stage 完成前 git 干净** → 统一遵循 [rules/gate-checks.md § Stage 完成前 git 干净](../rules/gate-checks.md#-stage-完成前-git-干净v739-硬规则p0-集中化)（本 Stage commit message：`F{编号}: Browser E2E Stage - {简述}`；截图是产物证据必须 commit 进 git）
 
 ---
 
@@ -114,7 +115,24 @@ Browser E2E → 浏览器操作真实页面（最终用户视角） ← 本 Stag
 
 📎 Execution Plan 3 行格式 → [SKILL.md](../SKILL.md#-ai-plan-模式规范v73-新增)。
 
-本 Stage 默认 `main-conversation`（半自动需用户观察，可用 `mcp__gstack__*` 或 `mcp__Claude_in_Chrome__*`）。典型偏离：无人值守 CI 批量执行 → `subagent`。
+本 Stage 默认 `main-conversation`（半自动需用户观察）。典型偏离：无人值守 CI 批量执行 → `subagent`。
+
+### 浏览器工具宿主适配（v7.3.9+P0 新增）
+
+```
+浏览器自动化工具按宿主选择，协议统一（导航 / 填表 / 点击 / 截图 / 断言）：
+├── Claude Code 宿主 → mcp__Claude_in_Chrome__* / mcp__gstack__* 等 MCP 工具
+├── Codex CLI 宿主   → Playwright 子进程（npx playwright）/ puppeteer-cli / 或项目既有 e2e 框架
+├── Gemini CLI / 通用 → 宿主可用的等效工具；如无 → 走降级兜底
+└── 🔴 无可用浏览器工具时的降级兜底：
+    ├── Browser E2E 降级为 ⏸️ 用户手动验收
+    ├── PMO 输出完整 scenario 步骤清单 + 预期结果表
+    ├── 用户手工跑一遍，提交截图到 browser-e2e-screenshots/
+    ├── PMO 读截图转 browser-e2e-result.md（带 `executor: user-manual` frontmatter）
+    └── 🔴 必须输出 WARN 日志：⚠️ WARN [no-browser-tool] 触发手动降级
+
+AI 自主按宿主可用性选择工具；选择理由写入 Execution Plan。
+```
 
 **Expected duration baseline（v7.3.3）**：每场景 2-3 min（含截图 + 验证），3-5 个场景合计 10-20 min。失败场景 diff 分析 +3-5 min。
 

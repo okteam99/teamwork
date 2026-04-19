@@ -75,7 +75,7 @@
 
 ### 5. 降级授权
 {PMO 预先授权的降级路径，Subagent 遇到对应问题可直接降级，无需反向咨询 PMO。}
-- 示例：Codex CLI 不可用 → 授权降级 Sonnet 执行 Review，必须输出 WARN
+- 示例：Codex CLI 不可用 → 🟢 授权 AI 自主规划等效独立审查（参考 agents/README.md §三降级路径决策），必须输出 WARN 并在 concerns 写明降级决策
 - 示例：worktree 创建失败 → 授权直接在主分支执行
 - 无则写：`-`
 
@@ -103,7 +103,13 @@
 ## Progress Log（Subagent 维护，每步开始/完成时 append）
 
 🔴 **硬规则**：Subagent 必须在每个 Step 开始和完成时 append 一行到此段，不允许黑盒执行完才一次性补全。
-🔴 **目的**：PMO 读本段作为时间轴「回放」呈现给主对话用户，替代无法实现的「实时流」。
+🔴 **双重目的**（v7.3.7 修订）：
+   ├── **运行中**：主对话可并发 Read 本文件，实时获取 subagent 执行进度（文件系统即实时通道）
+   └── **运行后**：PMO 读本段作为时间轴回放，对照 TodoWrite 预声明校验执行路径
+🔴 **Append 语义**（v7.3.7 新增）：每行 append 后必须立即 flush 到磁盘（不允许 buffered I/O）
+   ├── Python：`open(..., 'a').write(line); f.flush(); os.fsync(f.fileno())` 或 shell `echo ... >> file`
+   ├── Claude Code 子 Agent：用 Edit/Write 工具 append（天然原子 flush）
+   └── 禁止累积缓冲到 step 结束才批量写——违反即 buffered append 失去实时性价值
 🔴 **格式**：`- [HH:MM:SS] {step-name} {动作}（{状态}）{可选备注}`
 
 ### 必填事件类型
@@ -135,7 +141,10 @@
 ❌ 全程只写一行「done」→ 失去追溯价值
 ❌ 每步完成后集中 append 多行 → Subagent 内部崩溃时段会丢失
 ❌ 不写时间戳 → 无法评估每步耗时
-✅ 每个 Step 开始/结束实时 append（允许 step 内部中段也 append 说明进展）
+❌ buffered append（Python 默认 print / open without flush）→ 主对话读到空段以为卡死
+❌ 主对话绕过 Progress Log 读 subagent 的 session JSONL → 格式不稳定、违反协议
+✅ 每个 Step 开始/结束实时 append + flush（允许 step 内部中段也 append 说明进展）
+✅ 主对话并发 Read Progress Log 段获取进度（见 PMO 使用流程 Step 2.5）
 ```
 
 ## Return format
@@ -207,6 +216,16 @@ Step 2: Dispatch
 │    完成后按文件末尾 "Subagent Result" 模板 append 执行结果。」
 └── 不再在 prompt 中重复描述任务（所有内容都在 dispatch 文件里）
 
+Step 2.5（v7.3.7 新增）: Subagent 运行中 — 主对话按需轮询
+├── 🔴 用户询问进度 / 长时 dispatch（>5min）/ 并行多路 dispatch 时：
+│   ├── 主对话 Read dispatch 文件的 `Progress Log` 段（不需读全文，用 offset 跳到该段）
+│   ├── 对比已有最新行 vs 上次读取的行数 → 产生增量进度汇报给用户
+│   └── 并行 dispatch 时依次读 N 个文件，汇总每路最新 step-done / step-start
+├── 🔴 轮询节奏：用户主动问 → 立即读；否则按需（不建议 <10s 间隔的 tight loop）
+├── 🔴 禁止读 Subagent session transcript JSONL 当作进度源（格式不稳定、非协议产物）
+│     Progress Log 才是协议规定的进度契约——读它即可
+└── 若 Progress Log 长时间无新行（>预估步时长 2x）→ 疑似卡死，主对话提示用户是否人工介入
+
 Step 3: Subagent 完成后
 ├── PMO 读取 dispatch 文件确认 Result 已 append
 ├── 未 append → 视为 FAILED，触发降级兜底流程（并写入 WARN）
@@ -238,7 +257,7 @@ Step 4: INDEX 维护
 | 001 | Blueprint | blueprint | 2026-04-16 10:05 | ✅ DONE | 4m | 无 | PG 强制、质量优先 | [001-blueprint.md](./001-blueprint.md) |
 | 002 | Dev | rd-develop | 2026-04-16 10:32 | ✅ DONE | 8m | 无 | 禁改 auth.py（F042 并行） | [002-rd-develop.md](./002-rd-develop.md) |
 | 003 | Review | arch-code-review | 2026-04-16 10:45 | ⚠️ DONE_WITH_CONCERNS | 3m | 无 | 聚焦 N+1 查询风险 | [003-arch-code-review.md](./003-arch-code-review.md) |
-| 004 | Review | codex-review | 2026-04-16 10:45 | 💥 FAILED → 主对话降级 | 6m | ⚠️ Codex 不可用 | 授权降级 Sonnet | [004-codex-review.md](./004-codex-review.md) |
+| 004 | Review | codex-review | 2026-04-16 10:45 | 💥 FAILED → 🟢 AI 自主降级 | 6m | ⚠️ Codex 不可用 | AI 自主规划等效独立审查 | [004-codex-review.md](./004-codex-review.md) |
 
 > 「关键约束」列：摘录 dispatch 文件 Key Context 中非 `-` 的最关键一条，便于人工审查时一眼识别本 Feature 累积的历史决策/风险。
 
@@ -246,7 +265,7 @@ Step 4: INDEX 维护
 
 | # | 降级类型 | 原因 | 影响 |
 |---|---------|------|------|
-| 004 | Codex → Sonnet | Codex CLI 不可用 | 模型能力差异，需用户关注 Review 质量 |
+| 004 | Codex → AI 自主降级（示例落在 fresh context 同宿主） | Codex CLI 不可用 | 独立性强度从「跨模型+跨 session」降为「同模型+fresh session」，需用户关注 Review 质量；AI 在 concerns 中已写明选择理由 |
 
 ## 并行批次
 
@@ -280,12 +299,16 @@ Step 4: INDEX 维护
    无判断痕迹的 dispatch 文件 → Subagent 返回 NEEDS_CONTEXT。
    只写 Subagent 从 Input files 里读不到的信息，禁止复制 PRD/TECH 摘要。
 
-8. 🔴 Progress 可见性双保险：主对话 TodoWrite 预声明 + dispatch 文件 Progress Log
-   由于 Subagent → 主对话无实时通道（宿主 API 同步阻塞），采用：
-   ├── 前置：PMO 在主对话 TodoWrite 预声明 Subagent 的 Step 列表（Stage 执行流程）
-   ├── 中途：Subagent 每步 append Progress Log（时间戳 + 事件）
-   └── 事后：PMO 读 Progress Log 转成主对话 Todo 状态更新 + 高亮异常
+8. 🔴 Progress 可见性四段式协议（v7.3.7 修订，纠正"无实时通道"的反事实陈述）
+   宿主 Task 工具 API 本身同步阻塞，但 **文件系统是天然的异步实时通道**。
+   详见 `agents/README.md §五 Progress 可见性协议`。
+   ├── 阶段 1 前置：PMO 在主对话 TodoWrite 预声明 Subagent 的 Step 列表
+   ├── 阶段 2 中途自述：Subagent 每步 append Progress Log（必须 flush）
+   ├── 阶段 3 运行中轮询：主对话按需 Read Progress Log 段获取增量（见 Step 2.5）
+   └── 阶段 4 事后回放：PMO 读 Progress Log 转 Todo 状态更新 + 异常高亮
    禁止 Subagent「黑盒跑完一次性回报」——Progress Log 是硬交付物。
+   禁止主对话把"读 Progress Log"当成违规——这是协议允许的首选进度查询路径。
+   禁止读 subagent session JSONL 当进度源——格式不稳定，非协议产物。
 ```
 
 ---

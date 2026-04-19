@@ -61,7 +61,8 @@
 
 ### 必做动作
 
-1. **环境准备**（🔴 独立步骤）
+1. **环境准备**（🔴 独立步骤，含 P0 懒装依赖兜底）
+   - 🟢 **P0 懒装依赖兜底**：如 Dev Stage 未安装依赖（例如跳过 Dev 直接进 Test 的复测场景），Test Stage 入口先执行 dev-stage.md 的依赖检测流程补装，之后再进入环境健康检查
    - 执行 `scripts/test-env-check.sh` 确认环境健康
    - 不健康 → 尝试 `test-env-setup.sh`
    - 仍失败 → BLOCKED 返回
@@ -90,6 +91,7 @@
   - 脚本 + README.md 必须 git commit
   - P0/P1 级必须注册到 e2e-registry（REGISTRY.md + REG case）
 - 🔴 **API E2E 断言**：每场景至少覆盖 4 类断言（status / body / DB / 副作用）中的 2 类；所有环境值走 env var；DB 校验走只读 DSN
+- 🔴 **Stage 完成前 git 干净** → 统一遵循 [rules/gate-checks.md § Stage 完成前 git 干净](../rules/gate-checks.md#-stage-完成前-git-干净v739-硬规则p0-集中化)（本 Stage commit message：`F{编号}: Test Stage - {简述}`；auto_commit 为**数组**字段，多轮 QUALITY_ISSUE 修复 append）
 
 ---
 
@@ -136,16 +138,34 @@
 
 ## AI Plan 模式指引
 
-📎 Execution Plan 3 行格式 → [SKILL.md](../SKILL.md#-ai-plan-模式规范v73-新增)。
+📎 Execution Plan 格式 → [SKILL.md](../SKILL.md#-ai-plan-模式规范v73-新增)。
 
-本 Stage 默认 `hybrid`（环境主对话 + API E2E Subagent）：
-- 环境准备主对话（需调试端口/凭据/健康检查，落盘 test-env.json）
-- 集成测试：命令快 → 主对话；耗时 → Subagent
-- API E2E：Subagent（脚本化任务天然适合隔离）
+🔴 **本 Stage 三轴全部由 AI 自主决策**（v7.3.9 明确化）：
 
-典型偏离：CI 环境稳定 → 全 `subagent`（含环境自动起）；小 Feature/测试命令快 → 全 `main-conversation`。
+```
+├── 是否输出完整 Execution Plan：AI 按本 Feature 测试规模 + 复杂度自主判断
+│   ├── 简单场景（单模块、测试命令 <3 条、无 API E2E）→ 可省略 Plan，直接执行并在报告中追述
+│   └── 复杂场景（多模块、含 API E2E、环境需调试）→ 建议输出 Plan，便于用户把关
+│
+├── approach（main-conversation / subagent / hybrid）：AI 自主选择
+│   ├── 参考依据：Feature 规模、测试命令耗时、是否 API E2E、主对话 context 压力
+│   ├── 典型选择（非强制）：
+│   │   ├── 小 Feature / 测试命令快 → main-conversation
+│   │   ├── CI 环境稳定 / 无人值守 → 全 subagent
+│   │   └── 环境需调试 + 脚本化 API E2E 混合 → hybrid
+│   └── 🔴 禁止强制绑定某种 approach，AI 自己判断成本收益
+│
+└── 模型选择：AI 按任务复杂度自主决定
+    ├── 参考维度：场景数量、事务复杂度、断言层级、历史失败率
+    ├── 典型选择（非强制，仅供 AI 参考）：
+    │   ├── 校验型脚本化任务（翻译 TC → 脚本 → 解读 JSON）→ Sonnet 通常性价比最优
+    │   ├── 多步事务逻辑 / 场景 ≥10 / 历史 Sonnet 失败且归因能力 → 可升 Opus
+    │   └── 极简场景（<3 scenarios，单纯 status+body）→ 可降 Haiku
+    ├── Claude 环境通过 Task 工具 `model` 字段指定；Codex 通过 agent toml `model` 字段
+    └── 🔴 禁止规范预设硬默认，AI 在 Plan / 执行报告中说明模型选择理由即可
+```
 
-**Expected duration baseline（v7.3.3）**：环境准备 2-5 min；集成测试 5-15 min；API E2E 脚本化 10-25 min（脚本生成 + 执行）。总计 hybrid 默认 15-30 min；环境异常 BLOCKED 时另计。
+**Expected duration baseline（v7.3.3）**：环境准备 2-5 min；集成测试 5-15 min；API E2E 脚本化 10-25 min（脚本生成 + 执行）。Hybrid 总计 15-30 min；环境异常 BLOCKED 时另计。AI 按实际 approach 在 Plan 中给出本次 Expected。
 
 ### 环境信息交接（任何 approach 都适用）
 
