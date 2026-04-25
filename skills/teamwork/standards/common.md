@@ -240,7 +240,7 @@ RD 在 TDD 开发阶段创建测试脚本：
 
 ```
 🔴 任何 Subagent dispatch 前都必须完成 L1。
-📎 Micro 流程（v7.3.10+P0-16）：PMO 主对话直接改，不走 Subagent，因此不触发本预检流程；但仍须在 PMO 初步分析中核查 Micro 准入条件 5 项。
+📎 Micro 流程（v7.3.10+P0-20）：主对话内 PMO→RD 身份切换，由 RD 改动，不走 Subagent，因此不触发本 Subagent 预检流程；但仍须在 PMO 初步分析中核查 Micro 准入条件 5 项，且身份切换前必读 roles/rd.md + standards/common.md 不可豁免。
 
 Step 1: 扫描仓库级约束文件
 ├── 检查项目根目录是否存在 CLAUDE.md / AGENTS.md / GEMINI.md
@@ -352,7 +352,7 @@ Step 12: 数据库连通性检查
 ```
 | 流程 | Subagent | 预检级别 |
 |------|----------|----------|
-| Micro | _（不启 Subagent，PMO 主对话直接改，无需本预检；仅需 Micro 准入 5 项检查）_ | — |
+| Micro | _（不启 Subagent，主对话内 PMO→RD 身份切换由 RD 改，无需本 Subagent 预检；仅需 Micro 准入 5 项检查 + 身份切换必读）_ | — |
 | 敏捷需求 | Dev Stage | L2 |
 | 敏捷需求 | Test Stage | L2（含 E2E 时升级 L3） |
 | Feature | Dev Stage | L2 |

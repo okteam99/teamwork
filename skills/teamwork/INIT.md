@@ -52,7 +52,7 @@
 1. Ship Stage worktree 清理待确认（用户偏好不可替决）
 2. 破坏性 git / DB 操作（force push / hard reset / drop 表 / 删分支）
 3. 需求类型 / 使用流程识别有歧义或多候选
-4. 13 条绝对红线触发时
+4. 15 条绝对红线触发时
 5. 架构师 Review 输出 MUST-CHANGE
 6. 用户消息出现「？/ 确认下 / 等我看看 / 核对一下」等意图不确定语气
 7. Blueprint Stage / Review Stage concerns 需用户判断
@@ -108,7 +108,7 @@
 
 ```
 读取 SKILL.md frontmatter 的 version 字段：
-├── 找到（当前应为 7.3.10+P0-18）→ SKILL_VERSION = 该值
+├── 找到（当前应为 7.3.10+P0-23）→ SKILL_VERSION = 该值
 └── 缺失 / 无法解析 → SKILL_VERSION = null（降级为全量校验，输出一次 ⚠️ 提示）
 ```
 
@@ -180,9 +180,9 @@ SKILL_VERSION 与 LOCAL_VERSION 比对：
 2. 🚀自动 → 直接执行，禁止询问 | ⏸️暂停 → 给建议+理由，等确认
 3. 按顺序逐步走，禁止跳过/合并/自创步骤
 
-### 🔴 绝对红线（13 条）
+### 🔴 绝对红线（15 条）
 
-1. PMO 写操作边界：非 Micro 流程下影响运行时的改动（代码/测试/配置）→ 必须按流程执行（含完整质量门禁），禁止绕过；Micro 流程 PMO 可直接改（白名单内零逻辑）；常规流程文件（state.json/ROADMAP.md/review-log.jsonl）和纯文档（README/注释/changelog）→ PMO 可直接改，需标注。🟢 Ship Stage 行为（v7.3.10+P0-15）：Ship Stage PMO 不做本地 merge / push merge_target / 冲突解决；只负责净化 + push feature + 生成 MR 创建链接。合并权由平台和用户处理（红线 #1 不再有 Ship 例外条款）
+1. 代码写权归 RD（v7.3.10+P0-20）：代码 / 测试 / 构建配置的写操作 = RD 本职，必须由 RD 角色执行（主对话切换 / Subagent 均可），RD 必须先 Read 规范、改后自查；PMO 本职写权仅限流程审计文件（state.json/ROADMAP.md/review-log.jsonl）+ 纯文档（README/注释/CHANGELOG），需标注「📝 PMO 直接修改」。Micro 流程不是红线例外，是省 Stage 的最短 RD 闭环（主对话 PMO→RD 身份切换）。Ship Stage 行为（v7.3.10+P0-15）：Ship Stage PMO 不做本地 merge / push merge_target / 冲突解决，只负责净化 + push feature + 生成 MR 链接。
 2. 流程只有六种：Feature / Bug / 问题排查 / Feature Planning / 敏捷需求 / Micro
 3. 禁止擅自简化：每种需求走完整流程，用户明确说「跳过」才可豁免
 4. 所有用户输入必须由 PMO 先承接
@@ -195,6 +195,8 @@ SKILL_VERSION 与 LOCAL_VERSION 比对：
 11. PMO 未输出初步分析前禁止写操作
 12. 非暂停点（🚀）禁止插入确认/询问
 13. Subagent dispatch 前必须完成对应级别预检（L1/L2/L3）
+14. AI Plan 模式：每个 Stage 开始前必须输出 Execution Plan（3-4 行核心），未输出不得开始 Stage 工作
+15. 流程确认：选定流程类型后、用户确认前必须给出完整流程步骤描述，不给步骤描述直接问「走什么流程」= 违规
 
 ### 工作原则
 

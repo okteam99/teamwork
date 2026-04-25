@@ -1,6 +1,337 @@
 # Changelog
 
-## v7.3.10 + P0-18（当前）
+## v7.3.10 + P0-23（当前）
+
+> v7.3.10+P0-23 Prompt Cache 友好改造（R1+R2+R3 子集）：teamwork 在 Claude Code / Codex 等宿主下跑时，宿主会自动做隐式 prompt caching（前缀命中则按 ~10% 价格 + ~5x 速度计费）；teamwork 原先的 prompt 组织方式未优化命中率——动态内容（日期/git/state.json）散落在稳定层中、Stage 入口 Read 顺序不固定、state.json 中段反复读写。按用户「针对 teamwork prompt caching 怎么改造」→ R1-R7 改造清单 → 用户「先落 R1+R2+R3」定稿：R1 动态内容后置（稳定层禁止字面值时间/git/身份/状态/环境）+ R2 Stage 入口 Read 顺序固定化（roles → templates → Feature 产物 → state.json 最后）+ R3 state.json 访问 ≤ 5 次/Stage（入口 1R + 出口 1R + 1W，中段 0，豁免仅评审循环/Subagent 整合/用户追加）。按 Anthropic 公开数据，Feature 输入 ≥50K token 场景命中率 20% → 80% 改造收益 ≈ 成本下降 2-3 倍。
+
+### P0-23：Prompt Cache 友好 R1+R2+R3 落地
+
+- 触发：用户「针对 teamwork prompt caching 怎么改造」→ 分层分析 L0/L1/L2/L3 + 3 大 cache miss 源（动态前缀/state.json 穿透/Read 顺序不固定）→ R1-R7 改造清单 → 用户「先落 R1+R2+R3」
+- 理论依据：Anthropic 公开文档（Claude Code / Codex 宿主自动 prompt caching，前缀稳定 ≥ 1024 token + 字节一致时命中 → input token ~10% 计费 + ~5x 解码速度）
+- 设计决策：
+  - 只做 R1+R2+R3（显式高 ROI），R4-R7（多指令文件合并/subagent 组装/token 峰值瘦身/审计自动化）暂缓 → 避免过度改造
+  - 不触碰 Anthropic API `cache_control` 显式 breakpoint（宿主接管层级，skill 不干预）
+  - 红线数量保持 15 条（P0-23 的 3 条性能规则纳入 standards/prompt-cache.md，不升格红线——因违反不产生流程偏离，仅 cache miss，记入 state.concerns 即可）
+- 处理（新建 1 文件 + 12 处改造）：
+  - **A. 新建 `standards/prompt-cache.md`**（~170 行）：
+    - 顶部红线定位 + 三条硬规则（R1/R2/R3）+ ROI 锚点（Feature 场景 50K token 20%→80% 改造 ≈ 2-3x 成本下降）
+    - §一：4 层模型（L0 框架 / L1 项目 / L2 Feature / L3 动态）
+    - §二 R1：7 类禁止字面值（时间/git/身份/状态/环境/会话）+ 错误 vs 正确表达表 + 允许承载位置（STATUS-LINE / PMO 输出块 / tool call 结果 / Subagent dispatch）
+    - §三 R2：通用入口 Read 顺序（roles → templates → Feature 产物 → state.json 最后），每个 stage spec 补「入口 Read 顺序」段
+    - §四 R3：state.json 访问次数表（入口 1R + 中段 0 + 出口 1R + 1W）+ 3 类豁免（评审循环 ≤3 轮 / Subagent 整合 / 用户追加）+ 量化上限 ≤5 次常规 / ≤8 次极端
+    - §五：审计清单（grep 时间字面值 / stage spec 入口段存在 / PMO state.json 约束 / 中段禁写豁免标注）
+    - §六：与 SKILL/RULES/common/INIT 的协作关系
+    - §七：明确不覆盖（API-level cache_control / 跨 session 持久化 / subagent prompt 组装 / token 峰值瘦身）
+  - **B. `SKILL.md` 文档表新增 prompt-cache.md 行**（责任人：PMO 每 Stage 入口引用约束）
+  - **C. `RULES.md` 拆分文件索引新增 prompt-cache.md 行**（时机：PMO 每 Stage 入口 + 审计自查时）
+  - **D. 10 个 stage spec 在 Input Contract 与 Process Contract 之间新增「入口 Read 顺序（v7.3.10+P0-23 固定）」段**：
+    - plan / blueprint / blueprint-lite / ui-design / panorama-design / dev / review / test / browser-e2e / ship
+    - 每段含 4 步固定顺序（角色 → 模板 → Feature 产物 → state.json 最后）+ R3 访问次数约束说明
+    - 各 Stage 按特性标注豁免情形（Blueprint/Review 3 轮修复循环；Dev/Test 多次 Subagent dispatch 整合）
+  - **E. `roles/pmo.md` §state.json 状态机维护规范 新增子段 state.json 访问模式约束**（紧接「Stage 结束必做」后，「state.json 与现有文件的关系」前）：
+    - 4 行访问次数表（Stage 入口 1R / 中段 0 / Stage 出口 1R + 1W）
+    - 3 类豁免条件（评审循环/Subagent 整合/用户追加）+ 量化上限 ≤5/≤8
+    - 4 条反模式（每 Step 开头 Read / 每字段 Write / 保险再 Read / 中段兜底 Read）
+  - **F. `INIT.md` CLAUDE.md 注入段审计**：逐行审计 L170-207 → 结果**清洁**（无日期/git/身份/state 值动态字面值）；版本号类型 `v7.3.10+P0-20/P0-15` 属稳定引用（符合 R1 §2.2）；保留不变
+  - **G. 版本号 bump**：SKILL.md frontmatter 7.3.10+P0-22 → 7.3.10+P0-23；INIT.md L111 同步
+- 影响：
+  - 典型 Feature 场景（50K token 输入）命中率从 ~20% 提升到预期 ~70-80%（实测需生产数据验证）
+  - 每 Stage 入口 Read 顺序统一 → 跨 Stage 切换时的前缀碎片化消除
+  - state.json 中段禁读写 → 前缀稳定段结束点清晰化，下游 L3 动态内容明确后置
+  - 红线条数保持 15 条（P0-23 未增红线，仅新增性能规则 standards/）
+  - 无迁移成本（纯注解+约束，不改现有文件语义）
+  - 改造范围：1 新文件 + 12 处编辑（3 索引文件 + 10 stage + 1 pmo + 1 version）
+- 风险控制：
+  - ⚠️ 违反 R3（中段读写 state.json）不触发红线机制 → 仅记 state.concerns（cache miss 自然反映在延迟/成本，不做硬阻塞）
+  - ⚠️ 用户追加需求导致中段 Read/Write 豁免合规（必须先走 PMO 分析 + 用户确认）
+  - ⚠️ Subagent dispatch 整合写 state.json 豁免必须每次 dispatch ≤ 1 次（否则打破 prompt 前缀一致性）
+- 待观察 / 后续可能动作：
+  - R4（多指令文件 CLAUDE.md + AGENTS.md 合并）— 若后续发现跨宿主启动命中率仍低，考虑两个文件合并
+  - R5（subagent dispatch prompt 组装优化）— 等 dispatch.md 下次 revamp 时同步
+  - R6（token 峰值瘦身）— 独立优化路径，与命中率无关
+  - R7（审计自动化 - grep 规则跑 CI）— 待 skill-creator evals 建成后接入
+
+---
+
+## v7.3.10 + P0-22
+
+> v7.3.10+P0-22 KNOWLEDGE.md 收敛 + retros 索引拆离：P0-21 落地混合 ADR 后，用户追问「KNOWLEDGE.md 还有必要么，是否需要精简」——审视当前模板确认：它把"架构决策（为什么选某方案）"明确写在🔧技术经验首项，与新的 ADR 体系直接抢地盘；把复盘索引和经验索引混塞；PMO 知识提取仅靠软提示易失活。按**方案 A**（收敛保留，非删除）落：KNOWLEDGE.md 收敛到 3 类纯"事实型"内容——⚠️ Gotchas（陷阱）/ 📋 Conventions（团队约定）/ 🎨 Preferences（用户偏好），明确"决策走 ADR / 复盘走 retros / 通用规范走 standards"的边界；复盘索引剥离到独立 `templates/retros-index.md`；PMO 新增📚 KNOWLEDGE 扫描段（与 ADR 扫描对称）+ 7 条硬触发时机表（从软提示升硬时机）；体量上限 300 行强制归档。
+
+### P0-22：KNOWLEDGE.md 3 类收敛 + 硬触发时机 + 复盘索引剥离
+
+- 触发：用户「我们的 KNOWLEDGE.md 还有必要么，是否需要精简下」→ 分析当前模板 3 大冗余问题 → 3 方案（A 收敛保留 / B 激进拆散 / C 最小改动）→ 用户「按 A 落地」
+- 根因分析：
+  - ADR 体系（P0-21）落地后，KNOWLEDGE.md 仍在🔧技术经验段收录"架构决策（为什么选某方案）"，和 ADR 直接抢领域 → 同一决策可能双写/漂移
+  - KNOWLEDGE.md 同时承担「经验索引」+「复盘索引」两种不同时间语义的信息（主题复用 vs 时间回顾）→ 文件职责不纯
+  - 当前 PMO 知识提取靠软提示（"功能完成时应基于以下维度总结"），没有硬时机约束 → 实际运行下绝大多数 Feature 完成时不会真提取 → 慢慢失活
+  - 模板分类过细（8 大类 20+ 小项），AI 实际写入时犹豫"这条算技术还是流程"，同一条知识被写到多个位置
+  - 无体量上限 → 长期容易变成"什么都往里塞"的垃圾桶
+- 处理（模板重写 + 新模板 + PMO 专属段新增 + 3 处活引用 + 索引 2 处）：
+  - **A. `templates/knowledge.md` 全文重写**：
+    - 顶部新增「🔴 边界声明」表：明确架构决策→ADR / 通用规范→standards / 复盘→retros / 项目特有事实→本文件
+    - 正文收敛到 3 类表格：⚠️ Gotchas (GO-NNN) / 📋 Conventions (CV-NNN) / 🎨 Preferences (PR-NNN)，每条都有 ID + 主题 + 来源 Feature + 时间
+    - 按主题索引段（db / api / auth / frontend / UI / 交互 / ...）
+    - 归档段（archived）：过期条目加 archived 标记保留备查
+    - 🔴 体量上限 300 行（超出必选一种处理：升格 ADR / 子项目级分拆 / 归档）
+    - 🔴 每条 ≤ 2 行（超出说明不够"事实"，可能是决策伪装）
+    - ID 编号连续不复用（归档保留原 ID）
+  - **B. `templates/retros-index.md` 新增**（~50 行）：复盘索引模板
+    - 时间线段（最近在前）+ 按流程类型索引 + 偏差警报段（Stage 连续偏差 ≥ 3 次触发流程优化 proposal）
+    - 位置：`{子项目}/docs/retros/INDEX.md`（和 `docs/adr/INDEX.md` 对称）
+    - 维护约定：每次产单条复盘时同步 INDEX；体量上限 200 行
+  - **C. `roles/pmo.md` 新增 §📚 KNOWLEDGE 扫描 + 写入时机**（紧接 ADR 扫描段后）：
+    - 定位声明：3 类收录 + 4 类排除（决策/通用规范/复盘/临时笔记）
+    - **A. preflight 扫描**（读操作）：4 步操作 + 输出格式 + 3 条硬规则（必出行 / ≤300 行 / 只列清单不下结论）
+    - **B. 写入硬时机表**（7 条触发场景 × 类别 × 写入方 × PMO 提示措辞）：
+      1. Bug 修复完成 → Gotcha → RD
+      2. Dev Stage 调试 ≥30min 或 retry ≥2 → Gotcha → RD
+      3. Review 发现 workaround → Gotcha → 架构师
+      4. Review 发现自发约定 → Convention → 架构师
+      5. Plan 用户强调跨 Feature 要求 → Convention → PM
+      6. PM 验收用户明确偏好 → Preference → PM
+      7. UI Design 用户选项陈述理由 → Preference → Designer
+    - 🔴 PMO 显式提示即完成其职责；对应角色未写入 → state.concerns 记 skip_reason
+    - 🟢 PMO 本身不直接写入 KNOWLEDGE（除流程型 Convention 外）
+    - 反模式表 6 行（遗漏扫描行 / 读全文 / 决策写入 Gotcha / 通用规范写入 Convention / Bug 后漏提示 / 超体量继续追加）
+  - **D. `FLOWS.md` 三种 PMO 初步分析格式**均新增「📚 相关项目事实（KNOWLEDGE）」行（单子项目 Feature / 工作区级 Feature Planning / 敏捷需求）
+  - **E. 索引同步**：
+    - `TEMPLATES.md`：knowledge.md 描述更新 + 新增 retros-index.md 行
+    - `templates/README.md`：knowledge.md 描述 + 加载时机细化；新增 retros-index.md 行
+- 版本号：
+  - SKILL.md frontmatter：`7.3.10+P0-21` → `7.3.10+P0-22`
+  - INIT.md Step 1.2-a 注释同步
+- 设计要点：
+  - **收敛而非删除**：KNOWLEDGE 有独立价值（项目特有事实 + 偏好）不能丢，但要和 ADR 清晰分工
+  - **3 类硬隔离**：Gotchas / Conventions / Preferences 三段完全独立，有 ID 段 + 主题索引 → 不再纠结"这条写哪"
+  - **决策 vs 事实的边界**：备选项 ≥ 2 → ADR；被动发现的客观约束 → KNOWLEDGE Gotcha；这是最关键的分流规则
+  - **硬时机取代软提示**：7 条写入时机绑定到 Stage 完成报告，PMO 提示是硬职责；未提示 = 流程偏离
+  - **体量上限 = 扫描上限**：300 行一口气读完，不用分页；超出必归档 → 文件不会膨胀
+  - **复盘独立索引**：时间线语义（retros）和主题语义（KNOWLEDGE）彻底分离，和 ADR-INDEX 形成"3 套索引"对称结构
+  - **零新红线**：总红线数仍 15 条；所有约束落在 PMO 专属规范 + 模板硬规则里
+  - **与 ADR 的协作**：ADR 记"为什么选了这个"，KNOWLEDGE Gotcha 记"选了之后踩了什么坑"——两者互补
+- 保留未做（后续可能 P0/P1）：
+  - KNOWLEDGE.md 自动校验脚本（verify-knowledge.py）：ID 连续性、主题索引完整性、体量上限 → 当前手工
+  - 跨项目 KNOWLEDGE 聚合视图：多子项目模式下全局概览，当前各子项目独立维护
+  - 归档条目的定期回顾机制：archived 条目是否真的不适用，需要多版本验证
+  - Bug 修复流程 Stage spec 是否在完成报告明确要求"PMO 提示写 Gotcha"的声明格式 → 当前靠 roles/pmo.md 硬时机表约束，未在 bug-stage 单独落硬规则
+  - Review Stage spec 是否在 findings 分类里新增"trigger_knowledge_write"标记 → 当前靠架构师读 roles/pmo.md 硬时机表自觉执行
+
+## v7.3.10 + P0-21
+
+> v7.3.10+P0-21 混合 ADR（Architecture Decision Record）体系：用户追问"TECH.md 接近但不是 ADR 语义（Context / Decision Drivers / Alternatives ≥ 2 / Consequences），teamwork 需要补充完善么"——分析后确认：TECH.md 混合了"怎么做（实现计划）"和"为什么这么选（决策记录）"两类信息，当跨 Feature 引用决策时（"用户系统当初选 PostgreSQL 是为了什么"）没有稳定引用点；但强制每 Feature 产 ADR 会把轻量流程拖垮。按**方案 C 混合 ADR**落：ADR 作为可选产物，由架构师在 Blueprint Stage 用"3 问触发器"判断是否抽取（影响未来 ≥1 Feature / 反悔成本高 / 多合理方案非显然 —— 三问全 yes 才产）。TECH.md 保持不变是实现计划的主体，决策则被抽离到独立 `{子项目}/docs/adr/NNNN-{slug}.md`，PMO 初步分析阶段扫描 INDEX.md 让未来 Feature 自动感知既有决策约束——这是 ADR 对 AI 自引用最关键的价值。
+
+### P0-21：混合 ADR 体系（opt-in 决策记录 + 3 问触发器 + PMO 索引扫描）
+
+- 触发：用户「文档即代码（ADR / RFC）：TECH.md 接近但不是 ADR 语义（ADR 要求决策记录 + 备选项 + 后果）这个 teamwork 需要补充完善么」→ 评估三方案 A（TECH.md 内嵌）/ B（全面 ADR）/ C（混合 opt-in）→ 用户「按方案 C 落」
+- 根因分析：
+  - TECH.md 实际承担两类信息：「实现计划」（文件清单 + 改动要点 + 测试策略）+「技术决策」（为什么选 A 不选 B）——两者耦合导致跨 Feature 引用决策时没有稳定锚点
+  - 未来 Feature 的 AI 想知道"本项目为什么当初选 PostgreSQL"只能全文搜索所有历史 TECH.md，没有索引也没有按主题聚合
+  - 全面强制 ADR（方案 B）会让小 Feature 额外付 ~50-100 行 ADR 成本 → 流程不可持续；完全不加（方案 A）无法解决跨 Feature 决策引用问题
+  - 合理的解法：opt-in + 触发器 + 索引聚合 → 只有真正影响未来 / 反悔成本高 / 多方案非显然的决策才升格 ADR
+- 处理（2 个新模板 + 4 处活引用 + 1 条工作流）：
+  - **A. 新增 `templates/adr.md`**（~120 行）：完整 ADR 模板
+    - frontmatter 7 字段：`id` / `title` / `status`(proposed|accepted|deprecated|superseded-by-ADR-NNNN) / `date` / `tags[]` / `triggered_by`(触发 Feature) / `supersedes[]`
+    - 正文 7 段：背景 / 决策驱动因素 / 备选项（≥ 2） / 决策 / 后果（✅ 正面 / ⚠️ 负面 / 🔗 长期 / ❓ 未解决）/ 相关 / 修订历史
+    - 硬规则：ID 连续编号永不复用、备选项 < 2 走 TECH.md 不走 ADR、每次变更同步 INDEX.md、superseded 时双向关联、体量 50-150 行
+  - **B. 新增 `templates/adr-index.md`**（~65 行）：ADR 索引模板
+    - 三段：活跃决策（Accepted） / 提案中（Proposed） / 已废弃（Deprecated / Superseded）
+    - 按主题索引：db / api / auth / frontend / backend / deploy / observability / security
+    - 位置：`{子项目}/docs/adr/INDEX.md`（每子项目一份）
+    - 体量上限 200 行，超出说明需分片
+  - **C. `stages/blueprint-stage.md` §架构师方案评审**（Step 4 增子步 + Step 6 新增 + 硬规则 +2 + Output Contract +2 行 + 判据 +4 项）：
+    - **Step 4.1 ADR 抽取判断**：架构师必须对本 Feature 每条技术决策应用"3 问触发器"——
+      1. 这个决策会影响 ≥ 1 个未来 Feature 吗？
+      2. 反悔成本很高吗（需要大规模改动）？
+      3. 存在多个合理方案，选哪个不是显然的吗？
+      - 三问全 yes → 抽取为独立 ADR；任一 no → 决策留在 TECH.md 即可
+      - 🔴 判断本身（包括"不产 ADR 的理由"）必须在 TECH-REVIEW.md 留痕
+    - **Step 6 ADR 抽取流程**（Step 5 Codex 之后）：前置（TECH-REVIEW 已记 ADR 判断）/ 架构师 4 步职责（分配 ID / 按模板创建文件 / 填 frontmatter + 正文 / 更新 INDEX.md）/ PMO 流程整合（列摘要 + ⏸️ 用户确认→ status proposed→accepted + 多轮讨论不受 ≤3 轮限制）/ 产出清单 / 体量控制 / 🔴 TECH.md 去重（决策 rationale 迁移后 TECH.md 只留 ADR-ID 引用）
+    - **过程硬规则 +2**：🔴 ADR 抽取判断不可跳过（跳过 = 流程偏离） + 🔴 ADR 格式合规（严格按 adr.md 模板、备选项 ≥ 2、同步 INDEX.md）
+    - **Output Contract +2 行**：`docs/adr/NNNN-{slug}.md`（🟡 仅触发时必需）+ `docs/adr/INDEX.md`（🟡 首次产 ADR 时创建/每次变更时更新）
+    - **机器可校验条件 +5 项**（触发时生效）：frontmatter 5 字段全非空、备选项 ≥ 2、体量 50-150 行、INDEX.md 已同步、文件名 NNNN 连续不复用
+    - **Done 判据 +1**：ADR 触发时 status=accepted + INDEX.md 同步 + TECH.md 去重
+  - **D. `roles/pmo.md` §📜 ADR 索引扫描**（新段，紧接 Codex 决策段后）：
+    - 触发：PMO 初步分析任何 Feature / 敏捷需求 / Feature Planning 时必须扫描
+    - 目的：让 PMO 在需求分析阶段就提醒"本 Feature 受哪些历史决策约束"——这是 ADR 对 AI 自引用最关键的价值（不扫描 = AI 重复发明或违反既有决策）
+    - 4 步操作：定位 INDEX.md → 读前 200 行 → 按主题 + 涉及模块交叉扫描活跃决策 → 注入初步分析输出
+    - 硬规则 4 条：必须显式输出「📜 相关 ADR」行（即使为空）+ 只读 INDEX.md 不读单 ADR 全文 + PMO 不做决策抽取判断（留给架构师）+ 无 ADR 记录时显式声明
+    - 反模式表 +3 行：遗漏行 / 读全部 ADR / 替架构师下结论
+  - **E. `FLOWS.md` §PMO 初步分析输出格式**：三种格式（单子项目 Feature / 工作区级 Feature Planning / 敏捷需求）均新增「📜 相关 ADR」行；§PMO 初步分析流程步骤描述 Blueprint Stage 改述为"含 💡 ADR 3 问触发器判断"
+- 版本号：
+  - SKILL.md frontmatter：`7.3.10+P0-20-B` → `7.3.10+P0-21`
+  - INIT.md Step 1.2-a 注释同步
+- 设计要点：
+  - **opt-in 而非强制**：3 问触发器把 ADR 抽取成本精确定位到"跨 Feature 影响 + 反悔成本高 + 非显然"三者同时满足的决策——绝大多数 Feature 一个 ADR 都不用产，流程开销几乎为零
+  - **零新红线**：保持总红线数 15 条不变；ADR 约束全部落在 Blueprint Stage 规范 + PMO 专属规范里（而不是升格为全局红线）
+  - **PMO 只扫描不判断**：PMO 负责"历史扫描 + 注入"，架构师负责"抽取判断"——两个职责清晰分工，避免 PMO 越权替架构师决策
+  - **INDEX.md 体量可控**：200 行上限 + 只读索引不读全文 → 即使项目积累 100 个 ADR，PMO 初步分析阶段的 token 开销也可控
+  - **AI 自引用价值最大化**：通过「主题索引 + PMO 每次扫描」让未来 AI Feature 自动感知既有决策约束——这是 ADR 对 LLM 自主开发最关键的贡献
+  - **与 TECH.md 去重**：决策 rationale + 备选项 + 后果 → 迁移到 ADR；TECH.md 只留 ADR-ID 引用一句话——避免双份真相
+  - **备选项 ≥ 2 的硬门槛**：单方案走 TECH.md 不走 ADR，防止 ADR 被用作"凡决策必记"的形式主义产物
+- 保留未做（后续可能 P0/P1）：
+  - ADR 状态流转（superseded-by-* 双向关联）的自动化校验脚本：当前靠架构师手工，未来可加 python3 verify-adr.py
+  - ADR 搜索/聚合 CLI：INDEX.md 体量够用时搜索基本靠人眼，未来项目 ADR 数量大时再引入
+  - Micro 流程是否扫描 ADR：Micro 场景改动极小、准入条件已排除架构变更，当前不加扫描；若未来发现 Micro 漂到边缘决策再补
+  - RFC（Request for Comments）体系：ADR 记录「已做的决策」，RFC 用于「待讨论的提案」——当前 TEAMWORK 不引入 RFC，团队内部讨论走 PRD / PL-PM 讨论已足够；未来多 AI 协作场景可能需要
+
+## v7.3.10 + P0-20-B
+
+> v7.3.10+P0-20-B 反漂移双补丁：P0-20 把 Micro 流程里"谁写代码"的语义统一为"主对话内 PMO→RD 身份切换"，但用户追问"身份切换语义模型现在能理解吗"——深究后确认：LLM 可以 parse 这个短语，但"身份切换"不是原子操作（没有进程/状态切换、没有 context 隔离），让切换真正生效靠的是 P0-16 补丁留下的四个仪式（切换前必读 + cite + 改后自查 + STATUS-LINE 显示角色）。仪式全在改动**前后**，改动**过程中**存在两个漂移口：(1) 跨多 turn 悄悄漂回 PMO 口吻；(2) 用户中途追加改动时 RD 身份顺手接单导致身份蠕变。本次补两条轻量规则堵漏。
+
+### P0-20-B：反漂移双补丁（第一人称锚点 + 追加改动回退规则）
+
+- 触发：用户「身份切换语义代表什么现在模型能理解么」→ 回答"语义能懂但靠仪式落地"+ 识别两个漂移口 → 用户"按建议"全做
+- 根因分析：
+  - 身份切换在 LLM 上是 prompt-level convention，不是 runtime state 切换 → 仅靠"称呼改变"不足以持续约束行为
+  - P0-20 保留的 P0-16 四仪式（必读 + cite + 自查 + 状态行）全是**前后**锚点，没有**过程中**锚点
+  - 漂移场景 1：Micro 改动跨多 turn 时，模型可能在中间某轮悄悄恢复 PMO 口吻（产出不一定错，但审计痕迹乱）
+  - 漂移场景 2：用户中途说"顺便再改一下 X"，RD 身份顺手接单 → 没有 PMO 的 Micro 准入重评 → 身份蠕变、Micro 越扩越大
+- 处理（两条规则 + 三处活引用 + 事后审计补两项）：
+  - **A. 第一人称锚点**：身份切换后阶段摘要**首句必须以「作为 RD，……」开头**。LLM 在开头强制自称特定角色时，后续 token 生成会显著向该角色的语言分布靠拢——这是反漂移的最小开销锚。
+  - **B. 追加改动回退规则**：RD 身份执行过程中若用户追加新改动请求 → 必须跳回 PMO 身份重新做 Micro 准入：
+    - 通过 5 项准入 + 仍在白名单内 → PMO 输出增量分析 + ⏸️ 等用户确认 → 再切回 RD 执行
+    - 越出白名单 → PMO 输出升级原因 → ⏸️ 用户确认走敏捷或 Feature
+    - 🔴 禁止在 RD 身份下直接接收新需求
+  - 活引用三处（A+B 同步写入）：
+    - **FLOWS.md §六 Micro 流程规则 L954-965**：强制规则块头部更新版本标记到 `v7.3.10+P0-20-B 补两条反漂移规则`；在 cite 规则之后插入 🔴 第一人称锚点 + 🔴 追加改动回退规则（带 3 项子流程分支）两条硬规则
+    - **FLOWS.md §六 Micro 事后审计**：新增 2 项 checklist——"身份切换第一人称锚点是否写入首句" + "执行中是否发生追加改动、若是是否跳回 PMO 准入"
+    - **roles/pmo.md L5 Micro 头部段**：在 P0-16 必读子句后追加"🔴 第一人称锚点（P0-20-B）" + "🔴 追加改动回退规则（P0-20-B）"；完整闭环表述里加入「RD 改动（「作为 RD，…」锚句开头）」
+    - **roles/pmo.md L1381-1382 反模式表**：新增两行——"RD 身份途中用户顺便追加改动 → 直接顺手改了" 和 "身份切换后用'我'/'PMO'/泛指" 对应 🔴 正确做法
+    - **rules/flow-transitions.md Micro preamble**：在 P0-16 必读硬规则后追加一条 🔴 **反漂移双补丁（P0-20-B）** 复合规则（第一人称锚点 + 追加改动回退）
+  - 版本号：SKILL.md frontmatter `7.3.10+P0-20` → `7.3.10+P0-20-B`；INIT.md Step 1.2-a 注释同步
+- 设计要点：
+  - **零新流程**：没有加 Stage、没有改流转图、没有新红线条目——全部在现有 Micro 规则块内补条款
+  - **最低侵入**：第一人称锚点只是一句话约束，追加改动回退只是路由规则，不需要新的 state 字段
+  - **可审计**：两条规则都能在事后审计 checklist 里直接检查（首句是否以"作为 RD，"开头 / 执行过程中有无追加改动且是否跳回 PMO）
+  - **行为面提升**：堵了真实会发生的两个漂移口，特别是 B（"顺便"追加）——这是 Micro 蠕变到敏捷规模的最常见路径
+- 保留未做（review 视角发现的次要点，留后续 P0）：
+  - RD 身份在 Subagent dispatch 路径下是否需要等价的第一人称锚点 → 当前 subagent 隔离已经天然强化身份，不急着加
+  - STATUS-LINE 是否应根据追加改动回退动态切换"角色：PMO" → 规则层已经够用，避免状态行过度工程化
+
+## v7.3.10 + P0-20
+
+> v7.3.10+P0-20 红线 #1 职责正交化：把"谁写代码"（维度 A）与"怎么组织流程"（维度 B）解耦——代码写权在所有流程下都归 RD，Micro 不再是红线 #1 的例外，而是省 Plan/Blueprint/UI/Review/Test Stage 的最短 RD 闭环（独立流程），允许主对话内 PMO→RD 身份切换由 RD 改动。红线 #1 因此从权限矩阵压缩为一句话；所有 Micro 相关描述统一为"身份切换"语义。
+
+### P0-20：红线 #1 重构（职责正交化 + Micro 升格为独立流程）
+
+- 触发：用户 insight「Micro 流程 PMO 可直接改 是不是改为切换 RD 身份来改，或者在主对话由 RD 来改，我感觉是一样的，核心目的是阅读过 RD 的开发规范」。
+- 根因分析：
+  - 旧红线 #1 把"谁写代码"和"怎么组织流程"两个维度混在一起，用"Micro 例外"打了个补丁 → 红线从一行变成权限矩阵，读者难记
+  - Micro 流程的行为等价：PMO 直接改 / PMO 切 RD 身份 / 主对话由 RD 改，三种表述本质相同——核心约束是"改之前必读 RD 规范 + 自查"，不是"允许哪个角色 handle"
+  - 正交化后：代码写权 = RD 本职（维度 A，无例外）；流程组织 = 完整 Stage 链 / Micro 最短链（维度 B，独立选择）
+- 处理（一次性统一表述）：
+  - **SKILL.md L62-67 红线 #1 改一句话版**：「代码 / 测试 / 构建配置的写操作 = RD 本职。必须由 RD 角色执行（主对话切换身份 / Subagent dispatch 均可），RD 必须先真实 Read 规范...改后按 rd.md 自查段执行自查。」附 📎 说明执行方式由 AI Plan 决定 / 流程选择由 Micro 准入决定；去掉"Micro 例外"子分支
+  - **SKILL.md L123-135 Micro 简化规则块**：从"PMO 直接改代码"改成"主对话内 PMO→RD 身份切换，由 RD 直接改"，新增 📎 与红线 #1 的关系说明（"不是例外，是省 Stage 的独立流程"）
+  - **SKILL.md L328** Micro 描述：→「✍️ 主对话 PMO→RD 身份切换（Read 规范 + cite）→ RD 改动 + 自查」
+  - **INIT.md L185 CLAUDE.md 注入红线 #1**：同步简化，明确"PMO 本职写权仅限流程审计文件"+ "Micro 不是红线例外，是省 Stage 的最短 RD 闭环"
+  - **FLOWS.md §六 Micro 流程**：preamble 从"PMO 不写代码在 Micro 不适用"改为"Micro = 省 Stage 的最短 RD 闭环...不是红线 #1 例外"；流程链路、自动流转、PMO 分析输出格式、Micro 规则块五个子段全部把"PMO 直接改 / PMO 切 RD 身份 / PMO 以 RD 身份直接"统一为"主对话 PMO→RD 身份切换 + RD 改动"
+  - **RULES.md L531-554 Micro 自动流转段**：preamble 统一；执行分支表述从「主对话以 RD 身份直接改」→「主对话 PMO→RD 身份切换 → RD 改动」
+  - **roles/pmo.md L5 顶部例外段**：重写为"Micro 流程身份切换"，明确"不是红线 #1 例外 → 省 Stage 的 RD 闭环"；身份切换必读不豁免保留
+  - **roles/pmo.md L1379 反模式表**：「再由 PMO 主对话直接改」→「主对话内 PMO→RD 身份切换，由 RD 改动」
+  - **STATUS-LINE.md L277-279 Micro 阶段行注释**：「PMO 主对话直接改」→「主对话 PMO→RD 身份切换，由 RD 改动」；阶段名「PMO 执行改动（Micro）」→「RD 执行改动（Micro）」
+  - **standards/common.md L243 / L355 L1 预检注释**：同步身份切换语义 + 保留"身份切换必读不可豁免"
+  - **rules/flow-transitions.md L167-179 Micro 表**：preamble + 表格 5 行全部统一为"PMO→RD 身份切换 → RD 执行改动"
+  - **版本号**：SKILL.md frontmatter `7.3.10+P0-19-C` → `7.3.10+P0-20`；INIT.md Step 1.2-a 注释同步（触发 CLAUDE.md 自愈把新红线 #1 + 身份切换注释写入）
+- 设计要点：
+  - **正交化原则**：红线 #1 只管"谁写代码"（A），Micro/敏捷/Feature 只管"跑哪些 Stage"（B），两维度解耦。Micro 是独立流程 × 流程 B 的一个选项，不是红线 #1 的例外
+  - **行为面零变化**：Micro 流程下"主对话 PMO→RD 身份切换"与旧描述"PMO 直接改"+"角色切换必读"语义等价；只是表述更干净
+  - **红线条数不变**：仍为 15 条（#1 表述重写、不拆也不删）
+  - **P0-16 补丁保留**：身份切换必读 `roles/rd.md` + `standards/common.md` + 按需 frontend/backend.md + 阶段摘要 cite 规范要点 + 改后自查—— P0-20 没有放松这条
+- 用户价值：
+  - 读者只需记一句「代码写权归 RD」—— 不再需要记 Micro 例外树
+  - Micro 的本质（省 Stage）比之前更清晰，不用再纠结"PMO 为什么突然可以改代码"
+  - 新增 RD 的职责边界更刚性——便于未来 Subagent 自动化 / 审计 / 权限隔离
+- 未处理项：
+  - OPTIMIZATION-PLAN.md / CHANGELOG.md 历史条目中的"PMO 可直接改"保留为历史记录，不回溯改写
+  - SKILL.md 红线体系的更大结构性重排（整合多处子条款、抽出 RULES.md 的独立章节）留到后续 P0
+
+## v7.3.10 + P0-19-C
+
+> v7.3.10+P0-19-C 外部视角 fresh review 修补：P0-19-B 物理合并 agents/*.md → stages/*.md 后，通过独立 subagent 以零上下文视角复审 skill，发现 3 个 S1 阻塞项（红线计数不一致 + `roles/rd.md` 残留 arch-code-review Subagent 幽灵引用 + `agents/README.md` dispatch 示例未加 subagent-id 语义说明）+ 4 处连带活引用遗漏（standards/backend.md / templates/dispatch.md / rules/naming.md）。本次 patch 全部修复。
+
+### P0-19-C：外部视角 review 的 S1 阻塞项 + 连带清理
+
+- 触发：P0-19-B 合并完成后，用户要求「以全新视角 review 一下 teamwork skill」。通过独立 subagent（等同 fresh session 无历史上下文）走完 skill 通读，以外部视角校验 merge 质量。
+- 根因分析：
+  - P0-19-B merge 时只处理了 `agents/*.md` → `stages/*.md` 的**直接活引用**（16 处），漏了**二阶引用**：术语表 / 幽灵 Subagent 名 / subagent-id 语义说明
+  - `INIT.md` 的红线计数（13 条）是从 v7.3.9 以前复制来的，v7.3 加了 #14 / #15 后一直没同步
+  - `roles/rd.md` 的两阶段架构文档更新图和架构师 CR 完成后回调逻辑还在用「arch-code-review Subagent」的老措辞，P0-19-B 把它合并进 Review Stage 后该措辞就成了幽灵
+  - `agents/README.md` dispatch 文件名示例保留了老 subagent-id，但没有明确「这些 id 是 dispatch 文件标签，不是规范源」—— 读者容易回读去找 `agents/rd-develop.md` 这种已删除的文件
+- 处理（3 S1 + 4 连带）：
+  - **S1-1 INIT.md 红线计数**：L184「13 条」→「15 条」；CLAUDE.md 注入模板补全红线 #14（AI Plan 模式）+ #15（流程确认）；Step 0 AUTO_MODE 强制保留项 L55「13 条绝对红线」→「15 条绝对红线」
+  - **S1-2 roles/rd.md arch-code-review 幽灵 Subagent**：
+    - L220「Code Review 后（arch-code-review Subagent 执行）」→「Review Stage 架构师 Code Review 后（规范见 stages/review-stage.md §架构师 CR 任务规范，执行方式见 agents/README.md §一）」
+    - L212「Tech Review 后（arch-tech-review）」→「Blueprint Stage 架构师方案评审后（主对话角色，规范见 roles/rd.md §架构师方案评审）」
+    - L376「自动进入架构师 Code Review（Subagent）→ 有 UI 则 UI 验收 → 🤖 QA 代码审查（Subagent）」→ 合并为「自动进入 Review Stage（架构师 CR + QA CR + 外部 Codex，执行方式见 agents/README.md §一，任务规范见 stages/review-stage.md）→ 有 UI 则 UI 验收」
+    - L388 §架构师方案评审规范 角色定位「在独立 subagent 中对 RD 的技术方案进行全面审查」→ 去「独立 subagent 中」，加 📎 注脚说明「默认主对话，大方案由 AI Plan 决定是否 Subagent 隔离」
+  - **S1-3 agents/README.md dispatch 示例加 subagent-id 语义块**：L286-290 下方新增 📎 三点说明（`{subagent-id}` 是 dispatch 文件标签 / 角色任务规范现在在 stages/*.md / dispatch 文件 Input files 应指向 stages/*.md 而非已删除的 agents/*.md）
+  - **连带 #1 standards/backend.md L622-628 Schema 变更链条术语对照表**：列头「Agent 文件」→「规范位置」；各行指向改为：RD 开发→`stages/dev-stage.md §RD 角色任务规范`；架构师 Code Review→`stages/review-stage.md §架构师 CR 任务规范`；集成测试→`stages/test-stage.md §集成测试任务规范`；Blueprint 架构师方案评审→`roles/rd.md §架构师方案评审规范`
+  - **连带 #2 templates/dispatch.md L9 命名规则行**：补充「subagent-id 是 dispatch 文件标签，沿用原有命名，角色任务规范已合并至 stages/*.md」
+  - **连带 #3 rules/naming.md L44-46 subagent-id 列表**：补加一行「🔴 v7.3.10+P0-19-B 起角色任务规范已合并至 stages/*.md，subagent-id 仅作标签用」
+  - **连带 #4 版本号 bump**：SKILL.md frontmatter `7.3.10+P0-19` → `7.3.10+P0-19-C`；INIT.md Step 1.2-a 注释同步（触发下次启动的 CLAUDE.md 漂移自愈校验，使红线 15 条写入 CLAUDE.md）
+- 保留项（review 报告中的 S2/S3 **不处理**，留作后续 P0）：
+  - S2-1 红线 #1 Micro exception 树过度工程化 —— 设计决策，需单独讨论
+  - S2-2 dev-stage.md 7 自检维度「L108 + L352-392 各一份」—— 复核结论是**误报**（L108 是指针引用 `§4 RD 自查 7 维度`，只有 L352-392 真正列维度）
+  - S2-3 RULES.md 1628 行 + 自带热路径索引 —— 需结构性拆分，单独 P0
+  - S2-4 Key Context 6 类「写 -」的可 game 性 —— 设计决策
+  - S2-5 Review/Test 3 轮封顶在 AUTO 下的浪费 —— 需 AUTO 模式分支调整
+  - S3 polish（naming.md subagent-id 清单 / test-stage.md 内嵌 Python 模板 / {SKILL_ROOT} glossary 缺失 / 版本号程序化派生）—— 价值低、择机
+- 收益：
+  - 单一权威源一致性：`SKILL.md` 红线数 = `INIT.md` 红线数 = CLAUDE.md 注入红线数 = 15 条
+  - 无幽灵 Subagent 引用：`roles/rd.md` 三处措辞 + `backend.md` 术语对照表 + `dispatch.md` + `naming.md` 全部指向合并后的 stages/*.md 权威位置
+  - dispatch 示例消歧：`{subagent-id}` 的语义（文件标签 vs 规范源）首次被显式说明，避免读者回读已删除的 `agents/*.md`
+- 兼容性（非破坏性）：
+  - 无行为变更：只改文案 / 术语 / 链接，不触动任何 Stage 契约 / 流转 / 预检
+  - 既存 dispatch_log/ 的 `002-rd-develop.md` / `003-arch-code-review.md` 等文件名继续有效（subagent-id 作为标签未变）
+  - CLAUDE.md / AGENTS.md 会在下次 `/teamwork` 启动时自动漂移自愈（7.3.10+P0-19 → 7.3.10+P0-19-C 触发 full path），同步红线 15 条
+- 相关 meta 观察（review 报告内）：**3 个月 19 个 P0 无一次删除**。下一个 P0 建议不再新增能力，聚焦消费：拆 RULES.md / 统一红线计数 / 红线 #1 Micro exception 二选一 / 全仓 grep 审计死引用。本次 P0-19-C 只修了审计类问题的子集。
+
+---
+
+## v7.3.10 + P0-19
+
+> v7.3.10+P0-19 结构重构补丁：**Stage 升格为权威层级，Subagent 降格为执行选项**。物理合并 `agents/rd-develop.md` / `arch-code-review.md` / `qa-code-review.md` / `integration-test.md` / `api-e2e.md` 五个角色任务规范到对应 `stages/*.md` 的新增 §角色任务规范段；`agents/` 目录只保留 `README.md`（瘦身为纯 Subagent 执行协议：dispatch 文件协议 + Progress 可见性 + 主对话产物协议 + 通用执行约束 + Codex CLI 调用规范）。PMO 在 Plan 模式中按需选择执行方式（主对话 / Subagent / 混合），Subagent 不再作为"规范归档维度"存在。非破坏性：所有规范内容原样迁移，仅物理位置变动 + 章节编号微调。
+
+### P0-19-B：Stage 升格 + agents/ 物理合并（stages/dev-stage.md + stages/review-stage.md + stages/test-stage.md + agents/README.md + 引用迁移）
+
+- 触发：用户反馈「从合理的方向看，是不是弱化 subagent, 强调 stage, 增加各个 stage 中的规范文档，因为执行层面 pmo 可以按需选择 subagent」。承接 P0-19-A（subagent 降级为执行维度）的物理落地。
+- 根因分析：
+  - **Stage 是业务权威层级，Subagent 是执行手段**。v7.3.9+P0-14 dual-mode 化后，RD / 架构师 / QA 都可以主对话或 Subagent 执行，"按 agent 归档规范" 不再是自然语义分类
+  - `agents/rd-develop.md` / `arch-code-review.md` 等文件命名暗示「这是 Subagent 专属规范」，导致主对话执行时 PMO 不确定是否仍需加载 → 双重权威源
+  - Stage 级契约（Input/Process/Output）和 Stage 内角色任务规范分居两处（stages/ + agents/），PMO 派发时需要同时引用两个路径，心智负担 + 漏读风险
+  - 把角色任务规范嵌入 stage 契约之后，**一个 stage 一个权威文件**，主对话 / Subagent 两种模式均从同一文件读取
+- 处理（4 Stage 文件 + 1 README + 引用迁移）：
+  - **§一 stages/dev-stage.md 合并 agents/rd-develop.md 全文**（+229 行）：新增 §RD 角色任务规范（1. 角色定位 Dual-Mode / 2. TDD 开发流程 / 3. UI 还原 / 4. RD 自查 7 维度）+ §RD 执行输出模板（执行摘要 / 自查报告 / 上游问题清单）
+  - **§二 stages/review-stage.md 合并 agents/arch-code-review.md + agents/qa-code-review.md 全文**（+456 行）：新增 §架构师 CR 任务规范（角色定位 / Review 维度 / 执行流程 / 架构文档更新规则 / 输出模板 / 上游问题清单）+ §QA CR 任务规范（角色定位 / 执行流程 / 执行约束 / 输出模板 / 结果处理）+ §外部视角 Codex Review（codex CLI spawn prompt 模板）
+  - **§三 stages/test-stage.md 合并 agents/integration-test.md + agents/api-e2e.md 全文**（+554 行）：新增 §集成测试任务规范（角色定位 / 执行流程 / 执行约束 / 证据要求 / 报告模板）+ §API E2E 任务规范（角色定位 / 触发条件 / 执行流程 / 脚本生成规范 / 脚本落盘 + e2e-registry 注册 / 报告模板 / 红线 / 降级处理 / 含完整 Python 脚本模板）
+  - **§四 agents/README.md 瘦身**（734 → ~700 行，重组为 6 个顶级章节）：§一 执行方式与模型（偏好指引 + 模型推荐）/ §二 通用 Subagent 执行约束（文件读取 / 代码质量 / 异常处理 / 输出规范 / Progress Log / 危险命令红线）/ §三 Codex CLI 调用规范（宿主无关独立性 + 降级路径决策）/ §四 PMO 启动规范（含 Dispatch 文件协议 4.1-4.6 + 4.3 Progress 可见性协议 + 4.6 Subagent 返回状态分级处理）/ §五 主对话产物协议（命名约定 + frontmatter 硬规则 + Key Context 复用 + review-log.jsonl schema + 独立性保证）/ §六 目录结构索引（含 v7.3.10+P0-19-B 变更说明）
+  - **§五 物理删除 5 个 agents/*.md 文件**：`agents/rd-develop.md` / `arch-code-review.md` / `qa-code-review.md` / `integration-test.md` / `api-e2e.md`；`agents/` 目录现仅保留 `README.md`
+  - **§六 引用迁移**（16 处活引用 + 保留 CHANGELOG/OPTIMIZATION-PLAN 历史引用）：
+    - `SKILL.md` 示例 Plan 模板 / 索引表：`agents/rd-develop.md` → `stages/dev-stage.md §RD 角色任务规范`；`agents/arch-code-review.md` → `stages/review-stage.md §架构师 CR 任务规范`；`agents/qa-code-review.md` → `stages/review-stage.md §QA CR 任务规范`
+    - `RULES.md` Test Stage 子流程：`agents/integration-test.md` → `stages/test-stage.md §集成测试任务规范`；四-B 首段说明文字同步
+    - `roles/rd.md`：架构师 CR 规范链接指向 stages/review-stage.md；内嵌审查项注释同步
+    - `roles/qa.md`：集成测试 / API E2E / 集成测试规范链接全部指向 stages/test-stage.md
+    - `templates/feature-state.json`：`loaded_role_specs[]` 从 `agents/rd-develop.md` 改为 `stages/dev-stage.md`
+    - `templates/e2e-registry.md`：生成 Subagent 引用指向 `stages/test-stage.md §API E2E 任务规范`
+    - `templates/dispatch.md`：Input files 模板第 2 项从 `agents/{subagent-id}.md` 改为 `stages/{stage}-stage.md §角色任务规范`；§四 4.3 / §五 Progress 章节编号同步为 §四 4.6 / §四 4.3
+    - `codex-agents/tester.toml` / `reviewer.toml` / `rd-developer.toml`：developer_instructions Read 列表的第 3-4 项（旧 agents/*.md）合并为单行「stages/{stage}.md § ...（merged in v7.3.10+P0-19-B）」
+  - **§七 agents/README.md 内部 §4.3 → §4.6 修正**：FAILED 兜底从旧 §4.3 改为新 §4.6（Subagent 返回状态分级处理表合并到完成后处理段）
+  - **§八 SKILL.md frontmatter version bump**：`7.3.10+P0-18` → `7.3.10+P0-19`（触发下次启动的漂移自愈校验，使 CLAUDE.md / AGENTS.md 同步新目录结构）
+- 保留项：
+  - `CHANGELOG.md` / `OPTIMIZATION-PLAN.md` 历史引用 **不改写**（这些是历史事实记录，非当前规范）
+  - `stages/*.md` 新增段顶部的合并注释（「本节整合 v7.3.10+P0-19-B 前的 agents/xxx.md 完整规范」）保留，为合并过程提供可追溯的 git-log 替代信息
+- 收益：
+  - Stage = 一个物理文件 = 一个权威：PMO 派发 / 切换角色 / 主对话执行时只需引用一个路径，心智负担 -50%
+  - 规范与契约同居：Input Contract → 角色任务执行流程 → Output 模板串联在同一文件内，RD / 架构师 / QA 读时上下文天然连贯
+  - Subagent 回归执行手段本位：`agents/README.md` 只负责"如何跨宿主派发 + 如何保证可观测性"，不再承担规范归档
+  - Plan 模式更纯粹：approach=main-conversation/subagent/hybrid 只影响执行方式，不影响「读哪个规范文件」
+- 兼容性（非破坏性）：
+  - 所有规范内容原样迁移（无内容删减 / 强度调整），章节编号微调
+  - Subagent dispatch 协议（dispatch 文件 / INDEX / Progress Log）完全不变
+  - `.teamwork_localconfig.md` 的 `teamwork_version` 缓存机制（P0-17 引入）会在下次启动自动捕获 `7.3.10+P0-19`，触发 CLAUDE.md / AGENTS.md 校验一次（若发生漂移将被漂移自愈机制同步）
+  - 用户侧无任何行为变更，`/teamwork` 命令 / 阶段流转 / 角色切换全部保持
+
+## v7.3.10 + P0-18
 
 > v7.3.10+P0-18 人机约定补丁：新增「ok = 按 💡 建议」全局快捷授权约定。用户在 ⏸️ 暂停点回复 `ok` / `OK` / `好` / `可以` / `行` / `嗯` / `按建议` / `按推荐` → PMO 自动映射为「当前暂停点全部 💡 推荐选项」执行（单决策等价于回复 💡 对应数字；多决策等价于所有决策都选 💡 推荐）。前置条件：暂停点至少有 1 个 💡（红线 #10 本就强制）；破坏性操作 / 无 💡 暂停点 / ok+补充语句 不适用本约定，仍按原规则处理。PMO 须输出一行 cite『✅ 已按 💡 建议处理：…』作为审计痕迹。非破坏性，仅加强用户体验。
 

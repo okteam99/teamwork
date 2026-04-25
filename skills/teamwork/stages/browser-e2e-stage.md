@@ -55,6 +55,22 @@ Browser E2E → 浏览器操作真实页面（最终用户视角） ← 本 Stag
 
 ---
 
+## 入口 Read 顺序（v7.3.10+P0-23 固定）
+
+🔴 按以下顺序 Read，字节一致利于 prompt cache 命中。详见 [standards/prompt-cache.md](../standards/prompt-cache.md)。
+
+```
+Step 1: roles/qa.md                                    ← 角色层（L0 稳定）
+Step 2: 无专属模板                                      （本 Stage 不产出新模板结构）
+Step 3: {Feature}/PRD.md, {Feature}/TC.md              ← Feature 既有产物（L2）
+        [条件] {Feature}/UI.md                          （若有 UI）
+Step 4: {Feature}/state.json                           ← 🔴 最后，动态入口（L3）
+```
+
+🔴 R3 约束：state.json 入口 Read 1 次 → 中段 0 读写 → 出口 Read 1 次 + Write 1 次；全 Stage ≤ 5 次。
+
+---
+
 ## Process Contract
 
 ### 必做动作

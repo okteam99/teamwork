@@ -219,6 +219,23 @@ PMO 识别为 Feature Planning 后，进一步判断范围：
 │   ├── 识别到横跨多子项目（场景 B：需求 naturally 横跨 · 没有"主 Feature"）：
 │   │   └── 走现有「🔀 跨子项目需求拆分」流程（roles/pmo.md § 跨子项目需求拆分）
 │   └── 无跨项目依赖 → 「✅ 无跨项目依赖」
+├── 📜 相关 ADR（v7.3.10+P0-21 新增，历史决策扫描）：
+│   ├── 读取 `{目标子项目}/docs/adr/INDEX.md`（不存在 → 「本项目暂无 ADR 记录」）
+│   ├── 按当前 Feature 主题/模块从「活跃决策」+「按主题索引」交叉扫描（宁滥勿漏）
+│   ├── 列出可能相关的 ADR-ID 清单：
+│   │   - ADR-NNNN: {标题} [tags: {主题}]
+│   │   - ⚠️ 若涉及 {某方面}，另需审视 ADR-MMMM
+│   ├── 🔴 只读 INDEX.md 前 200 行（不读单个 ADR 全文）
+│   └── 🔴 本清单仅作提醒，不做绑定性判断（架构师在 Blueprint Step 4.1 才决定处理方式）
+├── 📚 相关项目事实（KNOWLEDGE，v7.3.10+P0-22 新增）：
+│   ├── 读取 `{目标子项目}/docs/KNOWLEDGE.md`（不存在 → 「本项目暂无 KNOWLEDGE 记录」）
+│   ├── 按当前 Feature 主题/模块扫描 ⚠️ Gotchas / 📋 Conventions / 🎨 Preferences 三段 + 按主题索引
+│   ├── 列出可能相关的条目 ID 清单：
+│   │   - GO-NNN: {陷阱描述} [主题: {tag}]
+│   │   - CV-NNN: {约定} [主题: {tag}]
+│   │   - PR-NNN: {用户偏好} [类别: {tag}]
+│   ├── 🔴 只读前 300 行（KNOWLEDGE 体量上限同扫描上限）
+│   └── 🔴 本清单仅作提醒；具体遵守由后续角色按 Stage 职责决定
 ├── 📋 本轮拟产出文档清单（v7.3.9+P0-7 强化格式权威露出）：
 │   ├── 列出本次分析后即将产出的文档（state.json / PRD / DEPENDENCY-REQUESTS / ...）
 │   ├── 每份对应 templates/ 模板路径（例：state.json → templates/feature-state.json）
@@ -238,7 +255,7 @@ PMO 识别为 Feature Planning 后，进一步判断范围：
 ├── 📋 流程步骤描述（v7.3 必填，让用户基于步骤确认流程）：
 │   1. Plan Stage：PM 起草 PRD（AC 结构化）+ PL-PM 讨论 + 多视角技术评审 → ⏸️ 用户确认
 │   2. UI Design Stage（如需 UI，v7.3.4 合并）：Designer 产出 UI.md + HTML 预览 + 全景增量同步 → ⏸️ 用户确认「设计批」（UI + 全景一起审）
-│   3. Blueprint Stage：QA TC（AC-test 绑定）+ RD TECH + 架构师评审 → ⏸️ 用户确认
+│   3. Blueprint Stage：QA TC（AC-test 绑定）+ RD TECH + 架构师评审（含 💡 ADR 3 问触发器判断，v7.3.10+P0-21）→ ⏸️ 用户确认（若触发 ADR，ADR 一并确认）
 │   4. Dev Stage：按方案实现 + TDD + 单测全绿（AI 决定执行方式）→ 🚀 自动
 │   5. Review Stage：三视角独立评审（架构师/QA/Codex）→ 🚀 自动
 │   6. Test Stage：环境准备 + 集成测试 + API E2E → 🚀 自动
@@ -735,6 +752,14 @@ Workspace Planning 完成 ✅
 │   ├── 默认值：OFF
 │   ├── 建议：{开 / 不开}（PMO 基于规划规模/跨子项目数给出）
 │   └── 选项：1. ✅ 不开（默认） 2. 🔓 开启（PRD 起草后追加 Codex 外部视角审查）
+├── 📜 相关 ADR（v7.3.10+P0-21，跨子项目扫描）：
+│   ├── 对每个受影响子项目读取 `{子项目}/docs/adr/INDEX.md`
+│   ├── 列出可能受工作区级规划冲击的 ADR-ID（特别是 deploy / backend / api 主题）
+│   └── 🔴 无 ADR 记录 → 显式声明"当前工作区暂无 ADR"
+├── 📚 相关项目事实（KNOWLEDGE，v7.3.10+P0-22）：
+│   ├── 对每个受影响子项目读取 `{子项目}/docs/KNOWLEDGE.md`
+│   ├── 列出可能受工作区级规划影响的 Gotcha / Convention / Preference 清单
+│   └── 🔴 无 KNOWLEDGE 记录 → 显式声明"当前工作区暂无 KNOWLEDGE"
 └── 🔄 切换到 PM 开始工作区级产品规划
 
 ---
@@ -822,6 +847,14 @@ PMO 完成报告
 │   ├── 默认值：OFF（敏捷需求场景改动小，默认关 Codex；Review Stage 代码审查仍强制）
 │   ├── 选项：1. ✅ 不开（推荐） 2. 🔓 开启精简 PRD 的 Codex 外部视角
 │   └── 用户选择后写入 state.codex_cross_review.enabled
+├── 📜 相关 ADR（v7.3.10+P0-21，历史决策扫描）：
+│   ├── 读取 `{目标子项目}/docs/adr/INDEX.md`
+│   ├── 敏捷需求因准入条件限制通常无新架构决策 → 常见结论"无相关 ADR"
+│   └── 🔴 仍需显式输出此行（即使为"无"），不可省略
+├── 📚 相关项目事实（KNOWLEDGE，v7.3.10+P0-22）：
+│   ├── 读取 `{目标子项目}/docs/KNOWLEDGE.md`
+│   ├── 小改动仍可能踩已知 Gotcha / 违反 Convention / 忽略 Preference → 扫描不可省
+│   └── 🔴 显式输出此行（即使为"无"）
 ├── ⏸️ 请确认走敏捷需求流程 + Codex 开关（默认不开）
 └── ✅ 自检通过
 ```
@@ -859,12 +892,12 @@ PMO 完成报告
 ## 六、Micro 流程（微调流程）
 
 > 🎯 目的：为"纯替换/纯资源/零逻辑"类改动提供合法的轻量通道，消除 PMO 因"改动太小不值得走敏捷"而擅自越界的动机。
-> 🟢 **v7.3 放宽**：Micro 流程下 PMO 可直接改代码，**无需启 Subagent，也不要求输出 Execution Plan**。真正轻量通道，只保留最小闭环。PMO 不写代码的红线在 Micro 流程下不适用。
+> 🟢 **v7.3.10+P0-20 定位**：Micro = **省略 Plan/Blueprint/UI/Review/Test Stage 的最短 RD 闭环**。代码仍由 RD 执行（主对话 PMO→RD 身份切换），**Micro 不是红线 #1 的例外，是独立流程**。RD 仪式（读规范 + cite + 自查）完整保留，与红线 #1「代码写权归 RD」自洽。
 
 ### Micro 流程链路
 
 ```
-PMO 分析 → ⏸️ 用户确认走 Micro（含流程步骤描述）→ PMO 切 RD 身份（Read rd.md + standards/*.md + cite）→ PMO 直接改动 → RD 自查 → 用户验收 → 完成
+PMO 分析 → ⏸️ 用户确认走 Micro（含流程步骤描述）→ 主对话 PMO→RD 身份切换（Read rd.md + standards/*.md + cite）→ RD 改动 → RD 自查 → ⏸️ 用户验收 → 完成
 ```
 
 ### Micro 流程自动流转
@@ -876,14 +909,14 @@ PMO 初步分析（判断符合 Micro 准入条件）
     ↓
 ⏸️ 等待用户确认走 Micro 流程（🔴 必须由用户确认，PMO 不可自行决定）
     ↓ 用户确认
-🔴 PMO 切 RD 身份（P0-16 补丁，不可豁免）
+🔴 主对话 PMO→RD 身份切换（不可豁免的 RD 仪式）
     ├── Read roles/rd.md（职责段 + 自查段）
     ├── Read standards/common.md（必读）
     ├── 样式/前端 → 加读 standards/frontend.md
     ├── 后端配置 → 加读 standards/backend.md
-    └── 在 PMO 阶段摘要中 cite 1-2 句相关规范要点
+    └── 在阶段摘要中 cite 1-2 句相关规范要点（证明真实 Read）
     ↓
-PMO 直接执行改动（无需 Execution Plan / 无需 dispatch 文件）
+RD 执行改动（主对话内；无需 Execution Plan / 无需 dispatch 文件）
     ├── 按变更清单改文件
     ├── 跑项目已有测试（如有）确认无回归
     └── 产出改动摘要（主对话内）
@@ -892,7 +925,7 @@ PMO 直接执行改动（无需 Execution Plan / 无需 dispatch 文件）
     ├── 规范符合性检查
     └── 已有测试无回归
     ↓
-📊 PMO 阶段摘要（含规范 cite + 自查结果）
+📊 PMO 阶段摘要（含规范 cite + 自查结果；PMO 身份恢复中枢职责）
     ↓
 ⏸️ 用户验收（手测/目视确认）
     ↓ 用户确认通过
@@ -917,13 +950,13 @@ Micro 需求完成 ✅
 ├── 变更清单：
 │   ├── [文件1]：[改动摘要]
 │   └── [文件2]：[改动摘要]
-├── 📋 流程步骤描述（v7.3 必填 / P0-16 补丁补齐角色切换步骤）：
-│   1. PMO 切 RD 身份：Read roles/rd.md + standards/common.md（+ frontend.md / backend.md 按需）→ 摘要 cite 1-2 句规范要点
-│   2. PMO 以 RD 身份直接执行改动（按变更清单改文件，跑已有测试）
+├── 📋 流程步骤描述（v7.3 必填 / v7.3.10+P0-20 身份切换表述统一）：
+│   1. 主对话 PMO→RD 身份切换：Read roles/rd.md + standards/common.md（+ frontend.md / backend.md 按需）→ 摘要 cite 1-2 句规范要点
+│   2. RD 执行改动（按变更清单改文件，跑已有测试）
 │   3. RD 自查（按 roles/rd.md 自查段：规范 + 回归）
 │   4. 用户验收（手测/目视确认）
 │   5. PMO 完成报告（含事后审计 + 自查摘要）
-├── 阶段链：PMO 分析 → 用户确认 → 加载 RD 规范+cite → PMO 直接改动 → RD 自查 → 用户验收
+├── 阶段链：PMO 分析 → 用户确认 → PMO→RD 身份切换 + 加载规范 + cite → RD 改动 → RD 自查 → 用户验收
 ├── ⏸️ 请确认走 Micro 流程
 └── ✅ 自检通过
 ```
@@ -951,27 +984,32 @@ Micro 需求完成 ✅
 ### Micro 流程规则
 
 ```
-🔴 强制规则（v7.3 调整 + v7.3.10+P0-16 补丁）：
-├── 🟢 PMO 可直接改代码（v7.3 放宽，不强制 Subagent，也不要求 Execution Plan）
+🔴 强制规则（v7.3 调整 / v7.3.10+P0-16 引入 RD 仪式 / v7.3.10+P0-20 身份切换表述统一 / v7.3.10+P0-20-B 补两条反漂移规则）：
+├── 🟢 主对话内 PMO→RD 身份切换，由 RD 改动（不强制 Subagent，也不要求 Execution Plan）
 ├── 前提：用户已确认走 Micro 流程（含流程步骤描述）
-├── 🔴 **角色切换必读（P0-16 补丁，不可豁免）**：PMO 切 RD 身份改之前必须真实 Read：
+├── 🔴 **RD 身份切换的真实性（不可豁免）**：切换前必须真实 Read：
 │   ├── `roles/rd.md`（职责段 + RD 自查强制规则段）
 │   ├── `standards/common.md`（通用规范必读）
 │   ├── 样式/前端资源改动 → 加读 `standards/frontend.md`
 │   └── 后端配置/资源改动 → 加读 `standards/backend.md`
-├── 🔴 改动前必须在 PMO 阶段摘要中 cite 1-2 句相关规范要点（防止凭记忆换名头直接改）
+├── 🔴 改动前必须在阶段摘要中 cite 1-2 句规范要点（证明真实 Read，非凭记忆换名头）
+├── 🔴 **身份切换第一人称锚点（P0-20-B）**：身份切换完成后的阶段摘要首句必须以「作为 RD，……」开头，作为身份锚点，防止中途漂回 PMO 口吻
+├── 🔴 **途中追加改动的回退规则（P0-20-B）**：RD 身份执行过程中若用户追加新改动请求（例如"顺便再改一下 X"），必须先跳回 PMO 身份重新做 Micro 准入检查——
+│   ├── 新改动仍在 Micro 白名单内 + 5 项准入通过 → PMO 输出增量分析 + ⏸️ 等用户确认 → 再切回 RD 身份执行
+│   ├── 新改动越出白名单 → PMO 输出升级原因 → ⏸️ 用户确认走敏捷或 Feature
+│   └── 🔴 禁止在 RD 身份下直接接收新需求（防止身份蠕变、Micro 越扩越大）
 ├── 🔴 改动后必须执行 RD 自查（见 `roles/rd.md` 自查段）：至少规范符合 + 跑已有测试无回归
 ├── 用户验收前禁止 commit/push（→ 红线 #5 同样适用）
 └── 用户在任何时候可以要求升级为敏捷或 Feature 流程
 │
-🔴 砍掉的环节（与敏捷/Feature 的差异）：
+🔴 砍掉的环节（与敏捷/Feature 的差异，即 Micro 的"省"）：
 ├── QA Plan + Case（零逻辑 → 无需测试设计）
 ├── 架构师 CR（零逻辑 → 无架构风险）
 ├── Codex Review（零逻辑 → 无需独立审查）
 ├── Test Stage（零逻辑 → 无需代码审查+测试链）
 ├── Execution Plan（零逻辑 → 不需要规划 approach）
-├── Dispatch 文件（PMO 直接改，无需 dispatch）
-└── 保留的：PMO 分析 + 流程步骤描述 + 用户确认 + **加载 RD 规范+cite** + 执行 + **RD 自查** + 用户验收（最小闭环）
+├── Dispatch 文件（主对话身份切换直改，无需 dispatch）
+└── 保留的：PMO 分析 + 流程步骤描述 + 用户确认 + **RD 身份切换 + 加载规范 + cite** + RD 改动 + **RD 自查** + 用户验收（最小 RD 闭环）
 │
 🔴 升级条件（Micro 执行过程中发现任一情况 → 必须暂停升级）：
 ├── 执行中发现需要修改逻辑代码
@@ -983,6 +1021,8 @@ Micro 需求完成 ✅
 ├── 实际改动是否仍满足 Micro 准入条件？
 ├── 有无逻辑变更混入？
 ├── 🔴 是否真实 Read roles/rd.md + standards/*.md？（P0-16 补丁；cite 是否真实出现在摘要中）
+├── 🔴 身份切换第一人称锚点是否写入阶段摘要首句？（P0-20-B）
+├── 🔴 执行过程中是否发生用户追加改动？若是，是否跳回 PMO 身份重新准入？（P0-20-B）
 ├── 🔴 RD 自查是否已执行？
 ├── 阶段链是否完整？（分析 → 用户确认 → 加载 RD 规范 → 执行 → RD 自查 → 用户验收）
 └── 任何偏离 → 标注 ⚠️ 流程偏离 + 记录原因

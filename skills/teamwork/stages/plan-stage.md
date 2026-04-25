@@ -193,6 +193,22 @@ cd ../feature-{Feature 全名}
 
 ---
 
+## 入口 Read 顺序（v7.3.10+P0-23 固定）
+
+🔴 按以下顺序 Read，字节一致利于 prompt cache 命中。详见 [standards/prompt-cache.md](../standards/prompt-cache.md)。
+
+```
+Step 1: roles/pm.md, roles/product-lead.md             ← 角色层（L0 稳定）
+Step 2: templates/prd.md                               ← 模板层（L0 稳定）
+        [条件] templates/codex-cross-review.md          （仅 codex_cross_review.enabled=true）
+Step 3: 无（Plan Stage 是 Feature 起点，无既有 L2 产物）
+Step 4: {Feature}/state.json                           ← 🔴 最后，动态入口（L3）
+```
+
+🔴 R3 约束：state.json 入口 Read 1 次 → 中段 0 读写 → 出口 Read 1 次 + Write 1 次；全 Stage ≤ 5 次（含豁免）。
+
+---
+
 ## Process Contract
 
 ### 必做动作
@@ -304,7 +320,7 @@ cd ../feature-{Feature 全名}
 
 ## AI Plan 模式指引
 
-📎 Execution Plan 4 行格式（含 Estimated）→ [SKILL.md「AI Plan 模式规范」](../SKILL.md#-ai-plan-模式规范v73-新增)。默认 approach → [agents/README.md §一](../agents/README.md#一执行方式参考默认推荐--判断原则)。
+📎 Execution Plan 4 行格式（含 Estimated）→ [SKILL.md「AI Plan 模式规范」](../SKILL.md#-ai-plan-模式规范v73-新增)。默认 approach → [agents/README.md §一 执行方式与模型](../agents/README.md)。
 
 本 Stage 默认 `main-conversation`（多视角 prompt 切换 + 用户讨论）。典型偏离：需求极清晰、无用户介入 → `subagent`。
 

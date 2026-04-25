@@ -148,7 +148,7 @@
         "跑单测确认全绿",
         "RD 自查（含 UI 还原自检，如涉及）"
       ],
-      "loaded_role_specs": ["roles/rd.md", "agents/rd-develop.md"],
+      "loaded_role_specs": ["roles/rd.md", "stages/dev-stage.md"],
       "loaded_standards": ["standards/common.md", "standards/backend.md"],
       "_dispatch_file_comment_v7.3.9+P0-14": "主对话模式下无 dispatch_file 字段（RD 在主对话直接执行）；切换到 subagent 时才填 dispatch_log/007-rd-develop.md",
       "_subagent_alternative_example": {

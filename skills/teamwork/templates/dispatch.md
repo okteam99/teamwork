@@ -1,12 +1,12 @@
 # Dispatch 文件模板
 
 > 📎 **适用范围（v7.3）**：本协议仅适用于 **Subagent dispatch** 场景。
-> 主对话直接执行任务的产物走「主对话产物协议」（见 `agents/README.md §六`）。
+> 主对话直接执行任务的产物走「主对话产物协议」（见 `agents/README.md §五`）。
 > AI 在 Stage 开始时用 Plan 模式决定执行方式（主对话 / Subagent / 混合），选择 Subagent 方案时才生成本协议的 dispatch 文件。
 
 > 每次 Subagent dispatch 由 PMO 先生成此文件，Subagent 读取后执行，完成时 append Result 区域。
 > 位置：`docs/features/{Feature}/dispatch_log/{序号}-{subagent-id}.md`
-> 命名规则：序号从 001 起，三位数字，补零；subagent-id 见 agents/README.md §一 速查表（如 rd-develop / arch-code-review / qa-code-review / integration-test / api-e2e / blueprint / designer）
+> 命名规则：序号从 001 起，三位数字，补零；subagent-id 是 dispatch 文件标签，沿用原有命名（rd-develop / arch-code-review / qa-code-review / integration-test / api-e2e / blueprint / designer），角色任务规范已合并至 stages/*.md（见 agents/README.md §一 速查表）
 > 并行 dispatch（同一 Stage 内同时发起多个）各用独立文件，序号递增但可视为同一批次
 
 ---
@@ -33,8 +33,8 @@
 ## Input files (read in order)
 🔴 Subagent 必须按此顺序读取。列表外的文件仅供参考，读与不读由 Subagent 判断。
 
-1. `{SKILL_ROOT}/agents/README.md` ← 通用执行规范（所有 Subagent 必读）
-2. `{SKILL_ROOT}/agents/{subagent-id}.md` ← 本角色执行规范
+1. `{SKILL_ROOT}/agents/README.md` ← 通用 Subagent 执行协议（所有 Subagent 必读）
+2. `{SKILL_ROOT}/stages/{stage}-stage.md` ← 本阶段契约 + 角色任务规范（如 `stages/dev-stage.md §RD 角色任务规范` / `stages/review-stage.md §架构师 CR 任务规范` / `stages/test-stage.md §API E2E 任务规范`）
 3. `{SKILL_ROOT}/standards/{common|backend|frontend}.md` ← 编码规范
 4. `{绝对路径}/PRD.md` ← 需求来源
 5. `{绝对路径}/TECH.md` ← 技术方案
@@ -170,7 +170,7 @@
 - ❌ BLOCKED
 - 💥 FAILED
 
-状态语义见 `{SKILL_ROOT}/agents/README.md §四 4.3 Subagent 返回状态分级处理`。
+状态语义见 `{SKILL_ROOT}/agents/README.md §四 4.6 Subagent 返回状态分级处理`。
 
 ---
 
@@ -193,7 +193,7 @@
 - Concerns（DONE_WITH_CONCERNS 必填；其他状态无则写「无」）:
   - {concern 1}
   - {concern 2}
-- Degradation（降级事件，触发时必填，遵循 agents/README.md §四 降级 WARN 格式）:
+- Degradation（降级事件，触发时必填，遵循 agents/README.md §四 4.1 降级 WARN 规则）:
   ```
   ⚠️ WARN [degradation-fallback]
   ├── reason  : {降级原因}
@@ -243,7 +243,7 @@ Step 2.5（v7.3.7 新增）: Subagent 运行中 — 主对话按需轮询
 Step 3: Subagent 完成后
 ├── PMO 读取 dispatch 文件确认 Result 已 append
 ├── 未 append → 视为 FAILED，触发降级兜底流程（并写入 WARN）
-├── 已 append 但状态异常 → 按 agents/README.md §四 4.3 处理
+├── 已 append 但状态异常 → 按 agents/README.md §四 4.6 处理
 ├── 🔴 PMO 读 dispatch 文件的 `Progress Log` 段，作为「时间轴回放」呈现给主对话用户
 │   ├── 把每个 step-start/step-done 转成主对话 TodoWrite 状态更新
 │   ├── 异常事件（degradation / step-blocked / step-concern）单独高亮显示
@@ -315,7 +315,7 @@ Step 4: INDEX 维护
 
 8. 🔴 Progress 可见性四段式协议（v7.3.7 修订，纠正"无实时通道"的反事实陈述）
    宿主 Task 工具 API 本身同步阻塞，但 **文件系统是天然的异步实时通道**。
-   详见 `agents/README.md §五 Progress 可见性协议`。
+   详见 `agents/README.md §四 4.3 Progress 可见性协议`。
    ├── 阶段 1 前置：PMO 在主对话 TodoWrite 预声明 Subagent 的 Step 列表
    ├── 阶段 2 中途自述：Subagent 每步 append Progress Log（必须 flush）
    ├── 阶段 3 运行中轮询：主对话按需 Read Progress Log 段获取增量（见 Step 2.5）

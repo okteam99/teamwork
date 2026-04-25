@@ -198,7 +198,7 @@ worktree=auto/manual 变体（单文件零逻辑变更也可选 off 跳过 workt
 **示例**：
 ```
 ---
-🔄 Teamwork 模式 | 流程：Micro | 角色：PMO | 功能：Micro-修复 README 拼写 | 阶段：PMO 执行改动中 | 下一步：⏸️ 等待用户验收
+🔄 Teamwork 模式 | 流程：Micro | 角色：RD | 功能：Micro-修复 README 拼写 | 阶段：RD 执行改动中 | 下一步：⏸️ 等待用户验收
 📁 /Users/dev/projects/myapp/README.md
 📍 当前分支：main（⚠️ Micro 直接改主分支，操作前确认工作区干净）
 ```
@@ -274,9 +274,9 @@ worktree=auto/manual 变体（单文件零逻辑变更也可选 off 跳过 workt
 | PRD 待确认（敏捷） | 阶段：⏸️ PRD 待确认 | 下一步：用户确认后进入 BlueprintLite |
 | 🔗 BlueprintLite Stage | 阶段：BlueprintLite 执行中（简化TC+实现计划） | 下一步：🚀 Dev Stage |
 | _敏捷后续（Dev→Review→Test→PM验收）复用 Feature 定义_ | | |
-| _以下为 Micro 流程专用阶段（v7.3.10+P0-16：PMO 主对话直接改，不再启 Subagent；P0-16 补丁：角色切换必读 rd.md+standards/*.md 不可豁免）_ | | |
-| PMO 加载 RD 规范（Micro）| 阶段：PMO 加载 RD 规范中 | 下一步：PMO 执行改动 |
-| PMO 执行改动（Micro） | 阶段：PMO 执行改动中 | 下一步：RD 自查 |
+| _以下为 Micro 流程专用阶段（v7.3.10+P0-20：主对话 PMO→RD 身份切换，由 RD 改动；不再启 Subagent；角色切换必读 rd.md+standards/*.md 不可豁免）_ | | |
+| PMO 加载 RD 规范（Micro）| 阶段：PMO→RD 身份切换、加载 RD 规范中 | 下一步：RD 执行改动 |
+| RD 执行改动（Micro） | 阶段：RD 执行改动中 | 下一步：RD 自查 |
 | RD 自查（Micro）| 阶段：RD 自查中 | 下一步：⏸️ 等待用户验收 |
 | Micro 升级判定 | 阶段：⏸️ Micro 升级确认 | 下一步：用户确认后进入敏捷 / Feature |
 | 用户验收（Micro） | 阶段：⏸️ 用户验收中 | 下一步：通过 → PMO 完成报告 |

@@ -619,13 +619,13 @@ try {
 
 ### Schema 变更链条术语对照
 
-| 阶段 | Agent 文件 | 使用术语 | 验证重点 | database-schema.md 操作 |
-|------|-----------|---------|---------|------------------------|
+| 阶段 | 规范位置 | 使用术语 | 验证重点 | database-schema.md 操作 |
+|------|----------|---------|---------|------------------------|
 | TECH.md 编写 | — | Schema 影响分析 | 列出所有受影响 Model/Struct 和 SQL | — |
-| Blueprint Stage 架构师方案评审 | roles/rd.md | Schema 影响分析完整性 | 验证分析是否遗漏（独立 grep 对照） | 🔴 更新设计层（表结构、ER 图、设计原则） |
-| RD 开发 | rd-develop.md | Schema 同步验证 | 代码是否已按影响分析表同步 | — |
-| 架构师 Code Review | arch-code-review.md | Schema 同步验证 | 代码变更是否与影响分析表一致 | 🔴 补充实现层（Model 映射、SQL 引用点） |
-| 集成测试 | integration-test.md | 迁移 + ORM 映射验证 | 运行时验证迁移可执行 + ORM/SQL 映射正确性 | — |
+| Blueprint Stage 架构师方案评审 | roles/rd.md §架构师方案评审规范 | Schema 影响分析完整性 | 验证分析是否遗漏（独立 grep 对照） | 🔴 更新设计层（表结构、ER 图、设计原则） |
+| RD 开发 | stages/dev-stage.md §RD 角色任务规范 | Schema 同步验证 | 代码是否已按影响分析表同步 | — |
+| 架构师 Code Review | stages/review-stage.md §架构师 CR 任务规范 | Schema 同步验证 | 代码变更是否与影响分析表一致 | 🔴 补充实现层（Model 映射、SQL 引用点） |
+| 集成测试 | stages/test-stage.md §集成测试任务规范 | 迁移 + ORM 映射验证 | 运行时验证迁移可执行 + ORM/SQL 映射正确性 | — |
 
 > 📎 各阶段术语不同是因为验证角度不同，但校验基准统一为 TECH.md「Schema 影响分析」表。
 > 📎 database-schema.md 两阶段更新：设计层（Tech Review 后写入）→ 实现层（Code Review 后补充）。

@@ -153,7 +153,7 @@ RD 在以下情况必须标记「⚠️ 上游影响」：
 
 ### 🏗️ 资深架构师 Code Review（RD 专属，TDD Subagent 完成后 Subagent 自动触发）
 
-**规范**: [agents/arch-code-review.md](./agents/arch-code-review.md)（执行方式见 [agents/README.md](./agents/README.md) §一，启动规则：[RULES.md](./RULES.md) 四-B）
+**规范**: [stages/review-stage.md §架构师 CR 任务规范](./stages/review-stage.md)（执行方式见 [agents/README.md](./agents/README.md) §一，启动规则：[RULES.md](./RULES.md) 四-B）
 
 **触发**：
 ```
@@ -188,7 +188,7 @@ RD 在以下情况必须标记「⚠️ 上游影响」：
 │   ├── 命名/分包是否与项目规范一致
 │   ├── 是否有 God Class 或过长方法
 │   └── 复杂逻辑是否有足够注释
-├── 性能与安全（完整审查项详见 agents/arch-code-review.md）
+├── 性能与安全（完整审查项详见 stages/review-stage.md §架构师 CR 任务规范）
 │   ├── 🔴 并发与竞态：TOCTOU / 原子性 / 锁策略 / 死锁风险 / 脏读 / 事务粒度 / 幂等性
 │   ├── 🔴 资源耗尽：连接池泄漏 / 内存（流式处理）/ 文件句柄 / 线程泄漏 / N+1 查询
 │   ├── 🔴 缓存策略：击穿（热点 key 保护）/ 穿透（空值缓存）/ 雪崩（过期随机化）/ 一致性
@@ -209,7 +209,7 @@ RD 在以下情况必须标记「⚠️ 上游影响」：
 ```
 架构文档两阶段更新分工：
 
-阶段 1：Tech Review 后（arch-tech-review）
+阶段 1：Blueprint Stage 架构师方案评审后（主对话角色，规范见 roles/rd.md §架构师方案评审）
 ├── 架构子文档设计层更新（按技术方案涉及的范围）：
 │   ├── database-schema.md（涉及 schema 变更时）→ 表结构、ER 图、设计原则
 │   ├── api-design.md（涉及 API 变更时）→ 接口清单、版本策略
@@ -217,7 +217,7 @@ RD 在以下情况必须标记「⚠️ 上游影响」：
 │   └── 🔴 仅更新设计层，不更新实现层细节（Model 映射、SQL 引用点、代码路径）
 ├── ARCHITECTURE.md 本体 → 不修改（等 Code Review）
 
-阶段 2：Code Review 后（arch-code-review Subagent 执行）
+阶段 2：Review Stage 架构师 Code Review 后（规范见 stages/review-stage.md §架构师 CR 任务规范，执行方式见 agents/README.md §一）
 ├── ARCHITECTURE.md 更新：
 │   ├── 新增模块 → 在「核心模块说明」中添加
 │   ├── 架构调整 → 更新架构图 + 记录设计决策
@@ -373,7 +373,7 @@ RD 开发完成后，必须输出自查报告，不允许跳过：
 > 4. 安全检查（注入/认证/数据/输入）
 > 5. 验收标准覆盖（PRD 验收标准逐项对照）
 
-**完成后**: 自查通过 → 🤖 自动进入架构师 Code Review（Subagent）→ 有 UI 则 UI 验收 → 🤖 QA 代码审查（Subagent）
+**完成后**: 自查通过 → 🤖 自动进入 Review Stage（架构师 CR + QA CR + 外部 Codex，执行方式见 agents/README.md §一，任务规范见 stages/review-stage.md）→ 有 UI 则 UI 验收
 
 ---
 
@@ -385,7 +385,7 @@ RD 开发完成后，必须输出自查报告，不允许跳过：
 
 ## 一、角色定位
 
-你是 Teamwork 协作框架中的 **资深架构师**，负责在独立 subagent 中对 RD 的技术方案进行全面审查。你是独立于 RD 方案编写者的审查角色，核心职责是**结合 PRD 需求和 UI 设计，确保技术方案完整覆盖产品需求且设计合理**。
+你是 Teamwork 协作框架中的 **资深架构师**，对 RD 的技术方案进行全面审查。你是独立于 RD 方案编写者的审查角色，核心职责是**结合 PRD 需求和 UI 设计，确保技术方案完整覆盖产品需求且设计合理**。📎 执行方式：默认主对话（保留上下文 + 怀疑者视角），大方案时由 AI Plan 决定是否走 Subagent 隔离，见 agents/README.md §一。
 
 ---
 

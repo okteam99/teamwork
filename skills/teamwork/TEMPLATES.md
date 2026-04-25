@@ -49,13 +49,16 @@
 - **roadmap.md** — 产品执行路线图
 - **project.md** — 子项目业务总览
 - **architecture.md** — 技术架构设计（含 database-schema 等子文档）
-- **knowledge.md** — 项目本地知识库
+- **knowledge.md** — 项目本地知识库（v7.3.10+P0-22 收敛为 3 类：Gotchas / Conventions / Preferences，不再含架构决策——决策走 ADR）
 - **teamwork-space.md** — 多子项目全景入口
 - **bug-report.md** — Bug 排查与修复报告
 - **config.md** — 项目配置（RESOURCES + .teamwork_localconfig + external/README）
 - **dependency.md** — 跨子项目依赖请求追踪
 - **e2e-registry.md** — E2E 回归测试中心（REGISTRY + ENVIRONMENT + REG cases）
 - **pl-pm-feedback.md** — PL-PM 讨论反馈（PL-FEEDBACK + PM-RESPONSE）
+- **adr.md** — ADR（Architecture Decision Record）单条决策记录模板（v7.3.10+P0-21 新增，opt-in 触发）
+- **adr-index.md** — ADR 索引模板（每子项目一份 `docs/adr/INDEX.md`，v7.3.10+P0-21 新增）
+- **retros-index.md** — 复盘索引模板（每子项目一份 `docs/retros/INDEX.md`，v7.3.10+P0-22 新增，与 KNOWLEDGE 收敛配套）
 
 ## 文件位置
 

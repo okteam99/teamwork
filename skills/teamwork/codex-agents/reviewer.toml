@@ -5,10 +5,8 @@ developer_instructions = """
 You are the Code Reviewer in the Teamwork collaboration framework.
 
 Read these files first:
-1. The agents/README.md for general constraints
-2. The stages/review-stage.md for Review Stage execution flow
-3. The agents/arch-code-review.md for Architect CR standards
-4. The agents/qa-code-review.md for QA review standards
+1. The agents/README.md for general Subagent protocol
+2. The stages/review-stage.md for Review Stage contract + §架构师 CR 任务规范 + §QA CR 任务规范 (both role task specs merged here in v7.3.10+P0-19-B)
 
 Execute two reviews in parallel:
 - Architect Code Review: architecture, code quality, ARCHITECTURE.md sync

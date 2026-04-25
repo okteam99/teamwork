@@ -166,16 +166,19 @@ AUTO_MODE=true + Test Stage 完成 + TC.md 含 Browser E2E AC
 
 ## Micro 流程
 
-> 🟢 Micro = 零逻辑变更的最轻量通道（v7.3 放宽 / v7.3.10+P0-16 明确）：PMO 自行判断执行方式——✍️ 主对话以 RD 身份直接改（默认，无需 Subagent / Execution Plan / dispatch），或 🔀 判定超出 Micro 白名单时升级到 Plan 模式走敏捷或 Feature。
-> 🔴 **角色切换必读不豁免（P0-16 补丁）**：PMO 切 RD 身份改之前必须真实 Read `roles/rd.md`（职责 + 自查段）+ `standards/common.md`（必读）+ `standards/frontend.md` / `standards/backend.md`（按改动类型加读），并在 PMO 阶段摘要 cite 1-2 句规范要点。改动后按 `roles/rd.md` 自查段执行。
+> 🟢 Micro = 省 Plan/Blueprint/UI/Review/Test Stage 的最短 RD 闭环（v7.3 引入 / v7.3.10+P0-20 统一）：代码写权仍归 RD，允许主对话内 PMO→RD 身份切换由 RD 改动（无需 Subagent / Execution Plan / dispatch），或 🔀 判定超出 Micro 白名单时升级到 Plan 模式走敏捷或 Feature。Micro 不是红线 #1 的例外，是独立流程。
+> 🔴 **身份切换必读不豁免（P0-16 补丁 / P0-20 保留）**：PMO→RD 身份切换改之前必须真实 Read `roles/rd.md`（职责 + 自查段）+ `standards/common.md`（必读）+ `standards/frontend.md` / `standards/backend.md`（按改动类型加读），并在主对话阶段摘要 cite 1-2 句规范要点。改动后按 `roles/rd.md` 自查段执行。
+> 🔴 **反漂移双补丁（P0-20-B）**：
+> - **第一人称锚点**：身份切换后阶段摘要首句必须以「作为 RD，……」开头，作为身份锚点
+> - **追加改动回退**：RD 身份执行过程中若用户追加新改动请求，必须先跳回 PMO 身份重新做 Micro 准入（通过 → 切回 RD；超出白名单 → 升级）。禁止在 RD 身份下直接接收新需求
 
 | 当前阶段 | 允许的下一阶段 | 流转 | 条件 |
 |----------|---------------|------|------|
-| PMO 分析 | PMO 加载 RD 规范 | ⏸️暂停 | 用户确认走 Micro 流程（📎 worktree=auto 时 PMO 在此处创建 worktree，分支名用 `chore/*`；单文件零逻辑变更可允许用户选择 off 跳过）|
-| PMO 加载 RD 规范 | PMO 执行改动 | 🚀自动 | 🔴 Read roles/rd.md + standards/common.md（+ frontend/backend 按需）+ 摘要 cite 规范要点 完成 |
-| PMO 执行改动 | RD 自查 | 🚀自动 | PMO 按变更清单主对话直接改完成 |
+| PMO 分析 | PMO→RD 身份切换、加载 RD 规范 | ⏸️暂停 | 用户确认走 Micro 流程（📎 worktree=auto 时 PMO 在此处创建 worktree，分支名用 `chore/*`；单文件零逻辑变更可允许用户选择 off 跳过）|
+| PMO→RD 身份切换、加载 RD 规范 | RD 执行改动 | 🚀自动 | 🔴 Read roles/rd.md + standards/common.md（+ frontend/backend 按需）+ 摘要 cite 规范要点 完成 |
+| RD 执行改动 | RD 自查 | 🚀自动 | RD 按变更清单主对话直改完成 |
 | RD 自查 | 用户验收 | 🚀自动 | 按 roles/rd.md 自查段执行（规范符合 + 已有测试无回归）|
-| PMO 执行改动 / RD 自查 | ⏸️ 升级确认 | ⏸️暂停 | 执行前/中/自查中发现超出 Micro 白名单或隐含逻辑变更 → PMO 输出升级原因 → 用户确认走敏捷或 Feature |
+| RD 执行改动 / RD 自查 | ⏸️ 升级确认 | ⏸️暂停 | 执行前/中/自查中发现超出 Micro 白名单或隐含逻辑变更 → PMO 输出升级原因 → 用户确认走敏捷或 Feature |
 | 用户验收 | ✅ 已完成 | ⏸️暂停 | 用户手测/目视确认通过 → PMO 完成报告（含事后审计 + 自查摘要）|
 
 ## 通用特殊状态（适用所有流程）

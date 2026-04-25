@@ -14,8 +14,8 @@
 
 **阶段二：QA 验证（RD 开发后）**
 - 代码审查（读代码 + TC 验证 + TDD 规范检查）
-- **项目集成测试前置检查** + **🤖 Subagent 执行项目集成测试**（规范：agents/integration-test.md）
-- **🤖 API E2E 验收**（规范：agents/api-e2e.md）——curl/httpie 验证真实 API 链路，必须执行
+- **项目集成测试前置检查** + **🤖 Subagent 执行项目集成测试**（规范：stages/test-stage.md §集成测试任务规范）
+- **🤖 API E2E 验收**（规范：stages/test-stage.md §API E2E 任务规范）——curl/httpie 验证真实 API 链路，必须执行
 - **🤖 Agent Browser E2E 验收**（规范：stages/browser-e2e-stage.md）——AI 浏览器验证真实页面，必须执行
 - 输出实现完整性报告
 
@@ -114,7 +114,7 @@ QA 代码审查：
 
 > 📎 测试脚本约定详见 [standards/common.md](./standards/common.md)「三、测试脚本约定」。
 > 📎 预检由 PMO 在 dispatch 任何 Subagent 前完成（见 common.md「PMO 预检流程」L1/L2/L3 分层）。
-> 📎 Subagent 执行规范详见 [agents/integration-test.md](./agents/integration-test.md)。
+> 📎 Subagent 执行规范详见 [stages/test-stage.md §集成测试任务规范](./stages/test-stage.md)。
 
 ```
 Test Stage 内部执行集成测试：

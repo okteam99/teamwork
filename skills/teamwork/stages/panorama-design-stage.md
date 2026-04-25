@@ -55,6 +55,22 @@
 
 ---
 
+## 入口 Read 顺序（v7.3.10+P0-23 固定）
+
+🔴 按以下顺序 Read，字节一致利于 prompt cache 命中。详见 [standards/prompt-cache.md](../standards/prompt-cache.md)。
+
+```
+Step 1: roles/designer.md                              ← 角色层（L0 稳定）
+Step 2: 无产出新模板                                    （产物为 sitemap.md + overview.html，直接按 standards/common.md 组织）
+Step 3: {Feature Planning}/PRD.md 或 ROADMAP.md, docs/PROJECT.md  ← Feature 既有产物（L2）
+        [条件] design/sitemap.md, design/preview/overview.html    （重建基线参考）
+Step 4: {Feature}/state.json                           ← 🔴 最后，动态入口（L3）
+```
+
+🔴 R3 约束：state.json 入口 Read 1 次 → 中段 0 读写 → 出口 Read 1 次 + Write 1 次；全 Stage ≤ 5 次。
+
+---
+
 ## Process Contract
 
 ### 必做动作

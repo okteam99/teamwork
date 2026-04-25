@@ -41,9 +41,10 @@
 ├── 编号在单个 Feature 的 dispatch_log/ 目录内递增，跨 Feature 不共享
 ├── 并行 dispatch（同 Stage 同批次）各占一个序号，Batch 字段标注同批次
 ├── 重新 dispatch（NEEDS_CONTEXT 补充后）→ 新序号 + 新文件，Previous dispatch 字段指向前次
-├── subagent-id 取自 agents/README.md §一 执行方式速查表：
+├── subagent-id 是 dispatch 文件标签，沿用原有命名（见 agents/README.md §一 速查表）：
 │   blueprint / rd-develop / arch-code-review / codex-review / qa-code-review
 │   integration-test / api-e2e / designer / pm-prd / qa-plan 等
+│   🔴 v7.3.10+P0-19-B 起角色任务规范已合并至 stages/*.md，subagent-id 仅作标签用
 └── INDEX.md 固定位于 dispatch_log/ 根下，不参与序号
 ```
 

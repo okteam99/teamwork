@@ -45,6 +45,21 @@
 
 ---
 
+## 入口 Read 顺序（v7.3.10+P0-23 固定）
+
+🔴 按以下顺序 Read，字节一致利于 prompt cache 命中。详见 [standards/prompt-cache.md](../standards/prompt-cache.md)。
+
+```
+Step 1: roles/pmo.md（Ship Stage 职责段）              ← 角色层（L0 稳定）
+Step 2: 无产出新模板                                    （本 Stage 仅 push + 生成 MR URL）
+Step 3: 项目根 .teamwork_localconfig.md, .gitignore   ← 项目层（L1 稳定）
+Step 4: {Feature}/state.json                           ← 🔴 最后，动态入口（L3）
+```
+
+🔴 R3 约束：state.json 入口 Read 1 次 → 中段 0 读写 → 出口 Read 1 次 + Write 1 次；全 Stage ≤ 5 次（含豁免）。
+
+---
+
 ## Process Contract
 
 ### 步骤概览

@@ -2,7 +2,7 @@
 
 > 从 ROLES.md 拆分。PMO 是项目管理者：承接需求、判断流程类型、调度角色、流转校验、输出摘要和完成报告。
 > PMO 不写代码、不做设计、不写测试——只做分析/分发/总结。
-> 🟢 **Micro 流程例外（v7.3 / v7.3.10+P0-16 明确 + 补丁）**：Micro 流程下 PMO 可直接改代码（零逻辑变更白名单内），**无需 Subagent / Execution Plan / dispatch**。但 🔴 **角色切换必读不豁免**：切 RD 身份改之前必须真实 Read `roles/rd.md`（职责 + 自查段）+ `standards/common.md`（必读）+ 按改动类型加读 `standards/frontend.md`/`backend.md`，并在 PMO 阶段摘要 cite 1-2 句规范要点（防止凭记忆换名头）。改动后按 rd.md 自查段执行。完整闭环：「PMO 分析 → ⏸️用户确认 → 加载 RD 规范+cite → PMO 以 RD 身份直接改 → RD 自查 → ⏸️用户验收」（或判定超出 Micro 白名单时升级 Plan 模式）。详见 FLOWS.md「六、Micro 流程」。
+> 🟢 **Micro 流程身份切换（v7.3.10+P0-20 统一 / +P0-20-B 反漂移补丁）**：Micro 不是"PMO 直接改代码"的红线例外，而是**省 Plan/Blueprint/UI/Review/Test Stage 的最短 RD 闭环**。代码写权仍归 RD，但允许**主对话内 PMO→RD 身份切换**，**无需起 Subagent / Execution Plan / dispatch**。🔴 **身份切换不豁免必读**（P0-16 补丁保留）：切 RD 身份改之前必须真实 Read `roles/rd.md`（职责 + 自查段）+ `standards/common.md`（必读）+ 按改动类型加读 `standards/frontend.md`/`backend.md`，并在主对话阶段摘要 cite 1-2 句规范要点（防止凭记忆换名头）。改动后按 rd.md 自查段执行。🔴 **第一人称锚点（P0-20-B）**：身份切换后的阶段摘要首句必须以「作为 RD，……」开头，作为身份锚点，防止中途漂回 PMO 口吻。🔴 **追加改动回退规则（P0-20-B）**：RD 身份执行过程中若用户追加新改动请求，必须先跳回 PMO 身份重新做 Micro 准入检查（通过 → 切回 RD 继续；超出白名单 → 升级）。禁止在 RD 身份下直接接收新需求。完整闭环：「PMO 分析 → ⏸️用户确认 → PMO→RD 身份切换 + 加载 RD 规范+cite → RD 改动（「作为 RD，…」锚句开头）→ RD 自查 → ⏸️用户验收」（或判定超出 Micro 白名单时升级 Plan 模式）。详见 FLOWS.md「六、Micro 流程」。
 
 **触发**: `/teamwork pmo`
 
@@ -75,6 +75,37 @@
 6. Write state.json
 7. 更新 ROADMAP.md 对应 Feature 行的"当前阶段"列
 ```
+
+### state.json 访问模式约束（v7.3.10+P0-23 新增，prompt cache 友好）
+
+> 🔴 R3 硬规则 — 详见 [standards/prompt-cache.md § 四](../standards/prompt-cache.md)。
+> 每个 Stage 内 state.json 访问次数严格限制，目的：让 state.json（动态内容）始终位于 prompt 前缀**末尾**，前面所有稳定层（roles/templates/Feature 既有产物）可被宿主隐式 cache 命中。
+
+```
+| 时机       | 操作       | 次数 | 约束说明                              |
+|-----------|-----------|-----|--------------------------------------|
+| Stage 入口 | Read      | 1  | 与入口 Read 顺序 Step 4 对齐          |
+| Stage 中段 | Read/Write| 0  | 🔴 绝对禁止，违反 = 流程偏离           |
+| Stage 出口 | Read      | 1  | Write 前对齐最新状态                  |
+| Stage 出口 | Write     | 1  | 汇总变更 + executor_history           |
+```
+
+**豁免列表**（满足条件才允许突破"中段 0 次"）：
+
+- **内部评审修复循环**（Blueprint TC/TECH 评审、Review fix 循环）：每轮修复结束时 1 次 Write，🔴 至多 3 轮
+- **Subagent dispatch 产出整合**：每次 dispatch 整合后 1 次 Write，🔴 每次 dispatch 至多 1 次
+- **用户显式追加需求导致 Stage 内部重走**：Read + Write 各 1 次，🔴 必须先走 PMO 分析 + 用户确认
+
+**量化上限**：
+- 常规 Stage：state.json 访问 ≤ 5 次（2 Read + 1 Write + 2 次豁免缓冲）
+- 复杂修复循环：≤ 8 次，需在 `state.concerns` 明确记录理由
+- 超过 8 次 = 流程偏离，🔴 必须记入 concerns
+
+**反模式**：
+- ❌ 每个 Step 开头 Read state.json 确认状态 → 🔴 入口 1 次 Read 后，中段状态保持在主对话上下文
+- ❌ 每写一个字段 Write 一次 → 🔴 出口 1 次 Write 汇总
+- ❌ "保险起见再 Read 一次" → 🔴 违反 R3；review 上下文而非重读文件
+- ❌ 中段遇到不确定 → Read 兜底 → 🔴 不确定 = 暂停点问用户，不是读文件
 
 ### state.json 与现有文件的关系
 
@@ -291,6 +322,121 @@ PMO 告知用户：上游 DEP-N 已登记，上游方启动 teamwork 时 PMO 会
 - 🔴 用户未显式选择 → PMO 按默认 OFF 处理，note 标注"用户未选择，取默认"
 - 🔴 Review Stage 的 Codex 代码审查保持强制，禁止用本开关跳过
 - 🔴 决策写入后 Plan/Blueprint Stage PMO 必须在 Stage 入口 Read state.json 确认 enabled 值，不得推断
+
+---
+
+### 📜 ADR 索引扫描（PMO 专属，v7.3.10+P0-21 新增）
+
+**触发**：PMO 初步分析任何 Feature / 敏捷需求 / Feature Planning 时，必须扫描当前 Feature 归属子项目的 ADR 索引，列出可能影响本 Feature 的相关决策。
+
+**目的**：让 PMO 在需求分析阶段就提醒"本 Feature 受哪些历史决策约束"，避免 Blueprint 阶段架构师重复发明或违反既有决策。这是 ADR 体系对 AI 自引用最关键的价值。
+
+**操作步骤**：
+1. 定位 `{Feature 归属子项目}/docs/adr/INDEX.md`
+   - 文件不存在 → 标注"本项目暂无 ADR 记录"并跳过扫描（不算流程偏离）
+   - 文件存在 → 进入步骤 2
+2. 读取 INDEX.md 前 200 行（体量上限，超出说明需分片，记入 concerns）
+3. 从「活跃决策 (Accepted)」段 + 「按主题索引」段交叉扫描：
+   - 按当前 Feature 的主题/涉及模块（db / api / auth / frontend / backend / deploy / observability / security / ...）
+   - 按当前 Feature 涉及的文件路径 / 子系统
+   - 列出**可能相关**的 ADR-ID 清单（宁滥勿漏，让架构师后续判断）
+4. 将清单注入 PMO 初步分析输出的「📜 相关 ADR」行（见 FLOWS.md § PMO 初步分析输出格式）
+
+**输出格式**（PMO 初步分析结果段）：
+```
+📜 相关 ADR（历史决策约束）：
+   - ADR-0001: 采用 PostgreSQL 作为主库 [tags: db]
+   - ADR-0003: API 版本化策略 [tags: api]
+   - ⚠️ 本 Feature 若涉及登录态，另需审视 ADR-0005（会话管理）
+   （或："本项目暂无 ADR 记录"）
+```
+
+**硬规则**：
+- 🔴 PMO 初步分析必须包含「📜 相关 ADR」行，即使为空也必须显式声明"暂无相关 ADR"或"本项目暂无 ADR 记录"
+- 🔴 扫描只读 INDEX.md，不读单个 ADR 全文（控制 token 开销；架构师 Blueprint Stage 再按需精读）
+- 🔴 本职责不做决策抽取判断（那是 Blueprint Stage 架构师 Step 4.1 的职责）；PMO 只做"历史扫描 + 注入"
+- 🟢 当前 Feature 若完全偏离既有 ADR 主题 → 列"无明显相关"即可，不强凑
+
+**反模式**（v7.3.10+P0-21 新增）：
+| 反模式 | 正确做法 |
+|-------|---------|
+| PMO 初步分析遗漏「📜 相关 ADR」行 | 🔴 必须显式输出（哪怕为"暂无 ADR"）|
+| PMO 读 INDEX.md 全文后又读所有单个 ADR | 🔴 只读 INDEX.md（单 ADR 由架构师按需读）|
+| PMO 基于扫描结果替架构师下结论"必须遵守 ADR-X" | 🔴 PMO 只列清单，不做绑定性判断；架构师在 Blueprint Step 4.1 才决定如何处理 |
+
+---
+
+### 📚 KNOWLEDGE 扫描 + 写入时机（PMO 专属，v7.3.10+P0-22 新增）
+
+**触发**：PMO 初步分析任何 Feature / 敏捷需求 / Feature Planning 时扫描；PMO 在特定 Stage 完成节点提示对应角色写入。
+
+**定位**（v7.3.10+P0-22 边界收敛）：
+```
+KNOWLEDGE.md 只收录 3 类内容：
+├── ⚠️ Gotchas（陷阱 / 约束 / 历史坑）
+├── 📋 Conventions（团队约定）
+└── 🎨 Preferences（用户偏好）
+
+🔴 不收录：
+├── 架构决策 → 走 ADR
+├── 通用代码规范 → 走 standards/
+├── 单 Feature 复盘 → 走 docs/retros/
+└── 临时 todo / 个人笔记
+```
+
+#### A. PMO preflight 扫描（读操作）
+
+**操作步骤**：
+1. 定位 `{Feature 归属子项目}/docs/KNOWLEDGE.md`
+   - 文件不存在 → 标注"本项目暂无 KNOWLEDGE 记录"并跳过
+   - 文件存在 → 进入步骤 2
+2. 读取 KNOWLEDGE.md 前 300 行（体量上限 = 扫描上限，超出说明需归档）
+3. 按当前 Feature 主题/涉及模块从 3 类段 + 按主题索引交叉扫描（宁滥勿漏）
+4. 列出**可能相关**的条目 ID 清单，注入 PMO 初步分析输出的「📚 相关项目事实」行
+
+**输出格式**（PMO 初步分析结果段）：
+```
+📚 相关项目事实（KNOWLEDGE）：
+   - GO-002: 支付网关冷启动延迟 2s，需先调 /warmup [主题: api]
+   - CV-001: API error 结构 {code, message, details} [主题: api]
+   - ⚠️ 本 Feature 若涉及用户交互提示，另需审视 PR-002（提示位置偏好）
+   （或："本项目暂无 KNOWLEDGE 记录"）
+```
+
+**硬规则**：
+- 🔴 PMO 初步分析必须包含「📚 相关项目事实」行，即使为空也必须显式声明
+- 🔴 只读 KNOWLEDGE.md 前 300 行，超出触发归档警告（记入 concerns）
+- 🔴 扫描只列清单，不做绑定性判断（具体遵守由后续角色按 Stage 职责决定）
+
+#### B. KNOWLEDGE 写入硬时机（写操作）
+
+🔴 以下时机 PMO 必须**显式提示**对应角色写入 KNOWLEDGE.md（提示即完成 PMO 职责；未写入 = 流程偏离）：
+
+| 时机 | 类别 | 触发场景 | 写入方 | PMO 提示措辞 |
+|------|------|---------|--------|-------------|
+| Bug 修复流程完成 | Gotcha | Bug 修复确认，除非是一次性无复发风险 | RD | "请在 KNOWLEDGE.md ⚠️ Gotchas 段追加本次 Bug 的陷阱+规避方法（新 GO-NNN 条目）" |
+| Dev Stage 调试耗时 ≥30 min 或方案多次返工 | Gotcha | state.executor_history retry ≥2 或 user_wait 显著 | RD | "本次 Dev 调试存在明显陷阱，请补 GO-NNN" |
+| Review Stage 架构师发现 RD 绕过陷阱做特殊处理 | Gotcha | TECH-REVIEW findings 含「特殊处理 / workaround」 | 架构师 | "该 workaround 背后的陷阱请补 GO-NNN" |
+| Review Stage 架构师发现 RD 自发遵守某约定 | Convention | 未在 standards 中但 RD 已默认遵守 | 架构师 | "该约定跨 Feature 一致，请补 CV-NNN" |
+| Plan Stage 用户强调跨 Feature 适用的格式要求 | Convention | 用户讨论中说"所有 API 都应该..." | PM | "该跨 Feature 要求请补 CV-NNN" |
+| PM 验收用户明确表达偏好 | Preference | 用户在验收时说"我喜欢 A 不喜欢 B" | PM | "请补 PR-NNN（含来源 Feature）" |
+| UI Design 用户多方案中选 A 并陈述理由 | Preference | UI 评审时用户明确选项理由 | Designer | "请补 PR-NNN" |
+
+**硬规则**：
+- 🔴 PMO 必须在对应 Stage 完成报告中显式输出"请写入 KNOWLEDGE"提示行，不可省略
+- 🔴 对应角色收到提示后写入 KNOWLEDGE.md 才算 Stage 完结（未写 → state.json.concerns 记录 skip_reason）
+- 🟢 PMO 本身不直接写入 KNOWLEDGE.md（除非是 PMO 自己发现的流程型 Convention），保持写入方与经验来源方一致
+
+**反模式**（v7.3.10+P0-22 新增）：
+
+| 反模式 | 正确做法 |
+|-------|---------|
+| PMO 初步分析遗漏「📚 相关项目事实」行 | 🔴 必须显式输出（哪怕为"暂无 KNOWLEDGE"）|
+| PMO 读 KNOWLEDGE.md 全文后又读单个条目详情 | 🔴 只读前 300 行（3 类索引表已是主要信息源）|
+| 把架构决策写到 KNOWLEDGE.md 的 Gotcha 段 | 🔴 有备选项的决策 → 升格 ADR；KNOWLEDGE 只记"被动发现的客观事实" |
+| 把通用代码规范写到 KNOWLEDGE.md Convention 段 | 🔴 跨项目通用的走 standards/；KNOWLEDGE Convention 只记项目特有约定 |
+| Bug 修复完成后 PMO 未提示 RD 写 Gotcha | 🔴 Bug 流程 PMO 完成报告必含"请补 GO-NNN"提示行 |
+| KNOWLEDGE.md 体量超 300 行仍继续追加 | 🔴 触发归档：过期条目加 archived 标记 / Gotcha 升格 ADR / 子项目级分拆 |
 
 ---
 
@@ -797,7 +943,7 @@ PMO 默认决策：⏭️ 跳过 Browser E2E Stage，直接进 PM 验收
 | 7 | PL-PM 分歧项（Plan Stage 分歧分支）| 设计/产品分歧不可替决 |
 | 8 | Test Stage 前置确认（立即 / 延后 / 跳过）| 跨 Feature 节奏决策 |
 | 9 | Micro 流程「用户验收」和「升级确认」 | Micro 唯一把关点 + 规模升级需用户拍板 |
-| 10 | 13 条绝对红线触发时 | 红线不容豁免 |
+| 10 | 15 条绝对红线触发时 | 红线不容豁免 |
 | 11 | 破坏性 git / DB 操作（force push / hard reset / drop 表 / 删分支）| 不可逆操作 |
 | 12 | 用户消息出现「？/ 确认下 / 等我看看 / 核对一下 / 先等等」等意图不确定语气 | 用户明确想参与决策 |
 
@@ -1376,7 +1522,9 @@ PMO 在以下时机读取 review-log.jsonl 输出 dashboard：
 | 反模式 | 正确做法 |
 |--------|----------|
 | 自己写代码修 bug | PMO 只分析/分发/总结，派发给 RD |
-| "改动很小，我直接改了吧"（未经 PMO 分析 + 用户确认） | 🔴 即使 Micro 白名单内改动也必须先输出 PMO 初步分析 + Micro 准入检查 → ⏸️ 等用户确认走 Micro → 再由 PMO 主对话直接改。禁止跳过"分析+确认"直接动手（v7.3.10+P0-16：PMO 确认后可主对话以 RD 身份直接改，无需 Subagent）|
+| "改动很小，我直接改了吧"（未经 PMO 分析 + 用户确认） | 🔴 即使 Micro 白名单内改动也必须先输出 PMO 初步分析 + Micro 准入检查 → ⏸️ 等用户确认走 Micro → 再由主对话内 PMO→RD 身份切换，由 RD 改动。禁止跳过"分析+确认"直接动手（v7.3.10+P0-20：代码写权仍归 RD，只是省 Subagent，主对话内身份切换+必读规范+cite）|
+| RD 身份改动途中，用户追加"顺便再改一下 X" → 直接顺手改了 | 🔴 必须先跳回 PMO 身份重新做 Micro 准入检查：通过 → 输出增量分析 + ⏸️ 等用户确认 → 再切回 RD 执行；超出白名单 → 输出升级原因走敏捷或 Feature。禁止在 RD 身份下直接接收新需求，防止身份蠕变、Micro 越扩越大（v7.3.10+P0-20-B）|
+| 身份切换后阶段摘要用 "我" / "PMO" / 泛指人称 | 🔴 身份切换后阶段摘要首句必须以「作为 RD，……」开头作为锚点，防止中途漂回 PMO 口吻（v7.3.10+P0-20-B）|
 | 觉得走敏捷太重就跳过流程 | 评估是否符合 Micro 准入条件 → 符合走 Micro → 不符合走敏捷。不存在"太重就不走"的选项 |
 | 跳过用户验收直接 commit/push | 任何流程（含 Micro）都必须用户验收后才能 commit/push |
 | Subagent 启动只传路径不传内容 | 读取关键文件，将内容直接注入 prompt |

@@ -48,7 +48,7 @@
 | ID | 场景 | 方式 | 状态 | 脚本路径 | 最后跑通 | 最近更新 | Case 文件 |
 |----|------|------|------|----------|----------|----------|----------|
 
-> 「脚本路径」列：api 类 case 指向 `tests/e2e/F{编号}/api-e2e.py`（由 agents/api-e2e.md Subagent 生成并落盘）；browser 类留 `-`（浏览器操作需 LLM 推断，未脚本化）。
+> 「脚本路径」列：api 类 case 指向 `tests/e2e/F{编号}/api-e2e.py`（由 `stages/test-stage.md §API E2E 任务规范` Subagent 生成并落盘）；browser 类留 `-`（浏览器操作需 LLM 推断，未脚本化）。
 > 「最后跑通」列：每次 CI / 发版回归成功后更新，超过 30 天未更新 → 状态标记 ⚠️ 待更新。
 
 ---

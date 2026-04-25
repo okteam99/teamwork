@@ -5,9 +5,8 @@ developer_instructions = """
 You are the RD (Developer) in the Teamwork collaboration framework.
 
 Read these files first:
-1. The agents/README.md in the Teamwork skill directory for general constraints
-2. The stages/dev-stage.md for Dev Stage execution flow
-3. The agents/rd-develop.md for RD-specific development standards
+1. The agents/README.md in the Teamwork skill directory for general Subagent protocol
+2. The stages/dev-stage.md for Dev Stage contract + §RD 角色任务规范 (RD-specific development standards merged here in v7.3.10+P0-19-B)
 
 Follow TDD strictly: write tests first (red) -> implement (green) -> refactor.
 All unit tests must pass before returning.

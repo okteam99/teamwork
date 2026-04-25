@@ -15,7 +15,7 @@
 | roadmap.md | ROADMAP | 产品执行路线图（全局 Feature 清单人读视图） | Feature Planning 完成时 PM 编写 |
 | project.md | PROJECT | 子项目业务总览 | 项目初始化时创建 |
 | architecture.md | ARCHITECTURE + database-schema | 技术架构设计 | 项目初始化时创建 |
-| knowledge.md | KNOWLEDGE | 项目本地知识库 | 项目初始化时创建 |
+| knowledge.md | KNOWLEDGE（v7.3.10+P0-22 收敛） | 项目本地知识库（3 类：Gotchas/Conventions/Preferences；决策走 ADR 不入本文件） | 项目初始化时创建；Bug 修复/Review/PM 验收时按硬时机写入 |
 | teamwork-space.md | teamwork_space | 多子项目全景入口 | 多子项目项目初始化时创建 |
 | bug-report.md | BUG-REPORT | Bug 排查与修复报告 | Bug 流程中创建 |
 | config.md | RESOURCES + .teamwork_localconfig + external/README | 项目配置与资源管理 | 项目初始化时创建 |
@@ -23,6 +23,9 @@
 | e2e-registry.md | E2E REGISTRY + ENVIRONMENT + REG case | E2E 回归测试中心 | Feature 完成时创建 |
 | pl-pm-feedback.md | PL-FEEDBACK + PM-RESPONSE | PL-PM 讨论反馈 | Feature 讨论阶段产出 |
 | dispatch.md | DISPATCH + INDEX | Subagent dispatch 文件（含 INDEX.md 模板） | 每次 Subagent dispatch 前 PMO 生成 |
+| **adr.md** | ADR 单条决策（v7.3.10+P0-21） | 架构决策记录（Context / Alternatives≥2 / Decision / Consequences） | Blueprint Stage Step 4.1「3 问触发器」全 yes 时，架构师创建 |
+| **adr-index.md** | ADR 索引（v7.3.10+P0-21） | 每子项目 `docs/adr/INDEX.md`（活跃/提案/已废弃 + 主题索引） | 首次产 ADR 时创建，每次 ADR 变更时同步 |
+| **retros-index.md** | 复盘索引（v7.3.10+P0-22） | 每子项目 `docs/retros/INDEX.md`（时间线 + 流程类型索引 + 偏差警报） | 每次产单条复盘时同步（PMO 完成报告 8️⃣-A 阶段） |
 
 ## 按流程查看模板
 
@@ -45,6 +48,7 @@
 
 6. **技术方案阶段**
    - 📄 [tech.md](./tech.md) - 技术方案设计
+   - 📄 [adr.md](./adr.md) + [adr-index.md](./adr-index.md) - 架构决策记录（**仅**在 Blueprint Step 4.1「3 问触发器」全 yes 时产出，v7.3.10+P0-21）
 
 7. **状态追踪（v7.3.2）**
    - 📄 [feature-state.json](./feature-state.json) - Feature 流转状态机（机读权威 + 人读详情）
