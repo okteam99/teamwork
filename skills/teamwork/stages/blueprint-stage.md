@@ -7,7 +7,7 @@
 
 ## 本 Stage 职责
 
-产出经过多视角评审的 TC + TECH，为 Dev Stage 提供可直接实施的蓝图。TC 与 PRD AC 强绑定（test_refs 反查），TECH 与 ARCHITECTURE 对齐。4 步内部闭环（QA TC → TC 评审 → RD TECH → 架构师评审）之后追加 1 步 Codex 交叉评审，捕捉同模型多角色评审的注意力盲点。
+产出经过多视角评审的 TC + TECH，为 Dev Stage 提供可直接实施的蓝图。TC 与 PRD AC 强绑定（test_refs 反查），TECH 与 ARCHITECTURE 对齐。4 步内部闭环（QA TC → TC 评审 → RD TECH → 架构师评审）为强制项；🟡 Codex 交叉评审（v7.3.9+P0-13 改为 opt-in，默认 OFF）仅当 `state.codex_cross_review.enabled==true` 时追加执行，用于捕捉同模型多角色评审的注意力盲点。
 
 ---
 
@@ -22,7 +22,6 @@
 ├── {SKILL_ROOT}/roles/rd.md（含架构师方案评审规范）
 ├── {SKILL_ROOT}/templates/tc.md
 ├── {SKILL_ROOT}/templates/tech.md（如有）
-├── {SKILL_ROOT}/templates/codex-cross-review.md（Codex 交叉评审规范，TC+TECH 变体）
 ├── {SKILL_ROOT}/standards/common.md
 ├── {Feature}/PRD.md（已确认）
 └── {Feature}/UI.md（如有）
@@ -31,6 +30,11 @@
 ├── docs/architecture/ARCHITECTURE.md
 ├── docs/architecture/database-schema.md
 └── docs/KNOWLEDGE.md
+
+条件必读（v7.3.9+P0-13 新增）：
+└── {SKILL_ROOT}/templates/codex-cross-review.md
+    🟡 仅当 state.codex_cross_review.enabled == true 时必读（Blueprint Stage Codex 开关）
+    🟢 关闭时跳过 Step 5 + 相关校验，节省启动 token
 ```
 
 ### Key Context（逐项判断，无则 `-`）
@@ -75,14 +79,17 @@
    - 有严重问题 → RD 修改 → 重新评审（≤3 轮）
    - 产出：TECH-REVIEW.md 或评审结果写入 TECH.md 尾部
 
-5. **Codex 交叉评审**（外部视角，4 步内部闭环之后）
-   - **前置**：Step 1-4 全部 DONE（TC / TC-REVIEW / TECH / TECH-REVIEW 均已 output_satisfied）
+5. 🟡 **Codex 交叉评审**（外部视角，v7.3.9+P0-13 改为 opt-in，默认 OFF）
+   - **执行条件**：`state.codex_cross_review.enabled == true`
+     - **开启时**必做；**关闭时**整个 Step 5 跳过（不产出 blueprint-codex-review.md，TC-REVIEW/TECH-REVIEW 尾部不写「Codex 交叉评审整合」section，或显式声明"Codex 已关闭"）
+   - **前置（开启时适用）**：Step 1-4 全部 DONE（TC / TC-REVIEW / TECH / TECH-REVIEW 均已 output_satisfied）
    - 按 `templates/codex-cross-review.md` 调用 `codex-agents/blueprint-reviewer.toml`（TC+TECH 变体，C1-C6 checklist）
    - dispatch prompt 不得暗示结论；sandbox_mode = read-only
    - 产出：`{Feature}/blueprint-codex-review.md`（YAML frontmatter：perspective=external-codex、target=blueprint、files_read、findings[]）
    - **整合**：PMO 对每条 finding 分类 `ADOPT / REJECT / DEFER` 写入 TC-REVIEW.md（TC 相关）或 TECH-REVIEW.md（TECH 相关）尾部的「Codex 交叉评审整合」section
    - 🔴 严禁"全盘接受"或"全盘忽略"——逐条推理
    - ADOPT 项若涉及 TC 或 TECH 实质改动 → 触发相应文件小幅修订（不重走 4 步闭环，仅补丁式更新 + 记录 diff）
+   - 默认关闭理由：Blueprint 产物为技术设计文档，4 步内部闭环已覆盖质量下限；Codex 主要价值在 Review Stage 的代码审查。用户可在 PMO 初步分析时按风险/规模手工开启。
 
 ### 过程硬规则
 
@@ -91,10 +98,10 @@
 - 🔴 **AC↔test 强绑定**：TC.md 的 `tests[].covers_ac` 必须反查 PRD 所有 AC（每条 AC 至少 1 个测试）
 - 🔴 **TC 技术评审不可跳过**
 - 🔴 **架构师方案评审不可跳过**（无论方案多简单）
-- 🔴 **Codex 交叉评审不可跳过**（除 Codex CLI 不可用触发降级）；必须在 4 步内部闭环 DONE 后执行
-- 🔴 **Codex 独立性**：blueprint-reviewer dispatch prompt 不得暗示结论；产出 `files_read` 不得包含 TC-REVIEW.md / TECH-REVIEW.md / pmo-internal-review.md（违反 = 重 dispatch）
-- 🔴 **Codex 降级处理**：按 `agents/README.md §三` 三选一（修复 / 🟢 AI 自主规划等效独立审查 / skip+记入 concerns）
-- 🔴 **防外包思考**：PMO 收到 Codex 产出后逐条分类（ADOPT/REJECT/DEFER）；全盘同意或全盘否定视为可疑信号（按 codex-cross-review.md §六处理）
+- 🟡 **Codex 交叉评审（v7.3.9+P0-13 改为 opt-in）**：`state.codex_cross_review.enabled==true` 时必做（除 Codex CLI 不可用触发降级），且必须在 4 步内部闭环 DONE 后执行；==false 时整个 Step 5 跳过（默认行为）
+- 🟡 **Codex 独立性（开启时适用）**：blueprint-reviewer dispatch prompt 不得暗示结论；产出 `files_read` 不得包含 TC-REVIEW.md / TECH-REVIEW.md / pmo-internal-review.md（违反 = 重 dispatch）
+- 🟡 **Codex 降级处理（开启时适用）**：按 `agents/README.md §三` 三选一（修复 / 🟢 AI 自主规划等效独立审查 / skip+记入 concerns）
+- 🟡 **防外包思考（Codex 开启时适用）**：PMO 收到 Codex 产出后逐条分类（ADOPT/REJECT/DEFER）；全盘同意或全盘否定视为可疑信号（按 codex-cross-review.md §六处理）
 - 🔴 **TECH.md 必含实现计划**：文件清单 + 改动要点 + 测试策略
 - 🔴 **内部评审修复循环**：每轮评审修复 ≤3 轮，超出则返回 DONE_WITH_CONCERNS
 - 🔴 **Stage 完成前 git 干净** → 统一遵循 [rules/gate-checks.md § Stage 完成前 git 干净](../rules/gate-checks.md#-stage-完成前-git-干净v739-硬规则p0-集中化)（本 Stage commit message：`F{编号}: Blueprint Stage - {简述}`；TC + TECH 是后续 Dev Stage 的执行蓝图，必须 commit 以锚定）
@@ -103,7 +110,7 @@
 
 - TC 技术评审：RD / Designer / PMO 分别输出评审意见（不互相引用）
 - 架构师评审：独立于 RD 编写方案时的思路（评审者应以"第三方审视"姿态）
-- Codex 交叉评审：通过产物结构强制独立——blueprint-codex-review.md frontmatter 声明 `perspective: external-codex` + `files_read`，且 `grep -E "TC-REVIEW\|TECH-REVIEW\|pmo-internal" blueprint-codex-review.md` 应为空
+- 🟡 Codex 交叉评审独立性（开启时适用）：通过产物结构强制独立——blueprint-codex-review.md frontmatter 声明 `perspective: external-codex` + `files_read`，且 `grep -E "TC-REVIEW\|TECH-REVIEW\|pmo-internal" blueprint-codex-review.md` 应为空
 
 ---
 
@@ -111,14 +118,16 @@
 
 ### 必须产出的文件
 
-| 文件路径 | 格式 | 必需字段 |
-|---------|------|---------|
-| `{Feature}/TEST-PLAN.md` | Markdown | 测试范围、风险点、测试数据策略 |
-| `{Feature}/TC.md` | Markdown + YAML frontmatter | `feature_id`, `tests[]`（每条 id/file/function/covers_ac/level） |
-| `{Feature}/TC-REVIEW.md` | Markdown | 3 视角评审意见（RD/Designer/PMO）+ 问题清单 + 修复记录 + 尾部「Codex 交叉评审整合（TC 部分）」section |
-| `{Feature}/TECH.md` | Markdown | 文件清单、改动要点、数据模型、接口定义、测试策略 |
-| `{Feature}/TECH-REVIEW.md`（或 TECH.md 尾部）| Markdown | 架构师评审维度（架构/扩展性/性能/安全/一致性）+ 修复记录 + 尾部「Codex 交叉评审整合（TECH 部分）」section |
-| `{Feature}/blueprint-codex-review.md` | Markdown + YAML frontmatter | `perspective: external-codex`, `target: blueprint`, `generated_at`, `files_read[]`, `findings[]`（C1-C6 checklist 分类）, `findings_summary` |
+| 文件路径 | 条件 | 格式 | 必需字段 |
+|---------|------|------|---------|
+| `{Feature}/TEST-PLAN.md` | 🔴 必需 | Markdown | 测试范围、风险点、测试数据策略 |
+| `{Feature}/TC.md` | 🔴 必需 | Markdown + YAML frontmatter | `feature_id`, `tests[]`（每条 id/file/function/covers_ac/level） |
+| `{Feature}/TC-REVIEW.md` | 🔴 必需 | Markdown | 3 视角评审意见（RD/Designer/PMO）+ 问题清单 + 修复记录；Codex 开启时追加尾部「Codex 交叉评审整合（TC 部分）」section，关闭时写"Codex 已关闭" |
+| `{Feature}/TECH.md` | 🔴 必需 | Markdown | 文件清单、改动要点、数据模型、接口定义、测试策略 |
+| `{Feature}/TECH-REVIEW.md`（或 TECH.md 尾部）| 🔴 必需 | Markdown | 架构师评审维度（架构/扩展性/性能/安全/一致性）+ 修复记录；Codex 开启时追加尾部「Codex 交叉评审整合（TECH 部分）」section |
+| `{Feature}/blueprint-codex-review.md` | 🟡 仅 Codex 开启时必需 | Markdown + YAML frontmatter | `perspective: external-codex`, `target: blueprint`, `generated_at`, `files_read[]`, `findings[]`（C1-C6 checklist 分类）, `findings_summary` |
+
+> 🟡 Codex 条件说明（v7.3.9+P0-13）：`state.codex_cross_review.enabled == true` 时 blueprint-codex-review.md 为必需产物；== false 时不产出，TC-REVIEW / TECH-REVIEW 尾部声明"Codex 已关闭（state.codex_cross_review.enabled=false）"即可。
 
 ### 机器可校验条件
 
@@ -127,17 +136,20 @@
 - [ ] TC 用例数 ≥ PRD AC 数
 - [ ] TECH.md 含"文件清单"章节且至少列出 1 个文件
 - [ ] 无 TBD / TODO / 占位符
-- [ ] blueprint-codex-review.md frontmatter 可解析且 `perspective == "external-codex"` + `target == "blueprint"`
-- [ ] blueprint-codex-review.md 的 `files_read` 不包含 TC-REVIEW / TECH-REVIEW / pmo-internal-review（`grep -E "TC-REVIEW\|TECH-REVIEW\|pmo-internal" blueprint-codex-review.md` 为空）
-- [ ] TC-REVIEW.md + TECH-REVIEW.md 尾部「Codex 交叉评审整合」section 对每条 finding 均有 ADOPT/REJECT/DEFER 标记 + 理由
-- [ ] Codex 降级场景：若 Codex 未执行，state.json.concerns 或 TECH-REVIEW.md 需显式记录 skip_reason
+- 🟡 以下校验仅当 `state.codex_cross_review.enabled == true` 时生效：
+  - [ ] blueprint-codex-review.md frontmatter 可解析且 `perspective == "external-codex"` + `target == "blueprint"`
+  - [ ] blueprint-codex-review.md 的 `files_read` 不包含 TC-REVIEW / TECH-REVIEW / pmo-internal-review（`grep -E "TC-REVIEW\|TECH-REVIEW\|pmo-internal" blueprint-codex-review.md` 为空）
+  - [ ] TC-REVIEW.md + TECH-REVIEW.md 尾部「Codex 交叉评审整合」section 对每条 finding 均有 ADOPT/REJECT/DEFER 标记 + 理由
+  - [ ] Codex 降级场景：若 Codex 未执行，state.json.concerns 或 TECH-REVIEW.md 需显式记录 skip_reason
+- 🟢 若 `state.codex_cross_review.enabled == false`：
+  - [ ] TC-REVIEW.md / TECH-REVIEW.md 任一尾部显式声明"Codex 已关闭（state.codex_cross_review.enabled=false，decided_at={ts}）"，不产出 blueprint-codex-review.md
 
 ### Done 判据
 
 - 所有产出文件存在且通过格式校验
 - AC↔test 覆盖校验通过
-- TC 技术评审 + 架构师评审 + Codex 交叉评审均完成（且无 🔴 阻塞问题；Codex skip 需显式 concerns）
-- Codex findings 全部分类完毕（ADOPT/REJECT/DEFER）且 ADOPT 项已并入 TC / TECH
+- TC 技术评审 + 架构师评审完成（无 🔴 阻塞问题）
+- 🟡 Codex 开启时额外判据：Codex 交叉评审完成（skip 需显式 concerns）+ findings 全部分类完毕（ADOPT/REJECT/DEFER）+ ADOPT 项已并入 TC / TECH；关闭时跳过本判据
 - `state.json.stage_contracts.blueprint.output_satisfied = true`
 
 ### 返回状态
@@ -154,9 +166,9 @@
 
 📎 Execution Plan 4 行格式（含 Estimated）→ [SKILL.md「AI Plan 模式规范」](../SKILL.md#-ai-plan-模式规范v73-新增)。默认 approach → [agents/README.md §一](../agents/README.md#一执行方式参考默认推荐--判断原则)。
 
-本 Stage 默认 `main-conversation`（4 步内部闭环：QA TC → TC 评审 → RD TECH → 架构师评审，全程多视角 prompt 切换）+ Codex 交叉评审（外部视角，subagent-codex）。典型偏离：需求极清晰 → `subagent` 一次闭环；或 `hybrid`（TC/TECH 主对话起草 + 架构师评审 Subagent 独立审）。Codex Step 5 固定 subagent-codex，不受闭环 approach 选择影响。
+本 Stage 默认 `main-conversation`（4 步内部闭环：QA TC → TC 评审 → RD TECH → 架构师评审，全程多视角 prompt 切换）；🟡 Codex 交叉评审（开启时）走 subagent-codex 外部视角，默认 OFF（v7.3.9+P0-13）。典型偏离：需求极清晰 → `subagent` 一次闭环；或 `hybrid`（TC/TECH 主对话起草 + 架构师评审 Subagent 独立审）。Codex Step 5 固定 subagent-codex，不受闭环 approach 选择影响。
 
-**Expected duration baseline（v7.3.3）**：25-45 min（主对话 4 步闭环）+ 5-10 min（Codex 交叉评审 + 整合）；Subagent 一次闭环 30-60 min（冷启动）+ 5-10 min Codex。AI 在 Execution Plan 的 `Estimated` 字段按本 Feature 规模（AC 数、TECH 预期文件数）校准。
+**Expected duration baseline（v7.3.3 / P0-13 修订）**：25-45 min（主对话 4 步闭环）；🟡 Codex 开启时额外 +5-10 min（交叉评审 + 整合），关闭时 0 额外开销。Subagent 一次闭环 30-60 min（冷启动）+ 可选 5-10 min Codex。AI 在 Execution Plan 的 `Estimated` 字段按本 Feature 规模（AC 数、TECH 预期文件数）+ Codex 开关状态校准。
 
 ---
 
@@ -173,10 +185,10 @@
 ├── TC 技术评审：{通过 / 有建议已纳入 / 修复 N 轮}
 ├── TECH.md：{完成 / 有 concerns}
 ├── 架构师评审：{通过 / 有建议已纳入 / 修复 N 轮}
-└── Codex 交叉评审：{DONE / DONE_WITH_CONCERNS / SKIPPED / FAILED}（ADOPT: N / REJECT: M / DEFER: K）
+└── Codex 交叉评审：{ENABLED → DONE / DONE_WITH_CONCERNS / SKIPPED / FAILED | DISABLED（state.codex_cross_review.enabled=false）}（ADOPT: N / REJECT: M / DEFER: K）
 
-## Codex 交叉评审摘要
-├── Codex 状态：{DONE / SKIPPED + 原因}
+## Codex 交叉评审摘要（🟡 仅当 state.codex_cross_review.enabled=true 时输出本节）
+├── Codex 状态：{DONE / SKIPPED + 原因 / DISABLED}
 ├── Findings 总数：{N}（C1:{?} C2:{?} C3:{?} C4:{?} C5:{?} C6:{?}）
 ├── ADOPT: {a} 条（TC 补丁: {?}，TECH 补丁: {?}）
 ├── REJECT: {b} 条（理由见 TC-REVIEW.md / TECH-REVIEW.md 尾部）
@@ -185,18 +197,17 @@
 ## 产出文件
 ├── 📁 TEST-PLAN.md
 ├── 📁 TC.md（frontmatter 可解析，tests[] 数量：{N}）
-├── 📁 TC-REVIEW.md（含 Codex 整合章，TC 部分）
+├── 📁 TC-REVIEW.md（Codex 开启时含整合章 TC 部分）
 ├── 📁 TECH.md
-├── 📁 TECH-REVIEW.md（或 TECH.md 尾部；含 Codex 整合章，TECH 部分）
-└── 📁 blueprint-codex-review.md（外部视角）
+├── 📁 TECH-REVIEW.md（或 TECH.md 尾部；Codex 开启时含整合章 TECH 部分）
+└── 🟡 blueprint-codex-review.md（外部视角，仅 Codex 开启时产出）
 
 ## Output Contract 校验
 ├── TC YAML：✅ 可解析
 ├── AC→test 覆盖：{PRD AC 数} → {覆盖数} ✅/❌
 ├── TC 用例数 ≥ AC 数：✅
 ├── TECH 含文件清单：✅
-├── Codex 独立性（files_read grep）：✅
-├── Codex findings 分类完整：✅
+├── Codex 校验：{ENABLED → 独立性 grep ✅ + findings 分类 ✅ | DISABLED → TC/TECH-REVIEW 尾部声明已关闭 ✅}
 └── 无 TBD：✅
 
 ## Concerns（如有）

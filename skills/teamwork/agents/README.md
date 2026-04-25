@@ -20,7 +20,7 @@
 | Panorama Design Stage | subagent | Opus | 同上 |
 | Blueprint Stage（TC + TECH + 架构师评审）| main-conversation | Opus | 多视角 prompt 切换；需用户参与方案讨论 |
 | BlueprintLite Stage | main-conversation | 继承 | 敏捷流程精髓就是快速闭环 |
-| Dev Stage | AI 自主按规模判断 | Opus 推荐 | ≤3 文件 → main；>10 文件/多模块 → subagent |
+| Dev Stage | main-conversation（v7.3.9+P0-14 默认）| Opus 推荐 | 默认主对话；TECH 文件清单 >10 / 预期产出 >500 行 / 需独立聚焦 → subagent（opt-in） |
 | Review Stage（架构师 / QA / Codex）| hybrid | Sonnet | 架构师主对话（保留上下文 + 怀疑者视角）+ QA/Codex Subagent（独立视角）|
 | Test Stage（环境 / 集成 / API E2E）| AI 自主 | AI 自主 | approach + model + 是否出 Plan 三轴由 AI 按规模自主决策（v7.3.9）；详见 stages/test-stage.md |
 | Browser E2E | main-conversation | Sonnet | 半自动需用户观察；无人值守 CI 可切 subagent |

@@ -1,7 +1,7 @@
 # Dev Stage：代码实现 + 单元测试
 
 > Blueprint 通过后进入本 Stage。按方案/需求/设计稿/参考用例实现代码，完成单测 + 集成测代码。
-> 🔴 契约优先：**Dev Stage 由 AI 自主决定执行方式**（主对话 / Subagent / 混合，按规模判断）。
+> 🔴 契约优先：**Dev Stage 默认主对话**（v7.3.9+P0-14），RD 在 AI Plan 阶段按规模自评，超阈值（TECH >10 文件 / 产出 >500 行 / 需独立聚焦）opt-in 为 Subagent。
 > 🔴 架构师 Code Review 在 Review Stage 并行执行，Dev Stage 不含 CR。
 
 ---
@@ -27,7 +27,9 @@
 ├── {Feature}/PRD.md                                 ← 需求（AC 结构化）
 ├── {Feature}/TC.md                                  ← 测试用例（tests[] 含 covers_ac）
 ├── {Feature}/TECH.md                                ← 技术方案
-└── {Feature}/UI.md + preview/*.html（如有）
+└── {Feature}/UI.md + preview/*.html
+    🔴 若 state.stage_contracts.ui_design.output_satisfied==true → **必读（视觉/交互权威）**
+    🟡 若 UI Design Stage 未跑 → 跳过该项
 
 可选：
 ├── docs/KNOWLEDGE.md
@@ -83,7 +85,7 @@
 
 1. **完整按方案实现**
    - 按 TECH.md 的文件清单和改动要点实现
-   - 对照 UI.md / preview/*.html（如有）还原 UI
+   - 🔴 **UI 还原**：若 UI Design Stage 已完成（`state.stage_contracts.ui_design.output_satisfied==true`），**UI.md + preview/\*.html 为视觉/交互权威**，Dev 完成前必做 UI 还原自检（见 `agents/rd-develop.md § UI 还原权威层级 + UI 还原自检清单`）。preview 未覆盖的交互状态以 TECH.md 为准，TECH 也未覆盖 → concerns 升级给 PMO
    - 对照 PRD AC 逐条检查功能覆盖
    - 对照 TC.md 确保每条 test 的实现存在
 
@@ -159,19 +161,29 @@
 
 📎 Execution Plan 3 行格式 → [SKILL.md](../SKILL.md#-ai-plan-模式规范v73-新增)。
 
-本 Stage 默认 **AI 自主按规模/复杂度决定** approach（Dev Stage 是改造的核心自主决策点）：
+🔴 **v7.3.9+P0-14 默认主对话**：Dev Stage 默认 `main-conversation`；subagent 是 opt-in 路径（有明确理由才选）。RD 在 AI Plan 阶段按规模自评 + 声明 Rationale。
 
-| 条件 | 推荐 |
-|------|------|
-| 改动 ≤ 3 文件 + 逻辑简单（无多模块联动）| `main-conversation`（省冷启动）|
-| 改动复杂 / 产出 >500 行 / 多模块联动 | `subagent`（隔离主对话）|
-| 严格 TDD 红-绿循环 + 独立聚焦 | `subagent`（独立 context）|
-| 多轮调试 / 探索 / 环境问题 | `main-conversation`（保留调试 context）|
-| 跨 Feature / 需对照其他进行中 Feature | `main-conversation`（累积 context 有用）|
+| 条件 | 推荐 mode | 说明 |
+|------|---------|------|
+| 默认（无特别信号） | `main-conversation` | 大多数 Feature（改动 ≤10 文件、产出 ≤500 行）主对话最优：省冷启动、用户可见 TDD 过程、便于多轮调试 |
+| TECH.md 文件清单 >10 / 预期产出 >500 行 | `subagent` | 大改动独立聚焦，避免主对话被大量代码细节淹没 |
+| 严格 TDD + 跨模型独立性需求（罕见） | `subagent` | 仅当明确需要 fresh context 保障独立性时 |
+| 多轮调试 / 探索 / 环境问题 / 跨 Feature 对照 | `main-conversation`（强化默认）| 累积 context 有实质价值 |
+| 灰色地带（临界规模） | `main-conversation`（向默认倾斜）| 存疑时选默认，错了下一个 Feature 再切换 |
 
-Plan 的 Rationale 必须说明"基于规模/复杂度的判断"。Plan 写入 `state.json.planned_execution.dev`。
+🟢 **灰色地带判定示例**：
+- 「10 文件 / 400 行 / 单模块」→ 主对话（边界内）
+- 「12 文件 / 600 行 / 跨前后端」→ subagent（超边界）
+- 「8 文件 / 300 行 / 但需 3 轮 TDD 迭代调试」→ 主对话（调试需要过程可见）
 
-**Expected duration baseline（v7.3.3）**：主对话 ≤3 文件改动 15-25 min；Subagent 中等规模（5-10 文件）30-60 min；大改动（>10 文件 / 多模块）60-120 min。AI 在 `Estimated` 字段按 TECH.md 的文件清单数和复杂度校准。
+Plan 的 Rationale 必须说明"基于规模/复杂度的判断"。Plan 写入 `state.json.planned_execution.dev`（含 approach + rationale + estimated_minutes）。
+
+**Expected duration baseline（v7.3.3 / v7.3.9+P0-14 微调）**：
+- **主对话（默认）**：≤3 文件 15-25 min / 5-10 文件 30-60 min（大多数 Feature 落此档）
+- **Subagent（opt-in）**：中大改动 30-90 min（>10 文件或 >500 行时选用，含冷启动 3-5 min 税）
+- 大改动（>10 文件 / 多模块）全 subagent 60-120 min
+
+AI 在 `Estimated` 字段按 TECH.md 的文件清单数和复杂度校准。
 
 ### Worktree 集成（PMO 执行，v7.3.8 改为校验存在；创建已前移到 Plan Stage 入口）
 

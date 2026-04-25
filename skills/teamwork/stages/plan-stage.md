@@ -21,8 +21,12 @@
 ├── {SKILL_ROOT}/roles/pm.md                         ← PM 角色 + PRD 技术评审规范
 ├── {SKILL_ROOT}/roles/product-lead.md               ← PL 角色（讨论用）
 ├── {SKILL_ROOT}/templates/prd.md                    ← PRD 模板（含 AC 结构化 frontmatter）
-├── {SKILL_ROOT}/templates/codex-cross-review.md     ← Codex 交叉评审规范（PRD 变体）
 └── {SKILL_ROOT}/standards/common.md                 ← 通用开发规范
+
+条件必读（v7.3.9+P0-13 新增）：
+└── {SKILL_ROOT}/templates/codex-cross-review.md
+    🟡 仅当 state.codex_cross_review.enabled == true 时必读（Plan Stage Codex 开关）
+    🟢 关闭时跳过，节省启动 token
 
 可选（存在则读取）：
 ├── docs/PROJECT.md                                  ← 产品总览
@@ -59,8 +63,9 @@
 ```
 Feature 的全部产物（PRD / UI / TC / TECH / 代码 / 测试）都从 Plan Stage 开始累积。
 如果 worktree 基于错误的 base 分支（例如基于陈旧 main 而非 origin/staging），
-到 Ship Stage rebase onto staging 时会遇到大规模冲突——此时产物已成定局，
-回退代价极高。Preflight 在 Plan Stage 入口锁定 base，防止后期灾难。
+到 Ship Stage 生成 MR 时 diff 相对 merge_target 会夹杂他人改动，平台 MR 页显示大规模
+冲突/diff——此时产物已成定局，回退代价极高。Preflight 在 Plan Stage 入口锁定 base，
+防止后期灾难。（v7.3.9 原文用 "rebase 冲突"，v7.3.10+P0-15 Ship MR 化后改为 MR diff 冲突。）
 ```
 
 ### 4 项硬门禁（P0 简化，从 v7.3.9 的 6 项精简）
@@ -213,27 +218,30 @@ cd ../feature-{Feature 全名}
    - 达成共识 → PM 按共识更新 PRD
    - 有分歧 → 记录分歧项，标记为待用户决策
 
-3. **多视角技术评审**（RD / Designer / QA / PMO / Codex）
+3. **多视角技术评审**（RD / Designer / QA / PMO [+ Codex 可选]）
    - 按 `roles/pm.md`「PRD 技术评审规范」执行 RD/Designer/QA/PMO 四个内部视角
-   - **内部评审先行**：PMO 完成上述 4 视角 + 自身内部审视（pmo-internal-review.md，≥3 条实质 finding）**之后**才可 dispatch Codex
    - 产出 PRD-REVIEW.md（4 个内部视角汇总）
-   - **Codex 交叉评审**：按 `templates/codex-cross-review.md` 调用 `codex-agents/prd-reviewer.toml`，产出 `{Feature}/prd-codex-review.md`（YAML frontmatter：perspective=external-codex、files_read、findings[]）
+   - 🟡 **Codex 交叉评审（v7.3.9+P0-13 改为 opt-in，默认 OFF）**：
+     - 条件：`state.codex_cross_review.enabled == true`（PMO 初步分析时让用户决定，写入 state.json）
+     - **开启时**：PMO 必须先完成自身内部审视（pmo-internal-review.md，≥3 条实质 finding）→ 再 dispatch Codex → 按 `templates/codex-cross-review.md` 调用 `codex-agents/prd-reviewer.toml`，产出 `{Feature}/prd-codex-review.md`
+     - **关闭时**：跳过 pmo-internal-review.md + prd-codex-review.md + Codex 整合环节；PRD-REVIEW.md 尾部不写「Codex 交叉评审整合」section（或显式写"Codex 已关闭（state.codex_cross_review.enabled=false）"）
+     - 默认值理由：Plan Stage 产物为文档（PRD），4 内部视角已覆盖质量下限；Codex 主要价值在 Review Stage 的代码审查
    - 汇总问题 + 建议
 
-4. **整合 Codex 反馈 + PRD 定稿**
-   - PMO 对 prd-codex-review.md 的每条 finding 分类：`ADOPT` / `REJECT` / `DEFER`（理由记入 PRD-REVIEW.md 尾部的「Codex 交叉评审整合」section）
-   - 🔴 严禁"全盘接受"或"全盘忽略"——必须逐条推理
-   - PM 按整合结论（4 内部视角 + 已 ADOPT 的 Codex finding）更新 PRD
+4. **整合评审反馈 + PRD 定稿**
+   - 🟡 **若 Codex 开启**：PMO 对 prd-codex-review.md 的每条 finding 分类：`ADOPT` / `REJECT` / `DEFER`（理由记入 PRD-REVIEW.md 尾部的「Codex 交叉评审整合」section）
+     - 🔴 严禁"全盘接受"或"全盘忽略"——必须逐条推理
+   - PM 按整合结论（4 内部视角 + 已 ADOPT 的 Codex finding，若有）更新 PRD
    - 标记状态为「待用户确认」
 
 ### 过程硬规则
 
 - 🔴 **角色规范必读且 cite**：切换到每个视角（PM/PL/RD/Designer/QA/PMO）前，必须先 Read 对应 `roles/{id}.md`，并在产出前 cite 该角色的关键要点（"📖 本视角遵循：roles/pm.md §Y 的 X 项约束"）
 - 🔴 **PL-PM 讨论独立性**：PL 和 PM 各自表达观点，不能一方主导
-- 🔴 **技术评审完整性**：必须覆盖 RD / Designer（如有 UI）/ QA / PMO 四个内部视角 + Codex 交叉评审一个外部视角
-- 🔴 **Codex 独立性**：dispatch prd-reviewer 时 prompt 不得暗示结论；Codex 产出的 `files_read` 不得包含 PRD-REVIEW.md / discuss/* / pmo-internal-review.md（违反 = 重 dispatch）
-- 🔴 **防外包思考**：PMO 必须先产出自身内部评审（≥3 条实质 finding）才能 dispatch Codex；Codex 返回后 PMO 逐条分类（ADOPT/REJECT/DEFER）不得无差别采纳
-- 🔴 **Codex 降级处理**：Codex CLI 不可用时按 `agents/README.md §三` 三选一（修复 / 🟢 AI 自主规划等效独立审查 / skip+记入 concerns），不可静默跳过
+- 🔴 **技术评审完整性**：必须覆盖 RD / Designer（如有 UI）/ QA / PMO 四个内部视角；🟡 Codex 交叉评审（外部视角）仅在 `state.codex_cross_review.enabled==true` 时必做（v7.3.9+P0-13：Plan Stage Codex 默认关闭）
+- 🟡 **Codex 独立性（开启时适用）**：dispatch prd-reviewer 时 prompt 不得暗示结论；Codex 产出的 `files_read` 不得包含 PRD-REVIEW.md / discuss/* / pmo-internal-review.md（违反 = 重 dispatch）
+- 🟡 **防外包思考（Codex 开启时适用）**：PMO 必须先产出自身内部评审（≥3 条实质 finding）才能 dispatch Codex；Codex 返回后 PMO 逐条分类（ADOPT/REJECT/DEFER）不得无差别采纳
+- 🟡 **Codex 降级处理（开启时适用）**：Codex CLI 不可用时按 `agents/README.md §三` 三选一（修复 / 🟢 AI 自主规划等效独立审查 / skip+记入 concerns），不可静默跳过
 - 🔴 **PRD 质量下限**：不能留 TBD / 待补充；验收标准必须量化可验证
 - 🔴 **讨论轮次控制**：PL-PM 最多 3 轮，超出则记录分歧返回
 - 🔴 **AC 结构化**：每条 AC 必须有 id / description / priority 字段（test_refs 在 Blueprint Stage 填入）
@@ -243,7 +251,7 @@ cd ../feature-{Feature 全名}
 
 - PL 和 PM 的讨论纪要必须分开记录（`discuss/PL-FEEDBACK-R{N}.md` 和 `PM-RESPONSE-R{N}.md`）
 - 多视角技术评审的每个视角独立输出评审意见（不互相引用）
-- Codex 交叉评审独立性通过产物结构强制：prd-codex-review.md 的 YAML frontmatter 必须声明 `perspective: external-codex` + `files_read`，且 `files_read` 不得包含任何内部评审产物（用 `grep -E "PRD-REVIEW|discuss/|pmo-internal" prd-codex-review.md` 应为空）
+- 🟡 Codex 交叉评审独立性（仅 `state.codex_cross_review.enabled==true` 时适用）：prd-codex-review.md 的 YAML frontmatter 必须声明 `perspective: external-codex` + `files_read`，且 `files_read` 不得包含任何内部评审产物（用 `grep -E "PRD-REVIEW|discuss/|pmo-internal" prd-codex-review.md` 应为空）
 
 ---
 
@@ -251,14 +259,16 @@ cd ../feature-{Feature 全名}
 
 ### 必须产出的文件
 
-| 文件路径 | 格式 | 必需字段 |
-|---------|------|---------|
-| `{Feature}/PRD.md` | Markdown + YAML frontmatter | `feature_id`, `acceptance_criteria[]` (id, description, priority), 交付预期, 影响范围 |
-| `{Feature}/PRD-REVIEW.md` | Markdown | 4 个内部视角的评审意见（RD/Designer/QA/PMO）+ 汇总问题清单 + 尾部「Codex 交叉评审整合」section（逐条 ADOPT/REJECT/DEFER） |
-| `{Feature}/pmo-internal-review.md` | Markdown | PMO 自身视角评审（≥3 条实质 finding，Codex dispatch 的前置条件）|
-| `{Feature}/prd-codex-review.md` | Markdown + YAML frontmatter | `perspective: external-codex`, `target: prd`, `generated_at`, `files_read[]`, `findings[]`（含 C1-C6 checklist 分类）, `findings_summary` |
-| `{Feature}/discuss/PL-FEEDBACK-R{N}.md` | Markdown | PL 视角反馈（每轮一个文件） |
-| `{Feature}/discuss/PM-RESPONSE-R{N}.md` | Markdown | PM 对 PL 反馈的回应 |
+| 文件路径 | 条件 | 格式 | 必需字段 |
+|---------|------|------|---------|
+| `{Feature}/PRD.md` | 🔴 必需 | Markdown + YAML frontmatter | `feature_id`, `acceptance_criteria[]` (id, description, priority), 交付预期, 影响范围 |
+| `{Feature}/PRD-REVIEW.md` | 🔴 必需 | Markdown | 4 个内部视角的评审意见（RD/Designer/QA/PMO）+ 汇总问题清单；Codex 开启时追加尾部「Codex 交叉评审整合」section（逐条 ADOPT/REJECT/DEFER），关闭时写"Codex 已关闭（state.codex_cross_review.enabled=false）" |
+| `{Feature}/pmo-internal-review.md` | 🟡 仅 Codex 开启时必需 | Markdown | PMO 自身视角评审（≥3 条实质 finding，Codex dispatch 的前置条件）|
+| `{Feature}/prd-codex-review.md` | 🟡 仅 Codex 开启时必需 | Markdown + YAML frontmatter | `perspective: external-codex`, `target: prd`, `generated_at`, `files_read[]`, `findings[]`（含 C1-C6 checklist 分类）, `findings_summary` |
+| `{Feature}/discuss/PL-FEEDBACK-R{N}.md` | 🔴 必需 | Markdown | PL 视角反馈（每轮一个文件） |
+| `{Feature}/discuss/PM-RESPONSE-R{N}.md` | 🔴 必需 | Markdown | PM 对 PL 反馈的回应 |
+
+> 🟡 Codex 条件说明（v7.3.9+P0-13）：`state.codex_cross_review.enabled == true` 时 pmo-internal-review.md + prd-codex-review.md 为必需产物；== false 时两份文件不产出，PRD-REVIEW.md 尾部声明"Codex 已关闭"即可。
 
 ### 机器可校验条件
 
@@ -266,11 +276,14 @@ cd ../feature-{Feature 全名}
 - [ ] `acceptance_criteria[]` 至少 1 条，每条有 id/description/priority
 - [ ] 无 TBD / 待补充 / TODO（`grep -iE "TBD|待补充|TODO" PRD.md` 为空）
 - [ ] 多视角评审 4 个内部视角都有意见（或显式标注"无意见"+ 理由）
-- [ ] pmo-internal-review.md 存在且含 ≥3 条 finding（Codex dispatch 前置）
-- [ ] prd-codex-review.md frontmatter 可解析且 `perspective == "external-codex"`
-- [ ] prd-codex-review.md 的 `files_read` 不包含 PRD-REVIEW / discuss/ / pmo-internal-review（`grep -E "PRD-REVIEW\|discuss/\|pmo-internal" prd-codex-review.md` 为空）
-- [ ] PRD-REVIEW.md 尾部「Codex 交叉评审整合」section 对每条 finding 均有 ADOPT/REJECT/DEFER 标记 + 理由
-- [ ] Codex 降级场景：若 Codex 未执行，state.json.concerns 或 PRD-REVIEW.md 需显式记录 skip_reason
+- 🟡 以下校验仅当 `state.codex_cross_review.enabled == true` 时生效：
+  - [ ] pmo-internal-review.md 存在且含 ≥3 条 finding（Codex dispatch 前置）
+  - [ ] prd-codex-review.md frontmatter 可解析且 `perspective == "external-codex"`
+  - [ ] prd-codex-review.md 的 `files_read` 不包含 PRD-REVIEW / discuss/ / pmo-internal-review（`grep -E "PRD-REVIEW\|discuss/\|pmo-internal" prd-codex-review.md` 为空）
+  - [ ] PRD-REVIEW.md 尾部「Codex 交叉评审整合」section 对每条 finding 均有 ADOPT/REJECT/DEFER 标记 + 理由
+  - [ ] Codex 降级场景：若 Codex 未执行，state.json.concerns 或 PRD-REVIEW.md 需显式记录 skip_reason
+- 🟢 若 `state.codex_cross_review.enabled == false`：
+  - [ ] PRD-REVIEW.md 尾部显式声明"Codex 已关闭（state.codex_cross_review.enabled=false，decided_at={ts}）"，不产出 pmo-internal-review.md / prd-codex-review.md
 
 ### Done 判据
 
@@ -349,7 +362,7 @@ state.json 写入：
 ├── 执行方式：{主对话 / Subagent / 混合}（来自 Execution Plan）
 ├── PL-PM 讨论：{R1 收敛 / R2 收敛 / 有分歧}
 ├── 内部技术评审：{通过 / 有建议已纳入 / 有问题}（RD/Designer/QA/PMO）
-├── Codex 交叉评审：{DONE / DONE_WITH_CONCERNS / SKIPPED / FAILED}（ADOPT: N / REJECT: M / DEFER: K）
+├── Codex 交叉评审：{ENABLED → DONE / DONE_WITH_CONCERNS / SKIPPED / FAILED | DISABLED（state.codex_cross_review.enabled=false）}（ADOPT: N / REJECT: M / DEFER: K）
 └── PRD 验收标准数：{N} 条（AC 结构化已校验）
 
 ## PL-PM 讨论纪要
@@ -361,8 +374,8 @@ state.json 写入：
 ## 技术评审报告
 {按 PRD-REVIEW.md 格式，含尾部 Codex 整合章}
 
-## Codex 交叉评审摘要
-├── Codex 状态：{DONE / SKIPPED + 原因}
+## Codex 交叉评审摘要（🟡 仅当 state.codex_cross_review.enabled=true 时输出本节）
+├── Codex 状态：{DONE / SKIPPED + 原因 / DISABLED}
 ├── Findings 总数：{N}（C1:{?} C2:{?} C3:{?} C4:{?} C5:{?} C6:{?}）
 ├── ADOPT: {a} 条（已并入 PRD）
 ├── REJECT: {b} 条（理由见 PRD-REVIEW.md 尾部）
@@ -370,9 +383,9 @@ state.json 写入：
 
 ## 产出文件
 ├── 📁 PRD.md（定稿，AC 结构化）
-├── 📁 PRD-REVIEW.md（评审记录 + Codex 整合）
-├── 📁 pmo-internal-review.md（PMO 自审）
-├── 📁 prd-codex-review.md（外部视角）
+├── 📁 PRD-REVIEW.md（评审记录；Codex 开启时含整合章）
+├── 🟡 pmo-internal-review.md（PMO 自审，仅 Codex 开启时产出）
+├── 🟡 prd-codex-review.md（外部视角，仅 Codex 开启时产出）
 └── 📁 discuss/PL-FEEDBACK-R{N}.md + PM-RESPONSE-R{N}.md
 
 ## Output Contract 校验
@@ -380,6 +393,5 @@ state.json 写入：
 ├── AC 数量：{N}（≥1）
 ├── 无 TBD/TODO：✅
 ├── 4 内部视角评审：✅ 全覆盖
-├── Codex 独立性（files_read grep）：✅
-└── Codex findings 分类完整：✅
+└── Codex 校验：{ENABLED → 独立性 grep ✅ + findings 分类 ✅ | DISABLED → PRD-REVIEW 尾部声明已关闭 ✅}
 ```

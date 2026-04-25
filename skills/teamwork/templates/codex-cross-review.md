@@ -23,12 +23,47 @@
 
 | 流程 | Plan Stage（PRD）| Blueprint Stage（TC+TECH）|
 |------|-----------------|--------------------------|
-| Feature | 🔴 强制 | 🔴 强制 |
-| Feature Planning | 🔴 强制 | N/A |
-| 敏捷需求 | 🟡 opt-in | 🟡 opt-in |
+| Feature | 🟡 opt-in（默认 OFF） | 🟡 opt-in（默认 OFF） |
+| Feature Planning | 🟡 opt-in（默认 OFF） | N/A |
+| 敏捷需求 | 🟡 opt-in（默认 OFF） | 🟡 opt-in（默认 OFF） |
 | Bug / 问题排查 / Micro | 跳过 | 跳过 |
 
-🟡 opt-in = PMO 询问用户后启用。🔴 强制不可跳过；如需跳过须 ⏸️ 用户明确同意，review-log 标 SKIPPED。
+🟡 opt-in = PMO 在**初步分析**阶段询问用户后启用；决策写入 `state.codex_cross_review.{enabled, decided_at, decided_by, note}`。
+
+> **v7.3.9+P0-13 修订**：Feature / Feature Planning 的 Plan + Blueprint 阶段由原"🔴 强制"下调为"🟡 opt-in 默认 OFF"。
+>
+> 修订原因：
+> - Plan/Blueprint 产物为文档（PRD / TC / TECH），内部多视角（RD/Designer/QA/PMO + 架构师）评审已覆盖质量下限
+> - Codex 的最大价值在 **Review Stage 的代码审查**（盲区独立采样 + 静态分析），此场景保持🔴强制，不受本开关影响
+> - 默认 OFF 可节省 Feature 冷启 10-20 min + ~10K token；用户可按风险/规模在 PMO 初步分析时手工开启
+>
+> **Review Stage Codex 代码审查不受本开关影响**（保持🔴强制，规范见 [stages/review-stage.md](../stages/review-stage.md) §Process Contract 第 4 步）。
+
+### 2.1 PMO 初步分析决策（v7.3.9+P0-13 新增）
+
+PMO 在初步分析输出末尾必须显式给出 Codex 开关建议与默认值：
+
+```
+🤖 Codex 交叉评审决策（仅影响 Plan / Blueprint Stage；Review Stage 代码审查独立强制）
+├── 默认值：OFF（state.codex_cross_review.enabled = false）
+├── 建议：{开 / 不开}
+├── 理由：{例：大改动 + 跨子项目 → 建议开；小 bug 修复 + 单文件 → 建议不开}
+└── 选项：
+    1. ✅ 默认不开（跳过 Plan/Blueprint Codex，约 0 额外开销）
+    2. 🔓 开启（Plan + Blueprint 额外 +10-20 min + ~10K token）
+    3. 🔧 只开 Plan（PRD 单独 Codex）
+    4. 🔧 只开 Blueprint（TC+TECH 单独 Codex）
+```
+
+用户选择后 PMO 写入 state.json：
+```json
+"codex_cross_review": {
+  "enabled": true | false,
+  "decided_at": "{ISO 8601 UTC}",
+  "decided_by": "user",
+  "note": "{用户理由 / PMO 推荐理由}"
+}
+```
 
 ---
 
@@ -194,7 +229,7 @@ PMO 写入 `docs/retros/codex-cross-review-{YYYY-WW}.md`，核心指标：
 | R4 | 禁止无条件全盘采纳 Codex 意见（= 反向外包） |
 | R5 | findings 全空不视为"通过"，触发 §六 二次挑战 |
 | R6 | Sonnet 降级执行必须在 review-log 标 DONE_WITH_CONCERNS |
-| R7 | Feature / Feature Planning 下不可自行跳过，须 ⏸️ 用户同意 |
+| R7 | 🟡 v7.3.9+P0-13 修订：Feature / Feature Planning 的 Plan+Blueprint 由🔴强制降为 opt-in 默认 OFF；用户决策写入 state.codex_cross_review。Review Stage 代码审查仍🔴强制，不受本开关影响 |
 | R8 | Output schema 机器校验失败必须重跑，不得降级接受 |
 
 ---

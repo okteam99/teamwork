@@ -83,6 +83,18 @@ cp .env.example .env
 ## 负责人
 - 名称：[用户名 / 昵称]
 
+## Skill 版本标记（🔴 v7.3.10+P0-17 新增·PMO 自动维护，禁止手改）
+
+<!-- teamwork_version: PMO 启动时写入的当前 skill 版本号，用作 CLAUDE.md / AGENTS.md 校验缓存。 -->
+<!-- 机制： -->
+<!--   - 启动 Step 1.2 读取此字段 → 与 SKILL.md frontmatter version 字段比对 -->
+<!--   - 一致 → 跳过 CLAUDE.md / AGENTS.md 逐字符 diff（99%+ 场景，节省 ~65-75% 启动 token） -->
+<!--   - 不一致 / 缺失 / localconfig 不存在 → 走全量校验 + 写回新版本号 -->
+<!--   - 漂移自愈仍保留：skill 升级 → 版本不一致 → 触发一次全量 diff → 写回新版本号 → 下次跳过 -->
+<!-- 逃生舱：`/teamwork force-init` 强制走全量校验（忽略版本缓存）。 -->
+<!-- 🔴 禁止手改：此字段由 PMO 维护。手改后果 = 版本命中但 CLAUDE.md 未同步，红线 #14 风险。 -->
+teamwork_version:
+
 ## 负责子项目
 <!-- scope: all 表示负责所有子项目；否则列出具体子项目缩写 -->
 scope: all
@@ -106,25 +118,30 @@ scope:
 <!--   - 选 auto/manual 前建议先用 P0-10 的 worktree_base + IDE workspace 自动配置（待实施） -->
 worktree: off
 
-## Ship 策略（v7.3.9 新增）
+## Ship 策略（v7.3.10+P0-15 MR 模式）
+
+<!-- 🟢 v7.3.10+P0-15 变更：Ship Stage 改为 MR 模式（PMO 只负责净化 + push feature + 生成 MR/PR create URL，不做本地 merge / push merge_target / 冲突解决）。 -->
+<!-- 已移除字段：ship_rebase_before_push（不再做 rebase）、ship_policy（不再有 merge+push 暂停点）。 -->
 
 ### 合并目标分支
-<!-- merge_target: Feature 完成后合并的目标分支。默认 staging。 -->
+<!-- merge_target: Feature 的目标分支，用于 MR/PR 的 base 分支。默认 staging。 -->
 <!-- 解析优先级：state.json.merge_target > 本文件 merge_target > 默认 staging -->
 <!-- 常见值：staging / develop / main（单分支模型） -->
+<!-- 作用：Ship Stage 生成 MR create URL 时作为 base 分支；worktree 创建时作为 base。 -->
 merge_target: staging
 
-### Rebase 策略
-<!-- ship_rebase_before_push: Ship Stage push feature 分支前是否 rebase onto 目标分支。 -->
-<!-- false（默认，多人场景推荐）= 保留原 feature 分支历史，通过 merge --no-ff 合并 -->
-<!-- true（单人场景可选）= push 前 rebase 最新 target，线性历史更干净但可能覆盖他人改动 -->
-ship_rebase_before_push: false
-
-### Ship 策略
-<!-- ship_policy: auto / confirm（默认 confirm） -->
-<!-- confirm = Ship Stage 每个关键操作（rebase/merge/push）前都需要用户确认 -->
-<!-- auto = 信任 PMO 自主执行，仅在冲突/异常时暂停 -->
-ship_policy: confirm
+### MR/PR 创建链接模板（可选）
+<!-- mr_url_template: Ship Stage 生成 MR/PR create URL 的模板。 -->
+<!-- 留空 = PMO 按 git remote 自动识别平台（github / gitlab / gitlab-self-hosted / gitee / bitbucket）生成。 -->
+<!-- 识别失败（unknown 平台）时，mr_create_url=null 并在完成报告 concerns 标注，需用户手动创建 MR。 -->
+<!-- 若使用自建 gitlab / 企业 git 需要自定义链接格式，可在此配置，支持以下占位符： -->
+<!--   {remote_url}   = git remote 原始 URL（含 .git 后缀已去除） -->
+<!--   {remote_host}  = git host 域名（如 git.internal.example.com） -->
+<!--   {repo_path}    = owner/repo 路径（如 team/service） -->
+<!--   {feature_branch_enc} = URL-encoded feature 分支名（feature/F042-login → feature%2FF042-login） -->
+<!--   {merge_target} = 目标分支名 -->
+<!-- 示例（自建 GitLab）：{remote_url}/-/merge_requests/new?merge_request[source_branch]={feature_branch_enc}&merge_request[target_branch]={merge_target} -->
+mr_url_template:
 
 ### Worktree 清理策略
 <!-- worktree_cleanup: ask / keep / remove（默认 ask） -->

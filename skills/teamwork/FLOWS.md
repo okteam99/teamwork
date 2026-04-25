@@ -224,8 +224,17 @@ PMO 识别为 Feature Planning 后，进一步判断范围：
 │   ├── 每份对应 templates/ 模板路径（例：state.json → templates/feature-state.json）
 │   ├── 🔴 PMO 声明：Write 前必 Read 对应模板为格式基准；禁止以 peer Feature 为格式参考
 │   └── 📎 详见 [TEMPLATES.md § 格式权威红线](./TEMPLATES.md#-格式权威红线v739p0-7-新增)
-├── 阶段链（Feature，v7.3.4）：🔗 Plan Stage → 🔗 UI Design Stage（含全景增量同步）→ 🔗 Blueprint Stage → 🔗 Dev Stage → 🔗 Review Stage（架构师CR∥Codex∥QA审查）→ 🟡 Test Stage 前置确认 → 🔗 Test Stage(可选：立即/延后/跳过) → Browser E2E(可选) → 🔗 PM 验收 + commit + push（合并暂停点，3 选 1）
+├── 阶段链（Feature，v7.3.10+P0-15）：🔗 Plan Stage → 🔗 UI Design Stage（含全景增量同步）→ 🔗 Blueprint Stage → 🔗 Dev Stage → 🔗 Review Stage（架构师CR∥Codex∥QA审查）→ 🟡 Test Stage 前置确认 → 🔗 Test Stage(可选：立即/延后/跳过) → Browser E2E(可选) → 🔗 PM 验收（3 选 1：通过+Ship / 通过暂不 Ship / 不通过）→ 🔗 Ship Stage（MR 模式：净化 → push feature → 生成 MR/PR create URL → worktree 清理）
 │   └── 自动跳过：Designer（PRD「需要 UI: 否」时）
+├── 🤖 Codex 交叉评审决策（v7.3.9+P0-13 新增，仅影响 Plan/Blueprint Stage；Review Stage 代码审查独立强制不受影响）：
+│   ├── 默认值：OFF（state.codex_cross_review.enabled = false）
+│   ├── 建议：{开 / 不开}（PMO 基于改动规模/风险/跨项目给出）
+│   ├── 理由：{例：大改动 + 跨子项目 → 建议开；小 bug 修复 + 单文件 → 建议不开}
+│   └── 选项（4 选 1）：
+│       1. ✅ 默认不开（跳过 Plan/Blueprint Codex，约 0 额外开销）
+│       2. 🔓 全开（Plan + Blueprint 额外 +10-20 min + ~10K token）
+│       3. 🔧 只开 Plan（PRD 单独 Codex）
+│       4. 🔧 只开 Blueprint（TC+TECH 单独 Codex）
 ├── 📋 流程步骤描述（v7.3 必填，让用户基于步骤确认流程）：
 │   1. Plan Stage：PM 起草 PRD（AC 结构化）+ PL-PM 讨论 + 多视角技术评审 → ⏸️ 用户确认
 │   2. UI Design Stage（如需 UI，v7.3.4 合并）：Designer 产出 UI.md + HTML 预览 + 全景增量同步 → ⏸️ 用户确认「设计批」（UI + 全景一起审）
@@ -234,10 +243,12 @@ PMO 识别为 Feature Planning 后，进一步判断范围：
 │   5. Review Stage：三视角独立评审（架构师/QA/Codex）→ 🚀 自动
 │   6. Test Stage：环境准备 + 集成测试 + API E2E → 🚀 自动
 │   7. Browser E2E（如需）：→ ⏸️ 用户确认
-│   8. PM 验收 + commit + push（v7.3.4 合并暂停点）：
-│       PM 判断 → PMO 自动本地 commit → ⏸️ 3 选 1（push / 仅 commit / 不通过修复）
-│   9. PMO 完成报告
-├── ⏸️ 请确认：(1) 走 {流程名} 流程（基于步骤描述）(2) 以上分析和影响范围
+│   8. PM 验收（v7.3.10+P0-15）：
+│       PM 判断 → ⏸️ 3 选 1（通过+Ship → 进入 Ship Stage / 通过暂不 Ship → 仅 push feature 归档 / 不通过 → 派发 RD Fix）
+│   9. Ship Stage（v7.3.10+P0-15 MR 模式，选 1 时）：
+│       PMO 净化 → push feature → 识别 git_host + 生成 MR/PR create URL → ⏸️ worktree 清理询问（worktree=off 跳过）
+│  10. PMO 完成报告（含 mr_create_url，提示用户到平台合入；PMO 不做本地 merge / push merge_target / 冲突解决）
+├── ⏸️ 请确认：(1) 走 {流程名} 流程（基于步骤描述）(2) 以上分析和影响范围 (3) 🤖 Codex 开关选择（默认选项 1 = OFF）
 └── 🔄 切换到：{角色名}（用户确认后）
 
 ---
@@ -720,6 +731,10 @@ Workspace Planning 完成 ✅
 │   ├── 职责/依赖变更子项目：[列表]
 │   └── 不受影响的子项目：[列表]
 ├── 使用流程：Feature Planning 流程（工作区级）
+├── 🤖 Codex 交叉评审决策（v7.3.9+P0-13，仅影响 PRD 起草阶段的外部视角）：
+│   ├── 默认值：OFF
+│   ├── 建议：{开 / 不开}（PMO 基于规划规模/跨子项目数给出）
+│   └── 选项：1. ✅ 不开（默认） 2. 🔓 开启（PRD 起草后追加 Codex 外部视角审查）
 └── 🔄 切换到 PM 开始工作区级产品规划
 
 ---
@@ -768,7 +783,7 @@ PM 编写精简 PRD（需求描述 + 验收标准 + 影响范围 + 接口变更 
     ↓ 🚀 自动
 📋 PMO L2 预检
     ↓
-🔗 Dev Stage（AI Plan 模式规划执行方式，按规模/复杂度选主对话/Subagent/混合）
+🔗 Dev Stage（v7.3.9+P0-14 默认主对话；TECH >10 文件 / 产出 >500 行 opt-in Subagent）
     ↓
 🔗 Dev Stage 通过 → 🔗 Review Stage → 🟡 Test Stage 前置确认 → 🔗 Test Stage(可选，与 Feature 一致)
     ↓
@@ -803,7 +818,11 @@ PMO 完成报告
 │   ├── 不影响其他功能：✅
 │   └── 方案明确：✅ [一句话方案]
 ├── 阶段链：精简 PRD → ⏸️ → QA (Plan+Case) → 🔗 Dev Stage → 🔗 Review Stage → 🟡 Test Stage 前置确认 → 🔗 Test Stage(可选) → Browser E2E(可选) → PM 验收
-├── ⏸️ 请确认走敏捷需求流程
+├── 🤖 Codex 交叉评审决策（v7.3.9+P0-13）：
+│   ├── 默认值：OFF（敏捷需求场景改动小，默认关 Codex；Review Stage 代码审查仍强制）
+│   ├── 选项：1. ✅ 不开（推荐） 2. 🔓 开启精简 PRD 的 Codex 外部视角
+│   └── 用户选择后写入 state.codex_cross_review.enabled
+├── ⏸️ 请确认走敏捷需求流程 + Codex 开关（默认不开）
 └── ✅ 自检通过
 ```
 
@@ -845,7 +864,7 @@ PMO 完成报告
 ### Micro 流程链路
 
 ```
-PMO 分析 → ⏸️ 用户确认走 Micro（含流程步骤描述）→ PMO 直接改动 → 用户验收 → 完成
+PMO 分析 → ⏸️ 用户确认走 Micro（含流程步骤描述）→ PMO 切 RD 身份（Read rd.md + standards/*.md + cite）→ PMO 直接改动 → RD 自查 → 用户验收 → 完成
 ```
 
 ### Micro 流程自动流转
@@ -857,12 +876,23 @@ PMO 初步分析（判断符合 Micro 准入条件）
     ↓
 ⏸️ 等待用户确认走 Micro 流程（🔴 必须由用户确认，PMO 不可自行决定）
     ↓ 用户确认
+🔴 PMO 切 RD 身份（P0-16 补丁，不可豁免）
+    ├── Read roles/rd.md（职责段 + 自查段）
+    ├── Read standards/common.md（必读）
+    ├── 样式/前端 → 加读 standards/frontend.md
+    ├── 后端配置 → 加读 standards/backend.md
+    └── 在 PMO 阶段摘要中 cite 1-2 句相关规范要点
+    ↓
 PMO 直接执行改动（无需 Execution Plan / 无需 dispatch 文件）
     ├── 按变更清单改文件
     ├── 跑项目已有测试（如有）确认无回归
     └── 产出改动摘要（主对话内）
     ↓
-📊 PMO 阶段摘要
+🔴 RD 自查（按 roles/rd.md 自查段执行）
+    ├── 规范符合性检查
+    └── 已有测试无回归
+    ↓
+📊 PMO 阶段摘要（含规范 cite + 自查结果）
     ↓
 ⏸️ 用户验收（手测/目视确认）
     ↓ 用户确认通过
@@ -887,11 +917,13 @@ Micro 需求完成 ✅
 ├── 变更清单：
 │   ├── [文件1]：[改动摘要]
 │   └── [文件2]：[改动摘要]
-├── 📋 流程步骤描述（v7.3 必填）：
-│   1. PMO 直接执行改动（按变更清单改文件，跑已有测试）
-│   2. 用户验收（手测/目视确认）
-│   3. PMO 完成报告（含事后审计）
-├── 阶段链：PMO 分析 → 用户确认 → PMO 直接改动 → 用户验收
+├── 📋 流程步骤描述（v7.3 必填 / P0-16 补丁补齐角色切换步骤）：
+│   1. PMO 切 RD 身份：Read roles/rd.md + standards/common.md（+ frontend.md / backend.md 按需）→ 摘要 cite 1-2 句规范要点
+│   2. PMO 以 RD 身份直接执行改动（按变更清单改文件，跑已有测试）
+│   3. RD 自查（按 roles/rd.md 自查段：规范 + 回归）
+│   4. 用户验收（手测/目视确认）
+│   5. PMO 完成报告（含事后审计 + 自查摘要）
+├── 阶段链：PMO 分析 → 用户确认 → 加载 RD 规范+cite → PMO 直接改动 → RD 自查 → 用户验收
 ├── ⏸️ 请确认走 Micro 流程
 └── ✅ 自检通过
 ```
@@ -919,9 +951,16 @@ Micro 需求完成 ✅
 ### Micro 流程规则
 
 ```
-🔴 强制规则（v7.3 调整）：
+🔴 强制规则（v7.3 调整 + v7.3.10+P0-16 补丁）：
 ├── 🟢 PMO 可直接改代码（v7.3 放宽，不强制 Subagent，也不要求 Execution Plan）
 ├── 前提：用户已确认走 Micro 流程（含流程步骤描述）
+├── 🔴 **角色切换必读（P0-16 补丁，不可豁免）**：PMO 切 RD 身份改之前必须真实 Read：
+│   ├── `roles/rd.md`（职责段 + RD 自查强制规则段）
+│   ├── `standards/common.md`（通用规范必读）
+│   ├── 样式/前端资源改动 → 加读 `standards/frontend.md`
+│   └── 后端配置/资源改动 → 加读 `standards/backend.md`
+├── 🔴 改动前必须在 PMO 阶段摘要中 cite 1-2 句相关规范要点（防止凭记忆换名头直接改）
+├── 🔴 改动后必须执行 RD 自查（见 `roles/rd.md` 自查段）：至少规范符合 + 跑已有测试无回归
 ├── 用户验收前禁止 commit/push（→ 红线 #5 同样适用）
 └── 用户在任何时候可以要求升级为敏捷或 Feature 流程
 │
@@ -932,7 +971,7 @@ Micro 需求完成 ✅
 ├── Test Stage（零逻辑 → 无需代码审查+测试链）
 ├── Execution Plan（零逻辑 → 不需要规划 approach）
 ├── Dispatch 文件（PMO 直接改，无需 dispatch）
-└── 保留的：PMO 分析 + 流程步骤描述 + 用户确认 + 执行 + 用户验收（最小闭环）
+└── 保留的：PMO 分析 + 流程步骤描述 + 用户确认 + **加载 RD 规范+cite** + 执行 + **RD 自查** + 用户验收（最小闭环）
 │
 🔴 升级条件（Micro 执行过程中发现任一情况 → 必须暂停升级）：
 ├── 执行中发现需要修改逻辑代码
@@ -943,6 +982,8 @@ Micro 需求完成 ✅
 🔴 Micro 事后审计（PMO 完成报告前必须检查）：
 ├── 实际改动是否仍满足 Micro 准入条件？
 ├── 有无逻辑变更混入？
-├── 阶段链是否完整？（分析 → 用户确认 → 执行 → 用户验收）
+├── 🔴 是否真实 Read roles/rd.md + standards/*.md？（P0-16 补丁；cite 是否真实出现在摘要中）
+├── 🔴 RD 自查是否已执行？
+├── 阶段链是否完整？（分析 → 用户确认 → 加载 RD 规范 → 执行 → RD 自查 → 用户验收）
 └── 任何偏离 → 标注 ⚠️ 流程偏离 + 记录原因
 ```

@@ -52,19 +52,22 @@
 // - 用户选择 B（延后批量测试）→ status = DEFERRED，附 batch_id
 // - 用户选择 C（跳过）→ status = SKIPPED，附 skip_reason
 
-// Codex 交叉评审独立建行规则（v7.3.4 新增）：
-// - plan-codex-review：Plan Stage 内部 4 视角评审 DONE 之后追加一行，记录 PRD 外部评审结果
-// - blueprint-codex-review：Blueprint Stage 4 步内部闭环 DONE 之后追加一行，记录 TC+TECH 外部评审结果
-// - review-codex：Review Stage 已有行，Code Review 外部视角
+// Codex 交叉评审独立建行规则（v7.3.4 新增，v7.3.9+P0-13 修订）：
+// - plan-codex-review：🟡 仅当 state.codex_cross_review.enabled==true 时产出本行（v7.3.9+P0-13 降为 opt-in 默认 OFF）；Plan Stage 内部 4 视角评审 DONE 之后追加，记录 PRD 外部评审结果
+// - blueprint-codex-review：🟡 同上条件；Blueprint Stage 4 步内部闭环 DONE 之后追加，记录 TC+TECH 外部评审结果
+// - review-codex：🔴 Review Stage Code Review 外部视角，强制保留（v7.3.9+P0-13 未变更）
 // 三者共用字段 artifact_path 指向对应 *-codex-review.md，summary 建议格式："ADOPT:N / REJECT:M / DEFER:K"
 // executor 一般为 "subagent"（dispatch Codex CLI agent）；Codex CLI 不可用触发 🟢 AI 自主降级时，executor 如实填 "subagent" 或 "main-conversation"，并在 concerns 写明降级决策（选用的等效独立路径 + 独立性保证）
+// Codex 关闭时（state.codex_cross_review.enabled==false）：plan-codex-review / blueprint-codex-review 行**不产出**；Plan/Blueprint 主行的 summary 可追注 "(codex-disabled)"
 
 // 示例（v7.3.3 含耗时度量字段）：
 // {"stage":"plan-stage","status":"DONE","executor":"main-conversation","started_at":"2026-04-15T09:15:00","timestamp":"2026-04-15T10:00:00","duration_minutes":45,"estimated_minutes":30,"variance_pct":50,"dispatches_count":0,"retry_count":0,"user_wait_seconds":450,"commit":"","summary":"PRD 定稿 13 条 AC","artifact_path":"{Feature}/PRD.md","concerns":[],"stale":false}
 // {"stage":"plan-codex-review","status":"DONE","executor":"subagent","started_at":"2026-04-15T10:00:00","timestamp":"2026-04-15T10:08:00","duration_minutes":8,"estimated_minutes":8,"variance_pct":0,"dispatches_count":1,"retry_count":0,"user_wait_seconds":0,"commit":"","summary":"ADOPT:2 / REJECT:3 / DEFER:1","artifact_path":"{Feature}/prd-codex-review.md","dispatch_file":"dispatch_log/003-prd-codex-review.md","concerns":[],"stale":false}
 // {"stage":"blueprint-stage","status":"DONE","executor":"main-conversation","started_at":"2026-04-15T10:10:00","timestamp":"2026-04-15T11:05:00","duration_minutes":55,"estimated_minutes":35,"variance_pct":57,"dispatches_count":0,"retry_count":1,"user_wait_seconds":180,"commit":"","summary":"TC 15 条 + TECH.md 定稿（1 轮修订）","artifact_path":"{Feature}/TC.md","concerns":[],"stale":false}
 // {"stage":"blueprint-codex-review","status":"DONE_WITH_CONCERNS","executor":"subagent","started_at":"2026-04-15T11:05:00","timestamp":"2026-04-15T11:13:00","duration_minutes":8,"estimated_minutes":8,"variance_pct":0,"dispatches_count":1,"retry_count":0,"user_wait_seconds":0,"commit":"","summary":"ADOPT:3 / REJECT:2 / DEFER:2","artifact_path":"{Feature}/blueprint-codex-review.md","dispatch_file":"dispatch_log/006-blueprint-codex-review.md","concerns":["Codex 指出 TECH.md 缺少并发写入冲突处理策略"],"stale":false}
-// {"stage":"dev-stage","status":"DONE","executor":"subagent","started_at":"2026-04-15T11:05:00","timestamp":"2026-04-15T12:00:00","duration_minutes":55,"estimated_minutes":45,"variance_pct":22,"dispatches_count":1,"retry_count":0,"user_wait_seconds":0,"commit":"a1b2c3d","summary":"单测 47/47 通过","dispatch_file":"dispatch_log/007-rd-develop.md","concerns":[],"stale":false}
+// {"stage":"dev-stage","status":"DONE","executor":"main-conversation","started_at":"2026-04-15T11:05:00","timestamp":"2026-04-15T12:00:00","duration_minutes":55,"estimated_minutes":45,"variance_pct":22,"dispatches_count":0,"retry_count":0,"user_wait_seconds":0,"commit":"a1b2c3d","summary":"单测 47/47 通过（主对话 TDD）","concerns":[],"stale":false}
+// v7.3.9+P0-14：主对话为 Dev Stage 默认；subagent opt-in 示例（TECH >10 文件 / 产出 >500 行 场景）：
+// {"stage":"dev-stage","status":"DONE","executor":"subagent","started_at":"2026-04-15T11:05:00","timestamp":"2026-04-15T12:00:00","duration_minutes":55,"estimated_minutes":45,"variance_pct":22,"dispatches_count":1,"retry_count":0,"user_wait_seconds":0,"commit":"a1b2c3d","summary":"单测 47/47 通过（大改动 subagent 隔离执行）","dispatch_file":"dispatch_log/007-rd-develop.md","concerns":[],"stale":false}
 // {"stage":"review-arch","status":"DONE","executor":"main-conversation","started_at":"2026-04-15T12:05:00","timestamp":"2026-04-15T12:20:00","duration_minutes":15,"estimated_minutes":15,"variance_pct":0,"dispatches_count":0,"retry_count":0,"user_wait_seconds":0,"commit":"a1b2c3d","summary":"架构师 CR（主对话，怀疑者视角）","artifact_path":"{Feature}/review-arch.md","concerns":[],"stale":false}
 // {"stage":"review-qa","status":"DONE","executor":"subagent","started_at":"2026-04-15T12:05:00","timestamp":"2026-04-15T12:15:00","duration_minutes":10,"estimated_minutes":12,"variance_pct":-17,"dispatches_count":1,"retry_count":0,"user_wait_seconds":0,"commit":"a1b2c3d","summary":"QA 代码审查","dispatch_file":"dispatch_log/008-qa-code-review.md","concerns":[],"stale":false}
 // {"stage":"test-stage","status":"DEFERRED","executor":"main-conversation","started_at":"2026-04-16T09:15:00","timestamp":"2026-04-16T09:15:00","duration_minutes":0,"estimated_minutes":30,"variance_pct":null,"dispatches_count":0,"retry_count":0,"user_wait_seconds":0,"commit":"a1b2c3d","summary":"用户选择延后批量测试","concerns":[],"batch_id":"test-batch-2026-04-16-1","stale":false}

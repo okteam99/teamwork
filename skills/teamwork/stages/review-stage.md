@@ -81,6 +81,7 @@ QA 视角 额外读：
    - 维度：TC 逐条覆盖 / TDD 规范 / 集成测试代码完整性 / 设计-代码一致性
 
 4. **外部独立审查**（🔴 统一走 codex CLI 独立 spawn，v7.3.9+P0 强化）
+   - 🔴 **本 Stage Codex 不受 P0-13 开关影响**（v7.3.9+P0-13 明确）：`state.codex_cross_review.enabled` 仅控制 Plan / Blueprint Stage 的**文档**外部视角；Review Stage 的**代码**外部视角是代码层最后一道 gate，保持 🔴 强制不变。
    - 🔴 **宿主判断**：无论 PMO 所在宿主是 Claude Code 还是 Codex CLI，外部视角**都通过 codex CLI 独立 spawn fresh session 执行**（独立性来源于 session 隔离 + 可选跨模型）
      ```
      ├── Claude Code 宿主 → 通过 Task/MCP 调 codex 子进程（codex CLI fresh session）

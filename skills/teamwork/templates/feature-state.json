@@ -1,6 +1,6 @@
 {
   "_schema_version": "v7.3.9",
-  "_description": "Feature 级流转状态机快照（机读权威源 + 人读可查）。v7.3.2 起替代 STATUS.md。v7.3.3 新增耗时度量字段。v7.3.4 合并暂停点：ui_design 含全景增量同步 + pm_acceptance 含 commit/push。v7.3.9 引入 Ship Stage + 每阶段 auto_commit + Plan Stage 入口 preflight。",
+  "_description": "Feature 级流转状态机快照（机读权威源 + 人读可查）。v7.3.2 起替代 STATUS.md。v7.3.3 新增耗时度量字段。v7.3.4 合并暂停点：ui_design 含全景增量同步 + pm_acceptance 含 commit/push。v7.3.9 引入 Ship Stage + 每阶段 auto_commit + Plan Stage 入口 preflight。v7.3.10+P0-15 Ship Stage MR 化：ship 字段重构（移除 rebase_status/merge_commit_hash/push_status，新增 git_host/mr_create_url/feature_pushed_at/worktree_cleanup）。",
   "_instructions": {
     "location": "{子项目}/docs/features/{功能目录}/state.json（Feature 目录内，与 PRD/TC/TECH 等产物同级）",
     "updated_by": "PMO（每次流转前读、每次流转后写）",
@@ -8,7 +8,7 @@
     "duration_metrics": "v7.3.3 新增：stage_contracts.started_at / completed_at + duration_minutes。executor_history 每条记录 estimated/actual duration + variance。Feature 完成时聚合为耗时统计报告。",
     "stage_enum_v7_3_9": "Feature 流程合法 current_stage 枚举：plan_preflight | plan | ui_design（含全景增量）| blueprint | dev | review | test | browser_e2e | pm_acceptance | ship | completed。panorama_design 仅用于 Feature Planning 流程的全景重建模式。v7.3.9 新增 plan_preflight（Plan Stage 入口 worktree+分支确认）和 ship（独立 Ship Stage 取代 v7.3.4 的 pm_acceptance 合并暂停点）。",
     "auto_commit_tracking_v7_3_9": "v7.3.9 硬规则：每个 Stage 在 output_satisfied=true 前 PMO 执行 git status --porcelain，非空则 auto-commit。commit hash 写入 stage_contracts.{stage}.auto_commit（单值）或 auto_commit[]（多轮循环时为数组，如 review/test）。",
-    "ship_tracking_v7_3_9": "v7.3.9：ship 顶层字段记录 Ship Stage 产物——sanitize_log（residual_commits / cleaned_files / suspicious_files）、rebase_status、merge_commit_hash、push_status（pushed | local_only | cancelled）、worktree_cleanup（removed | kept | n/a）、shipped（true / false）。PM 验收 3 选 1 的选项记录在 stage_contracts.pm_acceptance.decision。"
+    "ship_tracking_v7_3_10_P0_15": "v7.3.10+P0-15 MR 模式重构：ship 字段记录——sanitize_log（residual_commits / cleaned_files / suspicious_files）、git_host（github|gitlab|gitlab-self-hosted|gitee|bitbucket|unknown）、mr_create_url（AI 生成的 create MR/PR 链接，unknown 时可为 null 并在 concerns 标注）、feature_pushed_at、worktree_cleanup（cleaned | deferred | n_a）、shipped（true / false）。🔴 已移除的 direct-merge 字段：rebase_status / merge_commit_hash / push_status（merge_target push 不再由 AI 做）。PM 验收 3 选 1 的选项记录在 stage_contracts.pm_acceptance.decision。"
   },
 
   "feature_id": "AUTH-F042-email-login",
@@ -137,20 +137,26 @@
       }
     },
     "dev": {
-      "approach": "subagent",
-      "rationale": "改动 >10 文件（涉及中间件/路由/模型/测试），隔离主对话",
-      "estimated_minutes": 45,
+      "approach": "main-conversation",
+      "rationale": "v7.3.9+P0-14 默认主对话：TECH.md 文件清单 8 个 / 预期产出 ~350 行 / 单模块（后端 auth 路由），未触发 subagent 阈值（>10 文件 或 >500 行），主对话可见 TDD 过程 + 省冷启动",
+      "estimated_minutes": 40,
       "steps": [
-        "读输入（PRD/TC/TECH）",
+        "复用 Plan/Blueprint 已加载的 PRD/TC/TECH（主对话 context 累积）",
         "写单元测试骨架（红）",
         "实现核心逻辑（绿）",
         "写集成测试代码",
         "跑单测确认全绿",
-        "RD 自查"
+        "RD 自查（含 UI 还原自检，如涉及）"
       ],
       "loaded_role_specs": ["roles/rd.md", "agents/rd-develop.md"],
       "loaded_standards": ["standards/common.md", "standards/backend.md"],
-      "dispatch_file": "docs/features/AUTH-F042-email-login/dispatch_log/007-rd-develop.md"
+      "_dispatch_file_comment_v7.3.9+P0-14": "主对话模式下无 dispatch_file 字段（RD 在主对话直接执行）；切换到 subagent 时才填 dispatch_log/007-rd-develop.md",
+      "_subagent_alternative_example": {
+        "approach": "subagent",
+        "rationale": "改动 >10 文件（跨前后端 + 中间件/路由/模型/测试），主对话 context 会被淹没，fresh context 独立聚焦更高效",
+        "estimated_minutes": 60,
+        "dispatch_file": "docs/features/AUTH-F042-email-login/dispatch_log/007-rd-develop.md"
+      }
     }
   },
 
@@ -216,19 +222,28 @@
   "_merge_target_source": "localconfig",
   "_merge_target_source_enum": "state.json | localconfig | default",
 
+  "codex_cross_review": {
+    "_comment": "v7.3.9+P0-13：Plan/Blueprint Stage 的 Codex 交叉评审开关。默认 false（不跑）；PMO 初步分析时给建议，用户同意才置 true。Review Stage 的 Codex Code Review 不受本开关影响（保持强制）。",
+    "enabled": false,
+    "decided_at": null,
+    "decided_by": "user",
+    "note": "默认关闭。样例：'大改动高风险，建议开' / '小改动，保持关'"
+  },
+
   "ship": {
+    "_comment_v7_3_10_P0_15": "Ship Stage MR 模式（v7.3.10+P0-15）：PMO 不做本地 merge / push merge_target / 冲突解决；只负责净化 → push feature → 生成 MR create URL → worktree 清理。字段变更说明见 docs/CHANGELOG.md P0-15。",
     "sanitize_log": {
       "residual_commits": [],
       "cleaned_files": [],
       "suspicious_files": []
     },
-    "rebase_status": null,
-    "_rebase_status_enum": "clean | rebased | skipped | conflict_resolved",
-    "merge_commit_hash": null,
-    "push_status": null,
-    "_push_status_enum": "pushed | local_only | cancelled",
+    "git_host": null,
+    "_git_host_enum": "github | gitlab | gitlab-self-hosted | gitee | bitbucket | unknown",
+    "mr_create_url": null,
+    "_mr_create_url_note": "PMO 按 git_host 生成的 create MR/PR 链接；unknown 时可为 null，但 concerns 必须含 '未识别平台'",
+    "feature_pushed_at": null,
     "worktree_cleanup": null,
-    "_worktree_cleanup_enum": "removed | kept | n_a",
+    "_worktree_cleanup_enum": "cleaned | deferred | n_a（worktree=off 时）",
     "shipped": null,
     "started_at": null,
     "completed_at": null

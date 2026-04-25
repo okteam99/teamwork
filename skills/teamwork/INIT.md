@@ -15,9 +15,11 @@
 ```
 /teamwork auto [需求]         → AUTO_MODE=true，需求 = "[需求]"
 /teamwork auto 继续           → AUTO_MODE=true，继续进行中 Feature
-/teamwork auto ship F{编号}   → AUTO_MODE=true，Ship Stage（仍受 ship_policy 约束）
+/teamwork auto ship F{编号}   → AUTO_MODE=true，进入 Ship Stage（MR 模式 · v7.3.10+P0-15）
 /teamwork [需求]              → AUTO_MODE=false（手动，默认）
 /teamwork 继续                → AUTO_MODE=false
+/teamwork force-init          → FORCE_INIT=true（v7.3.10+P0-17：忽略 version 缓存，强制全量校验 CLAUDE.md/AGENTS.md）
+/teamwork init --force        → 同 force-init 别名
 /teamwork（无参）              → AUTO_MODE=false，输出看板
 ```
 
@@ -47,7 +49,7 @@
 └── 非强制保留的 ⏸️ 暂停点（见 flow-transitions.md 顶部豁免表）
 
 🔴 强制保留（仍 ⏸️，不受 auto 影响）：
-1. Ship Stage ship_policy=confirm 下的 rebase / merge / push
+1. Ship Stage worktree 清理待确认（用户偏好不可替决）
 2. 破坏性 git / DB 操作（force push / hard reset / drop 表 / 删分支）
 3. 需求类型 / 使用流程识别有歧义或多候选
 4. 13 条绝对红线触发时
@@ -56,7 +58,7 @@
 7. Blueprint Stage / Review Stage concerns 需用户判断
 8. Micro 流程「用户验收」和「升级确认」
 9. PM 验收三选项
-10. Ship Stage 冲突解不了 / push 拒绝
+10. Ship Stage push FAILED（v7.3.10+P0-15：push feature 失败 → 用户 2 选 1）
 11. Dev / Test Stage BLOCKED 或 FAILED / Review Stage FAILED
 ```
 
@@ -98,24 +100,77 @@
 输出：「🔧 宿主环境：{宿主名} | SKILL_ROOT={路径}」
 ```
 
-**Step 1.2: 校验宿主指令文件**
+**Step 1.2: 校验宿主指令文件（🔴 v7.3.10+P0-17 版本缓存优化）**
 
-检查项目根目录的 `{HOST_INSTRUCTION_FILE}` 文件：
-- 不存在 → 创建并写入下方内容
-- 存在 → 读取 `## Teamwork 协作模式` 段落，对照下方模板校验内容完整性
-  - 段落缺失 → 追加
-  - 内容不符合预期（缺失/被篡改/旧版本）→ 替换为预期内容
-  - 完整匹配 → 跳过
+🟢 v7.3.10+P0-17 引入**版本缓存机制**：复用本地已有的 `.teamwork_localconfig.md` 作缓存标志，版本一致直接跳过 CLAUDE.md / AGENTS.md 的 Read + 字符 diff，节省 ~65-75% 启动 token。
 
-🔴 如果项目根同时存在多个指令文件（CLAUDE.md + AGENTS.md），则**每个文件都写入**相同内容，确保不同工具都能读到。
+**Step 1.2-a：读取 skill 版本号**
+
+```
+读取 SKILL.md frontmatter 的 version 字段：
+├── 找到（当前应为 7.3.10+P0-18）→ SKILL_VERSION = 该值
+└── 缺失 / 无法解析 → SKILL_VERSION = null（降级为全量校验，输出一次 ⚠️ 提示）
+```
+
+**Step 1.2-b：读取本地版本缓存（复用 localconfig）**
+
+```
+读取 项目根/.teamwork_localconfig.md 的 teamwork_version 字段：
+├── 文件不存在 → LOCAL_VERSION = null（首次 / 新 clone → 走全量）
+├── 字段不存在 / 为空 → LOCAL_VERSION = null（旧版 localconfig → 走全量 + 本次写入）
+├── 字段有值 → LOCAL_VERSION = 该值
+└── 文件损坏 / 解析失败 → LOCAL_VERSION = null + ⚠️ 提示 + 走全量
+```
+
+**Step 1.2-c：版本比对 + 校验策略**
+
+```
+SKILL_VERSION 与 LOCAL_VERSION 比对：
+
+├── ⚡ 一致（fast path · 99%+ 场景）
+│   ├── 跳过 {HOST_INSTRUCTION_FILE} 的 Read 和逐字符 diff
+│   ├── 输出：「⚡ CLAUDE.md 校验跳过（teamwork_version={VERSION} 命中缓存）」
+│   └── 🔴 安全假设：上次启动已完成全量校验并写回 version，CLAUDE.md 已同步到该版本
+│
+├── 🔄 不一致 / null（full path · skill 升级 / 首次 / 降级场景）
+│   ├── 执行全量校验（流程同 P0-17 前）：
+│   │   ├── {HOST_INSTRUCTION_FILE} 不存在 → 创建并写入下方模板
+│   │   ├── 存在 → 读取 `## Teamwork 协作模式` 段落，对照下方模板逐字符 diff（含空行/标点/emoji）
+│   │   │   ├── 段落缺失 → 追加
+│   │   │   ├── 🔴 任何字符差异（新增/删除/修改，无论多小）→ 替换为预期内容（漂移自愈）
+│   │   │   ├── 完整匹配（bit-for-bit 一致）→ 不改文件
+│   │   │   └── 禁止 AI 凭"大致差不多"判定跳过 —— 漂移检测语义就是严格 diff
+│   │   └── 🔴 多指令文件（CLAUDE.md + AGENTS.md 并存）→ 每个文件都写入相同内容
+│   ├── 回写：更新 `.teamwork_localconfig.md` 的 `teamwork_version: {SKILL_VERSION}`
+│   │   ├── localconfig 不存在 → 按 templates/config.md 创建最小版（只填 scope:all + teamwork_version）
+│   │   └── localconfig 存在但无 teamwork_version 段 → 追加该段
+│   └── 输出：「🔄 CLAUDE.md 已同步（{LOCAL_VERSION or "缺失"} → {SKILL_VERSION}）」
+│
+└── 🚨 SKILL_VERSION = null（skill frontmatter 损坏 / 旧版 skill）
+    └── 走全量校验 + 不写回 localconfig（无权威版本号可写）+ ⚠️ 提示"SKILL.md version 缺失"
+```
+
+**逃生舱（force full verify）**：
+
+```
+用户输入 `/teamwork force-init` 或 `/teamwork init --force`：
+├── 本次启动无论版本是否一致，强制走 full path
+├── 用于怀疑 CLAUDE.md 被外部工具手改 / 缓存脏污时的兜底
+└── 完成后仍回写最新 SKILL_VERSION
+```
+
+**设计要点（P0-17 决策记录）**：
+- ✅ localconfig 已在 gitignore（见 templates/config.md L77-78）→ 每个开发者各自维护版本缓存，不产生跨机器冲突
+- ✅ 漂移自愈仍保留：skill 升级会触发版本号变化 → 下次启动自动跑全量 diff 修复 CLAUDE.md → 写回新版本 → 此后跳过
+- ⚠️ 用户手改 CLAUDE.md 但未升级 skill → 版本仍命中 → 跳过校验 → 用户修改被保留（"respect user edits" 默认行为；若要强制恢复模板，用 `/teamwork force-init`）
+- ⚠️ 用户手改 localconfig 的 teamwork_version（伪造）→ 未触发全量校验 → 已在模板注释中明确"禁止手改"，依赖纪律 + force-init 兜底
 
 **写入内容**：
 ```markdown
-## Teamwork AI 开发团队
+## Teamwork 协作模式
 
 本项目使用 Teamwork 流程框架：一个 AI 以完整团队方式工作，在不同阶段切换专业视角（PMO/PM/QA/RD/架构师等），通过质量门禁确保产出质量。
 启动方式：`/teamwork [需求]` 或 `/teamwork 继续`。
-详细规范见 skill 目录：`{SKILL_ROOT}/`，入口为 SKILL.md。
 🔴 激活后必须先读取 INIT.md 完成初始化检查，再接收需求。
 
 ### 🔴 PMO 每次阶段变更必做（3 件事，缺一不可）
@@ -127,7 +182,7 @@
 
 ### 🔴 绝对红线（13 条）
 
-1. PMO 写操作边界：非 Micro 流程下影响运行时的改动（代码/测试/配置）→ 必须按流程执行（含完整质量门禁），禁止绕过；Micro 流程 PMO 可直接改（白名单内零逻辑）；常规流程文件（state.json/ROADMAP.md/review-log.jsonl）和纯文档（README/注释/changelog）→ PMO 可直接改，需标注。🆕 Ship Stage 例外（v7.3.9）：rebase/merge 过程中的 git 冲突标记（`<<<<<<<` / `=======` / `>>>>>>>`）PMO 可直接解决（本地或 feature 分支），前提是：（a）所有前序 Stage 已 DONE 且单测全绿；（b）冲突仅为 git marker 合并，不涉及新增逻辑；（c）解决后需重跑单测确认未破坏。不满足则升级为⏸️ 用户决策
+1. PMO 写操作边界：非 Micro 流程下影响运行时的改动（代码/测试/配置）→ 必须按流程执行（含完整质量门禁），禁止绕过；Micro 流程 PMO 可直接改（白名单内零逻辑）；常规流程文件（state.json/ROADMAP.md/review-log.jsonl）和纯文档（README/注释/changelog）→ PMO 可直接改，需标注。🟢 Ship Stage 行为（v7.3.10+P0-15）：Ship Stage PMO 不做本地 merge / push merge_target / 冲突解决；只负责净化 + push feature + 生成 MR 创建链接。合并权由平台和用户处理（红线 #1 不再有 Ship 例外条款）
 2. 流程只有六种：Feature / Bug / 问题排查 / Feature Planning / 敏捷需求 / Micro
 3. 禁止擅自简化：每种需求走完整流程，用户明确说「跳过」才可豁免
 4. 所有用户输入必须由 PMO 先承接
@@ -199,7 +254,7 @@
 |------|----------|--------|
 | docs/KNOWLEDGE.md | 各角色执行时参考 | 当前角色 |
 | docs/architecture/ARCHITECTURE.md | RD 技术方案 / 架构师 Review / Dev Stage | RD / 架构师 Subagent |
-| docs/architecture/database-schema.md | RD 涉及 DB 变更时 | RD Subagent |
+| docs/architecture/database-schema.md | RD 涉及 DB 变更时 | RD（主对话或 Subagent） |
 | docs/PROJECT.md | PM 编写 PRD / PL 讨论产品方向 | PM / PL |
 | design/sitemap.md + overview.html | Designer 设计阶段 | Designer Subagent |
 | docs/ROADMAP.md | Feature Planning / PMO 完成报告 | PM / PMO |

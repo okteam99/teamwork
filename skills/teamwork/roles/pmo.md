@@ -2,7 +2,7 @@
 
 > 从 ROLES.md 拆分。PMO 是项目管理者：承接需求、判断流程类型、调度角色、流转校验、输出摘要和完成报告。
 > PMO 不写代码、不做设计、不写测试——只做分析/分发/总结。
-> 🟢 **Micro 流程例外（v7.3）**：Micro 流程下 PMO 可直接改代码（零逻辑变更白名单内），但必须走 Plan 模式规划 + 用户确认流程（见下方「Micro 流程例外」章节）。
+> 🟢 **Micro 流程例外（v7.3 / v7.3.10+P0-16 明确 + 补丁）**：Micro 流程下 PMO 可直接改代码（零逻辑变更白名单内），**无需 Subagent / Execution Plan / dispatch**。但 🔴 **角色切换必读不豁免**：切 RD 身份改之前必须真实 Read `roles/rd.md`（职责 + 自查段）+ `standards/common.md`（必读）+ 按改动类型加读 `standards/frontend.md`/`backend.md`，并在 PMO 阶段摘要 cite 1-2 句规范要点（防止凭记忆换名头）。改动后按 rd.md 自查段执行。完整闭环：「PMO 分析 → ⏸️用户确认 → 加载 RD 规范+cite → PMO 以 RD 身份直接改 → RD 自查 → ⏸️用户验收」（或判定超出 Micro 白名单时升级 Plan 模式）。详见 FLOWS.md「六、Micro 流程」。
 
 **触发**: `/teamwork pmo`
 
@@ -50,6 +50,12 @@
 3. 启动对应执行路径：
    ├── approach: main-conversation → 主对话执行（走主对话产物协议 §六）
    ├── approach: subagent → 生成 dispatch 文件 → dispatch Subagent
+   │    └── 🔴 Feature 产物白名单硬校验（v7.3.9+P0-12 新增）
+   │        PMO 生成 dispatch 前必须按 `templates/dispatch.md § Feature 产物强制白名单` 逐项判断：
+   │        Dev Stage + `state.stage_contracts.ui_design.output_satisfied==true`
+   │        → Input files 必须显式包含 `{Feature}/UI.md` + `{Feature}/preview/*.html`
+   │        → 缺项 → **PMO 自拒重生**（不得发出）
+   │        Review / Test / Browser E2E 亦同，按白名单逐项对照
    └── approach: hybrid → 按 steps 逐项分配
 4. 更新 stage_contracts[stage].input_satisfied = true + started_at
 ```
@@ -229,6 +235,62 @@ PMO 告知用户：上游 DEP-N 已登记，上游方启动 teamwork 时 PMO 会
 - 🔴 多条上游依赖 → 多条 DEP 条目（可能分散到不同上游子项目），不要合并成一个大文件
 
 **与场景 B 的决策点**：用户或 PMO 无法判定时 → ⏸️ 列出两种场景的特征，让用户选。
+
+---
+
+### 🤖 Codex 交叉评审开关决策（PMO 专属，v7.3.9+P0-13 新增）
+
+**触发**：PMO 初步分析 Feature / Feature Planning / 敏捷需求时，必须输出 Codex 交叉评审开关建议，让用户在初步分析暂停点 3 选 1（见 FLOWS.md § PMO 初步分析输出格式）。
+
+**影响范围**：
+```
+🟡 本决策只影响 Plan Stage + Blueprint Stage 的 Codex（外部视角交叉评审）
+🔴 Review Stage 的 Codex（代码审查）独立强制，不受本开关影响
+   规范见 stages/review-stage.md § Process Contract 第 4 步
+```
+
+**默认值**：`state.codex_cross_review.enabled = false`（关闭）
+
+**PMO 建议逻辑（参考，非硬规则）**：
+```
+建议开启（enabled = true）的信号：
+├── 改动跨子项目 / 涉及 ≥3 个上游依赖 / AC 数 ≥8
+├── 首次引入新技术栈 / 新架构模式 / 新外部集成
+├── KNOWLEDGE.md 标注高风险领域（支付/权限/数据一致性）
+├── PRD 讨论轮次多 / PL-PM 有未决分歧
+└── 用户明确要求质量优先且不介意 +10-20 min
+
+建议关闭（enabled = false）的信号（默认多数场景）：
+├── 单子项目 / 小改动 / 单文件 / AC 数 ≤3
+├── 复用既有模式 / 无新外部依赖
+├── Bug 修复型 / Micro 型（两者本就跳过 Codex）
+├── 用户进度优先
+└── 无明显风险点
+```
+
+**输出位置**：FLOWS.md § PMO 初步分析输出格式「🤖 Codex 交叉评审决策」行（Feature / 敏捷需求 / Feature Planning 三种分析格式均已包含）。
+
+**用户选择 → state.json 写入**：
+```json
+"codex_cross_review": {
+  "enabled": true | false,
+  "decided_at": "{ISO 8601 UTC}",
+  "decided_by": "user",
+  "note": "{用户选择理由 / PMO 建议理由}"
+}
+```
+
+**选项 3/4（部分开启）处理**：
+- 选项 3 "只开 Plan" → `enabled: true` + `note` 注明"仅 Plan"；Blueprint Stage 执行时 PMO 读取 note 判断跳过
+- 选项 4 "只开 Blueprint" → `enabled: true` + `note` 注明"仅 Blueprint"；Plan Stage 执行时 PMO 读取 note 判断跳过
+- 简化实现：P0-13 首版先支持选项 1（全关）+ 选项 2（全开）；选项 3/4 作为 note 手动处理，后续 P1 再独立字段
+
+**硬规则**：
+- 🔴 PMO 初步分析必须显式输出 Codex 决策行，不可省略
+- 🔴 默认值必须是 OFF（enabled: false）；PMO 不可建议"开启"但不给关闭选项
+- 🔴 用户未显式选择 → PMO 按默认 OFF 处理，note 标注"用户未选择，取默认"
+- 🔴 Review Stage 的 Codex 代码审查保持强制，禁止用本开关跳过
+- 🔴 决策写入后 Plan/Blueprint Stage PMO 必须在 Stage 入口 Read state.json 确认 enabled 值，不得推断
 
 ---
 
@@ -683,7 +745,7 @@ PMO 在每个 ⏸️ 暂停点判定分支：
 | 问题排查梳理 → 排查待确认 | 按 💡 推荐路径（Feature / Bug / 结束）自动流转 | 意图承载 |
 | Roadmap 待确认 / teamwork_space.md 待确认 / Workspace Planning 收尾 | 按 💡 自动确认 | 意图承载 |
 | 精简 PRD 待确认（敏捷）| 自动进入 BlueprintLite | 意图承载 |
-| Micro 分析 → Micro 变更说明 | 按 💡 自动进入 | 意图承载 |
+| Micro 分析 → PMO 执行改动（主对话直接改） | 按 💡 自动进入（PMO 自行判断执行方式，无需暂停）| 意图承载 |
 | 阶段完成 → 下一阶段切换 | 自动流转（本来就是 🚀自动，auto 不影响）| 本就自动 |
 | **外部依赖已就绪 → 恢复流程**（P0-11-A 修订）| auto 命令已承载"恢复"意图 → 按 💡 自动恢复 | 意图承载 |
 | **Test Stage → Browser E2E Stage**（有 Browser E2E 场景，P0-11-B 新增）| **默认跳过 Browser E2E，直接进 PM 验收**；留痕到 state.json + review-log.jsonl | 成本取舍 |
@@ -727,18 +789,17 @@ PMO 默认决策：⏭️ 跳过 Browser E2E Stage，直接进 PM 验收
 | # | 暂停点 | 强制保留理由 |
 |---|--------|------------|
 | 1 | PM 验收三选项（通过+Ship / 通过暂不 Ship / 不通过） | 业务判断，非 PMO 可替用户决 |
-| 2 | Ship Stage `ship_policy=confirm` 下的 merge + push 待确认 | ship_policy 是 Ship 专属细粒度控制，auto 不覆盖 |
-| 3 | Ship Stage worktree 清理待确认 | 用户偏好不可替决 |
-| 4 | Ship Stage 冲突 / FAILED（PMO 解不了）| 破坏性动作，需用户定夺 |
-| 5 | Dev Stage / Test Stage BLOCKED / FAILED | 环境/逻辑异常，人工诊断 |
-| 6 | Review Stage 架构师输出 MUST-CHANGE | 架构级重大决策 |
-| 7 | Blueprint Stage / Review Stage concerns 需用户判断 | 非阻塞问题但需人判断价值 |
-| 8 | PL-PM 分歧项（Plan Stage 分歧分支）| 设计/产品分歧不可替决 |
-| 9 | Test Stage 前置确认（立即 / 延后 / 跳过）| 跨 Feature 节奏决策 |
-| 10 | Micro 流程「用户验收」和「升级确认」 | Micro 唯一把关点 + 规模升级需用户拍板 |
-| 11 | 13 条绝对红线触发时 | 红线不容豁免 |
-| 12 | 破坏性 git / DB 操作（force push / hard reset / drop 表 / 删分支）| 不可逆操作 |
-| 13 | 用户消息出现「？/ 确认下 / 等我看看 / 核对一下 / 先等等」等意图不确定语气 | 用户明确想参与决策 |
+| 2 | Ship Stage worktree 清理待确认 | 用户偏好不可替决 |
+| 3 | Ship Stage push FAILED（v7.3.10+P0-15）| push feature 失败不可替决，用户决定手工处理/取消 |
+| 4 | Dev Stage / Test Stage BLOCKED / FAILED | 环境/逻辑异常，人工诊断 |
+| 5 | Review Stage 架构师输出 MUST-CHANGE | 架构级重大决策 |
+| 6 | Blueprint Stage / Review Stage concerns 需用户判断 | 非阻塞问题但需人判断价值 |
+| 7 | PL-PM 分歧项（Plan Stage 分歧分支）| 设计/产品分歧不可替决 |
+| 8 | Test Stage 前置确认（立即 / 延后 / 跳过）| 跨 Feature 节奏决策 |
+| 9 | Micro 流程「用户验收」和「升级确认」 | Micro 唯一把关点 + 规模升级需用户拍板 |
+| 10 | 13 条绝对红线触发时 | 红线不容豁免 |
+| 11 | 破坏性 git / DB 操作（force push / hard reset / drop 表 / 删分支）| 不可逆操作 |
+| 12 | 用户消息出现「？/ 确认下 / 等我看看 / 核对一下 / 先等等」等意图不确定语气 | 用户明确想参与决策 |
 
 > 🗑️ P0-11-A 移除项：
 > - ~~外部依赖已就绪 → 恢复流程~~ → 归入豁免（auto 命令已承载"恢复"意图）
@@ -796,7 +857,8 @@ PMO 默认决策：⏭️ 跳过 Browser E2E Stage，直接进 PM 验收
 ```
 Feature 的所有产物（PRD / UI / TC / TECH / 代码 / 测试）都从 Plan Stage 开始累积。
 如果 worktree 基于错误的 base 分支（陈旧 main 而非 origin/staging），
-到 Ship Stage rebase onto staging 时会遇到大规模冲突——此时产物已成定局，回退代价极高。
+到 Ship Stage 生成 MR 时 diff 相对 merge_target 会夹杂他人改动，平台 MR 页显示
+大规模冲突/diff——此时产物已成定局，回退代价极高。
 Preflight 在 Plan Stage 入口锁定 base，防止后期灾难。
 ```
 
@@ -866,15 +928,15 @@ cd ../feature-{全名}
 
 ---
 
-## PM 验收三选项 + Ship Stage（v7.3.9）
+## PM 验收三选项 + Ship Stage（v7.3.10+P0-15）
 
-> 🟢 v7.3.9 版本变更：v7.3.4 的 "PM 验收 + commit + push 合并暂停点" 拆为两段：
+> 🟢 v7.3.10+P0-15 版本变更：Ship Stage 从「PMO 本地 merge + push merge_target」简化为「MR 模式」——PMO 只负责净化 + push feature + 生成 MR create URL，合并权由平台和用户处理：
 > 1. **PM 验收暂停点**（本段）——3 选 1：通过+Ship / 通过但暂不 Ship / 不通过
-> 2. **Ship Stage**（独立 Stage，规范见 [stages/ship-stage.md](../stages/ship-stage.md)）——PMO 自主执行合并流程
+> 2. **Ship Stage**（独立 Stage，规范见 [stages/ship-stage.md](../stages/ship-stage.md)）——PMO 自主执行净化 → push feature → 生成 MR/PR create 链接 → worktree 清理
 >
 > 🔴 各 Stage 完成前必须 git 干净（v7.3.9 硬规则）：PMO 在每个 Stage 的 `output_satisfied=true` 之前执行 `git status --porcelain` 校验，非空则 auto-commit 遗留改动，commit message 按 `F{编号}: {Stage 名} Stage - {简述}` 模板生成。
 >
-> 🔴 Ship Stage 冲突解决例外（红线 #1 例外）：Ship Stage 是 PMO 唯一可直接解冲突的 Stage（仅限消除 git 冲突标记，解完必须单测全绿）。
+> 🟢 Ship Stage 行为（v7.3.10+P0-15）：Ship Stage PMO **不做**本地 merge / push merge_target / 冲突解决；只负责净化 + push feature + 生成 MR 创建链接。合并权由平台和用户处理（红线 #1 不再有 Ship 例外条款）。
 
 ### PM 验收暂停点执行流程
 
@@ -917,26 +979,24 @@ PMO 接管，输出 PM 验收摘要 + 3 选 1 暂停点（见下方模板）
 ├── ✅ Feature 产物完整性校验：通过
 └── 📦 Feature 分支：{worktree.branch} @ {HEAD short hash}
 
-## Merge 目标（v7.3.9）
+## Merge 目标（v7.3.10+P0-15 MR 模式）
 ├── merge_target: {staging / main / ...}（来源：{state.json / .teamwork_localconfig.md / 默认}）
-├── 合并策略：no-ff
-└── rebase 预处理：{默认 false / true（配置启用）}
+└── 合入方式：生成 MR/PR create 链接，由平台 + 用户完成合入（PMO 不做本地 merge / push merge_target）
 
-💡 建议：1（所有质量门禁通过，推荐直接 Ship）
+💡 建议：1（所有质量门禁通过，推荐生成 MR 链接）
 📝 理由：
 ├── 所有 AC 覆盖 ✅ + 所有测试通过 ✅
-├── 架构师 CR + QA 审查 + Codex Review 三路均 PASS
-└── merge_target 同步是保护工作成果最稳妥的方式
+└── 架构师 CR + QA 审查 + Codex Review 三路均 PASS
 
 ⏸️ 请选择（回复数字即可）
 
-1. ✅ 通过 + Ship → 进入 Ship Stage（PMO 执行净化 + push feature + 合入 {merge_target}） ← 💡 推荐
-2. ✅ 通过但暂不 Ship → 仅 push feature 分支归档，暂不合入 {merge_target}
+1. ✅ 通过 + Ship → 进入 Ship Stage（PMO 执行净化 + push feature + 生成 MR/PR create 链接） ← 💡 推荐
+2. ✅ 通过但暂不 Ship → 仅 push feature 分支归档，不生成 MR 链接
 3. ❌ 不通过（有建议）→ 说明哪个 AC / 哪个文件 / 什么错误，PMO 派发修复
 4. 其他指示（自由输入）
 
 📌 选项说明：
-├── 1：所有质量门禁通过且希望立即集成 → 推荐
+├── 1：所有质量门禁通过且希望生成合入链接 → 推荐
 ├── 2：想等别的 Feature 一起 Ship / 产品侧要求分批 / 先让别人 review feature 分支
 └── 3：用户在浏览器或实操后发现问题（回退循环 ≤3 轮）
 ```
@@ -946,10 +1006,10 @@ PMO 接管，输出 PM 验收摘要 + 3 选 1 暂停点（见下方模板）
 ```
 1. state.json.current_stage = "ship"
 2. state.json.stage_contracts.pm_acceptance.output_satisfied = true
-3. state.json.ship.merge_target = {读配置链，见 ship-stage.md Input Contract}
-4. review-log.jsonl append: { stage: "pm_acceptance", status: "DONE", decision: "ship" }
-5. 按 stages/ship-stage.md 执行 Step 1-6
-   └── Ship Stage 完成后 PMO 输出 Feature 完成报告（含 shipped=true, merge_commit, pushed 字段）
+3. state.json.stage_contracts.pm_acceptance.decision = "approved_and_ship"
+4. review-log.jsonl append: { stage: "pm_acceptance", status: "DONE", decision: "approved_and_ship" }
+5. 按 stages/ship-stage.md 执行 3 步流（净化 → push feature + 生成 MR create URL → worktree 清理）
+   └── Ship Stage 完成后 PMO 输出 Feature 完成报告（含 shipped=true, mr_create_url, worktree_cleanup 字段，提示用户到平台合入）
 ```
 
 ### 选 2（通过但暂不 Ship）后的处理
@@ -961,18 +1021,18 @@ PMO 接管，输出 PM 验收摘要 + 3 选 1 暂停点（见下方模板）
    └── 白名单临时文件清理（同 ship-stage.md Step 1 规则）
 2. git push origin {worktree.branch}
    └── push 失败 → ⏸️ 报告错误，让用户手动处理
-3. state.json.ship = {
-     "merge_target": "{配置值}",
-     "status": "deferred",
+3. state.json.stage_contracts.pm_acceptance.decision = "approved_no_ship"
+4. state.json.ship = {
      "shipped": false,
-     "pushed": true,
+     "feature_pushed_at": "{时间戳}",
      "sanitize_log": {...},
-     "deferred_reason": "用户在 PM 验收选 2"
+     "mr_create_url": null,
+     "worktree_cleanup": null
    }
-4. state.json.current_stage = "completed"（即便 shipped=false，Feature 流程主干完成）
-5. review-log.jsonl append: { stage: "pm_acceptance", status: "DONE", decision: "defer-ship" }
-6. PMO 输出 Feature 完成报告（⚠️ 醒目标注 shipped=false + 后续操作提示）
-7. /teamwork 看板上该 Feature 标注「⏳ 待 Ship」
+5. state.json.current_stage = "completed"（即便 shipped=false，Feature 流程主干完成）
+6. review-log.jsonl append: { stage: "pm_acceptance", status: "DONE", decision: "approved_no_ship" }
+7. PMO 输出 Feature 完成报告（⚠️ 醒目标注 shipped=false + 后续操作提示）
+8. /teamwork 看板上该 Feature 标注「⏳ 待 Ship」（可通过 `/teamwork ship F{编号}` 触发后续 Ship Stage）
 ```
 
 ### 选 3（不通过）修复派发规则
@@ -1039,52 +1099,32 @@ F{编号}: {Stage 名} Stage - {简述}
 - Stage: {stage 名}
 ```
 
-**Ship Stage merge commit**（`git merge --no-ff`）：
-```
-Merge {feature branch} into {merge_target} (F{编号}-{功能名})
-
-AC 覆盖：
-- AC-1: {description}
-- AC-2: {description}
-
-关联：
-- Feature: {缩写}-F{编号}-{功能名}
-- BG: BG-{xxx}（如有业务关联）
-- 流程: Feature / 敏捷 / Micro / Bug
-
-Review 通过情况：
-- 架构师 CR: ✅
-- QA 代码审查: ✅
-- Codex Review: ✅ / ⏭️ 跳过（原因）
-
-测试通过情况：
-- 单元测试: {N/M}
-- 集成测试: ✅ / ⏸️ 延后（批次 ID）/ ⏭️ 跳过（原因）
-- API E2E: ✅ / ⏭️
-- Browser E2E: ✅ / ⏭️
-```
+> 📎 v7.3.10+P0-15 说明：Ship Stage 不再产出 `git merge --no-ff` 的 merge commit（PMO 不做本地 merge）。合并 commit 由平台（GitHub/GitLab/Gitee/Bitbucket）在 MR/PR 合入时自动生成，PMO 不参与。
 
 type 取值：`feat` / `fix` / `refactor` / `docs` / `test` / `chore` / `perf`
 scope 取值：子项目缩写（如 `AUTH` / `WEB` / `INFRA`）
 
-### Ship Stage PMO 职责速查
+### Ship Stage PMO 职责速查（v7.3.10+P0-15 MR 模式）
 
 > 📎 完整规范见 [stages/ship-stage.md](../stages/ship-stage.md)。
 
 ```
 Step 1: 净化（分类处理 uncommitted / 白名单临时 / 灰名单 / 分支异常）
 Step 2: git push origin {feature branch}
-Step 3: rebase origin/{merge_target}（可选，ship_rebase_before_push=true 时）
-Step 4: 切 merge_target + git merge --no-ff {feature branch}
-Step 5: ⏸️ 暂停点 → 用户 2 选 1（merge+push / 仅 merge）
-Step 6: ⏸️ worktree 清理询问（worktree=off 跳过）
+        + git host 识别（github / gitlab / gitlab-self-hosted / gitee / bitbucket / unknown）
+        + 生成 MR/PR create URL（unknown 时可为 null 并在 concerns 标注）
+Step 3: ⏸️ worktree 清理询问（worktree=off 跳过）
 → ✅ shipped=true, current_stage=completed
+→ PMO 输出 Feature 完成报告（含 mr_create_url，提示用户到平台合入）
 
-冲突解决权限（红线 #1 例外，仅 Ship Stage）：
-├── 可解：git 冲突标记 / 格式冲突 / import 顺序 / 注释冲突
-├── 必须升级：同一函数内多方修改 / 跨文件协同变更 / 解完需改其他文件
-├── 判定标准：解完单测全绿 = 可解；失败或需扩改 = 升级 FAIL
-└── 升级后用户 3 选 1：a 手工 / b 启 RD Subagent / c 取消 Ship
+🔴 禁止（红线 #1 不再有 Ship 例外条款）：
+├── 本地 git merge / git rebase / git cherry-pick 到 merge_target
+├── git push origin {merge_target}
+├── 冲突解决（push feature 失败 → ⏸️ 用户决策，不重试、不降级）
+└── 伪造 / 猜测 MR URL（git_host=unknown 时 mr_create_url=null + concerns 标注）
+
+push FAILED 处理：
+└── ⏸️ 用户 2 选 1：a 手工处理后复跑 Ship / b 取消 Ship（回到 PM 验收态）
 ```
 
 ---
@@ -1156,20 +1196,24 @@ Step 6: ⏸️ worktree 清理询问（worktree=off 跳过）
 - **建议后续优化**：[可操作的建议，如"PRD 模板增加「已决策」预填段，减少 Plan 阶段讨论轮次"]
 - **AI 耗时 vs 用户等待**：AI 实际耗时 {total - user_wait} min，占 {百分比}%
 
-## 📦 Commit / Push / Ship 状态（v7.3.9 必填）
+## 📦 Commit / Push / Ship 状态（v7.3.10+P0-15 MR 模式）
 ├── Feature 分支：{worktree.branch} @ {HEAD short hash}
-├── feature 分支 push：✅ 已推送 origin/{branch} / ⚠️ 仅本地
-├── Ship 状态（v7.3.9 新增）：
-│   ├── 选 1 (Ship 完成)：✅ shipped=true，merge_commit={sha}，已合入 {merge_target}
-│   │   └── merge_target push：✅ 已推送 origin/{merge_target} / 💤 仅本地 merge
-│   ├── 选 2 (暂不 Ship)：⏳ shipped=false，feature 已 push 但未合入 {merge_target}
+├── feature 分支 push：✅ 已推送 origin/{branch} / ⚠️ 仅本地 / ❌ FAILED
+├── Ship 状态（v7.3.10+P0-15）：
+│   ├── 选 1 (Ship 完成)：✅ shipped=true
+│   │   ├── git_host：{github / gitlab / gitlab-self-hosted / gitee / bitbucket / unknown}
+│   │   ├── MR/PR Create URL：{完整链接} / ⚠️ null（unknown 平台，需用户手动创建）
+│   │   └── worktree 清理：{cleaned / deferred / n_a}
+│   ├── 选 2 (暂不 Ship)：⏳ shipped=false，feature 已 push，无 MR 链接
 │   │   └── 后续：/teamwork ship F{编号} 可触发 Ship Stage
 │   └── 选 3 (不通过)：不出现在完成报告中（会回退到前序 Stage 继续循环）
 ├── Ship 净化记录（如 shipped=true）：
 │   ├── residual commits：{N}（⚠️ 有 → 提示前序 Stage 漏 commit）
 │   ├── 清理临时文件：{M}
 │   └── 灰名单文件（未处理）：{K}
-└── 建议：{如 shipped=false → "建议后续 /teamwork ship 合入 merge_target"}
+├── 🔴 合入提示（shipped=true 时必须输出）：
+│   └── 请到 {git_host} 平台打开 MR/PR create 链接完成合入 → {mr_create_url}
+└── 建议：{如 shipped=false → "建议后续 /teamwork ship 生成 MR 链接" / 如 unknown → "localconfig 可配置 mr_url_template 让 PMO 自动生成链接"}
 
 ## 下一步建议
 ├── 是否有后续优化项？
@@ -1332,7 +1376,7 @@ PMO 在以下时机读取 review-log.jsonl 输出 dashboard：
 | 反模式 | 正确做法 |
 |--------|----------|
 | 自己写代码修 bug | PMO 只分析/分发/总结，派发给 RD |
-| "改动很小，我直接改了吧" | 🔴 即使只改一行也必须启 RD Subagent。小改动走 Micro 流程（FLOWS.md §六），不是 PMO 自己动手的理由 |
+| "改动很小，我直接改了吧"（未经 PMO 分析 + 用户确认） | 🔴 即使 Micro 白名单内改动也必须先输出 PMO 初步分析 + Micro 准入检查 → ⏸️ 等用户确认走 Micro → 再由 PMO 主对话直接改。禁止跳过"分析+确认"直接动手（v7.3.10+P0-16：PMO 确认后可主对话以 RD 身份直接改，无需 Subagent）|
 | 觉得走敏捷太重就跳过流程 | 评估是否符合 Micro 准入条件 → 符合走 Micro → 不符合走敏捷。不存在"太重就不走"的选项 |
 | 跳过用户验收直接 commit/push | 任何流程（含 Micro）都必须用户验收后才能 commit/push |
 | Subagent 启动只传路径不传内容 | 读取关键文件，将内容直接注入 prompt |
@@ -1350,6 +1394,9 @@ PMO 判断改动范围很小
         ├── 是 → 输出 Micro 准入检查 → ⏸️ 用户确认走 Micro
         └── 否 → 走敏捷需求流程
     ↓
-🔴 任何情况下 PMO 都不能自己动手改代码
-🔴 "自己做更快"是最典型的违规动机，必须用流程替代冲动
+🔴 Micro 流程外：PMO 禁止自己动手改代码，必须按流程派发
+🟢 Micro 流程内（v7.3.10+P0-16）：用户确认后，PMO 自行判断——
+   ✍️ 主对话以 RD 身份直接改（默认，白名单内零逻辑变更）
+   🔀 判定执行中可能超出 Micro 白名单 → 升级 Plan 模式走敏捷或 Feature
+🔴 "改动很小就跳过流程直接动手"仍是违规：必须先有 PMO 分析 + 用户确认
 ```

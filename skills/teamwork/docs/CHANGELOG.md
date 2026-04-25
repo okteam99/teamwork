@@ -1,8 +1,172 @@
 # Changelog
 
-## v7.3.9 + P0 简化（当前）
+## v7.3.10 + P0-18（当前）
 
-> P0 是 v7.3.9 落地后的一轮"反刍"简化：抽取重复描述、收敛 preflight 暂停点、修正依赖安装时机表述。无破坏性变更，向前兼容 v7.3.9 state.json 与 localconfig。
+> v7.3.10+P0-18 人机约定补丁：新增「ok = 按 💡 建议」全局快捷授权约定。用户在 ⏸️ 暂停点回复 `ok` / `OK` / `好` / `可以` / `行` / `嗯` / `按建议` / `按推荐` → PMO 自动映射为「当前暂停点全部 💡 推荐选项」执行（单决策等价于回复 💡 对应数字；多决策等价于所有决策都选 💡 推荐）。前置条件：暂停点至少有 1 个 💡（红线 #10 本就强制）；破坏性操作 / 无 💡 暂停点 / ok+补充语句 不适用本约定，仍按原规则处理。PMO 须输出一行 cite『✅ 已按 💡 建议处理：…』作为审计痕迹。非破坏性，仅加强用户体验。
+
+### P0-18：ok = 按 💡 建议 约定（RULES.md + STATUS-LINE.md + SKILL.md + INIT.md）
+
+- 触发：用户反馈"加一个指令说明，ok = 按建议"。观察：现有规范（RULES.md §模糊确认处理 L186）是『🔴 禁止把「好」「行」直接视为全面授权』，要求复述+二次确认；但实际交互中用户回复 ok 几乎 100% 是『按 💡 推荐走』意图，多余的二次确认增加摩擦。
+- 根因分析：
+  - 旧规则是为了防止"无上下文确认"——担心 ok 被误解为授权破坏性操作。但红线 #10 已经强制要求每个暂停点都输出 💡 推荐 + 📝 理由，ok 在"有 💡 推荐"的上下文中语义完全明确（= 按推荐走）
+  - 多决策点（1A 2B）即使用户想『都按推荐』也要打 `1A 2A` 5 字符，ok 2 字符更省
+  - 破坏性操作（force push / drop 表 / 删分支）属强制保留暂停点（见 flow-transitions.md），本就不应依赖模糊确认，单独拉保护线即可
+- 处理（4 文件）：
+  - **§一 RULES.md §模糊确认处理**（L177-186）：新增「🟢 ok = 按 💡 建议」段，含 7 字（ok/OK/Ok/好/可以/行/嗯/按建议/按推荐）识别清单 + 单决策/多决策映射规则 + 前置条件（必须有 💡）+ 强制 cite 输出格式 + 4 条边界保留（破坏性操作 / 无 💡 暂停点 / ok+补充语句 / 非暂停点）。原 L186 禁令改为边界语句，不再"全面禁止"
+  - **§二 STATUS-LINE.md 用户回复处理表**（L313-321）：新增一行『🟢 ok/OK/好/可以/行/按建议』列映射到『按 💡 推荐全部选项执行 + cite』；原"模糊确认（≤5 字：好/可以/OK）"行改为『其他非 ok 家族模糊词』，避免与新规冲突
+  - **§三 STATUS-LINE.md 意图识别表**（L332）：🟢 流程控制行扩展识别词表 + 处理方式改为『有 💡 → 按 💡 执行 + cite；无 💡 → 复述 + 二次确认』双分支
+  - **§四 SKILL.md frontmatter version**: 7.3.10+P0-17 → 7.3.10+P0-18（触发下次启动的漂移自愈校验，使 CLAUDE.md/AGENTS.md 同步）
+  - **§五 INIT.md Step 1.2-a 当前版本标注**同步更新为 7.3.10+P0-18
+- 收益：
+  - 人机交互摩擦降低：最常见的"采纳推荐"路径从 `1A 2A` → `ok`（2 字符），大幅降低打字成本
+  - 决策意图明确化：PMO cite 一行『✅ 已按 💡 建议处理：…』让用户立刻看到 ok 被如何解读，防止误解
+  - 规范语义一致：红线 #10（暂停点必须给 💡）与 ok 约定形成闭环——💡 不只是"参考建议"而是"ok 对应的具体选项"
+  - 边界清晰：破坏性操作 / 非暂停点 / ok+补充语句 保留原路径，不会因 ok 约定扩大授权面
+- 兼容性（非破坏性，仅放宽授权）：
+  - 旧行为：用户回复 ok → PMO 复述+二次确认 → 用户再回复 1A 2A → 执行
+  - 新行为：用户回复 ok → PMO cite『按 💡 建议处理』→ 直接执行。用户如不满意可中断，实际事故面与旧行为相当（PMO cite 相当于"软复述"）
+  - 多决策点 "1A 2A" 显式回复仍然有效，ok 只是快捷方式
+  - 破坏性操作 / 无 💡 暂停点：行为不变
+  - 红线 #10（暂停点必须给 💡 + 📝）事实上成为 ok 约定的前置条件，变相加强红线 #10 的约束
+
+## v7.3.10 + P0-17
+
+> v7.3.10+P0-17 启动 token 优化：引入 **skill 版本缓存机制**，复用 `.teamwork_localconfig.md`（已 gitignore）记录 `teamwork_version` 字段。每次 `/teamwork` 启动时，先比对 SKILL.md frontmatter 的 `version` 与 localconfig 缓存值：一致（99%+ 场景）→ 跳过 CLAUDE.md/AGENTS.md Read + 逐字符 diff；不一致（skill 升级 / 首次 / 降级）→ 走全量校验 + 写回新版本号。估计节省 ~65-75% 启动阶段 token 消耗。漂移自愈（skill 升级后模板变动自动同步到 CLAUDE.md）能力保留；`/teamwork force-init` 作为逃生舱。非破坏性变更，向前兼容 v7.3.10+P0-16（localconfig 无 teamwork_version 字段 → 自动走全量 + 写入一次即进入稳态）。
+
+### P0-17：skill 版本缓存优化 CLAUDE.md 校验（SKILL.md + templates/config.md + INIT.md）
+
+- 触发：用户反馈"目前读 Init.md 的逻辑是什么，从 token 占用角度，是否有优化空间"；复盘发现 Step 1.2 每次启动都会 Read `{HOST_INSTRUCTION_FILE}`（CLAUDE.md / AGENTS.md）+ 做逐字符 diff，占用 ~2000-3500 token。用户反建议："我们是否在 .teamwork_localconfig.md 中加一个当前 teamwork 版本，如果和 skill.md 版本不一致的时候再去做 claude.md 和 agent.md 检查，更合理，复用本地的轻量级文件。"
+- 根因分析：
+  - CLAUDE.md/AGENTS.md 模板内容只在 skill 升级时才会变化；日常启动 99%+ 场景是"skill 未升级 → 模板未变 → diff 必然一致"的重复工作
+  - 漂移自愈能力（skill 升级后模板变动同步到 CLAUDE.md）只需在升级时触发一次，不需要每次启动都跑
+  - `.teamwork_localconfig.md` 已经存在（gitignore、每开发者各自维护）、是启动必读文件（已在 Step 2 加载），作为版本缓存载体成本为零
+- 处理（3 文件）：
+  - **§一 SKILL.md frontmatter 新增 `version: 7.3.10+P0-17` 字段**（单一权威版本号）：放在 frontmatter 使解析成本最低（Skill 加载时已可见）；后续每次 skill 升级需同步更新此字段
+  - **§二 templates/config.md `.teamwork_localconfig.md` 模板新增「Skill 版本标记」段**：含 `teamwork_version:` 字段 + 详细注释说明机制 + "🔴 禁止手改（PMO 自动维护）"警示 + 逃生舱说明
+  - **§三 INIT.md Step 1.2 重写为缓存-校验-回写模式**：
+    - **Step 1.2-a**：读取 SKILL.md frontmatter `version` → `SKILL_VERSION`（缺失则降级全量+一次性 ⚠️ 提示）
+    - **Step 1.2-b**：读取 `.teamwork_localconfig.md` `teamwork_version` → `LOCAL_VERSION`（文件/字段缺失/损坏均降级为 null）
+    - **Step 1.2-c**：版本比对决定路径
+      - ⚡ fast path（一致）：跳过 CLAUDE.md/AGENTS.md Read + diff，输出「⚡ CLAUDE.md 校验跳过（teamwork_version={VERSION} 命中缓存）」
+      - 🔄 full path（不一致/null）：走原 P0-17 前的全量校验（文件不存在→创建、存在→逐字符 diff、漂移→替换），完成后回写 localconfig `teamwork_version: {SKILL_VERSION}`，输出「🔄 CLAUDE.md 已同步（{旧版本 or "缺失"} → {新版本}）」
+      - 🚨 SKILL_VERSION=null：走全量 + 不回写 + ⚠️ 提示
+  - **§四 INIT.md Step 0 加 `/teamwork force-init` 命令**（+ `/teamwork init --force` 别名）：用户怀疑 CLAUDE.md 被外部工具手改 / 缓存脏污时强制走全量校验
+- 收益：
+  - 启动 token 节省：fast path（99%+ 场景）跳过 ~2000-3500 token 的 CLAUDE.md Read + diff；估计节省 ~65-75% 启动阶段 token 消耗
+  - 漂移自愈保留：skill 升级 → 版本不一致 → 一次性全量 diff 修复 CLAUDE.md → 写回新版本 → 此后跳过；机制语义与 P0-17 前完全等价
+  - 复用本地轻量文件：localconfig 已 gitignore + 已是 Step 2 必读文件，无额外 I/O 成本
+  - 多开发者一致性：localconfig 是每个开发者各自维护，版本缓存也是本地化（不产生跨机器 / 跨用户 git 冲突）
+- 兼容性（非破坏性，向前兼容）：
+  - P0-16 用户升级到 P0-17：首次启动 `LOCAL_VERSION=null` → 走全量校验 + 写回 → 此后稳态 fast path
+  - localconfig 不存在：首次启动走全量校验 + 按 templates/config.md 创建最小版 localconfig（只填 scope:all + teamwork_version）
+  - CLAUDE.md 被用户手改但 skill 未升级：版本仍命中 → 跳过校验 → 用户修改被保留（"respect user edits" 默认行为；若要强制恢复模板，用 `/teamwork force-init`）
+  - 用户伪造 localconfig 的 teamwork_version（手改成最新值）：绕过校验的理论风险 → 靠模板注释"禁止手改"约束 + `/teamwork force-init` 兜底（此场景极少）
+  - 无字段变更影响 state.json / agents/ spec
+- 未变更：
+  - P0-16 及之前所有行为语义（Micro 流程、红线 #1、Ship MR 模式等）完全不变
+  - P0-11 AUTO_MODE / P0-13 Codex opt-in / P0-15 Ship Stage MR 流 等所有其他机制保持原样
+
+## v7.3.10 + P0-16
+
+> v7.3.10+P0-16 一致性修订：Micro 流程去「强制 RD Subagent」化 → 统一为「PMO 自行判断（主对话以 RD 身份直接改 / 升级 Plan 模式）」。核心实体（FLOWS.md §六、SKILL.md 红线 #1 Micro 例外）早已在 v7.3 放宽为 PMO 直接改，但 SKILL.md L320 / RULES.md L521-547 / rules/flow-transitions.md / STATUS-LINE.md / roles/pmo.md / standards/common.md 等 7 个文件仍残留「RD Subagent 执行 / 必须启 Subagent」旧描述，形成自相矛盾。P0-16 清理全部残留，使"PMO 自行判断执行方式"贯穿全部 Micro 相关描述。非破坏性变更（行为层面已经是 PMO 直接改，仅补齐文档一致性）。
+
+### P0-16：Micro 流程描述一致性修订（SKILL.md + RULES.md + rules/flow-transitions.md + roles/pmo.md + STATUS-LINE.md + standards/common.md）
+
+- 触发：用户反馈"Micro 流程是否还强制 RD 在 subagent 下执行，预期是 Micro 流程在初步分析后，PMO 自行判断是否切 Plan 模式还是以 RD 角色身份直接在主对话修改"。
+- 根因分析：
+  - v7.3 放宽了 Micro 流程红线：FLOWS.md §六「Micro 流程」+ SKILL.md 红线 #1 Micro 例外 + SKILL.md L122-126「AI Plan 模式 Micro 例外」已统一为「PMO 可直接改，无需 Subagent / Execution Plan / dispatch」
+  - 但 SKILL.md L320 六种流程速查 / RULES.md 流转图 / rules/flow-transitions.md Micro 流程表 / STATUS-LINE.md Micro 示例 + 阶段对照表 / roles/pmo.md 反模式 / standards/common.md 预检级别表 等 7 处未同步更新，仍保留 v7.2 前的「RD Subagent 执行」旧描述
+  - 导致跨文件描述自相矛盾：同一套规范里有地方说"PMO 直接改"，有地方说"必须启 RD Subagent"，对 PMO 读者造成歧义
+- 处理（7 文件 / 11 处）：
+  - **§一 SKILL.md L320**：六种流程 Micro 行 `RD Subagent 执行` → `PMO 自行判断执行方式（✍️ 主对话以 RD 身份直接改 / 🔀 升级为 Plan 模式走敏捷或 Feature）`
+  - **§二 RULES.md L521-547 Micro 流程自动流转**：流程图去掉「🤖 RD Subagent 执行改动（🔴 PMO 禁止自己改，即使只改一行）」+「PMO L1 预检」节点；改为「PMO 自行判断：✍️ 主对话以 RD 身份直接改 / 🔀 升级 Plan 模式」分支；描述语加 v7.3 放宽 + P0-16 明确标注
+  - **§三 RULES.md L720 功能完成时 PMO 必须执行**：Micro 流程校验改为「PMO 分析→用户确认→PMO 执行（主对话直接改 或 升级 Plan 模式）→用户验收 四步」
+  - **§四 rules/flow-transitions.md**：
+    - L39-40 强制保留暂停点表 Micro 两行（🤖 RD Subagent → 用户验收 / → ⏸️ 升级确认）改为 PMO 执行改动路径
+    - L52 豁免示例 Micro 行改「按 💡 自动进入（PMO 自行判断执行方式，无需暂停）」
+    - L167-177 § Micro 流程节完全重写：header 从「🔴 PMO 禁止自己改代码，必须启 RD Subagent」反转为「🟢 PMO 自行判断执行方式」；表格行从「PMO 分析 → Micro 变更说明 → 🤖 RD Subagent → 用户验收」4 行改为「PMO 分析 → PMO 执行改动 → 用户验收」3 主路径 + 升级确认支路
+  - **§五 roles/pmo.md**：
+    - L5 版本头「Micro 流程例外（v7.3）」描述修正：去掉「但必须走 Plan 模式规划 + 用户确认流程」与 FLOWS.md §六 冲突的旧字句，改为「无需 Subagent / Execution Plan / dispatch」+ P0-16 标注
+    - L748 auto 豁免表 Micro 行改「PMO 执行改动（主对话直接改）」
+    - L1379 反模式首行从「即使只改一行也必须启 RD Subagent」改为「必须先输出 PMO 初步分析 + Micro 准入检查 → ⏸️ 等用户确认 → 再由 PMO 主对话直接改」+ P0-16 标注
+    - L1388-1399 PMO 小改动决策树末段从「🔴 任何情况下 PMO 都不能自己动手改代码」改为双分支：Micro 外保持禁止 + Micro 内 PMO 自行判断（直接改 / 升级 Plan）
+  - **§六 STATUS-LINE.md**：
+    - L201 Micro 示例状态行「下一步：🤖 启动 RD Subagent」改为「下一步：⏸️ 等待用户验收」，阶段从「Micro 变更说明中」改为「PMO 执行改动中」
+    - L277-280 阶段对照表 Micro 专用阶段 3 行（Micro 变更说明 / 🤖 RD Subagent / 用户验收）重写为 PMO 执行改动 / Micro 升级判定 / 用户验收
+  - **§七 standards/common.md**：
+    - L242 L1 预检描述「包括 Micro 流程的 RD Subagent」改为「Micro 流程 PMO 主对话直接改，不走 Subagent，不触发本预检」
+    - L354 各流程预检级别速查表 Micro 行从「Micro | RD Subagent | L1」改为「Micro | _（不启 Subagent）_ | —」
+- 收益：
+  - Micro 流程描述一致性：全部 12 处引用统一到「PMO 自行判断执行方式」语义，消除 v7.3 放宽以来遗留的 7 文件自相矛盾
+  - 用户意图承载：显式写出「✍️ 主对话以 RD 身份直接改 / 🔀 升级 Plan 模式」双路径，PMO 读规范即知自己有判断空间，不再被旧描述误导去强启 Subagent
+  - 红线体系简化：Micro 外「PMO 不得改代码」+ Micro 内「PMO 可直接改（白名单内零逻辑）」边界清晰，不需要维护"什么时候启 Subagent"的额外规则
+- 兼容性（非破坏性）：
+  - 行为面无变化：FLOWS.md §六 + SKILL.md 红线 #1 Micro 例外早已是"PMO 直接改"语义；PMO 按新描述执行与按旧描述通过"豁免启 Subagent"执行等价
+  - state.json / localconfig：无字段变更
+  - Subagent 不再在 Micro 下 dispatch，因此不影响 dispatch 模板 / agents/ spec
+
+### P0-16 补丁：Micro RD 身份切换的必读规则（SKILL.md + FLOWS.md + RULES.md + rules/flow-transitions.md + roles/pmo.md + STATUS-LINE.md）
+
+- 触发：用户反馈"如果切换 RD 身份是否会加载 rd 的规范，避免还是 PMO 只是输出描述改了"
+- 根因：P0-16 主体改动把 Micro 执行路径统一到「PMO 以 RD 身份主对话直接改」，但未显式要求真实加载 RD 规范。Micro 流程免 Execution Plan 同时把 SKILL.md 红线 #14「Role specs loaded 必须真实 Read」也隐性豁免了——存在"PMO 换个名头凭记忆改"的漏洞
+- 处理（6 文件）：
+  - **SKILL.md L63 红线 #1 Micro 例外条款**：加"🔴 角色切换必读不豁免"子句，要求 Read roles/rd.md + standards/common.md + 按改动类型加读 frontend.md/backend.md + 摘要 cite 规范要点
+  - **SKILL.md L122-126 AI Plan 模式 Micro 例外段**：扩展 Micro 例外条款的"不豁免项"清单，显式列出必读文件 + cite 规则 + 自查要求
+  - **FLOWS.md §六 Micro 流程规则**：强制规则段加「角色切换必读」3 项新条款；流程链路 + 流转图 + 分析输出格式步骤描述 全部加入「PMO 加载 RD 规范+cite」节点 + 「RD 自查」节点；事后审计加 2 项校验（是否真实 Read / 自查是否执行）
+  - **RULES.md Micro 流转图**：在「✍️ 主对话以 RD 身份直接改」分支下补全"改动前必读 / 改动前 cite / 改动后自查" 3 层硬约束
+  - **rules/flow-transitions.md § Micro 流程**：表头加第二行「角色切换必读不豁免」警示；流转表从 4 行（PMO 分析 / 执行 / 升级 / 验收）扩展为 6 行（PMO 分析 / 加载 RD 规范 / 执行 / RD 自查 / 升级 / 验收）
+  - **roles/pmo.md L5 头部 Micro 例外描述**：补全「角色切换必读不豁免」+「cite 规范要点」+「改动后自查」3 项硬约束
+  - **STATUS-LINE.md L277-281 阶段对照表**：Micro 专用阶段从 3 行（PMO 执行改动 / 升级判定 / 用户验收）扩展为 5 行（PMO 加载 RD 规范 / PMO 执行改动 / RD 自查 / 升级判定 / 用户验收）
+- 收益：
+  - 堵住"换名头凭记忆改"漏洞：PMO 必须真实 Read + cite 规范要点，"我切 RD 了"一句话不能替代"读规范"
+  - Micro 流程仍然是最轻量通道：不要求完整 Execution Plan / dispatch，但保留"真实加载 + cite + 自查" 3 层最小质量锚
+  - 与红线 #14「Role specs loaded 必须真实 Read」+ AI Plan 模式红线「角色切换必 cite」保持一致：Micro 只豁免 Execution Plan 的输出形式，不豁免底层纪律
+- 兼容性（非破坏性，仅加强约束）：
+  - 行为面轻微变化：之前可能存在"PMO 未 Read rd.md 就直接改"的灰色操作，现在必须真实 Read + cite
+  - 流转图多出 2 个新阶段（「PMO 加载 RD 规范」+「RD 自查」），属自动流转节点（🚀自动，无需用户确认）
+  - state.json / localconfig：无字段变更
+
+## v7.3.10 + P0-15
+
+> v7.3.10 相对 v7.3.9 的唯一破坏性变更：Ship Stage 从「PMO 本地 merge + push merge_target」改为「MR 模式」（P0-15）。PMO 只负责净化 + push feature + 生成 MR/PR create URL，合并权由平台和用户处理。红线 #1 不再有 Ship 例外条款；localconfig 移除 `ship_rebase_before_push` / `ship_policy`；state.json.ship 字段重构。详见 P0-15 条目。
+
+## v7.3.9 + P0 简化
+
+> P0 是 v7.3.9 落地后的一轮"反刍"简化：抽取重复描述、收敛 preflight 暂停点、修正依赖安装时机表述、Codex 成本治理（P0-13：Plan/Blueprint opt-in 默认 OFF，Review 保持强制）、Dev Stage 默认主对话（P0-14：RD 自行规划 Plan 模式，subagent 降为 opt-in）、Ship Stage MR 化（P0-15：简化 PMO 职责边界）。无破坏性变更（P0-15 仅影响 Ship Stage 流程和 state.json.ship schema，向前兼容 v7.3.9 其他部分）。
+
+### P0-15：Ship Stage MR 模式重构（stages/ship-stage.md + templates/feature-state.json + SKILL.md + INIT.md + roles/pmo.md + rules/flow-transitions.md + FLOWS.md + templates/config.md）
+
+- 触发：用户反馈"当前 Ship 流程是否可以简化，例如开发完成后新分支的代码提交 push 后，生成 MR create 链接由用户创建 MR 可以了，这个 MR create 链接要记到 state.json 中，方便以后回溯，然后清理 worktree（如有），不删远程 feature 分支"。
+- 决策：**Ship Stage 从 6 步直连合并流（净化 → push feature → rebase → 本地 merge --no-ff → push merge_target → worktree 清理）改为 3 步 MR 流（净化 → push feature + 生成 MR/PR create URL → worktree 清理）**。PMO 不做本地 merge / push merge_target / 冲突解决；合并权由平台（GitHub/GitLab/Gitee/Bitbucket 等）和用户处理。
+- 根因分析：
+  - v7.3.9 Ship Stage 让 PMO 承担了过多"最后一公里"职责：本地 merge、rebase、冲突解决、push merge_target。这些操作在多人协作场景下风险高（覆盖他人改动、污染主干）、需要复杂的红线 #1 例外条款（允许 PMO 改代码解冲突），且实际合入已由 MR/PR 平台做得更好（代码评审、CI/CD 门禁、合规审计、审批流）
+  - 主流 git workflow（GitHub Flow / GitLab Flow / Trunk-Based）核心就是"push 分支 + 平台合入"，直连合并反而是反模式
+  - 红线 #1 "PMO 非 Micro 流程下不得改代码" 加 Ship 例外条款使红线复杂化，不利于信任边界表达
+- 处理（8 文件）：
+  - **§一 stages/ship-stage.md 完全重写**（核心）：Input/Process/Output Contract 全部按 MR 模式重写；3 步流（Step 1 净化 / Step 2 push feature + host 识别 + MR URL 生成 / Step 3 worktree 清理暂停点）；per-host URL 模板（github / gitlab / gitlab-self-hosted / gitee / bitbucket / unknown）；unknown 平台走 localconfig `mr_url_template` 或 concerns 标注"未识别平台"；push FAILED 直接升级 ⏸️ 用户决策（不重试、不降级）；Anti-patterns 表更新（禁止本地 merge / 禁止 push merge_target / 禁止伪造 URL / 禁止删除远程 feature 分支）
+  - **§二 templates/feature-state.json ship 字段重构**：移除 `rebase_status` / `merge_commit_hash` / `push_status`；新增 `sanitize_log` / `git_host` / `mr_create_url` / `feature_pushed_at` / `worktree_cleanup` / `shipped`；顶部 `_instructions.ship_tracking_v7_3_10_P0_15` 注释说明字段变更
+  - **§三 SKILL.md 红线 #1 + INIT.md 红线 #1**：移除"🆕 Ship Stage 例外（v7.3.9）rebase/merge 冲突 PMO 可直接解决"条款；改为"🟢 Ship Stage 行为（v7.3.10+P0-15）：Ship Stage PMO 不做本地 merge / push merge_target / 冲突解决；只负责净化 + push feature + 生成 MR 创建链接。合并权由平台和用户处理（红线 #1 不再有 Ship 例外条款）"
+  - **§四 roles/pmo.md**：PM 验收三选项 + Ship Stage 章节版本号 v7.3.9 → v7.3.10+P0-15；Merge 预览模板改 MR 模式（去掉 rebase 预处理行）；Ship Stage PMO 职责速查段全部重写（3 步流 + 禁止清单 + push FAILED 处理）；Commit / Push / Ship 状态报告改 MR 模式（`mr_create_url` / `git_host` / `worktree_cleanup` 字段）；强制保留暂停点清单移除"ship_policy=confirm merge+push"（第 2 项）和"Ship Stage 冲突 PMO 解不了"（第 4 项），改为 push FAILED 暂停点；移除"Ship Stage 冲突解决权限（红线 #1 例外）"段
+  - **§五 rules/flow-transitions.md**：Feature 流程 Ship 行重写（PM 验收 → Ship Stage → worktree 清理 → 完成；移除 merge+push 待确认 / 本地 merge 行）；push FAILED 暂停点 2 选 1（手工处理后复跑 / 取消 Ship）
+  - **§六 FLOWS.md**：PMO 初步分析阶段链 v7.3.4 → v7.3.10+P0-15（末段改 PM 验收 + Ship Stage MR 模式）；流程步骤描述第 8-10 步重写
+  - **§七 templates/config.md 本地配置**：移除 `ship_rebase_before_push` / `ship_policy`；保留 `merge_target` / `worktree_cleanup`；新增 `mr_url_template` 字段（可选，自建 GitLab / 企业 git 自定义链接格式，支持 `{remote_url}` / `{repo_path}` / `{feature_branch_enc}` / `{merge_target}` 占位符）
+- 收益：
+  - PMO 职责边界清晰：Ship Stage 只负责"把分支送到平台门口 + 给用户合入入口"，不越界做代码层决策
+  - 红线 #1 简化：移除 Ship 例外条款后，"PMO 非 Micro 流程下不得改代码" 变为真正的绝对红线，无需维护例外清单
+  - 多人协作友好：平台 MR/PR 合入有代码评审 / CI / 审批记录，比 PMO 本地 merge 可审计性强
+  - 无冲突解决成本：PMO 不解冲突 → 不需要单测全绿校验 / 不需要升级决策路径 / 不产生"解一半再回退"的中间态
+  - 暂停点收敛：v7.3.9 "merge+push 待确认" + "worktree 清理" + "Ship 冲突/FAILED" 3 个 Ship 暂停点收敛为 1 个（worktree 清理）+ 1 个异常暂停点（push FAILED）
+- 兼容性（破坏性变更，需迁移）：
+  - **state.json.ship schema**：v7.3.9 已完成 Ship 的 Feature 保留旧字段（merge_commit_hash / push_status 等）不清理，可查阅；v7.3.9 进行中未到 Ship Stage 的 Feature 进入 Ship 时走新流程、写新字段
+  - **localconfig**：v7.3.9 用户升级到 v7.3.10 时，`ship_rebase_before_push` / `ship_policy` 字段 PMO 自动忽略（不报错）；建议用户手动清理这两行 + 新增 `mr_url_template:`（空值即可）
+  - **Codex CLI 子 agent**：Ship Stage 不通过 subagent 执行（PMO 主对话自主），无影响
+  - **历史 Feature 的完成报告**：v7.3.9 报告中含 `merge_commit` / `已合入 {merge_target}` 字段的历史数据保留（审计痕迹）
+- 未变更：
+  - PM 验收三选项（通过+Ship / 通过暂不 Ship / 不通过）语义不变，只是"通过+Ship"进入的 Ship Stage 流程变了
+  - 选 2（通过暂不 Ship）的 push feature 归档流程不变
+  - 其他 Stage 的 auto-commit 硬规则 / git 干净校验 / Stage 切换预检均不变
+  - merge_target 配置链（state.json > localconfig > 默认 staging）不变
+  - worktree 清理策略（`worktree_cleanup: ask/keep/remove`）不变
 
 ### P0-1：auto-commit 硬规则集中化（rules/gate-checks.md + 8 个 Stage md）
 
@@ -85,6 +249,93 @@
   - `templates/dependency.md` 顶部加"何时触发使用"说明（消费方 / 被依赖方各自触发点）+ 回链 roles/pmo.md
   - `stages/plan-stage.md` PM 起草 PRD 步骤加「跨项目依赖前置」硬规则：PM 发现上游依赖 → 立即通知 PMO 走场景 A（而非等 PRD 写完再补）
 - 收益：消费方 Feature 遇上游依赖有明确流程可套；DEPENDENCY-REQUESTS.md 回到标准位置（上游子项目目录）；templates/dependency.md 触达面打开；P0-7 格式权威在 PMO 初步分析模板里露出，触达面从"藏在 roles/ 里"升级到"每次初分析都显式"。
+
+### P0-14：Dev Stage 默认主对话 + RD 自行规划 Plan 模式（rd-develop.md + dev-stage.md + agents/README.md + feature-state.json）
+
+- 触发：用户反馈"开发阶段在主对话，是否合理，不要求在 subagent，由 RD 自行规划 Plan 模式"。审计发现 v7.3.9 虽声称"Dev Stage AI 自主判断"，但 3 处残留默认偏向 subagent：
+  - `agents/rd-develop.md` 整篇以"RD Subagent"视角书写（标题 / 执行摘要 / 自检触发条件均内嵌"subagent"措辞）
+  - `templates/feature-state.json` planned_execution.dev 示例直接写 approach="subagent"
+  - `agents/README.md` §一默认表虽写"AI 自主"，但判断条列"≤3 文件 → main"，隐含 >3 文件即 subagent 的保守基线
+- 决策：**Dev Stage 默认 `main-conversation`**；subagent 降为 opt-in 路径（TECH.md 文件清单 >10 / 预期产出 >500 行 / 需独立聚焦或跨模型独立性时使用）；RD 在 AI Plan 阶段自评规模 + 声明 Rationale。
+- 根因分析：
+  - 主对话模式对大多数 Feature（单模块、改动 ≤10 文件、产出 ≤500 行）更优：省冷启动（3-5 min subagent 税）、TDD 过程用户可见、多轮调试不用重启 context、Plan/Blueprint 已加载的 PRD/TC/TECH 可直接复用（省 5-10K token 重读）
+  - 原"AI 自主"措辞被"subagent 默认"的细节稀释 —— RD 启动时若第一眼看到 rd-develop.md 整篇 subagent 语境 + state.json 示例 subagent + README 表"≤3 文件才 main" → 自然默认选 subagent
+  - subagent 的独立性价值在 Dev Stage 相对其他 Stage 弱：Review Stage 的 Codex / QA 独立性来自跨模型 + 盲区兜底；Dev Stage 是 RD 单视角执行，独立性收益不显著，冷启动税却实打实
+- 处理（4 文件 + dual-mode 契约）：
+  - **§一 rd-develop.md dual-mode 化**：标题从"RD Subagent：TDD 开发 + 自查"改为"RD 开发执行规范：TDD 开发 + 自查（Dual-Mode）"；新增 7 维对比表（启动方式 / 上下文 / 输入来源 / 用户可见性 / 进度汇报 / 最终输出 / 适用场景）+ 5 条 🔴 共同契约（TDD / UI 还原自检 / 自查 7 维度 / 产物格式 / auto-commit）；§二 输入文件加模式对比（主对话直读 + 可复用已加载 vs subagent 按 dispatch 硬读）；§四 执行摘要拆 4.1a 主对话（边做边汇报模板 + 5 个阶段性节点）+ 4.1b subagent（完成后一次性返回含 TDD 阶段耗时）；§四.2 RD 自查报告 + §四.3 上游问题清单两模式一致不变；UI 还原 NEEDS_FIX 自降规则改"两种模式一致"
+  - **§二 dev-stage.md AI Plan 指引改写**：条件表从"AI 自主按规模判断"升级为"默认 main-conversation + 超阈值 opt-in subagent"5 行条件：默认无特别信号 → main / 文件 >10 或 >500 行 → subagent / 跨模型独立性 → subagent / 多轮调试跨 Feature → main 强化 / 灰色地带向默认倾斜；新增 3 条灰色地带判定示例（10 文件/400 行/单模块、12 文件/600 行/跨前后端、8 文件/300 行/3 轮 TDD 调试）；Duration baseline 前置主对话路径（≤3 文件 15-25 / 5-10 文件 30-60）+ subagent 档（>10 文件 30-90 含冷启动税）
+  - **§三 agents/README.md §一默认表**：Dev Stage 行从"AI 自主按规模判断"改为"main-conversation（v7.3.9+P0-14 默认）"；判断列改"默认主对话；TECH 文件清单 >10 / 预期产出 >500 行 / 需独立聚焦 → subagent（opt-in）"
+  - **§四 feature-state.json 示例**：planned_execution.dev 主示例改 approach="main-conversation" + rationale 引用 P0-14 默认 + 无 dispatch_file 字段（加 `_dispatch_file_comment_v7.3.9+P0-14` 解释）；保留 `_subagent_alternative_example` 子对象作为 opt-in 样例（TECH >10 文件的场景）
+- 收益：
+  - 默认 Feature 节省 3-5 min subagent 冷启动 + 5-10K token（复用 Plan/Blueprint 已加载产物）
+  - TDD 过程用户可见 → 早发现方向偏差 / 提前介入多轮调试
+  - Subagent opt-in 通道保留，大改动 / 跨前后端场景不牺牲独立聚焦
+  - RD 自查 + UI 还原自检 + NEEDS_FIX gate 两模式完全一致，契约不变
+  - dual-mode 表 + rationale 要求 → RD 在 Plan 阶段的判断更透明（retro 可统计默认采纳率、subagent opt-in 比例）
+- 兼容性：
+  - 既存 Feature（已完成 Plan/Blueprint）不受影响；Dev Stage 未启动的 Feature 进入 Dev Stage 时按新默认
+  - 既存 dispatch_log（已派发 subagent 的 RD 任务）保持有效 —— subagent 模式路径完整保留，只是不再是默认
+  - state.json schema 不变（approach 字段早已支持 main-conversation / subagent / hybrid）
+  - rd-develop.md dual-mode 化后 Codex CLI 子 agent（若有）仍可按原 prompt 调用（subagent 模式契约未变）
+- 未变更：
+  - TDD 红-绿-重构三步流程（§三.1）/ 开发约束（§三.2）/ RD 自查 7 维度（§三.3）/ UI 还原权威层级 + 自检清单（§三.4，P0-12 成果）全部保持不变
+  - DONE / NEEDS_FIX / FAILED 三态 gate + UI 还原缺失自降 NEEDS_FIX 规则不变
+  - Review Stage 三视角契约不变（本 P0 只改 Dev Stage 执行方式默认）
+  - Codex CLI 子 agent / subagent dispatch.md 协议 / standards/{common,backend,frontend}.md 加载规则均保持
+
+### P0-13：Plan/Blueprint Codex 交叉评审 降为 opt-in 默认 OFF（成本治理 · templates/codex-cross-review.md + plan-stage.md + blueprint-stage.md + roles/pmo.md + FLOWS.md + feature-state.json）
+
+- 触发：用户明确反馈"Feature 流程每次都强制 Codex 成本太高，PRD 流程也不需要"。审计发现 Plan + Blueprint Stage 的 Codex 交叉评审每次 +10-20 min + ~10K token，对小改动 / 内部视角已充分的场景 ROI 偏低。
+- 决策：**Plan + Blueprint Stage** 的 Codex 交叉评审从 🔴 强制降为 🟡 opt-in 默认 OFF；**Review Stage** 的 Codex 代码审查保持 🔴 强制不变（其盲区独立采样 + 静态分析价值最高，且是代码层最后一道质量 gate）。
+- 根因分析：
+  - Plan/Blueprint 产物为文档（PRD / TC / TECH），内部多视角评审（PM + PL + RD + Designer + QA + PMO + 架构师）已覆盖质量下限；Codex 的增量价值随 Feature 规模递减
+  - Review Stage 的 Codex 是代码层盲区兜底，与其他场景不同 —— 代码 bug 进入代码库的代价远高于文档修订，Codex 在此保留强制
+  - 先前"🔴 强制"设计偏向保守，缺乏"用户可按风险/规模动态开关"的弹性
+- 处理（6 文件 + 3 层开关）：
+  - **Schema 层**：`templates/feature-state.json` 新增 `codex_cross_review = {enabled, decided_at, decided_by, note}` 字段，默认 `enabled: false`；_comment 明确 Review Stage 不受本开关影响
+  - **决策点层（PMO 初步分析）**：
+    - `FLOWS.md` PMO 初步分析输出格式 4 种变体（Feature / 敏捷需求 / Feature Planning / 跨子项目）追加「🤖 Codex 交叉评审决策」行，4 选 1 默认不开
+    - `roles/pmo.md` 新增「🤖 Codex 交叉评审开关决策」独立章节，含建议逻辑（规模/风险信号）+ state.json 写入规范 + 硬规则（默认 OFF / 必须显式输出 / Review Stage 独立）
+  - **执行层（Stage 内条件化）**：
+    - `stages/plan-stage.md` Input Contract 的 codex-cross-review.md 改为条件必读（`enabled==true`）；Process Contract Step 3 的 Codex 改为 opt-in + 关闭时声明；过程硬规则 5 条 Codex 相关项从 🔴 降为 🟡；Output Contract 表格加条件列（pmo-internal-review / prd-codex-review 仅开启时必需）；机器校验分两组（开启/关闭）
+    - `stages/blueprint-stage.md` 同 pattern：本 Stage 职责描述、Input Contract、Process Contract Step 5、过程硬规则、Output Contract 表格、机器校验、Done 判据、AI Plan 模式指引、执行报告模板 全部条件化
+  - **治理层**：`templates/codex-cross-review.md` §二适用场景表 Feature / Feature Planning / 敏捷需求的 Plan/Blueprint 列统一改为"🟡 opt-in（默认 OFF）"；新增 §2.1「PMO 初步分析决策」规范 + §八 R7 改写为 P0-13 修订说明 + 明确 Review Stage 独立强制
+- 收益：
+  - 默认场景节省 10-20 min + ~10K token（小改动 / 单子项目 / 内部视角充分的场景多数符合）
+  - 保留 opt-in 通道（大改动 / 跨子项目 / 高风险场景用户主动开启）
+  - Review Stage 代码审查保持强制，代码层最后一道 gate 不放松
+  - state.json 持久化开关 + 决策留痕（decided_at / decided_by / note）便于 retro 分析采纳率
+- 兼容性：
+  - 既存 state.json（v7.3.9 + P0-11 及之前）**缺少 codex_cross_review 字段** → PMO 读取时按 "enabled=false" 默认处理（等价"关闭"），不触发迁移
+  - 既存 Feature（已完成 Plan/Blueprint）不受影响；当前进行中的 Feature 若已完成 Plan Stage 产物，Blueprint Stage 进入时由 PMO 补写 codex_cross_review（enabled=false，note="既存 Feature 默认关闭"）
+  - codex-cross-review.md / codex-agents/*.toml / prd-reviewer / blueprint-reviewer 均保留（开启时走原路径）
+- 未变更：
+  - Review Stage 的 Codex 代码审查：🔴 强制不变（review-stage.md + codex-agents/code-reviewer.toml）
+  - 4 流程（Bug / 问题排查 / Micro / Feature Planning）与 Codex 的关系：Bug / 问题排查 / Micro 本就跳过 Codex；Feature Planning 沿用 Feature 同规则（opt-in 默认 OFF）
+  - 降级路径、独立性校验、输出 schema、findings 分类规则：开启时完全复用原规范
+
+### P0-12：preview/*.html 漏传 + UI 还原权威层级（实战漏洞修复 · dispatch.md + dev-stage.md + rd-develop.md + roles/pmo.md）
+
+- 触发：实战 case —— RD 实现页面时"遵循了文字规格却没还原 HTML 预览稿"，PM 验收发现明显偏差，被迫走 Bug 流程。
+- 根因分析（两层叠加）：
+  - **第一层：preview 漏传**。`templates/dispatch.md` 的 Input files 清单只列了通用项（README / agent md / standards），Feature 产物走占位符 `{其他必需文件绝对路径}`；同时 `stages/dev-stage.md` L30 的必读清单里 `UI.md + preview/*.html` 用"（如有）"措辞，让 PMO 把一定存在的 preview 当成可选 → 起草 dispatch 时漏列。RD subagent 只看 dispatch Input files，不会主动翻 roles/stages，漏列 = 真漏传。
+  - **第二层：即便传了也没权威层级**。`agents/rd-develop.md` 原 Step 5 只写"如有 UI → 还原页面"，没定义 preview 和文字规格冲突时谁是权威；LLM 天然偏好结构化文本（PRD/TECH.md）→ 视觉 / 交互偏差。
+- 处理（4 文件 + 三层防护）：
+  - **第一层（模板硬化）**：`templates/dispatch.md` 新增「🔴 Feature 产物强制白名单」段，按 Stage 列出 blueprint / dev / review / test / browser-e2e 的必选 Feature 产物；Dev Stage 在 `ui_design.output_satisfied==true` 条件下 **显式要求 UI.md + preview/*.html 进 Input files**；附反模式："把 preview 当'可选参考'仅在 Additional inline context 里提一嘴"。
+  - **第二层（措辞硬化）**：`stages/dev-stage.md` L30 去掉"（如有）"暧昧措辞，改为条件式："若 `state.stage_contracts.ui_design.output_satisfied==true` → 必读（视觉/交互权威）"；L86 还原段引用 rd-develop.md 的 UI 还原权威层级 + 自检。
+  - **第三层（RD 侧权威层级 + 自检）**：`agents/rd-develop.md` 新增 §三.4 「UI 还原（有 preview 时必做）」：
+    - 权威层级（冲突时优先级）：视觉/间距/颜色/响应式 → preview 权威；交互状态 → preview 权威，未覆盖看 TECH；业务逻辑 → TECH 权威，禁止照抄 preview mock 数据；验收判定 → TC 权威
+    - 冲突兜底：preview 视觉 ≠ PRD 文字 → 以 preview 为准 + concerns 1 行；preview 交互 ≠ TC AC → 以 TC 为准 + concerns
+    - UI 还原自检清单（Dev 完成前必做）：视觉 / 交互状态 / 响应式 / 偏离项 concerns / mock 数据未照抄 / preview 未覆盖状态找依据
+    - 反模式 4 条
+    - 自查表新增 UI 还原 4 行（视觉 / 交互 / 响应式 / 偏离 concerns），**缺失或未贴证据 → 自降 NEEDS_FIX**
+  - **PMO 侧硬校验**：`roles/pmo.md` 进入 Stage 的 subagent 路径新增"Feature 产物白名单硬校验"：若 `ui_design.output_satisfied==true` 但 Input files 未包含 UI.md + preview → **PMO 自拒重生**，不得发出。
+- 收益：
+  - 漏传链路补齐（模板白名单 + 措辞硬化 + PMO 自校验 + Subagent `NEEDS_CONTEXT` 兜底，四层 gate）
+  - 权威层级清晰（冲突时有规可循，不再靠 LLM 天然偏好）
+  - 自检 gate 可执行（7 项清单 + DONE/NEEDS_FIX 硬绑定，漂移可被拦截）
+  - 反模式负向定义（过度还原 / 欠还原 各自拦截，避免从一个坑跳进另一个坑）
+- 兼容性：UI Design Stage 未跑的 Feature 流程完全不变；preview 不存在时自检项填 "-" + 说明"无 UI Design 产物"。
 
 ### P0-11-B：auto 模式默认跳过 Browser E2E Stage（roles/pmo.md + rules/flow-transitions.md + INIT.md）
 

@@ -29,16 +29,15 @@
 | 当前阶段 / 条件 | 保留理由 |
 |----------------|---------|
 | PM 验收 → Ship / 归档 / RD Fix（三选项）| 业务判断，用户决策 |
-| merge+push 待确认（ship_policy=confirm 时）| ship_policy 细粒度控制，auto 不覆盖 |
 | worktree 清理待确认 | 用户偏好 |
-| 🔗 Ship Stage (冲突/FAILED) → ⏸️ 用户决策 | 破坏性/不可逆 |
+| 🔗 Ship Stage (push FAILED) → ⏸️ 用户决策 | push feature 失败不可替决（v7.3.10+P0-15：不重试、不降级）|
 | 🔗 Dev Stage → ⏸️ 用户决策（FAILED）| 环境/逻辑异常 |
 | 🔗 Review Stage (FAILED) → ⏸️ 用户决策 | Codex 不可用 / 超 3 轮 |
 | 🔗 Test Stage (BLOCKED) → ⏸️ 用户处理 | 环境问题 |
 | 🔗 Plan Stage (分歧) → PRD 待确认 | PL-PM 分歧项 |
 | 🔗 Blueprint Stage (concerns) → 方案待确认 | concerns 需人判断 |
-| Micro 流程：🤖 RD Subagent → 用户验收 | Micro 唯一把关点 |
-| Micro 流程：🤖 RD Subagent → ⏸️ 升级确认 | 规模升级 |
+| Micro 流程：PMO 执行改动 → 用户验收 | Micro 唯一把关点 |
+| Micro 流程：PMO 判定升级 → ⏸️ 升级确认 | 规模升级（切 Plan 模式走敏捷或 Feature）|
 | Test Stage 前置确认（立即 / 延后 / 跳过）| 跨 Feature 节奏决策 |
 
 ### ✅ 豁免示例（其余 ⏸️ 行默认豁免）
@@ -50,7 +49,7 @@
 - 🔗 Blueprint Stage → 方案待确认 → Dev Stage：自动进入（无 concerns 时）
 - 问题排查：问题排查梳理 → 排查待确认 → PMO / RD / 结束：按 💡 自动推进
 - 敏捷需求：PMO 分析 → 精简 PRD → PRD 待确认 → BlueprintLite：按 💡 自动流转
-- Micro 流程：PMO 分析 → Micro 变更说明：按 💡 自动进入
+- Micro 流程：PMO 分析 → PMO 执行改动（主对话直接改）：按 💡 自动进入（PMO 自行判断执行方式，无需暂停）
 - **外部依赖已就绪 → 恢复流程**（P0-11-A 修订）：auto 命令已承载"恢复"意图 → 按 💡 自动恢复
 - **PM Roadmap / Workspace 架构 / teamwork_space.md / Workspace Planning 收尾**：auto 命令已承载"推进 Planning"意图 → 按 💡 自动汇总确认
 - **Test Stage → Browser E2E Stage**（P0-11-B 新增）：auto 模式下**默认跳过 Browser E2E**，直接进入 PM 验收；留痕到 `state.json.stage_contracts.browser_e2e` + `review-log.jsonl`；例外见下
@@ -99,11 +98,10 @@ AUTO_MODE=true + Test Stage 完成 + TC.md 含 Browser E2E AC
 | 🔗 Test Stage (BLOCKED) | ⏸️ 用户处理 | ⏸️暂停 | 环境问题 |
 | 🔗 Browser E2E Stage | PM 验收 | 🚀自动 | 通过 |
 | 🔗 Browser E2E Stage | RD Fix → 重新 Browser E2E | 🔁回退 | 功能缺陷（≤3 轮） |
-| PM 验收 | 🔗 Ship Stage / ✅ 已完成（shipped=false）/ RD Fix | ⏸️暂停 | v7.3.9：PM 验收三选项。1=通过+Ship → Ship Stage；2=通过但暂不 Ship → PMO 把前序 Stage 遗留 auto-commit + push feature 分支 + 归档 shipped=false；3=不通过+建议 → 按问题类型派发 RD Fix（回退规则同 v7.3.4 L722）|
-| 🔗 Ship Stage | merge+push 待确认 | 🚀自动 | v7.3.9：PMO 自主执行 Step 1-4（净化 → push feature → rebase 可选 → 本地 merge --no-ff），输出 Merge 预览 |
-| merge+push 待确认 | worktree 清理待确认 | ⏸️暂停 | v7.3.9：用户 2 选 1。选 1 → merge + push {merge_target}；选 2 → 仅本地 merge 不 push |
-| worktree 清理待确认 | ✅ 已完成（shipped=true）| ⏸️暂停 | v7.3.9：worktree=auto/manual 时询问清理/保留；worktree=off 跳过。之后 PMO 输出 Feature 完成报告 |
-| 🔗 Ship Stage (冲突/FAILED) | ⏸️ 用户决策 | ⏸️暂停 | v7.3.9：冲突 PMO 解不了 / push 拒绝 / 分支异常 → 用户 3 选 1：a 手工介入 / b 启 RD Subagent / c 取消 Ship（回到 PM 验收态） |
+| PM 验收 | 🔗 Ship Stage / ✅ 已完成（shipped=false）/ RD Fix | ⏸️暂停 | v7.3.10+P0-15：PM 验收三选项。1=通过+Ship → Ship Stage；2=通过但暂不 Ship → PMO 把前序 Stage 遗留 auto-commit + push feature 分支 + 归档 shipped=false；3=不通过+建议 → 按问题类型派发 RD Fix |
+| 🔗 Ship Stage | worktree 清理待确认 | 🚀自动 | v7.3.10+P0-15：PMO 自主执行 Step 1-2（净化 → push feature → 生成 MR create URL），输出 Ship 报告含 MR 链接 |
+| worktree 清理待确认 | ✅ 已完成（shipped=true）| ⏸️暂停 | v7.3.10+P0-15：worktree=auto/manual 时询问清理/保留；worktree=off 跳过。之后 PMO 输出 Feature 完成报告（含 MR 链接提示用户去平台合入） |
+| 🔗 Ship Stage (push FAILED) | ⏸️ 用户决策 | ⏸️暂停 | v7.3.10+P0-15：push feature 失败（远端拒绝 / 网络 / 权限）→ 用户 2 选 1：a 手工处理后复跑 Ship / b 取消 Ship（回到 PM 验收态）。PMO 不重试、不降级为本地操作 |
 
 ## Bug 处理流程
 
@@ -168,15 +166,17 @@ AUTO_MODE=true + Test Stage 完成 + TC.md 含 Browser E2E AC
 
 ## Micro 流程
 
-> 🔴 Micro = 零逻辑变更专用通道。PMO 禁止自己改代码，必须启 RD Subagent。
+> 🟢 Micro = 零逻辑变更的最轻量通道（v7.3 放宽 / v7.3.10+P0-16 明确）：PMO 自行判断执行方式——✍️ 主对话以 RD 身份直接改（默认，无需 Subagent / Execution Plan / dispatch），或 🔀 判定超出 Micro 白名单时升级到 Plan 模式走敏捷或 Feature。
+> 🔴 **角色切换必读不豁免（P0-16 补丁）**：PMO 切 RD 身份改之前必须真实 Read `roles/rd.md`（职责 + 自查段）+ `standards/common.md`（必读）+ `standards/frontend.md` / `standards/backend.md`（按改动类型加读），并在 PMO 阶段摘要 cite 1-2 句规范要点。改动后按 `roles/rd.md` 自查段执行。
 
 | 当前阶段 | 允许的下一阶段 | 流转 | 条件 |
 |----------|---------------|------|------|
-| PMO 分析 | Micro 变更说明 | ⏸️暂停 | 用户确认走 Micro 流程（📎 worktree=auto 时 PMO 在此处创建 worktree，分支名用 `chore/*`；单文件零逻辑变更可允许用户选择 off 跳过）|
-| Micro 变更说明 | 🤖 RD Subagent | 🚀自动 | 变更说明完成 |
-| 🤖 RD Subagent | 用户验收 | ⏸️暂停 | Subagent 返回 DONE |
-| 🤖 RD Subagent | ⏸️ 升级确认 | ⏸️暂停 | 发现需要逻辑变更 → 升级为敏捷或 Feature |
-| 用户验收 | ✅ 已完成 | 🚀自动 | 用户确认通过 + PMO 完成报告 |
+| PMO 分析 | PMO 加载 RD 规范 | ⏸️暂停 | 用户确认走 Micro 流程（📎 worktree=auto 时 PMO 在此处创建 worktree，分支名用 `chore/*`；单文件零逻辑变更可允许用户选择 off 跳过）|
+| PMO 加载 RD 规范 | PMO 执行改动 | 🚀自动 | 🔴 Read roles/rd.md + standards/common.md（+ frontend/backend 按需）+ 摘要 cite 规范要点 完成 |
+| PMO 执行改动 | RD 自查 | 🚀自动 | PMO 按变更清单主对话直接改完成 |
+| RD 自查 | 用户验收 | 🚀自动 | 按 roles/rd.md 自查段执行（规范符合 + 已有测试无回归）|
+| PMO 执行改动 / RD 自查 | ⏸️ 升级确认 | ⏸️暂停 | 执行前/中/自查中发现超出 Micro 白名单或隐含逻辑变更 → PMO 输出升级原因 → 用户确认走敏捷或 Feature |
+| 用户验收 | ✅ 已完成 | ⏸️暂停 | 用户手测/目视确认通过 → PMO 完成报告（含事后审计 + 自查摘要）|
 
 ## 通用特殊状态（适用所有流程）
 
