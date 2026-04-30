@@ -21,6 +21,32 @@
 
 ### 数据结构
 
+> 列出本 Feature 涉及的所有数据结构（DTO / Request / Response / Model / DB Schema）。每个结构一张字段表。
+> 字段表是前后端 model 一致性、Code Review、集成测试的校验基准；遗漏字段或类型不一致 = review 来回根源。
+
+#### {结构名}（用途：DTO / Request / Response / Model / DB Schema）
+
+| 字段 | 类型 | 必填 | 校验规则 | 默认值 | 备注 |
+|------|------|------|----------|--------|------|
+| id | string (uuid) | 是 | - | 自动生成 | 主键 |
+| email | string | 是 | RFC 5322 邮箱格式，长度 ≤ 254 | - | 唯一约束 |
+| age | int | 否 | 0 ≤ age ≤ 150 | null | - |
+| status | enum | 是 | 'active' / 'pending' / 'banned' | 'pending' | - |
+
+> 📎 同一字段跨多个结构（如 DTO ↔ Model ↔ DB Schema）时，字段名 / 类型 / 必填必须一致；
+>    若不一致（如对外 snake_case、内部 camelCase），加「跨层映射」段说明转换规则。
+
+#### 跨层映射（同字段跨结构存在转换时必填，单结构跳过）
+
+| 业务字段 | DTO 字段 | Model 字段 | DB Schema 列 | 转换规则 |
+|---------|---------|-----------|--------------|---------|
+| 用户 ID | user_id (string) | userId (string) | user_id VARCHAR(36) | snake_case ↔ camelCase |
+
+> 📎 与「数据库变更 → Schema 影响分析」的边界：
+>    - 数据库变更段：DB 层迁移视角（变更类型 / 破坏性 / 迁移策略 / Model/Struct grep）
+>    - 数据结构段：Feature 全部数据载体的字段级 spec（DTO / Request / Response / Model / DB Schema）
+>    - DB Schema 类字段表 = Schema 影响分析的字段级具象化，互相引用，不重复填写
+
 ### 接口
 | 接口 | 方法 | 路径 | 参数 | 返回 |
 |------|------|------|------|------|

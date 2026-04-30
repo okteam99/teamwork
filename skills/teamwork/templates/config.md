@@ -106,17 +106,55 @@ scope:
 -->
 
 ## Git Worktree 策略
-<!-- worktree: off / auto / manual（默认 off） -->
-<!-- off = 不使用 worktree，所有 Feature 在主分支开发【默认·保守】 -->
-<!-- auto = PMO 在 Plan Stage 入口自动创建 worktree（v7.3.8 前移），Feature 完成后询问用户清理 -->
+<!-- worktree: off / auto / manual（v7.3.10+P0-31 默认改为 auto） -->
+<!-- auto = PMO 在 Goal-Plan Stage 入口自动创建 worktree（v7.3.8 前移），Feature 完成后询问用户清理【v7.3.10+P0-31 默认】 -->
 <!-- manual = PMO 提醒用户自行管理 worktree，不自动创建/清理 -->
+<!-- off = 不使用 worktree，所有 Feature 在主分支开发（适合单 Feature 串行 / megarepo / IDE 跨 worktree 跳转受限场景） -->
 <!-- -->
-<!-- 保留 off 为默认的原因（v7.3.9+P0-9 决策）： -->
+<!-- v7.3.10+P0-31 默认值变更（撤销 v7.3.9+P0-9 默认 off 决策）： -->
+<!--   - 多 Feature 并行场景实际更常见，worktree 隔离避免主分支污染 -->
+<!--   - v7.3.10+P0-29 Ship Stage 双段流程后 worktree 清理已闭环（合并验证后自动清理） -->
+<!--   - v7.3.10+P0-25 worktree deps 处理已有完整指引（standards/common.md） -->
+<!--   - v7.3.10+P0-27 环境配置预检前置到 triage，worktree 创建已自动化无暂停点 -->
+<!-- -->
+<!-- 改 off 的合理理由（保留 off 为可选）： -->
 <!--   - megarepo：每个 worktree 是全量 checkout，多 Feature 并行时磁盘/索引代价高 -->
-<!--   - IDE review：worktree 在 sibling 目录下，IDEA/VS Code 跨 worktree 搜索/跳转不便 -->
-<!--   - 工具链忽略：.worktree/ 内嵌方案需每个工具单独配排除（tsc/eslint/jest/docker...） -->
-<!--   - 选 auto/manual 前建议先用 P0-10 的 worktree_base + IDE workspace 自动配置（待实施） -->
-worktree: off
+<!--   - IDE 跨 worktree 跳转受限：worktree 在 sibling 目录下，IDEA/VS Code 跨 worktree 搜索/跳转不便 -->
+<!--   - 工具链忽略复杂：每个工具需单独配排除（tsc/eslint/jest/docker...） -->
+<!-- -->
+<!-- 🔴 v7.3.10+P0-41 缺失硬默认（避免 AI 钻空子）： -->
+<!--   - localconfig 文件中本字段缺失 / 注释掉 → PMO 必须按 auto 处理（不是 off） -->
+<!--   - 禁止 AI 自降级到 off（如以"主工作区干净"等理由） -->
+<!--   - 仅当用户在 triage 暂停点显式选 off 才允许 off -->
+<!--   - 实战 case 反模式：localconfig 没配 worktree，AI 沿用主工作区写代码 = 流程违规 -->
+worktree: auto
+
+### Worktree 根目录（v7.3.10+P0-39 新增）
+
+<!-- worktree_root_path: worktree 的根目录。每个 Feature 自动在此目录下创建子目录（子目录名 = Feature 全名）。 -->
+<!-- 默认值（v7.3.10+P0-39）：.worktree（项目根目录下） -->
+<!-- -->
+<!-- 实际 worktree 路径 = {worktree_root_path}/{Feature 全名} -->
+<!--   示例 1：worktree_root_path=.worktree              → .worktree/AUTH-F042-email-login -->
+<!--   示例 2：worktree_root_path=../.aifriend-worktrees → ../.aifriend-worktrees/AUTH-F042-email-login -->
+<!--   示例 3：worktree_root_path=/tmp/worktrees         → /tmp/worktrees/AUTH-F042-email-login -->
+<!-- -->
+<!-- 常见配置： -->
+<!--   .worktree                  ← 默认（项目内，install.sh 自动加 .gitignore） -->
+<!--   ../.{repo_name}-worktrees  ← 父目录分组（隔离主仓库 .git 索引） -->
+<!--   /tmp/worktrees             ← 完全自定义绝对路径 -->
+<!-- -->
+<!-- 🔴 路径合法性约束： -->
+<!--   - 根目录不能是已 commit 的 git 工作目录（除 .gitignore 包含的目录如 .worktree） -->
+<!--   - 父目录必须存在或可创建 -->
+<!-- -->
+<!-- 🔴 .gitignore 提醒： -->
+<!--   - 默认 .worktree 在项目内，install.sh 自动注入 .worktree/ 到 .gitignore -->
+<!--   - 自定义路径在项目内时，用户需自行确保已加 .gitignore（避免 git 嵌套混乱） -->
+<!--   - 自定义路径在项目外（如 ../.repo-worktrees）时无需 gitignore -->
+<!-- -->
+<!-- 解析优先级：state.json.environment_config.worktree_root_path > 本文件 worktree_root_path > 默认 .worktree -->
+worktree_root_path: .worktree
 
 ## Ship 策略（v7.3.10+P0-15 MR 模式）
 

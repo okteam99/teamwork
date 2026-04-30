@@ -35,7 +35,7 @@
 
 | 模式 | 出现次数 | 关联 Feature | 建议处理 |
 |------|---------|-------------|---------|
-| Plan Stage 超时 > +30% | 3 | F0NN, F0MM, F0LL | 评估 PRD 讨论模板是否要拆步 |
+| Goal-Plan Stage 超时 > +30% | 3 | F0NN, F0MM, F0LL | 评估 PRD 讨论模板是否要拆步 |
 | Review Stage retry ≥ 2 | 2 | F0KK, F0JJ | 评估 RD 自测强度 |
 
 ## 维护约定

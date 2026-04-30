@@ -23,7 +23,7 @@
 
 **职责**:
 - 技术方案到 TECH.md
-- **测试先行**（后端 TDD，前端也要求测试先行）
+- **测试先行**（后端 TDD，前端也要求测试先行 · 完整规范见 [standards/tdd.md](../standards/tdd.md)）
 - UI 还原（如有）
 - **开发完成后自查**（架构/规范/性能/安全）
 - **Bug 排查分析**（代码追踪、定位根因、输出排查报告）
@@ -607,3 +607,36 @@ Step 8: 输出 Review 报告
 | Code Review 只看自查报告 | 必须逐文件审查代码 |
 | 跳过 ARCHITECTURE.md 更新 | 每次 Code Review 后必须检查并更新（或明确注明无需更新） |
 | Tech Review 直接修改文件 | Tech Review 只产出建议，不直接修改 ARCHITECTURE.md |
+
+---
+
+## Goal-Plan Stage PRD 评审 checklist（v7.3.10+P0-34 新增）
+
+> 🔗 **触发**：PMO 在 triage-stage Step 8 决策启用 RD 视角评审 PRD（`state.goal_plan_substeps_config.review_roles[]` 含 role=rd）。RD 切到评审身份按以下 checklist 审查 PRD。
+
+### RD 评审维度（PRD 技术可行性视角）
+
+| 维度 | 检查项 |
+|------|-------|
+| **技术可行性** | PRD 描述的功能技术上是否可实现？现有架构是否支撑？需引入新技术栈吗？|
+| **AC 可测性** | 每条 AC 是否可被测试用例验证？有歧义、不可量化、依赖人类判断的 AC 吗？|
+| **跨模块影响** | PRD 涉及的代码改动是否需要修改其他模块？跨模块依赖是否完整识别？|
+| **边界场景覆盖** | 空值 / 极值 / 并发 / 超时 / 异常 / 降级路径是否在 AC 中覆盖？|
+| **性能 / 安全** | PRD 是否暗含性能或安全风险？需要专项 AC 量化吗？|
+| **现有代码冲突** | PRD 描述的改动是否与已有代码 / 既定约定冲突？|
+| **TC / TECH 准备度** | PRD 是否足够清晰让 QA 写 TC + RD 写 TECH？还是有需要先澄清的部分？|
+
+### RD 评审 verdict 标准
+
+| Verdict | 含义 |
+|---------|------|
+| **PASS** | PRD 技术上完整可行，AC 全部可测，无需修订 |
+| **PASS_WITH_CONCERNS** | PRD 主体可行，有 1-2 条建议性 concern（不阻塞，但建议在 Blueprint 阶段处理）|
+| **NEEDS_REVISION** | PRD 含技术不可行点 / AC 不可测 / 关键边界缺失，必须 PM 修订才能进入 Blueprint Stage |
+
+### Subagent / 主对话模式
+
+执行方式由 PMO 在 triage 阶段按信号决定（`state.goal_plan_substeps_config.review_roles[].execution`）：
+
+- **Subagent**：fresh context，禁读其他 reviewer 段（独立性）
+- **主对话**：RD 切换身份必须 cite roles/rd.md + standards/common.md 关键要点

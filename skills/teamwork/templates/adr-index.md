@@ -2,7 +2,7 @@
 
 > 位置：`{子项目路径}/docs/adr/INDEX.md`（每个子项目各一份，与 ADR 同目录）
 >
-> 受众：PMO preflight 阶段读取此索引，列出可能影响当前 Feature 的相关决策。
+> 受众：PMO 在 triage-stage 阶段读取此索引，列出可能影响当前 Feature 的相关决策。详见 [stages/triage-stage.md](../stages/triage-stage.md) Step 3。
 >
 > 用途：ADR 目录的快速索引，按状态 + 主题双维度组织。
 >

@@ -1,10 +1,66 @@
-# Teamwork 初始化流程
+# Init Stage：会话启动初始化（会话级 Stage）
 
-> 🔴 每次 `/teamwork` 启动时必须按顺序执行「启动必做」3 步。
-> 「按需加载」由各角色在执行阶段自行加载，不在启动时执行。
-> 「首次初始化」仅在 teamwork_space.md 不存在时执行。
+> 🔴 每次 `/teamwork` 启动时进入本 Stage。完成宿主检测、SKILL_VERSION 校验、CLAUDE.md / AGENTS.md 校验、项目空间加载，输出初始化报告，等待用户输入。
+>
+> 🟢 **会话级 Stage**（v7.3.10+P0-26 新增）：
+> - 触发频率：每次 `/teamwork` 启动一次
+> - 状态归属：**只读**（读 .teamwork_localconfig.md / teamwork_space.md / KNOWLEDGE.md / SKILL.md frontmatter）；唯一允许的写是 v7.3.10+P0-17 版本缓存回写到 `.teamwork_localconfig.md`
+> - 出口：完成后等待用户第一条输入消息 → 进入 [triage-stage.md](./triage-stage.md)
+>
+> 🔴 契约优先：本文件规范 Input / Process / Output 三契约。本 Stage 是 Teamwork 的**会话入口**。
 
 ---
+
+## 本 Stage 职责
+
+每次 `/teamwork` 启动必须完成的初始化序列：
+- 解析 `/teamwork` 命令行（识别 AUTO 模式 / 子命令）
+- 宿主环境检测（claude-code / codex-cli / gemini-cli / 通用）
+- SKILL_VERSION 缓存校验（v7.3.10+P0-17）
+- HOST_INSTRUCTION_FILE（CLAUDE.md / AGENTS.md / GEMINI.md）校验
+- 加载项目空间状态（teamwork_space.md / 子项目 / 看板）
+- 输出初始化报告
+- 等待用户输入（不进入任何流程，等待 → triage-stage）
+
+---
+
+## Input Contract
+
+```
+- /teamwork 命令行参数（含可选子命令：auto / 继续 / status / exit / force-init）
+- 当前工作目录（探测宿主标记 .claude/ / .codex/ / .agents/ / .gemini/）
+- HOST_INSTRUCTION_FILE（按宿主：CLAUDE.md / AGENTS.md / GEMINI.md）
+- SKILL.md frontmatter（version 字段，用于缓存比对）
+- .teamwork_localconfig.md（如有，含 teamwork_version 缓存）
+- teamwork_space.md（如有，工作区配置 + 子项目清单）
+```
+
+### 进入条件
+
+```
+- 用户执行 /teamwork [子命令] [参数]
+- 当前对话尚未进入任何 Stage（包括 triage-stage）
+```
+
+## 入口 Read 顺序（v7.3.10+P0-26 固定）
+
+🔴 按以下顺序 Read，字节一致利于 prompt cache 命中。详见 [standards/prompt-cache.md](../standards/prompt-cache.md)。
+
+```
+Step 1: SKILL.md frontmatter            ← 框架层版本号（L0 稳定）
+Step 2: .teamwork_localconfig.md        ← 项目缓存层（L1）
+Step 3: HOST_INSTRUCTION_FILE           ← 宿主指令文件（L1，如版本缓存命中可跳过 diff）
+        teamwork_space.md（如有）
+Step 4: /teamwork 命令行参数             ← 🔴 最后，动态入口（L3）
+```
+
+🔴 R3 约束：本 Stage **唯一允许写**的是 `.teamwork_localconfig.md` 的 `teamwork_version` 缓存字段（v7.3.10+P0-17 优化），其他写操作禁止。
+
+---
+
+## Process Contract
+
+> 以下「启动必做（每次，按顺序执行）」是本 Stage 的 9 步 Process Contract。
 
 ## 启动必做（每次，按顺序执行）
 
@@ -41,7 +97,7 @@
 ✅ 豁免（按 💡 自动推进，不等用户）：
 ├── 普通方案 / PRD / UI / TC / TECH 草稿 review 后流转
 ├── 阶段切换（Stage A → Stage B）
-├── Plan Stage 入口 preflight（4 硬门禁全 ✅ 时）
+├── triage-stage → Goal-Plan Stage（环境配置已在 triage 决定，v7.3.10+P0-27）
 ├── dispatch 前检 / review 结果接受 / 摘要流转
 ├── 外部依赖已就绪 → 恢复流程（P0-11-A：auto 命令已承载"恢复"意图）
 ├── Planning / PL 模式最终汇总确认（P0-11-A：auto 命令已承载"推进"意图）
@@ -108,7 +164,7 @@
 
 ```
 读取 SKILL.md frontmatter 的 version 字段：
-├── 找到（当前应为 7.3.10+P0-23）→ SKILL_VERSION = 该值
+├── 找到（当前应为 7.3.10+P0-65）→ SKILL_VERSION = 该值
 └── 缺失 / 无法解析 → SKILL_VERSION = null（降级为全量校验，输出一次 ⚠️ 提示）
 ```
 
@@ -171,7 +227,7 @@ SKILL_VERSION 与 LOCAL_VERSION 比对：
 
 本项目使用 Teamwork 流程框架：一个 AI 以完整团队方式工作，在不同阶段切换专业视角（PMO/PM/QA/RD/架构师等），通过质量门禁确保产出质量。
 启动方式：`/teamwork [需求]` 或 `/teamwork 继续`。
-🔴 激活后必须先读取 INIT.md 完成初始化检查，再接收需求。
+🔴 激活后必须先读取 stages/init-stage.md 完成初始化检查，再接收需求。
 
 ### 🔴 PMO 每次阶段变更必做（3 件事，缺一不可）
 
@@ -182,19 +238,19 @@ SKILL_VERSION 与 LOCAL_VERSION 比对：
 
 ### 🔴 绝对红线（15 条）
 
-1. 代码写权归 RD（v7.3.10+P0-20）：代码 / 测试 / 构建配置的写操作 = RD 本职，必须由 RD 角色执行（主对话切换 / Subagent 均可），RD 必须先 Read 规范、改后自查；PMO 本职写权仅限流程审计文件（state.json/ROADMAP.md/review-log.jsonl）+ 纯文档（README/注释/CHANGELOG），需标注「📝 PMO 直接修改」。Micro 流程不是红线例外，是省 Stage 的最短 RD 闭环（主对话 PMO→RD 身份切换）。Ship Stage 行为（v7.3.10+P0-15）：Ship Stage PMO 不做本地 merge / push merge_target / 冲突解决，只负责净化 + push feature + 生成 MR 链接。
-2. 流程只有六种：Feature / Bug / 问题排查 / Feature Planning / 敏捷需求 / Micro
+1. 代码写权归 RD（v7.3.10+P0-20）：代码 / 测试 / 构建配置的写操作 = RD 本职，必须由 RD 角色执行（主对话切换 / Subagent 均可），RD 必须先 Read 规范、改后自查；PMO 本职写权仅限流程审计文件（state.json/ROADMAP.md/review-log.jsonl）+ 纯文档（README/注释/CHANGELOG），需标注「📝 PMO 直接修改」。Micro 流程不是红线例外，是省 Stage 的最短 RD 闭环（主对话 PMO→RD 身份切换）。Ship Stage 行为（v7.3.10+P0-15 / +P0-32 / +P0-36 修订）：PMO 不做本地 merge / 不解决冲突；merge_target push 仅限 Ship 第二段 finalize 阶段的元数据更新（v7.3.10+P0-32 例外条款 / +P0-36 扩展）：**Feature 流程**仅允许 state.json 一文件、仅状态字段；**简单 Bug 流程**仅允许 BUG-REPORT.md 一文件、仅 frontmatter 元数据字段；零业务影响；push 失败降级到 feature 分支 push + WARN。第一段 push 不动 merge_target；合并权（代码层 push merge_target）仍属平台和用户。
+2. 流程类型规范（v7.3.10+P0-48 合并 #2+#6+#7）：流程仅六种闭集（Feature / Bug / 问题排查 / Feature Planning / 敏捷需求 / Micro）+ 禁止自创 + 禁止变体命名
 3. 禁止擅自简化：每种需求走完整流程，用户明确说「跳过」才可豁免
 4. 所有用户输入必须由 PMO 先承接
 5. 暂停点必须等用户明确确认
-6. 需求类型只能填规定的六种
-7. 使用流程只能填规定的六种
+6. 见 #2（v7.3.10+P0-48 合并）
+7. 见 #2（v7.3.10+P0-48 合并）
 8. Feature Planning 只产出文档，禁止产出代码
 9. 闭环验证：声称"已完成"必须附带实际命令输出
 10. 暂停点必须给建议（💡）和理由（📝）
-11. PMO 未输出初步分析前禁止写操作
+11. 写操作硬门禁链（v7.3.10+P0-48 合并 #11+#13）：(a) 流程入口门禁——PMO 未输出初步分析前禁止写操作；(b) Subagent dispatch 门禁——dispatch 前必须完成对应级别预检（L1/L2/L3）
 12. 非暂停点（🚀）禁止插入确认/询问
-13. Subagent dispatch 前必须完成对应级别预检（L1/L2/L3）
+13. 见 #11（v7.3.10+P0-48 合并）
 14. AI Plan 模式：每个 Stage 开始前必须输出 Execution Plan（3-4 行核心），未输出不得开始 Stage 工作
 15. 流程确认：选定流程类型后、用户确认前必须给出完整流程步骤描述，不给步骤描述直接问「走什么流程」= 违规
 
@@ -219,14 +275,14 @@ SKILL_VERSION 与 LOCAL_VERSION 比对：
 
 检查 .teamwork_localconfig.md（多人协作）：
 ├── 存在 → 读取 scope（all / 指定子项目列表）+ worktree 策略（off/auto/manual）
-├── 不存在 → 默认 scope=all（单人模式），worktree=off（v7.3.9+P0-9 决策保留保守默认），不提示不打断
+├── 不存在 → 默认 scope=all（单人模式），worktree=auto（v7.3.10+P0-31：撤销 P0-9 默认 off 决策，改为默认 auto，多 Feature 并行场景更常见），不提示不打断
 │   └── 用户如需并行 Feature 隔离 → 主动改 localconfig 为 auto/manual（详见 templates/config.md 决策说明）
 └── 用户主动说"我只负责 XX" → 那时再创建 localconfig
 
 检查 worktree 环境（worktree ≠ off 时）：
 ├── 执行 git worktree list → 检测当前是否在某个 Feature worktree 中
 ├── 在 worktree 中 → 记录当前 worktree 对应的 Feature 编号
-├── 不在 worktree 中 → 正常（📎 v7.3.8：Plan Stage 入口按策略创建，不再等到 Dev Stage；v7.3.9：创建走 preflight 暂停点，base 显式指向 origin/{merge_target}）
+├── 不在 worktree 中 → 正常（📎 v7.3.8：Goal-Plan Stage 入口按策略创建；v7.3.10+P0-27：环境配置在 triage-stage 决定，Goal-Plan Stage 入口自动按 state.environment_config 执行 worktree 创建 + 显式 base origin/{merge_target}，无独立暂停点）
 └── git 不可用 → worktree 降级为 off，输出提示
 ```
 
@@ -311,12 +367,13 @@ mkdir -p {子项目路径}/docs/architecture
 自动识别：项目类型 / 技术栈 / 是否需要 UI / 子项目结构
 ```
 
-### Codex CLI 检测
+### 外部模型探测（延后到 triage）
 
-```
-codex --version 可用 → codex_cli_available = true
-不可用 → false（不影响其他流程，仅 Codex Code Review 跳过）
-```
+> 🌐 v7.3.10+P0-24 / +P0-38-A：外部模型探测**不在 init Stage 做**——延后到 [triage-stage.md](./triage-stage.md) Step 4。
+>
+> 🆕 **v7.3.10+P0-38-A 修订**：原 P0-38-3 把"角色可用性扫描"放到 init 的设计已回退——理由：(1) init 已含解析命令行 / 检测宿主 / CLAUDE.md 校验 / 项目扫描 / 环境配置探测，再加角色扫描会膨胀；(2) 角色可用性是动态的，运行时环境变化（用户中途装/卸 CLI）应该被实时感知；(3) state.available_roles[] 不应是会话级常量，而是 Feature 决策时快照。triage 每次启动时探测一次，反映当前环境真实状态。
+>
+> 详见 [standards/external-model.md](../standards/external-model.md)（探测脚本规范）+ [roles/external-reviewer.md](../roles/external-reviewer.md)（角色契约）+ [stages/triage-stage.md](./triage-stage.md) Step 4（实际探测调用）。
 
 ### 输出初始化报告
 
@@ -325,12 +382,12 @@ codex --version 可用 → codex_cli_available = true
 ================================
 ✅ CLAUDE.md 已校验
 📦 项目空间：已加载（X 个子项目）
-🤖 Codex CLI：✅ 可用 / ❌ 未安装
 
 | 缩写 | 名称 | 技术栈 | 需要 UI |
 |------|------|--------|---------|
 
 请输入需求开始第一个功能。
+（外部模型可用性将在首个 Feature 流程的初步分析阶段探测）
 ```
 
 ### 已初始化项目恢复报告（teamwork_space.md 存在时替代初始化报告）
@@ -353,3 +410,78 @@ codex --version 可用 → codex_cli_available = true
 ├── 🔄 继续进行中的 Feature
 └── 📋 查看某子项目 ROADMAP
 ```
+
+---
+
+## Output Contract
+
+### 必须产出（主对话输出，不落盘）
+
+| 段 | 内容 |
+|----|------|
+| 「🔧 宿主环境」一行 | `🔧 宿主环境：{宿主名} \| SKILL_ROOT={路径}` |
+| `📋 Teamwork 初始化完成` 报告（首次） / `📋 Teamwork 项目恢复` 报告（已初始化） | 含 CLAUDE.md/AGENTS.md 校验状态、子项目表 / 进行中 Feature 表、看板 |
+| AUTO_MODE 状态 | 启用时第一行加 ⚡ AUTO 徽章 |
+
+### 唯一允许的写
+
+`.teamwork_localconfig.md` 的 `teamwork_version` 字段缓存回写（v7.3.10+P0-17 优化）——其他写操作禁止。
+
+### 机器可校验条件
+
+- [ ] 宿主检测结果非空（claude-code / codex-cli / gemini-cli / 通用 之一）
+- [ ] SKILL_ROOT 路径存在（基于宿主推断）
+- [ ] HOST_INSTRUCTION_FILE 校验通过（或显式标注降级 + WARN）
+- [ ] SKILL_VERSION 已读取（或显式标注 null + WARN）
+- [ ] 状态行三行渲染合规（含 ⚡ AUTO / 🌐 Ext: X 徽章规则）
+- [ ] 不进入任何流程，等待用户输入
+
+### 出口
+
+```
+init-stage 完成 → 等待用户输入
+  ├── 用户输入需求消息 → 转入 [triage-stage.md](./triage-stage.md)
+  ├── 用户输入 /teamwork status → 直接渲染状态行（不进入新 stage）
+  ├── 用户输入 /teamwork 继续 → 加载已有 Feature state.json，恢复到 current_stage
+  └── 用户输入 /teamwork exit → 退出协作模式
+```
+
+🔴 init-stage **不直接进入任何 Feature 级 Stage**——必须经过 triage-stage 的流程分流。
+
+---
+
+## AI Plan 模式指引
+
+📎 Execution Plan 3 行格式 → [SKILL.md](../SKILL.md#-ai-plan-模式规范v73-新增)。
+
+本 Stage 默认 `main-conversation`（PMO 主对话执行）。**不需要** dispatch Subagent ——init 是 PMO 自身的会话入口职责。
+
+特殊场景：
+- SKILL_VERSION 缓存命中 → 跳过 CLAUDE.md/AGENTS.md 逐字符 diff（v7.3.10+P0-17 节省 ~65-75% 启动 token）
+- HOST_INSTRUCTION_FILE 校验失败 → WARN + 全量校验 + 回写
+- 首次启动（teamwork_space.md 不存在）→ 进入 PL 引导模式（详见 PRODUCT-OVERVIEW-INTEGRATION.md）
+
+---
+
+## 失败 / 异常处理
+
+| 异常 | 处理 |
+|------|------|
+| SKILL.md frontmatter 缺失 / 无法解析 | SKILL_VERSION = null，降级为全量校验，输出一次 ⚠️ 提示 |
+| HOST_INSTRUCTION_FILE 不存在 | 创建并写入下方模板（init-stage 中已规定的注入内容） |
+| HOST_INSTRUCTION_FILE 校验失败（diff 不通过） | WARN + 显式列出 diff 内容 + 询问用户是覆盖还是手动 fix |
+| 宿主检测无法识别 | 默认 = 通用宿主，HOST_INSTRUCTION_FILE = AGENTS.md |
+| `.teamwork_localconfig.md` 损坏 | 重新生成（询问用户确认）|
+
+---
+
+## 与其他 Stage / 文件的关系
+
+| 文件 | 关系 |
+|------|------|
+| [stages/triage-stage.md](./triage-stage.md) | 下游 Stage（流程级），init 完成后用户输入触发 |
+| [roles/pmo.md](../roles/pmo.md) | PMO 角色规范，本 Stage 是 PMO 工作单元 |
+| [SKILL.md](../SKILL.md) | frontmatter version 字段是本 Stage 的输入 |
+| [RULES.md](../RULES.md) | 启动后红线规则生效，本 Stage 自身允许少量写操作（teamwork_version 缓存） |
+| [STATUS-LINE.md](../STATUS-LINE.md) | 本 Stage 完成后状态行规则生效 |
+| [PRODUCT-OVERVIEW-INTEGRATION.md](../PRODUCT-OVERVIEW-INTEGRATION.md) | 首次初始化 PL 引导联动 |

@@ -126,6 +126,25 @@ case "$HOST_VALUE" in
         ;;
 esac
 
+# v7.3.10+P0-39: 注入 .worktree/ 到项目根 .gitignore（避免主仓库 git 嵌套混乱）
+# 默认 worktree_root_path = .worktree，install 时确保 gitignore 已含此条目
+GITIGNORE_FILE=".gitignore"
+WORKTREE_PATTERN=".worktree/"
+if [[ -d ".git" ]] || git rev-parse --git-dir &>/dev/null; then
+    if [[ -f "$GITIGNORE_FILE" ]]; then
+        if ! grep -qxF "$WORKTREE_PATTERN" "$GITIGNORE_FILE" 2>/dev/null && ! grep -qxF ".worktree" "$GITIGNORE_FILE" 2>/dev/null; then
+            echo "" >> "$GITIGNORE_FILE"
+            echo "# Teamwork worktree root (v7.3.10+P0-39 default)" >> "$GITIGNORE_FILE"
+            echo "$WORKTREE_PATTERN" >> "$GITIGNORE_FILE"
+            echo "   📝 Appended .worktree/ to $GITIGNORE_FILE"
+        fi
+    else
+        echo "# Teamwork worktree root (v7.3.10+P0-39 default)" > "$GITIGNORE_FILE"
+        echo "$WORKTREE_PATTERN" >> "$GITIGNORE_FILE"
+        echo "   📝 Created $GITIGNORE_FILE with .worktree/"
+    fi
+fi
+
 echo ""
 echo "📋 Installed files:"
 find "$SKILL_DIR" -type f | head -20

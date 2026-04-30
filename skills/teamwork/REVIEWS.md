@@ -17,9 +17,9 @@
 
 ## 一、PRD 技术评审流程
 
-**PM 写完 PRD 初稿后，Plan Stage 内部完成 PL-PM 讨论 + 多角色评审**（规范：stages/plan-stage.md）：
+**PM 写完 PRD 初稿后，Goal-Plan Stage 内部完成 PL-PM 讨论 + 多角色评审**（规范：stages/goal-plan-stage.md）：
 
-**Step 0**: Plan Stage 内部：PM 输出 PRD 初稿 → PL-PM 讨论 → PRD 定稿 → 📊 PMO 摘要（标注讨论结论）
+**Step 0**: Goal-Plan Stage 内部：PM 输出 PRD 初稿 → PL-PM 讨论 → PRD 定稿 → 📊 PMO 摘要（标注讨论结论）
 **Step 1**: PMO 自动执行评审（讨论收敛后无需用户确认，直接触发）
 **Step 2**: RD 评审（技术角度）
 **Step 3**: Designer 评审（设计角度，如需 UI）
@@ -135,7 +135,7 @@ PMO 结论: ✅ 可控 / ⚠️ 有风险
 
 ```
 ✅ 自动触发评审：
-├── Plan Stage 内 PL-PM 讨论收敛 + PRD 定稿后（首次）
+├── Goal-Plan Stage 内 PL-PM 讨论收敛 + PRD 定稿后（首次）
 ├── PRD 有重大修改后
 └── 用户要求重新评审
 
@@ -377,10 +377,10 @@ Designer 验收（第 1 轮）
 ```
 Bug 评审规则：
 ├── 简单 Bug（RD 直接修复）
-│   ├── 跳过 Plan Stage/Blueprint Stage 评审（无需新文档）
+│   ├── 跳过 Goal-Plan Stage/Blueprint Stage 评审（无需新文档）
 │   └── QA 验证修复结果即可
 ├── 复杂 Bug（走完整流程）
-│   ├── Plan Stage PRD 评审 → 复用 Feature PRD 评审流程（角色 + 维度不变）
+│   ├── Goal-Plan Stage PRD 评审 → 复用 Feature PRD 评审流程（角色 + 维度不变）
 │   ├── Blueprint Stage TC 评审 → 复用 Feature TC 评审流程（如有新增用例）
 │   └── Review Stage / Test Stage → 同 Feature 流程
 └── PMO 在 Bug 判断阶段决定复杂度（判断标准见 RULES.md）

@@ -2,7 +2,9 @@
 
 Your AI dev team — one AI works as a full team, with **role-based perspectives + contract-based stages + machine-readable state machine**, letting one person drive the complete software lifecycle from product planning to delivery.
 
-[中文文档](./README.md) · Version: **v7.3.5**
+[中文文档](./README.md) · Version: **v7.3.10+P0-60**
+
+> ⚠️ **English doc lags behind** — only key sections updated for current version. For the full up-to-date spec, see the [Chinese README](./README.md) and the authoritative [CHANGELOG](./skills/teamwork/docs/CHANGELOG.md).
 
 ## Overview
 
@@ -222,7 +224,7 @@ PMO initial analysis (type detection + flow step description + cross-Feature con
   ↓
 ⏸️ User confirms flow (based on step description, reply with digit 1/2/3)
   ↓
-🔗 Plan Stage (PM PRD + PL-PM discussion + multi-perspective review)
+🔗 Goal-Plan Stage (PM PRD + PL-PM discussion + multi-perspective review · v7.3.10+P0-53 renamed from Plan)
   ↓
 ⏸️ User confirms PRD (reply with digit)
   ↓

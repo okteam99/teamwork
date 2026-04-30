@@ -41,7 +41,7 @@
 ### 状态行格式规范
 
 ```
-第一行：🔄 Teamwork 模式 [⚡ AUTO] | 流程：[...] | 角色：[...] | 阶段：[...] | 下一步：[...]
+第一行：🔄 Teamwork 模式 [⚡ AUTO] [🌐 Ext: {model}] | 流程：[...] | 角色：[...] | 阶段：[...] | 下一步：[...]
 🔴 必填追加字段（按流程类型）：
 ├── Feature / 敏捷需求 → 功能：{缩写}-F{编号}-{功能名}（🔴 必填，不可省略）
 ├── Bug 处理 → Bug：BUG-{编号}-{简述}（🔴 必填）
@@ -51,10 +51,15 @@
 🔴 ⚡ AUTO 徽章（v7.3.9+P0-11 新增）：
 ├── AUTO_MODE=true → 在「🔄 Teamwork 模式」与「|」之间插入「⚡ AUTO」
 ├── AUTO_MODE=false（默认）→ 不插入
-└── 触发来源：/teamwork auto [需求]（详见 INIT.md Step 0）
+└── 触发来源：/teamwork auto [需求]（详见 [stages/init-stage.md](./stages/init-stage.md) Step 0）
+🌐 Ext 徽章（v7.3.10+P0-24 新增）：
+├── state.external_cross_review 任一 *_enabled=true（plan/blueprint/review 任一）→ 在「🔄 Teamwork 模式」/「⚡ AUTO」之后插入「🌐 Ext: {model}」（model = codex / claude）
+├── 三处 _enabled 全为 false 或字段不存在 → 不插入
+├── 既有 Feature 仍走 codex_cross_review 字段 → fallback 显示「🌐 Ext: codex」
+└── 触发来源：PMO 在初步分析阶段调用 detect-external-model.py 后用户启用
 
 第二行（按场景决定）：
-├── 有明确功能目录 / bugfix 目录 → 必须输出 📁 绝对路径
+├── 有明确功能目录 / bugfix 目录 → 必须输出 `📁 {绝对路径}`（🔴 emoji 与路径之间**必须有一个空格**，v7.3.10+P0-62）
 ├── 无功能目录但有工作区状态文件 → 输出该状态文件或工作区文档绝对路径
 └── 纯讨论/梳理阶段暂时没有落盘目录 → 第二行可省略
 
@@ -65,7 +70,7 @@
 ├── Micro（worktree=auto/manual）→ 🌿 分支：chore/{简述} → {merge_target} | worktree：{worktree.path}
 ├── Planning（Roadmap / Workspace 架构 / 跨项目拆分）→ 📍 当前分支：{当前分支名}（Planning 阶段不改代码，分支仅供参考）
 ├── Bug 修复阶段（复杂 Bug 已走 Feature 流程）→ 🌿 分支：bugfix/{编号}-{简述} → {merge_target} | worktree：{path}
-├── 问题排查 / PL 纯讨论 / Plan Stage preflight 之前 → 可省略（无分支语义或 worktree 未建）
+├── 问题排查 / PL 纯讨论 / Goal-Plan Stage preflight 之前 → 可省略（无分支语义或 worktree 未建）
 └── 字段取值优先级：
     ├── state.json.worktree.{path, branch} + state.json.merge_target → 首选
     ├── state.json 缺失时 → 回退 `git branch --show-current` 实时渲染，不虚构
@@ -81,7 +86,29 @@
 ├── 只有在当前阶段确实没有可点击目录/文件时，才允许省略第二行
 ├── 第三行在「分支 + merge_target」语义存在时必须输出；无 worktree 时用 📍 警示
 ├── 🌿 = 已启用 worktree 隔离（安全），📍 = 直接在分支上操作（谨慎）
-└── ⚡ AUTO 徽章仅在 AUTO_MODE=true 时在第一行显示；默认不显示
+├── ⚡ AUTO 徽章仅在 AUTO_MODE=true 时在第一行显示；默认不显示
+├── 🌐 Ext 徽章仅在 state.{stage}_substeps_config.review_roles[] 任一含 external 时在第一行显示（v7.3.10+P0-38 改造，不再读老 *_enabled 字段）
+└── 🔴 **emoji 间隔硬规则**（v7.3.10+P0-62）：所有图标（📁 / 🌿 / 📍 / ⚡ / 🌐 / 🔄 / 🔗 / ⏸️ 等）与其后紧随的文字内容之间**必须保留一个半角空格**。例：`📁 /Users/...`（✅）/ `📁/Users/...`（❌ 终端会把 emoji 和路径视为一体，不可点击）
+```
+
+**state.json `current_stage` enum vs 阶段字段语义映射（v7.3.10+P0-55 新增）**：
+
+```
+state.current_stage enum 值 → STATUS-LINE 阶段字段语义
+├── triage              → "需求理解中"
+├── goal_plan           → "PRD 起草中" / "PRD 评审中" / "⏸️ PRD 待确认"（按子步骤）
+├── ui_design           → "UI 设计中" / "⏸️ 设计稿待确认"
+├── blueprint           → "TC 起草中" / "TECH 起草中" / "⏸️ Blueprint 待确认"
+├── dev                 → "开发中" / "TDD 红绿循环"
+├── review              → "三视角并行审查" / "⏸️ QUALITY_ISSUE 待处理"
+├── test                → "集成测试 / E2E 中"
+├── browser_e2e         → "Browser E2E 中" / "⚡ AUTO 跳过"
+├── pm_acceptance       → "⏸️ PM 验收（3 选 1）"
+├── ship                → "净化 + push" / "⏸️ MR 待合并" / "Ship 第二段 finalize 中"
+└── completed           → "✅ 已交付"
+```
+
+🔴 PMO 渲染 STATUS-LINE 时按本表映射 current_stage 到语义化阶段字段，不直接显示 enum 值。
 ```
 
 **⚡ AUTO 徽章示例**（v7.3.9+P0-11）：
@@ -94,6 +121,19 @@ AUTO_MODE=true：
 
 AUTO_MODE=false（默认，不显示徽章）：
 🔄 Teamwork 模式 | 流程：Feature | 角色：PMO | 功能：API-F001-用户认证 | 阶段：⏸️ PRD 待确认 | 下一步：⏸️ 等待用户确认
+```
+
+**🌐 Ext 徽章示例**（v7.3.10+P0-24）：
+
+```
+启用外部模型交叉评审（model=codex）：
+🔄 Teamwork 模式 🌐 Ext: codex | 流程：Feature | 角色：PMO | 功能：API-F001-用户认证 | 阶段：Goal-Plan Stage | 下一步：⏸️ PRD 待确认
+
+AUTO 模式 + 外部模型同时启用：
+🔄 Teamwork 模式 ⚡ AUTO 🌐 Ext: claude | 流程：敏捷需求 | 角色：PMO | 功能：UI-F012-导出 CSV | 阶段：Blueprint Stage | 下一步：⚡ 自动进入 Dev
+
+外部模型未启用（默认）：
+🔄 Teamwork 模式 | 流程：Feature | 角色：PMO | ...
 ```
 
 ### Feature / 敏捷需求流程（🔴 功能字段必填）
@@ -113,7 +153,7 @@ AUTO_MODE=false（默认，不显示徽章）：
 **示例**：
 ```
 ---
-🔄 Teamwork 模式 | 流程：Feature | 角色：PMO | 功能：API-F001-用户认证 | 阶段：PMO 分析中 | 下一步：🔗 Plan Stage
+🔄 Teamwork 模式 | 流程：Feature | 角色：PMO | 功能：API-F001-用户认证 | 阶段：PMO 分析中 | 下一步：🔗 Goal-Plan Stage
 📁 /Users/dev/projects/myapp/docs/features/API-F001-用户认证/
 🌿 分支：feature/API-F001-用户认证 → staging | worktree：/Users/dev/projects/myapp-worktrees/API-F001-用户认证
 
@@ -222,7 +262,7 @@ worktree=auto/manual 变体（单文件零逻辑变更也可选 off 跳过 workt
 ├── state.json.worktree.strategy == "auto" / "manual" + path 存在 → 🌿 分支：... | worktree：...
 ├── state.json.worktree.strategy == "off" → 📍 当前分支：... → {merge_target}
 ├── Micro 默认 off → 📍 当前分支：{git branch --show-current}（用户显式开启 worktree=auto 时才走 🌿 分支）
-├── Plan Stage preflight 之前 worktree 尚未创建 → 省略第三行或标注"worktree 待创建"
+├── Goal-Plan Stage preflight 之前 worktree 尚未创建 → 省略第三行或标注"worktree 待创建"
 ├── 问题排查 / PL 纯讨论 / 初始 PMO 分析 → 可省略
 └── 🔴 禁止：worktree.path 用相对路径 / 伪造 state.json 字段 / 混用 🌿 和 📍 语义
 ```
@@ -253,8 +293,8 @@ worktree=auto/manual 变体（单文件零逻辑变更也可选 off 跳过 workt
 | 阶段 | 状态行显示 | 下一步 |
 |------|-----------|--------|
 | **Feature 流程（8 Stage）** | | |
-| PMO 初步分析 | 阶段：PMO 分析中 | 下一步：🔗 Plan Stage |
-| 🔗 Plan Stage | 阶段：🤖 Plan Stage 执行中（PRD+讨论+评审） | 下一步：⏸️ 等待用户确认 PRD |
+| PMO 初步分析 | 阶段：PMO 分析中 | 下一步：🔗 Goal-Plan Stage |
+| 🔗 Goal-Plan Stage | 阶段：🤖 Goal-Plan Stage 执行中（PRD+讨论+评审） | 下一步：⏸️ 等待用户确认 PRD |
 | PRD 待确认 | 阶段：⏸️ PRD 待确认 | 下一步：用户确认后进入 UI Design / Blueprint |
 | 🔗 UI Design Stage | 阶段：🤖 UI Design 执行中 | 下一步：⏸️ 等待用户确认设计 |
 | UI 待确认 | 阶段：⏸️ UI 待确认 | 下一步：Panorama Design / Blueprint |

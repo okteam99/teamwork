@@ -5,12 +5,23 @@
 > 机器校验脚本 `{SKILL_ROOT}/templates/verify-ac.py` 会校验每条 AC 都有对应测试。直接调用，无需各项目复制：
 > `python3 {SKILL_ROOT}/templates/verify-ac.py {Feature 目录}`
 
-## PRD.md（标准模板）
+## PRD.md（统一通用模板，v7.3.10+P0-47 合并）
+
+> 🟢 **v7.3.10+P0-47 重构（PRD 模板合并）**：原"标准模板（业务类）" + "技术类变体"两套合并为统一通用模板。差异通过"按需必填"标注表达：
+> - 业务类 Feature：用户故事 / 功能需求 / 埋点需求必填
+> - 纯技术 refactor：用户故事可省（或写"使用方故事"）/ 功能需求改为"功能行为不变"声明 / 埋点需求标"不适用"
+> - 中台子项目：消费方分析必填
+> - 其他子项目：消费方分析不填
+>
+> 删除：`prd_variant` frontmatter 字段（合并后不需要变体区分）
 
 ```markdown
 ---
 feature_id: "{缩写}-F{编号}-{功能名}"
 status: draft  # draft | pending_review | confirmed
+requires_ui: false  # v7.3.10+P0-44 新增：是否触发 Designer 评审（双保险之一；PMO 也按 UI 关键词识别）
+business_direction_locked: false  # v7.3.10+P0-34-C：PL-PM 讨论收敛后由 PMO 写 true（v7.3.10+P0-44 改为讨论模式）
+# v7.3.10+P0-48 删除：business_direction_locked_at（时刻信息由 state.json 单一记录）
 acceptance_criteria:
   - id: AC-1
     description: "用户能用邮箱和密码登录"
@@ -31,7 +42,7 @@ acceptance_criteria:
 
 ## 背景
 
-## 用户故事
+## 用户故事（🟡 业务类必填；纯技术 refactor 可省或写"使用方故事"）
 作为 [角色]，我希望 [功能]，以便 [价值]
 
 ## 交付预期（用户视角）
@@ -53,7 +64,7 @@ acceptance_criteria:
 | AC-1 | {description} | P0 | {测试 ID，如 T-001, T-002} |
 | AC-2 | {description} | P0 | |
 
-## 功能需求
+## 功能需求（🟡 业务类必填；纯技术 refactor 改为"功能行为不变"声明）
 
 ### P0 (必须)
 -
@@ -101,8 +112,8 @@ stateDiagram-v2
     状态A --> 状态B: 触发条件
 \`\`\`
 
-## 埋点需求（前端/客户端功能必填）
-> ⚠️ 纯后端功能可标注「不适用」
+## 埋点需求（🟡 前端/客户端业务功能必填；纯技术 refactor / 后端 / 内部功能标"不适用"）
+> ⚠️ 纯后端功能 / 纯技术 refactor 标注「不适用」
 
 | 埋点名称 | 事件类型 | 触发时机 | 参数 | 用途 |
 |----------|----------|----------|------|------|
@@ -126,96 +137,6 @@ stateDiagram-v2
 
 ### 消费方接入计划
 <!-- 各消费方何时开始接入、是否需要同步改动 -->
-
-## 待决策项
-| ID | 问题 | 选项 | 决策 |
-|----|------|------|------|
-
-## 变更记录
-| 日期 | 变更 |
-|------|------|
-```
-
----
-
-## PRD.md（技术类变体）
-
-> 🔴 适用于纯技术性 Feature（CI/CD、monorepo 配置、共享中间件、监控、部署等）。
-> PMO 路由到 INFRA 子项目时默认建议使用此模板；其他子项目的纯技术 Feature 也可选用。
-> 与标准 PRD 的区别：跳过用户故事、业务流程图、埋点，增加技术背景和影响范围。
-> 🔴 v7.3：技术类 PRD 同样需要 frontmatter，AC 描述的是"技术验收条件"。
-
-```markdown
----
-feature_id: "{缩写}-F{编号}-{功能名}"
-status: draft
-prd_variant: technical  # 标注为技术类变体
-acceptance_criteria:
-  - id: AC-1
-    description: "所有子项目可编译通过"
-    priority: P0
-    test_refs: []
-  - id: AC-2
-    description: "CI 流水线全绿"
-    priority: P0
-    test_refs: []
----
-
-# {功能名称}
-
-## 状态
-草稿 | 待评审 | 已确认
-
-## 技术背景
-<!-- 为什么需要这个技术变更？当前存在什么问题？ -->
-
-## 技术目标
-<!-- 这个 Feature 要达成什么技术效果？用可量化的指标描述 -->
-<!-- 示例：构建时间从 5min 降到 1min / CI 流水线覆盖所有子项目 / Docker 镜像可构建可部署 -->
-
-## 交付预期（验证视角）
-
-> 做完后，怎么验证这个技术变更生效了？
-
-| 变化 | 验证方式 |
-|------|----------|
-| {描述可观测的技术变化} | {命令/URL/日志/指标 — 具体到怎么看} |
-
-## 验收标准（技术维度）
-
-> 🟢 v7.3.3 布局调整：验收标准紧跟交付预期，人类审查聚焦契约核心。
-> 🔴 与 frontmatter 的 `acceptance_criteria[]` 保持一致（id / description）。
-
-| ID | 描述（技术维度）| 优先级 | 覆盖测试 |
-|----|---------------|--------|---------|
-| AC-1 | 所有子项目可编译通过 | P0 | {测试 ID} |
-| AC-2 | CI 流水线全绿 | P0 | |
-| AC-3 | Docker 镜像可构建并通过冒烟测试 | P0 | |
-
-## 技术方案要点
-<!-- 高层方案概述，替代用户故事。详细方案在 TECH.md 中展开 -->
-
-### 方案概述
--
-
-### 关键技术决策
-| 决策点 | 选择 | 理由 |
-|--------|------|------|
-
-## 影响范围
-<!-- INFRA Feature 天然影响多个子项目，必须明确列出 -->
-
-| 受影响子项目 | 影响方式 | 是否需要配合改动 | 说明 |
-|-------------|----------|-----------------|------|
-| | 直接/间接 | 是/否 | |
-
-> 🔴 「需要配合改动」= 该子项目需要修改代码或配置才能使用本 Feature 的产出。
-> 需要配合改动的子项目应评估是否建立 BG 业务关联。
-
-## 消费方分析（中台子项目必填）
-
-> 📎 内容格式同上方标准 PRD 的「消费方分析」章节（消费方列表 + API 契约 + 兼容性承诺 + 接入计划）。
-> 🔴 仅 midplatform 类型子项目的 Feature 需要填写此章节。
 
 ## 待决策项
 | ID | 问题 | 选项 | 决策 |
@@ -303,3 +224,166 @@ acceptance_criteria:
 - 用户确认: 修改 X / 忽略 X
 - 结论: 继续修改 / 通过
 ```
+
+---
+
+## PRD-REVIEW.md frontmatter schema（v7.3.10+P0-34 新增，机读）
+
+> Goal-Plan Stage 子步骤 2「多角色并行评审」产出 `{Feature}/PRD-REVIEW.md`，含以下机读 frontmatter。
+
+```yaml
+---
+prd_feature_id: F025
+review_round: 1
+review_started_at: "<ISO 8601 UTC>"
+review_completed_at: "<ISO 8601 UTC>"
+reviews:
+  # v7.3.10+P0-44 schema 调整：reviews[] 仅含 qa / rd / designer? / external?
+  # v7.3.10+P0-46 加 review_scope 字段：标识本次评审范围
+  # PL 走子步骤 2 PL-PM 讨论模式（独立产物 discuss/PL-FEEDBACK + PM-RESPONSE，不在本 reviews[] 数组）
+  # PMO 不独立评审（折叠到 PMO 调度责任，整合 finding）
+  - role: qa | rd | designer | external  # v7.3.10+P0-44：删 pl/pmo
+    review_scope: prd                    # v7.3.10+P0-46：值 prd | blueprint | code-review，标识评审范围
+                                          # PRD 评审仅审产品视角（业务可行性 / AC 可测试性 / 用户故事完整性）
+                                          # 技术实现 / 测试用例细节在 Blueprint Stage 评审（review_scope=blueprint）
+    execution: subagent | main-conversation
+    verdict: PASS | PASS_WITH_CONCERNS | NEEDS_REVISION
+    started_at: "<ISO 8601 UTC>"
+    completed_at: "<ISO 8601 UTC>"
+    files_read:
+      - PRD.md
+      - 其他真实读过的文件
+    findings:
+      - id: RD-1  # 角色前缀 + 序号
+        severity: high | medium | low | info
+        description: "1-2 句问题描述"
+        suggestion: "建议改法（可执行的具体方向）"
+        category: technical-consistency | business-alignment | ux | quality | business-decision  # v7.3.10+P0-34-A 新增
+        # 以下字段在 PM 回应后填入（Round 2+）
+        pm_response:
+          action: ADOPT | REJECT | DEFER
+          # v7.3.10+P0-34-A：DEFER 严格收紧，仅允许 category=business-decision 时使用
+          category: business-decision  # 仅 action=DEFER 时必填，其他类别 DEFER = 违规
+          # v7.3.10+P0-34-B：对抗性自查段（每条 ADOPT/REJECT 前必须先模拟反方最强论据）
+          adversarial_self_check: |
+            站在 finding 提出方视角写最强反驳论据（≥2 句具体内容）。
+            示例（finding 由 RD 提，PM 想 REJECT）：
+            "RD 反方最强论据：当前 PRD 接口缺 token 刷新策略，会导致鉴权失败回退到登录页，
+             用户体验断点；如果不加，跨租户场景会出现幽灵会话。
+             我的 REJECT 理由必须证明这两点不成立或代价可接受。"
+          rationale: "ADOPT 时填'已修订：{改了什么 + PRD 段落引用}'；REJECT 时填'反方论据为何不成立 + 替代方案'；DEFER 时填'延后理由 + 追踪位置 + 上升给用户决策的具体问题'"
+          responded_at: "<ISO 8601 UTC>"
+overall_verdict: PASS | PASS_WITH_CONCERNS | NEEDS_REVISION
+next_round_required: true | false
+overall_decided_at: "<ISO 8601 UTC>"
+---
+
+# PRD-REVIEW（{feature_id}）Round {N}
+
+## 各 reviewer 段（按 reviews[] 数组顺序展开）
+
+### {role} 评审段（execution: {subagent|main-conversation}）
+
+verdict: {PASS|PASS_WITH_CONCERNS|NEEDS_REVISION}
+
+#### Findings
+
+##### {id}（severity: {sev}）
+{description}
+
+**建议**：{suggestion}
+
+**PM 回应**（Round 2+ 由 PM 填入）：
+- 决策：{ADOPT|REJECT|DEFER}
+- 理由：{rationale}
+
+---
+
+（重复其他 reviewer 段）
+
+## 整合结论（Round {N} 完成后由 PMO 写）
+
+- overall_verdict: {结果}
+- next_round_required: {true|false}
+- 下一步：{PM 修订 PRD 进 Round N+1 / 全员通过进子步骤 5 / 超 3 轮 ⏸️ 用户决策}
+```
+
+### 机器可校验
+
+- yq 可解析所有 frontmatter 字段
+- 每个 reviews[].findings[] 必须有 id / severity / description / suggestion / category 5 字段
+- Round 2+ 的 NEEDS_REVISION findings 必须含 pm_response.action + pm_response.adversarial_self_check + pm_response.rationale
+- v7.3.10+P0-34-A：`pm_response.action == "DEFER"` 时必须 `pm_response.category == "business-decision"`，否则视为违规（PMO 校验拦截，打回 PM 重做）
+- v7.3.10+P0-34-B：每条 `pm_response.action ∈ {ADOPT, REJECT}` 必须含非空 `adversarial_self_check`（≥2 句反方论据模拟），否则视为对抗强度不足（PMO 打回）
+- overall_verdict 必须与所有 reviews[].verdict 一致（任一 NEEDS_REVISION → overall = NEEDS_REVISION）
+
+### 历史 PRD-REVIEW.md 兼容性
+
+v7.3.10+P0-33 之前的 PRD-REVIEW.md（无机读 frontmatter，4 视角文字汇总）仍允许存在；新建 Feature 用本 schema。
+
+---
+
+## 🔴 PM 起草规范 checklist（v7.3.10+P0-51 从 goal-plan-stage.md 迁入，单源化）
+
+> 🟢 **v7.3.10+P0-46 边界 / +P0-51 单源化**：PRD 仅回答「做什么 + 为什么」，技术/测试细节在 Blueprint Stage 由 RD/QA 起草。本 checklist 是 PM 起草 PRD 时的产品视角必填项；goal-plan-stage.md 仅 cite 本段，不复述细节。
+
+### 通用 checklist（所有 Feature 必填）
+
+```markdown
+## 产品目标（Why）
+- [ ] 解决什么用户问题 / 业务问题
+- [ ] 关联的产品策略 / KNOWLEDGE 历史决策
+
+## 验收标准（AC，可验证的业务行为）
+- [ ] 每条 AC 有唯一 id（AC-1 / AC-2 / ...）
+- [ ] 每条 AC 量化可验证（避免"用户体验好"等模糊描述）
+- [ ] 每条 AC 标注优先级（P0 / P1 / P2）
+- [ ] 边界场景的业务行为（用户感知的异常 / 错误提示 / 极端输入处理）
+- [ ] AC 可测试性（QA 能从中转化为测试用例 = AC 描述清晰即可，不需要 PM 写测试用例）
+
+## 影响范围
+- [ ] 明确 in_scope / out_of_scope（避免 scope 蔓延）
+- [ ] 列出 KNOWLEDGE.md / ADR 关联条目（复用既有产品/业务模式）
+- [ ] 跨子项目依赖（DEP 编号 + 上游子项目，业务依赖层面）
+- [ ] 业务风险表（业务风险 + 已知技术风险方向 + ROLLBACK 业务侧）
+```
+
+### UI 用户故事维度（仅 requires_ui=true 时填）
+
+```markdown
+## UI 用户故事（PM 描述高层产品意图）
+- [ ] 涉及的页面 / 组件清单（高层）
+- [ ] 交互改动描述（新增 / 修改 / 删除）
+- [ ] 用户故事 + 状态流（含 normal / empty / loading / error）
+
+🔴 不写：视觉风格约束 / 视觉细节（→ UI Design Stage / Designer）
+```
+
+### 🔴 PRD 不写什么（v7.3.10+P0-46 边界）
+
+```
+❌ 接口 schema（→ TECH.md，Blueprint Stage RD 写）
+❌ 数据模型 / migration up/down（→ TECH.md）
+❌ 调用链路 / 共享状态 / 事务边界（→ TECH.md）
+❌ 异常处理实现策略：重试 / 降级 / 兜底（→ TECH.md，PRD 仅描述用户感知的异常行为）
+❌ 性能实现方案（→ TECH.md，PRD 仅描述性能要求作为 AC）
+❌ 复用既有库 / 模式（→ TECH.md）
+❌ 测试用例（→ TC.md，Blueprint Stage QA 写）
+❌ 集成测试规划 / 性能测试规划 / ROLLBACK 测试（→ TC.md）
+❌ 视觉风格约束 / token / 全景同步细节（→ UI Design Stage / Designer）
+```
+
+### 🔴 PM 起草后必做自查
+
+通用 + UI 用户故事（如适用）勾选完整；如发现自己在写技术细节或测试用例 → 立即停止 + 移到 TECH/TC 起草阶段。
+
+写入 `PRD-REVIEW.md.reviews[role=pm].pm_self_check`（schema：`{checklist_passed: true|false, failed_items: ["..."], notes: "..."}`），不复述 checklist 全文（避免主对话重复述 3 遍）。
+
+---
+
+🟢 **设计意图（v7.3.10+P0-46 职责正交回归 / +P0-51 单源化）**：
+- PRD 回答"做什么 + 为什么"（产品/业务视角）
+- TECH.md 回答"怎么做"（Blueprint Stage RD 写）
+- TC.md 回答"怎么测"（Blueprint Stage QA 写）
+- 三阶段职责正交，PRD 不再被技术/测试细节淹没
+- v7.3.10+P0-51：本 checklist 单源在本文件，goal-plan-stage.md / roles/pm.md 仅 cite，不复述

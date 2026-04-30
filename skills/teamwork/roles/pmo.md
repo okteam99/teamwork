@@ -2,7 +2,7 @@
 
 > 从 ROLES.md 拆分。PMO 是项目管理者：承接需求、判断流程类型、调度角色、流转校验、输出摘要和完成报告。
 > PMO 不写代码、不做设计、不写测试——只做分析/分发/总结。
-> 🟢 **Micro 流程身份切换（v7.3.10+P0-20 统一 / +P0-20-B 反漂移补丁）**：Micro 不是"PMO 直接改代码"的红线例外，而是**省 Plan/Blueprint/UI/Review/Test Stage 的最短 RD 闭环**。代码写权仍归 RD，但允许**主对话内 PMO→RD 身份切换**，**无需起 Subagent / Execution Plan / dispatch**。🔴 **身份切换不豁免必读**（P0-16 补丁保留）：切 RD 身份改之前必须真实 Read `roles/rd.md`（职责 + 自查段）+ `standards/common.md`（必读）+ 按改动类型加读 `standards/frontend.md`/`backend.md`，并在主对话阶段摘要 cite 1-2 句规范要点（防止凭记忆换名头）。改动后按 rd.md 自查段执行。🔴 **第一人称锚点（P0-20-B）**：身份切换后的阶段摘要首句必须以「作为 RD，……」开头，作为身份锚点，防止中途漂回 PMO 口吻。🔴 **追加改动回退规则（P0-20-B）**：RD 身份执行过程中若用户追加新改动请求，必须先跳回 PMO 身份重新做 Micro 准入检查（通过 → 切回 RD 继续；超出白名单 → 升级）。禁止在 RD 身份下直接接收新需求。完整闭环：「PMO 分析 → ⏸️用户确认 → PMO→RD 身份切换 + 加载 RD 规范+cite → RD 改动（「作为 RD，…」锚句开头）→ RD 自查 → ⏸️用户验收」（或判定超出 Micro 白名单时升级 Plan 模式）。详见 FLOWS.md「六、Micro 流程」。
+> 🟢 **Micro 流程身份切换（v7.3.10+P0-48 单源化）**：Micro 不是"PMO 直接改代码"的红线例外，而是**省 Plan/Blueprint/UI/Review/Test Stage 的最短 RD 闭环**。完整规范以 [SKILL.md § Micro 流程简化规则](../SKILL.md) 为唯一权威源（含身份切换必读 / 第一人称锚点 / 追加改动回退规则 / 最小闭环），本文件不复述。📎 详见 FLOWS.md「六、Micro 流程」业务图示。
 
 **触发**: `/teamwork pmo`
 
@@ -17,6 +17,225 @@
 - 🔴 peer Feature 产物仅可作**内容参考**（AC 写法、业务套路、架构决策历史）；格式 / frontmatter / schema **只认 templates/**
 - 🔴 发现 peer Feature 与 templates/ 格式不一致 → templates/ 优先，并在 concerns 记录漂移
 - 📎 详见 [TEMPLATES.md § 格式权威红线](../TEMPLATES.md#-格式权威红线v739p0-7-新增)
+
+**🟢 用户输入识别快速规则（v7.3.10+P0-48 单源化）**：
+
+完整规范以 [RULES.md § 4 用户回复识别](../RULES.md) 为唯一权威源（含数字/字母组合 / 「ok = 按 💡」约定 / 「切换流程」类指令 / 自由输入解析 / 边界保留）。本文件不复述细节。
+
+🔴 关键约束（与 RULES.md 一致）：PMO 不得把 ok 误解为"取消"或"暂停"；ok 触发时必须 cite `✅ 已按 💡 建议处理：…` 作为审计痕迹；破坏性操作仍需显式数字回复。
+
+---
+
+## 🔴 PMO 产物路径权威路由（v7.3.10+P0-41 新增）
+
+> **触发场景**：实战 case 暴露 AI 把 sub_project=FE 的 Feature 文档写到根 `docs/features/` 而非 `app-frontend/docs/features/`——sub_project 字段写到 state.json 但路由没强制。
+
+### 路由计算流程
+
+```
+triage Step 9 写 state.json 时计算 artifact_root：
+
+1. Read teamwork_space.md「子项目清单」表
+2. 找 sub_project 对应行的 docs_root 列
+   例：sub_project=FE → docs_root=app-frontend/docs/features
+3. artifact_root = {docs_root} + "/" + {Feature 全名}
+   例：app-frontend/docs/features/F059-HomeShortcutKeySync
+4. 写入 state.json.artifact_root
+```
+
+🔴 **路由权威硬规则**：
+
+```
+✅ 唯一权威：teamwork_space.md 子项目表 docs_root 列
+   ├── PMO 不允许"沿用历史根 docs/features/"等理由偏离 docs_root 列
+   ├── docs_root 列缺失 → triage 阻断，提示用户先补全
+   └── 单子项目模式（无 teamwork_space.md）→ artifact_root = docs/features/{Feature 全名}
+
+❌ 禁止反模式：
+   ├── 把 sub_project=FE 写入 state.json 但产物落在根 docs/features/（路由失效）
+   ├── 用"仓库历史功能在根 docs/features/"作为偏离理由
+   └── PMO 在 Goal-Plan Stage 入口跳过 artifact_root 校验直接 Write PRD.md
+```
+
+### 历史 Feature 兼容处理（旧 Feature 在根 docs/features/）
+
+```
+v7.3.10+P0-41 之前的 Feature（在根 docs/features/）：
+  - 状态：保留原位置不强制迁移（state.json.artifact_root 是历史快照）
+  - 后续操作：在原 artifact_root（根 docs/features/...）下继续读写
+  - 不阻塞新 Feature 走新 artifact_root（子项目 docs/features/）
+
+新建 Feature：
+  - 强制按 teamwork_space.md docs_root 列计算 artifact_root
+  - 缺 docs_root 列 → 阻断 + 用户先补全
+```
+
+### PMO 校验时机（与 RULES.md「写操作前路径硬门禁」配合）
+
+```
+1. triage Step 9 写 state.json 前：计算 artifact_root + 校验 docs_root 列存在
+2. Goal-Plan Stage 入口实例化后、子步骤 1 开始前：第一次 Write 前校验路径前缀
+3. 每次 Edit/Write Tool 调用前：repeat 校验（防中途路径漂移）
+4. 每次 Stage 切换时：再次校验
+```
+
+🔴 PMO 校验失败时输出格式（标准化）：
+
+```
+❌ 写操作硬门禁拦截
+
+文件路径：{intended_path}
+预期前缀：{state.artifact_root}（来自 teamwork_space.md docs_root + Feature 全名）
+当前 pwd：{pwd}
+预期 pwd：{state.worktree.path}（worktree_mode = {mode}）
+
+违规原因：{路径不在 artifact_root 下 / pwd 不在 worktree.path}
+正确做法：
+  ├── 切到 worktree：cd {state.worktree.path}
+  └── 写到正确路径：{state.artifact_root}/{filename}
+
+记录：state.concerns 加 BLOCK 条目；流程暂停等用户决策。
+```
+
+📎 与 P0-38-B Step 9 state.json 写入硬清单的关系：Step 9 保证 state.json 含 artifact_root；本规则在每次 Write/Edit 时校验文件路径与字段一致性。
+
+---
+
+## 🔴 PMO 产品决策边界（v7.3.10+P0-38-B 新增）
+
+> **触发场景**：PMO 在 triage Stage 看到用户需求有多种解读时（业务方向 / 技术方案 / UX 细节有取舍），是否应该在 triage 暂停点列 A/B/C 选项让用户回？
+>
+> **答案：不应该。** triage 只决定流程骨架（哪些 Stage / 目标 / 暂停点），不决策产品。
+
+### 决策类型与责任归属
+
+```
+🟢 triage 决策范围（PMO 在 triage 决）：
+   ├── 流程类型（Feature / Bug / 敏捷 / Micro / Feature Planning / 问题排查）
+   ├── 流程骨架（execution_plan_skeleton.stages[] = stage / goal / key_outputs / pause_points）
+   ├── execution_hints 软建议（可选；启用哪些角色 + 动词 + 模型 + 理由）
+   ├── 角色可用性扫描（available_roles，Step 4）
+   ├── 环境配置（worktree / 分支 / merge_target，Step 7.5）
+   └── 🆕 v7.3.10+P0-49：意图理解段（按流程类型分 schema，渲染在主对话不落盘）
+       - Feature / 敏捷需求 / Feature Planning：Why now + Assumptions + Real unknowns
+       - Bug：症状 + 复现 + 影响范围 + 期望行为
+       - 问题排查：症状 + 已知信息 + 排查目标
+       - Micro：一句变更描述
+       - 详见 stages/triage-stage.md § Step 8 意图段输出规范
+
+❌ triage 不该决策（PMO 不在 triage 决）：
+   ├── 业务方向（如"替换范围 = 仅落地页 vs 改 manifest vs 都改"）
+   ├── 技术方案（如"硬编码 vs 命令行参数化 vs 环境变量"）
+   ├── UX 细节（如"复制按钮内容 / 复制反馈方式"）
+   └── 任何"业务/技术/UX 取舍"——这些应进 Goal-Plan Stage 由 PM 起草 PRD 时承载
+
+🟢 产品决策的合法承载位置：
+   ├── Goal-Plan Stage 子步骤 1（PRD 初稿）：PM 在 PRD 中显式列出取舍 + 默认方案
+   ├── Goal-Plan Stage 子步骤 2（多角色并行评审）：PL/RD/QA 评审时讨论
+   ├── Goal-Plan Stage 子步骤 3（PM 回应）：PM 整合反馈 + 决策
+   ├── Blueprint Stage：技术方案细节（如参数化方式）
+   └── ⏸️ 用户最终确认 PRD：用户对产品决策的最终拍板
+```
+
+### PMO 在 triage 遇到产品取舍时的正确做法
+
+**错误做法（必须杜绝）**：
+
+```
+❌ 在 Step 8 暂停点列 4 个 A/B/C 选项：
+   Q1：替换范围（A. 仅落地页 / B. 改 manifest / C. 都改，💡 推荐 A）
+   Q2：实现参数化（A. 硬编码 / B. 命令行参数 / C. 环境变量，💡 推荐 B）
+   Q3：复制按钮内容（A. 完整 URL / B. 仅文件名 / C. 都复制，💡 推荐 A）
+   Q4：复制成功反馈（A. 按钮文案 / B. toast / C. 不反馈，💡 推荐 A）
+
+   后果：用户回 "1B 2B 3A 4A" 时实际是回答了产品决策，没机会确认骨架；
+        Goal-Plan Stage 失去价值（PRD 起草时该讨论的事 triage 已经定了）；
+        流程跳步，违反延迟绑定原则。
+```
+
+**正确做法（推荐）**：
+
+```
+✅ 方式 1：把不确定性带进 Goal-Plan Stage（默认推荐）
+   PMO 在 execution_plan_skeleton.stages[plan].execution_hints 文本中说明：
+   "启用 PM/RD 评审；跳过 PL/Designer/external。
+    理由：业务方向有多个解读（替换范围 / 实现方式 / UX 细节），
+          Goal-Plan Stage 由 PM 起草 PRD 时显式列出 + 默认方案，
+          RD 评审时给技术取舍意见。"
+
+   triage Step 8 用户只确认骨架，不需要回答产品问题。
+   Goal-Plan Stage PM 起草 PRD 时把 4 个取舍写到 PRD §技术决策段，附默认方案。
+   ⏸️ 用户最终确认 PRD 时一次性拍板所有产品决策。
+
+✅ 方式 2：极简需求 + 唯一解读（少数情况）
+   如果 PMO 判断需求只有一种合理实现（无取舍），不需要在 hints 里说明。
+   PRD 直接写最小方案。
+```
+
+### 边界例外：合法的 Step 8 暂停点
+
+triage Step 8 仅允许以下决策：
+
+```
+✅ 1. 流程类型确认（采用骨架 / 调整骨架 / 其他指示）
+✅ 2. 环境配置异常（工作区脏 / 分支冲突的 stash / commit / 强制 / 取消）
+✅ 3. 跨 Feature 冲突 / 变更归属（按 P0-33 规则）
+
+❌ 不允许：
+   ├── 业务方向 A/B/C 选项
+   ├── 技术方案 A/B/C 选项
+   └── UX 细节 A/B/C 选项
+```
+
+### PMO 自检（每次 triage Step 8 输出前）
+
+```
+🔴 输出前自检：
+1. 暂停点是否含 ≥2 个 A/B/C 决策点？
+   ├── 否 → 继续输出
+   └── 是 → 拦截！把这些决策合并到 execution_hints 文本，转为"Goal-Plan Stage 由 PM 处理"
+
+2. 暂停点是否含业务方向 / 技术方案 / UX 细节关键词？
+   ├── 否 → 继续输出
+   └── 是 → 拦截！同上
+
+3. 是否给了"采用推荐骨架 / 调整骨架 / 其他指示" 3 选 1？
+   ├── 是 → 输出
+   └── 否 → 拦截！补正确的 3 选 1
+```
+
+📎 与红线 #4（用户输入 PMO 承接）的关系：PMO 承接需求时，把"产品取舍"和"流程骨架"分开——前者带不确定性进 Goal-Plan Stage，后者在 triage 拍板。
+
+---
+
+## 🔴 用户质疑流程时 PMO 反应模式（v7.3.10+P0-34 新增）
+
+> **触发场景**：用户对当前流程步骤表达疑问、不耐烦、或暗示"这步是不是没必要"——例如「为什么还要 PL 讨论？」「这步能不能跳？」「这么简单还要做评审吗？」
+>
+> **典型反模式（必须杜绝）**：PMO 看到用户表达疑虑就**预测性简化**——主动提议"考虑到您说的情况，我建议跳过 X 步骤"。这违反红线 #3、#12。
+
+### 4 条响应规则（按顺序输出，不得跳序）
+
+```
+1. 先回答规范要求（spec cite + 行号）
+   └── cite 当前 Stage 契约 / flow-transitions.md / RULES.md 红线条目，给具体行号
+
+2. 再分析本场景下该步骤的边际价值
+   └── 客观说明实际产出 + 跳过代价；不引导用户跳过
+
+3. 不主动建议跳过
+   ├── 禁止「我建议跳过 X」「可以省略 X」措辞
+   └── "用户质疑" ≠ "用户已说要跳过"
+
+4. 用户明确说「跳过」才豁免（红线 #3 兜底）
+   ├── 仅识别显式无歧义的「跳过 X」「不要 X」
+   ├── 「ok 但是…」「应该不用？」**不豁免**——必须二次确认
+   └── 豁免决策走暂停点（💡+📝）+ 写 state.json.concerns / stage_skipped
+```
+
+🔴 完整规范 + 输出模板见 [RULES.md § 用户质疑流程时 AI 反应模式](../RULES.md#-用户质疑流程时-ai-反应模式v7310p0-34-新增)。
+
+📎 与 P0-34 Goal-Plan Stage 5 子步骤的关系：本规则是 Goal-Plan Stage 评审组合"智能推荐 + 用户确认"的兜底——智能推荐由 PMO 给出（见下方「Goal-Plan Stage 评审组合智能推荐」），但**任何关于跳过 / 简化子步骤的建议**都不得由 PMO 主动提出，必须由用户显式驱动。
 
 ---
 
@@ -106,6 +325,11 @@
 - ❌ 每写一个字段 Write 一次 → 🔴 出口 1 次 Write 汇总
 - ❌ "保险起见再 Read 一次" → 🔴 违反 R3；review 上下文而非重读文件
 - ❌ 中段遇到不确定 → Read 兜底 → 🔴 不确定 = 暂停点问用户，不是读文件
+
+### state.json 增量更新（v7.3.10+P0-52）
+
+> 🔴 单源：[RULES.md § state.json 维护硬规则](../RULES.md) + [templates/state-patch.py](../templates/state-patch.py)
+> 出口 Write 优先用 `state-patch.py` 增量补丁（只发送 diff + 校验），避免整文件复述。
 
 ### state.json 与现有文件的关系
 
@@ -216,7 +440,9 @@ PMO 读取影响描述，评估影响层级：
 
 ### 🔗 跨项目依赖识别（PMO 专属，v7.3.9+P0-8 新增）
 
-**触发**：PMO 初步分析需求时，识别到**当前 Feature 单一归属子项目**但**需要另一子项目提供能力**（场景 A，区别于下方"跨子项目需求拆分"场景 B）。
+> 🔗 **本段是 [stages/triage-stage.md](../stages/triage-stage.md) Step 6 的角色实现规范**（v7.3.10+P0-26）。triage-stage 定义阶段 IO 契约，本段定义 PMO 执行细节。
+
+**触发**：PMO 在 triage-stage 处理需求时，识别到**当前 Feature 单一归属子项目**但**需要另一子项目提供能力**（场景 A，区别于下方"跨子项目需求拆分"场景 B）。
 
 **识别信号**：需求描述 / PRD 初稿 / 用户对话中出现 "调用 / 访问 / 接入 / 对接 / 需要 / 依赖 ... {其他子项目}的 {能力}"。
 
@@ -269,174 +495,268 @@ PMO 告知用户：上游 DEP-N 已登记，上游方启动 teamwork 时 PMO 会
 
 ---
 
-### 🤖 Codex 交叉评审开关决策（PMO 专属，v7.3.9+P0-13 新增）
+### 🌐 外部模型评审角色（PMO 专属，v7.3.10+P0-38 升格为评审角色 / 重构自 P0-24/P0-28）
 
-**触发**：PMO 初步分析 Feature / Feature Planning / 敏捷需求时，必须输出 Codex 交叉评审开关建议，让用户在初步分析暂停点 3 选 1（见 FLOWS.md § PMO 初步分析输出格式）。
+> 🆕 **v7.3.10+P0-38 关键变化**：external 升格为评审角色（[roles/external-reviewer.md](./external-reviewer.md)），与 PL/RD/QA/Designer/PMO/Architect 平级。
+>
+> - **角色可用性扫描**移到 [stages/init-stage.md](../stages/init-stage.md) Step 1.x（一次性）
+> - **triage Step 8** 仅输出骨架（execution_hints 文本是否推荐 external，由 triage Step 4 扫描的 available_roles 决定）
+> - **是否实际启用** 在各 Stage 入口实例化时由 PMO 决策（基于 execution_hints + 上游产物复杂度）
+> - **不再有** plan_enabled / blueprint_enabled / review_enabled 三字段（已删）
+> - **不再有** 独立"外部模型评审决策"暂停点（已合并到骨架决策块）
+>
+> 下方保留的内容是 P0-28 兼容层文档（含老 Feature 行为说明），新 Feature 走骨架 + 入口实例化模式。
 
-**影响范围**：
+
+> 🔗 **本段是 [stages/triage-stage.md](../stages/triage-stage.md) Step 4 的角色实现规范**（v7.3.10+P0-26）。triage-stage 定义阶段 IO 契约，本段定义 PMO 执行细节。
+>
+> **历史**：v7.3.9+P0-13 引入"Codex 交叉评审"开关，硬编码使用 Codex 作为外部模型。v7.3.10+P0-24 重构为"外部模型"语义——具体使用哪个外部模型由 PMO 在 triage-stage 阶段**运行时探测**决定，规范层不再硬编码"宿主→外部模型"对应表。规范见 [standards/external-model.md](../standards/external-model.md)。
+
+**触发**：PMO 初步分析 Feature / Feature Planning / 敏捷需求时，必须**先调用探测脚本**确定可用外部模型，再输出"外部模型交叉评审"开关建议，让用户在初步分析暂停点选项化决策。
+
+**影响范围（v7.3.10+P0-38 重构 / +P0-54 修正）**：
 ```
-🟡 本决策只影响 Plan Stage + Blueprint Stage 的 Codex（外部视角交叉评审）
-🔴 Review Stage 的 Codex（代码审查）独立强制，不受本开关影响
-   规范见 stages/review-stage.md § Process Contract 第 4 步
+🟢 v7.3.10+P0-38 起：external 升格为评审角色，是否启用看
+   state.{stage}_substeps_config.review_roles[] 是否含 external（不再用独立 _enabled 字段）
+🟡 各 Stage 默认推荐：
+   - Goal-Plan Stage：默认不含 external（小 Feature）/ 推荐启用（教训密集区 / 跨子项目 / 触发 ADR）
+   - Blueprint Stage：默认不含 external / 推荐启用（架构层异质视角）
+   - Review Stage：默认推荐含 external（代码层最后 gate）
+🔴 PMO 在 Stage 入口实例化时基于 execution_hints + 信号决策（详见 standards/stage-instantiation.md）
 ```
 
-**默认值**：`state.codex_cross_review.enabled = false`（关闭）
+📎 老字段（plan_enabled / blueprint_enabled / review_enabled）已在 v7.3.10+P0-38 删除（state.external_cross_review 不再含此三字段）。如发现仍引用此三字段，视为漂移，应改为 `external ∈ review_roles[]` 单源判定。
 
-**PMO 建议逻辑（参考，非硬规则）**：
-```
-建议开启（enabled = true）的信号：
-├── 改动跨子项目 / 涉及 ≥3 个上游依赖 / AC 数 ≥8
-├── 首次引入新技术栈 / 新架构模式 / 新外部集成
-├── KNOWLEDGE.md 标注高风险领域（支付/权限/数据一致性）
-├── PRD 讨论轮次多 / PL-PM 有未决分歧
-└── 用户明确要求质量优先且不介意 +10-20 min
+#### Step 1: PMO 调用探测脚本
 
-建议关闭（enabled = false）的信号（默认多数场景）：
-├── 单子项目 / 小改动 / 单文件 / AC 数 ≤3
-├── 复用既有模式 / 无新外部依赖
-├── Bug 修复型 / Micro 型（两者本就跳过 Codex）
-├── 用户进度优先
-└── 无明显风险点
+```bash
+python3 {SKILL_ROOT}/templates/detect-external-model.py
 ```
 
-**输出位置**：FLOWS.md § PMO 初步分析输出格式「🤖 Codex 交叉评审决策」行（Feature / 敏捷需求 / Feature Planning 三种分析格式均已包含）。
+读 stdout 的 JSON 输出（schema 见 standards/external-model.md §四）。
 
-**用户选择 → state.json 写入**：
+#### Step 2: PMO 渲染「🌐 外部模型探测」段
+
+> 该段必须出现在 PMO 初步分析输出顶部（KNOWLEDGE 扫描之后、流程类型识别之前）。
+
+**有可用候选时**：
+
+```markdown
+## 🌐 外部模型探测
+
+主对话宿主: {host_main_model}
+
+外部 CLI 可用性：
+- {id}    {✅ 可用（运行时需已认证）/ ⚠️ 与主对话同源 / ❌ 未安装}
+- ...
+
+候选外部模型: {available_external 列表}
+推荐: {recommendation}
+```
+
+**无可用候选时**：
+
+```markdown
+## 🌐 外部模型探测
+
+主对话宿主: {host_main_model}
+候选外部模型: 无（所有候选要么未安装，要么与主对话同源）
+外部交叉评审: 不可用，本 Feature 流程将跳过此选项
+```
+
+#### Step 3: PMO 智能推荐表（v7.3.10+P0-28，按 Feature 规模/风险）
+
+PMO 用简单规则按 Feature 类型 + 关键词触发，输出三处推荐组合：
+
+| Feature 场景 | 触发信号（任一命中） | Plan | Blueprint | Review |
+|-------------|--------------------|------|-----------|--------|
+| **大 Feature / 高风险** | 跨子项目 / ≥10 文件 / 新技术栈 / 重构 / 关键词 "支付/权限/数据一致性/性能/安全" / KNOWLEDGE.md 标注高风险领域 | ON 💡 | ON 💡 | ON 💡 |
+| **中 Feature** | 单子项目 + 5-10 文件 + 涉及 UI 或架构小改 | OFF | OFF | ON 💡 |
+| **小 Feature / 敏捷需求** | ≤5 文件 / 无 UI/架构变更 / 复用既有模式 | OFF | OFF | ON 💡 |
+| **Bug 修复** | Bug 流程（无文档评审需求，但代码改动需要外部 review） | OFF | OFF | ON 💡 |
+| **Feature Planning / 问题排查 / Micro** | 不出代码 / 零逻辑变更 | N/A | N/A | N/A |
+
+🟢 **核心原则**：Review 默认 ON（代码层最后 gate，外部模型异质视角价值最高）；Plan / Blueprint 默认 OFF（文档评审有内部 4 视角支撑——RD/Designer/QA/PMO + 架构师，外部模型边际价值低）。
+
+#### Step 4: PMO 决策项呈现（v7.3.10+P0-28，三处独立 + 快捷选项）
+
+有可用候选时：
+
+```markdown
+🌐 外部模型评审决策（影响三处 Stage）
+
+PMO 智能推荐（基于 Feature {规模/风险描述}）：
+- Goal-Plan Stage（PRD 评审）：{ON / OFF}
+- Blueprint Stage（TC+TECH 评审）：{ON / OFF}
+- Review Stage（代码评审）：{ON / OFF}
+
+💡 1. 采用推荐组合 💡（详见上方）
+   2. 三处全开（最高质量；典型 Feature ~+30 min + ~30K token）
+   3. 三处全关（仅内部视角）
+   4. 自定义（分别指定 Plan / Blueprint / Review）
+   5. 其他指示
+```
+
+选项 4 进入二级决策：
+
+```
+🌐 自定义外部模型评审
+
+请回复格式 "P=on/off B=on/off R=on/off"
+例如 "P=off B=off R=on"（只开 Review）
+或 "P=on B=on R=off"（仅文档评审）
+```
+
+无可用候选时直接说明跳过，不出选项。
+
+#### Step 5: 用户选择 → state.json 写入（v7.3.10+P0-38 / +P0-54 修正）
+
 ```json
-"codex_cross_review": {
-  "enabled": true | false,
+"external_cross_review": {
+  "model": "codex" | "claude" | null,
+  "host_main_model": "{探测结果}",
+  "host_detection_at": "{探测时刻 ISO 8601 UTC}",
+  "available_external_clis": ["..."],
   "decided_at": "{ISO 8601 UTC}",
   "decided_by": "user",
-  "note": "{用户选择理由 / PMO 建议理由}"
+  "note": "{用户选择理由 / PMO 推荐理由}",
+  "reviewer_dispatches": []
 }
 ```
 
-**选项 3/4（部分开启）处理**：
-- 选项 3 "只开 Plan" → `enabled: true` + `note` 注明"仅 Plan"；Blueprint Stage 执行时 PMO 读取 note 判断跳过
-- 选项 4 "只开 Blueprint" → `enabled: true` + `note` 注明"仅 Blueprint"；Plan Stage 执行时 PMO 读取 note 判断跳过
-- 简化实现：P0-13 首版先支持选项 1（全关）+ 选项 2（全开）；选项 3/4 作为 note 手动处理，后续 P1 再独立字段
+📎 v7.3.10+P0-38 起 external 升格为评审角色，是否启用看 `state.{stage}_substeps_config.review_roles[]` 是否含 external —— 不再用 `plan_enabled / blueprint_enabled / review_enabled` 三字段（已删）。本对象仅保留 model / host / 探测元数据 + dispatch 历史。
 
-**硬规则**：
-- 🔴 PMO 初步分析必须显式输出 Codex 决策行，不可省略
-- 🔴 默认值必须是 OFF（enabled: false）；PMO 不可建议"开启"但不给关闭选项
-- 🔴 用户未显式选择 → PMO 按默认 OFF 处理，note 标注"用户未选择，取默认"
-- 🔴 Review Stage 的 Codex 代码审查保持强制，禁止用本开关跳过
-- 🔴 决策写入后 Plan/Blueprint Stage PMO 必须在 Stage 入口 Read state.json 确认 enabled 值，不得推断
+#### Step 6: 调用失败的运行时降级（E3 规则）
+
+Plan / Blueprint Stage 实际 dispatch 外部 review 时：
+
+```
+shell 调用外部 CLI（如 codex / claude --print）
+  ↓
+捕获 stderr + exit code
+  ↓
+exit code != 0 →
+  - state.concerns 加 WARN（含 stderr 摘要 + 失败时刻）
+  - state.external_cross_review.reviewer_dispatches[].status = "failed"
+  - 跳过该 Stage 的外部 review，继续主对话 review 链路
+  - PMO 完成报告中显式列出"外部 review 降级"
+```
+
+🔴 静默降级（不写 state.concerns）违反 RULES.md 闭环验证红线。
 
 ---
 
-### 📜 ADR 索引扫描（PMO 专属，v7.3.10+P0-21 新增）
+#### 兼容性（旧字段，PMO 读取时 fallback 规则）
 
-**触发**：PMO 初步分析任何 Feature / 敏捷需求 / Feature Planning 时，必须扫描当前 Feature 归属子项目的 ADR 索引，列出可能影响本 Feature 的相关决策。
+> **v7.3.10+P0-24 之前**：`codex_cross_review` 字段（视为 model=codex）
+> **v7.3.10+P0-24 ~ P0-27**：`external_cross_review.enabled` 单字段（覆盖 Plan + Blueprint，Review 强制 ON）
+> **v7.3.10+P0-28 ~ P0-37**：`external_cross_review.{plan,blueprint,review}_enabled` 三字段（已废）
+> **v7.3.10+P0-38 起（当前）**：external 升格为评审角色，启用条件改为 `external ∈ state.{stage}_substeps_config.review_roles[]` 单源判定
+>
+> PMO 读老 state.json 时按以下优先级 fallback：
+> 1. 优先看 `state.{stage}_substeps_config.review_roles[]` 是否含 external（P0-38 起的真相源）
+> 2. 若 review_roles[] 缺失但有 `external_cross_review.{plan,blueprint,review}_enabled` 三字段（P0-28~P0-37 老 state）：
+>    - 老 enabled=true → 视为对应 stage 的 review_roles[] 含 external
+>    - 老 enabled=false → 视为不含
+> 3. 若仅有 `external_cross_review.enabled` 单字段（P0-24~P0-27）：覆盖 Plan + Blueprint，Review 视为强制启用
+> 4. 若仅有 `codex_cross_review`（P0-24 之前）：先 fallback 到 `external_cross_review.enabled` + model=codex，再按上一步处理
+>
+> **旧 Feature 不强制迁移**，按 fallback 语义走完即可。
 
-**目的**：让 PMO 在需求分析阶段就提醒"本 Feature 受哪些历史决策约束"，避免 Blueprint 阶段架构师重复发明或违反既有决策。这是 ADR 体系对 AI 自引用最关键的价值。
+#### 硬规则
 
-**操作步骤**：
-1. 定位 `{Feature 归属子项目}/docs/adr/INDEX.md`
-   - 文件不存在 → 标注"本项目暂无 ADR 记录"并跳过扫描（不算流程偏离）
-   - 文件存在 → 进入步骤 2
-2. 读取 INDEX.md 前 200 行（体量上限，超出说明需分片，记入 concerns）
-3. 从「活跃决策 (Accepted)」段 + 「按主题索引」段交叉扫描：
-   - 按当前 Feature 的主题/涉及模块（db / api / auth / frontend / backend / deploy / observability / security / ...）
-   - 按当前 Feature 涉及的文件路径 / 子系统
-   - 列出**可能相关**的 ADR-ID 清单（宁滥勿漏，让架构师后续判断）
-4. 将清单注入 PMO 初步分析输出的「📜 相关 ADR」行（见 FLOWS.md § PMO 初步分析输出格式）
-
-**输出格式**（PMO 初步分析结果段）：
-```
-📜 相关 ADR（历史决策约束）：
-   - ADR-0001: 采用 PostgreSQL 作为主库 [tags: db]
-   - ADR-0003: API 版本化策略 [tags: api]
-   - ⚠️ 本 Feature 若涉及登录态，另需审视 ADR-0005（会话管理）
-   （或："本项目暂无 ADR 记录"）
-```
-
-**硬规则**：
-- 🔴 PMO 初步分析必须包含「📜 相关 ADR」行，即使为空也必须显式声明"暂无相关 ADR"或"本项目暂无 ADR 记录"
-- 🔴 扫描只读 INDEX.md，不读单个 ADR 全文（控制 token 开销；架构师 Blueprint Stage 再按需精读）
-- 🔴 本职责不做决策抽取判断（那是 Blueprint Stage 架构师 Step 4.1 的职责）；PMO 只做"历史扫描 + 注入"
-- 🟢 当前 Feature 若完全偏离既有 ADR 主题 → 列"无明显相关"即可，不强凑
-
-**反模式**（v7.3.10+P0-21 新增）：
-| 反模式 | 正确做法 |
-|-------|---------|
-| PMO 初步分析遗漏「📜 相关 ADR」行 | 🔴 必须显式输出（哪怕为"暂无 ADR"）|
-| PMO 读 INDEX.md 全文后又读所有单个 ADR | 🔴 只读 INDEX.md（单 ADR 由架构师按需读）|
-| PMO 基于扫描结果替架构师下结论"必须遵守 ADR-X" | 🔴 PMO 只列清单，不做绑定性判断；架构师在 Blueprint Step 4.1 才决定如何处理 |
+- 🔴 PMO 初步分析必须**先调用探测脚本，再渲染「🌐 外部模型探测」段，最后给决策项**，三步不可省略
+- 🔴 默认值（v7.3.10+P0-28）：plan_enabled=false / blueprint_enabled=false / review_enabled=true
+- 🔴 用户未显式选择 → PMO 按 PMO 智能推荐表给出的组合（不再是简单 OFF），note 标注"用户未选择，取 PMO 推荐"
+- 🔴 Review Stage 的外部模型代码评审现在受 review_enabled 控制（v7.3.10+P0-28），但默认 ON 不变
+- 🔴 决策写入后各 Stage PMO 在入口 Read state.json 确认对应 *_enabled 值，不得推断
+- 🔴 同源外部模型（如 Claude Code 主对话下选 claude）禁止启用，PMO 渲染时不出该选项
+- 🔴 dispatch 失败必须写 state.concerns + 降级，禁止静默
+- 🔴 快捷选项「三处全开」/「三处全关」是用户便利，不影响 PMO 推荐逻辑
 
 ---
 
-### 📚 KNOWLEDGE 扫描 + 写入时机（PMO 专属，v7.3.10+P0-22 新增）
+### 🧭 Goal-Plan Stage 评审组合智能推荐（v7.3.10+P0-43 迁移到 goal-plan-stage.md）
 
-**触发**：PMO 初步分析任何 Feature / 敏捷需求 / Feature Planning 时扫描；PMO 在特定 Stage 完成节点提示对应角色写入。
+> 🆕 **v7.3.10+P0-43 重构（Stage 优先原则）**：本段原含完整智能推荐表（Step 1 Feature 类型识别 / Step 2 评审角色推荐 / Step 3 执行方式推荐 / PL 优先权 / 评审循环 + 超 3 轮处理 / 硬规则），已**整体迁移**到 [stages/goal-plan-stage.md § Goal-Plan Stage 评审组合智能推荐表](../stages/goal-plan-stage.md) —— Goal-Plan Stage 决策规则属于 Stage 契约，权威源应在 Stage spec。
+>
+> roles/pmo.md 仅保留 PMO 在 Goal-Plan Stage 的"调度责任"概述（不重复 Stage spec 内容）。
 
-**定位**（v7.3.10+P0-22 边界收敛）：
+**PMO 在 Goal-Plan Stage 的调度责任（v7.3.10+P0-44 重构 / +P0-49 意图段继承化）**：
+
 ```
-KNOWLEDGE.md 只收录 3 类内容：
-├── ⚠️ Gotchas（陷阱 / 约束 / 历史坑）
-├── 📋 Conventions（团队约定）
-└── 🎨 Preferences（用户偏好）
+1. PM 起草前：cite goal-plan-stage.md 「PM 起草规范 checklist」+ 「意图段继承段」
+   - 提醒 PM 必须主动覆盖通用 + RD/QA + UI 影响（如适用）+ 子项目技术栈维度
+   - 🆕 v7.3.10+P0-49：明确 PRD 背景段（Why now / Assumptions / Real unknowns）从 triage 阶段意图理解
+     直接继承（已经过用户双对齐确认 + 在主对话上下文内），不重新跟用户对齐意图，不写 PRD v0/v1 中间状态
+   - 起草后做自查（写 PRD-REVIEW.md.reviews[].pm_self_check）
 
-🔴 不收录：
-├── 架构决策 → 走 ADR
-├── 通用代码规范 → 走 standards/
-├── 单 Feature 复盘 → 走 docs/retros/
-└── 临时 todo / 个人笔记
+2. 子步骤 2 PL-PM 讨论调度（v7.3.x 模式恢复）：
+   ├── PL 输出 discuss/PL-FEEDBACK-R{N}.md
+   ├── PM 回应 discuss/PM-RESPONSE-R{N}.md（含 P0-34-A/B 收紧 + 对抗自查）
+   ├── ≤3 轮收敛
+   └── 业务方向锁死 → 写 PRD frontmatter business_direction_locked: true
+
+3. 子步骤 3 主对话身份切换调度（v7.3.10+P0-44 新增 / +P0-46 review_scope 约束）：
+   PMO → QA 切换（cite roles/qa.md + standards/testing.md）→ QA finding（review_scope=prd）
+   PMO → RD 切换（cite roles/rd.md + standards/{frontend|backend}.md）→ RD finding（review_scope=prd）
+   🟡 PMO → Designer 切换（仅 requires_ui=true 或 UI 关键词）→ Designer finding（review_scope=prd）
+   ∥ external 后台 shell 并行（review_roles[] 含 external 时）
+   全部写到 PRD-REVIEW.md.reviews[]（每条 review 必含 review_scope=prd）
+
+   🔴 身份切换硬规则：
+   - 切换前 Read 对应 roles/{id}.md
+   - cite 1-2 句关键要点
+   - 阶段摘要首句"作为 {role}，……"（第一人称锚点）
+   - finding 输出后切回 PMO
+
+   🔴 v7.3.10+P0-46 评审 scope 约束（PMO 必须明确告知评审角色）：
+   - **review_scope = "prd"** = 仅审产品视角（业务可行性 / AC 可测试性 / 用户故事完整性）
+   - 不审：接口 schema / 数据模型 / 测试用例规划 / 视觉细节（这些是 Blueprint/UI Design Stage 的事）
+   - PMO dispatch 评审角色时 cite「按 goal-plan-stage.md § 子步骤 3 评审 scope = PRD 范围」
+   - 评审角色 finding 越界（如 RD 提"接口 schema 不完整"）→ PMO 拦截 + 标记越界 + 不计入有效 finding
+
+4. 子步骤 4 PMO 校验（保留 P0-34-A/B）：
+   ├── 扫描 DEFER 项 category 一致性（违规打回）
+   ├── 扫描 ADOPT/REJECT 项 adversarial_self_check（违规打回）
+   └── 校验通过 → 写 state.goal_plan_substeps_config.{defer_audit_passed, adversarial_check_passed}
+
+5. Stage 入口实例化（v7.3.10+P0-48 单源化）：
+   完整规范见 [standards/stage-instantiation.md](../standards/stage-instantiation.md)
+   （含默认通道 / 标准通道判定 + 6 维度严重偏差矩阵 + 5 选 1 暂停 + 硬约束）。
+
+   PMO 在此仅承接执行：
+   - 自我评估偏差严重度 → 默认通道直接进入 / 严重偏差弹 5 选 1
+   - cite hint 原文 + 写 hint_overrides
+   - 用户主动打断（"调整骨架"等）→ 立即回退到标准通道
 ```
 
-#### A. PMO preflight 扫描（读操作）
+🔗 评审组合决策完整规则见 [stages/goal-plan-stage.md § Goal-Plan Stage 评审组合智能推荐表](../stages/goal-plan-stage.md)（🔴 权威源）。本文件仅保留 PMO 调度职责，不复述决策表。
 
-**操作步骤**：
-1. 定位 `{Feature 归属子项目}/docs/KNOWLEDGE.md`
-   - 文件不存在 → 标注"本项目暂无 KNOWLEDGE 记录"并跳过
-   - 文件存在 → 进入步骤 2
-2. 读取 KNOWLEDGE.md 前 300 行（体量上限 = 扫描上限，超出说明需归档）
-3. 按当前 Feature 主题/涉及模块从 3 类段 + 按主题索引交叉扫描（宁滥勿漏）
-4. 列出**可能相关**的条目 ID 清单，注入 PMO 初步分析输出的「📚 相关项目事实」行
+---
 
-**输出格式**（PMO 初步分析结果段）：
-```
-📚 相关项目事实（KNOWLEDGE）：
-   - GO-002: 支付网关冷启动延迟 2s，需先调 /warmup [主题: api]
-   - CV-001: API error 结构 {code, message, details} [主题: api]
-   - ⚠️ 本 Feature 若涉及用户交互提示，另需审视 PR-002（提示位置偏好）
-   （或："本项目暂无 KNOWLEDGE 记录"）
-```
+### 📜 ADR 索引扫描 + 📚 KNOWLEDGE 扫描（PMO 专属，v7.3.10+P0-56 引用化）
 
-**硬规则**：
-- 🔴 PMO 初步分析必须包含「📚 相关项目事实」行，即使为空也必须显式声明
-- 🔴 只读 KNOWLEDGE.md 前 300 行，超出触发归档警告（记入 concerns）
-- 🔴 扫描只列清单，不做绑定性判断（具体遵守由后续角色按 Stage 职责决定）
+> 🔗 **执行细节单源**：[stages/triage-stage.md](../stages/triage-stage.md)（Step 2 KNOWLEDGE / Step 3 ADR）。本段只保留 PMO 角色契约。
 
-#### B. KNOWLEDGE 写入硬时机（写操作）
+**PMO 硬契约**（不可省略，违反 = 流程偏离）：
+- 🔴 triage 初步分析输出**必须**包含「📜 相关 ADR」+「📚 相关项目事实」两行（即使为"暂无"也显式声明）
+- 🔴 ADR 只读 `{Feature 归属子项目}/docs/adr/INDEX.md` 前 200 行；KNOWLEDGE 只读 `{Feature 归属子项目}/docs/KNOWLEDGE.md` 前 300 行（超量记入 concerns）
+- 🔴 PMO 只列清单**不下决策**（具体遵守由 Blueprint 架构师 / 各 Stage 角色判断）
 
-🔴 以下时机 PMO 必须**显式提示**对应角色写入 KNOWLEDGE.md（提示即完成 PMO 职责；未写入 = 流程偏离）：
+**KNOWLEDGE 写入硬时机**（PMO 在对应 Stage 完成报告中显式提示对应角色，未提示 = 流程偏离）：
 
-| 时机 | 类别 | 触发场景 | 写入方 | PMO 提示措辞 |
-|------|------|---------|--------|-------------|
-| Bug 修复流程完成 | Gotcha | Bug 修复确认，除非是一次性无复发风险 | RD | "请在 KNOWLEDGE.md ⚠️ Gotchas 段追加本次 Bug 的陷阱+规避方法（新 GO-NNN 条目）" |
-| Dev Stage 调试耗时 ≥30 min 或方案多次返工 | Gotcha | state.executor_history retry ≥2 或 user_wait 显著 | RD | "本次 Dev 调试存在明显陷阱，请补 GO-NNN" |
-| Review Stage 架构师发现 RD 绕过陷阱做特殊处理 | Gotcha | TECH-REVIEW findings 含「特殊处理 / workaround」 | 架构师 | "该 workaround 背后的陷阱请补 GO-NNN" |
-| Review Stage 架构师发现 RD 自发遵守某约定 | Convention | 未在 standards 中但 RD 已默认遵守 | 架构师 | "该约定跨 Feature 一致，请补 CV-NNN" |
-| Plan Stage 用户强调跨 Feature 适用的格式要求 | Convention | 用户讨论中说"所有 API 都应该..." | PM | "该跨 Feature 要求请补 CV-NNN" |
-| PM 验收用户明确表达偏好 | Preference | 用户在验收时说"我喜欢 A 不喜欢 B" | PM | "请补 PR-NNN（含来源 Feature）" |
-| UI Design 用户多方案中选 A 并陈述理由 | Preference | UI 评审时用户明确选项理由 | Designer | "请补 PR-NNN" |
+| 时机 | 类别 | 写入方 | PMO 提示措辞 |
+|------|------|--------|-------------|
+| Bug 修复完成（除非一次性无复发） | Gotcha | RD | "请补 GO-NNN（陷阱+规避）" |
+| Dev 调试 ≥30 min 或多次返工 | Gotcha | RD | "请补 GO-NNN" |
+| Review 发现 RD 绕过陷阱做特殊处理 | Gotcha | 架构师 | "请补 GO-NNN（workaround 背后的陷阱）" |
+| Review 发现 RD 自发遵守某约定 | Convention | 架构师 | "请补 CV-NNN" |
+| Goal-Plan 用户强调跨 Feature 格式要求 | Convention | PM | "请补 CV-NNN" |
+| PM 验收用户明确表达偏好 | Preference | PM | "请补 PR-NNN" |
+| UI Design 用户多方案选 A 并陈述理由 | Preference | Designer | "请补 PR-NNN" |
 
-**硬规则**：
-- 🔴 PMO 必须在对应 Stage 完成报告中显式输出"请写入 KNOWLEDGE"提示行，不可省略
-- 🔴 对应角色收到提示后写入 KNOWLEDGE.md 才算 Stage 完结（未写 → state.json.concerns 记录 skip_reason）
-- 🟢 PMO 本身不直接写入 KNOWLEDGE.md（除非是 PMO 自己发现的流程型 Convention），保持写入方与经验来源方一致
-
-**反模式**（v7.3.10+P0-22 新增）：
-
-| 反模式 | 正确做法 |
-|-------|---------|
-| PMO 初步分析遗漏「📚 相关项目事实」行 | 🔴 必须显式输出（哪怕为"暂无 KNOWLEDGE"）|
-| PMO 读 KNOWLEDGE.md 全文后又读单个条目详情 | 🔴 只读前 300 行（3 类索引表已是主要信息源）|
-| 把架构决策写到 KNOWLEDGE.md 的 Gotcha 段 | 🔴 有备选项的决策 → 升格 ADR；KNOWLEDGE 只记"被动发现的客观事实" |
-| 把通用代码规范写到 KNOWLEDGE.md Convention 段 | 🔴 跨项目通用的走 standards/；KNOWLEDGE Convention 只记项目特有约定 |
-| Bug 修复完成后 PMO 未提示 RD 写 Gotcha | 🔴 Bug 流程 PMO 完成报告必含"请补 GO-NNN"提示行 |
-| KNOWLEDGE.md 体量超 300 行仍继续追加 | 🔴 触发归档：过期条目加 archived 标记 / Gotcha 升格 ADR / 子项目级分拆 |
+🟢 PMO 本身不直接写 KNOWLEDGE.md（除非是 PMO 自己发现的流程型 Convention）。
 
 ---
 
@@ -532,75 +852,164 @@ PMO 输出拆分方案：
 
 ---
 
-### 🔀 Bug 流程判断（PMO 专属）
-**触发**：RD 输出 Bug 排查报告后，PMO 根据报告判断后续流程
+### 📦 变更归属检查（PMO 专属，v7.3.10+P0-33 新增）
 
-**判断规则**：
-> 📎 简单/复杂 Bug 判断条件表见 [RULES.md](./RULES.md) §三「简单 vs 复杂 Bug 判断表」。
+> 🔗 **本段是 [stages/triage-stage.md](../stages/triage-stage.md) Step 6.5 的角色实现规范**。
 
-**判断输出格式**：
+**触发**：triage-stage Step 6 跨 Feature 冲突检查后，PMO 必做变更归属检查（无论流程类型）。
+
+**目的**：避免"边规划边启动"反模式（v7.3.10+P0-33 新增硬约束）。变更内子 Feature 必须等变更状态 = `locked` 才能启动；锁定前规划阶段，禁止启动子 Feature 浪费精力。
+
+#### Step 1: 扫描变更文档
+
+```bash
+# 扫描所有 product-overview/changes/*.md
+ls product-overview/changes/*.md 2>/dev/null
+# 读每份的 frontmatter（YAML），提取 change_id / status / sub_features[]
 ```
-📊 PMO Bug 流程判断
-├── Bug：[Bug 描述]
-├── RD 评估：简单/复杂
-├── PMO 判断：✅ 同意 / ⚠️ 调整
-├── 流程路径：简化流程 / 完整流程
-├── 起点：[从哪个阶段开始]
-└── 下一步：[具体操作]
+
+#### Step 2: 判断当前 Feature 是否归属某变更
+
+匹配规则（PMO 智能判断）：
+- **显式 ID 匹配**：当前 Feature ID（如 PROTO-F014a）出现在某变更的 sub_features[].id
+- **范围语义匹配**：当前 Feature 描述与某变更某 sub_feature.scope 高度匹配（如"offer-id rust 重构"匹配 BG-015）
+- **用户显式声明**：用户在需求消息中提及变更 ID（如「为 BG-015 启动 PROTO 部分」）
+
+匹配命中 → 标记 `change_id`；不命中 → Feature 独立，不属于任何变更。
+
+#### Step 3: 按变更状态决策（硬阻塞 + 逃生舱）
+
+| 变更状态 | PMO 行为 |
+|---------|---------|
+| `discussion` | 🔴 硬阻塞 + 引导用户完成 PL 讨论 |
+| `planning` | 🔴 硬阻塞 + 引导用户完成 PM/RD 详细规划 + 锁定 |
+| `locked` | 🟢 检查 launch_order 拓扑位置：<br>- 当前 Feature 是下一个可启动节点 → 通过<br>- 依赖未完成 → 硬阻塞 + 引导先做依赖 Feature |
+| `in-progress` | 🟢 同 `locked`，校验 launch_order |
+| `completed` | 🟡 异常提示「变更已完成，建议创建新变更」 |
+| `abandoned` | 🟡 异常提示「变更已放弃，本 Feature 不应启动」 |
+
+#### Step 4: 阻塞时的逃生舱
+
+```
+🔴 阻塞输出格式：
+
+⚠️ 变更归属检查：当前 Feature {Feature ID/描述} 归属变更 {change_id}
+变更状态：{status}
+阻塞原因：{具体原因}
+
+💡 1. 先去完成变更规划 / 依赖 Feature 💡（推荐，本 Feature 暂不启动）
+   2. 🔓 强制启动本 Feature（绕过变更状态检查）
+   3. 改成独立 Feature（脱离变更归属，但变更文档 launch_order 中保留占位符）
+   4. 其他指示
+```
+
+🔴 **选项 2 强制启动**：
+- 用户必须明确选「2」（不能用 ok / 默认推进自动选）
+- state.concerns 加 WARN：`{ISO}：用户绕过变更状态检查（{change_id} 状态 {status}），强制启动 Feature {当前 ID}。原因：{用户提供 / 未提供}`
+- state.json 顶层 `change_id = {change_id}` + `change_force_start = true`
+- PMO 完成报告中显式标注「⚠️ 强制启动绕过变更检查」
+
+🔴 **选项 3 改独立 Feature**：
+- 当前 Feature 不再归属变更，state.json `change_id = null`
+- 但变更文档 launch_order 中对应位置保留占位符（标注「实际由独立 Feature {新 ID} 完成」）+ 状态备注
+
+#### Step 5: 通过后写 state.json
+
+变更归属检查通过 → triage-stage Step 9 创建 Feature state.json 时写入 `change_id` 字段：
+- 归属变更 → `change_id = "{变更 ID}"`
+- 独立 Feature → `change_id = null`
+
+#### 硬规则
+
+- 🔴 PMO 必须在 triage-stage Step 6.5 执行本检查，不可省略
+- 🔴 状态 != `locked` 时硬阻塞（除非用户明确选「强制启动」）
+- 🔴 强制启动 / 改独立 Feature 必须显式数字回复，不接受 ok / 默认推进
+- 🔴 通过 launch_order 的依赖检查同样硬阻塞，不允许"乱序启动"
 
 ---
-🔄 Teamwork 模式 | 角色：PMO | 阶段：Bug 流程判断完成
+
+### 🔍 问题排查类轻量执行规则（PMO 专属，v7.3.10+P0-30 新增）
+
+> 🔗 **本段是 [stages/triage-stage.md](../stages/triage-stage.md) Step 8 问题排查快速通道的角色实现规范**。
+
+**触发**：triage-stage Step 5 流程类型识别为问题排查 + 信号置信度足够 → PMO 跳过 Step 8 流程确认 双对齐暂停（v7.3.10+P0-49） → 直接进入排查执行。
+
+**信号置信度判定**（PMO 自行决定是否走快速通道）：
+
+| 信号 | 置信度 | PMO 决策 |
+|------|--------|---------|
+| 用户措辞含明确核验词（"检查 / 排查 / 看看 / 为什么 / 分析下 / 是否符合预期 / 定位"）+ 无修复指令 + 范畴清晰 | 🟢 高 | 走快速通道（跳过 triage 双对齐暂停）|
+| 措辞模糊（如"看下 favicon" 既可能核验也可能要修复）/ 范畴不清晰 / 跨多子项目 | 🟡 中 | 走 triage 标准双对齐暂停（v7.3.10+P0-49，保守安全）|
+| 含修复指令（如"检查并修好"）| 🔴 否 | 不识别为问题排查；走对应流程（敏捷 / Bug / Micro） |
+
+**PMO 拿不准时保守走 triage 标准双对齐暂停**——用户在双对齐时选问题排查仍可进入快速通道。
+
+**PMO 派发角色**（保留原规则）：
+
+| 问题类型 | 派发角色 | 执行内容 |
+|---------|---------|---------|
+| 技术问题 / 代码相关 | RD | 代码追踪 + 静态分析 |
+| 需求 / 业务逻辑相关 | PM | 需求梳理 |
+| UI / 交互 / 体验相关 | Designer | 设计评估 |
+
+**自主决定排查范围**（PMO 不再询问用户排查范围）：
+
 ```
+默认排查范围：
+├── 源码静态查（grep / ls / cat / git log）
+├── 配置核对（package.json / tsconfig / 框架配置）
+├── 依赖关系核对（import 链 / 调用关系）
+└── 文档核对（PRD / TC / KNOWLEDGE / ADR）
+
+🔴 不启动本地服务（dev server / Playwright / DB 连接）：
+├── 启动属于环境改动，需要用户授权
+└── 排查报告中标注"未实测"项 + 标注修复建议时附"如需实测请授权"
+
+🔴 排查报告必须含：
+├── 现状速查表（核对项 vs 实际结果）
+├── 现状 vs 预期对比清单
+├── 偏差等级（无偏差 / 轻微 / 严重 / 阻塞）
+├── 修复建议（如有偏差，附预估工作量 + 推荐流程类型）
+└── 未实测项清单（如有）+ 用户授权后补做的方法
+```
+
+**PMO 输出排查报告后的暂停点**（仅此 1 个）：
+
+```
+⏸️ 排查后用户决策
+
+请选择：
+1. ✅ 现状符合预期，不需要处理 💡（如适用）
+2. 🔧 按 Micro 流程修复（零逻辑变更类）
+3. 🔧 按敏捷需求流程修复（≤5 文件 / 方案明确）
+4. 🔧 按 Feature 流程修复（>5 文件 / 涉及架构）
+5. 🐛 按 Bug 处理流程（缺陷修复语义更贴切）
+6. 其他指示
+```
+
+PMO 在选项 2-5 推荐时根据排查结论的偏差等级 + 工作量评估给出 💡 推荐项。
+
+**用户打断机制**：用户在 PMO 输出"直接进入问题排查执行"或排查执行过程中输入"切换流程" / "改成 X" / "不要排查"等切换意图措辞 → PMO 立即停止当前执行 → 回到 triage 双对齐暂停 让用户重选。
 
 ---
 
-**🔴 闭环验证红线（PMO 必须执行）**：
-```
-闭环验证 = 用实际执行输出证明完成，禁止空口声称：
-├── RD 自查报告必须包含实际测试命令输出（不是"测试已通过"文字，是命令输出）
-├── QA 集成测试报告必须包含实际测试运行输出
-├── PMO 完成报告的「质量检查结果」必须引用实际数据（通过率、覆盖率）
-└── 缺少实际输出的报告 → ⏸️ 暂停，要求补充验证证据后才能继续
-```
+### 🔀 Bug 流程判断（PMO 专属，v7.3.10+P0-56 引用化）
 
-**代码级完整度检查**（避免文档与实际不符）：
-```
-📋 PMO 代码级检查（TECH 状态为「已完成」时自动执行）：
+**触发**：RD 输出 Bug 排查报告后，PMO 根据报告判断后续流程（简单 vs 复杂 Bug → 简化流程 vs 完整 Feature 链）。
 
-1. TC 用例覆盖检查
-   ├── 读取 TC.md 中的测试用例列表
-   ├── 扫描测试文件，检查是否每个用例都有对应测试
-   └── 输出: 覆盖率 X/Y
+**判断规则权威源**：
+- 简单 vs 复杂 Bug 判断条件表 → [RULES.md § 三「简单 vs 复杂 Bug 判断表」](../RULES.md)
+- Bug 流程链定义 → [stages/init-stage.md § 流程类型](../stages/init-stage.md) + [rules/flow-transitions.md § Bug 流程](../rules/flow-transitions.md)
+- Bug 简化流程（fix → ship 4 段）→ [FLOWS.md § Bug 处理流程](../FLOWS.md)
 
-2. 测试通过检查
-   ├── 运行测试命令（npm test / go test / pytest 等）
-   └── 输出: 通过率 X/Y
+🔴 **PMO 入口判断核心 3 步**：
+1. RD 排查报告就绪 → PMO 读 BUG-REPORT.md 严重度 + 影响范围 + 修复方案
+2. 对照 RULES.md 简单 vs 复杂判断表 → 决定 简化 4 段 / 完整 Feature 链
+3. ⏸️ 输出判断结论 + 用户确认走哪条流程（不弹 4 选 1，单选项 + 推荐）
 
-3. TODO/FIXME 检查
-   ├── grep -r "TODO\|FIXME\|HACK" src/
-   └── 输出: 遗留项数量
+📎 详细的 Bug 严重度分级矩阵 + 流程切换决策树详见上述权威源，本文件不复述。
 
-4. PRD 需求项实现检查
-   ├── 读取 PRD.md 中的 P0/P1 需求项
-   ├── 快速扫描代码，确认关键功能是否实现
-   └── 输出: 实现率 X/Y
-
-检查结果示例：
-┌─────────────────────────────────────────────────────┐
-│ 📋 代码完整度校验（F001-用户登录）                   │
-│ ├── TC 覆盖: 8/10 (80%) ⚠️ 缺少 2 个用例           │
-│ ├── 测试通过: 8/8 (100%) ✅                         │
-│ ├── TODO/FIXME: 2 个 ⚠️                            │
-│ └── PRD 实现: 5/5 (100%) ✅                         │
-│                                                     │
-│ ⚠️ 发现问题：文档标记「已完成」但代码有遗留项       │
-└─────────────────────────────────────────────────────┘
-```
-
-**输出格式**:
-```
-📊 项目状态报告
-================
+---
 
 ## 功能进度
 | 功能 | 阶段 | 文档状态 | 代码校验 | 阻塞项 |
@@ -849,7 +1258,7 @@ PMO 批量执行时机：
 
 ### ⚡ auto 模式暂停点豁免规则（v7.3.9+P0-11 新增）
 
-> 🔴 入口：用户通过 `/teamwork auto [需求]` 开启 AUTO_MODE（详见 [INIT.md Step 0](../INIT.md#step-0-解析-teamwork-命令行-v739p0-11-新增)）。
+> 🔴 入口：用户通过 `/teamwork auto [需求]` 开启 AUTO_MODE（详见 [stages/init-stage.md Step 0](../stages/init-stage.md#step-0-解析-teamwork-命令行-v739p0-11-新增)）。
 > 🔴 作用域：**单次命令周期**。不持久化、不写 localconfig、不写 state.json。
 
 ### 触发时机
@@ -883,8 +1292,7 @@ PMO 在每个 ⏸️ 暂停点判定分支：
 
 | 暂停点 | 豁免动作 | 归类 |
 |--------|---------|------|
-| PMO 初步分析 → Plan Stage 入口 preflight | 按 💡 推荐的流程类型 + 方案自动进入 preflight | 意图承载 |
-| Plan Stage 入口 preflight（4 硬门禁全 ✅）| 采用当前 preflight 配置，自动进入 Plan Stage | 意图承载 |
+| triage-stage → Goal-Plan Stage（环境配置已在 triage 决定） | 按 💡 推荐的流程类型 + 环境配置自动进入 Goal-Plan Stage | 意图承载 |
 | PRD 待确认 | 按 💡（有 UI → UI Design / 无 UI → Blueprint）自动流转 | 意图承载 |
 | 设计批待确认 | 按 💡（有问题 → 重跑 / 通过 → Blueprint）自动流转 | 意图承载 |
 | 方案待确认 | 自动进入 Dev Stage | 意图承载 |
@@ -940,7 +1348,7 @@ PMO 默认决策：⏭️ 跳过 Browser E2E Stage，直接进 PM 验收
 | 4 | Dev Stage / Test Stage BLOCKED / FAILED | 环境/逻辑异常，人工诊断 |
 | 5 | Review Stage 架构师输出 MUST-CHANGE | 架构级重大决策 |
 | 6 | Blueprint Stage / Review Stage concerns 需用户判断 | 非阻塞问题但需人判断价值 |
-| 7 | PL-PM 分歧项（Plan Stage 分歧分支）| 设计/产品分歧不可替决 |
+| 7 | PL-PM 分歧项（Goal-Plan Stage 分歧分支）| 设计/产品分歧不可替决 |
 | 8 | Test Stage 前置确认（立即 / 延后 / 跳过）| 跨 Feature 节奏决策 |
 | 9 | Micro 流程「用户验收」和「升级确认」 | Micro 唯一把关点 + 规模升级需用户拍板 |
 | 10 | 15 条绝对红线触发时 | 红线不容豁免 |
@@ -993,86 +1401,19 @@ PMO 默认决策：⏭️ 跳过 Browser E2E Stage，直接进 PM 验收
 
 ---
 
-## Plan Stage 入口 Preflight（v7.3.9 PMO 专属）
 
-> 🔴 v7.3.9 新增：用户确认流程类型 → PMO 执行 Plan Stage 入口 preflight → 1 次暂停给用户确认 → 进入 Plan Stage 主流程。
-> 规范见 [stages/plan-stage.md#stage-入口-preflight](../stages/plan-stage.md#stage-入口-preflightv739-新增)。
+## Goal-Plan Stage 入口环境准备（v7.3.10+P0-27 重构，无暂停点）
 
-### 为什么 PMO 必须做这件事（设计背景）
-
-```
-Feature 的所有产物（PRD / UI / TC / TECH / 代码 / 测试）都从 Plan Stage 开始累积。
-如果 worktree 基于错误的 base 分支（陈旧 main 而非 origin/staging），
-到 Ship Stage 生成 MR 时 diff 相对 merge_target 会夹杂他人改动，平台 MR 页显示
-大规模冲突/diff——此时产物已成定局，回退代价极高。
-Preflight 在 Plan Stage 入口锁定 base，防止后期灾难。
-```
-
-### PMO Preflight 执行清单（4 项硬门禁，P0 简化）
-
-> **P0 简化说明**：v7.3.9 原设计 6 项（3 硬 + 3 软）。P0 审计收敛为 **4 项硬门禁 + 0 软提示**：
-> - 原软提示 "工作区干净" 实为硬条件（worktree 继承脏状态代价大）→ 升级为硬门禁
-> - 原软提示 "merge_target 解析" 在级联无分歧时无需交互 → 自动接受，展示不暂停
-> - 原软提示 "Feature 编号命名" 由 PMO 初步分析阶段承担 → preflight 不重复问
+> 🟢 **v7.3.10+P0-27 重构**：原 v7.3.9 的「Goal-Plan Stage 入口 Preflight」（4 硬门禁 + 用户确认暂停点）已删除。决策前置到 [stages/triage-stage.md](../stages/triage-stage.md) Step 7.5+8（用户在 triage 暂停点一次性确认环境配置）；执行后置到 Goal-Plan Stage 入口（自动执行，**无暂停点**）。
 >
-> 结果：暂停次数从"至多 3 次"降到"最多 1 次（仅真冲突时）"。
+> 🔴 PMO 在 Goal-Plan Stage 入口按 `state.environment_config` 自动执行 git 操作（fetch base / 创建 worktree / 处理工作区脏状态）。常规情况自动流转，仅异常分支才暂停。详细规范见 [stages/goal-plan-stage.md § Stage 入口环境准备](../stages/goal-plan-stage.md#stage-入口环境准备v7310p0-27-重构无暂停点)。
 
-**🔴 4 项硬门禁：**
+### state.json 写入
 
-| # | 校验项 | 命令 / 来源 | 失败处理 |
-|---|--------|------------|---------|
-| 1 | worktree 策略无残留 | 读 state.json.worktree（当前 / 上一 Feature） | ⏸️ 提示用户沿用 / 清理 |
-| 2 | 分支名无冲突（分支名从 Feature 全名自动派生为 `feature/{全名}`） | `git branch --list "feature/{全名}"` + `git worktree list \| grep` | ⏸️ 追问续用 / 改名 / 删除重建 |
-| 3 | base 分支可达（merge_target 级联自动解析） | `git fetch origin {merge_target}` + `git rev-parse --verify origin/{merge_target}` | BLOCKED → 用户 fetch / 检查 remote |
-| 4 | **工作区干净（P0 升级为硬门禁）** | `git status --porcelain` 必须为空 | ⏸️ 暂停：stash / commit / restore 三选一 |
+环境准备完成后写入 `state.environment_config.{executed_at, worktree_created, concerns}`。
 
-**自动派生 / 接受项（不触发暂停）：**
+🟢 v7.3.10+P0-27 删除原 `state.stage_contracts.plan_preflight` 字段。
 
-```
-- 分支名：PMO 按 "feature/{Feature 全名}" 自动派生，无需用户确认命名
-- merge_target：按 state.json > localconfig > 默认 staging 级联自动解析
-  └── 仅当 state.json 与 localconfig 显式冲突时才暂停询问
-- Feature 编号：由 PMO 初步分析阶段产出，preflight 直接沿用
-```
-
-### PMO Preflight 暂停点模板（1 次暂停）
-
-```
-⏸️ Plan Stage 入口 Preflight 确认
-
-📋 Preflight 结果（4 硬门禁，P0 简化）
-├── Feature: {编号}-{功能名}（自动沿用，来自 PMO 初步分析）
-├── 合并目标 (merge_target): {staging}（自动解析：{state.json | localconfig | 默认}，无分歧）
-├── Worktree 策略: {auto | manual | off}（门禁 1）
-├── 分支名: feature/{全名}（自动派生；本地 {✅ 可用 / ⚠️ 已存在}）（门禁 2）
-├── Base 分支: origin/{merge_target}（{✅ 可达 / ❌ 需 fetch}）（门禁 3）
-├── 工作区干净: {✅ 干净 / ⚠️ 有未提交改动}（门禁 4）
-└── 🔴 硬门禁: {全部通过 / 第 N 项未通过}
-
-💡 建议: {基于结果的具体建议}
-📝 理由: {为什么}
-
-请选择:
-1. ✅ 确认启动 Plan Stage（采用当前 preflight 配置）
-2. 🔧 修改配置（改分支名 / 切换 worktree 策略 / 改 merge_target）
-3. ⏸️ 暂停处理 git 环境后重跑 preflight
-4. 其他指示
-```
-
-### Preflight 通过后 PMO 动作（auto 模式）
-
-```bash
-git fetch origin {merge_target}
-git worktree add ../feature-{全名} -b feature/{全名} "origin/{merge_target}"   # v7.3.9 显式 base
-cd ../feature-{全名}
-```
-
-同时写入 state.json：
-- `state.json.worktree.{strategy, path, branch, base_branch, created_at}`
-- `state.json.merge_target` + `_merge_target_source`
-- `state.json.stage_contracts.plan_preflight.{checks, output_satisfied, started_at, completed_at}`
-
----
 
 ## PM 验收三选项 + Ship Stage（v7.3.10+P0-15）
 
@@ -1108,7 +1449,7 @@ PMO 接管，输出 PM 验收摘要 + 3 选 1 暂停点（见下方模板）
     ├── 根据问题类型派发：
     │   ├── 功能缺陷 → 回到 Review Stage（RD 修复）
     │   ├── 测试遗漏 → 回到 Test Stage
-    │   ├── 需求理解偏差 → 回到 Plan Stage（需求修订）
+    │   ├── 需求理解偏差 → 回到 Goal-Plan Stage（需求修订）
     │   └── UI/设计不符 → 回到 UI Design Stage
     ├── 🔴 前序 commit 保留（不 revert）
     └── 🔴 修复循环 ≤3 轮
@@ -1190,7 +1531,7 @@ PMO 基于用户补充信息判断类型，派发到对应阶段：
 |---------|---------|---------|
 | 功能缺陷（实现错误）| Review Stage（重新 Review + RD 修复）| state.json 回退到 dev 完成后 |
 | 测试覆盖遗漏 | Test Stage（补测试）| state.json 回退到 review 完成后 |
-| 需求理解偏差 | Plan Stage（PRD 修订）| state.json 回退到 plan（重走后续全流程）|
+| 需求理解偏差 | Goal-Plan Stage（PRD 修订）| state.json 回退到 plan（重走后续全流程）|
 | UI/设计不符 | UI Design Stage（设计修改）| state.json 回退到 ui_design |
 | 文档缺漏 | 对应角色补文档（不回退 Stage）| 原地修复 |
 
@@ -1250,129 +1591,85 @@ F{编号}: {Stage 名} Stage - {简述}
 type 取值：`feat` / `fix` / `refactor` / `docs` / `test` / `chore` / `perf`
 scope 取值：子项目缩写（如 `AUTH` / `WEB` / `INFRA`）
 
-### Ship Stage PMO 职责速查（v7.3.10+P0-15 MR 模式）
+### Ship Stage PMO 职责速查（v7.3.10+P0-29 双段 / +P0-32 finalize push merge_target）
 
 > 📎 完整规范见 [stages/ship-stage.md](../stages/ship-stage.md)。
 
 ```
+─── 第一段（push） ───
 Step 1: 净化（分类处理 uncommitted / 白名单临时 / 灰名单 / 分支异常）
 Step 2: git push origin {feature branch}
+        + 记录 feature_head_commit = git rev-parse feature/{Feature 全名}
         + git host 识别（github / gitlab / gitlab-self-hosted / gitee / bitbucket / unknown）
         + 生成 MR/PR create URL（unknown 时可为 null 并在 concerns 标注）
-Step 3: ⏸️ worktree 清理询问（worktree=off 跳过）
-→ ✅ shipped=true, current_stage=completed
-→ PMO 输出 Feature 完成报告（含 mr_create_url，提示用户到平台合入）
+Step 3: 输出第一段报告 + ⏸️ 4 选 1（已合并 / 等待中 / 关闭未合并 / 其他）
+        state.ship.phase = "pushed", state.ship.shipped = "pushed"
+        worktree 不在第一段清理（延迟到第二段）
 
-🔴 禁止（红线 #1 不再有 Ship 例外条款）：
-├── 本地 git merge / git rebase / git cherry-pick 到 merge_target
-├── git push origin {merge_target}
-├── 冲突解决（push feature 失败 → ⏸️ 用户决策，不重试、不降级）
-└── 伪造 / 猜测 MR URL（git_host=unknown 时 mr_create_url=null + concerns 标注）
+─── 第二段（finalize，用户回选项 1 触发，v7.3.10+P0-32 含 push merge_target 收尾）───
+Step 4: git fetch origin {merge_target}
+        + git branch -r --contains {feature_head_commit} | grep "origin/{merge_target}"
+Step 5: 检测通过 → 记录 detected_merge_commit_hash + detected_method = branch-contains
+        检测失败 → ⏸️ 询问用户 4 选 1（提供 hash / 实际未合并 / 关闭 / 其他）
+                  用户提供 hash → git cat-file 校验 + branch -r --contains 校验，method=user-reported + concerns
+Step 6: cd {主工作区} + git checkout {merge_target} + git pull --ff-only origin {merge_target}
+        worktree=off：跳过 cd（本来就在主工作区）
+        pull 失败 → ⏸️ 暂停 + state.concerns（不强制处理冲突）
+Step 7: 写 state.json 最终态（在 merge_target 工作区内的 feature 目录）
+        🔴 严格边界（红线 #1 例外）：仅 {Feature}/state.json 一文件、仅状态字段、零业务影响
+Step 8: git add {Feature}/state.json + git commit + git push origin {merge_target}
+        commit message: "F{编号}: ship finalize - state.json → merged"
+        push 失败降级：
+          冲突 → pull --rebase 重试 1 次 → 仍失败 → 降级到 feature 分支 push
+          protect rule → 直接降级到 feature 分支 push + concerns 提示用户人工合并
+          网络失败 → ⏸️ 用户 3 选 1（重试 / 降级 / 仅本地）
+        降级仍记 phase=merged / shipped=merged（合并已完成，仅 push staging 失败）
+Step 9: cd {主工作区} + git worktree remove {worktree.path}（worktree=off 跳过）
+Step 10: 输出 Feature 完成报告（state.json 已在 Step 7 + Step 8 完整写入，本步只输出报告）
 
-push FAILED 处理：
+─── 异常分支（用户回 Step 3 选项 3 / Step 5 选项 3） ───
+state.ship.phase = "closed_unmerged"
+⏸️ 4 选 1：1.重开 MR（回 Dev Stage）/ 2.放弃 Feature（shipped=abandoned）/ 3.暂时等待 / 4.其他
+
+🔴 红线 #1 边界（v7.3.10+P0-32 修订）：
+├── ✅ 允许：Step 8 push merge_target 仅 state.json 一文件、仅状态字段、零业务影响
+├── 🔴 禁止：本地 git merge / git rebase / git cherry-pick 到 merge_target
+├── 🔴 禁止：动业务代码 / 其他元数据文件（PRD/TC/TECH/UI 等）
+├── 🔴 禁止：跨 Feature 改动 push merge_target
+├── 🔴 禁止：第一段 push origin {merge_target}（仅第二段 Step 8 是允许的元数据 push）
+├── 🔴 禁止：冲突解决（push feature 失败 → ⏸️ 用户决策，不重试、不降级）
+├── 🔴 禁止：伪造 / 猜测 MR URL（git_host=unknown 时 mr_create_url=null + concerns 标注）
+└── 🔴 禁止：第一段未完成 / 第二段未验证合并就跳过 worktree 清理或标记 completed
+
+push FAILED 处理（第一段 push feature）：
 └── ⏸️ 用户 2 选 1：a 手工处理后复跑 Ship / b 取消 Ship（回到 PM 验收态）
+
+push FAILED 处理（第二段 Step 8 push merge_target）：
+└── 自动降级到 feature 分支 push + state.concerns WARN（不阻塞流程）
+
+第一段已完成、用户选了等待暂时退出（Step 3 选项 2）：
+└── 下次进入会话，PMO 在 triage 识别 state.ship.phase == "pushed" → 不重跑第一段，直接展示 Step 3 暂停点
 ```
 
 ---
 
-**🔴 功能完成时必须输出完整报告**：
+**🔴 功能完成时必须输出完整报告（v7.3.10+P0-56 单源化）**
+
+完整报告由 PMO 自由组织（推荐含：交付物清单 / 流程完整性校验 / 质量 + 文档同步 Checklist / 耗时统计 / Ship 状态 / 下一步建议），但必须先满足下列 5 条完成资格判定。
+
+PMO 完成资格判定（核心 5 条，必满足才能输出"✅ 已完成"状态）：
+
 ```
-📊 PMO 完成报告（{缩写}-F{编号}-{功能名}）
-=====================================
-
-## ✅ 功能状态：已完成
-
-## 交付物清单
-| 类型 | 文件 | 状态 |
-|------|------|------|
-| PRD | docs/features/F{编号}/PRD.md | ✅ |
-| TC | docs/features/F{编号}/TC.md | ✅ |
-| TECH | docs/features/F{编号}/TECH.md | ✅ |
-| 代码 | src/xxx | ✅ |
-| 测试 | tests/xxx | ✅ |
-
-## 流程完整性校验（🔴 第一项，不通过则禁止输出完成报告）
-- [ ] 架构师 Code Review：✅ 已执行 / ⏭️ 简单 Bug 跳过
-- [ ] QA 代码审查：✅ 已执行 / ⏭️ 简单 Bug 跳过
-- [ ] 单元测试门禁：✅ 全部通过（附实际输出） / ⏭️ 简单 Bug 跳过
-- [ ] 🟡 Test Stage 前置确认：✅ 已执行（用户选择：1/2/3）
-- [ ] QA 项目集成测试：✅ 已执行（附实际输出） / ⏸️ 延后批量测试（批次 ID：____） / ⏭️ 用户确认跳过（原因：____）
-- [ ] QA API E2E：✅ 已执行 / ⏸️ 延后批量测试（批次 ID：____） / ⏭️ TC.md 标注不适用（原因：____）
-- [ ] QA Browser E2E：✅ 已执行 / ⏭️ 用户确认跳过（原因：____） / ⏭️ TC.md 标注无浏览器行为
-- [ ] PM 验收：✅ 已执行
-
-## 质量 Checklist（逐项打勾，缺一不可）
-- [ ] TC 覆盖率：X/Y (XX%)
-- [ ] 测试通过率：100% / ⏸️ 延后
-- [ ] RD 自查：✅ 通过（含验证证据）
-- [ ] Designer UI 还原：✅ 通过 / ⏭️ 无 UI
-- [ ] QA 代码审查：✅ 通过
-- [ ] 单元测试门禁：✅ 全部通过（含实际输出）
-- [ ] QA 项目集成测试：✅ 通过（含实际输出） / ⏸️ 延后批量测试 / ⏭️ 用户确认跳过（原因）
-- [ ] PM 验收：✅ 通过
-
-> 🟡 若 Test Stage 为「延后」或「跳过」，功能状态栏必须标注：
-> ├── 延后 → ⚠️ 待测试（批次 ID：____），不得标「✅ 已完成」
-> └── 跳过 → ⚠️ 未测试（原因：____），不得标「✅ 已完成」
-
-## 文档同步 Checklist（逐项打勾，缺一不可）
-- [ ] 📋 PROJECT.md：✅ 已更新（[变更说明]） / ⏭️ 无需更新
-- [ ] 🔄 teamwork_space.md 冒泡：✅ 需同步（[原因]） / ⏭️ 无冒泡影响 / ⏭️ 单项目模式
-- [ ] 🎨 全景设计同步：✅ sitemap.md ✅ + overview.html ✅ / ⏭️ 无 UI / ⏭️ 非 UI 项目
-- [ ] 🗄️ Schema/API 变更：✅ 已同步 / ⏭️ 无变更
-- [ ] 🔧 技术债：✅ 已记录到 ROADMAP.md / ⏭️ 无新增
-- [ ] 📚 知识库：✅ 已更新 KNOWLEDGE.md（[类型]） / ⏭️ 无需更新
-- [ ] 🧪 E2E 准出 case：✅ 新增 REG-{xxx} / ✅ 更新已有 REG-{xxx} / ⏭️ QA 判定不需晋升 / ⏭️ 本 Feature 无 E2E
-
-## ⏱️  耗时统计（v7.3.3 必填，从 state.json.executor_history 聚合）
-| Stage | 预估 | 实际 | 偏差 | dispatches | retry | 用户等待 |
-|-------|------|------|------|------------|-------|----------|
-| Plan | 30 min | 45 min | +50% ⚠️ | 0 | 0 | 7.5 min |
-| UI Design | 25 min | 22 min | -12% | 1 | 0 | 2 min |
-| Blueprint | 35 min | 55 min | +57% ⚠️ | 0 | 1 | 3 min |
-| Dev | 45 min | 50 min | +11% | 1 | 0 | 0 |
-| Review | 15 min | 12 min | -20% | 2 | 0 | 0 |
-| Test | 25 min | 28 min | +12% | 2 | 0 | 1 min |
-| PM 验收 | 5 min | 8 min | +60% ⚠️ | 0 | 0 | 6 min |
-| **合计** | **180 min** | **220 min** | **+22%** | **6** | **1** | **19.5 min** |
-
-### 耗时分析（必填，基于数据）
-- **超预估 Stage**：Plan (+50%), Blueprint (+57%), PM 验收 (+60%)
-- **可能原因**：[基于过程观察的客观分析，如"Plan Stage 超预估因需求讨论来回 3 轮"]
-- **建议后续优化**：[可操作的建议，如"PRD 模板增加「已决策」预填段，减少 Plan 阶段讨论轮次"]
-- **AI 耗时 vs 用户等待**：AI 实际耗时 {total - user_wait} min，占 {百分比}%
-
-## 📦 Commit / Push / Ship 状态（v7.3.10+P0-15 MR 模式）
-├── Feature 分支：{worktree.branch} @ {HEAD short hash}
-├── feature 分支 push：✅ 已推送 origin/{branch} / ⚠️ 仅本地 / ❌ FAILED
-├── Ship 状态（v7.3.10+P0-15）：
-│   ├── 选 1 (Ship 完成)：✅ shipped=true
-│   │   ├── git_host：{github / gitlab / gitlab-self-hosted / gitee / bitbucket / unknown}
-│   │   ├── MR/PR Create URL：{完整链接} / ⚠️ null（unknown 平台，需用户手动创建）
-│   │   └── worktree 清理：{cleaned / deferred / n_a}
-│   ├── 选 2 (暂不 Ship)：⏳ shipped=false，feature 已 push，无 MR 链接
-│   │   └── 后续：/teamwork ship F{编号} 可触发 Ship Stage
-│   └── 选 3 (不通过)：不出现在完成报告中（会回退到前序 Stage 继续循环）
-├── Ship 净化记录（如 shipped=true）：
-│   ├── residual commits：{N}（⚠️ 有 → 提示前序 Stage 漏 commit）
-│   ├── 清理临时文件：{M}
-│   └── 灰名单文件（未处理）：{K}
-├── 🔴 合入提示（shipped=true 时必须输出）：
-│   └── 请到 {git_host} 平台打开 MR/PR create 链接完成合入 → {mr_create_url}
-└── 建议：{如 shipped=false → "建议后续 /teamwork ship 生成 MR 链接" / 如 unknown → "localconfig 可配置 mr_url_template 让 PMO 自动生成链接"}
-
-## 下一步建议
-├── 是否有后续优化项？
-├── 是否需要开始新功能？
-└── 输入 `/teamwork exit` 退出或输入新需求
-
----
-🔄 Teamwork 模式 | 角色：PMO | 功能：F{编号}-{功能名} | 阶段：✅ 已完成
+1. 流程完整性：所有强制 Stage 已通过（架构师 CR / QA CR / 单测 / Test Stage 前置确认 / PM 验收）
+   → 简单 Bug 流程允许部分跳过（按 P0-36 Bug 流程契约）
+2. 质量门禁：测试通过率 100% / RD 自查 ✅ / TC 覆盖率达标
+   → Test 延后 → 标"⚠️ 待测试（批次 ID）" 不得标✅；Test 跳过 → 标"⚠️ 未测试（原因）"
+3. 文档同步：PROJECT.md / KNOWLEDGE.md / 全景设计 / Schema 变更 已按需更新
+4. Ship 状态：shipped=true（必含 MR URL + git_host）/ shipped=false（标"待 Ship"，不算完成）
+5. state.json：current_stage=completed + ship.shipped 标记齐全
 ```
 
-**⚠️ 注意：功能完成时状态行角色必须是 PMO，不是 PM！**
-
-
+🔴 状态行角色必须是 PMO（不是 PM），格式：`🔄 Teamwork 模式 | 角色：PMO | 功能：F{编号}-{功能名} | 阶段：✅ 已完成`。
 
 ---
 
@@ -1463,57 +1760,12 @@ PMO 判断需要更新
 
 ---
 
-## review-log.jsonl 管理规范
+## review-log.jsonl 管理规范（v7.3.10+P0-56 引用化）
 
 > PMO 维护每个 Feature 的 review-log.jsonl，用于追踪各 stage 完成状态。
-
-### 写入时机
-
-```
-PMO 在每个 stage 返回后，追加一行到 {功能目录}/review-log.jsonl：
-├── stage: 刚完成的 stage 名
-├── status: stage 返回状态（DONE / NEEDS_FIX / FAILED / DEFERRED / SKIPPED 等）
-├── timestamp: 当前时间
-├── commit: 当前 HEAD commit hash（dev-stage 之后的 stage 必填）
-├── summary: 一句话产出摘要
-├── concerns: 非阻塞问题列表
-├── batch_id: 延后批次 ID（仅 test-stage status=DEFERRED 时必填）
-├── skip_reason: 跳过原因（仅 status=SKIPPED 时必填）
-└── stale: false
-
-🔴 stale 标记规则：
-├── 写入新的 dev-stage 行时 → 之前所有 review-stage / test-stage 行标记 stale: true
-└── 重跑 stage 后写入新行 → 自然覆盖旧行（读取时取每个 stage 的最新非 stale 行）
-
-🟡 test-stage 的三种合法 status（由前置确认选择决定）：
-├── DONE / QUALITY_ISSUE / BLOCKED / DONE_WITH_CONCERNS → 用户选择 A（立即执行）的正常返回
-├── DEFERRED → 用户选择 B（延后批量测试），必须同时写 batch_id
-└── SKIPPED → 用户选择 C（跳过），必须同时写 skip_reason
-```
-
-### 读取时机（Review Dashboard）
-
-```
-PMO 在以下时机读取 review-log.jsonl 输出 dashboard：
-├── 每次阶段流转前（作为校验的一部分）
-├── /teamwork status 查询时
-└── PMO 完成报告时
-
-📋 Review Dashboard（F{编号}）
-| Stage | Status | Commit | Stale | Summary |
-|-------|--------|--------|-------|---------|
-| plan-stage | ✅ DONE | — | — | PRD 定稿 |
-| dev-stage | ✅ DONE | a1b2c3d | — | 单测 47/47 |
-| review-stage | ✅ DONE | a1b2c3d | — | 三审通过 |
-| test-stage | ⏳ / ⏸️ DEFERRED / ⏭️ SKIPPED / ✅ DONE | a1b2c3d | — | 待执行 / 延后批次{ID} / 跳过:{原因} / 通过 |
-
-🔴 有 stale 行时高亮警告：「review-stage 结果基于 commit {old}，当前已有新 commit {new}，建议重跑」
-🟡 test-stage 为 DEFERRED 或 SKIPPED 时，Dashboard 以黄色标识，Feature 完成报告必须同步标注「⚠️ 待测试 / ⚠️ 未测试」
-```
-
-### 格式模板
-
-📎 见 templates/review-log.jsonl
+> 🔴 **schema + 写入时机 + Dashboard 格式**：详见 [templates/review-log.jsonl](../templates/review-log.jsonl)（schema 真相源）+ rules/gate-checks.md（流转校验时机）。
+>
+> PMO 核心职责（保留）：(a) 每 stage 返回后追加一行 / (b) dev-stage 后写入新 commit 时把旧 review/test 行标 stale=true / (c) /teamwork status 查询时读取并输出 Dashboard / (d) test-stage DEFERRED/SKIPPED 时同步标注 batch_id 或 skip_reason。
 
 ---
 

@@ -24,6 +24,15 @@
 - Pre-check level: {L1 / L2 / L3} ✅
 - Host: {Claude Code (Task tool) / Codex CLI (agent spawn) / Gemini CLI (主对话) / 主对话降级}
 - Model: {opus / sonnet / haiku / 继承主对话}
+  <!-- v7.3.10+P0-40 默认推荐： -->
+  <!--   架构师 Code Review / RD Dev → opus（深度判断 / 创造性产出，不可降级） -->
+  <!--   QA Code Review / QA TC / QA 测试 → sonnet（执行型校验） -->
+  <!--   Designer / PM PRD / RD TECH → opus（创造性产出 / 复杂判断） -->
+  <!--   Plan/Blueprint 多角色并行评审（PL/RD/QA/PMO/Designer 校验型）→ sonnet -->
+  <!--   Bug 流程 RD 排查（执行型分析）→ sonnet -->
+  <!--   external（codex / claude CLI）→ 独立机制，与本字段正交 -->
+  <!--   见 agents/README.md §模型偏好说明（v7.3.10+P0-40 调整） -->
+
 - Previous dispatch: {前一次相关 dispatch 文件相对路径，无则写「无」}
 - Batch: {独立 / 并行批次-{序号}}（并行 dispatch 标注同一批次号，便于 INDEX 汇总）
 
@@ -64,8 +73,8 @@
 🎯 **只写 Subagent 从 Input files 里读不到的信息**。若信息在输入文件中已有，禁止重复注入（反模式：把 PRD 摘要复制进来）。
 
 ### 1. 历史决策锚点
-{从本 Feature 上游 Stage / CHG 记录 / Plan Stage 纪要提取的用户已明确拍板的决策。每条附来源引用（文件+位置）。}
-- 示例：用户明确选 PostgreSQL，不用 MySQL（来源：Plan Stage PL-PM 讨论纪要 R2 共识项 #3）
+{从本 Feature 上游 Stage / CHG 记录 / Goal-Plan Stage 纪要提取的用户已明确拍板的决策。每条附来源引用（文件+位置）。}
+- 示例：用户明确选 PostgreSQL，不用 MySQL（来源：Goal-Plan Stage PL-PM 讨论纪要 R2 共识项 #3）
 - 无则写：`-`
 
 ### 2. 本轮聚焦点

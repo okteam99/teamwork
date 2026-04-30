@@ -2,12 +2,62 @@
 
 > 位置：`docs/features/F{编号}-{功能名}/bugfix/BUG-F{编号}-{序号}-{简述}.md`
 > 编号规则：详见 [RULES.md](./RULES.md) - 编号规则章节
+> 🔴 v7.3.10+P0-36 起：BUG-REPORT.md **必须包含 YAML frontmatter**（机读状态字段，承担 Bug 流程的 state.json 职能）。
+
+## YAML frontmatter（机读字段，v7.3.10+P0-36 新增）
+
+> 简单 Bug 流程的状态机由本 frontmatter 承载（非新建 state.json 文件，避免简单 Bug 流程膨胀）。
+> 字段命名复用 templates/feature-state.json 核心字段（current_stage / phase / shipped 等），保持 schema 一致性。
+
+```yaml
+---
+bug_id: "BUG-F025-001"                   # 必填，编号规则见 rules/naming.md
+feature_id: "{缩写}-F025-{所属Feature名}"  # 必填，Bug 归属的 Feature
+classification: simple | complex          # PMO 在 Bug 流程判断后填入
+flow_type: bug                            # 固定值（v7.3.10+P0-36，与 feature 区分）
+
+# 状态机字段
+current_stage: triage | rd_diagnosis | pmo_classification | qa_test_supplement | rd_fix | architect_cr | qa_verify | pm_doc_sync | pmo_summary | ship | completed
+completed_stages: []                      # 已完成阶段列表
+phase: in_progress | summarized | shipping | shipping_finalize | shipped  # 端到端 phase
+started_at: "<ISO 8601 UTC>"
+completed_at: null                        # PMO 总结后填
+
+# Ship 字段（v7.3.10+P0-36 新增，简单 Bug 走 Ship 缩简版）
+commit_hash: null                         # Dev Stage 自动 commit 后填（短 hash，7 位）
+shipped: false | true | abandoned         # Ship Stage finalize 后填
+mr_url: null                              # Ship Stage 第一段生成 MR 后填
+mr_merged_at: null                        # 用户合并 MR 后填
+merge_commit_hash: null                   # finalize 阶段切 merge_target 后填
+merge_target_pushed_at: null              # finalize push merge_target（BUG-REPORT.md）成功后填
+worktree_cleanup: not_required | done | failed
+ship_concerns: []                         # Ship 异常记录（如 push 失败、降级路径）
+
+# 关联字段
+related_pr: null                          # 关联的 PR/MR 链接
+related_bugs: []                          # 关联的其他 Bug
+review_log_path: "{Feature}/review-log.jsonl"   # 复用 Feature 的 review-log
+
+# AI Plan 模式（v7.3 红线 #14）
+planned_execution: {}                     # 各 Stage 的 Execution Plan 历史
+---
+```
+
+🔴 **复杂 Bug 例外**：复杂 Bug 进入 Feature 流程后，使用 Feature 的 `state.json`，BUG-REPORT.md frontmatter 仅保留 `bug_id / feature_id / classification: complex / flow_type: bug / current_stage: escalated_to_feature`，其他字段委托 Feature state.json 维护。
+
+🔴 **PMO 校验**：进入 Bug 流程后，PMO 必须在 BUG-REPORT.md 创建时初始化 frontmatter；流转校验时按 frontmatter `current_stage` 字段引用 flow-transitions.md。
+
+---
+
+## Markdown 模板正文
 
 ```markdown
 # Bug 排查报告：{Bug 简述}
 
 ## 状态
 🔍 排查中 | 📋 已分析 | 🔧 修复中 | ✅ 已修复
+
+> 🔴 本"状态"段是人读视图；frontmatter `current_stage / phase / shipped` 是机读源头，二者必须一致（修改时同步两处）。
 
 ---
 

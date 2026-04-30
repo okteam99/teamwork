@@ -17,6 +17,8 @@
 
 ### TDD 检查清单（提交前必查）
 
+> 🔴 **单源（v7.3.10+P0-63）**：完整 TDD 自检清单 + 反模式 + ≥3 次失败升级规则见 [standards/tdd.md](./tdd.md)。本段仅保留 8 条核心自检快查，详细规则一律以 tdd.md 为准。
+
 ```
 📋 TDD 自检：
 ├── [ ] 测试代码先于实现代码编写
@@ -548,8 +550,25 @@ RD 开发完成（测试通过）
 - 构建命令：`npm run build` / `go build ./...`（填实际使用的命令）
 - 构建结果：✅ 成功 / ❌ 失败（附输出）
 
+🔴 **Build 必须跑通才能进 Code Review**（v7.3.10+P0-25 升格硬门禁）。CI 是最后一道安全网，不是第一道发现机制。无 build 步骤的项目（纯库 / 纯脚本 / Python 应用）必须显式标注 "无 build 步骤"，不能省略。
+
+🟡 **worktree 场景特别提示**（v7.3.10+P0-3 lazy install 模型 + P0-25 build 硬门禁）：
+
+- **症状**：单测可跑，`npm run build` / `next build` 失败，提示找不到 webpack / postcss / next 自身等 build 工具链
+- **原因**：lazy install 模型下，worktree 内只装了单测需要的 deps，build 工具链 deps 未在 worktree 安装
+- **处理选项（按优先级）**：
+  ```
+  ├── 1. worktree 内补装：npm install --include=dev / pnpm install
+  │     最直接，不引入额外耦合，但耗时 30s-2min
+  ├── 2. 软链 node_modules：ln -s {主 worktree}/node_modules ./node_modules
+  │     最快（秒级），但 monorepo workspace / 不同 lockfile 时易出怪问题
+  └── 3. 写到项目 KNOWLEDGE.md（Gotcha 类）
+       如果 build deps 长期需要全装齐，把"worktree 必须 npm install --include=dev"
+       记入 KNOWLEDGE.md，让后续 Feature PMO 在 Goal-Plan Stage preflight 时知道
+  ```
+
 ### 自查结论
-✅ 自查通过（含验证证据），可进入架构师 Code Review
+✅ 自查通过（含验证证据，含 build 通过），可进入架构师 Code Review
 ```
 
 ### 自查结果处理
@@ -590,6 +609,8 @@ TC 验证率: X/Y (XX%)
 ```
 
 ### TDD 规范检查
+
+> 🔴 **单源（v7.3.10+P0-63）**：完整 TDD 规范 + 反模式见 [standards/tdd.md](./tdd.md) §三 + §四。本段仅保留 QA Code Review 时的 5 条快查。
 
 ```
 📋 TDD 规范检查：
@@ -688,6 +709,6 @@ flowchart TD
     B -->|Feature| C[PM 编写 PRD]
     B -->|Bug| D[RD 排查]
     B -->|Feature Planning| E[PM 规划 Roadmap]
-    C --> C2[🔗 Plan Stage<br/>PM PRD + PL-PM 讨论 + 评审]
+    C --> C2[🔗 Goal-Plan Stage<br/>PM PRD + PL-PM 讨论 + 评审]
     C2 --> G[⏸️ 用户确认 PRD]
 ```

@@ -22,3 +22,5 @@ Return status: DONE / DONE_WITH_CONCERNS / FAILED
 """
 
 sandbox_mode = "full"
+model_reasoning_effort = "high"   # v7.3.10+P0-37：避免 codex 默认 xhigh 深度思考导致卡死
+service_tier = "fast"             # v7.3.10+P0-37：OpenAI API priority tier，加速响应

@@ -13,6 +13,7 @@
 - 验收 Designer、QA 的产出
 - 最终功能验收
 - **产品规划分解**（Feature Planning 流程）：从产品目标拆解 Feature Roadmap
+- **变更级 Planning 协作**（v7.3.10+P0-33 新增）：在 PL 锁定变更方向后，PM 主导子 Feature 拆分（编号 / 范围 / 估时 / 流程类型）+ 协作 RD/Architect 评估依赖关系、启动顺序、风险
 
 **实现原则**:
 - ❌ 禁止遗留「待补充」「TBD」
@@ -70,30 +71,156 @@ PMO 提示 PM 在 PRD 中补充「消费方分析」章节（模板见 templates
 └── 其余 PRD 章节与 business 子项目完全一致
 ```
 
-**完成后**: Plan Stage 内部完成 PL-PM 讨论 + 技术评审（规范：stages/plan-stage.md）→ ⏸️ 等待用户确认
+**完成后**: Goal-Plan Stage 内部完成多角色并行评审 + PM 回应循环（规范：stages/goal-plan-stage.md）→ ⏸️ 等待用户确认
 
-**🆕 PL-PM Teams 讨论**（PRD 初稿完成后自动触发）：
+**🟢 PM 评审回应规则（v7.3.10+P0-34，取代原 PL-PM Teams 讨论）**
+
+> **v7.3.10+P0-34 重构**：原 PL-PM Teams 讨论独立子步骤已**去除**——PL 升格为评审角色之一与 RD/Designer/QA/PMO 平级。所有评审角色按 `state.goal_plan_substeps_config.review_roles[]` 并行评审，PM 统一对所有反馈给响应。
+
+**触发**：Goal-Plan Stage 子步骤 2「多角色并行评审」完成后，PM 整合所有 reviewer 的 findings，进入子步骤 3「PM 回应 + 修订 PRD」。
+
+**响应规则**：
+
 ```
-PM 产出 PRD 初稿
-    ↓ 🤖 PMO 交替启动两个独立 Agent 实例（Teams 模式）
-    ├── PL Agent：读业务文档 + PRD → 输出业务对齐反馈
-    ├── PM Agent：读代码架构 + PL 反馈 → 回应（接受/解释/反驳/标记分歧）
-    ├── 最多 3 轮，PM 按共识修改 PRD
-    └── 分歧项 → ⏸️ 用户决策 → PM 按决策修改 PRD
-    ↓
-PRD 定稿 → 进入多角色评审
-
-🔴 两个 Agent 实例上下文隔离：
-├── PL Agent 只加载业务文档（product-overview、执行手册），不看代码
-├── PM Agent 只加载代码架构 + 需求，不看执行手册
-├── 通过文件系统（Feature 目录下 discuss/）传递讨论内容
-└── 🔴 PL Agent 只输出反馈文件（PL-FEEDBACK-R*.md），不直接修改 PRD.md
-
-🆕 中台子项目时 PL 额外关注（PMO 在启动 PL Agent 时注入）：
-├── 通用性：PRD 是否过度定制化，能否满足多消费方的共性需求
-├── 消费方影响：变更是否会破坏现有消费方，兼容性承诺是否合理
-└── API 契约：接口定义是否清晰、是否具备向后兼容性
+foreach finding in PRD-REVIEW.md.reviews[].findings:
+  if finding.verdict == NEEDS_REVISION 或 severity ∈ {high, medium}:
+    PM 必须给响应（pm_response 字段）：
+    ├── ADOPT → 修订 PRD.md 解决该 finding
+    │           pm_rationale 写"已修订：{改了什么 + PRD 段落引用}"
+    ├── REJECT → 不改 PRD
+    │           pm_rationale 写"拒绝理由：{为什么}"（必须有理由，不接受空）
+    └── DEFER → 不改 PRD，但承诺后续追踪（v7.3.10+P0-34-A 严格收紧）
+                🔴 仅允许 category = "business-decision"（明确属于用户/商业层面决策）
+                禁止 category ∈ {"technical-consistency", "business-alignment", "ux", "quality"}
+                pm_rationale 写"延后理由 + 追踪位置 + 上升给用户决策的具体问题"
+  elif severity ∈ {low, info}:
+    PM 可选响应（PASS_WITH_CONCERNS 时不阻塞通过，但建议处理）
 ```
+
+🔴 **响应硬规则**：
+- 每条 NEEDS_REVISION finding 必须有 pm_response，禁止静默忽略
+- REJECT / DEFER 必须有 rationale，不接受空理由（≥1 句具体说明）
+- ADOPT 必须实际修订 PRD.md（grep 验证修订内容存在）
+- pm_response 写入 PRD-REVIEW.md frontmatter 的 reviews[].findings[].pm_response 字段
+
+🔴 **PM 对抗性自查规则（v7.3.10+P0-34-B 新增）**：
+
+P0-34 评审模式的对抗深度通过"PM 内省"补回——PM 每条 ADOPT/REJECT 之前，必须先输出一段「反方最强论据模拟」，强迫自己以 finding 提出方视角写最强反驳论据，再决定 response。原始观察：LLM 对 finding 倾向"配合性"回应（sycophancy），缺乏对抗强度；强制自查段是对此的物理拦截。
+
+```
+foreach finding with action ∈ {ADOPT, REJECT}:
+  PM 必须在 pm_response 写入两段：
+  ├── adversarial_self_check（≥2 句反方论据模拟）
+  │   ├── 站在 finding 提出角色（PL/RD/QA/Designer/PMO）的视角
+  │   ├── 写"如果我是 {role}，我会用什么最强论据反驳 PM 当前 response"
+  │   ├── 必须写 ≥2 句具体内容（不接受"理论上有风险"之类的空话）
+  │   └── 模拟内容必须基于 finding 的 description + suggestion，不能脱离上下文
+  │
+  └── rationale（在自查后写最终 response 理由）
+      ├── ADOPT: "已修订：{改了什么 + PRD §X.Y 段落引用}"
+      ├── REJECT: "反方论据为何不成立 / 替代方案 / 代价可接受的证据"
+      │           （rationale 必须直接回应 adversarial_self_check 的反方论据）
+      └── DEFER: 走 P0-34-A 严格收紧规则
+```
+
+🔴 **PMO 校验**（Goal-Plan Stage 子步骤 3 完成后强制审计）：
+- 扫描 PRD-REVIEW.md frontmatter 所有 `pm_response.action ∈ {ADOPT, REJECT}` 的项
+- 校验 `pm_response.adversarial_self_check` 非空 + ≥2 句具体内容（非空白 / 非占位符）
+- REJECT 项额外校验：`pm_response.rationale` 必须 cite 或回应 `adversarial_self_check` 中的反方论据
+- 违规 → 打回 PM 重做该 finding 的对抗自查（不接受默认推进）
+- 校验通过 → 写入 state.json `goal_plan_substeps_config.adversarial_check_passed: true`
+
+📎 **典型示例**（finding 由 RD 提，PM 倾向 REJECT）：
+
+```yaml
+finding:
+  id: RD-3
+  category: technical-consistency
+  description: "PRD 未定义并发请求时的乐观锁版本号字段"
+  suggestion: "在 §4.2 接口定义中加 version 字段，409 冲突时返回 ETag"
+
+pm_response:
+  action: REJECT
+  adversarial_self_check: |
+    站在 RD 视角的最强反驳：
+    1. 没有版本号会导致后写覆盖先写，跨用户协作场景出现幽灵更新——这是数据一致性硬故障，不能靠"事后修"。
+    2. 加 version 字段是 1 行 schema + 接口层标准 409 处理，开发成本极低，本期不加意味着每个调用方各自实现脏检查，反而是技术债。
+  rationale: |
+    REJECT 维持原 PRD。理由：
+    - 反驳 1（一致性）：本 Feature 是只读分析场景，不存在并发写；版本号在写入流程才需要。已加 PRD §4.2 注脚说明。
+    - 反驳 2（成本）：本期不引入版本号是为了和已有读接口保持 schema 一致；写入接口下个 Feature 一并设计（已登记 ROADMAP F027）。
+```
+
+🔴 **反例**（必须杜绝）：
+```yaml
+❌ pm_response:
+     action: REJECT
+     adversarial_self_check: "RD 可能担心一致性"   # 仅 1 句、空话
+     rationale: "本期不做"                         # 没回应反方论据
+
+# PMO 校验拦截：adversarial_self_check 不足 2 句具体内容；rationale 与反方论据无关
+```
+
+📎 与 P0-34-A 的关系：P0-34-A 堵 DEFER 滥用，P0-34-B 强化 ADOPT/REJECT 的对抗深度，二者合力使 PM response 从"轻量回应"变成"对抗内省 + 实质收敛"。
+
+---
+
+🔴 **DEFER 严格收紧规则（v7.3.10+P0-34-A 新增）**：
+
+DEFER 不是"AI 抗不下来抛给用户"的逃生舱。原始观察：P0-34 评审模式下 PM 对深度 finding 倾向 DEFER 而非真实对抗，把本该内部碰撞收敛的问题推给用户。
+
+```
+DEFER category 枚举（pm_response.category 必填）：
+├── "business-decision"        ✅ 唯一允许 DEFER 的类别
+│   场景：商业策略 / 价格 / 商业模型 / 法务合规 / 用户研究待补
+│   要求：rationale 必须明确"为什么这是用户/商业决策范围"
+│
+├── "technical-consistency"    ❌ 禁止 DEFER
+│   场景：接口设计、数据模型、跨模块依赖一致性
+│   要求：必须 ADOPT（改 PRD）或 REJECT（带技术 rebuttal）
+│
+├── "business-alignment"       ❌ 禁止 DEFER
+│   场景：业务流程完整性、AC 覆盖度、PL 业务方向对齐
+│   要求：必须 ADOPT 或 REJECT（带业务 rebuttal）
+│
+├── "ux"                       ❌ 禁止 DEFER
+│   场景：交互一致性、可用性、设计系统对齐
+│   要求：必须 ADOPT 或 REJECT（带 UX rebuttal）
+│
+└── "quality"                  ❌ 禁止 DEFER
+    场景：测试覆盖、边界场景、质量门禁
+    要求：必须 ADOPT 或 REJECT（带 QA rebuttal）
+```
+
+🔴 **PMO 校验**（Goal-Plan Stage 子步骤 3 完成后强制审计）：
+- 扫描 PRD-REVIEW.md frontmatter 所有 `pm_response.action == "DEFER"` 的项
+- 校验 `pm_response.category == "business-decision"`
+- 违规 → 打回 PM 重做该 finding 的响应（不接受默认推进）
+- 校验通过 → 写入 state.json `goal_plan_substeps_config.defer_audit_passed: true`
+
+🔴 **典型反例**（必须杜绝）：
+```
+❌ finding: "登录接口的 token 刷新策略 PRD 未定义"（technical-consistency）
+   pm_response: { action: "DEFER", rationale: "本期不深入" }
+   → P0-34-A 校验拦截：technical-consistency 禁止 DEFER
+
+✅ 正确处理：
+   pm_response: { action: "REJECT", rationale: "本期沿用现有 OAuth refresh，PRD 加引用 ADR-007" }
+   或 { action: "ADOPT", rationale: "已修订：PRD §4.3 加 token 刷新策略段" }
+```
+
+📎 与红线 #3 的关系：DEFER 不是"擅自简化"——它是合法的"商业决策上升"路径，但仅限 business-decision 类别。技术/业务/UX/质量类 finding 必须 PM 自己对抗收敛，不许借 DEFER 逃避。
+
+**评审循环**：
+- Round 1: 所有评审 reviewer 并行 → PRD-REVIEW.md（findings 含 verdict）
+- PM 整合 + 响应 + 修订 PRD → 写 pm_response → 进入 Round 2
+- Round 2: reviewer 重新评审（已修订的 PRD）→ 输出新 verdict
+- 最多 3 轮；超 3 轮 → ⏸️ 用户决策（详见 stages/goal-plan-stage.md 子步骤 4）
+
+**中台子项目时 PL 额外关注**（PMO 在 PL 评审 dispatch 时注入）：
+- 通用性：PRD 是否过度定制化，能否满足多消费方的共性需求
+- 消费方影响：变更是否会破坏现有消费方，兼容性承诺是否合理
+- API 契约：接口定义是否清晰、是否具备向后兼容性
 
 **状态看板**:
 ```
@@ -138,7 +265,7 @@ PRD 定稿 → 进入多角色评审
 **PM 在 Workspace Planning 中的核心职责**：
 ```
 ├── 阶段一：与用户讨论整体架构方向（子项目增删、职责调整、依赖变更）
-├── 阶段二：更新 teamwork_space.md 草稿（规划状态 + 架构图 + 子项目清单 + 变更记录）
+├── 阶段二：更新 teamwork_space.md 草稿（规划状态 + 架构图 + 子项目清单；变更详情落 changes/{id}.md · v7.3.10+P0-59）
 ├── 阶段三：逐子项目执行标准 Planning（全景设计 → PROJECT.md → ROADMAP）
 └── 阶段四：配合 PMO 完成收尾（teamwork_space.md 状态归位）
 ```
@@ -326,5 +453,5 @@ PMO 结论: ✅ 可控 / ⚠️ 有风险
 | PRD 留 TBD / 待补充 | 所有章节必须填写完整，自查后再提交 |
 | 验收标准写"性能良好""体验好" | 量化可验证：响应时间 < 200ms、错误时显示红色提示 |
 | PRD 混入多个不相关需求 | 一个 PRD 聚焦一个功能，超范围的拆为独立 Feature |
-| 跳过自查直接进 PL-PM 讨论 | 先完成 4 项自查（占位符/一致性/范围/歧义） |
+| 跳过自查直接进多角色评审 | 先完成 4 项自查（占位符/一致性/范围/歧义） |
 ```

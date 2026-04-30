@@ -11,8 +11,8 @@
 格式：📋 {当前阶段} → {目标阶段}（📖 {🚀自动/⏸️暂停/🔀条件}，来源：flow-transitions.md L{行号} "{原文}"）
 
 示例：
-📋 PMO 初步分析 → 🔗 Plan Stage（📖 ⏸️暂停，来源：flow-transitions.md L10 "PMO 初步分析 | 🔗 Plan Stage | ⏸️暂停"）
-📋 🔗 Plan Stage → PRD 待确认（📖 ⏸️暂停，来源：flow-transitions.md L11 "🔗 Plan Stage | PRD 待确认 | ⏸️暂停"）
+📋 PMO 初步分析 → 🔗 Goal-Plan Stage（📖 ⏸️暂停，来源：flow-transitions.md L10 "PMO 初步分析 | 🔗 Goal-Plan Stage | ⏸️暂停"）
+📋 🔗 Goal-Plan Stage → PRD 待确认（📖 ⏸️暂停，来源：flow-transitions.md L11 "🔗 Goal-Plan Stage | PRD 待确认 | ⏸️暂停"）
 ```
 
 **🔴 规则**：
@@ -51,7 +51,7 @@
 ```
 PMO 启动阶段 X 前：
 ├── 1. 项目根目录 CLAUDE.md / AGENTS.md / GEMINI.md → 存在则读取提取约束
-├── 2. 前置阶段产物存在（Plan Stage→Blueprint/UI Design，Blueprint Stage→Dev Stage，Dev Stage→Review Stage，Review Stage→Test Stage）
+├── 2. 前置阶段产物存在（Goal-Plan Stage→Blueprint/UI Design，Blueprint Stage→Dev Stage，Dev Stage→Review Stage，Review Stage→Test Stage）
 ├── 3. 暂停点已获用户确认
 └── 4. 不通过 → 🔴 禁止进入，输出缺失项
 
@@ -111,7 +111,7 @@ PMO 执行：git status --porcelain
 ### 各 Stage 的 commit message 规范
 
 ```
-├── Plan Stage         : "F{编号}: Plan Stage - {简述}"           （例：PRD / PRD-REVIEW / discuss 产物）
+├── Goal-Plan Stage         : "F{编号}: Goal-Plan Stage - {简述}"           （例：PRD / PRD-REVIEW / discuss 产物）
 ├── UI Design Stage    : "F{编号}: UI Design Stage - {简述}"      （例：UI.md / preview/*.html / sitemap）
 ├── Blueprint Stage    : "F{编号}: Blueprint Stage - {简述}"      （例：TC.md / TECH.md / 评审文件）
 ├── BlueprintLite Stage: "F{编号}: BlueprintLite Stage - {简述}"  （例：TC.md / IMPL-PLAN.md）

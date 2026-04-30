@@ -102,10 +102,29 @@
 分配规则：
 ├── 分配者：PMO（跨子项目需求拆分时自动分配）
 ├── 编号全局递增（跨所有子项目唯一）
-├── 存储位置：teamwork_space.md「跨项目需求追踪」表的「业务关联 ID」列（唯一权威来源）
+├── 存储位置：`product-overview/changes/{change_id}.md` 文件名 + frontmatter `change_id` 字段（v7.3.10+P0-59 起单源 · 不再维护 teamwork_space.md 内的索引表）
 ├── 反向引用：各子项目 Feature 的 state.json 新增顶层字段 business_group: "BG-xxx"
 ├── 单子项目 Feature 不分配 BG（state.json 的 business_group 字段置 null）
 ├── INFRA/midplatform Feature 不默认建 BG——只有当其他子项目需要主动配合改动时才分配
 ├── PMO 分配时读取 teamwork_space.md 已有 BG 编号，取最大值 +1
 └── 🔴 冲突防护：分配前必须重新读取 teamwork_space.md 获取最新编号（不可用缓存值）
 ```
+
+## Stage 名词在 prose 中的标准形（v7.3.10+P0-57）
+
+> 🔴 避免大小写漂移。Stage 名词在文档 prose 中**必须用标准大写形式**，code identifier（文件名 / state.json 字段 / enum 值）保留小写。
+
+| 含义 | 标准形（prose 中用） | code identifier 形（文件名 / state.json / enum） | 例外说明 |
+|------|---------------------|-----------------------------------------------|---------|
+| 目标规划阶段 | **Goal-Plan**（首字母大写 + 连字符） | `goal-plan-stage.md` / `goal_plan_substeps_config` / `current_stage = "goal_plan"` | — |
+| 蓝图阶段 | **Blueprint** | `blueprint-stage.md` / `blueprint_substeps_config` / `"blueprint"` | — |
+| 评审阶段 | **Review** | `review-stage.md` / `review_substeps_config` / `"review"` | — |
+| 开发 / 测试 / 上线 | **Dev** / **Test** / **Ship** | `dev-stage.md` / `test-stage.md` / `ship-stage.md` | — |
+| 分诊 / 初始化 | **Triage** / **Init** | `triage-stage.md` / `init-stage.md` | — |
+
+🔴 **硬规则**：
+- 在 prose（说明文字 / 注释 / 标题）中提到 Stage 概念时，用**标准形**（如 `Goal-Plan Stage 入口实例化`）
+- 在文件名引用、markdown 链接 URL、state.json 字段名、enum 值中保留 code identifier 形（小写 + 连字符或下划线）
+- 历史文档（`docs/CHANGELOG.md` / `docs/OPTIMIZATION-PLAN.md`）记录历史事实，**不回溯改名**
+- PMO 起草任何新 prose 时必须用标准形，避免再次出现 `goal-plan stage` / `Plan stage` 等漂移变体
+
