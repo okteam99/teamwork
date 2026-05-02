@@ -1,6 +1,360 @@
 # Changelog
 
-## v7.3.10 + P0-65（当前）
+## v7.3.10 + P0-74（当前）
+
+> v7.3.10+P0-74 Micro 流程加 Ship Stage 双段（合规收口）：实战 case（2026-04-30 / aifriend MICRO-001）暴露 Micro 走完用户验收后只剩「本地已修改未 commit / 未 push」，用户被迫追问"没 ship 么"才意识到代码没落库。根因分析：Micro 的省略**只在前端 5 个 Stage**（Plan / Blueprint / UI / Review / Test）—— 但代码最终都要发布，commit / push / MR 创建 / merge_target 落库这些动作对所有改动都一样必要。本 patch 把 Micro 流程接入完整 Ship Stage（缩简版 · 第二段无元数据更新但保留合入验证），与 Feature/Bug 的 Ship 行为统一。
+
+### P0-74：Micro 加 Ship Stage 双段（commit + push + MR + 合入验证）
+
+- 触发：实战 case + 用户拍板「我觉得要有完整的 ship 流程，因为 micro 只是规划和开发省了，最终改动还是要发布的，发布需要统一的 ship 规范」+ 「第二阶段需要验证是否合入目标分支」+ 「ok」
+- 设计哲学（用户原话）：**"Micro 的省略只在规划和开发，发布需要统一的 ship 规范"** —— Micro 不是 Ship 的例外；Ship 是代码进入主干的必经门禁，对 Feature/Bug/Micro 一视同仁。第二段的合入验证（git merge-base）是流程闭环的最后一道证据
+- 改动：
+  - **P0-74-1. `stages/ship-stage.md` 加 Micro 流程缩简分支段**（在 Bug 缩简分支后 / ~110 行）：触发条件 + 与 Feature/Bug 的关键差异表（状态承载 = 主对话 / commit message = `micro: {简述}` / MR 标题 = `micro: {简述}` / Step 7+8 跳过 / Step 9 通常跳过 / 完成报告含合入证据）+ 各步骤差异说明 + Micro Ship 完成报告模板 + 入口前置依赖
+  - **P0-74-2. `FLOWS.md` Micro 流程链路改写**：「用户验收 → 完成」改为「用户验收 → Ship Stage 第一段（commit + push + 创建 MR）→ ⏸️ 用户合 MR → Ship Stage 第二段（合入验证）→ ✅ 完成」
+  - **P0-74-3. `FLOWS.md` Micro 自动流转图加 Ship 双段节点**：第一段（auto-commit / push feature / 创建 MR）+ ⏸️ MR pending + 第二段（git fetch + git merge-base --is-ancestor）+ 合入失败处理（concerns + 不进 ✅）
+  - **P0-74-4. `FLOWS.md` PMO Micro 流程分析输出格式**：流程步骤描述从 5 步扩到 7 步（加 Ship 第一段 / Ship 第二段合入验证 / 完成报告含 commit hash + merge_commit_hash + 已合入证据）
+  - **P0-74-5. `rules/flow-transitions.md` Micro 流程加 5 行 transition**：用户验收 → Ship 第一段（🚀 自动）→ ⏸️ 等用户合 MR → Ship 第二段合入验证（🚀 自动 git merge-base）→ ✅ 完成 / ⏸️ 合入失败两条出口
+  - **P0-74-6. 版本号 + CHANGELOG**（7.3.10+P0-73 → 7.3.10+P0-74；init-stage.md SKILL_VERSION 期望同步）
+- **加 1 删 1 元规则核算**：
+  - **加**：~150 行（ship-stage.md Micro 缩简分支 ~110 行 + FLOWS.md 链路 + 自动流转图 + 输出格式 ~25 行 + flow-transitions.md 5 行 transition + 元数据 ~10 行）
+  - **删**：未删（实战补强 · 流程一致性收敛 · 非冗余清理）
+  - **不增加用户负担**：用户仍只需"验收"+"在平台合 MR"两个交互（与 Feature/Bug 一致）；新增的 PMO 动作（commit / push / MR 创建 / 合入验证）全自动
+  - **不破坏 Micro 定位**："最短 RD 闭环"含义不变——省的是前端 5 个 Stage（Plan/Blueprint/UI/Review/Test），不是 Ship；Ship 不是 Stage 数量的累赘，是发布合规的必经门禁
+  - **"重新触发回来"防护**：未来若有人把 Micro Ship 又砍掉以减少步骤 → cite 本 patch 的根因（实战暴露用户预期与流程契约错位）+ 「发布需要统一规范」原则
+- 与已有规则的关系：
+  - **Bug 流程 Ship 缩简分支**（v7.3.10+P0-36）：Micro 缩简版与 Bug 缩简版结构对称（都加在 ship-stage.md 主流程段之前作为分支说明）；Micro 比 Bug 更简（无元数据载体 · Step 7+8 跳过）
+  - **auto-commit 通用规则**（v7.3.9 集中化 / rules/gate-checks.md）：Micro Ship 第一段的 commit 自动适用本规则，message 模板用 `micro: {简述}`
+  - **红线 #1 Ship Finalize 例外**（v7.3.10+P0-32 / +P0-36）：Micro 不需要扩展第三类例外——Step 8 直接跳过（无元数据可 push），合规性比 Feature/Bug 更简单
+  - **Ship Stage 双段结构**（v7.3.10+P0-29）：完全复用——第一段创建 MR + push feature / ⏸️ 用户合 MR / 第二段 finalize（Micro 的 finalize = 仅合入验证）
+- 不动:
+  - Ship Stage 主流程 Step 1-10（仅 Step 7 / Step 8 / Step 9 在 Micro 分支跳过）
+  - Bug Ship 缩简分支
+  - Feature Ship 主流程
+  - 红线 #1 Ship Finalize 例外条款
+  - Micro 准入条件 5 项（不变）
+  - PMO→RD 身份切换硬规则（不变）
+- 影响面：
+  - 改动文件：5 个（stages/ship-stage.md / FLOWS.md / rules/flow-transitions.md / SKILL.md / stages/init-stage.md）
+  - 元数据：CHANGELOG.md 一处
+- 后续验证：
+  - 下次 Micro 流程跑下来，PMO 在用户验收后自动进 Ship 第一段（commit + push + 创建 MR），输出 MR URL · ⏸️ 暂停等用户合 MR
+  - 用户合 MR 后告知 PMO，PMO 执行 git merge-base --is-ancestor 验证 + 完成报告含 merge_commit_hash + "已合入 origin/{merge_target}" 证据
+  - 用户预期闭环（"走完 = 已合入主干"）
+  - 长期：Micro 是否需要给"批量 push"留一个豁免选项（多个连续 Micro 改动想合在一个 MR 里）？暂不预留，等实战暴露需求
+
+---
+
+## v7.3.10 + P0-73
+
+> v7.3.10+P0-73 PM 起草前代码现状 Read 硬规则（防 PRD 与代码现状脱节）：用户提问"PM 在写 PRD 前是否对现有代码逻辑调研不全，导致输出方案不精确"——经分析现有 PM 起草 checklist（templates/prd.md L342+）只覆盖产品视角（产品目标 / AC / 影响范围 / 业务风险），且明文「PRD 不写什么」把"复用既有库 / 模式"全部下沉到 TECH.md（Blueprint Stage RD 写）→ PM 起草时**完全不读代码** → PRD 假设功能不存在但实际有 / AC 与现有约束冲突 / 漏边界场景 / 范围估算偏小。子步骤 3 RD 评审才发现 → 评审循环多 1-3 轮（实测）。本 patch 把"代码意识"从隐性期望提升为 PM 起草前必做硬规则：**只读不输出**（grep 关键词 + Read 3-5 个核心文件 / 5-10 min 内化），唯一痕迹 = `pm_self_check.code_context_read: true` boolean 承诺。
+
+### P0-73：PM 起草前代码现状 Read（方向 B 只读不输出）
+
+- 触发：用户提问 + 拍板「方向 B，只读不输出」+ 「ok」
+- 设计哲学（用户原话）：**"PM 起草前必读代码模块，但不输出 brief"** —— 不增加新产物 / 不破坏 5 子步骤结构 / 不增加 PMO 调度负担；把代码意识做成 PM 角色契约（roles/pm.md）+ checklist 硬项（templates/prd.md），靠 boolean self_check 兜底执行
+- 改动：
+  - **P0-73-1. `templates/prd.md` PM 起草 checklist 加「起草前必读：代码现状 Read」段**：4 步流程（关键词提取 → grep + Glob 找入口 → Read 现有功能/约束/边界 → PM 起草时内化），4 条不要做的事，3 条执行边界（5-10 min · 只读不输出 · boolean 承诺）
+  - **P0-73-2. `templates/prd.md` `pm_self_check` schema 加 `code_context_read: bool` 必填字段**：`code_context_read: false` = 跳过 Read 起草 → 子步骤 3 RD 评审若发现 AC 与代码现状冲突，PMO 自动 NEEDS_REVISION 打回 PM 重读重起
+  - **P0-73-3. `roles/pm.md` 加角色契约 4 行**：起草 PRD 前必须 grep + Read 3-5 个核心模块 / 只读不输出 brief / 关键约束写入「待决策项」/ cite templates/prd.md
+  - **P0-73-4. `stages/goal-plan-stage.md` 子步骤 1 PM 起草核心约束加 cite 1 行**：起草前 grep + Read 3-5 个相关核心模块（5-10 min · 只读不输出 · v7.3.10+P0-73）+ pm_self_check schema 加 `code_context_read` 字段
+  - **P0-73-5. 版本号 + CHANGELOG**（7.3.10+P0-72 → 7.3.10+P0-73；init-stage.md SKILL_VERSION 期望同步）
+- **加 1 删 1 元规则核算**：
+  - **加**：~80 行（templates/prd.md 起草前必读段 + pm_self_check 字段说明 + roles/pm.md 角色契约 + goal-plan-stage.md cite）
+  - **删**：未删（实证补强 · 非冗余清理）
+  - **不增加 PMO 负担**：PM 自身在起草前 5-10 min Read · PMO 仅校验 self_check boolean（已有字段补一项 · 不加新调度逻辑）
+  - **不破坏现有结构**：5 子步骤不变 · 不加新子步骤 · 不加 brief 文档产物
+  - **"重新触发回来"防护**：未来若 PM 再次出现"PRD 与代码脱节"型评审循环 → cite 本 patch 的根因分析（隐性期望 vs 显性 checklist）
+- 与已有规则的关系：
+  - **PRD 起草 checklist 单源**（v7.3.10+P0-51）：本 patch 加在「通用 checklist」之前作为「起草前必读」段，不破坏 P0-51 单源结构
+  - **职责正交**（v7.3.10+P0-46）：PRD 仍只回答 What/Why，TECH.md 仍回答 How；本 patch 不让 PM 写代码细节，只让 PM **知道代码现状** 写出与现状契合的 What/Why
+  - **PM 对抗性自查**（v7.3.10+P0-34-B）：本 patch 是事前补强，对抗性自查是事后补强 · 二者互补
+  - **子步骤 3 RD 评审**：仍然兜底（本 patch 不替代 RD 评审 · 是降低 RD 评审打回率）
+- 不动：
+  - PRD 模板主体结构（不加新章节）
+  - PRD-REVIEW.md schema 主体（仅扩展 pm_self_check 一个字段）
+  - Plan Stage 5 子步骤序列（不加新子步骤）
+  - PMO 调度逻辑（仅多校验一个 boolean）
+- 影响面：4 文件（templates/prd.md / roles/pm.md / stages/goal-plan-stage.md / stages/init-stage.md）+ 元数据 2 个（SKILL.md / docs/CHANGELOG.md）
+- 后续验证：
+  - 1-2 个真实 Feature 跑下来后，对比子步骤 3 RD 评审"AC 与代码现状冲突"类 finding 数量降幅
+  - 如发现 PM 偷读不读（`code_context_read: true` 但实际没读，仍出现冲突 finding）→ 升级到方向 B 原版（加 brief 输出 · 加 PMO 校验段）
+  - 如发现 PM 读太多（10+ 文件 / 1000+ 行 / 写代码细节进 PRD）→ 收紧执行边界（强化"3-5 个文件 / 500 行内 / 5-10 min"上限）
+  - 长期：可考虑把"代码现状 brief"作为可选产物（小 Feature 跳过 / 大 Feature 必填）
+
+---
+
+## v7.3.10 + P0-72
+
+> v7.3.10+P0-72 删除探测脚本 + 回退 P0-71（PMO 直接判定）：用户拍板"宿主探测不该是脚本职责——PMO 自身就在宿主里运行，自知"。先前 `templates/detect-external-model.py` 基于项目根的 `.claude/` / `.codex/` / `.agents/` 目录标记判定主对话宿主，但目录标记反映**项目历史**（曾被哪些宿主访问过 / 装过 teamwork skill），不反映**当前对话宿主**——实战 WEB-F028 暴露 Codex 主对话被误判为 claude-code。本 patch 把宿主判定职责彻底从脚本回收到 PMO，删除脚本本体；同期回退 P0-71 "Stage 入口重探测"（再探测错的还是错的，根因是探测方法不可靠，不是缺重探测）。
+
+### P0-72：删除探测脚本 + PMO 直接判定 + 回退 P0-71
+
+- 触发：用户实战 WEB-F028 + 拍板"探测脚本是否考虑去掉，PMO 知道，以 PMO 口径为准"
+- 设计哲学（用户原话）：**"没必要重探测，启动 teamwork 探测就可以，之前的问题在于探测错误"** —— 修方向不是"加重探测兜底"而是"让初始判定就对"。PMO 自身在宿主里运行，自知；脚本反而是错误信号源
+- 改动：
+  - **P0-72-1. 删 `templates/detect-external-model.py`**（~140 行）：宿主判定职责从脚本回收到 PMO
+  - **P0-72-2. 重写 `standards/external-model.md` §四**：从「E2 PMO 运行时探测（基于探测脚本）」改为「E2 PMO 直接判定（自报宿主 + `command -v` 检查 CLI）」3 步流程；删除 P0-71「Stage 入口宿主重探测硬规则」段（~70 行）；删除 P0-72 早期版本的「PMO 自我校验硬规则」段（~50 行 · 根因消失则补丁也没必要保留）
+  - **P0-72-3. `stages/review-stage.md` §4 外部模型选择**：删 P0-71 「必须 Stage 入口重探测脚本」cite，改为 P0-72 「PMO 自报宿主 + 应用 E1 同源约束」
+  - **P0-72-4. `stages/triage-stage.md` Step 4 + 入口 Read 顺序 + 关系表**：探测脚本调用改为 PMO 自报 + `command -v` bash 一行；删 detect-external-model.py 引用
+  - **P0-72-5. `roles/pmo.md` Step 1-2**：「调用探测脚本 + 渲染探测段」改为「PMO 自报宿主 + bash `command -v` + 渲染判定段」；硬规则段同步措辞
+  - **P0-72-6. `templates/external-cross-review.md`** + **`roles/external-reviewer.md`** + **`claude-agents/README.md`** + **`STATUS-LINE.md`** + **`STANDARDS.md`** + **`SKILL.md` 索引**：清掉所有 detect-external-model.py 活引用 + 措辞从「探测脚本 / 探测段」改为「直接判定 / 判定段」
+  - **P0-72-7. `templates/feature-state.json`** 两处 _note：detect-external-model.py 改为 PMO 直接判定
+  - **P0-72-8. 版本号 + CHANGELOG**（7.3.10+P0-71 → 7.3.10+P0-72；init-stage.md SKILL_VERSION 期望同步）
+- **加 1 删 1 元规则核算（强力净删）**：
+  - **删**：脚本本体 ~140 行 + external-model.md P0-71 重探测段 ~70 行 + P0-72 早期 PMO 自我校验段 ~50 行 = **~260 行**
+  - **加**：external-model.md PMO 直接判定段 ~50 行 + 各文件措辞调整 ~30 行 = ~80 行
+  - **净删**：~180 行 + 一个常驻脚本文件
+  - **不增加 PMO 负担**：PMO 本就要自知宿主（每次 Stage 入口本就要做的事）；判定职责从外部脚本回收到 PMO，少一层间接、少一类失败模式
+  - **"重新触发回来"防护**：未来若有人想"再加重探测脚本"→ cite 本 patch 的根因分析（目录标记不反映当前对话）+ "PMO 直接判定"的设计哲学
+- 与已有规则的关系：
+  - **P0-71 Stage 入口重探测**：废止（再探测错的还是错的）；spec 跨 session 切宿主的处理由「PMO 在每个 Stage 入口自报宿主」单源承载（external-model.md §四「跨 session 切宿主的处理」段）
+  - **P0-65 Codex 沙箱认证**：保留（dispatch 时 CLI 调用失败的运行时降级仍由 E3 兜底）
+  - **E1 异质性 / E3 失败降级**：保留不变（核心规则与脚本无关）
+  - **state.json schema**：不变（仍有 host_main_model / host_detection_at / available_external_clis 字段）
+- 不动：
+  - 同源约束 / 异质性 E1 / 失败降级 E3 等核心规范段
+  - state.json 字段定义
+  - claude-agents / codex-agents 调用入口规范
+  - 候选清单（codex / claude）
+- 影响面：
+  - 删除文件：1 个（templates/detect-external-model.py）
+  - 修改文件：10 个（standards/external-model.md / stages/review-stage.md / stages/triage-stage.md / roles/pmo.md / roles/external-reviewer.md / templates/external-cross-review.md / templates/feature-state.json / claude-agents/README.md / STATUS-LINE.md / STANDARDS.md / SKILL.md / docs/CHANGELOG.md / stages/init-stage.md）
+- 后续验证：
+  - 下次 Feature triage 时 PMO 输出「🌐 外部模型判定」段（不是「外部模型探测」），首行宿主由 PMO 自报，不读项目目录标记
+  - 跨 session 切宿主时 PMO 自报值更新 + state.concerns 记录漂移 + 主对话声明切换
+  - 后续如果 PMO 自报失误 / 不可靠 → 不复活脚本，而是补强 PMO 自报的规则（如增加 system prompt 自识别提示）
+
+---
+
+## v7.3.10 + P0-71（已废止 · v7.3.10+P0-72 删除探测脚本时一并回退）
+
+> v7.3.10+P0-71 跨 session 切宿主漂移防护（Stage 入口宿主重探测）：用户实证 Codex CLI 主对话执行 Review Stage 时沿用 state.json 旧的 `host_main_model: claude-code` / `model: codex`，导致 codex 跟当前主对话同源仍被误用作 external（违反 E1 异质性）。用户自我纠正 + 加降级（Claude CLI 不可用如实记录不伪造）。本 patch 把这个实战教训硬规则化：standards/external-model.md §四 加「Stage 入口宿主重探测硬规则」+ review-stage.md §4 外部模型选择段加 cite + 4 类禁止形态 + 7 步正确处理流程。
+
+### P0-71：Stage 入口宿主重探测（跨 session 漂移防护）
+
+- 触发：Codex CLI 主对话执行 Review Stage 时盲信 state.json 旧 host_main_model（claude-code 时期），导致 model: codex 沿用错误（同源失去异质 review 价值）
+- 设计哲学：**state.json 缓存创建时的宿主，但 Stage 实际执行时宿主可能已变**（跨 session 切设备 / 切宿主 / 切 worktree 上下文）。"运行时延后检测"原则只覆盖 CLI 调用失败，**不覆盖跨 session 宿主漂移**——必须 Stage 入口主动重探测
+- 改动：
+  - **P0-71-1. standards/external-model.md §四 E2 PMO 运行时探测段加「Stage 入口宿主重探测硬规则」**：3 步流程（重探测 / 对比一致性 / 漂移时重算 + state.concerns + 主对话声明切换）+ 4 类禁止形态 + 7 步正确处理流程（含用户实证案例）
+  - **P0-71-2. review-stage.md §4 外部模型选择段加 cite**：「必须 Stage 入口调用 detect-external-model.py 重探测当前主对话宿主，禁止盲信 state.external_cross_review.host_main_model 旧值」+ 链接到 standards/external-model.md
+  - **P0-71-3. 版本号 + CHANGELOG**（7.3.10+P0-70 → 7.3.10+P0-71）
+- 实证素材（写进 spec 反例）：
+  - 用户实战：Codex CLI 主对话沿用 Claude Code 时期 state 错误把 external 标为 codex
+  - 自我纠正路径：识别同源 → 切 claude → 加降级（不可用如实记录，不伪造 codex）
+- 4 类禁止形态：
+  - ❌ Codex CLI 主对话沿用 state 旧 `model: codex`（同源 → 失去异质 review 价值）
+  - ❌ 跨 session 切宿主未重探测，盲信 state 旧 host_main_model
+  - ❌ 探测发现漂移但不写 state.concerns（违反闭环验证红线）
+  - ❌ 重探测发现 Claude CLI 未登录，伪造为"用 codex 替代"（同源不算 external · 应走 E3 降级）
+- 7 步正确处理流程：探测 → 对比 → 重算 → 写 concerns → 声明切换 → dispatch → 失败如实记录
+- 与已有规则的关系：
+  - 与 P0-65（Codex 沙箱认证）协作：P0-65 解决"CLI 已装但认证不通"的 dispatch 失败 / P0-71 解决"宿主已切换但 state 缓存陈旧"的探测层漂移
+  - 与 E1 异质性约束（§三）协作：E1 是规则 / P0-71 是执行机制（每个 Stage 入口主动校验 E1）
+  - 与 E3 失败降级（§六）协作：P0-71 重探测无可用外部 → 进 E3 降级（state.concerns WARN + architect+QA 兜底）
+  - 同时也覆盖 Goal-Plan / Blueprint Stage（虽然这次实战只在 Review 暴露，但所有启用 external 的 Stage 入口都该按本规则）
+- **加 1 删 1 元规则核算**：
+  - **加**：standards/external-model.md ~30 行硬规则段 + review-stage.md ~3 行 cite
+  - **删**：未删（实证补强 · 非冗余清理）
+  - **不增加 PMO 负担**：每个 Stage 入口本来就要读 state.external_cross_review，加重探测只多一次脚本调用（约 100-300ms）
+  - **"重新触发回来"防护**：未来 PMO 又在跨 session 切宿主时盲信 state 旧值 → cite §四 Stage 入口重探测硬规则
+- 不动：
+  - detect-external-model.py 自身（不查 API key 的设计原则不变）
+  - E1 / E3 核心规则（§三 / §六 不变）
+  - state.json schema（不需要新字段）
+- 影响面：2 文件（standards/external-model.md / stages/review-stage.md）+ 元数据 3 个
+- 后续验证：
+  - 下次跨 session 切宿主执行 Stage 时，PMO 应自动按 P0-71 重探测 + 漂移声明
+  - Goal-Plan / Blueprint Stage 入口实例化段是否需要同样加 cite（暂不强加 · 三 Stage 已通过 standards/external-model.md 单源继承）
+  - 长期：可考虑把 detect-external-model.py 调用结果做轻量缓存（同 session 内不重复调用），但不阻塞 P0-71 落地
+
+---
+
+## v7.3.10 + P0-70
+
+> v7.3.10+P0-70 长 URL / 长路径不进表格列硬规则（ship MR 链接被切碎实证）：用户截图反馈 Ship Stage 第一段输出 PMO 把 `📦 当前状态` 列表「美化」成 markdown 表格 → MR 创建链接（含 `?merge_request%5Bsource_branch%5D=...` 长查询参数）被表格列宽切成多行 + 全角竖线干扰 → 终端无法识别为可点击 hyperlink。本 patch 双向修复：(1) ship-stage.md 第一段模板加 MR URL 独立成行硬规则 + 正反例对比 / (2) STATUS-LINE.md 加通用「长 URL/路径不进表格列」硬规则覆盖所有 stage。
+
+### P0-70：长 URL / 路径不进表格列（终端 hyperlink 识别）
+
+- 触发：用户截图实证 Ship 第一段 MR 链接被 markdown 表格列宽切碎不可点击
+- 设计哲学：**长 URL / 长路径必须独立成行**——表格列宽切碎 + 全角竖线干扰是终端 hyperlink 识别的主要杀手。spec 本来就是列表格式（- 开头单行项），但 PMO 没有显式禁止"美化为表格"，自由发挥时容易踩坑
+- 改动：
+  - **P0-70-1. ship-stage.md 第一段完成报告模板加硬规则**（在「输出第一段报告」段紧邻 quote）：MR/PR 创建链接必须独立成行 / 禁止挤入 markdown 表格列 / 禁止用 markdown 链接语法包裹当主呈现 / 禁止全角符号紧贴 URL
+  - **P0-70-2. ship-stage.md 加正反例对比**：错误示例（用户截图原文 · 表格切碎）+ 正确示例（独立行 + 🔗 emoji 引导 + 前后 whitespace 边界）
+  - **P0-70-3. ship-stage.md 第一段模板调整**：将 `MR/PR 创建链接` 从 `📦 当前状态` 列表中拎出 → 独立 `🔗 MR/PR 创建链接：` 段（与列表段隔一空行）
+  - **P0-70-4. STATUS-LINE.md emoji 间隔规则段加通用硬规则**：长 URL / 长绝对路径不进 markdown 表格列 / 不嵌入 markdown 链接语法 + 正反例（覆盖所有 stage 输出，不只是 ship）
+  - **P0-70-5. 版本号 + CHANGELOG**（7.3.10+P0-69 → 7.3.10+P0-70）
+- 与 P0-67 路径边界规则的关系：
+  - P0-67 规定路径**前后 whitespace 边界**（解决标点紧贴 / emoji 紧贴）
+  - P0-70 规定长 URL / 路径**不进表格列**（解决列宽切碎 / 全角竖线干扰）
+  - 两条互补 · P0-70 是 P0-67 的扩展（适用更长的 URL 场景）
+- F059 实战素材（写进 spec 当反例）：
+  - 用户截图原文：`| MR 创建链接 | https://git.okok.ai/matrix/vlite/-/merge_requests/new?merge_request%5Bsource_branch%5D=feature%2FF059-relax-package-check |`
+  - 现象：URL 被列宽切成多行 + 全角竖线干扰 + 终端无法点击
+  - 修复后预期：URL 独立成行裸输出 + 前后 whitespace 边界 + 终端识别可点击
+- **加 1 删 1 元规则核算**：
+  - **加**：~25 行（ship-stage.md 硬规则段 + 正反例 + 模板微调 / STATUS-LINE.md 通用规则）
+  - **删**：未删（实证补强 · 非冗余清理）
+  - **不增加 PMO 负担**：MR URL 本来就要输出 · 只是改"挤表格"为"独立行"，认知负担不变
+  - **"重新触发回来"防护**：未来 PMO 又把长 URL 挤进表格 → cite ship-stage.md / STATUS-LINE.md 反例对比段
+- 不动：
+  - emoji 间隔规则（P0-62）/ 路径边界（P0-67）/ 暂停点资产绝对路径（P0-61）— 三条规则保留 + 互补
+  - Ship Stage 流程逻辑（双段 / push / finalize · 不变）
+  - state.json.ship.mr_create_url 存储字段（不变）
+- 影响面：
+  - 改动文件：2 主（stages/ship-stage.md +~25 行 / STATUS-LINE.md +~15 行）+ 元数据 3 个
+- 后续验证：下次 Ship 第一段输出，应当看到 `🔗 MR/PR 创建链接：\n\n{url}\n` 三行结构（emoji 引导 + 空行 + 裸 URL）
+
+---
+
+## v7.3.10 + P0-69
+
+> v7.3.10+P0-69 架构师 Review §6 扩展为「日志完整性审查」（INFO + ERROR 双层 · F059 双层失守第二层修复）：F059 实证暴露**双层失守**——P0-68 修复了第一层（QA 没查 PRD AC ↔ 代码 grep）但第二层仍是缺口（架构师 §6 只查"异常分支 ERROR 日志"，不查"关键路径 INFO 日志"）。本 patch 把架构师 §6 从单段「三方/外部服务调用异常 ERROR 日志审查」扩展为三段式「日志完整性审查」：6.1 异常 ERROR 日志（保留 BLOCKER）+ 6.2 关键路径 INFO 日志（新增 · concern · 兜底机制不依赖 PRD 声明）+ 6.3 安全脱敏。与 P0-68 互补：PRD 有日志 AC → QA Step 4.5 走 BLOCKER；PRD 没声明 → 架构师 §6.2 主动兜底走 concern。
+
+### P0-69：架构师 §6 日志完整性审查（INFO + ERROR + 脱敏 三段式）
+
+- 触发：F059 实证 7 个关键路径无 SLogger.i 全部漏检 + 用户判断"P0-68 只修第一层，第二层仍是缺口"+ 拍板 A
+- 设计哲学：**日志覆盖是工程通用实践，不应该靠 PM 想到才查**。架构师层面应有兜底 checklist。与 P0-68 协作：PRD 显式声明 → QA 精确对账（BLOCKER）；PRD 没声明 → 架构师主动兜底（concern）
+- 改动：
+  - **P0-69-1. review-stage.md L349-356 重写**：单段「异常 ERROR 日志审查」→ 三段式「日志完整性审查」
+    - **6.1 异常分支 ERROR 日志**（🔴 BLOCKER · 保留原硬规则不变）
+    - **6.2 关键路径 INFO 日志**（🟡 concern 兜底 · v7.3.10+P0-69 新增）：
+      - 6 类核心数据流主动识别（API 入口 / 业务逻辑 / 持久化 / 跨进程调用 / 异步触发 / 外部依赖结果）
+      - 5 类节点验证（入口 / 状态变迁 / 长操作 / 决策分支 / 外部依赖结果）
+      - grep 关键字模板（SLogger.i / Log.i / logger.info / info! / tracing::info）
+      - 缺失分级（默认 concern · 已知历史排障难点路径升 BLOCKER）
+    - **6.3 安全脱敏**（与「敏感数据」段联动 · 显式列出脱敏类别）
+  - **P0-69-2. 与 P0-68 协作机制说明**（review-stage.md §6 末尾）：PRD 有日志 AC → QA Step 4.5 BLOCKER / PRD 没声明 → 架构师 §6.2 concern 兜底
+  - **P0-69-3. 版本号 + CHANGELOG**（7.3.10+P0-68 → 7.3.10+P0-69）
+- 与 P0-68 的双层互补结构：
+  - **第 1 层 PRD AC ↔ 代码 grep**（QA Step 4.5 · 显式契约层）：依赖 PM 在 PRD 写日志 AC + grep_keyword
+  - **第 2 层 关键路径 INFO 日志**（架构师 §6.2 · 通用工程兜底层）：架构师主动识别核心数据流，不依赖 PRD 显式声明
+  - 缺一不可：第 1 层防 PM 已声明的承诺被实现漏掉（BLOCKER）；第 2 层防 PM 没想到的通用日志要求（concern）
+- 三层差异化处理（避免一刀切打回 ship）：
+  - 异常 ERROR 日志缺失 = 🔴 BLOCKER（正确性问题 · 不知道哪挂了）
+  - 关键路径 INFO 日志缺失 = 🟡 concern（可观测性问题 · 不知道有没有跑到）
+  - 安全脱敏违反 = 🔴 BLOCKER（合规风险）
+- F059 实证素材（写进 spec 当反例）：
+  - 7 个关键路径无 SLogger.i：notifySoReady / notifyFocus / drainQueue / execute / fetchConfig / cache hit-miss / download / MD5 校验 / rename
+  - 用户实测：「实测预下载无效果 + 想看日志」→ 没日志根本测不出"功能是否在跑"
+  - 双层失守：QA 漏（P0-68 修了）+ 架构师 §6 漏（本 P0-69 修）
+- **加 1 删 1 元规则核算**：
+  - **加**：~30 行（6.2 关键路径 INFO 段 + 6.3 安全脱敏段 · 6.1 保留不变）
+  - **删**：未删（实证补强 · 非冗余清理）
+  - **不增加 PMO 负担**：架构师本来就要识别核心数据流（架构 review 必做），加 INFO 日志验证维度只多 5-10 min
+  - **"重新触发回来"防护**：未来如发现 ship 后才暴露的关键路径 INFO 缺失 → cite §6.2 应该 concern；如发现是已知历史排障难点路径 → cite §6.2 升 BLOCKER 条款
+- 不动：
+  - 架构师 §6.1 异常 ERROR 日志 BLOCKER 规则（保留 · 不降级）
+  - QA Step 4.5 PRD AC 直接对账（P0-68 加的 · 不动）
+  - 三视角并行结构（架构师 + QA + external · 不动）
+  - 修复循环规则（NEEDS_FIX 重跑机制 · 不动）
+- 影响面：
+  - 改动文件：1 主（stages/review-stage.md L349 段重写）+ 元数据 3 个
+  - 行数变化：review-stage.md +~25 行
+- 后续：
+  - 下次架构师 review 实证跑一遍 §6.2 流程，看是否能 catch 关键路径 INFO 缺失
+  - 如发现 6 类核心数据流分类不够（如缺"定时任务" / "消息消费" 等），加进 §6.2 数据流清单
+  - 长期：可与 standards/backend.md「三方/外部服务调用异常 ERROR 日志规则」整合 · 抽出 standards/logging.md 单源（暂不做 · 等再发现 1-2 次类似 case 再整合）
+
+---
+
+## v7.3.10 + P0-68
+
+> v7.3.10+P0-68 PRD AC 直接对账（review-stage.md QA Step 4.5 + 非功能性 AC category 显式化 + grep_keyword 字段 · 实战 F059 触发）：用户实战 F059-StartupPreloader Ship 后发现 5 个 PRD 埋点全缺 + 7 个关键路径无日志，根因 = 「TC 没覆盖非功能性 AC，QA Review 在 TC 中转模式下漏检」。本 patch 在 review-stage.md QA 任务规范加 Step 4.5「PRD AC 逐条直接对账」（不通过 TC 中转）+ templates/prd.md acceptance_criteria 加 category（functional / telemetry / logging / config / performance / security / monitoring）+ grep_keyword 字段（供 Step 4.5 直接 grep 用）。与 verify-ac.py 互补：verify-ac.py 验 ID 绑定（Dev 出口），Step 4.5 验语义实现（Review 阶段）。
+
+### P0-68：PRD AC 直接对账（QA Step 4.5 + AC category + grep_keyword）
+
+- 触发：F059 实证 Ship 后发现 PRD 5 埋点全缺 + 7 关键路径日志全缺，全链路无人 grep PRD AC ↔ 代码
+- 设计哲学：**TC 覆盖 ≠ AC 覆盖**。AC 中的非功能性承诺（埋点 / 日志 / 监控 / 配置 / 性能 / 安全）TC 通常无法覆盖，必须 Review 阶段直接 grep 对账，不通过 TC 中转
+- 改动：
+  - **P0-68-1. review-stage.md QA 核心原则升级**：从「逐条验证 TC 覆盖情况」→「PRD AC ↔ 代码（Step 4.5）+ TC ↔ 代码（Step 3）双重对账」+ 加「TC 覆盖 ≠ AC 覆盖」硬规则段（含 F059 实证教训）
+  - **P0-68-2. review-stage.md 加 Step 4.5「PRD AC 逐条直接对账」**：5 步执行流程（读 PRD → grep 7 类 AC → BLOCKER 判定 → 报告对账表 → 标注命中位置）+ 与 verify-ac.py 边界划分 + 5 列报告模板
+  - **P0-68-3. templates/prd.md acceptance_criteria 加 `category` 字段**：枚举 functional / telemetry / logging / config / performance / security / monitoring（v7.3.10+P0-68 新增 · 触发 Step 4.5 按类别走 grep 对账）
+  - **P0-68-4. templates/prd.md 加 `grep_keyword` 字段**（可选 · 推荐非功能性 AC 显式提供）：PM 起草 PRD 时为非功能性 AC 写 grep 关键字，Step 4.5 直接复用，避免 QA 现场猜测
+  - **P0-68-5. 加 PRD 反例**：示例加 AC-7 telemetry 类 / AC-8 logging 类，演示 category + grep_keyword 用法
+  - **P0-68-6. 版本号 + CHANGELOG**（7.3.10+P0-67 → 7.3.10+P0-68）
+- 与 verify-ac.py 互补关系：
+  - **verify-ac.py**（Dev Stage 出口 · 机器层）：验 `AC.id ↔ TC.covers_ac` 绑定关系（ID 层）
+  - **Step 4.5**（Review Stage QA · 语义层）：验 AC 描述 ↔ 代码 grep 命中（语义层 + 非功能性 AC 强制覆盖）
+  - 缺一不可：verify-ac.py 防 ID 漂移；Step 4.5 防"TC 没覆盖 AC = AC 实现是否存在没人查"
+- F059 实证素材（写进 spec 当反例）：
+  - 5 埋点全缺：`SReporter.*preload_browser_*` grep → 0 处 → ❌ BLOCKER
+  - 7 关键路径无日志：`SLogger.i.*notifySoReady\|notifyFocus\|drainQueue\|execute\|fetchConfig` grep → 0 处 → ❌ BLOCKER
+- **加 1 删 1 元规则核算**：
+  - **加**：review-stage.md ~25 行 Step 4.5 + 报告模板 / templates/prd.md ~10 行 schema 扩展 + 反例
+  - **删**：未删（实证补强 · 非冗余清理）
+  - **不增加 PMO 负担**：QA 起草 PRD 时多填 category + grep_keyword（每个非功能性 AC 多 5-10 秒）/ Review 阶段 QA 多 5-10 min grep 对账
+  - **"重新触发回来"防护**：未来若发现 ship 后才暴露的 AC 实现缺失 → 直接 cite Step 4.5 应该 BLOCKER
+- 不动：
+  - PRD frontmatter 其他字段（priority / test_refs / ui_refs 等）
+  - QA Step 1-4 / Step 5+ 其他流程（4.5 是新插入的 step）
+  - verify-ac.py 自身（不需要改 · 互补关系自然）
+  - 架构师 Review 维度（架构师管 TECH ↔ 代码 / QA 管 PRD AC ↔ 代码 · 职责边界清晰）
+- 影响面：
+  - 改动文件：3 个（stages/review-stage.md / templates/prd.md / 元数据）
+  - 行数变化：review-stage.md +30 行 / templates/prd.md +15 行
+- 后续验证：下个 Feature Review Stage QA 应自动按 Step 4.5 跑 PRD AC 对账。如发现新的非功能性 AC 类别（如 "I18n" / "无障碍"），加进 category 枚举 + Step 4.5 类别表
+- 后续可加：
+  - QA Subagent prompt 模板加「Step 4.5 PRD AC 直接对账」段（templates/dispatch.md 同步）
+  - verify-ac.py 可选扩展：读 PRD frontmatter `grep_keyword` 自动跑 grep（机器化 Step 4.5 部分）
+
+---
+
+## v7.3.10 + P0-67
+
+> v7.3.10+P0-67 路径后边界硬规则（路径前后必须有 whitespace 终端才能识别 hyperlink）：用户反馈"涉及目录路径的内容，前后需要加一个空格，方便终端识别"。P0-62 已规定 emoji-路径之间必须半角空格（解决路径**前**边界），但路径**后**没规则——实战中 PMO 常写「...见 /Users/.../PRD.md，请确认」用全角符号紧贴路径，终端把"PRD.md，"识别为整体导致链接断裂。本 patch 在 STATUS-LINE.md L91 emoji 间隔硬规则旁加补丁规则，覆盖路径前后双边界。
+
+### P0-67：路径后边界硬规则（whitespace 终端识别）
+
+- 触发：用户实战反馈路径后被全角符号紧贴导致终端 hyperlink 失效
+- 设计哲学：**路径需要 whitespace 边界让终端正确识别**——P0-62 解决了前边界（emoji + 半角空格），P0-67 补全后边界（半角空格 / 换行 / 行尾 / 不允许全角符号紧贴）
+- 改动：
+  - **P0-67-1. STATUS-LINE.md L91 emoji 间隔规则旁加「路径边界硬规则」补丁**：明确「路径前后双边界 + 禁止全角符号紧贴 + 正反例对比」（错例：`PRD.md，请确认` 全角逗号紧贴 / 正例：`PRD.md ，请确认` 半角空格 + 全角逗号）
+  - **P0-67-2. standards/output-tiers.md §三-A 同步合并**：原 P0-62 单条规则升级为「P0-62 emoji 间隔 + P0-67 路径后边界」组合规则，统一引用 STATUS-LINE.md
+  - **P0-67-3. 版本号 + CHANGELOG**（7.3.10+P0-66 → 7.3.10+P0-67）
+- **加 1 删 1 元规则核算**：
+  - **加**：~5 行硬规则（双边界 + 正反例）
+  - **删**：未删（用户体验补强）
+  - **不增加 PMO 负担**：PMO 写路径本来就要写边界字符，只是把"自觉留空格"升格为"硬规则"，避免漏
+  - **"重新触发回来"防护**：未来 PMO 写「PRD.md，待用户确认」类语句 → 直接 cite STATUS-LINE.md 路径边界硬规则
+- 实战覆盖场景：
+  - 状态行第二行 `📁 /Users/.../PRD.md`（行尾自然边界 ✅）
+  - 暂停点资产指针 `📁 待确认 PRD：/Users/.../PRD.md ，请确认`（半角空格 + 全角逗号 ✅）
+  - 普通描述 `更新见 /Users/.../KNOWLEDGE.md ，已落盘`（半角空格 + 全角逗号 ✅）
+- 不动：
+  - emoji 间隔规则本身（P0-62 不变 / 新规则是补充而非替代）
+  - 状态行 3 行格式（已稳定）
+- 影响面：2 文件（STATUS-LINE.md + standards/output-tiers.md）+ 元数据
+- 后续：如发现 PMO 仍输出全角符号紧贴路径，加进 STATUS-LINE.md 反例对比段
+
+---
+
+## v7.3.10 + P0-66
+
+> v7.3.10+P0-66 状态行 Final Response Preflight + 禁止替代格式（实战 INFRA-F017 Ship finalize 漏状态行案例）：用户实战 AI 输出了「📍 Teamwork：INFRA-F017 | 阶段：✅ completed | shipped=merged」摘要替代标准 `🔄 Teamwork 模式 | ...` 状态行。AI 自检根因 = 「相似格式漂移 + 完成时误以为流程退出 + 工程信息密集时压缩成摘要」。本 patch 加 4 条硬规则到 STATUS-LINE.md：(1) Final Response Preflight 4 项 self-check / (2) 禁止相似格式（📍 Teamwork: / Teamwork: / 工程摘要伪装等） / (3) 完成时例外明确化（completed 仍要状态行） / (4) 统一 completed 措辞为「✅ 已完成」。
+
+### P0-66：状态行 Preflight + 禁止替代格式 + completed 例外明确化
+
+- 触发：实战 INFRA-F017 Ship finalize 漏标准状态行 + AI 自检报告 4 条改进建议
+- 设计哲学：**Tier 1 输出红线靠声明不够，要 self-check 机制**。AI 在长对话 / 重要节点（Ship finalize）容易格式漂移，"每次回复必须包含状态标识"声明被压力测试时会失效。preflight 是"发送前必检"机制，比"应该包含"更强
+- 改动：
+  - **P0-66-1. STATUS-LINE.md 加「Final Response Preflight」段**（在状态行规则段末尾）：4 项 self-check（状态行存在 / 在末尾 / 阶段值合法 / 下一步合法）
+  - **P0-66-2. 加「禁止替代格式」反例对比**：3 个 ❌（📍 Teamwork: 摘要 / Teamwork: 口语 / 工程摘要伪装）+ 1 个 ✅，覆盖实战漂移模式
+  - **P0-66-3. 加「功能完成例外明确化」**：completed 状态最后一条回复**仍然必须**带状态行（功能完成 ≠ 流程退出）；退出真正发生在这条之后
+  - **P0-66-4. 统一 completed 措辞**：所有「✅ 已交付」改为「✅ 已完成」（修 L108 / L311 措辞冲突）
+  - **P0-66-5. 版本号 + CHANGELOG**（7.3.10+P0-65 → 7.3.10+P0-66）
+- **加 1 删 1 元规则核算**：
+  - **加**：~30 行（preflight checklist + 反例对比 + 例外说明）
+  - **删**：「✅ 已交付」措辞被替换为「✅ 已完成」（一致性收紧 / 净 ±0）
+  - **不增加 PMO 负担**：preflight 是 PMO 在生成回复时的 self-check（不是新职责段 / 不是新工具调用），认知负担只是"按列表自检 4 项"
+  - **"重新触发回来"防护**：未来 AI 再用 📍 Teamwork: 摘要 → cite STATUS-LINE.md 反例对比段；完成时漏状态行 → cite「功能完成例外」段
+- 实战案例：INFRA-F017 Ship finalize 后 AI 输出 `📍 Teamwork：INFRA-F017 | 阶段：✅ completed | shipped=merged`（自定义字段 / 不标准开头 / 不在末尾）→ 用户指出 → AI 自检 4 条根因建议全部采纳
+- 不动：第一行 / 第二行 / 第三行格式定义（P0-62 + 之前完善）/ 阶段与下一步对照表 / emoji 间隔硬规则
+- 影响面：1 主文件（STATUS-LINE.md +30 行 + 2 处措辞替换）+ 元数据
+- 后续验证：下次 Ship finalize / 任何 completed 回复，AI 应自动按 4 项 preflight 输出标准 3 行状态行。如发现新漂移模式，加进反例对比段
+
+---
+
+## v7.3.10 + P0-65
 
 > v7.3.10+P0-65 Codex 沙箱下 Claude CLI 认证实战指南：用户实证 Codex 主对话宿主下 OAuth 登录态被沙箱屏蔽（沙箱外 `claude auth status` 已登录 / 沙箱内 Not logged in），找到 `CLAUDE_CODE_OAUTH_TOKEN` env var 作为最优解（复用 Pro/Max 订阅 + 跨沙箱稳定 + 不占 API 计费）。本 patch 把这个实战经验加进 claude-agents 文档，并按推荐度排列三种认证方式（A/B/C）。
 

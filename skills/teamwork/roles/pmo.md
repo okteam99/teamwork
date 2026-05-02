@@ -527,37 +527,38 @@ PMO 告知用户：上游 DEP-N 已登记，上游方启动 teamwork 时 PMO 会
 
 📎 老字段（plan_enabled / blueprint_enabled / review_enabled）已在 v7.3.10+P0-38 删除（state.external_cross_review 不再含此三字段）。如发现仍引用此三字段，视为漂移，应改为 `external ∈ review_roles[]` 单源判定。
 
-#### Step 1: PMO 调用探测脚本
+#### Step 1: PMO 直接判定（v7.3.10+P0-72 删探测脚本）
+
+PMO 自报当前主对话宿主（基于自身运行环境，不读项目目录标记）+ 一行 bash 检查候选 CLI 可用性：
 
 ```bash
-python3 {SKILL_ROOT}/templates/detect-external-model.py
+command -v codex   # 候选 1
+command -v claude  # 候选 2
 ```
 
-读 stdout 的 JSON 输出（schema 见 standards/external-model.md §四）。
+应用 E1 同源约束识别异质 CLI（详见 standards/external-model.md §四 PMO 直接判定）。
 
-#### Step 2: PMO 渲染「🌐 外部模型探测」段
+#### Step 2: PMO 渲染「🌐 外部模型判定」段
 
 > 该段必须出现在 PMO 初步分析输出顶部（KNOWLEDGE 扫描之后、流程类型识别之前）。
 
 **有可用候选时**：
 
 ```markdown
-## 🌐 外部模型探测
+## 🌐 外部模型判定
 
 主对话宿主: {host_main_model}
-
 外部 CLI 可用性：
 - {id}    {✅ 可用（运行时需已认证）/ ⚠️ 与主对话同源 / ❌ 未安装}
 - ...
 
 候选外部模型: {available_external 列表}
-推荐: {recommendation}
 ```
 
 **无可用候选时**：
 
 ```markdown
-## 🌐 外部模型探测
+## 🌐 外部模型判定
 
 主对话宿主: {host_main_model}
 候选外部模型: 无（所有候选要么未安装，要么与主对话同源）
@@ -614,8 +615,8 @@ PMO 智能推荐（基于 Feature {规模/风险描述}）：
 ```json
 "external_cross_review": {
   "model": "codex" | "claude" | null,
-  "host_main_model": "{探测结果}",
-  "host_detection_at": "{探测时刻 ISO 8601 UTC}",
+  "host_main_model": "{PMO 自报宿主}",
+  "host_detection_at": "{判定时刻 ISO 8601 UTC}",
   "available_external_clis": ["..."],
   "decided_at": "{ISO 8601 UTC}",
   "decided_by": "user",
@@ -665,7 +666,7 @@ exit code != 0 →
 
 #### 硬规则
 
-- 🔴 PMO 初步分析必须**先调用探测脚本，再渲染「🌐 外部模型探测」段，最后给决策项**，三步不可省略
+- 🔴 PMO 初步分析必须**先自报宿主 + `command -v` 检查 CLI（v7.3.10+P0-72），再渲染「🌐 外部模型判定」段，最后给决策项**，三步不可省略
 - 🔴 默认值（v7.3.10+P0-28）：plan_enabled=false / blueprint_enabled=false / review_enabled=true
 - 🔴 用户未显式选择 → PMO 按 PMO 智能推荐表给出的组合（不再是简单 OFF），note 标注"用户未选择，取 PMO 推荐"
 - 🔴 Review Stage 的外部模型代码评审现在受 review_enabled 控制（v7.3.10+P0-28），但默认 ON 不变

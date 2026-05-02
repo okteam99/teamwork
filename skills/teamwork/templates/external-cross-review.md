@@ -11,7 +11,7 @@
 本模板规范 PMO 如何在"需求与方案阶段"引入**外部模型**作为第 5 视角。
 
 外部模型选择：
-- 由 PMO 在初步分析阶段调用 `templates/detect-external-model.py` 探测可用候选，按用户选择决定
+- 由 PMO 在初步分析阶段直接判定（v7.3.10+P0-72 自报宿主 + `command -v {cli}` 检查）后，按用户选择决定
 - Claude Code 主对话宿主下默认 = Codex（codex-agents/*.toml）
 - Codex CLI 主对话宿主下默认 = Claude（claude-agents/）
 
@@ -55,7 +55,7 @@ PMO 完整决策流见 [roles/pmo.md](../roles/pmo.md) §🌐 外部模型交叉
 
 ```
 🌐 外部模型交叉评审决策（仅影响 Plan / Blueprint Stage；Review Stage 代码审查独立强制）
-├── PMO 探测（detect-external-model.py）→ 可用候选 = [{recommendation}]
+├── PMO 直接判定（v7.3.10+P0-72 自报宿主 + `command -v` 检查 CLI）→ 可用候选 = [{recommendation}]
 ├── 默认值（v7.3.10+P0-28 三处独立）：plan_enabled=false / blueprint_enabled=false / review_enabled=true
 ├── 建议：{开 / 不开}
 ├── 理由：{例：大改动 + 跨子项目 → 建议开；小 bug 修复 + 单文件 → 建议不开}
@@ -72,7 +72,7 @@ PMO 完整决策流见 [roles/pmo.md](../roles/pmo.md) §🌐 外部模型交叉
 "external_cross_review": {
   "enabled": true | false,
   "model": "codex" | "claude" | null,
-  "host_main_model": "{探测结果}",
+  "host_main_model": "{PMO 自报宿主}",
   "host_detection_at": "{ISO 8601 UTC}",
   "available_external_clis": ["..."],
   "decided_at": "{ISO 8601 UTC}",
@@ -169,7 +169,7 @@ Step 2 - Dispatch 外部模型（🔴 宿主无关，按 state.external_cross_re
     Claude Code 主对话 + model=codex: shell 启 codex CLI 子进程（fresh session，调用 codex-agents/*.toml）。
     Codex CLI 主对话 + model=claude: shell 启 claude CLI 子进程（fresh context，按 claude-agents/invoke.md 范本）。
     🔴 禁止："外部视角 = 主对话同模型自审"——必须 shell 调用异质 CLI。
-    可用性检测: PMO 在初步分析时已通过 detect-external-model.py 探测过；本步直接读 state.external_cross_review.{enabled, model}。
+    可用性检测: PMO 在初步分析时已直接判定（v7.3.10+P0-72 自报宿主 + `command -v`）过；本步直接读 state.external_cross_review.{enabled, model}。
     调用失败（exit code != 0） → 走 §六 降级（state.concerns 加 WARN + 降级单视角 review）。
     Dispatch 文件规范: 沿用现有协议，文件名 dispatch_log/{NNN}-external-{model}-review.md。
 
@@ -261,8 +261,7 @@ PMO 写入 `docs/retros/external-cross-review-{YYYY-WW}.md`，核心指标：
 
 | 文件 | 关联 |
 |------|------|
-| [standards/external-model.md](../standards/external-model.md) | 🔴 外部模型概念 + 候选清单 + 同源约束 + PMO 探测 + 调用规范的权威规范 |
-| [templates/detect-external-model.py](./detect-external-model.py) | PMO 在初步分析时调用的探测脚本 |
+| [standards/external-model.md](../standards/external-model.md) | 🔴 外部模型概念 + 候选清单 + 同源约束 + PMO 直接判定 + 调用规范的权威规范 |
 | [stages/goal-plan-stage.md](../stages/goal-plan-stage.md) | Process Contract 已扩展为 5 视角（含外部模型） |
 | [stages/blueprint-stage.md](../stages/blueprint-stage.md) | Process Contract 已新增 Step 5（外部模型交叉评审） |
 | [stages/review-stage.md](../stages/review-stage.md) | 代码外部模型审查在此，不走本模板 |

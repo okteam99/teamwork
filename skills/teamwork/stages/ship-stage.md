@@ -227,6 +227,109 @@ Step 10（完成报告）：
 
 ---
 
+### 🆕 Micro 流程缩简分支（v7.3.10+P0-74 新增）
+
+> Micro 流程的省略**只在前端 5 个 Stage**（Plan / Blueprint / UI / Review / Test）—— 但代码仍要发布。实证（2026-04-30）：Micro 走完用户验收后只有「本地已修改未 commit / 未 push」，用户被迫追问"没 ship 么"才意识到代码没落库。本节定义 Micro 流程进入 Ship Stage 时的分支差异（与 Feature / Bug 共享 Step 1-10 主流程，仅状态承载 / MR 标题 / 第二段元数据范围有差异）。
+
+#### 触发条件
+
+```
+Micro 流程进入 Ship Stage 的前置条件（v7.3.10+P0-74）：
+├── 流程类型 = Micro（PMO 在 triage / Micro 准入条件已确认）
+├── Micro 用户验收已通过（FLOWS.md Micro 链路：用户验收 → ✅ 完成 之间）
+└── PMO 输出 Micro 完成报告（事后审计 + 自查摘要）后自动流转到 Ship Stage 第一段
+```
+
+🔴 **Micro 升级到敏捷 / Feature 后不走本分支**：升级后 state.json 是 Feature 的，按 Feature Ship Stage 执行（无差异）。
+
+#### 与 Feature / Bug Ship 的关键差异
+
+| 维度 | Feature Ship | Bug Ship 缩简版 | Micro Ship 缩简版（v7.3.10+P0-74） |
+|------|-------------|----------------|----------------------------------|
+| 状态承载 | `{Feature}/state.json` | BUG-REPORT.md frontmatter | **主对话 + commit hash**（无 state.json · 无元数据文件） |
+| 状态字段引用 | `state.ship.{phase/shipped/...}` | BUG-REPORT.md frontmatter `{phase/shipped/...}` | **主对话内 phase 字符串描述**（不写盘） |
+| commit message | `F{编号}: Ship Stage - {简述}` | `BUG-{id}: Ship Stage - {简述}` | `micro: {简述}` |
+| MR 标题 | `{type}({scope}): {summary}` | `[Bug] {简述} (BUG-{id})` | `micro: {简述}` |
+| MR 描述 | 完整 AC 覆盖 / Review / 测试报告 | 根因分析 / 修复方案 / QA 验证 | **变更清单（PMO 已有）+ RD 自查摘要 + 验证结果**（主对话内来源） |
+| Step 7 写状态 | 写 state.json | 写 BUG-REPORT.md frontmatter | **不写元数据**（仅完成报告含 commit hash + merge_commit_hash） |
+| Step 8 push 内容 | state.json 一文件 | BUG-REPORT.md 一文件 | **跳过**（无元数据可 push · 红线 #1 不需扩展） |
+| Worktree 清理 | feature worktree | bugfix worktree | **通常无 worktree**（Micro 默认 worktree=off / 用 chore/* 分支直接在主仓） |
+| 完成报告 | Feature 完整 Stage 摘要 | Bug 修复摘要 | Micro 改动摘要 + commit hash + 已合入 origin/{merge_target} 证据 |
+
+#### 各步骤的 Micro 分支差异说明
+
+```
+Step 1（净化）：与 Feature 一致，无差异。
+  - Micro 通常单文件，git status 范围极小，净化几乎不会触发任何动作。
+
+Step 2（push feature）：
+  - feature 分支在 Micro 准入时由 PMO 创建（命名 chore/{micro_id}-{简述}），或直接在当前分支
+  - push 后记录到主对话内（不写 state.json）：commit_hash / pushed_at（仅口头）
+
+Step 3（第一段报告 + ⏸️）：
+  - MR URL 标题用 `micro: {简述}`
+  - MR description 来源（来自主对话）：
+    - 变更清单（PMO 初步分析时已列）
+    - RD 自查摘要（规范符合 + 回归通过）
+    - 验证结果（build / 单测 / 目视确认）
+  - phase 字段：主对话内表述 "shipping"（不写盘）
+
+Step 4-5（合并检测）：与 Feature 一致，无差异。
+  - PMO 在用户告知 "已合 MR" 后执行 `git fetch origin {merge_target}`
+  - `git merge-base --is-ancestor {commit_hash} origin/{merge_target}` 检查
+    ├── exit 0 → 已合入 ✅ → 进 Step 6 完成报告
+    └── exit 1 → 未合入（MR 关闭 / pending / 平台异常）→ 主对话 concerns + 告知用户 + 不进 ✅ 完成
+
+Step 6（切 merge_target）：与 Feature 一致，无差异（仅用于查询 merge_commit_hash）。
+
+Step 7（写最终态）：
+  - 🔴 **跳过**：Micro 无 state.json / 无 BUG-REPORT.md，无元数据载体
+  - phase 状态在主对话完成报告内表述（"shipped" / "merged"）
+
+Step 8（push merge_target）：
+  - 🔴 **跳过**：无元数据文件可 push，红线 #1 Ship Finalize 例外不需要扩展第三类
+  - 业务代码（Micro 的单文件改动）已在 MR 合并时入 merge_target
+
+Step 9（清理 worktree）：
+  - Micro 默认 worktree=off → 跳过本步骤
+  - 若 Micro 用了 chore worktree（极少见 · 用户主动开启）→ 与 Feature 一致清理
+
+Step 10（完成报告）：
+  - 报告对象：Micro 改动
+  - 必含：变更文件清单 / commit hash / merge_commit_hash / 已合入 origin/{merge_target} 证据 / RD 自查摘要 / Micro 事后审计
+  - **不输出** state.json 字段（无）
+```
+
+#### Micro Ship 完成报告模板（v7.3.10+P0-74）
+
+```markdown
+✅ Micro 需求完成
+
+**改动**：
+- {文件}：{摘要}（commit: {commit_hash}）
+
+**发布证据**：
+- MR URL：{mr_url}（已合 ✅）
+- merge_commit_hash：{merge_commit_hash}
+- 已合入 origin/{merge_target}（验证：git merge-base --is-ancestor）
+
+**RD 自查**：
+- 规范符合 ✅ / 已有测试无回归 ✅ / Micro 事后审计 ✅
+```
+
+#### Micro 流程的入口前置依赖（v7.3.10+P0-74）
+
+```
+- 流程类型 = Micro（PMO 已在 triage 完成 Micro 准入条件 5 项检查）
+- 用户验收已通过（FLOWS.md Micro 链路 ✅ 验收）
+- 当前主对话仍在 PMO 角色（RD 身份切换已恢复）
+- worktree=off 时直接当前分支 / worktree=auto 时 chore worktree 已创建
+```
+
+📎 **本分支不改主流程结构**——Step 1-10 全部沿用，仅 Step 7 / Step 8 跳过（无元数据载体）/ MR 标题模板 / Step 9 通常跳过有差异。PMO 在 Stage 入口按 `flow_type` 分支选择即可。
+
+---
+
 ### Step 1：净化（"解决 git 提交的非预期问题"）
 
 切到 feature worktree 内执行 `git status --porcelain`，按以下分类处理：
@@ -325,6 +428,12 @@ git rev-parse "feature/{Feature 全名}"
 
 输出第一段报告（见「第一段报告模板」），然后暂停：
 
+🔴 **MR URL 渲染硬规则（v7.3.10+P0-70）**：
+- MR/PR 创建链接**必须独立成行**输出（裸 URL · 行首行尾 whitespace 边界 · 终端识别为可点击 hyperlink）
+- **禁止挤入 markdown 表格列** — 长 URL 进表格会被列宽切碎多行 / 全角竖线干扰识别 → 用户无法点击
+- 禁止用全角括号或中文标点紧贴 URL（违反 P0-67 路径边界规则）
+- 禁止把 URL 嵌入 markdown 链接语法 `[文字](URL)` 当报告主呈现（链接文本可附加，但 URL 本体仍要独立一行）
+
 ```
 ✅ Ship Stage 第一段完成 - 等待用户在平台合并
 
@@ -332,8 +441,11 @@ git rev-parse "feature/{Feature 全名}"
 - feature 分支已 push: feature/{Feature 全名}
 - feature_head_commit: {abc1234}
 - 净化检查: ✅ 无遗留 commits / 可疑文件
-- MR/PR 创建链接: {mr_create_url}
 - worktree: {worktree.path}（暂保留，待第二段验证合并后清理）
+
+🔗 MR/PR 创建链接：
+
+{mr_create_url}
 
 📋 后续步骤（你需要做的）：
 1. 点击上方 MR/PR 创建链接
@@ -347,6 +459,32 @@ git rev-parse "feature/{Feature 全名}"
 3. ❌ MR 被关闭未合并（进入异常处理）
 4. 其他指示
 ```
+
+❌ **错误示例**（实证 2026-04-30 截图）：
+
+```
+| 项 | 状态 |
+|----|------|
+| feature/F059-... push | ✅ origin (commits ...) |
+| MR 创建链接 | https://git.okok.ai/matrix/vlite/-/merge_requests/new?merge_request%5Bsource_branch%5D=feature%2FF059-relax-package-check |
+| MR 合并状态 | 未合并 |
+```
+→ URL 被表格列宽切成多行 / 全角竖线干扰 / 用户无法直接点击
+
+✅ **正确示例**（spec 默认）：
+
+```
+📦 当前状态：
+- feature 分支已 push: feature/F059-relax-package-check (commits 8c35b83 + 7f03d62)
+- 净化检查: ✅ 无遗留 commits / 可疑文件
+
+🔗 MR/PR 创建链接：
+
+https://git.okok.ai/matrix/vlite/-/merge_requests/new?merge_request%5Bsource_branch%5D=feature%2FF059-relax-package-check
+
+⏳ MR 合并状态: 未合并（git fetch + git log main 仍是 b7763d5）
+```
+→ URL 独立行 · 前后 whitespace 边界 · 终端可点击
 
 **用户选择处理**：
 - **选 1**：进入第二段 finalize（Step 4-7）

@@ -164,7 +164,7 @@ Step 4: /teamwork 命令行参数             ← 🔴 最后，动态入口（L
 
 ```
 读取 SKILL.md frontmatter 的 version 字段：
-├── 找到（当前应为 7.3.10+P0-65）→ SKILL_VERSION = 该值
+├── 找到（当前应为 7.3.10+P0-74）→ SKILL_VERSION = 该值
 └── 缺失 / 无法解析 → SKILL_VERSION = null（降级为全量校验，输出一次 ⚠️ 提示）
 ```
 

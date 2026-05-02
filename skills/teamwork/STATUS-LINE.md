@@ -56,7 +56,7 @@
 ├── state.external_cross_review 任一 *_enabled=true（plan/blueprint/review 任一）→ 在「🔄 Teamwork 模式」/「⚡ AUTO」之后插入「🌐 Ext: {model}」（model = codex / claude）
 ├── 三处 _enabled 全为 false 或字段不存在 → 不插入
 ├── 既有 Feature 仍走 codex_cross_review 字段 → fallback 显示「🌐 Ext: codex」
-└── 触发来源：PMO 在初步分析阶段调用 detect-external-model.py 后用户启用
+└── 触发来源：PMO 在初步分析阶段直接判定（v7.3.10+P0-72 自报宿主 + `command -v` 检查 CLI）后用户启用
 
 第二行（按场景决定）：
 ├── 有明确功能目录 / bugfix 目录 → 必须输出 `📁 {绝对路径}`（🔴 emoji 与路径之间**必须有一个空格**，v7.3.10+P0-62）
@@ -88,8 +88,66 @@
 ├── 🌿 = 已启用 worktree 隔离（安全），📍 = 直接在分支上操作（谨慎）
 ├── ⚡ AUTO 徽章仅在 AUTO_MODE=true 时在第一行显示；默认不显示
 ├── 🌐 Ext 徽章仅在 state.{stage}_substeps_config.review_roles[] 任一含 external 时在第一行显示（v7.3.10+P0-38 改造，不再读老 *_enabled 字段）
-└── 🔴 **emoji 间隔硬规则**（v7.3.10+P0-62）：所有图标（📁 / 🌿 / 📍 / ⚡ / 🌐 / 🔄 / 🔗 / ⏸️ 等）与其后紧随的文字内容之间**必须保留一个半角空格**。例：`📁 /Users/...`（✅）/ `📁/Users/...`（❌ 终端会把 emoji 和路径视为一体，不可点击）
+├── 🔴 **emoji 间隔硬规则**（v7.3.10+P0-62）：所有图标（📁 / 🌿 / 📍 / ⚡ / 🌐 / 🔄 / 🔗 / ⏸️ 等）与其后紧随的文字内容之间**必须保留一个半角空格**。例：`📁 /Users/...`（✅）/ `📁/Users/...`（❌ 终端会把 emoji 和路径视为一体，不可点击）
+├── 🔴 **路径边界硬规则**（v7.3.10+P0-67）：任何**绝对路径前后都必须有 whitespace 边界**（半角空格 / 行首 / 行尾），让终端正确识别 hyperlink。
+│   ├── 路径**前**：emoji + 半角空格（已由 P0-62 规则保证）/ 或行首
+│   ├── 路径**后**：半角空格 / 换行 / 行尾。**禁止全角符号 / 中文字符 / 标点紧贴路径**
+│   ├── ✅ 正确：`📁 /Users/.../PRD.md\n` / `... 见 /Users/.../PRD.md ，请确认。`（路径后半角空格 + 全角逗号）
+│   └── ❌ 错误：`见 /Users/.../PRD.md，请确认`（全角逗号紧贴路径 → 终端把"PRD.md，"识别为整体，链接断裂）/ `路径：/Users/.../PRD.md（待确认）`（全角括号紧贴）
+└── 🔴 **长 URL / 长路径不进表格列硬规则**（v7.3.10+P0-70 实证 ship MR 链接被切碎）：长 URL（含 `?` `&` `=` `%` 等查询参数）/ 长绝对路径，**禁止挤入 markdown 表格列**或 markdown 链接语法 `[文字](URL)`，**必须独立成行裸输出**（前后 whitespace 边界）。
+    ├── 原因：表格列宽切碎多行 / 全角竖线 `|` 干扰识别 → 终端无法识别为可点击 hyperlink
+    ├── ✅ 正确（独立行裸输出）：
+    │   ```
+    │   🔗 MR 创建链接：
+    │
+    │   https://git.example.com/owner/repo/-/merge_requests/new?merge_request%5Bsource_branch%5D=feature%2FX
+    │   ```
+    └── ❌ 错误（挤入表格列）：
+        ```
+        | MR 创建链接 | https://git.example.com/owner/repo/-/merge_requests/new?merge_request%5Bsource_branch%5D=feature%2FX |
+        ```
+        → URL 被列宽切碎 / 全角竖线干扰 / 用户无法点击
 ```
+
+### 🔴 Final Response Preflight（v7.3.10+P0-66 实战补充）
+
+> 触发：实战 case（INFRA-F017 Ship finalize）AI 漏输出标准状态行，用了自定义「📍 Teamwork：...」摘要替代。根因 = 「相似格式漂移 + 完成时误以为流程退出 + 工程信息密集时压缩成摘要」。
+
+**任何 final response 发送前 PMO 必须 self-check 4 项**（缺一即流程偏离）：
+
+```
+✅ Preflight checklist：
+1. 状态行存在？ → 回复中是否含 `🔄 Teamwork 模式` 开头的标准行
+2. 在末尾？ → 状态行物理位置在回复末尾（不在中段、不在开头）
+3. 阶段值合法？ → 「阶段：...」字段在下方「阶段与下一步对照表」中存在
+4. 下一步合法？ → 「下一步：...」字段在对照表「下一步」列存在（不填具体命令 / commit hash / 文件路径）
+```
+
+🔴 **禁止的相似格式**（违反 = 流程偏离）：
+
+```
+❌ 📍 Teamwork：INFRA-F017 | 阶段：✅ completed | shipped=merged
+   （摘要风格 / 不是 🔄 Teamwork 模式 开头 / 用了自定义字段如 shipped=merged）
+
+❌ Teamwork: 流程已完成
+   （口语化 / 不含必填字段）
+
+❌ ✅ Feature 已交付（PR #58675e6 已合并）
+   （工程摘要伪装成状态行）
+
+✅ 🔄 Teamwork 模式 | 流程：敏捷需求 | 角色：PMO | 功能：INFRA-F017-... | 阶段：✅ 已完成 | 下一步：无
+   📁 /Users/.../docs/features/INFRA-F017-.../
+   📍 当前分支：staging → staging（worktree 已清理）
+   （标准 3 行格式 / 含必填字段 / 阶段值在表中）
+```
+
+🔴 **「功能完成」例外明确化**：completed 状态的最后一条回复**仍然必须**带状态行（功能完成 ≠ 流程退出）：
+
+- 阶段：`✅ 已完成`（v7.3.10+P0-66 起单一规范措辞 · 之前散落的「✅ 已交付」措辞 deprecated）
+- 下一步：`无`
+- 第二行 / 第三行按现行规则保留（功能目录路径 + worktree 状态如已清理则注明）
+
+退出真正发生在**这条回复之后**用户输入新无关需求 / `/teamwork exit` / 或对话结束时。
 
 **state.json `current_stage` enum vs 阶段字段语义映射（v7.3.10+P0-55 新增）**：
 
@@ -105,7 +163,7 @@ state.current_stage enum 值 → STATUS-LINE 阶段字段语义
 ├── browser_e2e         → "Browser E2E 中" / "⚡ AUTO 跳过"
 ├── pm_acceptance       → "⏸️ PM 验收（3 选 1）"
 ├── ship                → "净化 + push" / "⏸️ MR 待合并" / "Ship 第二段 finalize 中"
-└── completed           → "✅ 已交付"
+└── completed           → "✅ 已完成"（v7.3.10+P0-66 单一规范 · 替换原「✅ 已交付」）
 ```
 
 🔴 PMO 渲染 STATUS-LINE 时按本表映射 current_stage 到语义化阶段字段，不直接显示 enum 值。

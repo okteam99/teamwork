@@ -1,6 +1,6 @@
 # 外部模型 / External Model 规范（v7.3.10+P0-24 新增）
 
-> **定位**：定义 teamwork 中"外部模型交叉评审"的概念、候选清单、调用规范。**不规定**具体宿主下应该用哪个外部模型——这由 PMO 在初步分析阶段运行时探测后决策，用户在暂停点选定。
+> **定位**：定义 teamwork 中"外部模型交叉评审"的概念、候选清单、调用规范。**不规定**具体宿主下应该用哪个外部模型——这由 PMO 在初步分析阶段直接判定后决策，用户在暂停点选定。
 >
 > **核心思路**（与 v7.3 哲学一致）：
 > - 规范层定义：**有哪些候选 / 什么算合法 / 调用如何进行 / 失败如何降级**
@@ -8,7 +8,7 @@
 >
 > **三条硬规则**：
 > - 🔴 **E1 异质性约束**：外部模型与主对话**必须不同源**（Claude Code 主对话不能用 Claude 做外部）
-> - 🔴 **E2 PMO 运行时探测**：候选可用性由 `templates/detect-external-model.py` 脚本探测，不在 skill 层硬编码"宿主→外部模型"对应表
+> - 🔴 **E2 PMO 直接判定**：主对话宿主由 PMO 自报（PMO 就在宿主里运行，自知），候选 CLI 可用性由一行 bash `command -v {cli}` 检查；不依赖探测脚本（v7.3.10+P0-72 删除目录标记探测脚本）
 > - 🔴 **E3 失败优雅降级**：调用失败（CLI 未认证、网络等）→ state.concerns WARN → 自动降级单视角 review，不阻塞流程
 
 ---
@@ -38,9 +38,9 @@ teamwork 当前支持的候选外部模型：
 | `codex` | OpenAI Codex CLI | `codex` | `codex-cli` |
 | `claude` | Anthropic Claude Code | `claude` | `claude-code` |
 
-未来加新模型（如 Gemini）只需更新 `templates/detect-external-model.py` 中的 `CANDIDATES` 列表，PMO 逻辑无需改动。
+未来加新模型（如 Gemini）只需在本表加一行 + 在 PMO 判定流程的 `command -v {cli}` 步骤里加一行检查，PMO 逻辑无需改动。
 
-🔴 **不在本规范定义"宿主→外部模型"对应表**。具体用哪个候选由 PMO 在运行时根据探测结果 + 用户决策给出。
+🔴 **不在本规范定义"宿主→外部模型"对应表**。具体用哪个候选由 PMO 在运行时根据自身宿主 + CLI 可用性 + 用户决策给出。
 
 ---
 
@@ -52,62 +52,44 @@ teamwork 当前支持的候选外部模型：
 - Codex CLI 主对话宿主下：`codex` 候选**不可用**（自身同源），`claude` 可用
 - 通用 / 未知宿主下：所有候选可用
 
-🟢 **v7.3.10+P0-64 简化**：external_model 由 `detect-external-model.py` 探测 + E1 同源约束自动决定，**用户不可在 localconfig 覆写**。框架不开放该字段，PMO 不读 localconfig 中任何 external_model override。这避免了"用户硬塞同源 = WARN 降级"的虚构边缘场景，规则更简洁。
+🟢 **v7.3.10+P0-64 简化**：external_model 由 PMO 直接判定 + E1 同源约束自动决定，**用户不可在 localconfig 覆写**。框架不开放该字段，PMO 不读 localconfig 中任何 external_model override。这避免了"用户硬塞同源 = WARN 降级"的虚构边缘场景，规则更简洁。
 
 ---
 
-## 四、E2 PMO 运行时探测
+## 四、E2 PMO 直接判定（v7.3.10+P0-72 删除探测脚本）
 
-PMO 在 Feature 流程的**初步分析阶段**调用探测脚本，不在 skill 层硬编码任何环境假设。
+> v7.3.10+P0-72 之前曾有 `templates/detect-external-model.py` 探测脚本，基于项目根的 `.claude/` / `.codex/` / `.agents/` 等**目录标记**判定主对话宿主。实证暴露根本性缺陷：目录标记反映**项目历史**（曾被哪些宿主访问过 / 装过 teamwork skill），不反映**当前对话宿主**。两者经常不一致，导致探测错误（实战 WEB-F028 / Codex 主对话被误判为 claude-code）。
+>
+> 修复方向：宿主探测不该是脚本职责——**PMO 自身就在宿主里运行，自知**。脚本反而是错误信号源。本 patch 直接删脚本，由 PMO 直接判定。同期废止 v7.3.10+P0-71 "Stage 入口重探测"硬规则（再探测错的还是错的，根因是探测方法不可靠）。
 
-### 探测脚本
+PMO 在 Feature 流程的**初步分析阶段**直接判定，三步完成：
 
-**位置**：`{SKILL_ROOT}/templates/detect-external-model.py`
+```
+Step 1: PMO 自报宿主（基于自身运行环境）
+        ├── 主对话是 Claude Code → host_main_model = "claude-code"
+        ├── 主对话是 Codex CLI → host_main_model = "codex-cli"
+        ├── 主对话是 Gemini CLI → host_main_model = "gemini-cli"
+        └── 通用 / 无法识别 → host_main_model = "unknown"
+        🔴 依据当前运行时特征（system prompt / tool 集 / 环境变量），不读项目目录标记
 
-**调用方式**：
+Step 2: 检查候选 CLI 可用性（bash 一行）
+        ├── command -v codex  （exit 0 → codex CLI 已装）
+        ├── command -v claude （exit 0 → claude CLI 已装）
+        └── 未来加候选只需新增一行 command -v {cli}
 
-```bash
-python3 {SKILL_ROOT}/templates/detect-external-model.py [--cwd <project_root>]
+Step 3: 应用 E1 同源约束 + 写 state
+        ├── 剔除与 host_main_model 同源的候选
+        ├── 剩余 → state.external_cross_review.available_external_clis[]
+        └── 写 state.external_cross_review.host_main_model
 ```
 
-**输出**（JSON 到 stdout）：
+### 边界
 
-```json
-{
-  "host_main_model": "claude-code",
-  "candidates_pool": [
-    {
-      "id": "codex",
-      "cli": "codex",
-      "cli_installed": true,
-      "is_homologous_to_host": false,
-      "usable_as_external": true,
-      "reason_unavailable": null,
-      "auth_hint": "需 codex 已 OAuth 登录或 OPENAI_API_KEY 已设"
-    },
-    {
-      "id": "claude",
-      "cli": "claude",
-      "cli_installed": true,
-      "is_homologous_to_host": true,
-      "usable_as_external": false,
-      "reason_unavailable": "与主对话同源（独立性弱，不可作外部模型）",
-      "auth_hint": null
-    }
-  ],
-  "available_external": ["codex"],
-  "recommendation": "codex",
-  "schema_version": "1.0"
-}
-```
+🔴 **PMO 只回答两个确定性问题**：
+1. 主对话宿主是什么（PMO 自报，不查目录标记 / 配置文件）
+2. 候选 CLI 是否在 PATH（一行 `command -v`）
 
-### 探测脚本的设计边界
-
-🔴 **脚本只回答两个确定性问题**：
-1. CLI 是否在 PATH 中（`shutil.which`）
-2. 是否与主对话同源（基于宿主推断）
-
-🔴 **脚本不查 API key**。理由：
+🔴 **不查 API key / OAuth 状态**。理由：
 - Claude Code / Codex CLI 默认走 OAuth，不读对应的 env var
 - shell 子进程环境继承不确定（取决于宿主 bash tool 实现）
 - 配置文件位置多样（`~/.claude/.credentials.json` / `~/.codex/auth.json` 等）
@@ -115,27 +97,35 @@ python3 {SKILL_ROOT}/templates/detect-external-model.py [--cwd <project_root>]
 
 🔴 **认证失败检测延后到运行时**：dispatch 时 shell 调用 CLI 失败 → 捕获 stderr → state.concerns WARN → 降级（见 §六）。
 
+### 跨 session 切宿主的处理
+
+PMO 在每个启用 external 的 Stage 入口实例化时**直接按当前宿主判定**（不读 state 旧值）。state.json 中 `host_main_model` 字段是**历史快照**，不是判定依据：
+
+- Feature 启动时（triage Step 4）写入 host_main_model = 当前 PMO 自报宿主
+- 后续 Stage 入口若 PMO 自报与 state 旧值不一致 → 按当前自报值更新 state + 写 concerns 记录"host_main_model 漂移：{old} → {new}"
+- 主对话显式声明切换："external 候选已切换（{old_model} → {new_model}），主对话宿主从 {old_host} 变为 {new_host}"
+
+🔴 **不依赖任何探测脚本来发现漂移**——PMO 在 Stage 入口本就要自我宿主感知（每次都自知）。这与"探测脚本+缓存"的复杂结构相比，少一层间接、少一类失败模式。
+
 ### PMO 渲染输出
 
-PMO 在初步分析输出中加「🌐 外部模型探测」段，渲染脚本结果：
+PMO 在初步分析输出中加「🌐 外部模型判定」段：
 
 ```markdown
-## 🌐 外部模型探测
+## 🌐 外部模型判定
 
 主对话宿主: claude-code
-
 外部 CLI 可用性：
 - codex     ✅ 可用（运行时需已认证）
 - claude    ⚠️ 与主对话同源，不可作外部模型
 
 候选外部模型: codex
-推荐: codex
 ```
 
 无任何可用候选时：
 
 ```markdown
-## 🌐 外部模型探测
+## 🌐 外部模型判定
 
 主对话宿主: claude-code
 候选外部模型: 无（所有候选要么未安装，要么与主对话同源）
@@ -240,7 +230,7 @@ exit code != 0 →
 | `common.md` | 外部模型不参与代码生成，只参与 review；不影响 TDD / Lint 硬门禁 |
 | `RULES.md` | 调用失败时的 WARN 落盘是闭环验证红线的一部分 |
 | `stages/init-stage.md` | init-stage 只检测主对话宿主，不预设外部模型；外部模型由 PMO 在 triage-stage 运行时探测 |
-| `roles/pmo.md` | PMO 在初步分析时调用探测脚本 + 渲染「🌐 外部模型探测」段 + 决策点呈现 + 失败降级 |
+| `roles/pmo.md` | PMO 在初步分析时直接判定（v7.3.10+P0-72 自报宿主 + `command -v` 检查 CLI）+ 渲染「🌐 外部模型判定」段 + 决策点呈现 + 失败降级 |
 | `STATUS-LINE.md` | 启用外部 review 时 Status Line 显示 `[Ext: {model}]` 徽章 |
 
 ---
@@ -256,4 +246,6 @@ exit code != 0 →
 
 ## 九、版本记录
 
-- v7.3.10+P0-24（首次发布）：定义外部模型语义 + 候选清单 + PMO 运行时探测 + 调用规范 + 失败降级
+- v7.3.10+P0-24（首次发布）：定义外部模型语义 + 候选清单 + PMO 运行时探测（基于探测脚本）+ 调用规范 + 失败降级
+- v7.3.10+P0-71（已废止）：曾加 Stage 入口重探测硬规则（基于探测脚本）—— P0-72 删脚本时一并移除（再探测错的还是错的，根因是脚本不可靠）
+- v7.3.10+P0-72：删除 `templates/detect-external-model.py` 探测脚本，改为 PMO 直接判定（自报宿主 + `command -v` 检查 CLI）；同期废止 P0-71 重探测硬规则

@@ -411,9 +411,10 @@ PM 按 `roles/pm.md` + `templates/prd.md` 起草 PRD 初稿。
 > **PM 起草规范权威源**：[templates/prd.md § PM 起草规范 checklist](../templates/prd.md)（含通用 checklist + UI 用户故事维度 + PRD 不写什么边界 + 起草后自查）。本文件不复述 checklist 全文，避免主对话重复述 3 遍（起草时 + 自查时 + PRD-REVIEW pm_self_check）。
 
 🔴 **PM 起草核心约束**（cite templates/prd.md 简版）：
+- 起草前 grep 关键词 + Read 3-5 个相关核心模块（5-10 min · 只读不输出 brief · v7.3.10+P0-73 新增）
 - PRD 仅回答"做什么 + 为什么"（产品/业务视角）
 - 技术/测试/视觉细节 → TECH.md / TC.md / UI Design Stage（v7.3.10+P0-46 边界）
-- 起草后自查 → 写 `PRD-REVIEW.md.reviews[role=pm].pm_self_check = {checklist_passed: bool, failed_items: [...], notes: "..."}`，不复述 checklist 全文
+- 起草后自查 → 写 `PRD-REVIEW.md.reviews[role=pm].pm_self_check = {checklist_passed: bool, code_context_read: bool, failed_items: [...], notes: "..."}`，不复述 checklist 全文
 
 ---
 

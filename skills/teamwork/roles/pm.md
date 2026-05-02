@@ -21,6 +21,12 @@
 - ✅ 验收标准具体可执行
 - ✅ 前端/客户端功能必须定义用户行为埋点
 
+**🔴 PRD 起草前代码现状 Read（v7.3.10+P0-73 新增 · 防止 PRD 与代码脱节）**：
+- 🔴 起草 PRD 前**必须 grep 关键词 + Read 3-5 个相关核心模块**（5-10 min · 不超过 ~500 行）以建立代码现状感知
+- 🔴 只读不输出 brief（不污染主对话 · 不列文件清单），唯一痕迹 = `pm_self_check.code_context_read: true`
+- 🔴 发现关键约束 / 不确定点 → 写入 PRD「待决策项」段；AC / 影响范围段必须与代码现状契合
+- 📎 详细规范见 [templates/prd.md § 起草前必读：代码现状 Read](../templates/prd.md)
+
 **🔴 PRD 格式权威（v7.3.9+P0-7 新增）**：
 - 🔴 起草 PRD 前**必须 Read `templates/prd.md`** 作为格式 / frontmatter / AC schema 基准
 - 🔴 **禁止**在对话里说"先参考最近一个 Feature 的 PRD 格式"或"照着 F0xx/PRD.md 抄一份"

@@ -1,6 +1,6 @@
 ---
 name: teamwork
-version: 7.3.10+P0-65
+version: 7.3.10+P0-74
 description: Your AI dev team — one AI works as a full team (PMO/PM/Designer/QA/RD/Architect), switching specialist perspectives across 8 quality-gated stages from planning to delivery. Start with /teamwork.
 ---
 
@@ -347,14 +347,14 @@ Subagent dispatch 方式（详见 agents/README.md §四）：
 | [REVIEWS.md](./REVIEWS.md) | Goal-Plan Stage PRD 评审、Blueprint Stage TC 评审、UI 还原验收 | PMO（执行评审前） |
 | [PRODUCT-OVERVIEW-INTEGRATION.md](./PRODUCT-OVERVIEW-INTEGRATION.md) | `product-overview/` 存在且需求涉及产品方向 | PMO/Product Lead |
 | [stages/init-stage.md](./stages/init-stage.md) | 🔴 **会话级 Stage**（v7.3.10+P0-26 升格）：每次 `/teamwork` 启动必读，宿主检测 + SKILL_VERSION 校验 + CLAUDE.md 校验 + 项目空间加载 | PMO |
-| [stages/triage-stage.md](./stages/triage-stage.md) | 🔴 **流程级 Stage**（v7.3.10+P0-26 新增）：用户输入承接 + KNOWLEDGE/ADR 扫描 + 外部模型探测 + 流程类型识别 + 暂停点决策；幂等不持久化 | PMO |
+| [stages/triage-stage.md](./stages/triage-stage.md) | 🔴 **流程级 Stage**（v7.3.10+P0-26 新增）：用户输入承接 + KNOWLEDGE/ADR 扫描 + 外部模型判定 + 流程类型识别 + 暂停点决策；幂等不持久化 | PMO |
 | [CONTEXT-RECOVERY.md](./CONTEXT-RECOVERY.md) | 新对话恢复 / `/teamwork status` / `/teamwork 继续` | PMO |
 | [standards/tdd.md](./standards/tdd.md) | 🔴 **TDD 唯一权威源**（v7.3.10+P0-63）：Iron Law + RED-GREEN-REFACTOR 5 步 + 自检清单 + 反模式 + 例外 + ≥3 次失败升级 | RD + QA Code Review |
 | [standards/common.md](./standards/common.md) | 任何开发阶段（TDD 详见 tdd.md） | RD（主对话或 Subagent，v7.3.9+P0-14 两模式一致） |
 | [standards/backend.md](./standards/backend.md) | 后端开发阶段（TDD 详见 tdd.md） | RD（主对话或 Subagent） |
 | [standards/frontend.md](./standards/frontend.md) | 前端开发阶段（TDD 详见 tdd.md） | RD（主对话或 Subagent） |
 | [standards/prompt-cache.md](./standards/prompt-cache.md) | 🔴 teamwork 自身每 Stage 执行时遵守（v7.3.10+P0-23）：动态内容后置 + 入口 Read 顺序固定化 + state.json 访问 ≤5 次/Stage | PMO（每 Stage 入口引用约束） |
-| [standards/external-model.md](./standards/external-model.md) | 🔴 外部模型交叉评审规范（v7.3.10+P0-24）：候选清单 + 同源约束 + PMO 运行时探测 + 调用规范 + 失败降级 | PMO（初步分析时调用 detect-external-model.py） |
+| [standards/external-model.md](./standards/external-model.md) | 🔴 外部模型交叉评审规范（v7.3.10+P0-24 / +P0-72 PMO 直接判定）：候选清单 + 同源约束 + PMO 直接判定 + 调用规范 + 失败降级 | PMO（初步分析时直接判定宿主 + `command -v` 检查 CLI） |
 | [stages/](./stages/) | Stage 定义（三层级，详见下方「Stage 三层级体系」） | PMO |
 | [agents/README.md](./agents/README.md) | Subagent 执行协议（执行方式速查 + 通用约束 + PMO dispatch 规范 + 主对话产物协议） | PMO |
 

@@ -13,7 +13,7 @@
 | 📎 [backend.md](./standards/backend.md) | 后端集成测试规范、API 接口规范、日志规范（TDD 通用规范见 tdd.md） | **后端 RD** |
 | 📎 [frontend.md](./standards/frontend.md) | 前端测试分层、E2E 测试要求（TDD 通用规范见 tdd.md） | **前端 RD** |
 | 📎 [prompt-cache.md](./standards/prompt-cache.md) | teamwork 自身 prompt 组织规范（v7.3.10+P0-23）：动态内容后置 + 入口 Read 顺序固定化 + state.json 访问 ≤5 次/Stage | **PMO**（每 Stage 入口引用） |
-| 📎 [external-model.md](./standards/external-model.md) | 外部模型交叉评审规范（v7.3.10+P0-24）：候选清单 + 同源约束 + PMO 运行时探测 + 调用规范 + 失败降级 | **PMO**（初步分析时调用 detect-external-model.py） |
+| 📎 [external-model.md](./standards/external-model.md) | 外部模型交叉评审规范（v7.3.10+P0-24 / +P0-72 PMO 直接判定）：候选清单 + 同源约束 + PMO 直接判定 + 调用规范 + 失败降级 | **PMO**（初步分析时自报宿主 + `command -v` 检查 CLI） |
 
 ---
 

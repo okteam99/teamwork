@@ -26,7 +26,7 @@
 | 3 | 主对话有 bash / shell 工具 | Codex CLI 默认支持 |
 | 4 | 网络可达 Anthropic API | 运行时调用失败时捕获处理 |
 
-🔴 PMO 调用 `templates/detect-external-model.py` 时只检查 #1（CLI 安装），不查 #2（认证状态）——因 OAuth 状态无法可靠检测，延后到运行时失败处理（见 [standards/external-model.md](../standards/external-model.md) §六 E3）。
+🔴 PMO 直接判定（v7.3.10+P0-72 自报宿主 + `command -v claude`）只检查 #1（CLI 安装），不查 #2（认证状态）——因 OAuth 状态无法可靠检测，延后到运行时失败处理（见 [standards/external-model.md](../standards/external-model.md) §六 E3）。
 
 ### 认证方式（v7.3.10+P0-65 实战补充）
 
@@ -122,7 +122,7 @@ PMO（在 Codex CLI 主对话内执行）
 
 ## 五、扩展性
 
-未来若需要 Gemini CLI 作为外部模型，会新建 `gemini-agents/` 目录，规范结构与本目录对称。`templates/detect-external-model.py` 的 `CANDIDATES` 列表加一行 `gemini` 即可。
+未来若需要 Gemini CLI 作为外部模型，会新建 `gemini-agents/` 目录，规范结构与本目录对称。在 [standards/external-model.md](../standards/external-model.md) §二候选清单加一行，PMO 判定流程加一行 `command -v gemini` 即可。
 
 ---
 

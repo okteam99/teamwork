@@ -242,7 +242,11 @@ AUTO_MODE=true + Test Stage 完成 + TC.md 含 Browser E2E AC
 | RD 执行改动 | RD 自查 | 🚀自动 | RD 按变更清单主对话直改完成 |
 | RD 自查 | 用户验收 | 🚀自动 | 按 roles/rd.md 自查段执行（规范符合 + 已有测试无回归）|
 | RD 执行改动 / RD 自查 | ⏸️ 升级确认 | ⏸️暂停 | 执行前/中/自查中发现超出 Micro 白名单或隐含逻辑变更 → PMO 输出升级原因 → 用户确认走敏捷或 Feature |
-| 用户验收 | ✅ 已完成 | ⏸️暂停 | 用户手测/目视确认通过 → PMO 完成报告（含事后审计 + 自查摘要）|
+| 用户验收 | Ship Stage 第一段 | 🚀自动 | 用户手测/目视确认通过 → 进 Ship Stage（v7.3.10+P0-74：Micro 走完整 Ship · 详见 stages/ship-stage.md § Micro 流程缩简分支）|
+| Ship Stage 第一段 | ⏸️ 等用户合 MR | ⏸️暂停 | PMO auto-commit + push feature + 创建 MR（标题 `micro: {简述}`）→ 输出 MR URL · 等用户在平台合 MR |
+| ⏸️ 等用户合 MR | Ship Stage 第二段（合入验证） | 🚀自动 | 用户告知 "已合 MR" → PMO 执行 git fetch + git merge-base --is-ancestor 检查合入 |
+| Ship Stage 第二段（合入验证） | ✅ 已完成 | 🚀自动 | git merge-base --is-ancestor 通过 → PMO 完成报告（含事后审计 + 自查摘要 + commit hash + merge_commit_hash + 已合入 origin/{merge_target} 证据）|
+| Ship Stage 第二段（合入验证） | ⏸️ 合入失败 | ⏸️暂停 | git merge-base --is-ancestor exit 1 → MR 关闭 / pending / 平台异常 → PMO concerns + 告知用户 + 不进 ✅ 完成 |
 
 ## 通用特殊状态（适用所有流程）
 

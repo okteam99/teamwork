@@ -36,7 +36,7 @@ codex-cli         claude-cli        ✅ 异质
 codex-cli         codex-cli         ❌ 同源
 ```
 
-init Stage 角色可用性扫描时（detect-external-model.py）必须按异质性筛选，**同源外部模型即使可用也应从 available_roles 剔除 external**。
+triage Stage Step 4 角色可用性扫描时（v7.3.10+P0-72 PMO 直接判定，不再用脚本）必须按异质性筛选，**同源外部模型即使可用也应从 available_roles 剔除 external**。
 
 ---
 
@@ -45,9 +45,9 @@ init Stage 角色可用性扫描时（detect-external-model.py）必须按异质
 `state.available_roles[]` 是否包含 `external` 由 triage Stage Step 4 的角色可用性扫描决定（v7.3.10+P0-38-A 修订自 P0-38）：
 
 ```
-triage Stage Step 4：
-  ├── 探测主对话宿主（host_main_model）
-  ├── 探测可用 CLI（claude-cli / codex-cli）
+triage Stage Step 4（v7.3.10+P0-72 PMO 直接判定）：
+  ├── PMO 自报主对话宿主（host_main_model · 不读项目目录标记）
+  ├── bash `command -v {cli}` 检查可用 CLI（claude / codex）
   ├── 异质性匹配：找到与主对话模型异质的外部 CLI
   ├── 找到 → state.available_roles[] 加 "external"
   │           state.external_cross_review.model = "codex" or "claude"
@@ -196,7 +196,6 @@ Step 4：dispatch + 接收输出 + 校验 schema
 | [claude-agents/reviewer.md](../claude-agents/reviewer.md) | external 角色的 claude CLI 调用 prompt 物化 |
 | [claude-agents/invoke.md](../claude-agents/invoke.md) | external（claude 实例）的 shell 调用范本 |
 | [templates/external-cross-review.md](../templates/external-cross-review.md) | 外部评审 6 项 checklist + 输出 schema 详细模板 |
-| [templates/detect-external-model.py](../templates/detect-external-model.py) | init Stage 调用，判断 external 是否可用 |
 
 ---
 

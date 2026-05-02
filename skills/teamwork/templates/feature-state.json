@@ -282,7 +282,7 @@
     "_host_main_model_enum": "claude-code | codex-cli | unknown",
     "host_detection_at": null,
     "available_external_clis": [],
-    "_available_external_clis_note": "init Stage 调用 detect-external-model.py 后写入；JSON 输出 available_external 数组的拷贝",
+    "_available_external_clis_note": "triage Stage Step 4 PMO 直接判定后写入（v7.3.10+P0-72：自报宿主 + `command -v` 检查 CLI · 已废弃探测脚本）",
     "decided_at": null,
     "decided_by": "user",
     "note": "v7.3.10+P0-38：external 是否启用看各 Stage 入口的 *_substeps_config.review_roles[] 是否含 external，不再有独立开关",
@@ -299,7 +299,7 @@
   },
 
   "available_roles": [],
-  "_available_roles_note": "v7.3.10+P0-38 新增 / +P0-38-A 重定位：triage Stage 角色可用性扫描结果（不在 init 写入）。内部 6 角色固定可用（pl/rd/qa/designer/pmo/architect）；external 由 triage Step 4 调用 detect-external-model.py 探测决定。每次 Feature 启动时实时扫描，反映运行时环境变化（用户中途装/卸 CLI 即生效）。各 Stage 入口实例化时按本数组校验角色合法性。",
+  "_available_roles_note": "v7.3.10+P0-38 新增 / +P0-38-A 重定位 / +P0-72 删脚本：triage Stage 角色可用性扫描结果（不在 init 写入）。内部 6 角色固定可用（pl/rd/qa/designer/pmo/architect）；external 由 triage Step 4 PMO 直接判定（自报宿主 + `command -v` 检查 CLI）决定。每次 Feature 启动时实时扫描，反映运行时环境变化（用户中途装/卸 CLI 即生效）。各 Stage 入口实例化时按本数组校验角色合法性。",
   "_available_roles_example": ["pl", "rd", "qa", "designer", "pmo", "architect", "external"],
 
   "execution_plan_skeleton": {
