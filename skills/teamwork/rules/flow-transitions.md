@@ -6,11 +6,16 @@
 
 ---
 
-## ⚡ auto 模式豁免速查（v7.3.9+P0-11 新增）
+## ⚡ auto 模式豁免速查（v7.3.9+P0-11 新增 / v7.3.10+P0-76 引入 HITL/AFK mode 字段）
 
-> `/teamwork auto [需求]` 开启 AUTO_MODE 后，本表所有 ⏸️暂停 行的默认行为按下列规则调整：
-> - ✅ 未命中强制保留清单 → 按 💡 建议自动推进（输出 `⚡ auto skip` 日志）
-> - 🔴 命中强制保留清单 → 仍 ⏸️，输出「强制保留」提示
+> `/teamwork auto [需求]` 开启 AUTO_MODE 后，本表所有 ⏸️暂停 行按 **mode 字段** 决定行为。
+>
+> 🔴 **mode 字段定义（v7.3.10+P0-76 新增 · 物理化原"强制保留 vs 豁免"二分）**：
+> - **⏸️ HITL**（Human-In-The-Loop）= 当前的"强制保留" → auto 模式**不豁免** · 用户必须显式响应（涉及新业务判断 / 技术分歧 / 破坏性授权 / 红线 / 决策类暂停点）
+> - **⏸️ AFK**（Away-From-Keyboard）= 当前的"豁免" → auto 模式**自动推进**按 💡 建议 + 输出 `⚡ auto skip` 日志（意图已被 auto 命令本身承载，「是否继续 / 恢复 / 启动」类）
+> - 决策类暂停点（详见 [STATUS-LINE.md § 决策点参考文档绝对路径硬规则](../STATUS-LINE.md)的 10 类）⊆ HITL 集合（自动包含 📚 决策参考绝对路径）
+>
+> 🔴 **运行时**：未命中下方 HITL 清单 → AFK · 自动推进；命中 → HITL · 保留 + 输出"强制保留"提示
 
 ### 🔴 元规则：意图承载豁免（P0-11-A 修订）
 
@@ -22,7 +27,7 @@
 🔴 反模式：auto 命令明说"推进到 Blueprint 完成"，却被中间"外部依赖恢复确认"卡住 → 把用户的命令意图当空气
 ```
 
-### 🔴 强制保留清单（即便 AUTO_MODE=true 也必须 ⏸️）
+### 🔴 ⏸️ HITL 清单（强制保留 · 即便 AUTO_MODE=true 也必须 ⏸️）
 
 > 下表按"当前阶段 / 条件"定位，避免行号随文件增删漂移。
 
@@ -50,7 +55,7 @@
 | Micro 流程：PMO 判定升级 → ⏸️ 升级确认 | 规模升级（切 Plan 模式走敏捷或 Feature）|
 | Test Stage 前置确认（立即 / 延后 / 跳过）| 跨 Feature 节奏决策 |
 
-### ✅ 豁免示例（其余 ⏸️ 行默认豁免）
+### ✅ ⏸️ AFK 示例（auto 模式自动推进 · 其余 ⏸️ 行默认 AFK）
 
 - triage-stage → Goal-Plan Stage（环境配置已在 triage 决定）：自动进入
 - 🔗 Goal-Plan Stage → PRD 待确认 → UI Design / Blueprint：按 💡 自动流转
@@ -79,7 +84,7 @@ AUTO_MODE=true + Test Stage 完成 + TC.md 含 Browser E2E AC
   - 手动模式（AUTO_MODE=false）
 ```
 
-📎 完整规则见 `roles/pmo.md`「⚡ auto 模式暂停点豁免规则」+「🟡 Browser E2E auto 默认跳过」章节。
+📎 完整规则见 [roles/pmo-auto-mode.md](../roles/pmo-auto-mode.md)（v7.3.10+P0-94 抽出 · auto 模式 + Browser E2E 默认跳过 · 角色契约 [roles/pmo.md](../roles/pmo.md)）。
 
 ---
 

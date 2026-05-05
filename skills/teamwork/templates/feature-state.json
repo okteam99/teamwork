@@ -30,7 +30,7 @@
       {
         "role": "rd",
         "execution": "subagent",
-        "_role_enum": "pl | rd | designer | qa | pmo（外部模型独立由 external_cross_review.plan_enabled 控制，不在本数组）",
+        "_role_enum": "pl | rd | designer | qa | pmo | architect | external（v7.3.10+P0-86：architect 独立化 · 但架构师不参与 Goal-Plan PRD 评审 · 本字段 architect 仅 Blueprint/Review 子 config 用；external 是否启用看 review_roles[] 是否含 external · 不再用独立 plan_enabled）",
         "_execution_enum": "subagent | main-conversation",
         "_execution_decided_by_pmo": "PMO 智能信号：Feature 文件数 / 跨子项目 / 角色累积上下文价值 / token 预算"
       },

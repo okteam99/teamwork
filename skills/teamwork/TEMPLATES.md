@@ -46,7 +46,7 @@
 - **ui.md** — UI 设计文档
 - **feature-state.json** — Feature 流转状态机（v7.3.2 起，替代原 status.md）
 - **verify-ac.py** — AC↔test 覆盖校验脚本（标准实现）
-- **state-patch.py** — state.json 增量更新工具（v7.3.10+P0-52，支持 set/append/merge-object/set-note/unset + schema 校验 + 原子写，节省 token 成本，详见 roles/pmo.md § state.json 更新优先用 patch 脚本）
+- **state-patch.py** — state.json 增量更新工具（v7.3.10+P0-52，支持 set/append/merge-object/set-note/unset + schema 校验 + 原子写，节省 token 成本，详见 [roles/pmo-state-mgmt.md § 2.5](./roles/pmo-state-mgmt.md)，v7.3.10+P0-96 抽出）
 - **roadmap.md** — 产品执行路线图
 - **project.md** — 子项目业务总览
 - **architecture.md** — 技术架构设计（含 database-schema 等子文档）

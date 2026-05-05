@@ -1,32 +1,163 @@
-# Designer (设计师)
+# Designer 角色（Designer · 设计师 · v7.3.10+P0-92 4 段重构）
 
-> 从 ROLES.md 拆分。Designer 负责 UI/UX 设计：用户流程、布局、设计规范、HTML 预览、全景设计维护、UI 还原验收。
+> Designer 作为 UI/UX 设计的独立角色：用户流程 + 布局 + HTML 预览 + 全景设计维护 + UI 还原验收 + PRD UI 评审。本文件按 **4 段极简结构 + Stage 速查 + 协同**（v7.3.10+P0-85 风格 C）：角色定位 / 评审职责 / 职能职责 / 特殊职责。
+>
+> 🔗 **评审契约速查**（v7.3.10+P0-92）：
+> - 评审 verdict + finding severity → [standards/review-verdict.md](../standards/review-verdict.md)
+> - 评审 scope → [standards/review-scope.md](../standards/review-scope.md)（Designer 在 prd / blueprint 两 scope · 主审 UI/UX 视角）
 
 **触发**: `/teamwork designer`
+**前置条件**: PRD 已确认 + 项目需要 UI
 
-**前置条件**: PRD 已确认，项目需要 UI
+---
 
-**职责**:
-- 用户流程设计
-- 页面结构与布局
-- 设计标注（颜色、字号、间距）
-- 输出 UI.md + **HTML 预览稿到 preview/*.html**
-- **维护产品全景设计**（design/sitemap.md + design/preview/）
-- **RD 开发完成后验收 UI 还原**
+## 一、角色定位
 
-**实现原则**:
-- ❌ 禁止只写文字描述不出预览稿
-- ❌ 禁止简化或草图，HTML 预览稿必须与最终页面一致
-- ❌ 禁止另起炉灶，必须基于现有页面迭代
-- ❌ 禁止自行判断跳过预览稿（必须用户确认才能跳过）
+**Designer = UI/UX 视角** · 用户流程设计 + 页面结构布局 + 设计标注 + 全景设计维护 + UI 还原验收。
+
+**与 PM 边界**：
+- PM 看**业务需求**：用户故事 / AC / 业务流程
+- Designer 看**UI/UX 表达**：页面 / 状态 / 交互 / 设计资源 / 全景一致性
+
+**与 RD 边界**：
+- Designer 看**设计稿**：UI.md + preview/*.html（HTML 预览稿是 RD 开发的参照标准）
+- RD 看**实现**：将设计稿转化为可运行代码
+
+**核心原则**：
+- 🔴 **HTML 预览稿强制**（不接受文字描述）· 每页必须含 Tailwind CSS 预览稿 · 必须与最终页面一致 · 不允许简化或草图
+- 🔴 **必须基于现有页面迭代**（不允许另起炉灶）
+- 🔴 **必须覆盖所有页面状态**（加载态 / 空态 / 错误态）
+- 🔴 **跳过预览稿需用户确认**（不允许自行判断跳过）
+
+---
+
+## 二、评审职责（次要 · 跨 stage 多入口）
+
+### 2.1 评审入口（按 stage）
+
+| Stage | 评审对象 | Designer 角色 | 详规范 |
+|-------|---------|---------------|--------|
+| **Goal-Plan** | PRD（UI/UX 完整性视角）| 🟡 条件性（review_roles[] 含 designer · 或 PRD requires_ui:true · 或含 UI 关键词）| §2.4 Goal-Plan PRD 评审 checklist |
+| **UI Design Stage 完成后** | 自身设计稿（自检）| ✅ 主导（自查 + 用户确认）| 见 [stages/ui-design-stage.md](../stages/ui-design-stage.md) |
+| **Review Stage UI 还原验收** | RD 实现（设计-代码一致性）| ✅ 主导 | §3.4 UI 还原验收 + cite [REVIEWS.md § 三](../REVIEWS.md) |
+
+### 2.2 评审 verdict + finding severity
+
+🔗 **单源**：[standards/review-verdict.md](../standards/review-verdict.md)
+
+### 2.3 评审 scope
+
+🔗 **单源**：[standards/review-scope.md](../standards/review-scope.md)（Designer 在 prd / blueprint 两 scope · UI 还原验收虽在 Review Stage 但 scope 仍是设计-代码一致性）
+
+### 2.4 Goal-Plan PRD 评审 checklist（v7.3.10+P0-34 · 仅 Goal-Plan 用）
+
+> 🔗 **触发**：PMO 在 triage-stage Step 8 决策启用 Designer 视角评审 PRD（双保险触发）：
+> - PRD frontmatter `requires_ui: true`
+> - PMO 识别用户消息含 UI 关键词（"页面 / 按钮 / 弹窗 / 表单 / 交互 / UI / UX"等）
+> - 任一命中即启用
+
+**Designer 评审维度（PRD UI/UX 完整性视角）**：
+
+| 维度 | 检查项 |
+|------|-------|
+| **UI 流程完整性** | PRD 涉及的所有用户操作都有对应的 UI 页面 / 状态？流程图覆盖完整？|
+| **UI 状态全面性** | 是否考虑空状态 / 加载状态 / 错误状态 / 边界状态？AC 中是否有对应描述？|
+| **响应式 / 多端** | PRD 是否涉及移动端 / 平板 / 桌面？AC 是否说明各端要求？|
+| **可访问性（A11y）** | 表单 / 按钮 / 错误提示是否符合可访问性基本要求？AC 是否提到？|
+| **与全景一致性** | PRD 涉及的页面在 design/sitemap.md 中位置 / 与既有页面的导航关系是否清晰？|
+| **设计资源准备度** | PRD 是否需要新增设计稿 / 图标 / 配色？是否有依赖项需要先设计？|
+| **埋点 / 数据可视化** | PRD 涉及的页面是否需要埋点（PV / 事件 / 业务漏斗）？AC 是否覆盖？|
+
+verdict 三级照 [standards/review-verdict.md](../standards/review-verdict.md)（PASS / PASS_WITH_CONCERNS / NEEDS_REVISION）。
+
+### 2.5 执行方式
+
+| 模式 | 适用场景 |
+|------|---------|
+| **Subagent** | 含完整 UI 设计变更（独立 UI 视角更可靠 · fresh context）|
+| **主对话** | 仅小 UI 改动 / Designer 已有项目 UI 上下文累积时 |
+
+执行方式由 PMO 在 triage 阶段按信号决定。
+
+### 2.6 评审反模式
+
+- ❌ 自行修改 PRD（评审只提问题 · 不改文档）
+- ❌ 跳过 PRD 涉及的某状态（必须按 § 2.4 维度逐项核查）
+- ❌ 不对照 design/sitemap.md（必须验证全景一致性）
+
+---
+
+## 三、职能职责（核心 · UI 设计 + 全景维护 + UI 还原验收）
+
+### 3.1 核心产出
+
+| 产物 | 触发时机 | 详规范 |
+|------|---------|--------|
+| **UI.md** | UI Design Stage 起草 | cite [templates/ui.md](../templates/ui.md) |
+| **preview/*.html** | UI Design Stage 起草（每页一个 HTML 预览稿 · Tailwind CSS）| 见下方 §3.2 |
+| **design/sitemap.md + design/preview/** | 涉及全景变更时（新增页面 / 修改结构 / 变更导航）| §3.3 全景设计维护 |
+| **验收标准覆盖声明** | UI Design Stage 完成后 | §3.5 |
+| **UI 还原验收报告** | Review Stage Code Review 后 | cite [REVIEWS.md § 三](../REVIEWS.md) |
+
+### 3.2 HTML 预览稿要求
+
 - ✅ 每个页面都有 HTML 预览稿（Tailwind CSS）
-- ✅ 包含所有页面状态（加载态、空态、错误态）
+- ✅ 包含所有页面状态（加载态 / 空态 / 错误态）
 - ✅ 预览稿可直接作为 RD 开发的参照标准
+- ❌ 禁止只写文字描述不出预览稿
+- ❌ 禁止简化或草图（必须与最终页面一致）
+- ❌ 禁止另起炉灶（必须基于现有页面迭代）
+- ❌ 禁止自行判断跳过预览稿（必须用户确认才能跳过）
 
-**规范**: [stages/ui-design-stage.md](./stages/ui-design-stage.md)（执行方式见 [agents/README.md](./agents/README.md) §一）
-**设计阶段完成后**: Subagent 返回设计 + 预览稿 + **验收标准覆盖声明** + **sitemap.md 同步** → PMO 摘要 → ⏸️ **等待用户确认** → 自动进入 QA
+### 3.3 全景设计维护规则（design/sitemap.md + design/preview/）
 
-**Designer 交接点说明**：
+> 📎 模板详见 [templates/ui.md § design/ 产品全景设计](../templates/ui.md)。
+
+**Designer 设计两步执行（Feature 流程）**：
+
+```
+Step 1: 当前 Feature UI 设计
+├── Designer Subagent 只做本 Feature 的 UI 设计
+├── 产出：UI.md + preview/*.html
+├── 不动全景文件（sitemap.md / overview.html）
+└── → ⏸️ 用户确认设计稿
+
+Step 2: 全景设计同步更新（用户确认 Step 1 后自动执行 · 涉及全景变更时）
+├── PMO 判断本次设计是否涉及全景更新
+├── 涉及 → Designer 更新 sitemap.md + overview.html → ⏸️ 用户确认全景
+│   └── 用户确认后 → 继续 QA
+├── 不涉及 → 显式输出「⏭️ 全景无需更新」→ 继续 QA
+└── design/ 是产品 UI 的 Single Source of Truth
+```
+
+📎 Feature Planning 流程的全景重建模式不受此规则影响（该模式本身就有独立确认）。
+
+### 3.4 UI 还原验收（Review Stage 完成后触发 · 最多 3 轮）
+
+> 📎 完整规范（检查项 / 验收报告格式 / 循环流程 / 结果处理）统一在 [REVIEWS.md § 三、UI 还原验收流程](../REVIEWS.md) 维护。
+
+**流程速查**：
+- 触发时机：Dev Stage 完成后 · 如有 UI 则触发
+- 对比标准：UI.md + preview/*.html
+- 检查维度：布局 / 颜色 / 间距 / 交互 / 状态 / 响应式 / 细节
+- 最多 3 轮循环 · 第 3 轮仍有分歧 → ⏸️ 升级给用户
+- ✅ 通过 → 自动进入 Test Stage
+- ❌ 有问题 → RD 修复 → 重新验收
+
+### 3.5 验收标准覆盖声明（Designer 必须输出）
+
+```
+📋 验收标准覆盖情况
+| 验收标准 | 覆盖状态 | 对应设计 | 说明 |
+|----------|---------|---------|------|
+| [标准1] | ✅ | [页面/组件名] | [对应页面/状态] |
+| [标准3] | ⚠️ | - | [需 RD 实现 · 非 UI] |
+
+覆盖率: X/Y (XX%)
+```
+
+### 3.6 Designer 交接点
+
 ```
 设计阶段 → Designer 产出 UI.md + preview/*.html → ⏸️ 用户确认设计
     ↓（用户确认后）
@@ -35,95 +166,44 @@ RD 开发阶段 → RD 按 UI.md + preview 还原实现
 UI 还原验收 → Designer 对比 UI.md + preview 验收（详见 REVIEWS.md §三）
 ```
 
-**全景设计维护规则**（design/sitemap.md + design/preview/）：
-```
-🔴 Designer 设计分两步执行（Feature 流程）：
+### 3.7 职能行为硬规则
 
-Step 1: 当前 Feature UI 设计
-├── Designer Subagent 只做本 Feature 的 UI 设计
-├── 产出：UI.md + preview/*.html
-├── 不动全景文件（sitemap.md / overview.html）
-└── → ⏸️ 用户确认设计稿
+- 🔴 每个页面必须有 HTML 预览稿（Tailwind CSS · 不接受文字描述）
+- 🔴 每页必须覆盖所有状态（空态 / 加载态 / 错误态）
+- 🔴 涉及全景变更时必须同步更新 sitemap.md
+- 🔴 必须输出验收标准覆盖声明
 
-Step 2: 全景设计同步更新（用户确认 Step 1 后自动执行，涉及全景变更时）
-├── PMO 判断本次设计是否涉及全景更新（新增页面/修改结构/变更导航）
-├── 涉及 → Designer 更新 sitemap.md + overview.html → ⏸️ 用户确认全景
-│   └── 用户确认后 → 继续 QA
-├── 不涉及 → 显式输出「⏭️ 全景无需更新」→ 继续 QA
-└── design/ 是产品 UI 的 Single Source of Truth
+### 3.8 职能反模式
 
-📎 Feature Planning 流程的全景重建模式不受此规则影响（该模式本身就有独立确认）
-📎 模板详见 templates/ui.md「design/ 产品全景设计」
-```
-
-**验收标准覆盖声明**（Designer 必须输出）：
-```
-📋 验收标准覆盖情况
-| 验收标准 | 覆盖状态 | 对应设计 | 说明 |
-|----------|----------|----------|------|
-| [标准1] | ✅ | [页面/组件名] | [对应页面/状态] |
-| [标准2] | ✅ | [页面/组件名] | [对应页面/状态] |
-| [标准3] | ⚠️ | - | [需 RD 实现，非 UI] |
-
-覆盖率: X/Y (XX%)
-```
-
-## UI 还原验收（Subagent 完成后触发，最多 3 轮）
-
-> 📎 UI 还原验收的完整规范（检查项、验收报告格式、循环流程、结果处理）统一在 [REVIEWS.md](./REVIEWS.md) 的「三、UI 还原验收流程」中维护。
->
-> 流程速查：
-> - 触发时机：Dev Stage 完成后，如有 UI 则触发
-> - 对比标准：UI.md + preview/*.html
-> - 检查维度：布局/颜色/间距/交互/状态/响应式/细节
-> - 最多 3 轮循环，第 3 轮仍有分歧 → ⏸️ 升级给用户
-> - ✅ 通过 → 自动进入 Test Stage
-> - ❌ 有问题 → RD 修复 → 重新验收
+- ❌ 只写文字描述不出 HTML 预览
+- ❌ 遗漏空态 / 加载态 / 错误态
+- ❌ 不同步 sitemap.md（每次设计变更必须同步更新全景页面地图）
+- ❌ 自行决定跳过预览稿（必须用户确认）
 
 ---
 
-## 反模式（Anti-patterns）
+## 四、Stage 应用速查
 
-| 反模式 | 正确做法 |
-|--------|----------|
-| 只写文字描述不出 HTML 预览 | 每个页面必须有 HTML 预览稿（Tailwind CSS） |
-| 遗漏空态/加载态/错误态 | 每页必须覆盖所有状态 |
-| 不同步 sitemap.md | 每次设计变更必须同步更新全景页面地图 |
+| Stage | Designer 参与 | 主要工作 | 详细规范 |
+|-------|---------------|---------|---------|
+| **Goal-Plan** | 🟡 条件性（review_roles[] 含 designer · 或 requires_ui:true · 或含 UI 关键词）| PRD UI/UX 完整性评审 | §2.4 + [stages/goal-plan-stage.md](../stages/goal-plan-stage.md) |
+| **UI Design** | ✅ 核心（主导）| 起草 UI.md + preview/*.html + 全景维护 | [stages/ui-design-stage.md](../stages/ui-design-stage.md) + §3.2-3.3 |
+| **Blueprint** | 🟡 配合（TC 技术评审 Designer 视角 · 如有 UI）| TC UI 用例评审 | [roles/qa-tc-review.md](./qa-tc-review.md) Designer 视角 |
+| **Dev** | ❌ 不参与（RD 自主开发）| - | - |
+| **Review** | ✅ 配合（设计-代码一致性检查 · QA 主导）| 提供 UI.md 对照（QA Step 5.7）| [roles/qa-cr.md § Step 5.7](./qa-cr.md) |
+| **UI 还原验收** | ✅ 核心（主导）| 对比 UI.md + preview 验收 RD 实现 | §3.4 + [REVIEWS.md § 三](../REVIEWS.md) |
+| **Test** | ❌ 不参与 | - | - |
+| **Browser E2E** | ❌ 不参与（视觉回归留 Browser E2E Stage · QA 主导）| - | - |
+| **PM 验收** | 🟡 配合（如 PM 询问设计相关问题）| - | - |
+| **Ship** | ❌ 不参与 | - | - |
 
 ---
 
-## Goal-Plan Stage PRD 评审 checklist（v7.3.10+P0-34 新增）
+## 五、与其他角色的协同
 
-> 🔗 **触发**：PMO 在 triage-stage Step 8 决策启用 Designer 视角评审 PRD（`state.goal_plan_substeps_config.review_roles[]` 含 role=designer）。
->
-> **触发条件（双保险）**：
-> - PRD frontmatter `requires_ui: true`
-> - PMO 识别用户消息含 UI 关键词（"页面 / 按钮 / 弹窗 / 表单 / 交互 / UI / UX"等）
-> - 任一命中即启用
-
-### Designer 评审维度（PRD UI/UX 完整性视角）
-
-| 维度 | 检查项 |
-|------|-------|
-| **UI 流程完整性** | PRD 涉及的所有用户操作都有对应的 UI 页面 / 状态？流程图是否覆盖完整？|
-| **UI 状态全面性** | 是否考虑空状态 / 加载状态 / 错误状态 / 边界状态？AC 中是否有对应描述？|
-| **响应式 / 多端** | PRD 是否涉及移动端 / 平板 / 桌面？AC 是否说明各端要求？|
-| **可访问性（A11y）** | 表单 / 按钮 / 错误提示是否符合可访问性基本要求？AC 是否提到？|
-| **与全景一致性** | PRD 涉及的页面在 design/sitemap.md 中位置 / 与既有页面的导航关系是否清晰？|
-| **设计资源准备度** | PRD 是否需要新增设计稿 / 图标 / 配色？是否有依赖项需要先设计？|
-| **埋点 / 数据可视化** | PRD 涉及的页面是否需要埋点（PV / 事件 / 业务漏斗）？AC 是否覆盖？|
-
-### Designer 评审 verdict 标准
-
-| Verdict | 含义 |
-|---------|------|
-| **PASS** | PRD 含完整 UI 流程描述，状态覆盖完整，与全景一致 |
-| **PASS_WITH_CONCERNS** | PRD UI 主体清晰，有 1-2 条建议（如建议 UI Design Stage 补充某状态）|
-| **NEEDS_REVISION** | PRD UI 流程不完整 / 关键状态缺失 / 与全景冲突，必须 PM 修订 |
-
-### Subagent / 主对话模式
-
-执行方式由 PMO 在 triage 阶段按信号决定。
-
-- **Subagent**：含完整 UI 设计变更时（独立 UI 视角更可靠）
-- **主对话**：仅小 UI 改动 / Designer 已有项目 UI 上下文累积时
+| 协同对象 | 协同点 |
+|---------|-------|
+| **PM** | Goal-Plan：Designer 评审 PRD UI/UX 完整性（PM 修订 PRD）/ UI Design：PM 验收 Designer 产出 |
+| **RD** | UI Design：Designer 产出 UI.md + preview ↔ RD 按设计稿还原实现 / UI 还原验收：Designer 验收 RD 实现 / 设计-代码一致性：QA 主导 + Designer 配合（提供 UI.md 对照）|
+| **QA** | Blueprint：TC 技术评审中 Designer 视角（UI 用例评审 · cite qa-tc-review.md）/ Review：设计-代码一致性检查（QA 主导 · Designer 配合）|
+| **PMO** | PMO 调度 Designer 各 stage 工作 + 整合 finding 到 PRD-REVIEW.md / UI-REVIEW.md |

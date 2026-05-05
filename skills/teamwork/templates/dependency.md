@@ -21,7 +21,7 @@
 └── 上游方与消费方对齐接口后 → 填「接口定义」段 + 更新状态流转
 ```
 
-📎 详见 [roles/pmo.md § 跨项目依赖识别](../roles/pmo.md#-跨项目依赖识别pmo-专属v739p0-8-新增)
+📎 详见 [roles/pmo-cross-project.md § 一 跨项目依赖识别](../roles/pmo-cross-project.md)（v7.3.10+P0-95 抽出 · 角色契约 [roles/pmo.md](../roles/pmo.md)）
 
 ---
 

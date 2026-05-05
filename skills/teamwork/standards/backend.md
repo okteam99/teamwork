@@ -5,6 +5,20 @@
 
 ---
 
+## 模块设计判定（v7.3.10+P0-78 借鉴 mattpocock/skills improve-codebase-architecture）
+
+🔴 **统一架构词汇**：使用 [templates/knowledge.md § Glossary 通用架构词汇](../templates/knowledge.md) 的 8 词（Module / Interface / Depth / Seam / Adapter / Leverage / Locality / Boundary）。**禁止**在主对话 / TECH.md 自创"组件 / 服务 / 层"等同义异形词。
+
+🔴 **"删除测试" 启发式**：判断模块是否 shallow（浅层 · 该删）—— 删掉它后复杂度消失？还是分散到 N 个调用点？
+- 复杂度消失 → 模块设计好（深模块 · 高 leverage · 保留）
+- 复杂度分散到 N 个调用点 → shallow module · 应删除并 inline 到调用方
+
+🔴 **"两个 adapter 才抽象"**：第一次出现适配需求 = 写 inline 一次性代码；第二次重复 = 抽象成 Seam（独立 Interface · 加到 KNOWLEDGE Glossary）。**禁止 1 次就抽象**（过度设计警报）。
+
+📎 详见 [templates/knowledge.md § "删除测试"启发式](../templates/knowledge.md)（单源）。
+
+---
+
 ## 一、后端测试规范（TDD 强制执行）
 
 **覆盖率要求**: > 80%
@@ -622,9 +636,9 @@ try {
 | 阶段 | 规范位置 | 使用术语 | 验证重点 | database-schema.md 操作 |
 |------|----------|---------|---------|------------------------|
 | TECH.md 编写 | — | Schema 影响分析 | 列出所有受影响 Model/Struct 和 SQL | — |
-| Blueprint Stage 架构师方案评审 | roles/rd.md §架构师方案评审规范 | Schema 影响分析完整性 | 验证分析是否遗漏（独立 grep 对照） | 🔴 更新设计层（表结构、ER 图、设计原则） |
+| Blueprint Stage 架构师方案评审 | roles/architect-tech-review.md（v7.3.10+P0-90 抽出 · 角色契约 roles/architect.md） | Schema 影响分析完整性 | 验证分析是否遗漏（独立 grep 对照） | 🔴 更新设计层（表结构、ER 图、设计原则） |
 | RD 开发 | stages/dev-stage.md §RD 角色任务规范 | Schema 同步验证 | 代码是否已按影响分析表同步 | — |
-| 架构师 Code Review | stages/review-stage.md §架构师 CR 任务规范 | Schema 同步验证 | 代码变更是否与影响分析表一致 | 🔴 补充实现层（Model 映射、SQL 引用点） |
+| 架构师 Code Review | roles/architect-cr.md（v7.3.10+P0-87 抽出 · 角色契约 roles/architect.md） | Schema 同步验证 | 代码变更是否与影响分析表一致 | 🔴 补充实现层（Model 映射、SQL 引用点） |
 | 集成测试 | stages/test-stage.md §集成测试任务规范 | 迁移 + ORM 映射验证 | 运行时验证迁移可执行 + ORM/SQL 映射正确性 | — |
 
 > 📎 各阶段术语不同是因为验证角度不同，但校验基准统一为 TECH.md「Schema 影响分析」表。

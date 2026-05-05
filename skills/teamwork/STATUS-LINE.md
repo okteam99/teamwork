@@ -167,6 +167,124 @@ state.current_stage enum 值 → STATUS-LINE 阶段字段语义
 ```
 
 🔴 PMO 渲染 STATUS-LINE 时按本表映射 current_stage 到语义化阶段字段，不直接显示 enum 值。
+
+---
+
+### 🔴 决策点参考文档绝对路径硬规则（v7.3.10+P0-75 实战补充）
+
+> 触发：实战 case（AND-F062 Review QUALITY_ISSUE 决策点）PMO 给了 4 个选项 + 推荐理由，但**没列做这个决策需要参考的文档绝对路径**（REVIEW.md / external-cross-review/*.md / 涉及代码文件）。用户被迫凭记忆找路径或盲信摘要做决策。同 case 还出现代码文件被错误包成 `[file.java](http://file.java)` markdown 链接 → 指向虚假 URL → 不可点击。
+
+🔴 **决策类暂停点必须含「📚 决策参考」段**，列出参考文档 / 代码文件的**绝对路径**，让用户直接 drill-down 到 evidence。
+
+🔴 **与 mode 字段的关系（v7.3.10+P0-76）**：决策类暂停点 ⊆ **⏸️ HITL** 集合（auto 模式不豁免 + 必含 📚 决策参考）；非决策类暂停点 ⊆ **⏸️ AFK** 集合或部分 HITL（详见 [rules/flow-transitions.md § ⏸️ HITL 清单 / AFK 示例](../rules/flow-transitions.md)）
+
+#### 决策类暂停点清单（必须列 references · 全部归 HITL）
+
+```
+1. Review Stage QUALITY_ISSUE 决策（A/B/C/D 修哪些 finding）
+   📚 必含：REVIEW.md / external-cross-review/review-external-{model}.md（如启用）/ 涉及代码文件 / 涉及测试文件
+2. PRD 评审 verdict（PASS / NEEDS_REVISION / 用户对 finding 的处理）
+   📚 必含：PRD.md / PRD-REVIEW.md / 相关 KNOWLEDGE / ADR
+3. 流程类型识别歧义（多候选 / Bug 升级 Feature / Micro 升级敏捷）
+   📚 必含：BUG-REPORT.md（Bug 流程）/ 用户原始消息引用 / 准入条件检查表
+4. 评审组合智能推荐用户改选
+   📚 必含：roles/pmo.md 智能推荐表 / 上一轮 PRD-REVIEW.md 的 finding 密度
+5. PL-PM 业务方向分歧（discuss）
+   📚 必含：PRD-REVIEW.md.reviews[role=pl].pl_rounds[] / product-overview.md / 相关 ADR
+6. PM 验收三选项
+   📚 必含：PRD.md / TC.md / 测试报告 / Browser E2E 截图（如适用）
+7. Stage 入口偏差判定（Goal-Plan / Blueprint / Review 推荐组合需调整）
+   📚 必含：state.json.execution_plan_skeleton.stages[] / 上一 Stage 产物
+8. 升级确认（Micro → 敏捷 / Bug 简单 → Bug 复杂 / 敏捷 → Feature）
+   📚 必含：当前流程的入口准入条件 / 触发升级的具体 finding
+9. ADR 候选方案选择（Blueprint Stage 触发 ADR 时）
+   📚 必含：相关历史 ADR / 候选方案对比段（在 PRD 或 TECH 内）
+10. 技术评审分歧（Blueprint Stage TECH 评审 NEEDS_REVISION）
+    📚 必含：TECH.md / TECH-REVIEW.md / 涉及 ARCHITECTURE.md 段
+```
+
+#### 非决策类暂停点（不强制列 references）
+
+```
+- ok / 反馈 二选一（继续 / 不继续）
+- 用户手测验收（Micro / 简单 Bug）
+- push 失败降级 2 选 1
+- 等待外部依赖恢复 / 外部依赖已就绪
+- 简单流程类型确认（用户消息已明确 · 无歧义）
+```
+
+#### 渲染规范
+
+🔴 **格式**（紧跟 ⏸️ 决策点选项之后 / 状态行之前）：
+
+```
+⏸️ 决策点（请回数字）
+1. 💡 ...
+2. ...
+3. ...
+4. 其他指示
+
+📚 决策参考（点击查看）：
+{emoji} {绝对路径}
+{emoji} {绝对路径}
+...
+```
+
+🔴 **emoji 约定**：
+- `📄` 规范文档 / 评审产物（PRD.md / TC.md / TECH.md / REVIEW.md / PRD-REVIEW.md / external-cross-review/*.md / BUG-REPORT.md）
+- `📝` 代码文件 / 测试文件（*.java / *.ts / *.py / *_test.go 等）
+- `🔗` MR URL / 外部链接（含 `?` `=` `%` 查询参数的长 URL · 仍须独立成行）
+
+🔴 **路径规范**（继承 P0-67 / P0-70）：
+- 必须**绝对路径**（以 `/` 开头）
+- 路径**前后** whitespace 边界（emoji + 半角空格 + 路径 + 换行）
+- ❌ **禁止用 markdown 链接语法包裹**：`[REVIEW.md](http://REVIEW.md)`（实战漂移产物 · 终端会指向虚假 URL · 不可点击）
+- ❌ **禁止只写文件名 / 相对路径**：`📄 REVIEW.md`（用户不知道是哪个 worktree / 哪个 Feature）
+- ❌ **禁止挤入表格列**（继承 P0-70 路径不进表格列规则）
+
+#### 正反例
+
+❌ **错误（实战 AND-F062 case）**：
+```
+⏸️ 决策点（请回数字）
+1. 💡 追认方案 A + RD 修测试 bug + 提交
+2. 重新审视 QUALITY_ISSUE 改选 B / C / D
+3. 进 worktree 让我自己看看代码再决定
+4. 其他指示
+```
+（无参考路径 · 用户做不了 informed decision · PMO 摘要黑盒）
+
+❌ **错误（markdown 链接漂移）**：
+```
+- [VpnAppExclusionPolicy.java](http://VpnAppExclusionPolicy.java)：加 cap...
+```
+（指向虚假 http URL · 终端不可点击 · 失去绝对路径定位）
+
+✅ **正确**：
+```
+⏸️ 决策点（请回数字）
+1. 💡 追认方案 A + RD 修测试 bug + 提交
+   📝 推荐理由：代码逻辑符合建议、改动范围合理...
+2. 重新审视 QUALITY_ISSUE 改选 B / C / D
+3. 进 worktree 让我自己看看代码再决定
+4. 其他指示
+
+📚 决策参考（点击查看）：
+📄 /Users/.../docs/features/AND-F062-.../REVIEW.md
+📄 /Users/.../docs/features/AND-F062-.../external-cross-review/review-external-claude.md
+📝 /Users/.../android/.../VpnAppExclusionPolicy.java
+📝 /Users/.../android/.../VpnAppExclusionPolicyTest.java
+```
+
+#### 实施约束
+
+🔴 **PMO 在决策类暂停点 self-check**（Final Response Preflight 4 项之外的扩展）：
+- 决策类暂停点 → 必含「📚 决策参考」段
+- 路径绝对（不是相对 / 不是文件名）
+- 路径独立成行（不挤表格 / 不包 markdown 链接语法）
+- 路径前后 whitespace 边界
+
+违反 = 流程偏离（用户被迫盲选 · 决策质量受损）。
 ```
 
 **⚡ AUTO 徽章示例**（v7.3.9+P0-11）：

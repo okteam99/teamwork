@@ -42,7 +42,8 @@
 |---------|-------|---------|---------|
 | `merge_target` | staging（localconfig 配置）| `state.environment_config.merge_target` | triage Step 7.5 探测决策 |
 | `git_host` | 自动识别（GitHub / GitLab / Gitee / Bitbucket / 未知）| `state.ship.git_host` | 第一段 push 时识别 |
-| `mr_create_url` | 自动按平台模板生成（未知 host 时为 null + concerns 标注）| `state.ship.mr_create_url` | 第一段 push 末段 |
+| `mr_url` / `mr_create_url` | v7.3.10+P0-99：CLI 优先（gh/glab）实际创建 → mr_url；CLI 不可用 → URL 兜底 mr_create_url | `state.ship.mr_url` / `state.ship.mr_create_url` | 第一段 push 末段 |
+| `mr_creation_method` | enum: `cli-gh` / `cli-glab` / `url-fallback` / `unknown-platform`（v7.3.10+P0-99）| `state.ship.mr_creation_method` | 第一段 push 末段 |
 | `worktree_cleanup` | cleaned / deferred / n_a（按 worktree mode 决策）| `state.ship.worktree_cleanup` | 第二段 finalize |
 | Bug 简化分支（v7.3.10+P0-36）| 仅 Bug 流程触发 | spec 内嵌 | 流程类型判断 |
 | `merge_target` push 边界 | 第二段 finalize 仅允许 state.json / BUG-REPORT.md 一文件（红线 #1 例外）| spec 内嵌硬规则 | 第二段 finalize |
@@ -57,7 +58,8 @@
 
 ```
 ├── {SKILL_ROOT}/stages/ship-stage.md（本文件）
-├── {SKILL_ROOT}/roles/pmo.md（PMO Ship Stage 职责段）
+├── {SKILL_ROOT}/roles/pmo.md（PMO 角色契约）
+├── {SKILL_ROOT}/roles/pmo-pm-acceptance-ship.md（PMO PM 验收 + Ship Stage 详规范 · v7.3.10+P0-93 抽出）
 ├── {Feature}/state.json（读 worktree.path / worktree.branch / ship.merge_target）
 ├── 项目根 .teamwork_localconfig.md（读 merge_target / mr_url_template / worktree_cleanup）
 └── 项目根 .gitignore（净化判断白名单/灰名单时参考）
@@ -83,7 +85,7 @@
 🔴 按以下顺序 Read，字节一致利于 prompt cache 命中。详见 [standards/prompt-cache.md](../standards/prompt-cache.md)。
 
 ```
-Step 1: roles/pmo.md（Ship Stage 职责段）              ← 角色层（L0 稳定）
+Step 1: roles/pmo.md + roles/pmo-pm-acceptance-ship.md  ← 角色层（L0 稳定 · v7.3.10+P0-93 sub-file）
 Step 2: 无产出新模板                                    （本 Stage 仅 push + 生成 MR URL）
 Step 3: 项目根 .teamwork_localconfig.md, .gitignore   ← 项目层（L1 稳定）
 Step 4: {Feature}/state.json                           ← 🔴 最后，动态入口（L3）
@@ -360,7 +362,7 @@ node_modules/  # 仅当项目 .gitignore 已包含时
 
 🔴 **灰名单默认策略 = A（报告但不动，用户决定）**：PMO 不得自行 commit 或删除灰名单文件。在完成报告里以 ⚠️ 列出，由用户后续决定处理。
 
-### Step 2：push feature 分支 + 生成 MR create URL
+### Step 2：push feature 分支 + 创建 MR/PR（v7.3.10+P0-99：CLI 优先 + URL 兜底）
 
 #### 2.1 push feature
 
@@ -392,7 +394,58 @@ git remote get-url origin
 | `https://bitbucket.org/{owner}/{repo}.git` | `bitbucket` |
 | 其他 | `unknown` |
 
-#### 2.3 生成 MR create URL
+#### 2.3 创建 MR/PR — CLI 优先 + URL 兜底（v7.3.10+P0-99 重构）
+
+> 🟢 **设计意图**：用户实战反馈 "希望直接拿到已创建的 MR URL · 不要让我再点 create 链接"。
+>
+> 优先级：**Tier 1 CLI 实际创建 → Tier 2 URL 兜底链接**。CLI 失败时 PMO **诊断 + 提示用户处理环境** · 用户决定重试或走 URL 兜底 · PMO 不静默降级。
+
+##### 2.3.1 Tier 1：CLI 优先创建（gh / glab）
+
+按 git host 选择 CLI：
+
+| host | CLI | 命令模板 |
+|------|-----|---------|
+| github | `gh` | `gh pr create --base {merge_target} --head {feature_branch} --fill --body-file {Feature}/PR-BODY.md`（无 PR-BODY 时 `--fill`）|
+| gitlab / gitlab-self-hosted | `glab` | `glab mr create --target-branch {merge_target} --source-branch {feature_branch} --fill`（gitlab-self-hosted 需 `glab auth login --hostname {self_hosted_domain}` 已配置）|
+| gitee / bitbucket / unknown | （无标准 CLI tier）| 直接走 § 2.3.2 URL 兜底 |
+
+🔴 **CLI 执行流程**（PMO 严格遵守）：
+
+```
+1. command -v {gh|glab}         # 检测 CLI 是否在 PATH
+   ├── 不存在 → 跳到 § 2.3.2 URL 兜底 + state.concerns INFO「{cli} 未安装 · 走 URL 兜底」+ 在第一段报告"环境建议"段提示用户安装
+   └── 存在 → 继续
+
+2. {cli} auth status            # 检测 CLI 是否已登录
+   ├── 未登录 / token 过期 → 提示用户：
+   │   「⚠️ {cli} 未登录或 token 过期。请运行：
+   │      gh auth login                              （github）
+   │      glab auth login --hostname {host}          （gitlab）
+   │    完成后回复"重试"PMO 重新创建 MR/PR；
+   │    或回复"用 URL 兜底"PMO 跳过 CLI 直接给创建链接」
+   │   ⏸️ 用户决策（重试 / URL 兜底 / 取消 Ship）
+   └── 已登录 → 继续
+
+3. 执行 {cli} 创建命令
+   ├── 成功 → CLI 输出 MR/PR URL（如 https://github.com/owner/repo/pull/123）
+   │   ├── 解析 stdout 拿真实 URL
+   │   ├── 写 state.ship.mr_url = {真实 URL}
+   │   ├── 写 state.ship.mr_creation_method = "cli-gh" / "cli-glab"
+   │   ├── 第一段报告显示 "✅ MR/PR 已创建" + URL
+   │   └── 跳过 § 2.3.2 URL 兜底
+   │
+   └── 失败 → PMO 诊断 stderr 分类：
+       ├── auth 失败（401 / unauthorized / login）→ 同 Step 2 prompt 用户 login + 重试
+       ├── 已存在同分支 MR（"already exists" / 422）→ 用 {cli} pr/mr list 查找现有 MR URL · 复用作 mr_url
+       ├── target_branch 不存在（404 base / target not found）→ 提示用户检查 merge_target 是否在 remote
+       ├── 网络 / 5xx → 重试 1 次 · 仍失败提示用户查网络
+       └── 其他 → 输出 stderr 摘要 · ⏸️ 用户决策（重试 / URL 兜底 / 取消 Ship）
+```
+
+🔴 **PMO 失败诊断硬规则**：禁止静默降级到 URL 兜底。CLI 失败必须告知用户具体原因 + 给出可执行的环境配置指令 + 提供"URL 兜底"作为逃生舱。
+
+##### 2.3.2 Tier 2：URL 兜底（CLI 不可用 / 失败 / 平台无 CLI）
 
 按识别出的 host 使用对应模板：
 
@@ -405,6 +458,32 @@ git remote get-url origin
 | unknown | 兜底：读 `.teamwork_localconfig.md.mr_url_template`；均无则输出 feature 分支 URL + ⚠️ "未识别平台，请手动在 remote 上创建 MR/PR" |
 
 feature_branch 和 merge_target 在 URL 里需做 URL encoding（`/` → `%2F` 等）。
+
+走兜底时 state.json 写：
+- `mr_url`: null
+- `mr_create_url`: {生成的 create URL}
+- `mr_creation_method`: "url-fallback" / "unknown-platform"
+
+🔴 **target_branch 必含硬规则（v7.3.10+P0-80 实战补强）**：生成 MR URL 后 PMO 必须 self-check URL 中**含目标分支标识**（避免平台默认走 `default branch` 而非 `merge_target`）：
+
+| 平台 | 必含 target 标识（self-check 关键字） |
+|------|-------------------------------------|
+| github / gitee | URL 路径含 `compare/{merge_target}...{feature_branch}` 段（target 在前 · feature 在后 · 三个点分隔）|
+| gitlab / gitlab-self-hosted | URL query 含 `merge_request[target_branch]=` 或 `merge_request%5Btarget_branch%5D=`（URL encoded）|
+| bitbucket | URL query 含 `dest=` 参数 |
+
+🔴 **PMO self-check 步骤**：生成 URL 后 grep 上述关键字确认存在；缺失 = 流程偏离 → 重生成 URL · 不输出残缺版给用户。
+
+❌ **反例（v7.3.10+P0-70 实战 case）**：
+```
+https://git.example.com/owner/repo/-/merge_requests/new?merge_request%5Bsource_branch%5D=feature%2FF059-...
+```
+缺 `merge_request[target_branch]=` → 用户在平台合 MR 时默认走 default branch（可能合到错误目标 · merge_target 是 staging 而 default 是 main 时尤其危险）。
+
+✅ **正确**：
+```
+https://git.example.com/owner/repo/-/merge_requests/new?merge_request%5Bsource_branch%5D=feature%2FF059-...&merge_request%5Btarget_branch%5D=staging
+```
 
 记入：
 ```json
@@ -434,6 +513,8 @@ git rev-parse "feature/{Feature 全名}"
 - 禁止用全角括号或中文标点紧贴 URL（违反 P0-67 路径边界规则）
 - 禁止把 URL 嵌入 markdown 链接语法 `[文字](URL)` 当报告主呈现（链接文本可附加，但 URL 本体仍要独立一行）
 
+**变体 A：CLI 创建成功（v7.3.10+P0-99 · gh / glab）**
+
 ```
 ✅ Ship Stage 第一段完成 - 等待用户在平台合并
 
@@ -441,22 +522,54 @@ git rev-parse "feature/{Feature 全名}"
 - feature 分支已 push: feature/{Feature 全名}
 - feature_head_commit: {abc1234}
 - 净化检查: ✅ 无遗留 commits / 可疑文件
-- worktree: {worktree.path}（暂保留，待第二段验证合并后清理）
+- worktree: {worktree.path}（暂保留 · 待第二段验证合并后清理）
 
-🔗 MR/PR 创建链接：
+✅ MR/PR 已创建（{cli-gh / cli-glab}）：
+
+{mr_url}
+
+📋 后续步骤（你需要做的）：
+1. 点击上方 MR/PR 链接 · 完成描述 / 走 CR / CI / 与 reviewer 讨论
+2. 在平台合并 MR/PR
+3. ⬇️ 合并完成后回到这里回复数字 · PMO 启动第二段收尾流程 ⬇️
+
+请选择：
+1. ✅ 已在平台合并 MR/PR · 启动收尾 💡
+2. ⏳ 还在等待审核 / 合并（你可以暂时退出会话 · 下次回来再回此选项）
+3. ❌ MR 被关闭未合并（进入异常处理）
+4. 其他指示
+```
+
+**变体 B：CLI 不可用 / 失败 → URL 兜底（v7.3.10+P0-99）**
+
+```
+✅ Ship Stage 第一段完成 - URL 兜底 · 等待用户手动创建 MR/PR
+
+📦 当前状态：
+- feature 分支已 push: feature/{Feature 全名}
+- feature_head_commit: {abc1234}
+- 净化检查: ✅ 无遗留 commits / 可疑文件
+- worktree: {worktree.path}（暂保留 · 待第二段验证合并后清理）
+
+🔗 MR/PR 创建链接（请手动点击创建）：
 
 {mr_create_url}
 
+⚠️ 环境配置建议（下次 Ship 可让 PMO 直接帮你创建 MR/PR）：
+- GitHub：安装 `gh` + `gh auth login`（https://cli.github.com）
+- GitLab：安装 `glab` + `glab auth login --hostname {host}`（https://gitlab.com/gitlab-org/cli）
+- 配置好后 · 后续 Ship Stage PMO 会优先调 CLI 创建实际 MR/PR · 不再需要你手动点击
+
 📋 后续步骤（你需要做的）：
-1. 点击上方 MR/PR 创建链接
+1. 点击上方 MR/PR 创建链接 · 在平台填写描述 / 创建 MR
 2. 在平台完成 MR 描述、走 CR / CI、与 reviewer 讨论
 3. 在平台合并 MR/PR
-4. ⬇️ 合并完成后回到这里回复数字，PMO 启动第二段收尾流程 ⬇️
+4. ⬇️ 合并完成后回到这里回复数字 · PMO 启动第二段收尾流程 ⬇️
 
 请选择：
-1. ✅ 已在平台合并 MR/PR，启动收尾（PMO 验证合并 + 清理 worktree + Feature 标记 completed） 💡
-2. ⏳ 还在等待审核 / 合并（你可以暂时退出会话，下次回来再回此选项）
-3. ❌ MR 被关闭未合并（进入异常处理）
+1. ✅ 已在平台合并 MR/PR · 启动收尾 💡
+2. ⏳ 还在等待审核 / 合并
+3. ❌ MR 被关闭未合并
 4. 其他指示
 ```
 
@@ -842,8 +955,9 @@ state.ship.phase = "closed_unmerged"
 
 ## Output Contract 校验
 ├── feature 分支已在 remote：✅
-├── mr_create_url 有效：✅ / ⚠️ unknown host 需手动
-├── state.json.ship 完整：✅
+├── MR/PR 状态：✅ CLI 已创建（{mr_url}）/ ✅ URL 兜底（{mr_create_url}）/ ⚠️ unknown host 需手动
+├── mr_creation_method：{cli-gh / cli-glab / url-fallback / unknown-platform}
+├── state.json.ship 完整：✅（mr_url 或 mr_create_url 至少一非空）
 ├── review-log.jsonl 新增 ship 行：✅
 └── shipped 标志：✅ true
 
@@ -862,9 +976,11 @@ state.ship.phase = "closed_unmerged"
 
 ```jsonc
 "ship": {
-  "shipped": true,                        // 是否已推到 remote + 生成 MR URL
+  "shipped": true,                        // 是否已推到 remote + MR/PR 已就绪（CLI 创建或 URL 兜底）
   "git_host": "github",                   // github / gitlab / gitlab-self-hosted / gitee / bitbucket / unknown
-  "mr_create_url": "https://github.com/owner/repo/compare/staging...feature%2FF042?expand=1",
+  "mr_url": "https://github.com/owner/repo/pull/123",   // v7.3.10+P0-99 · CLI 实际创建的 MR/PR URL（gh/glab）· 走 URL 兜底时为 null
+  "mr_create_url": null,                  // CLI 兜底 URL（用户手动点击创建）· CLI 创建成功时为 null
+  "mr_creation_method": "cli-gh",         // v7.3.10+P0-99 enum: cli-gh / cli-glab / url-fallback / unknown-platform
   "feature_pushed_at": "2026-04-22T11:08:12Z",
   "sanitize_log": {
     "residual_commits": [                 // 净化阶段自动 commit 的 residual
@@ -894,6 +1010,7 @@ state.ship.phase = "closed_unmerged"
 | worktree 清理时顺便 `git branch -D` 删 feature 分支 | 🔴 禁止。feature 分支是 MR 证据，必须保留 |
 | push 成功后 `git push origin --delete feature/xxx` | 🔴 禁止。remote feature 分支由平台/团队清 |
 | unknown host 时拼凑一个疑似 URL 糊弄过去 | 🔴 必须显式标注 unknown host + 让用户手动创建 |
+| CLI 失败静默降级到 URL 兜底（不告知用户）| 🔴 禁止（v7.3.10+P0-99）。CLI 失败必须诊断 + 告知用户具体原因 + 给出可执行的环境配置指令 + 提供"URL 兜底"作为逃生舱 |
 | residual commit 产生后不在完成报告高亮 | 必须高亮，否则掩盖前序 Stage 的 commit 遗漏 |
 | 清理灰名单文件（即便看起来是临时文件）| 🔴 灰名单策略 A：只报告不动，用户决定 |
 | 把 MR 合并状态（merged / open）纳入 Teamwork 状态机 | Teamwork 到"feature 已 push + MR create URL 已生成"即 completed，后续合并状态由平台维护，不回写 state.json |

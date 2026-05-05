@@ -24,6 +24,58 @@
 > 不记录决策（走 ADR）、不记录通用规范（走 standards/rules）、不记录复盘（走 retros/）。
 > Teamwork 在 triage-stage（用户输入承接阶段）会扫描本文件，注入「📚 相关项目事实」段。详见 [stages/triage-stage.md](../stages/triage-stage.md) Step 2。
 
+## 📚 Glossary（术语词典 · v7.3.10+P0-78 借鉴 mattpocock/skills grill-with-docs）
+
+> **Be Opinionated**：多个词指同一概念时，**挑一个最好的**，其他列为 Avoid 别名。
+> **Keep tight**：一句话定义"是什么"（不写"做什么"）。
+> **Project-specific only**：通用编程概念（timeout / error type）不放——只放本项目业务术语 + 通用架构 8 词。
+> **触发写入时机**：Goal-Plan / Blueprint Stage 评审中发现术语漂移 → 实时（inline · 不批处理）写入。
+
+### 业务术语（项目专属）
+
+| Term | 定义（一句话） | Avoid 别名 |
+|------|---------------|-----------|
+| **Order** | 用户提交的购买请求，含 ≥1 个商品 | Purchase, Transaction |
+| **Invoice** | 订单交付后向客户发出的付款请求 | Bill, PaymentRequest |
+| **Customer** | 下单的个人或组织 | Client, Buyer, Account |
+
+### 通用架构词汇（v7.3.10+P0-78 借鉴 mattpocock/skills improve-codebase-architecture · 8 词）
+
+| Term | 定义 | 用法 |
+|------|------|------|
+| **Module** | 一组高内聚的代码单元（文件 / 包 / namespace）| 不混用"组件 / 服务 / 层" |
+| **Interface** | Module 对外暴露的契约（API / 函数签名 / Protocol）| 不混用"接口 / API"（Interface 是抽象 · API 是其外网络化具象）|
+| **Depth** | Interface 的深度 = 信息隐藏程度（少 API + 多 internal 实现 = 深模块）| 设计目标：deep modules |
+| **Seam** | 两个 Module 之间的真实分界（多调用方共享的 Interface）| 一个 adapter ≠ Seam · 两个 adapter 才是 |
+| **Adapter** | 适配两个不兼容 Interface 的中间层 | 一次性 adapter 不抽象 · 重复 ≥ 2 次才抽象成 Seam |
+| **Leverage** | 一处改动能影响多处的能力 | 高 leverage = 好设计；过度 leverage = 隐性耦合 |
+| **Locality** | 相关代码的物理邻近性 | 高 locality = 好维护性 · 跨 Module 跳读 = 差 locality |
+| **Boundary** | Context / 限界上下文之间的归属边界 | "Customer 数据归 Customer Context · 其他 Context 引用 ID" |
+
+### Relationships（实体关系 · 业务术语之间）
+
+- 一个 **Order** 产出 ≥1 个 **Invoice**
+- 一个 **Invoice** 归属唯一一个 **Customer**
+- 一个 **Customer** 可有 N 个 **Order**
+
+### "删除测试"启发式（v7.3.10+P0-78 借鉴 improve-codebase-architecture）
+
+🔴 **判断模块是否"shallow"（浅层 · 该删）**：删掉它 → 复杂度消失？还是分散到 N 个调用点？
+- 复杂度消失 → 模块设计好（深模块 · 高 leverage）
+- 复杂度分散到 N 个调用点 → shallow module · 应删除并 inline 到调用方
+
+🔴 **"两个 adapter 才抽象"**：第一次出现适配需求 = 写 inline 一次性代码；第二次重复 = 抽象成 Seam（独立 Interface · 加到本词典）。**禁止 1 次就抽象**（过度设计警报）。
+
+## 🔀 Flagged Ambiguities（已澄清的歧义 · v7.3.10+P0-78 借鉴 grill-with-docs）
+
+> 评审循环中暴露"用户用 X 词同时指 A 和 B"时，澄清完后**实时**记录到此（不批处理）。
+> 防止下个 Feature 来同样的词又得 PMO 重新询问澄清一次。
+
+| ID | 模糊词 | 澄清结论 | 触发 Feature | 时间 |
+|----|--------|---------|-------------|------|
+| FA-001 | "账号" | 三义：Customer（客户实体）/ User（操作主体）/ Tenant（多租户隔离单元）；上下文未明确时一律走 PMO 澄清 | F035 评审 | 2026-04-12 |
+| FA-002 | "推送" | 二义：Push Notification（系统级推送）/ Message Push（业务消息推送）；按上下文区分 | F048 评审 | 2026-04-22 |
+
 ## ⚠️ Gotchas（陷阱 / 约束 / 历史坑）
 
 > 项目特有的陷阱、历史踩坑、外部系统的怪癖。**不是决策**——是被动发现的客观约束。
@@ -69,6 +121,22 @@
 - **UI**: PR-001, PR-002
 - **交互**: PR-002
 - **沟通**: PR-003
+- **拒绝**: OS-001, OS-002
+- **术语**: Order, Invoice, Customer, Module, Interface, Seam（按主题速查 · v7.3.10+P0-78）
+- **歧义**: FA-001, FA-002（v7.3.10+P0-78）
+
+## ❌ Out of Scope（已拒绝过的方案/方向 · v7.3.10+P0-77 借鉴 mattpocock/skills triage）
+
+> 拒绝过的方案 / 方向 / Feature 候选——防止 AI 反复提同一个被否的方案。
+> 触发写入时机：评审循环中明确 REJECT / PM 验收时拒绝某方向 / Goal-Plan Stage 讨论中确认"这个方向不做"。
+> PMO 在 Goal-Plan Stage 起草前必扫描本段，避免 PM 重新提已被否的方向。
+
+| ID | 拒绝的方向 | 拒绝理由 | 拒绝时间 | 触发 Feature / 决策点 |
+|----|-----------|---------|---------|----------------------|
+| OS-001 | 接入 GraphQL 替代 REST API | 团队 REST 经验积累深 / 工具链成熟 / 当前性能瓶颈不在协议层 | 2026-02-10 | F029 评审 |
+| OS-002 | 用户头像存 base64 进 DB | 体积大 / 缓存友好度差 / 应该走 CDN | 2026-03-05 | F034 评审 |
+
+🔴 **PMO 起草 Goal-Plan / 评审循环时必须先扫 OS-NNN 列表**：发现 PRD 草案重新提了被否方向 → 直接打回让 PM 改写或显式说明"为什么本次重新审视这个方向"（必须有新的触发原因，否则违规）。
 
 ## 归档（archived）
 
@@ -119,6 +187,9 @@
 - Gotcha：GO-NNN（三位数字，从 001 起）
 - Convention：CV-NNN
 - Preference：PR-NNN
+- Out of Scope：OS-NNN（v7.3.10+P0-77）
+- Glossary：术语**直接用术语本身作为锚点**（Term 段加粗 · 不编号 · v7.3.10+P0-78）
+- Flagged Ambiguities：FA-NNN（v7.3.10+P0-78）
 - 🔴 编号连续不复用，归档条目保留原 ID
 
 ## 与其他文档的协作

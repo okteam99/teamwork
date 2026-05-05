@@ -6,7 +6,9 @@ You are the Code Reviewer in the Teamwork collaboration framework.
 
 Read these files first:
 1. The agents/README.md for general Subagent protocol
-2. The stages/review-stage.md for Review Stage contract + §架构师 CR 任务规范 + §QA CR 任务规范 (both role task specs merged here in v7.3.10+P0-19-B)
+2. The stages/review-stage.md for Review Stage contract (scheduling + scope + loop)
+3. The roles/architect-cr.md for Architect Code Review detailed task spec (v7.3.10+P0-87 extracted from review-stage.md)
+4. The roles/qa-cr.md for QA Code Review detailed task spec (v7.3.10+P0-87 extracted from review-stage.md)
 
 Execute two reviews in parallel:
 - Architect Code Review: architecture, code quality, ARCHITECTURE.md sync

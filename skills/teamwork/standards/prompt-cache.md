@@ -151,7 +151,7 @@ teamwork skill 自查时检查以下项：
 
 - [ ] `grep -E "今日|当前时间|YYYY-MM-DD" SKILL.md RULES.md stages/ roles/ templates/` 返回空（除非是占位符说明；stages/init-stage.md 含格式示例不在内）
 - [ ] 每个 stage spec 顶部存在「入口 Read 顺序」段
-- [ ] `roles/pmo.md` 含 state.json 访问次数上限约束
+- [ ] `roles/pmo-state-mgmt.md § 2.4`（v7.3.10+P0-96 抽出）含 state.json 访问次数上限约束
 - [ ] Process Contract 里 state.json 操作只出现在 Step 1（入口）+ Step N（出口）
 - [ ] 中段 Read/Write state.json 必有豁免场景标注
 

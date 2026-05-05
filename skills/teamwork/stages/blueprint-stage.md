@@ -60,8 +60,11 @@
 ```
 ├── {SKILL_ROOT}/agents/README.md
 ├── {SKILL_ROOT}/stages/blueprint-stage.md（本文件）
-├── {SKILL_ROOT}/roles/qa.md（含 TC 技术评审规范）
-├── {SKILL_ROOT}/roles/rd.md（含架构师方案评审规范）
+├── {SKILL_ROOT}/roles/qa.md（角色契约 · QA 测试策略 + 验证职责）
+├── {SKILL_ROOT}/roles/qa-tc-review.md（TC 技术评审详细任务规范 · v7.3.10+P0-88 抽出）
+├── {SKILL_ROOT}/roles/rd.md（实现层契约 · TECH 实现段起草规范）
+├── {SKILL_ROOT}/roles/architect.md（角色契约 · v7.3.10+P0-86 独立化 · 架构层评审 + ADR 决策 + ARCHITECTURE.md 维护）
+├── {SKILL_ROOT}/roles/architect-tech-review.md（Tech Review 详细任务规范 · v7.3.10+P0-90 抽出）
 ├── {SKILL_ROOT}/templates/tc.md
 ├── {SKILL_ROOT}/templates/tech.md（如有）
 ├── {SKILL_ROOT}/standards/common.md
@@ -101,7 +104,7 @@
 🔴 按以下顺序 Read，字节一致利于 prompt cache 命中。详见 [standards/prompt-cache.md](../standards/prompt-cache.md)。
 
 ```
-Step 1: roles/qa.md, roles/rd.md                       ← 角色层（L0 稳定）
+Step 1: roles/qa.md, roles/rd.md, roles/architect.md   ← 角色层（L0 稳定 · v7.3.10+P0-86 加 architect）
 Step 2: templates/tc.md, templates/tech.md              ← 模板层（L0 稳定）
         [条件] templates/external-cross-review.md          （仅 review_roles[] 含 external，v7.3.10+P0-38）
 Step 3: {Feature}/PRD.md                               ← Feature 既有产物（L2）
@@ -158,7 +161,7 @@ QA 起草 TC 时必须主动覆盖：
 
 2. **TC 技术评审**（4 步闭环 2/4）
    - 视角：RD + Designer（如有 UI）+ PMO
-   - 按 `roles/qa.md`「TC 技术评审规范」
+   - 按 [roles/qa-tc-review.md](../roles/qa-tc-review.md)（v7.3.10+P0-88 抽出 · 角色契约见 [roles/qa.md](../roles/qa.md)）
    - 有问题 → QA 修订 → 重新评审（≤2 轮）
    - 产出：TC-REVIEW.md
 
@@ -212,7 +215,7 @@ RD 起草 TECH 时必须主动覆盖：
 ```
 
 4. **架构师方案评审**（4 步闭环 4/4）
-   - 按 `roles/rd.md`「架构师方案评审规范」
+   - 按 [roles/architect-tech-review.md](../roles/architect-tech-review.md)（v7.3.10+P0-90 抽出 · 角色契约见 [roles/architect.md](../roles/architect.md) · cite [standards/review-verdict.md](../standards/review-verdict.md) verdict 三级 + [standards/review-scope.md](../standards/review-scope.md) blueprint scope）
    - 有严重问题 → RD 修改 → 重新评审（≤3 轮）
    - 产出：TECH-REVIEW.md 或评审结果写入 TECH.md 尾部
    - **4.1 ADR 抽取判断**（v7.3.10+P0-21 新增）：评审通过后，架构师对本 Feature 产生的每个技术决策应用「3 问触发器」：
@@ -255,7 +258,7 @@ RD 起草 TECH 时必须主动覆盖：
 
 ### 过程硬规则
 
-- 🔴 **角色规范必读且 cite**：QA → 必读 `roles/qa.md` 并 cite 要点；RD → 必读 `roles/rd.md` 并 cite；架构师视角同上
+- 🔴 **角色规范必读且 cite**：QA → 必读 `roles/qa.md` 并 cite 要点；RD → 必读 `roles/rd.md` 并 cite；架构师 → 必读 `roles/architect.md` 并 cite（v7.3.10+P0-86 起 architect 独立 role · 不再寄生 rd.md）
 - 🔴 **TC 必须 BDD/Gherkin 格式**：不接受自由格式
 - 🔴 **AC↔test 强绑定**：TC.md 的 `tests[].covers_ac` 必须反查 PRD 所有 AC（每条 AC 至少 1 个测试）
 - 🔴 **TC 技术评审不可跳过**

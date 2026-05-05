@@ -1,6 +1,6 @@
 ---
 name: teamwork
-version: 7.3.10+P0-74
+version: 7.3.10+P0-99
 description: Your AI dev team — one AI works as a full team (PMO/PM/Designer/QA/RD/Architect), switching specialist perspectives across 8 quality-gated stages from planning to delivery. Start with /teamwork.
 ---
 
@@ -167,6 +167,35 @@ P0-48 是第一次"减负专版"，本契约是防止再次走回头路的结构
 📎 PMO 校验：起 P0 patch 时必须先回答"加 1 删 1 = ?"，未回答视为流程违规。
 ```
 
+### 🧱 文件体量物理上限（v7.3.10+P0-79 新增 — 借鉴 mattpocock/skills write-a-skill · 防文件膨胀）
+
+```
+🔴 主规范文件 ≤ 300 行硬上限
+   范围：roles/*.md / stages/*.md / standards/*.md / rules/*.md / SKILL.md / RULES.md / STATUS-LINE.md / TEMPLATES.md / STANDARDS.md / FLOWS.md
+   超出时必选一种处理：
+   ├── (a) 拆 reference 子文件：核心 ≤ 300 行 + reference-{topic}.md 子文件按需引用
+   ├── (b) 单源化引用：发现两处文件描述同一规则 → 留一处权威 + 另一处 cite
+   ├── (c) 删冗余：盘点过期 / 实战未触发的规则 → 删除（按 P0-48 元规则"如果有用会通过什么 case 重新触发回来"判定）
+   └── (d) 拆段落：把多个小主题段落拆成多个独立 .md 文件（如 stages 已按 stage 拆分）
+
+🟢 例外（不计入 300 行上限）：
+   - templates/*.md（含 schema 示例 · 模板本身有膨胀价值）
+   - docs/CHANGELOG.md（历史归档 · 自然增长）
+   - docs/OPTIMIZATION-PLAN.md（演进记录 · 自然增长）
+   - rules/flow-transitions.md（状态机定义 · 完整性优先于行数）
+   - 单元测试 / 配置 / 索引文件（长度由内容客观决定）
+
+🔴 渐进式适用（v7.3.10+P0-79 落地策略 · 不强求一次到位）：
+   - 现有文件 > 300 行：未来涉及该文件的 P0 patch 必须**先评估瘦身机会**（在 CHANGELOG 写"本 patch 是否减少了 X 文件行数"），不强制本次必拆
+   - 新加文件：≤ 300 行硬约束，超出 = 必须拆 reference 子文件
+   - PMO 起 P0 patch 时校验：触碰超量文件 → 输出"该文件 N 行（>300）· 本 patch 净加 / 净删行数"
+
+📎 设计意图：P0-48 的"加 1 删 1 元规则"管的是规则数量逻辑层；本元规则管的是文件物理层。
+   实战观察：accumulating P0 patch 让 SKILL.md / RULES.md / pmo.md 等核心文件 → 300+ 行，prompt cache 不友好 + 阅读断片。物理上限是逆向压力。
+
+📎 PMO 校验：起 P0 patch 时若涉及 > 300 行文件，必须输出"瘦身机会评估"行（含目标文件 + 当前行数 + 本 patch 净变化 + 是否触发拆分）。
+```
+
 ---
 
 ## 🧭 AI Plan 模式规范（v7.3 新增）
@@ -255,7 +284,7 @@ Micro 流程简化规则（v7.3.10+P0-20 统一）：
 🧭 Execution Plan: Review Stage
 - Approach: hybrid
 - Rationale: 架构师视角主对话（保留架构上下文 + 怀疑者视角），QA/Codex Subagent（独立视角）
-- Role specs loaded: roles/rd.md, stages/review-stage.md §架构师 CR 任务规范, stages/review-stage.md §QA CR 任务规范
+- Role specs loaded: roles/architect.md + roles/architect-cr.md, roles/qa.md + roles/qa-cr.md（v7.3.10+P0-87 抽出 CR 任务规范）
 - Estimated: 15 min
 ```
 

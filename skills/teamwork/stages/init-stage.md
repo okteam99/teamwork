@@ -130,7 +130,7 @@ Step 4: /teamwork 命令行参数             ← 🔴 最后，动态入口（L
 
 **跳过日志**：每跳过一个暂停点，PMO 输出一行 `⚡ auto skip: {决策简述} | 💡 {建议} | 📝 {理由}`，便于事后追溯。
 
-📎 详见 `roles/pmo.md`「⚡ auto 模式暂停点豁免规则」+「🟡 Browser E2E auto 默认跳过」章节、`STATUS-LINE.md` 状态行 `⚡ AUTO` 徽章、`rules/flow-transitions.md` 顶部「auto 模式豁免速查」块。
+📎 详见 [roles/pmo-auto-mode.md](../roles/pmo-auto-mode.md)（v7.3.10+P0-94 抽出 · auto 模式权威源 · 角色契约 [roles/pmo.md](../roles/pmo.md)）+ `STATUS-LINE.md` 状态行 `⚡ AUTO` 徽章 + `rules/flow-transitions.md` 顶部「auto 模式豁免速查」块。
 
 ---
 
@@ -164,7 +164,7 @@ Step 4: /teamwork 命令行参数             ← 🔴 最后，动态入口（L
 
 ```
 读取 SKILL.md frontmatter 的 version 字段：
-├── 找到（当前应为 7.3.10+P0-74）→ SKILL_VERSION = 该值
+├── 找到（当前应为 7.3.10+P0-99）→ SKILL_VERSION = 该值
 └── 缺失 / 无法解析 → SKILL_VERSION = null（降级为全量校验，输出一次 ⚠️ 提示）
 ```
 
@@ -185,8 +185,10 @@ SKILL_VERSION 与 LOCAL_VERSION 比对：
 
 ├── ⚡ 一致（fast path · 99%+ 场景）
 │   ├── 跳过 {HOST_INSTRUCTION_FILE} 的 Read 和逐字符 diff
-│   ├── 输出：「⚡ CLAUDE.md 校验跳过（teamwork_version={VERSION} 命中缓存）」
-│   └── 🔴 安全假设：上次启动已完成全量校验并写回 version，CLAUDE.md 已同步到该版本
+│   ├── 🔴 **不输出任何 banner**（v7.3.10+P0-98 silent execution）· 命中是默认 · 用户不需知道
+│   │   反模式：「⚡ CLAUDE.md 校验跳过（teamwork_version={VERSION} 命中缓存）」← 禁止输出
+│   │   单源在 [standards/output-tiers.md § 反模式 5](../standards/output-tiers.md)
+│   └── 🔴 安全假设：上次启动已完成全量校验并写回 version · CLAUDE.md 已同步到该版本
 │
 ├── 🔄 不一致 / null（full path · skill 升级 / 首次 / 降级场景）
 │   ├── 执行全量校验（流程同 P0-17 前）：

@@ -1,6 +1,1378 @@
 # Changelog
 
-## v7.3.10 + P0-74（当前）
+## v7.3.10 + P0-99（当前）
+
+> v7.3.10+P0-99 Ship Stage MR/PR 创建升级：CLI 优先（gh / glab）实际创建 MR · URL 兜底（CLI 不可用 / 失败 / gitee / bitbucket / unknown）。**用户实战诉求**：「ship 阶段优先使用 glab 或 gh 创建好 MR 在给用户 MR 或 PR 地址 · 如果环境不满足 · 提示用户处理环境问题 · 并使用 MR 创建链接兜底」。
+
+### P0-99：Ship Stage MR/PR 创建（CLI 优先 + URL 兜底）
+
+- 触发：用户实战诉求「优先用 CLI 实际创建 MR · 把真实 URL 给用户」（不是让用户再点一次 create 链接）
+- 设计哲学：**实际创建 > 创建链接**。优先 Tier 1 CLI 实际创建 → state.ship.mr_url 是真实 MR URL；CLI 不可用时 Tier 2 URL 兜底（保留现有行为）；失败时**必须诊断 + 告知用户 + 给出可执行的环境配置指令** · 禁止静默降级。
+- 核心改动：
+  - **P0-99-1. `stages/ship-stage.md` Step 2.3 重构为 CLI 优先 + URL 兜底**：
+    - § 2.3.1 Tier 1：CLI 优先创建（gh / glab）
+      - github → `gh pr create --base {merge_target} --head {feature_branch} --fill`
+      - gitlab/gitlab-self-hosted → `glab mr create --target-branch ... --source-branch ... --fill`
+      - gitee/bitbucket/unknown → 直接 Tier 2 URL 兜底
+      - 流程：`command -v {cli}` → `{cli} auth status` → 执行命令 → 解析 stdout MR URL → state.ship.mr_url
+      - 失败诊断分类：command not found / auth 失败（401）/ 已存在同分支 MR（422）/ target_branch 不存在（404）/ 网络 5xx / 其他 stderr
+    - § 2.3.2 Tier 2：URL 兜底（保留现有行为）· 标注 mr_creation_method=url-fallback
+  - **P0-99-2. `stages/ship-stage.md` state.json schema 加新字段**：
+    - `mr_url`：CLI 实际创建的 MR/PR URL（CLI 成功时）· null 当走 URL 兜底
+    - `mr_create_url`：URL 兜底链接（CLI 不可用时）· null 当 CLI 成功
+    - `mr_creation_method` enum：`cli-gh` / `cli-glab` / `url-fallback` / `unknown-platform`
+    - Done 判据：`mr_url` 或 `mr_create_url` 至少一个非空
+  - **P0-99-3. 第一段报告模板加变体 A/B**：
+    - 变体 A（CLI 成功）：「✅ MR/PR 已创建（{cli-gh / cli-glab}）」+ {mr_url}
+    - 变体 B（URL 兜底）：「🔗 MR/PR 创建链接（请手动点击）」+ {mr_create_url} + ⚠️ 环境配置建议（gh/glab install + login）
+  - **P0-99-4. `roles/pmo-pm-acceptance-ship.md` § 五 Step 2 同步**：补充 v7.3.10+P0-99 CLI 优先 + URL 兜底分支描述
+  - **P0-99-5. ship-stage.md 反模式加 1 条**：「CLI 失败静默降级到 URL 兜底（不告知用户）→ 🔴 禁止」
+  - **P0-99-6. 版本号 + init-stage.md SKILL_VERSION 期望同步**（7.3.10+P0-98 → 7.3.10+P0-99）
+- **核心收益**：
+  - GitHub / GitLab 用户：CLI 配置好后 PMO 直接实际创建 MR/PR · 用户拿到真实 URL（不用手动点击）
+  - CLI 不可用：显式提示用户安装 + login（gh auth login / glab auth login）· URL 兜底保证流程不阻塞
+  - 失败诊断硬规则：禁止静默降级 · 用户始终知道发生了什么 + 怎么处理
+- **加 1 删 1 元规则核算**：
+  - **加**：Step 2.3 重构为 2 层（~85 行）+ 报告模板变体 A/B（~50 行）+ pmo-pm-acceptance-ship 同步（~10 行）+ schema 字段（~3 行）= ~148 行
+  - **删**：原 Step 2.3 单层 URL 生成（~15 行）+ 单一报告模板（~25 行）= ~40 行
+  - **净加 ~108 行**（行为升级 · 必要成本）
+- 不动:
+  - URL 兜底逻辑（保留作为 Tier 2 · 平台无 CLI 时的唯一路径）
+  - target_branch 必含硬规则（v7.3.10+P0-80 实战补强）· 仍然适用于 URL 兜底
+  - 第二段 finalize 逻辑（不动 · 与 MR/PR 创建方式无关）
+- 影响面：2 个文件改动（ship-stage.md 大改 / pmo-pm-acceptance-ship.md 小改）+ 元数据 2 个（SKILL.md / init-stage.md）+ CHANGELOG entry
+- 后续验证：
+  - 立即可验证：ship-stage.md Step 2.3 含 Tier 1/2 双层 + state.json schema 含 mr_url/mr_creation_method
+  - 实战验证：下次 Ship 时用户应看到「✅ MR/PR 已创建（cli-gh）」+ 真实 URL（如 github.com/owner/repo/pull/123）· 而非 create URL（compare/...）
+
+---
+
+## v7.3.10 + P0-98
+
+> v7.3.10+P0-98 silent execution 硬规则强化。**实战 case 触发**：用户「看下 curl 报 502 ……」· PMO 输出 8 段框架仪式 + 思考链 trace（init/triage 入口仪式声明 / SKILL_VERSION 校验跳过 banner / Step 1.5 标题 / 用户消息 echo / 关键词命中 trace / → 轻型意图路由叙事 / Step 1.6 Pull 路径执行 / 按需直查计划叙事 / 找到核心链路进度叙事）才开始 grep 实际代码。
+
+### P0-98：framework 仪式叙事 / Step 头 / 思考链播报禁止（silent execution 强化）
+
+- 触发：用户实战反馈「这些预期不要输出 · 直接做就行 · 输出有用的信息」· 现有 standards/output-tiers.md 4 类反模式不覆盖此场景。
+- 设计哲学：**默认行为 = 静默执行**。框架内部状态（步骤号 / 路由判定 / 缓存命中 / 关键词匹配）→ 全部走 state.json + 工具调用 · 不在主对话渲染。主对话只有 3 类输出：① 实际答案（用户问什么答什么）② 决策点（⏸️ 暂停模板）③ 异常 / verdict。
+- 核心改动：
+  - **P0-98-1. `standards/output-tiers.md` 加反模式 5「框架仪式叙事 / Step 头 / 思考链播报」**：
+    - 引实战 case + 8 类禁止输出（入口仪式 / Step 头 / 缓存命中 banner / 用户消息复述 / 关键词命中 trace / 路由决策叙事 / 计划进度叙事 / 工具调用前缀解释）
+    - 加 silent execution 原则（默认静默 · 主对话仅 3 类输出）
+  - **P0-98-2. `stages/init-stage.md` 缓存命中静默**：
+    - L188 「⚡ CLAUDE.md 校验跳过（teamwork_version={VERSION} 命中缓存）」改为**不输出任何 banner**
+    - 命中是默认 · 用户不需知道 · 走默认 fast path 直接做事
+  - **P0-98-3. `stages/triage-stage.md` Step 1.5/1.6 silent execution 硬规则**：
+    - Step 1.5 加禁止动作清单（Step 标题 / 用户消息 echo / 关键词 trace / 路由叙事）
+    - Step 1.6 加 silent execution 硬规则（直接 grep / 中间过程不输出 / 直接答案 + 跟进引导一句话）
+  - **P0-98-4. 版本号 + init-stage.md SKILL_VERSION 期望同步**（7.3.10+P0-97 → 7.3.10+P0-98）
+- **核心收益**：
+  - 把"应该静默"的内容从"建议"变成 standards/output-tiers.md § 反模式 5 + 各 stage spec 内的硬规则
+  - 实战 case 同样问题 · v7.3.10+P0-98 起 PMO 输出从 8 段叙事 → 1 段实际答案
+- **加 1 删 1 元规则核算**：
+  - **加**：output-tiers.md 反模式 5 段（~50 行）+ init-stage 静默说明（~5 行）+ triage Step 1.5/1.6 silent rules（~25 行）= ~80 行
+  - **删**：init-stage 旧 banner 输出指令（~1 行）= ~1 行
+  - **净加 ~79 行**（硬规则强化 · 必要成本）
+- 不动:
+  - 任何 role / sub-file（不需要全扩散 · 单源在 standards/output-tiers.md + 关键 stage spec）
+  - 其他 stage spec（plan / blueprint / dev / review / test / ship）· 它们已 cite output-tiers.md
+- 影响面：3 个文件改动（output-tiers.md / init-stage.md / triage-stage.md）+ 元数据 2 个（SKILL.md / init-stage.md SKILL_VERSION）+ CHANGELOG entry
+- 后续验证：
+  - 立即可验证：grep "Step 1\.5：意图轻重分流" 主对话日志 应 0 命中（除 stage spec 自身）
+  - 实战验证：下次用户「看下 X」类轻型问题 · PMO 应直接 grep + 给答案 · 不再输出 8 段仪式
+- 设计意图：现有 output-tiers.md 的 4 类反模式偏重"履职报告体感"和"state.json 复述"· 但没覆盖"silent execution"维度——即"做事过程"不应在主对话播报。本 patch 把这条原则补齐。
+
+---
+
+## v7.3.10 + P0-97（🎉 Wave 4 收官）
+
+> v7.3.10+P0-97 评审规范分层规范化 · **Wave 4 收官**：抽 5 段（PMO 状态报告 + 智能触发 + Test 前置 + 知识库更新 + review-log 管理）合并到 pmo-reporting.md。**pmo.md 759 → 477 行**（净删 ~282 行 · Wave 4 累计 **~1337 行净删** · 99% 进度向 ~500 cap 目标已达成 🎯）。
+
+### P0-97：pmo.md 瘦身 Phase 5（Wave 4 收官）
+
+- 触发：P0-96（Wave 4 Phase 4）完成后 · 推进 Wave 4 Phase 5 抽最后一组主题相关段（PMO 操作产物五件套）。
+- 设计哲学：5 段都是"PMO 日常操作产物"主题（状态报告 + 智能触发 + Test 前置 + 知识库 + review-log）· 合并到一个 sub-file pmo-reporting.md · 用一个综合短指针指向 sub-file 四段。
+- 核心改动：
+  - **P0-97-1. 新建 `roles/pmo-reporting.md`**（278 行 ≤ 300 ✅）：
+    - 4 段：§ 一 PMO 状态报告 + 智能触发规则（PMO 摘要触发时机 + 阶段完成摘要格式 + 阶段流转同步硬规则）/ § 二 Test Stage 前置确认（Review DONE 后 ⏸️ 立即/延后/跳过 + 延后批次追踪）/ § 三 本地知识库更新（功能/Bugfix 完成后判断更新 KNOWLEDGE.md）/ § 四 review-log.jsonl 管理（PMO 4 项核心职责）
+    - 历史源流：v7.3.2 加 review-log → v7.3.3 加耗时度量 → v7.3.10+P0-30 加问题排查规则 → v7.3.10+P0-56 单源化 review-log → +P0-97 五段合并抽出
+  - **P0-97-2. `roles/pmo.md` 删 5 段 + 加综合短指针**（759 → 477 行 · 净删 ~282 行）：
+    - 反序删（保留 line number）：L720-727 review-log（~8）/ L633-718 知识库（~86）/ L482-578 Test 前置（~97）/ L377-480 状态报告 + 智能触发（~104）= 总删 ~295 行
+    - 替为一个 14 行综合短指针（cite roles/pmo-reporting.md 四段 § 一/二/三/四）+ 清理散落空行
+  - **P0-97-3. 全框架 cite 切换**：
+    - `agents/README.md` roles/ 目录索引加 pmo-reporting.md 条目
+  - **P0-97-4. 版本号 + init-stage.md SKILL_VERSION 期望同步**（7.3.10+P0-96 → 7.3.10+P0-97）
+- **P0-79 元规则触发评估**：
+  - roles/pmo-reporting.md = 278 行 ≤ 300 ✅
+  - **roles/pmo.md = 477 行（>300 但接近目标 ~500 cap · 仅 Wave 4 收官状态）**
+- **加 1 删 1 元规则核算**：
+  - **加**：roles/pmo-reporting.md（278 行）+ pmo.md 综合短指针（~14 行）+ cite 微改（~2 行）= ~294 行
+  - **删**：pmo.md 五段（~295 行）+ 散落空行清理（~3 行）= ~298 行
+  - **净删 ~4 行**（cap 推进 + 操作产物 spec 单源化 · 接近平衡）
+  - **核心收益**：
+    - **pmo.md 离 ~500 cap 目标已达成（477 行 · 在 cap buffer 内）**
+    - PMO 报告 + 操作产物（5 段）合并为一个权威源 · 日常操作集中
+    - **Wave 4 整体收官 · 累计净删 ~1337 行**（1814 → 477）
+
+---
+
+## 🎉 Wave 4 整体总结（P0-93 ~ P0-97 · 5 patches 完成）
+
+**目标达成**：pmo.md **1814 → 477 行**（净删 **1337 行** · 74% 减重）· 接近 ~500 cap 目标 ✅
+
+| Phase | Patch | 抽 sub-file | 净删 | pmo.md 行数 | 累计 |
+|-------|-------|-------------|------|-------------|------|
+| ✅ Phase 1 | P0-93 | pmo-pm-acceptance-ship + pmo-external-orchestration | ~400 | 1814 → 1415 | 22% |
+| ✅ Phase 2 | P0-94 | pmo-auto-mode | ~184 | 1415 → 1231 | 32% |
+| ✅ Phase 3 | P0-95 | pmo-cross-project | ~213 | 1231 → 1018 | 44% |
+| ✅ Phase 4 | P0-96 | pmo-state-mgmt | ~259 | 1018 → 759 | 58% |
+| ✅ Phase 5 | P0-97 | pmo-reporting | ~282 | 759 → 477 | **74% 减重 / 99% cap 进度** |
+
+**当前 PMO 矩阵全景（Wave 4 终态）**：
+```
+roles/pmo.md (477) [Wave 4 收官 · 接近 ~500 目标]
+├── pmo-pm-acceptance-ship.md (261) [P0-93]
+├── pmo-external-orchestration.md (212) [P0-93]
+├── pmo-auto-mode.md (228) [P0-94]
+├── pmo-cross-project.md (251) [P0-95]
+├── pmo-state-mgmt.md (298) [P0-96]
+└── pmo-reporting.md (278) [P0-97]
+```
+
+**评审规范分层规范化项目（Wave 1 + 2 + 3 + 4 全部完成）整体总结**：
+- ✅ **Wave 1**（P0-85）：基础设施（review-verdict + review-scope 双单源）
+- ✅ **Wave 2**（P0-86）：架构师独立化 peer-level role
+- ✅ **Wave 3**（P0-87 ~ P0-92 · 6 patches）：6 role 4 段重构 + sub-file 化
+- ✅ **Wave 4**（P0-93 ~ P0-97 · 5 patches）：pmo.md 重点瘦身 1814 → 477 行
+
+**累计成果**（Wave 1-4 合并）：
+- 7 主 role 文件（architect/qa/rd/pm/designer/external/product-lead/pmo）全部 4 段对齐
+- 13 sub-file 全部 ≤ 300 cap：
+  - 架构师三件套：architect(126) + architect-tech-review(230) + architect-cr(261)
+  - QA 三件套：qa(196) + qa-tc-review(168) + qa-cr(204)
+  - PM 二件套：pm(291) + pm-prd-review(181)
+  - PL 二件套：product-lead(235) + product-lead-change-mgmt(152)
+  - PMO 七件套（Wave 4）：pmo(477) + pmo-pm-acceptance-ship(261) + pmo-external-orchestration(212) + pmo-auto-mode(228) + pmo-cross-project(251) + pmo-state-mgmt(298) + pmo-reporting(278)
+  - 单文件：rd(232) / designer(209) / external-reviewer(234)
+- 大文件瘦身累计：review-stage 826→384（-442）· qa 359→196（-163）· rd 642→232（-410）· pm 463→291（-172）· product-lead 382→235（-147）· **pmo 1814→477（-1337）**= **总瘦身 ~2671 行**
+- 风格 C 设计完整落地："role 管角色契约 + 评审视角 + 职能视角 / stage 管调度 + scope + 循环 / sub-file 装详规范 + 操作产物 / standards 装跨切规则"
+
+**后续可选方向**：
+- Wave 5（可选）：pmo.md 4 段重构（决策边界 / 用户质疑 / 跨项目协调 / Goal-Plan 调度 / 问题排查 / Bug 流程 等剩余段整合到 4 段结构）· 进一步压缩到 ~350 行
+- pmo-reporting.md 等 sub-file 局部精简（cap buffer 紧逼区文件）
+
+---
+
+## v7.3.10 + P0-96
+
+> v7.3.10+P0-96 评审规范分层规范化 · **Wave 4 Phase 4**：抽 3 段（路径路由 + state.json 维护 + 自下而上升级评估）合并到 pmo-state-mgmt.md。**pmo.md 1018 → 759 行**（净删 ~259 行 · Wave 4 累计 ~1055 行 / 58% 进度向 ~500 cap）。
+
+### P0-96：pmo.md 瘦身 Phase 4（Wave 4）
+
+- 触发：P0-95（Wave 4 Phase 3）完成后 · 推进 Wave 4 Phase 4 抽下一组主题相关段（状态机/数据维护三件套）。
+- 设计哲学：3 段都是"PMO 数据/状态维护"主题（路径路由 + state.json + 升级评估）· 合并到一个 sub-file · 用一个综合短指针指向 sub-file 三段。
+- 核心改动：
+  - **P0-96-1. 新建 `roles/pmo-state-mgmt.md`**（298 行 ≤ 300 ✅ 仅余 2 行 buffer）：
+    - 3 段：§ 一 PMO 产物路径权威路由（v7.3.10+P0-41 · 路由计算 / 历史兼容 / 校验时机 / 失败输出格式）/ § 二 state.json 状态机维护规范（v7.3.2 / R3 访问模式 P0-23 / 增量更新 P0-52 / Compact 恢复 / 与现有文件关系）/ § 三 自下而上影响升级评估（PM/RD 标记上游 → PMO 评估升级路径 4 层）
+    - 历史源流：v7.3.2 引入 state.json → P0-23 R3 访问模式 → P0-41 路径路由 → P0-52 增量更新 → +P0-96 三段合并抽出
+  - **P0-96-2. `roles/pmo.md` 删 3 段 + 加综合短指针**（1018 → 759 行 · 净删 ~259 行）：
+    - 反序删（保留 line number）：L365-439 升级评估（~75）/ L242-363 state.json 维护（~122）/ L29-102 路径路由（~74）= 总删 ~271 行
+    - 替为一个 12 行综合短指针（cite roles/pmo-state-mgmt.md 三段 § 一/二/三）· 实际净删 259 行
+  - **P0-96-3. 全框架 cite 切换**：
+    - `TEMPLATES.md` L49 cite "roles/pmo.md § state.json 更新优先用 patch 脚本" → "roles/pmo-state-mgmt.md § 2.5"
+    - `standards/prompt-cache.md` L154 cite "roles/pmo.md" 改 → "roles/pmo-state-mgmt.md § 2.4"
+    - `agents/README.md` roles/ 目录索引加 pmo-state-mgmt.md 条目
+  - **P0-96-4. 版本号 + init-stage.md SKILL_VERSION 期望同步**（7.3.10+P0-95 → 7.3.10+P0-96）
+- **P0-79 元规则触发评估**：
+  - roles/pmo-state-mgmt.md = 298 行 ≤ 300 ✅（仅余 2 行 · 进入紧逼区）
+  - roles/pmo.md = 759 行（>300 · Wave 4 累计抽 ~1055 行 · 58% 进度）
+- **加 1 删 1 元规则核算**：
+  - **加**：roles/pmo-state-mgmt.md（298 行）+ pmo.md 综合短指针（~12 行）+ cite 微改（~5 行）= ~315 行
+  - **删**：pmo.md 三段（~271 行）+ cite 替换（~5 行）= ~276 行
+  - **净加 ~39 行**（cap 推进 + 数据/状态维护 spec 单源化）
+  - **核心收益**：
+    - pmo.md 离 ~500 cap 又近了 ~259 行（累计 58% 进度）
+    - 状态机维护（路径路由 + state.json + 升级评估）三段合并为一个权威源 · 数据相关职责集中
+- 不动:
+  - 任何 stage 文件（仅微改 TEMPLATES.md / prompt-cache.md / agents/README.md cite）
+  - **pmo.md 其他段**（决策边界 / 用户质疑响应 / Bug 流程 / Test 前置 / KNOWLEDGE 扫描 / Goal-Plan 调度 / 完成报告 / 反模式 等留 Wave 4 Phase 5 一并处理）
+- 影响面：1 个新建文件（pmo-state-mgmt.md）+ pmo.md 大改（1018 → 759）+ 3 个文件 cite 微改（TEMPLATES.md / prompt-cache.md / agents/README.md）+ 元数据 2 个（SKILL.md / init-stage.md）+ CHANGELOG entry
+- **Wave 4 路线图更新**：
+  - ✅ Phase 1（P0-93）：抽 PM 验收+Ship + 外部模型调度（净删 ~400 · pmo.md 1814 → 1415）
+  - ✅ Phase 2（P0-94）：抽 auto 模式（净删 ~184 · 1415 → 1231）
+  - ✅ Phase 3（P0-95）：抽 跨项目协调（净删 ~213 · 1231 → 1018）
+  - ✅ Phase 4（P0-96）：抽 路径路由 + state.json + 升级评估（净删 ~259 · 1018 → 759）
+  - ⏳ Phase 5（P0-97）：pmo.md 4 段重构 + 最终精简（决策边界 / 用户质疑 / Bug / Test / KNOWLEDGE / Goal-Plan 调度 / 完成报告 / 反模式 整合）→ 目标 ~500-600 行
+
+---
+
+## v7.3.10 + P0-95
+
+> v7.3.10+P0-95 评审规范分层规范化 · **Wave 4 Phase 3**：抽 3 段（跨项目依赖识别 + 跨子项目需求拆分 + 变更归属检查）到 pmo-cross-project.md。**pmo.md 1231 → 1018 行**（净删 ~213 行 · Wave 4 累计 ~796 行 / 44% 进度向 ~500 cap）。
+
+### P0-95：pmo.md 瘦身 Phase 3（Wave 4）
+
+- 触发：P0-94（Wave 4 Phase 2）完成后 · 推进 Wave 4 Phase 3 抽下一组主题相关段（跨项目协调三件套）。
+- 设计哲学：3 段主题相关（场景 A 上游依赖 + 场景 B 跨子项目拆分 + 变更归属检查 P0-33）合并到一个 sub-file · 不分 3 个独立 sub-file（避免文件过度碎片化）· 用一个综合短指针指向 sub-file 三段。
+- 核心改动：
+  - **P0-95-1. 新建 `roles/pmo-cross-project.md`**（251 行 ≤ 300 ✅）：
+    - 3 段：跨项目依赖识别（场景 A · 7 子段含触发 / 流程 / 硬规则）/ 跨子项目需求拆分（场景 B · 拆分流程 + 方案模板 + 完成报告）/ 变更归属检查（5 步流程 + 阻塞决策矩阵 + 逃生舱 + 硬规则）
+    - 历史源流：v7.3.9+P0-8 加跨项目依赖识别 → v7.3.10+P0-26 整合到 triage Step 6 → v7.3.10+P0-33 加变更归属检查（Step 6.5）→ +P0-95 抽出
+  - **P0-95-2. `roles/pmo.md` 删 3 段 + 加综合短指针**（1231 → 1018 行 · 净删 ~213 行）：
+    - L441-496 跨项目依赖识别（~56 行）
+    - L598-688 跨子项目需求拆分（~91 行）
+    - L690-764 变更归属检查（~75 行）
+    - 总删 ~222 行 · 替为一个 9 行综合短指针（cite roles/pmo-cross-project.md 三段 § 一/二/三）· 实际净删 213 行
+  - **P0-95-3. 全框架 cite 切换**：
+    - `templates/dependency.md` L24 cite "roles/pmo.md § 跨项目依赖识别" → "roles/pmo-cross-project.md § 一"
+    - `agents/README.md` roles/ 目录索引加 pmo-cross-project.md 条目
+  - **P0-95-4. 版本号 + init-stage.md SKILL_VERSION 期望同步**（7.3.10+P0-94 → 7.3.10+P0-95）
+- **P0-79 元规则触发评估**：
+  - roles/pmo-cross-project.md = 251 行 ≤ 300 ✅
+  - roles/pmo.md = 1018 行（>300 · 进度 44% · Wave 4 累计抽 ~796 行）
+- **加 1 删 1 元规则核算**：
+  - **加**：roles/pmo-cross-project.md（251 行）+ pmo.md 综合短指针（~9 行）+ cite 微改（~5 行）= ~265 行
+  - **删**：pmo.md 三段（~222 行）+ cite 替换中节省（~5 行）= ~227 行
+  - **净加 ~38 行**（cap 推进 + 跨项目调度 spec 单源化）
+  - **核心收益**：
+    - pmo.md 离 ~500 cap 又近了 ~213 行（累计 44% 进度）
+    - 跨项目协调（场景 A + 场景 B + 变更归属）三段合并为一个权威源 · 主题集中
+- 不动:
+  - 任何 stage 文件（仅微改 templates/dependency.md cite）
+  - **pmo.md 其他段**（路径路由 / 决策边界 / state.json 维护 / Bug 流程 / Test 前置 / KNOWLEDGE 扫描 等留 Wave 4 后续 Phase）
+- 影响面：1 个新建文件（pmo-cross-project.md）+ pmo.md 大改（1231 → 1018）+ 2 个文件 cite 微改（templates/dependency.md / agents/README.md）+ 元数据 2 个（SKILL.md / init-stage.md SKILL_VERSION）+ CHANGELOG entry
+- **Wave 4 路线图更新**：
+  - ✅ Phase 1（P0-93）：抽 PM 验收+Ship + 外部模型调度（净删 ~400 行 · pmo.md 1814 → 1415）
+  - ✅ Phase 2（P0-94）：抽 auto 模式 + 自动推进规则（净删 ~184 行 · pmo.md 1415 → 1231）
+  - ✅ Phase 3（P0-95）：抽 跨项目依赖 + 跨子项目拆分 + 变更归属（净删 ~213 行 · pmo.md 1231 → 1018）
+  - ⏳ Phase 4（P0-96）：抽 state.json 维护 + 自下而上升级 + 路径路由（~250 行）→ pmo-state-mgmt.md
+  - ⏳ Phase 5（P0-97）：pmo.md 4 段重构 + 最终精简 → ~500-600 行
+
+---
+
+## v7.3.10 + P0-94
+
+> v7.3.10+P0-94 评审规范分层规范化 · **Wave 4 Phase 2**：抽 PMO 自动推进规则 + auto 模式（HITL/AFK 二分）到 sub-file。**pmo.md 1415 → 1231 行**（净删 ~184 行 · Wave 4 累计 583 行 / 32% 进度向 ~500 cap）。
+
+### P0-94：pmo.md 瘦身 Phase 2（Wave 4）
+
+- 触发：P0-93（Wave 4 Phase 1）完成后 · 推进 Wave 4 Phase 2 抽下一个独立大段。
+- 设计哲学：沿 P0-93 增量 sub-file 模式 · 抽 auto 模式段（自动推进 + AUTO_MODE/HITL/AFK ~192 行）独立 sub-file。
+- 核心改动：
+  - **P0-94-1. 新建 `roles/pmo-auto-mode.md`**（228 行 ≤ 300 ✅）：
+    - 9 段：自动推进规则 / auto mode 判定 / 元规则意图承载豁免 P0-11-A / AFK 暂停点 / Browser E2E 默认跳过 P0-11-B / HITL 暂停点 / 跳过日志 / 强制保留模板 / 自检清单 / 运行时关闭
+    - 历史源流：v7.3.9+P0-11 引入 AUTO_MODE → +P0-11-A 修订意图承载豁免 → +P0-11-B Browser E2E 默认跳过 → v7.3.10+P0-76 mode 字段化 HITL/AFK → +P0-94 抽出
+  - **P0-94-2. `roles/pmo.md` 删 auto 模式段 + 加短指针**（1415 → 1231 行 · 净删 ~184 行）：
+    - L1051-1242 自动推进规则 + auto 模式（~192 行）→ 替为 8 行短指针（cite roles/pmo-auto-mode.md）
+  - **P0-94-3. 全框架 cite 切换**：
+    - `rules/flow-transitions.md` L87 cite "pmo.md「⚡ auto 模式...」章节" → "pmo-auto-mode.md"（v7.3.10+P0-94 抽出）
+    - `stages/init-stage.md` L133 cite "pmo.md「⚡ auto 模式...」章节" → "pmo-auto-mode.md"
+    - `agents/README.md` roles/ 目录索引加 pmo-auto-mode.md 条目
+  - **P0-94-4. 版本号 + init-stage.md SKILL_VERSION 期望同步**（7.3.10+P0-93 → 7.3.10+P0-94）
+- **P0-79 元规则触发评估**：
+  - roles/pmo-auto-mode.md = 228 行 ≤ 300 ✅
+  - roles/pmo.md = 1231 行（>300 · 进度 32% · Wave 4 累计抽 ~583 行）
+- **加 1 删 1 元规则核算**：
+  - **加**：roles/pmo-auto-mode.md（228 行）+ pmo.md 短指针（~10 行）+ cite 微改（~5 行）= ~243 行
+  - **删**：pmo.md auto 模式段（~192 行）+ cite 替换中节省（~5 行）= ~197 行
+  - **净加 ~46 行**（cap 推进 + auto 模式调度 spec 单源化）
+  - **核心收益**：
+    - pmo.md 离 ~500 cap 又近了 ~184 行（累计 32% 进度）
+    - auto 模式（HITL/AFK 二分）从 PMO 文件深处提升为独立权威源 · flow-transitions.md / init-stage.md 直接 cite
+- 不动:
+  - 任何 stage 文件（仅微改 init-stage / flow-transitions cite）
+  - templates / standards 其他文件
+  - **pmo.md 其他段**（路径路由 / 决策边界 / state.json 维护 / 跨项目 / 变更归属 / Bug 流程 / Test 前置 等留 Wave 4 后续 Phase）
+- 影响面：1 个新建文件（pmo-auto-mode.md）+ pmo.md 大改（1415 → 1231）+ 3 个文件 cite 微改（flow-transitions.md / init-stage.md / agents/README.md）+ 元数据 2 个（SKILL.md / init-stage.md SKILL_VERSION）+ CHANGELOG entry
+- 后续验证：立即可验证：sub-file ≤ 300 cap · pmo.md 1231 行 · cite 全可达
+- **Wave 4 路线图更新**：
+  - ✅ Phase 1（P0-93）：抽 PM 验收+Ship + 外部模型调度（净删 ~400 行 · pmo.md 1814 → 1415）
+  - ✅ Phase 2（P0-94）：抽 auto 模式 + 自动推进规则（净删 ~184 行 · pmo.md 1415 → 1231）
+  - ⏳ Phase 3（P0-95）：抽 跨子项目需求拆分 + 跨项目依赖识别 + 变更归属检查（~225 行）→ pmo-cross-project.md
+  - ⏳ Phase 4（P0-96）：抽 state.json 维护 + 自下而上升级评估 + 路径路由（~250 行）→ pmo-state-mgmt.md
+  - ⏳ Phase 5（P0-97）：pmo.md 4 段重构 + 最终精简 → ~500-600 行
+
+---
+
+## v7.3.10 + P0-93
+
+> v7.3.10+P0-93 评审规范分层规范化 · **Wave 4 启动 Phase 1**：pmo.md 重点瘦身第一阶段。抽 2 个最大段（PM 验收+Ship + 外部模型评审调度）到 sub-file。**pmo.md 1814 → 1415 行**（净删 ~400 行）· 距 ~500 cap 还需 Wave 4 后续 Phase 推进。
+
+### P0-93：pmo.md 瘦身 Phase 1（Wave 4 启动）
+
+- 触发：P0-92 完成 6 role 4 段重构（Wave 3 收官）后 · 启动 Wave 4 唯一未达 cap 的 pmo.md（1814 行）的瘦身。
+- 设计哲学：增量抽 sub-file 模式（沿 P0-87/88/90/91/92）· 优先抽最大块（PM 验收+Ship ~236 行 + 外部模型调度 ~181 行）· 累计净删 ~400 行。
+- 核心改动：
+  - **P0-93-1. 新建 `roles/pmo-pm-acceptance-ship.md`**（261 行 ≤ 300 ✅）：
+    - 5 段：设计目标（v7.3.10+P0-15 MR 模式）/ PM 验收暂停点（流程 + 模板 + 选 1/2/3 处理）/ commit 产物清单 / commit message 模板 / Ship Stage PMO 职责速查（双段 v7.3.10+P0-29 + finalize push merge_target v7.3.10+P0-32 + 红线 #1 边界）
+    - 历史源流：v7.3.10+P0-15 MR 模式 → +P0-29 双段 → +P0-32 finalize push → +P0-93 抽出
+  - **P0-93-2. 新建 `roles/pmo-external-orchestration.md`**（212 行 ≤ 300 ✅）：
+    - 10 段：设计变化（v7.3.10+P0-38 重构）/ 影响范围 / Step 1-6（PMO 直接判定 / 渲染判定段 / 智能推荐表 / 决策项呈现 / state.json 写入 / 失败降级 E3）/ 兼容性 fallback / 硬规则
+    - 适配 P0-83（删 Goal-Plan external · 仅 Blueprint/Review 适用）· 推荐表从 3 列改 2 列
+  - **P0-93-3. `roles/pmo.md` 删两段 + 加短指针**（1814 → 1415 行 · 净删 ~400 行）：
+    - L498-678 外部模型评审调度（~181 行）→ 替为 8 行短指针（cite roles/pmo-external-orchestration.md）
+    - L1430-1665 PM 验收 + Ship Stage（~236 行）→ 替为 8 行短指针（cite roles/pmo-pm-acceptance-ship.md）
+  - **P0-93-4. 全框架 cite 切换**：
+    - `stages/ship-stage.md` L60 必读文件 + L86 入口 Read 顺序：cite roles/pmo.md 改加 roles/pmo-pm-acceptance-ship.md
+    - `templates/external-cross-review.md` L54 cite "pmo.md §🌐 外部模型交叉评审开关决策" → "roles/pmo-external-orchestration.md"
+    - `agents/README.md` roles/ 目录索引加 pmo-pm-acceptance-ship.md / pmo-external-orchestration.md 条目（pmo.md 标"瘦身中 · Wave 4 ongoing"）
+  - **P0-93-5. 版本号 + init-stage.md SKILL_VERSION 期望同步**（7.3.10+P0-92 → 7.3.10+P0-93）
+- **P0-79 元规则触发评估**：
+  - roles/pmo-pm-acceptance-ship.md = 261 行 ≤ 300 ✅
+  - roles/pmo-external-orchestration.md = 212 行 ≤ 300 ✅
+  - roles/pmo.md = 1415 行（>300 · 进度 22% 抽完 · 还需 Wave 4 后续 Phase 推进到 ~500）
+- **加 1 删 1 元规则核算**：
+  - **加**：roles/pmo-pm-acceptance-ship.md（261 行）+ roles/pmo-external-orchestration.md（212 行）+ pmo.md 短指针（~25 行）= ~498 行
+  - **删**：pmo.md PM 验收+Ship（~236 行）+ pmo.md 外部模型（~181 行）= ~417 行
+  - **净加 ~80 行**（重构主要价值在 cap 推进 + 调度 spec 单源化 · 可读性大幅提升）
+  - **核心收益**：
+    - pmo.md 离 ~500 cap 又近了 ~400 行（22% 进度）
+    - PM 验收 + Ship 调度规范从"角色文件深处"提升为独立权威源 · ship-stage.md 直接 cite
+    - external 评审调度 sub-file + external-reviewer.md 角色契约形成清晰双层结构
+- 与已有规则的关系：
+  - **`stages/ship-stage.md` / `stages/pm-acceptance-stage.md`**：保留 · Stage 调度契约不变 · 必读清单更新 cite
+  - **`roles/external-reviewer.md`**：保留 · 角色契约不变 · pmo-external-orchestration.md 是 PMO 调度 spec
+  - **`standards/external-model.md`**：保留 · 异质性单源不变
+- 不动:
+  - 任何 stage 文件（ship-stage.md / pm-acceptance-stage.md 仅微改 cite）
+  - templates / standards 其他文件
+  - 其他 7 role 文件（Wave 3 已完成）
+  - **pmo.md 其他段**（路径路由 / 决策边界 / state.json 维护 / 跨项目 / 变更归属 / Bug 流程 / Test 前置 / auto 模式 等留 Wave 4 后续 Phase）
+- 影响面：2 个新建文件（pmo-pm-acceptance-ship.md / pmo-external-orchestration.md）+ pmo.md 大改（1814 → 1415）+ 4 个文件 cite 微改（ship-stage.md ×2 / external-cross-review.md / agents/README.md）+ 元数据 2 个（SKILL.md / init-stage.md）+ CHANGELOG entry
+- 后续验证：
+  - 立即可验证：2 sub-file 存在 + ≤ 300 cap · pmo.md 1415 行 · cite 全可达
+  - Wave 4 Phase 2 时验证：继续抽 auto 模式 + 自动推进规则（~190 行）等
+- **Wave 4 路线图**：
+  - **Phase 1（P0-93 · 完成）**：抽 PM 验收+Ship + 外部模型调度（净删 ~400 行）
+  - **Phase 2（P0-94）**：抽 PMO 自动推进规则 + auto 模式判定（L1170+ ~200 行）→ pmo-auto-mode.md
+  - **Phase 3（P0-95）**：抽 跨子项目需求拆分 + 跨项目依赖识别 + 变更归属检查（~225 行）→ pmo-cross-project.md
+  - **Phase 4（P0-96）**：抽 state.json 维护 + 自下而上升级评估 + 路径路由（~250 行）→ pmo-state-mgmt.md
+  - **Phase 5（P0-97）**：pmo.md 4 段重构 + 最终精简（~500 行）
+
+---
+
+## v7.3.10 + P0-92
+
+> v7.3.10+P0-92 评审规范分层规范化 · 第 3 波**最终阶段**：Designer / External / PL 三 role 4 段重构（合并 patch · 完成 6 role 4 段重构 6/6 🎉）。**Wave 3 收官**。pl 抽 sub-file（变更管理段）。
+
+### P0-92：6 role 4 段重构收官（Wave 3 第 6 阶段）
+
+- 触发：P0-91 完成 PM 4 段重构后 · 合并 patch 推进剩余 3 个 role（Designer / External / PL）4 段重构 · 完成 Wave 3 收官。
+- 设计哲学：6 role 4 段对齐（angle / qa / rd / pm / designer / external 全部 4 段结构 · 与 architect.md 对称）+ PL 变更管理段抽 sub-file（保 product-lead.md ≤ 300 cap）。
+- 核心改动：
+  - **P0-92-1. `roles/designer.md` 4 段重构**（129 → 209 行 · ≤ 300 ✅）：
+    - 原 6 段（顶部职责 + UI 还原验收 + 反模式 + Goal-Plan PRD 评审 checklist）→ 5 段对齐：
+      - § 一：Designer UI/UX 视角 + 与 PM/RD 边界 + 核心原则（HTML 预览强制 / 必须基于现有页面迭代 / 必须覆盖所有状态）
+      - § 二：评审职责（Goal-Plan PRD 评审 checklist 归位 + UI Design 自查 + UI 还原验收 · 行为硬规则 + 反模式）
+      - § 三：职能职责（UI.md + preview/*.html + 全景维护 + UI 还原验收 + 验收声明 + 交接点 · 行为硬规则 + 反模式）
+      - § 四：Stage 速查（10 stage × Designer 参与度）
+      - § 五：协同（Designer ↔ PM / RD / QA / PMO）
+  - **P0-92-2. `roles/external-reviewer.md` 4 段重构**（219 → 234 行 · ≤ 300 ✅）：
+    - 原 8 段结构（角色定位 / 可用性来源 / 通用评审契约 / context 来源 / PMO 实例化 / 失败降级 / 与其他角色关系 / 立场独立性强调）→ 5 段对齐：
+      - § 一：External 异质模型角色定位 + 唯一不可替代价值 + 异质性核心约束（合并原 § 一 + § 八）
+      - § 二：评审职责（评审入口表 / verdict / scope / 立场独立性硬约束 / 评审深度要求 / 输出 schema / 反模式 · 合并原 § 三）
+      - § 三：职能职责（无独立产出 + 可用性来源 + PMO 实例化 + 失败降级 · 合并原 § 二 / § 四 / § 五 / § 六）
+      - § 四：Stage 速查（External 仅 Blueprint / Review · Goal-Plan v7.3.10+P0-83 删）
+      - § 五：协同（External ↔ 其他角色 / 文件 · 合并原 § 七）
+  - **P0-92-3. 新建 `roles/product-lead-change-mgmt.md`**（152 行 ≤ 300 ✅）：
+    - 抽 product-lead.md L311-381（变更管理段 · CR 状态机 + 6 类影响评估 + 模式二旧新对比 + 编号约定 + ADR 关系 + 待执行变更记录格式）
+    - 8 段：设计目标 / 状态机 / PL 职责 / 模式二关系 / 编号约定 / 影响评估格式 / 与 ADR 关系 / 待执行变更记录格式
+  - **P0-92-4. `roles/product-lead.md` 4 段重构**（382 → 235 行 · 净删 147 行 · ≤ 300 ✅）：
+    - 删变更管理段（抽到 product-lead-change-mgmt.md）
+    - 整合 3 模式（引导 / 讨论 / 执行）+ PL 评审角色 + 强制约束 + 与 PL 驱动职责区分到 4 段：
+      - § 一：PL 产品方向层 + 与 PM 边界（表格化）+ 核心原则
+      - § 二：评审职责（Goal-Plan PRD 业务对齐 checklist · v7.3.10+P0-34 · 含 Feature 类型决策表 + 6 维 + 与驱动者职责区分）
+      - § 三：职能职责（3 模式 + 强制约束 + 核心产出 + 反模式 · 大量表格化压缩）
+      - § 四：Stage 速查（10 stage × PL 参与度 · 含引导 / 讨论 / 执行 / 变更级 Planning 行）
+      - § 五：协同（PL ↔ PM / RD / Architect / PMO）
+  - **P0-92-5. ROLES.md / agents/README.md 索引同步**：
+    - ROLES.md L11/L13：Designer + PL 描述加 v7.3.10+P0-92 标注
+    - PL 描述加 [product-lead-change-mgmt.md](./roles/product-lead-change-mgmt.md) sub-file 链接
+    - agents/README.md roles/ 目录索引加 product-lead-change-mgmt.md 条目
+  - **P0-92-6. 版本号 + init-stage.md SKILL_VERSION 期望同步**（7.3.10+P0-91 → 7.3.10+P0-92）
+- **P0-79 元规则触发评估**：
+  - roles/designer.md = 209 行 ≤ 300 ✅
+  - roles/external-reviewer.md = 234 行 ≤ 300 ✅
+  - roles/product-lead.md = 235 行 ≤ 300 ✅（修复 382 超 cap）
+  - roles/product-lead-change-mgmt.md = 152 行 ≤ 300 ✅（新）
+- **加 1 删 1 元规则核算**：
+  - **加**：4 段结构表格化 + product-lead-change-mgmt.md 新建（~152 行）+ designer/external 重写（~80 + ~15 行）= ~247 行
+  - **删**：product-lead.md 原文（~147 行 · 主要变更管理段移到 sub-file 净删）= ~147 行
+  - **净加 ~100 行**（重构主要价值在 4 段一致性 / cap 合规化 / 表格化压缩）
+  - **核心收益**：
+    - 6 role 4 段重构**全部完成**（architect / qa / rd / pm / designer / external / pl）· 风格 C 设计完整落地
+    - 全 7 role 文件 + 7 sub-file 总计 14 个文件 · 全部 ≤ 300 cap ✅
+    - PL 变更管理详规范独立 sub-file · pl.md 不再背"角色契约 + CR 详规范"双重身份
+- 与已有规则的关系：
+  - **`stages/goal-plan-stage.md`**：保留 · 必读清单未变 · 仅 cite 路径间接更新（PL 评审进 PRD-REVIEW.md.reviews[] · cite roles/product-lead.md）
+  - **`stages/triage-stage.md`**：保留 · CR / 变更管理 cite product-lead-change-mgmt.md 已添加（如果有 · 暂未发现 active 引用）
+  - **`templates/change-request.md`**：保留 · 是 CR 文档模板 · 与 product-lead-change-mgmt.md 互补
+- 不动:
+  - 任何 stage 文件（goal-plan / blueprint / review / etc 仅 cite 路径）
+  - templates / standards 其他文件
+  - 其他 role / sub-file（架构师三件套 / QA 三件套 / RD / PM 二件套已完成）
+  - **PMO**（pmo.md = 1814 行 · Wave 4 重点瘦身 · 不在本 patch 范围）
+- 影响面：3 个文件全文重写（designer.md / external-reviewer.md / product-lead.md）+ 1 新建（product-lead-change-mgmt.md）+ 索引 2 个（ROLES.md / agents/README.md）+ 元数据 2 个（SKILL.md / init-stage.md）+ CHANGELOG entry
+- 后续验证：
+  - 立即可验证：4 个文件全部 ≤ 300 cap · 4 段结构对齐 architect/qa/rd/pm · cite 全可达
+  - Wave 3 进度 6/6 ✅ · 6 role 4 段重构全部完成
+  - Wave 4 时验证：pmo.md 瘦身（1814 → ~500 · 拆 4-5 reference 子文件）
+- **Wave 3 累积总结（P0-86 ~ P0-92）**：
+  - 7 role 文件全部 4 段对齐：architect.md(126) / qa.md(196) / rd.md(232) / pm.md(291) / designer.md(209) / external-reviewer.md(234) / product-lead.md(235) / pmo.md(1814 留 Wave 4)
+  - 7 sub-file 全部新建：architect-cr(261) + architect-tech-review(230) / qa-cr(204) + qa-tc-review(168) / pm-prd-review(181) / product-lead-change-mgmt(152)
+  - review-stage.md 826 → 384（净删 442）· qa.md 359 → 196（净删 163）· rd.md 642 → 232（净删 410）· pm.md 463 → 291（净删 172）· product-lead.md 382 → 235（净删 147）
+  - 风格 C 设计（"role 管角色契约 + 评审视角 + 职能视角 / stage 管调度 + scope + 循环 / sub-file 装详规范 / standards 装跨切规则"）全 6 role 完整落地
+- 后续 Wave 计划：
+  - **Wave 4：pmo.md 重点瘦身**（1814 → ~500 行 · 拆 4-5 reference 子文件）· 风险最高 · 设计权衡更复杂
+
+---
+
+## v7.3.10 + P0-91
+
+> v7.3.10+P0-91 评审规范分层规范化 · 第 3 波第 5 阶段：PM 4 段重构 + PRD 多角色评审抽 sub-file。**pm.md 463 → 291 行**（净删 172 行）· 拆出 roles/pm-prd-review.md（181 行）· 修复 P0-86/87/88 后遗留的"PRD 技术评审规范段还寄生在 pm.md"。
+
+### P0-91：PM 4 段重构 + PRD 多角色评审独立化（Wave 3 第 5 阶段）
+
+- 触发：P0-90 完成 RD 4 段重构 · 推进 PM 4 段重构。pm.md 463 行 · 含 PRD 技术评审规范段（L294-453, ~160 行）+ 大量散落 hard rules（评审回应 / 对抗自查 / DEFER 收紧 / Feature Planning / Workspace Planning / 中台 PRD 增强）。
+- 设计哲学（沿 P0-87/88/89/90 sub-file + 4 段模式）：
+  - **PRD 多角色评审详规范** → 独立 sub-file `roles/pm-prd-review.md`（与 pm.md 角色契约分离）
+  - **PM 4 段结构**：
+    - § 一：PM 产品视角 + 与 PL/QA 边界 + 核心原则（PRD 起草前 Read 代码 P0-73 / 格式权威 P0-7 / 禁 TBD / 埋点强制）
+    - § 二：PM 评审职责（PM 主要被评审者 + 回应规则 P0-34 + 对抗自查 P0-34-B + DEFER 收紧 P0-34-A + 评审循环 + PMO 校验）
+    - § 三：PM 职能（PRD 起草 + Feature Planning + Workspace Planning + 变更级 Planning + 中台 PRD 增强 + 上游影响检测 + 状态看板）
+    - § 四：Stage 速查（11 stage × PM 参与度 · 含 Feature Planning / 变更级 Planning 行）
+    - § 五：协同（PM ↔ PL / RD / QA / Designer / External / PMO）
+- 核心改动：
+  - **P0-91-1. 新建 `roles/pm-prd-review.md`**（181 行 ≤ 300 ✅）：
+    - 6 段：角色定位 / 输入文件 / 评审维度（4 角色视角 RD/Designer/QA/PMO + cite role checklist）/ 执行流程 / 输出要求 / 反模式
+    - 顶部权威源声明 + cite 回 pm.md + cite review-verdict.md / review-scope.md(prd) + 历史源流（agents/prd-review.md → pm.md → 本文件）
+  - **P0-91-2. `roles/pm.md` 全文重写为 4 段结构**（463 → 291 行 · 净删 172 行）：
+    - 删 L82-218 散落的 PM 评审回应规则 + 对抗自查 + DEFER 收紧 + 评审循环 → 整合到 § 二、评审职责（结构化 + 表格化）
+    - 删 L240-291 Feature Planning + Workspace Planning 段落 → 整合到 § 三、职能职责 § 3.3 + § 3.4
+    - 删 L294-453 PRD 技术评审规范段（~160 行）→ 抽到 pm-prd-review.md
+    - 删 L455-463 反模式段 → 整合到 § 二.7 + § 三.10 反模式（按评审 / 职能分类）
+    - L37-54 上游影响检测 → § 3.7 上游影响检测（精简）
+    - L66-78 中台子项目 PRD 增强 → § 3.6 中台子项目 PRD 增强
+    - L231-238 状态看板 → § 3.8 状态看板
+  - **P0-91-3. 全框架 cite 切换**：
+    - `ROLES.md` L12 PM 描述加 [pm-prd-review.md](./roles/pm-prd-review.md) sub-file
+    - `stages/goal-plan-stage.md` L36 必读文件清单加 `roles/pm-prd-review.md`
+    - `agents/README.md` roles/ 目录索引加 pm-prd-review.md 条目
+  - **P0-91-4. 版本号 + init-stage.md SKILL_VERSION 期望同步**（7.3.10+P0-90 → 7.3.10+P0-91）
+- **P0-79 元规则触发评估**：
+  - roles/pm-prd-review.md = 181 行 ≤ 300 ✅
+  - roles/pm.md = 291 行 ≤ 300 ✅（修复前 463 ❌ → 修复后 ✅ · trim 一次后达标）
+- **加 1 删 1 元规则核算**：
+  - **加**：roles/pm-prd-review.md（181 行）+ pm.md 4 段重构后（291 行）+ 散落 cite 微改（~5 行）= ~477 行
+  - **删**：pm.md 原文（463 行）+ 散落 cite 替换（~5 行）= ~468 行
+  - **净加 ~9 行**（基本平衡 ✅）
+  - **核心收益**：
+    - pm.md 463 → 291 · 不再背"PM 角色 + PRD 多角色评审 spec"双重身份 · 文件回到"PM 角色契约"本职
+    - PM sub-file 矩阵：pm.md（291 契约）+ pm-prd-review.md（181 PRD 多角色评审）· 与架构师 + QA 的三件套对称
+    - 风格 C 设计在 4 个 role 完整落地（Wave 3 进度 4/6）
+- 与已有规则的关系：
+  - **`stages/goal-plan-stage.md`**：保留 · 仍是 Goal-Plan Stage 调度 + scope 权威源 · 必读清单加 pm-prd-review.md
+  - **`templates/prd.md` PRD-REVIEW frontmatter schema**：保留 · pm-prd-review.md § 5.2 cite 不变
+- 不动:
+  - 任何 stage 文件（goal-plan-stage.md 仅微调必读清单）
+  - templates / standards 其他文件
+  - 其他 sub-file（architect-cr/architect-tech-review/qa-cr/qa-tc-review）
+  - 其他 2 role（designer / product-lead / external-reviewer / pmo）4 段重构留给 P0-92
+- 影响面：1 个新建文件（pm-prd-review.md）+ 4 个文件改动（pm.md 全文重写 / ROLES.md / goal-plan-stage.md / agents/README.md）+ 元数据 2 个（SKILL.md / init-stage.md）+ CHANGELOG entry
+- 后续验证：
+  - 立即可验证：roles/pm-prd-review.md 存在 · pm.md = 291 行 ≤ 300 · 4 段结构对齐 architect/qa/rd · cite 路径全可达
+  - P0-92 时验证：Designer / product-lead / external-reviewer 4 段重构（合并 patch · 这 3 个文件较小）· Wave 3 进度 5/6
+- 后续 Wave 计划（**P0-92 / P0-XX**）：
+  - **P0-92**：Designer / product-lead / external-reviewer 4 段重构（合并 patch · 完成 6 role 4 段重构）
+  - **P0-XX**（Wave 4）：pmo.md 重点瘦身（1814 → ~500 行 · 拆 4-5 reference 子文件 · 风险最高）
+
+---
+
+## v7.3.10 + P0-90
+
+> v7.3.10+P0-90 评审规范分层规范化 · 第 3 波第 4 阶段：RD 4 段重构 + 架构师 Tech Review 抽 sub-file。**rd.md 642 → 232 行**（净删 410 行 🎉）· 拆出 roles/architect-tech-review.md 子文件（230 行）· 修复 P0-86 后遗留的"架构师方案评审规范段还寄生在 rd.md"问题。架构师角色 sub-file 矩阵完整化：契约（115）+ Tech Review（230）+ Code Review（261）。
+
+### P0-90：RD 4 段重构 + 架构师 Tech Review 独立化（Wave 3 第 4 阶段）
+
+- 触发：P0-89 完成 QA 4 段重构后 · 推进 RD 4 段重构。RD 文件 642 行（仅次于 pmo.md 1814）· 含两个架构师段（RD-side overview L55-281 + 完整规范 L380-609）· P0-86 时已声明"架构师方案评审段后续 patch 评估"· P0-87 时声明"P0-87 时与 review-stage.md 大段一并整合到 architect.md"但实际未做 · 本 patch 完成。
+- 设计哲学（沿 P0-87/P0-88 sub-file 模式 + P0-89 4 段结构）：
+  - **架构师 Tech Review 详规范** → 独立 sub-file `roles/architect-tech-review.md`（与 architect-cr.md 对称）
+  - **RD 4 段结构**（角色定位 / 评审职责 / 职能职责 / Stage 速查 + 协同）：
+    - § 一：RD 实现层视角 + 与架构师/QA 边界 + 核心原则（TDD / 根因优先 / 格式权威 / 修了 A 必查 BC）
+    - § 二：RD 评审职责（Goal-Plan PRD 评审 + 配合接受 Tech/Code Review）· Goal-Plan PRD checklist 归位
+    - § 三：RD 职能（TECH 起草 + TDD 开发 + 自查 + Bug 排查报告 + 上游影响检测 + 复杂度判断）
+    - § 四：Stage 速查（10 stage × RD 参与度 · 含 Bug 流程行）
+    - § 五：协同（RD ↔ 架构师 / QA / external / PM / Designer / PMO）
+- 核心改动：
+  - **P0-90-1. 新建 `roles/architect-tech-review.md`**（230 行 ≤ 300 ✅）：
+    - 6 段：角色定位 / 输入文件 / Review 维度（11 维：需求覆盖 + UI 支撑 + 架构合理性 + 扩展性 + 性能 + 安全 + Schema 同步完整性 + 降级兜底 + API 版本 + 现有架构一致性 + Search-Before-Build）/ 执行流程（8 步） / 输出要求（Review 报告 7 节）/ 反模式 5 条
+    - 顶部声明权威源 + cite 回 architect.md + cite review-verdict.md / review-scope.md(blueprint) + 历史源流（agents/arch-tech-review.md → rd.md → 本文件）
+  - **P0-90-2. `roles/rd.md` 全文重写为 4 段结构**（642 → 232 行 · 净删 **410 行** 🎉）：
+    - 删 L55-281 RD-side overview 段（架构师方案评审 + 架构师 Code Review · 2×100+ 行 inline 内容）→ 替为 § 二的 cite 表
+    - 删 L380-609 架构师方案评审规范段（~230 行）→ 抽到 architect-tech-review.md
+    - L613-642 Goal-Plan PRD 评审 checklist → 归位到 § 二、评审职责 § 2.4
+    - L282-379 Bug 排查报告 → 整合到 § 三、职能职责 § 3.4
+    - 上游影响检测 → § 三 § 3.5
+    - RD 自查 → § 三 § 3.3
+    - 复杂度判断 → § 三 § 3.6
+    - 4 段结构对齐 architect.md / qa.md（同 5 H2 + 子段格式）
+  - **P0-90-3. 全框架 cite 切换**：
+    - `stages/blueprint-stage.md` L66 必读文件清单加 `roles/architect-tech-review.md`
+    - `stages/blueprint-stage.md` L216 Process Step 4：cite 改 `roles/architect.md` → `roles/architect-tech-review.md`
+    - `standards/backend.md` L639 Schema 链表格 cite 改 `roles/rd.md §架构师方案评审规范` → `roles/architect-tech-review.md`
+    - `agents/README.md` L713-720 roles/ 目录索引重写（含全 sub-file 矩阵）
+    - `ROLES.md` L15-16 架构师 + RD 描述更新
+  - **P0-90-4. `roles/architect.md` 加 Tech Review 入口**：
+    - § 二 加 § 2.0 评审入口表（Blueprint Tech Review + Review CR + Goal-Plan ❌）
+    - § 2.4 评审行为硬规则加 Tech Review 详规范条目
+    - § 三 § 3.1 核心产出表加 TECH-REVIEW.md 条目 + review-arch.md cite 优化
+    - § 四 Stage 速查 Blueprint 行 cite 改 architect-tech-review.md（原 cite blueprint-stage.md）
+    - 顶部说明加 P0-90 sub-file 矩阵（契约 115 + Tech Review 230 + Code Review 261）
+  - **P0-90-5. 版本号 + init-stage.md SKILL_VERSION 期望同步**（7.3.10+P0-89 → 7.3.10+P0-90）
+- **P0-79 元规则触发评估**（文件体量物理上限）：
+  - roles/architect-tech-review.md = 230 行 ≤ 300 ✅
+  - roles/rd.md = 232 行 ≤ 300 ✅（修复 642 严重超 cap）
+  - roles/architect.md = ~125 行（加 Tech Review 入口后微涨 · 仍 ≤ 300 ✅）
+- **加 1 删 1 元规则核算**：
+  - **加**：roles/architect-tech-review.md（230 行）+ rd.md 4 段重构新写（232 行）+ architect.md 加 Tech Review 入口（~10 行）+ 散落 cite 微改（~10 行）= ~482 行
+  - **删**：rd.md 原文（642 行）+ ROLES.md / agents/README.md / standards/backend.md / blueprint-stage.md 老 cite 替换中节省（~10 行）= ~652 行
+  - **净删 ~170 行**（罕见 · 大重构通常会膨胀；本 patch 通过单源化 + cite 化 + 4 段压缩实现净删）
+  - **核心收益**：
+    - rd.md 642 → 232 · 不再背"RD 角色 + 架构师方案评审规范"双重身份 · 文件回到"RD 角色契约"本职
+    - 架构师 sub-file 矩阵完整：architect.md（115 契约）+ architect-tech-review.md（230 Tech Review）+ architect-cr.md（261 Code Review）· 与 QA 三件套对称（qa.md + qa-tc-review.md + qa-cr.md）
+    - 风格 C 设计在架构师 + QA + RD 完整落地（Wave 3 进度 3/6）
+- 与已有规则的关系：
+  - **`stages/dev-stage.md § RD 角色任务规范`**：保留 · 仍是 Dev Stage 内部 RD TDD 任务规范权威源 · rd.md § 三 cite 不变
+  - **`standards/common.md § 三 RD 自查规范`**：保留 · 仍是 RD 自查规范权威源 · rd.md § 3.3 cite 不变
+  - **`standards/tdd.md`**：保留 · TDD 单源 · rd.md § 一核心原则 cite 不变
+- 不动:
+  - 任何 stage 文件（dev-stage.md / test-stage.md / browser-e2e-stage.md / blueprint-stage.md 仅微调 cite）
+  - templates / standards 其他文件
+  - architect-cr.md / qa-cr.md / qa-tc-review.md sub-files
+  - 其他 4 role（pm/designer/product-lead/external-reviewer/pmo）4 段重构留给 P0-91/92
+- 影响面：1 个新建文件（architect-tech-review.md）+ 6 个文件改动（rd.md 全文重写 / architect.md 加 Tech Review 入口 / blueprint-stage.md ×2 cite / standards/backend.md × 1 / agents/README.md roles/ 目录索引 / ROLES.md ×2 行）+ 元数据 2 个（SKILL.md / init-stage.md）+ CHANGELOG entry
+- 后续验证：
+  - 立即可验证：roles/architect-tech-review.md 存在 · rd.md = 232 行 ≤ 300 · architect.md 加 § 2.0 评审入口表 + § 2.4 Tech Review 硬规则 · 全 cite 路径可达
+  - P0-91 时验证：PM 4 段重构（评估是否抽 PRD 技术评审段）· Wave 3 进度 4/6
+- 后续 Wave 计划（**P0-91 / P0-92 / P0-XX**）：
+  - **P0-91**：PM 4 段重构（含 PRD 技术评审规范段评估 · 是否抽 sub-file）
+  - **P0-92**：Designer / product-lead / external-reviewer 4 段重构（合并 patch · 这 3 个文件较小）
+  - **P0-XX**（Wave 4）：pmo.md 重点瘦身（1814 → ~500 行 · 拆 4-5 reference 子文件 · 风险最高）
+
+---
+
+## v7.3.10 + P0-89
+
+> v7.3.10+P0-89 评审规范分层规范化 · 第 3 波第 3 阶段：QA 4 段重构。把 qa.md 内容按 4 段结构（角色定位 / 评审职责 / 职能职责 / Stage 速查 + 协同）重排 · 与 architect.md 对齐。Goal-Plan PRD 评审 checklist 归位到 § 二、评审职责 ·原"代码审查流程"段简化为 cite qa-cr.md ·散落职责段整合为 § 三、职能职责。
+
+### P0-89：QA 4 段重构（Wave 3 第 3 阶段）
+
+- 触发：P0-88 完成 qa.md 超 cap 修复 · 推进 QA 4 段重构（与 architect.md 风格 C 对齐）
+- 设计哲学（4 段最小骨架 + Stage 速查 + 协同）：
+  - **§ 一、角色定位**（QA 测试视角边界 + 与 RD 边界 + 核心原则 P0-68）
+  - **§ 二、评审职责**（3 评审入口表 · Goal-Plan/Blueprint/Review · cite review-verdict.md / review-scope.md / qa-tc-review.md / qa-cr.md · Goal-Plan PRD checklist 归位 · 行为硬规则 · 反模式）
+  - **§ 三、职能职责**（核心产出表 + TC 编写格式 BDD/Gherkin + 测试执行流程 + 验收声明 + 行为硬规则 + 反模式）
+  - **§ 四、Stage 应用速查**（9 stage × QA 参与度表）
+  - **§ 五、与其他角色的协同**（6 协同对象表）
+- 核心改动：
+  - **P0-89-1. 全文重写 `roles/qa.md`**（206 → 196 行 · 净删 10 行）：
+    - 原 14 个分散段头（**职责** / **TC 编写格式** / **实现原则** / **验收标准覆盖声明** / **评审流程** / **代码审查流程** / **单元测试门禁** / **项目集成测试流程** / **跳过条件** / **API E2E** / **Browser E2E** / **完成后** / **TC 技术评审规范** / **Goal-Plan PRD 评审 checklist**）→ 整合为 5 段结构（4 段 + 协同）
+    - **代码审查流程段简化**：删原 35 行内联流程 · 替为 cite qa-cr.md（避免与 qa-cr.md 双权威源）
+    - **Goal-Plan PRD checklist 归位**：原顶级 H2 段 → § 2.4（评审职责子段）· 内容保留
+    - **测试执行流程重组**：原 5 个分散段（单元门禁 / 集成测试 / 跳过 / API E2E / Browser E2E）→ § 3.3 集成测试执行流程（一图概括 + cite stage spec）· 净删 ~30 行重复
+    - **核心原则 P0-68 上提**：从 qa-cr.md 提示拉到 § 一 角色定位（跨 stage 通用原则）
+- **P0-79 元规则触发评估**（文件体量物理上限）：
+  - roles/qa.md = 196 行 ≤ 300 ✅（继续保持 P0-88 的 cap 合规）
+- **加 1 删 1 元规则核算**：
+  - **加**：4 段结构 + Stage 速查表 + 协同表 + 评审入口表（结构化内容 ~50 行）
+  - **删**：原代码审查流程详细段（~35 行）+ 原测试执行流程散落重复（~30 行）+ 原其他散落 hint（~5 行）= ~70 行
+  - **净删 ~10 行**（罕见 · 重构通常会膨胀；本 patch 通过单源化 + 表格化压缩）
+  - **核心收益**：
+    - QA 角色契约从"分散段头流水账"变成"4 段结构化契约"· 与 architect.md 对齐
+    - Goal-Plan PRD checklist 从顶级 H2 归位到 § 评审职责子段（更符合"评审职责跨 stage"逻辑）
+    - 代码审查段不再双权威源（与 qa-cr.md 区分清晰：role 契约 vs 任务规范）
+- 与已有规则的关系：
+  - **`roles/qa-cr.md` / `roles/qa-tc-review.md`**：保留 · 仍是详规范权威源 · qa.md cite 不变
+  - **`stages/test-stage.md`**：保留 · 集成测试 / API E2E 任务规范权威源 · qa.md § 3.3 cite 不变
+  - **`stages/browser-e2e-stage.md`**：保留 · qa.md § 3.3 cite 不变
+- 不动:
+  - 任何 sub-file（qa-cr.md / qa-tc-review.md）
+  - 任何 stage 文件（test-stage.md / browser-e2e-stage.md / blueprint-stage.md / review-stage.md）
+  - architect.md / architect-cr.md
+  - 全框架其他 cite 路径（qa.md 路径未变 · cite 仍可达）
+- 影响面：1 个文件全文重写（roles/qa.md）+ 元数据 2 个（SKILL.md / init-stage.md）+ CHANGELOG entry
+- 后续验证：
+  - 立即可验证：roles/qa.md = 196 行 ≤ 300 ✅ · 4 段结构对齐 architect.md · 全 cite 路径可达
+  - P0-90 时验证：RD 4 段重构（含架构师方案评审段拆给 architect.md）· 6 role 重构进度 2/6
+- 后续 Wave 计划（**P0-90 / P0-XX**）：
+  - **P0-90**: RD 4 段重构（含架构师方案评审段评估 · 是否拆给 architect.md 或独立 sub-file）
+  - **P0-91**: PM 4 段重构（含 PRD 技术评审规范段评估）
+  - **P0-92**: Designer / product-lead / external-reviewer 4 段重构（合并 patch · 这 3 个文件较小）
+  - **P0-XX**（Wave 4）：pmo.md 重点瘦身（1814 → ~500 行 · 拆 4-5 reference 子文件 · 风险最高）
+
+---
+
+## v7.3.10 + P0-88
+
+> v7.3.10+P0-88 评审规范分层规范化 · 第 3 波第 2 阶段：QA 文件超 cap 修复（roles/qa.md 359 → 206 行 ≤ 300 cap）。延 P0-87 sub-file 模式 · 抽 qa.md TC 技术评审规范段（~155 行）到 roles/qa-tc-review.md 子文件。
+
+### P0-88：QA TC 技术评审规范抽 sub-file（修 qa.md 超 300 cap）
+
+- 触发：P0-87 完成后自检发现 roles/qa.md 359 行 >300 cap（pre-existing · TC 技术评审段是主因）。本 patch 沿 P0-87 sub-file 模式修复。
+- 核心改动：
+  - **P0-88-1. 新建 `roles/qa-tc-review.md`**（168 行 ≤ 300 ✅）：
+    - 6 段：角色定位 / 输入文件 / 评审维度（PM/RD/Designer 多角色视角 · 含动态选择）/ 执行流程（7 步）/ 输出要求（评审报告模板 + 文件路径 + 上游问题清单）/ 反模式 5 条
+    - 顶部声明权威源 + cite 回 roles/qa.md 角色契约 + cite review-verdict.md / review-scope.md（review_scope=blueprint）+ 历史源流（agents/tc-review.md → qa.md → 本文件）
+  - **P0-88-2. `roles/qa.md` 删 TC 技术评审规范段**（359 → 206 行 · 净删 ~153 行）：
+    - 原 L166-326 整段删（~161 行 · 6 子段）→ 替成 6 行短指针（cite roles/qa-tc-review.md）
+    - Goal-Plan Stage PRD 评审 checklist 段保留（~31 行 · QA 在 Goal-Plan 视角的 checklist · 后续 P0-89 4 段重构时可再归位到 § 评审职责）
+    - 完成后：qa.md 206 行 ≤ 300 cap ✅（之前 pre-existing >300 问题已解决）
+  - **P0-88-3. 全框架 cite 切换**（2 处活引用 + 1 处描述）：
+    - `stages/blueprint-stage.md` L63 必读文件清单：`roles/qa.md（含 TC 技术评审规范）` → 拆为 `roles/qa.md（角色契约）+ roles/qa-tc-review.md（TC 技术评审详规范）`
+    - `stages/blueprint-stage.md` L162 Process Step 2：`按 roles/qa.md「TC 技术评审规范」` → `按 [roles/qa-tc-review.md] · 角色契约见 [roles/qa.md]`
+    - `ROLES.md` L14 描述：QA 描述更新含 [qa-cr.md](./roles/qa-cr.md) + [qa-tc-review.md](./roles/qa-tc-review.md) 子文件 · 同步加架构师独立行（之前没有）+ RD 描述去掉"+ 架构师方案评审规范" hint
+  - **P0-88-4. 版本号 + init-stage.md SKILL_VERSION 期望同步**（7.3.10+P0-87 → 7.3.10+P0-88）
+- **P0-79 元规则触发评估**（文件体量物理上限）：
+  - roles/qa-tc-review.md = 168 行 ≤ 300 ✅
+  - roles/qa.md = 206 行 ≤ 300 ✅（修复前 359 ❌ → 修复后 ✅）
+- **加 1 删 1 元规则核算**：
+  - **加**：roles/qa-tc-review.md（168 行）+ qa.md 短指针（~10 行）+ blueprint-stage / ROLES.md 微改（~10 行）= ~188 行
+  - **删**：qa.md TC 技术评审规范段（~161 行）+ ROLES.md 老 RD 描述里"+ 架构师方案评审规范 + Code Review"折叠（~5 行）= ~166 行
+  - **净加 ~22 行**（Wave 3 第 2 阶段 · 主要价值在修 qa.md 超 cap · 不在 cite 化）
+  - **Wave 1+2+3-1+3-2 累积**：净加 ~181 行（P0-85 +260 + P0-86 +144 + P0-87 +15 + P0-88 +22 - P0-87 复利）· 但 cap 合规性大幅改善（review-stage.md 826→384, qa.md 359→206 都回到 ≤300）
+  - **核心收益**：
+    - qa.md 修复超 cap（之前是 pre-existing 历史包袱 · 本 patch 解决）
+    - roles/ 文件夹 sub-file 模式延续：QA 现有 3 文件（qa.md 角色契约 + qa-cr.md CR 详规范 + qa-tc-review.md TC 评审详规范）· 与架构师对称（architect.md + architect-cr.md）
+    - 风格 C 设计在 QA 角色完整落地（每个详规范都有独立 sub-file）
+- 与已有规则的关系：
+  - **`roles/qa.md` Goal-Plan PRD 评审 checklist 段**：保留（仍在 qa.md 内 · ~31 行 · 不大）· P0-89 4 段重构时归位到 § 评审职责
+  - **`REVIEWS.md` 全局 review 格式文件**：未动（out of scope · 仍是历史 legacy 全局 review 格式权威源）
+  - **`roles/qa.md` 代码审查流程段（L62-99）**：保留（虽然内容被 qa-cr.md 覆盖 · 但 qa.md 内仍是简版职能描述 · P0-89 整理时优化）
+- 不动:
+  - 任何角色契约段（除 qa.md TC 技术评审段抽出）
+  - REVIEWS.md / standards / templates 其他文件
+  - 其他 6 role（pm/rd/designer/product-lead/external-reviewer/pmo）
+- 影响面：1 个新建文件（qa-tc-review.md）+ 4 个文件 cite/描述切换（qa.md 大动 / blueprint-stage.md ×2 / ROLES.md / SKILL.md 版本）+ 元数据 2 个（SKILL.md / init-stage.md）
+- 后续验证：
+  - 立即可验证：roles/qa-tc-review.md 存在 · qa.md 行数从 359 → 206 · grep "qa.md.*TC 技术评审" 应仅剩 ROLES.md 描述（已更新指 sub-file）+ CHANGELOG 历史
+  - P0-89 时验证：QA 4 段重构后 · qa.md 内的 Goal-Plan PRD checklist 归位到 § 评审职责 · 更进一步精简
+- 后续 Wave 计划（**P0-89 / P0-XX**）：
+  - **P0-89 ~ P0-92**（Wave 3 后续 6 role 4 段重构）：每次独立 patch · 重写按 4 段（角色定位 / 评审职责 / 职能职责 / 特殊职责 + Stage 速查）· cite review-verdict.md / review-scope.md
+    - P0-89: QA 4 段重构（含 Goal-Plan PRD checklist 归位 + Code Review 段简化为 cite）
+    - P0-90: RD 4 段重构（含架构师方案评审规范段拆给 architect.md）
+    - P0-91: PM 4 段重构（含 PRD 技术评审规范段评估）
+    - P0-92: Designer / product-lead / external-reviewer 4 段重构
+  - **P0-XX**（Wave 4）：pmo.md 重点瘦身（1814 → ~500 行 · 拆 4-5 reference 子文件 · 风险最高）
+
+---
+
+## v7.3.10 + P0-87
+
+> v7.3.10+P0-87 评审规范分层规范化 · 第 3 波第 1 阶段：CR 任务规范从 stages/review-stage.md 抽到 roles/{architect-cr,qa-cr}.md 子文件。落 P0-86 中"P0-87 计划迁回"的承诺。**净删 ~440 行**，是 Wave 1+2 累积净加（~404 行）的第一次大额回收 · 评审规范分层规范化设计开始变现。
+
+### P0-87：CR 任务规范从 stage 抽到 role sub-file（Wave 3 第 1 阶段）
+
+- 触发：P0-86 完成 architect 独立化 · 推进"CR 任务规范回 roles/"承诺。设计权衡：直接 inline 入 architect.md / qa.md 会超 300 cap（架构师 4 段 114 + CR 256 = 370）→ 改用 sub-file 模式（保 4 段主 role 简洁 + 子文件 ≤300 cap + role 文件夹只做"角色相关"分类不破设计）
+- 核心改动：
+  - **P0-87-1. 新建 `roles/architect-cr.md`**（261 行 ≤ 300 ✅）：
+    - 6 段：角色定位 / Review 维度（含日志完整性 P0-69 三段式 + Schema 同步 + 防御性路径 4 路 + 性能 / 安全 / 缓存）/ 执行流程 + 约束 / 架构文档更新规则 / 输出模板（7 段表格）/ 上游问题清单
+    - 顶部声明权威源 + cite 回 roles/architect.md 角色契约 + 历史源流（agents/arch-code-review.md → review-stage.md → 本文件）
+  - **P0-87-2. 新建 `roles/qa-cr.md`**（204 行 ≤ 300 ✅）：
+    - 5 段：角色定位 / 执行流程（Step 1-7 + Step 4.5 PRD AC 直接对账 P0-68 + Step 5.5 用户行为边界 + Step 5.7 设计-代码一致性）/ 执行约束 / QA Review 输出模板 / 结果处理
+    - 同样声明权威源 + cite 回 roles/qa.md
+  - **P0-87-3. `stages/review-stage.md` 删两段大正文**（826 → 386 行 · 净删 ~440 行）：
+    - § 架构师 CR 任务规范（原 ~256 行）→ 5 行短指针（cite roles/architect-cr.md）
+    - § QA CR 任务规范（原 ~198 行）→ 5 行短指针（cite roles/qa-cr.md）
+    - 内部 5 处引用更新（L5 顶部说明 / L52-53 必读文件 / L57-58 必读文件 / L144 Step 4 架构师 / L149 Step 4 QA）
+  - **P0-87-4. 全框架 cite 批量更新**：
+    - `SKILL.md` L287 Plan 模板示例：`stages/review-stage.md §架构师 CR 任务规范, stages/review-stage.md §QA CR 任务规范` → `roles/architect.md + roles/architect-cr.md, roles/qa.md + roles/qa-cr.md`
+    - `standards/backend.md` L641 Schema 链表格 cite 改 → `roles/architect-cr.md`
+    - `roles/rd.md` 3 处（L156 规范引用 / L191 性能与安全详引 / L220 阶段 2 架构师段）改 → `roles/architect-cr.md`
+    - `templates/dispatch.md` L46 Subagent 输入文件清单 cite 改
+    - `codex-agents/reviewer.toml` L9 reviewer prompt cite 改
+  - **P0-87-5. `roles/architect.md` / `roles/qa.md` cite 切换** + 删除"v7.3.10+P0-87 计划迁回"过渡注释（已落地）：
+    - architect.md 顶部说明 / §2.4 评审行为硬规则 / Stage 应用速查表 共 3 处
+    - qa.md 顶部评审契约速查 1 处
+  - **P0-87-6. 版本号 + init-stage.md SKILL_VERSION 期望同步**（7.3.10+P0-86 → 7.3.10+P0-87）
+- **P0-79 元规则触发评估**（文件体量物理上限）：
+  - roles/architect-cr.md = 261 行 ≤ 300 ✅
+  - roles/qa-cr.md = 204 行 ≤ 300 ✅
+  - stages/review-stage.md 826 → 386 行 · 大幅瘦身 ✅
+- **加 1 删 1 元规则核算**：
+  - **加**：roles/architect-cr.md（261 行）+ roles/qa-cr.md（204 行）+ 散落 cite 字面值微改（~20 行）= ~485 行
+  - **删**：review-stage.md（~440 行 · 含两段大正文 + 重复段头）+ 全框架 cite 中 review-stage.md §X 字面值替换中节省的修饰词（~30 行）= ~470 行
+  - **净加 ~15 行**（基本平衡 · 落"加 1 删 1"元规则）
+  - **P0-86 + P0-87 合计**：Wave 2 + Wave 3 第 1 阶段累积净加 ~159 行（P0-86 +144 + P0-87 +15）· 比单纯 inline 重写省了 ~250 行（因为是 cite 化而非复制粘贴）
+  - **核心收益**：
+    - review-stage.md 826 → 386 行 · 显著瘦身 · 可读性大幅提升（再不是 stage 契约 + role 任务规范双重身份）
+    - role 文件夹组织清晰：roles/architect.md（角色契约 4 段）+ roles/architect-cr.md（CR 详规范 6 段）；qa 同样
+    - "stage 管调度 + scope · role 管角色契约 + 评审视角"风格 C 设计**完整落地**
+- 与已有规则的关系：
+  - **`roles/rd.md` 架构师方案评审规范段**：暂保留（仍是 RD 寄生 · Blueprint Stage 用）· 后续 patch 评估是否搬到 architect.md（与 CR 不同 stage · 不在本 patch 范围）
+  - **`roles/architect.md` 4 段最小骨架**：保留 · 仅切换 cite 路径 + 删除过渡注释
+  - **`stages/review-stage.md` 调度契约**：保留 · 删两段大正文 · stage 文件回到"调度 + scope + 循环"本职
+- 不动:
+  - 任何角色契约段（architect.md 4 段 / qa.md 现有内容）
+  - standards / templates 其他文件
+  - 其他 6 role（pm/rd/designer/product-lead/external-reviewer/pmo）4 段重构留给 P0-88+
+- 影响面：2 个新建文件（architect-cr.md / qa-cr.md）+ 7 个文件 cite 切换（review-stage.md 大动 / SKILL.md / standards/backend.md / roles/rd.md / roles/architect.md / roles/qa.md / templates/dispatch.md / codex-agents/reviewer.toml）+ 元数据 2 个（SKILL.md / init-stage.md）
+- 后续验证：
+  - 立即可验证：roles/architect-cr.md / roles/qa-cr.md 存在 · review-stage.md 长度从 826 → 386 · 全框架 grep "stages/review-stage.md §架构师 CR 任务规范" / "§QA CR 任务规范" 应 0 命中（除 CHANGELOG 历史段）
+  - P0-88+ 时验证：6 role 4 段重构后 · 子文件模式可作为参考（如 pm-discuss.md / qa-tc-review.md 等专项 spec）
+- 后续 Wave 计划（**P0-88 / P0-XX**）：
+  - **P0-88 ~ P0-92**（Wave 3 后续）：6 role 4 段重构（pm / rd / qa / designer / product-lead / external-reviewer）· 每次独立 patch · 重写按 4 段结构 + cite review-verdict.md / review-scope.md
+  - **P0-XX**（Wave 4）：pmo.md 重点瘦身（1814 → ~500 行 · 拆 4-5 reference 子文件 · 风险最高）
+
+---
+
+## v7.3.10 + P0-86
+
+> v7.3.10+P0-86 评审规范分层规范化 · 第 2 波：架构师独立化（peer to RD）。本 patch 采用 **incremental 策略**：先建 roles/architect.md（4 段最小骨架 · 暂 cite review-stage.md 详规范）+ 联动 schema/stage cite 切换 · 不立即抽 review-stage.md 架构师 CR 任务规范段（256 行）· 那部分留给 P0-87 一起处理。这样 architect 独立化逻辑完成 · 但 review-stage.md 大段不动 · 风险最低。
+
+### P0-86：架构师独立化（Wave 2 · incremental）
+
+- 触发：P0-85 完成基础设施后 · 推进 Wave 2「architect 独立成 role」
+- 核心改动：
+  - **P0-86-1. 新建 `roles/architect.md`**（114 行 · 4 段极简结构）：
+    - 一、角色定位（与 RD 边界："RD 实现层 / 架构师架构层" + "两个 adapter 才抽象" 判定）
+    - 二、评审职责（6 维 + 1 兜底 · cite review-verdict.md / review-scope.md · 行为硬规则 · 反模式）
+    - 三、职能职责（TECH 架构段 / REVIEW 架构师段 / ADR 起草 / ARCHITECTURE.md 维护 / database-schema.md 同步）
+    - 四、Stage 应用速查（Goal-Plan ❌ / Blueprint ✅ / Dev ❌ / Review ✅）
+    - 五、与其他角色的协同（RD / QA / External / PMO 协同点）
+    - 🔴 注：架构师 CR 详细任务规范暂保留在 stages/review-stage.md（v7.3.10+P0-87 计划迁回）
+  - **P0-86-2. `roles/qa.md` 顶部加评审契约速查指针**（cite review-verdict.md / review-scope.md / review-stage.md § QA CR 任务规范）
+  - **P0-86-3. `stages/blueprint-stage.md` 评审组合更新**：
+    - 入口 Read 顺序加 `roles/architect.md`（与 qa/rd 同 step）
+    - 必读文件清单加 `roles/architect.md`（独立化标识）
+    - Step 4 架构师方案评审 cite 改成 `roles/architect.md`（原 cite `roles/rd.md` 「架构师方案评审规范」）· 同时 cite review-verdict.md + review-scope.md
+    - 角色规范必读硬规则加 architect 独立项
+  - **P0-86-4. `templates/feature-state.json` `_role_enum` 加 architect**（标注 architect 仅 Blueprint/Review 子 config 用 · 不参与 Goal-Plan PRD 评审）
+  - **P0-86-5. `templates/prd.md` PRD-REVIEW `reviews[].role` enum 加 architect**（schema 通用复用 TC-REVIEW / TECH-REVIEW / REVIEW.md · architect 值合法 · 注释标 prd scope 不参与）
+  - **P0-86-6. `stages/review-stage.md` 两段顶部加 cite 标注**：
+    - § 架构师 CR 任务规范 顶部 cite roles/architect.md（角色契约权威源）
+    - § QA CR 任务规范 顶部 cite roles/qa.md（角色契约权威源）
+    - 标注"v7.3.10+P0-87 计划迁回 roles/"（后续 patch 路径预告）
+  - **P0-86-7. 版本号 + init-stage.md SKILL_VERSION 期望同步**（7.3.10+P0-85 → 7.3.10+P0-86）
+- **P0-79 元规则触发评估**（文件体量物理上限）：
+  - 涉及新文件：roles/architect.md = 114 行 ≤ 300 ✅
+  - 涉及修改文件：均无明显增长 · 触发审查的暂无
+- **加 1 删 1 元规则核算**：
+  - **加**：~114 行（roles/architect.md 新建）+ 散落 cite 注释 ~30 行（qa.md / blueprint-stage.md / review-stage.md / state.json / prd.md）
+  - **删**：未删（incremental 策略 · review-stage.md 大段保留 · P0-87 才净删）
+  - **净加 ~144 行**（Wave 2 第一阶段 · 重在角色独立 · 不重在抽段）
+  - **核心收益**：
+    - architect 从 RD 子角色升 peer-level role · 职责边界清晰（架构层 vs 实现层）
+    - 评审 verdict + scope 通过 review-verdict.md / review-scope.md 单源 cite · 不重复定义
+    - 后续 P0-87 可以原地抽 review-stage.md 大段到 architect.md（不需重写 · 仅迁移）
+- 与已有规则的关系：
+  - **`stages/goal-plan-stage.md`**：保留 · 架构师不参与 Goal-Plan（已隐含）
+  - **`stages/review-stage.md` 架构师 + QA CR 任务规范**：原地保留 · 顶部加 cite 注释 · P0-87 迁回 roles/
+  - **`roles/rd.md` 架构师方案评审规范段**：暂不动（P0-87 时与 review-stage.md 大段一并整合到 architect.md）
+- 不动：
+  - `stages/review-stage.md` 架构师 CR 任务规范段大正文（仅顶部加 cite）
+  - `roles/rd.md`（架构师段保留 · P0-87 处理）
+  - `roles/pmo.md` 智能推荐表（架构师不参与 Goal-Plan · 不改）
+- 影响面：1 个新建文件（roles/architect.md）+ 6 个文件 cite/enum 微改（qa.md / blueprint-stage.md / review-stage.md / state.json / prd.md / init-stage.md）+ 元数据 2 个（SKILL.md / docs/CHANGELOG.md）
+- 后续验证：
+  - 立即可验证：roles/architect.md 存在 · cite review-verdict.md / review-scope.md / review-stage.md 路径可达
+  - P0-87 时验证：迁出 review-stage.md 架构师 CR 段后 · 大段净删（开始 incremental 净删）
+- 后续 Wave 计划（**P0-87 / P0-87+ / P0-XX**）：
+  - **P0-87**（Wave 3 第 1 阶段）：抽 review-stage.md 架构师 CR 任务规范（~256 行）+ QA CR 任务规范（~198 行）回 roles/architect.md / roles/qa.md（净删 review-stage.md ~454 行）
+  - **P0-88 ~ P0-92**（Wave 3 后续）：6 role 4 段重构（pm / qa / rd / designer / product-lead / external-reviewer）· 每次独立 patch
+  - **P0-XX**（Wave 4）：pmo.md 重点瘦身（1814 → ~500 行 · 拆 4-5 reference 子文件）
+
+---
+
+## v7.3.10 + P0-85
+
+> v7.3.10+P0-85 评审规范分层规范化 · 第 1 波：基础设施（review-verdict + review-scope 双单源）。用户拍板「按风格 C 方向 · role 管角色契约 + 评审视角 + 职能视角」+「先梳理 role 内容 · 不直接动手」+「architect 作为与 RD 同级独立角色」+「确认全部拍板点」。本 patch 是 Wave 1：仅创建基础设施单源（不动 role 文件 / 不动 stage 文件）· 后续 P0-86（architect 独立化）+ P0-87+（6 role 重构）+ P0-XX（pmo 瘦身）分批推进。
+
+### P0-85：评审规范分层规范化 Wave 1（基础设施）
+
+- 触发：用户分析「各角色评审规范散落 4 类文件 · 单源不一致」+ 用户拍板「按风格 C · role 只管评审视角 + 职能视角两类」+「architect 独立成 role」+「确认全部拍板点」
+- 设计哲学：
+  - **role 文件管"角色契约 + 评审视角 + 职能视角"两类**（跨 stage 通用）
+  - **stage 文件管"调度 + scope 边界 + 评审循环"**（stage 特定）
+  - **template 文件管"产物 schema"**（已是单源）
+  - **standards 文件管"跨角色跨 stage 通用规则"**（verdict 等级 / scope 边界 / TDD / external 异质性）
+- 改动（仅基础设施 · 不动 role / stage 文件）：
+  - **P0-85-1. 新建 `standards/review-verdict.md`**（~150 行）：
+    - 二、Verdict 三等级（PASS / PASS_WITH_CONCERNS / NEEDS_REVISION）+ 流转决策表
+    - 三、Finding Severity 三级（MUST-fix / SHOULD-fix / NICE-to-have）+ 判定规则（reviewer 必遵守）
+    - 四、整体 Verdict 收敛规则（多 reviewer 时最严胜出）
+    - 五、PM 回应规则（ADOPT/REJECT/DEFER + 对抗自查 P0-34-B + DEFER 收紧 P0-34-A · 整合迁入）
+    - 六、循环上限（≤3 轮 + 超限 ⏸️ 用户决策 5 选 1）
+    - 七、与其他规范的协作矩阵
+  - **P0-85-2. 新建 `standards/review-scope.md`**（~110 行）：
+    - 二、Scope 三类（prd / blueprint / code-review）+ 评审对象映射
+    - 三、Scope 边界（每个 scope 该审 / 不该审清单 · 整合迁入散落各 role/stage 的边界规则）
+    - 四、Scope 越界拦截（PMO 整合 finding 时的处理规则）
+    - 五、Scope 与 Stage 的映射关系
+    - 六、与其他规范的协作矩阵
+  - **P0-85-3. 版本号 + CHANGELOG**（7.3.10+P0-84 → 7.3.10+P0-85；init-stage.md SKILL_VERSION 期望同步）
+- **P0-79 元规则触发评估**（v7.3.10+P0-79 文件体量物理上限）：
+  - 涉及文件：均为新建 · 各 ≤ 150 行 · 符合 ≤300 上限 ✅
+- **加 1 删 1 元规则核算**：
+  - **加**：~260 行（review-verdict.md ~150 行 + review-scope.md ~110 行）
+  - **删**：未删（基础设施新建 · 后续 patch 才会触发各处散落 cite 化导致净删）
+  - **净加 ~260 行**（基础设施类 · 不算违反元规则 · 是后续清理的依据）
+  - **核心收益**：
+    - verdict 等级 + severity 判定 + PM 回应规则 + 循环上限 → 单一权威源（之前散落 5+ 文件）
+    - scope 三类 + 边界 + 越界拦截 → 单一权威源（之前散落各 role + stage）
+    - 后续 P0-86/87+ 可以基于此做 cite 化清理 · 大幅净删
+  - **"重新触发回来"防护**：未来若有人在 role / stage 重新定义 verdict 或 scope → cite 本 patch 单源
+- 与已有规则的关系：
+  - **`templates/prd.md` PRD-REVIEW frontmatter schema**：保留 · 仅 enum 引用本文件三等级 + 三级
+  - **`stages/goal-plan-stage.md` 评审循环 + scope 边界**：保留 · cite 本文件
+  - **`stages/blueprint-stage.md` / `review-stage.md`**：保留 · cite 本文件
+  - **`roles/*.md` 各角色评审段**：保留（暂不改）· 等 P0-86/87+ 重构时改 cite
+- 不动:
+  - 任何 role 文件（Wave 2/3 的事）
+  - 任何 stage 文件（Wave 2 的事）
+  - templates 文件（schema enum 暂不动 · Wave 2 时同步）
+  - external-model.md / tdd.md 等其他 standards
+- 影响面：2 个新建文件（standards/review-verdict.md / standards/review-scope.md）+ 元数据 3 个（SKILL.md / stages/init-stage.md / docs/CHANGELOG.md）
+- 后续验证：
+  - 立即可验证：standards/ 目录下两个新文件存在 · cite 路径可达
+  - P0-86 时验证：roles/architect.md 创建时直接 cite 本文件 verdict + scope · 不重复定义
+  - P0-87+ 时验证：各 role 重构时 cite 本文件 + 删散落 verdict 定义（开始净删）
+- 后续 Wave 计划（**P0-86 / P0-87+ / P0-XX**）：
+  - **P0-86**（Wave 2 · architect 独立化）：新建 roles/architect.md + 抽 review-stage.md 架构师 CR 任务规范 + 抽 QA CR 任务规范到 roles/qa.md + 修 stages/blueprint/review/goal-plan + roles/pmo.md 智能推荐表 + state.json/prd.md schema 加 architect enum
+  - **P0-87 ~ P0-92**（Wave 3 · 6 role 4 段重构）：每个 role 独立 patch（pm / qa / rd / designer / product-lead / external-reviewer）· 每次重写按 4 段结构（角色定位 / 评审职责 / 职能职责 / 特殊职责）+ cite review-verdict.md + cite review-scope.md
+  - **P0-XX**（Wave 4 · pmo.md 重点瘦身）：独立 patch · 1814 → ~500 行 · 拆 4-5 个 reference 子文件 · 风险最高
+
+---
+
+## v7.3.10 + P0-84
+
+> v7.3.10+P0-84 Goal-Plan 子步骤 3 串行身份切换改并行加载（用户拍板「QA+RD+Designer 串行没必要 · 一次性加载三视角规范评审更合理」）：当前 Goal-Plan Stage 子步骤 3 是 PMO 主对话内 QA→RD→Designer 物理身份切换 3 次（每次 Read 对应 roles/{id}.md + cite + 输出 finding + 切回 PMO）。深度分析后发现：**主对话内身份切换是软切换**（同 LLM session / 同 context · 切 RD 时上下文仍含 QA finding · 串行不带来真独立性 · "防鼓掌效应"是错觉）· 反而 3 次 Read + 3 次 cite + 3 次输出循环成本高。改为 PMO 一次性加载三视角规范 + 一次性输出三段独立 finding（保留输出结构 · 去物理切换仪式）。
+
+### P0-84：Goal-Plan 子步骤 3 串行改并行加载 + 三段独立输出
+
+- 触发：用户分析「QA+RD+Designer 串行是否必要 · 是否一次性加载三视角的规范来评审更合理」+ 用户拍板「P0-84 推进」
+- 设计哲学：
+  - **主对话内身份切换 = 软切换**：同 LLM session / 同 context · 切 RD 时上下文仍含 QA finding · 不可能真独立
+  - **真独立性需 Subagent 物理隔离**（fresh context · 不同 session）· 主对话内做不到
+  - **串行的真实价值是输出结构清晰**（三段标题）· 不是真改变 LLM 内部判断
+  - **并行加载收益**：节省 Read 重复 / 节省时间 / 跨视角 finding 自然涌现
+  - **保留**：输出结构（三段标题）+ 关注点 cite + PMO self-check 防三段融合
+- 改动：
+  - **P0-84-1. `stages/goal-plan-stage.md` 子步骤 3 调度顺序段重写**：从 3 步串行（PMO→QA / PMO→RD / PMO→Designer）改为 2 步并行（Step 1 PMO 一次性 Read 三视角规范 + Step 2 一次性输出三段 finding）+ 强制三段输出格式（QA/RD/Designer 严格三段标题 + 每段顶部 cite 关注点 + 至少 1 行 finding 即使为空也写"无 finding"）+ PMO self-check 硬规则（grep 三段标题 + cite 非空）+ 跨视角 finding 处理（cross_role 字段 · 仍归主要视角段）
+  - **P0-84-2. `stages/goal-plan-stage.md` "主对话身份切换硬规则"段替换为"视角加载硬规则"段**：取消第一人称锚点（"作为 QA·……"）· 改为通过三段标题 + 关注点 cite + self-check 物理保证三段结构
+  - **P0-84-3. `templates/prd.md` PRD-REVIEW schema 加 `cross_role: []` 可选字段**：finding 同时关联多视角时（如 [qa, rd]）标注 · 但仍归入主要视角段 · 不复制到多段
+  - **P0-84-4. 版本号 + CHANGELOG**（7.3.10+P0-83 → 7.3.10+P0-84；init-stage.md SKILL_VERSION 期望同步）
+- **P0-79 元规则触发评估**（v7.3.10+P0-79 文件体量物理上限）：
+  - 涉及文件：`stages/goal-plan-stage.md` ~650 行（超 300 上限）
+  - 本 patch 净加：~+5 行（结构调整 + 加 self-check 抵消删段）
+  - 是否触发拆分：否 · 累积压力基本持平（P0-83 已减 50 行 · 本 patch 微增 · 总体仍减负方向）
+- **加 1 删 1 元规则核算**：
+  - **加**：~30 行（新调度模式段 + self-check 硬规则 + cross_role 字段说明 + 视角加载硬规则段）
+  - **删**：~25 行（原 3 步串行调度顺序 + 原主对话身份切换硬规则段）
+  - **净加 ~5 行**（结构调整 · 不算实质净加）
+  - **不增加 PMO 负担**：减少 3 次切换 → 1 次输出 · 显著降低
+  - **核心收益**：
+    - Token ↓ ~30%（避免 3 次重复 Read 同样的 PRD / 重复 cite）
+    - 时长 ↓ ~40%（1 次输出循环 vs 3 次）
+    - 跨视角 finding 自然涌现（无需 PMO 在切回时手动整合）
+    - 输出结构不变（PRD-REVIEW.md.reviews[role] schema 兼容）
+  - **风险缓解**：
+    - 三段融合 → self-check grep 三段标题 + cite 非空（缺一段 = 流程偏离 · 重新输出）
+    - 失去专业判断深度 → 强制每段顶部 cite roles/{id}.md 1-2 句关键点（不能凭记忆）
+    - 跨视角 finding 错位 → cross_role 字段 + 主要视角归属规则
+  - **"重新触发回来"防护**：未来若有人想恢复物理身份切换 → cite 本 patch 反例（主对话内身份切换是软切换 · 防鼓掌是错觉 · 真独立性需 Subagent）
+- 与已有规则的关系：
+  - **v7.3.10+P0-44 Goal-Plan 5 子步骤重构**：本 patch 简化子步骤 3（串行→并行加载）· 不破坏 5 子步骤主结构
+  - **v7.3.10+P0-20-B 第一人称锚点（Micro 流程）**：保留 · Micro 仍用 PMO→RD 物理身份切换（Micro 是单角色 · 与 Goal-Plan 子步骤 3 多角色场景不同）
+  - **v7.3.10+P0-83 删 Goal-Plan external**：保留 + 协作（external 已删 · 本 patch 改的是剩余 QA/RD/Designer 调度）
+  - **PRD-REVIEW.md schema reviews[]**：保留 · 仅加 `cross_role: []` 可选字段
+- 不动:
+  - 5 子步骤主结构（不变）
+  - PRD-REVIEW.md.reviews[].{qa | rd | designer} 三段独立段（输出仍三段 · 仅调度方式变）
+  - Designer 触发条件（双保险 + 中途补启用 P0-51）
+  - PM 回应循环（子步骤 4 不变）
+  - Micro 流程的 PMO→RD 物理身份切换（保留 · 单角色场景）
+  - Blueprint Stage / Review Stage 评审调度（本 patch 仅改 Goal-Plan 子步骤 3 · 其他 stage 不变）
+- 影响面：2 个文件（stages/goal-plan-stage.md / templates/prd.md）+ 元数据 2 个（SKILL.md / stages/init-stage.md / docs/CHANGELOG.md）
+- 后续验证：
+  - 下次 Goal-Plan 子步骤 3 PMO 一次性 Read 三视角规范 + 一次性输出三段独立 finding
+  - 输出三段标题严格 · self-check grep 通过
+  - 跨视角 finding 标 cross_role · 不复制到多段
+  - PMO 调度时长降低（3 次循环 → 1 次输出）
+  - 长期：观察 LLM 是否会出现"三段融合"漂移（输出 1 段含三视角混合 finding）· 若出现 → 加更强的输出格式约束 / 或回退到串行
+  - 同样的逻辑可考虑应用到 Blueprint Stage 的 RD/QA 评审（待实战触发再决定）
+
+---
+
+## v7.3.10 + P0-83
+
+> v7.3.10+P0-83 删除 Goal-Plan Stage 的 external 评审（用户拍板「只删 Goal-Plan · Blueprint 保留」）：用户分析 Goal-Plan Stage external 在 PRD 文档层的边际价值低（5 内部视角 + PM 对抗自查 + 评审循环已多层兜底）+ external 后台并行复杂度高（shell 调用 + stderr 处理 + 结果合并）→ 收益与复杂度不匹配。Blueprint Stage 保留（详细技术方案 · 出问题后续改动成本高 · 异质视角价值显著）+ Review Stage 保留（代码层最后 gate · 默认 ON）。
+
+### P0-83：删 Goal-Plan Stage external 评审（保留 Blueprint / Review）
+
+- 触发：用户分析「Goal-Plan 阶段外部模型评审是否有必要」+ 用户拍板「只删 Goal-Plan · Blueprint 主要是详细方案 · 出问题后续改动成本高」
+- 设计哲学：
+  - **PRD = 产品文档**：external 异质视角的核心价值在代码层（实现盲区 / 第三方依赖真实性 / 并发安全）· 文档层弱
+  - **Blueprint = 详细技术方案**：架构 / 数据模型 / 接口设计层的异质视角价值高 · 出问题后续改动成本极高 → 保留 external
+  - **Review = 代码层最后 gate**：默认 ON · 异质视角对实现盲区价值最高 → 保留 external
+  - **Goal-Plan = PRD 起草 + 业务方向锁死**：5 内部视角（PL/RD/QA/Designer/PMO）+ PM 对抗自查（P0-34-B）+ 评审循环 ≤3 轮 + 用户最终确认 = 多层兜底已厚 · external 边际价值低 → 删
+- 改动：
+  - **P0-83-1. `stages/goal-plan-stage.md` 子步骤序列表**：删 `∥ external 并行` + 删 reviews[] external · 加 v7.3.10+P0-83 注解
+  - **P0-83-2. `stages/goal-plan-stage.md` 子步骤 3 标题**：从「QA+RD+Designer(可选) 主对话联合评审 ∥ external 并行」改为「QA+RD+Designer(可选) 主对话联合评审」
+  - **P0-83-3. `stages/goal-plan-stage.md` 子步骤 3 调度顺序段**：删"并行：external 评审"段（4 行）
+  - **P0-83-4. `stages/goal-plan-stage.md` 删 external 并行实施段**（含 background bash + 异质性硬约束 ~22 行）
+  - **P0-83-5. `stages/goal-plan-stage.md` 智能推荐表**：删"external 角色"列（5 行 column 整体删）
+  - **P0-83-6. `stages/goal-plan-stage.md` 入口 Read 顺序**：删 templates/external-cross-review.md 条件加载行
+  - **P0-83-7. `stages/goal-plan-stage.md` active_roles 候选段**：从 `PL / RD / QA / Designer / PMO / external` 改为 `PL / RD / QA / Designer / PMO`
+  - **P0-83-8. `stages/goal-plan-stage.md` 重构原则段加 P0-83 注解**
+  - **P0-83-9. `standards/external-model.md` 顶部加适用范围段**：明确「仅适用 Blueprint / Review · Goal-Plan 不适用」
+  - **P0-83-10. 版本号 + CHANGELOG**（7.3.10+P0-82 → 7.3.10+P0-83；init-stage.md SKILL_VERSION 期望同步）
+- **P0-79 元规则触发评估**（v7.3.10+P0-79 文件体量物理上限）：
+  - 涉及文件：`stages/goal-plan-stage.md` ~700+ 行（远超 300 上限）
+  - 本 patch 净加：**-50 行**（净删 ~50 行 + 加注解 ~10 行 - 删段 ~60 行）
+  - 是否触发拆分：否 · 本 patch 是减法 · **降低**累积压力 ✅ 符合元规则方向
+  - `standards/external-model.md` 行数较小 · 加 1 行适用范围说明
+- **加 1 删 1 元规则核算**：
+  - **加**：~10 行（适用范围注 + 删除标注）
+  - **删**：~60 行（external 并行段 + 智能推荐表 external 列 + 入口 Read 条件加载行 + 各处 external 措辞）
+  - **净删 ~50 行**（持续减负 patch · 与 P0-82 同类 · 累积净删压力增加）
+  - **不增加 PMO 负担**：Goal-Plan 阶段不再有 external 调度 · PMO 调度责任降低
+  - **核心收益**：
+    - Goal-Plan Stage 复杂度显著下降（删后台 shell 并行 / stderr 处理 / 结果合并）
+    - PRD 评审时长降低（5-10 min external 等待消失）
+    - active_roles 候选从 6 减为 5
+    - external 单源到 Blueprint / Review · 边界清晰
+    - external 资源集中投到真正高价值场景
+  - **"重新触发回来"防护**：未来若有人想给 Goal-Plan 加回 external → cite 本 patch 反例（PRD 文档层边际价值低 + 多层兜底已厚 + 复杂度成本高）
+- 与已有规则的关系：
+  - **v7.3.10+P0-13 Plan/Blueprint Codex 改 opt-in 默认 OFF**：本 patch 进一步删 Goal-Plan · 完全移除（不再支持 opt-in）· Blueprint 仍保持 opt-in
+  - **v7.3.10+P0-44 Goal-Plan 5 子步骤重构**：本 patch 简化子步骤 3（删 external 并行）· 不破坏 5 子步骤主结构
+  - **v7.3.10+P0-72 PMO 直接判定**：保留（仍用于 Blueprint / Review 的 external 启用判定）
+  - **v7.3.10+P0-78 PRD-REVIEW finding code_evidence 字段**：保留 + 互补（code_evidence 让内部 reviewer finding 更 evidence-based · 减少对 external 异质视角的依赖）
+  - **standards/external-model.md**：本 patch 加适用范围段（仅 Blueprint / Review）· 保留 E1/E2/E3 三条硬规则不变
+- 不动:
+  - Blueprint Stage external 评审（保留 · 详细技术方案 · 异质视角对架构/数据模型/接口设计盲区有补）
+  - Review Stage external 评审（保留 · 代码层最后 gate · 默认 ON）
+  - external-model.md E1/E2/E3 三条硬规则
+  - external-reviewer.md 角色契约（除明确适用范围）
+  - feature-state.json external_cross_review schema（vbs Goal-Plan 不再写 external · 但 Blueprint / Review 仍用此 schema）
+  - claude-agents/codex-agents 调用入口
+- 影响面：2 个产物文件（stages/goal-plan-stage.md / standards/external-model.md）+ 元数据 2 个（SKILL.md / stages/init-stage.md / docs/CHANGELOG.md）
+- 后续验证：
+  - 下次 Goal-Plan Stage 入口实例化 · review_roles[] 不再含 external 选项 · PMO 不再调度 external CLI shell
+  - PRD 评审时长降低（少 5-10 min external 等待）
+  - Blueprint Stage / Review Stage 仍按现有规范启用 external（不变）
+  - 长期：观察 Blueprint Stage external 是否实战命中率高 · 若实战中 Blueprint external 启用率也低 · 可考虑下一步收紧到仅 Review
+
+---
+
+## v7.3.10 + P0-82
+
+> v7.3.10+P0-82 PRD 模板减法（删功能需求段冗余 + API 契约加产品视角边界）：用户拍板「PRD 输出目标背景 / 业务流程 / AC 即可」+ 「API 契约子段保留但加边界注（产品 vs 技术）」+ 「埋点需求保留（产品定义"我们要看什么数据"）」。本 patch 实质性减法：删功能需求 P0/P1/P2 段（与 AC 重复 · AC 已分优先级）+ API 契约子段加产品视角边界注（防 PM 写入鉴权/限流/SLA 等技术细节）。
+
+### P0-82：PRD 模板减法（删功能需求段 + API 契约加边界）
+
+- 触发：用户「关于 plan-stage 是否需要进一步做减法 · 输出目标背景 / 业务流程 / 产品关注的 AC 即可」+ 用户纠正「埋点需求不能删 · 它定义产品要关注的数据」+ 用户拍板「API 契约保留但加边界」+ 「ok」
+- 设计哲学（用户视角）：
+  - PRD = 产品视角（What/Why · 含产品关注的数据 / 接口能力承诺）
+  - TECH = 实现视角（How · 含埋点 SDK 调用 / API 鉴权 / SLA / 数据库）
+  - 边界关键：埋点需求段 = 产品要看什么数据（产品） · API 契约段 = 接口能力承诺（产品）/ 鉴权限流 SLA = 技术
+- 改动：
+  - **P0-82-1. `templates/prd.md` 删功能需求 P0/P1/P2 段**（~12 行）：与 AC 重复（AC frontmatter 已含 `priority: P0/P1/P2` 字段）+ AC 是验收契约 · 功能需求是非契约描述 → 重复
+  - **P0-82-2. `templates/prd.md` API 契约子段加产品视角边界注**（~8 行）：✅ 写 method/path/入参出参业务字段含义/错误情况下的用户感知/接口能力承诺；❌ 不写 鉴权方式/限流策略/序列化协议/SLA/内部缓存/数据库交互/HTTP status code/错误对象 schema（这些归 TECH.md）
+  - **P0-82-3. `templates/prd.md` 顶部说明同步**：业务类必填项从「用户故事 / 功能需求 / 埋点需求」改为「用户故事 / 埋点需求」+ 加 v7.3.10+P0-82 删除标注
+  - **P0-82-4. 版本号 + CHANGELOG**（7.3.10+P0-81 → 7.3.10+P0-82；init-stage.md SKILL_VERSION 期望同步）
+- **P0-79 元规则触发评估**（v7.3.10+P0-79 文件体量物理上限）：
+  - 涉及文件：`templates/prd.md` ~340 行（超 300 上限）
+  - 本 patch 净加：-12 行（**净删** ~12 行 + 加边界注 ~8 行 - 删功能需求 ~20 行）
+  - 是否触发拆分：否 · 本 patch 是减法 · **降低**累积压力（~340 → ~328）✅ 符合元规则方向
+- **加 1 删 1 元规则核算**：
+  - **加**：~8 行（API 契约边界注）
+  - **删**：~20 行（功能需求 P0/P1/P2 段 + 顶部说明微调）
+  - **净删 ~12 行**（首次实质性净删 patch · 之前多为净加）
+  - **不增加 PMO 负担**：PM 起草少 1 段（功能需求）+ 写 API 契约时清楚边界
+  - **核心收益**：
+    - PRD 主体段数 12 → 11（实质删 1 段）
+    - 消除 AC ↔ 功能需求重复（AC 是单源 · priority 字段是分级权威）
+    - 明确 API 契约的产品视角边界（防 PM 越界写鉴权/限流/SLA）
+    - 中台子项目场景下 PRD 仍是产品对消费方的核心承诺（API 契约保留）
+  - **"重新触发回来"防护**：未来若有人想再加"功能需求 P0/P1/P2"段 → cite 本 patch 反例（与 AC 重复）+ AC priority 字段已能承载分级
+- 与已有规则的关系：
+  - **`templates/prd.md` AC frontmatter `priority: P0/P1/P2`**（v7.3 起即有）：本 patch 让 AC 成为优先级单源 · 删冗余的功能需求段
+  - **`templates/prd.md` AC `category` 字段**（v7.3.10+P0-68 functional/telemetry/logging/...）：埋点需求段保留 · 与 telemetry 类 AC 互补（埋点段定义业务数据维度 / telemetry AC 定义验证标准）
+  - **`templates/prd.md` Out of Scope 段**（v7.3.10+P0-77）：本 patch 与之协作（Out of Scope 是产品边界 / 删功能需求是减冗余）
+  - **`stages/blueprint-stage.md` TECH 起草规范**（v7.3.10+P0-46）：本 patch 不动 TECH.md · API 鉴权/限流/SLA 仍归 TECH（不需要新增接收点）
+- 不动:
+  - 埋点需求段（保留 · 产品定义"我们要看什么数据"）
+  - 消费方分析段（保留全 4 子段：消费方列表 / API 契约 / 兼容性承诺 / 接入计划）
+  - 业务流程图 / 时序图段
+  - 验收标准段 + AC frontmatter schema
+  - PM 起草 checklist 主体（仅顶部说明微调）
+  - PRD-REVIEW.md schema
+- 影响面：1 个文件（templates/prd.md）+ 元数据 2 个（SKILL.md / stages/init-stage.md / docs/CHANGELOG.md）
+- 后续验证：
+  - 下次 PM 起草 PRD 不再写"功能需求 P0/P1/P2"段（AC 已分优先级）
+  - 下次中台 PM 写 API 契约时遵守产品视角边界（不写鉴权/限流/SLA）
+  - 长期：观察是否有 PM 因为找不到"功能需求"段而把功能描述塞到 AC description（AC description 应保持简洁 · 业务行为级）
+
+---
+
+## v7.3.10 + P0-81
+
+> v7.3.10+P0-81 triage 默认 pull 模式（根本性改造 · 方向 C 一次性到位）：实战 case 暴露用户「看下 aon-link 是否需要 argocd」这种调研型需求被 PMO 走 20+ 工具调用读 init-stage / SKILL / flow-transitions / triage-stage / pmo / KNOWLEDGE / teamwork_space / ADR INDEX / localconfig 一堆框架文档 · 1 分多钟才开始 grep 实际代码。**根因**：triage 默认 push 模式 · 不分轻重一律前置全量扫描。**修复**：意图分流前置 → 轻型走 pull · 重型走 push。
+
+### P0-81：triage 默认 pull 模式（意图轻重分流 + 按需 read）
+
+- 触发：用户实战 case「$teamwork 看下 aon-link 相关的逻辑，是否需要在 argocd 创建个项目」+ 用户拍板「按 C 改造，一次性改完」
+- 设计哲学：
+  - **Push → Pull**：当前是 push 模式（先把所有 context 读完再处理）· 改成 pull 模式（先看实际东西 · 缺 context 时再 read）
+  - **意图分流**：轻型（看下/调研/解释）vs 重型（做/实现/修复/Feature）
+  - **Safe failover**：判定不明默认走轻型（轻 → 重升级成本低 · 重 → 轻已浪费的工具调用回不来）
+- 改动：
+  - **P0-81-1. `stages/triage-stage.md` 在 Step 1 后加 Step 1.5「意图轻重分流」段**：
+    - 16 个轻型关键词清单（看下/看一下/看看/调研/解释/怎么/why/为什么/是否需要/是否应该/给我看/是否符合/分析下/检查下/定位/排查）
+    - 重型识别信号（明确动词：做/实现/修复/改/创建/优化 + 明确需求规格 + 已锁定流程信号）
+    - Safe failover 默认走轻型
+    - 5 类轻型禁止动作清单（不读框架文档 / 不全量扫 KNOWLEDGE/ADR / 不外部模型探测 / 不创建 state.json / 不输出 4 选 1）
+  - **P0-81-2. `stages/triage-stage.md` 加 Step 1.6「Pull 路径（轻型直接执行）」**：
+    - 5 步骤（grep 关键词 → Read 关键文件 ≤5 个/≤500 行 → 直接给初步答案不暂停 → 按需补 read（KNOWLEDGE/ADR/teamwork_space）→ 答案末尾跟进引导切重型）
+    - Pull 模式核心原则：先看实际东西 → 缺 context 时再 read
+  - **P0-81-3. `stages/triage-stage.md` Step 2/3/4/6 加注「重型路径专用」执行条件**：
+    - Step 2 KNOWLEDGE 扫描 / Step 3 ADR 扫描 / Step 6 跨 Feature 冲突：仅重型时执行 · 轻型跳过
+    - Step 4 角色可用性扫描：原 v7.3.10+P0-30 已加问题排查跳过 · 本 patch 加 v7.3.10+P0-81 轻型跳过条件
+  - **P0-81-4. `roles/pmo.md` ADR/KNOWLEDGE 扫描段加 pull 模式硬规则**：轻型意图不前置全量扫 · 走 Pull 路径 · 重型才走 push 全扫
+  - **P0-81-5. `FLOWS.md` 问题排查梳理流程加 pull 模式说明**：cite triage-stage Step 1.5/1.6 · 与现有 P0-30 简化协作（信号置信度跳过 4 选 1 + P0-81 跳过前置全扫 = 双层减负）
+  - **P0-81-6. 版本号 + CHANGELOG**（7.3.10+P0-80 → 7.3.10+P0-81；init-stage.md SKILL_VERSION 期望同步）
+- **P0-79 元规则触发评估**（v7.3.10+P0-79 文件体量物理上限）：
+  - 涉及文件：`stages/triage-stage.md` 877 行 / `roles/pmo.md` 1812 行 / `FLOWS.md` 871 行（3 个均远超 300 上限）
+  - 本 patch 净加：~85 行
+  - 是否触发拆分：暂不（核心改造类 patch · 不在同 patch 内强制拆分以免过度膨胀变更面）· 累积压力增加（未来涉及这 3 个文件的 patch 应优先评估拆分 reference）
+- **加 1 删 1 元规则核算**：
+  - **加**：~85 行（triage-stage.md Step 1.5/1.6/Step 2-4-6 注解 + pmo.md hard rule + FLOWS.md 注解 + 元数据）
+  - **删**：未删（根本性行为改造 · 不是冗余清理）
+  - **不增加 PMO 负担**：判定逻辑 PMO 本就要做（识别意图）· 显式 Step 1.5 是把隐性能力变显性硬规则
+  - **核心收益**：
+    - 轻型需求工具调用 ↓ 80%+（实证 case 20+ 调用 → ~5 调用）
+    - prompt cache 友好（不读 init-stage / SKILL / triage-stage 等框架文档）
+    - 用户响应延迟 ↓（实证 case 1m 17s → ~10s）
+    - 重型需求行为不变（push 全扫保留 · 不破坏 Feature/Bug/敏捷需求 流程质量）
+  - **"重新触发回来"防护**：未来若有人再让 PMO 在调研型需求前置全扫 → cite 本 patch 反例（aon-link case）+ Step 1.5 关键词清单
+- 与已有规则的关系：
+  - **v7.3.10+P0-30 问题排查跳过 4 选 1**：保留 + 互补（P0-30 跳过流程确认 / P0-81 跳过前置全扫 = 双层减负）
+  - **v7.3.10+P0-49-A triage 决策呈现替代履职报告**：保留 + 协作（轻型走 Pull 路径 / 重型仍走 P0-49-A 决策呈现）
+  - **v7.3.10+P0-72 PMO 直接判定（删探测脚本）**：保留 + 协作（轻型跳过角色扫描 = 不调用 PMO 直接判定 · 重型才走判定）
+  - **v7.3.10+P0-73 PRD 起草前代码 Read**：互补（PRD 起草前 Read 是重型流程内的 Read · pull 模式是 triage 入口的 Read · 两者不同时机）
+- 不动:
+  - 重型流程的 Step 2-8 全部行为（保留 push 模式 · 仅加注"轻型时跳过"）
+  - 六种流程类型闭集（不变 · 轻型不创建新流程 · 是问题排查流程的子模式）
+  - state.json schema（轻型不创建 state.json · 不需要 schema 改动）
+  - Feature / Bug / 敏捷需求 / Feature Planning / Micro 各自的入口 / 流程
+  - PRD 起草前代码 Read（P0-73 · 不变）
+- 影响面：3 个文件（stages/triage-stage.md / roles/pmo.md / FLOWS.md）+ 元数据 2 个（SKILL.md / stages/init-stage.md / docs/CHANGELOG.md）
+- 后续验证：
+  - 下次 triage 收到「看下 X 是否需要 Y」类需求 → PMO 应直接 grep + 按需 read · 不前置读框架文档
+  - 下次 triage 收到「实现 X 功能」类需求 → PMO 仍走 push 全扫
+  - 用户体感：轻型需求响应延迟显著下降 · 重型需求行为无变化
+  - 长期：观察 1-2 周后看是否需要扩展轻型关键词清单（如发现某关键词命中率高但不在清单 → 加进去）
+- 后续可选（暂不做）：
+  - 轻型关键词支持用户自定义（localconfig 加 `triage_lightweight_keywords` 字段）
+  - 轻型 Pull 路径加输出 token 上限（防止 PMO grep 太多文件后给冗长答案）
+
+---
+
+## v7.3.10 + P0-80
+
+> v7.3.10+P0-80 MR URL target_branch 必含硬规则（实战补强）：用户反馈"ship 阶段创建 mr 的地址，需要指定目标分支名称"。检查发现 spec 模板已正确包含目标分支字段（4 种平台模板都写了），但 v7.3.10+P0-70 实战 case 截图显示 PMO 实际生成的 URL **漏掉了 `target_branch` 参数**（只有 `source_branch`）→ 用户在平台合 MR 时会默认走 default branch（如 main），而非 state.merge_target（如 staging）→ 可能合到错误目标分支 · 严重时丢业务代码。本 patch 加 PMO self-check 硬规则 + 4 平台必含关键字表 + 反例对比。
+
+### P0-80：MR URL target_branch 必含硬规则（PMO self-check）
+
+- 触发：用户反馈「ship 阶段创建 mr 的地址，需要指定目标分支名称」+ P0-70 实战截图暴露 URL 漂移
+- 根因分析：spec 已对（4 种平台模板都含 target_branch）· PMO 实际生成时漏字段 → 是 PMO 执行漂移而非 spec 不全
+- 改动：
+  - **P0-80-1. `stages/ship-stage.md` Step 2.3 加 target_branch 必含硬规则**（在 URL encoding 说明之后 / 记入 state 之前）：
+    - 4 平台必含关键字表（github/gitee 走 compare 路径形式 / gitlab 走 query target_branch / bitbucket 走 query dest）
+    - PMO self-check 步骤（生成 URL 后 grep 关键字确认 · 缺失 = 流程偏离 · 重生成）
+    - 反例（v7.3.10+P0-70 实战截图原文）+ 正确示例对比
+  - **P0-80-2. 版本号 + CHANGELOG**（7.3.10+P0-79 → 7.3.10+P0-80；init-stage.md SKILL_VERSION 期望同步）
+- **P0-79 元规则触发评估**（v7.3.10+P0-79 新增 · 文件体量物理上限）：
+  - 涉及文件：`stages/ship-stage.md`
+  - 当前行数：899（远超 300 行上限）
+  - 本 patch 净加：~14 行
+  - 是否触发拆分：暂不（实战补强类微 patch · 强制拆 reference 子文件成本高于本次收益）· 累积压力增加（未来涉及 ship-stage.md 的 patch 应优先评估拆分）
+- **加 1 删 1 元规则核算**：
+  - **加**：~14 行（ship-stage.md 硬规则段 + 反例 + 正确示例 + 元数据）
+  - **删**：未删（实战补强 · 防 PMO 漂移）
+  - **不增加 PMO 负担**：URL 生成本就要做 · 加 self-check 一行（grep 关键字）· 增量极小
+  - **核心收益**：
+    - 防"合到错误目标分支"的严重事故（merge_target=staging 但 PMO URL 漏 target → 用户合到 default=main → 业务代码进错主干）
+    - 4 平台关键字表 = PMO 生成 URL 的格式权威源
+    - 反例 = 防漂移触发器（未来 PMO 生成 URL 看到反例就警觉）
+  - **"重新触发回来"防护**：未来若 MR URL 又出现漂移 → cite 本 patch 反例 + 4 平台关键字表
+- 与已有规则的关系：
+  - **`stages/ship-stage.md` Step 2.3 MR URL 模板**（v7.3.10+P0-29）：本 patch 不改模板内容 · 加 self-check 硬规则强制 PMO 校验输出
+  - **P0-70 长 URL 不进表格列硬规则**：本 patch 与之协作（P0-70 管 URL 渲染格式 / P0-80 管 URL 字段完整性）
+  - **P0-67 路径边界硬规则**：保留不变
+  - **P0-79 文件体量物理上限元规则**：本 patch 触发评估（ship-stage.md 899 行 · 暂不拆分 · 累积压力）
+- 不动:
+  - 4 平台 URL 模板内容（保留 · 已正确）
+  - 第一段报告模板
+  - state.json `mr_create_url` 字段（不变）
+  - Ship Stage 双段结构
+- 影响面：1 个文件（stages/ship-stage.md）+ 元数据 2 个（SKILL.md / stages/init-stage.md / docs/CHANGELOG.md）
+- 后续验证：
+  - 下次 Ship Stage 第一段生成 MR URL 时 PMO 输出"URL self-check ✅ 含 {target_branch / dest / compare path}"行
+  - 用户在平台点击 MR URL 时目标分支自动正确填充为 state.merge_target
+  - 长期：是否在 state.json 加 `state.ship.mr_url_target_check: true|false` 字段强制 PMO 写入校验结果（暂不加 · 等实战触发再决定）
+
+---
+
+## v7.3.10 + P0-79
+
+> v7.3.10+P0-79 文件体量物理上限元规则（借鉴 mattpocock/skills write-a-skill）：mattpocock/skills 的 write-a-skill skill 强调"主文件 ≤ 100 行 + reference 外移"作为防膨胀物理约束。teamwork v7.0 → v7.3.10+P0-78 累积 78 个 P0 patch · 各核心文件（SKILL.md / RULES.md / FLOWS.md / pmo.md / ship-stage.md 等）膨胀到 500-1500+ 行 · prompt cache 不友好 + 阅读断片。本 patch 把这条物理约束加到 P0 patch 设计契约（与 P0-48 的"加 1 删 1 元规则"互补 · 一个管逻辑层一个管物理层）· **渐进式适用**（不强求一次到位 · 未来涉及超量文件的 patch 必须先评估瘦身机会）。
+
+### P0-79：文件体量物理上限元规则（≤ 300 行 + 渐进式瘦身）
+
+- 触发：mattpocock/skills 调研拍板「100 行主文件硬约束 = 长期 ROI 最高的元规则」+ 用户拍板「按建议推进」
+- 设计哲学（来自 write-a-skill）：**主文件 + reference 子文件**双层结构 · 主文件做门面 · reference 按需引用。teamwork 单体框架适配为：主规范文件 ≤ 300 行 · 超出必拆 reference / 单源化 / 删冗余
+- 改动（仅元层级 · 不动具体规则）：
+  - **P0-79-1. `SKILL.md` 加「文件体量物理上限」元规则段**（在 P0-48 "P0 patch 设计契约"段之后 · ~30 行）：
+    - ≤ 300 行硬上限（适用 roles/ stages/ standards/ rules/ 顶层 *.md）
+    - 4 种处理路径（拆 reference / 单源化 / 删冗余 / 拆段落到独立 .md）
+    - 5 类例外（templates/CHANGELOG/OPTIMIZATION-PLAN/flow-transitions.md/ 单元测试 索引等内容客观决定长度的文件）
+    - 渐进式落地策略（现有超量文件不强制立即拆 · 未来涉及该文件的 P0 patch 必须先评估瘦身机会）
+    - PMO 校验规则（起 P0 patch 时若涉及 > 300 行文件 · 必须输出"瘦身机会评估"行 · 含目标文件 + 当前行数 + 本 patch 净变化 + 是否触发拆分）
+  - **P0-79-2. 版本号 + CHANGELOG**（7.3.10+P0-78 → 7.3.10+P0-79；init-stage.md SKILL_VERSION 期望同步）
+- **加 1 删 1 元规则核算**：
+  - **加**：~30 行（SKILL.md 元规则段）
+  - **删**：未删（元规则补强 · 防膨胀逆向压力）
+  - **不增加 PMO 负担**：仅在起 P0 patch 时多输出一行"瘦身机会评估"（已有 P0-48 元规则的"加 1 删 1 = ?"输出 · 加一行 · 增量极小）
+  - **核心收益**：
+    - 与 P0-48 互补（P0-48 管逻辑层加 1 删 1 / P0-79 管物理层文件体量）
+    - 倒逼后续 P0 patch 物理瘦身（每次涉及超量文件都要评估 · 累积压力）
+    - 长期 ROI（不强制本次拆 · 多个 P0 累积后自然瘦身）
+  - **"重新触发回来"防护**：未来若有人再次让某文件膨胀到 500+ 行而无瘦身评估 → cite 本 patch 的元规则
+- 与已有规则的关系：
+  - **P0-48 P0 patch 设计契约 / 加 1 删 1 元规则**（v7.3.10+P0-48）：本 patch 是物理层补充 · 在同一段后追加（不替换 · 不破坏 P0-48 主体）
+  - **P0-22 KNOWLEDGE.md 体量上限 300 行**（v7.3.10+P0-22）：本 patch 把同样的体量上限推广到所有主规范文件
+  - **P0-23 prompt cache 规范**（v7.3.10+P0-23）：本 patch 是 prompt cache 友好的物理基础（短文件更易命中缓存）
+- 不动:
+  - 现有文件具体内容（不强制立即瘦身）
+  - 模板文件 / CHANGELOG / OPTIMIZATION-PLAN / flow-transitions.md 等例外类（保持原长度）
+  - P0-48 加 1 删 1 元规则（保留 + 互补）
+- 影响面：1 个文件（SKILL.md）+ 元数据 2 个（init-stage.md / docs/CHANGELOG.md）
+- 后续验证：
+  - 下次 P0 patch 涉及 > 300 行文件时，PMO 输出"瘦身机会评估"行
+  - 未来 5-10 个 P0 patch 累积下来观察各核心文件行数变化趋势（应单调递减或持平 · 不再单调递增）
+  - 长期：可考虑加自动化检查（pre-commit hook 计算 *.md 行数 · 超量警告）· 但当前不强加 hook · 等用户 P0-80 决策再说
+
+---
+
+## v7.3.10 + P0-78
+
+> v7.3.10+P0-78 goal-plan grilling 增强（mattpocock/skills grill-with-docs + improve-codebase-architecture 综合借鉴）：从 grill-with-docs CONTEXT-FORMAT.md / ADR-FORMAT.md 深度调研 + improve-arch 8 词架构词汇 + "删除测试" 启发式合并为单一 P0。补 4 个 teamwork 真实 gap：(1) 多角色术语漂移（业务术语 + 通用架构词汇都缺统一词典）(2) ADR 泛滥（缺三条门槛 + 7 类合格列表 + 极简模板）(3) review finding 猜测式（无 code_evidence 字段 → reviewer 不读代码就提问题）(4) 知识写入延迟批处理（应 inline 实时写）。
+
+### P0-78：goal-plan grilling 增强（综合 6 项打包）
+
+- 触发：grill-with-docs 深度调研 + 用户拍板「按建议推进」
+- 设计哲学：
+  - "Be Opinionated"（grill-with-docs · CONTEXT-FORMAT.md）：术语挑一个最好的 · 其他列 Avoid 别名
+  - "Capture decisions inline"（grill-with-docs）：澄清 / 决策一旦收敛立即写知识库 · 不批处理
+  - "Use ADRs sparingly"（grill-with-docs · ADR-FORMAT.md）：三条门槛全 ✅ 才产 ADR · 防泛滥
+  - "Validate against code"（grill-with-docs）：review finding 不接受口头 · 必 cite 代码 location
+  - "Statistical Mechanics"（improve-arch · 删除测试 / 两个 adapter 才抽象）：判断模块是否 shallow + 防过度设计
+- 改动（6 项打包 · 全部 inline 加 · 不破坏现有结构）：
+  - **P0-78-1. `templates/adr.md` 加三条门槛 boolean checkbox + 7 类合格 ADR 列表 + 极简模板说明**：在原"3 问触发器"之后加更精准的「三条门槛 boolean checkbox」（Hard to reverse / Surprising without context / Result of real trade-off）+ 7 类显式合格 ADR（架构形状 / 跨 Context 集成模式 / 锁定的技术选型 / 边界与范围 / 偏离明显路径 / 代码不可见的约束 / 拒绝方案非显然）+ 极简 ADR 模板说明（1-3 句话即可 · 默认轻量 · 复杂决策才扩到完整结构）
+  - **P0-78-2. `templates/knowledge.md` 加 `## 📚 Glossary` 段**：业务术语词典（Term / 一句话定义 / Avoid 别名）+ 通用架构词汇 8 词（Module / Interface / Depth / Seam / Adapter / Leverage / Locality / Boundary）+ Relationships 实体关系段 + "删除测试"启发式 + "两个 adapter 才抽象"规则
+  - **P0-78-3. `templates/knowledge.md` 加 `## 🔀 Flagged Ambiguities` 段**：澄清过的歧义记忆（FA-NNN）· 防止下个 Feature 来同样的词又得 PMO 重新询问澄清 · 实时（inline）写入
+  - **P0-78-4. `templates/prd.md` PRD-REVIEW schema 加 `code_evidence` 字段 + `terminology-ambiguity` category**：finding `category=technical-consistency` 时必填 `code_evidence.{file_path, line_range}` —— 防止"猜测式 finding"（reviewer 没读代码就提问题）· 加 `category=terminology-ambiguity` 触发 Flagged Ambiguities 实时写入
+  - **P0-78-5. `roles/pmo.md` KNOWLEDGE 写入硬时机段**：加两行新触发条件（术语漂移 → Glossary/Flagged Ambiguities · 评审 REJECT → Out of Scope）+ 加 "实时 inline 写入" 硬规则段（禁止延后到 Feature 完成报告时批处理）
+  - **P0-78-6. `standards/backend.md` / `frontend.md` 加模块设计判定段**：cite KNOWLEDGE 单源（统一架构词汇 8 词 + "删除测试" 启发式 + "两个 adapter 才抽象" 规则）· frontend.md 仅加 cite + 前端场景映射（Module = React Component / Hook 等）
+- **加 1 删 1 元规则核算**：
+  - **加**：~120 行（adr.md ~25 行 + knowledge.md ~50 行 + prd.md ~10 行 + pmo.md ~5 行 + backend.md ~10 行 + frontend.md ~5 行 + 元数据）
+  - **删**：未删（实证补强 · 防漂移 / 防泛滥 / 防猜测 / 防延迟）
+  - **不增加 PMO 负担**：
+    - ADR 三条门槛是写 ADR 时的判断（不写也不必判断 · 仅在触发时检查 · 4 个 boolean）
+    - Glossary 是 KNOWLEDGE 一段（PMO 起草前已扫 · 不增加扫描动作）
+    - Flagged Ambiguities 是术语澄清时实时写一行（不批处理反而省 token）
+    - code_evidence 是 reviewer 自己查代码（PMO 仅校验字段非空）
+    - 实时 inline 写入只是把现有"完成报告时批处理"提前到"评审 verdict 出来时"
+  - **核心收益**：
+    - 多角色术语漂移↓（Glossary 单源）
+    - ADR 泛滥↓（三条门槛 + 7 类显式列表）
+    - review finding 猜测率↓（必填 code_evidence）
+    - 知识遗忘率↓（实时 inline 写入）
+    - 跨语言模块设计统一（backend / frontend cite 同一 KNOWLEDGE 单源）
+- 与已有规则的关系：
+  - **`templates/adr.md` 3 问触发器**（v7.3.10+P0-21）：保留 + 在其后加更精准的三条门槛 boolean checkbox（互补 · 不替换）
+  - **`templates/knowledge.md` 三类内容**（v7.3.10+P0-22 / +P0-77 加 Out of Scope）：本 patch 加第五类（Glossary）+ 第六类（Flagged Ambiguities）· 体量上限不变（300 行）
+  - **PRD-REVIEW schema** （v7.3.10+P0-34 + P0-34-A + P0-34-B）：本 patch 加 `code_evidence` 字段 + `terminology-ambiguity` category enum 值
+  - **roles/pmo.md KNOWLEDGE 维护表**（v7.3.10+P0-22）：本 patch 加两行新触发 + 加实时 inline 写入硬规则段
+  - **backend.md / frontend.md**：本 patch 加模块设计判定段 cite KNOWLEDGE 单源
+  - **P0-77 Out of Scope 段**：本 patch 与之协作（Out of Scope = 拒绝方向 / Glossary = 术语词典 / Flagged Ambiguities = 澄清歧义 · 三类互补）
+- 不动:
+  - ADR 现有 50-150 行重模板结构（保留作为复杂决策时的完整版 · 极简版作为新选项）
+  - KNOWLEDGE.md 体量上限 300 行
+  - PRD-REVIEW frontmatter 主结构（仅扩展 findings[] 字段）
+  - 评审循环逻辑（不变）
+  - 模块设计原则（沿用 common.md 高内聚低耦合 · 本 patch 是判定方法补强）
+- 影响面：6 个文件（templates/adr.md / templates/knowledge.md / templates/prd.md / roles/pmo.md / standards/backend.md / standards/frontend.md）+ 元数据 3 个（SKILL.md / stages/init-stage.md / docs/CHANGELOG.md）
+- 后续验证：
+  - 下次 Goal-Plan / Blueprint Stage 多角色对话不再出现"组件 / 模块 / 服务"乱用
+  - 下次 ADR 触发判断带三条门槛 boolean checkbox + 对照 7 类合格列表
+  - 下次 review finding 含 code_evidence 字段（涉及代码现状的 finding）
+  - 下次评审循环术语澄清后立即更新 KNOWLEDGE Glossary（不等完成报告）
+  - 长期：Glossary 段量是否需要拆分子项目（可能需要 v7.3.10+P0-XX 时按子项目分）
+
+---
+
+## v7.3.10 + P0-77
+
+> v7.3.10+P0-77 mattpocock/skills 借鉴微 patch 打包（4 项一行级改动 · TDD 反 horizontal slicing + DEBUG 前缀 + PRD Out of Scope 必填 + KNOWLEDGE Out of Scope 拒绝知识库）：把 4 个独立 ~3-15 行的微改动合并为单一 patch，避免每个微改动单独走完整 P0 流程。
+
+### P0-77：mattpocock 微 patch 打包（4 个一行级改动合并）
+
+- 触发：mattpocock/skills 调研 Tier 3 微 patch 打包 + 用户拍板「按建议推进」
+- 设计哲学：每个微改动单独 ~3-15 行，单独立 patch 不经济。打包成单一 P0 + 各项独立标 v7.3.10+P0-77 来源 + 实战触发时各自可追溯
+- 改动（4 项）：
+  - **P0-77-1. `standards/tdd.md` Iron Law 段加两条硬规则**：
+    - 禁止 horizontal slicing（"批量先写所有 TC 再批量实现"反 TDD 模式 · 必须 vertical slicing 每个 TC 走完红→绿→重构后再下一个）
+    - NEVER refactor while RED（测试红时禁止重构 · 重构必须在绿色状态）
+    - 来源：mattpocock/skills tdd skill
+  - **P0-77-2. `standards/common.md` 加「四点五、调试日志规范」**：
+    - `[DEBUG-{Feature}-{NNNN}]` 唯一前缀规则（grep 可定位）
+    - Ship 前 grep `\[DEBUG-` 清理硬规则（命中即报 sanitize_log.suspicious_files）
+    - 设计动机说明（不冲突 SLogger / 易识别 / Feature ID + 序号便于多 Feature 并行调试）
+    - 来源：mattpocock/skills diagnose skill
+  - **P0-77-3. `templates/prd.md` 加 `## Out of Scope` 必填段**（位于"待决策项"之前）：
+    - 强制写出"本 Feature 不做什么"+ 简短理由
+    - 与 KNOWLEDGE.md `## Out of Scope`（项目级长期拒绝记忆）联动
+    - 降低后期"为什么没做 X"的拉扯
+    - 来源：mattpocock/skills to-prd skill
+  - **P0-77-4. `templates/knowledge.md` 加 `## ❌ Out of Scope` 拒绝知识库段 + 索引 + ID 编号规则**：
+    - 拒绝过的方案/方向/Feature 候选记忆（OS-NNN 编号）
+    - PMO Goal-Plan 起草前必扫描 OS-NNN 列表 + 发现 PRD 重新提被否方向 → 打回让 PM 改写或显式说明新触发原因
+    - 防 AI 反复提同一个被否的方案
+    - 来源：mattpocock/skills triage skill
+- **加 1 删 1 元规则核算**：
+  - **加**：~50 行（tdd.md 2 行 + common.md ~20 行 + prd.md ~10 行 + knowledge.md ~15 行）
+  - **删**：未删（4 项均为补强 · 防漂移 / 防重复 / 防遗漏类）
+  - **不增加 PMO 负担**：
+    - tdd.md 反 horizontal slicing 是 RD 自查项 · 不增加 PMO 调度
+    - DEBUG 前缀是 RD 自觉规范 + Ship Stage Step 1 已有 grep 流程（仅加新前缀模式）
+    - PRD Out of Scope 是 PM 起草必填段（5 行内）
+    - KNOWLEDGE Out of Scope 是 PMO Goal-Plan 入口扫描时多读一段
+  - **核心收益**：
+    - tdd.md：防"批量铺测试 + 批量铺实现"+ 防 RED 状态混入重构（典型 AI 失败模式）
+    - common.md：临时调试日志一次 grep 全清 · 不污染生产
+    - prd.md：scope 边界事前明确 · 减少 RD/QA review 时的"为什么没做 X"提问
+    - knowledge.md：PMO Goal-Plan 起草前发现 PRD 重提被否方向直接打回 · 加 1 段 KNOWLEDGE 删 N 次重复讨论 token
+- 与已有规则的关系：
+  - **`standards/tdd.md` Iron Law**（v7.3.10+P0-63）：本 patch 在 Iron Law 段加两条新硬规则，不破坏原结构
+  - **`stages/ship-stage.md` Step 1 净化**：本 patch 加 `\[DEBUG-` grep 模式 · 复用现有 sanitize_log.suspicious_files 通道
+  - **`templates/prd.md` 模板**（v7.3.10+P0-47 合并版）：本 patch 在"待决策项"之前加新段 · 不破坏现有章节顺序
+  - **`templates/knowledge.md` 三类内容**（v7.3.10+P0-22 收敛版）：本 patch 加第四类（Out of Scope · OS-NNN）· 体量上限不变（300 行）
+  - **PMO Goal-Plan 入口扫描**（v7.3.10+P0-22）：本 patch 让 PMO 多扫一段 OS-NNN
+- 不动:
+  - tdd.md RED-GREEN-REFACTOR 5 步流程（保留）
+  - common.md 五大段结构（在 §四 / §五 之间插新 §四点五 · 不破坏编号）
+  - prd.md frontmatter schema（不变）
+  - knowledge.md 三类索引 + 体量上限（保留）
+- 影响面：4 个产物文件（standards/tdd.md / standards/common.md / templates/prd.md / templates/knowledge.md）+ 元数据 3 个（SKILL.md / stages/init-stage.md / docs/CHANGELOG.md）
+- 后续验证：
+  - tdd.md：下次 Dev Stage RD 不再批量先写所有 TC 再实现
+  - common.md：下次临时调试日志带 `[DEBUG-F{NNN}-{NNNN}]` 前缀 + Ship Stage 前 grep 清理
+  - prd.md：下次 PM 起草 PRD 含 Out of Scope 段（必填）
+  - knowledge.md：下次 PMO Goal-Plan 入口扫描时多扫一段 OS-NNN · 发现 PRD 重提被否方向直接打回
+- 后续可选（暂不做 · 等实战触发再加）：
+  - PRD Out of Scope 与 KNOWLEDGE Out of Scope 自动联动（PMO 在 PRD 评审时检查 PRD 的 Out of Scope 是否与 KNOWLEDGE 的 Out of Scope 冲突）
+  - DEBUG 前缀 IDE 高亮规则（可选 · 团队 IDE 配置层面 · 不在 skill 内）
+
+---
+
+## v7.3.10 + P0-76
+
+> v7.3.10+P0-76 ⏸️ 暂停点 mode 字段二分（HITL/AFK · 借鉴 mattpocock/skills `to-issues` 的 HITL/AFK 概念）：当前 teamwork 的"强制保留 vs 豁免"二分散文化在三处文件（flow-transitions.md / pmo.md / FLOWS.md），实战中 PMO 判定要"对照清单"，措辞分散。本 patch 把概念**物理化为 mode 字段**（HITL = 强制保留 / AFK = auto 豁免），重命名段标题 + 加 mode 定义段 + 与 P0-75 决策类暂停点清单建立显式 ⊆ 关系（决策类 ⊆ HITL）。
+
+### P0-76：⏸️ 暂停点 HITL / AFK mode 字段化
+
+- 触发：mattpocock/skills 调研拍板「HITL/AFK 二分是最高 ROI 借鉴点」+ 用户拍板「按建议推进」
+- 设计哲学（来自 to-issues skill）：每个 ⏸️ 暂停点显式标 `mode: HITL | AFK` —— 直接命中"暂停点过多 / 何时暂停散文式规则"两个核心痛点。teamwork 已有等价分类（强制保留 vs 豁免），仅缺**显式 mode 字段化**
+- 改动（最小入侵 · 保留所有现有清单内容）：
+  - **P0-76-1. `rules/flow-transitions.md` auto 豁免速查段**：段首 quote 重写为 mode 字段定义（HITL = 强制保留 / AFK = auto 豁免）+ 与决策类暂停点（P0-75）建立 ⊆ 关系；标题改名「强制保留清单」→「⏸️ HITL 清单」/「豁免示例」→「⏸️ AFK 示例」；表格内容不变
+  - **P0-76-2. `roles/pmo.md` ⚡ auto 模式段**：段首 quote 加 mode 字段定义；标题改名「豁免暂停点」→「⏸️ AFK 暂停点」/「强制保留暂停点」→「⏸️ HITL 暂停点」+ 加 v7.3.10+P0-76 mode 标记；表格内容不变
+  - **P0-76-3. `STATUS-LINE.md` 决策点参考路径段**：在决策类暂停点清单上方加注「与 mode 字段的关系：决策类暂停点 ⊆ HITL 集合」；非决策类不强制 references 段
+  - **P0-76-4. 版本号 + CHANGELOG**（7.3.10+P0-75 → 7.3.10+P0-76；init-stage.md SKILL_VERSION 期望同步）
+- **加 1 删 1 元规则核算**：
+  - **加**：~25 行（3 处段首 mode 定义段 + 标题重命名 + STATUS-LINE 关系注解）
+  - **删**：未删（最小入侵 · 现有清单内容全保留）
+  - **不增加 PMO 负担**：mode 判定逻辑与原"强制保留 vs 豁免"判定**完全等价**——只是给概念起了正式名字
+  - **核心收益**：物理化命名 → 跨文件引用一致性（pmo.md / flow-transitions.md / STATUS-LINE.md 三处用同一术语）；与 P0-75 决策类清单建立显式 ⊆ 关系；未来新增 ⏸️ 暂停点必须标 mode（隐性变显性）
+  - **"重新触发回来"防护**：未来若有人增加 ⏸️ 暂停点不标 mode → cite 本 patch HITL/AFK 二分硬规则
+- 与已有规则的关系：
+  - **v7.3.9+P0-11 auto 模式豁免**：本 patch 是 P0-11 的"概念物理化"，不改判定逻辑
+  - **v7.3.9+P0-11-A 意图承载元规则**：保留不变，作为 mode 判定的元规则
+  - **v7.3.9+P0-11-B Browser E2E 默认跳过**：保留不变，归类为「⏸️ AFK 特殊」
+  - **P0-75 决策类暂停点清单**：本 patch 建立 ⊆ 关系（决策类 ⊆ HITL · 自动含 📚 决策参考路径）
+- 不动:
+  - 强制保留清单 / 豁免示例 表格的具体行（内容不变）
+  - 主转移表（Feature 流程 / Bug 流程 / 问题排查 / Planning / Micro / 通用）的 ⏸️暂停 标记（不逐行加 mode · 单源在速查表）
+  - 元规则（意图承载豁免）
+  - Browser E2E auto 默认跳过专项规则
+- 影响面：3 文件（rules/flow-transitions.md / roles/pmo.md / STATUS-LINE.md）+ 元数据 2 个（SKILL.md / docs/CHANGELOG.md / stages/init-stage.md）
+- 后续验证：
+  - 下次 PMO 判定 ⏸️ 暂停点时显式说出 mode（HITL 或 AFK）
+  - 未来新增暂停点必须在 flow-transitions.md HITL 清单或 AFK 示例中加一行 + 标 mode
+  - 长期：mode 字段是否需要扩展到 dispatch task（task 本身不是暂停点 · 暂不扩展）
+
+---
+
+## v7.3.10 + P0-75
+
+> v7.3.10+P0-75 决策点参考文档绝对路径硬规则（drill-down 到 evidence）：实战 case（AND-F062 Review QUALITY_ISSUE 决策点）暴露 PMO 给了 4 个选项 + 推荐理由，但**没列做这个决策需要参考的文档绝对路径**（REVIEW.md / external-cross-review/*.md / 涉及代码文件）。用户被迫凭记忆找路径或盲信 PMO 摘要做决策。同 case 还出现代码文件被错误包成 `[file.java](http://file.java)` markdown 链接 → 指向虚假 URL → 不可点击。本 patch 把"决策类暂停点必须列参考文档绝对路径"硬规则化，与 P0-67 路径边界 + P0-70 长 URL 不进表格列规则一脉相承。
+
+### P0-75：决策点参考文档绝对路径硬规则
+
+- 触发：实战 case + 用户拍板「我希望给我决策点的时候，把决策参考文档的绝对路径列出来，方便我点进去查看」+ 「ok」
+- 设计哲学：**决策需要 evidence drill-down · 不能只给摘要黑盒** —— PMO 给决策点时，用户需要看 review 报告 / 外部视角原文 / 涉及代码文件等原始证据才能做 informed decision。光给"PMO 推荐 A · 理由 X"不够，必须把 X 背后的源文档绝对路径列出，让用户一键点开核对
+- 改动：
+  - **P0-75-1. `STATUS-LINE.md` 加「决策点参考文档绝对路径硬规则」段**（单源 · ~95 行）：
+    - 决策类暂停点清单（10 类必含 references：QUALITY_ISSUE / PRD verdict / 流程类型识别歧义 / 评审组合改选 / PL-PM 业务方向分歧 / PM 验收 / Stage 入口偏差 / 升级确认 / ADR 候选 / 技术评审分歧）
+    - 非决策类暂停点清单（5 类不强制：ok/反馈 / 用户手测 / push 失败 / 等待外部依赖 / 简单流程类型确认）
+    - 渲染规范（紧跟 ⏸️ 决策点选项之后 / 状态行之前 · `📚 决策参考` 段标题）
+    - emoji 约定（📄 文档 / 📝 代码 / 🔗 MR/外链）
+    - 路径规范（继承 P0-67 / P0-70：必须绝对路径 · 前后 whitespace 边界 · 禁止 markdown 链接包裹 · 禁止只写文件名 / 相对路径 · 禁止挤入表格列）
+    - 正反例对比（错误 = AND-F062 case 无路径 / markdown 链接漂移 · 正确 = 独立行 + emoji 引导 + 绝对路径）
+    - 实施约束（PMO self-check 4 项扩展）
+  - **P0-75-2. `stages/review-stage.md` QUALITY_ISSUE 修复循环规则段加 cite**：⏸️ 用户决策时必含「📚 决策参考」段 + 必列 REVIEW.md / external-cross-review/review-external-{model}.md（如启用） / 涉及代码文件 / 涉及测试文件 全部绝对路径（链接到 STATUS-LINE.md 单源）
+  - **P0-75-3. 版本号 + CHANGELOG**（7.3.10+P0-74 → 7.3.10+P0-75；init-stage.md SKILL_VERSION 期望同步）
+- **加 1 删 1 元规则核算**：
+  - **加**：~110 行（STATUS-LINE.md 单源段 ~95 行 + review-stage.md cite 2 行 + 元数据）
+  - **删**：未删（实战补强 · 决策质量收敛）
+  - **不增加 PMO 负担**：PMO 本就要列决策选项 + 理由（已有），加 references 段只多列 3-5 个绝对路径（PMO 在 dispatch / 审查时已经知道这些路径）
+  - **不破坏现有暂停点结构**：决策类暂停点清单是补充硬约束，不改 4 选 1 / 二选一基本格式；非决策类暂停点完全不受影响
+  - **"重新触发回来"防护**：未来若 PMO 再次给决策点不列路径 / 用 markdown 链接漂移 → cite 本 patch 反例段（AND-F062 实战 case）
+- 与已有规则的关系：
+  - **P0-67 路径边界硬规则**：本 patch 是 P0-67 在决策点场景的特化（路径前后 whitespace · 不被标点紧贴）
+  - **P0-70 长 URL / 路径不进表格列**：本 patch 沿用（绝对路径独立成行 · 不挤表格 · 不包 markdown 链接）
+  - **P0-66 Final Response Preflight 4 项**：本 patch 是 Preflight 的扩展（决策类暂停点 self-check 加第 5 项 · references 段必含）
+  - **emoji 间隔规则**（P0-62）：本 patch 用 📄 / 📝 / 🔗 引导路径，遵守半角空格规则
+- 不动:
+  - 4 选 1 / 二选一基本格式（不变）
+  - PMO 推荐 + 理由（💡 + 📝）格式（不变）
+  - 状态行 3 行结构（不变）
+  - 红线 #10 暂停点必须给建议（💡）和理由（📝）（不变 · 本 patch 在其上加 references）
+  - Final Response Preflight 4 项（不变 · 本 patch 加扩展项）
+- 影响面：
+  - 改动文件：3 个（STATUS-LINE.md / stages/review-stage.md / stages/init-stage.md）+ 元数据 2 个（SKILL.md / docs/CHANGELOG.md）
+  - 单源策略：STATUS-LINE.md 是唯一权威源，其他 stage 通过 STATUS-LINE.md 单源继承（无需逐 stage 加 cite · 减少漂移面）
+- 后续验证：
+  - 下次 Review Stage QUALITY_ISSUE 决策点 / Goal-Plan PRD verdict 决策点 / PM 验收等决策类暂停点，PMO 必须输出「📚 决策参考」段 + 列绝对路径
+  - 用户体验：点击路径直接跳转源文档 / 代码 → drill-down 到 evidence 不需翻历史
+  - 同时杜绝 markdown 链接漂移（`[file.java](http://file.java)` 反模式）
+  - 长期：如发现某些非决策类暂停点（如 push 失败降级）也希望列 references，可扩展清单 · 当前先按 10 类决策类清单约束
+
+---
+
+## v7.3.10 + P0-74
 
 > v7.3.10+P0-74 Micro 流程加 Ship Stage 双段（合规收口）：实战 case（2026-04-30 / aifriend MICRO-001）暴露 Micro 走完用户验收后只剩「本地已修改未 commit / 未 push」，用户被迫追问"没 ship 么"才意识到代码没落库。根因分析：Micro 的省略**只在前端 5 个 Stage**（Plan / Blueprint / UI / Review / Test）—— 但代码最终都要发布，commit / push / MR 创建 / merge_target 落库这些动作对所有改动都一样必要。本 patch 把 Micro 流程接入完整 Ship Stage（缩简版 · 第二段无元数据更新但保留合入验证），与 Feature/Bug 的 Ship 行为统一。
 

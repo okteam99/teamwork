@@ -664,6 +664,26 @@ TC 验证率: X/Y (XX%)
 
 ---
 
+## 四点五、调试日志规范（v7.3.10+P0-77 借鉴 mattpocock/skills diagnose）
+
+🔴 **`[DEBUG-{Feature}-{NNNN}]` 唯一前缀规则**：临时调试日志（println / console.log / log.debug 等）必须用统一前缀 `[DEBUG-{Feature}-{NNNN}]`，方便 ship 前一次性 grep 清理。
+
+```
+✅ 正确：
+console.log("[DEBUG-F062-0001] payload before validation:", payload);
+log.debug("[DEBUG-F062-0002] cache hit ratio:", ratio);
+
+❌ 错误：
+console.log("xxx", payload);  // 无前缀 · ship 前难定位
+console.log("debug:", payload);  // 通用 debug 字面值 · 与既有日志冲突
+```
+
+🔴 **Ship 前清理硬规则**：Ship Stage Step 1 净化阶段必须 grep `\[DEBUG-` 确认零匹配；命中即报 ship.sanitize_log.suspicious_files 让用户决定（保留生产 / 删除 / 改正式 SLogger）。
+
+🟢 **设计动机**：`[DEBUG-` 前缀比裸 `console.log` 易识别 + 不与正式 logger（SLogger / Log / logger）冲突 + 一次 grep 全清。Feature ID + 序号便于多 Feature 并行调试时区分来源。
+
+---
+
 ## 五、文档流程图规范
 
 ### 统一使用 Mermaid

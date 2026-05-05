@@ -43,7 +43,7 @@
 🔴 Subagent 必须按此顺序读取。列表外的文件仅供参考，读与不读由 Subagent 判断。
 
 1. `{SKILL_ROOT}/agents/README.md` ← 通用 Subagent 执行协议（所有 Subagent 必读）
-2. `{SKILL_ROOT}/stages/{stage}-stage.md` ← 本阶段契约 + 角色任务规范（如 `stages/dev-stage.md §RD 角色任务规范` / `stages/review-stage.md §架构师 CR 任务规范` / `stages/test-stage.md §API E2E 任务规范`）
+2. `{SKILL_ROOT}/stages/{stage}-stage.md` ← 本阶段契约（Review Stage 角色任务规范已迁出：架构师 → `roles/architect-cr.md` / QA → `roles/qa-cr.md` · v7.3.10+P0-87；其他如 `stages/dev-stage.md §RD 角色任务规范` / `stages/test-stage.md §API E2E 任务规范` 仍在 stage 内）
 3. `{SKILL_ROOT}/standards/{common|backend|frontend}.md` ← 编码规范
 4. `{绝对路径}/PRD.md` ← 需求来源
 5. `{绝对路径}/TECH.md` ← 技术方案

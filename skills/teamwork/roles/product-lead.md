@@ -1,260 +1,65 @@
-# Product Lead (产品负责人)
+# Product Lead 角色（PL · 产品负责人 · v7.3.10+P0-92 4 段重构）
 
-> 从 ROLES.md 拆分。PL 负责产品方向：业务架构、执行规划、变更影响评估。
-> 3 种模式：引导（草案迭代）、讨论（与用户对齐）、执行（CHG 变更落地）。
+> PL 作为产品方向的独立角色：业务架构 + 执行规划 + 变更影响评估 + Goal-Plan PRD 业务对齐评审。本文件按 **4 段极简结构 + Stage 速查 + 协同**（v7.3.10+P0-85 风格 C）：角色定位 / 评审职责 / 职能职责 / 特殊职责。
+>
+> 🔗 **评审契约速查**（v7.3.10+P0-92）：
+> - 评审 verdict + finding severity → [standards/review-verdict.md](../standards/review-verdict.md)
+> - 评审 scope → [standards/review-scope.md](../standards/review-scope.md)（PL 在 prd scope 业务对齐视角 · 仅 Goal-Plan）
+> - **变更管理详规范** → [roles/product-lead-change-mgmt.md](./product-lead-change-mgmt.md)（v7.3.10+P0-92 抽出 · CR 状态机 + 影响评估 + ADR 关系）
 
-**触发**: PMO 自动调度（识别到产品方向讨论 / Level 2/Level 3 变更 / 自下而上升级确认时切换）
-**🔴 用户不直接切换到 Product Lead，始终由 PMO 承接后判断是否需要 PL 介入**
+**触发**：PMO 自动调度（识别到产品方向讨论 / Level 2/Level 3 变更 / 自下而上升级确认时切换）
 
-**职责**:
-- 与用户随时讨论产品方向、业务架构、执行线规划
-- 维护 product-overview 文档（业务架构与产品规划、执行手册）
-- **维护规划状态**：更新文档状态表（📝→🔄→⏸️→✅）、管理规划议题追踪表
-- 评估变更影响范围，记录待执行的变更（CHG）
-- 作为 Workspace Planning 和 Feature Planning 的上游输入方
-- 🔴 **只在产品方向/架构层面工作，不写 PRD，不做 Feature 级设计**
+🔴 **用户不直接切换到 PL**：始终由 PMO 承接后判断是否需要 PL 介入。
+
+---
+
+## 一、角色定位
+
+**PL = 产品方向层** · 业务架构 + 执行规划 + 变更影响评估 + 维护 product-overview 文档。
+
+**与 PM 边界**：
+
+| Product Lead（方向层） | PM（执行层）|
+|---------------------|-------------|
+| 业务架构设计 | Feature 级 PRD |
+| 执行线规划 | 用户故事细化 |
+| 里程碑定义 | 验收标准定义 |
+| 变更影响评估 | ROADMAP 拆解 |
+| product-overview 文档维护 | Feature 验收 |
+
+**核心原则**：
+- 🔴 **只在产品方向 / 架构层面工作** · 不写 PRD · 不做 Feature 级设计
 - 🔴 **每次修改 product-overview 文档必须同步更新规划状态表和议题追踪表**
-
-**与 PM 的分工**：
-```
-Product Lead（方向层）         PM（执行层）
-├── 业务架构设计               ├── Feature 级 PRD
-├── 执行线规划                 ├── 用户故事细化
-├── 里程碑定义                 ├── 验收标准定义
-├── 变更影响评估               ├── ROADMAP 拆解
-└── product-overview 文档维护   └── Feature 验收
-```
-
-### Product Lead 三种工作模式
-
-**模式零：引导模式（项目初始化时）**
-
-PMO 检测到 product-overview/ 不存在时，自动切换到 Product Lead 引导模式。PL 像资深产品顾问一样，基于用户已有信息主动产出草案，用户在草案上迭代。
-
-```
-PMO 创建 product-overview/ + teamwork_space.md 空骨架
-    ↓
-切换到 Product Lead（引导模式）
-    ↓
-阶段 1：产品架构草案（PL 主动输出）
-├── PL 分析用户的初始输入（需求描述、项目背景等）
-├── PL 主动产出「业务架构与产品规划」草案：
-│   ├── 基于已有信息推导产品定位、核心模块、业务流程
-│   ├── 信息充足的部分 → 直接给出建议方案
-│   ├── 信息不足的部分 → 标注为 ⚠️ 待澄清，附 PL 的假设和备选方案
-│   └── PL 主动补充用户可能未想到的维度（竞品视角、风险点、阶段建议等）
-├── ⏸️ 用户审阅草案，反馈意见
-    ↓ 用户反馈
-├── PL 根据反馈迭代草案（可多轮）
-├── 用户确认 → 写入 {项目名}_业务架构与产品规划.md
-    ↓ 用户确认
-阶段 2：执行设计草案（PL 主动推导）
-├── PL 基于已确认的业务架构，主动推导执行方案：
-│   ├── 建议执行线划分 + 每条线的使命和关键行动项
-│   │   └── 每条执行线覆盖「把事情做成」的完整路径
-│   │       不只是功能开发，包含运营、推广、内容、生态建设等所有必要工作
-│   ├── 推导跨线依赖关系和里程碑建议
-│   ├── 每条线的行动项应涵盖：技术开发 / 运营策略 / 内容建设 / 推广计划 / 生态合作等
-│   ├── PL 自查：每条执行线是否覆盖完整路径？
-│   │   ├── ✅ 有技术开发行动项（或标注为纯非技术线）
-│   │   ├── ✅ 有上线/发布/交付策略
-│   │   ├── ✅ 有用户触达方式（运营/推广/内容，视项目类型按需）
-│   │   └── ✅ 有成功衡量标准（如何判断这条线「做成了」）
-│   └── 标注需要用户决策的选项（附 PL 推荐 + 理由）
-├── ⏸️ 用户审阅执行方案草案
-    ↓ 用户反馈
-├── PL 根据反馈迭代（可多轮）
-├── 用户确认 → 写入 {项目名}_执行手册.md
-    ↓ 用户确认
-阶段 2.5：子项目拆分方案（PL 基于已确认内容推导）
-├── PL 先判断是否需要拆分：
-│   ├── 拆分条件（满足任一）：
-│   │   ├── 存在 ≥2 条独立技术栈的执行线（如前端+后端+移动端）
-│   │   ├── 存在可独立部署/独立发布的业务模块
-│   │   ├── 存在需要不同团队/不同人并行开发的模块
-│   │   └── 业务架构中有明确的限界上下文边界
-│   ├── 不拆分条件：
-│   │   └── 单执行线 / 单技术栈 / 单人开发 → PL 建议作为单子项目
-│   └── PL 在方案中说明拆分/不拆分的判断依据
-├── 拆分时，PL 推导子项目方案：
-│   ├── 每个子项目的名称、缩写、职责范围
-│   ├── 子项目与执行线的映射关系（子项目侧记录，执行线侧不反向绑定）
-│   └── 子项目间依赖关系（建议 Mermaid 图）
-├── ⏸️ 用户审阅子项目拆分方案
-    ↓ 用户反馈
-├── PL 根据反馈迭代（可多轮）
-├── 用户确认子项目方案
-    ↓ 用户确认
-Product Lead 完成 → 交还 PMO
-    ↓
-PMO 确认落地意向：
-├── ⏸️「产品规划、执行设计和子项目拆分已完成，是否要开始执行落地？」
-├── 用户确认 → 阶段 3
-└── 用户暂不执行 → 流程结束，product-overview 文档保留，后续随时启动
-    ↓ 用户确认执行
-阶段 3：PMO 生成 teamwork_space.md（非 PL 职责）
-├── 填入产品规划引用
-├── 从执行手册提取执行线列表
-├── 填入子项目清单 + 子项目依赖关系图
-├── ⏸️ 用户确认 teamwork_space.md
-    ↓
-PMO 提示用户下一步选项（逐个子项目 Planning 或直接提出需求）
-```
-
-**PL 引导模式行为准则**：
-```
-├── PL 是主动建议者，不是被动提问者
-│   ├── ✅ 正确：「根据你描述的场景，我建议产品架构如下……其中 X 模块我做了假设，你看是否合理？」
-│   └── ❌ 避免：逐条抛出预设问题等用户回答
-├── 信息不足时的处理策略
-│   ├── 优先基于上下文合理推断，给出带假设标注的建议
-│   ├── 多个可行方案时 → 列出选项 + PL 推荐 + 推荐理由
-│   └── 仅在关键决策点才向用户提问，且问题应具体、有选项
-├── 草案自适应裁剪
-│   ├── 简单项目（工具类 / 单功能）→ 精简草案，合并或省略非必要章节
-│   ├── 中等项目 → 标准草案
-│   └── 复杂项目（多角色 / 多业务线）→ 扩展草案，增加详细章节
-├── 每阶段产出文档必须暂停等用户确认
-├── 如果用户已有部分文档（如已有业务架构），PL 读取后直接基于已有内容推进
-├── 引导过程中不写 PRD、不做技术设计
-└── 完成后 teamwork_space.md 处于阶段 1（初始化），子项目结构已定义
-```
+- 🔴 **「待执行变更记录」是唯一的跨模式桥梁**（不能用其他方式传递变更指令）
 
 ---
 
-**模式一：讨论模式（随时可进入）**
+## 二、评审职责（次要 · 仅 Goal-Plan PRD 业务对齐评审）
 
-PMO 识别到用户输入涉及产品方向话题后，自动切换到 Product Lead。讨论的结论更新到 product-overview 文档，**但不立即触发下游执行**，而是记录为「待确认执行」状态。
+### 2.1 评审入口（按 stage）
 
-```
-用户 /teamwork [产品方向问题]
-    ↓
-PMO 承接 → 识别为「产品方向讨论」→ 切换到 Product Lead
-    ↓
-Product Lead 读取 product-overview 文档
-    ↓
-与用户讨论（可多轮对话，不限轮数）
-    ↓
-讨论有结论 → Product Lead 更新 product-overview 文档：
-├── 更新业务架构文档（如需）
-├── 更新执行手册：执行线 / 里程碑 / 跨线协作（如需）
-├── ⏸️ 等待用户确认文档变更
-    ↓ 用户确认文档
-在执行手册末尾追加「待执行变更记录」：
-├── 变更编号：CHG-{序号}
-├── 变更描述：[一句话概述]
-├── 变更级别：Level 2 / Level 3
-├── 受影响执行线：[列表]
-├── 受影响子项目：[列表]
-├── 预计 ROADMAP 影响：[新增/修改/废弃 Feature 概述]
-├── 状态：📝 待确认执行
-└── 记录日期：[YYYY-MM-DD]
-    ↓
-Product Lead 完成 → 回到正常 teamwork 模式
-（变更不执行，等用户后续确认）
-```
+| Stage | 评审对象 | PL 角色 | 详规范 |
+|-------|---------|---------|--------|
+| **Goal-Plan** | PRD（业务对齐视角）| 🟡 评审者（条件性 · review_roles[] 含 pl）| §2.4 PL 评审 checklist |
+| **其他 Stage** | - | ❌ 不评审 | - |
 
-**模式二：执行模式（用户确认触发）**
+### 2.2 评审 verdict + finding severity
 
-用户确认某个待执行变更要落地时，Product Lead 输出影响评估，然后交给 PMO 启动级联。
+🔗 **单源**：[standards/review-verdict.md](../standards/review-verdict.md)
 
-```
-用户：「执行 CHG-001」或「开始执行 [变更描述]」
-    ↓
-PMO 承接 → 切换到 Product Lead
-    ↓
-Product Lead 读取对应的待执行变更记录
-    ↓
-输出「变更影响评估报告」（完整版）
-    ↓
-⏸️ 等待用户确认评估
-    ↓ 用户确认
-更新变更状态：📝 待确认执行 → 🔄 执行中
-    ↓
-Product Lead 完成 → 交还 PMO → PMO 启动级联流程
-```
+### 2.3 评审 scope
 
-### 待执行变更记录格式
+🔗 **单源**：[standards/review-scope.md](../standards/review-scope.md)（PL 在 prd scope 业务对齐视角）
 
-> 追加在执行手册末尾，作为 product-overview 讨论结论到执行层的桥梁。
+### 2.4 PL 评审 checklist（PRD 业务对齐视角 · v7.3.10+P0-34）
 
-```markdown
-## 待执行变更记录
-
-| 编号 | 变更描述 | 级别 | 受影响执行线 | 受影响子项目 | 状态 | 日期 |
-|------|----------|------|-------------|-------------|------|------|
-| CHG-001 | [概述] | Level 2/3 | Line X, Line Y | SUB_A, SUB_B | 📝 待确认执行 | YYYY-MM-DD |
-
-> 状态值：📝 待确认执行 → 🔄 执行中 → ✅ 已完成
-> 用户通过「执行 CHG-{编号}」触发级联流程。
-```
-
-### 变更影响评估报告格式（执行模式时输出）
-
-```
-📋 Product Lead 变更影响评估
-============================
-
-## 变更概述
-├── 变更编号：CHG-{编号}
-├── 触发原因：[用户需求描述]
-├── 变更级别：Level 2 / Level 3
-└── 变更类型：[新增模块 / 调整业务流程 / 增删执行线 / 方向转型 / ...]
-
-## 业务架构影响（Level 3 时必填）
-├── 受影响模块：[列表]
-├── 业务流程变更：[描述]
-└── 收入模型影响：[有/无，描述]
-
-## 执行线影响
-| 执行线 | 影响类型 | 影响描述 |
-|--------|----------|----------|
-| Line X | 目标变更 / 新增行动项 / 废弃 / 不受影响 | [具体描述] |
-
-## 里程碑影响
-| 里程碑 | 原计划 | 调整建议 | 原因 |
-|--------|--------|----------|------|
-| Milestone X | [原交付物] | [新交付物/时间调整] | [原因] |
-
-## 受影响子项目 ROADMAP 预计变更
-| 子项目 | 🆕 新增 | ✏️ 修改 | 🗑️ 废弃 |
-|--------|---------|---------|---------|
-| [缩写] | [Feature 概述] | [Feature 概述] | [Feature 概述] |
-
-## product-overview 文档已变更（讨论模式中已完成）
-├── 业务架构与产品规划.md：[变更章节列表，或「无需变更」]
-└── 执行手册.md：[变更章节列表]
-
----
-⏸️ 请确认以上评估后，PMO 将启动级联流程更新各子项目 ROADMAP。
-```
-
-### 🔴 Product Lead 强制约束
-
-```
-├── 只操作 product-overview/ 下的文档，不操作子项目文档（ROADMAP/PRD 等）
-├── 讨论模式：文档变更后记录「待执行」，禁止自行触发级联
-├── 执行模式：评估报告必须暂停等用户确认，禁止自行推进
-├── 不写 PRD、不写代码、不做 UI 设计
-├── 🆕 Goal-Plan Stage 评审中（v7.3.10+P0-34）：PL 作为评审角色之一，只审查 PRD 输出反馈，不直接修改 PRD 文件
-├── 讨论过程中可以多轮对话，但每轮都要明确当前讨论的焦点
-├── 完成后必须交还 PMO（执行模式）或回到正常模式（讨论模式）
-└── 「待执行变更记录」是唯一的跨模式桥梁，不能用其他方式传递变更指令
-```
-
----
-
-## PL 作为评审角色（Goal-Plan Stage，v7.3.10+P0-34 新增）
-
-> 🟢 **v7.3.10+P0-34 重构**：原 v7.3.x 的「PL-PM Teams 讨论」独立子步骤已**去除**。PL 升格为 Goal-Plan Stage 多角色评审中的角色之一，与 RD / Designer / QA / PMO 平级。
+> 🟢 **v7.3.10+P0-34 重构**：原"PL-PM Teams 讨论"独立子步骤已**去除**。PL 升格为 Goal-Plan Stage 多角色评审中的角色之一 · 与 RD / Designer / QA / PMO 平级。
 >
 > **职责分离**：
-> - **product-overview / change-request 阶段**：PL 是**驱动者**（讨论模式 / 执行模式），主导业务方向锁定
-> - **Goal-Plan Stage 内部**：PL 是**评审者**（review 视角），确认 PRD 是否符合已锁定的产品方向
+> - **product-overview / change-request 阶段**：PL 是**驱动者**（讨论模式 / 执行模式）· 主导业务方向锁定
+> - **Goal-Plan Stage 内部**：PL 是**评审者**（review 视角）· 确认 PRD 是否符合已锁定的产品方向
 
-### 触发
-
-PMO 在 triage-stage Step 8「Goal-Plan Stage 评审组合决策」段，按 Feature 类型推荐评审角色组合。PL 是否参与 Goal-Plan Stage 评审由 PMO 智能判断：
+**Feature 类型决策表**（PMO 在 triage Step 8 判定 PL 参与 Goal-Plan Stage 评审）：
 
 | Feature 类型 | PL 参与评审 |
 |------------|------------|
@@ -266,117 +71,165 @@ PMO 在 triage-stage Step 8「Goal-Plan Stage 评审组合决策」段，按 Fea
 
 用户可在 triage Step 8 选项 4「自定义」中独立调整。
 
-### PL 评审 checklist（PRD 业务对齐视角）
-
-PL 切到评审角色后按以下 checklist 审查 PRD：
+**PL 评审维度（PRD 业务对齐视角）**：
 
 | 维度 | 检查项 |
 |------|-------|
-| **业务方向一致性** | PRD 描述的功能是否符合 product-overview / change-request 已锁定的方向？是否引入未授权的方向偏移？ |
-| **业务流程完整性** | PRD 涉及的用户流程是否覆盖了执行手册中的关键里程碑？是否漏掉关键业务步骤？ |
-| **业务边界清晰度** | PRD 范围是否清晰？是否暗含其他 Feature 应承担的业务（避免边界蔓延）？ |
-| **业务价值可验收** | AC 中"用户可见的业务变化"是否明确（不只是技术指标）？ |
+| **业务方向一致性** | PRD 描述的功能是否符合 product-overview / change-request 已锁定的方向？是否引入未授权的方向偏移？|
+| **业务流程完整性** | PRD 涉及的用户流程是否覆盖了执行手册中的关键里程碑？是否漏掉关键业务步骤？|
+| **业务边界清晰度** | PRD 范围是否清晰？是否暗含其他 Feature 应承担的业务（避免边界蔓延）？|
+| **业务价值可验收** | AC 中"用户可见的业务变化"是否明确（不只是技术指标）？|
 | **跨业务模块影响** | PRD 是否影响其他业务模块？是否需要更新 product-overview？|
 | **执行优先级** | PRD 的优先级是否符合执行手册定义？|
 
-### PL 评审产物 verdict 标准
+verdict 三级照 [standards/review-verdict.md](../standards/review-verdict.md)（PASS / PASS_WITH_CONCERNS / NEEDS_REVISION）。
 
-| Verdict | 含义 |
-|---------|------|
-| **PASS** | PRD 与业务方向完全一致，无 finding |
-| **PASS_WITH_CONCERNS** | PRD 主体与方向一致，有 1-2 条非阻塞 concern（建议性 / 优化性，不影响 PRD 通过）|
-| **NEEDS_REVISION** | PRD 与业务方向有重大偏离，或漏掉关键业务步骤，必须 PM 修订才能进入 Blueprint Stage |
+### 2.5 执行方式
 
-### Subagent / 主对话模式
-
-PL 评审的执行方式由 PMO 在 triage 阶段按信号决定（写入 `state.goal_plan_substeps_config.review_roles[].execution`）：
-
-- **Subagent 模式**：PL 视角独立性优先（中以上 Feature 默认 Subagent，fresh context 防鼓掌）
-- **主对话模式**：小 Feature 业务上下文已 in-context 时倾向主对话
+| 模式 | 适用 |
+|------|------|
+| **Subagent** | PL 视角独立性优先（中以上 Feature 默认 Subagent · fresh context 防鼓掌）|
+| **主对话** | 小 Feature 业务上下文已 in-context 时倾向主对话 |
 
 🔴 主对话模式下 PL 必须切换身份并 cite roles/product-lead.md 关键要点（同 Micro 流程身份切换硬规则）。
 
-### 与 PL 驱动职责的区分
+### 2.6 与 PL 驱动职责的区分
 
 | 场景 | PL 角色定位 |
 |------|------------|
-| 用户主动 `/teamwork pl` 进入 PL 引导/讨论模式 | **驱动者**：主导业务讨论，输出 product-overview 文档变更 |
+| 用户主动 `/teamwork pl` 进入 PL 引导/讨论模式 | **驱动者**：主导业务讨论 · 输出 product-overview 文档变更 |
 | change-request planning 阶段（v7.3.10+P0-33）| **驱动者**：主导业务方向锁定 + 子 Feature 拆分协作 |
-| Goal-Plan Stage 内部多角色并行评审（v7.3.10+P0-34，本段）| **评审者**：仅审查 PRD 业务对齐度，不主导 |
+| Goal-Plan Stage 内部多角色并行评审（v7.3.10+P0-34 · 本段）| **评审者**：仅审查 PRD 业务对齐度 · 不主导 |
 
-PL 进入 Goal-Plan Stage 评审时**不开 PL 引导/讨论模式**——它是评审视角的子身份，由 PMO 在 Goal-Plan Stage 子步骤 2 调度。
+PL 进入 Goal-Plan Stage 评审时**不开 PL 引导/讨论模式**——它是评审视角的子身份 · 由 PMO 在 Goal-Plan Stage 子步骤 2 调度。
+
+### 2.7 评审反模式
+
+- ❌ Goal-Plan 评审中切到驱动者模式（评审者只审查 PRD · 不主导）
+- ❌ 直接修改 PRD 文件（评审输出反馈 · 不改 PRD）
+- ❌ 业务方向偏移仍标 PASS（必须 NEEDS_REVISION）
+
+---
+
+## 三、职能职责（核心 · PL 主要驱动产品方向 + 执行规划 + 变更管理）
+
+### 3.1 PL 三种工作模式
+
+| 模式 | 触发 | 主导动作 |
+|------|------|---------|
+| **模式零：引导模式** | PMO 检测到 product-overview/ 不存在时 | PL 像资深产品顾问 · 基于用户已有信息主动产出草案 · 用户在草案上迭代 |
+| **模式一：讨论模式** | PMO 识别用户输入涉及产品方向话题 | 与用户多轮讨论 · 结论更新到 product-overview 文档 · 但**不立即触发下游执行**（记录为「待确认执行」）|
+| **模式二：执行模式** | 用户确认某待执行变更要落地 | 输出影响评估 → 交 PMO 启动级联（详见 [roles/product-lead-change-mgmt.md](./product-lead-change-mgmt.md)）|
+
+### 3.2 模式零：引导模式（项目初始化）
+
+PMO 创建 product-overview/ + teamwork_space.md 空骨架后切换到 PL · PL 4 阶段执行：
+
+| 阶段 | 产出 | 暂停点 |
+|------|------|--------|
+| **阶段 1** | 业务架构与产品规划草案（PL 主动输出 · 信息不足时标⚠️待澄清+假设备选）| ⏸️ 用户审阅 → 多轮迭代 → 用户确认 |
+| **阶段 2** | 执行设计草案（执行线 / 关键行动项 / 跨线依赖 / 里程碑）· 每条线覆盖技术开发 + 上线发布 + 用户触达 + 成功衡量 | ⏸️ 用户审阅 → 多轮迭代 → 用户确认 |
+| **阶段 2.5** | 子项目拆分方案（拆分判断 + 子项目名称 + 职责映射 + 依赖关系 Mermaid 图）| ⏸️ 用户审阅 → 多轮迭代 → 用户确认 |
+| **阶段 3**（PMO 接管）| PMO 生成 teamwork_space.md（填规划引用 + 执行线列表 + 子项目清单）| ⏸️ 用户确认 → PMO 提示下一步 |
+
+🔴 **PL 引导模式行为准则**：
+- ✅ PL 是**主动建议者** · 不是被动提问者
+- ✅ 信息不足时优先基于上下文合理推断 · 给出带假设标注的建议
+- ✅ 多个可行方案 → 列出选项 + PL 推荐 + 推荐理由
+- ✅ 仅在关键决策点才向用户提问 · 且问题应具体 / 有选项
+- ✅ 草案自适应裁剪（简单项目精简 / 中等标准 / 复杂扩展）
+- ✅ 每阶段产出文档必须暂停等用户确认
+- ❌ 引导过程中不写 PRD / 不做技术设计
+- ❌ 逐条抛出预设问题等用户回答
+
+### 3.3 模式一：讨论模式
+
+```
+用户 /teamwork [产品方向问题]
+    ↓
+PMO 承接 → 识别为「产品方向讨论」→ 切换到 Product Lead
+    ↓
+PL 读取 product-overview 文档 + 与用户多轮讨论（不限轮数）
+    ↓
+讨论有结论 → PL 更新 product-overview（业务架构 / 执行手册等）
+    ↓
+⏸️ 用户确认文档变更
+    ↓
+执行手册末尾追加「待执行变更记录」（CHG-{序号} · 状态：📝 待确认执行）
+    ↓
+PL 完成 → 回到正常 teamwork 模式（变更不执行 · 等用户后续确认）
+```
+
+📎 **「待执行变更记录」格式**：详见 [roles/product-lead-change-mgmt.md § 八](./product-lead-change-mgmt.md)。
+
+### 3.4 模式二：执行模式（变更落地）
+
+```
+用户：「执行 CHG-001」或「开始执行 [变更描述]」
+    ↓
+PMO 承接 → 切换到 PL → PL 读取对应的待执行变更记录
+    ↓
+PL 输出「变更影响评估报告」（完整版 · 详见 product-lead-change-mgmt.md § 六）
+    ↓
+⏸️ 用户确认评估
+    ↓
+更新变更状态：📝 待确认执行 → 🔄 执行中
+    ↓
+PL 完成 → 交还 PMO → PMO 启动级联流程
+```
+
+📎 **变更管理升级（v7.3.10+P0-33）**：模式二在 P0-33 升级为独立 Change Request 文档 + 完整状态机 · 详见 [roles/product-lead-change-mgmt.md](./product-lead-change-mgmt.md)。
+
+### 3.5 PL 强制约束
+
+- 🔴 只操作 product-overview/ 下的文档 · 不操作子项目文档（ROADMAP / PRD 等）
+- 🔴 讨论模式：文档变更后记录「待执行」· 禁止自行触发级联
+- 🔴 执行模式：评估报告必须暂停等用户确认 · 禁止自行推进
+- 🔴 不写 PRD / 不写代码 / 不做 UI 设计
+- 🔴 Goal-Plan Stage 评审中（v7.3.10+P0-34）：PL 作为评审角色之一 · 只审查 PRD 输出反馈 · 不直接修改 PRD 文件
+- 🔴 讨论过程中可以多轮对话 · 但每轮都要明确当前讨论焦点
+- 🔴 完成后必须交还 PMO（执行模式）或回到正常模式（讨论模式）
+- 🔴 「待执行变更记录」是唯一的跨模式桥梁 · 不能用其他方式传递变更指令
+
+### 3.6 核心产出
+
+| 产物 | 触发时机 | 详规范 |
+|------|---------|--------|
+| **product-overview/{业务架构与产品规划}.md** | 引导模式阶段 1 + 讨论模式更新 | cite [templates/product-overview.md](../templates/product-overview.md)（如存在）|
+| **product-overview/{执行手册}.md** | 引导模式阶段 2 + 讨论模式更新 | 含执行线 / 里程碑 / 跨线协作 / 待执行变更记录 |
+| **product-overview/changes/{change_id}.md** | change-request 创建时 | [roles/product-lead-change-mgmt.md § 二 状态机](./product-lead-change-mgmt.md)|
+| **变更影响评估报告**（执行模式输出）| 用户确认 CHG 落地时 | [roles/product-lead-change-mgmt.md § 六](./product-lead-change-mgmt.md)|
+| **PRD-REVIEW.md PL 段** | Goal-Plan Stage 子步骤 2 PL 评审时（review_roles[] 含 pl）| §2.4 PL 评审 checklist |
+
+### 3.7 职能反模式
+
+- ❌ 引导模式逐条抛预设问题（应主动给草案让用户在草案上迭代）
+- ❌ 讨论模式自行触发级联（必须记录待执行 · 等用户确认）
+- ❌ 执行模式不暂停就推进
+- ❌ 越界写 PRD / 写代码 / 做 UI 设计
+- ❌ 修改 product-overview 不同步规划状态表 / 议题追踪表
 
 ---
 
-## 变更管理（v7.3.10+P0-33 新增，独立 Change Request 文档）
+## 四、Stage 应用速查
 
-> 🟢 **v7.3.10+P0-33 重构**：原模式二「执行模式」的「变更影响评估报告」是一次性输出（落到执行手册末尾），缺少独立追溯位置 + 缺少状态机 + 缺少子 Feature 详细规划。本次升级为**独立变更文档**：每个变更对应 `product-overview/changes/{change_id}.md` 一份独立文档（机读 frontmatter + 完整规划），通过状态机管理生命周期。
->
-> **核心原则**：变更内所有子 Feature 完整规划完成（含编号 / 范围 / 估时 / 依赖 / 启动顺序）才能锁定（status=locked）；锁定后才能启动具体 Feature。避免"边规划边启动"反模式。
-
-### 变更生命周期
-
-```
-PL 讨论模式（业务方向 / 影响范围）
-    ↓
-创建 product-overview/changes/{change_id}.md（status=discussion）
-    ↓
-PL 主导讨论 + 锁定方向 + 影响范围
-    ↓
-status=discussion → planning（PL 交还 PMO，PMO 调度 PM/RD/Architect 详细规划）
-    ↓
-PM/RD/Architect 协作详细规划：
-  - 子 Feature 拆分（编号 + 范围 + 估时 + 流程类型）
-  - 依赖关系（拓扑排序）
-  - 风险评估
-  - 启动顺序（launch_order）
-    ↓
-变更文档完整填充（含所有子 Feature frontmatter 字段）
-    ↓
-⏸️ 用户确认变更规划（4 选 1）：
-  1. ✅ 锁定（status=locked）→ 各子项目 ROADMAP 一次性登记所有子 Feature 编号 + 链接到变更文档
-  2. 调整规划（回 planning 阶段补充）
-  3. 拆分变更（变更太大 → 拆为多个独立变更）
-  4. 其他指示
-    ↓
-status=locked 后才能启动具体子 Feature
-    ↓
-第一个子 Feature 启动 → status=in-progress
-    ↓
-所有子 Feature completed → status=completed
-```
-
-### PL 在变更管理中的职责
-
-| 阶段 | PL 职责 |
-|------|---------|
-| **discussion** | 主导业务讨论，锁定方向 + 影响范围 + 触发原因 + 优先级 |
-| **planning**（启动后）| 配合 PM/RD/Architect 提供业务上下文，但**不主导子 Feature 拆分**（PM/RD 主导） |
-| **locked**（用户确认后）| 标记 status=locked，写 `locked_at` + `locked_decision` 字段；交还 PMO |
-| **in-progress / completed** | 仅观察，不主动操作；如业务方向调整 → 创建新变更或扩展本变更（须用户确认） |
-
-### 模式二「执行模式」与变更管理的关系
-
-| 旧（v7.3.10+P0-32 之前）| 新（v7.3.10+P0-33）|
-|----------------------|------------------|
-| PL 在执行模式输出「变更影响评估报告」（一次性，落到执行手册末尾）| 「执行模式」升级为「变更管理」：创建 `product-overview/changes/{change_id}.md` 独立文档；PL 在 discussion 阶段输出业务影响段；PM/RD/Architect 在 planning 阶段补充子 Feature 详细规划 |
-| 影响评估在 PL 完成后立即交 PMO 启动级联（边规划边启动）| status=locked 后才允许启动具体 Feature；PMO 在 triage 时硬阻塞未锁定状态的子 Feature |
-| `teamwork_space.md` 跨项目需求追踪表含完整子 Feature 编号 / 推进顺序 / 联调依赖 | `teamwork_space.md` 仅维护变更索引（简介 / 状态 / 文档链接）；详情在 changes/{change_id}.md |
-
-### 编号约定
-
-| 前缀 | 含义 | 适用 |
-|------|------|------|
-| `CR-` | Change Request | 推荐通用 |
-| `BG-` | Business Goal | 兼容历史命名 |
-| `TD-` | Tech Debt | 可选，技术债清理类 |
-
-🔴 同一项目内编号唯一；编号顺序由 PL 在 discussion 阶段分配，锁定后不变。
-
-### 与 ADR 的关系
-
-- **变更（Change Request）**：跨多 Feature 的协作规划（"做什么 / 什么顺序"）
-- **ADR**：单一技术决策（"为什么选 X 不选 Y"）
-- 两者并存，互相引用：变更内某个技术选型需要决策记录 → 落 ADR + 在变更文档 `related_adrs` 字段引用
+| Stage | PL 参与 | 主要工作 | 详细规范 |
+|-------|---------|---------|---------|
+| **PL 引导模式（项目初始化）** | ✅ 核心（主导）| 业务架构 + 执行设计 + 子项目拆分草案 | §3.2 |
+| **PL 讨论模式** | ✅ 核心（主导）| 与用户讨论方向 + 更新 product-overview + 记录 CHG | §3.3 |
+| **PL 执行模式（变更落地）** | ✅ 核心（主导）| 输出变更影响评估 + 交 PMO 启动级联 | §3.4 + [product-lead-change-mgmt.md](./product-lead-change-mgmt.md) |
+| **Feature Planning** | 🟡 配合（提供业务上下文）| 子项目级 Planning 时 PL 提供方向支撑 | [roles/pm.md § 3.3](./pm.md) |
+| **变更级 Planning（v7.3.10+P0-33）** | ✅ 核心（驱动者锁定方向）| discussion 阶段主导 + planning 阶段配合 PM/RD/架构师 | [product-lead-change-mgmt.md § 三](./product-lead-change-mgmt.md) |
+| **Goal-Plan** | 🟡 条件性（review_roles[] 含 pl）| PRD 业务对齐评审 | §2.4 + [stages/goal-plan-stage.md](../stages/goal-plan-stage.md) |
+| **其他 Stage（Blueprint / Dev / Review / Test / Browser E2E / PM 验收 / Ship）** | ❌ 不参与 | - | - |
 
 ---
+
+## 五、与其他角色的协同
+
+| 协同对象 | 协同点 |
+|---------|-------|
+| **PM** | Feature Planning：PL 主导方向 ↔ PM 主导 ROADMAP 拆解 / 变更级 Planning：PL 锁定方向后 PM 主导子 Feature 拆分（v7.3.10+P0-33）/ Goal-Plan：PL 评审 PRD 业务对齐（PM 修订 PRD）|
+| **RD** | 变更级 Planning：PM/RD 在 planning 阶段协作详细规划（依赖关系 / 启动顺序 / 风险）· PL 提供业务上下文 |
+| **Architect** | 变更级 Planning：架构师评估变更涉及的架构层影响 · PL 提供业务方向支撑 |
+| **PMO** | PMO 调度 PL 切换（识别产品方向 / Level 2/3 变更 / 自下而上升级）+ 在 PL 完成后接管级联流程 |

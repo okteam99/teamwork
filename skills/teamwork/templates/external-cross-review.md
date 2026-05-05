@@ -51,7 +51,7 @@
 
 ### 2.1 PMO 初步分析决策（v7.3.10+P0-24 重构自 P0-13）
 
-PMO 完整决策流见 [roles/pmo.md](../roles/pmo.md) §🌐 外部模型交叉评审开关决策（运行时探测 + 渲染 + 选项 6 步）。简版：
+PMO 完整决策流见 [roles/pmo-external-orchestration.md](../roles/pmo-external-orchestration.md)（v7.3.10+P0-93 抽出 · 角色契约 [roles/pmo.md](../roles/pmo.md)）· 含运行时探测 + 渲染 + 决策点 6 步。简版：
 
 ```
 🌐 外部模型交叉评审决策（仅影响 Plan / Blueprint Stage；Review Stage 代码审查独立强制）

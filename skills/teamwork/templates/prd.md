@@ -8,8 +8,8 @@
 ## PRD.md（统一通用模板，v7.3.10+P0-47 合并）
 
 > 🟢 **v7.3.10+P0-47 重构（PRD 模板合并）**：原"标准模板（业务类）" + "技术类变体"两套合并为统一通用模板。差异通过"按需必填"标注表达：
-> - 业务类 Feature：用户故事 / 功能需求 / 埋点需求必填
-> - 纯技术 refactor：用户故事可省（或写"使用方故事"）/ 功能需求改为"功能行为不变"声明 / 埋点需求标"不适用"
+> - 业务类 Feature：用户故事 / 埋点需求必填（v7.3.10+P0-82：删"功能需求 P0/P1/P2"段 · 与 AC 重复 · AC 已分优先级）
+> - 纯技术 refactor：用户故事可省（或写"使用方故事"）/ 埋点需求标"不适用"
 > - 中台子项目：消费方分析必填
 > - 其他子项目：消费方分析不填
 >
@@ -80,17 +80,6 @@ acceptance_criteria:
 | AC-1 | {description} | P0 | {测试 ID，如 T-001, T-002} |
 | AC-2 | {description} | P0 | |
 
-## 功能需求（🟡 业务类必填；纯技术 refactor 改为"功能行为不变"声明）
-
-### P0 (必须)
--
-
-### P1 (应该)
--
-
-### P2 (可选)
--
-
 ## 业务流程图 / 交互时序图（按需必填）
 
 > 满足以下任一条件时必须画图，不能只用文字描述：
@@ -145,14 +134,29 @@ stateDiagram-v2
 |-------------|-----------|-----------|----------|
 | | | P0/P1/P2 | 待开发/开发中/已接入 |
 
-### API 契约（如适用）
-<!-- 中台对外暴露的接口定义，消费方依据此开发 -->
+### API 契约（产品视角 · v7.3.10+P0-82 加边界注）
+<!-- 中台对外暴露的接口能力承诺。仅写产品视角内容，技术实现细节归 TECH.md。 -->
+<!--
+✅ 写：method / path / 入参出参业务字段含义 / 错误情况下的用户感知 / 接口能力承诺
+❌ 不写：鉴权方式 / 限流策略 / 序列化协议 / SLA / 内部缓存 / 数据库交互 / HTTP status code / 错误对象 schema
+       这些归 TECH.md 接口实现段。
+-->
 
 ### 兼容性承诺
 <!-- 对现有消费方的兼容性保证：是否破坏现有接口、迁移方案等 -->
 
 ### 消费方接入计划
 <!-- 各消费方何时开始接入、是否需要同步改动 -->
+
+## Out of Scope（v7.3.10+P0-77 借鉴 mattpocock/skills to-prd · 必填）
+
+> 🔴 **必填**：明确写出"本 Feature **不做**什么"——降低后期"为什么没做 X"的拉扯。
+> 业务类 Feature：列业务范围外的功能 / 用户场景；纯技术 refactor：列不在重构范围的模块 / 路径。
+> 与 KNOWLEDGE.md `## Out of Scope`（已拒绝过的全局方案）联动：本段是 Feature 级 scope 边界，KNOWLEDGE 是项目级长期拒绝记忆。
+
+- {本 Feature 不做的事 1 + 简短理由}
+- {本 Feature 不做的事 2 + 简短理由}
+- ...
 
 ## 待决策项
 | ID | 问题 | 选项 | 决策 |
@@ -258,10 +262,11 @@ reviews:
   # v7.3.10+P0-46 加 review_scope 字段：标识本次评审范围
   # PL 走子步骤 2 PL-PM 讨论模式（独立产物 discuss/PL-FEEDBACK + PM-RESPONSE，不在本 reviews[] 数组）
   # PMO 不独立评审（折叠到 PMO 调度责任，整合 finding）
-  - role: qa | rd | designer | external  # v7.3.10+P0-44：删 pl/pmo
+  - role: qa | rd | designer | architect | external  # v7.3.10+P0-44：删 pl/pmo · v7.3.10+P0-86 加 architect（架构师独立化 · PRD 评审中默认不参与 · 但 schema 通用复用 TC-REVIEW / TECH-REVIEW / REVIEW.md · architect 值合法）
     review_scope: prd                    # v7.3.10+P0-46：值 prd | blueprint | code-review，标识评审范围
                                           # PRD 评审仅审产品视角（业务可行性 / AC 可测试性 / 用户故事完整性）
                                           # 技术实现 / 测试用例细节在 Blueprint Stage 评审（review_scope=blueprint）
+                                          # architect 仅在 review_scope=blueprint / code-review 出现（不参与 prd scope）
     execution: subagent | main-conversation
     verdict: PASS | PASS_WITH_CONCERNS | NEEDS_REVISION
     started_at: "<ISO 8601 UTC>"
@@ -274,7 +279,13 @@ reviews:
         severity: high | medium | low | info
         description: "1-2 句问题描述"
         suggestion: "建议改法（可执行的具体方向）"
-        category: technical-consistency | business-alignment | ux | quality | business-decision  # v7.3.10+P0-34-A 新增
+        category: technical-consistency | business-alignment | ux | quality | business-decision | terminology-ambiguity  # v7.3.10+P0-34-A 新增 / +P0-78 加 terminology-ambiguity（触发 Flagged Ambiguities 写入）
+        cross_role: []  # v7.3.10+P0-84 新增（可选）· 一个 finding 同时关联多视角时（如 [qa, rd]）· 仍归入主要视角段 · 不复制到多段
+        # v7.3.10+P0-78：涉及代码现状的 finding 必填 code_evidence（category=technical-consistency 时强制）
+        code_evidence:  # 可选 · category=technical-consistency 时必填
+          file_path: "{绝对路径或仓库相对路径}"
+          line_range: "{起始行-结束行，如 42-58}"
+          snippet: "{可选 · 关键代码片段 ≤5 行 · 用于离线参考}"
         # 以下字段在 PM 回应后填入（Round 2+）
         pm_response:
           action: ADOPT | REJECT | DEFER
@@ -331,6 +342,8 @@ verdict: {PASS|PASS_WITH_CONCERNS|NEEDS_REVISION}
 - Round 2+ 的 NEEDS_REVISION findings 必须含 pm_response.action + pm_response.adversarial_self_check + pm_response.rationale
 - v7.3.10+P0-34-A：`pm_response.action == "DEFER"` 时必须 `pm_response.category == "business-decision"`，否则视为违规（PMO 校验拦截，打回 PM 重做）
 - v7.3.10+P0-34-B：每条 `pm_response.action ∈ {ADOPT, REJECT}` 必须含非空 `adversarial_self_check`（≥2 句反方论据模拟），否则视为对抗强度不足（PMO 打回）
+- v7.3.10+P0-78：finding `category=technical-consistency` 时必含 `code_evidence.{file_path, line_range}` —— 防止"猜测式 finding"（reviewer 没读代码就提出问题）。空值 = PMO 打回 reviewer 重审 + 提示"必须 cite 代码 location"
+- v7.3.10+P0-78：finding `category=terminology-ambiguity` 触发后澄清结论必须**实时**写入 KNOWLEDGE.md `## Flagged Ambiguities` 段（不等评审循环结束批处理）+ `pm_response.rationale` 字段引用 FA-NNN 编号
 - overall_verdict 必须与所有 reviews[].verdict 一致（任一 NEEDS_REVISION → overall = NEEDS_REVISION）
 
 ### 历史 PRD-REVIEW.md 兼容性

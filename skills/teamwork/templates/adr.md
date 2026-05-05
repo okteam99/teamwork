@@ -13,6 +13,23 @@
 >
 > 🔴 **备选项至少 2 个，否则不是"决策"，不需要 ADR**。
 >
+> 🔴 **三条门槛 boolean checkbox（v7.3.10+P0-78 借鉴 mattpocock/skills grill-with-docs · 比"3 问触发器"更精准）**：必须**全部 ✅** 才产 ADR：
+> - [ ] **Hard to reverse**（反悔成本大 · 改回去需要大规模改动 / 跨 Feature 影响 ≥ 1）
+> - [ ] **Surprising without context**（未来读者会困惑"为什么这么做"· 不是显而易见的选择）
+> - [ ] **Result of real trade-off**（真实权衡 · 备选项 ≥ 2 + 选当前方案有具体理由）
+> 任一项 ❌ → 不产 ADR · 写到 TECH.md 或 KNOWLEDGE.md。
+>
+> 🔴 **7 类合格 ADR 显式列表（v7.3.10+P0-78 借鉴）**：以下是真实合格的 ADR 类型，对照命中其一才产：
+> 1. **架构形状**（"用 monorepo" / "写读分离 · CQRS"）
+> 2. **跨 Context 集成模式**（"Ordering 与 Billing 通过 domain event 异步通信，不走 HTTP"）
+> 3. **锁定的技术选型**（DB / 消息总线 / 鉴权 / 部署目标 · 不是每个 lib · 是要花季度才能换的那种）
+> 4. **边界与范围决策**（"Customer 数据归 Customer Context · 其他 Context 仅引用 ID"）
+> 5. **偏离明显路径**（"用 raw SQL 不用 ORM 因为 X" · 任何"看起来反直觉"的选择 · 防止下个工程师"修复"）
+> 6. **代码不可见的约束**（"不能用 AWS · 合规要求" / "响应必须 < 200ms · 合作方 API 契约"）
+> 7. **拒绝的方案 · 拒绝理由非显然**（"考虑过 GraphQL 选 REST 因为 X" · 防止 6 个月后又有人提 GraphQL）
+>
+> 🟢 **极简 ADR 模板（v7.3.10+P0-78 借鉴）**：如果决策很简单——1-3 句话即可。frontmatter 5 字段必填，正文可只含**背景 1 句 + 决策 1 句 + 理由 1 句**。强制填满下方多段结构会让 ADR 变成"形式主义"。**默认轻量 · 复杂决策才扩到完整结构**。
+>
 > 更新时机：
 > - Blueprint Stage 架构师识别 → 创建（status=proposed）
 > - 架构师方案评审通过 / 用户确认 → status=accepted
