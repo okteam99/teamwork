@@ -287,6 +287,43 @@ state.current_stage enum 值 → STATUS-LINE 阶段字段语义
 违反 = 流程偏离（用户被迫盲选 · 决策质量受损）。
 ```
 
+---
+
+### 🔴 暂停点模板渲染契约（v7.3.10+P0-115 新增 · 单源反向 cite）
+
+> **触发**：实战 case（PM 验收暂停点 verbatim 渲染时漏标准状态行）暴露 spec 文件中的暂停点模板（`roles/pmo-*-ship.md` / `stages/*-stage.md` 内的 verbatim ⏸️ 模板块）若不显式 cite 本文件 · AI 严格按模板渲染时会漏 📚 决策参考 + 漏 3 行状态行。
+
+🔴 **所有 spec 文件的 verbatim 暂停点模板必须 cite 本文件**（不复述格式 · 保单源）：
+
+```
+任意 spec 文件中的 ⏸️ 暂停点 verbatim 渲染模板末尾必须写：
+
+🔴 渲染必含（cite STATUS-LINE.md · 不在本文件复述格式）：
+- 决策类暂停点 → 📚 决策参考段（cite STATUS-LINE.md § 决策点参考文档绝对路径硬规则 · 列绝对路径）
+- 标准 3 行状态行 → cite STATUS-LINE.md § 状态行格式定义
+  · 阶段值取自本文件 § state.json current_stage enum vs 阶段字段语义映射
+```
+
+🔴 **架构原则**：
+- 状态行格式 / emoji 间隔 / 路径边界 / 决策参考清单 = 本文件单源
+- spec 文件只声明「这是哪类暂停点 · 阶段 enum 是什么」 · 反向 cite 本文件
+- 未来本文件改格式（如 P0-62 emoji / P0-67 路径边界 / P0-70 表格列规则）· spec 文件零修改自动跟随
+
+🔴 **覆盖清单**（v7.3.10+P0-115 已加 cite 的 spec 暂停点模板）：
+
+| 文件 | 暂停点 | 决策类？ | 阶段 enum |
+|------|-------|---------|---------|
+| `roles/pmo-pm-acceptance-ship.md` § 2.2 | PM 验收（3 选 1） | ✅ 决策类 | `pm_acceptance` |
+| `stages/ship-stage.md` Step 3 变体 A/B | Phase 1 第一段报告（4 选 1） | ✅ 决策类 | `ship` |
+| `stages/ship-stage.md` 完成报告 | worktree 清理（3 选 1） | 非决策类 | `ship` |
+| `stages/ship-stage.md` 异常处理 | MR 异常（4 选 1） | ✅ 决策类 | `ship` |
+| `stages/goal-plan-stage.md` 子步骤 5 | PRD 用户最终确认（4 选 1） | ✅ 决策类 | `goal_plan` |
+| `stages/prepare-stage.md` Step 13 | 双对齐暂停（ok / 反馈） | 非决策类 | `triage` |
+
+新增 spec 暂停点模板时必须加 cite + 更新本表。
+
+---
+
 **⚡ AUTO 徽章示例**（v7.3.9+P0-11）：
 
 ```

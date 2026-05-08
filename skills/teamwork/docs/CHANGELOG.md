@@ -1,6 +1,34 @@
 # Changelog
 
-## v7.3.10 + P0-114（当前 · README 大同步 P0-100 → P0-113）
+## v7.3.10 + P0-115（当前 · 暂停点模板渲染契约 · 单源反向 cite）
+
+> **触发**：实战 case（PM 验收暂停点 verbatim 渲染时漏标准 3 行状态行 + 漏 📚 决策参考）暴露 spec 文件中的 ⏸️ verbatim 模板若不显式 cite STATUS-LINE.md · AI 严格按模板渲染时会绕过 Final Response Preflight 自检兜底。
+>
+> **架构问题**：状态行格式 / emoji 间隔（P0-62）/ 路径边界（P0-67）/ 决策参考清单（P0-75）= STATUS-LINE.md 单源；但 spec 文件中的 verbatim ⏸️ 模板（pmo-pm-acceptance-ship.md / ship-stage.md / goal-plan-stage.md / prepare-stage.md）末尾**没有反向 cite STATUS-LINE.md** · 模板止于「请选择：1/2/3/4」·  AI 渲染时丢失末尾必需块。
+
+### P0-115：暂停点模板渲染契约（单源反向 cite）
+
+- 改动文件（5 个）：
+  - **STATUS-LINE.md**：新增 § 暂停点模板渲染契约（v7.3.10+P0-115 · 单源反向 cite · 含覆盖清单表）
+  - **roles/pmo-pm-acceptance-ship.md** § 2.2：PM 验收暂停点模板末尾加 cite（决策类 · 阶段 enum = pm_acceptance）
+  - **stages/ship-stage.md**：4 处 cite（变体 A / 变体 B / MR 异常处理 / worktree 清理）
+  - **stages/goal-plan-stage.md** 子步骤 5：PRD 用户最终确认模板末尾加 cite（决策类 · 阶段 enum = goal_plan）
+  - **stages/prepare-stage.md** Step 13：双对齐暂停加 cite（非决策类 · 阶段 enum = triage）
+- 设计原则：
+  - **不复述格式**：spec 文件只声明「这是哪类暂停点 + 阶段 enum」 · 反向 cite STATUS-LINE.md
+  - **未来零修改自动跟随**：STATUS-LINE.md 改格式时（如新加 P0-XX emoji / 路径规则）· spec 文件不变
+- **加 1 删 1 论证**（P0-48 元规则）：
+  - 净加：5 个 cite 块 + STATUS-LINE.md 一段 ~50 行
+  - 删/合并：本 patch 是修复一类**系统性 bug**（所有暂停点模板都缺反向 cite）· 属于 P0-48 例外的「修 bug」类（不计入加 1 删 1 强制）
+  - 验证标尺：未来出现新的暂停点模板漏状态行 case · 检查是否本表（STATUS-LINE.md § 暂停点模板渲染契约 · 覆盖清单）漏列
+- **核心收益**：
+  - PM 验收 / Ship Phase 1/2 / PRD 最终确认 / 双对齐暂停 等关键暂停点不再漏状态行 / 漏决策参考
+  - 所有 spec 暂停点模板单源 cite STATUS-LINE.md · 未来格式演进零分散
+  - 新增 spec 暂停点模板时必须加 cite + 更新覆盖清单 · 防回潮
+
+---
+
+## v7.3.10 + P0-114（README 大同步 P0-100 → P0-113）
 
 > v7.3.10+P0-114 README 同步收齐技术债。**触发**：用户「结合最新代码 · 重新整理下 readme」。从 P0-100 大同步以来累积 P0-101 ~ P0-113 共 13 个 patch · 涉及入口架构重构 / 红线归并 / codex 合规 / silent execution / evidence-binding 物理拦截层级 / Ship Phase 1 CLI-first 等重大体感变化。
 

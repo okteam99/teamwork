@@ -63,6 +63,9 @@ npx skills update okteam99/teamwork
 
 # Feature 规划（拆 ROADMAP，不产出代码）
 /teamwork 规划电商推荐系统
+
+# auto 模式（自动完成所有流程事项，直接推进到 MR 创建完成）
+/teamwork auto 实现用户登录功能
 ```
 
 ### 你要做什么 vs AI 要做什么（产品迭代阶段）

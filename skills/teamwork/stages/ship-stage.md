@@ -540,6 +540,10 @@ git rev-parse "feature/{Feature 全名}"
 4. 其他指示
 ```
 
+🔴 **渲染必含**（v7.3.10+P0-115 · cite [../STATUS-LINE.md § 暂停点模板渲染契约](../STATUS-LINE.md)）：
+- 📚 决策参考 → cite [../STATUS-LINE.md § 决策点参考文档绝对路径硬规则](../STATUS-LINE.md) · 列 ship-report.md / mr_url 独立行
+- 3 行状态行 → 阶段值 = `ship` enum「⏸️ MR 待合并」
+
 **变体 B：CLI 不可用 / 失败 → URL 兜底（v7.3.10+P0-99）**
 
 ```
@@ -572,6 +576,10 @@ git rev-parse "feature/{Feature 全名}"
 3. ❌ MR 被关闭未合并
 4. 其他指示
 ```
+
+🔴 **渲染必含**（v7.3.10+P0-115 · 同变体 A · cite [../STATUS-LINE.md § 暂停点模板渲染契约](../STATUS-LINE.md)）：
+- 📚 决策参考 → ship-report.md / mr_create_url（独立行裸 URL · 不挤表格）
+- 3 行状态行 → 阶段值 = `ship` enum「⏸️ MR 待合并」
 
 ❌ **错误示例**（实证 2026-04-30 截图）：
 
@@ -806,6 +814,10 @@ state.ship.phase = "closed_unmerged"
 4. 其他指示
 ```
 
+🔴 **渲染必含**（v7.3.10+P0-115 · cite [../STATUS-LINE.md § 暂停点模板渲染契约](../STATUS-LINE.md)）：
+- 📚 决策参考 → ship-report.md / REVIEW.md / 平台 MR 关闭原因（如可获取）
+- 3 行状态行 → 阶段值 = `ship` enum「⏸️ MR 异常 待处理」
+
 **选 1 重开 MR**：state.current_stage = `dev`，回到 Dev Stage；feature 分支保留，用户在 worktree 内修改 → 重新走 Review → Test → Ship 流程（重新进入 Ship Stage 第一段）。
 
 **选 2 放弃 Feature**：
@@ -917,6 +929,10 @@ state.ship.phase = "closed_unmerged"
 2. 💾 保留 worktree
 3. 其他指示
 ```
+
+🔴 **渲染必含**（v7.3.10+P0-115 · 非决策类暂停点 · cite [../STATUS-LINE.md § 暂停点模板渲染契约](../STATUS-LINE.md)）：
+- 不强制 📚 决策参考（worktree 清理是操作选项 · 非决策类）
+- 3 行状态行 → 阶段值 = `ship` enum「Ship 第二段 finalize 中」/「⏸️ worktree 清理待确认」
 
 ---
 

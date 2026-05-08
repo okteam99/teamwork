@@ -245,6 +245,10 @@ external 角色（PMO 直接判定 · v7.3.10+P0-101 evidence-binding · v7.3.10
 
 ⏸️ 用户回 ok / auto 或反馈意见。
 
+🔴 **渲染必含**（v7.3.10+P0-115 · 非决策类暂停点 · cite [../STATUS-LINE.md § 暂停点模板渲染契约](../STATUS-LINE.md)）：
+- 不强制 📚 决策参考（prepare 阶段尚未产出 Feature 文档 · 决策依据已在主对话上文）
+- 3 行状态行 → 阶段值 = `triage` enum「需求理解中」/「⏸️ 双对齐待确认」
+
 ### Step 14: state.json 创建（原 triage Step 9 · 按流程懒加载）
 
 ```

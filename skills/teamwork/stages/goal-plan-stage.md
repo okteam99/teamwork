@@ -693,6 +693,10 @@ PMO 摘要（评审循环纪要 + finding 汇总 + 关键决策）
 4. 其他指示
 ```
 
+🔴 **渲染必含**（v7.3.10+P0-115 · cite [../STATUS-LINE.md § 暂停点模板渲染契约](../STATUS-LINE.md)）：
+- 📚 决策参考 → cite [../STATUS-LINE.md § 决策点参考文档绝对路径硬规则](../STATUS-LINE.md) #2 PRD 评审 verdict · 列 PRD.md / PRD-REVIEW.md / 相关 KNOWLEDGE / ADR 绝对路径
+- 3 行状态行 → 阶段值 = `goal_plan` enum「⏸️ PRD 待确认」
+
 用户回 1 → state.current_stage = "blueprint"（如 requires_ui=true → ui_design）→ 转入下一 Stage。
 
 ---
