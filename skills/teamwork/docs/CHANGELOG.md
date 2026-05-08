@@ -1,6 +1,40 @@
 # Changelog
 
-## v7.3.10 + P0-115（当前 · 暂停点模板渲染契约 · 单源反向 cite）
+## v7.3.10 + P0-116（当前 · STATUS-LINE.md 瘦身 · 跨主题单源化）
+
+> **触发**：用户审视 STATUS-LINE.md 681 行 · 超 P0-79 的 300 行 cap 一倍多。盘点发现文件混合 3+ 个非状态行主题（流程持续规则 / 用户意图识别 / 上下文恢复 / 各流程示例），与 SKILL.md / roles/pmo.md / CONTEXT-RECOVERY.md 三处重复。
+>
+> **架构问题**：v7.3.x 早期 STATUS-LINE.md 把"会话级 Skill 加载相关一切"都塞进来 · 状态行格式 + 用户意图识别 + 上下文恢复 = 单文件 · P0-79 的 300 行 cap 落地后未跟进瘦身 · 累积膨胀。
+
+### P0-116：STATUS-LINE.md 瘦身 + 跨主题单源化
+
+- **改动文件**（5 个）：
+  - **STATUS-LINE.md**：681 → **464 行**（-217 行 / -32%）
+    - 删 L1-35 流程持续规则段 → 迁 SKILL.md
+    - 删 L540-635 用户回复处理 + 意图识别 + 补充信息恢复 + 正确响应模式 + 禁止角色直接响应 → 抽到 roles/pmo-user-input.md sub-file
+    - 删 L639-657 上下文恢复 Compact 路径 → cite CONTEXT-RECOVERY.md（已有单源）
+    - 压缩 L327-432 各流程状态行格式（6 段重复结构 ~110 行）→ 1 个差异表 + 1 个 Feature 完整示例 + 多子项目 / worktree=off 变体说明（~25 行）
+  - **SKILL.md** L46：1 行「会话级持续模式」cite 扩展为完整段（激活/退出条件 + 状态行 cite）
+  - **roles/pmo-user-input.md** ✨ 新建（89 行 · 4 段：意图识别表 / 补充信息恢复 / 正确响应模式 / 关联单源）
+  - **docs/CHANGELOG.md**：本条目
+- **跨主题单源映射**（v7.3.10+P0-116 后）：
+  - 状态行 / Final Response Preflight / 决策点参考 / 暂停点模板渲染契约 / 阶段对照表 / 各流程差异表 → STATUS-LINE.md（**唯一权威**）
+  - 流程持续规则（激活/退出）→ SKILL.md § 会话级持续模式
+  - 用户意图识别 / 用户回复处理 / 补充信息恢复 / PMO 承接 → roles/pmo-user-input.md
+  - 上下文恢复 / Compact 路径 → CONTEXT-RECOVERY.md
+- **加 1 删 1 论证**（P0-48 元规则）：
+  - 净加：pmo-user-input.md 89 行 + SKILL.md 14 行 = 103 行
+  - 净删：STATUS-LINE.md 217 行
+  - **净 -114 行 · -50%+ 单源破除重复** · 强符合 P0-48 减负元规则
+- **核心收益**：
+  - STATUS-LINE.md 主题收敛为「状态行 + 决策点参考 + 暂停点渲染契约 + 阶段对照」四件套 · 不再杂糅
+  - 跨主题单源（流程持续 / 用户承接 / 上下文恢复）各归各家 · 改一处不再三处同步
+  - 各流程状态行从 6 段重复结构压缩为 1 张差异表 + 1 个完整示例（Feature）· 看一眼即懂
+  - 文件物理大小向 P0-79 cap 推进（681 → 464 · 仍超但已合理）
+
+---
+
+## v7.3.10 + P0-115（暂停点模板渲染契约 · 单源反向 cite）
 
 > **触发**：实战 case（PM 验收暂停点 verbatim 渲染时漏标准 3 行状态行 + 漏 📚 决策参考）暴露 spec 文件中的 ⏸️ verbatim 模板若不显式 cite STATUS-LINE.md · AI 严格按模板渲染时会绕过 Final Response Preflight 自检兜底。
 >

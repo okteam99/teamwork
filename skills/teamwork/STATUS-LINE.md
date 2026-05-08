@@ -1,36 +1,11 @@
-# 状态行与意图识别
+# 状态行（State Line）
 
-> 本文件包含：
-> - 流程持续规则与状态行格式定义
-> - 用户意图识别与分发规则
-> - 上下文恢复机制
+> 本文件唯一权威：状态行格式 / Final Response Preflight / 决策点参考路径硬规则 / 暂停点模板渲染契约 / 阶段对照表 / 各流程状态行示例。
 >
-> **快速导航**：
-> - 状态行格式 → 每次回复末尾必需
-> - 意图识别 → 处理用户输入的决策树
-> - Compact 恢复 → 新对话快速恢复上下文
-
----
-
-## 流程持续规则（会话级 Skill 加载）
-
-### 🔒 Teamwork 模式激活后自动持续
-
-**一旦通过 `/teamwork` 启动，整个对话都应遵循此流程，直到明确退出。**
-
-```
-激活条件（满足任一）：
-├── 用户输入 /teamwork [需求]
-├── 用户输入 /teamwork 继续
-├── 对话历史中已有 teamwork 流程（检查 docs/features/ 目录）
-└── 用户回复与当前进行中的功能相关
-
-退出条件（满足任一）：
-├── 用户输入 /teamwork exit 或 /exit
-├── 用户明确说「退出」「结束流程」「不用了」
-├── 当前功能完成且用户无新需求
-└── 用户开启完全无关的新话题
-```
+> 📎 跨主题单源（v7.3.10+P0-116 拆出）：
+> - 流程持续规则（激活/退出）→ [SKILL.md § 会话级持续模式](./SKILL.md)
+> - 用户意图识别 / 用户回复处理 / PMO 承接规则 → [roles/pmo.md](./roles/pmo.md)
+> - 上下文恢复机制 → [CONTEXT-RECOVERY.md](./CONTEXT-RECOVERY.md)
 
 ---
 
@@ -349,112 +324,30 @@ AUTO 模式 + 外部模型同时启用：
 🔄 Teamwork 模式 | 流程：Feature | 角色：PMO | ...
 ```
 
-### Feature / 敏捷需求流程（🔴 功能字段必填）
+### 各流程状态行差异表（v7.3.10+P0-116 压缩 · 单源对照）
 
-```
----
-🔄 Teamwork 模式 | 流程：Feature | 角色：[当前角色] | 功能：[{缩写}-F{编号}-{功能名}] | 阶段：[当前阶段] | 下一步：[下一步事项]
-📁 /绝对路径/docs/features/[功能目录]/
-🌿 分支：feature/[{缩写}-F{编号}-{功能名}] → [merge_target] | worktree：/绝对路径/[worktree 目录]
+| 流程 | 流程字段 | 必填字段 | 第二行 📁 | 第三行分支语义 |
+|------|---------|---------|---------|------------|
+| **Feature** | `Feature` | 功能：`{缩写}-F{编号}-{功能名}` | `docs/features/{功能目录}/` | 🌿 `feature/{Feature 全名} → {merge_target}` |
+| **敏捷需求** | `敏捷需求` | 功能：`{缩写}-A{编号}-{功能名}` | `docs/features/{功能目录}/` | 🌿 `feature/{敏捷全名} → {merge_target}` |
+| **Bug 处理** | `Bug 处理` | Bug：`BUG-{编号}-{简述}` | `docs/features/{功能目录}/bugfix/{BUG编号}/` | 🌿 `bugfix/{编号}-{简述} → {merge_target}` |
+| **Micro** | `Micro` | 功能：`Micro-{简述}` | 改动文件路径 / 子项目根 | 默认 📍 `当前分支`（⚠️ 直接改主分支 · worktree=auto 时升 🌿 `chore/{简述}`） |
+| **问题排查** | `问题排查` | （无功能编号） | 可省略 | 可省略 / 📍 `当前分支`（不改代码） |
+| **Feature Planning** | `Feature Planning` | 受影响子项目：`[AUTH, WEB, ...]` | `teamwork_space.md` 或 `{子项目}/docs/ROADMAP.md` | 📍 `当前分支`（Planning 不改代码） |
+| **跨项目需求拆分** | `Feature` | 跨项目需求 + 涉及：`[AUTH, WEB, ...]` | `teamwork_space.md` | （拆分阶段省略 / 拆分后按子项目走对应分支） |
 
-多子项目时追加子项目字段：
-🔄 Teamwork 模式 | 流程：Feature | 子项目：[缩写] | 角色：[当前角色] | 功能：[{缩写}-F{编号}-{功能名}] | 阶段：[当前阶段] | 下一步：[下一步事项]
-📁 /绝对路径/[子项目]/docs/features/[功能目录]/
-🌿 分支：feature/[{缩写}-F{编号}-{功能名}] → [merge_target] | worktree：/绝对路径/[worktree 目录]
-```
+**Feature 完整示例**（其他流程套用差异表）：
 
-**示例**：
 ```
 ---
 🔄 Teamwork 模式 | 流程：Feature | 角色：PMO | 功能：API-F001-用户认证 | 阶段：PMO 分析中 | 下一步：🔗 Goal-Plan Stage
 📁 /Users/dev/projects/myapp/docs/features/API-F001-用户认证/
 🌿 分支：feature/API-F001-用户认证 → staging | worktree：/Users/dev/projects/myapp-worktrees/API-F001-用户认证
-
-（多子项目）
-🔄 Teamwork 模式 | 流程：Feature | 子项目：AUTH | 角色：RD | 功能：AUTH-F001-用户登录 | 阶段：🤖 Dev Stage 执行中（RD TDD+单测） | 下一步：🚀 Review Stage
-📁 /Users/dev/projects/myapp/auth-service/docs/features/AUTH-F001-用户登录/
-🌿 分支：feature/AUTH-F001-用户登录 → staging | worktree：/Users/dev/projects/myapp/auth-service-worktrees/AUTH-F001-用户登录
-
-（worktree=off 退化示例，并行 Feature 时不推荐）
-🔄 Teamwork 模式 | 流程：Feature | 角色：RD | 功能：API-F001-用户认证 | 阶段：🤖 Dev Stage 执行中 | 下一步：🚀 Review Stage
-📁 /Users/dev/projects/myapp/docs/features/API-F001-用户认证/
-📍 当前分支：feature/API-F001-用户认证 → staging（⚠️ 未启用 worktree，并行 Feature 请注意隔离）
 ```
 
-### 跨项目需求拆分阶段
+**多子项目变体**（任意流程通用）：第一行 `流程：X` 之后插入 `子项目：{缩写}` · 第二行路径加 `{子项目}/` 前缀。
 
-```
----
-🔄 Teamwork 模式 | 流程：Feature | 角色：PMO | 跨项目需求：[需求简述] | 阶段：需求拆分 | 涉及：[AUTH, WEB] | 下一步：⏸️ 等待用户确认拆分方案
-📁 /绝对路径/teamwork_space.md
-```
-
-### 🌐 工作区级 Planning 状态行格式
-
-```
----
-🔄 Teamwork 模式 | 流程：Feature Planning | 角色：[PM/PMO] | 阶段：[工作区级 Planning - 当前阶段] | 受影响子项目：[AUTH, WEB, ADMIN] | 下一步：[下一步事项]
-📁 /绝对路径/teamwork_space.md
-```
-
-**示例**：
-```
----
-🔄 Teamwork 模式 | 流程：Feature Planning | 角色：PM | 阶段：工作区级 Planning - 架构讨论中 | 受影响子项目：待定 | 下一步：讨论子项目拆分方案
-📁 /Users/dev/projects/myapp/teamwork_space.md
----
-🔄 Teamwork 模式 | 流程：Feature Planning | 角色：PM | 阶段：工作区级 Planning - ⏸️ teamwork_space.md 待确认 | 受影响子项目：AUTH, WEB | 下一步：⏸️ 等待用户确认架构变更
-📁 /Users/dev/projects/myapp/teamwork_space.md
----
-🔄 Teamwork 模式 | 流程：Feature Planning | 子项目：WEB | 角色：PM | 阶段：Roadmap 编写中 | 下一步：⏸️ 等待用户确认 Roadmap
-📁 /Users/dev/projects/myapp/web/docs/ROADMAP.md
-```
-
-### Bug 处理流程状态行格式
-
-```
----
-🔄 Teamwork 模式 | 流程：Bug 处理 | 子项目：[缩写]（多子项目时）| 角色：[当前角色] | Bug：BUG-{编号}-{简述} | 阶段：[当前阶段] | 下一步：[下一步事项]
-📁 /绝对路径/[子项目]/docs/features/[功能目录]/bugfix/[BUG编号]/
-🌿 分支：bugfix/[BUG编号]-[简述] → [merge_target] | worktree：/绝对路径/[worktree 目录]
-```
-
-### 问题排查流程状态行格式
-
-```
----
-🔄 Teamwork 模式 | 流程：问题排查 | 子项目：[缩写] | 角色：[当前角色] | 阶段：[当前阶段] | 下一步：[下一步事项]
-（第三行：问题排查不改代码，分支语义可省略；如已切到特定分支排查可输出 📍 当前分支：xxx）
-```
-
-### 敏捷需求流程状态行格式
-
-```
----
-🔄 Teamwork 模式 | 流程：敏捷需求 | 子项目：[缩写] | 角色：[当前角色] | 功能：[{缩写}-A{编号}-功能名] | 阶段：[当前阶段] | 下一步：[下一步事项]
-📁 /绝对路径/[子项目]/docs/features/[功能目录]/
-🌿 分支：feature/[{缩写}-A{编号}-功能名] → [merge_target] | worktree：/绝对路径/[worktree 目录]
-```
-
-### Micro 流程状态行格式
-
-```
----
-🔄 Teamwork 模式 | 流程：Micro | 子项目：[缩写]（多子项目时）| 角色：[当前角色] | 功能：Micro-{简述} | 阶段：[当前阶段] | 下一步：[下一步事项]
-📁 /绝对路径/[子项目]/（或具体改动文件路径）
-📍 当前分支：{当前分支名}（⚠️ Micro 直接改主分支，操作前确认工作区干净）
-
-worktree=auto/manual 变体（单文件零逻辑变更也可选 off 跳过 worktree）：
-🌿 分支：chore/{简述} → [merge_target] | worktree：/绝对路径/[worktree 目录]
-```
-
-**示例**：
-```
----
-🔄 Teamwork 模式 | 流程：Micro | 角色：RD | 功能：Micro-修复 README 拼写 | 阶段：RD 执行改动中 | 下一步：⏸️ 等待用户验收
-📁 /Users/dev/projects/myapp/README.md
-📍 当前分支：main（⚠️ Micro 直接改主分支，操作前确认工作区干净）
-```
+**worktree=off 退化**：第三行 🌿 → 📍（`📍 当前分支：{branch} → {merge_target}（⚠️ 未启用 worktree，并行 Feature 请注意隔离）`）。
 
 ### 第二行路径规则
 
@@ -561,121 +454,11 @@ worktree=auto/manual 变体（单文件零逻辑变更也可选 off 跳过 workt
 
 ---
 
-## 用户回复处理
-
-| 用户回复 | 处理方式 |
-|----------|----------|
-| 明确确认（含流程名/阶段名） | 进入下一阶段 |
-| 🟢 ok / OK / 好 / 可以 / 行 / 按建议（v7.3.10+P0-18） | 映射为「按当前暂停点全部 💡 推荐选项执行」。PMO 须 cite 一行『✅ 已按 💡 建议处理：…』。前置条件：暂停点至少有 1 个 💡；破坏性操作仍需显式回复（→ RULES.md §模糊确认处理 · ok 约定） |
-| 模糊确认（≤5 字：其他非 ok 家族模糊词） | 🔴 PMO 先复述阶段链再等二次确认（→ RULES.md 模糊确认处理规则） |
-| 改一下/调整/修改 | 当前角色处理后再请求确认 |
-| 新需求描述 | 询问是否开启新功能流程 |
-| 流程中断后回来 | 先输出状态看板，询问从哪里继续 |
-| /teamwork exit | 退出 Teamwork 模式 |
-
----
-
-## 🔴 用户消息意图识别规则（强制）
-
-> → 红线 R3：所有用户输入 → PMO 先承接 → 识别意图 → 分发给对应角色。
-
-### PMO 意图识别与分发表
-
-| 类别 | 用户信号 | PMO 动作 |
-|------|----------|----------|
-| 🟢 流程控制 | 确认/OK/ok/好/可以/行/按建议/继续（v7.3.10+P0-18） | 有 💡 推荐 → 按 💡 推荐全部选项执行 + cite『✅ 已按 💡 建议处理』；无 💡 → 复述阶段链 + 二次确认（→ RULES.md §模糊确认处理） |
-| 🟢 流程控制 | 补充信息/回答问题/信息查询 | 分发给当前角色处理 → 🔴 处理完后恢复流程上下文（见下方规则） |
-| 🟢 流程控制 | 查看状态/进度 | 输出状态 |
-| 🟡 修改调整 | 修改当前阶段文档内容 | 分发 → 当前角色修改 |
-| 🟡 修改调整 | 补充当前阶段遗漏细节 | 分发 → 当前角色补充 |
-| 🔴 新需求/变更 | 新功能需求 | PMO 分析 → 切换到 PM 写 PRD |
-| 🔴 新需求/变更 | 功能变更 | PMO 分析 → 切换到 PM 更新 PRD + 走评审 |
-| 🔴 新需求/变更 | 开发中功能的需求补充 | PMO 分析 → 切换到 PM 更新 PRD + 走评审 |
-| 🔴 新需求/变更 | Bug 修复 | PMO 分析 → 切换到 RD 排查 |
-| 🔴 新需求/变更 | 优化需求 | PMO 分析 → 切换到 PM 评估影响范围 |
-| 🔴 新需求/变更 | 任何「改代码」的需求 | 禁止 RD 直接实现，必须走完整流程 |
-| 🔵 问题排查 | 不确定原因/需要分析/「帮我看看 xxx」 | PMO 派发 RD/PM/Designer 排查 |
-| 🔵 问题排查 | 梳理现有功能/逻辑 | PMO 派发对应角色梳理 → ⏸️ 用户决定后续 |
-
-> ⚠️ 🟡 修改调整仅限「当前阶段文档层面的调整」，不涉及代码改动。涉及新增功能点、行为变更、需求补充 → 归入 🔴 新需求/变更类。
-> 🔴 禁止 PM/RD/QA/Designer 直接承接用户输入！所有处理都必须由 PMO 承接 → 分发 → 总结！
-
----
-
-## 🔴 补充信息/信息查询后必须恢复流程上下文
+## 跨主题单源指针（v7.3.10+P0-116 抽出 · 跨文件单源）
 
 ```
-当 PMO 处于 ⏸️ 暂停等待用户确认状态时，用户可能：
-├── 回答 PMO 的提问（补充信息）
-├── 主动发起与当前流程无关的查询（如「xxx 配置在哪？」「有没有 xxx？」）
-无论哪种，PMO 处理完后必须恢复之前的流程上下文，禁止因中间插入了 Q&A 就丢失待确认状态。
-
-🔴 强制规则：
-├── 处理完补充信息/查询后，必须重新输出之前的待确认项（或引用 state.json 中的 blocking.pending_user_confirmations）
-├── 禁止将用户对查询的回复（如「需要」「有」「对」）自动绑定为流程确认或直接执行指令
-├── 回答中禁止包含「要我做 X 吗？」等暗示直接执行的追问（见 RULES.md「暂停点提问必须锚定流程」）
-└── 正确模式：回答查询 → 「回到之前的待确认项：{重新输出选项}，请确认走哪个流程？」
-
-示例：
-├── 流程上下文：PMO 已输出 Feature 分析 1/2/3 选项，⏸️ 等待用户确认
-├── 用户插入：「infra 是否有 auth 的部署配置？」
-├── ❌ 错误做法：PMO 回答查询 → 追问「要我创建配置吗？」→ 用户说「需要」→ PMO 直接写文件
-└── ✅ 正确做法：PMO 回答查询 → 「回到之前的分析，您确认按方案 1/2/3 哪个走 Feature 流程？」
+📎 用户回复识别（数字 / 字母组合 / ok 约定 / 自由输入解析）→ RULES.md § 4
+📎 PMO 用户消息承接 + 意图识别 + 补充信息恢复 + 正确响应模式 → roles/pmo-user-input.md
+📎 红线 R3 PMO 统一承接（禁止其他角色直接响应）→ SKILL.md R3
+📎 上下文恢复机制（compact / 新对话）→ CONTEXT-RECOVERY.md
 ```
-
----
-
-## ❌ 禁止任何角色直接响应用户输入
-
-> → 红线 R3：所有用户输入必须由 PMO 先承接。无论 RD/PM/Designer/QA，均不得直接响应用户。
-
-```
-✅ 唯一正确流程：
-用户输入 → PMO 承接 → PMO 分析 → PMO 分发给对应角色 → 角色执行 → PMO 总结
-```
-
----
-
-## ✅ 正确的响应模式
-
-```
-用户: /teamwork 后端 admin 页面 aid 比较混乱，统一梳理修改下
-
-❌ 错误响应：
-RD: 好的，我来看下代码然后修改...
-
-✅ 正确响应：
-PMO: 收到，让我先分析一下这个需求的性质...
-
-📋 PMO 初步分析
-├── 需求类型：Feature
-├── 需求描述：统一梳理并修改 admin 页面中 aid 的使用
-├── 📂 文档路径：{子项目}/docs/features/{前缀}-F{编号}-admin-aid统一/
-├── 影响范围：待评估（需梳理 aid 使用情况）
-├── 使用流程：Feature 流程
-├── 阶段链：PRD → PL-PM 讨论 → PRD 技术评审 → ...（完整 Feature 链）
-├── ⏸️ 请确认：(1) 走 Feature 流程 (2) 以上分析和影响范围
-└── 🔄 切换到：PM（用户确认后）
-└── ✅ 自检通过
-```
-
----
-
-## 上下文恢复机制
-
-> 📎 新对话或上下文丢失时的完整恢复机制（决策树、Feature 看板、各流程状态判断）见 [CONTEXT-RECOVERY.md](./CONTEXT-RECOVERY.md)。
-> 🔴 按需加载：仅在新对话启动或用户执行 `/teamwork status` / `/teamwork 继续` 时读取。
-
-### Compact 恢复快速路径
-
-**上下文压缩（compact）后，PMO 按以下最小路径恢复执行：**
-
-```
-1. 读取当前 Feature 的 state.json（v7.3.2）
-   → 获得：current_stage / legal_next_stages / stage_contracts / blocking / planned_execution
-2. 读取 RULES.md「PMO 热路径索引」（文件前 21 行）
-   → 获得：按需定位具体规则的行范围索引
-3. 如需详细规则 → 按索引定位读取 RULES.md 对应段落（非全文）
-```
-
-**🔴 PreCompact 保存要求**：PMO 在每次阶段流转时已同步更新 state.json（见 RULES.md §四），因此 compact 发生时无需额外保存操作——state.json 始终持有最新执行约束。
