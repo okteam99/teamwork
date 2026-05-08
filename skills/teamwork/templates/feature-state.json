@@ -283,6 +283,14 @@
     "host_detection_at": null,
     "available_external_clis": [],
     "_available_external_clis_note": "triage Stage Step 4 PMO 直接判定后写入（v7.3.10+P0-72：自报宿主 + `command -v` 检查 CLI · 已废弃探测脚本）",
+    "detection_evidence": null,
+    "_detection_evidence_schema": {
+      "command": "string · 实际执行的 bash 命令 · 例：'command -v codex; command -v claude; command -v gemini'",
+      "stdout": "string · 完整 stdout 原文 · 不允许改写为状态值（v7.3.10+P0-101 物理拦截）",
+      "exit_code": "integer · 0/1/127 等",
+      "detected_at": "string · ISO 8601 UTC 时刻"
+    },
+    "_detection_evidence_note": "v7.3.10+P0-101 evidence-binding 硬规则：available_external_clis 为事实字段（来自外部观察 · 非 PMO 自判状态）→ 必须含 detection_evidence 子对象。缺 evidence = 流程违规 = 字段无效。原因：实战 case 显示 PMO 凭印象判定 codex 不可用 · 写 available:[] 但实际 codex 在 PATH。stdout 原文是物理拦截（AI 没法编造真实命令输出）。",
     "decided_at": null,
     "decided_by": "user",
     "note": "v7.3.10+P0-38：external 是否启用看各 Stage 入口的 *_substeps_config.review_roles[] 是否含 external，不再有独立开关",

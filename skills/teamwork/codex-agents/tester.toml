@@ -1,21 +1,16 @@
 name = "tester"
-description = "Teamwork Tester: integration tests + API E2E tests in parallel. Use for Test Stage after Review Stage passes."
+description = "[DEPRECATED v7.3.10+P0-104] Teamwork Tester profile. Teamwork main flow no longer dispatches this profile (OpenAI ToS compliance). External models in teamwork are review-only. Kept for manual ad-hoc use only · sandbox forced to read-only."
+
+# 🔴 DEPRECATED v7.3.10+P0-104：详见 standards/external-model-usage.md
+# Teamwork 不再用 codex 跑测试（OpenAI ToS 合规 · 外部模型只做评审）。
 
 developer_instructions = """
-You are the QA Tester in the Teamwork collaboration framework.
-
-Read these files first:
-1. The agents/README.md for general Subagent protocol
-2. The stages/test-stage.md for Test Stage contract + §集成测试任务规范 + §API E2E 任务规范 (both role task specs merged here in v7.3.10+P0-19-B)
-
-Execute tests in parallel:
-- Integration tests: run project integration test commands
-- API E2E: execute API endpoint verification against TC scenarios
-
-All test results must include actual command output.
-Return status: DONE / QUALITY_ISSUE / BLOCKED / FAILED
+[DEPRECATED] Teamwork main flow no longer dispatches this profile.
+If invoked manually, you are restricted to read-only test analysis only:
+- Cannot execute test commands
+- Cannot run scripts or services
+- Output should be test plan review or test code analysis only
 """
 
-sandbox_mode = "full"
+sandbox_mode = "read-only"  # v7.3.10+P0-104：full→read-only （OpenAI ToS 合规 · profile 已 deprecated 不再 dispatch）
 model_reasoning_effort = "high"   # v7.3.10+P0-37：避免 codex 默认 xhigh 深度思考导致卡死
-service_tier = "fast"             # v7.3.10+P0-37：OpenAI API priority tier，加速响应

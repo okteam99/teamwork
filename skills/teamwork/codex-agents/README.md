@@ -76,8 +76,8 @@ service_tier = "fast"             # OpenAI API priority tier，加速响应
 2. **临时命令行覆盖**（仅本次调用）：`codex -c model_reasoning_effort=medium ...`
 3. **覆盖默认 + 不影响其他用户**：在项目根 `.codex/config.toml` 顶层覆盖（codex CLI 配置加载层级允许 profile 覆盖全局）
 
-### 与红线 #14 的关系
+### 与红线 R7 的关系
 
-红线 #14（AI Plan 模式 - Execution Plan）要求 AI 在 Stage 入口枚举子步骤 + cite 规范文件。当 codex profile 被 dispatch 时，**developer_instructions 段已包含必读 spec 列表**，但实际执行深度由 `model_reasoning_effort` 控制。high 是合理 baseline，xhigh 容易导致 AI 在 Plan 模式纸面分析阶段就卡住。
+红线 R7（AI Plan 模式 - Execution Plan）要求 AI 在 Stage 入口枚举子步骤 + cite 规范文件。当 codex profile 被 dispatch 时，**developer_instructions 段已包含必读 spec 列表**，但实际执行深度由 `model_reasoning_effort` 控制。high 是合理 baseline，xhigh 容易导致 AI 在 Plan 模式纸面分析阶段就卡住。
 
 📎 **历史 case**：v7.3.10+P0-37 之前 7 个 profile 没显式设置 `model_reasoning_effort` → fallback 到 codex 默认 `xhigh` → 用户实战中 codex 调用经常超时或表面"无响应"（实际仍在深度推理）。本次统一显式默认到 high 解决这一问题。

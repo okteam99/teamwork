@@ -197,7 +197,7 @@ Codex CLI 用于 Review Stage 外部 Codex Review（见 `stages/review-stage.md 
 └── dispatch 文件协议统一（本文件 §四），prompt 模板统一
 ```
 
-### 可用性检测（stages/init-stage.md Step 3.5 完成，结果缓存至会话结束）
+### 可用性检测（stages/prepare-stage.md Step 9（角色可用性 · 原 init Step 3.5 迁入） 完成，结果缓存至会话结束）
 
 ```
 ├── codex_cli_available = true → Codex Code Review 正常执行（两宿主统一路径）
@@ -577,7 +577,7 @@ Subagent 返回后，PMO 必须：
 └── 🔴 永远不要在不改变任何条件的情况下重试同一个 Subagent
 
 🔴 核心原则：Subagent 异常不能卡住整个流程，降级后仍需完成该阶段任务，
-   但所有降级必须有 WARN 日志可追溯（静默降级 = 隐藏问题 = 违反红线 #9 闭环验证）
+   但所有降级必须有 WARN 日志可追溯（静默降级 = 隐藏问题 = 违反红线 R7 闭环验证）
 ```
 
 ---

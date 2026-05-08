@@ -51,7 +51,7 @@
 🔴 ⚡ AUTO 徽章（v7.3.9+P0-11 新增）：
 ├── AUTO_MODE=true → 在「🔄 Teamwork 模式」与「|」之间插入「⚡ AUTO」
 ├── AUTO_MODE=false（默认）→ 不插入
-└── 触发来源：/teamwork auto [需求]（详见 [stages/init-stage.md](./stages/init-stage.md) Step 0）
+└── 触发来源：/teamwork auto [需求]（详见 [stages/triage-stage.md](./stages/triage-stage.md) Step 0）
 🌐 Ext 徽章（v7.3.10+P0-24 新增）：
 ├── state.external_cross_review 任一 *_enabled=true（plan/blueprint/review 任一）→ 在「🔄 Teamwork 模式」/「⚡ AUTO」之后插入「🌐 Ext: {model}」（model = codex / claude）
 ├── 三处 _enabled 全为 false 或字段不存在 → 不插入
@@ -540,7 +540,7 @@ worktree=auto/manual 变体（单文件零逻辑变更也可选 off 跳过 workt
 
 ## 🔴 用户消息意图识别规则（强制）
 
-> → 红线 #4：所有用户输入 → PMO 先承接 → 识别意图 → 分发给对应角色。
+> → 红线 R3：所有用户输入 → PMO 先承接 → 识别意图 → 分发给对应角色。
 
 ### PMO 意图识别与分发表
 
@@ -590,7 +590,7 @@ worktree=auto/manual 变体（单文件零逻辑变更也可选 off 跳过 workt
 
 ## ❌ 禁止任何角色直接响应用户输入
 
-> → 红线 #4：所有用户输入必须由 PMO 先承接。无论 RD/PM/Designer/QA，均不得直接响应用户。
+> → 红线 R3：所有用户输入必须由 PMO 先承接。无论 RD/PM/Designer/QA，均不得直接响应用户。
 
 ```
 ✅ 唯一正确流程：

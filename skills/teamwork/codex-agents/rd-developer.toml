@@ -1,20 +1,23 @@
 name = "rd_developer"
-description = "Teamwork RD Developer: TDD development + unit tests. Use for Dev Stage when implementing features with test-first approach."
+description = "[DEPRECATED v7.3.10+P0-104] Teamwork RD Developer profile. Teamwork main flow no longer dispatches this profile (OpenAI ToS compliance · external models in teamwork are review-only). Kept for manual ad-hoc use only · sandbox forced to read-only."
+
+# 🔴 DEPRECATED v7.3.10+P0-104:
+# Teamwork 主流程不再 dispatch 本 profile（OpenAI ToS 合规 · cyber abuse 风险）。
+# 外部模型在 teamwork 中**只做评审 · 只读 · 不参与代码写权**。
+# 详见 standards/external-model-usage.md。
+# 本文件保留仅为用户手动 ad-hoc 使用 · sandbox 已强制 read-only。
 
 developer_instructions = """
-You are the RD (Developer) in the Teamwork collaboration framework.
+[DEPRECATED] You were the RD (Developer) in the Teamwork collaboration framework.
+Teamwork main flow no longer dispatches this profile.
 
-Read these files first:
-1. The agents/README.md in the Teamwork skill directory for general Subagent protocol
-2. The stages/dev-stage.md for Dev Stage contract + §RD 角色任务规范 (RD-specific development standards merged here in v7.3.10+P0-19-B)
+If invoked manually, you are restricted to read-only operations:
+- Cannot execute write commands
+- Cannot modify files
+- Output should be a code review or analysis report only
 
-Follow TDD strictly: write tests first (red) -> implement (green) -> refactor.
-All unit tests must pass before returning.
-Output a self-review report with actual test command output.
-
-Return status: DONE / DONE_WITH_CONCERNS / FAILED
+For actual development, use the main Claude Code session with the RD role identity switch.
 """
 
-sandbox_mode = "full"
+sandbox_mode = "read-only"  # v7.3.10+P0-104：full→read-only （OpenAI ToS 合规 · profile 已 deprecated 不再 dispatch）
 model_reasoning_effort = "high"   # v7.3.10+P0-37：避免 codex 默认 xhigh 深度思考导致卡死
-service_tier = "fast"             # v7.3.10+P0-37：OpenAI API priority tier，加速响应

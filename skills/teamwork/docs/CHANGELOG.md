@@ -1,6 +1,740 @@
 # Changelog
 
-## v7.3.10 + P0-99（当前）
+## v7.3.10 + P0-114（当前 · README 大同步 P0-100 → P0-113）
+
+> v7.3.10+P0-114 README 同步收齐技术债。**触发**：用户「结合最新代码 · 重新整理下 readme」。从 P0-100 大同步以来累积 P0-101 ~ P0-113 共 13 个 patch · 涉及入口架构重构 / 红线归并 / codex 合规 / silent execution / evidence-binding 物理拦截层级 / Ship Phase 1 CLI-first 等重大体感变化。
+
+### P0-114：README.md 同步到 v7.3.10+P0-113
+
+- 触发：累积 13 个 patch（P0-101 ~ P0-113）后 README 仍停留在 P0-100 描述 · 跟实际架构脱钩 · 新用户视角不准确。
+- 设计原则（同 P0-100）：
+  - 重大体感变更必更（5 mode 入口架构 / 红线归并 / codex 合规 / TROUBLESHOOTING.md 等）
+  - 内部重构 / sub-file 抽出 / 文档单源化类不更（如 P0-107 init 物理删除）
+- 核心改动：
+  - **P0-114-A. README.md 顶部版本号** P0-100 → **P0-113**
+  - **P0-114-B. 「六种流程」段重写为「5 mode 入口分诊（v7.3.10+P0-106）」**：
+    - A query / B execute / C resume / D status / E discuss 表 + 触发场景 + 行为 + 开销
+    - mode B 内部 5 流程类型（Feature/Bug/Micro/敏捷需求/Feature Planning）
+    - 「问题排查」流程类型已迁到 mode A query 接管说明（v7.3.10+P0-30）
+    - Feature Planning 标注 v7.3.10+P0-108 精简（4 暂停 → 1 暂停）
+    - silent execution 段加 +P0-105 / +P0-112（审计走 state.json）
+  - **P0-114-C. 「绝对红线 15 条」段重写为「8 条 R1-R8（v7.3.10+P0-103 归并 + 层级化）」**：
+    - R1-R8 一句话总结表
+    - 三层级化（L1 / L2 / L3）+ 生命周期管理元规则
+  - **P0-114-D. Ship Stage 段补 P0-113 trip-wire**：
+    - CLI 优先策略 + trip-wire（破除 git push hint URL trap）
+    - 状态机层（flow-transitions.md）+ 红线层（R8(c)）双层防御
+  - **P0-114-E. 加新核心保证段**：
+    - 项目排查工具集 TROUBLESHOOTING.md（v7.3.10+P0-109 / +P0-110）
+    - Codex CLI 合规使用（v7.3.10+P0-104）
+    - Evidence-binding 物理拦截（v7.3.10+P0-101 / +P0-112 层级修正）
+  - **P0-114-F. 文档导航段更新**：
+    - 删除 INIT.md（已 P0-107 物理删除）
+    - 加 stages/triage-stage.md（5 mode 分诊）+ stages/prepare-stage.md（mode B 重型准备）
+    - 加 standards/discussion-mode.md / evidence-binding.md / external-model-usage.md
+    - 加 templates/troubleshooting.md
+  - **P0-114-G. 版本历史段加 P0-101 ~ P0-113 里程碑**：
+    - 入口架构终极重构（P0-106 ~ P0-110 · 6 patch 收官）：5 mode + prepare-stage + TROUBLESHOOTING + Feature Planning 精简 + init 物理删除 + 模板砍重
+    - 设计哲学修正（P0-101 ~ P0-105 + P0-112 + P0-113）：evidence-binding + silent execution + 红线归并 + codex 合规 + 容量焦虑暂停 + Ship CLI 双层防御
+- **核心收益**：
+  - README 反映当前 v7.3.10+P0-113 真实状态 · 不再误导新用户/老用户回访
+  - 入口架构（5 mode）在 README 主线一等公民呈现
+  - 红线 R1-R8 + 层级化体系首次在 README 主线展示
+  - codex 合规 / TROUBLESHOOTING.md / evidence-binding 等关键体感变化补齐
+- **加 1 删 1 元规则核算**：
+  - **加**：5 mode 分诊段（~10 行）+ R1-R8 红线表（~12 行）+ Ship Stage trip-wire 段（~4 行）+ 3 个新核心保证段（TROUBLESHOOTING / Codex 合规 / Evidence-binding · ~30 行）+ 文档导航 4 行新文件 + 版本历史 P0-101~113 里程碑（~20 行）+ CHANGELOG entry（~50 行）= ~130 行
+  - **删 / 简化**：原「六种流程」段（~10 行）+ 原「轻型 vs 重型分流」段（~8 行）+ 原「红线 15 条」段（~3 行）+ 原 INIT.md 文档导航（~1 行）= ~22 行
+  - **净加 ~108 行**（README 从 ~340 行扩到 ~450 行 · 反映累积 13 patch 的产品层结晶）
+- 不动：
+  - SKILL.md / 各 stage spec / 各 role spec 等内部文档（README 是入口 · 内部文档不重做）
+  - README-EN.md（暂保留 · 同步留给后续单独 patch · 同 P0-100 处理）
+- 影响面：1 个文件改动（README.md）+ CHANGELOG + version bump
+- 后续验证：
+  - 立即可验证：README.md 顶部版本号 = v7.3.10+P0-113
+  - 立即可验证：README.md 含「5 mode 入口分诊」段 + R1-R8 红线表 + Ship trip-wire + 3 个新核心保证段
+  - 立即可验证：grep "P0-100" README.md 仅命中版本历史里程碑段
+- README-EN.md 同步：留给后续单独 patch（与 P0-100 处理一致）
+
+## v7.3.10 + P0-113（Ship Phase 1 CLI-first 双层防御 · 破除 git push hint URL trap）
+
+> v7.3.10+P0-113 修复 PMO 在 Bug Ship Phase 1 反复给 URL 兜底链接而非用 glab/gh CLI 创建的 case。**触发**：用户「你为什么总是给我 mr create 链接而不是给我 glab 创建好的链接 · teamwork 原则是优先使用 glab gh 创建 mr」。**根因**（PMO 自审 4 点）：① git push 输出的 hint URL 是 trap（最强诱因）② 状态机表「生成 MR URL」字面歧义 ③ 风险厌恶 drift ④ token-economy bias。
+
+### P0-113：Ship Phase 1 CLI-first 双层防御（A 状态机字面 + B R8(c) trip-wire）
+
+- 触发：用户实战 case · PMO 自审给出 A+B+E 三层防御推荐 · 用户反馈"60 行太重" · 简化为 A+B（18 行 · 双层够用）。
+- 设计哲学：
+  - A（语义层）改 flow-transitions.md 字面 · 每次 Ship 流转校验时引到 · "CLI 优先"显式
+  - B（红线层）SKILL.md R8 加 (c) trip-wire · 默认全局加载 · 破除"git push hint URL = 产物"pattern bias
+  - **不做 E**（prepare-stage Step 9 + state.json schema + Phase 1 Execution Plan 强制 step）：
+    - state.ship_cli_capability 缓存不靠谱（remote 切换 / CLI 后装）
+    - prepare Step 9 加 ship CLI 检测增加启动开销 · 大部分流程用不到
+    - Phase 1 Execution Plan 强制 step 与 ship-stage.md §2.3 重复
+- 核心改动：
+  - **P0-113-A. `rules/flow-transitions.md`** 字面修订（3 处）：
+    - L139 Ship Stage 第一段（Feature）：「生成 MR create URL」→「**CLI 优先创建 MR/PR**（command -v glab/gh → 实创建拿 mr_url；CLI 不可用才走 URL 兜底；🔴 git push 输出的 hint URL 是兜底备选 · 不是首选产物）」
+    - L165 Ship Stage 第一段（Bug）：同样字面修订
+    - L261 Micro Ship Stage 第一段：同样字面修订（PMO auto-commit + push feature + CLI 优先创建）
+  - **P0-113-B. `SKILL.md` R8 加 (c)** Ship Phase 1 CLI-first 门禁：
+    - R8 写操作硬门禁链从 (a)(b) 扩展到 (a)(b)(c)
+    - 含 mr_creation_method evidence-binding 协同（"cli" / "url-fallback"）
+    - **trip-wire 显式**："git push 输出的 `remote: To create a merge request for ..., visit: ...` hint URL 是 trap（GitLab/GitHub 自动回吐的兜底备选 · 不是首选产物）· 看到 hint URL **不构成跳过 CLI 检测的理由**"
+    - cite stages/ship-stage.md §2.3
+- **核心收益**：
+  - **双层防御足够**：每次 Ship 流转校验（A）+ R8 红线（B）两道防线
+  - **trip-wire 显式破除 pattern bias**：PMO 看到 push 输出 hint URL 时立即识别"这是 trap 不是产物"
+  - **18 行 vs 60 行**：跟 E 三层防御方案相比 · 工程量 -70% · 防御力差异极小
+- **加 1 删 1 元规则核算**：
+  - **加**：flow-transitions.md 字面修订 3 处（每处 +3 行 · 共 +9 行）+ SKILL.md R8 加 (c) 子条（+5 行）+ CHANGELOG entry（+30 行）= ~44 行
+  - **删**：无（纯增补 · 不改现有逻辑）
+  - **净加 ~44 行**（其中 CHANGELOG 占 ~30 行 · 实际规范增补仅 ~14 行）
+- 不动：
+  - stages/ship-stage.md §2.3 详细规范（v7.3.10+P0-99 已存在 · 不重复）
+  - templates/feature-state.json mr_url + mr_creation_method schema（v7.3.10+P0-99 已存在）
+  - prepare-stage.md Step 9（不加 ship CLI 检测 · 避免不必要的启动开销）
+  - 红线 R1-R8 总条数（仍 8 条 · R8 加 (c) 是同类 sub-rule · 走 P0-103 路径 A 归并）
+- 影响面：2 个文件改动（rules/flow-transitions.md / SKILL.md）+ CHANGELOG + version bump
+- 后续验证：
+  - 立即可验证：rules/flow-transitions.md 含 "CLI 优先创建 MR/PR" 共 3 处（Feature / Bug / Micro Ship Phase 1）
+  - 立即可验证：SKILL.md R8 含 (c) Ship Phase 1 CLI-first 门禁 + "trip-wire" + "git push hint URL 是 trap"
+  - 实战验证：下次 Ship Phase 1 push 后 · PMO 看到 git push 输出的 hint URL 立即识别 trap · 走 command -v glab/gh → 实 CLI 创建 → 拿真 mr_url（不再给用户 URL 兜底链接让 ta 手点）
+
+## v7.3.10 + P0-112（evidence-binding 物理拦截层级修正 · 主对话减重）
+
+> v7.3.10+P0-112 修正 P0-101 设计过度。**触发**：用户反馈「必须贴 stdout 原文太重了 · 主窗口不要太复杂」。**根因**：P0-101 把 stdout 物理拦截层级**放在主对话**（要求 verbatim 贴）· 跟 v7.3.10+P0-105 silent execution（主对话只输出实际答案 / 决策点 / 异常）冲突。
+
+### P0-112：evidence-binding 物理拦截层级修正
+
+- 触发：P0-101 实战 case 后用户察觉「PMO external 探测时主对话被 verbatim stdout 输出污染」· 跟 silent execution 设计哲学冲突。
+- 设计哲学修正：
+  - **P0-101 错误层级**：stdout 物理拦截放主对话（要求 verbatim 贴）→ 主对话变重 · 与 silent execution 冲突
+  - **P0-112 正确层级**：stdout 物理拦截放 state.json schema（必须含完整 stdout · 但不在主对话出现）
+  - 拦截力**完全保留**：PMO 写 state.json stdout 字段时不能编造（用户/PM 抽查时一眼识破）
+  - 主对话回归 silent execution 原则：仅输出精炼结论
+- 核心改动：
+  - **P0-112-A. `standards/evidence-binding.md`** 修改 stdout 落地位置：
+    - 删除「完整 stdout 原文必须落两处（① 主对话 verbatim ② state.json）」
+    - 改为「stdout 写 state.json detection_evidence（拦截层级）+ 主对话仅精炼结论」
+    - 加 v7.3.10+P0-112 物理拦截层级修订说明 + ✅/❌ 实战示例对照
+    - 出口校验告警措辞调整（"贴 stdout 原文" → "写入 state.json stdout 字段"）
+  - **P0-112-B. SKILL.md R7(c)** 同步：
+    - 加 v7.3.10+P0-112 物理拦截层级修正说明
+    - 明示「物理拦截层级 = state.json schema 完整性（不在主对话）· 主对话只输出精炼结论」
+    - cite R5(b) silent execution 协同
+  - **P0-112-C. `stages/prepare-stage.md` Step 9** external 角色探测重写：
+    - 删除「完整 stdout 原文必须落两处（含主对话 verbatim）」
+    - 改为「state.json 写完整 evidence + 主对话精炼结论（"codex ✅ 可用 / claude ⏭️ 同源跳过 / gemini ❌ 未安装"）」
+    - silent execution 协同标注
+  - **P0-112-D. `roles/pmo-state-mgmt.md` § 2.4** 出口校验微调：
+    - 校验逻辑不变（仍校验 state.json evidence schema 完整性）
+    - 告警措辞调整（删除"贴 stdout 原文" · 改为"写入 state.json stdout 字段"）
+- **核心收益**：
+  - 主对话回归 silent execution 原则（与 P0-105 完全协同）
+  - 物理拦截力完全保留（state.json schema 完整性 + 用户/PM 抽查能力）
+  - 用户体验改善（external 探测不再被 verbatim stdout 污染）
+- **拦截力论证**（关键）：
+  - PMO 写 state.json stdout 字段时不能凭印象编造（编造的字符串与真实命令格式不符 · 用户/PM 抽查 state.json 时识破）
+  - 真实跑 bash 拿 stdout 是物理动作 · 编造行为成本高于真跑
+  - 主对话不需要承载 stdout 也能保证拦截（拦截发生在 state.json 写入时）
+- **加 1 删 1 元规则核算**：
+  - **加**：standards/evidence-binding.md 修订段（~25 行 · 物理拦截层级 + 实战示例对照）+ SKILL.md R7(c) 标注（~3 行）+ prepare-stage.md Step 9 重写（~10 行）+ pmo-state-mgmt.md 告警措辞（~2 行）+ CHANGELOG entry = ~80 行
+  - **删 / 简化**：standards/evidence-binding.md「stdout 落两处」段（~5 行）+ prepare-stage.md「stdout 落两处」段（~5 行）+ pmo-state-mgmt.md「贴 stdout 原文」措辞（~2 行）= ~12 行
+  - **净加 ~68 行**（修订 + 实战示例对照说明 · 但**主对话实际输出净减**·因为不再 verbatim 贴 stdout）
+- 不动：
+  - state.json detection_evidence schema（不变 · stdout 字段仍必填）
+  - 出口校验逻辑（不变 · 仍校验 evidence 完整性）
+  - 拦截力（仅层级移动 · 力度不变）
+  - 红线 R7（不修改 R7 条文 · 仅 (c) 子条加层级修正标注）
+- 影响面：4 个文件改动（evidence-binding.md / SKILL.md / prepare-stage.md / pmo-state-mgmt.md）+ CHANGELOG + version bump
+- 后续验证：
+  - 立即可验证：standards/evidence-binding.md 含「✅ 主对话精炼结论 / ❌ verbatim 贴 stdout」对照
+  - 立即可验证：SKILL.md R7(c) 含「物理拦截层级 = state.json schema」
+  - 立即可验证：prepare-stage.md Step 9 含「主对话只输出精炼结论」
+  - 实战验证：下次 prepare-stage Step 9 探测 external · 主对话只看到「🌐 External 探测：codex ✅ / claude ⏭️ / gemini ❌」一行 · stdout 完整写到 state.json 不污染主对话
+
+## v7.3.10 + P0-110（troubleshooting 模板砍重 367 → 50 行）
+
+> v7.3.10+P0-110 用户反馈 P0-109 引入的 troubleshooting 模板太重（367 行 · 11 段 · 含大量 K8s/PostgreSQL/Redis/Sentry 假设的命令示例）· 简化为最小骨架。
+
+### P0-110：troubleshooting 模板砍重 + 4 段化
+
+- 触发：用户反馈「这个模版是否太重了，简单点」+ 「四、监控 / 部署去掉」
+- 设计哲学：mattpocock-style 最小骨架 · teamwork 不假设技术栈 · 不规范具体命令
+- 核心改动：
+  - **`templates/troubleshooting.md` 从 367 行 → ~50 行**（净减 86%）
+  - 11 段 → **4 段**：
+    - 一、环境（写操作授权矩阵）
+    - 二、查 log（占位符 · 不假设 K8s）
+    - 三、查数据 / 缓存（按需 · 占位符 · 不假设 PostgreSQL/Redis）
+    - 四、常见报错（按项目实际填 3-5 条）
+  - **删除段**：
+    - 监控 / 链路追踪（用户决定不属于排查工具集核心）
+    - 部署 / 回滚（同上）
+    - 5 类报错思路链详细展开（K8s 502 / DB 超时 / Redis 未命中 / 队列堆积 / 第三方 API · 假设过强）
+    - schema 速查段（已在 ARCHITECTURE.md / database-schema.md）
+    - 模板使用提示段（顶部说明已够 · 不需独立段）
+    - 与其他文档关系段（顶部 KNOWLEDGE 互补说明已够）
+  - **保留段**：
+    - 安全约束（与红线 R8 协同 · 不可删）
+    - 维护（季度命令验证 + 新增环境同步）
+  - **SKILL.md 描述同步**：「9 段骨架」→「4 段最小骨架（v7.3.10+P0-110 从 11 段简化）」
+- **核心收益**：
+  - 用户从最小骨架快速上手 · 不被假设的技术栈限制
+  - 不假设 K8s / PostgreSQL / Redis · 任何栈（Docker / Serverless / 物理机 / 自建脚本）都能用
+  - 模板复制后真正"按项目填" · 不是"按模板改"
+- **加 1 删 1 元规则核算**：
+  - **加**：CHANGELOG entry（~30 行）= ~30 行
+  - **删 / 简化**：troubleshooting 模板（367 行 → 50 行 · 净减 ~317 行）+ SKILL.md 描述微调（-1 行 +1 行）= ~317 行净减
+  - **净减 ~287 行**（罕见的大幅净减 patch · 标志模板设计的"够用就好"原则）
+- 不动：
+  - SKILL.md 项目级文档信息架构 TROUBLESHOOTING.md 行（仍存在 · 仅描述微调）
+  - standards/discussion-mode.md 知识地图（不变）
+  - stages/triage-stage.md § A · query 排查类查询特殊路由（不变 · 仍指向 templates/troubleshooting.md）
+- 影响面：3 个文件改动（templates/troubleshooting.md 重写 / SKILL.md 描述微调 / CHANGELOG.md）+ 元数据 1 个（SKILL.md version）
+- 后续验证：
+  - 立即可验证：`templates/troubleshooting.md` 行数 ≤ 80
+  - 立即可验证：模板含 4 个核心段（环境 / 查 log / 查数据缓存 / 常见报错）
+  - 立即可验证：模板**不含** K8s / PostgreSQL / Redis 等具体技术栈命令（仅占位符）
+  - 实战验证：用户复制模板后能在 5 分钟内填完关键值（不需大幅删减）
+
+## v7.3.10 + P0-109（项目排查工具集 TROUBLESHOOTING.md · 类比 teamwork_space.md 模板模式）
+
+> v7.3.10+P0-109 引入项目级排查工具集文档。**触发**：用户实战暴露 mode A query 的关键缺口——用户问"为什么报 502 / 查 log / 查 DB"时 · PMO 只能 grep 代码 · 但很多排查需要的是"怎么查环境"（log / DB / Redis / 监控 / 部署）· 不是代码。**根因**：项目级文档信息架构（v7.3.10+P0-106 引入）覆盖了产品规划 / 项目知识 / 历史决策 / 多子项目 · 但**完全缺"运维 / 排查"层**。
+
+### P0-109：TROUBLESHOOTING.md 项目排查工具集（类比 teamwork_space.md 处理）
+
+- 触发：用户提议「定义问题排查工具集文档 · 包含怎么查 staging 环境和线上 log / 怎么连数据库 / 怎么查 Redis」 · 完善 mode A query 的"运维操作"维度。
+- 设计哲学（类比 teamwork_space.md 模板模式）：
+  - **路径固定**：项目根 `TROUBLESHOOTING.md`（不查 docs/ · 不穷举多路径）
+  - **teamwork 提供模板**：`templates/troubleshooting.md`（9 段骨架 + 占位符）
+  - **内容用户维护**：每个项目栈不同（K8s vs Docker vs Serverless）· teamwork 不规范具体命令
+  - **不强推 / 不阻塞**：不存在时 PMO 一句话提示用户从模板创建 · 同时用通用方法继续排查
+- 核心改动：
+  - **P0-109-A0. 创建 `templates/troubleshooting.md` 参考模板**（~250 行 · 9 段标准骨架）：
+    - 一、环境信息总览（local / staging / production · 写操作授权矩阵）
+    - 二、Log 查询（应用 K8s / 网关 nginx / 集中式 ELK-Loki-CloudWatch / 浏览器端 Sentry）
+    - 三、数据库（连接命令 + 常用查询模板 + schema 速查）
+    - 四、Redis / 缓存（连接 + key 模式 + 排查命令）
+    - 五、监控 / 链路追踪（Grafana / Sentry / Jaeger）
+    - 六、部署 / 回滚（staging 自由 / production 必须用户授权）
+    - 七、常见报错定位思路（5 类：502 / DB 连接超时 / Redis 缓存未命中 / 队列堆积 / 第三方 API 失败）
+    - 八、安全约束（PMO 排查时必守 4 条）
+    - 九、定期更新（每季度命令验证 + 更新记录表）
+    - 十、与其他文档关系（KNOWLEDGE / ARCHITECTURE / database-schema / RUNBOOK / PROJECT / ROADMAP）
+    - 模板使用提示（删的删 / 加的加 / 路径硬规则）
+  - **P0-109-A. SKILL.md § 项目级文档信息架构** 加 TROUBLESHOOTING.md：
+    - 项目级权威文档表加一行：`TROUBLESHOOTING.md · 排查 / 运维操作手册 · mode A query / E · discuss 触及"排查 / 报错"时`
+    - 加 P0-109 设计要点说明：路径固定项目根 / teamwork 提供模板 / 内容用户维护 / 不强推
+    - 按话题路由 read 速查加排查路由（10 类关键词触发 read TROUBLESHOOTING.md）
+  - **P0-109-B. `standards/discussion-mode.md § 知识地图`** 同步：
+    - 知识地图按话题路由表加一行：「排查 / 报错 / 查 log / 查环境 / 查 DB / 查 Redis / 部署 / 回滚」→ TROUBLESHOOTING.md（项目根）
+    - 类比 teamwork_space.md 处理 · 不存在时一句话提示用户从模板创建
+  - **P0-109-C. `stages/triage-stage.md § A · query`** 加排查类查询特殊路由：
+    - 第 2 步加排查类查询路由（关键词触发 → 优先 read TROUBLESHOOTING.md）
+    - 新增「排查类查询特殊路由（v7.3.10+P0-109）」段：
+      - 触发关键词清单（17+ 关键词）
+      - 优先级 1：固定 read 项目根 TROUBLESHOOTING.md（存在则按文档执行）
+      - 优先级 2：不存在时一句话提示 + 用通用方法继续排查
+    - 强调「不强推模板」（类比 teamwork_space.md 模板模式）
+    - silent read 原则
+    - production 写操作与红线 R8 协同（TROUBLESHOOTING § 八 是软指引 · R8 是硬门禁）
+- **核心收益**：
+  - mode A query 第一次有"运维 / 排查"维度的项目级知识源
+  - 与 KNOWLEDGE.md 互补（注意点 vs 操作手册）
+  - 与 mattpocock diagnose skill 互补（通用方法论 vs 项目级具体命令）
+  - 模板帮助用户快速建立 TROUBLESHOOTING.md（不从零开始）
+  - production 写操作双层防护（TROUBLESHOOTING § 八 软指引 + R8 红线硬门禁）
+- **加 1 删 1 元规则核算**：
+  - **加**：templates/troubleshooting.md 新建（~250 行）+ SKILL.md 项目级文档信息架构 1 行 + 设计要点说明（~6 行）+ 按话题路由 1 行 + standards/discussion-mode.md 1 行 + triage-stage.md mode A 第 2 步（~5 行）+ 排查类查询特殊路由段（~30 行）+ CHANGELOG entry（~50 行）= ~345 行
+  - **删 / 简化**：无（纯新增 · 知识地图扩展）
+  - **净加 ~345 行**（模板占大头 · 但模板是用户复制基础 · 不是 teamwork 内部冗余）
+- 不动：
+  - 红线 R1-R8（不新增红线）
+  - KNOWLEDGE.md / ARCHITECTURE.md / database-schema.md（边界清晰 · 各自不动）
+  - mode B / C / D 行为（仅 mode A query 加排查路由）
+- 影响面：4 个文件改动 + 1 个文件新建（templates/troubleshooting.md）+ 元数据 1 个（SKILL.md version）
+- 后续验证：
+  - 立即可验证：`templates/troubleshooting.md` 存在 + ≥ 10 段
+  - 立即可验证：SKILL.md 项目级文档信息架构含 `TROUBLESHOOTING.md` 行
+  - 立即可验证：SKILL.md 按话题路由速查含「报错 / 502 / 查 log」→ TROUBLESHOOTING.md
+  - 立即可验证：standards/discussion-mode.md 知识地图含 TROUBLESHOOTING.md 路由
+  - 立即可验证：stages/triage-stage.md § A · query 含「排查类查询特殊路由」段
+  - 实战验证：用户问 `/teamwork 看下 staging 502 是怎么回事`：
+    - 项目有 TROUBLESHOOTING.md → PMO silent read · 按文档步骤执行（kubectl / curl / 看 log）· 给定位结论
+    - 项目无 TROUBLESHOOTING.md → PMO 用通用方法（kubectl 探索）· 给初步定位 + 一句话建议创建文档
+- README 同步：⚠️ 推荐下次 README 大同步时体现（"排查 / 运维"是 teamwork 之前完全缺失的能力维度 · 用户体感变化大）
+
+## v7.3.10 + P0-108（Feature Planning 流程重写为纯执行流程）
+
+> v7.3.10+P0-108 完成 P0-106 职责正交化设计的最后一块：Feature Planning 流程内部"讨论部分"完全删除（已迁 E · discuss）· 流程退化为"仅写多文档"的纯执行流程。
+
+### P0-108：Feature Planning 流程重写（删除内部讨论残留）
+
+- 触发：P0-106 引入 E · discuss 后 · Feature Planning 流程内部仍保留"PM 与用户讨论产品方向 / 多次暂停确认 / Designer 全景重建"等讨论步骤 · 与 E · discuss 重合。**目标**：完全删除内部讨论部分 · 流程仅做"PMO 把 E · discuss 结论落到 PROJECT/ROADMAP/sitemap"。
+- 设计哲学（按 P0-103 红线生命周期管理走路径 B）：
+  - 职责正交化：E · discuss 接管所有讨论 · Feature Planning 仅执行
+  - 简化暂停点：从 4 次暂停（讨论 / 全景验收 / PROJECT 确认 / ROADMAP 确认）→ 1 次暂停（变更摘要确认）
+  - 同回合写完：sitemap / PROJECT / ROADMAP 在同一回合内写完 · 不分多次暂停
+- 核心改动：
+  - **P0-108-A. `FLOWS.md § Feature Planning 流程` 全文重写**：
+    - 删除"v7.3.10+P0-106 之前（仅参考）"过渡段（不再保留旧版描述 · 直接简化）
+    - 流程概览：4 暂停步骤 → 2 步（变更摘要确认 + 写多文档）
+    - 加"简化点（vs P0-108 之前）"对照段（让读者清楚改了什么）
+  - **P0-108-B. `rules/flow-transitions.md § Feature Planning 流程` 同步重写**：
+    - 转移表：6 行（含 Workspace 多子项目）→ 4 行（核心 4 步流转）
+    - 新增"关键变化"说明（vs P0-108 之前 · 4 暂停 → 1 暂停）
+    - 加 cite L2（FLOWS.md / discussion-mode.md）
+- **核心收益**：
+  - **流程长度减半**：4 暂停 → 1 暂停 · 用户输入次数减半
+  - **职责完全正交化**：E · discuss 讨论 · Feature Planning 执行 · 不重复
+  - **同回合写完**：sitemap / PROJECT / ROADMAP 一次性 · 避免中断 / 多次暂停
+  - **删除 Designer Subagent dispatch**：sitemap.md 直接 Edit（设计决策已在 E · discuss 完成）· 不再 dispatch
+- **加 1 删 1 元规则核算**：
+  - **加**：FLOWS.md 简化点对照段（~25 行）+ flow-transitions.md 关键变化说明（~6 行）+ CHANGELOG entry（~50 行）= ~81 行
+  - **删 / 简化**：FLOWS.md 旧流程概览（含讨论 / 4 暂停 / Designer dispatch · ~50 行）+ "v7.3.10+P0-106 之前（仅参考）"过渡段（~5 行）+ flow-transitions.md 旧 Feature Planning 转移表（~6 行）= ~61 行删除
+  - **净加 ~20 行**（流程瘦身 · 但加"简化对照段"让历史变化清晰）
+- 不动：
+  - "Feature Planning 规则"段（强制规则部分 · 仍合法）
+  - "Feature Planning → Feature 衔接"段（仍合法）
+  - "变更级 Feature Planning 子模式"（v7.3.10+P0-33 新增 · 与 change-request 流程协同 · 仍合法）
+  - "Workspace 级 Feature Planning"（多子项目场景 · 仍合法）
+- 影响面：3 个文件改动（FLOWS.md / rules/flow-transitions.md / CHANGELOG.md）+ 元数据 1 个（SKILL.md version）
+- 后续验证：
+  - 立即可验证：`grep -E "PM 与用户讨论|讨论达成共识|讨论过程中记录" FLOWS.md` 应返回 0
+  - 立即可验证：FLOWS.md Feature Planning 流程概览段含"PMO 整理 E · discuss 结论"
+  - 实战验证：下次 E · discuss 拍板规划方向 → mode B → prepare-stage 识别 = Feature Planning → 仅 1 次暂停（变更摘要）+ 1 次执行（写多文档）= 完成
+- 后续 patch：P0-109 5 mode 实战 case 验证 + 边界 case 调优
+
+## v7.3.10 + P0-107（init-stage 物理删除 + 全框架引用迁移完成）
+
+> v7.3.10+P0-107 完成 P0-106 入口架构重构的最后清理 · 物理删除 deprecated 的 stages/init-stage.md · 全框架引用迁移到 triage-stage.md / prepare-stage.md。
+
+### P0-107：init-stage 引用批量迁移 + 物理删除
+
+- 触发：P0-106 完成入口架构重构后 · init-stage.md 标 deprecated 但物理保留 · 留下技术债。**目标**：清理 22 处实际引用 + 物理删除文件 · 让架构清理彻底完成。
+- 设计哲学（按 P0-103 红线生命周期管理走路径 B）：
+  - 迁移规则（按上下文路由）：
+    - 默认 → triage-stage.md（入口主流程）
+    - "Step 1.2 / 项目空间 / KNOWLEDGE 扫描 / 角色可用性" → prepare-stage.md
+    - "Step 0 命令解析 / AUTO_MODE 入口" → triage-stage.md 动作 1
+  - 跳过规则：
+    - docs/CHANGELOG.md（135 处历史记录 · 保留）
+    - docs/OPTIMIZATION-PLAN.md（保留历史规划）
+    - standards/output-tiers.md 反模式 5 实战 case 引用（"执行 init-stage Step 0/1" 黑名单措辞 · 是反模式禁令的 case · 保留）
+    - prepare-stage.md 内部"原 init-stage 来源"历史描述（保留 · 是迁移轨迹）
+- 核心改动：
+  - **P0-107-A. 编写迁移 Python 脚本**（migrate_init_stage.py · 用完即删）：
+    - 6 条 regex 替换规则 · 按上下文路由
+    - 跳过历史段标记（"DEPRECATED" / "原 init-stage" / "v7.3.10+P0-106"）
+    - 自动批量替换 7 处（agents/README.md / RULES.md / STATUS-LINE.md / roles/pmo-auto-mode.md / roles/external-reviewer.md / roles/pmo-external-orchestration.md）
+  - **P0-107-B. 手动修复语义错位 4 处**：
+    - roles/pmo.md L365：Bug 流程链定义 cite → prepare-stage Step 7 流程类型识别
+    - standards/prompt-cache.md L152：占位符说明 → prepare-stage / triage-stage
+    - standards/prompt-cache.md L165：版本缓存机制 cite → prepare-stage Step 2
+    - standards/external-model.md L234：宿主检测 cite → prepare-stage Step 1
+  - **P0-107-C. rules/naming.md 命名表更新**：
+    - 「分诊 / 初始化 → Triage / Init」改为「分诊 / 重型准备 → Triage / Prepare」
+    - 加 P0-107 注释：原 init-stage.md 已物理删除（拆分为 triage + prepare）
+  - **P0-107-D. SKILL.md 索引段清理**：
+    - 删除 "~~init-stage.md~~" deprecated 行 · 改为 P0-107 注释
+    - 删除"相关文件索引"中的 init-stage 条目
+  - **P0-107-E. prepare-stage.md「与原 init-stage.md 的关系」段更新**：
+    - 标注 v7.3.10+P0-107 完成迁移
+    - 加迁移路径表（5 步原始 → 新位置）
+  - **P0-107-F. 物理删除 stages/init-stage.md**：
+    - rm 文件 · 不再保留 redirect stub
+    - 残留 init-stage 字符串仅在合法历史段（CHANGELOG / output-tiers 反模式 case / prepare-stage 来源描述）
+- **核心收益**：
+  - **架构清理彻底**：deprecated 文件物理删除 · 不再有"僵尸文件"
+  - **全框架引用一致**：所有活引用指向 triage-stage / prepare-stage（按语义路由）
+  - **新用户体感清晰**：stages/ 目录下只有真正活跃的 stage · 没有 deprecated 干扰
+- **加 1 删 1 元规则核算**：
+  - **加**：CHANGELOG entry（~50 行）+ rules/naming.md 注释（1 行）+ prepare-stage.md 迁移路径表（~10 行）= ~60 行
+  - **删 / 简化**：stages/init-stage.md 物理删除（~80 行 redirect stub）+ SKILL.md deprecated 索引行（2 行）= ~82 行
+  - **净减 ~22 行**（罕见的净减 patch · 标志架构重构的彻底清理）
+- 不动：
+  - docs/CHANGELOG.md（135 处历史 init-stage 引用 · 保留）
+  - standards/output-tiers.md 反模式 5（实战 case 反例引用 · 保留）
+  - prepare-stage.md 内部"原 init-stage Step X"来源描述（保留 · 是迁移轨迹）
+- 影响面：8 个文件改动（migrate 脚本批量 7 处 + 手动 4 处）+ 1 个文件删除（stages/init-stage.md）+ CHANGELOG + version bump
+- 后续验证：
+  - 立即可验证：`ls stages/init-stage.md` 应返回 No such file
+  - 立即可验证：`grep -rE "init-stage" --include="*.md" stages/ standards/ roles/ rules/ SKILL.md RULES.md FLOWS.md 2>/dev/null | grep -v "DEPRECATED\|原 init-stage\|P0-106\|P0-107\|prepare-stage.md.*关系\|output-tiers.md.*反模式"` 应返回 0
+  - 实战验证：下次启动 teamwork 不再看到 init-stage.md cite 报错
+- 后续 patch：P0-108（Feature Planning 流程完整重写 · 删除内部讨论残留） / P0-109（5 mode 实战 case 验证）
+
+## v7.3.10 + P0-106（入口架构重构 · 5 mode 分诊 + prepare-stage + 知识地图 + E · discuss）
+
+> v7.3.10+P0-106 入口架构终极重构。**触发**：累积多个对话讨论暴露 init/triage 当前架构的根本问题（每次启动都跑重型仪式 / discussion 场景没明确 mode / PMO 缺项目级文档信息地图 / Feature Planning 流程内部"讨论部分"与 E · discuss 重合）。**根因**：当前架构假设所有 `/teamwork` 输入都需要相同准备 · 但实际 5 类输入（query/execute/resume/status/discuss）需要的准备完全不同。
+
+### P0-106：5 mode 分诊架构（triage = 真正入口 · prepare = mode B 准备 · init deprecated）
+
+- 触发：用户实战 case + 设计反思 → 4 个核心洞察：
+  1. 用户输入实际有 5 种 mode（A query / B execute / C resume / D status / E discuss）· 不是单线流程
+  2. init-stage 是历史包袱 · 每一步都可以延后到对应 mode 触发后
+  3. PMO 在所有 mode 都需要"项目级文档信息架构"知识地图（不是 discuss 专属）
+  4. Feature Planning 流程内部"讨论部分"与 E · discuss 重合 · 应职责正交化
+- 设计哲学：
+  - **triage = teamwork 真正入口**（不再是 init 之后的子步骤）：仅 1 件事 · 看用户输入决定 5 mode 之一
+  - **prepare-stage = mode B 重型准备**：吸收原 init Step 1.2/2 + 原 triage Step 2-9 + 流程感知懒加载
+  - **按需启动彻底落地**：query/resume/status/discuss 各走各最小路径 · 不跑共享重型仪式
+  - **PMO 知识地图前置**：项目级文档信息架构作为 PMO 通用常识 · 5 mode 共享
+  - **Feature Planning 职责正交化**：内部讨论部分迁 E · discuss · 流程仅做"写多文档"
+- 核心改动：
+  - **P0-106-A. 新建 `standards/discussion-mode.md`**（L2 单源 · ~300 行）：
+    - 一、E · discuss 是什么 · 二、触发规则（关键词 + 排除规则 + 边界 case）
+    - 三、行为规范（综合视角 + silent read + 不切身份 / 不写文件）
+    - 四、知识地图按话题路由 read · 五、与 PL 讨论 / Feature Planning / 变更管理 / 跨 Feature 升级的边界
+    - 六、升级路径（→ B/A/C/D）· 七、反模式（5 类）· 八、PMO 自检 checklist · 九、相关规范
+  - **P0-106-B. SKILL.md 加「项目级文档信息架构」段**（PMO 5 mode 通用知识地图 · ~80 行）：
+    - 1. 框架内部文档（已注入 · 默认知道）
+    - 2. 项目级权威文档（PROJECT/ROADMAP/sitemap/KNOWLEDGE/...）+ 各文档权威范围
+    - 3. Feature 级文档（按编号定位 · state.json/PRD/TC/TECH/UI/REVIEW/...）
+    - 4. 多子项目层 · 5. 配置层 · 6. 权威范围对照（避免冲突）
+    - 7. 按话题路由 read 速查 · 8. silent read 原则
+  - **P0-106-C. 新建 `stages/prepare-stage.md`**（mode B 重型准备 · ~350 行）：
+    - 入口 Read 顺序（v7.3.10+P0-106 固定 · prompt cache 友好）
+    - Step 1 SKILL_ROOT 检测 · Step 2 版本缓存校验 · Step 3 项目空间 · Step 4 隐式承接
+    - Step 5 KNOWLEDGE 扫描 · Step 6 ADR 扫描 · Step 7 流程类型识别（5 种闭集 · 删问题排查）
+    - Step 8 流程感知懒加载（5 流程 × 6 步骤的触发矩阵）
+    - Step 9 角色可用性 · Step 10 外部模型探测 · Step 11 看板 · Step 12-14 描述 + 暂停 + state.json 创建
+  - **P0-106-D. 重写 `stages/triage-stage.md`** 为 5 mode 分诊（~250 行 · 极简单一职责）：
+    - 动作 1 解析命令前缀（吸收原 init Step 0）· 动作 2 五 mode 分诊
+    - 各 mode 行为速查 + 详细规范 cite L2
+    - 删除原 Step 2-9（迁到 prepare-stage.md）
+  - **P0-106-E. `stages/init-stage.md` 标 deprecated + redirect**（保留物理文件兼容 164 处引用）：
+    - 替代关系表（原 5 步 → 新位置）
+    - 设计变化对比图（v7.3.10+P0-106 之前 vs 之后）
+    - 后续清理路径（P0-107 拟扫描 164 处引用 · 批量迁移 cite 后物理删除）
+  - **P0-106-F. 关键散落引用整合**：
+    - SKILL.md 索引段：init-stage → triage-stage 主入口 + prepare-stage 重型准备
+    - SKILL.md 启动流程描述（"PMO 第一件事是读取 init-stage" → "读取 triage-stage 5 mode 分诊"）
+    - rules/flow-transitions.md 重写转移表（5 mode 各自路径 + prepare-stage 转移行）
+  - **P0-106-G. Feature Planning 流程精简**：
+    - FLOWS.md Feature Planning 段顶部加 v7.3.10+P0-106 职责正交化说明
+    - 流程内部"PM 与用户讨论产品方向"等讨论部分标 deprecated（已迁到 E · discuss）
+    - 流程仅承担"写多文档"执行动作（用户在 E · discuss 拍板后）
+- **核心收益**：
+  - **5 mode 各自最小路径**：A ~80 / B ~600-850 / C ~300 / D ~400 / E ~150 tokens · 不再单线一刀切
+  - **PMO 通用知识地图**：5 mode 共享 · 不再每次重新拼凑文档位置
+  - **E · discuss 第一次明确支持**：占 ~30% 实际使用的"想法讨论"场景终于有 mode 处理
+  - **Feature Planning 职责清晰**：讨论 vs 落地正交化 · 不重复
+  - **架构更对应 mattpocock 哲学**：每个 stage 单一职责 · 按需启动彻底
+- **加 1 删 1 元规则核算**：
+  - **加**：standards/discussion-mode.md 新建（~300 行）+ stages/prepare-stage.md 新建（~350 行）+ SKILL.md 信息架构段（~80 行）+ triage-stage.md 重写（~250 行 · 含 mode A/C/D 详规）+ init-stage.md redirect（~80 行）+ FLOWS.md Feature Planning 精简说明（~10 行）+ flow-transitions.md 转移表更新（~10 行）= ~1080 行
+  - **删 / 简化**：原 triage Step 2-9（迁出 · 净减 ~400 行）+ 原 init Step 1.2/2/3（迁出 · 净减 ~150 行 · 替为 redirect ~80 行）= ~470 行减少
+  - **净加 ~610 行**（架构重构 · 物理拦截即时生效 · 入口体验从"重仪式"变"按需启动"）
+- 不动：
+  - 各业务 stage（goal_plan / blueprint / dev / review / test / pm_acceptance / ship）
+  - 红线 R1-R8（不新增 · 按 P0-103 红线生命周期管理走）
+  - 评审契约 / 多角色身份切换 / state.json schema / templates
+  - 164 处 init-stage 引用（保留兼容 · 后续 P0-107 渐进迁移）
+- 影响面：8 个文件改动 · 2 个新建（discussion-mode.md / prepare-stage.md）· 1 个标 deprecated（init-stage.md）· 5 个修改（SKILL.md / triage-stage.md / FLOWS.md / flow-transitions.md / CHANGELOG.md）+ 元数据 1 个（init-stage.md SKILL_VERSION 期望）
+- 后续验证：
+  - 立即可验证：standards/discussion-mode.md 存在 + ≥ 9 段 / SKILL.md 含「项目级文档信息架构」段 / stages/prepare-stage.md 存在 + ≥ 14 Step / stages/triage-stage.md 含 5 mode 分诊 / stages/init-stage.md 含 DEPRECATED 标记
+  - 实战验证：
+    - `/teamwork 看下 X` → mode A 直接 grep（不进 init / prepare）
+    - `/teamwork`（空）→ mode D 看板（不进 prepare）
+    - `/teamwork 实现 F032` → mode B → prepare-stage → Feature 流程
+    - `/teamwork 我感觉红线太重了` → mode E 讨论（不创建 Feature）
+    - `/teamwork 继续 F032` → mode C jump-to-stage（不重走 init）
+- 后续 patch 规划：
+  - **P0-107**：扫描 164 处 init-stage 引用 · 批量迁移 cite（init-stage.md → triage-stage.md 或 prepare-stage.md）· 完成后物理删除 init-stage.md
+  - **P0-108**：FLOWS.md Feature Planning 段完整重写（仅"写多文档"流程描述 · 删除全部"讨论"残留）
+  - **P0-109**：实战 case 收集 · 验证 5 mode 判定准确度 · 边界 case 调优
+- README 同步：⚠️ **强烈推荐下次 README 大同步时体现**（5 mode 入口架构 + E · discuss + prepare-stage 是用户体感最大的变化 · 与 P0-100 README 同步原则一致）
+
+## v7.3.10 + P0-105（init/stage 入口 silent execution 强化）
+
+> v7.3.10+P0-105 silent execution 缺口补漏。**触发**：用户分享 case · `/teamwork 检查下 PTR test 模块逻辑 · 返回的链接不是 aon.link` 出现 6 段 init / stage 入口播报（"执行 init-stage Step 0/1" / "版本不一致（缓存 P0-103 → skill P0-104）走全量校验" / "CLAUDE.md 与模板字符级一致" / "🔄 已同步" / "继续 Step 2/3 加载项目空间和看板" / "进入 triage-stage 分流" / "收到。现在直接定位 PTR test 模块代码"）才到 grep。**根因**：P0-98 silent execution 反模式 5 仅覆盖 triage Step 1.5/1.6 + 缓存命中 banner · 没覆盖 init 缓存不一致路径 + stage 入口标题 + Step 1 用户承接前缀。
+
+### P0-105：init / stage 入口 silent execution 强化（3 个未覆盖缺口）
+
+- 触发：用户实战 case · 暴露 P0-98 silent execution 设计的 3 个未覆盖缺口（init 缓存不一致路径 / stage 入口标题 / Step 1 用户承接前缀）。
+- 设计哲学（按 P0-103 红线生命周期管理走路径 A+B · 不新增 L1 红线）：
+  - **路径 A 顶层 cite**：R4(b) 不膨胀已含 silent execution 引用 · 不动
+  - **路径 B L2 单源**：standards/output-tiers.md 反模式 5 加 P0-105 扩展段（实战 case 黑名单措辞）
+  - **stage spec 行为约束**：init-stage / triage-stage 顶部加 silent execution 硬规则段 + Step 1 改隐式承接
+- 核心改动：
+  - **P0-105-A. `standards/output-tiers.md` 反模式 5 加 P0-105 扩展段**：
+    - 实战 case 7 段反例完整抄入（init step 标题 / 版本同步内部决策叙事 / stage 入口标题 / "收到+计划"前缀 / 中间结果汇报 / 执行确认）
+    - 5 类新黑名单措辞表（含具体反例措辞 · 物理拦截）
+    - 4 条唯一允许输出（异常分支 / 决策点 / 实际答案）
+    - 2 条判定规则（工具调用前 / 工具调用之间 不输出叙事）
+  - **P0-105-B. `stages/init-stage.md` 全程 silent 强化**：
+    - 顶部 Process Contract 加「init-stage 全程 silent execution 硬规则」段（默认静默 + 6 类禁止输出 + 4 类唯一允许输出 / cite L2 单源）
+    - Step 1.2-c 不一致路径加 silent 子条（不输出"版本不一致 / 字符级一致 / 已同步" + 唯一例外：CLAUDE.md 真实漂移）
+    - Step 1.2-c null 路径标注「异常路径 · 必须输出」明示区分
+  - **P0-105-C. `stages/triage-stage.md` Step 1 改隐式承接**：
+    - 原文：「PMO 必须先显式响应'我已收到你的输入'」
+    - 改为：「承接是隐式的 · PMO 必须实际承接（行为）但**不输出**承接确认文本」
+    - 加 5 条禁止输出反例 + 正确姿态 3 条 + 红线 R3 解释段（承接是行为 · 不是文本）
+    - 异常分支允许输出（输入无法解析 / BLOCKER 触发）
+- **核心收益**：
+  - init / triage 启动期主对话叙事开销 ~80% 削减（实战 case 6 段 → 0 段）
+  - 用户问题到 grep 实际代码的工具调用间隔从 ~10 段叙事缩到 0 段
+  - silent execution 设计从 P0-98 三处覆盖（triage Step 1.5/1.6 + 缓存命中）扩展到全 init + Step 1 隐式承接
+- **加 1 删 1 元规则核算**：
+  - **加**：output-tiers.md 反模式 5 P0-105 扩展段（~50 行）+ init-stage.md silent execution 硬规则段（~25 行）+ Step 1.2-c silent 子条（~7 行）+ triage Step 1 隐式承接重写（~25 行）= ~107 行
+  - **删 / 简化**：triage Step 1 原"必须显式响应"3 行删除（替为隐式承接段）+ init Step 1.2-c "🔄 已同步"输出 1 行删除 = ~4 行
+  - **净加 ~103 行**（silent execution 设计的最后一公里 · 物理拦截 case 实战暴露的反例）
+- 不动：
+  - init Step 0 命令解析输出（解析失败时仍需 ⚠️ · 异常路径）
+  - init Step 2 加载项目空间 banner（未在本 case 触发 · 留下次实战 case 再考虑）
+  - init Step 3 Feature 看板（用户输入"继续"时仍需输出 · 是答案而非叙事）
+  - Pull / Push 路径之后的实际答案输出（这才是用户要的）
+- 影响面：4 个文件改动（standards/output-tiers.md / stages/init-stage.md / stages/triage-stage.md / docs/CHANGELOG.md）+ 元数据 2 个（SKILL.md / init-stage.md SKILL_VERSION）
+- 后续验证：
+  - 立即可验证：standards/output-tiers.md 反模式 5 含 "P0-105 扩展" 子段（grep "P0-105 扩展" 命中）
+  - 立即可验证：stages/init-stage.md Process Contract 段含 "init-stage 全程 silent execution 硬规则"
+  - 立即可验证：stages/triage-stage.md Step 1 含 "承接是隐式的" + 5 条禁止输出反例
+  - 实战验证：下次 `/teamwork [需求]` 启动 · init 全程静默（缓存命中 / 不一致都不输出 banner）+ triage Step 1 不输出"收到 / 现在直接定位 X" · 直接进 Step 1.5/1.6 silent · 然后 grep / Read / 答案
+  - 对比基线：本次 case 6 段叙事 · P0-105 后应 0 段叙事
+- README 同步：❌（内部 silent execution 行为优化 · 不影响新用户体感门面 · 同 P0-101~104 处理）
+
+## v7.3.10 + P0-104（codex 调用 OpenAI ToS 合规 + 外部模型只读评审）
+
+> v7.3.10+P0-104 codex 账号 abuse 警告响应。**触发**：用户分享 codex 账号收到 OpenAI "cyber abuse" 警告。**根因**：teamwork 早期把 codex CLI 当 AI agent 后端用 — 5/8 profile sandbox=full（rd-developer/tester/planner/designer/e2e-runner 自主执行任意命令）+ service_tier=fast（API 级优化信号）+ codex-agents/hooks.json（持久化触发）+ AI 编排 AI 链式 dispatch · 触发 OpenAI cyber abuse 自动检测。**修复**：codex 角色重定位为「只读评审辅助」· 物理拦截所有 cyber abuse 信号。
+
+### P0-104：codex 调用合规重构（外部模型 = 只读评审 · 不再作 AI agent 后端）
+
+- 触发：用户实战 case · OpenAI 警告促使审视 teamwork 对 codex 的使用模式 · 发现严重越界（5 个 full sandbox profile · service_tier=fast · 持久化 hooks）。
+- 设计哲学（按 P0-103 红线生命周期管理元规则走路径 A+B · 不新增 L1 红线）：
+  - **路径 A 顶层 cite**：SKILL.md R1 + R7 各加一句话 cite L2 单源
+  - **路径 B L2 单源**：standards/external-model-usage.md 承载详细合规规则
+  - **L3 工具层**：codex-agents/*.toml 物理改 read-only · 删 service_tier · 删 hooks.json
+  - 核心原则：**外部模型只能读代码 · 只能输出 markdown 评审 · 不执行 / 不写文件**
+- 核心改动：
+  - **P0-104-A. codex profile 物理修复**（L3 · 物理拦截）：
+    - 5 个 full → read-only：`rd-developer.toml` / `tester.toml` / `planner.toml` / `designer.toml` / `e2e-runner.toml`
+    - 全部 8 个 profile 删除 `service_tier = "fast"` 行
+    - approval_policy 走 codex 默认（不显式声明 · on-request）
+    - 删除 `codex-agents/hooks.json`（持久化触发信号）
+  - **P0-104-B. 5 个非评审 profile 标 deprecated**：
+    - description 起首加 `[DEPRECATED v7.3.10+P0-104]`
+    - developer_instructions 改为提示用户去主对话身份切换执行（不再 dispatch）
+    - 文件保留（用户手动 ad-hoc 仍可用 · 但已强制 read-only · 无 cyber abuse 风险）
+  - **P0-104-C. 新建 `standards/external-model-usage.md`**（L2 单源 · 10 段）：
+    - 一、核心原则 4 条硬约束 · 二、为什么必须合规（OpenAI ToS 信号清单）· 三、合规架构图（✅ 评审 vs ❌ AI 后端）
+    - 四、profile 分类（3 评审 / 5 deprecated）· 五、prompt 注入硬规则 · 六、配置约束清单
+    - 七、违规处置 · 八、与 SKILL.md R1/R7 的关系 · 九、相关文件 · 十、申诉模板
+  - **P0-104-D. SKILL.md 红线 R1 + R7 加 cite L2**（路径 A 一句话）：
+    - R1 加：「外部模型例外：codex / gemini 等外部模型仅用于只读评审 · 不参与代码写权 · sandbox 强制 read-only · 详见 standards/external-model-usage.md」
+    - R7 加 (d) 子条：「外部模型评审审计：codex / gemini 等外部模型评审输出走主对话审计 · 不得作为自主 AI agent 后端（OpenAI ToS 合规）· 详见 standards/external-model-usage.md」
+  - **P0-104-E. 评审 profile + claude-agents/reviewer.md prompt 注入合规约束**：
+    - reviewer.toml / blueprint-reviewer.toml / prd-reviewer.toml 的 developer_instructions 顶部加「🔴 STRICT CONSTRAINTS」段：READ-ONLY · markdown only · no patches · no exec · "Out of scope" 拒绝模板
+    - claude-agents/reviewer.md 同步加 STRICT CONSTRAINTS 头
+    - blueprint-reviewer / prd-reviewer 文件名 cite 修正（templates/codex-cross-review.md → external-cross-review.md · 历史遗留）
+    - roles/external-reviewer.md 顶部 cite 加合规边界链接
+- **核心收益**：
+  - 物理拦截：所有 codex profile sandbox=read-only · OpenAI 视角下不可能再触发 cyber abuse
+  - service_tier=fast 全删 · 移除"API 级优化"信号
+  - hooks.json 删 · 移除"持久化机器人"信号
+  - 外部模型角色明确：只评审 · 不执行 · L2 单源详规范 + L1 红线一句话 cite
+  - 申诉模板就位（standards/external-model-usage.md § 十）· 用户可直接用
+- **加 1 删 1 元规则核算**：
+  - **加**：standards/external-model-usage.md（~165 行新文件）+ SKILL.md R1/R7 cite（~2 行）+ 5 deprecated profile 重写说明（~50 行）+ 3 评审 profile STRICT CONSTRAINTS 段（~30 行）+ claude-agents/reviewer.md STRICT CONSTRAINTS（~10 行）+ external-reviewer.md cite（1 行）= ~258 行
+  - **删 / 简化**：5 profile 原 developer_instructions 替为 deprecated 提示（净简化 ~30 行）+ codex-agents/hooks.json 删除（~28 行）+ 8 profile 各删 1 行 service_tier（8 行）= ~66 行
+  - **净加 ~190 行**（合规重构 · 加 L2 单源 + 申诉模板 · 物理拦截即时生效）
+- 不动：
+  - 评审 profile 的 sandbox_mode（已是 read-only · 不变）+ model_reasoning_effort=high（不变）
+  - 主对话 Claude Code 的角色身份切换流程（codex 改不影响）
+  - templates/external-cross-review.md（评审 schema 不变 · 仅 cite 修正）
+- 影响面：14 个文件改动（codex-agents/*.toml × 8 / codex-agents/hooks.json 删除 / standards/external-model-usage.md 新建 / SKILL.md 红线 R1+R7 / claude-agents/reviewer.md / roles/external-reviewer.md / docs/CHANGELOG.md / stages/init-stage.md SKILL_VERSION）
+- 后续验证：
+  - 立即可验证：`grep -c sandbox_mode.*read-only codex-agents/*.toml` 应 = 8（全部 read-only）
+  - 立即可验证：`grep -c service_tier codex-agents/*.toml` 应 = 0（全删）
+  - 立即可验证：`ls codex-agents/hooks.json` 应 No such file
+  - 立即可验证：`standards/external-model-usage.md` 存在 + ≥ 10 段
+  - 实战验证：用户用 deprecated profile 时 codex 看到 [DEPRECATED] 提示 · 主流程不再 dispatch 5 个非评审 profile
+  - 申诉验证：用户向 OpenAI 申诉时附 standards/external-model-usage.md 链接 · 截图配置已修
+- README 同步：⚠️ 推荐下次 README 大同步时体现（OpenAI ToS 合规 + 外部模型只读评审定位）· 当前 patch 不强制（与 P0-101/P0-102/P0-103 处理一致）
+
+## v7.3.10 + P0-103（红线归并 16→8 + 层级化 + 生命周期管理）
+
+> v7.3.10+P0-103 红线减负重构。**触发**：用户问「我们的红线是不是太重了」· 反思 P0-101/P0-102 都在加红线 · SKILL.md 16 条红线 + 各 sub-file 散落硬规则 · 总硬约束远超 16 · LLM attention 稀释 + token 成本上涨 + debug 困难。**根因**：路径依赖（每次实战 case 默认加红线）+ 没退役机制（从 P0-1 到 P0-102 没删过任何红线）+ 物理拦截 vs 红线混淆（P0-101 evidence-binding / P0-102 黑名单本质是物理拦截 · 不该占红线条目）。
+
+### P0-103：红线归并 16→8 + 层级化（L1 核心红线 / L2 专项规范 / L3 工具层）+ 生命周期管理元规则
+
+- 触发：用户反思性提问 → AI 自查 → 发现 `每条红线都在二次扩展`（红线 #1 扩展 4 次 / 红线 #12 P0-102 扩展 / 红线 #16 全新加 P0-101）+ ~201 处「红线 #N」引用散落全框架 · 没归并机制。
+- 设计哲学：
+  - **L1 核心红线 ≤ 8 条**：必读 · 概念正名 · 详细 schema 走 L2
+  - **L2 专项规范**：黑名单措辞 / schema / 出口校验 / 字段范围表 / 实战 case 全部下沉到 standards/* + roles/*-sub.md
+  - **L3 工具层**：verify-ac.py / state-patch.py / detect-external-model.py 真正的物理拦截
+  - **元规则防再膨胀**：每个 P0 patch 设计契约必含「路径 A 归并 / 路径 B 降级 L2 / 路径 C 新增 L1」三选一审视 · 默认 A > B > C
+- 核心改动：
+  - **P0-103-A. 创建 `standards/evidence-binding.md`**（L2 单源 · 抽出原红线 #16 全文）：
+    - 一、核心规则 schema · 二、为什么必须 evidence binding（实战 case）· 三、事实字段 vs 状态字段边界
+    - 四、字段 evidence schema 全表（5 类字段）· 五、PMO 出口校验伪码 · 六、违规处置 · 七、反模式 4 条 · 八、与红线 R7 的关系 · 九、相关文件
+    - SKILL.md 红线 R7(c) 仅保留一句话 cite + 链接 · 不再占红线层
+  - **P0-103-B. 重写 SKILL.md 红线段（16 → 8）**：
+    - 顶部加层级化说明（L1 必读 ≤ 8 / L2 standards/* + roles/*-sub / L3 工具层）
+    - R1-R8 重命名：R1 代码写权 / R2 流程类型闭集 / R3 PMO 统一承接 / R4 流程边界（合并原 #3+#12+#15）/ R5 暂停点协议（合并原 #5+#10）/ R6 Feature Planning 只出文档 / R7 证据闭环（合并原 #9+#14+#16）/ R8 写操作硬门禁链
+    - R1 简化 4 次扩展冗余（Ship 例外详细化抽到 ship-stage.md）
+    - 加历史条号映射表（旧 #N → 新 RN · 13 行）· 旧引用按表迁移
+  - **P0-103-C. 全框架引用迁移**（Python 脚本批量替换）：
+    - 扫描 85 个 .md/.json 文件 · 修改 19 个文件 · 共 102 处替换
+    - 命中数前 5：RULES.md (20) / triage-stage.md (18) / OPTIMIZATION-PLAN.md (12) / FLOWS.md (8) / ship-stage.md (8)
+    - 跳过 SKILL.md（含红线段本身 + 映射表）+ docs/CHANGELOG.md（历史记录）+ standards/evidence-binding.md（合规历史 cite）
+    - 修复 2 处迁移后暴露的 pre-existing mislabel（triage-stage.md "红线 #5 写操作硬门禁" → R8）
+  - **P0-103-D. SKILL.md 加「红线生命周期管理」段**（防再膨胀元规则）：
+    - 元规则：每个 P0 patch 设计契约必含三选一审视（路径 A 归并 / B 降级 L2 / C 新增 L1 · 默认 A > B > C）
+    - 红线层级结构图（L1/L2/L3）
+    - 退役 / 归并审视清单（每 5 个 P0 patch 节奏 · 4 项审视）
+- **核心收益**：
+  - SKILL.md 红线条目从 16 → 8（减 50%）· LLM attention 集中
+  - L2 evidence-binding.md 作为单源 · standards/* 体系完整化
+  - 元规则防止再膨胀 · 后续 P0 patch 强制走「归并 > 降级 > 新增」路径
+  - 引用语义集中（13 行映射表）· debug 时不需要查多处
+- **加 1 删 1 元规则核算**（特殊：净减条目）：
+  - **加**：SKILL.md 红线生命周期管理段（~50 行）+ standards/evidence-binding.md（~95 行新文件）+ 历史条号映射表（13 行）= ~158 行
+  - **删 / 简化**：SKILL.md 红线段从 ~33 行（16 条）简化到 ~30 行（8 条 · R1 4 次扩展冗余精简）
+  - **净加 ~155 行**（虽净加 · 但**红线条目从 16 → 8**·这才是真正的减负 · 加的是 L2 单源 + 元规则）
+- 不动：
+  - docs/CHANGELOG.md 历史段（保留旧 #N 引用 · 历史记录不可改）
+  - 其他 standards/* 已有规范（output-tiers.md / prompt-cache.md / common.md / external-model.md）
+  - 各 stage spec 子步骤 / Output Contract（仅引用层迁移）
+- 影响面：22 个文件改动（SKILL.md 大改 / standards/evidence-binding.md 新建 / 19 个文件 102 处引用迁移 / triage-stage.md 2 处 mislabel 修复 / docs/CHANGELOG.md / init-stage.md SKILL_VERSION）
+- 后续验证：
+  - 立即可验证：`grep -r "红线 #1[^0-9]" --include="*.md" --include="*.json"` 应仅命中 SKILL.md 映射表 + CHANGELOG（共 ≤14 处）+ standards/evidence-binding.md 历史 cite
+  - 立即可验证：SKILL.md 红线段含 R1-R8 共 8 条（grep -c "^R[0-9]\." SKILL.md ≥ 8）
+  - 立即可验证：standards/evidence-binding.md 存在 + ≥ 9 段（一到九）
+  - 实战验证：下次新加 P0 patch 设计契约时 PMO 应主动声明走路径 A/B/C 哪条 · 不应直接新增「红线 #N」
+- README 同步：❌（内部架构重构 · 不影响新用户视角的体感 · 同 P0-101/P0-102 处理 · 但首次涉及红线条数变化建议下次 README 大同步时一并体现）
+
+## v7.3.10 + P0-102（容量焦虑暂停反模式 · 三层物理拦截）
+
+> v7.3.10+P0-102 容量焦虑暂停（capacity-anxiety pause）红线。**触发**：用户分享 Feature 流程 AUTO 模式 case · Blueprint Stage 入口实例化（state.json 写完）后 PMO 输出"为避免单回合溢出 · 本回合在此暂停让你看到 Goal-Plan ✅ 进度 · 下一条 ok / auto 继续"。诊断：双重违规（flow-transitions L60 是 🚀 自动流转 · auto 模式连合法 ⏸️ 都豁免反而停下来）+ 现有红线 #12 没明文覆盖"以回合边界 / 容量预算"为由的自创暂停变种。
+
+### P0-102：容量焦虑暂停红线（三层物理拦截 · 同 P0-101 evidence-binding 套路）
+
+- 触发：用户实战 case 暴露红线 #12 「非暂停点禁止暂停」概念性约束被 LLM "贴心 / 防溢出"包装绕过。LLM 误把"回合边界"（宿主 Claude/Cowork 层概念）当 spec 层暂停理由 · 在 🚀 自动流转节点人工拆分回合。
+- 设计哲学（继承 P0-101 evidence-binding 三层物理拦截设计）：
+  - **顶层正名**（红线扩展）：SKILL.md 红线 #12 加明文 "回合边界 / 容量预算 / 让用户看进度 / 单回合溢出 / 为下回合留预算 不构成暂停理由"
+  - **中层物理拦截**（措辞黑名单）：roles/pmo-auto-mode.md § 十 列举具体反例措辞 · LLM 没法用"贴心"包装绕过明文匹配
+  - **底层契约**（stage 通用规范）：standards/stage-instantiation.md § 三 + § 四 写明「入口实例化 → 子步骤 1 自动续接 · 同一回合内必须开始实际工作」
+- 核心改动：
+  - **P0-102-A. `SKILL.md` 红线 #12 扩展**（顶层正名 · 1 句话）：
+    - 在原"非暂停点禁止暂停"末尾加：**"回合边界 / 容量预算 / 让用户看进度 / 单回合溢出 / 为下回合留预算 不构成暂停理由（宿主层关注 · spec 层只认 ⏸️ 标注 · 真溢出由系统自动断点续传）。Stage 入口实例化 → 子步骤 1 必须自动续接"**
+    - 引用：detailed in roles/pmo-auto-mode.md § 十
+  - **P0-102-B. `roles/pmo-auto-mode.md` 加 § 十「容量焦虑暂停反模式」**（中层物理拦截 · ~80 行 · **关键**）：
+    - § 10.1 实战触发 case（v7.3.10+P0-102 实战 case 写入 · 后人查规则时能看到具体反例）
+    - § 10.2 措辞黑名单表（5 类反例措辞 · 含 "避免单回合溢出" / "让你看到 X 进度" / "下一条 ok / auto 继续" / "工作量大本回合先停" / "本回合在此暂停"）
+    - § 10.3 物理拦截判定流程（伪码 · 含暂停理由检查 → 黑名单匹配 → 自动续接）
+    - § 10.4 正确姿态对照（❌ 反模式 vs ✅ 正确姿态 · 直接抄 case 原文）
+    - § 10.5 与红线 #12 的关系表（4 维度对照）
+    - § 10.6 PMO 自检 checklist（5 条 · 起草任何收尾段时必过）
+  - **P0-102-C. `standards/stage-instantiation.md` 加自动续接硬规则**（底层契约 · ~15 行）：
+    - § 三 默认通道 加 "🔴 自动续接子步骤 1（v7.3.10+P0-102 强化）" 4 子条
+    - § 四 入口实例化硬约束 加 "🔴 入口实例化 → 子步骤 1 自动续接硬规则" 含反模式 3 条 + 物理拦截
+    - 与红线 #12 / #14 的关系明示
+- **核心收益**：
+  - 物理层拦截"容量焦虑暂停"反模式（黑名单措辞 · LLM 没法用"贴心"包装绕过）
+  - 红线 #12 不再是概念性约束 · 有具体可机器匹配的反例措辞清单
+  - Stage 入口实例化 → 子步骤 1 自动续接成为契约层硬规则 · 三 Stage（goal-plan/blueprint/review）共享单源
+- **加 1 删 1 元规则核算**：
+  - **加**：SKILL.md 红线 #12 扩展（1 句话）+ pmo-auto-mode.md § 十（~80 行）+ stage-instantiation.md 自动续接段（~15 行）= ~95 行
+  - **删**：无（新增红线 · 无旧规则被替代）
+  - **净加 ~95 行**（同 P0-101 evidence-binding · 物理拦截硬规则一次到位）
+- 不动：
+  - dev-stage / test-stage 等无"入口实例化 → 子步骤 1"transition 的 Stage（dev 直接 RD 起草 · 没有这个转换点 · 不需要专项规则）
+  - standards/output-tiers.md 反模式 5（silent execution 是输出叙事层 · 与流程暂停层正交）
+  - roles/pmo.md（P0-93~97 已瘦身完毕 · 反向加内容会破坏 sub-file 单源）
+- 影响面：4 个文件改动（SKILL.md / pmo-auto-mode.md / stage-instantiation.md / CHANGELOG.md）+ 元数据 2 个（SKILL.md version / init-stage.md SKILL_VERSION）
+- 后续验证：
+  - 立即可验证：SKILL.md 红线 #12 含 "回合边界 / 容量预算" 措辞 + pmo-auto-mode.md § 十 存在 + stage-instantiation.md 含 "自动续接子步骤 1"
+  - 实战验证：下次 Blueprint Stage 入口实例化（state.json 写完）后 PMO 应自动开始 QA TC + RD TECH 起草 · 不应输出"本回合在此暂停 / 下一条 ok / auto 继续"
+  - 对比基线：本次 case 之前 PMO 输出 "为避免单回合溢出 · 本回合在此暂停"；P0-102 后 PMO 起草收尾段时自动 grep § 10.2 措辞黑名单 · 命中 = 删除暂停意图
+- README 同步：❌（内部硬规则 · 不影响新用户视角的体感 · 同 P0-101 处理）
+
+## v7.3.10 + P0-101（事实字段 evidence-binding 硬规则）
+
+> v7.3.10+P0-101 evidence-binding 硬规则。**触发**：用户「codex 为什么不可以用」case · PMO 凭印象写 `available_external_clis: []` 但实际 codex 在 PATH（执行 `command -v codex` 显示 `/usr/local/bin/codex`）。诊断：缺乏 evidence binding 机制 + 缺乏物理拦截手段（仅靠规则约束 AI "不要凭印象" 没用）+ 状态字段与事实字段未区分。
+
+### P0-101：事实字段 evidence-binding 硬规则（state 字段 vs fact 字段分类 + 物理拦截）
+
+- 触发：用户分享 case · `state.json.external_cross_review.available_external_clis = []` 与实际不符 · `command -v codex` 实测有路径。根因：PMO 凭印象生成事实型字段 + 没有"必须贴 stdout 原文"的硬约束 → AI 没法被规则约束（因为不需要贴原文就能写） → 物理上没拦截。
+- 设计哲学：
+  - **状态字段 vs 事实字段**：状态字段（PMO 自判状态机：current_stage/phase/verdict）由内部推导即可 · 事实字段（外部观察判定：available_external_clis/mr_url/feature_pushed_at/tests_passed/code_context_read）必须 evidence binding。
+  - **物理拦截 > 规则约束**：要求贴 stdout 原文 → AI 没法编造真实命令输出 → 一旦要求贴原文必须真跑 · 这是物理层拦截 · 不依赖 AI 自觉。
+  - **evidence schema**：每个事实字段配套 `*_evidence` 子对象（command + stdout 原文 + exit_code + timestamp）· 缺一不可。
+- 核心改动：
+  - **P0-101-A. `templates/feature-state.json` schema 加 evidence 子对象**：
+    - `available_external_clis` 旁加 `detection_evidence` 字段 + `_detection_evidence_schema` 注释（command/stdout/exit_code/detected_at）
+    - `_detection_evidence_note` 标注 evidence-binding 红线（v7.3.10+P0-101）
+  - **P0-101-B. `stages/triage-stage.md` Step 4 强制 bash 实测 + 贴 stdout**：
+    - 探测命令固化为单 bash 单 tool call（`command -v codex; echo "codex_exit=$?"; ...`）
+    - 完整 stdout 原文必须落两处：① 主对话「🌐 External 探测」段（verbatim · 不改写为 "available: []"）② state.external_cross_review.detection_evidence
+    - 物理拦截原理：AI 没法编造真实 stdout · 一旦要求贴原文必须真跑
+  - **P0-101-C. `SKILL.md` 加红线 #16**（事实字段 evidence-binding 硬规则）：
+    - 规则范围：available_external_clis / feature_pushed_at / mr_url / tests_passed / pm_self_check.code_context_read 等"来自外部观察"的字段
+    - 状态字段（current_stage / phase / verdict 等 PMO 自判状态机）不在本红线范围
+    - 实战触发 case 写入红线条文 · 后人查规则时能看到具体反例
+  - **P0-101-D. `roles/pmo-state-mgmt.md` § 2.3 + § 2.4 加出口校验**：
+    - § 2.3 Stage 结束必做 加 Step 1.5 「事实字段 evidence-binding 完整性校验」（Output Contract 校验之后 / Write 之前）
+    - § 2.4 加新子段「事实字段 evidence-binding 出口校验」：含字段范围表 / 校验步骤伪码 / 违规处置 / 反模式 / 状态字段边界
+    - PMO 在 Stage 出口 Read 之后、Write 之前必须执行本校验 · 失败 = 流程违规 = 阻断 Stage 出口
+- **核心收益**：
+  - 物理层拦截"凭印象生成事实字段"反模式（AI 没法编造真实 stdout）
+  - 状态字段 vs 事实字段分类清晰 · 后续新增字段时能正确归类
+  - 出口校验自动化 · PMO 不需要"记得检查" · 由 § 2.3 操作序列驱动
+- **加 1 删 1 元规则核算**：
+  - **加**：feature-state.json schema 注释（~15 行）+ triage-stage.md Step 4 evidence 段（~30 行）+ SKILL.md 红线 #16（1 行）+ pmo-state-mgmt.md § 2.3 Step 1.5（5 行）+ § 2.4 新子段（~50 行）= ~100 行
+  - **删**：无（新增红线 · 无旧规则被替代）
+  - **净加 ~100 行**（evidence-binding 是基础设施级的硬规则 · 一次到位）
+- 不动：
+  - 其他 9 个事实字段已有的实测惯例（review-log.jsonl 已落 stdout · ship 已要求 push 后实测远端 ref）保留 · 仅形式化 schema
+  - 其他状态字段（current_stage/phase/verdict 等 PMO 内部状态机）不受影响
+- 影响面：5 个文件改动（feature-state.json / triage-stage.md / SKILL.md / pmo-state-mgmt.md / CHANGELOG.md）+ 元数据 2 个（SKILL.md version / init-stage.md SKILL_VERSION）
+- 后续验证：
+  - 立即可验证：SKILL.md 红线 #16 存在 + pmo-state-mgmt.md § 2.4 含「事实字段 evidence-binding 出口校验」子段 + feature-state.json `_detection_evidence_schema` 存在
+  - 实战验证：下一次 Triage Stage Step 4 应输出 `command -v codex` 完整 stdout（含路径或 "not found"）+ exit code · 不应再出现 `available: []` 凭印象判定
+  - 对比基线：本次 case 之前 PMO 写 `available: []` 无 evidence；P0-101 后必有 detection_evidence 子对象 · 缺则 § 2.3 Step 1.5 阻断流转
+- README 同步：❌（内部硬规则改 · 不影响新用户视角的体感）
+
+## v7.3.10 + P0-100（🎉 P0 系列百号里程碑）
+
+> v7.3.10+P0-100 README 同步收齐技术债。**触发**：用户审视 README · 发现版本号 P0-60 落后实际 P0-99 · 累积 40+ patches 的关键变化（Wave 1-4 评审规范分层规范化 / Pull-Push 模式 / Silent execution / Ship CLI 优先 / Worktree 默认 auto）没反映。
+
+### P0-100：README 同步收齐技术债（P0 系列百号里程碑）
+
+- 触发：用户审 README 后反馈"是否需要修改 · 能否反应 teamwork 的真实现状"。诊断结果：版本号陈旧（P0-60 → 实际 P0-99）+ 角色体系老（v7.3.10+P0-86 起 8 主 role + 12 sub-file 没体现）+ Wave 4 PMO 瘦身完全没提 + 多个体感改进（Pull/Push 模式 / Silent execution / CLI 优先）缺位。
+- 设计哲学：README 是新用户/老用户回访的第一入口 · 必须反映**当前真实可用状态** · 而不是历史快照。本次同步把累积 7-8 个月的实战改进收齐 + 建立后续维护策略（重大体感变更必更）。
+- 核心改动：
+  - **P0-100-1. `README.md` 全文修订**（294 → 280+ 行 · 净增 ~30 行 · 信息密度大幅提升）：
+    - 顶部版本号：v7.3.10+P0-60 → v7.3.10+P0-100
+    - § 角色体系：6 role → 8 role（架构师独立 peer-level v7.3.10+P0-86 · External Reviewer v7.3.10+P0-38 升格）+ 12 sub-file 矩阵
+    - § 流程概览：加 Pull/Push 模式说明（轻型/重型意图分流 P0-81）+ Silent execution 主张（P0-98）
+    - § Worktree 策略：OFF → auto 默认（P0-41 修订自原 P0-9）
+    - § Ship Stage MR 模式：补 P0-29 双段 / P0-32 finalize / **P0-99 CLI 优先 + URL 兜底**
+    - § 版本历史：里程碑列表补 P0-61 ~ P0-100（重点：P0-78 ADR / P0-81 Pull / P0-85 Wave 1 / P0-86 Wave 2 / P0-87~92 Wave 3 / P0-93~97 Wave 4 / P0-98 silent / P0-99 Ship CLI）
+  - **P0-100-2. `README-EN.md` 同步关键变化**（不重写全文）：
+    - 顶部版本号 → P0-100
+    - 加 "Recent highlights (P0-85 ~ P0-100)" 段（8-role matrix · pmo slimming · Pull/Push triage · Silent execution · Ship CLI-first）
+  - **P0-100-3. 版本号 + init-stage.md SKILL_VERSION 期望同步**（7.3.10+P0-99 → 7.3.10+P0-100）
+- **核心收益**：
+  - README 真实反映当前 v7.3.10+P0-100 状态 · 不再误导新用户/老用户
+  - 关键体感改进（Pull 模式 / Silent execution / CLI 优先）首次进 README 主线
+  - 角色体系 sub-file 矩阵首次成为 README 一等公民（之前只在 SKILL.md / agents/README.md 索引）
+- **加 1 删 1 元规则核算**：
+  - **加**：角色体系 sub-file 矩阵段（~25 行）+ Pull/Push 模式段（~10 行）+ Ship CLI 段（~15 行）+ 里程碑补 P0-61~100（~25 行）= ~75 行
+  - **删**：旧角色体系简介（~10 行）+ 旧 Ship MR 模式段（~12 行）+ 老 worktree OFF 描述（~3 行）= ~25 行
+  - **净加 ~50 行**（v7.3.10+P0-60 → P0-100 累积 40 patches 的产品层结晶）
+- **后续维护策略（v7.3.10+P0-100 引入）**：
+  - 重大体感变更必更 README（Stage 流程改 / 暂停点重构 / 角色体系变化 / 重大默认值反转）· 在 P0 patch 的 step 列表中加可选项
+  - 内部重构 / sub-file 抽出 / 文档单源化 类 patch 不更 README（避免噪声）
+  - CHANGELOG 顶部 entry 加 "README 同步: ✅ / ❌（理由）" 行
+- 不动：
+  - SKILL.md / FLOWS.md / RULES.md / 各 stage spec / role 文件等内部文档（README 是入口 · 内部文档不需要重做）
+  - README-EN.md 的全文（仅同步 highlights · 保英文风格 · 完整重写留给后续单独 patch）
+- 影响面：2 个文件改动（README.md 大改 / README-EN.md 小改）+ 元数据 2 个（SKILL.md / init-stage.md SKILL_VERSION）+ CHANGELOG entry
+- 后续验证：
+  - 立即可验证：grep "v7.3.10+P0-60" 应 0 命中（除 CHANGELOG 历史段）+ README 提到 8 role + sub-file + Pull/Push + Silent + CLI 优先
+  - 实战验证：新用户读 README 应能在 5 分钟内理解当前角色体系 + 流程模式 + 关键产品体验
+- 设计意图：100 号里程碑 patch 不能只是版本号 +1。本 patch 把 60 → 99 累积 40 patches 的重要产品改进做一次全量同步 · 顺便建立后续 README 维护策略 · 防止再次出现 7-8 个月的累积技术债。
+
+---
+
+## v7.3.10 + P0-99
 
 > v7.3.10+P0-99 Ship Stage MR/PR 创建升级：CLI 优先（gh / glab）实际创建 MR · URL 兜底（CLI 不可用 / 失败 / gitee / bitbucket / unknown）。**用户实战诉求**：「ship 阶段优先使用 glab 或 gh 创建好 MR 在给用户 MR 或 PR 地址 · 如果环境不满足 · 提示用户处理环境问题 · 并使用 MR 创建链接兜底」。
 

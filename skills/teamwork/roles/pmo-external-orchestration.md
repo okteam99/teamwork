@@ -17,7 +17,7 @@
 
 🆕 v7.3.10+P0-38 关键变化：external 升格为评审角色（[roles/external-reviewer.md](./external-reviewer.md)）· 与 PL/RD/QA/Designer/PMO/Architect 平级。
 
-- **角色可用性扫描**移到 [stages/init-stage.md](../stages/init-stage.md) Step 1.x（一次性）
+- **角色可用性扫描**移到 [stages/prepare-stage.md](../stages/prepare-stage.md) Step 9（角色可用性）（一次性）
 - **triage Step 8** 仅输出骨架（execution_hints 文本是否推荐 external · 由 triage Step 4 扫描的 available_roles 决定）
 - **是否实际启用** 在各 Stage 入口实例化时由 PMO 决策（基于 execution_hints + 上游产物复杂度）
 - **不再有** plan_enabled / blueprint_enabled / review_enabled 三字段（已删）

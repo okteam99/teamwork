@@ -94,7 +94,7 @@ Step 5: REFACTOR — 保持绿态前提下清理代码
 - **生成代码**（脚本生成 / 模板代码 · 已有源 spec 验证）
 - **配置文件**（.env / Dockerfile / 路由配置 · 由集成测试间接覆盖）
 - **简单方案**（RD 在 Dev Stage 入口申请 + 用户显式同意 · 详见 [stages/dev-stage.md](../stages/dev-stage.md)）
-- **Micro 流程**（零逻辑改动 · 文案 / 样式 / 资源 / 配置常量 · 详见 [SKILL.md 红线 #1 Micro 例外](../SKILL.md)）
+- **Micro 流程**（零逻辑改动 · 文案 / 样式 / 资源 / 配置常量 · 详见 [SKILL.md 红线 R1 Micro 例外](../SKILL.md)）
 
 🔴 例外必须在 `state.json.concerns[]` 落记录 `skip_reason: "..."` + 关联用户授权时间戳。
 

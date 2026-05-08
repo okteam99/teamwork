@@ -6,8 +6,9 @@
 > - 评审 verdict + finding severity → [standards/review-verdict.md](../standards/review-verdict.md)
 > - 评审 scope → [standards/review-scope.md](../standards/review-scope.md)（External 在 prd / blueprint / code-review 三 scope）
 > - **External 异质性硬约束** → [standards/external-model.md](../standards/external-model.md)
+> - 🔴 **External 合规使用边界**（v7.3.10+P0-104 OpenAI ToS 合规） → [standards/external-model-usage.md](../standards/external-model-usage.md)（只读 / 评审 / 不执行 / 不写文件 · 物理拦截 cyber abuse 信号）
 >
-> v7.3.10+P0-38 创建 · v7.3.10+P0-38-A 修订（available_roles 决定迁到 triage Step 4）· v7.3.10+P0-72 PMO 直接判定（不再用脚本）· v7.3.10+P0-83 删 Goal-Plan external（仅 Blueprint/Review 适用）。
+> v7.3.10+P0-38 创建 · v7.3.10+P0-38-A 修订（available_roles 决定迁到 triage Step 4）· v7.3.10+P0-72 PMO 直接判定（不再用脚本）· v7.3.10+P0-83 删 Goal-Plan external（仅 Blueprint/Review 适用）· v7.3.10+P0-104 加合规边界 cite（codex 账号 abuse 警告 case）。
 
 **触发**：在 Blueprint / Review Stage 入口被 PMO 实例化为 review_roles[] 之一时启动。
 
@@ -222,7 +223,7 @@ Step 4：dispatch + 接收输出 + 校验 schema
 | 文件 | 关系 |
 |------|------|
 | [roles/pmo.md](./pmo.md) | PMO 是 External 角色的调度方（在 Stage 入口实例化 + dispatch + 接收输出）|
-| [stages/init-stage.md](../stages/init-stage.md) | init Stage 不做角色扫描（v7.3.10+P0-38-A 回退）|
+| [stages/triage-stage.md](../stages/triage-stage.md) | init Stage 不做角色扫描（v7.3.10+P0-38-A 回退）|
 | [stages/triage-stage.md](../stages/triage-stage.md) | triage Step 4 决定 external 是否进入 available_roles + Step 8 在 execution_hints 文本中给建议（仅当可用）|
 | [stages/blueprint-stage.md](../stages/blueprint-stage.md) | Blueprint Stage 入口实例化时决策 external 启用 |
 | [stages/review-stage.md](../stages/review-stage.md) | Review Stage 入口同上 · 默认推荐 ON |

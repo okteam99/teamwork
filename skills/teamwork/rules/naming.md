@@ -120,7 +120,7 @@
 | 蓝图阶段 | **Blueprint** | `blueprint-stage.md` / `blueprint_substeps_config` / `"blueprint"` | — |
 | 评审阶段 | **Review** | `review-stage.md` / `review_substeps_config` / `"review"` | — |
 | 开发 / 测试 / 上线 | **Dev** / **Test** / **Ship** | `dev-stage.md` / `test-stage.md` / `ship-stage.md` | — |
-| 分诊 / 初始化 | **Triage** / **Init** | `triage-stage.md` / `init-stage.md` | — |
+| 分诊 / 重型准备 | **Triage** / **Prepare** | `triage-stage.md` / `prepare-stage.md` | v7.3.10+P0-107：原 `init-stage.md` 已物理删除（拆分为 triage + prepare） |
 
 🔴 **硬规则**：
 - 在 prose（说明文字 / 注释 / 标题）中提到 Stage 概念时，用**标准形**（如 `Goal-Plan Stage 入口实例化`）

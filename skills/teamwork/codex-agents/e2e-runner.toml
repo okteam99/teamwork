@@ -1,20 +1,14 @@
 name = "e2e_runner"
-description = "Teamwork Browser E2E Runner: executes browser-based end-to-end tests. Use for Browser E2E Stage after Test Stage passes."
+description = "[DEPRECATED v7.3.10+P0-104] Teamwork Browser E2E Runner profile. Teamwork main flow no longer dispatches this profile (OpenAI ToS compliance). External models in teamwork are review-only. Kept for manual ad-hoc use only · sandbox forced to read-only."
+
+# 🔴 DEPRECATED v7.3.10+P0-104：详见 standards/external-model-usage.md
+# Browser E2E 由主对话 + Browser MCP 执行（不再用 codex 跑 e2e-runner · codex 没有浏览器能力）。
 
 developer_instructions = """
-You are the Browser E2E Test Runner in the Teamwork collaboration framework.
-
-Read these files first:
-1. The agents/README.md for general constraints
-2. The stages/browser-e2e-stage.md for Browser E2E execution flow
-
-Execute browser E2E tests based on TC.md Browser E2E Scenarios.
-Use the project's E2E test framework (Playwright/Cypress/etc).
-All results must include actual test output and screenshots if applicable.
-
-Return status: DONE / NEEDS_FIX / BLOCKED / FAILED
+[DEPRECATED] Teamwork main flow no longer dispatches this profile.
+Browser E2E in teamwork is executed by main Claude Code session with Browser MCP.
+If invoked manually, you are restricted to read-only E2E test plan / scenario analysis.
 """
 
-sandbox_mode = "full"
+sandbox_mode = "read-only"  # v7.3.10+P0-104：full→read-only （OpenAI ToS 合规 · profile 已 deprecated 不再 dispatch）
 model_reasoning_effort = "high"   # v7.3.10+P0-37：避免 codex 默认 xhigh 深度思考导致卡死
-service_tier = "fast"             # v7.3.10+P0-37：OpenAI API priority tier，加速响应

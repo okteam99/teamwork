@@ -111,7 +111,7 @@ PMO 自动识别产品方向讨论（用户不需要指定角色）：
 🔴 无 product-overview/ 目录时：跳过变更级别判断，直接切换到 PM
 🔴 Product Lead 讨论模式不依赖 product-overview/ 是否存在（首次讨论由 PL 创建）
 
-🔴 流程类型枚举 + 兜底规则权威源（v7.3.10+P0-50 单源化）：[SKILL.md § 绝对红线 #2 流程类型规范](./SKILL.md) + [RULES.md § 兜底规则](./RULES.md)（不复述细则）
+🔴 流程类型枚举 + 兜底规则权威源（v7.3.10+P0-50 单源化）：[SKILL.md § 绝对红线 R2 流程类型规范](./SKILL.md) + [RULES.md § 兜底规则](./RULES.md)（不复述细则）
 ```
 
 ### Feature vs Feature Planning 歧义判断规则
@@ -168,7 +168,7 @@ PMO 识别为 Feature Planning 后，进一步判断范围：
 
 ## Feature 流程规则
 
-> Feature 流程无简化版本（→ 红线 #3）。PRD 必须经用户确认后才能进入下一阶段（→ 红线 #5）。
+> Feature 流程无简化版本（→ 红线 R4）。PRD 必须经用户确认后才能进入下一阶段（→ 红线 R5）。
 
 ### 流程豁免规则（极严格）
 
@@ -402,56 +402,72 @@ PMO → 总结 + 知识库更新 + 输出 Bugfix 记录 + 自动 commit
 
 ---
 
-## Feature Planning 流程（产品规划）
+## Feature Planning 流程（产品规划 · v7.3.10+P0-108 重写为纯执行流程）
 
-> 从产品目标/愿景出发，先确认产品全景（长什么样），再落到业务文档（PROJECT.md），最后拆解为 Feature Roadmap。
-> Roadmap 确认后，各 Feature 逐个进入标准 Feature 流程执行。
+> 🟡 **职责正交化（v7.3.10+P0-106 引入 · v7.3.10+P0-108 完成）**：讨论部分完全归 E · discuss · 本流程**仅承担"写多文档"执行动作**。
+>
+> 前提：用户已在 E · discuss 中拍板（产品方向 / Feature 列表 / 优先级 / 依赖）· 没拍板的不应进本流程。
+>
+> 详见 [standards/discussion-mode.md § E · discuss vs Feature Planning](./standards/discussion-mode.md)。
 
-### 流程概览
+### 流程概览（v7.3.10+P0-108 简化）
 
 ```
-/teamwork 规划 [产品目标]
+[前置条件]
+用户在 E · discuss 已拍板规划方向
     ↓
-PMO 识别为 Feature Planning 类型
-    ↓ 🚀 自动（同一回复中继续）
-🔄 切换到 PM，开始产品规划
+[prepare-stage 流程类型识别 = Feature Planning]
     ↓
-PM 与用户讨论产品方向（澄清目标、功能范围、取舍决策）
-├── 如需要，向用户提问
-└── 讨论过程中记录关键决策
+🔄 PMO 整理 E · discuss 结论
+├── 继承讨论上下文（不重复讨论 · 不再问"你想做什么"）
+├── 提取：产品方向 / Feature 列表 / 优先级 / 依赖关系
+└── 识别需写的文件：sitemap.md（如涉及页面变更）/ PROJECT.md / ROADMAP.md
     ↓
-🎨 全景设计验收（有 UI 的子项目。🔴 讨论达成共识后立即执行！）
-├── PMO 判断：本次 Planning 是否涉及页面结构变更（新增/删除/重组页面）？
-│   ├── 是 → 启动 Designer Subagent（🔴 全景重建模式）
-│   │   ├── Subagent 基于讨论结论重建全景设计
-│   │   ├── 产出：design/sitemap.md（全新页面地图）+ design/preview/overview.html（全新全景原型）
-│   │   └── PMO 摘要 → ⏸️ 等待用户确认全景设计
-│   └── 否 → 显式输出「⏭️ 本次 Planning 无页面结构变更，跳过全景重建」
-├── 非 UI 子项目 → 显式输出「⏭️ 非 UI 项目，跳过」
-└── 用户确认全景设计
+📋 PMO 输出变更摘要 → ⏸️ 一次性确认（最后确认）
+├── 列出每个文件的变更点（追加 / 修改 / 重写 · 哪些段）
+├── 列出 Feature 编号分配（F033 ... F040 等）
+├── 列出依赖关系图
+└── 用户回 ok / 修改建议
     ↓
-📋 PM 更新 PROJECT.md（🔴 必须执行）
-├── 基于已确认的全景设计 + 讨论结论，更新 PROJECT.md
-├── 产品方向/业务变更 → 更新业务流程图、功能模块、关键决策等章节
-├── 仅追加新 Feature → 仅更新「当前状态」章节
-└── 更新完成后在 PMO 摘要中列出 PROJECT.md 变更点
+🚀 PMO 落地写多文档（同一回合内 · 不再分多次暂停）
+├── 🎨 sitemap.md（如涉及页面结构变更）
+│   └── 直接 Edit · 不再做"全景重建" Subagent dispatch
+├── 📋 PROJECT.md
+│   └── 产品方向 / 业务流程图 / 功能模块 / 关键决策（按变更摘要落地）
+├── 📊 ROADMAP.md
+│   └── Feature 列表 + P0/P1/P2 + 依赖关系（状态 ✅ 已确认）
+└── PMO 摘要：变更点列表 + 文件链接
     ↓
-PM 基于已确认的 PROJECT.md 拆解 ROADMAP
-├── 立即创建 ROADMAP.md 草稿（状态：📝 草稿）→ docs/ROADMAP.md
-├── 🔴 必须尽早写入文件，确保中断后可恢复
-├── 识别功能边界（每个 Feature 可独立交付）
-├── 按 P0/P1/P2 排优先级
-└── 分析 Feature 间的依赖关系
+✅ Feature Planning 流程完成
+├── 不创建 Feature state.json（Planning 只出文档 · 各 Feature 由用户后续启动）
+└── 用户后续通过 /teamwork [Feature 需求] 启动具体 Feature
     ↓
-PM 完成 ROADMAP.md（状态更新为：⏸️ 待确认）
-    ↓
-📊 PMO 摘要 → ⏸️ 等待用户确认 Roadmap（优先级 + 依赖关系）
-    ↓
-用户确认 Roadmap → Planning 流程完成（ROADMAP.md 状态更新为：✅ 已确认）
-    ↓
-用户逐个通过 /teamwork [Feature 需求] 启动 Feature 流程
-    ↓
-Feature 完成时更新 ROADMAP.md 对应行状态
+Feature 完成时回写 ROADMAP.md 对应行状态（在 Feature 流程的 Ship Stage 中执行）
+```
+
+### 简化点（vs v7.3.10+P0-108 之前）
+
+```
+v7.3.10+P0-106 之前的旧流程（含内部讨论 · 已废弃）：
+  ❌ "PM 与用户讨论产品方向（澄清目标、功能范围、取舍决策）"
+     → 讨论已在 E · discuss 完成 · 不重复
+  
+  ❌ "全景设计验收 ⏸️ 等待用户确认全景设计"（独立暂停点）
+     → 合并到"一次性确认变更摘要"
+  
+  ❌ "PM 更新 PROJECT.md → 用户确认"（独立步骤）
+     → 合并到"PMO 落地写多文档"同一回合
+  
+  ❌ "PM 完成 ROADMAP.md → ⏸️ 等待用户确认 Roadmap"（独立暂停点）
+     → 合并到"一次性确认变更摘要"
+  
+  ❌ "Designer Subagent 全景重建"
+     → 设计决策已在 E · discuss 中讨论 · sitemap.md 直接 Edit · 不需 dispatch
+
+v7.3.10+P0-108 后流程：
+  ✅ 1 次确认（变更摘要）+ 1 次执行（写多文档）= 2 步完成
+  ✅ 没有"边讨论边规划"反模式
+  ✅ 同一回合写完所有文档（避免中断 / 多次暂停）
 ```
 
 ### Feature Planning 规则
@@ -545,65 +561,51 @@ PMO 调度 PM/RD/Architect 协作详细规划：
 > Feature Planning 升级为工作区级，操作 teamwork_space.md + 受影响的多个子项目。
 > 🔴 本流程仍属于 Feature Planning（不是独立流程），由 PMO 自动判断范围。
 
-### 工作区级流程概览
+### 工作区级流程概览（v7.3.10+P0-108 简化）
 
 ```
-/teamwork 规划 [整体架构变更需求]
+[前置条件]
+用户在 E · discuss 已拍板工作区级架构调整方向
+（含：子项目增删 / 职责变更 / 跨项目依赖 / 整体技术架构）
     ↓
-PMO 识别为 Feature Planning 类型 + 判断为工作区级（🌐）
-    ↓ 🚀 自动（同一回复中继续）
-🔄 切换到 PM，开始工作区级产品规划
+[prepare-stage 流程类型识别 = Feature Planning · 范围 = workspace]
     ↓
-
-────────── 阶段一：Workspace 架构讨论 ──────────
-
-PM 与用户讨论整体方向
-├── 子项目增删调整（新增/删除/合并/拆分）
-├── 子项目职责变更
-├── 跨子项目依赖关系调整
-├── 整体技术架构调整
-└── 讨论过程中记录关键决策
+🔄 PMO 整理 E · discuss 工作区级结论
+├── 提取：架构调整方案 / 子项目变更清单 / 受影响子项目列表 / 推进顺序
+└── 输出：工作区变更摘要 + 子项目级变更摘要（每个受影响子项目一段）
     ↓
-
-────────── 阶段二：teamwork_space.md 更新 ──────────
-
-PM 更新 teamwork_space.md 草稿
-├── 更新「规划状态」→ 📝 规划中
-├── 更新「项目架构全景」Mermaid 图（子项目拓扑 + 依赖）
-├── 更新「子项目清单」表（增删改）
-├── 更新「变更记录」表
-└── ⏸️ 等待用户确认 teamwork_space.md 变更
+📋 PMO 输出工作区变更摘要 → ⏸️ 一次性确认（最后确认）
+├── 列出 teamwork_space.md 变更点（架构图 / 子项目清单 / 变更记录）
+├── 列出每个受影响子项目的变更（sitemap / PROJECT / ROADMAP 各自变更点）
+└── 用户回 ok / 修改建议
     ↓
-用户确认 teamwork_space.md
-├── teamwork_space.md 规划状态 → 🔄 子项目 Planning 中
+🚀 PMO 落地写多文档（同一回合内）
+├── 阶段一：teamwork_space.md（架构图 + 子项目清单 + 变更记录）
+├── 阶段二：受影响子项目（按推进顺序逐个写）
+│   ├── sitemap.md（如涉及页面变更）
+│   ├── PROJECT.md
+│   └── ROADMAP.md
+├── 阶段三：changes/{change_id}.md 创建（变更记录权威源）
+└── 阶段四：teamwork_space.md 规划状态 → ✅ 正常
     ↓
-
-────────── 阶段三：逐个子项目 Planning ──────────
-
-PM 确定受影响子项目列表及推进顺序
-    ↓
-对每个受影响的子项目，执行子项目级 Planning：
-├── 🎨 全景设计验收（有 UI 的子项目）
-│   ├── 启动 Designer Subagent（全景重建模式）
-│   └── ⏸️ 等待用户确认全景设计
-├── 📋 PM 更新 PROJECT.md
-└── 📊 PM 拆解 ROADMAP.md → ⏸️ 等待用户确认 Roadmap
-    ↓
-（循环直到所有受影响的子项目 Planning 完成）
-    ↓
-
-────────── 阶段四：Workspace Planning 收尾 ──────────
-
-所有子项目 ROADMAP 已确认
-    ↓
-PMO 更新 teamwork_space.md：
-├── 规划状态 → ✅ 正常
-├── 创建 / 更新对应 changes/{change_id}.md（v7.3.10+P0-59：teamwork_space.md 不再维护变更类表格）
-├── ⏸️ 等待用户确认最终 teamwork_space.md
-    ↓
-Workspace Planning 完成 ✅
+✅ Workspace Planning 完成
     ↓
 用户逐个通过 /teamwork [Feature 需求] 启动 Feature 流程
+```
+
+### 工作区级简化点（vs v7.3.10+P0-108 之前）
+
+```
+旧流程（含 4 阶段 · 多次暂停 · 已废弃）：
+  ❌ 阶段一：PM 与用户讨论整体方向（讨论已在 E · discuss）
+  ❌ 阶段二：⏸️ 等待用户确认 teamwork_space.md 变更（独立暂停点）
+  ❌ 阶段三：每个子项目 ⏸️ 等待用户确认全景 + ⏸️ 等待用户确认 ROADMAP（多次暂停）
+  ❌ 阶段四：⏸️ 等待用户确认最终 teamwork_space.md（再次暂停）
+  → 总暂停次数：1 + 1 + N×2 + 1 = 3+2N（N 个子项目时极多）
+
+P0-108 后流程：
+  ✅ 1 次暂停（工作区变更摘要 · 含所有子项目变更点）+ 1 次执行（写多文档）= 完成
+  → 总暂停次数：1（不论 N 多大）
 ```
 
 ### 工作区级 Planning 规则
@@ -698,13 +700,13 @@ PMO 完成报告
 │   必须暂停，PMO 评估是否需要升级为 Feature 流程
 ├── 精简 PRD 使用轻量模板（📎 模板见 templates/prd.md「精简版」）
 │
-🔴 反合理化条款（→ 红线 #3 + #5）：
+🔴 反合理化条款（→ 红线 R4 + #5）：
 ├── 「用户已给出明确技术方案」≠ 可以跳过流程阶段
 ├── 「需求很简单」「改动很小」≠ 可以跳过 PMO 暂停确认
 ├── 「用户没有反对」≠ 用户已确认流程类型
 ├── 「方案清晰无歧义」≠ 可以「直接进入开发」跳过精简 PRD 和 QA
 ├── 「建议直接进入开发」本身就是违规话术 — 敏捷需求也有完整阶段链，不存在跳到 RD
-├── 任何理由都不能作为跳过阶段链的依据（→ 红线 #3：禁止自行简化）
+├── 任何理由都不能作为跳过阶段链的依据（→ 红线 R4：禁止自行简化）
 └── 唯一合法的跳过方式：用户在暂停点主动说「跳过 XX 阶段」
 
 🔴 敏捷需求事后审计（PMO 完成报告前必须检查）：
@@ -719,7 +721,7 @@ PMO 完成报告
 ## 六、Micro 流程（微调流程）
 
 > 🎯 目的：为"纯替换/纯资源/零逻辑"类改动提供合法的轻量通道，消除 PMO 因"改动太小不值得走敏捷"而擅自越界的动机。
-> 🟢 **v7.3.10+P0-20 定位**：Micro = **省略 Plan/Blueprint/UI/Review/Test Stage 的最短 RD 闭环**。代码仍由 RD 执行（主对话 PMO→RD 身份切换），**Micro 不是红线 #1 的例外，是独立流程**。RD 仪式（读规范 + cite + 自查）完整保留，与红线 #1「代码写权归 RD」自洽。
+> 🟢 **v7.3.10+P0-20 定位**：Micro = **省略 Plan/Blueprint/UI/Review/Test Stage 的最短 RD 闭环**。代码仍由 RD 执行（主对话 PMO→RD 身份切换），**Micro 不是红线 R1 的例外，是独立流程**。RD 仪式（读规范 + cite + 自查）完整保留，与红线 R1「代码写权归 RD」自洽。
 
 ### Micro 流程链路
 
@@ -842,7 +844,7 @@ Micro 需求完成 ✅
 │   ├── 新改动越出白名单 → PMO 输出升级原因 → ⏸️ 用户确认走敏捷或 Feature
 │   └── 🔴 禁止在 RD 身份下直接接收新需求（防止身份蠕变、Micro 越扩越大）
 ├── 🔴 改动后必须执行 RD 自查（见 `roles/rd.md` 自查段）：至少规范符合 + 跑已有测试无回归
-├── 用户验收前禁止 commit/push（→ 红线 #5 同样适用）
+├── 用户验收前禁止 commit/push（→ 红线 R5 同样适用）
 └── 用户在任何时候可以要求升级为敏捷或 Feature 流程
 │
 🔴 砍掉的环节（与敏捷/Feature 的差异，即 Micro 的"省"）：

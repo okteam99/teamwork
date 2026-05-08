@@ -2,9 +2,11 @@
 
 Your AI dev team — one AI works as a full team, with **role-based perspectives + contract-based stages + machine-readable state machine**, letting one person drive the complete software lifecycle from product planning to delivery.
 
-[中文文档](./README.md) · Version: **v7.3.10+P0-60**
+[中文文档](./README.md) · Version: **v7.3.10+P0-100**
 
 > ⚠️ **English doc lags behind** — only key sections updated for current version. For the full up-to-date spec, see the [Chinese README](./README.md) and the authoritative [CHANGELOG](./skills/teamwork/docs/CHANGELOG.md).
+>
+> **Recent highlights (P0-85 ~ P0-100)**: 8-role + 12 sub-file matrix (Architect promoted to peer-level role · v7.3.10+P0-86) · pmo.md slimmed 1814 → 477 lines (Wave 4 · P0-93~97) · Pull/Push intent triage (lightweight intents skip framework ceremony · P0-81) · Silent execution mandate (no Step header / thinking-chain narration · P0-98) · Ship Stage CLI-first MR creation (gh / glab + URL fallback · P0-99).
 
 ## Overview
 

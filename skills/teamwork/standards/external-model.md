@@ -231,7 +231,7 @@ exit code != 0 →
 | `prompt-cache.md` | 外部模型调用属 L3 动态层，dispatch 文件不参与 prompt cache 命中 |
 | `common.md` | 外部模型不参与代码生成，只参与 review；不影响 TDD / Lint 硬门禁 |
 | `RULES.md` | 调用失败时的 WARN 落盘是闭环验证红线的一部分 |
-| `stages/init-stage.md` | init-stage 只检测主对话宿主，不预设外部模型；外部模型由 PMO 在 triage-stage 运行时探测 |
+| `stages/prepare-stage.md` | prepare-stage Step 1 检测主对话宿主（v7.3.10+P0-106 重构后），不预设外部模型；外部模型由 PMO 在 prepare-stage Step 9-10 运行时探测 |
 | `roles/pmo.md` | PMO 在初步分析时直接判定（v7.3.10+P0-72 自报宿主 + `command -v` 检查 CLI）+ 渲染「🌐 外部模型判定」段 + 决策点呈现 + 失败降级 |
 | `STATUS-LINE.md` | 启用外部 review 时 Status Line 显示 `[Ext: {model}]` 徽章 |
 

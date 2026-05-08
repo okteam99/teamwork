@@ -38,7 +38,7 @@ related_pr: null                          # 关联的 PR/MR 链接
 related_bugs: []                          # 关联的其他 Bug
 review_log_path: "{Feature}/review-log.jsonl"   # 复用 Feature 的 review-log
 
-# AI Plan 模式（v7.3 红线 #14）
+# AI Plan 模式（v7.3 红线 R7）
 planned_execution: {}                     # 各 Stage 的 Execution Plan 历史
 ---
 ```
