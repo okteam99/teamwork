@@ -12,8 +12,9 @@
 > 🔗 相关单源：
 > - [templates/feature-state.json](../templates/feature-state.json)（state.json 模板权威）
 > - [standards/prompt-cache.md § 四](../standards/prompt-cache.md)（R3 访问模式硬规则）
-> - [templates/state-patch.py](../templates/state-patch.py)（增量补丁脚本）
-> - [RULES.md § state.json 维护硬规则](../RULES.md)（patch.py > Edit）
+> - [tools/state.py](../tools/state.py)（state.json 单源 · v7.3.10+P0-127 替代 state-patch.py · 14 语义化子命令 + 状态机 / evidence-binding 物理拦截）
+> - [tools/init_triage.py](../tools/init_triage.py)（triage 入口 bootstrap · v7.3.10+P0-126）
+> - [RULES.md § state.json 维护硬规则](../RULES.md)（state.py 唯一允许 · Edit/Write 禁）
 > - [templates/teamwork-space.md](../templates/teamwork-space.md)（docs_root 列权威源）
 
 ---
@@ -231,11 +232,22 @@ for field in 本 Stage 写入的事实字段:
 - **事实字段**（来自外部观察 · 必须 evidence binding）：见上表
 - 区分原则：能由外部命令验证真伪的 = 事实字段 · PMO 内部状态机推导的 = 状态字段
 
-### 2.5 state.json 增量更新（v7.3.10+P0-52）
+### 2.5 state.json 写操作单源（v7.3.10+P0-127 重构 · 替代 P0-52 state-patch.py）
 
-> 🔴 **单源**：[RULES.md § state.json 维护硬规则](../RULES.md) + [templates/state-patch.py](../templates/state-patch.py)
+> 🔴 **单源**：[RULES.md § state.json 维护硬规则](../RULES.md) + [tools/state.py](../tools/state.py)
 >
-> 出口 Write 优先用 `state-patch.py` 增量补丁（只发送 diff + 校验）· 避免整文件复述。
+> 所有写操作走 [tools/state.py](../tools/state.py) 语义化子命令：
+> - 流转：`enter-stage` / `satisfy-gate` / `complete-stage`
+> - PM 决策：`pm-decision`
+> - Ship：`ship-sanitize` / `ship-push` / `ship-confirm-merged` / `ship-cleanup` / `ship-closed`
+> - Bug：`bug-frontmatter --validate-ship`
+> - Micro：`micro-validate`
+> - 通用：`add-concern` / `snapshot` / `validate`
+> - 逃生舱：`raw-write --reason ...`（自动 concerns WARN）
+>
+> 物理拦截：schema enum / 状态机转移合法性 / gate 顺序 / ship phase evidence 三件套（治本 P0-124）/ evidence-binding（治本 P0-101 / P0-119）/ artifact_root 写边界（治本 P0-41）。
+>
+> 旧 templates/state-patch.py 已退役（v7.3.10+P0-127）· 不再支持。
 
 ### 2.6 state.json 与现有文件的关系
 

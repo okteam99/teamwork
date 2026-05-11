@@ -52,50 +52,40 @@
 
 ---
 
-## 🔴 state.json 维护硬规则（v7.3.10+P0-54 新增）
+## 🔴 state.json 维护硬规则（v7.3.10+P0-127 重构 · 单源 tools/state.py）
 
 > **触发场景**：PMO 在任何 Stage 内更新 state.json 时。
 >
-> **目的**：节省 token 成本（Edit 全文成本随 state.json 大小线性增长，单 Feature 累积 ~7,500 tokens）+ 避免误改其他字段（patch 工具天然约束只动指定字段）。
+> **物化机制**（替代旧 P0-52 state-patch.py · 已移除）：所有 state.json 写操作走 [tools/state.py](./tools/state.py) 语义化子命令 · 物理拦截 schema / 状态机 / evidence-binding / R3 契约违规。
 
 ### 优先级（硬规则）
 
 ```
-🟢 优先：bash 调 templates/state-patch.py（增量更新，节省 token）
-🟡 次选：Edit 工具（仅当 patch 脚本不支持的复杂 edit 才回退）
-🔴 禁止：Write 全文重写（除非 state.json 损坏或首次创建）
+🟢 唯一允许：bash 调 tools/state.py 语义化子命令
+🚪 逃生舱：tools/state.py raw-write（必带 --reason · 自动 concerns WARN）
+🔴 禁止：Edit / Write 直接动 state.json（除非 state.json 损坏需手工修复）
+🔴 禁止：jq / sed / 任何外部 patch 工具
 ```
 
-### 回退到 Edit 的合法场景
+### 子命令映射（按 Stage 触发时机）
 
-仅以下三种情况允许 Edit 全文降级（其他场景必须用 patch.py）：
+| 时机 | 子命令 |
+|----|----|
+| Stage 转移 | `enter-stage --stage X [--allow-skip]` |
+| 三 gate 推进 | `satisfy-gate --stage X --gate {input\|process\|output} [--auto-commit H] [--artifacts a,b]` |
+| Stage 收尾 | `complete-stage --stage X` |
+| PM 验收决策 | `pm-decision --decision {approved_and_ship\|approved_no_ship\|rejected_with_feedback}` |
+| Ship Step 1-9 | `ship-sanitize` / `ship-push` / `ship-confirm-merged` / `ship-cleanup` / `ship-closed` |
+| Bug frontmatter | `bug-frontmatter --bug-id BUG-X --set k=v --validate-ship` |
+| Micro 合并校验 | `micro-validate --commit H --merge-target staging` |
+| concerns 追加 | `add-concern --severity {INFO\|WARN\|ERROR} --message ...` |
+| 只读快照 | `snapshot --tier {core\|stage\|full} [--cite a,b]` |
+| 校验 | `validate` |
+| 逃生舱 | `raw-read [--field path]` / `raw-write --set k=v --reason ...` |
 
-- 修改嵌套深度 ≥3 层的字段（patch 脚本仅支持顶层 + 1 层 merge-object）
-- 条件性修改（"如果 X 字段为 Y 才改 Z"）
-- 同时修改 ≥10 个字段（patch 命令长度超过 token 优势）
+完整 spec 见 [tools/state.py --help](./tools/state.py) + [roles/pmo-state-mgmt.md](./roles/pmo-state-mgmt.md)。
 
-### 典型调用范例
-
-```bash
-# Stage 转换
-python {teamwork}/templates/state-patch.py {Feature}/state.json \
-  --set 'current_stage=blueprint' \
-  --append 'completed_stages=goal_plan'
-
-# 评审循环超 3 轮决策
-python {teamwork}/templates/state-patch.py {Feature}/state.json \
-  --merge-object 'goal_plan_substeps_config={"review_round_overflow":true,"review_round_overflow_decision":"force-converge"}'
-
-# Ship 第二段 finalize
-python {teamwork}/templates/state-patch.py {Feature}/state.json \
-  --set 'current_stage=completed' \
-  --append 'completed_stages=ship_phase2_finalize' \
-  --set 'shipped=true'
-```
-
-📎 完整脚本规范：`templates/state-patch.py --help` + [roles/pmo.md § state.json 更新优先用 patch 脚本](./roles/pmo.md)。
-
-🔴 **PMO 校验门禁**：`git diff state.json` 应只显示意图中的字段变更，无未声明字段被改 → patch 脚本天然防"我改 stage 顺手把 note 也改了"漂移。如审计发现 PMO 用 Edit 全文更新 state.json 且不在合法降级场景内，视为流程偏离。
+🔴 **PMO 校验门禁**：`git diff state.json` 应只显示脚本声明的 `updated_fields`；任何 PMO 用 Edit 直接动 state.json 视为流程偏离 · 唯一例外是脚本本身损坏的紧急修复（必须 add-concern WARN 标注）。
 
 ---
 

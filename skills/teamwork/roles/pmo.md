@@ -33,7 +33,7 @@
 > - **§ 二 state.json 状态机维护规范**（v7.3.2 / +P0-23 R3 访问模式 / +P0-52 增量更新 / Compact 恢复 / 与现有文件关系）
 > - **§ 三 自下而上影响升级评估**（PM/RD 标记上游影响 → PMO 评估 ROADMAP / teamwork_space / Level 2 / Level 3）
 >
-> 🔗 **相关单源**：[templates/feature-state.json](../templates/feature-state.json)（state.json 模板权威）+ [standards/prompt-cache.md § 四](../standards/prompt-cache.md)（R3 硬规则）+ [templates/state-patch.py](../templates/state-patch.py)（增量补丁）+ [RULES.md § state.json 维护硬规则](../RULES.md)。
+> 🔗 **相关单源**：[templates/feature-state.json](../templates/feature-state.json)（state.json 模板权威）+ [standards/prompt-cache.md § 四](../standards/prompt-cache.md)（R3 硬规则）+ [tools/state.py](../tools/state.py)（语义化子命令 · v7.3.10+P0-127 替代 state-patch.py）+ [tools/init_triage.py](../tools/init_triage.py)（triage 入口 bootstrap · v7.3.10+P0-126）+ [RULES.md § state.json 维护硬规则](../RULES.md)。
 >
 > 历史源流：v7.3.2 引入 state.json 替代 STATUS.md → v7.3.9+P0-8 加跨项目依赖识别（独立段）→ v7.3.10+P0-23 加 R3 访问模式 → v7.3.10+P0-41 加产物路径路由 → v7.3.10+P0-52 加增量更新 → **v7.3.10+P0-96 三段合并抽出 sub-file**（pmo.md 1018 → 747 向 ~500 cap 推进 · Wave 4 Phase 4）。
 
