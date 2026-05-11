@@ -84,6 +84,37 @@
     "concerns": []
   },
 
+  "global_schema_docs": [],
+  "_global_schema_docs_comment": "v7.3.10+P0-119 新增：prepare-stage Step 3 全仓库 find 全局 schema 文档（*database*schema*.md / *schema*registry*.md）写入此字段。Blueprint Stage 架构师 Tech Review + Review Stage 架构师 CR 启用 schema 专项时 cite 此清单 · 强校验全局 schema 文档同步 · 不可降级。实证 case：SVC-PLATFORM-F034 因浅层 docs/ 路径检索误判 services/core/docs/architecture/database-schema.md 不存在 → 全局 schema 文档漂移。",
+  "_global_schema_docs_example": ["services/core/docs/architecture/database-schema.md", "services/web/docs/architecture/database-schema.md"],
+
+  "global_schema_docs_evidence": null,
+  "_global_schema_docs_evidence_schema": {
+    "command": "find {repo_root} -name '*database*schema*.md' -o -name '*schema*registry*.md'",
+    "stdout": "absolute paths (one per line)",
+    "exit_code": "0 = success / 1 = no match (legitimate empty)",
+    "timestamp": "ISO 8601",
+    "scanned_at": "prepare-stage Step 3"
+  },
+  "_global_schema_docs_evidence_note": "v7.3.10+P0-119 evidence-binding 协同（与 P0-101 一致）：global_schema_docs 是事实字段（来自 find 命令外部观察），必须含 evidence。缺 evidence = 流程违规。原因：实战 case 显示 PMO 凭印象判定 schema 文档不存在 · 实际 monorepo 嵌套子项目下有。stdout 原文是物理拦截。",
+
+  "schema_change_evidence": null,
+  "_schema_change_evidence_schema": {
+    "detected_at_blueprint": "ISO 8601 / null",
+    "detected_at_review": "ISO 8601 / null",
+    "tables_affected": ["table_name"],
+    "migration_files": ["{up.sql / down.sql 相对路径}"],
+    "global_docs_to_sync": ["{state.global_schema_docs[] 命中条目子集}"],
+    "global_docs_synced": false,
+    "evidence": {
+      "command": "grep -E 'CREATE TABLE|ALTER TABLE|FOREIGN KEY|migration' TECH.md / git diff --name-only",
+      "stdout": "...",
+      "exit_code": "0 = match / 1 = no match",
+      "timestamp": "ISO 8601"
+    }
+  },
+  "_schema_change_evidence_note": "v7.3.10+P0-119 新增：Blueprint Stage 入口实例化时 grep TECH.md 关键词 + Review Stage 入口实例化时 git diff 检测 migration / DDL 改动。命中 → 写入本字段 + 启用 schema 专项评审（architect-tech-review.md § 3.1 + architect-cr.md § 2.1）。global_docs_synced=false 时不允许把「全局 schema 文档同步」降级为 PASS_WITH_CONCERNS（实证 SVC-PLATFORM-F034 case · review-arch.md 误判为非阻塞 concern）。",
+
   "stage_contracts": {
     "goal_plan": {
       "input_satisfied": true,

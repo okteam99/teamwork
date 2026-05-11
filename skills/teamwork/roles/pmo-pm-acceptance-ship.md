@@ -90,9 +90,20 @@ PMO 接管 · 输出 PM 验收摘要 + 3 选 1 暂停点（见下方模板）
 └── 3：用户在浏览器或实操后发现问题（回退循环 ≤3 轮）
 ```
 
-🔴 **渲染必含**（v7.3.10+P0-115 · cite [STATUS-LINE.md § 暂停点模板渲染契约](../STATUS-LINE.md) · 不在本文件复述格式）：
-- 决策类暂停点 → 📚 决策参考段（cite [STATUS-LINE.md § 决策点参考文档绝对路径硬规则](../STATUS-LINE.md) #6 PM 验收三选项 · 列 PRD/TC/REVIEW/test-report/Browser E2E 截图绝对路径）
-- 标准 3 行状态行 → cite [STATUS-LINE.md § 状态行格式定义](../STATUS-LINE.md) · 阶段值取 `pm_acceptance` enum 映射「⏸️ PM 验收（3 选 1）」
+🔴 **渲染必含**（v7.3.10+P0-115 cite + v7.3.10+P0-118-A 骨架强制）：
+
+📚 决策参考段（cite [STATUS-LINE.md § 决策点参考文档绝对路径硬规则](../STATUS-LINE.md) #6 PM 验收三选项 · 列 PRD/TC/REVIEW/test-report/Browser E2E 截图绝对路径）
+
+⬇️ 末尾照下面骨架填字段（不可省略 · 不可用摘要替代）：
+
+```
+---
+🔄 Teamwork 模式 | 流程：{Feature/敏捷需求} | 角色：PMO | 功能：{缩写}-F{编号}-{功能名} | 阶段：⏸️ PM 验收（3 选 1） | 下一步：⏸️ 等待用户 3 选 1
+📁 {worktree.path}/docs/features/{Feature}/
+🌿 分支：{worktree.branch} → {merge_target} | worktree：{worktree.path}
+```
+
+详细格式 / emoji 间隔 / 路径边界规则 → cite [STATUS-LINE.md § 状态行格式定义](../STATUS-LINE.md)
 
 ### 2.3 选 1（通过 + Ship）后的处理
 

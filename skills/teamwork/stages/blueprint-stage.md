@@ -19,10 +19,17 @@
 | 各角色 `execution` | qa/rd 主对话 + architect subagent | `state.blueprint_substeps_config.review_roles[].execution` | Stage 入口实例化 |
 | `external` 启用 | 默认不启用 / 教训密集区 / 触发 ADR 推荐启用 | `external ∈ review_roles[]` | Stage 入口实例化 |
 | `adr_triggered` | 基于 ADR 3 问触发器（templates/adr.md） | `state.blueprint_substeps_config.adr_triggered` | 架构师评审末段判断 |
+| `schema_change_triggered` | TECH.md 含 schema 变更关键词 | `state.schema_change_evidence.detected_at_blueprint` | 架构师 Tech Review 入口判断（v7.3.10+P0-119）|
 | `round_loop.max_rounds` | TC 评审 ≤2 轮 / 架构师评审 ≤3 轮 | spec 内嵌 | 防无限评审 |
 | `hint_overrides` | null | `state.blueprint_substeps_config.hint_overrides` | Stage 入口实例化偏离 hint 时 |
 
 🔴 不变内核：4 步内部闭环（QA TC → TC 评审 → RD TECH → 架构师评审）+ ADR 抽取 3 问触发器 + review_scope=blueprint 边界。
+
+🔴 **schema 变更触发**（v7.3.10+P0-119 新增）：
+- 入口实例化时 grep TECH.md 关键词：`CREATE TABLE / ALTER TABLE / DROP TABLE / migration / DDL / FOREIGN KEY / 索引 / 表结构 / schema 变更 / CHECK 约束`
+- 命中 → state.schema_change_evidence = {detected_at_blueprint: timestamp, tables: [...], evidence: {command, stdout, exit_code, timestamp}}
+- 命中 → 架构师 Tech Review 必启用「DB schema 变更专项」checklist（cite [roles/architect-tech-review.md § 3.1](../roles/architect-tech-review.md)）
+- 命中 → 评审 verdict 不允许把「全局 schema 文档同步规划」降级为非阻塞 concern
 
 ---
 
@@ -107,7 +114,8 @@
 Step 1: roles/qa.md, roles/rd.md, roles/architect.md   ← 角色层（L0 稳定 · v7.3.10+P0-86 加 architect）
 Step 2: templates/tc.md, templates/tech.md              ← 模板层（L0 稳定）
         [条件] templates/external-cross-review.md          （仅 review_roles[] 含 external，v7.3.10+P0-38）
-Step 3: {Feature}/PRD.md                               ← Feature 既有产物（L2）
+Step 3: {项目根}/GLOSSARY.md                            ← 业务术语（v7.3.10+P0-121 · 防 TECH 写时业务词漂移）
+        {Feature}/PRD.md                               ← Feature 既有产物（L2）
         [条件] {Feature}/UI.md                          （若 UI Design Stage 已跑）
 Step 4: {Feature}/state.json                           ← 🔴 最后，动态入口（L3）
 ```

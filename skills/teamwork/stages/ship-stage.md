@@ -464,109 +464,31 @@ git rev-parse "feature/{Feature 全名}"
 ```
 取得 feature 分支当前 HEAD 的 commit hash，写入 `state.ship.feature_head_commit`。第二段 finalize 时用此 hash 通过 `git branch -r --contains` 检测合并。
 
-### Step 3：第一段报告 + 等待合并暂停点（v7.3.10+P0-29 重构）
+### Step 3：第一段报告 + 等待合并暂停点
 
-输出第一段报告（见「第一段报告模板」），然后暂停：
-
-🔴 **MR URL 渲染硬规则（v7.3.10+P0-70）**：
-- MR/PR 创建链接**必须独立成行**输出（裸 URL · 行首行尾 whitespace 边界 · 终端识别为可点击 hyperlink）
-- **禁止挤入 markdown 表格列** — 长 URL 进表格会被列宽切碎多行 / 全角竖线干扰识别 → 用户无法点击
-- 禁止用全角括号或中文标点紧贴 URL（违反 P0-67 路径边界规则）
-- 禁止把 URL 嵌入 markdown 链接语法 `[文字](URL)` 当报告主呈现（链接文本可附加，但 URL 本体仍要独立一行）
-
-**变体 A：CLI 创建成功（v7.3.10+P0-99 · gh / glab）**
+**第一段报告**（CLI 成功 / URL 兜底统一格式 · MR URL 必须独立行裸输出 · cite [../STATUS-LINE.md § 长 URL/长路径不进表格列硬规则](../STATUS-LINE.md)）
 
 ```
-✅ Ship Stage 第一段完成 - 等待用户在平台合并
+✅ Ship Phase 1 完成
+- feature 分支: {worktree.branch} → {merge_target}
+- 净化: residual {N} / 临时 {M} / 灰名单 {K}
+- MR/PR {创建方式 cli-gh|cli-glab|url-fallback}:
 
-📦 当前状态：
-- feature 分支已 push: feature/{Feature 全名}
-- feature_head_commit: {abc1234}
-- 净化检查: ✅ 无遗留 commits / 可疑文件
-- worktree: {worktree.path}（暂保留 · 待第二段验证合并后清理）
+{mr_url 或 mr_create_url · 独立行裸输出 · 终端可点击}
 
-✅ MR/PR 已创建（{cli-gh / cli-glab}）：
+下一步: 平台合并 → 回 1 启动 Phase 2
 
-{mr_url}
-
-📋 后续步骤（你需要做的）：
-1. 点击上方 MR/PR 链接 · 完成描述 / 走 CR / CI / 与 reviewer 讨论
-2. 在平台合并 MR/PR
-3. ⬇️ 合并完成后回到这里回复数字 · PMO 启动第二段收尾流程 ⬇️
-
-请选择：
-1. ✅ 已在平台合并 MR/PR · 启动收尾 💡
-2. ⏳ 还在等待审核 / 合并（你可以暂时退出会话 · 下次回来再回此选项）
-3. ❌ MR 被关闭未合并（进入异常处理）
+请选择(回数字):
+1. ✅ 已合并 · 启动收尾 💡
+2. ⏳ 还在等待审核 / 合并(可退出 · 下次回此选项)
+3. ❌ MR 被关闭未合并(进异常处理)
 4. 其他指示
 ```
 
-🔴 **渲染必含**（v7.3.10+P0-115 · cite [../STATUS-LINE.md § 暂停点模板渲染契约](../STATUS-LINE.md)）：
-- 📚 决策参考 → cite [../STATUS-LINE.md § 决策点参考文档绝对路径硬规则](../STATUS-LINE.md) · 列 ship-report.md / mr_url 独立行
-- 3 行状态行 → 阶段值 = `ship` enum「⏸️ MR 待合并」
-
-**变体 B：CLI 不可用 / 失败 → URL 兜底（v7.3.10+P0-99）**
-
-```
-✅ Ship Stage 第一段完成 - URL 兜底 · 等待用户手动创建 MR/PR
-
-📦 当前状态：
-- feature 分支已 push: feature/{Feature 全名}
-- feature_head_commit: {abc1234}
-- 净化检查: ✅ 无遗留 commits / 可疑文件
-- worktree: {worktree.path}（暂保留 · 待第二段验证合并后清理）
-
-🔗 MR/PR 创建链接（请手动点击创建）：
-
-{mr_create_url}
-
-⚠️ 环境配置建议（下次 Ship 可让 PMO 直接帮你创建 MR/PR）：
-- GitHub：安装 `gh` + `gh auth login`（https://cli.github.com）
-- GitLab：安装 `glab` + `glab auth login --hostname {host}`（https://gitlab.com/gitlab-org/cli）
-- 配置好后 · 后续 Ship Stage PMO 会优先调 CLI 创建实际 MR/PR · 不再需要你手动点击
-
-📋 后续步骤（你需要做的）：
-1. 点击上方 MR/PR 创建链接 · 在平台填写描述 / 创建 MR
-2. 在平台完成 MR 描述、走 CR / CI、与 reviewer 讨论
-3. 在平台合并 MR/PR
-4. ⬇️ 合并完成后回到这里回复数字 · PMO 启动第二段收尾流程 ⬇️
-
-请选择：
-1. ✅ 已在平台合并 MR/PR · 启动收尾 💡
-2. ⏳ 还在等待审核 / 合并
-3. ❌ MR 被关闭未合并
-4. 其他指示
-```
-
-🔴 **渲染必含**（v7.3.10+P0-115 · 同变体 A · cite [../STATUS-LINE.md § 暂停点模板渲染契约](../STATUS-LINE.md)）：
-- 📚 决策参考 → ship-report.md / mr_create_url（独立行裸 URL · 不挤表格）
-- 3 行状态行 → 阶段值 = `ship` enum「⏸️ MR 待合并」
-
-❌ **错误示例**（实证 2026-04-30 截图）：
-
-```
-| 项 | 状态 |
-|----|------|
-| feature/F059-... push | ✅ origin (commits ...) |
-| MR 创建链接 | https://git.okok.ai/matrix/vlite/-/merge_requests/new?merge_request%5Bsource_branch%5D=feature%2FF059-relax-package-check |
-| MR 合并状态 | 未合并 |
-```
-→ URL 被表格列宽切成多行 / 全角竖线干扰 / 用户无法直接点击
-
-✅ **正确示例**（spec 默认）：
-
-```
-📦 当前状态：
-- feature 分支已 push: feature/F059-relax-package-check (commits 8c35b83 + 7f03d62)
-- 净化检查: ✅ 无遗留 commits / 可疑文件
-
-🔗 MR/PR 创建链接：
-
-https://git.okok.ai/matrix/vlite/-/merge_requests/new?merge_request%5Bsource_branch%5D=feature%2FF059-relax-package-check
-
-⏳ MR 合并状态: 未合并（git fetch + git log main 仍是 b7763d5）
-```
-→ URL 独立行 · 前后 whitespace 边界 · 终端可点击
+🔴 **渲染必含**（cite [../STATUS-LINE.md § 暂停点模板渲染契约](../STATUS-LINE.md) · 决策类暂停点）：
+- 📚 决策参考 → ship-report.md / MR URL 独立行裸输出
+- 末尾 3 行状态行 → 阶段 enum=`ship` · 「⏸️ MR 待合并」
+- URL 兜底场景（mr_creation_method=url-fallback）→ 报告加一行「⚠️ 下次 Ship 装 gh/glab 让 PMO 直接创建 MR」
 
 **用户选择处理**：
 - **选 1**：进入第二段 finalize（Step 4-7）
@@ -741,12 +663,55 @@ state.json 写入：
 
 ### Step 9：清理 worktree
 
+🔴 **cleanup 入口硬门禁（v7.3.10+P0-124 · 实证 SVC-CORE-B005）**
+
+destructive op（worktree remove / branch 删除）执行前必查 · 缺一即 BLOCKER ⏸️：
+
+```bash
+# 即时校验 · 不依赖 state.json
+git branch -r --contains $(git rev-parse {feature_branch}) | grep "origin/{merge_target}"
+```
+
+🔴 通过条件（must ALL）：
+- ✅ git branch -r --contains stdout 含 `origin/{merge_target}`
+- ✅ state.ship.shipped == "merged"（Feature）/ BUG-REPORT.shipped == "merged"（Bug）
+- ✅ Step 4-5 合并检测真实执行过（不是凭印象推断）
+
+🔴 不通过 → BLOCKER · 不执行 worktree remove / branch -d / branch -D · 走 ⏸️ 暂停（cite [../STATUS-LINE.md § 暂停点模板渲染契约](../STATUS-LINE.md)）：
+
+```
+🔴 Cleanup BLOCKED · 合并检测未通过
+
+当前状态：
+- git branch -r --contains: {命中状态}
+- state.ship.shipped: {值}（应为 "merged"）
+- Step 4-5 执行状态: {evidence 存在状态}
+
+可能原因：
+- 用户尚未在平台合并 MR
+- PMO 跳过 Step 3 ⏸️ 等合并暂停点
+- finalize commit push feature branch 被误当作 Step 8 push merge_target
+
+请选(回数字)：
+1. 我已合并 · 再触发 Step 4-5 检测
+2. MR 未合并 · 保留 worktree · 我去平台操作
+3. 检查 git ls-remote 状态后决策
+```
+
+❌ **反模式黑名单**（命中 = 流程违规 · 必须重做）：
+- 「Phase 1+2 完成」在 MR 未合并时输出
+- 把 finalize commit push feature branch 当 Step 8 push merge_target
+- 跳过 Step 3 ⏸️ 等合并暂停点直接 Step 4+
+- `git branch -D` force-delete 在合并未验证时执行
+
+✅ 检测通过后执行：
+
 ```bash
 cd {主工作区}                                  # 确保不在 worktree 内
 git worktree remove {state.worktree.path}
+git branch -d {worktree.branch}                # 安全 delete（让 git 自校验 · 拒绝时见上方 BLOCKER）
 ```
 
-🔴 禁止：`git branch -D {worktree.branch}`（feature 分支在 remote 已合并，本地保留作历史）
 🔴 禁止：`git push origin --delete {worktree.branch}`（remote feature 分支由平台 auto-delete-on-merge 或团队管理）
 
 worktree=off 时跳过本步。
@@ -775,9 +740,18 @@ state.ship.phase = "closed_unmerged"
 4. 其他指示
 ```
 
-🔴 **渲染必含**（v7.3.10+P0-115 · cite [../STATUS-LINE.md § 暂停点模板渲染契约](../STATUS-LINE.md)）：
-- 📚 决策参考 → ship-report.md / REVIEW.md / 平台 MR 关闭原因（如可获取）
-- 3 行状态行 → 阶段值 = `ship` enum「⏸️ MR 异常 待处理」
+🔴 **渲染必含**（v7.3.10+P0-115 cite + v7.3.10+P0-118-A 骨架）：
+
+📚 决策参考 → ship-report.md / REVIEW.md / 平台 MR 关闭原因（如可获取）
+
+⬇️ 末尾骨架（阶段值 = `ship` enum「⏸️ MR 异常 待处理」）：
+
+```
+---
+🔄 Teamwork 模式 | 流程：{Feature/敏捷/Bug} | 角色：PMO | {功能字段} | 阶段：⏸️ MR 异常 待处理 | 下一步：⏸️ 用户 4 选 1
+📁 {worktree.path}/docs/features/{Feature}/
+🌿 分支：{worktree.branch} → {merge_target} | worktree：{worktree.path}
+```
 
 **选 1 重开 MR**：state.current_stage = `dev`，回到 Dev Stage；feature 分支保留，用户在 worktree 内修改 → 重新走 Review → Test → Ship 流程（重新进入 Ship Stage 第一段）。
 
@@ -840,68 +814,23 @@ state.ship.phase = "closed_unmerged"
 
 ---
 
-## 完成报告模板（Step 3 输出）
+## 完成报告模板
+
+Step 3 / Step 10 完成时输出（极简 · cite [../STATUS-LINE.md](../STATUS-LINE.md) 末尾 3 行状态行）：
 
 ```
-📤 Ship Stage 完成报告（F{编号}-{功能名}）
-============================================
-
-## 合并准备就绪
-╔══════════════════════════════════════════════════╗
-║  🔗 创建 MR / PR:                               ║
-║  {mr_create_url}                                 ║
-║                                                  ║
-║  （点击链接打开平台 UI 创建 Merge Request）     ║
-╚══════════════════════════════════════════════════╝
-
-## 分支信息
-├── feature 分支（已 push）：{worktree.branch}
-├── 目标分支：{merge_target}
-├── git host：{github / gitlab / ...}
-└── push 时间：{ISO 时间戳}
-
-## 净化记录（Step 1 产物）
-├── residual commit：{N 个} {如有 → ⚠️ 提示"前序 Stage 可能漏 commit"}
-├── 清理临时文件：{M 个}（白名单）
-└── 灰名单文件（⚠️ 未处理，由你决定）：
-    - {file1}（{理由：未知扩展名 / build 产物 / ...}）
-    - {file2}
-
-## 变更概览
-├── 变更文件数：{N}
-├── diff stats：+{A} / -{B}
-└── commits 列表（feature 分支）：
-    - {hash} {msg}
-    - {hash} {msg}
-
-## 下一步（交给用户和平台）
-├── 1️⃣ 点上方链接创建 MR/PR，填描述
-├── 2️⃣ 等 CI + Code Review（平台工作，Teamwork 不介入）
-├── 3️⃣ 平台合并（squash / rebase / merge commit 按团队规则）
-└── 4️⃣ 合并后 feature 分支由平台 auto-delete 或团队手动清理（Teamwork 不删）
-
-## Worktree 处置
-├── 策略：{auto / manual / off}
-├── 动作：{清理 / 保留 / n/a（off 时）}
-└── 🔴 feature 分支（本地 + remote）：保留（由平台/用户清理）
-
-⏸️ worktree 清理（回复数字）
-1. 🧹 清理 worktree ← 💡 推荐
-2. 💾 保留 worktree
-3. 其他指示
+✅ Ship Phase {N} 完成
+- MR: {mr_url}
+- feature 分支: {worktree.branch}（保留 · 由平台 auto-delete 或团队清理）
+- 净化: residual {N} / 临时 {M} / 灰名单 {K}
+- {phase=pushed → '下一步: 平台合并 → 回 1' | phase=merged → '已合并 · worktree 已清理'}
 ```
 
-🔴 **渲染必含**（v7.3.10+P0-115 · 非决策类暂停点 · cite [../STATUS-LINE.md § 暂停点模板渲染契约](../STATUS-LINE.md)）：
-- 不强制 📚 决策参考（worktree 清理是操作选项 · 非决策类）
-- 3 行状态行 → 阶段值 = `ship` enum「Ship 第二段 finalize 中」/「⏸️ worktree 清理待确认」
+⏸️ worktree 清理暂停点（Step 9 完成后 · 非决策类）：
+cite [../STATUS-LINE.md § 暂停点模板渲染契约](../STATUS-LINE.md) · 阶段 enum=`ship`「⏸️ worktree 清理待确认」· 3 选 1（清理 / 保留 / 其他）。
 
 ---
 
-## 执行报告模板（Ship Stage DONE 后写入）
-
-```
-📋 Ship Stage 执行报告（F{编号}-{功能名}）
-============================================
 
 ## 执行概况
 ├── 最终状态：{DONE / DONE_WITH_CONCERNS / FAILED}
@@ -949,32 +878,9 @@ state.ship.phase = "closed_unmerged"
 
 ## state.json.ship 字段结构
 
-> 字段权威：详见 `templates/feature-state.json` 的 `ship` 字段 + 顶部 `_instructions.ship_tracking_v7_3_10_P0_15`。以下为示例数据（merge_target 从顶层 `state.json.merge_target` 读取，不在 ship 子对象中重复）。
+字段权威源：[templates/feature-state.json](../templates/feature-state.json) `ship` 子对象 + 顶部 `_instructions.ship_tracking_v7_3_10_P0_15`。本文件不复述 schema。
 
-```jsonc
-"ship": {
-  "shipped": true,                        // 是否已推到 remote + MR/PR 已就绪（CLI 创建或 URL 兜底）
-  "git_host": "github",                   // github / gitlab / gitlab-self-hosted / gitee / bitbucket / unknown
-  "mr_url": "https://github.com/owner/repo/pull/123",   // v7.3.10+P0-99 · CLI 实际创建的 MR/PR URL（gh/glab）· 走 URL 兜底时为 null
-  "mr_create_url": null,                  // CLI 兜底 URL（用户手动点击创建）· CLI 创建成功时为 null
-  "mr_creation_method": "cli-gh",         // v7.3.10+P0-99 enum: cli-gh / cli-glab / url-fallback / unknown-platform
-  "feature_pushed_at": "2026-04-22T11:08:12Z",
-  "sanitize_log": {
-    "residual_commits": [                 // 净化阶段自动 commit 的 residual
-      { "commit": "abc1...", "files": ["src/x.py"], "reason": "Dev Stage 漏 commit" }
-    ],
-    "cleaned_files": [".DS_Store", "__pycache__/mod.pyc"],
-    "suspicious_files": [
-      { "path": "build/output.txt", "reason": "未知扩展名，疑似 build 产物" }
-    ]
-  },
-  "worktree_cleanup": "cleaned",          // cleaned / deferred / n_a (worktree=off)
-  "started_at": "2026-04-22T11:00:00Z",
-  "completed_at": "2026-04-22T11:08:12Z"
-}
-```
-
-> 通过/失败状态记录在 `state.json.stage_contracts.ship.{input_satisfied, process_satisfied, output_satisfied}`；`shipped: true/false` 仅表达"feature 是否已推到 remote 且 MR URL 已生成"的业务语义。
+通过/失败状态记录在 `state.json.stage_contracts.ship.{input_satisfied, process_satisfied, output_satisfied}`；`shipped: true/false` 仅表达"feature 已推到 remote 且 MR URL 已生成"业务语义。
 
 ---
 

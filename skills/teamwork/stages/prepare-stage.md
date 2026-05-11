@@ -118,6 +118,37 @@ Step 7: 用户消息 + 命令前缀（已在主对话）        ← 动态入口
   ├── 在 → 记录当前 worktree 对应 Feature 编号
   ├── 不在 → 正常（Goal-Plan Stage 入口按策略创建）
   └── git 不可用 → worktree 降级 off + ⚠️
+
+检查 TROUBLESHOOTING.md（v7.3.10+P0-118-B 主动创建空骨架 · 类比 teamwork_space.md）：
+  ├── 搜索：{项目根}/TROUBLESHOOTING.md
+  ├── 存在 → silent · 后续 mode A query / E discuss 触及排查类话题时 read
+  └── 不存在 → silent 复制 templates/troubleshooting.md 到 {项目根}/TROUBLESHOOTING.md
+              · 4 段空骨架（环境 / 查 log / 查数据缓存 / 常见报错 · ~50 行）
+              · 不填项目特定内容（具体命令由用户按项目栈补充）
+              · 不打断当前流程 · 不输出"已创建" banner（silent）
+              · 用户首次排查时 PMO 检测到模板原样未填 → 一句话提示用户补充
+
+检查 GLOSSARY.md（v7.3.10+P0-121 主动创建空骨架 · 类比 TROUBLESHOOTING.md）：
+  ├── 搜索：{项目根}/GLOSSARY.md
+  ├── 存在 → silent · 后续 PM/RD/架构师起草 PRD/TECH 前 + PMO triage 期按需 read
+  └── 不存在 → silent 复制 templates/glossary.md 到 {项目根}/GLOSSARY.md
+              · 5 段空骨架（业务术语 / 实体关系 / 命名约定 / 别名歧义 / 缩写词典 · ~80 行）
+              · 不填项目特定内容（业务术语由用户按业务填）
+              · 不打断当前流程 · 不输出"已创建" banner（silent）
+              · 用户首次起草 PRD/TECH / 评审命中 terminology-ambiguity 时 PMO 检测模板原样未填 → 一句话提示用户补充
+
+发现全局 schema 文档（v7.3.10+P0-119 新增 · monorepo 嵌套防漏）：
+  ├── 全仓库 find：find {repo_root} -name "*database*schema*.md" -o -name "*schema*registry*.md"
+  │              （穷举搜索 · 不限 docs 路径深度 · 防 services/{子}/docs/architecture/*-schema.md 漏检）
+  ├── 命中清单 → 写 state.json.global_schema_docs[]（绝对路径数组）
+  ├── 未命中 → state.json.global_schema_docs = []（项目无全局 schema 文档 · 不创建空模板 · 项目自行决定是否需要）
+  └── silent · 不输出 banner · evidence-binding：command + stdout + timestamp 写 state.json（与 P0-101 协同）
+
+  🔴 用途：Blueprint Stage 架构师 Tech Review + Review Stage 架构师 CR 启用 schema 专项时
+        cite 此清单 · 强校验全局 schema 文档同步 · 不可降级
+        触发：TECH.md 含 schema 变更关键词 / git diff 含 migration 文件
+        实证：v7.3.10+P0-119 SVC-PLATFORM-F034 case · review-arch.md 误判 services/core/docs/architecture/database-schema.md 为「不存在」
+              根因 = 浅层 docs/ 路径检索 · 未穷举 monorepo 嵌套
 ```
 
 ### Step 4: 用户输入承接（红线 R3 · v7.3.10+P0-105 隐式承接）
@@ -245,9 +276,16 @@ external 角色（PMO 直接判定 · v7.3.10+P0-101 evidence-binding · v7.3.10
 
 ⏸️ 用户回 ok / auto 或反馈意见。
 
-🔴 **渲染必含**（v7.3.10+P0-115 · 非决策类暂停点 · cite [../STATUS-LINE.md § 暂停点模板渲染契约](../STATUS-LINE.md)）：
-- 不强制 📚 决策参考（prepare 阶段尚未产出 Feature 文档 · 决策依据已在主对话上文）
-- 3 行状态行 → 阶段值 = `triage` enum「需求理解中」/「⏸️ 双对齐待确认」
+🔴 **渲染必含**（v7.3.10+P0-115 cite + v7.3.10+P0-118-A 骨架 · 非决策类暂停点 · 不强制 📚 决策参考）：
+
+⬇️ 末尾骨架（阶段值 = `triage` enum「⏸️ 双对齐待确认」 · prepare 期 worktree 通常未建 · 第三行可省略或 📍 当前分支）：
+
+```
+---
+🔄 Teamwork 模式 | 流程：{流程类型} | 角色：PMO | {功能字段(如已有)} | 阶段：⏸️ 双对齐待确认 | 下一步：⏸️ 用户回 ok / auto / 反馈
+📁 {worktree.path / 项目根 · 视 prepare 进度}
+📍 当前分支：{git branch --show-current}（worktree 待 Goal-Plan Stage 入口创建）
+```
 
 ### Step 14: state.json 创建（原 triage Step 9 · 按流程懒加载）
 

@@ -128,6 +128,83 @@
     └── 架构调整是否需要记录设计决策
 ```
 
+## 2.1 DB schema 变更 CR 专项（v7.3.10+P0-119 新增）
+
+🔴 **触发条件**：dev 产物含 migration 文件 / DDL 改动 → 启用本段专项 CR。
+
+```
+触发判定：
+├── git diff 命中 *.sql migration 文件（up / down）
+├── git diff 命中 src/**/migrations/* 目录改动
+├── git diff 命中 src/**/schema.rs / schema.py / models/* 数据库模型层改动
+└── TECH.md 标记 schema_change=true（state.json.schema_change_evidence 同步）
+```
+
+🔴 **5 项 CR 专项维度**（命中触发 → 全部必查 · 维度 2 不可降级）：
+
+```
+1. migration SQL 与 TECH.md 一致性
+   ├── 字段类型 / 约束 / 索引 / FK 与 TECH.md 设计一致
+   ├── up.sql 字段名 / 类型 / 约束精确匹配 TECH.md schema 段
+   ├── down.sql 完整可回滚（所有 up 操作都有反向）
+   └── 命中差异 → NEEDS_FIX（不允许 silent 漂移）
+
+2. 🔴 全局 schema 文档（database-schema.md）已更新（最高阻塞优先级）
+   ├── 全局文档路径（cite state.json.global_schema_docs[] · prepare-stage Step 3 已 find）
+   ├── 必须更新内容（按 architect-tech-review.md § 3.1 维度 5 列出）：
+   │   ├── ER 关系（mermaid / 类似图）
+   │   ├── 字段说明（type / constraint / 业务语义）
+   │   ├── 索引 + 约束
+   │   ├── FK 策略例外（如 ON DELETE SET NULL · 必须在「外键策略」段标注）
+   │   ├── Model/Struct 映射表（路径 / ORM 框架 / 用途）
+   │   ├── SQL 引用点表（INSERT / SELECT / UPDATE 各 repo 函数 · 文件路径 + 行号）
+   │   ├── migration 清单（up.sql / down.sql 文件名 + 用途）
+   │   └── 变更记录（日期 / 版本号 / 变更摘要 / 作者）
+   ├── 🔴 git diff 必须含 state.json.global_schema_docs[] 中所有命中文件的实质改动
+   ├── ❌ 任一全局 schema 文档未更新 → BLOCKER NEEDS_FIX（**不可降级为 PASS_WITH_CONCERNS**）
+   └── 🔴 实证 case：SVC-PLATFORM-F034 Partner-Request-Journal · review-arch.md 误判为非阻塞 concern · 用户事后追问发现漏 services/core/docs/architecture/database-schema.md
+
+3. 全仓库 find 完整性自检
+   ├── CR 启动时执行：find {repo_root} -name "*database*schema*.md" -o -name "*schema*registry*.md"
+   ├── 比对 state.json.global_schema_docs[]：发现新增 → ⚠️ 漏识别 + 加入清单
+   ├── 比对 git diff：每个清单条目都应在 diff 中 → 漏的标 BLOCKER
+   └── 防御 monorepo 嵌套子项目漏检（实证 case 根因）
+
+4. 生产环境一致性
+   ├── migration 已在 staging 跑通（review-log.jsonl / TEST-REPORT.md 证据）
+   ├── 数据迁移脚本（如有）有 dry-run 输出 + 行数校验
+   ├── production migrate 流程已规划（按 KNOWLEDGE.md / TROUBLESHOOTING.md 部署段）
+   └── 写操作授权链：red R8 · production migrate 必须 ⏸️ 用户授权
+
+5. ER 关系 / FK 策略合规
+   ├── 新表的 FK 策略已在全局 schema 文档「外键策略」段登记
+   ├── FK 例外（ON DELETE SET NULL / RESTRICT / CASCADE）有业务理由说明
+   └── Model/Struct 映射表 + SQL 引用点表准确（路径 + 行号 · 防止漂移）
+```
+
+🔴 **报告格式**（schema 触发时必出 · 嵌入 § 5 Review 输出模板主体）：
+
+```markdown
+## DB schema 变更 CR 专项
+
+| 维度 | 结果 | 说明 |
+|------|------|------|
+| 1. migration SQL 与 TECH.md 一致性 | ✅/⚠️/❌ | ... |
+| 2. 🔴 全局 schema 文档已更新 | ✅/❌ | 列 state.json.global_schema_docs[] 中所有命中文件 + git diff 行数 |
+| 3. 全仓库 find 完整性自检 | ✅/⚠️ | 命中清单 vs git diff 比对 |
+| 4. 生产环境一致性 | ✅/⚠️ | migration staging 验证证据 |
+| 5. ER 关系 / FK 策略合规 | ✅/⚠️ | FK 例外登记情况 |
+
+涉及表：{表名列表}
+migration 文件：{up.sql / down.sql 路径}
+全局 schema 文档同步：{每份文件 +N -M 行数}
+```
+
+🔴 **不可降级原则**：
+- 维度 2（全局 schema 文档已更新）失败 → 强制 NEEDS_FIX（**不允许 PASS_WITH_CONCERNS 降级**）
+- 维度 3（全仓库 find）发现漏 → ⚠️ 警告 + 加入清单 + NEEDS_FIX 该缺失项
+- 其他维度可按 finding 严重度走标准 verdict 流程
+
 ## 3. 执行流程
 
 ```

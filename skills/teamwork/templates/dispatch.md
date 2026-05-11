@@ -55,13 +55,20 @@
 
 | Stage | 必选 Feature 产物 | 条件/例外 |
 |------|--------------------|-----------|
-| blueprint | `{Feature}/PRD.md` + `UI.md` + `preview/*.html`（若有 UI Design） | UI Design 未跑 → 免 UI / preview |
-| dev | `{Feature}/PRD.md` + `TC.md` + `TECH.md` + **`UI.md` + `preview/*.html`**（若 `state.stage_contracts.ui_design.output_satisfied==true`）| `ui_design.output_satisfied==true` 但未列 preview → **PMO 自拒重生**；Subagent 启动后扫到 `{Feature}/preview/` 非空但 dispatch 未引用 → 返回 `NEEDS_CONTEXT` |
-| review | `{Feature}/PRD.md` + `TC.md` + `TECH.md` + `{改动文件绝对路径}` + `{Feature}/UI.md` + `preview/*.html`（UI 改动相关时） | - |
+| blueprint | `{Feature}/PRD.md` + `UI.md` + `preview/*.html`（若有 UI Design） + `state.global_schema_docs[]`（若 schema 变更触发 · v7.3.10+P0-119）| UI Design 未跑 → 免 UI / preview · 无 schema 变更 → 免 global_schema_docs |
+| dev | `{Feature}/PRD.md` + `TC.md` + `TECH.md` + **`UI.md` + `preview/*.html`**（若 `state.stage_contracts.ui_design.output_satisfied==true`）+ `state.global_schema_docs[]`（若 schema 变更触发 · v7.3.10+P0-119 · 必读必改）| `ui_design.output_satisfied==true` 但未列 preview → **PMO 自拒重生**；Subagent 启动后扫到 `{Feature}/preview/` 非空但 dispatch 未引用 → 返回 `NEEDS_CONTEXT`；schema 变更但未列 global_schema_docs → **PMO 自拒重生** |
+| review | `{Feature}/PRD.md` + `TC.md` + `TECH.md` + `{改动文件绝对路径}` + `{Feature}/UI.md` + `preview/*.html`（UI 改动相关时）+ `state.global_schema_docs[]`（若 schema 变更触发 · v7.3.10+P0-119 · 用于全局文档同步校验）| - |
 | test | `{Feature}/TC.md` + `{Feature}/TECH.md` + `{测试代码绝对路径}` | - |
 | browser-e2e | `{Feature}/TC.md` + `{Feature}/preview/*.html`（若有）+ `{Feature}/UI.md`（若有） | - |
 
 🔴 **反模式**：把 preview/*.html 当"可选参考"仅在 Additional inline context 里提一嘴——子 session 不会据此去 Read 文件。必须作为 Input files 的正式项。
+
+🔴 **schema 变更产物（v7.3.10+P0-119 新增）**：
+- 触发条件：state.schema_change_evidence 非 null（Blueprint Stage 入口实例化探测命中 / Review Stage git diff 命中）
+- Dev 阶段：dispatch Input files 必须含 `state.global_schema_docs[]` 全部条目（必读必改 · 不允许 silent 漏 commit）
+- Review 阶段：dispatch Input files 必须含 `state.global_schema_docs[]` 全部条目（用于架构师 CR § 2.1 「全局 schema 文档已更新」校验）
+- ❌ **PMO 自拒**：schema 变更触发 + dispatch 未列 global_schema_docs → 重生 dispatch（不允许漂移）
+- 实证 case：SVC-PLATFORM-F034 Partner-Request-Journal · review-arch.md 误判 services/core/docs/architecture/database-schema.md 不存在 → 全局 schema 文档漂移延迟到用户事后追问
 
 ## Additional inline context
 {极简 1–5 行，或填「无」。仓库级约束（CLAUDE.md/AGENTS.md/GEMINI.md）可在此直接注入原文。长内容必须走 Input files。}

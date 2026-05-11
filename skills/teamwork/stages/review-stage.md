@@ -22,11 +22,19 @@
 | `review_roles[]` | architect + qa + external（推荐默认含 external，代码层最后 gate）| `state.review_substeps_config.review_roles[]` | Stage 入口实例化 |
 | 各角色 `execution` | architect / qa subagent（防鼓掌效应）+ external external-shell | `state.review_substeps_config.review_roles[].execution` | Stage 入口实例化 |
 | `parallel_mode` | true（三视角并行）| `state.review_substeps_config.parallel_mode` | Stage 入口实例化 |
+| `schema_change_triggered` | git diff 含 migration / DDL / schema 改动 | `state.schema_change_evidence.detected_at_review` | 架构师 CR 入口判断（v7.3.10+P0-119）|
 | 修复循环 max | 3 轮 | spec 内嵌 | Stage 出口判断 |
 | 模型偏好（v7.3.10+P0-40）| Opus（AI Plan 模式默认）| `state.planned_execution.review.model` | Stage 入口 |
 | `hint_overrides` | null | `state.review_substeps_config.hint_overrides` | Stage 入口实例化偏离 hint 时 |
 
 🔴 不变内核：三视角独立性产物结构（独立 generated_at + files_read + 互不引用）+ external 异质性硬约束 + 完整性硬规则（按各自规范完整执行）。
+
+🔴 **schema 变更触发**（v7.3.10+P0-119 新增）：
+- 入口实例化时 grep dev 产物：`git diff --name-only` 命中 `*.sql` migration / `src/**/migrations/*` / `src/**/schema.{rs,py}` / `src/**/models/*`
+- 命中 → state.schema_change_evidence.detected_at_review 写入（与 P0-101 evidence-binding 协同 · 含 command + stdout + timestamp）
+- 命中 → 架构师 CR 必启用「DB schema 变更 CR 专项」checklist（cite [roles/architect-cr.md § 2.1](../roles/architect-cr.md)）
+- 命中 → 评审 verdict 不允许把「全局 schema 文档已更新」降级为 PASS_WITH_CONCERNS（实证 SVC-PLATFORM-F034 case）
+- 命中 → CR 启动时执行全仓库 find 自检：`find {repo_root} -name "*database*schema*.md"` 比对 state.json.global_schema_docs[]（防 monorepo 嵌套漏检）
 
 ---
 

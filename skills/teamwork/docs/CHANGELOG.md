@@ -1,6 +1,361 @@
 # Changelog
 
-## v7.3.10 + P0-116（当前 · STATUS-LINE.md 瘦身 · 跨主题单源化）
+## v7.3.10 + P0-124（当前 · ship-stage.md 极简化 + Step 9 cleanup hard gate · 越简单越好）
+
+> **触发**：实战 case（SVC-CORE-B005）PMO 在 MR 未合并时 force-delete feature branch · 侥幸通过。
+>
+> **5 次方案演进**（实证 P0-120 元规则信号 2/3 价值）：
+> - v1: 加 SHA 校验 step → 治标
+> - v2: 改 `git branch -D` → `-d` 安全模式 → 半治本
+> - v3: 加 merge gate hard gate（+state.json schema 字段）→ 治本机制
+> - v4: 删冗余 + 加 hard gate → 治本结构
+> - **v5: 删冗余 + 极简化 + 加 hard gate**（采纳「越简单越好」元原则）→ **真治本 · 全方位**
+>
+> 用户在 v3→v4→v5 每一步连续质疑 · 我每次都倾向加规则 / 加 schema · 被用户主动捕获过度设计倾向。
+
+### P0-124：ship-stage.md 极简化 · Step 9 cleanup hard gate
+
+- **改动文件**（3 个）：
+  - **stages/ship-stage.md**：从 **1066 行减至 ~895 行**（-163 行）：
+    - 删 Step 3 verbose block（变体 A/B 双模板 + ❌/✅ 错误正确示例 + 双 cite 段）→ 替换为 ~16 行紧凑统一模板
+    - 删 完成报告模板（╔══╗ 框 + 5 段拆分 + 多级 ├── 表格）→ 替换为 ~6 行极简版
+    - 删 执行报告模板（state.json + review-log 已有审计 · 不需要 markdown 重复）
+    - 删 state.json.ship 字段表（cite templates/feature-state.json 单源 · 仅留示例 / 业务语义说明）
+    - 加 **Step 9 cleanup 入口硬门禁**（核心）：destructive op 前必查 git branch -r --contains + state.ship.shipped + Step 4-5 evidence · 不通过 BLOCKER ⏸️
+    - 加 Step 9 反模式黑名单（4 条 · 含「Phase 1+2 完成」在 MR 未合并时输出 / finalize commit push feature branch 当 Step 8 / 跳过 Step 3 ⏸️ / force-delete 未验证）
+    - 改 `git branch -D` → `git branch -d`（让 git 自带保护层 + cleanup BLOCKER 兜底）
+  - **SKILL.md** R7(a) 加「destructive op 验证扩展」（一句话 cite Step 9 hard gate · 路径 A 归并 · 不新增 L1 红线）
+  - **SKILL.md frontmatter**：版本 P0-123 → P0-124
+  - **docs/CHANGELOG.md**：本条目
+- **5 方案演进对比**：
+  | 维度 | v1 SHA step | v2 `-d` 安全 | v3 merge gate | v4 删冗余 | **v5（终版）**|
+  |------|-----------|-----------|--------------|---------|--------|
+  | ship-stage.md 行数 | +25 | +15 | +60 | -415 | **-163** |
+  | 报告模板 | ╔══╗ 框保留 | 同 | 同 | 紧凑化 | **删 ╔══╗ / 删双变体 / 删执行报告** |
+  | 状态行严格度 | 不动 | 不动 | 不动 | 不动 | **唯一保留严格** |
+  | 治本程度 | 治标 | 半治本 | 治本机制 | 治本结构 | **治本机制 + 治本结构 + 简约哲学** |
+- **核心机制**（Step 9 cleanup hard gate）：
+  - 物理拦截 destructive op（不依赖 PMO 自觉）
+  - git branch -r --contains 真实命中 + state.ship.shipped + Step 4-5 evidence 三层校验
+  - 不通过 BLOCKER ⏸️（含状态行骨架 + 决策参考）
+  - 反模式黑名单 4 条（实证 SVC-CORE-B005 case 暴露的具体反模式）
+- **设计哲学**（应用本次「越简单越好」元原则）：
+  - **状态行**：严格按 STATUS-LINE.md 格式（emoji / 路径 / 分支）
+  - **决策类暂停点**：📚 决策参考 + 选项 + 状态行骨架
+  - **其他主对话输出**：极简 · 关键信息一句话 · ":" 替代 "├──" · 删 ╔══╗ 装饰 · 删教学示例 · 不重复 state.json 内容
+- **加 1 删 1 论证**（P0-48 元规则）：
+  - 净加：Step 9 hard gate ~40 行 + 反模式黑名单 4 条 + SKILL.md R7(a) 扩展 3 行
+  - 净删：~200 行（verbose 报告模板 + 双变体 + ❌/✅ 示例 + 执行报告 + state.json 字段表）
+  - **净 -163 行**（1066 → 895）· 强符合减负哲学
+  - 验证标尺：未来再有 PMO 在 MR 未合并时 cleanup case → 检查 Step 9 hard gate 是否触发
+- **未做**（P0-120 信号 2 节制 · 不过度设计）：
+  - ❌ 抽出 standards/ship-cli.md（Step 2 CLI 实现细节迁出 · 留待 P0-125 follow-up）
+  - ❌ Bug/Micro 缩简分支删「与 Feature 一致」赘述（留待 P0-125 follow-up）
+  - ❌ state.json schema 加 cleanup_verification_evidence 字段（v3 提过 · 用户反馈不需要 · 即时校验即可）
+- **核心收益**：
+  - **物化拦截 destructive op**（不靠 PMO 自觉 · git + state.shipped + Step 4-5 evidence 三层校验）
+  - **极简化主对话输出**（删 ╔══╗ / 双变体 / 教学示例 / 执行报告 / 字段表）
+  - **状态行严格度独立**（其他输出极简 · 状态行不动 · 边界明确）
+  - 实证 case 闭环：SVC-CORE-B005 force-delete 侥幸通过 → P0-124 物化拦截 + 反模式黑名单
+- **5 次反思实证 P0-120 元规则**：
+  - 信号 2「我在加规则」：v1→v3 我每次都加 · 用户每次质疑 · v4→v5 真减负
+  - 信号 3「应该好了」：5 次方案 · 每次「应该好了」都被用户捕获到治标层面
+  - 信号 1「我在改 prompt」：从 prompt 层（v1）退到机制层（v3）再退到结构层（v4/v5）
+  - 这是 P0-120 元规则在实战中最完整的演示案例
+
+---
+
+## v7.3.10 + P0-123（UI Design 入口跨子项目全景探测 · 按需 + 阈值决策）
+
+> **触发**：用户「designer 在做设计前是否要求对齐全景设计」+「可能存在全景设计在另外一个子项目的场景」+ 多轮精简反馈：
+> - 反馈 1：prepare-stage 探测过重 · 很多项目没 UI · 应放 UI Design Stage 入口（按需启动）
+> - 反馈 2：teamwork_space.md hosts_design 列 + state.json schema 字段都不需要 · 探测在 Stage 内部即时处理
+> - 反馈 3：探测有把握时不打扰 · 仅探测后仍不确认才暂停
+>
+> 我的方案 3 次精简（应用 P0-120 信号 2「我在加规则」自检）：v1（prepare-stage 全探测）→ v2（ui-design 入口 + state schema + teamwork-space 列）→ v3（仅 ui-design 入口 · 即时计算 · 阈值决策）
+
+### P0-123：UI Design Stage 入口实例化加全景路径探测 · 跨子项目防漏
+
+- **改动文件**（3 个）：
+  - **stages/ui-design-stage.md** 新增「Stage 入口实例化：全景路径探测」段（~80 行）：
+    - Step 0.1 即时探测（find · 不依赖 prepare-stage · 不持久化）
+    - Step 0.2 评分算法（5 维度 · hosting_subproject +50 / 关键词命中 +20 / preview 成熟度 +10 / 路径深度 +5 / hosts_design 标注 +30）
+    - Step 0.3 决策树（≥60 分 silent · 0 候选 ⏸️ · 不确定 ⏸️）
+    - Step 0.4 暂停点模板（4 选 1 · 含 P0-118-A 状态行骨架 + P0-115 决策参考）
+    - Step 0.5 用户拍板处理 + Step 0.6 跨子项目标注
+  - **stages/ui-design-stage.md** Process Step 1 修订：原 `design/sitemap.md` 相对路径 → `panorama_path/sitemap.md`（Step 0 确认的绝对路径）+ 跨子项目场景显式标注
+  - **roles/designer.md** § 3.3 全景设计维护规则加跨子项目对齐契约（cite ui-design-stage Step 0 + UI.md 顶部标注 + 路径错误怀疑不静默 + 项目无全景的兜底标注）
+  - **SKILL.md frontmatter**：版本 P0-121 → P0-123
+  - **docs/CHANGELOG.md**：本条目
+- **关键设计原则**（应用 P0-55 三层按需启动 + P0-120 信号 2 减负 + P0-48 加 1 删 1）：
+  - 不在 prepare-stage 探测（无 UI 项目零开销）· 仅 UI Design Stage 真触发时跑
+  - 不持久化 state.json（探测开销低 · 即时计算 · 不污染 schema）
+  - 不加 teamwork-space.md 列（项目级元数据不污染）
+  - silent 优先（高置信度直接用）· 真不确定才 ⏸️（评分 < 60 / 0 候选 / 跨子项目无依据）
+- **决策树场景覆盖**：
+  | 场景 | 行为 |
+  |------|------|
+  | 单项目 1 候选 design/sitemap.md | silent（高分） |
+  | monorepo · web 子项目有全景 + 当前 Feature 在 web | silent（hosting=当前 +50） |
+  | monorepo · web 子项目有全景 + 当前在 api · sitemap 含 api 相关页面 | silent（关键词 +20 跨子项目仍高分）|
+  | monorepo · web/admin 两个 design + 评分接近 | ⏸️ 暂停（探测后仍不确定） |
+  | 0 候选 | ⏸️ 暂停（推荐创建首版）|
+- **加 1 删 1 论证**（P0-48 元规则 + P0-103 路径 A 归并）：
+  - 净加：~80 行 ui-design-stage 入口实例化段 + ~10 行 designer.md 契约 = ~90 行
+  - 净删/合并：本 patch 路径 A 归并到现有「Stage 入口实例化」机制（P0-38/P0-55 引入）· 不新建 standards/cross-project-discovery.md（避免泛化过度 · 等到第 3 个同类 case 触发泛化）
+  - 实证 case：用户报告全景设计在另一个子项目（monorepo 跨子项目漏检 · 同 P0-119 schema 文档发现类似）
+  - 验证标尺：未来再出现「Designer 在错的子项目找全景」→ 检查是否评分维度不足 / 阈值需调整
+- **核心收益**：
+  - Designer 跨子项目能找到全景设计（防漏检）
+  - silent 优先 · 不打扰用户（高置信度直接用）
+  - 真不确定才 ⏸️（PMO 给推荐 + 评分 + 候选清单 + 决策参考）
+  - 探测开销最小（仅 UI Design Stage 触发 · 不持久化 · 不污染 schema）
+- **3 次精简实证 P0-120 元规则**：
+  - 信号 2「我在加规则」：每次精简我都倾向加 schema/列/规则 · 用户主动质疑帮我捕获
+  - 方向 A（用户质疑流程）：用户 3 次反馈我应该接受 · 不顺着原方向硬推
+  - 加 1 删 1：从 v1 到 v3 净减 ~40 行（120 → 80）+ 减少 2 个 schema 字段 + 减少 1 个表列
+
+---
+
+## v7.3.10 + P0-121（GLOSSARY.md 项目根独立术语表 + 项目根文档命名规则）
+
+> **触发**：用户「teamwork 是否有统一的项目术语表规范，如果没有需要调整 teamwork_space.md 模版加上统一语言区块」+ 反思后明确「不考虑 KNOWLEDGE.md § Glossary 失去意义」。
+>
+> **设计转向**：
+> - 用户原方案：在 teamwork_space.md 加术语表段
+> - 我主动异议（P0-120 方向 B）：单独建 GLOSSARY.md 更合理（职责分离 / 业内通行 / 类比 TROUBLESHOOTING.md）
+> - 后续讨论命名规则：是否加 TEAMWORK_ 前缀 → 我主动异议「不加」（用户内容主权 · 业内通行命名 · 已有 KNOWLEDGE.md 先例）
+
+### P0-121：GLOSSARY.md 项目根独立术语表 + 项目根文档命名规则
+
+- **改动文件**（7 个）：
+  - **templates/glossary.md** ✨ 新建（~80 行 · 5 段空骨架：业务术语 / 实体关系 / 命名约定 / 别名歧义 / 缩写词典 + 顶部 teamwork 自动创建说明 + 维护约定）
+  - **stages/prepare-stage.md** Step 3：加 GLOSSARY.md 主动创建段（与 P0-118-B TROUBLESHOOTING.md 同模式 · silent 复制空骨架）
+  - **templates/knowledge.md** § Glossary：业务术语主权威迁出到 GLOSSARY.md · 本段保留作为子项目内部实现层术语补充 · 删除 Order/Invoice/Customer 业务示例 · 通用架构 8 词（Module/Interface/Seam 等）保留 + Relationships 段简化
+  - **SKILL.md § 项目级文档信息架构**：加 GLOSSARY.md 行（路径 + 何时 read）
+  - **SKILL.md § 5.1 项目根文档命名规则** ✨ 新增段：边界判定原则（teamwork 主权 → 加前缀 / 用户主权 → 不加前缀）+ 理由 + 新增文档判定流程
+  - **roles/pm.md** L110：terminology-ambiguity finding 写入路径明确为「项目根 GLOSSARY.md」（替换原「加 Glossary」笼统表述）
+  - **stages/blueprint-stage.md** + **stages/goal-plan-stage.md** 入口 Read 顺序：加 GLOSSARY.md（PM/RD/架构师起草前必读）
+  - **SKILL.md frontmatter**：版本 P0-120 → P0-121
+  - **docs/CHANGELOG.md**：本条目
+- **核心机制**：
+  - **业务术语主权威单源**：项目根 `GLOSSARY.md`（teamwork prepare-stage 自动创建空骨架 · 类比 TROUBLESHOOTING.md）
+  - **分层职责清晰**：
+    - GLOSSARY.md = 业务全局术语（跨子项目共享）+ 实体关系 + 命名约定 + 别名歧义 + 缩写
+    - KNOWLEDGE.md § Glossary = 子项目内部实现层术语（Module/Interface/Seam 等通用架构词汇）+ 项目级 Gotcha/Convention/Architecture
+    - 大多数项目 KNOWLEDGE.md § Glossary 不需要业务术语段（业务全局 → GLOSSARY.md）
+  - **PM 评审 terminology-ambiguity 路径单一**：必须 ADOPT 写入 GLOSSARY.md（不再笼统「加 Glossary」）
+  - **入口 Read 集成**：goal-plan / blueprint stage 入口 Read 顺序加 GLOSSARY.md（与 P0-23 prompt-cache 协同）
+- **项目根文档命名规则**（SKILL.md § 5.1）：
+  - teamwork 框架附属（`.teamwork_localconfig.md` / `teamwork_space.md`）→ 加前缀
+  - 项目级通用文档（`KNOWLEDGE.md` / `TROUBLESHOOTING.md` / `GLOSSARY.md`）→ 不加前缀（业内通行 · 用户内容主权）
+- **加 1 删 1 论证**（P0-48 元规则）：
+  - 净加：~80 行 templates/glossary.md + ~30 行集成 cite + ~25 行 SKILL.md 命名规则段 = ~135 行
+  - 净删：knowledge.md § Glossary 业务术语段（Order/Invoice/Customer 示例）+ Relationships 业务示例段 = ~15 行
+  - 实质是**单源迁移**：业务术语权威源从 KNOWLEDGE.md § Glossary 子段 → 独立 GLOSSARY.md（更显式 / 更可发现 / 业内通行）
+  - 类比 P0-109 TROUBLESHOOTING.md（也是从 KNOWLEDGE.md 子段独立出来）· 同设计意图 · 同实施模式
+- **核心收益**：
+  - 业务术语有专属容器（项目根独立文档 · 类比 TROUBLESHOOTING.md / KNOWLEDGE.md 家族）
+  - PM 评审 terminology-ambiguity 写入路径单一 · 不再笼统
+  - 跨子项目场景术语单源（顶层 GLOSSARY.md · 防漂移）
+  - 项目根文档命名规则成文 · 未来新增项目根文档有判定依据
+- **应用 P0-120 元规则的实证**：
+  - 方向 B（AI 主动异议）：用户原方案放 teamwork_space.md → 我主动说不同意见 → 用户接受
+  - 信号 1（"我在改 prompt"）：用户问 TROUBLESHOOTING_ 前缀 → 我反向问是否真该加 → 用户接受我的 5 条理由
+  - 这是 P0-120 元规则的实战验证案例
+
+---
+
+## v7.3.10 + P0-120（Opus 思维元规则嫁接 · AI 对话姿态双向 + 自检信号 4 类）
+
+> **触发**：用户分享 7 条「Opus 思维元规则」+ 反馈「我们的初始化逻辑中有类似的，可以结合这些再补充」。
+>
+> **设计选择**：嫁接版（不新建 standards/thinking-rules.md · 避免引入并行体系）→ 把 Opus 元规则有用的部分嫁接到现有最相关段（RULES.md / rd.md / SKILL.md / pmo-auto-mode.md）。
+
+### P0-120：Opus 思维元规则嫁接（4 处现有段扩展 · 不新建文件）
+
+- **改动文件**（5 个）：
+  - **RULES.md** L102「用户质疑流程时 AI 反应模式」段升级为「AI vs 用户对话姿态」段：原内容（方向 A 用户质疑反应）+ 新增方向 B（AI 主动异议方向 · 不顺着错方向走 / 不讨好执行 · 含 3 条响应规则 + 输出模板 + 反例 + 与方向 A 对偶关系 + 与红线关系）
+  - **roles/rd.md** L31 Bug 修复段扩展：加「修 2 次失败停下做根因分析」+「禁连续 3 次改同文件同区域」（Opus 元规则 ❸）
+  - **SKILL.md** R5(c) 反模式黑名单加：过度自信措辞（"完美解决了" / "应该已经修好了" / "这次肯定没问题"）+ 默默降级措辞（"这个不重要" / "后续再做" / "非关键可跳过"）+ 替换为「已实施 X · 已通过 Y 验证 / 未验证 · 请你确认」（Opus 元规则 ❻+❼）
+  - **roles/pmo-auto-mode.md** § 十一新增：自检信号 4 类（"改 prompt" / "加规则" / "应该好了" / "模型做不到"）· 反模式 + 与现有元规则协同表（Opus 元规则 ❽）
+  - **SKILL.md frontmatter**：版本 P0-119 → P0-120
+  - **docs/CHANGELOG.md**：本条目
+- **嫁接原则**（不新建概念体系）：
+  - 不新建 standards/thinking-rules.md（避免引入并行规则体系 · 防 P0-103 红线膨胀）
+  - 每条 Opus 元规则嫁接到现有最相关段（用户质疑 / Bug 修复 / 反模式黑名单 / auto 模式自检）
+  - 单源化原则保持（每条只一处权威 · cite 链接到现有红线 / 元规则）
+- **覆盖的 Opus 元规则**：
+  - ❶ 主动异议 / 不讨好 → RULES.md 方向 B
+  - ❸ 修 bug 打转停下根因分析 / 禁连续 3 次同区域 → rd.md L31
+  - ❻ 禁过度自信措辞 → SKILL.md R5(c) 黑名单
+  - ❼ 范围管理 / 不默默降级 → SKILL.md R5(c) 黑名单
+  - ❽ 自检信号 4 类 → pmo-auto-mode.md § 十一
+- **不做的部分**（明确决策）：
+  - ❷ 写代码前根因 + 系统级 + 涉及模块 → 不做（Execution Plan 5 行已部分覆盖 · 通用化收益不明显）
+  - ❹ 设计前系统本质类比 → 不做（架构师 Tech Review 维度 1 已覆盖类比维度 · 通用化收益小）
+  - ❺ 穷举根因 → 不做（PRD 对抗性自查 + R7 实测输出 + triage 意图识别已覆盖）
+  - 完整版 P0-120 新建文件 → 拒绝（在用户确认前我主动给出反对方向 · 用户接受嫁接版方案）
+- **加 1 删 1 论证**（P0-48 元规则）：
+  - 净加：~80 行（4 处现有段扩展 + 新增 § 十一自检信号）
+  - 净删/合并：本 patch 修复 4 类系统性偏差（讨好 / 修复打转 / 过度自信 / 自我合理化）· 属于结构性扩展（P0-48 例外）+「修 bug」类（实证 case 触发 · 不强制加 1 删 1）
+  - 与 P0-103 红线生命周期一致：路径 A（归并到现有 RULES.md / R5(c) / pmo-auto-mode.md）· 不走路径 C（新增红线 / 新建文件）
+  - 验证标尺：未来 AI 顺着错方向走 / 修复反复打转 / 用「应该好了」替代验证 / 自检信号触发但忽略 → 检查是否本嫁接段不够强 · 需升级 L3 物理拦截
+- **核心收益**：
+  - AI vs 用户对话姿态双向（不只防 AI 顺着用户跳流程 · 也防 AI 顺着用户错方向走）
+  - Bug 修复打转的硬约束（修 2 次停下 + 3 次同区域禁忌）防止「症状层反复修」
+  - 措辞黑名单覆盖过度自信 + 默默降级（与 P0-118-A 状态行黑名单同位置 · 物理拦截）
+  - 自检信号 4 类提供「治标 vs 治本」的元层提醒（防 PMO 在 prompt 层 / 加规则层打转）
+
+---
+
+## v7.3.10 + P0-119（DB schema 变更独立评审维度 + 全局 schema 文档发现机制）
+
+> **触发**：实战 case（SVC-PLATFORM-F034 Partner-Request-Journal）架构师 review 漏检 services/core/docs/architecture/database-schema.md（monorepo 嵌套子项目）· review-arch.md 误判为「无全局 schema 文档」· 降级为非阻塞 concern · 用户事后追问才发现 · 全局 schema 文档漂移延迟。
+>
+> **架构问题**：
+> 1. schema 变更没专项评审维度 — 架构师 Review 是通用 CR · 易漏查
+> 2. 全局 schema 文档发现没"必发现"机制 — 浅层 docs/ 检索 · monorepo 子项目嵌套漏检
+> 3. schema 变更的"全局文档同步"没硬约束 — 允许降级为非阻塞 concern · Stage 仍能 done
+
+### P0-119：DB schema 变更独立评审维度 + 全局 schema 文档发现 + 不可降级硬约束
+
+- **改动文件**（7 个）：
+  - **roles/architect-tech-review.md** § 3.1（新增 ~80 行）：DB schema 变更专项 checklist · Blueprint 阶段触发 · 7 维度评审（设计 / migration / index / 兼容 / 全局文档同步 / 隐私合规 / 容量性能）· 维度 5 不可降级
+  - **roles/architect-cr.md** § 2.1（新增 ~60 行）：DB schema 变更 CR 专项 · Review 阶段触发 · 5 维度评审（一致性 / 全局文档已更新 / 全仓库 find 自检 / 生产一致性 / FK 策略合规）· 维度 2 不可降级
+  - **stages/prepare-stage.md** Step 3：加全局 schema 文档发现段（全仓库 find `*database*schema*.md` / `*schema*registry*.md`）· 写 state.json.global_schema_docs[] · evidence-binding 协同 P0-101
+  - **stages/blueprint-stage.md** 可配置点 + 入口实例化：加 schema_change_triggered 触发（grep TECH.md 关键词）· 命中启用架构师 Tech Review schema 专项
+  - **stages/review-stage.md** 可配置点 + 入口实例化：加 schema_change_triggered 触发（git diff 命中 migration / DDL）· 命中启用架构师 CR schema 专项 + 全仓库 find 自检
+  - **templates/feature-state.json** schema：加 global_schema_docs[] + global_schema_docs_evidence + schema_change_evidence 三个字段（与 P0-101 evidence-binding 协同）
+  - **templates/dispatch.md** Dev 产物白名单：blueprint / dev / review 三 Stage 表行加 `state.global_schema_docs[]`（schema 变更触发时必读必改）+ schema 变更 PMO 自拒规则
+  - **SKILL.md frontmatter**：版本 P0-118-B → P0-119
+  - **docs/CHANGELOG.md**：本条目
+- **核心机制变化**：
+  - **schema 变更升格为独立评审维度**（不是普通代码改动 · 区分 Tech Review + CR 两个阶段）
+  - **全局 schema 文档"必发现"机制**（prepare-stage Step 3 全仓库 find · 防 monorepo 嵌套漏检）
+  - **不可降级硬约束**（全局 schema 文档同步未完成 → BLOCKER NEEDS_FIX · 不允许 PASS_WITH_CONCERNS 降级）
+- **触发链**：
+  - Blueprint 阶段：grep TECH.md 关键词（CREATE TABLE / migration / FK / 等）→ schema_change_evidence.detected_at_blueprint → 架构师 Tech Review § 3.1 启用
+  - Review 阶段：git diff 命中 *.sql migration / src/migrations/ → schema_change_evidence.detected_at_review → 架构师 CR § 2.1 启用 + 全仓库 find 自检
+  - Dev 阶段：state.global_schema_docs[] 自动注入 dispatch Input files（必读必改）
+- **加 1 删 1 论证**（P0-48 元规则）：
+  - 净加：~250 行（架构师专项 checklist + state schema + dispatch 表行 + 触发触发器）
+  - 净删/合并：本 patch 修复实战 case 暴露的系统性 gap（schema 变更被当成普通代码 · 全局文档漂移）· 属于 P0-48 例外的「修 bug」+ 「结构性扩展」类（不强制加 1 删 1）
+  - 验证标尺：未来再出现 schema 变更后全局 schema 文档漂移 case → 检查是否 prepare-stage Step 3 find 漏路径 / 触发关键词不全 / 不可降级约束被绕过
+- **核心收益**：
+  - schema 变更被 framework 识别为特殊高影响改动（不是普通 CR 维度）
+  - monorepo 嵌套子项目下全局 schema 文档不再漏检（穷举 find）
+  - 全局 schema 文档同步被升格为不可降级 BLOCKER（与 P0-101 evidence-binding 协同 · 物理拦截）
+  - dispatch 产物白名单自动注入 global_schema_docs[]（RD 必须 commit · 不允许 silent 漂移）
+
+---
+
+## v7.3.10 + P0-118-B（TROUBLESHOOTING.md 主动创建空骨架）
+
+> **触发**：用户「troubleshot 文档会主动创建么」+「空模版需要主动创建，但是不填充内容，用户可以基于这个空文件补充，teamwork_space.md 也是 ai 创建的」。
+>
+> **设计转向**：原 P0-109 / P0-110 设计是「不存在 → 一句话提示用户创建」（懒提示模式）。用户反馈：排查文档是项目开发**强需求** · 类比 `teamwork_space.md` 应该 PMO 主动创建空骨架（不填内容 · 用户基于骨架补充）。
+
+### P0-118-B：TROUBLESHOOTING.md 主动创建空骨架
+
+- **改动文件**（5 个）：
+  - **stages/prepare-stage.md** Step 3：项目空间加载段加 TROUBLESHOOTING.md 检测 + silent 复制 templates/troubleshooting.md 到项目根
+  - **stages/triage-stage.md** mode A query 排查分支：「不存在 → 一句话提示创建」改为「模板原样未填 → 提示补充」（prepare-stage 已保证文件存在）+ 加空骨架检测规则（grep 占位符 / 模板原文标题）
+  - **SKILL.md** L147-151 「TROUBLESHOOTING.md 设计要点」段：加「prepare-stage Step 3 主动创建空骨架」要点 + 调整「不存在时」表述为「用户首次排查时检测模板原样未填」
+  - **standards/discussion-mode.md** L124：知识地图行同步表述
+  - **templates/troubleshooting.md** 顶部：加注释说明本文是 teamwork 自动创建的空骨架 + 空骨架检测说明
+  - **SKILL.md frontmatter**：版本 P0-118-A → P0-118-B
+  - **docs/CHANGELOG.md**：本条目
+- **核心机制变化**：
+  - 项目级排查文档从「懒提示 · 用户手动创建」升格为「prepare-stage 主动创建空骨架 · 用户填内容」
+  - 与 `teamwork_space.md` 创建模式完全对齐（PMO 主动创建空骨架 · 类比 product-overview/）
+  - silent 复制 · 不打断当前流程 · 不输出 banner（与 P0-105 silent execution 一致）
+- **空骨架 vs 已填内容判定**：
+  - PMO read 后 grep 占位符 / 模板原文标题字符串
+  - 命中 = 模板原样未填 → 用通用方法 + 提示用户补充
+  - 未命中 = 用户已填 → silent read · 按文档执行
+- **加 1 删 1 论证**（P0-48 元规则）：
+  - 净加：prepare-stage Step 3 ~10 行 + triage-stage 修订 ~10 行 + 多文件同步表述 ~6 行 + templates 顶部注释 ~5 行 = ~30 行
+  - 净删/合并：本 patch 把懒提示模式升格为主动创建（不删旧内容 · 改既有逻辑）· 属于结构性扩展（P0-48 例外）
+  - 验证标尺：未来排查类项目仍出现"找不到 TROUBLESHOOTING.md"case → 检查是否 prepare-stage Step 3 创建逻辑漏触发
+- **核心收益**：
+  - 排查文档可见度提升：项目首次 /teamwork 启动后即有空骨架文件 · 用户能直接看到 + 编辑
+  - 与 teamwork_space.md / product-overview 创建 pattern 对齐 · 框架内一致性提升
+  - 用户首次排查体验改善：teamwork 用通用方法 + 提示填空骨架 · 下次排查自动 read 已填内容
+
+---
+
+## v7.3.10 + P0-118-A（暂停点状态行骨架强制 + 流转校验行 ≠ 状态行硬约束）
+
+> **触发**：用户对 P0-118 的反馈——「阶段流转校验行 ≠ 状态行」是核心区分；P0-118 cite-only 在长流程仍易被忽略；自动流转不需状态行（与 P0-105 silent execution 自洽），状态行专属暂停点终态。
+>
+> **架构精确化**：silent execution 与状态行边界明确——silent 限于自动流转中间过程 / 框架仪式 / Step 头；暂停点终态产出（状态行 + 决策参考）必出。
+
+### P0-118-A：暂停点状态行骨架强制 · 流转校验行 ≠ 状态行硬约束
+
+- **改动文件**（11 个）：
+  - **rules/flow-transitions.md** 顶部新增「状态行触发规则」段：自动流转 vs 暂停流转 vs 条件流转 三态触发表 + 反模式 + silent execution 边界
+  - **SKILL.md** R5(c) 修订（边界精确化）：限定到 ⏸️ 暂停点 + 加「流转校验行 ≠ 状态行」sub-clause + 反模式黑名单加「跳过状态行」
+  - **STATUS-LINE.md** 反模式黑名单段加 ❌「跳过状态行」case + PTR-F001-BUG-013 子根因引用
+  - **roles/pmo-pm-acceptance-ship.md** § 2.2 PM 验收：cite-only → cite + 骨架占位符
+  - **stages/ship-stage.md** 4 处（变体 A / 变体 B / MR 异常 / worktree 清理）：cite-only → cite + 骨架占位符
+  - **stages/goal-plan-stage.md** 子步骤 5 PRD 用户最终确认：cite-only → cite + 骨架占位符
+  - **stages/prepare-stage.md** Step 13 双对齐暂停：cite-only → cite + 骨架占位符
+  - **SKILL.md frontmatter**：版本 P0-118 → P0-118-A
+  - **docs/CHANGELOG.md**：本条目
+- **核心机制变化**：
+  - **状态行触发边界明确**：⏸️ 暂停点必出 / 🚀 自动流转不出（与 P0-105 silent execution 一致）
+  - **流转校验行 ≠ 状态行硬约束**：暂停点必须两者并存（rules/flow-transitions.md 顶部硬约束 + SKILL.md R5(c) sub-clause）
+  - **接受打破 P0-115 cite-only 单源**：暂停点模板内嵌**最小骨架占位符**（字段名 + 阶段 enum）· 格式细节仍 cite STATUS-LINE.md（部分单源保留）
+- **设计权衡（cite-only vs 内嵌骨架）**：
+  - P0-115 cite-only：未来格式演进零分散 · 但实战在长流程被忽略（PMO 不主动 Read spec）
+  - P0-118-A cite + 骨架：字段名 / 阶段 enum 内嵌（强制可见）+ 格式细节仍 cite（部分单源保留）
+  - 接受少量字面值重复（7 处骨架 · 每处 ~5 行）换长流程强制可见
+- **加 1 删 1 论证**（P0-48 元规则）：
+  - 净加：rules/flow-transitions.md 顶部 ~30 行 + SKILL.md R5(c) ~8 行扩展 + 7 处骨架 ~35 行 + STATUS-LINE.md 反模式 ~6 行 = ~80 行
+  - 净删/合并：本 patch 修复 P0-118 留下的「校验行混淆」+ P0-115 留下的「cite-only 长流程被忽略」两类 bug · 属于 P0-48 例外的「修 bug」类（不强制加 1 删 1）
+  - 验证标尺：未来再出现状态行漂移 / 校验行替代 status line case → 检查是否本 patch 不够强 · 需升级 L3 物理拦截（hooks 层 · 物理扫 final response）
+- **核心收益**：
+  - 状态行触发条件物化为流转表（PMO 阶段变更前必读 rules/flow-transitions.md · 顶部即见）
+  - 暂停点状态行从 cite 升为骨架 + cite 双重保障（PMO 看见骨架字段名即可填空）
+  - silent execution 与状态行边界明确：silent 限于过程 · 暂停点状态行属终态 · 必出
+  - 反模式黑名单覆盖两类典型漂移：摘要风格 + 跳过状态行
+
+---
+
+## v7.3.10 + P0-118（状态行升格 R5 红线 · 反模式黑名单）
+
+> **触发**：实战 case（PTR-F001-BUG-013 Bug Ship Phase 1 暂停点）PMO 输出「当前状态：Teamwork / Bug / Ship 等待合并（暂停）」摘要风格 · 缺 📁 + 🌿 + 📚 决策参考 · 严重违反状态行格式。
+>
+> **架构问题**：P0-115 在 spec 文件加 cite-only 渲染契约 · 但 cite 是被动指针 · PMO 不主动 Read spec 时无后备 · STATUS-LINE.md Final Response Preflight 也没触发（Preflight 在 STATUS-LINE.md 内 · PMO 也没 Read）。
+
+### P0-118：状态行 + 决策参考升格 SKILL.md R5(c) 红线
+
+- **改动文件**（3 个）：
+  - **SKILL.md** R5 暂停协议加 (c) 子条：状态行强约束 + 决策参考强约束 + 反模式黑名单（v7.3.10+P0-103 合并 #5+#10 后 · 本次扩展为 (a)/(b)/(c) 三件套）
+  - **STATUS-LINE.md** Final Response Preflight 段加新反模式：「当前状态：Teamwork / xxx」摘要风格 + PTR-F001-BUG-013 实战 case 引用 + 修复指针
+  - **docs/CHANGELOG.md** 加本条目
+- **核心机制变化**：
+  - **L1 红线层（SKILL.md）**：状态行 + 决策参考从「文档提示」升格为「红线门禁」
+  - **物化原理**：SKILL.md 启动必读 · 不依赖 PMO 主动 Read spec · 强制可见
+  - **silent execution 边界明确**：P0-105 反模式 5 不豁免状态行（终态产出必输出）
+- **反模式黑名单**（命中 = 流程偏离）：
+  - ❌ `当前状态：Teamwork / xxx`（实证 PTR-F001-BUG-013）
+  - ❌ `📍 Teamwork：xxx`（自定义字段）
+  - ❌ `Teamwork: 流程已完成`（口语化）
+- **加 1 删 1 论证**（P0-48 元规则）：
+  - 净加：SKILL.md R5(c) ~12 行 + STATUS-LINE.md 反模式段 ~8 行 = 20 行
+  - 净删/合并：本 patch 修复 P0-115 留下的「spec 被忽略 gap」· 属于 P0-48 例外的「修 bug」类（不强制加 1 删 1）
+  - 验证标尺：未来再出现摘要风格状态行漂移 → 检查是否 R5(c) 不够强 · 需升级到 L3 物理拦截（hooks 层）
+- **核心收益**：
+  - 状态行 + 决策参考从被动 cite 升格为主动红线（必读 · 必输出）
+  - 反模式黑名单提供 PMO 自检字面值锚点（命中即重写）
+  - silent execution 与状态行边界明确：silent 限于过程 · 状态行是终态 · 必输出
+  - 设计哲学修正：P0-115 的 cite-only 设计在被忽略时无后备 → P0-118 加红线兜底
+
+---
+
+## v7.3.10 + P0-116（STATUS-LINE.md 瘦身 · 跨主题单源化）
 
 > **触发**：用户审视 STATUS-LINE.md 681 行 · 超 P0-79 的 300 行 cap 一倍多。盘点发现文件混合 3+ 个非状态行主题（流程持续规则 / 用户意图识别 / 上下文恢复 / 各流程示例），与 SKILL.md / roles/pmo.md / CONTEXT-RECOVERY.md 三处重复。
 >

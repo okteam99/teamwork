@@ -150,7 +150,7 @@ cd {worktree.path}
 Step 1: roles/pm.md, roles/product-lead.md             ← 角色层（L0 稳定）
 Step 2: templates/prd.md                               ← 模板层（L0 稳定）
         [条件] templates/external-cross-review.md          （仅 review_roles[] 含 external，v7.3.10+P0-38）
-Step 3: 无（Goal-Plan Stage 是 Feature 起点，无既有 L2 产物）
+Step 3: {项目根}/GLOSSARY.md                            ← 业务术语（v7.3.10+P0-121 · 防 PRD 起草业务词漂移 / PM 评审 terminology-ambiguity 单源）
 Step 4: {Feature}/state.json                           ← 🔴 最后，动态入口（L3）
 ```
 
@@ -693,9 +693,18 @@ PMO 摘要（评审循环纪要 + finding 汇总 + 关键决策）
 4. 其他指示
 ```
 
-🔴 **渲染必含**（v7.3.10+P0-115 · cite [../STATUS-LINE.md § 暂停点模板渲染契约](../STATUS-LINE.md)）：
-- 📚 决策参考 → cite [../STATUS-LINE.md § 决策点参考文档绝对路径硬规则](../STATUS-LINE.md) #2 PRD 评审 verdict · 列 PRD.md / PRD-REVIEW.md / 相关 KNOWLEDGE / ADR 绝对路径
-- 3 行状态行 → 阶段值 = `goal_plan` enum「⏸️ PRD 待确认」
+🔴 **渲染必含**（v7.3.10+P0-115 cite + v7.3.10+P0-118-A 骨架）：
+
+📚 决策参考 → cite [../STATUS-LINE.md § 决策点参考文档绝对路径硬规则](../STATUS-LINE.md) #2 PRD 评审 verdict · 列 PRD.md / PRD-REVIEW.md / 相关 KNOWLEDGE / ADR 绝对路径
+
+⬇️ 末尾骨架（阶段值 = `goal_plan` enum「⏸️ PRD 待确认」）：
+
+```
+---
+🔄 Teamwork 模式 | 流程：{Feature/敏捷需求} | 角色：PMO | 功能：{缩写}-F{编号}-{功能名} | 阶段：⏸️ PRD 待确认 | 下一步：⏸️ 用户 4 选 1
+📁 {worktree.path}/docs/features/{Feature}/
+🌿 分支：{worktree.branch} → {merge_target} | worktree：{worktree.path}
+```
 
 用户回 1 → state.current_stage = "blueprint"（如 requires_ui=true → ui_design）→ 转入下一 Stage。
 

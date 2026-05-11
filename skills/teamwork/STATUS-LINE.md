@@ -110,6 +110,17 @@
 ❌ ✅ Feature 已交付（PR #58675e6 已合并）
    （工程摘要伪装成状态行）
 
+❌ 当前状态：Teamwork / Bug / Ship 等待合并（暂停）
+   （v7.3.10+P0-118 实证 PTR-F001-BUG-013 Bug Ship Phase 1 case · 摘要风格 / 缺 📁 + 🌿 + 📚 决策参考）
+   根因：PMO 沿用主对话上文轻量摘要风格 · 没读 ship-stage.md spec · STATUS-LINE.md Preflight 未触发
+   修复：v7.3.10+P0-118 把 Preflight 升格 SKILL.md R5(c) 红线（每次启动必读 · 不再依赖 Read spec 触发）
+
+❌ 输出 📋 阶段流转校验行后**跳过** 🔄 末尾状态行（v7.3.10+P0-118-A 同 case 子根因）
+   （📋 校验行示例：「📋 Ship 等待合并 → 🔗 Ship Stage 第二段 finalize（📖 ⏸️，来源 flow-transitions.md L166...）」）
+   根因：「阶段流转校验行」和「末尾状态行」是两类不同输出 · PMO 容易把前者当成"状态相关已输出"就跳过后者
+   边界：⏸️ 暂停点必须两者并存 · 🚀 自动流转仅 📋 校验行
+   修复：v7.3.10+P0-118-A 在 rules/flow-transitions.md 顶部加硬约束 + 7 处暂停点模板内嵌状态行骨架
+
 ✅ 🔄 Teamwork 模式 | 流程：敏捷需求 | 角色：PMO | 功能：INFRA-F017-... | 阶段：✅ 已完成 | 下一步：无
    📁 /Users/.../docs/features/INFRA-F017-.../
    📍 当前分支：staging → staging（worktree 已清理）

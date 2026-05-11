@@ -24,20 +24,16 @@
 > 不记录决策（走 ADR）、不记录通用规范（走 standards/rules）、不记录复盘（走 retros/）。
 > Teamwork 在 triage-stage（用户输入承接阶段）会扫描本文件，注入「📚 相关项目事实」段。详见 [stages/triage-stage.md](../stages/triage-stage.md) Step 2。
 
-## 📚 Glossary（术语词典 · v7.3.10+P0-78 借鉴 mattpocock/skills grill-with-docs）
+## 📚 Glossary（术语词典 · v7.3.10+P0-78 / v7.3.10+P0-121 权威源迁出）
+
+> 🔴 **业务术语主权威已迁到独立文档**（v7.3.10+P0-121）：项目根 `GLOSSARY.md`（teamwork prepare-stage 自动创建空骨架）。
+> 本段保留作为**子项目 / 模块级**术语补充（仅项目内部命名 / 实现层 · 大多数项目不需要）。
+> **跨子项目共享业务术语 → GLOSSARY.md**；仅本子项目内部 Trait/Service/Repo 命名约定 → 本段。
 
 > **Be Opinionated**：多个词指同一概念时，**挑一个最好的**，其他列为 Avoid 别名。
 > **Keep tight**：一句话定义"是什么"（不写"做什么"）。
-> **Project-specific only**：通用编程概念（timeout / error type）不放——只放本项目业务术语 + 通用架构 8 词。
-> **触发写入时机**：Goal-Plan / Blueprint Stage 评审中发现术语漂移 → 实时（inline · 不批处理）写入。
-
-### 业务术语（项目专属）
-
-| Term | 定义（一句话） | Avoid 别名 |
-|------|---------------|-----------|
-| **Order** | 用户提交的购买请求，含 ≥1 个商品 | Purchase, Transaction |
-| **Invoice** | 订单交付后向客户发出的付款请求 | Bill, PaymentRequest |
-| **Customer** | 下单的个人或组织 | Client, Buyer, Account |
+> **Project-specific only**：通用编程概念（timeout / error type）不放——只放本子项目实现层 + 通用架构 8 词。
+> **触发写入时机**：Goal-Plan / Blueprint Stage 评审中发现术语漂移 → 业务术语写 GLOSSARY.md / 实现层术语写本段（inline · 不批处理）。
 
 ### 通用架构词汇（v7.3.10+P0-78 借鉴 mattpocock/skills improve-codebase-architecture · 8 词）
 
@@ -52,11 +48,9 @@
 | **Locality** | 相关代码的物理邻近性 | 高 locality = 好维护性 · 跨 Module 跳读 = 差 locality |
 | **Boundary** | Context / 限界上下文之间的归属边界 | "Customer 数据归 Customer Context · 其他 Context 引用 ID" |
 
-### Relationships（实体关系 · 业务术语之间）
+### Relationships（实体关系）
 
-- 一个 **Order** 产出 ≥1 个 **Invoice**
-- 一个 **Invoice** 归属唯一一个 **Customer**
-- 一个 **Customer** 可有 N 个 **Order**
+> 🔴 **业务实体关系主权威已迁到 GLOSSARY.md § 二**（v7.3.10+P0-121）。本段保留仅供子项目内部模块关系（如 Service ↔ Repo 调用关系）补充。
 
 ### "删除测试"启发式（v7.3.10+P0-78 借鉴 improve-codebase-architecture）
 
@@ -122,7 +116,7 @@
 - **交互**: PR-002
 - **沟通**: PR-003
 - **拒绝**: OS-001, OS-002
-- **术语**: Order, Invoice, Customer, Module, Interface, Seam（按主题速查 · v7.3.10+P0-78）
+- **术语**: Module, Interface, Seam（通用架构词汇 · 项目内部实现层 · v7.3.10+P0-78 / 业务术语主权威见 GLOSSARY.md · v7.3.10+P0-121）
 - **歧义**: FA-001, FA-002（v7.3.10+P0-78）
 
 ## ❌ Out of Scope（已拒绝过的方案/方向 · v7.3.10+P0-77 借鉴 mattpocock/skills triage）

@@ -121,7 +121,7 @@ PMO 在 E · discuss 时按话题路由按需 read 项目级文档。**完整知
 | 信息架构 / 页面层级 | sitemap.md | 按相关段 |
 | 架构决策 / 技术选型 / 历史方案 | adrs/INDEX.md + ARCHITECTURE.md | 跨 Feature 扫 |
 | Convention / 命名约定 / Gotcha / 踩坑 | KNOWLEDGE.md | 关键词命中段 |
-| **排查 / 报错 / 查 log / 查环境 / 查 DB / 查 Redis / 部署 / 回滚**（v7.3.10+P0-109）| **TROUBLESHOOTING.md（项目根）**| 类比 teamwork_space.md 处理 · 不存在时一句话提示用户从 templates/troubleshooting.md 创建 |
+| **排查 / 报错 / 查 log / 查环境 / 查 DB / 查 Redis / 部署 / 回滚**（v7.3.10+P0-109）| **TROUBLESHOOTING.md（项目根）**| 类比 teamwork_space.md 处理 · v7.3.10+P0-118-B 起 prepare-stage Step 3 主动创建空骨架 · 用户首次排查时 PMO 检测模板原样未填 → 一句话提示补充 |
 | 多子项目 / 跨项目依赖 | teamwork_space.md | 子项目清单 |
 | F\d+（具体 Feature）| docs/features/{F}/state.json + 相关产物 | 按 Feature 编号 |
 | 数据库 / schema | docs/architecture/database-schema.md | 按相关段 |

@@ -107,7 +107,7 @@ DEFER 不是"AI 抗不下来抛给用户"的逃生舱。原始观察：P0-34 评
 | **business-alignment** | ❌ 禁止 | 业务流程完整性、AC 覆盖度、PL 业务方向对齐 | 必须 ADOPT 或 REJECT（带业务 rebuttal） |
 | **ux** | ❌ 禁止 | 交互一致性、可用性、设计系统对齐 | 必须 ADOPT 或 REJECT（带 UX rebuttal） |
 | **quality** | ❌ 禁止 | 测试覆盖、边界场景、质量门禁 | 必须 ADOPT 或 REJECT（带 QA rebuttal） |
-| **terminology-ambiguity** | ❌ 禁止 | 术语歧义 / 业务词漂移 | 必须 ADOPT（澄清术语 + 加 Glossary）|
+| **terminology-ambiguity** | ❌ 禁止 | 术语歧义 / 业务词漂移 | 必须 ADOPT（澄清术语 + 写入项目根 `GLOSSARY.md` · v7.3.10+P0-121 单源 · 业务术语 / 实体关系 / 命名约定 / 别名歧义按段归位）|
 
 ### 2.5 PMO 校验（强制审计）
 

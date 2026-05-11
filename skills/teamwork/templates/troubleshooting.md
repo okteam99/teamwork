@@ -1,11 +1,14 @@
 # 项目排查工具集（TROUBLESHOOTING）
 
-> 项目级排查 / 运维操作手册 · 由项目维护。
+> 🟢 **本文是 teamwork prepare-stage 自动创建的空骨架**（v7.3.10+P0-118-B 起）· 类比 `teamwork_space.md` 模式。
+> ⏳ **请按项目栈补充具体命令**（kubectl / psql / redis-cli / curl / 部署回滚链等）· 填完后 teamwork 排查时会自动 read 你的内容。
+>
 > teamwork PMO 在 mode A query / E · discuss 触及「排查 / 报错 / 查 log / 查环境」时按需 read。
 > 与 [KNOWLEDGE.md](./knowledge.md) 互补：KNOWLEDGE = 踩坑注意点 · 本文 = 操作步骤。
 >
 > **路径硬规则**：项目根 `TROUBLESHOOTING.md`（teamwork 固定路径 · 不查 docs/）。
 > **内容由项目维护**：teamwork 不规范具体命令（每个项目栈完全不同 · 用户按实际填）。
+> **空骨架检测**：未填内容时所有表格仍为模板占位符（如 `{填入入口域名}`）· PMO 检测后用通用方法排查 + 提示用户填。
 
 ---
 

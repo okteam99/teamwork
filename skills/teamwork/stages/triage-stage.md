@@ -148,27 +148,31 @@ silent execution：
 
 > 触发关键词：`报错 / 502 / 5xx / 异常 / panic / fatal / 崩溃 / 服务挂了 / 查 log / 查日志 / 排查 / 调试 / 查环境 / 查 DB / 查数据库 / 查表 / 查 Redis / 查缓存 / 部署 / 回滚 / 上线`
 
-**优先级 1：固定 read 项目根 TROUBLESHOOTING.md**
+**优先级 1：固定 read 项目根 TROUBLESHOOTING.md**（v7.3.10+P0-118-B 主动创建后必存在）
 
 ```
-检查 {项目根}/TROUBLESHOOTING.md：
-  ├── 存在 → silent read · 按文档步骤执行（kubectl / psql / redis-cli / curl 等具体命令）
-  │           · 遵守文档里的安全约束（production 写操作 ⏸️ 用户授权 · 红线 R8 协同）
-  │           · 不复述 secret / token / 密码到主对话
+检查 {项目根}/TROUBLESHOOTING.md（prepare-stage Step 3 已主动创建空骨架 · 类比 teamwork_space.md）：
+  ├── 已填内容 → silent read · 按文档步骤执行（kubectl / psql / redis-cli / curl 等具体命令）
+  │              · 遵守文档里的安全约束（production 写操作 ⏸️ 用户授权 · 红线 R8 协同）
+  │              · 不复述 secret / token / 密码到主对话
   │
-  └── 不存在 → PMO 用通用方法尝试排查（kubectl 探索 / grep 代码 / curl 接口）
-              + 答案末尾**一句话**提示用户：
-                "💡 项目缺 TROUBLESHOOTING.md（约定路径：项目根）·
-                 建议参考 [templates/troubleshooting.md] 创建 ·
-                 9 段标准骨架（log / DB / Redis / 监控 / 部署 / 报错思路链）·
-                 内容由你按项目栈填具体命令 · teamwork 下次排查时会自动 read。"
+  └── 模板原样未填（用户首次排查 · 内容仍是 teamwork 复制的空骨架）
+                → PMO 用通用方法尝试排查（kubectl 探索 / grep 代码 / curl 接口）
+                + 答案末尾**一句话**提示用户：
+                  "💡 项目根 TROUBLESHOOTING.md 是 teamwork 自动创建的空骨架 ·
+                   你可以按项目栈补充具体命令（kubectl / psql / 部署回滚链等）·
+                   teamwork 下次排查时会自动 read 已填内容。"
 ```
 
-🔴 **不强推模板**（v7.3.10+P0-109）：
-- teamwork 提供 templates/troubleshooting.md 作为参考骨架
-- 但**不规范具体命令**（每个项目栈不同 · K8s vs Docker vs Serverless）
+🔴 **空骨架检测**（v7.3.10+P0-118-B 新增）：
+- PMO read 后 grep 标识符（如 `{TODO 由用户填写}` / 模板原文标题）判断是否仍是空骨架
+- 是 → 走「模板原样未填」分支
+- 否 → 走「已填内容」分支
+
+🔴 **不强推具体命令**（v7.3.10+P0-109）：
+- teamwork 提供空骨架（4 段结构）但**不规范具体命令**（每个项目栈不同 · K8s vs Docker vs Serverless）
 - 用户按项目实际维护内容
-- 类比 [teamwork_space.md 模板模式](../templates/teamwork-space.md)：模板提供章节结构 · 具体值用户填
+- 类比 [teamwork_space.md 模板模式](../templates/teamwork-space.md)：teamwork 创建空骨架 · 具体值用户填
 
 🔴 **silent read 原则**：
 - ✅ 不输出"我现在 read TROUBLESHOOTING.md"

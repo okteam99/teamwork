@@ -108,6 +108,91 @@
 
 ---
 
+## 3.1 DB schema 变更专项 checklist（v7.3.10+P0-119 新增）
+
+🔴 **触发条件**：TECH.md 含 schema 变更关键词 → 启用本段专项评审。
+
+```
+触发关键词：CREATE TABLE / ALTER TABLE / DROP TABLE / migration / DDL /
+            CREATE INDEX / DROP INDEX / FOREIGN KEY / FK / 主键 / 索引 / 表结构 /
+            schema 变更 / 字段新增 / 字段删除 / 字段类型变更 / CHECK 约束
+```
+
+🔴 **7 项专项评审维度**（命中触发 → 全部必评 · 不可降级为非阻塞）：
+
+```
+1. schema 设计合理性
+   ├── 命名规范（表名 / 字段名 / 索引名 / 约束名 · 与项目 KNOWLEDGE.md Convention 一致）
+   ├── 字段类型选型（TEXT vs VARCHAR / TIMESTAMP vs TIMESTAMPTZ / NUMERIC 精度等）
+   ├── NOT NULL / DEFAULT / NULLABLE 决策合理（业务语义清晰）
+   └── 主键选型（UUID vs BIGSERIAL · 分布式 / 单机 / 读写比）
+
+2. migration 完整性
+   ├── up.sql 完整可执行（无依赖外部状态 · 幂等可重跑）
+   ├── down.sql 完整可回滚（DROP TABLE / DROP INDEX / DROP COLUMN 等反向操作）
+   ├── 数据迁移脚本（如有）有 dry-run / 灰度 / 校验逻辑
+   └── migration 文件名时间戳合理（避免和已有 migration 冲突）
+
+3. index 设计
+   ├── 查询场景明确（按字段 / 按字段组合 / 按时间范围）
+   ├── 唯一约束 vs 普通索引选型（业务唯一性边界）
+   ├── 复合索引字段顺序（高基数 / 选择性优先 + 排序方向）
+   └── 性能预估（写入 / 查询 / 索引维护开销）
+
+4. 兼容性
+   ├── 向前兼容（旧服务读新 schema 不崩 · 新增字段 NULL/DEFAULT 安全）
+   ├── 向后兼容（新服务读旧 schema 不崩 · 字段删除分阶段）
+   ├── 蓝绿部署 / 滚动升级（schema 先于代码部署 · 反向同步）
+   └── 多服务影响（哪些服务读写本表 · TECH.md 已识别 · 跨服务联动）
+
+5. 🔴 全局 schema 文档同步规划（最高阻塞优先级 · v7.3.10+P0-119 实证 SVC-PLATFORM-F034 case）
+   ├── 全局 schema 文档路径已识别（cite state.json.global_schema_docs[] · prepare-stage Step 3 已 find）
+   │   ├── 单项目：docs/architecture/database-schema.md（如存在）
+   │   ├── monorepo：services/{子项目}/docs/architecture/database-schema.md（多份分别同步）
+   │   └── 自定义路径：项目维护的全 monorepo find `*database*schema*.md` 命中清单
+   ├── 🔴 TECH.md 必须列入「全局 schema 文档同步」产物清单（指明哪些文件需更新）
+   ├── 同步内容必须含：表的 ER 关系 / 字段说明 / 索引 / 约束 / FK 策略例外 / Model/Struct 映射 / SQL 引用点 / migration 清单 / 变更记录
+   └── ❌ TECH.md 未列入全局 schema 文档同步 → BLOCKER（不可降级为非阻塞 concern）
+
+6. 隐私 / 合规
+   ├── PII 字段识别（手机 / 邮箱 / 身份证 / 地址 / 头像 URL 等）
+   ├── 加密 / 脱敏策略（at-rest / in-transit / log redact）
+   ├── 数据保留期（GDPR / 合规要求 · 是否需要 TTL / 归档策略）
+   └── 审计字段（created_by / updated_by / source_ip 等）
+
+7. 容量 / 性能
+   ├── 预估行数（首年 / 三年 / 数据增长曲线）
+   ├── 写入频率（峰值 / 平均 · 是否需要分片 / 分区）
+   ├── 读取模式（OLTP 单点 / 范围扫 / OLAP 聚合）
+   └── 大字段处理（response_body / log_blob 等 · 是否需要 toast / 单独表 / 对象存储）
+```
+
+🔴 **报告格式**（schema 触发时必出 · 嵌入 § 5.1 Review 报告主体）：
+
+```markdown
+## DB schema 变更专项评审
+
+| 维度 | 结果 | 说明 |
+|------|------|------|
+| 1. schema 设计合理性 | ✅/⚠️/❌ | ... |
+| 2. migration 完整性 | ✅/⚠️/❌ | ... |
+| 3. index 设计 | ✅/⚠️/❌ | ... |
+| 4. 兼容性 | ✅/⚠️/❌ | ... |
+| 5. 🔴 全局 schema 文档同步规划 | ✅/❌ | 必须列出 state.json.global_schema_docs[] 中需同步的文件 |
+| 6. 隐私 / 合规 | ✅/⚠️/❌ | ... |
+| 7. 容量 / 性能 | ✅/⚠️/❌ | ... |
+
+涉及表：{表名列表}
+migration 文件：{up.sql / down.sql 路径}
+全局 schema 文档：{state.json.global_schema_docs[] 命中路径}
+```
+
+🔴 **不可降级原则**：
+- 维度 5（全局 schema 文档同步规划）失败 → 强制 NEEDS_REVISION（不允许 PASS_WITH_CONCERNS 降级）
+- 其他维度可按 finding 严重度走标准 verdict 流程
+
+---
+
 ## 4. 执行流程
 
 ```
