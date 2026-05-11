@@ -150,17 +150,19 @@ Step 2: 全景设计同步更新（用户确认 Step 1 后自动执行 · 涉及
 - ✅ 通过 → 自动进入 Test Stage
 - ❌ 有问题 → RD 修复 → 重新验收
 
-### 3.5 验收标准覆盖声明（Designer 必须输出）
+### 3.5 Designer 自查报告（v7.3.10+P0-132 物化 · 出口必填）
 
-```
-📋 验收标准覆盖情况
-| 验收标准 | 覆盖状态 | 对应设计 | 说明 |
-|----------|---------|---------|------|
-| [标准1] | ✅ | [页面/组件名] | [对应页面/状态] |
-| [标准3] | ⚠️ | - | [需 RD 实现 · 非 UI] |
+> 🔴 **物化拦截**：[tools/verify-panorama.py](../tools/verify-panorama.py) 校验自查报告完整性 + sitemap.md mtime + preview/ 数量 + 跨子项目「全景宿主」标注 · UI Design Stage 出口前置 · 不通过 = 不进 ⏸️ 用户确认。
 
-覆盖率: X/Y (XX%)
-```
+5 维度自查清单（详细 cite [standards/common.md § 四B Designer 自查规范](../standards/common.md)）：
+
+1. **全景对齐**（P0-123 跨子项目契约）：panorama_path 已 read · 风格/配色/导航与全景一致 · 跨子项目时标注「全景宿主」
+2. **状态覆盖**：每页正常/空/加载/错误 4 态 + HTML preview
+3. **PRD AC 覆盖**：UI-AC-COVERAGE 表逐条声明
+4. **全景增量同步**：变更类型（无/增量/结构性）+ sitemap modify-in-place + 标红注释 + diff
+5. **结构性变更红线**：不删页面 / 不重构导航 / 不改核心业务流程状态机（任一命中 → 停 Stage）
+
+UI.md 末尾必含 `## Designer 自查报告` 段（模板见 [templates/ui.md](../templates/ui.md)）· verify-panorama.py grep 校验。
 
 ### 3.6 Designer 交接点
 

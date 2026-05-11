@@ -252,6 +252,10 @@ silent 自动认定 / 用户选 1-2：
 - [ ] AC 覆盖声明覆盖 PRD 所有 AC
 - [ ] 若本次涉及页面结构变更：design/sitemap.md 和 design/preview/overview.html 已同步更新（modified_time 晚于 Stage 开始时间）
 - [ ] 若全景无变更：执行报告显式输出「⏭️ 全景无需同步」
+- [ ] 🔴 **verify-panorama.py 物化校验通过**（v7.3.10+P0-132 出口前置）：
+      `python3 {SKILL_ROOT}/tools/verify-panorama.py --feature {artifact_root} {--panorama-path X | --no-panorama} --stage-started-at {ISO}`
+      校验 5 项：自查报告完整 / 跨子项目「全景宿主」标注 / panorama_path 有效 / sitemap mtime（涉及变更时）/ preview HTML 数量
+      未通过 = 不进 ⏸️ 用户确认设计稿 · 按 stderr hint 补完 UI.md 自查段重跑
 
 ### Done 判据
 

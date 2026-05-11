@@ -585,6 +585,138 @@ RD 开发完成（测试通过）
 
 ---
 
+## 四B、Designer 自查规范（v7.3.10+P0-132 新增 · 与 RD 自查同型）
+
+> Designer 完成 UI 设计后、用户确认设计稿前，必须完成自查并输出自查报告写入 UI.md。
+>
+> 物化拦截：[tools/verify-panorama.py](../tools/verify-panorama.py) 校验自查报告完整性 + sitemap.md mtime + preview/ 数量 · UI Design Stage 出口前置。
+
+### 自查触发时机
+
+```
+Designer 完成设计（UI.md + preview/*.html 草稿）
+    ↓
+执行自查清单（5 维度 · 见下）
+    ↓
+输出 Designer 自查报告（写入 UI.md 末尾）
+    ↓
+verify-panorama.py 物化校验 → 全 ✅ 才进 ⏸️ 用户确认设计稿
+```
+
+### 自查清单详解（5 维度）
+
+#### 1. 全景对齐（v7.3.10+P0-123 跨子项目契约）
+
+```
+📋 全景对齐检查项：
+├── panorama_path 已 read（cite Stage 入口实例化 Step 0 探测结果）
+├── Feature UI 风格 / 配色 / 布局 / 语言与全景一致（read panorama_path/sitemap.md + overview.html 对照）
+├── Feature 页面在全景中的位置已确认（新增节点 / 修改既有节点 / 影响哪条导航）
+└── 跨子项目场景（panorama_path 不在当前 Feature 子项目）
+    ├── UI.md 顶部已标注「全景宿主：{hosting_subproject}」
+    └── 已显式说明「为什么走跨子项目全景」（防 Designer 凭印象）
+```
+
+🔴 项目无全景路径（Step 0 决策为 panorama_path=null）→ 标注「⚠️ 项目无全景基准 · 本 Feature UI 设计为独立基准」+ Concerns 记录。
+
+#### 2. 状态覆盖
+
+```
+📋 状态覆盖检查项：
+├── 每页面有正常态 HTML preview
+├── 每页面有空态 HTML preview
+├── 每页面有加载态 HTML preview
+└── 每页面有错误态 HTML preview
+```
+
+🔴 缺态即阻塞 · ❌ 反模式：用文字描述代替 HTML preview。
+
+#### 3. PRD AC 覆盖
+
+```
+📋 AC 覆盖检查项：
+├── 每条 PRD AC 在 UI.md 找到对应页面 / 组件支撑
+├── 输出 UI-AC-COVERAGE 表（AC.id → 页面/组件 → 覆盖状态）
+└── 非 UI 类 AC（纯后端 / 纯逻辑）显式标注「⚠️ 需 RD 实现 · 非 UI」
+```
+
+#### 4. 全景增量同步（涉及变更时）
+
+```
+📋 全景增量同步检查项：
+├── 判断本 Feature 是否引入新页面 / 修改现有页面结构 / 变更导航关系？
+│   ├── 是 → 执行增量合并（下方 4 项）
+│   └── 否 → 显式输出「⏭️ 本 Feature 无页面结构变更 · 全景无需同步」 + 跳过下方
+├── design/sitemap.md 已 modify-in-place（不重写 / 不删除 / append 新页面）
+├── design/preview/overview.html 已 modify-in-place
+├── sitemap.md 对应段加标红注释 `<!-- 🟡 {日期}: {FeatureID} 本次变更：{变更摘要} -->`
+└── 自查报告含全景结构 diff（前后页面清单 / overview.html DOM 差异摘要）
+```
+
+#### 5. 结构性变更红线（兜底拦截）
+
+```
+📋 结构性变更检查项：
+├── 本 Feature 不涉及「删除现有页面」
+├── 本 Feature 不涉及「重构导航结构」
+└── 本 Feature 不涉及「修改核心业务流程状态机」
+```
+
+🔴 任一命中 → **停止本 Stage** → 返回 DONE_WITH_CONCERNS · 建议用户走 Feature Planning 而非 Feature 流程。
+
+### Designer 自查报告模板
+
+UI.md 末尾必含本段（verify-panorama.py grep 校验）：
+
+```markdown
+## Designer 自查报告（🔴 出口必填 · verify-panorama.py 校验）
+
+### 检查结果汇总
+| 维度 | 检查项 | 通过 | 备注 |
+|------|------|----|----|
+| 1. 全景对齐 | 4 | ?/4 | panorama_path = ... · 宿主 = {当前/跨子项目→XX} |
+| 2. 状态覆盖 | 4×N页 | ?/? | N 个页面 · 每页 4 态 |
+| 3. PRD AC 覆盖 | M | ?/M | M 条 AC · 详 UI-AC-COVERAGE 表 |
+| 4. 全景增量同步 | 4 | ?/4 | 类型：⏭️ 无变更 / 🟡 增量 / 🔴 结构性 |
+| 5. 结构性变更红线 | 3 | ?/3 | 任一命中即停 Stage |
+
+### 全景对齐证据
+- panorama_path: {绝对路径}
+- 全景宿主：{当前子项目 / 跨子项目→{hosting_subproject}}
+- 风格对照：{摘录 panorama/sitemap.md 已有规范 + 本 Feature 遵守说明 ≥3 条}
+- 导航位置：{本 Feature 页面在 sitemap 中的层级路径}
+- 全景变更类型：⏭️ 无 / 🟡 增量（diff 见下）/ 🔴 结构性（不应继续）
+
+### 全景增量 diff（仅 🟡 增量类型必填）
+```diff
+sitemap.md 变更：
++ 新增页面 X（位置：根 → A → X）
+~ 修改页面 Y（导航文案变更：旧→新）
+- （禁止删除条目）
+
+overview.html DOM 变更：
++ 新增 <section data-page="X"> 节点（位置：第 N 个 section 之后）
+~ 修改 <nav> 中页面 Y 的链接文案
+```
+
+### 自查结论
+✅ 自查通过 · 可进入 ⏸️ 用户确认设计稿
+⚠️ N 项未通过 · 已修复 · 重跑自查
+🔴 结构性变更触发停 Stage · 建议走 Feature Planning
+```
+
+### 自查结果处理
+
+```
+自查结果：
+├── 全 ✅ → ⏸️ 用户确认设计稿
+├── 有 ⚠️ 低风险（如 1 个 AC 未覆盖且已补）→ 修复后重新自查
+├── 🔴 结构性变更红线命中 → 停 Stage → DONE_WITH_CONCERNS
+└── verify-panorama.py 校验 FAIL → 按 stderr hint 补完自查报告 → 重跑
+```
+
+---
+
 ## 四、QA 代码审查检查项
 
 > 🔴 QA 代码审查的核心是**读代码验证 TC**，TDD 规范检查是辅助手段。

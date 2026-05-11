@@ -1,6 +1,53 @@
 # Changelog
 
-## v7.3.10 + P0-129（当前 · install.sh 部署 tools/ + pytest 回归套件 35 测试）
+## v7.3.10 + P0-132（当前 · Designer 自查规范 + verify-panorama.py 物化校验 + ui.md 模板加段）
+
+> **触发**：用户反馈 Designer 在做设计时不遵循全景 · 多次跨子项目漏检 / 状态覆盖不全 / sitemap 未同步。审计发现 3 个根因：(1) templates/ui.md 60 行 0 个全景相关段（模板缺什么 Designer 漏什么）· (2) 全景规则碎片在 designer.md / ui-design-stage.md 4 处 · (3) 无物理校验脚本（仅 prose 红线）。
+
+### P0-132：Designer 自查 + verify-panorama.py 物化拦截
+- **新增 standards/common.md § 四B Designer 自查规范**（~120 行 · 与 § 四 RD 自查同型）：
+  - 5 维度清单：全景对齐 / 状态覆盖 / PRD AC 覆盖 / 全景增量同步 / 结构性变更红线
+  - Designer 自查报告模板（含 5 维度汇总表 + 全景对齐证据 + 增量 diff + 结论）
+- **改 templates/ui.md**：原 60 行→124 行 · 加固定 fill-in 段（全景宿主 / panorama_path 顶部标注 + UI-AC-COVERAGE 表 + Designer 自查报告 8 段）
+- **新增 tools/verify-panorama.py**（~250 行 · 纯 stdlib · TEAMWORK_FEATURE env 兼容）：
+  - 5 项物理校验：self-check 段完整 / 跨子项目宿主标注（治本 P0-123）/ panorama_path 有效 /
+    sitemap.md mtime 晚于 Stage 开始（涉及变更时）/ preview HTML 数量
+  - cite-friendly JSON 输出 · checks_passed + checks_failed + hint
+- **改 designer.md § 3.5**：旧「验收标准覆盖声明」升格为 cite 自查规范 · 接入 verify-panorama
+- **改 ui-design-stage.md Output Contract**：加 verify-panorama.py 出口前置 · 不通过 = 不进 ⏸️
+- **新增 tools/tests/test_verify_panorama.py**：9 测试覆盖 5 维度 + env var · 总测试 35→44 PASS
+
+物化拦截链与 RD 自查（prompt-layer）+ verify-ac.py（physical-layer）双层防御同型 ·
+治根因 1（模板缺段）/ 根因 2（无脚本）/ 根因 3（规则碎片单源到 § 四B）。
+
+---
+
+## v7.3.10 + P0-131-A（rules/flow-transitions.md Feature 流程表瘦身 -23 行）
+
+state.py FEATURE_FLOW 字典硬编码 Stage → Stage 转移图后 · 39 行 Feature 流转表
+合并为 17 行 · 删 Goal-Plan 子步骤详述 + Ship Stage 第二段 Step 4-9 详述（已在
+stages/ 单源）· 加 cite tools/state.py 作为运行时权威。
+
+---
+
+## v7.3.10 + P0-131（feature-state.json _note 瘦身 -2897 字符）
+
+state.py / init_triage.py 物化拦截后 · 32 条 _xxx_note 削到 ≤80 字符 · 总占用
+5320 → 2423 字符（-54%）· 35 测试 PASS。保留 _enum + _xxx_schema · 删 P0
+演进叙事和「PMO 在 X Step 写入」程序性描述。
+
+---
+
+## v7.3.10 + P0-130（state.py --feature 支持 TEAMWORK_FEATURE env fallback）
+
+ergonomics 验证：模拟 PMO 完整 Feature 流程 36 次脚本调用 · `--feature {artifact_root}`
+重复 ~76 字符。新增 `_add_feature_arg()` helper · 缺 --feature 时回退环境变量 ·
+14 处 add_argument 统一替换。其他 friction 点（三 gate 合并 / complete-stage
+紧跟 satisfy-gate / stage 名默认）评估后不做 · 削弱物理拦截语义。
+
+---
+
+## v7.3.10 + P0-129（install.sh 部署 tools/ + pytest 回归套件 35 测试）
 
 > **触发**：P0-125/126 落地 tools/state.py + tools/init_triage.py 后未及时校核 deployment · install.sh L46/L75 dir 列表无 `tools` → 用户安装后整套物化拦截链 file-not-found · 全部失效。同时所有验证停留在 inline bash smoke test · 改动无保护。
 
