@@ -43,11 +43,19 @@ case "$HOST_VALUE" in
 
         # Copy all skill files (preserve structure)
         cp -r "$SCRIPT_DIR"/*.md "$SKILL_DIR/" 2>/dev/null || true
-        for dir in agents roles rules stages standards templates docs; do
+        for dir in agents roles rules stages standards templates tools docs; do
             if [[ -d "$SCRIPT_DIR/$dir" ]]; then
                 cp -r "$SCRIPT_DIR/$dir" "$SKILL_DIR/"
             fi
         done
+
+        # Ensure tools/*.py executable (v7.3.10+P0-129 · state.py / init_triage.py 物化拦截单源)
+        if [[ -d "$SKILL_DIR/tools" ]]; then
+            chmod +x "$SKILL_DIR/tools/"*.py 2>/dev/null || true
+        fi
+        if [[ -d "$SKILL_DIR/templates" ]]; then
+            chmod +x "$SKILL_DIR/templates/"*.py 2>/dev/null || true
+        fi
 
         # Deploy hooks
         mkdir -p "$HOOKS_DIR"
@@ -72,11 +80,19 @@ case "$HOST_VALUE" in
 
         # Copy all skill files (preserve structure)
         cp -r "$SCRIPT_DIR"/*.md "$SKILL_DIR/" 2>/dev/null || true
-        for dir in agents roles rules stages standards templates docs; do
+        for dir in agents roles rules stages standards templates tools docs; do
             if [[ -d "$SCRIPT_DIR/$dir" ]]; then
                 cp -r "$SCRIPT_DIR/$dir" "$SKILL_DIR/"
             fi
         done
+
+        # Ensure tools/*.py executable (v7.3.10+P0-129 · state.py / init_triage.py 物化拦截单源)
+        if [[ -d "$SKILL_DIR/tools" ]]; then
+            chmod +x "$SKILL_DIR/tools/"*.py 2>/dev/null || true
+        fi
+        if [[ -d "$SKILL_DIR/templates" ]]; then
+            chmod +x "$SKILL_DIR/templates/"*.py 2>/dev/null || true
+        fi
 
         # Copy hooks scripts into skill directory (Codex references them from there)
         mkdir -p "$SKILL_DIR/hooks"

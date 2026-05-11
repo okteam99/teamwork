@@ -1,6 +1,80 @@
 # Changelog
 
-## v7.3.10 + P0-124（当前 · ship-stage.md 极简化 + Step 9 cleanup hard gate · 越简单越好）
+## v7.3.10 + P0-129（当前 · install.sh 部署 tools/ + pytest 回归套件 35 测试）
+
+> **触发**：P0-125/126 落地 tools/state.py + tools/init_triage.py 后未及时校核 deployment · install.sh L46/L75 dir 列表无 `tools` → 用户安装后整套物化拦截链 file-not-found · 全部失效。同时所有验证停留在 inline bash smoke test · 改动无保护。
+
+### P0-129：install.sh + 测试套件
+- **改 install.sh**（claude / codex 两段同步）：
+  - dir 列表加 `tools` · `templates tools docs` 顺序
+  - 部署后自动 `chmod +x tools/*.py templates/*.py`
+- **新增 tools/tests/**（pytest 兜底纯 stdlib unittest · 无需依赖）：
+  - `test_state.py`：21 测试 · 覆盖 P1-P4 · 含 P0-124 治本拦截 + 状态机非法转移 + gate 顺序 + raw-write contract
+  - `test_init_triage.py`：13 测试 · 覆盖 4 advisory topic + idempotent + skeleton 检测 + version cache + git root 解析 + invalid host enum
+  - `test_*` 共 1 测试 micro-validate（git 真实命令验证）
+- **运行**：`python3 -m unittest discover -s skills/teamwork/tools/tests` · 35/35 PASS · 4.7s
+
+---
+
+## v7.3.10 + P0-128（5 业务 stage 直接读写 state.json → cite tools/state.py + prepare-stage host 改 PMO 注入）
+
+> **触发**：物化拦截链落地后（P0-125..127），仍有 5 业务 stage spec（goal-plan / blueprint / dev / review / test）描述 PMO 直接 read/write state.json。spec 与脚本接口不一致。
+
+### P0-128：spec 接续物化拦截
+- **prepare-stage Step 1**（host 探测）改为「PMO 自报 host + skill_root + skill_version 注入 init_triage.py」· 脚本不探测（PMO system prompt 已知）
+- **prepare-stage Step 2**（版本缓存校验）物化到 init_triage.py · prompt 层只处理 advisories · CLAUDE.md / AGENTS.md drift 高敏感留 prompt 层
+- **5 业务 stage** 入口 Read 顺序 Step 4 改 `tools/state.py snapshot --tier stage`
+- **5 业务 stage** Done 判据出口写法改 `satisfy-gate` + `complete-stage`
+- **5 业务 stage** R3 约束段后插入「state.py 调用约定」统一段（5 条要点）
+
+---
+
+## v7.3.10 + P0-127（退役 templates/state-patch.py · state.json 写工具单源 tools/state.py）
+
+> **触发**：P0-125 写 tools/state.py 时疏漏 · 未发现 P0-52 templates/state-patch.py（349 行 · 通用 dotted-path patch）· 导致 spec 5 文件同时引用两个 state.json 写工具 · 内部矛盾。
+
+### P0-127：单源决断
+- **删 templates/state-patch.py**（git rm）· 理由：违反"声明式 / 禁暴露 dotted path"红线；不知 ship phase 状态机 / 不知 ship-cleanup hard gate；tools/state.py raw-write 已覆盖
+- **同步 5 文件**：RULES.md § state.json 维护硬规则全段重写 · SKILL.md L76 红线层级化 + L316 工具层枚举 · TEMPLATES.md / pmo.md / pmo-state-mgmt.md cite 切换
+- **物化覆盖度**：schema enum + 状态机转移合法性 + gate 顺序 + ship phase evidence 三件套（P0-124）+ evidence-binding（P0-101 / P0-119）+ artifact_root 写边界（P0-41）
+- 净效果 -344 行 · 消除 spec 内部矛盾
+
+---
+
+## v7.3.10 + P0-126（tools/init_triage.py · triage 入口 bootstrap 物化）
+
+> **触发**：审计 TROUBLESHOOTING.md 生成时机 · 暴露 5 个 bug：(1) 创建时机过窄（mode B only）vs 依赖路径（mode A 排查）矛盾 · (2) 空骨架检测标识符 `{TODO 由用户填写}` 在模板里**不存在** · grep 永不命中 · (3) silent 创建用户告知盲区 · (4) monorepo "项目根" 模糊 · (5) mode A query 路径自身不创建。
+
+### P0-126：物化 bootstrap
+- **新增 tools/init_triage.py**（312 行 · 纯 stdlib · Python 3.8+）
+- **PMO 注入接口**（脚本不探测 · 治用户反馈"host detect 不可靠"）：
+  - `--host {claude-code|codex-cli|gemini-cli|unknown}` · `--skill-root` · `--skill-version`
+  - 脚本只做文件系统 + git 能确定的事
+- **职责**：teamwork_space.md / .teamwork_localconfig.md / TROUBLESHOOTING.md / GLOSSARY.md probe + 幂等创建 + 空骨架检测（hardcoded marker = 模板真实存在的字符串）+ global_schema_docs find（P0-119 evidence）+ worktree probe + version 比对
+- **输出 cite-friendly JSON**：`{host, project_root, project_files{}, advisories[]}` · 4 类 advisory（first-init / skeleton-created / empty-skeleton / version-mismatch / schema-docs-found）
+- **集成 spec**：prepare-stage Step 3 4 块独立扫描 → 一段调脚本 · triage-stage 排查路由依赖 init_triage.py advisory · 删旧兜底 · templates/troubleshooting.md 修错占位符引用
+- **bootstrap 例外**（与 R8 协同）：脚本"不存在 → 复制空骨架"不算业务写
+
+---
+
+## v7.3.10 + P0-125（tools/state.py · 物化 state.json schema/状态机/evidence-binding · 14 子命令）
+
+> **触发**：用户提出"PMO 维护 state.json 易出错 · 写一个 Python 脚本负责更新和验证 · PMO 调脚本传入要更新的内容 · 脚本返回关注的内容 · 不关心读写"。本质是把"PMO 自觉"下沉到"物理拦截"。
+
+### P0-125：state.json 物化拦截单源
+- **新增 tools/state.py**（1263 行 · 纯 stdlib · Python 3.8+）· 14 语义化子命令：
+  - **P1 只读**：snapshot / validate / raw-read（cite-only output · R3 自动满足）
+  - **P2 流转**：enter-stage / satisfy-gate / complete-stage（legal_next_stages + gate 顺序 + 三 gate 全满足）
+  - **P3 ship**：ship-sanitize / ship-push / ship-confirm-merged / ship-cleanup / ship-closed（**治本 P0-124**：cleanup 在 phase ≠ merged 时 BLOCKED · enum 提前拦 · 5 件套 evidence）
+  - **P4 通用**：pm-decision / add-concern / bug-frontmatter（YAML frontmatter + ship 状态机镜像）/ micro-validate（git evidence）
+  - **逃生舱**：raw-read / raw-write（必带 --reason · 自动 concerns WARN）
+- **接口契约红线**（4 条）：声明式入参 / cite-only output / 原子 R/M/W / 逃生舱有代价
+- **物化覆盖**：schema enum + 状态机转移合法性 + gate 顺序 + ship phase evidence 三件套（P0-124）+ evidence-binding（P0-101 / P0-119）+ artifact_root 写边界（P0-41）
+- **集成 spec**：ship-stage.md 加「state.json 写操作入口」段 · Step 1/2/7-8/9/10/异常段 6 处插 📌 state.py 调用 · Bug/Micro 分支补 P4 命令 · pmo-pm-acceptance-ship.md 选 1/选 2 流程切到 pm-decision
+
+---
+
+## v7.3.10 + P0-124（ship-stage.md 极简化 + Step 9 cleanup hard gate · 越简单越好）
 
 > **触发**：实战 case（SVC-CORE-B005）PMO 在 MR 未合并时 force-delete feature branch · 侥幸通过。
 >
