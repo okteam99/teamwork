@@ -1,42 +1,25 @@
-# Ship Stage：双段流程 - push feature → 等待合并 → finalize 收尾（v7.3.10+P0-29）
+# Ship Stage：双段流程 - push feature → 等待合并 → finalize 收尾
 
 > PM 验收通过且用户选择「通过 + Ship」后进入本 Stage。
 >
-> 🟢 v7.3.10+P0-29 重构为**双段流程**：
-> - **第一段（push）**：净化 → push feature → 生成 MR URL → ⏸️ 暂停等用户在平台合并
-> - **第二段（finalize）**：用户回报合并完成后，PMO 用 `git branch -r --contains` 验证 → 清理 worktree → Feature 标记 completed
+> **不变内核**：
+> - **第一段（push）**：净化 → push feature → CLI 优先创建 MR/URL 兜底 → ⏸️ 暂停等用户在平台合并
+> - **第二段（finalize）**：用户回报合并完成 → `git branch -r --contains` 验证 → 切 merge_target → 写 state.json 最终态 → 清理 worktree → completed
+> - **契约红线**：PMO 不动 merge_target（红线 R1 例外仅 state.json/BUG-REPORT.md 一文件）、不做本地 merge、不删 feature 分支。合并动作由用户在平台 UI 上完成。
 >
-> 🔴 契约优先：PMO 不动 merge_target、不做本地 merge、不 push merge_target、不删 feature 分支。合并动作由用户在平台 UI 上完成。
->
-> 🟢 v7.3.10+P0-15 版本变更：原 v7.3.9 的 6 步 direct-merge 流程（本地 merge + push merge_target + 冲突解决例外）全部取消，简化为 MR 单路径。
-> 🟢 v7.3.10+P0-29 进一步：原"生成 MR URL 后即结束"模式留下"AI 看不到合并"的工程缺口；本次改为双段，第二段衔接合并后的 worktree 清理 + Feature completed。
+> 版本演进详见 CHANGELOG（P0-15 取消 direct-merge / P0-29 改双段 / P0-32 红线 R1 例外 / P0-36 Bug 分支 / P0-74 Micro 分支 / P0-99 CLI 优先 / P0-115 暂停点渲染契约）。
 
 ---
 
 ## 本 Stage 职责
 
-### 第一段（push）
-
-把已通过 PM 验收的 Feature 分支推到 remote + 生成 MR/PR 创建链接：
-- **净化**：处理前序 Stage 遗留的非预期 git 问题（uncommitted changes / 临时文件 / 灰名单）
-- **push feature**：把 feature 分支同步到 remote，记录 `state.ship.feature_head_commit`
-- **生成 MR URL**：识别 git host（GitHub/GitLab/Gitee/Bitbucket）→ 按平台模板生成 create MR/PR 链接
-- **暂停等合并**：输出明确的"下一步该做什么"指引，让用户回平台创建 + 合并 MR；用户回数字触发第二段
-
-第一段完成后 `state.ship.phase = "pushed"`，`state.current_stage` 仍为 `ship`（未到 completed）。
-
-### 第二段（finalize）
-
-用户在平台合并 MR 后回到会话，回选项 1 触发：
-- **验证合并**：`git fetch origin {merge_target}` + `git branch -r --contains {feature_head_commit}` 检测合并
-- **清理 worktree**：合并验证通过后清理（执行第一段延迟的 worktree 清理）
-- **完成报告**：输出 Feature 全程耗时 / 交付物 / Stage 摘要，标记 `state.current_stage = completed`、`state.ship.shipped = "merged"`、`state.ship.phase = "merged"`
-
-本 Stage **不产生 merge commit**（合并由平台处理），也**不删 feature 分支**（MR 合并后由平台/团队自主清理，平台通常支持 auto-delete-on-merge 选项）。
+- **第一段（push）**：净化遗留 git 问题 → push feature 到 remote 并记录 `feature_head_commit` → 识别 git host → CLI 优先创建 MR/URL 兜底 → ⏸️ 暂停等合并。完成后 `state.ship.phase = "pushed"`，`state.current_stage` 仍为 `ship`。
+- **第二段（finalize）**：`git branch -r --contains` 验证合并 → 切 merge_target → 写 state.json 最终态 → 清理 worktree → 输出完成报告，标记 `current_stage=completed` / `ship.shipped=merged` / `ship.phase=merged`。
+- **不产生 merge commit**（合并由平台处理）；**不删 feature 分支**（由平台 auto-delete-on-merge 或团队手动清理）。
 
 ---
 
-## 可配置点清单（v7.3.10+P0-55 新增）
+## 可配置点清单
 
 | 可配置点 | 默认值 | 控制字段 | 决策时机 |
 |---------|-------|---------|---------|
@@ -176,11 +159,9 @@ Bug 流程进入 Ship Stage 的前置条件（v7.3.10+P0-36）：
 | Worktree 清理 | feature worktree | 同上（Bug 也用 worktree） |
 | 完成报告 | Feature 完整 Stage 摘要 | Bug 修复摘要（QA 验证 / 文件 / commit / merge_commit）|
 
-#### 各步骤的 Bug 分支差异说明
+#### Bug 分支差异步骤（仅列差异；Step 1/4/5/6/9 与 Feature 一致）
 
 ```
-Step 1（净化）：与 Feature 一致，无差异。
-
 Step 2（push feature）：
   - feature 分支由 RD Bug 修复阶段创建（命名 bugfix/BUG-{id}）
   - push 后记录到 BUG-REPORT.md frontmatter `feature_head_commit`（不是 state.json）
@@ -190,25 +171,16 @@ Step 3（第一段报告 + ⏸️）：
   - MR description 来源：BUG-REPORT.md 的"问题描述 + 根因 + 修复方案 + QA 验证"段
   - phase 字段：BUG-REPORT.md frontmatter `phase = "shipping"`（不是 state.ship.phase）
 
-Step 4-5（合并检测）：与 Feature 一致，无差异。
-
-Step 6（切 merge_target）：与 Feature 一致，无差异。
-
 Step 7（写最终态）：
   - 写入对象：BUG-REPORT.md frontmatter（不是 state.json）
-  - 字段：
-    - current_stage = "completed"
-    - phase = "shipped"
-    - shipped = "merged"
-    - merge_commit_hash / mr_merged_at / completed_at / worktree_cleanup
+  - 字段：current_stage="completed" / phase="shipped" / shipped="merged" /
+         merge_commit_hash / mr_merged_at / completed_at / worktree_cleanup
 
 Step 8（push merge_target）：
-  - 🔴 红线 R1 Ship Finalize 例外条款扩展（v7.3.10+P0-36）：
-    Bug 流程允许 push merge_target，仅限 BUG-REPORT.md 一文件、仅元数据字段（frontmatter shipped / merge_commit_hash / completed_at 等）、零业务影响
+  - 🔴 红线 R1 例外扩展：Bug 流程允许 push merge_target，仅限 BUG-REPORT.md 一文件、
+    仅元数据字段（frontmatter shipped / merge_commit_hash / completed_at 等）、零业务影响
   - 业务代码（src/ 等）已在 MR 合并时入 merge_target，不重复 push
   - push 失败降级：与 Feature 一致（pull --rebase 重试 1 次 → 退回 feature 分支 push + frontmatter ship_concerns WARN）
-
-Step 9（清理 worktree）：与 Feature 一致，无差异。
 
 Step 10（完成报告）：
   - 报告对象：Bug 修复
@@ -258,46 +230,35 @@ Micro 流程进入 Ship Stage 的前置条件（v7.3.10+P0-74）：
 | Worktree 清理 | feature worktree | bugfix worktree | **通常无 worktree**（Micro 默认 worktree=off / 用 chore/* 分支直接在主仓） |
 | 完成报告 | Feature 完整 Stage 摘要 | Bug 修复摘要 | Micro 改动摘要 + commit hash + 已合入 origin/{merge_target} 证据 |
 
-#### 各步骤的 Micro 分支差异说明
+#### Micro 分支差异步骤（仅列差异；Step 1/4/5/6 与 Feature 一致）
 
 ```
-Step 1（净化）：与 Feature 一致，无差异。
-  - Micro 通常单文件，git status 范围极小，净化几乎不会触发任何动作。
-
 Step 2（push feature）：
   - feature 分支在 Micro 准入时由 PMO 创建（命名 chore/{micro_id}-{简述}），或直接在当前分支
   - push 后记录到主对话内（不写 state.json）：commit_hash / pushed_at（仅口头）
 
 Step 3（第一段报告 + ⏸️）：
   - MR URL 标题用 `micro: {简述}`
-  - MR description 来源（来自主对话）：
-    - 变更清单（PMO 初步分析时已列）
-    - RD 自查摘要（规范符合 + 回归通过）
-    - 验证结果（build / 单测 / 目视确认）
+  - MR description 来源（来自主对话）：变更清单（PMO 初步分析时已列）/ RD 自查摘要（规范符合 + 回归通过）/ 验证结果（build / 单测 / 目视确认）
   - phase 字段：主对话内表述 "shipping"（不写盘）
 
-Step 4-5（合并检测）：与 Feature 一致，无差异。
-  - PMO 在用户告知 "已合 MR" 后执行 `git fetch origin {merge_target}`
-  - `git merge-base --is-ancestor {commit_hash} origin/{merge_target}` 检查
-    ├── exit 0 → 已合入 ✅ → 进 Step 6 完成报告
-    └── exit 1 → 未合入（MR 关闭 / pending / 平台异常）→ 主对话 concerns + 告知用户 + 不进 ✅ 完成
-
-Step 6（切 merge_target）：与 Feature 一致，无差异（仅用于查询 merge_commit_hash）。
+Step 4-5（合并检测，补充）：
+  - 用 `git merge-base --is-ancestor {commit_hash} origin/{merge_target}` 检查（替代 branch -r --contains）
+    ├── exit 0 → 已合入 ✅ → 进 Step 10
+    └── exit 1 → 未合入 → 主对话 concerns + 告知用户 + 不进 ✅ 完成
 
 Step 7（写最终态）：
   - 🔴 **跳过**：Micro 无 state.json / 无 BUG-REPORT.md，无元数据载体
   - phase 状态在主对话完成报告内表述（"shipped" / "merged"）
 
 Step 8（push merge_target）：
-  - 🔴 **跳过**：无元数据文件可 push，红线 R1 Ship Finalize 例外不需要扩展第三类
-  - 业务代码（Micro 的单文件改动）已在 MR 合并时入 merge_target
+  - 🔴 **跳过**：无元数据文件可 push，红线 R1 例外不需要扩展第三类
+  - 业务代码已在 MR 合并时入 merge_target
 
 Step 9（清理 worktree）：
-  - Micro 默认 worktree=off → 跳过本步骤
-  - 若 Micro 用了 chore worktree（极少见 · 用户主动开启）→ 与 Feature 一致清理
+  - Micro 默认 worktree=off → 跳过；若用了 chore worktree（极少见）→ 与 Feature 一致清理
 
 Step 10（完成报告）：
-  - 报告对象：Micro 改动
   - 必含：变更文件清单 / commit hash / merge_commit_hash / 已合入 origin/{merge_target} 证据 / RD 自查摘要 / Micro 事后审计
   - **不输出** state.json 字段（无）
 ```
