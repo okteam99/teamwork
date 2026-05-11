@@ -8,7 +8,7 @@
 >
 > **路径硬规则**：项目根 `TROUBLESHOOTING.md`（teamwork 固定路径 · 不查 docs/）。
 > **内容由项目维护**：teamwork 不规范具体命令（每个项目栈完全不同 · 用户按实际填）。
-> **空骨架检测**：未填内容时所有表格仍为模板占位符（如 `{填入入口域名}`）· PMO 检测后用通用方法排查 + 提示用户填。
+> **空骨架检测**：tools/init_triage.py 在 triage 入口跑 · grep 本段顶部标识符「本文是 teamwork prepare-stage 自动创建的空骨架」· 命中 = 未填 · advisory.severity=INFO topic=empty-skeleton。用户填完后建议删除本段顶部 🟢 提示行 · 否则脚本仍判定未填。
 
 ---
 

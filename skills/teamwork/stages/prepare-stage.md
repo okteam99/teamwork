@@ -97,59 +97,62 @@ Step 7: 用户消息 + 命令前缀（已在主对话）        ← 动态入口
 - 不一致路径：内部回写 · 不输出"版本不一致" / "字符级一致" / "已同步"
 - 仅异常输出 ⚠️（CLAUDE.md 真实漂移 / SKILL.md frontmatter 损坏）
 
-### Step 3: 项目空间加载（原 init Step 2）
+### Step 3: 项目空间加载（v7.3.10+P0-126 改 · 走 tools/init_triage.py 单源）
 
+🔴 **物化拦截**（治本 P0-118-B 系列：触发时机过窄 / 空骨架标识符错配 / 用户告知盲区 / monorepo 路径模糊）：原本散在本 Stage Step 3 的 4 块扫描（teamwork_space / TROUBLESHOOTING / GLOSSARY / global_schema_docs）+ worktree 探测 + 版本比对 全部下沉到 [tools/init_triage.py](../tools/init_triage.py) 一次调用。
+
+📌 **state.py 同范式调用**（PMO 注入已知 host / skill_root / skill_version · 脚本不探测）：
+
+```bash
+python3 {SKILL_ROOT}/tools/init_triage.py \
+  --cwd {项目根 cwd} \
+  --host {claude-code | codex-cli | gemini-cli | unknown} \
+  --skill-root {SKILL_ROOT} \
+  --skill-version {SKILL.md frontmatter version}
 ```
-🔴 穷举检查原则：判定"不存在"前必须检查所有合理位置。
 
-检查 teamwork_space.md：
-  ├── 搜索：{项目根}/teamwork_space.md → {项目根}/docs/teamwork_space.md
-  ├── 找到 → 读取，加载子项目清单 + docs_root 路由
-  ├── 未找到 → 进入「首次初始化」流程
-  └── 不输出 "📦 已加载项目空间（X 个子项目）" banner（v7.3.10+P0-105 silent）
+stdout = 单次结构化 JSON（PMO 一次引入对话 · 不再各自 Glob/Read）：
 
-检查 .teamwork_localconfig.md（多人协作）：
-  ├── 存在 → 读取 scope / worktree 策略 / cache 版本
-  ├── 不存在 → 默认 scope=all + worktree=auto · 不提示
-  └── 用户主动说"我只负责 XX" → 创建 localconfig
-
-检查 worktree 环境（worktree ≠ off 时）：
-  ├── git worktree list 检测当前是否在某 Feature worktree
-  ├── 在 → 记录当前 worktree 对应 Feature 编号
-  ├── 不在 → 正常（Goal-Plan Stage 入口按策略创建）
-  └── git 不可用 → worktree 降级 off + ⚠️
-
-检查 TROUBLESHOOTING.md（v7.3.10+P0-118-B 主动创建空骨架 · 类比 teamwork_space.md）：
-  ├── 搜索：{项目根}/TROUBLESHOOTING.md
-  ├── 存在 → silent · 后续 mode A query / E discuss 触及排查类话题时 read
-  └── 不存在 → silent 复制 templates/troubleshooting.md 到 {项目根}/TROUBLESHOOTING.md
-              · 4 段空骨架（环境 / 查 log / 查数据缓存 / 常见报错 · ~50 行）
-              · 不填项目特定内容（具体命令由用户按项目栈补充）
-              · 不打断当前流程 · 不输出"已创建" banner（silent）
-              · 用户首次排查时 PMO 检测到模板原样未填 → 一句话提示用户补充
-
-检查 GLOSSARY.md（v7.3.10+P0-121 主动创建空骨架 · 类比 TROUBLESHOOTING.md）：
-  ├── 搜索：{项目根}/GLOSSARY.md
-  ├── 存在 → silent · 后续 PM/RD/架构师起草 PRD/TECH 前 + PMO triage 期按需 read
-  └── 不存在 → silent 复制 templates/glossary.md 到 {项目根}/GLOSSARY.md
-              · 5 段空骨架（业务术语 / 实体关系 / 命名约定 / 别名歧义 / 缩写词典 · ~80 行）
-              · 不填项目特定内容（业务术语由用户按业务填）
-              · 不打断当前流程 · 不输出"已创建" banner（silent）
-              · 用户首次起草 PRD/TECH / 评审命中 terminology-ambiguity 时 PMO 检测模板原样未填 → 一句话提示用户补充
-
-发现全局 schema 文档（v7.3.10+P0-119 新增 · monorepo 嵌套防漏）：
-  ├── 全仓库 find：find {repo_root} -name "*database*schema*.md" -o -name "*schema*registry*.md"
-  │              （穷举搜索 · 不限 docs 路径深度 · 防 services/{子}/docs/architecture/*-schema.md 漏检）
-  ├── 命中清单 → 写 state.json.global_schema_docs[]（绝对路径数组）
-  ├── 未命中 → state.json.global_schema_docs = []（项目无全局 schema 文档 · 不创建空模板 · 项目自行决定是否需要）
-  └── silent · 不输出 banner · evidence-binding：command + stdout + timestamp 写 state.json（与 P0-101 协同）
-
-  🔴 用途：Blueprint Stage 架构师 Tech Review + Review Stage 架构师 CR 启用 schema 专项时
-        cite 此清单 · 强校验全局 schema 文档同步 · 不可降级
-        触发：TECH.md 含 schema 变更关键词 / git diff 含 migration 文件
-        实证：v7.3.10+P0-119 SVC-PLATFORM-F034 case · review-arch.md 误判 services/core/docs/architecture/database-schema.md 为「不存在」
-              根因 = 浅层 docs/ 路径检索 · 未穷举 monorepo 嵌套
+```json
+{
+  "verdict": "OK",
+  "host": "claude-code",
+  "project_root": "...",          // git root（cwd 在 git repo 内）/ cwd（fallback）
+  "project_root_source": "git" | "cwd",
+  "version_match": true | false,  // skill_version vs local_version（脚本读 .teamwork_localconfig.md）
+  "project_files": {
+    "teamwork_space.md": {"exists": ..., "path": ...},
+    ".teamwork_localconfig.md": {"exists": ..., "path": ...},
+    "TROUBLESHOOTING.md": {"exists": true, "is_empty_skeleton": ..., "created_now": ...},
+    "GLOSSARY.md":        {"exists": true, "is_empty_skeleton": ..., "created_now": ...}
+  },
+  "global_schema_docs": {
+    "docs": ["..."], "evidence": {"command": "...", "exit_code": 0, ...}
+  },
+  "worktree": {"available": true, "current_branch": "...", "worktree_count": ...},
+  "advisories": [
+    {"severity": "INFO", "topic": "first-init", "message": "..."},
+    {"severity": "INFO", "topic": "skeleton-created", "message": "..."},
+    {"severity": "INFO", "topic": "empty-skeleton", "message": "..."},
+    {"severity": "WARN", "topic": "version-mismatch", "message": "..."}
+  ]
+}
 ```
+
+PMO 处理 advisories：
+- `first-init` → 走首次初始化流程（teamwork_space.md 引导用户创建）
+- `skeleton-created` / `empty-skeleton` → 用户首次相关动作时一句话提示补充
+- `version-mismatch` → 走全量 CLAUDE.md / AGENTS.md drift 校验（仍是 prompt 层 + 用户确认 · 脚本不动）
+
+🔴 **脚本不做的事**（明确边界 · 类比 state.py 红线）：
+- 不探测 host（PMO 知道 · 注入即可）
+- 不动 CLAUDE.md / AGENTS.md（drift 同步高风险 · 留 prompt 层 + 用户确认）
+- 不创建 worktree（属 Goal-Plan Stage 业务）
+- 不写 state.json（属 state.py · 本脚本只做 bootstrap 探测 + 空骨架创建）
+
+🔴 **bootstrap 例外条款**（与红线 R8 协同）：init_triage.py 的"不存在 → 复制空骨架"动作属 bootstrap · 不算业务写 · 不需 R8 用户确认（类比 state.py raw-write 的逃生舱契约边界）。
+
+🔴 **silent execution**（v7.3.10+P0-105 协同）：脚本 silent · PMO 仅在 advisories 含 `severity=WARN` 或 `topic ∈ {first-init, skeleton-created}` 时主对话提示一句 · 否则不输出。
 
 ### Step 4: 用户输入承接（红线 R3 · v7.3.10+P0-105 隐式承接）
 

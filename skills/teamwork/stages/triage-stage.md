@@ -124,8 +124,8 @@
   1. pwd 校验（确保在项目内 · cwd 默认即可 · 不需检测 SKILL_ROOT）
   2. 排查类查询特殊路由（v7.3.10+P0-109 · 见下方 § 排查类查询）：
      用户消息含「报错 / 502 / 查 log / 排查 / 异常 / 服务挂了 / 查环境 / 查 DB / 查 Redis / 部署 / 回滚」
-     → 优先 read 项目根 TROUBLESHOOTING.md（按文档步骤执行）
-     → 不存在 → 一句话提示用户从模板创建（不强推 / 不阻塞）
+     → init_triage.py 在 triage 入口已确保 TROUBLESHOOTING.md 存在（v7.3.10+P0-126）
+     → 按文档步骤执行；脚本 advisory `empty-skeleton` / `skeleton-created` 命中时答案末尾一句话提示补充
   3. 按用户关键词 grep / Glob 找实际代码 / 文件
   4. Read 找到的关键文件（≤5 个 / ≤500 行）
   5. 给初步答案（直接 · 不输出"流程步骤描述"）
@@ -148,15 +148,15 @@ silent execution：
 
 > 触发关键词：`报错 / 502 / 5xx / 异常 / panic / fatal / 崩溃 / 服务挂了 / 查 log / 查日志 / 排查 / 调试 / 查环境 / 查 DB / 查数据库 / 查表 / 查 Redis / 查缓存 / 部署 / 回滚 / 上线`
 
-**优先级 1：固定 read 项目根 TROUBLESHOOTING.md**（v7.3.10+P0-118-B 主动创建后必存在）
+**优先级 1：固定 read 项目根 TROUBLESHOOTING.md**（v7.3.10+P0-126：tools/init_triage.py 在 triage 入口已物化创建 + 空骨架检测 · 必存在）
 
 ```
-检查 {项目根}/TROUBLESHOOTING.md（prepare-stage Step 3 已主动创建空骨架 · 类比 teamwork_space.md）：
-  ├── 已填内容 → silent read · 按文档步骤执行（kubectl / psql / redis-cli / curl 等具体命令）
+查 init_triage.py 输出的 project_files["TROUBLESHOOTING.md"]：
+  ├── is_empty_skeleton=false → silent read · 按文档步骤执行（kubectl / psql / redis-cli / curl 等具体命令）
   │              · 遵守文档里的安全约束（production 写操作 ⏸️ 用户授权 · 红线 R8 协同）
   │              · 不复述 secret / token / 密码到主对话
   │
-  └── 模板原样未填（用户首次排查 · 内容仍是 teamwork 复制的空骨架）
+  └── is_empty_skeleton=true（advisory.topic ∈ {empty-skeleton, skeleton-created}）
                 → PMO 用通用方法尝试排查（kubectl 探索 / grep 代码 / curl 接口）
                 + 答案末尾**一句话**提示用户：
                   "💡 项目根 TROUBLESHOOTING.md 是 teamwork 自动创建的空骨架 ·
@@ -164,10 +164,10 @@ silent execution：
                    teamwork 下次排查时会自动 read 已填内容。"
 ```
 
-🔴 **空骨架检测**（v7.3.10+P0-118-B 新增）：
-- PMO read 后 grep 标识符（如 `{TODO 由用户填写}` / 模板原文标题）判断是否仍是空骨架
-- 是 → 走「模板原样未填」分支
-- 否 → 走「已填内容」分支
+🔴 **空骨架检测**（v7.3.10+P0-126 物化）：
+- 由 [tools/init_triage.py](../tools/init_triage.py) 完成 · 硬编码 marker = "本文是 teamwork prepare-stage 自动创建的空骨架"
+- PMO 不再自己 grep · 直接读脚本返回 `is_empty_skeleton` 布尔值
+- 治本旧 bug：spec 让 grep `{TODO 由用户填写}` 但模板里实际无此字符串 → grep 永不命中 → 永远误判已填
 
 🔴 **不强推具体命令**（v7.3.10+P0-109）：
 - teamwork 提供空骨架（4 段结构）但**不规范具体命令**（每个项目栈不同 · K8s vs Docker vs Serverless）
