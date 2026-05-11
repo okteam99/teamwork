@@ -62,40 +62,40 @@ Step 7: 用户消息 + 命令前缀（已在主对话）        ← 动态入口
 
 ## Process Contract
 
-### Step 1: SKILL_ROOT 检测 + 宿主识别（原 init Step 1）
+### Step 1: 宿主自报 + SKILL_ROOT 解析（v7.3.10+P0-128 改 · PMO 注入 · 不再脚本探测）
 
-```
-检测主对话宿主：
-  ├── Claude Code 主对话 → SKILL_ROOT = ~/.claude/skills/teamwork
-  ├── Codex CLI 主对话 → SKILL_ROOT = ~/.codex/skills/teamwork（或类似）
-  ├── Gemini CLI 主对话 → SKILL_ROOT = ~/.gemini/skills/teamwork
-  └── 通用 / 无法识别 → 记录为 unknown · 走兜底路径
+PMO 在主对话内自报（system prompt 已知 · 不需脚本探测）：
 
-设定 host_main_model 字段（用于后续异质性约束）：
-  ├── Claude Code → host_main_model = "claude-code"
-  ├── Codex CLI → host_main_model = "codex-cli"
-  ├── Gemini CLI → host_main_model = "gemini-cli"
-  └── unknown → host_main_model = "unknown"
-```
+| 宿主 | host enum | SKILL_ROOT |
+|----|----|----|
+| Claude Code | `claude-code` | `~/.claude/skills/teamwork` |
+| Codex CLI | `codex-cli` | `~/.codex/skills/teamwork`（或类似）|
+| Gemini CLI | `gemini-cli` | `~/.gemini/skills/teamwork` |
+| 其他 / 不能识别 | `unknown` | 取已 read 的 SKILL.md 路径反推 |
+
+PMO 把 host + skill_root + skill_version 作为命令行参数注入 [tools/init_triage.py](../tools/init_triage.py)（详 Step 3）· 脚本不做探测 · 输出 JSON 原样回显这三字段供 audit。
 
 🔴 **silent execution**：不输出"宿主检测结果 = X"等中间状态。
 
-### Step 2: 版本缓存校验（原 init Step 1.2）
+### Step 2: 版本缓存校验（v7.3.10+P0-128 改 · 物化到 init_triage.py · prompt 层只处理结果）
+
+PMO 不再自己读 .teamwork_localconfig.md.teamwork_version · 一并由 init_triage.py 探测（读 .teamwork_localconfig.md frontmatter）+ 比对 PMO 注入的 --skill-version · 输出 JSON `version_match` 布尔。
+
+PMO 处理 advisory：
 
 ```
-读取 SKILL.md frontmatter version → SKILL_VERSION
-读取 .teamwork_localconfig.md teamwork_version → LOCAL_VERSION
-
-比对：
-  ├── ⚡ 一致 → 跳过 CLAUDE.md / AGENTS.md 全量 diff（fast path）
-  ├── 🔄 不一致 / null → 全量校验 CLAUDE.md / AGENTS.md（diff + 漂移自愈）+ 回写 LOCAL_VERSION
-  └── 🚨 SKILL_VERSION = null → 走全量校验 + ⚠️ 提示
+init_triage.py 输出 advisories[] 含 topic=version-mismatch（severity=WARN）：
+  ├── 一致路径（无此 advisory · version_match=true）→ 跳过 CLAUDE.md / AGENTS.md 全量 diff（fast path · silent）
+  ├── 不一致路径（advisory 命中）→ 全量校验 CLAUDE.md / AGENTS.md（diff + 漂移自愈）+ 回写 LOCAL_VERSION 到 .teamwork_localconfig.md
+  └── SKILL_VERSION = null → PMO 在注入 --skill-version 前已发现 → ⚠️ 提示用户 SKILL.md frontmatter 损坏 · 不进 init
 ```
 
 🔴 **silent execution**（v7.3.10+P0-105）：
 - 一致路径：完全不输出
 - 不一致路径：内部回写 · 不输出"版本不一致" / "字符级一致" / "已同步"
 - 仅异常输出 ⚠️（CLAUDE.md 真实漂移 / SKILL.md frontmatter 损坏）
+
+🔴 **CLAUDE.md / AGENTS.md drift 同步不在 init_triage.py 内**（高敏感 · 涉及用户编辑文件覆盖 · 留 prompt 层 + 用户确认 · 同 P0-126 边界）。
 
 ### Step 3: 项目空间加载（v7.3.10+P0-126 改 · 走 tools/init_triage.py 单源）
 

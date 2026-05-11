@@ -151,10 +151,16 @@ Step 1: roles/pm.md, roles/product-lead.md             ← 角色层（L0 稳定
 Step 2: templates/prd.md                               ← 模板层（L0 稳定）
         [条件] templates/external-cross-review.md          （仅 review_roles[] 含 external，v7.3.10+P0-38）
 Step 3: {项目根}/GLOSSARY.md                            ← 业务术语（v7.3.10+P0-121 · 防 PRD 起草业务词漂移 / PM 评审 terminology-ambiguity 单源）
-Step 4: {Feature}/state.json                           ← 🔴 最后，动态入口（L3）
+Step 4: tools/state.py snapshot --tier stage         ← 🔴 替代直接 Read state.json（v7.3.10+P0-128 物化 · cite-only output · R3 自动满足）
 ```
 
 🔴 R3 约束：state.json 入口 Read 1 次 → 中段 0 读写 → 出口 Read 1 次 + Write 1 次；全 Stage ≤ 5 次（含豁免）。
+
+📌 **state.py 调用约定（v7.3.10+P0-128）**：本 Stage 内涉及 state.json 的读 / 写一律走 [tools/state.py](../tools/state.py) · spec 中所有 `state.json.X` / `state.X` 描述都是**语义引用** · 实际操作走脚本：
+- 读：`tools/state.py snapshot --tier stage [--cite a,b,c]`（cite-only · 不读全 410 行）
+- 写：`enter-stage` / `satisfy-gate` / `complete-stage` / 各 `ship-*` / `pm-decision` / `add-concern` / `bug-frontmatter`（详 [RULES.md § state.json 维护硬规则](../RULES.md)）
+- 校验前置依赖：脚本 `satisfy-gate` / `complete-stage` 自动校验 gate 顺序 · 不存在 / 状态机非法 → exit 1/3 + hint
+- 逃生舱：`raw-write --reason ...`（自动 concerns WARN）
 
 ---
 
@@ -766,7 +772,7 @@ PMO 摘要（评审循环纪要 + finding 汇总 + 关键决策）
 - PRD-REVIEW.md `overall_verdict ∈ {PASS, PASS_WITH_CONCERNS}`（所有 review_roles 均通过）
 - 评审轮次 `review_round <= 3`（超出走用户决策，记录到 `review_round_overflow_decision`）
 - PM 已对每条 finding 给出 ADOPT / REJECT / DEFER 响应（`pm_response` 完整）
-- `state.json.stage_contracts.goal_plan.output_satisfied = true`
+- 出口走 `tools/state.py satisfy-gate --stage goal_plan --gate output --auto-commit $HASH [--artifacts a,b]` + `complete-stage --stage goal_plan`（v7.3.10+P0-128 物化 · 物理拦截 gate 顺序 / 三 gate 全满足 / artifact_root 写边界）
 
 ### 返回状态
 
