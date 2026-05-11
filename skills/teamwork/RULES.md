@@ -85,6 +85,15 @@
 
 完整 spec 见 [tools/state.py --help](./tools/state.py) + [roles/pmo-state-mgmt.md](./roles/pmo-state-mgmt.md)。
 
+📌 **ergonomics 优化**（v7.3.10+P0-130）：单 Feature 全链 ~36 次 state.py 调用 · 每次 `--feature {artifact_root}` 重复 ~76 字符。Stage 入口设一次 env var 即可省略所有后续 `--feature`：
+
+```bash
+export TEAMWORK_FEATURE={artifact_root}
+python3 {SKILL_ROOT}/tools/state.py satisfy-gate --stage X --gate Y
+```
+
+命令行 `--feature` 优先于 env · 兼容原契约 · 不破坏 cite-friendly output。
+
 🔴 **PMO 校验门禁**：`git diff state.json` 应只显示脚本声明的 `updated_fields`；任何 PMO 用 Edit 直接动 state.json 视为流程偏离 · 唯一例外是脚本本身损坏的紧急修复（必须 add-concern WARN 标注）。
 
 ---

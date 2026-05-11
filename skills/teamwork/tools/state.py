@@ -1113,25 +1113,37 @@ def cmd_micro_validate(args: argparse.Namespace) -> None:
 # ─── argparse ──────────────────────────────────────────────────────────
 
 
+
+def _add_feature_arg(parser: argparse.ArgumentParser, *, help_text: str | None = None) -> None:
+    """统一注册 --feature · 缺省时从 TEAMWORK_FEATURE 环境变量读取（v7.3.10+P0-130 ergonomics）。"""
+    env = os.environ.get("TEAMWORK_FEATURE")
+    parser.add_argument(
+        "--feature",
+        required=(env is None),
+        default=env,
+        help=help_text or ("artifact_root（含 state.json 的目录）"
+                           + (f" · 默认从 $TEAMWORK_FEATURE={env}" if env else "")),
+    )
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="state.py", description="Teamwork state.json tool (P1)")
     sub = p.add_subparsers(dest="cmd", required=True)
 
     sp = sub.add_parser("snapshot", help="返回精简关注字段（cite-friendly）")
-    sp.add_argument("--feature", required=True, help="artifact_root（含 state.json 的目录）")
+    _add_feature_arg(sp)
     sp.add_argument("--tier", choices=["core", "stage", "full"], default="core")
     sp.add_argument("--cite", help="额外关注字段，逗号分隔的 dotted path")
     sp.set_defaults(func=cmd_snapshot)
 
     vp = sub.add_parser("validate", help="schema + 状态机 + evidence-binding 全量校验")
-    vp.add_argument("--feature", required=True)
+    _add_feature_arg(vp)
     vp.set_defaults(func=cmd_validate)
 
     rp = sub.add_parser(
         "raw-read",
         help="🚪 逃生舱：读全 state.json 或指定 dotted path（仅 debug/migration）",
     )
-    rp.add_argument("--feature", required=True)
+    _add_feature_arg(rp)
     rp.add_argument("--field", help="可选 · dotted path · 缺省返回全 JSON")
     rp.set_defaults(func=cmd_raw_read)
 
@@ -1139,14 +1151,14 @@ def build_parser() -> argparse.ArgumentParser:
         "raw-write",
         help="🚪 逃生舱：跳过 schema/状态机校验直写 · 自动追加 concerns WARN（必带 --reason）",
     )
-    rw.add_argument("--feature", required=True)
+    _add_feature_arg(rw)
     rw.add_argument("--set", action="append", required=True,
                     help="key=val · val 优先按 JSON 解析 · 可多次")
     rw.add_argument("--reason", required=True, help="必填 · 写入 concerns WARN")
     rw.set_defaults(func=cmd_raw_write)
 
     es = sub.add_parser("enter-stage", help="转移到目标 Stage（校验 legal_next_stages）")
-    es.add_argument("--feature", required=True)
+    _add_feature_arg(es)
     es.add_argument("--stage", required=True)
     es.add_argument("--allow-skip", action="store_true",
                     help="🚪 跳过 / 回炉时显式声明 · 自动记 concerns WARN")
@@ -1155,7 +1167,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     sg = sub.add_parser("satisfy-gate",
                         help="标记当前 Stage 的 input/process/output gate 为 satisfied")
-    sg.add_argument("--feature", required=True)
+    _add_feature_arg(sg)
     sg.add_argument("--stage", required=True)
     sg.add_argument("--gate", required=True, choices=["input", "process", "output"])
     sg.add_argument("--artifacts", help="逗号分隔 · 写入 stage_contracts.{stage}.artifacts")
@@ -1165,7 +1177,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     cs = sub.add_parser("complete-stage",
                         help="收尾当前 Stage（要求三 gate 全 satisfied）")
-    cs.add_argument("--feature", required=True)
+    _add_feature_arg(cs)
     cs.add_argument("--stage", required=True)
     cs.add_argument("--auto-commit",
                     help="若 satisfy-gate output 时未提供 · 此处补 · 已存在则忽略")
@@ -1174,7 +1186,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     # ship-* (P3)
     sz = sub.add_parser("ship-sanitize", help="Step 1：净化记录（不改 phase）")
-    sz.add_argument("--feature", required=True)
+    _add_feature_arg(sz)
     sz.add_argument("--residual-commits", help="JSON · 形如 [{commit,files,reason}]")
     sz.add_argument("--cleaned-files", help="逗号分隔白名单文件")
     sz.add_argument("--suspicious-files", help="JSON · 形如 [{path,reason}]")
@@ -1182,7 +1194,7 @@ def build_parser() -> argparse.ArgumentParser:
     sz.set_defaults(func=cmd_ship_sanitize)
 
     sp = sub.add_parser("ship-push", help="Step 2-3：null/closed_unmerged → pushed · 必带 5 件套")
-    sp.add_argument("--feature", required=True)
+    _add_feature_arg(sp)
     sp.add_argument("--feature-head-commit", required=True)
     sp.add_argument("--git-host", required=True, choices=sorted(SHIP_GIT_HOSTS))
     sp.add_argument("--mr-creation-method", required=True, choices=sorted(SHIP_MR_METHODS))
@@ -1194,7 +1206,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     sm = sub.add_parser("ship-confirm-merged",
                         help="Step 4-8：pushed → merged · 含合并 evidence + finalize-push 状态（治本 P0-124）")
-    sm.add_argument("--feature", required=True)
+    _add_feature_arg(sm)
     sm.add_argument("--merge-commit-hash", required=True)
     sm.add_argument("--merge-detection-method", required=True, choices=sorted(SHIP_DETECTION_METHODS))
     sm.add_argument("--mr-merged-at", help="ISO 8601 · 缺省取 now")
@@ -1207,13 +1219,13 @@ def build_parser() -> argparse.ArgumentParser:
 
     sc = sub.add_parser("ship-cleanup",
                         help="Step 9：worktree 清理状态（cleaned 必须 phase=merged · 治本 P0-124）")
-    sc.add_argument("--feature", required=True)
+    _add_feature_arg(sc)
     sc.add_argument("--status", required=True, choices=sorted(SHIP_CLEANUP_ENUM))
     sc.add_argument("--cite")
     sc.set_defaults(func=cmd_ship_cleanup)
 
     scl = sub.add_parser("ship-closed", help="异常段：MR 被关闭未合并 → closed_unmerged 或 abandoned")
-    scl.add_argument("--feature", required=True)
+    _add_feature_arg(scl)
     scl.add_argument("--abandon", action="store_true", help="彻底放弃 Feature → shipped=abandoned")
     scl.add_argument("--reason", help="可选 · INFO concerns")
     scl.add_argument("--cite")
@@ -1222,21 +1234,21 @@ def build_parser() -> argparse.ArgumentParser:
     # P4
     pd = sub.add_parser("pm-decision",
                         help="PM 验收决策落库（替代 P3 临时 raw-write 兜底）")
-    pd.add_argument("--feature", required=True)
+    _add_feature_arg(pd)
     pd.add_argument("--decision", required=True, choices=sorted(PM_DECISION_ENUM))
     pd.add_argument("--note", help="可选 · 决策说明")
     pd.add_argument("--cite")
     pd.set_defaults(func=cmd_pm_decision)
 
     ac = sub.add_parser("add-concern", help="通用 concerns 追加（自动时间戳 + 去重）")
-    ac.add_argument("--feature", required=True)
+    _add_feature_arg(ac)
     ac.add_argument("--severity", required=True, choices=sorted(CONCERN_SEVERITY))
     ac.add_argument("--message", required=True)
     ac.set_defaults(func=cmd_add_concern)
 
     bf = sub.add_parser("bug-frontmatter",
                         help="Bug 流程：BUG-REPORT.md frontmatter 维护（YAML · 平铺 key:val）")
-    bf.add_argument("--feature", required=True, help="Feature artifact_root")
+    _add_feature_arg(bf, help_text="Feature artifact_root")
     bf.add_argument("--bug-id", required=True, help="如 BUG-001 · 自动 glob bugfix/BUG-{id}-*.md")
     bf.add_argument("--set", action="append",
                     help="key=val · val 优先按 JSON 解析 · 可多次")
