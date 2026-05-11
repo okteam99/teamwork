@@ -1,14 +1,11 @@
 {
   "_schema_version": "v7.3.9",
-  "_description": "Feature 级流转状态机快照（机读权威源 + 人读可查）。v7.3.2 起替代 STATUS.md。v7.3.3 新增耗时度量字段。v7.3.4 合并暂停点：ui_design 含全景增量同步 + pm_acceptance 含 commit/push。v7.3.9 引入 Ship Stage + 每阶段 auto_commit + Goal-Plan Stage 入口 preflight。v7.3.10+P0-15 Ship Stage MR 化：ship 字段重构（移除 rebase_status/merge_commit_hash/push_status，新增 git_host/mr_create_url/feature_pushed_at/worktree_cleanup）。",
+  "_description": "Feature 流转状态机快照（机读权威 · 替代 STATUS.md · 详 docs/CHANGELOG.md）",
   "_instructions": {
-    "location": "{子项目}/docs/features/{功能目录}/state.json（Feature 目录内，与 PRD/TC/TECH 等产物同级）",
-    "updated_by": "PMO（每次流转前读、每次流转后写）",
-    "human_readable_view": "全局看 ROADMAP.md 的 Feature 清单；单 Feature 细节直接看本 JSON。STATUS.md 已在 v7.3.2 废弃。",
-    "duration_metrics": "v7.3.3 新增：stage_contracts.started_at / completed_at + duration_minutes。executor_history 每条记录 estimated/actual duration + variance。Feature 完成时聚合为耗时统计报告。",
-    "stage_enum_v7_3_10_P0_27": "Feature 流程合法 current_stage 枚举（v7.3.10+P0-53 plan→goal_plan 改名）：goal_plan | ui_design（含全景增量）| blueprint | dev | review | test | browser_e2e | pm_acceptance | ship | completed。panorama_design 仅用于 Feature Planning 流程的全景重建模式。v7.3.10+P0-27 删除原 plan_preflight 阶段（preflight 概念整体废弃，环境配置在 triage-stage 决定，Goal-Plan Stage 入口自动执行）。ship 字段保留（v7.3.9 引入的独立 Ship Stage）。",
-    "auto_commit_tracking_v7_3_9": "v7.3.9 硬规则：每个 Stage 在 output_satisfied=true 前 PMO 执行 git status --porcelain，非空则 auto-commit。commit hash 写入 stage_contracts.{stage}.auto_commit（单值）或 auto_commit[]（多轮循环时为数组，如 review/test）。",
-    "ship_tracking_v7_3_10_P0_15": "v7.3.10+P0-15 MR 模式重构：ship 字段记录——sanitize_log（residual_commits / cleaned_files / suspicious_files）、git_host（github|gitlab|gitlab-self-hosted|gitee|bitbucket|unknown）、mr_create_url（AI 生成的 create MR/PR 链接，unknown 时可为 null 并在 concerns 标注）、feature_pushed_at、worktree_cleanup（cleaned | deferred | n_a）、shipped（true / false）。🔴 已移除的 direct-merge 字段：rebase_status / merge_commit_hash / push_status（merge_target push 不再由 AI 做）。PM 验收 3 选 1 的选项记录在 stage_contracts.pm_acceptance.decision。"
+    "location": "{子项目}/docs/features/{功能目录}/state.json",
+    "updated_by": "走 tools/state.py 14 子命令（v7.3.10+P0-127 单源 · 详 RULES.md § state.json 维护硬规则）",
+    "stage_enum": "goal_plan | ui_design | panorama_design | blueprint | dev | review | test | browser_e2e | pm_acceptance | ship | completed",
+    "ship_phase_enum": "null | pushed | merged | closed_unmerged"
   },
 
   "feature_id": "AUTH-F042-email-login",
@@ -16,12 +13,12 @@
   "flow_type": "Feature",
 
   "artifact_root": "auth/docs/features/AUTH-F042-email-login",
-  "_artifact_root_note": "v7.3.10+P0-41 新增：Feature 所有产物的根目录（PRD.md / TC.md / TECH.md / state.json 等都落在此目录下）。计算规则：teamwork_space.md 子项目清单表的 docs_root 列 + Feature 全名。triage Step 9 写入；缺失或与 sub_project 的 docs_root 不一致视为流程违规。🔴 写操作硬门禁：任何 Write/Edit Feature 产物文件前，PMO 必须校验文件路径以本字段开头。",
+  "_artifact_root_note": "Feature 产物根目录 = teamwork_space.docs_root + Feature 全名 · triage Step 9 写入 · state.py 校验路径前缀（治本 P0-41）",
 
   "change_id": null,
-  "_change_id_note": "v7.3.10+P0-33 新增：本 Feature 归属的变更 ID（如 CR-001 / BG-015）。null 表示独立 Feature 不归属任何变更。PMO 在 triage-stage Step 6.5 变更归属检查时填入。归属变更时变更状态必须 == 'locked' 才能启动（除非用户绕过）。",
+  "_change_id_note": "归属变更 ID（CR-xxx / BG-xxx）· null=独立 Feature · triage Step 6.5 填入 · 详 P0-33",
   "change_force_start": false,
-  "_change_force_start_note": "v7.3.10+P0-33 新增：true 表示用户在 triage-stage Step 6.5 选了「2 强制启动」绕过变更状态检查；state.concerns 同时含 WARN 记录。",
+  "_change_force_start_note": "true=用户绕过变更 locked 检查 · concerns 同步 WARN · 详 P0-33",
 
   "goal_plan_substeps_config": {
     "_comment": "v7.3.10+P0-34 新增 / +P0-38 重定位 / +P0-38-A 修订：Goal-Plan Stage 入口实例化产物（不是 triage 决策）。PMO 在 Goal-Plan Stage 入口基于上游 PRD 草稿状态 + execution_plan_skeleton.stages[plan].execution_hints + state.available_roles 决策具体评审组合 + 执行方式 + 评审循环参数 + 写入本字段。Goal-Plan Stage 按本字段执行多角色并行评审 + ≤3 轮回应循环。",
@@ -39,27 +36,27 @@
         "execution": "subagent"
       }
     ],
-    "_review_roles_note": "PMO 智能推荐示例：大 Feature → pl+rd+designer+qa+pmo 全 subagent；中 Feature → pl+rd+qa+pmo（pmo=主对话）；纯技术 refactor → rd+qa（subagent）；敏捷 → rd+qa（按文件数选执行方式）；Bug → rd（主对话）。",
+    "_review_roles_note": "PMO 智能推荐：大 Feature → pl+rd+designer+qa+pmo · 中 Feature → pl+rd+qa+pmo · 纯技术 → rd+qa · Bug → rd",
     "review_round": 1,
     "_review_round_max": 3,
-    "_review_round_note": "评审循环计数。Round 1: 各角色并行评审 → PM 整合反馈 + 修订 PRD；Round 2/3 同上。Round N 完成后判定 overall_verdict：所有 verdict ∈ {PASS, PASS_WITH_CONCERNS} 通过；任一 NEEDS_REVISION 且 round < 3 → Round N+1；round == 3 仍 NEEDS_REVISION → ⏸️ 用户决策。",
+    "_review_round_note": "评审循环计数（max=3）· 全 PASS 通过 · 任一 NEEDS_REVISION 进下轮 · round=3 仍非 PASS → ⏸️ 用户决策",
     "review_round_overflow_decision": null,
     "_review_round_overflow_decision_enum": "force-pass（强制通过 + state.concerns WARN，💡 推荐）| continue-round-4（继续，无上限）| modify-scope（回到 PRD 初稿重启）| abort（state.shipped = abandoned）",
     "review_round_overflow_decision_at": null,
     "review_round_overflow_decision_reason": null,
 
     "pl_prioritized": true,
-    "_pl_prioritized_note": "v7.3.10+P0-34-C 新增：当 review_roles[] 含 pl 时默认 true，PL 评审先于其他角色 dispatch；PL 收敛 → 业务方向锁死 → 其他角色基于锁死 PRD 评审。设为 false 退化为 P0-34 全并行（适用于业务方向已在 product-overview/CR 锁死的纯技术 Feature）。",
+    "_pl_prioritized_note": "review_roles 含 pl 时默认 true · PL 收敛 → 业务方向锁死 · 详 P0-34-C",
     "business_direction_locked": false,
-    "_business_direction_locked_note": "v7.3.10+P0-34-C 新增：PL 评审收敛后 PMO 写 true，并在 PRD frontmatter 同步 business_direction_locked: true。锁死后其他评审角色禁止回炉业务方向（除非发现实现层与已锁死方向矛盾，触发回归 PL 二次评审）。v7.3.10+P0-48 删除 business_direction_locked_at 字段（时刻由本 state.json 顶层 updated_at 或 goal_plan_substeps_config 子段时刻字段单一记录）。",
+    "_business_direction_locked_note": "PL 评审收敛后 PMO 写 true + PRD frontmatter 同步 · 锁后禁回炉业务方向（除非实现层矛盾）· 详 P0-34-C",
 
     "defer_audit_passed": false,
-    "_defer_audit_passed_note": "v7.3.10+P0-34-A 新增：PMO 子步骤 3 完成后审计 PRD-REVIEW.md 所有 pm_response.action=DEFER 项的 category=business-decision 一致性。违规打回 PM 重做。",
+    "_defer_audit_passed_note": "PMO 子步骤 3 后审计 PRD-REVIEW.md DEFER 项 category=business-decision 一致性 · 违规打回 PM",
     "adversarial_check_passed": false,
-    "_adversarial_check_passed_note": "v7.3.10+P0-34-B 新增：PMO 子步骤 3 完成后审计 PRD-REVIEW.md 所有 pm_response.action ∈ {ADOPT, REJECT} 项的 adversarial_self_check 字段（≥2 句反方论据）。违规打回 PM 重做。",
+    "_adversarial_check_passed_note": "PMO 子步骤 3 后审计 PRD-REVIEW.md ADOPT/REJECT 项的 adversarial_self_check ≥2 句反方论据",
 
     "hint_overrides": null,
-    "_hint_overrides_note": "v7.3.10+P0-38-A 新增：Goal-Plan Stage 入口实例化时若与 execution_plan_skeleton.stages[plan].execution_hints 不一致，必须在本字段写文本说明。null = 完全采纳 hint；文本 = cite hint 原文 + 给出 override 原因。例：'原 hint 建议跳过 Designer；本次启用。原因：PRD §3.2 含登录页 UI 改动信号。'"
+    "_hint_overrides_note": "Stage 入口实例化偏离 execution_hints 时必须文本说明 · null=完全采纳 · 详 P0-38-A"
   },
 
   "current_stage": "dev",
@@ -71,7 +68,7 @@
     "_comment": "v7.3.10+P0-27 新增（取代原 stage_contracts.plan_preflight 字段）/ +P0-39 加 worktree_path：triage-stage Step 7.5 探测 + Step 8 用户确认；Goal-Plan Stage 入口自动按本字段执行 git 操作（fetch / 创建 worktree / 处理脏状态），无暂停点。",
     "worktree_mode": "auto",
     "worktree_root_path": ".worktree",
-    "_worktree_root_path_note": "v7.3.10+P0-39 新增：从 localconfig.worktree_root_path 读取（默认 .worktree）。实际 worktree 路径 = {worktree_root_path}/{Feature 全名}（写入 state.worktree.path 字段）。",
+    "_worktree_root_path_note": "从 localconfig.worktree_root_path 读 · 默认 .worktree · 实际 worktree 路径 = root + Feature 全名",
     "branch": "feature/AUTH-F042-email-login",
     "merge_target": "staging",
     "base": "origin/staging",
@@ -85,7 +82,7 @@
   },
 
   "global_schema_docs": [],
-  "_global_schema_docs_comment": "v7.3.10+P0-119 新增：prepare-stage Step 3 全仓库 find 全局 schema 文档（*database*schema*.md / *schema*registry*.md）写入此字段。Blueprint Stage 架构师 Tech Review + Review Stage 架构师 CR 启用 schema 专项时 cite 此清单 · 强校验全局 schema 文档同步 · 不可降级。实证 case：SVC-PLATFORM-F034 因浅层 docs/ 路径检索误判 services/core/docs/architecture/database-schema.md 不存在 → 全局 schema 文档漂移。",
+  "_global_schema_docs_comment": "init_triage.py / prepare-stage Step 3 全仓库 find · Blueprint Tech Review + Review CR schema 专项时 cite · 治本 P0-119",
   "_global_schema_docs_example": ["services/core/docs/architecture/database-schema.md", "services/web/docs/architecture/database-schema.md"],
 
   "global_schema_docs_evidence": null,
@@ -96,7 +93,7 @@
     "timestamp": "ISO 8601",
     "scanned_at": "prepare-stage Step 3"
   },
-  "_global_schema_docs_evidence_note": "v7.3.10+P0-119 evidence-binding 协同（与 P0-101 一致）：global_schema_docs 是事实字段（来自 find 命令外部观察），必须含 evidence。缺 evidence = 流程违规。原因：实战 case 显示 PMO 凭印象判定 schema 文档不存在 · 实际 monorepo 嵌套子项目下有。stdout 原文是物理拦截。",
+  "_global_schema_docs_evidence_note": "事实字段必须 evidence-binding（command + stdout + timestamp）· 缺 evidence = 流程违规 · 详 P0-119/P0-101",
 
   "schema_change_evidence": null,
   "_schema_change_evidence_schema": {
@@ -113,7 +110,7 @@
       "timestamp": "ISO 8601"
     }
   },
-  "_schema_change_evidence_note": "v7.3.10+P0-119 新增：Blueprint Stage 入口实例化时 grep TECH.md 关键词 + Review Stage 入口实例化时 git diff 检测 migration / DDL 改动。命中 → 写入本字段 + 启用 schema 专项评审（architect-tech-review.md § 3.1 + architect-cr.md § 2.1）。global_docs_synced=false 时不允许把「全局 schema 文档同步」降级为 PASS_WITH_CONCERNS（实证 SVC-PLATFORM-F034 case · review-arch.md 误判为非阻塞 concern）。",
+  "_schema_change_evidence_note": "Blueprint 入口 grep TECH.md 关键词 + Review 入口 git diff 检测 migration · 命中启用 schema 专项 · 详 P0-119",
 
   "stage_contracts": {
     "goal_plan": {
@@ -292,7 +289,7 @@
     "strategy": "auto",
     "path": ".worktree/AUTH-F042-email-login",
     "root_path": ".worktree",
-    "_path_note": "v7.3.10+P0-39 默认路径变更：从 ../feature-{feature 全名} 改为 {worktree_root_path}/{Feature 全名}（默认 .worktree）；可在 .teamwork_localconfig.md 配置 worktree_root_path 调整根目录。",
+    "_path_note": "v7.3.10+P0-39：默认 {worktree_root_path}/{Feature 全名} · localconfig 可调",
     "branch": "feature/AUTH-F042-email-login",
     "base_branch": "origin/staging",
     "created_at": "2026-04-18T08:18:00Z"
@@ -304,16 +301,16 @@
 
   "external_cross_review": {
     "_comment": "v7.3.10+P0-38 重构 / +P0-38-A 修订：external 升格为评审角色（roles/external-reviewer.md），独立维度概念取消。本对象仅保留角色实例化所需的元数据（model / host / 可用 CLI，由 triage Step 4 写入）。是否在某 Stage 启用 external 由该 Stage 入口实例化时决定（PMO 基于 execution_hints 是否含 external + state.available_roles 决策），不再用 plan_enabled/blueprint_enabled/review_enabled 三字段。",
-    "_p0_24_rename_note": "v7.3.10+P0-24 重构自 codex_cross_review 字段。",
-    "_p0_28_split_note": "v7.3.10+P0-28：原单一 enabled 字段拆为三字段（已在 P0-38 取消）。",
-    "_p0_38_collapse_note": "v7.3.10+P0-38：取消 plan_enabled / blueprint_enabled / review_enabled 三字段；外部模型作为 external 角色统一进入 *_substeps_config.review_roles[] + 各 Stage 入口实例化决策是否启用（v7.3.10+P0-38-A 修订：execution_hints 文本承载 external 启用建议）。",
+    "_p0_24_rename_note": "v7.3.10+P0-24 重构自 codex_cross_review",
+    "_p0_28_split_note": "v7.3.10+P0-28：原 enabled 拆 3 字段（已在 P0-38 取消）",
+    "_p0_38_collapse_note": "v7.3.10+P0-38：取消 plan/blueprint/review_enabled 三字段 · external 升格评审角色 · 详 CHANGELOG",
     "model": null,
     "_model_enum": "codex | claude | null（external 角色不可用时）",
     "host_main_model": null,
     "_host_main_model_enum": "claude-code | codex-cli | unknown",
     "host_detection_at": null,
     "available_external_clis": [],
-    "_available_external_clis_note": "triage Stage Step 4 PMO 直接判定后写入（v7.3.10+P0-72：自报宿主 + `command -v` 检查 CLI · 已废弃探测脚本）",
+    "_available_external_clis_note": "triage Step 4 PMO 自报宿主 + command -v 检查（v7.3.10+P0-72 废弃探测脚本）",
     "detection_evidence": null,
     "_detection_evidence_schema": {
       "command": "string · 实际执行的 bash 命令 · 例：'command -v codex; command -v claude; command -v gemini'",
@@ -321,7 +318,7 @@
       "exit_code": "integer · 0/1/127 等",
       "detected_at": "string · ISO 8601 UTC 时刻"
     },
-    "_detection_evidence_note": "v7.3.10+P0-101 evidence-binding 硬规则：available_external_clis 为事实字段（来自外部观察 · 非 PMO 自判状态）→ 必须含 detection_evidence 子对象。缺 evidence = 流程违规 = 字段无效。原因：实战 case 显示 PMO 凭印象判定 codex 不可用 · 写 available:[] 但实际 codex 在 PATH。stdout 原文是物理拦截（AI 没法编造真实命令输出）。",
+    "_detection_evidence_note": "事实字段必须 evidence-binding · 缺 evidence = 流程违规 · 治本 P0-101",
     "decided_at": null,
     "decided_by": "user",
     "note": "v7.3.10+P0-38：external 是否启用看各 Stage 入口的 *_substeps_config.review_roles[] 是否含 external，不再有独立开关",
@@ -338,7 +335,7 @@
   },
 
   "available_roles": [],
-  "_available_roles_note": "v7.3.10+P0-38 新增 / +P0-38-A 重定位 / +P0-72 删脚本：triage Stage 角色可用性扫描结果（不在 init 写入）。内部 6 角色固定可用（pl/rd/qa/designer/pmo/architect）；external 由 triage Step 4 PMO 直接判定（自报宿主 + `command -v` 检查 CLI）决定。每次 Feature 启动时实时扫描，反映运行时环境变化（用户中途装/卸 CLI 即生效）。各 Stage 入口实例化时按本数组校验角色合法性。",
+  "_available_roles_note": "triage Stage 角色可用性扫描结果 · 内部 6 角色固定 + external 由 PMO 自报判定 · 详 P0-38/P0-72",
   "_available_roles_example": ["pl", "rd", "qa", "designer", "pmo", "architect", "external"],
 
   "execution_plan_skeleton": {
@@ -379,28 +376,28 @@
     "git_host": null,
     "_git_host_enum": "github | gitlab | gitlab-self-hosted | gitee | bitbucket | unknown",
     "mr_create_url": null,
-    "_mr_create_url_note": "PMO 按 git_host 生成的 create MR/PR 链接；unknown 时可为 null，但 concerns 必须含 '未识别平台'",
+    "_mr_create_url_note": "PMO 按 git_host 生成的 create URL · unknown 时可 null + concerns 标注「未识别平台」",
     "feature_pushed_at": null,
     "feature_head_commit": null,
-    "_feature_head_commit_note": "v7.3.10+P0-29 新增：第一段 push 后 PMO 执行 git rev-parse feature/{Feature 全名} 写入；第二段 finalize 时用 git branch -r --contains 检测 merge_target 是否包含此 commit，判定是否合并",
+    "_feature_head_commit_note": "ship-push 后写入 · ship-confirm-merged 用 git branch -r --contains 检测 · 详 P0-29",
     "merge_target_pushed_at": null,
-    "_merge_target_pushed_at_note": "v7.3.10+P0-32 新增：第二段 Step 8 push merge_target 成功后写入（ISO 8601 UTC）；push 失败降级到 feature 分支时为 null + merge_target_push_failed=true",
+    "_merge_target_pushed_at_note": "ship-confirm-merged 第二段 push 成功后写入 · 失败降级时 null + merge_target_push_failed=true · 详 P0-32",
     "merge_target_push_failed": false,
-    "_merge_target_push_failed_note": "v7.3.10+P0-32 新增：第二段 Step 8 push merge_target 失败时为 true，降级到 feature 分支 push；state.concerns 含失败原因（conflict / protect-rule / network / other）",
+    "_merge_target_push_failed_note": "ship-confirm-merged 失败降级标志 · concerns 含失败原因 · 详 P0-32",
     "merge_target_push_failed_reason": null,
-    "_merge_target_push_failed_reason_enum": "v7.3.10+P0-32：conflict（pull --rebase 重试 1 次后仍冲突）| protect-rule（merge_target 受保护，需 review approved）| network（连接 / DNS / 超时）| other（其他错误，含 stderr 摘要）",
+    "_merge_target_push_failed_reason_enum": "conflict | protect-rule | network | other",
     "phase": null,
-    "_phase_enum": "v7.3.10+P0-29 新增：null（未进入 Ship） | pushed（第一段完成，等用户合并）| merged（第二段验证已合并）| closed_unmerged（用户回报 MR 关闭未合并，进入异常分支）",
+    "_phase_enum": "null | pushed（第一段完成）| merged（第二段验证）| closed_unmerged（异常）· 详 P0-29",
     "merge_commit_hash": null,
-    "_merge_commit_hash_note": "v7.3.10+P0-29 新增：合并模式为 merge commit / rebase（保留 hash）时 = feature_head_commit；squash merge / 重写 hash 时由用户提供",
+    "_merge_commit_hash_note": "merge / rebase 模式 = feature_head_commit · squash 由用户提供",
     "mr_merged_at": null,
-    "_mr_merged_at_note": "v7.3.10+P0-29 新增：合并时刻 ISO 8601 UTC；用户回选项 1 时 PMO 取检测时刻或询问用户填写",
+    "_mr_merged_at_note": "合并时刻 ISO 8601 UTC",
     "merge_detection_method": null,
-    "_merge_detection_method_enum": "v7.3.10+P0-29 新增：branch-contains（git branch -r --contains 检测通过，高置信度）| user-reported（git 检测未通过，用户提供 commit hash，置信度低，concerns 标注）",
+    "_merge_detection_method_enum": "branch-contains（高置信度）| user-reported（concerns 标注）",
     "worktree_cleanup": null,
-    "_worktree_cleanup_enum": "cleaned | deferred | n_a（worktree=off 时）",
+    "_worktree_cleanup_enum": "cleaned | deferred | n_a",
     "shipped": null,
-    "_shipped_enum": "v7.3.10+P0-29 扩展：null（未进入 Ship）| pushed（第一段完成）| merged（第二段验证合并完成）| closed_unmerged（MR 被关闭未合并）| abandoned（用户放弃 Feature）| failed（push 失败）",
+    "_shipped_enum": "null | pushed | merged | closed_unmerged | abandoned | failed",
     "started_at": null,
     "completed_at": null
   },
