@@ -142,46 +142,27 @@ AUTO_MODE=true + Test Stage 完成 + TC.md 含 Browser E2E AC
 
 ## Feature 流程
 
-| 当前阶段 | 允许的下一阶段 | 流转 | 条件 |
+> 🟢 **运行时权威源**（v7.3.10+P0-131）：Stage → Stage 转移图硬编码在 [tools/state.py](../tools/state.py) `FEATURE_FLOW` 字典 · `enter-stage` 物理校验 `legal_next_stages`。本表是**人读语义参考**：标注每个转移的 mode（自动 / 暂停 / 回退）+ 触发条件 · 不再列内部 step 细节（详 stages/{X}-stage.md）。
+
+| 当前阶段 | 允许的下一阶段 | 流转 | 条件（语义） |
 |----------|---------------|------|------|
-| 🔗 triage-stage | 🔗 Goal-Plan Stage 子步骤 1（PRD 初稿）| 🚀自动 | 用户确认走 Feature 流程后；triage Step 7.5 已探测环境 + Step 8 用户已在 triage 暂停点确认环境配置 + Goal-Plan Stage 评审组合（v7.3.10+P0-34）；Goal-Plan Stage 入口自动按 state.environment_config 执行环境准备，无暂停点 |
-| Goal-Plan Stage 子步骤 1（PRD 初稿）| Goal-Plan Stage 子步骤 2（多角色并行评审）| 🚀自动 | PM 完成 PRD draft → 按 state.goal_plan_substeps_config.review_roles[] 启动评审 |
-| Goal-Plan Stage 子步骤 2（多角色并行评审）| Goal-Plan Stage 子步骤 3（PM 回应循环）| 🚀自动 | 所有评审 reviewer 产出 verdict + findings；任一 NEEDS_REVISION 触发 PM 回应 |
-| Goal-Plan Stage 子步骤 3（PM 回应）| Goal-Plan Stage 子步骤 4（全员通过判定）| 🚀自动 | PM 对所有 NEEDS_REVISION findings 给 ADOPT/REJECT/DEFER + 修订 PRD |
-| Goal-Plan Stage 子步骤 4（全员通过判定）| Goal-Plan Stage 子步骤 2（Round N+1）| 🚀自动 | 任一 verdict = NEEDS_REVISION 且 review_round < 3 → 触发新一轮评审 |
-| Goal-Plan Stage 子步骤 4（全员通过判定）| Goal-Plan Stage 子步骤 5（用户最终确认）| 🚀自动 | 所有 verdict ∈ {PASS, PASS_WITH_CONCERNS} → 通过 |
-| Goal-Plan Stage 子步骤 4（Round 3 仍未通过）| ⏸️ 用户决策 | ⏸️暂停 | review_round == 3 仍 NEEDS_REVISION → 强制通过 / 继续 Round 4 / 修改 scope / abort（v7.3.10+P0-34）|
-| Goal-Plan Stage 子步骤 5（用户最终确认）| 🔗 Blueprint Stage / 修改 PRD / 重启评审 | ⏸️暂停 | 用户回 1（通过进 Blueprint）/ 2（修改）/ 3（重启评审）/ 4（其他）|
-| 🔗 Goal-Plan Stage | PRD 待确认 | ⏸️暂停 | Goal-Plan Stage 返回定稿 PRD，等用户确认 |
-| 🔗 Goal-Plan Stage (分歧) | PRD 待确认 | ⏸️暂停 | 有 PL-PM 分歧项，用户逐项决策后确认 |
-| PRD 待确认 | 🔗 UI Design Stage / 🔗 Blueprint Stage | ⏸️暂停 | 用户确认（有 UI → UI Design；无 UI → Blueprint） |
-| 🔗 UI Design Stage | 设计批 待确认 | ⏸️暂停 | v7.3.4 合并：Feature UI + 全景增量同步一次性产出，一个暂停点 |
-| 设计批 待确认 | 🔗 UI Design Stage (修订) / 🔗 Blueprint Stage | ⏸️暂停 | 有问题→重跑 UI（≤3 轮）；通过→Blueprint |
-| 🔗 Blueprint Stage | 方案待确认 | ⏸️暂停 | Blueprint 返回 TC + TECH.md + 评审报告 |
-| 🔗 Blueprint Stage (concerns) | 方案待确认 | ⏸️暂停 | 有 concerns，用户确认处理方式 |
-| 方案待确认 | 🔗 Dev Stage | ⏸️暂停 | 用户确认技术方案（📎 worktree 已在 Goal-Plan Stage 入口创建；本处仅校验存在性，不存在则补建） |
-| 🔗 Dev Stage | 🔗 Review Stage | 🚀自动 | DONE（单测全绿） |
-| 🔗 Dev Stage | ⏸️ 用户决策 | ⏸️暂停 | FAILED（单测持续失败/环境异常） |
-| 🔗 Review Stage | 🔗 Test Stage | 🚀自动 | DONE（三个 review 均通过） |
-| 🔗 Review Stage (NEEDS_FIX) | RD Fix → PMO 判断重跑哪些 review | 🔁回退 | ≤3 轮修复循环 |
-| 🔗 Review Stage (FAILED) | ⏸️ 用户决策 | ⏸️暂停 | Codex CLI 不可用（走 agents/README.md §三 AI 自主降级 / 跳过）/ 超 3 轮 |
-| 🔗 Test Stage | 🔗 Browser E2E Stage / PM 验收 | 🚀自动 | DONE（有 Browser E2E → ⏸️用户确认；无→PM 验收） |
-| 🔗 Test Stage (QUALITY_ISSUE) | RD Fix → 重跑 Test Stage | 🔁回退 | ≤3 轮 |
-| 🔗 Test Stage (BLOCKED) | ⏸️ 用户处理 | ⏸️暂停 | 环境问题 |
-| 🔗 Browser E2E Stage | PM 验收 | 🚀自动 | 通过 |
-| 🔗 Browser E2E Stage | RD Fix → 重新 Browser E2E | 🔁回退 | 功能缺陷（≤3 轮） |
-| PM 验收 | 🔗 Ship Stage 第一段 / ✅ 已完成（shipped=false）/ RD Fix | ⏸️暂停 | v7.3.10+P0-15：PM 验收三选项。1=通过+Ship → Ship Stage 第一段；2=通过但暂不 Ship → PMO 把前序 Stage 遗留 auto-commit + push feature 分支 + 归档 shipped=false；3=不通过+建议 → 按问题类型派发 RD Fix |
-| 🔗 Ship Stage 第一段 | 等待合并暂停点 | 🚀自动 | v7.3.10+P0-29 / +P0-113：PMO 自主执行净化 → push feature → 记录 feature_head_commit → **CLI 优先创建 MR/PR**（command -v glab/gh → 实创建拿 mr_url；CLI 不可用才走 URL 兜底；🔴 git push 输出的 hint URL 是兜底备选 · 不是首选产物 · 详见 ship-stage.md §2.3 + R8(c)）→ 输出第一段报告 |
-| 等待合并暂停点 | 🔗 Ship Stage 第二段 / 暂时退出 / 异常处理 | ⏸️暂停 | v7.3.10+P0-29 4 选 1：1=已合并 → 第二段 finalize；2=等待中 → 退出会话（state.ship.phase=pushed 保留）；3=MR 关闭未合并 → 异常处理；4=其他 |
-| 🔗 Ship Stage 第二段 (Step 4-5 检测) | 切到 merge_target | 🚀自动 | v7.3.10+P0-29：PMO 自主执行 git fetch + branch -r --contains 检测 → 验证通过进入 Step 6 |
-| Ship Stage 第二段 (Step 4-5 检测失败) | ⏸️ 询问用户提供 commit hash | ⏸️暂停 | v7.3.10+P0-29：squash merge / GitLab rebase 重写场景，git branch --contains 检测不到 → 用户 4 选 1：1=提供 hash / 2=实际未合并 / 3=关闭 / 4=其他 |
-| Ship Stage 第二段 (Step 6 切 merge_target) | 写 state.json 最终态 | 🚀自动 | v7.3.10+P0-32：cd 主工作区 + git checkout merge_target + git pull --ff-only |
-| Ship Stage 第二段 (Step 6 pull 失败) | ⏸️ 用户处理 | ⏸️暂停 | v7.3.10+P0-32：本地 merge_target 与 origin 分歧无法 fast-forward；不强制处理冲突 |
-| Ship Stage 第二段 (Step 7-8 push merge_target) | ✅ 已完成（shipped=merged）| 🚀自动 | v7.3.10+P0-32 红线 R1 例外：写 state.json 最终态 + commit + push merge_target（仅 state.json 一文件、仅状态字段、零业务影响）|
-| Ship Stage 第二段 (Step 8 push merge_target 失败) | 降级到 feature 分支 push | 🚀自动 | v7.3.10+P0-32：冲突 → pull --rebase 重试 1 次仍失败 / protect rule → 直接降级 / 网络失败 → ⏸️ 用户 3 选 1（重试 / 降级 / 仅本地）。降级仍记 phase=merged |
-| Ship Stage 第二段 (Step 9 清理 worktree) | ✅ 已完成（shipped=merged）| 🚀自动 | v7.3.10+P0-29：cd 主工作区 + git worktree remove；worktree=off 跳过 |
-| Ship Stage 异常处理 | 🔗 Dev Stage / ✅ 已完成（shipped=abandoned）/ 暂时等待 | ⏸️暂停 | v7.3.10+P0-29：MR 关闭未合并 → 用户 4 选 1：1=重开 MR（回 Dev）/ 2=放弃 Feature / 3=暂时等待 / 4=其他 |
-| 🔗 Ship Stage (push FAILED) | ⏸️ 用户决策 | ⏸️暂停 | v7.3.10+P0-15：push feature 失败（远端拒绝 / 网络 / 权限）→ 用户 2 选 1：a 手工处理后复跑 Ship / b 取消 Ship（回到 PM 验收态）。PMO 不重试、不降级为本地操作 |
+| 🔗 triage-stage | 🔗 Goal-Plan Stage | 🚀自动 | 用户确认走 Feature · environment_config 已写入 |
+| 🔗 Goal-Plan Stage | PRD 待确认（暂停点）| ⏸️暂停 | PRD 多轮评审收敛后 · 用户最终确认（详 [goal-plan-stage.md](../stages/goal-plan-stage.md) 内部子步骤）|
+| PRD 待确认 | 🔗 UI Design / 🔗 Blueprint | ⏸️暂停 | 用户确认（有 UI → UI Design；无 UI → Blueprint） |
+| 🔗 UI Design Stage | 设计批 待确认 | ⏸️暂停 | UI + 全景增量同步一次产出（v7.3.4 合并）|
+| 设计批 待确认 | 🔗 UI Design (修订) / 🔗 Blueprint | ⏸️暂停 | 有问题 → 重跑（≤3 轮）；通过 → Blueprint |
+| 🔗 Blueprint Stage | 方案待确认 | ⏸️暂停 | Blueprint 返回 TC + TECH + 评审报告 |
+| 方案待确认 | 🔗 Dev Stage | ⏸️暂停 | 用户确认技术方案 |
+| 🔗 Dev Stage | 🔗 Review Stage / ⏸️ 用户决策 | 🚀自动 / ⏸️ | DONE 自动；FAILED 暂停 |
+| 🔗 Review Stage | 🔗 Test Stage / Fix 回退 / ⏸️ | 🚀自动 / 🔁回退 / ⏸️ | DONE 自动；NEEDS_FIX ≤3 轮回退；超 3 轮或 CLI 不可用 ⏸️ |
+| 🔗 Test Stage | 🔗 Browser E2E / PM 验收 / Fix 回退 / ⏸️ | 🚀自动 / 🔁回退 / ⏸️ | DONE 走 E2E 或 PM 验收；QUALITY_ISSUE 回退；BLOCKED ⏸️ |
+| 🔗 Browser E2E Stage | PM 验收 / Fix 回退 | 🚀自动 / 🔁回退 | 通过自动；功能缺陷 ≤3 轮回退 |
+| PM 验收 | 🔗 Ship 第一段 / ✅ shipped=false / Fix 派发 | ⏸️暂停 | 三选项（详 [pmo-pm-acceptance-ship.md](../roles/pmo-pm-acceptance-ship.md)）|
+| 🔗 Ship Stage 第一段 | 等待合并暂停点 | 🚀自动 | 净化 + push + CLI 创建 MR（详 [ship-stage.md](../stages/ship-stage.md) Step 1-3）|
+| 等待合并暂停点 | 🔗 Ship 第二段 / 暂退 / 异常 | ⏸️暂停 | 4 选 1（详 ship-stage.md Step 3）|
+| 🔗 Ship Stage 第二段 | ✅ shipped=merged | 🚀自动 | 合并验证 + finalize + 清理（详 ship-stage.md Step 4-9）· `ship-cleanup` 在 phase ≠ merged 时 BLOCKED（治本 P0-124）|
+| Ship Stage 异常处理 | 🔗 Dev / shipped=abandoned / 暂等 | ⏸️暂停 | MR 关闭未合并 4 选 1（详 ship-stage.md 异常段）|
+| 🔗 Ship Stage (push FAILED) | ⏸️ 用户决策 | ⏸️暂停 | push feature 失败 · 用户 2 选 1（手工 resolve / 取消 Ship） |
 
 ## Bug 处理流程（v7.3.10+P0-36 加 Ship Stage 缩简分支）
 
