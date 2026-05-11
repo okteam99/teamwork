@@ -107,13 +107,21 @@ PMO 接管 · 输出 PM 验收摘要 + 3 选 1 暂停点（见下方模板）
 
 ### 2.3 选 1（通过 + Ship）后的处理
 
-```
-1. state.json.current_stage = "ship"
-2. state.json.stage_contracts.pm_acceptance.output_satisfied = true
-3. state.json.stage_contracts.pm_acceptance.decision = "approved_and_ship"
-4. review-log.jsonl append: { stage: "pm_acceptance", status: "DONE", decision: "approved_and_ship" }
-5. 按 stages/ship-stage.md 执行 3 步流（净化 → push feature + 生成 MR create URL → worktree 清理）
-   └── Ship Stage 完成后 PMO 输出 Feature 完成报告（含 shipped=true · mr_create_url · worktree_cleanup 字段 · 提示用户到平台合入）
+📌 **state.py 调用**（v7.3.10+P0-125 · 单源走脚本 · 禁止直接 Edit state.json）：
+
+```bash
+# 1. PM 决策落库（含状态机校验：当前必须在 pm_acceptance）
+python3 {SKILL_ROOT}/tools/state.py pm-decision --feature {artifact_root} \
+  --decision approved_and_ship --note "AC 全覆盖 / 用户验收通过"
+
+# 2. output gate satisfied + 转 ship Stage
+python3 {SKILL_ROOT}/tools/state.py satisfy-gate --feature {artifact_root} \
+  --stage pm_acceptance --gate output
+python3 {SKILL_ROOT}/tools/state.py complete-stage --feature {artifact_root} --stage pm_acceptance
+python3 {SKILL_ROOT}/tools/state.py enter-stage --feature {artifact_root} --stage ship
+
+# 3. review-log.jsonl append: { stage: "pm_acceptance", status: "DONE", decision: "approved_and_ship" }
+# 4. 按 stages/ship-stage.md 执行（净化 → push feature → ship-confirm-merged → ship-cleanup）
 ```
 
 ### 2.4 选 2（通过但暂不 Ship）后的处理
@@ -125,19 +133,25 @@ PMO 接管 · 输出 PM 验收摘要 + 3 选 1 暂停点（见下方模板）
    └── 白名单临时文件清理（同 ship-stage.md Step 1 规则）
 2. git push origin {worktree.branch}
    └── push 失败 → ⏸️ 报告错误 · 让用户手动处理
-3. state.json.stage_contracts.pm_acceptance.decision = "approved_no_ship"
-4. state.json.ship = {
-     "shipped": false,
-     "feature_pushed_at": "{时间戳}",
-     "sanitize_log": {...},
-     "mr_create_url": null,
-     "worktree_cleanup": null
-   }
-5. state.json.current_stage = "completed"（即便 shipped=false · Feature 流程主干完成）
-6. review-log.jsonl append: { stage: "pm_acceptance", status: "DONE", decision: "approved_no_ship" }
-7. PMO 输出 Feature 完成报告（⚠️ 醒目标注 shipped=false + 后续操作提示）
-8. /teamwork 看板上该 Feature 标注「⏳ 待 Ship」（可通过 `/teamwork ship F{编号}` 触发后续 Ship Stage）
 ```
+
+📌 **state.py 调用**：
+
+```bash
+python3 {SKILL_ROOT}/tools/state.py pm-decision --feature {artifact_root} \
+  --decision approved_no_ship --note "通过但用户暂不 Ship"
+python3 {SKILL_ROOT}/tools/state.py satisfy-gate --feature {artifact_root} \
+  --stage pm_acceptance --gate output
+python3 {SKILL_ROOT}/tools/state.py complete-stage --feature {artifact_root} --stage pm_acceptance
+# 直接转 completed · 跳过 ship Stage
+python3 {SKILL_ROOT}/tools/state.py enter-stage --feature {artifact_root} --stage completed --allow-skip
+# ship 字段保持 null（shipped 未发生）· 完成报告显式标注 shipped=false
+```
+
+后续：
+- review-log.jsonl append `{ stage: "pm_acceptance", status: "DONE", decision: "approved_no_ship" }`
+- PMO 输出 Feature 完成报告（⚠️ 醒目标注 shipped=false + 后续 `/teamwork ship F{编号}` 触发 Ship 操作）
+- /teamwork 看板上该 Feature 标注「⏳ 待 Ship」
 
 ### 2.5 选 3（不通过）修复派发规则
 
