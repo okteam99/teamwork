@@ -148,25 +148,25 @@ silent execution：
 
 > 触发关键词：`报错 / 502 / 5xx / 异常 / panic / fatal / 崩溃 / 服务挂了 / 查 log / 查日志 / 排查 / 调试 / 查环境 / 查 DB / 查数据库 / 查表 / 查 Redis / 查缓存 / 部署 / 回滚 / 上线`
 
-**优先级 1：固定 read 项目根 TROUBLESHOOTING.md**（v7.3.10+P0-126：tools/init_triage.py 在 triage 入口已物化创建 + 空骨架检测 · 必存在）
+**优先级 1：固定 read 项目根 TROUBLESHOOTING.md**（v7.3.10+P0-133 cite SKILL.md R9）
+
+PMO 在新 session 首条响应已跑 init_triage.py（[SKILL.md R9](../SKILL.md)）· 拿到 `project_files["TROUBLESHOOTING.md"]` 的 `is_empty_skeleton` 字段：
 
 ```
-查 init_triage.py 输出的 project_files["TROUBLESHOOTING.md"]：
-  ├── is_empty_skeleton=false → silent read · 按文档步骤执行（kubectl / psql / redis-cli / curl 等具体命令）
-  │              · 遵守文档里的安全约束（production 写操作 ⏸️ 用户授权 · 红线 R8 协同）
-  │              · 不复述 secret / token / 密码到主对话
-  │
-  └── is_empty_skeleton=true（advisory.topic ∈ {empty-skeleton, skeleton-created}）
-                → PMO 用通用方法尝试排查（kubectl 探索 / grep 代码 / curl 接口）
-                + 答案末尾**一句话**提示用户：
-                  "💡 项目根 TROUBLESHOOTING.md 是 teamwork 自动创建的空骨架 ·
-                   你可以按项目栈补充具体命令（kubectl / psql / 部署回滚链等）·
-                   teamwork 下次排查时会自动 read 已填内容。"
+is_empty_skeleton=false → silent read · 按文档步骤执行（kubectl / psql 等具体命令）
+                       · 遵守文档安全约束（production 写操作 ⏸️ 用户授权 · 红线 R8 协同）
+                       · 不复述 secret / token 到主对话
+
+is_empty_skeleton=true（advisory.topic ∈ {empty-skeleton, skeleton-created}）
+                       → PMO 用通用方法排查（kubectl 探索 / grep 代码 / curl 接口）
+                       + 答案末尾一句话提示用户：
+                         "💡 项目根 TROUBLESHOOTING.md 是 teamwork 自动创建的空骨架 ·
+                          你可以按项目栈补充具体命令 · teamwork 下次会自动 read 已填内容。"
 ```
 
-🔴 **空骨架检测**（v7.3.10+P0-126 物化）：
-- 由 [tools/init_triage.py](../tools/init_triage.py) 完成 · 硬编码 marker = "本文是 teamwork prepare-stage 自动创建的空骨架"
-- PMO 不再自己 grep · 直接读脚本返回 `is_empty_skeleton` 布尔值
+🔴 **空骨架检测**（v7.3.10+P0-126 物化 + P0-133 调用入口规范化）：
+- 检测在 [tools/init_triage.py](../tools/init_triage.py) · 硬编码 marker = "本文是 teamwork prepare-stage 自动创建的空骨架"
+- PMO 不自己 grep · 复用 SKILL.md R9 首条响应已 cite 的 init_triage 输出
 - 治本旧 bug：spec 让 grep `{TODO 由用户填写}` 但模板里实际无此字符串 → grep 永不命中 → 永远误判已填
 
 🔴 **不强推具体命令**（v7.3.10+P0-109）：

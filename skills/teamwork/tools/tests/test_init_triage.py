@@ -152,6 +152,35 @@ class TestSchemaDocs(_Base):
         self.assertIn("schema-docs-found", topics)
 
 
+class TestAuditLine(_Base):
+    def test_audit_line_present(self) -> None:
+        d = run(self.base_args())
+        self.assertIn("audit_line", d)
+        line = d["audit_line"]
+        self.assertTrue(line.startswith("📊 init_triage:"))
+        self.assertIn("verdict=OK", line)
+        self.assertIn("host=claude-code", line)
+
+    def test_audit_line_aggregates_skeleton_created(self) -> None:
+        d = run(self.base_args())
+        line = d["audit_line"]
+        self.assertIn("已创建=", line)
+
+    def test_audit_line_no_advisories_when_clean(self) -> None:
+        # 用户已填 TROUBLESHOOTING.md / GLOSSARY.md / version match
+        for name in ("TROUBLESHOOTING.md", "GLOSSARY.md"):
+            (self.proj / name).write_text("# real content\n", encoding="utf-8")
+        (self.proj / ".teamwork_localconfig.md").write_text(
+            "teamwork_version: v7.3.10+P0-129\n", encoding="utf-8"
+        )
+        (self.proj / "teamwork_space.md").write_text("# real\n", encoding="utf-8")
+        d = run(self.base_args())
+        line = d["audit_line"]
+        self.assertNotIn("已创建=", line)
+        self.assertNotIn("空骨架=", line)
+        self.assertNotIn("version-mismatch", line)
+
+
 class TestErrorHandling(_Base):
     def test_invalid_skill_root(self) -> None:
         r = subprocess.run(

@@ -1,6 +1,33 @@
 # Changelog
 
-## v7.3.10 + P0-132（当前 · Designer 自查规范 + verify-panorama.py 物化校验 + ui.md 模板加段）
+## v7.3.10 + P0-133（当前 · SKILL.md R9 红线 · 新 session 必跑 init_triage.py + cite audit_line）
+
+> **触发**：用户报告 init_triage.py 没生效 — CLAUDE.md/AGENTS.md 注入老内容 / TROUBLESHOOTING.md 没创建。审计：P0-126 写完脚本只改了 spec 描述「PMO 在 triage 入口跑」· **没有任何 hook / 强制路径触发**。同型 gap 与 P0-118-B verify-panorama 一样：写脚本不注入必经路径 = 物化拦截没落地。
+
+### P0-133：observable cite 强制 + 单源单机制
+- **新增 SKILL.md R9 红线**（8→9 条 · 头部计数同步）：
+  - 新 session 首条 PMO 响应前必跑 init_triage.py + 在响应可见 cite stdout 的 audit_line
+  - 同 session 后续不重跑（PMO 自判：上下文已含 init_triage 输出 = 已跑过）
+  - compaction 后视为新 session 重跑
+  - 反模式：不 cite audit_line / 凭印象推断「已存在不用跑」
+- **init_triage.py 加 audit_line 字段**（一行 audit · ergonomics + verifiability）：
+  - 格式 `📊 init_triage: verdict=OK · host=X · project_root=Y · advisories=[...] · 已创建=A,B · version-mismatch`
+  - PMO 把这行直接 cite 到首条响应 · 用户可见 PMO 是否跑了
+- **triage-stage.md 删「主动创建必存在」假设**：改为 cite SKILL.md R9 · 单源
+- **不动**（按用户审定）：
+  - state.json 不加 init_evidence（scope 不符 · state.json = per-Feature · init_triage = session/host bootstrap）
+  - state.py 不加 validate gate（granularity 错位 · session-event 不该 per-call 校验）
+  - hooks 不调脚本（跨宿主不一致 / 失败 silent / 结果不在推理回路）
+
+### 设计哲学：物化拦截的「必要性边界」
+- **per-stage 高频写动作**（state.json / gate / ship 状态机）→ 必须脚本物理 wrap · 静默错失代价大
+- **session-event 一次性 bootstrap**（init_triage / Designer 自查报告输出）→ observable cite 即可 · 用户可见 = 用户监督
+
+测试：tools/tests/test_init_triage.py 加 TestAuditLine 3 测试 · 总测试 44→47 · 全 PASS。
+
+---
+
+## v7.3.10 + P0-132（Designer 自查规范 + verify-panorama.py 物化校验 + ui.md 模板加段）
 
 > **触发**：用户反馈 Designer 在做设计时不遵循全景 · 多次跨子项目漏检 / 状态覆盖不全 / sitemap 未同步。审计发现 3 个根因：(1) templates/ui.md 60 行 0 个全景相关段（模板缺什么 Designer 漏什么）· (2) 全景规则碎片在 designer.md / ui-design-stage.md 4 处 · (3) 无物理校验脚本（仅 prose 红线）。
 

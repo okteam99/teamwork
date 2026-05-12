@@ -304,8 +304,34 @@ def main() -> None:
         "scanned_at": now_iso(),
     }
     state["advisories"] = build_advisories(state)
+    state["audit_line"] = build_audit_line(state)
 
     emit({"verdict": "OK", **state})
+
+
+def build_audit_line(state: dict[str, Any]) -> str:
+    """单行 audit · PMO 在首条响应可见 cite（治本 P0-133：用户能直接看到 PMO 跑了 init_triage）。"""
+    advs = state.get("advisories") or []
+    if not advs:
+        topics = "无"
+    else:
+        # 聚合相同 topic 的计数
+        from collections import Counter
+        counts = Counter(a["topic"] for a in advs)
+        topics = ", ".join(f"{t}×{c}" if c > 1 else t for t, c in counts.items())
+    pf = state.get("project_files") or {}
+    created = [n for n, v in pf.items() if isinstance(v, dict) and v.get("created_now")]
+    empty = [n for n, v in pf.items() if isinstance(v, dict) and v.get("is_empty_skeleton") and not v.get("created_now")]
+    extras = []
+    if created:
+        extras.append(f"已创建={','.join(created)}")
+    if empty:
+        extras.append(f"空骨架={','.join(empty)}")
+    if not state.get("version_match"):
+        extras.append("version-mismatch")
+    extra_str = " · " + " · ".join(extras) if extras else ""
+    return (f"📊 init_triage: verdict=OK · host={state['host']} · "
+            f"project_root={state['project_root']} · advisories=[{topics}]{extra_str}")
 
 
 if __name__ == "__main__":
