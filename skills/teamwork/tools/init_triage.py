@@ -219,7 +219,9 @@ def build_advisories(state: dict[str, Any]) -> list[dict[str, str]]:
             "severity": "WARN", "topic": "version-mismatch",
             "message": (f"skill_version={state['skill_version']} ≠ "
                         f"local_version={state['local_version']} · "
-                        f"PMO 走全量校验 · 完成后回写 .teamwork_localconfig.md"),
+                        f"PMO 应跑 tools/sync-drift.py 同步 CLAUDE.md/AGENTS.md "
+                        f"teamwork 注入段（marker-aware · 用户内容保护 · v7.3.10+P0-134）· "
+                        f"完成后回写 .teamwork_localconfig.md"),
         })
 
     if state["global_schema_docs"]["docs"]:

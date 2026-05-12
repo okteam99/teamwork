@@ -1,6 +1,36 @@
 # Changelog
 
-## v7.3.10 + P0-133（当前 · SKILL.md R9 红线 · 新 session 必跑 init_triage.py + cite audit_line）
+## v7.3.10 + P0-134（当前 · sync-drift.py marker-aware CLAUDE.md/AGENTS.md 同步引擎）
+
+> **触发**：用户报告 init_triage.py 没生效 · CLAUDE.md/AGENTS.md 注入还是老内容。审计：(1) install.sh 完全不动这两个文件 · (2) 历史 INIT.md 时代手工注入 · 早废弃 · (3) init_triage.py 只检测 version-mismatch 不修改文件 · (4) 完全没有 canonical 注入模板。
+
+### P0-134：marker-aware 物化同步
+- **新增 templates/host-instruction-injection.md**（canonical 注入源 · 极简 1 section `teamwork-pointer`）：
+  - cite SKILL.md · 不复述红线全文（避免 token 重复 · 历史 INIT.md 失败教训）
+  - marker 格式 `<!-- TEAMWORK_BEGIN:section vX.X.X+P0-Y -->` ... `<!-- TEAMWORK_END:section -->`
+- **新增 tools/sync-drift.py**（~200 行 · 纯 stdlib · 同 state.py / init_triage.py 范式）：
+  - marker-aware：仅动 BEGIN/END 之间内容 · 用户外部编辑**永不动**
+  - idempotent：同版本重跑 = noop · 不重复写
+  - 版本敏感：marker 上 version 字段 · 比对决定升级
+  - --init 首次注入 / --dry-run 看 diff / cite-friendly JSON 输出
+- **install.sh** claude / codex 两段加 sync-drift.py 调用：
+  - 自动 read SKILL.md frontmatter version 注入 --skill-version
+  - 首次安装 = `--init` 创建 CLAUDE.md / AGENTS.md teamwork 段
+  - 升级 teamwork 后重跑 install.sh = 自动 marker 替换 · 用户编辑保留
+- **init_triage.py** version-mismatch advisory 升级 hint 指向 sync-drift.py
+- **prepare-stage.md** drift sync 段从「prompt 层 + 用户确认」升级为「sync-drift.py 物化」
+
+设计哲学修正：
+- P0-126 时把 CLAUDE.md drift sync 列为「不能脚本化」（高敏感）· 是误判
+- 真正的高敏感场景是「无差别 cp 全文覆盖用户编辑」
+- 用 marker 圈定 teamwork 管理边界 · 脚本只动 marker 内 = 安全 + 物化兼得
+
+测试：tools/tests/test_sync_drift.py · 7 测试覆盖 init / idempotent / 用户内容保留 /
+dry-run / 缺 marker 拒插 · 总测试 47 → 54 PASS · 5.0s
+
+---
+
+## v7.3.10 + P0-133（SKILL.md R9 红线 · 新 session 必跑 init_triage.py + cite audit_line）
 
 > **触发**：用户报告 init_triage.py 没生效 — CLAUDE.md/AGENTS.md 注入老内容 / TROUBLESHOOTING.md 没创建。审计：P0-126 写完脚本只改了 spec 描述「PMO 在 triage 入口跑」· **没有任何 hook / 强制路径触发**。同型 gap 与 P0-118-B verify-panorama 一样：写脚本不注入必经路径 = 物化拦截没落地。
 

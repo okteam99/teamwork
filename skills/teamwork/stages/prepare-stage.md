@@ -95,7 +95,18 @@ init_triage.py 输出 advisories[] 含 topic=version-mismatch（severity=WARN）
 - 不一致路径：内部回写 · 不输出"版本不一致" / "字符级一致" / "已同步"
 - 仅异常输出 ⚠️（CLAUDE.md 真实漂移 / SKILL.md frontmatter 损坏）
 
-🔴 **CLAUDE.md / AGENTS.md drift 同步不在 init_triage.py 内**（高敏感 · 涉及用户编辑文件覆盖 · 留 prompt 层 + 用户确认 · 同 P0-126 边界）。
+🔴 **CLAUDE.md / AGENTS.md drift 同步走 [tools/sync-drift.py](../tools/sync-drift.py)**（v7.3.10+P0-134 物化 · marker-aware · 用户内容保护）：
+
+```bash
+python3 {SKILL_ROOT}/tools/sync-drift.py \
+  --target {项目根}/CLAUDE.md \
+  --source {SKILL_ROOT}/templates/host-instruction-injection.md \
+  --skill-version {SKILL_VERSION} \
+  [--init]      # marker 不存在时首次插入（install.sh 自动加 · PMO 升级时也用）
+  [--dry-run]   # 看 diff 不写
+```
+
+物理保护：sync-drift.py 仅动 `<!-- TEAMWORK_BEGIN:X -->` ... `<!-- TEAMWORK_END:X -->` 之间内容 · 用户在 marker 外的编辑**永不动**。idempotent · 同版本重跑 = noop。
 
 ### Step 3: 项目空间加载（v7.3.10+P0-126 改 · 走 tools/init_triage.py 单源）
 

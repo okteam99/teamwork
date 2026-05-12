@@ -65,6 +65,16 @@ case "$HOST_VALUE" in
             cp "$SCRIPT_DIR/../hooks/hooks.json" "$HOOKS_DIR/hooks.json" 2>/dev/null || true
         fi
 
+        # Sync teamwork injection into CLAUDE.md (v7.3.10+P0-134 · marker-aware · 用户内容保护)
+        SKILL_VERSION=$(grep -E "^version:" "$SKILL_DIR/SKILL.md" 2>/dev/null | head -1 | sed 's/version: *//; s/[\"'"'"']//g' || echo "unknown")
+        if [[ -f "$SKILL_DIR/tools/sync-drift.py" && -f "$SKILL_DIR/templates/host-instruction-injection.md" ]]; then
+            python3 "$SKILL_DIR/tools/sync-drift.py" \
+                --target "./CLAUDE.md" \
+                --source "$SKILL_DIR/templates/host-instruction-injection.md" \
+                --skill-version "$SKILL_VERSION" \
+                --init 2>/dev/null && echo "   CLAUDE.md teamwork 注入段已同步（marker-aware · 用户内容保护）" || true
+        fi
+
         echo "✅ Installed to $SKILL_DIR"
         echo "   Hooks deployed to $HOOKS_DIR"
         ;;
@@ -121,6 +131,16 @@ case "$HOST_VALUE" in
                 echo "codex_hooks = true" >> "$CONFIG_FILE"
                 echo "   ⚙️ Enabled codex_hooks in $CONFIG_FILE"
             fi
+        fi
+
+        # Sync teamwork injection into AGENTS.md (v7.3.10+P0-134 · marker-aware · 用户内容保护)
+        SKILL_VERSION=$(grep -E "^version:" "$SKILL_DIR/SKILL.md" 2>/dev/null | head -1 | sed 's/version: *//; s/[\"'"'"']//g' || echo "unknown")
+        if [[ -f "$SKILL_DIR/tools/sync-drift.py" && -f "$SKILL_DIR/templates/host-instruction-injection.md" ]]; then
+            python3 "$SKILL_DIR/tools/sync-drift.py" \
+                --target "./AGENTS.md" \
+                --source "$SKILL_DIR/templates/host-instruction-injection.md" \
+                --skill-version "$SKILL_VERSION" \
+                --init 2>/dev/null && echo "   AGENTS.md teamwork 注入段已同步（marker-aware · 用户内容保护）" || true
         fi
 
         echo "✅ Installed to $SKILL_DIR"
