@@ -724,12 +724,14 @@ Feature 级 Stage（每个 Feature 各跑一次，状态写入 {Feature}/state.j
 > 📎 **完整流程规范、类型识别表、PMO 分析输出格式见 [FLOWS.md](./FLOWS.md)**
 
 **六种标准流程**：
-1. **Feature** → PM 编写 PRD、设计、测试、开发、验收
-2. **Bug 处理** → RD 排查、修复、验证（可简化或完整）
-3. **问题排查** → 梳理后由用户选择走 Feature 或 Bug
-4. **Feature Planning** → 产品规划、全景设计、PROJECT.md、ROADMAP.md
-5. **敏捷需求** → 精简 PRD → ⏸️ → QA (Plan+Case) → 🔗 Dev Stage → 🔗 Review Stage → 🟡 Test Stage 前置确认 → 🔗 Test Stage(可选) → Browser E2E(可选) → PM 验收（精简链，砍掉 Plan/Design/Blueprint Stage。准入条件：文件≤5、无 UI/架构变更、方案明确）
-6. **Micro** → PMO 分析 → ⏸️用户确认 → ✍️ 主对话 PMO→RD 身份切换（Read 规范 + cite）→ RD 改动 + 自查 → ⏸️用户验收（最轻量通道 = 省 Stage 的最短 RD 闭环。准入条件：零逻辑变更、改动类型在白名单内；超出白名单 → PMO 升级为 Plan 模式走敏捷或 Feature。详见 FLOWS.md「六、Micro 流程」）
+1. **Feature** → PM 编写 PRD → 设计 → 测试 → 开发 → 验收 → **🔗 Ship Stage（commit + push + CLI 优先创 MR → ⏸️ 用户合 MR → 第二段合入验证）→ ✅ 完成**
+2. **Bug 处理** → RD 排查 → 修复 → 验证（可简化或完整）→ **🔗 Ship Stage（缩简版 · 标题 `[Bug] {简述} (BUG-{id})` · 详 stages/ship-stage.md「Bug 流程缩简分支」）→ ✅ 完成**
+3. **问题排查** → 梳理后由用户选择走 Feature 或 Bug（不直接出代码 · 无 Ship）
+4. **Feature Planning** → 产品规划、全景设计、PROJECT.md、ROADMAP.md（只出文档 · 红线 R6 · 无 Ship）
+5. **敏捷需求** → 精简 PRD → ⏸️ → QA (Plan+Case) → 🔗 Dev → 🔗 Review → 🟡 Test 前置确认 → 🔗 Test(可选) → Browser E2E(可选) → PM 验收 → **🔗 Ship Stage → ✅ 完成**（精简链 · 砍 Plan/Design/Blueprint · 准入：文件≤5 / 无 UI/架构变更 / 方案明确）
+6. **Micro** → PMO 分析 → ⏸️用户确认 → ✍️ 主对话 PMO→RD 身份切换（Read 规范 + cite）→ RD 改动 + 自查 → ⏸️用户验收 → **🔗 Ship Stage（缩简版 · 标题 `micro: {简述}` · 详 stages/ship-stage.md「Micro 流程缩简分支」· v7.3.10+P0-74 补 Ship 双段）→ ✅ 完成**（最轻量通道 = 省 Plan/Blueprint/UI/Review/Test 的最短 RD 闭环 · **代码仍要走 Ship 发布** · 准入：零逻辑变更 / 改动类型在白名单内；超出白名单 → 升级敏捷/Feature。详 FLOWS.md「六、Micro 流程」）
+
+🔴 **涉代码流程必走 Ship**（v7.3.10+P0-136 治本 · 实证 case：Micro 走完用户验收后 PMO 凭印象「Micro 没 Ship」停在本地未 push · 用户被迫追问）：Feature / Bug / 敏捷 / Micro 四个涉代码流程**末尾都必须 Ship**（commit + push + MR）· 反模式：「Micro 是最轻量通道 · 砍掉所有 Stage 含 Ship」「不需独立 MR · 顺手攒 batch」是 PMO 凭印象编造的过度自信叙事 · spec 没此规定。
 
 **流程豁免**：仅当用户明确说「跳过流程」「不用 PRD」等字眼时可豁免，否则必须走对应级别的完整流程。
 

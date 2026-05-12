@@ -1,6 +1,32 @@
 # Changelog
 
-## v7.3.10 + P0-135（当前 · 撤 P0-126 carve-out · init_triage.py 自动调 sync-drift.py）
+## v7.3.10 + P0-136（当前 · SKILL.md 6 流程定义同步 Ship 链路 · 治本 spec 内部不一致）
+
+> **触发**：实战 case · Micro 流程走完用户验收后 PMO 凭印象「Micro 设计就是没 Ship 阶段 · 砍掉所有 Stage（含 Ship）· 不需独立 MR」停在本地未 push · 用户被迫追问。
+>
+> **审计**：
+> - FLOWS.md L729 / flow-transitions.md L276 / ship-stage.md L253 都明文写「Micro 走完整 Ship Stage」（v7.3.10+P0-74 落地）
+> - **但 SKILL.md L732 6 流程定义里 Micro 链路停在「⏸️用户验收」· 没提 Ship**
+> - PMO 默认 cite SKILL.md（入口权威）· 漏读 FLOWS.md 详细 → 按错误 spec 行动
+> - 同型问题：Bug / 敏捷 也在 SKILL.md 里漏 Ship 链路 · 仅 Feature 隐含
+>
+> **二级 bug**：PMO 还编造了 spec 里没有的「Micro = 最轻量通道 · 砍所有 Stage 含 Ship」「不需独立 MR · 顺手攒 batch」叙事 · 命中 P0-120 反模式（过度自信表述）。
+
+### P0-136：SKILL.md 6 流程定义同步
+- Feature 链路明加 Ship Stage（commit + push + CLI 优先创 MR + ⏸️ 用户合 + 第二段）
+- Bug 链路加缩简版 Ship（标题 `[Bug] {简述} (BUG-{id})` · cite ship-stage.md「Bug 流程缩简分支」）
+- 敏捷需求链路明加 Ship Stage
+- Micro 链路加缩简版 Ship（标题 `micro: {简述}` · cite ship-stage.md「Micro 流程缩简分支」· P0-74 实证）
+- 加 🔴 红线提示句：**涉代码流程必走 Ship**（Feature/Bug/敏捷/Micro 4 个）· 反模式黑名单含「Micro 不需独立 MR」等过度自信叙事
+- 问题排查 / Feature Planning 不出代码 · 明示无 Ship · 防 PMO 误加
+
+未动：FLOWS.md / flow-transitions.md / ship-stage.md（已是正确权威源 · 本次只让 SKILL.md 同步）
+
+测试：60/60 全 PASS（spec 改动 · 不影响脚本逻辑）
+
+---
+
+## v7.3.10 + P0-135（撤 P0-126 carve-out · init_triage.py 自动调 sync-drift.py）
 
 > **触发**：用户提问「sync-drift.py 在升级时做的 · 那么什么时候检查升级」· 暴露 P0-134 链路 gap：init_triage.py 检测到 version-mismatch 后只输出 advisory hint · 没机制实际触发 sync-drift.py · 又是「PMO 自觉」反模式。
 >
