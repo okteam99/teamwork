@@ -215,14 +215,35 @@ def build_advisories(state: dict[str, Any]) -> list[dict[str, str]]:
             })
 
     if not state["version_match"]:
-        out.append({
-            "severity": "WARN", "topic": "version-mismatch",
-            "message": (f"skill_version={state['skill_version']} ≠ "
-                        f"local_version={state['local_version']} · "
-                        f"PMO 应跑 tools/sync-drift.py 同步 CLAUDE.md/AGENTS.md "
-                        f"teamwork 注入段（marker-aware · 用户内容保护 · v7.3.10+P0-134）· "
-                        f"完成后回写 .teamwork_localconfig.md"),
-        })
+        sd = state.get("sync_drift") or {}
+        if sd.get("action") == "upgraded":
+            out.append({
+                "severity": "INFO", "topic": "drift-synced",
+                "message": (f"{sd.get('target')} teamwork 段已自动升级 "
+                            f"({sd.get('from_version')} → {sd.get('to_version')}) · "
+                            f"PMO 应回写 .teamwork_localconfig.md.teamwork_version"),
+            })
+        elif sd.get("action") == "error":
+            out.append({
+                "severity": "ERROR", "topic": "drift-sync-failed",
+                "message": (f"sync-drift 失败：{sd.get('error', 'unknown')} · "
+                            f"PMO 应手工跑 tools/sync-drift.py 排查"),
+            })
+        elif sd.get("action") == "skipped":
+            out.append({
+                "severity": "WARN", "topic": "version-mismatch",
+                "message": (f"skill_version={state['skill_version']} ≠ "
+                            f"local_version={state['local_version']} · "
+                            f"sync-drift 跳过 ({sd.get('skipped_reason', '')}) · "
+                            f"PMO 应手工跑 install.sh 或 sync-drift --init"),
+            })
+        else:
+            out.append({
+                "severity": "WARN", "topic": "version-mismatch",
+                "message": (f"skill_version={state['skill_version']} ≠ "
+                            f"local_version={state['local_version']} · "
+                            f"PMO 应回写 .teamwork_localconfig.md"),
+            })
 
     if state["global_schema_docs"]["docs"]:
         out.append({
@@ -254,6 +275,8 @@ def main() -> None:
                    help="可选 · 缺省脚本自己读 .teamwork_localconfig.md.teamwork_version")
     p.add_argument("--no-create", action="store_true",
                    help="只检测不创建（dry-run 模式）")
+    p.add_argument("--no-sync", action="store_true",
+                   help="🚪 跳过自动 sync-drift（debug / 测试 · v7.3.10+P0-135 加）")
     args = p.parse_args()
 
     cwd = Path(args.cwd).resolve()
@@ -292,6 +315,13 @@ def main() -> None:
     # 4. worktree 探测（read-only）
     worktree = probe_worktree(project_root)
 
+    # 5. drift sync（v7.3.10+P0-135 撤 P0-126 carve-out · 自动调 sync-drift.py）
+    sync_drift = maybe_sync_drift(
+        project_root=project_root, host=args.host, skill_root=skill_root,
+        skill_version=args.skill_version, version_match=version_match,
+        no_sync=args.no_sync,
+    )
+
     state: dict[str, Any] = {
         "host": args.host,
         "skill_root": str(skill_root),
@@ -303,12 +333,90 @@ def main() -> None:
         "project_files": project_files,
         "global_schema_docs": schema_docs,
         "worktree": worktree,
+        "sync_drift": sync_drift,
         "scanned_at": now_iso(),
     }
     state["advisories"] = build_advisories(state)
     state["audit_line"] = build_audit_line(state)
 
     emit({"verdict": "OK", **state})
+
+
+# ─── sync-drift orchestration（v7.3.10+P0-135 撤 P0-126 carve-out）──────
+
+
+HOST_TARGET_FILE = {
+    "claude-code": "CLAUDE.md",
+    "codex-cli": "AGENTS.md",
+    # gemini-cli → GEMINI.md（暂未支持 sync · 留 future）
+}
+
+SYNC_DRIFT_MARKER = "TEAMWORK_BEGIN:"
+
+
+def maybe_sync_drift(*, project_root: Path, host: str, skill_root: Path,
+                     skill_version: str, version_match: bool,
+                     no_sync: bool) -> dict[str, Any]:
+    """按需调 sync-drift.py · 仅 version-mismatch 且 marker 已存在时触发。
+
+    返回 {action, target?, from_version?, to_version?, error?, skipped_reason?}
+    """
+    if no_sync:
+        return {"action": "skipped", "skipped_reason": "--no-sync flag"}
+    if version_match:
+        return {"action": "skipped", "skipped_reason": "version_match=true"}
+    target_name = HOST_TARGET_FILE.get(host)
+    if target_name is None:
+        return {"action": "skipped", "skipped_reason": f"host={host!r} 不支持自动 sync"}
+    target = project_root / target_name
+    if not target.exists():
+        return {"action": "skipped",
+                "skipped_reason": f"{target_name} 不存在（防污染非 teamwork 项目 · 跑 install.sh 或 sync-drift --init）"}
+    try:
+        text = target.read_text(encoding="utf-8")
+    except OSError as e:
+        return {"action": "error", "error": f"read {target_name} 失败: {e}"}
+    if SYNC_DRIFT_MARKER not in text:
+        return {"action": "skipped",
+                "skipped_reason": f"{target_name} 缺 teamwork-pointer marker（跑 install.sh 或 sync-drift --init 首次注入）"}
+
+    sync_script = skill_root / "tools" / "sync-drift.py"
+    source = skill_root / "templates" / "host-instruction-injection.md"
+    if not sync_script.exists() or not source.exists():
+        return {"action": "error",
+                "error": f"sync-drift.py 或 source 不存在（skill_root={skill_root}）"}
+
+    cmd = [
+        sys.executable, str(sync_script),
+        "--target", str(target),
+        "--source", str(source),
+        "--skill-version", skill_version,
+    ]
+    try:
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+    except subprocess.TimeoutExpired:
+        return {"action": "error", "error": "sync-drift.py 超时（>10s）"}
+    except Exception as e:
+        return {"action": "error", "error": f"调 sync-drift.py 异常: {e}"}
+
+    if r.returncode != 0:
+        return {"action": "error", "error": f"sync-drift exit={r.returncode}",
+                "stderr": (r.stderr or r.stdout)[:500]}
+    try:
+        sd = json.loads(r.stdout)
+    except json.JSONDecodeError:
+        return {"action": "error", "error": "sync-drift stdout 非 JSON"}
+
+    if sd.get("action") == "noop":
+        return {"action": "noop", "target": target_name}
+    if sd.get("action") in ("updated", "created"):
+        upd = (sd.get("sections_updated") or [])
+        from_v = upd[0]["from_version"] if upd else "?"
+        to_v = upd[0]["to_version"] if upd else skill_version
+        return {"action": "upgraded", "target": target_name,
+                "from_version": from_v, "to_version": to_v,
+                "sections_updated": [u["name"] for u in upd]}
+    return {"action": sd.get("action", "unknown"), "target": target_name}
 
 
 def build_audit_line(state: dict[str, Any]) -> str:
@@ -329,7 +437,16 @@ def build_audit_line(state: dict[str, Any]) -> str:
         extras.append(f"已创建={','.join(created)}")
     if empty:
         extras.append(f"空骨架={','.join(empty)}")
-    if not state.get("version_match"):
+    sd = state.get("sync_drift") or {}
+    if sd.get("action") == "upgraded":
+        extras.append(f"sync-drift=upgraded({sd.get('from_version')}→{sd.get('to_version')})")
+    elif sd.get("action") == "noop":
+        extras.append("sync-drift=noop")
+    elif sd.get("action") == "error":
+        extras.append(f"sync-drift=ERROR({sd.get('error','?')[:50]})")
+    elif sd.get("action") == "skipped" and not state.get("version_match"):
+        extras.append("sync-drift=skipped")
+    elif not state.get("version_match"):
         extras.append("version-mismatch")
     extra_str = " · " + " · ".join(extras) if extras else ""
     return (f"📊 init_triage: verdict=OK · host={state['host']} · "

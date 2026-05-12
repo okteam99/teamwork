@@ -181,6 +181,106 @@ class TestAuditLine(_Base):
         self.assertNotIn("version-mismatch", line)
 
 
+class TestSyncDrift(_Base):
+    """v7.3.10+P0-135 撤 P0-126 carve-out · init_triage 自动调 sync-drift。"""
+
+    SR = SKILL  # alias
+
+    def _setup_localconfig(self, version: str) -> None:
+        (self.proj / ".teamwork_localconfig.md").write_text(
+            f"teamwork_version: {version}\n", encoding="utf-8"
+        )
+
+    def _bootstrap_claude_md(self, version: str) -> None:
+        """先用 sync-drift --init 给 target 注入初始 marker。"""
+        sync = self.SR / "tools" / "sync-drift.py"
+        src = self.SR / "templates" / "host-instruction-injection.md"
+        subprocess.run(
+            [sys.executable, str(sync),
+             "--target", str(self.proj / "CLAUDE.md"),
+             "--source", str(src),
+             "--skill-version", version, "--init"],
+            check=True, capture_output=True,
+        )
+
+    def test_skipped_on_version_match(self) -> None:
+        self._setup_localconfig("v7.3.10+P0-129")
+        d = run(self.base_args())
+        sd = d["sync_drift"]
+        self.assertEqual(sd["action"], "skipped")
+        self.assertIn("version_match=true", sd["skipped_reason"])
+
+    def test_skipped_when_target_missing(self) -> None:
+        self._setup_localconfig("v7.3.10+P0-100")
+        d = run(self.base_args())
+        sd = d["sync_drift"]
+        self.assertEqual(sd["action"], "skipped")
+        self.assertIn("CLAUDE.md 不存在", sd["skipped_reason"])
+
+    def test_upgraded_when_marker_present(self) -> None:
+        self._setup_localconfig("v7.3.10+P0-100")
+        self._bootstrap_claude_md("v7.3.10+P0-100")
+        d = run(self.base_args())
+        sd = d["sync_drift"]
+        self.assertEqual(sd["action"], "upgraded")
+        self.assertEqual(sd["target"], "CLAUDE.md")
+        self.assertEqual(sd["from_version"], "v7.3.10+P0-100")
+        self.assertEqual(sd["to_version"], "v7.3.10+P0-129")
+        # 真升级了 CLAUDE.md
+        text = (self.proj / "CLAUDE.md").read_text(encoding="utf-8")
+        self.assertIn("TEAMWORK_BEGIN:teamwork-pointer v7.3.10+P0-129", text)
+        # advisory 含 drift-synced
+        topics = [a["topic"] for a in d["advisories"]]
+        self.assertIn("drift-synced", topics)
+        # audit_line 含 sync-drift=upgraded
+        self.assertIn("sync-drift=upgraded", d["audit_line"])
+
+    def test_skipped_when_no_sync_flag(self) -> None:
+        self._setup_localconfig("v7.3.10+P0-100")
+        self._bootstrap_claude_md("v7.3.10+P0-100")
+        d = run(self.base_args() + ["--no-sync"])
+        sd = d["sync_drift"]
+        self.assertEqual(sd["action"], "skipped")
+        self.assertIn("--no-sync", sd["skipped_reason"])
+        # CLAUDE.md 未被改
+        text = (self.proj / "CLAUDE.md").read_text(encoding="utf-8")
+        self.assertIn("TEAMWORK_BEGIN:teamwork-pointer v7.3.10+P0-100", text)
+
+    def test_skipped_when_unknown_host(self) -> None:
+        self._setup_localconfig("v7.3.10+P0-100")
+        d = run([
+            "--cwd", str(self.proj),
+            "--host", "unknown",
+            "--skill-root", str(SKILL),
+            "--skill-version", "v7.3.10+P0-129",
+        ])
+        sd = d["sync_drift"]
+        self.assertEqual(sd["action"], "skipped")
+        self.assertIn("host=", sd["skipped_reason"])
+
+    def test_codex_targets_AGENTS_md(self) -> None:
+        self._setup_localconfig("v7.3.10+P0-100")
+        # 用 sync-drift 给 AGENTS.md 注入 marker
+        sync = self.SR / "tools" / "sync-drift.py"
+        src = self.SR / "templates" / "host-instruction-injection.md"
+        subprocess.run(
+            [sys.executable, str(sync),
+             "--target", str(self.proj / "AGENTS.md"),
+             "--source", str(src),
+             "--skill-version", "v7.3.10+P0-100", "--init"],
+            check=True, capture_output=True,
+        )
+        d = run([
+            "--cwd", str(self.proj),
+            "--host", "codex-cli",
+            "--skill-root", str(SKILL),
+            "--skill-version", "v7.3.10+P0-129",
+        ])
+        sd = d["sync_drift"]
+        self.assertEqual(sd["action"], "upgraded")
+        self.assertEqual(sd["target"], "AGENTS.md")
+
+
 class TestErrorHandling(_Base):
     def test_invalid_skill_root(self) -> None:
         r = subprocess.run(

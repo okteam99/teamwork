@@ -95,14 +95,30 @@ init_triage.py 输出 advisories[] 含 topic=version-mismatch（severity=WARN）
 - 不一致路径：内部回写 · 不输出"版本不一致" / "字符级一致" / "已同步"
 - 仅异常输出 ⚠️（CLAUDE.md 真实漂移 / SKILL.md frontmatter 损坏）
 
-🔴 **CLAUDE.md / AGENTS.md drift 同步走 [tools/sync-drift.py](../tools/sync-drift.py)**（v7.3.10+P0-134 物化 · marker-aware · 用户内容保护）：
+🔴 **CLAUDE.md / AGENTS.md drift 同步**（v7.3.10+P0-135 撤 P0-126 carve-out · init_triage.py 内部自动调 sync-drift.py）：
+
+PMO 跑 init_triage.py（R9 红线）时 · 若 version-mismatch 且 target 文件含 teamwork-pointer marker · 自动调 [tools/sync-drift.py](../tools/sync-drift.py) 升级。无需 PMO 二次调用。
+
+```
+init_triage.py 内部 sync 决策：
+├── version_match=true → skipped (version_match=true)
+├── host=unknown → skipped（不知 target 文件名）
+├── host claude/codex 但 target 不存在 → skipped（防污染非 teamwork 项目 · 提示跑 install.sh）
+├── target 存在但缺 marker → skipped（提示跑 install.sh 或 sync-drift --init）
+├── target 存在 + marker 存在 + version-mismatch → 自动 sync-drift 升级
+└── --no-sync flag → skipped（debug 逃生舱）
+```
+
+audit_line 含 sync 结果 · 例：`sync-drift=upgraded(v7.3.10+P0-100→v7.3.10+P0-135)` 或 `sync-drift=noop` 或 `sync-drift=skipped`。
+
+手工调用 sync-drift.py（install.sh / 首次注入 / debug）：
 
 ```bash
 python3 {SKILL_ROOT}/tools/sync-drift.py \
   --target {项目根}/CLAUDE.md \
   --source {SKILL_ROOT}/templates/host-instruction-injection.md \
   --skill-version {SKILL_VERSION} \
-  [--init]      # marker 不存在时首次插入（install.sh 自动加 · PMO 升级时也用）
+  [--init]      # marker 不存在时首次插入（install.sh 自动加）
   [--dry-run]   # 看 diff 不写
 ```
 

@@ -1,6 +1,40 @@
 # Changelog
 
-## v7.3.10 + P0-134（当前 · sync-drift.py marker-aware CLAUDE.md/AGENTS.md 同步引擎）
+## v7.3.10 + P0-135（当前 · 撤 P0-126 carve-out · init_triage.py 自动调 sync-drift.py）
+
+> **触发**：用户提问「sync-drift.py 在升级时做的 · 那么什么时候检查升级」· 暴露 P0-134 链路 gap：init_triage.py 检测到 version-mismatch 后只输出 advisory hint · 没机制实际触发 sync-drift.py · 又是「PMO 自觉」反模式。
+>
+> **元规则反思**（呼应 P0-120）：P0-126 设的边界「init_triage 不动 CLAUDE.md/AGENTS.md（高敏感 · 留 prompt 层）」是当时多想一步就能避免的 gap。当时的真实情境是「没有 marker-aware 安全模式 · 唯一同步方式 = 全文 cp」· 才把 sync 列为「不能脚本化」。P0-134 加了 sync-drift.py 后 · 这条 carve-out 已失效 · 但出于惯性留着 · 导致 P0-134 → P0-135 才补上。
+
+### P0-135：撤 carve-out · init_triage 内部 orchestrate sync-drift
+- **init_triage.py 加 maybe_sync_drift()**（~80 行）：
+  - host 映射 → target 文件（claude-code→CLAUDE.md / codex-cli→AGENTS.md / unknown→skipped）
+  - 决策树：version_match / host=unknown / target 不存在 / 缺 marker / --no-sync → skipped；
+    target 存在 + marker 存在 + version-mismatch → subprocess 调 sync-drift.py 升级
+  - 失败 cascade：sync-drift exit ≠ 0 → advisory[ERROR] · init_triage verdict 仍 OK（让 PMO 决策）
+  - 输出 sync_drift{action, target, from_version, to_version, error?, skipped_reason?} 字段
+- **build_advisories() 升级**：version-mismatch advisory 按 sync 结果分支输出
+  drift-synced (INFO) / drift-sync-failed (ERROR) / version-mismatch (WARN, sync skipped)
+- **build_audit_line() 加 sync 信息**：
+  `sync-drift=upgraded(v...→v...)` / `sync-drift=noop` / `sync-drift=ERROR(...)` / `sync-drift=skipped`
+- **--no-sync flag**：逃生舱（debug / 测试用）
+- **prepare-stage.md drift 段重写**：去 P0-126 carve-out · 描述新自动 orchestrate 流程
+- **tests/test_init_triage.py 加 TestSyncDrift 6 测试**：version_match skipped /
+  target 缺 skipped / marker 存在 → upgraded / --no-sync / unknown host /
+  codex → AGENTS.md · 总测试 54 → 60 PASS · 6.0s
+
+PMO 视角变化（ergonomics）：
+- 旧：跑 init_triage → 看 advisory hint → 决策是否调 sync-drift → 再调
+- 新：跑 init_triage → 自动 sync 完成 → audit_line 直接含 sync 结果 → 一步到位
+
+物化哲学完整（P0-126 → P0-134 → P0-135 三阶段演进）：
+- P0-126 误判：高敏感 = 不能脚本化（错 · 留缺口给 PMO 自觉）
+- P0-134 部分治本：marker-aware 安全模式 + 手工调用
+- P0-135 真治本：marker-aware + 自动 orchestrate · 不依赖 PMO 自觉
+
+---
+
+## v7.3.10 + P0-134（sync-drift.py marker-aware CLAUDE.md/AGENTS.md 同步引擎）
 
 > **触发**：用户报告 init_triage.py 没生效 · CLAUDE.md/AGENTS.md 注入还是老内容。审计：(1) install.sh 完全不动这两个文件 · (2) 历史 INIT.md 时代手工注入 · 早废弃 · (3) init_triage.py 只检测 version-mismatch 不修改文件 · (4) 完全没有 canonical 注入模板。
 
