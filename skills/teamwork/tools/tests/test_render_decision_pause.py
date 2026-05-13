@@ -83,6 +83,69 @@ class TestNarrative(unittest.TestCase):
         self.assertIn("本轮 finding 摘要", out)
 
 
+class TestAutoRefs(unittest.TestCase):
+    """v7.3.10+P0-144：--auto-refs 按 decision-class 自动发现 feature_dir 下的 refs。"""
+
+    def setUp(self) -> None:
+        import json
+        import shutil
+        import tempfile
+        self.tmp = Path(tempfile.mkdtemp(prefix="rdp_auto_"))
+        self.feature_dir = self.tmp / "auth" / "docs" / "features" / "F042"
+        self.feature_dir.mkdir(parents=True)
+        # state.json + PRD/TC/test-report
+        state = {"feature_id": "AUTH-F042", "flow_type": "Feature"}
+        (self.feature_dir / "state.json").write_text(
+            json.dumps(state), encoding="utf-8"
+        )
+        (self.feature_dir / "PRD.md").write_text("# PRD", encoding="utf-8")
+        (self.feature_dir / "TC.md").write_text("# TC", encoding="utf-8")
+        self._shutil = shutil
+
+    def tearDown(self) -> None:
+        self._shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def test_auto_discover_class6_refs(self) -> None:
+        out, audit = run([
+            "--decision-class", "6",
+            "--pause-point", "PM 验收",
+            "--feature-dir", str(self.feature_dir),
+            "--auto-refs",
+            "--options", "1=A,2=B,3=C",
+            "--recommended", "1",
+        ])
+        self.assertIn("📚 决策参考：", out)
+        self.assertIn("/PRD.md", out)
+        self.assertIn("/TC.md", out)
+        self.assertIn("auto_discovered_refs", audit)
+        self.assertGreaterEqual(len(audit["auto_discovered_refs"]), 2)
+
+    def test_auto_refs_without_context_fails(self) -> None:
+        _, audit = run([
+            "--decision-class", "6",
+            "--pause-point", "PM 验收",
+            "--feature-dir", "/nonexistent/path",
+            "--auto-refs",
+            "--options", "1=A",
+            "--recommended", "1",
+        ], expect_exit=2)
+        self.assertIn("feature context", audit["error"])
+
+    def test_explicit_refs_merge_with_auto(self) -> None:
+        """--refs 显式 + --auto-refs 同存 → 合并去重。"""
+        out, _ = run([
+            "--decision-class", "6",
+            "--pause-point", "PM 验收",
+            "--feature-dir", str(self.feature_dir),
+            "--auto-refs",
+            "--refs", "/abs/extra-report.md",
+            "--options", "1=A,2=B,3=C",
+            "--recommended", "1",
+        ])
+        self.assertIn("/abs/extra-report.md", out)
+        self.assertIn("/PRD.md", out)
+
+
 class TestValidation(unittest.TestCase):
     def test_invalid_decision_class(self) -> None:
         _, audit = run([

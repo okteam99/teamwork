@@ -36,9 +36,14 @@ import argparse
 import json
 import sys
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
-TOOL_VERSION = "v1.0"
+# 共享 Feature 上下文模块（v7.3.10+P0-144）· 自动 read state.json 减 PMO 重复传参
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import _feature_context as fc  # noqa: E402
+
+TOOL_VERSION = "v1.1"  # +P0-144 加 feature context auto-fill
 TOOL_NAME = "render-status-line.py"
 
 # Spec enums · 单源 cite STATUS-LINE.md § 阶段对照表 + SKILL.md 六种流程 + ROLES.md
@@ -83,8 +88,9 @@ def fail(error: str, cite: str = "", **extra: Any) -> None:
     sys.exit(2)
 
 
-def audit(stage_text: str, lines: list[str], args: argparse.Namespace) -> None:
-    payload = {
+def audit(stage_text: str, lines: list[str], args: argparse.Namespace,
+          ctx: fc.FeatureContext | None, overrides: list[str]) -> None:
+    payload: dict[str, Any] = {
         "verdict": "OK",
         "tool": TOOL_NAME,
         "tool_version": TOOL_VERSION,
@@ -105,10 +111,25 @@ def audit(stage_text: str, lines: list[str], args: argparse.Namespace) -> None:
         },
         "rendered_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
     }
+    if ctx is not None:
+        payload["feature_context"] = ctx.to_audit_dict()
+    if overrides:
+        payload["overrides_from_context"] = overrides
     print(json.dumps(payload, ensure_ascii=False, indent=2), file=sys.stderr)
 
 
 def validate(args: argparse.Namespace) -> None:
+    # auto-fill 后必填字段二次校验
+    if not args.flow:
+        fail("--flow 未提供 · 且 feature context 中无 flow_type",
+             cite="SKILL.md 六种标准流程",
+             hint="显式传 --flow · 或确保 state.json 含 flow_type 字段",
+             valid_enum=FLOW_ENUM)
+    if not args.stage:
+        fail("--stage 未提供 · 且 feature context 中无 current_stage",
+             cite="STATUS-LINE.md § 阶段对照表",
+             hint="显式传 --stage · 或确保 state.json 含 current_stage 字段",
+             valid_enum=STAGE_ENUM)
     if args.flow not in FLOW_ENUM:
         fail(
             f"flow='{args.flow}' 不在 enum",
@@ -223,10 +244,12 @@ def main() -> None:
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    p.add_argument("--flow", required=True, help=f"流程类型 {FLOW_ENUM}")
+    # v7.3.10+P0-144: --flow / --stage / --feature 改为可选 · context auto-fill 兜底
+    # --role / --next-step 仍必填（context 无法推断）
+    p.add_argument("--flow", help=f"流程类型 {FLOW_ENUM}（不传则从 state.flow_type）")
     p.add_argument("--role", required=True, help=f"当前角色 {ROLE_ENUM}")
-    p.add_argument("--stage", required=True,
-                   help=f"state.current_stage enum 值 {STAGE_ENUM}")
+    p.add_argument("--stage",
+                   help=f"state.current_stage enum 值 {STAGE_ENUM}（不传则从 state.current_stage）")
     p.add_argument("--next-step", required=True, help="下一步事项（短句）")
     p.add_argument("--stage-text",
                    help="覆盖默认阶段语义文本（如 '⏸️ PRD 待确认'）· 不传则按 enum 默认映射")
@@ -238,7 +261,47 @@ def main() -> None:
     p.add_argument("--worktree-path", help="worktree 绝对路径（启用 worktree 时）")
     p.add_argument("--auto-mode", action="store_true", help="AUTO_MODE=true 时加 ⚡ AUTO 徽章")
     p.add_argument("--ext-model", help="外部模型徽章 enum: codex|claude|gemini")
+    # v7.3.10+P0-144: feature context auto-fill
+    p.add_argument("--feature-dir",
+                   help="Feature 目录绝对路径（含 state.json）· 不传则按 $TEAMWORK_FEATURE / CWD walk-up 自动发现")
+    p.add_argument("--no-context", action="store_true",
+                   help="禁用 state.json auto-fill · 仅按显式参数渲染（调试用）")
+    # 改 required=True 的几个字段（flow/role/stage/feature/bug）为可选 · auto-fill 兜底
     args = p.parse_args()
+
+    # === Feature context auto-fill（v7.3.10+P0-144 · R-SP-7）===
+    ctx: fc.FeatureContext | None = None
+    overrides: list[str] = []
+    if not args.no_context:
+        explicit_dir = Path(args.feature_dir) if args.feature_dir else None
+        ctx = fc.load(explicit_dir)
+    if ctx is not None:
+        # 按字段做 explicit-优先 + context 兜底合并
+        args.flow, was = fc.merge_param(args.flow, ctx.flow_type)
+        if was:
+            overrides.append("flow")
+        args.stage, was = fc.merge_param(args.stage, ctx.current_stage)
+        if was:
+            overrides.append("stage")
+        # feature 字段：state.feature_id 作为 --feature 缺省值
+        args.feature, was = fc.merge_param(args.feature, ctx.feature_id)
+        if was:
+            overrides.append("feature")
+        args.path, was = fc.merge_param(args.path, str(ctx.feature_dir))
+        if was:
+            overrides.append("path")
+        args.branch, was = fc.merge_param(args.branch, ctx.branch)
+        if was:
+            overrides.append("branch")
+        args.merge_target, was = fc.merge_param(args.merge_target, ctx.merge_target)
+        if was:
+            overrides.append("merge_target")
+        args.worktree_path, was = fc.merge_param(args.worktree_path, ctx.worktree_path)
+        if was:
+            overrides.append("worktree_path")
+        args.ext_model, was = fc.merge_param(args.ext_model, ctx.ext_model)
+        if was:
+            overrides.append("ext_model")
 
     validate(args)
     stage_text = args.stage_text or STAGE_SEMANTIC_DEFAULT[args.stage]
@@ -252,7 +315,7 @@ def main() -> None:
         lines.append(line3)
 
     print("\n".join(lines))
-    audit(stage_text, lines, args)
+    audit(stage_text, lines, args, ctx, overrides)
 
 
 if __name__ == "__main__":

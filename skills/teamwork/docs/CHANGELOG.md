@@ -1,6 +1,53 @@
 # Changelog
 
-## v7.3.10 + P0-143（当前 · render-* 工具集 P2+P3 · AFK skip + 流转校验 + 决策暂停）
+## v7.3.10 + P0-144（当前 · feature context auto-fill · 降低 PMO 调用负担）
+
+> **触发**：用户提问 "我们在调用 python 的时候通常会传入一些固定常用的参数 · 列如 feature 名字 / 目录 · 这些是否需要在每个 feature 启动的某个时机固定到一个 feature 目录下的 env · python 脚本自动读 · 降低 pmo 的负担"。
+>
+> **诊断**：state.json 已含 feature_id / flow_type / current_stage / worktree.{path,branch} / merge_target / external_cross_review.model 等 7+ 字段——render-* 工具完全可以 auto-fill · 不需要再造 .env。PMO 调用从传 9 个参数降到传 2 个。
+
+### P0-144：R-SP-7 feature context auto-fill 立账 + 4 工具改造
+
+加 1 删 1 账：
+- ➕ [tools/_feature_context.py](../tools/_feature_context.py)（~145 行 · FeatureContext dataclass + load + merge_param）
+- ➕ [tools/tests/test_feature_context.py](../tools/tests/test_feature_context.py)（15 case · 发现 3 + 优先级 1 + 部分字段 2 + merge_param 5）
+- ➕ standards/scripts-policy.md § R-SP-7 feature context auto-fill 原则 + 当前阶段速查加 context 列
+- 改 [tools/render-status-line.py](../tools/render-status-line.py) → v1.1（接 fc.load + merge_param · --flow/--stage 改可选 + 加 --feature-dir/--no-context）
+- 改 [tools/render-decision-pause.py](../tools/render-decision-pause.py) → v1.1（加 --auto-refs/--feature-dir · 按 decision-class 自动 glob 期望 refs）
+- 扩展 test_render_status_line.py 4 case（auto-fill via --feature-dir / via env / explicit override / --no-context）
+- 扩展 test_render_decision_pause.py 3 case（auto-discover class 6 refs / no context fail / explicit + auto 合并）
+
+调用对比（render-status-line）：
+- Before：`--flow Feature --role PMO --stage dev --feature F042 --path /abs --branch f/F042 --merge-target main --worktree-path /abs/wt --next-step "..."`（9 参数）
+- After：`export TEAMWORK_FEATURE=/abs/feature && --role PMO --next-step "..."`（2 参数 · 其余 7 自动）
+
+发现优先级：explicit `--feature-dir` > $TEAMWORK_FEATURE > CWD walk-up（找含 'features/' 路径段 + state.json 的目录）> None。
+
+参数合并：
+- 显式参数永远优先 · audit JSON 记 `overrides_from_context: [field, ...]`
+- 显式未传 → 用 context · audit JSON 记 `feature_context: {...}` + `discovery_source: explicit|env|walk_cwd`
+
+边界（明示）：
+- 不在 Feature 流程（问题排查 / Feature Planning）→ context 找不到 · 必须显式传
+- state.json 损坏 → fall back 到显式参数
+- `--no-context` 强制禁用（调试用）
+
+不动（边界严格 · 与 P0-137..143 同型路径 B）：
+- render-afk-skip.py / render-flow-transition.py 不需要 context（参数都是 per-call 或与 feature 无关）
+- post-feature.py 暂不接入（独立 --project-dir / --feature-id 已够用 · 后续 patch 再统一）
+- state.py 不动（它就是 state.json 的写工具 · 与读 context 不冲突）
+- state.json schema 不动（已含必要字段）
+- L1 红线零增量
+
+测试：118 + 15 feature_context + 4 status-line autofill + 3 decision-pause auto-refs = **140/140 PASS**
+
+R-SP-6 进度衔接：
+- 4 个 A 档工具仍全部第二阶段
+- R-SP-7 是 R-SP-6 的辅助层 · 降低"必须调"的门槛（调起来更省力）
+
+---
+
+## v7.3.10 + P0-143（render-* 工具集 P2+P3 · AFK skip + 流转校验 + 决策暂停）
 
 > **触发**：P0-141/142 落地 render-status-line.py + STATUS-LINE.md 瘦身后，按"L2→L3 物化迁移专版"梳理推进 Top render-* 工具集。
 >

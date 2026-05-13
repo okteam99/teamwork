@@ -27,9 +27,13 @@ import argparse
 import json
 import sys
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
-TOOL_VERSION = "v1.0"
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import _feature_context as fc  # noqa: E402
+
+TOOL_VERSION = "v1.1"  # +P0-144 加 feature context auto-fill (refs)
 TOOL_NAME = "render-decision-pause.py"
 
 # STATUS-LINE.md § 决策类暂停点清单 10 类 · 含每类期望的 ref 关键词（substring 匹配）
@@ -91,9 +95,11 @@ def fail(error: str, cite: str = "", **extra: Any) -> None:
     sys.exit(2)
 
 
-def audit(rendered: str, args: argparse.Namespace, refs: list[str],
-          options: list[tuple[int, str]]) -> None:
-    payload = {
+def audit_with_ctx(rendered: str, args: argparse.Namespace, refs: list[str],
+                   options: list[tuple[int, str]],
+                   ctx: fc.FeatureContext | None,
+                   auto_discovered: list[str]) -> None:
+    payload: dict[str, Any] = {
         "verdict": "OK",
         "tool": TOOL_NAME,
         "tool_version": TOOL_VERSION,
@@ -107,9 +113,14 @@ def audit(rendered: str, args: argparse.Namespace, refs: list[str],
             "pause_point": args.pause_point,
             "refs": refs,
             "raw_options": args.options,
+            "auto_refs_enabled": args.auto_refs,
         },
         "rendered_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
     }
+    if ctx is not None:
+        payload["feature_context"] = ctx.to_audit_dict()
+    if auto_discovered:
+        payload["auto_discovered_refs"] = auto_discovered
     print(json.dumps(payload, ensure_ascii=False, indent=2), file=sys.stderr)
 
 
@@ -233,8 +244,14 @@ def main() -> None:
     p.add_argument("--decision-class", type=int, required=True,
                    help="决策类暂停点 1-10（cite STATUS-LINE.md § 决策类暂停点清单）")
     p.add_argument("--pause-point", required=True, help="暂停点名称")
-    p.add_argument("--refs", required=True,
-                   help="决策参考绝对路径 · 逗号分隔（如 /abs/PRD.md,/abs/TC.md）")
+    p.add_argument("--refs",
+                   help="决策参考绝对路径 · 逗号分隔（如 /abs/PRD.md,/abs/TC.md）· "
+                        "不传则与 --auto-refs 配合按 decision-class 从 feature_dir 自动发现")
+    p.add_argument("--auto-refs", action="store_true",
+                   help="按 decision-class 在 feature_dir 自动发现 refs（v7.3.10+P0-144）· "
+                        "与 --refs 同存时合并去重")
+    p.add_argument("--feature-dir",
+                   help="Feature 目录绝对路径 · auto-refs 用 · 不传则 $TEAMWORK_FEATURE / walk-up")
     p.add_argument("--options", required=True,
                    help="决策菜单 · 格式 '1=A,2=B,3=C' · 末项「其他指示」自动补")
     p.add_argument("--recommended", type=int, required=True,
@@ -243,10 +260,48 @@ def main() -> None:
                    help="可选自由文本段（暂停点上下文说明 · 在 📚 后、菜单前）")
     args = p.parse_args()
 
+    # === auto-refs: 按 decision-class 在 feature_dir 自动发现 refs（v7.3.10+P0-144）===
+    ctx: fc.FeatureContext | None = None
+    auto_discovered: list[str] = []
+    if args.auto_refs:
+        explicit_dir = Path(args.feature_dir) if args.feature_dir else None
+        ctx = fc.load(explicit_dir)
+        if ctx is None:
+            fail(
+                "--auto-refs 需要 feature context · 但未发现 state.json",
+                cite="standards/scripts-policy.md § R-SP-7",
+                hint="显式传 --feature-dir /abs/feature · 或 export TEAMWORK_FEATURE=/abs/feature",
+            )
+        assert ctx is not None
+        if args.decision_class in DECISION_CLASSES:
+            expected = DECISION_CLASSES[args.decision_class]["expected_refs"]
+            for kw in expected:
+                # 简单 glob：匹配 feature_dir 下 *kw* 文件
+                matches = sorted(ctx.feature_dir.glob(f"**/*{kw}*"))
+                # 过滤掉测试/缓存目录
+                matches = [m for m in matches
+                           if "__pycache__" not in str(m) and ".pytest_cache" not in str(m)]
+                if matches:
+                    auto_discovered.append(str(matches[0].resolve()))
+
+    # 合并 --refs 显式参数 + auto-discovered（去重 · 保序）
+    if args.refs:
+        explicit_refs = [r.strip() for r in args.refs.split(",") if r.strip()]
+    else:
+        explicit_refs = []
+    merged_refs = list(dict.fromkeys(explicit_refs + auto_discovered))
+    if not merged_refs:
+        fail(
+            "--refs 未提供 · 且 --auto-refs 未发现匹配文件",
+            cite="STATUS-LINE.md § 决策点参考文档绝对路径硬规则",
+            hint="显式传 --refs · 或 --auto-refs 配合 --feature-dir",
+        )
+    args.refs = ",".join(merged_refs)
+
     refs, options = validate(args)
     rendered = render(args, refs, options)
     print(rendered)
-    audit(rendered, args, refs, options)
+    audit_with_ctx(rendered, args, refs, options, ctx, auto_discovered)
 
 
 if __name__ == "__main__":

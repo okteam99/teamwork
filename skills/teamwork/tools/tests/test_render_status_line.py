@@ -200,6 +200,88 @@ class TestValidationFailures(unittest.TestCase):
         self.assertIn("ext-model=", audit["error"])
 
 
+class TestFeatureContextAutoFill(unittest.TestCase):
+    """v7.3.10+P0-144：state.json auto-fill 降低 PMO 调用负担。"""
+
+    def setUp(self) -> None:
+        import json
+        import os
+        import shutil
+        import tempfile
+        self.tmp = Path(tempfile.mkdtemp(prefix="rsl_ctx_"))
+        self.feature_dir = self.tmp / "auth" / "docs" / "features" / "F042"
+        self.feature_dir.mkdir(parents=True)
+        state = {
+            "feature_id": "AUTH-F042-test",
+            "flow_type": "Feature",
+            "current_stage": "dev",
+            "worktree": {
+                "path": "/abs/.worktree/AUTH-F042-test",
+                "branch": "feature/AUTH-F042-test",
+            },
+            "merge_target": "staging",
+            "external_cross_review": {"model": None},
+        }
+        (self.feature_dir / "state.json").write_text(
+            json.dumps(state), encoding="utf-8"
+        )
+        self._json = json
+        self._os = os
+        self._shutil = shutil
+
+    def tearDown(self) -> None:
+        self._shutil.rmtree(self.tmp, ignore_errors=True)
+        self._os.environ.pop("TEAMWORK_FEATURE", None)
+
+    def test_auto_fill_via_feature_dir(self) -> None:
+        """显式 --feature-dir · 不传 flow/stage/feature/path/branch/merge-target/worktree-path 7 字段 → 全部自动填。"""
+        out, audit = run([
+            "--role", "PMO", "--next-step", "等用户确认 TC",
+            "--feature-dir", str(self.feature_dir),
+        ])
+        lines = out.strip().split("\n")
+        self.assertEqual(len(lines), 3)
+        self.assertIn("流程：Feature", lines[0])
+        self.assertIn("功能：AUTH-F042-test", lines[0])
+        self.assertIn("阶段：开发中", lines[0])
+        self.assertIn("📁", lines[1])
+        self.assertIn("🌿 分支：feature/AUTH-F042-test → staging", lines[2])
+        # audit context 信息
+        self.assertIn("feature_context", audit)
+        self.assertEqual(audit["feature_context"]["feature_id"], "AUTH-F042-test")
+        self.assertEqual(audit["feature_context"]["discovery_source"], "explicit")
+
+    def test_auto_fill_via_env_var(self) -> None:
+        self._os.environ["TEAMWORK_FEATURE"] = str(self.feature_dir)
+        out, audit = run([
+            "--role", "PMO", "--next-step", "等用户确认 TC",
+        ])
+        self.assertIn("流程：Feature", out)
+        self.assertEqual(audit["feature_context"]["discovery_source"],
+                         "env_TEAMWORK_FEATURE")
+
+    def test_explicit_overrides_context(self) -> None:
+        """显式 --flow 与 context flow_type 不同 → 用显式 · audit 记 override。"""
+        out, audit = run([
+            "--role", "PMO", "--next-step", "x",
+            "--feature-dir", str(self.feature_dir),
+            "--flow", "Bug", "--bug", "BUG-007-x",
+            # Override flow + 不传 feature 让 auto-fill 走（但下面会被 Bug 流程覆盖）
+        ])
+        self.assertIn("流程：Bug", out)
+        self.assertIn("overrides_from_context", audit)
+        self.assertIn("flow", audit["overrides_from_context"])
+
+    def test_no_context_flag_disables_autofill(self) -> None:
+        """--no-context 时 · 即使 TEAMWORK_FEATURE 设了也不读 · 仍走显式参数（缺则 fail）。"""
+        self._os.environ["TEAMWORK_FEATURE"] = str(self.feature_dir)
+        _, audit = run([
+            "--role", "PMO", "--next-step", "x", "--no-context",
+            # 不传 --flow → 缺 → fail
+        ], expect_exit=2)
+        self.assertIn("--flow 未提供", audit["error"])
+
+
 class TestSpecSyncMeta(unittest.TestCase):
     """v7.3.10+P0-142：保证 STATUS-LINE.md 中残留的引用与工具实现一致。
 

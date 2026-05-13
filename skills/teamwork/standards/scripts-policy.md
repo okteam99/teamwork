@@ -168,14 +168,63 @@ verify-output-format（后置 · 兜底 · 未来 P1+1）
 
 #### 已落地的 render 工具
 
-| 工具 | 档位 | 落地 patch |
-|---|---|---|
-| `tools/render-status-line.py` | A | v7.3.10+P0-141 |
-| `tools/render-afk-skip.py` | A | v7.3.10+P0-143 |
-| `tools/render-flow-transition.py` | A | v7.3.10+P0-143 |
-| `tools/render-decision-pause.py` | A | v7.3.10+P0-143 |
+| 工具 | 档位 | 落地 patch | feature context |
+|---|---|---|---|
+| `tools/render-status-line.py` | A | v7.3.10+P0-141 | ✅ auto-fill 7 字段（P0-144）|
+| `tools/render-afk-skip.py` | A | v7.3.10+P0-143 | 无需（参数都是 per-call）|
+| `tools/render-flow-transition.py` | A | v7.3.10+P0-143 | 无需（与 feature 无关）|
+| `tools/render-decision-pause.py` | A | v7.3.10+P0-143 | ✅ --auto-refs 按 class 发现（P0-144）|
 
 后续候选：`render-execution-plan.py` / `render-stage-summary.py` / `render-feature-completion-report.py` / `verify-output-format.py`（兜底）等（每个独立 patch · 触发即加）。
+
+### R-SP-7 feature context auto-fill（v7.3.10+P0-144 新增）
+
+> 🔴 **PMO 调 render-* 工具时常用参数（feature_id / flow_type / current_stage / branch / worktree_path / merge_target / ext_model）一律从 state.json auto-fill** · spec 调用示例只写 per-call 语义参数（--role / --next-step / --pause-point / --decision）。
+
+#### 发现优先级
+
+```
+1. 工具显式 --feature-dir 参数（最高 · 测试 / 多 Feature 场景用）
+2. $TEAMWORK_FEATURE 环境变量（推荐 · 在 Feature 目录 export 一次）
+3. 从 CWD 向上 walk · 找含 state.json 且 parent 路径含 'features/' 段的目录
+4. 找不到 → 返回 None · 工具按显式参数走（不强制 context）
+```
+
+#### 参数合并语义（_feature_context.merge_param）
+
+```
+explicit 非空 → 用 explicit · 若 context 也有值且不同 → audit JSON 记 overrides_from_context
+explicit 为 None / 空 → 用 context 值 · audit JSON 记 source: state.json
+两者皆 None → fail + cite hint
+```
+
+#### 实现单源
+
+`tools/_feature_context.py`（~120 行）：
+- `FeatureContext` dataclass（11 字段 · 与 state.json schema 同型）
+- `load(explicit_dir)` 按发现优先级返回 ctx 或 None
+- `merge_param(explicit, context_value)` → `(effective, was_overridden)`
+- 工具自行决定哪些字段强制要求 / 哪些可缺
+
+#### 调用对比
+
+```bash
+# Before（P0-141~143 · PMO 每次传 9 参数）
+python3 tools/render-status-line.py --flow Feature --role PMO --stage dev \
+  --feature "F042" --path /abs --branch f/F042 --merge-target main --worktree-path /abs/wt \
+  --next-step "等用户确认 TC"
+
+# After（P0-144 · PMO 传 2 参数 · 其余 7 自动）
+export TEAMWORK_FEATURE=/abs/feature
+python3 tools/render-status-line.py --role PMO --next-step "等用户确认 TC"
+```
+
+#### 边界
+
+- ❌ 不在 Feature 流程（问题排查 / Feature Planning）→ context 找不到 · 必须显式传
+- ❌ state.json 损坏 → fall back 到显式参数
+- ✅ `--no-context` flag 强制禁用 auto-fill（调试用）
+- ✅ 显式参数永远优先 · audit JSON 留痕
 
 ---
 
