@@ -1,6 +1,52 @@
 # Changelog
 
-## v7.3.10 + P0-144（当前 · feature context auto-fill · 降低 PMO 调用负担）
+## v7.3.10 + P0-145（当前 · 治本 worktree / state.json 时序 gap）
+
+> **触发**：实战 case · ADMIN-F012-partners-active-adapters-column Feature 流程中 PMO 发现 state.json 落在主工作区 (staging 分支) · PRD.md 落在 worktree (feature 分支) · 两者分裂。手工 `cp / rm -rf` 修复后用户追问"是 spec 缺陷吗"。
+>
+> **诊断（实测 spec 验证 · 非凭印象）**：
+> 1. prepare-stage.md Step 14 创建 state.json（位于主工作区 CWD）
+> 2. goal-plan-stage.md 入口环境准备 Step 3 `git worktree add ... origin/{merge_target}`（clean checkout）
+> 3. worktree clean checkout 不包含主工作区 untracked 的 state.json
+> 4. `cd worktree` 后 PRD 落 worktree → state.json 与 PRD 分裂
+>
+> **根因**：spec 内部时序矛盾——state.json 创建早于 worktree 创建 · 必然孤立。属于 v7.3.10+P0-27 重构遗留 gap（环境准备从 plan-stage preflight 后置时漏了 state.json 创建依赖 worktree 的逻辑）。
+
+### P0-145：worktree 创建提前到 prepare-stage Step 13.5
+
+加 1 删 1 账（spec 改动 · 无新工具 / 无新文件）：
+
+- ➕ [stages/prepare-stage.md](../stages/prepare-stage.md) 新增 Step 13.5 「环境准备执行」：
+  - 在 Step 13 双对齐暂停（用户确认）之后 · Step 14 state.json 创建之前
+  - 含原 goal-plan-stage 的环境准备序列（git fetch / worktree add / cd）
+  - worktree_mode in [auto, manual] → 创建 worktree + cd
+  - worktree=off / Feature Planning / 问题排查 → 跳过
+  - 异常分支：base 不可达 / 分支冲突 / worktree add 失败 / stash 失败 → state.concerns + ⏸️ 暂停或降级
+- 改 [stages/prepare-stage.md Step 14](../stages/prepare-stage.md)：明示 state.json 创建 CWD = worktree（如启用）· artifact_root 相对 CWD 解析 · 落在 worktree 内
+- 改 [stages/goal-plan-stage.md 入口环境准备](../stages/goal-plan-stage.md)：
+  - 从"创建 worktree"降级为"验证 worktree 已就绪"
+  - 异常分支扩展：worktree 未就绪 / state.json 缺失 / state.json 与 worktree 分裂 → 降级补救（自动 fallback 到原 P0-27 创建逻辑 + state.concerns WARN）
+  - 加新字段 `state.environment_config.stage_entry_verified_at`（与 `executed_at` 区分）
+
+向下兼容（关键）：
+- 老 Feature（v7.3.10+P0-145 之前创建 · state.json 在主工作区）走 Goal-Plan Stage 入口时自动触发降级补救 → state.json 迁移到 worktree + state.concerns 留痕
+- 用户**不需要手动改 spec 历史** · 老 Feature 透明升级
+
+不动（边界严格）：
+- L1 红线零增量（与 P0-137..144 同型路径 B）
+- state.py / init_triage.py 不动（state.py 本来就是 CWD-relative · 不依赖具体位置）
+- templates/feature-state.json schema 不动
+- L3 工具不动（无新工具）
+
+测试：140/140 PASS（spec 改动 · 不影响脚本逻辑 · 现有 tests 不破坏）
+
+实战 trigger 闭环：
+- ADMIN-F012 case 触发 → 诊断 → 修 spec → 下一次 Feature 不会再分裂
+- 老 Feature 走到 Goal-Plan 时自动迁移 → 无需手工 cp / rm -rf
+
+---
+
+## v7.3.10 + P0-144（feature context auto-fill · 降低 PMO 调用负担）
 
 > **触发**：用户提问 "我们在调用 python 的时候通常会传入一些固定常用的参数 · 列如 feature 名字 / 目录 · 这些是否需要在每个 feature 启动的某个时机固定到一个 feature 目录下的 env · python 脚本自动读 · 降低 pmo 的负担"。
 >

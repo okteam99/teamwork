@@ -308,21 +308,81 @@ external 角色（PMO 直接判定 · v7.3.10+P0-101 evidence-binding · v7.3.10
 
 🔴 **渲染必含**（v7.3.10+P0-115 cite + v7.3.10+P0-118-A 骨架 · 非决策类暂停点 · 不强制 📚 决策参考）：
 
-⬇️ 末尾骨架（阶段值 = `triage` enum「⏸️ 双对齐待确认」 · prepare 期 worktree 通常未建 · 第三行可省略或 📍 当前分支）：
+⬇️ 末尾骨架（阶段值 = `triage` enum「⏸️ 双对齐待确认」 · prepare 期 worktree 尚未建 · 第三行省略或 📍 当前分支）：
 
 ```
 ---
 🔄 Teamwork 模式 | 流程：{流程类型} | 角色：PMO | {功能字段(如已有)} | 阶段：⏸️ 双对齐待确认 | 下一步：⏸️ 用户回 ok / auto / 反馈
-📁 {worktree.path / 项目根 · 视 prepare 进度}
-📍 当前分支：{git branch --show-current}（worktree 待 Goal-Plan Stage 入口创建）
+📁 {项目根}
+📍 当前分支：{git branch --show-current}（worktree 待 Step 13.5 用户确认后创建）
 ```
 
+### Step 13.5: 环境准备执行（v7.3.10+P0-145 新增 · 治本 worktree/state.json 时序 gap）
+
+🔴 **本 Step 不暂停 · 用户已在 Step 13 确认 environment_config（triage Step 7.5-8 探测 + 确认）**。
+
+> 🚨 **修复的 bug**：v7.3.10+P0-145 之前的时序是
+> 1. prepare-stage Step 14 创建 state.json（主工作区）
+> 2. Goal-Plan Stage 入口创建 worktree（clean checkout · state.json 不跟过去）
+> → state.json 与后续 PRD 分裂在两个分支
+>
+> **本 Step（13.5）把 worktree 创建提前到 state.json 创建之前** · 让两者诞生时就在同一 worktree · 时序问题消失。
+
+按流程类型懒加载：
+- **Feature / 敏捷 / Bug（复杂 → Feature 流程）**：执行环境准备序列（worktree_mode=auto/manual 时创建 worktree）
+- **Micro**：执行环境准备序列（worktree_mode=auto/manual 时创建 chore worktree）
+- **Feature Planning**：跳过 worktree（Planning 不出代码）
+- **问题排查**：跳过 worktree（无具体 Feature）
+
+#### 自动执行序列（worktree_mode in [auto, manual] 时）
+
+```bash
+# Step 1: 处理工作区状态（按 triage 决定的 dirty_resolution）
+case state.environment_config.dirty_resolution in
+  "stash")  git stash push -m "auto stash before {Feature 全名}" ;;
+  "commit") git status --porcelain ;;  # 用户已自行 commit · 验证已干净
+  "force")  ;;                          # 用户授权强制继续 · state.concerns 记录授权时刻
+  null)     ;;                          # triage 时工作区已干净
+esac
+
+# Step 2: Fetch base
+git fetch origin {state.environment_config.merge_target}
+git rev-parse --verify "origin/{state.environment_config.merge_target}"
+
+# Step 3: 创建 worktree
+git worktree add {worktree.path} -b {state.environment_config.branch} "origin/{state.environment_config.merge_target}"
+
+# Step 4: 切到 worktree（后续 Step 14 state.json 创建在 worktree CWD 下执行）
+cd {worktree.path}
+```
+
+🔴 **关键约束**：`git worktree add` 必须显式指定 base（`origin/{merge_target}`），不能依赖隐式 HEAD。
+
+🟢 **P0-3 懒装依赖模型**：worktree 创建**不触发**依赖安装（`npm install` / `pip install` / `go mod download`）。
+
+#### 异常分支（仅异常时走 · 常规情况不打断用户）
+
+| 异常 | 处理 |
+|------|------|
+| base 分支不可达（fetch 失败 / 远端配置错） | BLOCKED → state.concerns 加 WARN + ⏸️ 暂停（异常分支） |
+| 分支名冲突（triage 时未发现 · 竞态） | state.concerns + ⏸️ 暂停（让用户决策：续用 / 改名 / 删除重建） |
+| worktree add 失败 | 按 worktree 降级链（auto → manual → off）· state.concerns + 不暂停（继续 off 模式 · state.json 留主工作区） |
+| stash 失败 | state.concerns + ⏸️ 暂停（让用户人工处理） |
+
+#### worktree=off 场景
+
+跳过 Step 3-4。Step 14 state.json 创建仍在当前 CWD（项目根 / 主工作区） · 与 PRD 同位。
+
 ### Step 14: state.json 创建（原 triage Step 9 · 按流程懒加载）
+
+🔴 **执行位置（v7.3.10+P0-145 修订）**：CWD 已在 Step 13.5 切到 worktree（如启用）· state.json 创建落在 worktree 内 · 与后续 PRD / 评审产物同位。
 
 ```
 Feature / Bug / Micro / 敏捷 → 创建 state.json（按流程类型 schema）
 Feature Planning → 不创建 Feature state（仅写 PROJECT/ROADMAP/sitemap · 这是 Planning 流程的产物）
 ```
+
+调用 [tools/state.py init-feature](../tools/state.py)（或对应子命令）· artifact_root 相对 CWD（=worktree 根 · 如启用）解析。
 
 详见 templates/feature-state.json schema。
 

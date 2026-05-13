@@ -69,69 +69,66 @@
 
 ---
 
-## Stage 入口环境准备（v7.3.10+P0-27 重构，无暂停点）
+## Stage 入口环境准备（v7.3.10+P0-145 再次重构 · 验证而非创建）
 
-> 🟢 **v7.3.10+P0-27 重构说明**：原 v7.3.9 的「Goal-Plan Stage 入口 Preflight」（4 项硬门禁 + 用户确认暂停点）已删除。决策前置到 [triage-stage Step 7.5 + Step 8](./triage-stage.md)（用户在 triage 暂停点一次性确认环境配置），执行后置到本段（自动执行，**无暂停点**）。Feature 典型暂停点从 4-5 个降到 3-4 个。
+> 🟢 **v7.3.10+P0-145 重构说明**：worktree 创建从本段**提前到 prepare-stage Step 13.5**（v7.3.10+P0-145 治本 worktree/state.json 时序 gap · 详见 [prepare-stage.md Step 13.5](./prepare-stage.md)）。本段从"创建"降级为"验证"——worktree 应在 prepare-stage 已建妥 · state.json 已在 worktree 内 · 本 Stage 只校验环境一致性。
 >
-> 🔴 **本段不暂停**。所有决策已在 triage 完成；本段只按 `state.environment_config` 自动执行 git 操作。仅在异常情况下（base 不可达 / 分支冲突 / stash 失败）走异常分支降级或暂停。
+> 🔴 **本段不暂停**。worktree 应在 prepare-stage Step 13.5 已经创建 + CWD 已切到 worktree。本段仅做幂等校验 + 写入 executed_at 时间戳。
 
 ### 输入
 
-`state.environment_config`（triage-stage Step 9 已写入）：
+`state.environment_config`（triage-stage Step 7.5 探测 + Step 8 确认 + prepare-stage Step 13.5 执行）：
 - `worktree_mode`: auto / manual / off
 - `branch`: feature/{Feature 全名}
 - `merge_target`: staging / main / master
 - `base`: origin/{merge_target}
-- `dirty_resolution`: stash / commit / force / null（null 表示 triage 时工作区已干净）
+- `dirty_resolution`: stash / commit / force / null
 - `workspace_status_at_triage`: clean / dirty
+- `worktree_created`: true（prepare-stage Step 13.5 已写入 · 本段校验该字段）
 
-### 自动执行序列
+### 自动执行序列（验证 + 补齐 metadata）
 
 ```bash
-# Step 1: 处理工作区状态（按 triage 决定的 dirty_resolution）
-case state.environment_config.dirty_resolution in
-  "stash")  git stash push -m "auto stash before {Feature 全名}" ;;
-  "commit") git status --porcelain ;;  # 用户在 triage 后已自行 commit；验证已干净
-  "force")  ;;  # 用户授权强制继续，未提交改动可能丢失（state.concerns 已记录授权时刻）
-  null)     ;;  # triage 时工作区已干净
-esac
-
-# Step 2: Fetch base
-git fetch origin {state.environment_config.merge_target}
-git rev-parse --verify "origin/{state.environment_config.merge_target}"
-
-# Step 3: 创建 worktree（如启用）
+# Step 1: 验证 CWD = worktree（如启用）
 if state.environment_config.worktree_mode in ["auto", "manual"]:
-    git worktree add {worktree.path} -b {state.environment_config.branch} "origin/{state.environment_config.merge_target}"
+    pwd  # 应输出 state.worktree.path
+    git rev-parse --show-toplevel  # 应等于 worktree.path
+    git branch --show-current      # 应等于 state.environment_config.branch
+    # 任一不一致 → 走异常分支「worktree 未就绪」
 
-# Step 4: 切到 worktree（如启用）
-cd {worktree.path}
+# Step 2: 验证 state.json 在 CWD 内可达（关键校验）
+test -f {artifact_root}/state.json
+# 不可达 → 异常分支「state.json 缺失或位置错误」
+
+# Step 3: 补齐 environment_config metadata
+# 通过 tools/state.py 更新（不直接写 state.json）：
+python3 {SKILL_ROOT}/tools/state.py snapshot --tier stage
 ```
 
-🔴 **关键约束**：`git worktree add` 必须显式指定 base（`origin/{merge_target}`），不能依赖隐式 HEAD。锁定 base 防止 Feature 产物诞生后 Ship Stage MR diff 夹杂他人改动。
+🔴 **关键约束**：本段**不再执行 git worktree add**（v7.3.10+P0-145 移交 prepare-stage Step 13.5）。如果 worktree 未就绪 = prepare-stage 异常或老 Feature 迁移期 → 走下方异常分支。
 
-🟢 **P0-3 懒装依赖模型**：worktree 创建**不触发**依赖安装（`npm install` / `pip install` / `go mod download`）。纯文档 Stage（Plan / Blueprint / Review）可在空壳 worktree 上完成；依赖安装延迟到 Dev / Test Stage 入口按需执行。
+🟢 **P0-3 懒装依赖模型**：worktree 已建（在 prepare-stage）· 本 Stage 入口仍不触发依赖安装。
 
-### 异常分支（仅异常时走，常规情况不暂停）
+### 异常分支（v7.3.10+P0-145 扩展 · 含老 Feature 迁移）
 
 | 异常 | 处理 |
 |------|------|
-| base 分支不可达（fetch 失败 / 远端配置错） | BLOCKED → state.concerns 加 WARN + ⏸️ 暂停（异常分支） |
-| 分支名冲突（triage 时未发现，竞态） | state.concerns + ⏸️ 暂停（让用户决策：续用 / 改名 / 删除重建） |
-| worktree add 失败 | 按 worktree 降级链（auto → manual → off），写 state.concerns + 不暂停（继续 off 模式） |
-| stash 失败 | state.concerns + ⏸️ 暂停（让用户人工处理） |
+| worktree 未就绪（prepare-stage Step 13.5 异常 / 老 Feature 迁移期 state.json 在主工作区）| **降级补救**：本 Stage 入口执行原 v7.3.10+P0-27 的 worktree 创建逻辑（fallback） + state.concerns 加 WARN 标注「降级补救 · 推荐用户走 P0-145 推荐路径」 |
+| state.json 缺失 | BLOCKED → ⏸️ 用户决策（重新跑 prepare-stage / 手工恢复） |
+| state.json 与 worktree 分裂（state.json 在主工作区 · CWD 在 worktree）| **降级补救**：state.concerns 加 WARN + `mv state.json {worktree}/...` 后继续 |
+| base 分支不可达 / 分支冲突 / stash 失败 | 与 prepare-stage Step 13.5 异常分支同 · 但本 Stage 已不该遇到（应在 prepare-stage 拦截） |
 
-🔴 **常规情况自动流转，不打断用户**。仅异常分支才暂停。
+🔴 **常规情况自动流转**。仅 worktree 未就绪 / state.json 异常才走降级补救。
+
+🟢 **降级补救路径**：保留向下兼容 · v7.3.10+P0-145 之前创建的 Feature（state.json 在主工作区）走到本 Stage 时自动迁移 · 不要求用户手动改 spec 历史。
 
 ### state.json 写入
-
-环境准备完成后写入：
 
 ```json
 {
   "environment_config": {
-    "...": "（triage 写入的字段保持不变）",
-    "executed_at": "<ISO 8601 UTC>",
+    "...": "（triage 写入 + prepare-stage Step 13.5 执行的字段保持不变）",
+    "stage_entry_verified_at": "<ISO 8601 UTC>",
     "worktree_created": true,
     "concerns": []
   }
@@ -139,6 +136,7 @@ cd {worktree.path}
 ```
 
 🟢 v7.3.10+P0-27 删除原 `state.stage_contracts.plan_preflight` 字段（preflight 概念整体废弃）。
+🟢 v7.3.10+P0-145：`executed_at` 字段意义改为 prepare-stage Step 13.5 写入时刻 · 本 Stage 加新字段 `stage_entry_verified_at`。
 
 ---
 
