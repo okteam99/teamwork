@@ -1,6 +1,53 @@
 # Changelog
 
-## v7.3.10 + P0-145（当前 · 治本 worktree / state.json 时序 gap）
+## v7.3.10 + P0-146（当前 · R-SP-8 writer-only 规则消费者标注 · 实战 4.6 自承洞察）
+
+> **触发**：实战 case · API-F048-Ollama 代理网关 Feature · Claude 4.6 instance 自承"我跳的 spec 步骤都没有下游消费者标注"——只写"🔴 必须"但没说"跳了谁会发现 / 哪个下游会失败" · AI 内部评估为"只是仪式"而跳掉。
+>
+> 4.6 原话：「我跳"写了没人读"的步骤 · 不跳"下游有人依赖"的步骤」。**这是 framework-level 洞察**——比单纯加更多红线更治本。
+
+### P0-146：R-SP-8 立账 + scanner 工具 + top 30 候选清单 + 修复 ~20 条
+
+加 1 删 1 账：
+- ➕ [standards/scripts-policy.md § R-SP-8](../standards/scripts-policy.md) · 每条 🔴/必须 规则必须含下游消费者标注 · 含 4 类有效消费者形式 + 渐进切换三阶段
+- ➕ [tools/scan-spec-consumer.py](../tools/scan-spec-consumer.py)（~210 行 · 扫所有 spec markdown · 识别 writer-only 规则 · JSON / markdown 输出）
+- ➕ [tools/tests/test_scan_spec_consumer.py](../tools/tests/test_scan_spec_consumer.py)（10 case · 触发模式 4 + 输出格式 3 + 错误处理 2 + 真实 spec 1）
+- 修复 ~18 条 writer-only 规则（across 7 files）：
+  - `CONTEXT-RECOVERY.md` 2 条（看板必附 💡 / PMO 必须分析优先级）
+  - `FLOWS.md` 8 条（PMO Bug 判断 / Bug 流程合规确认 / 架构师 CR 必经 / 禁止自我豁免 / Micro 身份切换 4 条）
+  - `RULES.md` 3 条（禁止"建议跳过"措辞 / 禁止把质疑当跳过 / 禁止"步骤简单"跳过理由）
+  - `PRODUCT-OVERVIEW-INTEGRATION.md` 1 条（自下而上必须暂停）
+  - `REVIEWS.md` 1 条（阻塞项必须修复）
+  - `SKILL.md` 1 条（角色切换必须 cite）
+  - `stages/review-stage.md` 2 条（角色规范必读且 cite / 三视角独立性）
+
+实测扫描数据（before / after）：
+```
+Total 🔴/必须 rules: 411 → 418（+7 新规则被扫描器识别）
+With consumer:      153 → 183（+30）
+Missing consumer:   258 → 235（-23）
+Ratio missing:      62.8% → 56.2%（-6.6 pp）
+```
+
+测试：140 baseline + 10 scanner = **150/150 PASS**
+
+R-SP-8 渐进切换（当前位置）：
+- **第一阶段（P0-146 · 当前）**：原则立账 · scanner 工具 · top 18 修复 · 总修复 ~7% missing
+- 第二阶段（待定）：missing ratio 降到 ≤30% · 新 PR review 跑 scanner · 违规阻断
+- 第三阶段（待定）：ratio ≤10% · CI 强制 scanner exit 0
+
+不动（边界严格 · 路径 B）：
+- 4.6 case 中的具体 4 项违规（state.json / PRD-REVIEW / 角色切换 / 评审独立）—— 角色切换 + 评审独立已修 · state.json / PRD-REVIEW 留 P0-147 续作（它们在 stages 文件多处出现 · 单独 patch 处理更清晰）
+- L1 红线零增量
+- 235 条剩余 writer-only 规则 → 渐进推进（每个后续 patch 修 20-30 条 · 12-15 patch 完成全量）
+
+实战 trigger 闭环：
+- API-F048 case 触发 → 4.6 自承诊断 → 4.7 验证 + 系统化 → spec 改进 + 物化扫描 + 渐进推进路线
+- 与 P0-145 同型："实战 case → 4.6 诊断 → 4.7 实施 + scan tool" 是稳定模式
+
+---
+
+## v7.3.10 + P0-145（治本 worktree / state.json 时序 gap）
 
 > **触发**：实战 case · ADMIN-F012-partners-active-adapters-column Feature 流程中 PMO 发现 state.json 落在主工作区 (staging 分支) · PRD.md 落在 worktree (feature 分支) · 两者分裂。手工 `cp / rm -rf` 修复后用户追问"是 spec 缺陷吗"。
 >

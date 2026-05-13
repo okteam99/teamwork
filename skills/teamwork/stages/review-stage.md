@@ -187,8 +187,8 @@ Step 4: tools/state.py snapshot --tier stage         ← 🔴 替代直接 Read 
 
 ### 过程硬规则
 
-- 🔴 **角色规范必读且 cite**：每视角开始前必读对应 §任务规范 + `roles/*.md`，产出前 cite 要点
-- 🔴 **三视角独立性（结构约束）**：
+- 🔴 **角色规范必读且 cite**：每视角开始前必读对应 §任务规范 + `roles/*.md`，产出前 cite 要点 · 下游：不读不 cite → 评审退化为自我对话 / 凭印象输出 · 实证 API-F048 case "我自己写的 PRD、自己评审、自己秒 ADOPT" · 用户对抗"你真的评审了么"（v7.3.10+P0-146 加 consumer）
+- 🔴 **三视角独立性（结构约束）**：违反 → 三份报告互引用 = 自我对话 · grep -r 校验失败 · Ship Stage finalize gate 拒绝（v7.3.10+P0-146 加 consumer）
   - 每份报告必须有独立 `generated_at` 时间戳
   - 每份报告必须列出"本视角读过的文件"清单
   - 三份报告互不引用（`grep -r "review-arch" review-external.md` 应为空，反之亦然）

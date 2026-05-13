@@ -1,6 +1,6 @@
 ---
 name: teamwork
-version: 7.3.10+P0-145
+version: 7.3.10+P0-146
 description: Your AI dev team — one AI works as a full team (PMO/PM/Designer/QA/RD/Architect), switching specialist perspectives across 8 quality-gated stages from planning to delivery. Start with /teamwork.
 ---
 
@@ -486,7 +486,7 @@ P0-48 是第一次"减负专版"，本契约是防止再次走回头路的结构
 🔴 approach 偏离 agents/README.md §一 默认推荐 → Rationale 必须说明偏离理由
 🔴 Plan 写入 {Feature}/state.json 的 planned_execution[stage]
 🔴 Role specs loaded 声明的文件必须真实 Read，不能只写路径不读
-🔴 角色切换时必须 cite 该角色规范的关键要点（防止凭记忆执行）
+🔴 角色切换时必须 cite 该角色规范的关键要点（防止凭记忆执行）· 下游：不 cite → 评审/起草退化为自我对话 · 用户对抗"你真的评审了么"· 实证 API-F048 case 4.6 自承"自审不可能真的独立"· v7.3.10+P0-146 加 consumer
 🔴 实际执行偏离 Plan → 更新 Plan + 记录偏离理由
 
 Micro 流程简化规则（v7.3.10+P0-20 统一）：

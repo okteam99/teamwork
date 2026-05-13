@@ -175,6 +175,12 @@ verify-output-format（后置 · 兜底 · 未来 P1+1）
 | `tools/render-flow-transition.py` | A | v7.3.10+P0-143 | 无需（与 feature 无关）|
 | `tools/render-decision-pause.py` | A | v7.3.10+P0-143 | ✅ --auto-refs 按 class 发现（P0-144）|
 
+#### 已落地的 verify / scan 工具
+
+| 工具 | 用途 | 落地 patch |
+|---|---|---|
+| `tools/scan-spec-consumer.py` | R-SP-8 writer-only 规则扫描（spec consumer coverage report）| v7.3.10+P0-146 |
+
 后续候选：`render-execution-plan.py` / `render-stage-summary.py` / `render-feature-completion-report.py` / `verify-output-format.py`（兜底）等（每个独立 patch · 触发即加）。
 
 ### R-SP-7 feature context auto-fill（v7.3.10+P0-144 新增）
@@ -225,6 +231,98 @@ python3 tools/render-status-line.py --role PMO --next-step "等用户确认 TC"
 - ❌ state.json 损坏 → fall back 到显式参数
 - ✅ `--no-context` flag 强制禁用 auto-fill（调试用）
 - ✅ 显式参数永远优先 · audit JSON 留痕
+
+### R-SP-8 每条「🔴/必须」规则必须含「下游消费者」标注（v7.3.10+P0-146 新增）
+
+> 🚨 **实战触发**：API-F048-Ollama 代理网关 case · 4.6 instance 自承"我跳的步骤都没有下游消费者标注"——只写"🔴 必须"但没说"跳了谁会发现 / 哪个下游会失败"· AI 内部评估为"只是仪式"而跳掉。
+>
+> 4.6 原话：「我跳"写了没人读"的步骤 · 不跳"下游有人依赖"的步骤」。
+
+#### 核心规则
+
+```
+🔴 spec 中每条「🔴/必须/必填/必读/禁止/不得/强制」级规则
+   = MUST 同段内含「下游消费者」标注：跳了之后谁/哪个下游会发现 / 失败 / 拒绝。
+
+❌ writer-only 反模式（命中 → P0-146 候选修复）：
+   "🔴 必须创建 state.json"                  ← 没写跳了谁会坏
+   "🔴 PRD-REVIEW.md 必需"                   ← 同上
+   "🔴 角色切换必须 cite"                    ← 同上
+
+✅ 含消费者推荐写法：
+   "🔴 创建 state.json — Blueprint 入口 enter-stage 校验前置 gate · 缺则 exit 1"
+   "🔴 写 PRD-REVIEW.md — Blueprint QA 读此文件确认评审覆盖 · 缺则 QA 重审整 PRD"
+   "🔴 cite 关键要点 — 不 cite 评审退化为自我对话（实证 API-F048 case · 4.6 自承）"
+```
+
+#### 下游消费者标志的有效形式
+
+```
+1. 工具校验失败：
+   - "exit 1 / exit 2 / BLOCKED / verify fail"
+   - "state.py XXX 子命令 reject"
+   - "render-* 工具 cite spec hint"
+
+2. 下游 Stage 拒绝：
+   - "Blueprint 入口 gate 校验"
+   - "QA 重审整 PRD"
+   - "架构师 CR 打回"
+
+3. 用户可见后果：
+   - "用户无法验证 PMO 是否跑过"
+   - "实证 case PTR-F001-BUG-013 / ADMIN-F012 / API-F048"
+
+4. 状态损坏 / 漂移：
+   - "state.json 与 PRD 分裂"
+   - "评审退化为自我对话"
+   - "ROADMAP 派生值漂移"
+```
+
+#### 物化扫描
+
+`tools/scan-spec-consumer.py` 扫描所有 spec 文件 · 输出：
+- Total 🔴/必须 规则数
+- With consumer 数（已合规）
+- Missing consumer 数（修复候选）
+- 候选清单（按 file:line 排序 · 含 section context）
+
+```bash
+# 看摘要
+python3 tools/scan-spec-consumer.py --limit 30
+
+# Markdown 人类可读
+python3 tools/scan-spec-consumer.py --output-format markdown --limit 30
+
+# 全量
+python3 tools/scan-spec-consumer.py --limit 0
+```
+
+#### 渐进切换
+
+```
+第一阶段（P0-146 · 当前）：
+   - 加 R-SP-8 原则
+   - 修复 top 30 writer-only 规则（4.6 case 直接命中的 + 高影响）
+   - 加 scan 工具（非强制 · 列清单）
+
+第二阶段（待定）：
+   - 修复 missing consumer 比例从 62.8% → ≤30%
+   - 新 spec 规则 PR review 时 scan 工具 fail → reject merge
+
+第三阶段（待定）：
+   - 全量修复 · ratio_missing → ≤10%
+   - scan 工具 exit 2 if missing > N · CI 强制
+```
+
+#### 当前阶段实测数据（v7.3.10+P0-146 初始扫描）
+
+```
+Total 🔴/必须 rules: 411
+With consumer: 153 (37.2%)
+Missing consumer: 258 (62.8%)  ← 修复方向
+```
+
+P0-146 处理 top 30 (~12% of missing) · 后续 patch 渐进推进。
 
 ---
 
