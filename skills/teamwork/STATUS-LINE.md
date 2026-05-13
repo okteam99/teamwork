@@ -158,7 +158,18 @@ python3 {SKILL_ROOT}/tools/render-status-line.py \
 
 ---
 
-### 🔴 决策点参考文档绝对路径硬规则（v7.3.10+P0-75 实战补充）
+### 🔴 决策点参考文档绝对路径硬规则（v7.3.10+P0-75 实战补充 / +P0-143 加 render 工具）
+
+> 🟢 **render-first 物化（v7.3.10+P0-143 · R-SP-6 第二阶段）**：HITL 决策类暂停点（📚 决策参考块 + 决策菜单）由 [`tools/render-decision-pause.py`](./tools/render-decision-pause.py) 持单源。
+> ```bash
+> python3 {SKILL_ROOT}/tools/render-decision-pause.py \
+>   --decision-class 6 --pause-point "PM 验收三选项" \
+>   --refs /abs/PRD.md,/abs/TC.md,/abs/test-report.md \
+>   --options "1=通过+Ship,2=通过不Ship,3=不通过+建议" --recommended 1
+> ```
+> 工具校验：decision-class ∈ 1-10 / refs 绝对路径 / refs 命中 class 期望关键词 / options 编号连续 / recommended 在 options 内 / 末项自动补「其他指示」。
+> **❌ 禁止手敲决策暂停块** · 必须调工具。
+
 
 > 触发：实战 case（AND-F062 Review QUALITY_ISSUE 决策点）PMO 给了 4 个选项 + 推荐理由，但**没列做这个决策需要参考的文档绝对路径**（REVIEW.md / external-cross-review/*.md / 涉及代码文件）。用户被迫凭记忆找路径或盲信摘要做决策。同 case 还出现代码文件被错误包成 `[file.java](http://file.java)` markdown 链接 → 指向虚假 URL → 不可点击。
 

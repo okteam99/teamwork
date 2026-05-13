@@ -1,6 +1,51 @@
 # Changelog
 
-## v7.3.10 + P0-142（当前 · STATUS-LINE.md 瘦身 · A 类规则降级为工具指针 · R-SP-6 升第二阶段）
+## v7.3.10 + P0-143（当前 · render-* 工具集 P2+P3 · AFK skip + 流转校验 + 决策暂停）
+
+> **触发**：P0-141/142 落地 render-status-line.py + STATUS-LINE.md 瘦身后，按"L2→L3 物化迁移专版"梳理推进 Top render-* 工具集。
+>
+> **治本**：本对话 case（AI 把 "auto 模式继续" 当用户投票 · 输出"视为通过"错措辞）+ P0-118-A case（编造 L行号 + 原文）+ HITL 决策点漂移 系列同型问题。
+> 一次落地 3 个 render 工具 · 共享 ~50 行框架代码 · ROI 比分开做高。
+
+### P0-143：render-* 工具集（P2+P3+P4 一并）
+
+加 1 删 1 账：
+- ➕ [tools/render-afk-skip.py](../tools/render-afk-skip.py)（~140 行 · AFK 11 暂停点 + HITL 21 项黑名单 · 命中 HITL 自动 reject）
+- ➕ [tools/render-flow-transition.py](../tools/render-flow-transition.py)（~130 行 · 直接 read flow-transitions.md → 输出真实 L行号 + 原文 · 编造不可能）
+- ➕ [tools/render-decision-pause.py](../tools/render-decision-pause.py)（~190 行 · 10 决策类 + refs 期望关键词校验 + options 编号校验 + 自动补「其他指示」末项）
+- ➕ tools/tests/test_render_afk_skip.py（10 case · happy 3 + HITL 拒绝 3 + 未知 1 + validation 3）
+- ➕ tools/tests/test_render_flow_transition.py（7 case · 真实 spec 2 + 合成 spec 5）
+- ➕ tools/tests/test_render_decision_pause.py（9 case · PM 验收 2 + narrative 1 + validation 6）
+- ➕ pmo-auto-mode.md / flow-transitions.md / STATUS-LINE.md 顶部加 render-first 推荐段（与 P0-141 STATUS-LINE.md 同模式）
+- ➕ scripts-policy.md 当前阶段速查 + 已落地工具表 加 3 条目（render-afk-skip / render-flow-transition / render-decision-pause）
+
+工具特性（与 render-status-line.py 同型 · scripts-policy R-SP-1..6）：
+- 跨宿主 python3（CC/Codex/Gemini 同款调用）
+- 参数即合规校验 · 非法即 exit 2 + stderr JSON 含 `cite` spec hint
+- stderr 审计 JSON 含 tool_version / params / timestamp → R7 evidence binding
+- enum 校验严格但容错（normalize 空格 / 大小写 / 双向 substring 匹配）
+
+治本 case 反例（每个工具均直接堵漏）：
+- render-afk-skip: AI 把 "PM 验收三选项" 用 auto skip → 工具 reject + cite HITL 清单
+- render-flow-transition: AI 编造 "flow-transitions.md L999 '...'" → 工具直接 read 文件不可能编造
+- render-decision-pause: AI 漏 📚 绝对路径 / 漏末项「其他指示」/ 用相对路径 → 工具校验阻断
+
+测试：92 + 10 + 7 + 9 = **118/118 PASS**
+
+不动（边界严格）：
+- pmo-auto-mode.md AFK/HITL 清单**正文保留**（教育材料 + 工具的真值源）· 等后续 patch 触发再考虑瘦身
+- STATUS-LINE.md 决策类清单 10 类正文**保留**（同上）· 与 P0-142 处理 A 类原则一致 · 不动 B 类
+- flow-transitions.md 转移表正文**保留**（工具读它生成校验行 · 必须保留）
+- L1 红线零增量（与 P0-137..142 同型路径 B）
+
+R-SP-6 渐进切换（当前位置）：
+- 第一阶段（P0-141）：spec 加 "推荐调"  ✅
+- **第二阶段（P0-142/143 · 当前）**：spec 加 "必须调 · 漏调 WARN"  ⚡ 4 工具全部在此阶段
+- 第三阶段（未来）：硬强制 · 配 verify-output-format.py 拒绝无 evidence binding 的 final response
+
+---
+
+## v7.3.10 + P0-142（STATUS-LINE.md 瘦身 · A 类规则降级为工具指针 · R-SP-6 升第二阶段）
 
 > **触发**：P0-141 落地 render-status-line.py 后，用户提问 "STATUS-LINE.md 里面内容是否可以清理掉了，把状态逻辑写到 python 里"。
 >

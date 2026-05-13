@@ -1,5 +1,12 @@
 # 阶段状态转移表
 
+> 🟢 **render-first 物化（v7.3.10+P0-143 · R-SP-6 第二阶段）**：阶段流转校验行（📋 行）由 [`tools/render-flow-transition.py`](../tools/render-flow-transition.py) 持单源 · 工具直接 read 本文件 · 编造 L行号 / 原文不可能。
+> ```bash
+> python3 {SKILL_ROOT}/tools/render-flow-transition.py --from "设计批 待确认" --to "Blueprint"
+> # 输出含真实 L行号 + 原文 · 多匹配/未匹配自动 exit 2
+> ```
+> **❌ 禁止手敲 `📋 X → Y（📖 ...，来源：L...）`** · 必须调工具。
+>
 > 🔴 PMO 在阶段切换前，必须对照此表确认流转类型。不在表中的转移路径为非法。
 > 每行的「流转」列标明：🚀自动 = 不暂停直接流转；⏸️暂停 = 等用户确认；🔀条件 = 按条件决定。
 > 此文件为阶段转移的权威定义，校验行必须引用此表的行号+原文。

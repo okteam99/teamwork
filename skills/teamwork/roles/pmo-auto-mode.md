@@ -1,5 +1,13 @@
-# PMO 自动推进规则 + auto 模式详规范（PMO Auto Mode · v7.3.10+P0-94 抽出）
+# PMO 自动推进规则 + auto 模式详规范（PMO Auto Mode · v7.3.10+P0-94 抽出 · +P0-143 加 render 工具）
 
+> 🟢 **render-first 物化（v7.3.10+P0-143 · R-SP-6 第二阶段）**：AFK 暂停点的 `⚡ auto skip` 日志由 [`tools/render-afk-skip.py`](../tools/render-afk-skip.py) 持单源。
+> ```bash
+> python3 {SKILL_ROOT}/tools/render-afk-skip.py \
+>   --pause-point "设计批待确认" --decision "通过 → Blueprint" \
+>   --reason "Designer 自查 5 维度全 ✅"
+> ```
+> 工具内含 AFK 清单（本文件 § 三）+ HITL 清单（§ 五 / flow-transitions.md）· 命中 HITL → 直接 exit 2 拒绝输出 auto skip。**❌ 禁止手敲 `⚡ auto skip:` 行** · 必须调工具。
+>
 > 🔗 **角色契约见 [roles/pmo.md](./pmo.md)**（PMO 项目管理 + 调度协调）。本文件是 PMO 自动推进规则 + auto 模式（HITL/AFK 二分）的详细任务规范 · 是该任务的**权威源**。
 >
 > 本文件源流：原寄生在 roles/pmo.md L1051-1242 → **v7.3.10+P0-94 抽出本文件**（pmo.md 1415 → ~1230 行 · Wave 4 Phase 2）。

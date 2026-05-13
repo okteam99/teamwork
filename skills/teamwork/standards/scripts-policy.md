@@ -147,6 +147,9 @@ C 档 · 纯 narrative（保持 verify · 不适合 render）
 | 工具 | 阶段 | 升格 patch |
 |---|---|---|
 | `tools/render-status-line.py` | **第二阶段**（必须调 · 漏调 = WARN）| v7.3.10+P0-142 升格 |
+| `tools/render-afk-skip.py` | **第二阶段**（必须调 · 命中 HITL 自动拒绝）| v7.3.10+P0-143 |
+| `tools/render-flow-transition.py` | **第二阶段**（必须调 · 工具读 spec 防编造 L行号）| v7.3.10+P0-143 |
+| `tools/render-decision-pause.py` | **第二阶段**（必须调 · 强制 📚 绝对路径 + 末项自动补）| v7.3.10+P0-143 |
 
 #### 与 verify-first 工具配合
 
@@ -168,8 +171,11 @@ verify-output-format（后置 · 兜底 · 未来 P1+1）
 | 工具 | 档位 | 落地 patch |
 |---|---|---|
 | `tools/render-status-line.py` | A | v7.3.10+P0-141 |
+| `tools/render-afk-skip.py` | A | v7.3.10+P0-143 |
+| `tools/render-flow-transition.py` | A | v7.3.10+P0-143 |
+| `tools/render-decision-pause.py` | A | v7.3.10+P0-143 |
 
-后续 P2/P3+ 候选：`render-afk-skip.py` / `render-flow-transition.py` / `render-decision-pause.py` 等（每个独立 patch · 触发即加）。
+后续候选：`render-execution-plan.py` / `render-stage-summary.py` / `render-feature-completion-report.py` / `verify-output-format.py`（兜底）等（每个独立 patch · 触发即加）。
 
 ---
 
