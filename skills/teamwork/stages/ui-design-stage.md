@@ -196,11 +196,16 @@ silent 自动认定 / 用户选 1-2：
    - 项目无全景（Step 0 决策为「项目无全景」）→ 跳过对齐校验 · Concerns 记录
    - 覆盖正常/空/加载/错误 4 种状态
 
-2. **产出 UI.md**（Feature 级设计规范文档）
+2. **产出 UI.md**（Feature 级设计**意图 / 追溯 / 审计**文档 · v7.3.10+P0-140 瘦身）
+   - 🔴 **职责单源**：UI.md 只承载 panorama 对齐 / UI-AC-COVERAGE / Designer 自查 / 变更记录
+   - 🔴 **不再写视觉描述**（布局 / 组件表 / 主色 / 字号 / 间距 / 响应式断点 / 状态设计文字 / 用户流程文字）—— 这些 HTML 是真相 · markdown 复述会 drift
+   - 模板见 [templates/ui.md](../templates/ui.md)
 
-3. **产出 Feature HTML 预览稿**
+3. **产出 Feature HTML 预览稿**（🔴 视觉真相的唯一载体 · v7.3.10+P0-140）
    - `{Feature}/preview/*.html`（每页面每状态一个文件）
    - Tailwind CSS
+   - 🔴 HTML 区块加 `data-ac="AC-XX"` 锚定 · 与 UI-AC-COVERAGE 表对账
+   - 🔴 布局 / 组件 / 配色 / 字号 / 间距 / 响应式 / 4 态 / 用户流程交互 **全部在 HTML 表达**
 
 4. **产出验收标准覆盖声明**
    - 对照 PRD AC 逐条声明"UI 是否支撑"
@@ -238,9 +243,9 @@ silent 自动认定 / 用户选 1-2：
 
 | 文件路径 | 格式 | 必需内容 |
 |---------|------|---------|
-| `{Feature}/UI.md` | Markdown | Feature 设计规范 + 与全景基准的对齐说明 |
-| `{Feature}/preview/*.html` | HTML + Tailwind | Feature 每页面每状态一个文件 |
-| `{Feature}/UI-AC-COVERAGE.md`（或 UI.md 尾部）| Markdown 表 | 逐条 PRD AC 对应的 UI 支撑 |
+| `{Feature}/UI.md` | Markdown | **意图 / 追溯 / 审计**（panorama 对齐 + UI-AC-COVERAGE + Designer 自查 + 变更记录）· v7.3.10+P0-140 删除视觉描述段 |
+| `{Feature}/preview/*.html` | HTML + Tailwind | **视觉真相**（布局 / 组件 / 配色 / 字号 / 间距 / 响应式 / 4 态 / 用户流程交互）· 每页面每状态一个文件 · `data-ac="AC-XX"` 锚定 |
+| `{Feature}/UI-AC-COVERAGE.md`（或 UI.md 尾部）| Markdown 表 | 逐条 PRD AC → HTML 区块的追溯（人类阅读总览） |
 | `design/sitemap.md` | Markdown | 🟡 增量更新（如有结构变更）+ 本次变更标红注释 |
 | `design/preview/overview.html` | HTML | 🟡 增量更新（如有页面新增/修改） |
 

@@ -92,6 +92,16 @@ src/
 > 📎 **此表是后续 RD 开发、Code Review、集成测试的校验基准**。遗漏 = 线上事故。
 > 填写时必须 grep 所有子项目，不能仅凭记忆。database-schema.md 的映射表可能不全，以 grep 结果为准并反向更新 database-schema.md。
 
+#### FK 决策（🔴 涉及 FOREIGN KEY / CASCADE 时必填 · v7.3.10+P0-138）
+
+> 📎 策略权威源：[standards/backend.md § FK 策略](../standards/backend.md)。默认避免 · 引入须给项目语境理由。
+
+| 表 / 关系 | 决策 | 理由（满足 backend.md § FK 策略 ✅ 任一条件 · 否则 BLOCKER） | CASCADE 行为 |
+|----------|------|---------------------------------------------------------|-------------|
+| | 不引入 / 引入 FK / 引入 FK+CASCADE | （强一致小规模 OLTP / 法务合规 / 内部管理后台 / KNOWLEDGE.md L{行号} 已覆盖默认） | 无 / ON DELETE {RESTRICT\|CASCADE\|SET NULL} · 列出连带删除清单 |
+
+> ❌ **反模式**（命中即 Tech Review BLOCKER）：理由写"通用最佳实践 / ORM 自动生成 / 防止脏数据 / 开发期方便" · 详见 [backend.md § FK 策略 反模式黑名单](../standards/backend.md)。
+
 #### 迁移策略
 
 - **up**：

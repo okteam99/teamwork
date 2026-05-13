@@ -20,7 +20,7 @@
 |---------|------|---------|
 | PASS | 🚀 自动 | 进入下一 stage / 子步骤 |
 | PASS_WITH_CONCERNS | 🚀 自动（v7.3.10+P0-51 扩展）| 触发 PM 回应循环（finding 必须 ADOPT/REJECT/DEFER + 对抗自查 P0-34-B）+ 不强制修订 PRD |
-| NEEDS_REVISION | 🔁 回退 | PM/RD 修订 → 重审（最多 3 轮 · 超限 ⏸️ 用户决策 P0-34）|
+| NEEDS_REVISION | 🔁 回退 | PM/RD 修订 → 重审（最多 3 轮 · Review Stage 例外 5 轮 v7.3.10+P0-139 · 超限 ⏸️ 用户决策 P0-34）|
 
 ---
 
@@ -105,10 +105,10 @@ adversarial_self_check 模板：
 
 ---
 
-## 五、循环上限（P0-34）
+## 五、循环上限（P0-34 / v7.3.10+P0-139 加 Review 例外）
 
 ```
-PM 回应循环 ≤ 3 轮：
+通用 PM 回应循环 ≤ 3 轮（Goal-Plan PRD 评审 / Blueprint TC+TECH 评审）：
 ├── Round 1：reviewer 给 finding · PM 回应
 ├── Round 2：reviewer 看修订后 PRD · 给新 finding（或 PASS）· PM 再回应
 ├── Round 3：reviewer 终轮 · PM 终回应
@@ -120,6 +120,10 @@ PM 回应循环 ≤ 3 轮：
     5. 其他指示
 ```
 
+🟢 **Review Stage 例外（v7.3.10+P0-139）**：代码层修复循环 ≤ **5 轮**（而非 3）· 详 [stages/review-stage.md § 修复循环规则](../stages/review-stage.md)。
+- 理由：代码层 finding 修复粒度比文档层更细（单元测试 / 边界 case / 第三方依赖真实性等多视角并发），3 轮经常不够 · 5 轮覆盖典型大改动
+- 超限决策菜单同上（强制通过 / 继续 Round 6 / 缩小 scope / abort / 其他）
+
 ---
 
 ## 六、与其他规范的协作
@@ -129,7 +133,8 @@ PM 回应循环 ≤ 3 轮：
 | `templates/prd.md` PRD-REVIEW frontmatter schema | `reviews[].verdict` enum 引用本文件三等级 · `findings[].severity` enum 引用本文件三级 |
 | `standards/review-scope.md` | review_scope（prd / blueprint / code-review）维度 + 各 scope 的 verdict 应用 |
 | `roles/*.md` | 各 role 评审职责段 cite 本文件（不重复定义 verdict / severity）|
-| `stages/{goal-plan,blueprint,review}-stage.md` | 评审循环段 cite 本文件第五节（≤3 轮 + 超限处理）|
+| `stages/{goal-plan,blueprint}-stage.md` | 评审循环段 cite 本文件第五节（≤3 轮 + 超限处理）|
+| `stages/review-stage.md` | 代码层修复循环 cite 本文件第五节 Review 例外（≤**5 轮** · v7.3.10+P0-139）|
 | `rules/flow-transitions.md` | 评审循环 transition 引用本文件流转决策表 |
 
 ---

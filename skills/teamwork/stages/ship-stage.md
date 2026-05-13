@@ -814,9 +814,25 @@ python3 {SKILL_ROOT}/tools/state.py complete-stage --feature {artifact_root} --s
 python3 {SKILL_ROOT}/tools/state.py enter-stage --feature {artifact_root} --stage completed
 ```
 
+📌 **post-feature 调用**（v7.3.10+P0-137 · scripts-policy R-SP-1/R-SP-2 · KNOWLEDGE check + ROADMAP 派生段渲染）：
+
+```bash
+python3 {SKILL_ROOT}/tools/post-feature.py \
+  --project-dir {project_root} \
+  --features-dir {features_dir_relative} \
+  --feature-id {feature_id} \
+  [--roadmap {roadmap_relative}] [--knowledge {knowledge_relative}]
+```
+
+- exit 0 = OK · ROADMAP AUTO-GENERATED 段已与 state.json 对齐 · KNOWLEDGE 已含 feature_id
+- exit 1 = WARN · 非阻断（ROADMAP 无 marker / KNOWLEDGE 未含 feature_id）· stdout warnings 入 state.json · PMO 在完成报告里 cite
+- exit 2 = FAIL · 阻断 · state.json 真值损坏 · 必须修复后重跑
+
+🟢 **退役**：旧 `hooks/post-feature.sh` (bash) 在本 patch 删除 · 业务逻辑全迁 `tools/post-feature.py` · 跨宿主一致（CC/Codex/Gemini 同款 cite）· 详见 [../standards/scripts-policy.md](../standards/scripts-policy.md)。
+
 输出 PMO 完成报告（见「Feature 完成报告模板」）· state.json 已通过脚本累计写入 · 本步只输出报告 + 调脚本收尾。
 
-review-log.jsonl 追加一行 `stage: "ship-finalize"`，summary 含 merge_commit_hash + detection_method + push 状态（含降级标注）。
+review-log.jsonl 追加一行 `stage: "ship-finalize"`，summary 含 merge_commit_hash + detection_method + push 状态（含降级标注） + post_feature_verdict（OK/WARN）。
 
 ---
 

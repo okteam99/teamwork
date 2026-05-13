@@ -125,7 +125,8 @@
    ├── 命名规范（表名 / 字段名 / 索引名 / 约束名 · 与项目 KNOWLEDGE.md Convention 一致）
    ├── 字段类型选型（TEXT vs VARCHAR / TIMESTAMP vs TIMESTAMPTZ / NUMERIC 精度等）
    ├── NOT NULL / DEFAULT / NULLABLE 决策合理（业务语义清晰）
-   └── 主键选型（UUID vs BIGSERIAL · 分布式 / 单机 / 读写比）
+   ├── 主键选型（UUID vs BIGSERIAL · 分布式 / 单机 / 读写比）
+   └── 🔴 FK / CASCADE 决策（默认避免 · 引入须按 [standards/backend.md § FK 策略](../standards/backend.md) 在 TECH「Schema 影响分析」给理由 · 否则 BLOCKER · v7.3.10+P0-138）
 
 2. migration 完整性
    ├── up.sql 完整可执行（无依赖外部状态 · 幂等可重跑）
@@ -151,7 +152,7 @@
    │   ├── monorepo：services/{子项目}/docs/architecture/database-schema.md（多份分别同步）
    │   └── 自定义路径：项目维护的全 monorepo find `*database*schema*.md` 命中清单
    ├── 🔴 TECH.md 必须列入「全局 schema 文档同步」产物清单（指明哪些文件需更新）
-   ├── 同步内容必须含：表的 ER 关系 / 字段说明 / 索引 / 约束 / FK 策略例外 / Model/Struct 映射 / SQL 引用点 / migration 清单 / 变更记录
+   ├── 同步内容必须含：表的 ER 关系 / 字段说明 / 索引 / 约束 / FK 决策（cite [backend.md § FK 策略](../standards/backend.md) · v7.3.10+P0-138） / Model/Struct 映射 / SQL 引用点 / migration 清单 / 变更记录
    └── ❌ TECH.md 未列入全局 schema 文档同步 → BLOCKER（不可降级为非阻塞 concern）
 
 6. 隐私 / 合规

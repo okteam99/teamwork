@@ -172,7 +172,7 @@ v7.3.10+P0-41 之前的 Feature（在根 docs/features/）：
 
 **豁免列表**（满足条件才允许突破"中段 0 次"）：
 
-- **内部评审修复循环**（Blueprint TC/TECH 评审 / Review fix 循环）：每轮修复结束时 1 次 Write · 🔴 至多 3 轮
+- **内部评审修复循环**（Blueprint TC/TECH 评审 / Review fix 循环）：每轮修复结束时 1 次 Write · 🔴 Blueprint 至多 3 轮 · **Review Stage 至多 5 轮**（v7.3.10+P0-139）
 - **Subagent dispatch 产出整合**：每次 dispatch 整合后 1 次 Write · 🔴 每次 dispatch 至多 1 次
 - **用户显式追加需求导致 Stage 内部重走**：Read + Write 各 1 次 · 🔴 必须先走 PMO 分析 + 用户确认
 

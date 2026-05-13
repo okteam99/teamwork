@@ -1,5 +1,19 @@
 # 状态行（State Line）
 
+> 🟢 **render-first 物化（v7.3.10+P0-141 · 推荐路径）**：使用 [`tools/render-status-line.py`](./tools/render-status-line.py) 渲染合规状态行 · AI 传参 · 工具回吐 · spec 定义降级为参考与单源校验。详见 [standards/scripts-policy.md § R-SP-6](./standards/scripts-policy.md)。
+>
+> 用法（最小）：
+> ```bash
+> python3 {SKILL_ROOT}/tools/render-status-line.py \
+>   --flow Feature --role PMO --stage dev \
+>   --next-step "等用户确认 TC 评审" \
+>   --feature "F042-用户头像" \
+>   --path /abs/feature --branch feature/F042 --merge-target main --worktree-path /abs/wt
+> ```
+> 工具持单源 · 校验 enum / 路径 / emoji 间距 / 流程必填字段 · 非法即 exit 2 + cite spec hint。AI 把 stdout 直接 cite 进 final response · stderr JSON 走 R7 evidence binding 入 state.json。
+>
+> 本文件保留为：spec 单源（工具按本文件校验枚举）+ 渲染契约文档 + 手工 fallback 参考（工具不可用时）。
+>
 > 本文件唯一权威：状态行格式 / Final Response Preflight / 决策点参考路径硬规则 / 暂停点模板渲染契约 / 阶段对照表 / 各流程状态行示例。
 >
 > 📎 跨主题单源（v7.3.10+P0-116 拆出）：
@@ -13,76 +27,75 @@
 
 **每次回复必须包含状态标识，放在回复末尾。**
 
-### 状态行格式规范
+### 🟢 render-first 物化（v7.3.10+P0-141 落地 / +P0-142 升格强制 · R-SP-6 第二阶段）
 
-```
-第一行：🔄 Teamwork 模式 [⚡ AUTO] [🌐 Ext: {model}] | 流程：[...] | 角色：[...] | 阶段：[...] | 下一步：[...]
-🔴 必填追加字段（按流程类型）：
-├── Feature / 敏捷需求 → 功能：{缩写}-F{编号}-{功能名}（🔴 必填，不可省略）
-├── Bug 处理 → Bug：BUG-{编号}-{简述}（🔴 必填）
-├── Micro → 功能：Micro-{简述}（🔴 必填）
-└── 问题排查 / Feature Planning → 无功能编号时可省略
-可选追加字段：子项目 / 跨项目需求 / 涉及 / 受影响子项目
-🔴 ⚡ AUTO 徽章（v7.3.9+P0-11 新增）：
-├── AUTO_MODE=true → 在「🔄 Teamwork 模式」与「|」之间插入「⚡ AUTO」
-├── AUTO_MODE=false（默认）→ 不插入
-└── 触发来源：/teamwork auto [需求]（详见 [stages/triage-stage.md](./stages/triage-stage.md) Step 0）
-🌐 Ext 徽章（v7.3.10+P0-24 新增）：
-├── state.external_cross_review 任一 *_enabled=true（plan/blueprint/review 任一）→ 在「🔄 Teamwork 模式」/「⚡ AUTO」之后插入「🌐 Ext: {model}」（model = codex / claude）
-├── 三处 _enabled 全为 false 或字段不存在 → 不插入
-├── 既有 Feature 仍走 codex_cross_review 字段 → fallback 显示「🌐 Ext: codex」
-└── 触发来源：PMO 在初步分析阶段直接判定（v7.3.10+P0-72 自报宿主 + `command -v` 检查 CLI）后用户启用
+格式由 [`tools/render-status-line.py`](./tools/render-status-line.py) 持单源 · spec 不复述。
 
-第二行（按场景决定）：
-├── 有明确功能目录 / bugfix 目录 → 必须输出 `📁 {绝对路径}`（🔴 emoji 与路径之间**必须有一个空格**，v7.3.10+P0-62）
-├── 无功能目录但有工作区状态文件 → 输出该状态文件或工作区文档绝对路径
-└── 纯讨论/梳理阶段暂时没有落盘目录 → 第二行可省略
-
-第三行（分支 / worktree 状态，v7.3.9+P0 新增）：
-├── Feature / 敏捷 / Bug（worktree=auto/manual）→ 🌿 分支：{branch} → {merge_target} | worktree：{worktree.path}
-├── Feature / 敏捷 / Bug（worktree=off）→ 📍 当前分支：{branch} → {merge_target}（⚠️ 未启用 worktree，并行 Feature 请注意隔离）
-├── Micro（worktree=off）→ 📍 当前分支：{当前分支名}（⚠️ Micro 直接改主分支，操作前确认工作区干净）
-├── Micro（worktree=auto/manual）→ 🌿 分支：chore/{简述} → {merge_target} | worktree：{worktree.path}
-├── Planning（Roadmap / Workspace 架构 / 跨项目拆分）→ 📍 当前分支：{当前分支名}（Planning 阶段不改代码，分支仅供参考）
-├── Bug 修复阶段（复杂 Bug 已走 Feature 流程）→ 🌿 分支：bugfix/{编号}-{简述} → {merge_target} | worktree：{path}
-├── 问题排查 / PL 纯讨论 / Goal-Plan Stage preflight 之前 → 可省略（无分支语义或 worktree 未建）
-└── 字段取值优先级：
-    ├── state.json.worktree.{path, branch} + state.json.merge_target → 首选
-    ├── state.json 缺失时 → 回退 `git branch --show-current` 实时渲染，不虚构
-    └── 🔴 禁止把 worktree.path 写成相对路径或省略 worktree 字段伪装成 off
+```bash
+python3 {SKILL_ROOT}/tools/render-status-line.py \
+  --flow Feature --role PMO --stage dev \
+  --next-step "等用户确认 TC 评审" \
+  --feature "F042-用户头像" \
+  --path /abs/feature --branch feature/F042 --merge-target main --worktree-path /abs/wt
 ```
 
-### 状态行规则
+完整字段 / 校验规则 / 示例：`python3 tools/render-status-line.py --help` 或 [工具源码](./tools/render-status-line.py) + [测试 19 case](./tools/tests/test_render_status_line.py)。
+
+#### 工具持有的内容（spec 不复述）
 
 ```
-├── 「流程」字段只表示六种标准流程，不承载「工作区级」「PL 模式」等扩展语义
-├── 「工作区级」「PL 讨论中」「PL 变更评估中」等信息写入阶段字段
-├── 第二行路径必须是绝对路径（以 / 开头），不能用相对路径
-├── 只有在当前阶段确实没有可点击目录/文件时，才允许省略第二行
-├── 第三行在「分支 + merge_target」语义存在时必须输出；无 worktree 时用 📍 警示
-├── 🌿 = 已启用 worktree 隔离（安全），📍 = 直接在分支上操作（谨慎）
-├── ⚡ AUTO 徽章仅在 AUTO_MODE=true 时在第一行显示；默认不显示
-├── 🌐 Ext 徽章仅在 state.{stage}_substeps_config.review_roles[] 任一含 external 时在第一行显示（v7.3.10+P0-38 改造，不再读老 *_enabled 字段）
-├── 🔴 **emoji 间隔硬规则**（v7.3.10+P0-62）：所有图标（📁 / 🌿 / 📍 / ⚡ / 🌐 / 🔄 / 🔗 / ⏸️ 等）与其后紧随的文字内容之间**必须保留一个半角空格**。例：`📁 /Users/...`（✅）/ `📁/Users/...`（❌ 终端会把 emoji 和路径视为一体，不可点击）
-├── 🔴 **路径边界硬规则**（v7.3.10+P0-67）：任何**绝对路径前后都必须有 whitespace 边界**（半角空格 / 行首 / 行尾），让终端正确识别 hyperlink。
-│   ├── 路径**前**：emoji + 半角空格（已由 P0-62 规则保证）/ 或行首
-│   ├── 路径**后**：半角空格 / 换行 / 行尾。**禁止全角符号 / 中文字符 / 标点紧贴路径**
-│   ├── ✅ 正确：`📁 /Users/.../PRD.md\n` / `... 见 /Users/.../PRD.md ，请确认。`（路径后半角空格 + 全角逗号）
-│   └── ❌ 错误：`见 /Users/.../PRD.md，请确认`（全角逗号紧贴路径 → 终端把"PRD.md，"识别为整体，链接断裂）/ `路径：/Users/.../PRD.md（待确认）`（全角括号紧贴）
-└── 🔴 **长 URL / 长路径不进表格列硬规则**（v7.3.10+P0-70 实证 ship MR 链接被切碎）：长 URL（含 `?` `&` `=` `%` 等查询参数）/ 长绝对路径，**禁止挤入 markdown 表格列**或 markdown 链接语法 `[文字](URL)`，**必须独立成行裸输出**（前后 whitespace 边界）。
-    ├── 原因：表格列宽切碎多行 / 全角竖线 `|` 干扰识别 → 终端无法识别为可点击 hyperlink
-    ├── ✅ 正确（独立行裸输出）：
-    │   ```
-    │   🔗 MR 创建链接：
-    │
-    │   https://git.example.com/owner/repo/-/merge_requests/new?merge_request%5Bsource_branch%5D=feature%2FX
-    │   ```
-    └── ❌ 错误（挤入表格列）：
-        ```
-        | MR 创建链接 | https://git.example.com/owner/repo/-/merge_requests/new?merge_request%5Bsource_branch%5D=feature%2FX |
-        ```
-        → URL 被列宽切碎 / 全角竖线干扰 / 用户无法点击
+├── 6 字段（流程 / 角色 / 阶段 / 下一步 + 可选功能/Bug）+ 2 徽章（⚡ AUTO / 🌐 Ext）
+├── 3 行结构（状态行 + 📁 路径 + 🌿/📍 分支）
+├── enum 校验：6 流程 · 7 角色 · 11 stage · 3 ext-model
+├── 流程必填字段：Feature/敏捷/Micro → --feature 必填 · Bug → --bug 必填
+├── 路径绝对性校验（--path / --worktree-path 必须 / 开头）
+├── emoji 间距硬规则（📁 / 🌿 / 📍 + 半角空格 · 实证 P0-62 / P0-67）
+├── 第三行分支警告语自动选择（worktree 启用 → 🌿 · 未启用 → 📍 + 各流程语境警告）
+└── stage enum → 语义文本默认映射（用 --stage-text 覆盖如 '⏸️ PRD 待确认'）
 ```
+
+#### 输出契约
+
+- **stdout** = 合规状态行（多行 · AI 直接 cite 进 final response）
+- **stderr** = 审计 JSON（含 tool_version / params / timestamp）· 走 R7 evidence binding 入 state.json
+- exit 0 = OK · exit 2 = 参数非法（stderr 含 `cite` spec hint 指向本文件具体段）
+
+#### 🔴 R-SP-6 第二阶段强制（v7.3.10+P0-142）
+
+**❌ 禁止手敲状态行** · 必须调 render-status-line.py · 漏调 = state.json.concerns 审计 WARN。
+
+理由（实证 case 链）：手敲必致漂移
+- P0-66 INFRA-F017 case："📍 Teamwork：..." 摘要替代标准状态行
+- P0-118 PTR-F001-BUG-013 case：摘要风格 / 缺 📁 + 🌿 + 📚 决策参考
+- P0-118-A：输出 📋 阶段流转校验行后跳过 🔄 末尾状态行
+
+工具是 single source · 改格式只动 .py + tests · spec 不动。
+
+### 状态行规则（工具未覆盖部分 · 教育规则）
+
+```
+├── 「工作区级」「PL 讨论中」「PL 变更评估中」等扩展语义写入阶段字段
+│   └── 用 --stage-text 覆盖默认 enum 映射
+├── 第二行可省略条件：当前阶段确实没有可点击目录/文件（纯讨论 / 梳理）
+├── 第三行可省略条件：问题排查 / PL 纯讨论 / Goal-Plan preflight 之前（worktree 未建）
+├── 🌿 = 已启用 worktree 隔离（安全） · 📍 = 直接在分支上操作（谨慎）→ 工具按 --worktree-path 自动选
+├── 字段取值优先级（工具调用者职责）：
+│   ├── state.json.worktree.{path, branch} + state.json.merge_target → 首选传给工具
+│   ├── state.json 缺失时 → 回退 `git branch --show-current` 实时取（不虚构）
+│   └── 🔴 禁止 worktree.path 写相对路径（工具会 exit 2）
+└── 🔴 **路径边界硬规则**（v7.3.10+P0-67 · 工具部分保证 emoji+空格那一侧 · narrative 中另一侧需自查）：
+    ├── 路径**后**：半角空格 / 换行 / 行尾。**禁止全角符号 / 中文 / 标点紧贴路径**
+    ├── ✅ 正确：`见 /Users/.../PRD.md ，请确认。`（路径后半角空格 + 全角逗号）
+    └── ❌ 错误：`见 /Users/.../PRD.md，请确认`（全角逗号紧贴 → 链接断裂）
+```
+
+🔴 **长 URL / 长路径不进表格列硬规则**（v7.3.10+P0-70 实证 ship MR 链接被切碎 · 通用输出规则 · 非状态行专属）：
+
+长 URL（含 `?` `&` `=` `%` 等查询参数）/ 长绝对路径，**禁止挤入 markdown 表格列**或 markdown 链接语法 `[文字](URL)`，**必须独立成行裸输出**（前后 whitespace 边界）。
+
+- 原因：表格列宽切碎多行 / 全角竖线 `|` 干扰识别 → 终端无法识别为可点击 hyperlink
+- ✅ 正确：URL 独立成行裸输出
+- ❌ 错误：URL 挤入表格列或 `[文字](URL)` 语法
 
 ### 🔴 Final Response Preflight（v7.3.10+P0-66 实战补充）
 
@@ -135,24 +148,13 @@
 
 退出真正发生在**这条回复之后**用户输入新无关需求 / `/teamwork exit` / 或对话结束时。
 
-**state.json `current_stage` enum vs 阶段字段语义映射（v7.3.10+P0-55 新增）**：
+**state.json `current_stage` enum vs 阶段字段语义映射**：
 
-```
-state.current_stage enum 值 → STATUS-LINE 阶段字段语义
-├── triage              → "需求理解中"
-├── goal_plan           → "PRD 起草中" / "PRD 评审中" / "⏸️ PRD 待确认"（按子步骤）
-├── ui_design           → "UI 设计中" / "⏸️ 设计稿待确认"
-├── blueprint           → "TC 起草中" / "TECH 起草中" / "⏸️ Blueprint 待确认"
-├── dev                 → "开发中" / "TDD 红绿循环"
-├── review              → "三视角并行审查" / "⏸️ QUALITY_ISSUE 待处理"
-├── test                → "集成测试 / E2E 中"
-├── browser_e2e         → "Browser E2E 中" / "⚡ AUTO 跳过"
-├── pm_acceptance       → "⏸️ PM 验收（3 选 1）"
-├── ship                → "净化 + push" / "⏸️ MR 待合并" / "Ship 第二段 finalize 中"
-└── completed           → "✅ 已完成"（v7.3.10+P0-66 单一规范 · 替换原「✅ 已交付」）
-```
+🟢 **单源 · 物化**（v7.3.10+P0-142）：11 个 stage 默认语义在 [`tools/render-status-line.py`](./tools/render-status-line.py) `STAGE_SEMANTIC_DEFAULT` 字典持有 · 工具按 enum 自动映射。
 
-🔴 PMO 渲染 STATUS-LINE 时按本表映射 current_stage 到语义化阶段字段，不直接显示 enum 值。
+子步骤级精细化语义（如 `⏸️ PRD 待确认` / `TDD 红绿循环` / `⏸️ MR 待合并`）通过 `--stage-text` 覆盖默认值。
+
+🔴 PMO 调工具时 `--stage` 传 enum 值（如 `goal_plan`）· 工具按映射输出「PRD 起草中」；需更精细语义时加 `--stage-text "⏸️ PRD 待确认"` 覆盖。
 
 ---
 
@@ -360,28 +362,24 @@ AUTO 模式 + 外部模型同时启用：
 
 **worktree=off 退化**：第三行 🌿 → 📍（`📍 当前分支：{branch} → {merge_target}（⚠️ 未启用 worktree，并行 Feature 请注意隔离）`）。
 
-### 第二行路径规则
+### 第二行 / 第三行渲染规则（工具持有）
+
+🟢 **单源 · 物化**（v7.3.10+P0-142）：第二行（📁 路径）+ 第三行（🌿/📍 分支）渲染逻辑全部由 [`tools/render-status-line.py`](./tools/render-status-line.py) `render_line2` / `render_line3` 函数持有。
+
+调用者职责（spec 教 PMO 怎么准备参数）：
 
 ```
-默认优先输出当前阶段实际落盘的功能目录或状态文件路径。
-示例优先级：
-├── Feature / 敏捷需求 → 功能目录
-├── Bug → bugfix 目录
-├── 工作区级 Planning / 跨项目拆分 → teamwork_space.md
-└── 纯问题排查且尚未产出文档 → 可省略第二行
-```
+第二行 --path 参数取值优先级：
+├── Feature / 敏捷需求 → 功能目录绝对路径
+├── Bug → bugfix 目录绝对路径
+├── 工作区级 Planning / 跨项目拆分 → teamwork_space.md 绝对路径
+└── 纯问题排查且尚未产出文档 → 不传 --path（工具自动省略第二行）
 
-### 第三行分支规则
-
-```
-默认优先输出 state.json 中的 worktree + merge_target 组合。
-渲染决策：
-├── state.json.worktree.strategy == "auto" / "manual" + path 存在 → 🌿 分支：... | worktree：...
-├── state.json.worktree.strategy == "off" → 📍 当前分支：... → {merge_target}
-├── Micro 默认 off → 📍 当前分支：{git branch --show-current}（用户显式开启 worktree=auto 时才走 🌿 分支）
-├── Goal-Plan Stage preflight 之前 worktree 尚未创建 → 省略第三行或标注"worktree 待创建"
-├── 问题排查 / PL 纯讨论 / 初始 PMO 分析 → 可省略
-└── 🔴 禁止：worktree.path 用相对路径 / 伪造 state.json 字段 / 混用 🌿 和 📍 语义
+第三行 --branch / --merge-target / --worktree-path 参数：
+├── state.json.worktree.{path, branch} + state.json.merge_target 存在 → 全传给工具 · 工具输出 🌿
+├── worktree=off → 不传 --worktree-path · 工具按流程语境输出 📍 + 警告
+├── Goal-Plan preflight 之前 / 纯讨论 → 不传 --branch（工具自动省略第三行）
+└── 🔴 禁止：worktree.path 用相对路径（工具 exit 2 + cite 本文件）/ 伪造 state.json 字段
 ```
 
 ### 下一步说明规则

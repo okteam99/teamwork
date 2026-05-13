@@ -23,7 +23,7 @@
 | 各角色 `execution` | architect / qa subagent（防鼓掌效应）+ external external-shell | `state.review_substeps_config.review_roles[].execution` | Stage 入口实例化 |
 | `parallel_mode` | true（三视角并行）| `state.review_substeps_config.parallel_mode` | Stage 入口实例化 |
 | `schema_change_triggered` | git diff 含 migration / DDL / schema 改动 | `state.schema_change_evidence.detected_at_review` | 架构师 CR 入口判断（v7.3.10+P0-119）|
-| 修复循环 max | 3 轮 | spec 内嵌 | Stage 出口判断 |
+| 修复循环 max | **5 轮**（v7.3.10+P0-139 · 从 3 提到 5 · Review Stage 专属覆盖通用默认 3）| spec 内嵌 | Stage 出口判断 |
 | 模型偏好（v7.3.10+P0-40）| Opus（AI Plan 模式默认）| `state.planned_execution.review.model` | Stage 入口 |
 | `hint_overrides` | null | `state.review_substeps_config.hint_overrides` | Stage 入口实例化偏离 hint 时 |
 
@@ -101,7 +101,7 @@ Step 4: tools/state.py snapshot --tier stage         ← 🔴 替代直接 Read 
 ```
 
 🔴 外部模型视角独立 dispatch 时，外部 session 内不经过 state.json 入口流，只读 diff + PRD/TECH/TC + standards（保持独立性）。
-🔴 R3 约束：state.json 入口 Read 1 次 → 中段 0 读写 → 出口 Read 1 次 + Write 1 次。fix 修复循环豁免 ≤3 轮、每轮 ≤1 次 Write；全 Stage ≤ 8 次。
+🔴 R3 约束（v7.3.10+P0-139 调整 · 配合 max_rounds 3→5）：state.json 入口 Read 1 次 → 中段 0 读写 → 出口 Read 1 次 + Write 1 次。fix 修复循环豁免 ≤5 轮、每轮 ≤1 次 Write；全 Stage ≤ 10 次（baseline 3 + 5 轮 × 1 = 8 · 留 2 余量给异常追加）。
 
 📌 **state.py 调用约定（v7.3.10+P0-128）**：本 Stage 内涉及 state.json 的读 / 写一律走 [tools/state.py](../tools/state.py) · spec 中所有 `state.json.X` / `state.X` 描述都是**语义引用** · 实际操作走脚本：
 - 读：`tools/state.py snapshot --tier stage [--cite a,b,c]`（cite-only · 不读全 410 行）
@@ -195,7 +195,7 @@ Step 4: tools/state.py snapshot --tier stage         ← 🔴 替代直接 Read 
 - 🔴 **外部模型独立性硬约束**：外部视角严禁读架构师 / QA 的 review 报告
 - 🔴 **完整性**：每个视角按各自规范完整执行，不能因为另一个视角已通过就简化
 - 🔴 **不修复**：Review 只审不改，发现问题返回 PMO 安排 RD 修复
-- 🔴 **循环控制**：修复-重跑循环 ≤3 轮
+- 🔴 **循环控制**：修复-重跑循环 ≤5 轮（v7.3.10+P0-139 · 从 3 提到 5 · Review Stage 专属覆盖通用默认）
 - 🔴 **Stage 完成前 git 干净** → 统一遵循 [rules/gate-checks.md § Stage 完成前 git 干净](../rules/gate-checks.md#-stage-完成前-git-干净v739-硬规则p0-集中化)（本 Stage commit message：`F{编号}: Review Stage - fix {简述}`；每轮修复独立 commit；auto_commit 为**数组**字段，多轮 QUALITY_ISSUE 修复 append）
 
 ### 多视角独立性（产物结构保证）
@@ -237,7 +237,7 @@ Step 4: tools/state.py snapshot --tier stage         ← 🔴 替代直接 Read 
 |------|------|------|
 | ✅ DONE | 三视角均无阻塞 | 进入 Test Stage |
 | ⚠️ DONE_WITH_CONCERNS | 有 🟡 建议但无 🔴 阻塞 | PMO 评估，非阻塞则继续 |
-| 🔁 NEEDS_FIX | 任一视角有 🔴 阻塞 | RD 修复 → 重跑相关视角（≤3 轮） |
+| 🔁 NEEDS_FIX | 任一视角有 🔴 阻塞 | RD 修复 → 重跑相关视角（≤5 轮 · v7.3.10+P0-139） |
 | ❌ FAILED | Codex 不可用且降级失败 | PMO ⏸️ 用户选择 |
 
 ### 修复循环规则
@@ -249,7 +249,7 @@ Review Stage NEEDS_FIX 时：
 2. 派发 RD 修复（PMO dispatch 或主对话）
 3. 修复范围 ≤2 文件且无逻辑变更 → 只重跑发现问题的视角
 4. 修复涉及逻辑变更 → 全部三个视角重跑
-5. 🔴 最多 3 轮，超出 → ⏸️ 用户决策（v7.3.10+P0-75 必含「📚 决策参考」绝对路径段，详见 STATUS-LINE.md § 决策点参考文档绝对路径硬规则）
+5. 🔴 最多 **5 轮**（v7.3.10+P0-139 · 从 3 提到 5），超出 → ⏸️ 用户决策（v7.3.10+P0-75 必含「📚 决策参考」绝对路径段，详见 STATUS-LINE.md § 决策点参考文档绝对路径硬规则）
    📚 必列：REVIEW.md / external-cross-review/review-external-{model}.md（如启用） / 涉及代码文件 / 涉及测试文件 全部绝对路径
 
 Codex 独立性保障：

@@ -631,6 +631,56 @@ try {
 └── 不写 down 回滚脚本
 ```
 
+### FK（外键）策略（v7.3.10+P0-138 新增）
+
+> 🔴 **默认避免** DB-level `FOREIGN KEY` 约束（含 `ON DELETE CASCADE` / `ON UPDATE CASCADE`）。引用完整性由应用层 / ORM hook / 服务边界保证。
+>
+> 项目可在 `KNOWLEDGE.md` 中声明覆盖此默认（如"本项目默认启用 FK"），声明后以 KNOWLEDGE.md 为准 + TECH.md 引用 KNOWLEDGE.md 行号。
+
+#### 默认避免的理由（行业常见取向）
+
+```
+├── 分库 / 分表后 FK 失效 · 规则必须强制到应用层 · 双层维护反而不一致
+├── 大批量写入 / 数据迁移 / 灰度回放时 FK check 成本不可控（锁 / 校验 / 死锁）
+├── 跨服务边界（微服务 / 中台）引用关系不该由 DB 隐式承载
+├── 级联删除 / 级联更新在生产事故时回滚成本极高（一行 delete 删全库）
+└── ORM 层（GORM / SQLAlchemy / Prisma / Sequelize）通常已能维护引用语义
+```
+
+#### 引入 FK / CASCADE 的硬要求
+
+🔴 若 TECH.md 仍要引入 `FOREIGN KEY` 或 `ON DELETE/UPDATE CASCADE`，**必须**在「Schema 影响分析」表中加一行 **「FK 决策 + 理由」**，理由须满足以下任一条件：
+
+```
+✅ 强一致小规模 OLTP（单库 · 不会分片 · 行数预估 <10M · 写入 QPS 低）
+✅ 法务 / 合规 / 财务类强约束（应用层不可信 · DB 是最后真值防线）
+✅ 内部管理后台 / 配置表（写入极低频 · 一致性 > 性能）
+✅ KNOWLEDGE.md 已明文记录"本项目默认启用 FK"约定（cite 行号）
+```
+
+❌ **反模式黑名单**（命中即架构师 Tech Review BLOCKER · 不可降级为非阻塞 concern）：
+
+```
+❌ "ORM 自动生成的 FK 我没动" → 必须在 migration 显式 DROP CONSTRAINT 或在 TECH 给理由
+❌ "为了开发期数据完整性方便" → 开发期 ≠ 生产期 · 单测覆盖才是真防线
+❌ "防止脏数据" → 应用层 transaction + 单测才是真防线 · DB 兜底是误解
+❌ "通用最佳实践" / "教科书推荐" / "DBA 默认建议" → 无项目语境的理由 = 没给理由
+❌ 没在 TECH 写 FK 决策行 → 视为引入未声明 · BLOCKER
+```
+
+#### 出口校验（架构师 Tech Review · 命中触发关键词必查）
+
+```
+触发：TECH.md / migration / database-schema.md 含 FOREIGN KEY / REFERENCES / FK / CASCADE
+校验：
+  1. TECH.md「Schema 影响分析」表存在「FK 决策 + 理由」行
+  2. 理由满足上述 ✅ 任一条件
+  3. 反模式黑名单未命中
+  4. 若启用 CASCADE → 额外列出"删除主行将连带删除哪些子行"清单 + Code Review 必查
+```
+
+📎 单源约束：本段是 FK 策略的唯一权威 · `roles/architect-tech-review.md` / `templates/tech.md` 仅 cite 不复述。
+
 ### Schema 变更链条术语对照
 
 | 阶段 | 规范位置 | 使用术语 | 验证重点 | database-schema.md 操作 |

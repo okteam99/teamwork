@@ -1,5 +1,5 @@
 {
-  "description": "Teamwork hooks: auto-restore on session start, save state before compaction, auto-recover after compaction, check STATUS.md on stop. Additional scripts (post-subagent.sh, post-feature.sh) are called by PMO during workflow execution.",
+  "description": "Teamwork hooks: auto-restore on session start, save state before compaction, auto-recover after compaction, check STATUS.md on stop. Additional scripts (post-subagent.sh) are called by PMO during workflow execution. Feature 收尾归档已迁至 tools/post-feature.py (v7.3.10+P0-137 · scripts-policy.md).",
   "hooks": {
     "SessionStart": [
       {

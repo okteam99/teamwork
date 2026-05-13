@@ -652,7 +652,7 @@ PMO/当前角色在暂停点输出时，必须同时满足以下 5 条：
 🔗 Review Stage（stages/review-stage.md）
     内部：架构师 CR ∥ Codex Review ∥ QA 代码审查（三路并行）
     ├── DONE → 🚀 自动
-    ├── NEEDS_FIX → RD 修复 → PMO 判断重跑哪些 review（≤3 轮）
+    ├── NEEDS_FIX → RD 修复 → PMO 判断重跑哪些 review（≤5 轮 · v7.3.10+P0-139）
     └── FAILED → ⏸️ 用户决策
     ↓ 🚀 自动
 

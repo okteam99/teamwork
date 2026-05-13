@@ -1,6 +1,238 @@
 # Changelog
 
-## v7.3.10 + P0-136（当前 · SKILL.md 6 流程定义同步 Ship 链路 · 治本 spec 内部不一致）
+## v7.3.10 + P0-142（当前 · STATUS-LINE.md 瘦身 · A 类规则降级为工具指针 · R-SP-6 升第二阶段）
+
+> **触发**：P0-141 落地 render-status-line.py 后，用户提问 "STATUS-LINE.md 里面内容是否可以清理掉了，把状态逻辑写到 python 里"。
+>
+> **诊断**：STATUS-LINE.md 内容分三类
+> - A 类（render-status-line.py 完全持有）：格式定义 / enum 映射 / 第二行第三行规则 → 应降级为指针
+> - B 类（待后续 render-* 物化）：决策类暂停点 10 类清单 / 暂停点模板 → 暂保留
+> - C 类（工具不能替代）：Preflight self-check / 反模式黑名单 / 流程示例 / 阶段对照表 → 必须保留
+>
+> 本 patch 严格限定 A 类清理 · 不动 B/C 类。
+
+### P0-142：A 类规则降级 + R-SP-6 升第二阶段 + meta-test 防漂移
+
+加 1 删 1 账（净删 · 路径 B）：
+- 🗑️ STATUS-LINE.md A 类删除（约 127 行原文）：
+  - L26-67 状态行格式规范完整定义（第一行/第二行/第三行）
+  - L69-99 状态行规则（emoji 间距 / 路径绝对性 / 徽章规则）
+  - L152-169 state.current_stage enum vs 阶段字段语义映射表
+  - L377-399 第二行 / 第三行渲染规则
+- ➕ STATUS-LINE.md 加指针（约 75 行新内容）：
+  - render-first 工具用法示例 + 工具持有清单 + 输出契约
+  - 🔴 R-SP-6 第二阶段强制段（"❌ 禁止手敲状态行 · 必须调工具 · 漏调 = WARN"）+ 实证 case 链
+  - 工具未覆盖部分的教育规则（短版）
+  - 第二行/第三行调用者职责（PMO 怎么准备参数）
+- ➕ scripts-policy.md R-SP-6 加「当前阶段速查」表 + render-status-line.py 第二阶段标记
+- ➕ tools/tests/test_render_status_line.py 加 4 个 meta-test：
+  - STATUS-LINE.md 必含工具指针
+  - STATUS-LINE.md 不含旧 enum 表标志（防回滚）
+  - STATUS-LINE.md 不含旧格式定义块标志（防回滚）
+  - scripts-policy.md 含「当前阶段速查」+ render-status-line.py 第二阶段
+
+STATUS-LINE.md 实际变化：489 → 473 行（净减 16 行）· 但**质变** > 量变：
+- A 类规则从"详细规范"降为"指针 + 工具职责说明"
+- 工具持单源 · 改格式只动 .py + tests · spec 不动
+
+不动（边界严格 · 与 P0-142 范围预先约定一致）：
+- B 类 161-313 行（决策类清单 / 暂停点模板）→ 等后续 P0 落 `render-decision-pause.py` / `render-afk-skip.py` 时再迁
+- C 类 Preflight self-check + 反模式黑名单 + 流程示例 + 阶段对照表 → 工具不能替代 · 永保留
+- 不批量改其他文件 cite STATUS-LINE.md（cite 不破坏 · 仅本文件内容变）
+
+R-SP-6 渐进切换（当前位置）：
+- 第一阶段（P0-141）：spec 加 "推荐调"  ✅
+- **第二阶段（P0-142 · 当前）**：spec 加 "必须调 · 漏调 WARN"  ⚡
+- 第三阶段（未来）：硬强制 · 配 verify-output-format.py 拒绝无 evidence binding 的 final response
+
+测试：88 + 4 meta = **92/92 PASS**
+
+---
+
+## v7.3.10 + P0-141（render-first 物化原则 + 状态行 render 工具 P1）
+
+> **触发**：本轮对话 "L2 → L3 物化迁移专版" 梳理后，用户提出 "verify check 类是否可以更进一步 · 格式放代码里 · PMO 传参 · 工具回吐合规输出"。这是 verify-first → **render-first** 的范式反转：
+> - verify-first：spec 教 AI 写格式 · AI 自行拼接 · 工具事后检测违反
+> - render-first：工具持单源格式 · AI 传参语义 · 工具回吐合规输出 · 结构上不可漂移
+>
+> **诊断**：之前几乎所有同型 case（P0-118 状态行漂移 / 今轮 auto 模式 "视为通过" 错措辞 / P0-136 Micro 没 Ship）都涉及 AI 自创结构化输出。render-first 把"格式"从 spec 层（AI 不可靠）下沉到代码层（工具可靠）· AI 只负责语义参数。
+
+### P0-141：scripts-policy R-SP-6 立账 + render-status-line.py P1 落地
+
+加 1 删 1 账：
+- ➕ [standards/scripts-policy.md § R-SP-6](../standards/scripts-policy.md)（新增 ~60 行 · render-first 优于 verify-first 原则 + A/B/C 三档适用判定 + 五条工具原则 + 与 verify-first 配合层）
+- ➕ [tools/render-status-line.py](../tools/render-status-line.py)（~210 行 · 6 字段 + auto/ext 徽章 + 3 行格式 + 11 stage enum / 7 role / 6 flow 校验）
+- ➕ [tools/tests/test_render_status_line.py](../tools/tests/test_render_status_line.py)（19 case · happy 5 + flow 变体 3 + validation 9 + emoji 间距 2）
+- ➕ [STATUS-LINE.md](../STATUS-LINE.md) 顶部加 render-first 推荐段 + 工具用法示例（本文件降级为单源校验 + 手工 fallback 参考）
+
+工具特性（与 scripts-policy.md R-SP-1..6 一致）：
+- 跨宿主 python3（CC/Codex/Gemini 同款调用）
+- 参数即合规校验：stage / role / flow / ext-model enum + 路径绝对性 + 流程必填字段（Feature/敏捷/Micro→功能 · Bug→Bug 号）
+- 非法即 exit 2 + stderr JSON 含 `cite` spec hint（AI 知道去哪修）
+- stderr 审计 JSON 含 tool_version / params / rendered_lines / timestamp → R7 evidence binding 入 state.json
+- emoji 间距硬规则（📁 / 🌿 / 📍 + 半角空格）由工具保证 · AI 无法漏
+
+工具不覆盖（明示边界）：
+- ⚡ auto skip 日志 → 后续 P0 落地 `render-afk-skip.py`
+- 📋 阶段流转校验行 → 后续 P0 落地 `render-flow-transition.py`
+- 📚 决策参考块 → 后续 P0 落地 `render-decision-pause.py`
+- 输出整体结构 verify 兜底 → 后续 P0 落地 `verify-output-format.py`（按 state.json evidence_binding 检查 AI 是否真调过 render-* 工具）
+
+渐进切换（不强制 · 与 R-SP-6 五条原则一致）：
+- 第一阶段（本 patch）：spec "推荐调 render-status-line.py" · AI 手敲仍可
+- 第二阶段（后续）：spec "必须调" · 漏调审计 WARN
+- 第三阶段（远期）：硬强制 · 配 verify-output-format.py 拒绝无 evidence binding 的 final response
+
+测试：69 + 19 = **88/88 PASS**（含原 5 工具回归 + 新工具 19 case）
+
+不动（边界严格）：
+- STATUS-LINE.md 主体规范保留（工具按它校验 · 改 spec → 改工具 → 改 tests 三同步）
+- L1 红线零增量（R-SP-6 落 L2 standards · 与 P0-137/138/139/140 同型路径 B）
+- 不批量改其他 spec cite（仅 STATUS-LINE.md 顶部加推荐 · 后续 patch 触发再扩散）
+
+---
+
+## v7.3.10 + P0-140（UI.md 瘦身 · 视觉真相归 HTML · 意图追溯审计归 UI.md）
+
+> **触发**：用户提问 "是否可以把 UI.md 去掉 · HTML 作为唯一设计真相"。审计发现 UI.md 内部职责混乱：
+> 1. **视觉描述段**（布局 / 组件表 / 主色 / 字号 / 间距 / 响应式 / 状态设计 / 用户流程文字）—— 与 `preview/*.html` 重复 · drift 风险
+> 2. **意图 / 追溯段**（panorama_path / 全景宿主 / UI-AC-COVERAGE）—— HTML 无法承载
+> 3. **审计段**（Designer 自查 5 维度 + 全景对齐证据 + 变更记录）—— HTML 无法承载
+>
+> **诊断**：完全删 UI.md 会丢 2/3 类信息 · 不可行。正确做法是**单源化**——视觉归 HTML、意图追溯审计归 UI.md，职责互不重叠。
+
+### P0-140：UI.md 职责单源化 · 删视觉重复段
+
+加 1 删 1 账（净删 · 路径 B）：
+- 🗑️ [templates/ui.md](../templates/ui.md) 删除视觉描述段：
+  - 用户流程（文字描述 → HTML 真相）
+  - 页面结构 / 布局 / 组件表 / 设计标注（主色/字号/间距）
+  - 响应式断点表
+  - 状态设计（加载/空/错误文字描述 → HTML 4 态文件真相）
+- ➕ [templates/ui.md](../templates/ui.md) 加：
+  - 顶部职责单源声明（视觉真相 = HTML / 意图追溯审计 = UI.md）
+  - 「预览稿索引」表（替代旧的视觉描述 · 只索引不复述）
+  - HTML 模板加 `data-ac="AC-XX"` 锚定示例
+  - UI-AC-COVERAGE 表「对应页面 / HTML 区块」列（grep 友好）
+- ➕ [stages/ui-design-stage.md](../stages/ui-design-stage.md) 第 2/3 子步骤 + Output Contract 表 明示职责边界：
+  - UI.md = 意图 / 追溯 / 审计文档
+  - preview/*.html = 视觉真相唯一载体
+
+模板行数：107 → ~100（净 -7 · 但视觉段 ~25 行删除 · 净换成更明确的职责声明 + 索引表）
+
+verify-panorama.py 影响评估：
+- 现有依赖：`Designer 自查报告` header / `panorama_path` marker / `UI-AC-COVERAGE` marker / 5 维度 checklist / 全景宿主标注
+- 全部在保留段——**零影响** · 9/9 PASS
+
+测试：69/69 PASS（含 verify-panorama 9 case · 无回归）
+
+不动（边界严格）：
+- L1 红线零增量（与 P0-137/138/139 同型路径 B）
+- 现有项目已写的 UI.md 不强制迁移——本 patch 只改模板 / spec · 历史 Feature 的 UI.md 保留
+- 不删 UI.md 文件本身（仍是必出产物 · 只是内容瘦身）
+
+---
+
+## v7.3.10 + P0-139（Review Stage 修复循环上限 3 → 5）
+
+> **触发**：用户明确要求 "Review Stage 三视角独立 CR 改为最多 5 轮"。
+>
+> **背景**：代码层 finding 修复粒度比文档层细（单元测试 / 边界 case / 第三方依赖真实性 / 并发安全多视角并发），实战中 3 轮经常不够 · 触顶后用户须做"强制通过 / 继续 / abort"决策的频次偏高。
+
+### P0-139：Review Stage 专属覆盖通用默认
+
+加 1 删 1 账（修改型 patch · 净增量 0 规则）：
+- 修改 [stages/review-stage.md](../stages/review-stage.md) 5 处：L26 / L104（R3 budget 8→10）/ L198 / L240 / L252 · 全部 3 → 5
+- 修改 [RULES.md L655](../RULES.md) · Review Stage NEEDS_FIX 上限 3 → 5
+- 修改 [standards/review-verdict.md § 五 循环上限](../standards/review-verdict.md) · 通用默认仍 3 · **新增 Review Stage 例外段（5 轮 + 理由）** + 协作表区分 goal-plan/blueprint（≤3）vs review（≤5）
+- 修改 [standards/prompt-cache.md L127](../standards/prompt-cache.md) · 内部评审豁免拆分：Blueprint 至多 3 · Review 至多 5
+- 修改 [roles/pmo-state-mgmt.md L175](../roles/pmo-state-mgmt.md) · 内部评审豁免同上拆分
+
+R3 prompt-cache budget 调整：
+- 原：baseline 3 + 3 轮 × 1 = 6 · 上限 8（留 2 余量）
+- 新：baseline 3 + 5 轮 × 1 = 8 · 上限 10（留 2 余量 · 等比例上调）
+
+不动（边界严格）：
+- Test Stage Verify-Fix 循环仍 ≤3（RULES.md L571/L587 · 用户未提）
+- UI 还原验收循环仍 ≤3（RULES.md L926 · 用户未提）
+- Goal-Plan PRD 评审 / Blueprint TC+TECH 评审仍 ≤3（仅 Review Stage 例外）
+- state.json `_review_round_max` 字段在 goal_plan_substeps_config 下 · 与 Review Stage 无关 · 不动
+
+测试：69/69 PASS（spec 改动 · 不影响脚本逻辑）
+
+---
+
+## v7.3.10 + P0-138（FK 策略 · 默认避免 · 引入须给项目语境理由）
+
+> **触发**：用户询问"开发规范是否有 FK 相关规范"。审计发现 teamwork 现状缺位：
+> - [roles/architect-tech-review.md:117](../roles/architect-tech-review.md) 把 FK 当 schema 变更触发关键词，但策略本身没写
+> - [roles/architect-tech-review.md:154](../roles/architect-tech-review.md) 提到"FK 策略例外"是孤儿引用 · 策略文档不存在
+> - [standards/backend.md § 五 数据库迁移规范](../standards/backend.md) 完整覆盖 migration / Schema 影响分析 · 但全段未提 FK
+> - [templates/tech.md Schema 影响分析](../templates/tech.md) 无 FK 决策栏
+>
+> **元规则反思**：spec 留触发器但不留策略 = 实战中架构师评审无标准可循 · 命中 P0-117 同型问题（spec 自我引用断裂）。
+
+### P0-138：FK 策略立账 · 单源 + 出口校验 + 模板栏位
+
+加 1 删 1 账：
+- ➕ [standards/backend.md § 五 FK（外键）策略](../standards/backend.md)（新增 ~55 行 · 默认避免理由 + 引入硬要求 + 反模式黑名单 + 出口校验）
+- ➕ [templates/tech.md Schema 影响分析](../templates/tech.md) 加「FK 决策」表（FK / CASCADE 触发必填）
+- ➕ [roles/architect-tech-review.md 3.1 §1](../roles/architect-tech-review.md) schema 设计合理性 checklist 加 FK 决策项
+- ➖ [roles/architect-tech-review.md:154](../roles/architect-tech-review.md) "FK 策略例外" 孤儿引用 → 改 cite backend.md § FK 策略（单源化）
+
+策略核心（单源在 backend.md）：
+- 🔴 **默认避免** DB-level FOREIGN KEY + ON DELETE/UPDATE CASCADE · 引用完整性走应用层
+- 🔴 引入须满足 ✅ 4 个条件之一（强一致小规模 OLTP / 法务合规 / 内部管理后台 / KNOWLEDGE.md 覆盖默认）
+- ❌ 反模式黑名单 5 条（ORM 自动生成 / 开发期方便 / 防脏数据 / 通用最佳实践 / 没写决策行）
+- 🔴 触发关键词（FOREIGN KEY / REFERENCES / FK / CASCADE）→ 架构师 Tech Review 4 项出口校验
+- 🟢 项目可在 KNOWLEDGE.md 推翻默认（金融 / 政企等强一致项目）
+
+不动（路径 B · 不走路径 C）：
+- L1 红线零增量（策略落 L2 standards · 与 P0-137 同型）
+- L3 物化暂不加（FK 决策需人判断 · 工具难自动 catch · YAGNI · 等实证 case 再决定是否加 tools/scan-fk.py）
+- 不动 [standards/common.md / standards/frontend.md](../standards/)（FK 是后端专属）
+
+测试：69/69 PASS（规范层改动 · 不影响脚本逻辑）
+
+---
+
+## v7.3.10 + P0-137（scripts-policy 立账 · post-feature.sh → tools/post-feature.py 跨宿主物化）
+
+> **触发**：实战 case · 用户报 ROADMAP.md 漂移（顶部统计 26 vs 实际 23 / 切片 Feature 完成但 ROADMAP 未反映 / BG-016 占位陈旧）· 暴露双层 gap：
+> 1. **架构层**：`hooks/post-feature.sh` 是 bash hook · 只在 CC `hooks.json` 自动触发 · Codex/Gemini 永远不跑 · 跨宿主名实不符
+> 2. **行为层**：原脚本只 `grep` 后 echo warn · 把"AI 自觉补"作为兜底 · 命中 P0-136 同型反模式（spec 加细的天花板）
+>
+> **二级反思**：teamwork L3 物化层已有 4 个 python 工具（state.py / init_triage.py / sync-drift.py / verify-panorama.py）· 但缺单源 policy 约束 · 新需求落地路径不清晰 · 容易再走回头路加 bash hook。
+
+### P0-137：scripts-policy 立账 · post-feature 跨宿主物化
+
+加 1 删 1 账：
+- ➕ `standards/scripts-policy.md`（5 条规则 R-SP-1..5 · 业务脚本统一 python3 / spec 显式 cite / hook 仅薄壳 / JSON 输出 / 退出码契约）
+- ➕ `tools/post-feature.py`（277 行 · KNOWLEDGE check + ROADMAP marker-aware 派生段渲染）
+- ➕ `tools/tests/test_post_feature.py`（9 case · happy/idempotent/4 warn 路径/2 fail 路径/dry-run）
+- ➖ `hooks/post-feature.sh`（退役 · 业务逻辑全迁 python）
+- ➖ `hooks/hooks.json` description 移除 post-feature.sh 引用
+
+行为升级（不是简单平迁）：
+- 旧：grep + echo warn（被动 · check-only）
+- 新：scan state.json + marker-aware render ROADMAP（主动 · derive-only · 派生值结构上不可漂移）
+- ROADMAP 单源化：派生段（统计 + Feature 表）由工具自动渲染 · 语义段（切片关系 / 优先级 / 规划）marker 外人维护 · 永不漂移
+
+ship-stage.md：Step 10 加 post-feature.py cite + exit 0/1/2 契约说明
+
+不动（路径 B · 不走路径 C）：
+- L1 红线不增（policy 落 L2 standards）
+- 剩余 4 个 bash hook（session-restore / post-compact / post-stop / post-subagent）保留 · 因为它们是 CC SessionStart/PreCompact 等**宿主独有 lifecycle**薄壳 · 没有 python 等价物 · 后续 patch 评估能否进一步 python 化
+
+测试：原 60 + 新 9 = **69/69 PASS**
+
+红线层级（v7.3.10+P0-103）路径选择：
+- 路径 B（次选 · 物化拦截类）✅ 本次走此路径
+- 把 hook business logic 降级到 L2 + L3 工具层 · L1 SKILL.md 不动
+
+---
+
+## v7.3.10 + P0-136（SKILL.md 6 流程定义同步 Ship 链路 · 治本 spec 内部不一致）
 
 > **触发**：实战 case · Micro 流程走完用户验收后 PMO 凭印象「Micro 设计就是没 Ship 阶段 · 砍掉所有 Stage（含 Ship）· 不需独立 MR」停在本地未 push · 用户被迫追问。
 >
