@@ -147,7 +147,7 @@ python3 {SKILL_ROOT}/tools/state.py snapshot --tier stage
 ```
 Step 1: roles/pm.md, roles/product-lead.md             ← 角色层（L0 稳定）
 Step 2: templates/prd.md                               ← 模板层（L0 稳定）
-        [条件] templates/external-cross-review.md          （仅 review_roles[] 含 external，v7.3.10+P0-38）
+        (v7.3.10+P0-150 清理：删 external-cross-review.md 条件 Read · Goal-Plan Stage 不再支持 external 评审 · cite standards/external-model.md)
 Step 3: {项目根}/GLOSSARY.md                            ← 业务术语（v7.3.10+P0-121 · 防 PRD 起草业务词漂移 / PM 评审 terminology-ambiguity 单源）
 Step 4: tools/state.py snapshot --tier stage         ← 🔴 替代直接 Read state.json（v7.3.10+P0-128 物化 · cite-only output · R3 自动满足）
 ```
@@ -193,7 +193,7 @@ Step 4: tools/state.py snapshot --tier stage         ← 🔴 替代直接 Read 
 **Goal-Plan Stage 特定 Tier 应用**：
 
 - **Tier 1（永远输出）**：5 行 Execution Plan / 子步骤 5 ⏸️ 用户最终确认 PRD / 评审循环 verdict 切换 / NEEDS_REVISION 升级 round
-- **Tier 2（命中折叠）**：KNOWLEDGE / ADR 命中（仅 round 1 起草时）/ 跨 Feature 冲突告警 / external 评审 ADOPT/REJECT 摘要
+- **Tier 2（命中折叠）**：KNOWLEDGE / ADR 命中（仅 round 1 起草时）/ 跨 Feature 冲突告警（v7.3.10+P0-150 清理：删 external 评审摘要 · Goal-Plan 不支持 external）
 - **Tier 3（不输出，走 state.json）**：goal_plan_substeps_config 详细字段 / review_roles[] 各角色 execution / pm_response 历史轮次 / artifact_root / 各 review 的 generated_at
 
 📎 **判定标尺（如要重新触发回来）**：
@@ -729,8 +729,8 @@ PMO 摘要（评审循环纪要 + finding 汇总 + 关键决策）
 ### 多视角独立性要求
 
 - QA / RD / Designer 主对话评审：cite roles/{id}.md + 第一人称锚句 + 不引用其他视角已做判断（自律保证）
-- external 评审：fresh shell 物理隔离 + frontmatter `files_read` 不得包含 PRD-REVIEW.md / discuss/* / pmo-internal-review.md
 - PL-PM 讨论：discuss/* 文件独立产出，不引用 PRD-REVIEW.md（讨论先于评审）
+- v7.3.10+P0-150 清理：删 external 评审段（Goal-Plan Stage 不支持 external · 详 [standards/external-model.md](../standards/external-model.md)）
 
 ---
 
@@ -741,13 +741,11 @@ PMO 摘要（评审循环纪要 + finding 汇总 + 关键决策）
 | 文件路径 | 条件 | 格式 | 必需字段 |
 |---------|------|------|---------|
 | `{Feature}/PRD.md` | 🔴 必需 | Markdown + YAML frontmatter | `feature_id`, `acceptance_criteria[]` (id, description, priority), 交付预期, 影响范围 |
-| `{Feature}/PRD-REVIEW.md` | 🔴 必需 | Markdown | 内部视角的评审意见（按 review_roles[] 角色组合）+ 汇总问题清单；review_roles[] 含 external 时追加尾部「外部模型交叉评审整合」section（逐条 ADOPT/REJECT/DEFER），不含 external 时写"external 评审角色未启用" |
-| `{Feature}/pmo-internal-review.md` | 🟡 仅 Codex 开启时必需 | Markdown | PMO 自身视角评审（≥3 条实质 finding，Codex dispatch 的前置条件）|
-| `{Feature}/external-cross-review/prd-{model}.md` | 🟡 仅 Codex 开启时必需 | Markdown + YAML frontmatter | `perspective: external-codex`, `target: prd`, `generated_at`, `files_read[]`, `findings[]`（含 C1-C6 checklist 分类）, `findings_summary` |
+| `{Feature}/PRD-REVIEW.md` | 🔴 必需 | Markdown | 内部视角的评审意见（按 review_roles[] 角色组合 · 4 内部视角 PM/RD/QA/Designer + PL discussion）+ 汇总问题清单 |
 | `{Feature}/discuss/PL-FEEDBACK-R{N}.md` | ❌ v7.3.10+P0-43 废止 | — | 旧 v7.3.x「PL-PM Teams 讨论」遗留契约。P0-34 后 PL 升格为评审角色，finding 应统一在 `PRD-REVIEW.md` frontmatter `reviews[].pl.findings[]`，PM 回应统一在 `reviews[].findings[].pm_response`。**禁止产出本文件**（避免 PRD-REVIEW.md / discuss 双重产物） |
 | `{Feature}/discuss/PM-RESPONSE-R{N}.md` | ❌ v7.3.10+P0-43 废止 | — | 同上 |
 
-> 🟡 external 条件说明（v7.3.10+P0-38）：`"external" in goal_plan_substeps_config.review_roles[].role` 时 pmo-internal-review.md + external-cross-review/prd-{model}.md 为必需产物；不含 external 时两份文件不产出，PRD-REVIEW.md 尾部声明"external 评审角色未启用"即可。
+> 🟢 **v7.3.10+P0-150 清理**：删 `pmo-internal-review.md` / `external-cross-review/prd-{model}.md` 两行产物（P0-83 设计上已删 Goal-Plan Stage external 评审 · 但 P0-83 清理不全 · 本 patch 补完）· cite [standards/external-model.md L14](../standards/external-model.md) 适用范围（Blueprint + Review 限定）。
 
 ### 机器可校验条件
 
@@ -755,14 +753,8 @@ PMO 摘要（评审循环纪要 + finding 汇总 + 关键决策）
 - [ ] `acceptance_criteria[]` 至少 1 条，每条有 id/description/priority
 - [ ] 无 TBD / 待补充 / TODO（`grep -iE "TBD|待补充|TODO" PRD.md` 为空）
 - [ ] 多视角评审 4 个内部视角都有意见（或显式标注"无意见"+ 理由）
-- 🟡 以下校验仅当 `"external" in state.goal_plan_substeps_config.review_roles[].role` 时生效（v7.3.10+P0-38）：
-  - [ ] pmo-internal-review.md 存在且含 ≥3 条 finding（Codex dispatch 前置）
-  - [ ] external-cross-review/prd-{model}.md frontmatter 可解析且 `perspective == "external-codex"`
-  - [ ] external-cross-review/prd-{model}.md 的 `files_read` 不包含 PRD-REVIEW / discuss/ / pmo-internal-review（`grep -E "PRD-REVIEW\|discuss/\|pmo-internal" external-cross-review/prd-{model}.md` 为空）
-  - [ ] PRD-REVIEW.md 尾部「外部模型交叉评审整合」section 对每条 finding 均有 ADOPT/REJECT/DEFER 标记 + 理由
-  - [ ] Codex 降级场景：若 Codex 未执行，state.json.concerns 或 PRD-REVIEW.md 需显式记录 skip_reason
-- 🟢 若 `external ∉ state.goal_plan_substeps_config.review_roles[]`（v7.3.10+P0-51 改 `state.external_cross_review.plan_enabled == false` 为 review_roles 单源判定）：
-  - [ ] PRD-REVIEW.md 尾部显式声明"外部模型评审未启用（external ∉ review_roles）"，不产出 pmo-internal-review.md / external-cross-review/prd-{model}.md
+
+> 🟢 **v7.3.10+P0-150 清理**：删原"external 启用时校验段（pmo-internal-review.md / external-cross-review/prd-{model}.md / external_cross_review.plan_enabled）"· Goal-Plan Stage 不再支持 external 评审（P0-83 设计 + P0-150 清理补完）· external 仅适用 Blueprint / Review Stage · cite [standards/external-model.md L14](../standards/external-model.md)。
 
 ### Done 判据（v7.3.10+P0-34 重构）
 
@@ -853,11 +845,10 @@ state.json 写入：
     "created_at": "{ISO 8601}"
   }
 
-为什么在 Goal-Plan Stage 入口而不是 Dev Stage 入口（v7.3.8 修订）：
-├── PRD.md / discuss/ / PRD-REVIEW.md / pmo-internal-review.md / external-cross-review/prd-{model}.md
+为什么在 Goal-Plan Stage 入口而不是 Dev Stage 入口（v7.3.8 修订 / v7.3.10+P0-150 清理 external 残留）：
+├── PRD.md / discuss/ / PRD-REVIEW.md
 │   都是 Goal-Plan Stage 产物——落在 feature 分支而不是 main，语义更干净
 ├── 用户拒绝 PRD → git worktree remove 一键回退，main 零污染
-├── 外部模型交叉评审读的是独立 worktree 的 PRD，不受 main 并发修改干扰
 └── UI Design / Blueprint 阶段产物（UI.md / TC.md / TECH.md）同 worktree 延续
 
 降级链（每档降级输出 WARN 到 state.json.concerns）：
@@ -902,10 +893,9 @@ state.json 写入：
 
 ## 产出文件
 ├── 📁 PRD.md（定稿，AC 结构化 + business_direction_locked frontmatter）
-├── 📁 PRD-REVIEW.md（评审记录，含所有评审角色 reviews[].* 段；review_roles[] 含 external 时含整合章）
-├── 🟡 pmo-internal-review.md（PMO 自审，仅 review_roles[] 含 external 时产出）
-└── 🟡 external-cross-review/prd-{model}.md（外部视角，仅 review_roles[] 含 external 时产出）
+└── 📁 PRD-REVIEW.md（评审记录，4 内部视角 PM/RD/QA/Designer + PL discussion · 含所有评审角色 reviews[].* 段）
 （v7.3.10+P0-43：discuss/PL-FEEDBACK-R{N}.md / PM-RESPONSE-R{N}.md 已废止，禁止产出）
+（v7.3.10+P0-150 清理：删 pmo-internal-review.md / external-cross-review/prd-{model}.md · Goal-Plan 不支持 external · cite standards/external-model.md L14）
 
 ## Output Contract 校验
 ├── YAML frontmatter：✅ 可解析

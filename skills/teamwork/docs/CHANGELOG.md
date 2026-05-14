@@ -1,6 +1,45 @@
 # Changelog
 
-## v7.3.10 + P0-149（当前 · 紧急修 P0-148 init-feature 参数 bug · 实战 PTR-F032 触发）
+## v7.3.10 + P0-150（当前 · 清理 Goal-Plan Stage external 评审残留 · 治本 P0-83 不完全清理）
+
+> **触发**：实战 case · 4.6 instance 在 PRD 评审时正确识别不加 external（cite goal-plan-stage L43 "P0-83 删 external"）· 用户追问"为什么没加外部模型评审"· 4.7 实测 spec 验证发现 **P0-83 设计意图正确 · 但 goal-plan-stage.md 清理不完全** · 多处 external 描述与"已删"声明并存。
+>
+> **诊断**：
+> - L43 / L181 / L254 / L356 / L496 / L631 明确说"P0-83 删 external"（6 处）
+> - 但 L150 / L196 / L732 / L744-765 / L849 / L897-898 仍描述 external 评审行为（10+ 处）
+> - **同文件内自相矛盾**：设计上删了 · 但产物 / 校验 / 条件 / Read 顺序段没删干净
+>
+> AI 跑流程时若 cite 残留段而非"P0-83 已删"段 → 会以为应该启动 external · 但实际不需要 · 浪费 token / 漂移流程。
+
+### P0-150：goal-plan-stage.md external 残留清理
+
+加 1 删 1 账（纯删 · 路径 B）：
+- 🗑️ L150 入口 Read 顺序段：删 `[条件] templates/external-cross-review.md` 行
+- 🗑️ L196 Tier 2 输出：删"external 评审 ADOPT/REJECT 摘要"
+- 🗑️ L732 多视角独立性：删"external 评审：fresh shell 物理隔离..."段
+- 🗑️ L744-746 Output Contract 表：删 PRD-REVIEW.md 条件描述 + pmo-internal-review.md 行 + external-cross-review/prd-{model}.md 行
+- 🗑️ L750 external 条件说明（P0-38）
+- 🗑️ L758-765 机器可校验条件 external 分段（保留 internal 校验 · 删 external 分段）
+- 🗑️ L849 dispatch context 中 external 文件引用
+- 🗑️ L897-898 产出文件 yellow 项（pmo-internal-review.md / external-cross-review/prd-{model}.md）
+- ➕ 每处删除点加 P0-150 清理 marker + cite standards/external-model.md L14
+
+不动：
+- standards/external-model.md（已是单一权威 · 适用范围正确：Blueprint + Review）
+- Blueprint Stage / Review Stage external 评审段（P0-83 没问题）
+- L43/L181/L254/L356/L496/L631 现有"P0-83 删 external"声明（作为变更历史记录保留）
+
+测试：172 baseline = **172/172 PASS**（spec 改动 · 无脚本逻辑变化）
+
+实战 trigger 闭环 commit #6：
+- P0-145 → P0-146 → P0-147 → P0-148 → P0-149 → **P0-150**
+- 用户追问 "为什么没加 external" → 4.7 实测 spec → 发现 P0-83 残留 → 立即清理
+
+教训：spec 设计变更（如 P0-83 "删除某段"）必须**同 patch 内**清理所有引用 · 否则残留产生 self-contradicting spec · 后续 AI 凭印象 cite 错段就会触发误判。
+
+---
+
+## v7.3.10 + P0-149（紧急修 P0-148 init-feature 参数 bug · 实战 PTR-F032 触发）
 
 > **触发**：实战 case · PTR-F032-Billing-Payment-闭环 · Claude 4.6 instance 使用 P0-148 新加的 `state.py init-feature` · state.json 落错位置（worktree-root/`PTR-F032-Billing-Payment-闭环/state.json` 而非 `apps/partner/docs/features/PTR-F032-Billing-Payment-闭环/state.json`）· 4.6 自承"--artifact-root 传了相对路径但 CWD 已变化导致路径解析错误"· 手工 mv 修复。
 >
