@@ -248,21 +248,63 @@ class TestMaintainGitignoreWorktree(unittest.TestCase):
     def test_gitignore_created_when_absent(self):
         from bootstrap import maintain_gitignore_worktree
         result = maintain_gitignore_worktree(self.tmp)
-        self.assertEqual(result["status"], "created")
-        self.assertIn(".worktree/", (self.tmp / ".gitignore").read_text())
+        self.assertEqual(result["status"], "appended")
+        text = (self.tmp / ".gitignore").read_text()
+        self.assertIn(".worktree/", text)
+        self.assertIn(".teamwork-bootstrap.json", text)
 
     def test_gitignore_appended_when_present(self):
         from bootstrap import maintain_gitignore_worktree
         (self.tmp / ".gitignore").write_text("node_modules/\n")
         result = maintain_gitignore_worktree(self.tmp)
         self.assertEqual(result["status"], "appended")
-        self.assertIn(".worktree/", (self.tmp / ".gitignore").read_text())
+        text = (self.tmp / ".gitignore").read_text()
+        self.assertIn("node_modules/", text)
+        self.assertIn(".worktree/", text)
+        self.assertIn(".teamwork-bootstrap.json", text)
 
     def test_gitignore_already_present(self):
         from bootstrap import maintain_gitignore_worktree
-        (self.tmp / ".gitignore").write_text("node_modules/\n.worktree/\n")
+        (self.tmp / ".gitignore").write_text(
+            "node_modules/\n.worktree/\n.teamwork-bootstrap.json\n"
+        )
         result = maintain_gitignore_worktree(self.tmp)
         self.assertEqual(result["status"], "already_present")
+
+
+# ─── bootstrap marker(版本门禁) ──────────────────────────
+
+
+class TestBootstrapMarker(unittest.TestCase):
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def test_read_returns_empty_when_missing(self):
+        from bootstrap import read_bootstrap_marker
+        self.assertEqual(read_bootstrap_marker(self.tmp), {})
+
+    def test_read_returns_empty_when_corrupt(self):
+        from bootstrap import read_bootstrap_marker, BOOTSTRAP_MARKER
+        (self.tmp / BOOTSTRAP_MARKER).write_text("not json{{{")
+        self.assertEqual(read_bootstrap_marker(self.tmp), {})
+
+    def test_write_then_read_roundtrip(self):
+        from bootstrap import (
+            read_bootstrap_marker, write_bootstrap_marker, BOOTSTRAP_MARKER,
+        )
+        ok = write_bootstrap_marker(
+            self.tmp, "v8.5", "claude-code",
+            {"chmod": "ok", "hooks": "deployed"},
+        )
+        self.assertTrue(ok)
+        marker = read_bootstrap_marker(self.tmp)
+        self.assertEqual(marker["skill_version"], "v8.5")
+        self.assertEqual(marker["host"], "claude-code")
+        self.assertEqual(marker["last_maintain_results"]["chmod"], "ok")
+        self.assertIn("last_maintain_at", marker)
 
 
 # ─── scan_v7_state_json ──────────────────────────────────

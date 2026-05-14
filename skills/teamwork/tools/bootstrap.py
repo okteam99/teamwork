@@ -309,11 +309,12 @@ def maintain_host_hooks(skill_root: Path, project_root: Path, host: str) -> dict
 
 
 def maintain_gitignore_worktree(project_root: Path) -> dict:
-    """确保 .gitignore 含 .worktree/(默认 worktree_root_path · 详 docs/conventions.md § 10)。"""
+    """确保 .gitignore 含 `.worktree/` + `.teamwork-bootstrap.json`(默认 worktree_root_path · 详 docs/conventions.md § 10)。"""
     gitignore = project_root / ".gitignore"
-    pattern = ".worktree/"
-    pattern_alt = ".worktree"
-    header = "# Teamwork worktree root (default)"
+    entries = [
+        (".worktree/", ".worktree", "# Teamwork worktree root (default)"),
+        (BOOTSTRAP_MARKER, BOOTSTRAP_MARKER, "# Teamwork bootstrap marker (auto)"),
+    ]
 
     # 仅在 git repo 内执行
     if not (project_root / ".git").exists():
@@ -327,25 +328,28 @@ def maintain_gitignore_worktree(project_root: Path) -> dict:
         except (subprocess.TimeoutExpired, FileNotFoundError):
             return {"status": "git_not_available"}
 
-    if gitignore.exists():
-        try:
-            text = gitignore.read_text(encoding="utf-8")
-        except OSError as e:
-            return {"status": "read_error", "error": str(e)}
-        if pattern in text or pattern_alt in text.split("\n"):
-            return {"status": "already_present"}
-        try:
-            with gitignore.open("a", encoding="utf-8") as fh:
-                fh.write(f"\n{header}\n{pattern}\n")
-            return {"status": "appended"}
-        except OSError as e:
-            return {"status": "append_failed", "error": str(e)}
-    else:
-        try:
-            gitignore.write_text(f"{header}\n{pattern}\n", encoding="utf-8")
-            return {"status": "created"}
-        except OSError as e:
-            return {"status": "create_failed", "error": str(e)}
+    try:
+        text = gitignore.read_text(encoding="utf-8") if gitignore.exists() else ""
+    except OSError as e:
+        return {"status": "read_error", "error": str(e)}
+
+    lines = text.split("\n")
+    appended = []
+    for pattern, pattern_alt, header in entries:
+        if pattern in text or pattern_alt in lines:
+            continue
+        text += (("\n" if text and not text.endswith("\n") else "")
+                 + f"{header}\n{pattern}\n")
+        appended.append(pattern)
+
+    if not appended:
+        return {"status": "already_present"}
+
+    try:
+        gitignore.write_text(text, encoding="utf-8")
+        return {"status": "appended", "patterns": appended}
+    except OSError as e:
+        return {"status": "write_failed", "error": str(e)}
 
 
 # ─── v7 state.json 扫描(迁移检测) ──────────────────────
@@ -371,6 +375,43 @@ def scan_v7_state_json(project_root: Path) -> list[str]:
     return pending
 
 
+# ─── bootstrap marker(版本门禁:同版本跳 maintain) ─────────
+
+
+BOOTSTRAP_MARKER = ".teamwork-bootstrap.json"
+
+
+def read_bootstrap_marker(project_root: Path) -> dict:
+    """读 .teamwork-bootstrap.json · 不存在/损坏返回 {}。"""
+    marker = project_root / BOOTSTRAP_MARKER
+    if not marker.exists():
+        return {}
+    try:
+        return json.loads(marker.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+def write_bootstrap_marker(project_root: Path, skill_version: str,
+                            host: str, maintain_results: dict) -> bool:
+    """写 marker 记录本次成功跑 maintain 的版本 + 时间。"""
+    marker = project_root / BOOTSTRAP_MARKER
+    payload = {
+        "skill_version": skill_version,
+        "host": host,
+        "last_maintain_at": now_iso(),
+        "last_maintain_results": maintain_results,
+    }
+    try:
+        marker.write_text(
+            json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        return True
+    except OSError:
+        return False
+
+
 # ─── 主入口 ─────────────────────────────────────────
 
 
@@ -381,34 +422,52 @@ def cmd_session_bootstrap(args: argparse.Namespace) -> None:
     - 全 silent · 不打扰用户
     - 失败不阻塞 · 内部记录
     - 幂等(已部署/已配置则跳过)
+    - **版本门禁**:marker 中 skill_version 与 args.skill_version 相同 → 跳过 maintain 4 项(chmod/hooks/sync-drift/gitignore)
     - emit JSON(audit · AI 不必 cite)
     """
     skill_root = Path(args.skill_root).resolve()
     cwd = Path.cwd()
     project_root = find_project_root(cwd)
 
-    # 1. SKILL_VERSION 校验
+    # 每次必跑(轻量 · 幂等)
     version_check = check_skill_version(skill_root, args.skill_version)
-
-    # 2. 项目级骨架维护
     skeletons = maintain_project_skeletons(skill_root, project_root)
+    pending_v7 = scan_v7_state_json(project_root)
 
-    # 3. chmod +x tools/*.py + templates/*.py(防丢失可执行位)
-    chmod_result = maintain_chmod_tools(skill_root)
+    # 版本门禁:marker 记录的版本 == 当前版本 → 跳过 maintain 4 项
+    marker = read_bootstrap_marker(project_root)
+    marker_version = marker.get("skill_version")
+    marker_host = marker.get("host")
 
-    # 4. 宿主 hooks 部署(.claude/hooks/ 或 .codex/)
-    hooks_result = maintain_host_hooks(skill_root, project_root, args.host)
-
-    # 5. 宿主注入段同步(跑 sync-drift.py)
-    injection = maintain_host_injection(
-        skill_root, project_root, args.host, args.skill_version
+    skip_maintain = (
+        not args.force
+        and marker_version == args.skill_version
+        and marker_host == args.host
     )
 
-    # 6. .worktree/ → .gitignore
-    gitignore = maintain_gitignore_worktree(project_root)
-
-    # 7. v7 state.json 扫描
-    pending_v7 = scan_v7_state_json(project_root)
+    if skip_maintain:
+        maintain_status = "skipped_version_unchanged"
+        chmod_result = {"status": "skipped"}
+        hooks_result = {"status": "skipped"}
+        injection = {"status": "skipped"}
+        gitignore = {"status": "skipped"}
+    else:
+        maintain_status = "ran" if not args.force else "ran_forced"
+        chmod_result = maintain_chmod_tools(skill_root)
+        hooks_result = maintain_host_hooks(skill_root, project_root, args.host)
+        injection = maintain_host_injection(
+            skill_root, project_root, args.host, args.skill_version
+        )
+        gitignore = maintain_gitignore_worktree(project_root)
+        # 跑完 maintain 写 marker 锁版本(下次同版本会 skip)
+        marker_results = {
+            "chmod": chmod_result.get("status", "unknown"),
+            "hooks": hooks_result.get("status", "unknown"),
+            "host_injection": injection.get("status", "unknown"),
+            "gitignore_worktree": gitignore.get("status", "unknown"),
+        }
+        write_bootstrap_marker(project_root, args.skill_version,
+                                args.host, marker_results)
 
     result = {
         "verdict": "PASS",  # silent · 总是 PASS · 不阻塞
@@ -418,6 +477,8 @@ def cmd_session_bootstrap(args: argparse.Namespace) -> None:
         "skill_root": str(skill_root),
         "skill_version": args.skill_version,
         "project_root": str(project_root),
+        "maintain_status": maintain_status,
+        "marker_skill_version_before": marker_version,
         "checks": {
             "skill_version": version_check,
             "skeletons": skeletons,
@@ -454,7 +515,12 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument(
         "--skill-version",
         required=True,
-        help="AI 声称的 skill version(用于一致性校验)",
+        help="AI 声称的 skill version(用于一致性校验 + 版本门禁)",
+    )
+    p.add_argument(
+        "--force",
+        action="store_true",
+        help="强制跑 maintain 4 项(chmod/hooks/sync-drift/gitignore)· 忽略 marker 版本门禁",
     )
     return p
 
