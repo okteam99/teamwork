@@ -132,7 +132,7 @@ PMO 按 flow_type 算 worktree 建议:
 📋 **首个 stage**:<first_stage>
 
 请提供:
-1. **Feature ID**(如 PTR-F033-Credit-Note-Adjustment)
+1. **Feature ID**(如 PTR-F033-Credit-Note-Adjustment · 编号规则见 [docs/naming.md § 1](./docs/naming.md))
 2. **merge_target**(如 staging / main)
 3. **worktree path**(默认:`<repo-root>/worktrees/<FEATURE-ID>`)
 4. **branch**(默认:`<branch-prefix><FEATURE-ID>`)

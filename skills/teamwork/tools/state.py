@@ -82,9 +82,9 @@ BUG_FLOW: dict[str, list[str]] = {
     "completed": [],
 }
 
-# Feature Planning · R6 不出代码 · goal(业务目标确认) → planning(拆 ROADMAP) → completed
+# Feature Planning · R6 不出代码 · 单 stage:planning(拆 ROADMAP) → completed
+# goal stage 是 Feature 流程的 PRD 起草 · 不属 Feature Planning
 PLANNING_FLOW: dict[str, list[str]] = {
-    "goal": ["planning"],
     "planning": ["completed"],
     "completed": [],
 }

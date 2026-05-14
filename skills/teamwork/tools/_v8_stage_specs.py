@@ -361,6 +361,8 @@ GOAL_SPEC = StageSpec(
             description="prepare stage 必须先完成(扫 KNOWLEDGE/ADR + 流程类型识别)",
         ),
     ],
+    # goal stage = 业务目标确认 · 产 PRD · Feature / 敏捷需求 流程专属
+    # Feature Planning 走单 stage planning · 不进 goal
     artifacts=[
         StageArtifactSpec(
             path="PRD.md",
@@ -406,6 +408,7 @@ GOAL_SPEC = StageSpec(
     ],
     brief_template_fn=_goal_brief,
     auto_transition_fn=_goal_transition,
+    allowed_flow_types=["Feature", "敏捷需求"],  # Feature Planning 走 planning · 不进 goal
     authorized_pause_point="Substep 6 · 用户最终确认(全员 review 通过后)",
 )
 

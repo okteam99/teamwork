@@ -1,5 +1,45 @@
 # Changelog
 
+## v8.2 · 编号规范单源 + Feature Planning 单 stage + goal 收紧
+
+### 新增 docs/naming.md(编号规范单源)
+
+补 v7 `rules/naming.md` 在 v8 重构时被误删的编号规则:
+- Feature ID:`{项目缩写}-F{NNN}` · 各项目独立 namespace
+- Bug ID:`BUG-{项目缩写}-F{NNN}-{seq}` · Feature 内独立递增
+- ADR ID:`ADR-{NNNN}` · **全局**递增
+- BL ↔ F 映射:各自独立递增 · 通过 ROADMAP「对应 F编号」列建链接 · 不强制同号
+- Dispatch / KNOWLEDGE 子 ID 等
+- 项目缩写注册规则
+
+### Feature Planning 流程独立(承 v8.1 · 修复设计 bug)
+
+- v8.1 `PLANNING_FLOW = {goal: [planning], planning: [completed]}` 是错的(Feature Planning 进 goal 会装错"PRD 起草"语义)
+- v8.2 修正为 `PLANNING_FLOW = {planning: [completed]}` 单 stage
+- `GOAL_SPEC.allowed_flow_types=["Feature", "敏捷需求"]`(收紧 · 不再允许 Feature Planning 进 goal)
+- `PLANNING_SPEC.allowed_flow_types=["Feature Planning"]`(沿用)
+- `state.py first_stage` 映射:Feature Planning → planning(已是)
+
+### planning-stage.md 增段
+
+- §流程边界(R6 物化:不写代码 / 不写 PRD / 完成自动 completed)
+- §范围判定(子项目级 vs 工作区级)
+- §Level 判定(配合 product-overview/ · 可选 · Level 1-3)
+- §3 ROADMAP 起草加 BL-NNN 分配规则 + cite docs/naming.md
+
+### broken refs 修复(本轮)
+
+- templates/bug-report.md L4: `[RULES.md]` 编号规则章节(不存在)→ `[docs/naming.md § 2]`
+- templates/bug-report.md L14: `rules/naming.md`(已删)→ `docs/naming.md § 2`
+- TRIAGE.md §4.3: Feature ID 行加 cite `docs/naming.md § 1`
+- templates/roadmap.md §字段说明: BL/F 映射 → cite `docs/naming.md § 4`(原冗述简化)
+
+### 顺手清 templates/bug-report.md mojibake
+
+P0 cleanup (commit e1d12b2) 的 perl 替换以 byte 模式工作,误切了中文 utf-8 序列,造成 22 文件 mojibake。本 commit 仅修我要改的 templates/bug-report.md(restore + utf-8 safe 重做 P0 清理)。其余 21 文件待下个 commit。
+
+---
+
 ## v8.1 · stage 改名 + Feature Planning 流程独立
 
 > 治本 v8.0 stage 命名错位:`goal_plan` 既混"目标规划"又装 PRD 起草 ·

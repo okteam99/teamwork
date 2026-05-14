@@ -1,26 +1,59 @@
 # Planning Stage
 
+> Feature Planning 流程**专属**单 stage(`allowed_flow_types=["Feature Planning"]`)·
+> goal stage 是 Feature 流程的 PRD 起草 · 不在 Feature Planning 流程中。
+
+---
+
+## 流程边界(R6 物化)
+
+- **不写代码** · `planning-complete` 拒绝接受 src/ 下 artifact
+- **不写 PRD** · PRD 是单 Feature 的事(进 Feature 流程后 goal stage 起草)
+- 完成后**自动转 completed** · Feature 启动需用户主动跑 `/teamwork <feature>`(不自启)
+
+## 范围判定(子项目级 vs 工作区级)
+
+| 触发 | 范围 |
+|---|---|
+| 涉及新增/删除/合并子项目 / 多项目职责调整 / 整体架构迁移 | **工作区级** · 改 teamwork-space.md + 多个 PROJECT.md |
+| 单子项目内 Feature 拆分 / 单 PROJECT.md 内迭代 | **子项目级** · 改 PROJECT.md + ROADMAP.md + sitemap.md |
+
+## Level 判定(配合 product-overview/ · 可选)
+
+若项目根有 `product-overview/` 目录:
+
+| Level | 触发 | 处理 |
+|---|---|---|
+| 1 | 功能级 · 不改方向 / 不动业务架构 | 直接进 §怎么做 起草 ROADMAP |
+| 2 | 业务模块级 · 影响执行线目标 / 跨线依赖 | 先 PL 评估 product-overview 影响 → 再起草 |
+| 3 | 方向级 · 产品定位 / 核心业务流程变更 | PL 主导重构 product-overview → 再起草 |
+
+无 product-overview/ → 跳过 Level 判定 · 直接进 §怎么做。
+
 ---
 
 ## 怎么做
 
 ### 1. 加载上下文
-读 PROJECT.md(若存在 · 当前业务架构)· 用户需求
+读 PROJECT.md(若存在 · 当前业务架构)+ ROADMAP.md(若存在 · 现有 Backlog)+ 用户需求。
 
 ### 2. 起草 PROJECT.md
-§业务架构 + §执行手册 + §关键决策 · PL(Product Lead)主导
+§业务架构 + §执行手册 + §关键决策 · PL(Product Lead)主导。
 
-### 3. 起草 ROADMAP.md
-Feature 列表 + 优先级 + 排期(当前/下一/储备)
+### 3. 起草 ROADMAP.md(BL-NNN 分配)
+Feature 列表 + 优先级 + 排期(当前/下一/储备)。
+- **每个 Backlog 分配 BL-NNN**(三位数字 · 各项目独立递增)· 详见 [docs/naming.md § 4](../docs/naming.md)
+- **不分配 F-NNN**(F-NNN 在 Feature 流程启动时由 PMO 分配)
+- 不细化到 task 级 · 一 Feature 一行(标题 + 优先级 + 状态 + 核心 AC ①②③)
 
 ### 4. 起草 sitemap.md
-信息架构 · 页面层级 · 模块边界
+信息架构 · 页面层级 · 模块边界(整体页面架构 · 不重复单 Feature UI.md)。
 
 ### 5. PL-PM 讨论 + 多角色 review
-PL 把方向 · PM 把可执行性 · Architect 把技术可行
+PL 把方向 · PM 把可执行性 · Architect 把技术可行。
 
 ### 6. complete
-`state.py planning-complete ...` · 自动转 completed(不进 dev · R6)
+`state.py planning-complete ...` · 自动转 completed(不进 dev · R6)。
 
 ---
 
