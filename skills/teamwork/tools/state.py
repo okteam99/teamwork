@@ -34,7 +34,6 @@ from typing import Any
 LEGAL_STAGES = {
     "goal",
     "ui_design",
-    "planning",
     "blueprint",
     "dev",
     "review",
@@ -82,18 +81,14 @@ BUG_FLOW: dict[str, list[str]] = {
     "completed": [],
 }
 
-# Feature Planning · R6 不出代码 · 单 stage:planning(拆 ROADMAP) → completed
-# goal stage 是 Feature 流程的 PRD 起草 · 不属 Feature Planning
-PLANNING_FLOW: dict[str, list[str]] = {
-    "planning": ["completed"],
-    "completed": [],
-}
-
+# Feature Planning / 问题排查 不进状态机:由 PMO 主对话执行(详 docs/feature-planning.md)
 FLOW_BY_TYPE = {
     "Feature": FEATURE_FLOW,
     "Bug": BUG_FLOW,
-    "Feature Planning": PLANNING_FLOW,
 }
+
+# 不进状态机的流程类型(init-feature 拒绝创建 state.json · PMO 主对话直接执行)
+NON_STATE_MACHINE_FLOWS = {"Feature Planning", "问题排查"}
 
 # snapshot tier 字段集
 SNAPSHOT_CORE_FIELDS = (
@@ -1304,18 +1299,28 @@ DEFAULT_INITIAL_STAGE = {
     "Bug": "dev",
     "Micro": "dev",
     "敏捷需求": "blueprint_lite",
-    "Feature Planning": "planning",
-    "问题排查": "triage",
 }
 
 
 def cmd_init_feature(args: argparse.Namespace) -> None:
-    """Create initial state.json · 替代手工 Write（v7.3.10+P0-148 / +P0-149 fix）。
+    """Create initial state.json · 替代手工 Write。"""
+    # Feature Planning / 问题排查 不进状态机 · 拒绝
+    if args.flow_type in NON_STATE_MACHINE_FLOWS:
+        die(2, json.dumps({
+            "verdict": "FAIL",
+            "error": f"flow_type='{args.flow_type}' 不进状态机 · init-feature 拒绝",
+            "hint": (
+                f"{args.flow_type} 流程由 PMO 主对话直接执行 · 不创建 state.json。"
+                if args.flow_type == "Feature Planning"
+                else "问题排查由 PMO 直接 grep/Read 答 · 不创建 state.json。"
+            ),
+            "spec": (
+                "docs/feature-planning.md"
+                if args.flow_type == "Feature Planning"
+                else "FLOWS.md § 问题排查"
+            ),
+        }, ensure_ascii=False, indent=2))
 
-    v7.3.10+P0-149 修复（实战 case PTR-F032）：移除 --artifact-root 冗余参数 ·
-    --feature 是单源（既是 state.json 落盘目录 · 又是 state.artifact_root 字段值）·
-    防"双参数语义重叠导致 state.json 落错位置"。
-    """
     feature_dir = Path(args.feature)
     state_file = feature_dir / "state.json"
 

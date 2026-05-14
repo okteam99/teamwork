@@ -48,7 +48,7 @@
 | **E · discuss** | 我感觉 / 你怎么看 / X vs Y / 哪种更合理 | 综合视角讨论 + 选项 + 推荐 | ❌(讨论收敛后用户升级到 B)|
 
 🔴 **mode E 升级触发**(PMO 主动建议 · 不等用户提)·命中以下场景必须在收尾时建议升 mode B:
-- 讨论涉及**多 Feature 范围拆分** / **ROADMAP 更新** / **P0/P1 优先级排序** → 建议升 **Feature Planning**(走完整 planning 产 ROADMAP.md · 而非 PMO 主对话散述清单)
+- 讨论涉及**多 Feature 范围拆分** / **ROADMAP 更新** / **P0/P1 优先级排序** → 建议升 **Feature Planning**(PMO 主对话按 [docs/feature-planning.md](./docs/feature-planning.md) 起 PROJECT/ROADMAP/sitemap · 而非散述清单)
 - 讨论涉及**新功能实现方向** / **架构决策点** → 建议升 **Feature**(走 goal PRD 而非主对话伪 PRD)
 - 讨论涉及**已知 bug 根因 + 修复方案** → 建议升 **Bug**
 
@@ -114,13 +114,14 @@ PMO 按以下关键词表判定 user input 落入哪类流程:
 
 PMO 按 flow_type 算 branch 前缀 + worktree path 建议:
 
-| flow_type | branch 前缀 |
-|----------|-----------|
-| Feature | `feature/` |
-| 敏捷需求 | `agile/` |
-| Bug | `fix/` |
-| Micro | `micro/` |
-| Feature Planning | `plan/` |
+| flow_type | branch 前缀 | worktree |
+|----------|-----------|---------|
+| Feature | `feature/` | 必 |
+| 敏捷需求 | `agile/` | 必 |
+| Bug | `fix/` | 必 |
+| Micro | `micro/` | 必 |
+| Feature Planning | `plan/`(可选) | 可选 · 由 PMO 主对话执行 · 不进状态机 |
+| 问题排查 | — | 不进 stage · 类似 mode A query |
 
 **worktree path 默认** = `{worktree_root_path}/{Feature-ID}` ·
 其中 `worktree_root_path` 解析顺序:
@@ -152,9 +153,10 @@ PMO 按 flow_type 算 branch 前缀 + worktree path 建议:
 ```
 
 flow_type → first_stage 映射:
-- Feature / 敏捷需求 / Feature Planning → `goal`
+- Feature / 敏捷需求 → `goal`
 - Bug / Micro → `dev`
-- 问题排查 → (不进 stage 链 · 类似 mode A)
+- **Feature Planning** → 不进 stage 链 · PMO 主对话按 [docs/feature-planning.md](./docs/feature-planning.md) 执行
+- **问题排查** → 不进 stage 链 · 类似 mode A query
 
 ### Step 4.4 · 用户确认后 · PMO 显式执行
 

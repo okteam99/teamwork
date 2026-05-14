@@ -86,7 +86,6 @@ A 类 · 状态机入口(用户确认 worktree 后 · 在 worktree 内运行)
 B 类 · Stage 流转(23 = 11 stage × 2 + ship-phase)
 ├── goal-start / goal-complete
 ├── ui_design-start / ui_design-complete
-├── planning-start / planning-complete (Feature Planning only)
 ├── blueprint-start / blueprint-complete
 ├── blueprint_lite-start / blueprint_lite-complete (敏捷需求 only)
 ├── dev-start / dev-complete
@@ -273,7 +272,7 @@ v8 把 v7 的 9 红线中 16/17 子条目物化进 state.py · 仅 1 条(R3 PMO 
 | R3 PMO 统一承接 | 保留 AI 自决(不可枚举) |
 | R4 流程边界 | state.py 按 flow_type 强制 stage 链 |
 | R5 暂停点协议 | state.py emit 暂停点 markdown(强制格式) |
-| R6 Planning 只出文档 | planning-complete 拒绝代码 artifact |
+| R6 Planning 只出文档 | init-feature reject "Feature Planning" · PMO 主对话执行(详 docs/feature-planning.md) |
 | R7 证据闭环 | xx-complete 必传 --auto-commit + 校验 commit 存在 + artifacts in changeset |
 | R8 写操作硬门禁链 | state.py 内部 prepare 完成前拒绝 stage-start · ship Phase 1 CLI-first |
 | R9 session bootstrap 必跑 triage | tools/bootstrap.py + PMO 按 TRIAGE.md 分诊 |

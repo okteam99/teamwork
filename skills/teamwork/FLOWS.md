@@ -48,11 +48,14 @@ Ship Stage 缩简(标题 `[Bug] <简述> (BUG-<id>)`)。
 砍 TECH.md / TECH-REVIEW.md / External(blueprint_lite 只产 TC.md 简化版)。
 
 ### Feature Planning
-**规划 stage 链**:goal → planning → completed
+**不进 stage 链** · 由 PMO 主对话直接执行(类似问题排查 mode A)。
+`state.py init-feature --flow-type "Feature Planning"` 会被 reject(无 state.json / 无 stage 链)。
 
 解决:**产品方向决策 · 拆 ROADMAP · 不出代码(R6)**。
 PL(Product Lead)主导。Feature 启动前的"想清楚拆什么"。
-完成后不自动进 Feature 流程 · 由用户选择启动哪个 Feature(R6)。
+产出 PROJECT.md + ROADMAP.md + sitemap.md → git commit/push(直推或 MR · 用户决定)。
+
+详细流程见 [docs/feature-planning.md](./docs/feature-planning.md)。
 
 ### 问题排查
 **不进 stage 链**(类似 mode A query):
@@ -82,7 +85,7 @@ state.py 不为问题排查启 stage 链 · 由 PMO 在主对话执行类似 mod
 
 ## 关键约束(R6 红线物化)
 
-- **Feature Planning · 只出文档**:`planning-complete` 拒绝接受代码 artifact · 自动转 `completed` 而非 `dev`。
+- **Feature Planning · 不进状态机**:`init-feature --flow-type "Feature Planning"` 被 reject · 由 PMO 主对话执行 · 详 docs/feature-planning.md。
 - **Micro · 涉代码仍要 Ship**:Micro 末尾必须 ship-* · 不能停在本地未 push(v7 P0-136 治本)。
 - **敏捷需求 · 准入校验**:不能用 `blueprint_lite-start` 跳过完整 blueprint(`allowed_flow_types=["敏捷需求"]`)。
 

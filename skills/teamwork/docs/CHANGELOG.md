@@ -1,5 +1,58 @@
 # Changelog
 
+## v8.4 · Feature Planning 完全脱离状态机
+
+> v8.1/v8.2/v8.3 的演进:把 Feature Planning 当 stage 处理 → 改单 stage planning → 终态:**完全脱离状态机**(由 PMO 主对话执行 · 类似问题排查)。
+
+### 设计原则
+
+Feature Planning 产出是**项目级文档**(PROJECT.md / ROADMAP.md / sitemap.md),不是 Feature artifact:
+- 没 Feature ID(规划期分配 BL-NNN)
+- 没 PRD/TC/TECH(那是 Feature 流程)
+- 不出代码(R6)
+- 不需要 worktree
+- 不需要 ship 流程(直推或开 MR · 用户决定)
+
+强行套状态机 = 复杂度无收益(stage 链只 1 步 · PMO 主对话能直接做)。
+
+### state.py 改动
+
+- 删 `LEGAL_STAGES` 中 `planning`
+- 删 `PLANNING_FLOW`
+- `FLOW_BY_TYPE` 删 `"Feature Planning"`
+- 新加 `NON_STATE_MACHINE_FLOWS = {"Feature Planning", "问题排查"}`
+- `DEFAULT_INITIAL_STAGE` 删 `"Feature Planning"` / `"问题排查"`(原 "问题排查": "triage" 也是残留 bug)
+- `cmd_init_feature` 开头检查 flow_type ∈ NON_STATE_MACHINE_FLOWS → reject + emit hint 指向 docs/feature-planning.md / FLOWS.md § 问题排查
+
+### _v8_stage_specs.py 改动
+
+- 删 `PLANNING_SPEC` / `_check_flow_is_planning` / `_panorama_brief` / `_panorama_transition`
+- `STAGE_SPECS` 删 `"planning"` key
+- `_goal_transition` 删 `Feature Planning → planning` 分支
+- `_evidence_needs_ui_decided` 删 Feature Planning + needs_ui=true 检查(进不到 goal 就不会触发)
+
+### markdown 改动
+
+- `stages/planning-stage.md` → `docs/feature-planning.md`(git mv 跨目录 + 改写为非 stage spec 格式)
+- 新文件结构:6 个 substep(由 PMO 主对话执行)+ 6 注意事项 + 与 Feature 流程接口
+- FLOWS.md § Feature Planning 改写:不进 stage 链 · 类似问题排查
+- TRIAGE.md §4.2 worktree 表 / §4.3 first_stage 映射:Feature Planning 标"不进 stage 链"
+- SKILL.md / RULES.md R6 物化描述 → init-feature reject + cite docs/feature-planning.md
+- conventions.md cite 路径更新
+
+### 测试
+
+- 删 `test_planning_flow_needs_ui_true_rejected`(进不到 needs-ui check 就触发不到)
+- v8 测试 36/36 全过
+
+### 兼容性 / 待办
+
+- 老 v8.x state.json 含 `current_stage: planning` 现在不被识别 · 用户需手动归档(`state.py raw-write` 或直接删 state.json)
+- _v8_migrate.py 的 `STAGE_RENAMES` 暂不动(panorama_design → planning 仍能跑 · 但产出失效 · 用户跑后会撞 init-feature reject 提示)
+- 后续 v8.5 可考虑加 v8.x → v8.4 迁移自动归档失效 state.json
+
+---
+
 ## v8.3 · docs/naming.md → docs/conventions.md(合并 worktree 规范)
 
 ### 改名 + 扩展

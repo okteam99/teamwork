@@ -291,15 +291,7 @@ class TestNeedsUiDecided(unittest.TestCase):
         self.assertFalse(passed)
         self.assertIn("敏捷需求", err)
 
-    def test_planning_flow_needs_ui_true_rejected(self):
-        """Planning + needs_ui=true → FAIL · R6 不出代码。"""
-        from _v8_stage_specs import _evidence_needs_ui_decided
-
-        state = {"flow_type": "Feature Planning"}
-        args = SimpleNamespace(needs_ui="true")
-        passed, err = _evidence_needs_ui_decided(state, args)
-        self.assertFalse(passed)
-        self.assertIn("Planning", err)
+# Feature Planning 不进状态机 · 不会到达 needs-ui check · 测试已删除
 
 
 # ─── P0-9 · _evidence_reviewers_match ────────────────────────────

@@ -73,7 +73,7 @@
 **Why**:Feature Planning 流程只产 PROJECT.md / ROADMAP.md / sitemap.md · 禁止产代码 · 禁止自启 Feature 流程。
 Planning 是产品方向决策 · 不应该 AI 自动跳过决策直接开 dev。
 
-**v8 物化**:planning-complete 拒绝接受代码 artifact · 自动转 completed 而非 dev。
+**v8 物化**:Feature Planning 不进状态机 · `init-feature --flow-type "Feature Planning"` 被 reject · 由 PMO 主对话执行(详 docs/feature-planning.md)· 物理上不会出代码。
 
 ---
 

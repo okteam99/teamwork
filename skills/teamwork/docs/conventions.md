@@ -187,7 +187,7 @@ git branch -d <branch>
 
 - [TRIAGE.md § 4.2 / 4.3](../TRIAGE.md) — worktree 决策模板 + 暂停点收集 Feature ID
 - [SKILL.md § 状态行](../SKILL.md) — 状态行例子(实际路径)
-- [stages/planning-stage.md § 3](../stages/planning-stage.md) — ROADMAP 起草时 BL-NNN 分配
+- [docs/feature-planning.md § Step 5](./feature-planning.md) — ROADMAP 起草时 BL-NNN 分配
 - [stages/goal-stage.md](../stages/goal-stage.md) — Feature ID 已在 init-feature 时确定
 - [stages/ship-stage.md § 8](../stages/ship-stage.md) — Ship 清理 worktree
 - [templates/bug-report.md](../templates/bug-report.md) — Bug ID 格式

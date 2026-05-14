@@ -13,7 +13,7 @@ STAGE_SPECS dict 在文件末尾汇总。
 实现进度:
 - ✅ goal (B1)
 - ✅ dev      (B6 · 完整模板示范)
-- ⏳ ui_design / planning / blueprint / blueprint_lite (B2/B3/B4/B5)
+- ⏳ ui_design / blueprint / blueprint_lite (B2/B4/B5)
 - ⏳ review / test / browser_e2e / pm_acceptance / ship (B7-B11)
 
 详细 schema 见 docs/v8-redesign/01-COMMAND-SCHEMA.md。
@@ -156,11 +156,6 @@ def _evidence_needs_ui_decided(state: dict, args) -> tuple[bool, str]:
             "敏捷需求流程 + --needs-ui=true 矛盾 · "
             "若有 UI 改动应升级 Feature 流程(reset-prev + 改 flow_type)"
         )
-    if bool_val and flow == "Feature Planning":
-        return False, (
-            "Feature Planning 流程不出代码(R6 红线)· --needs-ui 必须 false"
-        )
-
     # 写字段(state.execution_hints.ui_design_needed)
     hints = state.setdefault("execution_hints", {})
     hints["ui_design_needed"] = bool_val
@@ -338,8 +333,6 @@ def _goal_transition(state: dict) -> Optional[str]:
         return "blueprint_lite"
     elif flow == "Bug":
         return "dev"
-    elif flow == "Feature Planning":
-        return "planning"
     elif flow == "Micro":
         return "dev"
     return None
@@ -604,74 +597,7 @@ UI_DESIGN_SPEC = StageSpec(
 )
 
 
-# ─── B3 · planning(仅 Feature Planning) ───────────────────────
-
-
-def _check_flow_is_planning(state: dict, args) -> bool:
-    return state.get("flow_type") == "Feature Planning"
-
-
-def _panorama_brief(state: dict) -> str:
-    """v8.0+P0-8 极简版:目标 + 结果 + 完成方式 · 怎么做归 stage.md。"""
-    return f"""## Planning Stage
-
-### 目标
-Feature Planning 流程产出产品全景文档(R6 红线:**不出代码**)。
-
-### 结果(完成判定)
-- `PROJECT.md`(项目根 · 业务架构 + 执行手册)
-- `ROADMAP.md`(项目根 · Feature 列表)
-- `sitemap.md`(项目根 · 信息架构)
-
-### 怎么做
-**必读** `stages/planning-stage.md`(详细步骤 6 步 + 注意事项 5 条)。
-
-### 完成方式
-```
-state.py planning-complete --feature <path> --auto-commit <hash> \
-  --artifacts ../../PROJECT.md,../../ROADMAP.md,../../sitemap.md
-```
-"""
-
-
-def _panorama_transition(state: dict) -> Optional[str]:
-    """Planning 流程产出文档后直接 completed · 不进 dev。"""
-    return "completed"
-
-
-PLANNING_SPEC = StageSpec(
-    name="planning",
-    prerequisites=[
-        StagePrerequisite(
-            id="flow_type_is_planning",
-            check_fn=_check_flow_is_planning,
-            hint="planning 仅 Feature Planning 流程触发 · 检查 state.flow_type",
-            description="flow_type == 'Feature Planning'",
-        ),
-    ],
-    artifacts=[
-        StageArtifactSpec(
-            path="../../PROJECT.md",  # 项目根 · 相对 feature 目录
-            must_be_in_commit=False,  # 项目根文件 · 在不同 commit 中
-            description="产品全景描述",
-        ),
-        StageArtifactSpec(
-            path="../../ROADMAP.md",
-            must_be_in_commit=False,
-            description="Feature 列表 + 优先级",
-        ),
-        StageArtifactSpec(
-            path="../../sitemap.md",
-            must_be_in_commit=False,
-            description="信息架构",
-        ),
-    ],
-    evidence_checks=[],
-    brief_template_fn=_panorama_brief,
-    auto_transition_fn=_panorama_transition,
-    allowed_flow_types=["Feature Planning"],
-    authorized_pause_point="无暂停 · Planning 流程产出文档后自动转 completed(不出代码 · R6)",
-)
+# ─── B3 · (Feature Planning 不进状态机 · 详 docs/feature-planning.md) ──
 
 
 # ─── B4 · blueprint ─────────────────────────────────────────────────
@@ -1381,7 +1307,6 @@ SHIP_SPEC = StageSpec(
 STAGE_SPECS: dict[str, StageSpec] = {
     "goal": GOAL_SPEC,
     "ui_design": UI_DESIGN_SPEC,
-    "planning": PLANNING_SPEC,
     "blueprint": BLUEPRINT_SPEC,
     "blueprint_lite": BLUEPRINT_LITE_SPEC,
     "dev": DEV_SPEC,
