@@ -1,6 +1,63 @@
 # Changelog
 
-## v7.3.10 + P0-152（当前 · 权威源单源规则跨角色汇总指针 · 路径 B 抽 L2 meta-rule）
+## v7.3.10 + P0-153（当前 · Blueprint Stage external 评审默认 ON · 翻转 P0-13 OFF）
+
+> **触发**：用户提议"feature 改为默认开外部模型 review" · 翻转 v7.3.9+P0-13 当初定的 Blueprint 默认 OFF。
+>
+> **诊断**：P0-13 当初基于"Blueprint 文档评审有 RD/Designer/QA/PMO + 架构师 4 视角内部闭环 · Codex 边际价值低"判定 OFF。复盘发现：
+> 1. Blueprint 是教训密集区（跨子项目契约 / ADR 触发 / 架构选型）
+> 2. 内部 4 视角同源（同主对话宿主 · 同模型）· 易共有盲区
+> 3. 实战中"默认 OFF + 记得 opt-in"漏开率高于"默认 ON + 漏关易发现"
+> 4. 外部异质视角对架构层补盲价值与代码层一样高
+
+### P0-153：Blueprint Stage external 默认 ON（spec only · 翻转设计取舍）
+
+加 0 删 0 改账（仅翻转默认值 · 路径 B · L2 改造 · L1 红线零增量）：
+- 🔄 [pmo-external-orchestration.md](../roles/pmo-external-orchestration.md) 四处更新：
+  - § 二 默认推荐 第 42 行：Blueprint "默认不含 / 推荐启用" → "默认含 / 可 opt-out"
+  - § 五 智能推荐表 第 101-103 行：中 Feature / 小 Feature / 敏捷需求 Blueprint OFF → ON 💡 · Bug 流程标 N/A（不走 Blueprint）
+  - § 五 核心原则 第 106 行：Blueprint 默认 OFF → ON · 保留 P0-13 历史 rationale + 加 P0-153 翻转 rationale
+  - § 十 硬规则默认值第 206 行：blueprint_enabled=false → true
+- 🔄 [blueprint-stage.md](../stages/blueprint-stage.md) 六处更新：
+  - § 本 Stage 职责 第 10 行：🟡 → 🟢 + "默认含"
+  - § 可配置点表 第 20 行：external 行 "默认不启用" → "默认启用 / opt-out"
+  - § 入口实例化 第 42 行：active_roles 推荐 qa/rd/architect/external 均默认 active
+  - § Step 5 标题 + rationale 第 244, 254 行：🟡 → 🟢 + 翻转 rationale + 保留 P0-13 历史
+  - § 硬规则 第 282 行：🟡 → 🟢 + "默认含"
+  - § 执行 approach 第 362 行："默认 OFF" → "默认 ON"
+- 🔄 [external-model-usage.md](../standards/external-model-usage.md) 第 76 行：`blueprint-reviewer.toml` "opt-in" → "opt-out"
+- 🔄 [external-reviewer.md](../roles/external-reviewer.md) 第 55 行：Blueprint 列 "🟡 条件性" → "🟢 默认启用 · opt-out"
+- 🧹 [pm.md](../roles/pm.md) 第 290 行（顺手清 P0-83 残留措辞）：External 角色 Goal-Plan 列从误导性"条件性 · 默认关闭 v7.3.10+P0-83"改为准确表述"❌ 不支持（P0-83 已删）· 仅 Blueprint + Review 走 external"
+
+不动（边界严格 · 与 P0-152 同型路径 B）：
+- L1 红线零增量（SKILL.md 9 条不动）
+- Review Stage external 默认 ON 不变（本来就是 ON）
+- BlueprintLite Stage 不动（敏捷需求不走 Blueprint Stage · 无 external 配置）
+- Goal-Plan external 不动（P0-83 已删 · 不会复活）
+- 工具层不动（dispatch / verify / state.py）
+- E1 同源约束硬规则不动（外部模型 ≠ 主对话宿主仍是必须）
+- 用户 opt-out 路径不变（PMO 初步分析 Step 4 决策项呈现 · 用户回数字选 OFF）
+
+**设计取舍翻转表**：
+
+| 维度 | P0-13（OFF 时代）| P0-153（ON 时代）|
+|-----|---------------|---------------|
+| 默认值 | OFF | ON |
+| 用户记得方向 | opt-in（漏开率高 · 难发现）| opt-out（漏关易发现 · 用户立即感受到耗时）|
+| 4 内部视角评价 | "已覆盖质量下限" | "同源 · 易共有盲区" |
+| Codex 边际价值评价 | 低（重在 Review）| 高（架构层教训密集）|
+| Feature 流程实跑外部 review 比例 | 低 | 高 |
+| 翻转触发场景 | - | 用户复审默认值设计 · 反思 P0-13 当初取舍 |
+
+**测试**：spec 改动 · 无脚本逻辑变更 · 预期 172/172 PASS（regression）.
+
+**实战 trigger 闭环 commit #9**：P0-145..152 → P0-153。用户复审 P0-152 cite chain → 发现 Blueprint 默认 OFF 是 P0-13 旧取舍 → 翻转默认。
+
+**教训**：默认值是**设计取舍** · 不是技术 limit。当"用户记得 opt-in"成本高于"系统默认开"时 · 应翻转默认 · 让漏关比漏开更易发现。同型反思可应用到其他 opt-in 字段（如 ADR 抽取 3 问触发器 / external execution_hints 推荐）· 但当前不动 · 等实战触发再翻。
+
+---
+
+## v7.3.10 + P0-152（权威源单源规则跨角色汇总指针 · 路径 B 抽 L2 meta-rule）
 
 > **触发**：用户复审 P0-151 case · 指出"AI 还是习惯找历史"是反复出现的反模式 · 问"在哪里加合理"。复盘发现 P0-151（Designer · panorama 唯一基线）与 P0-7（PMO · templates 唯一格式源）**同型 meta-pattern**：每个角色都有"权威源 vs peer Feature 内容参考"边界 · 各自散落 L2 · 没有汇总指针 → 后续 Architect / RD / QA 触发时需重新论证 + 反模式黑名单分散。
 >

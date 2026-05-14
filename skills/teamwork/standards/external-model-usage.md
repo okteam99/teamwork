@@ -19,9 +19,9 @@
 3. 输出约束：外部模型只输出 markdown 评审记录
    └── 不输出 patch · 不输出可执行脚本 · 不输出"我已修改了 X 文件"
 
-4. 调用频率约束：opt-in 而非默认
+4. 调用频率约束：受 review_roles[] 控制 · 用户可 opt-out（v7.3.10+P0-153 翻转 Blueprint 默认 ON）
    ├── 每个 Stage 实例化时 PMO 决策 active_roles 是否含 external
-   └── 默认不含（除非 hint 明示 / 用户拍板需要异质评审）
+   └── Blueprint + Review **默认含**（Blueprint v7.3.10+P0-153 翻转 · Review 一贯 ON）· 用户在 PMO 初步分析决策项呈现时可显式 opt-out
 ```
 
 ---
@@ -73,7 +73,7 @@
 | profile | sandbox | 用途 | dispatch 时机 |
 |---------|---------|------|--------------|
 | `reviewer.toml` | read-only | 代码评审（独立视角） | Review Stage external 角色（opt-in） |
-| `blueprint-reviewer.toml` | read-only | TC + TECH 蓝图评审 | Blueprint Stage external 角色（opt-in） |
+| `blueprint-reviewer.toml` | read-only | TC + TECH 蓝图评审 | Blueprint Stage external 角色（**opt-out** · v7.3.10+P0-153 翻转默认 ON） |
 | `prd-reviewer.toml` | read-only | PRD 评审 | Plan Stage external 角色（opt-in） |
 
 ### 🔴 已废弃（v7.3.10+P0-104 deprecated · teamwork 不再 dispatch）

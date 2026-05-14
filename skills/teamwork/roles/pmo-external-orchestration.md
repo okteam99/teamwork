@@ -39,7 +39,7 @@
 
 🟡 各 Stage 默认推荐：
    - Goal-Plan Stage：v7.3.10+P0-83 删 external（不再支持 Goal-Plan external 评审）
-   - Blueprint Stage：默认不含 external / 推荐启用（架构层异质视角 · 教训密集区 / 跨子项目 / 触发 ADR）
+   - Blueprint Stage：**默认含 external**（v7.3.10+P0-153 翻转 P0-13 OFF · 架构层异质视角对全 Feature 流程都有价值 · 用户可 opt-out）
    - Review Stage：默认推荐含 external（代码层最后 gate · 异质模型核心价值）
 
 🔴 PMO 在 Stage 入口实例化时基于 execution_hints + 信号决策（详见 standards/stage-instantiation.md）
@@ -98,12 +98,16 @@ PMO 用简单规则按 Feature 类型 + 关键词触发 · 输出推荐组合（
 | Feature 场景 | 触发信号（任一命中） | Blueprint | Review |
 |-------------|--------------------|-----------|--------|
 | **大 Feature / 高风险** | 跨子项目 / ≥10 文件 / 新技术栈 / 重构 / 关键词 "支付/权限/数据一致性/性能/安全" / KNOWLEDGE.md 标注高风险领域 | ON 💡 | ON 💡 |
-| **中 Feature** | 单子项目 + 5-10 文件 + 涉及 UI 或架构小改 | OFF | ON 💡 |
-| **小 Feature / 敏捷需求** | ≤5 文件 / 无 UI/架构变更 / 复用既有模式 | OFF | ON 💡 |
-| **Bug 修复** | Bug 流程（无文档评审需求 · 但代码改动需要外部 review）| OFF | ON 💡 |
+| **中 Feature** | 单子项目 + 5-10 文件 + 涉及 UI 或架构小改 | ON 💡 | ON 💡 |
+| **小 Feature / 敏捷需求** | ≤5 文件 / 无 UI/架构变更 / 复用既有模式 | ON 💡 | ON 💡 |
+| **Bug 修复** | Bug 流程（无文档评审需求 · 但代码改动需要外部 review）| N/A（Bug 流程不走 Blueprint）| ON 💡 |
 | **Feature Planning / 问题排查 / Micro** | 不出代码 / 零逻辑变更 | N/A | N/A |
 
-🟢 **核心原则**：Review 默认 ON（代码层最后 gate · 外部模型异质视角价值最高）；Blueprint 默认 OFF（文档评审有内部 4 视角支撑—— RD/Designer/QA/PMO + 架构师 · 外部模型边际价值低）。
+🟢 **核心原则**（v7.3.10+P0-153 翻转）：Review + Blueprint **均默认 ON** · 用户可 opt-out（代码层 + 架构层最后 gate · 外部异质视角对 Feature 流程全程都有价值）.
+
+📎 **历史 rationale 与翻转**：
+- v7.3.9+P0-13 当初定 Blueprint OFF · 理由："文档评审有 RD/Designer/QA/PMO + 架构师 4 视角内部闭环 · Codex 边际价值低 · 重在 Review Stage 代码审查"
+- v7.3.10+P0-153 翻转为 ON · 理由：① Blueprint 是教训密集区（跨子项目 / 触发 ADR / 架构选型）② 内部 4 视角同源 · 易共有盲区 ③ "默认 OFF + 记得 opt-in"漏开率高于"默认 ON + 漏关易发现"
 
 ---
 
@@ -203,7 +207,7 @@ PMO 读老 state.json 时按以下优先级 fallback：
 ## 十、硬规则
 
 - 🔴 PMO 初步分析必须**先自报宿主 + `command -v` 检查 CLI**（v7.3.10+P0-72）· 再渲染「🌐 外部模型判定」段 · 最后给决策项 · 三步不可省略
-- 🔴 默认值（v7.3.10+P0-28 / +P0-83 修正）：blueprint_enabled=false / review_enabled=true（Goal-Plan external 已删）
+- 🔴 默认值（v7.3.10+P0-28 / +P0-83 / +P0-153 修正）：blueprint_enabled=**true** / review_enabled=true（v7.3.10+P0-153 翻转 Blueprint · Goal-Plan external 已删）
 - 🔴 用户未显式选择 → PMO 按智能推荐表给出的组合（不再是简单 OFF）· note 标注"用户未选择 · 取 PMO 推荐"
 - 🔴 Review Stage 的外部模型代码评审受 review_enabled 控制（v7.3.10+P0-28）· 但默认 ON 不变
 - 🔴 决策写入后各 Stage PMO 在入口 Read state.json 确认对应 *_enabled 值 · 不得推断

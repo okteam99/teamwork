@@ -7,7 +7,7 @@
 
 ## 本 Stage 职责
 
-产出经过多视角评审的 TC + TECH，为 Dev Stage 提供可直接实施的蓝图。TC 与 PRD AC 强绑定（test_refs 反查），TECH 与 ARCHITECTURE 对齐。4 步内部闭环（QA TC → TC 评审 → RD TECH → 架构师评审）为强制项；🟡 外部评审（external 角色，v7.3.10+P0-38）由 `state.blueprint_substeps_config.review_roles[]` 是否含 external 决定。
+产出经过多视角评审的 TC + TECH，为 Dev Stage 提供可直接实施的蓝图。TC 与 PRD AC 强绑定（test_refs 反查），TECH 与 ARCHITECTURE 对齐。4 步内部闭环（QA TC → TC 评审 → RD TECH → 架构师评审）为强制项；🟢 外部评审（external 角色，v7.3.10+P0-38 升格 · v7.3.10+P0-153 翻转为默认 ON）由 `state.blueprint_substeps_config.review_roles[]` 是否含 external 决定 · 默认含 · 用户可 opt-out.
 
 ---
 
@@ -17,7 +17,7 @@
 |---------|-------|---------|---------|
 | `review_roles[]` | qa + rd + architect（推荐 architect 必含）| `state.blueprint_substeps_config.review_roles[]` | Stage 入口实例化 |
 | 各角色 `execution` | qa/rd 主对话 + architect subagent | `state.blueprint_substeps_config.review_roles[].execution` | Stage 入口实例化 |
-| `external` 启用 | 默认不启用 / 教训密集区 / 触发 ADR 推荐启用 | `external ∈ review_roles[]` | Stage 入口实例化 |
+| `external` 启用 | **默认启用**（v7.3.10+P0-153 翻转 P0-13 OFF）/ 用户可 opt-out | `external ∈ review_roles[]` | Stage 入口实例化 |
 | `adr_triggered` | 基于 ADR 3 问触发器（templates/adr.md） | `state.blueprint_substeps_config.adr_triggered` | 架构师评审末段判断 |
 | `schema_change_triggered` | TECH.md 含 schema 变更关键词 | `state.schema_change_evidence.detected_at_blueprint` | 架构师 Tech Review 入口判断（v7.3.10+P0-119）|
 | `round_loop.max_rounds` | TC 评审 ≤2 轮 / 架构师评审 ≤3 轮 | spec 内嵌 | 防无限评审 |
@@ -39,7 +39,7 @@
 
 **Blueprint Stage 特定参数**：
 
-- 候选 `active_roles`：QA / RD / Architect / external（推荐：qa/rd/architect 默认 active；external 视架构变更幅度）
+- 候选 `active_roles`：QA / RD / Architect / external（推荐：qa/rd/architect/external **均默认 active** · v7.3.10+P0-153 翻转 · external 仅在用户显式 opt-out 时不含）
 - `key_outputs`：TC.md（含 tests[] schema）+ TECH.md（+ 可选 ADR）
 - 子步骤序列：QA TC → TC 评审 → RD TECH → 架构师评审 (+ 可选 ADR)
 - `blueprint_substeps_config` 特有字段：`adr_triggered: bool`（基于 ADR 3 问触发器，详见 templates/adr.md）
@@ -241,9 +241,9 @@ RD 起草 TECH 时必须主动覆盖：
      - 🔴 判断本身必须在 TECH-REVIEW.md 留痕（即使 no ADR，也要写明"ADR 判断：否（理由）"），不判断 = 流程偏离
      - 📎 典型 ADR 触发场景：选型决策（DB / 框架 / 消息队列）、通用模式（鉴权方案 / 缓存策略）、跨模块契约（API 版本规则 / 错误码体系）；典型 no-ADR 场景：单 Feature 内部实现细节、显然的 best practice、已有 ADR 覆盖的复用
 
-5. 🟡 **外部模型交叉评审**（外部视角，v7.3.9+P0-13 改为 opt-in，默认 OFF）
+5. 🟢 **外部模型交叉评审**（外部视角，v7.3.9+P0-13 历史定 OFF · v7.3.10+P0-153 翻转为默认 ON · 用户可 opt-out）
    - **执行条件**：`"external" in state.blueprint_substeps_config.review_roles[].role`（v7.3.10+P0-38）
-     - **开启时**必做；**关闭时**整个 Step 5 跳过（不产出 external-cross-review/blueprint-{model}.md，TC-REVIEW/TECH-REVIEW 尾部不写「外部模型交叉评审整合」section，或显式声明"外部模型评审已关闭"）
+     - **默认含 · 必做**；**用户显式 opt-out 时**整个 Step 5 跳过（不产出 external-cross-review/blueprint-{model}.md，TC-REVIEW/TECH-REVIEW 尾部不写「外部模型交叉评审整合」section，或显式声明"外部模型评审已关闭"）
    - **前置（开启时适用）**：Step 1-4 全部 DONE（TC / TC-REVIEW / TECH / TECH-REVIEW 均已 output_satisfied）
    - 按 `templates/external-cross-review.md` 调用 `codex-agents/blueprint-reviewer.toml`（TC+TECH 变体，C1-C6 checklist）
    - dispatch prompt 不得暗示结论；sandbox_mode = read-only
@@ -251,7 +251,9 @@ RD 起草 TECH 时必须主动覆盖：
    - **整合**：PMO 对每条 finding 分类 `ADOPT / REJECT / DEFER` 写入 TC-REVIEW.md（TC 相关）或 TECH-REVIEW.md（TECH 相关）尾部的「外部模型交叉评审整合」section
    - 🔴 严禁"全盘接受"或"全盘忽略"——逐条推理
    - ADOPT 项若涉及 TC 或 TECH 实质改动 → 触发相应文件小幅修订（不重走 4 步闭环，仅补丁式更新 + 记录 diff）
-   - 默认关闭理由：Blueprint 产物为技术设计文档，4 步内部闭环已覆盖质量下限；Codex 主要价值在 Review Stage 的代码审查。用户可在 PMO 初步分析时按风险/规模手工开启。
+   - **默认开启理由**（v7.3.10+P0-153 翻转）：Blueprint 是教训密集区（跨子项目契约 / ADR 触发 / 架构选型）· 内部 4 视角（RD/Designer/QA/PMO + 架构师）同源 · 易共有盲区 · 外部异质视角补盲价值高 · "默认 ON + 漏关易发现"比"默认 OFF + 记得 opt-in"漏开率更低。
+   - **历史 rationale**（v7.3.9+P0-13 当初定 OFF）：Blueprint 产物为技术设计文档，4 步内部闭环已覆盖质量下限；Codex 主要价值在 Review Stage 的代码审查。
+   - 用户可在 PMO 初步分析时按需 opt-out（不影响 Review Stage external 默认 ON）。
 
 6. **ADR 抽取流程**（v7.3.10+P0-21 新增；仅当 Step 4.1 判断为"产 ADR"时执行）
    - **前置**：TECH-REVIEW.md 已记录"ADR 判断：是"+ 决策清单（每条决策一个后续 ADR）
@@ -279,7 +281,7 @@ RD 起草 TECH 时必须主动覆盖：
 - 🔴 **架构师方案评审不可跳过**（无论方案多简单）
 - 🔴 **ADR 抽取判断不可跳过**（v7.3.10+P0-21）：架构师必须对本 Feature 技术决策应用 3 问触发器，判断结论（产 / 不产 ADR + 理由）必须写入 TECH-REVIEW.md。跳过判断 = 流程偏离
 - 🔴 **ADR 格式合规**（触发抽取时）：严格按 `templates/adr.md` 格式；备选项 ≥ 2；每次新增 / 状态变更必须同步更新 `docs/adr/INDEX.md`（同样按 `templates/adr-index.md` 格式）
-- 🟡 **external 评审角色（v7.3.10+P0-38 升格）**：`"external" in state.blueprint_substeps_config.review_roles[].role` 时必做（除外部 CLI 不可用触发降级），且必须在 4 步内部闭环 DONE 后执行；不含 external 时整个 Step 5 跳过（默认行为）
+- 🟢 **external 评审角色（v7.3.10+P0-38 升格 · v7.3.10+P0-153 翻转默认 ON）**：`"external" in state.blueprint_substeps_config.review_roles[].role` 时必做（除外部 CLI 不可用触发降级），且必须在 4 步内部闭环 DONE 后执行；不含 external 时整个 Step 5 跳过（仅在用户显式 opt-out 才不含 · 默认含）
 - 🟡 **Codex 独立性（开启时适用）**：blueprint-reviewer dispatch prompt 不得暗示结论；产出 `files_read` 不得包含 TC-REVIEW.md / TECH-REVIEW.md / pmo-internal-review.md（违反 = 重 dispatch）
 - 🟡 **Codex 降级处理（开启时适用）**：按 `agents/README.md §三` 三选一（修复 / 🟢 AI 自主规划等效独立审查 / skip+记入 concerns）
 - 🟡 **防外包思考（Codex 开启时适用）**：PMO 收到 Codex 产出后逐条分类（ADOPT/REJECT/DEFER）；全盘同意或全盘否定视为可疑信号（按 codex-cross-review.md §六处理）
@@ -359,7 +361,7 @@ RD 起草 TECH 时必须主动覆盖：
 
 📎 Execution Plan 4 行格式（含 Estimated）→ [SKILL.md「AI Plan 模式规范」](../SKILL.md#-ai-plan-模式规范v73-新增)。默认 approach → [agents/README.md §一 执行方式与模型](../agents/README.md)。
 
-本 Stage 默认 `main-conversation`（4 步内部闭环：QA TC → TC 评审 → RD TECH → 架构师评审，全程多视角 prompt 切换）；🟡 外部模型交叉评审（开启时）走 subagent-codex 外部视角，默认 OFF（v7.3.9+P0-13）。典型偏离：需求极清晰 → `subagent` 一次闭环；或 `hybrid`（TC/TECH 主对话起草 + 架构师评审 Subagent 独立审）。Codex Step 5 固定 subagent-codex，不受闭环 approach 选择影响。
+本 Stage 默认 `main-conversation`（4 步内部闭环：QA TC → TC 评审 → RD TECH → 架构师评审，全程多视角 prompt 切换）；🟢 外部模型交叉评审走 subagent-codex 外部视角，默认 **ON**（v7.3.10+P0-153 翻转 P0-13 OFF · 用户可 opt-out）。典型偏离：需求极清晰 → `subagent` 一次闭环；或 `hybrid`（TC/TECH 主对话起草 + 架构师评审 Subagent 独立审）。Codex Step 5 固定 subagent-codex，不受闭环 approach 选择影响。
 
 **Expected duration baseline（v7.3.3 / P0-13 修订）**：25-45 min（主对话 4 步闭环）；🟡 Codex 开启时额外 +5-10 min（交叉评审 + 整合），关闭时 0 额外开销。Subagent 一次闭环 30-60 min（冷启动）+ 可选 5-10 min Codex。AI 在 Execution Plan 的 `Estimated` 字段按本 Feature 规模（AC 数、TECH 预期文件数）+ Codex 开关状态校准。
 

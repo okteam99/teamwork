@@ -52,7 +52,7 @@ triage Stage Step 4 角色可用性扫描时（v7.3.10+P0-72 PMO 直接判定）
 | Stage | 评审对象 | External 角色 | context 物化文件 |
 |-------|---------|---------------|-----------------|
 | **Goal-Plan** | ❌ 不参与（v7.3.10+P0-83 删）| - | - |
-| **Blueprint** | TC + TECH（异质视角）| 🟡 条件性（review_roles[] 含 external · execution_hints 推荐 + 产物复杂度足够）| `codex-agents/blueprint-reviewer.toml` 或 `claude-agents/reviewer.md` |
+| **Blueprint** | TC + TECH（异质视角）| 🟢 默认启用（v7.3.10+P0-153 翻转 P0-13 OFF · review_roles[] 默认含 external · 用户可 opt-out）| `codex-agents/blueprint-reviewer.toml` 或 `claude-agents/reviewer.md` |
 | **Review** | 代码 + 单测（异质视角 · 默认推荐 ON）| 🟡 条件性（review_roles[] 含 external · 默认 ON 兼容 P0-28）| `codex-agents/reviewer.toml` 或 `claude-agents/reviewer.md` |
 
 📎 **设计含义**：External 是**单一角色** · 不同 Stage 的差异通过"context 物化文件不同"表达 · 不通过角色内部分支表达——这与 RD / 架构师角色规范设计一致（不写"在 X Stage 评审什么、在 Y Stage 写什么"）。
