@@ -185,11 +185,11 @@ class TestMaintainProjectSkeletons(unittest.TestCase):
         self.assertIn("template not found", result["failed"][0]["reason"])
 
 
-# ─── check_host_injection ────────────────────────────────
+# ─── maintain_host_injection ─────────────────────────────
 
 
-class TestCheckHostInjection(unittest.TestCase):
-    """CLAUDE.md / AGENTS.md / GEMINI.md 注入段标记检查。"""
+class TestMaintainHostInjection(unittest.TestCase):
+    """CLAUDE.md / AGENTS.md / GEMINI.md 注入段同步(改 check → maintain)。"""
 
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp())
@@ -197,31 +197,72 @@ class TestCheckHostInjection(unittest.TestCase):
     def tearDown(self):
         shutil.rmtree(self.tmp, ignore_errors=True)
 
-    def test_injection_ok(self):
-        from bootstrap import check_host_injection
-        (self.tmp / "CLAUDE.md").write_text(
-            "header\n<!-- TEAMWORK_SKILL_BEGIN -->\nbody\n<!-- TEAMWORK_SKILL_END -->\nfooter\n",
-            encoding="utf-8",
-        )
-        result = check_host_injection(self.tmp, "claude-code")
-        self.assertEqual(result["status"], "ok")
-
-    def test_injection_missing(self):
-        from bootstrap import check_host_injection
-        (self.tmp / "CLAUDE.md").write_text("no markers\n", encoding="utf-8")
-        result = check_host_injection(self.tmp, "claude-code")
-        self.assertEqual(result["status"], "injection_missing")
-
-    def test_host_file_missing(self):
-        from bootstrap import check_host_injection
-        result = check_host_injection(self.tmp, "claude-code")
-        self.assertEqual(result["status"], "host_file_missing")
-        self.assertEqual(result["file"], "CLAUDE.md")
-
     def test_host_unknown(self):
-        from bootstrap import check_host_injection
-        result = check_host_injection(self.tmp, "unknown")
+        from bootstrap import maintain_host_injection
+        result = maintain_host_injection(self.tmp, self.tmp, "unknown", "v8.x")
         self.assertEqual(result["status"], "host_unknown")
+
+    def test_skipped_when_sync_drift_missing(self):
+        """skill_root 不含 sync-drift.py → skipped(不阻塞)。"""
+        from bootstrap import maintain_host_injection
+        # tmp 当 skill_root 用 · 不含 tools/sync-drift.py
+        result = maintain_host_injection(self.tmp, self.tmp, "claude-code", "v8.x")
+        self.assertEqual(result["status"], "skipped")
+
+
+# ─── maintain_chmod_tools / maintain_gitignore_worktree ─────────
+
+
+class TestMaintainChmodTools(unittest.TestCase):
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        (self.tmp / "tools").mkdir()
+        (self.tmp / "templates").mkdir()
+        (self.tmp / "tools" / "x.py").write_text("#!/usr/bin/env python3\n")
+        (self.tmp / "templates" / "y.py").write_text("#!/usr/bin/env python3\n")
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def test_chmod(self):
+        from bootstrap import maintain_chmod_tools
+        result = maintain_chmod_tools(self.tmp)
+        self.assertEqual(result["tools_py"], 1)
+        self.assertEqual(result["templates_py"], 1)
+        self.assertEqual(result["failed"], [])
+        # 验证可执行位
+        import os, stat
+        self.assertTrue(os.stat(self.tmp / "tools" / "x.py").st_mode & stat.S_IXUSR)
+
+
+class TestMaintainGitignoreWorktree(unittest.TestCase):
+    def setUp(self):
+        import subprocess
+        self.tmp = Path(tempfile.mkdtemp())
+        # 初始化 git repo(否则 maintain_gitignore_worktree 会 skip)
+        subprocess.run(["git", "init", "-q"], cwd=str(self.tmp), check=True)
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def test_gitignore_created_when_absent(self):
+        from bootstrap import maintain_gitignore_worktree
+        result = maintain_gitignore_worktree(self.tmp)
+        self.assertEqual(result["status"], "created")
+        self.assertIn(".worktree/", (self.tmp / ".gitignore").read_text())
+
+    def test_gitignore_appended_when_present(self):
+        from bootstrap import maintain_gitignore_worktree
+        (self.tmp / ".gitignore").write_text("node_modules/\n")
+        result = maintain_gitignore_worktree(self.tmp)
+        self.assertEqual(result["status"], "appended")
+        self.assertIn(".worktree/", (self.tmp / ".gitignore").read_text())
+
+    def test_gitignore_already_present(self):
+        from bootstrap import maintain_gitignore_worktree
+        (self.tmp / ".gitignore").write_text("node_modules/\n.worktree/\n")
+        result = maintain_gitignore_worktree(self.tmp)
+        self.assertEqual(result["status"], "already_present")
 
 
 # ─── scan_v7_state_json ──────────────────────────────────

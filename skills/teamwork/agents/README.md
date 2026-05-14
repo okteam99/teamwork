@@ -263,7 +263,7 @@ PMO 根据宿主环境选择 Subagent dispatch 方式：
 │ └── 示例：Task(prompt="...", model="sonnet")
 ├── Codex CLI → prompt 指示 Codex spawn 自定义 agent
 │ └── 示例：「请使用 rd_developer agent 执行以下任务...」
-│ └── 自定义 agent 定义见 .codex/agents/*.toml（由 install.sh 生成）
+│ └── 自定义 agent 定义见 .codex/agents/*.toml（由 tools/bootstrap.py 部署）
 ├── Gemini CLI → 主对话内执行（Gemini 暂无 subagent 机制）
 └── 通用降级 → 主对话内串行执行（丧失并行，功能完整）
 

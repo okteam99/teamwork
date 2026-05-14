@@ -30,7 +30,7 @@
 - ✅ 必须 `#!/usr/bin/env python3` + `chmod +x`
 - ✅ 必须有对应 `tools/tests/test_*.py`（pytest · ≥3 case：happy / edge / failure）
 - ❌ 不得新增 `hooks/*.sh` 承载业务（即使是"小脚本"）
-- ❌ 不得在 `install.sh` 之外的 bash 文件里写业务流程
+- ❌ 不得在 hook .sh 之外的 bash 文件里写业务流程
 
 ### R-SP-2 调用一律 spec 显式 cite
 
@@ -219,7 +219,7 @@ P0-146 处理 top 30 (~12% of missing) · 后续 patch 渐进推进。
 
 ❌ 新增 `hooks/post-X.sh` 写业务（绕过本 policy 的隐蔽路径）
 ❌ python 工具 stdout 非 JSON（破坏 R-SP-4）
-❌ 业务流程在 `install.sh` 里直接写（install 只做部署）
+❌ 业务流程在 bash hook 里直接写(hook 只做事件转发 · 业务逻辑走 python)
 ❌ spec 不 cite 工具调用 · 仅靠宿主 hook 自动触发（破坏 R-SP-2 · CC-only 陷阱）
 ❌ python 工具无对应 test_*.py（破坏 R-SP-1 · 无回归保护）
 

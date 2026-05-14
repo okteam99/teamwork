@@ -1,5 +1,61 @@
 # Changelog
 
+## v8.5 · 删 install.sh · bootstrap.py 承接系统维护职责
+
+### 删 install.sh
+
+install.sh 设计为"用户首次安装跑一次"的部署脚本(复制 skill / 部署 hooks / sync-drift / chmod)。
+但用户实际架构是 symlink(`~/.claude/skills/teamwork → repo/skills/teamwork`),install.sh 的复制部分 noop · 真有效部分 = chmod / hooks / sync-drift / .gitignore · 这些 bootstrap.py(每 session 启动跑)能更优雅承接(自愈 · 幂等)。
+
+### bootstrap.py 加 4 个 maintain
+
+- `maintain_chmod_tools(skill_root)`:tools/*.py + templates/*.py 加可执行位
+- `maintain_host_hooks(skill_root, project_root, host)`:部署 hooks
+  - claude-code:hooks/*.sh → `.claude/hooks/` + hooks.json(含 PreCompact)
+  - codex-cli:codex-agents/hooks.json → `.codex/hooks.json` + codex-agents/*.toml → `.codex/agents/`
+- `maintain_host_injection(...)`:原 `check_host_injection` 改 check → maintain · 缺则跑 sync-drift.py
+- `maintain_gitignore_worktree(project_root)`:`.worktree/` → `.gitignore`(默认 worktree_root_path)
+
+### bootstrap.py session 启动流程(silent)
+
+```
+1. SKILL_VERSION 校验
+2. 项目骨架(KNOWLEDGE/TROUBLESHOOTING/GLOSSARY)
+3. chmod +x tools/*.py + templates/*.py     ← 新加
+4. 宿主 hooks 部署                            ← 新加
+5. 宿主注入段同步(sync-drift.py)             ← 改 check → maintain
+6. .worktree/ → .gitignore                   ← 新加
+7. v7 state.json 扫描
+```
+
+### 删除 / 改名
+
+- 删 `skills/teamwork/install.sh`(190+ 行)
+- 改 `check_host_injection` → `maintain_host_injection`(语义 check → maintain)
+
+### cite 路径更新
+
+- standards/scripts-policy.md:install.sh 业务流程 → bash hook 业务流程
+- docs/conventions.md:`install.sh 自动加 .gitignore` → `bootstrap.py session 启动时自动加`
+- codex-agents/README.md / agents/README.md:install.sh 部署 → bootstrap.py 部署
+
+### 顺手 chmod 修复
+
+bootstrap.py maintain_chmod_tools 自愈跑了一次,把 `templates/verify-ac.py` 等 .py 文件从 644 → 755(用户从未跑过 install.sh · 这些文件之前没可执行位)。
+
+### 不迁的部分
+
+- 检测宿主 + 复制 skill 文件:用户用 symlink · 自助
+- codex_hooks feature flag 写 `~/.codex/config.toml`:涉及用户全局 config · 留给手动(README 说明)
+
+### 测试
+
+- 加 TestMaintainChmodTools / TestMaintainGitignoreWorktree(覆盖新函数)
+- 改 TestCheckHostInjection → TestMaintainHostInjection(行为变 · 删原 ok/missing 用例 · 加 host_unknown / sync_drift_missing 用例)
+- v8 测试 38/38 全过
+
+---
+
 ## v8.4 · Feature Planning 完全脱离状态机
 
 > v8.1/v8.2/v8.3 的演进:把 Feature Planning 当 stage 处理 → 改单 stage planning → 终态:**完全脱离状态机**(由 PMO 主对话执行 · 类似问题排查)。

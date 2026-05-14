@@ -142,7 +142,7 @@ worktree_root_path: .worktree       # 默认 · 项目根下子目录
 
 | 配置 | 实际路径 | 适用场景 |
 |---|---|---|
-| `.worktree`(默认) | `<repo-root>/.worktree/PTR-F033` | 项目内 · install.sh 自动加 .gitignore |
+| `.worktree`(默认) | `<repo-root>/.worktree/PTR-F033` | 项目内 · bootstrap.py session 启动时自动加 .gitignore |
 | `../.{repo_name}-worktrees` | `<repo-root>/../.aon-ptr-worktrees/PTR-F033` | 父目录分组 · 隔离主仓库 .git 索引 |
 | `/tmp/worktrees`(绝对) | `/tmp/worktrees/PTR-F033` | 完全外置(CI / 临时) |
 
