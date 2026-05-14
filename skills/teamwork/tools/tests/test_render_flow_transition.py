@@ -54,6 +54,94 @@ class TestRealSpec(unittest.TestCase):
         self.assertIn("方案待确认", out)
         self.assertEqual(audit["type_icon"], "⏸️")
 
+    # ─── v7.3.10+P0-155: section-aware --flow / --feature 治本 Dev→Review 歧义 ─
+
+    def test_dev_review_ambiguous_without_flow(self) -> None:
+        """Dev→Review 在 Feature + 敏捷需求 两个 section 都有 · 不带 --flow → 歧义 FAIL."""
+        _, audit = run(["--from", "Dev", "--to", "Review"], expect_exit=2)
+        self.assertEqual(audit["verdict"], "FAIL")
+        self.assertIn("匹配歧义", audit["error"])
+        # matches_detail 必含每个匹配的 section
+        sections = [m["section"] for m in audit["matches_detail"]]
+        self.assertIn("Feature 流程", sections)
+        self.assertIn("敏捷需求流程", sections)
+        # hint 必提 --flow
+        self.assertIn("--flow", audit["hint"])
+
+    def test_dev_review_flow_feature_resolves(self) -> None:
+        """--flow Feature 缩到 Feature 流程 section · L163."""
+        out, audit = run(["--from", "Dev", "--to", "Review", "--flow", "Feature"])
+        self.assertEqual(audit["verdict"], "OK")
+        self.assertIn("Dev Stage", out)
+        self.assertIn("Review Stage", out)
+        # 真实 spec L163（漂移时此 assertion 会提醒 · 同 design_review_to_blueprint）
+        self.assertGreater(audit["matched_line"], 100)
+        self.assertLess(audit["matched_line"], 250)
+
+    def test_dev_review_flow_agile_resolves(self) -> None:
+        """--flow 敏捷需求 缩到敏捷需求流程 section · L264."""
+        out, audit = run(["--from", "Dev", "--to", "Review", "--flow", "敏捷需求"])
+        self.assertEqual(audit["verdict"], "OK")
+        # 敏捷需求 section 在 spec 后半 · L264
+        self.assertGreater(audit["matched_line"], 250)
+
+    def test_flow_topic_strips_suffix_exact(self) -> None:
+        """--flow Feature 不应误匹配 'Feature Planning 流程' section（topic 精确匹配）."""
+        # Feature Planning section 没有 Dev→Review 转移 · 但确认 topic 不重叠：
+        # _section_topic("Feature Planning 流程") = "Feature Planning" ≠ "Feature"
+        # 用一个 Feature 流程内独有的转移确认
+        _, audit = run(["--from", "Dev Stage", "--to", "Review Stage",
+                         "--flow", "Feature"])
+        self.assertEqual(audit["verdict"], "OK")
+
+
+class TestP0_155FeatureAutoDerive(unittest.TestCase):
+    """v7.3.10+P0-155: --feature 路径自动从 state.json.flow_type 派生 --flow."""
+
+    def setUp(self) -> None:
+        self.tmp = Path(tempfile.mkdtemp(prefix="ft_feat_"))
+
+    def tearDown(self) -> None:
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def _write_state(self, flow_type: str) -> None:
+        (self.tmp / "state.json").write_text(
+            json.dumps({"flow_type": flow_type}), encoding="utf-8"
+        )
+
+    def test_feature_path_auto_derives_flow_type(self) -> None:
+        """--feature 含 state.json (flow_type=Feature) · 自动派生 → 解 Dev→Review 歧义."""
+        self._write_state("Feature")
+        out, audit = run(["--from", "Dev", "--to", "Review",
+                           "--feature", str(self.tmp)])
+        self.assertEqual(audit["verdict"], "OK")
+        # Feature section · L163
+        self.assertLess(audit["matched_line"], 250)
+
+    def test_feature_path_agile_flow(self) -> None:
+        """--feature 含 flow_type=敏捷需求 · 自动派生 → 解到 L264."""
+        self._write_state("敏捷需求")
+        out, audit = run(["--from", "Dev", "--to", "Review",
+                           "--feature", str(self.tmp)])
+        self.assertEqual(audit["verdict"], "OK")
+        self.assertGreater(audit["matched_line"], 250)
+
+    def test_feature_missing_state_falls_back_to_ambiguous(self) -> None:
+        """--feature 路径没 state.json · 静默 fallback · 仍歧义 FAIL."""
+        # 不写 state.json · tmp 为空
+        _, audit = run(["--from", "Dev", "--to", "Review",
+                         "--feature", str(self.tmp)], expect_exit=2)
+        self.assertIn("匹配歧义", audit["error"])
+
+    def test_flow_explicit_overrides_feature(self) -> None:
+        """--flow 显式优先于 --feature 派生."""
+        self._write_state("敏捷需求")  # state 是敏捷需求
+        out, audit = run(["--from", "Dev", "--to", "Review",
+                           "--feature", str(self.tmp),
+                           "--flow", "Feature"])  # 但 --flow 显式给 Feature
+        self.assertEqual(audit["verdict"], "OK")
+        self.assertLess(audit["matched_line"], 250)  # 走 Feature section
+
 
 class TestSyntheticSpec(unittest.TestCase):
     """用临时 spec 文件覆盖边界 · 不依赖真实文件状态。"""

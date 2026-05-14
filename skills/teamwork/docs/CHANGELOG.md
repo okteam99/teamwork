@@ -1,6 +1,131 @@
 # Changelog
 
-## v7.3.10 + P0-154（当前 · external 评审跳步物化拦截 + 措辞黑名单 · 治本 SVC-PLATFORM-F043 跳 codex CR）
+## v7.3.10 + P0-156（当前 · ship-confirm-merged + ship-cleanup linked-worktree 物化拦截 · 治本 ADMIN-F013 状态更新丢失）
+
+> **触发**：实战 case · ADMIN-F013 Tax & Billing Entity Configuration · agent 在 feature worktree (`/Users/liam/apps/joli/aon/aon-admin-wt/feat-admin-f013`) 跑 `ship-confirm-merged` · state.json 写到 worktree · 然后 `git worktree remove --force` · state.json 随 worktree 一起被删 · 后续 `ship-cleanup` FAIL "state.json not found" · agent narrative "state.json 在 worktree 里已被删了 · worktree 清理完成" 把失败合理化为正常.
+>
+> **诊断**：spec ship-stage.md § Step 6 明文要求 "cd 到 merge_target 主工作区 + git checkout + git pull" 再跑 Step 7-9（写 state.json final + commit + push + worktree 清理）· 但 spec 是 writer-only · 工具层没拦截 · agent 走捷径在 feature worktree 跑 Step 7 → state.json 写错位置 → 后续 Step 9（worktree remove）连锁删除 → 状态永久丢失. R-SP-8 同型缺 reader 兜底.
+
+### P0-156：linked-worktree 物化拦截（路径 A · 同 P0-154 物化层模式）
+
+加 1 删 0 改账（tool + spec · 路径 B 组合 · L1 红线零增量）：
+
+**state.py 物化拦截**：
+
+- ➕ [tools/state.py](../tools/state.py) 新增 `_check_main_worktree()` + `_enforce_main_worktree()` helper：
+  - 检测 `git rev-parse --git-dir` 输出含 `/worktrees/` → 视为 linked worktree
+  - 旁路：`TEAMWORK_BYPASS_MAIN_WORKTREE=1`（migration / debug）
+  - 测试模拟：`TEAMWORK_FORCE_LINKED_WORKTREE=<git_dir>`（test fixtures 用）
+- ➕ `cmd_ship_confirm_merged` 头部加 `_enforce_main_worktree("ship-confirm-merged")` · linked worktree → exit 2 FAIL
+- ➕ `cmd_ship_cleanup` 同型加保护（defense in depth · 即使 cwd 已重置仍兜底）
+- 失败 hint 明确：`cd 到 merge_target 主工作区 · git checkout {merge_target} + git pull --ff-only · 再跑此命令` + cite ship-stage.md § Step 6
+
+**测试**：
+
+- ➕ [tools/tests/test_state.py](../tools/tests/test_state.py) `run()` helper 加 `env_extra` 参数（subprocess env 注入）
+- ➕ 3 新测试（TestP3Ship 类下）：
+  - test_ship_confirm_merged_rejects_linked_worktree：FORCE linked → exit 2 + cite P0-156 + ship-stage.md
+  - test_ship_cleanup_rejects_linked_worktree：同型保护
+  - test_ship_confirm_merged_bypass_main_worktree：BYPASS=1 旁路验证
+
+**spec cite**：
+
+- ➕ [stages/ship-stage.md § state.json 写操作入口 § 硬门禁](../stages/ship-stage.md) 加 P0-156 拦截说明 + 实战 case 描述（ADMIN-F013 状态更新丢失链路）
+
+不动（边界严格 · L1 红线零增量）：
+- SKILL.md 9 条红线不动
+- ship Step 1-3（push / MR creation）允许在 feature worktree 运行（spec 本就如此）· 不加 main-worktree 检查
+- ship-closed (abandon) 不加检查（异常分支 · 多场景兼容）
+- ship-sanitize / ship-push 不加检查（Step 1-2 阶段允许在 feature worktree）
+- 工具其他子命令不动
+
+**纵深防御层级**（同 P0-154 + P0-156 协同）：
+
+| 层 | 拦截位置 | 触发条件 | 失败结果 |
+|---|---------|---------|---------|
+| L1 spec | ship-stage.md Step 6 文字描述 | spec 阅读 | 软警示（agent 易跳）|
+| L2 物化 cwd | state.py ship-confirm-merged / ship-cleanup linked check | 命令执行 | exit 2 + 明确 hint 切主工作区 |
+| L2 物化 phase | state.py ship-cleanup phase ≠ merged check（P0-124）| 命令执行 | exit 1 BLOCKED |
+| L3 checksum | state.py _state_checksum guard（P0-148）| 任何读 | exit 2 mismatch |
+
+P0-156 补的是 **L2 物化 cwd 层** · 之前 phase + checksum 层都已物化 · cwd 层是 missing piece.
+
+**ADMIN-F013 案例若用 P0-156 重跑**：
+
+1. agent 在 feature worktree 跑 `ship-confirm-merged` → **FAIL exit 2** "必须在主工作区运行" + hint
+2. agent 读 hint · cd 到主工作区 + checkout staging + pull · 再跑 → PASS · state.json 写到主工作区
+3. agent commit + push state.json（红线 R1 例外 · 一文件）
+4. agent `git worktree remove` feature worktree → 安全（state.json 已在主工作区 committed）
+5. agent 跑 `ship-cleanup` → PASS · 状态机完整
+
+**测试**：187/187 PASS（+3 新测试 · 累计 +15 since P0-153）.
+
+**实战 trigger 闭环 commit #12**：P0-145..155 → P0-156。用户问"ship 后的状态更新也有问题" → R-SP-8 reader 兜底 cwd 物化拦截 → 治本.
+
+**教训**（与 P0-154/151 同型）：
+- spec 写"必须做 X"不够 · 还要写"禁止走 Y 替代路径" + 工具物化拦截
+- agent narrative 能合理化任何失败（"state.json 在 worktree 里已被删了" = 真但缺关键 context）· 工具 FAIL 必须强阻断 · 不能依赖 agent 理性
+- cwd 层是个常被忽略的物化维度 · 同型可应用到其他 Step 6-9 类命令（Bug 流程 finalize / 跨子项目 ship）· 等实战触发再加
+
+R7(b) 视角：agent 在 plan 里若声明"Step 6: cd to merge_target" 但实际跳过 = 违约。P0-156 在工具层拦截这种违约（cwd 不是 main 就 die）· 比 R7(b) plan 审计更早.
+
+---
+
+## v7.3.10 + P0-155（render-flow-transition.py section-aware 过滤 · 治本 Dev→Review 跨 section 歧义）
+
+> **触发**：实战 case · PTR-F032-billing-payment · agent 调 `render-flow-transition.py --from "Dev" --to "Review"` → FAIL "匹配歧义：2 处命中"（L163 + L264）· agent 改 `--from "Dev Stage" --to "Review Stage"` 同样 FAIL · 死循环 · agent 放弃工具手动 emit 流转注解.
+>
+> **诊断**：flow-transitions.md 同一转移合法地存在于多个 section（Feature 流程 L163 + 敏捷需求流程 L264）· 工具全文 grep 找 `(from, to)` 没有 section 维度 · hint "缩窄关键词" 是死循环（两行 from/to 内容完全相同）.
+>
+> **影响面**：所有同时在 Feature + 敏捷需求两个 flow 都有的转移（Dev→Review / Review→Test / Test→PM 等常用转移）· 必跳工具.
+
+### P0-155：section-aware 过滤（tool only · 不动 spec）
+
+加 1 删 0 改账（仅 tool · 路径 B 同 P0-154）：
+
+- ➕ [tools/render-flow-transition.py](../tools/render-flow-transition.py) 加 section-aware 能力：
+  - 新增 `parse_sections()` / `section_for_line()` / `_section_topic()` / `_match_flow()` 函数
+  - `SECTION_RE` 识别 `## 标题` · `SECTION_SUFFIXES` 剥离"流程"/"模式"/"状态转移"等尾缀拿 topic
+  - `find_matches()` 签名增加 `sections` 参数 · 返回 4-tuple `(line, raw, parsed, section_title)`
+  - CLI 新增 `--flow` 参数（free text · 精确匹配 section topic）
+  - CLI 新增 `--feature` 参数（Feature 路径 · 自动从 `state.json.flow_type` 派生 `--flow`）
+  - effective_flow 推断：`--flow` 显式 > `--feature` 派生 > 无（fallback 到原行为）
+  - 失败 hint 升级：歧义时列每个匹配的 section + raw + L行号 + 提示用 `--flow` / `--feature`
+  - tool_version v1.0 → v1.1
+- ➕ [tools/tests/test_render_flow_transition.py](../tools/tests/test_render_flow_transition.py) 加 8 测试：
+  - test_dev_review_ambiguous_without_flow：无 --flow 仍歧义 FAIL · 含 section 信息
+  - test_dev_review_flow_feature_resolves：--flow Feature 解到 L163
+  - test_dev_review_flow_agile_resolves：--flow 敏捷需求 解到 L264
+  - test_flow_topic_strips_suffix_exact：topic 精确匹配 · 不会 "Feature" 错配 "Feature Planning 流程"
+  - TestP0_155FeatureAutoDerive 类 4 测试：
+    - --feature 路径含 state.json Feature → 自动派生
+    - --feature 路径含 state.json 敏捷需求 → 自动派生
+    - --feature 路径无 state.json → 静默 fallback 仍歧义
+    - --flow 显式优先 --feature 派生
+
+不动（边界严格）：
+- spec 不动（flow-transitions.md L163/L264 是合法的两条 · 不合并）
+- 其他 render-* 工具不动（未触发同型问题）
+- 老调用方式保持兼容（不传 --flow / --feature 行为不变）
+
+**P0-155 解的具体调用对照**：
+
+| 调用 | P0-154 行为 | P0-155 行为 |
+|-----|----------|----------|
+| `--from Dev --to Review` | FAIL 歧义 · hint 死循环 | FAIL 歧义 · 但 matches_detail 列两 section + hint 提示 `--flow` / `--feature` |
+| `--from Dev --to Review --flow Feature` | unknown arg | PASS L163 |
+| `--from Dev --to Review --feature {path}` | unknown arg | 自动读 state.json.flow_type → 派生 --flow → PASS |
+| `--from 设计批 待确认 --to Blueprint`（单一匹配）| PASS | PASS（向后兼容） |
+
+**测试**：184/184 PASS（+8 新测试 / 累计 +12 since P0-153）.
+
+**实战 trigger 闭环 commit #11**：P0-145..154 → P0-155。用户问"脚本是否有问题" → 工具层 bug 确认 → A 路径 tool only 修复.
+
+**教训**：tool 设计假设"`(from, to)` 全局唯一"在 spec 多 section 时不成立 · R-SP-8 reader 工具必须感知 spec 结构（含 section 维度）· 而不是只看表格行. 同型反思可应用到其他 render-* 工具 · 但当前不动 · 等实战触发再扩.
+
+---
+
+## v7.3.10 + P0-154（external 评审跳步物化拦截 + 措辞黑名单 · 治本 SVC-PLATFORM-F043 跳 codex CR）
 
 > **触发**：实战 case · SVC-PLATFORM-F043-Adapter-MobPower · agent 走完架构师 CR + QA CR 后**直接转 `📋 review → test`** · **跳了 codex CR** · 用户问"外部模型 review 了么" · agent 自承"没有 · 补上"。
 >

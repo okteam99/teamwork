@@ -122,6 +122,63 @@ def state_path(feature: str) -> Path:
     return p
 
 
+# ─── Linked-worktree guard (v7.3.10+P0-156) ──────────────────────────
+# 治本 ADMIN-F013 case：ship-confirm-merged / ship-cleanup 误在 feature
+# worktree 跑 → state.json 写到 worktree → worktree remove --force 时丢失.
+# ship-stage.md Step 6 明文要求"cd 到 merge_target 主工作区"再跑这两命令.
+# 这里加物化拦截 · 不依赖 agent 自觉.
+#
+# 旁路：TEAMWORK_BYPASS_MAIN_WORKTREE=1（migration / debug）
+# 测试模拟：TEAMWORK_FORCE_LINKED_WORKTREE=<git_dir_value>
+
+MAIN_WORKTREE_BYPASS_ENV = "TEAMWORK_BYPASS_MAIN_WORKTREE"
+MAIN_WORKTREE_FORCE_ENV = "TEAMWORK_FORCE_LINKED_WORKTREE"
+
+
+def _check_main_worktree() -> str | None:
+    """检测 cwd 是否在 linked worktree（非 main worktree）.
+
+    Returns: linked worktree git_dir 字符串 if linked · None if main / 非 git repo / 旁路.
+    """
+    if os.environ.get(MAIN_WORKTREE_BYPASS_ENV):
+        return None
+    forced = os.environ.get(MAIN_WORKTREE_FORCE_ENV)
+    if forced:
+        return forced
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--git-dir"],
+            capture_output=True, text=True, check=True, cwd=os.getcwd(),
+        )
+        git_dir = result.stdout.strip()
+        # linked worktree 形如：/path/main/.git/worktrees/{name}
+        if "/worktrees/" in git_dir:
+            return git_dir
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        pass
+    return None
+
+
+def _enforce_main_worktree(command: str) -> None:
+    """Ship Step 6-9 类命令的 cwd 物化拦截 · linked worktree 直接 die."""
+    linked = _check_main_worktree()
+    if not linked:
+        return
+    die(2, json.dumps({
+        "verdict": "FAIL",
+        "error": f"{command} 必须在主工作区运行 · 当前 cwd 在 linked worktree",
+        "cwd": os.getcwd(),
+        "linked_worktree_git_dir": linked,
+        "hint": (
+            "cd 到 merge_target 主工作区（git clone 原仓库位置 · 不是 git worktree add 的 linked 路径）· "
+            "git checkout {merge_target} + git pull --ff-only · 再跑此命令"
+        ),
+        "rule": "v7.3.10+P0-156 物化拦截 · 治本 ADMIN-F013 case state.json 在 worktree 被删丢失",
+        "cite": "ship-stage.md § Step 6 切到 merge_target 主工作区",
+        "bypass": f"如确需 linked worktree 运行（极少 · 调试场景）· export {MAIN_WORKTREE_BYPASS_ENV}=1",
+    }, ensure_ascii=False, indent=2))
+
+
 # ─── Checksum guard (v7.3.10+P0-148) ───────────────────────────────────
 # state.json checksum 自防护 · 跨宿主物理拦截直写 state.json。
 # 设计：state.py 每次写都更新 `_state_checksum` · 每次读先 verify · 不一致 → fail。
@@ -762,7 +819,9 @@ def cmd_ship_confirm_merged(args: argparse.Namespace) -> None:
     """Step 4-8：pushed → merged · 含合并 evidence + 可选 finalize-push 状态。
 
     🔴 P0-124 治本：必带 merge_commit_hash + merge_detection_method。
+    🔴 P0-156 治本：必须在主工作区运行（非 linked worktree）· 治本 ADMIN-F013 case。
     """
+    _enforce_main_worktree("ship-confirm-merged")
     path, state, before, ship = _ship_load(args)
     if ship.get("phase") != "pushed":
         die(1, _ship_phase_err(ship.get("phase"), "merged",
@@ -825,7 +884,9 @@ def cmd_ship_cleanup(args: argparse.Namespace) -> None:
     """Step 9：worktree 清理状态记录。
 
     🔴 P0-124 治本硬门禁：destructive op 前必须 phase=merged + shipped=merged。
+    🔴 P0-156 治本：必须在主工作区运行（非 linked worktree）· 治本 ADMIN-F013 case。
     """
+    _enforce_main_worktree("ship-cleanup")
     path, state, before, ship = _ship_load(args)
     if args.status not in SHIP_CLEANUP_ENUM:
         die(1, _enum_err("--status", args.status, SHIP_CLEANUP_ENUM))

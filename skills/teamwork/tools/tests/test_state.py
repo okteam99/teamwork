@@ -24,10 +24,17 @@ TEMPLATE_STATE = SKILL / "templates" / "feature-state.json"
 STATE_PY = TOOLS / "state.py"
 
 
-def run(args: list[str], expect_exit: int = 0) -> dict:
-    """跑 state.py 子命令 · 返回 stdout JSON · 校验 exit code。"""
+def run(args: list[str], expect_exit: int = 0,
+        env_extra: dict[str, str] | None = None) -> dict:
+    """跑 state.py 子命令 · 返回 stdout JSON · 校验 exit code。
+
+    env_extra: 临时叠加环境变量（如模拟 TEAMWORK_FORCE_LINKED_WORKTREE · v7.3.10+P0-156）.
+    """
     cmd = [sys.executable, str(STATE_PY), *args]
-    r = subprocess.run(cmd, capture_output=True, text=True)
+    env = os.environ.copy()
+    if env_extra:
+        env.update(env_extra)
+    r = subprocess.run(cmd, capture_output=True, text=True, env=env)
     assert r.returncode == expect_exit, (
         f"exit {r.returncode} ≠ {expect_exit}\nstdout:\n{r.stdout}\nstderr:\n{r.stderr}"
     )
@@ -284,6 +291,51 @@ class TestP3Ship(_Base):
         d = run(["ship-closed", "--feature", self.feat(), "--abandon",
                  "--reason", "用户放弃"])
         self.assertEqual(d["updated_fields"]["ship.shipped"], "abandoned")
+
+    # ─── v7.3.10+P0-156: linked-worktree 物化拦截 · 治本 ADMIN-F013 ────
+
+    def test_ship_confirm_merged_rejects_linked_worktree(self) -> None:
+        """ship-confirm-merged 在 linked worktree → FAIL early（治本 P0-156）."""
+        d = run([
+            "ship-confirm-merged", "--feature", self.feat(),
+            "--merge-commit-hash", "abc",
+            "--merge-detection-method", "branch-contains",
+        ], expect_exit=2, env_extra={
+            "TEAMWORK_FORCE_LINKED_WORKTREE": "/path/main/.git/worktrees/feat-x"
+        })
+        self.assertEqual(d["verdict"], "FAIL")
+        self.assertIn("linked worktree", d["error"])
+        self.assertIn("P0-156", d["rule"])
+        self.assertIn("ship-stage.md", d["cite"])
+
+    def test_ship_cleanup_rejects_linked_worktree(self) -> None:
+        """ship-cleanup 同型保护（治本 P0-156）."""
+        d = run([
+            "ship-cleanup", "--feature", self.feat(), "--status", "cleaned",
+        ], expect_exit=2, env_extra={
+            "TEAMWORK_FORCE_LINKED_WORKTREE": "/path/main/.git/worktrees/feat-x"
+        })
+        self.assertEqual(d["verdict"], "FAIL")
+        self.assertIn("linked worktree", d["error"])
+        self.assertIn("P0-156", d["rule"])
+
+    def test_ship_confirm_merged_bypass_main_worktree(self) -> None:
+        """TEAMWORK_BYPASS_MAIN_WORKTREE=1 旁路 · 不强制（debug 场景）."""
+        self.push_to_stage("ship")
+        run(["ship-push", "--feature", self.feat(),
+             "--feature-head-commit", "abc1234",
+             "--git-host", "github",
+             "--mr-creation-method", "cli-gh",
+             "--mr-url", "http://x/p/1"])
+        # 即使 force linked · BYPASS 旁路掉
+        d = run(["ship-confirm-merged", "--feature", self.feat(),
+                 "--merge-commit-hash", "abc1234",
+                 "--merge-detection-method", "branch-contains"],
+                env_extra={
+                    "TEAMWORK_FORCE_LINKED_WORKTREE": "/fake/worktrees/x",
+                    "TEAMWORK_BYPASS_MAIN_WORKTREE": "1",
+                })
+        self.assertEqual(d["verdict"], "PASS")
 
 
 class TestP4General(_Base):

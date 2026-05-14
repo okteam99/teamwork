@@ -43,6 +43,7 @@
 > - 禁止用 Edit / jq / sed 直接改 state.json · 违者 = 流程违规
 > - 唯一逃生舱：`state.py raw-write`（自动追加 `concerns` WARN）· 仅 migration / debug 使用
 > - 治本 P0-124 拦截：`ship-cleanup --status cleaned` 在 phase ≠ merged 时被脚本物理拒绝（exit 1 BLOCKED · 不靠 PMO 自觉）
+> - 治本 P0-156 拦截（v7.3.10+P0-156 新增）：`ship-confirm-merged` + `ship-cleanup` 在 **linked worktree** 直接 FAIL（exit 2）· 强制 cd 到 merge_target 主工作区再跑（cite Step 6）· 旁路 `TEAMWORK_BYPASS_MAIN_WORKTREE=1` · 治本 ADMIN-F013 case：agent 在 feature worktree 跑 ship-confirm-merged → state.json 写到 worktree → `git worktree remove --force` 时丢失 → 后续 ship-cleanup 找不到 state.json → 状态更新永久丢失.
 
 ### 子命令 ↔ Step 映射
 
