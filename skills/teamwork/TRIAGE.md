@@ -47,6 +47,17 @@
 | **D · status** | status / 现在到哪 / 看板 | 加载 Feature 看板 + 输出 | ❌ |
 | **E · discuss** | 我感觉 / 你怎么看 / X vs Y / 哪种更合理 | 综合视角讨论 + 选项 + 推荐 | ❌(讨论收敛后用户升级到 B)|
 
+🔴 **mode E 升级触发**(PMO 主动建议 · 不等用户提)·命中以下场景必须在收尾时建议升 mode B:
+- 讨论涉及**多 Feature 范围拆分** / **ROADMAP 更新** / **P0/P1 优先级排序** → 建议升 **Feature Planning**(走完整 panorama_design 产 ROADMAP.md · 而非 PMO 主对话散述清单)
+- 讨论涉及**新功能实现方向** / **架构决策点** → 建议升 **Feature**(走 goal_plan PRD 而非主对话伪 PRD)
+- 讨论涉及**已知 bug 根因 + 修复方案** → 建议升 **Bug**
+
+PMO 在 mode E 收尾时输出:
+```
+📎 **建议升级到 mode B · <flow_type>**:本次讨论已涉及 <触发场景>,建议进 <flow_type> 流程(走 <first_stage> stage 产 <artifact>)以保证 R6/多视角 review 闭环。
+回复 "进 <flow_type>" 升级 · 或继续讨论。
+```
+
 ---
 
 ## 3. audit_line(PMO 主对话首条响应必含)
@@ -90,7 +101,7 @@ PMO 按以下关键词表判定 user input 落入哪类流程:
 
 | 关键词模式 | 流程类型 |
 |----------|---------|
-| 规划 / 拆 roadmap / 全景 / 做电商 / 做 SaaS / 商业模式调整 | **Feature Planning** |
+| 规划 / Feature Planning / feature planning / 更新 roadmap / 拆 roadmap / 路线图 / 全景 / 做电商 / 做 SaaS / 商业模式调整 | **Feature Planning** |
 | 排查 / 查 log / 诊断 / why X 慢 / 调研 / 分析根因 | **问题排查** |
 | 修复 / bug / 报错 / 500 / 502 / 挂了 / 无法登录 / 生产问题 | **Bug** |
 | 换 logo / 换图 / 改文案 / 改样式 / 改颜色 / 改配置常量 | **Micro** |
