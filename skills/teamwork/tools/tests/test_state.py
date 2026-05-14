@@ -335,6 +335,63 @@ class TestInitFeature(unittest.TestCase):
         self.assertEqual(d["verdict"], "FAIL")
         self.assertIn("already exists", d["error"])
 
+    def test_init_feature_uses_feature_as_single_source_for_path(self) -> None:
+        """v7.3.10+P0-149 regression：PTR-F032 case · 防 --feature 和 artifact_root 分裂。
+
+        实战 bug：4.6 传 --feature 仅 feature 名 + 期待 --artifact-root 控制路径 →
+        state.json 落 CWD/feature-name/state.json（错位置）。
+        修复：删 --artifact-root · --feature 单源 · artifact_root 字段 = --feature 值。
+        """
+        target = self.tmp / "apps" / "partner" / "docs" / "features" / "PTR-F032-test"
+        d = run([
+            "init-feature",
+            "--feature", str(target),
+            "--feature-id", "PTR-F032-test",
+            "--flow-type", "Feature",
+            "--sub-project", "partner",
+            "--merge-target", "staging",
+            "--branch", "feat/ptr-f032",
+        ])
+        self.assertEqual(d["verdict"], "OK")
+        # state.json 必须落在 --feature 指定路径
+        self.assertTrue((target / "state.json").exists())
+        # artifact_root 字段 = --feature 路径
+        state = json.loads((target / "state.json").read_text(encoding="utf-8"))
+        self.assertEqual(state["artifact_root"], str(target))
+
+    def test_init_feature_rejects_old_artifact_root_arg(self) -> None:
+        """v7.3.10+P0-149：--artifact-root 已删 · argparse 应直接 reject。"""
+        target = self.tmp / "apps" / "x"
+        cmd = [
+            sys.executable, str(STATE_PY), "init-feature",
+            "--feature", str(target),
+            "--feature-id", "X",
+            "--flow-type", "Feature",
+            "--merge-target", "main",
+            "--branch", "feat/x",
+            "--artifact-root", "some/other/path",  # 旧参数
+        ]
+        r = subprocess.run(cmd, capture_output=True, text=True)
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("--artifact-root", r.stderr + r.stdout)
+        self.assertIn("unrecognized arguments", r.stderr + r.stdout)
+
+    def test_init_feature_warns_on_mismatched_basename(self) -> None:
+        """v7.3.10+P0-149 启发式：--feature basename 不含 --feature-id → stderr 警告。"""
+        target = self.tmp / "wrong-slug"
+        cmd = [
+            sys.executable, str(STATE_PY), "init-feature",
+            "--feature", str(target),
+            "--feature-id", "ADMIN-F999-mismatch",  # basename 'wrong-slug' 不含
+            "--flow-type", "Feature",
+            "--merge-target", "main",
+            "--branch", "feat/x",
+        ]
+        r = subprocess.run(cmd, capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0)  # 不强阻 · 仅警告
+        self.assertIn("WARNING", r.stderr)
+        self.assertIn("basename", r.stderr)
+
     def test_init_feature_force_backs_up(self) -> None:
         target = self.tmp / "force"
         target.mkdir(parents=True)

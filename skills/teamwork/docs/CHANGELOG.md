@@ -1,6 +1,53 @@
 # Changelog
 
-## v7.3.10 + P0-148（当前 · state.py init-feature + checksum guard · 物化拦截直写 state.json）
+## v7.3.10 + P0-149（当前 · 紧急修 P0-148 init-feature 参数 bug · 实战 PTR-F032 触发）
+
+> **触发**：实战 case · PTR-F032-Billing-Payment-闭环 · Claude 4.6 instance 使用 P0-148 新加的 `state.py init-feature` · state.json 落错位置（worktree-root/`PTR-F032-Billing-Payment-闭环/state.json` 而非 `apps/partner/docs/features/PTR-F032-Billing-Payment-闭环/state.json`）· 4.6 自承"--artifact-root 传了相对路径但 CWD 已变化导致路径解析错误"· 手工 mv 修复。
+>
+> **诊断（直接修代码验证）**：P0-148 init-feature 的 `--feature` 和 `--artifact-root` **双参数语义重叠**：
+> - `--feature` = state.json 落盘的物理路径（用 `Path(args.feature) / "state.json"`）
+> - `--artifact-root` = state.json 中 artifact_root 字段值（默认取 --feature）
+>
+> AI 自然倾向把 `--feature` 当 "feature 名"传（slug）· `--artifact-root` 当 "完整路径"传 → state.json 物理落 CWD/slug/state.json（错） · artifact_root 字段记 apps/.../slug（对）· 物理位置与字段值分裂。
+>
+> 这是 P0-148 自己引入的回归 · 必须立即修。
+
+### P0-149：删 --artifact-root 冗余参数 · --feature 单源
+
+加 1 删 1 账（hotfix · 净删）：
+- 🗑️ `state.py init-feature --artifact-root` 参数（删除 · argparse 直接 reject）
+- ➕ `--feature` 升为单源：既是 state.json 落盘目录 · 又是 state.artifact_root 字段值（`str(args.feature)`）
+- ➕ 启发式校验：`--feature` basename 不含 `--feature-id` → stderr WARNING（防 AI 误传仅 slug）
+- 改 [stages/prepare-stage.md Step 14](../stages/prepare-stage.md)：调用示例明示 `--feature` 必须完整路径 · 含 `apps/{sub_project}/docs/features/{Feature 全名}` pattern
+- ➕ test_state.py 加 3 regression cases：
+  - `test_init_feature_uses_feature_as_single_source_for_path`（核心 regression）
+  - `test_init_feature_rejects_old_artifact_root_arg`（argparse 应 reject）
+  - `test_init_feature_warns_on_mismatched_basename`（启发式警告）
+
+兼容性：
+- P0-148 创建的 state.json **不受影响**（artifact_root 字段值在大多数情况下相同 · 即使 --feature 误传也仅物理位置错）
+- 现有 24 个 state.py 子命令 + 9 个 P0-148 测试**不变**
+- 新代码强 fail（argparse reject）替代 P0-148 silent 错位 · 错得早 + 错得明显
+
+测试：169 baseline + 3 regression = **172/172 PASS**
+
+实战 trigger 闭环（连续 5 个 case-driven patch）：
+- P0-145: 4.6 诊断 worktree/state.json 时序 gap
+- P0-146: 4.6 诊断 writer-only 规则模式
+- P0-147: 用户反馈"Designer 不对齐"
+- P0-148: 4.6 自承"我把 state.json 当 JSON 直接 Write"
+- **P0-149 (本)**: P0-148 引入的回归 · 4.6 实战触发 · 立即修
+
+不动（边界严格）：
+- L1 红线零增量
+- state.py checksum guard / recover 不动（P0-148 OK）
+- templates/feature-state.json schema 不动
+
+教训：新工具加参数时 · 参数语义必须**正交不重叠** · 否则 AI 跨参数误用必然发生。--feature 和 --artifact-root 应该早合并。
+
+---
+
+## v7.3.10 + P0-148（state.py init-feature + checksum guard · 物化拦截直写 state.json）
 
 > **触发**：实战 case · ADMIN-F013 Feature · Claude 4.6 instance 自承：
 > 1. "我把 state.json 当普通 JSON 文件直接 Write 了——图省事，跳过了工具层"

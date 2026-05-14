@@ -377,11 +377,13 @@ cd {worktree.path}
 
 🔴 **执行位置（v7.3.10+P0-145 修订）**：CWD 已在 Step 13.5 切到 worktree（如启用）· state.json 创建落在 worktree 内 · 与后续 PRD / 评审产物同位。
 
-🔴 **必走 state.py init-feature 子命令（v7.3.10+P0-148 物化 · 替代手工 Write）** · 下游：手工 Write state.json → checksum guard 在下次任何 state.py 调用时 exit 2 拒绝（实证 4.6 case "我把 state.json 当普通 JSON 直接 Write"）
+🔴 **必走 state.py init-feature 子命令（v7.3.10+P0-148 物化 / +P0-149 修复 PTR-F032 参数 bug · 替代手工 Write）** · 下游：手工 Write state.json → checksum guard 在下次任何 state.py 调用时 exit 2 拒绝（实证 4.6 case "我把 state.json 当普通 JSON 直接 Write"）
+
+🔴 **`--feature` 必须是完整路径**（含 sub_project/docs/features/Feature-名 · 不是仅 feature 名）· state.json 落此处 · 同时作为 state.artifact_root 字段值（v7.3.10+P0-149 治本 PTR-F032 实战 bug）
 
 ```bash
 python3 {SKILL_ROOT}/tools/state.py init-feature \
-  --feature {artifact_root}                  \
+  --feature apps/{sub_project}/docs/features/{Feature 全名}  \
   --feature-id {Feature 全名}                \
   --flow-type {Feature|Bug|Micro|敏捷需求|Feature Planning|问题排查} \
   --sub-project {子项目代号}                  \
@@ -392,6 +394,8 @@ python3 {SKILL_ROOT}/tools/state.py init-feature \
   [--auto-mode]                               \
   [--initial-stage <enum>]
 ```
+
+🟢 启发式校验：`--feature` basename 不含 `--feature-id` → 工具 stderr 警告 · 防参数误传。
 
 ```
 Feature / Bug / Micro / 敏捷 → init-feature 创建 state.json（按 flow-type schema）

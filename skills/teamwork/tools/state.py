@@ -1177,7 +1177,12 @@ DEFAULT_INITIAL_STAGE = {
 
 
 def cmd_init_feature(args: argparse.Namespace) -> None:
-    """Create initial state.json · 替代手工 Write（v7.3.10+P0-148）。"""
+    """Create initial state.json · 替代手工 Write（v7.3.10+P0-148 / +P0-149 fix）。
+
+    v7.3.10+P0-149 修复（实战 case PTR-F032）：移除 --artifact-root 冗余参数 ·
+    --feature 是单源（既是 state.json 落盘目录 · 又是 state.artifact_root 字段值）·
+    防"双参数语义重叠导致 state.json 落错位置"。
+    """
     feature_dir = Path(args.feature)
     state_file = feature_dir / "state.json"
 
@@ -1198,11 +1203,21 @@ def cmd_init_feature(args: argparse.Namespace) -> None:
         args.flow_type, "goal_plan"
     )
 
+    # 启发式校验：basename 应含 feature_id（防 --feature 传了 slug 而不是完整路径）
+    if args.feature_id not in feature_dir.name:
+        # 不强阻 · 但 stderr 提示一行警告
+        print(
+            f"WARNING: --feature basename '{feature_dir.name}' does not contain "
+            f"--feature-id '{args.feature_id}' · 确认 --feature 是完整路径（如 "
+            f"apps/{{sub_project}}/docs/features/{args.feature_id}）而非仅 feature 名",
+            file=sys.stderr,
+        )
+
     state: dict[str, Any] = {
         "feature_id": args.feature_id,
         "sub_project": args.sub_project or "",
         "flow_type": args.flow_type,
-        "artifact_root": args.artifact_root or str(feature_dir),
+        "artifact_root": str(feature_dir),  # v7.3.10+P0-149: 单源 · 不再独立 --artifact-root
         "current_stage": initial_stage,
         "merge_target": args.merge_target,
         "worktree": {
@@ -1426,13 +1441,17 @@ def build_parser() -> argparse.ArgumentParser:
         help="创建 Feature state.json · 替代手工 Write（v7.3.10+P0-148）",
     )
     ifp.add_argument("--feature", required=True,
-                     help="目标 feature 目录 · 自动 mkdir -p · state.json 不存在时创建")
-    ifp.add_argument("--feature-id", required=True, help="如 ADMIN-F013-tax-billing")
+                     help="🔴 目标 feature 目录的**完整路径**（绝对或相对 CWD）· "
+                          "如 apps/admin/docs/features/ADMIN-F013-x · "
+                          "**不是仅 feature 名**（v7.3.10+P0-149 修复 PTR-F032 实战 bug）· "
+                          "state.json 落此处 · 同时作为 state.artifact_root 字段值")
+    ifp.add_argument("--feature-id", required=True,
+                     help="如 ADMIN-F013-tax-billing · 应是 --feature basename")
     ifp.add_argument("--flow-type", required=True,
                      choices=["Feature", "Bug", "Micro", "敏捷需求",
                               "Feature Planning", "问题排查"])
     ifp.add_argument("--sub-project", help="如 admin / api-server")
-    ifp.add_argument("--artifact-root", help="相对 repo root · 缺省取 --feature")
+    # v7.3.10+P0-149: 删 --artifact-root 冗余参数 · --feature 单源（既是落盘目录又是 artifact_root 字段值）
     ifp.add_argument("--initial-stage",
                      help="缺省按 flow_type 决定（Feature→goal_plan / Bug→dev / Micro→dev / ...）")
     ifp.add_argument("--merge-target", required=True, help="如 staging / main")
