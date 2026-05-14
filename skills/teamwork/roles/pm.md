@@ -14,8 +14,8 @@
 
 ## 协作关系
 
-- PM ↔ PL:产品方向澄清(goal_plan stage 子步骤 2)
-- PM ↔ QA/Architect:多角色评审 PRD(goal_plan stage 子步骤 3)
+- PM ↔ PL:产品方向澄清(goal stage 子步骤 2)
+- PM ↔ QA/Architect:多角色评审 PRD(goal stage 子步骤 3)
 - PM ↔ Designer:UI Design Stage 时确认设计是否覆盖 AC
 - PM ↔ 用户:最终验收(pm_acceptance stage)
 

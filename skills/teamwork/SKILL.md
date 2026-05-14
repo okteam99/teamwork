@@ -55,9 +55,9 @@ cd <worktree-path>
 state.py init-feature --feature <feature-dir-in-worktree> ...
 
 # 3. 各 stage 走 -start / -complete
-state.py goal_plan-start --feature <path>
+state.py goal-start --feature <path>
 # ... AI 按 next_action_brief 完成 stage 工作 ...
-state.py goal_plan-complete --feature <path> --auto-commit <hash> --artifacts ...
+state.py goal-complete --feature <path> --auto-commit <hash> --artifacts ...
 # state.py 自动校验产物 + 转移下一 stage + 输出下一 stage 的 brief
 
 # 4. Ship
@@ -84,9 +84,9 @@ A 类 · 状态机入口(用户确认 worktree 后 · 在 worktree 内运行)
 (triage 是 PMO 入口行为 · 不是 state.py 命令 · 见 TRIAGE.md)
 
 B 类 · Stage 流转(23 = 11 stage × 2 + ship-phase)
-├── goal_plan-start / goal_plan-complete
+├── goal-start / goal-complete
 ├── ui_design-start / ui_design-complete
-├── panorama_design-start / panorama_design-complete (Feature Planning only)
+├── planning-start / planning-complete (Feature Planning only)
 ├── blueprint-start / blueprint-complete
 ├── blueprint_lite-start / blueprint_lite-complete (敏捷需求 only)
 ├── dev-start / dev-complete
@@ -273,7 +273,7 @@ v8 把 v7 的 9 红线中 16/17 子条目物化进 state.py · 仅 1 条(R3 PMO 
 | R3 PMO 统一承接 | 保留 AI 自决(不可枚举) |
 | R4 流程边界 | state.py 按 flow_type 强制 stage 链 |
 | R5 暂停点协议 | state.py emit 暂停点 markdown(强制格式) |
-| R6 Planning 只出文档 | panorama_design-complete 拒绝代码 artifact |
+| R6 Planning 只出文档 | planning-complete 拒绝代码 artifact |
 | R7 证据闭环 | xx-complete 必传 --auto-commit + 校验 commit 存在 + artifacts in changeset |
 | R8 写操作硬门禁链 | state.py 内部 prepare 完成前拒绝 stage-start · ship Phase 1 CLI-first |
 | R9 session bootstrap 必跑 triage | tools/bootstrap.py + PMO 按 TRIAGE.md 分诊 |

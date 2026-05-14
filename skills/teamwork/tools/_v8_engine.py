@@ -506,9 +506,9 @@ def _find_skill_root() -> Path:
 
 # 各 stage 对应的 spec 文件名(stages/*.md)
 STAGE_SPEC_FILES = {
-    "goal_plan": "goal-plan-stage.md",
+    "goal": "goal-stage.md",
     "ui_design": "ui-design-stage.md",
-    "panorama_design": "panorama-design-stage.md",
+    "planning": "planning-stage.md",
     "blueprint": "blueprint-stage.md",
     "blueprint_lite": "blueprint-lite-stage.md",
     "dev": "dev-stage.md",
@@ -699,7 +699,7 @@ REVIEW_ROLE_ENUM = {"pm", "qa", "architect", "rd", "designer", "pl", "external"}
 # (flow_type, stage) → 默认 review 角色清单
 DEFAULT_REVIEW_ROLES: dict[tuple[str, str], list[str]] = {
     # Feature 流程
-    ("Feature", "goal_plan"): ["pm", "qa", "architect", "pl", "external"],
+    ("Feature", "goal"): ["pm", "qa", "architect", "pl", "external"],
     ("Feature", "ui_design"): ["designer", "pm"],
     ("Feature", "blueprint"): ["qa", "architect", "external"],
     ("Feature", "review"): ["architect", "qa", "external"],
@@ -708,7 +708,7 @@ DEFAULT_REVIEW_ROLES: dict[tuple[str, str], list[str]] = {
     ("Feature", "pm_acceptance"): ["pm"],
 
     # 敏捷需求
-    ("敏捷需求", "goal_plan"): ["pm", "qa", "architect"],
+    ("敏捷需求", "goal"): ["pm", "qa", "architect"],
     ("敏捷需求", "blueprint_lite"): ["qa"],
     ("敏捷需求", "review"): ["architect", "qa", "external"],
     ("敏捷需求", "test"): ["qa"],
@@ -723,8 +723,8 @@ DEFAULT_REVIEW_ROLES: dict[tuple[str, str], list[str]] = {
     ("Micro", "pm_acceptance"): ["pm"],
 
     # Feature Planning
-    ("Feature Planning", "goal_plan"): ["pm", "pl", "external"],
-    ("Feature Planning", "panorama_design"): ["pl", "pm", "external"],
+    ("Feature Planning", "goal"): ["pm", "pl", "external"],
+    ("Feature Planning", "planning"): ["pl", "pm", "external"],
 }
 
 
@@ -1099,7 +1099,7 @@ def add_common_stage_complete_args(parser: argparse.ArgumentParser) -> None:
 
 def _add_stage_specific_args(parser: argparse.ArgumentParser, stage_name: str, phase: str) -> None:
     """各 stage 特殊参数 hook · 在通用参数之外追加。"""
-    if stage_name == "goal_plan" and phase == "complete":
+    if stage_name == "goal" and phase == "complete":
         # v8.0+P0-6:--needs-ui 必传 · 决策下一 stage 走向(ui_design vs blueprint)
         # 不让 state.py emit 暂停点(默认无 UI 是常态)· 字段必有值
         parser.add_argument(

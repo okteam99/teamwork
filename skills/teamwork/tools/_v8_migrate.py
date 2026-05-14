@@ -21,7 +21,14 @@ from pathlib import Path
 from _v8_engine import emit_json, now_iso
 
 
-V8_SCHEMA_VERSION = "v8.0"
+V8_SCHEMA_VERSION = "v8.0"  # v7 → v8 迁移目标
+V8_1_SCHEMA_VERSION = "v8.1"  # v8.0 → v8.1 stage rename 目标
+
+# v8.0 → v8.1 stage 改名映射
+STAGE_RENAMES = {
+    "goal_plan": "goal",
+    "panorama_design": "planning",
+}
 
 
 def cmd_migrate_v7_to_v8(args: argparse.Namespace) -> None:
@@ -123,8 +130,101 @@ def cmd_migrate_v7_to_v8(args: argparse.Namespace) -> None:
     })
 
 
+def cmd_migrate_v8_stage_rename(args: argparse.Namespace) -> None:
+    """v8.0 → v8.1: stage 改名 goal_plan→goal · panorama_design→planning。"""
+    feature_path = Path(args.feature).resolve()
+    state_file = feature_path / "state.json"
+    if not state_file.exists():
+        emit_json({
+            "verdict": "FAIL",
+            "command": "migrate-v8-stage-rename",
+            "error": f"state.json 不存在: {state_file}",
+        }, exit_code=1)
+
+    state = json.loads(state_file.read_text(encoding="utf-8"))
+    if state.get("schema_version") == V8_1_SCHEMA_VERSION:
+        emit_json({
+            "verdict": "SKIP",
+            "command": "migrate-v8-stage-rename",
+            "reason": f"已是 {V8_1_SCHEMA_VERSION}",
+        })
+
+    changes = []
+
+    # 1. current_stage
+    cur = state.get("current_stage")
+    if cur in STAGE_RENAMES:
+        state["current_stage"] = STAGE_RENAMES[cur]
+        changes.append(f"current_stage: {cur} → {STAGE_RENAMES[cur]}")
+
+    # 2. completed_stages[]
+    completed = state.get("completed_stages", [])
+    new_completed = [STAGE_RENAMES.get(s, s) for s in completed]
+    if new_completed != completed:
+        state["completed_stages"] = new_completed
+        changes.append(f"completed_stages: {completed} → {new_completed}")
+
+    # 3. legal_next_stages[]
+    legal = state.get("legal_next_stages", [])
+    new_legal = [STAGE_RENAMES.get(s, s) for s in legal]
+    if new_legal != legal:
+        state["legal_next_stages"] = new_legal
+        changes.append(f"legal_next_stages: {legal} → {new_legal}")
+
+    # 4. stage_contracts dict keys
+    contracts = state.get("stage_contracts", {})
+    for old, new in STAGE_RENAMES.items():
+        if old in contracts:
+            contracts[new] = contracts.pop(old)
+            changes.append(f"stage_contracts.{old} → stage_contracts.{new}")
+
+    # 5. stage_review_roles dict keys(若存在)
+    review_roles = state.get("stage_review_roles", {})
+    for old, new in STAGE_RENAMES.items():
+        if old in review_roles:
+            review_roles[new] = review_roles.pop(old)
+            changes.append(f"stage_review_roles.{old} → stage_review_roles.{new}")
+
+    state["schema_version"] = V8_1_SCHEMA_VERSION
+
+    if not args.dry_run:
+        backup_path = state_file.with_suffix(".json.v8-0-backup")
+        try:
+            shutil.copy(state_file, backup_path)
+        except OSError as e:
+            emit_json({
+                "verdict": "FAIL",
+                "command": "migrate-v8-stage-rename",
+                "error": f"备份失败: {e}",
+            }, exit_code=1)
+
+        state["updated_at"] = now_iso()
+        state["updated_by"] = "migrate-v8-stage-rename"
+        state_file.write_text(
+            json.dumps(state, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+        )
+
+    state.setdefault("concerns", []).append(
+        f"{now_iso()} INFO migrated v8.0 → v8.1 · {len(changes)} fields changed"
+    )
+
+    emit_json({
+        "verdict": "PASS",
+        "command": "migrate-v8-stage-rename",
+        "feature": str(feature_path),
+        "dry_run": args.dry_run,
+        "schema_version_before": "v8.0",
+        "schema_version_after": V8_1_SCHEMA_VERSION,
+        "changes": changes,
+        "backup_path": (
+            str(state_file.with_suffix(".json.v8-0-backup"))
+            if not args.dry_run else "(dry-run · not created)"
+        ),
+    })
+
+
 def register_v8_migrate_subparser(sub) -> None:
-    """在 state.py argparse subparsers 上注册 migrate-v7-to-v8。"""
+    """在 state.py argparse subparsers 上注册 migrate 命令。"""
     mp = sub.add_parser(
         "migrate-v7-to-v8",
         help="[v8] 一次性迁移老 state.json 从 v7 → v8 schema",
@@ -133,3 +233,12 @@ def register_v8_migrate_subparser(sub) -> None:
     mp.add_argument("--dry-run", action="store_true",
                     help="只输出变更预览 · 不动文件")
     mp.set_defaults(func=cmd_migrate_v7_to_v8)
+
+    mp2 = sub.add_parser(
+        "migrate-v8-stage-rename",
+        help="[v8.1] stage 改名 goal_plan→goal / panorama_design→planning",
+    )
+    mp2.add_argument("--feature", required=True, help="Feature artifact_root 路径")
+    mp2.add_argument("--dry-run", action="store_true",
+                     help="只输出变更预览 · 不动文件")
+    mp2.set_defaults(func=cmd_migrate_v8_stage_rename)

@@ -1,5 +1,40 @@
 # Changelog
 
+## v8.1 · stage 改名 + Feature Planning 流程独立
+
+> 治本 v8.0 stage 命名错位:`goal_plan` 既混"目标规划"又装 PRD 起草 ·
+> `panorama_design` 是 Feature Planning 专属但名字晦涩 + 错混进 FEATURE_FLOW 表。
+
+### 改名
+
+- `goal_plan` → `goal`(业务目标确认 stage · 产 PRD)
+- `panorama_design` → `planning`(Feature Planning 拆 ROADMAP stage)
+- `stages/goal-plan-stage.md` → `stages/goal-stage.md`(git mv 保历史)
+- `stages/panorama-design-stage.md` → `stages/planning-stage.md`(git mv 保历史)
+
+### state.py 改动
+
+- `LEGAL_STAGES`:`goal_plan/panorama_design` → `goal/planning`
+- `FEATURE_FLOW`:删 `panorama_design: ["blueprint"]` 残留(原本不应在 Feature 流程)
+- 加 `PLANNING_FLOW = {goal: [planning], planning: [completed]}`
+- `FLOW_BY_TYPE` 加 `"Feature Planning": PLANNING_FLOW`(之前缺)
+- 命令 `goal_plan-start/complete` → `goal-start/complete`
+- 命令 `panorama_design-start/complete` → `planning-start/complete`
+
+### 迁移
+
+- 新增 `state.py migrate-v8-stage-rename --feature <path>`
+- 老 v8.0 Feature(state.json schema_version=v8.0)跑此命令升 v8.1
+- 备份原文件为 `state.json.v8-0-backup`
+- 改 schema_version v8.0 → v8.1
+- 替换 current_stage / completed_stages / legal_next_stages / stage_contracts / stage_review_roles 中的 stage 名
+
+### 范围
+
+11 文件 ~70 处引用统一替换(SKILL/FLOWS/TRIAGE/ROLES/RULES/pm.md/各 stages spec/state.py/_v8_*.py/templates/review-log.jsonl)。
+
+---
+
 ## v8.0+P0-1 ~ P0-5(PTR-F033 实战 case 治本 · 5 个连续 patch)
 
 > 第一个真实 Feature(PTR-F033 Partner Credit Note Adjustment)dogfood 中暴露 v8 多个设计缺口。

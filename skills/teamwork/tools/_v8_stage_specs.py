@@ -11,9 +11,9 @@ _v8_stage_specs.py — Teamwork v8.0 各 stage 的具体契约定义。
 STAGE_SPECS dict 在文件末尾汇总。
 
 实现进度:
-- ✅ goal_plan (B1)
+- ✅ goal (B1)
 - ✅ dev      (B6 · 完整模板示范)
-- ⏳ ui_design / panorama_design / blueprint / blueprint_lite (B2/B3/B4/B5)
+- ⏳ ui_design / planning / blueprint / blueprint_lite (B2/B3/B4/B5)
 - ⏳ review / test / browser_e2e / pm_acceptance / ship (B7-B11)
 
 详细 schema 见 docs/v8-redesign/01-COMMAND-SCHEMA.md。
@@ -37,7 +37,7 @@ from _v8_engine import (
 
 # ─── 暂停点纪律 helper(L2 substep 链内部 AI 自觉区的物化兜底) ──────
 #
-# 治本 case:PTR-F033 实战 · AI 在 goal_plan substep 2(PL-PM 讨论)后擅自
+# 治本 case:PTR-F033 实战 · AI 在 goal substep 2(PL-PM 讨论)后擅自
 # 插用户暂停点(AskUserQuestion)询问 Open Questions · 应该走完 substep 3-5
 # 多角色 review 收敛后才到 substep 6 一次性 user-confirm。
 #
@@ -136,7 +136,7 @@ def _evidence_test_exit_code_zero(state: dict, args) -> tuple[bool, str]:
 def _evidence_needs_ui_decided(state: dict, args) -> tuple[bool, str]:
     """v8.0+P0-6:校验 --needs-ui 已传 + 写入 state.execution_hints.ui_design_needed。
 
-    根因治本:字段必有值 · 由 goal_plan-complete --needs-ui 必传强制 ·
+    根因治本:字段必有值 · 由 goal-complete --needs-ui 必传强制 ·
     state.py 不再走 None/fallback 路径。
     """
     val = getattr(args, "needs_ui", None)
@@ -244,7 +244,7 @@ def _evidence_reviewers_match(review_artifact: str):
     """v8.0+P0-9:review artifact frontmatter.reviewers 必含 state.stage_review_roles[当前 stage]。
 
     参数:review_artifact = 含 reviewers 字段的 markdown 路径(相对 feature_dir)
-        - goal_plan:PRD-REVIEW.md
+        - goal:PRD-REVIEW.md
         - blueprint:TECH-REVIEW.md
         - review:REVIEW.md
     """
@@ -291,12 +291,12 @@ def _evidence_reviewers_match(review_artifact: str):
     return _check
 
 
-# ─── B1 · goal_plan ─────────────────────────────────────────────────
+# ─── B1 · goal ─────────────────────────────────────────────────
 
 
-def _goal_plan_brief(state: dict) -> str:
+def _goal_brief(state: dict) -> str:
     """v8.0+P0-8 极简版:目标 + 结果 + 完成方式 · 怎么做归 stage.md。"""
-    return f"""## Goal-Plan Stage
+    return f"""## Goal Stage
 
 ### 目标
 PM 起草 PRD · PL-PM 讨论 · 多角色并行评审 · 收敛后用户确认 · 决策是否需要 UI Design Stage。
@@ -307,22 +307,22 @@ PM 起草 PRD · PL-PM 讨论 · 多角色并行评审 · 收敛后用户确认 
 - `state.execution_hints.ui_design_needed` 已决策(由 `--needs-ui`)
 
 ### 怎么做
-**必读** `stages/goal-plan-stage.md`(详细步骤 7 步 + 注意事项 5 条)。
+**必读** `stages/goal-stage.md`(详细步骤 7 步 + 注意事项 5 条)。
 
 ### 完成方式
 ```
-state.py goal_plan-complete --feature <path> \
+state.py goal-complete --feature <path> \
   --auto-commit <hash> --artifacts PRD.md,PRD-REVIEW.md \
   --needs-ui {{true|false}}
 ```
 """
 
 
-def _goal_plan_transition(state: dict) -> Optional[str]:
-    """goal_plan 完成后的下一 stage 选择(v8.0+P0-6 治本)。
+def _goal_transition(state: dict) -> Optional[str]:
+    """goal 完成后的下一 stage 选择(v8.0+P0-6 治本)。
 
     严格读 state.execution_hints.ui_design_needed · 字段必有值
-    (goal_plan-complete --needs-ui 必传 · evidence_check 已强制写入)。
+    (goal-complete --needs-ui 必传 · evidence_check 已强制写入)。
     无 None / fallback / 默认值绕过。
     """
     flow = state.get("flow_type")
@@ -339,14 +339,14 @@ def _goal_plan_transition(state: dict) -> Optional[str]:
     elif flow == "Bug":
         return "dev"
     elif flow == "Feature Planning":
-        return "panorama_design"
+        return "planning"
     elif flow == "Micro":
         return "dev"
     return None
 
 
-GOAL_PLAN_SPEC = StageSpec(
-    name="goal_plan",
+GOAL_SPEC = StageSpec(
+    name="goal",
     prerequisites=[
         StagePrerequisite(
             id="feature_initialized",
@@ -397,15 +397,15 @@ GOAL_PLAN_SPEC = StageSpec(
                 "下一 stage 决策依据"
             ),
         ),
-        # v8.0+P0-9:PRD-REVIEW.md reviewers 必含 state.stage_review_roles[goal_plan]
+        # v8.0+P0-9:PRD-REVIEW.md reviewers 必含 state.stage_review_roles[goal]
         StageEvidenceCheck(
             name="reviewers_match",
             check_fn=_evidence_reviewers_match("PRD-REVIEW.md"),
-            description="PRD-REVIEW.md frontmatter.reviewers 必含 state.stage_review_roles[goal_plan]",
+            description="PRD-REVIEW.md frontmatter.reviewers 必含 state.stage_review_roles[goal]",
         ),
     ],
-    brief_template_fn=_goal_plan_brief,
-    auto_transition_fn=_goal_plan_transition,
+    brief_template_fn=_goal_brief,
+    auto_transition_fn=_goal_transition,
     authorized_pause_point="Substep 6 · 用户最终确认(全员 review 通过后)",
 )
 
@@ -492,7 +492,7 @@ DEV_SPEC = StageSpec(
             id="prd_or_bug_report_exists",
             check_fn=_check_prd_or_bug_report,
             hint=(
-                "Feature 流程必须有 PRD.md(回 goal_plan-complete 起草)。"
+                "Feature 流程必须有 PRD.md(回 goal-complete 起草)。"
                 "Bug 流程必须有 bugfix/BUG-*.md。"
             ),
             description="PRD.md 存在(Feature)或 bugfix/BUG-*.md 存在(Bug)",
@@ -569,15 +569,15 @@ UI_DESIGN_SPEC = StageSpec(
     name="ui_design",
     prerequisites=[
         StagePrerequisite(
-            id="goal_plan_completed",
-            check_fn=_check_stage_output_satisfied("goal_plan"),
-            hint="先完成 state.py goal_plan-complete",
-            description="goal_plan output_satisfied",
+            id="goal_completed",
+            check_fn=_check_stage_output_satisfied("goal"),
+            hint="先完成 state.py goal-complete",
+            description="goal output_satisfied",
         ),
         StagePrerequisite(
             id="prd_exists",
             check_fn=_check_file_exists("PRD.md"),
-            hint="PRD.md 不存在 · 回 goal_plan stage 起草",
+            hint="PRD.md 不存在 · 回 goal stage 起草",
             description="{Feature}/PRD.md 必须存在",
         ),
     ],
@@ -601,7 +601,7 @@ UI_DESIGN_SPEC = StageSpec(
 )
 
 
-# ─── B3 · panorama_design(仅 Feature Planning) ───────────────────────
+# ─── B3 · planning(仅 Feature Planning) ───────────────────────
 
 
 def _check_flow_is_planning(state: dict, args) -> bool:
@@ -610,7 +610,7 @@ def _check_flow_is_planning(state: dict, args) -> bool:
 
 def _panorama_brief(state: dict) -> str:
     """v8.0+P0-8 极简版:目标 + 结果 + 完成方式 · 怎么做归 stage.md。"""
-    return f"""## Panorama Design Stage
+    return f"""## Planning Stage
 
 ### 目标
 Feature Planning 流程产出产品全景文档(R6 红线:**不出代码**)。
@@ -621,11 +621,11 @@ Feature Planning 流程产出产品全景文档(R6 红线:**不出代码**)。
 - `sitemap.md`(项目根 · 信息架构)
 
 ### 怎么做
-**必读** `stages/panorama-design-stage.md`(详细步骤 6 步 + 注意事项 5 条)。
+**必读** `stages/planning-stage.md`(详细步骤 6 步 + 注意事项 5 条)。
 
 ### 完成方式
 ```
-state.py panorama_design-complete --feature <path> --auto-commit <hash> \
+state.py planning-complete --feature <path> --auto-commit <hash> \
   --artifacts ../../PROJECT.md,../../ROADMAP.md,../../sitemap.md
 ```
 """
@@ -636,13 +636,13 @@ def _panorama_transition(state: dict) -> Optional[str]:
     return "completed"
 
 
-PANORAMA_DESIGN_SPEC = StageSpec(
-    name="panorama_design",
+PLANNING_SPEC = StageSpec(
+    name="planning",
     prerequisites=[
         StagePrerequisite(
             id="flow_type_is_planning",
             check_fn=_check_flow_is_planning,
-            hint="panorama_design 仅 Feature Planning 流程触发 · 检查 state.flow_type",
+            hint="planning 仅 Feature Planning 流程触发 · 检查 state.flow_type",
             description="flow_type == 'Feature Planning'",
         ),
     ],
@@ -764,15 +764,15 @@ BLUEPRINT_SPEC = StageSpec(
     name="blueprint",
     prerequisites=[
         StagePrerequisite(
-            id="goal_plan_completed",
-            check_fn=_check_stage_output_satisfied("goal_plan"),
-            hint="先完成 state.py goal_plan-complete",
-            description="goal_plan output_satisfied",
+            id="goal_completed",
+            check_fn=_check_stage_output_satisfied("goal"),
+            hint="先完成 state.py goal-complete",
+            description="goal output_satisfied",
         ),
         StagePrerequisite(
             id="prd_exists",
             check_fn=_check_file_exists("PRD.md"),
-            hint="PRD.md 不存在 · 回 goal_plan stage 起草",
+            hint="PRD.md 不存在 · 回 goal stage 起草",
             description="{Feature}/PRD.md 必须存在",
         ),
     ],
@@ -858,15 +858,15 @@ BLUEPRINT_LITE_SPEC = StageSpec(
             description="flow_type == '敏捷需求'",
         ),
         StagePrerequisite(
-            id="goal_plan_completed",
-            check_fn=_check_stage_output_satisfied("goal_plan"),
-            hint="先完成 state.py goal_plan-complete",
-            description="goal_plan output_satisfied",
+            id="goal_completed",
+            check_fn=_check_stage_output_satisfied("goal"),
+            hint="先完成 state.py goal-complete",
+            description="goal output_satisfied",
         ),
         StagePrerequisite(
             id="prd_exists",
             check_fn=_check_file_exists("PRD.md"),
-            hint="PRD.md 不存在 · 回 goal_plan stage 起草",
+            hint="PRD.md 不存在 · 回 goal stage 起草",
             description="{Feature}/PRD.md 必须存在",
         ),
     ],
@@ -1376,9 +1376,9 @@ SHIP_SPEC = StageSpec(
 
 
 STAGE_SPECS: dict[str, StageSpec] = {
-    "goal_plan": GOAL_PLAN_SPEC,
+    "goal": GOAL_SPEC,
     "ui_design": UI_DESIGN_SPEC,
-    "panorama_design": PANORAMA_DESIGN_SPEC,
+    "planning": PLANNING_SPEC,
     "blueprint": BLUEPRINT_SPEC,
     "blueprint_lite": BLUEPRINT_LITE_SPEC,
     "dev": DEV_SPEC,

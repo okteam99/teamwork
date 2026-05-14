@@ -107,7 +107,7 @@ scope:
 
 ## Git Worktree 策略
 <!-- worktree: off / auto / manual（默认 auto） -->
-<!-- auto = PMO 在 Goal-Plan Stage 入口自动创建 worktree，Feature 完成后询问用户清理（默认） -->
+<!-- auto = PMO 在 Goal Stage 入口自动创建 worktree，Feature 完成后询问用户清理（默认） -->
 <!-- manual = PMO 提醒用户自行管理 worktree，不自动创建/清理 -->
 <!-- off = 不使用 worktree，所有 Feature 在主分支开发（适合单 Feature 串行 / megarepo / IDE 跨 worktree 跳转受限场景） -->
 <!-- -->

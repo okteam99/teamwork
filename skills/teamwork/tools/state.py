@@ -32,9 +32,9 @@ from typing import Any
 # ─── 常量 ──────────────────────────────────────────────────────────────
 
 LEGAL_STAGES = {
-    "goal_plan",
+    "goal",
     "ui_design",
-    "panorama_design",
+    "planning",
     "blueprint",
     "dev",
     "review",
@@ -61,9 +61,8 @@ CONCERN_SEVERITY = {"INFO", "WARN", "ERROR"}
 # 各 flow_type 的 canonical 转移图（current_stage → legal_next_stages）
 # 注：ui_design / browser_e2e 是可选 Stage（PMO 在 enter-stage 时按 spec 决策跳过 vs 启用）
 FEATURE_FLOW: dict[str, list[str]] = {
-    "goal_plan": ["ui_design", "blueprint"],
+    "goal": ["ui_design", "blueprint"],
     "ui_design": ["blueprint"],
-    "panorama_design": ["blueprint"],
     "blueprint": ["dev"],
     "dev": ["review"],
     "review": ["test", "dev"],          # review 失败回 dev
@@ -83,7 +82,18 @@ BUG_FLOW: dict[str, list[str]] = {
     "completed": [],
 }
 
-FLOW_BY_TYPE = {"Feature": FEATURE_FLOW, "Bug": BUG_FLOW}
+# Feature Planning · R6 不出代码 · goal(业务目标确认) → planning(拆 ROADMAP) → completed
+PLANNING_FLOW: dict[str, list[str]] = {
+    "goal": ["planning"],
+    "planning": ["completed"],
+    "completed": [],
+}
+
+FLOW_BY_TYPE = {
+    "Feature": FEATURE_FLOW,
+    "Bug": BUG_FLOW,
+    "Feature Planning": PLANNING_FLOW,
+}
 
 # snapshot tier 字段集
 SNAPSHOT_CORE_FIELDS = (
@@ -1290,7 +1300,7 @@ def cmd_micro_validate(args: argparse.Namespace) -> None:
 
 
 DEFAULT_INITIAL_STAGE = {
-    "Feature": "goal_plan",
+    "Feature": "goal",
     "Bug": "dev",
     "Micro": "dev",
     "敏捷需求": "blueprint_lite",
@@ -1323,7 +1333,7 @@ def cmd_init_feature(args: argparse.Namespace) -> None:
 
     feature_dir.mkdir(parents=True, exist_ok=True)
     initial_stage = args.initial_stage or DEFAULT_INITIAL_STAGE.get(
-        args.flow_type, "goal_plan"
+        args.flow_type, "goal"
     )
 
     # 启发式校验：basename 应含 feature_id（防 --feature 传了 slug 而不是完整路径）
@@ -1703,7 +1713,7 @@ def build_parser() -> argparse.ArgumentParser:
     ifp.add_argument("--sub-project", help="如 admin / api-server")
     # v7.3.10+P0-149: 删 --artifact-root 冗余参数 · --feature 单源（既是落盘目录又是 artifact_root 字段值）
     ifp.add_argument("--initial-stage",
-                     help="缺省按 flow_type 决定（Feature→goal_plan / Bug→dev / Micro→dev / ...）")
+                     help="缺省按 flow_type 决定（Feature→goal / Bug→dev / Micro→dev / ...）")
     ifp.add_argument("--merge-target", required=True, help="如 staging / main")
     ifp.add_argument("--branch", required=True, help="如 feat/admin-f013-x")
     ifp.add_argument("--worktree-mode", choices=["auto", "manual", "off"],

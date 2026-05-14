@@ -6,7 +6,7 @@
 // 每行一个 JSON 对象，字段定义：
 
 {
-  "stage": "plan-stage | plan-codex-review | ui-design-stage | panorama-design-stage | blueprint-stage | blueprint-codex-review | blueprint-lite-stage | dev-stage | review-stage | review-arch | review-qa | review-codex | test-stage | test-env | test-integration | test-api-e2e | browser-e2e-stage | pm-acceptance | micro-change",
+  "stage": "plan-stage | plan-codex-review | ui-design-stage | planning-stage | blueprint-stage | blueprint-codex-review | blueprint-lite-stage | dev-stage | review-stage | review-arch | review-qa | review-codex | test-stage | test-env | test-integration | test-api-e2e | browser-e2e-stage | pm-acceptance | micro-change",
   "status": "DONE | DONE_WITH_CONCERNS | NEEDS_FIX | QUALITY_ISSUE | BLOCKED | FAILED | SKIPPED | DEFERRED",
   "executor": "main-conversation | subagent | hybrid",   // v7.3 新增：执行来源
 

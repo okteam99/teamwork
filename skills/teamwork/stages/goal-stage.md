@@ -1,4 +1,4 @@
-# Goal-Plan Stage
+# Goal Stage
 
 ---
 
@@ -33,7 +33,7 @@
 
 ### 6. PM 决策 `--needs-ui`(complete 前必)
 - 基于 PRD 内容判定是否需要独立 UI Design Stage
-- 准备 `state.py goal_plan-complete --needs-ui {true|false} ...`
+- 准备 `state.py goal-complete --needs-ui {true|false} ...`
 
 ### 7. ⏸️ 用户最终确认
 - 一次性 escalate 剩余开放问题给用户(若有)
@@ -50,7 +50,7 @@
 | 3. 多角色并行评审 → PRD-REVIEW.md | `roles/qa.md + roles/architect.md` | § Review 规范 | QA 看测试覆盖性 / Architect 看技术可行 |
 | 4. PM 回应 + 修订 PRD | `roles/pm.md` | § PRD 修订 | revision_history 必落 frontmatter |
 | 5. 全员通过判定 | — | — | (无 cite 要求) |
-| 6. PM 决策 --needs-ui | `stages/goal-plan-stage.md` | § 特殊规则 1 | --needs-ui 决策 · 不传则 FAIL |
+| 6. PM 决策 --needs-ui | `stages/goal-stage.md` | § 特殊规则 1 | --needs-ui 决策 · 不传则 FAIL |
 | 7. ⏸️ 用户最终确认 | — | — | (无 cite 要求) |
 
 
@@ -116,6 +116,6 @@ PRD.frontmatter 必含 `revision_history` 数组 · 否则 P0-1 evidence_check F
 ## 相关
 
 - 引擎:[../tools/_v8_engine.py](../tools/_v8_engine.py) `execute_stage_start` / `execute_stage_complete`
-- spec:[../tools/_v8_stage_specs.py](../tools/_v8_stage_specs.py) `GOAL_PLAN_SPEC`
+- spec:[../tools/_v8_stage_specs.py](../tools/_v8_stage_specs.py) `GOAL_SPEC`
 - 入口规范:[../TRIAGE.md](../TRIAGE.md)
 - 治本反思:[../docs/v8-redesign/05-LESSONS-FROM-PTR-F033.md](../docs/v8-redesign/05-LESSONS-FROM-PTR-F033.md)

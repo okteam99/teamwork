@@ -31,7 +31,7 @@
 - `pmo-auto-mode.md` / `pmo-cross-project.md` / `pmo-external-orchestration.md` / `pmo-pm-acceptance-ship.md` / `pmo-reporting.md` / `pmo-state-mgmt.md` / `pmo-user-input.md`(7 个 PMO sub)→ 编排逻辑进 state.py
 - `architect-cr.md` / `architect-tech-review.md`(2 个)→ Code/Tech Review 流程进 state.py review-stage / blueprint-stage spec
 - `qa-cr.md` / `qa-tc-review.md`(2 个)→ 同上
-- `pm-prd-review.md`(1 个)→ PRD 评审 verdict 进 state.py goal_plan-complete artifact 校验
+- `pm-prd-review.md`(1 个)→ PRD 评审 verdict 进 state.py goal-complete artifact 校验
 - `product-lead-change-mgmt.md`(1 个)→ 变更级联进 state.py(待 v8.x 物化)
 
 ---

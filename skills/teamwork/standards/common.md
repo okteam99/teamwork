@@ -564,7 +564,7 @@ RD 开发完成（测试通过）
  │ 最快（秒级），但 monorepo workspace / 不同 lockfile 时易出怪问题
  └── 3. 写到项目 KNOWLEDGE.md（Gotcha 类）
  如果 build deps 长期需要全装齐，把"worktree 必须 npm install --include=dev"
- 记入 KNOWLEDGE.md，让后续 Feature PMO 在 Goal-Plan Stage preflight 时知道
+ 记入 KNOWLEDGE.md，让后续 Feature PMO 在 Goal Stage preflight 时知道
  ```
 
 ### 自查结论
@@ -884,6 +884,6 @@ flowchart TD
  B -->|Feature| C[PM 编写 PRD]
  B -->|Bug| D[RD 排查]
  B -->|Feature Planning| E[PM 规划 Roadmap]
- C --> C2[🔗 Goal-Plan Stage<br/>PM PRD + PL-PM 讨论 + 评审]
+ C --> C2[🔗 Goal Stage<br/>PM PRD + PL-PM 讨论 + 评审]
  C2 --> G[⏸️ 用户确认 PRD]
 ```

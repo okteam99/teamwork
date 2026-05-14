@@ -21,13 +21,13 @@
 ## Telos:每种流程在解决什么问题
 
 ### Feature
-**完整 stage 链**:goal_plan → (ui_design) → blueprint → dev → review → test → (browser_e2e) → pm_acceptance → ship → completed
+**完整 stage 链**:goal → (ui_design) → blueprint → dev → review → test → (browser_e2e) → pm_acceptance → ship → completed
 
 解决:**从需求到上线的完整闭环 + 多视角质量门禁**。
 适用 Feature 触发场景:用户提"实现/开发/做一个 X 功能"。
 
 ### Bug
-**精简 stage 链**(跳过 goal_plan / blueprint):dev → review → test → pm_acceptance → ship → completed
+**精简 stage 链**(跳过 goal / blueprint):dev → review → test → pm_acceptance → ship → completed
 
 解决:**已知现象 + 已知期望 · 直接进入修复 · 不重复需求讨论**。
 Ship Stage 缩简(标题 `[Bug] <简述> (BUG-<id>)`)。
@@ -41,14 +41,14 @@ Ship Stage 缩简(标题 `[Bug] <简述> (BUG-<id>)`)。
 代码仍要走 Ship(R7 证据闭环)。
 
 ### 敏捷需求
-**简化 stage 链**:goal_plan → blueprint_lite → dev → review → test → pm_acceptance → ship → completed
+**简化 stage 链**:goal → blueprint_lite → dev → review → test → pm_acceptance → ship → completed
 
 解决:**简单功能不需要完整 blueprint 的 overkill · 但保留多视角 review**。
 准入:文件 ≤5 + 无 UI/架构变更 + 方案明确(用户无歧义)。
 砍 TECH.md / TECH-REVIEW.md / External(blueprint_lite 只产 TC.md 简化版)。
 
 ### Feature Planning
-**规划 stage 链**:goal_plan → panorama_design → completed
+**规划 stage 链**:goal → planning → completed
 
 解决:**产品方向决策 · 拆 ROADMAP · 不出代码(R6)**。
 PL(Product Lead)主导。Feature 启动前的"想清楚拆什么"。
@@ -82,7 +82,7 @@ state.py 不为问题排查启 stage 链 · 由 PMO 在主对话执行类似 mod
 
 ## 关键约束(R6 红线物化)
 
-- **Feature Planning · 只出文档**:`panorama_design-complete` 拒绝接受代码 artifact · 自动转 `completed` 而非 `dev`。
+- **Feature Planning · 只出文档**:`planning-complete` 拒绝接受代码 artifact · 自动转 `completed` 而非 `dev`。
 - **Micro · 涉代码仍要 Ship**:Micro 末尾必须 ship-* · 不能停在本地未 push(v7 P0-136 治本)。
 - **敏捷需求 · 准入校验**:不能用 `blueprint_lite-start` 跳过完整 blueprint(`allowed_flow_types=["敏捷需求"]`)。
 

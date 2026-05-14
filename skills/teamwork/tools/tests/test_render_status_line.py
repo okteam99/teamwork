@@ -87,7 +87,7 @@ class TestFeatureFlow(unittest.TestCase):
 
     def test_stage_text_override(self) -> None:
         out, audit = run([
-            "--flow", "Feature", "--role", "PMO", "--stage", "goal_plan",
+            "--flow", "Feature", "--role", "PMO", "--stage", "goal",
             "--next-step", "x", "--feature", "F042",
             "--stage-text", "⏸️ PRD 待确认",
         ])
@@ -303,7 +303,7 @@ class TestSpecSyncMeta(unittest.TestCase):
     def test_status_line_md_no_old_enum_table(self) -> None:
         """STATUS-LINE.md 不应再含被工具持有的 enum 表大段（A 类）。"""
         text = self.STATUS_LINE_MD.read_text(encoding="utf-8")
-        # 旧 enum 表标志：连续多行 "├── triage" / "├── goal_plan" 等列举
+        # 旧 enum 表标志：连续多行 "├── triage" / "├── goal" 等列举
         old_table_signature = "├── triage              → "
         self.assertNotIn(
             old_table_signature, text,

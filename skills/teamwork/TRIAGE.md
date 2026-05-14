@@ -48,8 +48,8 @@
 | **E · discuss** | 我感觉 / 你怎么看 / X vs Y / 哪种更合理 | 综合视角讨论 + 选项 + 推荐 | ❌(讨论收敛后用户升级到 B)|
 
 🔴 **mode E 升级触发**(PMO 主动建议 · 不等用户提)·命中以下场景必须在收尾时建议升 mode B:
-- 讨论涉及**多 Feature 范围拆分** / **ROADMAP 更新** / **P0/P1 优先级排序** → 建议升 **Feature Planning**(走完整 panorama_design 产 ROADMAP.md · 而非 PMO 主对话散述清单)
-- 讨论涉及**新功能实现方向** / **架构决策点** → 建议升 **Feature**(走 goal_plan PRD 而非主对话伪 PRD)
+- 讨论涉及**多 Feature 范围拆分** / **ROADMAP 更新** / **P0/P1 优先级排序** → 建议升 **Feature Planning**(走完整 planning 产 ROADMAP.md · 而非 PMO 主对话散述清单)
+- 讨论涉及**新功能实现方向** / **架构决策点** → 建议升 **Feature**(走 goal PRD 而非主对话伪 PRD)
 - 讨论涉及**已知 bug 根因 + 修复方案** → 建议升 **Bug**
 
 PMO 在 mode E 收尾时输出:
@@ -139,12 +139,12 @@ PMO 按 flow_type 算 worktree 建议:
 
 回复 4 项或 "all default" 用默认值(仅需 Feature ID + merge_target)
 
-📎 **是否需要 UI Design Stage** 由 goal_plan-complete 时 `--needs-ui` 决策(P0-6)·
+📎 **是否需要 UI Design Stage** 由 goal-complete 时 `--needs-ui` 决策(P0-6)·
  triage 入口不强制提前拍板。
 ```
 
 flow_type → first_stage 映射:
-- Feature / 敏捷需求 / Feature Planning → `goal_plan`
+- Feature / 敏捷需求 / Feature Planning → `goal`
 - Bug / Micro → `dev`
 - 问题排查 → (不进 stage 链 · 类似 mode A)
 

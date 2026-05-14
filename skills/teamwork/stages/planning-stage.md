@@ -1,4 +1,4 @@
-# Panorama Design Stage
+# Planning Stage
 
 ---
 
@@ -20,7 +20,7 @@ Feature 列表 + 优先级 + 排期(当前/下一/储备)
 PL 把方向 · PM 把可执行性 · Architect 把技术可行
 
 ### 6. complete
-`state.py panorama_design-complete ...` · 自动转 completed(不进 dev · R6)
+`state.py planning-complete ...` · 自动转 completed(不进 dev · R6)
 
 ---
 
@@ -58,7 +58,7 @@ PL 把方向 · PM 把可执行性 · Architect 把技术可行
 
 ### 坑 1 · R6 红线 · Planning 出代码
 直接进 dev 写代码 · 违 R6。
- **对策**:panorama_design 只产 3 个文档 · 完成后自动 completed · Feature 启动需用户主动选(不自启)
+ **对策**:planning 只产 3 个文档 · 完成后自动 completed · Feature 启动需用户主动选(不自启)
 
 ### 坑 2 · PROJECT.md 业务架构 vs 技术架构混淆
 把"用什么数据库"写进业务架构 · 应在 ARCHITECTURE.md。
@@ -94,5 +94,5 @@ Feature 列表 + 优先级 · 一 Feature 一行
 ## 相关
 
 - 引擎:[../tools/_v8_engine.py](../tools/_v8_engine.py)
-- spec:[../tools/_v8_stage_specs.py](../tools/_v8_stage_specs.py) `PANORAMA_DESIGN_SPEC`
+- spec:[../tools/_v8_stage_specs.py](../tools/_v8_stage_specs.py) `PLANNING_SPEC`
 - 入口规范:[../TRIAGE.md](../TRIAGE.md)

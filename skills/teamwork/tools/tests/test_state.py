@@ -434,7 +434,7 @@ class TestInitFeature(unittest.TestCase):
         self.assertEqual(d["verdict"], "OK")
         self.assertEqual(d["action"], "init-feature")
         self.assertEqual(d["feature_id"], "ADMIN-F013-tax-billing")
-        self.assertEqual(d["current_stage"], "goal_plan")  # Feature default
+        self.assertEqual(d["current_stage"], "goal")  # Feature default
         self.assertTrue(d["checksum_prefix"].startswith("sha256:"))
         # state.json 真存在 + 校验 schema 字段
         sf = target / "state.json"
