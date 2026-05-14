@@ -313,7 +313,7 @@ PM 起草 PRD · PL-PM 讨论 · 多角色并行评审 · 收敛后用户确认 
 ```
 state.py goal_plan-complete --feature <path> \
   --auto-commit <hash> --artifacts PRD.md,PRD-REVIEW.md \
-  --needs-ui {true|false}
+  --needs-ui {{true|false}}
 ```
 """
 
@@ -542,7 +542,7 @@ def _ui_design_brief(state: dict) -> str:
 Designer 产出 UI.md + HTML 预览 · sitemap 同步(如涉及全景变更)。
 
 ### 结果(完成判定)
-- `UI.md`(frontmatter:`pages: [{id, title}]`)
+- `UI.md`(frontmatter:`pages: [{{id, title}}]`)
 - `preview/*.html`(每 page.id 对应 1 文件 · 可交互)
 - (条件)sitemap.md 已更新
 
@@ -917,7 +917,7 @@ def _review_brief(state: dict) -> str:
 ```
 state.py review-complete --feature <path> --auto-commit <hash> \
   --artifacts REVIEW.md,REVIEW-arch.md,REVIEW-qa.md \
-  --verdict {APPROVE|NEEDS_REVISION}
+  --verdict {{APPROVE|NEEDS_REVISION}}
 ```
 """
 
@@ -1184,7 +1184,7 @@ PM 站在用户视角逐条 AC 对照实现 · 给出三选项决策。
 ### 完成方式
 ```
 state.py pm_acceptance-complete --feature <path> --auto-commit <hash> \
-  --decision {approved_and_ship|approved_no_ship|rejected_with_feedback} \
+  --decision {{approved_and_ship|approved_no_ship|rejected_with_feedback}} \
   --note "<rejected 时必填>"
 ```
 """
@@ -1301,7 +1301,7 @@ push feature → CLI 创 MR → 等用户合并 → 验证合入 + 清理 worktr
 ### 结果(完成判定)
 - `state.ship.phase = "merged"`
 - `state.ship.merge_commit_hash` 锚定
-- `state.ship.worktree_cleanup ∈ {cleaned, n_a}`
+- `state.ship.worktree_cleanup ∈ {{cleaned, n_a}}`
 
 ### 怎么做
 **必读** `stages/ship-stage.md`(详细步骤 10 步 + 注意事项 5 条 · 含主工作区拦截 / cleanup hard gate / CLI-first trap)。
