@@ -4,14 +4,14 @@
 > 当其他模块的开发者需要本模块提供能力时，在本模块的此文件中创建请求。
 > 本模块负责人启动 teamwork 时，PMO 会扫描并提醒待处理请求。
 
-## 🔴 何时触发使用（v7.3.9+P0-8 新增）
+## 🔴 何时触发使用
 
 ```
 消费方（下游）PMO 侧：
 ├── PMO 初步分析 → 「🔍 跨项目依赖识别」命中场景 A（本 Feature 需上游模块能力）
 ├── 🔴 Read 本模板 → 作为 DEPENDENCY-REQUESTS.md 格式基准
 ├── 在上游子项目 {upstream}/docs/DEPENDENCY-REQUESTS.md 追加 DEP-N 条目
-│   └── 若上游目录无此文件 → 新建（严禁以其他子项目的 DEPENDENCY-REQUESTS.md 为格式参考 · 抄本模板）
+│ └── 若上游目录无此文件 → 新建（严禁以其他子项目的 DEPENDENCY-REQUESTS.md 为格式参考 · 抄本模板）
 ├── 本 Feature state.json.blocking.pending_external_deps 引用 DEP-N
 └── 🔴 禁止在消费方 Feature 目录自创 DEPS.md / DEPENDENCIES.md / 其他非标文件名
 
@@ -21,7 +21,7 @@
 └── 上游方与消费方对齐接口后 → 填「接口定义」段 + 更新状态流转
 ```
 
-📎 详见 [roles/pmo-cross-project.md § 一 跨项目依赖识别](../roles/pmo-cross-project.md)（v7.3.10+P0-95 抽出 · 角色契约 [roles/pmo.md](../roles/pmo.md)）
+📎 角色契约见 [roles/pmo.md](../roles/pmo.md)。
 
 ---
 

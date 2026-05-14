@@ -95,7 +95,7 @@ state.py 不为问题排查启 stage 链 · 由 PMO 在主对话执行类似 mod
 | v7 | 876 行 | 每流程详细步骤 + 暂停点 + 角色 dispatch · AI 必读 cite |
 | v8 | ~120 行 | 只讲 telos + 适用场景 · 步骤由 state.py prepare emit |
 
-详细步骤渲染逻辑见 [`tools/_v8_init.py`](./tools/_v8_init.py) 的 `_render_flow_steps()`。
+详细步骤渲染逻辑见 [`tools/_v8_init.py`](./tools/_v8_init.py) 的 `_render_flow_steps`。
 
 ---
 

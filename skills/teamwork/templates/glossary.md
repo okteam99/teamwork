@@ -1,6 +1,6 @@
 # {项目名} 术语表（GLOSSARY）
 
-> 🟢 **本文是 teamwork prepare-stage 自动创建的空骨架**（v7.3.10+P0-121 起 · 类比 TROUBLESHOOTING.md / teamwork_space.md）。
+> 🟢 **本文是 teamwork prepare-stage 自动创建的空骨架**。
 > ⏳ **请按业务填术语** · 填完后 PMO/PM/RD/架构师在起草 PRD / TECH 前会自动 read。
 >
 > teamwork 在以下场景按需 read：
@@ -79,9 +79,9 @@ User --下单--> Offer
 ## 维护约定
 
 - **写入硬时机**（teamwork 强约束）：
-  - PM 评审 finding 类别 = `terminology-ambiguity` 时必须 ADOPT 并写入本文档（roles/pm.md L110）
-  - 评审过程中发现新术语 / 跨服务命名不一致 → 立即登记
-  - 业务方向变更后新术语出现 → PL 在 product-overview/ 更新前同步更新本文档
+ - PM 评审 finding 类别 = `terminology-ambiguity` 时必须 ADOPT 并写入本文档（roles/pm.md L110）
+ - 评审过程中发现新术语 / 跨服务命名不一致 → 立即登记
+ - 业务方向变更后新术语出现 → PL 在 product-overview/ 更新前同步更新本文档
 - **写入硬规则**：每条术语必须含中英文 + 一句话定义 + 出现位置（防止抽象孤立）
 - **PMO preflight 扫描**：triage 期 PMO 自动 read 业务术语段 · 命中关键词时引用到主对话
 - **多子项目场景**：跨子项目共享术语 → 顶层 GLOSSARY.md；子项目内部实现层术语 → 各子项目 KNOWLEDGE.md § Glossary 子段（仅项目内部命名 · 大多数项目不需要）

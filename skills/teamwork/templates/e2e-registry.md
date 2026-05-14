@@ -148,7 +148,7 @@ docker-compose -f ../fixtures/mock-deps.yml up -d
 
 \`\`\`bash
 # 执行前运行，准备本 case 所需的完整环境
-./setup.sh  # 或直接内联命令
+./setup.sh # 或直接内联命令
 \`\`\`
 
 ---

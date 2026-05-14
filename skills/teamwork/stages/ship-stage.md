@@ -1,9 +1,5 @@
 # Ship Stage
 
-> **auto-verified by**: `state.py ship-start` / `state.py ship-complete`
-> 本文件按 **怎么做 + 注意事项** 结构(v8.0+P0-7)。
-> 详细 schema 见 [../docs/v8-redesign/01-COMMAND-SCHEMA.md](../docs/v8-redesign/01-COMMAND-SCHEMA.md)。
-
 ---
 
 ## 怎么做
@@ -49,23 +45,23 @@ git fetch origin <merge_target>; git pull --ff-only
 
 ### 坑 1 · confirm-merged / cleanup 在 worktree 跑
 state.json 在 worktree 被 cleanup 时删除丢失(治本 ADMIN-F013)。
-  **对策**:P0-156 物化拦截 · linked worktree FAIL · 必 cd 主工作区
+ **对策**:P0-156 物化拦截 · linked worktree FAIL · 必 cd 主工作区
 
 ### 坑 2 · cleanup --status cleaned 但 phase ≠ merged
 destructive op 前合并未确认 · state 不一致。
-  **对策**:P0-124 hard gate · phase 必 merged + merge_commit_hash 非空才能 cleaned
+ **对策**:P0-124 hard gate · phase 必 merged + merge_commit_hash 非空才能 cleaned
 
 ### 坑 3 · 用 git push hint URL 当 MR URL
 git push 输出的 "remote: To create a merge request..." 是 trap · 不是首选。
-  **对策**:P0-113 CLI-first · 必跑 gh/glab 拿真实 URL · 失败才 URL 兜底
+ **对策**:P0-113 CLI-first · 必跑 gh/glab 拿真实 URL · 失败才 URL 兜底
 
 ### 坑 4 · close-unmerged 滥用
 MR 暂时关闭就跑 close-unmerged · 后续重开困难。
-  **对策**:close-unmerged 仅用于真正"放弃合入" · 暂时关用 --abandon=false 留口子
+ **对策**:close-unmerged 仅用于真正"放弃合入" · 暂时关用 --abandon=false 留口子
 
 ### 坑 5 · Ship 后想 reset-prev
 状态不可逆 · 远程已动。
-  **对策**:P0-6 reset-prev 物化拦截 · Ship 后 FAIL · 走 close-unmerged 或新 Feature 修复
+ **对策**:P0-6 reset-prev 物化拦截 · Ship 后 FAIL · 走 close-unmerged 或新 Feature 修复
 
 ---
 

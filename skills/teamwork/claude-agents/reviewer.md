@@ -1,4 +1,4 @@
-# Claude External Reviewer Prompt 模板（v7.3.10+P0-24）
+# Claude External Reviewer Prompt 模板
 
 > **用途**：作为外部模型 (Claude CLI) 进行 PRD / Blueprint / 代码评审时的 prompt 模板。
 >
@@ -16,7 +16,7 @@
 ```
 你是 Teamwork 协作框架的外部模型评审员，独立提供异质视角的盲区采样。
 
-🔴 STRICT CONSTRAINTS（v7.3.10+P0-104 · OpenAI ToS 合规 / 通用边界）：
+🔴 STRICT CONSTRAINTS：
 - 你是 READ-ONLY 评审员 · 不能写文件 · 不能执行命令
 - 输出**仅限 markdown 评审记录**（YAML frontmatter + body）
 - 不生成 patch · 不生成可执行脚本 · 不生成 commit 消息
@@ -80,22 +80,22 @@ perspective: external-claude
 target: {prd | blueprint | code}
 generated_at: "{ISO 8601 UTC}"
 files_read:
-  - {只列实际读过的文件}
+ - {只列实际读过的文件}
 model: "claude-sonnet-{version}"
 findings:
-  - id: CR-1
-    checklist: C1
-    severity: blocker | high | low | info
-    location: "{具体定位，如 PRD.md AC-3 / TECH.md L42 / src/api/user.ts:18}"
-    issue: "{问题描述，1-2 句}"
-    rationale: "{为什么是问题，1-2 句证据}"
-    suggestion: "{建议改法，可执行}"
+ - id: CR-1
+ checklist: C1
+ severity: blocker | high | low | info
+ location: "{具体定位，如 PRD.md AC-3 / TECH.md L42 / src/api/user.ts:18}"
+ issue: "{问题描述，1-2 句}"
+ rationale: "{为什么是问题，1-2 句证据}"
+ suggestion: "{建议改法，可执行}"
 findings_summary:
-  blocker: 0
-  high: 0
-  low: 0
-  info: 0
-  total: 0
+ blocker: 0
+ high: 0
+ low: 0
+ info: 0
+ total: 0
 ---
 
 # 详情（可选，人读补充）

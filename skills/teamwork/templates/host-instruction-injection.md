@@ -2,7 +2,7 @@
 
 > 本文件是 `tools/sync-drift.py` 注入到用户项目根 `CLAUDE.md` / `AGENTS.md` 的 canonical 内容源。
 >
-> 🔴 **设计原则**（v7.3.10+P0-134）：
+> 🔴 **设计原则**：
 > - **极简**：仅 cite SKILL.md · 不复述红线全文（避免 token 重复）
 > - **稳定 marker**：`<!-- TEAMWORK_BEGIN:section vX.X.X -->` ... `<!-- TEAMWORK_END:section -->`
 > - **版本敏感**：marker 上 version 字段 · sync-drift.py 比对决定是否更新
@@ -17,14 +17,14 @@
 注入到 CLAUDE.md / AGENTS.md 顶部（用户已有内容则插在最前 · 不覆盖）。
 
 ```markdown
-<!-- TEAMWORK_BEGIN:teamwork-pointer v7.3.10+P0-134 -->
+<!-- TEAMWORK_BEGIN:teamwork-pointer v8.0 -->
 ## Teamwork 协作模式
 
 本项目使用 [Teamwork](https://github.com/okteam99/teamwork) 多角色协作流程。
 
 - **完整规范**：`~/.claude/skills/teamwork/SKILL.md`（Claude Code）/ `~/.codex/skills/teamwork/SKILL.md`（Codex CLI）
 - **9 条 L1 红线** + Stage 流转 + 暂停点协议 详见 SKILL.md
-- **新 session 必跑** `python3 {SKILL_ROOT}/tools/init_triage.py`（详 SKILL.md R9）
+- **新 session 必跑** `python3 {SKILL_ROOT}/tools/bootstrap.py`（系统维护）+ 按 [TRIAGE.md](../TRIAGE.md) 入口规范分诊
 - **state.json 写操作** 走 `tools/state.py` 单源（详 RULES.md）
 
 🔴 PMO 是项目流程统一承接者 · 不直接动代码 · 调度 RD/QA/Designer/架构师 完成实施。

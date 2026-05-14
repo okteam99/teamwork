@@ -13,13 +13,13 @@
 >
 > 🔴 **备选项至少 2 个，否则不是"决策"，不需要 ADR**。
 >
-> 🔴 **三条门槛 boolean checkbox（v7.3.10+P0-78 借鉴 mattpocock/skills grill-with-docs · 比"3 问触发器"更精准）**：必须**全部 ✅** 才产 ADR：
+> 🔴 **三条门槛 boolean checkboxＴ mattpocock/skills grill-with-docs · 比"3 问触发器"更精准）**：必须**全部 ✅** 才产 ADR：
 > - [ ] **Hard to reverse**（反悔成本大 · 改回去需要大规模改动 / 跨 Feature 影响 ≥ 1）
 > - [ ] **Surprising without context**（未来读者会困惑"为什么这么做"· 不是显而易见的选择）
 > - [ ] **Result of real trade-off**（真实权衡 · 备选项 ≥ 2 + 选当前方案有具体理由）
 > 任一项 ❌ → 不产 ADR · 写到 TECH.md 或 KNOWLEDGE.md。
 >
-> 🔴 **7 类合格 ADR 显式列表（v7.3.10+P0-78 借鉴）**：以下是真实合格的 ADR 类型，对照命中其一才产：
+> 🔴 **7 类合格 ADR 显式列表Ｔ）**：以下是真实合格的 ADR 类型，对照命中其一才产：
 > 1. **架构形状**（"用 monorepo" / "写读分离 · CQRS"）
 > 2. **跨 Context 集成模式**（"Ordering 与 Billing 通过 domain event 异步通信，不走 HTTP"）
 > 3. **锁定的技术选型**（DB / 消息总线 / 鉴权 / 部署目标 · 不是每个 lib · 是要花季度才能换的那种）
@@ -28,7 +28,7 @@
 > 6. **代码不可见的约束**（"不能用 AWS · 合规要求" / "响应必须 < 200ms · 合作方 API 契约"）
 > 7. **拒绝的方案 · 拒绝理由非显然**（"考虑过 GraphQL 选 REST 因为 X" · 防止 6 个月后又有人提 GraphQL）
 >
-> 🟢 **极简 ADR 模板（v7.3.10+P0-78 借鉴）**：如果决策很简单——1-3 句话即可。frontmatter 5 字段必填，正文可只含**背景 1 句 + 决策 1 句 + 理由 1 句**。强制填满下方多段结构会让 ADR 变成"形式主义"。**默认轻量 · 复杂决策才扩到完整结构**。
+> 🟢 **极简 ADR 模板Ｔ）**：如果决策很简单——1-3 句话即可。frontmatter 5 字段必填，正文可只含**背景 1 句 + 决策 1 句 + 理由 1 句**。强制填满下方多段结构会让 ADR 变成"形式主义"。**默认轻量 · 复杂决策才扩到完整结构**。
 >
 > 更新时机：
 > - Blueprint Stage 架构师识别 → 创建（status=proposed）
@@ -44,9 +44,9 @@ id: ADR-NNNN
 title: {决策标题 - 祈使句，如 "采用 PostgreSQL 作为主库"}
 status: proposed | accepted | deprecated | superseded-by-ADR-NNNN
 date: YYYY-MM-DD
-tags: [db, api, auth, frontend, ...]  # 至少 1 个主题 tag
+tags: [db, api, auth, frontend, ...] # 至少 1 个主题 tag
 triggered_by: {Feature 目录名，如 "2026-04-用户系统"}
-supersedes: []  # 被本决策替代的旧 ADR 列表，如 [ADR-0003]
+supersedes: [] # 被本决策替代的旧 ADR 列表，如 [ADR-0003]
 ---
 
 # ADR-NNNN: {决策标题}
@@ -72,9 +72,9 @@ supersedes: []  # 被本决策替代的旧 ADR 列表，如 [ADR-0003]
 ### 方案 A: {名称}
 - **描述**: 一句话说清楚是什么
 - **优点**:
-  - ...
+ - ...
 - **缺点**:
-  - ...
+ - ...
 - **成本估算**: 开发时间 / 迁移成本 / 长期维护开销
 
 ### 方案 B: {名称}
@@ -123,7 +123,7 @@ supersedes: []  # 被本决策替代的旧 ADR 列表，如 [ADR-0003]
 | YYYY-MM-DD | superseded-by-ADR-NNNN | 被 ADR-NNNN 替代（说明原因） |
 ```
 
-## 格式硬规则（v7.3.10+P0-21）
+## 格式硬规则
 
 - 🔴 文件名：`NNNN-{slug}.md`，NNNN 四位数字从 0001 起连续编号，**永不复用**（被 superseded 的 ADR 保留文件，ID 不回收）
 - 🔴 frontmatter 五个字段全必填：`id / title / status / date / tags`

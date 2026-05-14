@@ -1,9 +1,5 @@
 # Browser E2E Stage
 
-> **auto-verified by**: `state.py browser_e2e-start` / `state.py browser_e2e-complete`
-> 本文件按 **怎么做 + 注意事项** 结构(v8.0+P0-7)。
-> 详细 schema 见 [../docs/v8-redesign/01-COMMAND-SCHEMA.md](../docs/v8-redesign/01-COMMAND-SCHEMA.md)。
-
 ---
 
 ## 怎么做
@@ -62,23 +58,23 @@ Playwright / Puppeteer / Selenium(项目栈决定)
 
 ### 坑 1 · 截图覆盖不全
 只截首页 · 关键交互漏。
-  **对策**:每 AC 一组截图 · 含 happy path + 至少 1 边界
+ **对策**:每 AC 一组截图 · 含 happy path + 至少 1 边界
 
 ### 坑 2 · 截图无浏览器信息
 看不出 viewport / URL · audit 失败。
-  **对策**:截图含浏览器 chrome 边框 + URL bar(不裁剪)
+ **对策**:截图含浏览器 chrome 边框 + URL bar(不裁剪)
 
 ### 坑 3 · 失败静默忽略
 flaky test 重跑通过 · 不记录。
-  **对策**:retry 必含 retry log + 失败截图 · 不静默成功
+ **对策**:retry 必含 retry log + 失败截图 · 不静默成功
 
 ### 坑 4 · headless vs 有头模式差异
 headless 截图与用户实际看到不一致。
-  **对策**:与 PRD 描述场景一致(若 PRD 描述桌面用户 → 有头 desktop viewport)
+ **对策**:与 PRD 描述场景一致(若 PRD 描述桌面用户 → 有头 desktop viewport)
 
 ### 坑 5 · 误把 browser_e2e 当必跑
 本是可选 stage · execution_hints.browser_e2e_needed 决定。
-  **对策**:state.py auto_transition_fn 按字段判定 · 不强制启用
+ **对策**:state.py auto_transition_fn 按字段判定 · 不强制启用
 
 ---
 

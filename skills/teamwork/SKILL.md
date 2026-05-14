@@ -24,16 +24,16 @@ description: 状态机驱动的 AI 开发编排器。state.py 主动校验 + 主
 ### 范式对比
 
 ```
-v7(被替换):                         v8:
-PMO 凭记忆 + 读 spec markdown          AI 跑 state.py xx-start
-       ↓                                     ↓
-按记忆调度 stage / role                state.py 主动校验 + 主动告知
-       ↓                                     ↓
-state.py 被动记录                       AI 按 state.py 指示执行
-                                             ↓
-                                        AI 跑 state.py xx-complete
-                                             ↓
-                                        state.py 校验产物 + 自动转下一 stage
+v7(被替换): v8:
+PMO 凭记忆 + 读 spec markdown AI 跑 state.py xx-start
+ ↓ ↓
+按记忆调度 stage / role state.py 主动校验 + 主动告知
+ ↓ ↓
+state.py 被动记录 AI 按 state.py 指示执行
+ ↓
+ AI 跑 state.py xx-complete
+ ↓
+ state.py 校验产物 + 自动转下一 stage
 ```
 
 ---
@@ -41,10 +41,10 @@ state.py 被动记录                       AI 按 state.py 指示执行
 ## 快速开始
 
 ```bash
-# 1. session 入口 · PMO 按 TRIAGE.md 入口规范分诊(v8.0+P0-12 · 不是 state.py 命令)
-#    - 5 mode 判定(A query / B execute / C resume / D status / E discuss)
-#    - mode B → 项目级骨架检查/创建 + 流程类型识别 + worktree 决策
-#    - 输出 audit_line + 暂停点 markdown 给用户
+# 1. session 入口 · PMO 按 TRIAGE.md 入口规范分诊(不是 state.py 命令)
+# - 5 mode 判定(A query / B execute / C resume / D status / E discuss)
+# - mode B → 项目级骨架检查/创建 + 流程类型识别 + worktree 决策
+# - 输出 audit_line + 暂停点 markdown 给用户
 
 # 2. 用户确认 4 项配置后 · PMO 显式执行(主工作区 cwd):
 git fetch origin
@@ -79,28 +79,28 @@ state.py xx-start --bypass --reason "<用户确认理由>" --user-confirmed --mi
 
 ```
 A 类 · 状态机入口(用户确认 worktree 后 · 在 worktree 内运行)
-└── init-feature       创建 Feature state.json(在 worktree 内)
+└── init-feature 创建 Feature state.json(在 worktree 内)
 
-(triage 是 PMO 入口行为 · 不是 state.py 命令 · 见 TRIAGE.md · v8.0+P0-12)
+(triage 是 PMO 入口行为 · 不是 state.py 命令 · 见 TRIAGE.md)
 
 B 类 · Stage 流转(23 = 11 stage × 2 + ship-phase)
 ├── goal_plan-start / goal_plan-complete
 ├── ui_design-start / ui_design-complete
-├── panorama_design-start / panorama_design-complete       (Feature Planning only)
+├── panorama_design-start / panorama_design-complete (Feature Planning only)
 ├── blueprint-start / blueprint-complete
-├── blueprint_lite-start / blueprint_lite-complete         (敏捷需求 only)
+├── blueprint_lite-start / blueprint_lite-complete (敏捷需求 only)
 ├── dev-start / dev-complete
-├── review-start / review-complete                          (--verdict APPROVE|NEEDS_REVISION)
-├── test-start / test-complete                              (--integration/e2e-test-exit-code)
-├── browser_e2e-start / browser_e2e-complete                (optional)
-├── pm_acceptance-start / pm_acceptance-complete            (--decision approved_and_ship|...)
+├── review-start / review-complete (--verdict APPROVE|NEEDS_REVISION)
+├── test-start / test-complete (--integration/e2e-test-exit-code)
+├── browser_e2e-start / browser_e2e-complete (optional)
+├── pm_acceptance-start / pm_acceptance-complete (--decision approved_and_ship|...)
 ├── ship-start / ship-complete
 └── ship-phase --action {sanitize|push|confirm-merged|cleanup|close-unmerged}
 
 C 类 · 维护(6)
-├── snapshot / validate / raw-read / raw-write              只读 + 逃生舱
-├── recover                                                  state.json 被外部改后认证
-└── migrate-v7-to-v8                                        一次性迁移老 Feature
+├── snapshot / validate / raw-read / raw-write 只读 + 逃生舱
+├── recover state.json 被外部改后认证
+└── migrate-v7-to-v8 一次性迁移老 Feature
 ```
 
 详细 schema 见 [`docs/v8-redesign/01-COMMAND-SCHEMA.md`](./docs/v8-redesign/01-COMMAND-SCHEMA.md)。
@@ -136,32 +136,32 @@ C 类 · 维护(6)
 
 ```
 xx-stage-start FAIL
-   ↓
+ ↓
 state.py 返回 missing_prerequisites[] · 每条带 hint
-   ↓
+ ↓
 PMO 按 hint 自动执行修复(silent)
-   ↓
+ ↓
 重跑 xx-stage-start
-   ↓
-   ┌── PASS → 继续
-   │
-   └── FAIL → 再修(最多 3 次)
-         ↓
-      暂停点询问用户:
-      1. 继续尝试
-      2. 跳过前置 · ⚠️ 风险:{state.py 评估}
-      3. 其他指示
-         ↓ 用户选 2
-      state.py xx-start --bypass --reason ... --user-confirmed --missing ...
-         ↓
-      自动写 bypass_log + concerns WARN(完整审计闭环)
+ ↓
+ ┌── PASS → 继续
+ │
+ └── FAIL → 再修(最多 3 次)
+ ↓
+ 暂停点询问用户:
+ 1. 继续尝试
+ 2. 跳过前置 · ⚠️ 风险:{state.py 评估}
+ 3. 其他指示
+ ↓ 用户选 2
+ state.py xx-start --bypass --reason ... --user-confirmed --missing ...
+ ↓
+ 自动写 bypass_log + concerns WARN(完整审计闭环)
 ```
 
 **`--user-confirmed` 物化拦截**:缺此 flag + 带 `--bypass` → state.py 立即 FAIL,防 AI 自决逃生。
 
 ---
 
-## 项目级文档信息架构(teamwork 框架规范 · v8.0+P0-12)
+## 项目级文档信息架构(teamwork 框架规范)
 
 > **teamwork 要求用户项目根含以下文档** · `init-feature` 自动维护(骨架 silent 复制 · 详见下方"系统维护")。
 
@@ -193,16 +193,16 @@ PMO 按 hint 自动执行修复(silent)
 | 多子项目 / 跨项目 | `teamwork_space.md` |
 | 涉及具体代码 | grep + Read 实际代码 |
 
-### 项目级系统维护(`tools/bootstrap.py` 独立脚本 · v8.0+P0-13)
+### 项目级系统维护(`tools/bootstrap.py` 独立脚本)
 
 **每个 session 启动时 · PMO 首条响应前必跑**(silent · 不打扰用户)。
 **独立脚本 · 不归 state.py 状态机域**(职责分离):
 
 ```bash
 python3 <SKILL_ROOT>/tools/bootstrap.py \
-  --host <claude-code|codex-cli|gemini-cli|unknown> \
-  --skill-root <SKILL_ROOT 绝对路径> \
-  --skill-version <SKILL.md frontmatter version>
+ --host <claude-code|codex-cli|gemini-cli|unknown> \
+ --skill-root <SKILL_ROOT 绝对路径> \
+ --skill-version <SKILL.md frontmatter version>
 ```
 
 `bootstrap.py` 做什么(silent · 不打扰用户):
@@ -232,7 +232,7 @@ PMO 只关注流程编排 · 系统维护是 `bootstrap.py` 的职责。
 
 ---
 
-## 状态行(v8.0+P0-10 · R5 软约束)
+## 状态行(R5 软约束)
 
 **AI 每次主对话回复(在 teamwork 流程内)末尾必含状态行 · v8 3 行格式**:
 
@@ -276,7 +276,7 @@ v8 把 v7 的 9 红线中 16/17 子条目物化进 state.py · 仅 1 条(R3 PMO 
 | R6 Planning 只出文档 | panorama_design-complete 拒绝代码 artifact |
 | R7 证据闭环 | xx-complete 必传 --auto-commit + 校验 commit 存在 + artifacts in changeset |
 | R8 写操作硬门禁链 | state.py 内部 prepare 完成前拒绝 stage-start · ship Phase 1 CLI-first |
-| R9 init_triage 必跑 | state.py triage 整合 |
+| R9 session bootstrap 必跑 triage | tools/bootstrap.py + PMO 按 TRIAGE.md 分诊 |
 
 完整红线设计 rationale 见 [`RULES.md`](./RULES.md)。
 
@@ -286,7 +286,7 @@ v8 把 v7 的 9 红线中 16/17 子条目物化进 state.py · 仅 1 条(R3 PMO 
 
 | 文件 | 作用 |
 |------|------|
-| [TRIAGE.md](./TRIAGE.md) | **入口规范**(v8.0+P0-5)· triage 不是 stage · 5 mode 分诊 + mode B worktree 决策 |
+| [TRIAGE.md](./TRIAGE.md) | **入口规范** · triage 不是 stage · 5 mode 分诊 + mode B worktree 决策 |
 | [docs/v8-redesign/00-MANIFESTO.md](./docs/v8-redesign/00-MANIFESTO.md) | 设计宪法 · 范式切换 · 红线归宿 |
 | [docs/v8-redesign/01-COMMAND-SCHEMA.md](./docs/v8-redesign/01-COMMAND-SCHEMA.md) | 全 30 命令精确 schema |
 | [docs/v8-redesign/02-CLEANUP.md](./docs/v8-redesign/02-CLEANUP.md) | v7 → v8 清理清单 |

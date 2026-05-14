@@ -1,9 +1,5 @@
 # UI Design Stage
 
-> **auto-verified by**: `state.py ui_design-start` / `state.py ui_design-complete`
-> 本文件按 **怎么做 + 注意事项** 结构(v8.0+P0-7)。
-> 详细 schema 见 [../docs/v8-redesign/01-COMMAND-SCHEMA.md](../docs/v8-redesign/01-COMMAND-SCHEMA.md)。
-
 ---
 
 ## 怎么做
@@ -62,23 +58,23 @@ frontmatter `pages: [{id, title}]` 必 · body §页面列表 / §交互流 / §
 
 ### 坑 1 · preview HTML 命名错位
 page.id ≠ 文件名 → ui_design-complete FAIL(物化校验 pages[].id 对应 .html 存在)。
-  **对策**:文件名严格 = `<page.id>.html`
+ **对策**:文件名严格 = `<page.id>.html`
 
 ### 坑 2 · 每页 inline 样式 / 不复用基础组件
 视觉不一致 · 维护噩梦。
-  **对策**:抽公共组件 / CSS class · preview 引用统一样式表
+ **对策**:抽公共组件 / CSS class · preview 引用统一样式表
 
 ### 坑 3 · preview 只是静态图
 Dev 还原时无法 verify 交互。
-  **对策**:preview HTML 含点击 / 表单 / 跳转 · 真实交互
+ **对策**:preview HTML 含点击 / 表单 / 跳转 · 真实交互
 
 ### 坑 4 · sitemap 更新破坏现有路由
 其他 Feature 跑现有路由 fail。
-  **对策**:sitemap 改动必显式列影响范围 · 主对话与相关 Feature owner 协调
+ **对策**:sitemap 改动必显式列影响范围 · 主对话与相关 Feature owner 协调
 
 ### 坑 5 · UI 改动未通知 dev stage
 Dev 漏跑 verify-panorama · 还原偏差到 pm_acceptance 才发现。
-  **对策**:ui_design 完成时显式标记 stage_contracts.ui_design.output_satisfied=true · dev-start 自动触发 UI 还原校验段(brief 中提醒)
+ **对策**:ui_design 完成时显式标记 stage_contracts.ui_design.output_satisfied=true · dev-start 自动触发 UI 还原校验段(brief 中提醒)
 
 ---
 

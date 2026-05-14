@@ -20,7 +20,7 @@
 
 ## Rationale
 
-Architect 是 v7.3.10+P0-86 Wave 2 升格为独立 peer-level role(与 RD 平级)。
+Architect 是 独立 peer-level role(与 RD 平级)。
 v8 沿用主对话默认 · 不强制 Subagent · 保留架构演进的连续上下文。
 
 ## 相关

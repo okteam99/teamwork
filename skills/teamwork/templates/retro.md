@@ -14,7 +14,7 @@
 
 ## 一、流程效率指标
 
-### 1.1 耗时度量（v7.3.3，从 state.json.executor_history 聚合）
+### 1.1 耗时度量（从 state.json.executor_history 聚合）
 
 | Stage | 预估 | 实际 | 偏差 | dispatches | retry | user_wait |
 |-------|------|------|------|------------|-------|-----------|

@@ -126,11 +126,11 @@ session 启动是 AI 最容易"凭印象"的时刻(没读任何 spec · 没看 s
 PMO 重试 3 次仍 FAIL → 暂停点询问用户 → bypass:
 
 state.py xx-start --bypass --reason "<用户提供>" --user-confirmed --missing <ids>
-       ↓
+ ↓
 state.py:
-  - 校验 --user-confirmed 必带(防 AI 自决)
-  - 校验 --missing 覆盖实际 missing
-  - 通过 + 自动写 bypass_log[] + concerns WARN(完整审计闭环)
+ - 校验 --user-confirmed 必带(防 AI 自决)
+ - 校验 --missing 覆盖实际 missing
+ - 通过 + 自动写 bypass_log[] + concerns WARN(完整审计闭环)
 ```
 
 `--user-confirmed` 的物化语义:state.py 无法物理验证"用户真的说了",但此 flag 的存在性 = AI 声称用户已确认。审计时若发现 AI 自加此 flag(对话历史无用户确认)= 红线违规。

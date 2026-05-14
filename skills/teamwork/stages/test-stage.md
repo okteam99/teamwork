@@ -1,9 +1,5 @@
 # Test Stage
 
-> **auto-verified by**: `state.py test-start` / `state.py test-complete`
-> 本文件按 **怎么做 + 注意事项** 结构(v8.0+P0-7)。
-> 详细 schema 见 [../docs/v8-redesign/01-COMMAND-SCHEMA.md](../docs/v8-redesign/01-COMMAND-SCHEMA.md)。
-
 ---
 
 ## 怎么做
@@ -66,23 +62,23 @@ AC↔Test 全覆盖物化校验 · 漏覆盖 FAIL
 
 ### 坑 1 · 测试失败标 xfail/skip 走捷径
 为 exit-code=0 跳过失败 test · 实际功能未实现。
-  **对策**:失败必修 · skip 必含 reason + tracking issue · 不绕过
+ **对策**:失败必修 · skip 必含 reason + tracking issue · 不绕过
 
 ### 坑 2 · AC 全覆盖漏
 verify-ac.py FAIL(物化拦截)。
-  **对策**:每 AC 至少 1 集成测试或 E2E · TC.md frontmatter.tests[].covers_ac 显式 cite
+ **对策**:每 AC 至少 1 集成测试或 E2E · TC.md frontmatter.tests[].covers_ac 显式 cite
 
 ### 坑 3 · E2E 脚本不可重跑
 一次性 hack · CI 不能复用。
-  **对策**:e2e/*.py 独立可执行 · 不依赖 dev 主对话上下文
+ **对策**:e2e/*.py 独立可执行 · 不依赖 dev 主对话上下文
 
 ### 坑 4 · TEST-REPORT 口述"通过"
 不引用实际 exit-code / stdout · 失去 audit。
-  **对策**:TEST-REPORT 含具体测试 stdout 摘录 + exit-code 数值
+ **对策**:TEST-REPORT 含具体测试 stdout 摘录 + exit-code 数值
 
 ### 坑 5 · 集成测试 = 单元测试
 集成测试应跨模块 · 跨服务 · 不是单测复刻。
-  **对策**:集成测试聚焦"模块间接口契约" · 与 dev 的单测分工
+ **对策**:集成测试聚焦"模块间接口契约" · 与 dev 的单测分工
 
 ---
 

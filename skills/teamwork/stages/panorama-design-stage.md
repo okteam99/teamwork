@@ -1,9 +1,5 @@
 # Panorama Design Stage
 
-> **auto-verified by**: `state.py panorama_design-start` / `state.py panorama_design-complete`
-> 本文件按 **怎么做 + 注意事项** 结构(v8.0+P0-7)。
-> 详细 schema 见 [../docs/v8-redesign/01-COMMAND-SCHEMA.md](../docs/v8-redesign/01-COMMAND-SCHEMA.md)。
-
 ---
 
 ## 怎么做
@@ -62,23 +58,23 @@ PL 把方向 · PM 把可执行性 · Architect 把技术可行
 
 ### 坑 1 · R6 红线 · Planning 出代码
 直接进 dev 写代码 · 违 R6。
-  **对策**:panorama_design 只产 3 个文档 · 完成后自动 completed · Feature 启动需用户主动选(不自启)
+ **对策**:panorama_design 只产 3 个文档 · 完成后自动 completed · Feature 启动需用户主动选(不自启)
 
 ### 坑 2 · PROJECT.md 业务架构 vs 技术架构混淆
 把"用什么数据库"写进业务架构 · 应在 ARCHITECTURE.md。
-  **对策**:业务架构 = 业务能力 / 服务边界 · 技术架构 = 系统设计 · 各归各处
+ **对策**:业务架构 = 业务能力 / 服务边界 · 技术架构 = 系统设计 · 各归各处
 
 ### 坑 3 · ROADMAP 细化到 task 级
 task 是 Feature 内 PRD 的事 · ROADMAP 只到 Feature 名 + 简述。
-  **对策**:ROADMAP 一 Feature 一行 · 标题 + 优先级 + 状态
+ **对策**:ROADMAP 一 Feature 一行 · 标题 + 优先级 + 状态
 
 ### 坑 4 · sitemap 与单 Feature UI.md 重复
 两处同步成本高。
-  **对策**:sitemap = 整体页面架构 · 单 Feature UI.md = 本 Feature 涉及的页面 · 后者不重复全局
+ **对策**:sitemap = 整体页面架构 · 单 Feature UI.md = 本 Feature 涉及的页面 · 后者不重复全局
 
 ### 坑 5 · Planning 完成自动启 Feature
 用户没拍板就开 dev · 越权。
-  **对策**:Planning 完成进 completed(不进 dev)· 用户主动跑 `/teamwork <feature>` 启动新 Feature 流程
+ **对策**:Planning 完成进 completed(不进 dev)· 用户主动跑 `/teamwork <feature>` 启动新 Feature 流程
 
 ---
 

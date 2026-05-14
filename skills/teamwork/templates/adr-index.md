@@ -2,7 +2,7 @@
 
 > 位置：`{子项目路径}/docs/adr/INDEX.md`（每个子项目各一份，与 ADR 同目录）
 >
-> 受众：PMO 在 triage-stage 阶段读取此索引，列出可能影响当前 Feature 的相关决策。详见 [stages/triage-stage.md](../stages/triage-stage.md) Step 3。
+> 受众：PMO 在 triage 阶段读取此索引，列出可能影响当前 Feature 的相关决策。详见 [TRIAGE.md](../TRIAGE.md)。
 >
 > 用途：ADR 目录的快速索引，按状态 + 主题双维度组织。
 >
@@ -59,7 +59,7 @@
 - 📎 PMO preflight 读取此文件时只需读前 N 行即可（体量上限 200 行，超出说明需要分片）
 ```
 
-## 使用约定（v7.3.10+P0-21）
+## 使用约定
 
 - **PMO preflight**：读取本索引，按当前 Feature 的主题/涉及模块扫描「活跃决策」段，列出可能影响当前 Feature 的 ADR-ID 清单，注入 PMO 初步分析摘要
 - **Blueprint Stage 架构师评审**：新增 / 变更 ADR 时同步更新此索引（不更新 = 流程偏离）

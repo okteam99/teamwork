@@ -1,9 +1,5 @@
 # PM Acceptance Stage
 
-> **auto-verified by**: `state.py pm_acceptance-start` / `state.py pm_acceptance-complete`
-> 本文件按 **怎么做 + 注意事项** 结构(v8.0+P0-7)。
-> 详细 schema 见 [../docs/v8-redesign/01-COMMAND-SCHEMA.md](../docs/v8-redesign/01-COMMAND-SCHEMA.md)。
-
 ---
 
 ## 怎么做
@@ -58,23 +54,23 @@ rejected_with_feedback 时 --note 必填(state.py 强校验)
 
 ### 坑 1 · PM 口述"看起来 OK" 不实测
 走过场 · 漏 bug 进 ship。
-  **对策**:逐条 AC 对照 TEST-REPORT 实际数据 · 不靠口述
+ **对策**:逐条 AC 对照 TEST-REPORT 实际数据 · 不靠口述
 
 ### 坑 2 · rejected 漏填 --note
 state.py FAIL(必填校验)。
-  **对策**:rejected 必明确 finding · note 含具体改什么
+ **对策**:rejected 必明确 finding · note 含具体改什么
 
 ### 坑 3 · approved_no_ship 滥用
 "通过但暂不发"用作躲避决策。
-  **对策**:approved_no_ship 用于真正"完成但等时机"(如等其他 Feature 协同) · 不躲
+ **对策**:approved_no_ship 用于真正"完成但等时机"(如等其他 Feature 协同) · 不躲
 
 ### 坑 4 · 绕过 PM 验收
 直接 ship-start · 违 R5 暂停点协议。
-  **对策**:state.py 物化拦截 · ship-start 必前置 pm_acceptance.evidence.decision=approved_and_ship
+ **对策**:state.py 物化拦截 · ship-start 必前置 pm_acceptance.evidence.decision=approved_and_ship
 
 ### 坑 5 · rejected 不回 dev
 NEEDS_REVISION 找 architect 改 · 越权。
-  **对策**:rejected → 回 dev(state.py 自动 emit 暂停 · 用户选回 dev 还是放弃)
+ **对策**:rejected → 回 dev(state.py 自动 emit 暂停 · 用户选回 dev 还是放弃)
 
 ---
 

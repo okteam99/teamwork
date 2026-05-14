@@ -30,18 +30,18 @@
 
 \`\`\`mermaid
 graph TD
-    A[表现层] --> B[业务层]
-    B --> C[数据层]
+ A[表现层] --> B[业务层]
+ B --> C[数据层]
 \`\`\`
 
 ### 2.2 目录结构
 \`\`\`
 src/
-├── api/          # API 接口层
-├── services/     # 业务服务层
-├── models/       # 数据模型层
-├── utils/        # 工具类
-└── config/       # 配置文件
+├── api/ # API 接口层
+├── services/ # 业务服务层
+├── models/ # 数据模型层
+├── utils/ # 工具类
+└── config/ # 配置文件
 \`\`\`
 
 ## 三、分层与职责
@@ -142,9 +142,9 @@ src/
 
 \`\`\`mermaid
 erDiagram
-    USERS ||--o{ ORDERS : places
-    ORDERS ||--|{ ORDER_ITEMS : contains
-    PRODUCTS ||--o{ ORDER_ITEMS : "ordered in"
+ USERS ||--o{ ORDERS : places
+ ORDERS ||--|{ ORDER_ITEMS : contains
+ PRODUCTS ||--o{ ORDER_ITEMS : "ordered in"
 \`\`\`
 
 ## 核心表说明
@@ -257,13 +257,13 @@ erDiagram
 
 \`\`\`mermaid
 graph LR
-    CDN --> LB[负载均衡]
-    LB --> APP1[应用节点 1]
-    LB --> APP2[应用节点 2]
-    APP1 --> DB[(数据库)]
-    APP2 --> DB
-    APP1 --> CACHE[(缓存)]
-    APP2 --> CACHE
+ CDN --> LB[负载均衡]
+ LB --> APP1[应用节点 1]
+ LB --> APP2[应用节点 2]
+ APP1 --> DB[(数据库)]
+ APP2 --> DB
+ APP1 --> CACHE[(缓存)]
+ APP2 --> CACHE
 \`\`\`
 
 ## CI/CD Pipeline

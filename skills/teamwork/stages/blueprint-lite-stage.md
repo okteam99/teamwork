@@ -1,9 +1,5 @@
 # Blueprint Lite Stage
 
-> **auto-verified by**: `state.py blueprint_lite-start` / `state.py blueprint_lite-complete`
-> 本文件按 **怎么做 + 注意事项** 结构(v8.0+P0-7)。
-> 详细 schema 见 [../docs/v8-redesign/01-COMMAND-SCHEMA.md](../docs/v8-redesign/01-COMMAND-SCHEMA.md)。
-
 ---
 
 ## 怎么做
@@ -54,23 +50,23 @@
 
 ### 坑 1 · 敏捷需求准入不符
 改动 > 5 文件 / 有 UI 变更 / 方案不明 → 不应是敏捷需求。
-  **对策**:发现复杂度超预期 → `state.py reset-prev` 回退 · 改 flow_type 到 Feature · 重做
+ **对策**:发现复杂度超预期 → `state.py reset-prev` 回退 · 改 flow_type 到 Feature · 重做
 
 ### 坑 2 · 砍 blueprint 不等于砍质量
 TC.md 仍要 AC↔Test 绑定 · review/test stage 严格度不降。
-  **对策**:TC 精简但完整 · 每 AC 至少 1 test
+ **对策**:TC 精简但完整 · 每 AC 至少 1 test
 
 ### 坑 3 · 误用 flow_type
 flow_type=Feature 错跑 blueprint_lite-start → 物化 FAIL(allowed_flow_types=["敏捷需求"])。
-  **对策**:init-feature 时正确选 flow_type · 不混用
+ **对策**:init-feature 时正确选 flow_type · 不混用
 
 ### 坑 4 · Feature 流程降级敏捷
 为省事跳过完整 blueprint · 实际是 Feature 复杂度。
-  **对策**:准入硬约束(≤5 文件 / 无 UI/架构变更 / 方案明确)· 不满足绝不用敏捷
+ **对策**:准入硬约束(≤5 文件 / 无 UI/架构变更 / 方案明确)· 不满足绝不用敏捷
 
 ### 坑 5 · External 完全跳过
 即使敏捷 · 重要决策仍建议 external 一次。
-  **对策**:复杂度边界 case · 主对话内 PMO 判定是否补 external
+ **对策**:复杂度边界 case · 主对话内 PMO 判定是否补 external
 
 ---
 

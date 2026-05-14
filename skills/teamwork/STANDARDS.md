@@ -43,7 +43,7 @@
 RD 加载指引:
 ├── 后端子项目 → tdd.md + common.md + backend.md
 ├── 前端子项目 → tdd.md + common.md + frontend.md
-└── 全栈项目   → tdd.md + common.md + backend.md + frontend.md
+└── 全栈项目 → tdd.md + common.md + backend.md + frontend.md
 ```
 
 ---

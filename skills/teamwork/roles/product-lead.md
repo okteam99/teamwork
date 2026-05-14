@@ -20,7 +20,7 @@
 
 ## Rationale
 
-PL 是 v7.3.10+P0-87~92 Wave 3 整合为独立角色 · 整合了 product-lead + change-mgmt。
+PL 是 独立角色 · 整合了 product-lead + change-mgmt。
 v8 沿用 · 文档减负到 ~80 行(留 telos + 协作 · 删流程细节进 state.py)。
 
 ## 相关

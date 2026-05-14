@@ -1,9 +1,5 @@
 # Dev Stage
 
-> **auto-verified by**: `state.py dev-start` / `state.py dev-complete`
-> 本文件按 **怎么做 + 注意事项** 结构(v8.0+P0-7 新职责)。
-> 详细 schema 见 [../docs/v8-redesign/01-COMMAND-SCHEMA.md](../docs/v8-redesign/01-COMMAND-SCHEMA.md)。
-
 ---
 
 ## 怎么做
@@ -44,10 +40,10 @@
 ### 6. dev-complete(必传测试 evidence)
 ```
 state.py dev-complete --feature <path> \
-  --auto-commit <hash> \
-  --artifacts <逗号分隔改动文件> \
-  --test-stdout <log 文件路径 或 字符串> \
-  --test-exit-code 0
+ --auto-commit <hash> \
+ --artifacts <逗号分隔改动文件> \
+ --test-stdout <log 文件路径 或 字符串> \
+ --test-exit-code 0
 ```
 state.py 校验:
 - auto-commit 在 git history(`git cat-file -e`)

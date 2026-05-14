@@ -1,9 +1,5 @@
 # Goal-Plan Stage
 
-> **auto-verified by**: `state.py goal_plan-start` / `state.py goal_plan-complete`
-> 本文件按 **怎么做 + 注意事项** 结构(v8.0+P0-7 新职责)。
-> 详细 schema 见 [../docs/v8-redesign/01-COMMAND-SCHEMA.md](../docs/v8-redesign/01-COMMAND-SCHEMA.md)。
-
 ---
 
 ## 怎么做
@@ -105,14 +101,14 @@ PRD.frontmatter 必含 `revision_history` 数组 · 否则 P0-1 evidence_check F
 
 ### `PRD.md`
 - frontmatter:
-  - `acceptance_criteria: [{id, description}]`(必)
-  - `revision_history: [{version, date, changes}]`(必 · 至少 1 条)
+ - `acceptance_criteria: [{id, description}]`(必)
+ - `revision_history: [{version, date, changes}]`(必 · 至少 1 条)
 - body:§需求 / §用户场景 / §AC(BDD)/ §边界 / §Open Questions(可空)
 
 ### `PRD-REVIEW.md`
 - frontmatter:
-  - `reviewers: [pm, qa, architect, ...]`
-  - `verdicts: {role: APPROVE|NEEDS_REVISION|SKIP}`
+ - `reviewers: [pm, qa, architect, ...]`
+ - `verdicts: {role: APPROVE|NEEDS_REVISION|SKIP}`
 - body ≥ 20 行 · 每 reviewer 单独段 · cite PRD 行号
 
 ---
