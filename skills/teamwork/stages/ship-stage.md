@@ -88,7 +88,13 @@ confirm-merged 后,状态:
 
 **直推命令**(在主工作区 cwd):
 ```bash
+# Step 0 · 二次验证合入(防 user-reported 误报 / confirm-merged 后状态变化)
 git fetch origin <merge_target>
+git branch -r --contains <merge_commit_hash> | grep origin/<merge_target>
+# 命中 = 真合入 · 继续
+# 空 = 未合入 → BLOCKED · 排查 MR 状态(可能被 revert / 误报)· 不要直推
+
+# Step 1 · finalize 直推
 git pull --ff-only origin <merge_target>
 git cherry-pick <state.json finalize commit>      # 或 git checkout/cp 同效
 git push origin <merge_target>
