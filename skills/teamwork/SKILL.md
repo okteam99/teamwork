@@ -1,6 +1,6 @@
 ---
 name: teamwork
-version: 7.3.10+P0-151
+version: 7.3.10+P0-152
 description: Your AI dev team — one AI works as a full team (PMO/PM/Designer/QA/RD/Architect), switching specialist perspectives across 8 quality-gated stages from planning to delivery. Start with /teamwork.
 ---
 

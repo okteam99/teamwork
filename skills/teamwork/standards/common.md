@@ -717,6 +717,31 @@ overview.html DOM 变更：
 
 ---
 
+## 四C、权威源单源规则（v7.3.10+P0-152 新增 · 跨角色汇总指针）
+
+> 📎 **触发**：PTR-F032 case · Designer 框架找 F030 历史 Feature 当基线 → P0-151 加 Designer-scoped 规则. 复盘发现 [pmo.md § 格式权威守门](../roles/pmo.md) v7.3.9+P0-7 同型规则（peer Feature 格式 → templates/）· **跨角色 meta-pattern 已显形** · 本节作汇总指针 · 避免后续角色重复论证.
+>
+> **本节定位**：跨角色 meta-rule · 不复述各 role L2 sub-spec 原文 · 只列表汇总 + 后续注册模板. 同型 [SKILL.md § 红线生命周期管理](../SKILL.md) 路径 B（L2 汇总指针 · L1 红线零增量）.
+
+**核心原则**：每个产物维度有唯一**权威源**（spec / template / panorama / KNOWLEDGE 等）· peer Feature 仅可作**内容参考**（写法、套路、决策历史）· ❌ 禁止当**格式 / 框架 / schema** 基线.
+
+**优先级**：teamwork 规范权威源 > peer Feature 历史. 触发"参考最近相似 Feature"心智路径时 · 默认走错 · 必须改走权威源.
+
+**已注册维度**（各 L2 sub-spec 仍是原文 · 本表只指针）：
+
+| 角色 | 维度 | 权威源 | L2 sub-spec | 实证 case |
+|-----|------|-------|------------|----------|
+| PMO | 格式 / frontmatter / schema | `templates/` | [pmo.md § 格式权威守门](../roles/pmo.md) | v7.3.9+P0-7 |
+| Designer | 框架 / 配色 / layout / region | panorama `preview/overview.html` | [designer.md § 6 维自查](../roles/designer.md) · [ui-design-stage.md § 框架基线唯一性](../stages/ui-design-stage.md) | v7.3.10+P0-151 (PTR-F032) |
+
+**新维度注册要求**（Architect / RD / QA 实战触发时按此模板加行 · 不再重复论证 meta）：
+1. cite 实证 case · 写明 AI 走的捷径心智路径
+2. 反模式黑名单 ≥3 条（具体措辞 / 心智路径 / 顺序倒置）
+3. 下游校验工具或 grep 锚点（出口拦截 · R-SP-8 reader 兜底）
+4. 在本表加一行 · 各 role L2 sub-spec 落详规则
+
+---
+
 ## 四、QA 代码审查检查项
 
 > 🔴 QA 代码审查的核心是**读代码验证 TC**，TDD 规范检查是辅助手段。

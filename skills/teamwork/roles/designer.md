@@ -164,7 +164,7 @@ Step 2: 全景设计同步更新（用户确认 Step 1 后自动执行 · 涉及
 3. **PRD AC 覆盖**：UI-AC-COVERAGE 表逐条声明
 4. **全景增量同步**：变更类型（无/增量/结构性）+ sitemap modify-in-place + 标红注释 + diff
 5. **结构性变更红线**：不删页面 / 不重构导航 / 不改核心业务流程状态机（任一命中 → 停 Stage）
-6. **框架基线唯一性**（v7.3.10+P0-151 · 治本 PTR-F032 case）：框架来源（TopBar / Sidebar / layout / 配色 token / 字号 scale）**唯一来自 panorama overview.html** · ❌ 禁止参考历史 Feature preview/*.html 当基线
+6. **框架基线唯一性**（v7.3.10+P0-151 · 治本 PTR-F032 case · 跨角色汇总指针 [standards/common.md § 四C 权威源单源规则](../standards/common.md) v7.3.10+P0-152）：框架来源（TopBar / Sidebar / layout / 配色 token / 字号 scale）**唯一来自 panorama overview.html** · ❌ 禁止参考历史 Feature preview/*.html 当基线
    - 自查问："我框架的 4 区域（TopBar/Sidebar/Content/Footer）class 来自哪个文件？"
    - 答 panorama → ✅
    - 答 "F030 / 上次 Feature / 类似页" → ❌ 必须重做（cite panorama）

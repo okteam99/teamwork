@@ -16,7 +16,7 @@
 - 🔴 **禁止**在 Execution Plan / 对话里说"先参考最近一个 Feature 的 X 格式"——这是 P0-7 明令违规
 - 🔴 peer Feature 产物仅可作**内容参考**（AC 写法、业务套路、架构决策历史）；格式 / frontmatter / schema **只认 templates/**
 - 🔴 发现 peer Feature 与 templates/ 格式不一致 → templates/ 优先，并在 concerns 记录漂移
-- 📎 详见 [TEMPLATES.md § 格式权威红线](../TEMPLATES.md#-格式权威红线v739p0-7-新增)
+- 📎 详见 [TEMPLATES.md § 格式权威红线](../TEMPLATES.md#-格式权威红线v739p0-7-新增) · 跨角色汇总指针：[standards/common.md § 四C 权威源单源规则](../standards/common.md)（v7.3.10+P0-152）
 
 **🟢 用户输入识别快速规则（v7.3.10+P0-48 单源化）**：
 

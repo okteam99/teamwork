@@ -1,6 +1,44 @@
 # Changelog
 
-## v7.3.10 + P0-151（当前 · Designer 框架基线唯一性规则 · 治本"AI 还是习惯找历史"）
+## v7.3.10 + P0-152（当前 · 权威源单源规则跨角色汇总指针 · 路径 B 抽 L2 meta-rule）
+
+> **触发**：用户复审 P0-151 case · 指出"AI 还是习惯找历史"是反复出现的反模式 · 问"在哪里加合理"。复盘发现 P0-151（Designer · panorama 唯一基线）与 P0-7（PMO · templates 唯一格式源）**同型 meta-pattern**：每个角色都有"权威源 vs peer Feature 内容参考"边界 · 各自散落 L2 · 没有汇总指针 → 后续 Architect / RD / QA 触发时需重新论证 + 反模式黑名单分散。
+>
+> **诊断**：spec 现状已有 2 处证据（PMO + Designer）· 满足"meta-pattern 已显形"门槛 · 但未满足 SKILL.md § 红线生命周期管理路径 C 的"影响所有角色 + 所有 stage"硬条件 · **走路径 B**（L2 汇总指针 · L1 红线零增量）·  抽 [standards/common.md § 四C 权威源单源规则](../standards/common.md)。
+
+### P0-152：四C 权威源单源规则（spec only · A 范围 · 不改各 role L2 原文）
+
+加 1 删 0 账（仅加汇总指针 · 路径 B 减半版）：
+- ➕ [standards/common.md § 四C 权威源单源规则](../standards/common.md) 新增节（~22 行）：
+  - 核心原则：每个产物维度有唯一权威源 · peer Feature 仅作内容参考
+  - 优先级声明：teamwork 规范权威源 > peer Feature 历史（明文强调 · 治本"AI 还是习惯找历史"心智路径）
+  - 已注册维度表 2 行（PMO 格式 / Designer 框架）· 各列出 L2 sub-spec + 实证 case
+  - 新维度注册要求 4 步（Architect / RD / QA 触发时复用 · 不重复论证 meta）
+- 🔗 [roles/pmo.md § 格式权威守门](../roles/pmo.md) 第 19 行末尾加跨角色汇总指针 cite（不动原文 5 行）
+- 🔗 [roles/designer.md § 6 维自查 § 第 6 维](../roles/designer.md) 第 167 行加跨角色汇总指针 cite（不动原文细节）
+- 🔗 [stages/ui-design-stage.md § 框架基线唯一性](../stages/ui-design-stage.md) 第 243 行下游消费者段后加跨角色汇总指针段
+
+不动（边界严格 · 路径 B 减半）：
+- L1 红线零增量（SKILL.md § 9 条红线不动 · 红线生命周期管理路径 C 当前角色覆盖只 2/5 · 不够格升 L1）
+- 各角色原 L2 sub-spec 原文不动（pmo.md § 14-19 / designer.md § 6 维 / ui-design-stage.md § 框架基线唯一性 都保留）
+- 工具层不动（diff-html-vs-panorama.py / verify-panorama.py / state.py 都不改）
+
+**设计理由（路径 B 减半 vs 路径 C 升 L1 红线）**：
+
+| 路径 | 现状满足度 | L1 膨胀风险 | 后续可扩展性 |
+|-----|----------|------------|------------|
+| B 减半（本 patch）| ✅ 2/5 角色已实证 · meta-pattern 显形 | ✅ 零增量 | ✅ Architect/RD/QA 触发时按四C 模板加行 · 无需重新论证 meta |
+| C 升 L1 R10 | ❌ 只 2 角色触发 · 不满足"所有角色 + 所有 stage" | ❌ R10 增量 · 红线再膨胀 | ⚠️ 升 L1 后退役难 |
+
+**测试**：spec 改动 · 无脚本逻辑变更 · 预期 172/172 PASS（regression）.
+
+**实战 trigger 闭环 commit #8**：P0-145..151 → P0-152。用户复审 P0-151 → 发现 P0-7 同型规则 → 抽汇总指针 → 避免 Architect/RD/QA 触发时重复论证。
+
+**教训**：P0 patch 不只看"当前 case 是否解决"· 还要看"同型 pattern 在其他角色是否已显形"· 显形即可抽 L2 汇总指针 · 不必等所有角色都触发才升 L1。R-SP-8 视角："对齐 panorama"（Designer）+"对齐 templates"（PMO）都是 writer-only 同型 · 都需要明文禁令配套 · 汇总指针 = 共享禁令模板 · 后续角色一次性继承.
+
+---
+
+## v7.3.10 + P0-151（Designer 框架基线唯一性规则 · 治本"AI 还是习惯找历史"）
 
 > **触发**：实战 case · PTR-F032-Billing-Payment-闭环 · Designer 输出 HTML 框架不全（缺 Sidebar / TopBar）· 用户发现 → AI 自承"找了 F030 历史 Feature 当参考"· 用户对抗"**不要看 F030, 以 teamwork 规范为准**"+ "**AI 还是习惯找历史**"。
 >

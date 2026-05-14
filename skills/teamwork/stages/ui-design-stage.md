@@ -241,6 +241,8 @@ silent 自动认定 / 用户选 1-2：
   3. 跑 `diff-html-vs-panorama.py` 校验 · WARN 必修
 
   📎 **下游消费者（R-SP-8 合规）**：违反此规则 → 历史 Feature 自身漂移时 · `diff-html-vs-panorama.py` 仍按 panorama 校验 · WARN 列出 extra tokens · 必须 rebase 到 panorama · 重做成本远高于一开始就 Read panorama。实证 case：PTR-F032 · AI 参考 F030 → 框架缺 Sidebar / TopBar 不全 → 用户对抗"设计稿丢了框架的内容"+"不要看 F030, 以 teamwork 规范为准" → 重做。
+
+  📎 **跨角色汇总指针**（v7.3.10+P0-152）：本规则同型 [pmo.md § 格式权威守门](../roles/pmo.md)（PMO 格式 → templates/）· 汇总表在 [standards/common.md § 四C 权威源单源规则](../standards/common.md) · 后续 Architect / RD / QA 触发时按 § 四C 模板加行.
 - 🔴 **全景增量不重写**：禁止用新版全景替换旧版；禁止删除现有页面或导航；只允许 append/modify-in-place
 - 🔴 **全景变更显式标记**：任何对全景的修改必须在 sitemap.md 加标红注释 + 执行报告列出 diff
 - 🔴 **HTML 预览必出**：Feature 每个页面/状态必须有 preview/*.html（Tailwind CSS）
