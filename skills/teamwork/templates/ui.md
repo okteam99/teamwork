@@ -53,6 +53,7 @@
 | 3. PRD AC 覆盖 | M | ?/M | 详 UI-AC-COVERAGE 表 |
 | 4. 全景增量同步 | 4 | ?/4 | 类型：⏭️ 无 / 🟡 增量 / 🔴 结构性 |
 | 5. 结构性变更红线 | 3 | ?/3 | 任一命中即停 Stage |
+| 6. 框架基线唯一性（v7.3.10+P0-151）| 1 | ?/1 | framework_source = panorama overview.html（cite 路径）· ❌ 不得是历史 Feature preview/*.html |
 
 ### 全景对齐证据
 - panorama_path: {绝对路径}

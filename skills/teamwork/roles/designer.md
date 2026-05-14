@@ -157,13 +157,18 @@ Step 2: 全景设计同步更新（用户确认 Step 1 后自动执行 · 涉及
 > - L2 [tools/diff-html-vs-panorama.py](../tools/diff-html-vs-panorama.py)（v7.3.10+P0-147 新增 · 治本 4.6 case "页面框架不对齐"）：DOM 解析 panorama overview.html vs feature preview/*.html · 输出 extra colors / 字号 / layout tokens diff · WARN 必修 / FAIL 阻断
 > - UI Design Stage 出口前置（两层都通过） · 不通过 = 不进 ⏸️ 用户确认
 
-5 维度自查清单（详细 cite [standards/common.md § 四B Designer 自查规范](../standards/common.md)）：
+6 维度自查清单（v7.3.10+P0-151 加第 6 维 · 详细 cite [standards/common.md § 四B Designer 自查规范](../standards/common.md)）：
 
 1. **全景对齐**（P0-123 跨子项目契约 + P0-147 物化校验）：panorama_path 已 read · 风格/配色/导航与全景一致 · 跨子项目时标注「全景宿主」· **必跑 `diff-html-vs-panorama.py` · 输出 verdict + extra tokens 清单写入 UI.md 自查段**
 2. **状态覆盖**：每页正常/空/加载/错误 4 态 + HTML preview
 3. **PRD AC 覆盖**：UI-AC-COVERAGE 表逐条声明
 4. **全景增量同步**：变更类型（无/增量/结构性）+ sitemap modify-in-place + 标红注释 + diff
 5. **结构性变更红线**：不删页面 / 不重构导航 / 不改核心业务流程状态机（任一命中 → 停 Stage）
+6. **框架基线唯一性**（v7.3.10+P0-151 · 治本 PTR-F032 case）：框架来源（TopBar / Sidebar / layout / 配色 token / 字号 scale）**唯一来自 panorama overview.html** · ❌ 禁止参考历史 Feature preview/*.html 当基线
+   - 自查问："我框架的 4 区域（TopBar/Sidebar/Content/Footer）class 来自哪个文件？"
+   - 答 panorama → ✅
+   - 答 "F030 / 上次 Feature / 类似页" → ❌ 必须重做（cite panorama）
+   - 下游：违反 → `diff-html-vs-panorama.py` 仍按 panorama 校验 · 历史 Feature 漂移会被列为 extra tokens · 重做成本高
 
 UI.md 末尾必含 `## Designer 自查报告` 段（模板见 [templates/ui.md](../templates/ui.md)）· verify-panorama.py grep 校验。
 

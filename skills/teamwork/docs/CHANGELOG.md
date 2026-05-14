@@ -1,6 +1,44 @@
 # Changelog
 
-## v7.3.10 + P0-150（当前 · 清理 Goal-Plan Stage external 评审残留 · 治本 P0-83 不完全清理）
+## v7.3.10 + P0-151（当前 · Designer 框架基线唯一性规则 · 治本"AI 还是习惯找历史"）
+
+> **触发**：实战 case · PTR-F032-Billing-Payment-闭环 · Designer 输出 HTML 框架不全（缺 Sidebar / TopBar）· 用户发现 → AI 自承"找了 F030 历史 Feature 当参考"· 用户对抗"**不要看 F030, 以 teamwork 规范为准**"+ "**AI 还是习惯找历史**"。
+>
+> **诊断**：spec 现有规则"对齐全景"（P0-123 + P0-147 物化）说了正确路径 · 但**没明文禁止**"先看历史 Feature"路径。AI 在心智模型里"参考最近相似 Feature"是合理选项 → 选最短路径 → 错。
+>
+> 这是 R-SP-8 同型反模式："对齐 panorama"是 writer-only · 没说"不许走捷径"。需要明文加禁令。
+
+### P0-151：框架基线唯一性规则（spec only · A 范围）
+
+加 1 删 1 账（仅加规则 · 路径 B）：
+- ➕ [stages/ui-design-stage.md § 过程硬规则](../stages/ui-design-stage.md) 加 🔴「框架基线唯一性」规则：
+  - 反模式黑名单 3 条（复制历史 Feature HTML / "F030 框架就是这个"措辞 / "先看历史后看 panorama"顺序）
+  - 推荐路径 3 步（Read panorama → 裁剪 Feature 页面 → 跑 diff 工具）
+  - 下游消费者标注（R-SP-8 合规）：违反 → diff-html-vs-panorama.py 仍按 panorama 校验 · 历史 Feature 漂移会被列 extra tokens · 重做成本高
+- ➕ [roles/designer.md § 3.5](../roles/designer.md) 自查清单从 5 维度升 **6 维度**，加第 6 维「框架基线唯一性」：
+  - 自查问 + 正确答案 / 错误答案 · 答错必重做
+- ➕ [templates/ui.md § 检查结果汇总](../templates/ui.md) 自查表加第 6 行「框架基线唯一性」· 含 framework_source cite 字段
+
+工具不动（保留 P0-147 diff-html-vs-panorama.py 作 R-SP-8 兜底）：
+- ✅ panorama 是 diff baseline · 历史 Feature 即使形似 · 仍会因自身漂移被 diff catch
+- ⏸️ B 范围（`--check-files-read` 校验 Designer 没读其他 Feature）暂留 · 等 spec only 实战 1-2 个 case 验证有效再决定
+
+不动（边界严格 · 路径 B 同型 P0-137~150）：
+- L1 红线零增量
+- diff-html-vs-panorama.py 不改（已是 R-SP-8 reader · 兜底依然有效）
+- standards/external-model.md / Blueprint / Review 不动
+
+测试：172 baseline = **172/172 PASS**（spec 改动 · 无脚本逻辑）
+
+实战 trigger 闭环 commit #7：
+- P0-145 → P0-146 → P0-147 → P0-148 → P0-149 → P0-150 → **P0-151**
+- 用户对抗"不要看 F030 · 以 teamwork 规范为准" → 4.7 立即加明文禁令 + 反模式黑名单
+
+教训：spec 写"必须做 X"不够 · 还要写"**禁止走 Y 替代路径**"——AI 的最短路径偏好会自动选 Y · 即使 X 是规范要求。R-SP-8 视角："对齐 panorama" 必须配 "禁止参考历史 Feature" · 否则后者会变成前者的隐性平替。
+
+---
+
+## v7.3.10 + P0-150（清理 Goal-Plan Stage external 评审残留 · 治本 P0-83 不完全清理）
 
 > **触发**：实战 case · 4.6 instance 在 PRD 评审时正确识别不加 external（cite goal-plan-stage L43 "P0-83 删 external"）· 用户追问"为什么没加外部模型评审"· 4.7 实测 spec 验证发现 **P0-83 设计意图正确 · 但 goal-plan-stage.md 清理不完全** · 多处 external 描述与"已删"声明并存。
 >

@@ -227,6 +227,20 @@ silent 自动认定 / 用户选 1-2：
 
 - 🔴 **角色规范必读且 cite**：必读 `roles/designer.md`，产出前 cite 要点
 - 🔴 **对齐全景**：Feature UI 必须与全景风格/配色/布局/语言一致（不一致 → Concern，⏸️ 用户决策）· 下游：v7.3.10+P0-147 物化 — Designer 自查必跑 [`tools/diff-html-vs-panorama.py`](../tools/diff-html-vs-panorama.py)（panorama overview.html vs feature preview/*.html · DOM diff 出 extra colors / 字号 / layout tokens）· WARN 必修 / FAIL 阻断进入下个 Stage。实证 trigger：API-F048 case "页面框架还是和全景不对齐"
+
+- 🔴 **框架基线唯一性（v7.3.10+P0-151 · 治本 PTR-F032 case "AI 还是习惯找历史"）**：Feature UI 的**框架基线**（TopBar / Sidebar / layout container / 配色 token / 字号 scale / region 结构）**唯一来源**是 `panorama_path/preview/overview.html`。
+
+  ❌ **反模式黑名单**（命中即 BLOCKER · 即使形似也算违规）：
+  - 复制历史 Feature（如 F030）的 `preview/*.html` 当框架基线 / "参考"
+  - "F030 的框架就是这个" / "复用上次 Feature 的结构" / "类似页直接抄" 等心智路径
+  - 任何"先看历史 Feature · 后看 panorama"的顺序（即使历史 Feature 看起来对齐 panorama）
+
+  ✅ **推荐路径**：
+  1. Designer 起手 `Read panorama_path/preview/overview.html`（cite ≥3 框架元素：TopBar / Sidebar / Content region · class names + layout 类）
+  2. 在 panorama 基础上**裁剪**出 Feature 页面（去掉无关 region · 保留框架）
+  3. 跑 `diff-html-vs-panorama.py` 校验 · WARN 必修
+
+  📎 **下游消费者（R-SP-8 合规）**：违反此规则 → 历史 Feature 自身漂移时 · `diff-html-vs-panorama.py` 仍按 panorama 校验 · WARN 列出 extra tokens · 必须 rebase 到 panorama · 重做成本远高于一开始就 Read panorama。实证 case：PTR-F032 · AI 参考 F030 → 框架缺 Sidebar / TopBar 不全 → 用户对抗"设计稿丢了框架的内容"+"不要看 F030, 以 teamwork 规范为准" → 重做。
 - 🔴 **全景增量不重写**：禁止用新版全景替换旧版；禁止删除现有页面或导航；只允许 append/modify-in-place
 - 🔴 **全景变更显式标记**：任何对全景的修改必须在 sitemap.md 加标红注释 + 执行报告列出 diff
 - 🔴 **HTML 预览必出**：Feature 每个页面/状态必须有 preview/*.html（Tailwind CSS）
