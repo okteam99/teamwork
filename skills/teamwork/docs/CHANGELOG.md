@@ -1,5 +1,45 @@
 # Changelog
 
+## v8.3 · docs/naming.md → docs/conventions.md(合并 worktree 规范)
+
+### 改名 + 扩展
+
+- `docs/naming.md` → `docs/conventions.md`(git mv 保历史)
+- 加 §9-12:worktree 路径规范(默认 `.worktree` / 配置字段 / monorepo 多模块策略 / 状态机接口)
+- 单源:命名 + worktree 都进同一文件 · 引用方少一处 cite
+
+### worktree 路径规范(原本散落 3 处 · 互相矛盾)
+
+| 原位置 | 内容 | 矛盾 |
+|---|---|---|
+| TRIAGE.md L117-119 | 模板 `<repo-root>/worktrees/<FEATURE-ID>` | `<repo-root>` 没定义 |
+| templates/config.md L128-151 | `worktree_root_path` 字段 + 3 示例 | 与 TRIAGE 模板不同 |
+| SKILL.md L248-249 | 状态行例子 `aon-ptr-worktrees/` | 模块 sibling · 不在两处任一示例 |
+
+收敛到 conventions.md 单源:
+- **默认** `.worktree`(项目根)
+- **可配** 项目根 `.teamwork_localconfig.md` 的 `worktree_root_path` 字段
+- **解析优先级** state.json > localconfig > 默认
+- **monorepo 多模块**:推荐 per-module(各模块独立 `../.{module}-worktrees/`)
+
+### cite 路径更新
+
+- TRIAGE.md §4.2 worktree 模板表简化 + cite conventions.md §9-11
+- TRIAGE.md §4.3 暂停点 worktree path 默认值 cite
+- templates/config.md §Worktree 根目录 段简化 + cite(原 30 行 → 5 行)
+- naming.md → conventions.md 全部 cite 引用更新(TRIAGE / planning-stage / templates/bug-report / templates/roadmap)
+
+### 顺手修 templates/config.md mojibake
+
+- 在 e1d12b2 perl 误切的 21 损坏文件名单里
+- restore from bb11e1d + python utf-8 safe 重做 P0 清理
+
+测试: v8 测试 37/37 全过
+
+剩余 20 个 mojibake 文件待下个 commit 处理。
+
+---
+
 ## v8.2 · 编号规范单源 + Feature Planning 单 stage + goal 收紧
 
 ### 新增 docs/naming.md(编号规范单源)

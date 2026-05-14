@@ -112,15 +112,23 @@ PMO 按以下关键词表判定 user input 落入哪类流程:
 
 ### Step 4.2 · worktree 决策模板
 
-PMO 按 flow_type 算 worktree 建议:
+PMO 按 flow_type 算 branch 前缀 + worktree path 建议:
 
-| flow_type | branch 前缀 | worktree path 模板 |
-|----------|-----------|------------------|
-| Feature | `feature/` | `<repo-root>/worktrees/<FEATURE-ID>` |
-| 敏捷需求 | `agile/` | 同上 |
-| Bug | `fix/` | 同上 |
-| Micro | `micro/` | 同上 |
-| Feature Planning | `plan/` | 同上 |
+| flow_type | branch 前缀 |
+|----------|-----------|
+| Feature | `feature/` |
+| 敏捷需求 | `agile/` |
+| Bug | `fix/` |
+| Micro | `micro/` |
+| Feature Planning | `plan/` |
+
+**worktree path 默认** = `{worktree_root_path}/{Feature-ID}` ·
+其中 `worktree_root_path` 解析顺序:
+1. `state.json.environment_config.worktree_root_path`(已存在 Feature)
+2. 项目根 `.teamwork_localconfig.md` 的 `worktree_root_path` 字段
+3. 默认 `.worktree`(项目根子目录)
+
+完整规范见 [docs/conventions.md § 9-11](./docs/conventions.md)(含 monorepo 多模块策略)。
 
 ### Step 4.3 · emit 暂停点 markdown(PMO 复制给用户)
 
@@ -132,9 +140,9 @@ PMO 按 flow_type 算 worktree 建议:
 📋 **首个 stage**:<first_stage>
 
 请提供:
-1. **Feature ID**(如 PTR-F033-Credit-Note-Adjustment · 编号规则见 [docs/naming.md § 1](./docs/naming.md))
+1. **Feature ID**(如 PTR-F033-Credit-Note-Adjustment · 编号规则见 [docs/conventions.md § 1](./docs/conventions.md))
 2. **merge_target**(如 staging / main)
-3. **worktree path**(默认:`<repo-root>/worktrees/<FEATURE-ID>`)
+3. **worktree path**(默认:`{worktree_root_path}/<FEATURE-ID>` · 见 [docs/conventions.md § 9](./docs/conventions.md))
 4. **branch**(默认:`<branch-prefix><FEATURE-ID>`)
 
 回复 4 项或 "all default" 用默认值(仅需 Feature ID + merge_target)

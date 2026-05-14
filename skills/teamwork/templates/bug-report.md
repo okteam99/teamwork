@@ -1,7 +1,7 @@
 # BUG-REPORT 模板
 
 > 位置：`docs/features/F{编号}-{功能名}/bugfix/BUG-F{编号}-{序号}-{简述}.md`
-> 编号规则：详见 [docs/naming.md § 2 Bug ID](../docs/naming.md)
+> 编号规则：详见 [docs/conventions.md § 2 Bug ID](../docs/conventions.md)
 > 🔴 BUG-REPORT.md **必须包含 YAML frontmatter**（机读状态字段，承担 Bug 流程的 state.json 职能）。
 
 ## YAML frontmatter（机读字段）
@@ -11,7 +11,7 @@
 
 ```yaml
 ---
-bug_id: "BUG-PTR-F025-001" # 必填，编号规则见 docs/naming.md § 2
+bug_id: "BUG-PTR-F025-001" # 必填，编号规则见 docs/conventions.md § 2
 feature_id: "{缩写}-F025-{所属Feature名}" # 必填，Bug 归属的 Feature
 classification: simple | complex # PMO 在 Bug 流程判断后填入
 flow_type: bug # 固定值（与 feature 区分）

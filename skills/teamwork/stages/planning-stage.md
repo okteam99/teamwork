@@ -42,7 +42,7 @@
 
 ### 3. 起草 ROADMAP.md(BL-NNN 分配)
 Feature 列表 + 优先级 + 排期(当前/下一/储备)。
-- **每个 Backlog 分配 BL-NNN**(三位数字 · 各项目独立递增)· 详见 [docs/naming.md § 4](../docs/naming.md)
+- **每个 Backlog 分配 BL-NNN**(三位数字 · 各项目独立递增)· 详见 [docs/conventions.md § 4](../docs/conventions.md)
 - **不分配 F-NNN**(F-NNN 在 Feature 流程启动时由 PMO 分配)
 - 不细化到 task 级 · 一 Feature 一行(标题 + 优先级 + 状态 + 核心 AC ①②③)
 

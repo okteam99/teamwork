@@ -86,7 +86,7 @@ graph LR
 \`\`\`
 
 **字段说明**：
-- **Feature ID**：\`BL-{三位数字}\`，Roadmap 内唯一编号(规划期标识)。完整编号规则(BL ↔ F 映射 / namespace / 升级时机)详见 [docs/naming.md § 4](../docs/naming.md)
+- **Feature ID**：\`BL-{三位数字}\`，Roadmap 内唯一编号(规划期标识)。完整编号规则(BL ↔ F 映射 / namespace / 升级时机)详见 [docs/conventions.md § 4](../docs/conventions.md)
 - **债务 ID**：\`TD-{三位数字}\`，技术债唯一编号
 - **优先级**：\`P0\`（核心）/ \`P1\`（重要）/ \`P2\`（可选）——决定是否进入当前规划
 - **描述**：一句话说明功能做什么
