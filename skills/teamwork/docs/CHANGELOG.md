@@ -1,6 +1,74 @@
 # Changelog
 
-## v7.3.10 + P0-147（当前 · Designer 全景对齐物化校验 · DOM diff 工具）
+## v7.3.10 + P0-148（当前 · state.py init-feature + checksum guard · 物化拦截直写 state.json）
+
+> **触发**：实战 case · ADMIN-F013 Feature · Claude 4.6 instance 自承：
+> 1. "我把 state.json 当普通 JSON 文件直接 Write 了——图省事，跳过了工具层"
+> 2. "Goal-Plan → UI Design 阶段流转也没有通过 state.py，直接口头宣布"
+> 3. "把流程工具当文档看而不是当约束执行"
+>
+> **诊断（实测验证非凭印象）**：
+> 1. prepare-stage.md Step 14 写"调用 state.py init-feature"——**但 state.py 实际没有这个子命令** · `--help` 输出无 init-feature 选项 · AI 合理 fallback 到 Write
+> 2. state.json 无任何写权防护 · AI 用 Write/Edit 直改完全 honor system
+> 3. R7(c) evidence-binding 红线 写了但没 reader · 跳了没 catch
+>
+> 这是 P0-146 R-SP-8 揭示的 writer-only 反模式 + 实际工具层缺位 的合击。
+
+### P0-148：state.py 补 init-feature + checksum guard
+
+加 1 删 1 账：
+- ➕ `state.py init-feature` 子命令（~80 行）：
+  - 参数：--feature / --feature-id / --flow-type / --sub-project / --merge-target / --branch / [--worktree-mode/-path] / [--auto-mode] / [--initial-stage] / [--force]
+  - 创建 schema-correct state.json（含 worktree / environment_config / concerns / stage_contracts 完整结构）
+  - 默认 initial_stage 按 flow_type 派生（Feature→goal_plan / Bug→dev / Micro→dev / 敏捷→blueprint_lite / Planning→planning / 排查→triage）
+  - --force 时自动 backup `.bak.<ts>`（不丢历史）
+- ➕ checksum guard（state.py 全文 ~40 行 helper）：
+  - `_compute_checksum(state)` = sha256(canonical JSON without `_state_checksum`)
+  - 所有写都 stamp `_state_checksum` 字段
+  - 所有读 verify · 不一致 → exit 2 + recover 提示
+  - 旁路：`TEAMWORK_BYPASS_CHECKSUM=1`（仅 debug / migration）
+  - 向下兼容：旧 state.json 无 checksum → silent accept · 下次写补上
+- ➕ `state.py recover --feature X --reason "..."` 子命令：
+  - 旁路 verify 读 state.json
+  - 追加 concerns WARN audit（含 reason）
+  - 重新 stamp checksum
+- 改 [stages/prepare-stage.md Step 14](../stages/prepare-stage.md)：明示必走 init-feature · 含完整调用示例 · 禁止手工 Write/Edit state.json
+- ➕ test_state.py 加 3 个 TestCase（9 cases）：
+  - TestInitFeature (4): happy / Bug default dev / 已存在 fail / --force backup
+  - TestChecksumGuard (4): legitimate read / external 改动 blocked / bypass env / legacy 无 checksum 接受
+  - TestRecover (1): 手工编辑 → recover → snapshot 通过 + concerns 留 audit
+
+物化拦截链（end-to-end）：
+```
+AI 想创建 state.json
+  → state.py init-feature 是唯一路径（无其他子命令能创建）
+  → AI fallback Write/Edit
+  → 下次任何 state.py 子命令 read → checksum mismatch → exit 2
+  → AI 必须 recover --reason "..." 才能继续 → 留 audit
+  → 用户事后可 grep concerns WARN 发现违规
+```
+
+不动（边界严格 · 路径 B）：
+- L1 红线零增量（与 P0-137..147 同型）
+- 现有 24 个 state.py 子命令逻辑不变（只加 2 个新命令 + checksum 透明集成）
+- templates/feature-state.json schema 不变（init-feature 生成符合现有 schema）
+- AC schema / 状态机 / evidence-binding 现有校验不动
+
+测试：160 baseline + 9 init/checksum/recover = **169/169 PASS**
+
+R-SP-8 进度：又一条 writer-only 规则（"必须用 state.py 维护"）加了真实 reader（checksum guard 在下次调用时 catch）· 这是**首个 cross-tool 物化拦截**（init-feature 创建 + 所有子命令 verify · 形成闭环）。
+
+后续候选：
+- P0-149: 设 PMO 实战跑 ADMIN-F013 完整流程 · 验证 checksum guard 实战触发 frequency
+- P0-150: 红线减负专版 · 基于 checksum 物化 · 移除"必须用 state.py"相关红线（已被物化拦截）
+
+实战 trigger 闭环：
+- ADMIN-F013 case → 4.6 自承 + 用户对抗 → 4.7 实测 spec gap（init-feature 不存在）→ 补工具 + 物化拦截
+- 与 P0-145/146/147 同型："实战 → 诊断 → 物化"模式 commit #4
+
+---
+
+## v7.3.10 + P0-147（Designer 全景对齐物化校验 · DOM diff 工具）
 
 > **触发**：实战反馈 · "designer 在设计的时候还是和全景不对齐 · 尤其是页面框架等" · 用户每次都要肉眼对比 panorama overview.html vs feature preview/*.html。
 >

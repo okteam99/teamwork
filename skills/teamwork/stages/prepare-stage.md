@@ -377,14 +377,32 @@ cd {worktree.path}
 
 🔴 **执行位置（v7.3.10+P0-145 修订）**：CWD 已在 Step 13.5 切到 worktree（如启用）· state.json 创建落在 worktree 内 · 与后续 PRD / 评审产物同位。
 
+🔴 **必走 state.py init-feature 子命令（v7.3.10+P0-148 物化 · 替代手工 Write）** · 下游：手工 Write state.json → checksum guard 在下次任何 state.py 调用时 exit 2 拒绝（实证 4.6 case "我把 state.json 当普通 JSON 直接 Write"）
+
+```bash
+python3 {SKILL_ROOT}/tools/state.py init-feature \
+  --feature {artifact_root}                  \
+  --feature-id {Feature 全名}                \
+  --flow-type {Feature|Bug|Micro|敏捷需求|Feature Planning|问题排查} \
+  --sub-project {子项目代号}                  \
+  --merge-target {staging|main|master}        \
+  --branch {feat/bug-... 等}                  \
+  [--worktree-mode auto|manual|off]           \
+  [--worktree-path /abs/worktree]             \
+  [--auto-mode]                               \
+  [--initial-stage <enum>]
 ```
-Feature / Bug / Micro / 敏捷 → 创建 state.json（按流程类型 schema）
+
+```
+Feature / Bug / Micro / 敏捷 → init-feature 创建 state.json（按 flow-type schema）
 Feature Planning → 不创建 Feature state（仅写 PROJECT/ROADMAP/sitemap · 这是 Planning 流程的产物）
 ```
 
-调用 [tools/state.py init-feature](../tools/state.py)（或对应子命令）· artifact_root 相对 CWD（=worktree 根 · 如启用）解析。
+🟢 **checksum guard（v7.3.10+P0-148 物化）**：init-feature 写 state.json 时 stamp `_state_checksum` 字段 · 之后所有 state.py 子命令读 state.json 前 verify checksum · 一致则继续 · 不一致 → exit 2 + `recover --reason "..."` 提示。即"AI 想绕过 state.py 直写 state.json → 下次必被 catch"。
 
 详见 templates/feature-state.json schema。
+
+🔴 **禁止手工 Write/Edit state.json** · 必要时（如 schema 字段名笔误）用 `state.py recover --feature X --reason "..."` 重新认证 · 自动追加 concerns WARN audit。
 
 ---
 

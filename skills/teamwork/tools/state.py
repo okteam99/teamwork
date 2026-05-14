@@ -17,6 +17,7 @@ P4（已实现）：pm-decision / add-concern / bug-frontmatter / micro-validate
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -121,8 +122,54 @@ def state_path(feature: str) -> Path:
     return p
 
 
+# ─── Checksum guard (v7.3.10+P0-148) ───────────────────────────────────
+# state.json checksum 自防护 · 跨宿主物理拦截直写 state.json。
+# 设计：state.py 每次写都更新 `_state_checksum` · 每次读先 verify · 不一致 → fail。
+# 旁路：TEAMWORK_BYPASS_CHECKSUM=1（仅 recover 子命令 / migration / debug）。
+
+CHECKSUM_FIELD = "_state_checksum"
+CHECKSUM_BYPASS_ENV = "TEAMWORK_BYPASS_CHECKSUM"
+
+
+def _compute_checksum(state: dict[str, Any]) -> str:
+    """canonical sha256(state without _state_checksum field)."""
+    cleaned = {k: v for k, v in state.items() if k != CHECKSUM_FIELD}
+    canonical = json.dumps(cleaned, sort_keys=True, ensure_ascii=False,
+                           separators=(",", ":"))
+    return "sha256:" + hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def _verify_checksum(state: dict[str, Any], path: Path) -> None:
+    """Verify state.json checksum · die(2) on mismatch (unless bypassed)."""
+    if os.environ.get(CHECKSUM_BYPASS_ENV):
+        return
+    stored = state.get(CHECKSUM_FIELD)
+    if stored is None:
+        # Legacy state.json (pre-P0-148) — accept silently · 下次写自动 stamp
+        return
+    expected = _compute_checksum(state)
+    if stored != expected:
+        die(2, json.dumps({
+            "verdict": "FAIL",
+            "error": "state.json checksum mismatch · 检测到 state.py 之外的直接修改",
+            "path": str(path),
+            "stored_prefix": stored[:24],
+            "expected_prefix": expected[:24],
+            "hint": (
+                "选项 1: 用 `state.py recover --feature {path} --reason \"...\"` "
+                "重新认证 checksum（追加 concerns WARN audit）\n"
+                "选项 2: 设 TEAMWORK_BYPASS_CHECKSUM=1 旁路（仅 debug / migration · 不留 audit）\n"
+                "选项 3: `git checkout {path}` 从 git 恢复"
+            ),
+            "ref": "scripts-policy.md § R7(c) evidence-binding · v7.3.10+P0-148",
+        }, ensure_ascii=False, indent=2))
+
+
 def load_state(feature: str) -> dict[str, Any]:
-    return json.loads(state_path(feature).read_text(encoding="utf-8"))
+    path = state_path(feature)
+    state = json.loads(path.read_text(encoding="utf-8"))
+    _verify_checksum(state, path)
+    return state
 
 
 def die(code: int, msg: str) -> None:
@@ -152,6 +199,8 @@ def atomic_write(path: Path, state: dict[str, Any]) -> None:
     """同目录 temp file + os.replace · 同分区原子。"""
     state["updated_at"] = now_iso()
     state["updated_by"] = state.get("updated_by") or "pmo"
+    # v7.3.10+P0-148 checksum guard：每次写后 stamp 新 checksum（基于 _state_checksum 外字段）
+    state[CHECKSUM_FIELD] = _compute_checksum(state)
     fd, tmp = tempfile.mkstemp(prefix=".state.", suffix=".tmp", dir=str(path.parent))
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as f:
@@ -1114,6 +1163,114 @@ def cmd_micro_validate(args: argparse.Namespace) -> None:
 
 
 
+# ─── init-feature / recover (v7.3.10+P0-148) ──────────────────────────
+
+
+DEFAULT_INITIAL_STAGE = {
+    "Feature": "goal_plan",
+    "Bug": "dev",
+    "Micro": "dev",
+    "敏捷需求": "blueprint_lite",
+    "Feature Planning": "planning",
+    "问题排查": "triage",
+}
+
+
+def cmd_init_feature(args: argparse.Namespace) -> None:
+    """Create initial state.json · 替代手工 Write（v7.3.10+P0-148）。"""
+    feature_dir = Path(args.feature)
+    state_file = feature_dir / "state.json"
+
+    if state_file.exists() and not args.force:
+        die(2, json.dumps({
+            "verdict": "FAIL",
+            "error": f"state.json already exists: {state_file}",
+            "hint": "Use --force to overwrite (自动 backup .bak.<ts>)",
+        }, ensure_ascii=False, indent=2))
+
+    if state_file.exists() and args.force:
+        ts = now_iso().replace(":", "_")
+        backup = state_file.with_suffix(f".json.bak.{ts}")
+        state_file.rename(backup)
+
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    initial_stage = args.initial_stage or DEFAULT_INITIAL_STAGE.get(
+        args.flow_type, "goal_plan"
+    )
+
+    state: dict[str, Any] = {
+        "feature_id": args.feature_id,
+        "sub_project": args.sub_project or "",
+        "flow_type": args.flow_type,
+        "artifact_root": args.artifact_root or str(feature_dir),
+        "current_stage": initial_stage,
+        "merge_target": args.merge_target,
+        "worktree": {
+            "strategy": args.worktree_mode,
+            "branch": args.branch,
+            "path": args.worktree_path,
+            "base_branch": f"origin/{args.merge_target}",
+            "created_at": now_iso(),
+        },
+        "environment_config": {
+            "worktree_mode": args.worktree_mode,
+            "branch": args.branch,
+            "merge_target": args.merge_target,
+            "base": f"origin/{args.merge_target}",
+            "executed_at": now_iso(),
+        },
+        "auto_mode": args.auto_mode,
+        "concerns": [],
+        "review_round": 0,
+        "stage_contracts": {},
+        "completed_stages": [],
+        "created_at": now_iso(),
+    }
+    atomic_write(state_file, state)
+    emit({
+        "verdict": "OK",
+        "action": "init-feature",
+        "feature_id": args.feature_id,
+        "flow_type": args.flow_type,
+        "current_stage": initial_stage,
+        "state_path": str(state_file),
+        "checksum_prefix": state[CHECKSUM_FIELD][:24],
+        "created_at": state["created_at"],
+    })
+
+
+def cmd_recover(args: argparse.Namespace) -> None:
+    """Re-checksum after manual edit · adds concern WARN · 留 audit trail."""
+    saved = os.environ.get(CHECKSUM_BYPASS_ENV)
+    os.environ[CHECKSUM_BYPASS_ENV] = "1"
+    try:
+        path = state_path(args.feature)
+        state = json.loads(path.read_text(encoding="utf-8"))
+    finally:
+        if saved is None:
+            del os.environ[CHECKSUM_BYPASS_ENV]
+        else:
+            os.environ[CHECKSUM_BYPASS_ENV] = saved
+
+    old_cs = state.get(CHECKSUM_FIELD)
+    concerns = state.setdefault("concerns", [])
+    concerns.append({
+        "severity": "WARN",
+        "message": f"state.json checksum recovered after manual edit · reason: {args.reason}",
+        "timestamp": now_iso(),
+    })
+    atomic_write(path, state)
+    emit({
+        "verdict": "OK",
+        "action": "recover",
+        "feature": args.feature,
+        "old_checksum_prefix": old_cs[:24] if old_cs else None,
+        "new_checksum_prefix": state[CHECKSUM_FIELD][:24],
+        "reason": args.reason,
+        "concerns_appended": True,
+    })
+
+
 def _add_feature_arg(parser: argparse.ArgumentParser, *, help_text: str | None = None) -> None:
     """统一注册 --feature · 缺省时从 TEAMWORK_FEATURE 环境变量读取（v7.3.10+P0-130 ergonomics）。"""
     env = os.environ.get("TEAMWORK_FEATURE")
@@ -1262,6 +1419,41 @@ def build_parser() -> argparse.ArgumentParser:
     mv.add_argument("--merge-target", required=True, help="如 staging / main")
     mv.add_argument("--cwd", help="可选 · git 命令工作目录")
     mv.set_defaults(func=cmd_micro_validate)
+
+    # P5 (v7.3.10+P0-148): init-feature + recover
+    ifp = sub.add_parser(
+        "init-feature",
+        help="创建 Feature state.json · 替代手工 Write（v7.3.10+P0-148）",
+    )
+    ifp.add_argument("--feature", required=True,
+                     help="目标 feature 目录 · 自动 mkdir -p · state.json 不存在时创建")
+    ifp.add_argument("--feature-id", required=True, help="如 ADMIN-F013-tax-billing")
+    ifp.add_argument("--flow-type", required=True,
+                     choices=["Feature", "Bug", "Micro", "敏捷需求",
+                              "Feature Planning", "问题排查"])
+    ifp.add_argument("--sub-project", help="如 admin / api-server")
+    ifp.add_argument("--artifact-root", help="相对 repo root · 缺省取 --feature")
+    ifp.add_argument("--initial-stage",
+                     help="缺省按 flow_type 决定（Feature→goal_plan / Bug→dev / Micro→dev / ...）")
+    ifp.add_argument("--merge-target", required=True, help="如 staging / main")
+    ifp.add_argument("--branch", required=True, help="如 feat/admin-f013-x")
+    ifp.add_argument("--worktree-mode", choices=["auto", "manual", "off"],
+                     default="off")
+    ifp.add_argument("--worktree-path",
+                     help="worktree 绝对路径 · worktree-mode != off 时建议提供")
+    ifp.add_argument("--auto-mode", action="store_true", help="启用 AUTO_MODE")
+    ifp.add_argument("--force", action="store_true",
+                     help="覆盖现有 state.json（自动 backup .bak.<ts>）")
+    ifp.set_defaults(func=cmd_init_feature)
+
+    rcv = sub.add_parser(
+        "recover",
+        help="重新认证 checksum（state.json 被外部修改后）· 追加 concerns WARN（v7.3.10+P0-148）",
+    )
+    _add_feature_arg(rcv)
+    rcv.add_argument("--reason", required=True,
+                     help="必填 · 解释为什么手动改了 state.json · 入 audit")
+    rcv.set_defaults(func=cmd_recover)
 
     return p
 

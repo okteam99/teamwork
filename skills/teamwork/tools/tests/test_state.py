@@ -276,6 +276,182 @@ class TestBugFrontmatter(_Base):
         self.assertTrue(any("merge_commit_hash" in e for e in d["errors"]))
 
 
+class TestInitFeature(unittest.TestCase):
+    """v7.3.10+P0-148：init-feature 子命令 + checksum guard。"""
+
+    def setUp(self) -> None:
+        self.tmp = Path(tempfile.mkdtemp(prefix="init_feat_"))
+
+    def tearDown(self) -> None:
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def test_init_feature_creates_state_json(self) -> None:
+        target = self.tmp / "docs" / "features" / "ADMIN-F013"
+        d = run([
+            "init-feature",
+            "--feature", str(target),
+            "--feature-id", "ADMIN-F013-tax-billing",
+            "--flow-type", "Feature",
+            "--sub-project", "admin",
+            "--merge-target", "staging",
+            "--branch", "feat/admin-f013-tax-billing",
+        ])
+        self.assertEqual(d["verdict"], "OK")
+        self.assertEqual(d["action"], "init-feature")
+        self.assertEqual(d["feature_id"], "ADMIN-F013-tax-billing")
+        self.assertEqual(d["current_stage"], "goal_plan")  # Feature default
+        self.assertTrue(d["checksum_prefix"].startswith("sha256:"))
+        # state.json 真存在 + 校验 schema 字段
+        sf = target / "state.json"
+        self.assertTrue(sf.exists())
+        state = json.loads(sf.read_text(encoding="utf-8"))
+        self.assertEqual(state["feature_id"], "ADMIN-F013-tax-billing")
+        self.assertEqual(state["flow_type"], "Feature")
+        self.assertEqual(state["merge_target"], "staging")
+        self.assertEqual(state["worktree"]["branch"], "feat/admin-f013-tax-billing")
+        self.assertIn("_state_checksum", state)
+
+    def test_init_feature_bug_defaults_to_dev(self) -> None:
+        target = self.tmp / "bug"
+        d = run([
+            "init-feature",
+            "--feature", str(target),
+            "--feature-id", "BUG-007-login",
+            "--flow-type", "Bug",
+            "--merge-target", "main",
+            "--branch", "fix/login",
+        ])
+        self.assertEqual(d["current_stage"], "dev")
+
+    def test_init_feature_existing_state_fails_without_force(self) -> None:
+        target = self.tmp / "exists"
+        target.mkdir(parents=True)
+        (target / "state.json").write_text('{"feature_id":"old"}', encoding="utf-8")
+        d = run([
+            "init-feature", "--feature", str(target),
+            "--feature-id", "X", "--flow-type", "Feature",
+            "--merge-target", "main", "--branch", "feat/x",
+        ], expect_exit=2)
+        self.assertEqual(d["verdict"], "FAIL")
+        self.assertIn("already exists", d["error"])
+
+    def test_init_feature_force_backs_up(self) -> None:
+        target = self.tmp / "force"
+        target.mkdir(parents=True)
+        (target / "state.json").write_text('{"feature_id":"old","_state_checksum":"sha256:old"}', encoding="utf-8")
+        d = run([
+            "init-feature", "--feature", str(target),
+            "--feature-id", "NEW", "--flow-type", "Feature",
+            "--merge-target", "main", "--branch", "feat/new",
+            "--force",
+        ])
+        self.assertEqual(d["verdict"], "OK")
+        # backup 文件应存在
+        backups = list(target.glob("state.json.bak.*"))
+        self.assertEqual(len(backups), 1)
+
+
+class TestChecksumGuard(unittest.TestCase):
+    """v7.3.10+P0-148：state.json checksum 物化拦截直写。"""
+
+    def setUp(self) -> None:
+        self.tmp = Path(tempfile.mkdtemp(prefix="checksum_"))
+        # 用 init-feature 创建（含 checksum）
+        run([
+            "init-feature",
+            "--feature", str(self.tmp),
+            "--feature-id", "CHK-F001",
+            "--flow-type", "Feature",
+            "--merge-target", "main",
+            "--branch", "feat/chk",
+        ])
+
+    def tearDown(self) -> None:
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def test_legitimate_read_passes(self) -> None:
+        d = run(["snapshot", "--feature", str(self.tmp)])
+        self.assertEqual(d["snapshot"]["feature_id"], "CHK-F001")
+
+    def test_external_modification_blocked(self) -> None:
+        """模拟 AI 用 Write 直改 state.json → 下次 state.py 调用 fail。"""
+        sf = self.tmp / "state.json"
+        state = json.loads(sf.read_text(encoding="utf-8"))
+        state["feature_id"] = "TAMPERED"  # 手动改字段
+        sf.write_text(json.dumps(state), encoding="utf-8")
+        d = run(["snapshot", "--feature", str(self.tmp)], expect_exit=2)
+        self.assertEqual(d["verdict"], "FAIL")
+        self.assertIn("checksum mismatch", d["error"])
+        self.assertIn("recover", d["hint"])
+
+    def test_bypass_env_allows_read(self) -> None:
+        """TEAMWORK_BYPASS_CHECKSUM=1 旁路（debug only）。"""
+        sf = self.tmp / "state.json"
+        state = json.loads(sf.read_text(encoding="utf-8"))
+        state["feature_id"] = "TAMPERED"
+        sf.write_text(json.dumps(state), encoding="utf-8")
+        # 用 subprocess 设 env · run() helper 不支持 env · 直接 subprocess
+        env = os.environ.copy()
+        env["TEAMWORK_BYPASS_CHECKSUM"] = "1"
+        r = subprocess.run(
+            [sys.executable, str(STATE_PY), "snapshot", "--feature", str(self.tmp)],
+            capture_output=True, text=True, env=env,
+        )
+        self.assertEqual(r.returncode, 0)
+
+    def test_legacy_state_without_checksum_accepted(self) -> None:
+        """旧 state.json 无 _state_checksum → silent accept · 下次写补上。"""
+        sf = self.tmp / "state.json"
+        state = json.loads(sf.read_text(encoding="utf-8"))
+        del state["_state_checksum"]
+        sf.write_text(json.dumps(state), encoding="utf-8")
+        d = run(["snapshot", "--feature", str(self.tmp)])
+        # 无 checksum 不阻断
+        self.assertEqual(d["snapshot"]["feature_id"], "CHK-F001")
+
+
+class TestRecover(unittest.TestCase):
+    """v7.3.10+P0-148：recover 子命令重新认证 checksum + 写 concerns。"""
+
+    def setUp(self) -> None:
+        self.tmp = Path(tempfile.mkdtemp(prefix="recover_"))
+        run([
+            "init-feature",
+            "--feature", str(self.tmp),
+            "--feature-id", "REC-F001",
+            "--flow-type", "Feature",
+            "--merge-target", "main",
+            "--branch", "feat/rec",
+        ])
+
+    def tearDown(self) -> None:
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def test_recover_after_manual_edit(self) -> None:
+        sf = self.tmp / "state.json"
+        # 手动编辑
+        state = json.loads(sf.read_text(encoding="utf-8"))
+        state["feature_id"] = "MANUALLY-EDITED"
+        sf.write_text(json.dumps(state), encoding="utf-8")
+        # 先验证 snapshot 被阻
+        run(["snapshot", "--feature", str(self.tmp)], expect_exit=2)
+        # recover
+        d = run([
+            "recover", "--feature", str(self.tmp),
+            "--reason", "手工修字段名笔误",
+        ])
+        self.assertEqual(d["verdict"], "OK")
+        self.assertEqual(d["action"], "recover")
+        self.assertTrue(d["concerns_appended"])
+        # 之后 snapshot 通过
+        d2 = run(["snapshot", "--feature", str(self.tmp)])
+        self.assertEqual(d2["snapshot"]["feature_id"], "MANUALLY-EDITED")
+        # concerns 含 recover audit
+        state = json.loads(sf.read_text(encoding="utf-8"))
+        warns = [c for c in state["concerns"] if c.get("severity") == "WARN"]
+        self.assertTrue(any("recovered after manual edit" in c.get("message", "") for c in warns))
+
+
 class TestMicroValidate(_Base):
     def test_valid_commit_in_main(self) -> None:
         # 用本仓 HEAD against origin/main · CI 环境可能不一致 · 仅校验脚本不崩
