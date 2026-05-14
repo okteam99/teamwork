@@ -1,158 +1,88 @@
-# BlueprintLite Stage：轻量蓝图（敏捷需求专用）
+# Blueprint Lite Stage
 
-> 敏捷需求流程中，用户确认精简 PRD 后进入本 Stage。产出简化版 TC + 实现计划，为 Dev Stage 提供蓝图。
-> 🔴 不做 TC 技术评审、不做架构师评审（敏捷砍掉的环节）。
-> 🔴 契约优先：执行方式由 AI 在 Plan 模式自主规划（推荐主对话）。
-
----
-
-## 本 Stage 职责
-
-敏捷需求的轻量蓝图：保持"先规划后编码"，但砍掉 Feature 流程的重量级评审。QA 写简化 TC + RD 写实现计划。
+> **auto-verified by**: `state.py blueprint_lite-start` / `state.py blueprint_lite-complete`
+> 本文件按 **怎么做 + 注意事项** 结构(v8.0+P0-7)。
+> 详细 schema 见 [../docs/v8-redesign/01-COMMAND-SCHEMA.md](../docs/v8-redesign/01-COMMAND-SCHEMA.md)。
 
 ---
 
-## Input Contract
+## 怎么做
 
-### 必读文件（按顺序）
+### 1. 加载上下文
+读 PRD.md · KNOWLEDGE.md(轻量参考)
 
-```
-├── {SKILL_ROOT}/stages/blueprint-lite-stage.md（本文件）
-├── {SKILL_ROOT}/roles/qa.md（TC 编写规范）
-├── {SKILL_ROOT}/roles/rd.md（实现计划规范）
-├── {SKILL_ROOT}/templates/tc.md（精简版）
-├── {SKILL_ROOT}/standards/common.md
-└── {Feature}/PRD.md（已确认的精简 PRD）
+### 2. QA 起草 TC.md(精简版)
+每 AC 至少 1 test · BDD 风格 · 砍 TECH/TECH-REVIEW/External(敏捷流程精简)
 
-可选：
-├── docs/architecture/ARCHITECTURE.md
-└── docs/KNOWLEDGE.md
-```
+### 3. (可选)Architect 快速看一眼
+不强制 TECH-REVIEW.md · 主对话内提醒即可
 
-### Key Context（逐项判断，无则 `-`）
-
-- 历史决策锚点、本轮聚焦点、跨 Feature 约束、已识别风险、降级授权、优先级
-
-### 前置依赖
-
-- `{Feature}/PRD.md` 存在且确认（敏捷精简版）
-- `state.json.current_stage == "blueprint_lite"`
-- Feature 类型 = 敏捷需求（满足准入条件：≤5 文件 + 无 UI + 无架构变更）
+### 4. complete
+`state.py blueprint_lite-complete ...`
 
 ---
 
-## 入口 Read 顺序（v7.3.10+P0-23 固定）
+## 必读 cite 清单(P0-11 · 各 substep 动手前主对话输出)
 
-🔴 按以下顺序 Read，字节一致利于 prompt cache 命中。详见 [standards/prompt-cache.md](../standards/prompt-cache.md)。
+| Substep | 必读 spec | 段 | cite 关键点 |
+|---------|----------|----|------------|
+| 1. 加载上下文 | — | — | (读 PRD) |
+| 2. QA 起草 TC.md(精简版) | `roles/qa.md` | § TC 起草 | 精简版 · 每 AC 至少 1 test |
+| 3. (可选)Architect 快速看 | `roles/architect.md` | § Quick Review | 不强制 TECH-REVIEW.md |
+| 4. complete | — | — | (无) |
 
+
+**输出格式**(每个 substep 动手前必在主对话输出):
 ```
-Step 1: roles/qa.md, roles/rd.md                       ← 角色层（L0 稳定）
-Step 2: templates/tc.md                                ← 模板层（L0 稳定）
-Step 3: {Feature}/PRD.md                               ← Feature 既有产物（L2）
-Step 4: {Feature}/state.json                           ← 🔴 最后，动态入口（L3）
+📖 cite:
+- <spec> § <段>:"<引该段 1 句关键原文 · 证明真读>"
 ```
 
-🔴 R3 约束：state.json 入口 Read 1 次 → 中段 0 读写 → 出口 Read 1 次 + Write 1 次；全 Stage ≤ 5 次。
+**强约束**(R5+P0-11 软约束 · 用户监督):
+- 标 "—" 的 substep 无 cite 要求(状态机操作 / 用户暂停 / 已物化)
+- 其余 substep **动手前必输出 cite 块** · 缺 cite 视为 process 违规(用户可叫停)
+- cite 必含 § 段标题 + 至少 1 句原文(原文必真实存在于该 spec · 不可瞎编)
+- AI 在 stage 内多次切角色 · 每次切换前重新 cite 该角色规范
+
+**为什么 cite**:
+- brief 列路径(P0-4)只解决"AI 找不到路径"· 不保证 AI 真读
+- complete 时校验太晚(AI 已做完)
+- substep 动手前 cite = 事前提醒 · 强制 AI 翻一眼 spec
+- 物化死角(state.py 看不到 markdown Read 动作)· 软约束 + 用户监督兜底
+
+## 注意事项
+
+### 坑 1 · 敏捷需求准入不符
+改动 > 5 文件 / 有 UI 变更 / 方案不明 → 不应是敏捷需求。
+  **对策**:发现复杂度超预期 → `state.py reset-prev` 回退 · 改 flow_type 到 Feature · 重做
+
+### 坑 2 · 砍 blueprint 不等于砍质量
+TC.md 仍要 AC↔Test 绑定 · review/test stage 严格度不降。
+  **对策**:TC 精简但完整 · 每 AC 至少 1 test
+
+### 坑 3 · 误用 flow_type
+flow_type=Feature 错跑 blueprint_lite-start → 物化 FAIL(allowed_flow_types=["敏捷需求"])。
+  **对策**:init-feature 时正确选 flow_type · 不混用
+
+### 坑 4 · Feature 流程降级敏捷
+为省事跳过完整 blueprint · 实际是 Feature 复杂度。
+  **对策**:准入硬约束(≤5 文件 / 无 UI/架构变更 / 方案明确)· 不满足绝不用敏捷
+
+### 坑 5 · External 完全跳过
+即使敏捷 · 重要决策仍建议 external 一次。
+  **对策**:复杂度边界 case · 主对话内 PMO 判定是否补 external
 
 ---
 
-## Process Contract
+## Output Contract(产物形态参考)
 
-### 必做动作
-
-1. **QA 编写简化版 TC**
-   - 按 PRD 验收标准逐条写 BDD 用例
-   - 只覆盖核心场景（正常流程 + 主要异常）
-   - 不要求完整的边界/并发/性能场景
-   - TC.md frontmatter 填 `tests[]`（与 Feature 流程相同结构）
-
-2. **RD 编写实现计划**
-   - 文件清单（新增/修改）
-   - 改动要点（每个文件的核心变更）
-   - 测试策略（单测 + 集成测覆盖点）
-
-### 过程硬规则
-
-- 🔴 **角色规范必读且 cite**：QA → `roles/qa.md`；RD → `roles/rd.md`
-- 🔴 **不做评审**：BlueprintLite 不含 TC 技术评审和架构师评审（敏捷核心精简点）
-- 🔴 **不替代 Blueprint**：Feature 流程仍走完整 Blueprint Stage
-- 🔴 **TC 质量下限**：即使精简，每条 PRD AC 至少对应 1 条 BDD 用例（AC→test 覆盖仍强制）
-- 🔴 **Dev Stage 不变**：BlueprintLite 产出后，Dev Stage 按标准流程执行
-- 🔴 **Stage 完成前 git 干净** → 统一遵循 [rules/gate-checks.md § Stage 完成前 git 干净](../rules/gate-checks.md#-stage-完成前-git-干净v739-硬规则p0-集中化)（本 Stage commit message：`F{编号}: BlueprintLite Stage - {简述}`；典型产物：TC.md / IMPL-PLAN.md）
+### `TC.md(精简版)`
+frontmatter `tests: [{id, covers_ac}]` · 每 AC 至少 1 test · 不要求 TECH.md
 
 ---
 
-## Output Contract
+## 相关
 
-### 必须产出的文件
-
-| 文件路径 | 格式 | 必需字段 |
-|---------|------|---------|
-| `{Feature}/TC.md` | Markdown + YAML frontmatter | `feature_id`, `tests[]`（含 covers_ac） |
-| `{Feature}/IMPL-PLAN.md`（或嵌入执行报告） | Markdown | 文件清单、改动要点、测试策略 |
-
-### 机器可校验条件
-
-- [ ] TC.md frontmatter 可 YAML 解析
-- [ ] 每条 PRD AC 有对应测试（`covers_ac` 反查覆盖）
-- [ ] TC 用例数 ≥ PRD AC 数
-- [ ] 实现计划包含文件清单（至少 1 个文件）
-
-### Done 判据
-
-- 产出文件存在且通过格式校验
-- AC↔test 覆盖校验通过
-- `state.json.stage_contracts.blueprint_lite.output_satisfied = true`
-
-### 返回状态
-
-| 状态 | 条件 | 后续 |
-|------|------|------|
-| ✅ DONE | TC + 实现计划就绪 | 进入 Dev Stage |
-| ⚠️ DONE_WITH_CONCERNS | PRD 有歧义但可继续 | PMO ⏸️ 用户确认 |
-| 💥 FAILED | PRD 不够清晰无法产出蓝图 | PMO ⏸️ 用户补充 |
-
----
-
-## AI Plan 模式指引
-
-📎 Execution Plan 4 行格式（含 Estimated）→ [SKILL.md](../SKILL.md#-ai-plan-模式规范v73-新增)。
-
-本 Stage 默认 `main-conversation`（敏捷流程精髓是快速闭环，Subagent 冷启动不划算）。仅当主对话 context 已紧张时切 `subagent`。
-
-**Expected duration baseline（v7.3.3）**：8-15 min（主对话精简 TC + 实现计划）。
-
----
-
-## 执行报告模板
-
-```
-📋 BlueprintLite 执行报告（{功能编号}-{功能名}）
-================================================
-
-## 执行概况
-├── 最终状态：{DONE / DONE_WITH_CONCERNS / FAILED}
-├── 执行方式：{主对话 / Subagent}
-├── TC：{N} 条 BDD，覆盖 AC {M}/{总 AC}
-└── 标注：敏捷-精简（不含边界/并发/性能场景）
-
-## TC 概况
-├── 用例数：{N}
-├── 覆盖 AC：{M}/{总 AC}
-└── Covers_ac 反查：✅ 全覆盖
-
-## 实现计划
-| 文件 | 操作 | 改动要点 |
-|------|------|----------|
-
-## 测试策略
-├── 单测：{覆盖点}
-└── 集成测试：{覆盖点}
-
-## Output Contract 校验
-├── TC YAML：✅
-├── AC 覆盖：✅
-└── 文件清单：✅
-
-## Concerns（如有）
-```
+- 引擎:[../tools/_v8_engine.py](../tools/_v8_engine.py)
+- spec:[../tools/_v8_stage_specs.py](../tools/_v8_stage_specs.py) `BLUEPRINT_LITE_SPEC`
+- 入口规范:[../TRIAGE.md](../TRIAGE.md)

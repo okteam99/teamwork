@@ -1364,7 +1364,95 @@ def cmd_init_feature(args: argparse.Namespace) -> None:
         "completed_stages": [],
         "created_at": now_iso(),
     }
+    # v8.0+P0-9:按 flow_type 填默认 stage_review_roles + adjustments audit list
+    try:
+        from _v8_engine import build_default_stage_review_roles
+        state["stage_review_roles"] = build_default_stage_review_roles(args.flow_type)
+        state["stage_review_roles_adjustments"] = []
+    except ImportError:
+        pass
+    # ── v8.0+P0-3:cwd 物化校验(治本 PTR-F033 主 tree 污染 case)──
+    # 根因:即使 init-feature 自动建了 worktree · 若 PMO 在主 tree cwd 运行 ·
+    # state.json 仍落主 tree · worktree 是空的 · 主 tree 污染依旧。
+    # 修复:worktree_mode != off 且 --worktree-path 提供时 · 校验:
+    #   - 当前 cwd 必须在 --worktree-path 内
+    #   - feature_dir(state.json 落位)必须在 cwd 内(防绝对路径反向落主 tree)
+    # 不一致 → FAIL + hint 引导 cd
+    cwd_warning = None
+    bypass_cwd = os.environ.get("TEAMWORK_BYPASS_CWD_WORKTREE") == "1"
+    if not bypass_cwd and args.worktree_mode != "off" and args.worktree_path:
+        cwd_real = Path.cwd().resolve()
+        wt_real = Path(args.worktree_path).resolve()
+        feat_real = Path(args.feature).resolve()
+        if wt_real.exists():
+            # cwd 必须在 worktree 内
+            try:
+                cwd_real.relative_to(wt_real)
+                cwd_in_wt = True
+            except ValueError:
+                cwd_in_wt = False
+            # feature_dir 必须在 worktree 内(防绝对路径反向落主 tree)
+            try:
+                feat_real.relative_to(wt_real)
+                feat_in_wt = True
+            except ValueError:
+                feat_in_wt = False
+
+            if not cwd_in_wt or not feat_in_wt:
+                die(2, json.dumps({
+                    "verdict": "FAIL",
+                    "action": "init-feature",
+                    "error": "cwd 或 --feature 路径未在 worktree 内 · state.json 会落主 tree(治本 PTR-F033)",
+                    "current_cwd": str(cwd_real),
+                    "worktree_path": str(wt_real),
+                    "feature_path": str(feat_real),
+                    "cwd_in_worktree": cwd_in_wt,
+                    "feature_in_worktree": feat_in_wt,
+                    "hint": (
+                        f"先 `cd {wt_real}` · 再用相对路径 `--feature docs/features/...` "
+                        f"或确认 --feature 是 worktree 内的绝对路径 · 重跑 init-feature"
+                    ),
+                    "bypass": "调试场景 export TEAMWORK_BYPASS_CWD_WORKTREE=1",
+                }, ensure_ascii=False, indent=2))
+        else:
+            cwd_warning = (
+                f"worktree path {wt_real} 尚不存在 · init-feature 将尝试自动创建 · "
+                "建议:先显式 `git worktree add` + `cd` 再跑 init-feature"
+            )
+
+    # v8.0+P0-5:worktree 物理存在硬校验(替代 P0-2 自动建)
+    # 单一职责:init-feature 只创建 state.json · 不动 git
+    # 正路径(triage 拍板):PMO 用户确认后显式 git worktree add → cd → init-feature
+    # 漏建 → FAIL(物化拦截 · 不静默兜底)
+    if (
+        not bypass_cwd
+        and args.worktree_mode != "off"
+        and args.worktree_path
+    ):
+        wt_real = Path(args.worktree_path).resolve()
+        if not wt_real.exists():
+            die(2, json.dumps({
+                "verdict": "FAIL",
+                "action": "init-feature",
+                "error": (
+                    f"worktree path {wt_real} 不存在 · "
+                    f"init-feature 不再自动创建(v8.0+P0-5 单一职责)"
+                ),
+                "hint": (
+                    f"按 triage emit 的 pause_for_user 指引:\n"
+                    f"  1. git worktree add -b {args.branch} {wt_real} origin/{args.merge_target}\n"
+                    f"  2. cd {wt_real}\n"
+                    f"  3. 重跑 state.py init-feature"
+                ),
+                "rule": "TRIAGE.md §3.4 入口完成才进状态机",
+                "bypass": "调试场景 export TEAMWORK_BYPASS_CWD_WORKTREE=1",
+            }, ensure_ascii=False, indent=2))
+
     atomic_write(state_file, state)
+
+    # v8.0+P0-13:项目级系统维护已挪到 session-bootstrap(session 级 · 不是 Feature 级)
+    # init-feature 只管 Feature 级状态机操作
+
     emit({
         "verdict": "OK",
         "action": "init-feature",
@@ -1374,6 +1462,146 @@ def cmd_init_feature(args: argparse.Namespace) -> None:
         "state_path": str(state_file),
         "checksum_prefix": state[CHECKSUM_FIELD][:24],
         "created_at": state["created_at"],
+        "next_action_brief": _init_feature_next_brief(args, initial_stage),
+    })
+
+
+def _init_feature_next_brief(args, initial_stage: str) -> str:
+    """init-feature emit 后给 PMO 的 brief(v8.0+P0-5 简化)。
+
+    triage 已确认 worktree · PMO 已显式建 + cd · init-feature 仅创建 state.json。
+    所以 brief 直接告知"进下一步" · 不需要再讨论 worktree。
+    """
+    wt_note = ""
+    if args.worktree_mode == "off":
+        wt_note = "(worktree_mode=off · 在当前 tree 直接工作)"
+    else:
+        wt_note = f"(worktree_mode={args.worktree_mode} · cwd={Path.cwd()} 已通过 cwd 校验)"
+
+    return f"""## init-feature 完成 · 下一步
+
+{wt_note}
+
+state.json 已落在:`{Path(args.feature).resolve()}/state.json`
+
+进入状态机:
+
+1. `state.py prepare --feature {args.feature} --user-input "<原话>"`
+   - 项目骨架(KNOWLEDGE / TROUBLESHOOTING / GLOSSARY)自动创建
+
+2. `state.py {initial_stage}-start --feature {args.feature}`
+   - emit 本 stage 详细 brief(必读 / 必产物 / 完成方式)
+
+3. AI 按 brief 完成 stage 工作 → `{initial_stage}-complete`
+
+📎 物化兜底:各 stage-start 校验 worktree 物理存在 + cwd 校验
+   不一致 → FAIL + hint(治本 PTR-F033)
+"""
+
+
+def cmd_reset_prev(args: argparse.Namespace) -> None:
+    """v8.0+P0-6:状态机回退一步(治本 raw-write 滥用)。
+
+    安全语义化命令 · 替代 raw-write 修改 current_stage 的场景:
+    - 状态机内回退(completed_stages[-1] 回到 current_stage)
+    - 清除已转移到的 stage 的 contract(防脏数据)
+    - last_completed 的 gate 重置(允许重跑 complete)
+    - 自动追 concerns WARN
+
+    硬门禁:
+    - Ship 后(ship.phase ∈ {pushed, merged})不可回 · 远程已动 · 状态不可逆
+    - completed_stages 为空 → 无可回退
+    """
+    saved = os.environ.get(CHECKSUM_BYPASS_ENV)
+    os.environ[CHECKSUM_BYPASS_ENV] = "1"
+    try:
+        path = state_path(args.feature)
+        state = json.loads(path.read_text(encoding="utf-8"))
+    finally:
+        if saved is None:
+            del os.environ[CHECKSUM_BYPASS_ENV]
+        else:
+            os.environ[CHECKSUM_BYPASS_ENV] = saved
+
+    before = json.loads(json.dumps(state))
+
+    # 硬门禁 1:Ship 后不可回
+    ship_phase = (state.get("ship") or {}).get("phase")
+    if ship_phase in ("pushed", "merged"):
+        die(1, json.dumps({
+            "verdict": "FAIL",
+            "action": "reset-prev",
+            "error": f"Ship 后不可回退 · ship.phase={ship_phase!r} · 远程已动 · 状态不可逆",
+            "hint": (
+                "若需要修复:reset-prev 不可用 · 走 ship-phase --action close-unmerged "
+                "或新开 Feature 修复 · 或用 raw-write(留 concerns WARN)"
+            ),
+        }, ensure_ascii=False, indent=2))
+
+    # 硬门禁 2:completed_stages 为空
+    completed = state.get("completed_stages") or []
+    if not completed:
+        die(1, json.dumps({
+            "verdict": "FAIL",
+            "action": "reset-prev",
+            "error": "completed_stages 为空 · 无可回退的 stage",
+            "current_stage": state.get("current_stage"),
+            "hint": "若需调整 current_stage 初值 · 用 init-feature --force 或 raw-write",
+        }, ensure_ascii=False, indent=2))
+
+    last_completed = completed[-1]
+    current = state.get("current_stage")
+
+    # 1. current_stage 改回 last_completed
+    state["current_stage"] = last_completed
+
+    # 2. completed_stages 移除 last_completed
+    state["completed_stages"] = completed[:-1]
+
+    # 3. 清除"已转移到的 stage" 的 contract(防脏数据)
+    if current and current != last_completed:
+        contracts = state.get("stage_contracts") or {}
+        contracts.pop(current, None)
+
+    # 4. last_completed 的 gate 重置 · 允许重跑 complete
+    contracts = state.setdefault("stage_contracts", {})
+    c = contracts.setdefault(last_completed, {})
+    c["input_satisfied"] = False
+    c["process_satisfied"] = False
+    c["output_satisfied"] = False
+    c.pop("completed_at", None)
+    c.pop("duration_minutes", None)
+    # started_at 保留(stage 开始时间不变)
+
+    # 5. legal_next_stages 重算
+    flow_graph = FLOW_BY_TYPE.get(state.get("flow_type"), {})
+    state["legal_next_stages"] = flow_graph.get(last_completed, [])
+
+    # 6. 自动 concerns WARN(audit 透明)
+    state.setdefault("concerns", []).append(
+        f"{now_iso()} WARN reset-prev: {current!r} → {last_completed!r} · "
+        f"reason: {args.reason}"
+    )
+
+    state["updated_at"] = now_iso()
+    state["updated_by"] = "reset-prev"
+    atomic_write(path, state)
+
+    emit({
+        "verdict": "OK",
+        "action": "reset-prev",
+        "from_stage": current,
+        "to_stage": last_completed,
+        "reason": args.reason,
+        "legal_next_stages": state["legal_next_stages"],
+        "completed_stages_after": state["completed_stages"],
+        "next_action_brief": (
+            f"## reset-prev 完成\n\n"
+            f"已回退:{current!r} → {last_completed!r}\n"
+            f"contract 重置:{last_completed} 三 gate 全 false · 可重跑 complete。\n\n"
+            f"下一步:跑 `state.py {last_completed}-complete --feature {args.feature} ...` 重新推进。\n\n"
+            f"⚠️ 已自动追 concerns WARN(audit 透明)。"
+        ),
     })
 
 
@@ -1452,111 +1680,10 @@ def build_parser() -> argparse.ArgumentParser:
     rw.add_argument("--reason", required=True, help="必填 · 写入 concerns WARN")
     rw.set_defaults(func=cmd_raw_write)
 
-    es = sub.add_parser("enter-stage", help="转移到目标 Stage（校验 legal_next_stages）")
-    _add_feature_arg(es)
-    es.add_argument("--stage", required=True)
-    es.add_argument("--allow-skip", action="store_true",
-                    help="🚪 跳过 / 回炉时显式声明 · 自动记 concerns WARN")
-    es.add_argument("--cite", help="额外关注字段，逗号分隔的 dotted path")
-    es.set_defaults(func=cmd_enter_stage)
-
-    sg = sub.add_parser("satisfy-gate",
-                        help="标记当前 Stage 的 input/process/output gate 为 satisfied")
-    _add_feature_arg(sg)
-    sg.add_argument("--stage", required=True)
-    sg.add_argument("--gate", required=True, choices=["input", "process", "output"])
-    sg.add_argument("--artifacts", help="逗号分隔 · 写入 stage_contracts.{stage}.artifacts")
-    sg.add_argument("--auto-commit", help="auto-commit hash · 多次调用自动升数组")
-    sg.add_argument("--cite", help="额外关注字段")
-    sg.set_defaults(func=cmd_satisfy_gate)
-
-    cs = sub.add_parser("complete-stage",
-                        help="收尾当前 Stage（要求三 gate 全 satisfied）")
-    _add_feature_arg(cs)
-    cs.add_argument("--stage", required=True)
-    cs.add_argument("--auto-commit",
-                    help="若 satisfy-gate output 时未提供 · 此处补 · 已存在则忽略")
-    cs.add_argument("--cite", help="额外关注字段")
-    cs.set_defaults(func=cmd_complete_stage)
-
-    # ship-* (P3)
-    sz = sub.add_parser("ship-sanitize", help="Step 1：净化记录（不改 phase）")
-    _add_feature_arg(sz)
-    sz.add_argument("--residual-commits", help="JSON · 形如 [{commit,files,reason}]")
-    sz.add_argument("--cleaned-files", help="逗号分隔白名单文件")
-    sz.add_argument("--suspicious-files", help="JSON · 形如 [{path,reason}]")
-    sz.add_argument("--cite")
-    sz.set_defaults(func=cmd_ship_sanitize)
-
-    sp = sub.add_parser("ship-push", help="Step 2-3：null/closed_unmerged → pushed · 必带 5 件套")
-    _add_feature_arg(sp)
-    sp.add_argument("--feature-head-commit", required=True)
-    sp.add_argument("--git-host", required=True, choices=sorted(SHIP_GIT_HOSTS))
-    sp.add_argument("--mr-creation-method", required=True, choices=sorted(SHIP_MR_METHODS))
-    sp.add_argument("--mr-url", help="CLI 实创建 URL（cli-gh / cli-glab）· 与 --mr-create-url 二选一")
-    sp.add_argument("--mr-create-url", help="兜底 URL（url-fallback / unknown-platform）· 二选一")
-    sp.add_argument("--feature-pushed-at", help="ISO 8601 · 缺省取 now")
-    sp.add_argument("--cite")
-    sp.set_defaults(func=cmd_ship_push)
-
-    sm = sub.add_parser("ship-confirm-merged",
-                        help="Step 4-8：pushed → merged · 含合并 evidence + finalize-push 状态（治本 P0-124）")
-    _add_feature_arg(sm)
-    sm.add_argument("--merge-commit-hash", required=True)
-    sm.add_argument("--merge-detection-method", required=True, choices=sorted(SHIP_DETECTION_METHODS))
-    sm.add_argument("--mr-merged-at", help="ISO 8601 · 缺省取 now")
-    sm.add_argument("--merge-target-pushed-at", help="Step 8 push 成功 · ISO 8601")
-    sm.add_argument("--merge-target-push-failed", action="store_true",
-                    help="Step 8 push 失败降级到 feature 分支 · 必带 --failed-reason")
-    sm.add_argument("--failed-reason", choices=sorted(SHIP_FINALIZE_PUSH_REASONS))
-    sm.add_argument("--cite")
-    sm.set_defaults(func=cmd_ship_confirm_merged)
-
-    sc = sub.add_parser("ship-cleanup",
-                        help="Step 9：worktree 清理状态（cleaned 必须 phase=merged · 治本 P0-124）")
-    _add_feature_arg(sc)
-    sc.add_argument("--status", required=True, choices=sorted(SHIP_CLEANUP_ENUM))
-    sc.add_argument("--cite")
-    sc.set_defaults(func=cmd_ship_cleanup)
-
-    scl = sub.add_parser("ship-closed", help="异常段：MR 被关闭未合并 → closed_unmerged 或 abandoned")
-    _add_feature_arg(scl)
-    scl.add_argument("--abandon", action="store_true", help="彻底放弃 Feature → shipped=abandoned")
-    scl.add_argument("--reason", help="可选 · INFO concerns")
-    scl.add_argument("--cite")
-    scl.set_defaults(func=cmd_ship_closed)
-
-    # P4
-    pd = sub.add_parser("pm-decision",
-                        help="PM 验收决策落库（替代 P3 临时 raw-write 兜底）")
-    _add_feature_arg(pd)
-    pd.add_argument("--decision", required=True, choices=sorted(PM_DECISION_ENUM))
-    pd.add_argument("--note", help="可选 · 决策说明")
-    pd.add_argument("--cite")
-    pd.set_defaults(func=cmd_pm_decision)
-
-    ac = sub.add_parser("add-concern", help="通用 concerns 追加（自动时间戳 + 去重）")
-    _add_feature_arg(ac)
-    ac.add_argument("--severity", required=True, choices=sorted(CONCERN_SEVERITY))
-    ac.add_argument("--message", required=True)
-    ac.set_defaults(func=cmd_add_concern)
-
-    bf = sub.add_parser("bug-frontmatter",
-                        help="Bug 流程：BUG-REPORT.md frontmatter 维护（YAML · 平铺 key:val）")
-    _add_feature_arg(bf, help_text="Feature artifact_root")
-    bf.add_argument("--bug-id", required=True, help="如 BUG-001 · 自动 glob bugfix/BUG-{id}-*.md")
-    bf.add_argument("--set", action="append",
-                    help="key=val · val 优先按 JSON 解析 · 可多次")
-    bf.add_argument("--validate-ship", action="store_true",
-                    help="启用 ship 状态机镜像校验（phase/shipped/merged 三件套）")
-    bf.set_defaults(func=cmd_bug_frontmatter)
-
-    mv = sub.add_parser("micro-validate",
-                        help="Micro 流程：校验 commit 已合入 origin/{merge_target}")
-    mv.add_argument("--commit", required=True, help="待校验 commit hash")
-    mv.add_argument("--merge-target", required=True, help="如 staging / main")
-    mv.add_argument("--cwd", help="可选 · git 命令工作目录")
-    mv.set_defaults(func=cmd_micro_validate)
+    # v8.0:enter-stage / satisfy-gate / complete-stage / ship-* / pm-decision /
+    # add-concern / bug-frontmatter / micro-validate 全部已物理删除(v8 用各 stage
+    # -start/-complete + ship-phase --action 替代)。
+    # 上述 cmd_* 函数保留为内部 utility(可能被迁移工具调用),不再注册为子命令。
 
     # P5 (v7.3.10+P0-148): init-feature + recover
     ifp = sub.add_parser(
@@ -1596,6 +1723,42 @@ def build_parser() -> argparse.ArgumentParser:
     rcv.add_argument("--reason", required=True,
                      help="必填 · 解释为什么手动改了 state.json · 入 audit")
     rcv.set_defaults(func=cmd_recover)
+
+    # v8.0+P0-6:reset-prev 状态机回退一步(替代 raw-write 滥用)
+    rp = sub.add_parser(
+        "reset-prev",
+        help="[v8] 状态机回退一步 · 治本 raw-write 滥用(Ship 后不可回 · 自动 concerns WARN)",
+    )
+    _add_feature_arg(rp)
+    rp.add_argument("--reason", required=True,
+                    help="必填 · 回退原因 · 自动追 concerns WARN")
+    rp.set_defaults(func=cmd_reset_prev)
+
+    # ─── v8.0 stage 命令注册(Code-driven Orchestration) ─────────────
+    # 设计文档:docs/v8-redesign/00-MANIFESTO.md
+    # 命令 schema:docs/v8-redesign/01-COMMAND-SCHEMA.md
+    # 引擎模块:
+    # - _v8_engine.py   通用 stage start/complete + bypass 协议
+    # - _v8_stage_specs.py  11 stage 完整契约
+    # - _v8_ship.py     ship-phase 子动作(替代 v7 ship-*)
+    # - _v8_migrate.py  migrate-v7-to-v8 一次性迁移
+    #
+    # 注:v8.0+P0-12 删除 _v8_init.py(triage + prepare 命令)·
+    #     入口分诊是 PMO 行为(按 TRIAGE.md 规范做)· 不在 state.py 范围。
+    try:
+        from _v8_engine import register_v8_subparsers
+        from _v8_stage_specs import STAGE_SPECS as V8_STAGE_SPECS
+        from _v8_ship import register_v8_ship_subparser
+        from _v8_migrate import register_v8_migrate_subparser
+
+        register_v8_subparsers(sub, V8_STAGE_SPECS, FLOW_BY_TYPE)
+        register_v8_ship_subparser(sub)
+        register_v8_migrate_subparser(sub)
+    except ImportError as _e:
+        # v8 模块不可用 · 不影响 v7 命令 · 不打印警告(silent execution)
+        pass
+
+    # v8.0+P0-13:session-bootstrap 是独立脚本 tools/bootstrap.py · 不在 state.py 域
 
     return p
 

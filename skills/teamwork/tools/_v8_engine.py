@@ -1,0 +1,1190 @@
+"""
+_v8_engine.py — Teamwork v8.0 stage orchestration engine.
+
+v8.0 范式:state.py 主动校验 + 主动告知,AI 不读 spec markdown,跑命令即知做什么。
+
+本模块提供:
+- StageSpec / StagePrerequisite / StageArtifactSpec / StageEvidenceCheck 数据类
+- execute_stage_start / execute_stage_complete 通用引擎
+- bypass 协议(--bypass --reason --user-confirmed --missing)
+- next_action_brief 渲染
+
+各 stage 具体 spec 定义见 _v8_stage_specs.py。
+
+设计哲学见 docs/v8-redesign/00-MANIFESTO.md。
+命令 schema 见 docs/v8-redesign/01-COMMAND-SCHEMA.md。
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import subprocess
+import sys
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Callable, Optional
+
+# ─── 数据类 ────────────────────────────────────────────────────────────
+
+
+@dataclass
+class StagePrerequisite:
+    """Stage 入口前置条件 · xx-start 时校验。"""
+
+    id: str
+    """前置 ID · 失败时用作 missing_prerequisites[].id"""
+
+    check_fn: Callable[[dict, argparse.Namespace], bool]
+    """校验函数 · 接收 (state, args),返回 True=通过 / False=未满足"""
+
+    hint: str
+    """失败时的 hint · 告诉 AI 下一步做什么修复"""
+
+    description: str = ""
+    """前置含义描述(给人看)"""
+
+    auto_fixable: bool = False
+    """PMO 是否能自动修复(不需要用户)"""
+
+
+@dataclass
+class StageArtifactSpec:
+    """Stage 产物校验 · xx-complete 时校验。"""
+
+    path: Optional[str] = None
+    """单文件路径(相对 feature 目录)"""
+
+    glob: Optional[str] = None
+    """或 glob 模式(如 'external-cross-review/*.md')"""
+
+    frontmatter_required: list[str] = field(default_factory=list)
+    """YAML frontmatter 必含字段列表"""
+
+    body_min_lines: int = 0
+    """body 部分最少行数(0 表示不校验)"""
+
+    min_files: int = 1
+    """glob 时最少匹配文件数"""
+
+    must_be_in_commit: bool = True
+    """是否必须在 --auto-commit changeset 内"""
+
+    description: str = ""
+
+
+@dataclass
+class StageEvidenceCheck:
+    """Stage 事实证据校验 · xx-complete 时校验。"""
+
+    name: str
+    """证据名称 · 失败时用作 error 标识"""
+
+    check_fn: Callable[[dict, argparse.Namespace], tuple[bool, str]]
+    """校验函数 · 返回 (passed, error_msg)"""
+
+    description: str = ""
+
+
+@dataclass
+class StageSpec:
+    """单个 stage 的完整契约。"""
+
+    name: str
+    """stage 名称 · 与 LEGAL_STAGES 对齐"""
+
+    prerequisites: list[StagePrerequisite] = field(default_factory=list)
+    """入口前置(xx-start 校验)"""
+
+    artifacts: list[StageArtifactSpec] = field(default_factory=list)
+    """出口产物(xx-complete 校验)"""
+
+    evidence_checks: list[StageEvidenceCheck] = field(default_factory=list)
+    """事实证据(xx-complete 校验)"""
+
+    brief_template_fn: Callable[[dict], str] = lambda state: ""
+    """next_action_brief 渲染函数 · 接收 state,返回 markdown"""
+
+    auto_transition_fn: Optional[Callable[[dict], Optional[str]]] = None
+    """自动转移函数 · 返回下一 stage 名或 None(多选/终态)"""
+
+    allowed_flow_types: Optional[list[str]] = None
+    """允许的 flow_type 列表 · None 表示所有 flow 通用"""
+
+    authorized_pause_point: str = ""
+    """本 stage 内唯一授权的用户暂停点描述。
+
+    v8.0+P0-1 治本 PTR-F033 case · L2 substep 链内部 AI 自觉区物化兜底。
+    execute_stage_start 自动 append "暂停点纪律" 段到 next_action_brief 末尾,
+    让 AI 在执行那一刻就看到红线 · 不靠回头扫 CLAUDE.md。
+
+    例:
+      authorized_pause_point="Substep 6 · 用户最终确认(全员 review 通过后)"
+      authorized_pause_point="无暂停 · 完成后自动转下一 stage"
+      authorized_pause_point="verdict=NEEDS_REVISION 时 · 用户选回 dev 还是接受"
+    """
+
+
+# ─── 工具函数 ──────────────────────────────────────────────────────────
+
+
+def now_iso() -> str:
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def emit_json(payload: dict, exit_code: int = 0) -> None:
+    """统一 stdout JSON 输出 + exit。"""
+    print(json.dumps(payload, ensure_ascii=False, indent=2))
+    sys.exit(exit_code)
+
+
+def load_state(feature_path: str) -> tuple[Path, dict]:
+    """加载 state.json · 返回 (path, state dict)"""
+    p = Path(feature_path) / "state.json"
+    if not p.exists():
+        emit_json({
+            "verdict": "FAIL",
+            "error": f"state.json not found: {p}",
+            "hint": "先跑 state.py init-feature 创建",
+        }, exit_code=2)
+    return p, json.loads(p.read_text(encoding="utf-8"))
+
+
+def save_state(path: Path, state: dict) -> None:
+    """写 state.json · 不做 schema 校验(由调用方保证)"""
+    state["updated_at"] = now_iso()
+    path.write_text(
+        json.dumps(state, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+
+def get_git_commit_changeset(commit_hash: str, cwd: Optional[str] = None) -> list[str]:
+    """获取 commit 的 changeset 文件列表 · 不存在返回 []"""
+    try:
+        result = subprocess.run(
+            ["git", "show", "--name-only", "--format=", commit_hash],
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        if result.returncode != 0:
+            return []
+        return [line.strip() for line in result.stdout.splitlines() if line.strip()]
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        return []
+
+
+def commit_exists(commit_hash: str, cwd: Optional[str] = None) -> bool:
+    """git cat-file -e 校验 commit 存在性"""
+    try:
+        result = subprocess.run(
+            ["git", "cat-file", "-e", commit_hash],
+            cwd=cwd,
+            capture_output=True,
+            timeout=5,
+        )
+        return result.returncode == 0
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        return False
+
+
+def _worktree_physically_exists(wt_path: str) -> bool:
+    """检查 wt_path 是否在 `git worktree list` 输出内。
+
+    v8.0+P0-2 治本 PTR-F033-type-2 case · stage-start 通用 worktree 校验。
+    """
+    if not wt_path:
+        return False
+    try:
+        result = subprocess.run(
+            ["git", "worktree", "list", "--porcelain"],
+            capture_output=True, text=True, timeout=10,
+        )
+        if result.returncode != 0:
+            return True  # 不在 git repo · 跳过此校验(让 cwd-based 校验兜底)
+        # 解析 porcelain 输出 · "worktree /abs/path" 形式
+        for line in result.stdout.splitlines():
+            if line.startswith("worktree ") and Path(line[9:].strip()) == Path(wt_path).resolve():
+                return True
+        return False
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        return True  # git 不可用 · 跳过(避免因 git 缺失阻塞流程)
+
+
+def parse_frontmatter(file_path: Path) -> Optional[dict]:
+    """解析 markdown 文件的 YAML frontmatter · 失败返回 None"""
+    if not file_path.exists():
+        return None
+    try:
+        text = file_path.read_text(encoding="utf-8")
+        if not text.startswith("---\n"):
+            return None
+        end = text.find("\n---\n", 4)
+        if end == -1:
+            return None
+        fm_text = text[4:end]
+        # 简易 YAML 解析(只支持 key: value 和 key:\n  - list)
+        result = {}
+        current_key = None
+        for line in fm_text.splitlines():
+            if not line.strip() or line.strip().startswith("#"):
+                continue
+            if line.startswith("  - "):
+                if current_key and isinstance(result.get(current_key), list):
+                    result[current_key].append(line[4:].strip())
+                continue
+            if ":" in line:
+                key, _, val = line.partition(":")
+                key = key.strip()
+                val = val.strip()
+                if not val:
+                    result[key] = []
+                    current_key = key
+                else:
+                    result[key] = val
+                    current_key = None
+        return result
+    except (OSError, UnicodeDecodeError):
+        return None
+
+
+# ─── bypass 协议 ──────────────────────────────────────────────────────
+
+
+def require_user_confirmed(args: argparse.Namespace) -> None:
+    """逃生时强制要求 --user-confirmed flag · 缺则拦截"""
+    if not getattr(args, "user_confirmed", False):
+        emit_json({
+            "verdict": "FAIL",
+            "error": "--bypass requires --user-confirmed flag(防 AI 自决逃生)",
+            "hint": (
+                "暂停点询问用户 · 用户明确确认后再调用此命令 · "
+                "并加 --user-confirmed flag。"
+                "审计时若发现 AI 自加此 flag 而对话历史无用户确认 = 红线违规。"
+            ),
+        }, exit_code=1)
+
+
+def write_bypass_log(
+    state: dict,
+    stage: str,
+    phase: str,
+    missing: list[dict],
+    args: argparse.Namespace,
+    retry_count: int = 0,
+) -> str:
+    """写 bypass_log 到 state · 返回 concerns_id(时间戳)"""
+    ts = now_iso()
+    state.setdefault("bypass_log", []).append({
+        "stage": stage,
+        "phase": phase,
+        "at": ts,
+        "missing": [m["id"] if isinstance(m, dict) else m for m in missing],
+        "reason": args.reason,
+        "user_confirmed": True,
+        "retry_count_before_bypass": retry_count,
+        "concerns_id": ts,
+    })
+    # 同步写 concerns WARN
+    state.setdefault("concerns", []).append(
+        f"{ts} WARN {stage}-{phase} bypass · missing={','.join(m['id'] if isinstance(m, dict) else m for m in missing)} · reason: {args.reason}"
+    )
+    return ts
+
+
+# ─── 通用引擎 ──────────────────────────────────────────────────────────
+
+
+def execute_stage_start(
+    stage_spec: StageSpec,
+    args: argparse.Namespace,
+    legal_transitions: dict[str, dict[str, list[str]]],
+    flow_by_type: dict[str, dict],
+) -> None:
+    """xx-stage-start 通用执行流程。"""
+    feature_path = args.feature
+    path, state = load_state(feature_path)
+
+    # 1. flow_type 校验
+    if stage_spec.allowed_flow_types:
+        flow = state.get("flow_type")
+        if flow not in stage_spec.allowed_flow_types:
+            emit_json({
+                "verdict": "FAIL",
+                "stage": stage_spec.name,
+                "phase": "start",
+                "error": f"flow_type={flow!r} 不允许进入 {stage_spec.name}",
+                "allowed_flow_types": stage_spec.allowed_flow_types,
+                "hint": "检查 state.flow_type 是否正确",
+            }, exit_code=1)
+
+    # 2. legal 转移校验
+    current = state.get("current_stage")
+    flow_type = state.get("flow_type")
+    flow_graph = flow_by_type.get(flow_type, {})
+    legal_next = flow_graph.get(current, [])
+    is_initial_entry = current is None or current == stage_spec.name
+    if not is_initial_entry and stage_spec.name not in legal_next:
+        emit_json({
+            "verdict": "FAIL",
+            "stage": stage_spec.name,
+            "phase": "start",
+            "error": f"非法转移: {current!r} → {stage_spec.name!r}",
+            "current_stage": current,
+            "legal_next_stages": legal_next,
+            "hint": (
+                f"当前 stage {current!r} 不能直接进入 {stage_spec.name!r}。"
+                f"合法下一 stage: {legal_next}。"
+                "若刻意跳过/回炉 · 加 --bypass --reason ... --user-confirmed --missing legal_transition"
+            ),
+        }, exit_code=1 if not args.bypass else 0)
+
+    # 2.5. 通用 worktree 物理存在校验(v8.0+P0-2 治本 PTR-F033-type-2 case)
+    # 治本根因:init-feature 只写 worktree 元数据 · PMO 漏跑 git worktree add ·
+    # 后续 stage 在主 tree 写代码 · 污染主分支。
+    # 物化:state.worktree.path + state.worktree.strategy != "off" → 必须 git worktree list 含此 path。
+    wt = state.get("worktree", {}) or {}
+    wt_strategy = wt.get("strategy", "off")
+    wt_path = wt.get("path")
+    if wt_strategy != "off" and wt_path:
+        if not _worktree_physically_exists(wt_path):
+            wt_missing = {
+                "id": "worktree_physical_exists",
+                "description": "state.worktree.path 必须实际存在(git worktree list 含此 path)",
+                "actual": False,
+                "hint": (
+                    f"state.json 说 worktree_mode={wt_strategy} path={wt_path} · "
+                    f"但 git worktree list 未找到 · "
+                    f"补建:`git worktree add -b {wt.get('branch', '<branch>')} "
+                    f"{wt_path} origin/{state.get('merge_target', '<base>')}`"
+                ),
+                "auto_fixable": False,
+            }
+            if args.bypass:
+                # bypass 路径需要 --missing 显式列出
+                user_missing = set(args.missing.split(",")) if args.missing else set()
+                if "worktree_physical_exists" not in user_missing:
+                    emit_json({
+                        "verdict": "FAIL",
+                        "error": "worktree 物理不存在 + bypass 但 --missing 未含 worktree_physical_exists",
+                        "hint": "加 --missing worktree_physical_exists 显式承认",
+                    }, exit_code=1)
+                require_user_confirmed(args)
+                write_bypass_log(state, stage_spec.name, "start", [wt_missing], args)
+            else:
+                emit_json({
+                    "verdict": "FAIL",
+                    "stage": stage_spec.name,
+                    "phase": "start",
+                    "missing_prerequisites": [wt_missing],
+                    "hint": "按 hint 补建 worktree · 重跑 stage-start · 或 bypass 显式承认",
+                }, exit_code=1)
+
+    # 3. 校验所有 prerequisites
+    missing = []
+    for prereq in stage_spec.prerequisites:
+        try:
+            passed = prereq.check_fn(state, args)
+        except Exception as e:
+            passed = False
+            prereq_hint = f"{prereq.hint} (check raised: {e})"
+        else:
+            prereq_hint = prereq.hint
+
+        if not passed:
+            missing.append({
+                "id": prereq.id,
+                "description": prereq.description,
+                "actual": False,
+                "hint": prereq_hint,
+                "auto_fixable": prereq.auto_fixable,
+            })
+
+    # 4. bypass 处理
+    if missing and args.bypass:
+        require_user_confirmed(args)
+        # 用户声称跳过的 missing 必须与实际 missing 重叠
+        user_missing = set(args.missing.split(",")) if args.missing else set()
+        actual_missing_ids = set(m["id"] for m in missing)
+        not_covered = actual_missing_ids - user_missing
+        if not_covered:
+            emit_json({
+                "verdict": "FAIL",
+                "error": "--missing 未覆盖所有实际 missing prerequisites",
+                "actual_missing": list(actual_missing_ids),
+                "user_specified_missing": list(user_missing),
+                "not_covered": list(not_covered),
+                "hint": f"--missing 必须包含: {','.join(actual_missing_ids)}",
+            }, exit_code=1)
+
+        # 通过 bypass
+        write_bypass_log(state, stage_spec.name, "start", missing, args)
+        missing = []  # 清空 missing,继续走 PASS 路径
+
+    elif missing:
+        emit_json({
+            "verdict": "FAIL",
+            "stage": stage_spec.name,
+            "phase": "start",
+            "missing_prerequisites": missing,
+            "hint": "按 missing_prerequisites[*].hint 逐条修复 · 重试本命令 · 重试 3 次仍 FAIL 时给用户暂停点选择 bypass",
+        }, exit_code=1)
+
+    # 5. 转移 current_stage 到本 stage
+    state["current_stage"] = stage_spec.name
+    state["legal_next_stages"] = flow_graph.get(stage_spec.name, [])
+
+    # 6. 初始化 stage_contract
+    contracts = state.setdefault("stage_contracts", {})
+    contract = contracts.setdefault(stage_spec.name, {
+        "input_satisfied": False,
+        "process_satisfied": False,
+        "output_satisfied": False,
+    })
+    contract.setdefault("started_at", now_iso())
+
+    save_state(path, state)
+
+    # 7. 渲染 next_action_brief + 自动 append 暂停点纪律 + 必读路径速查 + 状态行模板
+    brief = stage_spec.brief_template_fn(state)
+    if stage_spec.authorized_pause_point:
+        brief += _render_pause_discipline(stage_spec.authorized_pause_point)
+    # 必读路径速查(P0-4)
+    brief += _render_required_paths(Path(args.feature).resolve(), stage_spec.name)
+    # 状态行模板(P0-10:AI 每次主对话回复末尾必含)
+    next_hint = f"按 brief 完成 stage 工作 → 跑 {stage_spec.name}-complete"
+    brief += _render_status_line_block(state, next_hint)
+
+    # 7.1 体量元规则:超 MAX_BRIEF_LINES 则截断 + 写完整版到磁盘
+    brief_lines = brief.count("\n") + 1
+    brief_overflow_path = None
+    if brief_lines > MAX_BRIEF_LINES:
+        full_path = Path(feature_path) / f"_brief_full_{stage_spec.name}.md"
+        try:
+            full_path.write_text(brief, encoding="utf-8")
+            brief_overflow_path = str(full_path)
+            # brief 留前 80 行 + 摘要尾巴
+            head = brief.splitlines()[:80]
+            brief = "\n".join(head) + (
+                f"\n\n---\n\n⚠️ brief 共 {brief_lines} 行 > {MAX_BRIEF_LINES} · 截断 · "
+                f"完整版见 [{full_path.name}]({full_path.name})"
+            )
+        except OSError:
+            pass  # 写磁盘失败 · 用完整 brief
+
+    emit_json({
+        "verdict": "PASS",
+        "stage": stage_spec.name,
+        "phase": "start",
+        "transition": f"{current} → {stage_spec.name}",
+        "started_at": contract["started_at"],
+        "next_action_brief": brief,
+        "status_line": render_status_line(state, f"按 brief 完成 → {stage_spec.name}-complete"),
+        **({"brief_overflow_path": brief_overflow_path} if brief_overflow_path else {}),
+    })
+
+
+def _find_project_root(feature_dir: Path) -> Path:
+    """从 feature_dir 向上找项目根(含 .git)· 找不到回 feature_dir.parent。"""
+    p = feature_dir.resolve()
+    for _ in range(10):
+        if (p / ".git").exists():
+            return p
+        if p.parent == p:
+            return feature_dir.resolve()
+        p = p.parent
+    return feature_dir.resolve()
+
+
+def _find_skill_root() -> Path:
+    """SKILL_ROOT 路径(本模块所在目录的上一级)。"""
+    return Path(__file__).resolve().parent.parent
+
+
+# 各 stage 对应的 spec 文件名(stages/*.md)
+STAGE_SPEC_FILES = {
+    "goal_plan": "goal-plan-stage.md",
+    "ui_design": "ui-design-stage.md",
+    "panorama_design": "panorama-design-stage.md",
+    "blueprint": "blueprint-stage.md",
+    "blueprint_lite": "blueprint-lite-stage.md",
+    "dev": "dev-stage.md",
+    "review": "review-stage.md",
+    "test": "test-stage.md",
+    "browser_e2e": "browser-e2e-stage.md",
+    "pm_acceptance": "pm-acceptance-stage.md",  # 若不存在 fallback
+    "ship": "ship-stage.md",
+}
+
+
+def _render_required_paths(feature_dir: Path, stage_name: str) -> str:
+    """渲染必读路径速查(绝对路径 · brief 末尾自动 append)。
+
+    v8.0+P0-4 治本:brief 之前只列 "PROJECT.md (产品全景)" 文件名 · AI 要搜路径。
+    现在直接给绝对路径 · AI 拿到即 Read。
+    """
+    project_root = _find_project_root(feature_dir)
+    skill_root = _find_skill_root()
+
+    sections = []
+
+    # 1. 项目级元文档(只列已存在的)
+    project_docs = []
+    for fn, desc in [
+        ("PROJECT.md", "产品全景"),
+        ("ROADMAP.md", "Feature 优先级"),
+        ("sitemap.md", "信息架构"),
+        ("KNOWLEDGE.md", "项目级 Gotcha + Convention"),
+        ("GLOSSARY.md", "业务术语"),
+        ("TROUBLESHOOTING.md", "排查手册"),
+    ]:
+        p = project_root / fn
+        if p.exists():
+            project_docs.append(f"- `{p}` — {desc}")
+    arch = project_root / "docs/architecture/ARCHITECTURE.md"
+    if arch.exists():
+        project_docs.append(f"- `{arch}` — 系统架构")
+    if project_docs:
+        sections.append("**项目级文档**(按需 read):\n" + "\n".join(project_docs))
+
+    # 2. Feature 内已存在的 artifact
+    feature_artifacts = []
+    for fn, desc in [
+        ("PRD.md", "需求规范"),
+        ("PRD-REVIEW.md", "PRD 评审"),
+        ("TC.md", "测试用例"),
+        ("TC-REVIEW.md", "TC 评审"),
+        ("TECH.md", "技术方案"),
+        ("TECH-REVIEW.md", "Tech Review"),
+        ("UI.md", "UI 设计"),
+        ("REVIEW.md", "代码评审总结"),
+        ("REVIEW-arch.md", "架构师评审"),
+        ("REVIEW-qa.md", "QA 评审"),
+        ("TEST-REPORT.md", "测试报告"),
+        ("BROWSER-TEST-REPORT.md", "浏览器测试报告"),
+    ]:
+        p = feature_dir / fn
+        if p.exists():
+            feature_artifacts.append(f"- `{p}` — {desc}")
+    if feature_artifacts:
+        sections.append("**Feature 内已存在 artifact**:\n" + "\n".join(feature_artifacts))
+
+    # 3. 本 stage spec 文件(可选深读 · 不强制)
+    spec_file = STAGE_SPEC_FILES.get(stage_name)
+    if spec_file:
+        spec_path = skill_root / "stages" / spec_file
+        if spec_path.exists():
+            sections.append(
+                f"**Stage Telos + Rationale**(可选深读 · brief 不清晰时查):\n"
+                f"- `{spec_path}` — 本 stage 设计 rationale"
+            )
+
+    # 4. state.json 自身
+    state_json = feature_dir / "state.json"
+    if state_json.exists():
+        sections.append(
+            f"**Feature 状态机**:\n- `{state_json}` — 状态机权威 · "
+            f"用 `state.py snapshot --feature {feature_dir}` 查看(不要直接编辑)"
+        )
+
+    if not sections:
+        return ""
+
+    return "\n\n---\n\n### 📂 必读路径速查(绝对路径)\n\n" + "\n\n".join(sections) + "\n"
+
+
+def _render_status_line_block(state: dict, next_action: str = "") -> str:
+    """v8.0+P0-10:brief 末尾追加"状态行模板"段。
+
+    给 AI 一个"复制粘贴到主对话回复末尾"的现成模板。
+    """
+    sl = render_status_line(state, next_action)
+    return f"""
+
+---
+
+### 📊 状态行模板(R5+P0-10 · AI 每次主对话回复末尾必含)
+
+```
+{sl}
+```
+
+复制以上 3 行粘贴到回复末尾(用 `---` 隔开 brief 主体)·
+让用户实时感知流程位置 + 路径 + 分支。
+"""
+
+
+def render_status_line(state: dict, next_action: str = "") -> str:
+    """v8.0+P0-10:渲染 3 行状态行(替代 v7 STATUS-LINE.md · 物化版)。
+
+    格式:
+    ```
+    🔄 {feature_id} ({flow_type} · {current_stage}) | 下一步:{next_action}
+    📁 {artifact_root}
+    🌿 {branch}(worktree: {wt_path · 与 artifact_root 不同时显示})
+    ```
+
+    用途:
+    - brief 末尾自动 append(P0-10 物化 · AI 复制到回复末尾)
+    - 暂停点 markdown 内嵌
+    - AI 每次主对话回复末尾必含(R5+P0-10 软约束)
+
+    Args:
+        state: state.json dict
+        next_action: 下一步描述(可选 · 不传则第 1 行不含"下一步:"段)
+    """
+    feature_id = state.get("feature_id", "?")
+    flow_type = state.get("flow_type", "?")
+    current = state.get("current_stage", "?")
+    feature_dir = state.get("artifact_root", "?")
+    worktree = state.get("worktree", {}) or {}
+    branch = worktree.get("branch", "?")
+    wt_path = worktree.get("path") or ""
+
+    line1 = f"🔄 {feature_id} ({flow_type} · {current})"
+    if next_action:
+        line1 += f" | 下一步:{next_action}"
+
+    line2 = f"📁 {feature_dir}"
+
+    if wt_path and wt_path != feature_dir:
+        line3 = f"🌿 {branch}(worktree: {wt_path})"
+    else:
+        line3 = f"🌿 {branch}"
+
+    return f"{line1}\n{line2}\n{line3}"
+
+
+def _render_pause_discipline(authorized_pause_point: str) -> str:
+    """暂停点纪律段 · append 到 brief 末尾(紧凑版 · 8 行)。
+
+    v8.0+P0-1 治本 PTR-F033 case · L2 substep 链 AI 自觉区。
+    详细 rationale + 反模式黑名单见 docs/v8-redesign/04-PAUSE-POINT-DISCIPLINE.md
+    (违规被 hint 时再读 · 不每次 inline 全文)。
+    """
+    return f"""
+
+---
+
+### 🔴 暂停点纪律(R5 物化)
+
+唯一授权暂停:**{authorized_pause_point}**
+
+- ⛔ Substep 中间禁 AskUserQuestion · Open Questions 写进 PRD/Review 评审
+- ✅ 全部疑问到授权暂停点**一次性** escalate
+- 🛡️ 兜底:state.py 校验 review mtime + frontmatter.revision_history
+- 📖 详细:[docs/v8-redesign/04-PAUSE-POINT-DISCIPLINE.md](../docs/v8-redesign/04-PAUSE-POINT-DISCIPLINE.md)
+"""
+
+
+# ─── brief 体量元规则(防 Layer A 累积膨胀) ────────────────────────
+
+
+# ─── v8.0+P0-9:review 角色 enum + 默认矩阵 ──────────────────────────
+
+
+REVIEW_ROLE_ENUM = {"pm", "qa", "architect", "rd", "designer", "pl", "external"}
+"""review 角色 7 闭集。
+
+设计:
+- pmo 不在内(PMO 是编排器 · 不 review 自己编排的工作)
+- user 不在内(用户验收在 pm_acceptance 内的 ⏸️ 暂停点 · 不算 review 角色)
+- rd 在内(默认不进 review 矩阵 · PMO 可显式调入 · 罕见 case)
+- external = 异质模型(codex/claude/gemini)cross-review · 工具角色
+"""
+
+# (flow_type, stage) → 默认 review 角色清单
+DEFAULT_REVIEW_ROLES: dict[tuple[str, str], list[str]] = {
+    # Feature 流程
+    ("Feature", "goal_plan"): ["pm", "qa", "architect", "pl", "external"],
+    ("Feature", "ui_design"): ["designer", "pm"],
+    ("Feature", "blueprint"): ["qa", "architect", "external"],
+    ("Feature", "review"): ["architect", "qa", "external"],
+    ("Feature", "test"): ["qa"],
+    ("Feature", "browser_e2e"): ["qa", "designer"],
+    ("Feature", "pm_acceptance"): ["pm"],
+
+    # 敏捷需求
+    ("敏捷需求", "goal_plan"): ["pm", "qa", "architect"],
+    ("敏捷需求", "blueprint_lite"): ["qa"],
+    ("敏捷需求", "review"): ["architect", "qa", "external"],
+    ("敏捷需求", "test"): ["qa"],
+    ("敏捷需求", "pm_acceptance"): ["pm"],
+
+    # Bug 流程
+    ("Bug", "review"): ["architect", "qa", "external"],
+    ("Bug", "test"): ["qa"],
+    ("Bug", "pm_acceptance"): ["pm"],
+
+    # Micro 流程
+    ("Micro", "pm_acceptance"): ["pm"],
+
+    # Feature Planning
+    ("Feature Planning", "goal_plan"): ["pm", "pl", "external"],
+    ("Feature Planning", "panorama_design"): ["pl", "pm", "external"],
+}
+
+
+def build_default_stage_review_roles(flow_type: str) -> dict[str, list[str]]:
+    """按 flow_type 抽取默认 stage_review_roles dict。
+
+    返回 {stage_name: [roles]} · 仅含该 flow_type 适用的 stage。
+    """
+    return {
+        stage: roles[:]  # copy 防共享引用
+        for (ft, stage), roles in DEFAULT_REVIEW_ROLES.items()
+        if ft == flow_type
+    }
+
+
+MAX_BRIEF_LINES = 100
+"""单 stage brief 最大行数(含所有 append 的纪律段)。
+
+未来 v8.0+P0-N 加新纪律段时:
+- 先判断是否通用(所有 stage 适用)→ 进 _render_universal_discipline()
+- stage 专属 → 改 stage 的 brief_template_fn
+- 超 MAX_BRIEF_LINES → execute_stage_start 自动写完整版到磁盘 + brief 留摘要
+
+设计动机:防 Layer A(brief inline 预防模式)累积膨胀。
+每条新纪律默认压到 ≤8 行 · 详细 rationale 留磁盘文档。
+
+参考 v7 教训:RULES.md 累积到 1883 行 · v8 不能在 brief 重蹈覆辙。
+"""
+
+
+def execute_stage_complete(
+    stage_spec: StageSpec,
+    args: argparse.Namespace,
+    legal_transitions: dict[str, dict[str, list[str]]],
+    flow_by_type: dict[str, dict],
+    stage_specs_registry: dict,
+) -> None:
+    """xx-stage-complete 通用执行流程。"""
+    feature_path = args.feature
+    path, state = load_state(feature_path)
+
+    # 1. current_stage 必须是本 stage
+    if state.get("current_stage") != stage_spec.name:
+        emit_json({
+            "verdict": "FAIL",
+            "stage": stage_spec.name,
+            "phase": "complete",
+            "error": f"current_stage={state.get('current_stage')!r} ≠ {stage_spec.name!r}",
+            "hint": f"先跑 state.py {stage_spec.name}-start",
+        }, exit_code=1)
+
+    # 2. auto-commit 必检存在
+    # cwd 用 feature_path 本身(让 git 自动向上找 .git · 不假设 parent 是 repo root)
+    auto_commit = args.auto_commit
+    feature_dir = Path(feature_path).resolve()
+    git_cwd = str(feature_dir if feature_dir.is_dir() else feature_dir.parent)
+    if not commit_exists(auto_commit, cwd=git_cwd):
+        emit_json({
+            "verdict": "FAIL",
+            "stage": stage_spec.name,
+            "phase": "complete",
+            "error": f"auto-commit hash {auto_commit!r} 在 git history 中不存在(cwd={git_cwd})",
+            "hint": "确认 git commit 已落库 · 或 hash 拼写正确 · 在 git repo 内运行",
+        }, exit_code=1)
+
+    # 3. 校验 artifacts
+    artifacts_passed = []
+    missing_artifacts = []
+    commit_changeset = get_git_commit_changeset(
+        auto_commit, cwd=git_cwd
+    ) if auto_commit else []
+
+    for art_spec in stage_spec.artifacts:
+        if art_spec.path:
+            target = feature_dir / art_spec.path
+            if not target.exists():
+                missing_artifacts.append({
+                    "spec": art_spec.path,
+                    "reason": "file not found",
+                    "hint": f"创建 {art_spec.path}",
+                })
+                continue
+
+            # frontmatter 校验
+            if art_spec.frontmatter_required:
+                fm = parse_frontmatter(target)
+                if fm is None:
+                    missing_artifacts.append({
+                        "spec": art_spec.path,
+                        "reason": "frontmatter parse failed",
+                        "hint": "确保文件头部有 --- YAML frontmatter --- 块",
+                    })
+                    continue
+                missing_fm = [k for k in art_spec.frontmatter_required if k not in fm]
+                if missing_fm:
+                    missing_artifacts.append({
+                        "spec": art_spec.path,
+                        "reason": f"frontmatter 缺字段: {missing_fm}",
+                        "hint": f"补全 frontmatter 字段: {','.join(missing_fm)}",
+                    })
+                    continue
+
+            # body 行数校验
+            if art_spec.body_min_lines > 0:
+                text = target.read_text(encoding="utf-8")
+                body_lines = len(text.splitlines())
+                if body_lines < art_spec.body_min_lines:
+                    missing_artifacts.append({
+                        "spec": art_spec.path,
+                        "reason": f"body 行数 {body_lines} < {art_spec.body_min_lines}",
+                        "hint": "扩充文档内容",
+                    })
+                    continue
+
+            # commit 校验
+            if art_spec.must_be_in_commit and commit_changeset:
+                in_commit = any(art_spec.path in c for c in commit_changeset)
+                if not in_commit:
+                    missing_artifacts.append({
+                        "spec": art_spec.path,
+                        "reason": f"未在 commit {auto_commit} 内",
+                        "hint": "把该文件加入 commit 或重新 commit",
+                    })
+                    continue
+
+            artifacts_passed.append(art_spec.path)
+
+        elif art_spec.glob:
+            matches = list(feature_dir.glob(art_spec.glob))
+            if len(matches) < art_spec.min_files:
+                missing_artifacts.append({
+                    "spec": art_spec.glob,
+                    "reason": f"匹配 {len(matches)} 个 < min_files={art_spec.min_files}",
+                    "hint": f"按 glob 模式产出至少 {art_spec.min_files} 个文件",
+                })
+                continue
+            artifacts_passed.append(art_spec.glob)
+
+    # 4. 校验 evidence
+    failed_evidence = []
+    for ev_check in stage_spec.evidence_checks:
+        try:
+            passed, err = ev_check.check_fn(state, args)
+        except Exception as e:
+            passed, err = False, f"check raised: {e}"
+        if not passed:
+            failed_evidence.append({
+                "name": ev_check.name,
+                "description": ev_check.description,
+                "error": err,
+            })
+
+    # 5. bypass 处理
+    issues = []
+    if missing_artifacts:
+        issues.extend(missing_artifacts)
+    if failed_evidence:
+        issues.extend(failed_evidence)
+
+    if issues and args.bypass:
+        require_user_confirmed(args)
+        write_bypass_log(state, stage_spec.name, "complete", issues, args)
+        issues = []
+    elif issues:
+        emit_json({
+            "verdict": "FAIL",
+            "stage": stage_spec.name,
+            "phase": "complete",
+            "missing_artifacts": missing_artifacts,
+            "failed_evidence": failed_evidence,
+            "hint": "按上述 hint 修复 · 重试本命令 · 重试 3 次仍 FAIL 给用户暂停点选 bypass",
+        }, exit_code=1)
+
+    # 6. 自动 satisfy 三 gate
+    contracts = state.setdefault("stage_contracts", {})
+    contract = contracts.setdefault(stage_spec.name, {})
+    contract["input_satisfied"] = True
+    contract["process_satisfied"] = True
+    contract["output_satisfied"] = True
+    contract["completed_at"] = now_iso()
+    contract["auto_commit"] = auto_commit
+    contract["artifacts"] = (args.artifacts or "").split(",") if args.artifacts else []
+    contract["cited_specs"] = (args.cite or "").split(",") if args.cite else []
+
+    # duration
+    started = contract.get("started_at")
+    if started:
+        try:
+            t0 = datetime.strptime(started, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+            t1 = datetime.strptime(contract["completed_at"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+            contract["duration_minutes"] = max(0, int((t1 - t0).total_seconds() // 60))
+        except ValueError:
+            pass
+
+    # 加入 completed_stages
+    completed = state.setdefault("completed_stages", [])
+    if stage_spec.name not in completed:
+        completed.append(stage_spec.name)
+
+    # 7. 写 review-log
+    write_review_log_entry(state, feature_dir, stage_spec.name, "completed", contract)
+
+    # 8. 自动转移 / 暂停点
+    transitioned_to = None
+    next_brief = None
+    next_stage_roles_audit = None
+
+    if stage_spec.auto_transition_fn:
+        next_stage = stage_spec.auto_transition_fn(state)
+        if next_stage:
+            # v8.0+P0-9:处理 --next-stage-roles 调整(若传)
+            new_roles = getattr(args, "next_stage_roles", "") or ""
+            new_roles_reason = getattr(args, "next_stage_roles_reason", "") or ""
+            if new_roles:
+                if not new_roles_reason:
+                    emit_json({
+                        "verdict": "FAIL",
+                        "error": "--next-stage-roles 传时 · --next-stage-roles-reason 必传(audit)",
+                    }, exit_code=1)
+                roles_list = [r.strip() for r in new_roles.split(",") if r.strip()]
+                invalid = [r for r in roles_list if r not in REVIEW_ROLE_ENUM]
+                if invalid:
+                    emit_json({
+                        "verdict": "FAIL",
+                        "error": f"--next-stage-roles 含非法角色: {invalid}",
+                        "hint": f"REVIEW_ROLE_ENUM = {sorted(REVIEW_ROLE_ENUM)}",
+                    }, exit_code=1)
+                # 校验:next_stage 必须在 stage_review_roles 中(即有 review 配置)
+                stage_review_roles = state.setdefault("stage_review_roles", {})
+                if next_stage not in stage_review_roles:
+                    emit_json({
+                        "verdict": "FAIL",
+                        "error": (
+                            f"--next-stage-roles 试图调整 {next_stage!r} · "
+                            f"但该 stage 默认无 review_roles 配置(flow_type 不适用)· "
+                            f"调整无意义"
+                        ),
+                        "hint": "去掉 --next-stage-roles 让默认生效",
+                    }, exit_code=1)
+                # 写字段 + audit
+                before = stage_review_roles.get(next_stage, [])[:]
+                stage_review_roles[next_stage] = roles_list
+                state.setdefault("stage_review_roles_adjustments", []).append({
+                    "stage": next_stage,
+                    "before": before,
+                    "after": roles_list,
+                    "reason": new_roles_reason,
+                    "adjusted_at": now_iso(),
+                    "adjusted_from_stage": stage_spec.name,
+                })
+                next_stage_roles_audit = {
+                    "stage": next_stage,
+                    "before": before,
+                    "after": roles_list,
+                    "reason": new_roles_reason,
+                }
+
+            # 自动进入下一 stage
+            flow_type = state.get("flow_type")
+            flow_graph = flow_by_type.get(flow_type, {})
+            state["current_stage"] = next_stage
+            state["legal_next_stages"] = flow_graph.get(next_stage, [])
+
+            # 初始化下一 stage contract
+            next_contract = contracts.setdefault(next_stage, {
+                "input_satisfied": False,
+                "process_satisfied": False,
+                "output_satisfied": False,
+            })
+            next_contract.setdefault("started_at", now_iso())
+
+            transitioned_to = next_stage
+
+            # 渲染下一 stage brief
+            if next_stage in stage_specs_registry:
+                next_spec = stage_specs_registry[next_stage]
+                next_brief = next_spec.brief_template_fn(state)
+
+    save_state(path, state)
+
+    # status_line:基于已转移后的 state(当前 stage 已是 next_stage 或终态)
+    next_hint = (
+        f"按 brief 完成 → {transitioned_to}-complete" if transitioned_to
+        else "stage 链结束 / 等用户拍板下一步"
+    )
+    emit_json({
+        "verdict": "PASS",
+        "stage": stage_spec.name,
+        "phase": "complete",
+        "completed_at": contract["completed_at"],
+        "duration_minutes": contract.get("duration_minutes", 0),
+        "satisfied_gates": ["input_satisfied", "process_satisfied", "output_satisfied"],
+        "transitioned_to": transitioned_to,
+        "next_stage_brief": next_brief,
+        "status_line": render_status_line(state, next_hint),
+        **({"next_stage_roles_adjusted": next_stage_roles_audit} if next_stage_roles_audit else {}),
+    })
+
+
+# ─── review-log 写入 ───────────────────────────────────────────────────
+
+
+def write_review_log_entry(
+    state: dict,
+    feature_dir: Path,
+    stage: str,
+    event: str,
+    contract: dict,
+) -> None:
+    """追加一条 review-log.jsonl 记录(v8 自动写)。"""
+    log_path = feature_dir / "review-log.jsonl"
+    entry = {
+        "at": now_iso(),
+        "event": f"stage_{event}",
+        "stage": stage,
+        "auto_commit": contract.get("auto_commit"),
+        "duration_minutes": contract.get("duration_minutes"),
+        "artifacts": contract.get("artifacts", []),
+    }
+    try:
+        with log_path.open("a", encoding="utf-8") as f:
+            f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+    except OSError:
+        pass  # log 失败不阻塞主流程
+
+
+# ─── argparse 帮助 ─────────────────────────────────────────────────────
+
+
+def add_common_stage_start_args(parser: argparse.ArgumentParser) -> None:
+    """所有 xx-stage-start 共用的参数。"""
+    parser.add_argument("--feature", required=True, help="Feature artifact_root 路径")
+    parser.add_argument("--bypass", action="store_true",
+                        help="逃生 · 跳过未满足前置 · 必须配合 --reason --user-confirmed --missing")
+    parser.add_argument("--reason", default="", help="bypass 时必填 · 进 concerns WARN")
+    parser.add_argument("--user-confirmed", action="store_true",
+                        help="bypass 时必带 · 标记用户已确认逃生(防 AI 自决)")
+    parser.add_argument("--missing", default="",
+                        help="bypass 时必带 · 逗号分隔 · 明确跳过哪些前置 ID")
+
+
+def add_common_stage_complete_args(parser: argparse.ArgumentParser) -> None:
+    """所有 xx-stage-complete 共用的参数。"""
+    parser.add_argument("--feature", required=True, help="Feature artifact_root 路径")
+    parser.add_argument("--auto-commit", required=True, help="本 stage 产出的 git commit hash")
+    parser.add_argument("--artifacts", default="", help="逗号分隔 · 本 stage 实际产出文件")
+    parser.add_argument("--cite", default="", help="逗号分隔 · AI 声明读了哪些 spec")
+    parser.add_argument("--bypass", action="store_true", help="逃生 · 跳过 artifact/evidence 校验")
+    parser.add_argument("--reason", default="", help="bypass 时必填")
+    parser.add_argument("--user-confirmed", action="store_true",
+                        help="bypass 时必带 · 标记用户已确认逃生")
+    parser.add_argument("--missing", default="", help="bypass 时必带 · 逗号分隔")
+    # v8.0+P0-9:调整下一 stage review 角色(可选 · 不传用默认矩阵)
+    parser.add_argument(
+        "--next-stage-roles",
+        default="",
+        help=(
+            "可选 · 调整下一 stage 的 review 角色(逗号分隔)· "
+            "覆盖默认矩阵 · 必须是 REVIEW_ROLE_ENUM 子集 · "
+            "若传此参数 · --next-stage-roles-reason 必传"
+        ),
+    )
+    parser.add_argument(
+        "--next-stage-roles-reason",
+        default="",
+        help="--next-stage-roles 传时必填 · 调整理由 · 写入 audit",
+    )
+
+
+# ─── stage 专属参数 hook ────────────────────────────────────────────
+
+
+def _add_stage_specific_args(parser: argparse.ArgumentParser, stage_name: str, phase: str) -> None:
+    """各 stage 特殊参数 hook · 在通用参数之外追加。"""
+    if stage_name == "goal_plan" and phase == "complete":
+        # v8.0+P0-6:--needs-ui 必传 · 决策下一 stage 走向(ui_design vs blueprint)
+        # 不让 state.py emit 暂停点(默认无 UI 是常态)· 字段必有值
+        parser.add_argument(
+            "--needs-ui",
+            choices=["true", "false"],
+            required=True,
+            help=(
+                "是否需要独立 UI Design Stage · "
+                "true → 下一 stage=ui_design / false → blueprint。"
+                "敏捷需求/Planning 必传 false(若 true 应升级 Feature 流程)"
+            ),
+        )
+    elif stage_name == "dev" and phase == "complete":
+        parser.add_argument("--test-stdout", default="",
+                            help="测试 stdout(文件路径或字符串)· 必须非空")
+        parser.add_argument("--test-exit-code", type=int, default=None,
+                            help="测试 exit code · 必须 = 0")
+    elif stage_name == "review" and phase == "complete":
+        parser.add_argument("--verdict", choices=["APPROVE", "NEEDS_REVISION"],
+                            required=True, help="评审结论")
+        parser.add_argument("--external-review-files", default="",
+                            help="逗号分隔 · 外部评审 markdown 文件清单")
+    elif stage_name == "test" and phase == "complete":
+        parser.add_argument("--integration-test-exit-code", type=int, default=None,
+                            help="集成测试 exit code · 必须 = 0")
+        parser.add_argument("--e2e-test-exit-code", type=int, default=None,
+                            help="API E2E 测试 exit code · 必须 = 0")
+    elif stage_name == "pm_acceptance" and phase == "complete":
+        parser.add_argument(
+            "--decision",
+            choices=["approved_and_ship", "approved_no_ship", "rejected_with_feedback"],
+            required=True,
+            help="PM 验收决策",
+        )
+        parser.add_argument("--note", default="",
+                            help="决策说明(rejected 时必填)")
+
+
+# ─── register_v8_subparsers ────────────────────────────────────────────
+
+
+def register_v8_subparsers(
+    sub,
+    stage_specs_registry: dict,
+    flow_by_type: dict,
+) -> None:
+    """在 state.py 的 argparse subparsers 上注册 v8 命令。
+
+    为 STAGE_SPECS 中每个 stage 注册 -start / -complete 子命令。
+
+    Args:
+        sub: argparse subparsers 对象(state.py build_parser 内)
+        stage_specs_registry: STAGE_SPECS dict
+        flow_by_type: FLOW_BY_TYPE dict(来自 state.py 常量)
+    """
+    for stage_name, stage_spec in stage_specs_registry.items():
+        # xx-start
+        start_parser = sub.add_parser(
+            f"{stage_name}-start",
+            help=f"[v8] {stage_name} stage 入口校验 + 渲染 next_action_brief",
+        )
+        add_common_stage_start_args(start_parser)
+        _add_stage_specific_args(start_parser, stage_name, "start")
+
+        # 闭包绑定 stage_spec
+        def make_start_handler(spec):
+            def handler(args):
+                execute_stage_start(spec, args, {}, flow_by_type)
+
+            return handler
+
+        start_parser.set_defaults(func=make_start_handler(stage_spec))
+
+        # xx-complete
+        complete_parser = sub.add_parser(
+            f"{stage_name}-complete",
+            help=f"[v8] {stage_name} stage 产物校验 + 自动转移到下一 stage",
+        )
+        add_common_stage_complete_args(complete_parser)
+        _add_stage_specific_args(complete_parser, stage_name, "complete")
+
+        def make_complete_handler(spec):
+            def handler(args):
+                execute_stage_complete(spec, args, {}, flow_by_type, stage_specs_registry)
+
+            return handler
+
+        complete_parser.set_defaults(func=make_complete_handler(stage_spec))

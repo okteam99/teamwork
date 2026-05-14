@@ -1,906 +1,125 @@
-# Goal-Plan Stage：需求定义（PRD 起草 + 多角色并行评审 + PM 回应循环，v7.3.10+P0-34 5 子步骤）
+# Goal-Plan Stage
 
-> 在用户确认流程类型后进入本 Stage。产出一份经过产品对齐 + 技术评审的合格 PRD。
-> 🔴 契约优先：本文件规范 Input / Process / Output 三契约。执行方式由 AI 在 Plan 模式自主规划（见 SKILL.md「AI Plan 模式规范」）。
-
----
-
-## 本 Stage 职责
-
-产出经过产品方向对齐 + 多视角技术评审的定稿 PRD，为后续 Stage 锁定需求边界。PRD 中的 AC 必须结构化以便与测试强绑定。
+> **auto-verified by**: `state.py goal_plan-start` / `state.py goal_plan-complete`
+> 本文件按 **怎么做 + 注意事项** 结构(v8.0+P0-7 新职责)。
+> 详细 schema 见 [../docs/v8-redesign/01-COMMAND-SCHEMA.md](../docs/v8-redesign/01-COMMAND-SCHEMA.md)。
 
 ---
 
-## 可配置点清单（v7.3.10+P0-55 新增 — Triage 预定义，Stage 入口默认采纳）
+## 怎么做
 
-| 可配置点 | 默认值 | 控制字段 | 决策时机 |
-|---------|-------|---------|---------|
-| `review_roles[]` | 见推荐表（基于 Feature 类型）| `state.goal_plan_substeps_config.review_roles[]` | triage Step 8 给 hint，Stage 入口实例化决策 |
-| 各角色 `execution` | subagent / main-conversation（按文件数 + 上下文累积价值）| `state.goal_plan_substeps_config.review_roles[].execution` | Stage 入口实例化 |
-| `pl_prioritized` | true（含 PL 时）| `state.goal_plan_substeps_config.pl_prioritized` | Stage 入口（业务方向锁死前 PL 先于其他角色）|
-| `round_loop.max_rounds` | 3 | `state.goal_plan_substeps_config.review_round_max` | 防无限评审循环 |
-| 子步骤 4 触发条件 | NEEDS_REVISION 或 SHOULD-fix concern（v7.3.10+P0-51）| 触发条件（spec 内嵌）| Stage 内运行时 |
-| `hint_overrides` | null | `state.goal_plan_substeps_config.hint_overrides` | Stage 入口实例化偏离 hint 时 |
+### 1. PM 起草 PRD 初稿(主对话 PM 身份)
+- 落 `{Feature}/PRD.md`
+- frontmatter 必含 `acceptance_criteria` 数组 + `revision_history` 数组(可空 · 后续填)
+- body 含 §需求背景 / §用户场景 / §AC / §边界与非目标
+- AC 写成 BDD 风格(Given/When/Then) · 避免 "应该 / 可以 / 大概" 模糊措辞
+- §Open Questions 写下未决项(**不向用户问** · 留给 review 评)
 
-🔴 不变内核（不可配置）：5 子步骤序列（PRD 起草 → PL-PM 讨论 → 联合评审 → PM 回应 → 用户最终确认）+ severity 三级（MUST-fix / SHOULD-fix / NICE-to-have）+ DEFER 收紧规则 + 业务方向锁死硬规则。
+### 2. PL-PM 讨论(主对话角色切换)
+- 切到 PL 视角 · 审视 PRD 业务方向
+- PL finding 直接追加到 PRD 内对应 AC 后注释(不开新文件)
 
----
+### 3. 多角色并行评审 → PRD-REVIEW.md
+- QA 视角:测试覆盖性 / 边界场景 / AC 可测试性
+- Architect 视角:技术可行性 / 架构影响 / 性能安全
+- (可选)External Reviewer:异质模型 cross-review
+- 落 `{Feature}/PRD-REVIEW.md` · frontmatter 含 `reviewers` + `verdicts: {role: APPROVE|NEEDS_REVISION}`
 
-## Input Contract
+### 4. PM 回应 + 修订 PRD
+- 逐条响应 review finding
+- 修订 PRD → draft-v0.2 / v0.3 ...
+- PRD.frontmatter.revision_history 追新条目(版本号 + 修订理由)
+- NEEDS_REVISION 时循环 · 直到全员 APPROVE
 
-### 必读文件（按顺序）
+### 5. 全员通过判定
+- 所有 reviewer verdict = APPROVE(或 SKIP)
+- 若仍有 NEEDS_REVISION → 回 step 4
 
-```
-├── {SKILL_ROOT}/agents/README.md                    ← 通用规范
-├── {SKILL_ROOT}/stages/goal-plan-stage.md                ← 本文件
-├── {SKILL_ROOT}/roles/pm.md                         ← PM 角色契约（4 段 · v7.3.10+P0-91 重构）
-├── {SKILL_ROOT}/roles/pm-prd-review.md              ← PRD 多角色评审详规范（v7.3.10+P0-91 抽出）
-├── {SKILL_ROOT}/roles/product-lead.md               ← PL 角色（讨论用）
-├── {SKILL_ROOT}/templates/prd.md                    ← PRD 模板（含 AC 结构化 frontmatter）
-└── {SKILL_ROOT}/standards/common.md                 ← 通用开发规范
+### 6. PM 决策 `--needs-ui`(complete 前必)
+- 基于 PRD 内容判定是否需要独立 UI Design Stage
+- 准备 `state.py goal_plan-complete --needs-ui {true|false} ...`
 
-条件必读（v7.3.9+P0-13 新增）：
-🟢 **v7.3.10+P0-83 删**：原 templates/external-cross-review.md 条件加载行已删（Goal-Plan Stage 不再支持 external 评审 · external 单源到 Review Stage）
-    🟢 关闭时跳过，节省启动 token
-
-可选（存在则读取）：
-├── docs/PROJECT.md                                  ← 产品总览
-├── docs/KNOWLEDGE.md                                ← 项目知识库
-├── docs/architecture/ARCHITECTURE.md                ← 架构文档（技术评审参考）
-└── design/sitemap.md                                ← 全景设计（有 UI 时参考）
-```
-
-### Key Context（PMO 必须逐项判断，无则写 `-`）
-
-- 历史决策锚点：上游 Stage / CHG 记录 / Goal-Plan Stage 纪要中的决策
-- 本轮聚焦点：重派或修订场景必填
-- 跨 Feature 约束：与其他进行中 Feature 的冲突/兼容
-- 已识别风险：来自 KNOWLEDGE.md / 预检 / 历史 Bug
-- 降级授权：PL 不可用时是否可由 PM 单独推进等
-- 优先级 / 容忍度：进度优先 / 质量优先 / 平衡
-
-### 前置依赖
-
-- PMO 初步分析已输出且用户已确认流程类型
-- state.json.current_stage == "goal_plan"
-- 无其他阻塞项（blocking.pending_user_confirmations 为空）
-- **环境配置（v7.3.10+P0-27 重构）**：triage-stage Step 7.5 已探测 + 用户已在 triage 暂停点确认 `state.environment_config = { worktree_mode, branch, merge_target, base, dirty_resolution }`
-- **Worktree**：state.environment_config.worktree_mode 决定模式；Goal-Plan Stage 入口自动按配置创建（详见下方「Stage 入口环境准备」），PRD/discuss/评审等产物均落在该 worktree 分支，不污染 main / staging
+### 7. ⏸️ 用户最终确认
+- 一次性 escalate 剩余开放问题给用户(若有)
+- 用户回 ok 后跑 complete · state.py 按 --needs-ui 自动转移
 
 ---
 
-## Stage 入口环境准备（v7.3.10+P0-145 再次重构 · 验证而非创建）
+## 必读 cite 清单(P0-11 · 各 substep 动手前主对话输出)
 
-> 🟢 **v7.3.10+P0-145 重构说明**：worktree 创建从本段**提前到 prepare-stage Step 13.5**（v7.3.10+P0-145 治本 worktree/state.json 时序 gap · 详见 [prepare-stage.md Step 13.5](./prepare-stage.md)）。本段从"创建"降级为"验证"——worktree 应在 prepare-stage 已建妥 · state.json 已在 worktree 内 · 本 Stage 只校验环境一致性。
->
-> 🔴 **本段不暂停**。worktree 应在 prepare-stage Step 13.5 已经创建 + CWD 已切到 worktree。本段仅做幂等校验 + 写入 executed_at 时间戳。
+| Substep | 必读 spec | 段 | cite 关键点 |
+|---------|----------|----|------------|
+| 1. PM 起草 PRD 初稿 | `roles/pm.md` | § 创作要点 | PRD 必含 AC + 边界 / Open Questions 不抛用户 |
+| 2. PL-PM 讨论 | `roles/product-lead.md` | § 与 PM 协作 | 业务方向审视规则 |
+| 3. 多角色并行评审 → PRD-REVIEW.md | `roles/qa.md + roles/architect.md` | § Review 规范 | QA 看测试覆盖性 / Architect 看技术可行 |
+| 4. PM 回应 + 修订 PRD | `roles/pm.md` | § PRD 修订 | revision_history 必落 frontmatter |
+| 5. 全员通过判定 | — | — | (无 cite 要求) |
+| 6. PM 决策 --needs-ui | `stages/goal-plan-stage.md` | § 特殊规则 1 | --needs-ui 决策 · 不传则 FAIL |
+| 7. ⏸️ 用户最终确认 | — | — | (无 cite 要求) |
 
-### 输入
 
-`state.environment_config`（triage-stage Step 7.5 探测 + Step 8 确认 + prepare-stage Step 13.5 执行）：
-- `worktree_mode`: auto / manual / off
-- `branch`: feature/{Feature 全名}
-- `merge_target`: staging / main / master
-- `base`: origin/{merge_target}
-- `dirty_resolution`: stash / commit / force / null
-- `workspace_status_at_triage`: clean / dirty
-- `worktree_created`: true（prepare-stage Step 13.5 已写入 · 本段校验该字段）
-
-### 自动执行序列（验证 + 补齐 metadata）
-
-```bash
-# Step 1: 验证 CWD = worktree（如启用）
-if state.environment_config.worktree_mode in ["auto", "manual"]:
-    pwd  # 应输出 state.worktree.path
-    git rev-parse --show-toplevel  # 应等于 worktree.path
-    git branch --show-current      # 应等于 state.environment_config.branch
-    # 任一不一致 → 走异常分支「worktree 未就绪」
-
-# Step 2: 验证 state.json 在 CWD 内可达（关键校验）
-test -f {artifact_root}/state.json
-# 不可达 → 异常分支「state.json 缺失或位置错误」
-
-# Step 3: 补齐 environment_config metadata
-# 通过 tools/state.py 更新（不直接写 state.json）：
-python3 {SKILL_ROOT}/tools/state.py snapshot --tier stage
+**输出格式**(每个 substep 动手前必在主对话输出):
+```
+📖 cite:
+- <spec> § <段>:"<引该段 1 句关键原文 · 证明真读>"
 ```
 
-🔴 **关键约束**：本段**不再执行 git worktree add**（v7.3.10+P0-145 移交 prepare-stage Step 13.5）。如果 worktree 未就绪 = prepare-stage 异常或老 Feature 迁移期 → 走下方异常分支。
+**强约束**(R5+P0-11 软约束 · 用户监督):
+- 标 "—" 的 substep 无 cite 要求(状态机操作 / 用户暂停 / 已物化)
+- 其余 substep **动手前必输出 cite 块** · 缺 cite 视为 process 违规(用户可叫停)
+- cite 必含 § 段标题 + 至少 1 句原文(原文必真实存在于该 spec · 不可瞎编)
+- AI 在 stage 内多次切角色 · 每次切换前重新 cite 该角色规范
 
-🟢 **P0-3 懒装依赖模型**：worktree 已建（在 prepare-stage）· 本 Stage 入口仍不触发依赖安装。
+**为什么 cite**:
+- brief 列路径(P0-4)只解决"AI 找不到路径"· 不保证 AI 真读
+- complete 时校验太晚(AI 已做完)
+- substep 动手前 cite = 事前提醒 · 强制 AI 翻一眼 spec
+- 物化死角(state.py 看不到 markdown Read 动作)· 软约束 + 用户监督兜底
 
-### 异常分支（v7.3.10+P0-145 扩展 · 含老 Feature 迁移）
+## 注意事项
 
-| 异常 | 处理 |
-|------|------|
-| worktree 未就绪（prepare-stage Step 13.5 异常 / 老 Feature 迁移期 state.json 在主工作区）| **降级补救**：本 Stage 入口执行原 v7.3.10+P0-27 的 worktree 创建逻辑（fallback） + state.concerns 加 WARN 标注「降级补救 · 推荐用户走 P0-145 推荐路径」 |
-| state.json 缺失 | BLOCKED → ⏸️ 用户决策（重新跑 prepare-stage / 手工恢复） |
-| state.json 与 worktree 分裂（state.json 在主工作区 · CWD 在 worktree）| **降级补救**：state.concerns 加 WARN + `mv state.json {worktree}/...` 后继续 |
-| base 分支不可达 / 分支冲突 / stash 失败 | 与 prepare-stage Step 13.5 异常分支同 · 但本 Stage 已不该遇到（应在 prepare-stage 拦截） |
+### 坑 1 · AC 模糊导致 review 反复
+AC 写"应该流畅"/"用户友好"等 — 不可测 · QA review 会要求重写。
+**对策**:AC 必 BDD 风格 · 给具体可测条件(Given X / When Y / Then Z)。
 
-🔴 **常规情况自动流转**。仅 worktree 未就绪 / state.json 异常才走降级补救。
+### 坑 2 · Open Questions 不向用户问
+有 substep 链中间禁 AskUserQuestion(R5 物化兜底)。
+**对策**:Open Questions 写进 PRD.§Open Questions · 让多角色 review 给意见 · 到 Substep 7 一次性 escalate。
 
-🟢 **降级补救路径**：保留向下兼容 · v7.3.10+P0-145 之前创建的 Feature（state.json 在主工作区）走到本 Stage 时自动迁移 · 不要求用户手动改 spec 历史。
+### 坑 3 · --needs-ui 与 flow_type 冲突
+- 敏捷需求 + `--needs-ui=true` → FAIL(物化拦截 · 应升级 Feature)
+- Feature Planning + `--needs-ui=true` → FAIL(R6 不出代码)
+**对策**:若敏捷需求发现需要 UI → 用 `state.py reset-prev` 回退 · 改 flow_type 后重做。
 
-### state.json 写入
+### 坑 4 · PRD-REVIEW.md mtime 必晚于 PRD.md
+若同时产出 PRD + REVIEW(压缩 substep 3-4 链) → P0-1 evidence_check FAIL。
+**对策**:PRD 落盘 → 真正切角色 review → 再落 REVIEW.md(自然 mtime 在后)。
 
-```json
-{
-  "environment_config": {
-    "...": "（triage 写入 + prepare-stage Step 13.5 执行的字段保持不变）",
-    "stage_entry_verified_at": "<ISO 8601 UTC>",
-    "worktree_created": true,
-    "concerns": []
-  }
-}
-```
-
-🟢 v7.3.10+P0-27 删除原 `state.stage_contracts.plan_preflight` 字段（preflight 概念整体废弃）。
-🟢 v7.3.10+P0-145：`executed_at` 字段意义改为 prepare-stage Step 13.5 写入时刻 · 本 Stage 加新字段 `stage_entry_verified_at`。
+### 坑 5 · revision_history 漏填
+PRD.frontmatter 必含 `revision_history` 数组 · 否则 P0-1 evidence_check FAIL。
+**对策**:每轮 NEEDS_REVISION 后修订 · 加一条 revision_history 记录(版本号 + 修订理由)。
 
 ---
 
-## 入口 Read 顺序（v7.3.10+P0-23 固定）
+## Output Contract(产物形态参考)
 
-🔴 按以下顺序 Read，字节一致利于 prompt cache 命中。详见 [standards/prompt-cache.md](../standards/prompt-cache.md)。
+### `PRD.md`
+- frontmatter:
+  - `acceptance_criteria: [{id, description}]`(必)
+  - `revision_history: [{version, date, changes}]`(必 · 至少 1 条)
+- body:§需求 / §用户场景 / §AC(BDD)/ §边界 / §Open Questions(可空)
 
-```
-Step 1: roles/pm.md, roles/product-lead.md             ← 角色层（L0 稳定）
-Step 2: templates/prd.md                               ← 模板层（L0 稳定）
-        (v7.3.10+P0-150 清理：删 external-cross-review.md 条件 Read · Goal-Plan Stage 不再支持 external 评审 · cite standards/external-model.md)
-Step 3: {项目根}/GLOSSARY.md                            ← 业务术语（v7.3.10+P0-121 · 防 PRD 起草业务词漂移 / PM 评审 terminology-ambiguity 单源）
-Step 4: tools/state.py snapshot --tier stage         ← 🔴 替代直接 Read state.json（v7.3.10+P0-128 物化 · cite-only output · R3 自动满足）
-```
-
-🔴 R3 约束：state.json 入口 Read 1 次 → 中段 0 读写 → 出口 Read 1 次 + Write 1 次；全 Stage ≤ 5 次（含豁免）。
-
-📌 **state.py 调用约定（v7.3.10+P0-128）**：本 Stage 内涉及 state.json 的读 / 写一律走 [tools/state.py](../tools/state.py) · spec 中所有 `state.json.X` / `state.X` 描述都是**语义引用** · 实际操作走脚本：
-- 读：`tools/state.py snapshot --tier stage [--cite a,b,c]`（cite-only · 不读全 410 行）
-- 写：`enter-stage` / `satisfy-gate` / `complete-stage` / 各 `ship-*` / `pm-decision` / `add-concern` / `bug-frontmatter`（详 [RULES.md § state.json 维护硬规则](../RULES.md)）
-- 校验前置依赖：脚本 `satisfy-gate` / `complete-stage` 自动校验 gate 顺序 · 不存在 / 状态机非法 → exit 1/3 + hint
-- 逃生舱：`raw-write --reason ...`（自动 concerns WARN）
+### `PRD-REVIEW.md`
+- frontmatter:
+  - `reviewers: [pm, qa, architect, ...]`
+  - `verdicts: {role: APPROVE|NEEDS_REVISION|SKIP}`
+- body ≥ 20 行 · 每 reviewer 单独段 · cite PRD 行号
 
 ---
 
-## Process Contract（v7.3.10+P0-34 重构：5 子步骤 + 评审循环；+P0-38 加入口实例化）
-
-> 🟢 **v7.3.10+P0-34 设计**：原"PM 起草 PRD → PL-PM 讨论 → 多视角技术评审 → 整合反馈 → 用户确认" 4 步混合结构，重构为**5 子步骤 + 评审-回应循环**：PL 升格为评审角色之一与 RD/Designer/QA/PMO 平级，所有评审角色统一走「多角色并行评审 → PM 回应循环 → 全员通过判定」模式（最多 3 轮，超限触发用户决策）。
->
-> 🔴 子步骤 2/3/4 是循环单元（评审→回应→判定），最多 3 轮。
->
-> 🆕 **v7.3.10+P0-38 加入口实例化 / +P0-38-A 修订**：goal_plan_substeps_config 不在 triage 决策（triage 仅给骨架 + execution_hints 软建议），由**Goal-Plan Stage 入口的 PMO 基于已有 PRD 草稿状态 + execution_hints + state.available_roles**实例化决策。
-
----
-
-### 🆕 Goal-Plan Stage 入口实例化（v7.3.10+P0-48 引用统一规范）
-
-> 🔴 **遵循 [standards/stage-instantiation.md](../standards/stage-instantiation.md) 通用流程**（4 步：read state hints → 决策 active_roles + execution + round_loop → 输出 5 行 Execution Plan → 默认通道 / 标准通道判定）。
-
-**Goal-Plan Stage 特定参数**：
-
-- 候选 `active_roles`：PL / RD / QA / Designer / PMO（具体决策见下方"评审组合智能推荐表"· v7.3.10+P0-83 删 external · external 单源到 Review Stage）
-- `key_outputs`：PRD.md（含 acceptance_criteria[]）
-- 子步骤序列：见下方 "5 子步骤序列"（PRD 起草 → PL-PM 讨论 → 多角色联合评审 → PM 回应循环 → 用户最终确认）
-
-**特殊例外**：无（plan-stage 完全套用 standards/stage-instantiation.md 通用规范）
-
----
-
-### 主对话输出 Tier 应用（v7.3.10+P0-54 升级）
-
-> 🔴 **遵循 [standards/output-tiers.md](../standards/output-tiers.md) 通用 Tier 1/2/3 规范 + 4 类反模式禁令**（履职报告 / state.json 复述 / 决策菜单膨胀 / 工程性切片暂停）。
-
-**Goal-Plan Stage 特定 Tier 应用**：
-
-- **Tier 1（永远输出）**：5 行 Execution Plan / 子步骤 5 ⏸️ 用户最终确认 PRD / 评审循环 verdict 切换 / NEEDS_REVISION 升级 round
-- **Tier 2（命中折叠）**：KNOWLEDGE / ADR 命中（仅 round 1 起草时）/ 跨 Feature 冲突告警（v7.3.10+P0-150 清理：删 external 评审摘要 · Goal-Plan 不支持 external）
-- **Tier 3（不输出，走 state.json）**：goal_plan_substeps_config 详细字段 / review_roles[] 各角色 execution / pm_response 历史轮次 / artifact_root / 各 review 的 generated_at
-
-📎 **判定标尺（如要重新触发回来）**：
-- 完成度表：如果出现"用户拿到 PRD 后投诉某段缺失"→ 修 PMO 校验，不加表
-- state.json 复述：如果出现"用户写 state.json 时不知当前配置"→ 改进 state.json 渲染，不主对话再述
-- 工程性切片暂停：如果出现"评审跑完后 PRD 大返工率 >30%"→ 修 PM 起草规范，不加暂停
-
----
-
-### 🧭 Goal-Plan Stage 评审组合智能推荐表（🔴 v7.3.10+P0-43 / +P0-48 唯一权威源）
-
-> 🔴 **本表是 Goal-Plan Stage 评审组合决策的唯一权威源**（v7.3.10+P0-43 迁自 roles/pmo.md，v7.3.10+P0-48 加单源化标注）。
->
-> - PMO 在 Goal-Plan Stage 入口实例化 + triage Step 8 生成 execution_hints 时**必须以本表为唯一依据**
-> - roles/pmo.md 仅引用本表，不得复述决策规则
-> - 二者不一致时**以本表为准**，发现 roles/pmo.md 残留决策规则 → 在 concerns 记录漂移 + 同 patch 删除
-
-**两处使用场景**：
-
-```
-1. triage Step 8 生成 execution_hints（软建议）：
-   PMO 基于本表给 Goal-Plan Stage 写实施建议（文本形式，含动词、模型、理由）
-   → 写入 execution_plan_skeleton.stages[plan].execution_hints
-
-2. Goal-Plan Stage 入口实例化（硬决策）：
-   PMO 读 execution_hints + 上游 PRD 草稿状态，结合本表决策 active_roles + execution
-   + pl_prioritized + round_loop → 写入 goal_plan_substeps_config
-
-   triage 时 hint 是软建议；Stage 入口决策可采纳/调整/否决
-   （否决时必须在 goal_plan_substeps_config.hint_overrides 写文本说明原因，cite hint 原文）
-```
-
-#### Step 1：Feature 类型识别
-
-PMO 综合以下信号判定 Feature 类型：
-
-| 信号 | 大 Feature | 中 Feature | 纯技术 refactor | 敏捷需求 | Bug 修复 |
-|------|----------|----------|---------------|---------|---------|
-| 文件数 | ≥10 | 5-10 | 不限 | ≤5 | 通常 ≤3 |
-| 跨子项目 | ✅ 倾向 | 单 | 视情况 | 单 | 单 |
-| 业务变更 | 新业务逻辑 | 小变更 | 无（仅技术 refactor） | 方案明确 | 缺陷修复 |
-| UI 变更 | 含 UI | 视情况 | 无 | 一般无 | 一般无 |
-| 关键词 | "新功能 / 业务" | "增强 / 调整" | "refactor / 重命名 / 删字段 / 迁移" | "增加 / 改进" | "修复 / Bug" |
-| change_id 状态 | locked / 含本 Feature | 同 | 通常 locked | 不一定关联 | 通常无 |
-
-> 🔴 v7.3.10+P0-47：原"PRD frontmatter `prd_variant`"信号已删除（PRD 模板合并为统一通用模板）。Feature 类型识别用上述其他信号（文件数 / 跨子项目 / 业务变更 / UI 变更 / 关键词 / change_id）综合判断。
-
-#### Step 2：评审角色推荐表
-
-| Feature 类型 | 评审角色组合 |
-|------------|------------|
-| **大 Feature** | pl + rd + designer（含 UI）+ qa + pmo |
-| **中 Feature** | pl + rd + qa + pmo（含 UI 加 designer） |
-| **纯技术 refactor** | rd + qa（pl/designer/pmo 跳） |
-| **敏捷需求** | rd + qa |
-| **Bug 修复** | rd |
-
-🟢 **v7.3.10+P0-83 删 external 列**：Goal-Plan Stage 不再支持 external 评审（PRD 文档层异质视角边际价值低）· external 仅适用 Blueprint / Review Stage（详见 standards/external-model.md）。
-
-🔴 **PMO 视角触发条件**：中以上 Feature（包括大 / 中）默认启用；小 Feature / 敏捷 / Bug 跳过（PMO 视角主要看跨 Feature 影响 + 流程合规，对小 scope 价值低）。
-
-🔴 **Designer 视角触发条件**（双保险）：
-- PRD frontmatter `requires_ui: true` → 启用
-- PMO 在用户消息中识别 UI 关键词（"页面 / 按钮 / 弹窗 / 表单 / 交互 / UI / UX"等）→ 启用
-- 两条任一命中即启用
-
-🆕 **PL 优先权（v7.3.10+P0-34-C）**：
-
-如 review_roles[] 包含 `pl`，**PMO 默认 `pl_prioritized: true`**——PL 评审先于其他角色 dispatch（不并行）。设计意图：
-
-- 避免技术评审挤压业务对齐：RD 在业务方向尚未对齐时给"技术接口"finding，PM 一边改技术一边改业务，焦点切碎
-- 业务先于技术：PL 收敛 → PMO 写 PRD frontmatter `business_direction_locked: true` → 其他角色基于锁死后的 PRD 评审
-- 防止业务方向回炉：其他评审角色发现实现层与已锁死方向矛盾才能 high 严重度上升
-
-**PL 优先权关闭场景**（`pl_prioritized: false`，退化为全并行）：
-- 业务方向已在 product-overview / change-request 阶段锁死（PRD frontmatter 已带 `business_direction_locked: true`）
-- 纯技术 refactor（不含 PL 评审角色，不适用本规则）
-- 用户在 triage Step 8 显式选"全 Subagent"且明确表示业务清晰
-
-PMO 在 triage Step 8 推荐时如启用 PL 优先权，须 cite："`pl_prioritized: true`（业务方向先于技术评审锁死）"。
-
-#### Step 3：执行方式推荐（subagent / main-conversation）
-
-PMO 按以下信号决定每个角色的执行方式：
-
-| 角色 | 倾向主对话 | 倾向 Subagent |
-|------|-----------|--------------|
-| **PMO** | 审计性视角 + 项目累积上下文价值高 | 大 Feature 跨子项目时为保独立性 |
-| **PL** | 小 Feature 业务上下文已 in-context | 中以上 Feature 业务视角独立性优先 |
-| **RD** | 小 Feature scope 简单 | 中以上 Feature 评审独立性优先（fresh context 防鼓掌效应） |
-| **QA** | 几乎从不 | 永远 Subagent（QA 视角独立性是核心价值） |
-| **Designer** | 仅小 UI 改动 | 含完整 UI 设计变更时 |
-
-**执行方式信号**：
-- Feature 文件数 < 5 → 主对话倾向
-- Feature 文件数 ≥ 10 → Subagent 倾向
-- 跨子项目 → Subagent 倾向（避免 cross-context 污染）
-- 角色需要项目累积上下文（PMO / 架构师视角）→ 主对话倾向
-- token 预算紧 → 主对话倾向（少一次 Subagent 启动开销）
-
-🔴 **小 Feature 默认主对话硬约束（v7.3.10+P0-43）**：
-- 文件数 ≤5 + 单子项目 + 无 UI → review_roles[].rd / pl 默认 main-conversation（QA 仍 subagent / external 仍 external-shell）
-- PMO 不允许"出于独立性偏好"把小 Feature 的 RD/PL 默认 subagent（违反推荐表 + 增加无谓 dispatch 成本）
-- 实战反例（INFRA-F019：DB rename + 3-4 文件 + 单子项目）：PMO 把 RD 设成 subagent 不符合本档默认，应该 main-conversation
-
-#### Step 4：决策点呈现（triage Step 8）
-
-```markdown
-## 🧭 Goal-Plan Stage 评审组合决策（v7.3.10+P0-34）
-
-PMO 智能推荐（Feature: {feature_id}，类型：{type}，理由：{1-2 句}）：
-- 评审角色 + 执行方式：
-  - rd: subagent（评审独立性）
-  - qa: subagent（QA 视角独立性必须）
-  - pmo: main-conversation（审计性 + 累积上下文）
-  - pl: ⏭️ 跳过（理由：planning 已 locked，业务无新增价值）
-  - designer: ⏭️ 跳过（理由：无 UI 变更）
-- external 角色: review_roles[] 是否含 external（影响 Goal-Plan Stage 评审独立异质视角）
-
-💡 1. 采用推荐组合 💡
-   2. 全角色 + 全 Subagent（最大独立性，~+10 min token 成本）
-   3. 全角色 + 全主对话（最快，~-5 min，但削弱独立性）
-   4. 自定义（角色 + 执行方式独立选）
-   5. 其他指示
-```
-
-#### Step 5：用户选择 → state.json 写入
-
-triage Step 9 创建 Feature state.json 时写入 `goal_plan_substeps_config.review_roles[]`（详见 `templates/feature-state.json`）。
-
-#### 评审循环 + 超 3 轮处理
-
-每轮评审完成后判定 overall_verdict：
-- 所有 verdict ∈ {PASS, PASS_WITH_CONCERNS} → 通过，进入子步骤 5（用户最终确认）
-- 任一 NEEDS_REVISION 且 round < 3 → Round N+1（PM 整合反馈 + 修订 PRD + 重新启动评审）
-- round == 3 仍 NEEDS_REVISION → ⏸️ 用户决策：
-  ```
-  ⏸️ Goal-Plan Stage 评审循环已 3 轮，仍未全员通过。
-
-  💡 1. 强制通过当前 PRD（state.concerns 加 WARN）💡
-     2. 继续 Round 4（无上限）
-     3. 修改 scope（回到 PRD 初稿，重启评审）
-     4. abort Feature（state.shipped = abandoned）
-     5. 其他指示
-  ```
-
-#### 硬规则
-
-- 🔴 PMO 在 triage-stage Step 8 必输出本段（不可省略）
-- 🔴 评审角色组合 + 执行方式由 PMO 推荐 + 用户在暂停点确认（auto 模式按推荐执行 + 显式宣告，参 P0-11-A）
-- 🔴 评审循环最多 3 轮，超限必触发用户决策（业务决策不可豁免）
-- 🔴 用户最终确认（子步骤 5）永远必做（即使 auto 模式也保留，参 P0-11-A）
-- 🔴 P0-43：小 Feature 默认 main-conversation（不许偏离推荐表）
-
----
-
-### Goal-Plan Stage 子步骤序列（v7.3.10+P0-44 重构：5 步精简版）
-
-> 🟢 **v7.3.10+P0-44 重构原则**：把"事后多角色独立评审"前置为"事前 PM 起草规范" + "PL-PM 业务讨论" + "QA+RD+Designer 主对话联合评审"。降低 dispatch 数 + 减少评审循环，预估典型 Feature 耗时减半。
-> 🟢 **v7.3.10+P0-83 进一步**：删 Goal-Plan Stage external 评审（PRD 文档层异质视角边际价值低 · 5 内部视角 + PM 对抗自查 + 评审循环已多层兜底 · external 单源到 Review Stage 代码层）。
-
-| 子步骤 | 名称 | 启用条件 | 暂停点 | 产物 |
-|--------|------|---------|-------|------|
-| 1 | PM 按起草规范写 PRD | ✅ 永远必做 | 🚀 自动 | `PRD.md`（draft + 含产品/AC 视角）|
-| 2 | PL-PM 讨论（业务方向锁死） | 🟡 **条件启用**（`pl ∈ review_roles[]`）| 🚀 自动 | `PRD-REVIEW.md.reviews[].pl_rounds[]`（v7.3.10+P0-51 单源化，删 discuss/ 文件）+ `PRD.md` frontmatter `business_direction_locked: true` |
-| 3 | 联合评审（QA + RD + Designer?）| ✅ 永远必做（active_roles 由入口实例化决策）| 🚀 自动 | `PRD-REVIEW.md`（reviews[] = qa, rd, designer?）· v7.3.10+P0-83 删 external（PRD 文档层异质视角边际价值低 · external 单源到 Review Stage 代码层）|
-| 4 | PM 回应 + 修订 PRD | 🟡 仅当评审有 NEEDS_REVISION 或 ≥1 个 SHOULD-fix concern 时触发（v7.3.10+P0-51 扩展）| 🚀 自动（超 3 轮 ⏸️）| `PRD.md`（修订）+ `PRD-REVIEW.md`（pm_response + adversarial_self_check）|
-| 5 | 用户最终确认 | ✅ 永远必做 | ⏸️ 用户确认 | 用户回 ok / 反馈（v7.3.10+P0-49-A 二选一姿态）|
-
-🔴 **暂停点分类（v7.3.10+P0-51 清晰化）**：
-- **核心暂停点（理想路径）**：仅 1 个（子步骤 5）
-- **异常暂停点**：(a) 评审循环超 3 轮 → 用户决策升级 / (b) PL-PM 讨论分歧锁死失败 → 用户拍板业务方向 / (c) Stage 入口实例化严重偏差（standards/stage-instantiation.md）→ 5 选 1
-- 异常暂停**不算工程性切片**——业务方向锁定失败 / 评审循环不收敛是真实异常分支，不是预防性切片暂停
-
-📎 **子步骤 2 启用条件说明（v7.3.10+P0-51 改造）**：
-- `pl ∈ review_roles[]` → 子步骤 2 启用，PL-PM 讨论锁死业务方向后进子步骤 3
-- `pl ∉ review_roles[]` → 子步骤 2 跳过，子步骤 1 起草完直接进子步骤 3 联合评审
-- 典型不启用 PL 的 Feature：Bug 修复 / 纯技术 refactor / 敏捷需求（业务方向已在 product-overview 锁定）
-
----
-
-### 子步骤 1：PM 按起草规范写 PRD（v7.3.10+P0-49 改造：背景段从 triage 上下文继承，主体段 elaborate）
-
-**意图段继承（v7.3.10+P0-49 新增）**：
-
-triage 阶段的"📌 我对你这次需求的理解"段（Why now / Assumptions / Real unknowns）已经过用户双对齐确认 + 在主对话上下文内。PM 起草 PRD 时**直接把这三件继承到 PRD 背景段**（用户故事段之上），不重新理解、不重新跟用户对齐。
-
-```
-PRD.md 背景段（继承 triage 意图）
-├── Why now：直接抄 triage 意图段
-├── Assumptions：直接抄 triage 意图段
-├── Real unknowns：抄 triage + 子步骤 2-4 评审中可能演进
-│   └── 用户已拍板的 unknown → 标"已决"+ 决议结果（triage 双对齐时已收的"我已拍板"信号）
-│   └── 评审中讨论的 unknown → 进 OQ list
-└── 上游 KNOWLEDGE / ADR 链接（如适用）
-
-PRD.md 主体（PM elaborate）
-├── 用户故事 / 使用方故事（按需必填，参 templates/prd.md）
-├── 验收标准（AC list，从 triage 粗 AC 种子扩到完整 list）
-├── 影响范围 + 跨子项目依赖 + 业务风险
-└── UI 用户故事（如 requires_ui=true）
-```
-
-🔴 **意图段继承的边界**：
-
-- **不重新跟用户对齐意图**：意图层在 triage 已锁，PM 起草时直接落到 PRD；如果 PM 起草过程中发现 triage 意图理解有遗漏 / 偏差 → 标记 concerns，子步骤 2 PL-PM 讨论或子步骤 3 评审中处理（不弹中间暂停跟用户重新对齐意图）
-- **不弹"PRD v0/v1"中间暂停**：PRD 背景段从 triage 继承意图后**直接 elaborate 主体一次性出**，子步骤 1 是单次产出（不拆 v0/v1 两步）
-- **意图段在 PRD 中可演进**：评审循环中可能修订 Why now / 加 Assumptions / 减 Real unknowns —— 这是 PRD 评审正常输出，不破坏 triage 意图锁。git diff PRD.md first commit vs final commit 看意图段如何从 triage 原始理解演化到最终规格
-
-📎 **替代了什么**（v7.3.10+P0-49 减负）：
-
-- 删除原"PM 起草前先做意图理解"隐式职责（已转移到 triage）
-- 删除原 PRD 背景段"从 0 起草"工作量（背景段直接从 triage 继承，PM 工作量减半）
-- 删除子步骤 1 内部任何"PRD v0 → 用户意图对齐 → PRD v1"暂停（之前讨论的中间方案已废弃）
-
----
-
-PM 按 `roles/pm.md` + `templates/prd.md` 起草 PRD 初稿。
-
-#### 🔴 PM 起草规范 checklist（v7.3.10+P0-51 单源化）
-
-> **PM 起草规范权威源**：[templates/prd.md § PM 起草规范 checklist](../templates/prd.md)（含通用 checklist + UI 用户故事维度 + PRD 不写什么边界 + 起草后自查）。本文件不复述 checklist 全文，避免主对话重复述 3 遍（起草时 + 自查时 + PRD-REVIEW pm_self_check）。
-
-🔴 **PM 起草核心约束**（cite templates/prd.md 简版）：
-- 起草前 grep 关键词 + Read 3-5 个相关核心模块（5-10 min · 只读不输出 brief · v7.3.10+P0-73 新增）
-- PRD 仅回答"做什么 + 为什么"（产品/业务视角）
-- 技术/测试/视觉细节 → TECH.md / TC.md / UI Design Stage（v7.3.10+P0-46 边界）
-- 起草后自查 → 写 `PRD-REVIEW.md.reviews[role=pm].pm_self_check = {checklist_passed: bool, code_context_read: bool, failed_items: [...], notes: "..."}`，不复述 checklist 全文
-
----
-
-### 子步骤 2：PL-PM 讨论（业务方向锁死，v7.3.10+P0-51 条件启用 + 单源化）
-
-> 🟡 **启用条件（v7.3.10+P0-51 改造）**：仅当 `pl ∈ state.goal_plan_substeps_config.review_roles[]` 时启用本子步骤；不含 PL 的 Feature（Bug 修复 / 纯技术 refactor / 敏捷需求）跳过本子步骤，子步骤 1 完成后直接进子步骤 3。
-
-> 🟢 **v7.3.10+P0-44 恢复 v7.3.x 模式 + P0-51 单源化**：原 P0-34 把 PL 升格为评审角色（独立 finding），实战中 PL 视角的对抗深度需要"多轮对话"才能挖掘出来。本次回归 v7.3.x 多轮讨论模式：PL 提 finding → PM 回应 → PL 反驳 → 收敛或显式分歧。**v7.3.10+P0-51 单源化**：删 discuss/PL-FEEDBACK-R{N}.md / discuss/PM-RESPONSE-R{N}.md 双源文件，所有讨论轮次集中写到 `PRD-REVIEW.md.reviews[].pl_rounds[]` 数组（schema 见 templates/prd.md）。
-
-#### 流程
-
-```
-Round 1：
-  ├── PL 读 PRD + product-overview + change-request（如有）+ KNOWLEDGE
-  ├── PL 输出 finding 段（业务方向 / 流程完整性 / 中台子项目通用性）→ 写 PRD-REVIEW.md.reviews[role=pl].pl_rounds[1].pl_feedback
-  └── PM 回应（含 ADOPT/REJECT/DEFER + adversarial_self_check）→ 写 .pl_rounds[1].pm_response
-
-Round 2（PL 仍有反驳）：
-  ├── PL 读 PRD（修订）+ R1 历史 → 输出反驳 / 质询 → 写 .pl_rounds[2].pl_feedback
-  └── PM 二次回应 → 写 .pl_rounds[2].pm_response
-
-Round 3（同上，硬上限）
-
-收敛判定（写 .pl_rounds[N].verdict）：
-  ├── verdict=CONVERGED（PL 满意）
-  │   → 业务方向锁死：写 PRD frontmatter `business_direction_locked: true` + 时间戳
-  │   → 进入子步骤 3
-  ├── verdict=DISAGREEMENT（业务方向有分歧）
-  │   → 写 PRD「业务方向锁定」段含分歧记录 + 上升给用户决策（异常暂停点）
-  │   → ⏸️ 用户拍板分歧（异常暂停点）
-  └── 3 轮未收敛 → ⏸️ 用户决策（force-converge / continue-round-4 / modify-scope / abort）
-```
-
-#### 产物（v7.3.10+P0-51 单源化到 PRD-REVIEW.md）
-
-所有 PL-PM 讨论轮次集中写到 `PRD-REVIEW.md.reviews[role=pl].pl_rounds[]` 数组：
-
-```yaml
-reviews:
-  - role: pl
-    pl_rounds:                   # v7.3.10+P0-51 新增：多轮讨论日志
-      - round: 1
-        pl_feedback: "..."        # PL 反馈文本（业务方向 / 流程完整性 / 中台通用性）
-        pm_response:              # PM 回应
-          adopt: ["..."]
-          reject: ["..."]
-          defer:
-            - item: "..."
-              category: business-decision
-              category_explanation: "..."
-          adversarial_self_check: "..."
-        verdict: null              # null（继续讨论）/ CONVERGED / DISAGREEMENT
-      - round: 2
-        ...
-    final_verdict: CONVERGED      # 最终收敛状态
-    final_verdict_at: "2026-04-29T..."
-```
-
-🔴 **v7.3.10+P0-51 单源化**：撤销 P0-43 废止 / P0-44 恢复 discuss/ 文件双源。所有讨论日志单源在 PRD-REVIEW.md.reviews[].pl_rounds[]，**不再建 discuss/ 子目录**。理由：双源（discuss/ + PRD-REVIEW）会导致 PL 意见维护两份，改 PRD 时漂移风险高。
-
-#### 业务方向锁死硬规则（保留 P0-34-C 价值）
-
-- 🔴 PL 声明 CONVERGED 后才能进入子步骤 3
-- 🔴 业务方向锁死后写 PRD frontmatter `business_direction_locked: true`（v7.3.10+P0-48：时刻由 state.json 单一记录，PRD frontmatter 不重复）
-- 🔴 子步骤 3 评审角色基于已锁死 PRD 评审，禁止回炉业务方向
-
----
-
-### 子步骤 3：QA+RD+Designer(可选) 主对话联合评审
-
-> 🟢 **v7.3.10+P0-44 重构**：取消 P0-34/P0-43 的"多角色独立 subagent 评审"模式。改为 QA / RD / Designer 在 PMO 主对话内连续身份切换（节省 subagent dispatch 冷启动税）。
-> 🟢 **v7.3.10+P0-83 减负**：删 external 并行（PRD 文档层异质视角边际价值低 · external 单源到 Review Stage 代码层）。
-
-> 🔴 **v7.3.10+P0-46 评审 scope = PRD 范围**：本子步骤评审的是 PRD（review_scope = "prd"），仅审产品视角。技术实现 / 测试用例细节在 Blueprint Stage 评审（review_scope = "blueprint"）。
-
-#### 🔴 评审 scope = PRD 范围（v7.3.10+P0-46 新增）
-
-**RD 评审 PRD 时关注点**（产品视角，不是技术实现细节）：
-```
-✅ 该审：
-  ├── PRD 中是否有技术不可行的 AC（如"100ms 延迟"但调用第三方 API 平均 500ms）
-  ├── PRD 中是否有业务方向上的技术风险（如新业务方向需要重构现有架构）
-  ├── 跨子项目依赖标注是否完整（业务层面，不是接口层面）
-  └── PRD 描述的功能行为是否与既有系统冲突（如复用既有功能 / 已有 ADR）
-
-❌ 不审（移到 Blueprint Stage TECH 评审）：
-  ├── 接口 schema 设计 / 数据模型设计
-  ├── 异常处理实现细节（重试 / 降级 / 兜底）
-  ├── 性能实现方案
-  └── 复用既有库 / 模式
-```
-
-**QA 评审 PRD 时关注点**（产品视角，不是测试用例细节）：
-```
-✅ 该审：
-  ├── AC 是否清晰可测试（QA 能从中转化为测试用例 = AC 描述足够清晰）
-  ├── 边界场景的业务行为是否完整（用户感知的异常 / 错误处理）
-  ├── AC 之间是否有矛盾或重叠
-  └── 验收方法是否合理（如"用户能登录"应明确"登录后能看到 X / Y / Z"）
-
-❌ 不审（移到 Blueprint Stage TC 评审）：
-  ├── 具体测试用例规划
-  ├── 集成测试规划 / 性能测试规划 / ROLLBACK 测试
-  └── 测试数据设计
-```
-
-**Designer 评审 PRD 时关注点**（产品视角，不是视觉细节）：
-```
-✅ 该审：
-  ├── PRD 的用户故事是否完整（normal / empty / loading / error 状态）
-  ├── 涉及页面 / 组件清单是否覆盖
-  └── 交互改动描述是否清晰
-
-❌ 不审（移到 UI Design Stage Designer）：
-  ├── 视觉风格约束 / token 设计
-  ├── 全景同步细节
-  └── 具体视觉规范
-```
-
-PM 起草规范已让 PRD 质量大幅提升（产品视角 checklist 覆盖），子步骤 3 联合评审仅审 PRD 范围的边界 finding。
-
-#### 调度模式（v7.3.10+P0-84 改为并行加载 · 三段独立输出）
-
-🟢 **v7.3.10+P0-84 重构原则**：取消主对话内 QA→RD→Designer 物理身份切换（**软切换 · 防鼓掌效应是错觉**：同 LLM session / 同 context · 切 RD 时上下文仍含 QA finding · 串行不带来真独立性 · 反而 3 次 Read + 3 次 cite + 3 次输出循环成本高）。改为 PMO 一次性加载三视角规范 + 一次性输出三段 finding。
-
-```
-Step 1: PMO 一次性 Read（同步加载所有评审视角规范）
-├── roles/qa.md（QA 视角关注点）
-├── roles/rd.md + standards/{frontend|backend}.md（RD 视角关注点）
-└── 🟡 roles/designer.md + design/sitemap.md（仅 requires_ui=true 或 UI 关键词命中时）
-
-Step 2: PMO 一次性输出三段独立 finding（必须严格三段标题 · 顺序固定）
-```
-
-**输出格式**（强制三段结构）：
-
-```markdown
-### QA 视角 finding
-
-📚 关注点 cite（roles/qa.md 1-2 句关键要点）：
-- 测试覆盖 / 边界场景 / 测试可行性 / 集成测试需求
-
-#### Findings
-- {finding-1 / 2 / ...}（无 finding 时写"无 finding"，仍保留段标题 + 关注点 cite）
-
----
-
-### RD 视角 finding
-
-📚 关注点 cite（roles/rd.md + standards/{frontend|backend}.md 1-2 句关键要点）：
-- 技术可行性 / 接口设计 / 数据模型 / 异常处理
-
-#### Findings
-- {同上}
-
----
-
-### 🟡 Designer 视角 finding（仅 UI 命中时输出）
-
-📚 关注点 cite（roles/designer.md 1-2 句关键要点）：
-- 视觉一致性 / 交互 / 全景同步 / 状态流完整性
-
-#### Findings
-- {同上}
-```
-
-写入 `PRD-REVIEW.md.reviews[].{qa | rd | designer}` 三段（Schema 不变 · 只是输出方式从串行改并行）。
-
-🔴 **PMO self-check 硬规则**（v7.3.10+P0-84 新增 · 防三段融合）：
-- 输出后 grep `### QA 视角 finding` / `### RD 视角 finding` / `### Designer 视角 finding`（如适用）三段标题，缺一段 = 流程偏离 · 重新输出
-- 每段必须含「📚 关注点 cite」+ 至少 1 行 finding（无 finding 时显式写"无 finding"）
-- 每段顶部 cite 引用对应 roles/{id}.md 的关键点（不是凭记忆 · 必须真读）
-
-🔴 **跨视角 finding 处理**（v7.3.10+P0-84 新增）：
-- 一个 finding 同时关联多视角时（如"AC 不可测 + 技术不可行"）→ 归入**主要视角**段 + 标 `cross_role: [qa, rd]` 字段（PRD-REVIEW.md schema 加可选字段）
-- 不复制 finding 到多段（避免 PMO 整合时去重负担）
-
-#### Designer 触发条件（双保险 + v7.3.10+P0-51 中途补启用）
-
-✅ 任一命中即启用 Designer 评审：
-
-- PRD frontmatter `requires_ui: true` → 启用
-- PMO 在用户消息或 PRD 内容中识别 UI 关键词（"页面 / 按钮 / 弹窗 / 表单 / 交互 / UI / UX / 设计 / 样式 / 布局" 等）→ 启用
-
-🆕 **中途补启用机制（v7.3.10+P0-51 新增）**：
-
-triage 阶段或 Plan 入口实例化未启用 Designer，但 PM 起草过程中发现需要 UI（triage 漏识别 / PRD elaborate 后才暴露 UI 触点）：
-
-- PM 在 PRD frontmatter 标 `requires_ui: true` + 在 concerns 段写"UI 触点：…"
-- PMO 在子步骤 3 评审 dispatch 前检测 PRD frontmatter `requires_ui: true` 且 `designer ∉ active_roles[]` → 触发"补启用"：
-  - 写 `state.goal_plan_substeps_config.hint_overrides += "+designer (中途补启用，PM 起草发现 UI 触点)"`
-  - 加 `designer` 到 active_roles
-  - 主对话一行说明"补启用 Designer：PM 起草发现 UI 触点，自动加入子步骤 3 评审"（不弹暂停，自动决策属轻微偏差）
-- 不命中 → Designer 视角折叠到 PM 起草规范的"UI 影响"维度（PM 写 PRD 时主动确认）
-
-📎 设计意图：Designer 启用决策**前置在 triage / Plan 入口最准**，但实战中 PM 起草细化 PRD 时可能暴露 triage 漏识别的 UI 触点。补启用机制 = 不让 Designer 决策过早锁死，保留 PM 起草中调整的灵活性。
-
-#### 视角加载硬规则（v7.3.10+P0-84 替换原"主对话身份切换"段）
-
-> 🟢 **v7.3.10+P0-84 调整**：取消物理身份切换（第一人称锚点 · "作为 QA·……"）· 改为一次性加载三视角规范 + 输出三段独立 finding。原 P0-20-B 第一人称锚点的反漂移价值在主对话内是错觉（同 LLM session 切不出真独立性）· 改为通过**三段标题 + 关注点 cite + self-check** 物理保证三段结构。
-
-- 🔴 一次性 Read 三视角对应 `roles/{id}.md`（QA / RD / Designer 如适用）+ 相关 standards
-- 🔴 输出三段顶部 cite 1-2 句关键要点（证明真实读 · 非凭记忆 · 三段 cite 不可重复）
-- 🔴 输出三段标题严格使用 `### QA 视角 finding` / `### RD 视角 finding` / `### Designer 视角 finding`（grep 友好 · self-check 凭此校验）
-- 🔴 输出完三段后 PMO 立即 self-check：grep 三段标题 + cite 非空 + 至少 1 条 finding（无 finding 也写"无 finding"）
-
-🟢 **v7.3.10+P0-83 删除**：原"external 并行实施"段（含 background bash 启 codex/claude CLI shell + 异质性硬约束）已删 · Goal-Plan Stage 不再支持 external 评审 · 详见 standards/external-model.md（external 适用范围仅 Blueprint / Review Stage）。
-
----
-
-### 子步骤 4：PM 回应 + 修订 PRD（保留 P0-34-A/B 对抗自查 + DEFER 收紧 + v7.3.10+P0-51 SHOULD-fix 触发）
-
-#### 触发条件（v7.3.10+P0-51 扩展）
-
-子步骤 4 启用条件 ANY：
-
-- 任一 review verdict == NEEDS_REVISION（强制响应）
-- 任一 review 含 ≥1 个 `severity: SHOULD-fix` concern（即使 verdict == PASS_WITH_CONCERNS，也必须响应）
-- PASS / PASS_WITH_CONCERNS 但 concerns 全是 `severity: NICE-to-have` → **不触发 PM 回应**，子步骤 4 跳过，直接进子步骤 5（concerns 仍记录在 PRD-REVIEW，由用户在子步骤 5 决定是否采纳）
-
-📎 **severity 分级**（PRD-REVIEW.md.reviews[].findings[].severity）：
-- `MUST-fix` → 等同 NEEDS_REVISION（review verdict 必须 NEEDS_REVISION）
-- `SHOULD-fix` → review verdict = PASS_WITH_CONCERNS，但 PM 必须响应（v7.3.10+P0-51 扩展）
-- `NICE-to-have` → review verdict = PASS_WITH_CONCERNS / PASS，PM 响应可选
-
-PM 整合 PRD-REVIEW.md.reviews[] 所有视角的 finding（QA / RD / Designer? / external?），对每条触发响应的 finding 给 pm_response：
-
-#### 响应规则（保留 P0-34-A）
-
-```
-foreach finding in PRD-REVIEW.md.reviews[].findings WHERE severity ∈ {MUST-fix, SHOULD-fix}:
-  pm_response.action ∈ {ADOPT, REJECT, DEFER}
-
-  ADOPT → 修订 PRD.md + 写 pm_rationale "已修订：{改了什么 + PRD §X.Y 段落引用}"
-  REJECT → 不改 PRD + 写 pm_rationale "反方论据为何不成立 + 替代方案"
-  DEFER → 仅允许 category=business-decision；其他类别禁止（P0-34-A 收紧）
-```
-
-#### 对抗自查（保留 P0-34-B）
-
-```
-每条 ADOPT/REJECT 必含 adversarial_self_check 段（≥2 句反方论据模拟）：
-  站在 finding 提出方视角写最强反驳论据，再写最终 response
-```
-
-#### PMO 校验（子步骤 4 完成后）
-
-- 扫描所有 DEFER 项的 category 一致性 → 违规打回 PM 重做（P0-34-A）
-- 扫描所有 ADOPT/REJECT 项的 adversarial_self_check 字段（≥2 句具体内容）→ 违规打回（P0-34-B）
-- 校验通过 → 写 state.goal_plan_substeps_config.{defer_audit_passed, adversarial_check_passed}
-
----
-
-### 子步骤 5：用户最终确认 PRD（⏸️ 核心暂停点，理想路径下唯一暂停点）
-
-#### 用户审视
-
-```
-PRD.md（终稿，business_direction_locked=true）
-PRD-REVIEW.md（含 reviews[] 全部 + PM 回应）
-PMO 摘要（评审循环纪要 + finding 汇总 + 关键决策）
-```
-
-#### 决策选项
-
-```
-⏸️ Goal-Plan Stage 用户最终确认
-
-请选择：
-1. ✅ PRD 通过 → 进入 Blueprint Stage 💡
-2. PRD 修改 → 列出修改点（AC / scope / 决策项）
-3. 重启评审循环（如对评审结论有异议）
-4. 其他指示
-```
-
-🔴 **渲染必含**（v7.3.10+P0-115 cite + v7.3.10+P0-118-A 骨架）：
-
-📚 决策参考 → cite [../STATUS-LINE.md § 决策点参考文档绝对路径硬规则](../STATUS-LINE.md) #2 PRD 评审 verdict · 列 PRD.md / PRD-REVIEW.md / 相关 KNOWLEDGE / ADR 绝对路径
-
-⬇️ 末尾骨架（阶段值 = `goal_plan` enum「⏸️ PRD 待确认」）：
-
-```
----
-🔄 Teamwork 模式 | 流程：{Feature/敏捷需求} | 角色：PMO | 功能：{缩写}-F{编号}-{功能名} | 阶段：⏸️ PRD 待确认 | 下一步：⏸️ 用户 4 选 1
-📁 {worktree.path}/docs/features/{Feature}/
-🌿 分支：{worktree.branch} → {merge_target} | worktree：{worktree.path}
-```
-
-用户回 1 → state.current_stage = "blueprint"（如 requires_ui=true → ui_design）→ 转入下一 Stage。
-
----
-
-### 过程硬规则（v7.3.10+P0-44 修订）
-
-- 🔴 **PM 起草规范 checklist 必读必填**（v7.3.10+P0-44 新增）：起草前必读本段 + standards/{相关}.md，起草后必做自查
-- 🔴 **角色规范必读且 cite**：PMO 主对话身份切换前，必须先 Read 对应 `roles/{id}.md`，并 cite 关键要点 + 第一人称锚句开头
-- 🔴 **多视角独立性**：主对话身份切换模式靠 cite + 锚句自律；外部模型评审 fresh shell 物理隔离
-- 🔴 **PM 回应完整性**：每条 NEEDS_REVISION finding 必须有 pm_response（ADOPT/REJECT/DEFER + rationale + adversarial_self_check）
-- 🔴 **DEFER 严格收紧（P0-34-A）**：仅允许 category=business-decision；技术/业务一致性/UX/质量类禁止 DEFER
-- 🔴 **评审循环上限**：最多 3 轮，超限必触发用户决策
-- 🔴 **PRD 质量下限**：不能留 TBD / 待补充；验收标准必须量化可验证；AC 结构化
-- 🔴 **PL-PM 讨论收敛 / 业务方向锁死**：进入子步骤 3 前 business_direction_locked 必须为 true
-- 🔴 **Stage 完成前 git 干净** → 统一遵循 [rules/gate-checks.md](../rules/gate-checks.md)
-
-### 多视角独立性要求
-
-- QA / RD / Designer 主对话评审：cite roles/{id}.md + 第一人称锚句 + 不引用其他视角已做判断（自律保证）
-- PL-PM 讨论：discuss/* 文件独立产出，不引用 PRD-REVIEW.md（讨论先于评审）
-- v7.3.10+P0-150 清理：删 external 评审段（Goal-Plan Stage 不支持 external · 详 [standards/external-model.md](../standards/external-model.md)）
-
----
-
-## Output Contract
-
-### 必须产出的文件
-
-| 文件路径 | 条件 | 格式 | 必需字段 |
-|---------|------|------|---------|
-| `{Feature}/PRD.md` | 🔴 必需 | Markdown + YAML frontmatter | `feature_id`, `acceptance_criteria[]` (id, description, priority), 交付预期, 影响范围 |
-| `{Feature}/PRD-REVIEW.md` | 🔴 必需 | Markdown | 内部视角的评审意见（按 review_roles[] 角色组合 · 4 内部视角 PM/RD/QA/Designer + PL discussion）+ 汇总问题清单 |
-| `{Feature}/discuss/PL-FEEDBACK-R{N}.md` | ❌ v7.3.10+P0-43 废止 | — | 旧 v7.3.x「PL-PM Teams 讨论」遗留契约。P0-34 后 PL 升格为评审角色，finding 应统一在 `PRD-REVIEW.md` frontmatter `reviews[].pl.findings[]`，PM 回应统一在 `reviews[].findings[].pm_response`。**禁止产出本文件**（避免 PRD-REVIEW.md / discuss 双重产物） |
-| `{Feature}/discuss/PM-RESPONSE-R{N}.md` | ❌ v7.3.10+P0-43 废止 | — | 同上 |
-
-> 🟢 **v7.3.10+P0-150 清理**：删 `pmo-internal-review.md` / `external-cross-review/prd-{model}.md` 两行产物（P0-83 设计上已删 Goal-Plan Stage external 评审 · 但 P0-83 清理不全 · 本 patch 补完）· cite [standards/external-model.md L14](../standards/external-model.md) 适用范围（Blueprint + Review 限定）。
-
-### 机器可校验条件
-
-- [ ] PRD.md frontmatter 可 YAML 解析（`yq '.feature_id' PRD.md` 成功）
-- [ ] `acceptance_criteria[]` 至少 1 条，每条有 id/description/priority
-- [ ] 无 TBD / 待补充 / TODO（`grep -iE "TBD|待补充|TODO" PRD.md` 为空）
-- [ ] 多视角评审 4 个内部视角都有意见（或显式标注"无意见"+ 理由）
-
-> 🟢 **v7.3.10+P0-150 清理**：删原"external 启用时校验段（pmo-internal-review.md / external-cross-review/prd-{model}.md / external_cross_review.plan_enabled）"· Goal-Plan Stage 不再支持 external 评审（P0-83 设计 + P0-150 清理补完）· external 仅适用 Blueprint / Review Stage · cite [standards/external-model.md L14](../standards/external-model.md)。
-
-### Done 判据（v7.3.10+P0-34 重构）
-
-- 所有产出文件存在且通过格式校验
-- PRD-REVIEW.md `overall_verdict ∈ {PASS, PASS_WITH_CONCERNS}`（所有 review_roles 均通过）
-- 评审轮次 `review_round <= 3`（超出走用户决策，记录到 `review_round_overflow_decision`）
-- PM 已对每条 finding 给出 ADOPT / REJECT / DEFER 响应（`pm_response` 完整）
-- 出口走 `tools/state.py satisfy-gate --stage goal_plan --gate output --auto-commit $HASH [--artifacts a,b]` + `complete-stage --stage goal_plan`（v7.3.10+P0-128 物化 · 物理拦截 gate 顺序 / 三 gate 全满足 / artifact_root 写边界）
-
-### 返回状态
-
-| 状态 | 条件 | 后续 |
-|------|------|------|
-| ✅ DONE | 产出完整 + 全员 PASS + PM 响应完整 | PMO ⏸️ 用户最终确认 PRD |
-| ⚠️ DONE_WITH_CONCERNS | 全员通过但有 PASS_WITH_CONCERNS / DEFER 项 | PMO ⏸️ 用户逐项决策 |
-| 🔁 ROUND_OVERFLOW | 评审循环超出 3 轮 | PMO ⏸️ 4 选 1（force-pass / continue-round-4 / modify-scope / abort）|
-| 💥 FAILED | 需求不清晰无法产出 | 返回错误 + 部分产出 |
-
----
-
-## AI Plan 模式指引
-
-📎 Execution Plan 4 行格式（含 Estimated）→ [SKILL.md「AI Plan 模式规范」](../SKILL.md#-ai-plan-模式规范v73-新增)。默认 approach → [agents/README.md §一 执行方式与模型](../agents/README.md)。
-
-本 Stage 默认 `main-conversation`（多视角 prompt 切换 + 用户讨论）。典型偏离：需求极清晰、无用户介入 → `subagent`。
-
-**Expected duration baseline（v7.3.10+P0-34）**：30-60 min（主对话 / 含多角色并行评审 + PM 回应循环）；评审组合精简 + 需求清晰单轮通过可降至 20-30 min；评审循环触达 Round 3 上限可达 90 min+。AI 在 Execution Plan 的 `Estimated` 字段按本 Feature 规模（预期 AC 数、评审角色数、复杂度）校准。
-
----
-
-## Worktree 集成（PMO 执行，v7.3.8 从 Dev Stage 前移至此）
-
-```
-触发时机：用户确认流程类型 → 进入 Goal-Plan Stage 之前（flow-transitions.md 第 11 行）
-
-worktree 策略（从 .teamwork_localconfig.md 读取）：
-├── off → 跳过，Plan 产物落在当前分支
-├── manual → PMO 提醒用户创建后再继续
-└── auto → PMO 自动创建 + 切换 + 记录 state.json
-
-worktree 路径解析（v7.3.10+P0-39 / +P0-42 硬规则强化）：
-  1. 读 .teamwork_localconfig.md 的 worktree_root_path（默认 .worktree）
-  2. 实际路径拼接：{worktree_root_path}/{Feature 全名}
-     示例：.worktree + AUTH-F042-email-login → .worktree/AUTH-F042-email-login
-  3. 路径合法性校验（创建前）：
-     ├── 根目录不能是已 commit 的 git 工作目录（除 .gitignore 包含目录）
-     ├── 父目录必须存在或可创建
-     └── 拼接后路径不能与现有文件冲突
-  4. 校验失败 → state.concerns 加 BLOCK + ⏸️ 用户决策（改路径 / 改 manual / 改 off）
-
-🔴 **v7.3.10+P0-42 硬规则强化（基于实战 case 反例）**：
-
-```
-❌ 禁止偏离 P0-39 默认路径：
-   ├── 禁止用项目历史 / 团队约定的路径（如 .claude/worktrees/）
-   ├── 禁止子目录加 feature- 前缀（worktree path 仅用 {Feature 全名}，不加任何前缀）
-   ├── 禁止"上次也是这么用的"作为偏离理由
-   └── 唯一合法的路径来源：localconfig.worktree_root_path 字段（缺失则硬默认 .worktree）
-
-✅ 合法路径示例：
-   localconfig.worktree_root_path = .worktree（默认 / 缺失硬默认）
-     → worktree path = .worktree/AUTH-F042-email-login
-
-   localconfig.worktree_root_path = ../.repo-worktrees（用户自定义）
-     → worktree path = ../.repo-worktrees/AUTH-F042-email-login
-
-❌ 实战反例（INFRA-F019 case）：
-   PMO 用了 .claude/worktrees/feature-INFRA-F019-conversions-offer-id-rename
-              ↑ 项目历史约定（旧）        ↑ 多了 feature- 前缀（违反 P0-39 模板）
-   正确：.worktree/INFRA-F019-conversions-offer-id-rename
-   修复：localconfig 没配 worktree_root_path 时硬默认 .worktree（不允许沿用项目历史）
-```
-
-🔴 **PMO 校验**：进入 Goal-Plan Stage 入口创建 worktree 前，必须 cite localconfig.worktree_root_path 字段或确认硬默认值（.worktree），违反则视为流程违规。
-
-auto 模式命令（v7.3.10+P0-39 默认路径变更：{worktree_root_path}/{Feature 全名}，默认 .worktree/）：
-  git fetch origin {merge_target}
-  git worktree add {worktree_root_path}/{Feature 全名} -b feature/{Feature 全名} origin/{merge_target}
-  cd {worktree_root_path}/{Feature 全名}
-
-state.json 写入：
-  "worktree": {
-    "strategy": "auto",
-    "path": "{worktree_root_path}/{Feature 全名}",
-    "root_path": "{worktree_root_path 配置值，如 .worktree}",
-    "branch": "feature/{Feature 全名}",
-    "base_branch": "origin/{merge_target}",
-    "created_at": "{ISO 8601}"
-  }
-
-为什么在 Goal-Plan Stage 入口而不是 Dev Stage 入口（v7.3.8 修订 / v7.3.10+P0-150 清理 external 残留）：
-├── PRD.md / discuss/ / PRD-REVIEW.md
-│   都是 Goal-Plan Stage 产物——落在 feature 分支而不是 main，语义更干净
-├── 用户拒绝 PRD → git worktree remove 一键回退，main 零污染
-└── UI Design / Blueprint 阶段产物（UI.md / TC.md / TECH.md）同 worktree 延续
-
-降级链（每档降级输出 WARN 到 state.json.concerns）：
-├── auto 失败（git 不可用 / worktree add 错误 / 磁盘不足）→ 降 manual
-├── manual 用户 2 次未响应 → 降 off
-└── off → 所有阶段在当前工作区执行，跨 Feature 约束回退为人工注意力
-```
-
----
-
-## 执行报告模板（Output Contract 的输出呈现）
-
-```
-📋 Goal-Plan Stage 执行报告（F{编号}-{功能名}）
-================================================
-
-## 执行概况
-├── 最终状态：{DONE / DONE_WITH_CONCERNS / ROUND_OVERFLOW / FAILED}
-├── 执行方式：{主对话 / Subagent / 混合}（来自 Execution Plan + state.goal_plan_substeps_config）
-├── 评审角色：{review_roles[].role 列表，例：PL, RD, QA}（各 execution: subagent / main-conversation）
-├── 评审轮次：Round {1/2/3} 收敛（v7.3.10+P0-34，≤3 轮）
-├── 各角色 verdict：PL={PASS/PASS_WITH_CONCERNS/NEEDS_REVISION} / RD=… / QA=… / Designer=… / PMO=…
-├── PM 响应分布：ADOPT × N / REJECT × M / DEFER × K
-├── 外部模型交叉评审：{ENABLED → DONE / DONE_WITH_CONCERNS / SKIPPED / FAILED | DISABLED（external ∉ review_roles[]）}
-└── PRD 验收标准数：{N} 条（AC 结构化已校验）
-
-## 评审循环纪要（v7.3.10+P0-34）
-├── Round 1：{各角色 verdict + finding 数 + PM 响应分布}
-├── Round 2（如有）：{同上，重点列 carry-over finding}
-├── Round 3（如有）：{同上 + 是否触发 ROUND_OVERFLOW 用户决策}
-└── 最终 overall_verdict：{PASS / PASS_WITH_CONCERNS}（来自 PRD-REVIEW.md frontmatter）
-
-## 技术评审报告
-{按 PRD-REVIEW.md 格式，含尾部 Codex 整合章}
-
-## 外部模型交叉评审摘要（🟡 仅当 external ∈ state.goal_plan_substeps_config.review_roles[] 时输出本节）
-├── Codex 状态：{DONE / SKIPPED + 原因 / DISABLED}
-├── Findings 总数：{N}（C1:{?} C2:{?} C3:{?} C4:{?} C5:{?} C6:{?}）
-├── ADOPT: {a} 条（已并入 PRD）
-├── REJECT: {b} 条（理由见 PRD-REVIEW.md 尾部）
-└── DEFER: {c} 条（写入 state.json.concerns 或下一 Stage Key Context）
-
-## 产出文件
-├── 📁 PRD.md（定稿，AC 结构化 + business_direction_locked frontmatter）
-└── 📁 PRD-REVIEW.md（评审记录，4 内部视角 PM/RD/QA/Designer + PL discussion · 含所有评审角色 reviews[].* 段）
-（v7.3.10+P0-43：discuss/PL-FEEDBACK-R{N}.md / PM-RESPONSE-R{N}.md 已废止，禁止产出）
-（v7.3.10+P0-150 清理：删 pmo-internal-review.md / external-cross-review/prd-{model}.md · Goal-Plan 不支持 external · cite standards/external-model.md L14）
-
-## Output Contract 校验
-├── YAML frontmatter：✅ 可解析
-├── AC 数量：{N}（≥1）
-├── 无 TBD/TODO：✅
-├── 4 内部视角评审：✅ 全覆盖
-└── Codex 校验：{ENABLED → 独立性 grep ✅ + findings 分类 ✅ | DISABLED → PRD-REVIEW 尾部声明已关闭 ✅}
-```
+## 相关
+
+- 引擎:[../tools/_v8_engine.py](../tools/_v8_engine.py) `execute_stage_start` / `execute_stage_complete`
+- spec:[../tools/_v8_stage_specs.py](../tools/_v8_stage_specs.py) `GOAL_PLAN_SPEC`
+- 入口规范:[../TRIAGE.md](../TRIAGE.md)
+- 治本反思:[../docs/v8-redesign/05-LESSONS-FROM-PTR-F033.md](../docs/v8-redesign/05-LESSONS-FROM-PTR-F033.md)

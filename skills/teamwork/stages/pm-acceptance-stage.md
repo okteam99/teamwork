@@ -1,0 +1,95 @@
+# PM Acceptance Stage
+
+> **auto-verified by**: `state.py pm_acceptance-start` / `state.py pm_acceptance-complete`
+> 本文件按 **怎么做 + 注意事项** 结构(v8.0+P0-7)。
+> 详细 schema 见 [../docs/v8-redesign/01-COMMAND-SCHEMA.md](../docs/v8-redesign/01-COMMAND-SCHEMA.md)。
+
+---
+
+## 怎么做
+
+### 1. 加载上下文
+读 PRD.AC · TEST-REPORT.md · screenshots/*.png(若 browser_e2e 启用)
+
+### 2. PM 逐条 AC 对照实现
+主对话身份切换到 PM · 站在用户视角
+
+### 3. (可选)主对话试用
+若可本地跑 · PM 实测一遍关键路径
+
+### 4. 给出三选项决策
+approved_and_ship / approved_no_ship / rejected_with_feedback
+
+### 5. complete --decision --note
+rejected_with_feedback 时 --note 必填(state.py 强校验)
+
+---
+
+## 必读 cite 清单(P0-11 · 各 substep 动手前主对话输出)
+
+| Substep | 必读 spec | 段 | cite 关键点 |
+|---------|----------|----|------------|
+| 1. 加载上下文 | — | — | (读 PRD.AC + TEST-REPORT + 截图) |
+| 2. PM 逐条 AC 对照实现 | `roles/pm.md` | § 验收规范 | 对照 TEST-REPORT 实际数据 · 不口述 OK |
+| 3. (可选)主对话试用 | — | — | (无) |
+| 4. 给出三选项决策 | `stages/pm-acceptance-stage.md` | § 三选项判定 | approved_and_ship / approved_no_ship / rejected_with_feedback |
+| 5. complete --decision --note | — | — | (无) |
+
+
+**输出格式**(每个 substep 动手前必在主对话输出):
+```
+📖 cite:
+- <spec> § <段>:"<引该段 1 句关键原文 · 证明真读>"
+```
+
+**强约束**(R5+P0-11 软约束 · 用户监督):
+- 标 "—" 的 substep 无 cite 要求(状态机操作 / 用户暂停 / 已物化)
+- 其余 substep **动手前必输出 cite 块** · 缺 cite 视为 process 违规(用户可叫停)
+- cite 必含 § 段标题 + 至少 1 句原文(原文必真实存在于该 spec · 不可瞎编)
+- AI 在 stage 内多次切角色 · 每次切换前重新 cite 该角色规范
+
+**为什么 cite**:
+- brief 列路径(P0-4)只解决"AI 找不到路径"· 不保证 AI 真读
+- complete 时校验太晚(AI 已做完)
+- substep 动手前 cite = 事前提醒 · 强制 AI 翻一眼 spec
+- 物化死角(state.py 看不到 markdown Read 动作)· 软约束 + 用户监督兜底
+
+## 注意事项
+
+### 坑 1 · PM 口述"看起来 OK" 不实测
+走过场 · 漏 bug 进 ship。
+  **对策**:逐条 AC 对照 TEST-REPORT 实际数据 · 不靠口述
+
+### 坑 2 · rejected 漏填 --note
+state.py FAIL(必填校验)。
+  **对策**:rejected 必明确 finding · note 含具体改什么
+
+### 坑 3 · approved_no_ship 滥用
+"通过但暂不发"用作躲避决策。
+  **对策**:approved_no_ship 用于真正"完成但等时机"(如等其他 Feature 协同) · 不躲
+
+### 坑 4 · 绕过 PM 验收
+直接 ship-start · 违 R5 暂停点协议。
+  **对策**:state.py 物化拦截 · ship-start 必前置 pm_acceptance.evidence.decision=approved_and_ship
+
+### 坑 5 · rejected 不回 dev
+NEEDS_REVISION 找 architect 改 · 越权。
+  **对策**:rejected → 回 dev(state.py 自动 emit 暂停 · 用户选回 dev 还是放弃)
+
+---
+
+## Output Contract(产物形态参考)
+
+### `state.json 决策落库`
+stage_contracts.pm_acceptance.evidence.decision · 无文件产物
+
+### `(可选)PM-NOTE.md`
+决策说明 · rejected 时含 finding 列表
+
+---
+
+## 相关
+
+- 引擎:[../tools/_v8_engine.py](../tools/_v8_engine.py)
+- spec:[../tools/_v8_stage_specs.py](../tools/_v8_stage_specs.py) `PM_ACCEPTANCE_SPEC`
+- 入口规范:[../TRIAGE.md](../TRIAGE.md)

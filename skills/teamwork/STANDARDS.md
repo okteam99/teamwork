@@ -1,36 +1,55 @@
-# Teamwork 开发规范（索引）
+# STANDARDS · v8.0 索引
 
-> 开发规范已按技术栈拆分，请按需加载对应文件，减少上下文负担。
+> 技术规范(不含流程规范 · 流程规范全部物化到 state.py)。
+> 按技术栈拆分,按需加载。
 
 ---
 
-## 规范文件清单
+## 技术规范文件
 
 | 文件 | 内容 | 适用角色 |
-|------|------|----------|
-| 📎 [tdd.md](./standards/tdd.md) | 🔴 **TDD 唯一权威源**（v7.3.10+P0-63）：Iron Law + RED-GREEN-REFACTOR 5 步 + 自检清单 + 反模式 + 例外 + ≥3 次失败升级 | **所有 RD + QA Code Review** |
-| 📎 [common.md](./standards/common.md) | 测试核心原则、TDD 检查快查（详见 tdd.md）、代码架构规范、RD 自查规范、QA 代码审查检查项、文档流程图规范 | **所有 RD** |
-| 📎 [backend.md](./standards/backend.md) | 后端集成测试规范、API 接口规范、日志规范（TDD 通用规范见 tdd.md） | **后端 RD** |
-| 📎 [frontend.md](./standards/frontend.md) | 前端测试分层、E2E 测试要求（TDD 通用规范见 tdd.md） | **前端 RD** |
-| 📎 [prompt-cache.md](./standards/prompt-cache.md) | teamwork 自身 prompt 组织规范（v7.3.10+P0-23）：动态内容后置 + 入口 Read 顺序固定化 + state.json 访问 ≤5 次/Stage | **PMO**（每 Stage 入口引用） |
-| 📎 [external-model.md](./standards/external-model.md) | 外部模型交叉评审规范（v7.3.10+P0-24 / +P0-72 PMO 直接判定）：候选清单 + 同源约束 + PMO 直接判定 + 调用规范 + 失败降级 | **PMO**（初步分析时自报宿主 + `command -v` 检查 CLI） |
+|------|------|---------|
+| [tdd.md](./standards/tdd.md) | 🔴 TDD 唯一权威源:Iron Law + RED-GREEN-REFACTOR + 自检清单 + 反模式 | **所有 RD + QA Code Review** |
+| [common.md](./standards/common.md) | 测试核心原则、代码架构规范、RD 自查、QA 检查项、Mermaid 规范 | **所有 RD** |
+| [backend.md](./standards/backend.md) | 后端集成测试、API 接口、日志规范 | **后端 RD** |
+| [frontend.md](./standards/frontend.md) | 前端测试分层、E2E 测试要求 | **前端 RD** |
+| [external-model-usage.md](./standards/external-model-usage.md) | 外部模型 OpenAI ToS 合规(只读评审 · 不参与代码写权) | **PMO**(外部评审调度时)|
+| [scripts-policy.md](./standards/scripts-policy.md) | 脚本设计原则(退出码 / 输出格式 / 模块化)| **state.py 等工具脚本作者** |
+
+---
+
+## v7 → v8 standards 变化
+
+| 范式 | 文件数 | 主要内容 |
+|------|--------|---------|
+| v7 | 14 文件 | 技术规范 + 流程规范(evidence-binding / output-tiers / review-verdict / review-scope / prompt-cache / stage-instantiation / discussion-mode / external-model)|
+| v8 | 6 文件 | 仅技术规范(流程规范全部进 state.py) |
+
+**已删除的流程规范文件**(已迁移到 state.py 代码层):
+- `evidence-binding.md` → `_v8_engine.py` execute_stage_complete + `_v8_ship.py` 物化拦截
+- `output-tiers.md` → state.py emit 时自动适配 Tier 1/2/3
+- `review-verdict.md` → state.py `review-complete --verdict` enum + artifact 校验
+- `review-scope.md` → state.py `_v8_stage_specs.py` 各 review 角色 spec
+- `prompt-cache.md` → state.py 内部 Read 顺序固定 + state.json 访问次数控制
+- `stage-instantiation.md` → state.py 各 stage `prerequisites` + `brief_template_fn`
+- `discussion-mode.md` → state.py `triage` mode E 内置
+- `external-model.md` → state.py `_v8_init.py` detect_host + `_v8_engine.py` external review evidence
 
 ---
 
 ## 加载规则
 
 ```
-Subagent / RD 加载指引（v7.3.10+P0-63）：
-├── 后端子项目 → 加载 tdd.md + common.md + backend.md
-├── 前端子项目 → 加载 tdd.md + common.md + frontend.md
-└── 全栈项目   → 加载 tdd.md + common.md + backend.md + frontend.md
+RD 加载指引:
+├── 后端子项目 → tdd.md + common.md + backend.md
+├── 前端子项目 → tdd.md + common.md + frontend.md
+└── 全栈项目   → tdd.md + common.md + backend.md + frontend.md
 ```
 
 ---
 
-## 版本说明
+## 相关
 
-- 拆分自原始单文件 STANDARDS.md
-- 通用规范（架构、自查、QA 审查、Mermaid）提取到 common.md
-- 后端专项（TDD、集成测试、API、日志）提取到 backend.md
-- 前端专项（测试分层、TDD、E2E）提取到 frontend.md
+- [SKILL.md](./SKILL.md) — 命令清单
+- [RULES.md](./RULES.md) — 9 红线 rationale
+- [tools/state.py](./tools/state.py) — 流程规范物化层

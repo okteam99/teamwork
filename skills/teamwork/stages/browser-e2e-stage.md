@@ -1,188 +1,99 @@
-# Browser E2E Stage：浏览器端到端验收
+# Browser E2E Stage
 
-> API E2E 通过且 TC.md 标注需要 Browser E2E 时，进入本 Stage。从最终用户视角验证真实页面的完整业务链路。
-> 🔴 契约优先：执行方式由 AI 自主规划（半自动特性推荐主对话）。
-
----
-
-## 本 Stage 职责
-
-通过 AI 浏览器操作真实页面、截图取证，验证用户视角的业务链路。不看代码。
-
-与其他测试阶段的区别：
-```
-项目集成测试 → 跑项目内 integration test cases（代码级）
-API E2E → 脚本验证真实 API 链路（调用方视角）
-Browser E2E → 浏览器操作真实页面（最终用户视角） ← 本 Stage
-```
+> **auto-verified by**: `state.py browser_e2e-start` / `state.py browser_e2e-complete`
+> 本文件按 **怎么做 + 注意事项** 结构(v8.0+P0-7)。
+> 详细 schema 见 [../docs/v8-redesign/01-COMMAND-SCHEMA.md](../docs/v8-redesign/01-COMMAND-SCHEMA.md)。
 
 ---
 
-## Input Contract
+## 怎么做
 
-### 必读文件（按顺序）
+### 1. 加载上下文
+读 UI.md / preview/*.html / 实际部署 URL
 
-```
-├── {SKILL_ROOT}/agents/README.md
-├── {SKILL_ROOT}/stages/browser-e2e-stage.md（本文件）
-├── {SKILL_ROOT}/roles/qa.md
-├── {Feature}/TC.md（Browser E2E Scenarios 章节）
-├── {Feature}/PRD.md
-└── {Feature}/UI.md（如有）
-```
+### 2. 选浏览器自动化
+Playwright / Puppeteer / Selenium(项目栈决定)
 
-### Additional Context
+### 3. 编写脚本 + 截图
+每 AC 关键路径截图(login → 主流程 → 边界) · 落 `screenshots/*.png`
 
-- 应用访问地址（URL）
-- 功能编号和名称
-- TC.md「Browser E2E 前置条件」中用户提供的值（账号 / 测试数据等）
+### 4. 起草 BROWSER-TEST-REPORT.md
+§测试场景 + §截图引用 + §异常发现
 
-### Key Context
+### 5. ⏸️ 用户看截图确认
+给用户截图 URL · 等确认
 
-- 历史决策锚点
-- 本轮聚焦点
-- 已识别风险
-- 降级授权
-- 优先级 / 容忍度
-
-### 前置依赖
-
-- API E2E 已通过（或 TC.md 标注 API E2E 不适用）
-- TC.md「Browser E2E 判断」= 需要
-- PMO 已收集 TC.md「Browser E2E 前置条件」中"用户提供"的项
-- PMO 确认页面可访问
-- state.json.current_stage == "browser_e2e"
+### 6. complete
+`state.py browser_e2e-complete --auto-commit ... --artifacts screenshots/,BROWSER-TEST-REPORT.md`
 
 ---
 
-## 入口 Read 顺序（v7.3.10+P0-23 固定）
+## 必读 cite 清单(P0-11 · 各 substep 动手前主对话输出)
 
-🔴 按以下顺序 Read，字节一致利于 prompt cache 命中。详见 [standards/prompt-cache.md](../standards/prompt-cache.md)。
+| Substep | 必读 spec | 段 | cite 关键点 |
+|---------|----------|----|------------|
+| 1. 加载上下文 | — | — | (读 UI.md / preview / 部署 URL) |
+| 2. 选浏览器自动化 | `roles/qa.md` | § E2E 选型 | Playwright / Puppeteer / Selenium |
+| 3. 编写脚本 + 截图 | `roles/qa.md + roles/designer.md` | § 截图规范 | 每 AC 一组截图 · 含 viewport + URL |
+| 4. 起草 BROWSER-TEST-REPORT.md | — | — | (无) |
+| 5. ⏸️ 用户看截图确认 | — | — | (无) |
+| 6. complete | — | — | (无) |
 
+
+**输出格式**(每个 substep 动手前必在主对话输出):
 ```
-Step 1: roles/qa.md                                    ← 角色层（L0 稳定）
-Step 2: 无专属模板                                      （本 Stage 不产出新模板结构）
-Step 3: {Feature}/PRD.md, {Feature}/TC.md              ← Feature 既有产物（L2）
-        [条件] {Feature}/UI.md                          （若有 UI）
-Step 4: {Feature}/state.json                           ← 🔴 最后，动态入口（L3）
+📖 cite:
+- <spec> § <段>:"<引该段 1 句关键原文 · 证明真读>"
 ```
 
-🔴 R3 约束：state.json 入口 Read 1 次 → 中段 0 读写 → 出口 Read 1 次 + Write 1 次；全 Stage ≤ 5 次。
+**强约束**(R5+P0-11 软约束 · 用户监督):
+- 标 "—" 的 substep 无 cite 要求(状态机操作 / 用户暂停 / 已物化)
+- 其余 substep **动手前必输出 cite 块** · 缺 cite 视为 process 违规(用户可叫停)
+- cite 必含 § 段标题 + 至少 1 句原文(原文必真实存在于该 spec · 不可瞎编)
+- AI 在 stage 内多次切角色 · 每次切换前重新 cite 该角色规范
+
+**为什么 cite**:
+- brief 列路径(P0-4)只解决"AI 找不到路径"· 不保证 AI 真读
+- complete 时校验太晚(AI 已做完)
+- substep 动手前 cite = 事前提醒 · 强制 AI 翻一眼 spec
+- 物化死角(state.py 看不到 markdown Read 动作)· 软约束 + 用户监督兜底
+
+## 注意事项
+
+### 坑 1 · 截图覆盖不全
+只截首页 · 关键交互漏。
+  **对策**:每 AC 一组截图 · 含 happy path + 至少 1 边界
+
+### 坑 2 · 截图无浏览器信息
+看不出 viewport / URL · audit 失败。
+  **对策**:截图含浏览器 chrome 边框 + URL bar(不裁剪)
+
+### 坑 3 · 失败静默忽略
+flaky test 重跑通过 · 不记录。
+  **对策**:retry 必含 retry log + 失败截图 · 不静默成功
+
+### 坑 4 · headless vs 有头模式差异
+headless 截图与用户实际看到不一致。
+  **对策**:与 PRD 描述场景一致(若 PRD 描述桌面用户 → 有头 desktop viewport)
+
+### 坑 5 · 误把 browser_e2e 当必跑
+本是可选 stage · execution_hints.browser_e2e_needed 决定。
+  **对策**:state.py auto_transition_fn 按字段判定 · 不强制启用
 
 ---
 
-## Process Contract
+## Output Contract(产物形态参考)
 
-### 必做动作
+### `screenshots/*.png`
+关键路径截图 · 至少 1 张 · 每 AC 一组
 
-1. **读取 TC.md 的 Browser E2E Scenarios 章节**
-2. **执行前置条件准备**（登录、测试数据等）
-3. **逐场景浏览器验证**
-   - 导航页面
-   - 执行用户操作
-   - 验证页面可观测结果
-   - 每个场景截图取证（通过和失败都要）
-4. **输出 Browser E2E 验收报告**
-
-### 过程硬规则
-
-- 🔴 **角色规范必读且 cite**：必读 `roles/qa.md`，产出前 cite 要点
-- 🔴 **按 TC 逐条执行**：必须按 FE-E2E 场景逐条验证
-- 🔴 **每个场景必须截图**：通过和失败都要（作为审计证据）
-- 🔴 **失败场景必须记录差异**：实际结果 vs 预期结果
-- 🔴 **不修改任何代码或配置**：只验证不修改
-- 🔴 **Stage 完成前 git 干净** → 统一遵循 [rules/gate-checks.md § Stage 完成前 git 干净](../rules/gate-checks.md#-stage-完成前-git-干净v739-硬规则p0-集中化)（本 Stage commit message：`F{编号}: Browser E2E Stage - {简述}`；截图是产物证据必须 commit 进 git）
+### `BROWSER-TEST-REPORT.md`
+§测试场景 + §截图引用 + §异常发现
 
 ---
 
-## Output Contract
+## 相关
 
-### 必须产出的文件
-
-| 文件路径 | 格式 | 必需内容 |
-|---------|------|---------|
-| `{Feature}/browser-e2e-result.md` | Markdown + YAML frontmatter | `executor`, `started_at`, `completed_at`, `scenarios[]`（含 screenshot_path） |
-| `{Feature}/browser-e2e-screenshots/*.png` | PNG | 每场景至少 1 张截图 |
-
-### 机器可校验条件
-
-- [ ] browser-e2e-result.md 存在且 YAML frontmatter 可解析
-- [ ] `scenarios[]` 数量 ≥ TC.md 中 Browser E2E Scenarios 数量
-- [ ] 每个 scenario 有 `screenshot_path`
-- [ ] 每个 scenario 有 `expected` 和 `actual` 字段
-- [ ] 失败 scenario 有 `diff` 字段
-
-### Done 判据
-
-- 所有 TC Browser E2E 场景已执行
-- 所有通过 scenario 有截图；失败 scenario 有截图 + diff
-- `state.json.stage_contracts.browser_e2e.output_satisfied = true`
-
-### 返回状态
-
-| 状态 | 条件 | 后续 |
-|------|------|------|
-| ✅ DONE | 所有 scenario 通过 | 进入 PM 验收 |
-| ❌ NOT_PASS | 有 scenario 失败 | RD 修复 → 重新 Browser E2E（≤3 轮） |
-
----
-
-## AI Plan 模式指引
-
-📎 Execution Plan 3 行格式 → [SKILL.md](../SKILL.md#-ai-plan-模式规范v73-新增)。
-
-本 Stage 默认 `main-conversation`（半自动需用户观察）。典型偏离：无人值守 CI 批量执行 → `subagent`。
-
-### 浏览器工具宿主适配（v7.3.9+P0 新增）
-
-```
-浏览器自动化工具按宿主选择，协议统一（导航 / 填表 / 点击 / 截图 / 断言）：
-├── Claude Code 宿主 → mcp__Claude_in_Chrome__* / mcp__gstack__* 等 MCP 工具
-├── Codex CLI 宿主   → Playwright 子进程（npx playwright）/ puppeteer-cli / 或项目既有 e2e 框架
-├── Gemini CLI / 通用 → 宿主可用的等效工具；如无 → 走降级兜底
-└── 🔴 无可用浏览器工具时的降级兜底：
-    ├── Browser E2E 降级为 ⏸️ 用户手动验收
-    ├── PMO 输出完整 scenario 步骤清单 + 预期结果表
-    ├── 用户手工跑一遍，提交截图到 browser-e2e-screenshots/
-    ├── PMO 读截图转 browser-e2e-result.md（带 `executor: user-manual` frontmatter）
-    └── 🔴 必须输出 WARN 日志：⚠️ WARN [no-browser-tool] 触发手动降级
-
-AI 自主按宿主可用性选择工具；选择理由写入 Execution Plan。
-```
-
-**Expected duration baseline（v7.3.3）**：每场景 2-3 min（含截图 + 验证），3-5 个场景合计 10-20 min。失败场景 diff 分析 +3-5 min。
-
----
-
-## 执行报告模板
-
-```
-📋 Browser E2E 验收报告（F{编号}-{功能名}）
-============================================
-
-## 概况
-├── 最终状态：{DONE / NOT_PASS}
-├── 执行方式：{主对话 / Subagent}
-├── 应用地址：{URL}
-├── 场景数：{总数}
-├── 通过：{N}
-└── 失败：{M}
-
-## 场景验证结果
-| # | FE-E2E 编号 | 场景 | 结果 | 截图路径 | 说明 |
-|---|-------------|------|------|---------|------|
-
-## 缺陷/阻塞项
-| # | 编号 | 分类 | 问题 | 预期 | 实际 | 差异 | 建议 |
-|---|------|------|------|------|------|------|------|
-
-## Output Contract 校验
-├── browser-e2e-result.md：✅
-├── 所有场景有截图：✅
-├── 失败场景有 diff：✅
-└── scenario 数 ≥ TC 场景数：✅
-
-## 结论
-├── ✅ 通过 → 进入 PM 验收
-└── ❌ 未通过 → RD 修复后重新 Browser E2E
-```
+- 引擎:[../tools/_v8_engine.py](../tools/_v8_engine.py)
+- spec:[../tools/_v8_stage_specs.py](../tools/_v8_stage_specs.py) `BROWSER_E2E_SPEC`
+- 入口规范:[../TRIAGE.md](../TRIAGE.md)

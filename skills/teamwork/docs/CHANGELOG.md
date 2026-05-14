@@ -1,5 +1,219 @@
 # Changelog
 
+## v8.0+P0-1 ~ P0-5(PTR-F033 实战 case 治本 · 5 个连续 patch)
+
+> 第一个真实 Feature(PTR-F033 Partner Credit Note Adjustment)dogfood 中暴露 v8 多个设计缺口。
+> 完整反思见 [docs/v8-redesign/05-LESSONS-FROM-PTR-F033.md](./v8-redesign/05-LESSONS-FROM-PTR-F033.md)。
+
+### P0-1 · 暂停点纪律(L2 substep 链)
+- ➕ `_v8_engine.py` 加 `_render_pause_discipline()` + `StageSpec.authorized_pause_point`
+- ➕ `execute_stage_start` 自动 append 暂停点纪律段到 brief 末尾
+- ➕ `_v8_stage_specs.py` 加 `_evidence_review_after_primary` + `_evidence_revision_history_present`
+- ➕ `MAX_BRIEF_LINES=100` 软上限 + 超限自动外置到磁盘
+- ➕ `docs/v8-redesign/04-PAUSE-POINT-DISCIPLINE.md`
+
+### P0-2 · worktree 物理存在校验
+- ➕ `_v8_engine._worktree_physically_exists()` · stage-start 通用校验
+- ⚠️ `init-feature` 自动建 worktree 逻辑(本 P0 引入)在 P0-5 删除(单一职责)
+
+### P0-3 · cwd 物化校验
+- ➕ `state.py cmd_init_feature` 加 cwd / feature_path 双校验
+- ➕ `TEAMWORK_BYPASS_CWD_WORKTREE=1` env bypass
+- ➕ `_v8_engine.commit_exists` cwd bug 修复(用 feature_path 本身 · 不是 parent)
+
+### P0-4 · brief 末尾必读路径速查
+- ➕ `_v8_engine._render_required_paths()` · 所有 stage brief 自动 append 绝对路径列表
+- 列出**实际存在**的 Feature artifact + stage spec + state.json
+- "按需文档"区根据 v8 哲学不列(AI 实地能拿到)
+
+### P0-5 · 概念清理 + 入口规范(triage 不是 stage)
+- 🗑️ `state.py cmd_init_feature` 删 P0-2 自动建 worktree 逻辑(`_try_create_worktree` 函数)
+- ➕ `_v8_init.py cmd_triage` mode B emit 加 `worktree_decision` + `pause_for_user.markdown`
+- ➕ triage emit 含暂停点 · 等用户确认 Feature ID / merge_target / worktree path / branch
+- ➕ `state.py cmd_init_feature` 加 worktree 物理存在硬校验(取代 P0-2 自动建)
+- ➕ **`TRIAGE.md` 顶级文档**(与 SKILL.md / RULES.md / FLOWS.md 平级)· 入口规范权威
+- ✏️ `SKILL.md` 概念清理:三层级 Stage 改为"入口规范(TRIAGE) + 状态机层(state.py)"二层
+- ➕ `docs/v8-redesign/05-LESSONS-FROM-PTR-F033.md` · 5 patch 治本汇总
+
+### 新元规则(P0-1~P0-5 提炼)
+
+1. **state.json 字段必须有 action + verifier**(谁创建 + 谁校验)
+2. **状态机入口/出口物化拦截**(cwd 校验 / 产物校验 / 间接 evidence)
+3. **brief 长度上限 + 自动外置**(防 Layer A 累积膨胀)
+4. **入口规范层 vs 状态机层** 二层架构(triage 不是 stage)
+
+### v8 文档体系新结构
+
+```
+顶级:SKILL.md / TRIAGE.md / RULES.md / FLOWS.md / ROLES.md / STANDARDS.md / TEMPLATES.md
+stages/:11 个 stage 内容创作规范(待 P0-6 重写)
+docs/v8-redesign/:00 MANIFESTO / 01 SCHEMA / 02 CLEANUP / 03 MIGRATION / 04 PAUSE-POINT / 05 LESSONS-FROM-PTR-F033
+```
+
+### ROI
+
+PTR-F033 一个真实 case 触发 4 个 P0 patch + 1 个概念清理 + 4 个元规则。
+这印证 v8 哲学:**dogfood 实战 > 闭门设计** + **物化拦截 > AI 自觉**。
+
+---
+
+## v8.0.0(当前 · Code-driven Orchestration · 范式切换 · 不向下兼容)
+
+> **触发**:v7.3.10 累积 156 个 P0 patch · 元规则(加 1 删 1 / 文件 300 行 / 红线生命周期)堆栈防膨胀。
+> 实战发现:状态机骨架是物化的,但 gate 满足"达成依据"基本不是物化的 — AI 仍可 0 事实裸调 satisfy-gate。
+> 触发根本问题反思:**"可枚举规则进脚本,不可枚举判断留 AI"** — v7 把可枚举规则塞 markdown 让 AI 自觉 cite 的范式从根本上反工程学。
+
+### 范式切换:从"AI 自觉框架"到"代码驱动框架"
+
+```
+v7(被替换):                           v8.0:
+PMO 凭记忆 + 读 spec markdown            AI 跑 state.py xx-start
+       ↓                                      ↓
+按记忆调度 stage / role                 state.py 主动校验 + 主动告知(JSON + brief)
+       ↓                                      ↓
+state.py 被动记录                        AI 按 state.py 指示执行
+                                              ↓
+                                         AI 跑 state.py xx-complete
+                                              ↓
+                                         state.py 校验产物 + 自动转移 + 输出下一 stage brief
+```
+
+### 新增 · state.py 命令(从 18 → 30)
+
+**初始化(3)**:
+- ➕ `init-feature`(沿用 v7 · schema_version=v8.0)
+- ➕ `triage` — session 入口 5 mode 分诊(替代 init_triage.py + stages/triage-stage.md)
+- ➕ `prepare` — mode B 重型准备(替代 stages/prepare-stage.md)
+
+**Stage 流转(23 = 11 stage × 2 + ship-phase)**:
+- ➕ 11 stage × 2:`goal_plan-start/complete` / `ui_design-*` / `panorama_design-*` / `blueprint-*` / `blueprint_lite-*` / `dev-*` / `review-*` / `test-*` / `browser_e2e-*` / `pm_acceptance-*` / `ship-*`
+- ➕ `ship-phase --action {sanitize|push|confirm-merged|cleanup|close-unmerged}` — 统一入口(替代 v7 五个独立 ship-* 命令)
+
+**维护(2 沿用 + 1 新增)**:
+- ➕ `migrate-v7-to-v8` — 一次性迁移老 state.json 从 v7 → v8 schema
+
+### 删除 · v7 命令(物理删除 12 个)
+
+- ❌ `enter-stage` / `satisfy-gate` / `complete-stage` → 各 stage 专属 -start/-complete 替代
+- ❌ `ship-sanitize` / `ship-push` / `ship-confirm-merged` / `ship-cleanup` / `ship-closed` → `ship-phase --action`
+- ❌ `pm-decision` → `pm_acceptance-complete --decision`
+- ❌ `add-concern` / `bug-frontmatter` / `micro-validate` → 内部 utility · 不暴露 user-facing
+
+### 删除 · 工具文件(物理删除 5 个 Python)
+
+- ❌ `tools/init_triage.py` → `state.py triage` 内置
+- ❌ `tools/render-flow-transition.py` → `state.py xx-start/complete` 自 emit 流转信息
+- ❌ `tools/render-decision-pause.py` → `state.py xx-complete` 自 emit 暂停点 markdown
+- ❌ `tools/render-afk-skip.py` → `state.py` 内部 AFK 判定
+- ❌ `tools/render-status-line.py` → `state.py` 每命令尾部自 emit 状态行
+
+### 删除 · 流程类规范 markdown(13 个)
+
+- ❌ `rules/`(整个目录:`flow-transitions.md` / `gate-checks.md` / `naming.md`)→ 进 state.py LEGAL_TRANSITIONS / STAGE_SPECS
+- ❌ `standards/evidence-binding.md` → `_v8_engine.py` execute_stage_complete
+- ❌ `standards/output-tiers.md` → state.py emit 自适配
+- ❌ `standards/review-verdict.md` → state.py review-complete --verdict
+- ❌ `standards/review-scope.md` → state.py review/blueprint stage spec
+- ❌ `standards/prompt-cache.md` → state.py 内部 Read 顺序
+- ❌ `standards/stage-instantiation.md` → state.py 各 stage prerequisites
+- ❌ `standards/discussion-mode.md` → state.py triage mode E
+- ❌ `standards/external-model.md` → state.py _v8_init.detect_host
+- ❌ `STATUS-LINE.md` → state.py 每命令尾部 emit
+- ❌ `CONTEXT-RECOVERY.md` → state.py recover
+- ❌ `REVIEWS.md` → state.py review-complete artifact 校验
+
+### 删除 · stages/(2 文件) + templates/(2 文件) + roles/(13 sub-file)
+
+- ❌ `stages/triage-stage.md` / `stages/prepare-stage.md` → state.py 内部
+- ❌ `templates/feature-state.json` / `templates/dispatch.md` → state.py 自生成
+- ❌ `roles/pmo-*.md`(7 sub-file)→ 编排逻辑进 state.py
+- ❌ `roles/architect-cr.md` / `architect-tech-review.md` → review-stage / blueprint-stage spec
+- ❌ `roles/qa-cr.md` / `qa-tc-review.md` → 同上
+- ❌ `roles/pm-prd-review.md` → goal_plan-complete artifact 校验
+- ❌ `roles/product-lead-change-mgmt.md` → 进 state.py(v8.x 物化)
+
+### 减负 · 顶层 markdown 大幅瘦身
+
+| 文件 | v7 行数 | v8 行数 | ↓ |
+|------|---------|---------|---|
+| SKILL.md | 806 | ~180 | -77% |
+| RULES.md | 1883 | ~180 | -90% |
+| FLOWS.md | 876 | ~120 | -86% |
+| stages/* (10 文件) | 5102 | 382 | -92% |
+| roles/* (21 → 8 文件) | 5252 | 247 | -95% |
+
+**总 markdown 减负:~14000 行 → ~1500 行(↓ 89%)**
+
+### 新增模块 · state.py 扩张
+
+- ➕ `tools/_v8_engine.py`(~700 行)— 通用 stage start/complete + bypass 协议 + register_v8_subparsers
+- ➕ `tools/_v8_stage_specs.py`(~1100 行)— 11 stage 完整契约(STAGE_SPECS dict)
+- ➕ `tools/_v8_ship.py`(~430 行)— ship-phase 5 actions + 物化拦截(P0-156/P0-124/P0-113 沿用)
+- ➕ `tools/_v8_init.py`(~400 行)— triage + prepare(5 mode 分诊 + 流程类型识别)
+- ➕ `tools/_v8_migrate.py`(~110 行)— v7 → v8 state.json 一次性迁移
+- ✏️ `tools/state.py`(原 1609 行 + v8 注册 12 行 + v7 子命令删除 ~100 行)→ 净保持 ~1520 行
+
+### bypass 协议 · 用户确认逃生通道
+
+```
+PMO 重试 3 次仍 FAIL → 暂停点询问用户 → 用户选"逃生":
+
+state.py xx-start --bypass --reason "<原因>" --user-confirmed --missing <ids>
+   ↓
+state.py:
+  - 校验 --user-confirmed 必带(防 AI 自决 · 红线违规拦截)
+  - 校验 --missing 覆盖实际 missing
+  - 通过 + 自动写 bypass_log[] + concerns WARN(完整审计闭环)
+```
+
+### 红线 · 16 → 9(可枚举的全物化)
+
+| v7 红线 | v8 归宿 |
+|---------|---------|
+| R1-R9 中 16/17 子条目 | 物化进 state.py |
+| R3 PMO 统一承接 | 唯一仍是软约束(不可枚举) |
+
+红线文档不再讲"怎么校验",只讲"为什么这么设计"。
+
+### 设计文档(立法层)
+
+- ➕ `docs/v8-redesign/00-MANIFESTO.md`(~400 行)— 设计宪法 · 范式切换 · 4 支柱划分
+- ➕ `docs/v8-redesign/01-COMMAND-SCHEMA.md`(~700 行)— 全 30 命令精确 schema
+- ➕ `docs/v8-redesign/02-CLEANUP.md`(~350 行)— v7 → v8 清理清单
+- ➕ `docs/v8-redesign/03-MIGRATION.md`(~300 行)— 迁移路线图
+
+### 兼容性
+
+- **不向下兼容**:v7 命令(enter-stage / satisfy-gate / complete-stage / ship-* / pm-decision / add-concern / bug-frontmatter / micro-validate)全部物理删除。
+- **老 Feature 迁移**:跑 `state.py migrate-v7-to-v8 --feature <path>` · 自动备份原文件为 `.json.v7-backup`。
+- **CLAUDE.md 注入段**:`sync-drift.py` 已自动同步 v8 SKILL.md 版本号到注入段。
+
+### 设计哲学(写入 SKILL.md 顶部)
+
+> **可枚举的规则进脚本,不可枚举的判断留 AI。**
+
+这条根本判据取代 v7 所有划界原则(L1/L2/L3 红线层级 / teamwork 主权 vs 用户主权 / AI 实地能拿到的就不显式维护)。
+"可枚举"是个客观判据:能列出来的就进代码,列不全的留 AI。
+
+### 实证验证(本次 ship 前)
+
+所有 v8 命令通过端到端测试:
+- ✅ Bug 流程 dev-start happy path
+- ✅ Bypass 协议三档:防 AI 自决 + 完整审计
+- ✅ 状态机非法转移:5 stage 全拦截
+- ✅ flow_type 闭集:allowed_flow_types 拦截
+- ✅ ship-phase 端到端 6/6 PASS(sanitize → push → cleanup BLOCKED → confirm-merged → cleanup PASS)
+- ✅ triage 5 mode 分诊 + 6 流程关键词识别
+
+### 致 v7.3.10+P0-156(155 个 P0 patch 收尾)
+
+v7.3.10 累积的 156 个 P0 patch 是反 spec 累积膨胀的工程奇迹 · 但本质是"修补 AI 凭记忆做事"的不断 patch。
+v8.0 不再做这种 patch · 而是从根本上把"凭记忆"从范式中移除。
+
+v7 → v8 不是版本升级 · 是范式切换。版本号从 v7.3.10+P0-156 跳到 v8.0.0 标记这一点。
+
+---
+
 ## v7.3.10 + P0-156（当前 · ship-confirm-merged + ship-cleanup linked-worktree 物化拦截 · 治本 ADMIN-F013 状态更新丢失）
 
 > **触发**：实战 case · ADMIN-F013 Tax & Billing Entity Configuration · agent 在 feature worktree (`/Users/liam/apps/joli/aon/aon-admin-wt/feat-admin-f013`) 跑 `ship-confirm-merged` · state.json 写到 worktree · 然后 `git worktree remove --force` · state.json 随 worktree 一起被删 · 后续 `ship-cleanup` FAIL "state.json not found" · agent narrative "state.json 在 worktree 里已被删了 · worktree 清理完成" 把失败合理化为正常.

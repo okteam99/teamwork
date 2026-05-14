@@ -1,192 +1,102 @@
-# Panorama Design Stage：全景重建模式（Feature Planning 专用）
+# Panorama Design Stage
 
-> 🟢 **v7.3.4 定位调整**：本 Stage 仅用于 **Feature Planning 流程的全景重建模式**。
-> Feature 流程的**全景增量同步**已合并到 [ui-design-stage.md](./ui-design-stage.md)（UI + 全景一次暂停）。
-> 🔴 **全景是产品真相**：全景设计（sitemap.md + overview.html）是已确认的设计 + 业务逻辑真相。重建模式风险最高，必须基于用户明确授权。
-
----
-
-## 本 Stage 职责
-
-**仅在 Feature Planning 场景触发**：基于 PRD / PROJECT / 规划讨论结论，**从零重建** design/sitemap.md + design/preview/overview.html。
-
-典型触发：
-- Feature Planning 流程首次规划（design/ 目录不存在）
-- Feature Planning 流程涉及**整个子项目**的页面结构重构（砍页面/重排导航/产品方向变更）
-- 🌐 Workspace Planning 为新增子项目创建全景
-
-**不包括**：
-- Feature 流程的单个 Feature UI + 全景增量 → 去 ui-design-stage.md
-- 仅新增一两个页面的小调整 → 去 ui-design-stage.md
+> **auto-verified by**: `state.py panorama_design-start` / `state.py panorama_design-complete`
+> 本文件按 **怎么做 + 注意事项** 结构(v8.0+P0-7)。
+> 详细 schema 见 [../docs/v8-redesign/01-COMMAND-SCHEMA.md](../docs/v8-redesign/01-COMMAND-SCHEMA.md)。
 
 ---
 
-## Input Contract
+## 怎么做
 
-### 必读文件（按顺序）
+### 1. 加载上下文
+读 PROJECT.md(若存在 · 当前业务架构)· 用户需求
 
-```
-├── {SKILL_ROOT}/agents/README.md
-├── {SKILL_ROOT}/stages/panorama-design-stage.md（本文件）
-├── {SKILL_ROOT}/roles/designer.md
-├── {Feature Planning}/PRD.md 或 ROADMAP.md（规划讨论结论）
-├── docs/PROJECT.md（产品总览）
+### 2. 起草 PROJECT.md
+§业务架构 + §执行手册 + §关键决策 · PL(Product Lead)主导
 
-重建时参考（存在则必读，作为"上一版真相"的对比基线）：
-├── design/sitemap.md（现有，如有）
-└── design/preview/overview.html（现有，如有）
-```
+### 3. 起草 ROADMAP.md
+Feature 列表 + 优先级 + 排期(当前/下一/储备)
 
-### Key Context
+### 4. 起草 sitemap.md
+信息架构 · 页面层级 · 模块边界
 
-- 历史决策锚点（产品方向调整 CHG 记录、规划讨论结论）
-- 本轮聚焦点（重建目标：补全/转型/重构）
-- 跨 Feature 约束
-- 已识别风险（🔴 重建风险：可能丢失旧全景中的关键页面 / 破坏用户熟悉的导航结构）
-- 降级授权
-- 优先级
+### 5. PL-PM 讨论 + 多角色 review
+PL 把方向 · PM 把可执行性 · Architect 把技术可行
 
-### 前置依赖
-
-- **Feature Planning 流程中**（不是 Feature 流程）
-- PM 已与用户讨论产品方向，规划结论已写入 PRD / ROADMAP
-- 用户**已明确授权重建全景**（不是隐式决定）
-- state.json.current_stage == "panorama_design"（仅 Planning 流程设置此状态）
+### 6. complete
+`state.py panorama_design-complete ...` · 自动转 completed(不进 dev · R6)
 
 ---
 
-## 入口 Read 顺序（v7.3.10+P0-23 固定）
+## 必读 cite 清单(P0-11 · 各 substep 动手前主对话输出)
 
-🔴 按以下顺序 Read，字节一致利于 prompt cache 命中。详见 [standards/prompt-cache.md](../standards/prompt-cache.md)。
+| Substep | 必读 spec | 段 | cite 关键点 |
+|---------|----------|----|------------|
+| 1. 加载上下文 | `roles/product-lead.md` | § Telos | 产品方向视角 |
+| 2. 起草 PROJECT.md | `roles/product-lead.md` | § 业务架构起草 | 业务能力 vs 技术架构边界 |
+| 3. 起草 ROADMAP.md | `roles/product-lead.md` | § ROADMAP 维护 | Feature 列表粒度 · 不细化到 task |
+| 4. 起草 sitemap.md | `roles/designer.md` | § 信息架构 | 页面层级 |
+| 5. PL-PM 讨论 + 多角色 review | `roles/pm.md` | § 与 PL 协作 | 可执行性把关 |
+| 6. complete | — | — | (无 · 自动转 completed · 不出代码 R6) |
 
+
+**输出格式**(每个 substep 动手前必在主对话输出):
 ```
-Step 1: roles/designer.md                              ← 角色层（L0 稳定）
-Step 2: 无产出新模板                                    （产物为 sitemap.md + overview.html，直接按 standards/common.md 组织）
-Step 3: {Feature Planning}/PRD.md 或 ROADMAP.md, docs/PROJECT.md  ← Feature 既有产物（L2）
-        [条件] design/sitemap.md, design/preview/overview.html    （重建基线参考）
-Step 4: {Feature}/state.json                           ← 🔴 最后，动态入口（L3）
+📖 cite:
+- <spec> § <段>:"<引该段 1 句关键原文 · 证明真读>"
 ```
 
-🔴 R3 约束：state.json 入口 Read 1 次 → 中段 0 读写 → 出口 Read 1 次 + Write 1 次；全 Stage ≤ 5 次。
+**强约束**(R5+P0-11 软约束 · 用户监督):
+- 标 "—" 的 substep 无 cite 要求(状态机操作 / 用户暂停 / 已物化)
+- 其余 substep **动手前必输出 cite 块** · 缺 cite 视为 process 违规(用户可叫停)
+- cite 必含 § 段标题 + 至少 1 句原文(原文必真实存在于该 spec · 不可瞎编)
+- AI 在 stage 内多次切角色 · 每次切换前重新 cite 该角色规范
+
+**为什么 cite**:
+- brief 列路径(P0-4)只解决"AI 找不到路径"· 不保证 AI 真读
+- complete 时校验太晚(AI 已做完)
+- substep 动手前 cite = 事前提醒 · 强制 AI 翻一眼 spec
+- 物化死角(state.py 看不到 markdown Read 动作)· 软约束 + 用户监督兜底
+
+## 注意事项
+
+### 坑 1 · R6 红线 · Planning 出代码
+直接进 dev 写代码 · 违 R6。
+  **对策**:panorama_design 只产 3 个文档 · 完成后自动 completed · Feature 启动需用户主动选(不自启)
+
+### 坑 2 · PROJECT.md 业务架构 vs 技术架构混淆
+把"用什么数据库"写进业务架构 · 应在 ARCHITECTURE.md。
+  **对策**:业务架构 = 业务能力 / 服务边界 · 技术架构 = 系统设计 · 各归各处
+
+### 坑 3 · ROADMAP 细化到 task 级
+task 是 Feature 内 PRD 的事 · ROADMAP 只到 Feature 名 + 简述。
+  **对策**:ROADMAP 一 Feature 一行 · 标题 + 优先级 + 状态
+
+### 坑 4 · sitemap 与单 Feature UI.md 重复
+两处同步成本高。
+  **对策**:sitemap = 整体页面架构 · 单 Feature UI.md = 本 Feature 涉及的页面 · 后者不重复全局
+
+### 坑 5 · Planning 完成自动启 Feature
+用户没拍板就开 dev · 越权。
+  **对策**:Planning 完成进 completed(不进 dev)· 用户主动跑 `/teamwork <feature>` 启动新 Feature 流程
 
 ---
 
-## Process Contract
+## Output Contract(产物形态参考)
 
-### 必做动作
+### `PROJECT.md(项目根)`
+§业务架构 + §执行手册 + §关键决策
 
-1. **读取现有全景（如有）**
-   - 作为"上一版产品真相"的对比基线
-   - 列出所有现有页面和导航结构
+### `ROADMAP.md(项目根)`
+Feature 列表 + 优先级 · 一 Feature 一行
 
-2. **基于规划结论重建**
-   - sitemap.md：新的页面地图（可能包含新增/保留/下线）
-   - overview.html：新的全景交互原型
-
-3. **对比差异清单（🔴 必须输出）**
-   - 保留的页面：{列表}
-   - 新增的页面：{列表}
-   - 删除的页面：{列表 + 理由}
-   - 重构的导航：{变更摘要}
-
-4. **风险提示（🔴 强制）**
-   - 删除的页面是否有用户历史流量？是否有现有 Feature 依赖？
-   - 导航重构是否影响已发布产品的用户心智？
-   - 有风险项 → DONE_WITH_CONCERNS，要求用户逐条确认
-
-### 过程硬规则
-
-- 🔴 **仅限 Feature Planning**：本 Stage 在 Feature 流程中不会被触发；PMO 若误调度必须拒绝并指向 ui-design-stage.md 的增量模式
-- 🔴 **用户授权必达**：重建前必须有用户明确"确认重建"的对话记录（不能仅凭 PMO 判断"应该重建"）
-- 🔴 **差异清单必出**：保留/新增/删除/重构四类变更分别列出
-- 🔴 **删除页面需理由**：每个被删除的页面必须附理由（来源于规划讨论）
-- 🔴 **两者必更**：sitemap.md + overview.html 必须一起更新，不允许只更一个
+### `sitemap.md(项目根)`
+信息架构 · 页面层级
 
 ---
 
-## Output Contract
+## 相关
 
-### 必须产出的文件
-
-| 文件路径 | 格式 | 必需内容 |
-|---------|------|---------|
-| `design/sitemap.md` | Markdown | 重建后的完整页面地图 + 变更记录段 |
-| `design/preview/overview.html` | HTML | 重建后的全景交互原型 |
-| `design/CHANGELOG.md`（或 sitemap.md 尾部） | Markdown | 🟡 本次重建的差异清单（保留/新增/删除/重构） |
-
-### 机器可校验条件
-
-- [ ] 两个文件都存在且已更新
-- [ ] sitemap.md 包含「变更记录」段（本次重建的差异清单）
-- [ ] overview.html 可在浏览器打开
-- [ ] 无"⏭️ 跳过"字样（本 Stage 启动即意味着要重建）
-
-### Done 判据
-
-- 两个文件更新
-- 差异清单完整
-- 有风险项时已列出供用户确认
-- `state.json.stage_contracts.panorama_design.output_satisfied = true`
-
-### 返回状态
-
-| 状态 | 条件 | 后续 |
-|------|------|------|
-| ✅ DONE | 重建完成 + 无风险项 | PMO ⏸️ 用户确认全景重建 |
-| ⚠️ DONE_WITH_CONCERNS | 重建完成但有风险（如删除页面可能影响现有用户）| PMO ⏸️ 用户逐条决策 |
-| 💥 FAILED | 无法重建（如现有全景损坏 + 无法从规划结论推导） | PMO 处理 |
-
----
-
-## AI Plan 模式指引
-
-📎 Execution Plan 4 行格式 → [SKILL.md](../SKILL.md#-ai-plan-模式规范v73-新增)。
-
-本 Stage 默认 `subagent`（全景 HTML 产出量大；沿用 Designer Subagent，Opus）。
-
-**Expected duration baseline（v7.3.4）**：30-50 min（全景重建 + 差异清单 + 风险分析）。重建风险最高，不推荐主对话执行。
-
----
-
-## 执行报告模板
-
-```
-📋 Panorama Design Stage 执行报告（全景重建模式）
-================================================
-
-## 执行概况
-├── 最终状态：{DONE / DONE_WITH_CONCERNS / FAILED}
-├── 执行方式：{主对话 / Subagent}
-├── 触发场景：{Feature Planning / Workspace Planning / 首次创建全景}
-└── 用户授权重建：✅ 已确认
-
-## 🟡 差异清单（与上一版对比）
-### 保留的页面（N）
-- {页面1}, {页面2}, ...
-
-### 新增的页面（M）
-| 页面 | 用途 | 所在导航位置 |
-|------|------|------------|
-
-### 删除的页面（K）🔴 需用户逐条确认
-| 页面 | 删除理由 | 规划讨论出处 | 用户确认 |
-|------|---------|------------|---------|
-
-### 重构的导航
-| 变更摘要 | 理由 | 影响范围 |
-|---------|------|---------|
-
-## 🔴 风险提示
-- {风险1：如"删除订单列表页可能影响用户习惯"}
-- {风险2：如"导航重构影响 AUTH 子项目的登录跳转"}
-
-## 产出文件
-├── 📁 design/sitemap.md（🟡 已重建）
-├── 📁 design/preview/overview.html（🟡 已重建）
-└── 📁 design/CHANGELOG.md（本次重建差异记录）
-
-## Output Contract 校验
-├── 两者都更新：✅
-├── 差异清单完整：✅
-└── 风险项已列出：✅
-```
+- 引擎:[../tools/_v8_engine.py](../tools/_v8_engine.py)
+- spec:[../tools/_v8_stage_specs.py](../tools/_v8_stage_specs.py) `PANORAMA_DESIGN_SPEC`
+- 入口规范:[../TRIAGE.md](../TRIAGE.md)
