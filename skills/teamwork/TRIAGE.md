@@ -128,7 +128,7 @@ PMO 按 flow_type 算 branch 前缀 + worktree path 建议:
 2. 项目根 `.teamwork_localconfig.md` 的 `worktree_root_path` 字段
 3. 默认 `.worktree`(项目根子目录)
 
-完整规范见 [docs/conventions.md § 9-11](./docs/conventions.md)(含 monorepo 多模块策略)。
+完整规范见 [docs/conventions.md § 9-11](./docs/conventions.md)。
 
 ### Step 4.3 · emit 暂停点 markdown(PMO 复制给用户)
 

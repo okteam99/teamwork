@@ -152,19 +152,8 @@ worktree_root_path: .worktree       # 默认 · 项目根下子目录
 - 项目内自定义路径需用户自加 .gitignore(避免 git 嵌套混乱)
 - 项目外路径无需 gitignore
 
-## 11. monorepo 多模块策略
+## 11. state.py 校验(物化拦截)
 
-monorepo(单 git repo · 多模块项目)场景:
-
-| 策略 | worktree_root_path | 说明 |
-|---|---|---|
-| **per-module**(推荐) | 各模块独立配 `.teamwork_localconfig.md` · 路径如 `../.aon-ptr-worktrees/` | 模块隔离 · IDE 跨模块跳转友好 |
-| **per-repo** | 整 repo 一份 `.teamwork_localconfig.md` · 路径 `.worktree` | git root 子目录 · 适合模块强耦合 |
-
-实际 case(参考):
-- `aon` monorepo · `aon-ptr` 模块 → worktree 在 `aon/aon-ptr-worktrees/PTR-F033-...`(per-module · `../.{module}-worktrees/`)
-
-**state.py 校验**(物化拦截):
 - `worktree_mode != off` 且 cwd 不在 `--worktree-path` 内 → FAIL
 - `worktree_mode != off` 且 worktree 物理不存在 → FAIL
 
