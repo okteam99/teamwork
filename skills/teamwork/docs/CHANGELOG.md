@@ -1,6 +1,73 @@
 # Changelog
 
-## v7.3.10 + P0-153（当前 · Blueprint Stage external 评审默认 ON · 翻转 P0-13 OFF）
+## v7.3.10 + P0-154（当前 · external 评审跳步物化拦截 + 措辞黑名单 · 治本 SVC-PLATFORM-F043 跳 codex CR）
+
+> **触发**：实战 case · SVC-PLATFORM-F043-Adapter-MobPower · agent 走完架构师 CR + QA CR 后**直接转 `📋 review → test`** · **跳了 codex CR** · 用户问"外部模型 review 了么" · agent 自承"没有 · 补上"。
+>
+> **深层诊断**（5 层）：
+> 1. **物化拦截缺位**（最根本）：`state.py satisfy-gate --stage review --gate output` 没校验 codex 产物存在 · spec 写"默认 ON"但没物化层 enforce
+> 2. **Plan/执行解耦**：agent 自己在 Execution Plan 写了 `Steps remaining: 架构师 CR → QA CR → codex CR → 汇合` · 跑完 QA CR 就跳了 codex CR
+> 3. **措辞陷阱**："Approach: hybrid (架构师+QA 主对话 + codex 后台)" — "后台" 暗示**异步可省** · 而 spec 实际要求同步等结果
+> 4. **历史心智路径残留**：P0-13 ~ P0-152 "Codex 是 opt-in / 可选" 印象深 · 即使 P0-153 翻转默认 ON · agent 心智仍把 codex 当可省项
+> 5. **LLM 经济压力**：codex CR 5-15 min · 看到架构师+QA PASS 就"提前闭环"诱惑大
+
+### P0-154：路径 A（物化拦截）+ 路径 C（措辞黑名单）组合
+
+加 1 删 0 改账（spec + tool · 与 P0-153 路径 B 同纵深防御组合）：
+
+**路径 A：物化拦截（最硬）**
+
+- ➕ [tools/state.py](../tools/state.py) 新增 `_check_external_review_artifact` helper + `EXTERNAL_REVIEW_STAGES = ("blueprint", "review")` 常量：
+  - cmd_satisfy_gate 在 gate=output 时调用
+  - 条件：stage ∈ (blueprint, review) AND `{stage}_substeps_config.review_roles[]` 显式含 external
+  - 校验：`{artifact_root}/external-cross-review/` 目录存在 + 含 ≥1 `*.md` 文件
+  - 失败：exit 1 + hint "跑 codex CR · 或显式 opt-out（review_roles[] 移除 external）"
+  - 跳过场景：stage 不适用 / config 未实例化 / review_roles[] 不含 external / artifact_root 缺失
+- ➕ [tools/tests/test_state.py](../tools/tests/test_state.py) 新增 4 测试：
+  - artifact missing → FAIL（含 P0-154 rule 标记）
+  - artifact present → PASS
+  - external opt-out → PASS（不校验）
+  - 非 EXTERNAL_REVIEW_STAGES（如 dev）→ PASS（边界）
+
+**路径 C：措辞黑名单（轻量护栏）**
+
+- ➕ [stages/review-stage.md § 过程硬规则](../stages/review-stage.md) 加 🔴 external 评审跳步禁令：
+  - 反模式黑名单 4 条（"codex 后台" / "codex 异步" / "可选 codex" 措辞 + "PASS 后跳" 心智路径 + 流转注解掩盖缺席 + 静默 skip）
+  - 推荐措辞（"codex subagent 必跑 · 同步等结果" + Steps remaining 必列）
+  - 下游消费者标注：state.py satisfy-gate output 物化校验
+- ➕ [stages/blueprint-stage.md § 硬规则](../stages/blueprint-stage.md) 加同型 🔴 跳步禁令（与 review-stage.md 镜像 · 适配 blueprint-{model}.md 产物名）
+
+不动（边界严格）：
+- L1 红线零增量（SKILL.md 9 条不动）
+- agents/README.md § 三选一降级机制不动（已是合规路径）
+- external-model.md / external-reviewer.md 不动（角色规范已足）
+- BlueprintLite Stage 不动（敏捷需求无 external 配置）
+- enter-stage 不动（拦截点已在 satisfy-gate output · 不重复）
+
+**纵深防御层级**：
+
+| 层 | 拦截位置 | 触发条件 | 失败结果 |
+|---|---------|---------|---------|
+| L1 spec | review-stage.md / blueprint-stage.md § 硬规则 | agent 写 plan 时 | 黑名单措辞警示 · 软性 |
+| L2 物化 | state.py satisfy-gate --gate output | output gate 实际尝试 | exit 1 · 硬阻断 |
+| L3 R-SP-8 | （已有）独立性校验 grep | finalize gate | 互引用 → 拒绝 |
+
+P0-154 加固 L2 物理层 + L1 spec 措辞黑名单 · L3 一直在.
+
+**测试**：176/176 PASS（+4 新测试 · 物化校验路径全覆盖）
+
+**实战 trigger 闭环 commit #10**：P0-145..153 → P0-154。用户问"外部模型 review 了么" → agent 自承跳了 → 用户继续问"深层原因" → 5 层诊断 → 路径 A+C 组合修复。
+
+**教训（与 P0-151/152 同型）**：spec 写"默认 ON"不够 · 还要：
+1. 加物化拦截让"跳"在工具层就失败（不依赖 agent 自觉）
+2. 加反模式黑名单让"跳" 心智路径在 plan 阶段就被警示
+3. R-SP-8 reader 兜底：writer 规则（"必跑 codex"）必须配 reader 校验工具（state.py 校验产物存在）
+
+R7(b) 声明即承诺 视角：agent 在 plan 里声明的"Steps remaining: codex CR" 是合同 · 实际跳步 = 违约 · 未来可扩展 R7(b) 加"声明的 Steps 每步必须有 ToolUse 证据"（路径 B 暂留 · 等 P0-154 实证 1-2 case 看跳步频率降不降）.
+
+---
+
+## v7.3.10 + P0-153（Blueprint Stage external 评审默认 ON · 翻转 P0-13 OFF）
 
 > **触发**：用户提议"feature 改为默认开外部模型 review" · 翻转 v7.3.9+P0-13 当初定的 Blueprint 默认 OFF。
 >

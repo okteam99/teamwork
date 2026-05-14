@@ -131,6 +131,89 @@ class TestP2Transitions(_Base):
         c = run(["raw-read", "--feature", self.feat(), "--field", "concerns"])
         self.assertTrue(any("allow-skip" in x for x in c["value"]))
 
+    # ─── v7.3.10+P0-154: external review artifact 物化拦截 ─────────────
+    # 治本 SVC-PLATFORM-F043 跳 codex CR case · review_roles[] 含 external 时
+    # 必须有 {artifact_root}/external-cross-review/*.md · 否则 satisfy-gate output FAIL
+
+    def _inject_state(self, mutator) -> None:
+        """改 state.json · 移除 checksum（fallback 到 legacy 模式）· 让 state.py 下次写自动重 stamp."""
+        p = self.fix / "state.json"
+        s = json.loads(p.read_text())
+        s.pop("_state_checksum", None)
+        mutator(s)
+        p.write_text(json.dumps(s))
+
+    def test_satisfy_gate_output_review_external_artifact_missing(self) -> None:
+        """review_roles[] 含 external · 无 codex 产物 → FAIL（治本 P0-154）."""
+        self.push_to_stage("review")
+
+        def m(s: dict) -> None:
+            s["review_substeps_config"] = {
+                "review_roles": [{"role": "external", "execution": "subagent"}],
+            }
+            s["artifact_root"] = str(self.fix)
+        self._inject_state(m)
+
+        for g in ("input", "process"):
+            run(["satisfy-gate", "--feature", self.feat(), "--stage", "review",
+                 "--gate", g])
+        d = run(["satisfy-gate", "--feature", self.feat(), "--stage", "review",
+                 "--gate", "output", "--auto-commit", "c2"], expect_exit=1)
+        self.assertEqual(d["verdict"], "FAIL")
+        self.assertIn("external", d["error"])
+        self.assertIn("P0-154", d["rule"])
+
+    def test_satisfy_gate_output_review_external_artifact_present(self) -> None:
+        """review_roles[] 含 external + 产物存在 → PASS（治本 P0-154）."""
+        self.push_to_stage("review")
+
+        def m(s: dict) -> None:
+            s["review_substeps_config"] = {
+                "review_roles": [{"role": "external"}]
+            }
+            s["artifact_root"] = str(self.fix)
+        self._inject_state(m)
+
+        ecr = self.fix / "external-cross-review"
+        ecr.mkdir()
+        (ecr / "review-external-codex.md").write_text(
+            "---\nperspective: external-codex\n---\n# Codex Review\n",
+            encoding="utf-8",
+        )
+
+        for g in ("input", "process"):
+            run(["satisfy-gate", "--feature", self.feat(), "--stage", "review",
+                 "--gate", g])
+        d = run(["satisfy-gate", "--feature", self.feat(), "--stage", "review",
+                 "--gate", "output", "--auto-commit", "c2"])
+        self.assertEqual(d["verdict"], "PASS")
+
+    def test_satisfy_gate_output_review_external_opt_out(self) -> None:
+        """review_roles[] 不含 external · 无产物仍 PASS（用户已 opt-out · 治本 P0-154）."""
+        self.push_to_stage("review")
+
+        def m(s: dict) -> None:
+            s["review_substeps_config"] = {
+                "review_roles": [{"role": "architect"}, {"role": "qa"}]
+            }
+            s["artifact_root"] = str(self.fix)
+        self._inject_state(m)
+
+        for g in ("input", "process"):
+            run(["satisfy-gate", "--feature", self.feat(), "--stage", "review",
+                 "--gate", g])
+        d = run(["satisfy-gate", "--feature", self.feat(), "--stage", "review",
+                 "--gate", "output", "--auto-commit", "c2"])
+        self.assertEqual(d["verdict"], "PASS")
+
+    def test_satisfy_gate_output_dev_skips_external_check(self) -> None:
+        """dev stage 不在 EXTERNAL_REVIEW_STAGES · 不触发 codex 校验（治本 P0-154 · 边界）."""
+        run(["satisfy-gate", "--feature", self.feat(), "--stage", "dev",
+             "--gate", "process"])
+        d = run(["satisfy-gate", "--feature", self.feat(), "--stage", "dev",
+                 "--gate", "output", "--auto-commit", "c1"])
+        self.assertEqual(d["verdict"], "PASS")
+
 
 class TestP3Ship(_Base):
     def test_ship_full_happy_path(self) -> None:

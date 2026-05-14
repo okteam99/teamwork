@@ -281,7 +281,18 @@ RD 起草 TECH 时必须主动覆盖：
 - 🔴 **架构师方案评审不可跳过**（无论方案多简单）
 - 🔴 **ADR 抽取判断不可跳过**（v7.3.10+P0-21）：架构师必须对本 Feature 技术决策应用 3 问触发器，判断结论（产 / 不产 ADR + 理由）必须写入 TECH-REVIEW.md。跳过判断 = 流程偏离
 - 🔴 **ADR 格式合规**（触发抽取时）：严格按 `templates/adr.md` 格式；备选项 ≥ 2；每次新增 / 状态变更必须同步更新 `docs/adr/INDEX.md`（同样按 `templates/adr-index.md` 格式）
-- 🟢 **external 评审角色（v7.3.10+P0-38 升格 · v7.3.10+P0-153 翻转默认 ON）**：`"external" in state.blueprint_substeps_config.review_roles[].role` 时必做（除外部 CLI 不可用触发降级），且必须在 4 步内部闭环 DONE 后执行；不含 external 时整个 Step 5 跳过（仅在用户显式 opt-out 才不含 · 默认含）
+- 🟢 **external 评审角色（v7.3.10+P0-38 升格 · v7.3.10+P0-153 翻转默认 ON · v7.3.10+P0-154 物化拦截）**：`"external" in state.blueprint_substeps_config.review_roles[].role` 时必做（除外部 CLI 不可用触发降级），且必须在 4 步内部闭环 DONE 后执行；不含 external 时整个 Step 5 跳过（仅在用户显式 opt-out 才不含 · 默认含）
+
+- 🔴 **external 评审跳步禁令（v7.3.10+P0-154 · 同型 review-stage.md · 治本 SVC-PLATFORM-F043）**：当 `review_roles[]` 含 external 时 · codex CR **必须同步等结果** · 不得跳步.
+
+  ❌ **反模式黑名单**：
+  - "codex 后台" / "codex 异步" / "可选 codex" 等措辞（暗示可省略 · 命中即跳步违规）
+  - 内部 4 步闭环 PASS → 心智 "Stage 已过" → 跳 codex
+  - 用 "📋 blueprint → dev" 流转注解掩盖 codex 缺席
+
+  ✅ **推荐措辞**：Steps remaining 必含 `codex CR (必跑 · 产物 external-cross-review/blueprint-{model}.md)`
+
+  📎 **下游消费者**：[tools/state.py](../tools/state.py) `satisfy-gate --stage blueprint --gate output` 校验 `{artifact_root}/external-cross-review/*.md` 存在 · 缺失 → exit 1 · 强制不许跳。R-SP-8 reader 兜底.
 - 🟡 **Codex 独立性（开启时适用）**：blueprint-reviewer dispatch prompt 不得暗示结论；产出 `files_read` 不得包含 TC-REVIEW.md / TECH-REVIEW.md / pmo-internal-review.md（违反 = 重 dispatch）
 - 🟡 **Codex 降级处理（开启时适用）**：按 `agents/README.md §三` 三选一（修复 / 🟢 AI 自主规划等效独立审查 / skip+记入 concerns）
 - 🟡 **防外包思考（Codex 开启时适用）**：PMO 收到 Codex 产出后逐条分类（ADOPT/REJECT/DEFER）；全盘同意或全盘否定视为可疑信号（按 codex-cross-review.md §六处理）

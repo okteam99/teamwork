@@ -198,6 +198,21 @@ Step 4: tools/state.py snapshot --tier stage         ← 🔴 替代直接 Read 
 - 🔴 **循环控制**：修复-重跑循环 ≤5 轮（v7.3.10+P0-139 · 从 3 提到 5 · Review Stage 专属覆盖通用默认）
 - 🔴 **Stage 完成前 git 干净** → 统一遵循 [rules/gate-checks.md § Stage 完成前 git 干净](../rules/gate-checks.md#-stage-完成前-git-干净v739-硬规则p0-集中化)（本 Stage commit message：`F{编号}: Review Stage - fix {简述}`；每轮修复独立 commit；auto_commit 为**数组**字段，多轮 QUALITY_ISSUE 修复 append）
 
+- 🔴 **external 评审跳步禁令（v7.3.10+P0-154 · 治本 SVC-PLATFORM-F043 case "AI 跑完架构师+QA 直接转 Stage 跳 codex"）**：当 `review_roles[]` 含 external 时 · codex CR **必须同步等结果** · 不得跳步.
+
+  ❌ **反模式黑名单**（命中即跳步违规）：
+  - "Approach: hybrid (架构师+QA 主对话 + **codex 后台**)" / "**codex 异步**" / "**可选 codex**" 等措辞（暗示可省略）
+  - 架构师 + QA 都 PASS → 心智上 "Stage 已过" → 跳 codex
+  - 用 "📋 review → test" 流转注解掩盖 codex 缺席
+  - codex dispatch 失败 → 静默 skip 不记 concerns
+
+  ✅ **推荐措辞**：
+  - "Approach: hybrid (架构师+QA 主对话 + **codex subagent 必跑 · 同步等结果**)"
+  - Steps remaining 必含 `codex CR (必跑 · 产物 external-cross-review/review-external-{model}.md)`
+  - codex dispatch 失败 → 按 [agents/README.md §三](../agents/README.md) 三选一（修复 / AI 自主等效独立 / skip+显式 concerns）
+
+  📎 **下游消费者（v7.3.10+P0-154 物化拦截）**：[tools/state.py](../tools/state.py) `satisfy-gate --stage review --gate output` 校验 `{artifact_root}/external-cross-review/*.md` 存在 · 缺失 → exit 1 + hint 跑 codex 或 opt-out · 强制不许跳。R-SP-8 reader 兜底.
+
 ### 多视角独立性（产物结构保证）
 
 这是本 Stage 契约的核心。Output Contract 要求三份独立报告 + 不互相引用 + 时间戳独立——AI 为满足这些产物条件，**结构上**必然做三次独立审查。

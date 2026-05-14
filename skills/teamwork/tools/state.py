@@ -467,6 +467,62 @@ def cmd_enter_stage(args: argparse.Namespace) -> None:
     })
 
 
+EXTERNAL_REVIEW_STAGES = ("blueprint", "review")
+
+
+def _check_external_review_artifact(state: dict[str, Any], stage: str) -> str | None:
+    """v7.3.10+P0-154: 治本 SVC-PLATFORM-F043 跳 codex CR case · 物化拦截.
+
+    当 stage ∈ (blueprint, review) AND {stage}_substeps_config.review_roles[] 显式含 external 时 ·
+    校验 {artifact_root}/external-cross-review/ 含 ≥1 *.md 文件.
+
+    Returns: error JSON string if missing, None if PASS / N/A (跳过校验).
+
+    跳过校验场景：
+    - stage 不在 (blueprint, review) → 不适用
+    - {stage}_substeps_config 不存在（未做 Stage 入口实例化）→ 不能判 opt-in/opt-out · 跳
+    - review_roles[] 不含 external → 用户已显式 opt-out · 跳
+    - artifact_root 缺失 → 没有可校验路径 · 跳
+    """
+    if stage not in EXTERNAL_REVIEW_STAGES:
+        return None
+    config = state.get(f"{stage}_substeps_config") or {}
+    if not config:
+        return None
+    review_roles = config.get("review_roles") or []
+    role_names = [r.get("role") if isinstance(r, dict) else r for r in review_roles]
+    if "external" not in role_names:
+        return None
+
+    artifact_root = state.get("artifact_root")
+    if not artifact_root:
+        return None
+
+    ext_dir = Path(artifact_root) / "external-cross-review"
+    if not ext_dir.is_dir():
+        return json.dumps({
+            "verdict": "FAIL",
+            "error": f"review_roles[] 含 external · 但 external-cross-review/ 目录不存在 · codex CR 未跑",
+            "stage": stage,
+            "expected_dir": str(ext_dir),
+            "hint": "跑 codex CR · 产物落 external-cross-review/{stage}-{model}.md · 或显式 opt-out（review_roles[] 移除 external）",
+            "rule": "v7.3.10+P0-154 物化拦截 · 治本 SVC-PLATFORM-F043 跳 codex CR case",
+        }, ensure_ascii=False, indent=2)
+
+    md_files = list(ext_dir.glob("*.md"))
+    if not md_files:
+        return json.dumps({
+            "verdict": "FAIL",
+            "error": f"review_roles[] 含 external · 但 external-cross-review/*.md 不存在 · codex 产物缺失",
+            "stage": stage,
+            "expected_pattern": f"{ext_dir}/*.md",
+            "hint": "跑 codex CR · 产物落 external-cross-review/{stage}-{model}.md · 或显式 opt-out（review_roles[] 移除 external）",
+            "rule": "v7.3.10+P0-154 物化拦截 · 治本 SVC-PLATFORM-F043 跳 codex CR case",
+        }, ensure_ascii=False, indent=2)
+
+    return None
+
+
 def cmd_satisfy_gate(args: argparse.Namespace) -> None:
     path = state_path(args.feature)
     state = json.loads(path.read_text(encoding="utf-8"))
@@ -490,6 +546,12 @@ def cmd_satisfy_gate(args: argparse.Namespace) -> None:
         die(1, _gate_order_err(stage, gate, "input_satisfied"))
     if gate == "output" and contract.get("process_satisfied") is not True:
         die(1, _gate_order_err(stage, gate, "process_satisfied"))
+
+    # v7.3.10+P0-154: external review artifact 物化拦截（治本 SVC-PLATFORM-F043 跳 codex CR）
+    if gate == "output":
+        err = _check_external_review_artifact(state, stage)
+        if err:
+            die(1, err)
 
     contract[f"{gate}_satisfied"] = True
 
