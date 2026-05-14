@@ -32,7 +32,7 @@
 - `review-scope.md` → state.py `_v8_stage_specs.py` 各 review 角色 spec
 - `prompt-cache.md` → state.py 内部 Read 顺序固定 + state.json 访问次数控制
 - `stage-instantiation.md` → state.py 各 stage `prerequisites` + `brief_template_fn`
-- `discussion-mode.md` → state.py `triage` mode E 内置
+- `discussion-mode.md` → TRIAGE.md § 2 mode E 内置(PMO 主对话行为 · 无 state.py 命令)
 - `external-model.md` → state.py `_v8_init.py` detect_host + `_v8_engine.py` external review evidence
 
 ---

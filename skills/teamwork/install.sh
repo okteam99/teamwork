@@ -49,7 +49,7 @@ case "$HOST_VALUE" in
             fi
         done
 
-        # Ensure tools/*.py executable (v7.3.10+P0-129 · state.py / init_triage.py 物化拦截单源)
+        # Ensure tools/*.py executable (state.py + bootstrap.py + _v8_*.py · 物化拦截入口)
         if [[ -d "$SKILL_DIR/tools" ]]; then
             chmod +x "$SKILL_DIR/tools/"*.py 2>/dev/null || true
         fi
@@ -65,7 +65,7 @@ case "$HOST_VALUE" in
             cp "$SCRIPT_DIR/../hooks/hooks.json" "$HOOKS_DIR/hooks.json" 2>/dev/null || true
         fi
 
-        # Sync teamwork injection into CLAUDE.md (v7.3.10+P0-134 · marker-aware · 用户内容保护)
+        # Sync teamwork injection into CLAUDE.md (marker-aware · 用户内容保护)
         SKILL_VERSION=$(grep -E "^version:" "$SKILL_DIR/SKILL.md" 2>/dev/null | head -1 | sed 's/version: *//; s/[\"'"'"']//g' || echo "unknown")
         if [[ -f "$SKILL_DIR/tools/sync-drift.py" && -f "$SKILL_DIR/templates/host-instruction-injection.md" ]]; then
             python3 "$SKILL_DIR/tools/sync-drift.py" \
@@ -96,7 +96,7 @@ case "$HOST_VALUE" in
             fi
         done
 
-        # Ensure tools/*.py executable (v7.3.10+P0-129 · state.py / init_triage.py 物化拦截单源)
+        # Ensure tools/*.py executable (state.py + bootstrap.py + _v8_*.py · 物化拦截入口)
         if [[ -d "$SKILL_DIR/tools" ]]; then
             chmod +x "$SKILL_DIR/tools/"*.py 2>/dev/null || true
         fi
@@ -133,7 +133,7 @@ case "$HOST_VALUE" in
             fi
         fi
 
-        # Sync teamwork injection into AGENTS.md (v7.3.10+P0-134 · marker-aware · 用户内容保护)
+        # Sync teamwork injection into AGENTS.md (marker-aware · 用户内容保护)
         SKILL_VERSION=$(grep -E "^version:" "$SKILL_DIR/SKILL.md" 2>/dev/null | head -1 | sed 's/version: *//; s/[\"'"'"']//g' || echo "unknown")
         if [[ -f "$SKILL_DIR/tools/sync-drift.py" && -f "$SKILL_DIR/templates/host-instruction-injection.md" ]]; then
             python3 "$SKILL_DIR/tools/sync-drift.py" \
@@ -162,20 +162,20 @@ case "$HOST_VALUE" in
         ;;
 esac
 
-# v7.3.10+P0-39: 注入 .worktree/ 到项目根 .gitignore（避免主仓库 git 嵌套混乱）
-# 默认 worktree_root_path = .worktree，install 时确保 gitignore 已含此条目
+# 注入 .worktree/ 到项目根 .gitignore（避免主仓库 git 嵌套混乱）
+# 默认 worktree_root_path = .worktree（详 docs/conventions.md § 10）· install 时确保 gitignore 已含此条目
 GITIGNORE_FILE=".gitignore"
 WORKTREE_PATTERN=".worktree/"
 if [[ -d ".git" ]] || git rev-parse --git-dir &>/dev/null; then
     if [[ -f "$GITIGNORE_FILE" ]]; then
         if ! grep -qxF "$WORKTREE_PATTERN" "$GITIGNORE_FILE" 2>/dev/null && ! grep -qxF ".worktree" "$GITIGNORE_FILE" 2>/dev/null; then
             echo "" >> "$GITIGNORE_FILE"
-            echo "# Teamwork worktree root (v7.3.10+P0-39 default)" >> "$GITIGNORE_FILE"
+            echo "# Teamwork worktree root (default)" >> "$GITIGNORE_FILE"
             echo "$WORKTREE_PATTERN" >> "$GITIGNORE_FILE"
             echo "   📝 Appended .worktree/ to $GITIGNORE_FILE"
         fi
     else
-        echo "# Teamwork worktree root (v7.3.10+P0-39 default)" > "$GITIGNORE_FILE"
+        echo "# Teamwork worktree root (default)" > "$GITIGNORE_FILE"
         echo "$WORKTREE_PATTERN" >> "$GITIGNORE_FILE"
         echo "   📝 Created $GITIGNORE_FILE with .worktree/"
     fi

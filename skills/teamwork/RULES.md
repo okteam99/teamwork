@@ -113,10 +113,13 @@ AI 会"凭印象"声称完成 / 声称读了规范 / 声称跑了测试。证据
 
 ### R9 · session bootstrap 必跑 triage
 
-**Why**:新 session 首条 PMO 响应前必跑 state.py triage · 在响应中 cite audit_line。
+**Why**:新 session 首条 PMO 响应前必先按 [TRIAGE.md](./TRIAGE.md) 完成 5 mode 分诊 · 在响应中输出 audit_line。
 session 启动是 AI 最容易"凭印象"的时刻(没读任何 spec · 没看 state.json)。triage 是兜底物化。
 
-**v8 物化**:`state.py triage` 命令输出 audit_line 字段 · PMO 必须在首条响应可见 cite。
+**v8 物化**:
+- `tools/bootstrap.py` session 入口必跑(silent · 系统维护)
+- TRIAGE.md 是 PMO 主对话行为权威(triage **不是** state.py 命令)
+- audit_line 由 PMO 自己输出 · 用户监督
 
 ---
 
