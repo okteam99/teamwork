@@ -1,6 +1,58 @@
 # Changelog
 
-## v7.3.10 + P0-146（当前 · R-SP-8 writer-only 规则消费者标注 · 实战 4.6 自承洞察）
+## v7.3.10 + P0-147（当前 · Designer 全景对齐物化校验 · DOM diff 工具）
+
+> **触发**：实战反馈 · "designer 在设计的时候还是和全景不对齐 · 尤其是页面框架等" · 用户每次都要肉眼对比 panorama overview.html vs feature preview/*.html。
+>
+> **诊断**：verify-panorama.py（v7.3.10+P0-132）只校验 markdown 自查段是否填写完整 · 不校验实际 HTML 视觉对齐。Designer 自查写"✅ 风格/配色/布局/语言一致"实际可能 HTML 框架完全不同。markdown 层无法 catch 视觉漂移——必须解析 HTML 结构。
+>
+> **R-SP-8 视角**：当前"全景对齐"规则是 writer-only · 跳了没人 catch。本 patch 加 reader = DOM diff 工具。
+
+### P0-147：tools/diff-html-vs-panorama.py + Designer 自查双层物化
+
+加 1 删 1 账：
+- ➕ [tools/diff-html-vs-panorama.py](../tools/diff-html-vs-panorama.py)（~250 行 · 零依赖 · 用 stdlib html.parser）：
+  - 解析 panorama overview.html + feature preview/*.html
+  - 提取 4 维度 token：landmarks（nav/header/aside/main/footer/section）/ color classes（bg-/border-/text-/ring-/...）/ font sizes（text-xs..9xl）/ layout primitives（flex/grid/gap-/space-/p-/m-/w-/h-）
+  - diff：feature 引入 panorama 不含的 token → WARN（漂移）· feature 缺 main 等 required landmark → FAIL
+  - 支持单文件 --feature / 批量 --feature-dir 模式 · --strict 把 WARN 升 FAIL
+  - JSON 输出 · stderr audit · R7 evidence-binding
+- ➕ [tools/tests/test_diff_html_vs_panorama.py](../tools/tests/test_diff_html_vs_panorama.py)（10 case · 对齐/漂移/缺 landmark/批量/失败处理）
+- 改 [roles/designer.md § 3.5 自查报告](../roles/designer.md)：物化拦截升级为双层（L1 verify-panorama · L2 diff-html-vs-panorama）· 第 1 维度"全景对齐"必跑 diff 工具
+- 改 [stages/ui-design-stage.md § 过程硬规则](../stages/ui-design-stage.md)："对齐全景"规则加 P0-147 物化下游消费者标注（R-SP-8 合规示例）
+- 改 [templates/ui.md § 全景对齐证据](../templates/ui.md)：自查段加"HTML 物化对齐校验"子段 · verdict + extra tokens 清单 + state.json 字段
+
+工具特性：
+- **零依赖**（stdlib html.parser）· 跨宿主一致（CC/Codex/Gemini）
+- **DOM 结构 diff**（非像素对比）· 能 catch 框架/配色/字号/布局漂移 · 不能 catch 微小视觉差（4px vs 6px / hex 接近但不同）
+- **panorama 是基准**：feature 应使用 panorama token 子集 · 引入新 token = 漂移信号
+
+退出码契约（与 scripts-policy R-SP-5 一致）：
+- 0 OK · feature 使用 panorama token 子集
+- 1 WARN · feature 引入 panorama 不含的 token（漂移信号 · 需人确认是否合理）
+- 2 FAIL · feature 缺 required landmark / HTML parse 失败 / 文件不存在
+
+测试：150 baseline + 10 diff tool = **160/160 PASS**
+
+实战 trigger 闭环：
+- 用户反馈"页面框架不对齐"→ 物化 DOM diff 工具 → Designer 自查必跑 → 漂移自动 catch
+- 与 P0-145 / P0-146 同型：实战 case → 4.6 诊断 / 用户反馈 → 4.7 物化 + 测试
+
+不动（边界严格 · R-SP-8 路径 B）：
+- L1 红线零增量
+- verify-panorama.py 不动（v1 仍 markdown 校验 · diff-html-vs-panorama.py 是 L2 增量）
+- 不引入 bs4 / playwright / Chromium 依赖（跨宿主 portability）
+- 不做像素级 visual diff（留待未来 P2 patch · 用户 opt-in）
+
+R-SP-8 进度：又给一条 writer-only 规则（"对齐全景"）加了具体下游消费者 · 235 → 234 missing（继续渐进）。
+
+后续候选：
+- 项目实战跑 1-2 个 Feature 验证 diff 工具准确度 / 假阳率
+- 如 panorama overview.html 本身规范不齐 · 可能需要 P0-148 加 panorama 规范化要求
+
+---
+
+## v7.3.10 + P0-146（R-SP-8 writer-only 规则消费者标注 · 实战 4.6 自承洞察）
 
 > **触发**：实战 case · API-F048-Ollama 代理网关 Feature · Claude 4.6 instance 自承"我跳的 spec 步骤都没有下游消费者标注"——只写"🔴 必须"但没说"跳了谁会发现 / 哪个下游会失败" · AI 内部评估为"只是仪式"而跳掉。
 >

@@ -226,7 +226,7 @@ silent 自动认定 / 用户选 1-2：
 ### 过程硬规则
 
 - 🔴 **角色规范必读且 cite**：必读 `roles/designer.md`，产出前 cite 要点
-- 🔴 **对齐全景**：Feature UI 必须与全景风格/配色/布局/语言一致（不一致 → Concern，⏸️ 用户决策）
+- 🔴 **对齐全景**：Feature UI 必须与全景风格/配色/布局/语言一致（不一致 → Concern，⏸️ 用户决策）· 下游：v7.3.10+P0-147 物化 — Designer 自查必跑 [`tools/diff-html-vs-panorama.py`](../tools/diff-html-vs-panorama.py)（panorama overview.html vs feature preview/*.html · DOM diff 出 extra colors / 字号 / layout tokens）· WARN 必修 / FAIL 阻断进入下个 Stage。实证 trigger：API-F048 case "页面框架还是和全景不对齐"
 - 🔴 **全景增量不重写**：禁止用新版全景替换旧版；禁止删除现有页面或导航；只允许 append/modify-in-place
 - 🔴 **全景变更显式标记**：任何对全景的修改必须在 sitemap.md 加标红注释 + 执行报告列出 diff
 - 🔴 **HTML 预览必出**：Feature 每个页面/状态必须有 preview/*.html（Tailwind CSS）

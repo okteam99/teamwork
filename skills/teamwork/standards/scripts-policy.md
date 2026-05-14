@@ -180,6 +180,7 @@ verify-output-format（后置 · 兜底 · 未来 P1+1）
 | 工具 | 用途 | 落地 patch |
 |---|---|---|
 | `tools/scan-spec-consumer.py` | R-SP-8 writer-only 规则扫描（spec consumer coverage report）| v7.3.10+P0-146 |
+| `tools/diff-html-vs-panorama.py` | Designer 全景对齐 DOM diff（panorama overview.html vs feature preview）| v7.3.10+P0-147 |
 
 后续候选：`render-execution-plan.py` / `render-stage-summary.py` / `render-feature-completion-report.py` / `verify-output-format.py`（兜底）等（每个独立 patch · 触发即加）。
 

@@ -152,11 +152,14 @@ Step 2: 全景设计同步更新（用户确认 Step 1 后自动执行 · 涉及
 
 ### 3.5 Designer 自查报告（v7.3.10+P0-132 物化 · 出口必填）
 
-> 🔴 **物化拦截**：[tools/verify-panorama.py](../tools/verify-panorama.py) 校验自查报告完整性 + sitemap.md mtime + preview/ 数量 + 跨子项目「全景宿主」标注 · UI Design Stage 出口前置 · 不通过 = 不进 ⏸️ 用户确认。
+> 🔴 **物化拦截（双层 · v7.3.10+P0-132/147）**：
+> - L1 [tools/verify-panorama.py](../tools/verify-panorama.py)：校验自查报告完整性 + sitemap.md mtime + preview/ 数量 + 跨子项目「全景宿主」标注
+> - L2 [tools/diff-html-vs-panorama.py](../tools/diff-html-vs-panorama.py)（v7.3.10+P0-147 新增 · 治本 4.6 case "页面框架不对齐"）：DOM 解析 panorama overview.html vs feature preview/*.html · 输出 extra colors / 字号 / layout tokens diff · WARN 必修 / FAIL 阻断
+> - UI Design Stage 出口前置（两层都通过） · 不通过 = 不进 ⏸️ 用户确认
 
 5 维度自查清单（详细 cite [standards/common.md § 四B Designer 自查规范](../standards/common.md)）：
 
-1. **全景对齐**（P0-123 跨子项目契约）：panorama_path 已 read · 风格/配色/导航与全景一致 · 跨子项目时标注「全景宿主」
+1. **全景对齐**（P0-123 跨子项目契约 + P0-147 物化校验）：panorama_path 已 read · 风格/配色/导航与全景一致 · 跨子项目时标注「全景宿主」· **必跑 `diff-html-vs-panorama.py` · 输出 verdict + extra tokens 清单写入 UI.md 自查段**
 2. **状态覆盖**：每页正常/空/加载/错误 4 态 + HTML preview
 3. **PRD AC 覆盖**：UI-AC-COVERAGE 表逐条声明
 4. **全景增量同步**：变更类型（无/增量/结构性）+ sitemap modify-in-place + 标红注释 + diff
