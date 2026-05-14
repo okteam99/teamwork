@@ -336,12 +336,19 @@ def _handle_ship_confirm_merged(state: dict, args: argparse.Namespace) -> dict:
         "warnings": warnings,
         "next_action_brief": (
             "✅ 合入已确认。\n\n"
+            "🔴 state.json finalize 直推(合法例外 · 详 ship-stage.md §11):\n"
+            "  - merge_target 上 state.json 仍是 Phase 1 phase=pushed · 需 push 同步\n"
+            "  - 走直推 · **不创 MR**(单文件 + 仅状态字段 + 零业务影响)\n"
+            "  - 同类例外:Bug 流程 BUG-REPORT.md frontmatter 直推\n"
+            "  - 禁止:业务文件 / state.json 业务字段 / BUG-REPORT.md 正文 · 这些必走 MR\n\n"
             "下一步:\n"
-            "1. git worktree remove <worktree-path>(如有 worktree)\n"
-            "2. git branch -d <feature-branch>\n"
-            "3. state.py ship-phase --action cleanup "
+            "1. git push origin <merge-target>(state.json finalize 直推)\n"
+            "   失败:--merge-target-push-failed --failed-reason {conflict|protect-rule|network|other}\n"
+            "2. git worktree remove <worktree-path>(如有 worktree)\n"
+            "3. git branch -d <feature-branch>\n"
+            "4. state.py ship-phase --action cleanup "
             "--feature <path> --status cleaned\n"
-            "4. state.py ship-complete --feature <path> --auto-commit <hash>"
+            "5. state.py ship-complete --feature <path> --auto-commit <hash>"
         ),
     }
 

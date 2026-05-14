@@ -22,8 +22,12 @@
 ### 6. git fetch + pull
 git fetch origin <merge_target>; git pull --ff-only
 
-### 7. ship-phase confirm-merged
+### 7. ship-phase confirm-merged + state.json finalize 直推
 `--action confirm-merged --merge-commit-hash ... --merge-detection-method branch-contains` · pushed → merged
+
+🔴 **finalize 直推例外**(详见 §11):合入后 state.json 仍是 Phase 1 的 phase=pushed,需 push 到 merge_target 同步。
+**直推 · 不创 MR**(单文件 + 仅状态字段 + 零业务影响)。
+推荐:在 confirm-merged 时一并传 `--merge-target-pushed-at`(把直推时间戳写入 state.json finalize-push 状态)。
 
 ### 8. 清理 worktree + branch
 `git worktree remove <wt-path>; git branch -d <branch>`
@@ -63,7 +67,47 @@ MR 暂时关闭就跑 close-unmerged · 后续重开困难。
 状态不可逆 · 远程已动。
  **对策**:P0-6 reset-prev 物化拦截 · Ship 后 FAIL · 走 close-unmerged 或新 Feature 修复
 
+### 坑 6 · state.json finalize 走 MR 流程(浪费 review)
+合入后 state.json 字段更新走 MR · 多 N 个 review round-trip · 无意义。
+ **对策**:走 §11 直推例外(单文件 + 仅状态字段 + 零业务影响)
+
 ---
+
+## 11. Phase 2 finalize · state.json 直推例外
+
+confirm-merged 后,状态:
+- worktree 内 state.json 已更新到 phase=merged(本地)
+- merge_target 远程上的 state.json **还是 Phase 1 时的 phase=pushed**(因为 MR 已合并 · 但 state.json 是合并前的快照)
+
+**合法直推**(不走 MR)· 适用范围:
+
+| 流程 | 允许直推的文件 | 允许的字段 |
+|---|---|---|
+| Feature | `state.json`(单文件) | 仅状态字段:`current_stage` / `completed_stages` / `ship.phase` / `ship.shipped` / `ship.merge_*` / `worktree_cleanup` / `completed_at` 等 |
+| Bug | `BUG-REPORT.md`(单文件) | 仅 frontmatter 元数据:`current_stage` / `phase` / `shipped` / `merge_commit_hash` 等 |
+
+**直推命令**(在主工作区 cwd):
+```bash
+git fetch origin <merge_target>
+git pull --ff-only origin <merge_target>
+git cherry-pick <state.json finalize commit>      # 或 git checkout/cp 同效
+git push origin <merge_target>
+```
+
+**为什么是合法例外**:
+- 单文件 + 仅状态字段 = 零业务影响 · 不需要 review
+- finalize 是流程闭环的元数据同步 · 不是新功能/修复 · review 视角无 finding 可贡献
+- 走 MR 浪费多角色 review round-trip · 显式低 ROI
+
+**push 失败降级**:
+- `git push` exit≠0 → 把 finalize 留在 feature 分支 + state.concerns 加 WARN
+- 不阻塞 ship-cleanup / ship-complete
+- 用 `state.py ship-phase --action confirm-merged --merge-target-push-failed --failed-reason {conflict|protect-rule|network|other}` 记录
+
+**禁止滥用**:
+- ❌ 业务文件直推(代码 / PRD / TC / TECH 等)→ 必走 MR
+- ❌ state.json 中非状态字段(blocking / planned_execution 等业务字段)→ 必走 MR
+- ❌ Bug 流程 BUG-REPORT.md 正文修改 → 必走 MR(只允许 frontmatter)
 
 ## Output Contract(产物形态参考)
 
