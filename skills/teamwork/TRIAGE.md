@@ -95,93 +95,20 @@ python3 <SKILL_ROOT>/tools/bootstrap.py \
 
 详见 [SKILL.md § 项目级系统维护](./SKILL.md)。
 
-### Step 4.1 · 流程类型识别(6 闭集 · R2 红线)
+### Step 4.1 · mode B → 走 prepare 子流程
 
-PMO 按以下关键词表判定 user input 落入哪类流程:
+mode B 识别后 · PMO 走 **prepare 子流程**(详见 [docs/prepare.md](./docs/prepare.md)):
+1. 流程类型识别(6 闭集 · R2 红线)
+2. worktree 决策(branch 前缀 + path)
+3. emit 暂停点 markdown(收集 4 项:Feature ID / merge_target / worktree path / branch)
+4. 用户确认 → PMO 跑 git worktree add + cd → state.py init-feature
 
-| 关键词模式 | 流程类型 |
-|----------|---------|
-| 规划 / Feature Planning / feature planning / 更新 roadmap / 拆 roadmap / 路线图 / 全景 / 做电商 / 做 SaaS / 商业模式调整 | **Feature Planning** |
-| 排查 / 查 log / 诊断 / why X 慢 / 调研 / 分析根因 | **问题排查** |
-| 修复 / bug / 报错 / 500 / 502 / 挂了 / 无法登录 / 生产问题 | **Bug** |
-| 换 logo / 换图 / 改文案 / 改样式 / 改颜色 / 改配置常量 | **Micro** |
-| 加按钮 / 加导出 / 加字段 / 列表加列 | **敏捷需求** |
-| 实现 / 开发 / 做功能 / 新建模块 | **Feature**(兜底)|
+**prepare 是可重入子流程** · 同样适用以下场景:
+- mode E discuss 收敛后升级到 mode B(见 §2 mode E 升级触发段)
+- Feature Planning 完成后 · PL 拍板某个 BL-NNN 启动 Feature(同 session 内 · 不需重新 triage · 直接 prepare)
+- 用户主动"启动新 Feature"的任何 PMO 入口
 
-落入 6 闭集之一(R2 红线 · enum 强制)。
-
-### Step 4.2 · worktree 决策模板
-
-PMO 按 flow_type 算 branch 前缀 + worktree path 建议:
-
-| flow_type | branch 前缀 | worktree |
-|----------|-----------|---------|
-| Feature | `feature/` | 必 |
-| 敏捷需求 | `agile/` | 必 |
-| Bug | `fix/` | 必 |
-| Micro | `micro/` | 必 |
-| Feature Planning | `plan/`(可选) | 可选 · 由 PMO 主对话执行 · 不进状态机 |
-| 问题排查 | — | 不进 stage · 类似 mode A query |
-
-**worktree path 默认** = `{worktree_root_path}/{Feature-ID}` ·
-其中 `worktree_root_path` 解析顺序:
-1. `state.json.environment_config.worktree_root_path`(已存在 Feature)
-2. 项目根 `.teamwork_localconfig.md` 的 `worktree_root_path` 字段
-3. 默认 `.worktree`(项目根子目录)
-
-完整规范见 [docs/conventions.md § 9-11](./docs/conventions.md)。
-
-### Step 4.3 · emit 暂停点 markdown(PMO 复制给用户)
-
-```markdown
-⏸️ 进入流程前请确认 4 项:
-
-📋 **流程类型**:<flow_type>
-📋 **理由**:<识别理由>
-📋 **首个 stage**:<first_stage>
-
-请提供:
-1. **Feature ID**(如 PTR-F033-Credit-Note-Adjustment · 编号规则见 [docs/conventions.md § 1](./docs/conventions.md))
-2. **merge_target**(如 staging / main)
-3. **worktree path**(默认:`{worktree_root_path}/<FEATURE-ID>` · 见 [docs/conventions.md § 9](./docs/conventions.md))
-4. **branch**(默认:`<branch-prefix><FEATURE-ID>`)
-
-回复 4 项或 "all default" 用默认值(仅需 Feature ID + merge_target)
-
-📎 **是否需要 UI Design Stage** 由 goal-complete 时 `--needs-ui` 决策(P0-6)·
- triage 入口不强制提前拍板。
-```
-
-flow_type → first_stage 映射:
-- Feature / 敏捷需求 → `goal`
-- Bug / Micro → `dev`
-- **Feature Planning** → 不进 stage 链 · PMO 主对话按 [docs/feature-planning.md](./docs/feature-planning.md) 执行
-- **问题排查** → 不进 stage 链 · 类似 mode A query
-
-### Step 4.4 · 用户确认后 · PMO 显式执行
-
-```bash
-# 用户回(或 all default):
-# 1. Feature ID: PTR-F033
-# 2. merge_target: staging
-# 3. worktree path: <repo>/worktrees/PTR-F033
-# 4. branch: feature/PTR-F033
-
-# PMO 跑(在主工作区 cwd · 不是 worktree):
-git fetch origin
-git worktree add -b feature/PTR-F033 <worktree-path> origin/staging
-cd <worktree-path>
-
-# 此刻 cwd 在 worktree 内 · 进状态机:
-state.py init-feature \
- --feature docs/features/PTR-F033 \
- --feature-id PTR-F033 \
- --flow-type Feature \
- --merge-target staging \
- --branch feature/PTR-F033 \
- --worktree-mode auto \
- --worktree-path <worktree-path>
-```
+prepare 不调用场景:Feature Planning 流程本身 / 问题排查流程(都不进状态机)。
 
 ---
 

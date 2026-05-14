@@ -131,16 +131,22 @@ Feature 列表 + 优先级 · 一 Feature 一行
 
 ## 5. 与 Feature 流程的接口
 
-Planning 完成后,某个 BL-NNN 启动开发:
+Planning 完成后,某个 BL-NNN 启动开发(同 session · 不需要重新 triage):
 
 ```
 PMO(主对话):
   → 用户拍板 "启动 BL-007"
-  → PMO 按 TRIAGE.md §4 走 Feature 流程入口
-  → init-feature --flow-type Feature --feature-id <PROJ>-F<NNN>-<name>
+  → PMO 走 prepare 子流程([docs/prepare.md](./prepare.md))
+    · flow_type = Feature(默认 · BL 已经决定"做什么")
+    · 收集 Feature ID(从 BL 推 · 如 BL-007 → PTR-F042-<name>)
+    · 收集 worktree path / branch / merge_target(暂停点)
+    · 用户确认 → PMO 跑 git worktree add + cd
+  → state.py init-feature --flow-type Feature --feature-id <PROJ>-F<NNN>-<name> ...
   → ROADMAP 同步「对应 F编号」列(由 PMO 在 Feature 启动时回填 · 详 conventions.md § 4)
   → 进 goal stage 起 PRD ...
 ```
+
+prepare 是可重入子流程 · 同 session 中 PMO 走过 triage(mode E discuss),启动 Feature 时不再 triage,直接进 prepare。
 
 BL ↔ F 编号映射规则见 [conventions.md § 4](./conventions.md)。
 
@@ -149,6 +155,7 @@ BL ↔ F 编号映射规则见 [conventions.md § 4](./conventions.md)。
 ## 6. 相关
 
 - [TRIAGE.md § 4.1](../TRIAGE.md) — 流程类型识别(Feature Planning 关键词命中)
+- [docs/prepare.md](./prepare.md) — 进状态机前的准备子流程(启 Feature 时走)
 - [FLOWS.md § Feature Planning](../FLOWS.md) — telos
 - [conventions.md § 4](./conventions.md) — BL ↔ F 编号
 - [roles/product-lead.md](../roles/product-lead.md) — PL 角色规范

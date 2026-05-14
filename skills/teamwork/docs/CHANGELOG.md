@@ -1,5 +1,55 @@
 # Changelog
 
+## v8.6 · 抽 prepare 为可重入子流程 · 解耦 triage / prepare 职责
+
+### 问题
+
+triage 中混了两件事:
+1. 5 mode 分诊(query/execute/resume/status/discuss · 每 session PMO 承接用户输入跑一次)
+2. 进状态机前的准备(流程类型识别 + worktree 决策 + 暂停点 · 只在 mode B 跑)
+
+新场景不兼容:
+- Feature Planning 完成后 PL 拍板某 BL → 启动 Feature 流程
+- 已经在某 session 中 · triage 早跑过(mode E discuss)· 不会再跑
+- 需要"流程类型识别 + worktree 决策 + 暂停点"逻辑 · 但 triage 已经用过
+
+### 抽 prepare 子流程
+
+新建 [docs/prepare.md](./prepare.md) · 包含:
+- §1 触发场景(mode B / mode E 升级 / Feature Planning 启 Feature / mode A→B)
+- §2-5 4 步(流程类型识别 / worktree 决策 / emit 暂停点 / 用户确认后执行)
+- §6 与状态机的接口
+- §7 错误处理
+- §8 红线(R-P1 必经用户确认 / R-P2 不可枚举留 PMO)
+
+### TRIAGE.md §4 简化
+
+原 §4 (Mode B 子流程 · 4 个 step) → 简化为:
+- §4.0 bootstrap.py(保留 · 任何 mode 都跑)
+- §4.1 mode B → 走 prepare 子流程(指向 docs/prepare.md)
+- 强调 prepare 可重入(mode E 升级 / Feature Planning 启 Feature 等都走)
+
+### docs/feature-planning.md §5 更新
+
+BL-NNN 启动 Feature 流程的步骤明确走 prepare:
+```
+PMO 走 prepare 子流程
+ · flow_type = Feature(BL 已决定"做什么")
+ · 收集 Feature ID(从 BL 推)
+ · 收集 worktree/branch/merge_target(暂停点)
+ · 用户确认 → init-feature
+```
+
+### 设计原则
+
+- **triage** = 入口分诊(每 session 一次 · 5 mode 判定 · 输出 audit_line)
+- **prepare** = 进状态机前的准备(可重入 · 任何"决定走某流程"的入口都跑一次)
+- **职责正交**:triage 不关心后续走哪个流程 · prepare 不关心当前 mode
+
+测试: v8 测试 38/38 全过(本次仅 markdown 改动 · 无 Python 行为变化)
+
+---
+
 ## v8.5 · 删 install.sh · bootstrap.py 承接系统维护职责
 
 ### 删 install.sh
