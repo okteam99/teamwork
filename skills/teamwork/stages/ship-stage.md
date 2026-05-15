@@ -38,38 +38,20 @@ git fetch origin <merge_target>; git pull --ff-only
 ### 10. ship-complete
 `state.py ship-complete` · 自动转 completed
 
----
+### 异常 · close-unmerged
+放弃合入 → `--action close-unmerged --abandon=true` · 暂时关闭(后续重开)→ `--abandon=false`(留口子 · 不进 closed 终态)。
 
+---
 
 ## 必读 cite 清单(P0-11)
 
 本 stage 是 PMO 编排操作(不涉及内容创作角色)· **无 cite 要求**。
 
-## 注意事项
-
-### 坑 1 · confirm-merged / cleanup 在 worktree 跑
-state.json 在 worktree 被 cleanup 时删除丢失(治本 ADMIN-F013)。
- **对策**:P0-156 物化拦截 · linked worktree FAIL · 必 cd 主工作区
-
-### 坑 2 · cleanup --status cleaned 但 phase ≠ merged
-destructive op 前合并未确认 · state 不一致。
- **对策**:P0-124 hard gate · phase 必 merged + merge_commit_hash 非空才能 cleaned
-
-### 坑 3 · 用 git push hint URL 当 MR URL
-git push 输出的 "remote: To create a merge request..." 是 trap · 不是首选。
- **对策**:P0-113 CLI-first · 必跑 gh/glab 拿真实 URL · 失败才 URL 兜底
-
-### 坑 4 · close-unmerged 滥用
-MR 暂时关闭就跑 close-unmerged · 后续重开困难。
- **对策**:close-unmerged 仅用于真正"放弃合入" · 暂时关用 --abandon=false 留口子
-
-### 坑 5 · Ship 后想 reset-prev
-状态不可逆 · 远程已动。
- **对策**:P0-6 reset-prev 物化拦截 · Ship 后 FAIL · 走 close-unmerged 或新 Feature 修复
-
-### 坑 6 · state.json finalize 走 MR 流程(浪费 review)
-合入后 state.json 字段更新走 MR · 多 N 个 review round-trip · 无意义。
- **对策**:走 §11 直推例外(单文件 + 仅状态字段 + 零业务影响)
+📎 **物化拦截清单**(已在工具层 BLOCKED + hint · spec 不重复展开):
+- P0-6 ship 后 reset-prev FAIL
+- P0-113 push 必 CLI-first 拿 MR URL · 不接受 git push hint URL
+- P0-124 cleanup --status cleaned 必 phase=merged + merge_commit_hash 非空
+- P0-156 confirm-merged / cleanup 必 cd 主工作区(linked worktree FAIL)
 
 ---
 
