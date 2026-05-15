@@ -58,7 +58,7 @@ PMO 按 flow_type 算 branch 前缀 + worktree path 建议:
 **worktree path 默认** = `{worktree_root_path}/{Feature-ID}` ·
 其中 `worktree_root_path` 解析顺序:
 1. `state.json.environment_config.worktree_root_path`(已存在 Feature)
-2. 项目根 `.teamwork_localconfig.md` 的 `worktree_root_path` 字段
+2. 项目根 `.teamwork_localconfig.json` 的 `worktree_root_path` 字段
 3. 默认 `.worktree`(项目根子目录)
 
 完整规范见 [docs/conventions.md § 9-11](./conventions.md)。

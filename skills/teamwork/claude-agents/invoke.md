@@ -125,7 +125,7 @@ PMO 在准备 prompt 文件时必须 grep 校验 `{file_list}`，发现违规路
 
 ## 五、模型版本配置
 
-默认调用 `--model claude-sonnet-4-6`。可在 `.teamwork_localconfig.md` 配置覆盖：
+默认调用 `--model claude-sonnet-4-6`。可在 `.teamwork_localconfig.json` 配置覆盖：
 
 ```yaml
 external_claude_model: claude-sonnet-4-6 # 默认

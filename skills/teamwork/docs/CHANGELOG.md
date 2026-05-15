@@ -1,5 +1,66 @@
 # Changelog
 
+## v8.7 · localconfig md → json · bootstrap state 合并(去 .teamwork-bootstrap.json)
+
+### 合并文件
+
+- 删 `.teamwork-bootstrap.json`(独立 marker · v8.5 引入)
+- bootstrap state 合并到 `.teamwork_localconfig.json` 的 `_bootstrap` 子段
+- `.teamwork_localconfig.md`(原模板)→ `.teamwork_localconfig.json`(JSON 格式)
+
+### .teamwork_localconfig.json 结构(选项 A · 单文件嵌套)
+
+```json
+{
+  "worktree": "auto",            ← 用户编辑(commit 不限 · 默认 .gitignore)
+  "worktree_root_path": ".worktree",
+  "scope": "all",
+  "merge_target": "staging",
+  "worktree_cleanup": "ask",
+  "mr_url_template": null,
+
+  "_bootstrap": {                ← 工具维护(用户禁手改)
+    "skill_version": "v8.7",
+    "host": "claude-code",
+    "last_maintain_at": "...",
+    "last_maintain_results": {...}
+  }
+}
+```
+
+### bootstrap.py 改造
+
+- 新增 `LOCALCONFIG_FILE = ".teamwork_localconfig.json"`
+- 新增 `read_localconfig(project_root)` · 读 config + state 合并体
+- `read_bootstrap_marker / write_bootstrap_marker` 改为操作 localconfig 的 `_bootstrap` 子段
+- `write_bootstrap_marker` 必保留用户 config 段不动(只 update `_bootstrap`)
+- `maintain_gitignore_worktree` 把 `.teamwork-bootstrap.json` → `.teamwork_localconfig.json`(整文件 .gitignore · 含 config 段:本地配置默认不 commit · 老 md 行为延续)
+
+### 新模板
+
+- `templates/teamwork_localconfig.json`(JSON 模板 · 含 _comment 字段说明)
+- 字段:worktree / worktree_root_path / scope / merge_target / worktree_cleanup / mr_url_template + _bootstrap 段
+
+### 老 .md 处理
+
+bootstrap.py **不自动迁移** `.teamwork_localconfig.md`(项目级配置极少用户手编 · 当前没 Python 代码读它 · 老 md 留着不动 · 用户可手动迁)。
+未来需要时可加 migrate 函数。
+
+### cite 更新
+
+- `templates/config.md` § .teamwork_localconfig 段(标题已改 .json)
+- `docs/conventions.md` §10 worktree_root_path 配置(.md → .json)
+- `docs/prepare.md` Step 2(.md → .json)
+- `claude-agents/invoke.md`(model 配置覆盖位置 · .md → .json)
+
+### 测试
+
+- 加 TestBootstrapMarker.test_write_preserves_user_config_segment(覆盖 _bootstrap 写入不丢 config)
+- 改 TestMaintainGitignoreWorktree(`.teamwork-bootstrap.json` → `.teamwork_localconfig.json`)
+- v8 测试 42/42 全过
+
+---
+
 ## v8.6 · 抽 prepare 为可重入子流程 · 解耦 triage / prepare 职责
 
 ### 问题

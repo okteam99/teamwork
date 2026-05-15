@@ -251,7 +251,7 @@ class TestMaintainGitignoreWorktree(unittest.TestCase):
         self.assertEqual(result["status"], "appended")
         text = (self.tmp / ".gitignore").read_text()
         self.assertIn(".worktree/", text)
-        self.assertIn(".teamwork-bootstrap.json", text)
+        self.assertIn(".teamwork_localconfig.json", text)
 
     def test_gitignore_appended_when_present(self):
         from bootstrap import maintain_gitignore_worktree
@@ -261,12 +261,12 @@ class TestMaintainGitignoreWorktree(unittest.TestCase):
         text = (self.tmp / ".gitignore").read_text()
         self.assertIn("node_modules/", text)
         self.assertIn(".worktree/", text)
-        self.assertIn(".teamwork-bootstrap.json", text)
+        self.assertIn(".teamwork_localconfig.json", text)
 
     def test_gitignore_already_present(self):
         from bootstrap import maintain_gitignore_worktree
         (self.tmp / ".gitignore").write_text(
-            "node_modules/\n.worktree/\n.teamwork-bootstrap.json\n"
+            "node_modules/\n.worktree/\n.teamwork_localconfig.json\n"
         )
         result = maintain_gitignore_worktree(self.tmp)
         self.assertEqual(result["status"], "already_present")
@@ -287,24 +287,45 @@ class TestBootstrapMarker(unittest.TestCase):
         self.assertEqual(read_bootstrap_marker(self.tmp), {})
 
     def test_read_returns_empty_when_corrupt(self):
-        from bootstrap import read_bootstrap_marker, BOOTSTRAP_MARKER
-        (self.tmp / BOOTSTRAP_MARKER).write_text("not json{{{")
+        from bootstrap import read_bootstrap_marker, LOCALCONFIG_FILE
+        (self.tmp / LOCALCONFIG_FILE).write_text("not json{{{")
         self.assertEqual(read_bootstrap_marker(self.tmp), {})
 
     def test_write_then_read_roundtrip(self):
-        from bootstrap import (
-            read_bootstrap_marker, write_bootstrap_marker, BOOTSTRAP_MARKER,
-        )
+        from bootstrap import read_bootstrap_marker, write_bootstrap_marker
         ok = write_bootstrap_marker(
-            self.tmp, "v8.5", "claude-code",
+            self.tmp, "v8.6", "claude-code",
             {"chmod": "ok", "hooks": "deployed"},
         )
         self.assertTrue(ok)
         marker = read_bootstrap_marker(self.tmp)
-        self.assertEqual(marker["skill_version"], "v8.5")
+        self.assertEqual(marker["skill_version"], "v8.6")
         self.assertEqual(marker["host"], "claude-code")
         self.assertEqual(marker["last_maintain_results"]["chmod"], "ok")
         self.assertIn("last_maintain_at", marker)
+
+    def test_write_preserves_user_config_segment(self):
+        """write _bootstrap 段时 · 不能丢用户的 config 字段。"""
+        import json as _json
+        from bootstrap import (
+            read_localconfig, write_bootstrap_marker, LOCALCONFIG_FILE,
+        )
+        # 用户先编辑 config
+        (self.tmp / LOCALCONFIG_FILE).write_text(_json.dumps({
+            "worktree": "auto",
+            "worktree_root_path": ".worktree",
+            "scope": "all",
+            "merge_target": "staging",
+        }, indent=2))
+        # bootstrap 写 _bootstrap
+        write_bootstrap_marker(self.tmp, "v8.6", "claude-code", {"chmod": "ok"})
+        # config 字段保留 + _bootstrap 加入
+        cfg = read_localconfig(self.tmp)
+        self.assertEqual(cfg["worktree"], "auto")
+        self.assertEqual(cfg["worktree_root_path"], ".worktree")
+        self.assertEqual(cfg["scope"], "all")
+        self.assertEqual(cfg["merge_target"], "staging")
+        self.assertEqual(cfg["_bootstrap"]["skill_version"], "v8.6")
 
 
 # ─── scan_v7_state_json ──────────────────────────────────

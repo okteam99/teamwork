@@ -72,7 +72,7 @@ cp .env.example .env
 
 ---
 
-## .teamwork_localconfig.md（本地协作配置）
+## .teamwork_localconfig.json（本地协作配置）
 
 > 此文件存放在项目根目录，记录当前用户负责的子项目范围。
 > 🔴 本地配置，不提交到 git（应加入 .gitignore）。每个开发者各自维护一份。

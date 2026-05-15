@@ -1,0 +1,19 @@
+{
+  "_comment": "Teamwork 本地配置 + bootstrap state 单源(v8.7+)。本地配置(不提交 git · 由 bootstrap.py 自动加 .gitignore)。",
+  "_doc": "字段说明见 docs/conventions.md / docs/prepare.md / templates/config.md(§.teamwork_localconfig)",
+
+  "worktree": "auto",
+  "worktree_root_path": ".worktree",
+  "scope": "all",
+  "merge_target": "staging",
+  "worktree_cleanup": "ask",
+  "mr_url_template": null,
+
+  "_bootstrap": {
+    "_comment": "工具维护段 · 用户禁手改(由 tools/bootstrap.py 写入)。改动 = 触发 maintain 重跑。",
+    "skill_version": null,
+    "host": null,
+    "last_maintain_at": null,
+    "last_maintain_results": {}
+  }
+}

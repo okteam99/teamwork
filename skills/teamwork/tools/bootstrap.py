@@ -20,6 +20,14 @@ bootstrap.py — Teamwork session 启动系统维护(独立脚本 · 替代 inst
 - .worktree/ → .gitignore(默认 worktree_root_path · 详 docs/conventions.md § 10)
 - state.json v7 → v8 迁移扫描
 
+版本门禁:
+- `.teamwork_localconfig.json` 单文件含两段:
+  - 用户 config(worktree / scope / merge_target 等)
+  - `_bootstrap` 工具维护(skill_version / last_maintain_at / last_maintain_results)
+- bootstrap.py 跑 maintain 前对比 _bootstrap.skill_version + host 与当前 args
+  · 相同 → skip maintain 4 项(chmod/hooks/sync-drift/gitignore)
+  · 不同 / 缺失 → 跑 maintain 后 update _bootstrap
+
 设计原则:
 - 全 silent · 不 emit 用户可见报告
 - 失败不阻塞(WARN/INFO 内部记录)
@@ -309,11 +317,11 @@ def maintain_host_hooks(skill_root: Path, project_root: Path, host: str) -> dict
 
 
 def maintain_gitignore_worktree(project_root: Path) -> dict:
-    """确保 .gitignore 含 `.worktree/` + `.teamwork-bootstrap.json`(默认 worktree_root_path · 详 docs/conventions.md § 10)。"""
+    """确保 .gitignore 含 `.worktree/` + `.teamwork_localconfig.json`(默认 worktree_root_path · 详 docs/conventions.md § 10)。"""
     gitignore = project_root / ".gitignore"
     entries = [
         (".worktree/", ".worktree", "# Teamwork worktree root (default)"),
-        (BOOTSTRAP_MARKER, BOOTSTRAP_MARKER, "# Teamwork bootstrap marker (auto)"),
+        (LOCALCONFIG_FILE, LOCALCONFIG_FILE, "# Teamwork local config + bootstrap state"),
     ]
 
     # 仅在 git repo 内执行
@@ -375,36 +383,57 @@ def scan_v7_state_json(project_root: Path) -> list[str]:
     return pending
 
 
-# ─── bootstrap marker(版本门禁:同版本跳 maintain) ─────────
+# ─── localconfig(单源 · config + _bootstrap state) ─────────
 
 
-BOOTSTRAP_MARKER = ".teamwork-bootstrap.json"
+LOCALCONFIG_FILE = ".teamwork_localconfig.json"
 
 
-def read_bootstrap_marker(project_root: Path) -> dict:
-    """读 .teamwork-bootstrap.json · 不存在/损坏返回 {}。"""
-    marker = project_root / BOOTSTRAP_MARKER
-    if not marker.exists():
+def read_localconfig(project_root: Path) -> dict:
+    """读 .teamwork_localconfig.json · 不存在/损坏返回 {}。
+
+    结构:
+    {
+      "worktree": "auto",            # config 段(用户编辑)
+      "worktree_root_path": ".worktree",
+      "scope": "all",
+      "merge_target": "staging",
+      "_bootstrap": {                # state 段(工具维护 · 用户不编)
+        "skill_version": "v8.x",
+        "host": "claude-code",
+        "last_maintain_at": "...",
+        "last_maintain_results": {...}
+      }
+    }
+    """
+    cfg = project_root / LOCALCONFIG_FILE
+    if not cfg.exists():
         return {}
     try:
-        return json.loads(marker.read_text(encoding="utf-8"))
+        return json.loads(cfg.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return {}
 
 
+def read_bootstrap_marker(project_root: Path) -> dict:
+    """读 localconfig 的 _bootstrap 子段(版本门禁用)。"""
+    return read_localconfig(project_root).get("_bootstrap", {})
+
+
 def write_bootstrap_marker(project_root: Path, skill_version: str,
                             host: str, maintain_results: dict) -> bool:
-    """写 marker 记录本次成功跑 maintain 的版本 + 时间。"""
-    marker = project_root / BOOTSTRAP_MARKER
-    payload = {
+    """写 marker 到 localconfig._bootstrap · 保留用户 config 段不动。"""
+    cfg = project_root / LOCALCONFIG_FILE
+    data = read_localconfig(project_root)  # 保留现有 config 段
+    data["_bootstrap"] = {
         "skill_version": skill_version,
         "host": host,
         "last_maintain_at": now_iso(),
         "last_maintain_results": maintain_results,
     }
     try:
-        marker.write_text(
-            json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
+        cfg.write_text(
+            json.dumps(data, ensure_ascii=False, indent=2) + "\n",
             encoding="utf-8",
         )
         return True
