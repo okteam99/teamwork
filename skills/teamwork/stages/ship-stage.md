@@ -71,15 +71,6 @@ MR 暂时关闭就跑 close-unmerged · 后续重开困难。
 合入后 state.json 字段更新走 MR · 多 N 个 review round-trip · 无意义。
  **对策**:走 §11 直推例外(单文件 + 仅状态字段 + 零业务影响)
 
-### 坑 7 · git add 列文件名 → 漏 state.json + review-log.jsonl
-PMO 习惯 `git add docs/features/X/dev/*.md docs/features/X/PRD.md ...` 列具体文件 ·
-state.py 持续写的 `state.json` + `review-log.jsonl` 容易漏(init-feature 创建后不自动 git add)·
-导致 MR 不含状态档 · 下游评审看不到 stage 进度 / review 历史。
- **对策**:**commit Feature 产物必 `git add -A <feature_dir>/`**(范围明确 · 不会扩到其它路径 · 一并 add 所有 untracked 状态档)·
-**禁止列具体文件名**(R-S7 红线 · 见 §11.5)。
-实证 case:**PTR-A018(aon-core)** · MR !190 push 后核实 state.json + review-log.jsonl 缺失 · 补 push c00109ce..09c41c6a。
-治本路径 = 工程层 sanitize 加 git ls-files 物化拦截(后续 P0 候选 · 见 §12 待办)。
-
 ---
 
 ## 11. Phase 2 finalize · state.json 直推例外
@@ -126,48 +117,25 @@ git push origin <merge_target>
 
 ---
 
-## 11.5 · R-S7 · git add 范围规则(强红线)
+## 12 · R-S7 · git add 范围规则(强红线)
 
-**任何 commit Feature 产物**(dev / test / review / pm_acceptance / ship 各 stage-complete 后 + ship-phase push 前):
+**任何 commit Feature 产物**(各 stage-complete 后 + ship-phase push 前):
 
 ```bash
-# ✅ 推荐(范围明确 · 一并 add 状态档)
-git add -A apps/<proj>/docs/features/<Feature-ID>/
+# ✅ 必这样(范围明确 · 一并 add state.json + review-log.jsonl 等状态档)
+git add -A <feature_dir>/
 
-# ❌ 禁止(易漏 state.json + review-log.jsonl)
-git add docs/features/X/dev/*.md docs/features/X/PRD.md  # 列文件名 = 凭记忆 = 必漏
+# ❌ 禁止(state.py 持续写的状态档不在 PMO 视野 · 列文件名 = 凭记忆 = 必漏)
+git add <feature_dir>/dev/*.md <feature_dir>/PRD.md
 ```
 
-**为什么是红线**:
-- `state.json` + `review-log.jsonl` 由 state.py 在 stage-complete 时持续写 · 不在 PMO 视野内
-- PMO 列具体文件名 = 凭记忆 = 必漏(实证 PTR-A018)
-- `git add -A {feature_dir}/` 范围严格限定在 feature 目录 · 不会污染其它路径 · 不会 add 到 .env / credentials 等敏感文件
-- 漏 state.json → MR 评审看不到 stage 状态 / review 历史 → 下游评审视角缺位
+**理由**:`state.json` + `review-log.jsonl` 由 state.py 在 stage-complete 持续写 · PMO 列文件易漏 → MR 不含状态档 → 下游评审看不到 stage/review 历史。`-A {feature_dir}/` 范围严格限定 · 不会污染其它路径(.env/credentials 等)。**无例外**(单文件改也用 -A · 防误漏)。
 
-**例外**:无。即便单 commit 只改 1 个 markdown · 也用 `git add -A {feature_dir}/`(防误漏)。
+**实证**:PTR-A018(aon-core) MR !190 push 后核实漏 state.json + review-log.jsonl · 补 push c00109ce..09c41c6a。
 
-**违规后修复**:
-- MR 已 push 但漏 state.json → 在 feature 分支 `git add -A {feature_dir}/ && git commit && git push`(fast-forward · 不破 review)
-- 已 merge 后才发现漏 → 走 §11 直推例外补 push state.json 到 merge_target
+**违规后修复**:已 push → 在 feature 分支 `git add -A {feature_dir}/ && commit && push`(fast-forward · 不破 review)· 已 merge → §11 直推例外补 push 到 merge_target。
 
----
-
-## 12. 待办(未来工程改进 · P0 候选)
-
-### 12.1 · sanitize 加 git ls-files 物化拦截
-
-**现状**:`ship-phase --action sanitize` 只接收 PMO 上报的 residual_commits / cleaned_files / suspicious_files · 不主动校验 `state.json` + `review-log.jsonl` 是否在 git index 中。
-
-**治本提议**:sanitize 工具自跑:
-```bash
-git ls-files <feature_dir>/state.json
-git ls-files <feature_dir>/review-log.jsonl  # 若 state.review.rounds > 0
-```
-任一为空 → BLOCKED with hint "用 `git add -A {feature_dir}/` 后重试 sanitize"。
-
-**为什么是物化拦截**:可枚举规则进脚本(R0 哲学)· 不依赖 PMO 自觉 · 治本 R-S7 违反。
-
-**实施位置**:`tools/_v8_ship.py:_handle_ship_sanitize`(L136)增加 git index 校验段。
+**治本路径(后续 P0 候选)**:`tools/_v8_ship.py:_handle_ship_sanitize` 加 `git ls-files {feature_dir}/state.json` + `review-log.jsonl`(rounds>0 时)校验 · 缺失 → BLOCKED with hint(可枚举进脚本 · R0 哲学)。
 
 ---
 
