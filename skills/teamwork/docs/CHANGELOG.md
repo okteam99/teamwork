@@ -1,5 +1,72 @@
 # Changelog
 
+## v8.15 · 删 RULES.md · 内容拆 SKILL.md(必读软约束)+ MANIFESTO(详细 rationale)
+
+### 问题
+
+RULES.md 在 v8 定位是"红线 rationale"(讲 why · 不讲怎么校验)· 但实际 PMO 工作流中**不被加载**:
+- SKILL.md 是 skill frontmatter 自动加载(必读)
+- TRIAGE / FLOWS / docs/* 按需 cite
+- RULES.md 没有强制读时机 · 仅"按需查 rationale"
+
+case 反复证明:R5(b) 暂停点格式 / R3 PMO 统一承接 / bypass 协议等"PMO 必自觉"约束 · 因 RULES.md 不读 · PMO 自由发挥(case PTR-F041 暂停点格式不统一 / 多轮交互等)。
+
+### 修复(选项 A)
+
+```
+RULES.md 内容拆 2 处:
+  ├── R3 / R4 / R5(b) / bypass(PMO 必读软约束)→ SKILL.md(自动加载 · 必读位置)
+  ├── 9 红线归宿表 + 详细 rationale → docs/v8-redesign/00-MANIFESTO.md § 十一
+  └── v7→v8 红线对应表 → 删(过时迁移)
+```
+
+### SKILL.md 加 §"PMO 软约束 + 暂停点标准格式"
+
+新段含:
+- R3 PMO 统一承接(唯一软约束 · 不可枚举)
+- R4 流程边界(不简化/不膨胀/必给步骤描述)
+- R5(b) 暂停点标准格式(完整模板:编号 + 💡 推荐 + 理由 + 动作 + 决策参考)
+- bypass 协议(R8 写操作硬门禁链 · 逃生通道)
+
+### MANIFESTO § 十一 补全
+
+- 11.1 9 红线归宿表(已有 · v8.x 更新 R6/R9 措辞)
+- 11.2 详细 rationale(R1-R9 each "Why" 段 · 从 RULES.md 迁入)
+- 11.3 bypass 协议详解
+
+### cite 路径更新(11 文件)
+
+| 文件 | 改 |
+|---|---|
+| SKILL.md | 文档导航表删 RULES.md 行 / 改 cite MANIFESTO § 十一 |
+| TRIAGE.md | §9 相关文档 RULES.md → SKILL.md 软约束段 + MANIFESTO § 十一 |
+| FLOWS.md | 同上 |
+| STANDARDS.md | 同上 |
+| docs/prepare.md §9 | RULES.md § R2/R5 → SKILL.md § PMO 软约束 + MANIFESTO § 十一 |
+| templates/external-cross-review.md L215 | "违反 RULES.md 闭环验证红线" → "违反 R7 evidence 闭环红线(详 SKILL.md § PMO 软约束)" |
+| templates/host-instruction-injection.md L28 | "(详 RULES.md)" → "(详 SKILL.md § PMO 软约束)" |
+| standards/common.md L238 | "见 RULES.md 各流程流转链" → "见 FLOWS.md + state.py FLOW_BY_TYPE" |
+| agents/README.md L555/L569 | "RULES.md 八-B" → "FLOWS.md 打回机制"(原 v7 章节不存在) |
+| tools/scan-spec-consumer.py L82 | DEFAULT_SPEC_PATHS 删 "RULES.md" |
+| tools/_v8_engine.py L794 注释 | 加"v8.15 已删 · 内容迁 SKILL.md / MANIFESTO"标注 |
+
+### 删
+
+- skills/teamwork/RULES.md(156 行)
+
+### 保留(历史档案 · 不动)
+
+- docs/CHANGELOG.md 各 v8.x commit message 中的 RULES.md cite
+- docs/v8-redesign/00-MANIFESTO.md / 02-CLEANUP.md / 03-MIGRATION.md 内的 RULES.md 引用(都在 § 历史 / 设计宪法描述上下文)
+- docs/DESIGN-业务架构与技术架构对齐.md(v3 历史档案)
+
+### 测试
+
+- v8 测试 45/45 全过
+- grep verify:工作流文件中 0 个 broken RULES.md cite(剩余在历史档案 / 注释)
+
+---
+
 ## v8.14 · bootstrap 同步所有已存在指令文件(治本多工具维护一致性)
 
 ### 问题

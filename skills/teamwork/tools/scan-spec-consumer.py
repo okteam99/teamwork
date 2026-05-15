@@ -79,7 +79,7 @@ CONSUMER_RE = re.compile("|".join(CONSUMER_PATTERNS), re.IGNORECASE)
 
 # 默认扫描的 spec 文件 glob（相对 SKILL_ROOT）
 DEFAULT_SPEC_PATHS = [
-    "SKILL.md", "RULES.md", "STATUS-LINE.md", "FLOWS.md", "REVIEWS.md",
+    "SKILL.md", "STATUS-LINE.md", "FLOWS.md", "REVIEWS.md",
     "ROLES.md", "TEMPLATES.md", "STANDARDS.md", "CONTEXT-RECOVERY.md",
     "PRODUCT-OVERVIEW-INTEGRATION.md",
 ]

@@ -126,6 +126,69 @@ PMO 在任何暂停点 / 决策点 / 推荐方案后 · 用户可用以下快捷
 
 ---
 
+## PMO 软约束 + 暂停点标准格式(state.py 不物化 · PMO 必自觉)
+
+state.py 物化了 9 红线中 8 条(可枚举校验)· 1 条(R3)+ 部分行为约束(R4 / R5(b) / bypass)是 PMO 主对话内的软约束 · 必须 PMO 自觉:
+
+### R3 · PMO 统一承接
+
+所有用户输入 PMO 先承接 · 禁止 RD/Designer/PM 等角色直接响应。
+多角色对话场景下 · 用户输入直接打 RD = 角色越权(RD 直接接需求跳过 PM 的 PRD)。
+
+### R4 · 流程边界
+
+- **不简化**:每种需求走对应级别的完整流程 · "简单/文件少/无风险" 不构成跳过理由
+- **不膨胀**:自动流转节点禁止插入暂停 · "回合边界/容量预算/让用户看进度" 不构成暂停理由
+- **必给步骤描述**:选定流程类型后必须给完整步骤(stage 链 + 每个 stage 大致做什么 + 预期产出)
+
+### R5(b) 暂停点标准格式 🔴
+
+**PMO 任何需要用户确认的点都用此模板**:
+
+```
+⏸️ <情境 1 句>
+
+请选择:
+
+1. **<选项 1 标题>** 💡 推荐
+   理由: <1-2 句为什么推荐>
+   动作: <选了之后 PMO 会做什么>
+
+2. **<选项 2 标题>**
+   理由: <1-2 句>
+   动作: <PMO 会做什么>
+
+3. **<其他指示>**(可选 · 让用户自由输入)
+
+📚 决策参考(若适用):<相关 spec / 文件 / 上游 case 路径>
+```
+
+**红线**:
+- 不可省略**编号**(用户要打字 = 心智负担)
+- 不可省略 **💡 推荐**(用户被迫现做决策)
+- 不可省略**理由**(用户不知为什么选这个)
+- 单选 → 1/2/3 · 多决策 → 1A/2B
+- 用户回 `ok` = **选 💡 推荐项**(详 §"用户交互快捷词")
+
+### bypass 协议(R8 写操作硬门禁链 · 逃生通道)
+
+PMO 重试 3 次仍 FAIL → 暂停点询问用户 → bypass:
+
+```bash
+state.py xx-start --bypass --reason "<用户提供>" --user-confirmed --missing <ids>
+```
+
+state.py 校验:
+- `--user-confirmed` 必带(防 AI 自决 · 红线违规拦截)
+- `--missing` 覆盖实际 missing(防漏报)
+- 通过 + 自动写 `bypass_log[]` + `concerns WARN`(完整审计闭环)
+
+**物化语义**:state.py 无法物理验证"用户真的说了" · 但此 flag 的存在性 = AI 声称用户已确认。审计时若发现 AI 自加此 flag(对话历史无用户确认)= 红线违规。
+
+详细 9 红线设计 rationale 见 [docs/v8-redesign/00-MANIFESTO.md § 十一](./docs/v8-redesign/00-MANIFESTO.md)。
+
+---
+
 ## 5 mode 入口分诊
 
 | Mode | 触发 | 行为 |
@@ -297,7 +360,7 @@ v8 把 v7 的 9 红线中 16/17 子条目物化进 state.py · 仅 1 条(R3 PMO 
 | R8 写操作硬门禁链 | state.py 内部 prepare 完成前拒绝 stage-start · ship Phase 1 CLI-first |
 | R9 session bootstrap 必跑 triage | tools/bootstrap.py + PMO 按 TRIAGE.md 分诊 |
 
-完整红线设计 rationale 见 [`RULES.md`](./RULES.md)。
+详细 9 红线 rationale 见 [docs/v8-redesign/00-MANIFESTO.md § 十一](./docs/v8-redesign/00-MANIFESTO.md)。
 
 ---
 
@@ -310,7 +373,7 @@ v8 把 v7 的 9 红线中 16/17 子条目物化进 state.py · 仅 1 条(R3 PMO 
 | [docs/v8-redesign/01-COMMAND-SCHEMA.md](./docs/v8-redesign/01-COMMAND-SCHEMA.md) | 全 30 命令精确 schema |
 | [docs/v8-redesign/02-CLEANUP.md](./docs/v8-redesign/02-CLEANUP.md) | v7 → v8 清理清单 |
 | [docs/v8-redesign/03-MIGRATION.md](./docs/v8-redesign/03-MIGRATION.md) | 迁移路线图 |
-| [RULES.md](./RULES.md) | 9 红线 rationale(只讲 why · 校验进 state.py) |
+| [docs/v8-redesign/00-MANIFESTO.md § 十一](./docs/v8-redesign/00-MANIFESTO.md) | 9 红线归宿 + 详细 rationale |
 | [FLOWS.md](./FLOWS.md) | 6 流程 telos(详细步骤进 state.py prepare/各 stage brief) |
 | [ROLES.md](./ROLES.md) | 角色索引(→ roles/*.md) |
 | [STANDARDS.md](./STANDARDS.md) | 技术规范索引(→ standards/*.md · 不含流程规范) |

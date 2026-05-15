@@ -243,4 +243,5 @@ PMO 在用户未确认前 · **不可** cd / git worktree add / init-feature。
 - [docs/feature-planning.md § 5](./feature-planning.md) — Feature Planning 完成后启 Feature 走 prepare
 - [docs/conventions.md](./conventions.md) — Feature ID + worktree path 编号规范
 - [SKILL.md](../SKILL.md) — 顶层叙事 + 项目级文档信息架构
-- [RULES.md § R2 / R5](../RULES.md) — 流程闭集 + 暂停点协议红线 rationale
+- [SKILL.md § PMO 软约束 + 暂停点标准格式](../SKILL.md) — R5(b) PMO 必读
+- [docs/v8-redesign/00-MANIFESTO.md § 十一](./v8-redesign/00-MANIFESTO.md) — R2 流程闭集 + R5 暂停点 rationale

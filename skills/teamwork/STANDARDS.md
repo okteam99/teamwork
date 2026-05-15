@@ -51,5 +51,5 @@ RD 加载指引:
 ## 相关
 
 - [SKILL.md](./SKILL.md) — 命令清单
-- [RULES.md](./RULES.md) — 9 红线 rationale
+- [SKILL.md § PMO 软约束](./SKILL.md) + [docs/v8-redesign/00-MANIFESTO.md § 十一](./docs/v8-redesign/00-MANIFESTO.md) — 9 红线 rationale
 - [tools/state.py](./tools/state.py) — 流程规范物化层

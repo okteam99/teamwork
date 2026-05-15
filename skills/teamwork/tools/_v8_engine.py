@@ -791,7 +791,7 @@ MAX_BRIEF_LINES = 100
 设计动机:防 Layer A(brief inline 预防模式)累积膨胀。
 每条新纪律默认压到 ≤8 行 · 详细 rationale 留磁盘文档。
 
-参考 v7 教训:RULES.md 累积到 1883 行 · v8 不能在 brief 重蹈覆辙。
+参考 v7 教训:RULES.md(v8.15 已删 · 内容迁 SKILL.md / MANIFESTO)累积到 1883 行 · v8 不能在 brief 重蹈覆辙。
 """
 
 

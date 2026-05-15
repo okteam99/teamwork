@@ -552,7 +552,7 @@ Subagent 返回后，PMO 必须：
 │ └── Progress Log 缺失或断档 → 在 PMO 摘要中标注「进度不可追溯」WARN
 ├── 3. 检查返回内容是否完整（代码 + 报告 + Result 字段全填）
 ├── 4. 检查是否有上游问题需要打回
-│ ├── 有 → 触发打回机制（RULES.md 八-B）
+│ ├── 有 → 触发打回机制（FLOWS.md 打回机制）
 │ └── 无 → 继续
 ├── 5. 🔴 更新 dispatch_log/INDEX.md：追加一行记录本次 dispatch 结果
 ├── 6. 输出合并的 PMO 阶段摘要（含 Progress Log 时间轴回放）
@@ -566,7 +566,7 @@ Subagent 返回后，PMO 必须：
 | ✅ DONE | 产出完整 + 无上游问题 | 正常流转到下一阶段 |
 | ⚠️ DONE_WITH_CONCERNS | 产出完整但报告了非阻塞性 concerns | 读 concerns，关键的先处理再流转 |
 | 🔄 NEEDS_CONTEXT | Subagent 报告缺少上下文（如「缺少 PRD 中的 xxx」） | PMO 补充上下文 → 重新 dispatch（不降级） |
-| 🔁 QUALITY_ISSUE | 产出质量不达标（Review 严重问题 / 测试全失败） | 走正常打回机制（RULES.md 八-B） |
+| 🔁 QUALITY_ISSUE | 产出质量不达标（Review 严重问题 / 测试全失败） | 走正常打回机制（FLOWS.md 打回机制） |
 | ❌ BLOCKED | Subagent 报告上游阻塞 | 触发打回机制，不降级 |
 | 💥 FAILED | Subagent dispatch 失败 / 产出不完整 | 降级为主对话内执行 |
 

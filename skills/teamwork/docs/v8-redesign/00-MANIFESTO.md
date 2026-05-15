@@ -439,6 +439,8 @@ state.py migrate-v7-to-v8 --feature <path>
 
 ## 十一、与红线 R1-R9 的最终归宿
 
+### 11.1 · 归宿表
+
 | 红线 | v7 形态 | v8 归宿 |
 |------|--------|---------|
 | R1 代码写权归 RD | spec 自觉 | state.py 校验"写操作时身份切换"(改后端可加 hook 拦截) |
@@ -448,17 +450,104 @@ state.py migrate-v7-to-v8 --feature <path>
 | R4(b) 不膨胀(容量焦虑黑名单) | spec 自觉 | state.py emit 时不出现这些措辞 |
 | R4(c) 必给步骤描述 | spec 自觉 | state.py xx-start 自动输出 next_action_brief |
 | R5(a) 暂停必等确认 | spec 自觉 | state.py emit 暂停点 markdown,AI 不会自动续写 |
-| R5(b) 必给建议 + 编号 | spec 自觉 | state.py emit 暂停点 markdown 强制格式 |
+| R5(b) 必给建议 + 编号 | spec 自觉 | state.py emit 暂停点强制格式 + SKILL.md § 暂停点标准模板(PMO 主对话兜底) |
 | R5(c) 状态行 + 决策参考 | spec 自觉 | state.py 每命令尾部 emit 状态行 + 暂停点强制 📚 决策参考 |
-| R6 Planning 只出文档 | spec 自觉 | state.py planning-complete 拒绝接受代码 artifact |
+| R6 Feature Planning 不出代码 | spec 自觉 | Feature Planning 不进状态机(init-feature reject)· 由 PMO 主对话执行 |
 | R7(a) 实测输出 | spec 自觉 | state.py xx-complete 必传 --auto-commit + 校验 commit 存在 |
 | R7(b) 声明即承诺 | spec 自觉 | state.py xx-start emit "你应该做什么"(替代 Execution Plan) |
-| R7(c) evidence-binding | state.json schema | 强化:全 stage 必检 evidence 字段 |
+| R7(c) evidence-binding | state.json schema | 强化:全 stage 必检 evidence 字段 + checksum stamp |
 | R8(a) 流程入口门禁 | spec 自觉 | state.py 在 prepare 完成前拒绝 stage-start |
 | R8(b) Subagent dispatch 预检 | spec 自觉 | state.py 内部封装 dispatch(AI 不直接调 Task tool) |
-| R8(c) Ship Phase 1 CLI-first | state.py schema | 已物化 |
-| R9 init_triage 必跑 | init_triage.py | state.py triage 整合 |
+| R8(c) Ship Phase 1 CLI-first | state.py schema | 已物化(P0-113) |
+| R9 session bootstrap 必跑 triage | init_triage.py | tools/bootstrap.py + PMO 按 TRIAGE.md 分诊 |
 
-**16/17 红线进代码**。仅 R3 留 AI 自决。
+**16/17 红线进代码**。仅 R3 留 AI 自决 · 加 R4 / R5(b) / bypass 等行为约束(SKILL.md § PMO 软约束 兜底)。
 
-SKILL.md 红线段从 ~150 行 → ~20 行(只讲 rationale + 列条目名)。
+### 11.2 · 详细 rationale(从 RULES.md v8.x 迁入 · v8.15 RULES.md 删除)
+
+#### R1 · 代码写权归 RD
+
+代码 / 测试 / 构建配置写操作必须由 RD 角色执行。
+- 多角色分工 = 不同 checklist。让 PM 写代码 / 让 RD 起草 PRD · 都会让该角色的关注点被另一职责淹没。
+- **外部模型例外**:codex / claude / gemini 等外部模型仅只读评审(OpenAI ToS 合规)。
+- **Ship Stage 例外**:第二段 finalize 允许 PMO push merge_target(严格限定 state.json + BUG-REPORT.md frontmatter)。
+
+#### R2 · 流程类型闭集
+
+6 种流程(Feature / Bug / Micro / 敏捷需求 / Feature Planning / 问题排查)是经过实证的闭集。
+防止 AI 发明"Feature 变更""敏捷 Bug"等变体 · 每种变体都引入隐藏路径 · 长期累积成不可维护状态机。
+
+#### R3 · PMO 统一承接(唯一软约束)
+
+所有用户输入由 PMO 角色先承接 · 禁止其他角色直接响应。
+多角色对话场景下 · 如果用户输入直接打到 RD/Designer · 容易让角色越权(RD 直接接需求 → 跳过 PM 的 PRD)。
+
+state.py 无法物理判断"谁在响应" · 依赖 AI 自觉。这是 9 红线中唯一仍是软约束的一条。
+
+#### R4 · 流程边界
+
+3 子条:
+- **(a) 不简化**:每种需求走对应级别的完整流程 · "简单""文件少""无风险" 不构成跳过理由
+- **(b) 不膨胀**:自动流转节点禁止插入暂停 · "回合边界""容量预算""让用户看进度" 不构成暂停理由
+- **(c) 必给步骤描述**:选定流程类型后必须给完整步骤(阶段链 + 每个阶段大致做什么 + 预期产出)
+
+简化 = 失去多视角检查 · 膨胀 = AI 凭印象塞暂停点骚扰用户。
+
+#### R5 · 暂停点协议
+
+3 子条:
+- **(a) 暂停必等确认**:暂停点必须等用户明确回复 · 不能 AI 自行决定
+- **(b) 必给建议 + 编号**:任何要求确认的内容必须含 💡 推荐项 + 📝 理由 + 编号化(详 SKILL.md § 暂停点标准格式)
+- **(c) 状态行 + 决策参考**:暂停点 final response 必须含状态行 + 📚 决策参考绝对路径
+
+无编号 = 用户要打字 · 无推荐 = 用户要现做决策 · 无路径 = 用户找不到要看的文件。这些都把心智负担转给用户。
+
+#### R6 · Feature Planning 不出代码
+
+Feature Planning 流程只产 PROJECT.md / ROADMAP.md / sitemap.md · 禁止产代码 · 禁止自启 Feature 流程。
+Planning 是产品方向决策 · 不应该 AI 自动跳过决策直接开 dev。
+
+v8 物化:Feature Planning 不进状态机 · `init-feature --flow-type "Feature Planning"` 被 reject · 由 PMO 主对话执行(详 docs/feature-planning.md)· 物理上不会出代码。
+
+#### R7 · 证据闭环
+
+3 子条:
+- **(a) 实测输出**:声称"完成"必须附实际命令 stdout / 测试结果 / 构建输出
+- **(b) 声明即承诺**:Stage 开始前必须输出 Execution Plan(approach / rationale / steps remaining / estimated)
+- **(c) 事实字段 evidence-binding**:外部观察的判定(commit hash / mr_url / test exit-code 等)必须含 command + stdout + exit_code + timestamp
+
+AI 会"凭印象"声称完成 / 声称读了规范 / 声称跑了测试。证据闭环是物理拦截的根基。
+
+#### R8 · 写操作硬门禁链
+
+3 子条:
+- **(a) 流程入口门禁**:PMO 未输出初步分析前禁止任何写操作
+- **(b) Subagent dispatch 预检**:dispatch 前完成 L1/L2/L3 预检 · 未通过不得 dispatch
+- **(c) Ship Phase 1 CLI-first**:push 完后必检 gh/glab CLI · 可用必走 CLI 创 MR · git push 输出的 hint URL 是 trap
+
+写操作不可逆 · 一旦进入"AI 自驱写代码"模式 · 错误会快速放大。门禁链是给用户的最后干预机会。
+
+#### R9 · session bootstrap 必跑 triage
+
+新 session 首条 PMO 响应前必先按 TRIAGE.md 完成 5 mode 分诊 · 在响应中输出 audit_line。
+session 启动是 AI 最容易"凭印象"的时刻(没读任何 spec · 没看 state.json)。triage 是兜底物化。
+
+v8 物化:
+- `tools/bootstrap.py` session 入口必跑(silent · 系统维护)
+- TRIAGE.md 是 PMO 主对话行为权威(triage **不是** state.py 命令)
+- audit_line 由 PMO 自己输出 · 用户监督
+
+### 11.3 · bypass 协议
+
+```
+PMO 重试 3 次仍 FAIL → 暂停点询问用户 → bypass:
+
+state.py xx-start --bypass --reason "<用户提供>" --user-confirmed --missing <ids>
+   ↓
+state.py:
+  - 校验 --user-confirmed 必带(防 AI 自决)
+  - 校验 --missing 覆盖实际 missing
+  - 通过 + 自动写 bypass_log[] + concerns WARN(完整审计闭环)
+```
+
+`--user-confirmed` 的物化语义:state.py 无法物理验证"用户真的说了" · 但此 flag 的存在性 = AI 声称用户已确认。审计时若发现 AI 自加此 flag(对话历史无用户确认)= 红线违规。
