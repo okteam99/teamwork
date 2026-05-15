@@ -1,7 +1,7 @@
 # TRIAGE · 入口规范
 
 > **triage 是 PMO 入口行为 · 不是 state.py 命令 · 不是 stage**。
-> 入口完成 + 用户确认 worktree → 才进状态机层(init-feature 起)。
+> triage 入口完成 → 按 mode 移交(B → prepare 子流程 / A/D/E 闭合 / C jump 状态机)。
 
 ---
 
@@ -9,31 +9,34 @@
 
 ```
 ┌─ 入口规范(TRIAGE · 本文件) · PMO 主对话行为 ────────────┐
-│ PMO 承接用户输入 │
-│ → 5 mode 分诊(PMO 按关键词表判定) │
-│ → 输出 audit_line(PMO 自己写 · 用户监督) │
-│ → mode B 时: │
-│ · 流程类型识别(PMO 按关键词表) │
-│ · worktree 决策 │
-│ · 暂停点(PMO 复制模板给用户) │
-│ → 用户确认 → PMO 显式 git worktree add + cd │
+│ PMO 承接用户输入                                           │
+│   → 5 mode 分诊(PMO 按关键词表判定)                      │
+│   → 输出 audit_line(PMO 自己写 · 用户监督)               │
+│   → 按 mode 移交去向:                                     │
+│       · A query / D status / E discuss → 主对话闭合       │
+│       · B execute → prepare 子流程(详 docs/prepare.md)  │
+│       · C resume → 直接 jump 状态机(已有 state.json)    │
+└────────────────────────────────────────────────────────────┘
+ ↓ (mode B 路径 · prepare 子流程 · 不是 triage 范围)
+┌─ prepare 子流程(docs/prepare.md) · PMO 主对话行为 ───────┐
+│ 流程类型识别 → worktree 决策 → 暂停点 → 用户确认 →        │
+│ PMO 显式 git worktree add + cd                              │
 └────────────────────────────────────────────────────────────┘
  ↓ 进状态机(worktree 已在 · cwd 已在 worktree 内)
 ┌─ 状态机层(state.py 唯一域) ──────────────────────────────┐
-│ init-feature(自动维护项目级骨架 · silent) │
-│ · stage 链 · ship · completed │
+│ init-feature → stage 链 → ship → completed                 │
 └────────────────────────────────────────────────────────────┘
 ```
 
 📎 **项目级系统维护**(骨架文档创建 / CLAUDE.md 注入段同步 / SKILL_VERSION 校验 / 版本迁移)
- 全部由 Python 工具维护 · 在 init-feature 内 silent 做 · PMO 不关心。
+ 全部由 Python 工具维护(`tools/bootstrap.py` session 启动 silent)· PMO 不关心。
 
-**关键约束**:
+**关键约束(triage 自身)**:
 - triage 不写 state.json(state.json 由 init-feature 创建)
-- triage 不创建 worktree(由 PMO 在用户确认后显式执行)
+- triage 不识别流程类型 / 不做 worktree 决策 / 不收 4 项配置(都是 prepare 的事)
 - triage 不进 LEGAL_STAGES(因为不是 stage)
 - triage **没有 state.py 命令**
-- triage 是 PMO 行为 · 按本文档规范做
+- triage 是 PMO 行为 · 仅做 5 mode 分诊 + audit_line + 移交
 
 ---
 
@@ -179,18 +182,7 @@ triage 自身的入口完成(不含 prepare / init-feature 的事):
 
 PMO 觉得分诊错 → 直接告诉用户重判 · 或人工指定(用户回"应该是 mode E 讨论")。
 
-### 8.2 · 用户拒绝 worktree 默认值
-
-用户提供 4 项中部分值 · 部分 default → PMO 用混合值跑 git worktree add。
-用户全否决 → 等用户提供完整 4 项后再推进。
-
-### 8.3 · git worktree add 失败
-
-- branch 已存在 → `git worktree remove <path>` + `git branch -D <branch>`
-- origin/base 不存在 → `git fetch origin`
-- path 已存在但非 worktree → 删 path 或换 path
-
-错误处理由 PMO 主导 · 不在 state.py 状态机里。
+📎 worktree 决策错 / git worktree add 失败 / 用户拒绝 4 项配置默认值 等错误 · 不在 triage 范围 · 详 [docs/prepare.md § 7 错误处理](./docs/prepare.md)。
 
 ---
 
