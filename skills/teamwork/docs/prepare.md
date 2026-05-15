@@ -23,6 +23,47 @@
 
 ---
 
+## 1.5 Step 0 · 上下文准备(治本 case PMO 自决"重型准备"散述)
+
+PMO 移交 prepare 后 · **必走以下 4 项准备**(emit 暂停点之前):
+
+### 1.5.1 · 检 Planning ship 状态(若是 BL 启动 Feature)
+
+若用户启动来自 ROADMAP 某 BL-NNN(Feature Planning 已完成):
+- 读 ROADMAP.md 定位该 BL 行
+- 检 Planning Feature 已 ship 的 commit hash(`git log --grep='<Planning Feature ID>'`)
+- 输出"Planning ship 状态"行(给暂停点表格 · 用户看到 = 上游已 ready)
+
+无 Planning(直接 mode B execute)→ 跳此项。
+
+### 1.5.2 · 检上游依赖(state.json blocking)
+
+若 prepare 是从已有 Feature 衍生:
+- 检上游 Feature 的 `state.blocking.pending_external_deps`
+- 列已就绪 / 待中(给暂停点表格)
+
+无上游 → 跳。
+
+### 1.5.3 · 扫代码现状(可选 · 1 句话总结)
+
+可选(高复杂度 Feature 推荐):
+- grep 关键模块当前实现(如 PTR-F041 = adapter.rs Impact-only 硬编码)
+- 给暂停点表格 1 句话总结 · 让用户验证启动方向无误
+
+低复杂度 / 用户已知 → 跳。
+
+### 1.5.4 · ID 冲突预检(强制 · 治本 case 临时改编号)
+
+```bash
+state.py prepare-check --feature-id-prefix <PROJ>
+```
+
+输出含 `next_available_id` + `existing_ids` + `conflicts`。
+
+PMO 把 `next_available_id` 填进暂停点表格的 Feature ID 推荐默认值 · 不让用户自己算冲突。
+
+---
+
 ## 2. Step 1 · 流程类型识别(6 闭集 · R2 红线)
 
 PMO 按以下关键词表判定 user input 落入哪类流程:
@@ -65,24 +106,36 @@ PMO 按 flow_type 算 branch 前缀 + worktree path 建议:
 
 ---
 
-## 4. Step 3 · emit 暂停点 markdown
+## 4. Step 3 · emit 完整表格(1 次完整 · 不分多轮)
 
-PMO 复制给用户(R5 暂停点协议 · 必给推荐 + 编号 + 决策参考):
+PMO 复制给用户 · **必含全 4 段**(R5 暂停点协议 · 必给推荐 + 编号 + 决策参考):
 
 ```markdown
-⏸️ 进入流程前请确认 4 项:
+⏸️ Prepare · 进入流程前总览(回 `ok` / `all default` 全用推荐 · 或修改某几项 + 确认)
 
-📋 **流程类型**:<flow_type>
-📋 **理由**:<识别理由>
-📋 **首个 stage**:<first_stage>
+# 流程概览
+📋 **流程类型**:<flow_type>(命中关键词 /<keyword>/)
+📋 **stage 链**:<完整 stage 链 · 由 FLOW_BY_TYPE[flow_type] 渲染>
+📋 **理由**:<识别理由 1 句>
 
-请提供:
-1. **Feature ID**(如 PTR-F033-Credit-Note-Adjustment · 编号规则见 [docs/conventions.md § 1](./conventions.md))
-2. **merge_target**(如 staging / main)
-3. **worktree path**(默认:`{worktree_root_path}/<FEATURE-ID>` · 见 [docs/conventions.md § 9](./conventions.md))
-4. **branch**(默认:`<branch-prefix><FEATURE-ID>`)
+# 上下文准备(Step 0 已读)
+- **Planning ship 状态**:<✅ <Planning Feature ID> · commit ... merge 到 staging | ⏭️ N/A>
+- **上游依赖**:<✅ <list> | ⏭️ 无外部依赖>
+- **当前代码现状**(可选):<1 句话总结 | ⏭️ 跳过>
+- **ID 冲突扫描**:<已占 [<ids>] · 推荐 <next_available_id>>
 
-回复 4 项或 "all default" 用默认值(仅需 Feature ID + merge_target)
+# Worktree 策略
+- **branch 前缀**:<feature/ | agile/ | fix/ | micro/>(由 flow_type 决定)
+- **worktree_root_path**:<.worktree | ../<repo>-worktrees>(读 .teamwork_localconfig.json · 默认 .worktree)
+- **推荐 path**:`{repo-root}/{worktree_root_path}/<Feature-ID>`
+
+# 4 项配置(默认推荐 · 可改)
+| # | 字段 | 推荐 | 理由 |
+|---|---|---|---|
+| 1 | **Feature ID** | <next_available_id from prepare-check> | <冲突避让 + 业务命名> |
+| 2 | **merge_target** | staging | <与项目历史 Feature 一致> |
+| 3 | **worktree path** | <推荐 path 同上> | 默认 worktree_root_path |
+| 4 | **branch** | <branch-prefix><Feature-ID-kebab-case> | 与 ID 一致 |
 
 📎 **是否需要 UI Design Stage** 由 goal-complete 时 `--needs-ui` 决策 · prepare 入口不强制提前拍板。
 ```
@@ -91,6 +144,9 @@ flow_type → first_stage 映射:
 - Feature / 敏捷需求 → `goal`
 - Bug / Micro → `dev`
 - Feature Planning / 问题排查 → 不进状态机 · prepare 在这两个流程上不调用
+
+🔴 **必 1 次完整 emit · 不分多轮**(治本 case 中 PMO 先建议 + 再"最终确认"的 2 轮交互)。
+🔴 **用户回 `ok`** · PMO 视作"按建议全部默认值" · 不再二次确认 · 立即执行 §5。
 
 ---
 

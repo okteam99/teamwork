@@ -1659,6 +1659,69 @@ def cmd_reset_prev(args: argparse.Namespace) -> None:
     })
 
 
+def cmd_prepare_check(args: argparse.Namespace) -> None:
+    """v8.13:prepare 子流程 ID 冲突预检 · 推荐 next_available_id。
+
+    扫 --features-root 下已有 Feature 目录 · 抓 --feature-id-prefix 匹配的 ID ·
+    返回 existing_ids + next_available_id · 让 prepare 暂停点直接填推荐。
+
+    治本 case:PMO 启动 Feature 时不知 F040 已被 Planning 占用 · 临时改 F041 → 用户多确认一轮。
+    """
+    import re
+
+    root = Path(args.features_root or "docs/features").resolve()
+    if not root.exists():
+        emit({
+            "verdict": "FAIL",
+            "command": "prepare-check",
+            "error": f"features_root 不存在: {root}",
+            "hint": "用 --features-root <绝对路径> 指定 · 默认 docs/features",
+        })
+        return
+
+    prefix = args.feature_id_prefix
+    if not prefix:
+        emit({
+            "verdict": "FAIL",
+            "command": "prepare-check",
+            "error": "--feature-id-prefix 必填(如 PTR / INFRA / SVC-PLATFORM)",
+        })
+        return
+
+    # 扫匹配 <PREFIX>-F<NNN>* 目录
+    pattern = re.compile(rf"^{re.escape(prefix)}-F(\d+)")
+    existing: list[tuple[int, str]] = []  # (number, full_id)
+    for child in root.iterdir():
+        if not child.is_dir():
+            continue
+        m = pattern.match(child.name)
+        if m:
+            existing.append((int(m.group(1)), child.name))
+
+    existing.sort()
+    existing_ids = [name for _, name in existing]
+    used_numbers = {n for n, _ in existing}
+
+    # 推荐下一可用编号 = max + 1(连续递增 · 不填空洞 · 详 docs/conventions.md § 1 "项目内独立递增")
+    next_num = (max(used_numbers) + 1) if used_numbers else 1
+    next_id_stem = f"{prefix}-F{next_num:03d}"
+
+    emit({
+        "verdict": "OK",
+        "command": "prepare-check",
+        "features_root": str(root),
+        "feature_id_prefix": prefix,
+        "existing_ids": existing_ids,
+        "existing_count": len(existing_ids),
+        "next_available_number": next_num,
+        "next_available_id_stem": next_id_stem,
+        "hint": (
+            f"prepare 暂停点 Feature ID 默认填 {next_id_stem}-<Kebab-Case-名称> · "
+            f"用户可改 · 但应避开 existing_ids 中已占编号"
+        ),
+    })
+
+
 def cmd_audit_raw_writes(args: argparse.Namespace) -> None:
     """v8.12:跨 Feature 汇总所有 raw-write 历史 · 帮助识别状态机缺口。
 
@@ -2010,6 +2073,17 @@ def build_parser() -> argparse.ArgumentParser:
     arw.add_argument("--features-root", default=None,
                      help="features 根目录 · 默认 docs/features(从 cwd 算)")
     arw.set_defaults(func=cmd_audit_raw_writes)
+
+    # v8.13:prepare-check ID 冲突预检(prepare 子流程 §1.5.4 调)
+    pc = sub.add_parser(
+        "prepare-check",
+        help="[v8] prepare 子流程 ID 冲突预检 · 输出 next_available_id 给暂停点表格",
+    )
+    pc.add_argument("--features-root", default=None,
+                    help="features 根目录 · 默认 docs/features(从 cwd 算)")
+    pc.add_argument("--feature-id-prefix", required=True,
+                    help="项目缩写(如 PTR / INFRA / SVC-PLATFORM)· 详 docs/conventions.md § 7")
+    pc.set_defaults(func=cmd_prepare_check)
 
     # ─── v8.0 stage 命令注册(Code-driven Orchestration) ─────────────
     # 设计文档:docs/v8-redesign/00-MANIFESTO.md

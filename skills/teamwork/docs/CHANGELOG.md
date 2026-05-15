@@ -1,5 +1,82 @@
 # Changelog
 
+## v8.13 · prepare 子流程标准化 + ID 冲突预检 + 全局快捷词
+
+实战 case PTR-F041 起盘暴露 4 个 prepare 流程问题(PMO 自决散述 / 多轮交互 / 无 ID 冲突预检 / 暂停点格式不统一)· 一次性治本。
+
+### A · SKILL.md 加全局快捷词语义规范
+
+新加 §"用户交互快捷词" · 含 6 个全局约定:
+| 快捷词 | 等价语义 |
+|---|---|
+| `ok` / `OK` | **按建议** · 同意当前 PMO 推荐方案 |
+| `all default` | 全部用 PMO 给的默认值 |
+| `继续` / `next` | 继续推进流程下一 stage / substep |
+| `跳过` / `skip` | 跳过可选 substep / stage |
+| `bypass` | 触发 R8 bypass 协议(必带 --reason) |
+| `回 dev` / `回 X stage` | jump-to-stage --to X |
+
+PMO 看到 `ok` 必复述"按建议执行 · <推荐方案 1 行摘要>" + 立即执行 · 不二次确认。
+
+### B · TRIAGE.md §4.1 强化 prepare 移交
+
+加 3 条 prepare 红线:
+- 不可多轮交互(模板必 1 次完整 emit · 用户回 `ok` 即执行)
+- 不可 PMO 自决"重型准备"(必走 prepare.md §3.5 上下文准备 step)
+- 不可跳过 ID 冲突预检(必跑 `state.py prepare-check`)
+
+### C · prepare.md 加 §1.5 上下文准备 step
+
+明确 4 项准备(emit 暂停点之前):
+1. Planning ship 状态(若 BL 启动 Feature)
+2. 上游依赖检查(state.blocking)
+3. 代码现状扫描(可选 · 高复杂度 Feature 推荐)
+4. **ID 冲突预检**(强制 · 调 `state.py prepare-check`)
+
+### D · prepare.md §4 emit 模板扩成完整表格
+
+原模板 4 行简短 → 扩成"Prepare 总览"4 段表格:
+- # 流程概览(类型 + 完整 stage 链 + 理由)
+- # 上下文准备结果(Planning / 上游 / 代码 / ID 冲突 4 行)
+- # Worktree 策略(branch 前缀 + worktree_root_path + 推荐 path)
+- # 4 项配置表(每项含推荐 + 理由)
+
+加红线:**必 1 次完整 emit · 不分多轮**。
+
+### E · state.py 加 prepare-check 命令
+
+```bash
+state.py prepare-check --feature-id-prefix PTR [--features-root docs/features]
+```
+
+输出:
+```json
+{
+  "existing_ids": ["PTR-F033-...", "PTR-F040-...", "PTR-F041-..."],
+  "next_available_number": 42,
+  "next_available_id_stem": "PTR-F042",
+  "hint": "prepare 暂停点 Feature ID 默认填 PTR-F042-<Kebab-Case-名称>"
+}
+```
+
+策略:`next = max + 1`(连续递增 · 不填空洞 · 详 conventions.md § 1)。
+
+### 期望效果(case PTR-F041 重跑)
+
+- ❌ PMO 散述读 Planning / 检查 BFF 代码 → ✅ prepare §1.5 明确 step + cite
+- ❌ PMO 临时改 F040 → F041 + 用户多确认一轮 → ✅ prepare-check 输出 `next_available_id_stem=PTR-F042`(case 中实际应是 F042 · 因 F041 已占)
+- ❌ 2 轮交互 → ✅ 1 次完整表格 + 用户回 `ok` 即执行
+- ❌ 暂停点格式 PMO 自决 → ✅ prepare.md §4 模板强制
+
+### 测试 + verify
+
+- v8 测试 45/45 全过
+- 端到端 verify prepare-check:
+  - 已有 ID PTR-F033/F040/F041 → next=F042 ✅
+  - 空 prefix WEB → next=F001 ✅
+
+---
+
 ## v8.12 · raw-write 主动告警 + audit-raw-writes 跨 Feature 汇总
 
 ### 设计理念
