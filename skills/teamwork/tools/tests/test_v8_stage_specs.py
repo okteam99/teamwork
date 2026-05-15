@@ -305,11 +305,14 @@ class TestReviewTransition(unittest.TestCase):
         state = {"stage_contracts": {"review": {"evidence": {"verdict": "APPROVE"}}}}
         self.assertEqual(_review_transition(state), "test")
 
-    def test_needs_revision_transitions_to_dev(self):
-        """治本: NEEDS_REVISION 不再返回 None · 而是自动转 dev(回退到修复循环)。"""
+    def test_needs_revision_returns_none_for_in_stage_loop(self):
+        """v8.9 设计:NEEDS_REVISION → None · 留 review-stage 走 fix-retry 循环。
+
+        v8.8 曾改为 → "dev"(stage 间回退)· v8.9 撤销 · 改为 stage 内 fix-retry。
+        """
         from _v8_stage_specs import _review_transition
         state = {"stage_contracts": {"review": {"evidence": {"verdict": "NEEDS_REVISION"}}}}
-        self.assertEqual(_review_transition(state), "dev")
+        self.assertIsNone(_review_transition(state))
 
     def test_no_verdict_returns_none(self):
         from _v8_stage_specs import _review_transition

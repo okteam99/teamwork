@@ -20,7 +20,59 @@ AC 逐条对照实现 / 测试覆盖度 / 边界场景
 frontmatter `reviewers + verdict: APPROVE|NEEDS_REVISION` · body §finding / §修复建议 / §verdict
 
 ### 6. complete --verdict
-APPROVE → 自动进 test · NEEDS_REVISION → ⏸️ 用户选回 dev 还是接受
+APPROVE → 自动进 test · NEEDS_REVISION → 留 review-stage · 走 fix-retry 循环(见 §fix-retry)
+
+---
+
+## fix-retry 循环(stage 内 · 治本回退切 stage 噪音 · v8.9)
+
+review-stage 含 **stage 内 fix-retry 循环** · NEEDS_REVISION 不切 stage:
+
+```
+Round N: review-complete --verdict NEEDS_REVISION (写 rounds[-1].verdict)
+  ↓ (current_stage 仍是 review · contract.evidence.verdict=NEEDS_REVISION)
+RD 修代码 + commit (在 worktree 内)
+  ↓
+review-fix --auto-commit <hash> [--addresses-findings F1,F2]
+  ↓ (写 rounds[-1].fix_commit + fix_at)
+review-retry
+  ↓ (rounds 加 round N+1 · 重置 contract gates · 清 evidence.verdict)
+重新做评审(architect/qa/external)
+  ↓
+review-complete --verdict APPROVE | NEEDS_REVISION
+  ↓ APPROVE → 自动转 test
+```
+
+**rounds[] 结构**(audit · 反映完整循环):
+```json
+"stage_contracts.review.rounds": [
+  {"round": 1, "verdict": "NEEDS_REVISION", "review_commit": "C1",
+   "fix_commit": "C2", "fix_at": "...", "addresses_findings": ["F1"]},
+  {"round": 2, "verdict": "NEEDS_REVISION", "review_commit": "C3",
+   "fix_commit": "C4", "fix_at": "...", "addresses_findings": ["F2","F3"]},
+  {"round": 3, "verdict": "APPROVE", "review_commit": "C5",
+   "fix_commit": null, "completed_at": "..."}
+]
+```
+
+**为什么 stage 内循环**(v8.8 → v8.9 设计演进):
+- v8.8 试 stage 间循环(review NEEDS_REVISION → 自动转 dev)· stage 切换 4 次/轮 · audit 噪音
+- v8.9 改 stage 内循环 · 1 次 stage 切换/Feature(只在最终 APPROVE 时切 test)
+- R1 红线不变:fix 由 RD 角色跑(review-fix 命令 · 角色仍是 RD · 只是物理 stage 在 review)
+- 镜像 GitHub PR 工作流(review → push → 重审)· 业界标准
+
+**命令清单**:
+| 命令 | 用途 | 前置 |
+|---|---|---|
+| `review-complete --verdict NEEDS_REVISION` | 出本轮 verdict | 评审已落 REVIEW.md/REVIEW-arch.md/REVIEW-qa.md |
+| `review-fix --auto-commit <hash>` | 记录 fix commit | rounds[-1].verdict=NEEDS_REVISION + rounds[-1].fix_commit=null |
+| `review-retry` | 开新一轮 review | rounds[-1].fix_commit 已记录 |
+| `review-complete --verdict APPROVE` | 终结 review-stage | 任意轮 verdict 通过 |
+
+**与 dev-stage 的关系**:
+- review-stage **只读 dev 的最终 commit**(进 stage 时)+ 后续每轮 fix commit
+- dev-stage contract 不变(已 completed_stages)· 不重新走 dev-start/dev-complete
+- 如果发现 dev 设计根本错(不是 finding 级 fix 能解决)· 用户用 `state.py reset-prev` 退到 dev 重做
 
 ---
 

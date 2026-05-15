@@ -1,5 +1,73 @@
 # Changelog
 
+## v8.9 · review-stage 内 fix-retry 循环(治本 stage 间回退噪音)
+
+### 设计演进
+
+- **v8.7**: review-complete --verdict NEEDS_REVISION 返 None · PMO 必 raw-write 切 stage
+- **v8.8**: 改为 NEEDS_REVISION → "dev" 自动回退 · 4 命令/轮 · 仍切 stage
+- **v8.9 (本)**: 改为 stage 内 fix-retry 循环 · 0 stage 切换/轮(只在最终 APPROVE 时切 test)
+
+### 新加 2 个命令
+
+```
+state.py review-fix --feature X --auto-commit <hash> [--addresses-findings F1,F2]
+state.py review-retry --feature X
+```
+
+工作流:
+```
+review-complete --verdict NEEDS_REVISION
+  ↓ (留 review-stage · 写 rounds[-1].verdict)
+RD 修代码 + commit
+  ↓
+review-fix --auto-commit C2  (写 rounds[-1].fix_commit · 重置 gates)
+  ↓
+review-retry                 (rounds 加新 round · 清 evidence.verdict)
+  ↓
+review-complete --verdict APPROVE → 自动转 test
+```
+
+### contract.review.rounds[] 数据(audit · 反映完整循环)
+
+```json
+"stage_contracts.review.rounds": [
+  {"round": 1, "verdict": "NEEDS_REVISION", "review_commit": "C1",
+   "fix_commit": "C2", "fix_at": "...", "addresses_findings": ["F1"]},
+  {"round": 2, "verdict": "APPROVE", "review_commit": "C3"}
+]
+```
+
+### 撤销 v8.8 review-rollback
+
+- `_review_transition` NEEDS_REVISION 返 None(撤 v8.8 → "dev")
+- `execute_stage_complete` 删 `is_rollback` 检测 + 回退路径分支
+- review NEEDS_REVISION 不算 stage completed(`if transitioned_to is not None: completed.append(...)` · 防 rounds[] 误算)
+
+### review-complete 持久化 round 结果
+
+execute_stage_complete step 6.6:review-stage 自动维护 rounds[]
+- 首次 review-complete 创建 round 1
+- 每次 review-complete 写 rounds[-1].verdict + review_commit + completed_at
+
+### R1 红线分析
+
+stage 内 fix 由 RD 角色跑(review-fix 命令是 RD 工具)· R1 关心"代码写权归 RD"不是"在哪个 stage" · 不违反。
+镜像 GitHub PR 工作流(review → push → 重审)· 业界标准。
+
+### 测试
+
+- 改 TestReviewTransition.test_needs_revision_returns_none_for_in_stage_loop(撤 v8.8 期望)
+- v8 测试 45/45 全过
+- 端到端 manual verify:review-fix → review-retry → rounds[] 正确演化
+
+### 后续
+
+test-stage / pm_acceptance-stage 暂保持原状(stage 失败 → emit 暂停点 · 用户决策)。
+是否扩展 fix-retry 到这两个 stage 看反馈再定。
+
+---
+
 ## v8.8 · 4 个状态机设计 bug 一次性治本(治本 PTR-F040 实战 case)
 
 > 实战 case PTR-F040 Review Round 2 暴露 4 个状态机噪音点 · 1 次 commit 治本。

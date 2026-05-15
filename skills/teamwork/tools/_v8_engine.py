@@ -945,6 +945,21 @@ def execute_stage_complete(
             continue
         evidence[field] = val
 
+    # 6.6 review-stage 专属:维护 rounds[](支持 stage 内 fix-retry 循环)
+    if stage_spec.name == "review":
+        rounds = contract.setdefault("rounds", [])
+        if not rounds:
+            # 首次 review-complete · 创建 round 1
+            rounds.append({
+                "round": 1,
+                "started_at": contract.get("started_at", now_iso()),
+            })
+        # 写当前 round 的结果(verdict / review_commit / completed_at)
+        cur_round = rounds[-1]
+        cur_round["verdict"] = getattr(args, "verdict", None)
+        cur_round["review_commit"] = auto_commit
+        cur_round["completed_at"] = now_iso()
+
     # duration
     started = contract.get("started_at")
     if started:
@@ -962,15 +977,9 @@ def execute_stage_complete(
     transitioned_to = None
     next_brief = None
     next_stage_roles_audit = None
-    is_rollback = False  # 回退路径标记(next_stage 已在 completed_stages 中)
 
     if stage_spec.auto_transition_fn:
         next_stage = stage_spec.auto_transition_fn(state)
-        # 回退路径检测:next_stage 已完成过 = 回退到上游 stage 重做
-        # 典型 case:review NEEDS_REVISION → dev(治本 PMO 必 raw-write 切 stage 噪音)
-        completed_check = state.get("completed_stages") or []
-        if next_stage and next_stage in completed_check:
-            is_rollback = True
 
         if next_stage:
             # v8.0+P0-9:处理 --next-stage-roles 调整(若传)
@@ -1026,32 +1035,20 @@ def execute_stage_complete(
             state["current_stage"] = next_stage
             state["legal_next_stages"] = flow_graph.get(next_stage, [])
 
-            if is_rollback:
-                # 回退路径:不加当前 stage 到 completed(本 stage 没真完成)·
-                # 清 next_stage 的 contract gates 允许重做 · evidence 保留
-                next_contract = contracts.setdefault(next_stage, {})
-                next_contract["input_satisfied"] = False
-                next_contract["process_satisfied"] = False
-                next_contract["output_satisfied"] = False
-                next_contract.pop("completed_at", None)
-                next_contract.pop("duration_minutes", None)
-                next_contract["restarted_at"] = now_iso()
-                # current stage(本次 review)的 contract 标 returned_to_prev(audit)
-                contract["returned_to_prev"] = next_stage
-                contract["returned_at"] = now_iso()
-            else:
-                # 前进路径:初始化下一 stage contract
-                next_contract = contracts.setdefault(next_stage, {
-                    "input_satisfied": False,
-                    "process_satisfied": False,
-                    "output_satisfied": False,
-                })
-                next_contract.setdefault("started_at", now_iso())
+            # 初始化下一 stage contract
+            next_contract = contracts.setdefault(next_stage, {
+                "input_satisfied": False,
+                "process_satisfied": False,
+                "output_satisfied": False,
+            })
+            next_contract.setdefault("started_at", now_iso())
 
             transitioned_to = next_stage
 
-    # 加入 completed_stages(回退时不加 · 本 stage 没真完成)
-    if not is_rollback:
+    # 加入 completed_stages(仅在真转移到下一 stage 时加 · 防 review NEEDS_REVISION 误算完成)
+    # review-complete --verdict NEEDS_REVISION → transitioned_to=None → 不加
+    # review-complete --verdict APPROVE → transitioned_to=test → 加
+    if transitioned_to is not None:
         completed = state.setdefault("completed_stages", [])
         if stage_spec.name not in completed:
             completed.append(stage_spec.name)
@@ -1196,6 +1193,170 @@ def _add_stage_specific_args(parser: argparse.ArgumentParser, stage_name: str, p
                             help="决策说明(rejected 时必填)")
 
 
+# ─── review-fix / review-retry(stage 内 fix-retry 循环 · 治本回退切 stage)─
+
+
+def execute_review_fix(args: argparse.Namespace) -> None:
+    """review-fix:RD 在 review-stage 内修复 · 记录 fix commit 到 rounds[-1]。
+
+    前置:current_stage == review · rounds[-1].verdict == NEEDS_REVISION ·
+          rounds[-1].fix_commit == None。
+    动作:rounds[-1] 写 fix_commit + fix_at + addresses_findings(可选)·
+          重置 review contract gates(允许 review-retry 重新评审)。
+    """
+    path, state = load_state(args.feature)
+
+    if state.get("current_stage") != "review":
+        emit_json({
+            "verdict": "FAIL",
+            "stage": "review",
+            "action": "fix",
+            "error": f"current_stage={state.get('current_stage')!r} ≠ 'review'",
+            "hint": "review-fix 仅在 review-stage 内可用",
+        }, exit_code=1)
+
+    review_c = state.setdefault("stage_contracts", {}).setdefault("review", {})
+    rounds = review_c.setdefault("rounds", [])
+    if not rounds:
+        emit_json({
+            "verdict": "FAIL",
+            "stage": "review",
+            "action": "fix",
+            "error": "review.rounds[] 为空 · 必先跑 review-complete --verdict NEEDS_REVISION",
+        }, exit_code=1)
+
+    last_round = rounds[-1]
+    if last_round.get("verdict") != "NEEDS_REVISION":
+        emit_json({
+            "verdict": "FAIL",
+            "stage": "review",
+            "action": "fix",
+            "error": (
+                f"rounds[-1].verdict={last_round.get('verdict')!r} ≠ 'NEEDS_REVISION' · "
+                "无需 fix"
+            ),
+        }, exit_code=1)
+    if last_round.get("fix_commit"):
+        emit_json({
+            "verdict": "FAIL",
+            "stage": "review",
+            "action": "fix",
+            "error": f"rounds[-1].fix_commit={last_round['fix_commit']} 已记录 · 跑 review-retry 进入下一轮",
+        }, exit_code=1)
+
+    feature_dir = Path(args.feature).resolve()
+    git_cwd = str(feature_dir if feature_dir.is_dir() else feature_dir.parent)
+    if not commit_exists(args.auto_commit, cwd=git_cwd):
+        emit_json({
+            "verdict": "FAIL",
+            "stage": "review",
+            "action": "fix",
+            "error": f"auto-commit hash {args.auto_commit!r} 在 git history 中不存在",
+            "hint": "确认 git commit 已落库 · 或 hash 拼写正确",
+        }, exit_code=1)
+
+    last_round["fix_commit"] = args.auto_commit
+    last_round["fix_at"] = now_iso()
+    if args.addresses_findings:
+        last_round["addresses_findings"] = [
+            s.strip() for s in args.addresses_findings.split(",") if s.strip()
+        ]
+
+    save_state(path, state)
+
+    emit_json({
+        "verdict": "PASS",
+        "stage": "review",
+        "action": "fix",
+        "round": last_round.get("round", len(rounds)),
+        "fix_commit": args.auto_commit,
+        "addresses_findings": last_round.get("addresses_findings", []),
+        "next_action_brief": (
+            "✅ fix 已记录。\n"
+            f"下一步:state.py review-retry --feature {args.feature}\n"
+            "(重新进入 review 评审循环 · 重置 contract gates · 加新 round)"
+        ),
+    })
+
+
+def execute_review_retry(args: argparse.Namespace) -> None:
+    """review-retry:fix 后开新一轮 review · 重置 contract gates · 加新 round。
+
+    前置:current_stage == review · rounds[-1].fix_commit 非空(必先 fix)。
+    动作:rounds 加新 round(round+1)· 重置 input/process/output_satisfied ·
+          清 evidence.verdict · emit review brief 重新引导。
+    """
+    path, state = load_state(args.feature)
+
+    if state.get("current_stage") != "review":
+        emit_json({
+            "verdict": "FAIL",
+            "stage": "review",
+            "action": "retry",
+            "error": f"current_stage={state.get('current_stage')!r} ≠ 'review'",
+        }, exit_code=1)
+
+    review_c = state.setdefault("stage_contracts", {}).setdefault("review", {})
+    rounds = review_c.setdefault("rounds", [])
+    if not rounds:
+        emit_json({
+            "verdict": "FAIL",
+            "stage": "review",
+            "action": "retry",
+            "error": "review.rounds[] 为空 · 必先跑 review-complete --verdict NEEDS_REVISION + review-fix",
+        }, exit_code=1)
+
+    last_round = rounds[-1]
+    if not last_round.get("fix_commit"):
+        emit_json({
+            "verdict": "FAIL",
+            "stage": "review",
+            "action": "retry",
+            "error": "rounds[-1].fix_commit 为空 · 先跑 review-fix --auto-commit <hash>",
+        }, exit_code=1)
+
+    new_round_num = len(rounds) + 1
+    new_round = {
+        "round": new_round_num,
+        "verdict": None,
+        "review_commit": None,
+        "fix_commit": None,
+        "started_at": now_iso(),
+    }
+    rounds.append(new_round)
+
+    review_c["input_satisfied"] = False
+    review_c["process_satisfied"] = False
+    review_c["output_satisfied"] = False
+    review_c.pop("completed_at", None)
+    review_c.pop("duration_minutes", None)
+    ev = review_c.setdefault("evidence", {})
+    ev.pop("verdict", None)
+
+    save_state(path, state)
+
+    # 渲染 review brief 重新引导
+    from _v8_stage_specs import STAGE_SPECS
+    review_spec = STAGE_SPECS.get("review")
+    next_brief = review_spec.brief_template_fn(state) if review_spec else ""
+
+    emit_json({
+        "verdict": "PASS",
+        "stage": "review",
+        "action": "retry",
+        "round": new_round_num,
+        "next_action_brief": (
+            f"✅ review round {new_round_num} 已开启。\n"
+            "重新做评审(architect/qa/external)· 完成后:\n"
+            f"  state.py review-complete --feature {args.feature} "
+            "--auto-commit <REVIEW.md commit> "
+            "--artifacts REVIEW.md,REVIEW-arch.md,REVIEW-qa.md "
+            "--verdict {APPROVE|NEEDS_REVISION}"
+        ),
+        "next_stage_brief": next_brief,
+    })
+
+
 # ─── register_v8_subparsers ────────────────────────────────────────────
 
 
@@ -1246,3 +1407,24 @@ def register_v8_subparsers(
             return handler
 
         complete_parser.set_defaults(func=make_complete_handler(stage_spec))
+
+    # review-fix / review-retry(stage 内 fix-retry 循环 · 治本回退切 stage 噪音)
+    if "review" in stage_specs_registry:
+        fix_parser = sub.add_parser(
+            "review-fix",
+            help="[v8] review-stage 内 RD fix · 记录 fix commit 到 rounds[-1]",
+        )
+        fix_parser.add_argument("--feature", required=True, help="Feature artifact_root")
+        fix_parser.add_argument("--auto-commit", required=True, help="fix commit hash")
+        fix_parser.add_argument(
+            "--addresses-findings", default="",
+            help="逗号分隔 · 本次 fix 解决的 finding ID(audit · 可选)",
+        )
+        fix_parser.set_defaults(func=execute_review_fix)
+
+        retry_parser = sub.add_parser(
+            "review-retry",
+            help="[v8] review-stage fix 后重新评审 · 加新 round + 重置 contract gates",
+        )
+        retry_parser.add_argument("--feature", required=True, help="Feature artifact_root")
+        retry_parser.set_defaults(func=execute_review_retry)
