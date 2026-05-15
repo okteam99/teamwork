@@ -170,15 +170,18 @@ HOST_INJECTION_FILES = {
 
 def maintain_host_injection(skill_root: Path, project_root: Path, host: str,
                              skill_version: str) -> dict:
-    """同步宿主指令文件 teamwork 注入段(缺则跑 sync-drift.py 注入 / 旧则升级)。
+    """同步**所有已存在**的宿主指令文件 teamwork 注入段(v8.14)。
+
+    策略:
+    - 当前 host 对应文件:不存在则创建(--init)· 存在则同步
+    - 其他指令文件(CLAUDE.md / AGENTS.md / GEMINI.md):**已存在才同步**(不主动建)
+    - 多工具项目下 · 用户单次 bootstrap 让所有指令文件保持最新
 
     标记格式由 sync-drift.py 维护:`<!-- TEAMWORK_BEGIN:teamwork-pointer vX.Y -->`
     """
-    fname = HOST_INJECTION_FILES.get(host)
-    if not fname:
+    if host not in HOST_INJECTION_FILES:
         return {"status": "host_unknown", "host": host}
 
-    target = project_root / fname
     sync_drift = skill_root / "tools" / "sync-drift.py"
     source = skill_root / "templates" / "host-instruction-injection.md"
 
@@ -186,30 +189,50 @@ def maintain_host_injection(skill_root: Path, project_root: Path, host: str,
         return {
             "status": "skipped",
             "reason": "sync-drift.py or source template missing",
-            "file": fname,
         }
 
-    try:
-        result = subprocess.run(
-            [
-                "python3", str(sync_drift),
-                "--target", str(target),
-                "--source", str(source),
-                "--skill-version", skill_version,
-                "--init",
-            ],
-            capture_output=True, text=True, timeout=10,
-        )
-    except (subprocess.TimeoutExpired, FileNotFoundError) as e:
-        return {"status": "subprocess_error", "error": str(e), "file": fname}
+    primary_fname = HOST_INJECTION_FILES[host]
+    results = {}
 
-    if result.returncode == 0:
-        return {"status": "synced", "file": fname}
+    for host_name, fname in HOST_INJECTION_FILES.items():
+        target = project_root / fname
+        is_primary = (host_name == host)
+        # 非当前 host 文件 · 已存在才同步 · 不主动创建
+        if not is_primary and not target.exists():
+            results[fname] = {"status": "skipped_not_present"}
+            continue
+
+        try:
+            result = subprocess.run(
+                [
+                    "python3", str(sync_drift),
+                    "--target", str(target),
+                    "--source", str(source),
+                    "--skill-version", skill_version,
+                    "--init",
+                ],
+                capture_output=True, text=True, timeout=10,
+            )
+        except (subprocess.TimeoutExpired, FileNotFoundError) as e:
+            results[fname] = {"status": "subprocess_error", "error": str(e)}
+            continue
+
+        if result.returncode == 0:
+            results[fname] = {
+                "status": "synced",
+                "primary": is_primary,
+            }
+        else:
+            results[fname] = {
+                "status": "sync_failed",
+                "exit_code": result.returncode,
+                "stderr": result.stderr.strip()[:200],
+            }
+
     return {
-        "status": "sync_failed",
-        "file": fname,
-        "exit_code": result.returncode,
-        "stderr": result.stderr.strip()[:200],
+        "status": "ok",
+        "primary_file": primary_fname,
+        "results": results,
     }
 
 

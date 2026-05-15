@@ -209,6 +209,31 @@ class TestMaintainHostInjection(unittest.TestCase):
         result = maintain_host_injection(self.tmp, self.tmp, "claude-code", "v8.x")
         self.assertEqual(result["status"], "skipped")
 
+    def test_other_host_files_skipped_when_absent(self):
+        """v8.14:非当前 host 文件不存在 → skipped_not_present(不主动建)。
+
+        模拟真实 skill_root + project_root + 仅有 CLAUDE.md(无 AGENTS / GEMINI)。
+        """
+        from bootstrap import maintain_host_injection
+        # 用真实 skill 仓库 sync-drift + 模板
+        skill_root = Path(__file__).resolve().parent.parent.parent
+        project_root = Path(tempfile.mkdtemp())
+        try:
+            # 只创建 CLAUDE.md(主 host 文件)· 不创建 AGENTS / GEMINI
+            (project_root / "CLAUDE.md").write_text("# project\n")
+            result = maintain_host_injection(
+                skill_root, project_root, "claude-code", "v8.x",
+            )
+            self.assertEqual(result["status"], "ok")
+            self.assertEqual(result["primary_file"], "CLAUDE.md")
+            # CLAUDE.md 应同步成功
+            self.assertEqual(result["results"]["CLAUDE.md"]["status"], "synced")
+            # AGENTS.md / GEMINI.md 不存在 · 应 skipped_not_present
+            self.assertEqual(result["results"]["AGENTS.md"]["status"], "skipped_not_present")
+            self.assertEqual(result["results"]["GEMINI.md"]["status"], "skipped_not_present")
+        finally:
+            shutil.rmtree(project_root, ignore_errors=True)
+
 
 # ─── maintain_chmod_tools / maintain_gitignore_worktree ─────────
 

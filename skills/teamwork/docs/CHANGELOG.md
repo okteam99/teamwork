@@ -1,5 +1,51 @@
 # Changelog
 
+## v8.14 · bootstrap 同步所有已存在指令文件(治本多工具维护一致性)
+
+### 问题
+
+bootstrap.py `maintain_host_injection` 之前**只更新当前 host 对应的 1 个文件**:
+- `--host claude-code` → 只 CLAUDE.md
+- `--host codex-cli` → 只 AGENTS.md
+- `--host gemini-cli` → 只 GEMINI.md
+
+多工具用户痛点:项目同时被 claude-code + codex 用 · 但 bootstrap 只维护一个 · 另一个文件 teamwork-pointer 陈旧 / 缺失。
+
+### 修复(选项 B)
+
+策略:
+- **当前 host 对应文件**:不存在则创建(`--init`)· 存在则同步
+- **其他指令文件**(CLAUDE/AGENTS/GEMINI):**已存在才同步**(不主动建 · 不侵入)
+
+实现:循环 `HOST_INJECTION_FILES.items()` · 每个文件按"是否当前 host" 决定 init / 同步策略。
+
+### 输出 schema 变化
+
+旧:
+```json
+{"status": "synced", "file": "CLAUDE.md"}
+```
+
+新:
+```json
+{
+  "status": "ok",
+  "primary_file": "CLAUDE.md",
+  "results": {
+    "CLAUDE.md": {"status": "synced", "primary": true},
+    "AGENTS.md": {"status": "synced", "primary": false},  // 已存在 · 同步
+    "GEMINI.md": {"status": "skipped_not_present"}        // 不存在 · 不建
+  }
+}
+```
+
+### 测试
+
+- 加 `test_other_host_files_skipped_when_absent`
+- 25/25 全过(原 24 + 1 新)
+
+---
+
 ## v8.13 · prepare 子流程标准化 + ID 冲突预检 + 全局快捷词
 
 实战 case PTR-F041 起盘暴露 4 个 prepare 流程问题(PMO 自决散述 / 多轮交互 / 无 ID 冲突预检 / 暂停点格式不统一)· 一次性治本。
