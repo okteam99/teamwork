@@ -15,6 +15,14 @@
 | **Feature Planning 完成后启 Feature** | PL 在 ROADMAP 拆完后 · 用户拍板某 BL → PMO 同 session 走 prepare 启动 Feature |
 | **mode A/D 转 B**(罕见) | 用户从查看/状态切到执行 → 进 prepare |
 
+🔴 **mode B 涵盖的所有进状态机流程都走 prepare**:
+- **Feature**(完整功能)→ 走 prepare
+- **敏捷需求**(≤5 文件 + 无 UI/架构变更)→ 走 prepare
+- **Bug**(缺陷修复)→ 走 prepare
+- **Micro**(零逻辑改动)→ 走 prepare
+
+判据:**进状态机 = 走 prepare**(都需 worktree + branch + merge_target + Feature/Bug ID 4 项配置)。即便最轻的 Micro(改一个文案)也要 prepare · 不可跳过(R5 暂停点协议)。
+
 **非触发场景**(prepare 不跑):
 - mode A query / mode D status:不进状态机
 - mode C resume:已有 state.json · 直接 jump
