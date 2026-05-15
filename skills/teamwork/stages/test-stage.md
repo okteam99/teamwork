@@ -24,6 +24,50 @@ AC↔Test 全覆盖物化校验 · 漏覆盖 FAIL
 
 ### 7. complete
 `state.py test-complete --integration-test-exit-code 0 --e2e-test-exit-code 0 ...`
+- exit_code 都 0 → 自动转 pm_acceptance(或 browser_e2e · 看 needs_browser_e2e)
+- 任一 exit_code 非 0 → 留 test-stage · 走 §fix-retry 循环
+
+---
+
+## fix-retry 循环(stage 内 · v8.10 · 同 review v8.9 模式)
+
+test 失败时 stage 内 fix-retry · 不切 stage:
+
+```
+Round N: test-complete --integration-test-exit-code 1 (失败 · 写 rounds[-1])
+  ↓ (current_stage 仍是 test · transitioned_to=None · emit fix_retry_hint)
+RD 修代码 + commit
+  ↓
+test-fix --auto-commit <hash> [--addresses-findings F1,F2]
+  ↓ (写 rounds[-1].fix_commit · 重置 contract gates + evidence.exit_code)
+test-retry
+  ↓ (rounds 加 round N+1 · 清 evidence.{integration,e2e}_test_exit_code)
+重新跑 integration test + API E2E
+  ↓
+test-complete --integration-test-exit-code 0 --e2e-test-exit-code 0
+  ↓ 都 0 → 自动转 pm_acceptance
+```
+
+**rounds[] 结构**:
+```json
+"stage_contracts.test.rounds": [
+  {"round": 1, "test_commit": "C1",
+   "integration_test_exit_code": 1, "e2e_test_exit_code": 0,
+   "fix_commit": "C2", "fix_at": "...", "addresses_findings": ["F1"]},
+  {"round": 2, "test_commit": "C3",
+   "integration_test_exit_code": 0, "e2e_test_exit_code": 0,
+   "completed_at": "..."}
+]
+```
+
+**与 dev-stage 的关系**:
+- test-stage 内 fix 是 RD 写代码(同 review)· 仍归 RD 角色 · R1 不违反
+- 如果失败本质是 dev 设计错(不是 finding 级 fix 能解决)· 用 `state.py reset-prev` 退到 dev 重做
+
+**与 review-stage fix-retry 的差异**:
+- review:fix 解决 architect/qa finding
+- test:fix 解决 test failure(integration / e2e exit_code 非 0)
+- 共用 _v8_engine.execute_stage_fix / execute_stage_retry 通用函数(`_STAGE_FIX_RETRY_CONFIG`)
 
 ---
 

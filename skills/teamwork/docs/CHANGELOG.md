@@ -1,5 +1,79 @@
 # Changelog
 
+## v8.10 · test-stage 加 fix-retry · pm_acceptance 加暂停点选项
+
+### test-stage 加 fix-retry 循环(同 review v8.9 模式)
+
+新加 2 个命令:
+```
+state.py test-fix --feature X --auto-commit <hash> [--addresses-findings ...]
+state.py test-retry --feature X
+```
+
+工作流:
+```
+test-complete --integration-test-exit-code 1 (失败 · 写 rounds[-1])
+  ↓ (留 test-stage · transitioned_to=None · emit fix_retry_hint)
+RD 修代码 + commit
+  ↓
+test-fix → test-retry
+  ↓
+test-complete --integration-test-exit-code 0 --e2e-test-exit-code 0 → 自动转 pm_acceptance
+```
+
+### test-stage 行为变更(语义)
+
+- 旧:`_evidence_integration_test_zero` / `_e2e_test_zero` 校验 exit_code == 0 · 失败 die FAIL
+- 新:`_evidence_integration_test_present` / `_e2e_test_present` 只校验已传 · 任何 exit_code 合法
+- `_test_transition` 检测 evidence:任一 exit_code 非 0 → 返 None(留 test 走 fix-retry)· 都 0 → 转 next stage
+
+### pm_acceptance rejected · emit pause_options_markdown
+
+pm_acceptance rejected_with_feedback 不走 fix-retry(反馈类型多样),emit 4 选项暂停点:
+```
+1. 代码 bug → reset-prev → dev-fix → review → test → pm_acceptance 完整重走
+2. AC / 需求改 → raw-write current_stage=goal → 改 PRD + 重 review
+3. UI 设计改 → raw-write current_stage=ui_design → 改 UI
+4. 放弃 Feature → ship-phase --action close-unmerged --abandon=true
+```
+
+### 通用化重构
+
+`execute_review_fix / execute_review_retry` → 改为通用 `execute_stage_fix / execute_stage_retry(stage_name)`:
+- 配置在 `_STAGE_FIX_RETRY_CONFIG` dict(review / test 两个 entry)
+- 加新 stage 只需扩 dict + register 自动注册命令
+- contract.rounds[] 字段(commit_field / round_init_fields / evidence_keys_to_clear)由 config 决定
+
+### 通用 fix-retry hint
+
+execute_stage_complete 末尾,失败 stage(transitioned_to=None)emit `fix_retry_hint` 字段:
+```
+⏸️ test 本轮未通过 · stage 内 fix-retry 循环:
+  1. RD 修代码 + commit
+  2. state.py test-fix --feature ... --auto-commit <hash>
+  3. state.py test-retry --feature ...
+  4. state.py test-complete ...(重新出 exit_code)
+```
+
+### 失败 stage 风格三类(全 stage 一致)
+
+| stage | 失败模式 | 处理 |
+|---|---|---|
+| **goal / blueprint** | 多角色 NEEDS_REVISION | PMO 主对话循环 · markdown 字段 audit(revision_history) |
+| **review / test** | NEEDS_REVISION / exit_code 非 0 | state.py 命令循环 · contract.rounds[] audit |
+| **pm_acceptance** | rejected_with_feedback | 暂停点 4 选项 · 用户决策回哪 stage |
+
+### 测试 + verify
+
+- v8 测试 45/45 全过
+- 端到端 manual verify:test-fix → test-retry → rounds[] / _test_transition 正确
+
+### 后续
+
+- pm_acceptance 4 选项中"raw-write current_stage=X"hint 是临时方案 · 未来可加 `state.py jump-to-stage --to <stage>` 命令(避免 raw-write 滥用感)
+
+---
+
 ## v8.9 · review-stage 内 fix-retry 循环(治本 stage 间回退噪音)
 
 ### 设计演进

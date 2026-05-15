@@ -970,28 +970,33 @@ state.py test-complete --feature <path> --auto-commit <hash> \
 
 
 def _test_transition(state: dict) -> Optional[str]:
-    """test 完成后 · 按 browser_e2e_needed 决定。"""
+    """test 通过(两 exit_code 都 0)→ next stage · 失败 → None(留 test 走 fix-retry · v8.10)。"""
+    test_c = state.get("stage_contracts", {}).get("test", {})
+    ev = test_c.get("evidence", {})
+    int_code = ev.get("integration_test_exit_code")
+    e2e_code = ev.get("e2e_test_exit_code")
+    if int_code != 0 or e2e_code != 0:
+        return None  # 失败 · 留 test stage · 走 test-fix → test-retry
     hints = state.get("execution_hints", {})
     if hints.get("browser_e2e_needed") is True:
         return "browser_e2e"
     return "pm_acceptance"
 
 
-def _evidence_integration_test_zero(state: dict, args) -> tuple[bool, str]:
+def _evidence_integration_test_present(state: dict, args) -> tuple[bool, str]:
+    """v8.10:只校验 --integration-test-exit-code 已传 · 任何 exit_code 都允许 ·
+    失败时 transition 返 None(留 test 走 fix-retry)而不是 die FAIL。"""
     code = getattr(args, "integration_test_exit_code", None)
     if code is None:
         return False, "缺 --integration-test-exit-code 参数"
-    if int(code) != 0:
-        return False, f"integration_test_exit_code={code} ≠ 0"
     return True, ""
 
 
-def _evidence_e2e_test_zero(state: dict, args) -> tuple[bool, str]:
+def _evidence_e2e_test_present(state: dict, args) -> tuple[bool, str]:
+    """v8.10:只校验 --e2e-test-exit-code 已传 · 任何 exit_code 都允许。"""
     code = getattr(args, "e2e_test_exit_code", None)
     if code is None:
         return False, "缺 --e2e-test-exit-code 参数"
-    if int(code) != 0:
-        return False, f"e2e_test_exit_code={code} ≠ 0"
     return True, ""
 
 
@@ -1019,14 +1024,14 @@ TEST_SPEC = StageSpec(
     ],
     evidence_checks=[
         StageEvidenceCheck(
-            name="integration_test_passed",
-            check_fn=_evidence_integration_test_zero,
-            description="集成测试 exit code == 0",
+            name="integration_test_present",
+            check_fn=_evidence_integration_test_present,
+            description="--integration-test-exit-code 已传(失败 exit_code 留 test stage 走 fix-retry)",
         ),
         StageEvidenceCheck(
-            name="e2e_test_passed",
-            check_fn=_evidence_e2e_test_zero,
-            description="API E2E exit code == 0",
+            name="e2e_test_present",
+            check_fn=_evidence_e2e_test_present,
+            description="--e2e-test-exit-code 已传(失败 exit_code 留 test stage 走 fix-retry)",
         ),
         StageEvidenceCheck(
             name="ac_test_binding",
