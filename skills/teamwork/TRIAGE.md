@@ -98,9 +98,16 @@ python3 <SKILL_ROOT>/tools/bootstrap.py \
 
 详见 [SKILL.md § 项目级系统维护](./SKILL.md)。
 
-### Step 4.1 · mode B → 走 prepare 子流程
+### Step 4.1 · mode B → 必移交 prepare 子流程
 
-mode B 识别后 · PMO 走 **prepare 子流程**(详见 [docs/prepare.md](./docs/prepare.md)):
+mode B 识别后(**无论后续流程类型 = Feature / 敏捷需求 / Bug / Micro · 都走 prepare**)·
+PMO **必走** [docs/prepare.md](./docs/prepare.md) 子流程 · 不可在主对话散述准备步骤。
+
+判据:**进状态机 = 走 prepare**(4 个进状态机流程都需 worktree + branch + merge_target + Feature/Bug ID 4 项配置)。
+即便最轻的 Micro(改文案 1 行)也要 prepare · 不可跳过(R5 暂停点协议)。
+不进状态机的 Feature Planning / 问题排查 → 不走 prepare(由 PMO 主对话执行)。
+
+prepare 子流程动作概览:
 1. 流程类型识别(6 闭集 · R2 红线)
 2. worktree 决策(branch 前缀 + path)
 3. emit 暂停点 markdown(收集 4 项:Feature ID / merge_target / worktree path / branch)
@@ -109,7 +116,7 @@ mode B 识别后 · PMO 走 **prepare 子流程**(详见 [docs/prepare.md](./doc
 **prepare 是可重入子流程** · 同样适用以下场景:
 - mode E discuss 收敛后升级到 mode B(见 §2 mode E 升级触发段)
 - Feature Planning 完成后 · PL 拍板某个 BL-NNN 启动 Feature(同 session 内 · 不需重新 triage · 直接 prepare)
-- 用户主动"启动新 Feature"的任何 PMO 入口
+- 用户主动"启动新 Feature / Bug / Micro / 敏捷需求"的任何 PMO 入口
 
 prepare 不调用场景:Feature Planning 流程本身 / 问题排查流程(都不进状态机)。
 
