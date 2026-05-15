@@ -106,27 +106,17 @@ review-complete --verdict APPROVE | NEEDS_REVISION
 - substep 动手前 cite = 事前提醒 · 强制 AI 翻一眼 spec
 - 物化死角(state.py 看不到 markdown Read 动作)· 软约束 + 用户监督兜底
 
-## 注意事项
+## 质量基线
 
-### 坑 1 · 三视角互相 cite(鼓掌效应)
-Architect cite QA verdict → 三视角变一视角。
- **对策**:每视角独立 review · 各自落 REVIEW-{role}.md · 不互相参考
+📎 **物化拦截**:P0-154(`external-cross-review/*.md` 非空 · 跨模型异质 review 必跑一次)
 
-### 坑 2 · NEEDS_REVISION 绕过 dev 直接接受
-问题被 PMO/用户合理化掉 · 隐藏 bug 进 test。
- **对策**:NEEDS_REVISION 默认回 dev 修 · 接受需用户明示 + concerns WARN 记录原因
+**多视角独立性 SOP**(违反 → review 失去价值):
+- 每视角独立 review · 各自落 `REVIEW-{role}.md` · 不互相 cite verdict(避免鼓掌效应)
+- APPROVE 可附 advisory(non-blocking)finding · 显式落 `REVIEW.md` 留 audit · 不隐藏
 
-### 坑 3 · External cross-review 漏
-`external-cross-review/*.md` 为空 → P0-154 物化 FAIL。
- **对策**:必跑异质模型一次 · 即使 finding 少也要落 markdown
+**QA 边界 SOP**:必逐条 AC 对照 · 显式列"边界场景测试" finding · 不只看 happy path
 
-### 坑 4 · verdict APPROVE 隐藏 advisory finding
-把"建议改进"标 APPROVE 不写 · review 失去价值。
- **对策**:APPROVE 可附 advisory(non-blocking)finding · 显式落 REVIEW.md · 留 audit
-
-### 坑 5 · QA 只看 happy path 不查边界
-PRD.AC 边界场景测试漏。
- **对策**:QA 必逐条 AC 对照 · 显式列"边界场景测试" finding
+**NEEDS_REVISION 处理**:默认回 dev 修(in-stage fix-retry · R5 + fix-retry 规范)· 接受需用户明示 + concerns WARN 记录原因
 
 ---
 

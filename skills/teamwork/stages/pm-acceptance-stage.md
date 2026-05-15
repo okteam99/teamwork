@@ -78,27 +78,17 @@ pm_acceptance rejected 不强制 fix-retry(反馈类型多样)· state.py emit 4
 - substep 动手前 cite = 事前提醒 · 强制 AI 翻一眼 spec
 - 物化死角(state.py 看不到 markdown Read 动作)· 软约束 + 用户监督兜底
 
-## 注意事项
+## 质量基线
 
-### 坑 1 · PM 口述"看起来 OK" 不实测
-走过场 · 漏 bug 进 ship。
- **对策**:逐条 AC 对照 TEST-REPORT 实际数据 · 不靠口述
+📎 **物化拦截**:
+- ship-start 前置 `pm_acceptance.evidence.decision=approved_and_ship`(绕过 PM 验收 → FAIL)
+- rejected 必传 `--note`(state.py 必填校验)
+- rejected → state.py emit `pause_options_markdown` 4 选项 · 用户选 1/2/3/4 → PMO 显式跑命令(reset-prev / raw-write)· 自动 audit
 
-### 坑 2 · rejected 漏填 --note
-state.py FAIL(必填校验)。
- **对策**:rejected 必明确 finding · note 含具体改什么
-
-### 坑 3 · approved_no_ship 滥用
-"通过但暂不发"用作躲避决策。
- **对策**:approved_no_ship 用于真正"完成但等时机"(如等其他 Feature 协同) · 不躲
-
-### 坑 4 · 绕过 PM 验收
-直接 ship-start · 违 R5 暂停点协议。
- **对策**:state.py 物化拦截 · ship-start 必前置 pm_acceptance.evidence.decision=approved_and_ship
-
-### 坑 5 · rejected 不按选项回退
-PM 自己改文档 / 调 AC · 越权 · 没 audit。
- **对策**:rejected → state.py emit pause_options_markdown 4 选项 · PMO 复制给用户 · 用户选 1/2/3/4 后 PMO 显式跑命令(reset-prev / raw-write)· 自动 audit。
+**SOP**(违反 → 漏 bug 进 ship):
+- 逐条 AC 对照 TEST-REPORT 实际数据 · 不靠"看起来 OK"口述
+- rejected 必明确 finding · note 含具体改什么
+- `approved_no_ship` 仅用于真正"完成但等时机"(协同其他 Feature) · 不用作躲避决策
 
 ---
 

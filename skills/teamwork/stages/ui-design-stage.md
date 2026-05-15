@@ -54,27 +54,17 @@ frontmatter `pages: [{id, title}]` 必 · body §页面列表 / §交互流 / §
 - substep 动手前 cite = 事前提醒 · 强制 AI 翻一眼 spec
 - 物化死角(state.py 看不到 markdown Read 动作)· 软约束 + 用户监督兜底
 
-## 注意事项
+## 质量基线
 
-### 坑 1 · preview HTML 命名错位
-page.id ≠ 文件名 → ui_design-complete FAIL(物化校验 pages[].id 对应 .html 存在)。
- **对策**:文件名严格 = `<page.id>.html`
+📎 **物化拦截**:
+- preview HTML 文件名 = `<page.id>.html`(物化校验 `pages[].id` 对应 .html 存在 · 错位 → ui_design-complete FAIL)
+- `stage_contracts.ui_design.output_satisfied=true` → dev-start 自动触发 UI 还原校验段
 
-### 坑 2 · 每页 inline 样式 / 不复用基础组件
-视觉不一致 · 维护噩梦。
- **对策**:抽公共组件 / CSS class · preview 引用统一样式表
+**preview SOP**(违反 → dev 还原 / pm_acceptance 打回):
+- 抽公共组件 / CSS class · preview 引用统一样式表 · 不每页 inline(维护噩梦)
+- preview HTML 含点击 / 表单 / 跳转(真实交互)· 不只是静态图 · 让 dev 可 verify 交互
 
-### 坑 3 · preview 只是静态图
-Dev 还原时无法 verify 交互。
- **对策**:preview HTML 含点击 / 表单 / 跳转 · 真实交互
-
-### 坑 4 · sitemap 更新破坏现有路由
-其他 Feature 跑现有路由 fail。
- **对策**:sitemap 改动必显式列影响范围 · 主对话与相关 Feature owner 协调
-
-### 坑 5 · UI 改动未通知 dev stage
-Dev 漏跑 verify-panorama · 还原偏差到 pm_acceptance 才发现。
- **对策**:ui_design 完成时显式标记 stage_contracts.ui_design.output_satisfied=true · dev-start 自动触发 UI 还原校验段(brief 中提醒)
+**sitemap 改动**:必显式列影响范围 · 主对话与相关 Feature owner 协调(防破坏现有路由)
 
 ---
 

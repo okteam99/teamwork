@@ -102,27 +102,15 @@ test-complete --integration-test-exit-code 0 --e2e-test-exit-code 0
 - substep 动手前 cite = 事前提醒 · 强制 AI 翻一眼 spec
 - 物化死角(state.py 看不到 markdown Read 动作)· 软约束 + 用户监督兜底
 
-## 注意事项
+## 质量基线
 
-### 坑 1 · 测试失败标 xfail/skip 走捷径
-为 exit-code=0 跳过失败 test · 实际功能未实现。
- **对策**:失败必修 · skip 必含 reason + tracking issue · 不绕过
+📎 **物化拦截**:`verify-ac.py`(每 AC ≥1 集成测试或 E2E · `TC.md frontmatter.tests[].covers_ac` 显式 cite)
 
-### 坑 2 · AC 全覆盖漏
-verify-ac.py FAIL(物化拦截)。
- **对策**:每 AC 至少 1 集成测试或 E2E · TC.md frontmatter.tests[].covers_ac 显式 cite
-
-### 坑 3 · E2E 脚本不可重跑
-一次性 hack · CI 不能复用。
- **对策**:e2e/*.py 独立可执行 · 不依赖 dev 主对话上下文
-
-### 坑 4 · TEST-REPORT 口述"通过"
-不引用实际 exit-code / stdout · 失去 audit。
- **对策**:TEST-REPORT 含具体测试 stdout 摘录 + exit-code 数值
-
-### 坑 5 · 集成测试 = 单元测试
-集成测试应跨模块 · 跨服务 · 不是单测复刻。
- **对策**:集成测试聚焦"模块间接口契约" · 与 dev 的单测分工
+**SOP**(违反 → 假通过 / 失去 audit):
+- 测试失败必修 · skip 必含 reason + tracking issue · 不为 exit-code=0 标 xfail 走捷径
+- E2E `e2e/*.py` 独立可执行 · 不依赖 dev 主对话上下文(CI 可复用)
+- TEST-REPORT 含具体测试 stdout 摘录 + exit-code 数值 · 不口述"通过"
+- 集成测试聚焦"模块间接口契约"(跨模块 / 跨服务)· 不是单元测试复刻
 
 ---
 

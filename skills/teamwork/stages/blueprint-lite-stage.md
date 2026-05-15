@@ -46,27 +46,16 @@
 - substep 动手前 cite = 事前提醒 · 强制 AI 翻一眼 spec
 - 物化死角(state.py 看不到 markdown Read 动作)· 软约束 + 用户监督兜底
 
-## 注意事项
+## 质量基线
 
-### 坑 1 · 敏捷需求准入不符
-改动 > 5 文件 / 有 UI 变更 / 方案不明 → 不应是敏捷需求。
- **对策**:发现复杂度超预期 → `state.py reset-prev` 回退 · 改 flow_type 到 Feature · 重做
+📎 **物化拦截**:`allowed_flow_types=["敏捷需求"]`(flow_type 错 → start FAIL)
 
-### 坑 2 · 砍 blueprint 不等于砍质量
-TC.md 仍要 AC↔Test 绑定 · review/test stage 严格度不降。
- **对策**:TC 精简但完整 · 每 AC 至少 1 test
+**准入硬约束**(违反 → 不应用敏捷 · `reset-prev` 回退改 flow_type=Feature 重做):
+- ≤5 文件改动 · 无 UI 变更 · 无架构变更 · 方案明确
 
-### 坑 3 · 误用 flow_type
-flow_type=Feature 错跑 blueprint_lite-start → 物化 FAIL(allowed_flow_types=["敏捷需求"])。
- **对策**:init-feature 时正确选 flow_type · 不混用
-
-### 坑 4 · Feature 流程降级敏捷
-为省事跳过完整 blueprint · 实际是 Feature 复杂度。
- **对策**:准入硬约束(≤5 文件 / 无 UI/架构变更 / 方案明确)· 不满足绝不用敏捷
-
-### 坑 5 · External 完全跳过
-即使敏捷 · 重要决策仍建议 external 一次。
- **对策**:复杂度边界 case · 主对话内 PMO 判定是否补 external
+**SOP**:
+- TC.md 精简但完整(每 AC ≥1 test) · 砍 blueprint 不砍质量(review/test 严格度不降)
+- 重要决策边界 case · 主对话内 PMO 判定是否补 external 一次
 
 ---
 

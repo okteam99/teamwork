@@ -83,31 +83,17 @@ state.py 校验:
 - substep 动手前 cite = 事前提醒 · 强制 AI 翻一眼 spec
 - 物化死角(state.py 看不到 markdown Read 动作)· 软约束 + 用户监督兜底
 
-## 注意事项
+## 质量基线
 
-### 坑 1 · TDD 先写实现后补测试 = 假 TDD
-测试变成 sanity check 而非真 TDD · review 会 NEEDS_REVISION。
-**对策**:严格红 → 绿 → refactor 顺序 · 每个 test 独立 commit · git log 可见 TDD 节奏。
+📎 **物化拦截**:`verify-panorama.py`(UI 还原差异校验 · ui_design 完成时必跑)
 
-### 坑 2 · 一个大 commit 含所有改动 = 失去回溯能力
-后续 refactor / debug 难 bisect。
-**对策**:每个绿点一个 commit · 一个 commit 一件事。
+**TDD SOP**(违反 → review NEEDS_REVISION):
+- 严格红 → 绿 → refactor 顺序 · 每个 test 独立 commit(git log 可见 TDD 节奏)· 不"先实现后补测试"
+- 每个绿点一个 commit · 一个 commit 一件事(便于 bisect)
+- 测试失败必修 · skip 必含 reason + tracking issue(详 [test-stage 质量基线](./test-stage.md))
 
-### 坑 3 · TECH.md 模糊处自己拍板
-默默选库 / 命名 / 数据结构 → 可能破坏架构 · review 打回。
-**对策**:遵循 fallback 决策树:
-1. 看 KNOWLEDGE.md(项目级约定)
-2. 看 ARCHITECTURE.md(系统架构)
-3. 看 standards/common.md(通用规范)
-4. 全无规定 → concerns INFO + 主对话与 architect 讨论 · **不自行拍板**
-
-### 坑 4 · UI 还原忽略 verify-panorama
-PR 表面通过 · pm_acceptance 时被打回(UI 不一致)。
-**对策**:ui_design 完成时必跑 verify-panorama · 差异处显式落 concerns(让 reviewer 知道)。
-
-### 坑 5 · 测试失败标 `xfail` / `skip` 走捷径
-为过 exit-code=0 把失败标 xfail · 实际功能未实现。
-**对策**:测试失败必修 · 标 skip 必含 reason + tracking issue · 不能用来"绕过 exit-code 校验"。
+**TECH.md 模糊处 fallback 决策树**(不自行拍板 · 违反 → review 打回):
+1. KNOWLEDGE.md(项目级约定) → 2. ARCHITECTURE.md(系统架构) → 3. standards/common.md(通用规范) → 4. 全无 → concerns INFO + 主对话找 architect
 
 ---
 

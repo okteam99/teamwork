@@ -72,28 +72,16 @@
 - substep 动手前 cite = 事前提醒 · 强制 AI 翻一眼 spec
 - 物化死角(state.py 看不到 markdown Read 动作)· 软约束 + 用户监督兜底
 
-## 注意事项
+## 质量基线
 
-### 坑 1 · AC 模糊导致 review 反复
-AC 写"应该流畅"/"用户友好"等 — 不可测 · QA review 会要求重写。
-**对策**:AC 必 BDD 风格 · 给具体可测条件(Given X / When Y / Then Z)。
+📎 **物化拦截**:
+- `--needs-ui` × flow_type 校验(敏捷需求 / Feature Planning + `--needs-ui=true` → FAIL)
+- P0-1 evidence_check:`PRD-REVIEW.md` mtime 必晚于 `PRD.md` + `PRD.frontmatter.revision_history` 数组非空
 
-### 坑 2 · Open Questions 不向用户问
-有 substep 链中间禁 AskUserQuestion(R5 物化兜底)。
-**对策**:Open Questions 写进 PRD.§Open Questions · 让多角色 review 给意见 · 到 Substep 7 一次性 escalate。
-
-### 坑 3 · --needs-ui 与 flow_type 冲突
-- 敏捷需求 + `--needs-ui=true` → FAIL(物化拦截 · 应升级 Feature)
-- Feature Planning + `--needs-ui=true` → FAIL(R6 不出代码)
-**对策**:若敏捷需求发现需要 UI → 用 `state.py reset-prev` 回退 · 改 flow_type 后重做。
-
-### 坑 4 · PRD-REVIEW.md mtime 必晚于 PRD.md
-若同时产出 PRD + REVIEW(压缩 substep 3-4 链) → P0-1 evidence_check FAIL。
-**对策**:PRD 落盘 → 真正切角色 review → 再落 REVIEW.md(自然 mtime 在后)。
-
-### 坑 5 · revision_history 漏填
-PRD.frontmatter 必含 `revision_history` 数组 · 否则 P0-1 evidence_check FAIL。
-**对策**:每轮 NEEDS_REVISION 后修订 · 加一条 revision_history 记录(版本号 + 修订理由)。
+**PRD SOP**(违反 → review NEEDS_REVISION):
+- AC 必 BDD 风格(Given X / When Y / Then Z)· 不写"应该流畅 / 用户友好"等不可测描述
+- 每轮 NEEDS_REVISION 后修订 · 加 1 条 `revision_history` 记录(版本号 + 修订理由)
+- substep 链中禁 AskUserQuestion · Open Questions 写进 `PRD.§Open Questions` · Substep 7 一次性 escalate
 
 ---
 

@@ -62,27 +62,14 @@ NEEDS_REVISION 时主对话内闭环 · 不打扰用户
 - substep 动手前 cite = 事前提醒 · 强制 AI 翻一眼 spec
 - 物化死角(state.py 看不到 markdown Read 动作)· 软约束 + 用户监督兜底
 
-## 注意事项
+## 质量基线
 
-### 坑 1 · AC↔Test 漏绑定
-verify-ac.py 校验 FAIL(物化拦截)· blueprint-complete 失败。
- **对策**:每 AC 在 TC.md frontmatter.tests[].covers_ac 显式 cite · 不漏
+📎 **物化拦截**:`verify-ac.py`(每 AC ↔ TC.md `tests[].covers_ac`) · P0-154(`external-cross-review/*.md` 非空)
 
-### 坑 2 · External cross-review 漏
-`external-cross-review/*.md` 为空 → P0-154 物化 FAIL。
- **对策**:必跑异质模型一次 · 落 markdown · 即使内容简短也算
-
-### 坑 3 · TECH.md 写代码细节
-代码细节属 dev stage · TECH.md 应写"方案"。
- **对策**:TECH 描述选型 / 接口 / 数据结构 · 不写函数实现
-
-### 坑 4 · Architect 走 Subagent 失去架构上下文
-架构师视角依赖累积上下文 · Subagent 是"白板"。
- **对策**:Architect 默认主对话 review · 保留之前 ADR / KNOWLEDGE 等上下文
-
-### 坑 5 · NEEDS_REVISION 抛用户拍板
-违 R5 暂停点协议 · 用户被反复打扰。
- **对策**:NEEDS_REVISION 在主对话内 PM 回应 + 修订 · 直到全 APPROVE · 才到 Substep 8 complete
+**SOP**(违反 → review NEEDS_REVISION):
+- TECH.md 写"方案"(选型 / 接口 / 数据结构)· 不写函数实现 · 代码细节归 dev stage
+- Architect 默认主对话 review(保留 ADR / KNOWLEDGE 上下文)· 不走 Subagent(白板效应)
+- NEEDS_REVISION 主对话内 PM 闭环修订 · 不打扰用户(R5 + fix-retry 规范)
 
 ---
 

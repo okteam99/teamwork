@@ -54,27 +54,16 @@ Playwright / Puppeteer / Selenium(项目栈决定)
 - substep 动手前 cite = 事前提醒 · 强制 AI 翻一眼 spec
 - 物化死角(state.py 看不到 markdown Read 动作)· 软约束 + 用户监督兜底
 
-## 注意事项
+## 质量基线
 
-### 坑 1 · 截图覆盖不全
-只截首页 · 关键交互漏。
- **对策**:每 AC 一组截图 · 含 happy path + 至少 1 边界
+📎 **物化拦截**:`execution_hints.browser_e2e_needed`(state.py auto_transition_fn 按字段判定 · 不强制必跑)
 
-### 坑 2 · 截图无浏览器信息
-看不出 viewport / URL · audit 失败。
- **对策**:截图含浏览器 chrome 边框 + URL bar(不裁剪)
+**截图 SOP**(违反 → audit FAIL):
+- 每 AC 一组截图 · 含 happy path + ≥1 边界
+- 截图含浏览器 chrome + URL bar(不裁剪)· 看得出 viewport / URL
+- 模式与 PRD 场景一致(桌面用户 → 有头 desktop viewport)
 
-### 坑 3 · 失败静默忽略
-flaky test 重跑通过 · 不记录。
- **对策**:retry 必含 retry log + 失败截图 · 不静默成功
-
-### 坑 4 · headless vs 有头模式差异
-headless 截图与用户实际看到不一致。
- **对策**:与 PRD 描述场景一致(若 PRD 描述桌面用户 → 有头 desktop viewport)
-
-### 坑 5 · 误把 browser_e2e 当必跑
-本是可选 stage · execution_hints.browser_e2e_needed 决定。
- **对策**:state.py auto_transition_fn 按字段判定 · 不强制启用
+**flaky 处理**:retry 必含 log + 失败截图 · 不静默成功
 
 ---
 
