@@ -1637,6 +1637,128 @@ def cmd_reset_prev(args: argparse.Namespace) -> None:
     })
 
 
+def cmd_jump_to_stage(args: argparse.Namespace) -> None:
+    """v8.11:跳到任意合法 stage · 替代 raw-write current_stage 滥用。
+
+    典型 case:pm_acceptance rejected_with_feedback · 用户选回 goal 改 PRD / 回 ui_design 改 UI。
+
+    校验:
+    - --to 必须在 LEGAL_STAGES
+    - --to 必须在当前 flow_type 的 FLOW 表(防跳到该 flow 不存在的 stage)
+    - --to != current_stage(防 no-op)
+    - ship 后(ship.phase ∈ {pushed, merged})不可跳 · 状态不可逆
+
+    动作:
+    - current_stage = --to
+    - legal_next_stages = flow_graph[--to]
+    - --to 的 contract gates 重置(允许重做)+ restarted_at / restarted_from / restarted_reason
+    - 加 concerns WARN(audit)
+    - completed_stages 不动(保留历史)
+    """
+    saved = os.environ.get(CHECKSUM_BYPASS_ENV)
+    os.environ[CHECKSUM_BYPASS_ENV] = "1"
+    try:
+        path = state_path(args.feature)
+        state = json.loads(path.read_text(encoding="utf-8"))
+    finally:
+        if saved is None:
+            del os.environ[CHECKSUM_BYPASS_ENV]
+        else:
+            os.environ[CHECKSUM_BYPASS_ENV] = saved
+
+    target = args.to
+    current = state.get("current_stage")
+
+    # 1. enum 校验
+    if target not in LEGAL_STAGES:
+        die(1, json.dumps({
+            "verdict": "FAIL",
+            "action": "jump-to-stage",
+            "error": f"--to={target!r} 不在 LEGAL_STAGES",
+            "legal_stages": sorted(LEGAL_STAGES),
+        }, ensure_ascii=False, indent=2))
+
+    # 2. 当前 flow_type 必须含 target stage
+    flow_type = state.get("flow_type")
+    flow_graph = FLOW_BY_TYPE.get(flow_type, {})
+    if not flow_graph:
+        die(1, json.dumps({
+            "verdict": "FAIL",
+            "action": "jump-to-stage",
+            "error": f"flow_type={flow_type!r} 无 FLOW 表(不进状态机的流程不支持 jump)",
+        }, ensure_ascii=False, indent=2))
+    if target not in flow_graph:
+        die(1, json.dumps({
+            "verdict": "FAIL",
+            "action": "jump-to-stage",
+            "error": f"--to={target!r} 不在 flow_type={flow_type!r} 的 FLOW 表",
+            "valid_stages_for_flow": sorted(flow_graph.keys()),
+        }, ensure_ascii=False, indent=2))
+
+    # 3. ship 后不可跳
+    ship_phase = (state.get("ship") or {}).get("phase")
+    if ship_phase in ("pushed", "merged"):
+        die(1, json.dumps({
+            "verdict": "FAIL",
+            "action": "jump-to-stage",
+            "error": f"Ship 后不可跳 · ship.phase={ship_phase!r} · 状态不可逆",
+            "hint": (
+                "若需修复 · 走 ship-phase --action close-unmerged 或开新 Feature"
+            ),
+        }, ensure_ascii=False, indent=2))
+
+    # 4. target == current(no-op)
+    if target == current:
+        die(1, json.dumps({
+            "verdict": "FAIL",
+            "action": "jump-to-stage",
+            "error": f"--to={target!r} 与 current_stage 相同 · no-op",
+        }, ensure_ascii=False, indent=2))
+
+    # 5. 改 current_stage + legal_next_stages
+    state["current_stage"] = target
+    state["legal_next_stages"] = flow_graph.get(target, [])
+
+    # 6. 重置 target stage contract gates(允许重做 + audit 留痕)
+    contracts = state.setdefault("stage_contracts", {})
+    target_contract = contracts.setdefault(target, {})
+    target_contract["input_satisfied"] = False
+    target_contract["process_satisfied"] = False
+    target_contract["output_satisfied"] = False
+    target_contract.pop("completed_at", None)
+    target_contract.pop("duration_minutes", None)
+    target_contract["restarted_at"] = now_iso()
+    target_contract["restarted_from_stage"] = current
+    target_contract["restarted_reason"] = args.reason
+
+    # 7. 加 concerns WARN
+    state.setdefault("concerns", []).append(
+        f"{now_iso()} WARN jump-to-stage: {current!r} → {target!r} · reason: {args.reason}"
+    )
+
+    # 8. completed_stages 不动(保留历史 · 不像 reset-prev 去尾)
+    state["updated_at"] = now_iso()
+    state["updated_by"] = "jump-to-stage"
+    atomic_write(path, state)
+
+    emit({
+        "verdict": "OK",
+        "action": "jump-to-stage",
+        "from_stage": current,
+        "to_stage": target,
+        "reason": args.reason,
+        "legal_next_stages": state["legal_next_stages"],
+        "completed_stages": state.get("completed_stages", []),
+        "next_action_brief": (
+            f"## jump-to-stage 完成\n\n"
+            f"已跳:{current!r} → {target!r}\n"
+            f"contract 重置:{target} 三 gate 全 false · 可跑 {target}-start 重做。\n\n"
+            f"下一步:`state.py {target}-start --feature {args.feature}`\n\n"
+            f"⚠️ 已自动追 concerns WARN(audit 透明)· completed_stages 不变。"
+        ),
+    })
+
+
 def cmd_recover(args: argparse.Namespace) -> None:
     """Re-checksum after manual edit · adds concern WARN · 留 audit trail."""
     saved = os.environ.get(CHECKSUM_BYPASS_ENV)
@@ -1765,6 +1887,18 @@ def build_parser() -> argparse.ArgumentParser:
     rp.add_argument("--reason", required=True,
                     help="必填 · 回退原因 · 自动追 concerns WARN")
     rp.set_defaults(func=cmd_reset_prev)
+
+    # v8.11:jump-to-stage 跳任意合法 stage(替代 raw-write current_stage)
+    jp = sub.add_parser(
+        "jump-to-stage",
+        help="[v8] 跳到任意合法 stage · 治本 raw-write 滥用 · 自动 audit(典型 case:pm_acceptance rejected 跳 goal/ui_design)",
+    )
+    _add_feature_arg(jp)
+    jp.add_argument("--to", required=True,
+                    help="目标 stage(必须在 LEGAL_STAGES + 当前 flow_type FLOW 表)")
+    jp.add_argument("--reason", required=True,
+                    help="必填 · 跳转原因 · 自动追 concerns WARN")
+    jp.set_defaults(func=cmd_jump_to_stage)
 
     # ─── v8.0 stage 命令注册(Code-driven Orchestration) ─────────────
     # 设计文档:docs/v8-redesign/00-MANIFESTO.md

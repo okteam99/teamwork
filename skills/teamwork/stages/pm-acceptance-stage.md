@@ -30,8 +30,8 @@ pm_acceptance rejected 不强制 fix-retry(反馈类型多样)· state.py emit 4
 
 ```
 1. 代码 bug → state.py reset-prev → dev-fix → review → test → pm_acceptance 完整重走
-2. AC / 需求改 → state.py raw-write --set current_stage=goal --reason "..." → 改 PRD + 重 review
-3. UI 设计改 → state.py raw-write --set current_stage=ui_design --reason "..." → 改 UI
+2. AC / 需求改 → state.py jump-to-stage --to goal --reason "..." → 改 PRD + 重 review
+3. UI 设计改 → state.py jump-to-stage --to ui_design --reason "..." → 改 UI
 4. 放弃 Feature → state.py ship-phase --action close-unmerged --abandon=true
 ```
 

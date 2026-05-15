@@ -1,5 +1,54 @@
 # Changelog
 
+## v8.11 · 加 jump-to-stage 命令(替代 raw-write current_stage 滥用)
+
+### 问题
+
+v8.10 pm_acceptance rejected_with_feedback 暂停点列回退选项 · 选 2/3 用 `raw-write current_stage=X` workaround · 不优雅:
+- raw-write 是逃生通道 · 设计上不该承担"语义化跳 stage"职能
+- 用户/PMO 看到 raw-write 会误以为是异常操作 · 实际是合法回退
+- contract 重置 + legal_next_stages 重算等都得手动跑(raw-write 只改字段)
+
+### 新加 jump-to-stage 命令
+
+```bash
+state.py jump-to-stage --to <stage> --reason "..." --feature X
+```
+
+校验:
+- `--to` 在 LEGAL_STAGES
+- `--to` 在当前 flow_type 的 FLOW 表(防跳到该 flow 不存在的 stage)
+- `--to != current_stage`(防 no-op)
+- ship 后(ship.phase ∈ {pushed, merged})不可跳(状态不可逆 · 同 reset-prev)
+
+动作(语义化 + audit):
+- `current_stage = --to`
+- `legal_next_stages = flow_graph[--to]`
+- `--to` 的 contract gates 重置 + `restarted_at / restarted_from_stage / restarted_reason`
+- 加 `concerns WARN: jump-to-stage <from> → <to> · reason: ...`
+- `completed_stages` 不动(保留历史 · 不像 reset-prev 去尾)
+
+### vs reset-prev
+
+| 命令 | 适用 | 切到哪 | completed_stages |
+|---|---|---|---|
+| `reset-prev` | 回退一步 | last_completed | 去尾 |
+| `jump-to-stage` | 跳到任意合法 stage | 用户指定 | 不动 |
+
+### pm_acceptance 暂停点更新
+
+```
+2. AC / 需求改 → state.py jump-to-stage --to goal ...     ← 替代 raw-write
+3. UI 设计改 → state.py jump-to-stage --to ui_design ...  ← 替代 raw-write
+```
+
+### 测试 + verify
+
+- v8 测试 45/45 全过
+- 端到端 verify:合法跳 / no-op / 非法 stage 全部正确
+
+---
+
 ## v8.10 · test-stage 加 fix-retry · pm_acceptance 加暂停点选项
 
 ### test-stage 加 fix-retry 循环(同 review v8.9 模式)

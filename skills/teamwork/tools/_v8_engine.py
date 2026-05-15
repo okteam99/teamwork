@@ -1061,7 +1061,7 @@ def execute_stage_complete(
             next_spec = stage_specs_registry[next_stage]
             next_brief = next_spec.brief_template_fn(state)
 
-    # pm_acceptance rejected_with_feedback · 列回退选项暂停点(v8.10)
+    # pm_acceptance rejected_with_feedback · 列回退选项暂停点(v8.10 + v8.11 jump-to-stage)
     pause_options_markdown = None
     if (stage_spec.name == "pm_acceptance"
             and transitioned_to is None
@@ -1072,13 +1072,13 @@ def execute_stage_complete(
             "请选回退方向(💡 推荐 1 · 最常见):\n"
             "  1. **代码 bug** → `state.py reset-prev --reason '...'` 退 dev "
             "→ dev 修 + review + test 完整重走\n"
-            "  2. **AC / 需求改** → `state.py raw-write --set current_stage=goal "
-            "--reason '...'` → 改 PRD + 重 review\n"
-            "  3. **UI 设计改** → `state.py raw-write --set current_stage=ui_design "
-            "--reason '...'` → 改 UI 设计\n"
+            "  2. **AC / 需求改** → `state.py jump-to-stage --to goal --reason '...'` "
+            "→ 改 PRD + 重 review\n"
+            "  3. **UI 设计改** → `state.py jump-to-stage --to ui_design --reason '...'` "
+            "→ 改 UI 设计\n"
             "  4. **放弃 Feature** → `state.py ship-phase --action close-unmerged "
             "--abandon=true`\n\n"
-            "raw-write 自动写 concerns WARN(audit 留痕)。"
+            "jump-to-stage / reset-prev 自动写 concerns WARN(audit 留痕)。"
         )
 
     # test/review 等 fix-retry stage · 失败时(transitioned_to=None)给提示
