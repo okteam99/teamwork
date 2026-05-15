@@ -152,8 +152,25 @@ def load_state(feature_path: str) -> tuple[Path, dict]:
 
 
 def save_state(path: Path, state: dict) -> None:
-    """写 state.json · 不做 schema 校验(由调用方保证)"""
+    """写 state.json · 自动 stamp `_state_checksum`(同 state.py atomic_write)。
+
+    防止下次读时 _verify_checksum FAIL · 治本"v8 stage 命令写完后必 recover"噪音。
+    算法必须与 state.py._compute_checksum 一致。
+    """
+    import hashlib
+
     state["updated_at"] = now_iso()
+    state["updated_by"] = state.get("updated_by") or "pmo"
+
+    # checksum 同 state.py CHECKSUM_FIELD 算法 · canonical sha256 (排除 _state_checksum 字段)
+    cleaned = {k: v for k, v in state.items() if k != "_state_checksum"}
+    canonical = json.dumps(
+        cleaned, sort_keys=True, ensure_ascii=False, separators=(",", ":")
+    )
+    state["_state_checksum"] = (
+        "sha256:" + hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+    )
+
     path.write_text(
         json.dumps(state, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
@@ -909,6 +926,25 @@ def execute_stage_complete(
     contract["artifacts"] = (args.artifacts or "").split(",") if args.artifacts else []
     contract["cited_specs"] = (args.cite or "").split(",") if args.cite else []
 
+    # 6.5 持久化 stage 专属 args 到 contract.evidence(治本"PMO 必 raw-write 补 evidence")
+    # 白名单字段(_add_stage_specific_args 中定义的 stage-complete 参数)
+    evidence = contract.setdefault("evidence", {})
+    _EVIDENCE_FIELDS = (
+        "test_exit_code",            # dev
+        "test_stdout",               # dev
+        "integration_test_exit_code",  # test
+        "e2e_test_exit_code",        # test
+        "verdict",                   # review
+        "external_review_files",     # review
+        "decision",                  # pm_acceptance
+        "note",                      # pm_acceptance
+    )
+    for field in _EVIDENCE_FIELDS:
+        val = getattr(args, field, None)
+        if val is None or val == "":
+            continue
+        evidence[field] = val
+
     # duration
     started = contract.get("started_at")
     if started:
@@ -919,11 +955,6 @@ def execute_stage_complete(
         except ValueError:
             pass
 
-    # 加入 completed_stages
-    completed = state.setdefault("completed_stages", [])
-    if stage_spec.name not in completed:
-        completed.append(stage_spec.name)
-
     # 7. 写 review-log
     write_review_log_entry(state, feature_dir, stage_spec.name, "completed", contract)
 
@@ -931,9 +962,16 @@ def execute_stage_complete(
     transitioned_to = None
     next_brief = None
     next_stage_roles_audit = None
+    is_rollback = False  # 回退路径标记(next_stage 已在 completed_stages 中)
 
     if stage_spec.auto_transition_fn:
         next_stage = stage_spec.auto_transition_fn(state)
+        # 回退路径检测:next_stage 已完成过 = 回退到上游 stage 重做
+        # 典型 case:review NEEDS_REVISION → dev(治本 PMO 必 raw-write 切 stage 噪音)
+        completed_check = state.get("completed_stages") or []
+        if next_stage and next_stage in completed_check:
+            is_rollback = True
+
         if next_stage:
             # v8.0+P0-9:处理 --next-stage-roles 调整(若传)
             new_roles = getattr(args, "next_stage_roles", "") or ""
@@ -988,15 +1026,35 @@ def execute_stage_complete(
             state["current_stage"] = next_stage
             state["legal_next_stages"] = flow_graph.get(next_stage, [])
 
-            # 初始化下一 stage contract
-            next_contract = contracts.setdefault(next_stage, {
-                "input_satisfied": False,
-                "process_satisfied": False,
-                "output_satisfied": False,
-            })
-            next_contract.setdefault("started_at", now_iso())
+            if is_rollback:
+                # 回退路径:不加当前 stage 到 completed(本 stage 没真完成)·
+                # 清 next_stage 的 contract gates 允许重做 · evidence 保留
+                next_contract = contracts.setdefault(next_stage, {})
+                next_contract["input_satisfied"] = False
+                next_contract["process_satisfied"] = False
+                next_contract["output_satisfied"] = False
+                next_contract.pop("completed_at", None)
+                next_contract.pop("duration_minutes", None)
+                next_contract["restarted_at"] = now_iso()
+                # current stage(本次 review)的 contract 标 returned_to_prev(audit)
+                contract["returned_to_prev"] = next_stage
+                contract["returned_at"] = now_iso()
+            else:
+                # 前进路径:初始化下一 stage contract
+                next_contract = contracts.setdefault(next_stage, {
+                    "input_satisfied": False,
+                    "process_satisfied": False,
+                    "output_satisfied": False,
+                })
+                next_contract.setdefault("started_at", now_iso())
 
             transitioned_to = next_stage
+
+    # 加入 completed_stages(回退时不加 · 本 stage 没真完成)
+    if not is_rollback:
+        completed = state.setdefault("completed_stages", [])
+        if stage_spec.name not in completed:
+            completed.append(stage_spec.name)
 
             # 渲染下一 stage brief
             if next_stage in stage_specs_registry:

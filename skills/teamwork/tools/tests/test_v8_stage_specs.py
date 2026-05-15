@@ -294,6 +294,29 @@ class TestNeedsUiDecided(unittest.TestCase):
 # Feature Planning 不进状态机 · 不会到达 needs-ui check · 测试已删除
 
 
+# ─── _review_transition · NEEDS_REVISION 自动回退 dev ───────────
+
+
+class TestReviewTransition(unittest.TestCase):
+    """治本 case: review-complete --verdict NEEDS_REVISION 应自动转 dev(回退路径)。"""
+
+    def test_approve_transitions_to_test(self):
+        from _v8_stage_specs import _review_transition
+        state = {"stage_contracts": {"review": {"evidence": {"verdict": "APPROVE"}}}}
+        self.assertEqual(_review_transition(state), "test")
+
+    def test_needs_revision_transitions_to_dev(self):
+        """治本: NEEDS_REVISION 不再返回 None · 而是自动转 dev(回退到修复循环)。"""
+        from _v8_stage_specs import _review_transition
+        state = {"stage_contracts": {"review": {"evidence": {"verdict": "NEEDS_REVISION"}}}}
+        self.assertEqual(_review_transition(state), "dev")
+
+    def test_no_verdict_returns_none(self):
+        from _v8_stage_specs import _review_transition
+        state = {"stage_contracts": {"review": {"evidence": {}}}}
+        self.assertIsNone(_review_transition(state))
+
+
 # ─── P0-9 · _evidence_reviewers_match ────────────────────────────
 
 

@@ -1,5 +1,86 @@
 # Changelog
 
+## v8.8 · 4 个状态机设计 bug 一次性治本(治本 PTR-F040 实战 case)
+
+> 实战 case PTR-F040 Review Round 2 暴露 4 个状态机噪音点 · 1 次 commit 治本。
+
+### Bug #1 (P0) · dev-complete evidence 不持久化
+
+**症状**:PMO 跑 `dev-complete --test-exit-code 0 --test-stdout "..."` 后 ·
+state.stage_contracts.dev.evidence 仍是 `{}` · 下一步 `review-start` FAIL "missing dev_test_passed"。
+PMO 必 raw-write 补 evidence + recover · 噪音极大。
+
+**根因**:`_v8_engine.execute_stage_complete` 写了 input/process/output_satisfied + auto_commit + artifacts ·
+但 `args.test_exit_code / args.test_stdout` 等 stage 专属字段没写到 `contract.evidence`。
+
+**修复**(`_v8_engine.execute_stage_complete` step 6.5):
+通用 evidence 字段持久化 · 8 字段白名单:
+- dev: `test_exit_code` / `test_stdout`
+- test: `integration_test_exit_code` / `e2e_test_exit_code`
+- review: `verdict` / `external_review_files`
+- pm_acceptance: `decision` / `note`
+
+任何 stage-complete 命令传入这些字段 · 自动 stash 到 `stage_contracts.<stage>.evidence`。
+
+### Bug #2 (P0) · state.json checksum 频繁失效
+
+**症状**:每次状态机命令(dev-complete / review-complete / raw-write)写完后 ·
+下一个 snapshot/raw-read FAIL "checksum mismatch" · PMO 必 recover 才能继续。
+PTR-F040 case 中 PMO 跑了 **5 次 recover** 完成一轮 review · 极大噪音。
+
+**根因**:`_v8_engine.save_state`(L154)是简单 `path.write_text` · **不更新 `_state_checksum` 字段**。
+而 `state.py.atomic_write` 自动 stamp checksum(`load_state` verify)。
+v8 stage 命令全用 `_v8_engine.save_state` → 写完 checksum 不变 → 下次 load FAIL。
+
+**修复**:`_v8_engine.save_state` 加 checksum 计算(算法与 `state.py._compute_checksum` 一致 · canonical sha256 排除 `_state_checksum` 字段)。
+
+### Bug #3 (P1) · review-complete NEEDS_REVISION 不自动转 dev
+
+**症状**:`review-complete --verdict NEEDS_REVISION` 后 current_stage 仍是 review ·
+PMO 必 raw-write 强制改 current_stage=dev · 完整字段 5 项 · workaround 写法。
+
+**根因**:`_review_transition` NEEDS_REVISION 返回 None(注释说"emit 暂停点 · 用户选回 dev")·
+但实际暂停点没 emit · PMO 不知道要回 dev。
+按 `FEATURE_FLOW: "review": ["test", "dev"]` 设计 · NEEDS_REVISION 应自动转 dev。
+
+**修复**:
+1. `_review_transition` NEEDS_REVISION 返回 `"dev"`(不再 None)
+2. `execute_stage_complete` 加**回退路径检测** · `next_stage in completed_stages` = 回退:
+   - 不加当前 stage 到 completed_stages(本 stage 没真完成)
+   - 清 next_stage 的 contract gates(允许 dev-start 重做)
+   - 当前 stage contract 标 `returned_to_prev` + `returned_at`(audit)
+   - next_stage 标 `restarted_at`
+
+### Bug #4 (P2) · reset-prev 自洽时无效但无提示
+
+**症状**:`current_stage == last_completed`(异常状态)时 reset-prev 实际不动 · 但无错误提示。
+典型 case:旧版 review NEEDS_REVISION bug 错误地把 review 加 completed_stages · 导致两者相等。
+
+**根因**:`cmd_reset_prev` L1567-1571 取 `completed[-1]` 切回去 · 同值时 no-op。
+
+**修复**:加硬门禁 3 · `current == last_completed` 时 die FAIL + emit hint:
+- 排查 state.json 是否被外部修改
+- v8.x 已修 review-complete bug · 此 case 已不应触发
+- 若状态确需手工调整 → raw-write(留 concerns WARN)
+
+### 测试
+
+加 `TestReviewTransition` 3 用例(APPROVE → test / NEEDS_REVISION → dev / no verdict → None)。
+v8 测试 45/45 全过(原 42 + 3 新)。
+手工 verify:save_state checksum 与 state.py 一致 · _review_transition 正确转移。
+
+### 影响 / 期望效果
+
+PTR-F040 case 重跑应该:
+- ❌ 5 次 recover → ✅ 0 次 recover(checksum 自动同步)
+- ❌ 1 次 raw-write 补 dev evidence → ✅ 0 次(evidence 自动持久化)
+- ❌ 1 次 raw-write 切 current_stage → ✅ 0 次(review NEEDS_REVISION 自动回 dev)
+- ❌ 1 次 reset-prev workaround → ✅ 0 次(直接 dev-start 重做)
+
+PMO 流畅度 + 用户对状态机信任度都大幅提升。
+
+---
+
 ## v8.7 · localconfig md → json · bootstrap state 合并(去 .teamwork-bootstrap.json)
 
 ### 合并文件

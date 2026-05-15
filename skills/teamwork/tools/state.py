@@ -1567,6 +1567,23 @@ def cmd_reset_prev(args: argparse.Namespace) -> None:
     last_completed = completed[-1]
     current = state.get("current_stage")
 
+    # 硬门禁 3:current_stage 与 last_completed 相等(异常/无意义)
+    # 典型 case:旧版 review NEEDS_REVISION bug 错误地把 review 加 completed_stages ·
+    # 已被 v8.x review-complete 回退路径检测修复 · 此处兜底剩余异常
+    if last_completed == current:
+        die(1, json.dumps({
+            "verdict": "FAIL",
+            "action": "reset-prev",
+            "error": (
+                f"current_stage={current!r} 与 last_completed 相等 · "
+                "状态自洽 · reset-prev 无效"
+            ),
+            "hint": (
+                "排查:state.json 是否被外部修改 / review-complete NEEDS_REVISION 应自动转 dev "
+                "(v8.x 已修)· 若状态确需手工调整 · 用 raw-write 显式改 current_stage(留 concerns WARN)"
+            ),
+        }, ensure_ascii=False, indent=2))
+
     # 1. current_stage 改回 last_completed
     state["current_stage"] = last_completed
 

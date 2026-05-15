@@ -852,12 +852,19 @@ state.py review-complete --feature <path> --auto-commit <hash> \
 
 
 def _review_transition(state: dict) -> Optional[str]:
-    """按 verdict 转移:APPROVE → test · NEEDS_REVISION → None(暂停)"""
+    """按 verdict 转移:APPROVE → test · NEEDS_REVISION → dev(自动回退修复循环)。
+
+    引擎检测到回退路径(next ∈ completed_stages)会:
+    - 不把 review 加进 completed_stages(NEEDS_REVISION 不算完成)
+    - 清 dev contract gates(允许重新 dev-start)
+    """
     review_contract = state.get("stage_contracts", {}).get("review", {})
     verdict = review_contract.get("evidence", {}).get("verdict")
     if verdict == "APPROVE":
         return "test"
-    return None  # NEEDS_REVISION 时 emit 暂停点 · 用户选回 dev
+    if verdict == "NEEDS_REVISION":
+        return "dev"  # 自动回退 · 引擎处理回退语义
+    return None
 
 
 def _evidence_review_verdict(state: dict, args) -> tuple[bool, str]:
