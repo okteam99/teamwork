@@ -81,6 +81,44 @@ PMO 按以下关键词表判定 user input 落入哪类流程:
 
 **触发场景为 "Feature Planning 启 Feature"** 时:flow_type 默认 `Feature`(因为是从 BL-NNN 启动具体功能 · BL 已经决定了"做什么")。
 
+### 2.1 · 复杂度升级判据(覆盖关键词 · 治本"PMO 默认 Feature 兜底"反模式)
+
+🔴 **关键词命中 Feature / 敏捷需求 / Micro 时 · PMO 必再扫以下复杂度信号** · 命中任一 → **强制升 Feature Planning**(覆盖关键词初判):
+
+| 信号 | 例 |
+|---|---|
+| **跨仓库联动**(≥2 个) | aon-core + aon-ptr + aon-admin / 后端服务 + 前端 + 管理后台 |
+| **数据模型重构** | 删/改老字段(影响存量) / 表结构变动 / 字段语义重定义 |
+| **老需求架构性废弃** | "X 不要了"/"统一为 Y"/"重构这套逻辑" / 整套机制语义替换 |
+| **影响 ≥2 BL** | 一次需求拆成多个 Feature 协同(admin / backend / partner 各 1 BL) |
+| **方向级业务变更** | 新增/删除业务能力 / 商业模式调整 / 用户角色重新设计 |
+
+**为什么强制升级**:这些信号意味单 Feature 状态机承载不下 — 跨仓库要 panorama-design 全景 · 数据模型重构要 ROADMAP 多 Feature 协同 · 单 Feature 的 PRD/TC/TECH 写不下"3 仓库 + 老字段迁移 + 多 BL 拆解"。强行进 Feature → PMO 在主对话散述 Q1-Q4 决策树(违 R5 暂停点协议 · 写伪 PRD)。
+
+**PMO 命中后必输出**(R5 暂停点格式):
+```markdown
+⏸️ Feature Planning 升级建议(prepare §2.1 复杂度判据触发)
+
+你的需求触发以下复杂度信号:
+- <信号 1>(具体:<例>)
+- <信号 2>
+- ...
+
+应升级到 **Feature Planning 流程**:
+- 走 panorama-design 起跨仓库全景
+- ROADMAP 拆 BL-N(分别落 admin / backend / partner)
+- 每个 BL 后续启独立 Feature(`/teamwork <BL-NNN>` 新 session)
+
+不升级 = 在主对话散述决策树 + 伪 PRD(违 R5)。
+
+回 `进 Feature Planning` 升级 · 或 `就一个 Feature` 确认范围 + 继续 mode B。
+```
+
+**反例(实证 case · 不要再犯)**:
+- 用户:"整体改下这里的逻辑 · source_type 不要了 · 统一为 api · adapter 改为账号可选功能"
+- ❌ PMO 错:命中"整体改"→ Feature 兜底 → 主对话 emit Q1-Q4 决策树
+- ✅ 正确:命中"跨 3 仓库 + 老字段废弃 + 数据模型重构"→ 升 Feature Planning → panorama-design + ROADMAP 拆 BL
+
 ---
 
 ## 3. Step 2 · worktree 决策模板
