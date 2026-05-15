@@ -320,8 +320,16 @@ def compute_legal_next(state: dict[str, Any], current: str) -> list[str]:
 def cmd_snapshot(args: argparse.Namespace) -> None:
     state = load_state(args.feature)
 
+    # raw-write 主动告警(v8.12 · 治本"raw-write 出现 = 状态机缺口"无 PMO 提示)
+    from _v8_engine import compute_raw_write_audit
+    rw_audit = compute_raw_write_audit(state)
+
     if args.tier == "full":
-        emit({"verdict": "OK", "snapshot": state})
+        emit({
+            "verdict": "OK",
+            "snapshot": state,
+            **({"raw_write_audit": rw_audit} if rw_audit else {}),
+        })
         return
 
     fields = SNAPSHOT_CORE_FIELDS if args.tier == "core" else SNAPSHOT_STAGE_FIELDS
@@ -340,6 +348,7 @@ def cmd_snapshot(args: argparse.Namespace) -> None:
             "tier": args.tier,
             "snapshot": snap,
             **({"cited_extra": extra} if extra else {}),
+            **({"raw_write_audit": rw_audit} if rw_audit else {}),
         }
     )
 
@@ -980,11 +989,24 @@ def _enum_err(name: str, val: Any, enum: set) -> str:
 
 def cmd_raw_read(args: argparse.Namespace) -> None:
     state = load_state(args.feature)
+    from _v8_engine import compute_raw_write_audit
+    rw_audit = compute_raw_write_audit(state)
+
     if args.field:
         val = get_dotted(state, args.field)
-        emit({"verdict": "OK", "field": args.field, "value": val})
+        emit({
+            "verdict": "OK",
+            "field": args.field,
+            "value": val,
+            **({"raw_write_audit": rw_audit} if rw_audit else {}),
+        })
         return
-    emit({"verdict": "OK", "warning": "raw-read 全量返回 · 仅 debug/migration 使用", "state": state})
+    emit({
+        "verdict": "OK",
+        "warning": "raw-read 全量返回 · 仅 debug/migration 使用",
+        "state": state,
+        **({"raw_write_audit": rw_audit} if rw_audit else {}),
+    })
 
 
 def cmd_raw_write(args: argparse.Namespace) -> None:
@@ -1637,6 +1659,86 @@ def cmd_reset_prev(args: argparse.Namespace) -> None:
     })
 
 
+def cmd_audit_raw_writes(args: argparse.Namespace) -> None:
+    """v8.12:跨 Feature 汇总所有 raw-write 历史 · 帮助识别状态机缺口。
+
+    扫 --features-root 下所有 state.json · 抓 concerns 中 raw-write 条目 · 聚合统计。
+    """
+    import re
+
+    root = Path(args.features_root or "docs/features").resolve()
+    if not root.exists():
+        die(1, json.dumps({
+            "verdict": "FAIL",
+            "command": "audit-raw-writes",
+            "error": f"features_root 不存在: {root}",
+            "hint": "用 --features-root <绝对路径> 指定 · 默认 docs/features",
+        }, ensure_ascii=False, indent=2))
+
+    by_feature: dict[str, dict] = {}
+    by_field: dict[str, int] = {}
+    total = 0
+    saved = os.environ.get(CHECKSUM_BYPASS_ENV)
+    os.environ[CHECKSUM_BYPASS_ENV] = "1"
+    try:
+        for state_json in root.rglob("state.json"):
+            try:
+                state = json.loads(state_json.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                continue
+            feature_name = state_json.parent.name
+            concerns = state.get("concerns") or []
+            rw = [c for c in concerns if isinstance(c, str) and "raw-write" in c]
+            if not rw:
+                continue
+            by_feature[feature_name] = {
+                "count": len(rw),
+                "occurrences": rw,
+            }
+            total += len(rw)
+            # 粗 extract 字段(reason 中"current_stage" 等)
+            for c in rw:
+                # raw-write 自身写的:"raw-write 跳过校验 · 改动 N 字段 · 理由:..."
+                # 不含字段名 · 但 reason 可能含 · 简单抓 typical fields
+                for field_hint in (
+                    "current_stage", "legal_next_stages", "completed_stages",
+                    "stage_contracts", "ship", "evidence", "rounds",
+                ):
+                    if field_hint in c:
+                        by_field[field_hint] = by_field.get(field_hint, 0) + 1
+    finally:
+        if saved is None:
+            del os.environ[CHECKSUM_BYPASS_ENV]
+        else:
+            os.environ[CHECKSUM_BYPASS_ENV] = saved
+
+    # frequency hint
+    freq_alert = []
+    for field, cnt in sorted(by_field.items(), key=lambda x: -x[1]):
+        if cnt >= 2:
+            freq_alert.append(
+                f"{field}: {cnt} 次 · 频次 ≥2 → 提示状态机有专用命令缺口"
+            )
+
+    emit({
+        "verdict": "OK",
+        "command": "audit-raw-writes",
+        "features_root": str(root),
+        "total_raw_writes": total,
+        "feature_count": len(by_feature),
+        "by_feature": by_feature,
+        "by_field_frequency": dict(sorted(by_field.items(), key=lambda x: -x[1])),
+        "frequency_alert": freq_alert,
+        "hint": (
+            "v8.x 后任何 raw-write 都应视作状态机缺口信号 · 复查每条 reason → 治本:\n"
+            "  - current_stage → state.py jump-to-stage(v8.11+)\n"
+            "  - stage_contracts.X.evidence → 检查 stage-complete 是否漏持久化(v8.8 治本通用)\n"
+            "  - legal_next_stages → 一般是 jump-to-stage 后副产物\n"
+            "  - 其他 → 报 bug 或确认是否真异常"
+        ),
+    })
+
+
 def cmd_jump_to_stage(args: argparse.Namespace) -> None:
     """v8.11:跳到任意合法 stage · 替代 raw-write current_stage 滥用。
 
@@ -1899,6 +2001,15 @@ def build_parser() -> argparse.ArgumentParser:
     jp.add_argument("--reason", required=True,
                     help="必填 · 跳转原因 · 自动追 concerns WARN")
     jp.set_defaults(func=cmd_jump_to_stage)
+
+    # v8.12:audit-raw-writes 跨 Feature 汇总 raw-write 历史(治本 raw-write 缺口识别)
+    arw = sub.add_parser(
+        "audit-raw-writes",
+        help="[v8] 跨 Feature 汇总 raw-write 历史 · 识别状态机缺口(频次 ≥2 = 应有专用命令)",
+    )
+    arw.add_argument("--features-root", default=None,
+                     help="features 根目录 · 默认 docs/features(从 cwd 算)")
+    arw.set_defaults(func=cmd_audit_raw_writes)
 
     # ─── v8.0 stage 命令注册(Code-driven Orchestration) ─────────────
     # 设计文档:docs/v8-redesign/00-MANIFESTO.md

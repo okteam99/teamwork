@@ -1,5 +1,75 @@
 # Changelog
 
+## v8.12 · raw-write 主动告警 + audit-raw-writes 跨 Feature 汇总
+
+### 设计理念
+
+v8.x 修了大量状态机命令缺口(v8.8 evidence 持久化 / v8.9 review fix-retry / v8.10 test fix-retry / v8.11 jump-to-stage),理论上**v8.x 后任何 raw-write 都应视作 bug 信号**。
+
+但现状 raw-write 只在 state.concerns[] 加一行 WARN · 没有主动告警机制 · PMO 容易跑下个命令时不察觉。
+
+### 改进 A · raw-write 主动告警
+
+新加 `compute_raw_write_audit(state)` helper(_v8_engine.py):
+- 扫 state.concerns[] 抓 raw-write 条目
+- 返 `{count, occurrences (last 5), hint}` 或 None
+
+各命令 emit 时检测 · 非空 → 附 `raw_write_audit` 字段:
+- `state.py snapshot` ✅
+- `state.py raw-read` ✅
+- `state.py <stage>-start` ✅(execute_stage_start)
+- `state.py <stage>-complete` ✅(execute_stage_complete)
+
+PMO 跑任何状态机命令 · 都会看到当前 Feature 的 raw-write 历史 · 强制复查。
+
+### 改进 B · audit-raw-writes 跨 Feature 汇总命令
+
+```bash
+state.py audit-raw-writes [--features-root <dir>]
+```
+
+输出:
+```json
+{
+  "total_raw_writes": 3,
+  "feature_count": 2,
+  "by_feature": {
+    "PTR-F033": {"count": 2, "occurrences": [...]},
+    "INFRA-F024": {"count": 1, "occurrences": [...]}
+  },
+  "by_field_frequency": {
+    "current_stage": 2,         ← v8.11 jump-to-stage 后应降到 0
+    "stage_contracts": 1,        ← v8.8 evidence 持久化后应降到 0
+    "evidence": 1
+  },
+  "frequency_alert": [
+    "current_stage: 2 次 · 频次 ≥2 → 提示状态机有专用命令缺口"
+  ],
+  "hint": "v8.x 后任何 raw-write 都应视作状态机缺口信号 · 复查每条 reason → 治本"
+}
+```
+
+### v8.x 应该 0 raw-write 场景
+
+随着 v8.8/v8.9/v8.10/v8.11 修复:
+- ❌ 补 dev evidence(v8.8)
+- ❌ 切 current_stage(v8.11 jump-to-stage)
+- ❌ recover 后状态(v8.8 checksum 自动同步)
+- ❌ pm_acceptance 回退(v8.11 jump-to-stage)
+- ❌ review NEEDS_REVISION(v8.9 fix-retry)
+- ❌ test 失败修(v8.10 fix-retry)
+
+**剩下的合法 case 极少** · 出现 raw-write 几乎必然是状态机缺口 · audit-raw-writes 帮助快速识别。
+
+### 测试 + verify
+
+- v8 测试 45/45 全过
+- 端到端 verify:
+  - compute_raw_write_audit 正确识别 raw-write 数 + 详情
+  - audit-raw-writes 跨 Feature 聚合 + frequency_alert 正确
+
+---
+
 ## v8.11 · 加 jump-to-stage 命令(替代 raw-write current_stage 滥用)
 
 ### 问题

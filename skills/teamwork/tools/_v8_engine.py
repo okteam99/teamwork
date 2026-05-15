@@ -151,6 +151,27 @@ def load_state(feature_path: str) -> tuple[Path, dict]:
     return p, json.loads(p.read_text(encoding="utf-8"))
 
 
+def compute_raw_write_audit(state: dict) -> Optional[dict]:
+    """扫 state.concerns[] · 抓 raw-write 条目 · 返 audit dict(无 raw-write 返 None)。
+
+    用途:state.py / _v8_engine emit 时附 raw_write_audit 字段 ·
+    PMO 看到 → 复查状态机缺口(v8.x 后任何 raw-write 都应视作 bug 信号)。
+    """
+    concerns = state.get("concerns") or []
+    rw_concerns = [c for c in concerns if isinstance(c, str) and "raw-write" in c]
+    if not rw_concerns:
+        return None
+    return {
+        "count": len(rw_concerns),
+        "occurrences": rw_concerns[-5:],  # 最近 5 条 · 防 emit 过长
+        "hint": (
+            "⚠️ 状态机有 raw-write 历史 · v8.x 后任何 raw-write 都应视作 bug 信号 · "
+            "复查 concerns 中每条 reason → 治本(命令补全 / 或报 bug)· "
+            "跨 Feature 汇总:state.py audit-raw-writes"
+        ),
+    }
+
+
 def save_state(path: Path, state: dict) -> None:
     """写 state.json · 自动 stamp `_state_checksum`(同 state.py atomic_write)。
 
@@ -492,6 +513,7 @@ def execute_stage_start(
         except OSError:
             pass  # 写磁盘失败 · 用完整 brief
 
+    rw_audit = compute_raw_write_audit(state)
     emit_json({
         "verdict": "PASS",
         "stage": stage_spec.name,
@@ -501,6 +523,7 @@ def execute_stage_start(
         "next_action_brief": brief,
         "status_line": render_status_line(state, f"按 brief 完成 → {stage_spec.name}-complete"),
         **({"brief_overflow_path": brief_overflow_path} if brief_overflow_path else {}),
+        **({"raw_write_audit": rw_audit} if rw_audit else {}),
     })
 
 
@@ -1103,6 +1126,7 @@ def execute_stage_complete(
         else (f"走 {stage_spec.name}-fix → {stage_spec.name}-retry"
               if fix_retry_hint else "stage 链结束 / 等用户拍板下一步")
     )
+    rw_audit = compute_raw_write_audit(state)
     emit_json({
         "verdict": "PASS",
         "stage": stage_spec.name,
@@ -1116,6 +1140,7 @@ def execute_stage_complete(
         **({"next_stage_roles_adjusted": next_stage_roles_audit} if next_stage_roles_audit else {}),
         **({"pause_options_markdown": pause_options_markdown} if pause_options_markdown else {}),
         **({"fix_retry_hint": fix_retry_hint} if fix_retry_hint else {}),
+        **({"raw_write_audit": rw_audit} if rw_audit else {}),
     })
 
 
