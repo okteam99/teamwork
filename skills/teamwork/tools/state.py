@@ -1521,18 +1521,16 @@ def _init_feature_next_brief(args, initial_stage: str) -> str:
 
 state.json 已落在:`{Path(args.feature).resolve()}/state.json`
 
-进入状态机:
+直接进入首 stage(prepare 子流程已在 init-feature 之前完成 · 见 docs/prepare.md):
 
-1. `state.py prepare --feature {args.feature} --user-input "<原话>"`
-   - 项目骨架(KNOWLEDGE / TROUBLESHOOTING / GLOSSARY)自动创建
-
-2. `state.py {initial_stage}-start --feature {args.feature}`
+1. `state.py {initial_stage}-start --feature {args.feature}`
    - emit 本 stage 详细 brief(必读 / 必产物 / 完成方式)
 
-3. AI 按 brief 完成 stage 工作 → `{initial_stage}-complete`
+2. AI 按 brief 完成 stage 工作 → `{initial_stage}-complete`
 
 📎 物化兜底:各 stage-start 校验 worktree 物理存在 + cwd 校验
    不一致 → FAIL + hint(治本 PTR-F033)
+📎 项目骨架(KNOWLEDGE / TROUBLESHOOTING / GLOSSARY)由 bootstrap.py 在 session 启动时维护 · 不在 init-feature 后做。
 """
 
 

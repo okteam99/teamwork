@@ -16,10 +16,13 @@
 - PL finding 直接追加到 PRD 内对应 AC 后注释(不开新文件)
 
 ### 3. 多角色并行评审 → PRD-REVIEW.md
-- QA 视角:测试覆盖性 / 边界场景 / AC 可测试性
-- Architect 视角:技术可行性 / 架构影响 / 性能安全
-- (可选)External Reviewer:异质模型 cross-review
-- 落 `{Feature}/PRD-REVIEW.md` · frontmatter 含 `reviewers` + `verdicts: {role: APPROVE|NEEDS_REVISION}`
+- **必含 5 角色**(state.stage_review_roles[goal] · _v8_engine.py:742 强制)· 缺角色 → goal-complete FAIL:
+  - PM 视角:需求清晰度 / AC 完整性
+  - QA 视角:测试覆盖性 / 边界场景 / AC 可测试性
+  - Architect 视角:技术可行性 / 架构影响 / 性能安全
+  - PL 视角:业务方向 / 路线图对齐
+  - External Reviewer:异质模型 cross-review(落 `external-cross-review/*.md`)
+- 落 `{Feature}/PRD-REVIEW.md` · frontmatter `reviewers: [pm, qa, architect, pl, external]` + `verdicts: {role: APPROVE|NEEDS_REVISION}`
 
 ### 4. PM 回应 + 修订 PRD
 - 逐条响应 review finding

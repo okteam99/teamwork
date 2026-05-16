@@ -202,6 +202,9 @@ def main():
     for t in tests:
         tid = t.get("id", "<no-id>")
         covers = t.get("covers_ac", []) or []
+        # 兼容 scalar 字符串(covers_ac: AC-1)· 防字符串被逐字符迭代(实证 PTR-F042)
+        if isinstance(covers, str):
+            covers = [covers]
         for ac in covers:
             if ac in ac_covers:
                 ac_covers[ac].append(tid)

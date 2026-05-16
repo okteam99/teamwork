@@ -385,8 +385,8 @@ v8 把 v7 的 9 红线中 16/17 子条目物化进 state.py · 仅 1 条(R3 PMO 
 | [tools/_v8_engine.py](./tools/_v8_engine.py) | 通用 stage start/complete + bypass 引擎 |
 | [tools/_v8_stage_specs.py](./tools/_v8_stage_specs.py) | 11 stage 完整契约 |
 | [tools/_v8_ship.py](./tools/_v8_ship.py) | ship-phase 5 actions |
-| [tools/_v8_init.py](./tools/_v8_init.py) | triage + prepare |
 | [tools/_v8_migrate.py](./tools/_v8_migrate.py) | v7 → v8 迁移 |
+| [tools/bootstrap.py](./tools/bootstrap.py) | session 启动维护(骨架 / hooks / 注入段) |
 | [docs/CHANGELOG.md](./docs/CHANGELOG.md) | 完整变更记录 |
 
 ---
