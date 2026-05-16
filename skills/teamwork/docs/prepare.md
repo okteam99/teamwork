@@ -6,6 +6,15 @@
 
 ---
 
+## 0. Must-read(PMO 进 prepare 前必读)
+
+🔴 **必读 spec**(动手前主对话 cite 关键原文 · 详 SKILL.md § P0-11):
+- **[conventions.md §9-12](./conventions.md)** — worktree path 规范(`{worktree_root_path}/{Feature-ID}` · 默认 `.worktree/`)· 治本"AI 直接套 SKILL.md 状态行示例字符串"反模式
+- **`.teamwork_localconfig.json`** — 项目级 worktree_root_path 配置(读 `worktree_root_path` 字段 · 不存在用 `.worktree`)
+- **[feature-planning.md §0](./feature-planning.md)** — 何时改走 Feature Planning(关键词 + 复杂度双触发)
+
+---
+
 ## 1. 触发场景
 
 | 场景 | 何时走 |
@@ -85,13 +94,13 @@ PMO 按以下关键词表判定 user input 落入哪类流程:
 
 🔴 **关键词命中 Feature / 敏捷需求 / Micro 时 · PMO 必再扫以下复杂度信号** · 命中任一 → **强制升 Feature Planning**(覆盖关键词初判):
 
-| 信号 | 例 |
-|---|---|
-| **跨仓库联动**(≥2 个) | aon-core + aon-ptr + aon-admin / 后端服务 + 前端 + 管理后台 |
-| **数据模型重构** | 删/改老字段(影响存量) / 表结构变动 / 字段语义重定义 |
-| **老需求架构性废弃** | "X 不要了"/"统一为 Y"/"重构这套逻辑" / 整套机制语义替换 |
-| **影响 ≥2 BL** | 一次需求拆成多个 Feature 协同(admin / backend / partner 各 1 BL) |
-| **方向级业务变更** | 新增/删除业务能力 / 商业模式调整 / 用户角色重新设计 |
+| 信号 | 例 | 不计入 |
+|---|---|---|
+| **跨独立部署服务**(≥2 个) | 独立 git repo / 独立 origin / 独立部署单元(后端服务 + 前端 + 管理后台) | mono-repo 内跨 apps(同 origin · 单部署单元) → 用"影响 ≥2 BL"判 |
+| **数据模型重构** | 删/改老字段(影响存量) / 表结构变动 / 字段语义重定义 | 新增字段(无存量影响) |
+| **老需求架构性废弃** | "X 不要了"/"统一为 Y"/"重构这套逻辑" / 整套机制语义替换 | 仅扩展(向后兼容) |
+| **影响 ≥2 BL** | 一次需求拆成多个 Feature 协同(admin / backend / partner 各 1 BL) | 单 Feature 内多 commit |
+| **方向级业务变更** | 新增/删除业务能力 / 商业模式调整 / 用户角色重新设计 | UI 文案微调 |
 
 **为什么强制升级**:这些信号意味单 Feature 状态机承载不下 — 跨仓库要 panorama-design 全景 · 数据模型重构要 ROADMAP 多 Feature 协同 · 单 Feature 的 PRD/TC/TECH 写不下"3 仓库 + 老字段迁移 + 多 BL 拆解"。强行进 Feature → PMO 在主对话散述 Q1-Q4 决策树(违 R5 暂停点协议 · 写伪 PRD)。
 
