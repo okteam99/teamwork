@@ -61,15 +61,19 @@ PMO 移交 prepare 后 · **必走以下 4 项准备**(emit 暂停点之前):
 
 低复杂度 / 用户已知 → 跳。
 
-### 1.5.4 · ID 冲突预检(强制 · 治本 case 临时改编号)
+### 1.5.4 · ID 冲突预检 + stage 评审角色预览(强制 · 治本 case 临时改编号 + AI 提前看评审角色)
 
 ```bash
-state.py prepare-check --feature-id-prefix <PROJ>
+state.py prepare-check --feature-id-prefix <PROJ> --flow-type <Feature|Bug|Micro|敏捷需求>
 ```
 
-输出含 `next_available_id` + `existing_ids` + `conflicts`。
+输出含:
+- `next_available_id` + `existing_ids`(ID 冲突预检)
+- `stage_chain_preview`(stage × 评审角色预览 · v8.x · 治本 case "用户到 dev 才知道谁评审")
 
-PMO 把 `next_available_id` 填进暂停点表格的 Feature ID 推荐默认值 · 不让用户自己算冲突。
+PMO 把数据填进暂停点表格:
+- `next_available_id_stem` → Feature ID 推荐默认值
+- `stage_chain_preview` → 渲染「📋 各 stage 评审角色」子表(详 §4 emit 模板)
 
 ---
 
@@ -164,6 +168,15 @@ PMO 复制给用户 · **必含全 4 段**(R5 暂停点协议 · 必给推荐 + 
 📋 **流程类型**:<flow_type>(命中关键词 /<keyword>/)
 📋 **stage 链**:<完整 stage 链 · 由 FLOW_BY_TYPE[flow_type] 渲染>
 📋 **理由**:<识别理由 1 句>
+
+# 各 stage 评审角色预览(从 prepare-check --flow-type 输出 stage_chain_preview 渲染)
+| stage | 必/选 | 触发条件 | 建议评审角色 |
+|---|---|---|---|
+| <stage> | <必跑/可选> | <若可选 · 列触发条件 · 否则 — > | <reviewers 列表 / — (无 reviewer)> |
+| ...(每 stage 一行) | | | |
+
+📎 reviewers="—" 表示 stage 无多角色评审(dev = RD 自写代码 + git commit / ship = PMO 编排 push+MR)。
+📎 这是**预览** · 用户若想调整某 stage reviewers · 在 4 项配置后说"调整 <stage> reviewers"· PMO 在 init-feature 后直接 raw-write `state.stage_review_roles` 字段(自动写入 audit · state.py 后续 review-stage 自动用新配置)。
 
 # 上下文准备(Step 0 已读)
 - **Planning ship 状态**:<✅ <Planning Feature ID> · commit ... merge 到 staging | ⏭️ N/A>

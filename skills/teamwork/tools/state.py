@@ -1766,7 +1766,7 @@ def cmd_prepare_check(args: argparse.Namespace) -> None:
     next_num = (max(used_numbers) + 1) if used_numbers else 1
     next_id_stem = f"{prefix}-F{next_num:03d}"
 
-    emit({
+    payload = {
         "verdict": "OK",
         "command": "prepare-check",
         "features_root": str(root),
@@ -1779,7 +1779,27 @@ def cmd_prepare_check(args: argparse.Namespace) -> None:
             f"prepare 暂停点 Feature ID 默认填 {next_id_stem}-<Kebab-Case-名称> · "
             f"用户可改 · 但应避开 existing_ids 中已占编号"
         ),
-    })
+    }
+
+    # v8.x:--flow-type 可选 · 返回 stage_chain_preview(stage × 评审角色)
+    # 让 PMO 在 prepare 暂停点直接渲染「📋 各 stage 评审角色」子表 · 不凭手工查 spec
+    if args.flow_type:
+        try:
+            sys.path.insert(0, str(Path(__file__).resolve().parent))
+            from _v8_engine import build_stage_chain_preview, FLOW_STAGE_CHAIN
+        except ImportError as e:
+            payload["stage_chain_preview_error"] = str(e)
+        else:
+            if args.flow_type not in FLOW_STAGE_CHAIN:
+                payload["stage_chain_preview_error"] = (
+                    f"flow_type '{args.flow_type}' 不支持 stage chain 预览 · "
+                    f"支持: {sorted(FLOW_STAGE_CHAIN)}(Feature Planning / 问题排查 不进状态机 · 无 chain)"
+                )
+            else:
+                payload["flow_type"] = args.flow_type
+                payload["stage_chain_preview"] = build_stage_chain_preview(args.flow_type)
+
+    emit(payload)
 
 
 def cmd_audit_raw_writes(args: argparse.Namespace) -> None:
@@ -2143,6 +2163,9 @@ def build_parser() -> argparse.ArgumentParser:
                     help="features 根目录 · 默认 docs/features(从 cwd 算)")
     pc.add_argument("--feature-id-prefix", required=True,
                     help="项目缩写(如 PTR / INFRA / SVC-PLATFORM)· 详 docs/conventions.md § 7")
+    pc.add_argument("--flow-type", default=None,
+                    choices=["Feature", "Bug", "Micro", "敏捷需求"],
+                    help="可选 · 传则返回 stage_chain_preview(stage × 评审角色) · 让暂停点直接渲染表")
     pc.set_defaults(func=cmd_prepare_check)
 
     # ─── v8.0 stage 命令注册(Code-driven Orchestration) ─────────────

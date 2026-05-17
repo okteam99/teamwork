@@ -780,6 +780,65 @@ def build_default_stage_review_roles(flow_type: str) -> dict[str, list[str]]:
     }
 
 
+# 各 flow_type 完整 stage chain(显式顺序 + optional 标识)
+# 用途:prepare-check --flow-type 渲染暂停点「📋 stage × 评审角色」预览表
+# 与 FLOW_BY_TYPE(state.py)互补:那里是转移图(legal_next_stages 校验) · 这里是 chain 视图(顺序展示)
+FLOW_STAGE_CHAIN: dict[str, list[tuple[str, bool, str]]] = {
+    # (stage_name, optional, optional_trigger_note)
+    "Feature": [
+        ("goal", False, ""),
+        ("ui_design", True, "goal-complete --needs-ui=true 时启用"),
+        ("blueprint", False, ""),
+        ("dev", False, ""),
+        ("review", False, ""),
+        ("test", False, ""),
+        ("browser_e2e", True, "execution_hints.browser_e2e_needed=true 时启用"),
+        ("pm_acceptance", False, ""),
+        ("ship", False, ""),
+    ],
+    "敏捷需求": [
+        ("goal", False, ""),
+        ("blueprint_lite", False, ""),
+        ("dev", False, ""),
+        ("review", False, ""),
+        ("test", False, ""),
+        ("pm_acceptance", False, ""),
+        ("ship", False, ""),
+    ],
+    "Bug": [
+        ("dev", False, ""),
+        ("review", False, ""),
+        ("test", False, ""),
+        ("pm_acceptance", False, ""),
+        ("ship", False, ""),
+    ],
+    "Micro": [
+        ("dev", False, ""),
+        ("pm_acceptance", False, ""),
+        ("ship", False, ""),
+    ],
+}
+
+
+def build_stage_chain_preview(flow_type: str) -> list[dict]:
+    """返回 prepare-check 用的 stage chain preview · 每条含 reviewers 列表。
+
+    格式:[{"stage": str, "optional": bool, "trigger": str, "reviewers": [str]}]
+    - reviewers 来自 DEFAULT_REVIEW_ROLES · 不在则空列表(dev/ship 等无 reviewer stage)
+    - 顺序按 FLOW_STAGE_CHAIN 显式定义
+    """
+    chain = FLOW_STAGE_CHAIN.get(flow_type, [])
+    return [
+        {
+            "stage": stage,
+            "optional": optional,
+            "trigger": trigger,
+            "reviewers": DEFAULT_REVIEW_ROLES.get((flow_type, stage), []),
+        }
+        for stage, optional, trigger in chain
+    ]
+
+
 MAX_BRIEF_LINES = 100
 """单 stage brief 最大行数(含所有 append 的纪律段)。
 
