@@ -78,12 +78,13 @@ CONSUMER_PATTERNS = [
 CONSUMER_RE = re.compile("|".join(CONSUMER_PATTERNS), re.IGNORECASE)
 
 # 默认扫描的 spec 文件 glob（相对 SKILL_ROOT）
+# v8.x:清掉已删 spec(STATUS-LINE.md / REVIEWS.md / CONTEXT-RECOVERY.md / RULES.md / rules/)
 DEFAULT_SPEC_PATHS = [
-    "SKILL.md", "STATUS-LINE.md", "FLOWS.md", "REVIEWS.md",
-    "ROLES.md", "TEMPLATES.md", "STANDARDS.md", "CONTEXT-RECOVERY.md",
+    "SKILL.md", "TRIAGE.md", "FLOWS.md",
+    "ROLES.md", "TEMPLATES.md", "STANDARDS.md",
     "PRODUCT-OVERVIEW-INTEGRATION.md",
 ]
-DEFAULT_SPEC_DIRS = ["stages", "standards", "roles", "rules"]
+DEFAULT_SPEC_DIRS = ["stages", "standards", "roles", "docs"]
 
 
 @dataclass

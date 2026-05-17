@@ -1,7 +1,8 @@
 # FLOWS · v8.0
 
 > 6 流程类型的 telos 与适用场景。
-> 详细步骤由 `state.py prepare --user-input <原话>` 自动 emit · AI 不再读步骤 spec。
+> 流程类型识别 + 4 项配置由 [docs/prepare.md](./docs/prepare.md) 子流程承接(PMO 主对话执行)·
+> 具体 stage 步骤由各 stage `state.py xxx-start` emit brief。
 
 ---
 
@@ -96,9 +97,9 @@ PMO 按以下关键词匹配 + 优先级判定 user input 落入哪类流程(无
 | 范式 | FLOWS.md 行数 | 内容 |
 |------|--------------|------|
 | v7 | 876 行 | 每流程详细步骤 + 暂停点 + 角色 dispatch · AI 必读 cite |
-| v8 | ~120 行 | 只讲 telos + 适用场景 · 步骤由 state.py prepare emit |
+| v8 | ~120 行 | 只讲 telos + 适用场景 · 步骤由 docs/prepare.md + 各 stage brief 承接 |
 
-详细步骤渲染逻辑见 [`tools/_v8_init.py`](./tools/_v8_init.py) 的 `_render_flow_steps`。
+prepare 子流程实现:[docs/prepare.md](./docs/prepare.md)(PMO 主对话)+ stage brief 渲染在 [tools/_v8_engine.py](./tools/_v8_engine.py) `execute_stage_start`。
 
 ---
 

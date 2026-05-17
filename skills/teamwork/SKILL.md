@@ -75,23 +75,24 @@ state.py xx-start --bypass --reason "<用户确认理由>" --user-confirmed --mi
 
 ---
 
-## 命令清单(state.py 30 个命令)
+## 命令清单(state.py ≈ 39 命令 · 详 `state.py --help`)
 
 ```
 A 类 · 状态机入口(用户确认 worktree 后 · 在 worktree 内运行)
 └── init-feature 创建 Feature state.json(在 worktree 内)
 
 (triage 是 PMO 入口行为 · 不是 state.py 命令 · 见 TRIAGE.md)
+(prepare 是 PMO 主对话子流程 · 不是 state.py 命令 · 见 docs/prepare.md)
 
-B 类 · Stage 流转(23 = 11 stage × 2 + ship-phase)
+B 类 · Stage 流转(10 stage × 2 + 4 fix/retry + ship-phase)
 ├── goal-start / goal-complete
-├── ui_design-start / ui_design-complete
+├── ui_design-start / ui_design-complete (optional · --needs-ui)
 ├── blueprint-start / blueprint-complete
 ├── blueprint_lite-start / blueprint_lite-complete (敏捷需求 only)
 ├── dev-start / dev-complete
-├── review-start / review-complete (--verdict APPROVE|NEEDS_REVISION)
-├── test-start / test-complete (--integration/e2e-test-exit-code)
-├── browser_e2e-start / browser_e2e-complete (optional)
+├── review-start / review-complete (--verdict APPROVE|NEEDS_REVISION) + review-fix / review-retry
+├── test-start / test-complete (--integration/e2e-test-exit-code) + test-fix / test-retry
+├── browser_e2e-start / browser_e2e-complete (optional · execution_hints)
 ├── pm_acceptance-start / pm_acceptance-complete (--decision approved_and_ship|...)
 ├── ship-start / ship-complete
 └── ship-phase --action {sanitize|push|confirm-merged|cleanup|close-unmerged}
@@ -272,7 +273,7 @@ PMO 按 hint 自动执行修复(silent)
 | 架构 / 数据库 / schema | `docs/architecture/` |
 | F\d+(具体 Feature 编号) | `docs/features/{F}/` |
 | 历史决策 / ADR | `docs/features/*/adrs/INDEX.md` |
-| 多子项目 / 跨项目 | `teamwork_space.md` |
+| 多子项目 / 跨项目 | `teamwork-space.md` |
 | 涉及具体代码 | grep + Read 实际代码 |
 
 ### 项目级系统维护(`tools/bootstrap.py` 独立脚本)
@@ -376,7 +377,7 @@ v8 把 v7 的 9 红线中 16/17 子条目物化进 state.py · 仅 1 条(R3 PMO 
 | [docs/v8-redesign/02-CLEANUP.md](./docs/v8-redesign/02-CLEANUP.md) | v7 → v8 清理清单 |
 | [docs/v8-redesign/03-MIGRATION.md](./docs/v8-redesign/03-MIGRATION.md) | 迁移路线图 |
 | [docs/v8-redesign/00-MANIFESTO.md § 十一](./docs/v8-redesign/00-MANIFESTO.md) | 9 红线归宿 + 详细 rationale |
-| [FLOWS.md](./FLOWS.md) | 6 流程 telos(详细步骤进 state.py prepare/各 stage brief) |
+| [FLOWS.md](./FLOWS.md) | 6 流程 telos(详细步骤进 docs/prepare.md 子流程 + 各 stage brief) |
 | [ROLES.md](./ROLES.md) | 角色索引(→ roles/*.md) |
 | [STANDARDS.md](./STANDARDS.md) | 技术规范索引(→ standards/*.md · 不含流程规范) |
 | [TEMPLATES.md](./TEMPLATES.md) | 文档模板索引 |
@@ -385,7 +386,7 @@ v8 把 v7 的 9 红线中 16/17 子条目物化进 state.py · 仅 1 条(R3 PMO 
 | [standards/*.md](./standards/) | 技术规范(common/backend/frontend/tdd · 流程规范已删) |
 | [tools/state.py](./tools/state.py) | 唯一编排器入口 |
 | [tools/_v8_engine.py](./tools/_v8_engine.py) | 通用 stage start/complete + bypass 引擎 |
-| [tools/_v8_stage_specs.py](./tools/_v8_stage_specs.py) | 11 stage 完整契约 |
+| [tools/_v8_stage_specs.py](./tools/_v8_stage_specs.py) | 10 stage 完整契约 |
 | [tools/_v8_ship.py](./tools/_v8_ship.py) | ship-phase 5 actions |
 | [tools/_v8_migrate.py](./tools/_v8_migrate.py) | v7 → v8 迁移 |
 | [tools/bootstrap.py](./tools/bootstrap.py) | session 启动维护(骨架 / hooks / 注入段) |

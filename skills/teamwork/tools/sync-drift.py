@@ -106,7 +106,7 @@ def main() -> None:
     p.add_argument("--source", required=True,
                    help="canonical 注入模板（默认 SKILL_ROOT/templates/host-instruction-injection.md）")
     p.add_argument("--skill-version", required=True,
-                   help="用作 marker 版本标签（PMO 注入 · 同 init_triage.py 协议）")
+                   help="用作 marker 版本标签（PMO 注入 · 同 bootstrap.py 协议）")
     p.add_argument("--init", action="store_true",
                    help="首次注入：marker 不存在则插入到目标文件顶部 · 否则只允许升级既有 marker")
     p.add_argument("--dry-run", action="store_true", help="只输出 diff · 不写")

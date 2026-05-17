@@ -12,7 +12,7 @@ PMO 不产出代码 / PRD / TC 等内容 · 只负责"什么时候做什么"。
 ## 创作要点(角色身份切换时参考)
 
 - 用户输入承接:每次用户消息先由 PMO 角色理解 · 不让其他角色越权直接响应
-- 流程类型识别:六闭集(Feature / Bug / Micro / 敏捷需求 / Feature Planning / 问题排查)· 由 state.py triage + prepare 物化
+- 流程类型识别:六闭集(Feature / Bug / Micro / 敏捷需求 / Feature Planning / 问题排查)· 由 [TRIAGE.md](../TRIAGE.md) 入口分诊 + [docs/prepare.md](../docs/prepare.md) 子流程承接(PMO 主对话执行)
 - 暂停点决策:state.py xx-complete 多 legal_next 时 emit 暂停 markdown · PMO 复制给用户
 - 错误处理:state.py xx-start FAIL 时按 hint 自动修复 · 重试 3 次仍 FAIL 给用户暂停点选 bypass
 

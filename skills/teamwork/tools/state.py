@@ -81,10 +81,32 @@ BUG_FLOW: dict[str, list[str]] = {
     "completed": [],
 }
 
+# Micro:最轻流程(改文案 / 改配置)· dev → pm_acceptance → ship
+MICRO_FLOW: dict[str, list[str]] = {
+    "dev": ["pm_acceptance"],
+    "pm_acceptance": ["ship", "dev"],
+    "ship": ["completed"],
+    "completed": [],
+}
+
+# 敏捷需求:Feature 砍 blueprint 版 · goal → blueprint_lite → dev → review → test → pm_acceptance → ship
+AGILE_FLOW: dict[str, list[str]] = {
+    "goal": ["blueprint_lite"],
+    "blueprint_lite": ["dev"],
+    "dev": ["review"],
+    "review": ["test", "dev"],
+    "test": ["pm_acceptance"],
+    "pm_acceptance": ["ship", "dev"],
+    "ship": ["completed"],
+    "completed": [],
+}
+
 # Feature Planning / 问题排查 不进状态机:由 PMO 主对话执行(详 docs/feature-planning.md)
 FLOW_BY_TYPE = {
     "Feature": FEATURE_FLOW,
     "Bug": BUG_FLOW,
+    "Micro": MICRO_FLOW,
+    "敏捷需求": AGILE_FLOW,
 }
 
 # 不进状态机的流程类型(init-feature 拒绝创建 state.json · PMO 主对话直接执行)

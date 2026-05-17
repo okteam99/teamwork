@@ -16,9 +16,9 @@ product-overview/
 
 ## product-overview 规划状态管理
 
-> product-overview 有独立于 teamwork_space.md 的规划状态。
+> product-overview 有独立于 teamwork-space.md 的规划状态。
 > 规划过程可能持续很长时间，涉及多个议题的多轮讨论，不确定性高。
-> 只有规划状态变为「✅ 已确认」的内容才会影响 teamwork_space.md 和下游执行。
+> 只有规划状态变为「✅ 已确认」的内容才会影响 teamwork-space.md 和下游执行。
 
 **每份 product-overview 文档头部必须包含规划状态表**：
 
@@ -60,14 +60,14 @@ product-overview/
 
 **规划状态与下游的关系**：
 ```
-product-overview 规划状态 → 对 teamwork_space.md 的影响
+product-overview 规划状态 → 对 teamwork-space.md 的影响
 ────────────────────────────────────────────────────────────
-📝 草稿 / 🔄 讨论中 → 不影响，teamwork_space.md 不更新
+📝 草稿 / 🔄 讨论中 → 不影响，teamwork-space.md 不更新
 ⏸️ 待确认 → 不影响，等用户最终确认
-✅ 已确认 → 可以生成/更新 teamwork_space.md
-✅ 已确认 → 🔄 讨论中（变更） → 已有的 teamwork_space.md 不变，
+✅ 已确认 → 可以生成/更新 teamwork-space.md
+✅ 已确认 → 🔄 讨论中（变更） → 已有的 teamwork-space.md 不变，
  新变更通过 CHG 机制管理，
- CHG 确认执行后才更新 teamwork_space.md
+ CHG 确认执行后才更新 teamwork-space.md
 ```
 
 **🔴 状态管理约束**：
@@ -135,7 +135,7 @@ PMO 判断场景 → 决定是否加载 product-overview 文档：
 └── ❌ 不加载 product-overview，正常走 Feature 流程
 
 📁 Feature Planning（子项目级）
-├── ✅ 读取执行手册中「对应执行线」章节（定位：通过 teamwork_space.md 执行线映射表）
+├── ✅ 读取执行手册中「对应执行线」章节（定位：通过 teamwork-space.md 执行线映射表）
 └── 用途：确认当前规划是否符合执行线目标和里程碑
 
 🌐 Feature Planning（工作区级 / Workspace Planning）
@@ -196,7 +196,7 @@ Level 3 变更 → Product Lead 重构 → Workspace Planning（🌐）
 │ 第二层：Workspace 架构更新（Level 3）/ 跳过（Level 2） │
 ├─────────────────────────────────────────────────────────────┤
 │ Level 3：PMO 触发 Workspace Planning │
-│ ├── PM 更新 teamwork_space.md（架构图 + 子项目清单） │
+│ ├── PM 更新 teamwork-space.md（架构图 + 子项目清单） │
 │ ├── 更新执行线映射表 │
 │ └── ⏸️ 等待用户确认 │
 │ │
@@ -233,8 +233,8 @@ Level 3 变更 → Product Lead 重构 → Workspace Planning（🌐）
 **🔴 级联规则强制约束**：
 ```
 ├── 每一层完成后必须暂停等待用户确认，禁止跨层自动推进
-├── product-overview 文档变更必须先于 teamwork_space.md 变更
-├── teamwork_space.md 变更必须先于子项目 ROADMAP 变更
+├── product-overview 文档变更必须先于 teamwork-space.md 变更
+├── teamwork-space.md 变更必须先于子项目 ROADMAP 变更
 ├── 废弃 Feature 只标记状态，不删除已有文档和代码
 ├── 新增 Feature 只写入 ROADMAP.md（一句话 + 验收标准），不写 PRD
 └── 级联完成前禁止启动任何新 Feature 的开发流程
@@ -255,7 +255,7 @@ Level 3 变更 → Product Lead 重构 → Workspace Planning（🌐）
  ↕
  product-overview/执行手册.md ← 执行线定义、里程碑、跨线协作
  ↕
- teamwork_space.md ← 子项目架构、执行线映射
+ teamwork-space.md ← 子项目架构、执行线映射
  ↕
  各子项目 ROADMAP.md ← Feature 清单、优先级
  ↕

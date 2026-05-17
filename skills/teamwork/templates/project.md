@@ -1,6 +1,6 @@
 # PROJECT 模板
 
-> 位置：各子项目 `{子项目路径}/docs/PROJECT.md`（每个子项目各一份），全景入口为 `teamwork_space.md`
+> 位置：各子项目 `{子项目路径}/docs/PROJECT.md`（每个子项目各一份），全景入口为 `teamwork-space.md`
 >
 > 受众：**业务老板 / PM / 非技术人员** — 用业务语言描述项目全貌，不涉及代码实现细节。
 > 用途：子项目的业务总览，串联产品定位、核心业务流程、功能模块（业务视角）、当前进度。技术细节见 📎 ARCHITECTURE.md。有 UI 的项目全景设计见 📎 design/sitemap.md。
@@ -90,7 +90,7 @@ flowchart LR
 \`\`\`
 
 **与其他文档的关系**：
-- **teamwork_space.md**：全景入口，Mermaid 架构图 + 子项目链接，点击进入各子项目 PROJECT.md
+- **teamwork-space.md**：全景入口，Mermaid 架构图 + 子项目链接，点击进入各子项目 PROJECT.md
 - **PROJECT.md**（本文档）：业务视角 — 产品定位 + 业务流程 + 功能模块 + 进度（给业务老板看）
 - **design/sitemap.md**：产品全景设计 — 页面地图 + 导航结构 + 全景原型（有 UI 的项目，给设计师和前端看）
 - **ARCHITECTURE.md**：技术视角 — 技术栈选型 + 代码分层 + 模块依赖 + 接口规范（给技术团队看）
