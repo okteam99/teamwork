@@ -561,14 +561,28 @@ STAGE_SPEC_FILES = {
 }
 
 
+# 哪些 stage 在 brief 中渲染"评审角色"提示
+# - 含 dev:本 stage 无 reviewer · 但可调后续 stage(治本 dev 评估代码后调 test 评审 case)
+# - 排除 pm_acceptance(永远只有 pm 1 角色 · 无调整空间)/ ship / completed(无 reviewer · 无后续)
+# - test 之后即关掉(用户洞察 · 实证)
+STAGES_WITH_REVIEW_ROLES_HINT = {
+    "goal", "ui_design", "blueprint", "blueprint_lite",
+    "dev", "review", "test", "browser_e2e",
+}
+
+
 def _render_review_roles_suggestion(state: dict, stage_name: str) -> str:
     """渲染本 stage 评审角色 + 调整指引(覆盖本/后续 stage)。
 
     数据源:state.stage_review_roles(init-feature 已写入 · 各 stage 默认值)
     - 本 stage 有 reviewer → 显示"本 stage 角色 + 可调本/后续 stage"
-    - 本 stage 无 reviewer(dev / ship)→ 显示"本 stage 无评审 · 但可调后续 stage"(治本 dev 评估代码后调 test 评审 case)
+    - 本 stage 无 reviewer(dev)→ 显示"本 stage 无评审 · 但可调后续 stage"(治本 dev 评估代码后调 test 评审 case)
     - state.stage_review_roles 整体空 → 返回空串(不渲染)
+    - stage ∉ STAGES_WITH_REVIEW_ROLES_HINT(pm_acceptance / ship / completed)→ 返回空串
     """
+    if stage_name not in STAGES_WITH_REVIEW_ROLES_HINT:
+        return ""
+
     all_roles = state.get("stage_review_roles", {})
     if not all_roles:
         return ""
