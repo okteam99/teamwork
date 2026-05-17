@@ -4,3 +4,11 @@
 *.swo
 *~
 .idea
+
+# Python build artifacts
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Local Claude Code state
+.claude/
