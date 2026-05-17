@@ -159,7 +159,13 @@ PMO 按 flow_type 算 branch 前缀 + worktree path 建议:
 
 ## 4. Step 3 · emit 完整表格(1 次完整 · 不分多轮)
 
-PMO 复制给用户 · **必含全 4 段**(R5 暂停点协议 · 必给推荐 + 编号 + 决策参考):
+PMO 复制给用户 · 🔴 **必含全 5 段**(漏任一段 = R5 暂停点违规 · 用户可叫停):
+
+1. `# 流程概览`(flow_type + stage 链 + 理由)
+2. `# 建议评审角色`(stage × 评审角色 × 建议理由表 · 数据从 `prepare-check --flow-type` 渲染)
+3. `# 上下文准备(Step 0 已读)`(Planning ship / 上游依赖 / 代码现状 / ID 冲突)
+4. `# Worktree 策略`(branch 前缀 + worktree_root_path + 推荐 path)
+5. `# 4 项配置`(Feature ID + merge_target + worktree path + branch)
 
 ```markdown
 ⏸️ Prepare · 进入流程前总览(回 `ok` / `all default` 全用推荐 · 或修改某几项 + 确认)
@@ -169,8 +175,8 @@ PMO 复制给用户 · **必含全 4 段**(R5 暂停点协议 · 必给推荐 + 
 📋 **stage 链**:<完整 stage 链 · 由 FLOW_BY_TYPE[flow_type] 渲染>
 📋 **理由**:<识别理由 1 句>
 
-# 建议评审角色(初步建议 · 各 stage 进入时可按方案复杂度调整)
-> 数据从 `prepare-check --flow-type` 输出 `stage_chain_preview` 渲染。
+# 建议评审角色 🔴(初步建议 · 各 stage 进入时可按方案复杂度调整)
+> 数据从 `prepare-check --flow-type` 输出 `stage_chain_preview` 渲染 · **不可跳过**。
 
 | stage | 必/选 | 建议评审角色 | 建议理由 |
 |---|---|---|---|
@@ -216,6 +222,16 @@ flow_type → first_stage 映射:
 
 🔴 **必 1 次完整 emit · 不分多轮**(防 PMO 先建议 + 再"最终确认"的 2 轮交互浪费)。
 🔴 **用户回 `ok`** · PMO 视作"按建议全部默认值" · 不再二次确认 · 立即执行 §5。
+
+### 4.1 · emit 自检清单(PMO emit 前自查 5 段齐)
+
+- [ ] § 流程概览(flow_type + stage 链 + 理由)
+- [ ] § 建议评审角色(prepare-check `stage_chain_preview` 表已渲染 · 不可漏)
+- [ ] § 上下文准备(4 子项:Planning / 上游 / 代码 / ID 冲突)
+- [ ] § Worktree 策略(branch 前缀 + worktree_root_path + 推荐 path)
+- [ ] § 4 项配置(Feature ID + merge_target + worktree path + branch)
+
+任一项缺 → 重 emit(用户不应被迫忽略漏段)。
 
 ---
 
