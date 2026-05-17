@@ -637,7 +637,13 @@ def _evidence_ac_test_binding(state: dict, args) -> tuple[bool, str]:
     """跑 verify-ac.py 校验 AC↔Test 绑定。
 
     v8.0+P0-14:verify-ac.py 不存在时 silent skip(install/dev sync 不影响校验)。
+    v8.x:Bug / Micro 流程不产 PRD/TC(规格 = bugfix/BUG-*.md / 直改)· skip 校验。
+        治本 case INFRA-B002:Bug 流程撞 ac_test_binding 门禁 = Feature 门禁泄漏。
     """
+    flow_type = state.get("flow_type", "")
+    if flow_type in ("Bug", "Micro"):
+        return True, f"skipped({flow_type} 流程无 PRD/TC · 规格 = bugfix/BUG-*.md 或直改)"
+
     feature_dir = Path(args.feature)
     prd = feature_dir / "PRD.md"
     tc = feature_dir / "TC.md"
