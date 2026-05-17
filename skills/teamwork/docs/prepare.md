@@ -179,7 +179,7 @@ PMO 复制给用户 · **必含全 4 段**(R5 暂停点协议 · 必给推荐 + 
 
 📎 reviewers="—" 表示 stage 无多角色评审(dev = RD 自写代码 + git commit / ship = PMO 编排 push+MR)。
 📎 **初步建议 · 可调整**:
-  - 各 stage-start 时 state.py 会再次输出本 stage 的「建议评审角色」段(`_render_review_roles_suggestion`)· AI 按方案复杂度判定是否需调整
+  - 各 stage-start 时 state.py 会再次输出本 stage 的「建议评审角色」段 · AI 按方案复杂度判定是否需调整
   - 简单方案可去 external · 高风险方案补 architect/external
   - 调整方式:raw-write `state.stage_review_roles.<stage> = [<新列表>]`(自动写 `stage_review_roles_adjustments` audit · 后续 stage-complete 校验按新值)
 

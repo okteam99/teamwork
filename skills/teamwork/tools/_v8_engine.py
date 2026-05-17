@@ -575,10 +575,10 @@ def _render_review_roles_suggestion(state: dict, stage_name: str) -> str:
     has_adjustment = any(
         isinstance(a, dict) and a.get("stage") == stage_name for a in adjustments
     )
-    suffix = "(已用户调整 · 详 state.stage_review_roles_adjustments audit)" if has_adjustment else "(默认 · 来自 _v8_engine.DEFAULT_REVIEW_ROLES)"
+    suffix = " (已调整 · 见 state.stage_review_roles_adjustments audit)" if has_adjustment else ""
 
     return (
-        f"\n\n## 📋 建议评审角色 {suffix}\n\n"
+        f"\n\n## 📋 建议评审角色{suffix}\n\n"
         f"- 角色:`{', '.join(roles)}`\n"
         f"- **可按方案复杂度调整**:简单方案可去 external · 高风险方案补 architect/external · 用 "
         f"raw-write `state.stage_review_roles.{stage_name} = [<新列表>]`(自动写 audit)\n"
