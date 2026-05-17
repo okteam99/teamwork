@@ -582,27 +582,16 @@ def _render_review_roles_suggestion(state: dict, stage_name: str) -> str:
     )
     suffix = " (已调整 · 见 state.stage_review_roles_adjustments audit)" if has_adjustment else ""
 
-    if own_roles:
-        own_line = (
-            f"- **本 stage({stage_name})默认角色**(从 state.stage_review_roles.{stage_name} 读):"
-            f"`{', '.join(own_roles)}`\n"
-        )
-    else:
-        own_line = (
-            f"- **本 stage({stage_name})无评审角色**(RD 自写 / PMO 编排) · "
-            f"但可调后续 stage 的 review_roles\n"
-        )
-
+    own_line = (
+        f"- 当前阶段评审角色:`{', '.join(own_roles)}`\n"
+        if own_roles
+        else f"- 当前阶段无评审角色\n"
+    )
     return (
         f"\n\n## 📋 评审角色{suffix}\n\n"
         f"{own_line}"
-        f"- 💡 **按方案复杂度动态调本 stage 或后续 stage**(简单去 external · 高风险补 architect/external · "
-        f"典型场景:dev 评估代码复杂度后调 test stage 评审):\n"
-        f"  ```\n"
-        f"  state.py change-review-roles --feature <path> --stage <{' / '.join(configured)}> "
-        f"--roles '<a,b,c>' --reason '<理由>'\n"
-        f"  ```\n"
-        f"- 调整需在目标 stage 产物落盘前 · 各 stage-complete 按 state.stage_review_roles 当前值校验\n"
+        f"- 可根据实际复杂度调整当前及后续 stage 参与评审的角色:"
+        f"`state.py change-review-roles --feature <path> --stage <{' / '.join(configured)}> --roles 'a,b,c' --reason '<理由>'`\n"
     )
 
 
