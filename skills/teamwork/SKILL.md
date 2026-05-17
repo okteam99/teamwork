@@ -324,12 +324,14 @@ PMO 只关注流程编排 · 系统维护是 `bootstrap.py` 的职责。
 🌿 {branch}(worktree: {wt_path · 与 artifact_root 不同时显示})
 ```
 
-**示例**:
+**示例**(占位 `{repo}` / `{Feature-ID}` · 实际路径由 prepare 子流程按 conventions.md §9-12 + `.teamwork_localconfig.json` 推导 · **AI 禁止直接抄此例字符串**):
 ```
-🔄 PTR-F033 (Feature · blueprint) | 下一步:dispatch QA TC + RD TECH
-📁 /Users/liam/apps/joli/aon/aon-ptr-worktrees/PTR-F033/apps/partner/docs/features/PTR-F033
-🌿 feature/PTR-F033-credit-note-adjustment(worktree: /Users/liam/apps/joli/aon/aon-ptr-worktrees/PTR-F033)
+🔄 {Feature-ID} (Feature · blueprint) | 下一步:dispatch QA TC + RD TECH
+📁 {repo-root}/{artifact-root}/{Feature-ID}
+🌿 feature/{feature-id-kebab}(worktree: {repo-root}/.worktree/{Feature-ID})
 ```
+
+📎 worktree path 物化校验(v8.x+):init-feature 强校验 `{worktree_root_path}/{Feature-ID}` 约定 · 错位 → FAIL with hint(治本 PTR-F041 静默错位 case)。
 
 **物化兜底**:
 - `state.py` 每次 `xx-start` / `xx-complete` emit 顶层含 `status_line` 字段

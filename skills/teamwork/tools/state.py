@@ -1485,6 +1485,68 @@ def cmd_init_feature(args: argparse.Namespace) -> None:
                 "bypass": "调试场景 export TEAMWORK_BYPASS_CWD_WORKTREE=1",
             }, ensure_ascii=False, indent=2))
 
+    # v8.x+P0-N:worktree path 约定校验(治本 PTR-F041 静默错位)
+    # 规则(可枚举 · 进脚本):期望 path = main_project_root / worktree_root_path / feature_id
+    #   - main_project_root 从 `git worktree list --porcelain` 第一条解析(linked worktree → main)
+    #   - worktree_root_path 从 main_project_root/.teamwork_localconfig.json 读 · 默认 ".worktree"
+    # 不匹配 → FAIL(治本 AI 抄 SKILL.md 状态行示例 / 自由发挥路径反模式)
+    if (
+        not bypass_cwd
+        and not os.environ.get("TEAMWORK_BYPASS_WORKTREE_PATH_CHECK")
+        and args.worktree_mode != "off"
+        and args.worktree_path
+    ):
+        wt_real = Path(args.worktree_path).resolve()
+        main_root: Path | None = None
+        try:
+            result = subprocess.run(
+                ["git", "-C", str(wt_real), "worktree", "list", "--porcelain"],
+                capture_output=True, text=True, check=True, timeout=10,
+            )
+            for line in result.stdout.splitlines():
+                if line.startswith("worktree "):
+                    main_root = Path(line.split(" ", 1)[1]).resolve()
+                    break
+        except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired):
+            main_root = None
+
+        if main_root is not None:
+            localconfig = main_root / ".teamwork_localconfig.json"
+            worktree_root_path = ".worktree"
+            config_source = "默认(无 .teamwork_localconfig.json)"
+            if localconfig.exists():
+                try:
+                    cfg = json.loads(localconfig.read_text(encoding="utf-8"))
+                    worktree_root_path = cfg.get("worktree_root_path", ".worktree")
+                    config_source = str(localconfig)
+                except (OSError, json.JSONDecodeError):
+                    pass
+            expected = (main_root / worktree_root_path / args.feature_id).resolve()
+            if wt_real != expected:
+                die(2, json.dumps({
+                    "verdict": "FAIL",
+                    "action": "init-feature",
+                    "error": "worktree path 不符合 worktree_root_path 约定",
+                    "actual": str(wt_real),
+                    "expected": str(expected),
+                    "main_project_root": str(main_root),
+                    "worktree_root_path_config": worktree_root_path,
+                    "config_source": config_source,
+                    "hint": (
+                        f"修复二选一:\n"
+                        f"  A. 移到期望路径(推荐):\n"
+                        f"     cd {main_root}\n"
+                        f"     git worktree remove {wt_real}\n"
+                        f"     git worktree add -b {args.branch} {expected} origin/{args.merge_target}\n"
+                        f"     cd {expected} && 重跑 state.py init-feature\n"
+                        f"  B. 修改配置匹配现状(若有意自定义 worktree 根):\n"
+                        f"     编辑 {localconfig}\n"
+                        f"     设 worktree_root_path 字段为 wt 父目录相对 main_root 的路径"
+                    ),
+                    "rule": "conventions.md §9-12 worktree path 规范",
+                    "bypass": "应急 · export TEAMWORK_BYPASS_WORKTREE_PATH_CHECK=1",
+                }, ensure_ascii=False, indent=2))
+
     atomic_write(state_file, state)
 
     # v8.0+P0-13:项目级系统维护已挪到 session-bootstrap(session 级 · 不是 Feature 级)
