@@ -266,6 +266,24 @@ emit 格式:
 - **R-T2 · mode B 必移交 prepare**:triage 自身只做 mode 分诊 · 不做流程类型识别 / worktree 决策 / 暂停点(都是 prepare 的事)· 不可自己跑 git worktree add / init-feature
 - **R-T3 · resume(mode C)不重 init**:mode C 是 jump 到现有 state.json · 不可重跑 init-feature;state.json 不存在 → 退回 mode B
 
+### 入口与状态机的接口(triage 边界)
+
+**triage 入口完成 = init-feature 前置满足**:
+- ✅ worktree 物理已创建(PMO 显式跑)
+- ✅ cwd 在 worktree 内(PMO 显式 cd)
+- ✅ Feature ID + branch + merge_target 已用户确认
+
+📎 项目级骨架(KNOWLEDGE/TROUBLESHOOTING/GLOSSARY)由 init-feature 自动维护 · 不是 triage 职责。
+
+**init-feature 拒绝条件**(状态机入口物化拦截):
+- worktree_mode != off 但 cwd 不在 worktree → FAIL(P0-3 沿用)
+- worktree_mode != off 但 worktree 物理不存在 → FAIL(P0-2 沿用 stage-start 校验)
+
+**triage 不做的事**(职责边界 · 防越权):
+- ❌ 不写 state.json(由 init-feature 创建)
+- ❌ 不创建 worktree(由 PMO 显式跑 git worktree add)
+- ❌ 不自动跑 git(防 PMO 漏看用户确认)
+
 ### 错误处理
 
 - mode 判定不准 → PMO 告诉用户重判 · 或人工指定(用户回"应该是 mode E 讨论")
