@@ -60,23 +60,7 @@ pm_acceptance rejected 不强制 fix-retry(反馈类型多样)· state.py emit 4
 | 5. complete --decision --note | — | — | (无) |
 
 
-**输出格式**(每个 substep 动手前必在主对话输出):
-```
-📖 cite:
-- <spec> § <段>:"<引该段 1 句关键原文 · 证明真读>"
-```
-
-**强约束**(R5+P0-11 软约束 · 用户监督):
-- 标 "—" 的 substep 无 cite 要求(状态机操作 / 用户暂停 / 已物化)
-- 其余 substep **动手前必输出 cite 块** · 缺 cite 视为 process 违规(用户可叫停)
-- cite 必含 § 段标题 + 至少 1 句原文(原文必真实存在于该 spec · 不可瞎编)
-- AI 在 stage 内多次切角色 · 每次切换前重新 cite 该角色规范
-
-**为什么 cite**:
-- brief 列路径(P0-4)只解决"AI 找不到路径"· 不保证 AI 真读
-- complete 时校验太晚(AI 已做完)
-- substep 动手前 cite = 事前提醒 · 强制 AI 翻一眼 spec
-- 物化死角(state.py 看不到 markdown Read 动作)· 软约束 + 用户监督兜底
+📎 **cite 纪律**(输出格式 / 强约束 / 为什么 cite)· 单源详 [../STAGES.md § 2 P0-11 cite 纪律](../STAGES.md)
 
 ## 质量基线
 
