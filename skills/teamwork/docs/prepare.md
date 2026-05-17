@@ -244,6 +244,11 @@ state.py init-feature \
  --worktree-path <worktree-path>
 ```
 
+🔴 **Bug 流程额外前置**(治本 AI 撞 dev-start 物化拦截鸡生蛋):
+init-feature 完成后(brief 会显式提示)· 在 dev-start 之前先起草 `bugfix/BUG-<bug-id>.md`(模板 `templates/bug-report.md`)·
+含 frontmatter `bug_id/symptom/root_cause/fix_summary` + body §现象/§根因/§修复方案/§回归测试。
+理想流:init-feature → 起草 BUG 单 → dev-start PASS(无 missing_prerequisites)。
+
 ---
 
 ## 6. 与状态机的接口

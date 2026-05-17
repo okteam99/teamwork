@@ -1592,6 +1592,9 @@ def _init_feature_next_brief(args, initial_stage: str) -> str:
 
     triage 已确认 worktree · PMO 已显式建 + cd · init-feature 仅创建 state.json。
     所以 brief 直接告知"进下一步" · 不需要再讨论 worktree。
+
+    Bug 流程额外提示:dev-start 物化拦截要求 bugfix/BUG-*.md 必须先存在 ·
+    所以 brief 明示"先起草 BUG 单 · 再 dev-start" · 治本 AI 撞拦截后才补的反模式。
     """
     wt_note = ""
     if args.worktree_mode == "off":
@@ -1599,12 +1602,22 @@ def _init_feature_next_brief(args, initial_stage: str) -> str:
     else:
         wt_note = f"(worktree_mode={args.worktree_mode} · cwd={Path.cwd()} 已通过 cwd 校验)"
 
+    # Bug 流程前置:起草 BUG 单(治本 dev-start 物化拦截鸡生蛋)
+    pre_stage_action = ""
+    if args.flow_type == "Bug":
+        pre_stage_action = f"""
+🔴 **Bug 流程前置(在 {initial_stage}-start 之前必做)**:
+   起草 `{Path(args.feature)}/bugfix/BUG-<bug-id>.md`(模板 `templates/bug-report.md`)·
+   含 frontmatter `bug_id/symptom/root_cause/fix_summary` + body §现象/§根因/§修复方案/§回归测试。
+   不起草 → {initial_stage}-start 物化拦截 FAIL。
+"""
+
     return f"""## init-feature 完成 · 下一步
 
 {wt_note}
 
 state.json 已落在:`{Path(args.feature).resolve()}/state.json`
-
+{pre_stage_action}
 直接进入首 stage(prepare 子流程已在 init-feature 之前完成 · 见 docs/prepare.md):
 
 1. `state.py {initial_stage}-start --feature {args.feature}`
