@@ -488,11 +488,10 @@ DEV_SPEC = StageSpec(
             id="prd_or_bug_report_exists",
             check_fn=_check_prd_or_bug_report,
             hint=(
-                "Feature 流程必须有 PRD.md(回 goal-complete 起草 · PM 角色)。"
-                "Bug 流程必须有 bugfix/BUG-*.md(由 RD 主对话切角色起草 · "
-                "模板 templates/bug-report.md · 含 frontmatter bug_id/symptom/root_cause/fix_summary + "
-                "body §现象/§根因/§修复方案/§回归测试)· "
-                "PMO 不可代笔(违 R1 · PMO 不出内容产物)。"
+                "Feature 流程必须有 PRD.md(回 goal-complete 起草)。"
+                "Bug 流程必须有 bugfix/BUG-*.md(模板 templates/bug-report.md · "
+                "含 frontmatter bug_id/symptom/root_cause/fix_summary + "
+                "body §现象/§根因/§修复方案/§回归测试)。"
             ),
             description="PRD.md 存在(Feature)或 bugfix/BUG-*.md 存在(Bug)",
         ),
