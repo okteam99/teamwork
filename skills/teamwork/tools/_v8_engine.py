@@ -562,14 +562,19 @@ STAGE_SPEC_FILES = {
 
 
 def _render_review_roles_suggestion(state: dict, stage_name: str) -> str:
-    """渲染该 stage 的建议评审角色段(append 到 brief 之后)。
+    """渲染本 stage 评审角色 + 调整指引(覆盖本/后续 stage)。
 
-    数据源:state.stage_review_roles[stage_name](init-feature 已写入默认 · 用户可 raw-write 调整)
-    无 reviewer 的 stage(dev / ship 等)→ 返回空串(不渲染)。
+    数据源:state.stage_review_roles(init-feature 已写入 · 各 stage 默认值)
+    - 本 stage 有 reviewer → 显示"本 stage 角色 + 可调本/后续 stage"
+    - 本 stage 无 reviewer(dev / ship)→ 显示"本 stage 无评审 · 但可调后续 stage"(治本 dev 评估代码后调 test 评审 case)
+    - state.stage_review_roles 整体空 → 返回空串(不渲染)
     """
-    roles = state.get("stage_review_roles", {}).get(stage_name, [])
-    if not roles:
+    all_roles = state.get("stage_review_roles", {})
+    if not all_roles:
         return ""
+
+    own_roles = all_roles.get(stage_name, [])
+    configured = sorted(all_roles.keys())
 
     adjustments = state.get("stage_review_roles_adjustments", []) or []
     has_adjustment = any(
@@ -577,12 +582,27 @@ def _render_review_roles_suggestion(state: dict, stage_name: str) -> str:
     )
     suffix = " (已调整 · 见 state.stage_review_roles_adjustments audit)" if has_adjustment else ""
 
+    if own_roles:
+        own_line = (
+            f"- **本 stage({stage_name})默认角色**(从 state.stage_review_roles.{stage_name} 读):"
+            f"`{', '.join(own_roles)}`\n"
+        )
+    else:
+        own_line = (
+            f"- **本 stage({stage_name})无评审角色**(RD 自写 / PMO 编排) · "
+            f"但可调后续 stage 的 review_roles\n"
+        )
+
     return (
-        f"\n\n## 📋 建议评审角色{suffix}\n\n"
-        f"- 角色:`{', '.join(roles)}`\n"
-        f"- **可按方案复杂度调整**(简单方案去 external · 高风险补 architect/external):\n"
-        f"  `state.py change-review-roles --feature <path> --stage {stage_name} --roles '<a,b,c>' --reason '<理由>'`\n"
-        f"- 调整需在本 stage 产物落盘前 · stage-complete 时校验 reviewers 按 state.stage_review_roles 当前值\n"
+        f"\n\n## 📋 评审角色{suffix}\n\n"
+        f"{own_line}"
+        f"- 💡 **按方案复杂度动态调本 stage 或后续 stage**(简单去 external · 高风险补 architect/external · "
+        f"典型场景:dev 评估代码复杂度后调 test stage 评审):\n"
+        f"  ```\n"
+        f"  state.py change-review-roles --feature <path> --stage <{' / '.join(configured)}> "
+        f"--roles '<a,b,c>' --reason '<理由>'\n"
+        f"  ```\n"
+        f"- 调整需在目标 stage 产物落盘前 · 各 stage-complete 按 state.stage_review_roles 当前值校验\n"
     )
 
 
