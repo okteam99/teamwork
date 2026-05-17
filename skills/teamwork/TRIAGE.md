@@ -63,6 +63,27 @@ PMO 在 mode E 收尾时输出:
 
 ---
 
+## 2.1 待规划需求池(session 启动扫描)
+
+🔴 **mode A/B/D 入口完成后 · PMO 必扫 `teamwork_space.md § 待规划需求池`** · 列状态=📝 的待规划项给用户:
+
+```
+📋 待规划需求池:N 个待规划项(详 teamwork_space.md § 待规划需求池)
+1. PENDING-NNN · <标题>(来源:<source>)
+2. ...
+回 "启动 PENDING-NNN" → 进 prepare 子流程 · 或 "稍后" 继续当前任务。
+```
+
+**何时不扫**:
+- mode C resume(已有 state.json · 直接接力 · 不打断)
+- mode E discuss(讨论中 · 不打断节奏 · 若讨论涉规划再扫)
+- 池空 → silent skip(不噪音)
+
+**追加机制**(session 内发现新待规划项):
+PMO/RD/PM 在 stage 内识别"本 Feature 范围外但要做"→ 主对话内 append 到 `teamwork_space.md § 待规划需求池` 表(用户确认后落盘)· 含 ID/标题/来源/目标项目/背景/状态=📝/日期。
+
+---
+
 ## 3. audit_line(PMO 主对话首条响应必含)
 
 PMO 完成 5 mode 分诊后 · 在主对话首条响应中输出:
