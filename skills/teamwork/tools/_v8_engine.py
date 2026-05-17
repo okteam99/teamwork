@@ -829,51 +829,52 @@ def build_default_stage_review_roles(flow_type: str) -> dict[str, list[str]]:
     }
 
 
-# 各 flow_type 完整 stage chain(显式顺序 + optional 标识)
+# 各 flow_type 完整 stage chain(显式顺序 + optional 标识 + 评审建议理由)
 # 用途:prepare-check --flow-type 渲染暂停点「📋 stage × 评审角色」预览表
 # 与 FLOW_BY_TYPE(state.py)互补:那里是转移图(legal_next_stages 校验) · 这里是 chain 视图(顺序展示)
-FLOW_STAGE_CHAIN: dict[str, list[tuple[str, bool, str]]] = {
-    # (stage_name, optional, optional_trigger_note)
+FLOW_STAGE_CHAIN: dict[str, list[tuple[str, bool, str, str]]] = {
+    # (stage_name, optional, optional_trigger_note, review_reason_hint)
     "Feature": [
-        ("goal", False, ""),
-        ("ui_design", True, "goal-complete --needs-ui=true 时启用"),
-        ("blueprint", False, ""),
-        ("dev", False, ""),
-        ("review", False, ""),
-        ("test", False, ""),
-        ("browser_e2e", True, "execution_hints.browser_e2e_needed=true 时启用"),
-        ("pm_acceptance", False, ""),
-        ("ship", False, ""),
+        ("goal", False, "", "PRD 需多视角把关:PM/QA/Architect/PL 各自专业领域 + External 异质模型 cross-review"),
+        ("ui_design", True, "goal-complete --needs-ui=true 时启用", "Designer 视觉一致 + PM 流程合理"),
+        ("blueprint", False, "", "TECH 选型与测试规划需 Architect/QA 把关 + External 异质 review"),
+        ("dev", False, "", "无评审 · RD 自写 + commit(TDD 红绿循环 + 自查清单)"),
+        ("review", False, "", "代码 Architect 看架构合理 + QA 看 AC 对照 + External 跨模型独立判断"),
+        ("test", False, "", "QA 验收集成测试 + AC 全覆盖 + E2E 结果"),
+        ("browser_e2e", True, "execution_hints.browser_e2e_needed=true 时启用", "QA 跑 E2E + Designer 视觉确认"),
+        ("pm_acceptance", False, "", "PM 用户视角逐条 AC 验收 · 决定是否 ship"),
+        ("ship", False, "", "无评审 · PMO 编排 push + MR + 合入 + cleanup"),
     ],
     "敏捷需求": [
-        ("goal", False, ""),
-        ("blueprint_lite", False, ""),
-        ("dev", False, ""),
-        ("review", False, ""),
-        ("test", False, ""),
-        ("pm_acceptance", False, ""),
-        ("ship", False, ""),
+        ("goal", False, "", "需求小但仍需 PM 清晰度 + QA 测试视角 + Architect 技术可行(无 PL/External)"),
+        ("blueprint_lite", False, "", "QA 测试规划(TC 精简版)· 不要 TECH-REVIEW"),
+        ("dev", False, "", "无评审 · RD 自写 + commit"),
+        ("review", False, "", "Architect/QA + External cross-review(同 Feature)"),
+        ("test", False, "", "QA 验收"),
+        ("pm_acceptance", False, "", "PM 用户视角验收"),
+        ("ship", False, "", "无评审 · PMO 编排"),
     ],
     "Bug": [
-        ("dev", False, ""),
-        ("review", False, ""),
-        ("test", False, ""),
-        ("pm_acceptance", False, ""),
-        ("ship", False, ""),
+        ("dev", False, "", "无评审 · RD 起草 BUG 报告(模板 templates/bug-report.md)+ 写 fix + commit"),
+        ("review", False, "", "修复方案 Architect + QA + External 把关(防 fix 引入新问题)"),
+        ("test", False, "", "QA 验收回归测试(原 bug 不复发 + 周边无新错)"),
+        ("pm_acceptance", False, "", "PM 验收(纯 infra/低风险 fix 可加快)"),
+        ("ship", False, "", "无评审 · PMO 编排"),
     ],
     "Micro": [
-        ("dev", False, ""),
-        ("pm_acceptance", False, ""),
-        ("ship", False, ""),
+        ("dev", False, "", "无评审 · RD 直接改(文案/样式/资源/配置 · 零逻辑)"),
+        ("pm_acceptance", False, "", "PM 看效果即可(无 review/test 中间环节)"),
+        ("ship", False, "", "无评审 · PMO 编排"),
     ],
 }
 
 
 def build_stage_chain_preview(flow_type: str) -> list[dict]:
-    """返回 prepare-check 用的 stage chain preview · 每条含 reviewers 列表。
+    """返回 prepare-check 用的 stage chain preview · 每条含 reviewers + reason_hint。
 
-    格式:[{"stage": str, "optional": bool, "trigger": str, "reviewers": [str]}]
+    格式:[{"stage": str, "optional": bool, "trigger": str, "reviewers": [str], "reason": str}]
     - reviewers 来自 DEFAULT_REVIEW_ROLES · 不在则空列表(dev/ship 等无 reviewer stage)
+    - reason 是评审建议理由(为什么选这些角色 · 给用户决策参考)
     - 顺序按 FLOW_STAGE_CHAIN 显式定义
     """
     chain = FLOW_STAGE_CHAIN.get(flow_type, [])
@@ -883,8 +884,9 @@ def build_stage_chain_preview(flow_type: str) -> list[dict]:
             "optional": optional,
             "trigger": trigger,
             "reviewers": DEFAULT_REVIEW_ROLES.get((flow_type, stage), []),
+            "reason": reason,
         }
-        for stage, optional, trigger in chain
+        for stage, optional, trigger, reason in chain
     ]
 
 

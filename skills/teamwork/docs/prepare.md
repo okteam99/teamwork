@@ -172,9 +172,9 @@ PMO 复制给用户 · **必含全 4 段**(R5 暂停点协议 · 必给推荐 + 
 # 建议评审角色(初步建议 · 各 stage 进入时可按方案复杂度调整)
 > 数据从 `prepare-check --flow-type` 输出 `stage_chain_preview` 渲染。
 
-| stage | 必/选 | 触发条件 | 建议评审角色 |
+| stage | 必/选 | 建议评审角色 | 建议理由 |
 |---|---|---|---|
-| <stage> | <必跑/可选> | <若可选 · 列触发条件 · 否则 — > | <reviewers 列表 / — (无 reviewer)> |
+| <stage> | <必跑/可选(若可选括号注触发条件)> | <reviewers 列表 / — (无 reviewer)> | <从 reason 字段渲染 · 1 句话为什么这些角色> |
 | ...(每 stage 一行) | | | |
 
 📎 reviewers="—" 表示 stage 无多角色评审(dev = RD 自写代码 + git commit / ship = PMO 编排 push+MR)。
