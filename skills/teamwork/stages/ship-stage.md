@@ -1,16 +1,19 @@
 # Ship Stage
 
+> **Phase 1**(§1-§4):在 **worktree 内**跑(sanitize/push 需 feature branch checkout · git push 必从 worktree)
+> **Phase 2**(§5-§11):在 **主工作区**跑(confirm-merged/cleanup 需 merge_target branch 上的 state.json)
+
 ---
 
 ## 怎么做
 
-### 1. ship-start
+### 1. ship-start(在 worktree 内)
 `state.py ship-start --feature X` · 校验前置(pm_acceptance.decision=approved_and_ship)
 
-### 2. ship-phase sanitize
+### 2. ship-phase sanitize(在 worktree 内)
 `--action sanitize` · 净化 commit 记录(检查 residual / suspicious 文件)
 
-### 3. ship-phase push
+### 3. ship-phase push(在 worktree 内)
 `--action push --feature-head-commit ... --git-host gitlab --mr-creation-method cli-glab --mr-url ...` · push feature 分支 + CLI 创 MR
 
 ### 4. ⏸️ Phase 1 完成 · 等用户在平台合并(R5 标准暂停点)

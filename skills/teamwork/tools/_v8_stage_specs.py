@@ -1283,16 +1283,9 @@ SHIP_SPEC = StageSpec(
             ),
             description="pm_acceptance.decision == approved_and_ship",
         ),
-        StagePrerequisite(
-            id="cwd_main_worktree",
-            check_fn=_check_cwd_main_worktree,
-            hint=(
-                "cwd 在 linked worktree · 不能进 ship(治本 P0-156:state.json 在 worktree 被删丢失)。"
-                "cd 到主工作区(git clone 原仓库位置 · 不是 git worktree add 的 linked 路径)再跑此命令。"
-                "调试可设 TEAMWORK_BYPASS_MAIN_WORKTREE=1"
-            ),
-            description="cwd 在主工作区(非 linked worktree)",
-        ),
+        # 注:ship-start 不再要求主工作区(Phase 1 sanitize/push 都在 worktree 内跑 ·
+        # 因为 git push 必须从 feature branch checkout 位置)· Phase 2 (confirm-merged/cleanup)
+        # 由 _v8_ship.py _require_main_worktree 独立拦截 · 保持职责分明。
     ],
     artifacts=[],  # ship 无 markdown 产物 · 看 state.ship 字段
     evidence_checks=[
