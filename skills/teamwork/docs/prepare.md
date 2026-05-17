@@ -169,14 +169,19 @@ PMO 复制给用户 · **必含全 4 段**(R5 暂停点协议 · 必给推荐 + 
 📋 **stage 链**:<完整 stage 链 · 由 FLOW_BY_TYPE[flow_type] 渲染>
 📋 **理由**:<识别理由 1 句>
 
-# 各 stage 评审角色预览(从 prepare-check --flow-type 输出 stage_chain_preview 渲染)
+# 建议评审角色(初步建议 · 各 stage 进入时可按方案复杂度调整)
+> 数据从 `prepare-check --flow-type` 输出 `stage_chain_preview` 渲染。
+
 | stage | 必/选 | 触发条件 | 建议评审角色 |
 |---|---|---|---|
 | <stage> | <必跑/可选> | <若可选 · 列触发条件 · 否则 — > | <reviewers 列表 / — (无 reviewer)> |
 | ...(每 stage 一行) | | | |
 
 📎 reviewers="—" 表示 stage 无多角色评审(dev = RD 自写代码 + git commit / ship = PMO 编排 push+MR)。
-📎 这是**预览** · 用户若想调整某 stage reviewers · 在 4 项配置后说"调整 <stage> reviewers"· PMO 在 init-feature 后直接 raw-write `state.stage_review_roles` 字段(自动写入 audit · state.py 后续 review-stage 自动用新配置)。
+📎 **初步建议 · 可调整**:
+  - 各 stage-start 时 state.py 会再次输出本 stage 的「建议评审角色」段(`_render_review_roles_suggestion`)· AI 按方案复杂度判定是否需调整
+  - 简单方案可去 external · 高风险方案补 architect/external
+  - 调整方式:raw-write `state.stage_review_roles.<stage> = [<新列表>]`(自动写 `stage_review_roles_adjustments` audit · 后续 stage-complete 校验按新值)
 
 # 上下文准备(Step 0 已读)
 - **Planning ship 状态**:<✅ <Planning Feature ID> · commit ... merge 到 staging | ⏭️ N/A>

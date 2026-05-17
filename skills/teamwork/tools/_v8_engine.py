@@ -486,8 +486,9 @@ def execute_stage_start(
 
     save_state(path, state)
 
-    # 7. 渲染 next_action_brief + 自动 append 暂停点纪律 + 必读路径速查 + 状态行模板
+    # 7. 渲染 next_action_brief + 自动 append 建议评审角色 + 暂停点纪律 + 必读路径速查 + 状态行模板
     brief = stage_spec.brief_template_fn(state)
+    brief += _render_review_roles_suggestion(state, stage_spec.name)
     if stage_spec.authorized_pause_point:
         brief += _render_pause_discipline(stage_spec.authorized_pause_point)
     # 必读路径速查(P0-4)
@@ -558,6 +559,31 @@ STAGE_SPEC_FILES = {
     "pm_acceptance": "pm-acceptance-stage.md",  # 若不存在 fallback
     "ship": "ship-stage.md",
 }
+
+
+def _render_review_roles_suggestion(state: dict, stage_name: str) -> str:
+    """渲染该 stage 的建议评审角色段(append 到 brief 之后)。
+
+    数据源:state.stage_review_roles[stage_name](init-feature 已写入默认 · 用户可 raw-write 调整)
+    无 reviewer 的 stage(dev / ship 等)→ 返回空串(不渲染)。
+    """
+    roles = state.get("stage_review_roles", {}).get(stage_name, [])
+    if not roles:
+        return ""
+
+    adjustments = state.get("stage_review_roles_adjustments", []) or []
+    has_adjustment = any(
+        isinstance(a, dict) and a.get("stage") == stage_name for a in adjustments
+    )
+    suffix = "(已用户调整 · 详 state.stage_review_roles_adjustments audit)" if has_adjustment else "(默认 · 来自 _v8_engine.DEFAULT_REVIEW_ROLES)"
+
+    return (
+        f"\n\n## 📋 建议评审角色 {suffix}\n\n"
+        f"- 角色:`{', '.join(roles)}`\n"
+        f"- **可按方案复杂度调整**:简单方案可去 external · 高风险方案补 architect/external · 用 "
+        f"raw-write `state.stage_review_roles.{stage_name} = [<新列表>]`(自动写 audit)\n"
+        f"- 调整需在本 stage 产物落盘前 · stage-complete 时校验 reviewers 按 state.stage_review_roles 当前值\n"
+    )
 
 
 def _render_required_paths(feature_dir: Path, stage_name: str) -> str:
@@ -1138,10 +1164,11 @@ def execute_stage_complete(
         completed = state.setdefault("completed_stages", [])
         if stage_spec.name not in completed:
             completed.append(stage_spec.name)
-        # 渲染下一 stage brief
+        # 渲染下一 stage brief(含建议评审角色)
         if next_stage in stage_specs_registry:
             next_spec = stage_specs_registry[next_stage]
             next_brief = next_spec.brief_template_fn(state)
+            next_brief += _render_review_roles_suggestion(state, next_stage)
 
     # pm_acceptance rejected_with_feedback · 列回退选项暂停点(v8.10 + v8.11 jump-to-stage)
     pause_options_markdown = None
