@@ -40,6 +40,30 @@
 
 ---
 
+## 1.5 入口必读 · 项目全景认知(silent · session 启动一次性建立)
+
+🔴 **PMO 完成 §4.0 bootstrap.py 后 · mode 分诊前必读以下项目级全景档(存在即读 · 缺失 silent skip)**:
+
+| 文档 | 路径 | 读什么 | 缺失时 |
+|---|---|---|---|
+| **teamwork_space.md** | 项目根 | 项目结构(单/多子项目) · 子项目清单 · 跨项目变更 ID · § 待规划需求池 | silent skip(可能是单项目无全景档) |
+| **PROJECT.md** | 项目根 / 子项目根 | 业务架构 · 执行手册 · 关键决策 | silent skip(可能项目早期未建) |
+| **ROADMAP.md** | 项目根 / 子项目根 | BL 列表 · 当前/下一/储备 Feature | silent skip(无 Feature Planning) |
+
+**为什么必读**:
+- 后续 mode 分诊(关键词 → flow_type)需要项目结构上下文(单项目 vs 多子项目 → 路径/编号规则不同)
+- prepare §2.1 复杂度升级判据(跨独立部署服务 / ≥2 BL)需 ROADMAP/子项目清单作判断依据
+- 待规划池扫描(§2.1)需先认知池在哪个 teamwork_space.md
+- 避免 mode B 起 Feature 时才发现"子项目结构与假设不符" → prepare 推倒重来
+
+**读法**(silent · 不 emit 给用户):
+- Read 一次 · 内化为 PMO 主对话上下文
+- 不 cite / 不复述 · 用到时引(如"按 teamwork_space.md 子项目清单 · SVC-CORE 下一 F024")
+
+**注意**:这是认知建立 · 不是讨论。读完直接进 §2 mode 分诊。
+
+---
+
 ## 2. 5 Mode 分诊(关键词表)
 
 | Mode | 触发关键词 | 行为 | 移交去向 |
