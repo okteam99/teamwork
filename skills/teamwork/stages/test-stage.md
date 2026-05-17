@@ -2,25 +2,46 @@
 
 ---
 
+## teamwork 测试体系(4 层 · 概念统一)
+
+| 层 | 范围 | 归 stage | 责任人 |
+|---|---|---|---|
+| **unit** 单元测试 | 单类 / 单函数 · 红绿循环 | dev stage 内(TDD) | RD |
+| **integration** 进程内集成 | 跨模块 / 跨服务契约(**单进程内** · 如 axum router + `tower::ServiceExt`) | test stage | QA |
+| **api-e2e** API live 跨进程 | 真 binary + 真路由 + 真依赖(起 live 服务) | test stage | QA |
+| **browser-e2e** 浏览器 E2E | UI 交互流 + 截图 | browser_e2e stage(可选) | QA + Designer |
+
+🔴 **概念边界(不可混)**:
+- **integration vs api-e2e** = 进程数 / live 程度差异
+  - integration:单进程内 ServiceExt 打 router · 抹掉跨进程边界 · 适合契约 / 数据流校验
+  - api-e2e:**真跨进程**(独立 gateway binary + 真 HTTP + 真 DB/Redis 等依赖)· 验全链路
+- 进程内"模拟跨服务" ≠ api-e2e(是 integration · 别叫错)
+
+---
+
 ## 怎么做
 
 ### 1. 加载上下文
 读 PRD.AC · TC.md · 实际代码 · dev 阶段 commit
 
-### 2. QA 起草集成测试
-基于 TC.md 测试用例 · 跨模块集成场景
+### 2. QA 起草 integration(进程内集成)
+基于 TC.md 用例 · 跨模块 / 跨服务契约(**单进程内** · 不起 live 服务)
 
-### 3. QA 起草 API E2E
-端到端 API 调用脚本 · 落 `{Feature}/e2e/*.py`(或语言对应)
+### 3. QA 起草 api-e2e(live 跨进程)
+- **用 Python 写**(语言统一 · 减项目间割裂)
+- 落 `{Feature}/e2e/*.py` 或 `services/<svc>/tests/e2e/<feature-id>/`(按子项目结构 · RD/QA 决定)
+- 起 live 服务 + 真实 HTTP 调用 · 脚本退出码 = api-e2e 真实结果(exit-code=0 = 通过)
+- 🔴 **跑通即可**:**不强求 CI 可复用** · **不统一 DB/seed/env SOP**(各项目环境差异大 · 由项目自维护起服务方式)
+- pm_acceptance / review 阶段会按 state.json evidence 验证据真实性 · test stage 只管 exit-code
 
 ### 4. 跑测试
-集成测试 + API E2E 双 exit-code=0
+integration + api-e2e 双 exit-code=0
 
 ### 5. 跑 verify-ac.py
 AC↔Test 全覆盖物化校验 · 漏覆盖 FAIL
 
 ### 6. 起草 TEST-REPORT.md
-§集成测试结果 / §API E2E 结果 / §AC 覆盖度 / §回归测试
+§integration 结果 / §api-e2e 结果 / §AC 覆盖度 / §回归
 
 ### 7. complete
 `state.py test-complete --integration-test-exit-code 0 --e2e-test-exit-code 0 ...`
@@ -76,8 +97,8 @@ test-complete --integration-test-exit-code 0 --e2e-test-exit-code 0
 | Substep | 必读 spec | 段 | cite 关键点 |
 |---------|----------|----|------------|
 | 1. 加载上下文 | — | — | (读 PRD.AC + TC.md + 代码) |
-| 2. QA 起草集成测试 | `roles/qa.md + standards/backend.md` | § 集成测试 | 跨模块场景 / 不是单测复刻 |
-| 3. QA API E2E | `roles/qa.md + standards/frontend.md` | § E2E 测试 | 落 e2e/* · 语言无关 · 可重跑 |
+| 2. QA 起草 integration | `roles/qa.md` | § 集成测试 | 进程内 · 跨模块/服务契约 · 不抹边界叫 E2E |
+| 3. QA 起草 api-e2e | `roles/qa.md` | § E2E 测试 | Python · live 跨进程 · 跑通即可 |
 | 4. 跑测试 | — | — | (无) |
 | 5. 跑 verify-ac.py | — | — | (物化校验 · 无 spec cite) |
 | 6. 起草 TEST-REPORT.md | — | — | (无) |
@@ -88,23 +109,23 @@ test-complete --integration-test-exit-code 0 --e2e-test-exit-code 0
 
 ## 质量基线
 
-📎 **物化拦截**:`verify-ac.py`(每 AC ≥1 集成测试或 E2E · `TC.md frontmatter.tests[].covers_ac` 显式 cite)
+📎 **物化拦截**:`verify-ac.py`(每 AC ≥1 integration 或 api-e2e · `TC.md frontmatter.tests[].covers_ac` 显式 cite)
 
 **SOP**(违反 → 假通过 / 失去 audit):
 - 测试失败必修 · skip 必含 reason + tracking issue · 不为 exit-code=0 标 xfail 走捷径
-- E2E `e2e/*.py` 独立可执行 · 不依赖 dev 主对话上下文(CI 可复用)
 - TEST-REPORT 含具体测试 stdout 摘录 + exit-code 数值 · 不口述"通过"
-- 集成测试聚焦"模块间接口契约"(跨模块 / 跨服务)· 不是单元测试复刻
+- integration 不冒名 api-e2e:进程内 ServiceExt = integration · 真跨进程 binary = api-e2e(详 §测试体系)
+- api-e2e 用 Python 写 · 跑通(exit-code=0)即可 · 环境编排由项目自维护(不统一 DB/seed/env SOP)
 
 ---
 
 ## Output Contract(产物形态参考)
 
 ### `TEST-REPORT.md`
-§集成 / §E2E / §AC 覆盖 / §回归
+§integration / §api-e2e / §AC 覆盖 / §回归
 
-### `e2e/*`
-至少 1 文件 · 语言无关 · 可重跑
+### `e2e/*.py`
+至少 1 文件 · Python · 可重跑 · exit-code=0 = 通过
 
 ---
 
