@@ -580,8 +580,8 @@ def _render_review_roles_suggestion(state: dict, stage_name: str) -> str:
     return (
         f"\n\n## 📋 建议评审角色{suffix}\n\n"
         f"- 角色:`{', '.join(roles)}`\n"
-        f"- **可按方案复杂度调整**:简单方案可去 external · 高风险方案补 architect/external · 用 "
-        f"raw-write `state.stage_review_roles.{stage_name} = [<新列表>]`(自动写 audit)\n"
+        f"- **可按方案复杂度调整**(简单方案去 external · 高风险补 architect/external):\n"
+        f"  `state.py change-review-roles --feature <path> --stage {stage_name} --roles '<a,b,c>' --reason '<理由>'`\n"
         f"- 调整需在本 stage 产物落盘前 · stage-complete 时校验 reviewers 按 state.stage_review_roles 当前值\n"
     )
 

@@ -1802,6 +1802,104 @@ def cmd_prepare_check(args: argparse.Namespace) -> None:
     emit(payload)
 
 
+def cmd_change_review_roles(args: argparse.Namespace) -> None:
+    """v8.x:调整 stage_review_roles · 治本 raw-write 滥用(可枚举进脚本 · R0 哲学)。
+
+    校验:
+    - state.json 存在
+    - stage 必在 LEGAL_STAGES
+    - stage 必在 state.stage_review_roles(只能改已配置 stage · dev/ship 等无 review 配置 reject)
+    - roles 必属 REVIEW_ROLE_ENUM(非空 · 至少 1 个)
+    - reason 必填(audit)
+
+    写入:
+    - state.stage_review_roles[stage] = roles
+    - state.stage_review_roles_adjustments append 一条 audit
+    - 复用 stage-complete --next-stage-roles 的 audit 结构 · adjusted_via 字段区分来源
+
+    NOOP:新值 == 现值 → 不写不 audit · 输出 verdict=NOOP。
+    """
+    state = load_state(args.feature)
+    state_file = state_path(args.feature)
+
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from _v8_engine import REVIEW_ROLE_ENUM
+
+    if args.stage not in LEGAL_STAGES:
+        die(2, json.dumps({
+            "verdict": "FAIL",
+            "command": "change-review-roles",
+            "error": f"--stage '{args.stage}' 不在 LEGAL_STAGES",
+            "legal_stages": sorted(LEGAL_STAGES),
+        }, ensure_ascii=False, indent=2))
+
+    review_roles = state.setdefault("stage_review_roles", {})
+    if args.stage not in review_roles:
+        die(2, json.dumps({
+            "verdict": "FAIL",
+            "command": "change-review-roles",
+            "error": (
+                f"stage '{args.stage}' 不在 state.stage_review_roles · "
+                f"该 stage 默认无 review 配置(无意义)"
+            ),
+            "hint": f"已配置 stages: {sorted(review_roles.keys())}",
+        }, ensure_ascii=False, indent=2))
+
+    roles_list = [r.strip() for r in args.roles.split(",") if r.strip()]
+    if not roles_list:
+        die(2, json.dumps({
+            "verdict": "FAIL",
+            "command": "change-review-roles",
+            "error": "--roles 不能为空 · 至少 1 个角色",
+        }, ensure_ascii=False, indent=2))
+
+    invalid = [r for r in roles_list if r not in REVIEW_ROLE_ENUM]
+    if invalid:
+        die(2, json.dumps({
+            "verdict": "FAIL",
+            "command": "change-review-roles",
+            "error": f"--roles 含非法角色: {invalid}",
+            "hint": f"REVIEW_ROLE_ENUM = {sorted(REVIEW_ROLE_ENUM)}",
+        }, ensure_ascii=False, indent=2))
+
+    before = review_roles[args.stage][:]
+    if before == roles_list:
+        emit({
+            "verdict": "NOOP",
+            "command": "change-review-roles",
+            "stage": args.stage,
+            "current_roles": roles_list,
+            "hint": "新值 == 现值 · 不写不 audit",
+        })
+        return
+
+    review_roles[args.stage] = roles_list
+    audit_entry = {
+        "stage": args.stage,
+        "before": before,
+        "after": roles_list,
+        "reason": args.reason,
+        "adjusted_at": now_iso(),
+        "adjusted_via": "change-review-roles",
+    }
+    state.setdefault("stage_review_roles_adjustments", []).append(audit_entry)
+
+    atomic_write(state_file, state)
+
+    emit({
+        "verdict": "OK",
+        "command": "change-review-roles",
+        "stage": args.stage,
+        "before": before,
+        "after": roles_list,
+        "reason": args.reason,
+        "next_action_hint": (
+            f"已更新 state.stage_review_roles.{args.stage} · "
+            f"后续 {args.stage}-complete 校验 reviewers 必含 {sorted(roles_list)}"
+        ),
+    })
+
+
 def cmd_audit_raw_writes(args: argparse.Namespace) -> None:
     """v8.12:跨 Feature 汇总所有 raw-write 历史 · 帮助识别状态机缺口。
 
@@ -2167,6 +2265,21 @@ def build_parser() -> argparse.ArgumentParser:
                     choices=["Feature", "Bug", "Micro", "敏捷需求"],
                     help="可选 · 传则返回 stage_chain_preview(stage × 评审角色) · 让暂停点直接渲染表")
     pc.set_defaults(func=cmd_prepare_check)
+
+    # v8.x:change-review-roles · 治本 raw-write 滥用(可枚举进脚本 · R0 哲学)
+    crr = sub.add_parser(
+        "change-review-roles",
+        help="[v8] 调整某 stage 的 review_roles · 自动写 audit · 替代 raw-write",
+    )
+    crr.add_argument("--feature", required=True,
+                     help="Feature/Bug 目录(含 state.json)")
+    crr.add_argument("--stage", required=True,
+                     help="目标 stage(必在 state.stage_review_roles 已配置之列)")
+    crr.add_argument("--roles", required=True,
+                     help="逗号分隔的角色列表(如 'qa,architect,external') · 必属 REVIEW_ROLE_ENUM")
+    crr.add_argument("--reason", required=True,
+                     help="调整理由(必填 · 写 stage_review_roles_adjustments audit)")
+    crr.set_defaults(func=cmd_change_review_roles)
 
     # ─── v8.0 stage 命令注册(Code-driven Orchestration) ─────────────
     # 设计文档:docs/v8-redesign/00-MANIFESTO.md

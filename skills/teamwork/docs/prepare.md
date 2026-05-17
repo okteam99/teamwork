@@ -181,7 +181,11 @@ PMO 复制给用户 · **必含全 4 段**(R5 暂停点协议 · 必给推荐 + 
 📎 **初步建议 · 可调整**:
   - 各 stage-start 时 state.py 会再次输出本 stage 的「建议评审角色」段 · AI 按方案复杂度判定是否需调整
   - 简单方案可去 external · 高风险方案补 architect/external
-  - 调整方式:raw-write `state.stage_review_roles.<stage> = [<新列表>]`(自动写 `stage_review_roles_adjustments` audit · 后续 stage-complete 校验按新值)
+  - **调整命令**(治本 raw-write · 可枚举进脚本 · R0 哲学):
+    ```bash
+    state.py change-review-roles --feature <path> --stage <stage> --roles 'a,b,c' --reason '<理由>'
+    ```
+    自动写 `stage_review_roles_adjustments` audit · 后续 stage-complete 校验按新值。
 
 # 上下文准备(Step 0 已读)
 - **Planning ship 状态**:<✅ <Planning Feature ID> · commit ... merge 到 staging | ⏭️ N/A>
