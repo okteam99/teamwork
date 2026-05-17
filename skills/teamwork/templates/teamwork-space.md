@@ -135,15 +135,20 @@
 
 > 跨 Feature/session 发现的"本次范围外但要做"事项 · 等待用户拍板何时启动。
 > 🔴 任何 PMO/RD/PM 在 stage 内识别到"本 Feature 不做但需后续做"的事 → 必追加到此池(防遗忘 · 防散落在 OQ/Concerns 里没人复盘)。
-> 🔴 session 启动(mode A query / D status / B execute prepare 前)PMO 必扫此表 · 列给用户参考(详 TRIAGE.md)。
+> 🔴 mode A query 命中"待做/待规划/pending/还要做什么/backlog"等查询意图时 · PMO 扫此表列给用户(详 TRIAGE.md §2.1)。
 >
 > **ID 格式**:`PENDING-NNN`(工作区内独立递增 · 项目名前缀可选)
-> **状态流转**:📝 待规划 → 🔄 规划中(进 Feature Planning) → ✅ 已转(标关联 Feature/Bug ID) / ❌ 不做(标原因)
+> **状态**:📝 待规划 / 🔄 规划中(进 Feature Planning)
 > **背景列**:1-3 句 · 含来源 session + 为什么本次不做 + 不做的影响
+>
+> 🔴 **表始终只保留 active 项**(📝/🔄):
+> - 转 ✅ 已转(进 Feature/Bug)→ **从表删** · 关联记录到对应 Feature `state.json.related_pending` 字段(audit 反查)
+> - 转 ❌ 不做 → **从表删** · 不做原因可入对应 changes/{id}.md 或仅留 git log
+> - 防表无限膨胀 · 历史不在 teamwork_space.md 沉淀
 
 | ID | 标题 | 来源 | 目标项目 | 背景(1-3 句) | 状态 | 加入日期 |
 |---|---|---|---|---|---|---|
-| PENDING-001 | <例 · country 字段填充责任方决策> | <例 · SVC-CORE-F024 goal stage 评审 OQ-4> | <例 · gateway / SDK 待拆> | <例 · F-A 协议新增 UserProfile.country · 但谁填(网关 vs SDK)未定 · 影响 geo 过滤上线效果> | 📝 待规划 | 2026-05-18 |
+| PENDING-001 | <例 · country 字段填充责任方决策> | <例 · SVC-CORE-F024 goal stage 评审 OQ-4> | <例 · gateway / SDK 待拆> | <例 · F-A 协议新增 UserProfile.country · 但谁填(网关 vs SDK)未定 · 影响 geo 过滤上线效果> | 📝 | 2026-05-18 |
 
 ---
 

@@ -63,24 +63,33 @@ PMO 在 mode E 收尾时输出:
 
 ---
 
-## 2.1 待规划需求池(session 启动扫描)
+## 2.1 待规划需求池(命中查询意图时扫描)
 
-🔴 **mode A/B/D 入口完成后 · PMO 必扫 `teamwork_space.md § 待规划需求池`** · 列状态=📝 的待规划项给用户:
+🔴 **触发条件**:mode A query 关键词命中以下任一时 · PMO 扫 `teamwork_space.md § 待规划需求池` 列 status=📝/🔄 的项:
+- "待做 / 待规划 / pending / backlog / 待办"
+- "还有什么 / 还要做 / 接下来做什么 / 下一个"
+- "看下池子 / 看下待规划"
 
+emit 格式:
 ```
-📋 待规划需求池:N 个待规划项(详 teamwork_space.md § 待规划需求池)
-1. PENDING-NNN · <标题>(来源:<source>)
+📋 待规划需求池:N 个 active 项(详 teamwork_space.md § 待规划需求池)
+1. PENDING-NNN · <标题>(来源:<source> · 状态:📝/🔄)
 2. ...
-回 "启动 PENDING-NNN" → 进 prepare 子流程 · 或 "稍后" 继续当前任务。
+回 "启动 PENDING-NNN" → 进 prepare 子流程 · 或 "稍后" 闭合。
 ```
 
-**何时不扫**:
-- mode C resume(已有 state.json · 直接接力 · 不打断)
-- mode E discuss(讨论中 · 不打断节奏 · 若讨论涉规划再扫)
-- 池空 → silent skip(不噪音)
+**不扫场景**(避免噪音):
+- 其它 mode B/C/D/E 入口(用户没问 → 不主动 emit)
+- 关键词不命中 → silent skip
+- 池空(无 📝/🔄)→ silent skip
 
 **追加机制**(session 内发现新待规划项):
 PMO/RD/PM 在 stage 内识别"本 Feature 范围外但要做"→ 主对话内 append 到 `teamwork_space.md § 待规划需求池` 表(用户确认后落盘)· 含 ID/标题/来源/目标项目/背景/状态=📝/日期。
+
+**闭环清理机制**(防池臃肿):
+- PENDING-NNN status 转 ✅ 已转(进 Feature/Bug)或 ❌ 不做 后 · **PMO 立即提示用户从表中删除**(标关联 Feature ID 到对应 Feature 的 state.json `related_pending` 字段留 audit)
+- 表始终只保留 status=📝/🔄 的 active 项 · 历史不在 teamwork_space.md 沉淀
+- 已转项的关联可从 Feature state.json `related_pending` 反查 · 已删项保留在 git log
 
 ---
 
