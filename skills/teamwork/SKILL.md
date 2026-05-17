@@ -332,7 +332,7 @@ PMO 只关注流程编排 · 系统维护是 `bootstrap.py` 的职责。
 🌿 feature/{feature-id-kebab}(worktree: {repo-root}/.worktree/{Feature-ID})
 ```
 
-📎 worktree path 物化校验(v8.x+):init-feature 强校验 `{worktree_root_path}/{Feature-ID}` 约定 · 错位 → FAIL with hint(治本 PTR-F041 静默错位 case)。
+📎 worktree path 物化校验:init-feature 强校验 `{worktree_root_path}/{Feature-ID}` 约定 · 错位 → FAIL with hint。
 
 **物化兜底**:
 - `state.py` 每次 `xx-start` / `xx-complete` emit 顶层含 `status_line` 字段

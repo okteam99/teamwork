@@ -47,7 +47,7 @@ git switch <merge_target>            # 🔴 必切 · MR merge 后 feature dir �
 git pull --ff-only origin <merge_target>
 ```
 此时主工作区 `{main-tree}/{feature_dir}` = MR 合入后的快照 · 含旧 `state.json`(phase=pushed)。
-**为什么必切**:后续 §7 confirm-merged + §10 cleanup 都用主工作区 `{feature_dir}` · 不在 merge_target branch → feature_dir 不存在 / state.json not found(实证 SVC-PLATFORM-B015 case)。
+**为什么必切**:后续 §7 confirm-merged + §10 cleanup 都用主工作区 `{feature_dir}` · 不在 merge_target branch → feature_dir 不存在 / state.json not found。
 
 ### 7. ship-phase confirm-merged(`--feature` 指主工作区 feature dir)
 ```bash
@@ -57,7 +57,7 @@ state.py ship-phase --action confirm-merged \
   --merge-detection-method branch-contains
 ```
 state.py 把主工作区 merge_target branch 上的 `state.json` 更新到 `phase=merged`。
-🔴 **不要用 worktree 路径作 --feature**(实证 SVC-PLATFORM-B015 case 弯路:AI 用 worktree 路径 → confirm-merged 写到 worktree → 后续要 cherry-pick 才能同步 · 平添复杂度)。
+🔴 **不要用 worktree 路径作 --feature**(用 worktree 路径会让 confirm-merged 写到 worktree · 后续要 cherry-pick 才能同步 · 平添复杂度)。
 
 ### 8. finalize 直推(§12 直推例外 · 在主工作区 merge_target branch)
 ```bash

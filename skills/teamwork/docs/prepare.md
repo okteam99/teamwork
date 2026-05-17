@@ -9,7 +9,7 @@
 ## 0. Must-read(PMO 进 prepare 前必读)
 
 🔴 **必读 spec**(动手前主对话 cite 关键原文 · 详 SKILL.md § P0-11):
-- **[conventions.md §9-12](./conventions.md)** — worktree path 规范(`{worktree_root_path}/{Feature-ID}` · 默认 `.worktree/`)· 治本"AI 直接套 SKILL.md 状态行示例字符串"反模式
+- **[conventions.md §9-12](./conventions.md)** — worktree path 规范(`{worktree_root_path}/{Feature-ID}` · 默认 `.worktree/`)
 - **`.teamwork_localconfig.json`** — 项目级 worktree_root_path 配置(读 `worktree_root_path` 字段 · 不存在用 `.worktree`)
 - **[feature-planning.md §0](./feature-planning.md)** — 何时改走 Feature Planning(关键词 + 复杂度双触发)
 
@@ -32,7 +32,7 @@
 
 ---
 
-## 1.5 Step 0 · 上下文准备(治本 case PMO 自决"重型准备"散述)
+## 1.5 Step 0 · 上下文准备
 
 PMO 移交 prepare 后 · **必走以下 4 项准备**(emit 暂停点之前):
 
@@ -61,7 +61,7 @@ PMO 移交 prepare 后 · **必走以下 4 项准备**(emit 暂停点之前):
 
 低复杂度 / 用户已知 → 跳。
 
-### 1.5.4 · ID 冲突预检 + stage 评审角色预览(强制 · 治本 case 临时改编号 + AI 提前看评审角色)
+### 1.5.4 · ID 冲突预检 + stage 评审角色预览(强制)
 
 ```bash
 state.py prepare-check --feature-id-prefix <PROJ> --flow-type <Feature|Bug|Micro|敏捷需求>
@@ -69,7 +69,7 @@ state.py prepare-check --feature-id-prefix <PROJ> --flow-type <Feature|Bug|Micro
 
 输出含:
 - `next_available_id` + `existing_ids`(ID 冲突预检)
-- `stage_chain_preview`(stage × 评审角色预览 · v8.x · 治本 case "用户到 dev 才知道谁评审")
+- `stage_chain_preview`(stage × 评审角色预览 · 让 AI 在 prepare 阶段就看到各 stage 的建议评审角色)
 
 PMO 把数据填进暂停点表格:
 - `next_available_id_stem` → Feature ID 推荐默认值
@@ -94,7 +94,7 @@ PMO 按以下关键词表判定 user input 落入哪类流程:
 
 **触发场景为 "Feature Planning 启 Feature"** 时:flow_type 默认 `Feature`(因为是从 BL-NNN 启动具体功能 · BL 已经决定了"做什么")。
 
-### 2.1 · 复杂度升级判据(覆盖关键词 · 治本"PMO 默认 Feature 兜底"反模式)
+### 2.1 · 复杂度升级判据(覆盖关键词初判)
 
 🔴 **关键词命中 Feature / 敏捷需求 / Micro 时 · PMO 必再扫以下复杂度信号** · 命中任一 → **强制升 Feature Planning**(覆盖关键词初判):
 
@@ -127,7 +127,7 @@ PMO 按以下关键词表判定 user input 落入哪类流程:
 回 `进 Feature Planning` 升级 · 或 `就一个 Feature` 确认范围 + 继续 mode B。
 ```
 
-**反例(实证 case · 不要再犯)**:
+**反例**:
 - 用户:"整体改下这里的逻辑 · source_type 不要了 · 统一为 api · adapter 改为账号可选功能"
 - ❌ PMO 错:命中"整体改"→ Feature 兜底 → 主对话 emit Q1-Q4 决策树
 - ✅ 正确:命中"跨 3 仓库 + 老字段废弃 + 数据模型重构"→ 升 Feature Planning → panorama-design + ROADMAP 拆 BL
@@ -181,7 +181,7 @@ PMO 复制给用户 · **必含全 4 段**(R5 暂停点协议 · 必给推荐 + 
 📎 **初步建议 · 可调整**:
   - 各 stage-start 时 state.py 会再次输出本 stage 的「建议评审角色」段 · AI 按方案复杂度判定是否需调整
   - 简单方案可去 external · 高风险方案补 architect/external
-  - **调整命令**(治本 raw-write · 可枚举进脚本 · R0 哲学):
+  - **调整命令**:
     ```bash
     state.py change-review-roles --feature <path> --stage <stage> --roles 'a,b,c' --reason '<理由>'
     ```
@@ -214,7 +214,7 @@ flow_type → first_stage 映射:
 - Bug / Micro → `dev`
 - Feature Planning / 问题排查 → 不进状态机 · prepare 在这两个流程上不调用
 
-🔴 **必 1 次完整 emit · 不分多轮**(治本 case 中 PMO 先建议 + 再"最终确认"的 2 轮交互)。
+🔴 **必 1 次完整 emit · 不分多轮**(防 PMO 先建议 + 再"最终确认"的 2 轮交互浪费)。
 🔴 **用户回 `ok`** · PMO 视作"按建议全部默认值" · 不再二次确认 · 立即执行 §5。
 
 ---
@@ -244,10 +244,7 @@ state.py init-feature \
  --worktree-path <worktree-path>
 ```
 
-🔴 **Bug 流程额外前置**(治本 AI 撞 dev-start 物化拦截鸡生蛋):
-init-feature 完成后(brief 会显式提示)· 在 dev-start 之前先起草 `bugfix/BUG-<bug-id>.md`(模板 `templates/bug-report.md`)·
-含 frontmatter `bug_id/symptom/root_cause/fix_summary` + body §现象/§根因/§修复方案/§回归测试。
-理想流:init-feature → 起草 BUG 单 → dev-start PASS(无 missing_prerequisites)。
+🔴 **Bug 流程额外前置**:init-feature 之后 · dev-start 之前先起草 `bugfix/BUG-<bug-id>.md`(模板 `templates/bug-report.md`)· 含 frontmatter `bug_id/symptom/root_cause/fix_summary` + body §现象/§根因/§修复方案/§回归测试。
 
 ---
 
@@ -302,7 +299,7 @@ prepare 输出暂停点后 · 必须等用户明确回 4 项配置(或 "all defa
 ### R-P2 · 用户未确认前不进状态机
 
 PMO 在用户未确认前 · **不可** cd / git worktree add / init-feature。
-违规 = 主 tree 污染风险(实证 PTR-F033 case)。
+违规 = 主 tree 污染风险。
 
 ### R-P3 · 不可枚举判断留 PMO
 
