@@ -24,7 +24,7 @@
 
 - **完整规范**：`~/.claude/skills/teamwork/SKILL.md`（Claude Code）/ `~/.codex/skills/teamwork/SKILL.md`（Codex CLI）
 - **9 条 L1 红线** + Stage 流转 + 暂停点协议 详见 SKILL.md
-- **新 session 必跑** `python3 {SKILL_ROOT}/tools/bootstrap.py`（系统维护）+ 按 [TRIAGE.md](../TRIAGE.md) 入口规范分诊
+- **新 session 必跑** `python3 {SKILL_ROOT}/tools/bootstrap.py`（系统维护）+ 按 [SKILL.md § Triage 入口规范](../SKILL.md) 入口规范分诊
 - **state.json 写操作** 走 `tools/state.py` 单源（详 SKILL.md § PMO 软约束）
 
 🔴 PMO 是项目流程统一承接者 · 不直接动代码 · 调度 RD/QA/Designer/架构师 完成实施。

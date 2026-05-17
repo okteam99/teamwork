@@ -112,4 +112,4 @@ test-complete --integration-test-exit-code 0 --e2e-test-exit-code 0
 
 - 引擎:[../tools/_v8_engine.py](../tools/_v8_engine.py)
 - spec:[../tools/_v8_stage_specs.py](../tools/_v8_stage_specs.py) `TEST_SPEC`
-- 入口规范:[../TRIAGE.md](../TRIAGE.md)
+- 入口规范:[../SKILL.md § Triage 入口规范](../SKILL.md)

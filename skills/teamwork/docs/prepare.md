@@ -19,7 +19,7 @@
 
 | 场景 | 何时走 |
 |---|---|
-| **新 session · mode B execute** | TRIAGE.md mode 分诊判 B → 进 prepare |
+| **新 session · mode B execute** | SKILL.md § Triage 入口规范 mode 分诊判 B → 进 prepare |
 | **mode E discuss 升级 B** | 讨论收敛后 PMO 主动建议升级 → 进 prepare |
 | **Feature Planning 完成后启 Feature** | PL 在 ROADMAP 拆完后 · 用户拍板某 BL → PMO 同 session 走 prepare 启动 Feature |
 | **mode A/D 转 B**(罕见) | 用户从查看/状态切到执行 → 进 prepare |
@@ -326,7 +326,7 @@ PMO 在用户未确认前 · **不可** cd / git worktree add / init-feature。
 
 ## 9. 相关文档
 
-- [TRIAGE.md](../TRIAGE.md) — 5 mode 入口分诊(prepare 由 mode B / mode E 升级触发)
+- [SKILL.md § Triage 入口规范](../SKILL.md) — 5 mode 入口分诊(prepare 由 mode B / mode E 升级触发)
 - [docs/feature-planning.md § 5](./feature-planning.md) — Feature Planning 完成后启 Feature 走 prepare
 - [docs/conventions.md](./conventions.md) — Feature ID + worktree path 编号规范
 - [SKILL.md](../SKILL.md) — 顶层叙事 + 项目级文档信息架构

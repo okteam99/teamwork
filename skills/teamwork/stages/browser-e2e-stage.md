@@ -65,4 +65,4 @@ Playwright / Puppeteer / Selenium(项目栈决定)
 
 - 引擎:[../tools/_v8_engine.py](../tools/_v8_engine.py)
 - spec:[../tools/_v8_stage_specs.py](../tools/_v8_stage_specs.py) `BROWSER_E2E_SPEC`
-- 入口规范:[../TRIAGE.md](../TRIAGE.md)
+- 入口规范:[../SKILL.md § Triage 入口规范](../SKILL.md)

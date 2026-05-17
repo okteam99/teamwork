@@ -67,5 +67,5 @@
 
 - 引擎:[tools/_v8_engine.py](./tools/_v8_engine.py) `execute_stage_start` / `execute_stage_complete`
 - spec 契约:[tools/_v8_stage_specs.py](./tools/_v8_stage_specs.py)
-- 入口规范:[TRIAGE.md](./TRIAGE.md) + [docs/prepare.md](./docs/prepare.md)
+- 入口规范:[SKILL.md § Triage 入口规范](./SKILL.md) + [docs/prepare.md](./docs/prepare.md)
 - 暂停点协议:[SKILL.md § PMO 软约束 + R5(b)](./SKILL.md)

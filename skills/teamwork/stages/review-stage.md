@@ -124,4 +124,4 @@ QA 视角 · AC 对照 / 测试覆盖 / 边界
 
 - 引擎:[../tools/_v8_engine.py](../tools/_v8_engine.py)
 - spec:[../tools/_v8_stage_specs.py](../tools/_v8_stage_specs.py) `REVIEW_SPEC`
-- 入口规范:[../TRIAGE.md](../TRIAGE.md)
+- 入口规范:[../SKILL.md § Triage 入口规范](../SKILL.md)

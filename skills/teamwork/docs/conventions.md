@@ -1,7 +1,7 @@
 # 项目级约定 · v8.2
 
 > 编号 ID + worktree 路径 的规范单源。
-> 各 stage spec / state.py / templates / TRIAGE.md 一律 cite 本文件。
+> 各 stage spec / state.py / templates / SKILL.md § Triage 入口规范 一律 cite 本文件。
 
 > **目录**:§1-8 命名(ID 体系)· §9-12 路径(worktree)
 
@@ -162,7 +162,7 @@ worktree_root_path: .worktree       # 默认 · 项目根下子目录
 triage 入口完成 → state.py init-feature 接管:
 
 ```bash
-# triage 阶段(PMO 主对话 · TRIAGE.md §4.4):
+# triage 阶段(PMO 主对话 · SKILL.md § Triage 入口规范 §4.4):
 git worktree add -b feature/PTR-F033 <worktree-path> origin/staging
 cd <worktree-path>
 
@@ -185,7 +185,7 @@ git branch -d <branch>
 
 ## 引用本文件
 
-- [TRIAGE.md § 4.2 / 4.3](../TRIAGE.md) — worktree 决策模板 + 暂停点收集 Feature ID
+- [SKILL.md § Triage 入口规范 § 4.2 / 4.3](../SKILL.md) — worktree 决策模板 + 暂停点收集 Feature ID
 - [SKILL.md § 状态行](../SKILL.md) — 状态行例子(实际路径)
 - [docs/feature-planning.md § Step 5](./feature-planning.md) — ROADMAP 起草时 BL-NNN 分配
 - [stages/goal-stage.md](../stages/goal-stage.md) — Feature ID 已在 init-feature 时确定

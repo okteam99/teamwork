@@ -169,7 +169,7 @@ BL ↔ F 编号映射规则见 [conventions.md § 4](./conventions.md)。
 
 ## 6. 相关
 
-- [TRIAGE.md § 4.1](../TRIAGE.md) — 流程类型识别(Feature Planning 关键词命中)
+- [SKILL.md § Triage 入口规范 § 4.1](../SKILL.md) — 流程类型识别(Feature Planning 关键词命中)
 - [docs/prepare.md](./prepare.md) — 进状态机前的准备子流程(启 Feature 时走)
 - [FLOWS.md § Feature Planning](../FLOWS.md) — telos
 - [conventions.md § 4](./conventions.md) — BL ↔ F 编号

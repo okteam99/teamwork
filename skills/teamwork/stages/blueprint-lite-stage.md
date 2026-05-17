@@ -54,4 +54,4 @@ frontmatter `tests: [{id, covers_ac}]` · 每 AC 至少 1 test · 不要求 TECH
 
 - 引擎:[../tools/_v8_engine.py](../tools/_v8_engine.py)
 - spec:[../tools/_v8_stage_specs.py](../tools/_v8_stage_specs.py) `BLUEPRINT_LITE_SPEC`
-- 入口规范:[../TRIAGE.md](../TRIAGE.md)
+- 入口规范:[../SKILL.md § Triage 入口规范](../SKILL.md)

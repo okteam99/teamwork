@@ -135,7 +135,7 @@
 
 > 跨 Feature/session 发现的"本次范围外但要做"事项 · 等待用户拍板何时启动。
 > 🔴 任何 PMO/RD/PM 在 stage 内识别到"本 Feature 不做但需后续做"的事 → 必追加到此池(防遗忘 · 防散落在 OQ/Concerns 里没人复盘)。
-> 🔴 mode A query 命中"待做/待规划/pending/还要做什么/backlog"等查询意图时 · PMO 扫此表列给用户(详 TRIAGE.md §2.1)。
+> 🔴 mode A query 命中"待做/待规划/pending/还要做什么/backlog"等查询意图时 · PMO 扫此表列给用户(详 SKILL.md § Triage 入口规范 §2.1)。
 >
 > **ID 格式**:`PENDING-NNN`(工作区内独立递增 · 项目名前缀可选)
 > **状态**:📝 待规划 / 🔄 规划中(进 Feature Planning)

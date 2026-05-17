@@ -41,7 +41,7 @@ state.py 被动记录 AI 按 state.py 指示执行
 ## 快速开始
 
 ```bash
-# 1. session 入口 · PMO 按 TRIAGE.md 入口规范分诊(不是 state.py 命令)
+# 1. session 入口 · PMO 按 SKILL.md § Triage 入口规范分诊(不是 state.py 命令)
 # - 5 mode 判定(A query / B execute / C resume / D status / E discuss)
 # - mode B → 项目级骨架检查/创建 + 流程类型识别 + worktree 决策
 # - 输出 audit_line + 暂停点 markdown 给用户
@@ -81,7 +81,7 @@ state.py xx-start --bypass --reason "<用户确认理由>" --user-confirmed --mi
 A 类 · 状态机入口(用户确认 worktree 后 · 在 worktree 内运行)
 └── init-feature 创建 Feature state.json(在 worktree 内)
 
-(triage 是 PMO 入口行为 · 不是 state.py 命令 · 见 TRIAGE.md)
+(triage 是 PMO 入口行为 · 不是 state.py 命令 · 见 SKILL.md § Triage 入口规范)
 (prepare 是 PMO 主对话子流程 · 不是 state.py 命令 · 见 docs/prepare.md)
 
 B 类 · Stage 流转(10 stage × 2 + 4 fix/retry + ship-phase)
@@ -190,15 +190,86 @@ state.py 校验:
 
 ---
 
-## 5 mode 入口分诊
+## Triage · 入口规范(5 mode 分诊 + audit_line + 移交)
 
-| Mode | 触发 | 行为 |
-|------|------|------|
-| A · query | 看下 / 查 / why / 排查 | 不进 stage 链 · 直接 grep/Read 答 |
-| B · execute | 实现 / 修复 / 改 / 做 | 重型准备 → 流程类型识别 → 业务 stage 链 |
-| C · resume | 继续 / resume / ship F032 | 找 state.json + jump 到 current_stage |
-| D · status | 现在到哪 / 看板 | 加载 Feature 看板 + 输出 |
-| E · discuss | 我感觉 / 你怎么看 / X vs Y | 综合视角 + 选项 + 推荐 |
+> triage 是 PMO 入口行为 · 不是 state.py 命令 · 不是 stage。
+> 入口完成 → 按 mode 移交(B → prepare 子流程 / A/D/E 闭合 / C jump 状态机)。
+
+### 5 mode 分诊(关键词表)
+
+| Mode | 触发关键词 | 行为 | 移交去向 | 入口完成标志 |
+|------|----------|------|---------|-------------|
+| **A · query** | 看下 / 查 / why / 排查 / 解释 | grep + Read 答 + 跟进引导 | — 主对话闭合 | 答完 + 跟进引导给到用户 |
+| **B · execute** | 实现 / 修复 / 改 / 做 / 开发 / 新增 | audit_line · 识别为 execute 意图 | → **prepare 子流程**([docs/prepare.md](./docs/prepare.md)) | audit_line 输出 + 移交 prepare |
+| **C · resume** | 继续 / resume / ship F032 | 找 state.json + jump 到 current_stage | → 状态机(直接跳 · 不重 init) | state.json 已读 + current_stage 已 jump |
+| **D · status** | status / 现在到哪 / 看板 | 加载 Feature 看板 + 输出 | — 主对话闭合 | 看板 markdown 已输出 |
+| **E · discuss** | 我感觉 / 你怎么看 / X vs Y / 哪种更合理 | 综合视角讨论 + 选项 + 推荐 | — 主对话闭合(讨论收敛后用户升级到 B → prepare) | 讨论收敛 · 用户给出方向或升级到 B |
+
+### audit_line(PMO 主对话首条响应必含)
+
+```
+🔍 triage: mode=<A/B/C/D/E>(<name>) reason=<判定理由>
+```
+
+例:`🔍 triage: mode=B(execute) reason=识别为 Feature 流程 · 命中关键词 /^实现/`
+
+**用户监督**:用户看到 audit_line 知道 PMO 真做了分诊 · 不是直接跳过去做事。
+
+### Mode E 升级触发(PMO 主动建议 · 不等用户提)
+
+命中以下场景必须在收尾时建议升 mode B:
+- 讨论涉及**多 Feature 范围拆分** / **ROADMAP 更新** / **P0/P1 优先级排序** → 建议升 **Feature Planning**(走 PROJECT/ROADMAP/sitemap · 非散述清单)
+- 讨论涉及**新功能实现方向** / **架构决策点** → 建议升 **Feature**(走 goal PRD 而非主对话伪 PRD)
+- 讨论涉及**已知 bug 根因 + 修复方案** → 建议升 **Bug**
+
+```
+📎 建议升级到 mode B · <flow_type>:本次讨论已涉及 <触发场景> ·
+   建议进 <flow_type> 流程(走 <first_stage> stage 产 <artifact>)以保证 R6/多视角 review 闭环。
+   回复 "进 <flow_type>" 升级 · 或继续讨论。
+```
+
+### Mode B 必移交 prepare 子流程
+
+mode B 识别后(**无论后续 flow_type = Feature / 敏捷需求 / Bug / Micro · 都走 prepare**)·
+PMO **必走** [docs/prepare.md](./docs/prepare.md) · 不可在主对话散述准备步骤。
+
+判据:**进状态机 = 走 prepare**(4 个进状态机流程都需 worktree + branch + merge_target + Feature/Bug ID 4 项配置)。
+即便最轻的 Micro(改文案 1 行)也要 prepare · 不可跳过。
+不进状态机的 Feature Planning / 问题排查 → 不走 prepare(由 PMO 主对话执行)。
+
+prepare 子流程动作概览:流程类型识别 → worktree 决策 → emit 4 项暂停点 → 用户确认 → PMO 跑 git worktree add + cd → state.py init-feature。
+
+### 待规划需求池(命中查询意图时扫描)
+
+🔴 **触发条件**:mode A query 关键词命中以下任一时 · PMO 扫 `teamwork-space.md § 待规划需求池` 列 status=📝/🔄 的项:
+- "待做 / 待规划 / pending / backlog / 待办"
+- "还有什么 / 还要做 / 接下来做什么 / 下一个"
+- "看下池子 / 看下待规划"
+
+emit 格式:
+```
+📋 待规划需求池:N 个 active 项(详 teamwork-space.md § 待规划需求池)
+1. PENDING-NNN · <标题>(来源:<source> · 状态:📝/🔄)
+2. ...
+回 "启动 PENDING-NNN" → 进 prepare 子流程 · 或 "稍后" 闭合。
+```
+
+**不扫场景**:mode B/C/D/E 入口(用户没问 → 不主动 emit)/ 关键词不命中 / 池空 → silent skip(避免噪音)。
+
+**追加机制**(session 内发现新待规划项):PMO/RD/PM 在 stage 内识别"本 Feature 范围外但要做"→ 主对话内 append 到表(用户确认后落盘)。
+
+**闭环清理**(防池臃肿):PENDING-NNN 转 ✅ 已转(进 Feature/Bug)或 ❌ 不做 → **立即从表删** · 关联落对应 Feature `state.json.related_pending` audit。表始终只保留 active(📝/🔄)。
+
+### 入口红线 R-T1/2/3
+
+- **R-T1 · PMO 必先分诊**:承接任何用户输入 · 必先完成 5 mode 分诊 + audit_line · 不可跳过直接 init-feature / stage-start
+- **R-T2 · mode B 必移交 prepare**:triage 自身只做 mode 分诊 · 不做流程类型识别 / worktree 决策 / 暂停点(都是 prepare 的事)· 不可自己跑 git worktree add / init-feature
+- **R-T3 · resume(mode C)不重 init**:mode C 是 jump 到现有 state.json · 不可重跑 init-feature;state.json 不存在 → 退回 mode B
+
+### 错误处理
+
+- mode 判定不准 → PMO 告诉用户重判 · 或人工指定(用户回"应该是 mode E 讨论")
+- worktree 决策错 / git worktree add 失败 / 用户拒绝 4 项默认值 → 详 [docs/prepare.md § 错误处理](./docs/prepare.md)
 
 ---
 
@@ -303,7 +374,7 @@ python3 <SKILL_ROOT>/tools/bootstrap.py \
 
 PMO 只关注流程编排 · 系统维护是 `bootstrap.py` 的职责。
 
-详细 PMO 入口行为见 [TRIAGE.md](./TRIAGE.md)。
+详细 PMO 入口行为见 [SKILL.md § Triage 入口规范](./SKILL.md)。
 
 ### session 入口必读 · 项目结构索引(silent · bootstrap.py 后 / mode 分诊前)
 
@@ -322,7 +393,7 @@ PMO 只关注流程编排 · 系统维护是 `bootstrap.py` 的职责。
 - ✅ 仅读相关段 · 不全扫整个文件
 - ❌ 不输出 "我现在 read X 看看"
 
-详细 silent execution 规范见 [TRIAGE.md](./TRIAGE.md) 入口部分。
+详细 silent execution 规范见 [SKILL.md § Triage 入口规范](./SKILL.md) 入口部分。
 
 ---
 
@@ -372,7 +443,7 @@ v8 把 v7 的 9 红线中 16/17 子条目物化进 state.py · 仅 1 条(R3 PMO 
 | R6 Planning 只出文档 | init-feature reject "Feature Planning" · PMO 主对话执行(详 docs/feature-planning.md) |
 | R7 证据闭环 | xx-complete 必传 --auto-commit + 校验 commit 存在 + artifacts in changeset |
 | R8 写操作硬门禁链 | state.py 内部 prepare 完成前拒绝 stage-start · ship Phase 1 CLI-first |
-| R9 session bootstrap 必跑 triage | tools/bootstrap.py + PMO 按 TRIAGE.md 分诊 |
+| R9 session bootstrap 必跑 triage | tools/bootstrap.py + PMO 按 SKILL.md § Triage 入口规范 分诊 |
 
 详细 9 红线 rationale 见 [docs/v8-redesign/00-MANIFESTO.md § 十一](./docs/v8-redesign/00-MANIFESTO.md)。
 
@@ -382,7 +453,7 @@ v8 把 v7 的 9 红线中 16/17 子条目物化进 state.py · 仅 1 条(R3 PMO 
 
 | 文件 | 作用 |
 |------|------|
-| [TRIAGE.md](./TRIAGE.md) | **入口规范** · triage 不是 stage · 5 mode 分诊 + mode B worktree 决策 |
+| [SKILL.md § Triage 入口规范](./SKILL.md) | **入口规范** · triage 不是 stage · 5 mode 分诊 + mode B worktree 决策 |
 | [docs/v8-redesign/00-MANIFESTO.md](./docs/v8-redesign/00-MANIFESTO.md) | 设计宪法 · 范式切换 · 红线归宿 |
 | [docs/v8-redesign/01-COMMAND-SCHEMA.md](./docs/v8-redesign/01-COMMAND-SCHEMA.md) | 全 30 命令精确 schema |
 | [docs/v8-redesign/02-CLEANUP.md](./docs/v8-redesign/02-CLEANUP.md) | v7 → v8 清理清单 |

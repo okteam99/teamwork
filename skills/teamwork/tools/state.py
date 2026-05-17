@@ -1503,7 +1503,7 @@ def cmd_init_feature(args: argparse.Namespace) -> None:
                     f"  2. cd {wt_real}\n"
                     f"  3. 重跑 state.py init-feature"
                 ),
-                "rule": "TRIAGE.md §3.4 入口完成才进状态机",
+                "rule": "SKILL.md § Triage 入口规范 §3.4 入口完成才进状态机",
                 "bypass": "调试场景 export TEAMWORK_BYPASS_CWD_WORKTREE=1",
             }, ensure_ascii=False, indent=2))
 
@@ -2326,7 +2326,7 @@ def build_parser() -> argparse.ArgumentParser:
     # - _v8_migrate.py  migrate-v7-to-v8 一次性迁移
     #
     # 注:v8.0+P0-12 删除 _v8_init.py(triage + prepare 命令)·
-    #     入口分诊是 PMO 行为(按 TRIAGE.md 规范做)· 不在 state.py 范围。
+    #     入口分诊是 PMO 行为(按 SKILL.md § Triage 入口规范 规范做)· 不在 state.py 范围。
     try:
         from _v8_engine import register_v8_subparsers
         from _v8_stage_specs import STAGE_SPECS as V8_STAGE_SPECS

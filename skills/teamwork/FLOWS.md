@@ -70,7 +70,7 @@ state.py 不为问题排查启 stage 链 · 由 PMO 在主对话执行类似 mod
 
 ---
 
-## 流程类型识别(PMO 主对话按 [TRIAGE.md § 4.1](./TRIAGE.md) 关键词表执行)
+## 流程类型识别(PMO 主对话按 [SKILL.md § Triage 入口规范 § 4.1](./SKILL.md) 关键词表执行)
 
 PMO 按以下关键词匹配 + 优先级判定 user input 落入哪类流程(无 state.py 命令 · triage 是主对话行为):
 1. **Feature Planning**:`规划` / `Feature Planning` / `feature planning` / `更新 roadmap` / `拆 roadmap` / `路线图` / `做电商/SaaS`
