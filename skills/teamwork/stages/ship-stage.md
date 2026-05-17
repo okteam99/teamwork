@@ -13,30 +13,75 @@
 ### 3. ship-phase push
 `--action push --feature-head-commit ... --git-host gitlab --mr-creation-method cli-glab --mr-url ...` · push feature 分支 + CLI 创 MR
 
-### 4. ⏸️ 等用户在平台合并
-输出 MR URL 给用户 · Phase 1 结束
+### 4. ⏸️ Phase 1 完成 · 等用户在平台合并(R5 标准暂停点)
+
+🔴 **PMO 必输出 R5 标准 1/2/3 选项格式**(不要自由发挥"合并后回复『已合并』"):
+
+```markdown
+⏸️ Phase 1 完成 · MR #<num> 已创建 · 等用户在平台 review + 合并
+
+请选择:
+
+1. ✅ **已合并**(MR 已 merge) 💡 推荐(若你刚点 merge)
+   理由:常规路径 · 进 Phase 2 同步 state.json finalize + 清理 worktree
+   动作:回 `已合并` / `merged` / `1` → PMO 跑 confirm-merged
+
+2. ⏳ **暂未合并 / 还在 review**
+   理由:平台审批中 / 等其他人合 / 暂存
+   动作:无需操作 · 状态停 phase=pushed · 任意时刻回来回 `1` 继续
+
+3. ❌ **撤回 / 关闭 MR**
+   理由:发现问题需重做 / 不再需要
+   动作:回 `撤回` → close-unmerged(`--abandon=true` 终态 / `--abandon=false` 留口子)
+
+📚 决策参考:MR URL = <url> · 平台 review 状态 / 评论 / CI 结果
+```
 
 ### 5. cd 回主工作区
 `cd <main-tree>` · 治本 P0-156 · 后续命令必主 tree
 
-### 6. git fetch + pull
-git fetch origin <merge_target>; git pull --ff-only
+### 6. 切到 merge_target branch + fetch + pull
+```bash
+git fetch origin <merge_target>
+git switch <merge_target>            # 🔴 必切 · MR merge 后 feature dir 已在该 branch
+git pull --ff-only origin <merge_target>
+```
+此时主工作区 `{main-tree}/{feature_dir}` = MR 合入后的快照 · 含旧 `state.json`(phase=pushed)。
+**为什么必切**:后续 §7 confirm-merged + §10 cleanup 都用主工作区 `{feature_dir}` · 不在 merge_target branch → feature_dir 不存在 / state.json not found(实证 SVC-PLATFORM-B015 case)。
 
-### 7. ship-phase confirm-merged + state.json finalize 直推
-`--action confirm-merged --merge-commit-hash ... --merge-detection-method branch-contains` · pushed → merged
+### 7. ship-phase confirm-merged(`--feature` 指主工作区 feature dir)
+```bash
+state.py ship-phase --action confirm-merged \
+  --feature {main-tree}/{feature_dir} \
+  --merge-commit-hash ... \
+  --merge-detection-method branch-contains
+```
+state.py 把主工作区 merge_target branch 上的 `state.json` 更新到 `phase=merged`。
+🔴 **不要用 worktree 路径作 --feature**(实证 SVC-PLATFORM-B015 case 弯路:AI 用 worktree 路径 → confirm-merged 写到 worktree → 后续要 cherry-pick 才能同步 · 平添复杂度)。
 
-🔴 **finalize 直推例外**(详见 §11):合入后 state.json 仍是 Phase 1 的 phase=pushed,需 push 到 merge_target 同步。
-**直推 · 不创 MR**(单文件 + 仅状态字段 + 零业务影响)。
-推荐:在 confirm-merged 时一并传 `--merge-target-pushed-at`(把直推时间戳写入 state.json finalize-push 状态)。
+### 8. finalize 直推(§12 直推例外 · 在主工作区 merge_target branch)
+```bash
+git add -A {feature_dir}/                                # R-S7 范围规则
+git commit -m "chore({Feature}): finalize state.json (ship phase=merged)"
+git push origin {merge_target}
+```
+🔴 单文件 + 仅状态字段 + 零业务影响 → 直推不走 MR(详 §12 适用范围 + 禁止滥用)。
 
-### 8. 清理 worktree + branch
-`git worktree remove <wt-path>; git branch -d <branch>`
+### 9. 清理 worktree + branch
+```bash
+git worktree remove {wt-path}
+git branch -d {branch}
+```
 
-### 9. ship-phase cleanup
-`--action cleanup --status cleaned` · phase 必 merged(P0-124 hard gate)
+### 10. ship-phase cleanup(--feature 同 §7 · 仍主工作区 feature dir)
+```bash
+state.py ship-phase --action cleanup --status cleaned \
+  --feature {main-tree}/{feature_dir}
+```
+P0-124 hard gate · phase 必 merged + merge_commit_hash 非空。
 
-### 10. ship-complete
-`state.py ship-complete` · 自动转 completed
+### 11. ship-complete
+`state.py ship-complete --feature {main-tree}/{feature_dir}` · 自动转 completed。
 
 ### 异常 · close-unmerged
 放弃合入 → `--action close-unmerged --abandon=true` · 暂时关闭(后续重开)→ `--abandon=false`(留口子 · 不进 closed 终态)。
@@ -55,7 +100,7 @@ git fetch origin <merge_target>; git pull --ff-only
 
 ---
 
-## 11. Phase 2 finalize · state.json 直推例外
+## 12. Phase 2 finalize · state.json 直推例外
 
 confirm-merged 后,状态:
 - worktree 内 state.json 已更新到 phase=merged(本地)
@@ -99,7 +144,7 @@ git push origin <merge_target>
 
 ---
 
-## 12 · R-S7 · git add 范围规则(强红线)
+## 13 · R-S7 · git add 范围规则(强红线)
 
 **任何 commit Feature 产物**(各 stage-complete 后 + ship-phase push 前):
 
@@ -115,7 +160,7 @@ git add <feature_dir>/dev/*.md <feature_dir>/PRD.md
 
 **实证**:PTR-A018(aon-core) MR !190 push 后核实漏 state.json + review-log.jsonl · 补 push c00109ce..09c41c6a。
 
-**违规后修复**:已 push → 在 feature 分支 `git add -A {feature_dir}/ && commit && push`(fast-forward · 不破 review)· 已 merge → §11 直推例外补 push 到 merge_target。
+**违规后修复**:已 push → 在 feature 分支 `git add -A {feature_dir}/ && commit && push`(fast-forward · 不破 review)· 已 merge → §12 直推例外补 push 到 merge_target。
 
 **治本路径(后续 P0 候选)**:`tools/_v8_ship.py:_handle_ship_sanitize` 加 `git ls-files {feature_dir}/state.json` + `review-log.jsonl`(rounds>0 时)校验 · 缺失 → BLOCKED with hint(可枚举进脚本 · R0 哲学)。
 
