@@ -305,21 +305,14 @@ PMO 只关注流程编排 · 系统维护是 `bootstrap.py` 的职责。
 
 详细 PMO 入口行为见 [TRIAGE.md](./TRIAGE.md)。
 
-### session 入口必读项目全景(silent · bootstrap.py 后 / mode 分诊前)
+### session 入口必读 · 项目结构索引(silent · bootstrap.py 后 / mode 分诊前)
 
-🔴 PMO bootstrap.py 完成后 · 进 mode 分诊前 · **必 silent Read 以下项目级全景档**(存在即读 · 缺失 silent skip):
+🔴 PMO bootstrap.py 完成后 · 进 mode 分诊前 · **必 silent Read `teamwork-space.md`**(存在即读 · 缺失 silent skip):
 
-| 文档 | 路径 | 读什么 |
-|---|---|---|
-| **teamwork-space.md** | 项目根 | 项目结构(单/多子项目) · 子项目清单 · 跨项目变更 ID · § 待规划需求池 |
-| **PROJECT.md** | 项目根 / 子项目根 | 业务架构 · 关键决策 |
-| **ROADMAP.md** | 项目根 / 子项目根 | BL 列表 · 当前/下一/储备 |
+- 项目结构(单/多子项目) · 子项目清单 · 跨项目变更 ID · § 待规划需求池
 
-**为什么必读**(任意 mode 受益 · 不限 triage):
-- mode 分诊关键词 → flow_type 需项目结构上下文
-- prepare §2.1 复杂度判据需 ROADMAP / 子项目清单
-- TRIAGE §2.1 待规划池扫描需先认知池位置
-- 防 mode B 起 Feature 时才发现假设不符 → 推倒重来
+**为什么只读这一份**:teamwork-space.md 是轻量结构索引(通常 < 200 行)· 已含分诊所需的全景上下文。
+**PROJECT.md / ROADMAP.md / sitemap.md** 等详档**按需读**(用户提到 / 任务涉及时再 Read 对应段)· 不全文加载到 PMO 上下文(避免 context 浪费)。
 
 **读法**:silent · 不 emit · 内化为 PMO 上下文 · 用到时引(如 "按 teamwork-space.md 子项目清单 · SVC-CORE 下一 F024")。
 

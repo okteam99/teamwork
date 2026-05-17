@@ -40,7 +40,7 @@
 
 ---
 
-📎 **§4.0 bootstrap.py 后 · §2 mode 分诊前**:PMO 必 silent Read 项目级全景档(teamwork-space.md / PROJECT.md / ROADMAP.md)· 详 [SKILL.md § session 入口必读项目全景](./SKILL.md)。
+📎 **§4.0 bootstrap.py 后 · §2 mode 分诊前**:PMO 必 silent Read `teamwork-space.md`(轻量索引)· 详 [SKILL.md § session 入口必读 · 项目结构索引](./SKILL.md)。PROJECT.md / ROADMAP.md 等详档按需读 · 不全文加载。
 
 ---
 
