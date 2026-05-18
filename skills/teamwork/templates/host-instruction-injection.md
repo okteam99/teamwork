@@ -17,7 +17,7 @@
 注入到 CLAUDE.md / AGENTS.md 顶部（用户已有内容则插在最前 · 不覆盖）。
 
 ```markdown
-<!-- TEAMWORK_BEGIN:teamwork-pointer v8.0 -->
+<!-- TEAMWORK_BEGIN:teamwork-pointer v8.1 -->
 ## Teamwork 协作模式
 
 本项目使用 [Teamwork](https://github.com/okteam99/teamwork) 多角色协作流程。
@@ -28,5 +28,7 @@
 - **state.json 写操作** 走 `tools/state.py` 单源（详 SKILL.md § PMO 软约束）
 
 🔴 PMO 是项目流程统一承接者 · 不直接动代码 · 调度 RD/QA/Designer/架构师 完成实施。
+
+🔴 **worktree 模式写文件路径**：Feature 进 worktree 后 · 所有代码/文档/测试文件读写一律用 **worktree 内路径**（推荐绝对路径）。部分宿主的 patch/写工具不继承 shell `cwd`（如 codex `apply_patch`）· 用相对路径会落到主工作区污染主分支。
 <!-- TEAMWORK_END:teamwork-pointer -->
 ```

@@ -172,6 +172,45 @@ def compute_raw_write_audit(state: dict) -> Optional[dict]:
     }
 
 
+def detect_main_tree_pollution(feature_dir: Path, feature_id: str) -> list[str]:
+    """worktree 模式下检测主工作区是否冒出当前 Feature 的文件。
+
+    治本:部分宿主的 patch/写工具不继承 shell cwd(如 codex apply_patch)·
+    用相对路径写文件会落到主工作区污染主分支。stage-complete 时物化检测。
+
+    返回污染文件行列表(git status --porcelain 格式)· 空 = 无污染 / 不适用。
+    仅检测路径含 feature_id 的文件(Feature 文档目录)· 代码源文件无 ID 标识不检。
+    """
+    import subprocess as _sp
+    if not feature_id:
+        return []
+    try:
+        r = _sp.run(["git", "rev-parse", "--git-dir"],
+                    capture_output=True, text=True, check=True, cwd=feature_dir)
+    except (_sp.CalledProcessError, FileNotFoundError, OSError):
+        return []
+    if "/worktrees/" not in r.stdout.strip():
+        return []  # 不在 linked worktree · 无主/副之分 · 不检测
+    try:
+        r = _sp.run(["git", "worktree", "list", "--porcelain"],
+                    capture_output=True, text=True, check=True, cwd=feature_dir)
+    except (_sp.CalledProcessError, FileNotFoundError, OSError):
+        return []
+    main_root = None
+    for line in r.stdout.splitlines():
+        if line.startswith("worktree "):
+            main_root = line.split(" ", 1)[1]
+            break
+    if not main_root:
+        return []
+    try:
+        r = _sp.run(["git", "-C", main_root, "status", "--porcelain"],
+                    capture_output=True, text=True, check=True)
+    except (_sp.CalledProcessError, FileNotFoundError, OSError):
+        return []
+    return [ln.strip() for ln in r.stdout.splitlines() if feature_id in ln]
+
+
 def save_state(path: Path, state: dict) -> None:
     """写 state.json · 自动 stamp `_state_checksum`(同 state.py atomic_write)。
 
@@ -1229,6 +1268,15 @@ def execute_stage_complete(
             f"  4. state.py {stage_spec.name}-complete ...(重新出 verdict / exit_code)"
         )
 
+    # 物化检测:worktree 模式主工作区污染(治本宿主 patch 工具路径错落主 tree)
+    pollution = detect_main_tree_pollution(feature_dir, state.get("feature_id", ""))
+    if pollution:
+        state.setdefault("concerns", []).append(
+            f"[WARN] {stage_spec.name}-complete:主工作区检出 {len(pollution)} 个含 "
+            f"Feature ID 的文件 · 疑似 patch/写工具路径错落主 tree(产物应在 worktree 内)· "
+            f"复查并移到 worktree:{pollution[:5]}"
+        )
+
     save_state(path, state)
 
     # status_line:基于已转移后的 state(当前 stage 已是 next_stage 或终态)
@@ -1252,6 +1300,12 @@ def execute_stage_complete(
         **({"pause_options_markdown": pause_options_markdown} if pause_options_markdown else {}),
         **({"fix_retry_hint": fix_retry_hint} if fix_retry_hint else {}),
         **({"raw_write_audit": rw_audit} if rw_audit else {}),
+        **({"main_tree_pollution": {
+            "count": len(pollution),
+            "files": pollution[:10],
+            "hint": "这些含 Feature ID 的文件落在主工作区(非 worktree)· "
+                    "疑 patch 工具路径错 · 复查并 git mv 到 worktree 内对应路径",
+        }} if pollution else {}),
     })
 
 
