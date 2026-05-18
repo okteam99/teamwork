@@ -679,15 +679,22 @@ def _evidence_ac_test_binding(state: dict, args) -> tuple[bool, str]:
 
 
 def _evidence_external_review_artifact(state: dict, args) -> tuple[bool, str]:
-    """external-cross-review/ 至少 1 份 markdown(v7.3.10+P0-154 沿用)。
+    """external-cross-review/ 至少 1 份 markdown(P0-154)。
 
-    v8.0+P0-14 bug fix(实证 PTR-F033 case):external-cross-review/ 在 artifact_root 内
-    (即 feature_dir 内)· 不是 parent。之前 `feature_dir.parent / "external-cross-review"`
-    把目录算到 apps/partner/docs/features/external-cross-review · 找不到实际位置
-    apps/partner/docs/features/PTR-F033/external-cross-review。
+    联动 state.stage_review_roles:若当前 stage 的 reviewers 列表不含 'external'
+    (通过 change-review-roles 调整去除) → skip 校验(audit 已在 stage_review_roles_adjustments)。
+
+    v8.0+P0-14 bug fix:external-cross-review/ 在 artifact_root 内(即 feature_dir 内 · 不是 parent)。
     """
+    current_stage = state.get("current_stage", "")
+    stage_roles = state.get("stage_review_roles", {}).get(current_stage, [])
+    if stage_roles and "external" not in stage_roles:
+        return True, (
+            f"skipped(external 不在 state.stage_review_roles.{current_stage}={stage_roles} · "
+            f"已通过 change-review-roles 调整 · audit 详 state.stage_review_roles_adjustments)"
+        )
+
     feature_dir = Path(args.feature)
-    # external-cross-review/ 是 artifact_root(= feature_dir)内的子目录
     external_dir = feature_dir / "external-cross-review"
     if not external_dir.exists():
         return False, f"external-cross-review/ 不存在 · 路径:{external_dir}"
