@@ -45,7 +45,7 @@ planned_execution: {} # 各 Stage 的 Execution Plan 历史
 
 🔴 **复杂 Bug 例外**：复杂 Bug 进入 Feature 流程后，使用 Feature 的 `state.json`，BUG-REPORT.md frontmatter 仅保留 `bug_id / feature_id / classification: complex / flow_type: bug / current_stage: escalated_to_feature`，其他字段委托 Feature state.json 维护。
 
-🔴 **PMO 校验**：进入 Bug 流程后，PMO 必须在 BUG-REPORT.md 创建时初始化 frontmatter；流转校验时按 frontmatter `current_stage` 字段引用 flow-transitions.md。
+🔴 **PMO 校验**：进入 Bug 流程后，PMO 必须在 BUG-REPORT.md 创建时初始化 frontmatter；stage 流转由 state.py 状态机物化校验（`FLOW_BY_TYPE`），BUG-REPORT.md frontmatter `current_stage` 仅作标识，权威状态在 `state.json`。
 
 ---
 
