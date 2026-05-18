@@ -155,7 +155,7 @@ Pause-point options are numbered (💡 recommended item first, the last option i
 - **RD**: TDD implementation + unit tests + self-check + bug investigation report
 - **External Reviewer**: heterogeneous-model code review (codex / claude · independent-stance hard constraint)
 
-Role collaboration uses **main-conversation identity switching** — switching roles = switching checklists + forced re-read, with no Subagent dispatch.
+Role collaboration **defaults to main-conversation identity switching** — switching roles = switching checklists + forced re-read; PMO may dispatch a subagent on demand to execute tasks within a stage (context isolation · especially useful on small-context-window hosts), while stage orchestration and state.py commands always stay with the PMO main conversation.
 
 ### Cross-Host Compatibility
 

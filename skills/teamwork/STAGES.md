@@ -63,7 +63,20 @@
 
 ---
 
-## 4. 相关
+## 4. 执行方式 · 主对话身份切换 vs subagent
+
+- **默认**:主对话身份切换 —— PMO 切到 RD / QA / Architect 等角色(切角色 = 切 checklist + 强制重读 · 保留累积上下文)。
+- **可选**:PMO 自行判断 · 可把 stage 内的**任务**(如 dev 的代码实现、test 的测试编写)dispatch 给 subagent 执行 —— 用于上下文隔离。
+
+**边界**:
+- stage 编排(`xx-start` / `xx-complete` / state.py 命令 / 暂停点)始终归 PMO 主对话 · subagent 只接「任务执行」· 不碰状态机。
+- subagent 产物仍走 `state.py xx-complete` 校验 · `state.json` 单源不变 · R1 / R7 不豁免。
+- 用不用 subagent 是 PMO 判断(不可枚举 · 留 AI 自决)· 不强制 · 无 dispatch 预检协议。
+- architect review 默认主对话(保留架构演进的累积上下文 · 详 [roles/architect.md](./roles/architect.md))。
+
+---
+
+## 5. 相关
 
 - 引擎:[tools/_v8_engine.py](./tools/_v8_engine.py) `execute_stage_start` / `execute_stage_complete`
 - spec 契约:[tools/_v8_stage_specs.py](./tools/_v8_stage_specs.py)

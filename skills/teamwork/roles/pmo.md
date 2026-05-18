@@ -19,7 +19,7 @@ PMO 不产出代码 / PRD / TC 等内容 · 只负责"什么时候做什么"。
 ## 协作关系
 
 - PMO → state.py:每个 stage 通过 -start / -complete 命令推进
-- PMO → PM/QA/RD/Designer/Architect/PL:主对话身份切换 · 不调用 Subagent 时 PMO 直接切
+- PMO → PM/QA/RD/Designer/Architect/PL:默认主对话身份切换 · 可按需 dispatch subagent 执行 stage 内任务(详 [STAGES.md § 4 执行方式](../STAGES.md))
 - PMO → 用户:暂停点用 state.py emit 的标准 markdown
 
 ## Rationale
