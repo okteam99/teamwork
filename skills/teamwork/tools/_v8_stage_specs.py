@@ -357,17 +357,20 @@ GOAL_SPEC = StageSpec(
     # goal stage = 业务目标确认 · 产 PRD · Feature / 敏捷需求 流程专属
     # Feature Planning 走单 stage planning · 不进 goal
     artifacts=[
+        # 文档类 artifact 多角色多轮修订 = 多 commit 常态 · must_be_in_commit=False
+        # 防 AI 被迫 git reset --soft squash;ship R-S7 保证最终 commit。
         StageArtifactSpec(
             path="PRD.md",
             frontmatter_required=["acceptance_criteria"],
             body_min_lines=20,
+            must_be_in_commit=False,
             description="需求规范 · 含结构化 AC",
         ),
         StageArtifactSpec(
             path="PRD-REVIEW.md",
             frontmatter_required=["reviewers", "verdicts"],
             body_min_lines=15,
-            must_be_in_commit=False,  # 评审多 commit 是常态(PM/QA/Architect/PL/external 各自落 commit) · 不强制 squash
+            must_be_in_commit=False,
             description="多角色 PRD 评审记录",
         ),
     ],
@@ -722,19 +725,23 @@ BLUEPRINT_SPEC = StageSpec(
         ),
     ],
     artifacts=[
+        # 文档类 artifact 多角色多 commit 是常态(QA 写 TC / RD 写 TECH / 评审改 TECH-REVIEW)·
+        # must_be_in_commit=False 防 AI 被迫 git reset --soft squash;ship R-S7 保证最终 commit。
         StageArtifactSpec(
             path="TC.md",
             frontmatter_required=["tests"],
+            must_be_in_commit=False,
             description="测试用例 · AC↔Test 绑定",
         ),
         StageArtifactSpec(
             path="TECH.md",
+            must_be_in_commit=False,
             description="技术方案",
         ),
         StageArtifactSpec(
             path="TECH-REVIEW.md",
-            frontmatter_required=["reviewer", "verdict"],
-            must_be_in_commit=False,  # 评审 commit 与起草 commit 常分离 · 不强制同 commit
+            frontmatter_required=["reviewers", "verdict"],  # reviewers 复数 · 对齐 reviewers_match evidence
+            must_be_in_commit=False,
             description="架构师 Tech Review verdict",
         ),
     ],
