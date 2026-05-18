@@ -1133,20 +1133,26 @@ def _pm_acceptance_brief(state: dict) -> str:
     return f"""## PM Acceptance Stage
 
 ### 目标
-PM 站在用户视角逐条 AC 对照实现 · 给出三选项决策。
+PM 站在用户视角逐条 AC 对照实现 · 验收后 **emit 三选项暂停点 · 用户拍板 decision**。
+
+### 🔴 decision 是用户决策点(R5)· AI 不可自决
+- PM 角色只做 AC 验收 + emit 三选项 markdown · 然后**停** · 等用户回 1/2/3
+- 三选项(approved_and_ship / approved_no_ship / rejected_with_feedback)都是决策 ·
+  哪怕选"保守"的 `approved_no_ship` 也是越权(它让 Feature 跳过 ship 直接 completed)
+- "避免未授权 push" 不构成自选 `approved_no_ship` 的理由 ——
+  `approved_and_ship` 进 ship 后 · Phase 1 仍有"等用户平台合并"暂停点 · push 不会自动发生
 
 ### 结果(完成判定)
-- `state.stage_contracts.pm_acceptance.evidence.decision` 已落库
+- `state.stage_contracts.pm_acceptance.evidence.decision` 已落库(= 用户所选)
 - (rejected_with_feedback 时)`--note` 含具体 finding
 
 ### 怎么做
-**必读** `stages/pm-acceptance-stage.md`(详细步骤 5 步 + 注意事项 5 条)。
+**必读** `stages/pm-acceptance-stage.md`。
 
-### 完成方式
+### 完成方式(用户拍板后才跑)
 ```
 state.py pm_acceptance-complete --feature <path> --auto-commit <hash> \
-  --decision {{approved_and_ship|approved_no_ship|rejected_with_feedback}} \
-  --note "<rejected 时必填>"
+  --decision {{用户所选}} --note "<rejected 时必填>"
 ```
 """
 
