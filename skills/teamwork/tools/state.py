@@ -2169,6 +2169,26 @@ def cmd_recover(args: argparse.Namespace) -> None:
     })
 
 
+class JsonErrorArgumentParser(argparse.ArgumentParser):
+    """argparse 参数错误也 emit JSON(治本 AI `state.py xxx | json.load` 管道遇参数错误炸 Traceback)。
+
+    argparse 默认 error() 打 usage 到 stderr(非 JSON)· state.py 其它输出都是 JSON ·
+    此子类让参数错误也结构化 · 保证 state.py 全部输出可被 json.load。
+    add_subparsers 默认 parser_class = type(主 parser) · 所有子命令自动继承。
+    """
+
+    def error(self, message: str):  # noqa: D102
+        payload = {
+            "verdict": "FAIL",
+            "error": f"参数错误: {message}",
+            "command": self.prog,
+            "usage": self.format_usage().strip(),
+            "hint": "补全缺失 / 修正参数后重试 · 各参数说明见 `<command> --help`",
+        }
+        print(json.dumps(payload, ensure_ascii=False, indent=2), file=sys.stderr)
+        sys.exit(2)
+
+
 def _add_feature_arg(parser: argparse.ArgumentParser, *, help_text: str | None = None) -> None:
     """统一注册 --feature · 缺省时从 TEAMWORK_FEATURE 环境变量读取（v7.3.10+P0-130 ergonomics）。"""
     env = os.environ.get("TEAMWORK_FEATURE")
@@ -2181,7 +2201,7 @@ def _add_feature_arg(parser: argparse.ArgumentParser, *, help_text: str | None =
     )
 
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(prog="state.py", description="Teamwork state.json tool (P1)")
+    p = JsonErrorArgumentParser(prog="state.py", description="Teamwork state.json tool (P1)")
     sub = p.add_subparsers(dest="cmd", required=True)
 
     sp = sub.add_parser("snapshot", aliases=["status"],
