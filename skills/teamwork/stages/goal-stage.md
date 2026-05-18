@@ -38,9 +38,13 @@
 - 基于 PRD 内容判定是否需要独立 UI Design Stage
 - 准备 `state.py goal-complete --needs-ui {true|false} ...`
 
-### 7. ⏸️ 用户最终确认
-- 一次性 escalate 剩余开放问题给用户(若有)
-- 用户回 ok 后跑 complete · state.py 按 --needs-ui 自动转移
+### 7. ⏸️ 用户最终确认(R5 暂停点)
+🔴 emit R5 标准 1/2/3(模板见 [SKILL.md § R5(b)](../SKILL.md))· 一次性 escalate 剩余 Open Questions:
+1. **确认 PRD · 进入下一 stage** 💡 推荐 — `goal-complete --needs-ui <true/false>` → 自动转 ui_design/blueprint
+2. **还要改 PRD** — PM 按你的反馈修订 PRD · 重走多角色评审
+3. **其他指示**
+
+用户选 1 后跑 complete · state.py 按 `--needs-ui` 自动转移。
 
 ---
 

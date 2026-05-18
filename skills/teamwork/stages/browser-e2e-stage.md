@@ -16,8 +16,13 @@ Playwright / Puppeteer / Selenium(项目栈决定)
 ### 4. 起草 BROWSER-TEST-REPORT.md
 §测试场景 + §截图引用 + §异常发现
 
-### 5. ⏸️ 用户看截图确认
-给用户截图 URL · 等确认
+### 5. ⏸️ 用户看截图确认(R5 暂停点)
+🔴 emit R5 标准 1/2/3(模板见 [SKILL.md § R5(b)](../SKILL.md)):
+1. **确认 · 进入 pm_acceptance** 💡 推荐 — `browser_e2e-complete` → 自动转 pm_acceptance
+2. **截图有问题 · 重测** — QA 按你指出的异常重跑 browser e2e
+3. **其他指示**
+
+📚 决策参考:`screenshots/`
 
 ### 6. complete
 `state.py browser_e2e-complete --auto-commit ... --artifacts screenshots/,BROWSER-TEST-REPORT.md`

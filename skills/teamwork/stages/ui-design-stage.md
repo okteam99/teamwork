@@ -16,8 +16,13 @@ frontmatter `pages: [{id, title}]` 必 · body §页面列表 / §交互流 / §
 ### 4. sitemap 同步
 若涉及全景变更 · 同步 sitemap.md(项目根)· 防破坏现有路由
 
-### 5. ⏸️ 用户预览确认
-给用户预览 URL · 等确认
+### 5. ⏸️ 用户预览确认(R5 暂停点)
+🔴 emit R5 标准 1/2/3(模板见 [SKILL.md § R5(b)](../SKILL.md)):
+1. **确认 UI · 进入 blueprint** 💡 推荐 — `ui_design-complete` → 自动转 blueprint
+2. **要改设计** — Designer 按你的反馈改 UI.md + preview
+3. **其他指示**
+
+📚 决策参考:`preview/<page>.html`
 
 ### 6. complete
 `state.py ui_design-complete --feature X --auto-commit Y --artifacts UI.md,preview/`
