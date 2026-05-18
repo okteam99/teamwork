@@ -220,17 +220,27 @@ state.py 校验:
 
 **用户监督**:用户看到 audit_line 知道 PMO 真做了分诊 · 不是直接跳过去做事。
 
-### Mode E 升级触发(PMO 主动建议 · 不等用户提)
+### Mode A / E 升级触发(PMO 主动建议 · 不等用户提)
 
-命中以下场景必须在收尾时建议升 mode B:
-- 讨论涉及**多 Feature 范围拆分** / **ROADMAP 更新** / **P0/P1 优先级排序** → 建议升 **Feature Planning**(走 PROJECT/ROADMAP/sitemap · 非散述清单)
-- 讨论涉及**新功能实现方向** / **架构决策点** → 建议升 **Feature**(走 goal PRD 而非主对话伪 PRD)
-- 讨论涉及**已知 bug 根因 + 修复方案** → 建议升 **Bug**
+mode A 排查 / mode E 讨论收尾时 · 命中以下场景必须建议升 mode B:
+- 涉及**多 Feature 范围拆分** / **ROADMAP 更新** / **P0/P1 优先级排序** → 升 **Feature Planning**(走 PROJECT/ROADMAP/sitemap · 非散述清单)
+- 涉及**新功能实现方向** / **架构决策点** → 升 **Feature**(走 goal PRD 而非主对话伪 PRD)
+- 涉及**已知 bug 根因 + 修复方案** → 升 **Bug**
 
-```
-📎 建议升级到 mode B · <flow_type>:本次讨论已涉及 <触发场景> ·
-   建议进 <flow_type> 流程(走 <first_stage> stage 产 <artifact>)以保证 R6/多视角 review 闭环。
-   回复 "进 <flow_type>" 升级 · 或继续讨论。
+🔴 **升级建议是暂停点 · 必走 R5 标准 1/2/3 格式**(不可用"回复『进 Bug』"自由文本 · 用户要打字 = 心智负担):
+
+```markdown
+⏸️ <排查完成 / 讨论收敛> · 建议升级到 <flow_type> 流程 · 请选择:
+
+1. **进 <flow_type> 流程** 💡 推荐
+   理由:<为什么升 · 1-2 句>
+   动作:PMO 进 prepare 子流程(建 worktree + init-feature)→ 走 <first_stage> stage
+
+2. **暂不升级**(仅排查闭合 / 继续讨论)
+   理由:<你想先观察 / 排期 / 自己改>
+   动作:<排查报告留档 · 可记入待规划需求池 | 继续当前讨论>
+
+3. **其他指示**
 ```
 
 ### Mode B 必移交 prepare 子流程

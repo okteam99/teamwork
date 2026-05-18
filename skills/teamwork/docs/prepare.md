@@ -108,23 +108,21 @@ PMO 按以下关键词表判定 user input 落入哪类流程:
 
 **为什么强制升级**:这些信号意味单 Feature 状态机承载不下 — 跨仓库要 panorama-design 全景 · 数据模型重构要 ROADMAP 多 Feature 协同 · 单 Feature 的 PRD/TC/TECH 写不下"3 仓库 + 老字段迁移 + 多 BL 拆解"。强行进 Feature → PMO 在主对话散述 Q1-Q4 决策树(违 R5 暂停点协议 · 写伪 PRD)。
 
-**PMO 命中后必输出**(R5 暂停点格式):
+**PMO 命中后必输出**(R5 标准 1/2/3 暂停点 · 不用自由文本):
 ```markdown
-⏸️ Feature Planning 升级建议(prepare §2.1 复杂度判据触发)
-
-你的需求触发以下复杂度信号:
+⏸️ 复杂度判据触发(prepare §2.1)· 你的需求触发以下复杂度信号:
 - <信号 1>(具体:<例>)
 - <信号 2>
-- ...
 
-应升级到 **Feature Planning 流程**:
-- 走 panorama-design 起跨仓库全景
-- ROADMAP 拆 BL-N(分别落 admin / backend / partner)
-- 每个 BL 后续启独立 Feature(`/teamwork <BL-NNN>` 新 session)
+请选择:
 
-不升级 = 在主对话散述决策树 + 伪 PRD(违 R5)。
-
-回 `进 Feature Planning` 升级 · 或 `就一个 Feature` 确认范围 + 继续 mode B。
+1. **进 Feature Planning 流程** 💡 推荐
+   理由:跨仓库 / 数据模型重构 / 多 BL · 单 Feature 状态机承载不下
+   动作:走 panorama-design 起全景 → ROADMAP 拆 BL-N → 每个 BL 后续启独立 Feature
+2. **就一个 Feature**(确认范围未超 · 继续 mode B)
+   理由:你确认信号是误判 / 范围实际收敛在单 Feature
+   动作:继续 prepare · 按 Feature 流程走
+3. **其他指示**
 ```
 
 **反例**:
@@ -154,17 +152,20 @@ PMO 按以下关键词表判定 user input 落入哪类流程:
 
 **为什么校验**:关键词("加字段 / 列表加列")只看字面 · 无法区分"后端加字段(无 UI)"和"前端详情页加显示字段(UI 变更)"。命中关键词后 · PMO 必扫代码现状 + 需求范围 · 验准入。
 
-**PMO 命中后必输出**(R5 暂停点格式):
+**PMO 命中后必输出**(R5 标准 1/2/3 暂停点 · 不用自由文本):
 ```markdown
-⏸️ 流程类型升级建议(prepare §2.2 准入校验)
-
-关键词初判 <敏捷需求 / Micro> · 但触发以下准入不满足:
+⏸️ 准入校验(prepare §2.2)· 关键词初判 <敏捷需求 / Micro> · 但触发以下准入不满足:
 - <准入项>:<具体信号>
 
-应升级到 **<Feature / 敏捷需求>**(stage 链 <...>)。
-有 UI 变更的 Feature 在 goal-complete 时标 `--needs-ui=true` 进 ui_design stage。
+请选择:
 
-回 `升级` · 或 `坚持 <原流程>`(⚠️ 跳过 ui_design / 完整 blueprint · 需明确确认 · 记流程例外)。
+1. **升级到 <Feature / 敏捷需求>** 💡 推荐
+   理由:<准入项> 不满足 · 原流程 stage 链承载不下(如有 UI 变更但敏捷需求无 ui_design)
+   动作:按 <Feature / 敏捷需求> 流程走;有 UI 变更的 Feature 在 goal-complete 标 `--needs-ui=true` 进 ui_design
+2. **坚持 <原流程>**
+   理由:你确认准入信号是误判
+   动作:按 <原流程> 继续(⚠️ 跳过 ui_design / 完整 blueprint · 记流程例外)
+3. **其他指示**
 ```
 
 **反例**:
