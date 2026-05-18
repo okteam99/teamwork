@@ -1342,7 +1342,7 @@ DEFAULT_INITIAL_STAGE = {
     "Feature": "goal",
     "Bug": "dev",
     "Micro": "dev",
-    "敏捷需求": "blueprint_lite",
+    "敏捷需求": "goal",  # 敏捷需求 FLOW = goal → blueprint_lite → ... · blueprint_lite-start 前置要 goal 完成
 }
 
 
