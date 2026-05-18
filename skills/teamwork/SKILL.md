@@ -125,6 +125,11 @@ PMO 在任何暂停点 / 决策点 / 推荐方案后 · 用户可用以下快捷
 - 看到 `ok` 时 PMO 必复述"按建议执行 · <推荐方案的 1 行摘要>" + 立即执行
 - 不可把 `ok` 解读为"用户没看清楚 · 我再问一次" · 这是用户已读 + 信任 PMO 的最短确认
 
+🔴 **`ok` 作用域 = 当前这一个暂停点**:
+- `ok` 只确认 PMO **当前 emit 的那一个暂停点** · **不预授权后续任何暂停点**
+- AI 不可把一个 `ok` 推到后续 stage —— 每个授权暂停点必**独立 emit + 独立等用户回应**
+- 反例(实证):用户在 prepare 回 `ok`(只确认 4 项配置)· AI 误当成"goal PRD 确认 / ui_design UI 确认 / pm_acceptance 决策全部预授权" · 非 auto 模式下一路冲到 pm_acceptance · 跳过中间所有暂停点 = 违 R5
+
 ---
 
 ## PMO 软约束 + 暂停点标准格式(state.py 不物化 · PMO 必自觉)
@@ -301,6 +306,20 @@ emit 格式:
 | **敏捷需求** | ≤5 文件 + 无 UI/架构变更 + 方案明确 | 代码 + 简化文档 + 测试 |
 | **Feature Planning** | 拆 ROADMAP | PROJECT.md + ROADMAP.md + sitemap.md(不出代码) |
 | **问题排查** | 不出代码 · 仅定位根因 | 排查报告 + 后续 todo 关联 |
+
+### 授权暂停点清单(非 auto 模式 · 每个独立 emit + 等用户)
+
+🔴 **非 auto 模式 · 以下每个授权暂停点 PMO 必独立 emit + 停 + 等用户回应** · 不可凭一个 `ok` 推全程(详 §用户交互快捷词「ok 作用域」):
+
+| 流程 | 授权暂停点(按顺序) |
+|---|---|
+| **Feature** | ① prepare 4 项配置 → ② goal PRD 最终确认 → ③ ui_design UI 预览确认(若 --needs-ui) → ④ pm_acceptance 三选项 → ⑤ ship Phase 1 等平台合并 |
+| **敏捷需求** | ① prepare 4 项配置 → ② goal PRD 最终确认 → ③ pm_acceptance 三选项 → ④ ship Phase 1 |
+| **Bug / Micro** | ① prepare 4 项配置 → ② pm_acceptance 三选项 → ③ ship Phase 1 |
+
+📎 stage 间(goal-complete→ui_design / dev→review 等)是 state.py **自动流转** · 非暂停点 · 不插确认。
+📎 `auto_mode=true`:非关键暂停点自动流转 · 但 ① prepare 配置 / ④ pm_acceptance / ⑤ ship 关键决策点 auto 也停。
+📎 `worktree_mode=auto` ≠ `auto_mode` —— 前者是 worktree 物理校验模式(prepare/init-feature)· 与暂停点自动流转**完全无关**。
 
 ---
 
