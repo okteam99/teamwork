@@ -367,6 +367,7 @@ GOAL_SPEC = StageSpec(
             path="PRD-REVIEW.md",
             frontmatter_required=["reviewers", "verdicts"],
             body_min_lines=15,
+            must_be_in_commit=False,  # 评审多 commit 是常态(PM/QA/Architect/PL/external 各自落 commit) · 不强制 squash
             description="多角色 PRD 评审记录",
         ),
     ],
@@ -733,6 +734,7 @@ BLUEPRINT_SPEC = StageSpec(
         StageArtifactSpec(
             path="TECH-REVIEW.md",
             frontmatter_required=["reviewer", "verdict"],
+            must_be_in_commit=False,  # 评审 commit 与起草 commit 常分离 · 不强制同 commit
             description="架构师 Tech Review verdict",
         ),
     ],
@@ -910,17 +912,22 @@ REVIEW_SPEC = StageSpec(
         ),
     ],
     artifacts=[
+        # review 三视角评审多 commit 是常态(architect/qa/external 各自落 commit)·
+        # 强制单 commit 会导致 AI git reset --soft 揉碎 audit 颗粒度。
         StageArtifactSpec(
             path="REVIEW.md",
             frontmatter_required=["reviewers", "verdict"],
+            must_be_in_commit=False,
             description="评审总结",
         ),
         StageArtifactSpec(
             path="REVIEW-arch.md",
+            must_be_in_commit=False,
             description="架构师评审",
         ),
         StageArtifactSpec(
             path="REVIEW-qa.md",
+            must_be_in_commit=False,
             description="QA 评审",
         ),
     ],
