@@ -268,6 +268,22 @@ def commit_exists(commit_hash: str, cwd: Optional[str] = None) -> bool:
         return False
 
 
+def git_head(cwd: Optional[str] = None) -> Optional[str]:
+    """取当前 git HEAD commit hash · 失败返 None。
+
+    用于 --auto-commit 未传时的默认值:AI 标准流程「产物落盘 → git commit →
+    xx-complete」· HEAD 即本 stage 产出的 commit。
+    """
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=cwd, capture_output=True, text=True, timeout=5,
+        )
+        return result.stdout.strip() if result.returncode == 0 else None
+    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+        return None
+
+
 def _worktree_physically_exists(wt_path: str) -> bool:
     """检查 wt_path 是否在 `git worktree list` 输出内。
 
@@ -970,6 +986,18 @@ def execute_stage_complete(
     auto_commit = args.auto_commit
     feature_dir = Path(feature_path).resolve()
     git_cwd = str(feature_dir if feature_dir.is_dir() else feature_dir.parent)
+    # --auto-commit 未传 → 默认取当前 HEAD(AI 标准流程:产物落盘 → git commit → xx-complete ·
+    # HEAD 即本 stage 产出 commit · 治本"AI 漏传 --auto-commit"撞墙;artifacts-in-commit 校验仍兜底)
+    if not auto_commit:
+        auto_commit = git_head(cwd=git_cwd)
+        if not auto_commit:
+            emit_json({
+                "verdict": "FAIL",
+                "stage": stage_spec.name,
+                "phase": "complete",
+                "error": "--auto-commit 未传 · 且无法取 git HEAD(非 git repo?)",
+                "hint": "在 git repo 内运行 · 或显式传 --auto-commit <hash>",
+            }, exit_code=1)
     if not commit_exists(auto_commit, cwd=git_cwd):
         emit_json({
             "verdict": "FAIL",
@@ -1354,7 +1382,8 @@ def add_common_stage_start_args(parser: argparse.ArgumentParser) -> None:
 def add_common_stage_complete_args(parser: argparse.ArgumentParser) -> None:
     """所有 xx-stage-complete 共用的参数。"""
     parser.add_argument("--feature", required=True, help="Feature artifact_root 路径")
-    parser.add_argument("--auto-commit", required=True, help="本 stage 产出的 git commit hash")
+    parser.add_argument("--auto-commit", default="",
+                        help="本 stage 产出的 git commit hash · 不传则默认取当前 git HEAD")
     parser.add_argument("--artifacts", default="", help="逗号分隔 · 本 stage 实际产出文件")
     parser.add_argument("--cite", default="", help="逗号分隔 · AI 声明读了哪些 spec")
     parser.add_argument("--bypass", action="store_true", help="逃生 · 跳过 artifact/evidence 校验")
