@@ -1,383 +1,332 @@
 # Teamwork
 
-Your AI dev team — one AI works as a full team, with **role-based perspectives + contract-based stages + machine-readable state machine**, letting one person drive the complete software lifecycle from product planning to delivery.
+An AI works from a team-collaboration perspective — through **flow orchestration + role-perspective switching + contractualized stages + a machine-readable state machine** — to drive the complete software lifecycle from product planning to delivery.
 
-[中文文档](./README.md) · Version: **v7.3.10+P0-100**
+[中文](./README.md) · Version: **v8.0**
 
-> ⚠️ **English doc lags behind** — only key sections updated for current version. For the full up-to-date spec, see the [Chinese README](./README.md) and the authoritative [CHANGELOG](./skills/teamwork/docs/CHANGELOG.md).
->
-> **Recent highlights (P0-85 ~ P0-100)**: 8-role + 12 sub-file matrix (Architect promoted to peer-level role · v7.3.10+P0-86) · pmo.md slimmed 1814 → 477 lines (Wave 4 · P0-93~97) · Pull/Push intent triage (lightweight intents skip framework ceremony · P0-81) · Silent execution mandate (no Step header / thinking-chain narration · P0-98) · Ship Stage CLI-first MR creation (gh / glab + URL fallback · P0-99).
+---
 
-## Overview
+## Premise
 
-Teamwork lets one AI work as a complete development team. Each role represents a professional direction of concern — PM ensures requirement completeness, QA ensures test coverage, RD ensures implementation quality, Architect ensures technical soundness, Designer ensures user experience. PMO orchestrates the process and manages information flow between stages. Not multiple AIs having meetings — it ensures every artifact is examined from enough professional angles. Users only need to state requirements and make decisions at key checkpoints. Compatible with Claude Code, Codex CLI, and other AI coding tools.
+Teamwork matches along two dimensions:
 
-Six workflow types are supported:
+**Match the flow to the need**: looking up code, fixing a bug, and building a feature require entirely different collaboration depth. Entry triage (5 modes: query / execute / resume / status / discuss) matches intent to the right flow — simple tasks get a simple flow, complex needs get the full flow.
 
-- **Feature** — Full cycle: requirements → design → development → testing → acceptance
-- **Bug Fix** — Investigate → assess → fix → verify → sync docs
-- **Issue Investigation** — Root cause analysis with recommended next steps (no code output)
-- **Feature Planning** — Decompose product goals into a prioritized ROADMAP with Wave-based execution batches and dependency tracking
-- **Agile** — Streamlined flow for small changes (≤5 files, no UI/architecture changes, clear approach)
-- **Micro** — Minimal channel for zero-logic changes (assets, copy, styles, config constants)
+**Assign roles by specialty**: when a single role covers multiple perspectives, they mask each other — PM's "what the user wants" buries QA's "edge cases"; the architect's "elegance" buries RD's "delivery deadline". Teamwork assigns by specialty: PM / Architect / QA / RD / Designer each own one dimension (requirements / architecture / testing / implementation / UX), with PMO orchestrating. Each artifact is examined from its corresponding professional angle, exposing blind spots to another perspective.
 
-### Design Philosophy
+You only provide requirements and make decisions at key checkpoints.
 
-The core challenge of software engineering isn't writing code — it's examining the same artifact from multiple professional angles. Each Teamwork role represents a professional direction of concern (PM→requirement completeness, QA→test coverage, RD→implementation quality, Architect→technical soundness, Designer→user experience, PL→product direction). PMO orchestrates the process and manages information flow.
+### How Multi-Role Switching Works
 
-Why multi-role switching works: create-critique cycles (PM writes PRD → PL critiques from business angle → PM revises), attention reallocation (switching roles = switching checklists = activating different evaluation dimensions), and forced re-reading (role switches force the AI to re-read the same document with new questions).
+- **Create-critique loop**: PM writes PRD → PL critiques from business direction → PM revises. A single role's single-pass output skips blind spots masked by its own perspective.
+- **Attention reallocation**: switching roles = switching checklists = activating different evaluation dimensions
+- **Forced re-read**: a role switch forces the AI to re-read the same document with new questions, surfacing far more than "think again"
+- **Heterogeneous-model review**: review brings in a heterogeneous model for an independent pass (when claude is the main window, external = codex automatically, and vice versa) — a cross-model perspective exposes same-model self-review blind spots
 
-### Key Features (v7.3 Series)
+---
 
-#### Architecture Layer
+## Getting Started
 
-- **Three-Contract Stages** (v7.3): Every stage file is structured as **Input Contract / Process Contract / Output Contract**. Specifies **what to produce** (output contracts), not **how to get there** (execution mode).
-- **AI Plan Mode** (v7.3, 3-line core): Before each stage, the AI outputs an Execution Plan in main conversation (Approach / Rationale / Role specs loaded / Estimated). Execution mode (main conversation / Subagent / hybrid) is decided by the AI based on scale/complexity, not hard-bound to Subagent.
-- **AC↔Test Strong Binding** (v7.3): PRD.md and TC.md YAML frontmatter are machine-readable. `acceptance_criteria[].id` ↔ `tests[].covers_ac` are one-to-one bound. `python3 {SKILL_ROOT}/templates/verify-ac.py {Feature}` auto-validates coverage completeness, eliminating "requirement → code" drift.
-- **state.json Machine-Readable State Machine** (v7.3.2): Each Feature directory's `state.json` is the **single source of truth** for flow state, replacing the original STATUS.md. Contains `current_stage / completed_stages / legal_next_stages / stage_contracts / planned_execution / executor_history`. Single anchor for compact recovery.
-- **Main-Conversation Artifact Protocol** (v7.3 §6): When tasks are executed directly in main conversation (PRD discussion, architect review, env setup), artifacts must follow YAML frontmatter spec. Forms complete closed loop with the Subagent dispatch protocol.
-
-#### Flow Layer
-
-- **Six Flow Types** (Feature / Bug / Issue / Feature Planning / Agile / Micro): Automatically identified by PMO's initial analysis. Each has explicit entry criteria, step description, and completion standards.
-- **Truly Lightweight Micro** (v7.3, red line #1 Micro exception): PMO can directly modify code (zero-logic whitelist changes). **No Subagent, no Execution Plan, no dispatch file required**. Only retains "analysis → user confirm → execute → accept" minimum closed loop.
-- **Pause Point Compression** (v7.3.4):
-  - UI Design + Panorama Design merged into one "design batch" pause (Designer produces Feature UI + panorama incremental sync in one pass)
-  - PM Acceptance + commit + push merged into one pause (PMO auto-commits locally; user picks 3-way for push)
-  - Typical Feature pause points reduced from 6-8 to 4-5
-- **Numbered Options** (v7.3.5): All options listed as `1/2/3...`. Recommended option marked 💡 and listed first. Last option is always "other instructions". User replies with a single digit (no typing required).
-- **Flow Step Description** (v7.3): PMO initial analysis must provide the **full step description** of the chosen flow (stage chain + what each stage does + pause points). User confirms based on steps, not just flow name.
-
-#### Execution Layer
-
-- **Dispatch File Protocol**: Each Subagent dispatch produces `{Feature}/dispatch_log/{NNN}-{subagent}.md`. The file is both input and audit record. Main conversation ↔ Subagent handoff is structured. Parallel/re-dispatch/degradation all traceable.
-- **Key Context (6 categories)**: Every dispatch must fill 6 categories (historical decisions / current focus / cross-Feature constraints / identified risks / degradation grants / priority tolerance). Write `-` when absent (proves PMO judged).
-- **Multi-Perspective Review** (Architect / QA / Codex, three independent tracks): Architect defaults to main conversation (preserves project architecture context + skeptic perspective prevents rubber-stamping). QA / Codex go through Subagent for independent perspective. Three artifacts are structurally independent (independent generated_at / files_read / no cross-reference, machine-verifiable).
-- **Scripted API E2E**: Subagent generates reusable Python scripts (`tests/e2e/F{N}/api-e2e.py`) instead of one-off curl. 4 assertion categories (status / body / DB / side effects). Scripts committed as Feature deliverables.
-- **Duration Metrics Closed Loop** (v7.3.3): Each stage auto-records `started_at / duration_minutes / estimated_minutes / variance_pct / dispatches_count / retry_count / user_wait_seconds`. Feature completion report auto-aggregates a duration stats table. retros/*.md supports cross-Feature trend analysis.
-- **Auto-Commit, User-Decides-Push** (v7.3.4): After PM acceptance → PMO auto-commits locally (structured message with AC coverage + review status + duration summary) → ⏸️ user picks 3-way (push / local only / reject for fix). PMO **cannot auto-push**; user retains full control of remote push.
-
-#### Quality Assurance
-
-- **Closed-Loop Verification Red Line**: RD/QA claims of "complete" must include actual command output (test/build results). PMO completion report must cite real data. No empty "done" statements.
-- **Mandatory WARN Logs for Degradation**: All degradation paths (Subagent failure, Codex unavailable, host doesn't support TodoWrite, worktree unavailable, etc.) must emit structured WARN logs. Silent degradation violates the closed-loop verification red line.
-- **PMO Preflight L1/L2/L3**: Before dispatching any Subagent, the corresponding preflight must pass. Failed preflight → no dispatch.
-- **Product Panorama Protection** (v7.3.4): The panorama (`design/sitemap.md` + `design/preview/overview.html`) is **confirmed product + business logic truth**. Feature flow defaults to **incremental merge**, no rewriting. Any modification must add red annotation to sitemap + list diff in execution report. Structural changes (delete page / restructure nav) → suggest Feature Planning flow instead.
-- **TDD + Machine Verification**: Tests-first recommended (soft constraint). Unit tests, typecheck, lint are Dev Stage Output Contract hard gates.
-- **State Recovery**: New session/post-compact reads `{Feature}/state.json` to recover. Not dependent on conversation memory.
-
-## Host Compatibility
-
-Teamwork auto-detects host environments via the `{SKILL_ROOT}` variable:
-
-| Host | Detection | SKILL_ROOT | Instruction File |
-|------|-----------|------------|------------------|
-| Claude Code | Task tool + .claude/ dir | .claude/skills/teamwork | CLAUDE.md |
-| Codex CLI | .codex/ or .agents/ dir | .agents/skills/teamwork | AGENTS.md |
-| Gemini CLI | .gemini/ dir | .gemini/skills/teamwork | GEMINI.md |
-| Generic | No match | Inferred from SKILL.md | AGENTS.md |
-
-Execution mode auto-adapts: Claude Code uses Task tool for Subagent dispatch; Codex CLI uses agent TOML spawn; hosts without Subagent support degrade to main-conversation execution (PMO chooses via AI Plan Mode).
-
-## Collaboration Models
-
-### Single-User Mode (default)
-One user + one Claude session operates the entire project. `.teamwork_localconfig.md` scope is for focusing attention, not concurrency control.
-
-### Multi-User Mode (experimental)
-Multiple users use separate Claude sessions on different sub-projects.
-
-Constraints:
-- Each sub-project can have only one active session at a time
-- Different users must own different sub-projects (no scope overlap)
-- Cross-sub-project requirements coordinated by one user
-- No concurrent development on the same sub-project
-
-## Install
+### Install
 
 ```bash
-# Auto-detect host (Claude Code / Codex CLI)
+# Auto-detects the host environment (Claude Code / Codex CLI / Gemini CLI)
 npx skills add okteam99/teamwork
-
-# Or manual install
-bash skills/teamwork/install.sh
 ```
 
-## Upgrade
+### Upgrade
 
 ```bash
 npx skills update okteam99/teamwork
 ```
 
-## Usage
+### Start a Flow
 
 ```bash
-# Start Feature flow
+# Feature (full requirement → design → dev → test → acceptance → delivery)
 /teamwork implement user login
 
-# Start Feature Planning
-/teamwork plan an e-commerce recommendation system
+# Small change (Agile: ≤5 files, clear plan, no UI/architecture change)
+/teamwork add an export-CSV button to the user list
 
-# Report a bug
-/teamwork login page returns 500 on mobile
+# Micro (zero-logic change — copy / style / asset replacement)
+/teamwork replace the homepage logo with the new image
 
-# Small change (Agile: ≤5 files, clear approach)
-/teamwork add CSV export button to user list
+# Bug fix
+/teamwork the login page returns 500 on mobile
 
-# Minor change (Micro: zero-logic, PMO modifies directly)
-/teamwork replace homepage logo
+# Investigation (no code output, just root-cause)
+/teamwork P95 latency rose in production over the last 3 days, take a look
 
-# View status / resume an interrupted flow
+# Feature Planning (break down the ROADMAP, no code output)
+/teamwork plan the e-commerce recommendation system
+```
+
+### What You Do vs What the AI Does (Product Iteration)
+
+| Stage | You | AI |
+|-------|-----|-----|
+| Start | Give a one-line requirement | PMO initial analysis + flow-type identification + full step description |
+| Confirm flow | Reply ok / feedback | Read the necessary knowledge-base docs · start the flow |
+| PRD | Wait / correct | PM drafts PRD + multi-role parallel review + converge |
+| Confirm PRD | Reply ok | — |
+| Design | Wait | Designer produces UI + syncs sitemap |
+| Tech plan | Wait | RD drafts TECH + QA drafts TC + architect + heterogeneous-model review |
+| Dev | Wait | RD implements via TDD + unit tests + machine checks |
+| Review | Wait | Architect + QA + **heterogeneous model (e.g. codex / claude)** — three independent reviews |
+| Test | Wait (start the app if needed) | QA integration tests + scripted API E2E |
+| Acceptance | Reply ok / feedback | PM-perspective acceptance + PMO compiles delivery report + auto-commit |
+| **Ship Phase 1** | Click the merge button | MR/PR created · MR link given → ⏸️ await merge |
+| **Ship Phase 2** | Wait | Verify merge + wrap-up (state.json terminal state + worktree cleanup) → ✅ |
+
+Typical Feature pause points: **3-5**.
+
+### What You Do vs What the AI Does (Product-Direction Planning)
+
+The breakdown from business overview to concrete Features — led by PL (Product Lead), orchestrated by PMO, landed by PM.
+
+| Stage | You | AI |
+|-------|-----|-----|
+| Start | Give a one-line direction (e.g. "build an e-commerce recommender" / "adjust the business model") | PMO recognizes product-direction input · schedules PL |
+| Business overview | Answer PL's key questions (users / value / scenarios) | PL guides building product-overview (business architecture + execution handbook) |
+| Confirm overview | Reply ok / correct | PL lands the product-overview/ docs |
+| Direction discussion | Raise topics (add/remove business lines / business-model change) | PL discussion mode: multi-perspective analysis + options + recommendation |
+| Decide direction | Choose a direction | PL enters execution mode · determines change level (function / business module / direction) |
+| ROADMAP breakdown | Wait / correct | PMO orchestrates the ROADMAP breakdown (business line → module → Feature list) |
+| Confirm ROADMAP | Reply ok | PMO lands ROADMAP.md + sitemap.md |
+| Pick a Feature | Specify the next Feature | PMO transitions into the Feature flow (enters the "Product Iteration" table) |
+| Feature completion feedback | Wait | PMO auto-writes back ROADMAP status + updates sitemap |
+
+Typical direction-planning pause points: **1-3** (overview confirmation + direction decision + ROADMAP confirmation).
+
+---
+
+## 5-Mode Entry Triage
+
+The teamwork entry is PMO's main-conversation **5-mode triage** — it looks only at user input to decide the minimal path:
+
+| Mode | Trigger | Behavior |
+|------|---------|----------|
+| **A · query** | "look / investigate / explain / why / diagnose" + no action verb | Directly grep / Read + answer + follow-up guidance · no stage chain |
+| **B · execute** | "implement / fix / create / change" + a clear action | Enter the prepare sub-flow → flow-type identification → business stage chain |
+| **C · resume** | "continue F032 / ship F032" | Find state.json + jump to current_stage |
+| **D · status** | `/teamwork` (empty command) / "where are we" | Load the Feature board + output |
+| **E · discuss** | "I feel / what do you think / X vs Y / suggest / which is better" | Multi-perspective discussion + options + recommendation + ask → escalate mode after the user decides |
+
+**Principle**: start on demand · pick the right flow for the goal.
+
+## 6 Flow Types — Which One
+
+| Flow | Use case | Output | Default pause points |
+|------|----------|--------|----------------------|
+| **Feature** | Full feature development | Code + docs + tests | 3-5 |
+| **Agile requirement** | ≤5 files + clear plan + no UI/architecture change | Code + simplified docs + tests | 2-3 |
+| **Micro** | Zero-logic change (copy/style/asset/config constant/doc comment) | Code (direct edit) | 2 (confirm + acceptance) |
+| **Bug** | Production/local defect | Fix + BUG report + regression tests | 3-4 |
+| **Feature Planning** | Break a product goal into a ROADMAP | PROJECT.md + ROADMAP.md + sitemap.md | **1** (final summary confirmation only) |
+| **Investigation** | Root-cause only, no code output | Investigation report + follow-up todos | 0-1 |
+
+The flow type is identified automatically by the prepare sub-flow at the mode-B entry; you only confirm at pause points. Feature / Agile / Bug / Micro enter the state machine and run the stage chain; Feature Planning / Investigation do not enter the state machine and are executed by PMO in the main conversation.
+
+---
+
+## Advanced Usage
+
+### Flow Control
+
+```bash
+# View current state (which step / what's next / pending decisions)
 /teamwork status
+
+# Resume an interrupted flow (recoverable after a new conversation / compaction, via state.json)
 /teamwork continue
-
-# Switch role
-/teamwork pm | designer | qa | rd | pmo
-
-# Exit collaboration mode
-/teamwork exit
 ```
 
-> Note: Product Lead is auto-dispatched by PMO, no manual switching. Flow type is auto-detected by PMO.
+Pause-point options are numbered (💡 recommended item first, the last option is always "other instructions") — **just reply with a digit**, no typing. Multi-decision combos are supported (e.g. `1A 2B`). Global shortcuts: `ok` = take the recommendation, `all default` = use all defaults.
 
-## File Structure
+### Role System
 
-```
-teamwork/
-├── skills/
-│   └── teamwork/
-│       ├── SKILL.md                  # Main entry: red lines, AI Plan Mode, file index
-│       ├── INIT.md                   # 🔴 Mandatory on each startup (host detection + project space + kanban)
-│       ├── FLOWS.md                  # Flow specs: six flow types with detailed execution rules
-│       ├── ROLES.md                  # Role index (→ roles/*.md)
-│       ├── RULES.md                  # Core rules: pause / transition / change / closed-loop verification
-│       ├── REVIEWS.md                # Review specs (PRD / TC / UI restoration)
-│       ├── STANDARDS.md              # Coding standards index
-│       ├── STATUS-LINE.md            # Status line format + user intent recognition + stage mapping
-│       ├── TEMPLATES.md              # Document template index
-│       ├── CONTEXT-RECOVERY.md       # New session / interruption recovery
-│       ├── PRODUCT-OVERVIEW-INTEGRATION.md  # product-overview/ and PL integration rules
-│       ├── install.sh                # One-click install (auto host detection)
-│       │
-│       ├── roles/                    # Full role definitions (load on demand)
-│       │   ├── pmo.md
-│       │   ├── product-lead.md
-│       │   ├── pm.md
-│       │   ├── designer.md
-│       │   ├── qa.md
-│       │   └── rd.md                 # RD + Architect (solution review + Code Review)
-│       │
-│       ├── rules/                    # Split core rules
-│       │   ├── flow-transitions.md   # 🔴 Stage transition table (single source of truth)
-│       │   ├── gate-checks.md        # PMO preflight + state.json sync rules
-│       │   └── naming.md             # Naming conventions
-│       │
-│       ├── stages/                   # Stage specs (three-contract structure)
-│       │   ├── plan-stage.md         # PM PRD + PL-PM discussion + multi-perspective review
-│       │   ├── ui-design-stage.md    # Feature UI + panorama incremental (v7.3.4 merged)
-│       │   ├── panorama-design-stage.md  # Panorama rebuild mode (Feature Planning only)
-│       │   ├── blueprint-stage.md    # QA TC + RD TECH + architect solution review
-│       │   ├── blueprint-lite-stage.md  # Lightweight blueprint for Agile flow
-│       │   ├── dev-stage.md          # RD TDD dev + unit tests + worktree integration
-│       │   ├── review-stage.md       # Three independent perspectives (Architect / QA / Codex)
-│       │   ├── test-stage.md         # Env prep + integration tests + scripted API E2E
-│       │   └── browser-e2e-stage.md  # Browser E2E (semi-auto, optional)
-│       │
-│       ├── agents/                   # Task units + protocols
-│       │   ├── README.md             # Execution mode ref + Dispatch Protocol §4 + Main-Conv Artifact §6
-│       │   ├── rd-develop.md
-│       │   ├── arch-code-review.md
-│       │   ├── qa-code-review.md
-│       │   ├── integration-test.md
-│       │   └── api-e2e.md            # Scripted API E2E spec
-│       │
-│       ├── codex-agents/             # Codex CLI custom agent definitions
-│       │   ├── README.md
-│       │   ├── rd-developer.toml / reviewer.toml / tester.toml
-│       │   ├── planner.toml / designer.toml / e2e-runner.toml
-│       │   └── hooks.json
-│       │
-│       ├── standards/                # Coding standards by tech stack
-│       │   ├── common.md             # Common: TDD / architecture / self-check / WARN logs
-│       │   ├── backend.md            # Backend: API, logs, DB migrations
-│       │   └── frontend.md           # Frontend: test layers, E2E, component tests
-│       │
-│       └── templates/                # Document templates
-│           ├── prd.md                # With YAML frontmatter acceptance_criteria[]
-│           ├── tc.md                 # With YAML frontmatter tests[].covers_ac
-│           ├── tech.md / ui.md
-│           ├── architecture.md / project.md / roadmap.md
-│           ├── teamwork-space.md / config.md / dependency.md
-│           ├── feature-state.json    # Feature state machine (v7.3.2 replaces status.md)
-│           ├── verify-ac.py          # AC↔test coverage verification (standard impl)
-│           ├── bug-report.md / knowledge.md / retro.md
-│           ├── e2e-registry.md / pl-pm-feedback.md
-│           ├── review-log.jsonl / dispatch.md
-│           └── README.md
-│
-├── README.md / README-EN.md
-└── .gitignore
-```
+- **PMO** (flow orchestration): accept user input → identify flow → schedule roles → maintain the state machine → pre-checks and pause points
+- **Product Lead (PL)**: product direction. Onboarding mode (build product-overview from scratch) / discussion mode (business topics) / execution mode (change cascade + Change Request lifecycle)
+- **PM**: PRD + structured AC + final acceptance
+- **Designer**: UI restoration + sitemap (sitemap + preview)
+- **Architect**: Tech Review (Blueprint) + Code Review (Review Stage) + ARCHITECTURE.md maintenance + ADR decisions
+- **QA**: TC (AC↔test binding) + TC tech review (Blueprint) + Code Review + integration tests / API E2E
+- **RD**: TDD implementation + unit tests + self-check + bug investigation report
+- **External Reviewer**: heterogeneous-model code review (codex / claude · independent-stance hard constraint)
 
-## Feature Flow Overview (v7.3 contracts + v7.3.4 compressed pauses)
+Role collaboration uses **main-conversation identity switching** — switching roles = switching checklists + forced re-read, with no Subagent dispatch.
 
-```
-PMO initial analysis (type detection + flow step description + cross-Feature conflict check)
-  ↓
-⏸️ User confirms flow (based on step description, reply with digit 1/2/3)
-  ↓
-🔗 Goal-Plan Stage (PM PRD + PL-PM discussion + multi-perspective review · v7.3.10+P0-53 renamed from Plan)
-  ↓
-⏸️ User confirms PRD (reply with digit)
-  ↓
-🔗 UI Design Stage (if UI needed; v7.3.4 merges panorama incremental)
-  Designer produces in one pass: Feature UI + HTML preview + panorama incremental sync (🟡 cautious modification)
-  ↓
-⏸️ User confirms "design batch" (UI + panorama reviewed together, single pause)
-  ↓
-🔗 Blueprint Stage (QA TC + RD TECH + architect solution review; AC↔test binding)
-  ↓
-⏸️ User confirms technical solution
-  ↓
-📋 PMO L2 preflight → 🔗 Dev Stage (AI Plan decides main-conv/Subagent; TDD + unit tests + machine verification)
-  ↓ 🚀 auto
-🔗 Review Stage (Architect in main conv + QA/Codex Subagent parallel; three structurally independent artifacts)
-  ↓ 🚀 auto
-🟡 Test Stage pre-confirmation (reply digit: 1 execute now / 2 defer / 3 skip)
-  ↓
-🔗 Test Stage (env in main conv + integration tests + scripted API E2E)
-  ↓
-Browser E2E (if needed, reply digit to decide)
-  ↓
-🔗 PM Acceptance + commit + push (v7.3.4 merged pause)
-  PM completes acceptance → PMO auto-commits locally (structured message)
-  ⏸️ User replies digit:
-    1. ✅ Approve → auto commit + push
-    2. ✅ Approve → local commit only (user retains push decision)
-    3. ❌ Reject → provide info, route to fix stage
-    4. Other instructions
-  ↓
-PMO completion report (deliverables + flow integrity + doc sync + ⏱️ duration stats + 📦 Commit & Push status)
-```
+### Cross-Host Compatibility
 
-Typical Feature pause points: **3-5** (flow / PRD / design batch / solution / acceptance+commit+push).
+| Host | Detection | Instruction file |
+|------|-----------|------------------|
+| Claude Code | .claude/ | CLAUDE.md |
+| Codex CLI | .codex/ | AGENTS.md |
+| Gemini CLI | .gemini/ | GEMINI.md |
 
-## Agile Flow Overview
+On session start, `bootstrap.py` automatically maintains the teamwork injection section of the corresponding instruction file per host.
 
-```
-PMO analysis → detects Agile (≤5 files, no UI/architecture change, clear approach) → ⏸️ user confirms
-  ↓
-PM → simplified PRD (core requirements + structured AC) → ⏸️ user confirms
-  ↓
-🔗 BlueprintLite Stage (QA simplified TC + RD implementation plan, main-conv, no review)
-  ↓
-🔗 Dev Stage → Review Stage → Test Stage (same as Feature)
-  ↓
-PM Acceptance + commit + push (digit reply 1/2/3/4) → PMO completion report
-```
+### Collaboration Model
 
-## Micro Flow Overview (v7.3 truly lightweight)
+**Single-user mode (default)**: one user + one AI session operating the entire project. The `scope` in `.teamwork_localconfig.json` is for focusing attention, not concurrency control.
 
-```
-PMO analysis + entry criteria check + flow step description
-  ↓
-⏸️ User confirms Micro (reply digit 1/2/3/4)
-  ↓
-PMO directly modifies code (🟢 no Subagent, no Execution Plan, no dispatch)
-  ↓
-⏸️ User acceptance (manual test / visual verify)
-  ↓
-PMO completion report (with Micro post-audit)
-```
+**Multi-user mode (experimental)**: multiple users each operate different sub-projects in independent sessions. Constraints: each sub-project may have only one session at a time; different users must own non-overlapping sub-projects (non-overlapping scope); cross-sub-project needs are coordinated by one user; concurrent development of the same sub-project is not supported.
 
-Entry criteria: zero-logic changes + changes within whitelist (asset replacement / copy / styles / config constants / comments).
+### Worktree Strategy
 
-## Feature Planning Flow Overview
+**Defaults to `auto`**. The prepare sub-flow creates an isolated worktree for each Feature (`{worktree_root_path}/{Feature-ID}` · default `worktree_root_path=.worktree`); the Dev Stage works inside the worktree; the Ship Stage's second phase cleans up after verifying the merge. `init-feature` materially validates the worktree path convention + cwd. Suited for running multiple Features in parallel while keeping the main branch stable. Configurable in `.teamwork_localconfig.json`.
 
-```
-PMO analysis → detects Feature Planning → assesses scope
-  ↓
-📁 Sub-project level:
-  PM → discuss product direction with user → ⏸️ user confirms
-    ↓
-  🔗 Panorama Design Stage (rebuild mode, if UI) → ⏸️ user confirms panorama
-    ↓
-  PM → update PROJECT.md → decompose ROADMAP.md (Wave + dependencies + parallelism)
-    ↓
-  ⏸️ User confirms ROADMAP → each Feature enters standard Feature flow
+### Pending-Needs Pool
 
-🌐 Workspace level:
-  PM → discuss overall architecture → update teamwork_space.md → ⏸️ user confirms
-    ↓
-  For each affected sub-project → execute sub-project-level Planning
-    ↓
-  PMO → finalize teamwork_space.md → ⏸️ user final confirmation
-```
+Items found across Features/sessions that are "out of current scope but should be done" are recorded in the pending-needs pool in the project-root `teamwork-space.md`. When the user asks "what else is pending / backlog", PMO lists them automatically; once turned into a Feature/Bug, the entry is removed from the pool, keeping it lightweight.
 
-## Product Planning and Product Lead
+### Product Planning System
 
-Teamwork has a built-in product planning system maintained by the **Product Lead (PL)** role. PMO auto-dispatches PL when product-level planning and decisions are needed.
-
-### Product Planning Documents
+Teamwork has a built-in **Product Lead (PL)** role that maintains the product-planning docs:
 
 ```
 product-overview/
-├── {project}_业务架构与产品规划.md    # Product positioning, business flow, revenue model, feature planning
-├── {project}_执行手册.md              # Execution lines, milestones, acceptance criteria
-└── {project}_Product_Plan.md          # Optional · external product plan
+├── {project}_business-architecture-and-product-plan.md
+├── {project}_execution-handbook.md
+└── {project}_Product_Plan.md              # optional
 ```
 
-Product planning docs are upstream inputs to Feature Planning and the top-level basis for change cascading.
+When a project is first initialized and `product-overview/` does not exist, PMO automatically switches to PL onboarding mode. For product-direction topics (business-model adjustments, adding/removing business lines), PMO schedules PL into discussion mode. When a conclusion needs to land, PL enters execution mode and triggers a downstream cascade into Feature Planning based on the change level (Level 1 function / Level 2 business module / Level 3 direction).
 
-### Product Lead's Three Modes
+If, during development, the current Feature is found to conflict with upstream docs (e.g. a conflicting Feature already in the ROADMAP, or the product architecture needs adjustment), a **bottom-up impact escalation** is triggered: PMO traces upward to the highest-level document that needs to change, then PL evaluates and cascades back down.
 
-**Guided Mode**: On first project initialization, if `product-overview/` doesn't exist, PMO auto-switches to PL Guided Mode. PL guides the user to build product planning docs from scratch via structured Q&A (business architecture → execution manual → project init).
+---
 
-**Discussion Mode**: When the user raises product-directional topics (adjust business model, add/remove business lines), PMO detects and dispatches PL to Discussion Mode. Once consensus is reached, PL writes conclusions to product-overview docs and generates a CHG change record.
+## Core Guarantees (Quality Mechanisms)
 
-**Execution Mode**: When discussion conclusions need implementation, PL produces a change impact assessment report, evaluating scope and level. Upon user confirmation, triggers downstream cascading:
+The mechanisms below form the foundation of Teamwork's quality assurance. Each section describes the mechanism itself and the specific problem it targets.
 
-```
-Product Lead assessment → change level determination
-  ├── Level 1 (feature-level) → directly enter Feature Planning
-  ├── Level 2 (module-level) → update product-overview → sub-project Feature Planning
-  └── Level 3 (direction-level) → update product-overview → workspace-level Feature Planning
-```
+### Contractualized Output
 
-### Change Cascading and Bottom-Up Escalation
+Every Stage file is unified into a **prerequisites (entry checks) / artifacts (output shape) / evidence_checks (completion evidence)** contract. It specifies **where to go** (output contracts), not **how to get there** (execution mode decided by the AI based on scale/complexity). The shape of each stage's output is locked, so downstream isn't blocked by a sloppy previous step.
 
-During development, if a Feature conflicts with upstream docs (ROADMAP conflict, architecture adjustment needed), PM/RD triggers **bottom-up impact escalation**. PMO traces upward until finding the highest-level doc needing change. PL assesses, then cascades downstream.
+### Machine-Verifiable — AC↔Test Strong Binding
 
-## Red Lines (15 points; full list in [SKILL.md](./skills/teamwork/SKILL.md))
+The YAML frontmatter of PRD.md and TC.md is machine-readable; `acceptance_criteria[].id` ↔ `tests[].covers_ac` are one-to-one bound. The `verify-ac.py` script auto-validates coverage completeness, eliminating "requirement → code" drift.
 
-1. **PMO write-op boundary**: Non-Micro flow runtime changes → must follow full flow; Micro flow PMO can modify directly (whitelist zero-logic); pure docs PMO can modify (requires annotation)
-2. **Six flows**: Feature / Bug / Issue / Feature Planning / Agile / Micro, no custom flows
-3. **No self-simplification**: Each requirement goes through its full flow; "simple/small/pure port" is not a skip reason
-4. **PMO is single entry point**: All user input handled by PMO first
-5. **Pause points require explicit confirmation**: Including Micro user confirmation and acceptance
-6. **Requirement type / flow type** enum-restricted (6 types)
-7. **Feature Planning outputs docs only**, no code
-8. **Closed-loop verification**: "Complete" must include actual command output
-9. **Pause points require suggestion + numbered options** (v7.3.5): 💡 advice + 📝 reason + 1/2/3 numbered + last option is "other instructions"
-10. **Write-op hard gate**: PMO must output initial analysis before any write operation
-11. **No pausing at non-pause points**: 🚀 auto-transition nodes forbid injecting questions
-12. **PMO preflight**: Must complete L1/L2/L3 preflight before any dispatch
-13. **Subagent preflight required**
-14. **AI Plan Mode red line** (v7.3): Each stage start requires 3-line Execution Plan output; Plan written to state.json.planned_execution
-15. **Flow confirmation red line** (v7.3): PMO must provide full flow step description; user confirms based on steps
+### Main-Conversation Artifact Protocol
 
-## Version History
+When tasks are executed directly in the main conversation (PRD discussion, architect review, env setup), artifacts **must be written to disk per the YAML frontmatter spec**. Whichever role perspective produced it, the artifact is treated equally at audit time — nothing gets lost just because it was "discussed in the main conversation".
 
-- **v7.3.5**: Numeric pause point options (user replies with a digit)
-- **v7.3.4**: Pause point compression (UI+panorama merged, acceptance+commit+push merged 3-way)
-- **v7.3.3**: Stage duration metrics closed loop (duration / variance / retry / user_wait)
-- **v7.3.2**: STATUS.md deprecated, state.json becomes single Feature state file
-- **v7.3.1**: Rule alignment and ceremony reduction (Execution Plan 3-line core)
-- **v7.3**: Three-contract stages + AI Plan Mode + AC↔test binding + main-conversation artifact protocol + state.json
-- **v7.2**: Dispatch file protocol + scripted API E2E + progress visibility + Key Context
-- **v7.1 and earlier**: Multi-role review, multi-sub-project mode, change cascading, closed-loop verification, and other foundational architecture
+### Multi-Perspective Review
 
-Full changelog in [skills/teamwork/docs/CHANGELOG.md](./skills/teamwork/docs/CHANGELOG.md).
+- **Architect**: technical soundness / performance / security / architecture consistency
+- **QA**: AC item-by-item check against the implementation / test coverage / edge cases
+- **Heterogeneous model (External)**: a cross-model independent review (when claude is the main window, external = codex, and vice versa), run once
+
+The three artifacts are **structurally independent** (each written to its own REVIEW-{role}.md / no cross-reference), machine-verifiable, avoiding the "the last review already said it's fine, so don't look closely" applause effect.
+
+### fix-retry Loop
+
+When review / test fails, it retries within the stage (RD fixes the code → re-review / re-run), without switching stages; the audit keeps `rounds[]` recording the full loop. It advances to the next stage only when it finally passes.
+
+### ADR Decision Records
+
+When a discussion triggers one of the three questions (Why / Options / Tradeoff) and a non-trivial decision is made, an ADR is automatically written to `{Feature}/adrs/`. PMO scans relevant ADRs at the goal/blueprint entry and injects the context, preventing old decisions from being forgotten and re-debated.
+
+### KNOWLEDGE 3-Category Convergence
+
+The project-level `KNOWLEDGE.md` has three categories: **Gotcha** (pitfalls) / **Convention** / **Architecture** (architecture fragments). Each has a hard trigger timing (e.g. write a Gotcha after debugging, a Convention after Review) — not relying on self-discipline, so the same pitfall isn't hit again. Retrospectives are separated from KNOWLEDGE into `retros/`.
+
+### Ship Stage
+
+**Phase 1 push** (inside the worktree: sanitize → push branch → create MR via CLI) → ⏸️ user merges on the platform → **Phase 2 finalize** (in the main worktree: verify merge + worktree cleanup + mark state.json completed).
+
+MR/PR is actually created by PMO via the `gh` / `glab` CLI with a real link · when the CLI is unavailable, a URL is generated from the platform template as a fallback + the user is prompted to click manually.
+
+The PM acceptance pause point is 3-way: ① pass + Ship (auto-enter Ship Stage) ② pass but don't Ship ③ fail + dispatch a fix.
+
+### Project Diagnostic Toolkit — TROUBLESHOOTING.md
+
+When teamwork mode A query / E · discuss touches "diagnose / error / check logs / check the environment", PMO automatically reads the project-root `TROUBLESHOOTING.md`:
+
+- **Fixed path**: project-root `TROUBLESHOOTING.md` (teamwork doesn't look in docs/ · handled like teamwork-space.md)
+- **teamwork provides a template**: [templates/troubleshooting.md](./skills/teamwork/templates/troubleshooting.md) (4-section minimal skeleton: environment / check logs / check data & cache / common errors + safety constraints + maintenance)
+- **Content maintained by the user**: teamwork doesn't assume a tech stack (K8s vs Docker vs Serverless) · doesn't prescribe specific commands
+- **When absent**: PMO gives a one-line prompt to create it from the template (no forcing / no blocking · continues diagnosing with general methods)
+- Complementary to [KNOWLEDGE.md](./skills/teamwork/templates/knowledge.md): KNOWLEDGE = pitfalls to watch · TROUBLESHOOTING = operational steps
+
+### External Models — Review-Only
+
+External models codex / claude / gemini are used in teamwork **for read-only review only** · they have no code-write authority (red line R1):
+
+- Review brings in a heterogeneous model for an independent pass; the cross-model perspective exposes same-model self-review blind spots
+- External models run read-only · produce only markdown review artifacts · do not modify code
+
+### Evidence-Binding Materialized Interception
+
+Factual fields (mr_url / feature_head_commit / test_exit_code, etc.) must be backed by evidence (command + stdout + exit_code):
+
+- **Interception layer = state.json schema integrity**: when PMO writes a factual field to state.json, it can't go by memory (fabrication won't match the real command format · spot-checked by user/PM)
+- **State fields vs factual fields** are clearly delineated: current_stage / phase / verdict are state fields (PMO judges them · no evidence needed) · stdout / mr_url are factual fields (externally observed · evidence required)
+- `state.json` carries `_state_checksum` self-protection; writing state.json directly across hosts is physically intercepted
+
+### State Recovery
+
+`{Feature}/state.json` is the **single source of truth** for flow state. After a new conversation / compaction / session restart, reading `state.json` restores everything — no reliance on conversation memory.
+
+### Closed-Loop Verification
+
+RD/QA claims of "done" must include actual command output (test/build results); PMO completion reports must cite real data; empty "done" statements are forbidden. All degradation paths (external model unavailable, worktree unavailable, etc.) must emit structured WARN logs; silent degradation is a violation of the closed-loop verification red line.
+
+### Prompt-Cache Friendly
+
+Docs are organized in a 4-layer model (L0 framework / L1 project / L2 Feature / L3 dynamic), strictly separating stable and dynamic layers; the Stage-entry Read order is fixed and state.json access count is limited, reducing the AI's repeated thinking across stages / Features — the same Feature workflow costs noticeably less and has lower latency on the next push.
+
+### Absolute Red Lines (9 · R1-R9)
+
+Teamwork's 9 core red lines — 8 of them materially enforced by the `state.py` state machine (enumerable rules go into code), and 1 (R3 PMO unified intake) a soft rule in PMO's main conversation.
+
+| Red line | Content (one-liner) |
+|----------|---------------------|
+| **R1** Code-write authority to RD | Code / tests / build config executed by the RD role; external models review-only |
+| **R2** Flow-type closed-set | 6 flows: Feature / Bug / Micro / Agile / Feature Planning / Investigation · no self-invented variants |
+| **R3** PMO unified intake | All user input is taken by PMO first · no other role responds directly |
+| **R4** Flow boundary | No simplification (no skipping stages) / no inflation (no inserting pauses at auto-advance nodes) / must give step description |
+| **R5** Pause-point protocol | Must await user confirmation + give 💡 recommendation + numbered (single decision 1/2/3 · multi-decision 1A 2B) |
+| **R6** Planning produces docs only | No code · no auto-starting a Feature flow |
+| **R7** Evidence closure | Claiming done requires commit + actual output; factual fields evidence-bound |
+| **R8** Write-op hard gate chain | Reject stage-start before prepare is done · Ship Phase 1 CLI-first |
+| **R9** Session bootstrap | Entry must run bootstrap.py + PMO 5-mode triage |
+
+Full red-line text in [SKILL.md](./skills/teamwork/SKILL.md) and [docs/v8-redesign/00-MANIFESTO.md](./skills/teamwork/docs/v8-redesign/00-MANIFESTO.md).
+
+---
+
+## Documentation Map
+
+| File | Purpose |
+|------|---------|
+| [SKILL.md](./skills/teamwork/SKILL.md) | Main entry: design philosophy + command list + Triage entry spec + 9 red lines + project-level doc architecture |
+| [FLOWS.md](./skills/teamwork/FLOWS.md) | 6 flow types — telos and use cases |
+| [STAGES.md](./skills/teamwork/STAGES.md) | 10-stage index + common cite discipline |
+| [ROLES.md](./skills/teamwork/ROLES.md) | Role index (→ roles/*.md) |
+| [STANDARDS.md](./skills/teamwork/STANDARDS.md) | Technical standards index (→ standards/*.md) |
+| [TEMPLATES.md](./skills/teamwork/TEMPLATES.md) | Document template index |
+| [docs/prepare.md](./skills/teamwork/docs/prepare.md) | mode B → preparation sub-flow before entering the state machine |
+| [docs/feature-planning.md](./skills/teamwork/docs/feature-planning.md) | Feature Planning flow guide (not in the state machine) |
+| [docs/conventions.md](./skills/teamwork/docs/conventions.md) | Feature ID + worktree path naming conventions |
+| [stages/*.md](./skills/teamwork/stages/) | Each stage's Telos + Output Contract |
+| [roles/*.md](./skills/teamwork/roles/) | Role telos + authoring guidelines |
+| [standards/*.md](./skills/teamwork/standards/) | Technical standards (common / backend / frontend / tdd, etc.) |
+| [tools/state.py](./skills/teamwork/tools/state.py) | The sole orchestrator entry |
+| [docs/CHANGELOG.md](./skills/teamwork/docs/CHANGELOG.md) | Full version changelog |
+
+For the detailed directory structure see [skills/teamwork/](./skills/teamwork/).
+
+---
+
+## Version
+
+Currently **v8.0**. Full changelog in [skills/teamwork/docs/CHANGELOG.md](./skills/teamwork/docs/CHANGELOG.md).
+
+---
 
 ## License
 
