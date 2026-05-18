@@ -2184,7 +2184,8 @@ def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="state.py", description="Teamwork state.json tool (P1)")
     sub = p.add_subparsers(dest="cmd", required=True)
 
-    sp = sub.add_parser("snapshot", help="返回精简关注字段（cite-friendly）")
+    sp = sub.add_parser("snapshot", aliases=["status"],
+                        help="返回精简关注字段（cite-friendly · 看当前 stage/下一步 · 别名 status · compact 恢复用）")
     _add_feature_arg(sp)
     sp.add_argument("--tier", choices=["core", "stage", "full"], default="core")
     sp.add_argument("--cite", help="额外关注字段，逗号分隔的 dotted path")

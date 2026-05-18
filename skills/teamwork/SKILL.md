@@ -98,7 +98,7 @@ B 类 · Stage 流转(10 stage × 2 + 4 fix/retry + ship-phase)
 └── ship-phase --action {sanitize|push|confirm-merged|cleanup|close-unmerged}
 
 C 类 · 维护(6)
-├── snapshot / validate / raw-read / raw-write 只读 + 逃生舱
+├── snapshot(别名 status · 看当前 stage/下一步 · compact 恢复用)/ validate / raw-read / raw-write
 ├── recover state.json 被外部改后认证
 └── migrate-v7-to-v8 一次性迁移老 Feature
 ```
