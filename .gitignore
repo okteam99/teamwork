@@ -12,3 +12,12 @@ __pycache__/
 
 # Local Claude Code state
 .claude/
+
+# Teamwork dogfooding 产物（teamwork 在自身仓库跑 bootstrap 生成 · 非 skill 源码）
+# bootstrap 把 KNOWLEDGE/GLOSSARY/TROUBLESHOOTING 收进 project-specs/（详 conventions.md §13）
+/.teamwork_localconfig.json
+/CLAUDE.md
+/KNOWLEDGE.md
+/GLOSSARY.md
+/TROUBLESHOOTING.md
+/project-specs/
