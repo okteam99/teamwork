@@ -71,6 +71,8 @@ state.py 校验:
 
 📎 **物化拦截**:`verify-panorama.py`(UI 还原差异校验 · ui_design 完成时必跑)
 
+🔴 **worktree 写文件纪律**:worktree 模式下代码改动一律写 **worktree 内**(推荐绝对路径)· 相对路径会落主工作区污染其他并行 Feature · 详 [SKILL.md § worktree 纪律](../SKILL.md)。
+
 **TDD SOP**(违反 → review NEEDS_REVISION):
 - 严格红 → 绿 → refactor 顺序 · 每个 test 独立 commit(git log 可见 TDD 节奏)· 不"先实现后补测试"
 - 每个绿点一个 commit · 一个 commit 一件事(便于 bisect)

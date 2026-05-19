@@ -76,7 +76,13 @@
 
 ---
 
-## 5. 相关
+## 5. worktree 写文件纪律
+
+🔴 worktree 模式下 · 本 Feature 所有文件读写一律在 worktree 内 · 不碰主工作区(详 [SKILL.md § worktree 纪律](./SKILL.md))。
+
+---
+
+## 6. 相关
 
 - 引擎:[tools/_v8_engine.py](./tools/_v8_engine.py) `execute_stage_start` / `execute_stage_complete`
 - spec 契约:[tools/_v8_stage_specs.py](./tools/_v8_stage_specs.py)
