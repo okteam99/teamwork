@@ -471,7 +471,7 @@ def _dev_transition(state: dict) -> Optional[str]:
     """dev 完成后的下一 stage。"""
     flow = state.get("flow_type")
     if flow == "Micro":
-        return "ship"  # Micro 跳过 review/test 直接 ship(简化分支)
+        return "pm_acceptance"  # Micro 跳过 review/test · 仍走 pm_acceptance(用户验收)→ ship
     return "review"  # Feature / Bug / 敏捷 都走 review
 
 
@@ -529,7 +529,7 @@ DEV_SPEC = StageSpec(
     ],
     brief_template_fn=_dev_brief,
     auto_transition_fn=_dev_transition,
-    authorized_pause_point="无暂停 · 完成后自动转 review(Bug/Micro 直接 ship)",
+    authorized_pause_point="无暂停 · 完成后自动转 review(Micro 转 pm_acceptance)",
 )
 
 
@@ -1199,14 +1199,21 @@ def _evidence_pm_decision(state: dict, args) -> tuple[bool, str]:
     return True, ""
 
 
+def _check_test_done_or_micro(state: dict, args) -> bool:
+    """test output_satisfied · Micro 流程无 test stage(dev → pm_acceptance)· 直接放行。"""
+    if state.get("flow_type") == "Micro":
+        return True
+    return state.get("stage_contracts", {}).get("test", {}).get("output_satisfied") is True
+
+
 PM_ACCEPTANCE_SPEC = StageSpec(
     name="pm_acceptance",
     prerequisites=[
         StagePrerequisite(
             id="test_completed",
-            check_fn=_check_stage_output_satisfied("test"),
-            hint="先完成 state.py test-complete",
-            description="test output_satisfied",
+            check_fn=_check_test_done_or_micro,
+            hint="先完成 state.py test-complete(Micro 流程无 test · 自动放行)",
+            description="test output_satisfied(Micro 流程豁免)",
         ),
     ],
     artifacts=[],  # pm_acceptance 仅决策 · 无文件产物

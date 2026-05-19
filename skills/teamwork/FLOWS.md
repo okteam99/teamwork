@@ -12,7 +12,7 @@
 |------|---------|----------|------|
 | **Feature** | 完整功能(含 UI/架构/产品方向)| 3-5 | 代码 + 完整文档 + 测试 |
 | **Bug** | 缺陷修复 | 3-4 | 修复 + BUG 报告 + 回归测试 |
-| **Micro** | 零逻辑改动(文案/样式/资源/配置)| 2 | 代码直改 |
+| **Micro** | 零逻辑改动(文案/样式/资源/配置)| 3 | 代码直改 |
 | **敏捷需求** | ≤5 文件 + 无 UI/架构变更 + 方案明确 | 2-3 | 代码 + 简化文档 + 测试 |
 | **Feature Planning** | 从产品目标拆 ROADMAP | 1(仅摘要确认)| PROJECT.md + ROADMAP.md + sitemap.md(不出代码 · R6)|
 | **问题排查** | 不出代码 · 仅定位根因 | 0-1 | 排查报告 + 后续 todo |
@@ -34,9 +34,9 @@
 Ship Stage 缩简(标题 `[Bug] <简述> (<Bug ID>)` · 如 `(PTR-B019)` · Bug 流程 artifact ID 见 conventions.md §1)。
 
 ### Micro
-**最短 stage 链**:dev → ship → completed
+**最短 stage 链**:dev → pm_acceptance → ship → completed
 
-解决:**零逻辑改动的最轻量通道 · 跳过所有质量门禁 stage**。
+解决:**零逻辑改动的最轻量通道 · 跳过 review / test 质量门禁 · 仍走 pm_acceptance 用户验收 + ship**。
 准入:改动类型在白名单(文案 / 样式 / 资源 / 配置常量 / 注释)+ 文件 ≤5。
 超出白名单 → 升级敏捷需求 / Feature。
 代码仍要走 Ship(R7 证据闭环)。
