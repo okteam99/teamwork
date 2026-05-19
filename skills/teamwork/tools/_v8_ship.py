@@ -504,7 +504,7 @@ def cmd_ship_phase(args: argparse.Namespace) -> None:
 #   4. ship-complete   current_stage → completed
 #   5. finalize-push   git plumbing 把 state.json 推到 merge_target(零 checkout)
 #   6. worktree-remove 物理删 feature worktree(state.json 已推远端 · 不丢)
-#   7. main-fetch      主工作区 git fetch(刷新 refs · 不自动 pull)
+#   7. main-sync       主工作区 git fetch + 安全 pull --ff-only(让本地跟上 ship 结果)
 #
 # 可重入:每步先查 state · 已完成则跳过(skipped_steps)。
 # 必须在主工作区跑(step 6 不能删自身所在 worktree · 沿用 P0-156)。
@@ -512,7 +512,7 @@ def cmd_ship_phase(args: argparse.Namespace) -> None:
 
 SHIP_FINALIZE_STEPS = (
     "verify-merge", "confirm-merged", "cleanup",
-    "ship-complete", "finalize-push", "worktree-remove", "main-fetch",
+    "ship-complete", "finalize-push", "worktree-remove", "main-sync",
 )
 
 
@@ -975,15 +975,40 @@ def cmd_ship_finalize(args: argparse.Namespace) -> None:
                             f"确认已合入后手动 git branch -D {wt_branch}"
                         )
 
-    # ── Step 7:main-fetch(刷新主工作区 refs · 不自动 pull)─────────
+    # ── Step 7:main-sync(fetch + 安全 pull --ff-only · 让主工作区跟上 ship 结果)──
+    # 治本:ship Phase 2 完成后 · 主工作区本地 merge_target 分支仍停在旧 commit ·
+    # 与 origin/merge_target(已含 MR 合并 + finalize-push)脱节。
+    # ff-only:能快进则快进(常态)· 分叉/脏树则安全跳过 + WARN · 不强 merge。
     f2 = _git(["fetch", "origin", merge_target], cwd=main_wt, timeout=120)
-    if f2.returncode == 0:
-        completed.append("main-fetch")
-    else:
+    if f2.returncode != 0:
         warnings.append(
             f"主工作区 git fetch origin {merge_target} 失败:"
             f"{f2.stderr.strip()[:120]} · 非致命 · 手动 git fetch 即可"
         )
+    else:
+        completed.append("main-sync")
+        cur = _git(["rev-parse", "--abbrev-ref", "HEAD"], cwd=main_wt)
+        cur_branch = cur.stdout.strip() if cur.returncode == 0 else ""
+        dirty = _git(["status", "--porcelain"], cwd=main_wt)
+        is_dirty = bool(dirty.stdout.strip()) if dirty.returncode == 0 else False
+        if cur_branch != merge_target:
+            warnings.append(
+                f"主工作区当前在 {cur_branch!r} 分支(非 {merge_target})· 已 fetch 未 pull · "
+                f"需要时自行 git checkout {merge_target} && git pull --ff-only"
+            )
+        elif is_dirty:
+            warnings.append(
+                f"主工作区 {merge_target} 有未提交改动 · 已 fetch 未 pull · "
+                f"自行 commit/stash 后 git pull --ff-only origin {merge_target}"
+            )
+        else:
+            pl = _git(["pull", "--ff-only", "origin", merge_target],
+                      cwd=main_wt, timeout=120)
+            if pl.returncode != 0:
+                warnings.append(
+                    f"主工作区 {merge_target} 与 origin 分叉 · git pull --ff-only 未通过 · "
+                    f"已 fetch · 需手动 rebase/merge:{pl.stderr.strip()[:120]}"
+                )
 
     emit_json({
         "verdict": "PASS",

@@ -59,7 +59,7 @@ ship-finalize 内部自动编排(**可重入** · 失败步骤修复后重跑即
 | 4 | ship-complete | `current_stage` → completed |
 | 5 | finalize-push | git plumbing 把 `state.json` 直推 merge_target(零 checkout · §12 例外) |
 | 6 | worktree-remove | 物理删 feature worktree + 本地 feature 分支 |
-| 7 | main-fetch | 主工作区 `git fetch` 刷新 refs(不自动 pull · 避免冲突) |
+| 7 | main-sync | 主工作区 `git fetch` + 安全 `git pull --ff-only`(在 merge_target 分支且工作树干净时 · 让本地跟上 ship 结果)|
 
 **为什么必在主工作区**:step 6 worktree-remove 不能删自身所在 worktree · 且 Phase 2 状态同步语义属于 merge_target 主工作区(P0-156)。在 linked worktree 跑 → precheck FAIL · hint 给精确 cd 目标。
 
@@ -67,6 +67,7 @@ ship-finalize 内部自动编排(**可重入** · 失败步骤修复后重跑即
 - **step 1 FAIL**(feature_head 不在 merge_target):两种可能 → ① MR 尚未合并 · 等用户;② squash / rebase 合并(见 §6)。按 R5 给用户 1/2 选项判断。
 - **step 5 finalize-push 失败**(冲突 / 保护分支 / 网络):§12 降级 · worktree 保留为 state.json 唯一副本 · 修复后重跑 ship-finalize(可重入自动跳过已完成步骤)。
 - **step 6 worktree-remove 失败**(worktree 占用等):降级 warning · state.json 已 finalize 不丢 · 按 hint 手动 `git worktree remove`。
+- **step 7 pull 跳过**(主工作区不在 merge_target / 工作树有未提交改动 / 与 origin 分叉):降级 warning · 已 fetch · 按 hint 手动 `git pull --ff-only`。
 
 ### 6. squash / rebase 合并(branch-contains 检测不到)
 
