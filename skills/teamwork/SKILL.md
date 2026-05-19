@@ -60,12 +60,12 @@ state.py goal-start --feature <path>
 state.py goal-complete --feature <path> --auto-commit <hash> --artifacts ...
 # state.py 自动校验产物 + 转移下一 stage + 输出下一 stage 的 brief
 
-# 4. Ship
+# 4. Ship(Phase 1 在 worktree · Phase 2 一条 ship-finalize 在主工作区)
 state.py ship-start --feature <path>
+state.py ship-phase --action sanitize --feature <path> ...
 state.py ship-phase --action push --feature <path> ...
-state.py ship-phase --action confirm-merged --feature <path> ...
-state.py ship-phase --action cleanup --feature <path> --status cleaned
-state.py ship-complete --feature <path> --auto-commit <hash>
+# ⏸️ 等用户在平台合并 MR · 再 cd 回主工作区
+state.py ship-finalize --feature <path>      # Phase 2 全自动 7 步(可重入)
 
 # 5. 错误处理(state.py 主动 hint · PMO 优先按建议修)
 # FAIL → 看 missing_prerequisites[*].hint → 自动修复 → 重试
@@ -82,7 +82,7 @@ state.py xx-start --bypass --reason "<用户确认理由>" --user-confirmed --mi
 - Feature 进 worktree 后 · **主工作区是其他并行 Feature 的基线**
 - 写文件用 **worktree 内路径**(推荐绝对路径 `{worktree-path}/...`)· 不用相对路径 —— 部分宿主的 patch / 写工具不继承 shell `cwd`(如 codex `apply_patch`)· 相对路径会落到主工作区
 - **违反后果**:主工作区被污染 → 改动串入其他并行 Feature / 主分支变脏 / 难追溯 —— 并行开发的硬隔离被破坏
-- 🔴 **确需写入主工作区的**(如 ship Phase 2 finalize 同步 state.json 到 merge_target)· **须先经用户确认**(R5 暂停点)· 不可 AI 自决
+- 🔴 **确需写入主工作区的** · **须先经用户确认**(R5 暂停点)· 不可 AI 自决(注:ship Phase 2 的 state.json 同步由 `ship-finalize` 用 git plumbing 零 checkout 完成 · 不写主工作区文件 · 无需此例外)
 - **物化兜底**:`xx-complete` 时 state.py 检测主工作区是否冒出本 Feature 文件 → 命中写 `concerns WARN` + emit `main_tree_pollution` —— 但这是**事后兜底** · AI 应**事前**就把文件写在 worktree 内
 - 改完文件在 worktree 内 `git add -A {feature_dir}/` + commit(详 ship-stage.md R-S7)
 
@@ -90,7 +90,7 @@ worktree 路径规范见 [docs/conventions.md §9-12](./docs/conventions.md)。
 
 ---
 
-## 命令清单(state.py ≈ 39 命令 · 详 `state.py --help`)
+## 命令清单(state.py ≈ 40 命令 · 详 `state.py --help`)
 
 ```
 A 类 · 状态机入口(用户确认 worktree 后 · 在 worktree 内运行)
@@ -99,7 +99,7 @@ A 类 · 状态机入口(用户确认 worktree 后 · 在 worktree 内运行)
 (triage 是 PMO 入口行为 · 不是 state.py 命令 · 见 SKILL.md § Triage 入口规范)
 (prepare 是 PMO 主对话子流程 · 不是 state.py 命令 · 见 docs/prepare.md)
 
-B 类 · Stage 流转(10 stage × 2 + 4 fix/retry + ship-phase)
+B 类 · Stage 流转(10 stage × 2 + 4 fix/retry + ship-phase + ship-finalize)
 ├── goal-start / goal-complete
 ├── ui_design-start / ui_design-complete (optional · --needs-ui)
 ├── blueprint-start / blueprint-complete
@@ -110,7 +110,8 @@ B 类 · Stage 流转(10 stage × 2 + 4 fix/retry + ship-phase)
 ├── browser_e2e-start / browser_e2e-complete (optional · execution_hints)
 ├── pm_acceptance-start / pm_acceptance-complete (--decision approved_and_ship|...)
 ├── ship-start / ship-complete
-└── ship-phase --action {sanitize|push|confirm-merged|cleanup|close-unmerged}
+├── ship-phase --action {sanitize|push|confirm-merged|cleanup|close-unmerged}
+└── ship-finalize  Phase 2 全自动编排(验证合入→confirm→cleanup→complete→finalize→worktree删→fetch)
 
 C 类 · 维护(6)
 ├── snapshot(别名 status · 看当前 stage/下一步 · compact 恢复用)/ validate / raw-read / raw-write

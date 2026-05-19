@@ -21,13 +21,23 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shutil
 import subprocess
 import sys
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
 
-from _v8_engine import emit_json, load_state, now_iso, save_state, require_user_confirmed
+from _v8_engine import (
+    emit_json,
+    git_head,
+    load_state,
+    now_iso,
+    require_user_confirmed,
+    save_state,
+    write_review_log_entry,
+)
 
 
 # ─── 常量 ──────────────────────────────────────────────────────────────
@@ -480,6 +490,520 @@ def cmd_ship_phase(args: argparse.Namespace) -> None:
     emit_json(result)
 
 
+# ─── ship-finalize:Phase 2 全自动编排 ─────────────────────────────
+#
+# 治本:Phase 2(confirm-merged → cleanup → ship-complete → finalize 直推 →
+# worktree 清理 → 主工作区 fetch)原本是 6+ 条命令 + 1 次 cd · PMO 手工编排 ·
+# 易漏步 / 漏 cd / 漏 finalize 直推。ship-finalize 把可枚举的 7 步收进脚本 ·
+# 一条命令跑完 · 仅在「MR 未合并」这类不可枚举判断点 FAIL 让 AI 干预。
+#
+# 7 步:
+#   1. verify-merge    git fetch + merge-base 验证 feature_head 已进 merge_target
+#   2. confirm-merged  ship.phase pushed → merged
+#   3. cleanup         ship.worktree_cleanup = cleaned / n_a(状态字段)
+#   4. ship-complete   current_stage → completed
+#   5. finalize-push   git plumbing 把 state.json 推到 merge_target(零 checkout)
+#   6. worktree-remove 物理删 feature worktree(state.json 已推远端 · 不丢)
+#   7. main-fetch      主工作区 git fetch(刷新 refs · 不自动 pull)
+#
+# 可重入:每步先查 state · 已完成则跳过(skipped_steps)。
+# 必须在主工作区跑(step 6 不能删自身所在 worktree · 沿用 P0-156)。
+
+
+SHIP_FINALIZE_STEPS = (
+    "verify-merge", "confirm-merged", "cleanup",
+    "ship-complete", "finalize-push", "worktree-remove", "main-fetch",
+)
+
+
+class _GitResult:
+    """轻量 CompletedProcess 替身 · 把 timeout / git-missing 归一为 returncode。"""
+
+    __slots__ = ("returncode", "stdout", "stderr")
+
+    def __init__(self, returncode: int, stdout: str = "", stderr: str = ""):
+        self.returncode = returncode
+        self.stdout = stdout
+        self.stderr = stderr
+
+
+def _git(git_args: list, cwd: Optional[str] = None,
+         timeout: int = 60, env: Optional[dict] = None) -> "_GitResult":
+    """跑 git · 异常归一为 _GitResult(returncode 124=timeout / 127=git 不可用)。"""
+    try:
+        r = subprocess.run(
+            ["git", *git_args], cwd=cwd, env=env,
+            capture_output=True, text=True, timeout=timeout,
+        )
+        return _GitResult(r.returncode, r.stdout, r.stderr)
+    except subprocess.TimeoutExpired:
+        return _GitResult(124, "", f"git {git_args[0] if git_args else ''} 超时({timeout}s)")
+    except (FileNotFoundError, OSError) as e:
+        return _GitResult(127, "", f"git 不可用:{e}")
+
+
+def _list_worktrees(cwd: Optional[str]) -> list:
+    """git worktree list --porcelain → [{path, branch?}, ...] · 首条 = 主工作区。"""
+    r = _git(["worktree", "list", "--porcelain"], cwd=cwd)
+    if r.returncode != 0:
+        return []
+    out: list = []
+    cur: dict = {}
+    for line in r.stdout.splitlines():
+        if line.startswith("worktree "):
+            if cur:
+                out.append(cur)
+            cur = {"path": line.split(" ", 1)[1]}
+        elif line.startswith("branch "):
+            cur["branch"] = line.split(" ", 1)[1]
+    if cur:
+        out.append(cur)
+    return out
+
+
+def _same_path(a: Optional[str], b: Optional[str]) -> bool:
+    """两路径 resolve 后相等(容错 · 解析失败退化为字符串比较)。"""
+    if not a or not b:
+        return False
+    try:
+        return Path(a).resolve() == Path(b).resolve()
+    except (OSError, ValueError):
+        return a == b
+
+
+def _ship_finalize_precheck() -> str:
+    """ship-finalize 必须在主工作区跑 · 返回主工作区路径。
+
+    治本沿用 P0-156:step 6 worktree-remove 不能删自身所在 worktree ·
+    且 Phase 2 状态同步语义上属于 merge_target 主工作区。
+    在 linked worktree 跑 → FAIL · hint 给精确 cd 目标。
+    """
+    if os.environ.get("TEAMWORK_BYPASS_MAIN_WORKTREE") == "1":
+        return os.getcwd()
+    gd = _git(["rev-parse", "--git-dir"])
+    if gd.returncode != 0:
+        return os.getcwd()  # 不在 git 仓库 · 交后续步骤报错
+    wts = _list_worktrees(None)
+    main_path = wts[0]["path"] if wts else None
+    if "/worktrees/" in gd.stdout.strip():
+        emit_json({
+            "verdict": "FAIL",
+            "command": "ship-finalize",
+            "completed_steps": [],
+            "failed_step": "precheck",
+            "error": "ship-finalize 必须在主工作区运行 · 当前 cwd 在 linked worktree",
+            "hint": (
+                f"cd {main_path} · 再跑 state.py ship-finalize"
+                if main_path else
+                "cd 到主工作区(原 git clone 位置)· 再跑 state.py ship-finalize"
+            ),
+            "main_worktree": main_path,
+            "rule": "P0-156 物化拦截 · ship-finalize 沿用(worktree-remove 不能删自身)",
+            "bypass": "调试场景设 TEAMWORK_BYPASS_MAIN_WORKTREE=1",
+        }, exit_code=1)
+    return main_path or os.getcwd()
+
+
+def _ship_finalize_fail(step: str, error: str, hint: str,
+                        completed: list, skipped: list,
+                        extra: Optional[dict] = None) -> None:
+    """ship-finalize 硬失败 · emit FAIL + 可重入提示 · exit 1。"""
+    payload = {
+        "verdict": "FAIL",
+        "command": "ship-finalize",
+        "completed_steps": completed,
+        "skipped_steps": skipped,
+        "failed_step": step,
+        "error": error,
+        "hint": hint,
+        "resume": (
+            "修复后重跑 state.py ship-finalize --feature <path> · "
+            "可重入(已完成步骤自动跳过)"
+        ),
+    }
+    if extra:
+        payload.update(extra)
+    emit_json(payload, exit_code=1)
+
+
+def _finalize_push_fail(ship: dict, reason: str, msg: str) -> tuple:
+    """记录 finalize-push 失败到 ship 字段 · 返回 (False, msg)。"""
+    ship["merge_target_pushed_at"] = None
+    ship["merge_target_push_failed"] = True
+    ship["merge_target_push_failed_reason"] = reason
+    return False, msg
+
+
+def _finalize_push_plumbing(repo_cwd: str, artifact_root: Path,
+                            state_json_path: Path, merge_target: str,
+                            state: dict, ship: dict) -> tuple:
+    """git plumbing 把 state.json 推到 origin/<merge_target> · 零 checkout。
+
+    流程:hash-object 建 blob → 临时 GIT_INDEX_FILE read-tree base + update-index
+    换 state.json 条目 → write-tree → commit-tree → push <commit>:<merge_target>。
+    全程不碰真实 index / 工作区 / HEAD · 不需要 checkout merge_target。
+
+    返回 (ok: bool, warn: str)。失败时已写 ship.merge_target_push_failed*。
+    """
+    feature_id = state.get("feature_id") or "feature"
+
+    # 1. state.json 的 repo 相对路径(feature worktree 与 merge_target 同仓 · 路径一致)
+    pre = _git(["rev-parse", "--show-prefix"], cwd=str(artifact_root))
+    if pre.returncode != 0:
+        return _finalize_push_fail(
+            ship, "other",
+            f"无法解析 state.json repo 相对路径:{pre.stderr.strip()}")
+    repo_rel = (pre.stdout.strip() + "state.json").lstrip("/")
+
+    # 2. base = origin/<merge_target>
+    base = _git(["rev-parse", f"origin/{merge_target}"], cwd=repo_cwd)
+    if base.returncode != 0:
+        return _finalize_push_fail(
+            ship, "other",
+            f"无法解析 origin/{merge_target}:{base.stderr.strip()}")
+    base_commit = base.stdout.strip()
+    bt = _git(["rev-parse", f"{base_commit}^{{tree}}"], cwd=repo_cwd)
+    if bt.returncode != 0:
+        return _finalize_push_fail(
+            ship, "other", f"无法解析 base tree:{bt.stderr.strip()}")
+    base_tree = bt.stdout.strip()
+
+    # 3. blob(写入共享 object DB)
+    ho = _git(["hash-object", "-w", str(state_json_path)], cwd=repo_cwd)
+    if ho.returncode != 0:
+        return _finalize_push_fail(
+            ship, "other", f"hash-object state.json 失败:{ho.stderr.strip()}")
+    blob = ho.stdout.strip()
+
+    # 4. 临时 index 构建新 tree(零 checkout · 不碰真实 index / 工作区)
+    tmp_dir = tempfile.mkdtemp(prefix="tw-ship-finalize-")
+    idx_path = os.path.join(tmp_dir, "index")  # git 自动创建
+    env = {**os.environ, "GIT_INDEX_FILE": idx_path}
+    try:
+        rt = _git(["read-tree", base_tree], cwd=repo_cwd, env=env)
+        if rt.returncode != 0:
+            return _finalize_push_fail(
+                ship, "other", f"read-tree 失败:{rt.stderr.strip()}")
+        ui = _git(["update-index", "--add", "--cacheinfo",
+                   f"100644,{blob},{repo_rel}"], cwd=repo_cwd, env=env)
+        if ui.returncode != 0:
+            return _finalize_push_fail(
+                ship, "other", f"update-index 失败:{ui.stderr.strip()}")
+        wtr = _git(["write-tree"], cwd=repo_cwd, env=env)
+        if wtr.returncode != 0:
+            return _finalize_push_fail(
+                ship, "other", f"write-tree 失败:{wtr.stderr.strip()}")
+        new_tree = wtr.stdout.strip()
+    finally:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+
+    # 5. tree 无变化 → merge_target 上 state.json 已是终态 · 视作已同步
+    if new_tree == base_tree:
+        ship["merge_target_pushed_at"] = now_iso()
+        ship["merge_target_push_failed"] = False
+        ship["merge_target_push_failed_reason"] = None
+        return True, ""
+
+    # 6. commit-tree(单文件 state.json diff · §12 直推例外)
+    msg = f"chore({feature_id}): finalize ship state.json [teamwork ship-finalize]"
+    ct = _git(["commit-tree", new_tree, "-p", base_commit, "-m", msg], cwd=repo_cwd)
+    if ct.returncode != 0:
+        return _finalize_push_fail(
+            ship, "other", f"commit-tree 失败:{ct.stderr.strip()}")
+    new_commit = ct.stdout.strip()
+
+    # 7. push <commit>:<merge_target>
+    pr = _git(["push", "origin", f"{new_commit}:{merge_target}"],
+              cwd=repo_cwd, timeout=120)
+    if pr.returncode != 0:
+        err = (pr.stderr or "").lower()
+        if any(k in err for k in ("protected", "pre-receive", "hook declined", "denied")):
+            reason = "protect-rule"
+        elif any(k in err for k in ("non-fast-forward", "fetch first", "rejected", "stale info")):
+            reason = "conflict"
+        elif any(k in err for k in ("could not resolve", "timed out", "timeout", "network", "connection")):
+            reason = "network"
+        else:
+            reason = "other"
+        ok, m = _finalize_push_fail(
+            ship, reason,
+            f"push origin {merge_target} 失败({reason})· state.json 未同步 merge_target:"
+            f"{pr.stderr.strip()[:200]}")
+        state.setdefault("concerns", []).append(
+            f"{now_iso()} WARN ship-finalize finalize-push 失败({reason})· "
+            f"merge_target 上 state.json 仍为合并前快照(phase=pushed)· "
+            f"重跑 ship-finalize 可重试 · 或手动同步"
+        )
+        return ok, m
+
+    # 成功
+    ship["merge_target_pushed_at"] = now_iso()
+    ship["merge_target_push_failed"] = False
+    ship["merge_target_push_failed_reason"] = None
+    ship["merge_target_finalize_commit"] = new_commit
+    return True, ""
+
+
+def _ship_finalize_brief(state: dict, ship: dict, finalize_ok: bool,
+                         wt_removed: bool, warnings: list) -> str:
+    """ship-finalize 完成 brief · 全绿一句话 / 有降级则逐条列。"""
+    fid = state.get("feature_id") or "Feature"
+    if finalize_ok and wt_removed and not warnings:
+        return (
+            f"✅ {fid} 已完整 ship · MR 合入已验证 + state.json 已同步 merge_target "
+            f"+ worktree 已清理 · 流程终态 completed。\n"
+            f"PMO 向用户汇报 Feature 全流程完成。"
+        )
+    lines = [f"⚠️ {fid} ship-finalize 完成 · 但有降级项 · PMO 须向用户说明:"]
+    for w in warnings:
+        lines.append(f"  - {w}")
+    if not finalize_ok:
+        lines.append(
+            "  🔴 state.json 未同步到 merge_target · Feature 已合入但状态记录滞后 · "
+            "网络/冲突修复后重跑 state.py ship-finalize(可重入 · 自动跳过已完成步骤)"
+        )
+    return "\n".join(lines)
+
+
+def cmd_ship_finalize(args: argparse.Namespace) -> None:
+    """ship-finalize:ship Phase 2 全自动编排(7 步 · 可重入 · 失败 AI 干预)。"""
+    main_wt = _ship_finalize_precheck()
+    feature_path = args.feature
+    _, state = load_state(feature_path)
+
+    artifact_root = Path(feature_path).resolve()
+    state_json_path = artifact_root / "state.json"
+
+    cur_stage = state.get("current_stage")
+    if cur_stage not in ("ship", "completed"):
+        emit_json({
+            "verdict": "FAIL",
+            "command": "ship-finalize",
+            "error": f"current_stage={cur_stage!r} · 不是 ship",
+            "hint": (
+                "ship-finalize 是 ship stage Phase 2 编排 · "
+                "先确认 pm_acceptance 通过 + ship-start + Phase 1(sanitize/push)完成"
+            ),
+        }, exit_code=1)
+
+    ship = state.setdefault("ship", {})
+    completed: list = []
+    skipped: list = []
+    warnings: list = []
+
+    merge_target = state.get("merge_target") or ""
+    feature_head = ship.get("feature_head_commit") or ""
+    wt_info = state.get("worktree") or {}
+    wt_strategy = wt_info.get("strategy") or "off"
+    wt_path_raw = wt_info.get("path") or ""
+    wt_branch = (wt_info.get("branch") or "").replace("refs/heads/", "")
+    wt_path = (
+        str((Path(main_wt) / wt_path_raw).resolve()) if wt_path_raw else ""
+    )
+
+    # ── Step 1 + 2:verify-merge → confirm-merged ──────────────────
+    if ship.get("phase") == "merged":
+        skipped += ["verify-merge", "confirm-merged"]
+    else:
+        if ship.get("phase") not in (None, "pushed"):
+            _ship_finalize_fail(
+                "verify-merge",
+                f"ship.phase={ship.get('phase')!r} · 非 pushed · 无法 finalize",
+                "phase=closed_unmerged → MR 已关闭 · 走 ship-phase --action push "
+                "重开 · 或放弃 Feature",
+                completed, skipped,
+            )
+        if not feature_head:
+            _ship_finalize_fail(
+                "verify-merge", "ship.feature_head_commit 缺失",
+                "Phase 1 未完成 · 先跑 ship-phase --action push(push feature 分支 + 创 MR)",
+                completed, skipped,
+            )
+        if not merge_target:
+            _ship_finalize_fail(
+                "verify-merge", "state.merge_target 缺失",
+                "state.json 无 merge_target · 检查 init-feature 参数",
+                completed, skipped,
+            )
+
+        # git fetch
+        fr = _git(["fetch", "origin", merge_target], cwd=main_wt, timeout=120)
+        if fr.returncode != 0:
+            _ship_finalize_fail(
+                "verify-merge",
+                f"git fetch origin {merge_target} 失败:{fr.stderr.strip()[:200]}",
+                "检查网络 / origin 远程 / merge_target 分支名 · 修复后重跑",
+                completed, skipped,
+            )
+
+        # 合入检测
+        if args.merge_commit_hash:
+            merge_commit = args.merge_commit_hash
+            detection = "user-reported"
+        else:
+            anc = _git(["merge-base", "--is-ancestor", feature_head,
+                        f"origin/{merge_target}"], cwd=main_wt)
+            if anc.returncode != 0:
+                _ship_finalize_fail(
+                    "verify-merge",
+                    f"feature_head_commit {feature_head[:12]} 不在 "
+                    f"origin/{merge_target} 中 · 自动检测未确认合入",
+                    (
+                        "两种可能 · 请向用户确认后处理:\n"
+                        "  ① MR 尚未合并 → 等用户在平台合并后 · 重跑 state.py ship-finalize\n"
+                        "  ② squash / rebase 合并(commit hash 已变 · branch-contains 检测不到)\n"
+                        "     → 用户确认已合并后 · 重跑 state.py ship-finalize "
+                        "--feature <path> --merge-commit-hash <merge_target 上的合并 commit>"
+                    ),
+                    completed, skipped,
+                )
+            detection = "branch-contains"
+            mc = _git(["rev-list", "--merges", "--ancestry-path",
+                       f"{feature_head}..origin/{merge_target}"], cwd=main_wt)
+            merges = [ln.strip() for ln in mc.stdout.splitlines() if ln.strip()]
+            merge_commit = merges[-1] if merges else feature_head
+
+        completed.append("verify-merge")
+
+        # confirm-merged
+        ship["phase"] = "merged"
+        ship["shipped"] = "merged"
+        ship["merge_commit_hash"] = merge_commit
+        ship["merge_detection_method"] = detection
+        ship["mr_merged_at"] = ship.get("mr_merged_at") or now_iso()
+        if detection == "user-reported":
+            warnings.append(
+                f"merge_detection_method=user-reported · 用户自报合并"
+                f"(merge_commit={merge_commit[:12]})· 自动 git 校验未执行"
+            )
+            state.setdefault("concerns", []).append(
+                f"{now_iso()} INFO ship-finalize: user-reported "
+                f"merge_commit={merge_commit}"
+            )
+        completed.append("confirm-merged")
+
+    # ── Step 3:cleanup(状态字段 · 物理删在 step 6)─────────────────
+    if ship.get("worktree_cleanup") in ("cleaned", "n_a"):
+        skipped.append("cleanup")
+    else:
+        if wt_strategy == "off" or not wt_path:
+            ship["worktree_cleanup"] = "n_a"
+        else:
+            ship["worktree_cleanup"] = "cleaned"  # step 6 物理删 · 失败则降级 deferred
+        completed.append("cleanup")
+
+    # ── Step 4:ship-complete ───────────────────────────────────────
+    if state.get("current_stage") == "completed":
+        skipped.append("ship-complete")
+    else:
+        contracts = state.setdefault("stage_contracts", {})
+        contract = contracts.setdefault("ship", {})
+        contract.setdefault("started_at", ship.get("started_at") or now_iso())
+        contract["input_satisfied"] = True
+        contract["process_satisfied"] = True
+        contract["output_satisfied"] = True
+        contract["completed_at"] = now_iso()
+        contract["auto_commit"] = feature_head or git_head(cwd=main_wt) or ""
+        contract.setdefault("artifacts", [])
+        state["current_stage"] = "completed"
+        state["legal_next_stages"] = []
+        cs = state.setdefault("completed_stages", [])
+        if "ship" not in cs:
+            cs.append("ship")
+        try:
+            write_review_log_entry(state, artifact_root, "ship", "completed", contract)
+        except Exception:
+            pass
+        completed.append("ship-complete")
+
+    # state.json 落盘(step 5 finalize-push 读这个文件 · 必须先落盘)
+    save_state(state_json_path, state)
+
+    # ── Step 5:finalize-push(git plumbing · 零 checkout)──────────
+    if ship.get("merge_target_pushed_at") and not ship.get("merge_target_push_failed"):
+        skipped.append("finalize-push")
+        finalize_ok = True
+    else:
+        finalize_ok, fin_warn = _finalize_push_plumbing(
+            main_wt, artifact_root, state_json_path, merge_target, state, ship,
+        )
+        if finalize_ok:
+            completed.append("finalize-push")
+        else:
+            warnings.append(fin_warn)
+        save_state(state_json_path, state)
+
+    # ── Step 6:worktree-remove(物理删 · state.json 已推远端 · 不丢)──
+    wt_removed = False
+    if wt_strategy == "off" or not wt_path:
+        skipped.append("worktree-remove")
+        wt_removed = True
+    elif not finalize_ok:
+        # finalize-push 失败 → worktree 是 finalize 后 state.json 的唯一副本 · 保留
+        warnings.append(
+            "finalize-push 失败 · 跳过 worktree-remove · "
+            "worktree 保留为终态 state.json 的唯一副本 · 修复后重跑 ship-finalize"
+        )
+        ship["worktree_cleanup"] = "deferred"
+        save_state(state_json_path, state)
+    else:
+        still_there = any(
+            _same_path(w.get("path"), wt_path) for w in _list_worktrees(main_wt)
+        )
+        if not still_there:
+            skipped.append("worktree-remove")
+            wt_removed = True
+        else:
+            rm = _git(["worktree", "remove", "--force", wt_path],
+                      cwd=main_wt, timeout=60)
+            if rm.returncode != 0:
+                warnings.append(
+                    f"git worktree remove 失败:{rm.stderr.strip()[:150]} · "
+                    f"state.json 已 finalize 到 merge_target(不丢)· "
+                    f"手动 git worktree remove --force {wt_path}"
+                )
+                ship["worktree_cleanup"] = "deferred"
+                save_state(state_json_path, state)
+            else:
+                wt_removed = True
+                completed.append("worktree-remove")
+                if wt_branch:
+                    bd = _git(["branch", "-d", wt_branch], cwd=main_wt)
+                    if bd.returncode != 0:
+                        warnings.append(
+                            f"本地 feature 分支 {wt_branch} 未删(可能未完全合并)· "
+                            f"确认已合入后手动 git branch -D {wt_branch}"
+                        )
+
+    # ── Step 7:main-fetch(刷新主工作区 refs · 不自动 pull)─────────
+    f2 = _git(["fetch", "origin", merge_target], cwd=main_wt, timeout=120)
+    if f2.returncode == 0:
+        completed.append("main-fetch")
+    else:
+        warnings.append(
+            f"主工作区 git fetch origin {merge_target} 失败:"
+            f"{f2.stderr.strip()[:120]} · 非致命 · 手动 git fetch 即可"
+        )
+
+    emit_json({
+        "verdict": "PASS",
+        "command": "ship-finalize",
+        "feature_id": state.get("feature_id"),
+        "completed_steps": completed,
+        "skipped_steps": skipped,
+        "ship_phase": ship.get("phase"),
+        "ship_shipped": ship.get("shipped"),
+        "merge_commit_hash": ship.get("merge_commit_hash"),
+        "current_stage": state.get("current_stage"),
+        "finalize_push": ("ok" if finalize_ok
+                          else f"failed:{ship.get('merge_target_push_failed_reason')}"),
+        "worktree_removed": wt_removed,
+        **({"warnings": warnings} if warnings else {}),
+        "next_action_brief": _ship_finalize_brief(
+            state, ship, finalize_ok, wt_removed, warnings),
+    })
+
+
 # ─── argparse 注册 ──────────────────────────────────────────────
 
 
@@ -540,3 +1064,17 @@ def register_v8_ship_subparser(sub) -> None:
                     help="[close-unmerged] INFO concerns 说明")
 
     sp.set_defaults(func=cmd_ship_phase)
+
+    # ─── ship-finalize:Phase 2 全自动编排(7 步一条命令)───────────
+    fp = sub.add_parser(
+        "ship-finalize",
+        help=("[v8] ship Phase 2 全自动编排 · 一条命令跑 7 步"
+              "(验证合入→confirm-merged→cleanup→ship-complete→finalize 直推"
+              "→worktree 删→主工作区 fetch)· 可重入 · 必在主工作区跑"),
+    )
+    fp.add_argument("--feature", required=True, help="Feature artifact_root 路径")
+    fp.add_argument("--merge-commit-hash",
+                    help=("squash / rebase 合并(branch-contains 自动检测不到)时 · "
+                          "用户确认的 merge_target 上合并 commit hash · "
+                          "传则检测方式记为 user-reported"))
+    fp.set_defaults(func=cmd_ship_finalize)

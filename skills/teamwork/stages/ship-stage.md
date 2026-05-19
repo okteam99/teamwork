@@ -1,7 +1,7 @@
 # Ship Stage
 
 > **Phase 1**(§1-§4):在 **worktree 内**跑(sanitize/push 需 feature branch checkout · git push 必从 worktree)
-> **Phase 2**(§5-§11):在 **主工作区**跑(confirm-merged/cleanup 需 merge_target branch 上的 state.json)
+> **Phase 2**(§5-§7):在 **主工作区**跑一条 `state.py ship-finalize`(7 步自动编排 · 可重入)
 
 ---
 
@@ -27,7 +27,7 @@
 
 1. ✅ **已合并**(MR 已 merge) 💡 推荐(若你刚点 merge)
    理由:常规路径 · 进 Phase 2 同步 state.json finalize + 清理 worktree
-   动作:回 `已合并` / `merged` / `1` → PMO 跑 confirm-merged
+   动作:回 `已合并` / `merged` / `1` → PMO cd 主工作区 · 跑 `ship-finalize`
 
 2. ⏳ **暂未合并 / 还在 review**
    理由:平台审批中 / 等其他人合 / 暂存
@@ -40,51 +40,55 @@
 📚 决策参考:MR URL = <url> · 平台 review 状态 / 评论 / CI 结果
 ```
 
-### 5. cd 回主工作区
-`cd <main-tree>` · 治本 P0-156 · 后续命令必主 tree
+### 5. Phase 2:ship-finalize(一条命令 · 在主工作区跑)
 
-### 6. 切到 merge_target branch + fetch + pull
-```bash
-git fetch origin <merge_target>
-git switch <merge_target>            # 🔴 必切 · MR merge 后 feature dir 已在该 branch
-git pull --ff-only origin <merge_target>
-```
-此时主工作区 `{main-tree}/{feature_dir}` = MR 合入后的快照 · 含旧 `state.json`(phase=pushed)。
-**为什么必切**:后续 §7 confirm-merged + §10 cleanup 都用主工作区 `{feature_dir}` · 不在 merge_target branch → feature_dir 不存在 / state.json not found。
+用户确认已合并(§4 选项 1)后 · **cd 回主工作区** · 跑一条命令完成 Phase 2 全部 7 步:
 
-### 7. ship-phase confirm-merged(`--feature` 指主工作区 feature dir)
 ```bash
-state.py ship-phase --action confirm-merged \
-  --feature {main-tree}/{feature_dir} \
-  --merge-commit-hash ... \
-  --merge-detection-method branch-contains
-```
-state.py 把主工作区 merge_target branch 上的 `state.json` 更新到 `phase=merged`。
-🔴 **不要用 worktree 路径作 --feature**(用 worktree 路径会让 confirm-merged 写到 worktree · 后续要 cherry-pick 才能同步 · 平添复杂度)。
-
-### 8. finalize 直推(§12 直推例外 · 在主工作区 merge_target branch)
-```bash
-git add -A {feature_dir}/                                # R-S7 范围规则
-git commit -m "chore({Feature}): finalize state.json (ship phase=merged)"
-git push origin {merge_target}
-```
-🔴 单文件 + 仅状态字段 + 零业务影响 → 直推不走 MR(详 §12 适用范围 + 禁止滥用)。
-
-### 9. 清理 worktree + branch
-```bash
-git worktree remove {wt-path}
-git branch -d {branch}
+cd <main-tree>                                        # 🔴 必在主工作区(P0-156)
+state.py ship-finalize --feature <main-tree>/<feature_dir>
 ```
 
-### 10. ship-phase cleanup(--feature 同 §7 · 仍主工作区 feature dir)
-```bash
-state.py ship-phase --action cleanup --status cleaned \
-  --feature {main-tree}/{feature_dir}
-```
-P0-124 hard gate · phase 必 merged + merge_commit_hash 非空。
+ship-finalize 内部自动编排(**可重入** · 失败步骤修复后重跑即续):
 
-### 11. ship-complete
-`state.py ship-complete --feature {main-tree}/{feature_dir}` · 自动转 completed。
+| 步 | 动作 | 内容 |
+|---|---|---|
+| 1 | verify-merge | `git fetch` + `merge-base --is-ancestor` 验证 feature_head 已进 merge_target |
+| 2 | confirm-merged | `ship.phase` pushed → merged |
+| 3 | cleanup | `ship.worktree_cleanup` = cleaned / n_a |
+| 4 | ship-complete | `current_stage` → completed |
+| 5 | finalize-push | git plumbing 把 `state.json` 直推 merge_target(零 checkout · §12 例外) |
+| 6 | worktree-remove | 物理删 feature worktree + 本地 feature 分支 |
+| 7 | main-fetch | 主工作区 `git fetch` 刷新 refs(不自动 pull · 避免冲突) |
+
+**为什么必在主工作区**:step 6 worktree-remove 不能删自身所在 worktree · 且 Phase 2 状态同步语义属于 merge_target 主工作区(P0-156)。在 linked worktree 跑 → precheck FAIL · hint 给精确 cd 目标。
+
+**AI 只在失败点干预**(其余全自动):
+- **step 1 FAIL**(feature_head 不在 merge_target):两种可能 → ① MR 尚未合并 · 等用户;② squash / rebase 合并(见 §6)。按 R5 给用户 1/2 选项判断。
+- **step 5 finalize-push 失败**(冲突 / 保护分支 / 网络):§12 降级 · worktree 保留为 state.json 唯一副本 · 修复后重跑 ship-finalize(可重入自动跳过已完成步骤)。
+- **step 6 worktree-remove 失败**(worktree 占用等):降级 warning · state.json 已 finalize 不丢 · 按 hint 手动 `git worktree remove`。
+
+### 6. squash / rebase 合并(branch-contains 检测不到)
+
+平台用 **squash** 或 **rebase** 合并 → feature commit hash 变了 · `branch-contains` 自动检测不到 → step 1 FAIL。
+用户确认已合并后 · 带上 merge_target 上的合并 commit 重跑:
+
+```bash
+state.py ship-finalize --feature <path> --merge-commit-hash <merge_target 上的合并 commit>
+```
+
+检测方式记为 `user-reported` · concerns 自动加 INFO 留痕。
+
+### 7. 手动子动作(ship-finalize 的退路)
+
+ship-finalize 是 Phase 2 **推荐路径**。极端情况(脚本环境受限 / 调试 / 单步排查)可用 `ship-phase` 手动子动作逐步走:
+
+```
+ship-phase --action confirm-merged → ship-phase --action cleanup --status cleaned
+→ §12 finalize 直推 → git worktree remove → ship-complete
+```
+
+两条路径状态机等价。手动路径要点:每条命令自己 cd 主工作区 · 不漏 §12 finalize 直推 · 不漏 worktree 清理。
 
 ### 异常 · close-unmerged
 放弃合入 → `--action close-unmerged --abandon=true` · 暂时关闭(后续重开)→ `--abandon=false`(留口子 · 不进 closed 终态)。
@@ -99,11 +103,13 @@ P0-124 hard gate · phase 必 merged + merge_commit_hash 非空。
 - P0-6 ship 后 reset-prev FAIL
 - P0-113 push 必 CLI-first 拿 MR URL · 不接受 git push hint URL
 - P0-124 cleanup --status cleaned 必 phase=merged + merge_commit_hash 非空
-- P0-156 confirm-merged / cleanup 必 cd 主工作区(linked worktree FAIL)
+- P0-156 ship-finalize / confirm-merged / cleanup 必在主工作区跑(linked worktree precheck FAIL)
 
 ---
 
 ## 12. Phase 2 finalize · state.json 直推例外
+
+> 🔴 `ship-finalize` step 5(finalize-push)已**自动完成**本节直推(git plumbing · 零 checkout · 单文件 state.json diff)· 本节是**原理说明** + §7 手动路径参考。
 
 confirm-merged 后,状态:
 - worktree 内 state.json 已更新到 phase=merged(本地)

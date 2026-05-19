@@ -1273,26 +1273,26 @@ def _ship_brief(state: dict) -> str:
     return f"""## Ship Stage
 
 ### 目标
-push feature → CLI 创 MR → 等用户合并 → 验证合入 + 清理 worktree。
+push feature → CLI 创 MR → 等用户合并 → 验证合入 + 同步 state.json + 清理 worktree。
 
 ### 结果(完成判定)
 - `state.ship.phase = "merged"`
 - `state.ship.merge_commit_hash` 锚定
 - `state.ship.worktree_cleanup ∈ {{cleaned, n_a}}`
+- `current_stage = "completed"`
 
 ### 怎么做
-**必读** `stages/ship-stage.md`(详细步骤 10 步 + 注意事项 5 条 · 含主工作区拦截 / cleanup hard gate / CLI-first trap)。
+**必读** `stages/ship-stage.md`(Phase 1 手动 3 步 + Phase 2 一条 ship-finalize · 含主工作区拦截 / CLI-first trap)。
 
 ### 完成方式
 ```
-# 子动作链(详见 stage.md):
+# Phase 1(在 worktree 内):
 state.py ship-start --feature <path>
 state.py ship-phase --action sanitize ...
 state.py ship-phase --action push ...
-# ⏸️ 等用户合并 · cd 回主工作区
-state.py ship-phase --action confirm-merged ...
-state.py ship-phase --action cleanup --status cleaned
-state.py ship-complete --feature <path>
+# ⏸️ 等用户在平台合并 MR
+# Phase 2(cd 回主工作区 · 一条命令跑完 7 步):
+state.py ship-finalize --feature <path>
 ```
 """
 
