@@ -31,7 +31,7 @@
 **精简 stage 链**(跳过 goal / blueprint):dev → review → test → pm_acceptance → ship → completed
 
 解决:**已知现象 + 已知期望 · 直接进入修复 · 不重复需求讨论**。
-Ship Stage 缩简(标题 `[Bug] <简述> (BUG-<id>)`)。
+Ship Stage 缩简(标题 `[Bug] <简述> (<Bug ID>)` · 如 `(PTR-B019)` · Bug 流程 artifact ID 见 conventions.md §1)。
 
 ### Micro
 **最短 stage 链**:dev → ship → completed

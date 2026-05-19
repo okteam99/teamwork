@@ -657,5 +657,56 @@ class TestMicroValidate(_Base):
         self.assertIn(d["verdict"], ("PASS", "BLOCKED", "FAIL"))
 
 
+class TestPrepareCheck(unittest.TestCase):
+    """prepare-check · flow_type → artifact ID 字母(F/B/M · 治本 Bug 错推 -F)。"""
+
+    def setUp(self) -> None:
+        self.tmp = Path(tempfile.mkdtemp(prefix="tw-pc-"))
+        self.root = self.tmp / "features"
+        for name in ("PTR-F033-Alpha", "PTR-F046-Beta",
+                     "PTR-B017-Gamma", "PTR-B018-Delta", "PTR-M001-Eps"):
+            (self.root / name).mkdir(parents=True)
+
+    def tearDown(self) -> None:
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def _check(self, flow_type: str) -> dict:
+        return run(["prepare-check", "--features-root", str(self.root),
+                    "--feature-id-prefix", "PTR", "--flow-type", flow_type])
+
+    def test_bug_recommends_b_series(self) -> None:
+        d = self._check("Bug")
+        self.assertEqual(d["id_letter"], "B")
+        self.assertEqual(d["next_available_id_stem"], "PTR-B019")
+        self.assertEqual(d["existing_ids"], ["PTR-B017-Gamma", "PTR-B018-Delta"])
+
+    def test_feature_recommends_f_series(self) -> None:
+        d = self._check("Feature")
+        self.assertEqual(d["id_letter"], "F")
+        self.assertEqual(d["next_available_id_stem"], "PTR-F047")
+
+    def test_agile_shares_f_series(self) -> None:
+        d = self._check("敏捷需求")
+        self.assertEqual(d["id_letter"], "F")
+        self.assertEqual(d["next_available_id_stem"], "PTR-F047")
+
+    def test_micro_recommends_m_series(self) -> None:
+        d = self._check("Micro")
+        self.assertEqual(d["id_letter"], "M")
+        self.assertEqual(d["next_available_id_stem"], "PTR-M002")
+
+    def test_no_flow_type_defaults_to_f_with_warn(self) -> None:
+        d = run(["prepare-check", "--features-root", str(self.root),
+                 "--feature-id-prefix", "PTR"])
+        self.assertEqual(d["id_letter"], "F")
+        self.assertIn("--flow-type", d["hint"])
+
+    def test_empty_series_starts_at_001(self) -> None:
+        d = run(["prepare-check", "--features-root", str(self.root),
+                 "--feature-id-prefix", "NEWPROJ", "--flow-type", "Bug"])
+        self.assertEqual(d["next_available_id_stem"], "NEWPROJ-B001")
+        self.assertEqual(d["existing_ids"], [])
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

@@ -265,7 +265,7 @@ mode A 排查 / mode E 讨论收尾时 · 命中以下场景必须建议升 mode
 mode B 识别后(**无论后续 flow_type = Feature / 敏捷需求 / Bug / Micro · 都走 prepare**)·
 PMO **必走** [docs/prepare.md](./docs/prepare.md) · 不可在主对话散述准备步骤。
 
-判据:**进状态机 = 走 prepare**(4 个进状态机流程都需 worktree + branch + merge_target + Feature/Bug ID 4 项配置)。
+判据:**进状态机 = 走 prepare**(4 个进状态机流程都需 worktree + branch + merge_target + artifact ID 4 项配置 · ID 按 flow_type 分 F/B/M · 详 conventions.md §1)。
 即便最轻的 Micro(改文案 1 行)也要 prepare · 不可跳过。
 不进状态机的 Feature Planning / 问题排查 → 不走 prepare(由 PMO 主对话执行)。
 
@@ -303,7 +303,7 @@ emit 格式:
 **triage 入口完成 = init-feature 前置满足**:
 - ✅ worktree 物理已创建(PMO 显式跑)
 - ✅ cwd 在 worktree 内(PMO 显式 cd)
-- ✅ Feature ID + branch + merge_target 已用户确认
+- ✅ artifact ID(Feature/Bug/Micro · F/B/M)+ branch + merge_target 已用户确认
 
 📎 项目级骨架(KNOWLEDGE/TROUBLESHOOTING/GLOSSARY)由 init-feature 自动维护 · 不是 triage 职责。
 

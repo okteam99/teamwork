@@ -1757,10 +1757,12 @@ def cmd_reset_prev(args: argparse.Namespace) -> None:
 def cmd_prepare_check(args: argparse.Namespace) -> None:
     """v8.13:prepare 子流程 ID 冲突预检 · 推荐 next_available_id。
 
-    扫 --features-root 下已有 Feature 目录 · 抓 --feature-id-prefix 匹配的 ID ·
-    返回 existing_ids + next_available_id · 让 prepare 暂停点直接填推荐。
+    按 --flow-type 定 artifact ID 字母(Feature/敏捷需求=F · Bug=B · Micro=M ·
+    详 docs/conventions.md §1)· 扫 --features-root 下该字母的已有 artifact 目录 ·
+    抓 --feature-id-prefix 匹配的 ID · 返回 existing_ids + next_available_id。
 
-    治本 case:PMO 启动 Feature 时不知 F040 已被 Planning 占用 · 临时改 F041 → 用户多确认一轮。
+    治本 case:① PMO 启动 Feature 不知 F040 已被 Planning 占用 → 临时改号多确认一轮;
+    ② Bug 流程错推 PREFIX-F(应 PREFIX-B)· flow_type 原本没参与 ID 字母。
     """
     import re
 
@@ -1783,8 +1785,13 @@ def cmd_prepare_check(args: argparse.Namespace) -> None:
         })
         return
 
-    # 扫匹配 <PREFIX>-F<NNN>* 目录
-    pattern = re.compile(rf"^{re.escape(prefix)}-F(\d+)")
+    # flow_type → artifact ID 字母(详 docs/conventions.md §1)
+    # Feature / 敏捷需求 共用 F · Bug=B · Micro=M · 缺省 F(--flow-type 漏传时向后兼容)
+    _FLOW_ID_LETTER = {"Feature": "F", "敏捷需求": "F", "Bug": "B", "Micro": "M"}
+    id_letter = _FLOW_ID_LETTER.get(args.flow_type or "", "F")
+
+    # 扫匹配 <PREFIX>-<字母><NNN>* 目录(字母由 flow_type 定)
+    pattern = re.compile(rf"^{re.escape(prefix)}-{id_letter}(\d+)")
     existing: list[tuple[int, str]] = []  # (number, full_id)
     for child in root.iterdir():
         if not child.is_dir():
@@ -1799,20 +1806,23 @@ def cmd_prepare_check(args: argparse.Namespace) -> None:
 
     # 推荐下一可用编号 = max + 1(连续递增 · 不填空洞 · 详 docs/conventions.md § 1 "项目内独立递增")
     next_num = (max(used_numbers) + 1) if used_numbers else 1
-    next_id_stem = f"{prefix}-F{next_num:03d}"
+    next_id_stem = f"{prefix}-{id_letter}{next_num:03d}"
 
     payload = {
         "verdict": "OK",
         "command": "prepare-check",
         "features_root": str(root),
         "feature_id_prefix": prefix,
+        "id_letter": id_letter,
         "existing_ids": existing_ids,
         "existing_count": len(existing_ids),
         "next_available_number": next_num,
         "next_available_id_stem": next_id_stem,
         "hint": (
-            f"prepare 暂停点 Feature ID 默认填 {next_id_stem}-<Kebab-Case-名称> · "
+            f"prepare 暂停点 artifact ID 默认填 {next_id_stem}-<Kebab-Case-名称> · "
             f"用户可改 · 但应避开 existing_ids 中已占编号"
+            + ("" if args.flow_type
+               else " · ⚠️ 未传 --flow-type · ID 字母默认 F · Bug/Micro 务必补 --flow-type")
         ),
     }
 
@@ -2319,7 +2329,8 @@ def build_parser() -> argparse.ArgumentParser:
                     help="项目缩写(如 PTR / INFRA / SVC-PLATFORM)· 详 docs/conventions.md § 7")
     pc.add_argument("--flow-type", default=None,
                     choices=["Feature", "Bug", "Micro", "敏捷需求"],
-                    help="可选 · 传则返回 stage_chain_preview(stage × 评审角色) · 让暂停点直接渲染表")
+                    help=("决定 artifact ID 字母(F/B/M · 详 conventions.md §1)+ "
+                          "返回 stage_chain_preview · Bug/Micro 必传(漏传退回 F)"))
     pc.set_defaults(func=cmd_prepare_check)
 
     # v8.x:change-review-roles · 治本 raw-write 滥用(可枚举进脚本 · R0 哲学)

@@ -1,7 +1,7 @@
 # BUG-REPORT 模板
 
-> 位置：`docs/features/F{编号}-{功能名}/bugfix/BUG-F{编号}-{序号}-{简述}.md`
-> 编号规则：详见 [docs/conventions.md § 2 Bug ID](../docs/conventions.md)
+> 位置：`{artifact 目录}/bugfix/BUG-{缩写}-{F|B}{NNN}-{序号}.md`（artifact = Feature 目录 或标准 Bug 流程目录）
+> 编号规则：详见 [docs/conventions.md § 1-2](../docs/conventions.md)（§1 顶层 artifact ID `{PREFIX}-{F|B|M}{NNN}` · §2 本 bug 报告文件 ID）
 > 🔴 BUG-REPORT.md **必须包含 YAML frontmatter**（机读状态字段，承担 Bug 流程的 state.json 职能）。
 
 ## YAML frontmatter（机读字段）
