@@ -6,13 +6,14 @@ bootstrap.py — Teamwork session 启动系统维护(独立脚本 · 替代 inst
 **独立可执行 · 不归 state.py 状态机域**(职责分离)。
 
 用法:
-    python3 tools/bootstrap.py \\
-      --host claude-code \\
-      --skill-root /Users/X/.claude/skills/teamwork \\
-      --skill-version v8.x
+    python3 tools/bootstrap.py --host claude-code
+
+    仅 --host 必传(宿主是 AI 关于自身的事实 · 不在文件里 · 须显式)。
+    --skill-root 自推(bootstrap.py 在 {skill_root}/tools/ 下)·
+    --skill-version 已废弃(版本号自读 SKILL.md frontmatter · 单源 · 不由 AI 传)。
 
 职责(纯系统维护 · 不做业务分诊):
-- SKILL_VERSION 一致性校验
+- 版本号自读 SKILL.md frontmatter(单源 · 治本 AI 传错版本号写坏注入标记)
 - 项目级骨架检查/创建(project-specs/ 下 KNOWLEDGE/TROUBLESHOOTING/GLOSSARY · 旧散放自动迁移)
 - chmod +x tools/*.py + templates/*.py(自愈 · 防丢失可执行位)
 - 宿主 hooks 部署(.claude/hooks/ 或 .codex/hooks.json)
@@ -88,44 +89,37 @@ def find_project_root(start: Path) -> Path:
     return start.resolve()
 
 
-# ─── SKILL_VERSION 校验 ───────────────────────────────────
+# ─── SKILL 版本号自读(单源 = SKILL.md frontmatter) ──────────
 
 
-def check_skill_version(skill_root: Path, claimed_version: str) -> dict:
-    """读 SKILL.md frontmatter version · 对比 claimed_version。"""
+def read_skill_version(skill_root: Path) -> dict:
+    """读 SKILL.md frontmatter `version:` → {status, version}。
+
+    v8.x:版本号单源 = SKILL.md frontmatter · bootstrap **自读** · 不再由 AI 传。
+    治本:让 AI 转述文件里已有的事实必错 —— case 实证 AI 从 SKILL.md 标题行
+    猜成 `8.0`(实际 frontmatter `v8.0.0`)· bootstrap 拿错值喂 sync-drift →
+    CLAUDE.md / AGENTS.md 指针标记被写坏。
+    """
     skill_md = skill_root / "SKILL.md"
     if not skill_md.exists():
-        return {"status": "skill_md_not_found", "skill_md_path": str(skill_md)}
-
+        return {"status": "skill_md_not_found", "version": None,
+                "skill_md_path": str(skill_md)}
     try:
         text = skill_md.read_text(encoding="utf-8")
     except OSError as e:
-        return {"status": "read_error", "error": str(e)}
-
-    # 解析 frontmatter version
+        return {"status": "read_error", "version": None, "error": str(e)}
     if not text.startswith("---\n"):
-        return {"status": "no_frontmatter"}
+        return {"status": "no_frontmatter", "version": None}
     end = text.find("\n---\n", 4)
     if end == -1:
-        return {"status": "frontmatter_unclosed"}
-
-    fm_text = text[4:end]
-    actual_version = None
-    for line in fm_text.splitlines():
+        return {"status": "frontmatter_unclosed", "version": None}
+    for line in text[4:end].splitlines():
         if line.startswith("version:"):
-            actual_version = line.split(":", 1)[1].strip()
+            v = line.split(":", 1)[1].strip()
+            if v:
+                return {"status": "ok", "version": v}
             break
-
-    if not actual_version:
-        return {"status": "version_field_missing"}
-
-    if actual_version == claimed_version:
-        return {"status": "ok", "actual": actual_version, "claimed": claimed_version}
-    return {
-        "status": "mismatch",
-        "actual": actual_version,
-        "claimed": claimed_version,
-    }
+    return {"status": "version_field_missing", "version": None}
 
 
 # ─── 项目级骨架维护 ──────────────────────────────────
@@ -242,6 +236,9 @@ def maintain_host_injection(skill_root: Path, project_root: Path, host: str,
     """
     if host not in HOST_INJECTION_FILES:
         return {"status": "host_unknown", "host": host}
+    if not skill_version:
+        return {"status": "skipped",
+                "reason": "SKILL.md frontmatter version 读取失败 · 跳过注入(不写坏标记)"}
 
     sync_drift = skill_root / "tools" / "sync-drift.py"
     source = skill_root / "templates" / "host-instruction-injection.md"
@@ -535,15 +532,18 @@ def cmd_session_bootstrap(args: argparse.Namespace) -> None:
     - 全 silent · 不打扰用户
     - 失败不阻塞 · 内部记录
     - 幂等(已部署/已配置则跳过)
-    - **版本门禁**:marker 中 skill_version 与 args.skill_version 相同 → 跳过 maintain 4 项(chmod/hooks/sync-drift/gitignore)
+    - **版本门禁**:marker 中 skill_version 与自读的 skill_version 相同 → 跳过 maintain 4 项(chmod/hooks/sync-drift/gitignore)
     - emit JSON(audit · AI 不必 cite)
     """
-    skill_root = Path(args.skill_root).resolve()
+    # skill_root:--skill-root 显式传则用 · 否则自推(bootstrap.py 在 {skill_root}/tools/ 下)
+    skill_root = (Path(args.skill_root).resolve() if args.skill_root
+                  else Path(__file__).resolve().parent.parent)
     cwd = Path.cwd()
     project_root = find_project_root(cwd)
 
-    # 每次必跑(轻量 · 幂等)
-    version_check = check_skill_version(skill_root, args.skill_version)
+    # 每次必跑(轻量 · 幂等)· 版本号自读 SKILL.md frontmatter(单源 · 不由 AI 传)
+    version_check = read_skill_version(skill_root)
+    skill_version = version_check.get("version")
     skeletons = maintain_project_skeletons(skill_root, project_root)
     workspace_file = maintain_workspace_filename(project_root)
     pending_v7 = scan_v7_state_json(project_root)
@@ -555,7 +555,7 @@ def cmd_session_bootstrap(args: argparse.Namespace) -> None:
 
     skip_maintain = (
         not args.force
-        and marker_version == args.skill_version
+        and marker_version == skill_version
         and marker_host == args.host
     )
 
@@ -570,7 +570,7 @@ def cmd_session_bootstrap(args: argparse.Namespace) -> None:
         chmod_result = maintain_chmod_tools(skill_root)
         hooks_result = maintain_host_hooks(skill_root, project_root, args.host)
         injection = maintain_host_injection(
-            skill_root, project_root, args.host, args.skill_version
+            skill_root, project_root, args.host, skill_version
         )
         gitignore = maintain_gitignore_worktree(project_root)
         # 跑完 maintain 写 marker 锁版本(下次同版本会 skip)
@@ -580,7 +580,7 @@ def cmd_session_bootstrap(args: argparse.Namespace) -> None:
             "host_injection": injection.get("status", "unknown"),
             "gitignore_worktree": gitignore.get("status", "unknown"),
         }
-        write_bootstrap_marker(project_root, args.skill_version,
+        write_bootstrap_marker(project_root, skill_version,
                                 args.host, marker_results)
 
     result = {
@@ -589,7 +589,7 @@ def cmd_session_bootstrap(args: argparse.Namespace) -> None:
         "timestamp": now_iso(),
         "host": args.host,
         "skill_root": str(skill_root),
-        "skill_version": args.skill_version,
+        "skill_version": skill_version,
         "project_root": str(project_root),
         "maintain_status": maintain_status,
         "marker_skill_version_before": marker_version,
@@ -624,13 +624,13 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument(
         "--skill-root",
-        required=True,
-        help="SKILL_ROOT 绝对路径(如 /Users/X/.claude/skills/teamwork)",
+        default=None,
+        help="[可选] SKILL_ROOT 绝对路径 · 缺省自推(bootstrap.py 在 {skill_root}/tools/ 下)",
     )
     p.add_argument(
         "--skill-version",
-        required=True,
-        help="AI 声称的 skill version(用于一致性校验 + 版本门禁)",
+        default=None,
+        help="[已废弃] 版本号由 bootstrap 自读 SKILL.md frontmatter · 传了忽略(保留仅防老命令报错)",
     )
     p.add_argument(
         "--force",

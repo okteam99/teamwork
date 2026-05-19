@@ -3,7 +3,7 @@
 
 覆盖:
 - find_project_root(主 tree / worktree → 都回主 tree)
-- check_skill_version(ok / mismatch / missing)
+- read_skill_version(ok / missing / no-frontmatter / version-field-missing)
 - maintain_project_skeletons(创建/已存在/失败)
 - check_host_injection(注入段 ok / missing / file_missing)
 - scan_v7_state_json(v7 / v8 / 混合)
@@ -82,11 +82,11 @@ class TestFindProjectRoot(unittest.TestCase):
         self.assertEqual(root.resolve(), self.maintree.resolve())
 
 
-# ─── check_skill_version ─────────────────────────────────
+# ─── read_skill_version ──────────────────────────────────
 
 
-class TestCheckSkillVersion(unittest.TestCase):
-    """SKILL.md frontmatter version 一致性校验。"""
+class TestReadSkillVersion(unittest.TestCase):
+    """版本号自读 SKILL.md frontmatter(单源 · 不由 AI 传 · 治本 case)。"""
 
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp())
@@ -94,34 +94,36 @@ class TestCheckSkillVersion(unittest.TestCase):
     def tearDown(self):
         shutil.rmtree(self.tmp, ignore_errors=True)
 
-    def test_version_match_ok(self):
-        from bootstrap import check_skill_version
+    def test_reads_version_from_frontmatter(self):
+        from bootstrap import read_skill_version
         (self.tmp / "SKILL.md").write_text(
             "---\nname: teamwork\nversion: v8.0.0\n---\n# body\n", encoding="utf-8",
         )
-        result = check_skill_version(self.tmp, "v8.0.0")
+        result = read_skill_version(self.tmp)
         self.assertEqual(result["status"], "ok")
-
-    def test_version_mismatch(self):
-        from bootstrap import check_skill_version
-        (self.tmp / "SKILL.md").write_text(
-            "---\nname: teamwork\nversion: v8.0.0\n---\n# body\n", encoding="utf-8",
-        )
-        result = check_skill_version(self.tmp, "v7.3.10")
-        self.assertEqual(result["status"], "mismatch")
-        self.assertEqual(result["actual"], "v8.0.0")
-        self.assertEqual(result["claimed"], "v7.3.10")
+        self.assertEqual(result["version"], "v8.0.0")
 
     def test_skill_md_not_found(self):
-        from bootstrap import check_skill_version
-        result = check_skill_version(self.tmp, "v8.0.0")
+        from bootstrap import read_skill_version
+        result = read_skill_version(self.tmp)
         self.assertEqual(result["status"], "skill_md_not_found")
+        self.assertIsNone(result["version"])
 
     def test_no_frontmatter(self):
-        from bootstrap import check_skill_version
+        from bootstrap import read_skill_version
         (self.tmp / "SKILL.md").write_text("# no frontmatter\n", encoding="utf-8")
-        result = check_skill_version(self.tmp, "v8.0.0")
+        result = read_skill_version(self.tmp)
         self.assertEqual(result["status"], "no_frontmatter")
+        self.assertIsNone(result["version"])
+
+    def test_version_field_missing(self):
+        from bootstrap import read_skill_version
+        (self.tmp / "SKILL.md").write_text(
+            "---\nname: teamwork\n---\n# body\n", encoding="utf-8",
+        )
+        result = read_skill_version(self.tmp)
+        self.assertEqual(result["status"], "version_field_missing")
+        self.assertIsNone(result["version"])
 
 
 # ─── maintain_project_skeletons ──────────────────────────

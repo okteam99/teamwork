@@ -418,15 +418,14 @@ PMO 按 hint 自动执行修复(silent)
 **独立脚本 · 不归 state.py 状态机域**(职责分离):
 
 ```bash
-python3 <SKILL_ROOT>/tools/bootstrap.py \
- --host <claude-code|codex-cli|gemini-cli|unknown> \
- --skill-root <SKILL_ROOT 绝对路径> \
- --skill-version <SKILL.md frontmatter version>
+python3 <SKILL_ROOT>/tools/bootstrap.py --host <claude-code|codex-cli|gemini-cli|unknown>
 ```
 
+🔴 **只传 `--host`**:宿主是 AI 关于自身的事实(不在文件里 · 须显式)。`--skill-root` 自推、版本号 bootstrap 自读 `SKILL.md` frontmatter(单源)—— **AI 不传版本号**(治本:转述文件里已有的事实必错 · 曾把 `v8.0.0` 传成 `8.0` 写坏注入标记)。`<SKILL_ROOT>` = `~/.claude/skills/teamwork` 或 `~/.codex/skills/teamwork`。
+
 `bootstrap.py` 做什么(silent · 不打扰用户):
-- SKILL_VERSION 一致性校验
-- 项目骨架检查/创建(KNOWLEDGE/TROUBLESHOOTING/GLOSSARY · 不存在则 silent 复制 templates/)
+- 版本号自读 SKILL.md frontmatter(单源)
+- 项目骨架检查/创建(project-specs/ 下 KNOWLEDGE/TROUBLESHOOTING/GLOSSARY · 旧散放自动迁移)
 - CLAUDE.md / AGENTS.md / GEMINI.md 注入段检查(对接 sync-drift.py)
 - state.json v7 → v8 迁移扫描
 
