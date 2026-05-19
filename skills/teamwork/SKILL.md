@@ -77,11 +77,12 @@ state.py xx-start --bypass --reason "<用户确认理由>" --user-confirmed --mi
 
 ## worktree 纪律(🔴 红线)
 
-🔴 **worktree 模式下 · 本 Feature 的所有文件读写(代码 / 文档 / 测试 / 配置)一律在 worktree 内**:
+🔴 **worktree 模式下 · 本 Feature 的文件写入优先用 worktree 内路径**(代码 / 文档 / 测试 / 配置):
 
-- Feature 进 worktree 后 · **主工作区是其他并行 Feature 的基线** —— 一律不碰
+- Feature 进 worktree 后 · **主工作区是其他并行 Feature 的基线**
 - 写文件用 **worktree 内路径**(推荐绝对路径 `{worktree-path}/...`)· 不用相对路径 —— 部分宿主的 patch / 写工具不继承 shell `cwd`(如 codex `apply_patch`)· 相对路径会落到主工作区
 - **违反后果**:主工作区被污染 → 改动串入其他并行 Feature / 主分支变脏 / 难追溯 —— 并行开发的硬隔离被破坏
+- 🔴 **确需写入主工作区的**(如 ship Phase 2 finalize 同步 state.json 到 merge_target)· **须先经用户确认**(R5 暂停点)· 不可 AI 自决
 - **物化兜底**:`xx-complete` 时 state.py 检测主工作区是否冒出本 Feature 文件 → 命中写 `concerns WARN` + emit `main_tree_pollution` —— 但这是**事后兜底** · AI 应**事前**就把文件写在 worktree 内
 - 改完文件在 worktree 内 `git add -A {feature_dir}/` + commit(详 ship-stage.md R-S7)
 
