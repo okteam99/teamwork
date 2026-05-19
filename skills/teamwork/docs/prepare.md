@@ -61,6 +61,8 @@ PMO 移交 prepare 后 · **必走以下 4 项准备**(emit 暂停点之前):
 
 低复杂度 / 用户已知 → 跳。
 
+🔴 **路由前缀必判**(即便跳过上面的可选深挖):据**改动代码所在的子项目目录**定 artifact 前缀 + docs_root —— 查 `teamwork-space.md` 子项目清单(代码在 `apps/partner/` → 用 PTR 注册前缀 + docs_root · 在 `services/` → SVC-* · …)。**不可沿用上一个 Feature 的前缀**。错前缀 / 错路径 → `init-feature` 路由物化校验 FAIL(治本 F049:代码在 partner 却建成 `SVC-PLATFORM-F049` 落仓库根)。
+
 ### 1.5.4 · ID 冲突预检 + stage 评审角色预览(强制)
 
 ```bash

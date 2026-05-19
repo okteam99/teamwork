@@ -192,6 +192,33 @@ def maintain_project_skeletons(skill_root: Path, project_root: Path) -> dict:
     }
 
 
+# ─── workspace 文件名迁移(v7 下划线 → v8 连字符) ──────────
+
+
+def maintain_workspace_filename(project_root: Path) -> dict:
+    """legacy `teamwork_space.md`(下划线)→ `teamwork-space.md`(连字符)。
+
+    v7 用下划线 teamwork_space.md · v8 规范连字符 teamwork-space.md。v7 期建的
+    项目 workspace 文件还是下划线名 → v8 spec 让 PMO 读连字符名 → 找不到 →
+    子项目 registry 静默不加载 → 路由失效(治本 F049 目录错位 case)。
+    bootstrap 在 PMO 读 workspace 之前跑 · 迁移后当次 session 即对上。
+    """
+    canonical = project_root / "teamwork-space.md"
+    legacy = project_root / "teamwork_space.md"
+    if canonical.exists():
+        if legacy.exists():
+            return {"status": "conflict",
+                    "detail": f"teamwork-space.md 与 legacy teamwork_space.md 并存 · 人工合并后删 {legacy}"}
+        return {"status": "ok"}
+    if legacy.exists() and legacy.is_file():
+        try:
+            shutil.move(str(legacy), str(canonical))
+            return {"status": "migrated", "from": "teamwork_space.md", "to": "teamwork-space.md"}
+        except OSError as e:
+            return {"status": "migrate_failed", "error": str(e)}
+    return {"status": "n_a"}  # 单项目仓库 · 无 workspace 文件
+
+
 # ─── 宿主注入段检查 ────────────────────────────────────
 
 
@@ -518,6 +545,7 @@ def cmd_session_bootstrap(args: argparse.Namespace) -> None:
     # 每次必跑(轻量 · 幂等)
     version_check = check_skill_version(skill_root, args.skill_version)
     skeletons = maintain_project_skeletons(skill_root, project_root)
+    workspace_file = maintain_workspace_filename(project_root)
     pending_v7 = scan_v7_state_json(project_root)
 
     # 版本门禁:marker 记录的版本 == 当前版本 → 跳过 maintain 4 项
@@ -568,6 +596,7 @@ def cmd_session_bootstrap(args: argparse.Namespace) -> None:
         "checks": {
             "skill_version": version_check,
             "skeletons": skeletons,
+            "workspace_filename": workspace_file,
             "chmod": chmod_result,
             "hooks": hooks_result,
             "host_injection": injection,

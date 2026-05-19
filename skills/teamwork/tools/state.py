@@ -1346,6 +1346,110 @@ DEFAULT_INITIAL_STAGE = {
 }
 
 
+def _parse_workspace_registry(ws_path: Path) -> dict:
+    """解析 teamwork-space.md 子项目清单表 → {prefix: docs_root}。
+
+    按列名(缩写 / docs_root)定位 · 容忍列序差异 / 多余列。解析不出返回 {}。
+    """
+    try:
+        lines = ws_path.read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError:
+        return {}
+    reg: dict = {}
+    abbr_i = None
+    root_i = None
+    for ln in lines:
+        s = ln.strip()
+        if not s.startswith("|"):
+            abbr_i = None
+            root_i = None
+            continue
+        cells = [c.strip().strip("`").strip() for c in s.strip("|").split("|")]
+        if abbr_i is None:
+            if any("缩写" in c for c in cells) and any("docs_root" in c for c in cells):
+                for i, c in enumerate(cells):
+                    if "缩写" in c:
+                        abbr_i = i
+                    if "docs_root" in c:
+                        root_i = i
+            continue
+        if cells and all(set(c) <= set("-: ") for c in cells if c):
+            continue  # 分隔行 |---|---|
+        if abbr_i < len(cells) and root_i < len(cells):
+            abbr = cells[abbr_i]
+            root = cells[root_i].rstrip("/")
+            if abbr and root:
+                reg[abbr] = root
+    return reg
+
+
+def _git_toplevel(start: Path):
+    """git rev-parse --show-toplevel · 失败返 None。"""
+    try:
+        r = subprocess.run(
+            ["git", "-C", str(start), "rev-parse", "--show-toplevel"],
+            capture_output=True, text=True, timeout=5,
+        )
+        if r.returncode == 0 and r.stdout.strip():
+            return Path(r.stdout.strip())
+    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+        pass
+    return None
+
+
+def _check_artifact_routing(feature_dir: Path, feature_id: str) -> dict:
+    """校验 Feature artifact 路径 + ID 前缀 落在 teamwork-space.md 注册的 docs_root 下。
+
+    治本 F049 case:代码在 apps/partner/(属 PTR)· artifact 却建成 SVC-PLATFORM
+    前缀 + 落在仓库根 docs/features/ · 错前缀 + 错路径无任何拦截照样 PASS。
+    docs_root 是 teamwork-space.md 路由权威(conventions.md §8)。
+
+    返回 {verdict: PASS|FAIL|WARN|SKIP, ...}。
+    """
+    import re as _re
+    if os.environ.get("TEAMWORK_BYPASS_ROUTING_CHECK") == "1":
+        return {"verdict": "SKIP", "reason": "TEAMWORK_BYPASS_ROUTING_CHECK=1"}
+    top = _git_toplevel(Path.cwd())
+    if not top:
+        return {"verdict": "SKIP", "reason": "cwd 不在 git 仓库"}
+    ws = top / "teamwork-space.md"
+    if not ws.exists():
+        ws = top / "teamwork_space.md"  # 容错 legacy 下划线名
+    if not ws.exists():
+        return {"verdict": "SKIP", "reason": "无 teamwork-space.md(单项目仓库)"}
+    reg = _parse_workspace_registry(ws)
+    if not reg:
+        return {"verdict": "SKIP", "reason": "teamwork-space.md 子项目清单解析为空"}
+    m = _re.match(r"^(.+?)-[FBM]\d+", feature_id)
+    if not m:
+        return {"verdict": "SKIP", "reason": f"feature_id {feature_id!r} 抽不出前缀"}
+    prefix = m.group(1)
+    if prefix not in reg:
+        return {
+            "verdict": "WARN",
+            "prefix": prefix,
+            "known_prefixes": sorted(reg),
+            "message": (
+                f"前缀 {prefix!r} 未在 teamwork-space.md 子项目清单注册 · "
+                f"新子项目请先注册 · 或前缀拼错"
+            ),
+        }
+    expected = reg[prefix].rstrip("/")
+    try:
+        actual = str(feature_dir.resolve().relative_to(top.resolve()).parent)
+    except ValueError:
+        return {"verdict": "SKIP", "reason": "feature 路径不在仓库内"}
+    actual = actual.rstrip("/")
+    if actual != expected:
+        return {
+            "verdict": "FAIL",
+            "prefix": prefix,
+            "expected_docs_root": expected,
+            "actual_path": actual,
+        }
+    return {"verdict": "PASS", "prefix": prefix, "docs_root": expected}
+
+
 def cmd_init_feature(args: argparse.Namespace) -> None:
     """Create initial state.json · 替代手工 Write。"""
     # Feature Planning / 问题排查 不进状态机 · 拒绝
@@ -1367,6 +1471,28 @@ def cmd_init_feature(args: argparse.Namespace) -> None:
 
     feature_dir = Path(args.feature)
     state_file = feature_dir / "state.json"
+
+    # v8.x:artifact 路由物化校验(治本 F049 子项目错位 case)
+    # teamwork-space.md docs_root 是路由权威 · 校验 --feature 路径 + ID 前缀一致
+    routing = _check_artifact_routing(feature_dir, args.feature_id)
+    if routing["verdict"] == "FAIL":
+        die(2, json.dumps({
+            "verdict": "FAIL",
+            "action": "init-feature",
+            "error": (
+                f"artifact 路径违背 teamwork-space.md 路由权威:前缀 {routing['prefix']} "
+                f"注册 docs_root={routing['expected_docs_root']!r} · "
+                f"但 --feature 落在 {routing['actual_path']!r}"
+            ),
+            "hint": (
+                "二选一修正:\n"
+                f"  ① 路径错 → --feature 改到 {routing['expected_docs_root']}/{feature_dir.name}\n"
+                "  ② 前缀错 → 该改动属哪个子项目?用该子项目注册的前缀 + docs_root "
+                "(代码在 apps/partner/ → PTR · services/ → SVC-* · 查 teamwork-space.md 子项目清单)"
+            ),
+            "rule": "conventions.md §8 docs_root 路由权威 · v8.x 物化拦截 · 治本 F049 case",
+            "bypass": "确属特例:export TEAMWORK_BYPASS_ROUTING_CHECK=1",
+        }, ensure_ascii=False, indent=2))
 
     if state_file.exists() and not args.force:
         die(2, json.dumps({
@@ -1583,6 +1709,7 @@ def cmd_init_feature(args: argparse.Namespace) -> None:
         "state_path": str(state_file),
         "checksum_prefix": state[CHECKSUM_FIELD][:24],
         "created_at": state["created_at"],
+        "routing_check": routing,
         "next_action_brief": _init_feature_next_brief(args, initial_stage),
     })
 

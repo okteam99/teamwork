@@ -204,6 +204,32 @@ class TestMaintainProjectSkeletons(unittest.TestCase):
         self.assertEqual(result["failed"][0]["doc"], "KNOWLEDGE.md")
         self.assertIn("template not found", result["failed"][0]["reason"])
 
+    def test_workspace_migrate_legacy(self):
+        """legacy 下划线 teamwork_space.md → 连字符 teamwork-space.md。"""
+        from bootstrap import maintain_workspace_filename
+        (self.project_root / "teamwork_space.md").write_text("registry", encoding="utf-8")
+        result = maintain_workspace_filename(self.project_root)
+        self.assertEqual(result["status"], "migrated")
+        self.assertTrue((self.project_root / "teamwork-space.md").exists())
+        self.assertFalse((self.project_root / "teamwork_space.md").exists())
+        self.assertEqual(
+            (self.project_root / "teamwork-space.md").read_text(encoding="utf-8"),
+            "registry",
+        )
+
+    def test_workspace_already_canonical(self):
+        """已是连字符名 → ok · 不动。"""
+        from bootstrap import maintain_workspace_filename
+        (self.project_root / "teamwork-space.md").write_text("x", encoding="utf-8")
+        self.assertEqual(
+            maintain_workspace_filename(self.project_root)["status"], "ok")
+
+    def test_workspace_none_is_na(self):
+        """单项目仓库无 workspace 文件 → n_a。"""
+        from bootstrap import maintain_workspace_filename
+        self.assertEqual(
+            maintain_workspace_filename(self.project_root)["status"], "n_a")
+
 
 # ─── maintain_host_injection ─────────────────────────────
 

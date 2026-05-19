@@ -450,6 +450,8 @@ PMO 只关注流程编排 · 系统维护是 `bootstrap.py` 的职责。
 **为什么只读这一份**:teamwork-space.md 是轻量结构索引(通常 < 200 行)· 已含分诊所需的全景上下文。
 **PROJECT.md / ROADMAP.md / sitemap.md** 等详档**按需读**(用户提到 / 任务涉及时再 Read 对应段)· 不全文加载到 PMO 上下文(避免 context 浪费)。
 
+🔴 **文件名**:规范名是连字符 `teamwork-space.md`。v7 期项目的 legacy 下划线名 `teamwork_space.md` 由 `bootstrap.py` 在本步**之前**自动迁移成连字符名 —— 故此处只找连字符名即可(治本 F049:legacy 名导致子项目 registry 静默不加载、路由失效)。
+
 **读法**:silent · 不 emit · 内化为 PMO 上下文 · 用到时引(如 "按 teamwork-space.md 子项目清单 · SVC-CORE 下一 F024")。
 
 ### silent read 原则
