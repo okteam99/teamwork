@@ -391,9 +391,9 @@ PMO 按 hint 自动执行修复(silent)
 | `PROJECT.md` | 产品全景 | 讨论产品方向 / 创建 Feature |
 | `ROADMAP.md` | Feature 列表 + 优先级 + 排期 | 讨论 Feature 优先级 / 创建 Feature |
 | `sitemap.md` | 信息架构 / 页面层级 | 讨论 UI / 创建含 UI 的 Feature |
-| `KNOWLEDGE.md` | Gotcha / Convention / Architecture(项目级踩坑 + 约定)| triage 期 + 涉项目级约定时 |
-| `GLOSSARY.md` | 业务术语 + 实体关系 + 命名约定 + 别名歧义 | PM 起草 PRD 前 / RD 起草 TECH 前 |
-| `TROUBLESHOOTING.md` | 排查 / 运维操作手册(log / DB / 监控 / 部署)| mode A query / E discuss 涉"排查 / 报错 / 查 log" |
+| `project-specs/KNOWLEDGE.md` | Gotcha / Convention / Architecture(项目级踩坑 + 约定)| triage 期 + 涉项目级约定时 |
+| `project-specs/GLOSSARY.md` | 业务术语 + 实体关系 + 命名约定 + 别名歧义 | PM 起草 PRD 前 / RD 起草 TECH 前 |
+| `project-specs/TROUBLESHOOTING.md` | 排查 / 运维操作手册(log / DB / 监控 / 部署)| mode A query / E discuss 涉"排查 / 报错 / 查 log" |
 | `docs/architecture/ARCHITECTURE.md` | 系统架构 | 讨论架构决策 |
 | `docs/architecture/database-schema.md` | 数据库 schema | 讨论数据模型 |
 
@@ -403,9 +403,9 @@ PMO 按 hint 自动执行修复(silent)
 |--------|------------|
 | 产品方向 / Feature 排期 / Roadmap | `PROJECT.md` / `ROADMAP.md` |
 | 页面层级 / UI 整体 / 信息架构 | `sitemap.md` |
-| Convention / 命名 / 约定 / Gotcha / 踩坑 | `KNOWLEDGE.md` |
-| 业务术语 / 实体关系 / 别名 | `GLOSSARY.md` |
-| **报错 / 502 / 查 log / 排查 / 异常 / 服务挂了 / 查环境 / 查 DB / 查 Redis / 部署 / 回滚** | **`TROUBLESHOOTING.md`** |
+| Convention / 命名 / 约定 / Gotcha / 踩坑 | `project-specs/KNOWLEDGE.md` |
+| 业务术语 / 实体关系 / 别名 | `project-specs/GLOSSARY.md` |
+| **报错 / 502 / 查 log / 排查 / 异常 / 服务挂了 / 查环境 / 查 DB / 查 Redis / 部署 / 回滚** | **`project-specs/TROUBLESHOOTING.md`** |
 | 架构 / 数据库 / schema | `docs/architecture/` |
 | F\d+(具体 Feature 编号) | `docs/features/{F}/` |
 | 历史决策 / ADR | `docs/features/*/adrs/INDEX.md` |

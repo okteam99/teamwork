@@ -681,11 +681,17 @@ def _render_required_paths(feature_dir: Path, stage_name: str) -> str:
         ("PROJECT.md", "产品全景"),
         ("ROADMAP.md", "Feature 优先级"),
         ("sitemap.md", "信息架构"),
+    ]:
+        p = project_root / fn
+        if p.exists():
+            project_docs.append(f"- `{p}` — {desc}")
+    # workspace 级工程文档 · v8.3 收敛进 project-specs/(详 conventions.md §13)
+    for fn, desc in [
         ("KNOWLEDGE.md", "项目级 Gotcha + Convention"),
         ("GLOSSARY.md", "业务术语"),
         ("TROUBLESHOOTING.md", "排查手册"),
     ]:
-        p = project_root / fn
+        p = project_root / "project-specs" / fn
         if p.exists():
             project_docs.append(f"- `{p}` — {desc}")
     arch = project_root / "docs/architecture/ARCHITECTURE.md"

@@ -1,6 +1,6 @@
 # KNOWLEDGE 模板
 
-> 位置：`docs/KNOWLEDGE.md`（项目级）+ `{子项目}/docs/KNOWLEDGE.md`（子项目级，多子项目模式）
+> 位置：`project-specs/KNOWLEDGE.md`（workspace 级 · 与 product-overview/ 同级）+ `{子项目}/docs/KNOWLEDGE.md`（子项目级）· 详 [docs/conventions.md §13](../docs/conventions.md)
 >
 > 受众：**未来的开发者（包括未来的 AI）** — 让后续 Feature 启动时能快速感知"本项目有哪些特殊事实"。
 >

@@ -6,7 +6,7 @@
 > teamwork PMO 在 mode A query / E · discuss 触及「排查 / 报错 / 查 log / 查环境」时按需 read。
 > 与 [KNOWLEDGE.md](./knowledge.md) 互补：KNOWLEDGE = 踩坑注意点 · 本文 = 操作步骤。
 >
-> **路径硬规则**：项目根 `TROUBLESHOOTING.md`（teamwork 固定路径 · 不查 docs/）。
+> **路径硬规则**：`project-specs/TROUBLESHOOTING.md`（teamwork 固定路径 · 与 product-overview/ 同级 · 详 docs/conventions.md §13）。
 > **内容由项目维护**：teamwork 不规范具体命令（每个项目栈完全不同 · 用户按实际填）。
 > **空骨架检测**：tools/init_triage.py 在 triage 入口跑 · grep 本段顶部标识符「本文是 teamwork prepare-stage 自动创建的空骨架」· 命中 = 未填 · advisory.severity=INFO topic=empty-skeleton。用户填完后建议删除本段顶部 🟢 提示行 · 否则脚本仍判定未填。
 

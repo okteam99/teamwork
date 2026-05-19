@@ -428,7 +428,7 @@ Subagent 启动前，PMO 快速自检：
 🔴 你只能操作以下路径，其他路径一律禁止读写：
 - 允许读写：{子项目路径}/（功能代码 + 测试 + 配置）
 - 允许读写：{子项目路径}/docs/features/{功能目录}/（文档产出，含 dispatch_log/）
-- 允许只读：{项目根目录}/docs/（ARCHITECTURE.md / KNOWLEDGE.md 等共享文档）
+- 允许只读：{项目根目录}/project-specs/（KNOWLEDGE / GLOSSARY / TROUBLESHOOTING）+ {子项目}/docs/（ARCHITECTURE 等）
 - 允许只读：{SKILL_ROOT}/standards/（开发规范）
 - 🚫 禁止：其他子项目路径
 - 🚫 禁止：.env / .env.* / credentials.* / *secret* 等敏感文件

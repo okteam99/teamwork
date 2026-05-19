@@ -153,24 +153,44 @@ class TestMaintainProjectSkeletons(unittest.TestCase):
             ["GLOSSARY.md", "KNOWLEDGE.md", "TROUBLESHOOTING.md"],
         )
         self.assertEqual(result["existed"], [])
+        self.assertEqual(result["migrated"], [])
         self.assertEqual(result["failed"], [])
-        # 实际文件已创建
+        # 实际文件创建在 project-specs/ 下 · 不散在仓库根
+        specs = self.project_root / "project-specs"
         for name in ["KNOWLEDGE.md", "TROUBLESHOOTING.md", "GLOSSARY.md"]:
-            self.assertTrue((self.project_root / name).exists(), f"{name} 未创建")
+            self.assertTrue((specs / name).exists(), f"project-specs/{name} 未创建")
+            self.assertFalse((self.project_root / name).exists(), f"{name} 不应散在仓库根")
 
     def test_idempotent_existed(self):
-        """重复跑 · 已存在文件不重创建。"""
+        """重复跑 · project-specs/ 下已存在文件不重创建。"""
         from bootstrap import maintain_project_skeletons
-        # 预先创建
-        (self.project_root / "KNOWLEDGE.md").write_text("user content", encoding="utf-8")
+        specs = self.project_root / "project-specs"
+        specs.mkdir()
+        (specs / "KNOWLEDGE.md").write_text("user content", encoding="utf-8")
 
         result = maintain_project_skeletons(self.skill_root, self.project_root)
         self.assertIn("KNOWLEDGE.md", result["existed"])
         self.assertNotIn("KNOWLEDGE.md", result["created"])
+        self.assertNotIn("KNOWLEDGE.md", result["migrated"])
         # 用户内容未被覆盖
         self.assertEqual(
-            (self.project_root / "KNOWLEDGE.md").read_text(encoding="utf-8"),
+            (specs / "KNOWLEDGE.md").read_text(encoding="utf-8"),
             "user content",
+        )
+
+    def test_migrates_legacy_root_files(self):
+        """仓库根遗留旧散放文件 → 自动迁移进 project-specs/。"""
+        from bootstrap import maintain_project_skeletons
+        (self.project_root / "KNOWLEDGE.md").write_text("legacy content", encoding="utf-8")
+
+        result = maintain_project_skeletons(self.skill_root, self.project_root)
+        self.assertIn("KNOWLEDGE.md", result["migrated"])
+        self.assertNotIn("KNOWLEDGE.md", result["created"])
+        # 旧散放文件已移走 · 内容保留在 project-specs/
+        self.assertFalse((self.project_root / "KNOWLEDGE.md").exists())
+        self.assertEqual(
+            (self.project_root / "project-specs" / "KNOWLEDGE.md").read_text(encoding="utf-8"),
+            "legacy content",
         )
 
     def test_template_not_found_fails(self):

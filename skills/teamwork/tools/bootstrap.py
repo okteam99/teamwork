@@ -13,7 +13,7 @@ bootstrap.py — Teamwork session 启动系统维护(独立脚本 · 替代 inst
 
 职责(纯系统维护 · 不做业务分诊):
 - SKILL_VERSION 一致性校验
-- 项目级骨架检查/创建(KNOWLEDGE/TROUBLESHOOTING/GLOSSARY)
+- 项目级骨架检查/创建(project-specs/ 下 KNOWLEDGE/TROUBLESHOOTING/GLOSSARY · 旧散放自动迁移)
 - chmod +x tools/*.py + templates/*.py(自愈 · 防丢失可执行位)
 - 宿主 hooks 部署(.claude/hooks/ 或 .codex/hooks.json)
 - CLAUDE.md / AGENTS.md / GEMINI.md 注入段同步(跑 sync-drift.py)
@@ -131,31 +131,65 @@ def check_skill_version(skill_root: Path, claimed_version: str) -> dict:
 # ─── 项目级骨架维护 ──────────────────────────────────
 
 
+PROJECT_SPECS_DIR = "project-specs"
+
+
 def maintain_project_skeletons(skill_root: Path, project_root: Path) -> dict:
-    """silent 复制 templates/ 骨架到项目根(若不存在)。"""
+    """silent 维护 project-specs/ 下的项目级骨架文档。
+
+    v8.3:KNOWLEDGE / GLOSSARY / TROUBLESHOOTING 从散在仓库根 → 收敛进
+    `project-specs/`(与 `product-overview/` 同级 · 详 docs/conventions.md §13)。
+    - project-specs/ 下已存在 → skip
+    - 仓库根遗留同名旧文件 → 自动迁移进 project-specs/
+    - 都没有 → 复制 templates/ 空骨架
+    """
     skeletons = [
         ("KNOWLEDGE.md", "knowledge.md"),
         ("TROUBLESHOOTING.md", "troubleshooting.md"),
         ("GLOSSARY.md", "glossary.md"),
     ]
+    specs_dir = project_root / PROJECT_SPECS_DIR
 
-    created, existed, failed = [], [], []
+    created, existed, migrated, failed = [], [], [], []
     for project_doc, template_doc in skeletons:
-        target = project_root / project_doc
+        target = specs_dir / project_doc
+        legacy = project_root / project_doc  # 旧:散在仓库根
         if target.exists():
             existed.append(project_doc)
+            if legacy.exists():
+                failed.append({
+                    "doc": project_doc,
+                    "reason": f"project-specs/ 已有此文件 · 仓库根遗留同名 {legacy} 需人工删除",
+                })
             continue
+        # 迁移:仓库根旧散放文件 → project-specs/
+        if legacy.exists() and legacy.is_file():
+            try:
+                specs_dir.mkdir(parents=True, exist_ok=True)
+                shutil.move(str(legacy), str(target))
+                migrated.append(project_doc)
+            except OSError as e:
+                failed.append({"doc": project_doc, "reason": f"migrate failed: {e}"})
+            continue
+        # 新建空骨架
         template = skill_root / "templates" / template_doc
         if not template.exists():
             failed.append({"doc": project_doc, "reason": f"template not found: {template}"})
             continue
         try:
+            specs_dir.mkdir(parents=True, exist_ok=True)
             shutil.copy(template, target)
             created.append(project_doc)
         except OSError as e:
             failed.append({"doc": project_doc, "reason": str(e)})
 
-    return {"created": created, "existed": existed, "failed": failed}
+    return {
+        "created": created,
+        "existed": existed,
+        "migrated": migrated,
+        "failed": failed,
+        "dir": PROJECT_SPECS_DIR,
+    }
 
 
 # ─── 宿主注入段检查 ────────────────────────────────────

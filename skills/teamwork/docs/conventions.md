@@ -3,7 +3,7 @@
 > 编号 ID + worktree 路径 的规范单源。
 > 各 stage spec / state.py / templates / SKILL.md § Triage 入口规范 一律 cite 本文件。
 
-> **目录**:§1-8 命名(ID 体系)· §9-12 路径(worktree)
+> **目录**:§1-8 命名(ID 体系)· §9-12 路径(worktree)· §13 文档布局
 
 ---
 
@@ -201,6 +201,40 @@ git branch -d <branch>
 
 ---
 
+# 文档布局
+
+## 13. 项目文档目录
+
+teamwork 文档分 **workspace 级**(仓库根)和 **子项目级**两层。
+
+### Workspace 级(仓库根)
+
+| 目录 / 文件 | 内容 | 维护方 |
+|---|---|---|
+| `product-overview/` | 产品愿景 / 业务架构 / 执行手册(详 [PRODUCT-OVERVIEW-INTEGRATION.md](../PRODUCT-OVERVIEW-INTEGRATION.md)) | Product Lead |
+| `project-specs/` | 工程层项目文档:`KNOWLEDGE.md` · `GLOSSARY.md` · `TROUBLESHOOTING.md` | bootstrap 建空骨架 · 项目维护 |
+| `teamwork-space.md` | 多项目索引 / 路由(单项目仓库无此文件) | PM |
+| `CLAUDE.md` / `AGENTS.md` | host 指令入口 · 固定位置 · 不可移 | teamwork 注入 |
+
+🔴 **`project-specs/` 与 `product-overview/` 同级** —— 产品视角 ↔ 工程视角成对。workspace 级工程文档**一律进 `project-specs/`** · 不散在仓库根。
+
+### 子项目级(`{子项目}/docs/`)
+
+`PROJECT.md`(业务总览)· `ROADMAP.md`(Feature 清单 + 优先级)· `KNOWLEDGE.md`(子项目级 Gotcha)· `sitemap.md` · `architecture/` · `adr/` · `features/{artifact ID}/`(详 §1)。
+
+🔴 **顶级仓库不设 teamwork `docs/`** —— `docs/` 只在子项目层。单项目仓库 = 仓库根即项目根 · `project-specs/` 与 `docs/` 都在仓库根。
+
+### KNOWLEDGE.md 两层
+
+| 层 | 路径 | 内容 |
+|---|---|---|
+| workspace | `project-specs/KNOWLEDGE.md` | 跨子项目 / 仓库级 Gotcha + Convention(构建系统 · 共享库 · CI) |
+| 子项目 | `{子项目}/docs/KNOWLEDGE.md` | 该子项目特有的 Gotcha + Convention |
+
+`GLOSSARY.md` / `TROUBLESHOOTING.md` 默认只在 workspace 级(`project-specs/`)。
+
+---
+
 ## 引用本文件
 
 - [SKILL.md § Triage 入口规范 § 4.2 / 4.3](../SKILL.md) — worktree 决策模板 + 暂停点收集 Feature ID
@@ -212,3 +246,4 @@ git branch -d <branch>
 - [templates/roadmap.md](../templates/roadmap.md) — BL ↔ F 映射列说明
 - [templates/adr-index.md](../templates/adr-index.md) — ADR-NNNN 维护
 - [templates/config.md](../templates/config.md) — `.teamwork_localconfig.json` 模板(worktree 字段)
+- [tools/bootstrap.py](../tools/bootstrap.py) — §13 `project-specs/` 骨架维护 + 旧散放文件迁移

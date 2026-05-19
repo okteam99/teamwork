@@ -8,7 +8,7 @@
 > - PM 起草 PRD 前 / RD 起草 TECH 前 / 架构师 Tech Review 前
 > - PM 评审 finding 类别 `terminology-ambiguity` 触发时（必须 ADOPT 写入本文档）
 >
-> **路径硬规则**：项目根 `GLOSSARY.md`（teamwork 固定路径 · 不查 docs/）。
+> **路径硬规则**：`project-specs/GLOSSARY.md`（teamwork 固定路径 · 与 product-overview/ 同级 · 详 docs/conventions.md §13）。
 > **内容由项目维护**：teamwork 不假设业务术语 · 只提供骨架。
 > **空骨架检测**：未填内容时所有表格仍为模板占位符（如 `{填入术语}`）· PMO 检测后用通用方法 + 提示用户填。
 
@@ -84,4 +84,4 @@ User --下单--> Offer
  - 业务方向变更后新术语出现 → PL 在 product-overview/ 更新前同步更新本文档
 - **写入硬规则**：每条术语必须含中英文 + 一句话定义 + 出现位置（防止抽象孤立）
 - **PMO preflight 扫描**：triage 期 PMO 自动 read 业务术语段 · 命中关键词时引用到主对话
-- **多子项目场景**：跨子项目共享术语 → 顶层 GLOSSARY.md；子项目内部实现层术语 → 各子项目 KNOWLEDGE.md § Glossary 子段（仅项目内部命名 · 大多数项目不需要）
+- **多子项目场景**：跨子项目共享术语 → `project-specs/GLOSSARY.md`；子项目内部实现层术语 → 各子项目 KNOWLEDGE.md § Glossary 子段（仅项目内部命名 · 大多数项目不需要）
