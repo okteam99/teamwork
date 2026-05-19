@@ -2,7 +2,7 @@
 
 ## RESOURCES.md（资源依赖配置）
 
-> 位置：`docs/RESOURCES.md`（项目级，非功能级）
+> 位置：`project-specs/RESOURCES.md`（workspace 级，非功能级 —— 详 docs/conventions.md §13）
 
 ```markdown
 # 资源依赖配置
@@ -213,6 +213,6 @@ external/
 1. **新增三方依赖**：创建子目录，至少包含一份接入指南，并在上方索引表中登记
 2. **子目录命名**：统一使用 kebab-case（如 \`wechat-pay/\`、\`alipay-sdk/\`、\`google-maps/\`）
 3. **三方 SDK/包**：存放官方文档副本或链接，不存放 SDK 二进制文件（二进制通过包管理器安装）
-4. **敏感信息**：API Key、Secret 等配置不放在此目录，统一在 \`docs/RESOURCES.md\` 中管理
+4. **敏感信息**：API Key、Secret 等配置不放在此目录，统一在 \`project-specs/RESOURCES.md\` 中管理
 5. **弃用三方**：状态改为「已弃用」，子目录保留（历史参考），在接入指南中注明替代方案
 \`\`\`

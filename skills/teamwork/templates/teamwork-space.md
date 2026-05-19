@@ -76,21 +76,23 @@
 > PMO 在子项目拆分确认后生成此 tree 图，反映项目根下的物理目录布局。
 > 每个目录附职责说明，帮助新成员快速理解项目组织方式。
 > 🔴 子项目目录直接放在项目根下，不嵌套 \`packages/\` 等中间目录。
+> 🔴 文档布局遵循 docs/conventions.md §13:workspace 级工程文档(KNOWLEDGE / GLOSSARY / TROUBLESHOOTING / RESOURCES)一律进 \`project-specs/\`(与 \`product-overview/\` 同级) · 顶级仓库不设 teamwork \`docs/\` —— \`docs/\` 只在子项目层，ROADMAP.md 与子项目 KNOWLEDGE.md 均落 \`{子项目}/docs/\`。
+> ⚠️ 决策记录走 ADR 体系(\`{子项目}/docs/adr/\` · docs/conventions.md §3)，不单设 workspace 级 \`decisions/\` —— 早期模板的 \`decisions/\`(DEC-xxx)未纳入 §13，是否需独立的 workspace 级决策日志为开放项(OQ)，暂不在本 tree 体现。
 
 \`\`\`
 项目根/
 ├── teamwork_space.md # 本文件 — 全景入口（架构图 + 子项目链接 + 跨项目追踪）
 ├── product-overview/ # 产品规划文档（业务架构、执行手�）— 有 product-overview 时
+├── project-specs/ # 🔴 workspace 级工程文档（与 product-overview/ 同级）· conventions.md §13
+│ ├── KNOWLEDGE.md # workspace 级知识库（跨子项目 / 仓库级 Gotcha + Convention）
+│ ├── GLOSSARY.md # workspace 级业务术语表
+│ ├── TROUBLESHOOTING.md # workspace 级排查 / 运维手册
+│ └── RESOURCES.md # workspace 级资源配置（连接串/Key 等，与 external/ 互补）
 ├── external/ # 🔴 三方/外部资源文档（接入指南、API 参考、SDK 文档，按服务名分子目录）
 │ └── README.md # 目录说明 + 三方资源总览索引
-├── docs/ # 全局文档（跨子项目共用）
-│ ├── ROADMAP.md # 产品规划 Feature Roadmap
-│ ├── KNOWLEDGE.md # 全局知识库（跨子项目经验沉淀）
-│ ├── RESOURCES.md # 全局资源配置（连接串/Key 等，与 external/ 互补）
-│ └── decisions/ # 全局技术/产品决策记录（DEC-xxx）
 │
 ├── {子项目A}/ # business 子项目 — 负责：{职责}。不负责：{边界}
-│ ├── docs/ # 子项目文档（PROJECT.md + features/ + architecture/）
+│ ├── docs/ # 子项目文档（PROJECT.md + ROADMAP.md + KNOWLEDGE.md + features/ + architecture/）
 │ └── src/ # 子项目源码（内部按技术职能分层）
 │
 └── {子项目B}/ # business 子项目 — 负责：{职责}。不负责：{边界}
