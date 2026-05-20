@@ -13,6 +13,44 @@
 - **`.teamwork_localconfig.json`** — 项目级 worktree_root_path 配置(读 `worktree_root_path` 字段 · 不存在用 `.worktree`)
 - **[feature-planning.md §0](./feature-planning.md)** — 何时改走 Feature Planning(关键词 + 复杂度双触发)
 
+🔴 **PMO 必先 Read 本 prepare.md(工具调用)再 emit 任何 prepare 内容** —— SKILL.md 只给"移交 prepare 子流程"指针 · 具体 5 段模板 / 准入校验 / prepare-check 用法都在本文件。不读直接 emit = R5 违规(详 §0.5 #1)。
+
+---
+
+## 0.5 反模式黑名单 + 物化拦截 TODO(治本 PTR-F054 case)
+
+🔴 **AI 凭直觉 / 短回路跳步骤 · 大概率被用户叫停重做 · 不省 token · 反多消耗**(case 实证 PTR-F054 一次性 6 条全违规)。以下都是 R5 违规 · 列出供 PMO 自检:
+
+| # | 违规 | 触发场景 | 治本 spec 位 |
+|---|---|---|---|
+| 1 | 漏 Read 本 prepare.md · 凭 SKILL.md「移交 prepare」概览就 emit | mode B 首次触发 prepare | § 0 必读 |
+| 2 | 漏跑 `prepare-check` · 用 `ls` / `grep` 手算 next ID | 「目录看一眼就知道」 | § 1.5.4 |
+| 3 | 跑 `prepare-check` 但漏 / 错 `--features-root`(没传子项目对应 docs_root)→ 拿主 tree 结果 → 错号 | monorepo 子项目场景(`apps/partner` 在 PTR namespace) | § 1.5.4 + conventions §1 |
+| 4 | `prepare-check` 未叠加 worktree branch 上 in-flight Feature 占用的 ID → 撞号 | 并行 Feature 多 worktree 时 | § 1.5.4 |
+| 5 | 关键词命中即推流程类型 · 漏 §2.2 准入**反向扫描**("加按钮"→ 敏捷需求 · 没扫"改 UI 结构"信号) | 用户原文含 UI 调整 / 加组件 / 改布局 / 改交互 | § 2.2 |
+| 6 | emit 简化版(只给 4 项配置 + 备选)· 漏「流程概览 / 评审角色 / 上下文 / Worktree」4 段 | 短回路认知偏差("4 项就够了") | § 4 |
+
+🔴 **AI 短回路 ≠ 用户授权**:用户给短指令("改下页面")**不等于** AI 可省略 5 段表。用户已通过本 prepare.md 决定承担 5 段的"重量" · AI 无权简化。
+
+🔴 **PMO 自检顺序**(动手 emit 前过一遍 · 任一 ❌ 即重来):
+1. ✅ 我读完本 prepare.md 全文了吗?
+2. ✅ 我跑过 `prepare-check --features-root <子项目对应 docs_root> --flow-type <type>` 了吗?
+3. ✅ 我手动 `git worktree list --porcelain | grep -oE '<PREFIX>-[FBM][0-9]+'` 叠加占用 ID 了吗?
+4. ✅ 我反向扫过 §2.2 准入信号(UI / 架构 / 文件数)了吗?(关键词命中 ≠ 流程类型推完)
+5. ✅ 我准备 emit 的 5 段(§4.1 自检清单)全有吗?
+
+### 物化拦截 TODO(违规可枚举消除 · 工具未到位前靠 PMO 自觉 + 上面自检清单)
+
+| TODO | 位置 | 治本机制 |
+|---|---|---|
+| `init-feature` 加门禁 | `state.py` | 本 session 未为 prefix 跑过 prepare-check → FAIL with hint(无 audit 不可 init-feature) |
+| `prepare-check` 内部合并 worktree ID | `state.py prepare-check` | 内部跑 `git worktree list --porcelain` 解析 ID · 与 `existing_ids` 取并集 · 输出统一 `next_available_id_stem` |
+| `prepare-check` 加 `--user-intent "<原文>"` | `state.py prepare-check` | 接收用户原文 · 内部按 §2.2 准入表扫信号 · 输出 `admission_violations[]` + `recommended_upgrade` |
+| `prepare-check` 返回 `emit_template_markdown` | `state.py prepare-check` | 5 段填好的 markdown 字段 · AI 复制粘贴 emit · 漏段不可能(同 stage `next_action_brief` 模式) |
+| `prepare-check` 加 `--subproject <PREFIX>` | `state.py prepare-check` | 替代裸 `--features-root` · 内部读 teamwork-space.md docs_root · 传错 prefix → FAIL with hint |
+
+📎 物化前:6 条全是 PMO 自觉项 · 靠本 §0.5 自检清单兜底。物化后:违规由工具层直接拒绝 · 不依赖意志力。
+
 ---
 
 ## 1. 触发场景
