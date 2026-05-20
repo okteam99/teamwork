@@ -1414,6 +1414,122 @@ def _check_artifact_routing(feature_dir: Path, feature_id: str) -> dict:
     return {"verdict": "PASS", "prefix": prefix, "docs_root": expected}
 
 
+# ─── prepare-check audit 门禁(v8.14)─────────────────────────────────────
+# 治本 PTR-F054 case:AI 跳过 prepare 子流程 直接 init-feature → 用错 prefix /
+# 选错 features_root / 漏 ID 冲突预检。已物化的 prepare-check 命令不被调用 =
+# 等同没物化。
+#
+# 设计:
+# - prepare-check 每次跑成功 → 追写 jsonl audit(~/.teamwork/prepare_check_audit.jsonl)
+# - init-feature 校验:从 --feature-id 抽 prefix → 扫 audit jsonl 近 PREPARE_CHECK_WINDOW_SEC
+#   秒内匹配该 prefix 的 record → 命中 PASS / 未命中 BLOCKED
+# - 旁路:TEAMWORK_BYPASS_PREPARE_CHECK=1(仅 debug / migration / 极端场景)
+# - 测试 override:TEAMWORK_PREPARE_AUDIT_PATH=<path> 覆盖 audit 文件路径
+#
+# 为什么 60min:Feature prepare → 用户思考拍板 → init-feature 通常 5-30min ·
+# 60min 给 buffer · 防"几天前跑过一次就一直绕过"
+
+PREPARE_CHECK_AUDIT_ENV = "TEAMWORK_PREPARE_AUDIT_PATH"
+PREPARE_CHECK_BYPASS_ENV = "TEAMWORK_BYPASS_PREPARE_CHECK"
+PREPARE_CHECK_WINDOW_SEC = 3600  # 60 min
+
+
+def _prepare_audit_path() -> Path:
+    """audit jsonl 落位 · 用户级跨项目(主工作区 prepare → worktree init-feature 可通)。
+
+    覆盖路径:TEAMWORK_PREPARE_AUDIT_PATH=<path>(测试用)。
+    """
+    override = os.environ.get(PREPARE_CHECK_AUDIT_ENV)
+    if override:
+        return Path(override)
+    return Path.home() / ".teamwork" / "prepare_check_audit.jsonl"
+
+
+def _write_prepare_audit(record: dict) -> None:
+    """append-only jsonl 写 · 父目录自动创建 · 失败不阻塞 prepare-check 主输出。"""
+    try:
+        p = _prepare_audit_path()
+        p.parent.mkdir(parents=True, exist_ok=True)
+        with p.open("a", encoding="utf-8") as f:
+            f.write(json.dumps(record, ensure_ascii=False) + "\n")
+    except OSError:
+        # audit 写失败不致命(jsonl 是兜底审计 · 主功能不依赖它)
+        pass
+
+
+def _parse_iso_utc(s: str):
+    """容忍 'Z' 后缀的 ISO 8601 解析 · 失败返 None。"""
+    try:
+        if s.endswith("Z"):
+            s = s[:-1] + "+00:00"
+        return datetime.fromisoformat(s)
+    except (ValueError, TypeError):
+        return None
+
+
+def _check_prepare_audit(feature_id: str) -> dict:
+    """从 feature_id 抽 prefix · 扫 audit jsonl · 找近 PREPARE_CHECK_WINDOW_SEC 内匹配 record。
+
+    返回 {verdict: PASS|FAIL|SKIP, ...}。SKIP = bypass 环境变量 / 抽不出 prefix。
+    """
+    if os.environ.get(PREPARE_CHECK_BYPASS_ENV) == "1":
+        return {"verdict": "SKIP", "reason": f"{PREPARE_CHECK_BYPASS_ENV}=1"}
+    m = re.match(r"^(.+?)-[FBM]\d+", feature_id)
+    if not m:
+        return {"verdict": "SKIP", "reason": f"feature_id {feature_id!r} 抽不出前缀"}
+    prefix = m.group(1)
+    audit_path = _prepare_audit_path()
+    if not audit_path.exists():
+        return {
+            "verdict": "FAIL",
+            "prefix": prefix,
+            "audit_path": str(audit_path),
+            "reason": "audit 文件不存在 · 未跑过 prepare-check",
+        }
+    now = datetime.now(timezone.utc)
+    cutoff = now.timestamp() - PREPARE_CHECK_WINDOW_SEC
+    try:
+        lines = audit_path.read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError as e:
+        return {"verdict": "SKIP", "reason": f"audit 读失败: {e}"}
+    # 倒序扫(最新在末尾 · 找到一条匹配即返 PASS)
+    for line in reversed(lines):
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            rec = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if rec.get("feature_id_prefix") != prefix:
+            continue
+        ts = _parse_iso_utc(rec.get("timestamp", ""))
+        if ts is None:
+            continue
+        if ts.timestamp() < cutoff:
+            # 倒序找到的最新匹配也过期 = 全部过期
+            return {
+                "verdict": "FAIL",
+                "prefix": prefix,
+                "audit_path": str(audit_path),
+                "latest_match_age_sec": int(now.timestamp() - ts.timestamp()),
+                "window_sec": PREPARE_CHECK_WINDOW_SEC,
+                "reason": "最近一次匹配 prepare-check 超出 60min 窗口",
+            }
+        return {
+            "verdict": "PASS",
+            "prefix": prefix,
+            "match_timestamp": rec.get("timestamp"),
+            "age_sec": int(now.timestamp() - ts.timestamp()),
+        }
+    return {
+        "verdict": "FAIL",
+        "prefix": prefix,
+        "audit_path": str(audit_path),
+        "reason": f"audit 中无匹配 prefix={prefix!r} 的 record",
+    }
+
+
 def cmd_init_feature(args: argparse.Namespace) -> None:
     """Create initial state.json · 替代手工 Write。"""
     # Feature Planning / 问题排查 不进状态机 · 拒绝
@@ -1435,6 +1551,32 @@ def cmd_init_feature(args: argparse.Namespace) -> None:
 
     feature_dir = Path(args.feature)
     state_file = feature_dir / "state.json"
+
+    # v8.14:prepare-check audit 门禁(治本 PTR-F054 case · AI 跳 prepare 直裸跑 init-feature)
+    # prepare-check 已物化但被绕过 = 等同没物化 · 这里加下游硬墙
+    audit = _check_prepare_audit(args.feature_id)
+    if audit["verdict"] == "FAIL":
+        die(2, json.dumps({
+            "verdict": "FAIL",
+            "action": "init-feature",
+            "error": (
+                f"prepare-check audit 缺失或过期 · 无法证明 prepare 子流程已跑完 "
+                f"(prefix={audit.get('prefix')!r})"
+            ),
+            "audit_detail": audit,
+            "hint": (
+                "先跑 prepare-check · 再 init-feature:\n"
+                f"  python3 {{SKILL_ROOT}}/tools/state.py prepare-check "
+                f"--feature-id-prefix {audit.get('prefix')} "
+                f"--features-root <绝对路径> --flow-type {args.flow_type}\n"
+                "→ prepare-check 写 audit jsonl · init-feature 60min 窗内复跑即放行。\n"
+                "若已跑过 prepare-check 仍 FAIL:可能①超 60min 窗 → 重跑一次;"
+                "②prefix 拼错 → 对齐 prepare-check 时的 --feature-id-prefix。"
+            ),
+            "rule": "v8.14 prepare-check audit 门禁 · 治本 PTR-F054 AI 跳 prepare case",
+            "bypass": f"调试 / migration · export {PREPARE_CHECK_BYPASS_ENV}=1",
+            "spec": "docs/prepare.md § 0",
+        }, ensure_ascii=False, indent=2))
 
     # v8.x:artifact 路由物化校验(治本 F049 子项目错位 case)
     # teamwork-space.md docs_root 是路由权威 · 校验 --feature 路径 + ID 前缀一致
@@ -1934,6 +2076,20 @@ def cmd_prepare_check(args: argparse.Namespace) -> None:
             else:
                 payload["flow_type"] = args.flow_type
                 payload["stage_chain_preview"] = build_stage_chain_preview(args.flow_type)
+
+    # v8.14:写 prepare_check_audit jsonl(init-feature 门禁读这个)
+    # 治本 PTR-F054:prepare-check 物化但 AI 不调用 → 下游门禁兜底
+    audit_record = {
+        "timestamp": now_iso(),
+        "feature_id_prefix": prefix,
+        "features_root": str(root),
+        "flow_type": args.flow_type or "",
+        "id_letter": id_letter,
+        "next_available_id_stem": next_id_stem,
+        "existing_count": len(existing_ids),
+    }
+    _write_prepare_audit(audit_record)
+    payload["audit_recorded"] = True
 
     emit(payload)
 

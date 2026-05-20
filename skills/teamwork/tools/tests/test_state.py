@@ -400,13 +400,23 @@ class TestBugFrontmatter(_Base):
 
 
 class TestInitFeature(unittest.TestCase):
-    """v7.3.10+P0-148：init-feature 子命令 + checksum guard。"""
+    """v7.3.10+P0-148：init-feature 子命令 + checksum guard。
+
+    v8.14:set TEAMWORK_BYPASS_PREPARE_CHECK=1 让现有 init-feature 测试不依赖
+    prepare-check audit · 门禁本身的测试见 TestPrepareAuditGate。
+    """
 
     def setUp(self) -> None:
         self.tmp = Path(tempfile.mkdtemp(prefix="init_feat_"))
+        self._prev_bypass = os.environ.get("TEAMWORK_BYPASS_PREPARE_CHECK")
+        os.environ["TEAMWORK_BYPASS_PREPARE_CHECK"] = "1"
 
     def tearDown(self) -> None:
         shutil.rmtree(self.tmp, ignore_errors=True)
+        if self._prev_bypass is None:
+            os.environ.pop("TEAMWORK_BYPASS_PREPARE_CHECK", None)
+        else:
+            os.environ["TEAMWORK_BYPASS_PREPARE_CHECK"] = self._prev_bypass
 
     def test_init_feature_creates_state_json(self) -> None:
         target = self.tmp / "docs" / "features" / "ADMIN-F013"
@@ -532,10 +542,15 @@ class TestInitFeature(unittest.TestCase):
 
 
 class TestChecksumGuard(unittest.TestCase):
-    """v7.3.10+P0-148：state.json checksum 物化拦截直写。"""
+    """v7.3.10+P0-148：state.json checksum 物化拦截直写。
+
+    v8.14:bypass prepare-check audit · 本类只测 checksum guard 行为 · 与 audit 解耦。
+    """
 
     def setUp(self) -> None:
         self.tmp = Path(tempfile.mkdtemp(prefix="checksum_"))
+        self._prev_bypass = os.environ.get("TEAMWORK_BYPASS_PREPARE_CHECK")
+        os.environ["TEAMWORK_BYPASS_PREPARE_CHECK"] = "1"
         # 用 init-feature 创建（含 checksum）
         run([
             "init-feature",
@@ -548,6 +563,10 @@ class TestChecksumGuard(unittest.TestCase):
 
     def tearDown(self) -> None:
         shutil.rmtree(self.tmp, ignore_errors=True)
+        if self._prev_bypass is None:
+            os.environ.pop("TEAMWORK_BYPASS_PREPARE_CHECK", None)
+        else:
+            os.environ["TEAMWORK_BYPASS_PREPARE_CHECK"] = self._prev_bypass
 
     def test_legitimate_read_passes(self) -> None:
         d = run(["snapshot", "--feature", str(self.tmp)])
@@ -591,10 +610,15 @@ class TestChecksumGuard(unittest.TestCase):
 
 
 class TestRecover(unittest.TestCase):
-    """v7.3.10+P0-148：recover 子命令重新认证 checksum + 写 concerns。"""
+    """v7.3.10+P0-148：recover 子命令重新认证 checksum + 写 concerns。
+
+    v8.14:bypass prepare-check audit · 本类只测 recover 行为 · 与 audit 解耦。
+    """
 
     def setUp(self) -> None:
         self.tmp = Path(tempfile.mkdtemp(prefix="recover_"))
+        self._prev_bypass = os.environ.get("TEAMWORK_BYPASS_PREPARE_CHECK")
+        os.environ["TEAMWORK_BYPASS_PREPARE_CHECK"] = "1"
         run([
             "init-feature",
             "--feature", str(self.tmp),
@@ -606,6 +630,10 @@ class TestRecover(unittest.TestCase):
 
     def tearDown(self) -> None:
         shutil.rmtree(self.tmp, ignore_errors=True)
+        if self._prev_bypass is None:
+            os.environ.pop("TEAMWORK_BYPASS_PREPARE_CHECK", None)
+        else:
+            os.environ["TEAMWORK_BYPASS_PREPARE_CHECK"] = self._prev_bypass
 
     def test_recover_after_manual_edit(self) -> None:
         sf = self.tmp / "state.json"
@@ -646,7 +674,10 @@ class TestMicroValidate(_Base):
 
 
 class TestPrepareCheck(unittest.TestCase):
-    """prepare-check · flow_type → artifact ID 字母(F/B/M · 治本 Bug 错推 -F)。"""
+    """prepare-check · flow_type → artifact ID 字母(F/B/M · 治本 Bug 错推 -F)。
+
+    v8.14:重定向 TEAMWORK_PREPARE_AUDIT_PATH → tmp · 防止污染真实 $HOME。
+    """
 
     def setUp(self) -> None:
         self.tmp = Path(tempfile.mkdtemp(prefix="tw-pc-"))
@@ -654,9 +685,16 @@ class TestPrepareCheck(unittest.TestCase):
         for name in ("PTR-F033-Alpha", "PTR-F046-Beta",
                      "PTR-B017-Gamma", "PTR-B018-Delta", "PTR-M001-Eps"):
             (self.root / name).mkdir(parents=True)
+        self.audit_path = self.tmp / "audit.jsonl"
+        self._prev_audit = os.environ.get("TEAMWORK_PREPARE_AUDIT_PATH")
+        os.environ["TEAMWORK_PREPARE_AUDIT_PATH"] = str(self.audit_path)
 
     def tearDown(self) -> None:
         shutil.rmtree(self.tmp, ignore_errors=True)
+        if self._prev_audit is None:
+            os.environ.pop("TEAMWORK_PREPARE_AUDIT_PATH", None)
+        else:
+            os.environ["TEAMWORK_PREPARE_AUDIT_PATH"] = self._prev_audit
 
     def _check(self, flow_type: str) -> dict:
         return run(["prepare-check", "--features-root", str(self.root),
@@ -694,6 +732,177 @@ class TestPrepareCheck(unittest.TestCase):
                  "--feature-id-prefix", "NEWPROJ", "--flow-type", "Bug"])
         self.assertEqual(d["next_available_id_stem"], "NEWPROJ-B001")
         self.assertEqual(d["existing_ids"], [])
+
+    def test_prepare_check_writes_audit_jsonl(self) -> None:
+        """v8.14:prepare-check 跑成功 → 追写 audit jsonl(init-feature 门禁读这个)。"""
+        d = self._check("Feature")
+        self.assertTrue(d.get("audit_recorded"))
+        self.assertTrue(self.audit_path.exists(),
+                        f"audit jsonl 应已写 · path={self.audit_path}")
+        lines = self.audit_path.read_text(encoding="utf-8").splitlines()
+        self.assertEqual(len(lines), 1)
+        rec = json.loads(lines[0])
+        self.assertEqual(rec["feature_id_prefix"], "PTR")
+        self.assertEqual(rec["flow_type"], "Feature")
+        self.assertEqual(rec["id_letter"], "F")
+        self.assertEqual(rec["next_available_id_stem"], "PTR-F047")
+        self.assertIn("timestamp", rec)
+        self.assertEqual(rec["existing_count"], 2)  # F033 + F046
+
+    def test_prepare_check_audit_append_only(self) -> None:
+        """多次跑 prepare-check · audit 是 append 不是覆盖。"""
+        self._check("Feature")
+        self._check("Bug")
+        self._check("Micro")
+        lines = self.audit_path.read_text(encoding="utf-8").splitlines()
+        self.assertEqual(len(lines), 3)
+        recs = [json.loads(l) for l in lines]
+        # 顺序保留 · 字母不同
+        self.assertEqual([r["id_letter"] for r in recs], ["F", "B", "M"])
+
+
+class TestPrepareAuditGate(unittest.TestCase):
+    """v8.14:init-feature 物化校验 prepare-check audit · 治本 PTR-F054 case。
+
+    AI 跳 prepare 直裸跑 init-feature → audit 缺失 → BLOCKED with hint。
+    """
+
+    def setUp(self) -> None:
+        self.tmp = Path(tempfile.mkdtemp(prefix="tw-gate-"))
+        self.audit_path = self.tmp / "audit.jsonl"
+        self.features_root = self.tmp / "features"
+        self.features_root.mkdir(parents=True)
+        # 重定向 audit + 不要继承 bypass(子进程要看到真实 gate)
+        self._env_snapshot = {
+            "TEAMWORK_PREPARE_AUDIT_PATH": os.environ.get("TEAMWORK_PREPARE_AUDIT_PATH"),
+            "TEAMWORK_BYPASS_PREPARE_CHECK": os.environ.get("TEAMWORK_BYPASS_PREPARE_CHECK"),
+        }
+        os.environ["TEAMWORK_PREPARE_AUDIT_PATH"] = str(self.audit_path)
+        os.environ.pop("TEAMWORK_BYPASS_PREPARE_CHECK", None)
+
+    def tearDown(self) -> None:
+        shutil.rmtree(self.tmp, ignore_errors=True)
+        for k, v in self._env_snapshot.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
+
+    def _init_feature_args(self, feature_id: str = "PTR-F100-test") -> list[str]:
+        target = self.tmp / "apps" / "partner" / "docs" / "features" / feature_id
+        return [
+            "init-feature",
+            "--feature", str(target),
+            "--feature-id", feature_id,
+            "--flow-type", "Feature",
+            "--merge-target", "staging",
+            "--branch", f"feat/{feature_id.lower()}",
+        ]
+
+    def test_init_feature_blocks_without_audit(self) -> None:
+        """无 audit 文件 · init-feature 直接 BLOCKED with hint。"""
+        d = run(self._init_feature_args(), expect_exit=2)
+        self.assertEqual(d["verdict"], "FAIL")
+        self.assertEqual(d["action"], "init-feature")
+        self.assertIn("prepare-check", d["error"])
+        self.assertIn("prepare-check", d["hint"])
+        self.assertEqual(d["audit_detail"]["verdict"], "FAIL")
+        self.assertEqual(d["audit_detail"]["prefix"], "PTR")
+
+    def test_init_feature_passes_after_prepare_check(self) -> None:
+        """跑了 prepare-check → audit 写好 → init-feature 放行。"""
+        # 1. 先跑 prepare-check 写 audit
+        run(["prepare-check", "--features-root", str(self.features_root),
+             "--feature-id-prefix", "PTR", "--flow-type", "Feature"])
+        self.assertTrue(self.audit_path.exists())
+        # 2. init-feature 应放行(没 routing/cwd 校验交叉干扰 · 因为 tmp 不在 git repo)
+        d = run(self._init_feature_args())
+        self.assertEqual(d["verdict"], "OK")
+        self.assertEqual(d["feature_id"], "PTR-F100-test")
+
+    def test_init_feature_bypass_env_skips_gate(self) -> None:
+        """TEAMWORK_BYPASS_PREPARE_CHECK=1 → 跳门禁(debug / migration)。"""
+        os.environ["TEAMWORK_BYPASS_PREPARE_CHECK"] = "1"
+        d = run(self._init_feature_args())
+        self.assertEqual(d["verdict"], "OK")
+
+    def test_init_feature_blocks_on_expired_audit(self) -> None:
+        """audit 超 60min 窗 · 视为缺失 · BLOCKED。"""
+        # 手写一条过期 record(2h 前)
+        from datetime import datetime, timedelta, timezone
+        old_ts = (datetime.now(timezone.utc) - timedelta(hours=2)).strftime(
+            "%Y-%m-%dT%H:%M:%SZ")
+        rec = {"timestamp": old_ts, "feature_id_prefix": "PTR",
+               "flow_type": "Feature", "id_letter": "F",
+               "next_available_id_stem": "PTR-F100",
+               "features_root": str(self.features_root), "existing_count": 0}
+        self.audit_path.write_text(json.dumps(rec) + "\n", encoding="utf-8")
+        d = run(self._init_feature_args(), expect_exit=2)
+        self.assertEqual(d["verdict"], "FAIL")
+        self.assertEqual(d["audit_detail"]["verdict"], "FAIL")
+        self.assertIn("60min", d["audit_detail"]["reason"])
+        self.assertGreater(d["audit_detail"]["latest_match_age_sec"], 3600)
+
+    def test_init_feature_blocks_on_prefix_mismatch(self) -> None:
+        """audit 有 record · 但 prefix 不匹配 → BLOCKED。"""
+        from datetime import datetime, timezone
+        ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        rec = {"timestamp": ts, "feature_id_prefix": "OTHER",
+               "flow_type": "Feature", "id_letter": "F",
+               "next_available_id_stem": "OTHER-F001",
+               "features_root": str(self.features_root), "existing_count": 0}
+        self.audit_path.write_text(json.dumps(rec) + "\n", encoding="utf-8")
+        d = run(self._init_feature_args("PTR-F100-test"), expect_exit=2)
+        self.assertEqual(d["verdict"], "FAIL")
+        self.assertIn("PTR", d["audit_detail"]["prefix"])
+        self.assertIn("无匹配", d["audit_detail"]["reason"])
+
+    def test_init_feature_uses_latest_match_when_multiple(self) -> None:
+        """audit 有多条 PTR record · 用最新那条(倒序扫优先 · 即使早期有过期也 PASS)。"""
+        from datetime import datetime, timedelta, timezone
+        old_ts = (datetime.now(timezone.utc) - timedelta(hours=2)).strftime(
+            "%Y-%m-%dT%H:%M:%SZ")
+        new_ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        lines = [
+            json.dumps({"timestamp": old_ts, "feature_id_prefix": "PTR",
+                        "flow_type": "Feature", "id_letter": "F",
+                        "next_available_id_stem": "PTR-F099",
+                        "features_root": str(self.features_root), "existing_count": 0}),
+            json.dumps({"timestamp": new_ts, "feature_id_prefix": "PTR",
+                        "flow_type": "Feature", "id_letter": "F",
+                        "next_available_id_stem": "PTR-F100",
+                        "features_root": str(self.features_root), "existing_count": 0}),
+        ]
+        self.audit_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        d = run(self._init_feature_args())
+        self.assertEqual(d["verdict"], "OK")
+
+    def test_init_feature_blocks_when_all_matches_expired(self) -> None:
+        """所有匹配 prefix 的 record 都过期 → BLOCKED(倒序找到的最新匹配过期 = 全过期)。"""
+        from datetime import datetime, timedelta, timezone
+        ts1 = (datetime.now(timezone.utc) - timedelta(hours=3)).strftime(
+            "%Y-%m-%dT%H:%M:%SZ")
+        ts2 = (datetime.now(timezone.utc) - timedelta(hours=2)).strftime(
+            "%Y-%m-%dT%H:%M:%SZ")
+        lines = [
+            json.dumps({"timestamp": ts1, "feature_id_prefix": "PTR",
+                        "flow_type": "Feature", "id_letter": "F",
+                        "next_available_id_stem": "PTR-F099",
+                        "features_root": str(self.features_root), "existing_count": 0}),
+            json.dumps({"timestamp": ts2, "feature_id_prefix": "PTR",
+                        "flow_type": "Feature", "id_letter": "F",
+                        "next_available_id_stem": "PTR-F100",
+                        "features_root": str(self.features_root), "existing_count": 0}),
+        ]
+        self.audit_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        d = run(self._init_feature_args(), expect_exit=2)
+        self.assertEqual(d["verdict"], "FAIL")
+
+    def test_audit_helper_skip_on_unparseable_feature_id(self) -> None:
+        """feature_id 抽不出 prefix → SKIP(不强阻 · 落到下游 routing/basename 校验)。"""
+        from state import _check_prepare_audit  # type: ignore
+        d = _check_prepare_audit("nonconforming-id")
+        self.assertEqual(d["verdict"], "SKIP")
 
 
 class TestPMDecisionTolerance(unittest.TestCase):

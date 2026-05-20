@@ -509,6 +509,38 @@ class TestCmdSessionBootstrapE2E(unittest.TestCase):
             ["GLOSSARY.md", "KNOWLEDGE.md", "TROUBLESHOOTING.md"],
         )
 
+    def test_emits_flow_gates_forewarn(self):
+        """v8.14:bootstrap emit 必含 flow_gates · forewarn AI 下游硬墙。
+
+        治本 PTR-F054 prepare 跳过 case:AI 在 bootstrap 输出里就看到
+        「init-feature 会校验 prepare-check audit」· 知道跳过会撞墙 · 主动先跑 prepare-check。
+        """
+        result = subprocess.run(
+            ["python3", str(BOOTSTRAP_PY),
+             "--host", "claude-code",
+             "--skill-root", str(SKILL)],
+            cwd=str(self.project), capture_output=True, text=True, check=True,
+        )
+        data = json.loads(result.stdout)
+        self.assertIn("flow_gates", data,
+                      "bootstrap 必 emit flow_gates 段(v8.14 forewarn)")
+        gates = data["flow_gates"]
+        self.assertIsInstance(gates, list)
+        self.assertGreaterEqual(len(gates), 1)
+        # prepare_check_required_before_init_feature 必须在
+        prep_gate = next(
+            (g for g in gates
+             if g.get("gate") == "prepare_check_required_before_init_feature"),
+            None,
+        )
+        self.assertIsNotNone(prep_gate,
+                             "必含 prepare_check_required_before_init_feature 门禁说明")
+        # 关键字段完整(机制描述 · 不是宣誓)
+        for k in ("trigger", "checks", "action", "skip_consequence", "bypass_env"):
+            self.assertIn(k, prep_gate, f"flow_gate 必含 {k} 字段")
+        self.assertIn("prepare-check", prep_gate["action"])
+        self.assertIn("TEAMWORK_BYPASS_PREPARE_CHECK", prep_gate["bypass_env"])
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

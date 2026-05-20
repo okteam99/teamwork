@@ -603,6 +603,31 @@ def cmd_session_bootstrap(args: argparse.Namespace) -> None:
             "gitignore_worktree": gitignore,
             "v7_features_pending_migrate": pending_v7,
         },
+        # v8.14:forewarn AI 下游硬墙 · 治本 PTR-F054 prepare 跳过 case
+        # 因果机制描述(非宣誓):AI 知道 init-feature 会 BLOCK · 主动先 prepare-check
+        # 避免「直跑 init-feature → BLOCKED → 回头 prepare → 重跑」round-trip
+        "flow_gates": [
+            {
+                "gate": "prepare_check_required_before_init_feature",
+                "trigger": "state.py init-feature",
+                "checks": (
+                    "扫 ~/.teamwork/prepare_check_audit.jsonl · 找近 60min 匹配 "
+                    "--feature-id 前缀的 record · 无 → BLOCKED"
+                ),
+                "action": (
+                    "规划 Feature/Bug/Micro 时 · 先跑 `state.py prepare-check "
+                    "--feature-id-prefix <PREFIX> --features-root <abs> --flow-type <type>` · "
+                    "再 init-feature(prepare-check 输出含 next_available_id_stem · "
+                    "暂停点表格直接填)"
+                ),
+                "skip_consequence": (
+                    "init-feature 物化 FAIL · hint 指回 prepare-check · "
+                    "跳过这一步等于浪费一轮 round-trip"
+                ),
+                "bypass_env": "TEAMWORK_BYPASS_PREPARE_CHECK=1(仅 debug / migration)",
+                "spec": "docs/prepare.md § 0",
+            }
+        ],
     }
 
     # silent emit JSON · AI 跑后不必 cite · 用户不可见报告
