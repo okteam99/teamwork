@@ -1,28 +1,5 @@
 # Changelog
 
-## Unreleased
-
-> 追加规则:每个 commit 一行 `- <短 hash> <commit subject>`(不重述 body)。
-> 版本号默认不动(`SKILL.md` frontmatter 锁 v8.x · 用户显式说 bump 才改)·
-> 用户说「bump 到 vX.Y.Z」时本段重命名为 `## vX.Y.Z · YYYY-MM-DD · <概要>` · 起新 Unreleased。
-
-- `9825384` feat(teamwork/v8.x): blueprint 加 DB schema 变更条件暂停点 · 治本"技术方案无用户 gate"
-- `9d36faf` feat(ship): 新增 ship-finalize 命令 · Phase 2 全自动 7 步编排
-- `327a1c8` fix(prepare): Bug/Micro 流程 artifact ID 按 flow_type 分字母(F/B/M)
-- `79fdb4f` feat(docs): 项目级文档收敛进 project-specs/(与 product-overview/ 同级)
-- `72069c1` fix(teamwork/v8.x): Micro 流程修正为 dev → pm_acceptance → ship(治本 ship-start 死锁)
-- `7d59c92` fix(docs): teamwork-space.md/config.md 目录布局对齐 conventions.md §13
-- `1ea691e` chore: gitignore teamwork 自举 dogfooding 产物
-- `7cdb122` fix(ship): ship-finalize step 7 改 main-sync · fetch + 安全 pull --ff-only
-- `9352e4f` fix(routing): 子项目 artifact 路由物化校验 + workspace 文件名迁移
-- `f2315a9` fix(bootstrap): 版本号 bootstrap 自读 SKILL.md frontmatter · 不再由 AI 传
-- `eb09042` fix(pm_acceptance): decision schema 三处治本(容错读 + migrate 补 + 删 v7 fossil)
-- `9cab5c5` fix(ui_design): Panorama 介质区分 same-stack/static-html · 介质差异死循环治本
-- `694419b` feat(panorama_sync): 拆 panorama 同步为独立条件 stage(从 ui_design step 4 隐式动作)
-- `7970678` fix(auto_mode): 各暂停点 auto 行为按名显式(skip / stop / skip+WARN)· 治本 DB schema 误停
-
----
-
 ## v8.15 · 删 RULES.md · 内容拆 SKILL.md(必读软约束)+ MANIFESTO(详细 rationale)
 
 ### 问题
