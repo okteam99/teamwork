@@ -745,5 +745,68 @@ class TestPMDecisionTolerance(unittest.TestCase):
         self.assertEqual(_pm_acceptance_transition(st2), "completed")
 
 
+class TestPanoramaArtifactEvidence(unittest.TestCase):
+    """UI_DESIGN_SPEC _evidence_panorama_artifact 按 panorama_medium 校验
+    (治本 PTR-F052:same-stack 跳过 preview/*.html 要求 · static-html 维持原校验)。"""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp(prefix="tw-panorama-"))
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def _args(self):
+        class _A: pass
+        a = _A(); a.feature = str(self.tmp); return a
+
+    def _write_ui(self, medium=None):
+        lines = ["---", "pages:", "  - {id: page1, title: \"页面 1\"}"]
+        if medium is not None:
+            lines.append(f"panorama_medium: {medium}")
+        lines += ["---", "# UI"]
+        (self.tmp / "UI.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    def test_same_stack_no_preview_passes(self):
+        from _v8_stage_specs import _evidence_panorama_artifact
+        self._write_ui(medium="same-stack")
+        ok, err = _evidence_panorama_artifact({}, self._args())
+        self.assertTrue(ok, err)
+
+    def test_static_html_no_preview_fails(self):
+        from _v8_stage_specs import _evidence_panorama_artifact
+        self._write_ui(medium="static-html")
+        ok, err = _evidence_panorama_artifact({}, self._args())
+        self.assertFalse(ok)
+        self.assertIn("preview/*.html", err)
+
+    def test_static_html_with_preview_passes(self):
+        from _v8_stage_specs import _evidence_panorama_artifact
+        self._write_ui(medium="static-html")
+        (self.tmp / "preview").mkdir()
+        (self.tmp / "preview" / "page1.html").write_text("<html></html>", encoding="utf-8")
+        ok, err = _evidence_panorama_artifact({}, self._args())
+        self.assertTrue(ok, err)
+
+    def test_default_static_html_when_field_absent(self):
+        from _v8_stage_specs import _evidence_panorama_artifact
+        self._write_ui(medium=None)
+        ok, err = _evidence_panorama_artifact({}, self._args())
+        self.assertFalse(ok)
+        self.assertIn("preview/*.html", err)
+
+    def test_invalid_medium_fails(self):
+        from _v8_stage_specs import _evidence_panorama_artifact
+        self._write_ui(medium="bogus")
+        ok, err = _evidence_panorama_artifact({}, self._args())
+        self.assertFalse(ok)
+        self.assertIn("非法", err)
+
+    def test_no_ui_md_fails(self):
+        from _v8_stage_specs import _evidence_panorama_artifact
+        ok, err = _evidence_panorama_artifact({}, self._args())
+        self.assertFalse(ok)
+        self.assertIn("UI.md", err)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

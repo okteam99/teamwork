@@ -39,6 +39,27 @@ PANORAMA_HOST_MARKER = "全景宿主"
 PANORAMA_PATH_MARKER = "panorama_path"
 COVERAGE_TABLE_MARKER = "UI-AC-COVERAGE"
 
+VALID_PANORAMA_MEDIA = ("same-stack", "static-html")
+
+
+def read_panorama_medium(ui_md_text: str) -> str:
+    """读 UI.md frontmatter `panorama_medium` · 缺省 `static-html`(向后兼容)。
+
+    v8.x:panorama 介质类型显式声明(详 stages/ui-design-stage.md § Panorama 介质类型)。
+    `same-stack` 时本工具自动跳过 HTML 文件相关检查 · 不卡流程(治本 PTR-F052 死循环)。
+    """
+    if not ui_md_text.startswith("---\n"):
+        return "static-html"
+    end = ui_md_text.find("\n---\n", 4)
+    if end == -1:
+        return "static-html"
+    for line in ui_md_text[4:end].splitlines():
+        if line.startswith("panorama_medium:"):
+            v = line.split(":", 1)[1].strip().split("#", 1)[0].strip()
+            if v in VALID_PANORAMA_MEDIA:
+                return v
+    return "static-html"
+
 # 5 维度自查清单的 marker
 DIMENSION_MARKERS = {
     "1. 全景对齐": "全景对齐",
@@ -187,8 +208,18 @@ def main() -> None:
         die(2, {"verdict": "FAIL", "error": f"UI.md not found: {ui_md}"})
 
     text = ui_md.read_text(encoding="utf-8")
+    medium = read_panorama_medium(text)
+    # same-stack 介质 · panorama 在项目前端栈内(/design/* 路由)· HTML 文件相关
+    # 检查整体跳过(治本 PTR-F052 case:同栈下 preview/*.html 不应存在 · 旧检查会
+    # 误判 FAIL 卡流程)。仍校验 UI.md 自查报告完整性 + 宿主标注。
+    HTML_SPECIFIC = {
+        "panorama_path valid",
+        "sitemap.md mtime (when 增量)",
+        "preview/*.html count",
+    }
     all_failures: list[str] = []
     checks_passed: list[str] = []
+    checks_skipped: list[str] = []
 
     for name, fn in [
         ("self-check section completeness", lambda: check_self_check_section(text)),
@@ -198,6 +229,9 @@ def main() -> None:
          lambda: check_sitemap_mtime(args.panorama_path, args.stage_started_at, text)),
         ("preview/*.html count", lambda: check_preview_count(feature_dir, text)),
     ]:
+        if medium == "same-stack" and name in HTML_SPECIFIC:
+            checks_skipped.append(f"{name}(panorama_medium=same-stack · 跳过)")
+            continue
         ok, errs = fn()
         if ok:
             checks_passed.append(name)
@@ -208,7 +242,9 @@ def main() -> None:
         emit({
             "verdict": "FAIL",
             "feature": str(feature_dir),
+            "panorama_medium": medium,
             "checks_passed": checks_passed,
+            "checks_skipped": checks_skipped,
             "checks_failed": all_failures,
             "error_count": len(all_failures),
             "hint": ("按 standards/common.md § 四B Designer 自查规范补完 UI.md 自查报告 · "
@@ -219,7 +255,9 @@ def main() -> None:
     emit({
         "verdict": "PASS",
         "feature": str(feature_dir),
+        "panorama_medium": medium,
         "checks_passed": checks_passed,
+        "checks_skipped": checks_skipped,
         "checked_at": now_iso(),
     })
 

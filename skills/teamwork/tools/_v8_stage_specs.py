@@ -567,6 +567,35 @@ def _ui_design_transition(state: dict) -> Optional[str]:
     return "blueprint"
 
 
+def _evidence_panorama_artifact(state: dict, args) -> tuple[bool, str]:
+    """按 UI.md frontmatter `panorama_medium` 校验 panorama 产物(治本 PTR-F052 case)。
+
+    - `same-stack`:panorama 在项目前端栈内(/design/* 路由 + mock data)·
+                    不要求 `preview/*.html` 存在 · PASS
+    - `static-html`(或缺省):要求 `preview/*.html` ≥ 1
+    - 详 stages/ui-design-stage.md § Panorama 介质类型
+    """
+    feature_dir = Path(args.feature)
+    ui_md = feature_dir / "UI.md"
+    if not ui_md.exists():
+        return False, "UI.md 不存在"
+    fm = parse_frontmatter(ui_md) or {}
+    medium = fm.get("panorama_medium", "static-html")
+    if medium not in ("same-stack", "static-html"):
+        return False, (f"panorama_medium={medium!r} 非法 · 应 same-stack 或 static-html "
+                       "(详 ui-design-stage.md § Panorama 介质类型)")
+    if medium == "same-stack":
+        return True, ""  # 同栈 · 不要求 preview/*.html
+    # static-html · 要求 preview/*.html ≥ 1
+    preview_dir = feature_dir / "preview"
+    if not preview_dir.exists() or not list(preview_dir.glob("*.html")):
+        return False, (
+            "panorama_medium=static-html · 需要 preview/*.html ≥ 1 · "
+            "(若是 same-stack 项目 · UI.md frontmatter 改 panorama_medium: same-stack)"
+        )
+    return True, ""
+
+
 UI_DESIGN_SPEC = StageSpec(
     name="ui_design",
     prerequisites=[
@@ -587,16 +616,18 @@ UI_DESIGN_SPEC = StageSpec(
         StageArtifactSpec(
             path="UI.md",
             frontmatter_required=["pages"],
-            description="UI 设计稿 · frontmatter pages[]",
+            description="UI 设计稿 · frontmatter pages[] + panorama_medium",
         ),
-        StageArtifactSpec(
-            glob="preview/*.html",
-            min_files=1,
-            must_be_in_commit=False,  # preview HTML 数量动态 · 不逐个 commit 校验
-            description="HTML 预览(每页一文件)",
+        # preview/*.html 由 _evidence_panorama_artifact 条件化校验
+        # (same-stack 不要求 · static-html 要求 ≥1)· 治本 PTR-F052 case
+    ],
+    evidence_checks=[
+        StageEvidenceCheck(
+            name="panorama_artifact",
+            check_fn=_evidence_panorama_artifact,
+            description="按 panorama_medium 校验:same-stack 跳过 · static-html 要求 preview/*.html ≥ 1",
         ),
     ],
-    evidence_checks=[],
     brief_template_fn=_ui_design_brief,
     auto_transition_fn=_ui_design_transition,
     authorized_pause_point="完成后给用户预览 URL · 等确认",

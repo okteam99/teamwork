@@ -7,10 +7,16 @@
 > 🟢 旧模板的"布局 / 组件表 / 设计标注 / 响应式断点 / 状态设计描述 / 用户流程文字描述"段已删除——这些 HTML 是真相，markdown 复述会 drift。
 
 ```markdown
+---
+pages:
+  - {id: page1, title: "页面 1"}
+panorama_medium: same-stack  # same-stack(推荐 · 前端栈已定时硬规则)| static-html(兜底 · 前端栈未定)· 详 stages/ui-design-stage.md § Panorama 介质类型
+---
 # {功能名称} - UI 设计意图 & 追溯
 
 > 🔴 全景宿主：{当前子项目 / 跨子项目→{hosting_subproject}}
 > 🔴 panorama_path: {绝对路径 / null（项目无全景）}
+> 🔴 panorama_medium: same-stack(推荐 · 复用项目前端栈 + mock data · 像素级 fidelity by construction)| static-html(兜底 · preview/*.html · 仅作 IA / 视觉层级 / Token 一致性参考 · 介质差异不可像素级仿 live)
 
 ## 状态
 草稿 | 待评审 | 已确认

@@ -124,7 +124,13 @@
 > - 标准格式：`{子项目目录}/docs/features`（如 `auth/docs/features`、`web/docs/features`）
 > - PMO 在 triage Step 9 计算 `state.artifact_root = {docs_root}/{Feature 全名}`，所有 Feature 产物必须落在此根下
 > - 🔴 **路由权威**：PMO 不允许"沿用历史根 docs/features/"等理由偏离 docs_root 列；老 Feature 在根目录的兼容处理见 [roles/pmo.md § 产物路径权威路由](../roles/pmo.md)
-> - 缺失 → triage 阻断（流程违规），用户必须先在 teamwork_space.md 补全
+> - 缺失 → triage 阻断（流程违规），用户必须先在 teamwork-space.md 补全
+>
+> 🔴 **技术栈（前端栈是 panorama 介质权威信号）**：
+> - 列内**前端部分**（如 `React (Vite)` / `Vue` / `Next` 等）非空 → 该子项目 ui_design **必走 `same-stack` panorama**（复用本栈 + mock data · 详 stages/ui-design-stage.md § Panorama 介质类型）
+> - 列内仅后端栈或留空 → 允许 `static-html` 兜底（Greenfield / POC）
+> - 详细前端栈声明 + mock data 入口 + design route 约定 → 子项目 `PROJECT.md § 技术栈 · 前端` 段
+> - 治本 PTR-F052 case（前端栈已定却用 static-html → 4 轮调像素仍有差异的死循环）
 >
 > **消费方**：仅 midplatform 类型填写，列出依赖本子项目能力的其他子项目缩写。business 类型填 \`-\`。
 > **完成度**：格式 \`已完成数/总数\`，基于该子项目 ROADMAP.md 中的 Feature 统计。PMO 在每个 Feature 完成时同步更新此列。无 ROADMAP 时填 \`0/0\`。

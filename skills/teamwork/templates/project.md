@@ -66,6 +66,19 @@ flowchart LR
 
 > 技术层面的设计决策见 📎 \`{docs_root}/architecture/ARCHITECTURE.md\`
 
+## 技术栈 · 前端
+
+> 🔴 **frontend_stack**(决定 ui_design 的 panorama 介质 · 详 stages/ui-design-stage.md § Panorama 介质类型):
+>
+> | 字段 | 值 | 说明 |
+> |---|---|---|
+> | frontend_stack | `[填:如 React+Vite+TypeScript+Tailwind+shadcn]` 或 `[未定]` | 前端栈一旦填实,panorama **必须 same-stack**(复用本栈 + mock data),不可用 static-html |
+> | panorama_medium 默认 | `same-stack`(若 frontend_stack 已填)/ `static-html`(若未定 · 仅 Greenfield/POC) | 各 Feature `UI.md` frontmatter `panorama_medium` 覆盖 |
+> | mock data 入口 | `[填:如 src/test/mocks/ · MockDataProvider 路径]` | same-stack panorama 渲染所用 fixture |
+> | design route 约定 | `[填:如 /design/<page-id>(开发模式启用 / production 屏蔽)]` | panorama 复用本栈时的访问入口 |
+>
+> 「frontend_stack 已填 + 某 Feature panorama 仍 static-html」= **规范违规** · 必须开 Feature 迁移到 same-stack(治本 PTR-F052 case)。
+
 ## 当前状态
 
 ### 已完成功能
