@@ -346,7 +346,24 @@ emit 格式:
 
 📎 **blueprint DB schema 条件暂停点**:Feature 的 TECH 方案涉及**数据库数据结构变更**(新建/删除/修改 表、字段、索引、约束、migration)时 · blueprint-complete 前必 emit 用户确认暂停点(详 [stages/blueprint-stage.md § 7.5](./stages/blueprint-stage.md))· 不涉及则跳过。**敏捷需求 / Bug / Micro** 不应涉及 DB 数据结构变更(属架构性 · 命中则按 prepare §2.2 升 Feature)。
 📎 stage 间(goal-complete→ui_design / dev→review 等)是 state.py **自动流转** · 非暂停点 · 不插确认。
-📎 `auto_mode=true`:非关键暂停点自动流转 · 但 ① prepare 配置 / ④ pm_acceptance / ⑤ ship 关键决策点 auto 也停。
+
+### auto_mode=true 时各暂停点行为(按名 · 不按编号)
+
+🔴 用户选 `auto_mode=true` = 显式委托 AI 完成 stage 间流转。**仅"用户决策权"类暂停点保留 stop**;**"技术 / 设计 / 评审"类暂停点 AI 内化决策 + 文档化**(不打扰用户)。
+
+| 暂停点 | auto 行为 | 理由 |
+|---|---|---|
+| **prepare 4 项配置** | **stop** | 用户初始配置(artifact ID / worktree / branch / merge_target)· AI 不能替选 |
+| goal PRD 最终确认 | skip | PRD 已经多角色 review 内化 · auto 用户接受 |
+| ui_design UI 预览确认 | skip | 设计意图已落 UI.md / preview · auto 用户接受 |
+| panorama_sync 跨团队 reviewer | **skip + WARN** | `panorama-change-summary.md` 已文档化 · auto 用户接受跨 Feature 影响 · PMO 必 `state.py add-concern --severity WARN --message "auto skip: panorama change scope=..."` 留 audit |
+| blueprint DB schema 变更确认 | **skip + WARN** | 技术决策 auto 委托 AI · 但 DB 变更高风险 · PMO 必 `state.py add-concern --severity WARN --message "auto skip: DB schema change ··· tables/fields/migrations: ..."` 留 audit(便于 dev/review 复查) |
+| browser_e2e 用户看截图 | skip | 截图已入 evidence · auto 用户接受 |
+| **pm_acceptance 三选项** | **stop** | 产品决策权:approved_and_ship / approved_no_ship / rejected_with_feedback · AI 不能替用户拍板(违 R3) |
+| **ship Phase 1 等平台 merge MR** | **stop** | 用户在 git host 平台操作 · AI 无法代办 |
+
+🔴 **skip + WARN 行为**:PMO 跳过暂停点 · 但 `state.py add-concern --severity WARN` 写一条 audit 锚定 AI 自决的范围(防 audit 看不到 / 后续复查无迹)。
+
 📎 `worktree_mode=auto` ≠ `auto_mode` —— 前者是 worktree 物理校验模式(prepare/init-feature)· 与暂停点自动流转**完全无关**。
 
 ---

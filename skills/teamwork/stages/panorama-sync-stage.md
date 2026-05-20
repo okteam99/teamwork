@@ -27,6 +27,8 @@ frontmatter 必含 `reviewers` + `conclusion`(详 Output Contract)· body 列:
 - **协调结论**:reviewers 跨 Feature 视角的评审 + 是否需要其他 Feature owner 联动(open question 留 INFO concerns)
 
 ### 4. ⏸️ 跨团队 reviewer 评审(R5 暂停点)
+🔴 **`auto_mode=true` 时跳过此暂停点** —— `panorama-change-summary.md` 已文档化 · auto 用户接受跨 Feature 影响 · PMO 必 `state.py add-concern --severity WARN --message "auto skip: panorama change scope=<节点/路径>, affected Features=<列表>"` 留 audit(详 [SKILL.md § auto_mode=true 时各暂停点行为](../SKILL.md))。
+
 🔴 PMO emit R5 标准 1/2/3:
 
 ```markdown

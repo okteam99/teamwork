@@ -39,6 +39,8 @@
 - 准备 `state.py goal-complete --needs-ui {true|false} ...`
 
 ### 7. ⏸️ 用户最终确认(R5 暂停点)
+🔴 **`auto_mode=true` 时跳过此暂停点** —— PRD 已经多角色 review 内化 · auto 用户接受(详 [SKILL.md § auto_mode=true 时各暂停点行为](../SKILL.md))。
+
 🔴 emit R5 标准 1/2/3(模板见 [SKILL.md § R5(b)](../SKILL.md))· 一次性 escalate 剩余 Open Questions:
 1. **确认 PRD · 进入下一 stage** 💡 推荐 — `goal-complete --needs-ui <true/false>` → 自动转 ui_design/blueprint
 2. **还要改 PRD** — PM 按你的反馈修订 PRD · 重走多角色评审

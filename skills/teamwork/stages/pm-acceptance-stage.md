@@ -17,6 +17,9 @@
 
 PM 做完 AC 验收后 · **必 emit 三选项 R5 暂停点 markdown · 然后停 · 等用户回 1/2/3** · AI 不可自决 decision:
 
+🔴 **`auto_mode=true` 也必停此暂停点** —— 产品决策权(approved_and_ship / approved_no_ship / rejected_with_feedback)是用户专属 · AI 不能替拍(违 R3)。auto 仅跳过技术/设计/评审类暂停点(详 [SKILL.md § auto_mode=true 时各暂停点行为](../SKILL.md))。
+
+
 ```markdown
 ⏸️ PM 验收完成 · AC <N/N> 通过 · 请你拍板:
 

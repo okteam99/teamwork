@@ -18,6 +18,8 @@
 
 ### 4. ⏸️ Phase 1 完成 · 等用户在平台合并(R5 标准暂停点)
 
+🔴 **`auto_mode=true` 也必停此暂停点** —— 用户需在 git host 平台手动 merge MR · AI 无法代办(详 [SKILL.md § auto_mode=true 时各暂停点行为](../SKILL.md))。
+
 🔴 **PMO 必输出 R5 标准 1/2/3 选项格式**(不要自由发挥"合并后回复『已合并』"):
 
 ```markdown

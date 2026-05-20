@@ -31,6 +31,8 @@ NEEDS_REVISION 时主对话内闭环 · 不打扰用户
 🔴 **若 TECH 方案涉及数据库数据结构变更**(新建/删除/修改 表、字段、索引、约束、migration)·
 blueprint-complete 前 **必 emit R5 标准 1/2/3 暂停点 · 等用户拍板**(DB schema 变更高风险 · 难回滚 · 写代码前必经用户确认):
 
+🔴 **`auto_mode=true` 时跳过此暂停点** —— auto 用户已显式委托 AI 完成技术决策 · 但 PMO 必 `state.py add-concern --severity WARN --message "auto skip: DB schema change · tables/fields/migrations: ..."` 留 audit(详 [SKILL.md § auto_mode=true 时各暂停点行为](../SKILL.md))。
+
 ```markdown
 ⏸️ TECH 方案涉及数据库数据结构变更 · 请确认:
 
