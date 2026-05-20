@@ -22,6 +22,7 @@ TOOLS = HERE.parent
 SKILL = TOOLS.parent
 TEMPLATE_STATE = SKILL / "templates" / "feature-state.json"
 STATE_PY = TOOLS / "state.py"
+sys.path.insert(0, str(TOOLS))  # 让 from _v8_stage_specs / _v8_engine 等内部模块 import 可用
 
 
 def run(args: list[str], expect_exit: int = 0,
@@ -339,19 +340,6 @@ class TestP3Ship(_Base):
 
 
 class TestP4General(_Base):
-    def test_pm_decision_wrong_stage(self) -> None:
-        d = run(["pm-decision", "--feature", self.feat(),
-                 "--decision", "approved_and_ship"], expect_exit=1)
-        self.assertEqual(d["verdict"], "FAIL")
-
-    def test_pm_decision_happy(self) -> None:
-        self.push_to_stage("pm_acceptance")
-        d = run(["pm-decision", "--feature", self.feat(),
-                 "--decision", "approved_and_ship", "--note", "AC OK"])
-        self.assertEqual(d["verdict"], "PASS")
-        self.assertEqual(d["updated_fields"]["stage_contracts.pm_acceptance.decision"],
-                         "approved_and_ship")
-
     def test_add_concern_dedup(self) -> None:
         run(["add-concern", "--feature", self.feat(),
              "--severity", "WARN", "--message", "测试 dedup"])
@@ -706,6 +694,55 @@ class TestPrepareCheck(unittest.TestCase):
                  "--feature-id-prefix", "NEWPROJ", "--flow-type", "Bug"])
         self.assertEqual(d["next_available_id_stem"], "NEWPROJ-B001")
         self.assertEqual(d["existing_ids"], [])
+
+
+class TestPMDecisionTolerance(unittest.TestCase):
+    """pm_acceptance decision 容错读 contract 顶层旧位(治本 ADMIN-F013 case)。
+
+    v7 cmd_pm_decision / 部分 migrate 漏迁 → decision 落 contract 顶层而非 evidence。
+    v8 readers(_check_pm_approved_ship / _pm_acceptance_transition)容错读两位 ·
+    已迁 Feature 无需重迁即恢复 ship 门禁。
+    """
+
+    def test_decision_at_evidence_passes(self):
+        from _v8_stage_specs import _pm_decision_value, _check_pm_approved_ship
+        pm_c = {"output_satisfied": True, "evidence": {"decision": "approved_and_ship"}}
+        self.assertEqual(_pm_decision_value(pm_c), "approved_and_ship")
+        self.assertTrue(_check_pm_approved_ship(
+            {"stage_contracts": {"pm_acceptance": pm_c}}, None))
+
+    def test_decision_at_contract_top_v7_legacy_passes(self):
+        """治本 case · v7 老 Feature decision 在 contract 顶层 · 容错读必须通过。"""
+        from _v8_stage_specs import _pm_decision_value, _check_pm_approved_ship
+        pm_c = {"output_satisfied": True, "decision": "approved_and_ship"}
+        self.assertEqual(_pm_decision_value(pm_c), "approved_and_ship")
+        self.assertTrue(_check_pm_approved_ship(
+            {"stage_contracts": {"pm_acceptance": pm_c}}, None))
+
+    def test_evidence_wins_over_contract_top(self):
+        from _v8_stage_specs import _pm_decision_value
+        pm_c = {"evidence": {"decision": "approved_and_ship"},
+                "decision": "rejected_with_feedback"}
+        self.assertEqual(_pm_decision_value(pm_c), "approved_and_ship")
+
+    def test_no_decision_anywhere(self):
+        from _v8_stage_specs import _pm_decision_value, _check_pm_approved_ship
+        self.assertIsNone(_pm_decision_value({"output_satisfied": True}))
+        self.assertFalse(_check_pm_approved_ship(
+            {"stage_contracts": {"pm_acceptance": {"output_satisfied": True}}}, None))
+
+    def test_output_not_satisfied_blocks(self):
+        from _v8_stage_specs import _check_pm_approved_ship
+        pm_c = {"output_satisfied": False, "evidence": {"decision": "approved_and_ship"}}
+        self.assertFalse(_check_pm_approved_ship(
+            {"stage_contracts": {"pm_acceptance": pm_c}}, None))
+
+    def test_transition_with_legacy_top_level(self):
+        from _v8_stage_specs import _pm_acceptance_transition
+        st = {"stage_contracts": {"pm_acceptance": {"decision": "approved_and_ship"}}}
+        self.assertEqual(_pm_acceptance_transition(st), "ship")
+        st2 = {"stage_contracts": {"pm_acceptance": {"decision": "approved_no_ship"}}}
+        self.assertEqual(_pm_acceptance_transition(st2), "completed")
 
 
 if __name__ == "__main__":

@@ -1167,10 +1167,22 @@ state.py pm_acceptance-complete --feature <path> --auto-commit <hash> \
 """
 
 
+def _pm_decision_value(pm_c: dict):
+    """读 pm_acceptance decision · **容错读两个 schema 位**:
+    - v8 规范位:`evidence.decision`(`pm_acceptance-complete --decision` / `_evidence_pm_decision` 写处)
+    - 旧位:contract 顶层 `decision`(v7 `cmd_pm_decision` 写处 · 或 v7→v8 migrate 漏迁的遗留)
+
+    治本:已迁移的老 Feature 卡在旧位 → ship 门禁误判「PM 没批」(ADMIN-F013 case)。
+    migrate-v7-to-v8 已补迁逻辑(后续迁移不漏)· 但 schema_version==v8 的已迁 Feature
+    不会重迁,只能靠 reader 容错追溯性修好。
+    """
+    return pm_c.get("evidence", {}).get("decision") or pm_c.get("decision")
+
+
 def _pm_acceptance_transition(state: dict) -> Optional[str]:
     """按 decision 转移。"""
     pm_c = state.get("stage_contracts", {}).get("pm_acceptance", {})
-    decision = pm_c.get("evidence", {}).get("decision")
+    decision = _pm_decision_value(pm_c)
     if decision == "approved_and_ship":
         return "ship"
     if decision == "approved_no_ship":
@@ -1234,11 +1246,11 @@ PM_ACCEPTANCE_SPEC = StageSpec(
 
 
 def _check_pm_approved_ship(state: dict, args) -> bool:
-    """pm_acceptance.evidence.decision == 'approved_and_ship'"""
+    """pm_acceptance decision == 'approved_and_ship' · 容错读 evidence/旧位(详 _pm_decision_value)"""
     pm_c = state.get("stage_contracts", {}).get("pm_acceptance", {})
     if pm_c.get("output_satisfied") is not True:
         return False
-    return pm_c.get("evidence", {}).get("decision") == "approved_and_ship"
+    return _pm_decision_value(pm_c) == "approved_and_ship"
 
 
 def _check_cwd_main_worktree(state: dict, args) -> bool:

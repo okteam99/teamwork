@@ -83,14 +83,28 @@ def cmd_migrate_v7_to_v8(args: argparse.Namespace) -> None:
                 ev["merge_commit_hash"] = ship["merge_commit_hash"]
                 changes.append(f"stage_contracts.ship.evidence.merge_commit_hash={ship['merge_commit_hash'][:8]}")
 
-        # pm_acceptance 从 pm_acceptance.decision 字段(v7)推断
+        # pm_acceptance:decision 规范进 evidence.decision
+        # v7 期可能落两处 ——
+        # ① state.pm_acceptance.decision(顶层对象)
+        # ② stage_contracts.pm_acceptance.decision(contract 顶层 · v7 cmd_pm_decision 写处)
+        # 原 migrate 只搬 ① · 漏 ② → 已迁 Feature ship 门禁误判(治本 ADMIN-F013 case)
         if stage_name == "pm_acceptance":
-            pm_data = state.get("pm_acceptance", {})
             ev = contract["evidence"]
-            if pm_data.get("decision") and "decision" not in ev:
-                ev["decision"] = pm_data["decision"]
-                ev["note"] = pm_data.get("decision_note", "")
-                changes.append(f"stage_contracts.pm_acceptance.evidence.decision={pm_data['decision']}")
+            pm_obj = state.get("pm_acceptance", {})
+            pm_obj_decision = pm_obj.get("decision") if isinstance(pm_obj, dict) else None
+            pm_obj_note = pm_obj.get("decision_note") if isinstance(pm_obj, dict) else None
+            legacy_decision = contract.get("decision") or pm_obj_decision
+            legacy_note = contract.get("decision_note") or pm_obj_note or ""
+            if legacy_decision and not ev.get("decision"):
+                ev["decision"] = legacy_decision
+                ev["note"] = legacy_note
+                changes.append(
+                    f"stage_contracts.pm_acceptance.evidence.decision={legacy_decision}(从旧位规范)")
+            # 清掉 contract 顶层旧位(_check_pm_approved_ship 已容错读 · 但避免双源漂移)
+            if "decision" in contract:
+                contract.pop("decision", None)
+                contract.pop("decision_note", None)
+                changes.append("stage_contracts.pm_acceptance 顶层 decision/decision_note 已清(迁入 evidence)")
 
     # 4. 备份 + 写新文件
     if not args.dry_run:

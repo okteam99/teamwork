@@ -11,7 +11,7 @@ state.py — Teamwork Feature state.json maintenance tool.
 P1（已实现）：snapshot / validate / raw-read / raw-write
 P2（已实现）：enter-stage / satisfy-gate / complete-stage
 P3（已实现）：ship-sanitize / ship-push / ship-confirm-merged / ship-cleanup / ship-closed
-P4（已实现）：pm-decision / add-concern / bug-frontmatter / micro-validate
+P4（已实现）：add-concern / bug-frontmatter / micro-validate（pm-decision 已物理删除 · v7 fossil 写错 schema · v8 用 pm_acceptance-complete --decision）
 """
 
 from __future__ import annotations
@@ -54,7 +54,6 @@ SHIP_DETECTION_METHODS = {"branch-contains", "user-reported"}
 SHIP_FINALIZE_PUSH_REASONS = {"conflict", "protect-rule", "network", "other"}
 SHIP_CLEANUP_ENUM = {"cleaned", "deferred", "n_a"}
 
-PM_DECISION_ENUM = {"approved_and_ship", "approved_no_ship", "rejected_with_feedback"}
 CONCERN_SEVERITY = {"INFO", "WARN", "ERROR"}
 
 # 各 flow_type 的 canonical 转移图（current_stage → legal_next_stages）
@@ -1082,49 +1081,11 @@ def cmd_raw_write(args: argparse.Namespace) -> None:
     })
 
 
-# ─── P4: pm-decision / add-concern ───────────────────────────────────
-
-
-def cmd_pm_decision(args: argparse.Namespace) -> None:
-    path = state_path(args.feature)
-    state = json.loads(path.read_text(encoding="utf-8"))
-    before = json.loads(json.dumps(state))
-
-    if state.get("current_stage") != "pm_acceptance":
-        die(1, json.dumps({"verdict": "FAIL",
-                           "error": f"current_stage={state.get('current_stage')!r} ≠ 'pm_acceptance'"},
-                          ensure_ascii=False, indent=2))
-    if args.decision not in PM_DECISION_ENUM:
-        die(1, _enum_err("--decision", args.decision, PM_DECISION_ENUM))
-
-    contract = state.setdefault("stage_contracts", {}).setdefault("pm_acceptance", {})
-    contract["decision"] = args.decision
-    if args.note:
-        contract["decision_note"] = args.note
-
-    write_or_die(path, state)
-    next_actions: list[str] = []
-    if args.decision == "approved_and_ship":
-        next_actions = ["satisfy-gate --stage pm_acceptance --gate output",
-                        "complete-stage --stage pm_acceptance",
-                        "enter-stage --stage ship"]
-    elif args.decision == "approved_no_ship":
-        next_actions = ["satisfy-gate --stage pm_acceptance --gate output",
-                        "complete-stage --stage pm_acceptance",
-                        "enter-stage --stage completed --allow-skip"]
-    else:  # rejected_with_feedback
-        next_actions = ["enter-stage --stage dev --allow-skip（按反馈派发修复）"]
-
-    emit({
-        "verdict": "PASS",
-        "stage": "pm-decision",
-        "updated_fields": diff_dotted(before, state, [
-            "stage_contracts.pm_acceptance.decision",
-            "stage_contracts.pm_acceptance.decision_note",
-        ]),
-        "cited_fields": collect_cited(state, args.cite),
-        "next_actions": next_actions,
-    })
+# ─── P4: add-concern ─────────────────────────────────────────────────
+#
+# 注:cmd_pm_decision(v7 fossil · 写 stage_contracts.pm_acceptance.decision
+# 顶层位 · v8 规范是 evidence.decision)已物理删除 —— 是 landmine,留着会
+# 让 reader 漂移(治本 ADMIN-F013 case · 详 _v8_stage_specs._pm_decision_value)。
 
 
 def cmd_add_concern(args: argparse.Namespace) -> None:
@@ -2373,7 +2334,9 @@ def build_parser() -> argparse.ArgumentParser:
     # v8.0:enter-stage / satisfy-gate / complete-stage / ship-* / pm-decision /
     # add-concern / bug-frontmatter / micro-validate 全部已物理删除(v8 用各 stage
     # -start/-complete + ship-phase --action 替代)。
-    # 上述 cmd_* 函数保留为内部 utility(可能被迁移工具调用),不再注册为子命令。
+    # 上述 cmd_* 函数中 add_concern / bug_frontmatter / micro_validate 保留为内部
+    # utility(可能被迁移工具调用)· cmd_pm_decision **已物理删除** —— v7 fossil
+    # 写 contract.decision(v8 用 evidence.decision)· 留着是 landmine。
 
     # P5 (v7.3.10+P0-148): init-feature + recover
     ifp = sub.add_parser(
