@@ -604,6 +604,7 @@ def _find_skill_root() -> Path:
 STAGE_SPEC_FILES = {
     "goal": "goal-stage.md",
     "ui_design": "ui-design-stage.md",
+    "panorama_sync": "panorama-sync-stage.md",
     "planning": "planning-stage.md",
     "blueprint": "blueprint-stage.md",
     "blueprint_lite": "blueprint-lite-stage.md",
@@ -621,7 +622,7 @@ STAGE_SPEC_FILES = {
 # - 排除 pm_acceptance(永远只有 pm 1 角色 · 无调整空间)/ ship / completed(无 reviewer · 无后续)
 # - test 之后即关掉(用户洞察 · 实证)
 STAGES_WITH_REVIEW_ROLES_HINT = {
-    "goal", "ui_design", "blueprint", "blueprint_lite",
+    "goal", "ui_design", "panorama_sync", "blueprint", "blueprint_lite",
     "dev", "review", "test", "browser_e2e",
 }
 
@@ -851,6 +852,7 @@ DEFAULT_REVIEW_ROLES: dict[tuple[str, str], list[str]] = {
     # Feature 流程
     ("Feature", "goal"): ["pm", "qa", "architect", "pl", "external"],
     ("Feature", "ui_design"): ["designer", "pm"],
+    ("Feature", "panorama_sync"): ["pm", "architect"],
     ("Feature", "blueprint"): ["qa", "architect", "external"],
     ("Feature", "review"): ["architect", "qa", "external"],
     ("Feature", "test"): ["qa"],
@@ -898,6 +900,7 @@ FLOW_STAGE_CHAIN: dict[str, list[tuple[str, bool, str, str]]] = {
     "Feature": [
         ("goal", False, "", "PRD 需多视角把关:PM/QA/Architect/PL 各自专业领域 + External 异质模型 cross-review"),
         ("ui_design", True, "goal-complete --needs-ui=true 时启用", "Designer 视觉一致 + PM 流程合理"),
+        ("panorama_sync", True, "ui_design-complete --panorama-changed=true 时启用", "PM 跨 Feature 视角 + Architect IA 影响"),
         ("blueprint", False, "", "TECH 选型与测试规划需 Architect/QA 把关 + External 异质 review"),
         ("dev", False, "", "无评审 · RD 自写 + commit(TDD 红绿循环 + 自查清单)"),
         ("review", False, "", "代码 Architect 看架构合理 + QA 看 AC 对照 + External 跨模型独立判断"),
@@ -1144,6 +1147,7 @@ def execute_stage_complete(
         "external_review_files",     # review
         "decision",                  # pm_acceptance
         "note",                      # pm_acceptance
+        "panorama_changed",          # ui_design(决定 panorama_sync 条件 stage 是否进入)
     )
     for field in _EVIDENCE_FIELDS:
         val = getattr(args, field, None)
@@ -1430,6 +1434,19 @@ def _add_stage_specific_args(parser: argparse.ArgumentParser, stage_name: str, p
                 "是否需要独立 UI Design Stage · "
                 "true → 下一 stage=ui_design / false → blueprint。"
                 "敏捷需求/Planning 必传 false(若 true 应升级 Feature 流程)"
+            ),
+        )
+    elif stage_name == "ui_design" and phase == "complete":
+        # v8.x:--panorama-changed 必传 · 决定下一 stage 是否 panorama_sync(条件 stage)
+        # 治本:panorama 同步原埋在 ui_design step 4 隐式动作 · 拆出后由本字段决策
+        parser.add_argument(
+            "--panorama-changed",
+            choices=["true", "false"],
+            required=True,
+            help=(
+                "本 Feature UI 改动是否影响 workspace 级 panorama(sitemap/overview/IA):"
+                "true → 下一 stage=panorama_sync(更新 panorama 单源 + 跨 Feature 评审)/ "
+                "false → 下一 stage=blueprint"
             ),
         )
     elif stage_name == "dev" and phase == "complete":

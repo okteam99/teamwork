@@ -808,5 +808,123 @@ class TestPanoramaArtifactEvidence(unittest.TestCase):
         self.assertIn("UI.md", err)
 
 
+class TestPanoramaSyncStage(unittest.TestCase):
+    """panorama_sync 条件 stage(从 ui_design step 4 隐式动作拆出)·
+    `_ui_design_transition` + `_evidence_panorama_changed_decided` +
+    `_evidence_sitemap_updated`。
+    """
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp(prefix="tw-panosync-"))
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def _args(self, **kw):
+        class _A: pass
+        a = _A()
+        a.feature = str(self.tmp)
+        for k, v in kw.items():
+            setattr(a, k, v)
+        return a
+
+    # ── _ui_design_transition 分支 ───────────────────────────────
+
+    def test_transition_panorama_changed_true_goes_to_panorama_sync(self):
+        from _v8_stage_specs import _ui_design_transition
+        st = {"flow_type": "Feature",
+              "execution_hints": {"panorama_changed": True}}
+        self.assertEqual(_ui_design_transition(st), "panorama_sync")
+
+    def test_transition_panorama_changed_false_feature_goes_to_blueprint(self):
+        from _v8_stage_specs import _ui_design_transition
+        st = {"flow_type": "Feature",
+              "execution_hints": {"panorama_changed": False}}
+        self.assertEqual(_ui_design_transition(st), "blueprint")
+
+    def test_transition_panorama_changed_false_agile_goes_to_blueprint_lite(self):
+        from _v8_stage_specs import _ui_design_transition
+        st = {"flow_type": "敏捷需求",
+              "execution_hints": {"panorama_changed": False}}
+        self.assertEqual(_ui_design_transition(st), "blueprint_lite")
+
+    def test_transition_no_hint_defaults_to_blueprint(self):
+        """无 panorama_changed hint · 回退非-panorama-sync 路径(向后兼容)。"""
+        from _v8_stage_specs import _ui_design_transition
+        self.assertEqual(_ui_design_transition({"flow_type": "Feature"}), "blueprint")
+
+    # ── _evidence_panorama_changed_decided ──────────────────────
+
+    def test_panorama_changed_missing_arg_fails(self):
+        from _v8_stage_specs import _evidence_panorama_changed_decided
+        ok, err = _evidence_panorama_changed_decided({}, self._args())
+        self.assertFalse(ok)
+        self.assertIn("--panorama-changed", err)
+
+    def test_panorama_changed_true_writes_hint(self):
+        from _v8_stage_specs import _evidence_panorama_changed_decided
+        st = {}
+        ok, err = _evidence_panorama_changed_decided(st, self._args(panorama_changed="true"))
+        self.assertTrue(ok, err)
+        self.assertIs(st["execution_hints"]["panorama_changed"], True)
+
+    def test_panorama_changed_false_writes_hint(self):
+        from _v8_stage_specs import _evidence_panorama_changed_decided
+        st = {}
+        ok, err = _evidence_panorama_changed_decided(st, self._args(panorama_changed="false"))
+        self.assertTrue(ok, err)
+        self.assertIs(st["execution_hints"]["panorama_changed"], False)
+
+    # ── _evidence_sitemap_updated ───────────────────────────────
+
+    def test_sitemap_no_ui_md_fails(self):
+        from _v8_stage_specs import _evidence_sitemap_updated
+        ok, err = _evidence_sitemap_updated({}, self._args())
+        self.assertFalse(ok)
+        self.assertIn("UI.md", err)
+
+    def test_sitemap_no_panorama_path_fails(self):
+        from _v8_stage_specs import _evidence_sitemap_updated
+        (self.tmp / "UI.md").write_text("# UI\n无 panorama_path 声明\n", encoding="utf-8")
+        ok, err = _evidence_sitemap_updated({}, self._args())
+        self.assertFalse(ok)
+        self.assertIn("panorama_path", err)
+
+    def test_sitemap_panorama_path_null_fails(self):
+        from _v8_stage_specs import _evidence_sitemap_updated
+        (self.tmp / "UI.md").write_text("> 🔴 panorama_path: null\n", encoding="utf-8")
+        ok, err = _evidence_sitemap_updated({}, self._args())
+        self.assertFalse(ok)
+        self.assertIn("无效", err)
+
+    def test_sitemap_fresh_mtime_passes(self):
+        from _v8_stage_specs import _evidence_sitemap_updated
+        pano = self.tmp / "pano"
+        pano.mkdir()
+        (pano / "sitemap.md").write_text("# sitemap\n", encoding="utf-8")
+        (self.tmp / "UI.md").write_text(
+            f"> 🔴 panorama_path: {pano}\n", encoding="utf-8")
+        # started_at 早于 sitemap mtime 必通过(sitemap 刚写)
+        st = {"stage_contracts": {"panorama_sync": {"started_at": "2020-01-01T00:00:00Z"}}}
+        ok, err = _evidence_sitemap_updated(st, self._args())
+        self.assertTrue(ok, err)
+
+    def test_sitemap_old_mtime_fails(self):
+        from _v8_stage_specs import _evidence_sitemap_updated
+        import os as _os, time as _time
+        pano = self.tmp / "pano"
+        pano.mkdir()
+        sm = pano / "sitemap.md"
+        sm.write_text("# sitemap\n", encoding="utf-8")
+        # 把 mtime 拨到很早(2020)
+        _os.utime(str(sm), (1577836800, 1577836800))  # 2020-01-01
+        (self.tmp / "UI.md").write_text(
+            f"> 🔴 panorama_path: {pano}\n", encoding="utf-8")
+        st = {"stage_contracts": {"panorama_sync": {"started_at": "2026-01-01T00:00:00Z"}}}
+        ok, err = _evidence_sitemap_updated(st, self._args())
+        self.assertFalse(ok)
+        self.assertIn("早于", err)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

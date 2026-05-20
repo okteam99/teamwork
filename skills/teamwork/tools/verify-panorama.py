@@ -145,30 +145,8 @@ def check_panorama_path_valid(panorama_path: str | None) -> tuple[bool, list[str
     return True, []
 
 
-def check_sitemap_mtime(panorama_path: str | None, stage_started_at: str | None,
-                       ui_md_text: str) -> tuple[bool, list[str]]:
-    """涉及全景变更时 · sitemap.md mtime 必须晚于 Stage 开始。"""
-    if not panorama_path or not stage_started_at:
-        return True, []
-    # 只在 UI.md 自查段标了「🟡 增量」时校验
-    after = ui_md_text[ui_md_text.find(SELF_CHECK_HEADER):] if SELF_CHECK_HEADER in ui_md_text else ""
-    if "🟡 增量" not in after and "增量同步 | 4 | 4/4" not in after:
-        return True, []  # 无变更 · 跳过
-
-    sitemap = Path(panorama_path) / "sitemap.md"
-    if not sitemap.exists():
-        return False, [f"声称全景增量但 sitemap.md 不存在: {sitemap}"]
-
-    started = parse_iso(stage_started_at)
-    if not started:
-        return True, []  # 无法解析 · skip
-    mtime = datetime.fromtimestamp(sitemap.stat().st_mtime, tz=timezone.utc)
-    if mtime < started:
-        return False, [
-            f"声称全景增量但 sitemap.md mtime ({mtime.strftime('%Y-%m-%dT%H:%M:%SZ')}) "
-            f"早于 Stage 开始 ({stage_started_at}) · Designer 未实际更新"
-        ]
-    return True, []
+# check_sitemap_mtime 已迁移到 panorama_sync stage 的 _evidence_sitemap_updated
+# (workspace IA 同步是独立 stage · 治本「panorama 同步埋在 ui_design step 4 隐式动作」)
 
 
 def check_preview_count(feature_dir: Path, ui_md_text: str) -> tuple[bool, list[str]]:
@@ -210,11 +188,11 @@ def main() -> None:
     text = ui_md.read_text(encoding="utf-8")
     medium = read_panorama_medium(text)
     # same-stack 介质 · panorama 在项目前端栈内(/design/* 路由)· HTML 文件相关
-    # 检查整体跳过(治本 PTR-F052 case:同栈下 preview/*.html 不应存在 · 旧检查会
-    # 误判 FAIL 卡流程)。仍校验 UI.md 自查报告完整性 + 宿主标注。
+    # 检查整体跳过(治本 PTR-F052 case)。仍校验 UI.md 自查报告完整性 + 宿主标注。
+    # 注:sitemap.md mtime 检查已迁到 panorama_sync stage 的 _evidence_sitemap_updated
+    #     (workspace IA 同步是独立 stage · 治本「panorama 同步埋在 ui_design step 4 隐式动作」)
     HTML_SPECIFIC = {
         "panorama_path valid",
-        "sitemap.md mtime (when 增量)",
         "preview/*.html count",
     }
     all_failures: list[str] = []
@@ -225,8 +203,6 @@ def main() -> None:
         ("self-check section completeness", lambda: check_self_check_section(text)),
         ("panorama host marker (P0-123)", lambda: check_panorama_host_marker(text, args.no_panorama)),
         ("panorama_path valid", lambda: check_panorama_path_valid(args.panorama_path)),
-        ("sitemap.md mtime (when 增量)",
-         lambda: check_sitemap_mtime(args.panorama_path, args.stage_started_at, text)),
         ("preview/*.html count", lambda: check_preview_count(feature_dir, text)),
     ]:
         if medium == "same-stack" and name in HTML_SPECIFIC:

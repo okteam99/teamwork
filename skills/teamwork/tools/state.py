@@ -34,7 +34,9 @@ from typing import Any
 LEGAL_STAGES = {
     "goal",
     "ui_design",
+    "panorama_sync",
     "blueprint",
+    "blueprint_lite",
     "dev",
     "review",
     "test",
@@ -60,7 +62,8 @@ CONCERN_SEVERITY = {"INFO", "WARN", "ERROR"}
 # 注：ui_design / browser_e2e 是可选 Stage（PMO 在 enter-stage 时按 spec 决策跳过 vs 启用）
 FEATURE_FLOW: dict[str, list[str]] = {
     "goal": ["ui_design", "blueprint"],
-    "ui_design": ["blueprint"],
+    "ui_design": ["panorama_sync", "blueprint"],   # 条件:--panorama-changed=true → panorama_sync · false → blueprint
+    "panorama_sync": ["blueprint"],
     "blueprint": ["dev"],
     "dev": ["review"],
     "review": ["test", "dev"],          # review 失败回 dev

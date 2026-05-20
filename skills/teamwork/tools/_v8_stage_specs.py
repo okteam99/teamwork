@@ -559,8 +559,34 @@ state.py ui_design-complete --feature <path> --auto-commit <hash> \
 """
 
 
+def _evidence_panorama_changed_decided(state: dict, args) -> tuple[bool, str]:
+    """校验 ui_design-complete --panorama-changed 已传(true/false)·
+    写入 state.execution_hints.panorama_changed · 决定下一 stage 是否 panorama_sync。
+
+    治本:历史 panorama 同步埋在 ui_design step 4 隐式动作 · 跨 Feature 影响无显式
+    暂停点。v8.x 拆出 panorama_sync 条件 stage · 由本字段决定是否进入。
+    """
+    val = getattr(args, "panorama_changed", None)
+    if val not in ("true", "false"):
+        return False, (
+            f"--panorama-changed 必传(true/false)· got {val!r}。"
+            f"决策本 Feature UI 改动是否影响 workspace 级 panorama(sitemap/overview/IA):\n"
+            f"  true  → 下一 stage = panorama_sync(更新 panorama 单源 + 跨 Feature 协调评审)\n"
+            f"  false → 下一 stage = blueprint(本 Feature UI 不动 panorama)"
+        )
+    hints = state.setdefault("execution_hints", {})
+    hints["panorama_changed"] = (val == "true")
+    return True, ""
+
+
 def _ui_design_transition(state: dict) -> Optional[str]:
-    """ui_design 完成后 · 进 blueprint 或 blueprint_lite。"""
+    """ui_design 完成后 · 按 execution_hints.panorama_changed 分支:
+    - true → panorama_sync(workspace 级 IA 同步 · 跨 Feature 评审)
+    - false → blueprint(Feature) / blueprint_lite(敏捷需求)
+    """
+    hints = state.get("execution_hints", {})
+    if hints.get("panorama_changed") is True:
+        return "panorama_sync"
     flow = state.get("flow_type")
     if flow == "敏捷需求":
         return "blueprint_lite"
@@ -627,10 +653,135 @@ UI_DESIGN_SPEC = StageSpec(
             check_fn=_evidence_panorama_artifact,
             description="按 panorama_medium 校验:same-stack 跳过 · static-html 要求 preview/*.html ≥ 1",
         ),
+        StageEvidenceCheck(
+            name="panorama_changed_decided",
+            check_fn=_evidence_panorama_changed_decided,
+            description="--panorama-changed 必传(true/false)· 决定下一 stage 是否 panorama_sync",
+        ),
     ],
     brief_template_fn=_ui_design_brief,
     auto_transition_fn=_ui_design_transition,
     authorized_pause_point="完成后给用户预览 URL · 等确认",
+)
+
+
+# ─── B2.5 · panorama_sync(conditional · ui_design --panorama-changed=true 时进)─
+
+
+def _check_panorama_changed_flag(state: dict, args) -> bool:
+    """panorama_sync 前置:state.execution_hints.panorama_changed=true。"""
+    return state.get("execution_hints", {}).get("panorama_changed") is True
+
+
+def _evidence_sitemap_updated(state: dict, args) -> tuple[bool, str]:
+    """sitemap.md mtime 晚于本 stage started_at(panorama 真被更新 · 治本「声称同步实际没动」)。
+
+    panorama_path 从 UI.md body 的 `> 🔴 panorama_path: <路径>` 行抓(grep-based · 不强 yaml)。
+    """
+    import re as _re
+    from datetime import datetime, timezone
+    feature_dir = Path(args.feature)
+    ui_md = feature_dir / "UI.md"
+    if not ui_md.exists():
+        return False, "UI.md 不存在 · 找不到 panorama_path"
+    text = ui_md.read_text(encoding="utf-8", errors="replace")
+    # 只在行首(允许 >, 🔴, 空白前缀)匹配 · 避免 prose 中"不动 panorama_path"类误匹配
+    m = _re.search(r"(?:^|\n)[\s>]*🔴?\s*panorama_path[:\s]+(\S+)", text)
+    if not m:
+        return False, "UI.md 未声明 panorama_path · 无法定位 sitemap.md(在 UI.md 顶部加 `> 🔴 panorama_path: <绝对路径>`)"
+    pp = m.group(1).strip().rstrip("/")
+    if pp in ("null", "None", "{绝对路径", "(项目无全景)"):
+        return False, f"panorama_path={pp!r} · 无效 · panorama_sync stage 不该被进入(应该 panorama_changed=false → blueprint)"
+    sitemap = Path(pp) / "sitemap.md"
+    if not sitemap.exists():
+        return False, f"sitemap.md 不存在: {sitemap}"
+    started = state.get("stage_contracts", {}).get("panorama_sync", {}).get("started_at")
+    if not started:
+        return True, ""  # 无 started_at · skip(不阻塞 · 罕见)
+    try:
+        started_dt = datetime.strptime(started, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+    except (ValueError, TypeError):
+        return True, ""
+    mtime = datetime.fromtimestamp(sitemap.stat().st_mtime, tz=timezone.utc)
+    if mtime < started_dt:
+        return False, (
+            f"sitemap.md mtime ({mtime.strftime('%Y-%m-%dT%H:%M:%SZ')}) "
+            f"早于 panorama_sync stage 开始 ({started}) · 未实际更新(panorama 没动就 complete)"
+        )
+    return True, ""
+
+
+def _panorama_sync_brief(state: dict) -> str:
+    return f"""## Panorama Sync Stage
+
+### 目标
+workspace 级 panorama(sitemap.md / overview.html / 设计 token)同步 ·
+反映本 Feature 的 IA 变更 · 跨 Feature reviewer 协调评审。
+
+### 触发
+`ui_design-complete --panorama-changed=true` 时自动进入。
+
+### 结果(完成判定)
+- `panorama_path/sitemap.md` mtime > 本 stage started_at(panorama 真被更新)
+- `panorama-change-summary.md` 存在 · frontmatter 含 reviewers + conclusion
+
+### 怎么做
+**必读** `stages/panorama-sync-stage.md`(5 substep:加载上下文 / 更新 panorama 单源 /
+起草 change-summary / ⏸️ 跨团队 reviewer 评审 / complete)。
+
+### 完成方式
+```
+state.py panorama_sync-complete --feature <path> --auto-commit <hash> \\
+  --artifacts panorama-change-summary.md
+```
+"""
+
+
+def _panorama_sync_transition(state: dict) -> Optional[str]:
+    """panorama_sync 完成后 → blueprint(Feature) / blueprint_lite(敏捷需求 · 保险)。"""
+    flow = state.get("flow_type")
+    if flow == "敏捷需求":
+        return "blueprint_lite"
+    return "blueprint"
+
+
+PANORAMA_SYNC_SPEC = StageSpec(
+    name="panorama_sync",
+    prerequisites=[
+        StagePrerequisite(
+            id="ui_design_completed",
+            check_fn=_check_stage_output_satisfied("ui_design"),
+            hint="先完成 state.py ui_design-complete --panorama-changed=true",
+            description="ui_design output_satisfied",
+        ),
+        StagePrerequisite(
+            id="panorama_changed_flag_true",
+            check_fn=_check_panorama_changed_flag,
+            hint=(
+                "state.execution_hints.panorama_changed != true · 不该进 panorama_sync(应 → blueprint)· "
+                "ui_design-complete 时漏传或传错 --panorama-changed?"
+            ),
+            description="execution_hints.panorama_changed=true",
+        ),
+    ],
+    artifacts=[
+        StageArtifactSpec(
+            path="panorama-change-summary.md",
+            frontmatter_required=["reviewers", "conclusion"],
+            body_min_lines=8,
+            description="panorama 变更摘要 · 列变更/受影响 Features/协调结论",
+        ),
+    ],
+    evidence_checks=[
+        StageEvidenceCheck(
+            name="sitemap_updated",
+            check_fn=_evidence_sitemap_updated,
+            description="sitemap.md mtime > stage started_at(panorama 真被更新)",
+        ),
+    ],
+    brief_template_fn=_panorama_sync_brief,
+    auto_transition_fn=_panorama_sync_transition,
+    authorized_pause_point="跨 Feature owner 协调确认 + reviewer 评审通过",
 )
 
 
@@ -1398,6 +1549,7 @@ SHIP_SPEC = StageSpec(
 STAGE_SPECS: dict[str, StageSpec] = {
     "goal": GOAL_SPEC,
     "ui_design": UI_DESIGN_SPEC,
+    "panorama_sync": PANORAMA_SYNC_SPEC,
     "blueprint": BLUEPRINT_SPEC,
     "blueprint_lite": BLUEPRINT_LITE_SPEC,
     "dev": DEV_SPEC,
