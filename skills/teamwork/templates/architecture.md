@@ -177,6 +177,77 @@ erDiagram
 
 > 📎 此表记录引用该表 Struct 的关键 SQL 查询。当表增删列时，这些 SQL 的列列表必须同步修改（缺列 → ORM 反序列化报错 → 500）。
 
+## Migration 命名规范（🔴 防多 Feature 并行撞号）
+
+> 多 Feature 并行开发 · 多 worktree 各自起 migration · 撞 timestamp 是反复出现的高频问题。
+> 本节是项目级硬规范 · 各 Feature 的 TECH.md / dev 阶段必须遵守。
+
+### 命名格式（必）
+
+```
+<14位秒级timestamp>_<snake_case_描述>.{sql,rb,py,...}
+
+例:
+20260520143215_admin_billing_ops.sql
+20260520143216_partner_tax_profiles.sql
+```
+
+🔴 **必精确到秒**(14 位 YYYYMMDDHHMMSS)· 不要用日级 / 不要用 sequential int / 不要用 hex hash。
+
+### 起号 SOP（必)
+
+新加 migration **必走 3 步**:
+
+```bash
+# 1. 同步 merge_target 最新(防本地落后撞已合并的号)
+git fetch origin <merge_target>
+
+# 2. 看当前最大 timestamp(merge_target tip)
+git ls-tree -r origin/<merge_target> -- <migration_root>/ \
+  | awk -F'/' '{print $NF}' | sort | tail -3
+
+# 3. 起号:用真实当前时间(精确到秒) · 且 > 上一步最大值
+date -u +"%Y%m%d%H%M%S"   # macOS / Linux
+# 撞号(同秒)→ 手工 +1 秒
+```
+
+🔴 **不要批量 timestamp**(一次 `for` 循环生成多个 migration 同 timestamp = 自撞)· 每个 migration 间隔 ≥1 秒。
+
+### 撞号后的修复(rebase 改名)
+
+发现 push / merge 时撞号 · 在本 feature 分支:
+
+```bash
+# 1. 改文件名(timestamp 改成新号 · 描述部分不动)
+git mv <migration_root>/20260520143215_xxx.sql \
+       <migration_root>/20260520143230_xxx.sql
+
+# 2. 改文件内 schema_migrations 引用(若 ORM 在文件内写了 version)
+sed -i '' 's/20260520143215/20260520143230/g' \
+  <migration_root>/20260520143230_xxx.sql
+
+# 3. amend commit + force-push(不破 review 时合理)
+git add -A <migration_root>/
+git commit --amend --no-edit
+git push --force-with-lease
+```
+
+🔴 **不要 revert + 新加** —— 会留两次 schema 变更历史 · 污染审计。**用 git mv + amend** 干净。
+
+### 物化校验(可选 · 项目自维护)
+
+CI / pre-commit hook 建议:
+
+```bash
+# 防同 timestamp 文件
+ls <migration_root>/ | awk '{print substr($0,1,14)}' | sort | uniq -d
+# 输出非空 → 撞号 → reject
+```
+
+teamwork 框架本身**不强制**(各 ORM / 各项目 migration 路径差异大)· 项目自由实施。
+
+---
+
 ## 分库分表策略（如有）
 
 | 维度 | 策略 | 说明 |
