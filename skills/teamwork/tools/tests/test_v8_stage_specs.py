@@ -560,5 +560,69 @@ class TestTemplateFilesExist(unittest.TestCase):
         self.assertIn("decision:", text)
 
 
+# ─── v8.16 · _check_prd_or_bug_report 按 flow_type 分支(治本 INFRA-M001 case)──
+
+
+class TestPrdOrBugReportPrereq(unittest.TestCase):
+    """v8.16:dev-start prerequisite 按 flow_type 分支判 spec 文档存在性。
+
+    治本 INFRA-M001 case(2026-05-21):Micro 流程改 1 行 k8s memory 常量 ·
+    无 PRD / BUG-REPORT · 但 _check_prd_or_bug_report 漏判 Micro · 误返 False →
+    dev-start FAIL `prd_or_bug_report_exists`。
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.feat = Path(self.tmp) / "feat"
+        self.feat.mkdir()
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def _check(self, flow_type: str) -> bool:
+        from _v8_stage_specs import _check_prd_or_bug_report  # type: ignore
+        state = {"flow_type": flow_type}
+        args = make_args(feature=str(self.feat))
+        return _check_prd_or_bug_report(state, args)
+
+    # ── Micro:无 spec 文档 · 永远 PASS ──
+    def test_micro_passes_without_any_doc(self):
+        """治本 INFRA-M001 case:Micro 无 PRD / BUG-REPORT · 必 PASS。"""
+        self.assertTrue(self._check("Micro"))
+
+    def test_micro_passes_even_if_prd_exists(self):
+        """Micro 即使误放 PRD.md 也 PASS(skip 逻辑 · 不读文件)。"""
+        (self.feat / "PRD.md").write_text("x", encoding="utf-8")
+        self.assertTrue(self._check("Micro"))
+
+    # ── Bug:必有 bugfix/BUG-*.md ──
+    def test_bug_fails_without_bugfix_md(self):
+        self.assertFalse(self._check("Bug"))
+
+    def test_bug_passes_with_bugfix_md(self):
+        (self.feat / "bugfix").mkdir()
+        (self.feat / "bugfix" / "BUG-001.md").write_text("x", encoding="utf-8")
+        self.assertTrue(self._check("Bug"))
+
+    def test_bug_with_only_prd_fails(self):
+        """Bug 流程光有 PRD.md 不够(必须 bugfix/BUG-*.md)。"""
+        (self.feat / "PRD.md").write_text("x", encoding="utf-8")
+        self.assertFalse(self._check("Bug"))
+
+    # ── Feature / 敏捷需求:必有 PRD.md ──
+    def test_feature_fails_without_prd(self):
+        self.assertFalse(self._check("Feature"))
+
+    def test_feature_passes_with_prd(self):
+        (self.feat / "PRD.md").write_text("x", encoding="utf-8")
+        self.assertTrue(self._check("Feature"))
+
+    def test_agile_demand_requires_prd(self):
+        """敏捷需求 与 Feature 同型 · 必 PRD.md。"""
+        self.assertFalse(self._check("敏捷需求"))
+        (self.feat / "PRD.md").write_text("x", encoding="utf-8")
+        self.assertTrue(self._check("敏捷需求"))
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

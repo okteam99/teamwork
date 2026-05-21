@@ -459,12 +459,21 @@ def _check_blueprint_or_alt_done(state: dict, args) -> bool:
 
 
 def _check_prd_or_bug_report(state: dict, args) -> bool:
+    """v8.16 治本 INFRA-M001 case:按 flow_type 分支判 spec 文档存在性。
+
+    - Micro:无 PRD / BUG-REPORT(改 1 行常量 · spec 在 init-feature 时记到 state.json)
+              → 直接 PASS(R0:flow_type 可枚举 · 不要把 Micro 当 Feature/Bug 校验)
+    - Bug:必有 bugfix/BUG-*.md(模板 templates/bug-report.md)
+    - Feature / 敏捷需求 / 其他:必有 PRD.md(goal stage 产物)
+    """
+    flow = state.get("flow_type")
+    if flow == "Micro":
+        return True  # Micro 无 spec 文档 · skip(改 1 行常量 · 不需要长形式 PRD/BUG)
     feature_dir = Path(args.feature)
-    if (feature_dir / "PRD.md").exists():
-        return True
-    if list(feature_dir.glob("bugfix/BUG-*.md")):
-        return True
-    return False
+    if flow == "Bug":
+        return bool(list(feature_dir.glob("bugfix/BUG-*.md")))
+    # Feature / 敏捷需求:goal stage 必产 PRD.md
+    return (feature_dir / "PRD.md").exists()
 
 
 def _check_ui_consistent(state: dict, args) -> bool:
@@ -524,12 +533,15 @@ DEV_SPEC = StageSpec(
             id="prd_or_bug_report_exists",
             check_fn=_check_prd_or_bug_report,
             hint=(
-                "Feature 流程必须有 PRD.md(回 goal-complete 起草)。"
+                "Feature / 敏捷需求 流程必须有 PRD.md(回 goal-complete 起草)。"
                 "Bug 流程必须有 bugfix/BUG-*.md(模板 templates/bug-report.md · "
                 "含 frontmatter bug_id/symptom/root_cause/fix_summary + "
                 "body §现象/§根因/§修复方案/§回归测试)。"
+                "Micro 流程 skip(改 1 行常量 · 无 spec 文档)。"
             ),
-            description="PRD.md 存在(Feature)或 bugfix/BUG-*.md 存在(Bug)",
+            description=(
+                "按 flow_type 分支:Feature/敏捷需求→PRD.md · Bug→bugfix/BUG-*.md · Micro→skip"
+            ),
         ),
         StagePrerequisite(
             id="ui_artifact_consistent",
