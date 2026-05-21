@@ -265,13 +265,25 @@ mode A 排查 / mode E 讨论收尾时 · 命中以下场景必须建议升 mode
 mode B 识别后(**无论后续 flow_type = Feature / 敏捷需求 / Bug / Micro · 都走 prepare**)·
 PMO **必走** [docs/prepare.md](./docs/prepare.md) · 不可在主对话散述准备步骤。
 
+🔴 **mode B emit 任何 prepare 内容前 · 必先用 Read 工具打开 [docs/prepare.md](./docs/prepare.md)**(命令式 · 不是"参考")· 不读直接 emit 5 段 = R5 违规 + **必漏 §2.1 复杂度升级判据 / §2.2 准入校验**。实证案例(F001 GCP gateway · 2026-05-21):AI 凭 SKILL.md 这段概览就 emit prepare · 没读 prepare.md · 漏 §2.1 "方向级业务变更" + "影响 ≥2 BL" → 把 "想做一个 GCP API gateway 服务 · 4 endpoint + 鉴权 + 部署" 当单 Feature 跑了 goal stage + 写 PRD v0.2 + commit · 用户发现后只能拆 worktree 销 commit 浪费一轮。
+
+📋 **prepare.md §2.1 / §2.2 quick-ref**(读 prepare.md 前就先警觉 · 但**不替代**真读 prepare.md):
+- **§2.1 复杂度升级判据**:关键词命中 Feature 时必再扫这 5 信号(命中任一 → 强制升 **Feature Planning**)
+  跨独立部署服务 / 数据模型重构 / 老需求架构性废弃 / 影响 ≥2 BL / 方向级业务变更
+- **§2.2 准入校验**:关键词命中"敏捷需求 / Micro"时必反向扫准入硬约束(任一不满足 → 升 Feature)
+  敏捷需求:≤5 文件 + 无 UI + 无架构 + 方案明确
+  Micro:零逻辑变更 + 仅 文案/样式/资源/配置常量/注释
+
 判据:**进状态机 = 走 prepare**(4 个进状态机流程都需 worktree + branch + merge_target + artifact ID 4 项配置 · ID 按 flow_type 分 F/B/M · 详 conventions.md §1)。
 即便最轻的 Micro(改文案 1 行)也要 prepare · 不可跳过。
 不进状态机的 Feature Planning / 问题排查 → 不走 prepare(由 PMO 主对话执行)。
 
-prepare 子流程动作概览:流程类型识别 → worktree 决策 → emit 4 项暂停点 → 用户确认 → PMO 跑 git worktree add + cd → state.py init-feature。
+prepare 子流程动作概览:流程类型识别(§2.1/§2.2 扫信号)→ worktree 决策 → emit 4 项暂停点 → 用户确认 → PMO 跑 git worktree add + cd → state.py init-feature。
 
-🔴 **物化硬墙(v8.14)**:`state.py prepare-check` 跑成功写 audit jsonl(`~/.teamwork/prepare_check_audit.jsonl`)· `state.py init-feature` 校验近 60min 内有匹配 `--feature-id` 前缀的 audit record · **无匹配直接 BLOCKED**。因果:prepare-check 决定 prefix / features_root / flow_type / next_available_id_stem · 这些是 init-feature 必需输入 · 跳过 prepare-check = 裸跑 init-feature → 大概率污染 features_root / 选错 flow / ID 冲突。所以**别想省 prepare-check**:省了下游也撞墙 · 还多浪费一轮 round-trip。bypass(调试):`TEAMWORK_BYPASS_PREPARE_CHECK=1`。
+🔴 **物化硬墙(v8.14 + v8.15)**:
+- **v8.14**:`state.py prepare-check` 跑成功写 audit jsonl(`~/.teamwork/prepare_check_audit.jsonl`)· `state.py init-feature` 校验近 60min 内有匹配 `--feature-id` 前缀的 audit record · **无匹配直接 BLOCKED**。
+- **v8.15**:`prepare-check` 必传 `--user-intent "<用户原话>"` + `--admission-judgment '<JSON>'`(AI 读 §2.1/§2.2 后输出的判断 · 含 matched_signals[] + recommended_flow_type + ai_rationale)· 缺任一 BLOCKED。设计理由:**不依赖 AI 自觉读 prepare.md** · 工具物化 "你必须想这件事" · 推荐流程 ≠ 你选的 flow_type → emit WARN + audit 留痕(R0 兜底 · 不强 BLOCK · 因为可能合理例外)。
+因果:prepare-check 决定 prefix / features_root / flow_type / admission_judgment 4 项;省了下游撞墙。bypass(调试):`TEAMWORK_BYPASS_PREPARE_CHECK=1`。
 
 ### 待规划需求池(命中查询意图时扫描)
 

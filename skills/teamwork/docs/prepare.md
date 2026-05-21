@@ -41,15 +41,18 @@
 
 ### 物化拦截 TODO(违规可枚举消除 · 工具未到位前靠 PMO 自觉 + 上面自检清单)
 
-| TODO | 位置 | 治本机制 |
-|---|---|---|
-| `init-feature` 加门禁 | `state.py` | 本 session 未为 prefix 跑过 prepare-check → FAIL with hint(无 audit 不可 init-feature) |
-| `prepare-check` 内部合并 worktree ID | `state.py prepare-check` | 内部跑 `git worktree list --porcelain` 解析 ID · 与 `existing_ids` 取并集 · 输出统一 `next_available_id_stem` |
-| `prepare-check` 加 `--user-intent "<原文>"` | `state.py prepare-check` | 接收用户原文 · 内部按 §2.2 准入表扫信号 · 输出 `admission_violations[]` + `recommended_upgrade` |
-| `prepare-check` 返回 `emit_template_markdown` | `state.py prepare-check` | 5 段填好的 markdown 字段 · AI 复制粘贴 emit · 漏段不可能(同 stage `next_action_brief` 模式) |
-| `prepare-check` 加 `--subproject <PREFIX>` | `state.py prepare-check` | 替代裸 `--features-root` · 内部读 teamwork-space.md docs_root · 传错 prefix → FAIL with hint |
+| TODO | 位置 | 治本机制 | 状态 |
+|---|---|---|---|
+| `init-feature` 加门禁 | `state.py` | 本 session 未为 prefix 跑过 prepare-check → FAIL with hint(无 audit 不可 init-feature) | ✅ v8.14 已物化 |
+| `prepare-check` 内部合并 worktree ID | `state.py prepare-check` | 内部跑 `git worktree list --porcelain` 解析 ID · 与 `existing_ids` 取并集 · 输出统一 `next_available_id_stem` | ⏳ TODO |
+| `prepare-check` 加 `--user-intent "<原文>"` + `--admission-judgment '<JSON>'` | `state.py prepare-check` | 接收用户原文(留痕)+ AI 读 §2.1/§2.2 后的判断(JSON 必含 sections_reviewed / matched_signals / recommended_flow_type / ai_rationale 4 字段)· 工具校验 JSON schema + consistency(recommended vs --flow-type)· MISMATCH → WARN(不 BLOCK · R0 兜底) · init-feature 读 audit 也 emit MISMATCH WARN | ✅ v8.15 已物化(治本 F001 GCP gateway case · 用 AI judgment 替代 regex 关键词) |
+| `prepare-check` 返回 `emit_template_markdown` | `state.py prepare-check` | 5 段填好的 markdown 字段 · AI 复制粘贴 emit · 漏段不可能(同 stage `next_action_brief` 模式) | ⏳ TODO |
+| `prepare-check` 加 `--subproject <PREFIX>` | `state.py prepare-check` | 替代裸 `--features-root` · 内部读 teamwork-space.md docs_root · 传错 prefix → FAIL with hint | ⏳ TODO |
 
-📎 物化前:6 条全是 PMO 自觉项 · 靠本 §0.5 自检清单兜底。物化后:违规由工具层直接拒绝 · 不依赖意志力。
+📎 物化策略说明:
+- ✅ 已物化 2 条 · ⏳ TODO 3 条(渐进治本 · 优先治高频 case)
+- 🔴 `prepare-check --admission-judgment` **不用 regex 关键词扫描** —— 用户洞察:关键词列表本身不可枚举完 · 语义不能简单 regex 匹配 · 改为 R0 拆分:**可枚举的进脚本(judgment JSON 必填 + schema 校验) · 不可枚举的留 AI(judgment 内容 · ai_rationale 由 AI 自由判)**
+- 物化前 violation 全靠 PMO 自觉(case F001 证明不可靠)· 物化后违规由工具层直接拒绝 / 留 audit + WARN · 不依赖意志力
 
 ---
 

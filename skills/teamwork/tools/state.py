@@ -1516,11 +1516,14 @@ def _check_prepare_audit(feature_id: str) -> dict:
                 "window_sec": PREPARE_CHECK_WINDOW_SEC,
                 "reason": "最近一次匹配 prepare-check 超出 60min 窗口",
             }
+        # v8.15:return 整条 audit record(含 admission_judgment / consistency / recommended_flow_type)
+        # 供 init-feature 跨字段校验(如 audit consistency=MISMATCH vs init --flow-type)
         return {
             "verdict": "PASS",
             "prefix": prefix,
             "match_timestamp": rec.get("timestamp"),
             "age_sec": int(now.timestamp() - ts.timestamp()),
+            "audit_record": rec,
         }
     return {
         "verdict": "FAIL",
@@ -1577,6 +1580,22 @@ def cmd_init_feature(args: argparse.Namespace) -> None:
             "bypass": f"调试 / migration · export {PREPARE_CHECK_BYPASS_ENV}=1",
             "spec": "docs/prepare.md § 0",
         }, ensure_ascii=False, indent=2))
+
+    # v8.15:admission consistency 校验(治本 F001 GCP gateway case · AI 选错 flow_type)
+    # audit 里若 consistency=MISMATCH(AI judgment 推荐 flow_type ≠ init --flow-type)→ WARN
+    # 不 BLOCK(R0 兜底:可能合理例外 · 给 AI/用户数据 + 警告 · 决策权留人)
+    admission_warning = None
+    rec = audit.get("audit_record") or {}
+    audit_consistency = rec.get("consistency")
+    audit_recommended = rec.get("recommended_flow_type")
+    if audit_consistency == "MISMATCH" and audit_recommended:
+        admission_warning = (
+            f"[WARN] admission MISMATCH:prepare-check 时 AI judgment 推荐 "
+            f"flow_type={audit_recommended!r} · 但 init-feature --flow-type={args.flow_type!r} · "
+            f"audit at {rec.get('timestamp')} · 若 admission_judgment.ai_rationale "
+            f"信号强(如「方向级业务变更」「跨独立部署服务」)· 建议取消本次 init · "
+            f"用 --flow-type={audit_recommended!r} 重走 prepare-check + Feature Planning 或对应流程"
+        )
 
     # v8.x:artifact 路由物化校验(治本 F049 子项目错位 case)
     # teamwork-space.md docs_root 是路由权威 · 校验 --feature 路径 + ID 前缀一致
@@ -1649,7 +1668,8 @@ def cmd_init_feature(args: argparse.Namespace) -> None:
             "executed_at": now_iso(),
         },
         "auto_mode": args.auto_mode,
-        "concerns": [],
+        # v8.15:admission MISMATCH WARN(audit consistency=MISMATCH 时 init-feature 留痕)
+        "concerns": [admission_warning] if admission_warning else [],
         "review_round": 0,
         "stage_contracts": {},
         "completed_stages": [],
@@ -1817,6 +1837,8 @@ def cmd_init_feature(args: argparse.Namespace) -> None:
         "created_at": state["created_at"],
         "routing_check": routing,
         "next_action_brief": _init_feature_next_brief(args, initial_stage),
+        # v8.15:admission MISMATCH 时 emit 顶层显警告(AI 一定看到)+ state.concerns 已留痕
+        **({"admission_warning": admission_warning} if admission_warning else {}),
     })
 
 
@@ -2077,8 +2099,27 @@ def cmd_prepare_check(args: argparse.Namespace) -> None:
                 payload["flow_type"] = args.flow_type
                 payload["stage_chain_preview"] = build_stage_chain_preview(args.flow_type)
 
-    # v8.14:写 prepare_check_audit jsonl(init-feature 门禁读这个)
+    # v8.15:admission 校验(治本 F001 GCP gateway case · AI 不读 prepare.md §2.1/§2.2)
+    # 设计:工具不扫关键词 regex(伪枚举 · 死板 · 误判)· 而是强制 AI 必传判断结果(judgment)
+    # R0 哲学拆分:
+    # - 可枚举:judgment 字段必填(工具 BLOCK if missing) + consistency 校验
+    # - 不可枚举:judgment 内容(AI 自由判断 · audit 留痕)
+    admission = _validate_admission_judgment(args)
+    if admission["verdict"] == "FAIL":
+        emit({
+            "verdict": "FAIL",
+            "command": "prepare-check",
+            "error": admission["error"],
+            "hint": admission["hint"],
+            "spec": "docs/prepare.md § 2.1(复杂度升级判据)+ § 2.2(敏捷需求/Micro 准入)",
+        })
+        return
+    # 注入 payload(consistency / admission_judgment / user_intent / warning if MISMATCH)
+    payload.update(admission["payload_extras"])
+
+    # v8.14 + v8.15:写 prepare_check_audit jsonl(init-feature 门禁读这个)
     # 治本 PTR-F054:prepare-check 物化但 AI 不调用 → 下游门禁兜底
+    # v8.15:audit 加 admission_judgment / consistency · 治本 F001(选错 flow_type)
     audit_record = {
         "timestamp": now_iso(),
         "feature_id_prefix": prefix,
@@ -2087,11 +2128,183 @@ def cmd_prepare_check(args: argparse.Namespace) -> None:
         "id_letter": id_letter,
         "next_available_id_stem": next_id_stem,
         "existing_count": len(existing_ids),
+        "user_intent": args.user_intent or "",
+        "admission_judgment": admission["judgment"],  # parsed JSON or None
+        "consistency": admission["consistency"],     # OK / MISMATCH / SKIPPED
+        "recommended_flow_type": admission["recommended_flow_type"],
     }
     _write_prepare_audit(audit_record)
     payload["audit_recorded"] = True
 
     emit(payload)
+
+
+def _validate_admission_judgment(args) -> dict:
+    """v8.15:校验 --user-intent + --admission-judgment(治本 F001 case)。
+
+    返回 {verdict, error?, hint?, payload_extras, judgment, consistency, recommended_flow_type}。
+    consistency: OK(judgment 推荐 == --flow-type) / MISMATCH(不一致 · WARN) /
+                 SKIPPED(向后兼容 · --user-intent + --admission-judgment 都没传 · 旧用法)
+
+    R0 哲学:工具不解析 user_intent 语义 · 仅校验 admission_judgment JSON 4 字段必填。
+    AI 必须真读 prepare.md §2.1/§2.2 才能写出合理 judgment(伪造 ai_rationale 会在 retro
+    被复盘到 · 心理成本高)。
+    """
+    has_intent = bool(args.user_intent)
+    has_judgment = bool(args.admission_judgment)
+
+    # 向后兼容路径:两者都不传 = 旧 prepare-check 用法 · skip admission 校验
+    # 后续可改为硬 BLOCK(本版用 SKIPPED 不阻塞 · 让现有 tests 不破)
+    if not has_intent and not has_judgment:
+        return {
+            "verdict": "OK",
+            "payload_extras": {
+                "admission_consistency": "SKIPPED",
+                "admission_skip_reason": (
+                    "未传 --user-intent + --admission-judgment(v8.15 admission 校验 SKIP)· "
+                    "新用法:--user-intent '<用户原话>' --admission-judgment '<JSON>' "
+                    "(详 docs/prepare.md § 2.1/§ 2.2 + § 0.5 物化拦截 TODO)"
+                ),
+            },
+            "judgment": None,
+            "consistency": "SKIPPED",
+            "recommended_flow_type": None,
+        }
+
+    # 部分传 = 不一致 · BLOCK
+    if has_intent != has_judgment:
+        missing = "--admission-judgment" if has_intent else "--user-intent"
+        return {
+            "verdict": "FAIL",
+            "error": f"--user-intent + --admission-judgment 必同传 · 缺 {missing}",
+            "hint": (
+                "两者一起才有意义:user-intent 是用户原话(留痕)· admission-judgment "
+                "是 AI 读 prepare.md §2.1/§2.2 后的判断(matched_signals + recommended_flow_type)"
+            ),
+            "payload_extras": {},
+            "judgment": None,
+            "consistency": "FAIL",
+            "recommended_flow_type": None,
+        }
+
+    # 都传了 · 校验 admission_judgment JSON schema
+    try:
+        judgment = json.loads(args.admission_judgment)
+    except json.JSONDecodeError as e:
+        return {
+            "verdict": "FAIL",
+            "error": f"--admission-judgment 不是合法 JSON: {e}",
+            "hint": (
+                "示例:--admission-judgment '{\"sections_reviewed\":[\"§2.1\",\"§2.2\"],"
+                "\"matched_signals\":[{\"section\":\"§2.1\",\"signal\":\"方向级业务变更\","
+                "\"evidence\":\"想做一个服务\"}],\"recommended_flow_type\":\"Feature Planning\","
+                "\"ai_rationale\":\"...\"}'"
+            ),
+            "payload_extras": {},
+            "judgment": None,
+            "consistency": "FAIL",
+            "recommended_flow_type": None,
+        }
+
+    # 校验 4 必填字段
+    required_fields = [
+        "sections_reviewed",       # list · ["§2.1", "§2.2"]
+        "matched_signals",         # list · [{section, signal, evidence}]
+        "recommended_flow_type",   # str · Feature / Feature Planning / 敏捷需求 / Bug / Micro
+        "ai_rationale",            # str · 自由文本 · AI 解释为什么这么判
+    ]
+    missing_fields = [f for f in required_fields if f not in judgment]
+    if missing_fields:
+        return {
+            "verdict": "FAIL",
+            "error": f"--admission-judgment 缺必填字段: {missing_fields}",
+            "hint": (
+                f"4 字段全需要(R0 物化:'你必须想这件事')· "
+                f"sections_reviewed[](读了 prepare.md 哪些段)· "
+                f"matched_signals[](命中信号 · 含 evidence)· "
+                f"recommended_flow_type(你推荐什么 flow_type · 含 'Feature Planning')· "
+                f"ai_rationale(为什么这么判 · 给用户/retro 复盘看)"
+            ),
+            "payload_extras": {},
+            "judgment": judgment,
+            "consistency": "FAIL",
+            "recommended_flow_type": None,
+        }
+
+    # 校验 recommended_flow_type 是合法值
+    legal_recommended = {
+        "Feature", "Feature Planning", "敏捷需求", "Bug", "Micro", "问题排查",
+    }
+    rec = judgment.get("recommended_flow_type")
+    if rec not in legal_recommended:
+        return {
+            "verdict": "FAIL",
+            "error": f"admission_judgment.recommended_flow_type={rec!r} 非法",
+            "hint": f"合法值: {sorted(legal_recommended)}",
+            "payload_extras": {},
+            "judgment": judgment,
+            "consistency": "FAIL",
+            "recommended_flow_type": rec,
+        }
+
+    # 校验 matched_signals 是 list of dict(基本 schema)· 内容由 AI 自由判
+    sigs = judgment.get("matched_signals", [])
+    if not isinstance(sigs, list):
+        return {
+            "verdict": "FAIL",
+            "error": "admission_judgment.matched_signals 必须是 list",
+            "hint": "格式:[{section: '§2.1', signal: '...', evidence: '...'}, ...]",
+            "payload_extras": {},
+            "judgment": judgment,
+            "consistency": "FAIL",
+            "recommended_flow_type": rec,
+        }
+
+    # consistency 校验:recommended_flow_type vs --flow-type
+    extras: dict = {
+        "user_intent": args.user_intent,
+        "admission_judgment": judgment,
+        "recommended_flow_type": rec,
+    }
+    if not args.flow_type:
+        # --flow-type 未传 · 无法 consistency 校验 · 当 OK(向后兼容)· 留 audit
+        extras["admission_consistency"] = "OK"
+        extras["admission_consistency_note"] = (
+            "未传 --flow-type · 无法 consistency 校验 · 推荐: " + rec
+        )
+        return {
+            "verdict": "OK",
+            "payload_extras": extras,
+            "judgment": judgment,
+            "consistency": "OK",
+            "recommended_flow_type": rec,
+        }
+
+    if rec == args.flow_type:
+        extras["admission_consistency"] = "OK"
+        return {
+            "verdict": "OK",
+            "payload_extras": extras,
+            "judgment": judgment,
+            "consistency": "OK",
+            "recommended_flow_type": rec,
+        }
+
+    # MISMATCH:WARN(不 BLOCK · R0 兜底)
+    extras["admission_consistency"] = "MISMATCH"
+    extras["admission_consistency_warning"] = (
+        f"⚠️ admission_judgment.recommended_flow_type={rec!r} 与 --flow-type={args.flow_type!r} 不一致 · "
+        f"AI 读 §2.1/§2.2 后判 {rec} · 但你选 {args.flow_type} · "
+        f"在 prepare 暂停点必加 §2.1/§2.2 三选项让用户拍板(不要默认选 {args.flow_type} 跳过判据) · "
+        f"audit 已留痕 · retro 可复盘"
+    )
+    return {
+        "verdict": "OK",  # 不 BLOCK · 仅 WARN(R0:可能有合理例外)
+        "payload_extras": extras,
+        "judgment": judgment,
+        "consistency": "MISMATCH",
+        "recommended_flow_type": rec,
+    }
 
 
 def cmd_change_review_roles(args: argparse.Namespace) -> None:
@@ -2568,9 +2781,10 @@ def build_parser() -> argparse.ArgumentParser:
     arw.set_defaults(func=cmd_audit_raw_writes)
 
     # v8.13:prepare-check ID 冲突预检(prepare 子流程 §1.5.4 调)
+    # v8.15:加 --user-intent + --admission-judgment(物化 AI 必读 §2.1/§2.2 · 治本 F001 GCP gateway case)
     pc = sub.add_parser(
         "prepare-check",
-        help="[v8] prepare 子流程 ID 冲突预检 · 输出 next_available_id 给暂停点表格",
+        help="[v8] prepare 子流程 ID 冲突预检 + admission 校验 · 输出 next_available_id + consistency",
     )
     pc.add_argument("--features-root", default=None,
                     help="features 根目录 · 默认 docs/features(从 cwd 算)")
@@ -2580,6 +2794,15 @@ def build_parser() -> argparse.ArgumentParser:
                     choices=["Feature", "Bug", "Micro", "敏捷需求"],
                     help=("决定 artifact ID 字母(F/B/M · 详 conventions.md §1)+ "
                           "返回 stage_chain_preview · Bug/Micro 必传(漏传退回 F)"))
+    # v8.15:admission(AI judgment 模式 · 不用 regex 关键词)
+    pc.add_argument("--user-intent", default=None,
+                    help=("[v8.15] 用户原话(原文 · 不要 paraphrase)· "
+                          "工具不解析 · 仅留痕到 audit jsonl · 供 retro 复盘"))
+    pc.add_argument("--admission-judgment", default=None,
+                    help=("[v8.15] AI 读 prepare.md §2.1/§2.2 后的判断(JSON · 必含 "
+                          "sections_reviewed[] · matched_signals[] · recommended_flow_type · "
+                          "ai_rationale 4 字段)· 强制 AI 真读 §2.1/§2.2 而非凭概览 · "
+                          "工具校验 recommended_flow_type vs --flow-type · MISMATCH → WARN(不 BLOCK)"))
     pc.set_defaults(func=cmd_prepare_check)
 
     # v8.x:change-review-roles · 治本 raw-write 滥用(可枚举进脚本 · R0 哲学)

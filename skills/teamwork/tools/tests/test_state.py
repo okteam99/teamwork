@@ -905,6 +905,155 @@ class TestPrepareAuditGate(unittest.TestCase):
         self.assertEqual(d["verdict"], "SKIP")
 
 
+class TestAdmissionJudgment(unittest.TestCase):
+    """v8.15:prepare-check --user-intent + --admission-judgment 校验(治本 F001 GCP gateway case)。
+
+    设计:工具不扫 regex(伪枚举)· 强制 AI 必传 judgment JSON · 校验 schema + consistency。
+    """
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp(prefix="tw-adm-"))
+        self.root = self.tmp / "features"
+        self.root.mkdir(parents=True)
+        self.audit_path = self.tmp / "audit.jsonl"
+        self._prev_audit = os.environ.get("TEAMWORK_PREPARE_AUDIT_PATH")
+        os.environ["TEAMWORK_PREPARE_AUDIT_PATH"] = str(self.audit_path)
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+        if self._prev_audit is None:
+            os.environ.pop("TEAMWORK_PREPARE_AUDIT_PATH", None)
+        else:
+            os.environ["TEAMWORK_PREPARE_AUDIT_PATH"] = self._prev_audit
+
+    def _base_args(self, *, user_intent=None, judgment=None, flow_type="Feature"):
+        args = ["prepare-check",
+                "--features-root", str(self.root),
+                "--feature-id-prefix", "F"]
+        if flow_type:
+            args += ["--flow-type", flow_type]
+        if user_intent is not None:
+            args += ["--user-intent", user_intent]
+        if judgment is not None:
+            args += ["--admission-judgment",
+                     json.dumps(judgment) if isinstance(judgment, dict) else judgment]
+        return args
+
+    def _good_judgment(self, recommended="Feature Planning"):
+        return {
+            "sections_reviewed": ["§2.1", "§2.2"],
+            "matched_signals": [
+                {"section": "§2.1", "signal": "方向级业务变更",
+                 "evidence": "想做一个 GCP API gateway 服务"}
+            ],
+            "recommended_flow_type": recommended,
+            "ai_rationale": "强信号 + 跨多 BL · 单 Feature 状态机承载不下",
+        }
+
+    # ── 向后兼容:两者都不传 = SKIPPED ──
+
+    def test_no_intent_no_judgment_skipped(self):
+        d = run(self._base_args())
+        self.assertEqual(d["verdict"], "OK")
+        self.assertEqual(d.get("admission_consistency"), "SKIPPED")
+
+    # ── 部分传 = BLOCK ──
+
+    def test_intent_only_blocked(self):
+        d = run(self._base_args(user_intent="想做一个服务"), expect_exit=0)
+        self.assertEqual(d["verdict"], "FAIL")
+        self.assertIn("--admission-judgment", d["error"])
+
+    def test_judgment_only_blocked(self):
+        d = run(self._base_args(judgment=self._good_judgment()), expect_exit=0)
+        self.assertEqual(d["verdict"], "FAIL")
+        self.assertIn("--user-intent", d["error"])
+
+    # ── JSON schema 校验 ──
+
+    def test_judgment_invalid_json_blocked(self):
+        d = run(self._base_args(user_intent="x", judgment="not json {{{"),
+                expect_exit=0)
+        self.assertEqual(d["verdict"], "FAIL")
+        self.assertIn("不是合法 JSON", d["error"])
+
+    def test_judgment_missing_required_field_blocked(self):
+        j = self._good_judgment()
+        del j["ai_rationale"]
+        d = run(self._base_args(user_intent="x", judgment=j), expect_exit=0)
+        self.assertEqual(d["verdict"], "FAIL")
+        self.assertIn("ai_rationale", d["error"])
+
+    def test_judgment_illegal_recommended_flow_type_blocked(self):
+        j = self._good_judgment(recommended="NotAFlow")
+        d = run(self._base_args(user_intent="x", judgment=j), expect_exit=0)
+        self.assertEqual(d["verdict"], "FAIL")
+        self.assertIn("recommended_flow_type", d["error"])
+
+    def test_judgment_matched_signals_must_be_list(self):
+        j = self._good_judgment()
+        j["matched_signals"] = "not a list"
+        d = run(self._base_args(user_intent="x", judgment=j), expect_exit=0)
+        self.assertEqual(d["verdict"], "FAIL")
+        self.assertIn("matched_signals", d["error"])
+
+    # ── consistency 校验 ──
+
+    def test_consistency_ok_when_recommended_matches_flow_type(self):
+        j = self._good_judgment(recommended="Feature")
+        d = run(self._base_args(user_intent="x", judgment=j, flow_type="Feature"))
+        self.assertEqual(d["verdict"], "OK")
+        self.assertEqual(d["admission_consistency"], "OK")
+
+    def test_consistency_mismatch_warns_not_blocked(self):
+        """治本 F001 case 核心:judgment 推 Feature Planning · flow_type=Feature → WARN(不 BLOCK)。"""
+        j = self._good_judgment(recommended="Feature Planning")
+        d = run(self._base_args(user_intent="想做一个 GCP gateway 服务", judgment=j,
+                                flow_type="Feature"))
+        self.assertEqual(d["verdict"], "OK")  # 不 BLOCK
+        self.assertEqual(d["admission_consistency"], "MISMATCH")
+        self.assertIn("Feature Planning", d["admission_consistency_warning"])
+        self.assertIn("不一致", d["admission_consistency_warning"])
+
+    def test_audit_jsonl_records_admission_fields(self):
+        """audit jsonl 必含 user_intent / admission_judgment / consistency / recommended_flow_type。"""
+        j = self._good_judgment(recommended="Feature Planning")
+        run(self._base_args(user_intent="想做一个服务", judgment=j, flow_type="Feature"))
+        lines = self.audit_path.read_text(encoding="utf-8").splitlines()
+        rec = json.loads(lines[-1])
+        self.assertEqual(rec["user_intent"], "想做一个服务")
+        self.assertEqual(rec["consistency"], "MISMATCH")
+        self.assertEqual(rec["recommended_flow_type"], "Feature Planning")
+        self.assertEqual(rec["admission_judgment"]["recommended_flow_type"], "Feature Planning")
+
+    # ── init-feature 加 MISMATCH WARN(不 BLOCK)──
+
+    def test_init_feature_emits_admission_warning_on_mismatch(self):
+        """audit 含 consistency=MISMATCH → init-feature emit admission_warning + state.concerns 留痕。"""
+        # 1. prepare-check 写 MISMATCH audit(rec=Feature Planning · 但 init 用 Feature)
+        j = self._good_judgment(recommended="Feature Planning")
+        run(self._base_args(user_intent="想做一个服务", judgment=j, flow_type="Feature"))
+
+        # 2. init-feature(prefix=F · flow_type=Feature · 与 judgment 推 Feature Planning 不一致)
+        target = self.tmp / "apps" / "gcp" / "docs" / "features" / "F-F100-gateway"
+        # Note:--feature-id 必含 F prefix(_check_prepare_audit 用 prefix 匹配)
+        d = run([
+            "init-feature",
+            "--feature", str(target),
+            "--feature-id", "F-F100-gateway",
+            "--flow-type", "Feature",
+            "--merge-target", "staging",
+            "--branch", "feat/f-f100",
+        ])
+        self.assertEqual(d["verdict"], "OK")  # 不 BLOCK
+        self.assertIn("admission_warning", d)
+        self.assertIn("Feature Planning", d["admission_warning"])
+        # state.json 的 concerns 也含 WARN
+        state = json.loads((target / "state.json").read_text(encoding="utf-8"))
+        self.assertTrue(any("admission MISMATCH" in c for c in state["concerns"]),
+                        f"state.concerns 应含 admission WARN · 实际: {state['concerns']}")
+
+
 class TestPMDecisionTolerance(unittest.TestCase):
     """pm_acceptance decision 容错读 contract 顶层旧位(治本 ADMIN-F013 case)。
 
