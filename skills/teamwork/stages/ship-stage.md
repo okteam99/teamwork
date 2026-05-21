@@ -44,7 +44,7 @@
 
 ### 5. Phase 2:ship-finalize(一条命令 · 在主工作区跑)
 
-用户确认已合并(§4 选项 1)后 · **cd 回主工作区** · 跑一条命令完成 Phase 2 全部 7 步:
+用户确认已合并(§4 选项 1)后 · **cd 回主工作区** · 跑一条命令完成 Phase 2 全部 8 步:
 
 ```bash
 cd <main-tree>                                        # 🔴 必在主工作区(P0-156)
@@ -55,6 +55,7 @@ ship-finalize 内部自动编排(**可重入** · 失败步骤修复后重跑即
 
 | 步 | 动作 | 内容 |
 |---|---|---|
+| **0** | **state-sync(v8.16)** | **自动 `git fetch` + 安全 ff-pull merge_target(拉下 MR 合并后的 features dir)· 检测主工作区 state.json:不存在/缺 `ship.feature_head_commit` → 从 worktree 内 state.json 同步完整态(主工作区拉下的是合并前快照 · 完整态在 worktree)。治本 SVC-CORE-B006 case(详 §12 实证)** |
 | 1 | verify-merge | `git fetch` + `merge-base --is-ancestor` 验证 feature_head 已进 merge_target |
 | 2 | confirm-merged | `ship.phase` pushed → merged |
 | 3 | cleanup | `ship.worktree_cleanup` = cleaned / n_a |
@@ -66,6 +67,7 @@ ship-finalize 内部自动编排(**可重入** · 失败步骤修复后重跑即
 **为什么必在主工作区**:step 6 worktree-remove 不能删自身所在 worktree · 且 Phase 2 状态同步语义属于 merge_target 主工作区(P0-156)。在 linked worktree 跑 → precheck FAIL · hint 给精确 cd 目标。
 
 **AI 只在失败点干预**(其余全自动):
+- **step 0 FAIL**(worktree 已被手工删 + 主工作区 state.json 不全):无路可走 · hint 排查 worktree path / --feature 路径 / 当前分支 · 或 bypass 后手工 finalize。
 - **step 1 FAIL**(feature_head 不在 merge_target):两种可能 → ① MR 尚未合并 · 等用户;② squash / rebase 合并(见 §6)。按 R5 给用户 1/2 选项判断。
 - **step 5 finalize-push 失败**(冲突 / 保护分支 / 网络):§12 降级 · worktree 保留为 state.json 唯一副本 · 修复后重跑 ship-finalize(可重入自动跳过已完成步骤)。
 - **step 6 worktree-remove 失败**(worktree 占用等):降级 warning · state.json 已 finalize 不丢 · 按 hint 手动 `git worktree remove`。
@@ -113,6 +115,9 @@ ship-phase --action confirm-merged → ship-phase --action cleanup --status clea
 ## 12. Phase 2 finalize · state.json 直推例外
 
 > 🔴 `ship-finalize` step 5(finalize-push)已**自动完成**本节直推(git plumbing · 零 checkout · 单文件 state.json diff)· 本节是**原理说明** + §7 手动路径参考。
+
+🟢 **实证 case · SVC-CORE-B006(2026-05-21)· step 0 state-sync 治本根因**:
+Phase 1 `ship-phase sanitize / push` 写 state.json 后**不自动 commit**(by design · 防 MR 被 chore commit 弄脏)· 所以 push 到 feature 分支的 commit 不含完整 state.json(缺 `ship.phase=pushed` / `feature_head_commit` 等)。用户 merge MR 后 · 主工作区 `git pull` 拉下的 state.json 是合并前快照(不全)· Phase 2 step 1 verify-merge 读不到 `feature_head_commit` → FAIL。**完整态 state.json 永远在 worktree 内工作树**(sanitize/push 写入但未 commit)· v8.16 step 0 state-sync 自动把 worktree 内完整态拷到主工作区 · step 5 finalize-push 把完整态直推到 merge_target · 闭环。
 
 confirm-merged 后,状态:
 - worktree 内 state.json 已更新到 phase=merged(本地)

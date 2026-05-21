@@ -511,6 +511,12 @@ def cmd_ship_phase(args: argparse.Namespace) -> None:
 
 
 SHIP_FINALIZE_STEPS = (
+    # v8.16:state-sync 是 step 0(治本 SVC-CORE-B006 case)
+    # ① fetch+ff-pull merge_target(主工作区拉下 MR 合并后的 features dir)
+    # ② 检测主工作区 state.json:不存在/缺 ship.feature_head_commit → 从 worktree 同步完整态
+    # 理由:Phase 1 sanitize/push 写 state.json 但不 commit · push 到 feature 的 commit
+    # 不含完整 state.json · merge 后主工作区拉下的是合并前快照 · verify-merge 会 FAIL
+    "state-sync",
     "verify-merge", "confirm-merged", "cleanup",
     "ship-complete", "finalize-push", "worktree-remove", "main-sync",
 )
@@ -624,6 +630,187 @@ def _ship_finalize_fail(step: str, error: str, hint: str,
     if extra:
         payload.update(extra)
     emit_json(payload, exit_code=1)
+
+
+def _step_state_sync(main_wt: str, feature_path: str) -> dict:
+    """v8.16 ship-finalize step 0:把 worktree 内完整态 state.json 桥接到主工作区。
+
+    治本 case SVC-CORE-B006(2026-05-21):
+    Phase 1 ship-phase sanitize / push 写 state.json 后不自动 commit(by design ·
+    防 MR 被 chore commit 弄脏)· 所以 push 到 feature 分支的 commit 不含完整
+    state.json(缺 ship.phase=pushed / feature_head_commit 等)。
+    用户 merge MR 后 · 主工作区 git pull 拉下的 state.json 是合并前快照(不全)·
+    ship-finalize step 1 verify-merge 读不到 feature_head_commit → FAIL。
+    完整态 state.json 永远在 **worktree 内工作树**(sanitize/push 写入但未 commit)·
+    必须自动同步到主工作区 · step 5 finalize-push 才能直推完整态到 merge_target。
+
+    流程:
+      ① 主工作区 git fetch + ff-pull merge_target(若在 merge_target 分支 + 工作树干净)
+      ② 检测主工作区 state.json:
+         - 不存在 + worktree 内存在 → 复制(不 commit · step 5 finalize-push 直推)
+         - 存在但缺 ship.feature_head_commit + worktree 内完整 → 用 worktree 内覆盖
+         - 主工作区已完整 → skip(可重入)
+      ③ emit sync_action 字段告诉 AI 干了啥(transparent · 不静默)
+
+    返回 {ok: bool, sync_action: str, error?: str, hint?: str}。
+    """
+    feature_dir_abs = Path(feature_path).resolve()
+    state_json_path = feature_dir_abs / "state.json"
+
+    # 算 worktree 内对应 state.json 路径(从主工作区 state.worktree.path + feature_dir 相对路径)
+    # 优先用 worktree 内已存在的 state.json(完整态)· 失败则尝试主工作区现状
+    main_wt_path = Path(main_wt).resolve()
+
+    # 提前算 main_wt 的 merge_target 名(后续 fetch + 主工作区 state.json 都要)
+    # 没法从 state.json 读(可能不存在)· 用 main_wt 当前分支猜
+    cur = _git(["rev-parse", "--abbrev-ref", "HEAD"], cwd=main_wt)
+    main_branch = cur.stdout.strip() if cur.returncode == 0 else ""
+
+    # ① 主工作区先 fetch + 安全 ff-pull(让本地拿到 MR 合并后的 features dir)
+    sync_actions: list = []
+    fetched = False
+    if main_branch:
+        f = _git(["fetch", "origin", main_branch], cwd=main_wt, timeout=120)
+        if f.returncode == 0:
+            fetched = True
+            sync_actions.append(f"fetched origin/{main_branch}")
+            dirty = _git(["status", "--porcelain"], cwd=main_wt)
+            is_dirty = bool(dirty.stdout.strip()) if dirty.returncode == 0 else False
+            if not is_dirty:
+                pl = _git(["pull", "--ff-only", "origin", main_branch],
+                          cwd=main_wt, timeout=120)
+                if pl.returncode == 0:
+                    sync_actions.append(f"ff-pulled origin/{main_branch}")
+                else:
+                    # 分叉 · ff 失败 · 不致命 · 后续 step 0.5 检查 state.json
+                    sync_actions.append(
+                        f"ff-pull skipped(分叉:{pl.stderr.strip()[:80]})")
+            else:
+                sync_actions.append("ff-pull skipped(工作树脏)")
+        else:
+            sync_actions.append(
+                f"fetch FAIL(non-fatal):{f.stderr.strip()[:80]}")
+
+    # ② 主工作区 state.json 是否完整?
+    main_state_complete = False
+    if state_json_path.exists():
+        try:
+            with state_json_path.open("r", encoding="utf-8") as fp:
+                main_state = json.load(fp)
+            ship = main_state.get("ship") or {}
+            # 完整态判据:有 ship.feature_head_commit(Phase 1 push 写入)
+            if ship.get("feature_head_commit"):
+                main_state_complete = True
+        except (OSError, json.JSONDecodeError):
+            pass
+
+    # 主工作区已完整 → skip · 可重入
+    if main_state_complete:
+        sync_actions.append("main state.json 完整 · skip sync")
+        return {"ok": True, "sync_action": " · ".join(sync_actions)}
+
+    # ③ 主工作区不全 / 缺 → 找 worktree 内 state.json
+    # 先读已有 state.json(主工作区或不全) → 拿 state.worktree.path
+    # 若主工作区 state.json 不存在 → 退而求其次扫所有 linked worktree 找 state.json
+    wt_state_path = None
+    if state_json_path.exists():
+        # 读不全的主工作区 state.json 拿 worktree.path 字段(state.worktree.path 是相对主工作区 OR 绝对)
+        try:
+            with state_json_path.open("r", encoding="utf-8") as fp:
+                tmp_state = json.load(fp)
+            wt_info = tmp_state.get("worktree") or {}
+            wt_path_raw = wt_info.get("path") or ""
+            if wt_path_raw:
+                wt_path = Path(wt_path_raw)
+                if not wt_path.is_absolute():
+                    wt_path = (main_wt_path / wt_path_raw).resolve()
+                else:
+                    wt_path = wt_path.resolve()
+                # 算 worktree 内对应 state.json:wt_path + (feature_dir 相对 main_wt 的 path)
+                try:
+                    feat_rel = feature_dir_abs.relative_to(main_wt_path)
+                    candidate = wt_path / feat_rel / "state.json"
+                    if candidate.exists():
+                        wt_state_path = candidate
+                except ValueError:
+                    pass
+        except (OSError, json.JSONDecodeError):
+            pass
+
+    # 主工作区 state.json 不存在或无法读出 wt path → 扫 git worktree list 找含 state.json 的
+    if wt_state_path is None:
+        for w in _list_worktrees(main_wt):
+            wp = Path(w.get("path") or "")
+            if not wp.exists() or wp.resolve() == main_wt_path:
+                continue
+            try:
+                feat_rel = feature_dir_abs.relative_to(main_wt_path)
+                candidate = wp / feat_rel / "state.json"
+                if candidate.exists():
+                    wt_state_path = candidate
+                    break
+            except ValueError:
+                pass
+
+    if wt_state_path is None:
+        # 完全找不到 worktree state.json · BLOCK
+        return {
+            "ok": False,
+            "sync_action": " · ".join(sync_actions),
+            "error": (
+                f"state.json not found in main workspace ({state_json_path}) · "
+                f"也未找到 worktree 内副本 · 无法同步完整态"
+            ),
+            "hint": (
+                "可能原因:① worktree 已被手工删 · ② --feature 路径错 · "
+                "③ 用户未在主工作区 merge_target 分支(当前分支:"
+                f"{main_branch!r} · 应在 merge_target 分支跑 ship-finalize) · "
+                "排查后重跑 · 或 export TEAMWORK_BYPASS_MAIN_WORKTREE=1 跳过物化校验后手工 finalize"
+            ),
+        }
+
+    # 验证 worktree 内 state.json 是否完整(有 feature_head_commit)
+    try:
+        with wt_state_path.open("r", encoding="utf-8") as fp:
+            wt_state = json.load(fp)
+    except (OSError, json.JSONDecodeError) as e:
+        return {
+            "ok": False,
+            "sync_action": " · ".join(sync_actions),
+            "error": f"worktree state.json 读失败({wt_state_path}): {e}",
+            "hint": "排查 worktree state.json 完整性 · 修复后重跑",
+        }
+    wt_ship = wt_state.get("ship") or {}
+    if not wt_ship.get("feature_head_commit"):
+        return {
+            "ok": False,
+            "sync_action": " · ".join(sync_actions),
+            "error": (
+                f"worktree state.json({wt_state_path})也缺 ship.feature_head_commit · "
+                "Phase 1 push 未完成 · 无法 finalize"
+            ),
+            "hint": (
+                "回 worktree 跑 state.py ship-phase --action push(push feature 分支 + 创 MR)· "
+                "再回主工作区重跑 ship-finalize"
+            ),
+        }
+
+    # ④ 复制 worktree 内完整态 → 主工作区(不 commit · step 5 finalize-push 直推完整态)
+    try:
+        feature_dir_abs.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(wt_state_path, state_json_path)
+        sync_actions.append(
+            f"synced state.json from worktree:{wt_state_path} → {state_json_path}"
+        )
+    except OSError as e:
+        return {
+            "ok": False,
+            "sync_action": " · ".join(sync_actions),
+            "error": f"复制 worktree state.json 失败: {e}",
+            "hint": "排查文件权限 / 磁盘 · 修复后重跑",
+        }
+
+    return {"ok": True, "sync_action": " · ".join(sync_actions)}
 
 
 def _finalize_push_fail(ship: dict, reason: str, msg: str) -> tuple:
@@ -766,9 +953,33 @@ def _ship_finalize_brief(state: dict, ship: dict, finalize_ok: bool,
 
 
 def cmd_ship_finalize(args: argparse.Namespace) -> None:
-    """ship-finalize:ship Phase 2 全自动编排(7 步 · 可重入 · 失败 AI 干预)。"""
+    """ship-finalize:ship Phase 2 全自动编排(8 步 · 可重入 · 失败 AI 干预)。
+
+    v8.16:加 step 0 state-sync(治本 SVC-CORE-B006 case · 把 worktree 内完整态
+    state.json 桥接到主工作区 · 详 _step_state_sync 注释)。
+    """
     main_wt = _ship_finalize_precheck()
     feature_path = args.feature
+
+    # ── Step 0:state-sync(v8.16 治本)──────────────────────────────
+    # 必须在 load_state 之前 · 因为 load_state 会读主工作区 state.json(可能不全 / 不存在)
+    sync = _step_state_sync(main_wt, feature_path)
+    if not sync["ok"]:
+        emit_json({
+            "verdict": "FAIL",
+            "command": "ship-finalize",
+            "completed_steps": [],
+            "failed_step": "state-sync",
+            "error": sync["error"],
+            "hint": sync["hint"],
+            "sync_action": sync["sync_action"],
+            "resume": (
+                "修复后重跑 state.py ship-finalize --feature <path> · "
+                "可重入(已完成步骤自动跳过)"
+            ),
+        }, exit_code=1)
+    state_sync_action = sync["sync_action"]
+
     _, state = load_state(feature_path)
 
     artifact_root = Path(feature_path).resolve()
@@ -787,7 +998,8 @@ def cmd_ship_finalize(args: argparse.Namespace) -> None:
         }, exit_code=1)
 
     ship = state.setdefault("ship", {})
-    completed: list = []
+    # v8.16:state-sync 已在 step 0 跑完(load_state 之前)· 这里记入 completed
+    completed: list = ["state-sync"]
     skipped: list = []
     warnings: list = []
 
@@ -1023,6 +1235,8 @@ def cmd_ship_finalize(args: argparse.Namespace) -> None:
         "finalize_push": ("ok" if finalize_ok
                           else f"failed:{ship.get('merge_target_push_failed_reason')}"),
         "worktree_removed": wt_removed,
+        # v8.16:state-sync 透明留痕(干了啥)· 治本 SVC-CORE-B006 case
+        "state_sync_action": state_sync_action,
         **({"warnings": warnings} if warnings else {}),
         "next_action_brief": _ship_finalize_brief(
             state, ship, finalize_ok, wt_removed, warnings),
