@@ -80,6 +80,10 @@
 
 ## Output Contract(产物形态参考)
 
+> 📋 **起草模板**(避免找历史 Feature 抄):
+> - PRD.md → `{SKILL_ROOT}/templates/prd.md`
+> - PRD-REVIEW.md → 无独立模板 · 见下方 schema · 各 reviewer 自由分段
+
 ### `PRD.md`
 - frontmatter:
  - `acceptance_criteria: [{id, description}]`(必)
@@ -91,6 +95,9 @@
  - `reviewers: [pm, qa, architect, ...]`
  - `verdicts: {role: APPROVE|NEEDS_REVISION|SKIP}`
 - body ≥ 20 行 · 每 reviewer 单独段 · cite PRD 行号
+
+### `external-cross-review/prd-{model}.md`(若启用)
+- 模板:`{SKILL_ROOT}/templates/external-cross-review.md` § 3.1 PRD 变体 + § 4 Output Schema
 
 ---
 

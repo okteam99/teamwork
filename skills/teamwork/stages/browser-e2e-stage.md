@@ -60,6 +60,10 @@ Playwright / Puppeteer / Selenium(项目栈决定)
 
 ## Output Contract(产物形态参考)
 
+> 📋 **起草模板**(避免找历史 Feature 抄):
+> - BROWSER-TEST-REPORT.md → `{SKILL_ROOT}/templates/browser-test-report.md`(含场景 / AC↔截图矩阵 / flaky retry 处理)
+> - screenshots/*.png → 无统一模板 · 按 SOP 截图(含 viewport + URL bar · 不裁剪)
+
 ### `screenshots/*.png`
 关键路径截图 · 至少 1 张 · 每 AC 一组
 

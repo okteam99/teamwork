@@ -89,6 +89,10 @@ state.py ui_design-complete --feature X --auto-commit Y \
 
 ## Output Contract(产物形态参考)
 
+> 📋 **起草模板**(避免找历史 Feature 抄):
+> - UI.md → `{SKILL_ROOT}/templates/ui.md`(含 panorama_medium frontmatter 示例)
+> - preview/*.html(static-html 时)→ 无统一模板 · 按项目设计语言写
+
 ### `UI.md`
 frontmatter `pages: [{id, title}]` · body 4 段(页面列表 / 交互流 / 视觉规范 / 字段映射)
 

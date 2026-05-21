@@ -399,5 +399,166 @@ class TestReviewersMatch(unittest.TestCase):
         self.assertTrue(passed, "无 required 应 silent skip")
 
 
+# ─── v8.14 · scaffold_hints + template hint suffix ─────────────
+
+
+class TestBuildScaffoldHints(unittest.TestCase):
+    """v8.14:build_scaffold_hints 给各 stage 返回模板地图 + 校验器。
+
+    治本 PTR-F054 "AI 找历史 Feature 抄" case · stage-start emit 时直接告诉
+    AI 模板路径 + 校验器 · 不需要找历史。
+    """
+
+    def test_blueprint_hints_have_tc_tech_templates(self):
+        from _v8_engine import build_scaffold_hints
+        hints = build_scaffold_hints("blueprint")
+        self.assertIsNotNone(hints)
+        self.assertIn("TC.md", hints["expected_artifacts"])
+        self.assertIn("TECH.md", hints["expected_artifacts"])
+        # templates 必绝对路径
+        self.assertTrue(hints["templates"]["TC.md"].endswith("/templates/tc.md"))
+        self.assertTrue(hints["templates"]["TECH.md"].endswith("/templates/tech.md"))
+        # verify-ac.py validator
+        self.assertIn("TC.md", hints["validators"])
+        self.assertIn("verify-ac.py", hints["validators"]["TC.md"])
+
+    def test_test_stage_hints_have_test_report_template(self):
+        from _v8_engine import build_scaffold_hints
+        hints = build_scaffold_hints("test")
+        self.assertIsNotNone(hints)
+        self.assertTrue(hints["templates"]["TEST-REPORT.md"].endswith(
+            "/templates/test-report.md"))
+        # e2e/*.py 无模板(项目环境决定)
+        self.assertIsNone(hints["templates"]["e2e/*.py"])
+
+    def test_browser_e2e_hints_have_browser_test_report_template(self):
+        from _v8_engine import build_scaffold_hints
+        hints = build_scaffold_hints("browser_e2e")
+        self.assertIsNotNone(hints)
+        self.assertTrue(hints["templates"]["BROWSER-TEST-REPORT.md"].endswith(
+            "/templates/browser-test-report.md"))
+
+    def test_pm_acceptance_hints_have_pm_note_template(self):
+        from _v8_engine import build_scaffold_hints
+        hints = build_scaffold_hints("pm_acceptance")
+        self.assertIsNotNone(hints)
+        self.assertTrue(hints["templates"]["PM-NOTE.md"].endswith(
+            "/templates/pm-note.md"))
+
+    def test_ship_returns_none_no_template(self):
+        from _v8_engine import build_scaffold_hints
+        # ship 无 doc 模板(状态字段)
+        self.assertIsNone(build_scaffold_hints("ship"))
+
+    def test_hint_warns_against_finding_history(self):
+        """hint 文本含"不要 find 历史 Feature 抄"反模式警示。"""
+        from _v8_engine import build_scaffold_hints
+        hints = build_scaffold_hints("blueprint")
+        self.assertIn("历史 Feature", hints["hint"])
+
+    def test_all_template_paths_exist(self):
+        """所有非 None template 路径必须真实存在(防误填路径)。"""
+        from _v8_engine import build_scaffold_hints, STAGE_TEMPLATES
+        for stage in STAGE_TEMPLATES:
+            hints = build_scaffold_hints(stage)
+            if not hints:
+                continue
+            for artifact, tmpl_path in hints["templates"].items():
+                if tmpl_path is None:
+                    continue
+                self.assertTrue(Path(tmpl_path).exists(),
+                                f"{stage} {artifact} 模板路径不存在: {tmpl_path}")
+
+
+class TestTemplateHintSuffix(unittest.TestCase):
+    """v8.14:evidence FAIL reason 末尾追加 ` · 起草模板: <path>`。"""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.feature_dir = Path(self.tmp) / "F001"
+        self.feature_dir.mkdir()
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def test_template_hint_for_known_artifact(self):
+        from _v8_stage_specs import _template_hint
+        suffix = _template_hint("PRD.md")
+        self.assertIn("起草模板", suffix)
+        self.assertIn("templates/prd.md", suffix)
+
+    def test_template_hint_for_unknown_artifact_returns_empty(self):
+        from _v8_stage_specs import _template_hint
+        self.assertEqual(_template_hint("RANDOM-FILE.md"), "")
+
+    def test_template_hint_strips_leading_dirs(self):
+        """artifact 可能含目录前缀 · 用 basename 匹配。"""
+        from _v8_stage_specs import _template_hint
+        suffix = _template_hint("some/dir/PRD.md")
+        self.assertIn("templates/prd.md", suffix)
+
+    def test_evidence_review_after_primary_fail_includes_template(self):
+        """_evidence_review_after_primary primary 不存在 → reason 含模板路径。"""
+        from _v8_stage_specs import _evidence_review_after_primary
+        check = _evidence_review_after_primary("PRD.md", "PRD-REVIEW.md")
+        # PRD.md 不存在
+        args = make_args(feature=str(self.feature_dir))
+        passed, reason = check({}, args)
+        self.assertFalse(passed)
+        self.assertIn("PRD.md 不存在", reason)
+        self.assertIn("templates/prd.md", reason)  # template hint
+
+    def test_evidence_revision_history_fail_includes_template(self):
+        """artifact 不存在 → reason 含 template hint。"""
+        from _v8_stage_specs import _evidence_revision_history_present
+        check = _evidence_revision_history_present("TC.md")
+        args = make_args(feature=str(self.feature_dir))
+        passed, reason = check({}, args)
+        self.assertFalse(passed)
+        self.assertIn("TC.md 不存在", reason)
+        self.assertIn("templates/tc.md", reason)
+
+    def test_evidence_reviewers_match_fail_includes_template(self):
+        """review artifact 不存在 → reason 含 hint(若 basename 有映射)。"""
+        from _v8_stage_specs import _evidence_reviewers_match
+        check = _evidence_reviewers_match("PRD-REVIEW.md")  # PRD-REVIEW basename 不在 map
+        state = {
+            "current_stage": "goal",
+            "stage_review_roles": {"goal": ["pm", "qa"]},
+        }
+        args = make_args(feature=str(self.feature_dir))
+        passed, reason = check(state, args)
+        self.assertFalse(passed)
+        # PRD-REVIEW.md 不在 map · 无 suffix · 但不应抛异常
+        self.assertIn("PRD-REVIEW.md", reason)
+
+
+class TestTemplateFilesExist(unittest.TestCase):
+    """v8.14:确保 v8.14 新建的 3 个模板真实存在 + frontmatter 有效。"""
+
+    def test_test_report_template_exists(self):
+        p = SKILL / "templates" / "test-report.md"
+        self.assertTrue(p.exists())
+        text = p.read_text(encoding="utf-8")
+        self.assertTrue(text.startswith("---\n"), "模板必含 frontmatter")
+        self.assertIn("feature_id:", text)
+        self.assertIn("evidence:", text)
+
+    def test_browser_test_report_template_exists(self):
+        p = SKILL / "templates" / "browser-test-report.md"
+        self.assertTrue(p.exists())
+        text = p.read_text(encoding="utf-8")
+        self.assertTrue(text.startswith("---\n"))
+        self.assertIn("browser_automation:", text)
+        self.assertIn("viewport:", text)
+
+    def test_pm_note_template_exists(self):
+        p = SKILL / "templates" / "pm-note.md"
+        self.assertTrue(p.exists())
+        text = p.read_text(encoding="utf-8")
+        self.assertTrue(text.startswith("---\n"))
+        self.assertIn("decision:", text)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

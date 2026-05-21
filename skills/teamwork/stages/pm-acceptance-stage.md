@@ -101,6 +101,10 @@ pm_acceptance rejected 不强制 fix-retry(反馈类型多样)· state.py emit 4
 
 ## Output Contract(产物形态参考)
 
+> 📋 **起草模板**(避免找历史 Feature 抄):
+> - PM-NOTE.md(可选)→ `{SKILL_ROOT}/templates/pm-note.md`(含 AC 逐条对照 + 三选项决策 + rejected finding 列表)
+> - state.json 决策 → 由 `state.py pm_acceptance-complete --decision ...` 写 · 无文件模板
+
 ### `state.json 决策落库`
 stage_contracts.pm_acceptance.evidence.decision · 无文件产物
 

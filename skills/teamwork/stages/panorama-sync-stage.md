@@ -84,6 +84,11 @@ state.py 校验:
 
 ## Output Contract(产物形态参考)
 
+> 📋 **起草模板**(避免找历史 Feature 抄):
+> - panorama-change-summary.md → 无独立模板 · 见下方 schema(reviewers + conclusion + 3 段 body)
+> - panorama_path/sitemap.md → 项目级 sitemap · 无模板(按项目 IA 结构维护)
+> - panorama_path/preview/overview.html(static-html 介质)→ 项目设计语言决定 · 无统一模板
+
 ### `panorama-change-summary.md`
 - frontmatter:`reviewers: [pm, architect, ...]` · `conclusion: passed | needs-revision`
 - body:§变更摘要 / §受影响 Features / §协调结论(每段 ≥ 2 行 · `body_min_lines: 8`)

@@ -93,6 +93,10 @@ state.py 校验:
 
 ## Output Contract(产物形态参考)
 
+> 📋 **起草模板**(避免找历史 Feature 抄):
+> - 代码改动 → 无文档模板(纯实现 · 按 TECH.md 设计)
+> - Bug fix 报告(`{Feature}/bugfix/BUG-XXX.md`)→ `{SKILL_ROOT}/templates/bug-report.md`(flow_type=Bug 时必用)
+
 ### 代码改动
 - 源代码 + 测试代码一并 commit
 - artifacts 列表用 `--artifacts` 传 · state.py 校验文件在 commit 内

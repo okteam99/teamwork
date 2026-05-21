@@ -570,6 +570,7 @@ def execute_stage_start(
             pass  # 写磁盘失败 · 用完整 brief
 
     rw_audit = compute_raw_write_audit(state)
+    scaffold_hints = build_scaffold_hints(stage_spec.name)
     emit_json({
         "verdict": "PASS",
         "stage": stage_spec.name,
@@ -578,6 +579,7 @@ def execute_stage_start(
         "started_at": contract["started_at"],
         "next_action_brief": brief,
         "status_line": render_status_line(state, f"按 brief 完成 → {stage_spec.name}-complete"),
+        **({"scaffold_hints": scaffold_hints} if scaffold_hints else {}),
         **({"brief_overflow_path": brief_overflow_path} if brief_overflow_path else {}),
         **({"raw_write_audit": rw_audit} if rw_audit else {}),
     })
@@ -615,6 +617,139 @@ STAGE_SPEC_FILES = {
     "pm_acceptance": "pm-acceptance-stage.md",  # 若不存在 fallback
     "ship": "ship-stage.md",
 }
+
+
+# v8.14:各 stage 起草模板 + 校验器映射 · 治本 PTR-F054 "AI 找历史 Feature 抄" case
+# 设计:
+# - stage-start emit 时返回 scaffold_hints · AI 第一时间知道模板路径 + 校验器
+# - 避免 AI 退回 find 历史 Feature(已 ship 清理 / 介质不同 / 早期版本)
+# - artifact_name → template_filename(相对 SKILL_ROOT/templates/)· None = 无模板
+# - validators[artifact_name] = (script_filename, 一句话说明)
+#
+# 不要在此放 dev / ship(无文档模板)· 不要放 review-log.jsonl(state.py append)
+STAGE_TEMPLATES: dict[str, dict] = {
+    "goal": {
+        "templates": {
+            "PRD.md": "prd.md",
+            "PRD-REVIEW.md": None,  # 无独立模板 · 按 reviewer 分段
+            "external-cross-review/prd-{model}.md": "external-cross-review.md",
+        },
+        "validators": {},
+    },
+    "ui_design": {
+        "templates": {
+            "UI.md": "ui.md",
+            "preview/*.html": None,  # static-html 介质 · 项目设计语言决定
+        },
+        "validators": {},
+    },
+    "panorama_sync": {
+        "templates": {
+            "panorama-change-summary.md": None,
+            "panorama_path/sitemap.md": None,
+            "panorama_path/preview/overview.html": None,
+        },
+        "validators": {},
+    },
+    "blueprint": {
+        "templates": {
+            "TC.md": "tc.md",
+            "TECH.md": "tech.md",
+            "TECH-REVIEW.md": None,
+            "external-cross-review/*.md": "external-cross-review.md",
+        },
+        "validators": {
+            "TC.md": ("verify-ac.py",
+                      "校验 PRD 每条 AC 在 TC.md tests[].covers_ac ≥1 引用 · 漏覆盖 FAIL"),
+        },
+    },
+    "blueprint_lite": {
+        "templates": {
+            "TC.md": "tc.md",
+            "TECH.md": "tech.md",
+        },
+        "validators": {
+            "TC.md": ("verify-ac.py",
+                      "校验 PRD 每条 AC 在 TC.md tests[].covers_ac ≥1 引用 · 漏覆盖 FAIL"),
+        },
+    },
+    "dev": {
+        "templates": {
+            "bugfix/BUG-XXX.md": "bug-report.md",  # flow_type=Bug 时
+        },
+        "validators": {},
+    },
+    "review": {
+        "templates": {
+            "REVIEW.md": None,
+            "REVIEW-arch.md": None,
+            "REVIEW-qa.md": None,
+            "external-cross-review/*.md": "external-cross-review.md",
+        },
+        "validators": {},
+    },
+    "test": {
+        "templates": {
+            "TEST-REPORT.md": "test-report.md",
+            "e2e/*.py": None,  # 项目环境决定
+        },
+        "validators": {
+            "TC.md": ("verify-ac.py",
+                      "test-complete 复跑 verify-ac.py · 防 dev 阶段 TC 漏改"),
+        },
+    },
+    "browser_e2e": {
+        "templates": {
+            "BROWSER-TEST-REPORT.md": "browser-test-report.md",
+            "screenshots/*.png": None,  # 按 SOP 截图(含 viewport + URL bar)
+        },
+        "validators": {},
+    },
+    "pm_acceptance": {
+        "templates": {
+            "PM-NOTE.md": "pm-note.md",  # 可选 · rejected 时含 finding 列表
+        },
+        "validators": {},
+    },
+}
+
+
+def build_scaffold_hints(stage_name: str) -> dict | None:
+    """组装 stage 的 scaffold_hints emit 段(v8.14)。
+
+    返回 None 表示该 stage 无模板/校验器(如 ship)· 调用方按需 spread 进 emit JSON。
+    路径全 absolute(SKILL_ROOT/templates/<file>)· AI 直接 cat 不用拼。
+    治本 PTR-F054 "AI 找历史 Feature 抄" case。
+    """
+    cfg = STAGE_TEMPLATES.get(stage_name)
+    if not cfg:
+        return None
+    skill_root = _find_skill_root()
+    templates_dir = skill_root / "templates"
+
+    expected_artifacts = list(cfg.get("templates", {}).keys())
+    templates_abs: dict[str, str | None] = {}
+    for artifact, tmpl_name in cfg.get("templates", {}).items():
+        if tmpl_name:
+            templates_abs[artifact] = str(templates_dir / tmpl_name)
+        else:
+            templates_abs[artifact] = None  # 无独立模板(按 schema 自由分段)
+
+    validators_abs: dict[str, str] = {}
+    for artifact, (script_name, note) in cfg.get("validators", {}).items():
+        script_path = templates_dir / script_name
+        validators_abs[artifact] = f"{script_path}({note})"
+
+    return {
+        "expected_artifacts": expected_artifacts,
+        "templates": templates_abs,
+        "validators": validators_abs,
+        "hint": (
+            "起草前先 cat 模板(已含 frontmatter + body 骨架)· "
+            "不要 find 历史 Feature 抄(可能已 ship 清理 / 介质不同 / 早期 schema)。"
+            "无模板的产物(value=null)按 stage spec § Output Contract 的 schema 自由分段。"
+        ),
+    }
 
 
 # 哪些 stage 在 brief 中渲染"评审角色"提示
@@ -1324,6 +1459,11 @@ def execute_stage_complete(
               if fix_retry_hint else "stage 链结束 / 等用户拍板下一步")
     )
     rw_audit = compute_raw_write_audit(state)
+    # v8.14:转到 next_stage 时同步给 next_stage 的 scaffold_hints
+    # AI complete 当前 stage 时就拿到下个 stage 的模板地图 · 不用再绕回 stage-start emit
+    next_stage_scaffold_hints = (
+        build_scaffold_hints(transitioned_to) if transitioned_to else None
+    )
     emit_json({
         "verdict": "PASS",
         "stage": stage_spec.name,
@@ -1334,6 +1474,8 @@ def execute_stage_complete(
         "transitioned_to": transitioned_to,
         "next_stage_brief": next_brief,
         "status_line": render_status_line(state, next_hint),
+        **({"next_stage_scaffold_hints": next_stage_scaffold_hints}
+           if next_stage_scaffold_hints else {}),
         **({"next_stage_roles_adjusted": next_stage_roles_audit} if next_stage_roles_audit else {}),
         **({"pause_options_markdown": pause_options_markdown} if pause_options_markdown else {}),
         **({"fix_retry_hint": fix_retry_hint} if fix_retry_hint else {}),

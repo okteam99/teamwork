@@ -106,6 +106,10 @@ review-complete --verdict APPROVE | NEEDS_REVISION
 
 ## Output Contract(产物形态参考)
 
+> 📋 **起草模板**(避免找历史 Feature 抄):
+> - REVIEW.md / REVIEW-arch.md / REVIEW-qa.md → 无独立模板 · 见下方 schema · 各 reviewer 按视角分段
+> - external-cross-review/*.md → `{SKILL_ROOT}/templates/external-cross-review.md` § 4 Output Schema(代码评审场景)
+
 ### `REVIEW.md`
 frontmatter `reviewers + verdict` · §finding 汇总 / §修复建议 / §verdict
 

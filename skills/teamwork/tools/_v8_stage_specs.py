@@ -123,6 +123,35 @@ def _check_file_or_alt(*rel_paths: str):
 # ─── 通用 evidence check 函数(共享) ─────────────────────────────────
 
 
+# v8.14:artifact basename → 起草模板文件名(用于 evidence FAIL 时的 hint suffix)
+# 治本 PTR-F054 "AI 找历史 Feature 抄" case · 缺产物 FAIL 时直接给模板路径
+# 不全 · 只列有专用模板的 artifact(无映射 → suffix 为空 · 不污染原 hint)
+_ARTIFACT_TEMPLATE_MAP: dict[str, str] = {
+    "PRD.md": "prd.md",
+    "UI.md": "ui.md",
+    "TC.md": "tc.md",
+    "TECH.md": "tech.md",
+    "TEST-REPORT.md": "test-report.md",
+    "BROWSER-TEST-REPORT.md": "browser-test-report.md",
+    "PM-NOTE.md": "pm-note.md",
+    "BUG-REPORT.md": "bug-report.md",
+}
+
+
+def _template_hint(artifact: str) -> str:
+    """从 artifact 路径反查模板路径 · 返回 ` · 起草模板: <abs path>` 后缀(无映射返空)。
+
+    调用方:evidence 失败的 reason 末尾 append · AI 直接 cat 模板而不找历史 Feature。
+    """
+    base = Path(artifact).name
+    tmpl_name = _ARTIFACT_TEMPLATE_MAP.get(base)
+    if not tmpl_name:
+        return ""
+    # SKILL_ROOT/templates/<tmpl>(本模块在 SKILL_ROOT/tools/ 下)
+    tmpl_path = Path(__file__).resolve().parent.parent / "templates" / tmpl_name
+    return f" · 起草模板:{tmpl_path}"
+
+
 def _evidence_test_exit_code_zero(state: dict, args) -> tuple[bool, str]:
     """校验 --test-exit-code == 0"""
     exit_code = getattr(args, "test_exit_code", None)
@@ -191,9 +220,9 @@ def _evidence_review_after_primary(primary_artifact: str, review_artifact: str):
         primary = feature_dir / primary_artifact
         review = feature_dir / review_artifact
         if not primary.exists():
-            return False, f"{primary_artifact} 不存在"
+            return False, f"{primary_artifact} 不存在{_template_hint(primary_artifact)}"
         if not review.exists():
-            return False, f"{review_artifact} 不存在 · review 未发生"
+            return False, f"{review_artifact} 不存在 · review 未发生{_template_hint(review_artifact)}"
         if review.stat().st_mtime <= primary.stat().st_mtime:
             return False, (
                 f"{review_artifact} mtime <= {primary_artifact} mtime · "
@@ -215,10 +244,10 @@ def _evidence_revision_history_present(artifact: str, min_revisions: int = 1):
         feature_dir = Path(args.feature)
         target = feature_dir / artifact
         if not target.exists():
-            return False, f"{artifact} 不存在"
+            return False, f"{artifact} 不存在{_template_hint(artifact)}"
         fm = parse_frontmatter(target)
         if not fm:
-            return False, f"{artifact} 缺 frontmatter"
+            return False, f"{artifact} 缺 frontmatter{_template_hint(artifact)}"
         rev_history = fm.get("revision_history")
         if not rev_history:
             return False, (
@@ -252,11 +281,14 @@ def _evidence_reviewers_match(review_artifact: str):
         feature_dir = Path(args.feature)
         artifact_path = feature_dir / review_artifact
         if not artifact_path.exists():
-            return False, f"{review_artifact} 不存在 · 无法校验 reviewers"
+            return False, (
+                f"{review_artifact} 不存在 · 无法校验 reviewers"
+                f"{_template_hint(review_artifact)}"
+            )
 
         fm = parse_frontmatter(artifact_path)
         if not fm:
-            return False, f"{review_artifact} 缺 frontmatter"
+            return False, f"{review_artifact} 缺 frontmatter{_template_hint(review_artifact)}"
 
         reviewers = fm.get("reviewers")
         if not reviewers:
@@ -604,7 +636,7 @@ def _evidence_panorama_artifact(state: dict, args) -> tuple[bool, str]:
     feature_dir = Path(args.feature)
     ui_md = feature_dir / "UI.md"
     if not ui_md.exists():
-        return False, "UI.md 不存在"
+        return False, f"UI.md 不存在{_template_hint('UI.md')}"
     fm = parse_frontmatter(ui_md) or {}
     medium = fm.get("panorama_medium", "static-html")
     if medium not in ("same-stack", "static-html"):
@@ -683,7 +715,7 @@ def _evidence_sitemap_updated(state: dict, args) -> tuple[bool, str]:
     feature_dir = Path(args.feature)
     ui_md = feature_dir / "UI.md"
     if not ui_md.exists():
-        return False, "UI.md 不存在 · 找不到 panorama_path"
+        return False, f"UI.md 不存在 · 找不到 panorama_path{_template_hint('UI.md')}"
     text = ui_md.read_text(encoding="utf-8", errors="replace")
     # 只在行首(允许 >, 🔴, 空白前缀)匹配 · 避免 prose 中"不动 panorama_path"类误匹配
     m = _re.search(r"(?:^|\n)[\s>]*🔴?\s*panorama_path[:\s]+(\S+)", text)
@@ -837,7 +869,10 @@ def _evidence_ac_test_binding(state: dict, args) -> tuple[bool, str]:
     prd = feature_dir / "PRD.md"
     tc = feature_dir / "TC.md"
     if not prd.exists() or not tc.exists():
-        return False, f"PRD.md 或 TC.md 不存在 · 路径 prd={prd} tc={tc}"
+        return False, (
+            f"PRD.md 或 TC.md 不存在 · 路径 prd={prd} tc={tc}"
+            f"{_template_hint('PRD.md')}{_template_hint('TC.md')}"
+        )
 
     # 查找 verify-ac.py(SKILL_ROOT/templates/verify-ac.py)
     import subprocess

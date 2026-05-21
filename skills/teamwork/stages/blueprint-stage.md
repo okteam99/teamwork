@@ -81,6 +81,15 @@ blueprint-complete 前 **必 emit R5 标准 1/2/3 暂停点 · 等用户拍板**
 
 ## Output Contract(产物形态参考)
 
+> 📋 **起草模板**(避免找历史 Feature 抄):
+> - TC.md → `{SKILL_ROOT}/templates/tc.md`(含 frontmatter + tests[].covers_ac BDD 示例)
+> - TECH.md → `{SKILL_ROOT}/templates/tech.md`(含 5 段:模块/数据/接口/依赖/风险)
+> - TECH-REVIEW.md → 无独立模板 · 见下方 schema · 按评审角色 finding 分段
+> - external-cross-review/*.md → `{SKILL_ROOT}/templates/external-cross-review.md` § 3.2 + § 4
+>
+> 🤖 **校验脚本**:`python3 {SKILL_ROOT}/templates/verify-ac.py {Feature 目录}` ·
+> blueprint-complete 自动跑 · 校验 PRD 每条 AC 在 TC.md `tests[].covers_ac` 至少 1 个引用 · 漏覆盖 FAIL。
+
 ### `TC.md`
 frontmatter `tests: [...]` · AC↔Test 一一绑定 · BDD Given/When/Then
 

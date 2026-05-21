@@ -121,6 +121,13 @@ test-complete --integration-test-exit-code 0 --e2e-test-exit-code 0
 
 ## Output Contract(产物形态参考)
 
+> 📋 **起草模板**(避免找历史 Feature 抄):
+> - TEST-REPORT.md → `{SKILL_ROOT}/templates/test-report.md`(含 stdout 摘录 + exit-code + AC 覆盖矩阵)
+> - e2e/*.py → 无统一模板 · 按项目环境写 Python 脚本(exit-code=0 = 通过)
+>
+> 🤖 **校验脚本**:`python3 {SKILL_ROOT}/templates/verify-ac.py {Feature}` · test-complete 自动跑 ·
+> 校验 AC↔Test 覆盖完整性(同 blueprint stage · 此处再跑一次防 dev 阶段 TC 漏改)
+
 ### `TEST-REPORT.md`
 §integration / §api-e2e / §AC 覆盖 / §回归
 
