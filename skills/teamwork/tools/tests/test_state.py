@@ -1165,6 +1165,91 @@ class TestPanoramaArtifactEvidence(unittest.TestCase):
         self.assertFalse(ok)
         self.assertIn("UI.md", err)
 
+    # ── v8.17:全景为唯一权威(pages_changed[] 优先)──
+
+    def _write_ui_with_pages_changed(self, pages_changed_yaml: str,
+                                     medium: str = "static-html") -> None:
+        """写 UI.md 含 frontmatter pages_changed[] · 走 v8.17 新模式。"""
+        lines = [
+            "---",
+            "pages:",
+            "  - {id: offers, title: \"Offers\"}",
+            f"panorama_medium: {medium}",
+            "panorama_path: panorama-root",
+            "pages_changed:",
+            pages_changed_yaml,
+            "---",
+            "# UI",
+        ]
+        (self.tmp / "UI.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    def test_v817_pages_changed_with_existing_file_passes(self):
+        """v8.17:pages_changed[] 有 · panorama_file 存在 → PASS(全景为权威 · 不要求 Feature preview/)。"""
+        from _v8_stage_specs import _evidence_panorama_artifact
+        # 创建全景文件(用绝对路径避免 git toplevel 依赖)
+        panorama_file = self.tmp / "panorama-root" / "preview" / "offers.html"
+        panorama_file.parent.mkdir(parents=True)
+        panorama_file.write_text("<html></html>", encoding="utf-8")
+        # pages_changed[].panorama_file 用绝对路径
+        self._write_ui_with_pages_changed(
+            "  - {page_id: offers, panorama_file: " + str(panorama_file) +
+            ", change_range: \"filter\"}"
+        )
+        ok, err = _evidence_panorama_artifact({}, self._args())
+        self.assertTrue(ok, err)
+        # Feature 内无 preview/ 副本也 PASS(关键 · 全景为权威)
+        self.assertFalse((self.tmp / "preview").exists())
+
+    def test_v817_pages_changed_missing_file_fails(self):
+        """v8.17:pages_changed[].panorama_file 不存在 → FAIL with missing list。"""
+        from _v8_stage_specs import _evidence_panorama_artifact
+        self._write_ui_with_pages_changed(
+            "  - {page_id: offers, panorama_file: " + str(self.tmp) +
+            "/nonexistent/offers.html, change_range: \"filter\"}"
+        )
+        ok, err = _evidence_panorama_artifact({}, self._args())
+        self.assertFalse(ok)
+        self.assertIn("不存在", err)
+        self.assertIn("offers", err)
+
+    def test_v817_pages_changed_missing_page_id_fails(self):
+        """v8.17:schema 缺 page_id → FAIL。"""
+        from _v8_stage_specs import _evidence_panorama_artifact
+        self._write_ui_with_pages_changed(
+            "  - {panorama_file: /tmp/x.html}"  # 缺 page_id
+        )
+        ok, err = _evidence_panorama_artifact({}, self._args())
+        self.assertFalse(ok)
+        self.assertIn("page_id", err)
+
+    def test_v817_pages_changed_missing_panorama_file_fails(self):
+        """v8.17:schema 缺 panorama_file → FAIL。"""
+        from _v8_stage_specs import _evidence_panorama_artifact
+        self._write_ui_with_pages_changed(
+            "  - {page_id: offers}"  # 缺 panorama_file
+        )
+        ok, err = _evidence_panorama_artifact({}, self._args())
+        self.assertFalse(ok)
+        self.assertIn("panorama_file", err)
+
+    def test_v817_new_mode_overrides_old(self):
+        """v8.17 新模式触发后 · 不再 fallback 老模式(即使 Feature 内有 preview/*.html)。
+
+        证:即使 Feature 内有 preview/page1.html(老模式会 PASS)· 但新模式 panorama_file
+        不存在时还是 FAIL · 不会被老路径绕过。
+        """
+        from _v8_stage_specs import _evidence_panorama_artifact
+        # Feature 内有老 preview · 但 pages_changed[] 指的全景文件不存在
+        (self.tmp / "preview").mkdir()
+        (self.tmp / "preview" / "page1.html").write_text("<html></html>",
+                                                          encoding="utf-8")
+        self._write_ui_with_pages_changed(
+            "  - {page_id: offers, panorama_file: /tmp/nonexistent/x.html}"
+        )
+        ok, err = _evidence_panorama_artifact({}, self._args())
+        self.assertFalse(ok, "新模式优先 · 不该 fallback 到老 preview/")
+        self.assertIn("panorama_file", err)
+
 
 class TestPanoramaSyncStage(unittest.TestCase):
     """panorama_sync 条件 stage(从 ui_design step 4 隐式动作拆出)·

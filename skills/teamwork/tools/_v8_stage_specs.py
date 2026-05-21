@@ -638,18 +638,32 @@ def _ui_design_transition(state: dict) -> Optional[str]:
 
 
 def _evidence_panorama_artifact(state: dict, args) -> tuple[bool, str]:
-    """按 UI.md frontmatter `panorama_medium` 校验 panorama 产物(治本 PTR-F052 case)。
+    """按 UI.md frontmatter 校验 panorama 产物。
 
-    - `same-stack`:panorama 在项目前端栈内(/design/* 路由 + mock data)·
-                    不要求 `preview/*.html` 存在 · PASS
-    - `static-html`(或缺省):要求 `preview/*.html` ≥ 1
-    - 详 stages/ui-design-stage.md § Panorama 介质类型
+    v8.17(全景为唯一权威)· 治本 PTR-F052 双副本不一致 + PTR-F054 介质绕路 case:
+      - **新模式**(推荐 · 有 `pages_changed[]` 字段):全景为权威 · Feature 不存副本 ·
+        校验每个 pages_changed[].panorama_file 真实存在(panorama_path 内)
+      - **老模式**(向后兼容 · 无 `pages_changed[]`):按 `panorama_medium` 走
+          - `same-stack`:不要求 preview/*.html · PASS
+          - `static-html`(或缺省):要求 Feature 内 preview/*.html ≥ 1
+
+    详 stages/ui-design-stage.md § 全景为唯一权威(v8.17)/ § Panorama 介质类型。
     """
     feature_dir = Path(args.feature)
     ui_md = feature_dir / "UI.md"
     if not ui_md.exists():
         return False, f"UI.md 不存在{_template_hint('UI.md')}"
     fm = parse_frontmatter(ui_md) or {}
+
+    # v8.17 新模式:全景为唯一权威(有 pages_changed[])
+    pages_changed = fm.get("pages_changed")
+    if pages_changed and isinstance(pages_changed, list):
+        ok, err = _check_pages_changed_authority(feature_dir, fm, pages_changed)
+        if not ok:
+            return False, err
+        return True, ""
+
+    # 老模式:按 panorama_medium 走(向后兼容)
     medium = fm.get("panorama_medium", "static-html")
     if medium not in ("same-stack", "static-html"):
         return False, (f"panorama_medium={medium!r} 非法 · 应 same-stack 或 static-html "
@@ -661,7 +675,175 @@ def _evidence_panorama_artifact(state: dict, args) -> tuple[bool, str]:
     if not preview_dir.exists() or not list(preview_dir.glob("*.html")):
         return False, (
             "panorama_medium=static-html · 需要 preview/*.html ≥ 1 · "
-            "(若是 same-stack 项目 · UI.md frontmatter 改 panorama_medium: same-stack)"
+            "(若是 same-stack 项目 · UI.md frontmatter 改 panorama_medium: same-stack · "
+            "或 v8.17 推荐:frontmatter 加 pages_changed[] 走全景为权威模式 · "
+            "详 stages/ui-design-stage.md § 全景为唯一权威)"
+        )
+    return True, ""
+
+
+def _parse_flow_style_dict(s: str) -> Optional[dict]:
+    """解析 `{key: value, key: value}` 简易 flow style dict · 失败返 None。
+
+    支持:scalar value(string · 含引号)· list `[a, b, c]`。
+    不支持:嵌套 dict / 多行 string。
+    用途:teamwork frontmatter 常用 flow style `{k: v, k: v}`(parse_frontmatter
+    简易解析器存为 string · 此 helper 在 evidence 检查时局部解析)。
+    """
+    s = s.strip()
+    if not (s.startswith("{") and s.endswith("}")):
+        return None
+    body = s[1:-1].strip()
+    if not body:
+        return {}
+    # 分割 commas · 跳过引号 / 嵌套括号内的
+    parts: list = []
+    current = ""
+    in_quote: Optional[str] = None
+    depth = 0
+    for ch in body:
+        if in_quote:
+            current += ch
+            if ch == in_quote:
+                in_quote = None
+        elif ch in ('"', "'"):
+            in_quote = ch
+            current += ch
+        elif ch in "[{":
+            depth += 1
+            current += ch
+        elif ch in "]}":
+            depth -= 1
+            current += ch
+        elif ch == "," and depth == 0:
+            parts.append(current.strip())
+            current = ""
+        else:
+            current += ch
+    if current.strip():
+        parts.append(current.strip())
+
+    result: dict = {}
+    for part in parts:
+        if ":" not in part:
+            return None
+        k, _, v = part.partition(":")
+        k = k.strip()
+        v = v.strip()
+        # 去引号
+        if (v.startswith('"') and v.endswith('"')) or (v.startswith("'") and v.endswith("'")):
+            v = v[1:-1]
+        elif v.startswith("[") and v.endswith("]"):
+            # 简易 list 解析(scalar items)
+            inner = v[1:-1].strip()
+            if inner:
+                items = []
+                buf = ""
+                iq: Optional[str] = None
+                for ch in inner:
+                    if iq:
+                        buf += ch
+                        if ch == iq:
+                            iq = None
+                    elif ch in ('"', "'"):
+                        iq = ch
+                        buf += ch
+                    elif ch == ",":
+                        items.append(buf.strip().strip('"').strip("'"))
+                        buf = ""
+                    else:
+                        buf += ch
+                if buf.strip():
+                    items.append(buf.strip().strip('"').strip("'"))
+                v = items
+            else:
+                v = []
+        result[k] = v
+    return result
+
+
+def _coerce_pages_changed_items(pages_changed: list) -> list:
+    """把 pages_changed[] 各项归一为 dict(容错 parse_frontmatter 把 flow style 存为 string)。
+
+    返回归一后 list of dict · 无法解析的 item 保留原值(后续 schema 校验时报错)。
+    """
+    out: list = []
+    for item in pages_changed:
+        if isinstance(item, dict):
+            out.append(item)
+        elif isinstance(item, str):
+            parsed = _parse_flow_style_dict(item)
+            out.append(parsed if parsed is not None else item)
+        else:
+            out.append(item)
+    return out
+
+
+def _check_pages_changed_authority(feature_dir: Path, fm: dict,
+                                    pages_changed: list) -> tuple[bool, str]:
+    """v8.17:校验 pages_changed[].panorama_file 真实存在(全景为权威模式)。
+
+    schema:
+      pages_changed:
+        - page_id: <str>            # 必 · 对应 frontmatter pages[].id
+          panorama_file: <path>     # 必 · 全景权威文件路径(绝对 / 相对仓库根)
+          change_range: <str>        # 可选 · 本 Feature 改动描述
+          acceptance_criteria_refs:  # 可选 · 关联 AC
+            - <AC-id>
+
+    校验:每条 pages_changed[].panorama_file 在 git 仓库内真实存在。
+    支持 flow style(`{key: value, ...}`)· parse_frontmatter 把 flow style 存为
+    string · 此处 _coerce_pages_changed_items 局部解析为 dict。
+    """
+    if not pages_changed:
+        return False, "pages_changed[] 为空 · 全景为权威模式至少 1 条"
+
+    # 归一 flow style string → dict
+    pages_changed = _coerce_pages_changed_items(pages_changed)
+
+    # 算 git 仓库根(相对路径 resolve 用)
+    import subprocess
+    repo_top = None
+    try:
+        r = subprocess.run(
+            ["git", "-C", str(feature_dir), "rev-parse", "--show-toplevel"],
+            capture_output=True, text=True, timeout=5,
+        )
+        if r.returncode == 0 and r.stdout.strip():
+            repo_top = Path(r.stdout.strip())
+    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+        pass
+
+    missing: list = []
+    schema_errors: list = []
+    for idx, pc in enumerate(pages_changed):
+        if not isinstance(pc, dict):
+            schema_errors.append(f"pages_changed[{idx}] 不是 dict(也无法解析 flow style)")
+            continue
+        page_id = pc.get("page_id")
+        pf_raw = pc.get("panorama_file")
+        if not page_id:
+            schema_errors.append(f"pages_changed[{idx}] 缺 page_id")
+            continue
+        if not pf_raw:
+            schema_errors.append(f"pages_changed[{idx}] page_id={page_id!r} 缺 panorama_file")
+            continue
+        pf_path = Path(pf_raw)
+        if not pf_path.is_absolute():
+            # 相对路径 · 用 repo_top 算绝对
+            if repo_top:
+                pf_path = (repo_top / pf_raw).resolve()
+            else:
+                pf_path = (feature_dir / pf_raw).resolve()  # 兜底
+        if not pf_path.exists():
+            missing.append(f"{page_id}({pf_raw})")
+
+    if schema_errors:
+        return False, "pages_changed[] schema 错误:" + " · ".join(schema_errors)
+    if missing:
+        return False, (
+            f"pages_changed[].panorama_file 不存在: {missing} · "
+            f"全景权威文件应在 panorama_path 下 · 检查路径或先建文件"
         )
     return True, ""
 

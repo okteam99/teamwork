@@ -1,5 +1,76 @@
 # Changelog
 
+## v8.17 · Panorama 全景为唯一权威(Feature 不存副本 · 治本 PTR-F052 双副本不一致)
+
+> 用户提议:「先 feature 内设计再改全景」是否改为「直接以全景为准 · Feature 执行过程中直接改全景设计」?
+> 评估后选 **方案 C**(全景为唯一权威 · 保留双 stage)· 不合并 stage(评审视角分层/Feature 局部决策记录/不 breaking)。
+
+### 根因(实证 case)
+
+- **PTR-F052(Panorama Brand Teal)**:Feature 内 `preview/offers.html` 副本与 panorama 权威版本必然脱节 · 4 轮调像素仍有差异(static-html 介质 dirty state)
+- **PTR-F054(Offers Filter Refactor)**:case-AI 走 "改项目共享 panorama + Feature 目录放一份副本" 流程 · 工作量重复 + 易漏 + 副本永远第二手
+
+### 修复(v8.17 · 4 件)
+
+#### 1. `_evidence_panorama_artifact` 双模式(_v8_stage_specs.py)
+
+- **新模式**(优先):UI.md frontmatter 有 `pages_changed[]` → 校验每个 `panorama_file` 真实存在(全景权威 · Feature 不要求 preview/ 副本)
+- **老模式**(向后兼容):无 `pages_changed[]` → 走 `panorama_medium` 判定(same-stack PASS · static-html 要 Feature 内 preview/*.html ≥ 1)
+- 新加 `_check_pages_changed_authority` + `_coerce_pages_changed_items` + `_parse_flow_style_dict`(支持 frontmatter flow style `{k: v, k: v}` 局部解析 · 不引 yaml 依赖)
+
+#### 2. `templates/ui.md` frontmatter 加 `pages_changed[]` schema
+
+```yaml
+panorama_path: apps/partner/docs/design        # 全景权威根
+pages_changed:                                  # v8.17 新模式
+  - page_id: offers
+    panorama_file: apps/partner/docs/design/preview/offers.html  # 唯一权威路径
+    change_range: "Tabs 与 Table 之间新增 filter 区"
+    acceptance_criteria_refs: [AC-1, AC-3]
+```
+
+预览索引段:从 "Feature 内 preview/page1.html" 改为 "全景权威路径"。HTML 预览模板段:推荐落 panorama_path/preview/ · 不在 Feature。
+
+#### 3. `stages/ui-design-stage.md` 加 § 全景为唯一权威(v8.17)
+
+- 新模式 schema + 流程 + 与老模式对比表
+- § 怎么做 step 3 加新模式路径(static-html → 直接编辑全景 panorama_path/preview/<page>.html · Feature 不存副本)
+- 向后兼容说明(老 Feature 不强迁)
+
+#### 4. `stages/panorama-sync-stage.md` 重写
+
+- 强调:**panorama 文件已在 ui_design 阶段直接改完**(全景权威)· 本 stage 不再"同步副本到全景" · 只做 sitemap.md 节点更新 + architect 评审 + 跨 Feature 协调 summary
+- 老模式(无 pages_changed[])兼容:仍可在本 step 把 Feature 副本同步到全景
+
+### 设计决策(为什么 C 而非 B)
+
+| 维度 | A(现状双副本) | B(合并 stage) | **C(全景权威 + 保留双 stage)** |
+|---|---|---|---|
+| 副本不一致 | ⚠️ 必然 | ✅ 消除 | ✅ 消除 |
+| 流程长度 | 双 stage | 单 stage | 双 stage(保留) |
+| 局部决策痕迹 | UI.md + preview/ | 丢失 | UI.md(pages_changed[]) |
+| 评审视角分层 | 局部 + 全局 | 混合 | 局部 + 全局(保留) |
+| 跨 Feature merge 冲突 | 不冲突(各自副本) | ⚠️ panorama 文件冲突高 | 同 B(项目 SOP 错峰缓解) |
+| breaking change | - | FEATURE_FLOW + state.json | **不 breaking**(stage 链不变) |
+
+### 测试覆盖(+5 test · 0 regression)
+
+`TestPanoramaArtifactEvidence` 加 5 个新 v8.17 测试:
+- `test_v817_pages_changed_with_existing_file_passes`:新模式 panorama_file 存在 → PASS(Feature 内无 preview/ 也 PASS · 关键)
+- `test_v817_pages_changed_missing_file_fails`:panorama_file 不存在 → FAIL
+- `test_v817_pages_changed_missing_page_id_fails`:schema 缺 page_id → FAIL
+- `test_v817_pages_changed_missing_panorama_file_fails`:schema 缺 panorama_file → FAIL
+- `test_v817_new_mode_overrides_old`:新模式触发后不 fallback 老模式(即使 Feature 内有 preview/)
+
+老 6 个 test(老模式 same-stack / static-html / missing UI.md 等)全保留 + 全过 → 向后兼容。
+
+### 后续可做(本版未做)
+
+- `verify-panorama.py` 同步适配新 schema(当前实现仍按老模式判定)· 等下一个 case 触发再补
+- `_evidence_sitemap_updated` 优先读 frontmatter `panorama_path`(目前仅 grep body 行)· 等老 Feature 全迁后清理
+
+---
+
 ## v8.16 · scaffold-hints + admission + state-sync + Micro fix(5 个 case 治本累积)
 
 > 累积 5 个 case 治本 · 全部物化 · 共 +43 test · 0 regression。
