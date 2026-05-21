@@ -1,5 +1,58 @@
 # Changelog
 
+## v8.16 · scaffold-hints + admission + state-sync + Micro fix(5 个 case 治本累积)
+
+> 累积 5 个 case 治本 · 全部物化 · 共 +43 test · 0 regression。
+> 主线:消除 AI 凭概览/历史先例办事 → 工具主动校验 + 主动告知 + 失败兜底。
+
+### 1. PTR-F054 治本:AI 找历史 Feature 抄(`scaffold-hints` · 459937a)
+
+case AI 在 ui_design FAIL 后说"先例清楚(F053)" · 在 blueprint 起草 TC.md 时 find F053(已 ship 清理)· 浪费 round-trip。
+- **`STAGE_TEMPLATES` 常量**(_v8_engine.py) + **`stage-start emit scaffold_hints`**:本/下个 stage 模板路径 + 校验器 + 反模式警示("不要 find 历史 Feature")
+- **`evidence FAIL hint` 加 template 引用**(_v8_stage_specs.py · `_template_hint()`):缺 artifact 时 reason 末尾追加 ` · 起草模板:<abs path>`
+- **`stages/*-stage.md` Output Contract 加 templates 引用**(9 个 stage)
+- **新建 3 个缺失模板**:`templates/{test-report,browser-test-report,pm-note}.md`(从 spec output contract 提炼)
+- **+16 test** TestBuildScaffoldHints / TestTemplateHintSuffix / TestTemplateFilesExist
+
+### 2. 多 Feature 并行 migration 撞号(`Migration 命名规范` · 9426a83)
+
+aon-core 反复出现 `20260520000002_*` 撞号(staging 已有 vs PTR-F035 同时用)。
+- **不上 teamwork 流程工具**(用户判断:项目自规范的事 · 不该跨界)
+- `templates/architecture.md` § database-schema.md 子文档加 **「Migration 命名规范」**:14 位秒级 timestamp + 起号 SOP 3 步(fetch / 查 max / +1s)+ 撞号修复 SOP(git mv + amend + force-with-lease · 不 revert)
+
+### 3. F001 GCP gateway AI 选错 flow_type(`admission judgment` · 5a1646c)
+
+case AI 没读 prepare.md · 漏 §2.1 "方向级业务变更" + "影响 ≥2 BL" 信号 · 把"想做一个 GCP API gateway 服务" 当单 Feature 跑了 goal stage + 写 PRD v0.2 + commit · 用户察觉后只能拆 worktree 销 commit。
+- **关键设计**(用户洞察 · 拒绝 ADMISSION_SIGNALS regex):工具不扫关键词 · 强制 AI 必传 judgment JSON(R0 拆分 · 可枚举的工具校验字段 · 不可枚举的留 AI 内容)
+- **`prepare-check --user-intent + --admission-judgment`**:JSON 必含 sections_reviewed[] / matched_signals[] / recommended_flow_type / ai_rationale 4 字段 · schema 校验 · recommended_flow_type ≠ --flow-type → MISMATCH WARN(不 BLOCK · R0 兜底)
+- **audit jsonl 加 admission 字段** + **init-feature 读 audit MISMATCH → emit admission_warning + state.concerns 留 [WARN]**(不 BLOCK · 让 AI/用户决策)
+- **SKILL.md Mode B 改命令式**("🔴 必先用 Read 工具打开 docs/prepare.md")+ §2.1/§2.2 quick-ref + F001 case 实证引用
+- **prepare.md §0.5 TODO 表 #3 勾掉**(✅ v8.16 已物化 · AI judgment · 非 regex)
+- **+11 test** TestAdmissionJudgment
+
+### 4. SVC-CORE-B006 ship-finalize 主工作区 state.json 不全(`state-sync` step 0 · c255d82)
+
+case ship Phase 2 在主工作区 2 次 FAIL · 用户手工 git pull + 手工 cp worktree state.json 才能续。
+- **根因**:Phase 1 sanitize/push 写 state.json 后不自动 commit(by design · 防 MR chore commit)· 完整态只在 worktree · 主工作区 pull 拉的是合并前快照
+- **`ship-finalize` 加 step 0 state-sync**(`_v8_ship.py` `_step_state_sync`):自动 fetch + ff-pull + 从 worktree 内 state.json 同步完整态(覆盖主工作区不全版本 / 复制不存在的)
+- **SHIP_FINALIZE_STEPS 7 → 8**
+- **`ship-stage.md` §5 表加 step 0** · §12 加 SVC-CORE-B006 实证 case 解释为何 state.json 完整态在 worktree
+- **+8 test** TestStepStateSync(8 场景:可重入 / 复制 / 覆盖 / 双缺 BLOCK / wt 不全 BLOCK / 绝对路径 / scan 兜底 / fetch fail 非致命)
+
+### 5. INFRA-M001 Micro 流程 dev-start 撞 PRD/BUG-REPORT prerequisite(`Micro skip` · e9efd1a)
+
+case Micro 改 1 行 k8s memory 常量 · 撞 `prd_or_bug_report_exists` FAIL —— Micro 流程设计无 spec 文档 · 但 prerequisite 一刀切要求 Feature/Bug 文档。
+- **`_check_prd_or_bug_report` 按 flow_type 分支**:Micro skip / Bug→bugfix/BUG-*.md / Feature/敏捷需求→PRD.md
+- **prerequisite hint + description 同步更新** 显式列 4 个 flow_type 分支
+- **R0 反例复盘**:flow_type 是可枚举 enum · 下游 prerequisite 应按 enum 分支 · 不该一刀切
+- **+8 test** TestPrdOrBugReportPrereq(4 flow_type × 文档存在性组合)
+
+### SKILL.md frontmatter version
+
+`v8.0.0` → `v8.16`(同步 CHANGELOG 编号 · 之前 frontmatter 一直落后)
+
+---
+
 ## v8.15 · 删 RULES.md · 内容拆 SKILL.md(必读软约束)+ MANIFESTO(详细 rationale)
 
 ### 问题
