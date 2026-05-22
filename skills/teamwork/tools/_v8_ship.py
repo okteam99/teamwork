@@ -823,44 +823,72 @@ def _finalize_push_fail(ship: dict, reason: str, msg: str) -> tuple:
 
 def _finalize_push_plumbing(repo_cwd: str, artifact_root: Path,
                             state_json_path: Path, merge_target: str,
-                            state: dict, ship: dict) -> tuple:
-    """git plumbing 把 state.json 推到 origin/<merge_target> · 零 checkout。
+                            state: dict, ship: dict,
+                            extra_files: Optional[list] = None) -> tuple:
+    """git plumbing 把 state.json(+ extra_files)推到 origin/<merge_target> · 零 checkout。
+
+    v8.18 治本 SVC-CORE-F028 case · 改进:
+    - **multi-file 支持**:extra_files=[(repo_rel: str, abs_path: Path), ...] · 一并推
+      (典型:review-log.jsonl)· 推完后 worktree 内这些文件与 commit 一致 · 无 delta
+    - **去自引用**:不再回写 ship.merge_target_finalize_commit(自引用字段)·
+      调用方需要 commit hash 用 emit JSON 顶层 / git log 反查
+    - **预设字段**:调用方应在调本函数前预设 ship.merge_target_pushed_at /
+      merge_target_push_failed=false · 这样它们已含在推的 commit 里 · 推完无 delta
 
     流程:hash-object 建 blob → 临时 GIT_INDEX_FILE read-tree base + update-index
-    换 state.json 条目 → write-tree → commit-tree → push <commit>:<merge_target>。
+    换条目 → write-tree → commit-tree → push <commit>:<merge_target>。
     全程不碰真实 index / 工作区 / HEAD · 不需要 checkout merge_target。
 
-    返回 (ok: bool, warn: str)。失败时已写 ship.merge_target_push_failed*。
+    返回 (ok: bool, warn: str, commit_hash: str)。失败时 commit_hash="" · 已写
+    ship.merge_target_push_failed*(失败路径仍写 · 用户/AI 能看到失败状态)。
     """
     feature_id = state.get("feature_id") or "feature"
+    extra_files = extra_files or []
 
     # 1. state.json 的 repo 相对路径(feature worktree 与 merge_target 同仓 · 路径一致)
     pre = _git(["rev-parse", "--show-prefix"], cwd=str(artifact_root))
     if pre.returncode != 0:
-        return _finalize_push_fail(
+        ok, m = _finalize_push_fail(
             ship, "other",
             f"无法解析 state.json repo 相对路径:{pre.stderr.strip()}")
-    repo_rel = (pre.stdout.strip() + "state.json").lstrip("/")
+        return ok, m, ""
+    repo_prefix = pre.stdout.strip()  # 如 "services/core/docs/features/F028/"
+    repo_rel = (repo_prefix + "state.json").lstrip("/")
+
+    # 整理 push entries:state.json + extra_files(每条算绝对路径 + repo 相对)
+    push_entries: list = [(repo_rel, state_json_path)]
+    for ef_rel_or_abs, ef_abs in extra_files:
+        if ef_abs.exists():
+            # 若 caller 给的是相对(如 "review-log.jsonl") · 拼 repo_prefix
+            if not ef_rel_or_abs.startswith(repo_prefix.lstrip("/")):
+                push_entries.append((repo_prefix + ef_rel_or_abs, ef_abs))
+            else:
+                push_entries.append((ef_rel_or_abs.lstrip("/"), ef_abs))
 
     # 2. base = origin/<merge_target>
     base = _git(["rev-parse", f"origin/{merge_target}"], cwd=repo_cwd)
     if base.returncode != 0:
-        return _finalize_push_fail(
+        ok, m = _finalize_push_fail(
             ship, "other",
             f"无法解析 origin/{merge_target}:{base.stderr.strip()}")
+        return ok, m, ""
     base_commit = base.stdout.strip()
     bt = _git(["rev-parse", f"{base_commit}^{{tree}}"], cwd=repo_cwd)
     if bt.returncode != 0:
-        return _finalize_push_fail(
+        ok, m = _finalize_push_fail(
             ship, "other", f"无法解析 base tree:{bt.stderr.strip()}")
+        return ok, m, ""
     base_tree = bt.stdout.strip()
 
-    # 3. blob(写入共享 object DB)
-    ho = _git(["hash-object", "-w", str(state_json_path)], cwd=repo_cwd)
-    if ho.returncode != 0:
-        return _finalize_push_fail(
-            ship, "other", f"hash-object state.json 失败:{ho.stderr.strip()}")
-    blob = ho.stdout.strip()
+    # 3. hash-object 每个文件 → 共享 object DB
+    blobs: list = []  # [(repo_rel, blob_hash), ...]
+    for prel, pabs in push_entries:
+        ho = _git(["hash-object", "-w", str(pabs)], cwd=repo_cwd)
+        if ho.returncode != 0:
+            ok, m = _finalize_push_fail(
+                ship, "other", f"hash-object {prel} 失败:{ho.stderr.strip()}")
+            return ok, m, ""
+        blobs.append((prel, ho.stdout.strip()))
 
     # 4. 临时 index 构建新 tree(零 checkout · 不碰真实 index / 工作区)
     tmp_dir = tempfile.mkdtemp(prefix="tw-ship-finalize-")
@@ -869,34 +897,40 @@ def _finalize_push_plumbing(repo_cwd: str, artifact_root: Path,
     try:
         rt = _git(["read-tree", base_tree], cwd=repo_cwd, env=env)
         if rt.returncode != 0:
-            return _finalize_push_fail(
+            ok, m = _finalize_push_fail(
                 ship, "other", f"read-tree 失败:{rt.stderr.strip()}")
-        ui = _git(["update-index", "--add", "--cacheinfo",
-                   f"100644,{blob},{repo_rel}"], cwd=repo_cwd, env=env)
-        if ui.returncode != 0:
-            return _finalize_push_fail(
-                ship, "other", f"update-index 失败:{ui.stderr.strip()}")
+            return ok, m, ""
+        for prel, blob in blobs:
+            ui = _git(["update-index", "--add", "--cacheinfo",
+                       f"100644,{blob},{prel}"], cwd=repo_cwd, env=env)
+            if ui.returncode != 0:
+                ok, m = _finalize_push_fail(
+                    ship, "other",
+                    f"update-index {prel} 失败:{ui.stderr.strip()}")
+                return ok, m, ""
         wtr = _git(["write-tree"], cwd=repo_cwd, env=env)
         if wtr.returncode != 0:
-            return _finalize_push_fail(
+            ok, m = _finalize_push_fail(
                 ship, "other", f"write-tree 失败:{wtr.stderr.strip()}")
+            return ok, m, ""
         new_tree = wtr.stdout.strip()
     finally:
         shutil.rmtree(tmp_dir, ignore_errors=True)
 
-    # 5. tree 无变化 → merge_target 上 state.json 已是终态 · 视作已同步
+    # 5. tree 无变化 → merge_target 上已是终态 · 视作已同步
+    # ship.merge_target_pushed_at / failed=false 已由 caller 预设 · 此处不再写
     if new_tree == base_tree:
-        ship["merge_target_pushed_at"] = now_iso()
-        ship["merge_target_push_failed"] = False
-        ship["merge_target_push_failed_reason"] = None
-        return True, ""
+        return True, "", ""
 
-    # 6. commit-tree(单文件 state.json diff · §12 直推例外)
-    msg = f"chore({feature_id}): finalize ship state.json [teamwork ship-finalize]"
+    # 6. commit-tree(单文件 state.json + 状态档 · §12 直推例外)
+    extra_note = f" + {len(extra_files)} state file(s)" if extra_files else ""
+    msg = (f"chore({feature_id}): finalize ship state.json{extra_note} "
+           f"[teamwork ship-finalize]")
     ct = _git(["commit-tree", new_tree, "-p", base_commit, "-m", msg], cwd=repo_cwd)
     if ct.returncode != 0:
-        return _finalize_push_fail(
+        ok, m = _finalize_push_fail(
             ship, "other", f"commit-tree 失败:{ct.stderr.strip()}")
+        return ok, m, ""
     new_commit = ct.stdout.strip()
 
     # 7. push <commit>:<merge_target>
@@ -921,14 +955,11 @@ def _finalize_push_plumbing(repo_cwd: str, artifact_root: Path,
             f"merge_target 上 state.json 仍为合并前快照(phase=pushed)· "
             f"重跑 ship-finalize 可重试 · 或手动同步"
         )
-        return ok, m
+        return ok, m, ""
 
-    # 成功
-    ship["merge_target_pushed_at"] = now_iso()
-    ship["merge_target_push_failed"] = False
-    ship["merge_target_push_failed_reason"] = None
-    ship["merge_target_finalize_commit"] = new_commit
-    return True, ""
+    # 成功:**不再回写自引用字段** · pushed_at / failed=false 已由 caller 预设
+    # 返 commit hash 给 caller(emit JSON 顶层用 · 不持久化 state.json · 治本 v8.18)
+    return True, "", new_commit
 
 
 def _ship_finalize_brief(state: dict, ship: dict, finalize_ok: bool,
@@ -1128,22 +1159,44 @@ def cmd_ship_finalize(args: argparse.Namespace) -> None:
             pass
         completed.append("ship-complete")
 
-    # state.json 落盘(step 5 finalize-push 读这个文件 · 必须先落盘)
-    save_state(state_json_path, state)
+    # v8.18 治本 SVC-CORE-F028 case · step 5 时序重排:
+    # 旧:save → plumbing(回写 finalize_commit / pushed_at)→ save 第二次(留 delta)
+    # 新:预设 pushed_at/failed=false → save → plumbing(不回写 finalize_commit · 也不二次 save)
+    #     成功路径:state.json 已与推的 commit 一致 · worktree 0 delta · 主工作区 ff-pull 可走
+    #     失败路径:plumbing 内部写 failed=true + reason · 走老 save 路径(异常已 emit)
 
-    # ── Step 5:finalize-push(git plumbing · 零 checkout)──────────
+    # ── Step 5:finalize-push(git plumbing · 零 checkout · v8.18 0 delta)──
+    finalize_commit_hash = ""
     if ship.get("merge_target_pushed_at") and not ship.get("merge_target_push_failed"):
         skipped.append("finalize-push")
         finalize_ok = True
+        # 可重入:无需 save(state.json 已与已推的 commit 一致)
+        save_state(state_json_path, state)  # 但 confirm-merged/cleanup/ship-complete 字段需落盘
     else:
-        finalize_ok, fin_warn = _finalize_push_plumbing(
+        # v8.18:预设 pushed_at / failed=false(写进 commit · 推完无 delta)
+        ship["merge_target_pushed_at"] = now_iso()
+        ship["merge_target_push_failed"] = False
+        ship["merge_target_push_failed_reason"] = None
+        # 落盘 · 包含所有 step 1-4 + 预设字段(plumbing 读这个文件 hash)
+        save_state(state_json_path, state)
+
+        # multi-file:state.json + review-log.jsonl(若 exists · 通常 step 4 已 write_review_log_entry)
+        review_log_path = artifact_root / "review-log.jsonl"
+        extra = []
+        if review_log_path.exists():
+            extra.append(("review-log.jsonl", review_log_path))
+
+        finalize_ok, fin_warn, finalize_commit_hash = _finalize_push_plumbing(
             main_wt, artifact_root, state_json_path, merge_target, state, ship,
+            extra_files=extra,
         )
         if finalize_ok:
             completed.append("finalize-push")
+            # 成功路径:不再 save_state(state.json 已与推的 commit 一致 · 0 delta)
         else:
+            # 失败:plumbing 内部已写 failed=true + reason · 此处 save 让 state.json 反映失败状态
             warnings.append(fin_warn)
-        save_state(state_json_path, state)
+            save_state(state_json_path, state)
 
     # ── Step 6:worktree-remove(物理删 · state.json 已推远端 · 不丢)──
     wt_removed = False
@@ -1234,6 +1287,9 @@ def cmd_ship_finalize(args: argparse.Namespace) -> None:
         "current_stage": state.get("current_stage"),
         "finalize_push": ("ok" if finalize_ok
                           else f"failed:{ship.get('merge_target_push_failed_reason')}"),
+        # v8.18:finalize_commit 放 emit 顶层(不持久化 state.json · 治本 SVC-CORE-F028 自引用残留)
+        # AI 想查 audit · 从 emit 看 / git log origin/<merge_target> 反查
+        **({"finalize_commit": finalize_commit_hash} if finalize_commit_hash else {}),
         "worktree_removed": wt_removed,
         # v8.16:state-sync 透明留痕(干了啥)· 治本 SVC-CORE-B006 case
         "state_sync_action": state_sync_action,

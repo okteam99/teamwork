@@ -235,5 +235,150 @@ class TestStepStateSync(unittest.TestCase):
         self.assertIn("fetch FAIL", result["sync_action"])
 
 
+# ─── v8.18 · _finalize_push_plumbing multi-file + 去自引用(治本 SVC-CORE-F028)─
+
+
+class TestFinalizePushPlumbingV818(unittest.TestCase):
+    """v8.18:_finalize_push_plumbing multi-file + 不再回写自引用 finalize_commit。
+
+    治本 SVC-CORE-F028 case:
+    - 旧:plumbing 推后回写 ship.merge_target_finalize_commit = X(X 自己的 hash)→
+      worktree state.json 多这字段 · 但 commit X 内不含 → 必然 delta
+    - 新:不回写自引用 · 调用方预设 pushed_at/failed=false 在 commit 前 · 0 delta
+
+    用 git fake remote 测真实 plumbing 推送(local bare 当 origin)。
+    """
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp(prefix="finalize-v818-"))
+        # bare repo 当 fake remote
+        self.bare = self.tmp / "origin.git"
+        self.bare.mkdir()
+        _git(self.bare, "init", "--bare", "-b", "main")
+        # main repo
+        self.main = self.tmp / "main-repo"
+        self.main.mkdir()
+        _git(self.main, "init", "-b", "main")
+        _git(self.main, "config", "user.email", "test@example.com")
+        _git(self.main, "config", "user.name", "test")
+        _git(self.main, "remote", "add", "origin", str(self.bare))
+        # initial commit with feature dir
+        self.feat_rel = "services/svc/docs/features/F999-test"
+        feat_dir = self.main / self.feat_rel
+        feat_dir.mkdir(parents=True)
+        (feat_dir / "state.json").write_text(
+            json.dumps({"feature_id": "F999-test", "ship": {"phase": "pushed"}},
+                       ensure_ascii=False, indent=2),
+            encoding="utf-8")
+        _git(self.main, "add", "-A")
+        _git(self.main, "commit", "-m", "init feature")
+        _git(self.main, "push", "origin", "main")
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def _setup_ship_state(self, *, with_review_log=True):
+        """模拟 ship 已 sanitize/push 后的状态(state.json 已含 ship.feature_head_commit 等)。"""
+        feat_dir = self.main / self.feat_rel
+        # 改 state.json 到 phase=merged 终态
+        state = {
+            "feature_id": "F999-test",
+            "merge_target": "main",
+            "ship": {
+                "phase": "merged",
+                "feature_head_commit": "abc123",
+                "merge_commit_hash": "def456",
+                # v8.18:caller 预设(在 plumbing 调用前)
+                "merge_target_pushed_at": "2026-05-22T07:00:00Z",
+                "merge_target_push_failed": False,
+                "merge_target_push_failed_reason": None,
+            },
+        }
+        (feat_dir / "state.json").write_text(
+            json.dumps(state, ensure_ascii=False, indent=2),
+            encoding="utf-8")
+        if with_review_log:
+            (feat_dir / "review-log.jsonl").write_text(
+                json.dumps({"stage": "ship", "status": "completed"},
+                           ensure_ascii=False) + "\n",
+                encoding="utf-8")
+        return state
+
+    def _call_plumbing(self, state, with_extra=True):
+        from _v8_ship import _finalize_push_plumbing  # type: ignore
+        feat_dir = self.main / self.feat_rel
+        extra = []
+        if with_extra:
+            rl = feat_dir / "review-log.jsonl"
+            if rl.exists():
+                extra.append(("review-log.jsonl", rl))
+        return _finalize_push_plumbing(
+            str(self.main), feat_dir, feat_dir / "state.json", "main",
+            state, state["ship"], extra_files=extra,
+        )
+
+    def test_returns_commit_hash_not_persisted_to_state(self):
+        """v8.18:成功路径返 (True, "", commit_hash) · 不写 ship.merge_target_finalize_commit。"""
+        state = self._setup_ship_state()
+        ok, warn, commit_hash = self._call_plumbing(state)
+        self.assertTrue(ok, warn)
+        self.assertEqual(warn, "")
+        self.assertEqual(len(commit_hash), 40, f"commit hash 应是 sha-1 长度 · got {commit_hash!r}")
+        # 关键断言:ship dict 不含 merge_target_finalize_commit 自引用字段
+        self.assertNotIn("merge_target_finalize_commit", state["ship"],
+                         "v8.18 不该写自引用 finalize_commit 字段")
+
+    def test_multi_file_pushes_both_state_and_review_log(self):
+        """v8.18:multi-file 模式 · state.json + review-log.jsonl 都进同一 commit。"""
+        state = self._setup_ship_state(with_review_log=True)
+        ok, warn, commit_hash = self._call_plumbing(state, with_extra=True)
+        self.assertTrue(ok, warn)
+        # 验证 origin/main HEAD commit 含两个文件
+        rc, files, _ = _git(self.main, "show", "--stat",
+                            f"origin/main:{self.feat_rel}/review-log.jsonl")
+        # 如果 review-log.jsonl 在 commit 内 · cat-file 应能找到
+        rc2, contents, _ = _git(self.main, "show",
+                                f"origin/main:{self.feat_rel}/review-log.jsonl")
+        self.assertEqual(rc2, 0, "review-log.jsonl 应在 origin/main 内(multi-file push)")
+        self.assertIn("ship", contents)
+
+    def test_no_extra_files_pushes_state_only(self):
+        """无 extra_files · 只推 state.json(向后兼容)。"""
+        state = self._setup_ship_state(with_review_log=False)
+        ok, warn, commit_hash = self._call_plumbing(state, with_extra=False)
+        self.assertTrue(ok, warn)
+        # state.json 必存在
+        rc, _, _ = _git(self.main, "show",
+                        f"origin/main:{self.feat_rel}/state.json")
+        self.assertEqual(rc, 0)
+
+    def test_idempotent_no_change(self):
+        """tree 无变化(state.json 已是终态)→ ok=True · commit_hash 空 · 不再推。"""
+        state = self._setup_ship_state(with_review_log=False)
+        # 先推一次
+        ok1, _, hash1 = self._call_plumbing(state, with_extra=False)
+        self.assertTrue(ok1)
+        self.assertTrue(hash1)
+        # 重跑 · 内容没变 → tree 一致 → 不再生新 commit
+        ok2, _, hash2 = self._call_plumbing(state, with_extra=False)
+        self.assertTrue(ok2)
+        self.assertEqual(hash2, "", "tree 无变化 · 不该生新 commit")
+
+    def test_failure_path_writes_failed_to_ship(self):
+        """push 失败(远程不存在分支)→ plumbing 写 failed=true + reason。"""
+        from _v8_ship import _finalize_push_plumbing  # type: ignore
+        state = self._setup_ship_state()
+        feat_dir = self.main / self.feat_rel
+        # 故意调用一个不存在的 merge_target → base = origin/<x> rev-parse 失败
+        ok, warn, hash_str = _finalize_push_plumbing(
+            str(self.main), feat_dir, feat_dir / "state.json",
+            "nonexistent-branch", state, state["ship"], extra_files=[],
+        )
+        self.assertFalse(ok)
+        self.assertEqual(hash_str, "")
+        # ship.merge_target_push_failed 应被写为 True
+        self.assertTrue(state["ship"]["merge_target_push_failed"])
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

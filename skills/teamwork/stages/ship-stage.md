@@ -127,8 +127,14 @@ confirm-merged 后,状态:
 
 | 流程 | 允许直推的文件 | 允许的字段 |
 |---|---|---|
-| Feature | `state.json`(单文件) | 仅状态字段:`current_stage` / `completed_stages` / `ship.phase` / `ship.shipped` / `ship.merge_*` / `worktree_cleanup` / `completed_at` 等 |
+| Feature | `state.json` + `review-log.jsonl`(v8.18 multi-file) | 仅状态字段:`current_stage` / `completed_stages` / `ship.phase` / `ship.shipped` / `ship.merge_*` / `worktree_cleanup` / `completed_at` 等 |
 | Bug | `BUG-REPORT.md`(单文件) | 仅 frontmatter 元数据:`current_stage` / `phase` / `shipped` / `merge_commit_hash` 等 |
+
+🟢 **v8.18 治本 SVC-CORE-F028 case · 0 delta**:
+- `merge_target_pushed_at` / `merge_target_push_failed=false` **预设在 plumbing 推之前**(写进同一 commit)· 推完 worktree state.json 与 commit 一致 · 无 delta
+- 去掉 `merge_target_finalize_commit` **自引用字段**(commit X 自己的 hash 不可能装进 X)· audit 从 git log 反查 / ship-finalize emit JSON 顶层 `finalize_commit` 字段查
+- `review-log.jsonl` ship stage_completed 行一并 plumbing 推(extra_files)· 不再 worktree 留 delta
+- 旧实现每 Feature 留 ~12 行 delta + 主工作区与 origin 落后 → v8.18 成功路径 **0 delta** · step 7 main-sync ff-pull 直接走
 
 **直推命令**(在主工作区 cwd):
 ```bash

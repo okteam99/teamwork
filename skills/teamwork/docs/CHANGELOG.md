@@ -1,5 +1,72 @@
 # Changelog
 
+## v8.18 · ship-finalize 0 delta(治本 SVC-CORE-F028 自引用残留 · 每 Feature ship 完主工作区干净)
+
+> 用户提问:F028 在主工作区为啥还有未提交的内容 · 是 teamwork 的 ship 流程有问题么?
+> 答:有 · ship-finalize step 5 设计残留 · 每个 Feature ship 完都留 ~12 行 audit delta 在主工作区(state.json + review-log.jsonl 自引用回写)· 历史 B017 甚至专门补 chore commit 收尾。v8.18 根因 fix。
+
+### 根因(precise)
+
+step 5 时序:
+1. `save_state` 写 state.json(ship.phase=merged 等)
+2. `_finalize_push_plumbing` 推 state.json blob → commit X · push 成功
+3. plumbing **内部回写** ship.merge_target_pushed_at / merge_target_finalize_commit = X 到 state dict
+4. `save_state` **第二次写**:把回写后的 ship 字段保存到 worktree state.json
+
+→ commit X 内不含 finalize_commit(自引用不可能)· worktree state.json 含 → 12 行 delta · 永远脏 · step 7 ff-pull 永远 skip · 主工作区累积 N commits 落后 origin。
+
+review-log.jsonl 同理:step 4 写 "ship stage_completed" 行 · 但 plumbing 不推这文件 · worktree 也留 delta。
+
+### 治本(v8.18 · 方案 G:预设 + 去自引用)
+
+#### 1. `_finalize_push_plumbing` 改造(_v8_ship.py · +60 行)
+
+- **multi-file 支持**:新参 `extra_files: list[(repo_rel, abs_path)]` · plumbing 一并推 state.json + review-log.jsonl 进同一 commit
+- **去自引用**:不再回写 `ship.merge_target_finalize_commit` 字段(audit 从 git log 反查 / emit JSON 顶层取)
+- **返回 commit hash**:`return (ok, warn, commit_hash)` · 调用方用 emit · 不持久化
+
+#### 2. `cmd_ship_finalize` step 5 时序重排(_v8_ship.py · +25 行)
+
+- **预设** `ship.merge_target_pushed_at` / `merge_target_push_failed=false` / `merge_target_push_failed_reason=null` **在 plumbing 调用前**(写进同一 commit · 推完无 delta)
+- `save_state` 在 plumbing 前(state.json 已含预设字段)
+- plumbing 推 state.json + review-log.jsonl(若 exists)
+- **成功路径**:不再 `save_state`(state.json 已与推的 commit 一致 · worktree 0 delta)
+- **失败路径**:plumbing 内部写 `failed=true` + reason · `save_state` 写盘让 state 反映失败(此时确有 delta · 但已是异常路径 · 用户/AI 处理)
+
+#### 3. emit JSON 顶层加 `finalize_commit` 字段
+
+AI 想查 audit · 看 ship-finalize emit 输出 / git log origin/<merge_target>。不持久化 state.json。
+
+#### 4. ship-stage.md §12 finalize 直推例外段更新
+
+- 允许直推文件:state.json + review-log.jsonl(multi-file)
+- 加 🟢 v8.18 治本说明(预设 + 去自引用 + multi-file + 0 delta)
+
+### 效果对照
+
+| 路径 | 旧(v8.17 及之前) | 新(v8.18) |
+|---|---|---|
+| 成功路径 worktree delta | ~12 行(state.json + review-log.jsonl) | **0** |
+| 主工作区落后 origin | 累积 N commits / Feature | 0(step 7 ff-pull 直接走) |
+| 自引用字段 | `ship.merge_target_finalize_commit` 写入 | 不写(audit 反查 / emit) |
+| 失败路径 | 写 failed=true(同) | 写 failed=true(同 · 异常路径不变) |
+
+### 测试覆盖(+5 test · 0 regression)
+
+`TestFinalizePushPlumbingV818`(用 bare repo 当 fake origin 测真实 plumbing 推):
+- `test_returns_commit_hash_not_persisted_to_state`:核心断言 · ship dict 不含 finalize_commit 自引用
+- `test_multi_file_pushes_both_state_and_review_log`:multi-file state.json + review-log.jsonl 进同一 commit
+- `test_no_extra_files_pushes_state_only`:向后兼容(单文件 push)
+- `test_idempotent_no_change`:tree 无变化 → 不再生新 commit · 可重入
+- `test_failure_path_writes_failed_to_ship`:失败路径仍写 failed=true(异常路径行为不变)
+
+### 老 Feature 兼容
+
+- 已存的 state.json 含 `ship.merge_target_finalize_commit` 字段:工具不读不报错(只是不再写新的)· 无 breaking
+- ship-finalize 可重入路径(`merge_target_pushed_at` 已存)走 skipped · 走老逻辑(已 push 过的 Feature 重跑不变)
+
+---
+
 ## v8.17 · Panorama 全景为唯一权威(Feature 不存副本 · 治本 PTR-F052 双副本不一致)
 
 > 用户提议:「先 feature 内设计再改全景」是否改为「直接以全景为准 · Feature 执行过程中直接改全景设计」?
