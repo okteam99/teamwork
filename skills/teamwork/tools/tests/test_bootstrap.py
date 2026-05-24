@@ -596,5 +596,108 @@ class TestWriteHostAudit(unittest.TestCase):
         self.assertEqual(p, self.audit_path)  # env 覆盖生效
 
 
+class TestCheckSkillUpdate(unittest.TestCase):
+    """v8.24:bootstrap.check_skill_update · GitHub raw 探测线上版本 + R5 1/2 prompt。
+
+    用 file:// URL 模拟 GitHub raw response · 避免依赖外网。
+    """
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp(prefix="skill-update-"))
+        self.fake_skill_md = self.tmp / "SKILL.md"
+        self._prev = os.environ.get("TEAMWORK_SKILL_UPDATE_URL")
+        os.environ["TEAMWORK_SKILL_UPDATE_URL"] = f"file://{self.fake_skill_md}"
+        sys.path.insert(0, str(TOOLS))
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+        if self._prev is None:
+            os.environ.pop("TEAMWORK_SKILL_UPDATE_URL", None)
+        else:
+            os.environ["TEAMWORK_SKILL_UPDATE_URL"] = self._prev
+
+    def _write_fake_remote(self, version: str):
+        self.fake_skill_md.write_text(
+            f"---\nname: teamwork\nversion: {version}\n---\nbody\n",
+            encoding="utf-8")
+
+    # ── 版本比较 ──
+    def test_up_to_date(self):
+        import bootstrap  # type: ignore
+        self._write_fake_remote("v8.23")
+        d = bootstrap.check_skill_update("v8.23")
+        self.assertEqual(d["status"], "up_to_date")
+        self.assertEqual(d["latest_version"], "v8.23")
+
+    def test_outdated_emits_r5_prompt(self):
+        """治本 case 核心:落后 → emit R5 1/2 选项。"""
+        import bootstrap  # type: ignore
+        self._write_fake_remote("v8.23")
+        d = bootstrap.check_skill_update("v8.21")
+        self.assertEqual(d["status"], "outdated")
+        self.assertEqual(d["latest_version"], "v8.23")
+        self.assertIn("upgrade_prompt", d)
+        # R5 1/2 prompt 关键内容
+        prompt = d["upgrade_prompt"]
+        self.assertIn("v8.21", prompt)
+        self.assertIn("v8.23", prompt)
+        self.assertIn("1.", prompt)  # 选项 1
+        self.assertIn("2.", prompt)  # 选项 2
+        self.assertIn("升级", prompt)
+        self.assertIn("跳过", prompt)
+        self.assertIn("state.py update-skill", prompt)
+
+    def test_local_newer_than_remote_still_up_to_date(self):
+        """本地 > 线上(测试场景 / 用户改了本地)→ up_to_date(不 emit downgrade prompt)。"""
+        import bootstrap  # type: ignore
+        self._write_fake_remote("v8.20")
+        d = bootstrap.check_skill_update("v8.23")
+        self.assertEqual(d["status"], "up_to_date")
+
+    # ── 版本 tuple 比较(防 v8.10 vs v8.9 字符串比较 bug)──
+    def test_version_tuple_compares_numerically(self):
+        """v8.10 > v8.9 · 不是 v8.10 < v8.9(ascii 比较)。"""
+        import bootstrap  # type: ignore
+        self._write_fake_remote("v8.10")
+        d = bootstrap.check_skill_update("v8.9")
+        self.assertEqual(d["status"], "outdated")  # 8.10 真的 > 8.9
+        d2 = bootstrap.check_skill_update("v8.10")
+        self.assertEqual(d2["status"], "up_to_date")
+
+    # ── parse failure ──
+    def test_parse_failed_when_no_version_in_remote(self):
+        import bootstrap  # type: ignore
+        self.fake_skill_md.write_text("no version here", encoding="utf-8")
+        d = bootstrap.check_skill_update("v8.21")
+        self.assertEqual(d["status"], "parse_failed")
+
+    # ── network failure ──
+    def test_network_failure_silent_skip(self):
+        """URL 不存在 → network_failed · 不抛异常 · bootstrap 不阻塞。"""
+        import bootstrap  # type: ignore
+        os.environ["TEAMWORK_SKILL_UPDATE_URL"] = "file:///tmp/nonexistent-xyz.md"
+        d = bootstrap.check_skill_update("v8.21")
+        self.assertEqual(d["status"], "network_failed")
+        self.assertIn("reason", d)
+
+    # ── helper 单元 ──
+    def test_parse_skill_version_extracts_frontmatter(self):
+        import bootstrap  # type: ignore
+        self.assertEqual(
+            bootstrap._parse_skill_version("---\nname: x\nversion: v8.99\n---\n"),
+            "v8.99",
+        )
+        self.assertIsNone(
+            bootstrap._parse_skill_version("no version"),
+        )
+
+    def test_version_tuple_parse(self):
+        import bootstrap  # type: ignore
+        self.assertEqual(bootstrap._version_tuple("v8.23"), (8, 23, 0))
+        self.assertEqual(bootstrap._version_tuple("v8.10"), (8, 10, 0))
+        self.assertEqual(bootstrap._version_tuple("v8.0.5"), (8, 0, 5))
+        self.assertEqual(bootstrap._version_tuple("garbage"), (0, 0, 0))
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

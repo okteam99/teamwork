@@ -523,6 +523,102 @@ def write_bootstrap_marker(project_root: Path, skill_version: str,
         return False
 
 
+# v8.24:skill 自更新检测(GitHub raw · 5s timeout silent · 落后 emit R5 1/2 选项)
+# 治本 PMO 不知道何时升级 · 跨 session 长时间不更新错过治本
+SKILL_UPDATE_RAW_URL = (
+    "https://raw.githubusercontent.com/okteam99/teamwork/main/skills/teamwork/SKILL.md"
+)
+SKILL_UPDATE_TIMEOUT_SEC = 5
+SKILL_UPDATE_URL_ENV = "TEAMWORK_SKILL_UPDATE_URL"  # 测试覆盖用
+
+
+def _parse_skill_version(text: str) -> Optional[str]:
+    """从 SKILL.md frontmatter 抽 version 字段值(`version: vX.Y`)· 失败返 None。"""
+    import re
+    # frontmatter 在文件顶部 · `---\n...version: vX.Y\n...---\n`
+    m = re.search(r"^version:\s*(\S+)\s*$", text, re.MULTILINE)
+    if m:
+        return m.group(1).strip()
+    return None
+
+
+def _version_tuple(v: str) -> tuple:
+    """v8.23 / v8.10 → (8, 23) / (8, 10) · 字符串 vs 字符串 ascii 比较错(10<9)"""
+    import re
+    m = re.match(r"^v?(\d+)\.(\d+)(?:\.(\d+))?$", v.strip())
+    if not m:
+        return (0, 0, 0)  # 无法 parse · 视作最低 · 不阻塞
+    return (int(m.group(1)), int(m.group(2)), int(m.group(3) or 0))
+
+
+def check_skill_update(local_version: str) -> dict:
+    """v8.24:检测 GitHub 上 skill 最新 version · 与本地比较。
+
+    返回 dict:
+      - status: up_to_date / outdated / network_failed / parse_failed
+      - local_version / latest_version
+      - upgrade_prompt(若 outdated · R5 1/2 选项 markdown)
+    """
+    url = os.environ.get(SKILL_UPDATE_URL_ENV) or SKILL_UPDATE_RAW_URL
+
+    # 用 curl(跨平台 + 无 python http 依赖)· 5s timeout · silent
+    try:
+        r = subprocess.run(
+            ["curl", "-s", "-L", "--max-time", str(SKILL_UPDATE_TIMEOUT_SEC), url],
+            capture_output=True, text=True, timeout=SKILL_UPDATE_TIMEOUT_SEC + 2,
+        )
+        if r.returncode != 0 or not r.stdout.strip():
+            return {
+                "status": "network_failed",
+                "local_version": local_version,
+                "latest_version": None,
+                "reason": f"curl exit={r.returncode} · {r.stderr.strip()[:80]}",
+            }
+    except (subprocess.TimeoutExpired, FileNotFoundError, OSError) as e:
+        return {
+            "status": "network_failed",
+            "local_version": local_version,
+            "latest_version": None,
+            "reason": f"curl 不可用 / 超时:{e}",
+        }
+
+    latest = _parse_skill_version(r.stdout)
+    if not latest:
+        return {
+            "status": "parse_failed",
+            "local_version": local_version,
+            "latest_version": None,
+            "reason": "线上 SKILL.md frontmatter 抽不出 version 字段",
+        }
+
+    if _version_tuple(latest) <= _version_tuple(local_version):
+        return {
+            "status": "up_to_date",
+            "local_version": local_version,
+            "latest_version": latest,
+        }
+
+    # outdated → emit R5 1/2 选项
+    prompt = (
+        f"⏸️ teamwork skill 检测到新版本(本地 **{local_version}** · 线上 **{latest}**)\n\n"
+        "请选择:\n\n"
+        "1. ✅ **升级** 💡 推荐\n"
+        "   理由:获取治本 / 新功能 / bug fix\n"
+        "   动作:回 `1` → PMO 跑 `state.py update-skill`"
+        "(git pull · 自动检测脏树 · 失败 BLOCK with hint)\n"
+        "2. ⏭️ **本 session 跳过**\n"
+        "   理由:正在赶进度 / 评估 changelog 后再决定\n"
+        "   动作:回 `2` → 本 session 不再提示(下个 session bootstrap 仍会检测)\n\n"
+        "📚 决策参考:看 GitHub `docs/CHANGELOG.md` 顶部新增段了解变更"
+    )
+    return {
+        "status": "outdated",
+        "local_version": local_version,
+        "latest_version": latest,
+        "upgrade_prompt": prompt,
+    }
+
+
 # v8.21:host audit · 跨 session 全局 host 记忆(治本 PMO 还要传 --host 心智)
 # 落 ~/.teamwork/host_audit.json · state.py 跨命令自动读取 · PMO 心智 -1 参数
 HOST_AUDIT_PATH_ENV = "TEAMWORK_HOST_AUDIT_PATH"
@@ -673,6 +769,16 @@ def cmd_session_bootstrap(args: argparse.Namespace) -> None:
         "status": "written" if host_audit_ok else "write_failed",
         "path": str(_host_audit_path()),
     }
+
+    # v8.24:检测 GitHub 上 skill 最新版本 · 落后 emit R5 1/2 选项暂停点
+    # 网络失败 silent skip 不阻塞 bootstrap · 治本 PMO 不知何时升级
+    if skill_version:
+        result["checks"]["skill_update_check"] = check_skill_update(skill_version)
+    else:
+        result["checks"]["skill_update_check"] = {
+            "status": "skipped",
+            "reason": "本地 skill_version 探测失败 · 无法比较",
+        }
 
     # silent emit JSON · AI 跑后不必 cite · 用户不可见报告
     print(json.dumps(result, ensure_ascii=False, indent=2))

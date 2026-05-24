@@ -2881,6 +2881,135 @@ def cmd_external_review(args: argparse.Namespace) -> None:
     })
 
 
+# ─── v8.24 · update-skill(自更新 · bootstrap 检测后用户回 1 触发)──────
+
+
+def cmd_update_skill(args: argparse.Namespace) -> None:
+    """v8.24:state.py update-skill · git pull skill repo(用户显式 · 不自动突袭)。
+
+    设计:bootstrap 自动检测线上版本 · 落后 emit R5 1/2 选项 · 用户回 1 跑此命令。
+    流程:
+      1. 检测 $SKILL_ROOT 是否 git repo(不是 → BLOCK with hint zip 重装)
+      2. git status --porcelain 检测脏树(脏 → BLOCK 防覆盖本地定制)
+      3. git fetch origin main · 算 ahead/behind
+      4. git pull --ff-only origin main(失败 → BLOCK with hint 手动 rebase)
+      5. emit old_version / new_version / changed_files 摘要 + changelog hint
+    """
+    # skill_root:从 state.py 文件位置反推(同 bootstrap)
+    skill_root = Path(__file__).resolve().parent.parent
+
+    # ── Step 1:检测 git repo ──
+    r = subprocess.run(["git", "-C", str(skill_root), "rev-parse", "--show-toplevel"],
+                       capture_output=True, text=True, timeout=10)
+    if r.returncode != 0:
+        emit({
+            "verdict": "FAIL",
+            "command": "update-skill",
+            "error": f"{skill_root} 不是 git repo · 无法自动 update",
+            "hint": (
+                "skill 是 zip 安装 · 不支持自动 update。\n"
+                "  手动:① 备份本地定制 ② rm -rf {SKILL_ROOT} · "
+                "git clone https://github.com/okteam99/teamwork.git ~/.claude/skills/teamwork"
+            ),
+            "skill_root": str(skill_root),
+        })
+        return
+    git_root = Path(r.stdout.strip())
+
+    # ── Step 2:检测脏树 ──
+    s = subprocess.run(["git", "-C", str(git_root), "status", "--porcelain"],
+                       capture_output=True, text=True, timeout=10)
+    dirty_files = [ln.strip() for ln in s.stdout.splitlines() if ln.strip()]
+    if dirty_files and not args.force:
+        emit({
+            "verdict": "FAIL",
+            "command": "update-skill",
+            "error": f"git 工作树不干净({len(dirty_files)} 个改动)· 拒绝 pull 防覆盖本地定制",
+            "dirty_files": dirty_files[:10],
+            "hint": (
+                "二选一:\n"
+                "  ① 提交 / stash 本地改动后重跑:cd {SKILL_ROOT} · git stash\n"
+                "  ② 确认本地改动可丢弃 · 加 --force 强制 pull(慎用 · 会覆盖)"
+            ),
+            "git_root": str(git_root),
+        })
+        return
+
+    # ── Step 3:读 old version(pull 前) ──
+    skill_md = skill_root / "SKILL.md"
+    old_version = None
+    if skill_md.exists():
+        text = skill_md.read_text(encoding="utf-8", errors="replace")
+        m = re.search(r"^version:\s*(\S+)\s*$", text, re.MULTILINE)
+        if m:
+            old_version = m.group(1).strip()
+
+    # ── Step 4:git fetch + pull --ff-only ──
+    f = subprocess.run(["git", "-C", str(git_root), "fetch", "origin", "main"],
+                       capture_output=True, text=True, timeout=60)
+    if f.returncode != 0:
+        emit({
+            "verdict": "FAIL",
+            "command": "update-skill",
+            "error": f"git fetch origin main 失败:{f.stderr.strip()[:200]}",
+            "hint": "检查网络 / origin remote · 修复后重跑",
+        })
+        return
+
+    p = subprocess.run(["git", "-C", str(git_root), "pull", "--ff-only", "origin", "main"],
+                       capture_output=True, text=True, timeout=60)
+    if p.returncode != 0:
+        emit({
+            "verdict": "FAIL",
+            "command": "update-skill",
+            "error": f"git pull --ff-only failed:{p.stderr.strip()[:200]}",
+            "hint": (
+                "本地分叉 / 冲突 · 手动 rebase 或 reset:\n"
+                f"  cd {git_root} · git status · git log HEAD..origin/main · "
+                "评估后 git rebase origin/main 或丢弃本地 git reset --hard origin/main(慎)"
+            ),
+        })
+        return
+
+    # ── Step 5:读 new version + diff 摘要 ──
+    new_version = None
+    if skill_md.exists():
+        text = skill_md.read_text(encoding="utf-8", errors="replace")
+        m = re.search(r"^version:\s*(\S+)\s*$", text, re.MULTILINE)
+        if m:
+            new_version = m.group(1).strip()
+
+    # 算 changed files(老 HEAD vs 新 HEAD · pull 前后 diff)
+    # pull 之后 HEAD 已变 · 用 ORIG_HEAD 拿 pull 前的 commit
+    d = subprocess.run(["git", "-C", str(git_root), "diff", "--stat",
+                        "ORIG_HEAD..HEAD"],
+                       capture_output=True, text=True, timeout=15)
+    changed_files_stat = d.stdout.strip() if d.returncode == 0 else ""
+    # 算 commit 数(pull 拉了多少新 commit)
+    c = subprocess.run(["git", "-C", str(git_root), "rev-list", "--count",
+                        "ORIG_HEAD..HEAD"],
+                       capture_output=True, text=True, timeout=15)
+    new_commit_count = int(c.stdout.strip()) if c.returncode == 0 and c.stdout.strip().isdigit() else 0
+
+    same_version = old_version == new_version
+    emit({
+        "verdict": "OK",
+        "command": "update-skill",
+        "old_version": old_version,
+        "new_version": new_version,
+        "version_changed": not same_version,
+        "new_commit_count": new_commit_count,
+        "changed_files_stat": changed_files_stat[-2000:] if changed_files_stat else "",
+        "git_root": str(git_root),
+        "next_hint": (
+            f"✅ 升级 {old_version} → {new_version}({new_commit_count} 个新 commit)· "
+            f"查 {git_root}/skills/teamwork/docs/CHANGELOG.md 顶部新版本段了解变更。"
+            if not same_version else
+            f"已在最新版本 {new_version} · 无变化"
+        ),
+    })
+
+
 def cmd_audit_raw_writes(args: argparse.Namespace) -> None:
     """v8.12:跨 Feature 汇总所有 raw-write 历史 · 帮助识别状态机缺口。
 
@@ -3333,6 +3462,16 @@ def build_parser() -> argparse.ArgumentParser:
     er.add_argument("--dry-run", action="store_true",
                     help="只输出将跑的命令 + 校验 · 不实际调 CLI(供 debug / preview)")
     er.set_defaults(func=cmd_external_review)
+
+    # v8.24:update-skill · 自更新(bootstrap 检测后用户回 1 触发)
+    us = sub.add_parser(
+        "update-skill",
+        help=("[v8.24] git pull skill repo · 升级到 GitHub 最新版本 · "
+              "脏树 BLOCK 防覆盖本地定制 · 用户显式跑(bootstrap 检测后回 1 触发)"),
+    )
+    us.add_argument("--force", action="store_true",
+                    help="脏树时强制 pull(慎用 · 会覆盖本地未提交改动)")
+    us.set_defaults(func=cmd_update_skill)
 
     # ─── v8.0 stage 命令注册(Code-driven Orchestration) ─────────────
     # 设计文档:docs/v8-redesign/00-MANIFESTO.md

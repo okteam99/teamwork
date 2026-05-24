@@ -1,5 +1,123 @@
 # Changelog
 
+## v8.24 · teamwork 自更新(bootstrap 检测线上版本 · R5 1/2 选项 · 用户回 1 触发 state.py update-skill)
+
+> 用户提议:我们是否能做到 teamwork 自更新 · 即检测到本地版本低于线上 · 更新 SKILL.md 以及相关的 md。
+> 决策:检测通知 + R5 1/2 选项 · 用户回 1=升级 / 2=本 session 跳过。**不突袭自动 update**(与 v8.x 其他物化同型:工具自动校验 · 用户决策点保留)。
+
+### 设计:两层分离(防突袭)
+
+| 层 | 谁执行 | 行为 |
+|---|---|---|
+| **检测层** | `bootstrap.py`(自动)| 用 GitHub raw 拿线上 SKILL.md frontmatter version · 与本地比较 · 落后 → emit R5 1/2 prompt 不阻塞 |
+| **更新层** | `state.py update-skill`(用户回 1 显式跑) | git pull · 检测安装方式 · 拒绝脏树 · pull 后 emit diff 摘要 |
+
+### 1. bootstrap.py 加 `check_skill_update`
+
+```python
+def check_skill_update(local_version: str) -> dict:
+    # curl https://raw.githubusercontent.com/okteam99/teamwork/main/skills/teamwork/SKILL.md
+    # (5s timeout · silent skip on failure · 不阻塞 bootstrap)
+    # 解析 frontmatter version · 比较本地
+    # 返 dict:status (up_to_date / outdated / network_failed / parse_failed) +
+    #         local_version / latest_version + upgrade_prompt (若 outdated)
+```
+
+`_version_tuple()` helper:**numeric 比较防 v8.10 < v8.9 字符串 ascii bug**(`v8.10` → `(8, 10, 0)`)。
+
+`SKILL_UPDATE_URL_ENV = "TEAMWORK_SKILL_UPDATE_URL"`(测试覆盖用 · file:// URL 模拟)。
+
+### 2. emit R5 1/2 选项 markdown
+
+落后时 emit:
+
+```markdown
+⏸️ teamwork skill 检测到新版本(本地 **v8.21** · 线上 **v8.23**)
+
+请选择:
+
+1. ✅ **升级** 💡 推荐
+   理由:获取治本 / 新功能 / bug fix
+   动作:回 `1` → PMO 跑 `state.py update-skill`(git pull · 自动检测脏树 · 失败 BLOCK with hint)
+2. ⏭️ **本 session 跳过**
+   理由:正在赶进度 / 评估 changelog 后再决定
+   动作:回 `2` → 本 session 不再提示(下个 session bootstrap 仍会检测)
+
+📚 决策参考:看 GitHub `docs/CHANGELOG.md` 顶部新增段了解变更
+```
+
+### 3. `state.py update-skill` 命令(用户回 1 触发)
+
+5 步:
+
+```
+1. 检测 $SKILL_ROOT 是否 git repo
+   ├── 不是 → BLOCK with hint("zip 安装 · 手动 git clone 重装")
+   └── 是 → 继续
+2. git status --porcelain 检测脏树
+   ├── 有改动 → BLOCK with hint("commit / stash 后重跑 · 或 --force 强制覆盖")
+   └── 干净 → 继续
+3. git fetch origin main
+   └── 失败 → BLOCK(网络问题)
+4. git pull --ff-only origin main
+   └── 失败(分叉)→ BLOCK with hint(手动 rebase / reset --hard 慎用)
+5. emit:
+   - old_version / new_version / version_changed
+   - new_commit_count(ORIG_HEAD..HEAD)
+   - changed_files_stat(git diff --stat ORIG_HEAD..HEAD)
+   - next_hint(查 CHANGELOG.md 顶部新版本段)
+```
+
+`--force` flag:脏树时强制 pull(慎用 · 会覆盖本地未提交改动)。
+
+### 4. bootstrap emit 加 `checks.skill_update_check` 段
+
+bootstrap 主流程末尾(host_audit 之后)调 check_skill_update · 结果挂 `result["checks"]["skill_update_check"]` · PMO 看到 status=outdated 直接 emit upgrade_prompt 给用户。
+
+### 5. 失败行为(防阻塞)
+
+| 场景 | 行为 |
+|---|---|
+| 网络不通 | `status=network_failed` · silent · bootstrap 继续 |
+| GitHub SKILL.md frontmatter parse 失败 | `status=parse_failed` · silent · 不阻塞 |
+| 本地 skill_version 探测失败 | `status=skipped` · silent · 不阻塞 |
+| 5s timeout 超 | `status=network_failed` · silent · 不阻塞 |
+
+→ bootstrap 即使断网也能跑(只是 update 检测段标 skipped)。
+
+### 测试覆盖(+8 · 0 regression)
+
+`TestCheckSkillUpdate`(用 `file://` URL 模拟 GitHub raw · 不依赖外网):
+- `test_up_to_date` / `test_outdated_emits_r5_prompt`(R5 1/2 完整内容断言)
+- `test_local_newer_than_remote_still_up_to_date`(测试场景兼容)
+- `test_version_tuple_compares_numerically`:**v8.10 > v8.9** numeric 比较防 ascii bug
+- `test_parse_failed_when_no_version_in_remote` / `test_network_failure_silent_skip`
+- `test_parse_skill_version_extracts_frontmatter` / `test_version_tuple_parse` helper 单元
+
+### 用户体验
+
+```
+$ /teamwork
+(bootstrap silent 跑 · ~2s)
+PMO 收到 emit JSON · 看到 checks.skill_update_check.status=outdated:
+
+⏸️ teamwork skill 检测到新版本(本地 **v8.21** · 线上 **v8.24**)
+请选择:
+1. ✅ 升级 💡 推荐
+2. ⏭️ 本 session 跳过
+
+用户回 1:
+$ state.py update-skill
+✅ 升级 v8.21 → v8.24(3 个新 commit)
+查 /Users/liam/.../skills/teamwork/docs/CHANGELOG.md 顶部新版本段了解变更。
+```
+
+### SKILL.md frontmatter
+
+`v8.23` → `v8.24`
+
+---
+
 ## v8.23 · external-review codex 调用改 PROMPT 模式(治本 F035 case · 修 v8.20 调用方式 bug)
 
 > F035 PRD external review case:case-AI 跑 `state.py external-review --stage goal` · 命中 codex CLI flag 兼容性问题(`--commit X --base Y` 互斥)· 改用手工 `codex review --base staging --title "..." --config "model=gpt-5-codex" "<PROMPT>"` 才跑通。
