@@ -119,6 +119,33 @@ state.py prepare-check --feature-id-prefix <PROJ> --flow-type <Feature|Bug|Micro
 PMO 把数据填进暂停点表格:
 - `next_available_id_stem` → artifact ID 推荐默认值
 - `stage_chain_preview` → 渲染「📋 各 stage 评审角色」子表(详 §4 emit 模板)
+- 🔴 `reviewer_thinking_checklist`(v8.27)→ **必基于 4 问思考 + 给出加减预估**(不直接抄 stage_chain_preview 默认)
+
+🔴 **评审角色思考清单**(v8.27 治本 F-Bv2-8 PMO 直接抄默认 case):
+
+prepare-check 输出 `reviewer_thinking_checklist` 4 个核心问题 · PMO 在 emit prepare 暂停点的「建议评审角色」段时必基于此思考:
+
+| # | 问题 | 命中调整 |
+|---|---|---|
+| Q1 | 涉及 ROADMAP 拆分 / Feature 优先级决策? | 否 → goal 去 pl |
+| Q2 | 含 UI 改动? | 否 → ui_design 跳过 + browser_e2e 跳过 |
+| Q3 | 跨 ≥3 module 触发点 / 调用方? | 是 → blueprint / review 强 external(异质模型查漏触发) |
+| Q4 | 数据模型重构(删/改老字段 · 表结构变)? | 是 → blueprint 强 architect + 加 dba 评审 |
+
+**case 实证**(F-Bv2-8 · 2026-05-25):PMO 第一次直接抄默认 · 经用户提示 "你的建议评审角色思考了么" 后二次思考才识别 goal 去 pl / ui_design 跳过 / blueprint 强 external 等调整。
+
+🔴 emit prepare 暂停点 「建议评审角色」段格式(必含调整理由列):
+
+```markdown
+建议评审角色 🔴(基于 reviewer_thinking_checklist 思考 · 见调整理由)
+
+| stage | 必/选 | 评审角色(调整后) | 调整理由(cite 4 问命中) |
+|---|---|---|---|
+| goal | 必 | pm, qa, architect, external(去 pl) | Q1 无 ROADMAP 拆分(Master Plan 已预 Planning) |
+| ui_design | 跳过 | — | Q2 后端先行 · UI 留 PTR 子 Feature |
+| blueprint | 必 | qa, architect, **external 🔴 强** | Q3 跨 5 module 触发点 · 异质模型查漏 |
+| ... | ... | ... | ... |
+```
 
 ---
 

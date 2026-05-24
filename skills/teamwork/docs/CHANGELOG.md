@@ -1,5 +1,104 @@
 # Changelog
 
+## v8.27 · prepare-check 加 reviewer_thinking_checklist(治本 F-Bv2-8 PMO 直接抄默认 reviewers case)
+
+> F-Bv2-8 case 触发:PMO 第一次直接抄 `prepare-check stage_chain_preview` 的默认 reviewers · 没结合 Feature 特征思考加减。
+> 用户提示 "你的建议评审角色思考了么" 后 · PMO 二次输出加思考(goal 去 pl / ui_design 跳过 / blueprint 强 external)· 真正的产品思维。
+> 治本:prepare-check 输出加 `reviewer_thinking_checklist` 4 核心问题 · 软提示 PMO 必基于此给思考后的预估 · 不直接抄默认。
+
+### 用户决策
+
+| 选项 | 用户选 |
+|---|---|
+| 治本范围 | **A · 软提示**(不物化 JSON 必传 · 不像 v8.15 admission_judgment) |
+| checklist 问题数 | **核心 4 问**(不过载) |
+
+### 4 核心问题(覆盖最高频 reviewer 调整维度)
+
+| # | 问题 | 命中调整 |
+|---|---|---|
+| Q1 | 涉及 ROADMAP 拆分 / Feature 优先级决策? | 否 → goal 去 pl(PL 评审价值低) |
+| Q2 | 含 UI 改动? | 否 → ui_design 跳过 + browser_e2e 跳过 |
+| Q3 | 跨 ≥3 module 触发点 / 调用方? | 是 → blueprint / review 强 external(异质模型查漏触发) |
+| Q4 | 数据模型重构(删/改老字段 · 表结构变)? | 是 → blueprint 强 architect + 加 dba 评审 |
+
+每问含 `if_yes` + `if_no` 两个调整建议 · PMO 直接对照命中。
+
+### 实现
+
+#### 1. `state.py cmd_prepare_check` 加 payload 段
+
+```python
+REVIEWER_THINKING_CHECKLIST = [
+    {"question": "...", "if_yes": "...", "if_no": "..."},
+    # ...4 个
+]
+
+payload["reviewer_thinking_checklist"] = REVIEWER_THINKING_CHECKLIST
+payload["reviewer_thinking_hint"] = (
+    "🔴 PMO emit prepare 暂停点 「建议评审角色」段 · 必基于此 checklist 4 问思考 + "
+    "给出加减预估 · 不要直接抄 stage_chain_preview 默认值。"
+    "case 实证(F-Bv2-8 · 2026-05-25):PMO 第一次直接抄默认 · 经用户提示后二次思考才识别 "
+    "goal 去 pl / ui_design 跳过 / blueprint 强 external 等调整。"
+)
+```
+
+#### 2. `prepare.md §1.5.4` 加 quick-ref 段
+
+加 4 问表格 + emit 模板("调整理由 cite 4 问命中"列)+ F-Bv2-8 case 实证。
+
+### 与 v8.15 admission_judgment 对比
+
+| 维度 | v8.15 admission(物化)| v8.27 reviewer thinking(软提示)|
+|---|---|---|
+| 必传 JSON? | ✅ `--admission-judgment` 必传 · 缺 BLOCK | ❌ 不必传 |
+| 校验? | 工具校验 schema · MISMATCH WARN | 仅输出 checklist 提示 |
+| audit 留痕? | jsonl 含 admission_judgment | 暂不留痕(仅运行时提示) |
+| 治本强度 | ~85%(物化) | ~50%(软) |
+| 用户决策理由 | "checklist 太重 · 4 问已能触发思考" |
+
+软提示哲学:**信任 AI 看到 checklist 会触发思考**(不强物化 · 不过载 prepare-check 命令)。
+
+### 设计反思:不一定 v8.15 物化模式适用所有场景
+
+v8.15 admission_judgment 物化是因为 PMO 完全不读 prepare.md §2.1 · 必须强制 JSON 必传逼读。
+v8.27 reviewer thinking 不物化是因为 PMO 已经读了 stage_chain_preview(直接 emit 给用户)· 只是思考不够深 · checklist 提示足以触发 · 不需要再加 JSON 必传门槛。
+
+→ **case 性质决定治本强度**:完全不读 → 物化必传;读但思考不深 → 软提示触发。
+
+### 测试覆盖(+4 · 0 regression)
+
+`TestPrepareCheck` 新增 v8.27 4 个:
+- `test_v827_emit_includes_reviewer_thinking_checklist`(payload 含 checklist + hint)
+- `test_v827_checklist_has_4_core_questions`(4 问 · 每问含 question + 至少一个 if_yes/if_no)
+- `test_v827_checklist_covers_core_dimensions`(4 问覆盖 ROADMAP / UI / module / 数据模型重构)
+- `test_v827_hint_cite_f_bv2_8_case`(hint 含 "不要直接抄" + F-Bv2-8 case 实证)
+
+### F-Bv2-8 case 用 v8.27 重跑
+
+```bash
+$ state.py prepare-check --feature-id-prefix SVC-CORE --flow-type Feature ...
+{
+  ...
+  "stage_chain_preview": [...],
+  "reviewer_thinking_checklist": [
+    {"question": "本 Feature 是否涉及 ROADMAP 拆分...", "if_no": "goal stage 去 pl"},
+    {"question": "本 Feature 是否含 UI 改动?", "if_no": "ui_design 跳过..."},
+    {"question": "本 Feature 跨 ≥3 module 触发点?", "if_yes": "blueprint / review 强 external"},
+    {"question": "本 Feature 是否数据模型重构?", "if_yes": "blueprint 强 architect..."}
+  ],
+  "reviewer_thinking_hint": "🔴 PMO emit prepare 暂停点 ... 不要直接抄 ... case 实证 F-Bv2-8..."
+}
+```
+
+→ PMO 第一次就看到 checklist · 触发思考 · 不再"直接抄默认"。
+
+### SKILL.md frontmatter
+
+`v8.26` → `v8.27`
+
+---
+
 ## v8.26 · external-review 各司其职(review→codex review · goal/blueprint→codex exec)
 
 > 用户洞察:代码 review 阶段可以 codex review · 其他 codex exec。

@@ -760,6 +760,43 @@ class TestPrepareCheck(unittest.TestCase):
         # 顺序保留 · 字母不同
         self.assertEqual([r["id_letter"] for r in recs], ["F", "B", "M"])
 
+    # ── v8.27 · reviewer_thinking_checklist(治本 F-Bv2-8 PMO 直接抄默认 case)──
+    def test_v827_emit_includes_reviewer_thinking_checklist(self):
+        """prepare-check emit 必含 reviewer_thinking_checklist 段 + hint。"""
+        d = self._check("Feature")
+        self.assertIn("reviewer_thinking_checklist", d)
+        self.assertIn("reviewer_thinking_hint", d)
+
+    def test_v827_checklist_has_4_core_questions(self):
+        """checklist 4 个核心问题(用户拍板:不过载)。"""
+        d = self._check("Feature")
+        checklist = d["reviewer_thinking_checklist"]
+        self.assertEqual(len(checklist), 4)
+        # 每问含 question + 至少一个调整建议(if_yes / if_no)
+        for i, q in enumerate(checklist):
+            self.assertIn("question", q, f"Q{i+1} 缺 question 字段")
+            self.assertTrue(q.get("if_yes") or q.get("if_no"),
+                            f"Q{i+1} 必含 if_yes 或 if_no 调整建议")
+
+    def test_v827_checklist_covers_core_dimensions(self):
+        """4 问覆盖 ROADMAP / UI / 跨 module / 数据模型重构 4 个维度。"""
+        d = self._check("Feature")
+        all_text = " ".join(
+            q["question"] + (q.get("if_yes", "") or "") + (q.get("if_no", "") or "")
+            for q in d["reviewer_thinking_checklist"]
+        )
+        self.assertIn("ROADMAP", all_text)
+        self.assertIn("UI", all_text)
+        self.assertIn("module", all_text)
+        self.assertIn("数据模型重构", all_text)
+
+    def test_v827_hint_cite_f_bv2_8_case(self):
+        """hint 提示 PMO 不直接抄默认 · cite F-Bv2-8 case 实证。"""
+        d = self._check("Feature")
+        hint = d["reviewer_thinking_hint"]
+        self.assertIn("不要直接抄", hint)
+        self.assertIn("F-Bv2-8", hint)
+
 
 class TestPrepareAuditGate(unittest.TestCase):
     """v8.14:init-feature 物化校验 prepare-check audit · 治本 PTR-F054 case。

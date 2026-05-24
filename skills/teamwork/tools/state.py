@@ -2117,6 +2117,18 @@ def cmd_prepare_check(args: argparse.Namespace) -> None:
     # 注入 payload(consistency / admission_judgment / user_intent / warning if MISMATCH)
     payload.update(admission["payload_extras"])
 
+    # v8.27:reviewer 思考清单(治本 F-Bv2-8 case · PMO 直接抄 stage_chain_preview 默认 reviewers)
+    # 4 个核心问题 · 软提示 AI 在 emit prepare 暂停点时基于此给思考后的 reviewer 预估
+    # 不强制 JSON 必传(Option A · 用户拍板)· 不像 v8.15 admission_judgment 物化
+    payload["reviewer_thinking_checklist"] = REVIEWER_THINKING_CHECKLIST
+    payload["reviewer_thinking_hint"] = (
+        "🔴 PMO emit prepare 暂停点 「建议评审角色」段 · 必基于此 checklist 4 问思考 + "
+        "给出加减预估 · 不要直接抄 stage_chain_preview 默认值。"
+        "case 实证(F-Bv2-8 · 2026-05-25):PMO 第一次直接抄默认 · 经用户提示后二次思考才识别 "
+        "goal 去 pl(无 ROADMAP 拆分)/ ui_design 跳过(后端先行)/ blueprint 强 external"
+        "(跨 5 module 触发点)等调整。"
+    )
+
     # v8.14 + v8.15:写 prepare_check_audit jsonl(init-feature 门禁读这个)
     # 治本 PTR-F054:prepare-check 物化但 AI 不调用 → 下游门禁兜底
     # v8.15:audit 加 admission_judgment / consistency · 治本 F001(选错 flow_type)
@@ -2137,6 +2149,32 @@ def cmd_prepare_check(args: argparse.Namespace) -> None:
     payload["audit_recorded"] = True
 
     emit(payload)
+
+
+# v8.27:reviewer 思考清单(prepare-check 输出 · 治本 F-Bv2-8 PMO 直接抄默认 case)
+# 用户决策:Option A(checklist 提示 · 不物化 JSON 必传)· 核心 4 问(不过载)
+REVIEWER_THINKING_CHECKLIST = [
+    {
+        "question": "本 Feature 是否涉及 ROADMAP 拆分 / Feature 优先级决策?",
+        "if_no": "goal stage 去 pl(无 ROADMAP 决策 · PL 评审价值低)",
+        "if_yes": "goal stage 保留 pl",
+    },
+    {
+        "question": "本 Feature 是否含 UI 改动?",
+        "if_no": "ui_design 跳过(--needs-ui=false)· 节省 designer 一轮 + browser_e2e 跳过",
+        "if_yes": "ui_design 启用 · reviewers [designer, pm]",
+    },
+    {
+        "question": "本 Feature 跨 ≥3 个 module 触发点 / 调用方?(如跨多 stage / 多 service)",
+        "if_yes": "blueprint / review 强调 external(异质模型查漏触发 · F-Bv2-8 实证有效)",
+        "if_no": "blueprint / review external 默认即可",
+    },
+    {
+        "question": "本 Feature 是否数据模型重构?(删/改老字段 · 表结构变 · 索引变)",
+        "if_yes": "blueprint 强 architect + (若项目配置)加 dba 评审",
+        "if_no": "blueprint architect 默认即可",
+    },
+]
 
 
 def _validate_admission_judgment(args) -> dict:
