@@ -1131,14 +1131,17 @@ class TestExternalReviewCommand(unittest.TestCase):
         self.assertNotEqual(r.returncode, 0)
         self.assertIn("invalid choice", (r.stderr + r.stdout).lower())
 
-    # ── dry-run 输出 preview_command ──
+    # ── dry-run 输出 preview_command(v8.23 PROMPT 模式) ──
     def test_dry_run_includes_preview_command(self):
         d = run(["external-review", "--feature", str(self.feat),
                  "--stage", "review", "--host", "claude-code", "--dry-run"])
         self.assertTrue(d["dry_run"])
         self.assertIn("preview_command", d)
-        self.assertIn("codex review --commit", d["preview_command"])
-        # 没真跑 · 不该有 file_path 字段
+        # v8.23:用 PROMPT 模式 · 不再有 --commit flag · 改 --base + --title + --config + PROMPT
+        self.assertIn("codex review --base", d["preview_command"])
+        self.assertIn("--config 'model=gpt-5-codex'", d["preview_command"])
+        self.assertNotIn("--commit", d["preview_command"])
+        # 没真跑 · 不该有 model_version 字段
         self.assertNotIn("model_version", d)
 
     # ── commit fallback ──
@@ -1189,6 +1192,60 @@ class TestExternalReviewCommand(unittest.TestCase):
         d = run(["external-review", "--feature", str(self.feat),
                  "--stage", "blueprint", "--host", "codex-cli", "--dry-run"])
         self.assertTrue(d["output_file"].endswith("blueprint-claude.md"))
+
+    # ── v8.23:PROMPT 模式 + stage-specific prompt template ──
+    def test_v823_goal_stage_uses_prd_review_prompt(self):
+        """goal stage 用 PRD review prompt(不是 commit diff)。"""
+        d = run(["external-review", "--feature", str(self.feat),
+                 "--stage", "goal", "--host", "claude-code", "--dry-run"])
+        self.assertEqual(d["verdict"], "OK")
+        self.assertIn("PRD reviewer", d["codex_prompt"])
+        self.assertIn("PRD.md", d["codex_prompt"])
+
+    def test_v823_blueprint_stage_uses_blueprint_review_prompt(self):
+        """blueprint stage 用 TC + TECH review prompt。"""
+        d = run(["external-review", "--feature", str(self.feat),
+                 "--stage", "blueprint", "--host", "claude-code", "--dry-run"])
+        self.assertIn("blueprint reviewer", d["codex_prompt"])
+        self.assertIn("TC.md and TECH.md", d["codex_prompt"])
+
+    def test_v823_review_stage_uses_code_review_prompt(self):
+        """review stage 用 code review prompt(含 commit SHA)。"""
+        d = run(["external-review", "--feature", str(self.feat),
+                 "--stage", "review", "--host", "claude-code", "--dry-run"])
+        self.assertIn("code reviewer", d["codex_prompt"])
+        self.assertIn("abc123def", d["codex_prompt"])  # commit SHA in prompt
+
+    def test_v823_codex_model_default_gpt_5_codex(self):
+        """缺省 --codex-model = gpt-5-codex(专业 code review 模型)。"""
+        d = run(["external-review", "--feature", str(self.feat),
+                 "--stage", "review", "--host", "claude-code", "--dry-run"])
+        self.assertEqual(d["codex_model"], "gpt-5-codex")
+        self.assertIn("model=gpt-5-codex", d["preview_command"])
+
+    def test_v823_codex_model_explicit_override(self):
+        """--codex-model gpt-5-pro 显式覆盖。"""
+        d = run(["external-review", "--feature", str(self.feat),
+                 "--stage", "review", "--host", "claude-code",
+                 "--codex-model", "gpt-5-pro", "--dry-run"])
+        self.assertEqual(d["codex_model"], "gpt-5-pro")
+        self.assertIn("model=gpt-5-pro", d["preview_command"])
+
+    def test_v823_emit_includes_cwd_and_codex_model(self):
+        """emit JSON 含 cwd(git root) + codex_model(透明)。"""
+        d = run(["external-review", "--feature", str(self.feat),
+                 "--stage", "review", "--host", "claude-code", "--dry-run"])
+        self.assertIn("cwd", d)
+        self.assertIn("codex_model", d)
+        self.assertEqual(d["codex_model"], "gpt-5-codex")
+
+    def test_v823_codex_model_not_in_claude_path(self):
+        """claude 路径不传 codex_model · 字段为 null(避免 PMO 误以为 claude 走 codex 配置)。"""
+        d = run(["external-review", "--feature", str(self.feat),
+                 "--stage", "review", "--host", "codex-cli",  # host=codex → model=claude
+                 "--dry-run"])
+        self.assertEqual(d["model"], "claude")
+        self.assertIsNone(d["codex_model"])  # claude 路径 codex_model 为 None
 
 
 class TestHostAutoDetect(unittest.TestCase):

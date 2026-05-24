@@ -268,12 +268,13 @@ Step 3:跑命令 · 落 *-codex.md / *-gemini.md / 等真异质模型文件
 state.py external-review \
   --feature <path> \
   --stage {goal,blueprint,review} \
-  --host {claude-code,codex-cli,gemini-cli} \
-  [--model {codex,claude}]   # 显式覆盖 · 默认按 host 自动映射(claude-code→codex / codex-cli→claude)
+  [--host {claude-code,codex-cli,gemini-cli}]   # v8.21 缺省自动从 ~/.teamwork/host_audit.json 读
+  [--model {codex,claude}]   # 显式覆盖 · 默认按 host 自动映射
+  [--codex-model <name>]     # v8.23 codex 子模型 · 缺省 gpt-5-codex
   [--commit <SHA>]           # 缺省 state.stage_contracts.<stage>.auto_commit / git HEAD
   [--base <branch>]          # 缺省 state.merge_target
   [--title <title>]          # 缺省 "<feature_id> · <stage> stage external review"
-  [--dry-run]                # 只输出将跑的命令 · 不实际调 CLI
+  [--dry-run]                # 只输出将跑的命令(含完整 codex_prompt)· 不实际调 CLI
 ```
 
 #### 工具内部 7 步 SOP(对应 case 5 层根因)
@@ -288,20 +289,34 @@ state.py external-review \
 | 6 | 落 `external-cross-review/<stage>-<model>.md`(自动 frontmatter + body)| 第 4 层(透明伪装 = 文件名 + frontmatter 自动合规)|
 | 7 | emit JSON 含 file_path / model_version / finding_count_estimate | 第 4 层(audit 留痕)|
 
-#### F034 case 用 v8.20 重跑
+#### F034 case 用 v8.21+v8.23 重跑
 
 ```
-$ state.py external-review --feature services/core/.../F034 --stage review --host claude-code
-# step 1:host=claude-code → model=codex(自动)
+$ state.py external-review --feature services/core/.../F034 --stage review
+# v8.21:host 自动 audit → claude-code → model=codex
 # step 2:which codex → /opt/homebrew/bin/codex ✅
 # step 3:stage=review → profile=codex-agents/reviewer.toml
-# step 4:commit=state.stage_contracts.dev.auto_commit / base=state.merge_target
-# step 5:跑 codex review --commit ... --base ... --title ...
+# step 4:commit=state.stage_contracts.dev.auto_commit / base=state.merge_target / cwd=git root
+# step 5(v8.23):跑 codex review --base ... --title ... --config 'model=gpt-5-codex' '<PROMPT>'
+#                (PROMPT 模式 · 按 stage 内置 review prompt template · 含 cite 文件路径 + 视角约束)
 # step 6:落 external-cross-review/review-codex.md(frontmatter review_model=codex-cli 0.133.0)
 # step 7:emit OK + finding_count_estimate=12
 ```
 
-→ PMO 不需要 grep F033 / 不需要拼 codex 命令 / 不需要管文件名 · 一条命令完成。
+→ PMO 不需要 grep F033 / 不需要拼 codex 命令 / 不需要管 host / 不需要管文件名 · 一条命令完成。
+
+#### v8.23 关键改动:PROMPT 模式 + stage-specific prompt
+
+v8.20 用 `--commit X --base Y --title Z`(diff 模式)· 但实测发现:
+1. **codex CLI flag 兼容性问题**:某些 codex 版本 `--commit` 与 `--base` 互斥(case F035 实测)
+2. **goal / blueprint stage 不是 diff review**:是文档 review(PRD.md / TC.md+TECH.md)· 没 commit 可 diff
+
+v8.23 改:
+- 所有 stage 改 **PROMPT 模式**(`codex review --base Y --title Z "<PROMPT>"`)
+- prompt 按 stage 内置(goal=PRD reviewer / blueprint=blueprint reviewer / review=code reviewer)
+- 加 `--config 'model=gpt-5-codex'`(专业 code review 模型 · 可 `--codex-model` 覆盖)
+- `cwd = git root`(让 codex 能读 prompt 内的相对路径)
+- emit JSON 加 `codex_prompt` 完整字段(透明 · 不截断)
 
 #### v8.19(校验)vs v8.20(主路径)互补
 

@@ -1,5 +1,105 @@
 # Changelog
 
+## v8.23 · external-review codex 调用改 PROMPT 模式(治本 F035 case · 修 v8.20 调用方式 bug)
+
+> F035 PRD external review case:case-AI 跑 `state.py external-review --stage goal` · 命中 codex CLI flag 兼容性问题(`--commit X --base Y` 互斥)· 改用手工 `codex review --base staging --title "..." --config "model=gpt-5-codex" "<PROMPT>"` 才跑通。
+> 暴露 v8.20 实现的 2 个 bug:① codex flag 用法假设错 ② goal/blueprint stage 根本不是 diff review · 是文档 review。
+
+### v8.20 实现 bug 复盘
+
+```python
+# v8.20 _run_codex_review(错):
+cmd = ["codex", "review",
+       "--commit", commit, "--base", base, "--title", title]
+```
+
+- **错 1**:某些 codex CLI 版本 `--commit` 与 `--base` 互斥(case 实测撞 error)
+- **错 2**:`goal` stage(PRD review)/ `blueprint` stage(TC + TECH review)根本没 commit 可 diff · 是**文档 review** · 应该用 PROMPT 模式
+- **错 3**:没指定 `--config 'model=gpt-5-codex'` · 默认 model 可能是 gpt-5(通用)· 不专业 code review
+
+### v8.23 治本(PROMPT 模式 + stage-specific prompt)
+
+#### 1. `_run_codex_review` 改造
+
+```python
+# v8.23 新:
+cmd = ["codex", "review",
+       "--base", base, "--title", title,
+       "--config", f"model={codex_model}",   # 默认 gpt-5-codex
+       prompt]                                 # PROMPT 由 _build_codex_prompt 按 stage 内置
+```
+
+- 删 `--commit` flag(改用 PROMPT 描述 review 对象 + commit SHA · 兼容所有 codex 版本)
+- 加 `--config 'model=gpt-5-codex'`(专业 code review 模型 · 可 `--codex-model` 覆盖)
+- `cwd = git root`(用 `_git_toplevel` · 让 codex 能读 prompt 内的相对路径)
+
+#### 2. 新 `_build_codex_prompt(stage, feature_dir_rel, commit, profile_filename)` helper
+
+按 stage 内置 prompt template:
+
+| stage | prompt 内容 |
+|---|---|
+| `goal` | "You are an external PRD reviewer (codex / GPT) providing heterogeneous perspective. Read PRD.md in `<dir>/` and conduct PRD review per checklist (templates/external-cross-review.md §3.1). Profile reference: codex-agents/prd-reviewer.toml." |
+| `blueprint` | 同上 · "blueprint reviewer" + "Read TC.md and TECH.md" + §3.2 + blueprint-reviewer.toml |
+| `review` | "code reviewer" + "Review code changes at commit X in `<dir>/`. Focus: correctness, security, performance" + reviewer.toml |
+
+每个 prompt 都:
+- 显式声明 "external" + "heterogeneous perspective"(防 codex 退化成通用助手)
+- cite 具体文件路径(让 codex 知道读哪些)
+- cite profile filename(供 codex 参考 reviewer prompt 模板)
+- 要求 YAML frontmatter + findings body 输出格式
+
+#### 3. CLI 加 `--codex-model` 可选 flag
+
+- 默认 `gpt-5-codex`(专业 code review)
+- 高级用户可改 `--codex-model gpt-5-pro` / `--codex-model gpt-5` 等
+
+#### 4. emit JSON 加 `codex_prompt` 完整字段(透明)
+
+`preview_command` 截断到 80 字符 + `...`(便于人读)· `codex_prompt` 字段无截断 · 调试/审计/测试用。
+
+#### 5. emit JSON 加 `cwd` 字段(透明 codex 实际跑的目录)
+
+### F035 case 用 v8.23 重跑
+
+```
+$ state.py external-review --feature services/core/.../F035 --stage goal
+# v8.21:host 自动 → claude-code → model=codex
+# v8.23:跑 codex review --base staging --title "F035 · goal stage external review"
+#       --config "model=gpt-5-codex"
+#       "You are an external PRD reviewer ... Read PRD.md in services/core/.../F035/ ..."
+# cwd = git root(aon-core 根)
+# 落 external-cross-review/goal-codex.md
+```
+
+→ 不再撞 codex flag 兼容性 · PRD/TC/code 各 stage 都跑得通。
+
+### 测试覆盖(+7 · 0 regression)
+
+`TestExternalReviewCommand` 新增 v8.23 7 个:
+- `test_v823_goal_stage_uses_prd_review_prompt`:goal 用 PRD reviewer prompt
+- `test_v823_blueprint_stage_uses_blueprint_review_prompt`:blueprint 用 TC+TECH reviewer prompt
+- `test_v823_review_stage_uses_code_review_prompt`:review 用 code reviewer prompt + 含 commit SHA
+- `test_v823_codex_model_default_gpt_5_codex`:默认 gpt-5-codex
+- `test_v823_codex_model_explicit_override`:`--codex-model gpt-5-pro` 覆盖生效
+- `test_v823_emit_includes_cwd_and_codex_model`:emit 含 cwd + codex_model
+- `test_v823_codex_model_not_in_claude_path`:claude 路径 codex_model=null(防 PMO 误以为 claude 走 codex 配置)
+
+旧测试 `test_dry_run_includes_preview_command` 也更新:
+- 旧断言 `'codex review --commit'` → 新断言 `'codex review --base'` + `'--config model=gpt-5-codex'` + 不含 `--commit`
+
+### standards/external-model-usage.md §11.5 更新
+
+- 命令行示例加 `--codex-model` flag
+- 改 v8.20 → v8.21+v8.23 案例描述(host 自动 + PROMPT 模式)
+- 新增子节 "v8.23 关键改动:PROMPT 模式 + stage-specific prompt" 解释根因
+
+### SKILL.md frontmatter
+
+`v8.22` → `v8.23`
+
+---
+
 ## v8.22 · 文档简化:删手工调用指南 + 修编号冲突 + stage spec 收敛(物化后的反向清理)
 
 > 用户提问:skill 中之前关于异质模型评审的描述 · 是否需要简化或者删除?

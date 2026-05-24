@@ -2473,16 +2473,75 @@ def _detect_cli_version(cli_name: str) -> str:
     return cli_name  # fallback
 
 
-def _run_codex_review(commit: str, base: str, title: str, profile_path: Path,
-                      cwd: str) -> tuple[int, str, str]:
+def _build_codex_prompt(stage: str, feature_dir_rel: str,
+                         commit: str, profile_filename: str) -> str:
+    """v8.23:按 stage 内置 codex PROMPT(治本 v8.20 全用 --commit 模式 bug)。
+
+    各 stage 的 review 对象不同:
+    - goal:review PRD.md(文档 · 不是 commit diff)
+    - blueprint:review TC.md + TECH.md(文档)
+    - review:review code changes at commit X(diff)
+
+    prompt 内 cite profile filename 让 codex 自加载 reviewer prompt 模板。
+    """
+    if stage == "goal":
+        return (
+            f"You are an external PRD reviewer (codex / GPT) providing heterogeneous "
+            f"perspective. Read PRD.md in `{feature_dir_rel}/` and conduct PRD review "
+            f"per checklist (see templates/external-cross-review.md §3.1 PRD variant). "
+            f"Profile reference: codex-agents/{profile_filename}. "
+            f"Output: YAML frontmatter (perspective/target/files_read/findings) + body."
+        )
+    elif stage == "blueprint":
+        return (
+            f"You are an external blueprint reviewer (codex / GPT) providing "
+            f"heterogeneous perspective. Read TC.md and TECH.md in `{feature_dir_rel}/` "
+            f"and conduct blueprint review per checklist "
+            f"(templates/external-cross-review.md §3.2 TC+TECH variant). "
+            f"Profile reference: codex-agents/{profile_filename}. "
+            f"Output: YAML frontmatter + findings body."
+        )
+    elif stage == "review":
+        return (
+            f"You are an external code reviewer (codex / GPT) providing heterogeneous "
+            f"perspective. Review code changes at commit {commit} in `{feature_dir_rel}/`. "
+            f"Focus: correctness, security, performance, edge cases. "
+            f"Profile reference: codex-agents/{profile_filename}. "
+            f"Output: YAML frontmatter + findings body with file:line cite."
+        )
+    # 兜底(其他 stage 走 prompt 模式)
+    return (
+        f"External review for stage={stage} in `{feature_dir_rel}/`. "
+        f"Profile reference: codex-agents/{profile_filename}."
+    )
+
+
+def _run_codex_review(stage: str, commit: str, base: str, title: str,
+                      profile_filename: str, feature_dir: Path, cwd: str,
+                      codex_model: str = "gpt-5-codex") -> tuple[int, str, str]:
     """跑 codex review · 返 (returncode, stdout, stderr)。
 
-    codex review CLI usage:
-      codex review --commit <SHA> --base <BRANCH> --title <TITLE>
-    profile_path 通过 codex 全局 config / 环境变量传 · 此处 cite to log。
+    v8.23 治本:
+    - 改 PROMPT 模式(原 v8.20 用 --commit/--base/--title diff 模式 · 撞 codex CLI
+      兼容性问题 + goal/blueprint 不是 diff review · 是文档 review)
+    - 加 --config model=<codex_model>(默认 gpt-5-codex · 专业 code review 模型)
+    - cwd = git root(让 codex 能读 prompt 内的相对路径)
+
+    codex review CLI usage(v8.23 用法):
+      codex review --base <branch> --title <title> --config "model=<model>" "<PROMPT>"
     """
+    # 算 feature_dir 相对 cwd · 让 prompt 用相对路径(codex 在 cwd=git root 跑)
+    try:
+        feature_dir_rel = str(feature_dir.relative_to(Path(cwd)))
+    except ValueError:
+        feature_dir_rel = str(feature_dir)
+
+    prompt = _build_codex_prompt(stage, feature_dir_rel, commit, profile_filename)
+
     cmd = ["codex", "review",
-           "--commit", commit, "--base", base, "--title", title]
+           "--base", base, "--title", title,
+           "--config", f"model={codex_model}",
+           prompt]
     try:
         r = subprocess.run(cmd, capture_output=True, text=True,
                            timeout=EXTERNAL_REVIEW_TIMEOUT_SEC, cwd=cwd)
@@ -2679,14 +2738,26 @@ def cmd_external_review(args: argparse.Namespace) -> None:
     feature_id = state.get("feature_id") or feature_dir.name
     title = args.title or f"{feature_id} · {args.stage} stage external review"
 
+    # v8.23:cwd = git root(让 codex 在仓库根跑 · 能读 prompt 内的相对路径)
+    git_root = _git_toplevel(feature_dir) or feature_dir
+    codex_model = getattr(args, "codex_model", None) or "gpt-5-codex"
+
     # ── dry-run · 仅输出将跑的命令 + 校验信息 ──
     output_dir = feature_dir / "external-cross-review"
     output_file = output_dir / f"{args.stage}-{model}.md"
+    preview_prompt_full = None
     if args.dry_run:
         if model == "codex":
+            # v8.23 PROMPT 模式 · 与 _run_codex_review 一致
+            try:
+                fd_rel = str(feature_dir.relative_to(git_root))
+            except ValueError:
+                fd_rel = str(feature_dir)
+            preview_prompt_full = _build_codex_prompt(
+                args.stage, fd_rel, commit, profile_path.name)
             preview_cmd = (
-                f"codex review --commit {commit[:12]} --base {base} "
-                f"--title '{title}' (profile: {profile_path})"
+                f"codex review --base {base} --title '{title}' "
+                f"--config 'model={codex_model}' '{preview_prompt_full[:80]}...'"
             )
         else:
             preview_cmd = (
@@ -2705,8 +2776,12 @@ def cmd_external_review(args: argparse.Namespace) -> None:
             "commit": commit,
             "base": base,
             "title": title,
+            "codex_model": codex_model if model == "codex" else None,
+            "cwd": str(git_root),
             "output_file": str(output_file),
             "preview_command": preview_cmd,
+            # v8.23:完整 prompt 透明 emit(preview_command 截断到 80 · 此字段无截断)
+            "codex_prompt": preview_prompt_full,
             "next": "去掉 --dry-run 实际跑 · 30s-3min 等",
         })
         return
@@ -2715,8 +2790,10 @@ def cmd_external_review(args: argparse.Namespace) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
     if model == "codex":
         rc, stdout, stderr = _run_codex_review(
-            commit=commit, base=base, title=title,
-            profile_path=profile_path, cwd=str(feature_dir),
+            stage=args.stage, commit=commit, base=base, title=title,
+            profile_filename=profile_path.name,
+            feature_dir=feature_dir, cwd=str(git_root),
+            codex_model=codex_model,
         )
     else:
         # claude 路径:读 prompt template + pipe 给 claude --print
@@ -2792,6 +2869,8 @@ def cmd_external_review(args: argparse.Namespace) -> None:
         "profile": str(profile_path),
         "commit": commit,
         "base": base,
+        "codex_model": codex_model if model == "codex" else None,  # v8.23
+        "cwd": str(git_root),  # v8.23:codex 实际跑的 cwd
         "file_path": str(output_file),
         "finding_count_estimate": finding_count,
         "stdout_bytes": len(stdout),
@@ -3248,6 +3327,9 @@ def build_parser() -> argparse.ArgumentParser:
                     help="diff base 分支 · 缺省 state.merge_target")
     er.add_argument("--title", default=None,
                     help="review 标题 · 缺省 '<feature_id> · <stage> stage external review'")
+    er.add_argument("--codex-model", default=None,
+                    help=("[v8.23] codex CLI 用的具体模型 · 缺省 gpt-5-codex(专业 code review)· "
+                          "传给 codex --config 'model=<this>' · 仅 model=codex 时生效"))
     er.add_argument("--dry-run", action="store_true",
                     help="只输出将跑的命令 + 校验 · 不实际调 CLI(供 debug / preview)")
     er.set_defaults(func=cmd_external_review)
