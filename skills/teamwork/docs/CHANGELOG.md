@@ -1,5 +1,106 @@
 # Changelog
 
+## v8.25 · external-review 改用 `codex exec`(治本 F035 round 2 · codex review --base + [PROMPT] 互斥)
+
+> F035 round 2 实测:case-AI 跑 `state.py external-review --stage blueprint` 仍 FAIL · 同根因:新版 codex CLI(>= 0.133)`--base BRANCH` 与 `[PROMPT]` 互斥。
+> case-AI 最终 workaround = `codex exec ... [PROMPT]`(放弃 `codex review` 子命令)跑通。
+
+### v8.20 / v8.23 演进失败回顾
+
+| 版本 | 调用方式 | 结果 |
+|---|---|---|
+| v8.20 | `codex review --commit X --base Y --title Z` | FAIL · `--commit` 与 `--base` 互斥 |
+| v8.23 | `codex review --base Y --title Z [PROMPT]` | FAIL · `--base` 与 `[PROMPT]` 互斥 |
+| **v8.25** | **`codex exec [--config model=...] [PROMPT]`** | **✅ 跑通**(三 stage 统一 · 避开所有互斥) |
+
+### 根因:`codex review` 子命令 vs `codex exec` 设计差异
+
+| 子命令 | 设计目的 | flag 规则 |
+|---|---|---|
+| `codex review` | 纯**代码 diff review** · 自动跑 git diff | `--commit / --base / --uncommitted` 三选一(review 对象选择)· 与 `[PROMPT]` 不该混用 |
+| `codex exec` | 通用**非交互 agent** · 接 PROMPT 让 codex 自由探索 | `[PROMPT]` 是核心输入 · 无 review 对象 flag |
+
+teamwork 三 stage 评审需求:
+- `goal` / `blueprint`:**文档 review**(读 PRD / TC / TECH 输出 review)→ 天然适合 `codex exec` PROMPT
+- `review`:代码 diff review → 也用 `codex exec` · 在 PROMPT 内含 `git diff <base>..<commit> -- <dir>` 指令(让 codex 自己跑 diff)
+
+### v8.25 治本(全 stage 改 `codex exec`)
+
+#### 1. `_run_codex_review` 改造
+
+```python
+# v8.25 新:
+cmd = ["codex", "exec",
+       "--config", f"model={codex_model}",
+       prompt]   # PROMPT 自带 title / stage / commit / base / 文件 / 输出格式
+```
+
+- 删 `codex review` 子命令路径
+- title 进 PROMPT 顶部行(`[Review title: ...]`)· 不再传 `--title` flag(codex exec 没这 flag)
+- review stage 在 PROMPT 内含 `git diff <base>..<commit> -- <feature_dir>` 指令
+
+#### 2. `_build_codex_prompt` signature 加 `base`
+
+review stage 的 prompt 需要 base branch(让 codex 跑 git diff)· 之前 v8.23 只传 commit。
+
+```python
+def _build_codex_prompt(stage, feature_dir_rel, commit, base, profile_filename):
+    if stage == "review":
+        return f"... Use `git diff {base}..{commit} -- {feature_dir_rel}` to inspect changes. ..."
+```
+
+#### 3. dry-run preview 更新
+
+```
+preview_command: codex exec --config 'model=gpt-5-codex' '[Review title: ...] ...'
+```
+
+不再含 `codex review` / `--base` / `--title` / `--commit`。
+
+### F035 case 用 v8.25 重跑
+
+```
+$ state.py external-review --feature ... --stage blueprint
+# v8.21:host 自动 → claude-code → model=codex
+# v8.25:跑 codex exec --config "model=gpt-5-codex"
+#       "[Review title: F035 · blueprint stage external review]
+#        You are an external blueprint reviewer ... Read TC.md and TECH.md in services/.../"
+# cwd = git root · 落 external-cross-review/blueprint-codex.md
+```
+
+→ case-AI 不再需要 workaround(手工跑 codex exec · 跳过 state.py 留 audit 漏洞)。
+
+### 测试覆盖(+3 · 0 regression)
+
+`TestExternalReviewCommand` v8.25 新增:
+- `test_v825_uses_codex_exec_not_review`:三 stage 全用 `codex exec`(不用 `codex review`)
+- `test_v825_title_goes_into_prompt_not_flag`:`--title` 不在 cmd · 在 PROMPT `[Review title: ...]` 行
+- `test_v825_base_goes_into_prompt_for_review_stage`:review stage 的 `--base` 不在 cmd · 进 PROMPT `git diff <base>..` 指令
+
+旧 `test_dry_run_includes_preview_command` 也更新:
+- 旧断言 `'codex review --base'` → 新断言 `'codex exec'`
+- 新断言 `不含 'codex review'` / `不含 --commit` / `不含 --base`
+
+旧 `test_v823_review_stage_uses_code_review_prompt` 加新断言:
+- PROMPT 含 `git diff` 字面(v8.25 让 codex 自己跑 diff)
+
+### standards/external-model-usage.md §11.5 更新
+
+加 "v8.25 关键改动" 子节:
+- v8.20 → v8.23 → v8.25 演进失败回顾(诚实记录 case-driven 调试路径)
+- `codex review` vs `codex exec` 设计差异表
+- v8.25 调用范例
+
+### Process 反思(case-AI 自承的 PMO 违规 · 留给 case-AI session 治本)
+
+case-AI 在 blueprint stage 没试 state.py(已知 goal FAIL)直接 workaround → 短回路违反"v8.20+ 物化主路径强制"。**teamwork 工具改进解决根因(state.py 现在跑得通)· 但 PMO 自觉走 process 是软约束 · 留给 case-AI 自治**(后续可在 `_evidence_external_review_artifact` 加 `invoked_by` frontmatter 字段校验 · 但当前 case 已治本核心 · 不过度物化)。
+
+### SKILL.md frontmatter
+
+`v8.24` → `v8.25`
+
+---
+
 ## v8.24 · teamwork 自更新(bootstrap 检测线上版本 · R5 1/2 选项 · 用户回 1 触发 state.py update-skill)
 
 > 用户提议:我们是否能做到 teamwork 自更新 · 即检测到本地版本低于线上 · 更新 SKILL.md 以及相关的 md。

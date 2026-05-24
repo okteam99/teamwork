@@ -2473,16 +2473,17 @@ def _detect_cli_version(cli_name: str) -> str:
     return cli_name  # fallback
 
 
-def _build_codex_prompt(stage: str, feature_dir_rel: str,
-                         commit: str, profile_filename: str) -> str:
-    """v8.23:按 stage 内置 codex PROMPT(治本 v8.20 全用 --commit 模式 bug)。
+def _build_codex_prompt(stage: str, feature_dir_rel: str, commit: str,
+                         base: str, profile_filename: str) -> str:
+    """v8.25:按 stage 内置 codex exec PROMPT(治本 v8.23 codex review --base+[PROMPT] 互斥)。
 
-    各 stage 的 review 对象不同:
-    - goal:review PRD.md(文档 · 不是 commit diff)
+    各 stage review 对象不同 · 全用 codex exec 通用 agent 模式(不用 codex review 子命令):
+    - goal:review PRD.md(文档)
     - blueprint:review TC.md + TECH.md(文档)
-    - review:review code changes at commit X(diff)
+    - review:review code diff at commit X vs base Y(diff · 由 PROMPT 描述)
 
-    prompt 内 cite profile filename 让 codex 自加载 reviewer prompt 模板。
+    PROMPT 自带完整 review 指令(stage / 文件 / commit / base / 输出格式)·
+    cite profile filename 让 codex 加载 reviewer prompt 模板。
     """
     if stage == "goal":
         return (
@@ -2504,7 +2505,9 @@ def _build_codex_prompt(stage: str, feature_dir_rel: str,
     elif stage == "review":
         return (
             f"You are an external code reviewer (codex / GPT) providing heterogeneous "
-            f"perspective. Review code changes at commit {commit} in `{feature_dir_rel}/`. "
+            f"perspective. Review code changes at commit `{commit}` (diff against base "
+            f"branch `{base}`) in `{feature_dir_rel}/`. "
+            f"Use `git diff {base}..{commit} -- {feature_dir_rel}` to inspect changes. "
             f"Focus: correctness, security, performance, edge cases. "
             f"Profile reference: codex-agents/{profile_filename}. "
             f"Output: YAML frontmatter + findings body with file:line cite."
@@ -2519,16 +2522,19 @@ def _build_codex_prompt(stage: str, feature_dir_rel: str,
 def _run_codex_review(stage: str, commit: str, base: str, title: str,
                       profile_filename: str, feature_dir: Path, cwd: str,
                       codex_model: str = "gpt-5-codex") -> tuple[int, str, str]:
-    """跑 codex review · 返 (returncode, stdout, stderr)。
+    """跑 codex exec · 返 (returncode, stdout, stderr)。
 
-    v8.23 治本:
-    - 改 PROMPT 模式(原 v8.20 用 --commit/--base/--title diff 模式 · 撞 codex CLI
-      兼容性问题 + goal/blueprint 不是 diff review · 是文档 review)
-    - 加 --config model=<codex_model>(默认 gpt-5-codex · 专业 code review 模型)
-    - cwd = git root(让 codex 能读 prompt 内的相对路径)
+    v8.25 治本(F035 round 2 实测):
+    - 旧 v8.23 用 `codex review --base Y --title Z [PROMPT]` · 但新版 codex CLI(>= 0.133)
+      `--base BRANCH` 与 `[PROMPT]` 互斥 · case-AI 实测 BLOCK。
+    - 改 `codex exec [--config model=...] [PROMPT]` —— 通用 agent 模式 · 三 stage 统一 ·
+      PROMPT 自带完整指令(包括 commit / base · review stage 在 PROMPT 内描述 git diff)。
+    - 避开 codex review 子命令的 --commit/--base/--uncommitted/[PROMPT] 互斥地雷。
 
-    codex review CLI usage(v8.23 用法):
-      codex review --base <branch> --title <title> --config "model=<model>" "<PROMPT>"
+    codex exec CLI usage(v8.25):
+      codex exec --config "model=<model>" "<PROMPT>"
+
+    --title 字段(原 v8.23 用)不再传(codex exec 不支持)· title 信息进 PROMPT 顶部行。
     """
     # 算 feature_dir 相对 cwd · 让 prompt 用相对路径(codex 在 cwd=git root 跑)
     try:
@@ -2536,10 +2542,11 @@ def _run_codex_review(stage: str, commit: str, base: str, title: str,
     except ValueError:
         feature_dir_rel = str(feature_dir)
 
-    prompt = _build_codex_prompt(stage, feature_dir_rel, commit, profile_filename)
+    body_prompt = _build_codex_prompt(stage, feature_dir_rel, commit, base, profile_filename)
+    # title 信息嵌进 PROMPT 顶部(codex exec 没 --title flag)
+    prompt = f"[Review title: {title}]\n\n{body_prompt}"
 
-    cmd = ["codex", "review",
-           "--base", base, "--title", title,
+    cmd = ["codex", "exec",
            "--config", f"model={codex_model}",
            prompt]
     try:
@@ -2547,7 +2554,7 @@ def _run_codex_review(stage: str, commit: str, base: str, title: str,
                            timeout=EXTERNAL_REVIEW_TIMEOUT_SEC, cwd=cwd)
         return r.returncode, r.stdout, r.stderr
     except subprocess.TimeoutExpired:
-        return 124, "", f"codex review 超时({EXTERNAL_REVIEW_TIMEOUT_SEC}s)"
+        return 124, "", f"codex exec 超时({EXTERNAL_REVIEW_TIMEOUT_SEC}s)"
     except (FileNotFoundError, OSError) as e:
         return 127, "", f"codex CLI 不可用:{e}"
 
@@ -2748,16 +2755,18 @@ def cmd_external_review(args: argparse.Namespace) -> None:
     preview_prompt_full = None
     if args.dry_run:
         if model == "codex":
-            # v8.23 PROMPT 模式 · 与 _run_codex_review 一致
+            # v8.25 codex exec 模式(治本 v8.23 --base+[PROMPT] 互斥 case F035 round 2)
             try:
                 fd_rel = str(feature_dir.relative_to(git_root))
             except ValueError:
                 fd_rel = str(feature_dir)
-            preview_prompt_full = _build_codex_prompt(
-                args.stage, fd_rel, commit, profile_path.name)
+            preview_prompt_full = (
+                f"[Review title: {title}]\n\n"
+                + _build_codex_prompt(args.stage, fd_rel, commit, base, profile_path.name)
+            )
             preview_cmd = (
-                f"codex review --base {base} --title '{title}' "
-                f"--config 'model={codex_model}' '{preview_prompt_full[:80]}...'"
+                f"codex exec --config 'model={codex_model}' "
+                f"'{preview_prompt_full[:80]}...'"
             )
         else:
             preview_cmd = (
