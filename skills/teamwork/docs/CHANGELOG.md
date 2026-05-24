@@ -1,5 +1,123 @@
 # Changelog
 
+## v8.20 · state.py external-review 命令(异质模型评审一条命令调起 · F034 治本主路径)
+
+> 用户提问:我们是否提供一个 python 命令来调起异质模型评审 · 而不是让 PMO 自己发起调用?
+> 用户:支持 codex 和 claude · 按宿主自动适配 · 同步。
+> v8.19 校验产物 · v8.20 物化调用本身 —— PMO 不需要自己拼命令 / cite 范式 / 想 substitute。
+
+### 与 F034 case 5 层根因对照
+
+case-AI 在 F034 失误的 5 层根因(详 v8.19 段):
+
+| 根因层 | 失误 | v8.19 治本 | v8.20 治本 |
+|---|---|---|---|
+| 1. 效率优先 | 选"我能直接调"的 Agent subagent | - | 一条命令 · 减心智负担 |
+| 2. 未 cite 权威 | 没 grep F033 范式 / 没读 standards | - | 工具内置 stage→profile 映射 |
+| 3. 工具能力合理化 | 没试 `which codex` · 选 substitute | - | step 2 必跑 which · 不在 BLOCK 绝不 substitute |
+| 4. 透明伪装 | frontmatter `review_model: claude-isolated` 伪装合规 | 文件名 + frontmatter 校验 BLOCKED | step 6 自动用合规 frontmatter · 不可能违规 |
+| 5. R3 降级 | 把"external = 异质"当推荐而非硬约束 | 文件名校验拦 | step 1 host→model 同源 BLOCK |
+
+→ v8.19 是兜底防御 · v8.20 是推荐主路径 + 完全自动化。
+
+### `state.py external-review` 命令
+
+```bash
+state.py external-review \
+  --feature <path> \
+  --stage {goal,blueprint,review} \
+  --host {claude-code,codex-cli,gemini-cli} \
+  [--model {codex,claude}]   # 显式覆盖 · 默认按 host 自动映射
+  [--commit <SHA>]           # 缺省 state.json fallback
+  [--base <branch>]          # 缺省 state.merge_target
+  [--title <title>]
+  [--dry-run]
+```
+
+#### 宿主→异质模型自动映射
+
+| 主对话宿主 | 自动选 model | 异质原因 |
+|---|---|---|
+| `claude-code` | `codex` | Claude 主对话 → OpenAI codex 异质 |
+| `codex-cli` | `claude` | Codex 主对话 → Anthropic claude 异质 |
+| `gemini-cli` | `codex`(默认 · 可 --model 覆盖) | Gemini 主对话 → codex / claude 都异质 |
+
+显式 `--model` 同源 → BLOCK(claude-code + --model claude / codex-cli + --model codex 违 R3)。
+
+#### stage → reviewer profile 自动选
+
+| stage | codex profile | claude prompt |
+|---|---|---|
+| `goal` | `codex-agents/prd-reviewer.toml` | `claude-agents/reviewer.md` |
+| `blueprint` | `codex-agents/blueprint-reviewer.toml` | `claude-agents/reviewer.md` |
+| `review` | `codex-agents/reviewer.toml` | `claude-agents/reviewer.md` |
+
+ship / pm_acceptance / dev 等其他 stage 不支持 external review(argparse choices 限定)。
+
+#### 7 步 SOP
+
+| Step | 动作 |
+|---|---|
+| 1 | host → model 自动映射 + 异质校验(同源 BLOCK)|
+| 2 | `which <cli>` 验工具在 · 不在 BLOCK + hint(绝不 substitute · 指 change-review-roles 移除 external)|
+| 3 | stage → reviewer profile 自动选 |
+| 4 | commit / base 从 state.json fallback(`state.stage_contracts.<stage>.auto_commit` → `dev.auto_commit` → git HEAD;base = state.merge_target)|
+| 5 | 跑 CLI(同步 · 5min timeout · capture stdout)<br>codex:`codex review --commit <SHA> --base <branch> --title <title>`<br>claude:`cat <prompt> \| claude --print --model claude-sonnet-4-6 --output-format text` |
+| 6 | 落 `external-cross-review/<stage>-<model>.md`(自动 frontmatter:`review_model: <CLI 版本>` / `target_commit` / `generated_at` / `invoked_by: state.py external-review (v8.20)` / `host` · body=CLI stdout)|
+| 7 | emit JSON 含 `file_path` / `model_version` / `finding_count_estimate` |
+
+#### `--dry-run` mode
+
+输出 `preview_command` + 校验信息(host/model/profile/commit/base/output_file)· 不实际跑 CLI · 供 debug / preview。
+
+#### CLI 不在的 BLOCK 行为(治本 case-AI 第 3 层根因)
+
+```
+$ state.py external-review --feature ... --stage review --host claude-code
+# (codex CLI 不在本机)
+FAIL · codex CLI 不在(`which codex` 失败)
+hint:二选一(绝不 substitute · 不可用 Agent subagent 自审):
+  ① 安装 codex CLI(链接)
+  ② state.py change-review-roles --feature ... --stage review --roles '<不含 external>'
+     --reason 'codex CLI 不在本机'(留 audit 后继续 stage-complete)
+rule: standards/external-model-usage.md § 7.3 · R3 异质硬约束
+```
+
+→ 物理墙 · AI 不可能再走 substitute 路径。
+
+### standards/external-model-usage.md §7.5 新增
+
+加 "v8.20 物化路径" 段:7 步 SOP 与 5 层根因对照 / F034 case 重跑 / v8.19 vs v8.20 互补关系。
+
+### 测试覆盖(+12 · 0 regression)
+
+`TestExternalReviewCommand`:
+- `test_host_claude_code_auto_maps_to_codex` / `test_host_codex_cli_auto_maps_to_claude`(host→model 自动映射)
+- `test_explicit_model_same_source_blocked` / `test_explicit_model_codex_with_codex_host_blocked`(R3 同源 BLOCK)
+- `test_stage_choices_enforced`(argparse choices 限定 goal/blueprint/review)
+- `test_dry_run_includes_preview_command`(--dry-run 输出 preview)
+- `test_commit_fallback_from_state_dev_auto_commit` / `test_explicit_commit_overrides_state`(commit fallback)
+- `test_base_fallback_from_state_merge_target`(base fallback)
+- `test_codex_cli_missing_blocked_with_hint`(which BLOCK · 治本 case 核心)
+- `test_output_file_path_uses_compliant_naming` / `test_output_file_for_blueprint_stage`(自动文件名规约)
+
+### v8.19 + v8.20 防御层次(完整覆盖)
+
+```
+PMO 跑 state.py external-review(v8.20 主路径)
+  ├── ✅ 工具 7 步自动 · 不可能违规
+  └── 产物天然符合 v8.19 文件名 + frontmatter 校验
+
+PMO 绕过 v8.20 自己写文件(罕见 · 但物理可能)
+  └── stage-complete 时 v8.19 evidence 兜底拦 · BLOCKED with hint 引向 v8.20 主路径
+```
+
+### SKILL.md frontmatter
+
+`v8.19` → `v8.20`
+
+---
+
 ## v8.19 · external review 异质性硬约束(治本 SVC-CORE-F034 AI 用 Agent subagent 自审 case)
 
 > 用户提问:external 是 codex 么?

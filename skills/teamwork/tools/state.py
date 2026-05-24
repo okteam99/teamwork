@@ -2405,6 +2405,347 @@ def cmd_change_review_roles(args: argparse.Namespace) -> None:
     })
 
 
+# ─── v8.20 · external-review(异质模型评审自动调起 · 治本 F034 PMO 自己拼命令 case)─
+
+# 宿主 → 异质模型自动映射(R3 + standards/external-model-usage.md §7.1)
+# claude-code 主对话 → 跑 codex(异质)
+# codex-cli 主对话 → 跑 claude(异质)
+# gemini-cli 主对话 → 默认 codex(异质 · 也可 --model claude)
+EXTERNAL_HOST_TO_MODEL = {
+    "claude-code": "codex",
+    "codex-cli": "claude",
+    "gemini-cli": "codex",  # 默认 · 可 --model 覆盖
+}
+
+# stage → reviewer profile 映射(codex profile / claude prompt template 文件名)
+# codex-agents/*.toml · claude-agents/*.md
+EXTERNAL_STAGE_TO_PROFILE = {
+    "goal": {"codex": "prd-reviewer.toml", "claude": "reviewer.md"},
+    "blueprint": {"codex": "blueprint-reviewer.toml", "claude": "reviewer.md"},
+    "review": {"codex": "reviewer.toml", "claude": "reviewer.md"},
+}
+
+EXTERNAL_REVIEW_TIMEOUT_SEC = 300  # codex review 通常 30s-3min · 给 5min buffer
+
+
+def _detect_cli_version(cli_name: str) -> str:
+    """探测 CLI 版本字符串(用于 frontmatter review_model 字段)。"""
+    try:
+        r = subprocess.run([cli_name, "--version"],
+                           capture_output=True, text=True, timeout=10)
+        if r.returncode == 0:
+            return r.stdout.strip().splitlines()[0] if r.stdout.strip() else cli_name
+    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+        pass
+    return cli_name  # fallback
+
+
+def _run_codex_review(commit: str, base: str, title: str, profile_path: Path,
+                      cwd: str) -> tuple[int, str, str]:
+    """跑 codex review · 返 (returncode, stdout, stderr)。
+
+    codex review CLI usage:
+      codex review --commit <SHA> --base <BRANCH> --title <TITLE>
+    profile_path 通过 codex 全局 config / 环境变量传 · 此处 cite to log。
+    """
+    cmd = ["codex", "review",
+           "--commit", commit, "--base", base, "--title", title]
+    try:
+        r = subprocess.run(cmd, capture_output=True, text=True,
+                           timeout=EXTERNAL_REVIEW_TIMEOUT_SEC, cwd=cwd)
+        return r.returncode, r.stdout, r.stderr
+    except subprocess.TimeoutExpired:
+        return 124, "", f"codex review 超时({EXTERNAL_REVIEW_TIMEOUT_SEC}s)"
+    except (FileNotFoundError, OSError) as e:
+        return 127, "", f"codex CLI 不可用:{e}"
+
+
+def _run_claude_review(prompt_text: str, model_name: str = "claude-sonnet-4-6"
+                       ) -> tuple[int, str, str]:
+    """跑 claude --print --output-format text · 返 (rc, stdout, stderr)。
+
+    参考 claude-agents/invoke.md § 1.1 基础命令。
+    """
+    cmd = ["claude", "--print", "--model", model_name, "--output-format", "text"]
+    try:
+        r = subprocess.run(cmd, input=prompt_text, capture_output=True,
+                           text=True, timeout=EXTERNAL_REVIEW_TIMEOUT_SEC)
+        return r.returncode, r.stdout, r.stderr
+    except subprocess.TimeoutExpired:
+        return 124, "", f"claude --print 超时({EXTERNAL_REVIEW_TIMEOUT_SEC}s)"
+    except (FileNotFoundError, OSError) as e:
+        return 127, "", f"claude CLI 不可用:{e}"
+
+
+def cmd_external_review(args: argparse.Namespace) -> None:
+    """v8.20:state.py external-review · 异质模型评审一条命令调起。
+
+    治本 SVC-CORE-F034 case:case-AI 5 层根因第 1/2/3 层(没 which / 没 cite F033 范式 /
+    选 Agent subagent substitute)本质是「调用本身没物化」· PMO 要自己判断该不该跑 /
+    怎么跑 / 用什么 profile。物化后这 3 层全消除。
+
+    流程:
+      Step 1 · 宿主→异质 model 自动映射(--host claude-code → model=codex)
+      Step 2 · which <cli> 验工具在(不在 BLOCK + hint · 绝不 substitute)
+      Step 3 · stage→profile 自动选(prd-reviewer / blueprint-reviewer / reviewer)
+      Step 4 · 算 commit / base(state.json fallback)
+      Step 5 · 跑 CLI(同步 · 5min timeout · capture stdout)
+      Step 6 · 落 external-cross-review/<stage>-<model>.md(自动 frontmatter + body)
+      Step 7 · emit JSON 含 file_path + model_version + 命令实际跑的内容
+
+    R3 异质硬约束(v8.19 文件名校验是兜底 · v8.20 是主路径):
+    - model 必 ≠ host 同源(claude-code 不能选 claude · codex-cli 不能选 codex)
+    - 文件命名 + frontmatter review_model 自动用合规字面(白名单)
+    """
+    # ── Step 1 · host + model 校验 + 自动映射 ──
+    host = args.host
+    if host not in EXTERNAL_HOST_TO_MODEL:
+        emit({
+            "verdict": "FAIL",
+            "command": "external-review",
+            "error": f"--host={host!r} 非法 · 合法值: {sorted(EXTERNAL_HOST_TO_MODEL)}",
+            "hint": "host 即主对话宿主标识 · 与 bootstrap --host 一致",
+        })
+        return
+
+    if args.model:
+        model = args.model
+        # 异质校验:model 不能与 host 同源
+        host_keyword = host.split("-")[0]  # claude-code → claude · codex-cli → codex
+        if host_keyword in model.lower():
+            emit({
+                "verdict": "FAIL",
+                "command": "external-review",
+                "error": f"--model={model!r} 与 --host={host!r} 同源 · 违 R3 异质约束",
+                "hint": (
+                    f"host={host} 主对话宿主 = {host_keyword} · external 必跑异质 · "
+                    f"推荐 --model {EXTERNAL_HOST_TO_MODEL[host]}(自动映射 · 留空即默认)"
+                ),
+                "spec": "standards/external-model-usage.md § 7.1 异质性定义",
+            })
+            return
+    else:
+        model = EXTERNAL_HOST_TO_MODEL[host]
+
+    if model not in ("codex", "claude"):
+        emit({
+            "verdict": "FAIL",
+            "command": "external-review",
+            "error": f"--model={model!r} 暂不支持(v8.20 仅 codex/claude)",
+            "hint": "其他白名单 CLI(gemini/deepseek 等)未来 case 实证再扩",
+        })
+        return
+
+    # ── Step 2 · which <cli> 验工具在(治本 case-AI 第 3 层根因) ──
+    cli_name = model  # "codex" 或 "claude"
+    which_r = subprocess.run(["which", cli_name], capture_output=True, text=True)
+    if which_r.returncode != 0:
+        emit({
+            "verdict": "FAIL",
+            "command": "external-review",
+            "error": f"{cli_name} CLI 不在(`which {cli_name}` 失败)",
+            "hint": (
+                f"二选一(绝不 substitute · 不可用 Agent subagent 自审):\n"
+                f"  ① 安装 {cli_name} CLI(codex: https://github.com/openai/codex · "
+                f"claude: https://claude.com/claude-code)\n"
+                f"  ② state.py change-review-roles --feature {args.feature} "
+                f"--stage {args.stage} --roles '<不含 external>' --reason "
+                f"'{cli_name} CLI 不在本机' · 留 audit 后继续 stage-complete"
+            ),
+            "rule": "standards/external-model-usage.md § 7.3 · R3 异质硬约束",
+        })
+        return
+
+    # ── Step 3 · stage→profile 自动选 ──
+    if args.stage not in EXTERNAL_STAGE_TO_PROFILE:
+        emit({
+            "verdict": "FAIL",
+            "command": "external-review",
+            "error": f"--stage={args.stage!r} 不支持 external review",
+            "hint": f"仅 {sorted(EXTERNAL_STAGE_TO_PROFILE)} 支持 · "
+                    "其他 stage 走 change-review-roles 移除 external",
+        })
+        return
+
+    skill_root = Path(__file__).resolve().parent.parent
+    profile_filename = EXTERNAL_STAGE_TO_PROFILE[args.stage][model]
+    if model == "codex":
+        profile_path = skill_root / "codex-agents" / profile_filename
+    else:
+        profile_path = skill_root / "claude-agents" / profile_filename
+    if not profile_path.exists():
+        emit({
+            "verdict": "FAIL",
+            "command": "external-review",
+            "error": f"reviewer profile 不存在: {profile_path}",
+            "hint": f"检查 skill_root={skill_root} · 是否缺 {model}-agents/{profile_filename}",
+        })
+        return
+
+    # ── Step 4 · 算 commit / base(state.json fallback) ──
+    feature_dir = Path(args.feature).resolve()
+    try:
+        state = load_state(args.feature)  # state.py.load_state 返 dict(非 tuple)
+    except SystemExit:
+        # load_state 自己 die 了 · 不重 emit
+        raise
+
+    commit = args.commit
+    if not commit:
+        # fallback:state.stage_contracts.<stage>.auto_commit / git HEAD
+        commit = (state.get("stage_contracts", {}).get(args.stage, {}).get("auto_commit")
+                  or state.get("stage_contracts", {}).get("dev", {}).get("auto_commit"))
+        if not commit:
+            try:
+                r = subprocess.run(["git", "rev-parse", "HEAD"],
+                                   capture_output=True, text=True, cwd=str(feature_dir))
+                if r.returncode == 0:
+                    commit = r.stdout.strip()
+            except (FileNotFoundError, OSError):
+                pass
+    if not commit:
+        emit({
+            "verdict": "FAIL",
+            "command": "external-review",
+            "error": "无法算 commit(--commit 未传 + state.stage_contracts 无 auto_commit + git HEAD 失败)",
+            "hint": "显式传 --commit <SHA>",
+        })
+        return
+
+    base = args.base or state.get("merge_target")
+    if not base:
+        emit({
+            "verdict": "FAIL",
+            "command": "external-review",
+            "error": "无法算 base(--base 未传 + state.merge_target 缺)",
+            "hint": "显式传 --base <branch>",
+        })
+        return
+
+    feature_id = state.get("feature_id") or feature_dir.name
+    title = args.title or f"{feature_id} · {args.stage} stage external review"
+
+    # ── dry-run · 仅输出将跑的命令 + 校验信息 ──
+    output_dir = feature_dir / "external-cross-review"
+    output_file = output_dir / f"{args.stage}-{model}.md"
+    if args.dry_run:
+        if model == "codex":
+            preview_cmd = (
+                f"codex review --commit {commit[:12]} --base {base} "
+                f"--title '{title}' (profile: {profile_path})"
+            )
+        else:
+            preview_cmd = (
+                f"cat {profile_path} | claude --print "
+                f"--model claude-sonnet-4-6 --output-format text"
+            )
+        emit({
+            "verdict": "OK",
+            "command": "external-review",
+            "dry_run": True,
+            "host": host,
+            "model": model,
+            "stage": args.stage,
+            "profile": str(profile_path),
+            "commit": commit,
+            "base": base,
+            "title": title,
+            "output_file": str(output_file),
+            "preview_command": preview_cmd,
+            "next": "去掉 --dry-run 实际跑 · 30s-3min 等",
+        })
+        return
+
+    # ── Step 5 · 跑 CLI ──
+    output_dir.mkdir(parents=True, exist_ok=True)
+    if model == "codex":
+        rc, stdout, stderr = _run_codex_review(
+            commit=commit, base=base, title=title,
+            profile_path=profile_path, cwd=str(feature_dir),
+        )
+    else:
+        # claude 路径:读 prompt template + pipe 给 claude --print
+        # 占位符替换(基础版):{{stage}} / {{commit}} / {{base}} / {{feature_id}}
+        prompt_template = profile_path.read_text(encoding="utf-8")
+        prompt_text = (
+            prompt_template
+            .replace("{{stage}}", args.stage)
+            .replace("{{commit}}", commit)
+            .replace("{{base}}", base)
+            .replace("{{feature_id}}", feature_id)
+        )
+        rc, stdout, stderr = _run_claude_review(prompt_text)
+
+    if rc != 0:
+        emit({
+            "verdict": "FAIL",
+            "command": "external-review",
+            "error": f"{cli_name} 执行失败(exit={rc}): {stderr[:300]}",
+            "hint": (
+                f"排查 ① 网络 / token(setup-token / OAuth)· "
+                f"② {cli_name} --version 验本地工具 · ③ 重跑 state.py external-review"
+            ),
+            "host": host,
+            "model": model,
+            "cli_exit_code": rc,
+            "cli_stderr": stderr[:500],
+        })
+        return
+
+    if not stdout.strip():
+        emit({
+            "verdict": "FAIL",
+            "command": "external-review",
+            "error": f"{cli_name} 返回空 stdout · 视作 review 失败",
+            "hint": f"检查 {cli_name} 配置 · 或重跑(网络抖动可能)",
+        })
+        return
+
+    # ── Step 6 · 落产物(合规 frontmatter + body=stdout) ──
+    model_version = _detect_cli_version(cli_name)
+    frontmatter_lines = [
+        "---",
+        f"review_model: {model_version}",
+        f"review_role: external",
+        f"review_stage: {args.stage}",
+        f"target_commit: {commit}",
+        f"target_base: {base}",
+        f"title: \"{title}\"",
+        f"generated_at: \"{now_iso()}\"",
+        f"invoked_by: state.py external-review (v8.20)",
+        f"host: {host}",
+        "---",
+        "",
+    ]
+    output_file.write_text("\n".join(frontmatter_lines) + stdout, encoding="utf-8")
+
+    # ── Step 7 · emit ──
+    # finding 数粗估(grep "^###" 或 "Finding" · 仅参考)
+    finding_count = max(
+        stdout.count("### Finding"),
+        stdout.count("#### Finding"),
+        stdout.lower().count("finding "),
+    )
+    emit({
+        "verdict": "OK",
+        "command": "external-review",
+        "host": host,
+        "model": model,
+        "model_version": model_version,
+        "stage": args.stage,
+        "profile": str(profile_path),
+        "commit": commit,
+        "base": base,
+        "file_path": str(output_file),
+        "finding_count_estimate": finding_count,
+        "stdout_bytes": len(stdout),
+        "next_hint": (
+            f"file 已落盘 · PMO 整合 finding 到 REVIEW.md · "
+            f"然后跑 state.py {args.stage}-complete --artifacts ..."
+        ),
+    })
+
+
 def cmd_audit_raw_writes(args: argparse.Namespace) -> None:
     """v8.12:跨 Feature 汇总所有 raw-write 历史 · 帮助识别状态机缺口。
 
@@ -2819,6 +3160,41 @@ def build_parser() -> argparse.ArgumentParser:
     crr.add_argument("--reason", required=True,
                      help="调整理由(必填 · 写 stage_review_roles_adjustments audit)")
     crr.set_defaults(func=cmd_change_review_roles)
+
+    # v8.20:external-review · 异质模型评审一条命令调起(治本 SVC-CORE-F034 case)
+    er = sub.add_parser(
+        "external-review",
+        help=(
+            "[v8.20] 调起异质模型(codex/claude)做外部 review · 按宿主自动选模型 · "
+            "落合规 external-cross-review/<stage>-<model>.md(治本 PMO 自己拼命令 / "
+            "用 Agent subagent 自审 case)"
+        ),
+    )
+    er.add_argument("--feature", required=True,
+                    help="Feature 目录(含 state.json)")
+    er.add_argument("--stage", required=True,
+                    choices=["goal", "blueprint", "review"],
+                    help=("review 阶段:goal=PRD / blueprint=TC+TECH / review=代码 · "
+                          "工具按 stage 自动选 reviewer profile"))
+    er.add_argument("--host", required=True,
+                    choices=["claude-code", "codex-cli", "gemini-cli"],
+                    help=("主对话宿主(与 bootstrap --host 一致)· "
+                          "决定异质 model:claude-code→codex · codex-cli→claude · "
+                          "gemini-cli→codex(默认)"))
+    er.add_argument("--model", default=None,
+                    choices=["codex", "claude"],
+                    help=("显式指定异质模型(覆盖按 host 自动映射)· "
+                          "校验:必 ≠ host 同源 · 违 R3 直接 BLOCK"))
+    er.add_argument("--commit", default=None,
+                    help=("review 目标 commit SHA · 缺省从 state.stage_contracts."
+                          "<stage>.auto_commit 取 · 再缺从 git HEAD"))
+    er.add_argument("--base", default=None,
+                    help="diff base 分支 · 缺省 state.merge_target")
+    er.add_argument("--title", default=None,
+                    help="review 标题 · 缺省 '<feature_id> · <stage> stage external review'")
+    er.add_argument("--dry-run", action="store_true",
+                    help="只输出将跑的命令 + 校验 · 不实际调 CLI(供 debug / preview)")
+    er.set_defaults(func=cmd_external_review)
 
     # ─── v8.0 stage 命令注册(Code-driven Orchestration) ─────────────
     # 设计文档:docs/v8-redesign/00-MANIFESTO.md

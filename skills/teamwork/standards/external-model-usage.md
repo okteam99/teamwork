@@ -251,6 +251,56 @@ Step 3:跑命令 · 落 *-codex.md / *-gemini.md / 等真异质模型文件
 | 看到工具不在就 substitute | "/codex 是 user-only skill 不能 invoke → 用 Agent 起" | 7.3 必先 `which` · 不在 stop |
 | 没 cite 上游 Feature 范式 | F033 既有 `*-codex.md` 在 worktree 内 · F034 没 grep | 7.3 跑前 cite 范例 |
 
+### 7.5 v8.20 物化路径:`state.py external-review`(推荐)
+
+> 🟢 **v8.20 治本 F034 case-AI 5 层根因第 1/2/3 层(没 which / 没 cite / substitute)** —— 调用本身也物化 · PMO 不需要自己拼 codex/claude 命令 / 不需要选 reviewer profile / 不需要管 frontmatter 命名。
+
+```bash
+state.py external-review \
+  --feature <path> \
+  --stage {goal,blueprint,review} \
+  --host {claude-code,codex-cli,gemini-cli} \
+  [--model {codex,claude}]   # 显式覆盖 · 默认按 host 自动映射(claude-code→codex / codex-cli→claude)
+  [--commit <SHA>]           # 缺省 state.stage_contracts.<stage>.auto_commit / git HEAD
+  [--base <branch>]          # 缺省 state.merge_target
+  [--title <title>]          # 缺省 "<feature_id> · <stage> stage external review"
+  [--dry-run]                # 只输出将跑的命令 · 不实际调 CLI
+```
+
+#### 工具内部 7 步 SOP(对应 case 5 层根因)
+
+| Step | 动作 | 治本根因 |
+|---|---|---|
+| 1 | host → model 自动映射 + 异质校验(同源 BLOCK) | 第 5 层(R3 降级)|
+| 2 | `which <cli>` 验工具在 · 不在 BLOCK + hint(绝不 substitute)| 第 3 层(substitute)|
+| 3 | stage → reviewer profile 自动选(prd-reviewer / blueprint-reviewer / reviewer)| 第 2 层(没 cite 范式)|
+| 4 | commit / base 从 state.json fallback | 第 1 层(效率 · 减心智)|
+| 5 | 跑 CLI(同步 · 5min timeout · capture stdout)| 第 1 层(自动)|
+| 6 | 落 `external-cross-review/<stage>-<model>.md`(自动 frontmatter + body)| 第 4 层(透明伪装 = 文件名 + frontmatter 自动合规)|
+| 7 | emit JSON 含 file_path / model_version / finding_count_estimate | 第 4 层(audit 留痕)|
+
+#### F034 case 用 v8.20 重跑
+
+```
+$ state.py external-review --feature services/core/.../F034 --stage review --host claude-code
+# step 1:host=claude-code → model=codex(自动)
+# step 2:which codex → /opt/homebrew/bin/codex ✅
+# step 3:stage=review → profile=codex-agents/reviewer.toml
+# step 4:commit=state.stage_contracts.dev.auto_commit / base=state.merge_target
+# step 5:跑 codex review --commit ... --base ... --title ...
+# step 6:落 external-cross-review/review-codex.md(frontmatter review_model=codex-cli 0.133.0)
+# step 7:emit OK + finding_count_estimate=12
+```
+
+→ PMO 不需要 grep F033 / 不需要拼 codex 命令 / 不需要管文件名 · 一条命令完成。
+
+#### v8.19(校验)vs v8.20(主路径)互补
+
+- **v8.19** = 兜底防御层(若 PMO 手工绕过 v8.20 自己写文件 · 仍被拦)
+- **v8.20** = 推荐主路径 + 完全自动化
+
+两者不冲突 · v8.20 的产物天然符合 v8.19 校验(文件名 + frontmatter 都自动合规)。
+
 ---
 
 末。

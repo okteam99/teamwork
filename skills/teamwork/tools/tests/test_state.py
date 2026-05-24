@@ -1054,6 +1054,143 @@ class TestAdmissionJudgment(unittest.TestCase):
                         f"state.concerns 应含 admission WARN · 实际: {state['concerns']}")
 
 
+class TestExternalReviewCommand(unittest.TestCase):
+    """v8.20:state.py external-review · 异质模型评审一条命令调起(治本 SVC-CORE-F034)。
+
+    覆盖:
+    - host→model 自动映射(claude-code→codex / codex-cli→claude)
+    - 显式 --model 同源 BLOCK(claude-code + claude 违 R3)
+    - which <cli> 不在 BLOCK with hint(绝不 substitute)
+    - stage 非法 BLOCK(只支持 goal/blueprint/review)
+    - dry-run:输出 preview_command + 不实际调 CLI
+    - commit / base fallback(state.json 取)
+    """
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp(prefix="ext-rev-"))
+        self.feat = self.tmp / "feat"
+        self.feat.mkdir(parents=True)
+        (self.feat / "state.json").write_text(json.dumps({
+            "feature_id": "TEST-F001",
+            "flow_type": "Feature",
+            "current_stage": "review",
+            "merge_target": "main",
+            "stage_contracts": {"dev": {"auto_commit": "abc123def456"}},
+            "concerns": [],
+            "completed_stages": ["dev"],
+        }, ensure_ascii=False, indent=2), encoding="utf-8")
+        self._prev_bypass = os.environ.get("TEAMWORK_BYPASS_CHECKSUM")
+        os.environ["TEAMWORK_BYPASS_CHECKSUM"] = "1"
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+        if self._prev_bypass is None:
+            os.environ.pop("TEAMWORK_BYPASS_CHECKSUM", None)
+        else:
+            os.environ["TEAMWORK_BYPASS_CHECKSUM"] = self._prev_bypass
+
+    # ── host→model 自动映射 ──
+    def test_host_claude_code_auto_maps_to_codex(self):
+        d = run(["external-review", "--feature", str(self.feat),
+                 "--stage", "review", "--host", "claude-code", "--dry-run"])
+        self.assertEqual(d["verdict"], "OK")
+        self.assertEqual(d["model"], "codex")  # claude-code → codex 自动
+
+    def test_host_codex_cli_auto_maps_to_claude(self):
+        d = run(["external-review", "--feature", str(self.feat),
+                 "--stage", "review", "--host", "codex-cli", "--dry-run"])
+        self.assertEqual(d["verdict"], "OK")
+        self.assertEqual(d["model"], "claude")  # codex-cli → claude 自动
+
+    # ── 同源 BLOCK(治本 case-AI 反模式) ──
+    def test_explicit_model_same_source_blocked(self):
+        """claude-code 主对话 + 显式 --model claude → BLOCK(违 R3)。"""
+        d = run(["external-review", "--feature", str(self.feat),
+                 "--stage", "review", "--host", "claude-code", "--model", "claude",
+                 "--dry-run"], expect_exit=0)
+        self.assertEqual(d["verdict"], "FAIL")
+        self.assertIn("同源", d["error"])
+        self.assertIn("R3", d["error"])
+
+    def test_explicit_model_codex_with_codex_host_blocked(self):
+        d = run(["external-review", "--feature", str(self.feat),
+                 "--stage", "review", "--host", "codex-cli", "--model", "codex",
+                 "--dry-run"], expect_exit=0)
+        self.assertEqual(d["verdict"], "FAIL")
+        self.assertIn("同源", d["error"])
+
+    # ── stage 校验 ──
+    def test_stage_choices_enforced(self):
+        """argparse choices 限定 goal/blueprint/review · 其他直接 argparse error。"""
+        # ship 不在 choices · argparse exit 2
+        r = subprocess.run(
+            [sys.executable, str(STATE_PY), "external-review",
+             "--feature", str(self.feat), "--stage", "ship",
+             "--host", "claude-code", "--dry-run"],
+            capture_output=True, text=True)
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("invalid choice", (r.stderr + r.stdout).lower())
+
+    # ── dry-run 输出 preview_command ──
+    def test_dry_run_includes_preview_command(self):
+        d = run(["external-review", "--feature", str(self.feat),
+                 "--stage", "review", "--host", "claude-code", "--dry-run"])
+        self.assertTrue(d["dry_run"])
+        self.assertIn("preview_command", d)
+        self.assertIn("codex review --commit", d["preview_command"])
+        # 没真跑 · 不该有 file_path 字段
+        self.assertNotIn("model_version", d)
+
+    # ── commit fallback ──
+    def test_commit_fallback_from_state_dev_auto_commit(self):
+        """--commit 缺 → state.stage_contracts.dev.auto_commit 取。"""
+        d = run(["external-review", "--feature", str(self.feat),
+                 "--stage", "review", "--host", "claude-code", "--dry-run"])
+        self.assertEqual(d["commit"], "abc123def456")
+
+    def test_explicit_commit_overrides_state(self):
+        d = run(["external-review", "--feature", str(self.feat),
+                 "--stage", "review", "--host", "claude-code",
+                 "--commit", "deadbeef99", "--dry-run"])
+        self.assertEqual(d["commit"], "deadbeef99")
+
+    # ── base fallback ──
+    def test_base_fallback_from_state_merge_target(self):
+        d = run(["external-review", "--feature", str(self.feat),
+                 "--stage", "review", "--host", "claude-code", "--dry-run"])
+        self.assertEqual(d["base"], "main")
+
+    # ── which BLOCK(模拟 codex 不在 · 用窄 PATH) ──
+    def test_codex_cli_missing_blocked_with_hint(self):
+        """which codex 失败 → BLOCK + hint 含 'change-review-roles' / '绝不 substitute'。"""
+        # 用窄 PATH 模拟 codex 不在(/usr/bin:/bin · 通常没 codex)
+        r = subprocess.run(
+            [sys.executable, str(STATE_PY), "external-review",
+             "--feature", str(self.feat), "--stage", "review",
+             "--host", "claude-code"],  # 不加 --dry-run · 真跑到 which
+            capture_output=True, text=True,
+            env={**os.environ, "PATH": "/usr/bin:/bin",
+                 "TEAMWORK_BYPASS_CHECKSUM": "1"})
+        d = json.loads(r.stdout) if r.stdout.strip().startswith("{") else {}
+        self.assertEqual(d.get("verdict"), "FAIL", f"应 FAIL · 实际 stdout={r.stdout}")
+        self.assertIn("不在", d["error"])
+        self.assertIn("substitute", d["hint"])  # "绝不 substitute"
+        self.assertIn("change-review-roles", d["hint"])
+
+    # ── 自动 frontmatter 文件命名 ──
+    def test_output_file_path_uses_compliant_naming(self):
+        d = run(["external-review", "--feature", str(self.feat),
+                 "--stage", "review", "--host", "claude-code", "--dry-run"])
+        # 文件名必含异质模型字面(v8.19 校验通过)· 自动 <stage>-<model>.md
+        self.assertTrue(d["output_file"].endswith("review-codex.md"),
+                        f"应 review-codex.md · 实际 {d['output_file']}")
+
+    def test_output_file_for_blueprint_stage(self):
+        d = run(["external-review", "--feature", str(self.feat),
+                 "--stage", "blueprint", "--host", "codex-cli", "--dry-run"])
+        self.assertTrue(d["output_file"].endswith("blueprint-claude.md"))
+
+
 class TestPMDecisionTolerance(unittest.TestCase):
     """pm_acceptance decision 容错读 contract 顶层旧位(治本 ADMIN-F013 case)。
 
