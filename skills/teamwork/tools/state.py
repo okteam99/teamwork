@@ -2497,7 +2497,8 @@ def _run_claude_review(prompt_text: str, model_name: str = "claude-sonnet-4-6"
                        ) -> tuple[int, str, str]:
     """跑 claude --print --output-format text · 返 (rc, stdout, stderr)。
 
-    参考 claude-agents/invoke.md § 1.1 基础命令。
+    实现细节:cat <prompt> | claude --print --model <model> --output-format text。
+    PMO 不需读 · 走 state.py external-review 主路径(v8.20+)。
     """
     cmd = ["claude", "--print", "--model", model_name, "--output-format", "text"]
     try:

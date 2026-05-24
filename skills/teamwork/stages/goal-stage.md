@@ -21,7 +21,7 @@
   - QA 视角:测试覆盖性 / 边界场景 / AC 可测试性
   - Architect 视角:技术可行性 / 架构影响 / 性能安全
   - PL 视角:业务方向 / 路线图对齐
-  - External Reviewer:异质模型 cross-review(落 `external-cross-review/*.md`)
+  - External Reviewer:**跑** `state.py external-review --feature ... --stage goal`(v8.20+ 物化主路径 · host/model/profile 全自动 · 落 `external-cross-review/goal-<model>.md` · 详 standards §十一)
 - 落 `{Feature}/PRD-REVIEW.md` · frontmatter `reviewers: [pm, qa, architect, pl, external]` + `verdicts: {role: APPROVE|NEEDS_REVISION}`
 
 ### 4. PM 回应 + 修订 PRD
@@ -96,8 +96,8 @@
  - `verdicts: {role: APPROVE|NEEDS_REVISION|SKIP}`
 - body ≥ 20 行 · 每 reviewer 单独段 · cite PRD 行号
 
-### `external-cross-review/prd-{model}.md`(若启用)
-- 模板:`{SKILL_ROOT}/templates/external-cross-review.md` § 3.1 PRD 变体 + § 4 Output Schema
+### `external-cross-review/goal-<model>.md`(若启用)
+- **跑** `state.py external-review --feature ... --stage goal`(v8.20+ 自动落产物 · 不要手写)· 详 [standards/external-model-usage.md §十一](../standards/external-model-usage.md)。
 
 ---
 

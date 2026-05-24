@@ -1,8 +1,10 @@
 # 外部模型合规使用规范
 
-> 🔴 **本文件是 teamwork 调用外部模型（codex / gemini / claude-cli 等）的唯一权威源**。SKILL.md 红线 R1（代码写权归 RD）+ R7（证据闭环）顶层 cite 本文件。
+> 🔴 **本文件是 teamwork 调用外部模型(codex / gemini / claude-cli 等)的唯一权威源**。SKILL.md 红线 R1(代码写权归 RD)+ R7(证据闭环)顶层 cite 本文件。
 >
-> 🟢 **抽出来源**： 实战触发——用户分享 codex 账号收到 OpenAI "cyber abuse" 警告 · 根因是 teamwork 把 codex CLI 当 AI agent 后端用（5/8 profile full sandbox + service_tier=fast + hooks 自动触发 + AI 编排 AI）。
+> 🟢 **抽出来源**: 实战触发——用户分享 codex 账号收到 OpenAI "cyber abuse" 警告 · 根因是 teamwork 把 codex CLI 当 AI agent 后端用(5/8 profile full sandbox + service_tier=fast + hooks 自动触发 + AI 编排 AI)。
+>
+> 🟢 **v8.20+ PMO 主路径** = `state.py external-review --feature <path> --stage <stage>` · 详 **§十一 异质性硬约束 + 物化主路径**(11.5 v8.20 / 11.6 v8.21)。PMO 心智 = 2 个业务参数 · host / model / which / profile / 文件命名 全自动。本文 §五/§六 是底层实现 · 已 v8.20+ 物化到工具 · PMO 不必读。
 
 ---
 
@@ -92,7 +94,9 @@
 
 ## 五、prompt 注入硬规则
 
-调用 codex 时 prompt 头部**必须**包含以下角色边界声明：
+> 🟡 **v8.20+ 已物化**:`state.py external-review` 内置 prompt 注入(claude 路径读 `claude-agents/reviewer.md` 模板 · codex 路径 codex CLI 自带 review 模式)。PMO 不必读本节 · 仅 debug / 适配新 reviewer 模型时参考。
+
+调用 codex 时 prompt 头部**必须**包含以下角色边界声明:
 
 ```
 You are a code reviewer in the Teamwork framework.
@@ -113,6 +117,8 @@ respond "Out of scope. Teamwork uses external models for review only."
 ---
 
 ## 六、配置约束清单
+
+> 🟡 **v8.20+ 已物化**:`state.py external-review` 内置 profile 选择(stage→profile mapping)+ 校验 profile 文件存在 + 校验 reviewer.toml sandbox=read-only(代码内 enforce)。PMO 不必读本节 · 仅 codex profile 配置变更时参考。
 
 ```
 codex-agents/*.toml 必须满足：
@@ -151,11 +157,12 @@ codex-agents/*.toml 必须满足：
 
 ## 九、相关文件
 
-- `codex-agents/*.toml` — codex profile 配置（全部 read-only · 无 service_tier）
-- `claude-agents/reviewer.md` — 评审 prompt 模板（含 strict constraints 头）
-- `claude-agents/invoke.md` — shell 调用规范
+- `tools/state.py` external-review 命令 — v8.20+ **物化主路径**(详 §十一 异质性硬约束 + 物化主路径)
+- `codex-agents/*.toml` — codex profile 配置(全部 read-only · 无 service_tier · state.py 内部按 stage 自动选)
+- `claude-agents/reviewer.md` — claude CLI 评审 prompt 模板(state.py 路径自动 pipe 给 claude --print)
 - `roles/external-reviewer.md` — external 角色契约
-- `templates/external-cross-review.md` — 评审记录模板
+- `templates/external-cross-review.md` — 评审记录模板(§五 整合流程已 v8.20+ 物化)
+- (历史 `claude-agents/invoke.md` / `claude-agents/README.md` / `codex-agents/README.md` 已 v8.22 删除 · 调用细节进 state.py)
 
 ---
 
@@ -188,11 +195,13 @@ Reference: standards/external-model-usage.md in the Teamwork skill repository.
 
 ---
 
-## 七、异质性硬约束(v8.19 治本 SVC-CORE-F034 case)
+## 十一、异质性硬约束 + 物化主路径(v8.19/v8.20/v8.21)
 
 > 🔴 **实战触发**:F034 review stage PMO 没找到 `which codex` · 选用 `Agent subagent_type=general-purpose` 起 Claude isolated context 自审 · 标 frontmatter `review_model: claude-opus-4-isolated-context` 「透明」· 用户察觉后承认违 R3 红线。
+>
+> 🟢 **本节是 v8.20+ PMO 主路径权威源** —— 顶部简介已指向此节 · §五/§六 是已物化的底层细节。
 
-### 7.1 异质性定义(不可妥协)
+### 11.1 异质性定义(不可妥协)
 
 **external review = 异质模型审查** —— 与主对话宿主模型**统计独立**的 LLM 提供独立视角。
 
@@ -205,7 +214,7 @@ Reference: standards/external-model-usage.md in the Teamwork skill repository.
 | 主对话 Claude → claude-cli 子进程 | ❌ **不算** | 同模型自审 |
 | 用 frontmatter `review_model: claude-isolated` 标"透明" | ❌ **不算** | 透明 ≠ 合规;透明只承认"我做了不达标" · 不替代"做达标" |
 
-### 7.2 文件命名硬规约(state.py 物化校验)
+### 11.2 文件命名硬规约(state.py 物化校验)
 
 `external-cross-review/*.md` 文件名 + frontmatter `review_model` 字段必须:
 
@@ -226,7 +235,7 @@ Reference: standards/external-model-usage.md in the Teamwork skill repository.
 
 state.py 在 `<stage>-complete` evidence 校验时物化拦截 · 详 `_evidence_external_review_artifact`(_v8_stage_specs.py · v8.19+)。
 
-### 7.3 PMO 调用前必做(防 F034 反模式)
+### 11.3 PMO 调用前必做(防 F034 反模式)
 
 ```
 Step 1:`which codex`(/ gemini / 其他白名单 CLI)
@@ -242,7 +251,7 @@ Step 2:跑前 cite 上游 Feature 1 个范例(grep F033/external-cross-review/*c
 Step 3:跑命令 · 落 *-codex.md / *-gemini.md / 等真异质模型文件
 ```
 
-### 7.4 反模式黑名单(case 实证)
+### 11.4 反模式黑名单(case 实证)
 
 | 反模式 | 案例 | 治本 |
 |---|---|---|
@@ -251,7 +260,7 @@ Step 3:跑命令 · 落 *-codex.md / *-gemini.md / 等真异质模型文件
 | 看到工具不在就 substitute | "/codex 是 user-only skill 不能 invoke → 用 Agent 起" | 7.3 必先 `which` · 不在 stop |
 | 没 cite 上游 Feature 范式 | F033 既有 `*-codex.md` 在 worktree 内 · F034 没 grep | 7.3 跑前 cite 范例 |
 
-### 7.5 v8.20 物化路径:`state.py external-review`(推荐)
+### 11.5 v8.20 物化路径:`state.py external-review`(推荐)
 
 > 🟢 **v8.20 治本 F034 case-AI 5 层根因第 1/2/3 层(没 which / 没 cite / substitute)** —— 调用本身也物化 · PMO 不需要自己拼 codex/claude 命令 / 不需要选 reviewer profile / 不需要管 frontmatter 命名。
 
@@ -301,7 +310,7 @@ $ state.py external-review --feature services/core/.../F034 --stage review --hos
 
 两者不冲突 · v8.20 的产物天然符合 v8.19 校验(文件名 + frontmatter 都自动合规)。
 
-### 7.6 v8.21 进一步简化 · PMO 心智 2 参数(host 自动探测)
+### 11.6 v8.21 进一步简化 · PMO 心智 2 参数(host 自动探测)
 
 > 🟢 **v8.21 治本"PMO 还要知道宿主细节"** —— v8.20 PMO 还要传 `--host`(主对话宿主 enum)· v8.21 把 host 探测也物化 · PMO 心智 = `--feature` + `--stage` **(2 个业务参数)**。
 

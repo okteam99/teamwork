@@ -158,48 +158,48 @@ findings_summary:
 
 ---
 
-## 五、PMO 整合流程（强制顺序）
+## 五、PMO 整合流程(v8.20+ 物化主路径)
+
+> 🟢 **v8.20+ 已物化** —— 调用细节(host 探测 / which 校验 / profile 选择 / CLI 拼装 / 落产物)全部进 `state.py external-review`。PMO 心智 = 2 个业务参数(--feature + --stage) + 4 个整合步骤。详 [standards/external-model-usage.md § 十一 异质性硬约束 + 物化主路径](../standards/external-model-usage.md)。
 
 ```
-Step 1 - PMO 内部 review（🔴 防外包，强制前置）
- PMO 按同 checklist 自查，输出 ≥3 条 findings，暂存 pmo-internal-review.md。
+Step 1 - PMO 内部 review(🔴 防外包 · 强制前置)
+ PMO 按 §三 checklist 自查 · 输出 ≥3 条 findings · 暂存 pmo-internal-review.md。
  不做这一步直接 dispatch = 把思考外包 = 违反红线 R1。
 
-Step 2 - Dispatch 外部模型（🔴 宿主无关，按 state.external_cross_review.model 执�）
- Claude Code 主对话 + model=codex: shell 启 codex CLI 子进程（fresh session，调用 codex-agents/*.toml）。
- Codex CLI 主对话 + model=claude: shell 启 claude CLI 子进程（fresh context，按 claude-agents/invoke.md 范本）。
- 🔴 禁止："外部视角 = 主对话同模型自审"——必须 shell 调用异质 CLI。
- 可用性检测: PMO 在初步分析时已直接判定过；本步直接读 state.external_cross_review.{enabled, model}。
- 调用失败（exit code != 0） → 走 §六 降级（state.concerns 加 WARN + 降级单视角 review）。
- Dispatch 文件规范: 沿用现有协议，文件名 dispatch_log/{NNN}-external-{model}-review.md。
+Step 2 - 调起异质模型评审(一条命令)
+ state.py external-review --feature <path> --stage <goal|blueprint|review>
+ · 工具自动:host 探测(v8.21) → 异质 model 选择(同源 BLOCK) →
+   which CLI 校验(不在 BLOCK · 绝不 substitute) → profile 自动选 →
+   跑 CLI(同步 5min timeout) → 落合规 external-cross-review/<stage>-<model>.md
+   (自动 frontmatter:review_model / target_commit / generated_at)
+ · 调用失败 / CLI 不在 → state.py 自动 BLOCK + hint 引向修复(安装 CLI / change-review-roles
+   显式移除 external · 留 audit)· 绝不静默降级 · 绝不 Agent subagent 自审。
 
-Step 3 - 独立性校验（机器检查）
- yq 校验 perspective/target；grep 校验 files_read 禁读清单；
- 时间戳校验 generated_at > 被审查文件 mtime。
- 任一失败 → 重跑（≤2 次）；两次失败 → 触发 §六 降级。
-
-Step 4 - PMO 内部 review vs 外部模型 findings 对比
- PMO 在合入前必须输出对比表：
- ├── 共识（双方都提到）→ 优先处理
+Step 3 - PMO 内部 review vs 外部模型 findings 对比
+ PMO 在合入前必须输出对比表:
+ ├── 共识(双方都提到)→ 优先处理
  ├── PMO 独有 → 保留
- ├── 外部模型独有 → 盲区信号，重点审视
- └── 都漏的（事后暴露）→ 不在本 step，仅记录到 retro
+ ├── 外部模型独有 → 盲区信号 · 重点审视
+ └── 都漏的(事后暴露)→ 不在本 step · 仅记录到 retro
 
-Step 5 - 分类每条外部模型 finding（🔴 不允许静默忽略）
- 逐条三选一 + 写理由：
+Step 4 - 分类每条外部模型 finding(🔴 不允许静默忽略)
+ 逐条三选一 + 写理由:
  ├── ADOPT → 纳入 PRD-REVIEW.md / BLUEPRINT-REVIEW.md 交 PM/QA/RD 修改
- ├── REJECT → 必须写 rationale（如"与 KNOWLEDGE.md L42 约束冲突"）
- └── DEFER → 必须写延后追踪位置（如"ROADMAP.md 技术债条目"）
+ ├── REJECT → 必须写 rationale(如"与 KNOWLEDGE.md L42 约束冲突")
+ └── DEFER → 必须写延后追踪位置(如"ROADMAP.md 技术债条目")
 
-Step 6 - 合入多视角评审文件
- Goal Stage: PRD-REVIEW.md 新增"外部模型评审 ({model}, 外部视角)"章节
- Blueprint Stage: TC-REVIEW.md + TECH-REVIEW.md 各新增"外部模型评审"章节
+Step 5 - 合入多视角评审文件
+ Goal Stage: PRD-REVIEW.md 新增"外部模型评审 ({model} · 外部视角)" 章节
+ Blueprint Stage: TC-REVIEW.md + TECH-REVIEW.md 各新增"外部模型评审" 章节
 
-Step 7 - 更新 review-log.jsonl（一�）
- stage: "plan-external-review" | "blueprint-external-review"
- status: DONE | DONE_WITH_CONCERNS | SKIPPED | FAILED
- summary: "{model} 提 N 条，采纳 M / 拒绝 K / 延后 L"
- artifact_path: "{Feature}/external-cross-review/prd-{model}.md" 或对应 blueprint 文件
+Step 6 - stage-complete 自动校验(v8.19 兜底防御)
+ 跑 state.py <stage>-complete 时 · 工具自动校验 external-cross-review/*.md:
+ ├── 文件名 + frontmatter review_model 必含异质模型字面(codex/gpt/gemini/...)
+ ├── 必不含同源字面(claude/isolated/subagent/anthropic/...)
+ └── 违规 → BLOCKED · hint 引向 state.py external-review 重跑
+
+ review-log.jsonl 由 stage-complete 自动 append · PMO 不再手填。
 ```
 
 ---

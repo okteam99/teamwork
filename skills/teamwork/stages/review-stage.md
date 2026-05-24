@@ -13,8 +13,8 @@
 ### 3. QA 视角 review → REVIEW-qa.md
 AC 逐条对照实现 / 测试覆盖度 / 边界场景
 
-### 4. External cross-review → external-cross-review/*.md
-异质模型独立 review · 至少 1 份(P0-154)
+### 4. External cross-review → external-cross-review/review-<model>.md
+**跑** `state.py external-review --feature <path> --stage review`(v8.20+ 物化主路径 · host/model/profile 全自动 · 异质性硬约束物理墙 · 至少 1 份 · P0-154)。详 [standards/external-model-usage.md §十一](../standards/external-model-usage.md)。
 
 ### 5. 汇合 → REVIEW.md
 frontmatter `reviewers + verdict: APPROVE|NEEDS_REVISION` · body §finding / §修复建议 / §verdict
@@ -108,7 +108,7 @@ review-complete --verdict APPROVE | NEEDS_REVISION
 
 > 📋 **起草模板**(避免找历史 Feature 抄):
 > - REVIEW.md / REVIEW-arch.md / REVIEW-qa.md → 无独立模板 · 见下方 schema · 各 reviewer 按视角分段
-> - external-cross-review/*.md → `{SKILL_ROOT}/templates/external-cross-review.md` § 4 Output Schema(代码评审场景)
+> - external-cross-review/*.md → 跑 `state.py external-review --feature ... --stage review`(v8.20+ 自动落产物 · 不要手写 · 详 standards §十一)
 
 ### `REVIEW.md`
 frontmatter `reviewers + verdict` · §finding 汇总 / §修复建议 / §verdict

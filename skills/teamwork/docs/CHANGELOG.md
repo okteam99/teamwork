@@ -1,5 +1,70 @@
 # Changelog
 
+## v8.22 · 文档简化:删手工调用指南 + 修编号冲突 + stage spec 收敛(物化后的反向清理)
+
+> 用户提问:skill 中之前关于异质模型评审的描述 · 是否需要简化或者删除?
+> 答:**应该** —— v8.20/v8.21 物化后 · 多处文档与 code 重复 · 误导 PMO 学过时手工流程(case-AI F034 反模式的次因之一)。本版统一收缩。
+
+### 删除 3 个 deprecated 调用指南(共 370 行)
+
+| 文件 | 行数 | 删除理由 |
+|---|---|---|
+| `claude-agents/invoke.md` | 156 | PMO 手工 shell 调 claude --print 范本 · v8.20 state.py external-review 已物化 |
+| `claude-agents/README.md` | 131 | claude-cli 装配 / 认证指南 · v8.20 后 PMO 不需读 |
+| `codex-agents/README.md` | 83 | codex profile 配置 / 调优指南 · state.py 内部按 stage 自动选 |
+
+底层调用细节(适配新模型 / debug)需要时 → 看 `tools/state.py` `_run_codex_review` / `_run_claude_review` 源码 / git log。
+
+### standards/external-model-usage.md 修编号冲突 + 结构整理
+
+原文件有**编号 bug**:原 §七违规处置 + 我 v8.19 加的 §七异质性硬约束(两个 §七)。
+
+修复:
+- v8.19 我加的 §七 → 重号为 **§十一**(标题改"异质性硬约束 + 物化主路径")
+- 7.1 / 7.2 / ... / 7.6 子节 → 11.1 / 11.2 / ... / 11.6
+- 文件顶部简介加 "🟢 v8.20+ PMO 主路径 = state.py external-review · 详 §十一" 引导
+- §五 prompt 注入硬规则 / §六 配置约束清单 各加 banner:"🟡 v8.20+ 已物化 · PMO 不必读 · 仅 debug 时参考"
+- §九 关联文件 更新:删 invoke.md / README.md 引用 · 加 state.py external-review 命令引用
+
+### templates/external-cross-review.md §五 整合流程大改
+
+- 旧:7 步手工 dispatch(PMO 自己 shell 启 codex 子进程 / 拼 prompt / 校验独立性 / 整合 finding ...)
+- 新:**2 步**(跑 state.py external-review · PMO 整合 finding 进 REVIEW.md)+ 1 步 v8.19 兜底校验提醒
+
+### 各 stage spec(goal / blueprint / review)external 段简化
+
+| stage | 旧 | 新 |
+|---|---|---|
+| goal | "External Reviewer:异质模型 cross-review(落 external-cross-review/*.md)" | "跑 state.py external-review --feature ... --stage goal(v8.20+ 自动)" |
+| blueprint | "异质模型(codex / claude / gemini)独立 review → ..." | 同上 --stage blueprint |
+| review | "异质模型独立 review · 至少 1 份(P0-154)" | 同上 --stage review |
+
+Output Contract 段:`external-cross-review/*.md` 模板引用从 `templates/external-cross-review.md §3.X` 改为"跑 state.py external-review(自动落产物 · 不要手写)"。
+
+### state.py 内 cite 也更新
+
+`_run_claude_review` docstring 原 cite "参考 claude-agents/invoke.md § 1.1" → 改"PMO 不需读 · 走 state.py external-review 主路径(v8.20+)"。
+
+### 防止 PMO 学过时手工流程(反模式治本)
+
+case-AI F034 失误的次因之一 = 文档教 PMO 怎么手工 shell 调 codex/claude · AI 误以为"手工调是正路"。简化后:
+- 主路径文档(各 stage spec / external-cross-review template §五)直接指 state.py external-review
+- 底层细节标 deprecated banner · AI 不混淆
+- claude-agents/invoke.md 等"教手工调"文件直接删 · 物理上无法被引用
+
+### 影响面
+
+- 删 3 文件(-370 行)
+- 改 6 文件(standards + template + 3 stage spec + state.py 注释)
+- 文档总行数 -36%(~1100 → ~700)
+- 0 code change · 0 regression test break
+
+### SKILL.md frontmatter
+
+`v8.21` → `v8.22`
+
+---
+
 ## v8.21 · external-review host 自动探测(PMO 心智 2 参数 · 进一步简化)
 
 > 用户提议:简化 skill 逻辑 · PMO 只需要知道调 external 评审 · 传所需参数 · 调起模型是 py 内部逻辑 · 不可能有错。
