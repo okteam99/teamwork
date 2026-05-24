@@ -301,6 +301,54 @@ $ state.py external-review --feature services/core/.../F034 --stage review --hos
 
 两者不冲突 · v8.20 的产物天然符合 v8.19 校验(文件名 + frontmatter 都自动合规)。
 
+### 7.6 v8.21 进一步简化 · PMO 心智 2 参数(host 自动探测)
+
+> 🟢 **v8.21 治本"PMO 还要知道宿主细节"** —— v8.20 PMO 还要传 `--host`(主对话宿主 enum)· v8.21 把 host 探测也物化 · PMO 心智 = `--feature` + `--stage` **(2 个业务参数)**。
+
+#### 命令简化
+
+```bash
+# v8.20 PMO 心智 3 参数
+state.py external-review --feature <path> --stage review --host claude-code
+
+# v8.21 PMO 心智 2 参数(host 自动探测)
+state.py external-review --feature <path> --stage review
+```
+
+#### host 探测优先级
+
+1. **`--host` 显式传**(高级用户 / 覆盖 audit)
+2. **`~/.teamwork/host_audit.json`**(bootstrap 跑成功后自动写)
+3. env fallback(预留 hook · 暂未实现)
+
+`bootstrap.py` 跑一次 = 写 `host_audit.json` · 此后所有 state.py 命令自动用此 host。
+
+#### 失败模式
+
+PMO 跑 `state.py external-review --feature ... --stage review` 但既没传 --host 也没 audit:
+```
+FAIL · --host 未传 + 无法自动探测(~/.teamwork/host_audit.json 不存在)
+hint:二选一
+  ① 跑 bootstrap 一次(python3 {SKILL_ROOT}/tools/bootstrap.py --host <claude-code|codex-cli|gemini-cli>)
+     · 之后所有 state.py 命令自动用此 host
+  ② 显式传 --host claude-code(或对应宿主)
+v8.21 设计:bootstrap 跑过一次后 · PMO 心智 = --feature + --stage(2 个业务参数)· host 全自动
+```
+
+#### 透明留痕
+
+emit JSON 含 `host_source` 字段(`explicit` / `audit` / `env`)· PMO 看到 host 来自哪里。
+
+#### v8.20 vs v8.21 对比
+
+| 维度 | v8.20 | v8.21 |
+|---|---|---|
+| PMO 必传参数 | `--feature` + `--stage` + `--host`(3 个)| `--feature` + `--stage`(2 个)|
+| host 来源 | PMO 显式传 | bootstrap audit 自动读 |
+| host_source emit | 无 | 有(explicit / audit / env)|
+
+PMO 心智负担 -33% · 治本"PMO 不该关心的内部细节"(host enum / 宿主映射等)。
+
 ---
 
 末。

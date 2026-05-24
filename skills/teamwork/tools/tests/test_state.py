@@ -1191,6 +1191,104 @@ class TestExternalReviewCommand(unittest.TestCase):
         self.assertTrue(d["output_file"].endswith("blueprint-claude.md"))
 
 
+class TestHostAutoDetect(unittest.TestCase):
+    """v8.21:host 自动探测(治本 PMO 心智 · --host 改可选 · 缺省读 audit)。"""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp(prefix="host-detect-"))
+        self.feat = self.tmp / "feat"
+        self.feat.mkdir(parents=True)
+        (self.feat / "state.json").write_text(json.dumps({
+            "feature_id": "TEST-F001",
+            "flow_type": "Feature",
+            "current_stage": "review",
+            "merge_target": "main",
+            "stage_contracts": {"dev": {"auto_commit": "abc123"}},
+            "concerns": [],
+        }, ensure_ascii=False, indent=2), encoding="utf-8")
+        self.audit_path = self.tmp / "host_audit.json"
+        self._prev_audit = os.environ.get("TEAMWORK_HOST_AUDIT_PATH")
+        self._prev_bypass = os.environ.get("TEAMWORK_BYPASS_CHECKSUM")
+        os.environ["TEAMWORK_HOST_AUDIT_PATH"] = str(self.audit_path)
+        os.environ["TEAMWORK_BYPASS_CHECKSUM"] = "1"
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+        for var, prev in [("TEAMWORK_HOST_AUDIT_PATH", self._prev_audit),
+                          ("TEAMWORK_BYPASS_CHECKSUM", self._prev_bypass)]:
+            if prev is None:
+                os.environ.pop(var, None)
+            else:
+                os.environ[var] = prev
+
+    # ── audit 不存在 + --host 缺 → BLOCK with hint ──
+    def test_no_audit_no_host_blocked_with_hint(self):
+        d = run(["external-review", "--feature", str(self.feat),
+                 "--stage", "review", "--dry-run"], expect_exit=0)
+        self.assertEqual(d["verdict"], "FAIL")
+        self.assertIn("无法自动探测", d["error"])
+        self.assertIn("bootstrap", d["hint"])
+        self.assertIn("v8.21", d["hint"])
+
+    # ── audit 存在 → host 自动 + host_source=audit ──
+    def test_audit_exists_auto_host(self):
+        self.audit_path.write_text(json.dumps({
+            "host": "claude-code", "timestamp": "2026-05-25T00:00:00Z"
+        }), encoding="utf-8")
+        d = run(["external-review", "--feature", str(self.feat),
+                 "--stage", "review", "--dry-run"])
+        self.assertEqual(d["verdict"], "OK")
+        self.assertEqual(d["host"], "claude-code")
+        self.assertEqual(d["host_source"], "audit")
+        self.assertEqual(d["model"], "codex")
+
+    # ── audit + 显式 --host → 用显式(host_source=explicit) ──
+    def test_explicit_host_overrides_audit(self):
+        self.audit_path.write_text(json.dumps({
+            "host": "claude-code", "timestamp": "2026-05-25T00:00:00Z"
+        }), encoding="utf-8")
+        d = run(["external-review", "--feature", str(self.feat),
+                 "--stage", "review", "--host", "codex-cli", "--dry-run"])
+        self.assertEqual(d["host"], "codex-cli")  # 显式覆盖
+        self.assertEqual(d["host_source"], "explicit")
+        self.assertEqual(d["model"], "claude")
+
+    # ── audit JSON 损坏 → fallback BLOCK ──
+    def test_corrupt_audit_blocked(self):
+        self.audit_path.write_text("not json {{{", encoding="utf-8")
+        d = run(["external-review", "--feature", str(self.feat),
+                 "--stage", "review", "--dry-run"], expect_exit=0)
+        self.assertEqual(d["verdict"], "FAIL")
+        self.assertIn("无法自动探测", d["error"])
+
+    # ── audit host 非法值 → fallback BLOCK ──
+    def test_audit_invalid_host_value_blocked(self):
+        self.audit_path.write_text(json.dumps({
+            "host": "nonexistent-host", "timestamp": "2026-05-25T00:00:00Z"
+        }), encoding="utf-8")
+        d = run(["external-review", "--feature", str(self.feat),
+                 "--stage", "review", "--dry-run"], expect_exit=0)
+        # audit host 不在 EXTERNAL_HOST_TO_MODEL · _detect_host 返 None · 走 BLOCK
+        self.assertEqual(d["verdict"], "FAIL")
+        self.assertIn("无法自动探测", d["error"])
+
+    # ── _detect_host helper 单元测试 ──
+    def test_detect_host_helper_returns_audit_source(self):
+        from state import _detect_host  # type: ignore
+        self.audit_path.write_text(json.dumps({"host": "codex-cli"}),
+                                    encoding="utf-8")
+        host, source = _detect_host()
+        self.assertEqual(host, "codex-cli")
+        self.assertEqual(source, "audit")
+
+    def test_detect_host_helper_returns_none_when_missing(self):
+        from state import _detect_host  # type: ignore
+        # audit 不存在
+        host, source = _detect_host()
+        self.assertIsNone(host)
+        self.assertEqual(source, "none")
+
+
 class TestPMDecisionTolerance(unittest.TestCase):
     """pm_acceptance decision 容错读 contract 顶层旧位(治本 ADMIN-F013 case)。
 

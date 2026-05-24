@@ -542,5 +542,59 @@ class TestCmdSessionBootstrapE2E(unittest.TestCase):
         self.assertIn("TEAMWORK_BYPASS_PREPARE_CHECK", prep_gate["bypass_env"])
 
 
+class TestWriteHostAudit(unittest.TestCase):
+    """v8.21:bootstrap.write_host_audit 写 ~/.teamwork/host_audit.json。
+
+    治本 PMO 心智 · external-review 等下游命令自动读 · 不再要 PMO 传 --host。
+    """
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp(prefix="host-audit-"))
+        self.audit_path = self.tmp / "host_audit.json"
+        self._prev = os.environ.get("TEAMWORK_HOST_AUDIT_PATH")
+        os.environ["TEAMWORK_HOST_AUDIT_PATH"] = str(self.audit_path)
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+        if self._prev is None:
+            os.environ.pop("TEAMWORK_HOST_AUDIT_PATH", None)
+        else:
+            os.environ["TEAMWORK_HOST_AUDIT_PATH"] = self._prev
+
+    def test_write_host_audit_creates_file(self):
+        sys.path.insert(0, str(TOOLS))
+        import bootstrap  # type: ignore
+        ok = bootstrap.write_host_audit("claude-code")
+        self.assertTrue(ok)
+        self.assertTrue(self.audit_path.exists())
+        data = json.loads(self.audit_path.read_text(encoding="utf-8"))
+        self.assertEqual(data["host"], "claude-code")
+        self.assertIn("timestamp", data)
+
+    def test_write_host_audit_overwrites_existing(self):
+        sys.path.insert(0, str(TOOLS))
+        import bootstrap  # type: ignore
+        bootstrap.write_host_audit("claude-code")
+        bootstrap.write_host_audit("codex-cli")
+        data = json.loads(self.audit_path.read_text(encoding="utf-8"))
+        self.assertEqual(data["host"], "codex-cli")  # 后者覆盖 · 保留最新
+
+    def test_write_host_audit_creates_parent_dir(self):
+        """audit_path 父目录不存在 → 自动 mkdir -p。"""
+        deep_path = self.tmp / "deep" / "nested" / "host_audit.json"
+        os.environ["TEAMWORK_HOST_AUDIT_PATH"] = str(deep_path)
+        sys.path.insert(0, str(TOOLS))
+        import bootstrap  # type: ignore
+        ok = bootstrap.write_host_audit("gemini-cli")
+        self.assertTrue(ok)
+        self.assertTrue(deep_path.exists())
+
+    def test_host_audit_path_helper_respects_env_override(self):
+        sys.path.insert(0, str(TOOLS))
+        import bootstrap  # type: ignore
+        p = bootstrap._host_audit_path()
+        self.assertEqual(p, self.audit_path)  # env 覆盖生效
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

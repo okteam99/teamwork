@@ -26,7 +26,7 @@ import sys
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 
 # ─── 常量 ──────────────────────────────────────────────────────────────
@@ -2406,6 +2406,7 @@ def cmd_change_review_roles(args: argparse.Namespace) -> None:
 
 
 # ─── v8.20 · external-review(异质模型评审自动调起 · 治本 F034 PMO 自己拼命令 case)─
+# ─── v8.21:host 自动探测(PMO 心智 -1 参数 · 只需 --feature + --stage) ─────
 
 # 宿主 → 异质模型自动映射(R3 + standards/external-model-usage.md §7.1)
 # claude-code 主对话 → 跑 codex(异质)
@@ -2416,6 +2417,38 @@ EXTERNAL_HOST_TO_MODEL = {
     "codex-cli": "claude",
     "gemini-cli": "codex",  # 默认 · 可 --model 覆盖
 }
+
+
+# v8.21:host audit 路径(与 bootstrap.py write_host_audit 对齐 · 跨进程同源读)
+HOST_AUDIT_PATH_ENV = "TEAMWORK_HOST_AUDIT_PATH"
+
+
+def _detect_host() -> tuple[Optional[str], str]:
+    """v8.21:探测主对话宿主 · 优先级:① ~/.teamwork/host_audit.json ② env fallback。
+
+    返回 (host, source):
+      - host:claude-code / codex-cli / gemini-cli / None(未探测到)
+      - source:"audit" / "env" / "none"(供 emit 透明告知 PMO 来自哪里)
+
+    bootstrap.py 跑成功后写 host_audit.json · external-review 等下游读这个。
+    PMO 不需要再传 --host(若 audit 存在)· 治本 PMO 心智负担。
+    """
+    # ① audit 文件(bootstrap 写)
+    override = os.environ.get(HOST_AUDIT_PATH_ENV)
+    audit_path = (Path(override) if override
+                  else Path.home() / ".teamwork" / "host_audit.json")
+    if audit_path.exists():
+        try:
+            data = json.loads(audit_path.read_text(encoding="utf-8"))
+            host = data.get("host")
+            if host in EXTERNAL_HOST_TO_MODEL:
+                return host, "audit"
+        except (OSError, json.JSONDecodeError):
+            pass
+    # ② env fallback(可扩 · 当前仅占位)
+    # CLAUDE_CODE_VERSION / CODEX_VERSION 等若主对话 set · 可探测
+    # 目前 env 不规范 · 暂不实现 · 留 hook
+    return None, "none"
 
 # stage → reviewer profile 映射(codex profile / claude prompt template 文件名)
 # codex-agents/*.toml · claude-agents/*.md
@@ -2498,13 +2531,33 @@ def cmd_external_review(args: argparse.Namespace) -> None:
     - 文件命名 + frontmatter review_model 自动用合规字面(白名单)
     """
     # ── Step 1 · host + model 校验 + 自动映射 ──
+    # v8.21:host 缺省自动探测(bootstrap 写 host_audit.json · PMO 不需要再传)
+    host_source = "explicit"
     host = args.host
+    if not host:
+        host, source = _detect_host()
+        host_source = source  # audit / env / none
+        if not host:
+            emit({
+                "verdict": "FAIL",
+                "command": "external-review",
+                "error": "--host 未传 + 无法自动探测(~/.teamwork/host_audit.json 不存在)",
+                "hint": (
+                    "二选一:\n"
+                    "  ① 跑 bootstrap 一次(`python3 {SKILL_ROOT}/tools/bootstrap.py "
+                    "--host <claude-code|codex-cli|gemini-cli>`)· 之后所有 state.py 命令自动用此 host\n"
+                    "  ② 显式传 --host claude-code(或对应宿主)\n"
+                    "v8.21 设计:bootstrap 跑过一次后 · PMO 心智 = --feature + --stage(2 个业务参数)· host 全自动"
+                ),
+                "spec": "standards/external-model-usage.md § 7.5 v8.20 物化路径 + v8.21 host 自动探测",
+            })
+            return
     if host not in EXTERNAL_HOST_TO_MODEL:
         emit({
             "verdict": "FAIL",
             "command": "external-review",
-            "error": f"--host={host!r} 非法 · 合法值: {sorted(EXTERNAL_HOST_TO_MODEL)}",
-            "hint": "host 即主对话宿主标识 · 与 bootstrap --host 一致",
+            "error": f"host={host!r} 非法 · 合法值: {sorted(EXTERNAL_HOST_TO_MODEL)}",
+            "hint": f"host 即主对话宿主标识 · 与 bootstrap --host 一致 · 来源: {host_source}",
         })
         return
 
@@ -2644,6 +2697,7 @@ def cmd_external_review(args: argparse.Namespace) -> None:
             "command": "external-review",
             "dry_run": True,
             "host": host,
+            "host_source": host_source,  # v8.21
             "model": model,
             "stage": args.stage,
             "profile": str(profile_path),
@@ -2730,6 +2784,7 @@ def cmd_external_review(args: argparse.Namespace) -> None:
         "verdict": "OK",
         "command": "external-review",
         "host": host,
+        "host_source": host_source,  # v8.21:explicit / audit / env(透明)
         "model": model,
         "model_version": model_version,
         "stage": args.stage,
@@ -3176,11 +3231,11 @@ def build_parser() -> argparse.ArgumentParser:
                     choices=["goal", "blueprint", "review"],
                     help=("review 阶段:goal=PRD / blueprint=TC+TECH / review=代码 · "
                           "工具按 stage 自动选 reviewer profile"))
-    er.add_argument("--host", required=True,
+    er.add_argument("--host", default=None,
                     choices=["claude-code", "codex-cli", "gemini-cli"],
-                    help=("主对话宿主(与 bootstrap --host 一致)· "
-                          "决定异质 model:claude-code→codex · codex-cli→claude · "
-                          "gemini-cli→codex(默认)"))
+                    help=("[v8.21 可选]主对话宿主 · 缺省自动从 ~/.teamwork/host_audit.json "
+                          "读取(bootstrap 跑过一次即可)· 决定异质 model:claude-code→codex · "
+                          "codex-cli→claude · gemini-cli→codex(默认)"))
     er.add_argument("--model", default=None,
                     choices=["codex", "claude"],
                     help=("显式指定异质模型(覆盖按 host 自动映射)· "

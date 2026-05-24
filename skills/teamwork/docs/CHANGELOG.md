@@ -1,5 +1,112 @@
 # Changelog
 
+## v8.21 · external-review host 自动探测(PMO 心智 2 参数 · 进一步简化)
+
+> 用户提议:简化 skill 逻辑 · PMO 只需要知道调 external 评审 · 传所需参数 · 调起模型是 py 内部逻辑 · 不可能有错。
+> v8.20 PMO 心智 = 3 参数(`--feature --stage --host`)· v8.21 把 host 探测也物化 · PMO 心智 = **2 参数**(`--feature --stage`)。
+
+### 设计:host 探测物化 · 不让 PMO 关心内部细节
+
+| v8.20 | v8.21 |
+|---|---|
+| `state.py external-review --feature X --stage review --host claude-code` | `state.py external-review --feature X --stage review` |
+
+PMO 不该知道:
+- 宿主有哪几种(claude-code / codex-cli / gemini-cli)
+- 宿主 → model 怎么映射(claude-code→codex / codex-cli→claude)
+- bootstrap 已传过 host(为什么 state.py 还要再传)
+
+→ 这些是工具内部细节 · 物化到 audit 文件 + helper · PMO 不接触。
+
+### 实现
+
+#### 1. bootstrap.py 写 host audit(`+30 行`)
+
+`write_host_audit(host)` · 落 `~/.teamwork/host_audit.json`(单条 · 覆盖写 · 保留最新):
+```json
+{"host": "claude-code", "timestamp": "2026-05-25T..."}
+```
+
+bootstrap `cmd_session_bootstrap` 主流程末尾调 · emit checks.host_audit 透明留痕。
+路径覆盖:`TEAMWORK_HOST_AUDIT_PATH=<path>`(测试用)。
+
+#### 2. state.py 加 `_detect_host()` helper(`+35 行`)
+
+优先级:
+1. `~/.teamwork/host_audit.json`(bootstrap 写)
+2. env fallback(预留 hook · 暂未实现)
+
+返回 `(host, source)`:source ∈ {"audit", "env", "none"} · 供 emit 透明告知。
+
+#### 3. `external-review --host` 改 default=None + 自动调 `_detect_host`
+
+```python
+# v8.21:host 缺省自动探测
+host_source = "explicit"
+host = args.host
+if not host:
+    host, source = _detect_host()
+    host_source = source
+    if not host:
+        # BLOCK with hint "跑 bootstrap 或显式 --host"
+```
+
+emit JSON 加 `host_source` 字段(explicit / audit / env)· PMO 看到 host 来自哪里。
+
+### 失败模式(bootstrap 没跑过)
+
+```
+FAIL · --host 未传 + 无法自动探测(~/.teamwork/host_audit.json 不存在)
+hint:二选一
+  ① 跑 bootstrap 一次(python3 {SKILL_ROOT}/tools/bootstrap.py --host <host>)
+     · 之后所有 state.py 命令自动用此 host
+  ② 显式传 --host claude-code
+v8.21 设计:bootstrap 跑过一次后 · PMO 心智 = --feature + --stage(2 个业务参数)· host 全自动
+```
+
+→ 引向 bootstrap(SKILL.md 要求"新 session 必跑")· 不引向"PMO 自己记 enum 值"。
+
+### 测试覆盖(+11 · 0 regression)
+
+`TestHostAutoDetect`(test_state.py · 7 test):
+- audit 不存在 + --host 缺 → BLOCK with hint
+- audit 存在 → 自动 host + `host_source=audit`
+- 显式 --host 覆盖 audit(`host_source=explicit`)
+- audit JSON 损坏 → fallback BLOCK
+- audit host 值非法(如 `nonexistent-host`)→ fallback BLOCK
+- `_detect_host` helper 单元(audit 命中 + 不存在)
+
+`TestWriteHostAudit`(test_bootstrap.py · 4 test):
+- write 创文件 · 覆盖写 · 父目录自动 mkdir · env 覆盖路径
+
+### 防御层次(v8.19 + v8.20 + v8.21 完整闭环)
+
+| 层 | 作用 | 触发 |
+|---|---|---|
+| v8.21 主路径 | host 自动 · 2 参数 | PMO 用 `state.py external-review --feature X --stage Y` |
+| v8.20 主路径 | 调用物化 · 7 步 SOP | host 已自动 · 工具内部走 7 步 |
+| v8.19 兜底 | 产物校验 · 文件名 + frontmatter | 若 PMO 绕过 v8.20 自写文件 · stage-complete BLOCKED |
+
+→ AI 不可能再走 F034 反模式(Agent subagent 自审)。
+
+### v8.x case-driven 治本累积(7 个版本)
+
+| 版本 | case / 触发 | 物化对象 | PMO 心智变化 |
+|---|---|---|---|
+| v8.14 | PTR-F054 prepare 跳过 | prepare-check audit 门禁 | 不变 |
+| v8.15 | F001 选错 flow_type | admission judgment | 不变 |
+| v8.16 | SVC-CORE-B006 state.json 不全 | ship-finalize state-sync step 0 | 不变 |
+| v8.18 | SVC-CORE-F028 自引用残留 | ship-finalize 0 delta | 不变 |
+| v8.19 | SVC-CORE-F034 Agent subagent 自审 | external review 文件名 + frontmatter 校验 | 不变 |
+| v8.20 | SVC-CORE-F034(同 case 进一步)| external-review 命令物化调用 | -1 参数(PMO 不再拼命令)|
+| **v8.21** | **用户提议简化** | **host 探测物化** | **-1 参数(PMO 心智 = 2 参数)** |
+
+### SKILL.md frontmatter
+
+`v8.20` → `v8.21`
+
+---
+
 ## v8.20 · state.py external-review 命令(异质模型评审一条命令调起 · F034 治本主路径)
 
 > 用户提问:我们是否提供一个 python 命令来调起异质模型评审 · 而不是让 PMO 自己发起调用?

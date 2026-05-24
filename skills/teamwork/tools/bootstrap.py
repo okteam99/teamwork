@@ -41,6 +41,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -522,6 +523,41 @@ def write_bootstrap_marker(project_root: Path, skill_version: str,
         return False
 
 
+# v8.21:host audit · 跨 session 全局 host 记忆(治本 PMO 还要传 --host 心智)
+# 落 ~/.teamwork/host_audit.json · state.py 跨命令自动读取 · PMO 心智 -1 参数
+HOST_AUDIT_PATH_ENV = "TEAMWORK_HOST_AUDIT_PATH"
+
+
+def _host_audit_path() -> Path:
+    """host audit 落位 · 用户级跨项目(与 prepare_check_audit 同目录)。
+
+    覆盖路径:TEAMWORK_HOST_AUDIT_PATH=<path>(测试用)。
+    """
+    override = os.environ.get(HOST_AUDIT_PATH_ENV)
+    if override:
+        return Path(override)
+    return Path.home() / ".teamwork" / "host_audit.json"
+
+
+def write_host_audit(host: str) -> bool:
+    """v8.21:bootstrap 跑成功后写 host audit · external-review 等下游命令自动读取。
+
+    单条记录(覆盖写 · 不 append)· 保留最新一次 bootstrap 的 host:
+        {"host": "claude-code", "timestamp": "2026-05-25T..."}
+    """
+    try:
+        p = _host_audit_path()
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(
+            json.dumps({"host": host, "timestamp": now_iso()},
+                       ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+        return True
+    except OSError:
+        return False
+
+
 # ─── 主入口 ─────────────────────────────────────────
 
 
@@ -628,6 +664,14 @@ def cmd_session_bootstrap(args: argparse.Namespace) -> None:
                 "spec": "docs/prepare.md § 0",
             }
         ],
+    }
+
+    # v8.21:写 host audit(跨 session 全局 host 记忆 · 治本 PMO 还要传 --host 心智)
+    # 下游命令(state.py external-review 等)自动读 · PMO 不需要再传 --host
+    host_audit_ok = write_host_audit(args.host)
+    result["checks"]["host_audit"] = {
+        "status": "written" if host_audit_ok else "write_failed",
+        "path": str(_host_audit_path()),
     }
 
     # silent emit JSON · AI 跑后不必 cite · 用户不可见报告
