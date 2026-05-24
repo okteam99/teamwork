@@ -1096,13 +1096,48 @@ def _evidence_ac_test_binding(state: dict, args) -> tuple[bool, str]:
         return False, f"verify-ac.py 执行失败: {e}"
 
 
+# v8.19:external review 异质性硬约束(治本 SVC-CORE-F034 case · AI 用同模型 subagent 自审)
+# 白名单:真异质外部模型字面(case-insensitive 匹配 basename / frontmatter review_model)
+# 黑名单:同源(claude 宿主)或 isolated/subagent 字面 = AI 用 Agent 起 isolated context 自审 ≠ 异质
+EXTERNAL_REVIEW_HETERO_KEYWORDS = (
+    "codex", "gpt", "gemini", "deepseek", "qwen", "llama", "grok", "mistral",
+)
+EXTERNAL_REVIEW_SAME_SOURCE_BLOCKED = (
+    "claude", "anthropic", "isolated", "subagent", "general-purpose", "self",
+)
+
+
+def _check_external_hetero(name: str) -> tuple[bool, str]:
+    """v8.19:校验文件名 / frontmatter review_model 是否真异质模型。
+
+    返回 (is_hetero, reason)。is_hetero=False 时 reason 含违规字面。
+    """
+    low = name.lower()
+    # 1. 黑名单字面命中 → 同源自审 · 不达标
+    for kw in EXTERNAL_REVIEW_SAME_SOURCE_BLOCKED:
+        if kw in low:
+            return False, f"命中同源黑名单字面 {kw!r}"
+    # 2. 白名单字面必含其一 → 真异质
+    for kw in EXTERNAL_REVIEW_HETERO_KEYWORDS:
+        if kw in low:
+            return True, ""
+    # 3. 都不含 → 模糊 · BLOCKED(让 PMO 显式 emit)
+    return False, (
+        f"未含异质模型字面(白名单:{', '.join(EXTERNAL_REVIEW_HETERO_KEYWORDS)})"
+    )
+
+
 def _evidence_external_review_artifact(state: dict, args) -> tuple[bool, str]:
-    """external-cross-review/ 至少 1 份 markdown(P0-154)。
+    """external-cross-review/ 至少 1 份 markdown · 且必须是真异质模型评审(v8.19 加强)。
 
     联动 state.stage_review_roles:若当前 stage 的 reviewers 列表不含 'external'
     (通过 change-review-roles 调整去除) → skip 校验(audit 已在 stage_review_roles_adjustments)。
 
-    v8.0+P0-14 bug fix:external-cross-review/ 在 artifact_root 内(即 feature_dir 内 · 不是 parent)。
+    v8.0+P0-14:external-cross-review/ 在 artifact_root 内(feature_dir 内 · 不是 parent)。
+    v8.19 治本 SVC-CORE-F034 case:加文件名 + frontmatter review_model 双重校验 ·
+    BLOCKED "AI 用 Agent subagent_type=general-purpose 起 Claude isolated context 自审 ·
+    再标 review_model: claude-opus-4-isolated-context 透明伪装合规" 的反模式。
+    硬约束源:standards/external-model-usage.md § 七 异质性硬约束。
     """
     current_stage = state.get("current_stage", "")
     stage_roles = state.get("stage_review_roles", {}).get(current_stage, [])
@@ -1118,7 +1153,43 @@ def _evidence_external_review_artifact(state: dict, args) -> tuple[bool, str]:
         return False, f"external-cross-review/ 不存在 · 路径:{external_dir}"
     md_files = list(external_dir.glob("*.md"))
     if not md_files:
-        return False, "external-cross-review/*.md 为空 · 跑 codex 外部评审或加 opt-out concerns"
+        return False, (
+            "external-cross-review/*.md 为空 · 跑 codex 外部评审或 change-review-roles 移除 external"
+        )
+
+    # v8.19:逐文件校验异质性(文件名 + frontmatter review_model 双重)
+    violations: list = []
+    for f in md_files:
+        # ① 文件名字面校验(basename 去扩展名)
+        stem = f.stem  # 如 code-codex / code-claude-isolated
+        ok_name, name_reason = _check_external_hetero(stem)
+        # ② frontmatter review_model 字段校验(若有)
+        fm = parse_frontmatter(f) or {}
+        rm_value = (fm.get("review_model") or "").strip()
+        rm_ok = True
+        rm_reason = ""
+        if rm_value:
+            rm_ok, rm_reason = _check_external_hetero(rm_value)
+        # 综合判定:文件名 + frontmatter 任一 BLOCKED → 文件违规
+        if not ok_name:
+            violations.append(f"{f.name}:文件名 {name_reason}")
+        if rm_value and not rm_ok:
+            violations.append(f"{f.name}:frontmatter review_model={rm_value!r} {rm_reason}")
+
+    if violations:
+        return False, (
+            f"external 异质性违规({len(violations)} 文件)· R3 红线 + standards/"
+            f"external-model-usage.md § 七 异质性硬约束:\n  "
+            + "\n  ".join(violations)
+            + "\n  规约:文件名 / frontmatter review_model 必含异质模型字面 "
+            f"({', '.join(EXTERNAL_REVIEW_HETERO_KEYWORDS)})· 必不含同源字面 "
+            f"({', '.join(EXTERNAL_REVIEW_SAME_SOURCE_BLOCKED)})。"
+            "\n  典型违规:AI 用 Agent subagent_type=general-purpose 起 Claude isolated "
+            "context 自审 → 同模型自评有盲点 · 不达 R3 异质要求。"
+            "\n  修复:跑 `codex review --commit <SHA> --base <branch>` 落 *-codex.md · "
+            "或 change-review-roles 显式移除 external(留 audit)。"
+            "\n  调用前必做:`which codex` 验工具在 · 不在 → stop 问用户 · 不替代。"
+        )
     return True, ""
 
 

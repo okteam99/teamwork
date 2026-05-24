@@ -129,6 +129,128 @@ class TestExternalReviewArtifactPath(unittest.TestCase):
         self.assertFalse(passed, "external-cross-review 应在 feature_dir 内 · 不在 parent · bug 重现?")
 
 
+# ─── v8.19 · external review 异质性硬约束(治本 SVC-CORE-F034)──────────
+
+
+class TestExternalReviewHeteroEnforcement(unittest.TestCase):
+    """v8.19 治本 SVC-CORE-F034 case · external 必真异质(不能 claude-isolated)。
+
+    case:PMO 用 Agent subagent_type=general-purpose 起 claude isolated context 自审 ·
+    标 frontmatter review_model: claude-opus-4-isolated-context 「透明」· 同模型自审违 R3。
+    治本:文件名 + frontmatter review_model 双重校验 · 黑名单字面 BLOCKED。
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.feat = Path(self.tmp) / "feat"
+        self.ext = self.feat / "external-cross-review"
+        self.ext.mkdir(parents=True)
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def _check(self):
+        from _v8_stage_specs import _evidence_external_review_artifact  # type: ignore
+        args = make_args(feature=str(self.feat))
+        return _evidence_external_review_artifact({}, args)
+
+    # ── 白名单字面 · PASS ──
+    def test_codex_filename_passes(self):
+        (self.ext / "code-codex.md").write_text("review", encoding="utf-8")
+        ok, err = self._check()
+        self.assertTrue(ok, err)
+
+    def test_gpt_filename_passes(self):
+        (self.ext / "prd-gpt-5.md").write_text("review", encoding="utf-8")
+        ok, err = self._check()
+        self.assertTrue(ok, err)
+
+    def test_gemini_filename_passes(self):
+        (self.ext / "tech-gemini.md").write_text("review", encoding="utf-8")
+        ok, err = self._check()
+        self.assertTrue(ok, err)
+
+    # ── 黑名单字面 · BLOCKED(F034 case 核心) ──
+    def test_claude_isolated_filename_blocked(self):
+        """F034 case 复刻:code-claude-isolated.md → BLOCKED。"""
+        (self.ext / "code-claude-isolated.md").write_text("review", encoding="utf-8")
+        ok, err = self._check()
+        self.assertFalse(ok)
+        self.assertIn("claude", err.lower())
+        self.assertIn("异质", err)
+
+    def test_subagent_filename_blocked(self):
+        (self.ext / "review-subagent.md").write_text("review", encoding="utf-8")
+        ok, err = self._check()
+        self.assertFalse(ok)
+        self.assertIn("subagent", err.lower())
+
+    def test_anthropic_filename_blocked(self):
+        (self.ext / "code-anthropic.md").write_text("review", encoding="utf-8")
+        ok, err = self._check()
+        self.assertFalse(ok)
+
+    def test_general_purpose_filename_blocked(self):
+        (self.ext / "code-general-purpose.md").write_text("review", encoding="utf-8")
+        ok, err = self._check()
+        self.assertFalse(ok)
+
+    # ── 模糊命名 · BLOCKED(必含白名单字面) ──
+    def test_ambiguous_filename_blocked(self):
+        (self.ext / "external-review.md").write_text("review", encoding="utf-8")
+        ok, err = self._check()
+        self.assertFalse(ok)
+        self.assertIn("异质模型字面", err)
+
+    # ── frontmatter review_model 校验 ──
+    def test_frontmatter_review_model_blocked_even_if_filename_ok(self):
+        """文件名 OK(codex)· 但 frontmatter review_model 同源 → BLOCKED。
+
+        防 PMO 用合规文件名包装实际是 isolated 的内容。
+        """
+        (self.ext / "code-codex.md").write_text(
+            "---\nreview_model: claude-opus-4-isolated\n---\nbody",
+            encoding="utf-8")
+        ok, err = self._check()
+        self.assertFalse(ok)
+        self.assertIn("review_model", err)
+        self.assertIn("claude", err.lower())
+
+    def test_frontmatter_review_model_codex_passes(self):
+        """文件名 + frontmatter 双白名单 · PASS。"""
+        (self.ext / "code-codex.md").write_text(
+            "---\nreview_model: codex-1.0.133\n---\nbody",
+            encoding="utf-8")
+        ok, err = self._check()
+        self.assertTrue(ok, err)
+
+    # ── stage_review_roles 移除 external → skip(向后兼容) ──
+    def test_skipped_when_external_not_in_stage_roles(self):
+        """若用户 change-review-roles 移除 external · 即使文件违规也 skip。"""
+        (self.ext / "code-claude-isolated.md").write_text("x", encoding="utf-8")
+        from _v8_stage_specs import _evidence_external_review_artifact  # type: ignore
+        state = {
+            "current_stage": "review",
+            "stage_review_roles": {"review": ["pm", "qa", "architect"]},  # 无 external
+        }
+        args = make_args(feature=str(self.feat))
+        ok, err = _evidence_external_review_artifact(state, args)
+        self.assertTrue(ok)
+        self.assertIn("skipped", err)
+
+    # ── 混合:多文件 · 一个违规即全部 BLOCKED + 列出所有违规 ──
+    def test_multi_file_lists_all_violations(self):
+        (self.ext / "code-codex.md").write_text("ok", encoding="utf-8")
+        (self.ext / "tech-claude-isolated.md").write_text("bad1", encoding="utf-8")
+        (self.ext / "prd-subagent.md").write_text("bad2", encoding="utf-8")
+        ok, err = self._check()
+        self.assertFalse(ok)
+        self.assertIn("tech-claude-isolated.md", err)
+        self.assertIn("prd-subagent.md", err)
+        # 合规的 code-codex.md 不在违规清单
+        self.assertNotIn("code-codex.md:", err)
+
+
 # ─── Bug 2 · _evidence_ac_test_binding 诊断 ─────────────────────
 
 

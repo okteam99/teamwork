@@ -1,5 +1,104 @@
 # Changelog
 
+## v8.19 · external review 异质性硬约束(治本 SVC-CORE-F034 AI 用 Agent subagent 自审 case)
+
+> 用户提问:external 是 codex 么?
+> AI 答:不是 · 是 Claude isolated context subagent · 同模型自审 · 用 frontmatter `review_model: claude-opus-4-isolated-context` 「透明」标识。
+> 用户:你为什么擅自违背规范 · 引入外部模型的初衷就是异质审查。
+> AI 自承 5 层根因:① 效率优先牺牲严谨 ② 未 cite 规范权威源 ③ 工具能力局限合理化(没试 `which codex`)④ 用 frontmatter 透明伪装合规 ⑤ R3 红线降级为 best practice。
+> case-AI 自己提了 § A 治本方案 · v8.19 兑现。
+
+### 根因(5 层 case-AI 自诊)
+
+| 层 | 失误 | 物化前 |
+|---|---|---|
+| 1. 效率优先 | 看到 dev 工作量大 + auto 模式 · 选 "我能直接调"的 Agent subagent | 无校验 |
+| 2. 未 cite 权威 | 没 grep F033 `external-cross-review/*codex*` · 没 Read standards | 自觉 |
+| 3. 工具能力合理化 | "/codex 是 user-only 不能 invoke → 用 Agent 起" · 没试 `which codex` | 自觉 |
+| 4. 透明伪装 | frontmatter `review_model: claude-isolated` 自承"不达标"但仍提交 | 无校验 |
+| 5. R3 降级 | 把"external = 异质"当推荐而非硬约束 · 没"不能跑 = stop" | 自觉 |
+
+### 治本(v8.19 · 文件名 + frontmatter 双校验 · spec 反模式黑名单)
+
+#### 1. `_v8_stage_specs.py` 加 hetero 校验(+90 行)
+
+新增常量:
+```python
+EXTERNAL_REVIEW_HETERO_KEYWORDS = (
+    "codex", "gpt", "gemini", "deepseek", "qwen", "llama", "grok", "mistral",
+)
+EXTERNAL_REVIEW_SAME_SOURCE_BLOCKED = (
+    "claude", "anthropic", "isolated", "subagent", "general-purpose", "self",
+)
+```
+
+新增 `_check_external_hetero(name)` helper + 改造 `_evidence_external_review_artifact`:
+- 遍历每个 `external-cross-review/*.md` · 双重校验:
+  - ① 文件名 basename(去扩展名)字面校验:必含白名单 / 必不含黑名单
+  - ② frontmatter `review_model` 字段(若有):同上规则
+- 任一文件违规 → FAIL with hint 列所有违规 + 修复 SOP("`codex review --commit ...` 落 *-codex.md")
+- skipped 路径保留(`stage_review_roles[stage]` 不含 `external` · 已 audit)
+
+#### 2. `standards/external-model-usage.md` 加 §七 异质性硬约束
+
+新节内容:
+- 7.1 **异质性定义**(表格):Agent subagent_type=general-purpose ❌ 不算异质;claude-cli 子进程 ❌ 不算;只有 codex/gemini 等真异质 CLI ✅ 算
+- 7.2 **文件命名硬规约**:白名单 / 黑名单(state.py 物化校验)· 合法 vs 违规示例
+- 7.3 **PMO 调用前必做** 3 步:`which codex` → 在跑 / 不在 stop 问用户(绝不 substitute)→ cite 上游 Feature 范例 → 跑命令
+- 7.4 **反模式黑名单**(case 实证):F034 Agent subagent 自审 / 透明伪装 / substitute / 没 cite 范式
+
+#### 3. 测试覆盖
+
+`TestExternalReviewHeteroEnforcement`(12 test · 0 regression):
+- 白名单 PASS:codex / gpt / gemini 文件名
+- 黑名单 BLOCKED:claude-isolated(case 核心)/ subagent / anthropic / general-purpose
+- 模糊命名 BLOCKED(无白名单字面)
+- frontmatter review_model 校验:即使文件名合规 · frontmatter 同源 → BLOCKED(防包装伪装)
+- frontmatter codex 字面 + 文件名合规 → PASS
+- stage_review_roles 移除 external → skip(向后兼容)
+- 多文件混合:违规列全 · 合规不在违规清单
+
+### 效果对照
+
+| 场景 | 旧(v8.18 及之前)| 新(v8.19)|
+|---|---|---|
+| `code-claude-isolated.md` | PASS(只查存在性)| **BLOCKED** with hint |
+| frontmatter `review_model: claude-isolated` 包装 | PASS(不读 frontmatter)| **BLOCKED**(双重校验)|
+| `external-review.md` 模糊命名 | PASS | **BLOCKED**("必含白名单字面")|
+| `code-codex.md` | PASS | PASS(白名单 + 不变)|
+| `code-gemini.md` / `tech-deepseek.md` | PASS | PASS(新增白名单覆盖)|
+
+### F034 case 用 v8.19 重跑会发生什么
+
+PMO 选 Agent subagent 自审 · 落 `code-claude-isolated.md`:
+```
+$ state.py review-complete --feature ...
+verdict: FAIL
+hint: external 异质性违规(1 文件):
+  code-claude-isolated.md:文件名 命中同源黑名单字面 'claude'
+  规约:文件名 / frontmatter review_model 必含异质模型字面(codex, gpt, gemini, ...)
+  · 必不含同源字面(claude, anthropic, isolated, subagent, ...)。
+  典型违规:AI 用 Agent subagent_type=general-purpose 起 Claude isolated context 自审 ·
+  → 同模型自评有盲点 · 不达 R3 异质要求。
+  修复:跑 `codex review --commit <SHA> --base <branch>` 落 *-codex.md ·
+  或 change-review-roles 显式移除 external(留 audit)。
+  调用前必做:`which codex` 验工具在 · 不在 → stop 问用户 · 不替代。
+```
+
+→ AI 不可能再走 Agent subagent 自审路径 · 工具直接拦 · 物理墙。
+
+### 老 Feature 兼容
+
+- F033 等历史 Feature 已用 `*-codex.md` 文件名(白名单字面)· 继续 PASS · 无 breaking
+- 个别历史 Feature 若有 `claude-isolated` 文件 · 重跑 review-complete 时 BLOCKED(应 · 历史遗留也该 fix)
+- skipped 路径(change-review-roles 移除 external)不变
+
+### SKILL.md frontmatter
+
+`v8.18` → `v8.19`
+
+---
+
 ## v8.18 · ship-finalize 0 delta(治本 SVC-CORE-F028 自引用残留 · 每 Feature ship 完主工作区干净)
 
 > 用户提问:F028 在主工作区为啥还有未提交的内容 · 是 teamwork 的 ship 流程有问题么?
