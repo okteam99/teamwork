@@ -1131,18 +1131,22 @@ class TestExternalReviewCommand(unittest.TestCase):
         self.assertNotEqual(r.returncode, 0)
         self.assertIn("invalid choice", (r.stderr + r.stdout).lower())
 
-    # ── dry-run 输出 preview_command(v8.25 codex exec 模式) ──
+    # ── dry-run 输出 preview_command(v8.26 stage-specific: review→codex review · others→codex exec) ──
     def test_dry_run_includes_preview_command(self):
+        """review stage 用 codex review 子命令(v8.26 各司其职)。"""
         d = run(["external-review", "--feature", str(self.feat),
                  "--stage", "review", "--host", "claude-code", "--dry-run"])
         self.assertTrue(d["dry_run"])
         self.assertIn("preview_command", d)
-        # v8.25:改 codex exec(治本 v8.23 codex review --base+[PROMPT] 互斥)
-        self.assertIn("codex exec", d["preview_command"])
+        # v8.26:review stage 改回 codex review(专业 diff review · 内置 prompt)
+        self.assertIn("codex review", d["preview_command"])
+        self.assertIn("--commit", d["preview_command"])
+        self.assertIn("--title", d["preview_command"])
         self.assertIn("--config 'model=gpt-5-codex'", d["preview_command"])
-        self.assertNotIn("codex review", d["preview_command"])
-        self.assertNotIn("--commit", d["preview_command"])
-        self.assertNotIn("--base", d["preview_command"])  # base 信息进 PROMPT · 不传 flag
+        # 不带 [PROMPT](避免与 review 对象 flag 互斥)· 不带 --base(避免与 --commit 互斥)
+        self.assertNotIn("--base", d["preview_command"])
+        # codex_prompt 字段 None(review 模式无 PROMPT)
+        self.assertIsNone(d["codex_prompt"])
         # 没真跑 · 不该有 model_version 字段
         self.assertNotIn("model_version", d)
 
@@ -1212,13 +1216,18 @@ class TestExternalReviewCommand(unittest.TestCase):
         self.assertIn("TC.md and TECH.md", d["codex_prompt"])
 
     def test_v823_review_stage_uses_code_review_prompt(self):
-        """review stage 用 code review prompt(含 commit SHA + v8.25 git diff 指令)。"""
+        """review stage:v8.26 用 codex review 子命令 · 无 PROMPT(codex review 内置专业 prompt)。
+
+        v8.23/v8.25 曾用 PROMPT 模式 · v8.26 用户洞察:review 用 codex review 子命令
+        各司其职 · 不再传 PROMPT(避免与 --commit/--base/--uncommitted 互斥)。
+        """
         d = run(["external-review", "--feature", str(self.feat),
                  "--stage", "review", "--host", "claude-code", "--dry-run"])
-        self.assertIn("code reviewer", d["codex_prompt"])
-        self.assertIn("abc123def", d["codex_prompt"])  # commit SHA in prompt
-        # v8.25:review stage prompt 含 git diff 指令(让 codex 自己跑 diff · 不依赖 codex review --commit flag)
-        self.assertIn("git diff", d["codex_prompt"])
+        # codex review 子命令 · 不带 PROMPT
+        self.assertIn("codex review", d["preview_command"])
+        self.assertIsNone(d["codex_prompt"])
+        # commit SHA 通过 --commit flag 传(不在 PROMPT)
+        self.assertIn("abc123def", d["preview_command"])
 
     def test_v823_codex_model_default_gpt_5_codex(self):
         """缺省 --codex-model = gpt-5-codex(专业 code review 模型)。"""
@@ -1251,36 +1260,38 @@ class TestExternalReviewCommand(unittest.TestCase):
         self.assertEqual(d["model"], "claude")
         self.assertIsNone(d["codex_model"])  # claude 路径 codex_model 为 None
 
-    # ── v8.25:codex exec 模式(治本 codex review --base+[PROMPT] 互斥)──
-    def test_v825_uses_codex_exec_not_review(self):
-        """v8.25:全 stage 用 codex exec · 不用 codex review 子命令(避免 flag 互斥)。"""
-        for stage in ["goal", "blueprint", "review"]:
+    # ── v8.26:stage-specific dispatch · review→codex review · others→codex exec ──
+    def test_v826_review_stage_uses_codex_review(self):
+        """v8.26 用户洞察:review stage 用 codex review 子命令(专业 diff review)。"""
+        d = run(["external-review", "--feature", str(self.feat),
+                 "--stage", "review", "--host", "claude-code", "--dry-run"])
+        self.assertIn("codex review", d["preview_command"])
+        self.assertNotIn("codex exec", d["preview_command"])
+        # title 用 --title flag(codex review 支持)· 不进 PROMPT
+        self.assertIn("--title", d["preview_command"])
+        self.assertIsNone(d["codex_prompt"])  # review 模式无 PROMPT
+
+    def test_v826_goal_blueprint_stage_uses_codex_exec(self):
+        """v8.26:goal / blueprint stage 用 codex exec(文档 review · review 子命令是 diff-only)。"""
+        for stage in ["goal", "blueprint"]:
             d = run(["external-review", "--feature", str(self.feat),
                      "--stage", stage, "--host", "claude-code", "--dry-run"])
             self.assertIn("codex exec", d["preview_command"],
                           f"{stage} stage 应用 codex exec · 实际:{d['preview_command']}")
             self.assertNotIn("codex review", d["preview_command"],
-                             f"{stage} stage 不应用 codex review(F035 case 实测互斥)")
+                             f"{stage} stage 不用 codex review(diff-only · 无法 review 文档)")
+            self.assertIsNotNone(d["codex_prompt"])
+            self.assertIn("[Review title:", d["codex_prompt"])  # title 进 PROMPT
 
-    def test_v825_title_goes_into_prompt_not_flag(self):
-        """v8.25:title 进 PROMPT 顶部行(codex exec 没 --title flag)。"""
-        d = run(["external-review", "--feature", str(self.feat),
-                 "--stage", "review", "--host", "claude-code",
-                 "--title", "Custom F035 Review", "--dry-run"])
-        # --title flag 不在 cmd 里
-        self.assertNotIn("--title", d["preview_command"])
-        # title 在 PROMPT 顶部 [Review title: ...] 行
-        self.assertIn("[Review title: Custom F035 Review]", d["codex_prompt"])
-
-    def test_v825_base_goes_into_prompt_for_review_stage(self):
-        """v8.25:review stage 的 base 进 PROMPT(git diff 指令)· 不传 --base flag。"""
+    def test_v826_review_stage_no_base_flag_avoid_commit_base_互斥(self):
+        """v8.26:review stage 不传 --base(只传 --commit · 避开 --commit/--base 互斥)。"""
         d = run(["external-review", "--feature", str(self.feat),
                  "--stage", "review", "--host", "claude-code",
                  "--base", "main-custom", "--dry-run"])
+        # --base flag 不在 cmd 里(只用 --commit)
         self.assertNotIn("--base", d["preview_command"])
-        # base 在 PROMPT 内出现(diff against base branch)
-        self.assertIn("main-custom", d["codex_prompt"])
-        self.assertIn("git diff main-custom..", d["codex_prompt"])
+        # 但 base 字段仍 emit(留 audit · base 用户传了 PMO 能看到)
+        self.assertEqual(d["base"], "main-custom")
 
 
 class TestHostAutoDetect(unittest.TestCase):

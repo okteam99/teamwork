@@ -324,16 +324,38 @@ F035 round 2(blueprint stage)实测 v8.23 的 `codex review --base Y --title Z [
 - 新版 codex CLI(>= 0.133)`--base BRANCH` 与 `[PROMPT]` 互斥
 - 根因:`codex review` 子命令设计是**纯 diff review** · `--commit/--base/--uncommitted` 三个 review 对象选择 · 与 `[PROMPT]` 不该混用
 
-v8.25 改:**放弃 `codex review` 子命令 · 全 stage 用 `codex exec [PROMPT]`**(通用 agent 模式):
+v8.25 改:**放弃 `codex review` 子命令 · 全 stage 用 `codex exec [PROMPT]`**(通用 agent 模式)。
+但这是过度统一 —— review stage 损失了 `codex review` 的专业 diff review 默认 prompt。
 
-```bash
-codex exec --config 'model=gpt-5-codex' '[Review title: ...]\n\n<完整 PROMPT 含 stage / 文件路径 / commit / base / 输出格式>'
-```
+#### v8.26 关键改动:按 stage 各司其职(review→codex review · goal/blueprint→codex exec)
 
-- 三 stage 统一调用 · 不再有"review 子命令的 flag 互斥"地雷
-- review stage 的 commit / base 信息**进 PROMPT 内** —— prompt 含 `git diff <base>..<commit> -- <feature_dir>` 指令(让 codex 自己跑 diff)
-- title 也进 PROMPT 顶部 `[Review title: ...]` 行(`codex exec` 没 `--title` flag)
-- 其他不变(host 自动 / model 异质映射 / which BLOCK / cwd=git root / frontmatter 自动)
+用户洞察:**`codex review` 子命令本来就是为 diff review 设计的** · review stage 用它更专业 · 不该一刀切。
+
+| stage | 性质 | 子命令 | 命令 |
+|---|---|---|---|
+| `review` | 代码 diff review | `codex review` | `codex review --commit X --title Z --config 'model=gpt-5-codex'` |
+| `goal` | PRD 文档 review | `codex exec` | `codex exec --config 'model=gpt-5-codex' '<PROMPT 含 Read PRD.md>'` |
+| `blueprint` | TC+TECH 文档 review | `codex exec` | `codex exec --config 'model=gpt-5-codex' '<PROMPT 含 Read TC.md+TECH.md>'` |
+
+**review stage 关键设计**:
+- **只传 `--commit`**(不传 `--base` · 避开 `--commit/--base` 互斥)
+- **不传 `[PROMPT]`**(避开与 review 对象 flag 互斥 · `codex review` 自带专业 review 默认 prompt)
+- `--title` 仍传(`codex review` 支持 `--title`)
+- `--config 'model=gpt-5-codex'` 仍传
+
+**goal/blueprint stage 设计**(同 v8.25 保留):
+- `codex exec [PROMPT]` 通用 agent 模式
+- title 进 PROMPT 顶部 `[Review title: ...]` 行(`codex exec` 没 `--title` flag)
+- PROMPT 自带 "Read PRD.md / TC.md+TECH.md" 指令
+
+**为什么 review 不用 codex exec**:
+- review 子命令内置 git diff 优化(--commit 自动只 review 该 commit 引入的变更 · 不需 codex 自己跑 git diff)
+- 内置专业 code review prompt(focus correctness/security/performance · cite file:line)· 比手写 PROMPT 更优
+- 避开"让 codex 自己跑 git diff"的间接性 / 慢 / 不准
+
+**为什么 goal/blueprint 不用 codex review**:
+- `codex review` 是 diff-only · 无法 review markdown 文件(PRD.md / TC.md / TECH.md)
+- 文档 review 天然适合 `codex exec` 通用 agent 模式(prompt 描述读哪个文件 · 怎么 review)
 
 #### v8.19(校验)vs v8.20(主路径)互补
 

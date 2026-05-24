@@ -1,5 +1,92 @@
 # Changelog
 
+## v8.26 · external-review 各司其职(review→codex review · goal/blueprint→codex exec)
+
+> 用户洞察:代码 review 阶段可以 codex review · 其他 codex exec。
+> v8.25 全用 codex exec 是过度统一 · 损失 codex review 的专业 diff review 默认 prompt。
+
+### 用户洞察的精准点
+
+- `codex review` 子命令本来就是为 **diff review** 设计的(内置 git diff 优化 + 专业 code review prompt)
+- `codex exec` 子命令是 **通用 agent**(接 PROMPT · 灵活)
+- 让它们**各司其职**:review stage 用 `codex review`(diff)· goal/blueprint stage 用 `codex exec`(文档)
+
+### v8.26 调用 matrix
+
+| stage | 性质 | 子命令 | 完整命令 |
+|---|---|---|---|
+| `review` | 代码 diff | **`codex review`** | `codex review --commit X --title Z --config 'model=gpt-5-codex'` |
+| `goal` | PRD 文档 | `codex exec` | `codex exec --config 'model=gpt-5-codex' '[Review title: ...] You are an external PRD reviewer ... Read PRD.md in ...'` |
+| `blueprint` | TC+TECH 文档 | `codex exec` | `codex exec --config 'model=gpt-5-codex' '[Review title: ...] You are an external blueprint reviewer ... Read TC.md and TECH.md ...'` |
+
+### `_run_codex_review` 按 stage 分支
+
+```python
+if stage == "review":
+    # 代码 diff · codex review 子命令(专业默认 prompt · 不带 [PROMPT])
+    cmd = ["codex", "review",
+           "--commit", commit,       # 只传 --commit · 避开 --commit/--base 互斥
+           "--title", title,
+           "--config", f"model={codex_model}"]
+    # 不传 [PROMPT] · 避开与 review 对象 flag 互斥
+    # codex review 自带专业 code review prompt(focus correctness/security/performance/cite file:line)
+else:
+    # goal / blueprint · 文档 review · codex exec [PROMPT] 通用 agent
+    body_prompt = _build_codex_prompt(stage, fd_rel, commit, base, profile_filename)
+    prompt = f"[Review title: {title}]\n\n{body_prompt}"
+    cmd = ["codex", "exec",
+           "--config", f"model={codex_model}",
+           prompt]
+```
+
+### 为什么 review 不用 codex exec(v8.25 设计反思)
+
+| 维度 | v8.25(全 codex exec)| v8.26(review→codex review)|
+|---|---|---|
+| diff review 准确度 | codex 自己跑 `git diff <base>..<commit>`(间接 · 可能漏)| `--commit X` 内置精确 diff |
+| review prompt 质量 | 手写 PROMPT(简单)| codex 内置专业 prompt(focus correctness/security/perf · cite file:line) |
+| 调用复杂度 | 统一(简单)| 按 stage 分(略复杂 · 但各司其职) |
+| 失败风险 | 0(全 exec)| 0(review 子命令只用 --commit · 不混传 [PROMPT]) |
+
+→ v8.26 review 质量 > v8.25 · 失败风险相同。
+
+### 为什么 goal/blueprint 不用 codex review
+
+`codex review` 是 diff-only · 无法 review markdown 文件(PRD.md / TC.md / TECH.md)。文档 review 天然适合 `codex exec` 通用 agent。
+
+### 测试覆盖(+3 · 0 regression)
+
+`TestExternalReviewCommand` v8.26 新增 / 改造:
+- **新** `test_v826_review_stage_uses_codex_review`:review stage `codex review` · `--commit` · `--title` · 无 PROMPT(`codex_prompt=None`)
+- **新** `test_v826_goal_blueprint_stage_uses_codex_exec`:goal/blueprint `codex exec` · 含 PROMPT · 有 `[Review title:` 前缀
+- **新** `test_v826_review_stage_no_base_flag_avoid_commit_base_互斥`:review stage 即使用户传 `--base main-custom` · cmd 也不含 `--base`(只用 `--commit`)
+- **改** `test_v823_review_stage_uses_code_review_prompt`:review stage 现无 PROMPT · 改断言 `codex_prompt is None` + `codex review` 子命令 + commit SHA 在 preview_command(通过 --commit flag)
+- **改** `test_dry_run_includes_preview_command`:断言 `codex review` 子命令 / `--commit` / `--title` / `codex_prompt=None`
+
+### standards/external-model-usage.md §11.5 更新
+
+加 v8.26 子节:
+- 调用 matrix 表(三 stage × 子命令)
+- review stage 关键设计:只传 --commit / 不传 [PROMPT] / 内置 prompt
+- 为什么 review 不用 codex exec / 为什么 goal/blueprint 不用 codex review
+
+### v8.x 演进曲线(诚实记录)
+
+| 版本 | review stage 调用 | 失败模式 |
+|---|---|---|
+| v8.20 | `codex review --commit X --base Y --title Z` | FAIL `--commit/--base` 互斥 |
+| v8.23 | `codex review --base Y --title Z [PROMPT]` | FAIL `--base/[PROMPT]` 互斥 |
+| v8.25 | `codex exec [PROMPT]`(全 stage 统一) | ✅ work · 但 review 损失专业 prompt |
+| **v8.26** | **`codex review --commit X --title Z`(无 PROMPT 无 --base)** | ✅ work · review 用专业子命令 |
+
+每一版都是 case-driven 螺旋上升 · 不是 over-engineering 一次到位。
+
+### SKILL.md frontmatter
+
+`v8.25` → `v8.26`
+
+---
+
 ## v8.25 · external-review 改用 `codex exec`(治本 F035 round 2 · codex review --base + [PROMPT] 互斥)
 
 > F035 round 2 实测:case-AI 跑 `state.py external-review --stage blueprint` 仍 FAIL · 同根因:新版 codex CLI(>= 0.133)`--base BRANCH` 与 `[PROMPT]` 互斥。
