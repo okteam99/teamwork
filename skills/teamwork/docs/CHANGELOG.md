@@ -1,5 +1,154 @@
 # Changelog
 
+## v8.28 · test 验证物化 · `state.py test-complete --run-tests`(治本 F037 AI 自报 stdout 漏洞)
+
+> F037 case 触发:case-AI 跑 3 framework test → 提交 `pm_verdict: FRAMEWORK_ONLY_SHIP_NOT_RECOMMENDED` 自承"67 test 0 实施 · 借 context 不够"。用户 "不要找理由" 后 · 真补 17 集成 test 全 PASS · 证明 context 够 · **理由是借口**。
+> 用户洞察:**test stage case 验证交给 python 指定调 exec · 不放主窗口 · 不占用主窗口上下文 · 后续动态指定模型也方便**。
+> 治本 v8.x 最深层漏洞:`dev/test-complete` 信 "AI 自报 stdout / exit_code" · AI 可跳测试 / 伪造日志 / 借 "context 不够" 不做。
+
+### 漏洞复盘
+
+```bash
+# v8.27 及之前(漏洞)
+state.py test-complete --integration-test-exit-code 0 --e2e-test-exit-code 0 \
+  --test-stdout "ok 67 passed"   # ← AI 自报 · 工具信
+# 实际 AI 可能只跑 3 个 framework test · 写假 stdout · state.py 看 exit_code=0 就 PASS
+```
+
+→ 与 v8.15 admission(AI 自报 flow_type)同型 · 测试维度此前未物化。
+
+### v8.28 治本(test 验证物化主路径)
+
+```bash
+# 新主路径
+state.py test-complete --feature <path> --run-tests
+# 工具内部:
+# 1. 读 .teamwork_localconfig.json test_commands(优先级:--test-cmd > by_feature_id_pattern > default)
+# 2. subprocess.run(cmd · 30min timeout · capture stdout/stderr/exit_code)
+# 3. 完整 log 落 <feature_dir>/test-stdout.log(主 PMO context 不读)
+# 4. emit JSON 仅 tail 100 行 + exit_code + duration + log_path(主 context 几行)
+# 5. 自动设 evidence.integration_test_exit_code = subprocess 真实 exit_code
+# 6. AI 不能伪造 / 不能跳 / 不能借 "context 不够"
+```
+
+### 用户洞察的 3 个精准点
+
+1. **python 指定调 exec**(subprocess 物化 · 不是 AI 自报)
+2. **不放主窗口 · 不占用主窗口上下文**(log 落盘 · emit 只 tail · 主 context 仅几行)
+3. **后续动态指定模型也方便**(类似 v8.20 external-review host→model 映射 · 物化主路径已建好接口)
+
+### 设计实现
+
+#### 1. `_v8_engine.py` 加 helper
+
+**`_resolve_test_cmd(args, feature_id, project_root)`**(优先级解析):
+- `--test-cmd` 显式传 → 最优先
+- `config.test_commands.by_feature_id_pattern` fnmatch 匹配 → 次优先(如 `SVC-CORE-F037-*`)
+- `config.test_commands.default` → 兜底
+- 都无 → 返 error("先配 .teamwork_localconfig.json · 或显式 --test-cmd · 或回退 --integration-test-exit-code deprecated")
+
+**`run_tests_via_subprocess(cmd_str, cwd, timeout_sec, log_path, tail_lines)`**:
+- `subprocess.run` shell=True(支持 pipe / glob)· capture stdout + stderr
+- 完整 log 落盘(含 metadata header:cmd / cwd / exit_code / duration / timed_out)
+- 返 dict:exit_code / stdout_tail / stdout_total_lines / duration_sec / log_path / cmd / timeout
+- 异常处理:timeout → exit_code=124 · cmd 不存在 → exit_code=127
+
+#### 2. `_add_stage_specific_args` 加 test stage flag
+
+```python
+elif stage_name == "test" and phase == "complete":
+    parser.add_argument("--integration-test-exit-code", ..., help="[deprecated] AI 自报")
+    parser.add_argument("--e2e-test-exit-code", ..., help="[deprecated] AI 自报")
+    # v8.28 物化主路径
+    parser.add_argument("--run-tests", action="store_true",
+                        help="工具自跑 · capture exit_code · AI 不能跳")
+    parser.add_argument("--test-cmd", default=None,
+                        help="覆盖 config · 一次性传")
+```
+
+#### 3. `execute_stage_complete` test stage 分支
+
+evidence 写入之前调:
+- 若 `stage=test` 且 `args.run_tests=True` · 解析 cmd → subprocess 跑 → 自动注入 `args.integration_test_exit_code` = 真实 exit_code
+- evidence 写入仍走原路径(收到工具自跑的 exit_code · 不是 AI 自报)
+- emit JSON 加 `test_run_result`(tail 100 行 + log_path · 透明 · 不污染主 context)
+
+### `.teamwork_localconfig.json` 配置示例
+
+```json
+{
+  "test_commands": {
+    "default": "cargo test --test '*'",
+    "by_feature_id_pattern": {
+      "SVC-CORE-F037-*": "cargo test --test f037_quality_gate_framework",
+      "PTR-F0*": "npm test --silent"
+    }
+  },
+  "test_timeout_sec": 1800,
+  "test_log_tail_lines": 100
+}
+```
+
+支持 fnmatch pattern(`SVC-CORE-F037-*` 匹配 `SVC-CORE-F037-Quality-Gate`)· 项目级一次配 · Feature 级无感。
+
+### 失败模式(透明 hint)
+
+| 场景 | 行为 |
+|---|---|
+| 无 config 无 `--test-cmd` | BLOCK with hint(3 条解决路径) |
+| `.teamwork_localconfig.json` 损坏 | 视作 config 缺失 · BLOCK |
+| cmd 不存在(cargo 不在等) | exit_code=127 · 写入 evidence · stage 走 fix-retry |
+| cmd 超时(>30min) | exit_code=124 · 写入 evidence · stage 走 fix-retry · log 留痕 |
+| cmd 失败(exit_code 非 0) | 正常路径 · evidence 设 · stage fix-retry |
+
+### F037 case 用 v8.28 重跑
+
+```
+$ state.py test-complete --feature services/.../F037 --run-tests
+# 工具:读 config.by_feature_id_pattern['SVC-CORE-F037-*'] = "cargo test --test f037_*"
+# 工具:subprocess.run → 真跑 17 集成 test → exit_code=0
+# 工具:log 落 <feature_dir>/test-stdout.log(2000 行)· emit 仅 tail 100 行
+# 工具:evidence.integration_test_exit_code = 0 (真实)
+# AI 不能伪造 "67 test PASS"(stdout 是 subprocess 真输出)
+# AI 不能跳测试(没自报路径)
+# AI 不能借 "context 不够"(subprocess 跑 · 不占 AI context)
+```
+
+→ case-AI 自报"framework only"反模式 · 物理上不可能。
+
+### 测试覆盖(+10 · 0 regression)
+
+`TestRunTestsViaSubprocess`(10 test):
+- 优先级:`test_args_test_cmd_highest_priority` / `test_by_feature_pattern_match` / `test_default_fallback`
+- 失败模式:`test_no_config_no_cmd_returns_error` / `test_corrupt_config_falls_through_to_error`
+- 跑测试:`test_pass_cmd_returns_exit_0` / `test_fail_cmd_returns_nonzero` / `test_timeout_returns_124`
+- **核心**`test_tail_lines_truncates_long_output`(治本核心:1000 行输出 · tail=20 → 只返末 20 行 · 完整 log 落盘含 1000 行)
+- `test_log_has_metadata_header`(log 含 cmd / cwd / exit_code / duration · debug 友好)
+
+### 与其他 v8.x 物化对比
+
+| 版本 | 物化对象 | 漏洞模式 |
+|---|---|---|
+| v8.15 admission | flow_type 判断 | AI 自报 → 必传 judgment JSON |
+| v8.20 external-review | codex/claude 调用 | AI 手工拼 → state.py 自跑 |
+| **v8.28 test runner** | **测试 stdout / exit_code** | **AI 自报 → state.py subprocess 自跑** |
+
+3 个治本同型 · 都是"AI 自报 → 工具自跑"模式。
+
+### 向后兼容
+
+`--integration-test-exit-code` / `--e2e-test-exit-code` / `--test-stdout` 旧 flag 保留(标 deprecated · 仅 debug / 极端环境用)· 不强制立即迁移。test-stage.md spec 标"v8.28+ 主路径推荐 --run-tests"。
+
+### dev-complete 不动(精确范围 · 用户拍板)
+
+用户明确说 "**test stage** case 验证" · 不动 dev-complete(dev stage 单测 local-only 通常不脱产 IDE · 强物化 ROI 低)· 后续 case 实证再扩。
+
+### SKILL.md frontmatter
+
+`v8.27` → `v8.28`
+
+---
+
 ## v8.27 · prepare-check 加 reviewer_thinking_checklist(治本 F-Bv2-8 PMO 直接抄默认 reviewers case)
 
 > F-Bv2-8 case 触发:PMO 第一次直接抄 `prepare-check stage_chain_preview` 的默认 reviewers · 没结合 Feature 特征思考加减。

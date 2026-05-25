@@ -44,7 +44,36 @@ AC↔Test 全覆盖物化校验 · 漏覆盖 FAIL
 §integration 结果 / §api-e2e 结果 / §AC 覆盖度 / §回归
 
 ### 7. complete
-`state.py test-complete --integration-test-exit-code 0 --e2e-test-exit-code 0 ...`
+
+🟢 **v8.28+ 主路径(推荐)· 工具自跑 · AI 不能伪造 stdout**:
+```
+state.py test-complete --feature <path> --run-tests
+# 工具自 subprocess 跑 .teamwork_localconfig.json test_commands 配的 cmd
+# 完整 log 落 <feature_dir>/test-stdout.log(不污染主 PMO context · 仅 emit tail 100 行)
+# 自动设 evidence.integration_test_exit_code = subprocess 真实 exit_code
+# 治本 F037 case-AI 自报 "67 test 全跑了" 但实际只跑 3 framework test · 借 "context 不够" 不做
+```
+
+`.teamwork_localconfig.json` 配 test cmd(一次配 · 全 Feature 用):
+```json
+{
+  "test_commands": {
+    "default": "cargo test --test '*'",
+    "by_feature_id_pattern": {
+      "SVC-CORE-F037-*": "cargo test --test f037_quality_gate_framework"
+    }
+  },
+  "test_timeout_sec": 1800,
+  "test_log_tail_lines": 100
+}
+```
+
+🟡 **deprecated 旧路径(仅 debug / 工具不可用时)**:
+```
+state.py test-complete --integration-test-exit-code 0 --e2e-test-exit-code 0 ...
+# AI 自报 stdout / exit_code · 漏洞:可伪造 / 可跳测试
+```
+
 - exit_code 都 0 → 自动转 pm_acceptance(或 browser_e2e · 看 needs_browser_e2e)
 - 任一 exit_code 非 0 → 留 test-stage · 走 §fix-retry 循环
 

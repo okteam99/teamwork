@@ -1270,6 +1270,36 @@ def execute_stage_complete(
     contract["artifacts"] = (args.artifacts or "").split(",") if args.artifacts else []
     contract["cited_specs"] = (args.cite or "").split(",") if args.cite else []
 
+    # v8.28 · test stage --run-tests 物化跑测试(治本 F037 case-AI 自报 stdout 漏洞)
+    # 必须在 evidence 写入之前 · 让自跑结果注入 args.integration_test_exit_code
+    test_run_result = None
+    if (stage_spec.name == "test" and getattr(args, "run_tests", False)):
+        feature_id = state.get("feature_id") or feature_dir.name
+        project_root = _find_project_root(feature_dir)
+        cmd_str, source, timeout_sec, tail_lines, err = _resolve_test_cmd(
+            args, feature_id, project_root)
+        if err:
+            emit_json({
+                "verdict": "FAIL",
+                "stage": "test",
+                "phase": "complete",
+                "error": f"--run-tests 但 {err}",
+                "hint": "见 error 中的二选一",
+                "rule": "v8.28 · test 验证物化 · 治本 F037 case-AI 自报 stdout 漏洞",
+            }, exit_code=1)
+        log_path = feature_dir / "test-stdout.log"
+        # 在 git_cwd(repo)跑 · 不在 feature_dir(防 cargo test 找不到 Cargo.toml)
+        test_run_result = run_tests_via_subprocess(
+            cmd_str=cmd_str, cwd=git_cwd,
+            timeout_sec=timeout_sec, log_path=log_path,
+            tail_lines=tail_lines,
+        )
+        test_run_result["source"] = source
+        # 自动注入 args(替代 PMO 自报 --integration-test-exit-code · 工具自跑权威)
+        # 用 integration_test_exit_code 字段(test stage 默认 evidence 字段)
+        # 若 cmd 实际跑的是 e2e · 用户可显式 --e2e-test-exit-code 覆盖
+        args.integration_test_exit_code = test_run_result["exit_code"]
+
     # 6.5 持久化 stage 专属 args 到 contract.evidence(治本"PMO 必 raw-write 补 evidence")
     # 白名单字段(_add_stage_specific_args 中定义的 stage-complete 参数)
     evidence = contract.setdefault("evidence", {})
@@ -1474,6 +1504,8 @@ def execute_stage_complete(
         "transitioned_to": transitioned_to,
         "next_stage_brief": next_brief,
         "status_line": render_status_line(state, next_hint),
+        # v8.28 · test --run-tests 透明 emit(主 PMO context 仅 tail · 完整 log 落 log_path)
+        **({"test_run_result": test_run_result} if test_run_result else {}),
         **({"next_stage_scaffold_hints": next_stage_scaffold_hints}
            if next_stage_scaffold_hints else {}),
         **({"next_stage_roles_adjusted": next_stage_roles_audit} if next_stage_roles_audit else {}),
@@ -1603,9 +1635,19 @@ def _add_stage_specific_args(parser: argparse.ArgumentParser, stage_name: str, p
                             help="逗号分隔 · 外部评审 markdown 文件清单")
     elif stage_name == "test" and phase == "complete":
         parser.add_argument("--integration-test-exit-code", type=int, default=None,
-                            help="集成测试 exit code · 必须 = 0")
+                            help="[deprecated] 集成测试 exit code · v8.28 推荐 --run-tests 工具自跑")
         parser.add_argument("--e2e-test-exit-code", type=int, default=None,
-                            help="API E2E 测试 exit code · 必须 = 0")
+                            help="[deprecated] API E2E exit code · v8.28 推荐 --run-tests 工具自跑")
+        # v8.28:test 验证物化(治本 F037 case-AI 自报 stdout 漏洞 · 不污染主 context)
+        parser.add_argument("--run-tests", action="store_true",
+                            help=("[v8.28] 工具自 subprocess 跑测试 · capture exit_code · "
+                                  "log 落 <feature_dir>/test-stdout.log(不污染主 context)· "
+                                  "读 .teamwork_localconfig.json test_commands · "
+                                  "AI 不能伪造 stdout · 不能借 'context 不够' 跳"))
+        parser.add_argument("--test-cmd", default=None,
+                            help=("[v8.28] 覆盖 config 中 test_commands · "
+                                  "如 'cargo test --test f037_quality_gate_framework' · "
+                                  "缺省读 .teamwork_localconfig.json test_commands.default 或 by_feature_id_pattern"))
     elif stage_name == "pm_acceptance" and phase == "complete":
         parser.add_argument(
             "--decision",
@@ -1615,6 +1657,142 @@ def _add_stage_specific_args(parser: argparse.ArgumentParser, stage_name: str, p
         )
         parser.add_argument("--note", default="",
                             help="决策说明(rejected 时必填)")
+
+
+# ─── v8.28 · test 验证物化(治本 F037 case · AI 自报 stdout 漏洞)─────────
+#
+# 设计:
+# - state.py test-complete --run-tests · subprocess.run 跑测试 · capture exit_code
+# - 完整 log 落盘 <feature_dir>/test-stdout.log(不进主 PMO context)
+# - emit 仅 tail N 行 + exit_code + duration(主 context 几行 · 不污染)
+# - 自动设 evidence(integration_test_exit_code / e2e_test_exit_code)
+# - AI 不能伪造 stdout · 不能借 "context 不够" 跳
+# - 为未来动态模型扩展留接口(类似 v8.20 external-review host→model 映射)
+#
+# config 优先级:--test-cmd > by_feature_id_pattern > default · 都无 → BLOCK
+
+TEST_RUN_DEFAULT_TIMEOUT_SEC = 1800   # 30 min · 适合大型项目集成测试
+TEST_RUN_DEFAULT_TAIL_LINES = 100     # emit tail · 平衡可读性 vs context 占用
+
+
+def _resolve_test_cmd(args, feature_id: str, project_root: Path) -> tuple:
+    """v8.28 · 按优先级选 test cmd · 返 (cmd_str, source, timeout_sec, tail_lines, error)。
+
+    优先级:--test-cmd > config.by_feature_id_pattern > config.default
+    都无 → (None, None, _, _, error_msg)
+    """
+    import fnmatch
+    # 用 bootstrap 的 read_localconfig(避免循环 import · 这里复用)
+    try:
+        cfg_path = project_root / ".teamwork_localconfig.json"
+        if cfg_path.exists():
+            cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
+        else:
+            cfg = {}
+    except (OSError, json.JSONDecodeError):
+        cfg = {}
+
+    test_cfg = cfg.get("test_commands") or {}
+    timeout_sec = cfg.get("test_timeout_sec") or TEST_RUN_DEFAULT_TIMEOUT_SEC
+    tail_lines = cfg.get("test_log_tail_lines") or TEST_RUN_DEFAULT_TAIL_LINES
+
+    # 1. --test-cmd 最优先
+    cmd = getattr(args, "test_cmd", None)
+    if cmd:
+        return cmd, "args.test_cmd", timeout_sec, tail_lines, None
+
+    # 2. by_feature_id_pattern(fnmatch)
+    by_pattern = test_cfg.get("by_feature_id_pattern") or {}
+    for pattern, c in by_pattern.items():
+        if fnmatch.fnmatch(feature_id, pattern):
+            return c, f"config.by_feature_id_pattern[{pattern}]", timeout_sec, tail_lines, None
+
+    # 3. default
+    if test_cfg.get("default"):
+        return test_cfg["default"], "config.default", timeout_sec, tail_lines, None
+
+    # 都无 · BLOCK
+    return None, None, timeout_sec, tail_lines, (
+        "无 test cmd · 二选一:\n"
+        "  ① 项目根 .teamwork_localconfig.json 加 test_commands.default(推荐 · 一次配)\n"
+        "       例:{\"test_commands\": {\"default\": \"cargo test --test '*'\"}}\n"
+        "       支持 by_feature_id_pattern(fnmatch · 如 'SVC-CORE-F037-*' 覆盖)\n"
+        "  ② 命令行 --test-cmd '...' 显式传(一次性)\n"
+        "  ③ 临时回退 --integration-test-exit-code N(deprecated · 不推荐 · AI 自报)"
+    )
+
+
+def run_tests_via_subprocess(cmd_str: str, cwd: str, timeout_sec: int,
+                              log_path: Path, tail_lines: int) -> dict:
+    """v8.28 · 工具自跑测试 · 完整 log 落盘 · 返 tail + exit_code + duration。
+
+    返 dict:
+      - exit_code: int(0 = pass · 非 0 = fail)
+      - stdout_tail: str(末 tail_lines 行 · 主 context 显)
+      - stdout_total_lines: int
+      - duration_sec: float
+      - log_path: str(完整 log 落盘 · 主 PMO 可主动 read · 默认不读)
+      - cmd: str(实际跑的 cmd)
+      - timeout: bool(是否超时)
+    """
+    import time
+    start = time.time()
+    timed_out = False
+    try:
+        # subprocess.run 用 shell=True 支持 cmd 含 pipe / glob 等(便利)
+        # capture stderr 也合并到 log(测试常 stderr 输出 PASS/FAIL 摘要)
+        r = subprocess.run(
+            cmd_str, shell=True, cwd=cwd,
+            capture_output=True, text=True, timeout=timeout_sec,
+        )
+        exit_code = r.returncode
+        full_stdout = r.stdout or ""
+        full_stderr = r.stderr or ""
+    except subprocess.TimeoutExpired as e:
+        timed_out = True
+        exit_code = 124
+        full_stdout = (e.stdout or "").decode() if isinstance(e.stdout, bytes) else (e.stdout or "")
+        full_stderr = (e.stderr or "").decode() if isinstance(e.stderr, bytes) else (e.stderr or "")
+        full_stderr += f"\n\n[teamwork timeout {timeout_sec}s]"
+    except (FileNotFoundError, OSError) as ex:
+        exit_code = 127
+        full_stdout = ""
+        full_stderr = f"[teamwork test runner error] {ex}"
+
+    duration = time.time() - start
+
+    # 落完整 log(主 PMO 默认不 read · 想看主动 cat / Read)
+    try:
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        full_log = (
+            f"=== teamwork test runner v8.28 ===\n"
+            f"cmd: {cmd_str}\n"
+            f"cwd: {cwd}\n"
+            f"timeout_sec: {timeout_sec}\n"
+            f"exit_code: {exit_code}\n"
+            f"duration_sec: {duration:.2f}\n"
+            f"timed_out: {timed_out}\n"
+            f"\n=== stdout ===\n{full_stdout}\n"
+            f"\n=== stderr ===\n{full_stderr}\n"
+        )
+        log_path.write_text(full_log, encoding="utf-8")
+    except OSError:
+        pass  # log 写失败不致命 · emit tail 仍 work
+
+    # tail(末 N 行 · 用 stdout 优先 · 失败 fallback stderr)
+    src = full_stdout if full_stdout.strip() else full_stderr
+    lines = src.splitlines()
+    tail = "\n".join(lines[-tail_lines:]) if lines else ""
+
+    return {
+        "exit_code": exit_code,
+        "stdout_tail": tail,
+        "stdout_total_lines": len(lines),
+        "duration_sec": round(duration, 2),
+        "log_path": str(log_path),
+        "cmd": cmd_str,
+        "timeout": timed_out,
+    }
 
 
 # ─── stage 内 fix-retry 循环(通用 · review/test 复用 · 治本回退切 stage)──

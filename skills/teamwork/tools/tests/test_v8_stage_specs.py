@@ -15,6 +15,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import subprocess
@@ -744,6 +745,148 @@ class TestPrdOrBugReportPrereq(unittest.TestCase):
         self.assertFalse(self._check("敏捷需求"))
         (self.feat / "PRD.md").write_text("x", encoding="utf-8")
         self.assertTrue(self._check("敏捷需求"))
+
+
+# ─── v8.28 · test 验证物化(治本 F037 AI 自报 stdout 漏洞)──────────────
+
+
+class TestRunTestsViaSubprocess(unittest.TestCase):
+    """v8.28 · run_tests_via_subprocess + _resolve_test_cmd 单元测试。
+
+    覆盖:
+    - cmd 解析优先级(--test-cmd > by_feature_id_pattern > default)
+    - config 都无 → BLOCK 返 error
+    - subprocess.run pass / fail / timeout / cmd 不存在
+    - log 完整落盘 · emit tail 仅 N 行(不污染主 context)
+    """
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp(prefix="run-tests-"))
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    # ── _resolve_test_cmd 优先级 ──
+    def test_args_test_cmd_highest_priority(self):
+        from _v8_engine import _resolve_test_cmd  # type: ignore
+        # config 有 default · 但 --test-cmd 优先
+        (self.tmp / ".teamwork_localconfig.json").write_text(
+            json.dumps({"test_commands": {"default": "cargo test"}}),
+            encoding="utf-8")
+        args = make_args(feature=str(self.tmp / "feat"), test_cmd="my-cmd --foo")
+        cmd, source, *_ = _resolve_test_cmd(args, "F001", self.tmp)
+        self.assertEqual(cmd, "my-cmd --foo")
+        self.assertEqual(source, "args.test_cmd")
+
+    def test_by_feature_pattern_match(self):
+        from _v8_engine import _resolve_test_cmd  # type: ignore
+        (self.tmp / ".teamwork_localconfig.json").write_text(json.dumps({
+            "test_commands": {
+                "default": "cargo test",
+                "by_feature_id_pattern": {
+                    "SVC-CORE-F037-*": "cargo test --test f037_*",
+                    "PTR-F*": "npm test",
+                }
+            }
+        }), encoding="utf-8")
+        args = make_args(feature=str(self.tmp / "feat"), test_cmd=None)
+        cmd, source, *_ = _resolve_test_cmd(
+            args, "SVC-CORE-F037-Quality-Gate", self.tmp)
+        self.assertEqual(cmd, "cargo test --test f037_*")
+        self.assertIn("by_feature_id_pattern", source)
+
+    def test_default_fallback(self):
+        from _v8_engine import _resolve_test_cmd  # type: ignore
+        (self.tmp / ".teamwork_localconfig.json").write_text(json.dumps({
+            "test_commands": {"default": "cargo test --lib"}
+        }), encoding="utf-8")
+        args = make_args(feature=str(self.tmp / "feat"), test_cmd=None)
+        cmd, source, *_ = _resolve_test_cmd(args, "F001", self.tmp)
+        self.assertEqual(cmd, "cargo test --lib")
+        self.assertEqual(source, "config.default")
+
+    def test_no_config_no_cmd_returns_error(self):
+        from _v8_engine import _resolve_test_cmd  # type: ignore
+        args = make_args(feature=str(self.tmp / "feat"), test_cmd=None)
+        cmd, source, _, _, err = _resolve_test_cmd(args, "F001", self.tmp)
+        self.assertIsNone(cmd)
+        self.assertIsNone(source)
+        self.assertIn("无 test cmd", err)
+        self.assertIn(".teamwork_localconfig.json", err)
+        self.assertIn("--test-cmd", err)
+
+    def test_corrupt_config_falls_through_to_error(self):
+        from _v8_engine import _resolve_test_cmd  # type: ignore
+        (self.tmp / ".teamwork_localconfig.json").write_text(
+            "not json {{{", encoding="utf-8")
+        args = make_args(feature=str(self.tmp / "feat"), test_cmd=None)
+        cmd, *_, err = _resolve_test_cmd(args, "F001", self.tmp)
+        self.assertIsNone(cmd)
+        self.assertIn("无 test cmd", err)
+
+    # ── run_tests_via_subprocess ──
+    def test_pass_cmd_returns_exit_0(self):
+        from _v8_engine import run_tests_via_subprocess  # type: ignore
+        log = self.tmp / "test-stdout.log"
+        r = run_tests_via_subprocess(
+            cmd_str="echo 'all tests PASS' && exit 0",
+            cwd=str(self.tmp), timeout_sec=10, log_path=log, tail_lines=50)
+        self.assertEqual(r["exit_code"], 0)
+        self.assertIn("PASS", r["stdout_tail"])
+        self.assertGreaterEqual(r["duration_sec"], 0)
+        self.assertFalse(r["timeout"])
+        self.assertTrue(log.exists())  # 完整 log 落盘
+
+    def test_fail_cmd_returns_nonzero(self):
+        from _v8_engine import run_tests_via_subprocess  # type: ignore
+        log = self.tmp / "test-stdout.log"
+        r = run_tests_via_subprocess(
+            cmd_str="echo 'test failed' && exit 1",
+            cwd=str(self.tmp), timeout_sec=10, log_path=log, tail_lines=50)
+        self.assertEqual(r["exit_code"], 1)
+        self.assertIn("failed", r["stdout_tail"])
+
+    def test_timeout_returns_124(self):
+        from _v8_engine import run_tests_via_subprocess  # type: ignore
+        log = self.tmp / "test-stdout.log"
+        # sleep 5s · 但 timeout=1s
+        r = run_tests_via_subprocess(
+            cmd_str="sleep 5", cwd=str(self.tmp),
+            timeout_sec=1, log_path=log, tail_lines=50)
+        self.assertEqual(r["exit_code"], 124)
+        self.assertTrue(r["timeout"])
+
+    def test_tail_lines_truncates_long_output(self):
+        """治本核心:大量输出 · emit tail 只取末 N 行 · 不污染主 context。"""
+        from _v8_engine import run_tests_via_subprocess  # type: ignore
+        log = self.tmp / "test-stdout.log"
+        # 生成 1000 行 stdout · tail=20 应只返末 20 行
+        r = run_tests_via_subprocess(
+            cmd_str="for i in $(seq 1 1000); do echo line-$i; done",
+            cwd=str(self.tmp), timeout_sec=10, log_path=log, tail_lines=20)
+        self.assertEqual(r["exit_code"], 0)
+        tail_lines = r["stdout_tail"].splitlines()
+        self.assertEqual(len(tail_lines), 20, "tail 必只取末 20 行")
+        self.assertEqual(tail_lines[-1], "line-1000")
+        self.assertEqual(tail_lines[0], "line-981")
+        # 但完整 log 应含 1000 行
+        full = log.read_text(encoding="utf-8")
+        self.assertIn("line-1\n", full)
+        self.assertIn("line-1000", full)
+        self.assertEqual(r["stdout_total_lines"], 1000)
+
+    def test_log_has_metadata_header(self):
+        """log 含 cmd / cwd / exit_code / duration metadata(供 debug)。"""
+        from _v8_engine import run_tests_via_subprocess  # type: ignore
+        log = self.tmp / "test-stdout.log"
+        run_tests_via_subprocess(
+            cmd_str="echo ok", cwd=str(self.tmp),
+            timeout_sec=10, log_path=log, tail_lines=10)
+        full = log.read_text(encoding="utf-8")
+        self.assertIn("=== teamwork test runner v8.28 ===", full)
+        self.assertIn("cmd: echo ok", full)
+        self.assertIn(f"cwd: {self.tmp}", full)
+        self.assertIn("exit_code: 0", full)
 
 
 if __name__ == "__main__":
