@@ -338,11 +338,22 @@ class TestMaintainGitignoreWorktree(unittest.TestCase):
 
     def test_gitignore_already_present(self):
         from bootstrap import maintain_gitignore_worktree
+        # v8.31:teamwork 维护 4 项 entries · 全预填 → already_present
         (self.tmp / ".gitignore").write_text(
             "node_modules/\n.worktree/\n.teamwork_localconfig.json\n"
+            ".claude/scheduled_tasks.lock\n.claude/agents.lock\n"
         )
         result = maintain_gitignore_worktree(self.tmp)
         self.assertEqual(result["status"], "already_present")
+
+    def test_v831_harness_locks_appended(self):
+        """v8.31 治本 INFRA-F025 G2:harness 锁文件自动 ignore。"""
+        from bootstrap import maintain_gitignore_worktree
+        result = maintain_gitignore_worktree(self.tmp)
+        self.assertEqual(result["status"], "appended")
+        text = (self.tmp / ".gitignore").read_text()
+        self.assertIn(".claude/scheduled_tasks.lock", text)
+        self.assertIn(".claude/agents.lock", text)
 
 
 # ─── bootstrap marker(版本门禁) ──────────────────────────

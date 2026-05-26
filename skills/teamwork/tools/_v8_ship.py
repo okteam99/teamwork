@@ -813,6 +813,87 @@ def _step_state_sync(main_wt: str, feature_path: str) -> dict:
     return {"ok": True, "sync_action": " · ".join(sync_actions)}
 
 
+def _classify_main_sync_dirty(main_wt: str, feature_dir: Path, state: dict) -> dict:
+    """v8.31:step 7 main-sync 前 · 分类 dirty 文件(治本主工作区残留 case)。
+
+    返回:
+      - is_dirty:bool(整体是否 dirty)
+      - all_files:list[str](全 dirty 文件 · 相对 main_wt)
+      - feature_artifacts:list(本 Feature 内 state.json / review-log.jsonl · 工具副产物)
+      - bootstrap_pointers:list(AGENTS.md / CLAUDE.md / GEMINI.md · bootstrap 注入段)
+      - harness_locks:list(.claude/*.lock 等 harness 锁 · 理想该 gitignore)
+      - other_files:list(用户真改动 · 不该自动处理)
+      - safe_to_stash:bool(other_files 为空 · 全部副产物 · 可 stash+ff-pull+unstash)
+      - categories_present:list[str]("feature_artifacts" / "bootstrap_pointers" / "harness_locks")
+    """
+    r = _git(["status", "--porcelain"], cwd=main_wt, timeout=30)
+    if r.returncode != 0 or not r.stdout.strip():
+        return {
+            "is_dirty": False, "all_files": [],
+            "feature_artifacts": [], "bootstrap_pointers": [],
+            "harness_locks": [], "other_files": [],
+            "safe_to_stash": True, "categories_present": [],
+        }
+
+    # 算 feature_dir 相对 main_wt 的路径(用来识别本 Feature artifacts)
+    try:
+        feature_rel = str(feature_dir.relative_to(Path(main_wt)))
+    except ValueError:
+        feature_rel = ""
+
+    feature_artifacts: list = []
+    bootstrap_pointers: list = []
+    harness_locks: list = []
+    other_files: list = []
+    all_files: list = []
+
+    for line in r.stdout.splitlines():
+        # git status --porcelain 格式:"XY <path>"(X=index status · Y=worktree status)
+        if len(line) < 4:
+            continue
+        path = line[3:].strip()
+        # 处理 rename 格式 "old -> new"
+        if " -> " in path:
+            path = path.split(" -> ", 1)[1].strip()
+        all_files.append(path)
+
+        # 分类
+        if feature_rel and path.startswith(feature_rel + "/"):
+            basename = path.rsplit("/", 1)[-1]
+            if basename in ("state.json", "review-log.jsonl"):
+                feature_artifacts.append(path)
+                continue
+            # 本 Feature 内其他文件 = 用户改动(代码 / 文档)· 不自动处理
+            other_files.append(path)
+        elif path in ("AGENTS.md", "CLAUDE.md", "GEMINI.md"):
+            bootstrap_pointers.append(path)
+        elif path.startswith(".claude/") and (
+            path.endswith(".lock") or path.endswith("_tasks.lock")
+        ):
+            harness_locks.append(path)
+        else:
+            other_files.append(path)
+
+    categories = []
+    if feature_artifacts:
+        categories.append("feature_artifacts")
+    if bootstrap_pointers:
+        categories.append("bootstrap_pointers")
+    if harness_locks:
+        categories.append("harness_locks")
+
+    return {
+        "is_dirty": True,
+        "all_files": all_files,
+        "feature_artifacts": feature_artifacts,
+        "bootstrap_pointers": bootstrap_pointers,
+        "harness_locks": harness_locks,
+        "other_files": other_files,
+        "safe_to_stash": not other_files,
+        "categories_present": categories,
+    }
+
+
 def _finalize_push_fail(ship: dict, reason: str, msg: str) -> tuple:
     """记录 finalize-push 失败到 ship 字段 · 返回 (False, msg)。"""
     ship["merge_target_pushed_at"] = None
@@ -1240,39 +1321,104 @@ def cmd_ship_finalize(args: argparse.Namespace) -> None:
                             f"确认已合入后手动 git branch -D {wt_branch}"
                         )
 
-    # ── Step 7:main-sync(fetch + 安全 pull --ff-only · 让主工作区跟上 ship 结果)──
+    # ── Step 7:main-sync(v8.31 智能 dirty 处理 · 治本主工作区残留 case)──
     # 治本:ship Phase 2 完成后 · 主工作区本地 merge_target 分支仍停在旧 commit ·
     # 与 origin/merge_target(已含 MR 合并 + finalize-push)脱节。
-    # ff-only:能快进则快进(常态)· 分叉/脏树则安全跳过 + WARN · 不强 merge。
+    # v8.16:能快进则快进 · 分叉/脏树则安全跳过 + WARN · 不强 merge。
+    # v8.31:dirty 分类 · 若 dirty 全是工具副产物(feature artifacts + bootstrap
+    # 注入段 + harness 锁)→ stash+ff-pull+unstash 安全自动同步;若含用户真改动 → 跳过。
+    main_sync_status = "skipped"
+    main_sync_note = ""
     f2 = _git(["fetch", "origin", merge_target], cwd=main_wt, timeout=120)
     if f2.returncode != 0:
         warnings.append(
             f"主工作区 git fetch origin {merge_target} 失败:"
             f"{f2.stderr.strip()[:120]} · 非致命 · 手动 git fetch 即可"
         )
+        main_sync_status = "fetch_failed"
+        main_sync_note = f"fetch fail · 网络/remote 问题:{f2.stderr.strip()[:80]}"
     else:
         completed.append("main-sync")
         cur = _git(["rev-parse", "--abbrev-ref", "HEAD"], cwd=main_wt)
         cur_branch = cur.stdout.strip() if cur.returncode == 0 else ""
-        dirty = _git(["status", "--porcelain"], cwd=main_wt)
-        is_dirty = bool(dirty.stdout.strip()) if dirty.returncode == 0 else False
         if cur_branch != merge_target:
             warnings.append(
                 f"主工作区当前在 {cur_branch!r} 分支(非 {merge_target})· 已 fetch 未 pull · "
                 f"需要时自行 git checkout {merge_target} && git pull --ff-only"
             )
-        elif is_dirty:
-            warnings.append(
-                f"主工作区 {merge_target} 有未提交改动 · 已 fetch 未 pull · "
-                f"自行 commit/stash 后 git pull --ff-only origin {merge_target}"
-            )
+            main_sync_status = "wrong_branch"
+            main_sync_note = (f"在 {cur_branch!r} 分支 · 非 {merge_target} · "
+                              f"已 fetch · 需要时自行切分支 + pull")
         else:
-            pl = _git(["pull", "--ff-only", "origin", merge_target],
-                      cwd=main_wt, timeout=120)
-            if pl.returncode != 0:
+            # v8.31 dirty 分类 + 智能 stash 处理
+            dirty_result = _classify_main_sync_dirty(main_wt, feature_dir, state)
+            if not dirty_result["is_dirty"]:
+                # clean · 直接 ff-pull(原 v8.16 路径)
+                pl = _git(["pull", "--ff-only", "origin", merge_target],
+                          cwd=main_wt, timeout=120)
+                if pl.returncode != 0:
+                    warnings.append(
+                        f"主工作区 {merge_target} 与 origin 分叉 · git pull --ff-only 未通过 · "
+                        f"已 fetch · 需手动 rebase/merge:{pl.stderr.strip()[:120]}"
+                    )
+                    main_sync_status = "diverged"
+                    main_sync_note = f"分叉 · 需手动 rebase:{pl.stderr.strip()[:80]}"
+                else:
+                    main_sync_status = "ff_pulled"
+                    main_sync_note = "主工作区已 ff-pull 到最新"
+            elif dirty_result["safe_to_stash"]:
+                # v8.31 核心:dirty 全是工具副产物(feature artifacts + bootstrap + harness locks)
+                # → stash + ff-pull + unstash 安全自动同步
+                stash_msg = f"teamwork ship-finalize v8.31 step 7 auto-stash"
+                st = _git(["stash", "push", "-u", "-m", stash_msg],
+                          cwd=main_wt, timeout=30)
+                if st.returncode != 0:
+                    warnings.append(
+                        f"git stash 失败:{st.stderr.strip()[:100]} · 跳过 ff-pull · "
+                        f"手动处理 dirty:{', '.join(dirty_result['all_files'][:5])}"
+                    )
+                    main_sync_status = "stash_failed"
+                    main_sync_note = "stash 失败 · 同 v8.16 跳过 ff-pull"
+                else:
+                    pl = _git(["pull", "--ff-only", "origin", merge_target],
+                              cwd=main_wt, timeout=120)
+                    pop = _git(["stash", "pop"], cwd=main_wt, timeout=30)
+                    if pl.returncode != 0:
+                        warnings.append(
+                            f"主工作区 {merge_target} 与 origin 分叉 · ff-pull 失败 · "
+                            f"stash 已 pop · 需手动 rebase:{pl.stderr.strip()[:120]}"
+                        )
+                        main_sync_status = "diverged_stash_popped"
+                        main_sync_note = "分叉 · 需手动 rebase"
+                    elif pop.returncode != 0:
+                        # ff-pull 成功 · 但 unstash 撞冲突(原 dirty 与 pulled 文件冲突)
+                        warnings.append(
+                            f"ff-pull 成功 · 但 git stash pop 冲突 · stash 保留 · "
+                            f"手动 git stash list / git stash pop:"
+                            f"{pop.stderr.strip()[:120]}"
+                        )
+                        main_sync_status = "pulled_unstash_conflict"
+                        main_sync_note = (f"已 ff-pull · unstash 冲突 stash 保留 · "
+                                          f"git stash list 查看")
+                    else:
+                        main_sync_status = "stashed_pulled_unstashed"
+                        main_sync_note = (
+                            f"v8.31 智能 dirty 处理:stash {len(dirty_result['all_files'])} "
+                            f"个副产物文件({', '.join(dirty_result['categories_present'])})· "
+                            f"ff-pull · unstash · 主工作区现 clean 且最新"
+                        )
+            else:
+                # dirty 含用户真改动 → 保留现状(同 v8.16 WARN 跳过)
                 warnings.append(
-                    f"主工作区 {merge_target} 与 origin 分叉 · git pull --ff-only 未通过 · "
-                    f"已 fetch · 需手动 rebase/merge:{pl.stderr.strip()[:120]}"
+                    f"主工作区 {merge_target} 有未提交改动({len(dirty_result['other_files'])} "
+                    f"个用户改动 · 不动)· 已 fetch 未 pull · 自行 commit/stash 后 "
+                    f"git pull --ff-only origin {merge_target}:"
+                    f"{', '.join(dirty_result['other_files'][:5])}"
+                )
+                main_sync_status = "skipped_user_changes"
+                main_sync_note = (
+                    f"用户真改动 dirty({len(dirty_result['other_files'])} 文件)· "
+                    f"自动 stash 不安全 · 自行处理"
                 )
 
     emit_json({
@@ -1293,6 +1439,9 @@ def cmd_ship_finalize(args: argparse.Namespace) -> None:
         "worktree_removed": wt_removed,
         # v8.16:state-sync 透明留痕(干了啥)· 治本 SVC-CORE-B006 case
         "state_sync_action": state_sync_action,
+        # v8.31 · step 7 智能 dirty 处理透明留痕(治本 G4 主工作区残留误判)
+        "main_sync_status": main_sync_status,
+        **({"main_sync_note": main_sync_note} if main_sync_note else {}),
         **({"warnings": warnings} if warnings else {}),
         "next_action_brief": _ship_finalize_brief(
             state, ship, finalize_ok, wt_removed, warnings),

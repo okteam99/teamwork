@@ -1,5 +1,128 @@
 # Changelog
 
+## v8.31 · ship-finalize step 7 智能 dirty 处理 + bootstrap gitignore 扩展(治本 INFRA-F025 主工作区残留 case)
+
+> 用户提问:工作区有残留 · 看下是不是 ship 规范有问题 · 理论上 feature 结束工作区应该干净。
+> case-AI 自诊 4 个缺口 G1-G4 全是 teamwork 框架级。
+
+### case-AI 诊断 4 个缺口
+
+| ID | 内容 | v8.31 治本 |
+|---|---|---|
+| **G1** | ship-finalize step 7 dirty 一刀切跳过 ff-pull | ✅ 智能 dirty 分类 + stash+ff-pull+unstash |
+| **G2** | `.claude/scheduled_tasks.lock` 漏 gitignore | ✅ bootstrap maintain_gitignore 扩展 |
+| **G3** | bootstrap 改 AGENTS.md / CLAUDE.md 不 commit · dirty | ✅ G1 智能分类涵盖(bootstrap_pointers 类) |
+| **G4** | finalize-push 后用户看 git status 误判残留 | ✅ emit `main_sync_status` + `main_sync_note` 透明 |
+
+### G1 治本:step 7 智能 dirty 处理
+
+新增 `_classify_main_sync_dirty(main_wt, feature_dir, state)` helper · 分类 4 类:
+
+| 类别 | 内容 | safe_to_stash |
+|---|---|---|
+| `feature_artifacts` | `<feature_dir>/state.json` + `review-log.jsonl` | ✅(工具副产物 · ship-finalize plumbing 推到 origin 的版本) |
+| `bootstrap_pointers` | `AGENTS.md` / `CLAUDE.md` / `GEMINI.md` | ✅(bootstrap 注入段 · 版本号变化) |
+| `harness_locks` | `.claude/*.lock` | ✅(session pid · G2 修后会 ignore · 历史 commit 漏 ignore 仍可 stash) |
+| `other_files` | 其他(用户代码 / 文档) | ❌ 不安全 |
+
+step 7 流程:
+1. **fetch + 检测 dirty 分类**
+2. **clean** → 直接 `ff-pull`(原 v8.16 路径)
+3. **dirty 全副产物**(`other_files=[]`)→ **`stash push -u` + `pull --ff-only` + `stash pop`**:
+   - 成功 → `main_sync_status="stashed_pulled_unstashed"` · 主工作区 clean 且最新
+   - unstash 冲突 → 保留 stash + WARN(`pulled_unstash_conflict`)
+   - 分叉 ff-pull fail → stash 已 pop · WARN(`diverged_stash_popped`)
+4. **dirty 含 other**(用户真改动)→ 同 v8.16 跳过 + WARN(`skipped_user_changes`)· 列分类 hint
+
+### G2 治本:bootstrap.py maintain_gitignore 扩展
+
+`maintain_gitignore_worktree` entries 加 2 项:
+```python
+(".claude/scheduled_tasks.lock", ..., "# Teamwork harness locks (session pid · v8.31)"),
+(".claude/agents.lock", ..., "# Teamwork harness locks (session pid · v8.31)"),
+```
+
+各项目 bootstrap 跑时自动加 · 不需每个项目手工 fix。**历史已 commit 的 lock 文件不自动 `git rm --cached`**(避免破坏现有项目)· 用户可手工清。
+
+### G3 治本:bootstrap_pointers 类纳入 step 7 智能处理
+
+bootstrap.py 改 AGENTS.md / CLAUDE.md / GEMINI.md(注入段版本号)后不 commit · 这是已知设计(避免污染主分支 commit 历史)。v8.31 step 7 把这 3 个文件归 `bootstrap_pointers` 类 · 自动 stash + ff-pull + unstash · 不阻塞同步。
+
+### G4 治本:emit `main_sync_status` 透明留痕
+
+```json
+{
+  "verdict": "PASS",
+  "command": "ship-finalize",
+  "main_sync_status": "stashed_pulled_unstashed",   // v8.31 新
+  "main_sync_note": "v8.31 智能 dirty 处理:stash 5 个副产物文件(feature_artifacts, bootstrap_pointers, harness_locks)· ff-pull · unstash · 主工作区现 clean 且最新"
+}
+```
+
+7 个 status 值:
+- `ff_pulled`(clean · 直接 pull)
+- `stashed_pulled_unstashed`(v8.31 智能处理)
+- `pulled_unstash_conflict`(已 pull · unstash 撞冲突 · stash 保留)
+- `diverged`(clean · 但分叉)
+- `diverged_stash_popped`(dirty stash · 分叉)
+- `skipped_user_changes`(dirty 含 other · 不动)
+- `wrong_branch` / `fetch_failed` / `stash_failed`
+
+PMO 看 status 直接知道主工作区状态 · 不再误判"feature 工作没收尾"。
+
+### INFRA-F025 case 用 v8.31 重跑
+
+```bash
+$ state.py ship-finalize --feature ...
+# step 1-6 同 v8.16+
+# step 7 v8.31:
+#   - fetch ✅
+#   - dirty:state.json + review-log.jsonl(feature_artifacts) +
+#            AGENTS.md + CLAUDE.md(bootstrap_pointers) +
+#            .claude/scheduled_tasks.lock(harness_locks)
+#   - other_files=[] → safe_to_stash=True
+#   - git stash push -u → git pull --ff-only → git stash pop
+#   - main_sync_status="stashed_pulled_unstashed"
+#   - 主工作区 clean 且本地 commit 同 origin
+```
+
+→ 用户**不再看到 5 dirty 文件**(全自动同步)· 不再误判 "feature 工作没收尾"。
+
+### 测试覆盖(+8 · 0 regression)
+
+`TestClassifyMainSyncDirty`(7 test):
+- clean / feature_artifacts / bootstrap_pointers / harness_locks 各类 safe_to_stash
+- 用户代码 (src.py) not safe
+- **`test_infra_f025_case_mixed_all_safe`** · case 复刻(5 dirty 全副产物)
+- feature_dir 内非 artifacts(如 PRD.md)= 用户改动 not safe
+
+`test_v831_harness_locks_appended`(test_bootstrap.py · 1 test):
+- maintain_gitignore_worktree 自动加 `.claude/*.lock` 2 项
+
+### 历史 case 受益(G2 历史污染)
+
+INFRA-F025 case 中用户提到 `.claude/scheduled_tasks.lock` 历史 commit `21b19f2d` 误入 · 每 session 写 pid → 永远 dirty。v8.31 后:
+- **新项目**:bootstrap 自动 ignore · 不会再误 commit
+- **历史项目**(含已 commit lock):用户自行 `git rm --cached .claude/*.lock` · 之后 bootstrap 维护的 ignore 段生效
+
+teamwork **不自动 `git rm --cached`**(避免破坏现有项目 / 误删用户实际依赖的 lock)。
+
+### 与 v8.16 / v8.18 ship-finalize 治本对比
+
+| 版本 | 治本对象 |
+|---|---|
+| v8.16 | step 0 state-sync(worktree state.json → 主工作区) |
+| v8.18 | finalize-push 0 delta(预设字段 · 去自引用 · multi-file) |
+| **v8.31** | **step 7 智能 dirty 处理 + G4 透明 emit** |
+
+3 次 ship-finalize 螺旋上升 · 都是"工具自动同步 vs PMO 手工收尾"的物化。
+
+### SKILL.md frontmatter
+
+`v8.30` → `v8.31`
+
+---
+
 ## v8.30 · 修虚构 `gpt-5-codex` 字面 · 改"工具不假设模型名 · 用户自查"模式
 
 > 用户截图揭穿:codex CLI 0.133 交互界面**没 gpt-5-codex 模型** —— 我 v8.23 用的字面是**虚构**(从 case-AI string 看到照搬 · 没核实 codex CLI 实际支持)。即使 API key 用户显式 `--codex-model gpt-5-codex` 也会 400(模型不存在)。

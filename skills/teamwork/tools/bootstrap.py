@@ -399,11 +399,21 @@ def maintain_host_hooks(skill_root: Path, project_root: Path, host: str) -> dict
 
 
 def maintain_gitignore_worktree(project_root: Path) -> dict:
-    """确保 .gitignore 含 `.worktree/` + `.teamwork_localconfig.json`(默认 worktree_root_path · 详 docs/conventions.md § 10)。"""
+    """确保 .gitignore 含 teamwork 推荐 ignore 模式。
+
+    v8.31 治本 INFRA-F025 case G2:`.claude/scheduled_tasks.lock` 等 harness 锁
+    文件每 session 写自己 pid · 跟踪意义为 0 · 必须 ignore(否则拖累 ship-finalize
+    step 7 ff-pull · 形成"主工作区永远 dirty")。
+    """
     gitignore = project_root / ".gitignore"
     entries = [
         (".worktree/", ".worktree", "# Teamwork worktree root (default)"),
         (LOCALCONFIG_FILE, LOCALCONFIG_FILE, "# Teamwork local config + bootstrap state"),
+        # v8.31:harness 锁文件(session pid · 历史 commit 误入)· 治本 INFRA-F025 G2
+        (".claude/scheduled_tasks.lock", ".claude/scheduled_tasks.lock",
+         "# Teamwork harness locks (session pid · 不该 commit · v8.31)"),
+        (".claude/agents.lock", ".claude/agents.lock",
+         "# Teamwork harness locks (session pid · 不该 commit · v8.31)"),
     ]
 
     # 仅在 git repo 内执行

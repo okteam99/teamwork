@@ -380,5 +380,109 @@ class TestFinalizePushPlumbingV818(unittest.TestCase):
         self.assertTrue(state["ship"]["merge_target_push_failed"])
 
 
+class TestClassifyMainSyncDirty(unittest.TestCase):
+    """v8.31 · _classify_main_sync_dirty 治本 INFRA-F025 G1 主工作区残留 case。
+
+    覆盖:
+    - clean(无 dirty)
+    - feature artifacts(state.json / review-log.jsonl)
+    - bootstrap pointers(AGENTS.md / CLAUDE.md)
+    - harness locks(.claude/*.lock)
+    - 用户真改动(other_files)
+    - 混合场景:全副产物 → safe_to_stash · 含 other → 不 safe
+    """
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp(prefix="dirty-classify-"))
+        self.main = self.tmp / "main-repo"
+        self.main.mkdir()
+        _git(self.main, "init", "-b", "main")
+        _git(self.main, "config", "user.email", "test@x.com")
+        _git(self.main, "config", "user.name", "test")
+        # feature dir 在 main 内
+        self.feat = self.main / "infra/docs/features/INFRA-F025-demo"
+        self.feat.mkdir(parents=True)
+        (self.feat / "state.json").write_text('{"x":1}', encoding="utf-8")
+        (self.feat / "review-log.jsonl").write_text('{}\n', encoding="utf-8")
+        (self.main / "AGENTS.md").write_text("agents", encoding="utf-8")
+        (self.main / "CLAUDE.md").write_text("claude", encoding="utf-8")
+        (self.main / ".claude").mkdir()
+        (self.main / ".claude/scheduled_tasks.lock").write_text("pid", encoding="utf-8")
+        (self.main / "src.py").write_text("code", encoding="utf-8")
+        _git(self.main, "add", "-A")
+        _git(self.main, "commit", "-m", "init")
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def _call(self, state=None):
+        from _v8_ship import _classify_main_sync_dirty  # type: ignore
+        return _classify_main_sync_dirty(str(self.main), self.feat, state or {})
+
+    def test_clean_returns_safe(self):
+        r = self._call()
+        self.assertFalse(r["is_dirty"])
+        self.assertTrue(r["safe_to_stash"])
+
+    def test_feature_artifacts_safe_to_stash(self):
+        (self.feat / "state.json").write_text('{"x":2}', encoding="utf-8")
+        (self.feat / "review-log.jsonl").write_text('{"new":1}\n', encoding="utf-8")
+        r = self._call()
+        self.assertTrue(r["is_dirty"])
+        self.assertTrue(r["safe_to_stash"])
+        self.assertEqual(len(r["feature_artifacts"]), 2)
+        self.assertEqual(len(r["other_files"]), 0)
+        self.assertIn("feature_artifacts", r["categories_present"])
+
+    def test_bootstrap_pointers_safe_to_stash(self):
+        (self.main / "AGENTS.md").write_text("agents v8.30", encoding="utf-8")
+        (self.main / "CLAUDE.md").write_text("claude v8.30", encoding="utf-8")
+        r = self._call()
+        self.assertTrue(r["is_dirty"])
+        self.assertTrue(r["safe_to_stash"])
+        self.assertEqual(len(r["bootstrap_pointers"]), 2)
+        self.assertIn("bootstrap_pointers", r["categories_present"])
+
+    def test_harness_locks_safe_to_stash(self):
+        (self.main / ".claude/scheduled_tasks.lock").write_text("new-pid", encoding="utf-8")
+        r = self._call()
+        self.assertTrue(r["is_dirty"])
+        self.assertTrue(r["safe_to_stash"])
+        self.assertEqual(len(r["harness_locks"]), 1)
+        self.assertIn("harness_locks", r["categories_present"])
+
+    def test_user_code_not_safe(self):
+        """用户真改动(src.py)→ safe_to_stash=False · 保护用户改动不被自动 stash。"""
+        (self.main / "src.py").write_text("new code", encoding="utf-8")
+        r = self._call()
+        self.assertTrue(r["is_dirty"])
+        self.assertFalse(r["safe_to_stash"])
+        self.assertEqual(len(r["other_files"]), 1)
+        self.assertIn("src.py", r["other_files"])
+
+    def test_infra_f025_case_mixed_all_safe(self):
+        """治本 INFRA-F025 case 复刻:5 dirty 文件 · 全副产物 → safe=True。"""
+        (self.feat / "state.json").write_text('{"x":2}', encoding="utf-8")
+        (self.feat / "review-log.jsonl").write_text('{"new":1}\n', encoding="utf-8")
+        (self.main / "AGENTS.md").write_text("agents v8.30", encoding="utf-8")
+        (self.main / "CLAUDE.md").write_text("claude v8.30", encoding="utf-8")
+        (self.main / ".claude/scheduled_tasks.lock").write_text("new-pid", encoding="utf-8")
+        r = self._call()
+        self.assertTrue(r["is_dirty"])
+        self.assertTrue(r["safe_to_stash"], "INFRA-F025 5 dirty 全副产物 · 应 safe")
+        self.assertEqual(len(r["all_files"]), 5)
+        self.assertEqual(len(r["feature_artifacts"]), 2)
+        self.assertEqual(len(r["bootstrap_pointers"]), 2)
+        self.assertEqual(len(r["harness_locks"]), 1)
+        self.assertEqual(len(r["other_files"]), 0)
+
+    def test_feature_internal_other_file_not_safe(self):
+        """本 Feature 内 state.json / review-log.jsonl 之外的文件 = 用户改动 · 不 safe。"""
+        (self.feat / "PRD.md").write_text("draft", encoding="utf-8")
+        r = self._call()
+        self.assertFalse(r["safe_to_stash"])
+        self.assertIn(f"{self.feat.relative_to(self.main)}/PRD.md", r["other_files"][0])
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
