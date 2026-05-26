@@ -2142,7 +2142,7 @@ def cmd_prepare_check(args: argparse.Namespace) -> None:
         "existing_count": len(existing_ids),
         "user_intent": args.user_intent or "",
         "admission_judgment": admission["judgment"],  # parsed JSON or None
-        "consistency": admission["consistency"],     # OK / MISMATCH / SKIPPED
+        "consistency": admission["consistency"],     # OK / MISMATCH / FAIL(v8.34 删 SKIPPED)
         "recommended_flow_type": admission["recommended_flow_type"],
     }
     _write_prepare_audit(audit_record)
@@ -2179,33 +2179,46 @@ REVIEWER_THINKING_CHECKLIST = [
 
 def _validate_admission_judgment(args) -> dict:
     """v8.15:校验 --user-intent + --admission-judgment(治本 F001 case)。
+    v8.34:删 SKIPPED 兼容路径 · 全局强制必传(治本 SVC-CORE-M001 case · AI 钻 SKIPPED 空子不思考)。
 
     返回 {verdict, error?, hint?, payload_extras, judgment, consistency, recommended_flow_type}。
-    consistency: OK(judgment 推荐 == --flow-type) / MISMATCH(不一致 · WARN) /
-                 SKIPPED(向后兼容 · --user-intent + --admission-judgment 都没传 · 旧用法)
+    consistency: OK(judgment 推荐 == --flow-type) / MISMATCH(不一致 · WARN) / FAIL(BLOCK)
 
     R0 哲学:工具不解析 user_intent 语义 · 仅校验 admission_judgment JSON 4 字段必填。
     AI 必须真读 prepare.md §2.1/§2.2 才能写出合理 judgment(伪造 ai_rationale 会在 retro
     被复盘到 · 心理成本高)。
+
+    v8.34 删 SKIPPED 兼容路径 ROI:
+    - 风险:破坏旧脚本 / debug / migration 路径 · 老 case 调 prepare-check 不传两参 → BLOCK
+    - 收益:case 实证(SVC-CORE-M001 Micro 2026-05-26)PMO 不传 admission_judgment 跳过思考 ·
+      v8.15 物化「你必须想这件事」被 SKIPPED 兜底架空 · 必须删
     """
     has_intent = bool(args.user_intent)
     has_judgment = bool(args.admission_judgment)
 
-    # 向后兼容路径:两者都不传 = 旧 prepare-check 用法 · skip admission 校验
-    # 后续可改为硬 BLOCK(本版用 SKIPPED 不阻塞 · 让现有 tests 不破)
+    # v8.34:两者都不传 = BLOCK(治本 SVC-CORE-M001 · 删 v8.15 SKIPPED 兼容口子)
+    # 旧调试/migration 路径仍可走 TEAMWORK_BYPASS_PREPARE_CHECK=1(SKILL.md § 暂停点协议)
     if not has_intent and not has_judgment:
         return {
-            "verdict": "OK",
-            "payload_extras": {
-                "admission_consistency": "SKIPPED",
-                "admission_skip_reason": (
-                    "未传 --user-intent + --admission-judgment(v8.15 admission 校验 SKIP)· "
-                    "新用法:--user-intent '<用户原话>' --admission-judgment '<JSON>' "
-                    "(详 docs/prepare.md § 2.1/§ 2.2 + § 0.5 物化拦截 TODO)"
-                ),
-            },
+            "verdict": "FAIL",
+            "error": (
+                "--user-intent + --admission-judgment 必传(v8.34 全局强制 · "
+                "删 v8.15 SKIPPED 兼容口子 · 治本 SVC-CORE-M001 AI 跳过思考 case)"
+            ),
+            "hint": (
+                "用法:state.py prepare-check ... "
+                "--user-intent '<用户原话>' "
+                "--admission-judgment '{"
+                "\"sections_reviewed\":[\"§2.1\",\"§2.2\"],"
+                "\"matched_signals\":[{\"section\":\"§2.1\",\"signal\":\"...\",\"evidence\":\"...\"}],"
+                "\"recommended_flow_type\":\"Feature/Feature Planning/敏捷需求/Bug/Micro\","
+                "\"ai_rationale\":\"为什么这么判\"}'  "
+                "· AI 必读 prepare.md §2.1/§2.2 才能写出 matched_signals + ai_rationale "
+                "· 调试 bypass:TEAMWORK_BYPASS_PREPARE_CHECK=1"
+            ),
+            "payload_extras": {},
             "judgment": None,
-            "consistency": "SKIPPED",
+            "consistency": "FAIL",
             "recommended_flow_type": None,
         }
 

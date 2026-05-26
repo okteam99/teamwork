@@ -1,6 +1,6 @@
 ---
 name: teamwork
-version: v8.33
+version: v8.34
 description: 状态机驱动的 AI 开发编排器。state.py 主动校验 + 主动告知,AI 跑命令即知做什么,不再读 spec 凭记忆。/teamwork 启动。
 ---
 
@@ -282,8 +282,8 @@ prepare 子流程动作概览:流程类型识别(§2.1/§2.2 扫信号)→ workt
 
 🔴 **物化硬墙(v8.14 + v8.15)**:
 - **v8.14**:`state.py prepare-check` 跑成功写 audit jsonl(`~/.teamwork/prepare_check_audit.jsonl`)· `state.py init-feature` 校验近 60min 内有匹配 `--feature-id` 前缀的 audit record · **无匹配直接 BLOCKED**。
-- **v8.15**:`prepare-check` 必传 `--user-intent "<用户原话>"` + `--admission-judgment '<JSON>'`(AI 读 §2.1/§2.2 后输出的判断 · 含 matched_signals[] + recommended_flow_type + ai_rationale)· 缺任一 BLOCKED。设计理由:**不依赖 AI 自觉读 prepare.md** · 工具物化 "你必须想这件事" · 推荐流程 ≠ 你选的 flow_type → emit WARN + audit 留痕(R0 兜底 · 不强 BLOCK · 因为可能合理例外)。
-因果:prepare-check 决定 prefix / features_root / flow_type / admission_judgment 4 项;省了下游撞墙。bypass(调试):`TEAMWORK_BYPASS_PREPARE_CHECK=1`。
+- **v8.15 + v8.34**:`prepare-check` 必传 `--user-intent "<用户原话>"` + `--admission-judgment '<JSON>'`(AI 读 §2.1/§2.2 后输出的判断 · 含 sections_reviewed[] + matched_signals[] + recommended_flow_type + ai_rationale)· 缺任一 BLOCKED。v8.34 删 v8.15 留的 SKIPPED 兼容口子(治本 SVC-CORE-M001 case AI 不传两参跳过思考)· 全局强制必传。设计理由:**不依赖 AI 自觉读 prepare.md** · 工具物化 "你必须想这件事" · 推荐流程 ≠ 你选的 flow_type → emit WARN + audit 留痕(R0 兜底 · 不强 BLOCK · 因为可能合理例外)。
+因果:prepare-check 决定 prefix / features_root / flow_type / admission_judgment 4 项;省了下游撞墙。bypass(调试):`TEAMWORK_BYPASS_PREPARE_CHECK=1`(走 init-feature 门禁旁路 · prepare-check 仍校验 admission_judgment)。
 
 ### 待规划需求池(命中查询意图时扫描)
 

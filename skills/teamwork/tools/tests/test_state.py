@@ -697,8 +697,19 @@ class TestPrepareCheck(unittest.TestCase):
             os.environ["TEAMWORK_PREPARE_AUDIT_PATH"] = self._prev_audit
 
     def _check(self, flow_type: str) -> dict:
+        # v8.34:全局强制必传 admission_judgment(SKIPPED 兼容路径已删)
+        # 测试聚焦于 id_letter 等其他逻辑 · 这里造一个 consistent judgment
+        judgment = json.dumps({
+            "sections_reviewed": ["§2.1", "§2.2"],
+            "matched_signals": [{"section": "§2.1", "signal": "测试用例",
+                                 "evidence": "TestPrepareCheck fixture"}],
+            "recommended_flow_type": flow_type,
+            "ai_rationale": "test fixture (v8.34 mandatory admission_judgment)",
+        })
         return run(["prepare-check", "--features-root", str(self.root),
-                    "--feature-id-prefix", "PTR", "--flow-type", flow_type])
+                    "--feature-id-prefix", "PTR", "--flow-type", flow_type,
+                    "--user-intent", f"test intent for {flow_type}",
+                    "--admission-judgment", judgment])
 
     def test_bug_recommends_b_series(self) -> None:
         d = self._check("Bug")
@@ -722,14 +733,34 @@ class TestPrepareCheck(unittest.TestCase):
         self.assertEqual(d["next_available_id_stem"], "PTR-M002")
 
     def test_no_flow_type_defaults_to_f_with_warn(self) -> None:
+        # v8.34:测「未传 --flow-type」分支 · 但 admission_judgment 仍必传
+        judgment = json.dumps({
+            "sections_reviewed": ["§2.1"],
+            "matched_signals": [{"section": "§2.1", "signal": "test",
+                                 "evidence": "no flow_type fixture"}],
+            "recommended_flow_type": "Feature",
+            "ai_rationale": "v8.34 mandatory admission_judgment fixture",
+        })
         d = run(["prepare-check", "--features-root", str(self.root),
-                 "--feature-id-prefix", "PTR"])
+                 "--feature-id-prefix", "PTR",
+                 "--user-intent", "test intent (no flow type)",
+                 "--admission-judgment", judgment])
         self.assertEqual(d["id_letter"], "F")
         self.assertIn("--flow-type", d["hint"])
 
     def test_empty_series_starts_at_001(self) -> None:
+        # v8.34:同上 · 仍需 admission_judgment
+        judgment = json.dumps({
+            "sections_reviewed": ["§2.1", "§2.2"],
+            "matched_signals": [{"section": "§2.1", "signal": "test",
+                                 "evidence": "empty series fixture"}],
+            "recommended_flow_type": "Bug",
+            "ai_rationale": "v8.34 mandatory admission_judgment fixture",
+        })
         d = run(["prepare-check", "--features-root", str(self.root),
-                 "--feature-id-prefix", "NEWPROJ", "--flow-type", "Bug"])
+                 "--feature-id-prefix", "NEWPROJ", "--flow-type", "Bug",
+                 "--user-intent", "test intent (empty series)",
+                 "--admission-judgment", judgment])
         self.assertEqual(d["next_available_id_stem"], "NEWPROJ-B001")
         self.assertEqual(d["existing_ids"], [])
 
@@ -848,9 +879,18 @@ class TestPrepareAuditGate(unittest.TestCase):
 
     def test_init_feature_passes_after_prepare_check(self) -> None:
         """跑了 prepare-check → audit 写好 → init-feature 放行。"""
-        # 1. 先跑 prepare-check 写 audit
+        # 1. 先跑 prepare-check 写 audit(v8.34 强制 admission_judgment)
+        judgment = json.dumps({
+            "sections_reviewed": ["§2.1", "§2.2"],
+            "matched_signals": [{"section": "§2.1", "signal": "test",
+                                 "evidence": "init-feature audit fixture"}],
+            "recommended_flow_type": "Feature",
+            "ai_rationale": "v8.34 mandatory admission_judgment fixture",
+        })
         run(["prepare-check", "--features-root", str(self.features_root),
-             "--feature-id-prefix", "PTR", "--flow-type", "Feature"])
+             "--feature-id-prefix", "PTR", "--flow-type", "Feature",
+             "--user-intent", "test intent",
+             "--admission-judgment", judgment])
         self.assertTrue(self.audit_path.exists())
         # 2. init-feature 应放行(没 routing/cwd 校验交叉干扰 · 因为 tmp 不在 git repo)
         d = run(self._init_feature_args())
@@ -987,12 +1027,21 @@ class TestAdmissionJudgment(unittest.TestCase):
             "ai_rationale": "强信号 + 跨多 BL · 单 Feature 状态机承载不下",
         }
 
-    # ── 向后兼容:两者都不传 = SKIPPED ──
+    # ── v8.34:两者都不传 = BLOCK(治本 SVC-CORE-M001 · 删 v8.15 SKIPPED 兼容口子)──
 
-    def test_no_intent_no_judgment_skipped(self):
-        d = run(self._base_args())
-        self.assertEqual(d["verdict"], "OK")
-        self.assertEqual(d.get("admission_consistency"), "SKIPPED")
+    def test_no_intent_no_judgment_blocked(self):
+        """v8.34 治本:不传两参 → FAIL(治本 SVC-CORE-M001 case AI 跳过思考)。
+
+        v8.15 留 SKIPPED 兼容口子让 AI 跳过 admission_judgment 写作 · v8.34 删除该口子 ·
+        强制必传 · 调试场景走 TEAMWORK_BYPASS_PREPARE_CHECK=1 bypass。
+        """
+        d = run(self._base_args(), expect_exit=0)
+        self.assertEqual(d["verdict"], "FAIL")
+        self.assertIn("--user-intent", d["error"])
+        self.assertIn("--admission-judgment", d["error"])
+        self.assertIn("v8.34", d["error"])
+        # hint 必含 TEAMWORK_BYPASS_PREPARE_CHECK 引导(调试逃生)
+        self.assertIn("TEAMWORK_BYPASS_PREPARE_CHECK", d["hint"])
 
     # ── 部分传 = BLOCK ──
 

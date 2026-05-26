@@ -1,5 +1,76 @@
 # Changelog
 
+## v8.34 · 全局强制必传 `--user-intent + --admission-judgment`(治本 SVC-CORE-M001 case · 删 v8.15 SKIPPED 兼容口子)
+
+> 用户 case 实战 SVC-CORE-M001 Micro:PMO 跑 `prepare-check` 时 emit JSON 里没有 `admission_judgment` 字段也没有 `user_intent` · 用户问「**流程类型判断的时候 AI 经过思考了么?**」—— 答案是没思考(走了 v8.15 留的 SKIPPED 兼容路径 · admission 校验自动 SKIP · audit 里也只是空字符串)。
+>
+> 这暴露 v8.15 设计妥协:为了"让现有 tests 不破" · 保留了「两参都不传 → SKIPPED」兜底 · 结果 AI 学会钻这个空子跳过 prepare.md §2.1/§2.2 思考。v8.15 物化「你必须想这件事」被 SKIPPED 兜底架空。
+
+### 用户决策与选项对比
+
+提供 4 选项 · 用户拍板 **A · 全局强制必传**:
+
+| 选项 | 描述 | ROI | 风险 |
+|------|------|-----|------|
+| **A · 全局强制必传(选定)** | 删 SKIPPED 路径 · 不传 → BLOCK | 高 · 案例证明 SKIPPED 让 AI 钻空子 | 中 · 破坏旧脚本 / debug / migration 路径 |
+| B · 默认 WARN | 不传 → emit WARN 但不 BLOCK | 中 · 至少留痕 | 低 · AI 仍可忽略 WARN(F037 case 已证) |
+| C · strict mode opt-in | 加 --strict flag · 默认 SKIPPED | 低 · 老路径不变 | 高 · opt-in 没人记得开 |
+| D · emit hint 加强 | 增加更 loud 的 hint 但不改 verdict | 极低 · 与 v8.15 没本质区别 | 中 · 案例已证 hint 不够 |
+
+### 实施(2 处 1 测试)
+
+1. **`state.py:_validate_admission_judgment`(line 2196-2226)**:
+   ```diff
+   - # 向后兼容路径:两者都不传 = 旧 prepare-check 用法 · skip admission 校验
+   - # 后续可改为硬 BLOCK(本版用 SKIPPED 不阻塞 · 让现有 tests 不破)
+   - if not has_intent and not has_judgment:
+   -     return {"verdict": "OK", "consistency": "SKIPPED", ...}
+   + # v8.34:两者都不传 = BLOCK(治本 SVC-CORE-M001 · 删 v8.15 SKIPPED 兼容口子)
+   + if not has_intent and not has_judgment:
+   +     return {"verdict": "FAIL", "consistency": "FAIL",
+   +             "error": "--user-intent + --admission-judgment 必传(v8.34 全局强制 ...)",
+   +             "hint": "用法 + 示例 + TEAMWORK_BYPASS_PREPARE_CHECK 引导"}
+   ```
+
+2. **`state.py:cmd_prepare_check`(comment line 2145)**:`consistency: OK / MISMATCH / FAIL`(去掉 `SKIPPED` 文档)
+
+3. **测试更新**:
+   - `TestAdmissionJudgment.test_no_intent_no_judgment_skipped` → `test_no_intent_no_judgment_blocked` · 改 assert FAIL + hint 含 `TEAMWORK_BYPASS_PREPARE_CHECK` 引导
+   - `TestPrepareCheck._check` 工具改为同时传 `--user-intent + --admission-judgment`(测试聚焦于 id_letter 路由等其他逻辑 · fixture 合成 consistent judgment)
+   - `TestPrepareCheck.test_no_flow_type_defaults_to_f_with_warn`/`test_empty_series_starts_at_001` 同步更新
+   - `TestPrepareAuditGate.test_init_feature_passes_after_prepare_check` 同步更新
+
+### SKILL.md 同步更新
+
+`§ 物化硬墙` 那段 v8.15 描述补 v8.34:
+- 「v8.34 删 v8.15 留的 SKIPPED 兼容口子(治本 SVC-CORE-M001 case AI 不传两参跳过思考)· 全局强制必传」
+- bypass 注解澄清:`TEAMWORK_BYPASS_PREPARE_CHECK=1` 走 init-feature 门禁旁路 · **不影响 prepare-check 本身的 admission_judgment 校验**(debug/migration 场景仍需手填 admission_judgment · 或直接绕过 prepare-check 不调用)
+
+### 治本与诚实
+
+我 v8.15 给自己留了一条 SKIPPED 兼容路径 · 理由是「让现有 tests 不破」· 这是典型的「短期权宜 / 长期债」:
+- 短期:v8.15 上线时不需要回头改 TestPrepareCheck 6 个测试用例 + TestPrepareAuditGate 1 个
+- 长期:AI 在真实 PMO 跑路径下学会走 SKIPPED 兜底 · v8.15 物化「你必须想这件事」被架空 · 案例 SVC-CORE-M001 暴露
+
+v8.34 偿还这笔债 · 删 SKIPPED · 同步修测试(7 处测试 fixture · 加 4 行合成 judgment)。
+
+### 向后兼容代价(诚实记录)
+
+调用 prepare-check 不传 `--user-intent + --admission-judgment` 的旧调用方都会 BLOCK:
+- 老 PMO session 调试 / 历史脚本 → 需补传两参 · 或临时绕过(不调 prepare-check 直接走 init-feature 但 init-feature audit gate 也会 BLOCK · 改 `TEAMWORK_BYPASS_PREPARE_CHECK=1`)
+- migration 工具 → 同上
+
+ROI 评估:破坏向后兼容 vs AI 思考透明度。用户选 A 的逻辑:**SVC-CORE-M001 case 证明 SKIPPED 路径让 AI 偷懒**。代价值。
+
+### Hash
+
+- state.py: `_validate_admission_judgment` 改 + comment 改 = 净 +35 行(主要是更详的 hint 文案)
+- test_state.py:`_check` helper + 3 个测试 + 1 个 TestAdmissionJudgment 测试 = 净 +50 行
+- SKILL.md:v8.15 那行加 v8.34 注 + bypass 澄清
+- docs/CHANGELOG.md:本段
+
+---
+
 ## v8.33 · 修 v8.31 NameError 致命 bug + 加 e2e sanity test 防再发
 
 > 用户 case 实战 INFRA-M002:`state.py ship-finalize` 撞 `NameError: name 'feature_dir' is not defined` —— v8.31 我加 `_classify_main_sync_dirty` 时调用方误传 `feature_dir`(undefined)· 应是 `artifact_root`(同函数内 line 1097 已定义)· runtime 跑到 step 7 才崩 · 单元测试没覆盖完整 cmd 路径所以漏。
