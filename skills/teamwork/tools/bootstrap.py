@@ -697,13 +697,26 @@ def write_host_audit(host: str) -> bool:
 
     单条记录(覆盖写 · 不 append)· 保留最新一次 bootstrap 的 host:
         {"host": "claude-code", "timestamp": "2026-05-25T..."}
+
+    v8.36 DEPRECATED:全局 audit 跨 session 残留 · 治本 SVC-PLATFORM-F054 case
+    (PMO 切到 Codex CLI 但 audit 残留 claude-code · 推出 model=codex 同源 · 异质失效)
+    主路径已改 per-feature state.json.host(init-feature / stage-start 传 --host 写入)
+    audit 仅作为 fallback 兼容路径 · v8.37 计划删除。
     """
     try:
         p = _host_audit_path()
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text(
-            json.dumps({"host": host, "timestamp": now_iso()},
-                       ensure_ascii=False, indent=2),
+            json.dumps({
+                "host": host,
+                "timestamp": now_iso(),
+                # v8.36:audit 标 deprecated · 下游 _detect_host 读到 emit deprecation_warning
+                "_deprecated": (
+                    "v8.36 → ~/.teamwork/host_audit.json 是 fallback 兼容路径 · "
+                    "主路径请 init-feature/stage-start 传 --host 写 state.json.host · "
+                    "v8.37 将删此全局文件"
+                ),
+            }, ensure_ascii=False, indent=2),
             encoding="utf-8",
         )
         return True

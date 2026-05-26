@@ -540,6 +540,52 @@ class TestInitFeature(unittest.TestCase):
         backups = list(target.glob("state.json.bak.*"))
         self.assertEqual(len(backups), 1)
 
+    # ── v8.36:--host 写到 state.json.host(治本 SVC-PLATFORM-F054 case)──
+
+    def test_v836_init_feature_writes_host_to_state_json(self):
+        """v8.36:init-feature --host codex-cli → state.json.host = 'codex-cli'。"""
+        target = self.tmp / "v836_host"
+        d = run([
+            "init-feature", "--feature", str(target),
+            "--feature-id", "TEST-F901", "--flow-type", "Feature",
+            "--merge-target", "main", "--branch", "feat/test-f901",
+            "--host", "codex-cli",
+        ])
+        self.assertEqual(d["verdict"], "OK")
+        state = json.loads((target / "state.json").read_text(encoding="utf-8"))
+        self.assertEqual(state["host"], "codex-cli")
+        # host_history 应初始化 1 条
+        self.assertEqual(len(state["host_history"]), 1)
+        self.assertEqual(state["host_history"][0]["host"], "codex-cli")
+        self.assertEqual(state["host_history"][0]["source"], "init-feature")
+
+    def test_v836_init_feature_no_host_defaults_to_none(self):
+        """v8.36:不传 --host → state.json.host=None · host_history=[]·向后兼容。"""
+        target = self.tmp / "v836_no_host"
+        d = run([
+            "init-feature", "--feature", str(target),
+            "--feature-id", "TEST-F902", "--flow-type", "Feature",
+            "--merge-target", "main", "--branch", "feat/test-f902",
+        ])
+        self.assertEqual(d["verdict"], "OK")
+        state = json.loads((target / "state.json").read_text(encoding="utf-8"))
+        self.assertIsNone(state["host"])
+        self.assertEqual(state["host_history"], [])
+
+    def test_v836_init_feature_illegal_host_blocked(self):
+        """v8.36:--host 非法值 → argparse BLOCK。"""
+        import subprocess
+        target = self.tmp / "v836_illegal"
+        r = subprocess.run([
+            "/opt/homebrew/opt/python@3.14/bin/python3.14",
+            str(STATE_PY), "init-feature", "--feature", str(target),
+            "--feature-id", "TEST-F903", "--flow-type", "Feature",
+            "--merge-target", "main", "--branch", "feat/test-f903",
+            "--host", "made-up-host",
+        ], capture_output=True, text=True)
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("made-up-host", r.stderr)
+
 
 class TestChecksumGuard(unittest.TestCase):
     """v7.3.10+P0-148：state.json checksum 物化拦截直写。
@@ -1433,12 +1479,18 @@ class TestExternalReviewCommand(unittest.TestCase):
 
 
 class TestHostAutoDetect(unittest.TestCase):
-    """v8.21:host 自动探测(治本 PMO 心智 · --host 改可选 · 缺省读 audit)。"""
+    """v8.21 → v8.36:host 自动探测。
+
+    v8.21:全局 ~/.teamwork/host_audit.json
+    v8.36:主路径 per-feature state.json.host · audit 仅 fallback(deprecation WARN)
+    治本 SVC-PLATFORM-F054 case · 全局 audit 跨 session 残留 · 异质映射出错。
+    """
 
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp(prefix="host-detect-"))
         self.feat = self.tmp / "feat"
         self.feat.mkdir(parents=True)
+        # 默认 state.json 不含 host(测 v8.21 fallback 路径)
         (self.feat / "state.json").write_text(json.dumps({
             "feature_id": "TEST-F001",
             "flow_type": "Feature",
@@ -1462,17 +1514,36 @@ class TestHostAutoDetect(unittest.TestCase):
             else:
                 os.environ[var] = prev
 
-    # ── audit 不存在 + --host 缺 → BLOCK with hint ──
+    def _write_state_with_host(self, host: str) -> None:
+        """v8.36 helper:写 state.json.host(模拟 init-feature --host 写入)。"""
+        state = json.loads((self.feat / "state.json").read_text(encoding="utf-8"))
+        state["host"] = host
+        (self.feat / "state.json").write_text(json.dumps(state, ensure_ascii=False, indent=2),
+                                                 encoding="utf-8")
+
+    # ── audit 不存在 + state.json 无 host + --host 缺 → BLOCK ──
     def test_no_audit_no_host_blocked_with_hint(self):
         d = run(["external-review", "--feature", str(self.feat),
                  "--stage", "review", "--dry-run"], expect_exit=0)
         self.assertEqual(d["verdict"], "FAIL")
-        self.assertIn("无法自动探测", d["error"])
-        self.assertIn("bootstrap", d["hint"])
-        self.assertIn("v8.21", d["hint"])
+        # v8.36:错误信息改"无法确定主对话宿主"(覆盖 state.json/audit/env 三源)
+        self.assertIn("无法确定", d["error"])
+        self.assertIn("v8.36", d["hint"])
 
-    # ── audit 存在 → host 自动 + host_source=audit ──
-    def test_audit_exists_auto_host(self):
+    # ── v8.36 主路径:state.json.host 存在 → host_source=state_json ──
+    def test_v836_state_json_host_main_path(self):
+        self._write_state_with_host("codex-cli")
+        d = run(["external-review", "--feature", str(self.feat),
+                 "--stage", "review", "--dry-run"])
+        self.assertEqual(d["verdict"], "OK")
+        self.assertEqual(d["host"], "codex-cli")
+        self.assertEqual(d["host_source"], "state_json")
+        self.assertEqual(d["model"], "claude")  # 异质映射
+        # 主路径不应有 deprecation_warning
+        self.assertNotIn("deprecation_warning", d)
+
+    # ── v8.36 fallback:audit 存在 + state.json 无 host → audit_deprecated + WARN ──
+    def test_v836_audit_fallback_with_deprecation_warning(self):
         self.audit_path.write_text(json.dumps({
             "host": "claude-code", "timestamp": "2026-05-25T00:00:00Z"
         }), encoding="utf-8")
@@ -1480,11 +1551,29 @@ class TestHostAutoDetect(unittest.TestCase):
                  "--stage", "review", "--dry-run"])
         self.assertEqual(d["verdict"], "OK")
         self.assertEqual(d["host"], "claude-code")
-        self.assertEqual(d["host_source"], "audit")
-        self.assertEqual(d["model"], "codex")
+        self.assertEqual(d["host_source"], "audit_deprecated")
+        # v8.36:fallback 路径应携带 deprecation_warning
+        self.assertIn("deprecation_warning", d)
+        self.assertIn("v8.36", d["deprecation_warning"])
+        self.assertIn("per-feature", d["deprecation_warning"])
 
-    # ── audit + 显式 --host → 用显式(host_source=explicit) ──
-    def test_explicit_host_overrides_audit(self):
+    # ── v8.36 优先级:state.json.host 优先于 audit ──
+    def test_v836_state_json_overrides_audit(self):
+        self._write_state_with_host("codex-cli")
+        self.audit_path.write_text(json.dumps({
+            "host": "claude-code", "timestamp": "2026-05-25T00:00:00Z"
+        }), encoding="utf-8")
+        d = run(["external-review", "--feature", str(self.feat),
+                 "--stage", "review", "--dry-run"])
+        # state.json 赢:host=codex-cli(audit 里是 claude-code 但被忽略)
+        self.assertEqual(d["host"], "codex-cli")
+        self.assertEqual(d["host_source"], "state_json")
+        # 主路径 → 无 deprecation_warning
+        self.assertNotIn("deprecation_warning", d)
+
+    # ── 显式 --host 仍最高优先 ──
+    def test_explicit_host_overrides_all(self):
+        self._write_state_with_host("claude-code")  # state.json 说 claude-code
         self.audit_path.write_text(json.dumps({
             "host": "claude-code", "timestamp": "2026-05-25T00:00:00Z"
         }), encoding="utf-8")
@@ -1494,13 +1583,13 @@ class TestHostAutoDetect(unittest.TestCase):
         self.assertEqual(d["host_source"], "explicit")
         self.assertEqual(d["model"], "claude")
 
-    # ── audit JSON 损坏 → fallback BLOCK ──
+    # ── audit JSON 损坏 → fallback BLOCK(state.json 也无 host) ──
     def test_corrupt_audit_blocked(self):
         self.audit_path.write_text("not json {{{", encoding="utf-8")
         d = run(["external-review", "--feature", str(self.feat),
                  "--stage", "review", "--dry-run"], expect_exit=0)
         self.assertEqual(d["verdict"], "FAIL")
-        self.assertIn("无法自动探测", d["error"])
+        self.assertIn("无法确定", d["error"])
 
     # ── audit host 非法值 → fallback BLOCK ──
     def test_audit_invalid_host_value_blocked(self):
@@ -1509,22 +1598,32 @@ class TestHostAutoDetect(unittest.TestCase):
         }), encoding="utf-8")
         d = run(["external-review", "--feature", str(self.feat),
                  "--stage", "review", "--dry-run"], expect_exit=0)
-        # audit host 不在 EXTERNAL_HOST_TO_MODEL · _detect_host 返 None · 走 BLOCK
         self.assertEqual(d["verdict"], "FAIL")
-        self.assertIn("无法自动探测", d["error"])
+        self.assertIn("无法确定", d["error"])
 
     # ── _detect_host helper 单元测试 ──
-    def test_detect_host_helper_returns_audit_source(self):
+    def test_detect_host_helper_returns_audit_source_v836(self):
+        """v8.36:audit 命中时 source=audit_deprecated(原 audit)。"""
         from state import _detect_host  # type: ignore
         self.audit_path.write_text(json.dumps({"host": "codex-cli"}),
                                     encoding="utf-8")
-        host, source = _detect_host()
+        host, source = _detect_host()  # 不传 feature → 走 audit fallback
         self.assertEqual(host, "codex-cli")
-        self.assertEqual(source, "audit")
+        self.assertEqual(source, "audit_deprecated")
+
+    def test_v836_detect_host_helper_state_json_priority(self):
+        """v8.36:_detect_host(feature) 命中 state.json → source=state_json。"""
+        from state import _detect_host  # type: ignore
+        self._write_state_with_host("codex-cli")
+        self.audit_path.write_text(json.dumps({"host": "claude-code"}),
+                                    encoding="utf-8")
+        host, source = _detect_host(str(self.feat))
+        self.assertEqual(host, "codex-cli")
+        self.assertEqual(source, "state_json")
 
     def test_detect_host_helper_returns_none_when_missing(self):
         from state import _detect_host  # type: ignore
-        # audit 不存在
+        # audit 不存在 + 不传 feature
         host, source = _detect_host()
         self.assertIsNone(host)
         self.assertEqual(source, "none")
@@ -1843,6 +1942,63 @@ class TestPanoramaSyncStage(unittest.TestCase):
         ok, err = _evidence_sitemap_updated(st, self._args())
         self.assertFalse(ok)
         self.assertIn("早于", err)
+
+
+class TestExternalReviewContentQuality(unittest.TestCase):
+    """v8.36 治本 SVC-PLATFORM-F054 Bug 2:reviewer 只 echo template 不真 review case。
+
+    用户决策:不语义判 reviewer 质量 · 只校验明显空/模板 · WARN 不 BLOCK · 决策权留用户。
+    """
+
+    def test_quality_check_empty_content_warns(self):
+        from state import _check_external_review_quality  # type: ignore
+        # 短于阈值 200 bytes → empty_content WARN
+        warnings = _check_external_review_quality("short", stage="goal", model="claude")
+        self.assertEqual(len(warnings), 1)
+        self.assertEqual(warnings[0]["type"], "empty_content")
+        self.assertEqual(warnings[0]["severity"], "WARN")
+        self.assertLess(warnings[0]["actual_bytes"], warnings[0]["threshold_bytes"])
+
+    def test_quality_check_template_echo_warns(self):
+        from state import _check_external_review_quality  # type: ignore
+        # 含 "你给了我 reviewer prompt template" 字面命中 template_echo
+        # 长度必须超过 200 字节 · 否则会先命中 empty_content
+        body = (
+            "你给了我 reviewer prompt template · 我并没有真的去 review PRD · "
+            + ("仅复述模板内容。" * 30)
+        )
+        warnings = _check_external_review_quality(body, stage="goal", model="claude")
+        types = {w["type"] for w in warnings}
+        self.assertIn("template_echo", types)
+        echo_w = next(w for w in warnings if w["type"] == "template_echo")
+        self.assertEqual(echo_w["severity"], "WARN")
+        self.assertGreater(len(echo_w["matched_signatures"]), 0)
+
+    def test_quality_check_placeholder_unreplaced_caught(self):
+        """v8.36:占位符未替换({{stage}} 等)也算 template echo 信号。"""
+        from state import _check_external_review_quality  # type: ignore
+        body = (
+            "Review for stage {{stage}} commit {{commit}} feature {{feature_id}}\n"
+            + ("This is a fake long review body to bypass empty check. " * 10)
+        )
+        warnings = _check_external_review_quality(body, stage="goal", model="claude")
+        types = {w["type"] for w in warnings}
+        self.assertIn("template_echo", types)
+
+    def test_quality_check_normal_review_passes(self):
+        """v8.36:正常长内容 + 无 echo signature → 无 warnings。"""
+        from state import _check_external_review_quality  # type: ignore
+        body = (
+            "## Finding 1: missing edge case\n\n"
+            "The PRD does not cover the case where targeting includes ALL but also exclude. "
+            "This could lead to ambiguous behavior in admin offers list response. "
+            "Recommend clarifying the priority rule explicitly in AC-2.\n\n"
+            "## Finding 2: country code validation\n\n"
+            "Token validation rule is implicit · suggest documenting ISO 3166-1 alpha-2 "
+            "constraint and case-insensitive matching algorithm step by step.\n"
+        )
+        warnings = _check_external_review_quality(body, stage="goal", model="claude")
+        self.assertEqual(warnings, [])
 
 
 class TestUpdateSkillHint(unittest.TestCase):

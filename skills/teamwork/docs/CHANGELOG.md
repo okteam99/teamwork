@@ -1,5 +1,130 @@
 # Changelog
 
+## v8.36 · host 改 per-feature state.json + external review 内容质量轻校验(治本 SVC-PLATFORM-F054 case)
+
+> 用户 2026-05-27 贴 SVC-PLATFORM-F054-Admin-Offer-Targeting-Country 实战 case · 提"当前用的什么 host 应该是 state.json 记录 · 且每次 session 启动的时候要修改 · 不应该持久化到一个全局共享文件"。
+
+### case 暴露 2 个独立 bug
+
+**Bug 1(用户问的)· host 全局 audit 跨 session 污染**:
+- v8.21 设计:`~/.teamwork/host_audit.json`(用户级 `~/`)· bootstrap 跑后覆盖写当前 host
+- case 现场:用户当前在 Codex CLI session · audit 残留上次 Claude Code session 写的 `claude-code` → 推出 model=`codex`(同源)· 异质失效 · 用户手动加 `--host codex-cli --model claude` 才补救
+- 根因:全局 audit 是"上次 bootstrap 留的快照"· 不代表"当前 session 的 host"
+
+**Bug 2(沉默更危险)· Claude reviewer 只 echo template 不真 review**:
+- case 现场:用户读 `goal-claude.md` 发现"内容没有真正 review PRD · 只是在回复'你给了我 reviewer prompt template'"
+- 根因(疑似):v8.30 我改"工具不假设模型名 · 用户自查 codex 交互"时 prompt 弱化成 template · reviewer 误解为复述
+
+### 用户决策
+
+| Bug | 方案 | 用户选 |
+|-----|------|--------|
+| Bug 1 | A/B/C/D 4 方案 | **A · per-feature state.json** |
+| Bug 2 | 同 v8.36 修 / 分 v8.37 / 留下次 case | **"先不额外修 · 只检查空内容和空模版 · 否则认为真评审 · 评质量差告知用户即可不暂停"** |
+
+### Bug 1 治本(state.py + bootstrap.py)
+
+#### 数据模型
+
+state.json 新增 2 字段:
+```jsonc
+{
+  "host": "codex-cli",     // v8.36:per-feature host(治本全局 audit 跨 session 污染)
+  "host_history": [        // v8.36:audit list(每次切换 append · 不替换)
+    {"host": "codex-cli", "at": "...", "source": "init-feature"},
+    {"host": "claude-code", "at": "...", "source": "review-start", "previous": "codex-cli"}
+  ]
+}
+```
+
+#### 入口物化
+
+1. **init-feature `--host`**(可选):写 state.json.host + 初始化 host_history[0]
+2. **stage-start `--host`**(可选 · `add_common_stage_start_args` 共用):
+   - 与 state.json.host 比对 · 不一致 → 更新 + emit `host_change_warning` + concerns 留痕
+   - host_history append(audit 不替换)
+3. **external-review** 读取优先级改:
+   ```
+   ① args.host(显式)
+   ② state.json.host(v8.36 主路径 · per-feature)        ← 新增
+   ③ ~/.teamwork/host_audit.json(deprecated · audit 路径) ← 加 deprecation_warning
+   ④ env fallback / None → BLOCK with hint
+   ```
+4. **bootstrap.write_host_audit** 在 audit JSON 加 `_deprecated` 注释字段(v8.37 计划删)
+
+#### 关键 helper 变更
+
+```diff
+- def _detect_host() -> tuple[Optional[str], str]:
+-     # ① ~/.teamwork/host_audit.json
+-     # ② env fallback
++ def _detect_host(feature: Optional[str] = None) -> tuple[Optional[str], str]:
++     # ① state.json.host(per-feature · v8.36 主路径)
++     # ② ~/.teamwork/host_audit.json(audit_deprecated · v8.21 兼容)
++     # ③ env fallback
+```
+
+### Bug 2 治本(只校验空 / template echo · WARN 不 BLOCK)
+
+新增 `_check_external_review_quality(stdout, stage, model) -> list[dict]`:
+
+```python
+EXTERNAL_REVIEW_MIN_BYTES = 200
+EXTERNAL_REVIEW_TEMPLATE_ECHO_SIGNATURES = [
+    "你给了我", "reviewer prompt template", "I received the prompt",
+    "{{stage}}", "{{commit}}", "{{feature_id}}",  # 占位符未替换
+    ...
+]
+```
+
+2 类 WARN(都不 BLOCK · 决策权留用户):
+- `empty_content`:stdout < 200 bytes
+- `template_echo`:命中 reviewer 自述"只复述 prompt"特征字符串 / 占位符未替换
+
+emit JSON 在 `verdict=OK` 下额外携带 `quality_warnings: [{type, severity, message, ...}]`。
+
+**设计哲学**(用户决策驱动):
+- 工具不语义判 reviewer 质量(主观 · 易误判)
+- 只校验客观信号(字节数 / 字面匹配)
+- WARN 而非 BLOCK · 用户判是否重跑或接受
+
+### 测试覆盖(10 个新测试)
+
+- `TestInitFeature.test_v836_init_feature_writes_host_to_state_json`(主路径)
+- `TestInitFeature.test_v836_init_feature_no_host_defaults_to_none`(向后兼容)
+- `TestInitFeature.test_v836_init_feature_illegal_host_blocked`(argparse 校验)
+- `TestHostAutoDetect.test_v836_state_json_host_main_path`(主路径)
+- `TestHostAutoDetect.test_v836_audit_fallback_with_deprecation_warning`(兼容路径 + WARN)
+- `TestHostAutoDetect.test_v836_state_json_overrides_audit`(优先级)
+- `TestHostAutoDetect.test_v836_detect_host_helper_state_json_priority`(helper 单测)
+- `TestExternalReviewContentQuality.test_quality_check_empty_content_warns`
+- `TestExternalReviewContentQuality.test_quality_check_template_echo_warns`
+- `TestExternalReviewContentQuality.test_quality_check_placeholder_unreplaced_caught`
+- `TestExternalReviewContentQuality.test_quality_check_normal_review_passes`(无 false positive)
+
+### 向后兼容代价
+
+- init-feature 不传 `--host` → state.json.host=None / host_history=[](向后兼容 · 老脚本不破)
+- external-review 还能 fallback 走全局 audit(deprecation_warning 提醒迁移)
+- v8.37 计划删全局 audit 完全断开
+
+### 治本与诚实
+
+我 v8.21 设计全局 audit 时的判断错误:**误把"主对话宿主"当成"用户级偏好"**(per-user 持久化)· 实际它是"per-session × per-feature"属性(用户跨项目可同时操作多个 host)。case 实证后才看清。
+
+Bug 2 修法很克制 —— 不写"AI 判 reviewer 是否真 review"的语义判断器(那是无底洞 · 易误判)· 只校验客观信号 + WARN。这是用户拍板的"工具职责边界"(R0 哲学:可枚举进脚本 · 不可枚举留人)。
+
+### Hash
+
+- state.py:_detect_host 改签名 + cmd_external_review 改 host 探测 + 新 _check_external_review_quality + init-feature --host = 净 +95 行
+- _v8_engine.py:add_common_stage_start_args 加 --host + execute_stage_start 校准逻辑 = 净 +25 行
+- bootstrap.py:write_host_audit 加 deprecation marker = 净 +6 行
+- test_state.py:10 新测试 + TestHostAutoDetect 重写 = 净 +130 行
+- SKILL.md:v8.35 → v8.36
+- docs/CHANGELOG.md:本段
+
+---
+
 ## v8.35 · 自动升级流程 4 个 bug 治本(用户问"是否符合预期"暴露)
 
 > 用户 2026-05-27 问「在检查下 teamwork 自动升级逻辑是否符合预期」· 我端到端验证 v8.24 update-skill + bootstrap check_skill_update 流程 · 实测发现 4 个 bug。

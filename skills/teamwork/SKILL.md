@@ -1,6 +1,6 @@
 ---
 name: teamwork
-version: v8.35
+version: v8.36
 description: 状态机驱动的 AI 开发编排器。state.py 主动校验 + 主动告知,AI 跑命令即知做什么,不再读 spec 凭记忆。/teamwork 启动。
 ---
 
@@ -453,6 +453,12 @@ python3 <SKILL_ROOT>/tools/bootstrap.py --host <claude-code|codex-cli|gemini-cli
 ```
 
 🔴 **只传 `--host`**:宿主是 AI 关于自身的事实(不在文件里 · 须显式)。`--skill-root` 自推、版本号 bootstrap 自读 `SKILL.md` frontmatter(单源)—— **AI 不传版本号**(治本:转述文件里已有的事实必错 · 曾把 `v8.0.0` 传成 `8.0` 写坏注入标记)。`<SKILL_ROOT>` = `~/.claude/skills/teamwork` 或 `~/.codex/skills/teamwork`。
+
+🔴 **v8.36 host 改 per-feature(治本 SVC-PLATFORM-F054 case · 全局 audit 跨 session 污染)**:
+- **主路径**:`init-feature --host` / `<stage>-start --host` 写 `state.json.host`(per-feature 隔离)· `external-review` 读 state.json.host(不再依赖全局)
+- **跨 session 切宿主**:用 `<stage>-start --host <new>` 显式覆盖 · state.py 自动 emit `host_change_warning` + concerns 留痕
+- **兼容路径**:`~/.teamwork/host_audit.json`(v8.21 全局)仍作 fallback · 但 `external-review` 读到会 emit `deprecation_warning` · **v8.37 计划删**
+- bootstrap 仍写 audit · 但加 `_deprecated` 字段(线上 grep 可见迁移期)
 
 `bootstrap.py` 做什么(silent · 不打扰用户):
 - 版本号自读 SKILL.md frontmatter(单源)

@@ -539,6 +539,28 @@ def execute_stage_start(
     })
     contract.setdefault("started_at", now_iso())
 
+    # 6.5 v8.36:host 校准(治本 SVC-PLATFORM-F054 case · 全局 audit 跨 session 污染)
+    # 用户传 --host → 与 state.json.host 比对 · 不一致 → 更新 + concerns 留痕
+    host_change_warning = None
+    new_host = getattr(args, "host", None)
+    if new_host:
+        old_host = state.get("host")
+        if old_host and old_host != new_host:
+            host_change_warning = (
+                f"{now_iso()} WARN {stage_spec.name}-start host 切换: "
+                f"{old_host!r} → {new_host!r} · "
+                f"(v8.36 治本 v8.21 全局 audit 跨 session 污染 case · "
+                f"用户跨 session 切宿主时显式覆盖 state.json.host)"
+            )
+            concerns = state.setdefault("concerns", [])
+            concerns.append(host_change_warning)
+        state["host"] = new_host
+        # host_history append(audit · 不替换)
+        history = state.setdefault("host_history", [])
+        history.append({"host": new_host, "at": now_iso(),
+                         "source": f"{stage_spec.name}-start",
+                         "previous": old_host})
+
     save_state(path, state)
 
     # 7. 渲染 next_action_brief + 自动 append 建议评审角色 + 暂停点纪律 + 必读路径速查 + 状态行模板
@@ -582,6 +604,9 @@ def execute_stage_start(
         **({"scaffold_hints": scaffold_hints} if scaffold_hints else {}),
         **({"brief_overflow_path": brief_overflow_path} if brief_overflow_path else {}),
         **({"raw_write_audit": rw_audit} if rw_audit else {}),
+        # v8.36:host 切换 / 校准信息暴露
+        **({"host_change_warning": host_change_warning} if host_change_warning else {}),
+        **({"current_host": state.get("host")} if state.get("host") else {}),
     })
 
 
@@ -1561,6 +1586,12 @@ def add_common_stage_start_args(parser: argparse.ArgumentParser) -> None:
                         help="bypass 时必带 · 标记用户已确认逃生(防 AI 自决)")
     parser.add_argument("--missing", default="",
                         help="bypass 时必带 · 逗号分隔 · 明确跳过哪些前置 ID")
+    # v8.36:host 校准(治本 SVC-PLATFORM-F054 case · 切 session 不感知)
+    # 用户跨 session 切换宿主时 · 在 stage-start 显式覆盖 state.json.host · 不一致 → WARN 留痕
+    parser.add_argument("--host",
+                        choices=["claude-code", "codex-cli", "gemini-cli"],
+                        help="[v8.36] 主对话宿主 · 校准 state.json.host(治本 v8.21 "
+                             "全局 audit 跨 session 污染 case)· 不一致 → 更新 + concerns WARN")
 
 
 def add_common_stage_complete_args(parser: argparse.ArgumentParser) -> None:

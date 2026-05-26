@@ -1651,6 +1651,11 @@ def cmd_init_feature(args: argparse.Namespace) -> None:
         "sub_project": args.sub_project or "",
         "flow_type": args.flow_type,
         "artifact_root": str(feature_dir),  # v7.3.10+P0-149: 单源 · 不再独立 --artifact-root
+        # v8.36:host per-feature(治本 SVC-PLATFORM-F054 case · 全局 audit 跨 session 污染)
+        # 不传 → None · external-review fallback 读全局 audit(deprecated)+ emit WARN
+        "host": args.host or None,
+        "host_history": ([{"host": args.host, "at": now_iso(), "source": "init-feature"}]
+                          if args.host else []),
         "current_stage": initial_stage,
         "merge_target": args.merge_target,
         "worktree": {
@@ -2471,20 +2476,40 @@ EXTERNAL_HOST_TO_MODEL = {
 
 
 # v8.21:host audit 路径(与 bootstrap.py write_host_audit 对齐 · 跨进程同源读)
+# v8.36:deprecated · 主路径改 per-feature state.json · audit 仅 fallback 兼容
 HOST_AUDIT_PATH_ENV = "TEAMWORK_HOST_AUDIT_PATH"
 
 
-def _detect_host() -> tuple[Optional[str], str]:
-    """v8.21:探测主对话宿主 · 优先级:① ~/.teamwork/host_audit.json ② env fallback。
+def _detect_host(feature: Optional[str] = None) -> tuple[Optional[str], str]:
+    """探测主对话宿主。
+
+    v8.36 优先级(case SVC-PLATFORM-F054 治本 · per-feature 隔离):
+      ① state.json.host(per-feature · 主路径 · 必带 --feature)
+      ② ~/.teamwork/host_audit.json(deprecated · 跨 session 共享 · v8.21 兼容路径)
+      ③ env fallback(占位)
 
     返回 (host, source):
-      - host:claude-code / codex-cli / gemini-cli / None(未探测到)
-      - source:"audit" / "env" / "none"(供 emit 透明告知 PMO 来自哪里)
+      - host:claude-code / codex-cli / gemini-cli / None
+      - source:"state_json" / "audit_deprecated" / "env" / "none"
 
-    bootstrap.py 跑成功后写 host_audit.json · external-review 等下游读这个。
-    PMO 不需要再传 --host(若 audit 存在)· 治本 PMO 心智负担。
+    v8.21 → v8.36 演进理由:
+    - case SVC-PLATFORM-F054(2026-05-27):全局 audit 跨 session 残留 · PMO 切到 Codex CLI
+      但 audit 残留 claude-code · 推出 model=codex 同源 → 异质失效 · 用户手动覆盖才补救
+    - 治本:host 是 per-feature 属性 · 不是全局属性(同一项目不同 feature 可能用不同 host)
     """
-    # ① audit 文件(bootstrap 写)
+    # ① state.json.host(v8.36 主路径)
+    if feature:
+        try:
+            feature_dir = Path(feature)
+            sp = feature_dir / "state.json"
+            if sp.exists():
+                data = json.loads(sp.read_text(encoding="utf-8"))
+                host = data.get("host")
+                if host in EXTERNAL_HOST_TO_MODEL:
+                    return host, "state_json"
+        except (OSError, json.JSONDecodeError):
+            pass
+    # ② audit 文件(v8.21 fallback · v8.36 deprecated)
     override = os.environ.get(HOST_AUDIT_PATH_ENV)
     audit_path = (Path(override) if override
                   else Path.home() / ".teamwork" / "host_audit.json")
@@ -2493,12 +2518,10 @@ def _detect_host() -> tuple[Optional[str], str]:
             data = json.loads(audit_path.read_text(encoding="utf-8"))
             host = data.get("host")
             if host in EXTERNAL_HOST_TO_MODEL:
-                return host, "audit"
+                return host, "audit_deprecated"
         except (OSError, json.JSONDecodeError):
             pass
-    # ② env fallback(可扩 · 当前仅占位)
-    # CLAUDE_CODE_VERSION / CODEX_VERSION 等若主对话 set · 可探测
-    # 目前 env 不规范 · 暂不实现 · 留 hook
+    # ③ env fallback(可扩 · 当前仅占位)
     return None, "none"
 
 # stage → reviewer profile 映射(codex profile / claude prompt template 文件名)
@@ -2664,25 +2687,41 @@ def cmd_external_review(args: argparse.Namespace) -> None:
     - 文件命名 + frontmatter review_model 自动用合规字面(白名单)
     """
     # ── Step 1 · host + model 校验 + 自动映射 ──
-    # v8.21:host 缺省自动探测(bootstrap 写 host_audit.json · PMO 不需要再传)
+    # v8.36:host 主路径 = state.json.host(per-feature · 治本 SVC-PLATFORM-F054 case)
+    #         · audit fallback 仅兼容(deprecated · WARN)· 治本全局 audit 跨 session 污染
     host_source = "explicit"
     host = args.host
+    deprecation_warning = None
     if not host:
-        host, source = _detect_host()
-        host_source = source  # audit / env / none
+        host, source = _detect_host(args.feature)
+        host_source = source  # state_json / audit_deprecated / env / none
+        if source == "audit_deprecated":
+            deprecation_warning = (
+                "[DEPRECATED] host 来自全局 ~/.teamwork/host_audit.json · v8.36 主路径改 "
+                "per-feature state.json.host · 建议:① init-feature 加 --host 显式写入 / "
+                "② 跨 session 切宿主时 stage-start 加 --host 校准 · 删全局依赖。"
+                "audit fallback v8.37 将删除。"
+            )
         if not host:
             emit({
                 "verdict": "FAIL",
                 "command": "external-review",
-                "error": "--host 未传 + 无法自动探测(~/.teamwork/host_audit.json 不存在)",
-                "hint": (
-                    "二选一:\n"
-                    "  ① 跑 bootstrap 一次(`python3 {SKILL_ROOT}/tools/bootstrap.py "
-                    "--host <claude-code|codex-cli|gemini-cli>`)· 之后所有 state.py 命令自动用此 host\n"
-                    "  ② 显式传 --host claude-code(或对应宿主)\n"
-                    "v8.21 设计:bootstrap 跑过一次后 · PMO 心智 = --feature + --stage(2 个业务参数)· host 全自动"
+                "error": (
+                    "--host 未传 + state.json 无 host + 全局 audit 也无 · 无法确定主对话宿主"
                 ),
-                "spec": "standards/external-model-usage.md § 7.5 v8.20 物化路径 + v8.21 host 自动探测",
+                "hint": (
+                    "三选一(推荐 ①):\n"
+                    "  ① [v8.36 主路径] 显式传 --host <claude-code|codex-cli|gemini-cli> · "
+                    "顺带写到 state.json:\n"
+                    "     state.py <stage>-start --feature ... --host <host>\n"
+                    "  ② 在 external-review 命令显式传 --host\n"
+                    "  ③ [兼容路径 deprecated] 跑 bootstrap 一次"
+                    "(python3 {SKILL_ROOT}/tools/bootstrap.py --host <host>)· "
+                    "写全局 audit · 但跨 session 易污染 · v8.37 将删\n\n"
+                    "v8.36 设计:host 是 per-feature 属性(同一项目不同 feature 可不同宿主)· "
+                    "不再是全局共享 · 治本 SVC-PLATFORM-F054 case 全局 audit 跨 session 污染"
+                ),
+                "spec": "standards/external-model-usage.md § 7.5 v8.36 per-feature host",
             })
             return
     if host not in EXTERNAL_HOST_TO_MODEL:
@@ -2881,6 +2920,8 @@ def cmd_external_review(args: argparse.Namespace) -> None:
             # v8.23:完整 prompt 透明 emit(preview_command 截断到 80 · 此字段无截断)
             "codex_prompt": preview_prompt_full,
             "next": "去掉 --dry-run 实际跑 · 30s-3min 等",
+            # v8.36:host audit deprecation warning(dry-run 也需暴露)
+            **({"deprecation_warning": deprecation_warning} if deprecation_warning else {}),
         })
         return
 
@@ -2949,6 +2990,12 @@ def cmd_external_review(args: argparse.Namespace) -> None:
     ]
     output_file.write_text("\n".join(frontmatter_lines) + stdout, encoding="utf-8")
 
+    # ── Step 6.5 · v8.36 内容质量轻校验(治本 SVC-PLATFORM-F054 Bug 2 case)──
+    # case:Claude reviewer 收到 prompt 后只 echo template 不真 review
+    # 用户决策(Option "只校验空内容/空模板"):不语义判 reviewer 质量 · 只校验明显空/模板
+    # WARN 不 BLOCK · 决策权留用户
+    quality_warnings = _check_external_review_quality(stdout, args.stage, model)
+
     # ── Step 7 · emit ──
     # finding 数粗估(grep "^###" 或 "Finding" · 仅参考)
     finding_count = max(
@@ -2960,7 +3007,7 @@ def cmd_external_review(args: argparse.Namespace) -> None:
         "verdict": "OK",
         "command": "external-review",
         "host": host,
-        "host_source": host_source,  # v8.21:explicit / audit / env(透明)
+        "host_source": host_source,  # v8.36:state_json / audit_deprecated / explicit
         "model": model,
         "model_version": model_version,
         "stage": args.stage,
@@ -2976,7 +3023,78 @@ def cmd_external_review(args: argparse.Namespace) -> None:
             f"file 已落盘 · PMO 整合 finding 到 REVIEW.md · "
             f"然后跑 state.py {args.stage}-complete --artifacts ..."
         ),
+        # v8.36:host 来源 deprecated 警告 + 内容质量轻校验 WARN(不 BLOCK · R0 兜底)
+        **({"deprecation_warning": deprecation_warning} if deprecation_warning else {}),
+        **({"quality_warnings": quality_warnings} if quality_warnings else {}),
     })
+
+
+# v8.36:external review 内容质量轻校验(治本 SVC-PLATFORM-F054 Bug 2)
+# 用户决策:不语义判 reviewer 质量 · 只校验明显空/模板回声(template echo)
+# 触发 WARN(不 BLOCK)· 决策权留用户
+EXTERNAL_REVIEW_MIN_BYTES = 200  # 小于此 → empty WARN
+EXTERNAL_REVIEW_TEMPLATE_ECHO_SIGNATURES = [
+    # reviewer 自述"我没真 review · 只是收到了 prompt"的特征字符串
+    "你给了我",
+    "你给了我 reviewer prompt",
+    "reviewer prompt template",
+    "I received the prompt",
+    "I received your prompt",
+    "你只是给我了 template",
+    "i only got a template",
+    "i was only given the prompt",
+    "只是模板",
+    "{{stage}}",  # 占位符未替换 = template echo
+    "{{commit}}",
+    "{{feature_id}}",
+]
+
+
+def _check_external_review_quality(stdout: str, stage: str, model: str) -> list[dict]:
+    """v8.36 治本 SVC-PLATFORM-F054 Bug 2:reviewer 只 echo template 不真 review case。
+
+    返回 warnings list · 每条 {type, message, severity}:
+      - empty_content:stdout < EXTERNAL_REVIEW_MIN_BYTES bytes
+      - template_echo:命中 EXTERNAL_REVIEW_TEMPLATE_ECHO_SIGNATURES
+
+    WARN 不 BLOCK(用户决策 · R0 兜底)· PMO 自行判是否重跑或接受。
+    """
+    warnings: list[dict] = []
+    body = stdout.strip()
+    body_bytes = len(body.encode("utf-8"))
+
+    # ① 空内容 WARN
+    if body_bytes < EXTERNAL_REVIEW_MIN_BYTES:
+        warnings.append({
+            "type": "empty_content",
+            "severity": "WARN",
+            "message": (
+                f"⚠️ reviewer 内容仅 {body_bytes} 字节(< {EXTERNAL_REVIEW_MIN_BYTES} "
+                f"阈值)· 可能 model={model!r} 没真评审 · 建议复查 file 内容 · "
+                f"必要时重跑 external-review(也可能是 reviewer 故意精简 · 用户判)"
+            ),
+            "actual_bytes": body_bytes,
+            "threshold_bytes": EXTERNAL_REVIEW_MIN_BYTES,
+        })
+
+    # ② template echo WARN(reviewer 自述"我没真评审"或占位符未替换)
+    body_lower = body.lower()
+    matched_sigs = [s for s in EXTERNAL_REVIEW_TEMPLATE_ECHO_SIGNATURES
+                    if s.lower() in body_lower]
+    if matched_sigs:
+        warnings.append({
+            "type": "template_echo",
+            "severity": "WARN",
+            "message": (
+                f"⚠️ reviewer 内容含 template echo 特征({len(matched_sigs)} 条命中)· "
+                f"model={model!r} 可能只复述了 prompt 而不是真评审 · "
+                f"治本 SVC-PLATFORM-F054 Bug 2 case · 建议复查 file 内容 · "
+                f"必要时调整 prompt 或重跑 external-review(用户判)"
+            ),
+            "matched_signatures": matched_sigs[:5],
+        })
+
+    return warnings
 
 
 # ─── v8.24 · update-skill(自更新 · bootstrap 检测后用户回 1 触发)──────
@@ -3444,6 +3562,12 @@ def build_parser() -> argparse.ArgumentParser:
     ifp.add_argument("--auto-mode", action="store_true", help="启用 AUTO_MODE")
     ifp.add_argument("--force", action="store_true",
                      help="覆盖现有 state.json（自动 backup .bak.<ts>）")
+    # v8.36:host 改 per-feature(治本 v8.21 全局 audit 跨 session 污染 case)
+    ifp.add_argument("--host",
+                     choices=["claude-code", "codex-cli", "gemini-cli"],
+                     help="[v8.36] 主对话宿主 · 写到 state.json.host · external-review 等下游"
+                          "读 per-feature host(不再读全局 ~/.teamwork/host_audit.json)· "
+                          "可选 · 不传则 fallback 读全局 audit(deprecated · 兼容)")
     ifp.set_defaults(func=cmd_init_feature)
 
     rcv = sub.add_parser(
