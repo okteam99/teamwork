@@ -107,6 +107,7 @@ ship-phase --action confirm-merged → ship-phase --action cleanup --status clea
 📎 **物化拦截清单**(已在工具层 BLOCKED + hint · spec 不重复展开):
 - P0-6 ship 后 reset-prev FAIL
 - P0-113 push 必 CLI-first 拿 MR URL · 不接受 git push hint URL
+- **v8.37 P0-113 物化**:`--mr-creation-method url-fallback` 时 · `git_host` 对应 CLI(github→gh / gitlab*→glab)若**已装 + 已认证** → **BLOCKED**(治本 SVC-CORE-B007 case · AI 退化用 git push hint URL)。逃生口:`--accept-cli-unavailable --reason '<具体原因>' --user-confirmed`(走 bypass log + concerns WARN 留痕)· 真不可用场景(网络隔离 / token scope 不够 / 强制内部流程)用此。
 - P0-124 cleanup --status cleaned 必 phase=merged + merge_commit_hash 非空
 - P0-156 ship-finalize / confirm-merged / cleanup 必在主工作区跑(linked worktree precheck FAIL)
 

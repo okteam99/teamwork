@@ -197,6 +197,64 @@ def _handle_ship_sanitize(state: dict, args: argparse.Namespace) -> dict:
     }
 
 
+# ─── v8.37 · CLI 可用性检测(治本 SVC-CORE-B007 case · url-fallback 退化拦截)──
+
+# git_host → CLI name 映射(用于"已装 CLI 时禁止退化"校验)
+SHIP_GIT_HOST_TO_CLI = {
+    "github":             "gh",
+    "gitlab":             "glab",
+    "gitlab-self-hosted": "glab",
+    # gitee / bitbucket / unknown:无主流 CLI · 退化合理 · 不强校
+}
+
+
+def _check_cli_available_for_host(git_host: str) -> dict:
+    """v8.37:检测 git_host 对应的 MR CLI 是否可用(治本 SVC-CORE-B007 case)。
+
+    检测顺序:
+      ① 查表 git_host → CLI name(github→gh / gitlab*→glab) · 不在表内 → no_cli_for_host
+      ② which <cli> → 没装 → not_installed
+      ③ <cli> auth status → 未登录 / 失败 → not_authenticated
+
+    返回 {available, cli_name, reason}:
+      - available=True:CLI 装好 + 已认证 · url-fallback 退化将被拦截
+      - available=False + reason:不可用原因(供 hint 透明)
+    """
+    cli_name = SHIP_GIT_HOST_TO_CLI.get(git_host)
+    if not cli_name:
+        return {"available": False, "cli_name": None,
+                "reason": f"no_cli_mapping_for_host({git_host})"}
+
+    # which <cli>
+    try:
+        w = subprocess.run(["which", cli_name], capture_output=True, text=True, timeout=5)
+        if w.returncode != 0:
+            return {"available": False, "cli_name": cli_name,
+                    "reason": f"{cli_name}_not_installed",
+                    "hint_install": (
+                        f"brew install {cli_name}" if cli_name in ("gh", "glab")
+                        else f"安装 {cli_name} CLI"
+                    )}
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        return {"available": False, "cli_name": cli_name,
+                "reason": "which_command_unavailable"}
+
+    # <cli> auth status
+    try:
+        a = subprocess.run([cli_name, "auth", "status"],
+                            capture_output=True, text=True, timeout=10)
+        if a.returncode != 0:
+            return {"available": False, "cli_name": cli_name,
+                    "reason": f"{cli_name}_not_authenticated",
+                    "auth_stderr_tail": (a.stderr or a.stdout or "").strip()[-200:],
+                    "hint_auth": f"跑 `{cli_name} auth login` 完成认证 · 再重试 push"}
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        return {"available": False, "cli_name": cli_name,
+                "reason": f"{cli_name}_auth_check_failed"}
+
+    return {"available": True, "cli_name": cli_name, "reason": "installed_and_authenticated"}
+
+
 # ─── action 2:push ────────────────────────────────────────────────
 
 
@@ -239,6 +297,66 @@ def _handle_ship_push(state: dict, args: argparse.Namespace) -> dict:
             "error": f"mr_creation_method={args.mr_creation_method} 必带 --mr-create-url(兜底链接)",
         }, exit_code=1)
 
+    # ── v8.37 url-fallback 退化拦截(治本 SVC-CORE-B007 case)──
+    # AI 把 git push 输出的 MR 创建表单 URL 直接当 mr_create_url + url-fallback method ·
+    # 但 glab 已装且认证 OK 应该跑 `glab mr create` 拿真实 MR URL(规范 P0-113 CLI-first)·
+    # 这里物化拦截:CLI 可用且 git_host 匹配 → BLOCK · 除非显式 --accept-cli-unavailable
+    # + --reason + --user-confirmed(走 bypass log + concerns WARN)
+    fallback_bypass_warning = None
+    if args.mr_creation_method == "url-fallback":
+        cli_check = _check_cli_available_for_host(args.git_host)
+        if cli_check["available"]:
+            cli = cli_check["cli_name"]
+            accept_unavail = getattr(args, "accept_cli_unavailable", False)
+            if not accept_unavail:
+                emit_json({
+                    "verdict": "FAIL",
+                    "error": (
+                        f"--mr-creation-method=url-fallback 但 {cli} CLI 已装+已认证 · "
+                        f"违 P0-113 CLI-first(治本 SVC-CORE-B007 case · AI 退化用 git push hint URL)"
+                    ),
+                    "cli_check": cli_check,
+                    "hint": (
+                        f"二选一:\n"
+                        f"  ① [推荐] 跑 `{cli} mr create` (或 `{cli} pr create`) 拿真实 MR URL · "
+                        f"然后 --mr-creation-method cli-{cli} --mr-url <真 URL>\n"
+                        f"  ② 显式承认 CLI 不可用(网络隔离 / token 范围不够 / 强制内部流程):\n"
+                        f"     加 --accept-cli-unavailable --reason '<具体原因>' --user-confirmed\n"
+                        f"     (走 bypass log + concerns WARN 留痕 · retro 复盘)"
+                    ),
+                    "spec": ("stages/ship-stage.md L17/L109 + P0-113 CLI-first"
+                             " · v8.37 物化拦截 · 治本 SVC-CORE-B007"),
+                }, exit_code=1)
+
+            # bypass 路径:--accept-cli-unavailable 通过 · 必带 reason + user-confirmed
+            require_user_confirmed(args)  # 强制 --user-confirmed(防 AI 自决)
+            reason = (getattr(args, "reason", "") or "").strip()
+            if not reason:
+                emit_json({
+                    "verdict": "FAIL",
+                    "error": ("--accept-cli-unavailable 必带 --reason '<原因>' "
+                              "(写 concerns + bypass log · 退化必留痕)"),
+                    "hint": "示例 --reason '网络隔离不能访问 GitLab API' / 'glab token 无 mr_create scope'",
+                }, exit_code=1)
+
+            fallback_bypass_warning = (
+                f"{now_iso()} WARN ship-push url-fallback bypass: "
+                f"{cli} 已装+已认证 但 --accept-cli-unavailable={reason!r} · "
+                f"(v8.37 治本 SVC-CORE-B007 case · CLI 可用时退化必显式确认)"
+            )
+            concerns = state.setdefault("concerns", [])
+            concerns.append(fallback_bypass_warning)
+            # 写 bypass log(audit 留痕)
+            bypass_log = ship.setdefault("bypass_log", [])
+            bypass_log.append({
+                "at": now_iso(),
+                "action": "push",
+                "type": "url_fallback_when_cli_available",
+                "cli_name": cli,
+                "cli_check": cli_check,
+                "reason": reason,
+            })
+
     if not args.feature_head_commit:
         emit_json({
             "verdict": "FAIL",
@@ -275,6 +393,9 @@ def _handle_ship_push(state: dict, args: argparse.Namespace) -> dict:
             "用户关闭未合并:\n"
             "state.py ship-phase --action close-unmerged --feature <path>"
         ),
+        # v8.37:url-fallback 退化 bypass 的 WARN(治本 SVC-CORE-B007)
+        **({"fallback_bypass_warning": fallback_bypass_warning}
+            if fallback_bypass_warning else {}),
     }
 
 
@@ -1532,6 +1653,14 @@ def register_v8_ship_subparser(sub) -> None:
                     help="[push] 兜底 URL(url-fallback / unknown-platform 必传)")
     sp.add_argument("--feature-pushed-at",
                     help="[push] ISO 8601 · 缺省 now")
+    # v8.37 url-fallback 退化逃生口(治本 SVC-CORE-B007 case)
+    sp.add_argument("--accept-cli-unavailable", action="store_true",
+                    help=("[push] v8.37 逃生口 · 显式承认 git_host 对应 CLI 不可用 "
+                          "(否则 CLI 装好+认证 OK 时 url-fallback 会 BLOCK)· "
+                          "必带 --reason '<原因>' --user-confirmed"))
+    sp.add_argument("--user-confirmed", action="store_true",
+                    help=("[push] v8.37 bypass 时必带 · 标记用户已确认逃生 "
+                          "(防 AI 自决)· 与 stage-start --user-confirmed pattern 一致"))
 
     # action=confirm-merged 参数
     sp.add_argument("--merge-commit-hash",

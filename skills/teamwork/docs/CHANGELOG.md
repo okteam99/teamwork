@@ -1,5 +1,139 @@
 # Changelog
 
+## v8.37 · ship-push url-fallback 退化拦截(治本 SVC-CORE-B007 case · CLI 已装时禁止退化)
+
+> 用户 2026-05-27 贴 SVC-CORE-B007-Matched-Offers-Status-Filter 实战 case · 提"glab 已装的前提下 · 除非用户手动确认 · 否则不可以退化"。
+
+### case 暴露的 spec/工具 缺口
+
+AI(Claude Code session)跑 ship-phase push 时:
+- 本机 `glab 1.92.1` 已装 + `glab auth status` 已登录
+- 但 AI 直接传 `--mr-creation-method url-fallback --mr-create-url <git push 输出的 MR 创建表单 URL>`
+- 规范 `stages/ship-stage.md L17 + L109 + P0-113` 明文要求 CLI-first · AI 违规
+- **state.py 没拦截** · 在 `mr_creation_method=url-fallback + mr_create_url` 都满足时静默 PASS
+- 用户察觉后:AI 手动跑 `glab mr create` 拿真 MR URL · 再 `raw-write` 修正 state · 闭环但走了弯路
+
+AI 自己在 case 末尾总结的治本建议:
+> ship-phase push 在 --mr-creation-method url-fallback 时校验 which glab && [ "$git_host" = "gitlab-self-hosted" ] → 命中即 BLOCKED with hint "glab 已装 · 不允许退化"
+
+v8.37 按此治本 + 加合理逃生口。
+
+### 用户决策
+
+| 维度 | 选项 | 用户选 |
+|------|------|--------|
+| 拦截严格度 | A: CLI 装+认证 BLOCK / B: 只检 which / C: WARN 不 BLOCK / D: 不修 | **A · CLI 装好+认证了 BLOCK** |
+| 逃生口参数名 | `--accept-cli-unavailable + --reason + --user-confirmed` / 复用 bypass / 2 参轻量 | **`--accept-cli-unavailable + --reason + --user-confirmed`** |
+
+### 实施(2 个核心改动)
+
+#### 1. `_v8_ship.py:_check_cli_available_for_host(git_host)` helper
+
+```python
+SHIP_GIT_HOST_TO_CLI = {
+    "github":             "gh",
+    "gitlab":             "glab",
+    "gitlab-self-hosted": "glab",
+    # gitee / bitbucket / unknown:无主流 CLI · 不强校
+}
+
+def _check_cli_available_for_host(git_host: str) -> dict:
+    # ① 查表 git_host → CLI name · 不在表内 → no_cli_mapping_for_host
+    # ② which <cli> → 没装 → <cli>_not_installed
+    # ③ <cli> auth status → 未登录 → <cli>_not_authenticated
+    # 返 {available: bool, cli_name, reason, hint_install?, hint_auth?}
+```
+
+#### 2. `_handle_ship_push` 在 url-fallback 时调用 helper
+
+```python
+if args.mr_creation_method == "url-fallback":
+    cli_check = _check_cli_available_for_host(args.git_host)
+    if cli_check["available"]:
+        if not args.accept_cli_unavailable:
+            emit_json({
+                "verdict": "FAIL",
+                "error": f"--mr-creation-method=url-fallback 但 {cli} CLI 已装+已认证 · "
+                         "违 P0-113 CLI-first(治本 SVC-CORE-B007 case)",
+                "cli_check": cli_check,
+                "hint": "二选一:① 跑 `glab mr create` 拿真 URL / "
+                         "② --accept-cli-unavailable --reason '<原因>' --user-confirmed",
+                "spec": "stages/ship-stage.md L17/L109 + P0-113 · v8.37 物化拦截",
+            }, exit_code=1)
+        # bypass 路径:必带 user-confirmed + reason · 写 concerns + bypass_log
+        require_user_confirmed(args)
+        reason = args.reason.strip()
+        if not reason:
+            emit FAIL with hint
+        concerns.append(WARN ship-push url-fallback bypass: ...)
+        ship.bypass_log.append({type: "url_fallback_when_cli_available", ...})
+```
+
+emit 返回 PASS 时携带 `fallback_bypass_warning` 字段(PMO 一眼看到走了 bypass)。
+
+### 测试覆盖(13 个新测试 · 1 个新文件)
+
+新文件 `tools/tests/test_ship_push_url_fallback_gate.py`:
+
+**TestCheckCliAvailableForHost**(5):
+- `test_v837_unknown_host_returns_no_cli_mapping`(gitee 等无 CLI)
+- `test_v837_github_maps_to_gh / gitlab*→glab`(映射表)
+- `test_v837_cli_not_installed_when_which_fails`(mock which 失败)
+- `test_v837_cli_not_authenticated_when_auth_status_fails`(mock auth status 失败)
+- `test_v837_cli_available_when_both_ok`(mock 都 OK)
+
+**TestHandleShipPushUrlFallbackGate**(8):
+- `test_v837_block_when_cli_available_no_bypass`(主拦截)
+- `test_v837_pass_when_cli_available_with_full_bypass`(完整 bypass + WARN + concerns + bypass_log)
+- `test_v837_block_when_bypass_missing_reason`(reason 缺)
+- `test_v837_block_when_bypass_missing_user_confirmed`(user-confirmed 缺)
+- `test_v837_pass_when_cli_not_installed`(CLI 不装 · 退化合理)
+- `test_v837_pass_when_cli_not_authenticated`(CLI 未认证 · 退化合理)
+- `test_v837_pass_when_no_cli_mapping`(gitee 等)
+- `test_v837_skip_check_for_cli_method`(cli-glab method 不触发本校验)
+
+### Spec 更新
+
+`stages/ship-stage.md` § 11 物化拦截清单 加 P0-113 v8.37 物化条目:
+```
+- **v8.37 P0-113 物化**:`--mr-creation-method url-fallback` 时 · `git_host` 对应 CLI
+  (github→gh / gitlab*→glab)若**已装 + 已认证** → **BLOCKED**(治本 SVC-CORE-B007 case)。
+  逃生口:`--accept-cli-unavailable --reason '<原因>' --user-confirmed`
+  (走 bypass log + concerns WARN 留痕)
+```
+
+### 设计哲学
+
+case 暴露的本质:**spec 文本写得清楚 ≠ AI 一定遵守**(reader trap)。AI 偷懒 / 误判 / 路径切换都会绕过文本规范。R0 兜底:**可枚举的进脚本物化拦截**:
+- "url-fallback 时检测 CLI 可用性" → 可枚举 → 进 state.py 校验
+- "CLI 实际能否创 MR" → 不可枚举(网络 / token scope / 平台差异)→ 留 AI/用户判 + 走逃生口
+
+逃生口设计("不一刀切")原则:
+- **真不可用场景必须给出口**:网络隔离 / token scope 不够 / 强制内部流程 / CI 限制
+- **逃生必留痕**:concerns WARN + bypass_log + 必带 reason · retro 复盘可见
+
+### 向后兼容代价
+
+- 老脚本若已传 `--mr-creation-method url-fallback`(且 CLI 已装+认证):**会 BLOCK**
+- 必须显式补 `--accept-cli-unavailable --reason ... --user-confirmed` 才能跑
+- ROI 评估:破坏向后兼容 vs **杜绝"AI 偷懒退化"**(case 实证有效)· 用户拍板 A · 值
+
+### 治本与诚实
+
+我之前给 url-fallback 当成"兜底安全网" · 但没意识到 AI 会**优先选退化路径**(写 mr_create_url 比跑 CLI 容易)· 让兜底变成默认。case 实证后看清:**兜底必须有门** —— v8.37 加门(CLI 可用性校验)。
+
+不写"AI 是否真该退化"的语义判断器(那是无底洞)· 只校验客观信号(which + auth status)· 触发即 BLOCK · 留逃生口。R0 哲学:**可枚举进脚本 · 不可枚举留人**(人 = 用户显式确认 · 不是 AI 自决)。
+
+### Hash
+
+- _v8_ship.py:_check_cli_available_for_host(40 行)+ _handle_ship_push 加 bypass 块(60 行)+ argparse 3 个 arg = 净 +110 行
+- stages/ship-stage.md:§ 11 加 P0-113 v8.37 物化条目 = 净 +1 行
+- SKILL.md:v8.36 → v8.37
+- 新文件 test_ship_push_url_fallback_gate.py:13 测试 = 净 +250 行
+- docs/CHANGELOG.md:本段
+
+---
+
 ## v8.36 · host 改 per-feature state.json + external review 内容质量轻校验(治本 SVC-PLATFORM-F054 case)
 
 > 用户 2026-05-27 贴 SVC-PLATFORM-F054-Admin-Offer-Targeting-Country 实战 case · 提"当前用的什么 host 应该是 state.json 记录 · 且每次 session 启动的时候要修改 · 不应该持久化到一个全局共享文件"。
