@@ -355,6 +355,83 @@ class TestMaintainGitignoreWorktree(unittest.TestCase):
         self.assertIn(".claude/scheduled_tasks.lock", text)
         self.assertIn(".claude/agents.lock", text)
 
+    def test_v835_skip_when_project_root_eq_skill_root(self):
+        """v8.35 Bug B(命中 a):project_root == skill_root → skip。"""
+        from bootstrap import maintain_gitignore_worktree
+        result = maintain_gitignore_worktree(self.tmp, skill_root=self.tmp)
+        self.assertEqual(result["status"], "skipped_skill_root_self")
+        self.assertIn("project_root == skill_root", result["reason"])
+        # 验证 .gitignore 真没被创建
+        self.assertFalse((self.tmp / ".gitignore").exists())
+
+    def test_v835_skip_when_skill_root_nested_in_same_git_repo(self):
+        """v8.35 Bug B(命中 b):skill_root 是 project_root 子目录 + 同 git 仓 → skip。
+
+        case 用户问"自动升级是否符合预期" 2026-05-27:
+        teamwork repo 把 skills/teamwork/ 作为 skill 仓嵌在子目录 · 开发场景下:
+        project_root=/teamwork · skill_root=/teamwork/skills/teamwork · 二者同一 git 仓 ·
+        bootstrap 改 /teamwork/.gitignore 后 state.py update-skill 立即 BLOCK。
+        """
+        from bootstrap import maintain_gitignore_worktree
+        # 在 tmp(git repo)下面造一个 skills/teamwork 子目录模拟 skill_root
+        nested = self.tmp / "skills" / "teamwork"
+        nested.mkdir(parents=True)
+        result = maintain_gitignore_worktree(self.tmp, skill_root=nested)
+        self.assertEqual(result["status"], "skipped_skill_root_self")
+        self.assertIn("同一个 git 仓", result["reason"])
+        # 验证 .gitignore 真没被创建
+        self.assertFalse((self.tmp / ".gitignore").exists())
+
+    def test_v835_skill_root_none_still_works(self):
+        """v8.35:skill_root 参数 optional · 不传仍按 v8.31 行为(向后兼容)。"""
+        from bootstrap import maintain_gitignore_worktree
+        result = maintain_gitignore_worktree(self.tmp)  # 不传 skill_root
+        self.assertEqual(result["status"], "appended")
+        self.assertIn(".worktree/", (self.tmp / ".gitignore").read_text())
+
+    def test_v835_skill_root_diff_from_project_root_proceeds(self):
+        """v8.35:skill_root != project_root + 不同 git 仓 → 正常 maintain(用户项目场景)。"""
+        import subprocess
+        from bootstrap import maintain_gitignore_worktree
+        # fake_skill 必须是独立 git 仓 · 否则 git rev-parse --show-toplevel 可能命中外层仓
+        fake_skill = Path(tempfile.mkdtemp())
+        subprocess.run(["git", "init", "-q"], cwd=str(fake_skill), check=True)
+        try:
+            result = maintain_gitignore_worktree(self.tmp, skill_root=fake_skill)
+            self.assertEqual(result["status"], "appended")
+        finally:
+            shutil.rmtree(fake_skill, ignore_errors=True)
+
+    def test_v835_consecutive_same_header_deduped(self):
+        """v8.35 Bug C:连续同 header 的 entries 共用一个 header(不重复)。
+
+        v8.31 加 .claude/scheduled_tasks.lock + .claude/agents.lock 用了相同 header ·
+        但 v8.31 实现每个 entry 都重写 header · 导致 .gitignore 里同句出现 2 次 · 难看。
+        v8.35 修:连续同 header 只写第一次。
+        """
+        from bootstrap import maintain_gitignore_worktree
+        result = maintain_gitignore_worktree(self.tmp)
+        self.assertEqual(result["status"], "appended")
+        text = (self.tmp / ".gitignore").read_text()
+        harness_header = "# Teamwork harness locks (session pid · 不该 commit · v8.31)"
+        # 连续两个 harness locks entries 应共用一个 header(只出现 1 次)
+        self.assertEqual(text.count(harness_header), 1,
+                         f"重复 header 应 dedup · 实际出现 {text.count(harness_header)} 次:\n{text}")
+        # 两个 pattern 都还在
+        self.assertIn(".claude/scheduled_tasks.lock", text)
+        self.assertIn(".claude/agents.lock", text)
+
+    def test_v835_different_headers_not_deduped(self):
+        """v8.35:不同 header 不 dedup · 各写各的(.worktree/ vs harness locks)。"""
+        from bootstrap import maintain_gitignore_worktree
+        result = maintain_gitignore_worktree(self.tmp)
+        self.assertEqual(result["status"], "appended")
+        text = (self.tmp / ".gitignore").read_text()
+        # 不同的 4 个 header 都应存在
+        self.assertIn("# Teamwork worktree root (default)", text)
+        self.assertIn("# Teamwork local config + bootstrap state", text)
+        self.assertIn("# Teamwork harness locks", text)
+
 
 # ─── bootstrap marker(版本门禁) ──────────────────────────
 

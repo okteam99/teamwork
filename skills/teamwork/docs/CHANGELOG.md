@@ -1,5 +1,139 @@
 # Changelog
 
+## v8.35 · 自动升级流程 4 个 bug 治本(用户问"是否符合预期"暴露)
+
+> 用户 2026-05-27 问「在检查下 teamwork 自动升级逻辑是否符合预期」· 我端到端验证 v8.24 update-skill + bootstrap check_skill_update 流程 · 实测发现 4 个 bug。
+
+### 4 bug 实测证据
+
+| # | Bug | 实测证据 | 影响 |
+|---|-----|---------|------|
+| **A** | `update-skill` BLOCK hint 里 `{SKILL_ROOT}` placeholder 未替换 | `cmd_update_skill` line 3009/3029 用普通 str 不是 f-string · hint 输出字面 `cd {SKILL_ROOT}` | 用户复制 cd 命令直接失败 |
+| **B** | bootstrap `maintain_gitignore_worktree` 改 SKILL_ROOT 自己的 `.gitignore` · 导致 update-skill 立即 BLOCK | `cd teamwork && bootstrap.py` 后 git status:`M .gitignore`(+4 行 bootstrap 自动加的)· update-skill 拒绝 pull · 死锁链 | 开发 teamwork 自己 / 嵌子目录 skill 场景全撞 |
+| **C** | gitignore 重复 comment 文案 | `# Teamwork harness locks ... v8.31` 同句连续出现 2 次(`.claude/scheduled_tasks.lock` + `.claude/agents.lock` 共用 header 但每次都重写) | 美观 |
+| **D** | bootstrap auto-maintain 改 .gitignore 不 commit · 累积 dirty | maintain 返 `appended` 但用户无感 · 下次 git status 看着脏 | B 修了 D 也消(skip 后没改) |
+
+### 治本(2 文件 + 5 测试)
+
+#### Bug A:`state.py:cmd_update_skill` hint placeholder
+
+```diff
+- "hint": (
+-     "skill 是 zip 安装 · 不支持自动 update。\n"
+-     "  手动:① 备份本地定制 ② rm -rf {SKILL_ROOT} · "
+-     "git clone https://github.com/okteam99/teamwork.git ~/.claude/skills/teamwork"
+- ),
++ "hint": (
++     f"skill 是 zip 安装 · 不支持自动 update。\n"
++     f"  手动:① 备份本地定制 ② rm -rf {skill_root} · "
++     f"git clone https://github.com/okteam99/teamwork.git {skill_root}"
++ ),
+```
+
+第 2 处 dirty BLOCK hint 同样改为 f-string 用真实 `git_root` · 并加 v8.35 注解(提示 bootstrap auto-maintain dirty 可用 `git checkout --` 丢弃)。
+
+#### Bug B:bootstrap `maintain_gitignore_worktree` 跨仓污染
+
+```diff
+- def maintain_gitignore_worktree(project_root: Path) -> dict:
++ def maintain_gitignore_worktree(project_root: Path,
++                                  skill_root: Optional[Path] = None) -> dict:
++     # v8.35 Bug B:skill_root 与 project_root 同一个 git 仓 → skip(防跨仓污染)
++     # 2 种命中场景:
++     #   a) project_root == skill_root(skill 仓就是 repo 根)
++     #   b) skill_root 是 project_root 子目录 + 同一个 git 仓(开发场景 · 当前 teamwork repo
++     #      把 skills/teamwork/ 嵌子目录)
++     if skill_root:
++         pr_resolved = project_root.resolve()
++         sr_resolved = skill_root.resolve()
++         if pr_resolved == sr_resolved:
++             return {"status": "skipped_skill_root_self", "reason": "..."}
++         # git rev-parse --show-toplevel from skill_root → 看是否等于 project_root
++         r = subprocess.run(["git", "-C", str(sr_resolved), "rev-parse",
++                             "--show-toplevel"], ...)
++         if r.returncode == 0 and Path(r.stdout.strip()).resolve() == pr_resolved:
++             return {"status": "skipped_skill_root_self", "reason": "...同一个 git 仓..."}
+```
+
+cmd_session_bootstrap 调用方传 `skill_root`:`maintain_gitignore_worktree(project_root, skill_root)`。
+
+**坑修了 2 轮**:我第 1 轮只检查 `project_root == skill_root`(命中 a)· e2e 实测发现当前 teamwork repo 是 `project_root=/teamwork · skill_root=/teamwork/skills/teamwork` —— 二者不相等但同一个 git 仓(命中 b)· bootstrap 仍改了 `/teamwork/.gitignore`。第 2 轮加 `git rev-parse --show-toplevel` 检测同仓判定。
+
+#### Bug C:gitignore 重复 comment 文案 dedup
+
+```diff
++ last_header_written = None  # v8.35 Bug C:连续同 header dedup 状态机
+  for pattern, pattern_alt, header in entries:
+      if pattern in text or pattern_alt in lines:
++         last_header_written = None  # 中断 dedup
+          continue
++     if header == last_header_written:
++         text += f"{prefix_nl}{pattern}\n"      # 共用上一 entry header
++     else:
++         text += f"{prefix_nl}{header}\n{pattern}\n"
++         last_header_written = header
+```
+
+### 测试覆盖(5 个新测试)
+
+- `TestMaintainGitignoreWorktree.test_v835_skip_when_project_root_eq_skill_root`(Bug B 命中 a)
+- `TestMaintainGitignoreWorktree.test_v835_skip_when_skill_root_nested_in_same_git_repo`(Bug B 命中 b · 关键 case)
+- `TestMaintainGitignoreWorktree.test_v835_skill_root_none_still_works`(向后兼容 · 不传 skill_root)
+- `TestMaintainGitignoreWorktree.test_v835_skill_root_diff_from_project_root_proceeds`(用户项目场景 · 独立 git 仓)
+- `TestMaintainGitignoreWorktree.test_v835_consecutive_same_header_deduped`(Bug C)
+- `TestMaintainGitignoreWorktree.test_v835_different_headers_not_deduped`(C 边界)
+- `TestUpdateSkillHint.test_update_skill_not_git_repo_hint_uses_real_path`(Bug A)
+
+### 端到端验证
+
+**修前**(主 repo `cd /teamwork && bootstrap.py`):
+```
+gitignore_worktree = {"status": "appended", "patterns": [".worktree/", ".claude/scheduled_tasks.lock", ".claude/agents.lock"]}
+→ M .gitignore  (主 repo dirty)
+→ update-skill 立即 BLOCK
+```
+
+**修后**(同场景):
+```
+gitignore_worktree = {"status": "skipped_skill_root_self", "reason": "skill_root(...) 与 project_root(...) 同一个 git 仓(skill 嵌子目录开发场景)· skip..."}
+→ git status 干净  ✅
+→ update-skill 可正常跑
+```
+
+**Bug A 修后**:
+```
+hint = skill 是 zip 安装 · 不支持自动 update。
+  手动:① 备份本地定制 ② rm -rf /private/tmp/v835_us_3Xwiv3 ·
+  git clone https://github.com/okteam99/teamwork.git /private/tmp/v835_us_3Xwiv3
+```
+(用真实 skill_root 替换字面 placeholder)
+
+### 端到端验证清单(符合预期项)
+
+✅ `_version_tuple` 正确(v8.10 > v8.9 / v9.0 > v8.99 / v8.34 == v8.34 / v8.5.1 > v8.5 全 pass)
+✅ `check_skill_update` 4 种 status 都按设计返(`up_to_date` / `outdated` / `network_failed` / `parse_failed`)
+✅ outdated emit R5 1/2 选项 prompt 文案清晰
+✅ bootstrap silent skip 不阻塞(network_failed 也不 abort)
+✅ bootstrap marker 版本门禁工作(同版本第 2 次跑 `maintain_status=skipped_version_unchanged`)
+✅ update-skill 干跑成功路径(本地 == 线上 v8.35 时返 `same_version=True · 已在最新版本`)
+
+### 治本与诚实
+
+bootstrap 在 teamwork 仓自己里跑 · 改自己的 .gitignore · 这是设计阶段没考虑到的 case —— v8.31 加 maintain_gitignore_worktree 时只想着"用户项目场景"· 没想到 teamwork 仓本身也会被 bootstrap 当成 project。
+
+修法 Bug B 也修了 2 轮:第 1 轮只判 `project_root == skill_root` · 实测发现没命中(teamwork repo skill 嵌子目录)· 第 2 轮加 `git rev-parse --show-toplevel` 同仓判定。**这是典型的"先写测试再实施"会更早暴露的 bug** —— 我应该先写"嵌子目录"的 e2e test 再改代码。
+
+### Hash
+
+- state.py:`cmd_update_skill` 2 处 hint 改 f-string + 加 v8.35 注解 = 净 +6 行
+- bootstrap.py:`maintain_gitignore_worktree` 加 `skill_root` 参数 + Bug B skip 块 + Bug C dedup 状态机 = 净 +30 行
+- test_bootstrap.py:5 个新测试 + 1 个旧测试加 `subprocess.run git init` = 净 +60 行
+- test_state.py:1 个新 `TestUpdateSkillHint` class = 净 +45 行
+- SKILL.md:frontmatter v8.34 → v8.35
+- docs/CHANGELOG.md:本段
+
+---
+
 ## v8.34 · 全局强制必传 `--user-intent + --admission-judgment`(治本 SVC-CORE-M001 case · 删 v8.15 SKIPPED 兼容口子)
 
 > 用户 case 实战 SVC-CORE-M001 Micro:PMO 跑 `prepare-check` 时 emit JSON 里没有 `admission_judgment` 字段也没有 `user_intent` · 用户问「**流程类型判断的时候 AI 经过思考了么?**」—— 答案是没思考(走了 v8.15 留的 SKIPPED 兼容路径 · admission 校验自动 SKIP · audit 里也只是空字符串)。

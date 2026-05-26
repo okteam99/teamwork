@@ -1845,5 +1845,52 @@ class TestPanoramaSyncStage(unittest.TestCase):
         self.assertIn("早于", err)
 
 
+class TestUpdateSkillHint(unittest.TestCase):
+    """v8.35 Bug A:cmd_update_skill hint 文案不含 `{SKILL_ROOT}` 字面 placeholder。
+
+    case 用户问"自动升级是否符合预期" 2026-05-27:
+    state.py line 3009/3029 用普通 string 不是 f-string · `{SKILL_ROOT}` 输出字面
+    placeholder · 用户复制 `cd {SKILL_ROOT}` 当然 cd 失败。
+    """
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp(prefix="tw-us-"))
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def test_update_skill_not_git_repo_hint_uses_real_path(self):
+        """v8.35:tmp 非 git repo · update-skill BLOCK · hint 必含真实路径不含 `{SKILL_ROOT}`。"""
+        # 把 state.py 复制到 tmp 模拟 SKILL_ROOT(state.py 自推 skill_root = tools/.. parent)
+        # 简化:直接用 monkeypatch 改 __file__
+        import subprocess as _sp
+        # 用一个不存在的 dir 做 cwd · 让 git rev-parse 失败(模拟非 git repo)
+        not_git = self.tmp / "fake_skill_root" / "tools"
+        not_git.mkdir(parents=True)
+        # 把真 state.py 拷过去模拟在那个位置
+        import shutil as _sh
+        _sh.copy(STATE_PY, not_git / "state.py")
+        # 现在跑那个拷贝(它会自推 skill_root = not_git.parent)· 在 cwd=非git目录
+        r = _sp.run(
+            ["/opt/homebrew/opt/python@3.14/bin/python3.14",
+             str(not_git / "state.py"), "update-skill"],
+            capture_output=True, text=True, timeout=30,
+        )
+        # 找 emit 的 JSON · stdout 可能含多行 · 取最后一段 JSON
+        out = (r.stdout or r.stderr).strip()
+        # 找 JSON 起始 `{`
+        idx = out.find("{")
+        self.assertGreaterEqual(idx, 0, f"未找到 JSON 输出 · stdout/stderr=\n{out}")
+        d = json.loads(out[idx:])
+        self.assertEqual(d.get("verdict"), "FAIL")
+        self.assertEqual(d.get("command"), "update-skill")
+        # hint 必含真实路径(not_git.parent · 即 fake_skill_root) · 不含字面 placeholder
+        hint = d.get("hint", "")
+        self.assertNotIn("{SKILL_ROOT}", hint,
+                         f"hint 含字面 placeholder · 应是 f-string 真实路径:\n{hint}")
+        self.assertIn(str(not_git.parent), hint,
+                      f"hint 必含 skill_root 真实路径:\n{hint}")
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

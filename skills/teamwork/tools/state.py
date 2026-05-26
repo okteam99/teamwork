@@ -3005,9 +3005,9 @@ def cmd_update_skill(args: argparse.Namespace) -> None:
             "command": "update-skill",
             "error": f"{skill_root} 不是 git repo · 无法自动 update",
             "hint": (
-                "skill 是 zip 安装 · 不支持自动 update。\n"
-                "  手动:① 备份本地定制 ② rm -rf {SKILL_ROOT} · "
-                "git clone https://github.com/okteam99/teamwork.git ~/.claude/skills/teamwork"
+                f"skill 是 zip 安装 · 不支持自动 update。\n"
+                f"  手动:① 备份本地定制 ② rm -rf {skill_root} · "
+                f"git clone https://github.com/okteam99/teamwork.git {skill_root}"
             ),
             "skill_root": str(skill_root),
         })
@@ -3025,9 +3025,12 @@ def cmd_update_skill(args: argparse.Namespace) -> None:
             "error": f"git 工作树不干净({len(dirty_files)} 个改动)· 拒绝 pull 防覆盖本地定制",
             "dirty_files": dirty_files[:10],
             "hint": (
-                "二选一:\n"
-                "  ① 提交 / stash 本地改动后重跑:cd {SKILL_ROOT} · git stash\n"
-                "  ② 确认本地改动可丢弃 · 加 --force 强制 pull(慎用 · 会覆盖)"
+                f"二选一:\n"
+                f"  ① 提交 / stash 本地改动后重跑:cd {git_root} · git stash\n"
+                f"  ② 确认本地改动可丢弃 · 加 --force 强制 pull(慎用 · 会覆盖)\n"
+                f"  注:若 dirty 是 bootstrap auto-maintain 的 .gitignore 改动 "
+                f"(v8.31 加的 harness locks 等)· v8.35 已修(bootstrap 不再改 SKILL_ROOT 自己 .gitignore)· "
+                f"先 git checkout -- .gitignore 丢弃后重跑"
             ),
             "git_root": str(git_root),
         })

@@ -398,13 +398,51 @@ def maintain_host_hooks(skill_root: Path, project_root: Path, host: str) -> dict
 # ─── .worktree/ → .gitignore ─────────────────────────
 
 
-def maintain_gitignore_worktree(project_root: Path) -> dict:
+def maintain_gitignore_worktree(project_root: Path,
+                                 skill_root: Optional[Path] = None) -> dict:
     """确保 .gitignore 含 teamwork 推荐 ignore 模式。
 
     v8.31 治本 INFRA-F025 case G2:`.claude/scheduled_tasks.lock` 等 harness 锁
     文件每 session 写自己 pid · 跟踪意义为 0 · 必须 ignore(否则拖累 ship-finalize
     step 7 ff-pull · 形成"主工作区永远 dirty")。
+
+    v8.35 治本 2 个 case:
+    - Bug B(用户问"自动升级是否符合预期" 2026-05-27):project_root == skill_root 时 skip
+      · 防 bootstrap 修改 skill 仓自己 .gitignore · 导致 state.py update-skill 立即 BLOCK
+      · 跨仓污染(只在开发 teamwork 自己时撞 · 用户项目场景不撞)
+    - Bug C(同 case):连续同 header 的 entries 共用一个 header 注释 · 不重复打印
+      · 实际看 .gitignore 时美观
+
+    entries:(pattern, alt_pattern, header) · 连续相同 header 自动 dedup。
     """
+    # v8.35 Bug B:skill_root 与 project_root 同一个 git 仓 → skip(防跨仓污染)
+    # 2 种命中场景:
+    #   a) project_root == skill_root(skill 仓就是 repo 根)
+    #   b) skill_root 是 project_root 子目录 + 同一个 git 仓(skill 嵌在子目录 · 开发场景)
+    # 判定:用 `git -C skill_root rev-parse --show-toplevel` 看是否等于 project_root
+    if skill_root:
+        try:
+            pr_resolved = project_root.resolve()
+            sr_resolved = skill_root.resolve()
+            if pr_resolved == sr_resolved:
+                return {"status": "skipped_skill_root_self",
+                        "reason": ("project_root == skill_root · skill 仓自己 .gitignore "
+                                   "由 skill 仓维护者管(v8.35 治本跨仓污染)")}
+            # 检查二者是不是同一个 git 仓(skill 嵌子目录场景)
+            r = subprocess.run(
+                ["git", "-C", str(sr_resolved), "rev-parse", "--show-toplevel"],
+                capture_output=True, text=True, timeout=3,
+            )
+            if r.returncode == 0:
+                sr_git_root = Path(r.stdout.strip()).resolve()
+                if sr_git_root == pr_resolved:
+                    return {"status": "skipped_skill_root_self",
+                            "reason": (f"skill_root({sr_resolved}) 与 project_root({pr_resolved}) "
+                                       "同一个 git 仓(skill 嵌子目录开发场景)· "
+                                       "skip 防修改 skill 仓自己 .gitignore(v8.35 治本跨仓污染)")}
+        except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+            pass  # git 不可用 · 走原路径
+
     gitignore = project_root / ".gitignore"
     entries = [
         (".worktree/", ".worktree", "# Teamwork worktree root (default)"),
@@ -435,11 +473,20 @@ def maintain_gitignore_worktree(project_root: Path) -> dict:
 
     lines = text.split("\n")
     appended = []
+    last_header_written = None  # v8.35 Bug C:连续同 header dedup 状态机
     for pattern, pattern_alt, header in entries:
         if pattern in text or pattern_alt in lines:
+            # 已存在 → 下一个新 entry 若与该 entry 同 header 仍需写 header
+            # (因为前一行没写 header · 不重复)· 重置 last_header_written
+            last_header_written = None
             continue
-        text += (("\n" if text and not text.endswith("\n") else "")
-                 + f"{header}\n{pattern}\n")
+        prefix_nl = "\n" if text and not text.endswith("\n") else ""
+        if header == last_header_written:
+            # 与上一已写 entry 共用 header · 只写 pattern
+            text += f"{prefix_nl}{pattern}\n"
+        else:
+            text += f"{prefix_nl}{header}\n{pattern}\n"
+            last_header_written = header
         appended.append(pattern)
 
     if not appended:
@@ -714,7 +761,7 @@ def cmd_session_bootstrap(args: argparse.Namespace) -> None:
         injection = maintain_host_injection(
             skill_root, project_root, args.host, skill_version
         )
-        gitignore = maintain_gitignore_worktree(project_root)
+        gitignore = maintain_gitignore_worktree(project_root, skill_root)  # v8.35:传 skill_root · skip 跨仓污染
         # 跑完 maintain 写 marker 锁版本(下次同版本会 skip)
         marker_results = {
             "chmod": chmod_result.get("status", "unknown"),
