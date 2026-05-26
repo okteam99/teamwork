@@ -159,7 +159,7 @@ codex-agents/*.toml 必须满足：
 
 - `tools/state.py` external-review 命令 — v8.20+ **物化主路径**(详 §十一 异质性硬约束 + 物化主路径)
 - `codex-agents/*.toml` — codex profile 配置(全部 read-only · 无 service_tier · state.py 内部按 stage 自动选)
-- `claude-agents/reviewer.md` — claude CLI 评审 prompt 模板(state.py 路径自动 pipe 给 claude --print)
+- `claude-agents/reviewer.md` — claude CLI 评审 prompt 模板(state.py 路径自动 pipe 给 claude -p)
 - `roles/external-reviewer.md` — external 角色契约
 - `templates/external-cross-review.md` — 评审记录模板(§五 整合流程已 v8.20+ 物化)
 - (历史 `claude-agents/invoke.md` / `claude-agents/README.md` / `codex-agents/README.md` 已 v8.22 删除 · 调用细节进 state.py)

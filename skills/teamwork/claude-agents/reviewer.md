@@ -2,7 +2,7 @@
 
 > **用途**：作为外部模型 (Claude CLI) 进行 PRD / Blueprint / 代码评审时的 prompt 模板。
 >
-> **使用者**：主对话（Codex CLI）通过 shell 调用 `claude --print` 时把本模板内容作为输入 prompt。具体调用范本见 [invoke.md](./invoke.md)。
+> **使用者**：主对话（Codex CLI）通过 shell 调用 `claude -p` 时把本模板内容作为输入 prompt。具体调用范本见 [invoke.md](./invoke.md)。
 >
 > **不适用**：Claude Code 主对话宿主下（同源约束），外部模型不能选 claude。
 
@@ -10,7 +10,7 @@
 
 ## Prompt 主体
 
-> 以下内容由主对话（PMO）准备好后通过 stdin 传给 `claude --print`。
+> 以下内容由主对话（PMO）准备好后通过 stdin 传给 `claude -p`。
 > `{...}` 占位符由 PMO 在调用前替换为具体值。
 
 ```
@@ -129,7 +129,7 @@ PMO 在调用前必须替换占位符。
 
 | 维度 | codex-agents/reviewer.toml | claude-agents/reviewer.md |
 |------|---------------------------|--------------------------|
-| 调用机制 | Codex CLI 原生 agent（toml） | shell 调用 `claude --print` |
+| 调用机制 | Codex CLI 原生 agent（toml） | shell 调用 `claude -p` |
 | 占位符替换 | `developer_instructions` 内静态文本 | 主对话调用前替换 `{...}` |
 | 输出格式 | 由 toml `tools` / 调用约束 | YAML frontmatter + body 文本输出 |
 | 独立性保证 | sandbox_mode = "read-only" | prompt 内显式禁读其他评审产物 |

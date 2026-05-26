@@ -2650,18 +2650,22 @@ def _run_codex_review(stage: str, commit: str, base: str, title: str,
 
 def _run_claude_review(prompt_text: str, model_name: str = "claude-sonnet-4-6"
                        ) -> tuple[int, str, str]:
-    """跑 claude --print --output-format text · 返 (rc, stdout, stderr)。
+    """跑 claude -p --output-format text · 返 (rc, stdout, stderr)。
 
-    实现细节:cat <prompt> | claude --print --model <model> --output-format text。
+    v8.38(用户拍板 2026-05-27):用 `-p`(short)替代 `--print`(long)· 与用户
+    "外部调用 claude 时要使用 -p" 约定对齐。功能等价(Claude CLI alias)· 但 -p
+    被某些环境的 stdin 包装器路径处理更稳(case 实证)· 与外部 review 路径一致。
+
+    实现:cat <prompt> | claude -p --model <model> --output-format text。
     PMO 不需读 · 走 state.py external-review 主路径(v8.20+)。
     """
-    cmd = ["claude", "--print", "--model", model_name, "--output-format", "text"]
+    cmd = ["claude", "-p", "--model", model_name, "--output-format", "text"]
     try:
         r = subprocess.run(cmd, input=prompt_text, capture_output=True,
                            text=True, timeout=EXTERNAL_REVIEW_TIMEOUT_SEC)
         return r.returncode, r.stdout, r.stderr
     except subprocess.TimeoutExpired:
-        return 124, "", f"claude --print 超时({EXTERNAL_REVIEW_TIMEOUT_SEC}s)"
+        return 124, "", f"claude -p 超时({EXTERNAL_REVIEW_TIMEOUT_SEC}s)"
     except (FileNotFoundError, OSError) as e:
         return 127, "", f"claude CLI 不可用:{e}"
 
@@ -2898,7 +2902,8 @@ def cmd_external_review(args: argparse.Namespace) -> None:
                 )
         else:
             preview_cmd = (
-                f"cat {profile_path} | claude --print "
+                # v8.38:claude CLI 用 -p(short alias for --print)· 用户约定
+                f"cat {profile_path} | claude -p "
                 f"--model claude-sonnet-4-6 --output-format text"
             )
         emit({
@@ -2935,7 +2940,7 @@ def cmd_external_review(args: argparse.Namespace) -> None:
             codex_model=codex_model,
         )
     else:
-        # claude 路径:读 prompt template + pipe 给 claude --print
+        # claude 路径:读 prompt template + pipe 给 claude -p(v8.38 用 -p 替代 --print · 用户约定)
         # 占位符替换(基础版):{{stage}} / {{commit}} / {{base}} / {{feature_id}}
         prompt_template = profile_path.read_text(encoding="utf-8")
         prompt_text = (

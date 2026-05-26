@@ -57,7 +57,7 @@
 // - blueprint-external-review：🟡 仅当 state.external_cross_review.blueprint_enabled==true 时产出本行（默认 OFF）；Blueprint Stage 4 步内部闭环 DONE 之后追加，记录 TC+TECH 外部评审结果
 // - review-external：🟡 仅当 state.external_cross_review.review_enabled==true 时产出本行（v7.3.10+P0-28 改为 review_enabled 控制；默认 ON——代码层最后 gate）；调用失败降级时记录 DONE_WITH_CONCERNS + state.concerns WARN
 // 三者共用字段 artifact_path 指向对应 external-cross-review/{stage}-{model}.md（model = codex / claude），summary 建议格式："{model} ADOPT:N / REJECT:M / DEFER:K"
-// executor 字段：Claude Code 主对话 + model=codex 时填 "subagent"（dispatch Codex CLI agent）；Codex CLI 主对话 + model=claude 时填 "subprocess-claude"（shell 调 claude --print）
+// executor 字段：Claude Code 主对话 + model=codex 时填 "subagent"（dispatch Codex CLI agent）；Codex CLI 主对话 + model=claude 时填 "subprocess-claude"（shell 调 claude -p）
 // 调用失败降级时：executor 如实填，concerns 写明 stderr 摘要 + 降级决策（依赖架构师 + QA 审查作为代码层 gate）
 // 三处独立关闭时：对应 *-external-review 行**不产出**；Plan/Blueprint/Review 主行的 summary 可追注 "(external-disabled)"。例：plan_enabled=false → plan-external-review 行不产出；review_enabled=false → review-external 行不产出（默认 review_enabled=true 不会触发）
 

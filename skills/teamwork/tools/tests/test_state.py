@@ -1283,6 +1283,47 @@ class TestExternalReviewCommand(unittest.TestCase):
         # 没真跑 · 不该有 model_version 字段
         self.assertNotIn("model_version", d)
 
+    # ── v8.38:claude CLI 用 -p(用户约定 · case SVC-PLATFORM-F054 round 2)──
+
+    def test_v838_claude_path_preview_uses_dash_p_not_dash_dash_print(self):
+        """v8.38:codex-cli host → claude model 路径 preview_command 必含 'claude -p' 不含 '--print'。
+
+        case 用户决策 2026-05-27:"外部调用 claude 的时候 要使用 -p"。
+        防 _run_claude_review / preview_command 退化回 --print。
+        """
+        # codex-cli → claude 异质 · 走 _run_claude_review path
+        # blueprint stage 是 claude 走的(review 是 codex review)· 用 blueprint
+        d = run(["external-review", "--feature", str(self.feat),
+                 "--stage", "blueprint", "--host", "codex-cli", "--dry-run"])
+        self.assertEqual(d["model"], "claude")
+        self.assertIn("preview_command", d)
+        # 必含 claude -p · 不含 --print
+        self.assertIn("claude -p", d["preview_command"])
+        self.assertNotIn("--print", d["preview_command"])
+
+    def test_v838_run_claude_review_cmd_array_uses_dash_p(self):
+        """v8.38:_run_claude_review subprocess cmd 数组必带 '-p'(不退回 '--print')。"""
+        from unittest import mock
+        from state import _run_claude_review  # type: ignore
+
+        captured_cmd = []
+        def fake_run(cmd, **kwargs):
+            captured_cmd.extend(cmd)
+            class R:
+                returncode = 0
+                stdout = "ok"
+                stderr = ""
+            return R()
+
+        with mock.patch("state.subprocess.run", side_effect=fake_run):
+            rc, stdout, stderr = _run_claude_review("test prompt")
+        self.assertEqual(rc, 0)
+        # 必带 "-p" · 不含 "--print"
+        self.assertIn("-p", captured_cmd)
+        self.assertNotIn("--print", captured_cmd)
+        # 仍传 prompt 通过 stdin(input= 参数 · 不是 argv)· cmd 数组里不应有 prompt 字面
+        self.assertNotIn("test prompt", captured_cmd)
+
     # ── commit fallback ──
     def test_commit_fallback_from_state_dev_auto_commit(self):
         """--commit 缺 → state.stage_contracts.dev.auto_commit 取。"""
