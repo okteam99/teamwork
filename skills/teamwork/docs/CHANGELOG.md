@@ -1,5 +1,117 @@
 # Changelog
 
+## v8.30 · 修虚构 `gpt-5-codex` 字面 · 改"工具不假设模型名 · 用户自查"模式
+
+> 用户截图揭穿:codex CLI 0.133 交互界面**没 gpt-5-codex 模型** —— 我 v8.23 用的字面是**虚构**(从 case-AI string 看到照搬 · 没核实 codex CLI 实际支持)。即使 API key 用户显式 `--codex-model gpt-5-codex` 也会 400(模型不存在)。
+> 治本:argparse help / spec 示例 / 测试断言 · 不硬编码模型名(避免随 codex CLI 升级再次淘汰)。
+
+### 用户截图实证(codex CLI v0.133)
+
+```
+1. gpt-5.5 (current · Frontier)         ← codex CLI 默认
+2. gpt-5.4 (Strong everyday coding)
+3. gpt-5.4-mini (Small/fast/cheap)
+4. gpt-5.3-codex (Coding-optimized)     ← 真正的 "code review 模型"
+5. gpt-5.3-codex-spark (Ultra-fast)
+6. gpt-5.2 (Professional / long-running)
+```
+
+→ 我 v8.23~v8.29 一直用的 `gpt-5-codex` 是**虚构字面**(不在列表中)。
+
+### 我的 v8.23 错(诚实记录)
+
+```python
+# v8.23 _build_codex_prompt
+"... Profile reference: codex-agents/{profile_filename}. ..."
+# v8.23 _run_codex_review
+cmd += ["--config", f"model=gpt-5-codex"]  # ← 虚构字面 · 从 case-AI string 照搬
+# v8.23 argparse help
+"API key 用户可显式 gpt-5-codex / gpt-5-pro 等专业 review 模型。"  # ← 误导举例
+```
+
+**错的根因**:从 case-AI 输出的字符串看到 `gpt-5-codex` 就**照搬作为默认值** · **没跑 `codex --help` / `codex` 交互界面核实实际支持的模型名**。
+
+类似 v8.23 之前 "假设 codex review 支持 `--commit + [PROMPT]` 不互斥" 错(经 v8.25 治本) · 这次又一类:**没核实外部工具实际接口就假设**。
+
+### v8.30 治本
+
+#### 原则:不硬编码外部工具模型名
+
+- spec / state.py / argparse help / 测试 · **不举具体模型字面作"默认推荐"**
+- 用占位符:`<your-codex-model>` / `<name>` / "用户自查"
+- 一处提示获取真实名:`codex` 交互界面 / `codex --help`
+
+#### 1. `state.py argparse --codex-model` help 改
+
+```
+--codex-model
+  [v8.30] codex CLI 用的具体模型(传给 codex --config 'model=<this>')·
+  优先级:--codex-model > .teamwork_localconfig.json external_review.codex_model >
+  **不传**(用 codex CLI 默认 · 兼容 ChatGPT 订阅 · 治本 ChatGPT 账号不允许显式模型 case)。
+  🔴 模型字面 **不假设** —— codex CLI 版本迭代会换模型名 · 跑 `codex` 交互界面选 /
+  或 `codex --help` 查 · ChatGPT 订阅可能拒绝任何显式 model · 仅 API key 模式可显式。
+```
+
+#### 2. state.py 注释删 "gpt-5-codex" 例
+
+```python
+# v8.30 codex_model 此时可能 None / config 配字面 / 显式覆盖值
+# (不再举具体模型 · 避免误导)
+```
+
+#### 3. standards/external-model-usage.md §11.5 加 v8.30 段
+
+- v8.29 / v8.30 合并说明
+- 列出用户截图的 codex CLI 0.133 真实可选模型(实证 · 标 v0.133 时点)
+- 🔴 "codex CLI 升级会换模型名 · spec 不硬编码"
+- 示例 `--codex-model gpt-5.3-codex`(用截图实有 · 但注释"v0.133 时点 · 自查")
+
+#### 4. 测试 gpt-5-codex → gpt-5.3-codex
+
+测试断言改用截图实有模型(v0.133)· 但**测试不验证模型字面正确性**(只验 state.py 字符串传递)· 所以即使未来 gpt-5.3-codex 淘汰 · 测试仍 PASS(测的是 state.py 行为 · 不是 codex CLI 模型支持)。
+
+### 历史段保留 · 不改
+
+CHANGELOG v8.23 / v8.25 / v8.26 / v8.28 / v8.29 段的 `gpt-5-codex` 字面**保留不改** —— 那是诚实记录我的演进路径(包括错)· 改了会失真。
+
+standards §11.5 v8.20 / v8.26 段同样保留(历史)· 新加 v8.30 段统一说明。
+
+### 设计反思:外部工具假设的代价
+
+v8.x 已实证 2 次"假设外部工具接口被实际打脸":
+
+| 版本 | 假设 | 实际(case 暴露) | 治本 |
+|---|---|---|---|
+| v8.20 | `codex review --commit X --base Y --title Z` 三个 flag 兼容 | `--commit/--base` 互斥(case F035) | v8.23 改 PROMPT 模式(也错) → v8.25 改 codex exec → v8.26 review→codex review |
+| **v8.23** | **`gpt-5-codex` 是 codex CLI 支持的模型** | **虚构 · 不存在(用户截图)** | **v8.30 不硬编码模型名 · 用户自查** |
+
+教训:**任何"外部工具支持 X"假设 · 必先 `<tool> --help` / 交互界面核实**。后续 v8.x 加新外部 CLI 集成(gemini / deepseek 等)· 必先核实实际接口。
+
+### 测试覆盖(0 新 test · 0 regression)
+
+`test_v829_*` / `test_v823_codex_model_explicit_override` 等 5 个测试改用 `gpt-5.3-codex` 字面(用户截图实有 · v0.133 时点)· 但测试断言聚焦 state.py 行为(字面正确传递)· 不验证 codex CLI 接受 · 所以即使未来字面再变 · 测试仍 PASS。
+
+### F029-F037 已写的 `external-cross-review/` 文件不受影响
+
+历史 Feature 已 commit 的 `*-codex.md` 文件 frontmatter `review_model:` 字段如果有 `gpt-5-codex` · v8.19 校验只看是否含 "codex" 字面(白名单)· 不验证模型存在性 · **PASS**(向后兼容)。
+
+### F037 case 用 v8.30 重跑
+
+```bash
+$ state.py external-review --feature ... --stage blueprint
+# v8.21 host 自动 → claude-code → model=codex
+# v8.29 codex_model=None(无 args 无 config)→ 不传 --config
+# v8.30 永不踩虚构模型(因为不传)
+# → codex exec '[Review title: ...] <PROMPT>'
+# → ChatGPT 订阅 200 · API key 用 codex 当前默认(v0.133 = gpt-5.5)· 都 OK
+```
+
+### SKILL.md frontmatter
+
+`v8.29` → `v8.30`
+
+---
+
 ## v8.29 · codex_model 默认改 None(治本 ChatGPT 订阅死锁 · 显式 model 400)
 
 > 用户 case 触发:codex CLI 用 ChatGPT 订阅(不是 API key)· state.py 强制 `--config 'model=gpt-5-codex'` → 400 `The 'gpt-5-codex' model is not supported when using Codex with a ChatGPT account`。gemini CLI 未装 · 两个异质模型都不可用 · 形成死锁。

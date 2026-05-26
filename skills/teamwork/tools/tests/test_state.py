@@ -1271,7 +1271,7 @@ class TestExternalReviewCommand(unittest.TestCase):
         """v8.29 治本 ChatGPT 订阅 case · 缺省 codex_model=None(不传 --config · 用账号默认模型)。"""
         d = run(["external-review", "--feature", str(self.feat),
                  "--stage", "review", "--host", "claude-code", "--dry-run"])
-        # v8.23 旧:default 'gpt-5-codex' · v8.29 改 None(治本 ChatGPT 订阅死锁)
+        # v8.23 旧:default 虚构 'gpt-5-codex'(v8.30 实证不存在)· v8.29 改 None(ChatGPT 订阅兼容)
         self.assertIsNone(d["codex_model"])
         self.assertNotIn("--config", d["preview_command"])
         self.assertNotIn("model=", d["preview_command"])
@@ -1345,12 +1345,12 @@ class TestExternalReviewCommand(unittest.TestCase):
                              f"{stage} 不应传 --config(ChatGPT 订阅会 400)")
 
     def test_v829_explicit_codex_model_overrides_default(self):
-        """--codex-model gpt-5-codex 显式 · 用于 API 用户。"""
+        """--codex-model gpt-5.3-codex 显式 · 用于 API 用户。"""
         d = run(["external-review", "--feature", str(self.feat),
                  "--stage", "review", "--host", "claude-code",
-                 "--codex-model", "gpt-5-codex", "--dry-run"])
-        self.assertEqual(d["codex_model"], "gpt-5-codex")
-        self.assertIn("--config 'model=gpt-5-codex'", d["preview_command"])
+                 "--codex-model", "gpt-5.3-codex", "--dry-run"])
+        self.assertEqual(d["codex_model"], "gpt-5.3-codex")
+        self.assertIn("--config 'model=gpt-5.3-codex'", d["preview_command"])
 
     def test_v829_config_external_review_codex_model_fallback(self):
         """.teamwork_localconfig.json external_review.codex_model fallback。"""
@@ -1377,10 +1377,10 @@ class TestExternalReviewCommand(unittest.TestCase):
                        capture_output=True)
         d = run(["external-review", "--feature", str(self.feat),
                  "--stage", "review", "--host", "claude-code",
-                 "--codex-model", "gpt-5-codex", "--dry-run"])
+                 "--codex-model", "gpt-5.3-codex", "--dry-run"])
         # 显式覆盖 config
-        self.assertEqual(d["codex_model"], "gpt-5-codex")
-        self.assertIn("model=gpt-5-codex", d["preview_command"])
+        self.assertEqual(d["codex_model"], "gpt-5.3-codex")
+        self.assertIn("model=gpt-5.3-codex", d["preview_command"])
 
 
 class TestHostAutoDetect(unittest.TestCase):

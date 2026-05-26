@@ -270,7 +270,7 @@ state.py external-review \
   --stage {goal,blueprint,review} \
   [--host {claude-code,codex-cli,gemini-cli}]   # v8.21 缺省自动从 ~/.teamwork/host_audit.json 读
   [--model {codex,claude}]   # 显式覆盖 · 默认按 host 自动映射
-  [--codex-model <name>]     # v8.23 codex 子模型 · 缺省 gpt-5-codex
+  [--codex-model <name>]     # v8.29 缺省 None(用 codex 默认 · ChatGPT 订阅兼容)· name 自查 `codex` 交互
   [--commit <SHA>]           # 缺省 state.stage_contracts.<stage>.auto_commit / git HEAD
   [--base <branch>]          # 缺省 state.merge_target
   [--title <title>]          # 缺省 "<feature_id> · <stage> stage external review"
@@ -327,28 +327,40 @@ F035 round 2(blueprint stage)实测 v8.23 的 `codex review --base Y --title Z [
 v8.25 改:**放弃 `codex review` 子命令 · 全 stage 用 `codex exec [PROMPT]`**(通用 agent 模式)。
 但这是过度统一 —— review stage 损失了 `codex review` 的专业 diff review 默认 prompt。
 
-#### v8.29 关键改动:codex_model 默认改 None(治本 ChatGPT 订阅 case · 显式 model 400)
+#### v8.29 / v8.30 关键改动:codex_model 默认 None + 不假设模型字面
 
-**case 触发**:用户 codex CLI 用 **ChatGPT 订阅**(不是 API key)· state.py 强制传 `--config 'model=gpt-5-codex'` → 400 `invalid_request_error: The 'gpt-5-codex' model is not supported when using Codex with a ChatGPT account`。
+**v8.29 case 触发**:用户 codex CLI 用 **ChatGPT 订阅**(不是 API key)· state.py 强制传 `--config 'model=<某虚构模型>'` → 400 `invalid_request_error: model not supported when using Codex with a ChatGPT account`。
 
-**根因**:ChatGPT 订阅下 codex CLI **只允许账号默认模型** · 任何显式 `--config model=...` → 400。v8.23 我加 `--config model=gpt-5-codex` 没考虑此 case。
+**v8.30 case 加深**:用户截图 codex CLI 0.133 交互界面 · 揭穿 v8.23 我用的字面 `gpt-5-codex` 是**虚构模型**(实际不存在 · 即使 API key 也 400)。codex CLI 真实可选(v0.133 时点):
 
-**v8.29 治本 · 3 层 fallback**:
-1. `--codex-model` CLI flag(单 Feature override · 最高优先)
+```
+gpt-5.5 (current · Frontier)         # 默认
+gpt-5.4 (Strong everyday coding)
+gpt-5.4-mini (Small/fast/cheap)
+gpt-5.3-codex (Coding-optimized)     # 真"代码 review 模型"
+gpt-5.3-codex-spark (Ultra-fast)
+gpt-5.2 (Professional / long-running)
+```
+
+🔴 **codex CLI 升级会换模型名** · spec / state.py / argparse help **不硬编码** —— 用户用 `codex` 交互界面选 · 或 `codex --help` 查。
+
+**v8.29 + v8.30 治本 · 3 层 fallback**:
+1. `--codex-model <name>` CLI flag(单 Feature override · 最高优先 · 用户自查 codex 取实际 name)
 2. `.teamwork_localconfig.json` `external_review.codex_model`(项目级一次配)
-3. **不传 `--config model=...`**(默认 · 用 codex CLI 自己默认 · 兼容 ChatGPT 订阅)
+3. **不传 `--config model=...`**(默认 · 用 codex CLI 自己默认 · 兼容 ChatGPT 订阅 + 永不踩虚构模型)
 
 ```bash
-# v8.29 default(ChatGPT 订阅兼容):codex exec ...  # 不带 --config
+# default(推荐 · 兼容 ChatGPT 订阅 + API key)
 state.py external-review --feature X --stage review
+# → codex review --commit X --title Z   # 不带 --config · 用 codex 当前默认(如 v0.133 是 gpt-5.5)
 
-# API key 用户单 Feature 覆盖:codex exec --config 'model=gpt-5-codex' ...
-state.py external-review --feature X --stage review --codex-model gpt-5-codex
+# API key 用户显式(name 自查 codex 交互)
+state.py external-review --feature X --stage review --codex-model gpt-5.3-codex
 
-# API key 用户项目级一次配:
+# 项目级一次配
 {
   "external_review": {
-    "codex_model": "gpt-5-codex"
+    "codex_model": "gpt-5.3-codex"   # ← 字面值用户自查 · 不固定
   }
 }
 ```

@@ -2812,7 +2812,7 @@ def cmd_external_review(args: argparse.Namespace) -> None:
                 codex_model = (cfg.get("external_review") or {}).get("codex_model")
         except (OSError, json.JSONDecodeError):
             pass
-    # codex_model 此时可能 None(ChatGPT 订阅默认行为)/ "gpt-5-codex"(config 配)/ 显式覆盖值
+    # codex_model 此时可能 None(ChatGPT 订阅默认行为)/ config 配字面 / 显式覆盖值
 
     # ── dry-run · 仅输出将跑的命令 + 校验信息 ──
     output_dir = feature_dir / "external-cross-review"
@@ -3542,10 +3542,11 @@ def build_parser() -> argparse.ArgumentParser:
     er.add_argument("--title", default=None,
                     help="review 标题 · 缺省 '<feature_id> · <stage> stage external review'")
     er.add_argument("--codex-model", default=None,
-                    help=("[v8.29] codex CLI 用的具体模型(传给 codex --config 'model=<this>')· "
+                    help=("[v8.30] codex CLI 用的具体模型(传给 codex --config 'model=<this>')· "
                           "优先级:--codex-model > .teamwork_localconfig.json external_review.codex_model > "
                           "**不传**(用 codex CLI 默认 · 兼容 ChatGPT 订阅 · 治本 ChatGPT 账号不允许显式模型 case)。"
-                          "API key 用户可显式 gpt-5-codex / gpt-5-pro 等专业 review 模型。"))
+                          "🔴 模型字面 **不假设** —— codex CLI 版本迭代会换模型名 · 跑 `codex` 交互界面选 / "
+                          "或 `codex --help` 查 ChatGPT 订阅可能拒绝任何显式 model · 仅 API key 模式可显式。"))
     er.add_argument("--dry-run", action="store_true",
                     help="只输出将跑的命令 + 校验 · 不实际调 CLI(供 debug / preview)")
     er.set_defaults(func=cmd_external_review)
