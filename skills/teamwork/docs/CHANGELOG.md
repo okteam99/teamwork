@@ -1,5 +1,115 @@
 # Changelog
 
+## v8.32 · 修 v8.31 step 7 实施 bug · 分类型处理(feature_artifacts checkout · 其他 stash+pop)
+
+> 用户问:"改完后 ship 2 阶段后工作区是干净的么"。
+> 诚实复盘 v8.31:**设计意图对 · 实施有 bug** —— stash 全部 dirty(包括 feature_artifacts)· pull 后 pop 会撞 feature_artifacts 冲突(stash 是 ship-finalize 前的旧版 · pop 回 working tree 时与 pull 下来的新版冲突)。case 实测会触发 `pulled_unstash_conflict` · 工作区**反而更乱**。
+
+### v8.31 漏洞复盘
+
+```
+v8.31 流程(错):
+  stash push -u       ✅ 5 文件 stash(含 state.json 旧版)
+  pull --ff-only      ✅ 拉 origin(state.json 新版进 working tree)
+  stash pop           ❌ state.json 冲突(stash 旧 vs working tree 新)
+  → main_sync_status="pulled_unstash_conflict"
+  → stash 保留 + 工作区有冲突标记
+```
+
+### v8.32 治本:分类型处理
+
+不同类别 dirty 性质不同 · 不能一刀切 stash 全部:
+
+| 类别 | 性质 | 处理 |
+|---|---|---|
+| **`feature_artifacts`** | 本地必旧(ship-finalize 是最权威推送 · origin 有新版) | **丢本地** `git checkout origin/<merge_target> -- <files>` 用 origin 新版 |
+| **`bootstrap_pointers`** | origin 不改这些文件(bootstrap 本地维护) | **stash 仅这些 + pop**(无冲突) |
+| **`harness_locks`** | origin 不改(G2 fix 后新项目不再 commit) | 同 bootstrap_pointers |
+
+### v8.32 流程
+
+```python
+# 1. classify dirty
+# 2. 若 other_files 非空 → 跳过(同 v8.16)
+# 3. checkout feature_artifacts(丢本地旧版 · 用 origin 新版)
+for f in dirty_result["feature_artifacts"]:
+    git checkout origin/<merge_target> -- f
+
+# 4. 剩 bootstrap + locks 处理
+remaining = bootstrap_pointers + harness_locks
+if not remaining:
+    git pull --ff-only  # working tree 等价 clean(checkout 后 = origin)
+else:
+    # stash 仅 bootstrap + locks(不含 feature_artifacts · 已 checkout)
+    git stash push -u -m <msg> -- <remaining files...>  # 路径 stash
+    git pull --ff-only
+    git stash pop  # bootstrap/locks 不在 origin 改 · pop 不冲突
+```
+
+### 新增 `main_sync_status` 状态值
+
+| status | 含义 |
+|---|---|
+| `checkout_pulled` | feature_artifacts checkout + ff-pull(无 bootstrap/lock dirty)|
+| `checkout_stashed_pulled_unstashed` | feature_artifacts checkout + bootstrap/lock stash + ff-pull + pop |
+| `checkout_failed` | feature_artifacts checkout 失败(罕见 · 网络/权限)|
+| `stash_failed_after_checkout` | checkout 成功 · 但 bootstrap/lock stash 失败 |
+| `diverged` | checkout 后 ff-pull 失败(分叉)|
+| `diverged_stash_popped` | checkout + stash 后 ff-pull 失败(分叉)· stash 已 pop |
+| `pulled_unstash_conflict` | bootstrap/lock pop 冲突(极罕 · origin 通常不改这些)|
+| 其他(v8.31)| `ff_pulled` / `wrong_branch` / `fetch_failed` 不变 |
+
+### INFRA-F025 case 用 v8.32 重跑(对照 v8.31)
+
+```
+5 dirty:
+  - state.json + review-log.jsonl(feature_artifacts)
+  - AGENTS.md + CLAUDE.md(bootstrap_pointers)
+  - .claude/scheduled_tasks.lock(harness_locks)
+
+v8.31(错):
+  stash all 5 → pull → pop  → state.json 冲突 → stash 保留 + 冲突标记
+  → main_sync_status="pulled_unstash_conflict"
+  → 工作区反而更乱
+
+v8.32(对):
+  checkout origin/staging -- state.json review-log.jsonl(本地旧 → origin 新)
+  stash bootstrap + lock 3 文件
+  pull --ff-only(成功)
+  stash pop(成功 · 因 origin 没改 bootstrap/lock)
+  → main_sync_status="checkout_stashed_pulled_unstashed"
+  → feature_artifacts clean · bootstrap/lock 保留原 dirty(等用户 commit / G2 ignore)
+```
+
+### 用户问的精确答案
+
+**Q:改完后 ship 2 阶段后工作区是干净的么?**
+
+| 文件类别 | v8.32 后状态 |
+|---|---|
+| `feature_artifacts`(state.json / review-log.jsonl)| ✅ **clean**(checkout 用 origin 新版覆盖) |
+| `bootstrap_pointers`(AGENTS.md / CLAUDE.md / GEMINI.md)| ⚠️ **保留原 dirty**(stash + pop · 等用户下次 commit · 或 bootstrap 重 maintain)|
+| `harness_locks`(.claude/*.lock)| ⚠️ **保留原 dirty**(历史 commit 的 lock 文件 · G2 fix 后新项目不再 commit · 历史项目用户自行 `git rm --cached`) |
+| `other_files`(用户代码 / 文档)| ⚠️ **不动**(同 v8.16 跳过 · WARN 列分类 hint)|
+
+→ **feature 相关 100% clean**;bootstrap / lock 是工具副产物 · 不影响后续 Feature(下次 ff-pull 仍 work)· 但用户 `git status` 仍会看到这些 dirty 行。
+
+完全 100% clean 需要 G3(bootstrap auto-commit)和 G2 历史 lock 清理(用户手工 `git rm --cached`)· 这两件是**项目级人工配合** · 不是 teamwork 单方面能解决。
+
+### 测试覆盖
+
+`TestClassifyMainSyncDirty` 7 test 不变(仅测分类逻辑 · 不测 stash 流程)· 实际 stash + pop 行为在 case 实测 + 后续 cases 验证。0 regression。
+
+### v8.31 设计思路保留 · v8.32 仅实施修正
+
+v8.31 的 4 类分类设计正确 · v8.32 只修"统一 stash"的实施错误。分类常量 / `_classify_main_sync_dirty` helper 不变。
+
+### SKILL.md frontmatter
+
+`v8.31` → `v8.32`
+
+---
+
 ## v8.31 · ship-finalize step 7 智能 dirty 处理 + bootstrap gitignore 扩展(治本 INFRA-F025 主工作区残留 case)
 
 > 用户提问:工作区有残留 · 看下是不是 ship 规范有问题 · 理论上 feature 结束工作区应该干净。

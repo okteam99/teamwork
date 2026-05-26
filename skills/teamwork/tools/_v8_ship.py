@@ -1367,46 +1367,95 @@ def cmd_ship_finalize(args: argparse.Namespace) -> None:
                     main_sync_status = "ff_pulled"
                     main_sync_note = "主工作区已 ff-pull 到最新"
             elif dirty_result["safe_to_stash"]:
-                # v8.31 核心:dirty 全是工具副产物(feature artifacts + bootstrap + harness locks)
-                # → stash + ff-pull + unstash 安全自动同步
-                stash_msg = f"teamwork ship-finalize v8.31 step 7 auto-stash"
-                st = _git(["stash", "push", "-u", "-m", stash_msg],
-                          cwd=main_wt, timeout=30)
-                if st.returncode != 0:
+                # v8.32 治本(修 v8.31 stash 全部撞 feature_artifacts pop 冲突 bug):
+                # 分类型处理 · 不一刀切 stash 全部
+                # ① feature_artifacts:本地必旧(ship-finalize 是最权威推送 · origin 有新版)
+                #    → git checkout origin/<merge_target> -- <files>(丢本地 · 用 origin 新版)
+                # ② bootstrap_pointers + harness_locks:origin 不改这些文件 · stash 仅这些 + pop 安全
+                checkout_failed = []
+                for f in dirty_result["feature_artifacts"]:
+                    co = _git(["checkout", f"origin/{merge_target}", "--", f],
+                              cwd=main_wt, timeout=15)
+                    if co.returncode != 0:
+                        checkout_failed.append((f, co.stderr.strip()[:80]))
+
+                if checkout_failed:
                     warnings.append(
-                        f"git stash 失败:{st.stderr.strip()[:100]} · 跳过 ff-pull · "
-                        f"手动处理 dirty:{', '.join(dirty_result['all_files'][:5])}"
+                        f"git checkout origin/{merge_target} -- 失败"
+                        f"({len(checkout_failed)} 文件)· 跳过 ff-pull · 手动处理:"
+                        f"{', '.join(f for f, _ in checkout_failed)}"
                     )
-                    main_sync_status = "stash_failed"
-                    main_sync_note = "stash 失败 · 同 v8.16 跳过 ff-pull"
+                    main_sync_status = "checkout_failed"
+                    main_sync_note = "feature_artifacts checkout 失败 · 未 ff-pull"
                 else:
-                    pl = _git(["pull", "--ff-only", "origin", merge_target],
-                              cwd=main_wt, timeout=120)
-                    pop = _git(["stash", "pop"], cwd=main_wt, timeout=30)
-                    if pl.returncode != 0:
-                        warnings.append(
-                            f"主工作区 {merge_target} 与 origin 分叉 · ff-pull 失败 · "
-                            f"stash 已 pop · 需手动 rebase:{pl.stderr.strip()[:120]}"
-                        )
-                        main_sync_status = "diverged_stash_popped"
-                        main_sync_note = "分叉 · 需手动 rebase"
-                    elif pop.returncode != 0:
-                        # ff-pull 成功 · 但 unstash 撞冲突(原 dirty 与 pulled 文件冲突)
-                        warnings.append(
-                            f"ff-pull 成功 · 但 git stash pop 冲突 · stash 保留 · "
-                            f"手动 git stash list / git stash pop:"
-                            f"{pop.stderr.strip()[:120]}"
-                        )
-                        main_sync_status = "pulled_unstash_conflict"
-                        main_sync_note = (f"已 ff-pull · unstash 冲突 stash 保留 · "
-                                          f"git stash list 查看")
+                    # feature_artifacts 已用 origin 版本覆盖 · 现 dirty 只剩 bootstrap + locks
+                    remaining = (dirty_result["bootstrap_pointers"]
+                                 + dirty_result["harness_locks"])
+                    if not remaining:
+                        # working tree 等价 clean(checkout 后本地 = origin 新版)
+                        pl = _git(["pull", "--ff-only", "origin", merge_target],
+                                  cwd=main_wt, timeout=120)
+                        if pl.returncode != 0:
+                            warnings.append(
+                                f"feature_artifacts 已 checkout · 但 ff-pull 失败(分叉):"
+                                f"{pl.stderr.strip()[:120]}"
+                            )
+                            main_sync_status = "diverged"
+                            main_sync_note = (
+                                "feature_artifacts 已用 origin 覆盖 · 但分叉 · 需手动 rebase")
+                        else:
+                            main_sync_status = "checkout_pulled"
+                            main_sync_note = (
+                                f"v8.32:checkout {len(dirty_result['feature_artifacts'])} "
+                                f"个 feature_artifacts(本地旧 → origin 新)· ff-pull · "
+                                f"主工作区 clean 且最新"
+                            )
                     else:
-                        main_sync_status = "stashed_pulled_unstashed"
-                        main_sync_note = (
-                            f"v8.31 智能 dirty 处理:stash {len(dirty_result['all_files'])} "
-                            f"个副产物文件({', '.join(dirty_result['categories_present'])})· "
-                            f"ff-pull · unstash · 主工作区现 clean 且最新"
-                        )
+                        # stash 仅 bootstrap + locks(不含 feature_artifacts · 已 checkout)
+                        # git stash push -u -m <msg> -- <pathspec>(stash 指定路径 · 含 untracked)
+                        stash_msg = "teamwork ship-finalize v8.32 step 7 auto-stash"
+                        st = _git(["stash", "push", "-u", "-m", stash_msg, "--",
+                                   *remaining], cwd=main_wt, timeout=30)
+                        if st.returncode != 0:
+                            warnings.append(
+                                f"git stash 失败:{st.stderr.strip()[:100]} · "
+                                f"feature_artifacts 已 checkout · 但 stash 剩余失败 · "
+                                f"手动处理:{', '.join(remaining[:5])}"
+                            )
+                            main_sync_status = "stash_failed_after_checkout"
+                            main_sync_note = "feature_artifacts checkout 成功 · 但剩余 stash 失败"
+                        else:
+                            pl = _git(["pull", "--ff-only", "origin", merge_target],
+                                      cwd=main_wt, timeout=120)
+                            pop = _git(["stash", "pop"], cwd=main_wt, timeout=30)
+                            if pl.returncode != 0:
+                                warnings.append(
+                                    f"feature_artifacts checkout 成功 · ff-pull 失败(分叉)· "
+                                    f"stash 已 pop · 需手动 rebase:{pl.stderr.strip()[:120]}"
+                                )
+                                main_sync_status = "diverged_stash_popped"
+                                main_sync_note = "分叉 · 需手动 rebase"
+                            elif pop.returncode != 0:
+                                # bootstrap/lock pop 冲突极罕(origin 通常不改这些)
+                                warnings.append(
+                                    f"feature_artifacts checkout + ff-pull 成功 · "
+                                    f"但 bootstrap/lock stash pop 冲突 · stash 保留 · "
+                                    f"git stash list / git stash pop 手动:"
+                                    f"{pop.stderr.strip()[:120]}"
+                                )
+                                main_sync_status = "pulled_unstash_conflict"
+                                main_sync_note = (
+                                    "已 ff-pull · bootstrap/lock unstash 冲突 stash 保留(罕见)"
+                                )
+                            else:
+                                main_sync_status = "checkout_stashed_pulled_unstashed"
+                                main_sync_note = (
+                                    f"v8.32:checkout {len(dirty_result['feature_artifacts'])} "
+                                    f"个 feature_artifacts(本地旧 → origin 新)+ "
+                                    f"stash {len(remaining)} 个 bootstrap/lock + ff-pull + pop · "
+                                    f"feature_artifacts clean · bootstrap/lock 保留原 dirty"
+                                    f"(等用户 commit / G2 ignore)"
+                                )
             else:
                 # dirty 含用户真改动 → 保留现状(同 v8.16 WARN 跳过)
                 warnings.append(
