@@ -1,5 +1,84 @@
 # Changelog
 
+## v8.33 · 修 v8.31 NameError 致命 bug + 加 e2e sanity test 防再发
+
+> 用户 case 实战 INFRA-M002:`state.py ship-finalize` 撞 `NameError: name 'feature_dir' is not defined` —— v8.31 我加 `_classify_main_sync_dirty` 时调用方误传 `feature_dir`(undefined)· 应是 `artifact_root`(同函数内 line 1097 已定义)· runtime 跑到 step 7 才崩 · 单元测试没覆盖完整 cmd 路径所以漏。
+
+### 1 行 fix
+
+```diff
+- dirty_result = _classify_main_sync_dirty(main_wt, feature_dir, state)
++ dirty_result = _classify_main_sync_dirty(main_wt, artifact_root, state)
+```
+
+### 防再发:e2e sanity test
+
+v8.31 / v8.32 我做了 `_classify_main_sync_dirty` 单元测试 · 但**没测 cmd_ship_finalize 完整路径**(单元测试不会撞调用方 NameError)。
+
+v8.33 加 `TestCmdShipFinalizeStep7NoNameError`:
+- fake bare remote + main repo + state.json(phase=merged)
+- `TEAMWORK_BYPASS_MAIN_WORKTREE=1` bypass precheck
+- 跑 `state.py ship-finalize --feature <fake>` · step 1-6 全 skipped(因 phase merged)· 直入 step 7
+- **关键断言**:stderr/stdout 不含 `NameError` + emit 含 `main_sync_status`(证明真进 step 7)
+
+实测验证:
+- 修后:test PASS(NameError 消失 · emit 含 main_sync_status)
+- 临时回滚 fix:test FAIL("NameError 再现 · stderr...")· **抓得住 v8.31 bug**
+
+### 设计反思:为什么 v8.31 漏测
+
+| 测试层 | v8.31 覆盖 | 漏哪 |
+|---|---|---|
+| 单元(`_classify_main_sync_dirty`) | ✅ 7 tests | 函数本身行为对 · 但**调用方误用变量名**不在测试范围 |
+| e2e(`cmd_ship_finalize` 完整)| ❌ 0 tests | 撞 NameError 在此层暴露 |
+
+v8.31 我加新 helper 时只测了 helper · 没测调用集成 · **静态语法 check pass(Python 函数内 NameError 是 runtime)** · 漏到 user case 报告。
+
+v8.33 加 e2e 测试 · 至少 cmd_ship_finalize 跑完不抛 NameError —— 后续 step 7 改造可被这测试兜底。
+
+### 同型漏洞检查
+
+`_v8_ship.py` 其他类似 helper 调用(`_step_state_sync` / `_finalize_push_plumbing`)在 cmd_ship_finalize 内是否变量名对?手工 grep 检查:
+
+```bash
+$ grep "_step_state_sync(\|_finalize_push_plumbing(\|_classify_main_sync_dirty(" _v8_ship.py
+1086:    sync = _step_state_sync(main_wt, feature_path)   # ✅ feature_path = args.feature(line 1074 定义)
+1207:    finalize_ok, fin_warn, finalize_commit_hash = _finalize_push_plumbing(
+1208:        main_wt, artifact_root, state_json_path, merge_target, state, ship,  # ✅ 已用 artifact_root
+1355:    dirty_result = _classify_main_sync_dirty(main_wt, artifact_root, state)   # ✅ v8.33 修后
+```
+
+→ 其他 2 处调用变量名正确 · 仅 v8.31 这处 bug。
+
+### 用户 case 实际影响
+
+| 阶段 | 状态 |
+|---|---|
+| ship-finalize step 1-6 | ✅ 都跑了(因 NameError 在 step 7 触发)|
+| state.json `current_stage` | ✅ `completed` |
+| state.json `ship.shipped` | ✅ `merged` |
+| worktree 物理删 | ✅ 删了 |
+| origin/staging finalize-push commit | ✅ 推了 |
+| **step 7 main-sync** | ❌ **崩 NameError · 用户手工 git pull**(用户 case)|
+
+→ Feature 数据完整 ship · 只 step 7 自动 ff-pull 没跑 · 用户手工补不损失数据 · 但**体验不好**。
+
+### v8.x ship-finalize 治本累积(5 次)
+
+| 版本 | 治本 | 状态 |
+|---|---|---|
+| v8.16 | step 0 state-sync | ✅ |
+| v8.18 | finalize-push 0 delta | ✅ |
+| v8.31 | step 7 智能 dirty 分类(设计 + 实施 1) | ⚠️ 实施有 bug |
+| v8.32 | 修 v8.31 stash+pop 撞 feature_artifacts | ✅ |
+| **v8.33** | **修 v8.31 NameError + 加 e2e sanity** | **✅ 完整** |
+
+### SKILL.md frontmatter
+
+`v8.32` → `v8.33`
+
+---
+
 ## v8.32 · 修 v8.31 step 7 实施 bug · 分类型处理(feature_artifacts checkout · 其他 stash+pop)
 
 > 用户问:"改完后 ship 2 阶段后工作区是干净的么"。

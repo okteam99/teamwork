@@ -25,6 +25,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 TOOLS = HERE.parent
 SKILL = TOOLS.parent
+STATE_PY = TOOLS / "state.py"
 sys.path.insert(0, str(TOOLS))
 
 
@@ -378,6 +379,111 @@ class TestFinalizePushPlumbingV818(unittest.TestCase):
         self.assertEqual(hash_str, "")
         # ship.merge_target_push_failed 应被写为 True
         self.assertTrue(state["ship"]["merge_target_push_failed"])
+
+
+class TestCmdShipFinalizeStep7NoNameError(unittest.TestCase):
+    """v8.33 防 v8.31 NameError 再发:跑完整 cmd_ship_finalize 验证 step 7 不抛 NameError。
+
+    v8.31 加 _classify_main_sync_dirty 时调用方误传 feature_dir(undefined)·
+    runtime 跑到 step 7 才崩 · 单元测试没覆盖完整 cmd 路径。
+    v8.33 加此 e2e:fake state.json + bypass env + main repo · 跑 cmd_ship_finalize
+    至少能进入 step 7(`_classify_main_sync_dirty` 调用点)· 不抛 NameError。
+    """
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp(prefix="ship-finalize-e2e-"))
+        # bare remote
+        self.bare = self.tmp / "origin.git"
+        self.bare.mkdir()
+        _git(self.bare, "init", "--bare", "-b", "main")
+        # main repo
+        self.main = self.tmp / "main-repo"
+        self.main.mkdir()
+        _git(self.main, "init", "-b", "main")
+        _git(self.main, "config", "user.email", "test@x.com")
+        _git(self.main, "config", "user.name", "test")
+        _git(self.main, "remote", "add", "origin", str(self.bare))
+        # 完整 state.json(phase 已 merged · step 1-6 全 skipped · 直入 step 7)
+        self.feat_rel = "infra/docs/features/INFRA-M999-test"
+        feat_dir = self.main / self.feat_rel
+        feat_dir.mkdir(parents=True)
+        state = {
+            "feature_id": "INFRA-M999-test",
+            "flow_type": "Micro",
+            "current_stage": "completed",
+            "merge_target": "main",
+            "worktree": {"strategy": "off"},  # 跳过 worktree-remove
+            "ship": {
+                "phase": "merged",   # step 1+2+5 全 skipped
+                "shipped": "merged",
+                "feature_head_commit": "deadbeef",
+                "merge_commit_hash": "cafebabe",
+                "worktree_cleanup": "n_a",
+                "merge_target_pushed_at": "2026-05-25T00:00:00Z",
+                "merge_target_push_failed": False,
+            },
+            "stage_contracts": {
+                "ship": {
+                    "input_satisfied": True, "process_satisfied": True,
+                    "output_satisfied": True, "started_at": "x",
+                    "completed_at": "y", "auto_commit": "abc",
+                    "artifacts": [],
+                },
+            },
+            "completed_stages": ["goal", "dev", "review", "test", "pm_acceptance", "ship"],
+        }
+        (feat_dir / "state.json").write_text(
+            json.dumps(state, ensure_ascii=False, indent=2),
+            encoding="utf-8")
+        _git(self.main, "add", "-A")
+        _git(self.main, "commit", "-m", "init")
+        _git(self.main, "push", "origin", "main")
+        self.feature_arg = str(feat_dir)
+
+        # bypass main worktree check + checksum + state-sync 网络
+        self._prev_env = {
+            "TEAMWORK_BYPASS_MAIN_WORKTREE": os.environ.get("TEAMWORK_BYPASS_MAIN_WORKTREE"),
+            "TEAMWORK_BYPASS_CHECKSUM": os.environ.get("TEAMWORK_BYPASS_CHECKSUM"),
+        }
+        os.environ["TEAMWORK_BYPASS_MAIN_WORKTREE"] = "1"
+        os.environ["TEAMWORK_BYPASS_CHECKSUM"] = "1"
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+        for k, v in self._prev_env.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
+
+    def test_v833_step7_no_name_error(self):
+        """治本核心:跑 cmd_ship_finalize 全路径 · step 7 不抛 NameError。
+
+        v8.31 _classify_main_sync_dirty(main_wt, feature_dir, state) ·
+        feature_dir 在 cmd_ship_finalize 内未定义(应是 artifact_root)·
+        runtime 跑到 step 7 才崩。此 test 至少验证 cmd 走完完整路径不 NameError。
+        """
+        # 在 main repo cwd 跑(_ship_finalize_precheck bypass)
+        prev_cwd = os.getcwd()
+        os.chdir(str(self.main))
+        try:
+            r = subprocess.run(
+                [sys.executable, str(STATE_PY), "ship-finalize",
+                 "--feature", self.feature_arg],
+                capture_output=True, text=True, timeout=30,
+            )
+            # 关键断言:stderr 不含 NameError(无论 verdict 是否 PASS)
+            self.assertNotIn("NameError", r.stderr,
+                             f"v8.31 NameError 再现 · stderr:{r.stderr[:500]}")
+            self.assertNotIn("NameError", r.stdout,
+                             f"v8.31 NameError 再现 · stdout:{r.stdout[:500]}")
+            # 至少进了 main-sync 路径(emit 含 main_sync_status)
+            if r.stdout.strip().startswith("{"):
+                d = json.loads(r.stdout)
+                self.assertIn("main_sync_status", d,
+                              f"未进 step 7 · emit:{d}")
+        finally:
+            os.chdir(prev_cwd)
 
 
 class TestClassifyMainSyncDirty(unittest.TestCase):

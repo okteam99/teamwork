@@ -1351,7 +1351,8 @@ def cmd_ship_finalize(args: argparse.Namespace) -> None:
                               f"已 fetch · 需要时自行切分支 + pull")
         else:
             # v8.31 dirty 分类 + 智能 stash 处理
-            dirty_result = _classify_main_sync_dirty(main_wt, feature_dir, state)
+            # v8.33 fix:用 artifact_root(line 1097 已定义)· v8.31 误传 feature_dir(NameError)
+            dirty_result = _classify_main_sync_dirty(main_wt, artifact_root, state)
             if not dirty_result["is_dirty"]:
                 # clean · 直接 ff-pull(原 v8.16 路径)
                 pl = _git(["pull", "--ff-only", "origin", merge_target],
