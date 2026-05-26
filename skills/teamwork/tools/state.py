@@ -2559,7 +2559,7 @@ def _build_codex_prompt(stage: str, feature_dir_rel: str, commit: str,
 
 def _run_codex_review(stage: str, commit: str, base: str, title: str,
                       profile_filename: str, feature_dir: Path, cwd: str,
-                      codex_model: str = "gpt-5-codex") -> tuple[int, str, str]:
+                      codex_model: Optional[str] = None) -> tuple[int, str, str]:
     """跑 codex CLI 评审 · 返 (returncode, stdout, stderr)。
 
     v8.26 设计:按 stage 选 codex 子命令(各司其职 · 用户洞察):
@@ -2583,6 +2583,9 @@ def _run_codex_review(stage: str, commit: str, base: str, title: str,
     except ValueError:
         feature_dir_rel = str(feature_dir)
 
+    # v8.29:codex_model 非空才传 --config model=...(治本 ChatGPT 订阅 case · 默认模型限制)
+    model_args = ["--config", f"model={codex_model}"] if codex_model else []
+
     if stage == "review":
         # ── 代码 diff review · codex review 子命令(专业默认 prompt · 不带 [PROMPT]) ──
         # 只传 --commit(精确)· 不传 --base 避免 --commit/--base 互斥
@@ -2590,16 +2593,14 @@ def _run_codex_review(stage: str, commit: str, base: str, title: str,
         cmd = ["codex", "review",
                "--commit", commit,
                "--title", title,
-               "--config", f"model={codex_model}"]
+               *model_args]
     else:
         # ── 文档 review(goal / blueprint)· codex exec [PROMPT] ──
         body_prompt = _build_codex_prompt(
             stage, feature_dir_rel, commit, base, profile_filename)
         # title 信息嵌进 PROMPT 顶部(codex exec 没 --title flag)
         prompt = f"[Review title: {title}]\n\n{body_prompt}"
-        cmd = ["codex", "exec",
-               "--config", f"model={codex_model}",
-               prompt]
+        cmd = ["codex", "exec", *model_args, prompt]
 
     try:
         r = subprocess.run(cmd, capture_output=True, text=True,
@@ -2799,7 +2800,19 @@ def cmd_external_review(args: argparse.Namespace) -> None:
 
     # v8.23:cwd = git root(让 codex 在仓库根跑 · 能读 prompt 内的相对路径)
     git_root = _git_toplevel(feature_dir) or feature_dir
-    codex_model = getattr(args, "codex_model", None) or "gpt-5-codex"
+    # v8.29:codex_model 优先级:--codex-model > config.external_review.codex_model > None(不传)
+    # 治本 ChatGPT 订阅 case:--config model=... 在 ChatGPT 订阅下 400 · 默认必须空让 codex 用账号允许的默认模型
+    codex_model = getattr(args, "codex_model", None)
+    if not codex_model:
+        # 从项目根 .teamwork_localconfig.json 读 fallback
+        try:
+            cfg_path = git_root / ".teamwork_localconfig.json"
+            if cfg_path.exists():
+                cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
+                codex_model = (cfg.get("external_review") or {}).get("codex_model")
+        except (OSError, json.JSONDecodeError):
+            pass
+    # codex_model 此时可能 None(ChatGPT 订阅默认行为)/ "gpt-5-codex"(config 配)/ 显式覆盖值
 
     # ── dry-run · 仅输出将跑的命令 + 校验信息 ──
     output_dir = feature_dir / "external-cross-review"
@@ -2808,16 +2821,18 @@ def cmd_external_review(args: argparse.Namespace) -> None:
     if args.dry_run:
         if model == "codex":
             # v8.26 按 stage 分:review→codex review · goal/blueprint→codex exec(各司其职)
+            # v8.29:codex_model 非空才显 --config(治本 ChatGPT 订阅死锁)
             try:
                 fd_rel = str(feature_dir.relative_to(git_root))
             except ValueError:
                 fd_rel = str(feature_dir)
+            model_part = f"--config 'model={codex_model}' " if codex_model else ""
             if args.stage == "review":
                 # 代码 diff review · 不带 [PROMPT](codex review 内置专业 prompt)
                 preview_cmd = (
                     f"codex review --commit {commit} --title '{title}' "
-                    f"--config 'model={codex_model}'"
-                )
+                    f"{model_part}"
+                ).strip()
                 preview_prompt_full = None  # review 模式无 PROMPT
             else:
                 # 文档 review · codex exec [PROMPT]
@@ -2826,7 +2841,7 @@ def cmd_external_review(args: argparse.Namespace) -> None:
                     + _build_codex_prompt(args.stage, fd_rel, commit, base, profile_path.name)
                 )
                 preview_cmd = (
-                    f"codex exec --config 'model={codex_model}' "
+                    f"codex exec {model_part}"
                     f"'{preview_prompt_full[:80]}...'"
                 )
         else:
@@ -3527,8 +3542,10 @@ def build_parser() -> argparse.ArgumentParser:
     er.add_argument("--title", default=None,
                     help="review 标题 · 缺省 '<feature_id> · <stage> stage external review'")
     er.add_argument("--codex-model", default=None,
-                    help=("[v8.23] codex CLI 用的具体模型 · 缺省 gpt-5-codex(专业 code review)· "
-                          "传给 codex --config 'model=<this>' · 仅 model=codex 时生效"))
+                    help=("[v8.29] codex CLI 用的具体模型(传给 codex --config 'model=<this>')· "
+                          "优先级:--codex-model > .teamwork_localconfig.json external_review.codex_model > "
+                          "**不传**(用 codex CLI 默认 · 兼容 ChatGPT 订阅 · 治本 ChatGPT 账号不允许显式模型 case)。"
+                          "API key 用户可显式 gpt-5-codex / gpt-5-pro 等专业 review 模型。"))
     er.add_argument("--dry-run", action="store_true",
                     help="只输出将跑的命令 + 校验 · 不实际调 CLI(供 debug / preview)")
     er.set_defaults(func=cmd_external_review)

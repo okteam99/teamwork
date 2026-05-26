@@ -327,6 +327,34 @@ F035 round 2(blueprint stage)实测 v8.23 的 `codex review --base Y --title Z [
 v8.25 改:**放弃 `codex review` 子命令 · 全 stage 用 `codex exec [PROMPT]`**(通用 agent 模式)。
 但这是过度统一 —— review stage 损失了 `codex review` 的专业 diff review 默认 prompt。
 
+#### v8.29 关键改动:codex_model 默认改 None(治本 ChatGPT 订阅 case · 显式 model 400)
+
+**case 触发**:用户 codex CLI 用 **ChatGPT 订阅**(不是 API key)· state.py 强制传 `--config 'model=gpt-5-codex'` → 400 `invalid_request_error: The 'gpt-5-codex' model is not supported when using Codex with a ChatGPT account`。
+
+**根因**:ChatGPT 订阅下 codex CLI **只允许账号默认模型** · 任何显式 `--config model=...` → 400。v8.23 我加 `--config model=gpt-5-codex` 没考虑此 case。
+
+**v8.29 治本 · 3 层 fallback**:
+1. `--codex-model` CLI flag(单 Feature override · 最高优先)
+2. `.teamwork_localconfig.json` `external_review.codex_model`(项目级一次配)
+3. **不传 `--config model=...`**(默认 · 用 codex CLI 自己默认 · 兼容 ChatGPT 订阅)
+
+```bash
+# v8.29 default(ChatGPT 订阅兼容):codex exec ...  # 不带 --config
+state.py external-review --feature X --stage review
+
+# API key 用户单 Feature 覆盖:codex exec --config 'model=gpt-5-codex' ...
+state.py external-review --feature X --stage review --codex-model gpt-5-codex
+
+# API key 用户项目级一次配:
+{
+  "external_review": {
+    "codex_model": "gpt-5-codex"
+  }
+}
+```
+
+emit JSON `codex_model` 字段值为实际用值(可能 `null`)· 透明。
+
 #### v8.26 关键改动:按 stage 各司其职(review→codex review · goal/blueprint→codex exec)
 
 用户洞察:**`codex review` 子命令本来就是为 diff review 设计的** · review stage 用它更专业 · 不该一刀切。

@@ -1,5 +1,125 @@
 # Changelog
 
+## v8.29 · codex_model 默认改 None(治本 ChatGPT 订阅死锁 · 显式 model 400)
+
+> 用户 case 触发:codex CLI 用 ChatGPT 订阅(不是 API key)· state.py 强制 `--config 'model=gpt-5-codex'` → 400 `The 'gpt-5-codex' model is not supported when using Codex with a ChatGPT account`。gemini CLI 未装 · 两个异质模型都不可用 · 形成死锁。
+> 根因:v8.23 我加 `--config model=gpt-5-codex` 默认值 · 没考虑 ChatGPT 订阅限制("只允许账号默认模型")。
+
+### 漏洞复盘
+
+```bash
+# v8.23 ~ v8.28(漏洞)
+state.py external-review --feature X --stage review
+# → 工具默认强制 codex_model='gpt-5-codex'
+# → codex review --config 'model=gpt-5-codex' ...
+# → 400 invalid_request_error: ChatGPT 账号不允许显式模型
+# → state.py 无法绕过(物化主路径强制)· 死锁
+```
+
+ChatGPT 订阅 vs API key 调用差异(未在 v8.23 考虑):
+
+| codex CLI auth | 是否允许 `--config model=...` |
+|---|---|
+| ChatGPT 订阅 | ❌ **不允许** · 只能用账号默认模型 |
+| API key | ✅ 允许任意模型(gpt-5 / gpt-5-codex / gpt-5-pro) |
+
+### v8.29 治本(3 层 fallback)
+
+```python
+# v8.29 _run_codex_review
+model_args = ["--config", f"model={codex_model}"] if codex_model else []
+# codex_model 非空才传 · 默认空(用 codex 账号允许的默认模型)
+
+# cmd_external_review 解析优先级
+codex_model = getattr(args, "codex_model", None)
+if not codex_model:
+    cfg = read .teamwork_localconfig.json
+    codex_model = cfg.get("external_review", {}).get("codex_model")
+# 仍空 → 不传 --config(ChatGPT 订阅兼容默认)
+```
+
+### 3 个使用场景
+
+```bash
+# ① ChatGPT 订阅用户(新默认 · 兼容)
+state.py external-review --feature X --stage review
+# → codex review --commit X --title Z ...   # 不带 --config · 200 ✅
+
+# ② API key 用户单 Feature override(显式)
+state.py external-review --feature X --stage review --codex-model gpt-5-codex
+# → codex review ... --config 'model=gpt-5-codex'   # 200 ✅
+
+# ③ API key 用户项目级一次配(.teamwork_localconfig.json)
+{
+  "external_review": {
+    "codex_model": "gpt-5-codex"
+  }
+}
+# 之后所有 state.py external-review 默认用 gpt-5-codex(同 ②)
+```
+
+### emit JSON 透明留痕
+
+```json
+{
+  "verdict": "OK",
+  "command": "external-review",
+  "codex_model": null,      // v8.29 默认 null(ChatGPT 订阅)· 显式 / config 后是字面值
+  "preview_command": "codex review --commit X --title Z ..."   // 默认不含 --config
+}
+```
+
+→ PMO 看 `codex_model` 字段就知道用了哪个模型 / 是否走 ChatGPT 默认。
+
+### --codex-model argparse help 更新
+
+```
+--codex-model
+  [v8.29] codex CLI 用的具体模型(传给 codex --config 'model=<this>')·
+  优先级:--codex-model > .teamwork_localconfig.json external_review.codex_model >
+  **不传**(用 codex CLI 默认 · 兼容 ChatGPT 订阅 · 治本 ChatGPT 账号不允许显式模型 case)。
+  API key 用户可显式 gpt-5-codex / gpt-5-pro 等专业 review 模型。
+```
+
+### 测试覆盖(+4 · 0 regression)
+
+`TestExternalReviewCommand` 新增 v8.29 4 个:
+- `test_v829_chatgpt_subscription_compat_default_no_model_flag`:**治本核心** · 3 stage 默认 codex_model=None · 不传 --config
+- `test_v829_explicit_codex_model_overrides_default`:--codex-model gpt-5-codex 显式
+- `test_v829_config_external_review_codex_model_fallback`:.teamwork_localconfig.json fallback
+- `test_v829_explicit_overrides_config`:显式 > config 优先级
+
+**改造旧测试**(适配 default None):
+- `test_v823_codex_model_default_gpt_5_codex` → 改名应 · 现断言 default None + 不含 --config
+- `test_v823_emit_includes_cwd_and_codex_model` → codex_model 断言 None
+- `test_dry_run_includes_preview_command` → 断言不含 --config
+
+### standards/external-model-usage.md §11.5 加 v8.29 子节
+
+- ChatGPT 订阅 vs API key auth 模式对比表
+- 3 层 fallback 优先级
+- 3 个使用场景示例
+
+### F037 case 用 v8.29 重跑
+
+```bash
+$ state.py external-review --feature ... --stage blueprint
+# v8.21 host 自动 → claude-code → model=codex
+# v8.29 默认 codex_model=None → 跑 codex exec(不带 --config)
+# ChatGPT 订阅成功 200 · 不再 400
+# 死锁解 · 异质 review 跑通
+```
+
+### gemini CLI 不可用(env 问题 · 不治本)
+
+用户 `which gemini` 不在 · state.py 已正确 BLOCK with hint(install / change-review-roles)· 不需 fix。v8.29 治本 codex 后 · 单 host 单 model 路径已通 · 不需 gemini fallback。
+
+### SKILL.md frontmatter
+
+`v8.28` → `v8.29`
+
+---
+
 ## v8.28 · test 验证物化 · `state.py test-complete --run-tests`(治本 F037 AI 自报 stdout 漏洞)
 
 > F037 case 触发:case-AI 跑 3 framework test → 提交 `pm_verdict: FRAMEWORK_ONLY_SHIP_NOT_RECOMMENDED` 自承"67 test 0 实施 · 借 context 不够"。用户 "不要找理由" 后 · 真补 17 集成 test 全 PASS · 证明 context 够 · **理由是借口**。

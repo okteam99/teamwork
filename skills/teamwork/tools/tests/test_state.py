@@ -1168,9 +1168,9 @@ class TestExternalReviewCommand(unittest.TestCase):
         self.assertNotEqual(r.returncode, 0)
         self.assertIn("invalid choice", (r.stderr + r.stdout).lower())
 
-    # ── dry-run 输出 preview_command(v8.26 stage-specific: review→codex review · others→codex exec) ──
+    # ── dry-run 输出 preview_command(v8.26 stage-specific + v8.29 default 不传 model) ──
     def test_dry_run_includes_preview_command(self):
-        """review stage 用 codex review 子命令(v8.26 各司其职)。"""
+        """review stage 用 codex review 子命令(v8.26 各司其职 · v8.29 默认不传 --config)。"""
         d = run(["external-review", "--feature", str(self.feat),
                  "--stage", "review", "--host", "claude-code", "--dry-run"])
         self.assertTrue(d["dry_run"])
@@ -1179,7 +1179,8 @@ class TestExternalReviewCommand(unittest.TestCase):
         self.assertIn("codex review", d["preview_command"])
         self.assertIn("--commit", d["preview_command"])
         self.assertIn("--title", d["preview_command"])
-        self.assertIn("--config 'model=gpt-5-codex'", d["preview_command"])
+        # v8.29:默认不传 --config(ChatGPT 订阅兼容)· --codex-model 显式才传
+        self.assertNotIn("--config", d["preview_command"])
         # 不带 [PROMPT](避免与 review 对象 flag 互斥)· 不带 --base(避免与 --commit 互斥)
         self.assertNotIn("--base", d["preview_command"])
         # codex_prompt 字段 None(review 模式无 PROMPT)
@@ -1267,11 +1268,13 @@ class TestExternalReviewCommand(unittest.TestCase):
         self.assertIn("abc123def", d["preview_command"])
 
     def test_v823_codex_model_default_gpt_5_codex(self):
-        """缺省 --codex-model = gpt-5-codex(专业 code review 模型)。"""
+        """v8.29 治本 ChatGPT 订阅 case · 缺省 codex_model=None(不传 --config · 用账号默认模型)。"""
         d = run(["external-review", "--feature", str(self.feat),
                  "--stage", "review", "--host", "claude-code", "--dry-run"])
-        self.assertEqual(d["codex_model"], "gpt-5-codex")
-        self.assertIn("model=gpt-5-codex", d["preview_command"])
+        # v8.23 旧:default 'gpt-5-codex' · v8.29 改 None(治本 ChatGPT 订阅死锁)
+        self.assertIsNone(d["codex_model"])
+        self.assertNotIn("--config", d["preview_command"])
+        self.assertNotIn("model=", d["preview_command"])
 
     def test_v823_codex_model_explicit_override(self):
         """--codex-model gpt-5-pro 显式覆盖。"""
@@ -1282,12 +1285,13 @@ class TestExternalReviewCommand(unittest.TestCase):
         self.assertIn("model=gpt-5-pro", d["preview_command"])
 
     def test_v823_emit_includes_cwd_and_codex_model(self):
-        """emit JSON 含 cwd(git root) + codex_model(透明)。"""
+        """emit JSON 含 cwd(git root) + codex_model(透明 · v8.29 默认 null)。"""
         d = run(["external-review", "--feature", str(self.feat),
                  "--stage", "review", "--host", "claude-code", "--dry-run"])
         self.assertIn("cwd", d)
         self.assertIn("codex_model", d)
-        self.assertEqual(d["codex_model"], "gpt-5-codex")
+        # v8.29:default None(ChatGPT 订阅兼容)· 字段仍 emit 但值 null
+        self.assertIsNone(d["codex_model"])
 
     def test_v823_codex_model_not_in_claude_path(self):
         """claude 路径不传 codex_model · 字段为 null(避免 PMO 误以为 claude 走 codex 配置)。"""
@@ -1329,6 +1333,54 @@ class TestExternalReviewCommand(unittest.TestCase):
         self.assertNotIn("--base", d["preview_command"])
         # 但 base 字段仍 emit(留 audit · base 用户传了 PMO 能看到)
         self.assertEqual(d["base"], "main-custom")
+
+    # ── v8.29:codex_model 3 层 fallback(治本 ChatGPT 订阅死锁)──
+    def test_v829_chatgpt_subscription_compat_default_no_model_flag(self):
+        """治本核心:default codex_model=None · 不传 --config · ChatGPT 订阅可跑。"""
+        for stage in ["goal", "blueprint", "review"]:
+            d = run(["external-review", "--feature", str(self.feat),
+                     "--stage", stage, "--host", "claude-code", "--dry-run"])
+            self.assertIsNone(d["codex_model"], f"{stage} default codex_model 必 None")
+            self.assertNotIn("--config", d["preview_command"],
+                             f"{stage} 不应传 --config(ChatGPT 订阅会 400)")
+
+    def test_v829_explicit_codex_model_overrides_default(self):
+        """--codex-model gpt-5-codex 显式 · 用于 API 用户。"""
+        d = run(["external-review", "--feature", str(self.feat),
+                 "--stage", "review", "--host", "claude-code",
+                 "--codex-model", "gpt-5-codex", "--dry-run"])
+        self.assertEqual(d["codex_model"], "gpt-5-codex")
+        self.assertIn("--config 'model=gpt-5-codex'", d["preview_command"])
+
+    def test_v829_config_external_review_codex_model_fallback(self):
+        """.teamwork_localconfig.json external_review.codex_model fallback。"""
+        # 写 config 到 git_root(feat 的 git toplevel)
+        cfg = self.feat.parent / ".teamwork_localconfig.json"
+        cfg.write_text(json.dumps({
+            "external_review": {"codex_model": "gpt-5-pro"}
+        }), encoding="utf-8")
+        # 让 feat 处于 git repo
+        subprocess.run(["git", "-C", str(self.feat.parent), "init", "-q"],
+                       capture_output=True)
+        d = run(["external-review", "--feature", str(self.feat),
+                 "--stage", "review", "--host", "claude-code", "--dry-run"])
+        self.assertEqual(d["codex_model"], "gpt-5-pro")
+        self.assertIn("--config 'model=gpt-5-pro'", d["preview_command"])
+
+    def test_v829_explicit_overrides_config(self):
+        """--codex-model 显式 > config fallback。"""
+        cfg = self.feat.parent / ".teamwork_localconfig.json"
+        cfg.write_text(json.dumps({
+            "external_review": {"codex_model": "gpt-5-pro"}
+        }), encoding="utf-8")
+        subprocess.run(["git", "-C", str(self.feat.parent), "init", "-q"],
+                       capture_output=True)
+        d = run(["external-review", "--feature", str(self.feat),
+                 "--stage", "review", "--host", "claude-code",
+                 "--codex-model", "gpt-5-codex", "--dry-run"])
+        # 显式覆盖 config
+        self.assertEqual(d["codex_model"], "gpt-5-codex")
+        self.assertIn("model=gpt-5-codex", d["preview_command"])
 
 
 class TestHostAutoDetect(unittest.TestCase):
