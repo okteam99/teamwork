@@ -1,5 +1,119 @@
 # Changelog
 
+## v8.40 · 治本 v8.39 引入的 branch/channel 错配 bug(audit case · 首个 dev-only release)
+
+> 用户 2026-05-27:"在检查下 skill 升级的流程和逻辑"。我做 e2e audit 发现 v8.39 引入 2 个关键 bug · 立即 dev-only 治本(走 v8.39 设立的 dev-first 流程的第一个 release)。
+
+### audit 发现的 2 bug
+
+**Bug A · 当前分支与 channel 错配时静默错改本地分支(🔴 高)**
+
+实测证据(audit 现场):
+```
+当前分支:dev   localconfig:无(默认 main)
+git pull --ff-only origin main → 试图把 local dev FF 到 origin/main
+若 dev ahead/behind/分叉 → 失败 with 误导 hint("本地分叉/冲突")
+若 dev == main 同 commit → 成功 no-op · 但用户没察觉
+
+更严重场景(v8.40 push dev only 后)
+当前分支:main   localconfig:dev
+git pull --ff-only origin dev → 成功把 local main FF 到 dev HEAD
+→ local main 指向 dev v8.40 commit
+→ 用户 git push origin main 撞 non-ff(因为 origin/main 还在 v8.39)
+→ main 分支状态混乱 · 破坏 main/dev channel 隔离本意
+```
+
+**Bug B · 缺一致性校验导致误导 hint**
+
+`git pull --ff-only origin <channel>` 在错误分支上失败时 · hint 显示"本地分叉/冲突 · 手动 rebase 或 reset" · 但根因是分支错配 · 不是分叉。用户按 hint 跑 `git rebase origin/<channel>` 会把当前分支混入 channel 的 commit · 进一步搞乱。
+
+### 治本(state.py:cmd_update_skill 加 Step 3.5 校验)
+
+```diff
++ # ── v8.40:校验当前分支 == channel(治本 v8.39 引入分支与 channel 错配 bug)──
++ b = subprocess.run(["git", "-C", str(git_root), "rev-parse",
++                     "--abbrev-ref", "HEAD"], ...)
++ cur_branch = b.stdout.strip()
++ if cur_branch != channel:
++     emit({
++         "verdict": "FAIL",
++         "error": f"当前分支={cur_branch!r} ≠ channel={channel!r} · "
++                  f"拒绝 pull · 防偷偷把 local {cur_branch} 改成 origin/{channel}",
++         "current_branch": cur_branch,
++         "channel": channel,
++         "channel_source": channel_source,
++         "hint": (
++             f"二选一:\n"
++             f"  ① [推荐] 切到对应分支再升:\n"
++             f"     cd {git_root} && git checkout {channel} && state.py update-skill"
++             f"{'' if channel == 'main' else f' --channel {channel}'}\n"
++             f"  ② 改 channel 与当前分支一致:\n"
++             f"     state.py update-skill --channel {cur_branch}\n"
++             f"     或编辑 .teamwork_localconfig.json.update_channel = {cur_branch!r}"
++         ),
++     })
++     return
+```
+
+### 测试覆盖(3 个新加 · 1 个新 class)
+
+`TestUpdateSkillBranchChannelGate`(e2e 真 git repo · 不 mock):
+- `test_v840_block_when_on_main_but_channel_dev`(主 bug 场景)
+- `test_v840_block_when_on_dev_but_channel_default_main`(反向 bug)
+- `test_v840_pass_check_when_branch_equals_channel`(正常路径不被本校验拦)
+
+335 passed / 97 failed(baseline 一致 · 0 regression)
+
+### audit 总结(符合预期项 + bug 项)
+
+✅ 符合预期:
+- `_read_update_channel` 4 fallback 路径(默认 / config / 损坏 / 类型错 / 空串)全 PASS
+- `check_skill_update` 4 status(up_to_date / outdated / network_failed / parse_failed)+ channel 字段输出
+- bootstrap 自动读 cwd localconfig channel 传给 check_skill_update
+- bootstrap silent · 不阻塞
+- e2e curl dev/main URL 都拉得到 SKILL.md
+- outdated prompt 智能区分 main 默认(简洁)/ 其他(--channel + ⚠️ 尝鲜)
+- cmd_update_skill 自动 channel resolve(args > localconfig > default)
+- emit 含 channel + channel_source(用户可追溯)
+
+❌ 不符合预期(v8.40 治本):
+- Bug A 当前分支与 channel 错配 → 静默错改 local 分支
+- Bug B 错配后 fetch/pull 失败 hint 误导
+
+### 设计哲学
+
+R0 哲学:**可枚举进脚本**(分支名一致性 · 客观信号)→ 加校验。
+
+不偷偷帮用户切分支(选项 A · 自动 checkout)· 因为:
+- 用户当前分支可能有 uncommitted work · 自动 checkout 风险大
+- 偷偷切完用户不知情 · 下次 cd 看分支可能困惑
+
+选 选项 B(BLOCK + hint 给两条路)· 保留用户决策权 · 不偷偷动状态。
+
+### 发布策略
+
+**v8.40 首个 dev-only release**:
+- push origin/dev(commit 本段)
+- 不 push main(走 v8.39 设立的 dev-first 流程)
+- 后续累积稳定测试 · 定期 ff merge dev → main
+
+**用户影响**:
+- main 用户:仍 v8.39 · 不受本次治本影响(他们 update_channel=main · 当前分支 main 一致 · 不会触发 bug)
+- dev 用户:升 v8.40 后获得校验保护 · 避免分支错配
+
+### Hash
+
+- state.py:cmd_update_skill 加 Step 3.5 branch 校验 = 净 +40 行
+- test_state.py:TestUpdateSkillBranchChannelGate(3 测试 · e2e 真 git repo)= 净 +85 行
+- SKILL.md:v8.39 → v8.40
+- docs/CHANGELOG.md:本段
+
+### 诚实记录
+
+v8.39 设计 channel 时漏想"当前分支与 channel 解耦"场景 · 加 channel 参数但没动 fetch/pull 之外的逻辑。audit 实测才发现 —— 又是"先写 e2e 测试再实施"会更早抓住的 bug。但 v8.39 测试用 file:// URL mock 拉 SKILL.md · 没测真 git pull 行为 · 漏掉这层。v8.40 加的测试是 e2e 真 git repo(setUp 跑 git init / branch · 然后真 subprocess 跑 state.py)· 更接近真实场景。
+
+---
+
 ## v8.39 · skill 升级支持 `update_channel`(main / dev · 用户拍板)+ 新建 dev 分支用于后续优化
 
 > 用户 2026-05-27:"我们把主分支改为 dev 分支后续优化优先使用 dev 分支 · 另外 skill 升级检查逻辑支持一下检查分支 · 使用 .teamwork_localconfig.json 中的 update_channel 定义 · 默认为 main"

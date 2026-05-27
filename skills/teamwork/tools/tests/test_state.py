@@ -2089,5 +2089,96 @@ class TestUpdateSkillHint(unittest.TestCase):
                       f"hint 必含 skill_root 真实路径:\n{hint}")
 
 
+class TestUpdateSkillBranchChannelGate(unittest.TestCase):
+    """v8.40 治本 audit case:当前分支与 channel 不一致时 · update-skill 必 BLOCK。
+
+    v8.39 引入 channel 后 bug 实测:
+    - 当前 main 分支 + channel=dev → git pull --ff-only origin dev 把 local main 偷偷 FF 到 dev HEAD
+    - 当前 dev 分支 + channel=main → pull 失败但 hint 误导
+
+    v8.40 治本:fetch 前先校验 cur_branch == channel · 否则 BLOCK with hint 切分支或改 channel
+    """
+
+    def setUp(self):
+        import subprocess as _sp
+        self.tmp = Path(tempfile.mkdtemp(prefix="tw-v840-"))
+        # 建一个真 git repo · 含 main + dev 双分支 · 在 dev 分支
+        self.repo = self.tmp / "fake-skill-root"
+        # state.py 自推 skill_root = tools/.. parent · 所以拷到 self.repo/tools/state.py
+        (self.repo / "tools").mkdir(parents=True)
+        import shutil as _sh
+        _sh.copy(STATE_PY, self.repo / "tools" / "state.py")
+        # 拷 SKILL.md 防 read_text 路径错
+        (self.repo / "SKILL.md").write_text(
+            "---\nname: teamwork\nversion: v8.40\n---\nbody\n",
+            encoding="utf-8")
+        # git init + 配置 + 初始 commit + 建 dev 分支 + checkout dev
+        for cmd in [
+            ["git", "init", "-q", "-b", "main"],
+            ["git", "config", "user.email", "test@example.com"],
+            ["git", "config", "user.name", "test"],
+            ["git", "add", "-A"],
+            ["git", "commit", "-q", "-m", "init"],
+            ["git", "branch", "dev"],
+        ]:
+            _sp.run(cmd, cwd=str(self.repo), check=True,
+                    capture_output=True)
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def _run_update_skill(self, *extra_args) -> dict:
+        """跑 state.py update-skill · 捕 JSON emit。"""
+        import subprocess as _sp
+        r = _sp.run(
+            ["/opt/homebrew/opt/python@3.14/bin/python3.14",
+             str(self.repo / "tools" / "state.py"), "update-skill", *extra_args],
+            capture_output=True, text=True, timeout=30, cwd=str(self.repo),
+        )
+        out = (r.stdout or r.stderr).strip()
+        idx = out.find("{")
+        self.assertGreaterEqual(idx, 0, f"未找到 JSON 输出 · stdout/stderr=\n{out}")
+        return json.loads(out[idx:])
+
+    def test_v840_block_when_on_main_but_channel_dev(self):
+        """当前 main 分支 + --channel dev → BLOCK with hint(治本核心 case)。"""
+        # 当前在 main(git init 默认)
+        d = self._run_update_skill("--channel", "dev")
+        self.assertEqual(d["verdict"], "FAIL")
+        self.assertEqual(d["current_branch"], "main")
+        self.assertEqual(d["channel"], "dev")
+        self.assertIn("当前分支", d["error"])
+        self.assertIn("dev", d["error"])
+        # hint 必含切分支命令
+        self.assertIn("git checkout dev", d["hint"])
+        # hint 必含替代方案(改 channel)
+        self.assertIn("--channel main", d["hint"])
+
+    def test_v840_block_when_on_dev_but_channel_default_main(self):
+        """当前 dev 分支 + 默认 channel=main → BLOCK(治本反向 case)。"""
+        import subprocess as _sp
+        # 切到 dev 分支
+        _sp.run(["git", "checkout", "dev"], cwd=str(self.repo),
+                check=True, capture_output=True)
+        # 默认 channel=main(无 localconfig)
+        d = self._run_update_skill()
+        self.assertEqual(d["verdict"], "FAIL")
+        self.assertEqual(d["current_branch"], "dev")
+        self.assertEqual(d["channel"], "main")
+        self.assertIn("当前分支", d["error"])
+
+    def test_v840_pass_check_when_branch_equals_channel(self):
+        """当前 dev + --channel dev → branch check 通过(可能 fetch 失败 · 但不是 branch 错配 FAIL)。"""
+        import subprocess as _sp
+        _sp.run(["git", "checkout", "dev"], cwd=str(self.repo),
+                check=True, capture_output=True)
+        d = self._run_update_skill("--channel", "dev")
+        # 没 origin remote · fetch 会失败 · 但 error 不是 branch 错配
+        if d.get("verdict") == "FAIL":
+            self.assertNotIn("当前分支", d.get("error", ""))
+            # 应该是 fetch 失败 with origin not configured
+            self.assertIn("fetch", d.get("error", "").lower())
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

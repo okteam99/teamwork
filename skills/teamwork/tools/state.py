@@ -3189,6 +3189,46 @@ def cmd_update_skill(args: argparse.Namespace) -> None:
             channel = "main"
             channel_source = "default_fallback"
 
+    # ── v8.40:校验当前分支 == channel(治本 v8.39 引入分支与 channel 错配 bug)──
+    # case audit 暴露:当前 main 分支 + channel=dev → git pull --ff-only origin dev
+    # 把 local main 偷偷 fast-forward 到 dev HEAD · 破坏 main/dev channel 隔离
+    # 治本:fetch 前先校验 · 否则 BLOCK with hint 切分支再升或改 channel
+    b = subprocess.run(["git", "-C", str(git_root), "rev-parse", "--abbrev-ref", "HEAD"],
+                       capture_output=True, text=True, timeout=10)
+    if b.returncode != 0:
+        emit({
+            "verdict": "FAIL",
+            "command": "update-skill",
+            "error": f"git rev-parse --abbrev-ref HEAD 失败:{b.stderr.strip()[:200]}",
+            "hint": "检查 git_root 是否合法 git 仓 · 修复后重跑",
+        })
+        return
+    cur_branch = b.stdout.strip()
+    if cur_branch != channel:
+        emit({
+            "verdict": "FAIL",
+            "command": "update-skill",
+            "error": (
+                f"当前分支={cur_branch!r} ≠ channel={channel!r} · 拒绝 pull · "
+                f"防偷偷把 local {cur_branch} 改成 origin/{channel}(治本 v8.40 audit case)"
+            ),
+            "current_branch": cur_branch,
+            "channel": channel,
+            "channel_source": channel_source,
+            "git_root": str(git_root),
+            "hint": (
+                f"二选一:\n"
+                f"  ① [推荐] 切到对应分支再升:\n"
+                f"     cd {git_root} && git checkout {channel} && state.py update-skill"
+                f"{'' if channel == 'main' else f' --channel {channel}'}\n"
+                f"  ② 改 channel 与当前分支一致:\n"
+                f"     state.py update-skill --channel {cur_branch}\n"
+                f"     或编辑 .teamwork_localconfig.json.update_channel = {cur_branch!r}"
+            ),
+            "spec": "v8.40 治本 · 当前分支与 channel 必一致 · 防 pull 错改本地分支",
+        })
+        return
+
     # ── Step 4:git fetch + pull --ff-only(用 channel) ──
     f = subprocess.run(["git", "-C", str(git_root), "fetch", "origin", channel],
                        capture_output=True, text=True, timeout=60)
