@@ -786,6 +786,72 @@ class TestCheckSkillUpdate(unittest.TestCase):
         self.assertEqual(bootstrap._version_tuple("v8.0.5"), (8, 0, 5))
         self.assertEqual(bootstrap._version_tuple("garbage"), (0, 0, 0))
 
+    # ── v8.39:channel 支持(用户拍板 · 默认 main · dev 用于尝鲜)──
+
+    def test_v839_default_channel_is_main(self):
+        """v8.39:check_skill_update 不传 channel · emit channel=main(向后兼容)。"""
+        import bootstrap  # type: ignore
+        self._write_fake_remote("v8.39")
+        d = bootstrap.check_skill_update("v8.39")
+        self.assertEqual(d["channel"], "main")
+
+    def test_v839_explicit_dev_channel(self):
+        """v8.39:check_skill_update 传 channel=dev · emit channel=dev。"""
+        import bootstrap  # type: ignore
+        self._write_fake_remote("v8.40")
+        d = bootstrap.check_skill_update("v8.39", channel="dev")
+        self.assertEqual(d["channel"], "dev")
+        self.assertEqual(d["status"], "outdated")
+        # 尝鲜 channel 在 prompt 必加 ⚠️ 提示
+        self.assertIn("dev", d["upgrade_prompt"])
+        self.assertIn("尝鲜", d["upgrade_prompt"])
+        # update 命令必带 --channel dev
+        self.assertIn("--channel dev", d["upgrade_prompt"])
+
+    def test_v839_main_channel_prompt_no_warning(self):
+        """v8.39:main channel 是默认 · prompt 不加尝鲜警告。"""
+        import bootstrap  # type: ignore
+        self._write_fake_remote("v8.40")
+        d = bootstrap.check_skill_update("v8.39", channel="main")
+        self.assertEqual(d["status"], "outdated")
+        # main 不显示 --channel 参数(简洁默认)
+        self.assertNotIn("--channel", d["upgrade_prompt"])
+        self.assertNotIn("尝鲜", d["upgrade_prompt"])
+
+    def test_v839_read_update_channel_default_main(self):
+        """v8.39:_read_update_channel · 无 config 文件 → main。"""
+        import bootstrap  # type: ignore
+        # 新空目录 · 无 .teamwork_localconfig.json
+        self.assertEqual(bootstrap._read_update_channel(self.tmp), "main")
+
+    def test_v839_read_update_channel_from_localconfig(self):
+        """v8.39:_read_update_channel · config 有 update_channel=dev → dev。"""
+        import bootstrap  # type: ignore
+        (self.tmp / ".teamwork_localconfig.json").write_text(
+            json.dumps({"update_channel": "dev"}), encoding="utf-8")
+        self.assertEqual(bootstrap._read_update_channel(self.tmp), "dev")
+
+    def test_v839_read_update_channel_corrupt_config_falls_back_main(self):
+        """v8.39:_read_update_channel · config 损坏 → main(silent · 不阻塞)。"""
+        import bootstrap  # type: ignore
+        (self.tmp / ".teamwork_localconfig.json").write_text(
+            "not json {{{", encoding="utf-8")
+        self.assertEqual(bootstrap._read_update_channel(self.tmp), "main")
+
+    def test_v839_read_update_channel_non_string_falls_back_main(self):
+        """v8.39:_read_update_channel · update_channel 非 string → main。"""
+        import bootstrap  # type: ignore
+        (self.tmp / ".teamwork_localconfig.json").write_text(
+            json.dumps({"update_channel": 123}), encoding="utf-8")
+        self.assertEqual(bootstrap._read_update_channel(self.tmp), "main")
+
+    def test_v839_read_update_channel_empty_string_falls_back_main(self):
+        """v8.39:_read_update_channel · update_channel='' → main(空串视作未设)。"""
+        import bootstrap  # type: ignore
+        (self.tmp / ".teamwork_localconfig.json").write_text(
+            json.dumps({"update_channel": "  "}), encoding="utf-8")
+        self.assertEqual(bootstrap._read_update_channel(self.tmp), "main")
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

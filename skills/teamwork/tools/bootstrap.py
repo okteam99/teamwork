@@ -582,11 +582,31 @@ def write_bootstrap_marker(project_root: Path, skill_version: str,
 
 # v8.24:skill 自更新检测(GitHub raw · 5s timeout silent · 落后 emit R5 1/2 选项)
 # 治本 PMO 不知道何时升级 · 跨 session 长时间不更新错过治本
-SKILL_UPDATE_RAW_URL = (
-    "https://raw.githubusercontent.com/okteam99/teamwork/main/skills/teamwork/SKILL.md"
+# v8.39(用户拍板 2026-05-27):支持 update_channel · 默认 main · dev 用于尝鲜
+SKILL_UPDATE_RAW_URL_TEMPLATE = (
+    "https://raw.githubusercontent.com/okteam99/teamwork/{channel}/skills/teamwork/SKILL.md"
 )
+SKILL_UPDATE_DEFAULT_CHANNEL = "main"
 SKILL_UPDATE_TIMEOUT_SEC = 5
 SKILL_UPDATE_URL_ENV = "TEAMWORK_SKILL_UPDATE_URL"  # 测试覆盖用
+
+
+def _read_update_channel(project_root: Optional[Path]) -> str:
+    """v8.39:读 .teamwork_localconfig.json.update_channel · 默认 main。
+
+    优先级:config update_channel(if str) > 默认 main
+    损坏 config / 缺字段 / 非 string 类型 → 默认 main(silent · 不阻塞)
+    """
+    if not project_root:
+        return SKILL_UPDATE_DEFAULT_CHANNEL
+    try:
+        cfg = read_localconfig(project_root)
+        ch = cfg.get("update_channel")
+        if isinstance(ch, str) and ch.strip():
+            return ch.strip()
+    except Exception:
+        pass
+    return SKILL_UPDATE_DEFAULT_CHANNEL
 
 
 def _parse_skill_version(text: str) -> Optional[str]:
@@ -608,15 +628,20 @@ def _version_tuple(v: str) -> tuple:
     return (int(m.group(1)), int(m.group(2)), int(m.group(3) or 0))
 
 
-def check_skill_update(local_version: str) -> dict:
+def check_skill_update(local_version: str,
+                       channel: str = SKILL_UPDATE_DEFAULT_CHANNEL) -> dict:
     """v8.24:检测 GitHub 上 skill 最新 version · 与本地比较。
+    v8.39:加 channel 参数(默认 main) · 支持 dev 等其他分支(用户 opt-in 尝鲜)。
 
     返回 dict:
       - status: up_to_date / outdated / network_failed / parse_failed
-      - local_version / latest_version
+      - local_version / latest_version / channel
       - upgrade_prompt(若 outdated · R5 1/2 选项 markdown)
     """
-    url = os.environ.get(SKILL_UPDATE_URL_ENV) or SKILL_UPDATE_RAW_URL
+    # URL:env override > template + channel
+    url = os.environ.get(SKILL_UPDATE_URL_ENV) or SKILL_UPDATE_RAW_URL_TEMPLATE.format(
+        channel=channel
+    )
 
     # 用 curl(跨平台 + 无 python http 依赖)· 5s timeout · silent
     try:
@@ -629,6 +654,8 @@ def check_skill_update(local_version: str) -> dict:
                 "status": "network_failed",
                 "local_version": local_version,
                 "latest_version": None,
+                "channel": channel,
+                "url": url,
                 "reason": f"curl exit={r.returncode} · {r.stderr.strip()[:80]}",
             }
     except (subprocess.TimeoutExpired, FileNotFoundError, OSError) as e:
@@ -636,6 +663,8 @@ def check_skill_update(local_version: str) -> dict:
             "status": "network_failed",
             "local_version": local_version,
             "latest_version": None,
+            "channel": channel,
+            "url": url,
             "reason": f"curl 不可用 / 超时:{e}",
         }
 
@@ -645,7 +674,12 @@ def check_skill_update(local_version: str) -> dict:
             "status": "parse_failed",
             "local_version": local_version,
             "latest_version": None,
-            "reason": "线上 SKILL.md frontmatter 抽不出 version 字段",
+            "channel": channel,
+            "url": url,
+            "reason": (
+                f"线上 SKILL.md frontmatter 抽不出 version 字段(channel={channel} · "
+                f"检查分支是否存在 / SKILL.md 路径是否正确)"
+            ),
         }
 
     if _version_tuple(latest) <= _version_tuple(local_version):
@@ -653,25 +687,40 @@ def check_skill_update(local_version: str) -> dict:
             "status": "up_to_date",
             "local_version": local_version,
             "latest_version": latest,
+            "channel": channel,
         }
 
     # outdated → emit R5 1/2 选项
+    # v8.39:channel != main 时 prompt 标注尝鲜 channel(避免用户混淆)
+    channel_note = (
+        f"(channel: **{channel}** · 默认 main · 配置在 "
+        f"`.teamwork_localconfig.json.update_channel`)"
+    )
+    update_cmd = (
+        "`state.py update-skill`"
+        if channel == SKILL_UPDATE_DEFAULT_CHANNEL
+        else f"`state.py update-skill --channel {channel}`"
+    )
     prompt = (
-        f"⏸️ teamwork skill 检测到新版本(本地 **{local_version}** · 线上 **{latest}**)\n\n"
+        f"⏸️ teamwork skill 检测到新版本(本地 **{local_version}** · 线上 **{latest}**)"
+        f"{channel_note}\n\n"
         "请选择:\n\n"
         "1. ✅ **升级** 💡 推荐\n"
         "   理由:获取治本 / 新功能 / bug fix\n"
-        "   动作:回 `1` → PMO 跑 `state.py update-skill`"
+        f"   动作:回 `1` → PMO 跑 {update_cmd}"
         "(git pull · 自动检测脏树 · 失败 BLOCK with hint)\n"
         "2. ⏭️ **本 session 跳过**\n"
         "   理由:正在赶进度 / 评估 changelog 后再决定\n"
         "   动作:回 `2` → 本 session 不再提示(下个 session bootstrap 仍会检测)\n\n"
-        "📚 决策参考:看 GitHub `docs/CHANGELOG.md` 顶部新增段了解变更"
+        f"📚 决策参考:看 GitHub `docs/CHANGELOG.md` 顶部新增段了解变更"
+        + (f"\n⚠️ channel=`{channel}` 是尝鲜分支 · 可能不稳定 · 评估后再升"
+           if channel != SKILL_UPDATE_DEFAULT_CHANNEL else "")
     )
     return {
         "status": "outdated",
         "local_version": local_version,
         "latest_version": latest,
+        "channel": channel,
         "upgrade_prompt": prompt,
     }
 
@@ -842,8 +891,10 @@ def cmd_session_bootstrap(args: argparse.Namespace) -> None:
 
     # v8.24:检测 GitHub 上 skill 最新版本 · 落后 emit R5 1/2 选项暂停点
     # 网络失败 silent skip 不阻塞 bootstrap · 治本 PMO 不知何时升级
+    # v8.39:加 channel 支持(默认 main · 用户可配 .teamwork_localconfig.json.update_channel)
     if skill_version:
-        result["checks"]["skill_update_check"] = check_skill_update(skill_version)
+        channel = _read_update_channel(project_root)
+        result["checks"]["skill_update_check"] = check_skill_update(skill_version, channel)
     else:
         result["checks"]["skill_update_check"] = {
             "status": "skipped",

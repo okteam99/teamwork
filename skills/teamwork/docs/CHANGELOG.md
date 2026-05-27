@@ -1,5 +1,129 @@
 # Changelog
 
+## v8.39 · skill 升级支持 `update_channel`(main / dev · 用户拍板)+ 新建 dev 分支用于后续优化
+
+> 用户 2026-05-27:"我们把主分支改为 dev 分支后续优化优先使用 dev 分支 · 另外 skill 升级检查逻辑支持一下检查分支 · 使用 .teamwork_localconfig.json 中的 update_channel 定义 · 默认为 main"
+
+### 分支策略
+
+| 分支 | 角色 | 升级时机 | 风险 |
+|------|------|---------|------|
+| `main` | **stable channel(默认)** | 稳定版发布 · 通过 dev 验证后定期 ff merge 过来 | 低(经过 dev 实战) |
+| `dev` | **preview channel(尝鲜)** | 后续优化优先 push dev · 早期用户先用 | 中(可能 break · 用户 opt-in) |
+
+**用户 opt-in dev**:在项目根 `.teamwork_localconfig.json` 加 `"update_channel": "dev"` · 不动 = main 默认。
+
+### 改动 1:bootstrap.py check_skill_update 支持 channel
+
+```diff
+- SKILL_UPDATE_RAW_URL = (
+-     "https://raw.githubusercontent.com/okteam99/teamwork/main/skills/teamwork/SKILL.md"
+- )
++ SKILL_UPDATE_RAW_URL_TEMPLATE = (
++     "https://raw.githubusercontent.com/okteam99/teamwork/{channel}/skills/teamwork/SKILL.md"
++ )
++ SKILL_UPDATE_DEFAULT_CHANNEL = "main"
++
++ def _read_update_channel(project_root):
++     # 读 .teamwork_localconfig.json.update_channel · 默认 main
++     # 损坏/缺/非 string/空串 → main(silent · 不阻塞)
+
+- def check_skill_update(local_version):
++ def check_skill_update(local_version, channel="main"):
+      url = env_override or SKILL_UPDATE_RAW_URL_TEMPLATE.format(channel=channel)
+      ...
+      return {..., "channel": channel, "url": url}
+```
+
+`cmd_session_bootstrap` 自动读 channel 并传给 check_skill_update。
+
+**outdated prompt 智能区分 channel**:
+- `channel=main`(默认):prompt 中 `state.py update-skill` 无 `--channel` 参数(简洁)
+- `channel=dev`(或其他):prompt 中 `state.py update-skill --channel dev` + 加 `⚠️ 尝鲜分支可能不稳定` 警告
+
+### 改动 2:state.py cmd_update_skill 支持 `--channel`
+
+```diff
++ # v8.39 channel resolve · 优先级 args > localconfig > main
++ channel = args.channel or _read_update_channel(project_root) or "main"
+
+- f = subprocess.run(["git", "-C", str(git_root), "fetch", "origin", "main"], ...)
++ f = subprocess.run(["git", "-C", str(git_root), "fetch", "origin", channel], ...)
+
+- p = subprocess.run(["git", "-C", str(git_root), "pull", "--ff-only", "origin", "main"], ...)
++ p = subprocess.run(["git", "-C", str(git_root), "pull", "--ff-only", "origin", channel], ...)
+```
+
+emit 输出加 `channel` + `channel_source`(args / localconfig / default)· 错误 hint 携带 channel(若 fetch/pull 失败 · 用户知道是哪个分支不存在)。
+
+### 改动 3:argparse 加 `--channel`
+
+```
+state.py update-skill [--force] [--channel <branch_name>]
+                                  ^^^ v8.39 新增
+```
+
+### 测试覆盖(7 个新加)
+
+`TestCheckSkillUpdate` 加:
+- `test_v839_default_channel_is_main`(向后兼容)
+- `test_v839_explicit_dev_channel`(dev URL + prompt 含尝鲜警告 + --channel dev)
+- `test_v839_main_channel_prompt_no_warning`(main 简洁)
+- `test_v839_read_update_channel_default_main`(无 config → main)
+- `test_v839_read_update_channel_from_localconfig`(config dev → dev)
+- `test_v839_read_update_channel_corrupt_config_falls_back_main`(损坏 → main)
+- `test_v839_read_update_channel_non_string_falls_back_main`(类型错 → main)
+- `test_v839_read_update_channel_empty_string_falls_back_main`(空串 → main)
+
+332 passed / 97 failed(baseline 一致 · 0 regression)
+
+### 用户工作流变化
+
+**stable 用户(默认 main)**:不动 `.teamwork_localconfig.json` · 升级仍是 `state.py update-skill`
+
+**preview 用户(尝鲜 dev)**:在项目根 `.teamwork_localconfig.json` 加:
+```json
+{
+  "update_channel": "dev"
+}
+```
+之后 bootstrap 自动检测 dev 最新版本 · prompt 提示 `state.py update-skill --channel dev`(或不传 · 自动从 config 读)。
+
+**任意分支**:`update_channel` 可填任何分支名(非验证 enum)· 用户测试新 feature 分支可临时改:
+```json
+{
+  "update_channel": "feat/some-experiment"
+}
+```
+
+### 发布策略
+
+**本次 v8.39 双 push**:
+1. push origin/main(让用户拿到 channel 机制本身 · 否则没法用 dev)
+2. 创建 dev 分支(基于 v8.39 main HEAD) + push origin/dev
+
+**之后 v8.40+**:
+- 后续优化 push dev · 用户 opt-in 尝鲜
+- 稳定后定期 fast-forward / merge dev → main · 走 stable channel 用户
+
+### 设计哲学
+
+R0 哲学(可枚举进脚本 · 不可枚举留人):
+- **可枚举**:channel 名 / URL 模板 / fetch+pull 命令 / 优先级链 → 全进脚本
+- **不可枚举**:何时升 dev / 是否回滚 → 用户判 · 工具只提示风险(尝鲜警告 + retro 可见)
+
+不强校验 channel 合法值(允许任意分支名)· R0 灵活性:用户测试 feature 分支不被工具卡。
+
+### Hash
+
+- bootstrap.py:加 `_read_update_channel` + 模板化 URL + check_skill_update 加 channel 参数 = 净 +60 行
+- state.py:cmd_update_skill 加 channel resolve + fetch/pull 用 channel + emit 加 channel + argparse `--channel` = 净 +40 行
+- test_bootstrap.py:7 个新测试 = 净 +75 行
+- SKILL.md:v8.38 → v8.39
+- docs/CHANGELOG.md:本段
+
+---
+
 ## v8.38 · external-review claude CLI 用 `-p` 替代 `--print`(用户约定 · case SVC-PLATFORM-F054 round 2)
 
 > 用户 2026-05-27:"外部调用 claude 的时候 要使用 -p"。case 现场:AI 调用 claude CLI 经历 sandbox 权限路径切换 · 提升权限后才成功 · 用户明确要求统一用 `-p` short alias。

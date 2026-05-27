@@ -3168,29 +3168,59 @@ def cmd_update_skill(args: argparse.Namespace) -> None:
         if m:
             old_version = m.group(1).strip()
 
-    # ── Step 4:git fetch + pull --ff-only ──
-    f = subprocess.run(["git", "-C", str(git_root), "fetch", "origin", "main"],
+    # ── v8.39:resolve channel · 优先级 args > localconfig > main ──
+    # 让用户 opt-in 升级 dev 尝鲜分支 · 默认 main 稳定不变
+    channel = getattr(args, "channel", None)
+    channel_source = "args"
+    if not channel:
+        # 从 cwd 找 project_root · 读 .teamwork_localconfig.json
+        try:
+            sys.path.insert(0, str(Path(__file__).resolve().parent))
+            from bootstrap import (
+                find_project_root,
+                _read_update_channel,
+                SKILL_UPDATE_DEFAULT_CHANNEL,
+            )
+            project_root = find_project_root(Path.cwd())
+            channel = _read_update_channel(project_root)
+            channel_source = ("localconfig" if channel != SKILL_UPDATE_DEFAULT_CHANNEL
+                               else "default")
+        except Exception:
+            channel = "main"
+            channel_source = "default_fallback"
+
+    # ── Step 4:git fetch + pull --ff-only(用 channel) ──
+    f = subprocess.run(["git", "-C", str(git_root), "fetch", "origin", channel],
                        capture_output=True, text=True, timeout=60)
     if f.returncode != 0:
         emit({
             "verdict": "FAIL",
             "command": "update-skill",
-            "error": f"git fetch origin main 失败:{f.stderr.strip()[:200]}",
-            "hint": "检查网络 / origin remote · 修复后重跑",
+            "error": f"git fetch origin {channel} 失败:{f.stderr.strip()[:200]}",
+            "channel": channel,
+            "channel_source": channel_source,
+            "hint": (
+                f"检查网络 / origin remote / 分支 {channel} 是否存在 · 修复后重跑。"
+                f"\n  若想换 channel · 加 --channel main(或编辑 "
+                f".teamwork_localconfig.json.update_channel)"
+            ),
         })
         return
 
-    p = subprocess.run(["git", "-C", str(git_root), "pull", "--ff-only", "origin", "main"],
+    p = subprocess.run(["git", "-C", str(git_root), "pull", "--ff-only",
+                        "origin", channel],
                        capture_output=True, text=True, timeout=60)
     if p.returncode != 0:
         emit({
             "verdict": "FAIL",
             "command": "update-skill",
-            "error": f"git pull --ff-only failed:{p.stderr.strip()[:200]}",
+            "error": f"git pull --ff-only origin {channel} failed:{p.stderr.strip()[:200]}",
+            "channel": channel,
+            "channel_source": channel_source,
             "hint": (
-                "本地分叉 / 冲突 · 手动 rebase 或 reset:\n"
-                f"  cd {git_root} · git status · git log HEAD..origin/main · "
-                "评估后 git rebase origin/main 或丢弃本地 git reset --hard origin/main(慎)"
+                f"本地分叉 / 冲突 · 手动 rebase 或 reset:\n"
+                f"  cd {git_root} · git status · git log HEAD..origin/{channel} · "
+                f"评估后 git rebase origin/{channel} 或丢弃本地 git reset --hard origin/{channel}(慎)"
             ),
         })
         return
@@ -3216,6 +3246,9 @@ def cmd_update_skill(args: argparse.Namespace) -> None:
     new_commit_count = int(c.stdout.strip()) if c.returncode == 0 and c.stdout.strip().isdigit() else 0
 
     same_version = old_version == new_version
+    channel_hint = (
+        f"(channel={channel})" if channel != "main" else ""
+    )
     emit({
         "verdict": "OK",
         "command": "update-skill",
@@ -3225,11 +3258,13 @@ def cmd_update_skill(args: argparse.Namespace) -> None:
         "new_commit_count": new_commit_count,
         "changed_files_stat": changed_files_stat[-2000:] if changed_files_stat else "",
         "git_root": str(git_root),
+        "channel": channel,
+        "channel_source": channel_source,
         "next_hint": (
-            f"✅ 升级 {old_version} → {new_version}({new_commit_count} 个新 commit)· "
+            f"✅ 升级 {old_version} → {new_version}({new_commit_count} 个新 commit){channel_hint}· "
             f"查 {git_root}/skills/teamwork/docs/CHANGELOG.md 顶部新版本段了解变更。"
             if not same_version else
-            f"已在最新版本 {new_version} · 无变化"
+            f"已在最新版本 {new_version}{channel_hint} · 无变化"
         ),
     })
 
@@ -3704,6 +3739,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     us.add_argument("--force", action="store_true",
                     help="脏树时强制 pull(慎用 · 会覆盖本地未提交改动)")
+    # v8.39:支持 channel(默认从 .teamwork_localconfig.json.update_channel 读 · fallback main)
+    us.add_argument("--channel",
+                    help=("[v8.39] skill 升级分支 · 默认从 "
+                          ".teamwork_localconfig.json.update_channel 读 · fallback main。"
+                          "推荐:稳定环境用 main · 尝鲜用 dev"))
     us.set_defaults(func=cmd_update_skill)
 
     # ─── v8.0 stage 命令注册(Code-driven Orchestration) ─────────────
