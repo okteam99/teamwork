@@ -1426,6 +1426,91 @@ class TestExternalReviewCommand(unittest.TestCase):
         self.assertEqual(STAGE_TO_REVIEW_TARGET["blueprint"], "blueprint")
         self.assertEqual(STAGE_TO_REVIEW_TARGET["review"], "code")
 
+    # ── v8.44:doc-based prompt(治本 case round 4 长 prompt 卡 + 不可审计)──
+
+    def test_v844_default_prompt_doc_path(self):
+        """v8.44:_default_prompt_doc_path 返 <feature>/external-review-prompts/<stage>-<model>.md。"""
+        from state import _default_prompt_doc_path  # type: ignore
+        feat = Path("/tmp/foo")
+        p = _default_prompt_doc_path(feat, "blueprint", "claude")
+        self.assertEqual(p, feat / "external-review-prompts" / "blueprint-claude.md")
+        p2 = _default_prompt_doc_path(feat, "goal", "codex")
+        self.assertEqual(p2, feat / "external-review-prompts" / "goal-codex.md")
+
+    def test_v844_scaffold_creates_doc_with_required_sections(self):
+        """v8.44:scaffold-review-prompt 生成 doc 含必要 sections(checklist / TODO / Schema)。"""
+        tmp = Path(tempfile.mkdtemp(prefix="tw-v844-scaffold-"))
+        try:
+            d = run(["scaffold-review-prompt", "--feature", str(tmp),
+                     "--stage", "blueprint", "--model", "claude"])
+            self.assertEqual(d["verdict"], "OK")
+            self.assertEqual(d["stage"], "blueprint")
+            self.assertEqual(d["model"], "claude")
+            doc = Path(d["prompt_doc"])
+            self.assertTrue(doc.exists())
+            body = doc.read_text(encoding="utf-8")
+            # 必含 checklist / TODO 标记 / output schema
+            self.assertIn("Review Checklist", body)
+            self.assertIn("C1 TC to AC mapping", body)  # blueprint checklist
+            self.assertIn("TODO", body)
+            self.assertIn("compact", body)  # "TODO · ... 填以下 Summary 段(compact · ...)"
+            self.assertIn("Output Schema", body)
+            self.assertIn("findings_summary", body)
+            self.assertIn("perspective: external-claude", body)
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    def test_v844_scaffold_block_when_exists_without_force(self):
+        """v8.44:scaffold 若 doc 已存在 + 无 --force → BLOCK(防覆盖编辑)。"""
+        tmp = Path(tempfile.mkdtemp(prefix="tw-v844-exists-"))
+        try:
+            run(["scaffold-review-prompt", "--feature", str(tmp),
+                 "--stage", "blueprint", "--model", "claude"])
+            d = run(["scaffold-review-prompt", "--feature", str(tmp),
+                     "--stage", "blueprint", "--model", "claude"], expect_exit=0)
+            self.assertEqual(d["verdict"], "FAIL")
+            self.assertIn("已存在", d["error"])
+            self.assertIn("--force", d["hint"])
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    def test_v844_scaffold_force_overwrites(self):
+        """v8.44:--force 通过覆盖 · 用户编辑会丢但用户已显式承认。"""
+        tmp = Path(tempfile.mkdtemp(prefix="tw-v844-force-"))
+        try:
+            run(["scaffold-review-prompt", "--feature", str(tmp),
+                 "--stage", "goal", "--model", "claude"])
+            doc = tmp / "external-review-prompts" / "goal-claude.md"
+            # 手动改 doc · 模拟用户编辑
+            doc.write_text("USER EDITED · should be overwritten with --force\n",
+                            encoding="utf-8")
+            d = run(["scaffold-review-prompt", "--feature", str(tmp),
+                     "--stage", "goal", "--model", "claude", "--force"])
+            self.assertEqual(d["verdict"], "OK")
+            body = doc.read_text(encoding="utf-8")
+            self.assertNotIn("USER EDITED", body)
+            self.assertIn("Review Checklist", body)
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    def test_v844_scaffold_different_stages_have_different_checklists(self):
+        """v8.44:scaffold goal/blueprint/review 生成不同 checklist。"""
+        tmp = Path(tempfile.mkdtemp(prefix="tw-v844-stages-"))
+        try:
+            for stage in ["goal", "blueprint", "review"]:
+                d = run(["scaffold-review-prompt", "--feature", str(tmp),
+                         "--stage", stage, "--model", "claude"])
+                self.assertEqual(d["verdict"], "OK")
+                body = Path(d["prompt_doc"]).read_text(encoding="utf-8")
+                if stage == "goal":
+                    self.assertIn("PRD scope clarity", body)
+                elif stage == "blueprint":
+                    self.assertIn("TC to AC mapping", body)
+                elif stage == "review":
+                    self.assertIn("Code correctness", body)
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
     # ── commit fallback ──
     def test_commit_fallback_from_state_dev_auto_commit(self):
         """--commit 缺 → state.stage_contracts.dev.auto_commit 取。"""

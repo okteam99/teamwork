@@ -1,5 +1,143 @@
 # Changelog
 
+## v8.44 · external-review 改 doc-based default + scaffold-review-prompt 子命令(治本 case round 4 长 prompt 卡)
+
+> 用户 2026-05-27 case round 4 实战:
+> - v8.43 inline 全 PRD/TC/TECH 改完后 · 长 prompt(几十 KB)调 `claude -p` 仍卡住
+> - AI 退化用"短 prompt 概括"跑通 · 拿到 NEEDS_REVISION
+> - **用户决策**:"你把提示词写入一个文档 · 让 claude 读按文档执行"
+
+### 用户洞察:架构反转
+
+v8.43 inline 模式的 4 个深层问题:
+
+| 问题 | 详情 |
+|------|------|
+| **prompt 过长** | inline 几十 KB · `claude -p` argv 处理慢或卡 |
+| **reviewer 失焦** | 全文 inline · reviewer 看 PRD body 占大量 token · 失去 checklist 焦点 |
+| **不可审计** | prompt 在 state.py 拼好直接喂 claude · 用户看不到 |
+| **不可编辑** | prompt 是 magic · 修不了 reviewer 检查重点 |
+
+**用户提议**:state.py 不再 magic inline · 而是**读 AI 准备好的 prompt-doc**
+
+| 步骤 | 责任方 | 内容 |
+|------|--------|------|
+| 1. scaffold prompt-doc | `state.py scaffold-review-prompt`(v8.44 新) | 短 skeleton:checklist + output schema + TODO 标记 |
+| 2. 填 compact summary | AI 主对话(读 PRD/TC/TECH 用本身能力) | 关键契约提炼 · 含 known facts |
+| 3. 跑 external review | state.py | 读 prompt-doc → claude argv |
+| 4. 审计 / 迭代 | 用户/AI | 编辑 prompt-doc · 重跑 |
+
+### 用户决策
+
+| 维度 | 选项 | 用户选 |
+|------|------|--------|
+| doc-based 治本范围 | A 强制 / B fallback inline+WARN / C opt-in / D 不动 | **B · doc-based default · 不存在 fallback inline+WARN** |
+| 是否加 scaffold helper | 加 / 不加(文档指引手写) | **加 state.py scaffold-review-prompt 子命令** |
+
+### 实施
+
+#### 1. 新 helper:`_default_prompt_doc_path(feature_dir, stage, model)`
+
+返回 `<feature_dir>/external-review-prompts/<stage>-<model>.md`(如 `blueprint-claude.md`)
+
+#### 2. 新 subcommand:`state.py scaffold-review-prompt`
+
+```
+state.py scaffold-review-prompt --feature <path> --stage {goal|blueprint|review} --model {claude|codex} [--force]
+```
+
+生成 doc skeleton:
+- Strict Constraints(READ-ONLY · 不问 / 不执行 / 只 review 本 doc)
+- Target(feature_id / target / stage / perspective)
+- Output Schema(YAML frontmatter + findings 列表)
+- Review Checklist(stage 特定:goal=4 项 / blueprint=6 项 / review=5 项)
+- **TODO 段** · 让 AI 主对话填 compact summary(不复制全文)
+- Required Judgment(reviewer 应特别关注的盲区)
+
+幂等:doc 已存在 → BLOCK with hint(防覆盖编辑) · `--force` 强制覆盖。
+
+#### 3. cmd_external_review claude 路径改 doc-based default
+
+```diff
++ prompt_doc = _default_prompt_doc_path(feature_dir, stage, model)
++ if prompt_doc.exists():
++     prompt_text = prompt_doc.read_text(...)
++     prompt_doc_used = str(prompt_doc)
++ else:
++     # v8.44 fallback:v8.43 inline + emit WARN 提示 scaffold
++     [v8.43 inline 逻辑保留 · 向后兼容]
++     fallback_warning = "⚠️ prompt-doc 不存在 · 走 v8.43 inline fallback · 推荐 scaffold..."
+```
+
+#### 4. argparse 加 `--prompt-doc <path>`
+
+显式 override 默认路径(用户/AI 想用其他位置 doc 时)
+
+#### 5. emit 加 3 字段
+
+- `prompt_doc`(实际用的 doc 路径 · doc-based 路径才出)
+- `prompt_doc_source`("args" / "default")
+- `prompt_doc_fallback_warning`(fallback 走 inline 时的 WARN · PMO 应看到提示 scaffold)
+
+### 测试覆盖(5 个新加)
+
+- `test_v844_default_prompt_doc_path`(路径规则)
+- `test_v844_scaffold_creates_doc_with_required_sections`(checklist + schema + TODO)
+- `test_v844_scaffold_block_when_exists_without_force`(幂等)
+- `test_v844_scaffold_force_overwrites`(--force)
+- `test_v844_scaffold_different_stages_have_different_checklists`(stage 特定)
+
+349 passed / 97 baseline / 0 regression
+
+### 工作流变化
+
+**v8.43 一步走**(失败):
+```bash
+state.py external-review --feature <path> --stage blueprint
+  → inline 全 PRD/TC/TECH 几十 KB
+  → claude -p '...' 卡或失焦
+```
+
+**v8.44 三步走**(推荐):
+```bash
+# 1. AI 主对话跑 scaffold
+state.py scaffold-review-prompt --feature <path> --stage blueprint --model claude
+
+# 2. AI 主对话读 PRD/TC/TECH · 填 doc TODO 段(compact summary · 不复制全文)
+edit <path>/external-review-prompts/blueprint-claude.md
+
+# 3. state.py 读 doc · 短 prompt 不卡
+state.py external-review --feature <path> --stage blueprint
+  → 读 doc · cat 给 claude -p · 短 + 聚焦
+```
+
+**v8.43 fallback 保留**(向后兼容):
+- doc 不存在 → 仍走 v8.43 inline 模式 · emit WARN 提示创建 doc
+- 老脚本 / 紧急情况不被破坏
+
+### 设计哲学
+
+R0 哲学(可枚举进脚本 · 不可枚举留人):
+- **可枚举**:scaffold skeleton 结构 / checklist 模板 / 文件路径规则 → 进 state.py
+- **不可枚举**:PRD/TC/TECH 关键契约提炼 → AI 主对话(用本身能力 · 不是 state.py 机械替换)
+
+case-driven 教训:
+- v8.43 想"自动 inline 全文" 是 over-engineering · 失去 reviewer 焦点 + 卡 prompt 长度
+- 正确分工:**state.py 提供结构 / AI 主对话提供 compact 内容 · 各司其职**
+
+### Hash
+
+- state.py:cmd_scaffold_review_prompt(60 行) + STAGE_TO_REVIEW_CHECKLIST + SCAFFOLD_PROMPT_DOC_TEMPLATE(80 行) + cmd_external_review claude 路径改 doc-based(35 行) + argparse 加 --prompt-doc + scaffold-review-prompt subparser = 净 +200 行
+- test_state.py:5 测新加 = 净 +85 行
+- SKILL.md:v8.43 → v8.44
+- docs/CHANGELOG.md:本段
+
+### 发布
+
+v8.44 push origin/dev only(继续 dev-first 流程)· main 不动。
+
+---
+
 ## v8.43 · external-review claude 路径全治本(stdin→argv + 占位符真替换 + template_echo BLOCK · 治本 SVC-PLATFORM-F054 blueprint round 3)
 
 > 用户 2026-05-27 实战 case:external review 走 claude CLI 反复失败 · 用户 AI(Codex 主对话)反复 wrapper / kill 进程 / 重试 · 最后 reviewer 产物只 17 行 echo template 不真 review。三层 bug 同 case 暴露。

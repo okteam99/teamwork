@@ -2745,6 +2745,182 @@ def _run_claude_review(prompt_text: str, model_name: str = "claude-sonnet-4-6"
         return 127, "", f"claude CLI 不可用:{e}"
 
 
+# ─── v8.44:scaffold-review-prompt(doc-based external review · 治本 case round 4)─
+# 用户拍板:把 prompt 写到 doc · AI 主对话填 compact summary · state.py 读 doc 作 prompt
+# 解决 v8.43 inline 全 PRD/TC/TECH 卡 claude -p 长 prompt 问题
+
+
+def _default_prompt_doc_path(feature_dir: Path, stage: str, model: str) -> Path:
+    """v8.44:prompt-doc 默认路径 `<feature_dir>/external-review-prompts/<stage>-<model>.md`。"""
+    return feature_dir / "external-review-prompts" / f"{stage}-{model}.md"
+
+
+SCAFFOLD_PROMPT_DOC_TEMPLATE = """# {model_cap} {stage_cap} External Review Prompt
+
+> v8.44 scaffold(治本 case round 4 长 prompt 卡):
+> AI 主对话填 PRD/TC/TECH 关键摘要到 "Summary" 段(不复制全文 · 提炼契约+边界+known facts)
+> state.py external-review 检测此 doc → 优先用它作 prompt(不再 inline 全文)
+> 文档可审计 / 可编辑 / 可复跑
+
+You are Teamwork `external-{model}` reviewer.
+
+## Strict Constraints
+
+- READ-ONLY reviewer.
+- Do not write files.
+- Do not execute commands.
+- Do not ask follow-up questions.
+- Review only the {stage} summarized in this document.
+- Output only legal YAML frontmatter plus Markdown body.
+
+## Target
+
+- Feature: `{feature_id}`
+- Target: `{target}`
+- Stage: `{stage}`
+- Reviewer perspective: `external-{model}`
+
+## Output Schema
+
+```yaml
+---
+perspective: external-{model}
+target: {target}
+generated_at: "<ISO 8601 UTC>"
+model: "<actual model version>"
+findings:
+  - id: CR-1
+    checklist: C1
+    severity: blocker | high | low | info
+    location: "<artifact and section>"
+    issue: "<1-2 sentence issue>"
+    rationale: "<1-2 sentence evidence/risk>"
+    suggestion: "<actionable fix>"
+findings_summary:
+  blocker: 0
+  high: 0
+  low: 0
+  info: 0
+  total: 0
+---
+```
+
+If there are no findings, output `findings: []` and `findings_summary.total: 0`.
+
+## Review Checklist
+
+{checklist_block}
+
+## TODO · AI 主对话填以下 Summary 段(compact · 不复制全文)
+
+### {primary_artifact} Summary
+
+<!-- AI 填:关键契约 / 边界 / 信号 / known facts(代码现状 vs spec 声明) -->
+<!-- 不复制全文 · 提炼到 reviewer 可独立判断的最小集 -->
+
+### Required Judgment
+
+<!-- AI 填:reviewer 应特别关注的盲区 · 让 reviewer 不浪费 token 在低优先级 -->
+"""
+
+STAGE_TO_REVIEW_CHECKLIST = {
+    "goal": (
+        "- C1 PRD scope clarity / acceptance criteria atomicity.\n"
+        "- C2 Edge cases / boundary completeness.\n"
+        "- C3 Existing contract / cross-module impact.\n"
+        "- C4 Stakeholder communication clarity (UI/ADMIN/SVC/DBA roles)."
+    ),
+    "blueprint": (
+        "- C1 TC to AC mapping completeness.\n"
+        "- C2 TC executability (function names / file paths actually exist).\n"
+        "- C3 Boundary and failure coverage.\n"
+        "- C4 TECH architecture consistency.\n"
+        "- C5 TECH feasibility and risk.\n"
+        "- C6 TC to TECH alignment."
+    ),
+    "review": (
+        "- C1 Code correctness / logic bugs.\n"
+        "- C2 Security / injection / boundary checks.\n"
+        "- C3 Performance / N+1 / scaling.\n"
+        "- C4 Edge cases / error handling.\n"
+        "- C5 Test coverage gaps."
+    ),
+}
+
+
+def cmd_scaffold_review_prompt(args: argparse.Namespace) -> None:
+    """v8.44:生成 prompt-doc skeleton 到 feature_dir/external-review-prompts/<stage>-<model>.md。
+
+    AI 主对话跑此命令拿到 skeleton · 填 PRD/TC/TECH compact summary · 再跑 external-review。
+
+    幂等:doc 已存在 → 不覆盖(防覆盖用户编辑)· emit hint。--force 强制覆盖。
+    """
+    feature_dir = Path(args.feature).resolve()
+    if not feature_dir.exists():
+        emit({
+            "verdict": "FAIL",
+            "command": "scaffold-review-prompt",
+            "error": f"feature 路径不存在:{feature_dir}",
+        })
+        return
+
+    stage = args.stage
+    model = args.model
+    doc_path = _default_prompt_doc_path(feature_dir, stage, model)
+
+    if doc_path.exists() and not getattr(args, "force", False):
+        emit({
+            "verdict": "FAIL",
+            "command": "scaffold-review-prompt",
+            "error": f"prompt-doc 已存在 · 拒绝覆盖防丢失编辑:{doc_path}",
+            "hint": ("二选一:\n"
+                     f"  ① 直接编辑现有 doc:{doc_path}\n"
+                     f"  ② 加 --force 覆盖重生(本地编辑丢失 · 慎用)"),
+        })
+        return
+
+    # 推 feature_id 从路径(basename 即 ID-Name)
+    feature_id = feature_dir.name
+    target = STAGE_TO_REVIEW_TARGET.get(stage, stage)
+    checklist_block = STAGE_TO_REVIEW_CHECKLIST.get(stage, "- C1 ...\n- C2 ...")
+    primary_artifact = {
+        "goal": "PRD",
+        "blueprint": "TC + TECH",
+        "review": "Code Diff",
+    }.get(stage, stage.title())
+
+    body = SCAFFOLD_PROMPT_DOC_TEMPLATE.format(
+        model_cap=model.title(),
+        stage_cap=stage.title(),
+        model=model,
+        stage=stage,
+        feature_id=feature_id,
+        target=target,
+        checklist_block=checklist_block,
+        primary_artifact=primary_artifact,
+    )
+
+    doc_path.parent.mkdir(parents=True, exist_ok=True)
+    doc_path.write_text(body, encoding="utf-8")
+
+    emit({
+        "verdict": "OK",
+        "command": "scaffold-review-prompt",
+        "feature_id": feature_id,
+        "stage": stage,
+        "model": model,
+        "prompt_doc": str(doc_path),
+        "bytes_written": len(body.encode("utf-8")),
+        "next_hint": (
+            f"✅ Skeleton 已写 · 接下来:\n"
+            f"  ① AI 主对话读 PRD/TC/TECH · 填 doc 内 'TODO · 填以下 Summary 段' "
+            f"(compact summary · 提炼契约+边界+known facts · 不复制全文)\n"
+            f"  ② 跑 state.py external-review --feature <path> --stage {stage} "
+            f"(--model {model})· state.py 自动读取此 doc 作 prompt"
+        ),
+    })
+
+
 def cmd_external_review(args: argparse.Namespace) -> None:
     """v8.20:state.py external-review · 异质模型评审一条命令调起。
 
@@ -3015,28 +3191,57 @@ def cmd_external_review(args: argparse.Namespace) -> None:
             codex_model=codex_model,
         )
     else:
-        # claude 路径:读 prompt template + 占位符替换 + 文件 inline + argv 调 claude -p
-        # v8.43 治本 case SVC-PLATFORM-F054 blueprint round 3:
-        # (1) 之前用双大括号 `{{stage}}` 替换 · 但 reviewer.md 用单大括号 `{stage}` ·
-        #     占位符完全 mismatch · 全部没替换 · claude 收到字面 `{file_list}` 当 meta echo
-        # (2) reviewer.md 含 `{file_list}` 期望 inline 文件内容 · v8.43 前没 inline ·
-        #     reviewer 不知评什么 → "只 echo template 不真 review"
-        prompt_template = profile_path.read_text(encoding="utf-8")
-        file_list_block, files_inline_meta = _gather_review_files_for_claude(
-            args.stage, feature_dir
-        )
-        prompt_text = (
-            prompt_template
-            .replace("{stage}", args.stage)
-            .replace("{target}", STAGE_TO_REVIEW_TARGET.get(args.stage, args.stage))
-            .replace("{feature_name}", feature_id)
-            .replace("{file_list}", file_list_block)
-            # 兼容历史双大括号(若有 caller 仍传双):
-            .replace("{{stage}}", args.stage)
-            .replace("{{commit}}", commit)
-            .replace("{{base}}", base)
-            .replace("{{feature_id}}", feature_id)
-        )
+        # claude 路径:v8.44 doc-based default(治本 case round 4 长 prompt 卡 claude -p)
+        # 优先:读 feature_dir/external-review-prompts/<stage>-<model>.md · 作 claude argv prompt
+        #   - AI 主对话填 compact summary(提炼契约 · 不复制全文)
+        #   - prompt 可审计 / 可编辑 / 可复跑 · 短不卡
+        # Fallback:doc 不存在 → v8.43 inline 全文模式 + emit WARN 提示 scaffold
+        prompt_doc_override = getattr(args, "prompt_doc", None)
+        if prompt_doc_override:
+            prompt_doc = Path(prompt_doc_override).expanduser().resolve()
+            prompt_doc_source = "args"
+        else:
+            prompt_doc = _default_prompt_doc_path(feature_dir, args.stage, model)
+            prompt_doc_source = "default"
+
+        files_inline_meta: list[dict] = []
+        fallback_warning = None
+        if prompt_doc.exists():
+            try:
+                prompt_text = prompt_doc.read_text(encoding="utf-8")
+                prompt_doc_used = str(prompt_doc)
+            except OSError as e:
+                emit({
+                    "verdict": "FAIL",
+                    "command": "external-review",
+                    "error": f"读 prompt-doc 失败:{prompt_doc}: {e}",
+                })
+                return
+        else:
+            # v8.44 fallback:v8.43 inline 模式 + WARN 提示 scaffold
+            prompt_template = profile_path.read_text(encoding="utf-8")
+            file_list_block, files_inline_meta = _gather_review_files_for_claude(
+                args.stage, feature_dir
+            )
+            prompt_text = (
+                prompt_template
+                .replace("{stage}", args.stage)
+                .replace("{target}", STAGE_TO_REVIEW_TARGET.get(args.stage, args.stage))
+                .replace("{feature_name}", feature_id)
+                .replace("{file_list}", file_list_block)
+                .replace("{{stage}}", args.stage)
+                .replace("{{commit}}", commit)
+                .replace("{{base}}", base)
+                .replace("{{feature_id}}", feature_id)
+            )
+            prompt_doc_used = None
+            fallback_warning = (
+                f"⚠️ prompt-doc 不存在({prompt_doc})· 走 v8.43 inline 模式 fallback。"
+                f" 推荐:跑 state.py scaffold-review-prompt --feature {feature_dir} "
+                f"--stage {args.stage} --model {model} 生成 skeleton · "
+                f"AI 主对话填 compact summary 后重跑 external-review("
+                f"治本长 prompt 卡 + 不可审计 · v8.44 推荐路径)"
+            )
         rc, stdout, stderr = _run_claude_review(prompt_text)
 
     if rc != 0:
@@ -3157,11 +3362,17 @@ def cmd_external_review(args: argparse.Namespace) -> None:
         # v8.36:host 来源 deprecated 警告 + 内容质量轻校验 WARN(不 BLOCK · R0 兜底)
         **({"deprecation_warning": deprecation_warning} if deprecation_warning else {}),
         **({"quality_warnings": quality_warnings} if quality_warnings else {}),
-        # v8.43:claude 路径 inline 文件 meta(PMO 可验 reviewer 真拿到内容)
+        # v8.43:claude 路径 inline 文件 meta(PMO 可验 reviewer 真拿到内容 · v8.44 fallback 时仍出)
         **({"files_inlined": files_inline_meta}
             if model == "claude" and files_inline_meta else {}),
         # v8.43:bypass quality_warnings(template_echo)留痕
         **({"quality_bypass_warning": bypass_warning} if bypass_warning else {}),
+        # v8.44:doc-based prompt 路径(治本 case round 4 长 prompt 卡)
+        **({"prompt_doc": prompt_doc_used,
+            "prompt_doc_source": prompt_doc_source}
+            if model == "claude" and prompt_doc_used else {}),
+        **({"prompt_doc_fallback_warning": fallback_warning}
+            if model == "claude" and fallback_warning else {}),
     })
 
 
@@ -3706,7 +3917,27 @@ def build_parser() -> argparse.ArgumentParser:
                     help=("[v8.43] template_echo BLOCK 时显式承认评审实质 OK(误报) · "
                           "走 bypass log + concerns WARN 留痕 · retro 复盘可见。"
                           "用户应先实际读 file 验证再加此 flag"))
+    # v8.44:doc-based prompt(治本 case round 4 长 prompt 卡 + 不可审计)
+    er.add_argument("--prompt-doc",
+                    help=("[v8.44] 显式 prompt-doc 路径 · 不传则默认 "
+                          "<feature>/external-review-prompts/<stage>-<model>.md。"
+                          "doc 不存在 → fallback v8.43 inline + emit WARN 提示 scaffold"))
     er.set_defaults(func=cmd_external_review)
+
+    # v8.44:scaffold-review-prompt · 生成 prompt-doc skeleton(AI 主对话填 compact summary)
+    sp = sub.add_parser(
+        "scaffold-review-prompt",
+        help=("[v8.44] 生成 external-review prompt-doc skeleton · 让 AI 主对话填 "
+              "compact summary · 治本 case round 4 长 prompt 卡 + 不可审计"),
+    )
+    sp.add_argument("--feature", required=True, help="Feature artifact_root 路径")
+    sp.add_argument("--stage", required=True, choices=["goal", "blueprint", "review"],
+                    help="评审 stage(goal/blueprint/review · 各自 checklist 不同)")
+    sp.add_argument("--model", required=True, choices=["claude", "codex"],
+                    help="reviewer 模型(影响 doc 文件名 + perspective)")
+    sp.add_argument("--force", action="store_true",
+                    help="doc 已存在时覆盖(慎用 · 会丢失本地编辑)")
+    sp.set_defaults(func=cmd_scaffold_review_prompt)
 
     # v8.24-v8.41:update-skill · 自更新 → v8.42 抽到独立 tools/update.py
     # 用法:python3 SKILL_ROOT/tools/update.py [--channel <branch>] [--accept-overwrite]
