@@ -1,5 +1,43 @@
 # Changelog
 
+## v8.44.2 · 修 v8.44.1 hook marker 误判 bug(commit body 含 marker 字符串就被跳过)
+
+> 上一轮 v8.44.1 commit message body 描述功能时写了`[auto-bump]` 字面字符串 · hook 用 `%B` 全 message 检测 marker 时误判已 bump · 直接放行 · 第一次 push 没 trigger hook · 用户报"hook 没生效"。bash -x trace 实证:`[[ ... contains [auto-bump] == *[auto-bump]* ]]` 真 → exit 0。
+
+### 治本(2 处改 hook)
+
+1. **marker 改更稀有字符串**:`[auto-bump]` → `<teamwork-auto-bump-v1>`(角括号 + 含 teamwork 命名空间 · 不易撞)
+2. **检测改 subject 不看 body**:`git log -1 --pretty=%B` → `git log -1 --pretty=%s` · 只看 subject(第 1 行)
+3. **双 guard**:subject 含 `chore(version): auto-bump patch` 前缀 OR body 含 marker · 任一过 → 放行
+
+### auto-bump commit 格式改
+
+```diff
+- git commit -m "chore(version): auto-bump patch · $bump_output $AUTO_BUMP_MARKER" --no-verify
++ # subject 前缀 + body marker · 双 guard 都过
++ git commit -m "$AUTO_BUMP_SUBJECT_PREFIX · $bump_output" -m "$AUTO_BUMP_MARKER" --no-verify
+```
+
+### 实测验证(本次 push)
+
+预期:
+- v8.44 → v8.44.1(上次 push 我手动 bump 修)
+- v8.44.1 → v8.44.2(本次 hook 触发 bump · push 含本 v8.44.2 commit + auto-bump commit)
+
+### 诚实记录
+
+v8.44.1 设计 marker 时没考虑"commit body 描述功能时会撞 marker 字符串"这个边界 case。case 实证 → 用户 push 后看到"hook 没生效"。
+
+修法用更稀有 marker + subject-only 检测 · 双重保险。
+
+### Hash
+
+- git-hooks/pre-push:marker 改 + subject 检测 + 双 guard
+- SKILL.md:v8.44.1 → v8.44.2(上次手动 bump 时已是 v8.44.1 · 本次 push hook 触发 → v8.44.2)
+- docs/CHANGELOG.md:本段
+
+---
+
 ## v8.44.1 · dev push auto-bump patch + pre-push hook + bump_patch_version.py(用户拍板)
 
 > 用户 2026-05-28:"后续改下规则 · 每次 dev 有新提交自动增加小版本"
