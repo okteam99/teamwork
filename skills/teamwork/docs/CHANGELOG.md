@@ -1,5 +1,643 @@
 # Changelog
 
+## v8.44 · external-review 改 doc-based default + scaffold-review-prompt 子命令(治本 case round 4 长 prompt 卡)
+
+> 用户 2026-05-27 case round 4 实战:
+> - v8.43 inline 全 PRD/TC/TECH 改完后 · 长 prompt(几十 KB)调 `claude -p` 仍卡住
+> - AI 退化用"短 prompt 概括"跑通 · 拿到 NEEDS_REVISION
+> - **用户决策**:"你把提示词写入一个文档 · 让 claude 读按文档执行"
+
+### 用户洞察:架构反转
+
+v8.43 inline 模式的 4 个深层问题:
+
+| 问题 | 详情 |
+|------|------|
+| **prompt 过长** | inline 几十 KB · `claude -p` argv 处理慢或卡 |
+| **reviewer 失焦** | 全文 inline · reviewer 看 PRD body 占大量 token · 失去 checklist 焦点 |
+| **不可审计** | prompt 在 state.py 拼好直接喂 claude · 用户看不到 |
+| **不可编辑** | prompt 是 magic · 修不了 reviewer 检查重点 |
+
+**用户提议**:state.py 不再 magic inline · 而是**读 AI 准备好的 prompt-doc**
+
+| 步骤 | 责任方 | 内容 |
+|------|--------|------|
+| 1. scaffold prompt-doc | `state.py scaffold-review-prompt`(v8.44 新) | 短 skeleton:checklist + output schema + TODO 标记 |
+| 2. 填 compact summary | AI 主对话(读 PRD/TC/TECH 用本身能力) | 关键契约提炼 · 含 known facts |
+| 3. 跑 external review | state.py | 读 prompt-doc → claude argv |
+| 4. 审计 / 迭代 | 用户/AI | 编辑 prompt-doc · 重跑 |
+
+### 用户决策
+
+| 维度 | 选项 | 用户选 |
+|------|------|--------|
+| doc-based 治本范围 | A 强制 / B fallback inline+WARN / C opt-in / D 不动 | **B · doc-based default · 不存在 fallback inline+WARN** |
+| 是否加 scaffold helper | 加 / 不加(文档指引手写) | **加 state.py scaffold-review-prompt 子命令** |
+
+### 实施
+
+#### 1. 新 helper:`_default_prompt_doc_path(feature_dir, stage, model)`
+
+返回 `<feature_dir>/external-review-prompts/<stage>-<model>.md`(如 `blueprint-claude.md`)
+
+#### 2. 新 subcommand:`state.py scaffold-review-prompt`
+
+```
+state.py scaffold-review-prompt --feature <path> --stage {goal|blueprint|review} --model {claude|codex} [--force]
+```
+
+生成 doc skeleton:
+- Strict Constraints(READ-ONLY · 不问 / 不执行 / 只 review 本 doc)
+- Target(feature_id / target / stage / perspective)
+- Output Schema(YAML frontmatter + findings 列表)
+- Review Checklist(stage 特定:goal=4 项 / blueprint=6 项 / review=5 项)
+- **TODO 段** · 让 AI 主对话填 compact summary(不复制全文)
+- Required Judgment(reviewer 应特别关注的盲区)
+
+幂等:doc 已存在 → BLOCK with hint(防覆盖编辑) · `--force` 强制覆盖。
+
+#### 3. cmd_external_review claude 路径改 doc-based default
+
+```diff
++ prompt_doc = _default_prompt_doc_path(feature_dir, stage, model)
++ if prompt_doc.exists():
++     prompt_text = prompt_doc.read_text(...)
++     prompt_doc_used = str(prompt_doc)
++ else:
++     # v8.44 fallback:v8.43 inline + emit WARN 提示 scaffold
++     [v8.43 inline 逻辑保留 · 向后兼容]
++     fallback_warning = "⚠️ prompt-doc 不存在 · 走 v8.43 inline fallback · 推荐 scaffold..."
+```
+
+#### 4. argparse 加 `--prompt-doc <path>`
+
+显式 override 默认路径(用户/AI 想用其他位置 doc 时)
+
+#### 5. emit 加 3 字段
+
+- `prompt_doc`(实际用的 doc 路径 · doc-based 路径才出)
+- `prompt_doc_source`("args" / "default")
+- `prompt_doc_fallback_warning`(fallback 走 inline 时的 WARN · PMO 应看到提示 scaffold)
+
+### 测试覆盖(5 个新加)
+
+- `test_v844_default_prompt_doc_path`(路径规则)
+- `test_v844_scaffold_creates_doc_with_required_sections`(checklist + schema + TODO)
+- `test_v844_scaffold_block_when_exists_without_force`(幂等)
+- `test_v844_scaffold_force_overwrites`(--force)
+- `test_v844_scaffold_different_stages_have_different_checklists`(stage 特定)
+
+349 passed / 97 baseline / 0 regression
+
+### 工作流变化
+
+**v8.43 一步走**(失败):
+```bash
+state.py external-review --feature <path> --stage blueprint
+  → inline 全 PRD/TC/TECH 几十 KB
+  → claude -p '...' 卡或失焦
+```
+
+**v8.44 三步走**(推荐):
+```bash
+# 1. AI 主对话跑 scaffold
+state.py scaffold-review-prompt --feature <path> --stage blueprint --model claude
+
+# 2. AI 主对话读 PRD/TC/TECH · 填 doc TODO 段(compact summary · 不复制全文)
+edit <path>/external-review-prompts/blueprint-claude.md
+
+# 3. state.py 读 doc · 短 prompt 不卡
+state.py external-review --feature <path> --stage blueprint
+  → 读 doc · cat 给 claude -p · 短 + 聚焦
+```
+
+**v8.43 fallback 保留**(向后兼容):
+- doc 不存在 → 仍走 v8.43 inline 模式 · emit WARN 提示创建 doc
+- 老脚本 / 紧急情况不被破坏
+
+### 设计哲学
+
+R0 哲学(可枚举进脚本 · 不可枚举留人):
+- **可枚举**:scaffold skeleton 结构 / checklist 模板 / 文件路径规则 → 进 state.py
+- **不可枚举**:PRD/TC/TECH 关键契约提炼 → AI 主对话(用本身能力 · 不是 state.py 机械替换)
+
+case-driven 教训:
+- v8.43 想"自动 inline 全文" 是 over-engineering · 失去 reviewer 焦点 + 卡 prompt 长度
+- 正确分工:**state.py 提供结构 / AI 主对话提供 compact 内容 · 各司其职**
+
+### Hash
+
+- state.py:cmd_scaffold_review_prompt(60 行) + STAGE_TO_REVIEW_CHECKLIST + SCAFFOLD_PROMPT_DOC_TEMPLATE(80 行) + cmd_external_review claude 路径改 doc-based(35 行) + argparse 加 --prompt-doc + scaffold-review-prompt subparser = 净 +200 行
+- test_state.py:5 测新加 = 净 +85 行
+- SKILL.md:v8.43 → v8.44
+- docs/CHANGELOG.md:本段
+
+### 发布
+
+v8.44 push origin/dev only(继续 dev-first 流程)· main 不动。
+
+---
+
+## v8.43 · external-review claude 路径全治本(stdin→argv + 占位符真替换 + template_echo BLOCK · 治本 SVC-PLATFORM-F054 blueprint round 3)
+
+> 用户 2026-05-27 实战 case:external review 走 claude CLI 反复失败 · 用户 AI(Codex 主对话)反复 wrapper / kill 进程 / 重试 · 最后 reviewer 产物只 17 行 echo template 不真 review。三层 bug 同 case 暴露。
+
+### 三层 Bug 实测证据
+
+**Bug A · `claude -p` stdin 模式 "Not logged in"**
+```
+✓ claude -p 'Return exactly ok.' --model claude-sonnet-4-6  → "ok"(argv 模式)
+✗ printf 'Return exactly ok.' | claude -p --model claude-sonnet-4-6 → "Not logged in"(stdin 模式)
+```
+Claude CLI 2.1.153 在 stdin 模式登录态有 bug。我 v8.38 改 `--print` → `-p` 时仍用 `input=prompt_text` 走 stdin · 直接命中。
+
+**Bug B · Claude reviewer 只 echo template 不真 review**
+- 生成的 blueprint-claude.md 只 17 行 · 含字面 `{file_list}` 占位符
+- 根因:state.py 用双大括号 `{{stage}}` 替换 · reviewer.md 用单大括号 `{stage}` `{file_list}` —— **占位符完全 mismatch · 全部没替换** · 且 `{file_list}`(文件内容 inline 关键)从未被处理
+- Claude 收到字面 `{file_list}` 当 meta 任务 echo
+
+**Bug C · quality_warnings 只 WARN 不 BLOCK**
+v8.36 决策 WARN · case 实证 AI 看到产物存在就继续 · WARN 走过场 · 用户最后手动读 file 才发现无效。
+
+### 用户决策
+
+| 维度 | 选项 | 用户选 |
+|------|------|--------|
+| v8.43 治本范围 | A 全治 / B 仅 A+B / C 仅 A / D 仅 C | **A · 全治 Bug A+B+C** |
+| 占位符统一方向 | state.py 改单 / reviewer.md 改双 / 都改 `${name}` | **state.py 改单 · 与 reviewer.md 对齐** |
+
+### 实施(3 个 Fix)
+
+#### Fix 1 · `_run_claude_review` stdin → argv(state.py)
+
+```diff
+- cmd = ["claude", "-p", "--model", model_name, "--output-format", "text"]
+- r = subprocess.run(cmd, input=prompt_text, ...)
++ cmd = ["claude", "-p", prompt_text, "--model", model_name, "--output-format", "text"]
++ r = subprocess.run(cmd, ...)
+```
+
+加 ARG_MAX 错误捕获(`errno=7` E2BIG)· emit hint 提示 prompt 过长。
+
+#### Fix 2 · 占位符真替换 + inline 文件内容
+
+新加 helper `_gather_review_files_for_claude(stage, feature_dir)`:
+- stage → 文件清单(goal=[PRD.md] / blueprint=[TC.md, TECH.md] / review=[]· review 走 diff)
+- 读取每文件 inline 成 ` ### filename\n\\`\\`\\`\ncontent\n\\`\\`\\`\n`
+- 超 60KB 单文件 truncate + meta 标 truncated
+- 缺失文件 emit "(文件不存在)" · 不 BLOCK
+
+state.py 替换改单大括号 + 加 `{file_list}` 处理:
+```diff
++ file_list_block, files_inline_meta = _gather_review_files_for_claude(stage, feature_dir)
+  prompt_text = (
+      prompt_template
++     .replace("{stage}", args.stage)
++     .replace("{target}", STAGE_TO_REVIEW_TARGET.get(args.stage, args.stage))
++     .replace("{feature_name}", feature_id)
++     .replace("{file_list}", file_list_block)
+      # 兼容历史双大括号 caller:
+      .replace("{{stage}}", args.stage)
+      ...
+  )
+```
+
+emit 加 `files_inlined` 字段(PMO 可验 reviewer 真拿到内容)。
+
+#### Fix 3 · template_echo 升 BLOCK + 逃生口
+
+```diff
++ template_echo_hit = [w for w in quality_warnings if w.get("type") == "template_echo"]
++ if template_echo_hit and not args.accept_quality_warnings:
++     emit FAIL with hint:
++        ① 检查 prompt 与 reviewer 真实输出 · 修 prompt 或重跑
++        ② --accept-quality-warnings 通过(走 bypass log + concerns WARN)
++     return
+```
+
+argparse 加 `--accept-quality-warnings`。bypass 路径 emit 携带 `quality_bypass_warning`(audit 留痕)。
+
+`empty_content` 保持 WARN(可能合理精简 · 区别于 template_echo 强信号)。
+
+### 测试覆盖(5 个新加)
+
+`TestExternalReviewCommand`:
+- `test_v843_run_claude_review_prompt_in_argv_not_stdin`(Fix 1 · mock subprocess 验 argv 位置)
+- `test_v843_gather_review_files_inlines_blueprint_targets`(Fix 2 · blueprint TC/TECH 真 inline)
+- `test_v843_gather_review_files_truncates_oversized`(Fix 2 · 超 60KB truncate)
+- `test_v843_gather_review_files_handles_missing`(Fix 2 · 缺失文件不抛异常)
+- `test_v843_stage_review_files_maps_correctly`(Fix 2 · 映射表 sanity)
+
+`test_v838_run_claude_review_cmd_array_uses_dash_p` 更新(去除"prompt 在 stdin" 旧断言 · v8.43 改 argv)。
+
+344 passed / 97 failed(baseline 一致 · 0 regression)
+
+### 端到端影响
+
+| 改前(v8.42)| 改后(v8.43) |
+|------------|--------------|
+| `claude -p` 用 stdin → "Not logged in" | argv → 正常返 |
+| reviewer 收到字面 `{file_list}` 占位符 → echo | 收到真文件内容 inline → 真 review |
+| template_echo WARN 不 BLOCK · AI 走过场 | BLOCK · 必显式 --accept-quality-warnings 才过 |
+
+case 现场 AI 手拼 `claude -p` argv + inline 文件路径 的弯路 · v8.43 走 state.py external-review 主路径直接拿到。
+
+### 设计哲学
+
+R0 哲学(可枚举进脚本):
+- stdin/argv 选择 · 客观信号(Claude CLI 2.1.153 bug)→ 写死 argv
+- 占位符 mismatch · 客观对齐(单 vs 双)→ 改成单大括号 + 真替换
+- template_echo · 100% 无效信号 → BLOCK · 不留 WARN 走过场口子
+
+逃生口设计("不一刀切"):
+- ARG_MAX 超限 → errno=7 emit hint("prompt 过长")
+- 文件 truncate → reviewer 看到 truncated 标记自行判断完整性
+- template_echo 误报 → --accept-quality-warnings 显式确认 + bypass log
+
+### 治本与诚实
+
+我 v8.38 改 `--print` → `-p` 时只想着 short alias 对齐 · 没意识到 stdin/argv 是不同 code path(Claude CLI bug 表现不同)。case 实证才发现。
+
+v8.36 留 template_echo WARN 兜底 · 怕"误报误伤" · 实测发现 AI 钻 WARN 兜底口子。R0 哲学 case-driven 教训:**WARN 经常被 AI 当 silent 跳过 · 强信号必须 BLOCK + 逃生口**。
+
+reviewer.md `{file_list}` 占位符 spec 早就写好(line 122)· 但 state.py 实施时没读 spec · 自己造了双大括号体系。这是典型的 "实施与 spec 解耦" bug。
+
+### Hash
+
+- state.py:_run_claude_review stdin→argv + helpers + template_echo BLOCK 块 + argparse = 净 +100 行
+- test_state.py:5 测新加 + 1 测更新 = 净 +95 行
+- SKILL.md:v8.42 → v8.43
+- docs/CHANGELOG.md:本段
+
+### 发布
+
+v8.43 push origin/dev only(继续 dev-first 流程)· main 不动。
+
+---
+
+## v8.42 · 架构治本:update-skill 抽到独立 tools/update.py(职责分离 · 用户拍板)
+
+> 用户 2026-05-27:"更新文件本身是否有必要单独一个 python"
+
+### 用户洞察:元工具 vs 运行时
+
+v8.41 治本去 git 化后 · cmd_update_skill 在 state.py 里仍有 4 个问题:
+
+| 问题 | 说明 |
+|------|------|
+| **元工具混入运行时** | state.py = stage 状态机/评审/测试 运行时;update-skill = 管 state.py 自己 元工具 · 职责不同 |
+| **覆盖自己进程的不一致** | update-skill 跑时进程在内存 · 磁盘 state.py 被覆盖 · 同一 session 后续命令拿旧代码 |
+| **chicken-and-egg 死锁风险** | 若 cmd_update_skill 自己有 bug · 用户无法升级救命 |
+| **与 bootstrap.py pattern 不一致** | bootstrap.py 本身就独立 · update 同是 setup-style 元工具 · 应对齐 |
+
+### 用户决策
+
+| 维度 | 选项 | 用户选 |
+|------|------|--------|
+| 抽离方案 | A 完全独立 / B 双入口 / C 模块化 / D 维持现状 | **A · 完全独立 tools/update.py** |
+| 文件名 | update.py / selfupdate.py / upgrade.py / update_skill.py | **update.py**(最简洁 · 与 bootstrap.py 风格对齐) |
+
+### 实施
+
+#### 1. 新建 `tools/update.py`(独立脚本)
+
+完整搬 v8.41 cmd_update_skill 逻辑:
+- 4 helpers:`_download_skill_tarball` / `_parse_skill_md_version` / `_detect_local_modifications` / `_overwrite_skill_files`
+- 1 helper:`_resolve_channel`(优先级 args > localconfig > main · 复用 v8.39)
+- 1 主流程:`cmd_update(args)`(7 步)
+- 独立 argparse(`build_parser` + `main`)
+- 命令:`python3 SKILL_ROOT/tools/update.py [--channel <branch>] [--accept-overwrite]`
+
+#### 2. state.py 清理(259 行删除)
+
+```diff
+- 4 helpers(_download_skill_tarball / _parse / _detect / _overwrite)
+- cmd_update_skill(140+ 行)
+- argparse "update-skill" subparser + add_argument --channel / --accept-overwrite
+
++ 注释保留指向 tools/update.py(让 grep 用户找到新位置)
+```
+
+#### 3. bootstrap.py outdated prompt 改
+
+```diff
+- update_cmd = "`state.py update-skill`" if main else f"`state.py update-skill --channel {channel}`"
++ update_cmd = "`python3 $SKILL_ROOT/tools/update.py`" if main else f"`python3 $SKILL_ROOT/tools/update.py --channel {channel}`"
+```
+
+bootstrap 自动检测到新版本 emit prompt 时直接给独立脚本路径 · 用户复制即跑。
+
+### 测试覆盖(8 个新加 · 1 个新文件 · 5 个旧测删)
+
+新文件 `tools/tests/test_update.py`:
+
+**TestUpdatePyStandalone**(3 测 · 验证独立性):
+- `test_v842_update_py_exists`
+- `test_v842_update_py_runs_help_independently`(`update.py --help` 不依赖 state.py)
+- `test_v842_state_py_no_longer_has_update_skill`(确认 state.py update-skill subparser 已删 · invalid choice)
+
+**TestUpdatePyTarballDownload**(5 测 · 从 test_state.py 迁移 v8.41 核心逻辑):
+- `test_v842_block_when_local_modified_without_accept`
+- `test_v842_pass_with_accept_overwrite_and_overwrites_files`
+- `test_v842_block_when_tarball_url_invalid`
+- `test_v842_channel_passed_through_to_emit`
+- `test_v842_default_channel_main`
+
+删除 `test_state.py:TestUpdateSkillTarballDownload`(已迁出)。
+
+更新 `test_bootstrap.py`:
+- `test_outdated_emits_r5_prompt`:期望含 `tools/update.py` · 不含 `state.py update-skill`
+- `test_v839_explicit_dev_channel`:期望含 `tools/update.py` + `--channel dev`
+
+339 passed / 97 failed(baseline 一致 · 0 regression)
+
+### 与 bootstrap.py pattern 对齐
+
+| 工具 | 文件 | 类型 | 用法 |
+|------|------|------|------|
+| `bootstrap.py` | tools/bootstrap.py | setup 元工具(独立) | `python3 SKILL_ROOT/tools/bootstrap.py --host X` |
+| **`update.py`** | tools/update.py | **upgrade 元工具(独立 · v8.42)** | `python3 SKILL_ROOT/tools/update.py [--channel X]` |
+| `state.py` | tools/state.py | 运行时(stage 状态机 + ...) | `python3 SKILL_ROOT/tools/state.py <cmd>` |
+
+清晰的 3 文件分层:**元工具(bootstrap/update)+ 运行时(state)**。
+
+### chicken-and-egg 治本
+
+旧:若 v8.x cmd_update_skill 自己有 bug · 用户无法升级救命(state.py update-skill 自己坏了 → 升不了)
+新:update.py 完全独立 · state.py 任何 bug 都不影响 update.py 跑 · 用户随时能升级
+
+### Hash
+
+- 新文件 tools/update.py:282 行
+- 新文件 tools/tests/test_update.py:200 行
+- state.py:删 259 行(cmd_update_skill + 4 helpers + argparse + 常量)
+- bootstrap.py:update_cmd 改 7 行
+- test_state.py:删 142 行(TestUpdateSkillTarballDownload class)
+- test_bootstrap.py:改 2 个测试 · 加 update.py 字面校验
+- SKILL.md:v8.41 → v8.42
+- docs/CHANGELOG.md:本段
+
+净结果:state.py 减 259 行 · 总 -ish 净 +250 行(独立 update.py 文件 + 独立测试)
+
+### 设计哲学
+
+v8.41 治本 git 路径 bug(架构层降级)· v8.42 治本元工具混运行时(职责分离)。两次都是**架构层动手** · 不是修补层。
+
+R0 哲学:
+- **可枚举的进脚本**:update 流程 7 步 · helpers · 全在 update.py
+- **职责分离**:state.py 不该管"如何升级 state.py" · 像 bash 不该管"如何升级 bash"
+- **chicken-and-egg 隔离**:救命工具必须独立(否则坏了救不了)
+
+### 发布
+
+v8.42 push origin/dev only(继续 dev-first 流程)· 不动 main。
+
+下次稳定后(累积 v8.40-v8.42 dev 改动)可 ff merge dev → main 让 stable 用户拿到全部治本。
+
+---
+
+## v8.41 · 架构治本:update-skill 去 git 化 · tarball download + 覆盖(用户拍板)
+
+> 用户 2026-05-27:"cmd_update_skill 是否可以不关心分支 · 按理说他可以不关心 git · 只是从对应仓库和对应分支拉取最新文件做覆盖"
+
+### 用户洞察的精确性
+
+v8.24/v8.39/v8.40 把 update-skill 当 "vcs sync"(git pull) · 引入大量 git 相关复杂度:
+- v8.24:dirty BLOCK
+- v8.39:channel + URL 模板
+- v8.40:branch/channel 一致性校验
+
+用户重新分类:**update-skill 是 package manager**(npm/pip/brew)· 不是 vcs sync。只需要:
+1. 从远端拉最新内容
+2. 覆盖本地
+
+**v8.40 治本的"分支与 channel 错配"bug 在 download-overwrite 模型里根本不存在** —— 没有"当前分支"概念。架构层降级 · 不是修补层治本。
+
+### 用户决策
+
+| 维度 | 选项 | 用户选 |
+|------|------|--------|
+| 架构治本方向 | A 完全去 git 化 / B 保留 git 不依赖分支 / C 维持 v8.40 / D 双路径 | **A · 完全去 git 化** |
+| 本地改动保护 | A WARN + --accept-overwrite / B 自动 backup / C 直接覆盖 / D BLOCK 无逃生 | **A · WARN + --accept-overwrite** |
+
+### 实施(state.py 重写 cmd_update_skill + 3 helpers)
+
+```diff
+- # ── Step 1:检测 git repo ── (git rev-parse --show-toplevel)
+- # ── Step 2:检测脏树 ── (git status --porcelain · dirty BLOCK)
+- # ── Step 3:读 old version
+- # ── v8.39:resolve channel
+- # ── v8.40:校验当前分支 == channel(git rev-parse --abbrev-ref HEAD)
+- # ── Step 4:git fetch origin <channel> + git pull --ff-only origin <channel>
+- # ── Step 5:读 new version + ORIG_HEAD diff stat
+
++ # v8.41:tarball-based(去 git 化)
++ SKILL_TARBALL_URL_TEMPLATE = "https://github.com/okteam99/teamwork/archive/refs/heads/{channel}.tar.gz"
++
++ def _download_skill_tarball(channel, work_dir):  # curl + tar -xzf
++ def _parse_skill_md_version(skill_md):           # 复用 v8.24 的 regex
++ def _detect_local_modifications(target, source): # 文件 byte 比较
++ def _overwrite_skill_files(target, source):      # shutil.copy2 覆盖
++
++ def cmd_update_skill(args):
++     Step 1 resolve channel(args > localconfig > main · 保留 v8.39)
++     Step 2 读 old version
++     Step 3 download tarball + 解压 to /tmp(失败 → FAIL with hint)
++     Step 4 读 new version + 校验完整性(无 SKILL.md → FAIL)
++     Step 5 检测本地修改(byte-by-byte)
++     Step 6 modified + 无 --accept-overwrite → FAIL with hint(逃生口)
++     Step 7 覆盖 skill_root · cleanup tmp · emit OK
+```
+
+argparse 改动:
+- 删 `--force`(git pull 时代的脏树绕过 · 已无意义)
+- 加 `--accept-overwrite`(本地改动覆盖必显式)
+- 保留 `--channel`(v8.39)
+
+### 复杂度降级
+
+| 检查项 | v8.40 | v8.41 |
+|-------|-------|-------|
+| 依赖 | git CLI + git repo | curl + tar |
+| 代码行数 | 200+ | 280(算 3 helpers · 主 cmd 减 50%) |
+| 校验复杂度 | 6 重(git repo + dirty + channel + branch + ff + ORIG_HEAD) | 2 重(下载完整 + 本地改动) |
+| 错配 bug | v8.40 加校验治本 | 不存在 |
+| 安装方式 | 仅 git clone | git clone OR zip 都行 |
+
+### 治本 v8.40 之前所有"git 相关"bug
+
+- v8.24 dirty BLOCK 误触发 → 不存在(没有 git status 检查)
+- v8.35 `{SKILL_ROOT}` placeholder → 不存在(已经是 f-string 真实路径)
+- v8.40 branch/channel 错配 → 不存在(没有"当前分支"概念)
+- v8.40 hint 误导(rebase) → 不存在(没有 pull 失败路径)
+
+### 测试覆盖(5 个新加 · 1 个新 class)
+
+`TestUpdateSkillTarballDownload`(setUp 用 tarfile 造 fake remote · file:// URL 喂给 state.py):
+- `test_v841_block_when_local_modified_without_accept`(主 BLOCK · hint 含逃生口)
+- `test_v841_pass_with_accept_overwrite_and_overwrites_files`(主 PASS · 验文件真被覆盖 + 新增文件)
+- `test_v841_block_when_tarball_url_invalid`(download 失败)
+- `test_v841_channel_passed_through_to_emit`(--channel args 传透)
+- `test_v841_default_channel_main`(默认 main · channel_source=default)
+
+删除旧测(已不适用):
+- `TestUpdateSkillHint`(v8.35 git-not-repo hint · git 路径已删)
+- `TestUpdateSkillBranchChannelGate`(v8.40 branch 校验 · 已不存在)
+
+336 passed / 97 failed(baseline 一致 · 0 regression)
+
+### 用户工作流变化
+
+**stable 用户**(默认 main):
+```bash
+state.py update-skill                          # 无本地改动:PASS · 自动覆盖
+state.py update-skill --accept-overwrite       # 有本地改动:用此确认
+```
+
+**preview 用户**(channel=dev):
+```bash
+state.py update-skill --channel dev            # 同上 + dev URL
+state.py update-skill --accept-overwrite --channel dev
+```
+
+**新场景**:zip 安装 skill(不是 git clone)现在也能 update-skill!之前 v8.24-v8.40 会因 "不是 git repo" BLOCK · v8.41 通吃。
+
+### 边界与诚实记录
+
+**v8.41 不删 target 多余文件**:覆盖只复制 source 有的文件 · target 多余文件保留(保守 · 防误删用户本地新加文件)。代价:老版本被删的文件残留 stale(retro/审查可见)。
+
+**本地改动检测**:基于 byte-by-byte 比较 · 不靠 git history。对于 deleted file 不会 BLOCK(target 删 / source 有 → 不视作 modification · 升级会补回来)。
+
+**架构反思**:我 v8.24 选 git pull 是因为"skill 已经是 git clone 来的 · 用 git pull 自然"。但**自然 ≠ 必要** —— 那是 incidental complexity · 不是 essential。用户重新归类后 · 一次治本 v8.24-v8.40 的全部 git 路径 bug。**这是设计层降级的胜利 · 不是修补层治本**。
+
+### Hash
+
+- state.py:cmd_update_skill 完全重写 + 3 helpers(_download_skill_tarball / _parse_skill_md_version / _detect_local_modifications / _overwrite_skill_files)= 净 +60 行(包含 4 helpers · 主 cmd 净减)
+- state.py argparse:删 --force / 加 --accept-overwrite / 保留 --channel = 净 +0 行
+- test_state.py:删 TestUpdateSkillHint(v8.35)+ TestUpdateSkillBranchChannelGate(v8.40)· 加 TestUpdateSkillTarballDownload(5 测)= 净 +30 行
+- SKILL.md:v8.40 → v8.41
+- docs/CHANGELOG.md:本段
+
+### 发布
+
+v8.41 push origin/dev only(继续 dev-first 流程)· 不动 main。
+
+---
+
+## v8.40 · 治本 v8.39 引入的 branch/channel 错配 bug(audit case · 首个 dev-only release)
+
+> 用户 2026-05-27:"在检查下 skill 升级的流程和逻辑"。我做 e2e audit 发现 v8.39 引入 2 个关键 bug · 立即 dev-only 治本(走 v8.39 设立的 dev-first 流程的第一个 release)。
+
+### audit 发现的 2 bug
+
+**Bug A · 当前分支与 channel 错配时静默错改本地分支(🔴 高)**
+
+实测证据(audit 现场):
+```
+当前分支:dev   localconfig:无(默认 main)
+git pull --ff-only origin main → 试图把 local dev FF 到 origin/main
+若 dev ahead/behind/分叉 → 失败 with 误导 hint("本地分叉/冲突")
+若 dev == main 同 commit → 成功 no-op · 但用户没察觉
+
+更严重场景(v8.40 push dev only 后)
+当前分支:main   localconfig:dev
+git pull --ff-only origin dev → 成功把 local main FF 到 dev HEAD
+→ local main 指向 dev v8.40 commit
+→ 用户 git push origin main 撞 non-ff(因为 origin/main 还在 v8.39)
+→ main 分支状态混乱 · 破坏 main/dev channel 隔离本意
+```
+
+**Bug B · 缺一致性校验导致误导 hint**
+
+`git pull --ff-only origin <channel>` 在错误分支上失败时 · hint 显示"本地分叉/冲突 · 手动 rebase 或 reset" · 但根因是分支错配 · 不是分叉。用户按 hint 跑 `git rebase origin/<channel>` 会把当前分支混入 channel 的 commit · 进一步搞乱。
+
+### 治本(state.py:cmd_update_skill 加 Step 3.5 校验)
+
+```diff
++ # ── v8.40:校验当前分支 == channel(治本 v8.39 引入分支与 channel 错配 bug)──
++ b = subprocess.run(["git", "-C", str(git_root), "rev-parse",
++                     "--abbrev-ref", "HEAD"], ...)
++ cur_branch = b.stdout.strip()
++ if cur_branch != channel:
++     emit({
++         "verdict": "FAIL",
++         "error": f"当前分支={cur_branch!r} ≠ channel={channel!r} · "
++                  f"拒绝 pull · 防偷偷把 local {cur_branch} 改成 origin/{channel}",
++         "current_branch": cur_branch,
++         "channel": channel,
++         "channel_source": channel_source,
++         "hint": (
++             f"二选一:\n"
++             f"  ① [推荐] 切到对应分支再升:\n"
++             f"     cd {git_root} && git checkout {channel} && state.py update-skill"
++             f"{'' if channel == 'main' else f' --channel {channel}'}\n"
++             f"  ② 改 channel 与当前分支一致:\n"
++             f"     state.py update-skill --channel {cur_branch}\n"
++             f"     或编辑 .teamwork_localconfig.json.update_channel = {cur_branch!r}"
++         ),
++     })
++     return
+```
+
+### 测试覆盖(3 个新加 · 1 个新 class)
+
+`TestUpdateSkillBranchChannelGate`(e2e 真 git repo · 不 mock):
+- `test_v840_block_when_on_main_but_channel_dev`(主 bug 场景)
+- `test_v840_block_when_on_dev_but_channel_default_main`(反向 bug)
+- `test_v840_pass_check_when_branch_equals_channel`(正常路径不被本校验拦)
+
+335 passed / 97 failed(baseline 一致 · 0 regression)
+
+### audit 总结(符合预期项 + bug 项)
+
+✅ 符合预期:
+- `_read_update_channel` 4 fallback 路径(默认 / config / 损坏 / 类型错 / 空串)全 PASS
+- `check_skill_update` 4 status(up_to_date / outdated / network_failed / parse_failed)+ channel 字段输出
+- bootstrap 自动读 cwd localconfig channel 传给 check_skill_update
+- bootstrap silent · 不阻塞
+- e2e curl dev/main URL 都拉得到 SKILL.md
+- outdated prompt 智能区分 main 默认(简洁)/ 其他(--channel + ⚠️ 尝鲜)
+- cmd_update_skill 自动 channel resolve(args > localconfig > default)
+- emit 含 channel + channel_source(用户可追溯)
+
+❌ 不符合预期(v8.40 治本):
+- Bug A 当前分支与 channel 错配 → 静默错改 local 分支
+- Bug B 错配后 fetch/pull 失败 hint 误导
+
+### 设计哲学
+
+R0 哲学:**可枚举进脚本**(分支名一致性 · 客观信号)→ 加校验。
+
+不偷偷帮用户切分支(选项 A · 自动 checkout)· 因为:
+- 用户当前分支可能有 uncommitted work · 自动 checkout 风险大
+- 偷偷切完用户不知情 · 下次 cd 看分支可能困惑
+
+选 选项 B(BLOCK + hint 给两条路)· 保留用户决策权 · 不偷偷动状态。
+
+### 发布策略
+
+**v8.40 首个 dev-only release**:
+- push origin/dev(commit 本段)
+- 不 push main(走 v8.39 设立的 dev-first 流程)
+- 后续累积稳定测试 · 定期 ff merge dev → main
+
+**用户影响**:
+- main 用户:仍 v8.39 · 不受本次治本影响(他们 update_channel=main · 当前分支 main 一致 · 不会触发 bug)
+- dev 用户:升 v8.40 后获得校验保护 · 避免分支错配
+
+### Hash
+
+- state.py:cmd_update_skill 加 Step 3.5 branch 校验 = 净 +40 行
+- test_state.py:TestUpdateSkillBranchChannelGate(3 测试 · e2e 真 git repo)= 净 +85 行
+- SKILL.md:v8.39 → v8.40
+- docs/CHANGELOG.md:本段
+
+### 诚实记录
+
+v8.39 设计 channel 时漏想"当前分支与 channel 解耦"场景 · 加 channel 参数但没动 fetch/pull 之外的逻辑。audit 实测才发现 —— 又是"先写 e2e 测试再实施"会更早抓住的 bug。但 v8.39 测试用 file:// URL mock 拉 SKILL.md · 没测真 git pull 行为 · 漏掉这层。v8.40 加的测试是 e2e 真 git repo(setUp 跑 git init / branch · 然后真 subprocess 跑 state.py)· 更接近真实场景。
+
+---
+
 ## v8.39 · skill 升级支持 `update_channel`(main / dev · 用户拍板)+ 新建 dev 分支用于后续优化
 
 > 用户 2026-05-27:"我们把主分支改为 dev 分支后续优化优先使用 dev 分支 · 另外 skill 升级检查逻辑支持一下检查分支 · 使用 .teamwork_localconfig.json 中的 update_channel 定义 · 默认为 main"

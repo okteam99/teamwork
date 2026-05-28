@@ -2547,6 +2547,72 @@ def _detect_cli_version(cli_name: str) -> str:
     return cli_name  # fallback
 
 
+# v8.43:claude reviewer 需要 inline 文件内容(stateless one-shot · 无文件系统访问)
+# stage → 待评审文件清单(与 reviewer.md "你需要读取的文件" 段对齐)
+STAGE_REVIEW_FILES = {
+    "goal":      ["PRD.md"],
+    "blueprint": ["TC.md", "TECH.md"],
+    "review":    [],  # review 模式靠 git diff · 不 inline 文件
+}
+
+# stage → reviewer target type(reviewer.md {target} 占位符)
+STAGE_TO_REVIEW_TARGET = {
+    "goal":      "prd",
+    "blueprint": "blueprint",
+    "review":    "code",
+}
+
+# v8.43:防 argv ARG_MAX 超限 · 单文件最大 inline 字节数
+EXTERNAL_REVIEW_INLINE_MAX_BYTES_PER_FILE = 60 * 1024  # 60KB
+
+
+def _gather_review_files_for_claude(stage: str, feature_dir: Path) -> tuple[str, list[dict]]:
+    """v8.43:把 stage 待评审文件内容 inline 成单 str(填充 reviewer.md {file_list} 占位符)。
+
+    返 (inline_block, files_meta):
+      - inline_block:" ### PRD.md\\n```\\n<content>\\n```\\n\\n### TC.md\\n..."
+      - files_meta:[{name, exists, bytes, truncated?}] · 供 emit audit
+
+    设计:
+    - 超 60KB 单文件 truncate + emit metadata 告诉 reviewer 截断了
+    - 缺失文件 emit 警告但不 BLOCK(reviewer 自己决定如何处理)
+    - review stage 不 inline 文件(走 git diff 模式 · 由 codex 路径处理 · claude 路径目前不支持)
+    """
+    targets = STAGE_REVIEW_FILES.get(stage, [])
+    if not targets:
+        return ("(本 stage 不 inline 文件 · 由 reviewer 按外部 context 判断)", [])
+    blocks: list[str] = []
+    meta: list[dict] = []
+    for fname in targets:
+        fpath = feature_dir / fname
+        info: dict = {"name": fname, "exists": fpath.exists()}
+        if not fpath.exists():
+            blocks.append(f"### {fname}\n_(文件不存在 · reviewer 视情况处理)_\n")
+            info["bytes"] = 0
+            meta.append(info)
+            continue
+        try:
+            content = fpath.read_text(encoding="utf-8", errors="replace")
+        except OSError as e:
+            blocks.append(f"### {fname}\n_(读取失败:{e})_\n")
+            info["bytes"] = 0
+            info["read_error"] = str(e)
+            meta.append(info)
+            continue
+        info["bytes"] = len(content.encode("utf-8"))
+        if info["bytes"] > EXTERNAL_REVIEW_INLINE_MAX_BYTES_PER_FILE:
+            # 按 byte 截断 + 标记 truncated(reviewer 看到提示自行判断完整性)
+            truncated = content.encode("utf-8")[
+                :EXTERNAL_REVIEW_INLINE_MAX_BYTES_PER_FILE
+            ].decode("utf-8", errors="ignore")
+            content = (truncated + f"\n\n... [v8.43 truncated · 原文 {info['bytes']} bytes "
+                                    f"超 {EXTERNAL_REVIEW_INLINE_MAX_BYTES_PER_FILE} bytes 阈值] ...")
+            info["truncated"] = True
+        blocks.append(f"### {fname}\n```\n{content}\n```\n")
+        meta.append(info)
+    return ("\n".join(blocks), meta)
+
+
 def _build_codex_prompt(stage: str, feature_dir_rel: str, commit: str,
                          base: str, profile_filename: str) -> str:
     """v8.25:按 stage 内置 codex exec PROMPT(治本 v8.23 codex review --base+[PROMPT] 互斥)。
@@ -2650,24 +2716,209 @@ def _run_codex_review(stage: str, commit: str, base: str, title: str,
 
 def _run_claude_review(prompt_text: str, model_name: str = "claude-sonnet-4-6"
                        ) -> tuple[int, str, str]:
-    """跑 claude -p --output-format text · 返 (rc, stdout, stderr)。
+    """跑 claude -p <prompt_argv> --output-format text · 返 (rc, stdout, stderr)。
 
-    v8.38(用户拍板 2026-05-27):用 `-p`(short)替代 `--print`(long)· 与用户
-    "外部调用 claude 时要使用 -p" 约定对齐。功能等价(Claude CLI alias)· 但 -p
-    被某些环境的 stdin 包装器路径处理更稳(case 实证)· 与外部 review 路径一致。
+    v8.38(用户拍板 2026-05-27):用 `-p`(short)替代 `--print`(long)。
+    v8.43(case SVC-PLATFORM-F054 blueprint round 3):prompt 从 stdin 改 argv ·
+    治本 Claude CLI 2.1.153 在 stdin 模式触发 "Not logged in · Please run /login"
+    bug(case 实测:claude -p 'prompt' OK · printf 'prompt' | claude -p FAIL)。
 
-    实现:cat <prompt> | claude -p --model <model> --output-format text。
-    PMO 不需读 · 走 state.py external-review 主路径(v8.20+)。
+    argv 模式限制:macOS ARG_MAX ≈ 256KB · Linux ≈ 128KB · prompt 含 file 内容
+    inline 时可能超。极端长 prompt 撞 ARG_MAX 时 OSError("Argument list too long")
+    捕获后返 errno=7 · 让上层 emit 清晰 hint 提示 prompt 过长。
     """
-    cmd = ["claude", "-p", "--model", model_name, "--output-format", "text"]
+    cmd = ["claude", "-p", prompt_text, "--model", model_name, "--output-format", "text"]
     try:
-        r = subprocess.run(cmd, input=prompt_text, capture_output=True,
-                           text=True, timeout=EXTERNAL_REVIEW_TIMEOUT_SEC)
+        r = subprocess.run(cmd, capture_output=True, text=True,
+                           timeout=EXTERNAL_REVIEW_TIMEOUT_SEC)
         return r.returncode, r.stdout, r.stderr
     except subprocess.TimeoutExpired:
         return 124, "", f"claude -p 超时({EXTERNAL_REVIEW_TIMEOUT_SEC}s)"
-    except (FileNotFoundError, OSError) as e:
+    except OSError as e:
+        if getattr(e, "errno", None) == 7:  # E2BIG · argument list too long
+            return 127, "", (
+                f"claude -p prompt 过长(ARG_MAX 超限 · prompt_bytes={len(prompt_text)})· "
+                f"考虑减少 inline 文件数或精简 file_list(v8.43 limitation)"
+            )
         return 127, "", f"claude CLI 不可用:{e}"
+    except FileNotFoundError as e:
+        return 127, "", f"claude CLI 不可用:{e}"
+
+
+# ─── v8.44:scaffold-review-prompt(doc-based external review · 治本 case round 4)─
+# 用户拍板:把 prompt 写到 doc · AI 主对话填 compact summary · state.py 读 doc 作 prompt
+# 解决 v8.43 inline 全 PRD/TC/TECH 卡 claude -p 长 prompt 问题
+
+
+def _default_prompt_doc_path(feature_dir: Path, stage: str, model: str) -> Path:
+    """v8.44:prompt-doc 默认路径 `<feature_dir>/external-review-prompts/<stage>-<model>.md`。"""
+    return feature_dir / "external-review-prompts" / f"{stage}-{model}.md"
+
+
+SCAFFOLD_PROMPT_DOC_TEMPLATE = """# {model_cap} {stage_cap} External Review Prompt
+
+> v8.44 scaffold(治本 case round 4 长 prompt 卡):
+> AI 主对话填 PRD/TC/TECH 关键摘要到 "Summary" 段(不复制全文 · 提炼契约+边界+known facts)
+> state.py external-review 检测此 doc → 优先用它作 prompt(不再 inline 全文)
+> 文档可审计 / 可编辑 / 可复跑
+
+You are Teamwork `external-{model}` reviewer.
+
+## Strict Constraints
+
+- READ-ONLY reviewer.
+- Do not write files.
+- Do not execute commands.
+- Do not ask follow-up questions.
+- Review only the {stage} summarized in this document.
+- Output only legal YAML frontmatter plus Markdown body.
+
+## Target
+
+- Feature: `{feature_id}`
+- Target: `{target}`
+- Stage: `{stage}`
+- Reviewer perspective: `external-{model}`
+
+## Output Schema
+
+```yaml
+---
+perspective: external-{model}
+target: {target}
+generated_at: "<ISO 8601 UTC>"
+model: "<actual model version>"
+findings:
+  - id: CR-1
+    checklist: C1
+    severity: blocker | high | low | info
+    location: "<artifact and section>"
+    issue: "<1-2 sentence issue>"
+    rationale: "<1-2 sentence evidence/risk>"
+    suggestion: "<actionable fix>"
+findings_summary:
+  blocker: 0
+  high: 0
+  low: 0
+  info: 0
+  total: 0
+---
+```
+
+If there are no findings, output `findings: []` and `findings_summary.total: 0`.
+
+## Review Checklist
+
+{checklist_block}
+
+## TODO · AI 主对话填以下 Summary 段(compact · 不复制全文)
+
+### {primary_artifact} Summary
+
+<!-- AI 填:关键契约 / 边界 / 信号 / known facts(代码现状 vs spec 声明) -->
+<!-- 不复制全文 · 提炼到 reviewer 可独立判断的最小集 -->
+
+### Required Judgment
+
+<!-- AI 填:reviewer 应特别关注的盲区 · 让 reviewer 不浪费 token 在低优先级 -->
+"""
+
+STAGE_TO_REVIEW_CHECKLIST = {
+    "goal": (
+        "- C1 PRD scope clarity / acceptance criteria atomicity.\n"
+        "- C2 Edge cases / boundary completeness.\n"
+        "- C3 Existing contract / cross-module impact.\n"
+        "- C4 Stakeholder communication clarity (UI/ADMIN/SVC/DBA roles)."
+    ),
+    "blueprint": (
+        "- C1 TC to AC mapping completeness.\n"
+        "- C2 TC executability (function names / file paths actually exist).\n"
+        "- C3 Boundary and failure coverage.\n"
+        "- C4 TECH architecture consistency.\n"
+        "- C5 TECH feasibility and risk.\n"
+        "- C6 TC to TECH alignment."
+    ),
+    "review": (
+        "- C1 Code correctness / logic bugs.\n"
+        "- C2 Security / injection / boundary checks.\n"
+        "- C3 Performance / N+1 / scaling.\n"
+        "- C4 Edge cases / error handling.\n"
+        "- C5 Test coverage gaps."
+    ),
+}
+
+
+def cmd_scaffold_review_prompt(args: argparse.Namespace) -> None:
+    """v8.44:生成 prompt-doc skeleton 到 feature_dir/external-review-prompts/<stage>-<model>.md。
+
+    AI 主对话跑此命令拿到 skeleton · 填 PRD/TC/TECH compact summary · 再跑 external-review。
+
+    幂等:doc 已存在 → 不覆盖(防覆盖用户编辑)· emit hint。--force 强制覆盖。
+    """
+    feature_dir = Path(args.feature).resolve()
+    if not feature_dir.exists():
+        emit({
+            "verdict": "FAIL",
+            "command": "scaffold-review-prompt",
+            "error": f"feature 路径不存在:{feature_dir}",
+        })
+        return
+
+    stage = args.stage
+    model = args.model
+    doc_path = _default_prompt_doc_path(feature_dir, stage, model)
+
+    if doc_path.exists() and not getattr(args, "force", False):
+        emit({
+            "verdict": "FAIL",
+            "command": "scaffold-review-prompt",
+            "error": f"prompt-doc 已存在 · 拒绝覆盖防丢失编辑:{doc_path}",
+            "hint": ("二选一:\n"
+                     f"  ① 直接编辑现有 doc:{doc_path}\n"
+                     f"  ② 加 --force 覆盖重生(本地编辑丢失 · 慎用)"),
+        })
+        return
+
+    # 推 feature_id 从路径(basename 即 ID-Name)
+    feature_id = feature_dir.name
+    target = STAGE_TO_REVIEW_TARGET.get(stage, stage)
+    checklist_block = STAGE_TO_REVIEW_CHECKLIST.get(stage, "- C1 ...\n- C2 ...")
+    primary_artifact = {
+        "goal": "PRD",
+        "blueprint": "TC + TECH",
+        "review": "Code Diff",
+    }.get(stage, stage.title())
+
+    body = SCAFFOLD_PROMPT_DOC_TEMPLATE.format(
+        model_cap=model.title(),
+        stage_cap=stage.title(),
+        model=model,
+        stage=stage,
+        feature_id=feature_id,
+        target=target,
+        checklist_block=checklist_block,
+        primary_artifact=primary_artifact,
+    )
+
+    doc_path.parent.mkdir(parents=True, exist_ok=True)
+    doc_path.write_text(body, encoding="utf-8")
+
+    emit({
+        "verdict": "OK",
+        "command": "scaffold-review-prompt",
+        "feature_id": feature_id,
+        "stage": stage,
+        "model": model,
+        "prompt_doc": str(doc_path),
+        "bytes_written": len(body.encode("utf-8")),
+        "next_hint": (
+            f"✅ Skeleton 已写 · 接下来:\n"
+            f"  ① AI 主对话读 PRD/TC/TECH · 填 doc 内 'TODO · 填以下 Summary 段' "
+            f"(compact summary · 提炼契约+边界+known facts · 不复制全文)\n"
+            f"  ② 跑 state.py external-review --feature <path> --stage {stage} "
+            f"(--model {model})· state.py 自动读取此 doc 作 prompt"
+        ),
+    })
 
 
 def cmd_external_review(args: argparse.Namespace) -> None:
@@ -2940,16 +3191,57 @@ def cmd_external_review(args: argparse.Namespace) -> None:
             codex_model=codex_model,
         )
     else:
-        # claude 路径:读 prompt template + pipe 给 claude -p(v8.38 用 -p 替代 --print · 用户约定)
-        # 占位符替换(基础版):{{stage}} / {{commit}} / {{base}} / {{feature_id}}
-        prompt_template = profile_path.read_text(encoding="utf-8")
-        prompt_text = (
-            prompt_template
-            .replace("{{stage}}", args.stage)
-            .replace("{{commit}}", commit)
-            .replace("{{base}}", base)
-            .replace("{{feature_id}}", feature_id)
-        )
+        # claude 路径:v8.44 doc-based default(治本 case round 4 长 prompt 卡 claude -p)
+        # 优先:读 feature_dir/external-review-prompts/<stage>-<model>.md · 作 claude argv prompt
+        #   - AI 主对话填 compact summary(提炼契约 · 不复制全文)
+        #   - prompt 可审计 / 可编辑 / 可复跑 · 短不卡
+        # Fallback:doc 不存在 → v8.43 inline 全文模式 + emit WARN 提示 scaffold
+        prompt_doc_override = getattr(args, "prompt_doc", None)
+        if prompt_doc_override:
+            prompt_doc = Path(prompt_doc_override).expanduser().resolve()
+            prompt_doc_source = "args"
+        else:
+            prompt_doc = _default_prompt_doc_path(feature_dir, args.stage, model)
+            prompt_doc_source = "default"
+
+        files_inline_meta: list[dict] = []
+        fallback_warning = None
+        if prompt_doc.exists():
+            try:
+                prompt_text = prompt_doc.read_text(encoding="utf-8")
+                prompt_doc_used = str(prompt_doc)
+            except OSError as e:
+                emit({
+                    "verdict": "FAIL",
+                    "command": "external-review",
+                    "error": f"读 prompt-doc 失败:{prompt_doc}: {e}",
+                })
+                return
+        else:
+            # v8.44 fallback:v8.43 inline 模式 + WARN 提示 scaffold
+            prompt_template = profile_path.read_text(encoding="utf-8")
+            file_list_block, files_inline_meta = _gather_review_files_for_claude(
+                args.stage, feature_dir
+            )
+            prompt_text = (
+                prompt_template
+                .replace("{stage}", args.stage)
+                .replace("{target}", STAGE_TO_REVIEW_TARGET.get(args.stage, args.stage))
+                .replace("{feature_name}", feature_id)
+                .replace("{file_list}", file_list_block)
+                .replace("{{stage}}", args.stage)
+                .replace("{{commit}}", commit)
+                .replace("{{base}}", base)
+                .replace("{{feature_id}}", feature_id)
+            )
+            prompt_doc_used = None
+            fallback_warning = (
+                f"⚠️ prompt-doc 不存在({prompt_doc})· 走 v8.43 inline 模式 fallback。"
+                f" 推荐:跑 state.py scaffold-review-prompt --feature {feature_dir} "
+                f"--stage {args.stage} --model {model} 生成 skeleton · "
+                f"AI 主对话填 compact summary 后重跑 external-review("
+                f"治本长 prompt 卡 + 不可审计 · v8.44 推荐路径)"
+            )
         rc, stdout, stderr = _run_claude_review(prompt_text)
 
     if rc != 0:
@@ -2995,11 +3287,39 @@ def cmd_external_review(args: argparse.Namespace) -> None:
     ]
     output_file.write_text("\n".join(frontmatter_lines) + stdout, encoding="utf-8")
 
-    # ── Step 6.5 · v8.36 内容质量轻校验(治本 SVC-PLATFORM-F054 Bug 2 case)──
-    # case:Claude reviewer 收到 prompt 后只 echo template 不真 review
-    # 用户决策(Option "只校验空内容/空模板"):不语义判 reviewer 质量 · 只校验明显空/模板
-    # WARN 不 BLOCK · 决策权留用户
+    # ── Step 6.5 · v8.36 内容质量轻校验 → v8.43 升级 template_echo 为 BLOCK ──
+    # v8.36 决策 WARN 不 BLOCK · 但 case SVC-PLATFORM-F054 blueprint round 3 实证:
+    # AI 看到产物存在就继续 · WARN 走过场 · 用户手动读 file 才发现无效
+    # v8.43 治本(用户拍板 A 全治):template_echo BLOCK(强信号 100% 无效)·
+    # empty_content 仍 WARN(可能合理精简)· 逃生口 --accept-quality-warnings
     quality_warnings = _check_external_review_quality(stdout, args.stage, model)
+
+    template_echo_hit = [w for w in quality_warnings if w.get("type") == "template_echo"]
+    if template_echo_hit and not getattr(args, "accept_quality_warnings", False):
+        # 写入 file(保留产物供审查)· 但 BLOCK 不让流程继续
+        # 文件已经在 Step 6 写了 · 这里只 emit FAIL with hint
+        emit({
+            "verdict": "FAIL",
+            "command": "external-review",
+            "error": (
+                f"reviewer 产物含 template echo 特征 · 视作无效评审(v8.43 BLOCK · "
+                f"治本 SVC-PLATFORM-F054 blueprint round 3 case)"
+            ),
+            "file_path": str(output_file),
+            "quality_warnings": quality_warnings,
+            "matched_signatures": template_echo_hit[0].get("matched_signatures", []),
+            "hint": (
+                "二选一:\n"
+                "  ① [推荐] 检查 prompt 与 reviewer 真实输出 · 修 prompt 或重跑 external-review:\n"
+                "       state.py external-review --feature <path> --stage <stage>(必要时换 --model)\n"
+                "  ② [慎用] 评估认为评审实质 OK(误报)· 加 --accept-quality-warnings 通过:\n"
+                "       state.py external-review --feature <path> --stage <stage> --accept-quality-warnings\n"
+                "       (走 bypass log + concerns WARN 留痕 · retro 复盘可见)"
+            ),
+            "spec": ("v8.43 治本 · template_echo 100% 是无效评审 · 不再 WARN 走过场。"
+                     " v8.36 留 WARN 兜底被 AI 钻空子 · v8.43 升级 BLOCK"),
+        })
+        return
 
     # ── Step 7 · emit ──
     # finding 数粗估(grep "^###" 或 "Finding" · 仅参考)
@@ -3008,6 +3328,17 @@ def cmd_external_review(args: argparse.Namespace) -> None:
         stdout.count("#### Finding"),
         stdout.lower().count("finding "),
     )
+    # v8.43:若走 bypass(--accept-quality-warnings 通过 template_echo)· emit 标记 + audit
+    bypass_warning = None
+    if template_echo_hit and getattr(args, "accept_quality_warnings", False):
+        bypass_warning = (
+            f"{now_iso()} WARN external-review quality bypass: "
+            f"stage={args.stage} model={model} template_echo signatures="
+            f"{template_echo_hit[0].get('matched_signatures', [])[:3]} · "
+            f"--accept-quality-warnings 通过(v8.43 治本 case · 用户认知误报)· "
+            f"file={output_file}"
+        )
+
     emit({
         "verdict": "OK",
         "command": "external-review",
@@ -3031,6 +3362,17 @@ def cmd_external_review(args: argparse.Namespace) -> None:
         # v8.36:host 来源 deprecated 警告 + 内容质量轻校验 WARN(不 BLOCK · R0 兜底)
         **({"deprecation_warning": deprecation_warning} if deprecation_warning else {}),
         **({"quality_warnings": quality_warnings} if quality_warnings else {}),
+        # v8.43:claude 路径 inline 文件 meta(PMO 可验 reviewer 真拿到内容 · v8.44 fallback 时仍出)
+        **({"files_inlined": files_inline_meta}
+            if model == "claude" and files_inline_meta else {}),
+        # v8.43:bypass quality_warnings(template_echo)留痕
+        **({"quality_bypass_warning": bypass_warning} if bypass_warning else {}),
+        # v8.44:doc-based prompt 路径(治本 case round 4 长 prompt 卡)
+        **({"prompt_doc": prompt_doc_used,
+            "prompt_doc_source": prompt_doc_source}
+            if model == "claude" and prompt_doc_used else {}),
+        **({"prompt_doc_fallback_warning": fallback_warning}
+            if model == "claude" and fallback_warning else {}),
     })
 
 
@@ -3102,171 +3444,12 @@ def _check_external_review_quality(stdout: str, stage: str, model: str) -> list[
     return warnings
 
 
-# ─── v8.24 · update-skill(自更新 · bootstrap 检测后用户回 1 触发)──────
-
-
-def cmd_update_skill(args: argparse.Namespace) -> None:
-    """v8.24:state.py update-skill · git pull skill repo(用户显式 · 不自动突袭)。
-
-    设计:bootstrap 自动检测线上版本 · 落后 emit R5 1/2 选项 · 用户回 1 跑此命令。
-    流程:
-      1. 检测 $SKILL_ROOT 是否 git repo(不是 → BLOCK with hint zip 重装)
-      2. git status --porcelain 检测脏树(脏 → BLOCK 防覆盖本地定制)
-      3. git fetch origin main · 算 ahead/behind
-      4. git pull --ff-only origin main(失败 → BLOCK with hint 手动 rebase)
-      5. emit old_version / new_version / changed_files 摘要 + changelog hint
-    """
-    # skill_root:从 state.py 文件位置反推(同 bootstrap)
-    skill_root = Path(__file__).resolve().parent.parent
-
-    # ── Step 1:检测 git repo ──
-    r = subprocess.run(["git", "-C", str(skill_root), "rev-parse", "--show-toplevel"],
-                       capture_output=True, text=True, timeout=10)
-    if r.returncode != 0:
-        emit({
-            "verdict": "FAIL",
-            "command": "update-skill",
-            "error": f"{skill_root} 不是 git repo · 无法自动 update",
-            "hint": (
-                f"skill 是 zip 安装 · 不支持自动 update。\n"
-                f"  手动:① 备份本地定制 ② rm -rf {skill_root} · "
-                f"git clone https://github.com/okteam99/teamwork.git {skill_root}"
-            ),
-            "skill_root": str(skill_root),
-        })
-        return
-    git_root = Path(r.stdout.strip())
-
-    # ── Step 2:检测脏树 ──
-    s = subprocess.run(["git", "-C", str(git_root), "status", "--porcelain"],
-                       capture_output=True, text=True, timeout=10)
-    dirty_files = [ln.strip() for ln in s.stdout.splitlines() if ln.strip()]
-    if dirty_files and not args.force:
-        emit({
-            "verdict": "FAIL",
-            "command": "update-skill",
-            "error": f"git 工作树不干净({len(dirty_files)} 个改动)· 拒绝 pull 防覆盖本地定制",
-            "dirty_files": dirty_files[:10],
-            "hint": (
-                f"二选一:\n"
-                f"  ① 提交 / stash 本地改动后重跑:cd {git_root} · git stash\n"
-                f"  ② 确认本地改动可丢弃 · 加 --force 强制 pull(慎用 · 会覆盖)\n"
-                f"  注:若 dirty 是 bootstrap auto-maintain 的 .gitignore 改动 "
-                f"(v8.31 加的 harness locks 等)· v8.35 已修(bootstrap 不再改 SKILL_ROOT 自己 .gitignore)· "
-                f"先 git checkout -- .gitignore 丢弃后重跑"
-            ),
-            "git_root": str(git_root),
-        })
-        return
-
-    # ── Step 3:读 old version(pull 前) ──
-    skill_md = skill_root / "SKILL.md"
-    old_version = None
-    if skill_md.exists():
-        text = skill_md.read_text(encoding="utf-8", errors="replace")
-        m = re.search(r"^version:\s*(\S+)\s*$", text, re.MULTILINE)
-        if m:
-            old_version = m.group(1).strip()
-
-    # ── v8.39:resolve channel · 优先级 args > localconfig > main ──
-    # 让用户 opt-in 升级 dev 尝鲜分支 · 默认 main 稳定不变
-    channel = getattr(args, "channel", None)
-    channel_source = "args"
-    if not channel:
-        # 从 cwd 找 project_root · 读 .teamwork_localconfig.json
-        try:
-            sys.path.insert(0, str(Path(__file__).resolve().parent))
-            from bootstrap import (
-                find_project_root,
-                _read_update_channel,
-                SKILL_UPDATE_DEFAULT_CHANNEL,
-            )
-            project_root = find_project_root(Path.cwd())
-            channel = _read_update_channel(project_root)
-            channel_source = ("localconfig" if channel != SKILL_UPDATE_DEFAULT_CHANNEL
-                               else "default")
-        except Exception:
-            channel = "main"
-            channel_source = "default_fallback"
-
-    # ── Step 4:git fetch + pull --ff-only(用 channel) ──
-    f = subprocess.run(["git", "-C", str(git_root), "fetch", "origin", channel],
-                       capture_output=True, text=True, timeout=60)
-    if f.returncode != 0:
-        emit({
-            "verdict": "FAIL",
-            "command": "update-skill",
-            "error": f"git fetch origin {channel} 失败:{f.stderr.strip()[:200]}",
-            "channel": channel,
-            "channel_source": channel_source,
-            "hint": (
-                f"检查网络 / origin remote / 分支 {channel} 是否存在 · 修复后重跑。"
-                f"\n  若想换 channel · 加 --channel main(或编辑 "
-                f".teamwork_localconfig.json.update_channel)"
-            ),
-        })
-        return
-
-    p = subprocess.run(["git", "-C", str(git_root), "pull", "--ff-only",
-                        "origin", channel],
-                       capture_output=True, text=True, timeout=60)
-    if p.returncode != 0:
-        emit({
-            "verdict": "FAIL",
-            "command": "update-skill",
-            "error": f"git pull --ff-only origin {channel} failed:{p.stderr.strip()[:200]}",
-            "channel": channel,
-            "channel_source": channel_source,
-            "hint": (
-                f"本地分叉 / 冲突 · 手动 rebase 或 reset:\n"
-                f"  cd {git_root} · git status · git log HEAD..origin/{channel} · "
-                f"评估后 git rebase origin/{channel} 或丢弃本地 git reset --hard origin/{channel}(慎)"
-            ),
-        })
-        return
-
-    # ── Step 5:读 new version + diff 摘要 ──
-    new_version = None
-    if skill_md.exists():
-        text = skill_md.read_text(encoding="utf-8", errors="replace")
-        m = re.search(r"^version:\s*(\S+)\s*$", text, re.MULTILINE)
-        if m:
-            new_version = m.group(1).strip()
-
-    # 算 changed files(老 HEAD vs 新 HEAD · pull 前后 diff)
-    # pull 之后 HEAD 已变 · 用 ORIG_HEAD 拿 pull 前的 commit
-    d = subprocess.run(["git", "-C", str(git_root), "diff", "--stat",
-                        "ORIG_HEAD..HEAD"],
-                       capture_output=True, text=True, timeout=15)
-    changed_files_stat = d.stdout.strip() if d.returncode == 0 else ""
-    # 算 commit 数(pull 拉了多少新 commit)
-    c = subprocess.run(["git", "-C", str(git_root), "rev-list", "--count",
-                        "ORIG_HEAD..HEAD"],
-                       capture_output=True, text=True, timeout=15)
-    new_commit_count = int(c.stdout.strip()) if c.returncode == 0 and c.stdout.strip().isdigit() else 0
-
-    same_version = old_version == new_version
-    channel_hint = (
-        f"(channel={channel})" if channel != "main" else ""
-    )
-    emit({
-        "verdict": "OK",
-        "command": "update-skill",
-        "old_version": old_version,
-        "new_version": new_version,
-        "version_changed": not same_version,
-        "new_commit_count": new_commit_count,
-        "changed_files_stat": changed_files_stat[-2000:] if changed_files_stat else "",
-        "git_root": str(git_root),
-        "channel": channel,
-        "channel_source": channel_source,
-        "next_hint": (
-            f"✅ 升级 {old_version} → {new_version}({new_commit_count} 个新 commit){channel_hint}· "
-            f"查 {git_root}/skills/teamwork/docs/CHANGELOG.md 顶部新版本段了解变更。"
-            if not same_version else
-            f"已在最新版本 {new_version}{channel_hint} · 无变化"
-        ),
-    })
+# ─── v8.24-v8.41 · update-skill → v8.42 已抽到独立 tools/update.py ────────
+# 历史:v8.24 加 cmd_update_skill in state.py(git pull) · v8.41 重写 tarball download
+# v8.42(用户拍板 2026-05-27 · "更新文件本身是否有必要单独一个 python"):
+# - 抽到独立 tools/update.py(职责分离 · 与 bootstrap.py pattern 对齐)
+# - 治本"元工具混运行时"+ chicken-and-egg(state.py 坏掉 · update.py 仍能救命)
+# - 用法:python3 SKILL_ROOT/tools/update.py [--channel <branch>] [--accept-overwrite]
 
 
 def cmd_audit_raw_writes(args: argparse.Namespace) -> None:
@@ -3729,22 +3912,36 @@ def build_parser() -> argparse.ArgumentParser:
                           "或 `codex --help` 查 ChatGPT 订阅可能拒绝任何显式 model · 仅 API key 模式可显式。"))
     er.add_argument("--dry-run", action="store_true",
                     help="只输出将跑的命令 + 校验 · 不实际调 CLI(供 debug / preview)")
+    # v8.43:template_echo 升 BLOCK 后的逃生口(治本 SVC-PLATFORM-F054 blueprint round 3)
+    er.add_argument("--accept-quality-warnings", action="store_true",
+                    help=("[v8.43] template_echo BLOCK 时显式承认评审实质 OK(误报) · "
+                          "走 bypass log + concerns WARN 留痕 · retro 复盘可见。"
+                          "用户应先实际读 file 验证再加此 flag"))
+    # v8.44:doc-based prompt(治本 case round 4 长 prompt 卡 + 不可审计)
+    er.add_argument("--prompt-doc",
+                    help=("[v8.44] 显式 prompt-doc 路径 · 不传则默认 "
+                          "<feature>/external-review-prompts/<stage>-<model>.md。"
+                          "doc 不存在 → fallback v8.43 inline + emit WARN 提示 scaffold"))
     er.set_defaults(func=cmd_external_review)
 
-    # v8.24:update-skill · 自更新(bootstrap 检测后用户回 1 触发)
-    us = sub.add_parser(
-        "update-skill",
-        help=("[v8.24] git pull skill repo · 升级到 GitHub 最新版本 · "
-              "脏树 BLOCK 防覆盖本地定制 · 用户显式跑(bootstrap 检测后回 1 触发)"),
+    # v8.44:scaffold-review-prompt · 生成 prompt-doc skeleton(AI 主对话填 compact summary)
+    sp = sub.add_parser(
+        "scaffold-review-prompt",
+        help=("[v8.44] 生成 external-review prompt-doc skeleton · 让 AI 主对话填 "
+              "compact summary · 治本 case round 4 长 prompt 卡 + 不可审计"),
     )
-    us.add_argument("--force", action="store_true",
-                    help="脏树时强制 pull(慎用 · 会覆盖本地未提交改动)")
-    # v8.39:支持 channel(默认从 .teamwork_localconfig.json.update_channel 读 · fallback main)
-    us.add_argument("--channel",
-                    help=("[v8.39] skill 升级分支 · 默认从 "
-                          ".teamwork_localconfig.json.update_channel 读 · fallback main。"
-                          "推荐:稳定环境用 main · 尝鲜用 dev"))
-    us.set_defaults(func=cmd_update_skill)
+    sp.add_argument("--feature", required=True, help="Feature artifact_root 路径")
+    sp.add_argument("--stage", required=True, choices=["goal", "blueprint", "review"],
+                    help="评审 stage(goal/blueprint/review · 各自 checklist 不同)")
+    sp.add_argument("--model", required=True, choices=["claude", "codex"],
+                    help="reviewer 模型(影响 doc 文件名 + perspective)")
+    sp.add_argument("--force", action="store_true",
+                    help="doc 已存在时覆盖(慎用 · 会丢失本地编辑)")
+    sp.set_defaults(func=cmd_scaffold_review_prompt)
+
+    # v8.24-v8.41:update-skill · 自更新 → v8.42 抽到独立 tools/update.py
+    # 用法:python3 SKILL_ROOT/tools/update.py [--channel <branch>] [--accept-overwrite]
+    # 不再在 state.py 注册 subparser(治本"元工具混运行时"+ chicken-and-egg)
 
     # ─── v8.0 stage 命令注册(Code-driven Orchestration) ─────────────
     # 设计文档:docs/v8-redesign/00-MANIFESTO.md

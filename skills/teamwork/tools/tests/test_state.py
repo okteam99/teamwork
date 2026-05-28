@@ -1307,8 +1307,10 @@ class TestExternalReviewCommand(unittest.TestCase):
         from state import _run_claude_review  # type: ignore
 
         captured_cmd = []
+        captured_kwargs = {}
         def fake_run(cmd, **kwargs):
             captured_cmd.extend(cmd)
+            captured_kwargs.update(kwargs)
             class R:
                 returncode = 0
                 stdout = "ok"
@@ -1321,8 +1323,193 @@ class TestExternalReviewCommand(unittest.TestCase):
         # 必带 "-p" · 不含 "--print"
         self.assertIn("-p", captured_cmd)
         self.assertNotIn("--print", captured_cmd)
-        # 仍传 prompt 通过 stdin(input= 参数 · 不是 argv)· cmd 数组里不应有 prompt 字面
-        self.assertNotIn("test prompt", captured_cmd)
+
+    # ── v8.43:claude -p prompt 从 stdin 改 argv(治本 case SVC-PLATFORM-F054 blueprint round 3)──
+
+    def test_v843_run_claude_review_prompt_in_argv_not_stdin(self):
+        """v8.43:prompt 必在 argv(而不是 stdin) · 治本 Claude CLI 2.1.153 stdin "Not logged in" bug。
+
+        case 实证(用户跑):
+          ✓ claude -p 'prompt' --model X  → OK
+          ✗ printf 'prompt' | claude -p --model X  → "Not logged in"
+        """
+        from unittest import mock
+        from state import _run_claude_review  # type: ignore
+
+        captured_cmd = []
+        captured_kwargs = {}
+        def fake_run(cmd, **kwargs):
+            captured_cmd.extend(cmd)
+            captured_kwargs.update(kwargs)
+            class R:
+                returncode = 0
+                stdout = "ok"
+                stderr = ""
+            return R()
+
+        with mock.patch("state.subprocess.run", side_effect=fake_run):
+            _run_claude_review("v843 test prompt body")
+
+        # prompt 在 argv 里(治本 stdin "Not logged in")
+        self.assertIn("v843 test prompt body", captured_cmd)
+        # 不能再传 input=(stdin 模式)
+        self.assertNotIn("input", captured_kwargs)
+        # cmd 顺序:claude -p <prompt> --model X ...
+        self.assertEqual(captured_cmd[0], "claude")
+        self.assertEqual(captured_cmd[1], "-p")
+        self.assertEqual(captured_cmd[2], "v843 test prompt body")
+        self.assertIn("--model", captured_cmd)
+        self.assertIn("--output-format", captured_cmd)
+
+    # ── v8.43:reviewer.md 占位符真替换(治本 Bug B) ──
+
+    def test_v843_gather_review_files_inlines_blueprint_targets(self):
+        """v8.43:_gather_review_files_for_claude 把 stage=blueprint 的 TC.md/TECH.md 内容 inline。"""
+        from state import _gather_review_files_for_claude  # type: ignore
+        feat = Path(tempfile.mkdtemp(prefix="tw-v843-gather-"))
+        try:
+            (feat / "TC.md").write_text("# TC content\nfoo TC body", encoding="utf-8")
+            (feat / "TECH.md").write_text("# TECH content\nbar TECH body", encoding="utf-8")
+            block, meta = _gather_review_files_for_claude("blueprint", feat)
+            # block 含两个文件内容 inline
+            self.assertIn("### TC.md", block)
+            self.assertIn("foo TC body", block)
+            self.assertIn("### TECH.md", block)
+            self.assertIn("bar TECH body", block)
+            # meta:两个文件 exists=True · bytes 真
+            names = {m["name"] for m in meta}
+            self.assertEqual(names, {"TC.md", "TECH.md"})
+            for m in meta:
+                self.assertTrue(m["exists"])
+                self.assertGreater(m["bytes"], 0)
+        finally:
+            shutil.rmtree(feat, ignore_errors=True)
+
+    def test_v843_gather_review_files_truncates_oversized(self):
+        """v8.43:超 60KB 单文件 truncate · meta 标 truncated=True。"""
+        from state import (_gather_review_files_for_claude,  # type: ignore
+                            EXTERNAL_REVIEW_INLINE_MAX_BYTES_PER_FILE)
+        feat = Path(tempfile.mkdtemp(prefix="tw-v843-trunc-"))
+        try:
+            huge = "x" * (EXTERNAL_REVIEW_INLINE_MAX_BYTES_PER_FILE + 1000)
+            (feat / "PRD.md").write_text(huge, encoding="utf-8")
+            block, meta = _gather_review_files_for_claude("goal", feat)
+            self.assertIn("truncated", block.lower())
+            self.assertTrue(meta[0]["truncated"])
+            # bytes 是原始大小(不是截断后)
+            self.assertGreater(meta[0]["bytes"],
+                                EXTERNAL_REVIEW_INLINE_MAX_BYTES_PER_FILE)
+        finally:
+            shutil.rmtree(feat, ignore_errors=True)
+
+    def test_v843_gather_review_files_handles_missing(self):
+        """v8.43:缺失文件 → block 标提示 + meta exists=False · 不抛异常。"""
+        from state import _gather_review_files_for_claude  # type: ignore
+        feat = Path(tempfile.mkdtemp(prefix="tw-v843-missing-"))
+        try:
+            # TC.md / TECH.md 都不存在
+            block, meta = _gather_review_files_for_claude("blueprint", feat)
+            self.assertIn("文件不存在", block)
+            for m in meta:
+                self.assertFalse(m["exists"])
+                self.assertEqual(m["bytes"], 0)
+        finally:
+            shutil.rmtree(feat, ignore_errors=True)
+
+    def test_v843_stage_review_files_maps_correctly(self):
+        """v8.43:STAGE_REVIEW_FILES + STAGE_TO_REVIEW_TARGET 映射表正确。"""
+        from state import STAGE_REVIEW_FILES, STAGE_TO_REVIEW_TARGET  # type: ignore
+        self.assertEqual(STAGE_REVIEW_FILES["goal"], ["PRD.md"])
+        self.assertEqual(STAGE_REVIEW_FILES["blueprint"], ["TC.md", "TECH.md"])
+        self.assertEqual(STAGE_REVIEW_FILES["review"], [])  # review 走 diff 不 inline
+        self.assertEqual(STAGE_TO_REVIEW_TARGET["goal"], "prd")
+        self.assertEqual(STAGE_TO_REVIEW_TARGET["blueprint"], "blueprint")
+        self.assertEqual(STAGE_TO_REVIEW_TARGET["review"], "code")
+
+    # ── v8.44:doc-based prompt(治本 case round 4 长 prompt 卡 + 不可审计)──
+
+    def test_v844_default_prompt_doc_path(self):
+        """v8.44:_default_prompt_doc_path 返 <feature>/external-review-prompts/<stage>-<model>.md。"""
+        from state import _default_prompt_doc_path  # type: ignore
+        feat = Path("/tmp/foo")
+        p = _default_prompt_doc_path(feat, "blueprint", "claude")
+        self.assertEqual(p, feat / "external-review-prompts" / "blueprint-claude.md")
+        p2 = _default_prompt_doc_path(feat, "goal", "codex")
+        self.assertEqual(p2, feat / "external-review-prompts" / "goal-codex.md")
+
+    def test_v844_scaffold_creates_doc_with_required_sections(self):
+        """v8.44:scaffold-review-prompt 生成 doc 含必要 sections(checklist / TODO / Schema)。"""
+        tmp = Path(tempfile.mkdtemp(prefix="tw-v844-scaffold-"))
+        try:
+            d = run(["scaffold-review-prompt", "--feature", str(tmp),
+                     "--stage", "blueprint", "--model", "claude"])
+            self.assertEqual(d["verdict"], "OK")
+            self.assertEqual(d["stage"], "blueprint")
+            self.assertEqual(d["model"], "claude")
+            doc = Path(d["prompt_doc"])
+            self.assertTrue(doc.exists())
+            body = doc.read_text(encoding="utf-8")
+            # 必含 checklist / TODO 标记 / output schema
+            self.assertIn("Review Checklist", body)
+            self.assertIn("C1 TC to AC mapping", body)  # blueprint checklist
+            self.assertIn("TODO", body)
+            self.assertIn("compact", body)  # "TODO · ... 填以下 Summary 段(compact · ...)"
+            self.assertIn("Output Schema", body)
+            self.assertIn("findings_summary", body)
+            self.assertIn("perspective: external-claude", body)
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    def test_v844_scaffold_block_when_exists_without_force(self):
+        """v8.44:scaffold 若 doc 已存在 + 无 --force → BLOCK(防覆盖编辑)。"""
+        tmp = Path(tempfile.mkdtemp(prefix="tw-v844-exists-"))
+        try:
+            run(["scaffold-review-prompt", "--feature", str(tmp),
+                 "--stage", "blueprint", "--model", "claude"])
+            d = run(["scaffold-review-prompt", "--feature", str(tmp),
+                     "--stage", "blueprint", "--model", "claude"], expect_exit=0)
+            self.assertEqual(d["verdict"], "FAIL")
+            self.assertIn("已存在", d["error"])
+            self.assertIn("--force", d["hint"])
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    def test_v844_scaffold_force_overwrites(self):
+        """v8.44:--force 通过覆盖 · 用户编辑会丢但用户已显式承认。"""
+        tmp = Path(tempfile.mkdtemp(prefix="tw-v844-force-"))
+        try:
+            run(["scaffold-review-prompt", "--feature", str(tmp),
+                 "--stage", "goal", "--model", "claude"])
+            doc = tmp / "external-review-prompts" / "goal-claude.md"
+            # 手动改 doc · 模拟用户编辑
+            doc.write_text("USER EDITED · should be overwritten with --force\n",
+                            encoding="utf-8")
+            d = run(["scaffold-review-prompt", "--feature", str(tmp),
+                     "--stage", "goal", "--model", "claude", "--force"])
+            self.assertEqual(d["verdict"], "OK")
+            body = doc.read_text(encoding="utf-8")
+            self.assertNotIn("USER EDITED", body)
+            self.assertIn("Review Checklist", body)
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    def test_v844_scaffold_different_stages_have_different_checklists(self):
+        """v8.44:scaffold goal/blueprint/review 生成不同 checklist。"""
+        tmp = Path(tempfile.mkdtemp(prefix="tw-v844-stages-"))
+        try:
+            for stage in ["goal", "blueprint", "review"]:
+                d = run(["scaffold-review-prompt", "--feature", str(tmp),
+                         "--stage", stage, "--model", "claude"])
+                self.assertEqual(d["verdict"], "OK")
+                body = Path(d["prompt_doc"]).read_text(encoding="utf-8")
+                if stage == "goal":
+                    self.assertIn("PRD scope clarity", body)
+                elif stage == "blueprint":
+                    self.assertIn("TC to AC mapping", body)
+                elif stage == "review":
+                    self.assertIn("Code correctness", body)
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
 
     # ── commit fallback ──
     def test_commit_fallback_from_state_dev_auto_commit(self):
@@ -2040,53 +2227,6 @@ class TestExternalReviewContentQuality(unittest.TestCase):
         )
         warnings = _check_external_review_quality(body, stage="goal", model="claude")
         self.assertEqual(warnings, [])
-
-
-class TestUpdateSkillHint(unittest.TestCase):
-    """v8.35 Bug A:cmd_update_skill hint 文案不含 `{SKILL_ROOT}` 字面 placeholder。
-
-    case 用户问"自动升级是否符合预期" 2026-05-27:
-    state.py line 3009/3029 用普通 string 不是 f-string · `{SKILL_ROOT}` 输出字面
-    placeholder · 用户复制 `cd {SKILL_ROOT}` 当然 cd 失败。
-    """
-
-    def setUp(self):
-        self.tmp = Path(tempfile.mkdtemp(prefix="tw-us-"))
-
-    def tearDown(self):
-        shutil.rmtree(self.tmp, ignore_errors=True)
-
-    def test_update_skill_not_git_repo_hint_uses_real_path(self):
-        """v8.35:tmp 非 git repo · update-skill BLOCK · hint 必含真实路径不含 `{SKILL_ROOT}`。"""
-        # 把 state.py 复制到 tmp 模拟 SKILL_ROOT(state.py 自推 skill_root = tools/.. parent)
-        # 简化:直接用 monkeypatch 改 __file__
-        import subprocess as _sp
-        # 用一个不存在的 dir 做 cwd · 让 git rev-parse 失败(模拟非 git repo)
-        not_git = self.tmp / "fake_skill_root" / "tools"
-        not_git.mkdir(parents=True)
-        # 把真 state.py 拷过去模拟在那个位置
-        import shutil as _sh
-        _sh.copy(STATE_PY, not_git / "state.py")
-        # 现在跑那个拷贝(它会自推 skill_root = not_git.parent)· 在 cwd=非git目录
-        r = _sp.run(
-            ["/opt/homebrew/opt/python@3.14/bin/python3.14",
-             str(not_git / "state.py"), "update-skill"],
-            capture_output=True, text=True, timeout=30,
-        )
-        # 找 emit 的 JSON · stdout 可能含多行 · 取最后一段 JSON
-        out = (r.stdout or r.stderr).strip()
-        # 找 JSON 起始 `{`
-        idx = out.find("{")
-        self.assertGreaterEqual(idx, 0, f"未找到 JSON 输出 · stdout/stderr=\n{out}")
-        d = json.loads(out[idx:])
-        self.assertEqual(d.get("verdict"), "FAIL")
-        self.assertEqual(d.get("command"), "update-skill")
-        # hint 必含真实路径(not_git.parent · 即 fake_skill_root) · 不含字面 placeholder
-        hint = d.get("hint", "")
-        self.assertNotIn("{SKILL_ROOT}", hint,
-                         f"hint 含字面 placeholder · 应是 f-string 真实路径:\n{hint}")
-        self.assertIn(str(not_git.parent), hint,
-                      f"hint 必含 skill_root 真实路径:\n{hint}")
 
 
 if __name__ == "__main__":

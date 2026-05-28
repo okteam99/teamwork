@@ -692,14 +692,15 @@ def check_skill_update(local_version: str,
 
     # outdated → emit R5 1/2 选项
     # v8.39:channel != main 时 prompt 标注尝鲜 channel(避免用户混淆)
+    # v8.42:update 命令改 `python3 SKILL_ROOT/tools/update.py`(独立脚本 · 不再 state.py update-skill)
     channel_note = (
         f"(channel: **{channel}** · 默认 main · 配置在 "
         f"`.teamwork_localconfig.json.update_channel`)"
     )
     update_cmd = (
-        "`state.py update-skill`"
+        "`python3 $SKILL_ROOT/tools/update.py`"
         if channel == SKILL_UPDATE_DEFAULT_CHANNEL
-        else f"`state.py update-skill --channel {channel}`"
+        else f"`python3 $SKILL_ROOT/tools/update.py --channel {channel}`"
     )
     prompt = (
         f"⏸️ teamwork skill 检测到新版本(本地 **{local_version}** · 线上 **{latest}**)"

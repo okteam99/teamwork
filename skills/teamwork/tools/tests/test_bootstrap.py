@@ -733,7 +733,10 @@ class TestCheckSkillUpdate(unittest.TestCase):
         self.assertIn("2.", prompt)  # 选项 2
         self.assertIn("升级", prompt)
         self.assertIn("跳过", prompt)
-        self.assertIn("state.py update-skill", prompt)
+        # v8.42:update 命令改 python3 SKILL_ROOT/tools/update.py(独立脚本)
+        self.assertIn("tools/update.py", prompt)
+        # 不应再含 state.py update-skill 字面(已抽离)
+        self.assertNotIn("state.py update-skill", prompt)
 
     def test_local_newer_than_remote_still_up_to_date(self):
         """本地 > 线上(测试场景 / 用户改了本地)→ up_to_date(不 emit downgrade prompt)。"""
@@ -805,8 +808,9 @@ class TestCheckSkillUpdate(unittest.TestCase):
         # 尝鲜 channel 在 prompt 必加 ⚠️ 提示
         self.assertIn("dev", d["upgrade_prompt"])
         self.assertIn("尝鲜", d["upgrade_prompt"])
-        # update 命令必带 --channel dev
+        # update 命令必带 --channel dev(v8.42 update.py 命令格式)
         self.assertIn("--channel dev", d["upgrade_prompt"])
+        self.assertIn("tools/update.py", d["upgrade_prompt"])
 
     def test_v839_main_channel_prompt_no_warning(self):
         """v8.39:main channel 是默认 · prompt 不加尝鲜警告。"""
