@@ -1,5 +1,142 @@
 # Changelog
 
+## v8.43 · external-review claude 路径全治本(stdin→argv + 占位符真替换 + template_echo BLOCK · 治本 SVC-PLATFORM-F054 blueprint round 3)
+
+> 用户 2026-05-27 实战 case:external review 走 claude CLI 反复失败 · 用户 AI(Codex 主对话)反复 wrapper / kill 进程 / 重试 · 最后 reviewer 产物只 17 行 echo template 不真 review。三层 bug 同 case 暴露。
+
+### 三层 Bug 实测证据
+
+**Bug A · `claude -p` stdin 模式 "Not logged in"**
+```
+✓ claude -p 'Return exactly ok.' --model claude-sonnet-4-6  → "ok"(argv 模式)
+✗ printf 'Return exactly ok.' | claude -p --model claude-sonnet-4-6 → "Not logged in"(stdin 模式)
+```
+Claude CLI 2.1.153 在 stdin 模式登录态有 bug。我 v8.38 改 `--print` → `-p` 时仍用 `input=prompt_text` 走 stdin · 直接命中。
+
+**Bug B · Claude reviewer 只 echo template 不真 review**
+- 生成的 blueprint-claude.md 只 17 行 · 含字面 `{file_list}` 占位符
+- 根因:state.py 用双大括号 `{{stage}}` 替换 · reviewer.md 用单大括号 `{stage}` `{file_list}` —— **占位符完全 mismatch · 全部没替换** · 且 `{file_list}`(文件内容 inline 关键)从未被处理
+- Claude 收到字面 `{file_list}` 当 meta 任务 echo
+
+**Bug C · quality_warnings 只 WARN 不 BLOCK**
+v8.36 决策 WARN · case 实证 AI 看到产物存在就继续 · WARN 走过场 · 用户最后手动读 file 才发现无效。
+
+### 用户决策
+
+| 维度 | 选项 | 用户选 |
+|------|------|--------|
+| v8.43 治本范围 | A 全治 / B 仅 A+B / C 仅 A / D 仅 C | **A · 全治 Bug A+B+C** |
+| 占位符统一方向 | state.py 改单 / reviewer.md 改双 / 都改 `${name}` | **state.py 改单 · 与 reviewer.md 对齐** |
+
+### 实施(3 个 Fix)
+
+#### Fix 1 · `_run_claude_review` stdin → argv(state.py)
+
+```diff
+- cmd = ["claude", "-p", "--model", model_name, "--output-format", "text"]
+- r = subprocess.run(cmd, input=prompt_text, ...)
++ cmd = ["claude", "-p", prompt_text, "--model", model_name, "--output-format", "text"]
++ r = subprocess.run(cmd, ...)
+```
+
+加 ARG_MAX 错误捕获(`errno=7` E2BIG)· emit hint 提示 prompt 过长。
+
+#### Fix 2 · 占位符真替换 + inline 文件内容
+
+新加 helper `_gather_review_files_for_claude(stage, feature_dir)`:
+- stage → 文件清单(goal=[PRD.md] / blueprint=[TC.md, TECH.md] / review=[]· review 走 diff)
+- 读取每文件 inline 成 ` ### filename\n\\`\\`\\`\ncontent\n\\`\\`\\`\n`
+- 超 60KB 单文件 truncate + meta 标 truncated
+- 缺失文件 emit "(文件不存在)" · 不 BLOCK
+
+state.py 替换改单大括号 + 加 `{file_list}` 处理:
+```diff
++ file_list_block, files_inline_meta = _gather_review_files_for_claude(stage, feature_dir)
+  prompt_text = (
+      prompt_template
++     .replace("{stage}", args.stage)
++     .replace("{target}", STAGE_TO_REVIEW_TARGET.get(args.stage, args.stage))
++     .replace("{feature_name}", feature_id)
++     .replace("{file_list}", file_list_block)
+      # 兼容历史双大括号 caller:
+      .replace("{{stage}}", args.stage)
+      ...
+  )
+```
+
+emit 加 `files_inlined` 字段(PMO 可验 reviewer 真拿到内容)。
+
+#### Fix 3 · template_echo 升 BLOCK + 逃生口
+
+```diff
++ template_echo_hit = [w for w in quality_warnings if w.get("type") == "template_echo"]
++ if template_echo_hit and not args.accept_quality_warnings:
++     emit FAIL with hint:
++        ① 检查 prompt 与 reviewer 真实输出 · 修 prompt 或重跑
++        ② --accept-quality-warnings 通过(走 bypass log + concerns WARN)
++     return
+```
+
+argparse 加 `--accept-quality-warnings`。bypass 路径 emit 携带 `quality_bypass_warning`(audit 留痕)。
+
+`empty_content` 保持 WARN(可能合理精简 · 区别于 template_echo 强信号)。
+
+### 测试覆盖(5 个新加)
+
+`TestExternalReviewCommand`:
+- `test_v843_run_claude_review_prompt_in_argv_not_stdin`(Fix 1 · mock subprocess 验 argv 位置)
+- `test_v843_gather_review_files_inlines_blueprint_targets`(Fix 2 · blueprint TC/TECH 真 inline)
+- `test_v843_gather_review_files_truncates_oversized`(Fix 2 · 超 60KB truncate)
+- `test_v843_gather_review_files_handles_missing`(Fix 2 · 缺失文件不抛异常)
+- `test_v843_stage_review_files_maps_correctly`(Fix 2 · 映射表 sanity)
+
+`test_v838_run_claude_review_cmd_array_uses_dash_p` 更新(去除"prompt 在 stdin" 旧断言 · v8.43 改 argv)。
+
+344 passed / 97 failed(baseline 一致 · 0 regression)
+
+### 端到端影响
+
+| 改前(v8.42)| 改后(v8.43) |
+|------------|--------------|
+| `claude -p` 用 stdin → "Not logged in" | argv → 正常返 |
+| reviewer 收到字面 `{file_list}` 占位符 → echo | 收到真文件内容 inline → 真 review |
+| template_echo WARN 不 BLOCK · AI 走过场 | BLOCK · 必显式 --accept-quality-warnings 才过 |
+
+case 现场 AI 手拼 `claude -p` argv + inline 文件路径 的弯路 · v8.43 走 state.py external-review 主路径直接拿到。
+
+### 设计哲学
+
+R0 哲学(可枚举进脚本):
+- stdin/argv 选择 · 客观信号(Claude CLI 2.1.153 bug)→ 写死 argv
+- 占位符 mismatch · 客观对齐(单 vs 双)→ 改成单大括号 + 真替换
+- template_echo · 100% 无效信号 → BLOCK · 不留 WARN 走过场口子
+
+逃生口设计("不一刀切"):
+- ARG_MAX 超限 → errno=7 emit hint("prompt 过长")
+- 文件 truncate → reviewer 看到 truncated 标记自行判断完整性
+- template_echo 误报 → --accept-quality-warnings 显式确认 + bypass log
+
+### 治本与诚实
+
+我 v8.38 改 `--print` → `-p` 时只想着 short alias 对齐 · 没意识到 stdin/argv 是不同 code path(Claude CLI bug 表现不同)。case 实证才发现。
+
+v8.36 留 template_echo WARN 兜底 · 怕"误报误伤" · 实测发现 AI 钻 WARN 兜底口子。R0 哲学 case-driven 教训:**WARN 经常被 AI 当 silent 跳过 · 强信号必须 BLOCK + 逃生口**。
+
+reviewer.md `{file_list}` 占位符 spec 早就写好(line 122)· 但 state.py 实施时没读 spec · 自己造了双大括号体系。这是典型的 "实施与 spec 解耦" bug。
+
+### Hash
+
+- state.py:_run_claude_review stdin→argv + helpers + template_echo BLOCK 块 + argparse = 净 +100 行
+- test_state.py:5 测新加 + 1 测更新 = 净 +95 行
+- SKILL.md:v8.42 → v8.43
+- docs/CHANGELOG.md:本段
+
+### 发布
+
+v8.43 push origin/dev only(继续 dev-first 流程)· main 不动。
+
+---
+
 ## v8.42 · 架构治本:update-skill 抽到独立 tools/update.py(职责分离 · 用户拍板)
 
 > 用户 2026-05-27:"更新文件本身是否有必要单独一个 python"

@@ -2547,6 +2547,72 @@ def _detect_cli_version(cli_name: str) -> str:
     return cli_name  # fallback
 
 
+# v8.43:claude reviewer 需要 inline 文件内容(stateless one-shot · 无文件系统访问)
+# stage → 待评审文件清单(与 reviewer.md "你需要读取的文件" 段对齐)
+STAGE_REVIEW_FILES = {
+    "goal":      ["PRD.md"],
+    "blueprint": ["TC.md", "TECH.md"],
+    "review":    [],  # review 模式靠 git diff · 不 inline 文件
+}
+
+# stage → reviewer target type(reviewer.md {target} 占位符)
+STAGE_TO_REVIEW_TARGET = {
+    "goal":      "prd",
+    "blueprint": "blueprint",
+    "review":    "code",
+}
+
+# v8.43:防 argv ARG_MAX 超限 · 单文件最大 inline 字节数
+EXTERNAL_REVIEW_INLINE_MAX_BYTES_PER_FILE = 60 * 1024  # 60KB
+
+
+def _gather_review_files_for_claude(stage: str, feature_dir: Path) -> tuple[str, list[dict]]:
+    """v8.43:把 stage 待评审文件内容 inline 成单 str(填充 reviewer.md {file_list} 占位符)。
+
+    返 (inline_block, files_meta):
+      - inline_block:" ### PRD.md\\n```\\n<content>\\n```\\n\\n### TC.md\\n..."
+      - files_meta:[{name, exists, bytes, truncated?}] · 供 emit audit
+
+    设计:
+    - 超 60KB 单文件 truncate + emit metadata 告诉 reviewer 截断了
+    - 缺失文件 emit 警告但不 BLOCK(reviewer 自己决定如何处理)
+    - review stage 不 inline 文件(走 git diff 模式 · 由 codex 路径处理 · claude 路径目前不支持)
+    """
+    targets = STAGE_REVIEW_FILES.get(stage, [])
+    if not targets:
+        return ("(本 stage 不 inline 文件 · 由 reviewer 按外部 context 判断)", [])
+    blocks: list[str] = []
+    meta: list[dict] = []
+    for fname in targets:
+        fpath = feature_dir / fname
+        info: dict = {"name": fname, "exists": fpath.exists()}
+        if not fpath.exists():
+            blocks.append(f"### {fname}\n_(文件不存在 · reviewer 视情况处理)_\n")
+            info["bytes"] = 0
+            meta.append(info)
+            continue
+        try:
+            content = fpath.read_text(encoding="utf-8", errors="replace")
+        except OSError as e:
+            blocks.append(f"### {fname}\n_(读取失败:{e})_\n")
+            info["bytes"] = 0
+            info["read_error"] = str(e)
+            meta.append(info)
+            continue
+        info["bytes"] = len(content.encode("utf-8"))
+        if info["bytes"] > EXTERNAL_REVIEW_INLINE_MAX_BYTES_PER_FILE:
+            # 按 byte 截断 + 标记 truncated(reviewer 看到提示自行判断完整性)
+            truncated = content.encode("utf-8")[
+                :EXTERNAL_REVIEW_INLINE_MAX_BYTES_PER_FILE
+            ].decode("utf-8", errors="ignore")
+            content = (truncated + f"\n\n... [v8.43 truncated · 原文 {info['bytes']} bytes "
+                                    f"超 {EXTERNAL_REVIEW_INLINE_MAX_BYTES_PER_FILE} bytes 阈值] ...")
+            info["truncated"] = True
+        blocks.append(f"### {fname}\n```\n{content}\n```\n")
+        meta.append(info)
+    return ("\n".join(blocks), meta)
+
+
 def _build_codex_prompt(stage: str, feature_dir_rel: str, commit: str,
                          base: str, profile_filename: str) -> str:
     """v8.25:按 stage 内置 codex exec PROMPT(治本 v8.23 codex review --base+[PROMPT] 互斥)。
@@ -2650,23 +2716,32 @@ def _run_codex_review(stage: str, commit: str, base: str, title: str,
 
 def _run_claude_review(prompt_text: str, model_name: str = "claude-sonnet-4-6"
                        ) -> tuple[int, str, str]:
-    """跑 claude -p --output-format text · 返 (rc, stdout, stderr)。
+    """跑 claude -p <prompt_argv> --output-format text · 返 (rc, stdout, stderr)。
 
-    v8.38(用户拍板 2026-05-27):用 `-p`(short)替代 `--print`(long)· 与用户
-    "外部调用 claude 时要使用 -p" 约定对齐。功能等价(Claude CLI alias)· 但 -p
-    被某些环境的 stdin 包装器路径处理更稳(case 实证)· 与外部 review 路径一致。
+    v8.38(用户拍板 2026-05-27):用 `-p`(short)替代 `--print`(long)。
+    v8.43(case SVC-PLATFORM-F054 blueprint round 3):prompt 从 stdin 改 argv ·
+    治本 Claude CLI 2.1.153 在 stdin 模式触发 "Not logged in · Please run /login"
+    bug(case 实测:claude -p 'prompt' OK · printf 'prompt' | claude -p FAIL)。
 
-    实现:cat <prompt> | claude -p --model <model> --output-format text。
-    PMO 不需读 · 走 state.py external-review 主路径(v8.20+)。
+    argv 模式限制:macOS ARG_MAX ≈ 256KB · Linux ≈ 128KB · prompt 含 file 内容
+    inline 时可能超。极端长 prompt 撞 ARG_MAX 时 OSError("Argument list too long")
+    捕获后返 errno=7 · 让上层 emit 清晰 hint 提示 prompt 过长。
     """
-    cmd = ["claude", "-p", "--model", model_name, "--output-format", "text"]
+    cmd = ["claude", "-p", prompt_text, "--model", model_name, "--output-format", "text"]
     try:
-        r = subprocess.run(cmd, input=prompt_text, capture_output=True,
-                           text=True, timeout=EXTERNAL_REVIEW_TIMEOUT_SEC)
+        r = subprocess.run(cmd, capture_output=True, text=True,
+                           timeout=EXTERNAL_REVIEW_TIMEOUT_SEC)
         return r.returncode, r.stdout, r.stderr
     except subprocess.TimeoutExpired:
         return 124, "", f"claude -p 超时({EXTERNAL_REVIEW_TIMEOUT_SEC}s)"
-    except (FileNotFoundError, OSError) as e:
+    except OSError as e:
+        if getattr(e, "errno", None) == 7:  # E2BIG · argument list too long
+            return 127, "", (
+                f"claude -p prompt 过长(ARG_MAX 超限 · prompt_bytes={len(prompt_text)})· "
+                f"考虑减少 inline 文件数或精简 file_list(v8.43 limitation)"
+            )
+        return 127, "", f"claude CLI 不可用:{e}"
+    except FileNotFoundError as e:
         return 127, "", f"claude CLI 不可用:{e}"
 
 
@@ -2940,11 +3015,23 @@ def cmd_external_review(args: argparse.Namespace) -> None:
             codex_model=codex_model,
         )
     else:
-        # claude 路径:读 prompt template + pipe 给 claude -p(v8.38 用 -p 替代 --print · 用户约定)
-        # 占位符替换(基础版):{{stage}} / {{commit}} / {{base}} / {{feature_id}}
+        # claude 路径:读 prompt template + 占位符替换 + 文件 inline + argv 调 claude -p
+        # v8.43 治本 case SVC-PLATFORM-F054 blueprint round 3:
+        # (1) 之前用双大括号 `{{stage}}` 替换 · 但 reviewer.md 用单大括号 `{stage}` ·
+        #     占位符完全 mismatch · 全部没替换 · claude 收到字面 `{file_list}` 当 meta echo
+        # (2) reviewer.md 含 `{file_list}` 期望 inline 文件内容 · v8.43 前没 inline ·
+        #     reviewer 不知评什么 → "只 echo template 不真 review"
         prompt_template = profile_path.read_text(encoding="utf-8")
+        file_list_block, files_inline_meta = _gather_review_files_for_claude(
+            args.stage, feature_dir
+        )
         prompt_text = (
             prompt_template
+            .replace("{stage}", args.stage)
+            .replace("{target}", STAGE_TO_REVIEW_TARGET.get(args.stage, args.stage))
+            .replace("{feature_name}", feature_id)
+            .replace("{file_list}", file_list_block)
+            # 兼容历史双大括号(若有 caller 仍传双):
             .replace("{{stage}}", args.stage)
             .replace("{{commit}}", commit)
             .replace("{{base}}", base)
@@ -2995,11 +3082,39 @@ def cmd_external_review(args: argparse.Namespace) -> None:
     ]
     output_file.write_text("\n".join(frontmatter_lines) + stdout, encoding="utf-8")
 
-    # ── Step 6.5 · v8.36 内容质量轻校验(治本 SVC-PLATFORM-F054 Bug 2 case)──
-    # case:Claude reviewer 收到 prompt 后只 echo template 不真 review
-    # 用户决策(Option "只校验空内容/空模板"):不语义判 reviewer 质量 · 只校验明显空/模板
-    # WARN 不 BLOCK · 决策权留用户
+    # ── Step 6.5 · v8.36 内容质量轻校验 → v8.43 升级 template_echo 为 BLOCK ──
+    # v8.36 决策 WARN 不 BLOCK · 但 case SVC-PLATFORM-F054 blueprint round 3 实证:
+    # AI 看到产物存在就继续 · WARN 走过场 · 用户手动读 file 才发现无效
+    # v8.43 治本(用户拍板 A 全治):template_echo BLOCK(强信号 100% 无效)·
+    # empty_content 仍 WARN(可能合理精简)· 逃生口 --accept-quality-warnings
     quality_warnings = _check_external_review_quality(stdout, args.stage, model)
+
+    template_echo_hit = [w for w in quality_warnings if w.get("type") == "template_echo"]
+    if template_echo_hit and not getattr(args, "accept_quality_warnings", False):
+        # 写入 file(保留产物供审查)· 但 BLOCK 不让流程继续
+        # 文件已经在 Step 6 写了 · 这里只 emit FAIL with hint
+        emit({
+            "verdict": "FAIL",
+            "command": "external-review",
+            "error": (
+                f"reviewer 产物含 template echo 特征 · 视作无效评审(v8.43 BLOCK · "
+                f"治本 SVC-PLATFORM-F054 blueprint round 3 case)"
+            ),
+            "file_path": str(output_file),
+            "quality_warnings": quality_warnings,
+            "matched_signatures": template_echo_hit[0].get("matched_signatures", []),
+            "hint": (
+                "二选一:\n"
+                "  ① [推荐] 检查 prompt 与 reviewer 真实输出 · 修 prompt 或重跑 external-review:\n"
+                "       state.py external-review --feature <path> --stage <stage>(必要时换 --model)\n"
+                "  ② [慎用] 评估认为评审实质 OK(误报)· 加 --accept-quality-warnings 通过:\n"
+                "       state.py external-review --feature <path> --stage <stage> --accept-quality-warnings\n"
+                "       (走 bypass log + concerns WARN 留痕 · retro 复盘可见)"
+            ),
+            "spec": ("v8.43 治本 · template_echo 100% 是无效评审 · 不再 WARN 走过场。"
+                     " v8.36 留 WARN 兜底被 AI 钻空子 · v8.43 升级 BLOCK"),
+        })
+        return
 
     # ── Step 7 · emit ──
     # finding 数粗估(grep "^###" 或 "Finding" · 仅参考)
@@ -3008,6 +3123,17 @@ def cmd_external_review(args: argparse.Namespace) -> None:
         stdout.count("#### Finding"),
         stdout.lower().count("finding "),
     )
+    # v8.43:若走 bypass(--accept-quality-warnings 通过 template_echo)· emit 标记 + audit
+    bypass_warning = None
+    if template_echo_hit and getattr(args, "accept_quality_warnings", False):
+        bypass_warning = (
+            f"{now_iso()} WARN external-review quality bypass: "
+            f"stage={args.stage} model={model} template_echo signatures="
+            f"{template_echo_hit[0].get('matched_signatures', [])[:3]} · "
+            f"--accept-quality-warnings 通过(v8.43 治本 case · 用户认知误报)· "
+            f"file={output_file}"
+        )
+
     emit({
         "verdict": "OK",
         "command": "external-review",
@@ -3031,6 +3157,11 @@ def cmd_external_review(args: argparse.Namespace) -> None:
         # v8.36:host 来源 deprecated 警告 + 内容质量轻校验 WARN(不 BLOCK · R0 兜底)
         **({"deprecation_warning": deprecation_warning} if deprecation_warning else {}),
         **({"quality_warnings": quality_warnings} if quality_warnings else {}),
+        # v8.43:claude 路径 inline 文件 meta(PMO 可验 reviewer 真拿到内容)
+        **({"files_inlined": files_inline_meta}
+            if model == "claude" and files_inline_meta else {}),
+        # v8.43:bypass quality_warnings(template_echo)留痕
+        **({"quality_bypass_warning": bypass_warning} if bypass_warning else {}),
     })
 
 
@@ -3570,6 +3701,11 @@ def build_parser() -> argparse.ArgumentParser:
                           "或 `codex --help` 查 ChatGPT 订阅可能拒绝任何显式 model · 仅 API key 模式可显式。"))
     er.add_argument("--dry-run", action="store_true",
                     help="只输出将跑的命令 + 校验 · 不实际调 CLI(供 debug / preview)")
+    # v8.43:template_echo 升 BLOCK 后的逃生口(治本 SVC-PLATFORM-F054 blueprint round 3)
+    er.add_argument("--accept-quality-warnings", action="store_true",
+                    help=("[v8.43] template_echo BLOCK 时显式承认评审实质 OK(误报) · "
+                          "走 bypass log + concerns WARN 留痕 · retro 复盘可见。"
+                          "用户应先实际读 file 验证再加此 flag"))
     er.set_defaults(func=cmd_external_review)
 
     # v8.24-v8.41:update-skill · 自更新 → v8.42 抽到独立 tools/update.py

@@ -1307,8 +1307,10 @@ class TestExternalReviewCommand(unittest.TestCase):
         from state import _run_claude_review  # type: ignore
 
         captured_cmd = []
+        captured_kwargs = {}
         def fake_run(cmd, **kwargs):
             captured_cmd.extend(cmd)
+            captured_kwargs.update(kwargs)
             class R:
                 returncode = 0
                 stdout = "ok"
@@ -1321,8 +1323,108 @@ class TestExternalReviewCommand(unittest.TestCase):
         # 必带 "-p" · 不含 "--print"
         self.assertIn("-p", captured_cmd)
         self.assertNotIn("--print", captured_cmd)
-        # 仍传 prompt 通过 stdin(input= 参数 · 不是 argv)· cmd 数组里不应有 prompt 字面
-        self.assertNotIn("test prompt", captured_cmd)
+
+    # ── v8.43:claude -p prompt 从 stdin 改 argv(治本 case SVC-PLATFORM-F054 blueprint round 3)──
+
+    def test_v843_run_claude_review_prompt_in_argv_not_stdin(self):
+        """v8.43:prompt 必在 argv(而不是 stdin) · 治本 Claude CLI 2.1.153 stdin "Not logged in" bug。
+
+        case 实证(用户跑):
+          ✓ claude -p 'prompt' --model X  → OK
+          ✗ printf 'prompt' | claude -p --model X  → "Not logged in"
+        """
+        from unittest import mock
+        from state import _run_claude_review  # type: ignore
+
+        captured_cmd = []
+        captured_kwargs = {}
+        def fake_run(cmd, **kwargs):
+            captured_cmd.extend(cmd)
+            captured_kwargs.update(kwargs)
+            class R:
+                returncode = 0
+                stdout = "ok"
+                stderr = ""
+            return R()
+
+        with mock.patch("state.subprocess.run", side_effect=fake_run):
+            _run_claude_review("v843 test prompt body")
+
+        # prompt 在 argv 里(治本 stdin "Not logged in")
+        self.assertIn("v843 test prompt body", captured_cmd)
+        # 不能再传 input=(stdin 模式)
+        self.assertNotIn("input", captured_kwargs)
+        # cmd 顺序:claude -p <prompt> --model X ...
+        self.assertEqual(captured_cmd[0], "claude")
+        self.assertEqual(captured_cmd[1], "-p")
+        self.assertEqual(captured_cmd[2], "v843 test prompt body")
+        self.assertIn("--model", captured_cmd)
+        self.assertIn("--output-format", captured_cmd)
+
+    # ── v8.43:reviewer.md 占位符真替换(治本 Bug B) ──
+
+    def test_v843_gather_review_files_inlines_blueprint_targets(self):
+        """v8.43:_gather_review_files_for_claude 把 stage=blueprint 的 TC.md/TECH.md 内容 inline。"""
+        from state import _gather_review_files_for_claude  # type: ignore
+        feat = Path(tempfile.mkdtemp(prefix="tw-v843-gather-"))
+        try:
+            (feat / "TC.md").write_text("# TC content\nfoo TC body", encoding="utf-8")
+            (feat / "TECH.md").write_text("# TECH content\nbar TECH body", encoding="utf-8")
+            block, meta = _gather_review_files_for_claude("blueprint", feat)
+            # block 含两个文件内容 inline
+            self.assertIn("### TC.md", block)
+            self.assertIn("foo TC body", block)
+            self.assertIn("### TECH.md", block)
+            self.assertIn("bar TECH body", block)
+            # meta:两个文件 exists=True · bytes 真
+            names = {m["name"] for m in meta}
+            self.assertEqual(names, {"TC.md", "TECH.md"})
+            for m in meta:
+                self.assertTrue(m["exists"])
+                self.assertGreater(m["bytes"], 0)
+        finally:
+            shutil.rmtree(feat, ignore_errors=True)
+
+    def test_v843_gather_review_files_truncates_oversized(self):
+        """v8.43:超 60KB 单文件 truncate · meta 标 truncated=True。"""
+        from state import (_gather_review_files_for_claude,  # type: ignore
+                            EXTERNAL_REVIEW_INLINE_MAX_BYTES_PER_FILE)
+        feat = Path(tempfile.mkdtemp(prefix="tw-v843-trunc-"))
+        try:
+            huge = "x" * (EXTERNAL_REVIEW_INLINE_MAX_BYTES_PER_FILE + 1000)
+            (feat / "PRD.md").write_text(huge, encoding="utf-8")
+            block, meta = _gather_review_files_for_claude("goal", feat)
+            self.assertIn("truncated", block.lower())
+            self.assertTrue(meta[0]["truncated"])
+            # bytes 是原始大小(不是截断后)
+            self.assertGreater(meta[0]["bytes"],
+                                EXTERNAL_REVIEW_INLINE_MAX_BYTES_PER_FILE)
+        finally:
+            shutil.rmtree(feat, ignore_errors=True)
+
+    def test_v843_gather_review_files_handles_missing(self):
+        """v8.43:缺失文件 → block 标提示 + meta exists=False · 不抛异常。"""
+        from state import _gather_review_files_for_claude  # type: ignore
+        feat = Path(tempfile.mkdtemp(prefix="tw-v843-missing-"))
+        try:
+            # TC.md / TECH.md 都不存在
+            block, meta = _gather_review_files_for_claude("blueprint", feat)
+            self.assertIn("文件不存在", block)
+            for m in meta:
+                self.assertFalse(m["exists"])
+                self.assertEqual(m["bytes"], 0)
+        finally:
+            shutil.rmtree(feat, ignore_errors=True)
+
+    def test_v843_stage_review_files_maps_correctly(self):
+        """v8.43:STAGE_REVIEW_FILES + STAGE_TO_REVIEW_TARGET 映射表正确。"""
+        from state import STAGE_REVIEW_FILES, STAGE_TO_REVIEW_TARGET  # type: ignore
+        self.assertEqual(STAGE_REVIEW_FILES["goal"], ["PRD.md"])
+        self.assertEqual(STAGE_REVIEW_FILES["blueprint"], ["TC.md", "TECH.md"])
+        self.assertEqual(STAGE_REVIEW_FILES["review"], [])  # review 走 diff 不 inline
+        self.assertEqual(STAGE_TO_REVIEW_TARGET["goal"], "prd")
+        self.assertEqual(STAGE_TO_REVIEW_TARGET["blueprint"], "blueprint")
+        self.assertEqual(STAGE_TO_REVIEW_TARGET["review"], "code")
 
     # ── commit fallback ──
     def test_commit_fallback_from_state_dev_auto_commit(self):
