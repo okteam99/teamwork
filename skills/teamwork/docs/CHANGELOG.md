@@ -1,5 +1,126 @@
 # Changelog
 
+## v8.42 · 架构治本:update-skill 抽到独立 tools/update.py(职责分离 · 用户拍板)
+
+> 用户 2026-05-27:"更新文件本身是否有必要单独一个 python"
+
+### 用户洞察:元工具 vs 运行时
+
+v8.41 治本去 git 化后 · cmd_update_skill 在 state.py 里仍有 4 个问题:
+
+| 问题 | 说明 |
+|------|------|
+| **元工具混入运行时** | state.py = stage 状态机/评审/测试 运行时;update-skill = 管 state.py 自己 元工具 · 职责不同 |
+| **覆盖自己进程的不一致** | update-skill 跑时进程在内存 · 磁盘 state.py 被覆盖 · 同一 session 后续命令拿旧代码 |
+| **chicken-and-egg 死锁风险** | 若 cmd_update_skill 自己有 bug · 用户无法升级救命 |
+| **与 bootstrap.py pattern 不一致** | bootstrap.py 本身就独立 · update 同是 setup-style 元工具 · 应对齐 |
+
+### 用户决策
+
+| 维度 | 选项 | 用户选 |
+|------|------|--------|
+| 抽离方案 | A 完全独立 / B 双入口 / C 模块化 / D 维持现状 | **A · 完全独立 tools/update.py** |
+| 文件名 | update.py / selfupdate.py / upgrade.py / update_skill.py | **update.py**(最简洁 · 与 bootstrap.py 风格对齐) |
+
+### 实施
+
+#### 1. 新建 `tools/update.py`(独立脚本)
+
+完整搬 v8.41 cmd_update_skill 逻辑:
+- 4 helpers:`_download_skill_tarball` / `_parse_skill_md_version` / `_detect_local_modifications` / `_overwrite_skill_files`
+- 1 helper:`_resolve_channel`(优先级 args > localconfig > main · 复用 v8.39)
+- 1 主流程:`cmd_update(args)`(7 步)
+- 独立 argparse(`build_parser` + `main`)
+- 命令:`python3 SKILL_ROOT/tools/update.py [--channel <branch>] [--accept-overwrite]`
+
+#### 2. state.py 清理(259 行删除)
+
+```diff
+- 4 helpers(_download_skill_tarball / _parse / _detect / _overwrite)
+- cmd_update_skill(140+ 行)
+- argparse "update-skill" subparser + add_argument --channel / --accept-overwrite
+
++ 注释保留指向 tools/update.py(让 grep 用户找到新位置)
+```
+
+#### 3. bootstrap.py outdated prompt 改
+
+```diff
+- update_cmd = "`state.py update-skill`" if main else f"`state.py update-skill --channel {channel}`"
++ update_cmd = "`python3 $SKILL_ROOT/tools/update.py`" if main else f"`python3 $SKILL_ROOT/tools/update.py --channel {channel}`"
+```
+
+bootstrap 自动检测到新版本 emit prompt 时直接给独立脚本路径 · 用户复制即跑。
+
+### 测试覆盖(8 个新加 · 1 个新文件 · 5 个旧测删)
+
+新文件 `tools/tests/test_update.py`:
+
+**TestUpdatePyStandalone**(3 测 · 验证独立性):
+- `test_v842_update_py_exists`
+- `test_v842_update_py_runs_help_independently`(`update.py --help` 不依赖 state.py)
+- `test_v842_state_py_no_longer_has_update_skill`(确认 state.py update-skill subparser 已删 · invalid choice)
+
+**TestUpdatePyTarballDownload**(5 测 · 从 test_state.py 迁移 v8.41 核心逻辑):
+- `test_v842_block_when_local_modified_without_accept`
+- `test_v842_pass_with_accept_overwrite_and_overwrites_files`
+- `test_v842_block_when_tarball_url_invalid`
+- `test_v842_channel_passed_through_to_emit`
+- `test_v842_default_channel_main`
+
+删除 `test_state.py:TestUpdateSkillTarballDownload`(已迁出)。
+
+更新 `test_bootstrap.py`:
+- `test_outdated_emits_r5_prompt`:期望含 `tools/update.py` · 不含 `state.py update-skill`
+- `test_v839_explicit_dev_channel`:期望含 `tools/update.py` + `--channel dev`
+
+339 passed / 97 failed(baseline 一致 · 0 regression)
+
+### 与 bootstrap.py pattern 对齐
+
+| 工具 | 文件 | 类型 | 用法 |
+|------|------|------|------|
+| `bootstrap.py` | tools/bootstrap.py | setup 元工具(独立) | `python3 SKILL_ROOT/tools/bootstrap.py --host X` |
+| **`update.py`** | tools/update.py | **upgrade 元工具(独立 · v8.42)** | `python3 SKILL_ROOT/tools/update.py [--channel X]` |
+| `state.py` | tools/state.py | 运行时(stage 状态机 + ...) | `python3 SKILL_ROOT/tools/state.py <cmd>` |
+
+清晰的 3 文件分层:**元工具(bootstrap/update)+ 运行时(state)**。
+
+### chicken-and-egg 治本
+
+旧:若 v8.x cmd_update_skill 自己有 bug · 用户无法升级救命(state.py update-skill 自己坏了 → 升不了)
+新:update.py 完全独立 · state.py 任何 bug 都不影响 update.py 跑 · 用户随时能升级
+
+### Hash
+
+- 新文件 tools/update.py:282 行
+- 新文件 tools/tests/test_update.py:200 行
+- state.py:删 259 行(cmd_update_skill + 4 helpers + argparse + 常量)
+- bootstrap.py:update_cmd 改 7 行
+- test_state.py:删 142 行(TestUpdateSkillTarballDownload class)
+- test_bootstrap.py:改 2 个测试 · 加 update.py 字面校验
+- SKILL.md:v8.41 → v8.42
+- docs/CHANGELOG.md:本段
+
+净结果:state.py 减 259 行 · 总 -ish 净 +250 行(独立 update.py 文件 + 独立测试)
+
+### 设计哲学
+
+v8.41 治本 git 路径 bug(架构层降级)· v8.42 治本元工具混运行时(职责分离)。两次都是**架构层动手** · 不是修补层。
+
+R0 哲学:
+- **可枚举的进脚本**:update 流程 7 步 · helpers · 全在 update.py
+- **职责分离**:state.py 不该管"如何升级 state.py" · 像 bash 不该管"如何升级 bash"
+- **chicken-and-egg 隔离**:救命工具必须独立(否则坏了救不了)
+
+### 发布
+
+v8.42 push origin/dev only(继续 dev-first 流程)· 不动 main。
+
+下次稳定后(累积 v8.40-v8.42 dev 改动)可 ff merge dev → main 让 stable 用户拿到全部治本。
+
+---
+
 ## v8.41 · 架构治本:update-skill 去 git 化 · tarball download + 覆盖(用户拍板)
 
 > 用户 2026-05-27:"cmd_update_skill 是否可以不关心分支 · 按理说他可以不关心 git · 只是从对应仓库和对应分支拉取最新文件做覆盖"
