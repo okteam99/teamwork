@@ -1,5 +1,133 @@
 # Changelog
 
+## v8.41 · 架构治本:update-skill 去 git 化 · tarball download + 覆盖(用户拍板)
+
+> 用户 2026-05-27:"cmd_update_skill 是否可以不关心分支 · 按理说他可以不关心 git · 只是从对应仓库和对应分支拉取最新文件做覆盖"
+
+### 用户洞察的精确性
+
+v8.24/v8.39/v8.40 把 update-skill 当 "vcs sync"(git pull) · 引入大量 git 相关复杂度:
+- v8.24:dirty BLOCK
+- v8.39:channel + URL 模板
+- v8.40:branch/channel 一致性校验
+
+用户重新分类:**update-skill 是 package manager**(npm/pip/brew)· 不是 vcs sync。只需要:
+1. 从远端拉最新内容
+2. 覆盖本地
+
+**v8.40 治本的"分支与 channel 错配"bug 在 download-overwrite 模型里根本不存在** —— 没有"当前分支"概念。架构层降级 · 不是修补层治本。
+
+### 用户决策
+
+| 维度 | 选项 | 用户选 |
+|------|------|--------|
+| 架构治本方向 | A 完全去 git 化 / B 保留 git 不依赖分支 / C 维持 v8.40 / D 双路径 | **A · 完全去 git 化** |
+| 本地改动保护 | A WARN + --accept-overwrite / B 自动 backup / C 直接覆盖 / D BLOCK 无逃生 | **A · WARN + --accept-overwrite** |
+
+### 实施(state.py 重写 cmd_update_skill + 3 helpers)
+
+```diff
+- # ── Step 1:检测 git repo ── (git rev-parse --show-toplevel)
+- # ── Step 2:检测脏树 ── (git status --porcelain · dirty BLOCK)
+- # ── Step 3:读 old version
+- # ── v8.39:resolve channel
+- # ── v8.40:校验当前分支 == channel(git rev-parse --abbrev-ref HEAD)
+- # ── Step 4:git fetch origin <channel> + git pull --ff-only origin <channel>
+- # ── Step 5:读 new version + ORIG_HEAD diff stat
+
++ # v8.41:tarball-based(去 git 化)
++ SKILL_TARBALL_URL_TEMPLATE = "https://github.com/okteam99/teamwork/archive/refs/heads/{channel}.tar.gz"
++
++ def _download_skill_tarball(channel, work_dir):  # curl + tar -xzf
++ def _parse_skill_md_version(skill_md):           # 复用 v8.24 的 regex
++ def _detect_local_modifications(target, source): # 文件 byte 比较
++ def _overwrite_skill_files(target, source):      # shutil.copy2 覆盖
++
++ def cmd_update_skill(args):
++     Step 1 resolve channel(args > localconfig > main · 保留 v8.39)
++     Step 2 读 old version
++     Step 3 download tarball + 解压 to /tmp(失败 → FAIL with hint)
++     Step 4 读 new version + 校验完整性(无 SKILL.md → FAIL)
++     Step 5 检测本地修改(byte-by-byte)
++     Step 6 modified + 无 --accept-overwrite → FAIL with hint(逃生口)
++     Step 7 覆盖 skill_root · cleanup tmp · emit OK
+```
+
+argparse 改动:
+- 删 `--force`(git pull 时代的脏树绕过 · 已无意义)
+- 加 `--accept-overwrite`(本地改动覆盖必显式)
+- 保留 `--channel`(v8.39)
+
+### 复杂度降级
+
+| 检查项 | v8.40 | v8.41 |
+|-------|-------|-------|
+| 依赖 | git CLI + git repo | curl + tar |
+| 代码行数 | 200+ | 280(算 3 helpers · 主 cmd 减 50%) |
+| 校验复杂度 | 6 重(git repo + dirty + channel + branch + ff + ORIG_HEAD) | 2 重(下载完整 + 本地改动) |
+| 错配 bug | v8.40 加校验治本 | 不存在 |
+| 安装方式 | 仅 git clone | git clone OR zip 都行 |
+
+### 治本 v8.40 之前所有"git 相关"bug
+
+- v8.24 dirty BLOCK 误触发 → 不存在(没有 git status 检查)
+- v8.35 `{SKILL_ROOT}` placeholder → 不存在(已经是 f-string 真实路径)
+- v8.40 branch/channel 错配 → 不存在(没有"当前分支"概念)
+- v8.40 hint 误导(rebase) → 不存在(没有 pull 失败路径)
+
+### 测试覆盖(5 个新加 · 1 个新 class)
+
+`TestUpdateSkillTarballDownload`(setUp 用 tarfile 造 fake remote · file:// URL 喂给 state.py):
+- `test_v841_block_when_local_modified_without_accept`(主 BLOCK · hint 含逃生口)
+- `test_v841_pass_with_accept_overwrite_and_overwrites_files`(主 PASS · 验文件真被覆盖 + 新增文件)
+- `test_v841_block_when_tarball_url_invalid`(download 失败)
+- `test_v841_channel_passed_through_to_emit`(--channel args 传透)
+- `test_v841_default_channel_main`(默认 main · channel_source=default)
+
+删除旧测(已不适用):
+- `TestUpdateSkillHint`(v8.35 git-not-repo hint · git 路径已删)
+- `TestUpdateSkillBranchChannelGate`(v8.40 branch 校验 · 已不存在)
+
+336 passed / 97 failed(baseline 一致 · 0 regression)
+
+### 用户工作流变化
+
+**stable 用户**(默认 main):
+```bash
+state.py update-skill                          # 无本地改动:PASS · 自动覆盖
+state.py update-skill --accept-overwrite       # 有本地改动:用此确认
+```
+
+**preview 用户**(channel=dev):
+```bash
+state.py update-skill --channel dev            # 同上 + dev URL
+state.py update-skill --accept-overwrite --channel dev
+```
+
+**新场景**:zip 安装 skill(不是 git clone)现在也能 update-skill!之前 v8.24-v8.40 会因 "不是 git repo" BLOCK · v8.41 通吃。
+
+### 边界与诚实记录
+
+**v8.41 不删 target 多余文件**:覆盖只复制 source 有的文件 · target 多余文件保留(保守 · 防误删用户本地新加文件)。代价:老版本被删的文件残留 stale(retro/审查可见)。
+
+**本地改动检测**:基于 byte-by-byte 比较 · 不靠 git history。对于 deleted file 不会 BLOCK(target 删 / source 有 → 不视作 modification · 升级会补回来)。
+
+**架构反思**:我 v8.24 选 git pull 是因为"skill 已经是 git clone 来的 · 用 git pull 自然"。但**自然 ≠ 必要** —— 那是 incidental complexity · 不是 essential。用户重新归类后 · 一次治本 v8.24-v8.40 的全部 git 路径 bug。**这是设计层降级的胜利 · 不是修补层治本**。
+
+### Hash
+
+- state.py:cmd_update_skill 完全重写 + 3 helpers(_download_skill_tarball / _parse_skill_md_version / _detect_local_modifications / _overwrite_skill_files)= 净 +60 行(包含 4 helpers · 主 cmd 净减)
+- state.py argparse:删 --force / 加 --accept-overwrite / 保留 --channel = 净 +0 行
+- test_state.py:删 TestUpdateSkillHint(v8.35)+ TestUpdateSkillBranchChannelGate(v8.40)· 加 TestUpdateSkillTarballDownload(5 测)= 净 +30 行
+- SKILL.md:v8.40 → v8.41
+- docs/CHANGELOG.md:本段
+
+### 发布
+
+v8.41 push origin/dev only(继续 dev-first 流程)· 不动 main。
+
+---
+
 ## v8.40 · 治本 v8.39 引入的 branch/channel 错配 bug(audit case · 首个 dev-only release)
 
 > 用户 2026-05-27:"在检查下 skill 升级的流程和逻辑"。我做 e2e audit 发现 v8.39 引入 2 个关键 bug · 立即 dev-only 治本(走 v8.39 设立的 dev-first 流程的第一个 release)。

@@ -1,6 +1,6 @@
 ---
 name: teamwork
-version: v8.40
+version: v8.41
 description: 状态机驱动的 AI 开发编排器。state.py 主动校验 + 主动告知,AI 跑命令即知做什么,不再读 spec 凭记忆。/teamwork 启动。
 ---
 

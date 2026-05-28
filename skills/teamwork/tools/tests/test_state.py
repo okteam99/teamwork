@@ -2042,142 +2042,146 @@ class TestExternalReviewContentQuality(unittest.TestCase):
         self.assertEqual(warnings, [])
 
 
-class TestUpdateSkillHint(unittest.TestCase):
-    """v8.35 Bug A:cmd_update_skill hint 文案不含 `{SKILL_ROOT}` 字面 placeholder。
+class TestUpdateSkillTarballDownload(unittest.TestCase):
+    """v8.41 架构治本(用户拍板 2026-05-27 · cmd_update_skill 不再依赖 git):
 
-    case 用户问"自动升级是否符合预期" 2026-05-27:
-    state.py line 3009/3029 用普通 string 不是 f-string · `{SKILL_ROOT}` 输出字面
-    placeholder · 用户复制 `cd {SKILL_ROOT}` 当然 cd 失败。
-    """
+    用户:"cmd_update_skill 是否可以不关心分支 · 按理说他可以不关心 git ·
+           只是从对应仓库和对应分支拉取最新文件做覆盖"
 
-    def setUp(self):
-        self.tmp = Path(tempfile.mkdtemp(prefix="tw-us-"))
+    重写 cmd_update_skill 为:tarball download + 解压覆盖 · 不依赖 git。
+    治本 v8.40 之前的全部"git 相关"bug(分支错配 / dirty / ff 失败 / ORIG_HEAD diff)。
 
-    def tearDown(self):
-        shutil.rmtree(self.tmp, ignore_errors=True)
-
-    def test_update_skill_not_git_repo_hint_uses_real_path(self):
-        """v8.35:tmp 非 git repo · update-skill BLOCK · hint 必含真实路径不含 `{SKILL_ROOT}`。"""
-        # 把 state.py 复制到 tmp 模拟 SKILL_ROOT(state.py 自推 skill_root = tools/.. parent)
-        # 简化:直接用 monkeypatch 改 __file__
-        import subprocess as _sp
-        # 用一个不存在的 dir 做 cwd · 让 git rev-parse 失败(模拟非 git repo)
-        not_git = self.tmp / "fake_skill_root" / "tools"
-        not_git.mkdir(parents=True)
-        # 把真 state.py 拷过去模拟在那个位置
-        import shutil as _sh
-        _sh.copy(STATE_PY, not_git / "state.py")
-        # 现在跑那个拷贝(它会自推 skill_root = not_git.parent)· 在 cwd=非git目录
-        r = _sp.run(
-            ["/opt/homebrew/opt/python@3.14/bin/python3.14",
-             str(not_git / "state.py"), "update-skill"],
-            capture_output=True, text=True, timeout=30,
-        )
-        # 找 emit 的 JSON · stdout 可能含多行 · 取最后一段 JSON
-        out = (r.stdout or r.stderr).strip()
-        # 找 JSON 起始 `{`
-        idx = out.find("{")
-        self.assertGreaterEqual(idx, 0, f"未找到 JSON 输出 · stdout/stderr=\n{out}")
-        d = json.loads(out[idx:])
-        self.assertEqual(d.get("verdict"), "FAIL")
-        self.assertEqual(d.get("command"), "update-skill")
-        # hint 必含真实路径(not_git.parent · 即 fake_skill_root) · 不含字面 placeholder
-        hint = d.get("hint", "")
-        self.assertNotIn("{SKILL_ROOT}", hint,
-                         f"hint 含字面 placeholder · 应是 f-string 真实路径:\n{hint}")
-        self.assertIn(str(not_git.parent), hint,
-                      f"hint 必含 skill_root 真实路径:\n{hint}")
-
-
-class TestUpdateSkillBranchChannelGate(unittest.TestCase):
-    """v8.40 治本 audit case:当前分支与 channel 不一致时 · update-skill 必 BLOCK。
-
-    v8.39 引入 channel 后 bug 实测:
-    - 当前 main 分支 + channel=dev → git pull --ff-only origin dev 把 local main 偷偷 FF 到 dev HEAD
-    - 当前 dev 分支 + channel=main → pull 失败但 hint 误导
-
-    v8.40 治本:fetch 前先校验 cur_branch == channel · 否则 BLOCK with hint 切分支或改 channel
+    测试:用 file:// URL + 临时 tarball 模拟 GitHub download · 避免真网络。
     """
 
     def setUp(self):
         import subprocess as _sp
-        self.tmp = Path(tempfile.mkdtemp(prefix="tw-v840-"))
-        # 建一个真 git repo · 含 main + dev 双分支 · 在 dev 分支
-        self.repo = self.tmp / "fake-skill-root"
-        # state.py 自推 skill_root = tools/.. parent · 所以拷到 self.repo/tools/state.py
-        (self.repo / "tools").mkdir(parents=True)
         import shutil as _sh
-        _sh.copy(STATE_PY, self.repo / "tools" / "state.py")
-        # 拷 SKILL.md 防 read_text 路径错
-        (self.repo / "SKILL.md").write_text(
-            "---\nname: teamwork\nversion: v8.40\n---\nbody\n",
+        import tarfile
+
+        self.tmp = Path(tempfile.mkdtemp(prefix="tw-v841-"))
+        # 1. 建"远端" tarball · 模拟 GitHub archive 结构 teamwork-<channel>/skills/teamwork/
+        remote = self.tmp / "remote-extract" / "teamwork-dev" / "skills" / "teamwork"
+        remote.mkdir(parents=True)
+        (remote / "SKILL.md").write_text(
+            "---\nname: teamwork\nversion: v8.99\n---\nbody updated\n", encoding="utf-8")
+        (remote / "tools").mkdir()
+        (remote / "tools" / "state.py").write_text("# updated state.py\n", encoding="utf-8")
+        # 模拟新增文件
+        (remote / "tools" / "NEW_FILE.py").write_text("# v8.99 new file\n", encoding="utf-8")
+        # 打 tarball(GitHub archive 结构:tarball 顶层目录是 teamwork-<branch>/)
+        self.tarball = self.tmp / "remote.tar.gz"
+        with tarfile.open(self.tarball, "w:gz") as tf:
+            tf.add(self.tmp / "remote-extract" / "teamwork-dev",
+                   arcname="teamwork-dev")
+
+        # 2. 建"本地" skill_root(模拟用户已安装的 skill · v8.40)
+        self.local_skill = self.tmp / "local-skill"
+        self.local_skill.mkdir()
+        # 拷真 state.py 让 update-skill 能跑(自推 skill_root)
+        (self.local_skill / "tools").mkdir()
+        _sh.copy(STATE_PY, self.local_skill / "tools" / "state.py")
+        # 也拷 bootstrap.py(_read_update_channel 用)
+        bootstrap_py = TOOLS / "bootstrap.py"
+        if bootstrap_py.exists():
+            _sh.copy(bootstrap_py, self.local_skill / "tools" / "bootstrap.py")
+        # SKILL.md 本地 v8.40
+        (self.local_skill / "SKILL.md").write_text(
+            "---\nname: teamwork\nversion: v8.40\n---\noriginal body\n",
             encoding="utf-8")
-        # git init + 配置 + 初始 commit + 建 dev 分支 + checkout dev
-        for cmd in [
-            ["git", "init", "-q", "-b", "main"],
-            ["git", "config", "user.email", "test@example.com"],
-            ["git", "config", "user.name", "test"],
-            ["git", "add", "-A"],
-            ["git", "commit", "-q", "-m", "init"],
-            ["git", "branch", "dev"],
-        ]:
-            _sp.run(cmd, cwd=str(self.repo), check=True,
-                    capture_output=True)
+
+        # 3. env override TEAMWORK_SKILL_TARBALL_URL → file:// 本地 tarball
+        self._prev_env = os.environ.get("TEAMWORK_SKILL_TARBALL_URL")
+        os.environ["TEAMWORK_SKILL_TARBALL_URL"] = f"file://{self.tarball}"
 
     def tearDown(self):
         shutil.rmtree(self.tmp, ignore_errors=True)
+        if self._prev_env is None:
+            os.environ.pop("TEAMWORK_SKILL_TARBALL_URL", None)
+        else:
+            os.environ["TEAMWORK_SKILL_TARBALL_URL"] = self._prev_env
 
     def _run_update_skill(self, *extra_args) -> dict:
-        """跑 state.py update-skill · 捕 JSON emit。"""
+        """跑 state.py update-skill(skill_root = self.local_skill)· 捕 JSON。"""
         import subprocess as _sp
         r = _sp.run(
             ["/opt/homebrew/opt/python@3.14/bin/python3.14",
-             str(self.repo / "tools" / "state.py"), "update-skill", *extra_args],
-            capture_output=True, text=True, timeout=30, cwd=str(self.repo),
+             str(self.local_skill / "tools" / "state.py"), "update-skill",
+             *extra_args],
+            capture_output=True, text=True, timeout=30, cwd=str(self.local_skill),
+            env={**os.environ, "TEAMWORK_SKILL_TARBALL_URL": f"file://{self.tarball}"},
         )
         out = (r.stdout or r.stderr).strip()
         idx = out.find("{")
-        self.assertGreaterEqual(idx, 0, f"未找到 JSON 输出 · stdout/stderr=\n{out}")
+        self.assertGreaterEqual(idx, 0,
+                                f"未找到 JSON · stdout/stderr=\n{out}")
         return json.loads(out[idx:])
 
-    def test_v840_block_when_on_main_but_channel_dev(self):
-        """当前 main 分支 + --channel dev → BLOCK with hint(治本核心 case)。"""
-        # 当前在 main(git init 默认)
-        d = self._run_update_skill("--channel", "dev")
-        self.assertEqual(d["verdict"], "FAIL")
-        self.assertEqual(d["current_branch"], "main")
-        self.assertEqual(d["channel"], "dev")
-        self.assertIn("当前分支", d["error"])
-        self.assertIn("dev", d["error"])
-        # hint 必含切分支命令
-        self.assertIn("git checkout dev", d["hint"])
-        # hint 必含替代方案(改 channel)
-        self.assertIn("--channel main", d["hint"])
+    # ── BLOCK path:本地有改动 + 无 --accept-overwrite ──
 
-    def test_v840_block_when_on_dev_but_channel_default_main(self):
-        """当前 dev 分支 + 默认 channel=main → BLOCK(治本反向 case)。"""
-        import subprocess as _sp
-        # 切到 dev 分支
-        _sp.run(["git", "checkout", "dev"], cwd=str(self.repo),
-                check=True, capture_output=True)
-        # 默认 channel=main(无 localconfig)
+    def test_v841_block_when_local_modified_without_accept(self):
+        """本地有改动(SKILL.md v8.40 ≠ 远端 v8.99) + 无 --accept-overwrite → BLOCK。"""
         d = self._run_update_skill()
         self.assertEqual(d["verdict"], "FAIL")
-        self.assertEqual(d["current_branch"], "dev")
-        self.assertEqual(d["channel"], "main")
-        self.assertIn("当前分支", d["error"])
+        self.assertIn("本地有改动", d["error"])
+        self.assertIn("SKILL.md", str(d["modified_files"]))
+        self.assertGreaterEqual(d["modified_files_total"], 1)
+        # hint 含逃生口
+        self.assertIn("--accept-overwrite", d["hint"])
+        self.assertIn("backup", d["hint"])
+        # 仍 emit old/new version(让用户知道版本差距)
+        self.assertEqual(d["old_version"], "v8.40")
+        self.assertEqual(d["new_version"], "v8.99")
 
-    def test_v840_pass_check_when_branch_equals_channel(self):
-        """当前 dev + --channel dev → branch check 通过(可能 fetch 失败 · 但不是 branch 错配 FAIL)。"""
+    # ── PASS path:--accept-overwrite 通过 + 文件被覆盖 ──
+
+    def test_v841_pass_with_accept_overwrite_and_overwrites_files(self):
+        """有本地改动 + --accept-overwrite → PASS + 文件真被覆盖。"""
+        d = self._run_update_skill("--accept-overwrite")
+        self.assertEqual(d["verdict"], "OK")
+        self.assertEqual(d["old_version"], "v8.40")
+        self.assertEqual(d["new_version"], "v8.99")
+        self.assertTrue(d["version_changed"])
+        self.assertGreaterEqual(d["modified_overwritten_total"], 1)
+        # 文件真被覆盖
+        skill_md = self.local_skill / "SKILL.md"
+        self.assertIn("version: v8.99", skill_md.read_text(encoding="utf-8"))
+        # 新文件也被添加
+        new_file = self.local_skill / "tools" / "NEW_FILE.py"
+        self.assertTrue(new_file.exists())
+        self.assertEqual(d["new_files_added_total"], 1)
+
+    # ── BLOCK path:tarball 下载失败 ──
+
+    def test_v841_block_when_tarball_url_invalid(self):
+        """URL 指向不存在 file:// → curl 失败 → BLOCK with hint。"""
         import subprocess as _sp
-        _sp.run(["git", "checkout", "dev"], cwd=str(self.repo),
-                check=True, capture_output=True)
-        d = self._run_update_skill("--channel", "dev")
-        # 没 origin remote · fetch 会失败 · 但 error 不是 branch 错配
-        if d.get("verdict") == "FAIL":
-            self.assertNotIn("当前分支", d.get("error", ""))
-            # 应该是 fetch 失败 with origin not configured
-            self.assertIn("fetch", d.get("error", "").lower())
+        r = _sp.run(
+            ["/opt/homebrew/opt/python@3.14/bin/python3.14",
+             str(self.local_skill / "tools" / "state.py"), "update-skill"],
+            capture_output=True, text=True, timeout=30, cwd=str(self.local_skill),
+            env={**os.environ,
+                 "TEAMWORK_SKILL_TARBALL_URL": "file:///tmp/nonexistent-v841.tar.gz"},
+        )
+        out = (r.stdout or r.stderr).strip()
+        idx = out.find("{")
+        d = json.loads(out[idx:])
+        self.assertEqual(d["verdict"], "FAIL")
+        self.assertIn("下载", d["error"])
+
+    # ── channel 参数 ──
+
+    def test_v841_channel_passed_through_to_emit(self):
+        """--channel dev → emit channel=dev · channel_source=args。"""
+        d = self._run_update_skill("--accept-overwrite", "--channel", "dev")
+        self.assertEqual(d["channel"], "dev")
+        self.assertEqual(d["channel_source"], "args")
+
+    def test_v841_default_channel_main(self):
+        """无 --channel + 无 localconfig → channel=main · channel_source=default。"""
+        d = self._run_update_skill("--accept-overwrite")
+        self.assertEqual(d["channel"], "main")
+        self.assertEqual(d["channel_source"], "default")
 
 
 if __name__ == "__main__":

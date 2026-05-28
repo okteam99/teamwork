@@ -3102,78 +3102,150 @@ def _check_external_review_quality(stdout: str, stage: str, model: str) -> list[
     return warnings
 
 
-# ─── v8.24 · update-skill(自更新 · bootstrap 检测后用户回 1 触发)──────
+# ─── v8.24 / v8.41 · update-skill(自更新 · bootstrap 检测后用户回 1 触发)──────
+# v8.41 架构治本(用户拍板 2026-05-27 · "cmd_update_skill 可以不关心 git ·
+# 按理说他可以不关心 git · 只是从对应仓库和对应分支拉取最新文件做覆盖"):
+# - 去 git 化:tarball download + 解压覆盖 · skill_root 不必是 git repo
+# - 治本 v8.40 之前的全部"git 相关"bug(分支错配 / dirty 误判 / ff 失败 / ORIG_HEAD diff)
+# - 与 zip 安装路径打通(skill_root 来源任意)
+
+
+SKILL_TARBALL_URL_TEMPLATE = (
+    "https://github.com/okteam99/teamwork/archive/refs/heads/{channel}.tar.gz"
+)
+SKILL_UPDATE_DOWNLOAD_TIMEOUT_SEC = 60
+SKILL_UPDATE_URL_ENV_TARBALL = "TEAMWORK_SKILL_TARBALL_URL"  # 测试覆盖用
+
+
+def _download_skill_tarball(channel: str, work_dir: Path) -> tuple[bool, str, Optional[Path]]:
+    """v8.41:下载 GitHub tarball(指定 channel)+ 解压 · 返 (ok, error, source_skill_dir)。
+
+    解压后 GitHub tarball 顶层目录是 teamwork-<channel>/ · skill 在 skills/teamwork/。
+    """
+    url = (os.environ.get(SKILL_UPDATE_URL_ENV_TARBALL)
+           or SKILL_TARBALL_URL_TEMPLATE.format(channel=channel))
+    tarball = work_dir / "tarball.tar.gz"
+    extract_dir = work_dir / "extract"
+    extract_dir.mkdir(parents=True, exist_ok=True)
+
+    # curl 下载
+    r = subprocess.run(
+        ["curl", "-sL", "--fail", "--max-time",
+         str(SKILL_UPDATE_DOWNLOAD_TIMEOUT_SEC), "-o", str(tarball), url],
+        capture_output=True, text=True, timeout=SKILL_UPDATE_DOWNLOAD_TIMEOUT_SEC + 5,
+    )
+    # size 校验:>0 即可(真损坏会在 tar -xzf 阶段失败 · 防 0 字节空响应 + 阈值不误伤小 fixture)
+    if r.returncode != 0 or not tarball.exists() or tarball.stat().st_size == 0:
+        return (False,
+                f"curl 下载 {url} 失败(exit={r.returncode} · "
+                f"size={tarball.stat().st_size if tarball.exists() else 0})· "
+                f"stderr={r.stderr.strip()[:200]}",
+                None)
+
+    # tar 解压
+    t = subprocess.run(
+        ["tar", "-xzf", str(tarball), "-C", str(extract_dir)],
+        capture_output=True, text=True, timeout=60,
+    )
+    if t.returncode != 0:
+        return (False, f"tar 解压失败:{t.stderr.strip()[:200]}", None)
+
+    # 找解压后的 skill 目录(teamwork-<channel>/skills/teamwork/)
+    # channel 可能含 / · GitHub tarball 顶层目录用 - 替代
+    candidates = list(extract_dir.glob("*/skills/teamwork"))
+    if not candidates:
+        return (False,
+                f"解压后未找到 skills/teamwork/ 目录(检查 channel={channel} "
+                f"是否含 skills/teamwork/)· extract_dir={extract_dir}",
+                None)
+    if not (candidates[0] / "SKILL.md").exists():
+        return (False, f"解压后 skill 目录缺 SKILL.md:{candidates[0]}", None)
+    return (True, "", candidates[0])
+
+
+def _parse_skill_md_version(skill_md: Path) -> Optional[str]:
+    """读 SKILL.md frontmatter version · 不存在/无字段 → None。"""
+    if not skill_md.exists():
+        return None
+    try:
+        text = skill_md.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return None
+    m = re.search(r"^version:\s*(\S+)\s*$", text, re.MULTILINE)
+    return m.group(1).strip() if m else None
+
+
+def _detect_local_modifications(target_dir: Path, source_dir: Path) -> dict:
+    """v8.41:对比 target_dir(本地 skill_root)与 source_dir(下载解压)文件内容。
+
+    遍历 source_dir 所有 file · 若 target 对应文件存在但 hash 不同 → modified。
+    target 有 source 没 → 不视作 modification(本地新增 · 可能是用户自定义)。
+
+    返 {modified: [rel_path], new_files: [rel_path]}
+    - modified:本地内容与下载不同 · 将被覆盖
+    - new_files:source 有 target 没 · 升级会补
+    """
+    modified: list[str] = []
+    new_files: list[str] = []
+
+    for src_file in source_dir.rglob("*"):
+        if not src_file.is_file():
+            continue
+        rel = src_file.relative_to(source_dir)
+        tgt_file = target_dir / rel
+        if not tgt_file.exists():
+            new_files.append(str(rel))
+            continue
+        try:
+            if src_file.read_bytes() != tgt_file.read_bytes():
+                modified.append(str(rel))
+        except OSError:
+            # 读不了的文件视作 modified(保守 · 让用户决定)
+            modified.append(str(rel))
+    return {"modified": modified, "new_files": new_files}
+
+
+def _overwrite_skill_files(target_dir: Path, source_dir: Path) -> int:
+    """v8.41:把 source_dir 所有文件复制到 target_dir · 覆盖同名 · 不删 target 多余文件。
+
+    返复制文件数。
+    "不删 target 多余文件" 保守 · 避免误删用户自加文件(如本地脚本)·
+    但老版本被删的文件残留 stale · v8.41 接受这点(retro/审查可见)。
+    """
+    import shutil as _sh
+    copied = 0
+    for src_file in source_dir.rglob("*"):
+        if not src_file.is_file():
+            continue
+        rel = src_file.relative_to(source_dir)
+        tgt_file = target_dir / rel
+        tgt_file.parent.mkdir(parents=True, exist_ok=True)
+        _sh.copy2(src_file, tgt_file)  # copy2 保留 mode + mtime
+        copied += 1
+    return copied
 
 
 def cmd_update_skill(args: argparse.Namespace) -> None:
-    """v8.24:state.py update-skill · git pull skill repo(用户显式 · 不自动突袭)。
+    """v8.24 / v8.41:state.py update-skill · 下载 tarball + 解压覆盖。
 
-    设计:bootstrap 自动检测线上版本 · 落后 emit R5 1/2 选项 · 用户回 1 跑此命令。
-    流程:
-      1. 检测 $SKILL_ROOT 是否 git repo(不是 → BLOCK with hint zip 重装)
-      2. git status --porcelain 检测脏树(脏 → BLOCK 防覆盖本地定制)
-      3. git fetch origin main · 算 ahead/behind
-      4. git pull --ff-only origin main(失败 → BLOCK with hint 手动 rebase)
-      5. emit old_version / new_version / changed_files 摘要 + changelog hint
+    v8.41 架构治本(用户拍板):不再依赖 git。
+      1. 从 cwd 找 project_root · resolve channel(args > localconfig > main)
+      2. 下载 GitHub tarball:archive/refs/heads/<channel>.tar.gz
+      3. 解压临时目录 · 读 new version + 校验完整性
+      4. 检测本地修改(skill_root vs 下载内容文件 hash 比较)
+      5. 有本地修改 + 无 --accept-overwrite → FAIL with hint
+      6. 覆盖 skill_root · emit OK + old → new + stats
     """
-    # skill_root:从 state.py 文件位置反推(同 bootstrap)
+    import tempfile as _tf
+    import shutil as _sh
+
+    # skill_root:从 state.py 文件位置反推
     skill_root = Path(__file__).resolve().parent.parent
 
-    # ── Step 1:检测 git repo ──
-    r = subprocess.run(["git", "-C", str(skill_root), "rev-parse", "--show-toplevel"],
-                       capture_output=True, text=True, timeout=10)
-    if r.returncode != 0:
-        emit({
-            "verdict": "FAIL",
-            "command": "update-skill",
-            "error": f"{skill_root} 不是 git repo · 无法自动 update",
-            "hint": (
-                f"skill 是 zip 安装 · 不支持自动 update。\n"
-                f"  手动:① 备份本地定制 ② rm -rf {skill_root} · "
-                f"git clone https://github.com/okteam99/teamwork.git {skill_root}"
-            ),
-            "skill_root": str(skill_root),
-        })
-        return
-    git_root = Path(r.stdout.strip())
-
-    # ── Step 2:检测脏树 ──
-    s = subprocess.run(["git", "-C", str(git_root), "status", "--porcelain"],
-                       capture_output=True, text=True, timeout=10)
-    dirty_files = [ln.strip() for ln in s.stdout.splitlines() if ln.strip()]
-    if dirty_files and not args.force:
-        emit({
-            "verdict": "FAIL",
-            "command": "update-skill",
-            "error": f"git 工作树不干净({len(dirty_files)} 个改动)· 拒绝 pull 防覆盖本地定制",
-            "dirty_files": dirty_files[:10],
-            "hint": (
-                f"二选一:\n"
-                f"  ① 提交 / stash 本地改动后重跑:cd {git_root} · git stash\n"
-                f"  ② 确认本地改动可丢弃 · 加 --force 强制 pull(慎用 · 会覆盖)\n"
-                f"  注:若 dirty 是 bootstrap auto-maintain 的 .gitignore 改动 "
-                f"(v8.31 加的 harness locks 等)· v8.35 已修(bootstrap 不再改 SKILL_ROOT 自己 .gitignore)· "
-                f"先 git checkout -- .gitignore 丢弃后重跑"
-            ),
-            "git_root": str(git_root),
-        })
-        return
-
-    # ── Step 3:读 old version(pull 前) ──
-    skill_md = skill_root / "SKILL.md"
-    old_version = None
-    if skill_md.exists():
-        text = skill_md.read_text(encoding="utf-8", errors="replace")
-        m = re.search(r"^version:\s*(\S+)\s*$", text, re.MULTILINE)
-        if m:
-            old_version = m.group(1).strip()
-
-    # ── v8.39:resolve channel · 优先级 args > localconfig > main ──
-    # 让用户 opt-in 升级 dev 尝鲜分支 · 默认 main 稳定不变
+    # ── Step 1:resolve channel(args > localconfig > main · v8.39 兼容)──
     channel = getattr(args, "channel", None)
     channel_source = "args"
     if not channel:
-        # 从 cwd 找 project_root · 读 .teamwork_localconfig.json
         try:
             sys.path.insert(0, str(Path(__file__).resolve().parent))
             from bootstrap import (
@@ -3189,124 +3261,115 @@ def cmd_update_skill(args: argparse.Namespace) -> None:
             channel = "main"
             channel_source = "default_fallback"
 
-    # ── v8.40:校验当前分支 == channel(治本 v8.39 引入分支与 channel 错配 bug)──
-    # case audit 暴露:当前 main 分支 + channel=dev → git pull --ff-only origin dev
-    # 把 local main 偷偷 fast-forward 到 dev HEAD · 破坏 main/dev channel 隔离
-    # 治本:fetch 前先校验 · 否则 BLOCK with hint 切分支再升或改 channel
-    b = subprocess.run(["git", "-C", str(git_root), "rev-parse", "--abbrev-ref", "HEAD"],
-                       capture_output=True, text=True, timeout=10)
-    if b.returncode != 0:
+    # ── Step 2:读 old version(pre-update) ──
+    old_version = _parse_skill_md_version(skill_root / "SKILL.md")
+
+    # ── Step 3:下载 tarball + 解压 ──
+    work_dir = Path(_tf.mkdtemp(prefix=f"teamwork-update-{channel}-"))
+    try:
+        ok, err, source_skill_dir = _download_skill_tarball(channel, work_dir)
+        if not ok:
+            emit({
+                "verdict": "FAIL",
+                "command": "update-skill",
+                "error": f"下载/解压失败:{err}",
+                "channel": channel,
+                "channel_source": channel_source,
+                "hint": (
+                    f"检查网络 / 分支 {channel} 是否存在 / GitHub repo 路径 · 修复后重跑。"
+                    f"\n  若想换 channel · 加 --channel main(或编辑 "
+                    f".teamwork_localconfig.json.update_channel)"
+                ),
+            })
+            return
+
+        # ── Step 4:读 new version + 校验 ──
+        assert source_skill_dir is not None  # type narrow
+        new_version = _parse_skill_md_version(source_skill_dir / "SKILL.md")
+        if not new_version:
+            emit({
+                "verdict": "FAIL",
+                "command": "update-skill",
+                "error": (
+                    f"下载的 SKILL.md frontmatter 抽不出 version 字段 · "
+                    f"channel={channel} · 不覆盖防写坏本地"
+                ),
+                "channel": channel,
+                "channel_source": channel_source,
+            })
+            return
+
+        # ── Step 5:检测本地修改 ──
+        mods = _detect_local_modifications(skill_root, source_skill_dir)
+        modified = mods["modified"]
+        new_files = mods["new_files"]
+
+        accept_overwrite = getattr(args, "accept_overwrite", False)
+        if modified and not accept_overwrite:
+            emit({
+                "verdict": "FAIL",
+                "command": "update-skill",
+                "error": (
+                    f"skill_root 内 {len(modified)} 个文件本地有改动(与 channel={channel} "
+                    f"内容不同)· 拒绝覆盖防丢失本地定制"
+                ),
+                "channel": channel,
+                "channel_source": channel_source,
+                "modified_files": modified[:10],
+                "modified_files_total": len(modified),
+                "new_files_count": len(new_files),
+                "old_version": old_version,
+                "new_version": new_version,
+                "hint": (
+                    f"二选一:\n"
+                    f"  ① [推荐 · 保守] 先 backup 你的改动:\n"
+                    f"     cp -r {skill_root} {skill_root}.local-backup-<ts>\n"
+                    f"     然后 state.py update-skill --accept-overwrite\n"
+                    f"  ② [激进] 直接覆盖(本地改动丢失 · 不可逆):\n"
+                    f"     state.py update-skill --accept-overwrite"
+                    + ("" if channel == "main" else f" --channel {channel}")
+                ),
+                "spec": ("v8.41 治本 · update-skill 不依赖 git · "
+                         "tarball download + 覆盖 · 本地改动必显式 --accept-overwrite"),
+            })
+            return
+
+        # ── Step 6:覆盖 ──
+        copied = _overwrite_skill_files(skill_root, source_skill_dir)
+
+        same_version = old_version == new_version
+        channel_hint = (f"(channel={channel})" if channel != "main" else "")
         emit({
-            "verdict": "FAIL",
+            "verdict": "OK",
             "command": "update-skill",
-            "error": f"git rev-parse --abbrev-ref HEAD 失败:{b.stderr.strip()[:200]}",
-            "hint": "检查 git_root 是否合法 git 仓 · 修复后重跑",
-        })
-        return
-    cur_branch = b.stdout.strip()
-    if cur_branch != channel:
-        emit({
-            "verdict": "FAIL",
-            "command": "update-skill",
-            "error": (
-                f"当前分支={cur_branch!r} ≠ channel={channel!r} · 拒绝 pull · "
-                f"防偷偷把 local {cur_branch} 改成 origin/{channel}(治本 v8.40 audit case)"
-            ),
-            "current_branch": cur_branch,
+            "old_version": old_version,
+            "new_version": new_version,
+            "version_changed": not same_version,
             "channel": channel,
             "channel_source": channel_source,
-            "git_root": str(git_root),
-            "hint": (
-                f"二选一:\n"
-                f"  ① [推荐] 切到对应分支再升:\n"
-                f"     cd {git_root} && git checkout {channel} && state.py update-skill"
-                f"{'' if channel == 'main' else f' --channel {channel}'}\n"
-                f"  ② 改 channel 与当前分支一致:\n"
-                f"     state.py update-skill --channel {cur_branch}\n"
-                f"     或编辑 .teamwork_localconfig.json.update_channel = {cur_branch!r}"
-            ),
-            "spec": "v8.40 治本 · 当前分支与 channel 必一致 · 防 pull 错改本地分支",
-        })
-        return
-
-    # ── Step 4:git fetch + pull --ff-only(用 channel) ──
-    f = subprocess.run(["git", "-C", str(git_root), "fetch", "origin", channel],
-                       capture_output=True, text=True, timeout=60)
-    if f.returncode != 0:
-        emit({
-            "verdict": "FAIL",
-            "command": "update-skill",
-            "error": f"git fetch origin {channel} 失败:{f.stderr.strip()[:200]}",
-            "channel": channel,
-            "channel_source": channel_source,
-            "hint": (
-                f"检查网络 / origin remote / 分支 {channel} 是否存在 · 修复后重跑。"
-                f"\n  若想换 channel · 加 --channel main(或编辑 "
-                f".teamwork_localconfig.json.update_channel)"
+            "skill_root": str(skill_root),
+            "files_copied": copied,
+            "modified_overwritten": modified[:10] if modified else [],
+            "modified_overwritten_total": len(modified),
+            "new_files_added": new_files[:10] if new_files else [],
+            "new_files_added_total": len(new_files),
+            "next_hint": (
+                f"✅ 升级 {old_version} → {new_version}{channel_hint} · "
+                f"复制 {copied} 文件(覆盖 {len(modified)} 个本地改动 · "
+                f"新增 {len(new_files)} 个文件)· "
+                f"查 {skill_root}/docs/CHANGELOG.md 顶部新版本段了解变更。"
+                if not same_version else
+                f"已在最新版本 {new_version}{channel_hint} · "
+                f"{len(modified)} 个本地改动已覆盖 · {copied} 文件复制" if modified else
+                f"已在最新版本 {new_version}{channel_hint} · 无变化"
             ),
         })
-        return
-
-    p = subprocess.run(["git", "-C", str(git_root), "pull", "--ff-only",
-                        "origin", channel],
-                       capture_output=True, text=True, timeout=60)
-    if p.returncode != 0:
-        emit({
-            "verdict": "FAIL",
-            "command": "update-skill",
-            "error": f"git pull --ff-only origin {channel} failed:{p.stderr.strip()[:200]}",
-            "channel": channel,
-            "channel_source": channel_source,
-            "hint": (
-                f"本地分叉 / 冲突 · 手动 rebase 或 reset:\n"
-                f"  cd {git_root} · git status · git log HEAD..origin/{channel} · "
-                f"评估后 git rebase origin/{channel} 或丢弃本地 git reset --hard origin/{channel}(慎)"
-            ),
-        })
-        return
-
-    # ── Step 5:读 new version + diff 摘要 ──
-    new_version = None
-    if skill_md.exists():
-        text = skill_md.read_text(encoding="utf-8", errors="replace")
-        m = re.search(r"^version:\s*(\S+)\s*$", text, re.MULTILINE)
-        if m:
-            new_version = m.group(1).strip()
-
-    # 算 changed files(老 HEAD vs 新 HEAD · pull 前后 diff)
-    # pull 之后 HEAD 已变 · 用 ORIG_HEAD 拿 pull 前的 commit
-    d = subprocess.run(["git", "-C", str(git_root), "diff", "--stat",
-                        "ORIG_HEAD..HEAD"],
-                       capture_output=True, text=True, timeout=15)
-    changed_files_stat = d.stdout.strip() if d.returncode == 0 else ""
-    # 算 commit 数(pull 拉了多少新 commit)
-    c = subprocess.run(["git", "-C", str(git_root), "rev-list", "--count",
-                        "ORIG_HEAD..HEAD"],
-                       capture_output=True, text=True, timeout=15)
-    new_commit_count = int(c.stdout.strip()) if c.returncode == 0 and c.stdout.strip().isdigit() else 0
-
-    same_version = old_version == new_version
-    channel_hint = (
-        f"(channel={channel})" if channel != "main" else ""
-    )
-    emit({
-        "verdict": "OK",
-        "command": "update-skill",
-        "old_version": old_version,
-        "new_version": new_version,
-        "version_changed": not same_version,
-        "new_commit_count": new_commit_count,
-        "changed_files_stat": changed_files_stat[-2000:] if changed_files_stat else "",
-        "git_root": str(git_root),
-        "channel": channel,
-        "channel_source": channel_source,
-        "next_hint": (
-            f"✅ 升级 {old_version} → {new_version}({new_commit_count} 个新 commit){channel_hint}· "
-            f"查 {git_root}/skills/teamwork/docs/CHANGELOG.md 顶部新版本段了解变更。"
-            if not same_version else
-            f"已在最新版本 {new_version}{channel_hint} · 无变化"
-        ),
-    })
+    finally:
+        # 清理临时目录
+        try:
+            _sh.rmtree(work_dir, ignore_errors=True)
+        except Exception:
+            pass
 
 
 def cmd_audit_raw_writes(args: argparse.Namespace) -> None:
@@ -3771,19 +3834,21 @@ def build_parser() -> argparse.ArgumentParser:
                     help="只输出将跑的命令 + 校验 · 不实际调 CLI(供 debug / preview)")
     er.set_defaults(func=cmd_external_review)
 
-    # v8.24:update-skill · 自更新(bootstrap 检测后用户回 1 触发)
+    # v8.24 / v8.41:update-skill · 自更新(用户回 1 触发)
     us = sub.add_parser(
         "update-skill",
-        help=("[v8.24] git pull skill repo · 升级到 GitHub 最新版本 · "
-              "脏树 BLOCK 防覆盖本地定制 · 用户显式跑(bootstrap 检测后回 1 触发)"),
+        help=("[v8.24/v8.41] 下载 GitHub tarball 覆盖 skill_root · "
+              "不依赖 git · 本地改动 → BLOCK 必显式 --accept-overwrite"),
     )
-    us.add_argument("--force", action="store_true",
-                    help="脏树时强制 pull(慎用 · 会覆盖本地未提交改动)")
     # v8.39:支持 channel(默认从 .teamwork_localconfig.json.update_channel 读 · fallback main)
     us.add_argument("--channel",
                     help=("[v8.39] skill 升级分支 · 默认从 "
                           ".teamwork_localconfig.json.update_channel 读 · fallback main。"
                           "推荐:稳定环境用 main · 尝鲜用 dev"))
+    # v8.41:本地改动覆盖必显式确认(治本架构去 git 化 · 用户拍板)
+    us.add_argument("--accept-overwrite", action="store_true",
+                    help=("[v8.41] 显式承认覆盖本地改动 · 否则有本地改动会 BLOCK。"
+                          "推荐先 cp -r skill_root .local-backup-<ts> 再加此 flag"))
     us.set_defaults(func=cmd_update_skill)
 
     # ─── v8.0 stage 命令注册(Code-driven Orchestration) ─────────────
