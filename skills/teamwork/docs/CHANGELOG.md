@@ -1,5 +1,109 @@
 # Changelog
 
+## v8.44.1 · dev push auto-bump patch + pre-push hook + bump_patch_version.py(用户拍板)
+
+> 用户 2026-05-28:"后续改下规则 · 每次 dev 有新提交自动增加小版本"
+
+### 用户决策
+
+| 维度 | 选项 | 用户选 |
+|------|------|--------|
+| 版本粒度 | A patch / B minor | **A · patch 段(v8.44 → v8.44.1)** |
+| 实施方式 | CI GitHub Actions / 本地 helper / **git pre-push hook** | **git pre-push hook** |
+
+### 设计
+
+**触发**:`git push origin dev` 时 · pre-push hook 检测 push 目标含 dev → 跑 bump + 创建 auto-bump commit + exit 1(阻止本次 push)→ 用户重跑 `git push origin dev`(此次最新 commit 含 `[auto-bump]` 标记 hook 放行)
+
+**为什么 exit 1**:hook 在 git push resolve sha 之后跑 · 此时新加 commit 不在本次 push 范围。让 push fail · 用户重跑 · 才能把 auto-bump commit 真正推到 GitHub。两次 push 是必要代价(可接受 · 不偷偷改 sha 让用户困惑)。
+
+**循环避免**:hook 检测最新 commit message 含 `[auto-bump]` → 跳(放行)。第二次 push 时自然过。
+
+**非 dev 分支跳过**:hook 检测 push 目标 ref · 若不含 `refs/heads/dev`(如 main / feature)→ 不动作。
+
+### 实施(3 个新文件 + 1 个 install 脚本)
+
+#### 1. `tools/bump_patch_version.py`(60 行 · stdlib only)
+
+```python
+# v8.44 → v8.44.1(无 patch 段 → 加 .1)
+# v8.44.1 → v8.44.2(patch 段 +1 · 无上限)
+# 不合法 frontmatter → exit 2
+python3 tools/bump_patch_version.py [path/to/SKILL.md]
+```
+
+独立小脚本 · 不依赖 state.py / bootstrap.py。
+
+#### 2. `git-hooks/pre-push`(模板 hook · 用户手动 install)
+
+```bash
+# 安装
+ln -sf <REPO>/skills/teamwork/git-hooks/pre-push <REPO>/.git/hooks/pre-push
+# 或
+cp <REPO>/skills/teamwork/git-hooks/pre-push <REPO>/.git/hooks/pre-push
+chmod +x <REPO>/.git/hooks/pre-push
+
+# 卸载
+rm <REPO>/.git/hooks/pre-push
+```
+
+模板提供框架默认值(REPO_ROOT 自动推导 · BUMP_SCRIPT 路径相对仓库根)。用户 fork / 改名 SKILL_ROOT 时只需改 BUMP_SCRIPT 一行。
+
+#### 3. `tests/test_bump_patch_version.py`(10 测)
+
+- `TestBumpPatchFunction`(5)· 纯函数测试
+- `TestBumpPatchE2E`(5)· 真文件 + subprocess 跑独立脚本
+
+### 用户工作流变化
+
+**改前**(漏 bump 风险):
+```bash
+git push origin dev
+  → push 成功
+  → SKILL.md version 还是 v8.44(忘 bump · 用户拿不到 outdated 提示)
+```
+
+**改后**(2 次 push · 1 次 bump):
+```bash
+git push origin dev
+  → pre-push hook 跑 bump_patch_version.py → SKILL.md v8.44 → v8.44.1
+  → 创建 auto-bump commit "chore(version): auto-bump patch · v8.44 → v8.44.1 [auto-bump]"
+  → exit 1 · 提示重 push
+git push origin dev
+  → hook 检测 [auto-bump] → 放行
+  → push 成功(含原 commit + auto-bump commit)
+```
+
+### 版本规则
+
+- **patch 段**:dev 每次 push 自动 bump(本 hook)· 频率高
+- **minor 段**:merge dev → main 时人工 bump(release · 频率低 · 累积 patch 一次性升 minor)
+- **major 段**:重大架构变更(v7 → v8 那种)· 极少
+
+### CHANGELOG 规则约定
+
+- 每次 patch bump 不强制写 CHANGELOG 段(实质改动是触发 bump 的那个 commit · CHANGELOG 写在那个 commit 里)
+- minor release 时写完整 CHANGELOG 段(累积 patch 的总结)
+- 本 v8.44.1 是首个 patch · 专门写段说明机制本身
+
+### 0 regression
+
+- 359 passed / 97 baseline(与 v8.44 一致 · 10 个新加全 pass)
+
+### Hash
+
+- 新文件 tools/bump_patch_version.py(60 行)
+- 新文件 git-hooks/pre-push(模板)
+- 新文件 tests/test_bump_patch_version.py(10 测)
+- docs/CHANGELOG.md:本段
+
+### 发布
+
+- 本仓自身已 install hook(symlink 到 git-hooks/pre-push)· 下次 commit 后 push 实测验证
+- v8.44.1 push origin/dev · 期望 hook 触发 → 第 2 次 push 才上去
+
+---
+
 ## v8.44 · external-review 改 doc-based default + scaffold-review-prompt 子命令(治本 case round 4 长 prompt 卡)
 
 > 用户 2026-05-27 case round 4 实战:
