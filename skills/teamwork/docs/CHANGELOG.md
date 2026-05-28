@@ -1,5 +1,144 @@
 # Changelog
 
+## v8.44.3 · update.py 默认 backup+overwrite(治本 2 次暂停点过度 · 用户拍板)
+
+> 用户 2026-05-28 case:`/teamwork` 升级流程跑了 **2 个 R5 暂停点**:
+> 1. "升级 / 跳过 / 其他"(用户回 1)
+> 2. update.py BLOCK + AI emit "backup+覆盖 / 直接覆盖 / 取消 / 其他"(用户回 2)
+>
+> 用户:"看下下面的流程是否合理 · 是否应该直接按建议处理 · 不给用户是否覆盖的选择"
+
+### 根因诊断
+
+v8.41 我设计 `--accept-overwrite` BLOCK 是为**防误删用户定制**。但实测:
+- **99% 用户**:从不改 skill_root(git clone / zip 装好就用)· BLOCK 是噪声
+- **1% 开发者**:改了 skill_root · 他自己知道改了什么 · 不需要 BLOCK 提醒
+
+更治本:**默认 backup + overwrite** —— 不可逆问题被 backup 解决 · BLOCK 多余。
+
+### 用户决策
+
+| 维度 | 选项 | 用户选 |
+|------|------|--------|
+| 治本方向 | A 默认 backup+overwrite / B AI 行为改 / C 组合 flag / D 不动 | **A · update.py 默认 backup+overwrite** |
+| backup 路径 | B3 ~/.teamwork/backups/<ts>/ / B1 skill_root.backup-<ts>/ / B2 轮转保留 3 份 | **B3 · ~/.teamwork/backups/<ts>/** |
+
+### 实施(`tools/update.py` 重设计)
+
+#### 行为变化
+
+```diff
+- if modified and not accept_overwrite:
+-     emit FAIL with hint "二选一:① backup+overwrite / ② --accept-overwrite"
+-     return 1
++ # v8.44.3:默认 backup + overwrite · 不再 BLOCK
++ if not no_backup:
++     backup_path, backup_file_count = _backup_skill_root(skill_root)
++ # 直接 overwrite
++ copied = _overwrite_skill_files(skill_root, source_skill_dir)
+```
+
+#### 新 helper
+
+```python
+def _backup_root() -> Path:
+    """默认 ~/.teamwork/backups/ · TEAMWORK_BACKUP_ROOT env 可 override(测试用)"""
+
+def _backup_skill_root(skill_root) -> tuple[Path, int]:
+    """shutil.copytree skill_root → ~/.teamwork/backups/<ts>/ · 返 (path, file_count)"""
+
+def _now_ts_compact() -> str:
+    """20260528T143022Z(ISO compact · 用作 backup 目录名)"""
+```
+
+#### argparse 变化
+
+```diff
+- p.add_argument("--accept-overwrite", help="显式承认覆盖本地改动 · 否则 BLOCK")
++ p.add_argument("--no-backup", help="[v8.44.3] 跳过 backup · 慎用")
++ p.add_argument("--accept-overwrite", help="[deprecated v8.44.3] no-op · 向后兼容")
+```
+
+#### emit 字段变化
+
+```diff
++ "backup_path": "/home/user/.teamwork/backups/20260528T143022Z",
++ "backup_file_count": 117,
++ "backup_skip_reason": null,  # 或 "--no-backup flag passed"
++ "deprecation_warning": "..." (若用了 --accept-overwrite)
+```
+
+next_hint 自动提示 backup 路径:`backup 在 /home/user/.teamwork/backups/<ts>(可对比 diff 决定是否合回本地改动)`
+
+### 用户工作流变化
+
+**改前**(v8.41-v8.44.2):
+```bash
+state.py external-review → bootstrap 检测 outdated → 用户回 1 升级
+  → AI 跑 update.py
+  → BLOCK(本地有改动)
+  → AI emit 第二暂停点(backup/覆盖/取消)
+  → 用户回 2(直接覆盖)
+  → AI 跑 update.py --accept-overwrite
+  → 成功 · 但本地改动丢失(无 backup)
+2 次 R5 暂停点 · 4 命令
+```
+
+**改后**(v8.44.3):
+```bash
+bootstrap 检测 outdated → 用户回 1 升级
+  → AI 跑 update.py
+  → 自动 backup 到 ~/.teamwork/backups/<ts>/ + overwrite
+  → 成功 · 本地改动 backup 兜底 · 可对比 diff
+1 次 R5 暂停点 · 2 命令
+```
+
+### 向后兼容
+
+- `--accept-overwrite` 仍接受但 no-op + emit `deprecation_warning`(老 AI / 老脚本平滑迁移)
+- 不影响 main channel 用户(他们升级路径不变 · 只是少 1 个暂停点)
+
+### 测试(4 个新加 · 1 个删除 · 2 个调整)
+
+新加:
+- `test_v8443_default_backup_and_overwrite_succeeds`(默认行为 · backup + overwrite + 文件覆盖)
+- `test_v8443_backup_path_in_teamwork_backups_dir`(backup 路径在 TEAMWORK_BACKUP_ROOT 下 · ISO timestamp 格式)
+- `test_v8443_no_backup_flag_skips_backup`(--no-backup 跳 backup + 仍 overwrite + emit backup_skip_reason)
+- `test_v8443_accept_overwrite_deprecated_no_op`(--accept-overwrite 仍接受但 emit deprecation_warning)
+
+删除:
+- `test_v842_block_when_local_modified_without_accept`(v8.41 BLOCK 行为已删 · 测试不再适用)
+
+调整:
+- setUp / tearDown 加 `TEAMWORK_BACKUP_ROOT` env override · 测试 backup 不污染真 ~/.teamwork
+- `test_v842_channel_passed_through_to_emit` 去掉 `--accept-overwrite`(不再需要)
+
+362 passed / 97 baseline / 0 regression
+
+### 设计哲学
+
+R0 哲学:**保守默认 + opt-out 极端**
+- 默认安全(backup 兜底 · 用户改动可恢复)
+- 极端 opt-out(--no-backup 给"不想累积 backup" 的用户)
+- 不再"BLOCK + 必须 flag"(强制用户做不必要决策 = 坏 UX)
+
+case-driven 教训:
+- v8.41 设计 BLOCK 是"防止覆盖" · 实测发现 "防止" = "强迫用户做决策" · UX 灾难
+- 治本不是"加更多 flag" 而是"让默认行为安全 · 让用户不用做决策"
+- 这是连续第 6 次 case-driven 架构层治本(v8.40-v8.44.3)
+
+### Hash
+
+- tools/update.py:删 BLOCK 块 + 加 _backup_root / _backup_skill_root / _now_ts_compact helpers + 改 cmd_update Step 6/7 + 改 argparse = 净 +75 行
+- tests/test_update.py:删 1 测 + 新加 4 测 + 调整 2 测 = 净 +60 行
+- docs/CHANGELOG.md:本段
+
+### 发布
+
+v8.44.3 push origin/dev only · hook 自动 bump → 实际版本号 v8.44.4(本提交本身)+ auto-bump commit。
+
+---
+
 ## v8.44.2 · 修 v8.44.1 hook marker 误判 bug(commit body 含 marker 字符串就被跳过)
 
 > 上一轮 v8.44.1 commit message body 描述功能时写了`[auto-bump]` 字面字符串 · hook 用 `%B` 全 message 检测 marker 时误判已 bump · 直接放行 · 第一次 push 没 trigger hook · 用户报"hook 没生效"。bash -x trace 实证:`[[ ... contains [auto-bump] == *[auto-bump]* ]]` 真 → exit 0。
