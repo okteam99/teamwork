@@ -1,5 +1,119 @@
 # Changelog
 
+## v8.44.4 · prepare-check emit host-aware output_style_hint(治本 codex-cli markdown 表格渲染失败 case)
+
+> 用户 2026-05-28 case · SVC-PLATFORM-F055 prepare 暂停点:
+> - AI 第一次用 markdown 表格 emit · codex-cli terminal 渲染**破** · 表格显示成 raw `| stage |...| ` 字符
+> - 用户:"内容不要 markdown 输出 · 直接绘制表格"
+> - AI 第二次改用 box-drawing(`┌─┬─┐│├─┤└─┘`)· 渲染正常
+> - **用户希望框架治本** · 不让每次都靠用户提示
+
+### 根因诊断
+
+不同 host terminal renderer 对复杂 markdown 表格能力不同:
+
+| Host | 复杂 markdown 表格 |
+|------|-------------------|
+| `claude-code` | ✅ 渲染好(rich markdown) |
+| `codex-cli` | ⚠️ 复杂表格(含 markdown 加粗 + emoji)容易破成 raw 字符 |
+| `gemini-cli` / `unknown` | ❓ 未实测 · 保守 |
+
+AI 自觉读 spec 决定风格不可靠 → 物化进 prepare-check emit。
+
+### 用户决策
+
+| 选项 | 用户选 |
+|------|--------|
+| A spec 加 1 句 / **B state.py 物化 hint** / C 双层 / D 不动 | **C · prepare-check emit 加 host-aware 输出风格 hint** |
+
+### 实施
+
+**1. 加 host-aware profile 表**:
+
+```python
+HOST_OUTPUT_STYLE_PROFILES = {
+    "claude-code": {
+        "style_id": "markdown_ok",
+        "table_format": "markdown",  # | col | col |
+        "list_format": "markdown",
+        "emphasis": "markdown",      # **粗** / *斜*
+    },
+    "codex-cli": {
+        "style_id": "box_drawing_or_plain",
+        "table_format": "box_drawing",  # ┌─┬─┐│├─┤└─┘
+        "list_format": "plain",
+        "emphasis": "plain",            # 不用 ** · 改用 "🔴 " 前缀 / 缩进
+    },
+    "gemini-cli" / "unknown": 保守同 codex-cli profile,
+}
+```
+
+**2. cmd_prepare_check emit 加 output_style_hint**:
+
+```python
+detected_host, host_source = _detect_host(None)
+payload["output_style_hint"] = _build_output_style_hint(detected_host)
+```
+
+emit JSON 含:
+```json
+{
+  "output_style_hint": {
+    "host": "codex-cli",
+    "style_id": "box_drawing_or_plain",
+    "description": "Terminal renderer 对复杂 markdown 表格容易破 · 推荐 box-drawing ...",
+    "table_format": "box_drawing",
+    "list_format": "plain",
+    "emphasis": "plain",
+    "emoji_safe": true,
+    "rationale": "..."
+  }
+}
+```
+
+### 测试覆盖(5 个新加)
+
+- `test_v8444_output_style_hint_emitted`(prepare-check emit 必含字段)
+- `test_v8444_codex_cli_host_recommends_box_drawing`
+- `test_v8444_claude_code_host_recommends_markdown`
+- `test_v8444_unknown_host_defaults_to_box_drawing`(None / "unknown" / 未知 host 都保守)
+- `test_v8444_gemini_cli_host_box_drawing_too`
+
+367 passed / 97 baseline / 0 regression
+
+### PMO 工作流变化
+
+**改前**(每次 AI 都用 markdown · 在 codex-cli 渲染破 · 用户提示后才改):
+```
+AI emit markdown 表格 → codex 显示 raw `| stage |` → 用户:"不要 markdown" → AI 改 box-drawing
+```
+
+**改后**(prepare-check emit 含 output_style_hint · AI 直接按 hint 风格 emit):
+```
+state.py prepare-check → emit output_style_hint{host:codex-cli, table_format:box_drawing}
+AI 看 hint → 直接用 box-drawing emit → 渲染正常 · 不被用户提示
+```
+
+### 设计哲学
+
+R0 哲学:**host 渲染能力是客观信号 · 进脚本物化**
+- 可枚举:host → 推荐风格映射表(HOST_OUTPUT_STYLE_PROFILES)
+- 不可枚举:具体 emit 内容(reviewer 思考 / 建议文案)→ 留 AI
+
+case-driven 教训:**spec 写一句"codex-cli 用 box-drawing"** 不够(AI 可能漏读)· 物化到 prepare-check emit 让 AI 跑命令就看到 hint · 更可靠。
+
+### Hash
+
+- state.py:_build_output_style_hint + HOST_OUTPUT_STYLE_PROFILES = 净 +60 行 · cmd_prepare_check 加 4 行
+- test_state.py:5 测新加 = 净 +45 行
+- docs/CHANGELOG.md:本段
+
+### 发布
+
+v8.44.4 push origin/dev only · hook 自动 bump · 实际版本号 v8.44.5(本 commit + auto-bump commit)。
+
+---
+
 ## v8.44.3 · update.py 默认 backup+overwrite(治本 2 次暂停点过度 · 用户拍板)
 
 > 用户 2026-05-28 case:`/teamwork` 升级流程跑了 **2 个 R5 暂停点**:

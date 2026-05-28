@@ -2134,6 +2134,12 @@ def cmd_prepare_check(args: argparse.Namespace) -> None:
         "(跨 5 module 触发点)等调整。"
     )
 
+    # v8.44.4:host-aware 输出风格 hint(治本 case 2026-05-28 codex-cli 渲染 markdown 表格失败)
+    # case:AI emit markdown 表格 · codex-cli terminal 显示成 raw 字符 · 用户提示后才改 box-drawing
+    # 治本:prepare-check 物化 host 检测 · emit 风格 hint · PMO 看 hint 决定默认表达方式
+    detected_host, host_source = _detect_host(None)  # prepare-check 无 feature · 仅看 audit/env
+    payload["output_style_hint"] = _build_output_style_hint(detected_host)
+
     # v8.14 + v8.15:写 prepare_check_audit jsonl(init-feature 门禁读这个)
     # 治本 PTR-F054:prepare-check 物化但 AI 不调用 → 下游门禁兜底
     # v8.15:audit 加 admission_judgment / consistency · 治本 F001(选错 flow_type)
@@ -2180,6 +2186,75 @@ REVIEWER_THINKING_CHECKLIST = [
         "if_no": "blueprint architect 默认即可",
     },
 ]
+
+
+# v8.44.4:host-aware 输出风格 hint(治本 case 2026-05-28 codex-cli 渲染 markdown 表格失败)
+# - claude-code:rich markdown 渲染 OK · 表格 / 加粗 / emoji 都好
+# - codex-cli / gemini-cli / unknown:terminal renderer 对复杂 markdown 表格容易破
+#   推荐 box-drawing(┌─┬─┐│├─┤└─┘)绘制表格 / 纯文本列表 · 避免 raw 字符显示
+HOST_OUTPUT_STYLE_PROFILES = {
+    "claude-code": {
+        "style_id": "markdown_ok",
+        "description": "Rich markdown 渲染 OK · 表格 / 加粗 / emoji / code block 都好",
+        "table_format": "markdown",  # | col | col | + |---|---|
+        "list_format": "markdown",
+        "emphasis": "markdown",      # **粗** / *斜* / `code`
+        "emoji_safe": True,
+    },
+    "codex-cli": {
+        "style_id": "box_drawing_or_plain",
+        "description": ("Terminal renderer 对复杂 markdown 表格容易破(raw 字符显示)· "
+                        "推荐 box-drawing(┌─┬─┐│├─┤└─┘)绘制表格 / 纯文本 key: value 列表"),
+        "table_format": "box_drawing",  # ┌─┬─┐│├─┤└─┘
+        "list_format": "plain",         # "- " / "1. " · 不嵌套粗体
+        "emphasis": "plain",            # 不用 ** 加粗 · 改用 "🔴 " 前缀 / 大写 / 缩进
+        "emoji_safe": True,             # emoji 可用(case 实证)
+    },
+    "gemini-cli": {
+        "style_id": "box_drawing_or_plain",  # 保守同 codex-cli
+        "description": "未实测 · 保守用 box-drawing(同 codex-cli profile)",
+        "table_format": "box_drawing",
+        "list_format": "plain",
+        "emphasis": "plain",
+        "emoji_safe": True,
+    },
+    "unknown": {
+        "style_id": "box_drawing_or_plain",  # 默认保守
+        "description": "host 未知 · 保守用 box-drawing(最大兼容)",
+        "table_format": "box_drawing",
+        "list_format": "plain",
+        "emphasis": "plain",
+        "emoji_safe": True,
+    },
+}
+
+
+def _build_output_style_hint(host: Optional[str]) -> dict:
+    """v8.44.4:按 host 返回输出风格 hint dict · PMO emit 暂停点时按此风格。
+
+    返:
+      {host, style_id, description, table_format, list_format, emphasis, emoji_safe, rationale}
+
+    PMO 看 hint 决定:
+    - codex-cli host → 表格用 box-drawing · 不用 markdown · 避免 raw 字符显示
+    - claude-code host → markdown 表格 OK · 用 markdown 更紧凑
+    """
+    h = host or "unknown"
+    profile = HOST_OUTPUT_STYLE_PROFILES.get(h, HOST_OUTPUT_STYLE_PROFILES["unknown"])
+    return {
+        "host": h,
+        "style_id": profile["style_id"],
+        "description": profile["description"],
+        "table_format": profile["table_format"],
+        "list_format": profile["list_format"],
+        "emphasis": profile["emphasis"],
+        "emoji_safe": profile["emoji_safe"],
+        "rationale": (
+            "treat host 渲染能力为客观信号 · prepare-check 物化检测 + emit hint · "
+            "PMO 按 hint 选默认表达方式 · 避免每次被用户提示后才改"
+            "(治本 case 2026-05-28 codex-cli markdown 表格失败)"
+        ),
+    }
 
 
 def _validate_admission_judgment(args) -> dict:

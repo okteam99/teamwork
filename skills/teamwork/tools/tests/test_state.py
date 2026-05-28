@@ -874,6 +874,52 @@ class TestPrepareCheck(unittest.TestCase):
         self.assertIn("不要直接抄", hint)
         self.assertIn("F-Bv2-8", hint)
 
+    # ── v8.44.4:output_style_hint(治本 case 2026-05-28 codex-cli markdown 表格失败)──
+
+    def test_v8444_output_style_hint_emitted(self):
+        """v8.44.4:prepare-check emit 必含 output_style_hint dict。"""
+        d = self._check("Feature")
+        self.assertIn("output_style_hint", d)
+        hint = d["output_style_hint"]
+        # 必含 host / style_id / table_format / list_format / emphasis / emoji_safe / rationale
+        for key in ["host", "style_id", "description", "table_format",
+                    "list_format", "emphasis", "emoji_safe", "rationale"]:
+            self.assertIn(key, hint, f"output_style_hint 缺字段 {key!r}")
+
+    def test_v8444_codex_cli_host_recommends_box_drawing(self):
+        """v8.44.4:host=codex-cli → table_format=box_drawing(避免 raw markdown 失败)。"""
+        from state import _build_output_style_hint  # type: ignore
+        hint = _build_output_style_hint("codex-cli")
+        self.assertEqual(hint["host"], "codex-cli")
+        self.assertEqual(hint["style_id"], "box_drawing_or_plain")
+        self.assertEqual(hint["table_format"], "box_drawing")
+        self.assertEqual(hint["list_format"], "plain")
+        self.assertEqual(hint["emphasis"], "plain")
+        self.assertTrue(hint["emoji_safe"])
+
+    def test_v8444_claude_code_host_recommends_markdown(self):
+        """v8.44.4:host=claude-code → table_format=markdown(rich renderer 支持)。"""
+        from state import _build_output_style_hint  # type: ignore
+        hint = _build_output_style_hint("claude-code")
+        self.assertEqual(hint["host"], "claude-code")
+        self.assertEqual(hint["style_id"], "markdown_ok")
+        self.assertEqual(hint["table_format"], "markdown")
+
+    def test_v8444_unknown_host_defaults_to_box_drawing(self):
+        """v8.44.4:host=unknown / None → 保守默认 box_drawing(最大兼容)。"""
+        from state import _build_output_style_hint  # type: ignore
+        for h in [None, "unknown", "weird-cli"]:
+            hint = _build_output_style_hint(h)
+            self.assertEqual(hint["table_format"], "box_drawing",
+                             f"host={h!r} 应保守 box_drawing")
+            self.assertEqual(hint["style_id"], "box_drawing_or_plain")
+
+    def test_v8444_gemini_cli_host_box_drawing_too(self):
+        """v8.44.4:host=gemini-cli → 保守同 codex-cli(未实测)。"""
+        from state import _build_output_style_hint  # type: ignore
+        hint = _build_output_style_hint("gemini-cli")
+        self.assertEqual(hint["table_format"], "box_drawing")
+
 
 class TestPrepareAuditGate(unittest.TestCase):
     """v8.14:init-feature 物化校验 prepare-check audit · 治本 PTR-F054 case。
