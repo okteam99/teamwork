@@ -43,7 +43,8 @@
 ### P3/P4 剩余 · spawn follow-up(主观重写 / 兼容风险 / 独立工作)
 
 批次 1 误删 cmd_raw_read 的教训(长 context 大改动易错):以下推独立 session 细做,不在长 context 里草率改:
-- external-model §11.5 压缩 / common.md TDD 指针化 / agents README 瘦身 / PRODUCT-OVERVIEW 精简 / 代码演进注释 → spawn task(主观重写 · 逐项细评)
+- ✅ **external-model-usage 已做**(commit e6b8672 · 超出原"§11.5 压缩"范围):用户洞察「skill 只写 AI 的 what/how」→ 删 §二 why 事故复盘 + §十 用户申诉模板 + §11.5/11.6 已物化调用演示(379→212 行)。**沉淀 skill 边界原则**:skill 读者是 AI · 内容 = AI 的 what/how + 不可妥协约束;用户手册(申诉)/ 纯 why(事故复盘)/ 已物化的调用演示 都不属于 skill。
+- common.md TDD 指针化 / agents README 瘦身 / PRODUCT-OVERVIEW 精简 / 代码演进注释 → spawn task(主观重写 · 逐项细评 · 可顺带应用上述 skill 边界原则)
 - snapshot/validate/raw-read v8 测试覆盖(批次1 删 TestP1ReadOnly 丢的)+ 68 pre-existing render 失败诊断 → spawn task
 - **保留不删**(兼容风险 / deprecation 周期太短):host_audit.json fallback · update.py `--accept-overwrite` no-op flag · reviewer.toml NEEDS_FIX 枚举(待与 README 枚举统一时一起)
 
