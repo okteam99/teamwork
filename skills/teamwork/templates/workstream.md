@@ -1,0 +1,125 @@
+# Workstream 模板（WS）
+
+> **位置**：`product-overview/workstream/WS-{NN}-{短名}.md`
+> **产出者**：feature-planning 流程（PMO 切 Product Lead 引导/讨论 · 🔴 不在流程外 ad-hoc 手搓）
+> **定位**：一块规划单元 —— 把一个能力/变更拆成**一组 feature**，写进各子项目 ROADMAP。
+> **完成标准**：这组 feature **全部写入 ROADMAP**（原子）→ WS 转 `✅ 规划完成`，执行态交给 ROADMAP/BL 跟踪。
+> 详 [SKILL.md § teamwork 业务流程架构](../SKILL.md) · [docs/feature-planning.md](../docs/feature-planning.md)。
+>
+> 🔴 取代 v8.49 前的 `changes/` 变更单（CHG/BG）+ 执行手册的"拆 feature"职责。老项目 `changes/*.md` 向前兼容（保留可读）。
+
+---
+
+## 状态生命周期
+
+```
+📝 草稿 ──→ 🔄 讨论中 ──→ ⏸️ 待确认 ──→ ✅ 规划完成 ──→（执行交 ROADMAP）
+              ↓                              ↑
+           🗑️ 废弃                  feature 全部写入 ROADMAP（原子）
+```
+
+| 状态 | 含义 | 进度统计 |
+|------|------|---------|
+| `📝 草稿` / `🔄 讨论中` / `⏸️ 待确认` | 规划中（拆解未定 / 议题未决 / 待用户拍板） | **算"未完成 WS"** |
+| `✅ 规划完成` | 所有 feature 已写入各子项目 ROADMAP（成 BL） | 不算（转 ROADMAP 执行态统计） |
+| `🗑️ 废弃` | 用户决定不做 | 不算（只读归档） |
+
+🔴 **lock 语义**（承旧 BG locked）：WS 未 `✅ 规划完成` 前**禁止启动其子 Feature** —— 防"边规划边启动"。
+
+---
+
+## 模板
+
+```markdown
+---
+ws_id: WS-01
+title: <一句话标题>
+status: 📝 草稿        # 📝 草稿 / 🔄 讨论中 / ⏸️ 待确认 / ✅ 规划完成 / 🗑️ 废弃
+承接执行线:            # 🔴 1+ 条 · tag 业务架构「执行线列表」里的 Line(反查得"某线下有哪些 WS")
+  - Line 1
+  - Line 2
+created_at: <ISO 8601 UTC>
+planned_at: null       # 转 ✅ 规划完成（feature 全写入 ROADMAP）时填
+
+affected_subprojects:  # 跨 0+ 子项目(单项目可空/填项目本身)
+  - SVC-PLATFORM
+  - PTR
+
+features:              # 拆出的 feature · 写入各子项目 ROADMAP 后回填 bl
+  - id: WS-01-S1
+    target: SVC-PLATFORM         # 落哪个子项目 ROADMAP
+    bl: null                     # 写入 ROADMAP 后回填 BL-NNN
+    scope: "<这个 feature 做什么>"
+    flow_type: feature           # feature / agile / bug / micro
+    dependencies: []             # 依赖的其他 WS-01-Sx
+    status: pending              # pending / planned(已写入 ROADMAP) / 废弃
+  - id: WS-01-S2
+    target: PTR
+    bl: null
+    scope: "..."
+    flow_type: feature
+    dependencies: [WS-01-S1]
+    status: pending
+
+launch_order:          # 按依赖拓扑 · 用户拍板后逐个 prepare + init-feature
+  - WS-01-S1
+  - WS-01-S2
+
+risks:
+  - id: R1
+    description: "..."
+    mitigation: "..."
+    severity: high | medium | low
+---
+
+# WS-01：{title}
+
+## 背景
+{为什么做这块 · 业务/技术驱动 · 触发来源}
+
+## 承接执行线
+{服务哪条/哪几条执行线（业务价值视角）· 引用业务架构「执行线列表」的 Line}
+
+## 怎么落实
+{拆解思路 · 跨子项目怎么协调 · 关键设计取舍（细节落各 Feature PRD / ADR）}
+
+## 拆出的 feature
+### {feature_id}（→ {子项目} ROADMAP）
+- **范围**：{做什么}
+- **flow_type**：{feature / agile / bug / micro}
+- **依赖**：{其他 WS-01-Sx}
+- **核心 AC**（高层 · 详细 AC 在 Feature PRD）：① ... ② ...
+
+## 跨子项目依赖
+（Mermaid 或表 · 无跨项目可省）
+
+## 风险与缓解
+| ID | 描述 | 严重度 | 缓解 |
+|----|------|--------|------|
+| R1 | ... | high | ... |
+
+## 变更日志
+| 时间 | 事件 |
+|------|------|
+| {ISO} | 创建（status=📝 草稿） |
+```
+
+---
+
+## 与下游的关系
+
+- **WS → BL**：WS 拆出的每个 feature 写进 `target` 子项目的 `ROADMAP.md` 成一行 BL；ROADMAP「关联 WS」列回指本 `ws_id`，`features[].bl` 回填 BL-NNN。
+- **WS → teamwork-space**：WS `✅ 规划完成` 后，teamwork-space 进度统计把它从"未完成 WS"移除（详 templates/teamwork-space.md § 进度统计）。
+- **BL → F**：用户拍板某 BL 启动 → `prepare` + `init-feature` 分配 F-NNN（详 [docs/conventions.md § 4](../docs/conventions.md)）。
+
+## 编号约定
+
+- `WS-{两位数}`：项目独立递增（详 [docs/conventions.md § 8](../docs/conventions.md)）。
+- 子 feature 临时 ID `WS-{NN}-S{n}`（写入 ROADMAP 前的占位）→ 写入后以 BL-NNN / F-NNN 为准。
+
+## 设计要点
+
+1. **WS = feature-planning 产物**：进 feature-planning（切 Product Lead）才产出 · 不 ad-hoc。
+2. **职责单一**：WS 存"规划/拆解/跨项目编排"；feature 的执行态（stage/状态）在 ROADMAP/BL + state.json，不在 WS 复制。
+3. **原子完成**：feature 全写入 ROADMAP 才算 `✅ 规划完成`（防写一半两边重复计数）。
+4. **承接执行线 1+**：与子项目「承接执行线」多值一致 · 反查得能力级索引。

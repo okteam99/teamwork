@@ -1,6 +1,6 @@
 ---
 name: teamwork
-version: v8.48.1
+version: v8.49.0
 description: AI 协作开发一体化框架 · /teamwork 启动
 ---
 
@@ -35,6 +35,29 @@ state.py 被动记录 AI 按 state.py 指示执行
  ↓
  state.py 校验产物 + 自动转下一 stage
 ```
+
+---
+
+## teamwork 业务流程架构(PMO 常驻认知)
+
+> 从愿景到 feature 的纵向链路。**规划层不进状态机**(PMO 主对话直接做)· **执行层进状态机**(state.py 编排)。PMO 任何 triage / 规划 / 冷启动决策都以此为锚 —— 不靠"恰好读了某个 spec"。
+
+```
+规划层(PMO 主对话 · 不进状态机)
+  业务架构与产品规划.md       愿景 + 执行线列表(Line N · taxonomy · 稳定 · 新线才更新)
+     └─ WS-NN(product-overview/workstream/)
+            承接 1+ 执行线 · 拆一组 feature · 跨 0+ 子项目 · 完成 = feature 写入 roadmap
+          └─ ROADMAP/BL-NNN   feature 原子(关联回 WS-NN)
+────────── 规划→执行 交接 = 用户拍板某 BL + prepare + init-feature ──────────
+执行层(state.py 状态机)
+     └─ F-NNN   goal →(ui_design)→ blueprint → dev → review → test →(browser_e2e)→ pm_acceptance → ship
+```
+
+- **WS 怎么来**:WS 是 **feature-planning 流程的产物** —— "起一个 WS" = 进 feature-planning(PMO 切 Product Lead 引导/讨论 → 拆 feature → 写 roadmap)· **不在流程外 ad-hoc 手搓**。
+- **进度统计** = N 个未完成 WS(规划态)+ 各子项目 ROADMAP 的 BL(执行态)· 业务架构/执行线不计入(它们是愿景 / taxonomy)。
+- **能力级索引**:WS 向上 tag 执行线 · 反查得「某执行线下有哪些 WS / feature」· 业务架构**不登记 WS**(保持稳定小列表)。
+- **非开发工作**(运营/推广/BD):teamwork 不跟踪 · 执行线列表留个名即可。
+- 详:[PRODUCT-OVERVIEW-INTEGRATION.md](./PRODUCT-OVERVIEW-INTEGRATION.md)(规划层 · WS)· [docs/feature-planning.md](./docs/feature-planning.md)(产出 WS)。
 
 ---
 
@@ -435,8 +458,10 @@ PMO 按 hint 自动执行修复(silent)
 
 | 文档 | 权威范围 | 何时 read |
 |------|---------|---------|
-| `PROJECT.md` | 产品全景 | 讨论产品方向 / 创建 Feature |
-| `ROADMAP.md` | Feature 列表 + 优先级 + 排期 | 讨论 Feature 优先级 / 创建 Feature |
+| `product-overview/{}_业务架构与产品规划.md` | 产品愿景 + 业务架构 + 执行线列表(taxonomy) | 规划 / 拆能力 / 起 WS（有 product-overview 时） |
+| `product-overview/workstream/WS-NN.md` | 规划单元(一组 feature 的拆解 · 承接 1+ 执行线) | 起 WS / 看某规划拆了哪些 feature |
+| `PROJECT.md` | 产品全景(子项目级) | 讨论产品方向 / 创建 Feature |
+| `ROADMAP.md` | Feature(BL) 列表 + 优先级 + 排期 + 关联 WS | 讨论 Feature 优先级 / 创建 Feature |
 | `sitemap.md` | 信息架构 / 页面层级 | 讨论 UI / 创建含 UI 的 Feature |
 | `project-specs/KNOWLEDGE.md` | Gotcha / Convention / Architecture(项目级踩坑 + 约定)| triage 期 + 涉项目级约定时 |
 | `project-specs/GLOSSARY.md` | 业务术语 + 实体关系 + 命名约定 + 别名歧义 | PM 起草 PRD 前 / RD 起草 TECH 前 |
@@ -448,6 +473,8 @@ PMO 按 hint 自动执行修复(silent)
 
 | 用户提到 | PMO 内部 read |
 |--------|------------|
+| 规划 / 拆能力 / 起 WS / 路线图全景 | `product-overview/{}_业务架构与产品规划.md` + `product-overview/workstream/` |
+| 执行线 / 业务线 / 某能力下有哪些 feature | `业务架构与产品规划.md § 执行线列表`（反查 `workstream/` 的 tag） |
 | 产品方向 / Feature 排期 / Roadmap | `PROJECT.md` / `ROADMAP.md` |
 | 页面层级 / UI 整体 / 信息架构 | `sitemap.md` |
 | Convention / 命名 / 约定 / Gotcha / 踩坑 | `project-specs/KNOWLEDGE.md` |

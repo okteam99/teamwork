@@ -905,7 +905,7 @@ def cmd_session_bootstrap(args: argparse.Namespace) -> None:
             # 全冷启动 · 无 product-overview 无 teamwork-space → 产品规划优先(权威流)
             _cold_action = (
                 "🔴 PMO 本 session 首次响应前 · emit R5 暂停点引导用户:本项目未初始化 teamwork 工作区(无 teamwork-space.md)· "
-                "权威冷启动顺序 = 产品规划优先:① 先建 product-overview/(PL 引导模式 · 产品定位/业务架构/执行手册 · "
+                "权威冷启动顺序 = 产品规划优先:① 先建 product-overview/(PL 引导模式 · 产品定位/业务架构/执行线列表 · "
                 "见 PRODUCT-OVERVIEW-INTEGRATION.md 建议章节 + 裁剪规则)→ ② ✅确认后派生 teamwork-space.md → "
                 "③ 再 Feature Planning 拆 ROADMAP。选项:1 进产品规划冷启动(建 product-overview)💡 / "
                 "2 跳过直接做任务(单 Feature 快速场景 · 后续可补)/ 3 其他。"

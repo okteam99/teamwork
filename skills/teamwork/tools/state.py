@@ -1537,9 +1537,9 @@ def _build_output_style_hint(host: Optional[str]) -> dict:
 PLANNING_CHECKLIST = [
     {"item": "范围判定:工作区级(改 teamwork-space.md + 多 PROJECT.md)vs 子项目级(单 PROJECT.md + ROADMAP.md + sitemap.md)",
      "spec": "feature-planning.md §2 Step 2"},
-    {"item": "产出 PROJECT.md + ROADMAP.md + sitemap.md · 🔴 不出代码(R6 红线)· 不进 stage 链",
-     "spec": "feature-planning.md §1"},
-    {"item": "ROADMAP 拆 BL-NNN · 每个 BL 后续用户拍板可走 prepare 启动具体 Feature",
+    {"item": "核心产出 WS(product-overview/workstream/WS-NN.md · 承接 1+ 执行线 · 拆一组 feature)· 0-1 时含业务架构与产品规划.md(愿景+执行线列表)/ sitemap · 🔴 不出代码(R6)· 不进 stage 链",
+     "spec": "feature-planning.md §1 + templates/workstream.md"},
+    {"item": "WS 拆出的 feature 写入 ROADMAP(BL-NNN · 关联 WS)· feature 全写入 = WS ✅ 规划完成 · 每个 BL 后续用户拍板走 prepare 启动 Feature",
      "spec": "conventions.md §4 + prepare.md §5"},
     {"item": "产出 git commit/push(直推或开 MR · 用户决定)· 不走 ship 流程",
      "spec": "feature-planning.md §1"},
@@ -1587,9 +1587,10 @@ def cmd_planning_check(args: argparse.Namespace) -> None:
         },
         "planning_checklist": PLANNING_CHECKLIST,
         "planning_order": (
-            "🔴 冷启动权威顺序:product-overview(产品规划 · PL 引导模式)→ ✅确认派生 teamwork-space.md "
-            "→ Feature Planning(拆 ROADMAP)。teamwork-space.md **不是** Feature Planning 产出 · "
-            "由 product-overview「✅ 已确认」内容派生(PRODUCT-OVERVIEW-INTEGRATION.md § 与 teamwork-space 关系)"
+            "🔴 权威链路(详 SKILL.md § teamwork 业务流程架构):业务架构与产品规划(愿景+执行线列表)"
+            "→ ✅确认派生 teamwork-space.md → WS(workstream/ · 承接 1+ 执行线 · 拆一组 feature)"
+            "→ feature 写入 ROADMAP(BL · 关联 WS · 全写入=WS✅规划完成)→ 用户拍板 BL → prepare+init-feature → F。"
+            "teamwork-space.md **不是** Feature Planning 产出 · 由 product-overview「✅ 已确认」内容派生"
         ),
         "key_constraints": [
             "🔴 不进状态机:init-feature --flow-type 'Feature Planning' 会被 reject",

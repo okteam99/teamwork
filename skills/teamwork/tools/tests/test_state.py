@@ -2025,11 +2025,14 @@ class TestPlanningCheck(unittest.TestCase):
         self.assertIn("不出代码", constraints)
         self.assertIn("R6", constraints)
         self.assertIn("complexity_force_upgrade", d["entry_criteria"])
-        # v8.48:planning_order 总在 · product-overview 优先于 teamwork-space
+        # v8.49:planning_order 是权威链路 · 业务架构(愿景) → teamwork-space → WS → ROADMAP
         self.assertIn("planning_order", d)
-        self.assertLess(d["planning_order"].index("product-overview"),
-                        d["planning_order"].index("teamwork-space"),
-                        "planning_order product-overview 必在 teamwork-space 之前")
+        po = d["planning_order"]
+        self.assertIn("WS", po)
+        self.assertLess(po.index("业务架构"), po.index("teamwork-space"),
+                        "业务架构(愿景) 必在 teamwork-space 之前")
+        self.assertLess(po.index("teamwork-space"), po.index("ROADMAP"),
+                        "teamwork-space 必在 ROADMAP 之前(WS 在中间)")
 
 
 if __name__ == "__main__":

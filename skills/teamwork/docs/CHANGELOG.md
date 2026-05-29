@@ -1,5 +1,46 @@
 # Changelog
 
+## v8.49 · 规划模型重构:执行线 → WS → roadmap/BL → F(用户共创 · 删执行手册 · dev-only)
+
+> 用户 2026-05-29 连环追问 → 共创:"BL / BG / 执行线 本质都是产出一组 feature,是否统一更合理?我们重新梳理 feature 规划整体流程。"
+
+### 背景:规划概念空间过载 + 取样偏差纠错
+
+排查发现规划层概念太多(BL / CR / BG / PENDING / 执行线 / F),关系不清。实际用量证据(joli/aon 旗舰多子项目):**执行线 7 条 + BG 23 个 + BL 947 处引用全在用**(我一度因只搜 okok/ 误判"BG 零使用",用户用 aon 纠正 → 重查确认三者都活跃)。结论:它们是**三个真实层级**,但:① BG/CR 与初始规划/执行线的边界糊;② BG.sub_features ↔ ROADMAP.BL 身份重复;③ 执行手册只在 0-1 有用,迭代期冻结(aon 执行手册停更 2 个月而 BG 活跃)。
+
+### 用户共创的收敛模型
+
+```
+业务架构与产品规划.md(愿景 + 执行线列表 · taxonomy · 稳定)
+   └─ WS-NN(product-overview/workstream/)  ← feature-planning 产物 · 承接 1+ 执行线
+        └─ ROADMAP/BL-NNN(关联 WS)         ← 完成标准:feature 全写入 roadmap(原子)
+────────── 规划→执行 交接 = 用户拍板 BL + prepare + init-feature ──────────
+   └─ F-NNN  goal→…→ship
+```
+
+关键决策(用户逐步拍板):
+- **删执行手册**:执行线降级为业务架构里的小列表(taxonomy · 不跟踪 · 不登记 WS · WS 向上 tag · 反查得索引);非开发工作 teamwork 不跟踪。
+- **WS = feature-planning 产物**:不在流程外 ad-hoc 手搓;"起 WS" = 进 feature-planning(PMO 切 Product Lead)。
+- **承接 1+ 执行线**(与子项目「承接执行线」多值一致)。
+- **进度统计 = N 未完成 WS(规划态)+ 各 ROADMAP BL(执行态)**;WS ✅规划完成即从规划计数移除(不双计)。
+- **lock 语义承旧 BG**:WS 未规划完成禁启动其子 Feature(防边规划边启动)。
+
+### 实现(4 phase · ~13 文件)
+
+| Phase | 改动 |
+|----|------|
+| **P1 核心 spec** | SKILL.md 新增「teamwork 业务流程架构(PMO 常驻认知)」锚点(根治"PMO 不知道规划模型"的反复 mis-route)· PRODUCT-OVERVIEW-INTEGRATION 重构(删执行手册必备 · 执行线入业务架构 · CHG/changes→WS · 变更级联/自下而上 reframe)· feature-planning 产出改 WS · conventions §8 加 WS-NN namespace + §4 执行线→WS→BL→F 链 · roles/product-lead 更新 |
+| **P2 模板** | 新建 `templates/workstream.md`(WS · 由 change-request 泛化)+ `workstream-readme.md` · change-request 标 DEPRECATED · roadmap 加「关联 WS」列 · teamwork-space 进度统计加「未完成 WS」+ 执行线概览简化为派生视图 + 跨项目变更 CHG→WS · pl-pm-feedback 修 |
+| **P3 工具接线** | planning-check 产出/planning_order 改 WS · SKILL 项目级文档信息架构加 workstream/ + 执行线路由 · bootstrap cold_start gate 措辞 执行手册→执行线列表 |
+| **P4 测试发布** | test_state planning_order 断言改新链路 · 全套 pytest 362 passed · 68 pre-existing failed(render+scan · 无关)· 0 regression |
+
+### 兼容 + 后续
+
+- **向前兼容**:老项目 `执行手册.md` / `changes/*.md`(CHG/BG)保留可读 · 不强迁。
+- **v8.50 待办**:模板瘦身 —— template(实例化骨架)↔ 维护规范(AI 行为)解耦(用户洞察:teamwork-space 模板规则过载 · 违 skill 边界原则 · 自相矛盾)。
+
+---
+
 ## v8.48 · 治本 v8.47 冷启动路由倒置(用户 case gcpdev · 产品规划优先 · dev-only)
 
 > 用户 2026-05-29 跑 `/teamwork`(gcpdev 项目):"预期应该指引我做项目规划 · 最终生成 teamwork-space.md 和 product-overview。" 实际 AI 出了个看板 · 把 teamwork-space.md 缺失降成「不阻塞 · 可随时补」脚注 · product-overview 没提。

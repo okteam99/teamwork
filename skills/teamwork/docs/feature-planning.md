@@ -39,9 +39,14 @@
 
 ## 1. 为什么不进状态机
 
-Feature Planning 的产出是**项目级文档**(PROJECT.md / ROADMAP.md / sitemap.md),不是单 Feature 的 artifact。
+Feature Planning 的产出是**规划文档**(不是单 Feature 的 artifact)· 核心是 **WS**:
+- 🔴 **WS 是本流程的产物** —— "起一个 WS" = 进 feature-planning(PMO 切 Product Lead 引导/讨论)· **不在流程外 ad-hoc 创建 WS**
+- **WS**(`product-overview/workstream/WS-NN.md`)= 一块规划 → 拆一组 feature(v8.49 · 详 [SKILL.md § teamwork 业务流程架构](../SKILL.md))
+- feature 写入 **ROADMAP**(BL · 关联回 WS)· **完成标准 = feature 写进 roadmap**
+- 0-1 冷启动时还含 `业务架构与产品规划.md`(愿景 + 执行线列表)/ `sitemap.md`(信息架构)
+
 特点:
-- 没有"Feature ID"(规划期分配 BL-NNN · 见 [conventions.md § 4](./conventions.md))
+- 没有"Feature ID"(规划期分配 BL-NNN · WS 用 WS-NN · 见 [conventions.md § 4](./conventions.md))
 - 没有 PRD / TC / TECH(那是 Feature 流程的事)
 - 不出代码(R6 红线)
 - 不需要 worktree(在主工作区写文档即可 · 用户决定是否 worktree)
@@ -78,7 +83,7 @@ Feature Planning 的产出是**项目级文档**(PROJECT.md / ROADMAP.md / sitem
 
 ### Step 4 · 起草 PROJECT.md
 
-§业务架构 + §执行手册 + §关键决策 · PL(Product Lead)主导。
+§业务架构 + §执行线列表 + §关键决策 · PL(Product Lead)主导。
 
 模板见 [templates/project.md](../templates/project.md)。
 
@@ -88,6 +93,7 @@ Feature 列表 + 优先级 + 排期(当前/下一/储备)。
 - **每个 Backlog 分配 BL-NNN**(三位数字 · 各项目独立递增)· 详见 [conventions.md § 4](./conventions.md)
 - **不分配 F-NNN**(F-NNN 在 Feature 流程启动时由 PMO 在 init-feature 时分配)
 - 不细化到 task 级 · 一 Feature 一行(标题 + 优先级 + 状态 + 核心 AC ①②③)
+- **BL 关联回 WS-NN**(ROADMAP 加「关联 WS」列)· 这一组 feature 全写进 ROADMAP = 对应 WS「规划完成」(v8.49)
 
 模板见 [templates/roadmap.md](../templates/roadmap.md)。
 
@@ -149,13 +155,16 @@ PL 在 ROADMAP 拆完后顺手起 Feature flow · 越权(用户没拍板)。
 
 ## 4. 产出形态参考
 
-### `PROJECT.md`(项目根)
-§业务架构 + §执行手册 + §关键决策
+### `product-overview/workstream/WS-NN-XXX.md`(核心产出 · v8.49)
+背景 + 怎么落 + 拆哪些 feature + 跨哪些子项目 + 承接 1+ 执行线 · 完成 = feature 写入 roadmap · 详 [templates/workstream.md](../templates/workstream.md)
 
-### `ROADMAP.md`(项目根)
-Feature 列表 + 优先级 · 一 Feature 一行
+### `ROADMAP.md`(各子项目)
+Feature(BL)列表 + 优先级 + 「关联 WS」列 · 一 Feature 一行
 
-### `sitemap.md`(项目根)
+### `业务架构与产品规划.md` / `PROJECT.md`(0-1 / 方向级变更时)
+产品定位 + 业务架构 + 执行线列表(taxonomy)+ 关键决策
+
+### `sitemap.md`(含 UI 时)
 信息架构 · 页面层级
 
 ---
