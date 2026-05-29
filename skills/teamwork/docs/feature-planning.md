@@ -111,10 +111,18 @@ Feature 列表 + 优先级 + 排期(当前/下一/储备)。
 PL 把方向 · PM 把可执行性 · Architect 把技术可行。
 PMO 主对话切换角色 · 讨论收敛 · 不需要单独 review artifact。
 
-### Step 8 · 提交
+### Step 8 · 提交(🔴 R5 暂停点 · 必问)
 
-git add 三个文档 → git commit → 推到 staging(直接 push 或开 MR · 用户决定)。
+规划产出(WS + 各 ROADMAP 登记 + 业务架构 if 改)是**未提交的工作树改动**。规划完成时**必 emit R5 暂停点问用户是否提交 push** —— 不擅自 commit,也不放任改动悬着不提:
 
+```
+⏸️ 规划完成 · 产出 <WS-NN + N 个 ROADMAP 登记 + …> · 请选择:
+1. 提交并 push(commit + 直推 / 开 MR)💡 推荐 —— 规划文档落库,后续启动 Feature 有据
+2. 先不提交(继续调整 / 你稍后自己提)
+3. 其他指示
+```
+
+🔴 在**主工作区**提交(Feature Planning 不进 worktree)· 推到当前分支(直推或开 MR · 用户决定)· 不走 ship 流程。
 完成 · 不需要 state.json / state.py 命令。
 
 ---

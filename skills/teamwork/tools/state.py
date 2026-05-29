@@ -1543,8 +1543,8 @@ PLANNING_CHECKLIST = [
      "spec": "feature-planning.md §1 + templates/workstream.md"},
     {"item": "WS 拆出的 feature 写入 ROADMAP(BL-NNN · 关联 WS)· feature 全写入 = WS ✅ 规划完成 · 每个 BL 后续用户拍板走 prepare 启动 Feature",
      "spec": "conventions.md §4 + prepare.md §5"},
-    {"item": "产出 git commit/push(直推或开 MR · 用户决定)· 不走 ship 流程",
-     "spec": "feature-planning.md §1"},
+    {"item": "🔴 规划完成必 emit R5 暂停点问用户是否提交 push(WS + ROADMAP 登记是未提交工作树改动 · 不擅自 commit 也不放任悬着)· 主工作区直推或开 MR · 不走 ship 流程",
+     "spec": "feature-planning.md §2 Step 8"},
 ]
 
 

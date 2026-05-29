@@ -1,5 +1,21 @@
 # Changelog
 
+## v8.54 · Feature Planning 完成必问是否提交 push(用户 case · dev-only)
+
+> 用户 2026-05-29:"feature planning 结束时应该提示是否提交 push。"
+
+### 根因:Step 8 提交是平铺指令 · 非显式暂停点
+
+Feature Planning 产出(WS + 各 ROADMAP 登记 + 业务架构 if 改)是**未提交的工作树改动**。但 `feature-planning.md` Step 8 只写「git add → commit → push(用户决定)」—— 平铺指令,没框成 R5 暂停点 → AI 可能**不提示就把改动悬着**(规划白做、易丢)或擅自 commit。
+
+### 治本:Step 8 = 必问的 R5 暂停点
+
+- **feature-planning.md Step 8** 改成显式 R5 暂停点:规划完成必 emit「提交并 push 💡 / 先不提交 / 其他」· 不擅自 commit、也不放任悬着 · 主工作区直推或开 MR · 不走 ship。
+- **planning-check checklist** 末项强化:「🔴 规划完成必 emit R5 暂停点问是否提交 push」(物化到 AI 必经的 planning-check 输出)。
+- 测试:checklist 仍 5 项(改文案非数量)· 全套 363 passed · 68 pre-existing(无关)· 0 regression。
+
+---
+
 ## v8.53 · 需连环境先读 TROUBLESHOOTING.md(用户 case AON staging DB · dev-only)
 
 > 用户 2026-05-29:"staging 数据库怎么连在 troubleshooting.md 有定义,但是 AI 不知道。"
