@@ -469,7 +469,7 @@ PMO 按 hint 自动执行修复(silent)
 | `sitemap.md` | 信息架构 / 页面层级 | 讨论 UI / 创建含 UI 的 Feature |
 | `project-specs/KNOWLEDGE.md` | Gotcha / Convention / Architecture(项目级踩坑 + 约定)| triage 期 + 涉项目级约定时 |
 | `project-specs/GLOSSARY.md` | 业务术语 + 实体关系 + 命名约定 + 别名歧义 | PM 起草 PRD 前 / RD 起草 TECH 前 |
-| `project-specs/TROUBLESHOOTING.md` | 排查 / 运维操作手册(log / DB / 监控 / 部署)| mode A query / E discuss 涉"排查 / 报错 / 查 log" |
+| `project-specs/TROUBLESHOOTING.md` | 排查 / 运维操作手册(log / DB / 监控 / 部署)| mode A/E 涉排查 · **或 AI 自己需连环境/查 DB/log(任何 stage/规划)→ 先读拿连法** |
 | `docs/architecture/ARCHITECTURE.md` | 系统架构 | 讨论架构决策 |
 | `docs/architecture/database-schema.md` | 数据库 schema | 讨论数据模型 |
 
