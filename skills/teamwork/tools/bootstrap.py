@@ -882,6 +882,29 @@ def cmd_session_bootstrap(args: argparse.Namespace) -> None:
         ],
     }
 
+    # v8.46 A:检测 product-overview/ → flow_gates 加规划规范 gate(治本 Feature Planning 未物化漏洞)
+    # 根因:Feature Planning 不进状态机 · 无 state.py 兜底 · PRODUCT-OVERVIEW-INTEGRATION.md 纯靠 AI 自觉读
+    # session 启动时若项目有 product-overview/ · forewarn AI 规划类任务必读规范 + 跑 planning-check
+    if (project_root / "product-overview").is_dir():
+        result["flow_gates"].append({
+            "gate": "product_overview_planning_spec_required",
+            "trigger": "Feature Planning / 规划类任务(拆 ROADMAP · 更新 product-overview · 商业模式调整)",
+            "checks": (
+                "本项目存在 product-overview/ · 规划有独立状态机"
+                "(📝草稿 / 🔄讨论中 / ⏸️待确认 / ✅已确认)· 不进 teamwork stage 状态机"
+            ),
+            "action": (
+                "规划类任务**先跑** `state.py planning-check --project-root <abs>`(emit 规划状态 "
+                "checklist + 必读规范)· 必读 PRODUCT-OVERVIEW-INTEGRATION.md(加载规则 + 状态管理 + "
+                "议题追踪)· 维护规划状态表 · 仅「✅ 已确认」内容才影响 teamwork-space.md / 下游执行"
+            ),
+            "skip_consequence": (
+                "AI 没读规范 → 不维护规划状态表 / 草稿态内容误影响下游 / 议题追踪缺失。"
+                "Feature Planning 不进状态机 · 无 stage 物化兜底 · 这是 v8 物化盲区(v8.46 用 gate 提示补)"
+            ),
+            "spec": "PRODUCT-OVERVIEW-INTEGRATION.md + docs/feature-planning.md",
+        })
+
     # v8.21:写 host audit(跨 session 全局 host 记忆 · 治本 PMO 还要传 --host 心智)
     # 下游命令(state.py external-review 等)自动读 · PMO 不需要再传 --host
     host_audit_ok = write_host_audit(args.host)

@@ -1,5 +1,86 @@
 # Changelog
 
+## v8.46 · 治本 Feature Planning 路径未物化漏洞(用户洞察 · A bootstrap gate + C planning-check)
+
+> 用户 2026-05-28:"PRODUCT-OVERVIEW-INTEGRATION.md 这个 AI 每次会必读么 · 是否会存在 AI 没读这个文件 · 导致在一个 feature 需要规划的时候不按这个规范来。"
+
+### 根因:v8 物化覆盖的盲区
+
+调研确认用户担心成立:PRODUCT-OVERVIEW-INTEGRATION.md **零物化触发点**(只有 conventions.md 一个表格 reference + scan 工具列它)。深层根因:
+
+```
+v8 核心承诺:可枚举流程 → state.py 物化(主动告知 · 不靠 AI 读 spec 凭记忆)
+        ↓
+但 Feature Planning + 问题排查「不进状态机」(prepare.md 明说)
+        ↓
+退回 v7 模式:PMO 主对话凭记忆 + 自觉读 markdown spec
+        ↓
+🔴 PRODUCT-OVERVIEW-INTEGRATION.md / feature-planning.md 纯 spec-driven
+   → AI 没读 = 不维护规划状态表 / 草稿态误影响下游 / 议题追踪缺失
+```
+
+stage 链路径(goal→ship)有 state.py 主动告知兜底,但 **Feature Planning 路径没有** —— 这正是 v8 本要消灭的"凭记忆"问题在规划路径的残留。
+
+### 用户决策:A+C 双层
+
+| 层 | 机制 |
+|----|------|
+| **A · bootstrap gate** | session 启动检测 product-overview/ → flow_gates emit「规划类任务必读规范 + 跑 planning-check」 |
+| **C · planning-check 命令** | Feature Planning 物化入口(像 prepare-check)· emit 规划 checklist + 必读 + 规划状态机 |
+
+### 实施
+
+#### A · bootstrap.py product-overview gate
+
+`cmd_session_bootstrap` 检测 `project_root/product-overview/` 存在 → flow_gates append:
+```json
+{
+  "gate": "product_overview_planning_spec_required",
+  "trigger": "Feature Planning / 规划类任务",
+  "action": "先跑 planning-check · 必读 PRODUCT-OVERVIEW-INTEGRATION.md · 维护规划状态表 · 仅✅已确认才影响下游",
+  "skip_consequence": "AI 没读 → 草稿态误影响下游 / 议题追踪缺失 · Feature Planning 无 stage 兜底"
+}
+```
+
+#### C · state.py planning-check 命令(不进状态机 · emit-only)
+
+```
+state.py planning-check --project-root <abs>
+```
+emit:
+- `product_overview_exists` + `must_read`(有 po → 加 PRODUCT-OVERVIEW-INTEGRATION.md)
+- `planning_checklist`(4 条:范围判定 / 产出 PROJECT+ROADMAP+sitemap 不出代码 R6 / 拆 BL-NNN / commit-push 不走 ship)
+- `entry_criteria`(关键词 + 复杂度强制升级判据)
+- `key_constraints`(不进状态机 / 不出代码 R6 / BL-NNN 非 Feature ID)
+- 有 product-overview → `planning_state_machine`(📝草稿/🔄讨论中/⏸️待确认/✅已确认 + 「仅✅已确认才影响下游」+ 规划状态表/议题追踪要求)
+
+物化「你必须想这件事」—— AI 跑命令就拿到规范要点,不依赖记得读 spec。
+
+#### spec 接线
+
+feature-planning.md 头部加「🔴 进入本流程前先跑 planning-check」。
+
+### 测试(3 个 planning-check + e2e bootstrap gate)
+
+`TestPlanningCheck`:
+- `test_v846_planning_check_no_product_overview`(must_read 只 feature-planning · 无 state_machine)
+- `test_v846_planning_check_with_product_overview`(must_read 含 PRODUCT-OVERVIEW + 规划状态机 + 议题追踪)
+- `test_v846_planning_check_checklist_and_constraints`(4 条 checklist + 不进状态机/不出代码 R6)
+
+bootstrap gate e2e 验证(有 product-overview/ → flow_gates 含 product_overview_planning_spec_required)。
+
+359 passed / 68 failed(pre-existing render+scan · 与本次无关)· 0 引入新失败。
+
+### 设计哲学
+
+把"AI 自觉读 spec"变成"工具物化提示"——这是 v8 的核心,本次补上了规划路径的盲区。R0:可枚举(checklist / 状态机 / 必读清单)进脚本,emit 给 AI;不可枚举(具体规划内容)留 AI。
+
+### 同 commit 含 follow-up 产物
+
+本 commit 的 test_state.py 含 spawn follow-up session 补的 `TestReadOnlyCommands`(批次1 删 TestP1ReadOnly 丢的 snapshot/validate/raw-read v8 覆盖 · 4 passed)。.gitignore 加 worktree/harness-locks ignore(teamwork repo 自身用 worktree 开发需要)。
+
+---
+
 ## v8.45 · 全文件 review 大清理(用户「逐文件 review」· 4 agent 并行审 + 28 项发现 · 分 5 批)
 
 > 用户 2026-05-28:"review 一下 teamwork 的逐个文件 · 看下哪些不合理 + 哪些没必要的描述需要清理"。

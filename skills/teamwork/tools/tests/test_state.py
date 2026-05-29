@@ -349,6 +349,78 @@ class TestRecover(unittest.TestCase):
         self.assertTrue(any("recovered after manual edit" in c.get("message", "") for c in warns))
 
 
+class TestReadOnlyCommands(unittest.TestCase):
+    """v8.45:补回 snapshot / validate / raw-read 三个 C 类维护命令的直接覆盖。
+
+    背景:v8.45 清理删除了依赖缺失 fixture(`templates/feature-state.json` · v8.0
+    切换时就删了 · 从 v8.0 起 v7 遗留的 TestP1ReadOnly 等类一直没通过)的 broken
+    测试 · 连带删掉了对这 3 个**活命令**的直接单元测试。本类不依赖任何缺失模板 ·
+    用 init-feature(TEAMWORK_BYPASS_PREPARE_CHECK=1 绕过 prepare 门禁)在临时目录
+    造合法 state.json · 补回覆盖(pattern 同 TestChecksumGuard / TestRecover)。
+    """
+
+    def setUp(self) -> None:
+        self.tmp = Path(tempfile.mkdtemp(prefix="readonly_"))
+        self._prev_bypass = os.environ.get("TEAMWORK_BYPASS_PREPARE_CHECK")
+        os.environ["TEAMWORK_BYPASS_PREPARE_CHECK"] = "1"
+        run([
+            "init-feature",
+            "--feature", str(self.tmp),
+            "--feature-id", "RO-F001",
+            "--flow-type", "Feature",
+            "--merge-target", "main",
+            "--branch", "feat/ro",
+        ])
+
+    def tearDown(self) -> None:
+        shutil.rmtree(self.tmp, ignore_errors=True)
+        if self._prev_bypass is None:
+            os.environ.pop("TEAMWORK_BYPASS_PREPARE_CHECK", None)
+        else:
+            os.environ["TEAMWORK_BYPASS_PREPARE_CHECK"] = self._prev_bypass
+
+    # ── snapshot ──────────────────────────────────────────────────────
+    def test_snapshot_verdict_ok_and_current_stage(self) -> None:
+        """snapshot(默认 core tier)→ verdict OK · Feature 初始 current_stage=goal。"""
+        d = run(["snapshot", "--feature", str(self.tmp)])
+        self.assertEqual(d["verdict"], "OK")
+        self.assertEqual(d["tier"], "core")
+        self.assertEqual(d["snapshot"]["current_stage"], "goal")
+        self.assertEqual(d["snapshot"]["feature_id"], "RO-F001")
+
+    # ── validate ──────────────────────────────────────────────────────
+    def test_validate_legal_state_passes(self) -> None:
+        """合法 state(init-feature 刚建)→ validate PASS · exit 0。"""
+        d = run(["validate", "--feature", str(self.tmp)])
+        self.assertEqual(d["verdict"], "PASS")
+        self.assertIn("stage enum", d["checks_passed"])
+
+    def test_validate_illegal_current_stage_fails(self) -> None:
+        """注入非法 current_stage → validate FAIL · exit 1 · 错误指向 current_stage。
+
+        用 raw-write 注入(而非手工 Write 改 state.json):手工改会先触发 checksum
+        guard(exit 2)· validate 的 schema 校验根本跑不到;raw-write 走 atomic_write
+        重算 checksum · state checksum 合法但 schema 非法 · 才隔离得出纯 schema FAIL。
+        """
+        run([
+            "raw-write", "--feature", str(self.tmp),
+            "--set", "current_stage=bogus_stage",
+            "--reason", "test:注入非法 stage 验证 validate FAIL 路径",
+        ])
+        d = run(["validate", "--feature", str(self.tmp)], expect_exit=1)
+        self.assertEqual(d["verdict"], "FAIL")
+        self.assertGreaterEqual(d["error_count"], 1)
+        self.assertTrue(any("current_stage" in e for e in d["errors"]))
+
+    # ── raw-read ──────────────────────────────────────────────────────
+    def test_raw_read_field_current_stage(self) -> None:
+        """raw-read --field current_stage → verdict OK · 返回该字段值(goal)。"""
+        d = run(["raw-read", "--feature", str(self.tmp), "--field", "current_stage"])
+        self.assertEqual(d["verdict"], "OK")
+        self.assertEqual(d["field"], "current_stage")
+        self.assertEqual(d["value"], "goal")
+
+
 class TestPrepareCheck(unittest.TestCase):
     """prepare-check · flow_type → artifact ID 字母(F/B/M · 治本 Bug 错推 -F)。
 
@@ -1903,6 +1975,51 @@ class TestExternalReviewContentQuality(unittest.TestCase):
         )
         warnings = _check_external_review_quality(body, stage="goal", model="claude")
         self.assertEqual(warnings, [])
+
+
+class TestPlanningCheck(unittest.TestCase):
+    """v8.46:planning-check · Feature Planning 物化入口(治本规划路径未物化漏洞)。
+
+    用户洞察 2026-05-28:PRODUCT-OVERVIEW-INTEGRATION.md 纯靠 AI 自觉读 · Feature Planning
+    不进状态机无兜底 · planning-check 物化 emit checklist + 必读规范 + 规划状态机。
+    """
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp(prefix="tw-planning-"))
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def test_v846_planning_check_no_product_overview(self):
+        """无 product-overview/ → must_read 只 feature-planning · 无 state_machine。"""
+        d = run(["planning-check", "--project-root", str(self.tmp)])
+        self.assertEqual(d["verdict"], "OK")
+        self.assertFalse(d["product_overview_exists"])
+        self.assertEqual(d["must_read"], ["docs/feature-planning.md"])
+        self.assertNotIn("planning_state_machine", d)
+        self.assertIn("无 product-overview", d["product_overview_hint"])
+
+    def test_v846_planning_check_with_product_overview(self):
+        """有 product-overview/ → must_read 含 PRODUCT-OVERVIEW-INTEGRATION + 规划状态机。"""
+        (self.tmp / "product-overview").mkdir()
+        d = run(["planning-check", "--project-root", str(self.tmp)])
+        self.assertTrue(d["product_overview_exists"])
+        self.assertIn("PRODUCT-OVERVIEW-INTEGRATION.md", d["must_read"])
+        self.assertIn("planning_state_machine", d)
+        sm = d["planning_state_machine"]
+        self.assertIn("✅ 已确认", sm["states"])
+        self.assertIn("已确认", sm["downstream_rule"])
+        self.assertEqual(len(sm["required_tables"]), 2)
+
+    def test_v846_planning_check_checklist_and_constraints(self):
+        """checklist 4 条 + key_constraints 含「不进状态机」+「不出代码 R6」。"""
+        d = run(["planning-check", "--project-root", str(self.tmp)])
+        self.assertEqual(len(d["planning_checklist"]), 4)
+        constraints = " ".join(d["key_constraints"])
+        self.assertIn("不进状态机", constraints)
+        self.assertIn("不出代码", constraints)
+        self.assertIn("R6", constraints)
+        self.assertIn("complexity_force_upgrade", d["entry_criteria"])
 
 
 if __name__ == "__main__":

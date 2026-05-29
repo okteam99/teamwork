@@ -3,6 +3,11 @@
 > **Feature Planning 不进状态机** · 由 PMO 主对话直接执行(类似问题排查 mode A)。
 > `state.py init-feature --flow-type "Feature Planning"` **会被 reject** ·
 > 不创建 state.json · 不分 stage · 不走 stage 链。
+>
+> 🔴 **进入本流程前先跑** `state.py planning-check --project-root <abs>`(v8.46 物化入口)·
+> emit 规划 checklist + 必读规范 + (若有 product-overview/)规划状态机。
+> 治本「规划路径不进状态机 · 无 state.py 兜底 · 纯靠 AI 自觉读 spec」漏洞 —— planning-check
+> 让 AI 跑命令就拿到规范要点,不依赖记得读本文件 / PRODUCT-OVERVIEW-INTEGRATION.md。
 
 ---
 

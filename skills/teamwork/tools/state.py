@@ -1530,6 +1530,99 @@ def _build_output_style_hint(host: Optional[str]) -> dict:
     }
 
 
+# v8.46 C:Feature Planning 物化入口(治本未物化漏洞 · 用户洞察 2026-05-28)
+# 根因:Feature Planning 不进状态机 · 无 state.py 兜底 · PRODUCT-OVERVIEW-INTEGRATION.md / feature-planning.md
+# 纯靠 AI 自觉读 → AI 没读就不按规范(不维护规划状态表 / 草稿态误影响下游)。
+# planning-check 不进状态机(不写 state.json)· 纯 emit checklist + 必读规范 · 物化「你必须想这件事」。
+PLANNING_CHECKLIST = [
+    {"item": "范围判定:工作区级(改 teamwork-space.md + 多 PROJECT.md)vs 子项目级(单 PROJECT.md + ROADMAP.md + sitemap.md)",
+     "spec": "feature-planning.md §2 Step 2"},
+    {"item": "产出 PROJECT.md + ROADMAP.md + sitemap.md · 🔴 不出代码(R6 红线)· 不进 stage 链",
+     "spec": "feature-planning.md §1"},
+    {"item": "ROADMAP 拆 BL-NNN · 每个 BL 后续用户拍板可走 prepare 启动具体 Feature",
+     "spec": "conventions.md §4 + prepare.md §5"},
+    {"item": "产出 git commit/push(直推或开 MR · 用户决定)· 不走 ship 流程",
+     "spec": "feature-planning.md §1"},
+]
+
+
+def cmd_planning_check(args: argparse.Namespace) -> None:
+    """v8.46:Feature Planning 物化入口 · emit 规划 checklist + 必读规范(不进状态机)。
+
+    治本 Feature Planning 未物化漏洞:规划路径无 stage 兜底 · PRODUCT-OVERVIEW-INTEGRATION /
+    feature-planning 纯靠 AI 自觉读。本命令物化"你必须想这件事"(像 prepare-check)·
+    检测 product-overview/ 存在 → emit 规划状态机 + 必读 · 不存在 → 仍 emit 基础 checklist。
+    """
+    # project_root:--project-root 显式 · 否则 find_project_root(cwd)
+    project_root = None
+    if getattr(args, "project_root", None):
+        project_root = Path(args.project_root).expanduser().resolve()
+    else:
+        try:
+            sys.path.insert(0, str(Path(__file__).resolve().parent))
+            from bootstrap import find_project_root
+            project_root = find_project_root(Path.cwd())
+        except Exception:
+            project_root = Path.cwd()
+
+    po_dir = project_root / "product-overview"
+    po_exists = po_dir.is_dir()
+
+    must_read = ["docs/feature-planning.md"]
+    if po_exists:
+        must_read.insert(0, "PRODUCT-OVERVIEW-INTEGRATION.md")
+
+    payload = {
+        "verdict": "OK",
+        "command": "planning-check",
+        "project_root": str(project_root),
+        "product_overview_exists": po_exists,
+        "must_read": must_read,
+        "entry_criteria": {
+            "keyword": "规划 / 拆 roadmap / 路线图 / 全景 / 商业模式调整 / 做电商 / 做 SaaS",
+            "complexity_force_upgrade": (
+                "关键词命中 Feature/敏捷需求/Micro 时 · 命中任一强制升 Feature Planning:"
+                "跨仓库联动(≥2)/ 数据模型重构 / 老需求架构性废弃 / 影响 ≥2 BL / 方向级业务变更"
+            ),
+        },
+        "planning_checklist": PLANNING_CHECKLIST,
+        "key_constraints": [
+            "🔴 不进状态机:init-feature --flow-type 'Feature Planning' 会被 reject",
+            "🔴 不出代码(R6 红线)· 产出仅项目级文档",
+            "BL-NNN 在规划期分配 · 不是 Feature ID(无 PRD/TC/TECH)",
+        ],
+        "next_hint": (
+            f"先读 {' + '.join(must_read)} · 按 checklist 在主对话执行 Feature Planning"
+            f"(不进状态机 · PMO 直接做)· 完成后拆出的 BL 用户拍板再走 prepare 启动 Feature"
+        ),
+    }
+
+    if po_exists:
+        # 项目有 product-overview/ → emit 规划状态机(治本"草稿态误影响下游")
+        payload["planning_state_machine"] = {
+            "states": ["📝 草稿", "🔄 讨论中", "⏸️ 待确认", "✅ 已确认"],
+            "downstream_rule": (
+                "🔴 仅「✅ 已确认」内容才影响 teamwork-space.md / 下游执行 · "
+                "草稿/讨论中/待确认 都不更新 teamwork-space.md"
+            ),
+            "required_tables": [
+                "每份 product-overview 文档头部:规划状态表(文档状态 / 最近更新 / 待决议题)",
+                "文档末尾:规划议题追踪表(编号 / 议题 / 状态 / 结论 / 影响章节 / 日期)",
+            ],
+        }
+        payload["product_overview_hint"] = (
+            f"本项目有 product-overview/({po_dir})· 规划必维护规划状态表 + 议题追踪 · "
+            f"详 PRODUCT-OVERVIEW-INTEGRATION.md(加载规则 + 状态管理 + 与 teamwork-space 关系)"
+        )
+    else:
+        payload["product_overview_hint"] = (
+            f"本项目无 product-overview/ · 规划可直接拆 ROADMAP(子项目级)· "
+            f"如需建 product-overview 命名规则见 PRODUCT-OVERVIEW-INTEGRATION.md"
+        )
+
+    emit(payload)
+
+
 def _validate_admission_judgment(args) -> dict:
     """v8.15:校验 --user-intent + --admission-judgment(治本 F001 case)。
     v8.34:删 SKIPPED 兼容路径 · 全局强制必传(治本 SVC-CORE-M001 case · AI 钻 SKIPPED 空子不思考)。
@@ -3201,6 +3294,16 @@ def build_parser() -> argparse.ArgumentParser:
                           "ai_rationale 4 字段)· 强制 AI 真读 §2.1/§2.2 而非凭概览 · "
                           "工具校验 recommended_flow_type vs --flow-type · MISMATCH → WARN(不 BLOCK)"))
     pc.set_defaults(func=cmd_prepare_check)
+
+    # v8.46 C:planning-check · Feature Planning 物化入口(治本规划路径未物化漏洞)
+    plc = sub.add_parser(
+        "planning-check",
+        help=("[v8.46] Feature Planning 物化入口 · emit 规划 checklist + 必读规范 + "
+              "(若有 product-overview)规划状态机 · 不进状态机 · 治本规划路径靠 AI 自觉读 spec"),
+    )
+    plc.add_argument("--project-root", default=None,
+                     help="项目根(检测 product-overview/)· 默认从 cwd 找 git 根")
+    plc.set_defaults(func=cmd_planning_check)
 
     # v8.x:change-review-roles · 治本 raw-write 滥用(可枚举进脚本 · R0 哲学)
     crr = sub.add_parser(
