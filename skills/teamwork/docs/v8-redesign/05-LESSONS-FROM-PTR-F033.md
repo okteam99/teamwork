@@ -1,5 +1,8 @@
 # Lessons from PTR-F033 · v8.0+P0-1 ~ P0-5 治本汇总
 
+> ⚠️ **归档文档(v8.0 重构期蓝图)**:本文件是 v7→v8 重构期的设计/规划文档 · 描述当时的**计划态**。v8 已稳定至 v8.45 · 现行权威以 [SKILL.md](../../SKILL.md) + tools/state.py 实际行为为准。文内可能引用已失效的 RULES.md/TRIAGE.md(并入 SKILL.md)/ 旧 stage 名 / 旧命令。PTR-F033 dogfood 复盘 · 引用的 RULES.md/TRIAGE.md 已并入 SKILL.md。不再维护。
+
+
 > PTR-F033(Partner Credit Note Adjustment Feature)实战 case 暴露了 v8 多个设计缺口。
 > 4 个 P0 patch + 1 个概念清理(P0-5)都源自此 case。
 > 本文是反思 + 演进文档。

@@ -1,5 +1,8 @@
 # v8.0+P0-1 · 暂停点纪律物化(L2 substep 链)
 
+> ⚠️ **归档文档(v8.0 重构期蓝图)**:本文件是 v7→v8 重构期的设计/规划文档 · 描述当时的**计划态**。v8 已稳定至 v8.45 · 现行权威以 [SKILL.md](../../SKILL.md) + tools/state.py 实际行为为准。文内可能引用已失效的 RULES.md/TRIAGE.md(并入 SKILL.md)/ 旧 stage 名 / 旧命令。暂停点纪律已并入 SKILL.md § R5(b) + § ok 作用域 · 本文为早期推导稿。不再维护。
+
+
 > 治本 PTR-F033 实战 case · L2 substep 链内部 AI 自觉区漏洞。
 > v8.0 把可枚举规则全部物化,但 brief 输出后 AI 在 substep 链内的行为是 state.py 看不见的盲区。
 

@@ -1,5 +1,8 @@
 # v8.0 命令 Schema 完整定义
 
+> ⚠️ **归档文档(v8.0 重构期蓝图)**:本文件是 v7→v8 重构期的设计/规划文档 · 描述当时的**计划态**。v8 已稳定至 v8.45 · 现行权威以 [SKILL.md](../../SKILL.md) + tools/state.py 实际行为为准。文内可能引用已失效的 RULES.md/TRIAGE.md(并入 SKILL.md)/ 旧 stage 名 / 旧命令。命令 schema 用旧 stage 名(goal_plan/panorama_design)· 现行 schema 以 state.py --help + _v8_stage_specs.py 为准。不再维护。
+
+
 > 所有 state.py 命令的精确 schema。实现时按此契约 1:1 编码。
 > 共 25 命令 · 按职责分组。
 

@@ -1,5 +1,8 @@
 # 设计方案：业务架构与技术架构对齐
 
+> ⚠️ **归档文档(v8.0 重构期蓝图)**:本文件是 v7→v8 重构期的设计/规划文档 · 描述当时的**计划态**。v8 已稳定至 v8.45 · 现行权威以 [SKILL.md](../SKILL.md) + tools/state.py 实际行为为准。文内可能引用已失效的 RULES.md/TRIAGE.md(并入 SKILL.md)/ 旧 stage 名 / 旧命令。业务架构设计稿(midplatform/business_goal 部分落地于 templates/teamwork-space.md)· 引用的旧流程数/STATUS.md/RULES.md 已失效。不再维护。
+
+
 > 解决 teamwork skill 中「子项目 = 业务域边界」假设导致的三个对不齐问题。
 > 状态：✅ 已落地 v3 · 变更已同步到 SKILL.md / ROLES.md / TEMPLATES.md(RULES.md 已删 · 内容并入 SKILL.md「PMO 软约束」+ docs/v8-redesign/00-MANIFESTO.md「九红线」)
 
