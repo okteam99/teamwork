@@ -1,5 +1,33 @@
 # Changelog
 
+## v8.50 · 模板瘦身:teamwork-space template↔维护规范 解耦(用户洞察 · dev-only)
+
+> 用户 2026-05-29:"teamwork-space.md 模板里太多不必要内容 · 很多是 AI 知道就好 · 是否单独起一个维护规范.md · 模板引用一下,不耦合在一个文档,其他模板也一样。"
+
+### 根因:模板自相矛盾 + 违 skill 边界原则
+
+`templates/teamwork-space.md`(~200 行)每个 section 都挂一段 `>` 规则块(生命周期/状态机/硬规则/字段语义/单源声明)。但:
+- **自相矛盾**:它开头写「≤1 行 · 一眼看懂全景 · 不是事件日志」,自己却塞满 meta-rules。
+- **违 skill 边界原则**(本 session 早先沉淀):这些是 **AI 维护行为**,该在 spec 层,不该耦合进「会被实例化进用户项目」的模板 —— 否则项目里那份 teamwork-space.md 一复制就臃肿。
+
+### 解耦(用户决策 A:v8.49 收尾后单独做)
+
+| 文件 | 角色 |
+|----|------|
+| **新建 `docs/teamwork-space-guide.md`** | 维护规范(AI 读):核心定位 + 各 section 字段语义/硬规则 + 生命周期 + 进度统计公式 + 跨项目变更单源 + 路由权威(docs_root / 技术栈 panorama 信号) |
+| **`templates/teamwork-space.md` 瘦身**(~200→~105 行) | 只留实例化骨架:section 头 + 表头 + 示例行 + 每节一句话 `<!-- 这里放什么 · 详 guide §N -->` + 顶部引用 guide |
+| **`SKILL.md`** | session 入口必读段加「创建/维护 teamwork-space 的规则 → docs/teamwork-space-guide.md」(PMO 常驻可发现) |
+
+效果:实例化进项目的 teamwork-space.md **永远精简**(骨架 + breadcrumb)· 规则单源在 skill guide(AI 读 · 不复制)。
+
+### 范围控制(R4 不膨胀)
+
+- teamwork-space 是**重灾户**(规则 >> 骨架)→ 本次解耦。
+- `roadmap.md` / `workstream.md` / `project.md` 规则:骨架比例合理(字段语义贴着表头反而有用)→ **暂不拆**(避免为边际收益增 guide 文件)· 后续如确有需要再议。
+- 测试:docs-only 改 · 全套 362 passed · 68 pre-existing failed(render+scan · 无关)· 0 regression。
+
+---
+
 ## v8.49 · 规划模型重构:执行线 → WS → roadmap/BL → F(用户共创 · 删执行手册 · dev-only)
 
 > 用户 2026-05-29 连环追问 → 共创:"BL / BG / 执行线 本质都是产出一组 feature,是否统一更合理?我们重新梳理 feature 规划整体流程。"

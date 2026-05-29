@@ -1,6 +1,6 @@
 ---
 name: teamwork
-version: v8.49.1
+version: v8.50.0
 description: AI 协作开发一体化框架 · /teamwork 启动
 ---
 
@@ -528,6 +528,8 @@ PMO 只关注流程编排 · 系统维护是 `bootstrap.py` 的职责。
 
 **为什么只读这一份**:teamwork-space.md 是轻量结构索引(通常 < 200 行)· 已含分诊所需的全景上下文。
 **PROJECT.md / ROADMAP.md / sitemap.md** 等详档**按需读**(用户提到 / 任务涉及时再 Read 对应段)· 不全文加载到 PMO 上下文(避免 context 浪费)。
+
+🔴 **创建/维护 teamwork-space.md 的规则**(字段语义 / 硬规则 / 生命周期 / 进度统计 / 跨项目变更单源)→ [docs/teamwork-space-guide.md](./docs/teamwork-space-guide.md)(v8.50 · 规则外迁 · 模板 [templates/teamwork-space.md](./templates/teamwork-space.md) 只留实例化骨架)。
 
 🔴 **文件名**:规范名是连字符 `teamwork-space.md`。v7 期项目的 legacy 下划线名 `teamwork_space.md` 由 `bootstrap.py` 在本步**之前**自动迁移成连字符名 —— 故此处只找连字符名即可(治本 F049:legacy 名导致子项目 registry 静默不加载、路由失效)。
 
