@@ -2019,7 +2019,7 @@ class TestPlanningCheck(unittest.TestCase):
     def test_v846_planning_check_checklist_and_constraints(self):
         """checklist 4 条 + key_constraints 含「不进状态机」+「不出代码 R6」。"""
         d = run(["planning-check", "--project-root", str(self.tmp)])
-        self.assertEqual(len(d["planning_checklist"]), 4)
+        self.assertEqual(len(d["planning_checklist"]), 5)  # v8.52:+ 实际代码调研项
         constraints = " ".join(d["key_constraints"])
         self.assertIn("不进状态机", constraints)
         self.assertIn("不出代码", constraints)

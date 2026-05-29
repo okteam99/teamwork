@@ -1,5 +1,33 @@
 # Changelog
 
+## v8.52 · Feature Planning 必须结合实际代码调研(用户 case AON category · dev-only)
+
+> 用户 2026-05-29(实战验证 case · aon-core):"feature planning 应该结合实际代码调研。"
+
+### 根因:WS 拆解凭 spec/假设 + 轻信 sub-agent 摘要
+
+AON「category 单源化」规划:AI 切 PL 拆出 WS-001 5 个 BL,**全凭 spec + 子项目结构假设**。用户追问"结合实际代码验证,是否有些已做完" → AI 实跑代码核验,发现**决定性事实**:
+- migration 全是 schema-only(**0 INSERT**)· `offer_categories` 表为空 · partner 的"DB-first"是**空壳**永远走 fallback —— 即 ① 的真缺口是「seed 数据 + DB 校验」,不是原以为的「建接口」。
+- **第一次排查的 Explore agent 误报**"migration 含 11 条 seed INSERT"(实际纯 schema)· 差点让整个 WS 拆解基于错前提。
+
+即:Feature Planning 流程**没强制 grounded 实际代码** → AI 只在用户提示后才核验。Explore/sub-agent 读 excerpt 会漏内容,decisive 前提轻信摘要 = 拆错。
+
+### 治本:代码调研 = Feature Planning 必经步骤
+
+| 改动 | 内容 |
+|----|------|
+| **feature-planning.md Step 1** | 加「🔴 实际代码调研」:每个候选 BL 核验「已做什么/真缺口」· 反映真实完成度(不把已完成列 todo / 不把有脚手架的当 greenfield)· **decisive 前提必 Read 实际文件 · 不轻信 Explore/sub-agent 摘要**(附 AON seed 误报实证) |
+| **planning-check checklist** | 首项加「拆 BL/WS 前调研实际代码现状 · 标注真实完成度 · 核验 decisive 前提」(4→5 项) |
+| **templates/workstream.md** | `features[]` 加 `current_state` 字段(由代码调研填:已有脚手架/复用点 vs 真缺口)+ 设计要点 5「拆解 grounded 实际代码」 |
+| **测试** | test_state planning_checklist 长度断言 4→5 · 全套 363 passed · 68 pre-existing(无关)· 0 regression |
+
+### 设计
+
+- 不是新机制 · 是把"凭记忆/spec 拆"纠正为"凭实际代码拆"(planning 的 R7 evidence 精神延伸到规划层)。
+- `current_state` 让 WS 文档**显式记录每个 feature 的复用点 vs 真缺口** —— 拆解可审计、不重复造轮子、不漏命门。
+
+---
+
 ## v8.51 · session 入口优先级:升级 → 补规划 → 任务(用户 case gcpdev · dev-only)
 
 > 用户 2026-05-29(实战验证 case · gcpdev 仍跑 v8.47.1):"应该先处理升级,然后补规划,最后再处理别的。"

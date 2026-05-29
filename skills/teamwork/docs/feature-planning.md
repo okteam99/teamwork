@@ -58,9 +58,13 @@ Feature Planning 的产出是**规划文档**(不是单 Feature 的 artifact)· 
 
 ## 2. PMO 主对话执行流程
 
-### Step 1 · 加载上下文
+### Step 1 · 加载上下文 + 🔴 实际代码调研
 
 读 PROJECT.md(若存在 · 当前业务架构)+ ROADMAP.md(若存在 · 现有 Backlog)+ 用户需求。
+
+🔴 **拆 BL/WS 前必须调研实际代码现状**(治本 · AON category case 2026-05-29):
+- 每个候选 BL 核验「**已做什么 / 真缺口在哪**」· 拆解反映**真实完成度** —— 不把已完成的列为 todo,不把"已有脚手架"的当 greenfield;WS `features[].current_state` 记录复用点 vs 真缺口。
+- 🔴 **decisive 前提必 Read 实际文件核验 · 不轻信 Explore/sub-agent 摘要**。实证:Explore 误报"migration 含 11 条 seed INSERT" · 实际 schema-only(表为空)· 差点让 WS 拆解基于错前提("建接口" → 实际接口骨架已有、真缺口是 seed 数据 + DB 校验)。"数据是否真入库 / 某能力是否真生效"这类命门事实,必看真实代码,不靠摘要。
 
 ### Step 2 · 范围判定
 

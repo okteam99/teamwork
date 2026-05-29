@@ -1535,6 +1535,8 @@ def _build_output_style_hint(host: Optional[str]) -> dict:
 # 纯靠 AI 自觉读 → AI 没读就不按规范(不维护规划状态表 / 草稿态误影响下游)。
 # planning-check 不进状态机(不写 state.json)· 纯 emit checklist + 必读规范 · 物化「你必须想这件事」。
 PLANNING_CHECKLIST = [
+    {"item": "🔴 拆 BL/WS 前调研实际代码现状:每个候选 BL 核验「已做什么 / 真缺口在哪」· 反映真实完成度(不把已完成列 todo · 不把有脚手架的当 greenfield)· decisive 前提(数据是否真入库 / 能力是否真生效)核验实际代码 · 不轻信 Explore/sub-agent 摘要",
+     "spec": "feature-planning.md §2 Step 1"},
     {"item": "范围判定:工作区级(改 teamwork-space.md + 多 PROJECT.md)vs 子项目级(单 PROJECT.md + ROADMAP.md + sitemap.md)",
      "spec": "feature-planning.md §2 Step 2"},
     {"item": "核心产出 WS(product-overview/workstream/WS-NN.md · 承接 1+ 执行线 · 拆一组 feature)· 0-1 时含业务架构与产品规划.md(愿景+执行线列表)/ sitemap · 🔴 不出代码(R6)· 不进 stage 链",
