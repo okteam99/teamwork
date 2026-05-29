@@ -629,6 +629,53 @@ class TestCmdSessionBootstrapE2E(unittest.TestCase):
         self.assertIn("prepare-check", prep_gate["action"])
         self.assertIn("TEAMWORK_BYPASS_PREPARE_CHECK", prep_gate["bypass_env"])
 
+    def _run_and_get_gates(self):
+        result = subprocess.run(
+            ["python3", str(BOOTSTRAP_PY),
+             "--host", "claude-code",
+             "--skill-root", str(SKILL)],
+            cwd=str(self.project), capture_output=True, text=True, check=True,
+        )
+        return json.loads(result.stdout).get("flow_gates", [])
+
+    def test_cold_start_gate_present_when_no_workspace(self):
+        """v8.47:project_root 无 teamwork-space.md → emit cold_start gate。
+
+        治本新项目缺产品规划 + teamwork-space.md 生成路径 · session 启动引导。
+        setUp 的 project 是裸 git 仓(无 teamwork-space.md)→ 应触发。
+        """
+        gates = self._run_and_get_gates()
+        cs = next((g for g in gates
+                   if g.get("gate") == "cold_start_workspace_uninitialized"), None)
+        self.assertIsNotNone(cs, "无 teamwork-space.md 时必 emit cold_start gate")
+        # 关键字段完整(机制描述 · forewarn AI 该做什么)
+        for k in ("trigger", "checks", "action", "skip_consequence",
+                  "product_overview_status", "spec"):
+            self.assertIn(k, cs, f"cold_start gate 必含 {k} 字段")
+        # action 指向 Feature Planning + planning-check(可执行引导 · 非空喊话)
+        self.assertIn("planning-check", cs["action"])
+        self.assertIn("Feature Planning", cs["action"])
+        # 无 product-overview/ → 提示一并建
+        self.assertIn("也缺失", cs["product_overview_status"])
+
+    def test_cold_start_gate_absent_when_workspace_exists(self):
+        """v8.47:teamwork-space.md 存在 → 工作区已初始化 · 不再 emit gate。"""
+        (self.project / "teamwork-space.md").write_text("# workspace\n",
+                                                        encoding="utf-8")
+        gates = self._run_and_get_gates()
+        cs = next((g for g in gates
+                   if g.get("gate") == "cold_start_workspace_uninitialized"), None)
+        self.assertIsNone(cs, "teamwork-space.md 存在时不应 emit cold_start gate")
+
+    def test_cold_start_po_status_when_product_overview_exists(self):
+        """v8.47:有 product-overview/ 但无 teamwork-space.md → gate 在 · po_status 已存在。"""
+        (self.project / "product-overview").mkdir()
+        gates = self._run_and_get_gates()
+        cs = next((g for g in gates
+                   if g.get("gate") == "cold_start_workspace_uninitialized"), None)
+        self.assertIsNotNone(cs, "仅 product-overview/ 不算工作区初始化 · gate 仍应在")
+        self.assertEqual(cs["product_overview_status"], "已存在")
+
 
 class TestWriteHostAudit(unittest.TestCase):
     """v8.21:bootstrap.write_host_audit 写 ~/.teamwork/host_audit.json。

@@ -882,10 +882,35 @@ def cmd_session_bootstrap(args: argparse.Namespace) -> None:
         ],
     }
 
+    # v8.47:冷启动检测 — teamwork-space.md 缺失(工作区未初始化)→ forewarn 引导进 Feature Planning
+    # 用户需求 2026-05-28:新项目缺产品规划 + teamwork-space.md 生成路径 · session 启动引导
+    # 与 v8.46 gate 互补:v8.46 检 product-overview 存在(提示读规范)· v8.47 检 teamwork-space 不存在(引导初始化)
+    _po_exists = (project_root / "product-overview").is_dir()
+    if not (project_root / "teamwork-space.md").exists():
+        result["flow_gates"].append({
+            "gate": "cold_start_workspace_uninitialized",
+            "trigger": "session 启动 · 本项目无 teamwork-space.md(工作区未初始化 · 新项目冷启动)",
+            "checks": "project_root 无 teamwork-space.md · 多数 teamwork 项目应有(子项目清单 + 待规划需求池)",
+            "action": (
+                "🔴 PMO 本 session 首次响应前 · emit R5 暂停点引导用户:本项目未初始化 teamwork 工作区 · "
+                "建议进 Feature Planning 流程(跑 `state.py planning-check`)规划 + 生成 teamwork-space.md。"
+                "选项:1 进 Feature Planning 初始化 💡 / 2 跳过直接做任务(单 Feature 快速场景)/ 3 其他"
+            ),
+            "skip_consequence": (
+                "跳过可直接做任务(用户拍板)· 但缺工作区清单 → 多子项目管理 / 待规划需求池 / "
+                "跨项目变更追踪缺失 · 后续可随时补规划"
+            ),
+            "product_overview_status": (
+                "也缺失(复杂业务建议一并建 · 详 PRODUCT-OVERVIEW-INTEGRATION.md)"
+                if not _po_exists else "已存在"
+            ),
+            "spec": "docs/feature-planning.md + templates/teamwork-space.md(模板)",
+        })
+
     # v8.46 A:检测 product-overview/ → flow_gates 加规划规范 gate(治本 Feature Planning 未物化漏洞)
     # 根因:Feature Planning 不进状态机 · 无 state.py 兜底 · PRODUCT-OVERVIEW-INTEGRATION.md 纯靠 AI 自觉读
     # session 启动时若项目有 product-overview/ · forewarn AI 规划类任务必读规范 + 跑 planning-check
-    if (project_root / "product-overview").is_dir():
+    if _po_exists:
         result["flow_gates"].append({
             "gate": "product_overview_planning_spec_required",
             "trigger": "Feature Planning / 规划类任务(拆 ROADMAP · 更新 product-overview · 商业模式调整)",

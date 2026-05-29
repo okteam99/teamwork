@@ -1,5 +1,45 @@
 # Changelog
 
+## v8.47 · 治本新项目冷启动无引导(用户洞察 · bootstrap cold_start gate · dev-only)
+
+> 用户 2026-05-29:"目前新项目缺少产品规划和 teamwork_space.md 生成路径 · 是否可以 session 启动检测 product-overview teamwork_space.md · 没有引导用户进入产品规划流程。"
+
+### 根因:冷启动盲区(v8.46 的对偶)
+
+v8.46 补了「项目**有** product-overview/ → 提示读规范」的正向门;但反向盲区还在:**新项目什么都没有**(无 teamwork-space.md / 无 product-overview/)时 · session 启动**零引导** · 用户(和 AI)不知道该先做产品规划 · 直接散做单 Feature → 缺工作区清单(子项目管理 / 待规划需求池 / 跨项目变更追踪)。
+
+```
+v8.46 gate:product-overview/ 存在 → 提示「规划类任务读规范」(正向)
+        ↓ 但
+新项目冷启动:teamwork-space.md 不存在 → 无任何 forewarn(盲区)
+        ↓
+用户不知道有 Feature Planning 流程 · AI 不主动引导 · 直接 init-feature 单做
+        ↓
+🔴 工作区永不初始化 · 多子项目 / 需求池 / 跨项目追踪能力缺失
+```
+
+### 用户决策:A · 两者都检 · forewarn 分强度 + Feature Planning 流程产出
+
+| 维度 | 决策 |
+|----|------|
+| **检测对象** | teamwork-space.md(主判据 · 工作区初始化标志)+ product-overview/(辅:缺则提示一并建) |
+| **强度** | forewarn(非 BLOCK)· bootstrap 不拦截 · 按 mode 分强度引导(mode B 强 emit R5 / A·D·E 轻提 / C silent skip) |
+| **产出路径** | 引导进 **Feature Planning 流程**(跑 `state.py planning-check` + 生成 teamwork-space.md)· 不新造流程 |
+
+### 实现
+
+| 层 | 机制 |
+|----|------|
+| **bootstrap gate** | `cmd_session_bootstrap` 检 `teamwork-space.md` 不存在 → flow_gates emit `cold_start_workspace_uninitialized`(含 product_overview_status:也缺失/已存在)· 与 v8.46 product-overview gate 互补 |
+| **SKILL.md 接线** | Triage 新增 § bootstrap flow_gates 响应(首条响应前必扫)· cold_start 按 mode 分强度:mode B 首条响应 emit R5 暂停点(1 进 Feature Planning 💡 / 2 跳过 / 3 其他)· 用户拍板前不擅自建文件(R5) |
+| **测试** | test_bootstrap.py 加 3 例(无 ws → gate 在 · 有 ws → gate 无 · 仅 po → po_status 已存在) |
+
+### 与 v8.46 的关系
+
+v8.46(product-overview 存在→读规范)+ v8.47(teamwork-space 不存在→引导初始化)= 规划路径双向物化补全。两个 gate 同源(Feature Planning 不进状态机 · 无 state.py 兜底的物化盲区)· 都用 forewarn flow_gates 补(不强 BLOCK · PMO 按 mode 用判断)。
+
+---
+
 ## v8.46 · 治本 Feature Planning 路径未物化漏洞(用户洞察 · A bootstrap gate + C planning-check)
 
 > 用户 2026-05-28:"PRODUCT-OVERVIEW-INTEGRATION.md 这个 AI 每次会必读么 · 是否会存在 AI 没读这个文件 · 导致在一个 feature 需要规划的时候不按这个规范来。"

@@ -1,6 +1,6 @@
 ---
 name: teamwork
-version: v8.46.1
+version: v8.47.0
 description: AI 协作开发一体化框架 · /teamwork 启动
 ---
 
@@ -236,6 +236,19 @@ state.py 校验:
 例:`🔍 triage: mode=B(execute) reason=识别为 Feature 流程 · 命中关键词 /^实现/`
 
 **用户监督**:用户看到 audit_line 知道 PMO 真做了分诊 · 不是直接跳过去做事。
+
+### bootstrap flow_gates 响应(首条响应前必扫)
+
+session 启动 `bootstrap.py` emit `flow_gates[]`(forewarn 下游硬墙 / 冷启动引导 · **非 BLOCK** · bootstrap 不拦截)· PMO **首条响应前必扫** · 按 gate 的 `action` 字段执行:
+
+- `prepare_check_required_before_init_feature`(常驻)→ mode B 走 prepare(详 § Mode B 移交)
+- `product_overview_planning_spec_required`(项目有 `product-overview/`)→ 规划类任务先跑 `state.py planning-check`(详 [docs/feature-planning.md](./docs/feature-planning.md))
+- `cold_start_workspace_uninitialized`(项目无 `teamwork-space.md` · v8.47)→ **forewarn 分强度**(按 mode):
+  - **mode B execute**(尤其命中 Feature Planning 复杂度信号)→ 🔴 首条响应 emit R5 暂停点引导:本项目未初始化 teamwork 工作区 · 1 进 Feature Planning 初始化(规划 + 生成 teamwork-space.md)💡 / 2 跳过直接做任务(单 Feature 快速场景)/ 3 其他 · **用户拍板前不擅自建 teamwork-space.md / product-overview/**(R5 暂停点协议)
+  - **mode A/D/E** query/status/discuss → 轻提一句即可(可选)· 不强暂停(避免噪音)
+  - **mode C** resume(已有 state.json 续作)→ silent skip(不打扰)
+
+🔴 PMO 漏扫 flow_gates = 退回 v7「凭记忆读 spec」· Feature Planning / 冷启动不进状态机 · 无 state.py 兜底(物化盲区 · v8.46/v8.47 用 forewarn gate 补)。
 
 ### Mode A / E 升级触发(PMO 主动建议 · 不等用户提)
 
