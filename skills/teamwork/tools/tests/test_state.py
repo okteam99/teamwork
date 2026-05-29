@@ -1991,13 +1991,18 @@ class TestPlanningCheck(unittest.TestCase):
         shutil.rmtree(self.tmp, ignore_errors=True)
 
     def test_v846_planning_check_no_product_overview(self):
-        """无 product-overview/ → must_read 只 feature-planning · 无 state_machine。"""
+        """无 product-overview/ → must_read 仍含 PRODUCT-OVERVIEW-INTEGRATION(v8.48 总必读)· 无 state_machine。"""
         d = run(["planning-check", "--project-root", str(self.tmp)])
         self.assertEqual(d["verdict"], "OK")
         self.assertFalse(d["product_overview_exists"])
-        self.assertEqual(d["must_read"], ["docs/feature-planning.md"])
+        # v8.48:PRODUCT-OVERVIEW-INTEGRATION 总 must_read(无 po 时学冷启动初创 · 产品规划优先)
+        self.assertEqual(d["must_read"],
+                         ["PRODUCT-OVERVIEW-INTEGRATION.md", "docs/feature-planning.md"])
         self.assertNotIn("planning_state_machine", d)
         self.assertIn("无 product-overview", d["product_overview_hint"])
+        # v8.48:产品规划优先(不再把上游当 optional 直接拆 ROADMAP)
+        self.assertIn("产品规划优先", d["product_overview_hint"])
+        self.assertIn("先建 product-overview", d["product_overview_hint"])
 
     def test_v846_planning_check_with_product_overview(self):
         """有 product-overview/ → must_read 含 PRODUCT-OVERVIEW-INTEGRATION + 规划状态机。"""
@@ -2020,6 +2025,11 @@ class TestPlanningCheck(unittest.TestCase):
         self.assertIn("不出代码", constraints)
         self.assertIn("R6", constraints)
         self.assertIn("complexity_force_upgrade", d["entry_criteria"])
+        # v8.48:planning_order 总在 · product-overview 优先于 teamwork-space
+        self.assertIn("planning_order", d)
+        self.assertLess(d["planning_order"].index("product-overview"),
+                        d["planning_order"].index("teamwork-space"),
+                        "planning_order product-overview 必在 teamwork-space 之前")
 
 
 if __name__ == "__main__":

@@ -3,6 +3,25 @@
 > 当项目根目录存在 `product-overview/` 时，PMO/Product Lead 按以下规则按需加载上游产品文档。
 > 🔴 不是每次交互都加载，只在特定场景触发。
 
+## 冷启动:首次创建 product-overview(PL 引导模式)
+
+> 🔴 项目**无** `product-overview/` 时(新项目冷启动)· session 启动 `bootstrap.py` emit
+> `cold_start_workspace_uninitialized` gate 引导**产品规划优先**(权威冷启动顺序的第一步)。
+> 触发:bare `/teamwork` 或 mode B execute 落在无 `teamwork-space.md` 的项目(详 [SKILL.md § bootstrap flow_gates 响应](SKILL.md))。
+
+**权威冷启动顺序**:`product-overview`(本步)→ ✅确认 → 派生 `teamwork-space.md` → Feature Planning 拆 ROADMAP → Feature 状态机。
+
+**PL 引导模式初创步骤**:
+1. PMO 切 Product Lead 角色([roles/product-lead.md](roles/product-lead.md))
+2. PL 与用户讨论 → 起草两份文档(命名 `{项目名}_业务架构与产品规划.md` + `{项目名}_执行手册.md` · 按下方「建议章节 + 裁剪规则」按复杂度自适应裁剪)
+3. 每份文档头部填「规划状态」表(初始 📝 草稿)· 末尾「规划议题追踪」表
+4. 文档状态流转 📝→🔄→⏸️→✅(见下方「文档状态流转」)· 🔴 仅「✅ 已确认」内容才派生 `teamwork-space.md`
+5. ✅确认后 → 派生/更新 `teamwork-space.md`(工作区全景)→ 再 Feature Planning
+
+🔴 **用户拍板前不擅自建 `product-overview/`**(R5 暂停点)· 单 Feature 极简项目用户可拍板跳过、直接拆 ROADMAP。
+
+---
+
 ## product-overview 文档规范
 
 ```

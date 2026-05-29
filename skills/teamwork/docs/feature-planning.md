@@ -11,6 +11,17 @@
 
 ---
 
+> 🔴 **冷启动顺序(v8.48 · 治本 gcpdev case)**:本流程(Feature Planning · 拆 ROADMAP)是**下游**。
+> 新项目权威顺序 = `product-overview`(产品规划 · PL 引导模式 · 见 [PRODUCT-OVERVIEW-INTEGRATION.md](../PRODUCT-OVERVIEW-INTEGRATION.md))
+> → ✅确认 → **派生** `teamwork-space.md`(工作区全景)→ **再**进本流程拆 ROADMAP。
+>
+> ⚠️ **`teamwork-space.md` 不是本流程产出的** —— 它由 product-overview「✅ 已确认」内容派生(genesis 在产品规划上游 ·
+> PRODUCT-OVERVIEW-INTEGRATION.md:67)。本流程 §2 Step 5「工作区级」改 teamwork-space.md 指的是**已存在后的迭代**,
+> 不是首次 genesis。冷启动若无 product-overview/teamwork-space → bootstrap emit `cold_start_workspace_uninitialized`
+> gate 引导先走产品规划上游(治本:已做 Feature Planning 却跳过 product-overview + teamwork-space.md)。
+
+---
+
 ## 0. 何时进入此流程(入口判据)
 
 **关键词触发**:用户说"规划 / 拆 roadmap / 路线图 / 全景 / 商业模式调整 / 做电商 / 做 SaaS"等(详 [prepare.md §2 关键词表](./prepare.md))。

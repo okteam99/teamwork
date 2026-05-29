@@ -882,29 +882,49 @@ def cmd_session_bootstrap(args: argparse.Namespace) -> None:
         ],
     }
 
-    # v8.47:冷启动检测 — teamwork-space.md 缺失(工作区未初始化)→ forewarn 引导进 Feature Planning
-    # 用户需求 2026-05-28:新项目缺产品规划 + teamwork-space.md 生成路径 · session 启动引导
-    # 与 v8.46 gate 互补:v8.46 检 product-overview 存在(提示读规范)· v8.47 检 teamwork-space 不存在(引导初始化)
+    # v8.47 + v8.48:冷启动检测 — teamwork-space.md 缺失 → forewarn 引导「产品规划优先」冷启动
+    # v8.48 治本(用户 case 2026-05-29 · gcpdev):v8.47 gate 路由指错 —— 写「进 Feature Planning
+    #   生成 teamwork-space.md」· 但 teamwork-space.md 不是 Feature Planning 产出的:权威流是
+    #   product-overview(PL 引导模式)→ ✅确认派生 teamwork-space.md → 再 Feature Planning 拆 ROADMAP
+    #   (PRODUCT-OVERVIEW-INTEGRATION.md:67)。gcpdev 已做 Feature Planning(PROJECT/ROADMAP)却跳过上游产品规划。
+    # 用户决策:产品规划优先(权威流)· 一律引导 product-overview(用户可拒)· spec/wording 修正
+    _AUTH_ORDER = ("product-overview(产品规划 · PL 引导模式)→ ✅确认 → teamwork-space.md(工作区全景)"
+                   "→ Feature Planning(拆 ROADMAP)→ Feature 状态机")
     _po_exists = (project_root / "product-overview").is_dir()
     if not (project_root / "teamwork-space.md").exists():
+        if _po_exists:
+            # 已有 product-overview · 仅缺 teamwork-space → 从「✅ 已确认」内容派生(跳过 ① 初创)
+            _cold_action = (
+                "🔴 PMO 本 session 首次响应前 · emit R5 暂停点:本项目有 product-overview/ 但无 teamwork-space.md · "
+                "从 product-overview「✅ 已确认」内容派生 teamwork-space.md(工作区全景索引)→ 再 Feature Planning 拆 ROADMAP。"
+                "选项:1 派生 teamwork-space.md 💡 / 2 跳过直接做任务 / 3 其他"
+            )
+            _po_status = ("已存在 · 从其「✅ 已确认」内容派生 teamwork-space.md"
+                          "(PRODUCT-OVERVIEW-INTEGRATION.md § 与 teamwork-space 关系)")
+        else:
+            # 全冷启动 · 无 product-overview 无 teamwork-space → 产品规划优先(权威流)
+            _cold_action = (
+                "🔴 PMO 本 session 首次响应前 · emit R5 暂停点引导用户:本项目未初始化 teamwork 工作区(无 teamwork-space.md)· "
+                "权威冷启动顺序 = 产品规划优先:① 先建 product-overview/(PL 引导模式 · 产品定位/业务架构/执行手册 · "
+                "见 PRODUCT-OVERVIEW-INTEGRATION.md 建议章节 + 裁剪规则)→ ② ✅确认后派生 teamwork-space.md → "
+                "③ 再 Feature Planning 拆 ROADMAP。选项:1 进产品规划冷启动(建 product-overview)💡 / "
+                "2 跳过直接做任务(单 Feature 快速场景 · 后续可补)/ 3 其他。"
+                "🔴 即使项目已有 PROJECT/ROADMAP(说明跳过了上游产品规划)· 仍 surface 此引导(让用户决定是否补上游)"
+            )
+            _po_status = "也缺失 · 冷启动第一步就是建它(产品规划上游 · teamwork-space.md 由其「✅ 已确认」内容派生)"
         result["flow_gates"].append({
             "gate": "cold_start_workspace_uninitialized",
             "trigger": "session 启动 · 本项目无 teamwork-space.md(工作区未初始化 · 新项目冷启动)",
-            "checks": "project_root 无 teamwork-space.md · 多数 teamwork 项目应有(子项目清单 + 待规划需求池)",
-            "action": (
-                "🔴 PMO 本 session 首次响应前 · emit R5 暂停点引导用户:本项目未初始化 teamwork 工作区 · "
-                "建议进 Feature Planning 流程(跑 `state.py planning-check`)规划 + 生成 teamwork-space.md。"
-                "选项:1 进 Feature Planning 初始化 💡 / 2 跳过直接做任务(单 Feature 快速场景)/ 3 其他"
-            ),
+            "checks": "project_root 无 teamwork-space.md · teamwork 项目应有(由 product-overview ✅确认内容派生 · 含子项目清单 + 待规划需求池)",
+            "action": _cold_action,
             "skip_consequence": (
-                "跳过可直接做任务(用户拍板)· 但缺工作区清单 → 多子项目管理 / 待规划需求池 / "
-                "跨项目变更追踪缺失 · 后续可随时补规划"
+                "跳过可直接做任务(用户拍板)· 但缺产品规划上游 + 工作区清单 → 多子项目管理 / 待规划需求池 / "
+                "跨项目变更追踪 / 执行线对齐 缺失 · 后续可随时补"
             ),
-            "product_overview_status": (
-                "也缺失(复杂业务建议一并建 · 详 PRODUCT-OVERVIEW-INTEGRATION.md)"
-                if not _po_exists else "已存在"
-            ),
-            "spec": "docs/feature-planning.md + templates/teamwork-space.md(模板)",
+            "product_overview_status": _po_status,
+            "authoritative_order": _AUTH_ORDER,
+            "spec": ("PRODUCT-OVERVIEW-INTEGRATION.md(产品规划权威 · 引导模式建 product-overview)"
+                     "+ docs/feature-planning.md + templates/teamwork-space.md"),
         })
 
     # v8.46 A:检测 product-overview/ → flow_gates 加规划规范 gate(治本 Feature Planning 未物化漏洞)

@@ -1,6 +1,6 @@
 ---
 name: teamwork
-version: v8.47.1
+version: v8.48.0
 description: AI 协作开发一体化框架 · /teamwork 启动
 ---
 
@@ -243,12 +243,15 @@ session 启动 `bootstrap.py` emit `flow_gates[]`(forewarn 下游硬墙 / 冷启
 
 - `prepare_check_required_before_init_feature`(常驻)→ mode B 走 prepare(详 § Mode B 移交)
 - `product_overview_planning_spec_required`(项目有 `product-overview/`)→ 规划类任务先跑 `state.py planning-check`(详 [docs/feature-planning.md](./docs/feature-planning.md))
-- `cold_start_workspace_uninitialized`(项目无 `teamwork-space.md` · v8.47)→ **forewarn 分强度**(按 mode):
-  - **mode B execute**(尤其命中 Feature Planning 复杂度信号)→ 🔴 首条响应 emit R5 暂停点引导:本项目未初始化 teamwork 工作区 · 1 进 Feature Planning 初始化(规划 + 生成 teamwork-space.md)💡 / 2 跳过直接做任务(单 Feature 快速场景)/ 3 其他 · **用户拍板前不擅自建 teamwork-space.md / product-overview/**(R5 暂停点协议)
-  - **mode A/D/E** query/status/discuss → 轻提一句即可(可选)· 不强暂停(避免噪音)
+- `cold_start_workspace_uninitialized`(项目无 `teamwork-space.md`)→ 🔴 **冷启动引导**(v8.48 治本路由):
+  - 🔴 **权威冷启动顺序**:`product-overview`(产品规划 · PL 引导模式)→ ✅确认 → 派生 `teamwork-space.md`(工作区全景)→ Feature Planning(拆 ROADMAP)→ Feature 状态机。**teamwork-space.md 不是 Feature Planning 产出的** —— 它由 product-overview「✅ 已确认」内容派生([PRODUCT-OVERVIEW-INTEGRATION.md](./PRODUCT-OVERVIEW-INTEGRATION.md))· **别再指用户"进 Feature Planning 生成 teamwork-space.md"**(这是 v8.47 gate 的硬伤 · 已治)
+  - **bare `/teamwork` / mode D 无具体任务** → 🔴 **不当静默看板** · 这是最该引导的时刻 · 首条响应 emit 下方 R5 暂停点(即便项目已有 PROJECT/ROADMAP · 说明跳过了上游产品规划 · 仍 surface「product-overview + teamwork-space.md 缺失」· 不降级成脚注)
+  - **mode B execute** → 首条响应 emit 同一 R5 暂停点(执行前先问要不要补产品规划上游)
+  - **mode A/E** query/discuss → 轻提一句(可选)· 不强暂停
   - **mode C** resume(已有 state.json 续作)→ silent skip(不打扰)
+  - **R5 暂停点动作**(一律引导 product-overview · 用户可拒):① 进产品规划冷启动(PL 引导模式建 product-overview → ✅确认派生 teamwork-space.md → 再 Feature Planning)💡 / ② 跳过直接做任务(单 Feature 快速 · 后续可补)/ ③ 其他 · 🔴 **用户拍板前不擅自建 `product-overview/` / `teamwork-space.md`**(R5)· 若项目**已有** product-overview → 跳过 ①,直接从「✅ 已确认」内容派生 teamwork-space.md
 
-🔴 PMO 漏扫 flow_gates = 退回 v7「凭记忆读 spec」· Feature Planning / 冷启动不进状态机 · 无 state.py 兜底(物化盲区 · v8.46/v8.47 用 forewarn gate 补)。
+🔴 PMO 漏扫 flow_gates = 退回 v7「凭记忆读 spec」· Feature Planning / 冷启动 / 产品规划上游 不进状态机 · 无 state.py 兜底(物化盲区 · v8.46/v8.47/v8.48 用 forewarn gate 补)。
 
 ### Mode A / E 升级触发(PMO 主动建议 · 不等用户提)
 

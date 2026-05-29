@@ -1,5 +1,48 @@
 # Changelog
 
+## v8.48 · 治本 v8.47 冷启动路由倒置(用户 case gcpdev · 产品规划优先 · dev-only)
+
+> 用户 2026-05-29 跑 `/teamwork`(gcpdev 项目):"预期应该指引我做项目规划 · 最终生成 teamwork-space.md 和 product-overview。" 实际 AI 出了个看板 · 把 teamwork-space.md 缺失降成「不阻塞 · 可随时补」脚注 · product-overview 没提。
+
+### 根因:v8.47 的两处硬伤(bootstrap gate 正确触发 · 但行为/概念层错)
+
+实测 gcpdev:`cold_start_workspace_uninitialized` gate **正确触发**了(bootstrap 层 OK)。问题在路由 + mode 接线:
+
+| 根因 | 错在哪 |
+|----|------|
+| **路由倒置** | v8.47 gate action 写「进 Feature Planning 流程…生成 teamwork-space.md」· **双重错**:① teamwork-space.md 不是 Feature Planning 产出的 —— 权威流是 `product-overview`(PL 引导模式)→ ✅确认 **派生** teamwork-space.md(`PRODUCT-OVERVIEW-INTEGRATION.md:67`)· ② gcpdev 已做 Feature Planning(PROJECT/ROADMAP/sitemap)却跳过上游 product-overview |
+| **mode-D 降级** | bare `/teamwork` = mode D 看板 · v8.47 接线「mode A/D/E → 轻提一句」→ teamwork-space.md 缺失成脚注 · product-overview 没出现。但 bare `/teamwork` 落未初始化项目 **恰恰是最该强引导的时刻** |
+| **子系统偏向拆 ROADMAP** | 连 planning-check 也:无 product-overview 时说「可直接拆 ROADMAP」· 把产品规划上游当 optional |
+
+### 权威冷启动顺序(PRODUCT-OVERVIEW-INTEGRATION.md 确立)
+
+```
+product-overview(产品规划 · PL 引导模式)
+    ↓ 状态达 ✅ 已确认
+teamwork-space.md(工作区全景 · 由 ✅确认内容派生)
+    ↓
+Feature Planning(拆 ROADMAP · 子项目级)
+    ↓
+Feature 状态机(goal→ship)
+```
+
+### 用户决策:产品规划优先 · 一律引导 product-overview · spec/wording 修正(不加新命令)
+
+| 改动 | 内容 |
+|----|------|
+| **bootstrap.py** | cold_start gate action 改「产品规划优先」(① 建 product-overview → ② ✅确认派生 teamwork-space.md → ③ Feature Planning)· 按 `_po_exists` 自适应(已有 po → 直接从 ✅确认派生)· 加 `authoritative_order` 字段 · spec 指向 PRODUCT-OVERVIEW-INTEGRATION.md |
+| **SKILL.md** | § bootstrap flow_gates 响应:bare `/teamwork`(mode D 无任务)→ 🔴 不当静默看板 · 首条响应强引导(即便已有 PROJECT/ROADMAP 仍 surface)· 明确「teamwork-space.md 不是 Feature Planning 产出」· 别再指用户进 Feature Planning 生成它 |
+| **state.py planning-check** | `must_read` 总含 PRODUCT-OVERVIEW-INTEGRATION.md(无 po 时学冷启动初创)· 加 `planning_order` 字段 · 无-po hint 改「产品规划优先」(删「可直接拆 ROADMAP」把上游当 optional 的措辞) |
+| **feature-planning.md** | 加冷启动顺序说明(本流程是下游 · teamwork-space.md genesis 在 product-overview 上游 · §2 Step 5 改 teamwork-space 指已存在后迭代非首次) |
+| **PRODUCT-OVERVIEW-INTEGRATION.md** | 加 § 冷启动:首次创建 product-overview(PL 引导模式 5 步)· 治本「文档假设 product-overview 已存在 · 无 cold-start 创建入口」 |
+| **测试** | test_bootstrap cold_start 3 例更新(action 改 product-overview 优先 + authoritative_order 顺序断言)· test_state planning-check 2 例更新(must_read + planning_order) |
+
+### 与 v8.46/v8.47 的关系
+
+v8.46(product-overview 存在→读规范)+ v8.47(teamwork-space 不存在→引导)建了 gate · v8.48 **修正 v8.47 的路由方向**(从「下游 Feature Planning」纠正为「上游产品规划优先」)。三版共同补 Feature Planning / 产品规划上游不进状态机的物化盲区(forewarn gate · 非 BLOCK · PMO 按 mode 用判断)。
+
+---
+
 ## v8.47 · 治本新项目冷启动无引导(用户洞察 · bootstrap cold_start gate · dev-only)
 
 > 用户 2026-05-29:"目前新项目缺少产品规划和 teamwork_space.md 生成路径 · 是否可以 session 启动检测 product-overview teamwork_space.md · 没有引导用户进入产品规划流程。"

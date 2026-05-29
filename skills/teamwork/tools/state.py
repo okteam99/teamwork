@@ -1568,9 +1568,9 @@ def cmd_planning_check(args: argparse.Namespace) -> None:
     po_dir = project_root / "product-overview"
     po_exists = po_dir.is_dir()
 
-    must_read = ["docs/feature-planning.md"]
-    if po_exists:
-        must_read.insert(0, "PRODUCT-OVERVIEW-INTEGRATION.md")
+    # v8.48:PRODUCT-OVERVIEW-INTEGRATION.md 是产品规划权威 · 总 must_read
+    #   (无 po 时学怎么冷启动初创 · 有 po 时学状态管理 + 与 teamwork-space 派生关系)
+    must_read = ["PRODUCT-OVERVIEW-INTEGRATION.md", "docs/feature-planning.md"]
 
     payload = {
         "verdict": "OK",
@@ -1586,6 +1586,11 @@ def cmd_planning_check(args: argparse.Namespace) -> None:
             ),
         },
         "planning_checklist": PLANNING_CHECKLIST,
+        "planning_order": (
+            "🔴 冷启动权威顺序:product-overview(产品规划 · PL 引导模式)→ ✅确认派生 teamwork-space.md "
+            "→ Feature Planning(拆 ROADMAP)。teamwork-space.md **不是** Feature Planning 产出 · "
+            "由 product-overview「✅ 已确认」内容派生(PRODUCT-OVERVIEW-INTEGRATION.md § 与 teamwork-space 关系)"
+        ),
         "key_constraints": [
             "🔴 不进状态机:init-feature --flow-type 'Feature Planning' 会被 reject",
             "🔴 不出代码(R6 红线)· 产出仅项目级文档",
@@ -1615,9 +1620,11 @@ def cmd_planning_check(args: argparse.Namespace) -> None:
             f"详 PRODUCT-OVERVIEW-INTEGRATION.md(加载规则 + 状态管理 + 与 teamwork-space 关系)"
         )
     else:
+        # v8.48:无 product-overview → 产品规划优先(不再说"可直接拆 ROADMAP" · 那把上游当 optional)
         payload["product_overview_hint"] = (
-            f"本项目无 product-overview/ · 规划可直接拆 ROADMAP(子项目级)· "
-            f"如需建 product-overview 命名规则见 PRODUCT-OVERVIEW-INTEGRATION.md"
+            f"本项目无 product-overview/ · 🔴 冷启动权威顺序 = 产品规划优先:先建 product-overview"
+            f"(PL 引导模式 · 产品定位/业务架构/执行手册 · 见 PRODUCT-OVERVIEW-INTEGRATION.md 建议章节 + 裁剪规则)"
+            f"→ ✅确认派生 teamwork-space.md → 再拆 ROADMAP。单 Feature 极简项目用户可拍板跳过 · 直接拆 ROADMAP"
         )
 
     emit(payload)
