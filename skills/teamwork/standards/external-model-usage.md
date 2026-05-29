@@ -289,113 +289,35 @@ state.py external-review \
 | 6 | 落 `external-cross-review/<stage>-<model>.md`(自动 frontmatter + body)| 第 4 层(透明伪装 = 文件名 + frontmatter 自动合规)|
 | 7 | emit JSON 含 file_path / model_version / finding_count_estimate | 第 4 层(audit 留痕)|
 
-#### F034 case 用 v8.21+v8.23 重跑
+#### F034 case 重跑(v8.21+ 主路径)
 
 ```
 $ state.py external-review --feature services/core/.../F034 --stage review
-# v8.21:host 自动 audit → claude-code → model=codex
+# step 1:host 自动 audit → claude-code → model=codex
 # step 2:which codex → /opt/homebrew/bin/codex ✅
 # step 3:stage=review → profile=codex-agents/reviewer.toml
 # step 4:commit=state.stage_contracts.dev.auto_commit / base=state.merge_target / cwd=git root
-# step 5(v8.23):跑 codex review --base ... --title ... --config 'model=gpt-5-codex' '<PROMPT>'
-#                (PROMPT 模式 · 按 stage 内置 review prompt template · 含 cite 文件路径 + 视角约束)
-# step 6:落 external-cross-review/review-codex.md(frontmatter review_model=codex-cli 0.133.0)
+# step 5:跑 codex review --commit <SHA> --title '...'(默认不带 --config model · 用 codex 账号默认模型)
+# step 6:落 external-cross-review/review-codex.md(frontmatter review_model=codex-cli <ver>)
 # step 7:emit OK + finding_count_estimate=12
 ```
 
 → PMO 不需要 grep F033 / 不需要拼 codex 命令 / 不需要管 host / 不需要管文件名 · 一条命令完成。
 
-#### v8.23 关键改动:PROMPT 模式 + stage-specific prompt
+#### 最终行为(codex CLI 调用方式 + 模型不假设)
 
-v8.20 用 `--commit X --base Y --title Z`(diff 模式)· 但实测发现:
-1. **codex CLI flag 兼容性问题**:某些 codex 版本 `--commit` 与 `--base` 互斥(case F035 实测)
-2. **goal / blueprint stage 不是 diff review**:是文档 review(PRD.md / TC.md+TECH.md)· 没 commit 可 diff
+> 🟢 codex review ↔ exec 的反复横跳 + 虚构模型考古(v8.23/v8.25/v8.26/v8.29/v8.30)演进细节见 docs/CHANGELOG.md · 此处只留收敛后的最终行为。
 
-v8.23 改:
-- 所有 stage 改 **PROMPT 模式**(`codex review --base Y --title Z "<PROMPT>"`)
-- prompt 按 stage 内置(goal=PRD reviewer / blueprint=blueprint reviewer / review=code reviewer)
-- 加 `--config 'model=gpt-5-codex'`(专业 code review 模型 · 可 `--codex-model` 覆盖)
-- `cwd = git root`(让 codex 能读 prompt 内的相对路径)
-- emit JSON 加 `codex_prompt` 完整字段(透明 · 不截断)
+**按 stage 各司其职**(`_run_codex_review` 物化 · tools/state.py):
 
-#### v8.25 关键改动:全面改用 `codex exec`(治本 codex review --base+[PROMPT] 互斥)
+| stage | 性质 | 命令 |
+|---|---|---|
+| `review` | 代码 diff review | `codex review --commit <SHA> --title <T>` · **不带 [PROMPT]**(codex review 子命令自带专业 diff review prompt:focus correctness/security/performance · cite file:line · 内置 git diff 优化)|
+| `goal` / `blueprint` | 文档 review(PRD.md / TC.md+TECH.md)| `codex exec '<PROMPT>'` · title 嵌 PROMPT 顶部 `[Review title: ...]`(codex exec 无 --title)· PROMPT 自带「Read <doc>」指令 |
 
-F035 round 2(blueprint stage)实测 v8.23 的 `codex review --base Y --title Z [PROMPT]` 仍 FAIL:
-- 新版 codex CLI(>= 0.133)`--base BRANCH` 与 `[PROMPT]` 互斥
-- 根因:`codex review` 子命令设计是**纯 diff review** · `--commit/--base/--uncommitted` 三个 review 对象选择 · 与 `[PROMPT]` 不该混用
+**模型不假设**:`codex_model` 缺省 **None → 不传 `--config model=...`** · 让 codex CLI 用账号允许的默认模型(ChatGPT 订阅 + API key 都兼容)。需指定时 3 层 fallback:`--codex-model <name>`(单 Feature · 最高优先)> `.teamwork_localconfig.json` `external_review.codex_model`(项目级)> None。🔴 模型字面值用户自查 `codex` 交互界面 / `codex --help` — spec / state.py / argparse help **均不硬编码**(codex CLI 升级会换模型名)。emit JSON `codex_model` 为实际用值(可能 `null`)· 透明。
 
-v8.25 改:**放弃 `codex review` 子命令 · 全 stage 用 `codex exec [PROMPT]`**(通用 agent 模式)。
-但这是过度统一 —— review stage 损失了 `codex review` 的专业 diff review 默认 prompt。
-
-#### v8.29 / v8.30 关键改动:codex_model 默认 None + 不假设模型字面
-
-**v8.29 case 触发**:用户 codex CLI 用 **ChatGPT 订阅**(不是 API key)· state.py 强制传 `--config 'model=<某虚构模型>'` → 400 `invalid_request_error: model not supported when using Codex with a ChatGPT account`。
-
-**v8.30 case 加深**:用户截图 codex CLI 0.133 交互界面 · 揭穿 v8.23 我用的字面 `gpt-5-codex` 是**虚构模型**(实际不存在 · 即使 API key 也 400)。codex CLI 真实可选(v0.133 时点):
-
-```
-gpt-5.5 (current · Frontier)         # 默认
-gpt-5.4 (Strong everyday coding)
-gpt-5.4-mini (Small/fast/cheap)
-gpt-5.3-codex (Coding-optimized)     # 真"代码 review 模型"
-gpt-5.3-codex-spark (Ultra-fast)
-gpt-5.2 (Professional / long-running)
-```
-
-🔴 **codex CLI 升级会换模型名** · spec / state.py / argparse help **不硬编码** —— 用户用 `codex` 交互界面选 · 或 `codex --help` 查。
-
-**v8.29 + v8.30 治本 · 3 层 fallback**:
-1. `--codex-model <name>` CLI flag(单 Feature override · 最高优先 · 用户自查 codex 取实际 name)
-2. `.teamwork_localconfig.json` `external_review.codex_model`(项目级一次配)
-3. **不传 `--config model=...`**(默认 · 用 codex CLI 自己默认 · 兼容 ChatGPT 订阅 + 永不踩虚构模型)
-
-```bash
-# default(推荐 · 兼容 ChatGPT 订阅 + API key)
-state.py external-review --feature X --stage review
-# → codex review --commit X --title Z   # 不带 --config · 用 codex 当前默认(如 v0.133 是 gpt-5.5)
-
-# API key 用户显式(name 自查 codex 交互)
-state.py external-review --feature X --stage review --codex-model gpt-5.3-codex
-
-# 项目级一次配
-{
-  "external_review": {
-    "codex_model": "gpt-5.3-codex"   # ← 字面值用户自查 · 不固定
-  }
-}
-```
-
-emit JSON `codex_model` 字段值为实际用值(可能 `null`)· 透明。
-
-#### v8.26 关键改动:按 stage 各司其职(review→codex review · goal/blueprint→codex exec)
-
-用户洞察:**`codex review` 子命令本来就是为 diff review 设计的** · review stage 用它更专业 · 不该一刀切。
-
-| stage | 性质 | 子命令 | 命令 |
-|---|---|---|---|
-| `review` | 代码 diff review | `codex review` | `codex review --commit X --title Z --config 'model=gpt-5-codex'` |
-| `goal` | PRD 文档 review | `codex exec` | `codex exec --config 'model=gpt-5-codex' '<PROMPT 含 Read PRD.md>'` |
-| `blueprint` | TC+TECH 文档 review | `codex exec` | `codex exec --config 'model=gpt-5-codex' '<PROMPT 含 Read TC.md+TECH.md>'` |
-
-**review stage 关键设计**:
-- **只传 `--commit`**(不传 `--base` · 避开 `--commit/--base` 互斥)
-- **不传 `[PROMPT]`**(避开与 review 对象 flag 互斥 · `codex review` 自带专业 review 默认 prompt)
-- `--title` 仍传(`codex review` 支持 `--title`)
-- `--config 'model=gpt-5-codex'` 仍传
-
-**goal/blueprint stage 设计**(同 v8.25 保留):
-- `codex exec [PROMPT]` 通用 agent 模式
-- title 进 PROMPT 顶部 `[Review title: ...]` 行(`codex exec` 没 `--title` flag)
-- PROMPT 自带 "Read PRD.md / TC.md+TECH.md" 指令
-
-**为什么 review 不用 codex exec**:
-- review 子命令内置 git diff 优化(--commit 自动只 review 该 commit 引入的变更 · 不需 codex 自己跑 git diff)
-- 内置专业 code review prompt(focus correctness/security/performance · cite file:line)· 比手写 PROMPT 更优
-- 避开"让 codex 自己跑 git diff"的间接性 / 慢 / 不准
-
-**为什么 goal/blueprint 不用 codex review**:
-- `codex review` 是 diff-only · 无法 review markdown 文件(PRD.md / TC.md / TECH.md)
-- 文档 review 天然适合 `codex exec` 通用 agent 模式(prompt 描述读哪个文件 · 怎么 review)
+> 🟢 **根因**:`codex review` 子命令是纯 diff review · 其 review 对象 flag(`--commit/--base/--uncommitted`)在不同 codex 版本下彼此 + 与 `[PROMPT]` 互斥 → 收敛为「review 走 `codex review --commit` · 文档 review 走 `codex exec [PROMPT]`」;且早期硬编码 `--config model=<字面>` 既踩虚构模型又锁死 ChatGPT 订阅 → 定为默认不传。
 
 #### v8.19(校验)vs v8.20(主路径)互补
 
