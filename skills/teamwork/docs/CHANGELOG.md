@@ -1,5 +1,35 @@
 # Changelog
 
+## v8.45 · 全文件 review 大清理(用户「逐文件 review」· 4 agent 并行审 + 28 项发现 · 分 5 批)
+
+> 用户 2026-05-28:"review 一下 teamwork 的逐个文件 · 看下哪些不合理 + 哪些没必要的描述需要清理"。
+> 派 4 个 general-purpose agent 并行审 tools / docs / stages+standards / templates+roles+agents · 加自审根目录导航 md · 共 28 项发现 · 分 P0-P4 五批清理。
+
+### 批次 1 · P1 删 v7 遗留 dead code + dead test(本提交 · 净删 1489 行)
+
+**根因**:v8.0 范式切换(commit bb11e1d)从 v7 的 `enter-stage / satisfy-gate / complete-stage`(P2 命名)+ `ship-sanitize/push/...` 改为 `*-start / *-complete` + `ship-phase`,但旧实现的函数体 + 对应测试 + fixture 引用没清干净,残留至今(v8.44)。
+
+删除内容:
+- `state.py`:11 个 v7-style `cmd_*`(enter-stage / satisfy-gate / complete-stage / ship-sanitize / ship-push / ship-confirm-merged / ship-cleanup / ship-closed / add-concern / bug-frontmatter / micro-validate)+ 9 个私有 helper(_check_external_review_artifact / _gate_order_err / _ship_load / _ship_phase_err / _bug_locate / _parse_frontmatter / _dump_frontmatter / _bug_validate_ship_machine / _enum_err)+ EXTERNAL_REVIEW_STAGES 常量 = **-727 行**。全部零 argparse 注册、零 import。
+- `test_state.py`:`_Base` 基类 + 6 个继承类(TestP1ReadOnly / TestP2Transitions / TestP3Ship / TestP4General / TestBugFrontmatter / TestMicroValidate)= **-370 行**。这套依赖 v8.0 删掉的 fixture `templates/feature-state.json`,**从 v8.0 起就没通过**——正是长期"97 failed baseline"的主体(其中 29 个是测上述 dead cmd 的 dead test)。
+- `_feature_context.py`(169)+ `test_feature_context.py`(199):整个模块零 import。
+- `_v8_stage_specs.py`:`_check_cwd_main_worktree`(24)定义后从不用。
+
+**关键陷阱(诚实记录)**:第一次删 494-1300 整块时误删了夹在 dead cmd 中间的**活函数** `cmd_raw_read`(1014)/ `cmd_raw_write`(1036)→ build_parser NameError。git checkout 恢复后重新精确切分(dead 块不连续):删 494-1013 + 1094-1300,保留 1014-1093。教训:大块删除前必须 grep build_parser 注册 vs 区间内每个 def,不能假设"整块全 dead"。
+
+**验证**:`test_state.py` + `test_v8_stage_specs.py` 199 passed(我改过的文件零失败)· raw-read/raw-write 运行时实测 OK · baseline 97 → 68(清掉 29 dead test · 0 引入新失败)。
+
+**follow-up**(spawn task):删 TestP1ReadOnly 丢了 snapshot/validate/raw-read 显式覆盖 → 用 init-feature 真 fixture 补回;另查剩 68 个 pre-existing render 失败(test_render_* + test_scan_spec_consumer · 与本清理无关)根因。
+
+### 批次 2-5(后续提交)
+
+- P0 · 6 处死引用(reviewer.toml architect-cr/qa-cr · prd-reviewer plan-stage · README prepare-stage · claude invoke.md · README codex-cross-review)+ 删 5 个 deprecated codex-agents toml(bootstrap glob 误部署到每个用户)
+- P2 · docs/v8-redesign/ 归档(02/03 删 · 00/01/04/05 加 archive 头)+ DESIGN-业务架构 归档
+- P3 · external-model-usage §11.5 压缩 · common.md TDD 指针化 · 各导航 md v7→v8 历史段移除 · agents/README 瘦身 · 代码演进注释精简 · update.py --accept-overwrite / host_audit fallback 删
+- P4 · STAGES.md 补 panorama_sync · common.md 撞号 · 编码乱码 · ship-stage 8步/7步 · goal-stage 错行号引用 · reviewer.toml NEEDS_FIX 枚举
+
+---
+
 ## v8.44.4 · prepare-check emit host-aware output_style_hint(治本 codex-cli markdown 表格渲染失败 case)
 
 > 用户 2026-05-28 case · SVC-PLATFORM-F055 prepare 暂停点:

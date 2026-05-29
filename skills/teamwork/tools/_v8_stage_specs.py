@@ -1735,30 +1735,6 @@ def _check_pm_approved_ship(state: dict, args) -> bool:
     return _pm_decision_value(pm_c) == "approved_and_ship"
 
 
-def _check_cwd_main_worktree(state: dict, args) -> bool:
-    """cwd 在主工作区(非 linked worktree)· 沿用 v7 P0-156 治本逻辑"""
-    import os
-    if os.environ.get("TEAMWORK_BYPASS_MAIN_WORKTREE") == "1":
-        return True
-
-    import subprocess
-    try:
-        result = subprocess.run(
-            ["git", "rev-parse", "--git-dir"],
-            capture_output=True,
-            text=True,
-            timeout=5,
-        )
-        if result.returncode != 0:
-            return True  # 不在 git 仓库 · 跳过此检查
-        git_dir = result.stdout.strip()
-        # linked worktree 的 git_dir 形如 .git/worktrees/<name>
-        # 主工作区的 git_dir 是 .git
-        return "/worktrees/" not in git_dir
-    except (subprocess.TimeoutExpired, FileNotFoundError):
-        return True  # 无 git · 跳过
-
-
 def _check_ship_phase_merged(state: dict, args) -> bool:
     """ship.phase == 'merged'(由 v7 ship-confirm-merged 设置)"""
     return state.get("ship", {}).get("phase") == "merged"
