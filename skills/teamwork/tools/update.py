@@ -9,17 +9,9 @@ tools/update.py — Teamwork skill 自更新独立脚本(v8.42 抽离 · v8.44.3
 - **架构去 git 化**(v8.41 用户拍板):tarball download + 解压覆盖 · 不依赖 git
 - **默认 backup + overwrite**(v8.44.3 用户拍板):删 BLOCK · 改默认安全 · 不再二次问用户
 
-历史:
-- v8.24 加 cmd_update_skill in state.py · 用 git pull
-- v8.35 修 hint placeholder
-- v8.39 加 channel 支持
-- v8.40 加 branch/channel 一致性校验
-- v8.41 架构治本 · 去 git 化 · tarball download · 但代码仍在 state.py
-- v8.42 抽离到独立 update.py · 治本元工具混运行时
-- v8.44.3 重设计:删 --accept-overwrite BLOCK · 默认 backup 到 ~/.teamwork/backups/<ts>/ + overwrite
-  治本 case:用户 /teamwork 升级走 2 个 R5 暂停点(升级? + backup/覆盖/取消?)·
-  99% 用户不改 skill_root · BLOCK 是噪声 · 默认 backup 兜底就能一步成功。
-  保留 --no-backup opt-out + --accept-overwrite no-op 向后兼容。
+向后兼容:保留 `--no-backup` opt-out + `--accept-overwrite` no-op(旧调用不报错)。
+
+(v8.24→v8.44.3 演进:git pull → 去 git 化 tarball → 抽离独立脚本 → 默认 backup+overwrite · 详 docs/CHANGELOG.md)
 
 用法:
     python3 SKILL_ROOT/tools/update.py [--channel <branch>] [--no-backup]

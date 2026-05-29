@@ -2012,7 +2012,7 @@ def _run_codex_review(stage: str, commit: str, base: str, title: str,
                       codex_model: Optional[str] = None) -> tuple[int, str, str]:
     """跑 codex CLI 评审 · 返 (returncode, stdout, stderr)。
 
-    v8.26 设计:按 stage 选 codex 子命令(各司其职 · 用户洞察):
+    当前设计:按 stage 选 codex 子命令(各司其职):
     - **review stage(代码 diff)** → `codex review --commit X --title Z --config "model=..."`
       · 用 codex review 子命令(专业 diff review · 内置 review prompt 优化)
       · 只传 --commit(避开 --commit/--base/--uncommitted 三选一互斥)
@@ -2021,11 +2021,7 @@ def _run_codex_review(stage: str, commit: str, base: str, title: str,
       · 用 codex exec 通用 agent(prompt 自描述 Read PRD/TC/TECH)
       · review 子命令是 diff-only · 无法 review markdown 文件
 
-    演进:
-    - v8.20 codex review --commit + --base + --title(--commit/--base 互斥)→ FAIL
-    - v8.23 codex review --base + --title + [PROMPT](--base/[PROMPT] 互斥)→ FAIL
-    - v8.25 全 codex exec [PROMPT](统一但 review stage 损失专业 prompt)→ work but suboptimal
-    - v8.26 按 stage 分(review→codex review · goal/blueprint→codex exec)→ 各司其职
+    (codex review↔exec 反复横跳的演进史见 docs/CHANGELOG.md + standards/external-model-usage.md §11.5)
     """
     # 算 feature_dir 相对 cwd · 让 prompt 用相对路径(codex 在 cwd=git root 跑)
     try:
