@@ -1,6 +1,6 @@
 ---
 name: teamwork
-version: v8.52.1
+version: v8.53.0
 description: AI 协作开发一体化框架 · /teamwork 启动
 ---
 
@@ -489,6 +489,8 @@ PMO 按 hint 自动执行修复(silent)
 | 历史决策 / ADR | `docs/features/*/adrs/INDEX.md` |
 | 多子项目 / 跨项目 | `teamwork-space.md` |
 | 涉及具体代码 | grep + Read 实际代码 |
+
+🔴 **AI 自己需连环境(查 DB / log / 服务 / 跑运维命令)时也走 `TROUBLESHOOTING.md`** —— 不只"用户提到",含**规划期代码调研需 live 数据**(v8.52)、stage 内联调/排错。**先读它拿连接 + 操作方式,别凭 `.env` / 启动脚本瞎试**(实证 AON:AI 不知 staging 连法 · grep `.env`/`dev_start.sh` 一通试错 + psql 报错,而连法 `TROUBLESHOOTING.md` 早有定义)。TROUBLESHOOTING 是**用户主权**运维手册 · AI 按需读、不重新发明;连法缺失 → 补进它(知识沉淀)。
 
 ### 项目级系统维护(`tools/bootstrap.py` 独立脚本)
 

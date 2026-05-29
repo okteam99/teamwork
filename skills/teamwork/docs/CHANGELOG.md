@@ -1,5 +1,29 @@
 # Changelog
 
+## v8.53 · 需连环境先读 TROUBLESHOOTING.md(用户 case AON staging DB · dev-only)
+
+> 用户 2026-05-29:"staging 数据库怎么连在 troubleshooting.md 有定义,但是 AI 不知道。"
+
+### 根因:env-access 路由只对"用户提到" · AI 自己需连环境时改瞎试
+
+承 v8.52 代码调研:AI 需查 staging DB 真实 category 数据 → 但**不知连法**,grep `.env` / `dev_start.sh` / 试本地 docker / DNS 不解析 / psql 一通报错。而 **staging 连法 `TROUBLESHOOTING.md` 早有定义**。
+
+teamwork 路由表本有「查 DB / 查环境 → TROUBLESHOOTING.md」,但语义是「**用户提到** X」(mode A triage)· AI 在**规划期代码调研 / stage 内**自己需连环境时,这条没触发 → 改即兴 grep 配置试错。且 TROUBLESHOOTING 是**用户主权**运维手册,AI 本应「按需读」却重新发明。
+
+### 治本:AI 自己需连环境也走 TROUBLESHOOTING · 先读不瞎试
+
+| 改动 | 内容 |
+|----|------|
+| **SKILL.md § 按场景路由** | 加 🔴 note:**AI 自己需连环境(查 DB/log/服务/跑运维命令)时也走 `TROUBLESHOOTING.md`**(不只用户提到 · 含规划期代码调研需 live 数据 / stage 联调)· **先读拿连接+操作方式,别凭 `.env`/启动脚本瞎试** · 用户主权手册按需读不重新发明 · 连法缺失补进它 |
+| **feature-planning.md Step 1** | 代码调研块加:调研需 live 环境数据 → 先读 TROUBLESHOOTING.md 拿连接(附 AON 试错实证) |
+
+### 设计
+
+- 纯 spec/wording(docs-only · 无代码/测试改)· 全套 363 passed · 68 pre-existing(无关)· 0 regression。
+- 呼应设计哲学「用户主权:排查命令 → 用户填,teamwork 按需读」—— 本 case 是 AI 没「按需读」。
+
+---
+
 ## v8.52 · Feature Planning 必须结合实际代码调研(用户 case AON category · dev-only)
 
 > 用户 2026-05-29(实战验证 case · aon-core):"feature planning 应该结合实际代码调研。"
