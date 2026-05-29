@@ -262,15 +262,9 @@ state.py 校验:
 
 ### bootstrap flow_gates 响应(首条响应前必扫)
 
-session 启动 `bootstrap.py` emit `checks.skill_update_check` + `flow_gates[]`(forewarn · **非 BLOCK** · bootstrap 不拦截)· PMO **首条响应前必扫**。
+session 启动 `bootstrap.py` emit `checks.skill_update_check` + `flow_gates[]`(forewarn · **非 BLOCK**)· PMO **首条响应前必扫**。
 
-🔴 **session 入口处理优先级**(多信号同时触发时 · 首条响应按此序 · **不可把高优先级降成底部脚注**):
-
-1. **升级**(`checks.skill_update_check.status == "outdated"`)→ 🔴 **最先 surface** · emit bootstrap 给的 `upgrade_prompt`(R5 升级/忽略)。理由:停在旧版 = 跑旧行为(**连规划/冷启动逻辑本身都可能是已被新版治掉的**)· 在旧版上"补规划"会白补 → **升级优先于一切**。用户 升级/忽略 后再继续。
-2. **补规划**(`cold_start_workspace_uninitialized` gate)→ 升级处理完(或用户忽略)· 再 emit 冷启动产品规划引导(见下)。
-3. **任务**(triage mode · 启动 Feature / 看板)→ 前两项处理完(或用户明确跳过)才轮到。
-
-🔴 **反模式(实证 · gcpdev 2026-05-29)**:PMO 把「升级 v8.47→v8.50」+「缺 teamwork-space」降成底部「📎 维护提醒(不阻塞)」脚注,反把「启动 BL-001」放成选项 1 —— **优先级倒置**。正确:升级 + 补规划 是前置,先 surface 让用户拍;执行任务最后。
+🔴 **入口优先级**(多信号同时触发 · 按序 surface · **不可降成底部脚注**;bootstrap 已 emit `session_entry_priority` 物化):**① 升级**(`skill_update_check=outdated` · 旧版=旧行为/补规划白补 → 最先)→ **② 补规划**(`cold_start` gate)→ **③ 任务**(triage/启动 Feature)。反模式(gcpdev 实证):把 ①② 降「维护提醒」脚注、先推任务 = 优先级倒置。
 
 按 gate 的 `action` 字段执行:
 
