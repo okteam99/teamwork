@@ -1109,6 +1109,36 @@ class TestExternalReviewCommand(unittest.TestCase):
         self.assertIn("--model", captured_cmd)
         self.assertIn("--output-format", captured_cmd)
 
+    # ── v8.55:external review 执行默认落日志(排查 codex/claude 卡住 / 跑不起来) ──
+
+    def test_v855_log_external_run_writes_log(self):
+        """v8.55:_log_external_run 落 ~/.teamwork/external-review-logs/<feat>/<label>-ts.log(含 rc/cmd/输出)。"""
+        from unittest import mock
+        from state import _log_external_run  # type: ignore
+        with tempfile.TemporaryDirectory() as home:
+            with mock.patch("state.Path.home", return_value=Path(home)):
+                p = _log_external_run(Path("/x/PTR-F042-foo"), "codex-review",
+                                      ["codex", "exec", "PROMPT"], "/x",
+                                      124, "the-stdout", "the-stderr", 12.3)
+            self.assertIsNotNone(p, "应返回日志路径")
+            self.assertTrue(Path(p).exists())
+            self.assertIn("PTR-F042-foo", p)  # feature-scoped 子目录
+            body = Path(p).read_text(encoding="utf-8")
+            self.assertIn("returncode: 124", body)
+            self.assertIn("codex exec", body)
+            self.assertIn("the-stdout", body)
+            self.assertIn("the-stderr", body)
+
+    def test_v855_log_external_run_none_feature_dir_no_crash(self):
+        """v8.55:feature_dir=None → 不写 · 返 None(绝不阻塞 review)。"""
+        from state import _log_external_run  # type: ignore
+        self.assertIsNone(_log_external_run(None, "x", [], "", 0, "", "", 0.0))
+
+    def test_v855_timeout_10min(self):
+        """v8.55:EXTERNAL_REVIEW_TIMEOUT_SEC = 600(5min→10min)。"""
+        from state import EXTERNAL_REVIEW_TIMEOUT_SEC  # type: ignore
+        self.assertEqual(EXTERNAL_REVIEW_TIMEOUT_SEC, 600)
+
     # ── v8.43:reviewer.md 占位符真替换(治本 Bug B) ──
 
     def test_v843_gather_review_files_inlines_blueprint_targets(self):

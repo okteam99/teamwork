@@ -1983,7 +1983,7 @@ EXTERNAL_STAGE_TO_PROFILE = {
     "review": {"codex": "reviewer.toml", "claude": "reviewer.md"},
 }
 
-EXTERNAL_REVIEW_TIMEOUT_SEC = 300  # codex review 通常 30s-3min · 给 5min buffer
+EXTERNAL_REVIEW_TIMEOUT_SEC = 600  # v8.55:5min→10min(用户 case codex 偶尔卡 / 长 review · 给足 buffer)
 
 
 def _detect_cli_version(cli_name: str) -> str:
@@ -2110,6 +2110,49 @@ def _build_codex_prompt(stage: str, feature_dir_rel: str, commit: str,
     )
 
 
+def _log_external_run(feature_dir: Optional[Path], label: str, cmd: list,
+                      cwd: str, rc, stdout, stderr, dur_sec: float) -> Optional[str]:
+    """v8.55:默认把 external review(codex/claude)执行过程写日志 ·
+    方便排查"卡住 / 跑不起来"(看到 codex 升级提示 / 鉴权失败 / 网络 / 超时前的部分输出)。
+
+    落 `~/.teamwork/external-review-logs/<feature_name>/<label>-<ts>.log`(出仓 · 不污染 ship ·
+    与 host_audit / prepare_check_audit 同处)· 含 cmd/rc/耗时/stdout/stderr。
+    写失败或 feature_dir 缺失 → 返 None(绝不阻塞 review)。
+    """
+    if feature_dir is None:
+        return None
+
+    def _s(x):
+        if isinstance(x, bytes):
+            return x.decode("utf-8", "replace")
+        return x if isinstance(x, str) else ("" if x is None else str(x))
+
+    try:
+        feat_name = Path(feature_dir).name or "unknown"
+        log_dir = Path.home() / ".teamwork" / "external-review-logs" / feat_name
+        log_dir.mkdir(parents=True, exist_ok=True)
+        ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        log_path = log_dir / f"{label}-{ts}.log"
+        cmd_disp = " ".join(
+            (a[:800] + "…<truncated>") if isinstance(a, str) and len(a) > 800 else str(a)
+            for a in cmd
+        )
+        body = (
+            f"# external-review 执行日志 · {label} · {ts}\n"
+            f"returncode: {rc}\n"
+            f"duration_sec: {dur_sec:.1f}\n"
+            f"timeout_sec: {EXTERNAL_REVIEW_TIMEOUT_SEC}\n"
+            f"cwd: {cwd}\n"
+            f"cmd: {cmd_disp}\n\n"
+            f"===== STDOUT =====\n{_s(stdout)}\n\n"
+            f"===== STDERR =====\n{_s(stderr)}\n"
+        )
+        log_path.write_text(body, encoding="utf-8")
+        return str(log_path)
+    except OSError:
+        return None
+
+
 def _run_codex_review(stage: str, commit: str, base: str, title: str,
                       profile_filename: str, feature_dir: Path, cwd: str,
                       codex_model: Optional[str] = None) -> tuple[int, str, str]:
@@ -2151,17 +2194,31 @@ def _run_codex_review(stage: str, commit: str, base: str, title: str,
         prompt = f"[Review title: {title}]\n\n{body_prompt}"
         cmd = ["codex", "exec", *model_args, prompt]
 
+    t0 = datetime.now(timezone.utc)
     try:
         r = subprocess.run(cmd, capture_output=True, text=True,
-                           timeout=EXTERNAL_REVIEW_TIMEOUT_SEC, cwd=cwd)
+                           timeout=EXTERNAL_REVIEW_TIMEOUT_SEC, cwd=cwd,
+                           stdin=subprocess.DEVNULL)  # v8.55:闭 stdin · 防 codex 交互/升级提示等输入卡住
+        dur = (datetime.now(timezone.utc) - t0).total_seconds()
+        _log_external_run(feature_dir, f"codex-{stage}", cmd, cwd,
+                          r.returncode, r.stdout, r.stderr, dur)
         return r.returncode, r.stdout, r.stderr
-    except subprocess.TimeoutExpired:
-        return 124, "", f"codex 超时({EXTERNAL_REVIEW_TIMEOUT_SEC}s)"
+    except subprocess.TimeoutExpired as e:
+        dur = (datetime.now(timezone.utc) - t0).total_seconds()
+        log_path = _log_external_run(feature_dir, f"codex-{stage}", cmd, cwd,
+                                     "TIMEOUT", e.stdout, e.stderr, dur)
+        tail = f" · 见日志 {log_path}(看是否 codex 升级提示/鉴权/网络卡住)" if log_path else ""
+        return 124, "", f"codex 超时({EXTERNAL_REVIEW_TIMEOUT_SEC}s){tail}"
     except (FileNotFoundError, OSError) as e:
-        return 127, "", f"codex CLI 不可用:{e}"
+        dur = (datetime.now(timezone.utc) - t0).total_seconds()
+        log_path = _log_external_run(feature_dir, f"codex-{stage}", cmd, cwd,
+                                     "ERROR", "", str(e), dur)
+        tail = f" · 见日志 {log_path}" if log_path else ""
+        return 127, "", f"codex CLI 不可用:{e}{tail}"
 
 
-def _run_claude_review(prompt_text: str, model_name: str = "claude-sonnet-4-6"
+def _run_claude_review(prompt_text: str, model_name: str = "claude-sonnet-4-6",
+                       feature_dir: Optional[Path] = None, stage: str = "review"
                        ) -> tuple[int, str, str]:
     """跑 claude -p <prompt_argv> --output-format text · 返 (rc, stdout, stderr)。
 
@@ -2175,12 +2232,22 @@ def _run_claude_review(prompt_text: str, model_name: str = "claude-sonnet-4-6"
     捕获后返 errno=7 · 让上层 emit 清晰 hint 提示 prompt 过长。
     """
     cmd = ["claude", "-p", prompt_text, "--model", model_name, "--output-format", "text"]
+    label = f"claude-{stage}"
+    t0 = datetime.now(timezone.utc)
     try:
         r = subprocess.run(cmd, capture_output=True, text=True,
-                           timeout=EXTERNAL_REVIEW_TIMEOUT_SEC)
+                           timeout=EXTERNAL_REVIEW_TIMEOUT_SEC,
+                           stdin=subprocess.DEVNULL)  # v8.55:闭 stdin · 防交互卡住
+        dur = (datetime.now(timezone.utc) - t0).total_seconds()
+        _log_external_run(feature_dir, label, cmd, "(inherit)",
+                          r.returncode, r.stdout, r.stderr, dur)
         return r.returncode, r.stdout, r.stderr
-    except subprocess.TimeoutExpired:
-        return 124, "", f"claude -p 超时({EXTERNAL_REVIEW_TIMEOUT_SEC}s)"
+    except subprocess.TimeoutExpired as e:
+        dur = (datetime.now(timezone.utc) - t0).total_seconds()
+        log_path = _log_external_run(feature_dir, label, cmd, "(inherit)",
+                                     "TIMEOUT", e.stdout, e.stderr, dur)
+        tail = f" · 见日志 {log_path}" if log_path else ""
+        return 124, "", f"claude -p 超时({EXTERNAL_REVIEW_TIMEOUT_SEC}s){tail}"
     except OSError as e:
         if getattr(e, "errno", None) == 7:  # E2BIG · argument list too long
             return 127, "", (
@@ -2689,7 +2756,8 @@ def cmd_external_review(args: argparse.Namespace) -> None:
                 f"AI 主对话填 compact summary 后重跑 external-review("
                 f"治本长 prompt 卡 + 不可审计 · v8.44 推荐路径)"
             )
-        rc, stdout, stderr = _run_claude_review(prompt_text)
+        rc, stdout, stderr = _run_claude_review(
+            prompt_text, feature_dir=feature_dir, stage=args.stage)
 
     if rc != 0:
         emit({

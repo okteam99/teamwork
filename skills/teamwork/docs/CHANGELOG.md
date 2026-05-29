@@ -1,5 +1,25 @@
 # Changelog
 
+## v8.55 · external wrapper(codex/claude)抗卡 + 超时 10min + 默认落执行日志(用户 case · dev-only)
+
+> 用户 2026-05-29:"external wrapper 执行 codex 有时卡住(疑似 codex 升级提示)· 是否有参数禁用 · 超时 5min→10min · codex 执行输出默认写文件方便排查跑不起来。"
+
+### 改动(`tools/state.py` external review 封装)
+
+| 项 | 处理 |
+|----|------|
+| **抗卡(升级提示)** | codex / claude subprocess 加 `stdin=subprocess.DEVNULL` —— 闭 stdin · 任何交互/升级提示等输入立即 EOF 不再卡(治本 hang)。**诚实**:codex 没有我确认过的"禁用升级检查" flag,不臆造;DEVNULL 是通用抗卡机制,日志会显示是否真是升级提示,届时可精准加 codex config/flag |
+| **超时 5→10min** | `EXTERNAL_REVIEW_TIMEOUT_SEC` 300 → 600(codex/claude 同) |
+| **默认落执行日志** | 新 `_log_external_run`:每次 external review 默认写 `~/.teamwork/external-review-logs/<feature>/<codex\|claude>-<stage>-<ts>.log`(cmd/rc/耗时/timeout/stdout/stderr)· **出仓不污染 ship** · 超时/失败时把日志路径回填进 error stderr(FAIL emit 可见)· 排查"跑不起来"看这个 |
+
+### 设计
+
+- 日志落 `~/.teamwork/`(与 host_audit / prepare_check_audit 同处)· 不放 feature_dir(那会被 ship `git add` 带进仓)。
+- `_run_claude_review` 加可选 `feature_dir/stage`(默认 None → 不写 · 保留 `_run_claude_review("prompt")` 测试签名)。
+- 测试 +3(日志写入 / None 不崩 / 超时 600)· 全套 366 passed · 68 pre-existing(无关)· 0 regression。
+
+---
+
 ## v8.54 · Feature Planning 完成必问是否提交 push(用户 case · dev-only)
 
 > 用户 2026-05-29:"feature planning 结束时应该提示是否提交 push。"
