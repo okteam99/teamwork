@@ -92,17 +92,6 @@ PMO 按以下关键词匹配 + 优先级判定 user input 落入哪类流程(无
 
 ---
 
-## v7 → v8 流程文档变化
-
-| 范式 | FLOWS.md 行数 | 内容 |
-|------|--------------|------|
-| v7 | 876 行 | 每流程详细步骤 + 暂停点 + 角色 dispatch · AI 必读 cite |
-| v8 | ~120 行 | 只讲 telos + 适用场景 · 步骤由 docs/prepare.md + 各 stage brief 承接 |
-
-prepare 子流程实现:[docs/prepare.md](./docs/prepare.md)(PMO 主对话)+ stage brief 渲染在 [tools/_v8_engine.py](./tools/_v8_engine.py) `execute_stage_start`。
-
----
-
 ## 相关
 
 - [SKILL.md](./SKILL.md) — 命令清单 + 5 mode 入口

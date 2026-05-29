@@ -20,22 +20,6 @@
 
 ---
 
-## v7 → v8 角色变化
-
-| 范式 | 文件数 | 总行数 | 内容 |
-|------|--------|-------|------|
-| v7 | 21 文件(7 主角色 + 14 sub-file)| 5252 行 | 详细 dispatch 流程 + 自查清单 + review verdict 标准 |
-| v8 | 8 文件 | ~247 行 | 只留 telos + 创作要点 + 协作 + rationale |
-
-删除的 sub-file:
-- `pmo-auto-mode.md` / `pmo-cross-project.md` / `pmo-external-orchestration.md` / `pmo-pm-acceptance-ship.md` / `pmo-reporting.md` / `pmo-state-mgmt.md` / `pmo-user-input.md`(7 个 PMO sub)→ 编排逻辑进 state.py
-- `architect-cr.md` / `architect-tech-review.md`(2 个)→ Code/Tech Review 流程进 state.py review-stage / blueprint-stage spec
-- `qa-cr.md` / `qa-tc-review.md`(2 个)→ 同上
-- `pm-prd-review.md`(1 个)→ PRD 评审 verdict 进 state.py goal-complete artifact 校验
-- `product-lead-change-mgmt.md`(1 个)→ 变更级联进 state.py(待 v8.x 物化)
-
----
-
 ## 相关
 
 - [SKILL.md](./SKILL.md) — 命令清单 + 5 mode
