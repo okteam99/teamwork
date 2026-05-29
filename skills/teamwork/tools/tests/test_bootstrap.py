@@ -687,6 +687,28 @@ class TestCmdSessionBootstrapE2E(unittest.TestCase):
                         f"po 存在时 status 应以「已存在」开头 · 实际:{cs['product_overview_status']}")
         self.assertIn("派生", cs["action"])
 
+    def test_session_entry_priority_when_cold_start(self):
+        """v8.51:cold_start(无 teamwork-space)→ emit session_entry_priority(② 补规划 + ③ 任务)。
+
+        治本 gcpdev case 2026-05-29:PMO 把升级/补规划降脚注、优先级倒置 → 物化优先级到 bootstrap 输出。
+        (① 升级 取决于网络/版本比较 · 不在此断言;② 补规划 由 cold_start 确定性触发)
+        """
+        result = subprocess.run(
+            ["python3", str(BOOTSTRAP_PY),
+             "--host", "claude-code", "--skill-root", str(SKILL)],
+            cwd=str(self.project), capture_output=True, text=True, check=True,
+        )
+        data = json.loads(result.stdout)
+        self.assertIn("session_entry_priority", data,
+                      "cold_start 时必 emit session_entry_priority(物化入口优先级)")
+        sp = data["session_entry_priority"]
+        order_text = " ".join(sp["order"])
+        self.assertIn("补规划", order_text, "② 补规划 必在(cold_start 触发)")
+        self.assertIn("任务", order_text, "③ 任务 必在(且应排在补规划之后)")
+        self.assertLess(order_text.index("补规划"), order_text.index("任务"),
+                        "补规划 必排在 任务 之前(优先级序)")
+        self.assertIn("脚注", sp["rule"], "rule 必强调不可降脚注(治本优先级倒置)")
+
 
 class TestWriteHostAudit(unittest.TestCase):
     """v8.21:bootstrap.write_host_audit 写 ~/.teamwork/host_audit.json。

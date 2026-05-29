@@ -970,6 +970,28 @@ def cmd_session_bootstrap(args: argparse.Namespace) -> None:
             "reason": "本地 skill_version 探测失败 · 无法比较",
         }
 
+    # v8.51:session 入口优先级(治本 gcpdev case 2026-05-29 · PMO 把升级/补规划降成脚注 · 优先级倒置)
+    # 物化:把"先升级 → 再补规划 → 最后任务"写进 bootstrap 输出 · AI 跑完即见 · 不靠记 SKILL.md
+    _su_status = result["checks"].get("skill_update_check", {}).get("status")
+    _has_cold_start = any(g.get("gate") == "cold_start_workspace_uninitialized"
+                          for g in result.get("flow_gates", []))
+    if _su_status == "outdated" or _has_cold_start:
+        _priority = []
+        if _su_status == "outdated":
+            _priority.append(
+                "① 升级:skill 落后(见 checks.skill_update_check.upgrade_prompt)· 🔴 最先处理 · "
+                "旧版 = 跑旧行为(规划/冷启动逻辑本身可能已被新版治掉 · 旧版上补规划会白补)"
+            )
+        if _has_cold_start:
+            _priority.append(
+                "② 补规划:工作区未初始化(见 flow_gates.cold_start_workspace_uninitialized)· 升级处理完(或用户忽略)再做"
+            )
+        _priority.append("③ 任务:triage / 启动 Feature / 看板 · 前面处理完或用户明确跳过才轮到")
+        result["session_entry_priority"] = {
+            "order": _priority,
+            "rule": "🔴 PMO 首条响应按此序 · 不可把 ①/② 降成底部「维护提醒」脚注(治本优先级倒置)",
+        }
+
     # silent emit JSON · AI 跑后不必 cite · 用户不可见报告
     print(json.dumps(result, ensure_ascii=False, indent=2))
     sys.exit(0)

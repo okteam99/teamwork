@@ -1,5 +1,31 @@
 # Changelog
 
+## v8.51 · session 入口优先级:升级 → 补规划 → 任务(用户 case gcpdev · dev-only)
+
+> 用户 2026-05-29(实战验证 case · gcpdev 仍跑 v8.47.1):"应该先处理升级,然后补规划,最后再处理别的。"
+
+### 根因:多信号同时触发时无优先级 → PMO 倒置
+
+bootstrap 同时 emit `skill_update_check: outdated`(v8.47.1→v8.50.1)+ `cold_start`(缺 teamwork-space),但:
+- **SKILL.md 零优先级规则**(「升级」相关条目全是 mode-升级 即 Feature Planning/Bug · **没有 skill-版本-升级** 的处理)。
+- 结果:PMO 把「升级」+「补规划」降成底部「📎 维护提醒(不阻塞)」脚注,反把「启动 BL-001」放成选项 1 —— **优先级倒置**。
+- 深层:**停在旧版 = 跑旧行为** —— 连规划/冷启动逻辑本身都可能是已被新版治掉的(本 case 正是 v8.47.1 旧路由),旧版上"补规划"会白补。所以升级必须最先。
+
+### 治本:定义 session 入口优先级 + 物化到 bootstrap 输出
+
+| 层 | 改动 |
+|----|------|
+| **SKILL.md** | § bootstrap flow_gates 响应 顶部加「session 入口处理优先级」:① 升级(skill_update_check outdated · 最先 · 旧版=旧行为)→ ② 补规划(cold_start)→ ③ 任务 · **不可把 ①/② 降脚注** · 附 gcpdev 反模式实证 |
+| **bootstrap.py** | emit `session_entry_priority`(检测 skill outdated / cold_start → 列有序优先级 + rule「不可降脚注」)· 物化到工具输出 · AI 跑完即见,不靠记 SKILL.md(治本:本 case AI 手里有 outdated 信号却仍忽略) |
+| **测试** | test_bootstrap 加 session_entry_priority(cold_start → ②补规划 + ③任务 · 序正确 · rule 含「脚注」) |
+
+### 设计
+
+- **非硬 BLOCK**:升级/补规划仍是 R5 暂停点(用户可忽略/跳过)· 只是**呈现优先级** —— 先 surface 让用户拍,不埋脚注。
+- 测试:bootstrap docs+emit · 全套 363 passed · 68 pre-existing failed(render+scan · 无关)· 0 regression。
+
+---
+
 ## v8.50 · 模板瘦身:teamwork-space template↔维护规范 解耦(用户洞察 · dev-only)
 
 > 用户 2026-05-29:"teamwork-space.md 模板里太多不必要内容 · 很多是 AI 知道就好 · 是否单独起一个维护规范.md · 模板引用一下,不耦合在一个文档,其他模板也一样。"
