@@ -2,7 +2,7 @@
 
 > **用途**：作为外部模型 (Claude CLI) 进行 PRD / Blueprint / 代码评审时的 prompt 模板。
 >
-> **使用者**：主对话（Codex CLI）通过 shell 调用 `claude -p` 时把本模板内容作为输入 prompt。具体调用范本见 [invoke.md](./invoke.md)。
+> **使用者**：主对话（Codex CLI）通过 `state.py external-review` 调起 `claude -p`，自动把本模板内容（占位符已替换）作为输入 prompt（详 tools/state.py `_run_claude_review`）。
 >
 > **不适用**：Claude Code 主对话宿主下（同源约束），外部模型不能选 claude。
 

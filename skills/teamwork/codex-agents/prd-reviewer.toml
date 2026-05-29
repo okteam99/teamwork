@@ -18,7 +18,7 @@ See standards/external-model-usage.md for full compliance rules.
 
 Read these files first:
 1. agents/README.md for general constraints
-2. stages/plan-stage.md for Plan Stage execution flow and Codex insertion point
+2. stages/goal-stage.md for Goal Stage execution flow and Codex insertion point
 3. templates/external-cross-review.md for the complete Cross-Review checklist + output schema
 
 Your value: your training corpus and reasoning biases are statistically independent
