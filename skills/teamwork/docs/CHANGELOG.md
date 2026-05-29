@@ -21,12 +21,43 @@
 
 **follow-up**(spawn task):删 TestP1ReadOnly 丢了 snapshot/validate/raw-read 显式覆盖 → 用 init-feature 真 fixture 补回;另查剩 68 个 pre-existing render 失败(test_render_* + test_scan_spec_consumer · 与本清理无关)根因。
 
-### 批次 2-5(后续提交)
+### 批次 2 · P0 死引用 + deprecated toml(commit 9684b11)
 
-- P0 · 6 处死引用(reviewer.toml architect-cr/qa-cr · prd-reviewer plan-stage · README prepare-stage · claude invoke.md · README codex-cross-review)+ 删 5 个 deprecated codex-agents toml(bootstrap glob 误部署到每个用户)
-- P2 · docs/v8-redesign/ 归档(02/03 删 · 00/01/04/05 加 archive 头)+ DESIGN-业务架构 归档
-- P3 · external-model-usage §11.5 压缩 · common.md TDD 指针化 · 各导航 md v7→v8 历史段移除 · agents/README 瘦身 · 代码演进注释精简 · update.py --accept-overwrite / host_audit fallback 删
-- P4 · STAGES.md 补 panorama_sync · common.md 撞号 · 编码乱码 · ship-stage 8步/7步 · goal-stage 错行号引用 · reviewer.toml NEEDS_FIX 枚举
+修 6 处死引用(会让 subagent 启动读空文件):reviewer.toml architect-cr/qa-cr → review-stage + roles · prd-reviewer plan-stage → goal-stage · README prepare-stage → docs/prepare.md · claude reviewer invoke.md → state.py · README codex-cross-review → external-cross-review。删 5 个 deprecated codex-agents toml(designer/e2e-runner/planner/rd-developer/tester · bootstrap glob 误部署到每个用户)· 剩 3 active(reviewer/prd-reviewer/blueprint-reviewer)。
+
+### 批次 3 · P2 过时文档归档(commit 1851ba2)
+
+删 02-CLEANUP / 03-MIGRATION(一次性迁移指南 · 零引用)· 00/01/04/05 + DESIGN-业务架构 加 archive 头(被活文档 cite § rationale · 保留不断链)。
+
+### 批次 4 · P3 导航 md 历史段(commit 8cf5cc5)
+
+删 ROLES/STANDARDS/FLOWS 的「v7→v8 变化」历史段(纯迁移历史 · ~12-18 行各)· 顺带清 product-lead-change-mgmt「待 v8.x 物化」stale 标记。
+
+### 批次 5 · P4 小修 + SKILL bump v8.45.0(本提交)
+
+- STAGES.md 补 panorama_sync(标题 10→11 stage · 索引漏列正式 stage)
+- common.md 撞号修(两个 `## 四` → `## 四D、QA`)+ 编码损坏修(`执�`→执行 · `校�`→校验 · 多字节字符被截断)
+- ship-stage.md 步数统一(`7 步` → `step 0-7 共 8 步` · 与 §5 一致)
+- goal-stage.md 错行号引用(`_v8_engine.py:742` → `_v8_stage_specs.py _evidence_reviewers_match` · 实际强制位置)
+
+### P3/P4 剩余 · spawn follow-up(主观重写 / 兼容风险 / 独立工作)
+
+批次 1 误删 cmd_raw_read 的教训(长 context 大改动易错):以下推独立 session 细做,不在长 context 里草率改:
+- external-model §11.5 压缩 / common.md TDD 指针化 / agents README 瘦身 / PRODUCT-OVERVIEW 精简 / 代码演进注释 → spawn task(主观重写 · 逐项细评)
+- snapshot/validate/raw-read v8 测试覆盖(批次1 删 TestP1ReadOnly 丢的)+ 68 pre-existing render 失败诊断 → spawn task
+- **保留不删**(兼容风险 / deprecation 周期太短):host_audit.json fallback · update.py `--accept-overwrite` no-op flag · reviewer.toml NEEDS_FIX 枚举(待与 README 枚举统一时一起)
+
+### 总账
+
+| 批次 | 内容 | 净行数 |
+|------|------|--------|
+| 1 | dead code + dead test | -1489 |
+| 2 | 死引用修 + 5 toml 删 | -~120 |
+| 3 | 文档归档(02/03 删 + 5 archive 头) | -~450 |
+| 4 | 导航 md 历史段 | -~45 |
+| 5 | P4 小修 | +~5 |
+
+baseline:97 failed → 68 failed(清掉 29 个测 dead cmd 的 dead test · 剩 68 全是 pre-existing render/scan 失败 · 与清理无关)。我改过的 test_state.py + test_v8_stage_specs.py 199 passed · 0 引入新失败。
 
 ---
 

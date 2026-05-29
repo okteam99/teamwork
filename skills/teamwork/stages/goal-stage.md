@@ -16,7 +16,7 @@
 - PL finding 直接追加到 PRD 内对应 AC 后注释(不开新文件)
 
 ### 3. 多角色并行评审 → PRD-REVIEW.md
-- **必含 5 角色**(state.stage_review_roles[goal] · _v8_engine.py:742 强制)· 缺角色 → goal-complete FAIL:
+- **必含 5 角色**(state.stage_review_roles[goal] · _v8_stage_specs.py _evidence_reviewers_match 强制)· 缺角色 → goal-complete FAIL:
   - PM 视角:需求清晰度 / AC 完整性
   - QA 视角:测试覆盖性 / 边界场景 / AC 可测试性
   - Architect 视角:技术可行性 / 架构影响 / 性能安全
