@@ -663,7 +663,9 @@ def _evidence_panorama_artifact(state: dict, args) -> tuple[bool, str]:
 
     if medium == "same-stack":
         # v8.58 option B:物化 = preview-project 可跑 + preview.sh 存在(不再要静态 build)
-        return _check_same_stack_preview_project(feature_dir, fm)
+        # v8.61:+ auto_commit 校验(防 preview-project 源未提交 · ship 丢失)
+        return _check_same_stack_preview_project(
+            feature_dir, fm, getattr(args, "auto_commit", None))
 
     # static-html:v8.17 新模式 · 全景为唯一权威(有 pages_changed[])
     pages_changed = fm.get("pages_changed")
@@ -704,14 +706,37 @@ def _resolve_panorama_subdir(feature_dir: Path, ppath_raw: str, sub: str) -> lis
     return candidates
 
 
-def _check_same_stack_preview_project(feature_dir: Path, fm: dict) -> tuple[bool, str]:
+def _path_in_commit(repo_dir: Path, commit: str, abs_path: Path) -> Optional[bool]:
+    """git ls-tree {commit} -- {abs_path}:非空 → True(路径在该 commit 树内)·
+    空(rc=0)→ False(未提交)· git 失败/路径越界(rc≠0)→ None(无法判定 · 不阻塞)。"""
+    import subprocess
+    try:
+        abs_path = abs_path.resolve()  # 归一 symlink(macOS /var→/private/var)· 防 git "outside repository"
+    except OSError:
+        pass
+    try:
+        r = subprocess.run(
+            ["git", "-C", str(repo_dir), "ls-tree", commit, "--", str(abs_path)],
+            capture_output=True, text=True, timeout=5,
+        )
+    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+        return None
+    if r.returncode != 0:
+        return None
+    return bool(r.stdout.strip())
+
+
+def _check_same_stack_preview_project(feature_dir: Path, fm: dict,
+                                      auto_commit: Optional[str] = None) -> tuple[bool, str]:
     """v8.58 option B:same-stack 物化 = preview-project 可跑 + preview.sh 存在。
+    v8.61:加 auto_commit 校验(治本 v8.58 物化漏洞:磁盘存在但没提交 → ship 丢失)。
 
     全景权威 = preview-project 源(committed 可跑独立项目)· 预览靠跑 preview.sh 起 dev server
     (动态端口 · 不在 teamwork 层起 server)。校验:
       - panorama_path 声明
       - {panorama_path}/preview-project/ 存在
-      - preview-project/preview.sh(预览入口)+ package.json(可跑 JS 项目证据)
+      - preview-project/preview.sh(预览入口)+ package.json(可跑 JS 项目证据)存在
+      - 🔴 上述文件**进了 auto_commit**(传了 auto_commit 时 · git ls-tree 校验 · 防源未提交)
     """
     ppath_raw = fm.get("panorama_path")
     if not ppath_raw:
@@ -732,6 +757,20 @@ def _check_same_stack_preview_project(feature_dir: Path, fm: dict) -> tuple[bool
                     f"same-stack preview-project 存在但缺:{' · '.join(missing)} · 目录 {proj} · "
                     "预览靠跑 preview.sh 起 dev server(动态端口)。详 stages/ui-design-stage.md § 预览"
                 )
+            # v8.61:磁盘存在还不够 · 必须进 auto_commit(治本 v8.58 物化漏洞:
+            # same-stack 全景权威 = preview-project 源 · 没提交则 ship 丢失)
+            if auto_commit:
+                uncommitted = [
+                    f for f in ("preview.sh", "package.json")
+                    if _path_in_commit(feature_dir, auto_commit, proj / f) is False
+                ]
+                if uncommitted:
+                    return False, (
+                        f"same-stack preview-project 文件在磁盘但**未进 auto_commit** "
+                        f"{auto_commit[:8]}:{' · '.join(uncommitted)} · `git add {proj}` + commit "
+                        f"后重试 —— 全景权威 = preview-project 源 · 未提交则 ship 丢失"
+                        f"(治本 v8.58 物化漏洞)。详 stages/ui-design-stage.md § 预览"
+                    )
             return True, ""
     return False, (
         f"panorama_medium=same-stack · 需 {ppath_raw}/preview-project/(同栈可跑独立项目 + preview.sh "

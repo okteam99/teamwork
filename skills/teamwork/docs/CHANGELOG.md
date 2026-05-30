@@ -1,5 +1,30 @@
 # Changelog
 
+## v8.61 · 修 v8.58 同栈预览 3 个 gap(v8.59 修好的 codex 异质评审实战挑出 · dev-only)
+
+> v8.59 修好的 codex exec 评审跑 commit 56a8715(v8.58 改动)报 NEEDS_REVISION · 挑出 3 个真 gap —— 异质评审修好后第一次实战就见效。
+
+### gap 1(真物化漏洞)· same-stack ui_design-complete 不验证 preview-project 已提交
+
+v8.58 `_check_same_stack_preview_project` 只校验 `preview-project/` + `preview.sh` + `package.json` 在**磁盘**上存在 · 不验证进了 `auto_commit` → 预览源没提交也 PASS → ship 丢失(same-stack 全景权威 = preview-project **源**)。
+- **修**:加 `_path_in_commit`(`git ls-tree {commit} -- {abspath}` · 3 态:在树内/未提交/无法判定)· `_check_same_stack_preview_project` 加 `auto_commit` 参数 · 校验 preview.sh + package.json 进了 auto_commit · 未提交 → FAIL + hint(`git add` + commit)· 不传 auto_commit 时仅磁盘校验(向后兼容 · None 不阻塞)· symlink 归一(macOS /var→/private/var)
+
+### gap 2 · ui_design-start 脚手架没提 preview.sh
+
+`_v8_engine.py` `STAGE_TEMPLATES.ui_design` 只列 UI.md + preview/*.html(static-html)· 没 same-stack 的 preview.sh。
+- **修**:加 `preview-project/preview.sh` → `preview-project-preview.sh`(scaffold 提示 · 拷入后按框架改 dev server 行)
+
+### gap 3 · templates/ui.md 残留 static-preview 引用与 same-stack 冲突
+
+同栈 Designer 读模板同时看到「用 preview.sh」(frontmatter)和「填 §全景权威索引 preview/*.html」(§表格 / §HTML 预览稿模板)· 矛盾。
+- **修**:① frontmatter 注释 v8.56「编译出 preview/*.html」→ v8.58「源即权威 · preview.sh · 不出 build」② 顶部「视觉真相」改介质感知 + 加「🔵 介质分流」note ③「§全景权威索引」「§HTML 预览稿模板」标题标「🔵 static-html 介质专用 · same-stack 跳过」
+
+### 测试
+
+`TestPanoramaArtifactEvidence` +3(uncommitted preview-project → FAIL / committed → PASS / 无 auto_commit → 仅磁盘校验)· 373 passed · 68 pre-existing(无关)· 0 regression。
+
+---
+
 ## v8.60 · bootstrap 截断鲁棒 pmo_must_read digest + 禁截断工具输出规则(用户 case · dev-only)
 
 > 用户 2026-05-30(AON session):AI 跑 `bootstrap.py | head -50` 把 `skill_update_check`(JSON 后位)切掉 → 漏升级提示 + 误判"bootstrap 没检查升级"(实际检查了 · 是 head -50 吞了)。"约束 AI 不要截断 py 脚本输出 · 检查我们输出不要太长 · 过长则写文档传路径。"

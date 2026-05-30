@@ -665,6 +665,8 @@ STAGE_TEMPLATES: dict[str, dict] = {
         "templates": {
             "UI.md": "ui.md",
             "preview/*.html": None,  # static-html 介质 · 项目设计语言决定
+            # same-stack 介质(v8.58):拷入 {panorama_path}/preview-project/ 根 · 按框架改 dev server 行
+            "preview-project/preview.sh": "preview-project-preview.sh",
         },
         "validators": {},
     },

@@ -1752,6 +1752,52 @@ class TestPanoramaArtifactEvidence(unittest.TestCase):
         self.assertFalse(ok)
         self.assertIn("preview.sh", err)
 
+    # ── v8.61:auto_commit 校验(治本 v8.58 物化漏洞:磁盘存在但没提交)──
+
+    def _git_init_commit(self, *rel_or_abs_paths):
+        """self.tmp 建 git 仓 + 提交指定路径 · 返 commit hash。"""
+        env = {**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
+               "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}
+
+        def sh(*a):
+            return subprocess.run(["git", "-C", str(self.tmp), *a],
+                                  capture_output=True, text=True, env=env)
+        sh("init", "-q")
+        for p in rel_or_abs_paths:
+            sh("add", str(p))
+        sh("commit", "-q", "-m", "x")
+        return sh("rev-parse", "HEAD").stdout.strip()
+
+    def test_v861_same_stack_uncommitted_preview_project_fails(self):
+        """v8.61:preview-project 在磁盘但未进 auto_commit → FAIL(治本 v8.58 物化漏洞)。"""
+        from _v8_stage_specs import _evidence_panorama_artifact
+        self._write_ui(medium="same-stack", panorama_path="design")
+        self._scaffold_preview_project()              # 建文件但不提交
+        commit = self._git_init_commit("UI.md")        # 只提交 UI.md
+        a = self._args(); a.auto_commit = commit
+        ok, err = _evidence_panorama_artifact({}, a)
+        self.assertFalse(ok)
+        self.assertIn("未进 auto_commit", err)
+
+    def test_v861_same_stack_committed_preview_project_passes(self):
+        """v8.61:preview-project 已提交进 auto_commit → PASS。"""
+        from _v8_stage_specs import _evidence_panorama_artifact
+        self._write_ui(medium="same-stack", panorama_path="design")
+        proj = self._scaffold_preview_project()
+        commit = self._git_init_commit(
+            "UI.md", proj / "preview.sh", proj / "package.json")
+        a = self._args(); a.auto_commit = commit
+        ok, err = _evidence_panorama_artifact({}, a)
+        self.assertTrue(ok, err)
+
+    def test_v861_same_stack_no_auto_commit_skips_commit_check(self):
+        """v8.61:不传 auto_commit → 仅磁盘校验(向后兼容 · None 不阻塞)。"""
+        from _v8_stage_specs import _evidence_panorama_artifact
+        self._write_ui(medium="same-stack", panorama_path="design")
+        self._scaffold_preview_project()
+        ok, err = _evidence_panorama_artifact({}, self._args())  # _args 无 auto_commit
+        self.assertTrue(ok, err)
+
     def test_static_html_no_preview_fails(self):
         from _v8_stage_specs import _evidence_panorama_artifact
         self._write_ui(medium="static-html")
