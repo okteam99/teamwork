@@ -709,6 +709,31 @@ class TestCmdSessionBootstrapE2E(unittest.TestCase):
                         "补规划 必排在 任务 之前(优先级序)")
         self.assertIn("脚注", sp["rule"], "rule 必强调不可降脚注(治本优先级倒置)")
 
+    def test_pmo_must_read_digest_at_top_survives_truncation(self):
+        """v8.60:pmo_must_read digest 在输出顶部(survive head -5)· 治本 case
+        `bootstrap.py | head -50` 切掉 skill_update_check(JSON 后位)→ PMO 漏升级提示 +
+        误判"bootstrap 没检查升级"。"""
+        result = subprocess.run(
+            ["python3", str(BOOTSTRAP_PY),
+             "--host", "claude-code", "--skill-root", str(SKILL)],
+            cwd=str(self.project), capture_output=True, text=True, check=True,
+        )
+        data = json.loads(result.stdout)
+        # 字段存在 + 在头部(verdict/command 之后 · 位置 ≤ 2 · 截断也能见)
+        self.assertIn("pmo_must_read", data)
+        self.assertLessEqual(list(data.keys()).index("pmo_must_read"), 2,
+                             "pmo_must_read 必在头部(survive 截断)")
+        mr = data["pmo_must_read"]
+        # 含禁截断警告
+        self.assertIn("禁", mr)
+        self.assertIn("head", mr)
+        # cold_start(setUp 裸 git 仓无 teamwork-space)触发 → digest 必提 flow_gates
+        self.assertIn("flow_gates", mr)
+        # 🔴 截断鲁棒性实测:head -5 仍见 pmo_must_read(直接复现 bug 场景)
+        head5 = "\n".join(result.stdout.splitlines()[:5])
+        self.assertIn("pmo_must_read", head5,
+                      "head -5 必见 pmo_must_read(治本 head -50 吞 forewarn)")
+
 
 class TestWriteHostAudit(unittest.TestCase):
     """v8.21:bootstrap.write_host_audit 写 ~/.teamwork/host_audit.json。

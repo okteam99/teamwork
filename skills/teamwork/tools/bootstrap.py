@@ -992,6 +992,30 @@ def cmd_session_bootstrap(args: argparse.Namespace) -> None:
             "rule": "🔴 PMO 首条响应按此序 · 不可把 ①/② 降成底部「维护提醒」脚注(治本优先级倒置)",
         }
 
+    # v8.60:截断鲁棒 digest —— 关键 forewarn(升级 / flow_gates / 优先级)在 JSON 后位 ·
+    # AI 习惯 `| head` 截断会吞掉(实证 case:`bootstrap.py | head -50` 吞掉 skill_update_check
+    # → PMO 漏升级提示)。把 1 行 digest 提到输出**顶部**(survive `head -5`)+ 显式禁截断警告。
+    _mr = ["⚠️ 本输出是结构化 JSON · PMO 必**完整读** · 禁 `| head`/`tail`/`sed` 截断"
+           "(关键 forewarn 在 JSON 后位 · 截断必吞)"]
+    _suc = result.get("checks", {}).get("skill_update_check", {})
+    if _suc.get("status") == "outdated":
+        _mr.append(
+            f"🔴 ① skill OUTDATED {_suc.get('local_version')}→{_suc.get('latest_version')}"
+            f" · 跑 update.py --channel {_suc.get('channel', 'main')}(最先处理)")
+    elif _suc.get("status") == "up_to_date":
+        _mr.append(f"skill ✅ {_suc.get('local_version')}")
+    _gates = result.get("flow_gates", [])
+    if _gates:
+        _mr.append("🔴 flow_gates(%d): %s → 逐条读 flow_gates[] 响应"
+                   % (len(_gates), ", ".join(g.get("gate", "?") for g in _gates)))
+    _sep = result.get("session_entry_priority", {})
+    if _sep.get("order"):
+        _mr.append("session_entry_priority: %s(见 session_entry_priority.order)"
+                   % " / ".join(o.split(":")[0].strip() for o in _sep["order"]))
+    # 重排:pmo_must_read 紧跟 command(头部 · 即使 AI 截断输出也能见)
+    result = {"verdict": result.get("verdict"), "command": result.get("command"),
+              "pmo_must_read": " · ".join(_mr), **result}
+
     # silent emit JSON · AI 跑后不必 cite · 用户不可见报告
     print(json.dumps(result, ensure_ascii=False, indent=2))
     sys.exit(0)

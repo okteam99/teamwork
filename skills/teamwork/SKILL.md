@@ -1,6 +1,6 @@
 ---
 name: teamwork
-version: v8.59.1
+version: v8.60
 description: AI 协作开发一体化框架 · /teamwork 启动
 ---
 
@@ -263,6 +263,8 @@ state.py 校验:
 ### bootstrap flow_gates 响应(首条响应前必扫)
 
 session 启动 `bootstrap.py` emit `checks.skill_update_check` + `flow_gates[]`(forewarn · **非 BLOCK**)· PMO **首条响应前必扫**。
+
+🔴 **禁截断工具输出**(v8.60 治本 case:`bootstrap.py | head -50` 把 `skill_update_check`〔在 JSON 后位〕切掉 → PMO 漏升级提示 · 还误判"bootstrap 没检查升级"):teamwork 工具(`bootstrap.py` / `state.py` / `update.py`)输出 = **结构化 JSON · 字段顺序有意义 · 关键 forewarn 在后位** —— **禁 `| head` / `| tail` / `| sed -n` 等任何截断**,必完整读(Read 整个文件或直接看完整 stdout)。bootstrap 已在输出**顶部**置 `pmo_must_read` 一行 digest(升级 / gates / 优先级 · survive `head -5`)· 即便习惯性截断也能见,但仍以完整 JSON 为准。🔴 工具输出**罕见过长**时应落文件 + emit 路径(如 external-review 写 `external-cross-review/<stage>.md`)· **不 inline 巨串**诱使截断。
 
 🔴 **入口优先级**(多信号同时触发 · 按序 surface · **不可降成底部脚注**;bootstrap 已 emit `session_entry_priority` 物化):**① 升级**(`skill_update_check=outdated` · 旧版=旧行为/补规划白补 → 最先)→ **② 补规划**(`cold_start` gate)→ **③ 任务**(triage/启动 Feature)。反模式(gcpdev 实证):把 ①② 降「维护提醒」脚注、先推任务 = 优先级倒置。
 

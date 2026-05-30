@@ -1,5 +1,29 @@
 # Changelog
 
+## v8.60 · bootstrap 截断鲁棒 pmo_must_read digest + 禁截断工具输出规则(用户 case · dev-only)
+
+> 用户 2026-05-30(AON session):AI 跑 `bootstrap.py | head -50` 把 `skill_update_check`(JSON 后位)切掉 → 漏升级提示 + 误判"bootstrap 没检查升级"(实际检查了 · 是 head -50 吞了)。"约束 AI 不要截断 py 脚本输出 · 检查我们输出不要太长 · 过长则写文档传路径。"
+
+### 根因
+
+bootstrap 输出 102 行 · 关键 forewarn(`skill_update_check`〔行 67〕/ `flow_gates`〔行 74〕/ `session_entry_priority`〔行 95〕)全在**后 1/3** · 顶部是 silent 维护噪声(skeletons/chmod/hooks)。AI 习惯 `| head` 截断长输出 → 正好切掉 PMO 必须 act 的部分。
+
+### 修复(物化 + 规则双管)
+
+| 改动 | 内容 |
+|----|----|
+| **bootstrap.py 截断鲁棒 digest** | 输出**顶部**(verdict/command 之后 · 位置 2)置 `pmo_must_read` 一行 digest:禁截断警告 + skill 升级状态 + flow_gates 名单 + session_entry_priority —— **survive `head -5`**(实测) |
+| **SKILL.md 禁截断规则** | § bootstrap flow_gates 响应 加 🔴「禁截断工具输出」:teamwork 工具(bootstrap / state.py / update.py)输出 = 结构化 JSON · 字段顺序有意义 · 关键 forewarn 在后位 · **禁 `\| head`/`tail`/`sed` 截断** · 必完整读;工具输出罕见过长 → 落文件 emit 路径(不 inline 巨串) |
+| 测试 | `test_pmo_must_read_digest_at_top_survives_truncation`:断言 digest 在头部(位置 ≤2)+ 含禁截断警告 + 提 flow_gates + **head -5 实测仍见**(直接复现 bug 场景)· 370 passed · 68 pre-existing(无关)· 0 regression |
+
+### 三问对账(用户)
+
+1. **约束 AI 不截断** → SKILL.md 硬规则 + digest 顶置(即便习惯性截断也见关键信息)
+2. **检查输出不要太长** → digest 给 1 行短读路径(AI 不必啃全 102 行)· 详细仍在 JSON 后位
+3. **过长写文档传路径** → 规则写明「工具输出罕见过长 → 落文件 emit 路径」(external-review 已是此模式)
+
+---
+
 ## v8.59 · 异质评审 review stage 改 codex exec(治本 codex review 子命令 headless 卡死 · 用户 case + 本地实测 · dev-only)
 
 > 用户 2026-05-30(AON SVC-PLATFORM-F057 review stage):"执行异质模型评审总是报错 · 看下逻辑是否有问题 · 本地测试下" + "不一定非要统一 exec · 只要确保 review 正常即可"。
