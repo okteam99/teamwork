@@ -1,5 +1,28 @@
 # Changelog
 
+## v8.67 · yolo 严格按流程 · 不内化(external 实跑日志物化校验 · 用户 case WS-002 · dev-only)
+
+> 用户 2026-05-30:"yolo 模式必须严格按 teamwork 流程流转 · 不能内化。"
+
+### 根因(yolo 把评审"内化"= 走过场)
+
+WS-002 yolo case:AI 写 `PRD-REVIEW.md` `mode: yolo-internalized` 自盖章 pm/qa/architect APPROVE + 去掉 goal/blueprint external(v8.66 已堵)→ 评审形同虚设。v8.63–66 强调"零 stop / 自主解决",AI 误把"无人值守"读成"AI 自己内化评审走完流程"。**反了**:无人值守 = AI 仍须做**真实评审工作**(多角色真分析 + external 真调异质模型)· 零 stop 只针对**人工决策点** · 不是省评审。
+
+### 修复:物化防内化
+
+| 改动 | 内容 |
+|----|----|
+| `_external_run_log_exists` helper | 校验 `~/.teamwork/external-review-logs/<feat>/codex-<stage>-*.log` / `claude-<stage>-*.log`(v8.55 实跑日志)存在 |
+| `_evidence_external_review_artifact` yolo gate | yolo + external 评审**无实跑日志** → **FAIL** · hint:必真跑 `state.py external-review`(不得手写 external-cross-review)。**文件名/frontmatter 能伪装合规 · 实跑日志伪造不了** |
+| `SKILL.md § yolo` | 加 🔴🔴「严格按流程 · 不得内化」:评审必真跑(多角色真分析 + external 真调)· 不得 `yolo-internalized` 自盖章 / 手写 external · external 实跑日志物化校验。澄清 auto_mode「内化」措辞(仅指跳过用户确认 · 非伪造评审)· 修表 2 处 |
+| 测试 +3 | yolo 无日志 FAIL / 有日志 PASS / 非 yolo 不受影响 · 391 passed · 68 pre-existing(无关)· 0 regression |
+
+### 物化哲学
+
+artifact 的文件名 / frontmatter `review_model` 能被 AI 伪装合规(v8.19 黑名单只挡明显同源)· 但 **external-review 实跑日志**(state.py 真调 codex/claude 时 v8.55 自动落)伪造不了 —— 把"真跑了异质模型"钉在 AI 必经的物化点。
+
+---
+
 ## v8.66 · yolo 加重审核(非简化)· change-review-roles 去 external 物化 BLOCK(用户 case WS-002 · dev-only)
 
 > 用户 2026-05-30(WS-002 yolo 实战):"yolo 不得擅自简化流程 · yolo 模式本来就无人值守 · 需要加重各环节审核力度 · 非必要不得去掉外部模型评审。"

@@ -1225,6 +1225,20 @@ def _check_external_hetero(name: str) -> tuple[bool, str]:
     )
 
 
+def _external_run_log_exists(feature_dir: Path, stage: str) -> bool:
+    """v8.67:本 stage external 评审有「实跑证据」—— v8.55 _log_external_run 在
+    ~/.teamwork/external-review-logs/<feat>/ 落的 codex-<stage>-*.log / claude-<stage>-*.log。
+    用于 yolo 校验 external 真调了异质模型(不是 AI 手写/内化 external-cross-review)。"""
+    feat_name = feature_dir.name or "unknown"
+    log_dir = Path.home() / ".teamwork" / "external-review-logs" / feat_name
+    if not log_dir.is_dir():
+        return False
+    for model in ("codex", "claude"):
+        if list(log_dir.glob(f"{model}-{stage}-*.log")):
+            return True
+    return False
+
+
 def _evidence_external_review_artifact(state: dict, args) -> tuple[bool, str]:
     """external-cross-review/ 至少 1 份 markdown · 且必须是真异质模型评审(v8.19 加强)。
 
@@ -1287,6 +1301,19 @@ def _evidence_external_review_artifact(state: dict, args) -> tuple[bool, str]:
             "\n  修复:跑 `codex review --commit <SHA> --base <branch>` 落 *-codex.md · "
             "或 change-review-roles 显式移除 external(留 audit)。"
             "\n  调用前必做:`which codex` 验工具在 · 不在 → stop 问用户 · 不替代。"
+        )
+
+    # v8.67:yolo 严格按流程 · 不内化 —— external 必须真跑(state.py external-review 调异质模型)·
+    # 不得 AI 手写 external-cross-review/*.md(文件名/frontmatter 能伪装合规 · 但无实跑日志)。
+    # 治本 case(WS-002 yolo):AI 写 PRD-REVIEW "mode: yolo-internalized" 自盖章 APPROVE · 评审形同虚设。
+    if state.get("yolo") and not _external_run_log_exists(feature_dir, current_stage):
+        return False, (
+            f"yolo 模式 external 评审缺**实跑证据** —— ~/.teamwork/external-review-logs/"
+            f"{feature_dir.name}/ 无本 stage 日志(codex-{current_stage}-*.log / "
+            f"claude-{current_stage}-*.log)。🔴 yolo 严格按流程 · **不得手写/内化** "
+            f"external-cross-review/*.md —— 必须真跑 `state.py external-review --stage "
+            f"{current_stage} --feature {args.feature}`(调异质模型 · v8.55 自动落实跑日志)。"
+            f"\n  (artifact 文件名/frontmatter 能伪装合规 · 但实跑日志伪造不了 · 这是物化防内化)"
         )
     return True, ""
 

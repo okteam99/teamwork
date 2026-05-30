@@ -255,6 +255,48 @@ class TestExternalReviewHeteroEnforcement(unittest.TestCase):
 # ─── Bug 2 · _evidence_ac_test_binding 诊断 ─────────────────────
 
 
+class TestYoloExternalRealRun(unittest.TestCase):
+    """v8.67:yolo 严格按流程 · 不内化 —— external 必须真跑(有 v8.55 实跑日志)·
+    防 AI 手写 external-cross-review/*.md 自盖章(治本 WS-002 yolo "mode: yolo-internalized")。"""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix="tw-yolo-ext-")
+        self.feat = Path(self.tmp)  # feat_name = tmp basename(唯一 · 不撞真 ~/.teamwork)
+        (self.feat / "external-cross-review").mkdir(parents=True)
+        (self.feat / "external-cross-review" / "review-codex.md").write_text(
+            "---\nreview_model: codex\n---\n# review", encoding="utf-8")
+        self.log_dir = (Path.home() / ".teamwork" / "external-review-logs"
+                        / self.feat.name)
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+        shutil.rmtree(self.log_dir, ignore_errors=True)
+
+    def _check(self, yolo):
+        from _v8_stage_specs import _evidence_external_review_artifact  # type: ignore
+        state = {"current_stage": "review", "yolo": yolo,
+                 "stage_review_roles": {"review": ["qa", "architect", "external"]}}
+        return _evidence_external_review_artifact(state, make_args(feature=str(self.feat)))
+
+    def test_yolo_no_run_log_fails(self):
+        """yolo + external artifact 但无实跑日志 → FAIL(手写/内化)。"""
+        ok, err = self._check(yolo=True)
+        self.assertFalse(ok)
+        self.assertIn("实跑证据", err)
+
+    def test_yolo_with_run_log_passes(self):
+        """yolo + external artifact + 实跑日志 → PASS。"""
+        self.log_dir.mkdir(parents=True, exist_ok=True)
+        (self.log_dir / "codex-review-20260531T000000Z.log").write_text("ran", encoding="utf-8")
+        ok, err = self._check(yolo=True)
+        self.assertTrue(ok, err)
+
+    def test_non_yolo_no_log_passes(self):
+        """非 yolo 不要求实跑日志(gate 仅 yolo)。"""
+        ok, err = self._check(yolo=False)
+        self.assertTrue(ok, err)
+
+
 class TestAcTestBindingDiagnosis(unittest.TestCase):
     """v8.0+P0-14 治本:verify-ac.py 自身 bug(残留 placeholder)不应阻塞校验。"""
 

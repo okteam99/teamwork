@@ -1,6 +1,6 @@
 ---
 name: teamwork
-version: v8.66.1
+version: v8.67
 description: AI 协作开发一体化框架 · /teamwork 启动
 ---
 
@@ -408,12 +408,12 @@ emit 格式:
 
 ### auto_mode=true 时各暂停点行为(按名 · 不按编号)
 
-🔴 用户选 `auto_mode=true` = 显式委托 AI 完成 stage 间流转。**仅"用户决策权"类暂停点保留 stop**;**"技术 / 设计 / 评审"类暂停点 AI 内化决策 + 文档化**(不打扰用户)。
+🔴 用户选 `auto_mode=true` = 显式委托 AI 完成 stage 间流转。**仅"用户决策权"类暂停点保留 stop**;**"技术 / 设计 / 评审"类暂停点 AI 代用户接受确认 + 文档化**(不打扰用户)。🔴 这是**跳过用户确认暂停点** · **绝非**跳过/伪造**评审工作本身**——评审(多角色 + external)照常真跑。
 
 | 暂停点 | auto 行为 | 理由 |
 |---|---|---|
 | **prepare 4 项配置** | **stop** | 用户初始配置(artifact ID / worktree / branch / merge_target)· AI 不能替选 |
-| goal PRD 最终确认 | skip | PRD 已经多角色 review 内化 · auto 用户接受 |
+| goal PRD 最终确认 | skip | PRD 已多角色 review(**真跑**)· auto 跳过的是**用户确认** · 非评审本身 |
 | ui_design UI 预览确认 | skip | 设计意图已落 UI.md / preview · auto 用户接受 |
 | panorama_sync 跨团队 reviewer | **skip + WARN** | `panorama-change-summary.md` 已文档化 · auto 用户接受跨 Feature 影响 · PMO 必 `state.py add-concern --severity WARN --message "auto skip: panorama change scope=..."` 留 audit |
 | blueprint DB schema 变更确认 | **skip + WARN** | 技术决策 auto 委托 AI · 但 DB 变更高风险 · PMO 必 `state.py add-concern --severity WARN --message "auto skip: DB schema change ··· tables/fields/migrations: ..."` 留 audit(便于 dev/review 复查) |
@@ -432,6 +432,7 @@ emit 格式:
 - **`--yolo`**(无值)= 用 `--merge-target` 的分支(二者至少给一个 · 都没 → FAIL)
 
 🔴🔴 **yolo ≠ 简化/提速 · 是「加重审核」**(v8.66 治本 WS-002 case):无人值守 = **没人在看** → 自动化评审(尤其 **external 异质模型 cross-review**)是**唯一安全网** · 必须**保留 / 加重** · **绝不削弱**。yolo 的「零 stop」**只**针对**人工决策暂停点**(prepare / pm_acceptance / MR merge)· 技术与评审环节**一个不少**。
+- 🔴🔴 **严格按 teamwork 流程流转 · 不得「内化」**(v8.67):每个 stage 的评审必**真跑** —— 多角色真分析(找真问题 · 不是 `mode: yolo-internalized` 自盖章 APPROVE)· external 必**真调异质模型**(`state.py external-review --stage <X>` · 不得 AI 手写 `external-cross-review/*.md`)。external **实跑日志物化校验**:yolo 下 `xx-complete` 校验 `~/.teamwork/external-review-logs/<feat>/codex-<stage>-*.log` 存在(无 → FAIL · 文件名/frontmatter 能伪装合规 · 实跑日志伪造不了)。auto_mode 的「内化」**仅指跳过用户确认暂停点**(AI 代用户接受)· **绝非**跳过/伪造评审工作本身。
 - 🔴 **不得去 external 评审**(以"集中到 review stage""效率""价值低"为由)—— yolo 下 `change-review-roles` 去 external **物化 BLOCK**(v8.66)· 仅 external CLI **客观不可用**(未装 / 网络死 · 已重试失败)才 `--accept-external-removal --reason '<技术原因>'`(写 concern WARN)
 - 🔴 **不得擅自合并 BL / 跳 stage / 减 review 轮次 / 简化流程** —— 该走的 stage、该跑的评审角色一个不省;BL 拆分是 Planning 已定的范围,yolo 不重新打包
 - ✅ **可以加重**:必要时每个 stage 都跑 external、加 review 轮次、提高测试覆盖 —— 无人值守正该更严
