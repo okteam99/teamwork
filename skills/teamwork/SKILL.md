@@ -1,6 +1,6 @@
 ---
 name: teamwork
-version: v8.55.1
+version: v8.56.0
 description: AI 协作开发一体化框架 · /teamwork 启动
 ---
 

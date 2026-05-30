@@ -643,8 +643,9 @@ def _evidence_panorama_artifact(state: dict, args) -> tuple[bool, str]:
     v8.17(全景为唯一权威)· 治本 PTR-F052 双副本不一致 + PTR-F054 介质绕路 case:
       - **新模式**(推荐 · 有 `pages_changed[]` 字段):全景为权威 · Feature 不存副本 ·
         校验每个 pages_changed[].panorama_file 真实存在(panorama_path 内)
-      - **老模式**(向后兼容 · 无 `pages_changed[]`):按 `panorama_medium` 走
-          - `same-stack`:不要求 preview/*.html · PASS
+      - **老模式**(无 `pages_changed[]`):按 `panorama_medium` 走
+          - `same-stack`(v8.56):要求 `panorama_path/preview/*.html` ≥ 1(preview-project 编译产物 ·
+            治本 CW-F002 cut-corner · 不再无条件 PASS)· 缺 panorama_path → FAIL
           - `static-html`(或缺省):要求 Feature 内 preview/*.html ≥ 1
 
     详 stages/ui-design-stage.md § 全景为唯一权威(v8.17)/ § Panorama 介质类型。
@@ -669,7 +670,41 @@ def _evidence_panorama_artifact(state: dict, args) -> tuple[bool, str]:
         return False, (f"panorama_medium={medium!r} 非法 · 应 same-stack 或 static-html "
                        "(详 ui-design-stage.md § Panorama 介质类型)")
     if medium == "same-stack":
-        return True, ""  # 同栈 · 不要求 preview/*.html
+        # v8.56:same-stack 必产可视全景(治本 CW-F002 cut-corner · 不再 return True)
+        # 新模型:{子项目}/docs/design/preview-project 同栈独立项目 编译出 panorama_path/preview/*.html
+        ppath_raw = fm.get("panorama_path")
+        if not ppath_raw:
+            return False, (
+                "panorama_medium=same-stack · 缺 panorama_path —— v8.56 治本 cut-corner:"
+                "same-stack 必产可视全景。声明 panorama_path={子项目}/docs/design · 在其 preview-project/ "
+                "搭同栈独立项目编译出 preview/*.html · 或用 pages_changed[] 走全景为权威模式。"
+                "详 stages/ui-design-stage.md § Panorama 介质类型"
+            )
+        import subprocess
+        repo_top = None
+        try:
+            r = subprocess.run(
+                ["git", "-C", str(feature_dir), "rev-parse", "--show-toplevel"],
+                capture_output=True, text=True, timeout=5,
+            )
+            if r.returncode == 0 and r.stdout.strip():
+                repo_top = Path(r.stdout.strip())
+        except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+            pass
+        ppath = Path(ppath_raw)
+        candidates = [ppath / "preview"]
+        if not ppath.is_absolute():
+            if repo_top:
+                candidates.insert(0, repo_top / ppath / "preview")
+            candidates.append(feature_dir / ppath / "preview")  # 兜底
+        for pd in candidates:
+            if pd.exists() and list(pd.glob("*.html")):
+                return True, ""
+        return False, (
+            f"panorama_medium=same-stack · 需编译出可视全景 {ppath_raw}/preview/*.html ≥ 1(v8.56 · "
+            f"治本 CW-F002 cut-corner)· 在 {ppath_raw}/preview-project 搭同栈独立项目 npm run build 产出 · "
+            f"不可只写 UI.md markdown 跳过可视全景。详 stages/ui-design-stage.md"
+        )
     # static-html · 要求 preview/*.html ≥ 1
     preview_dir = feature_dir / "preview"
     if not preview_dir.exists() or not list(preview_dir.glob("*.html")):

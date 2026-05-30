@@ -1,5 +1,33 @@
 # Changelog
 
+## v8.56 · ui_design same-stack 重定义 = docs/design/preview-project + 可视全景物化(用户 case CW-F002 · dev-only)
+
+> 用户 2026-05-30(supersdk CW-F002 · Tailwind→antd 迁移):"你怎么没出全景设计?" + "应在 design 目录建 antd 项目编译静态 HTML" + "目录应为 子项目/docs/design/preview-project(与实际前端项目同技术栈)+ 设计规范"。
+
+### 根因:3 个真实 gap
+
+1. **cut-corner 有缝**:same-stack 的可视交付物没物化校验 —— `_evidence_panorama_artifact` 对 same-stack **直接 `return True`**(仅校验 UI.md 自查)→ AI 拿"验证器只校验 UI.md""same-stack 不要求 preview"当借口,只写 markdown token 表、零可视全景。最低物化闸被当成免做交付物许可。
+2. **same-stack 污染真实工程 + 新库鸡蛋问题**:旧 same-stack = 在真实前端 app 加 `/design/*` 路由 → 污染工程;且本 Feature 正要引入 antd(还没装)→ "用自身组件预览 antd" 先有鸡还是蛋。
+3. **static-html 介质差**:手搓 CDN ≠ 真实组件渲染。
+
+### 用户决策
+
+| 决策 | 内容 |
+|----|------|
+| ① **重定义 same-stack** | 实现从「真实 app 内 /design 路由」改成「`{子项目}/docs/design/preview-project` 同栈独立项目(自带目标库)→ `npm run build` → `docs/design/preview/*.html`」· 不污染工程 + 解新库鸡蛋问题 · 仍 2 介质(same-stack + static-html)· 老 Feature 向后兼容 |
+| ② **可视全景物化** | 编译出的静态全景 `docs/design/preview/*.html` 必产 + ui_design-complete 校验存在(治 cut-corner) |
+
+### 改动
+
+| 文件 | 内容 |
+|----|------|
+| `stages/ui-design-stage.md` | same-stack 重定义(preview-project 模型 + docs/design 结构)· 硬规则加「必产可视全景」· 加 `python3 -m http.server` 验证 note(`file://` 在 browse 不加载 · 治本 CW-F002 误判"渲染正常") |
+| `tools/_v8_stage_specs.py` | `_evidence_panorama_artifact` same-stack `return True` → 要求 `panorama_path/preview/*.html` 编译产物存在(缺 panorama_path / 缺 preview → FAIL) |
+| `templates/ui.md` / `roles/designer.md` / `conventions.md §13` | same-stack realization 改 preview-project + http.server + docs/design/ 目录约定 |
+| 测试 | TestPanoramaArtifactEvidence same-stack 3 例改(无 panorama_path FAIL / 有编译产物 PASS / 声明但没编译 FAIL)· 368 passed · 68 pre-existing(无关)· 0 regression |
+
+---
+
 ## v8.55 · external wrapper(codex/claude)抗卡 + 超时 10min + 默认落执行日志(用户 case · dev-only)
 
 > 用户 2026-05-29:"external wrapper 执行 codex 有时卡住(疑似 codex 升级提示)· 是否有参数禁用 · 超时 5min→10min · codex 执行输出默认写文件方便排查跑不起来。"

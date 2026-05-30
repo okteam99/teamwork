@@ -1685,8 +1685,9 @@ class TestPMDecisionTolerance(unittest.TestCase):
 
 
 class TestPanoramaArtifactEvidence(unittest.TestCase):
-    """UI_DESIGN_SPEC _evidence_panorama_artifact 按 panorama_medium 校验
-    (治本 PTR-F052:same-stack 跳过 preview/*.html 要求 · static-html 维持原校验)。"""
+    """UI_DESIGN_SPEC _evidence_panorama_artifact 按 panorama_medium 校验。
+    v8.56:same-stack 改为**要求** panorama_path/preview/*.html(编译产物 · 治本 CW-F002 cut-corner)·
+    static-html 维持 Feature 内 preview/*.html 校验。"""
 
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp(prefix="tw-panorama-"))
@@ -1698,18 +1699,39 @@ class TestPanoramaArtifactEvidence(unittest.TestCase):
         class _A: pass
         a = _A(); a.feature = str(self.tmp); return a
 
-    def _write_ui(self, medium=None):
+    def _write_ui(self, medium=None, panorama_path=None):
         lines = ["---", "pages:", "  - {id: page1, title: \"页面 1\"}"]
         if medium is not None:
             lines.append(f"panorama_medium: {medium}")
+        if panorama_path is not None:
+            lines.append(f"panorama_path: {panorama_path}")
         lines += ["---", "# UI"]
         (self.tmp / "UI.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
-    def test_same_stack_no_preview_passes(self):
+    def test_v856_same_stack_no_panorama_path_fails(self):
+        """v8.56:same-stack 无 panorama_path → FAIL(治本 CW-F002 cut-corner · 必产可视全景)。"""
         from _v8_stage_specs import _evidence_panorama_artifact
         self._write_ui(medium="same-stack")
         ok, err = _evidence_panorama_artifact({}, self._args())
+        self.assertFalse(ok)
+        self.assertIn("可视全景", err)
+
+    def test_v856_same_stack_with_built_preview_passes(self):
+        """v8.56:same-stack + panorama_path 下编译出 preview/*.html → PASS。"""
+        from _v8_stage_specs import _evidence_panorama_artifact
+        self._write_ui(medium="same-stack", panorama_path="design")
+        (self.tmp / "design" / "preview").mkdir(parents=True)
+        (self.tmp / "design" / "preview" / "page1.html").write_text("<html></html>", encoding="utf-8")
+        ok, err = _evidence_panorama_artifact({}, self._args())
         self.assertTrue(ok, err)
+
+    def test_v856_same_stack_panorama_path_no_built_preview_fails(self):
+        """v8.56:same-stack 声明 panorama_path 但没编译出 preview/*.html → FAIL。"""
+        from _v8_stage_specs import _evidence_panorama_artifact
+        self._write_ui(medium="same-stack", panorama_path="design")
+        ok, err = _evidence_panorama_artifact({}, self._args())
+        self.assertFalse(ok)
+        self.assertIn("preview/*.html", err)
 
     def test_static_html_no_preview_fails(self):
         from _v8_stage_specs import _evidence_panorama_artifact

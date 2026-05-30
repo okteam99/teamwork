@@ -10,7 +10,7 @@
 ---
 pages:
   - {id: page1, title: "页面 1"}
-panorama_medium: same-stack  # same-stack(推荐 · 前端栈已定时硬规则)| static-html(兜底 · 前端栈未定)· 详 stages/ui-design-stage.md § Panorama 介质类型
+panorama_medium: same-stack  # same-stack(推荐 · v8.56:{子项目}/docs/design/preview-project 同栈独立项目编译出 preview/*.html)| static-html(兜底 · 手写 CDN HTML)· 详 stages/ui-design-stage.md § Panorama 介质类型
 panorama_path: {绝对路径 / null（项目无全景）}  # 全景权威根(workspace 级 panorama 单源)
 # v8.17 新模式 · 全景为唯一权威(推荐 · 治本 PTR-F052 双副本不一致 / PTR-F054 介质绕路):
 # pages_changed[] 有 → Feature 不存 preview/ 副本 · panorama_file 是唯一权威 · 直接改全景文件
@@ -24,7 +24,7 @@ pages_changed:
 
 > 🔴 全景宿主：{当前子项目 / 跨子项目→{hosting_subproject}}
 > 🔴 panorama_path: {绝对路径 / null（项目无全景）} · 全景权威根
-> 🔴 panorama_medium: same-stack(推荐 · 复用项目前端栈 + mock data · 像素级 fidelity by construction)| static-html(兜底 · 全景内 panorama_path/preview/*.html · 仅作 IA / 视觉层级 / Token 一致性参考 · 介质差异不可像素级仿 live)
+> 🔴 panorama_medium: same-stack(推荐 · v8.56:`{子项目}/docs/design/preview-project` 同栈独立项目编译出 `panorama_path/preview/*.html` · 真实组件渲染 · 不污染真实工程 · 解新库引入鸡蛋问题 · 验证用 `python3 -m http.server` 起服务再截图)| static-html(兜底 · 手写 CDN · 仅作 IA / 视觉层级 / Token 一致性参考 · 介质差异不可像素级仿 live)
 > 🟢 **v8.17 全景为唯一权威**:本 Feature 不存 preview/*.html 副本 · 直接编辑 panorama_path/preview/<page>.html(权威) · pages_changed[] 声明本 Feature 改了哪几个 page + 链到权威文件。详 [stages/ui-design-stage.md § 全景为唯一权威](../stages/ui-design-stage.md)。
 
 ## 状态
