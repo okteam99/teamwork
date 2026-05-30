@@ -588,8 +588,8 @@ def _ui_design_brief(state: dict) -> str:
 Designer 产出 UI.md + HTML 预览 · sitemap 同步(如涉及全景变更)。
 
 ### 结果(完成判定)
-- `UI.md`(frontmatter:`pages: [{{id, title}}]`)
-- `preview/*.html`(每 page.id 对应 1 文件 · 可交互)
+- `UI.md`(frontmatter:`pages: [{{id, title}}]` + `panorama_medium`)
+- 预览产物(按介质):`static-html` → `preview/*.html`(每 page.id 1 文件 · 可交互);`same-stack` → `{{panorama_path}}/preview-project/`(同栈可跑项目 + `preview.sh` + `package.json`)
 - (条件)sitemap.md 已更新
 
 ### 怎么做
@@ -598,7 +598,7 @@ Designer 产出 UI.md + HTML 预览 · sitemap 同步(如涉及全景变更)。
 ### 完成方式
 ```
 state.py ui_design-complete --feature <path> --auto-commit <hash> \
-  --artifacts UI.md,preview/
+  --artifacts UI.md[,preview/]   # same-stack 仅 UI.md(预览权威在 preview-project)
 ```
 """
 
@@ -640,15 +640,15 @@ def _ui_design_transition(state: dict) -> Optional[str]:
 def _evidence_panorama_artifact(state: dict, args) -> tuple[bool, str]:
     """按 UI.md frontmatter 校验 panorama 产物。
 
-    v8.17(全景为唯一权威)· 治本 PTR-F052 双副本不一致 + PTR-F054 介质绕路 case:
-      - **新模式**(推荐 · 有 `pages_changed[]` 字段):全景为权威 · Feature 不存副本 ·
-        校验每个 pages_changed[].panorama_file 真实存在(panorama_path 内)
-      - **老模式**(无 `pages_changed[]`):按 `panorama_medium` 走
-          - `same-stack`(v8.56):要求 `panorama_path/preview/*.html` ≥ 1(preview-project 编译产物 ·
-            治本 CW-F002 cut-corner · 不再无条件 PASS)· 缺 panorama_path → FAIL
-          - `static-html`(或缺省):要求 Feature 内 preview/*.html ≥ 1
+    v8.58(同栈 preview.sh 即唯一预览 · 用户拍板 option B · supersede v8.56 静态 build 物化):
+      - `same-stack`:全景权威 = preview-project 源(committed 可跑独立项目)· 物化 =
+        `{panorama_path}/preview-project/` + `preview.sh` + `package.json`(不再要静态 build 产物)·
+        预览 = 跑 preview.sh 起 dev server(动态端口 · 不在 teamwork 层起 server)
+      - `static-html`:
+          - 有 `pages_changed[]`(v8.17 全景为权威)→ 校验每个 panorama_file 真实存在
+          - 否则 → 要求 Feature 内 `preview/*.html` ≥ 1
 
-    详 stages/ui-design-stage.md § 全景为唯一权威(v8.17)/ § Panorama 介质类型。
+    详 stages/ui-design-stage.md § Panorama 介质类型 / § 预览。
     """
     feature_dir = Path(args.feature)
     ui_md = feature_dir / "UI.md"
@@ -656,56 +656,21 @@ def _evidence_panorama_artifact(state: dict, args) -> tuple[bool, str]:
         return False, f"UI.md 不存在{_template_hint('UI.md')}"
     fm = parse_frontmatter(ui_md) or {}
 
-    # v8.17 新模式:全景为唯一权威(有 pages_changed[])
-    pages_changed = fm.get("pages_changed")
-    if pages_changed and isinstance(pages_changed, list):
-        ok, err = _check_pages_changed_authority(feature_dir, fm, pages_changed)
-        if not ok:
-            return False, err
-        return True, ""
-
-    # 老模式:按 panorama_medium 走(向后兼容)
     medium = fm.get("panorama_medium", "static-html")
     if medium not in ("same-stack", "static-html"):
         return False, (f"panorama_medium={medium!r} 非法 · 应 same-stack 或 static-html "
                        "(详 ui-design-stage.md § Panorama 介质类型)")
+
     if medium == "same-stack":
-        # v8.56:same-stack 必产可视全景(治本 CW-F002 cut-corner · 不再 return True)
-        # 新模型:{子项目}/docs/design/preview-project 同栈独立项目 编译出 panorama_path/preview/*.html
-        ppath_raw = fm.get("panorama_path")
-        if not ppath_raw:
-            return False, (
-                "panorama_medium=same-stack · 缺 panorama_path —— v8.56 治本 cut-corner:"
-                "same-stack 必产可视全景。声明 panorama_path={子项目}/docs/design · 在其 preview-project/ "
-                "搭同栈独立项目编译出 preview/*.html · 或用 pages_changed[] 走全景为权威模式。"
-                "详 stages/ui-design-stage.md § Panorama 介质类型"
-            )
-        import subprocess
-        repo_top = None
-        try:
-            r = subprocess.run(
-                ["git", "-C", str(feature_dir), "rev-parse", "--show-toplevel"],
-                capture_output=True, text=True, timeout=5,
-            )
-            if r.returncode == 0 and r.stdout.strip():
-                repo_top = Path(r.stdout.strip())
-        except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
-            pass
-        ppath = Path(ppath_raw)
-        candidates = [ppath / "preview"]
-        if not ppath.is_absolute():
-            if repo_top:
-                candidates.insert(0, repo_top / ppath / "preview")
-            candidates.append(feature_dir / ppath / "preview")  # 兜底
-        for pd in candidates:
-            if pd.exists() and list(pd.glob("*.html")):
-                return True, ""
-        return False, (
-            f"panorama_medium=same-stack · 需编译出可视全景 {ppath_raw}/preview/*.html ≥ 1(v8.56 · "
-            f"治本 CW-F002 cut-corner)· 在 {ppath_raw}/preview-project 搭同栈独立项目 npm run build 产出 · "
-            f"不可只写 UI.md markdown 跳过可视全景。详 stages/ui-design-stage.md"
-        )
-    # static-html · 要求 preview/*.html ≥ 1
+        # v8.58 option B:物化 = preview-project 可跑 + preview.sh 存在(不再要静态 build)
+        return _check_same_stack_preview_project(feature_dir, fm)
+
+    # static-html:v8.17 新模式 · 全景为唯一权威(有 pages_changed[])
+    pages_changed = fm.get("pages_changed")
+    if pages_changed and isinstance(pages_changed, list):
+        return _check_pages_changed_authority(feature_dir, fm, pages_changed)
+
+    # 老模式:Feature 内 preview/*.html ≥ 1
     preview_dir = feature_dir / "preview"
     if not preview_dir.exists() or not list(preview_dir.glob("*.html")):
         return False, (
@@ -715,6 +680,65 @@ def _evidence_panorama_artifact(state: dict, args) -> tuple[bool, str]:
             "详 stages/ui-design-stage.md § 全景为唯一权威)"
         )
     return True, ""
+
+
+def _resolve_panorama_subdir(feature_dir: Path, ppath_raw: str, sub: str) -> list:
+    """resolve {panorama_path}/{sub} 候选路径(绝对 / 相对仓库根 / feature_dir 兜底)。"""
+    import subprocess
+    repo_top = None
+    try:
+        r = subprocess.run(
+            ["git", "-C", str(feature_dir), "rev-parse", "--show-toplevel"],
+            capture_output=True, text=True, timeout=5,
+        )
+        if r.returncode == 0 and r.stdout.strip():
+            repo_top = Path(r.stdout.strip())
+    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+        pass
+    ppath = Path(ppath_raw)
+    candidates = [ppath / sub]
+    if not ppath.is_absolute():
+        if repo_top:
+            candidates.insert(0, repo_top / ppath / sub)
+        candidates.append(feature_dir / ppath / sub)  # 兜底
+    return candidates
+
+
+def _check_same_stack_preview_project(feature_dir: Path, fm: dict) -> tuple[bool, str]:
+    """v8.58 option B:same-stack 物化 = preview-project 可跑 + preview.sh 存在。
+
+    全景权威 = preview-project 源(committed 可跑独立项目)· 预览靠跑 preview.sh 起 dev server
+    (动态端口 · 不在 teamwork 层起 server)。校验:
+      - panorama_path 声明
+      - {panorama_path}/preview-project/ 存在
+      - preview-project/preview.sh(预览入口)+ package.json(可跑 JS 项目证据)
+    """
+    ppath_raw = fm.get("panorama_path")
+    if not ppath_raw:
+        return False, (
+            "panorama_medium=same-stack · 缺 panorama_path · 声明 "
+            "panorama_path={子项目}/docs/design · 在其 preview-project/ 搭同栈可跑项目 + preview.sh。"
+            "详 stages/ui-design-stage.md § Panorama 介质类型"
+        )
+    for proj in _resolve_panorama_subdir(feature_dir, ppath_raw, "preview-project"):
+        if proj.is_dir():
+            missing = []
+            if not (proj / "preview.sh").exists():
+                missing.append("preview.sh(预览入口 · 见 templates/preview-project-preview.sh)")
+            if not (proj / "package.json").exists():
+                missing.append("package.json(可跑项目证据)")
+            if missing:
+                return False, (
+                    f"same-stack preview-project 存在但缺:{' · '.join(missing)} · 目录 {proj} · "
+                    "预览靠跑 preview.sh 起 dev server(动态端口)。详 stages/ui-design-stage.md § 预览"
+                )
+            return True, ""
+    return False, (
+        f"panorama_medium=same-stack · 需 {ppath_raw}/preview-project/(同栈可跑独立项目 + preview.sh "
+        f"+ package.json · 全景权威 = preview-project 源)· 不可只写 UI.md markdown。"
+        "预览 = 跑 preview.sh 起 dev server(动态端口 · 不在 teamwork 层起 server)。"
+        "详 stages/ui-design-stage.md § 预览"
+    )
 
 
 def _parse_flow_style_dict(s: str) -> Optional[dict]:
@@ -905,14 +929,14 @@ UI_DESIGN_SPEC = StageSpec(
             frontmatter_required=["pages"],
             description="UI 设计稿 · frontmatter pages[] + panorama_medium",
         ),
-        # preview/*.html 由 _evidence_panorama_artifact 条件化校验
-        # (same-stack 不要求 · static-html 要求 ≥1)· 治本 PTR-F052 case
+        # 预览产物由 _evidence_panorama_artifact 按介质条件化校验
+        # (same-stack: preview-project+preview.sh · static-html: preview/*.html ≥1)
     ],
     evidence_checks=[
         StageEvidenceCheck(
             name="panorama_artifact",
             check_fn=_evidence_panorama_artifact,
-            description="按 panorama_medium 校验:same-stack 跳过 · static-html 要求 preview/*.html ≥ 1",
+            description="按 panorama_medium 校验:same-stack 要 preview-project+preview.sh · static-html 要 preview/*.html ≥ 1",
         ),
         StageEvidenceCheck(
             name="panorama_changed_decided",

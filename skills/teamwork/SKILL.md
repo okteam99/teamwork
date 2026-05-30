@@ -1,6 +1,6 @@
 ---
 name: teamwork
-version: v8.57.1
+version: v8.58
 description: AI 协作开发一体化框架 · /teamwork 启动
 ---
 
@@ -626,7 +626,6 @@ v8 把 v7 的 9 红线中 16/17 子条目物化进 state.py · 仅 1 条(R3 PMO 
 | [tools/_v8_ship.py](./tools/_v8_ship.py) | ship-phase 5 actions |
 | [tools/_v8_migrate.py](./tools/_v8_migrate.py) | v7 → v8 迁移 |
 | [tools/bootstrap.py](./tools/bootstrap.py) | session 启动维护(骨架 / hooks / 注入段) |
-| [tools/preview.py](./tools/preview.py) | UI 预览静态服务单 hub(v8.57 · `serve`/`list`/`stop` · 治本 same-stack 预览端口冲突 + 跨 session 可访问) |
 | [docs/CHANGELOG.md](./docs/CHANGELOG.md) | 完整变更记录 |
 
 ---

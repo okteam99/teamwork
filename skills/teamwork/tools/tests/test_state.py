@@ -1686,8 +1686,8 @@ class TestPMDecisionTolerance(unittest.TestCase):
 
 class TestPanoramaArtifactEvidence(unittest.TestCase):
     """UI_DESIGN_SPEC _evidence_panorama_artifact 按 panorama_medium 校验。
-    v8.56:same-stack 改为**要求** panorama_path/preview/*.html(编译产物 · 治本 CW-F002 cut-corner)·
-    static-html 维持 Feature 内 preview/*.html 校验。"""
+    v8.58 option B:same-stack 物化 = preview-project + preview.sh + package.json(用户拍板 ·
+    supersede v8.56 静态 build)· static-html 维持 Feature 内 preview/*.html 校验。"""
 
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp(prefix="tw-panorama-"))
@@ -1708,30 +1708,48 @@ class TestPanoramaArtifactEvidence(unittest.TestCase):
         lines += ["---", "# UI"]
         (self.tmp / "UI.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
-    def test_v856_same_stack_no_panorama_path_fails(self):
-        """v8.56:same-stack 无 panorama_path → FAIL(治本 CW-F002 cut-corner · 必产可视全景)。"""
+    def _scaffold_preview_project(self, panorama_path="design",
+                                  with_sh=True, with_pkg=True):
+        proj = self.tmp / panorama_path / "preview-project"
+        proj.mkdir(parents=True)
+        if with_sh:
+            (proj / "preview.sh").write_text("#!/usr/bin/env bash\n", encoding="utf-8")
+        if with_pkg:
+            (proj / "package.json").write_text("{}", encoding="utf-8")
+        return proj
+
+    def test_v858_same_stack_no_panorama_path_fails(self):
+        """v8.58:same-stack 无 panorama_path → FAIL。"""
         from _v8_stage_specs import _evidence_panorama_artifact
         self._write_ui(medium="same-stack")
         ok, err = _evidence_panorama_artifact({}, self._args())
         self.assertFalse(ok)
-        self.assertIn("可视全景", err)
+        self.assertIn("panorama_path", err)
 
-    def test_v856_same_stack_with_built_preview_passes(self):
-        """v8.56:same-stack + panorama_path 下编译出 preview/*.html → PASS。"""
+    def test_v858_same_stack_with_preview_project_passes(self):
+        """v8.58 option B:same-stack + preview-project + preview.sh + package.json → PASS。"""
         from _v8_stage_specs import _evidence_panorama_artifact
         self._write_ui(medium="same-stack", panorama_path="design")
-        (self.tmp / "design" / "preview").mkdir(parents=True)
-        (self.tmp / "design" / "preview" / "page1.html").write_text("<html></html>", encoding="utf-8")
+        self._scaffold_preview_project()
         ok, err = _evidence_panorama_artifact({}, self._args())
         self.assertTrue(ok, err)
 
-    def test_v856_same_stack_panorama_path_no_built_preview_fails(self):
-        """v8.56:same-stack 声明 panorama_path 但没编译出 preview/*.html → FAIL。"""
+    def test_v858_same_stack_no_preview_project_fails(self):
+        """v8.58:same-stack 声明 panorama_path 但无 preview-project → FAIL。"""
         from _v8_stage_specs import _evidence_panorama_artifact
         self._write_ui(medium="same-stack", panorama_path="design")
         ok, err = _evidence_panorama_artifact({}, self._args())
         self.assertFalse(ok)
-        self.assertIn("preview/*.html", err)
+        self.assertIn("preview-project", err)
+
+    def test_v858_same_stack_missing_preview_sh_fails(self):
+        """v8.58:preview-project 存在但缺 preview.sh → FAIL。"""
+        from _v8_stage_specs import _evidence_panorama_artifact
+        self._write_ui(medium="same-stack", panorama_path="design")
+        self._scaffold_preview_project(with_sh=False)
+        ok, err = _evidence_panorama_artifact({}, self._args())
+        self.assertFalse(ok)
+        self.assertIn("preview.sh", err)
 
     def test_static_html_no_preview_fails(self):
         from _v8_stage_specs import _evidence_panorama_artifact

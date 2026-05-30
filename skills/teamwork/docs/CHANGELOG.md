@@ -1,5 +1,37 @@
 # Changelog
 
+## v8.58 · same-stack 预览改 preview-project/preview.sh(dev server + 动态端口 · supersede v8.57 hub + v8.56 静态 build · 用户拍板 option B · dev-only)
+
+> 用户 2026-05-30:"最好针对预览稿直接编译运行 · 设计确认时直接给 URL · **不用在 teamwork 层起 server** · 直接用项目的 dev 环境 · 只是端口动态生成一个 · 是否可以在 preview-project 内也有一个 preview.sh 脚本 · 执行调用编译运行后输出可打开 URL。"
+
+### 方向修正:v8.57 hub 被 supersede
+
+v8.57 在 teamwork 层起单 hub serve 静态构建 —— 用户否定("不用在 teamwork 层起 server")。更干净的方案:preview-project 就是个可跑项目 · 让它自己的 dev server 跑预览 · **每次选动态空闲端口**(并行 worktree/多终端天然不冲突)· 用 `preview.sh` 封装。
+
+### 用户拍板 option B(AskUserQuestion)
+
+「加了 preview.sh 后 v8.56 的静态 build 必产 + 物化校验怎么处理」→ **去掉 · preview.sh 即唯一预览**:
+- same-stack 全景权威 = **preview-project 源**(committed 可跑独立项目 · 要看跑 preview.sh)· **不再出静态 `docs/design/preview/*.html`**
+- 物化闸改为 `preview-project/` + `preview.sh` + `package.json` 存在(`_check_same_stack_preview_project`)· 比 v8.56 静态产物校验弱 · 但用户接受(换 DX:实时热更 + 一键 URL)
+
+### 改动
+
+| 文件 | 内容 |
+|----|------|
+| **删** `tools/preview.py` + `tools/tests/test_preview.py` | v8.57 单 hub 整体回退(不在 teamwork 层起 server) |
+| **新** `templates/preview-project-preview.sh` | preview.sh 模板:按 lockfile 选包管理器 + 缺则装依赖 + `node net` 选动态空闲端口(`PORT` env 可覆盖)+ 打印 `PREVIEW_URL=` + 起 dev server(vite/next/CRA · 一行按框架改)· 拷入 preview-project 根 |
+| `tools/_v8_stage_specs.py` | `_evidence_panorama_artifact` 重构:same-stack → `_check_same_stack_preview_project`(preview-project+preview.sh+package.json · 不再要静态 build)· static-html 不变 · 加 `_resolve_panorama_subdir` helper |
+| `stages/ui-design-stage.md` | same-stack 模型重述(源即权威 · 删静态 build)· 新 § 预览(preview.sh · dev server · 动态端口)替换 v8.57 § 预览服务 hub · step 3/5 + 物化拦截 + Output Contract 改 preview.sh |
+| `roles/designer.md` / `templates/ui.md` / `docs/conventions.md` / `stages/panorama-sync-stage.md` | same-stack 验证改 preview.sh · 去 preview.py / base:'./' / 静态产物 |
+| `SKILL.md` | 删 tools/preview.py 文档清单行 |
+| 测试 | TestPanoramaArtifactEvidence same-stack 3→4 例(无 panorama_path FAIL / preview-project+preview.sh+pkg PASS / 无 preview-project FAIL / 缺 preview.sh FAIL)· 369 passed · 68 pre-existing(无关)· 0 regression |
+
+### 🔴 preview.sh 用法
+
+PMO 后台跑 `bash {子项目}/docs/design/preview-project/preview.sh` → 读早期 stdout 的 `PREVIEW_URL=` 行 → 等就绪 browse → 用完 kill。dev server 前台阻塞 · 故 `run_in_background`。仅 localhost。
+
+---
+
 ## v8.57 · UI 预览静态服务单 hub(治本 same-stack 预览端口冲突 + 跨 session 可访问 · 用户 case · dev-only)
 
 > 用户 2026-05-30:"同栈项目预览稿无法直接预览 · 需启动服务 · 需要一个机制让各 session 的 UI 预览稿可访问 · 要考虑并行 worktree · 多终端开发端口冲突。"
