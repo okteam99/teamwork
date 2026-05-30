@@ -566,6 +566,19 @@ class TestClassifyMainSyncDirty(unittest.TestCase):
         self.assertEqual(len(r["other_files"]), 1)
         self.assertIn("src.py", r["other_files"])
 
+    def test_v862_mixed_feature_artifacts_and_user_still_classified(self):
+        """v8.62:feature_artifacts + 用户改动混合 → feature_artifacts 仍被识别(2)·
+        other_files 含用户文件 · safe_to_stash=False。治本"总是残留":即便有用户改动 ·
+        main-sync else 分支仍能拿到 feature_artifacts 去 checkout 清除(不再整段跳过)。"""
+        (self.feat / "state.json").write_text('{"x":2}', encoding="utf-8")
+        (self.feat / "review-log.jsonl").write_text('{"new":1}\n', encoding="utf-8")
+        (self.main / "src.py").write_text("new code", encoding="utf-8")  # 用户改动
+        r = self._call()
+        self.assertTrue(r["is_dirty"])
+        self.assertFalse(r["safe_to_stash"])              # 有用户改动 → 不 safe
+        self.assertEqual(len(r["feature_artifacts"]), 2)  # 但 feature_artifacts 仍识别出(可被清)
+        self.assertIn("src.py", r["other_files"])
+
     def test_infra_f025_case_mixed_all_safe(self):
         """治本 INFRA-F025 case 复刻:5 dirty 文件 · 全副产物 → safe=True。"""
         (self.feat / "state.json").write_text('{"x":2}', encoding="utf-8")

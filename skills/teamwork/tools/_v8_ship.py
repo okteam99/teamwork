@@ -957,9 +957,12 @@ def _classify_main_sync_dirty(main_wt: str, feature_dir: Path, state: dict) -> d
         }
 
     # 算 feature_dir 相对 main_wt 的路径(用来识别本 Feature artifacts)
+    # v8.62:resolve 后再 relative_to(归一 symlink · macOS /var→/private/var)·
+    # 否则 relative_to 抛 ValueError → feature_rel="" → state.json/review-log.jsonl
+    # 落 other_files → safe_to_stash=False → main-sync 整段跳过(治本"总是残留")
     try:
-        feature_rel = str(feature_dir.relative_to(Path(main_wt)))
-    except ValueError:
+        feature_rel = str(feature_dir.resolve().relative_to(Path(main_wt).resolve()))
+    except (ValueError, OSError):
         feature_rel = ""
 
     feature_artifacts: list = []
@@ -1579,17 +1582,36 @@ def cmd_ship_finalize(args: argparse.Namespace) -> None:
                                     f"(等用户 commit / G2 ignore)"
                                 )
             else:
-                # dirty 含用户真改动 → 保留现状(同 v8.16 WARN 跳过)
-                warnings.append(
-                    f"主工作区 {merge_target} 有未提交改动({len(dirty_result['other_files'])} "
-                    f"个用户改动 · 不动)· 已 fetch 未 pull · 自行 commit/stash 后 "
-                    f"git pull --ff-only origin {merge_target}:"
-                    f"{', '.join(dirty_result['other_files'][:5])}"
-                )
-                main_sync_status = "skipped_user_changes"
+                # v8.62 治本"总是残留"(用户实证):dirty 含用户真改动时旧逻辑**整段跳过** ·
+                # 连 feature_artifacts(state.json/review-log.jsonl · finalize-push 已推 origin
+                # 的冗余本地副本)也不清 → 主分支永久残留 + 没 pull。改:先**无条件**用 origin 版
+                # 覆盖 feature_artifacts(它们总是安全丢弃 · origin 已有终态)· 再尽力 ff-pull
+                # (finalize commit 只动这两文件 · 一般不碰用户改动 · ff 不冲突即成)· 用户真改动始终不动。
+                fa = dirty_result["feature_artifacts"]
+                fa_failed = []
+                for f in fa:
+                    co = _git(["checkout", f"origin/{merge_target}", "--", f],
+                              cwd=main_wt, timeout=15)
+                    if co.returncode != 0:
+                        fa_failed.append(f)
+                pl = _git(["pull", "--ff-only", "origin", merge_target],
+                          cwd=main_wt, timeout=120)
+                pulled = pl.returncode == 0
+                if not pulled:
+                    warnings.append(
+                        f"主工作区 {merge_target} 有 {len(dirty_result['other_files'])} 个用户改动 · "
+                        f"feature_artifacts 已用 origin 覆盖清除 · 但 ff-pull 未通过 · "
+                        f"自行 commit/stash 后 git pull --ff-only origin {merge_target}:"
+                        f"{', '.join(dirty_result['other_files'][:5])}"
+                    )
+                main_sync_status = (
+                    "cleaned_pulled_user_dirty_kept" if pulled
+                    else "cleaned_skip_pull_user_changes")
                 main_sync_note = (
-                    f"用户真改动 dirty({len(dirty_result['other_files'])} 文件)· "
-                    f"自动 stash 不安全 · 自行处理"
+                    f"feature_artifacts({len(fa) - len(fa_failed)})已用 origin 覆盖清除 · "
+                    + ("ff-pull 到最新 · " if pulled else "ff-pull 未通过 · ")
+                    + f"保留 {len(dirty_result['other_files'])} 个用户改动"
+                    + (f" · {len(fa_failed)} 个 checkout 失败" if fa_failed else "")
                 )
 
     emit_json({

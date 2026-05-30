@@ -1,5 +1,29 @@
 # Changelog
 
+## v8.62 · ship-finalize main-sync 主分支残留治本(feature_artifacts 无条件清 + ff-pull · 用户 case · dev-only)
+
+> 用户 2026-05-30:"总是发现主分支残留 state.json 和一个 jsonl · 是否有必要回主分支后 git pull · 一般刚有新 MR 合入 · 尽量保证主分支干净最新。"
+
+### 根因(两个叠加)
+
+ship-finalize step 7 main-sync 本就 `git fetch` + `pull --ff-only` + 尝试清 feature_artifacts(state.json / review-log.jsonl = finalize-push 已推 origin 的**冗余本地副本**)· 但:
+1. **清理被 gate 在「无其他 dirty」**:`else` 分支(主工作区含任何用户改动 → `safe_to_stash=False`)整段 `skipped_user_changes` —— 连 feature_artifacts 也不清 → 永久残留 + 主分支没 pull。主工作区几乎总有点 dirty(bootstrap 注入 / 用户 WIP)→ 用户实证"总是残留"。
+2. **feature_rel 误分类**:`feature_dir.relative_to(main_wt)` 不 resolve · symlink 不一致(macOS /var→/private/var)时抛 ValueError → `feature_rel=""` → state.json/jsonl 落 other_files → 触发 (1)。
+
+### 修复
+
+| 改动 | 内容 |
+|----|----|
+| `_classify_main_sync_dirty` | relative_to 前先 `resolve()` 双边(归一 symlink)· 防 state.json/jsonl 误落 other_files |
+| main-sync `else` 分支 | 不再整段跳过:**无条件** `git checkout origin/<mt> --` 覆盖清除 feature_artifacts(它们总是安全丢弃 · origin 已有终态)+ 尽力 `ff-pull`(finalize commit 只动这两文件 · 一般不碰用户改动)· 用户真改动**始终保留不动** · 新 status `cleaned_pulled_user_dirty_kept` / `cleaned_skip_pull_user_changes` |
+| 测试 | classifier 加 mixed 场景(feature_artifacts + 用户改动 → feature_artifacts 仍识别 2 · safe_to_stash=False)· 374 passed · 68 pre-existing(无关)· 0 regression |
+
+### 回答用户
+
+不必额外手动 `git pull` —— main-sync 本就 fetch + ff-pull · 问题是清理被 gate 跳过。治本后:**即便主工作区有用户改动 · 也会清掉冗余 state.json/jsonl(用 origin 终态覆盖)+ ff-pull 到最新 · 保留你的改动不动** → 主分支干净 + 最新。
+
+---
+
 ## v8.61 · 修 v8.58 同栈预览 3 个 gap(v8.59 修好的 codex 异质评审实战挑出 · dev-only)
 
 > v8.59 修好的 codex exec 评审跑 commit 56a8715(v8.58 改动)报 NEEDS_REVISION · 挑出 3 个真 gap —— 异质评审修好后第一次实战就见效。
