@@ -1930,6 +1930,30 @@ def cmd_change_review_roles(args: argparse.Namespace) -> None:
         }, ensure_ascii=False, indent=2))
 
     before = review_roles[args.stage][:]
+
+    # v8.66:yolo 去 external 评审 = 拆无人值守唯一安全网 → 默认禁止(非必要不得去)
+    # 治本 case(WS-002 yolo):AI 把 yolo 当"简化/提速" · change-review-roles 去 goal/blueprint
+    # external 美其名"集中到 review stage" —— 无人值守下这是拆掉唯一跨模型把关 · 反了。
+    if (state.get("yolo") and "external" in before and "external" not in roles_list
+            and not getattr(args, "accept_external_removal", False)):
+        die(2, json.dumps({
+            "verdict": "FAIL",
+            "command": "change-review-roles",
+            "error": (
+                f"yolo 模式禁止从 {args.stage} 去掉 external 异质模型评审 —— "
+                f"无人值守下 external 是**唯一安全网** · 非必要不得去"
+            ),
+            "hint": (
+                "🔴 yolo 不是简化/提速 · 是无人值守下**更严**的自动把关:\n"
+                "  ① 优先:别去 external · 让 external 评审照常跑(CLI 真不可用先重试 / 修环境)\n"
+                "  ② 仅当 external CLI 客观不可用(未装 / 网络死 · 已重试失败)才加 "
+                "--accept-external-removal --reason '<具体技术原因 + 重试失败证据>'\n"
+                "  🔴 不得以「集中到 review 代码 stage」「效率」「价值低」为由去 external "
+                "(= 擅自简化 · 违 yolo 加重审核原则)"
+            ),
+            "rule": "v8.66 yolo 加重审核 · 非必要不得去 external(SKILL.md § yolo)",
+        }, ensure_ascii=False, indent=2))
+
     if before == roles_list:
         emit({
             "verdict": "NOOP",
@@ -1950,6 +1974,13 @@ def cmd_change_review_roles(args: argparse.Namespace) -> None:
         "adjusted_via": "change-review-roles",
     }
     state.setdefault("stage_review_roles_adjustments", []).append(audit_entry)
+
+    # v8.66:yolo 去 external(已 --accept-external-removal 放行)→ concern WARN 留痕(retro 复盘拆安全网)
+    if state.get("yolo") and "external" in before and "external" not in roles_list:
+        state.setdefault("concerns", []).append(
+            f"{now_iso()} WARN yolo 去 external@{args.stage}(无人值守拆唯一跨模型安全网)· "
+            f"reason: {args.reason}"
+        )
 
     atomic_write(state_file, state)
 
@@ -3443,6 +3474,10 @@ def build_parser() -> argparse.ArgumentParser:
                      help="逗号分隔的角色列表(如 'qa,architect,external') · 必属 REVIEW_ROLE_ENUM")
     crr.add_argument("--reason", required=True,
                      help="调整理由(必填 · 写 stage_review_roles_adjustments audit)")
+    crr.add_argument("--accept-external-removal", action="store_true",
+                     help="[v8.66] yolo 模式去 external 评审的显式逃生口 · 仅限 external CLI "
+                          "客观不可用(未装/网络死·已重试失败)· 不得为效率/集中到 review stage 用 · "
+                          "用了写 concern WARN 留痕")
     crr.set_defaults(func=cmd_change_review_roles)
 
     # v8.20:external-review · 异质模型评审一条命令调起(治本 SVC-CORE-F034 case)

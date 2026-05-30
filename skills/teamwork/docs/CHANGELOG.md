@@ -1,5 +1,28 @@
 # Changelog
 
+## v8.66 · yolo 加重审核(非简化)· change-review-roles 去 external 物化 BLOCK(用户 case WS-002 · dev-only)
+
+> 用户 2026-05-30(WS-002 yolo 实战):"yolo 不得擅自简化流程 · yolo 模式本来就无人值守 · 需要加重各环节审核力度 · 非必要不得去掉外部模型评审。"
+
+### 根因(yolo 哲学被理解反了)
+
+v8.63–65 yolo spec 强调"零 stop / 自主解决",AI 据此把 yolo 当**简化/提速** —— WS-002 实战 AI 合并 9 BL 为 4 feature + `change-review-roles` 去掉 goal/blueprint 的 external 评审(美其名"集中到 review stage")。**反了**:无人值守 = 没人在看 → 自动化评审(尤其 external 异质模型)是**唯一安全网** · 应**加重**不应削弱。
+
+### 修复
+
+| 改动 | 内容 |
+|----|----|
+| **物化 gate** `cmd_change_review_roles` | yolo + 去 external(before 有 / after 无)+ 无 `--accept-external-removal` → **BLOCK** · hint 明列"不得为效率/集中去 external" |
+| `--accept-external-removal` flag | 显式逃生口 · 仅 external CLI **客观不可用**(未装/网络死·重试失败)· 用了写 concern WARN 留痕 |
+| `SKILL.md § yolo` | 顶部加 🔴🔴「yolo ≠ 简化/提速 · 是加重审核」原则(零 stop 只针对人工决策点 · 技术/评审环节一个不少 · 不得去 external / 合并 BL / 跳 stage / 减 review 轮次 · **可以加重**)· 修「自主解决」表 external 行(优先重试 · 绝不为效率去) |
+| 测试 +3 | yolo 去 external BLOCK / `--accept` 放行+WARN / 非 yolo 不受影响 · 388 passed · 68 pre-existing(无关)· 0 regression |
+
+### 原则
+
+yolo「零 stop」**只**针对人工决策暂停点(prepare / pm_acceptance / MR merge)· **技术与评审环节一个不省**。BL 拆分是 Planning 已定范围 · yolo 不重打包。无人值守正该**更严**。
+
+---
+
 ## v8.65 · yolo 可携带专属 merge_target 分支(--yolo <branch> · 覆盖 localconfig 默认 · 用户拍板 · dev-only)
 
 > 用户 2026-05-30:"yolo 可以指定一个分支 · 这个分支就是这个需求的 merge_target · 如果指定了则不使用 localconfig 的 merge_target。"

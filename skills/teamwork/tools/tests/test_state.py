@@ -210,6 +210,55 @@ class TestInitFeature(unittest.TestCase):
         self.assertEqual(d["verdict"], "FAIL")
         self.assertIn("merge_target", d["error"])
 
+    # ── v8.66:yolo 加重审核 · change-review-roles 去 external 物化 BLOCK ──
+
+    def test_v866_yolo_blocks_external_removal(self) -> None:
+        """v8.66:yolo 模式 change-review-roles 去 external → BLOCK(唯一安全网)。"""
+        target = self.tmp / "docs" / "features" / "YOLO-F009"
+        run([
+            "init-feature", "--feature", str(target),
+            "--feature-id", "YOLO-F009", "--flow-type", "Feature",
+            "--branch", "feat/yolo9", "--yolo", "dev-int",
+        ])
+        d = run([
+            "change-review-roles", "--feature", str(target),
+            "--stage", "blueprint", "--roles", "qa,architect", "--reason", "efficiency",
+        ], expect_exit=2)
+        self.assertEqual(d["verdict"], "FAIL")
+        self.assertIn("external", d["error"])
+
+    def test_v866_yolo_external_removal_with_ack(self) -> None:
+        """v8.66:--accept-external-removal → 放行 + concern WARN 留痕。"""
+        target = self.tmp / "docs" / "features" / "YOLO-F010"
+        run([
+            "init-feature", "--feature", str(target),
+            "--feature-id", "YOLO-F010", "--flow-type", "Feature",
+            "--branch", "feat/yolo10", "--yolo", "dev-int",
+        ])
+        d = run([
+            "change-review-roles", "--feature", str(target),
+            "--stage", "blueprint", "--roles", "qa,architect",
+            "--reason", "external CLI 未装 · 重试失败", "--accept-external-removal",
+        ])
+        self.assertEqual(d["verdict"], "OK")
+        state = json.loads((target / "state.json").read_text(encoding="utf-8"))
+        self.assertNotIn("external", state["stage_review_roles"]["blueprint"])
+        self.assertTrue(any("yolo 去 external" in c for c in state.get("concerns", [])))
+
+    def test_v866_non_yolo_external_removal_ok(self) -> None:
+        """v8.66:非 yolo 去 external 不受 guard 影响(向后兼容)。"""
+        target = self.tmp / "docs" / "features" / "YOLO-F011"
+        run([
+            "init-feature", "--feature", str(target),
+            "--feature-id", "YOLO-F011", "--flow-type", "Feature",
+            "--branch", "feat/n", "--merge-target", "staging",
+        ])
+        d = run([
+            "change-review-roles", "--feature", str(target),
+            "--stage", "blueprint", "--roles", "qa,architect", "--reason", "non-yolo",
+        ])
+        self.assertEqual(d["verdict"], "OK")
+
     def test_init_feature_uses_feature_as_single_source_for_path(self) -> None:
         """v7.3.10+P0-149 regression：PTR-F032 case · 防 --feature 和 artifact_root 分裂。
 

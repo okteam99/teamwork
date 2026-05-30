@@ -1,6 +1,6 @@
 ---
 name: teamwork
-version: v8.65.1
+version: v8.66
 description: AI 协作开发一体化框架 · /teamwork 启动
 ---
 
@@ -431,6 +431,11 @@ emit 格式:
 - **`--yolo <分支>`**(v8.65)= 本需求专属 `merge_target`(**覆盖** `--merge-target` / localconfig 默认)· 推荐给 yolo 一个**专属集成分支**隔离自动合入的代码(如 `--yolo yolo/feat-x`)· 该分支即 yolo 自动 merge 的目标
 - **`--yolo`**(无值)= 用 `--merge-target` 的分支(二者至少给一个 · 都没 → FAIL)
 
+🔴🔴 **yolo ≠ 简化/提速 · 是「加重审核」**(v8.66 治本 WS-002 case):无人值守 = **没人在看** → 自动化评审(尤其 **external 异质模型 cross-review**)是**唯一安全网** · 必须**保留 / 加重** · **绝不削弱**。yolo 的「零 stop」**只**针对**人工决策暂停点**(prepare / pm_acceptance / MR merge)· 技术与评审环节**一个不少**。
+- 🔴 **不得去 external 评审**(以"集中到 review stage""效率""价值低"为由)—— yolo 下 `change-review-roles` 去 external **物化 BLOCK**(v8.66)· 仅 external CLI **客观不可用**(未装 / 网络死 · 已重试失败)才 `--accept-external-removal --reason '<技术原因>'`(写 concern WARN)
+- 🔴 **不得擅自合并 BL / 跳 stage / 减 review 轮次 / 简化流程** —— 该走的 stage、该跑的评审角色一个不省;BL 拆分是 Planning 已定的范围,yolo 不重新打包
+- ✅ **可以加重**:必要时每个 stage 都跑 external、加 review 轮次、提高测试覆盖 —— 无人值守正该更严
+
 | 暂停点 | yolo 行为 |
 |---|---|
 | prepare 4 项配置 | 启动前给(kickoff 输入 · 非运行中 stop) |
@@ -452,7 +457,7 @@ emit 格式:
 | stage 校验 FAIL | AI 修 + 重试 · 3 次仍 FAIL → 暂停问用户 bypass | **AI 持续自主解决**(更多轮 / 换思路 / 深挖根因)· 不向用户升级 |
 | review NEEDS_REVISION / test FAIL | AI 改 + retry | 同上 · 持续修到绿 · 不回退给人 |
 | bypass 协议(R8 写门禁) | 停 · 等用户 `--user-confirmed` | **AI 自授权**(`--yolo` = 用户 blanket 委托 · `require_user_confirmed` v8.64 物化放行)· 仍 `--reason` + `bypass_log` + concerns WARN |
-| external review CLI 缺/超时 | 问用户 / change-review-roles | AI 自动 `change-review-roles` 去 external + WARN · 或重试 |
+| external review CLI 缺/超时 | 问用户 / change-review-roles | 🔴 **优先重试 / 修环境**(external = 唯一安全网 · 默认**保留**)· **仅 CLI 客观不可用**才去 external（物化需 `change-review-roles ... --accept-external-removal` + WARN · v8.66）· **绝不为效率去** |
 | merge 冲突 | 停 | AI 解冲突(非主分支一般无保护) |
 
 🔴 **优先级:解决 > 绕过**。yolo ≠「遇错就 bypass 硬推」· 而是「AI 当负责的工程师 · 穷尽手段把问题**真解决**」;bypass 只是穷尽自主解决后为不停下的**最后兜底** · 每次必 WARN 留痕。审计看 `bypass_log` 频率 = yolo 健康度(频繁 bypass = AI 没在真解决 · 该回炉 / 降级 yolo)。
