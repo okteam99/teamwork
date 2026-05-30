@@ -160,6 +160,56 @@ class TestInitFeature(unittest.TestCase):
         state = json.loads((target / "state.json").read_text(encoding="utf-8"))
         self.assertFalse(state["yolo"])
 
+    # ── v8.65:--yolo <branch> 携带 merge_target(覆盖 --merge-target / localconfig)──
+
+    def test_v865_yolo_branch_is_merge_target(self) -> None:
+        """v8.65:--yolo <branch>(无 --merge-target)→ branch 即 merge_target。"""
+        target = self.tmp / "docs" / "features" / "YOLO-F005"
+        d = run([
+            "init-feature", "--feature", str(target),
+            "--feature-id", "YOLO-F005", "--flow-type", "Feature",
+            "--branch", "feat/yolo5", "--yolo", "dev-integration",
+        ])
+        self.assertEqual(d["verdict"], "OK")
+        state = json.loads((target / "state.json").read_text(encoding="utf-8"))
+        self.assertEqual(state["merge_target"], "dev-integration")
+        self.assertTrue(state["yolo"])
+        self.assertTrue(state["auto_mode"])
+
+    def test_v865_yolo_branch_overrides_merge_target(self) -> None:
+        """v8.65:--yolo <branch> 同时给 --merge-target → yolo branch 胜出。"""
+        target = self.tmp / "docs" / "features" / "YOLO-F006"
+        d = run([
+            "init-feature", "--feature", str(target),
+            "--feature-id", "YOLO-F006", "--flow-type", "Feature",
+            "--branch", "feat/yolo6", "--merge-target", "staging", "--yolo", "dedicated-int",
+        ])
+        self.assertEqual(d["verdict"], "OK")
+        state = json.loads((target / "state.json").read_text(encoding="utf-8"))
+        self.assertEqual(state["merge_target"], "dedicated-int")  # yolo branch 覆盖 --merge-target
+
+    def test_v865_yolo_branch_main_rejected(self) -> None:
+        """v8.65:--yolo main(branch=主分支)→ FAIL(gate 同样拦)。"""
+        target = self.tmp / "docs" / "features" / "YOLO-F007"
+        d = run([
+            "init-feature", "--feature", str(target),
+            "--feature-id", "YOLO-F007", "--flow-type", "Feature",
+            "--branch", "feat/yolo7", "--yolo", "main",
+        ], expect_exit=2)
+        self.assertEqual(d["verdict"], "FAIL")
+        self.assertIn("主分支", d["error"])
+
+    def test_v865_no_merge_target_source_fails(self) -> None:
+        """v8.65:既无 --merge-target 又无 --yolo <branch> → FAIL(缺 merge_target)。"""
+        target = self.tmp / "docs" / "features" / "YOLO-F008"
+        d = run([
+            "init-feature", "--feature", str(target),
+            "--feature-id", "YOLO-F008", "--flow-type", "Feature",
+            "--branch", "feat/yolo8",
+        ], expect_exit=2)
+        self.assertEqual(d["verdict"], "FAIL")
+        self.assertIn("merge_target", d["error"])
+
     def test_init_feature_uses_feature_as_single_source_for_path(self) -> None:
         """v7.3.10+P0-149 regression：PTR-F032 case · 防 --feature 和 artifact_root 分裂。
 

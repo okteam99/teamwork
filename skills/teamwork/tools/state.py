@@ -846,6 +846,20 @@ def cmd_init_feature(args: argparse.Namespace) -> None:
             ),
         }, ensure_ascii=False, indent=2))
 
+    # v8.65:yolo 可携带 merge_target 分支(--yolo <branch>)· 覆盖 --merge-target / localconfig 默认
+    # nargs='?':args.yolo = None(未传)/ True(--yolo 无值)/ str(--yolo <branch>)
+    yolo_branch = args.yolo if isinstance(args.yolo, str) and args.yolo.strip() else None
+    yolo_enabled = args.yolo is not None
+    merge_target = yolo_branch or args.merge_target
+    if not merge_target:
+        die(2, json.dumps({
+            "verdict": "FAIL",
+            "action": "init-feature",
+            "error": "缺 merge_target",
+            "hint": ("传 --merge-target <branch> · 或 yolo 用 --yolo <branch>"
+                     "(该分支即本需求 merge_target · 覆盖 localconfig 默认)"),
+        }, ensure_ascii=False, indent=2))
+
     feature_dir = Path(args.feature)
     state_file = feature_dir / "state.json"
 
@@ -876,12 +890,13 @@ def cmd_init_feature(args: argparse.Namespace) -> None:
         }, ensure_ascii=False, indent=2))
 
     # v8.63:yolo 模式硬约束 —— merge_target 必须非主分支(自动 merge 不得直接进 main)
-    if getattr(args, "yolo", False) and _is_main_branch(args.merge_target):
+    # v8.65:merge_target 可来自 --yolo <branch>(已 resolve 进 merge_target)
+    if yolo_enabled and _is_main_branch(merge_target):
         die(2, json.dumps({
             "verdict": "FAIL",
             "action": "init-feature",
             "error": (
-                f"yolo 模式禁止 merge_target 是主分支({args.merge_target!r})—— "
+                f"yolo 模式禁止 merge_target 是主分支({merge_target!r})—— "
                 f"yolo 会**无人 review 自动 merge MR** · 不得直接合进 main/master/远端默认分支"
             ),
             "hint": (
@@ -968,24 +983,24 @@ def cmd_init_feature(args: argparse.Namespace) -> None:
         "host_history": ([{"host": args.host, "at": now_iso(), "source": "init-feature"}]
                           if args.host else []),
         "current_stage": initial_stage,
-        "merge_target": args.merge_target,
+        "merge_target": merge_target,
         "worktree": {
             "strategy": args.worktree_mode,
             "branch": args.branch,
             "path": args.worktree_path,
-            "base_branch": f"origin/{args.merge_target}",
+            "base_branch": f"origin/{merge_target}",
             "created_at": now_iso(),
         },
         "environment_config": {
             "worktree_mode": args.worktree_mode,
             "branch": args.branch,
-            "merge_target": args.merge_target,
-            "base": f"origin/{args.merge_target}",
+            "merge_target": merge_target,
+            "base": f"origin/{merge_target}",
             "executed_at": now_iso(),
         },
-        # v8.63:yolo implies auto_mode(完全自动是 auto_mode 的超集)
-        "auto_mode": args.auto_mode or getattr(args, "yolo", False),
-        "yolo": getattr(args, "yolo", False),
+        # v8.63:yolo implies auto_mode(完全自动是 auto_mode 的超集)· v8.65:yolo_enabled(nargs='?')
+        "auto_mode": args.auto_mode or yolo_enabled,
+        "yolo": yolo_enabled,
         # v8.15:admission MISMATCH WARN(audit consistency=MISMATCH 时 init-feature 留痕)
         "concerns": [admission_warning] if admission_warning else [],
         "review_round": 0,
@@ -1069,7 +1084,7 @@ def cmd_init_feature(args: argparse.Namespace) -> None:
                 ),
                 "hint": (
                     f"按 triage emit 的 pause_for_user 指引:\n"
-                    f"  1. git worktree add -b {args.branch} {wt_real} origin/{args.merge_target}\n"
+                    f"  1. git worktree add -b {args.branch} {wt_real} origin/{merge_target}\n"
                     f"  2. cd {wt_real}\n"
                     f"  3. 重跑 state.py init-feature"
                 ),
@@ -3316,18 +3331,20 @@ def build_parser() -> argparse.ArgumentParser:
     # v7.3.10+P0-149: 删 --artifact-root 冗余参数 · --feature 单源（既是落盘目录又是 artifact_root 字段值）
     ifp.add_argument("--initial-stage",
                      help="缺省按 flow_type 决定（Feature→goal / Bug→dev / Micro→dev / ...）")
-    ifp.add_argument("--merge-target", required=True, help="如 staging / main")
+    ifp.add_argument("--merge-target", required=False,
+                     help="如 staging / dev · yolo 可改用 --yolo <branch> 指定(二选一)")
     ifp.add_argument("--branch", required=True, help="如 feat/admin-f013-x")
     ifp.add_argument("--worktree-mode", choices=["auto", "manual", "off"],
                      default="off")
     ifp.add_argument("--worktree-path",
                      help="worktree 绝对路径 · worktree-mode != off 时建议提供")
     ifp.add_argument("--auto-mode", action="store_true", help="启用 AUTO_MODE")
-    ifp.add_argument("--yolo", action="store_true",
-                     help="[v8.63] 完全自动(YOLO)· implies --auto-mode + 自动 approve "
-                          "pm_acceptance + 自动 merge MR(gh/glab · 尊重分支保护)+ 自动 "
-                          "ship-finalize · 启动后零 stop · 🔴 merge_target 必须非 main/master/"
-                          "默认分支(自动合非主分支 · 防无人 review 直接进 main)")
+    ifp.add_argument("--yolo", nargs="?", const=True, default=None, metavar="BRANCH",
+                     help="[v8.63/65] 完全自动(YOLO)· implies --auto-mode + 自动 approve "
+                          "pm_acceptance + 自动 merge MR(gh/glab)+ 自动 ship-finalize · 零 stop · "
+                          "可选 <BRANCH> = 本需求专属 merge_target(指定则覆盖 --merge-target / "
+                          "localconfig 默认 · 不指定则用 --merge-target)· 🔴 该分支必须非 "
+                          "main/master/默认(防无人 review 直接进 main)")
     ifp.add_argument("--force", action="store_true",
                      help="覆盖现有 state.json（自动 backup .bak.<ts>）")
     # v8.36:host 改 per-feature(治本 v8.21 全局 audit 跨 session 污染 case)

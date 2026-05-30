@@ -1,6 +1,6 @@
 ---
 name: teamwork
-version: v8.64.1
+version: v8.65
 description: AI 协作开发一体化框架 · /teamwork 启动
 ---
 
@@ -427,7 +427,9 @@ emit 格式:
 
 ### yolo 模式(v8.63 · 完全自动 · 无人值守 · 🔴 高风险)
 
-🔴 `yolo` = `auto_mode` **超集** —— 启动后**零 stop**(连 pm_acceptance 产品验收 + MR merge 都自动)。启用:`init-feature --yolo`(自动 implies `auto_mode`)。
+🔴 `yolo` = `auto_mode` **超集** —— 启动后**零 stop**(连 pm_acceptance 产品验收 + MR merge 都自动)。启用:`init-feature --yolo [<分支>]`(自动 implies `auto_mode`)。
+- **`--yolo <分支>`**(v8.65)= 本需求专属 `merge_target`(**覆盖** `--merge-target` / localconfig 默认)· 推荐给 yolo 一个**专属集成分支**隔离自动合入的代码(如 `--yolo yolo/feat-x`)· 该分支即 yolo 自动 merge 的目标
+- **`--yolo`**(无值)= 用 `--merge-target` 的分支(二者至少给一个 · 都没 → FAIL)
 
 | 暂停点 | yolo 行为 |
 |---|---|

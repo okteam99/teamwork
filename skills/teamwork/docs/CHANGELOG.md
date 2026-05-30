@@ -1,5 +1,30 @@
 # Changelog
 
+## v8.65 · yolo 可携带专属 merge_target 分支(--yolo <branch> · 覆盖 localconfig 默认 · 用户拍板 · dev-only)
+
+> 用户 2026-05-30:"yolo 可以指定一个分支 · 这个分支就是这个需求的 merge_target · 如果指定了则不使用 localconfig 的 merge_target。"
+
+### 是什么
+
+`init-feature --yolo <branch>` · `<branch>` = 本需求专属 `merge_target` · **覆盖** `--merge-target` / localconfig 默认(`templates/teamwork_localconfig.json` 的 `"merge_target":"staging"`)。推荐给每个 yolo 需求一个**专属集成分支**(如 `--yolo yolo/feat-x`)· 隔离无人 review 自动合入的代码。
+
+### 改动
+
+| 改动 | 内容 |
+|----|----|
+| `--yolo` `store_true` → `nargs='?' const=True`(可选 `<BRANCH>` 值) | tools/state.py |
+| `--merge-target` `required=True` → `False`(yolo 可用 `--yolo <branch>` 提供) | tools/state.py |
+| `cmd_init_feature` 早解析:`merge_target = yolo_branch or args.merge_target` · 都空 → FAIL · 全 6 处 `args.merge_target` 改用 resolved | tools/state.py |
+| `_is_main_branch` gate 用 resolved merge_target(`--yolo main` 同样 FAIL) | tools/state.py |
+| `SKILL.md § yolo`:`--yolo [<分支>]` 语法 + 专属集成分支隔离建议 | SKILL.md |
+| 测试 +4(--yolo branch=merge_target / branch 覆盖 --merge-target / --yolo main FAIL / 都没 merge_target FAIL) | test_state.py |
+
+### 解析优先级
+
+`merge_target` = `--yolo <branch>`(最高) > `--merge-target` > (都空 → FAIL)。`state.json.yolo` / `auto_mode` = `args.yolo is not None`(nargs='?' 三态:None 未传 / True 无值 / str 分支)。385 passed · 68 pre-existing(无关)· 0 regression。
+
+---
+
 ## v8.64 · yolo 自主解决语义(失败/卡点也零人工 · require_user_confirmed yolo 放行 · 用户澄清核心目标 · dev-only)
 
 > 用户 2026-05-30:"yolo 模式的核心目标是 AI 自主解决所有的问题 · 不需要人工干预。" → v8.63 只覆盖 happy-path 零 stop · 没定义**失败/升级/bypass**时的行为(正是"零人工"最关键处)· 补上。
