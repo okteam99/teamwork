@@ -1,5 +1,28 @@
 # Changelog
 
+## v8.64 · yolo 自主解决语义(失败/卡点也零人工 · require_user_confirmed yolo 放行 · 用户澄清核心目标 · dev-only)
+
+> 用户 2026-05-30:"yolo 模式的核心目标是 AI 自主解决所有的问题 · 不需要人工干预。" → v8.63 只覆盖 happy-path 零 stop · 没定义**失败/升级/bypass**时的行为(正是"零人工"最关键处)· 补上。
+
+### 根因(v8.63 的 gap)
+
+v8.63 yolo 去了 pm_acceptance + MR merge 两个 designed stop · 但**失败路径**仍会停下问人:stage 校验 FAIL 3 次 → bypass 协议**暂停问用户**(`require_user_confirmed` 物化拦截 · 设计本意"防 AI 自决逃生")。这与 yolo「零人工」核心目标直接冲突。
+
+### 修复:autonomous resolution
+
+| 改动 | 内容 |
+|----|----|
+| `require_user_confirmed(args, yolo=False)` | yolo=True → 视作用户已 blanket 委托(`--yolo`)· 放行不拦(仍 `--reason` + `bypass_log` + concerns WARN)· 4 个调用点(`_v8_engine` ×3 + `_v8_ship` ×1)传 `yolo=state.get("yolo")` |
+| `SKILL.md § yolo 自主解决` | 失败/卡点行为表(FAIL→持续自解 / bypass→自授权 / external CLI 缺→自动 change-review-roles)· 🔴 **优先级 解决 > 绕过**(bypass 是穷尽后兜底 · 非遇错就推 · `bypass_log` 频率 = yolo 健康度)· 真·硬停(环境彻底不可用)极少 |
+| 测试 +3 | `TestYoloBypass`(yolo 放行 / 非 yolo 仍拦 sys.exit(1) / 显式 --user-confirmed 兼容)· 381 passed · 68 pre-existing(无关)· 0 regression |
+
+### 设计要点
+
+- **解决 > 绕过**:yolo 不是"遇错 bypass 硬推" · 是 AI 当负责工程师穷尽手段**真解决**;bypass 是不停下的最后兜底 · 每次 WARN 留痕(`bypass_log` 频率高 = AI 没在真解决 · 该回炉/降级 yolo)。
+- **安全仍在**:① yolo 只合非主分支(v8.63 gate)② 每次 bypass 写 `bypass_log` + concerns WARN ③ **非 yolo** 的 `require_user_confirmed` 拦截**不变**(防 AI 在非 yolo 下自决逃生)。
+
+---
+
 ## v8.63 · 新增 yolo 模式(完全自动 · 无人值守 · 硬约束 merge_target 非主分支 · 用户拍板 · dev-only)
 
 > 用户 2026-05-30:"增加一个 full-auto 模式 · 完全自动 · 包括自动 merge · 处理主工作区。" → 命名定 **yolo**(诚实标注"无人 review 自动合 main"的风险)+ "这种模式 MR 目标必须指定非 main 分支"。

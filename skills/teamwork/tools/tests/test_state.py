@@ -279,6 +279,39 @@ class TestInitFeature(unittest.TestCase):
         self.assertIn("made-up-host", r.stderr)
 
 
+class TestYoloBypass(unittest.TestCase):
+    """v8.64:yolo 模式 require_user_confirmed 放行(零人工 bypass · AI 自主解决核心目标)。"""
+
+    def _args(self, user_confirmed: bool = False):
+        a = type("A", (), {})()
+        a.user_confirmed = user_confirmed
+        return a
+
+    def test_yolo_skips_user_confirmed_gate(self):
+        """v8.64:yolo=True + 无 --user-confirmed → 放行(返回 None · 不 exit)。"""
+        sys.path.insert(0, str(TOOLS))
+        from _v8_engine import require_user_confirmed  # type: ignore
+        self.assertIsNone(
+            require_user_confirmed(self._args(user_confirmed=False), yolo=True))
+
+    def test_non_yolo_requires_user_confirmed(self):
+        """v8.64:yolo=False + 无 --user-confirmed → emit FAIL + sys.exit(1)(防 AI 自决保留)。"""
+        sys.path.insert(0, str(TOOLS))
+        from _v8_engine import require_user_confirmed  # type: ignore
+        import io
+        from contextlib import redirect_stdout
+        with self.assertRaises(SystemExit) as cm, redirect_stdout(io.StringIO()):
+            require_user_confirmed(self._args(user_confirmed=False), yolo=False)
+        self.assertEqual(cm.exception.code, 1)
+
+    def test_explicit_user_confirmed_passes_regardless(self):
+        """v8.64:显式 --user-confirmed → 放行(yolo 与否都行 · 向后兼容)。"""
+        sys.path.insert(0, str(TOOLS))
+        from _v8_engine import require_user_confirmed  # type: ignore
+        self.assertIsNone(
+            require_user_confirmed(self._args(user_confirmed=True), yolo=False))
+
+
 class TestChecksumGuard(unittest.TestCase):
     """v7.3.10+P0-148：state.json checksum 物化拦截直写。
 

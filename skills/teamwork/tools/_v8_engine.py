@@ -347,18 +347,26 @@ def parse_frontmatter(file_path: Path) -> Optional[dict]:
 # ─── bypass 协议 ──────────────────────────────────────────────────────
 
 
-def require_user_confirmed(args: argparse.Namespace) -> None:
-    """逃生时强制要求 --user-confirmed flag · 缺则拦截"""
-    if not getattr(args, "user_confirmed", False):
-        emit_json({
-            "verdict": "FAIL",
-            "error": "--bypass requires --user-confirmed flag(防 AI 自决逃生)",
-            "hint": (
-                "暂停点询问用户 · 用户明确确认后再调用此命令 · "
-                "并加 --user-confirmed flag。"
-                "审计时若发现 AI 自加此 flag 而对话历史无用户确认 = 红线违规。"
-            ),
-        }, exit_code=1)
+def require_user_confirmed(args: argparse.Namespace, yolo: bool = False) -> None:
+    """逃生时强制要求 --user-confirmed flag · 缺则拦截。
+
+    v8.64:yolo 模式 = 用户已 blanket 委托(init-feature --yolo · 见 SKILL.md § yolo)→
+    视作已 confirmed · 不再拦人工确认 —— 实现 yolo「AI 自主解决所有问题 · 零人工干预」核心目标。
+    🔴 但 yolo 优先级是「**解决 > 绕过**」:bypass 只是穷尽自主解决(更多轮 / 换思路 / 深挖根因)
+    后的兜底 · 不是遇错就推。每次 bypass 仍 write_bypass_log + concerns WARN 留痕(详 SKILL.md § yolo 自主解决)。
+    """
+    if getattr(args, "user_confirmed", False) or yolo:
+        return
+    emit_json({
+        "verdict": "FAIL",
+        "error": "--bypass requires --user-confirmed flag(防 AI 自决逃生)",
+        "hint": (
+            "暂停点询问用户 · 用户明确确认后再调用此命令 · "
+            "并加 --user-confirmed flag。"
+            "审计时若发现 AI 自加此 flag 而对话历史无用户确认 = 红线违规。"
+            "(yolo 模式例外:--yolo 即用户 blanket 委托 · 无需 --user-confirmed · 见 SKILL.md § yolo)"
+        ),
+    }, exit_code=1)
 
 
 def write_bypass_log(
@@ -465,7 +473,7 @@ def execute_stage_start(
                         "error": "worktree 物理不存在 + bypass 但 --missing 未含 worktree_physical_exists",
                         "hint": "加 --missing worktree_physical_exists 显式承认",
                     }, exit_code=1)
-                require_user_confirmed(args)
+                require_user_confirmed(args, yolo=state.get("yolo", False))
                 write_bypass_log(state, stage_spec.name, "start", [wt_missing], args)
             else:
                 emit_json({
@@ -498,7 +506,7 @@ def execute_stage_start(
 
     # 4. bypass 处理
     if missing and args.bypass:
-        require_user_confirmed(args)
+        require_user_confirmed(args, yolo=state.get("yolo", False))
         # 用户声称跳过的 missing 必须与实际 missing 重叠
         user_missing = set(args.missing.split(",")) if args.missing else set()
         actual_missing_ids = set(m["id"] for m in missing)
@@ -1273,7 +1281,7 @@ def execute_stage_complete(
         issues.extend(failed_evidence)
 
     if issues and args.bypass:
-        require_user_confirmed(args)
+        require_user_confirmed(args, yolo=state.get("yolo", False))
         write_bypass_log(state, stage_spec.name, "complete", issues, args)
         issues = []
     elif issues:

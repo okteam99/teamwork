@@ -329,7 +329,7 @@ def _handle_ship_push(state: dict, args: argparse.Namespace) -> dict:
                 }, exit_code=1)
 
             # bypass 路径:--accept-cli-unavailable 通过 · 必带 reason + user-confirmed
-            require_user_confirmed(args)  # 强制 --user-confirmed(防 AI 自决)
+            require_user_confirmed(args, yolo=state.get("yolo", False))  # 强制 --user-confirmed(yolo 例外)
             reason = (getattr(args, "reason", "") or "").strip()
             if not reason:
                 emit_json({

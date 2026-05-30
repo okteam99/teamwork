@@ -1,6 +1,6 @@
 ---
 name: teamwork
-version: v8.63.1
+version: v8.64
 description: AI 协作开发一体化框架 · /teamwork 启动
 ---
 
@@ -442,6 +442,20 @@ emit 格式:
 - **尊重分支保护**:目标分支受保护 / 必需 check 没过 → `gh`/`glab` merge 命令失败 → 自动退回「手动 merge」stop + WARN(**绝不** force / 绕保护)
 - **审计**:每个自动决策(pm_acceptance 自动过 / 自动 merge)写 `add-concern --severity WARN` 留痕
 - **per-feature opt-in**:`--yolo` 不 sticky(每次显式传)· `state.json.yolo=true` 留痕 · 不会误触发
+
+🔴 **自主解决(v8.64 · yolo 核心:失败/卡点也零人工)**:yolo 真义 = **AI 自主解决所有问题 · 不回退给人** —— 不止 happy-path 零 stop · 连**校验失败 / 重试耗尽 / 升级点 / bypass 请求**都 AI 自决:
+
+| 卡点 | 正常(非 yolo) | yolo |
+|---|---|---|
+| stage 校验 FAIL | AI 修 + 重试 · 3 次仍 FAIL → 暂停问用户 bypass | **AI 持续自主解决**(更多轮 / 换思路 / 深挖根因)· 不向用户升级 |
+| review NEEDS_REVISION / test FAIL | AI 改 + retry | 同上 · 持续修到绿 · 不回退给人 |
+| bypass 协议(R8 写门禁) | 停 · 等用户 `--user-confirmed` | **AI 自授权**(`--yolo` = 用户 blanket 委托 · `require_user_confirmed` v8.64 物化放行)· 仍 `--reason` + `bypass_log` + concerns WARN |
+| external review CLI 缺/超时 | 问用户 / change-review-roles | AI 自动 `change-review-roles` 去 external + WARN · 或重试 |
+| merge 冲突 | 停 | AI 解冲突(非主分支一般无保护) |
+
+🔴 **优先级:解决 > 绕过**。yolo ≠「遇错就 bypass 硬推」· 而是「AI 当负责的工程师 · 穷尽手段把问题**真解决**」;bypass 只是穷尽自主解决后为不停下的**最后兜底** · 每次必 WARN 留痕。审计看 `bypass_log` 频率 = yolo 健康度(频繁 bypass = AI 没在真解决 · 该回炉 / 降级 yolo)。
+
+🔴 **真·硬停(极少 · AI 客观无法自决)**:环境彻底不可用(网络死 / `gh`/`glab` 没装 / 磁盘满 / token 失效)—— AI 物理做不了 · 仍先重试 / 找替代 · 实在不行才 surface(因为继续不可能 · 不是"该问人")。
 
 ---
 
