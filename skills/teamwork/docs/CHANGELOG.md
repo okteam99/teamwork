@@ -1,5 +1,48 @@
 # Changelog
 
+## v8.57 · UI 预览静态服务单 hub(治本 same-stack 预览端口冲突 + 跨 session 可访问 · 用户 case · dev-only)
+
+> 用户 2026-05-30:"同栈项目预览稿无法直接预览 · 需启动服务 · 需要一个机制让各 session 的 UI 预览稿可访问 · 要考虑并行 worktree · 多终端开发端口冲突。"
+
+### 根因:3 个真实痛点
+
+1. **`file://` 打不开 same-stack 预览**:v8.56 same-stack 预览是 preview-project 编译出的 ES-module bundle · `file://` 因 CORS 不加载 module(browse 停 about:blank · CW-F002 已踩)→ 必须 HTTP server。
+2. **裸 `python3 -m http.server` 端口冲突**:并行 worktree / 多终端各自起服务抢同一端口(8799…)· 互相占用。
+3. **预览稿跨 session 不可访问**:每个 session 自起的服务彼此不知道 · 没有统一入口看"全机有哪些预览稿在跑"。
+
+### 方案:单 hub(治本)
+
+- **全机唯一一个常驻 hub 进程**·绑一个端口(默认 8799 · 占用则顺延扫 60 个)· detached 脱离终端(终端关了仍活)· 仅 `127.0.0.1` 不对外。
+- **共享 registry**(`~/.teamwork/preview/registry.json` · 落 $HOME → 跨 worktree/终端/session 共享):slug → 预览目录映射。
+- hub 按路径前缀 `http://127.0.0.1:<port>/<slug>/` 分发到各预览目录 · **后续 session 不再起新 server · 只注册自己的目录 + 复用同一 hub → 永不端口冲突**(竞态:进 flock 锁内二次探活 · 防双 hub)。
+
+### 新增 `tools/preview.py`(独立元工具 · parallel update.py / bootstrap.py)
+
+| 子命令 | 作用 |
+|----|------|
+| `serve --dir <编译产物目录>` / `--feature <feat_dir>` | 解析预览目录(`--feature` 读 UI.md `pages_changed[].panorama_file` / `feature/preview`)· 注册 + 确保 hub 起 · 返 `url`/`page_urls` |
+| `list` | hub 状态 + 全部已注册预览 + URL(跨 session 找别人预览稿) |
+| `stop --all` / `--slug X` / `--prune` | 停 hub(registry 保留)/ 注销单个 / 清 stale |
+| `run-hub --port P` | [隐藏] detached 子进程实际跑 server |
+
+安全:路径穿越守卫(raw `..` + URL-encoded `%2e%2e` 均 403)· 仅 bind 127.0.0.1。
+
+### 接线
+
+| 文件 | 内容 |
+|----|------|
+| `tools/preview.py` | 新增(~470 行) |
+| `stages/ui-design-stage.md` | step 3 same-stack 验证从裸 `python3 -m http.server` → `preview.py serve`(标注会端口冲突 · 不要手动起)· step 5 决策参考给 hub url · 新 § 预览服务 hub(子命令表 + `base:'./'` 相对资产 + 仅本机 note) |
+| `roles/designer.md` / `templates/ui.md` | HTML 预览验证改 preview.py serve + `base:'./'` |
+| `SKILL.md` | 文档清单加 tools/preview.py 行 |
+| 测试 | `tools/tests/test_preview.py` 新增 14 例(slugify / register / prune / feature 解析 / e2e serve+fetch / **hub 复用不抢端口** / 路径穿越 403 / list / stop)· 全 PASS |
+
+### 🔴 same-stack build 注意
+
+preview-project 的 build 必须用**相对资产路径**(vite `base:'./'` 或等价)· 否则 hub `/<slug>/` 前缀下 `/assets/*` 绝对路径 404。
+
+---
+
 ## v8.56 · ui_design same-stack 重定义 = docs/design/preview-project + 可视全景物化(用户 case CW-F002 · dev-only)
 
 > 用户 2026-05-30(supersdk CW-F002 · Tailwind→antd 迁移):"你怎么没出全景设计?" + "应在 design 目录建 antd 项目编译静态 HTML" + "目录应为 子项目/docs/design/preview-project(与实际前端项目同技术栈)+ 设计规范"。

@@ -8,7 +8,7 @@
 ## 创作要点(角色身份切换时参考)
 
 - UI.md 起草:§页面列表 · §交互流 · §视觉规范 · §字段映射(对应 PRD.AC)
-- HTML 预览(可视全景):`static-html` → 手写 `preview/*.html`;**`same-stack`(v8.56)→ `{子项目}/docs/design/preview-project` 同栈独立项目编译出 `preview/*.html`**(真实组件渲染 · 不污染真实工程 · 解新库引入鸡蛋问题)· 每页一文件给 RD 直接 diff 还原 · 🔴 验证渲染用 `python3 -m http.server` 起服务再截图(`file://` 在 browse 不加载)
+- HTML 预览(可视全景):`static-html` → 手写 `preview/*.html`;**`same-stack`(v8.56)→ `{子项目}/docs/design/preview-project` 同栈独立项目编译出 `preview/*.html`**(真实组件渲染 · 不污染真实工程 · 解新库引入鸡蛋问题 · build 配 `base:'./'` 相对资产)· 每页一文件给 RD 直接 diff 还原 · 🔴 验证渲染用 `python3 {SKILL_ROOT}/tools/preview.py serve --feature {feat_dir}`(v8.57 单 hub · 自动起服务 + 不抢端口 + 跨 session 可访问)拿 url browse 截图(`file://` 因 CORS 不加载 ES module · 不要手动 `python3 -m http.server`〔并行会端口冲突〕)
 - sitemap 同步:信息架构变化时维护项目根 sitemap.md
 - UI 还原验收:Dev 完成后 cross-check 实现 vs 设计(verify-panorama.py)
 
