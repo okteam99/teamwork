@@ -2096,12 +2096,16 @@ def _build_codex_prompt(stage: str, feature_dir_rel: str, commit: str,
     elif stage == "review":
         return (
             f"You are an external code reviewer (codex / GPT) providing heterogeneous "
-            f"perspective. Review code changes at commit `{commit}` (diff against base "
-            f"branch `{base}`) in `{feature_dir_rel}/`. "
-            f"Use `git diff {base}..{commit} -- {feature_dir_rel}` to inspect changes. "
-            f"Focus: correctness, security, performance, edge cases. "
+            f"perspective. Review the FULL code changes this feature introduces vs base "
+            f"branch `{base}`. Run `git diff {base}...{commit}` (PR-style; fall back to "
+            f"`git show {commit}` if the base ref is unavailable) to inspect the complete "
+            f"diff across ALL changed files —— 🔴 the implementation lives OUTSIDE "
+            f"`{feature_dir_rel}/`(that folder is only Feature docs)· do NOT restrict the "
+            f"review to it. "
+            f"Focus: correctness, security, performance, edge cases, regressions. "
             f"Profile reference: codex-agents/{profile_filename}. "
-            f"Output: YAML frontmatter + findings body with file:line cite."
+            f"Output: YAML frontmatter (perspective/target/files_read/findings) + findings "
+            f"body with file:line cite. End with verdict APPROVE or NEEDS_REVISION."
         )
     # 兜底(其他 stage 走 prompt 模式)
     return (
@@ -2158,16 +2162,14 @@ def _run_codex_review(stage: str, commit: str, base: str, title: str,
                       codex_model: Optional[str] = None) -> tuple[int, str, str]:
     """跑 codex CLI 评审 · 返 (returncode, stdout, stderr)。
 
-    当前设计:按 stage 选 codex 子命令(各司其职):
-    - **review stage(代码 diff)** → `codex review --commit X --title Z --config "model=..."`
-      · 用 codex review 子命令(专业 diff review · 内置 review prompt 优化)
-      · 只传 --commit(避开 --commit/--base/--uncommitted 三选一互斥)
-      · 不带 [PROMPT](避开 [PROMPT] 与 review 对象 flag 的新版互斥)
-    - **goal / blueprint stage(文档 review)** → `codex exec --config "model=..." [PROMPT]`
-      · 用 codex exec 通用 agent(prompt 自描述 Read PRD/TC/TECH)
-      · review 子命令是 diff-only · 无法 review markdown 文件
-
-    (codex review↔exec 反复横跳的演进史见 docs/CHANGELOG.md + standards/external-model-usage.md §11.5)
+    v8.59(用户 case · 本地实测):**全 stage 统一 `codex exec [PROMPT]`**。
+    治本 review stage `codex review` 子命令 headless 卡死 —— 本地实测
+    `codex review --commit X --title Y`(stdin=DEVNULL)跑满 220s 产 **0 字节 stdout**
+    (超时 · exit 124)· 与用户 AON SVC-PLATFORM-F057 现象一致(goal/blueprint 走 exec
+    早成功 · 唯独 review 走 codex review 持续超时)。codex exec 是稳定 headless 路径
+    (goal/blueprint 已验证)· review 对象差异(代码 diff vs 文档)全由
+    `_build_codex_prompt` 内置 prompt 描述。
+    (codex review↔exec 反复横跳演进史见 docs/CHANGELOG.md)
     """
     # 算 feature_dir 相对 cwd · 让 prompt 用相对路径(codex 在 cwd=git root 跑)
     try:
@@ -2178,21 +2180,13 @@ def _run_codex_review(stage: str, commit: str, base: str, title: str,
     # v8.29:codex_model 非空才传 --config model=...(治本 ChatGPT 订阅 case · 默认模型限制)
     model_args = ["--config", f"model={codex_model}"] if codex_model else []
 
-    if stage == "review":
-        # ── 代码 diff review · codex review 子命令(专业默认 prompt · 不带 [PROMPT]) ──
-        # 只传 --commit(精确)· 不传 --base 避免 --commit/--base 互斥
-        # 不传 [PROMPT] 避免 [PROMPT] 与 review 对象 flag 新版互斥
-        cmd = ["codex", "review",
-               "--commit", commit,
-               "--title", title,
-               *model_args]
-    else:
-        # ── 文档 review(goal / blueprint)· codex exec [PROMPT] ──
-        body_prompt = _build_codex_prompt(
-            stage, feature_dir_rel, commit, base, profile_filename)
-        # title 信息嵌进 PROMPT 顶部(codex exec 没 --title flag)
-        prompt = f"[Review title: {title}]\n\n{body_prompt}"
-        cmd = ["codex", "exec", *model_args, prompt]
+    # v8.59:统一 codex exec [PROMPT] —— review 对象差异由 _build_codex_prompt 描述
+    # (删 stage==review 的 codex review 子命令分支 · 它 headless 卡死)
+    body_prompt = _build_codex_prompt(
+        stage, feature_dir_rel, commit, base, profile_filename)
+    # title 信息嵌进 PROMPT 顶部(codex exec 没 --title flag)
+    prompt = f"[Review title: {title}]\n\n{body_prompt}"
+    cmd = ["codex", "exec", *model_args, prompt]
 
     t0 = datetime.now(timezone.utc)
     try:
@@ -2641,30 +2635,21 @@ def cmd_external_review(args: argparse.Namespace) -> None:
     preview_prompt_full = None
     if args.dry_run:
         if model == "codex":
-            # v8.26 按 stage 分:review→codex review · goal/blueprint→codex exec(各司其职)
+            # v8.59:全 stage 统一 codex exec [PROMPT](删 review→codex review 分支 · 它 headless 卡死)
             # v8.29:codex_model 非空才显 --config(治本 ChatGPT 订阅死锁)
             try:
                 fd_rel = str(feature_dir.relative_to(git_root))
             except ValueError:
                 fd_rel = str(feature_dir)
             model_part = f"--config 'model={codex_model}' " if codex_model else ""
-            if args.stage == "review":
-                # 代码 diff review · 不带 [PROMPT](codex review 内置专业 prompt)
-                preview_cmd = (
-                    f"codex review --commit {commit} --title '{title}' "
-                    f"{model_part}"
-                ).strip()
-                preview_prompt_full = None  # review 模式无 PROMPT
-            else:
-                # 文档 review · codex exec [PROMPT]
-                preview_prompt_full = (
-                    f"[Review title: {title}]\n\n"
-                    + _build_codex_prompt(args.stage, fd_rel, commit, base, profile_path.name)
-                )
-                preview_cmd = (
-                    f"codex exec {model_part}"
-                    f"'{preview_prompt_full[:80]}...'"
-                )
+            preview_prompt_full = (
+                f"[Review title: {title}]\n\n"
+                + _build_codex_prompt(args.stage, fd_rel, commit, base, profile_path.name)
+            )
+            preview_cmd = (
+                f"codex exec {model_part}"
+                f"'{preview_prompt_full[:80]}...'"
+            )
         else:
             preview_cmd = (
                 # v8.38:claude CLI 用 -p(short alias for --print)· 用户约定

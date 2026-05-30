@@ -1,5 +1,32 @@
 # Changelog
 
+## v8.59 · 异质评审 review stage 改 codex exec(治本 codex review 子命令 headless 卡死 · 用户 case + 本地实测 · dev-only)
+
+> 用户 2026-05-30(AON SVC-PLATFORM-F057 review stage):"执行异质模型评审总是报错 · 看下逻辑是否有问题 · 本地测试下" + "不一定非要统一 exec · 只要确保 review 正常即可"。
+
+### 根因(两层)
+
+1. **直接诱因 · 安装的 skill 旧(v8.50.1)**:`~/.claude/skills/teamwork` 软链 v8.50.1(pre-v8.55)· 超时仍 300s + 无 `stdin=DEVNULL` 抗卡 + 无执行日志 → AON 看到的"300s exit 124 + 无日志"全对得上(v8.55 早已升 600s + DEVNULL + 日志 · 但用户没 update 拉新)。
+2. **真根因 · `codex review` 子命令 headless 卡死**:review stage 用 `codex review --commit X --title Y`(goal/blueprint 用 `codex exec`)。**本地实测**(codex-cli 0.135.0 · `stdin=DEVNULL`):
+   - `codex review --commit` → 跑满 220s 产 **0 字节 stdout**(超时)❌
+   - `codex exec <review prompt>` → **RC=0 · 169.7s · 1488 字节真实评审**(含 NEEDS_REVISION verdict · 还真挑出 v8.58 几处 gap)✅
+   与 AON 现象一致:同 Feature goal/blueprint(走 exec)早成功 · 唯独 review(走 codex review)持续超时。
+
+### 修复:全 stage 统一 codex exec
+
+| 改动 | 文件 |
+|----|----|
+| `_run_codex_review` 删 `stage==review` 的 `codex review` 子命令分支 → 全走 `codex exec [PROMPT]`(exec 已被 goal/blueprint 验证 · codex review 历史反复横跳 v8.23/25/26) | `tools/state.py` |
+| `_build_codex_prompt` review 分支修 **diff scope bug**:旧 `git diff base..commit -- {feature_dir}`(只看 Feature docs · **漏掉真实代码**·实现在 `src/`)→ `git diff base...commit`(全量 · 显式提示实现在 feature_dir 之外 · 加 verdict 要求) | `tools/state.py` |
+| `cmd_external_review` dry_run 删 review 特例 → 统一 exec preview | `tools/state.py` |
+| 测试:dry_run / v8.23 / v8.26 三例从断言 `codex review` → 断言 `codex exec` + PROMPT 含 `git diff` + verdict | `tools/tests/test_state.py`(369 passed · 68 pre-existing 无关 · 0 regression) |
+
+### 🔴 用户须知
+
+AON 装的是 v8.50.1(旧)· 即使逻辑修了也要 **`python3 ~/.claude/skills/teamwork/tools/update.py`**(channel=dev)拉到 v8.59 才生效 —— 同时拿到 v8.55 的 600s 超时 + 抗卡 + 执行日志(`~/.teamwork/external-review-logs/`)。
+
+---
+
 ## v8.58 · same-stack 预览改 preview-project/preview.sh(dev server + 动态端口 · supersede v8.57 hub + v8.56 静态 build · 用户拍板 option B · dev-only)
 
 > 用户 2026-05-30:"最好针对预览稿直接编译运行 · 设计确认时直接给 URL · **不用在 teamwork 层起 server** · 直接用项目的 dev 环境 · 只是端口动态生成一个 · 是否可以在 preview-project 内也有一个 preview.sh 脚本 · 执行调用编译运行后输出可打开 URL。"

@@ -1013,21 +1013,20 @@ class TestExternalReviewCommand(unittest.TestCase):
 
     # ── dry-run 输出 preview_command(v8.26 stage-specific + v8.29 default 不传 model) ──
     def test_dry_run_includes_preview_command(self):
-        """review stage 用 codex review 子命令(v8.26 各司其职 · v8.29 默认不传 --config)。"""
+        """v8.59:review stage 统一用 codex exec [PROMPT](治本 codex review headless 卡死)。"""
         d = run(["external-review", "--feature", str(self.feat),
                  "--stage", "review", "--host", "claude-code", "--dry-run"])
         self.assertTrue(d["dry_run"])
         self.assertIn("preview_command", d)
-        # v8.26:review stage 改回 codex review(专业 diff review · 内置 prompt)
-        self.assertIn("codex review", d["preview_command"])
-        self.assertIn("--commit", d["preview_command"])
-        self.assertIn("--title", d["preview_command"])
+        # v8.59:review 改 codex exec(本地实测 codex review --commit headless 跑 220s 产 0 字节)
+        self.assertIn("codex exec", d["preview_command"])
+        self.assertNotIn("codex review", d["preview_command"])
         # v8.29:默认不传 --config(ChatGPT 订阅兼容)· --codex-model 显式才传
         self.assertNotIn("--config", d["preview_command"])
-        # 不带 [PROMPT](避免与 review 对象 flag 互斥)· 不带 --base(避免与 --commit 互斥)
-        self.assertNotIn("--base", d["preview_command"])
-        # codex_prompt 字段 None(review 模式无 PROMPT)
-        self.assertIsNone(d["codex_prompt"])
+        # exec 模式有 PROMPT(codex_prompt 非 None · 含 review 指令 + 全量 diff 提示)
+        self.assertIsNotNone(d["codex_prompt"])
+        self.assertIn("code reviewer", d["codex_prompt"])
+        self.assertIn("git diff", d["codex_prompt"])
         # 没真跑 · 不该有 model_version 字段
         self.assertNotIn("model_version", d)
 
@@ -1355,18 +1354,19 @@ class TestExternalReviewCommand(unittest.TestCase):
         self.assertIn("TC.md and TECH.md", d["codex_prompt"])
 
     def test_v823_review_stage_uses_code_review_prompt(self):
-        """review stage:v8.26 用 codex review 子命令 · 无 PROMPT(codex review 内置专业 prompt)。
+        """v8.59:review stage 用 codex exec [PROMPT](内置 code-review prompt · 含全量 diff 指令)。
 
-        v8.23/v8.25 曾用 PROMPT 模式 · v8.26 用户洞察:review 用 codex review 子命令
-        各司其职 · 不再传 PROMPT(避免与 --commit/--base/--uncommitted 互斥)。
+        演进:v8.23/25 PROMPT 模式 → v8.26 codex review 子命令 → v8.59 回到 codex exec
+        (本地实测 codex review --commit headless 卡死 · 0 字节/220s 超时 · 与 AON case 一致)。
         """
         d = run(["external-review", "--feature", str(self.feat),
                  "--stage", "review", "--host", "claude-code", "--dry-run"])
-        # codex review 子命令 · 不带 PROMPT
-        self.assertIn("codex review", d["preview_command"])
-        self.assertIsNone(d["codex_prompt"])
-        # commit SHA 通过 --commit flag 传(不在 PROMPT)
-        self.assertIn("abc123def", d["preview_command"])
+        # codex exec + 内置 review PROMPT
+        self.assertIn("codex exec", d["preview_command"])
+        self.assertIsNotNone(d["codex_prompt"])
+        # commit SHA 通过 git diff 指令进 PROMPT(全量 diff · 不限 feature_dir)
+        self.assertIn("abc123def", d["codex_prompt"])
+        self.assertIn("git diff", d["codex_prompt"])
 
     def test_v823_codex_model_default_gpt_5_codex(self):
         """v8.29 治本 ChatGPT 订阅 case · 缺省 codex_model=None(不传 --config · 用账号默认模型)。"""
@@ -1402,16 +1402,17 @@ class TestExternalReviewCommand(unittest.TestCase):
         self.assertEqual(d["model"], "claude")
         self.assertIsNone(d["codex_model"])  # claude 路径 codex_model 为 None
 
-    # ── v8.26:stage-specific dispatch · review→codex review · others→codex exec ──
-    def test_v826_review_stage_uses_codex_review(self):
-        """v8.26 用户洞察:review stage 用 codex review 子命令(专业 diff review)。"""
+    # ── v8.59:全 stage 统一 codex exec(治本 codex review 子命令 headless 卡死)──
+    def test_v859_review_stage_uses_codex_exec(self):
+        """v8.59 用户 case + 本地实测:review stage 改用 codex exec(codex review --commit
+        headless 跑满 220s 产 0 字节 stdout · 与 AON SVC-PLATFORM-F057 现象一致)。"""
         d = run(["external-review", "--feature", str(self.feat),
                  "--stage", "review", "--host", "claude-code", "--dry-run"])
-        self.assertIn("codex review", d["preview_command"])
-        self.assertNotIn("codex exec", d["preview_command"])
-        # title 用 --title flag(codex review 支持)· 不进 PROMPT
-        self.assertIn("--title", d["preview_command"])
-        self.assertIsNone(d["codex_prompt"])  # review 模式无 PROMPT
+        self.assertIn("codex exec", d["preview_command"])
+        self.assertNotIn("codex review", d["preview_command"])
+        # exec 模式 title 进 PROMPT 顶部(codex exec 无 --title flag)
+        self.assertIsNotNone(d["codex_prompt"])
+        self.assertIn("[Review title:", d["codex_prompt"])
 
     def test_v826_goal_blueprint_stage_uses_codex_exec(self):
         """v8.26:goal / blueprint stage 用 codex exec(文档 review · review 子命令是 diff-only)。"""
