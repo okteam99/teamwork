@@ -806,6 +806,27 @@ def _check_prepare_audit(feature_id: str) -> dict:
     }
 
 
+def _is_main_branch(branch: str, repo_cwd: Optional[str] = None) -> bool:
+    """branch 是否是主分支(yolo 硬约束:自动 merge 不得直接进 main)。
+    判定:名字 ∈ {main, master} · 或 == 远端默认分支(origin/HEAD 指向)。"""
+    if not branch:
+        return False
+    b = branch.strip().lower()
+    if b in ("main", "master"):
+        return True
+    try:
+        r = subprocess.run(
+            ["git", "symbolic-ref", "refs/remotes/origin/HEAD"],
+            cwd=repo_cwd, capture_output=True, text=True, timeout=5)
+        if r.returncode == 0 and r.stdout.strip():
+            default = r.stdout.strip().rsplit("/", 1)[-1].lower()  # refs/remotes/origin/main → main
+            if default and default == b:
+                return True
+    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+        pass
+    return False
+
+
 def cmd_init_feature(args: argparse.Namespace) -> None:
     """Create initial state.json · 替代手工 Write。"""
     # Feature Planning / 问题排查 不进状态机 · 拒绝
@@ -852,6 +873,23 @@ def cmd_init_feature(args: argparse.Namespace) -> None:
             "rule": "v8.14 prepare-check audit 门禁 · 治本 PTR-F054 AI 跳 prepare case",
             "bypass": f"调试 / migration · export {PREPARE_CHECK_BYPASS_ENV}=1",
             "spec": "docs/prepare.md § 0",
+        }, ensure_ascii=False, indent=2))
+
+    # v8.63:yolo 模式硬约束 —— merge_target 必须非主分支(自动 merge 不得直接进 main)
+    if getattr(args, "yolo", False) and _is_main_branch(args.merge_target):
+        die(2, json.dumps({
+            "verdict": "FAIL",
+            "action": "init-feature",
+            "error": (
+                f"yolo 模式禁止 merge_target 是主分支({args.merge_target!r})—— "
+                f"yolo 会**无人 review 自动 merge MR** · 不得直接合进 main/master/远端默认分支"
+            ),
+            "hint": (
+                "yolo 必须合到**非主分支**(如 dev / staging / integration)· 再由人工 gate "
+                "该分支 → main 的提升。改 --merge-target <非主分支> 重跑;若确需合 main · "
+                "别用 --yolo(改 --auto-mode · 保留 MR merge 人工 stop)。"
+            ),
+            "rule": "v8.63 yolo 硬约束 · 自动 merge 不进 main(防 AI 错误/幻觉特性直接进 main)",
         }, ensure_ascii=False, indent=2))
 
     # v8.15:admission consistency 校验(治本 F001 GCP gateway case · AI 选错 flow_type)
@@ -945,7 +983,9 @@ def cmd_init_feature(args: argparse.Namespace) -> None:
             "base": f"origin/{args.merge_target}",
             "executed_at": now_iso(),
         },
-        "auto_mode": args.auto_mode,
+        # v8.63:yolo implies auto_mode(完全自动是 auto_mode 的超集)
+        "auto_mode": args.auto_mode or getattr(args, "yolo", False),
+        "yolo": getattr(args, "yolo", False),
         # v8.15:admission MISMATCH WARN(audit consistency=MISMATCH 时 init-feature 留痕)
         "concerns": [admission_warning] if admission_warning else [],
         "review_round": 0,
@@ -3283,6 +3323,11 @@ def build_parser() -> argparse.ArgumentParser:
     ifp.add_argument("--worktree-path",
                      help="worktree 绝对路径 · worktree-mode != off 时建议提供")
     ifp.add_argument("--auto-mode", action="store_true", help="启用 AUTO_MODE")
+    ifp.add_argument("--yolo", action="store_true",
+                     help="[v8.63] 完全自动(YOLO)· implies --auto-mode + 自动 approve "
+                          "pm_acceptance + 自动 merge MR(gh/glab · 尊重分支保护)+ 自动 "
+                          "ship-finalize · 启动后零 stop · 🔴 merge_target 必须非 main/master/"
+                          "默认分支(自动合非主分支 · 防无人 review 直接进 main)")
     ifp.add_argument("--force", action="store_true",
                      help="覆盖现有 state.json（自动 backup .bak.<ts>）")
     # v8.36:host 改 per-feature(治本 v8.21 全局 audit 跨 session 污染 case)

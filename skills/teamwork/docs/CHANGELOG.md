@@ -1,5 +1,37 @@
 # Changelog
 
+## v8.63 · 新增 yolo 模式(完全自动 · 无人值守 · 硬约束 merge_target 非主分支 · 用户拍板 · dev-only)
+
+> 用户 2026-05-30:"增加一个 full-auto 模式 · 完全自动 · 包括自动 merge · 处理主工作区。" → 命名定 **yolo**(诚实标注"无人 review 自动合 main"的风险)+ "这种模式 MR 目标必须指定非 main 分支"。
+
+### 是什么
+
+`yolo` = `auto_mode` **超集** · 启动后**零 stop**(把 auto_mode 残留的 pm_acceptance + MR merge 两个 stop 也自动了):
+- pm_acceptance → 自动 `approved_and_ship` + WARN 审计
+- ship Phase 1 MR → 自动 merge(`gh pr merge --auto --merge` / `glab mr merge`)
+- ship-finalize → 自动跑(v8.62 已修 main-sync 干净)
+- 只剩 kickoff 输入(说要建什么)· 之后无人值守跑到底
+
+### 🔴 硬约束(物化):merge_target 必须非主分支
+
+`init-feature --yolo` + `merge_target` ∈ {`main`/`master`/远端默认} → **FAIL**(`_is_main_branch` gate)。理由:yolo **无人 review 自动 merge** · 不得让 AI 错误/幻觉特性直接进 main —— 只能合 `dev`/`staging`/`integration` · 主分支提升仍**人工 gate**。
+
+### 改动
+
+| 改动 | 文件 |
+|----|----|
+| `--yolo` flag(init-feature)· `state.json.yolo` + **implies `auto_mode`** | tools/state.py |
+| `_is_main_branch(branch, repo_cwd)` helper(名字 main/master · 或 == 远端默认分支 origin/HEAD) | tools/state.py |
+| init-feature gate:yolo + 主分支 → FAIL(早于建 state/worktree) | tools/state.py |
+| `SKILL.md § yolo 模式`(行为表 + 硬约束 + 安全栏:尊重分支保护 / WARN 审计 / per-feature opt-in) | SKILL.md |
+| 测试 +4(yolo+main FAIL / yolo+master FAIL / yolo+dev OK 且 implies auto_mode / 非 yolo+main 不受影响) | test_state.py |
+
+### 物化边界(诚实)
+
+materialize 的是 **flag + 非主分支 gate**(关键安全约束);auto-merge 执行 / pm_acceptance 自动过 / ship-finalize 自动跑 是 **PMO 按 SKILL.md spec 行为**(与 auto_mode 同源 · auto_mode 本身就 spec-driven · 代码只存 flag)。安全网双保险:① gate 物化挡住 main ② 分支保护由平台 server 端强制(`gh`/`glab` merge 失败即退回手动 stop + WARN)。378 passed · 68 pre-existing(无关)· 0 regression。
+
+---
+
 ## v8.62 · ship-finalize main-sync 主分支残留治本(feature_artifacts 无条件清 + ff-pull · 用户 case · dev-only)
 
 > 用户 2026-05-30:"总是发现主分支残留 state.json 和一个 jsonl · 是否有必要回主分支后 git pull · 一般刚有新 MR 合入 · 尽量保证主分支干净最新。"

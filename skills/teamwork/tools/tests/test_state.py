@@ -111,6 +111,55 @@ class TestInitFeature(unittest.TestCase):
         self.assertEqual(d["verdict"], "FAIL")
         self.assertIn("already exists", d["error"])
 
+    # ── v8.63:yolo 模式硬约束(merge_target 必须非主分支)──
+
+    def test_v863_yolo_rejects_main_merge_target(self) -> None:
+        """v8.63:yolo + merge_target=main → FAIL(自动 merge 不得直接进 main)。"""
+        target = self.tmp / "docs" / "features" / "YOLO-F001"
+        d = run([
+            "init-feature", "--feature", str(target),
+            "--feature-id", "YOLO-F001", "--flow-type", "Feature",
+            "--merge-target", "main", "--branch", "feat/yolo", "--yolo",
+        ], expect_exit=2)
+        self.assertEqual(d["verdict"], "FAIL")
+        self.assertIn("主分支", d["error"])
+        self.assertFalse((target / "state.json").exists())  # gate 早于建 state
+
+    def test_v863_yolo_rejects_master_merge_target(self) -> None:
+        """v8.63:yolo + merge_target=master → 同样 FAIL。"""
+        target = self.tmp / "docs" / "features" / "YOLO-F002"
+        d = run([
+            "init-feature", "--feature", str(target),
+            "--feature-id", "YOLO-F002", "--flow-type", "Feature",
+            "--merge-target", "master", "--branch", "feat/yolo2", "--yolo",
+        ], expect_exit=2)
+        self.assertEqual(d["verdict"], "FAIL")
+
+    def test_v863_yolo_non_main_target_ok_implies_auto_mode(self) -> None:
+        """v8.63:yolo + 非主分支(dev)→ OK · state.json yolo=true + auto_mode=true(implies)。"""
+        target = self.tmp / "docs" / "features" / "YOLO-F003"
+        d = run([
+            "init-feature", "--feature", str(target),
+            "--feature-id", "YOLO-F003", "--flow-type", "Feature",
+            "--merge-target", "dev", "--branch", "feat/yolo3", "--yolo",
+        ])
+        self.assertEqual(d["verdict"], "OK")
+        state = json.loads((target / "state.json").read_text(encoding="utf-8"))
+        self.assertTrue(state["yolo"])
+        self.assertTrue(state["auto_mode"])  # yolo implies auto_mode
+
+    def test_v863_non_yolo_main_target_unaffected(self) -> None:
+        """v8.63:非 yolo + main → 不受 gate 影响(向后兼容)· yolo=false。"""
+        target = self.tmp / "docs" / "features" / "YOLO-F004"
+        d = run([
+            "init-feature", "--feature", str(target),
+            "--feature-id", "YOLO-F004", "--flow-type", "Feature",
+            "--merge-target", "main", "--branch", "feat/normal",
+        ])
+        self.assertEqual(d["verdict"], "OK")
+        state = json.loads((target / "state.json").read_text(encoding="utf-8"))
+        self.assertFalse(state["yolo"])
+
     def test_init_feature_uses_feature_as_single_source_for_path(self) -> None:
         """v7.3.10+P0-149 regression：PTR-F032 case · 防 --feature 和 artifact_root 分裂。
 

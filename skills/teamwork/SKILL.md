@@ -1,6 +1,6 @@
 ---
 name: teamwork
-version: v8.62.1
+version: v8.63
 description: AI 协作开发一体化框架 · /teamwork 启动
 ---
 
@@ -424,6 +424,24 @@ emit 格式:
 🔴 **skip + WARN 行为**:PMO 跳过暂停点 · 但 `state.py add-concern --severity WARN` 写一条 audit 锚定 AI 自决的范围(防 audit 看不到 / 后续复查无迹)。
 
 📎 `worktree_mode=auto` ≠ `auto_mode` —— 前者是 worktree 物理校验模式(prepare/init-feature)· 与暂停点自动流转**完全无关**。
+
+### yolo 模式(v8.63 · 完全自动 · 无人值守 · 🔴 高风险)
+
+🔴 `yolo` = `auto_mode` **超集** —— 启动后**零 stop**(连 pm_acceptance 产品验收 + MR merge 都自动)。启用:`init-feature --yolo`(自动 implies `auto_mode`)。
+
+| 暂停点 | yolo 行为 |
+|---|---|
+| prepare 4 项配置 | 启动前给(kickoff 输入 · 非运行中 stop) |
+| pm_acceptance 三选项 | **自动 `approved_and_ship`** + `state.py add-concern --severity WARN`(连"是否 ship"也委托 AI) |
+| ship Phase 1 等平台 merge MR | **自动 merge**:`gh pr merge --auto --merge`(GitHub · check 全过才合)/ `glab mr merge`(GitLab) |
+| ship-finalize(Phase 2 主工作区收尾) | **自动跑**(merge 确认后 · 见 v8.62 main-sync) |
+
+🔴 **硬约束(init-feature 物化 gate · `_is_main_branch`)**:`merge_target` **必须非主分支**(`main`/`master`/远端默认)· 否则 `init-feature --yolo` 直接 FAIL。理由:yolo **无人 review 自动 merge** · 不得让 AI 错误/幻觉特性直接进 main —— 只能合到 `dev`/`staging`/`integration` 等集成分支 · 主分支的提升仍由**人工 gate**。
+
+🔴 **安全栏**:
+- **尊重分支保护**:目标分支受保护 / 必需 check 没过 → `gh`/`glab` merge 命令失败 → 自动退回「手动 merge」stop + WARN(**绝不** force / 绕保护)
+- **审计**:每个自动决策(pm_acceptance 自动过 / 自动 merge)写 `add-concern --severity WARN` 留痕
+- **per-feature opt-in**:`--yolo` 不 sticky(每次显式传)· `state.json.yolo=true` 留痕 · 不会误触发
 
 ---
 
