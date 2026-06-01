@@ -1,5 +1,39 @@
 # Changelog
 
+## v8.68 · external 异质性校验 host-aware(治本 codex-cli 宿主 claude 评审误判同源 · 用户 case SVC-PLATFORM-F060 · dev-only)
+
+> 用户 2026-05-31(SVC-PLATFORM-F060 · 主对话宿主 = codex-cli · Codex agent 已诊断):review-complete 把**合规**的 Claude external review 误判"同源自审" · 被迫 `change-review-roles` 绕过(语义不对 · external 明明真存在)。
+
+### 根因:工具前后口径不一致
+
+- `state.py external-review` **已 host-aware**:`EXTERNAL_HOST_TO_MODEL` 映 `codex-cli→claude` —— 所以 Codex 主对话跑 Claude external 是正确异质路径 · 产出合规 `external-cross-review/review-claude.md`。
+- 但 `_check_external_hetero`(review-complete 校验)是 **Claude-host 时代的静态黑名单** `("claude","anthropic",...)` —— 把 claude 一律判同源。
+- 矛盾:前半段「codex-cli → claude(异质)」· 后半段「artifact 含 claude → 同源违规」。
+
+### 修复:host-aware 同源判定
+
+| 改动 | 内容 |
+|----|----|
+| `_check_external_hetero(name, host=None)` | host-aware · 同源 = ① 机制字面(isolated/subagent · 无论 host)· 或 ② review model 与 **host 同族**(`_host_to_family` + `_MODEL_FAMILY_KEYWORDS`)· host 缺失 → 保守默认 claude-code |
+| 白名单扩展 | `EXTERNAL_REVIEW_HETERO_KEYWORDS` 加 claude/anthropic/openai/google/bard(host-aware 排除 host 自族) |
+| `_evidence_external_review_artifact` | 读 host(state.host > 文件 frontmatter host > None)逐文件传入 · 错误 hint 改 host-aware(同源依 host · 修复跑 `state.py external-review` 而非硬编码 codex review) |
+| 测试 +4 | codex-cli+claude PASS / claude-code+claude FAIL / codex-cli+codex FAIL / 任意 host+isolated FAIL(+ ambiguous 措辞 1 例)· 395 passed · 68 pre-existing(无关)· 0 regression |
+
+### 判定矩阵(实测)
+
+| host | review model | 结果 |
+|---|---|---|
+| codex-cli | claude | ✅ 异质 PASS(**bug 修复**) |
+| claude-code | claude | ❌ 同源 FAIL |
+| codex-cli | codex | ❌ 同源 FAIL |
+| claude-code | codex | ✅ 异质 PASS |
+| 任意 | *-isolated/subagent | ❌ 机制 FAIL(保留 F034 保护) |
+| 缺 host | claude | ❌ 保守默认 claude → FAIL(不放宽老 case) |
+
+> 📌 case 附带提的 set-auto-mode 语义命令缺口(auto_mode 当时靠 raw-write 改)· 另列 · 本次不含。
+
+---
+
 ## v8.67 · yolo 严格按流程 · 不内化(external 实跑日志物化校验 · 用户 case WS-002 · dev-only)
 
 > 用户 2026-05-30:"yolo 模式必须严格按 teamwork 流程流转 · 不能内化。"

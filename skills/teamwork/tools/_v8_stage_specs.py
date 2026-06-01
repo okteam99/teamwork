@@ -1195,33 +1195,69 @@ def _evidence_ac_test_binding(state: dict, args) -> tuple[bool, str]:
 
 
 # v8.19:external review 异质性硬约束(治本 SVC-CORE-F034 case · AI 用同模型 subagent 自审)
-# 白名单:真异质外部模型字面(case-insensitive 匹配 basename / frontmatter review_model)
-# 黑名单:同源(claude 宿主)或 isolated/subagent 字面 = AI 用 Agent 起 isolated context 自审 ≠ 异质
+# 白名单:已知模型族字面(case-insensitive · host-aware 判定时 host 同族会被排除)
 EXTERNAL_REVIEW_HETERO_KEYWORDS = (
-    "codex", "gpt", "gemini", "deepseek", "qwen", "llama", "grok", "mistral",
+    "claude", "anthropic", "codex", "gpt", "openai", "gemini", "google", "bard",
+    "deepseek", "qwen", "llama", "grok", "mistral",
 )
+# 同源「机制」字面:宿主自起 isolated/subagent 子进程 = 同模型自审 · 无论 host 全 BLOCK
+EXTERNAL_REVIEW_SAME_CONTEXT_BLOCKED = (
+    "isolated", "subagent", "general-purpose", "self",
+)
+# 各模型族字面(host-aware 同源判定:review model 与 host 同族 → 同源)
+_MODEL_FAMILY_KEYWORDS = {
+    "claude": ("claude", "anthropic"),
+    "codex": ("codex", "gpt", "openai"),
+    "gemini": ("gemini", "google", "bard"),
+}
+# 向后兼容别名(老引用 · = 默认 claude host 下的同源字面集)
 EXTERNAL_REVIEW_SAME_SOURCE_BLOCKED = (
-    "claude", "anthropic", "isolated", "subagent", "general-purpose", "self",
+    _MODEL_FAMILY_KEYWORDS["claude"] + EXTERNAL_REVIEW_SAME_CONTEXT_BLOCKED
 )
 
 
-def _check_external_hetero(name: str) -> tuple[bool, str]:
-    """v8.19:校验文件名 / frontmatter review_model 是否真异质模型。
+def _host_to_family(host) -> Optional[str]:
+    """host → 模型族:claude-code→claude / codex-cli→codex / gemini-cli→gemini · 未知→None。"""
+    h = (host or "").lower()
+    if "claude" in h:
+        return "claude"
+    if "codex" in h or "openai" in h:
+        return "codex"
+    if "gemini" in h or "google" in h:
+        return "gemini"
+    return None
 
-    返回 (is_hetero, reason)。is_hetero=False 时 reason 含违规字面。
+
+def _check_external_hetero(name: str, host=None) -> tuple[bool, str]:
+    """v8.68:host-aware 校验文件名 / review_model 是否真异质模型 · 返 (is_hetero, reason)。
+
+    治本 case(SVC-PLATFORM-F060 · host=codex-cli):external-review 已 host-aware
+    (`EXTERNAL_HOST_TO_MODEL` codex-cli→claude)· 但本 checker 旧版**静态**黑名单把 claude
+    一律判同源 → **误判** codex-cli 宿主下合规的 Claude external review = 同源自审。
+
+    同源 = ① 机制字面(isolated/subagent 宿主自起子进程 · 无论 host 全 BLOCK)· 或
+    ② review model 与 host **同族**(codex-cli host 下 claude 是异质 · 不再误判)。
+    host 缺失 → 保守默认 claude-code(历史默认 · 不放宽老 case 的同源保护)。
     """
     low = name.lower()
-    # 1. 黑名单字面命中 → 同源自审 · 不达标
-    for kw in EXTERNAL_REVIEW_SAME_SOURCE_BLOCKED:
+    # 1. 同源机制黑名单(无论 host · subagent/isolated 是宿主自起子进程 · 非真异质进程)
+    for kw in EXTERNAL_REVIEW_SAME_CONTEXT_BLOCKED:
         if kw in low:
-            return False, f"命中同源黑名单字面 {kw!r}"
-    # 2. 白名单字面必含其一 → 真异质
+            return False, f"命中同源机制字面 {kw!r}(宿主自起 isolated/subagent 自审 · 非异质进程)"
+    # 2. host-aware 同源模型族(host 缺失 → 保守默认 claude)
+    host_family = _host_to_family(host) or "claude"
+    for kw in _MODEL_FAMILY_KEYWORDS.get(host_family, ()):
+        if kw in low:
+            return False, (
+                f"命中宿主同源模型族字面 {kw!r}(host={host or '默认 claude-code'}/"
+                f"{host_family} · 同模型评同模型 = 非异质)"
+            )
+    # 3. 必含某已知外部模型族字面 → 真异质
     for kw in EXTERNAL_REVIEW_HETERO_KEYWORDS:
         if kw in low:
             return True, ""
-    # 3. 都不含 → 模糊 · BLOCKED(让 PMO 显式 emit)
     return False, (
-        f"未含异质模型字面(白名单:{', '.join(EXTERNAL_REVIEW_HETERO_KEYWORDS)})"
+        f"未含已知模型族字面(白名单:{', '.join(EXTERNAL_REVIEW_HETERO_KEYWORDS)})"
     )
 
 
@@ -1269,20 +1305,19 @@ def _evidence_external_review_artifact(state: dict, args) -> tuple[bool, str]:
             "external-cross-review/*.md 为空 · 跑 codex 外部评审或 change-review-roles 移除 external"
         )
 
-    # v8.19:逐文件校验异质性(文件名 + frontmatter review_model 双重)
+    # v8.36 host per-feature · v8.68 host-aware 异质判定(治本 codex-cli host 下 claude 误判)
+    state_host = state.get("host")
+    # v8.19:逐文件校验异质性(文件名 + frontmatter review_model 双重 · v8.68 host-aware)
     violations: list = []
     for f in md_files:
-        # ① 文件名字面校验(basename 去扩展名)
-        stem = f.stem  # 如 code-codex / code-claude-isolated
-        ok_name, name_reason = _check_external_hetero(stem)
-        # ② frontmatter review_model 字段校验(若有)
         fm = parse_frontmatter(f) or {}
+        # host 优先级:state.host(per-feature)> 文件 frontmatter host(external-review 写)> None(默认 claude)
+        eff_host = state_host or (fm.get("host") or "").strip() or None
+        ok_name, name_reason = _check_external_hetero(f.stem, eff_host)
         rm_value = (fm.get("review_model") or "").strip()
-        rm_ok = True
-        rm_reason = ""
+        rm_ok, rm_reason = True, ""
         if rm_value:
-            rm_ok, rm_reason = _check_external_hetero(rm_value)
-        # 综合判定:文件名 + frontmatter 任一 BLOCKED → 文件违规
+            rm_ok, rm_reason = _check_external_hetero(rm_value, eff_host)
         if not ok_name:
             violations.append(f"{f.name}:文件名 {name_reason}")
         if rm_value and not rm_ok:
@@ -1293,14 +1328,15 @@ def _evidence_external_review_artifact(state: dict, args) -> tuple[bool, str]:
             f"external 异质性违规({len(violations)} 文件)· R3 红线 + standards/"
             f"external-model-usage.md § 七 异质性硬约束:\n  "
             + "\n  ".join(violations)
-            + "\n  规约:文件名 / frontmatter review_model 必含异质模型字面 "
-            f"({', '.join(EXTERNAL_REVIEW_HETERO_KEYWORDS)})· 必不含同源字面 "
-            f"({', '.join(EXTERNAL_REVIEW_SAME_SOURCE_BLOCKED)})。"
-            "\n  典型违规:AI 用 Agent subagent_type=general-purpose 起 Claude isolated "
-            "context 自审 → 同模型自评有盲点 · 不达 R3 异质要求。"
-            "\n  修复:跑 `codex review --commit <SHA> --base <branch>` 落 *-codex.md · "
+            + "\n  规约(v8.68 host-aware):同源 = ① isolated/subagent 等机制字面(全 host BLOCK)· "
+            "或 ② review model 与**宿主同族**(claude-code 宿主下 claude 同源 · "
+            "**codex-cli 宿主下 claude 是异质 · 合规**)。"
+            "\n  典型违规:AI 用 Agent subagent_type=general-purpose 起同模型 isolated context 自审 → 同模型自评有盲点。"
+            "\n  修复:跑 `state.py external-review --stage <X> --feature <path>`"
+            "(host 自动映射异质模型:claude-code→codex · codex-cli→claude · gemini-cli→codex)· "
             "或 change-review-roles 显式移除 external(留 audit)。"
-            "\n  调用前必做:`which codex` 验工具在 · 不在 → stop 问用户 · 不替代。"
+            "\n  🔴 若本就是合规异质评审却被判违规 → 检查 state.json.host 是否 = 你的真实主对话宿主"
+            "(host 错 / 缺 默认 claude · 会把 codex-cli 的 claude 评审误判同源)。"
         )
 
     # v8.67:yolo 严格按流程 · 不内化 —— external 必须真跑(state.py external-review 调异质模型)·
