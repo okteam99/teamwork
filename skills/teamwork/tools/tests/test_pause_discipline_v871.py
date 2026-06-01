@@ -23,7 +23,10 @@ HERE = Path(__file__).resolve().parent
 TOOLS = HERE.parent
 sys.path.insert(0, str(TOOLS))
 
-from _v8_engine import _render_pause_discipline  # type: ignore  # noqa: E402
+from _v8_engine import (  # type: ignore  # noqa: E402
+    _render_execution_capability,
+    _render_pause_discipline,
+)
 from _v8_stage_specs import STAGE_SPECS  # type: ignore  # noqa: E402
 
 
@@ -103,6 +106,36 @@ class TestContinuousStagesRegression(unittest.TestCase):
         out = _render_pause_discipline(STAGE_SPECS["dev"].authorized_pause_point)
         self.assertIn("无授权暂停点", out)
         self.assertIn("subagent", out)
+
+
+class TestExecutionCapabilityV873(unittest.TestCase):
+    """v8.73:subagent = 标准执行手段 · 每 stage 起手评估(非任务大才用)。
+
+    治本:用户指出「合理使用 subagent 应是各个 stage 必须知道的点 · 不是任务大才想起」·
+    故独立成段 · 每 stage brief 都带 · 框成主动标准手段(非 reactive 兜底)。
+    """
+
+    def test_segment_is_proactive_standard(self):
+        out = _render_execution_capability()
+        self.assertIn("subagent", out)
+        self.assertIn("标准", out)
+        self.assertIn("起手", out)            # 每 stage 起手评估
+        # 主动框架 · 明确「不是任务大才用」
+        self.assertIn("非任务大才用", out)
+
+    def test_segment_mentions_benefits_and_boundary(self):
+        out = _render_execution_capability()
+        self.assertIn("并行", out)            # 并行提速
+        self.assertIn("context 干净", out)    # 主编排 context 干净
+        self.assertIn("worktree", out)        # 边界:子 agent 守 worktree 纪律
+        self.assertIn("不外包整个 stage", out)  # 边界:不跳流程
+
+    def test_no_size_gating_language(self):
+        """不应把 subagent 框成「工作量大 / session 吃紧才用」的兜底。"""
+        out = _render_execution_capability()
+        # 段落主张是「标准 · 起手评估」· 不以「工作量大」为前置条件触发
+        self.assertNotIn("工作量大 →", out)
+        self.assertNotIn("工作量大 / session 吃紧 →", out)
 
 
 if __name__ == "__main__":

@@ -1,5 +1,28 @@
 # Changelog
 
+## v8.73 · subagent 升为「每 stage 标准执行手段」(治本框成兜底 · 接 v8.71/72 · dev-only)
+
+> 用户 2026-06-01:"合理使用 subagent 应该是 AI 各个 stage 必须知道的点 · 而不是任务大的时候才想起来。"
+
+### 根因:v8.71/72 把 subagent 框成「工作量大」的兜底
+
+- v8.71/72 的 subagent 指引绑在暂停点纪律里 · 措辞是「工作量大 / session 吃紧 → 派 subagent」—— **reactive**(任务大才用)· 不是 AI 每 stage 起手就该想到的标准手段。
+- 后果:AI 默认串行闷头干 · 只有撑不住才想起 subagent · 错过 dev 多模块并行、调研丢 subagent 保持主 context 干净等常规收益。
+
+### 修复:独立成段 · 每 stage brief 都带 · 框成主动标准
+
+| 改动 | 内容 |
+|----|----|
+| `_render_execution_capability()`(新)| 「🧩 执行手段:subagent 是标准配置(每 stage 起手评估 · 非任务大才用)」· 起手即问哪些独立子任务可并行/隔离(dev 多模块 / goal·blueprint 多方案调研 / review 多关注点)· 收益(主 context 干净 + 并行提速 + 隔离)· 边界(只干子任务 · 不外包整个 stage 跳流程 · 守 worktree 纪律)|
+| 接入两处必经点 | `execute_stage_start` + 自动流转 emit 都 append —— **每个 stage(start + 转移那刻)都见** |
+| 暂停点纪律去 reactive | subagent 行从「工作量大才」改「规模/节奏 AI 自决 · 独立子任务派 subagent · 见『🧩 执行手段』」 |
+| SKILL.md R4 | 「subagent 是标准执行手段 · 每 stage 起手评估 · **不是任务大才想起** · session 吃紧更要用」 |
+| 测试 +3 | TestExecutionCapabilityV873(主动标准措辞 · 收益+边界 · 无 size-gating)· 419 passed · 68 pre-existing(无关)· 0 regression |
+
+> 核心:subagent 从「撑不住的兜底」升为「每 stage 起手就评估的标准执行手段」—— 主编排 context 干净 + 并行提速是常态收益 · 不是大任务专属。
+
+---
+
 ## v8.72 · 执行节奏伪决策护栏改通用红线(治本不止 dev · 所有 stage · 接 v8.71 · dev-only)
 
 > 用户 2026-06-01:"不只是 dev · 其他阶段是否也会遇到类似问题。" 答:会 · 且分两类。

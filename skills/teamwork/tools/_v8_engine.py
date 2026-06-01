@@ -571,11 +571,13 @@ def execute_stage_start(
 
     save_state(path, state)
 
-    # 7. 渲染 next_action_brief + 自动 append 建议评审角色 + 暂停点纪律 + 必读路径速查 + 状态行模板
+    # 7. 渲染 next_action_brief + 自动 append 建议评审角色 + 暂停点纪律 + 执行手段 + 必读路径速查 + 状态行模板
     brief = stage_spec.brief_template_fn(state)
     brief += _render_review_roles_suggestion(state, stage_spec.name)
     if stage_spec.authorized_pause_point:
         brief += _render_pause_discipline(stage_spec.authorized_pause_point)
+    # v8.73:subagent 标准执行手段(每 stage 必带 · 不是任务大才想起)
+    brief += _render_execution_capability()
     # 必读路径速查(P0-4)
     brief += _render_required_paths(Path(args.feature).resolve(), stage_spec.name)
     # 状态行模板(P0-10:AI 每次主对话回复末尾必含)
@@ -1010,13 +1012,32 @@ def _render_pause_discipline(authorized_pause_point: str) -> str:
     # 自造执行节奏伪暂停(如"PRD 16 AC 要分批起草给你看吗") · 故不限无暂停 stage。
     head += """
 - ⛔ 禁自造"如何推进 / 落地节奏 / 先做一层给你看 / 一次性还是分批 / 要不要先停"等**执行节奏伪决策暂停**(R4 不膨胀 · 执行细节 AI 自决 · **非用户决策**)· "改动大 / 破坏式 / 不可逆 / 文件多 / 用户全程参与设计"**都不是**暂停理由
-- ✅ 工作量大 / session 吃紧 → **自己** plan + 派 subagent(`Agent` 工具)并行消化 · **不停下问用户怎么干**
+- ✅ 规模 / 节奏是 AI 自决的执行问题 → 自己组织(独立子任务派 subagent 并行 · 见下「🧩 执行手段」)· **不停下问用户怎么干**
 - ⛔ Substep 中间禁 AskUserQuestion · Open Questions 写进 PRD/Review 评审
 - ✅ 全部疑问到授权暂停点**一次性** escalate
 - 🛡️ 兜底:state.py 校验 review mtime + frontmatter.revision_history
 - 📖 详细:[docs/v8-redesign/04-PAUSE-POINT-DISCIPLINE.md](../docs/v8-redesign/04-PAUSE-POINT-DISCIPLINE.md)
 """
     return head
+
+
+def _render_execution_capability() -> str:
+    """v8.73:subagent = 标准执行手段 · 每 stage 起手主动评估(不是任务大才想起)。
+
+    治本(接 SDK-F038):v8.71/72 把 subagent 框成「工作量大 / session 吃紧」的兜底 ·
+    用户指出「合理使用 subagent 应是 AI 各个 stage 必须知道的点 · 不是任务大才想起」·
+    故独立成段 · 每个 stage brief(start + 自动流转)都带 · 让 AI 起手就评估并行/隔离。
+    """
+    return """
+
+---
+
+### 🧩 执行手段:subagent 是标准配置(每 stage 起手评估 · 非任务大才用)
+
+- 起手即问:本 stage 哪些**独立子任务**可并行 / 隔离委托 subagent(`Agent` 工具)?dev 多模块(如 Android / iOS / JSSDK)各派一个并行实现 · goal/blueprint 多方案多领域调研并行 · review 不同关注点分头评
+- 收益:主编排 **context 干净**(大块调研 / 探索 / 读码丢 subagent · 不灌主对话)+ **并行提速** + 子任务隔离
+- 边界:subagent 只干**子任务** · stage 流转 / 评审角色 / state.py 命令仍由**主编排**掌控(不外包整个 stage 跳流程)· 子 agent 写文件守 worktree 内路径(同 worktree 纪律)
+"""
 
 
 # ─── brief 体量元规则(防 Layer A 累积膨胀) ────────────────────────
@@ -1484,7 +1505,7 @@ def execute_stage_complete(
         completed = state.setdefault("completed_stages", [])
         if stage_spec.name not in completed:
             completed.append(stage_spec.name)
-        # 渲染下一 stage brief(含建议评审角色 + 暂停点纪律)
+        # 渲染下一 stage brief(含建议评审角色 + 暂停点纪律 + 执行手段)
         if next_stage in stage_specs_registry:
             next_spec = stage_specs_registry[next_stage]
             next_brief = next_spec.brief_template_fn(state)
@@ -1494,6 +1515,8 @@ def execute_stage_complete(
             # 不靠之后 dev-start 才看到 · 那时伪暂停已构造)
             if next_spec.authorized_pause_point:
                 next_brief += _render_pause_discipline(next_spec.authorized_pause_point)
+            # v8.73:subagent 标准执行手段(转移那刻即带 · 下一 stage 起手就评估并行)
+            next_brief += _render_execution_capability()
 
     # pm_acceptance rejected_with_feedback · 列回退选项暂停点(v8.10 + v8.11 jump-to-stage)
     pause_options_markdown = None
