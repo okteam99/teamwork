@@ -1,5 +1,28 @@
 # Changelog
 
+## v8.71 · 无暂停 stage 禁自造伪决策暂停(治本 AI 不会自己解决问题 · 用户 case SDK-F038 · dev-only)
+
+> 用户 2026-06-01:"AI 似乎不知道怎么自己解决问题 · 是否需要在规范里说明一下。" case:AI 在 blueprint PASS(自动转 dev)后 · 构造「⏸️ dev 如何推进」3 选项暂停点(先做一层给你看 / 一次性全落 / 先停审阅)· 把"破坏式跨端大改 + 不可逆 + 你全程参与设计"包装成"落地节奏选择"。用户当场纠正:dev 无授权暂停点 · session 太大该派 subagent · 不该停下问。
+
+### 根因:规则只有「负面禁止」· 缺「正面怎么办」· 且不在必经点
+
+- R4 早有「自动流转节点禁插暂停 · 容量预算不构成暂停理由」· 授权暂停点清单也写「stage 间自动流转 · 非暂停点」—— **规则在 · AI 仍违规**(self-correct 时才引用 R4)。
+- 两个缺口:① 规则只说**别为容量暂停**(负面)· 没给**正面模式**(工作量大 → 内部 plan + subagent 消化)· AI 感到任务大时唯一会的工具就是"停下问用户怎么推进";② `_render_pause_discipline` 只在 `xx-start` 追加 · **自动流转 emit(blueprint→dev)不带** —— AI 在转移那刻看到的 dev brief **没有**「无暂停」提醒 · 等之后 dev-start 才有 · 那时伪暂停已构造。
+
+### 修复:必经点物化 + 正向指引(两层)
+
+| 改动 | 内容 |
+|----|----|
+| `_render_pause_discipline`(无暂停 stage 强化)| `authorized_pause_point` 含「无暂停」时追加:⛔ 禁构造"如何推进/落地节奏/先做一层/一次性还是分批"伪决策暂停 · ⛔"改动大/破坏式/不可逆/文件多/用户参与设计"都不是暂停理由 · ✅ 体量大 → 自己 plan + 派 subagent(`Agent` 工具)· 不停下问 |
+| 自动流转 emit 带纪律(必经点)| `execute_stage_complete` 转移到下一 stage 时 · `next_stage_brief` 现追加下一 stage 的暂停点纪律 —— AI 在 blueprint→dev **转移那刻**即见「dev 无暂停 · 禁自造暂停」· 不靠之后 dev-start |
+| SKILL.md R4 加正向指引 | 「授权暂停点=用户决策点(固定闭集)· stage 内怎么执行=AI 自决细节」· 「工作量大是 AI 自己的执行问题 · 不甩用户 · session 吃紧→派 subagent」· 「用户参与设计 ≠ 用户决定执行节奏」 |
+| 04-PAUSE-POINT-DISCIPLINE.md | 反模式黑名单加 SDK-F038 条目(执行节奏伪决策)+ case 复盘 |
+| 测试 +5 | TestNoPauseHardening 3 + TestContinuousStagesTriggerHardening 2(dev 必触发 · 防回归改 pause point 字面丢强化)· 413 passed · 68 pre-existing(无关)· 0 regression |
+
+> 核心:**授权暂停点是固定闭集(用户决策)· stage 内"怎么干"是 AI 自决的执行细节**。改动大/破坏式/不可逆/用户参与设计**都不是**暂停理由 —— 工作量大 AI 自己 plan + subagent 消化 · 闷头干到 stage 完成 · 后果由 review/test/pm_acceptance 下游 gate 兜。
+
+---
+
 ## v8.70 · main-sync 主工作区净化决策(治本 ship 后 user-dirty 停在脏态 · 不 pull 不处理 · dev-only)
 
 > 用户 2026-06-01:"ship2 结束后回到主工作区 · 如果不干净会停在那里 · 不 pull 也不处理。增加逻辑:发现不干净时提示是否净化 · push 当前改动 · pull 最新。目标:尽最大努力安全保持主工作区干净 + 最新。"
