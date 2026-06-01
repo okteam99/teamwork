@@ -16,7 +16,7 @@ STAGE_SPECS dict 在文件末尾汇总。
 - ⏳ ui_design / blueprint / blueprint_lite (B2/B4/B5)
 - ⏳ review / test / browser_e2e / pm_acceptance / ship (B7-B11)
 
-详细 schema 见 docs/v8-redesign/01-COMMAND-SCHEMA.md。
+详细 schema 见 docs/archive/v8-redesign/01-COMMAND-SCHEMA.md。
 """
 
 from __future__ import annotations

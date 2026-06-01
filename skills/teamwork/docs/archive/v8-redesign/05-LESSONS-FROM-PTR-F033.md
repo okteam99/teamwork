@@ -149,7 +149,7 @@ triage 不是 stage · 是入口分诊。新 AI 经常错误把 triage 当 stage
 
 stages/ · 各 stage 内容创作规范(待 P0-6 重写为"内容创作规范"格式)
 
-docs/v8-redesign/ · 设计文档 + 治本反思
+docs/archive/v8-redesign/ · 设计文档 + 治本反思
 ├── 00-MANIFESTO.md          设计宪法
 ├── 01-COMMAND-SCHEMA.md     30 命令 schema
 ├── 02-CLEANUP.md            v7→v8 清理清单

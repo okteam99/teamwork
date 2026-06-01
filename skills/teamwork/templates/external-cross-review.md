@@ -56,7 +56,7 @@ PMO 完整决策流角色契约见 [roles/pmo.md](../roles/pmo.md)。简版：
 ```
 🌐 外部模型交叉评审决策（仅影响 Plan / Blueprint Stage；Review Stage 代码审查独立强制）
 ├── PMO 直接判定→ 可用候选 = [{recommendation}]
-├── 默认值�处独立）：plan_enabled=false / blueprint_enabled=false / review_enabled=true
+├── 默认值（三处独立）：plan_enabled=false / blueprint_enabled=false / review_enabled=true
 ├── 建议：{开 / 不开}
 ├── 理由：{例：大改动 + 跨子项目 → 建议开；小 bug 修复 + 单文件 → 建议不开}
 └── 选项：
@@ -246,7 +246,7 @@ PMO 写入 `docs/retros/external-cross-review-{YYYY-WW}.md`，核心指标：
 | # | 规则 |
 |---|------|
 | R1 | PMO 未输出 ≥3 条内部 review 之前，禁止 dispatch 外部模型 |
-| R2 | 外部模型禁读其他视角评审草稿（files_read 机器校�） |
+| R2 | 外部模型禁读其他视角评审草稿（files_read 机器校验） |
 | R3 | 每条外部模型 finding 必须分类 ADOPT/REJECT/DEFER + 理由，禁止静默忽略 |
 | R4 | 禁止无条件全盘采纳外部模型意见（= 反向外包） |
 | R5 | findings 全空不视为"通过"，触发 §六 二次挑战 |
@@ -267,7 +267,7 @@ PMO 写入 `docs/retros/external-cross-review-{YYYY-WW}.md`，核心指标：
 | [stages/review-stage.md](../stages/review-stage.md) | 代码外部模型审查在此，不走本模板 |
 | [codex-agents/prd-reviewer.toml](../codex-agents/prd-reviewer.toml) | PRD 变体 Codex CLI agent（model=codex 时使用） |
 | [codex-agents/blueprint-reviewer.toml](../codex-agents/blueprint-reviewer.toml) | TC+TECH 变体 Codex CLI agent（model=codex 时使用） |
-| [claude-agents/](../claude-agents/) | Claude CLI 调用规范（model=claude 时使用＼� |
+| [claude-agents/](../claude-agents/) | Claude CLI 调用规范（model=claude 时使用） |
 | [templates/review-log.jsonl](./review-log.jsonl) | stage 枚举已新增 plan-external-review / blueprint-external-review |
 
 ---

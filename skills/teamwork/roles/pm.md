@@ -26,6 +26,6 @@ v8 用 state.py pm_acceptance-complete --decision 把三选项物化 · 防止 A
 
 ## 相关
 
-- 设计宪法:[../docs/v8-redesign/00-MANIFESTO.md](../docs/v8-redesign/00-MANIFESTO.md)
-- 命令 schema:[../docs/v8-redesign/01-COMMAND-SCHEMA.md](../docs/v8-redesign/01-COMMAND-SCHEMA.md)
+- 设计宪法:[../docs/archive/v8-redesign/00-MANIFESTO.md](../docs/archive/v8-redesign/00-MANIFESTO.md)
+- 命令 schema:[../docs/archive/v8-redesign/01-COMMAND-SCHEMA.md](../docs/archive/v8-redesign/01-COMMAND-SCHEMA.md)
 - 通用引擎:[../tools/_v8_engine.py](../tools/_v8_engine.py)

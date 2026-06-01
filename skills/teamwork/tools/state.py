@@ -2262,7 +2262,7 @@ def _run_codex_review(stage: str, commit: str, base: str, title: str,
     早成功 · 唯独 review 走 codex review 持续超时)。codex exec 是稳定 headless 路径
     (goal/blueprint 已验证)· review 对象差异(代码 diff vs 文档)全由
     `_build_codex_prompt` 内置 prompt 描述。
-    (codex review↔exec 反复横跳演进史见 docs/CHANGELOG.md)
+    (codex review↔exec 反复横跳演进史见 docs/CHANGELOG-ARCHIVE.md · v8.23-26)
     """
     # 算 feature_dir 相对 cwd · 让 prompt 用相对路径(codex 在 cwd=git root 跑)
     try:
@@ -3677,8 +3677,8 @@ def build_parser() -> argparse.ArgumentParser:
     # 不再在 state.py 注册 subparser(治本"元工具混运行时"+ chicken-and-egg)
 
     # ─── v8.0 stage 命令注册(Code-driven Orchestration) ─────────────
-    # 设计文档:docs/v8-redesign/00-MANIFESTO.md
-    # 命令 schema:docs/v8-redesign/01-COMMAND-SCHEMA.md
+    # 设计文档:docs/archive/v8-redesign/00-MANIFESTO.md
+    # 命令 schema:docs/archive/v8-redesign/01-COMMAND-SCHEMA.md
     # 引擎模块:
     # - _v8_engine.py   通用 stage start/complete + bypass 协议
     # - _v8_stage_specs.py  11 stage 完整契约

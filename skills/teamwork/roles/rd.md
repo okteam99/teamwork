@@ -26,6 +26,6 @@ v8 dev-complete 把 RD 自查从软声明变硬证据(git commit 存在 + 测试
 
 ## 相关
 
-- 设计宪法:[../docs/v8-redesign/00-MANIFESTO.md](../docs/v8-redesign/00-MANIFESTO.md)
-- 命令 schema:[../docs/v8-redesign/01-COMMAND-SCHEMA.md](../docs/v8-redesign/01-COMMAND-SCHEMA.md)
+- 设计宪法:[../docs/archive/v8-redesign/00-MANIFESTO.md](../docs/archive/v8-redesign/00-MANIFESTO.md)
+- 命令 schema:[../docs/archive/v8-redesign/01-COMMAND-SCHEMA.md](../docs/archive/v8-redesign/01-COMMAND-SCHEMA.md)
 - 通用引擎:[../tools/_v8_engine.py](../tools/_v8_engine.py)
