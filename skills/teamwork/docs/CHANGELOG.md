@@ -1,5 +1,33 @@
 # Changelog
 
+## v8.72 · 执行节奏伪决策护栏改通用红线(治本不止 dev · 所有 stage · 接 v8.71 · dev-only)
+
+> 用户 2026-06-01:"不只是 dev · 其他阶段是否也会遇到类似问题。" 答:会 · 且分两类。
+
+### 分析:两类 stage · 两种暴露面
+
+| 类 | stage | v8.71 覆盖? |
+|---|---|---|
+| **无暂停**(连续执行) | dev / blueprint / blueprint_lite / test | ✅ 已覆盖(`"无暂停"` 通用检测 · 4 个全中) |
+| **有授权暂停** | goal / ui_design / review / browser_e2e / pm_acceptance / ship / panorama_sync | ⚠️ **漏**:执行节奏伪决策护栏 + subagent 只在无暂停 stage 触发 |
+
+- v8.71 把「禁执行节奏伪决策 + 体量大派 subagent」绑在 `"无暂停"` 分支 —— 但**执行节奏伪决策是通用失败模式**:有授权暂停点的 stage 也可能在「那一个」授权暂停**之外**自造伪暂停(如 goal「PRD 16 AC 要分批起草给你看吗」· review「先评核心模块给你看?」)。
+- base 纪律只提「Open Questions(疑问)写进评审」· 框定的是**不确定性** · 没点名**执行节奏伪决策**(SDK-F038 的 AI 不觉得自己在"提问" · 觉得在"给落地节奏选择")。
+
+### 修复:护栏拆两层
+
+| 层 | 适用 | 内容 |
+|----|----|----|
+| **通用红线**(所有 11 stage)| 全部 | ⛔ 禁"如何推进/落地节奏/先做一层/一次性还是分批"执行节奏伪决策暂停 · "改动大/破坏式/不可逆/文件多/用户参与设计"非暂停理由 · ✅ 体量大 → plan + subagent 自决 |
+| **无暂停抬头**(连续执行 stage)| dev/blueprint/blueprint_lite/test | 🔴 本 stage 无授权暂停点 · 任何暂停都违规 |
+
+- `_render_pause_discipline`:执行节奏 + subagent 行移出 `"无暂停"` 分支 → base(通用)· `"无暂停"` 分支只留「任何暂停都违规」抬头
+- 测试 8 例(原 5 → 8):TestUniversalExecutionPacingGuard(每个 stage 都含护栏 + subagent · 抬头只在无暂停 stage)+ TestContinuousStagesRegression(无暂停集合 = {dev,blueprint,blueprint_lite,test} 固定 · 防漂移)· 416 passed · 68 pre-existing(无关)· 0 regression
+
+> 核心:**「禁执行节奏伪决策 + 体量大用 subagent」对所有 stage 生效**(不止无暂停 stage)· 只是无暂停 stage 额外强调「任何暂停都违规」。
+
+---
+
 ## v8.71 · 无暂停 stage 禁自造伪决策暂停(治本 AI 不会自己解决问题 · 用户 case SDK-F038 · dev-only)
 
 > 用户 2026-06-01:"AI 似乎不知道怎么自己解决问题 · 是否需要在规范里说明一下。" case:AI 在 blueprint PASS(自动转 dev)后 · 构造「⏸️ dev 如何推进」3 选项暂停点(先做一层给你看 / 一次性全落 / 先停审阅)· 把"破坏式跨端大改 + 不可逆 + 你全程参与设计"包装成"落地节奏选择"。用户当场纠正:dev 无授权暂停点 · session 太大该派 subagent · 不该停下问。

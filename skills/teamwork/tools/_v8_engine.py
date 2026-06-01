@@ -983,9 +983,12 @@ def _render_pause_discipline(authorized_pause_point: str) -> str:
     """暂停点纪律段 · append 到 brief 末尾(紧凑版)。
 
     v8.0+P0-1 治本 PTR-F033 case · L2 substep 链 AI 自觉区。
-    v8.71:无暂停 stage(连续执行 · 如 dev)额外强化「禁自造伪决策暂停 · 体量大用
-    subagent 自决」—— 治本 SDK-F038 case(AI 在 blueprint→dev 自造「如何推进 dev /
-    落地节奏」伪暂停 · 把改动大/破坏式/不可逆/用户参与设计当暂停理由 · 实为 R4 违规)。
+    v8.71→v8.72 治本 SDK-F038 case(AI 在 blueprint→dev 自造「如何推进 / 落地节奏」
+    伪暂停 · 把改动大/破坏式/不可逆/用户参与设计当暂停理由 · 实为 R4 违规):
+      - **通用红线(所有 stage)**:禁执行节奏伪决策暂停 + 体量大派 subagent 自决 ——
+        有授权暂停点的 stage 也可能在「那一个」授权暂停之外自造执行节奏伪暂停。
+      - **无暂停 stage 额外抬头**:dev/blueprint/blueprint_lite/test = 连续执行 ·
+        任何暂停都违规。
     详细 rationale + 反模式黑名单见 docs/v8-redesign/04-PAUSE-POINT-DISCIPLINE.md
     (违规被 hint 时再读 · 不每次 inline 全文)。
     """
@@ -997,15 +1000,17 @@ def _render_pause_discipline(authorized_pause_point: str) -> str:
 
 唯一授权暂停:**{authorized_pause_point}**
 """
-    # v8.71:无暂停 stage = 连续执行 · 额外强化「禁自造暂停 · 体量大 AI 自决」
+    # v8.72:无暂停 stage(dev/blueprint/blueprint_lite/test)= 连续执行 · 加「任何暂停都违规」抬头
     if "无暂停" in authorized_pause_point:
         head += """
-🔴 **本 stage 无授权暂停点 = 连续执行到 stage 完成 · 自动转下一 stage · 不得自造暂停**:
-- ⛔ 禁构造"如何推进 / 落地节奏 / 先做一层给你看 / 一次性还是分批 / 要不要先停"等**伪决策暂停**(R4 不膨胀 —— 这是**执行细节** · AI 自决 · **非用户决策点**)
-- ⛔ "改动大 / 破坏式 / 不可逆 / 文件多 / 用户全程参与设计"**都不是**暂停理由(后果由 review/test/pm_acceptance 下游 gate 兜)
-- ✅ 工作量大 / session 吃紧 → **自己** plan + 派 subagent(`Agent` 工具)并行消化 · **不停下问用户怎么干**
+🔴 **本 stage 无授权暂停点 = 连续执行到 stage 完成 · 自动转下一 stage · 任何暂停都是违规**
 """
+    # v8.72:执行节奏伪决策 + subagent 自决 = **通用红线**(所有 stage · 治本 SDK-F038)。
+    # 有授权暂停点的 stage(goal/ui_design/review/...)也可能在「那一个」授权暂停**之外**
+    # 自造执行节奏伪暂停(如"PRD 16 AC 要分批起草给你看吗") · 故不限无暂停 stage。
     head += """
+- ⛔ 禁自造"如何推进 / 落地节奏 / 先做一层给你看 / 一次性还是分批 / 要不要先停"等**执行节奏伪决策暂停**(R4 不膨胀 · 执行细节 AI 自决 · **非用户决策**)· "改动大 / 破坏式 / 不可逆 / 文件多 / 用户全程参与设计"**都不是**暂停理由
+- ✅ 工作量大 / session 吃紧 → **自己** plan + 派 subagent(`Agent` 工具)并行消化 · **不停下问用户怎么干**
 - ⛔ Substep 中间禁 AskUserQuestion · Open Questions 写进 PRD/Review 评审
 - ✅ 全部疑问到授权暂停点**一次性** escalate
 - 🛡️ 兜底:state.py 校验 review mtime + frontmatter.revision_history

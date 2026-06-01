@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
-"""v8.71 · 暂停点纪律「无暂停 stage」强化(治本 SDK-F038 case)。
+"""v8.71→v8.72 · 暂停点纪律「禁执行节奏伪决策 + 体量大用 subagent」(治本 SDK-F038)。
 
 治本:AI 在 blueprint→dev(无授权暂停点的连续执行 stage)自造「如何推进 dev /
 落地节奏由你定」伪决策暂停点 · 把改动大/破坏式/不可逆/用户参与设计当暂停理由。
-_render_pause_discipline 现对无暂停 stage 追加强化段(禁伪决策暂停 · 体量大用 subagent)·
-且自动流转 emit 也带下一 stage 纪律(AI 转移那刻即见 · 不靠之后 xx-start)。
+
+v8.71:无暂停 stage(dev/blueprint/blueprint_lite/test)追加强化 + 自动流转 emit 带纪律。
+v8.72:执行节奏伪决策 + subagent 自决改为**通用红线**(所有 stage)—— 有授权暂停点的
+stage(goal/ui_design/review/...)也可能在「那一个」授权暂停**之外**自造执行节奏伪暂停;
+「无授权暂停点 · 任何暂停都违规」抬头仍仅无暂停 stage。
 
 运行:
     python3 -m pytest skills/teamwork/tools/tests/test_pause_discipline_v871.py -v
@@ -24,34 +27,55 @@ from _v8_engine import _render_pause_discipline  # type: ignore  # noqa: E402
 from _v8_stage_specs import STAGE_SPECS  # type: ignore  # noqa: E402
 
 
-# 强化段标志短语(无暂停 stage 才出现)
-HARDENING_MARKERS = ("不得自造暂停", "伪决策", "subagent", "改动大", "执行节奏" )
+class TestNoPauseStageHeadline(unittest.TestCase):
+    """无暂停 stage → 额外「任何暂停都违规」抬头(连续执行 stage 专属)。"""
 
-
-class TestNoPauseHardening(unittest.TestCase):
-    """无暂停 stage → 追加「禁自造伪决策暂停 + 体量大用 subagent」强化。"""
-
-    def test_no_pause_stage_adds_hardening(self):
+    def test_no_pause_stage_has_headline(self):
         out = _render_pause_discipline("无暂停 · 完成后自动转 review")
         self.assertIn("无授权暂停点", out)
-        self.assertIn("subagent", out)
-        self.assertIn("伪决策", out)
-        # 命中 case 里 AI 用过的具体借口字面 · 直接点名
-        self.assertIn("改动大", out)
-        self.assertIn("破坏式", out)
-        self.assertIn("不可逆", out)
+        self.assertIn("任何暂停都是违规", out)
 
-    def test_normal_pause_no_hardening(self):
-        """有授权暂停点的 stage(如 goal Substep 6)→ 不加无暂停强化段。"""
+    def test_pause_stage_no_headline(self):
+        """有授权暂停点的 stage(如 goal Substep 6)→ 不加无暂停抬头。"""
         out = _render_pause_discipline("Substep 6 · 用户最终确认(全员 review 通过后)")
         self.assertNotIn("无授权暂停点", out)
-        self.assertNotIn("伪决策", out)
-        self.assertNotIn("subagent", out)
+        self.assertNotIn("任何暂停都是违规", out)
         # 但基础纪律仍在
         self.assertIn("暂停点纪律", out)
         self.assertIn("唯一授权暂停", out)
 
-    def test_base_discipline_always_present(self):
+
+class TestUniversalExecutionPacingGuard(unittest.TestCase):
+    """v8.72:执行节奏伪决策 + subagent = 通用红线 · 所有 stage(含有授权暂停的)都带。"""
+
+    def test_pause_stage_also_has_subagent_and_pacing_guard(self):
+        """治本核心:有授权暂停点的 stage 也要有「禁执行节奏伪决策 + subagent」。"""
+        out = _render_pause_discipline("Substep 6 · 用户最终确认(全员 review 通过后)")
+        self.assertIn("subagent", out, "有授权暂停的 stage 也应有 subagent 自决指引")
+        self.assertIn("执行节奏", out)
+        self.assertIn("改动大", out)  # 点名 AI 用过的具体借口
+
+    def test_every_stage_has_pacing_guard(self):
+        """所有 11 个 stage 的入口纪律都含执行节奏护栏 + subagent(通用)。"""
+        for name, spec in STAGE_SPECS.items():
+            app = spec.authorized_pause_point or "x"
+            out = _render_pause_discipline(app)
+            self.assertIn("subagent", out, f"{name} 应含 subagent 自决指引")
+            self.assertIn("执行节奏", out, f"{name} 应含执行节奏伪决策护栏")
+
+    def test_headline_only_for_no_pause_stages(self):
+        """「无授权暂停点」抬头只出现在无暂停 stage · 不误加到有授权暂停的 stage。"""
+        for name, spec in STAGE_SPECS.items():
+            app = spec.authorized_pause_point or ""
+            out = _render_pause_discipline(app)
+            if "无暂停" in app:
+                self.assertIn("无授权暂停点", out, f"{name} 无暂停 · 应有抬头")
+            else:
+                self.assertNotIn("无授权暂停点", out, f"{name} 有授权暂停 · 不应有抬头")
+
+
+class TestBaseDisciplineAlwaysPresent(unittest.TestCase):
+    def test_base_present_both_kinds(self):
         for app in ("无暂停 · 完成后自动转 review",
                     "Substep 6 · 用户最终确认"):
             out = _render_pause_discipline(app)
@@ -60,29 +84,25 @@ class TestNoPauseHardening(unittest.TestCase):
             self.assertIn(app, out)  # 具体描述被填入
 
 
-class TestContinuousStagesTriggerHardening(unittest.TestCase):
-    """连续执行 stage(dev 等 · authorized_pause_point 含「无暂停」)必触发强化。
+class TestContinuousStagesRegression(unittest.TestCase):
+    """防回归:dev/blueprint/blueprint_lite/test 仍是无暂停 · 触发抬头 + subagent。
 
-    防回归:有人改 dev 的 pause point 字面 · 若不再含「无暂停」· 此 test 红 ·
+    有人改 dev 的 pause point 字面 · 若不再含「无暂停」· 此 test 红 ·
     提醒同步强化逻辑(治本 SDK-F038 = dev 无暂停 · AI 自造暂停)。
     """
 
-    def test_dev_spec_is_no_pause_and_triggers_hardening(self):
-        dev = STAGE_SPECS["dev"]
-        self.assertIn("无暂停", dev.authorized_pause_point,
-                      "dev 是连续执行 stage · authorized_pause_point 应含「无暂停」")
-        out = _render_pause_discipline(dev.authorized_pause_point)
-        self.assertIn("subagent", out, "dev 入口纪律应含 subagent 自决指引")
-        self.assertIn("不得自造暂停", out)
+    EXPECTED_NO_PAUSE = {"dev", "blueprint", "blueprint_lite", "test"}
 
-    def test_at_least_one_no_pause_stage_exists(self):
-        no_pause = [n for n, s in STAGE_SPECS.items()
-                    if "无暂停" in (s.authorized_pause_point or "")]
-        self.assertIn("dev", no_pause)
-        # 每个无暂停 stage 的渲染都带强化
-        for n in no_pause:
-            out = _render_pause_discipline(STAGE_SPECS[n].authorized_pause_point)
-            self.assertIn("subagent", out, f"{n} 无暂停 · 应触发 subagent 强化")
+    def test_expected_no_pause_set(self):
+        actual = {n for n, s in STAGE_SPECS.items()
+                  if "无暂停" in (s.authorized_pause_point or "")}
+        self.assertEqual(actual, self.EXPECTED_NO_PAUSE,
+                         f"无暂停 stage 集合变化 · 实际 {actual}")
+
+    def test_dev_triggers_headline_and_subagent(self):
+        out = _render_pause_discipline(STAGE_SPECS["dev"].authorized_pause_point)
+        self.assertIn("无授权暂停点", out)
+        self.assertIn("subagent", out)
 
 
 if __name__ == "__main__":
