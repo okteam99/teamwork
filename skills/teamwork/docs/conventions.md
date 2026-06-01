@@ -16,11 +16,14 @@
 进状态机的顶层 artifact —— 每个有独立目录 + `state.json`。**按 flow_type 分字母**:
 
 ```
-格式: {项目缩写}-{字母}{NNN}-{Kebab-Case-名称}
-示例: PTR-F033-Credit-Note-Adjustment        (Feature)
-      SVC-PLATFORM-F043-Adapter-MobPower      (敏捷需求 · 共用 F 序列)
-      PTR-B019-UserMenu-Logout-Dropdown       (Bug)
-      PTR-M003-Footer-Copyright-Year          (Micro)
+格式: {项目缩写}-{字母}{号段}-{Kebab-Case-名称}
+号段两种策略(per-project · .teamwork_localconfig.json → id_strategy):
+  ① utc-yymmddhhmmss(v8.79 默认)= UTC0 秒级时间戳 YYMMDDHHMMSS(12 位定宽 · 跨机防撞号)
+  ② sequential(opt-out)         = 顺序号 NNN(3 位 · 单 clone 项目 · 好念短序号)
+示例: SVC-PLATFORM-F260601143012-Offer-Ranking   (Feature · utc 默认)
+      PTR-F033-Credit-Note-Adjustment            (Feature · sequential opt-out)
+      PTR-B019-UserMenu-Logout-Dropdown          (Bug · sequential)
+      PTR-M003-Footer-Copyright-Year             (Micro · sequential)
 ```
 
 | flow_type | 字母 | namespace | 说明 |
@@ -31,10 +34,11 @@
 | Micro | `M` | 项目独立 | 微改(改文案 / 改配置) |
 
 - **项目缩写**:来自 teamwork-space.md(多项目)或 config.md(单项目)的项目缩写字段
-- **{NNN}**:三位数字 · **各项目 × 各字母独立递增**(`PTR-F` 与 `PTR-B` 各自一条序列 · `PTR-F033` 与 `SVC-PLATFORM-F033` 可并存 · 不跨项目共享)
+- **{号段}**(v8.79):默认 **UTC 秒级时间戳**(`YYMMDDHHMMSS` · 12 位定宽 · 字典序=时间序 · 跨机/多 agent 并行各自生成、免中心协调 → 根治分布式 `max+1` 撞号);项目可 `id_strategy: sequential` opt-out 回 **3 位顺序号**(`各项目 × 各字母独立递增` · `PTR-F` 与 `PTR-B` 各一条序列)。两策略均**不跨项目共享**(`PTR-F033` 与 `SVC-PLATFORM-F033` 可并存)· **存量 ID 不重编号**(新旧天然可区分:3-4 位 vs 12 位)。
+- **撞号硬校验**(v8.79 · R0):`init-feature` 若目标 `{PREFIX}-{字母}{号段}` 已被**另一**目录占用 → FAIL(同 clone race 兜底 · 任一策略生效);跨 clone 不可见的撞号靠 utc 时间戳策略根治。
 - **名称**:多词用 `-` 拼接 · 不超过 6 词
 - **目录**:`{docs_root}/features/{artifact ID}/`(完整 ID · 不省略名称 · 4 类 flow 同放 `features/` 下)
-- **下一编号**:`state.py prepare-check --feature-id-prefix <PREFIX> --flow-type <type>` 按 flow_type 字母自动扫描 + 推荐 —— **不手填**(漏传 `--flow-type` 会退回字母 F)
+- **下一编号**:`state.py prepare-check --feature-id-prefix <PREFIX> --flow-type <type>` 按 `id_strategy` 推荐 `next_available_id_stem` —— **不手填**(utc 策略:已生成秒级号勿手算 · 重跑得新号 · 漏传 `--flow-type` 会退回字母 F)
 
 state.py 校验:basename(--feature) 必须包含 --feature-id(防 slug 错位)。
 

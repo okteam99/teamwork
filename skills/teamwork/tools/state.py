@@ -945,6 +945,27 @@ def cmd_init_feature(args: argparse.Namespace) -> None:
             "bypass": "确属特例:export TEAMWORK_BYPASS_ROUTING_CHECK=1",
         }, ensure_ascii=False, indent=2))
 
+    # v8.79:撞号硬校验(R0 物化 · 治本 AON 13 组实测撞号 · 分布式 max+1 race 兜底)
+    # 目标 {PREFIX}-{字母}{number} 已被**另一**兄弟目录占用 → FAIL(同 clone 内兜;跨 clone 靠 utc 策略)
+    _collision = _detect_id_collision(feature_dir, args.feature_id)
+    if _collision and not args.force:
+        die(2, json.dumps({
+            "verdict": "FAIL",
+            "action": "init-feature",
+            "error": (
+                f"artifact 号段撞号:{_collision['number_id']} 已被现存目录 "
+                f"{_collision['existing']!r} 占用 · 与本次 {feature_dir.name!r} 同号"
+            ),
+            "hint": (
+                "另一 feature 已占该号段(多 agent/多机并行 race)· 换号重建:\n"
+                "  重跑 prepare-check 取新 next_available_id_stem · 改 --feature / --feature-id 后再 init。\n"
+                "  (utc 时间戳策略:重跑即得新秒级号 · sequential 策略:取 max+1 避让 existing_ids)"
+            ),
+            "collision": _collision,
+            "rule": "v8.79 撞号硬校验 · 可枚举规则进脚本(R0)· 治本分布式 max+1 race",
+            "bypass": "确属同号续作(罕见):--force 跳过撞号校验",
+        }, ensure_ascii=False, indent=2))
+
     if state_file.exists() and not args.force:
         die(2, json.dumps({
             "verdict": "FAIL",
@@ -1342,6 +1363,58 @@ def cmd_reset_prev(args: argparse.Namespace) -> None:
     })
 
 
+def _read_id_strategy(start: Path) -> str:
+    """读项目根 `.teamwork_localconfig.json` 的 `id_strategy`(v8.79)。
+
+    从 `start` 向上逐级找 `.teamwork_localconfig.json`(到 `.git` 项目边界为止)·
+    命中且值合法则用之 · 否则用默认。
+    - 默认 = `utc-yymmddhhmmss`(v8.79 起 · 治本分布式 `max+1` 撞号 · 详 docs/conventions.md §1)。
+    - opt-out = `sequential`(旧顺序号 `max+1` · 单 clone 项目可保留好念的短序号)。
+    """
+    DEFAULT = "utc-yymmddhhmmss"
+    VALID = {"sequential", "utc-yymmddhhmmss"}
+    try:
+        node = start.resolve()
+    except OSError:
+        return DEFAULT
+    for d in [node, *node.parents]:
+        cfg = d / ".teamwork_localconfig.json"
+        if cfg.exists():
+            try:
+                strat = json.loads(cfg.read_text(encoding="utf-8")).get("id_strategy")
+            except (OSError, json.JSONDecodeError):
+                return DEFAULT
+            return strat if strat in VALID else DEFAULT
+        if (d / ".git").exists():
+            break  # 到项目边界仍无配置 → 默认
+    return DEFAULT
+
+
+def _detect_id_collision(feature_dir: Path, feature_id: str) -> "dict | None":
+    """撞号硬校验(v8.79 · R0 物化 · 治本 AON 13 组实测撞号)。
+
+    扫 `feature_dir` 的兄弟目录 · 若有**另一**目录共享同 `{PREFIX}-{字母}{number}`
+    号段(同名 = 自身 · re-init/force · 不算撞)→ 返回撞号详情 · 否则 None。
+    注:仅兜**同 clone** race;跨 clone(各自看不到对方在途目录)的撞号此处兜不住 —— 合并时才现 ·
+    故 `utc-yymmddhhmmss` 才是跨 clone 的根治。两层互补 · 详 docs/conventions.md §1。
+    """
+    import re as _re
+    m = _re.match(r"^(.+?-[FBM]\d+)", feature_id)
+    if not m:
+        return None
+    number_id = m.group(1)  # e.g. PTR-F045 / SVC-PLATFORM-F260601143012
+    root = feature_dir.parent
+    if not root.exists():
+        return None
+    self_name = feature_dir.name
+    # number_id 后必接非数字或结尾(防 PTR-F045 误匹配 PTR-F0451-*)
+    pat = _re.compile(rf"^{_re.escape(number_id)}(?:\D|$)")
+    for child in root.iterdir():
+        if child.is_dir() and child.name != self_name and pat.match(child.name):
+            return {"number_id": number_id, "existing": child.name}
+    return None
+
+
 def cmd_prepare_check(args: argparse.Namespace) -> None:
     """v8.13:prepare 子流程 ID 冲突预检 · 推荐 next_available_id。
 
@@ -1392,9 +1465,17 @@ def cmd_prepare_check(args: argparse.Namespace) -> None:
     existing_ids = [name for _, name in existing]
     used_numbers = {n for n, _ in existing}
 
-    # 推荐下一可用编号 = max + 1(连续递增 · 不填空洞 · 详 docs/conventions.md § 1 "项目内独立递增")
-    next_num = (max(used_numbers) + 1) if used_numbers else 1
-    next_id_stem = f"{prefix}-{id_letter}{next_num:03d}"
+    # v8.79:号段分配按 id_strategy(默认 utc 时间戳 · opt-out sequential · 详 docs/conventions.md §1)
+    id_strategy = _read_id_strategy(root)
+    if id_strategy == "sequential":
+        # 顺序号 max+1(连续递增 · 不填空洞)· ⚠️ 分布式 race 隐患 · 靠 init-feature 撞号硬校验兜
+        next_num = (max(used_numbers) + 1) if used_numbers else 1
+        next_id_stem = f"{prefix}-{id_letter}{next_num:03d}"
+    else:  # utc-yymmddhhmmss(默认 v8.79)· UTC0 秒级时间戳 · 跨机分布式免协调
+        from datetime import datetime, timezone
+        ts = datetime.now(timezone.utc).strftime("%y%m%d%H%M%S")
+        next_num = int(ts)
+        next_id_stem = f"{prefix}-{id_letter}{ts}"
 
     payload = {
         "verdict": "OK",
@@ -1404,11 +1485,15 @@ def cmd_prepare_check(args: argparse.Namespace) -> None:
         "id_letter": id_letter,
         "existing_ids": existing_ids,
         "existing_count": len(existing_ids),
+        "id_strategy": id_strategy,
         "next_available_number": next_num,
         "next_available_id_stem": next_id_stem,
         "hint": (
             f"prepare 暂停点 artifact ID 默认填 {next_id_stem}-<Kebab-Case-名称> · "
             f"用户可改 · 但应避开 existing_ids 中已占编号"
+            + (" · 🕐 id_strategy=utc-yymmddhhmmss(UTC 秒级时间戳 · 已生成勿手算 · 重跑得新号)"
+               if id_strategy != "sequential"
+               else " · id_strategy=sequential(顺序号 max+1)")
             + ("" if args.flow_type
                else " · ⚠️ 未传 --flow-type · ID 字母默认 F · Bug/Micro 务必补 --flow-type")
         ),

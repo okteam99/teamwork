@@ -681,6 +681,9 @@ class TestPrepareCheck(unittest.TestCase):
         for name in ("PTR-F033-Alpha", "PTR-F046-Beta",
                      "PTR-B017-Gamma", "PTR-B018-Delta", "PTR-M001-Eps"):
             (self.root / name).mkdir(parents=True)
+        # v8.79:本类断言顺序号精确值 → 显式 opt-out sequential(全局默认已改 utc 时间戳)
+        (self.tmp / ".teamwork_localconfig.json").write_text(
+            json.dumps({"id_strategy": "sequential"}), encoding="utf-8")
         self.audit_path = self.tmp / "audit.jsonl"
         self._prev_audit = os.environ.get("TEAMWORK_PREPARE_AUDIT_PATH")
         os.environ["TEAMWORK_PREPARE_AUDIT_PATH"] = str(self.audit_path)
@@ -889,6 +892,112 @@ class TestPrepareCheck(unittest.TestCase):
         from state import _build_output_style_hint  # type: ignore
         hint = _build_output_style_hint("gemini-cli")
         self.assertEqual(hint["table_format"], "box_drawing")
+
+
+class TestIdStrategyV879(unittest.TestCase):
+    """v8.79:artifact ID 号段策略(默认 utc 时间戳 · opt-out sequential)+ 撞号硬校验。"""
+
+    def setUp(self) -> None:
+        self.tmp = Path(tempfile.mkdtemp(prefix="tw-idstrat-"))
+        self.root = self.tmp / "features"
+        self.root.mkdir(parents=True)
+        self.audit_path = self.tmp / "audit.jsonl"
+        self._prev = {
+            "TEAMWORK_PREPARE_AUDIT_PATH": os.environ.get("TEAMWORK_PREPARE_AUDIT_PATH"),
+            "TEAMWORK_BYPASS_PREPARE_CHECK": os.environ.get("TEAMWORK_BYPASS_PREPARE_CHECK"),
+        }
+        os.environ["TEAMWORK_PREPARE_AUDIT_PATH"] = str(self.audit_path)
+        os.environ["TEAMWORK_BYPASS_PREPARE_CHECK"] = "1"  # init-feature audit 门禁解耦
+
+    def tearDown(self) -> None:
+        shutil.rmtree(self.tmp, ignore_errors=True)
+        for k, v in self._prev.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
+
+    def _write_config(self, strategy) -> None:
+        cfg = self.tmp / ".teamwork_localconfig.json"
+        if strategy is None:
+            cfg.unlink(missing_ok=True)
+        else:
+            cfg.write_text(json.dumps({"id_strategy": strategy}), encoding="utf-8")
+
+    def _prepare_check(self, prefix: str = "PTR", flow: str = "Feature") -> dict:
+        judgment = json.dumps({
+            "sections_reviewed": ["§2.1"],
+            "matched_signals": [{"section": "§2.1", "signal": "t",
+                                 "evidence": "id strategy fixture"}],
+            "recommended_flow_type": flow,
+            "ai_rationale": "id strategy test fixture",
+        })
+        return run(["prepare-check", "--features-root", str(self.root),
+                    "--feature-id-prefix", prefix, "--flow-type", flow,
+                    "--user-intent", "id strategy test",
+                    "--admission-judgment", judgment])
+
+    def _init(self, fid: str, *, force: bool = False, expect_exit: int = 0) -> dict:
+        target = self.root / fid
+        argv = ["init-feature", "--feature", str(target), "--feature-id", fid,
+                "--flow-type", "Feature", "--merge-target", "staging",
+                "--branch", "feat/x"]
+        if force:
+            argv.append("--force")
+        return run(argv, expect_exit=expect_exit)
+
+    # ── AC1:默认 = utc 秒级时间戳 ──
+    def test_default_is_utc_timestamp(self) -> None:
+        self._write_config(None)  # 无配置 → 默认策略
+        d = self._prepare_check()
+        self.assertEqual(d["id_strategy"], "utc-yymmddhhmmss")
+        self.assertRegex(d["next_available_id_stem"], r"^PTR-F\d{12}$")
+
+    def test_explicit_utc_config(self) -> None:
+        self._write_config("utc-yymmddhhmmss")
+        d = self._prepare_check(flow="Bug")
+        self.assertEqual(d["id_strategy"], "utc-yymmddhhmmss")
+        self.assertRegex(d["next_available_id_stem"], r"^PTR-B\d{12}$")
+
+    # ── AC2:sequential opt-out 行为不变(max+1) ──
+    def test_sequential_opt_out_max_plus_one(self) -> None:
+        (self.root / "PTR-F003-x").mkdir()
+        (self.root / "PTR-F007-y").mkdir()
+        self._write_config("sequential")
+        d = self._prepare_check()
+        self.assertEqual(d["id_strategy"], "sequential")
+        self.assertEqual(d["next_available_id_stem"], "PTR-F008")
+
+    def test_invalid_strategy_falls_back_to_default(self) -> None:
+        self._write_config("garbage-value")
+        d = self._prepare_check()
+        self.assertEqual(d["id_strategy"], "utc-yymmddhhmmss")  # 非法值 → 默认
+
+    # ── AC4:撞号硬校验(init-feature) ──
+    def test_init_feature_collision_fails(self) -> None:
+        (self.root / "PTR-F045-existing").mkdir()
+        d = self._init("PTR-F045-other", expect_exit=2)
+        self.assertEqual(d["verdict"], "FAIL")
+        self.assertEqual(d["collision"]["existing"], "PTR-F045-existing")
+        self.assertIn("撞号", d["error"])
+        self.assertFalse((self.root / "PTR-F045-other").exists())  # FAIL 前未建目录
+
+    def test_init_feature_no_collision_distinct_number(self) -> None:
+        (self.root / "PTR-F045-existing").mkdir()
+        d = self._init("PTR-F046-fresh")  # 不同号 → 放行
+        self.assertEqual(d["verdict"], "OK")
+
+    def test_init_feature_collision_force_bypasses(self) -> None:
+        (self.root / "PTR-F045-existing").mkdir()
+        d = self._init("PTR-F045-other", force=True)  # --force 跳过撞号
+        self.assertEqual(d["verdict"], "OK")
+
+    # ── AC3:时间戳形态 ID 被 init-feature 接受 ──
+    def test_init_feature_accepts_timestamp_id(self) -> None:
+        fid = "PTR-F260601143012-Offer-Ranking"
+        d = self._init(fid)
+        self.assertEqual(d["verdict"], "OK")
+        self.assertEqual(d["feature_id"], fid)
 
 
 class TestPrepareAuditGate(unittest.TestCase):

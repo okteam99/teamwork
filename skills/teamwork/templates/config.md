@@ -168,6 +168,13 @@ mr_url_template:
 <!-- remove = 默认清理 worktree（仅建议稳定流程用） -->
 worktree_cleanup: ask
 
+### Artifact ID 号段策略（v8.79）
+<!-- id_strategy: utc-yymmddhhmmss（默认）/ sequential -->
+<!-- utc-yymmddhhmmss = artifact ID 号段用 UTC0 秒级时间戳 YYMMDDHHMMSS（12 位）。跨机/多 agent 并行各自生成、免中心协调 → 根治分布式 max+1 撞号；字典序=时间序、肉眼可读创建时间。 -->
+<!-- sequential = 旧 3 位顺序号 max+1（单 clone 项目可 opt-out · 保留好念短序号）。 -->
+<!-- 改此项只影响新建 feature · 存量 ID 不重编号（新旧天然可区分：3-4 位 vs 12 位）。详 docs/conventions.md §1。 -->
+id_strategy: utc-yymmddhhmmss
+
 ## 备注
 <!-- 可选：记录当前阶段重点、临时分工调整等 -->
 \`\`\`
