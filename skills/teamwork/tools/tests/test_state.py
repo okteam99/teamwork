@@ -411,6 +411,73 @@ class TestYoloBypass(unittest.TestCase):
             require_user_confirmed(self._args(user_confirmed=True), yolo=False))
 
 
+class TestSetMode(unittest.TestCase):
+    """v8.69:set-mode 语义化设 auto_mode / yolo(替代 raw-write · 物化 + audit)。"""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        self._prev = os.environ.get("TEAMWORK_BYPASS_PREPARE_CHECK")
+        os.environ["TEAMWORK_BYPASS_PREPARE_CHECK"] = "1"
+        self.feat = self.tmp / "docs" / "features" / "SM-F001"
+        run(["init-feature", "--feature", str(self.feat), "--feature-id", "SM-F001",
+             "--flow-type", "Feature", "--branch", "feat/sm", "--merge-target", "staging"])
+
+    def tearDown(self):
+        if self._prev is None:
+            os.environ.pop("TEAMWORK_BYPASS_PREPARE_CHECK", None)
+        else:
+            os.environ["TEAMWORK_BYPASS_PREPARE_CHECK"] = self._prev
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def _state(self):
+        return json.loads((self.feat / "state.json").read_text(encoding="utf-8"))
+
+    def _sm(self, *flags, expect_exit=0):
+        return run(["set-mode", "--feature", str(self.feat), *flags], expect_exit=expect_exit)
+
+    def test_enable_auto_mode(self):
+        d = self._sm("--auto-mode", "--reason", "x")
+        self.assertEqual(d["verdict"], "OK")
+        st = self._state()
+        self.assertTrue(st["auto_mode"])
+        self.assertEqual(len(st["mode_changes"]), 1)
+
+    def test_enable_yolo_with_branch_implies_auto(self):
+        d = self._sm("--yolo", "dev-int", "--reason", "go yolo")
+        self.assertEqual(d["verdict"], "OK")
+        st = self._state()
+        self.assertTrue(st["yolo"])
+        self.assertTrue(st["auto_mode"])           # implies
+        self.assertEqual(st["merge_target"], "dev-int")
+        self.assertTrue(any("yolo 开启" in c for c in st.get("concerns", [])))
+
+    def test_yolo_main_rejected(self):
+        d = self._sm("--yolo", "main", "--reason", "bad", expect_exit=2)
+        self.assertEqual(d["verdict"], "FAIL")
+        self.assertIn("主分支", d["error"])
+
+    def test_disable_yolo_keeps_auto(self):
+        self._sm("--yolo", "dev-int", "--reason", "on")
+        d = self._sm("--no-yolo", "--reason", "off")
+        self.assertEqual(d["verdict"], "OK")
+        st = self._state()
+        self.assertFalse(st["yolo"])
+        self.assertTrue(st["auto_mode"])
+
+    def test_no_auto_while_yolo_fails(self):
+        self._sm("--yolo", "dev-int", "--reason", "on")
+        d = self._sm("--no-auto-mode", "--reason", "x", expect_exit=2)
+        self.assertEqual(d["verdict"], "FAIL")
+
+    def test_no_flags_fails(self):
+        d = self._sm("--reason", "nothing", expect_exit=2)
+        self.assertEqual(d["verdict"], "FAIL")
+
+    def test_noop_when_no_change(self):
+        d = self._sm("--no-yolo", "--reason", "already off")  # yolo 本就 off
+        self.assertEqual(d["verdict"], "NOOP")
+
+
 class TestChecksumGuard(unittest.TestCase):
     """v7.3.10+P0-148：state.json checksum 物化拦截直写。
 

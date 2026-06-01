@@ -2442,6 +2442,110 @@ STAGE_TO_REVIEW_CHECKLIST = {
 }
 
 
+def cmd_set_mode(args: argparse.Namespace) -> None:
+    """v8.69:语义化设 auto_mode / yolo(替代 raw-write · 物化 + audit)。
+
+    治本 case(SVC-PLATFORM-F060 · Codex agent 提):改 auto_mode 只能 raw-write ·
+    audit 里出现 raw-write 不理想。本命令把开关 + yolo 非主分支 gate + audit 收进脚本。
+
+    flag:
+      --auto-mode / --no-auto-mode    开/关 auto_mode(互斥)
+      --yolo [<branch>] / --no-yolo    开/关 yolo(互斥)· yolo implies auto_mode ·
+                                       <branch> = 专属 merge_target(覆盖 · 非主分支 gate)
+      --reason 必填(audit)
+    """
+    state = load_state(args.feature)
+    state_file = state_path(args.feature)
+
+    if args.auto_mode and args.no_auto_mode:
+        die(2, json.dumps({"verdict": "FAIL", "command": "set-mode",
+                           "error": "--auto-mode 与 --no-auto-mode 互斥"},
+                          ensure_ascii=False, indent=2))
+    if args.yolo is not None and args.no_yolo:
+        die(2, json.dumps({"verdict": "FAIL", "command": "set-mode",
+                           "error": "--yolo 与 --no-yolo 互斥"},
+                          ensure_ascii=False, indent=2))
+    if not (args.auto_mode or args.no_auto_mode
+            or args.yolo is not None or args.no_yolo):
+        die(2, json.dumps({
+            "verdict": "FAIL", "command": "set-mode",
+            "error": "未指定任何变更",
+            "hint": "至少一个:--auto-mode / --no-auto-mode / --yolo [<branch>] / --no-yolo",
+        }, ensure_ascii=False, indent=2))
+
+    before = {"auto_mode": bool(state.get("auto_mode")),
+              "yolo": bool(state.get("yolo")),
+              "merge_target": state.get("merge_target")}
+    new_auto, new_yolo, new_mt = (before["auto_mode"], before["yolo"],
+                                  before["merge_target"])
+
+    # yolo
+    yolo_branch = (args.yolo if isinstance(args.yolo, str) and args.yolo.strip()
+                   else None)
+    if args.yolo is not None:  # 开 yolo
+        new_yolo = True
+        new_auto = True  # yolo implies auto_mode
+        if yolo_branch:
+            new_mt = yolo_branch
+        if _is_main_branch(new_mt):
+            die(2, json.dumps({
+                "verdict": "FAIL", "command": "set-mode",
+                "error": f"yolo merge_target 必须非主分支(当前 {new_mt!r})—— "
+                         f"yolo 无人 review 自动 merge · 不得直接进 main/master/默认分支",
+                "hint": "用 --yolo <非主分支>(如 dev/staging)· 或先改 merge_target",
+                "rule": "v8.63/69 yolo 硬约束 · 自动 merge 不进 main",
+            }, ensure_ascii=False, indent=2))
+    elif args.no_yolo:
+        new_yolo = False
+
+    # auto_mode(yolo=True 强制 auto=True)
+    if args.auto_mode:
+        new_auto = True
+    if args.no_auto_mode:
+        if new_yolo:
+            die(2, json.dumps({
+                "verdict": "FAIL", "command": "set-mode",
+                "error": "yolo 开启时不能关 auto_mode(yolo implies auto_mode)",
+                "hint": "先 --no-yolo · 再 --no-auto-mode",
+            }, ensure_ascii=False, indent=2))
+        new_auto = False
+
+    after = {"auto_mode": new_auto, "yolo": new_yolo, "merge_target": new_mt}
+    if after == before:
+        emit({"verdict": "NOOP", "command": "set-mode",
+              "current": before, "hint": "新值 == 现值 · 不写不 audit"})
+        return
+
+    state["auto_mode"] = new_auto
+    state["yolo"] = new_yolo
+    if new_mt != before["merge_target"]:
+        state["merge_target"] = new_mt
+        state.setdefault("worktree", {})["base_branch"] = f"origin/{new_mt}"
+        ec = state.setdefault("environment_config", {})
+        ec["merge_target"] = new_mt
+        ec["base"] = f"origin/{new_mt}"
+
+    state.setdefault("mode_changes", []).append({
+        "at": now_iso(), "before": before, "after": after,
+        "reason": args.reason, "via": "set-mode",
+    })
+    # yolo 开启 = 高风险 · 额外 concern WARN(audit 显著)
+    if new_yolo and not before["yolo"]:
+        state.setdefault("concerns", []).append(
+            f"{now_iso()} WARN yolo 开启 via set-mode · merge_target={new_mt} · "
+            f"reason: {args.reason}")
+
+    atomic_write(state_file, state)
+    emit({
+        "verdict": "OK", "command": "set-mode",
+        "before": before, "after": after, "reason": args.reason,
+        "next_action_hint": (
+            "yolo 开启 · 严格按流程 · 不得简化/内化(详 SKILL.md § yolo)"
+            if new_yolo and not before["yolo"]
+            else "auto_mode/yolo 已更新 · audit 写入 state.mode_changes"),
+    })
+
+
 def cmd_scaffold_review_prompt(args: argparse.Namespace) -> None:
     """v8.44:生成 prompt-doc skeleton 到 feature_dir/external-review-prompts/<stage>-<model>.md。
 
@@ -3479,6 +3583,21 @@ def build_parser() -> argparse.ArgumentParser:
                           "客观不可用(未装/网络死·已重试失败)· 不得为效率/集中到 review stage 用 · "
                           "用了写 concern WARN 留痕")
     crr.set_defaults(func=cmd_change_review_roles)
+
+    # v8.69:set-mode · 语义化设 auto_mode / yolo(替代 raw-write · 物化 + audit)
+    sm = sub.add_parser(
+        "set-mode",
+        help="[v8.69] 设 auto_mode / yolo · 写 mode_changes audit · 替代 raw-write",
+    )
+    sm.add_argument("--feature", required=True, help="Feature 目录(含 state.json)")
+    sm.add_argument("--reason", required=True, help="变更理由(必填 · 写 mode_changes audit)")
+    sm.add_argument("--auto-mode", action="store_true", help="开启 auto_mode")
+    sm.add_argument("--no-auto-mode", action="store_true", help="关闭 auto_mode")
+    sm.add_argument("--yolo", nargs="?", const=True, default=None, metavar="BRANCH",
+                    help="开启 yolo(implies auto_mode)· 可选 <BRANCH> = 专属 merge_target"
+                         "(覆盖 · 必非 main/master/默认)")
+    sm.add_argument("--no-yolo", action="store_true", help="关闭 yolo")
+    sm.set_defaults(func=cmd_set_mode)
 
     # v8.20:external-review · 异质模型评审一条命令调起(治本 SVC-CORE-F034 case)
     er = sub.add_parser(

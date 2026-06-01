@@ -1,5 +1,40 @@
 # Changelog
 
+## v8.69 · set-mode 语义命令(治本 auto_mode/yolo 靠 raw-write 改 · 补 v8.68 遗留缺口 · 用户 case SVC-PLATFORM-F060 · dev-only)
+
+> 用户 2026-05-31:"补一下"(接受 v8.68 末尾 offer)。Codex agent 在 SVC-PLATFORM-F060 诊断里点出:**auto_mode 当时是 raw-write 改的 · 因为没有语义化的 set-auto-mode 命令** —— state audit 里出现裸 raw-write · 不可审计。yolo 同理。
+
+### 根因:改 auto_mode/yolo 无正式入口
+
+- `init-feature` 能在创建时设 `--auto-mode`/`--yolo` · 但**中途切换**没命令 —— 只能 raw-write `state.json`(违反「state.json 写操作走 state.py 单源」软约束 · 且无 audit/无校验)。
+- 后果:① audit trail 缺失(谁、何时、为何切 yolo 不可查)· ② 绕过 yolo 非 main 硬门 + implies-auto 隐含规则 · ③ 与 v8.55 物化哲学相悖。
+
+### 修复:`set-mode` 子命令(语义 + 物化 + audit)
+
+| 改动 | 内容 |
+|----|----|
+| `cmd_set_mode(args)` | 语义化 auto_mode/yolo 切换器 · 互斥校验(`--auto-mode`/`--no-auto-mode` · `--yolo`/`--no-yolo`)· 至少一个 flag · 必填 `--reason` |
+| yolo 启用 | `--yolo [<分支>]` → `new_yolo=True` + `new_auto=True`(implies)· `<分支>` 设 merge_target · `_is_main_branch` 非 main 硬门(同 init-feature) |
+| 隐含规则护栏 | yolo=True 时 `--no-auto-mode` → FAIL(auto 是 yolo 前置 · 不许拆) |
+| 物化 + audit | 写 `state.mode_changes` 审计列表(before/after/reason/ts)· yolo 启用追加 concern WARN · 同步 merge_target/worktree.base_branch/environment_config |
+| NOOP 保护 | after==before → 友好提示「新值 == 现值」· 不写空 audit |
+| 测试 +7 | TestSetMode:enable_auto / yolo+branch implies auto / yolo main 拒 / disable yolo 留 auto / no-auto-while-yolo 拒 / 无 flag 拒 / NOOP · 402 passed · 68 pre-existing(无关)· 0 regression |
+
+### 用法
+
+```bash
+# 中途切 auto 模式
+python3 tools/state.py set-mode --feature FEAT --auto-mode --reason "夜间无人值守"
+# 切 yolo + 指定专属 merge_target(非 main)
+python3 tools/state.py set-mode --feature FEAT --yolo dev-integration --reason "全自动跑通到集成分支"
+# 关 yolo(保留 auto)
+python3 tools/state.py set-mode --feature FEAT --no-yolo --reason "恢复人工把关合并"
+```
+
+> 自此 auto_mode/yolo 的**任何**变更都有正式入口 + audit · raw-write 不再是唯一路径。
+
+---
+
 ## v8.68 · external 异质性校验 host-aware(治本 codex-cli 宿主 claude 评审误判同源 · 用户 case SVC-PLATFORM-F060 · dev-only)
 
 > 用户 2026-05-31(SVC-PLATFORM-F060 · 主对话宿主 = codex-cli · Codex agent 已诊断):review-complete 把**合规**的 Claude external review 误判"同源自审" · 被迫 `change-review-roles` 绕过(语义不对 · external 明明真存在)。

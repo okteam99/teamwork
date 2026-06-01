@@ -1,6 +1,6 @@
 ---
 name: teamwork
-version: v8.68.1
+version: v8.69
 description: AI 协作开发一体化框架 · /teamwork 启动
 ---
 
@@ -430,6 +430,7 @@ emit 格式:
 🔴 `yolo` = `auto_mode` **超集** —— 启动后**零 stop**(连 pm_acceptance 产品验收 + MR merge 都自动)。启用:`init-feature --yolo [<分支>]`(自动 implies `auto_mode`)。
 - **`--yolo <分支>`**(v8.65)= 本需求专属 `merge_target`(**覆盖** `--merge-target` / localconfig 默认)· 推荐给 yolo 一个**专属集成分支**隔离自动合入的代码(如 `--yolo yolo/feat-x`)· 该分支即 yolo 自动 merge 的目标
 - **`--yolo`**(无值)= 用 `--merge-target` 的分支(二者至少给一个 · 都没 → FAIL)
+- **中途切换**(v8.69)= `state.py set-mode --feature <F> --yolo [<分支>] --reason '<原因>'`(或 `--auto-mode` / `--no-yolo` / `--no-auto-mode`)· 语义命令 · 走 `state.mode_changes` audit + 同款非 main 硬门 + implies-auto 护栏 · **不要 raw-write `state.json` 改 auto_mode/yolo**(无 audit·绕门禁)
 
 🔴🔴 **yolo ≠ 简化/提速 · 是「加重审核」**(v8.66 治本 WS-002 case):无人值守 = **没人在看** → 自动化评审(尤其 **external 异质模型 cross-review**)是**唯一安全网** · 必须**保留 / 加重** · **绝不削弱**。yolo 的「零 stop」**只**针对**人工决策暂停点**(prepare / pm_acceptance / MR merge)· 技术与评审环节**一个不少**。
 - 🔴🔴 **严格按 teamwork 流程流转 · 不得「内化」**(v8.67):每个 stage 的评审必**真跑** —— 多角色真分析(找真问题 · 不是 `mode: yolo-internalized` 自盖章 APPROVE)· external 必**真调异质模型**(`state.py external-review --stage <X>` · 不得 AI 手写 `external-cross-review/*.md`)。external **实跑日志物化校验**:yolo 下 `xx-complete` 校验 `~/.teamwork/external-review-logs/<feat>/codex-<stage>-*.log` 存在(无 → FAIL · 文件名/frontmatter 能伪装合规 · 实跑日志伪造不了)。auto_mode 的「内化」**仅指跳过用户确认暂停点**(AI 代用户接受)· **绝非**跳过/伪造评审工作本身。
