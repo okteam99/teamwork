@@ -45,6 +45,9 @@ from _v8_engine import (
 
 SHIP_ACTIONS = ("sanitize", "push", "confirm-merged", "cleanup", "close-unmerged")
 
+# v8.70:main-sync 净化策略(ship 后主工作区 user-dirty 决策的执行选项)
+MAIN_SYNC_STRATEGIES = ("commit-push", "stash-pull", "skip")
+
 SHIP_PHASE_ENUM = (None, "pushed", "merged", "closed_unmerged")
 SHIP_SHIPPED_ENUM = (None, "pushed", "merged", "closed_unmerged", "abandoned", "failed")
 SHIP_GIT_HOSTS = ("github", "gitlab", "gitlab-self-hosted", "gitee", "bitbucket", "unknown")
@@ -1018,6 +1021,252 @@ def _classify_main_sync_dirty(main_wt: str, feature_dir: Path, state: dict) -> d
     }
 
 
+def _main_sync_clean_feature_artifacts(
+        main_wt: str, merge_target: str, dirty_result: dict) -> list:
+    """v8.70:用 origin 版覆盖本 Feature 的 state.json/review-log.jsonl(总是安全 ·
+    ship-finalize 是最权威推送 · origin 已有终态)· 返回 checkout 失败列表。"""
+    failed = []
+    for f in dirty_result.get("feature_artifacts", []):
+        co = _git(["checkout", f"origin/{merge_target}", "--", f],
+                  cwd=main_wt, timeout=15)
+        if co.returncode != 0:
+            failed.append(f)
+    return failed
+
+
+def _main_sync_apply_strategy(
+        main_wt: str, merge_target: str, artifact_root: Path, state: dict,
+        strategy: str, message: Optional[str] = None) -> dict:
+    """v8.70:对主工作区 merge_target 应用 main-sync 净化策略 · 返回结果 dict。
+
+    前置:调用方已确保 cwd/main_wt 在主工作区 · 当前分支 = merge_target。
+    所有策略都先清 feature_artifacts(origin 版 · 总安全)· 再:
+      - commit-push:git add -A → commit → pull --rebase → push(把改动推到 merge_target)
+      - stash-pull :git stash -u → pull --ff-only(改动留 stash · 可 pop 恢复 · 不推送)
+      - skip       :尽力 ff-pull · 保留用户改动(用户自处理)
+
+    返回 {status, note, warnings:[...], pushed:bool, stash_ref:str|None, pulled:bool}
+    """
+    warnings: list = []
+    dirty = _classify_main_sync_dirty(main_wt, artifact_root, state)
+    fa_failed = _main_sync_clean_feature_artifacts(main_wt, merge_target, dirty)
+    if fa_failed:
+        warnings.append(
+            f"feature_artifacts checkout origin/{merge_target} 失败"
+            f"({len(fa_failed)}):{', '.join(fa_failed[:5])}")
+    feature_id = state.get("feature_id") or "feature"
+
+    if strategy == "commit-push":
+        _git(["add", "-A"], cwd=main_wt, timeout=30)
+        # git diff --cached --quiet:有暂存改动则 returncode!=0
+        staged = _git(["diff", "--cached", "--quiet"], cwd=main_wt, timeout=15)
+        committed = False
+        if staged.returncode != 0:
+            msg = message or (
+                f"chore(main-sync): 净化主工作区遗留改动 · ship 后 · {feature_id}")
+            cm = _git(["commit", "-m", msg], cwd=main_wt, timeout=30)
+            if cm.returncode != 0:
+                warnings.append(
+                    f"git commit 失败:{cm.stderr.strip()[:100]} · 改动仍在暂存区")
+                return {"status": "commit_failed",
+                        "note": "commit 失败 · 改动保留暂存区",
+                        "warnings": warnings, "pushed": False,
+                        "stash_ref": None, "pulled": False}
+            committed = True
+        # pull --rebase:拿最新 · 把本地 commit 叠到 origin 之上(local 落后时 ff-only 会失败)
+        pr = _git(["pull", "--rebase", "origin", merge_target],
+                  cwd=main_wt, timeout=120)
+        if pr.returncode != 0:
+            _git(["rebase", "--abort"], cwd=main_wt, timeout=30)
+            warnings.append(
+                f"git pull --rebase 冲突/失败:{pr.stderr.strip()[:100]} · 已 abort · "
+                f"本地 commit 保留 · 手动 rebase 后 git push origin {merge_target}")
+            return {"status": "commit_rebase_conflict",
+                    "note": "commit 成功 · pull --rebase 冲突已 abort · commit 保留本地",
+                    "warnings": warnings, "pushed": False,
+                    "stash_ref": None, "pulled": False}
+        ph = _git(["push", "origin", merge_target], cwd=main_wt, timeout=120)
+        if ph.returncode != 0:
+            warnings.append(
+                f"git push origin {merge_target} 失败(分支保护?):"
+                f"{ph.stderr.strip()[:120]} · 本地已 commit + 最新 · 手动 push / 走 MR")
+            return {"status": "committed_pulled_push_rejected",
+                    "note": "commit + pull 成功 · push 被拒(分支保护?)· 本地已最新",
+                    "warnings": warnings, "pushed": False,
+                    "stash_ref": None, "pulled": True}
+        note = ("已 commit 用户改动 + pull --rebase 最新 + push origin · 主工作区干净+最新+已推"
+                if committed else
+                "无新增改动可 commit · 已 pull --rebase 最新 + push · 主工作区干净+最新")
+        return {"status": "committed_pulled_pushed", "note": note,
+                "warnings": warnings, "pushed": True,
+                "stash_ref": None, "pulled": True}
+
+    if strategy == "stash-pull":
+        stash_ref = None
+        st_status = _git(["status", "--porcelain"], cwd=main_wt, timeout=30)
+        if st_status.stdout.strip():
+            msg = message or f"teamwork main-sync stash · ship 后 · {feature_id}"
+            st = _git(["stash", "push", "-u", "-m", msg], cwd=main_wt, timeout=30)
+            if st.returncode != 0:
+                warnings.append(f"git stash 失败:{st.stderr.strip()[:100]} · 改动保留")
+                return {"status": "stash_failed",
+                        "note": "stash 失败 · 改动保留工作区",
+                        "warnings": warnings, "pushed": False,
+                        "stash_ref": None, "pulled": False}
+            stash_ref = "stash@{0}"
+        pl = _git(["pull", "--ff-only", "origin", merge_target],
+                  cwd=main_wt, timeout=120)
+        if pl.returncode != 0:
+            warnings.append(
+                f"git pull --ff-only 未通过(分叉):{pl.stderr.strip()[:100]} · "
+                f"已 fetch · 需手动 rebase/merge")
+            return {"status": "stashed_diverged" if stash_ref else "diverged",
+                    "note": ("改动已 stash · 但 ff-pull 分叉 · 需手动 rebase"
+                             if stash_ref else "ff-pull 分叉 · 需手动 rebase"),
+                    "warnings": warnings, "pushed": False,
+                    "stash_ref": stash_ref, "pulled": False}
+        if stash_ref:
+            warnings.append(
+                f"用户改动已 stash({stash_ref})· 主工作区已 ff-pull 最新 · "
+                f"git stash pop 恢复改动")
+        note = (f"用户改动已 stash({stash_ref})+ ff-pull 最新 · 主工作区干净+最新 · "
+                f"改动可 git stash pop 恢复" if stash_ref else
+                "无用户改动 · 已 ff-pull 最新 · 主工作区干净+最新")
+        return {"status": "stashed_pulled" if stash_ref else "ff_pulled",
+                "note": note, "warnings": warnings, "pushed": False,
+                "stash_ref": stash_ref, "pulled": True}
+
+    # strategy == "skip":只清 feature_artifacts + 尽力 ff-pull · 保留用户改动
+    pl = _git(["pull", "--ff-only", "origin", merge_target],
+              cwd=main_wt, timeout=120)
+    pulled = pl.returncode == 0
+    if not pulled:
+        warnings.append(
+            f"主工作区有用户改动 · feature_artifacts 已清 · ff-pull 未通过 · "
+            f"自行 commit/stash 后 git pull --ff-only origin {merge_target}")
+    note = ("feature_artifacts 已清 · ff-pull 最新 · 保留用户改动(用户自处理)"
+            if pulled else
+            "feature_artifacts 已清 · ff-pull 未通过 · 保留用户改动")
+    return {"status": "skipped_user_handles" if pulled else "skipped_no_pull",
+            "note": note, "warnings": warnings, "pushed": False,
+            "stash_ref": None, "pulled": pulled}
+
+
+def _build_main_sync_decision(
+        feature_path: str, merge_target: str, state: dict,
+        dirty_result: dict, pulled: bool) -> dict:
+    """v8.70:普通模式主工作区 user-dirty · 构造「是否净化」决策结构 ·
+    PMO 转成 SKILL.md R5(b) 暂停点给用户。"""
+    other = dirty_result.get("other_files", [])
+    is_main = merge_target.split("/")[-1] in ("main", "master")
+    # 推荐:用户本意是「push 当前改动」→ commit-push;但 merge_target 是主分支时
+    # 推送绕 MR review 有风险 → 改荐 stash-pull(安全 · 不推任意改动)。
+    recommended = "stash-pull" if is_main else "commit-push"
+    fcmd = f"state.py main-sync --feature {feature_path} --strategy"
+    return {
+        "reason": ("主工作区(merge_target)有用户未提交改动 · ship 已完成 · "
+                   "是否净化以保持主工作区干净 + 最新"),
+        "merge_target": merge_target,
+        "is_main_branch": is_main,
+        "already_pulled_latest": pulled,
+        "dirty_count": len(other),
+        "dirty_files": other[:20],
+        "recommended": recommended,
+        "options": [
+            {"id": "commit-push", "label": "净化并推送",
+             "desc": ("git add -A + commit + pull --rebase + push · 把改动推到 "
+                      f"{merge_target} · 主工作区干净+最新+已推"
+                      + ("(⚠️ merge_target 是主分支 · 推送绕过 MR review · 慎选)"
+                         if is_main else "")),
+             "command": f"{fcmd} commit-push [--message '<commit msg>']"},
+            {"id": "stash-pull", "label": "暂存后拉取",
+             "desc": ("git stash -u + pull --ff-only · 改动留 stash"
+                      "(可 git stash pop 恢复)· 不推送 · 主工作区干净+最新"),
+             "command": f"{fcmd} stash-pull"},
+            {"id": "skip", "label": "暂不处理",
+             "desc": ("保留现状 · 用户自行 commit/stash/pull"
+                      "(feature_artifacts 已自动清)"),
+             "command": f"{fcmd} skip"},
+        ],
+        "note": ("PMO 按 SKILL.md R5(b) 转暂停点给用户 · "
+                 "用户选项后跑对应 state.py main-sync 命令"),
+    }
+
+
+def _main_sync_brief(state: dict, strategy: str, res: dict) -> str:
+    """v8.70:main-sync 命令完成 brief。"""
+    fid = state.get("feature_id") or "Feature"
+    clean_status = (
+        "committed_pulled_pushed", "stashed_pulled", "ff_pulled",
+        "skipped_user_handles")
+    if not res["warnings"] and res["status"] in clean_status:
+        return (f"✅ {fid} 主工作区 main-sync({strategy})完成 · {res['note']}")
+    lines = [f"⚠️ {fid} 主工作区 main-sync({strategy})有降级项 · PMO 须说明:"]
+    lines.append(f"  - {res['note']}")
+    for w in res["warnings"]:
+        lines.append(f"  - {w}")
+    return "\n".join(lines)
+
+
+def cmd_main_sync(args: argparse.Namespace) -> None:
+    """v8.70:主工作区净化(ship 后 user-dirty 决策的执行入口)。
+
+    治本:ship-finalize step 7 发现主工作区有用户改动时 · 旧逻辑仅「保留 + WARN」·
+    停在脏态 · 不 pull 不处理。现在 ship-finalize 会 surface「是否净化」决策 ·
+    用户拍板后跑本命令执行选定策略 —— 尽最大努力安全保持主工作区干净 + 最新。
+
+    必在主工作区跑 · 对 merge_target 应用 --strategy:commit-push/stash-pull/skip。
+    """
+    main_wt = _ship_finalize_precheck()  # 复用主工作区校验(linked worktree → FAIL)
+    _, state = load_state(args.feature)
+    merge_target = state.get("merge_target") or ""
+    if not merge_target:
+        emit_json({
+            "verdict": "FAIL", "command": "main-sync",
+            "error": "state.merge_target 为空 · 无法 main-sync",
+            "hint": "确认 Feature 已 init-feature 设 merge_target",
+        }, exit_code=1)
+    if args.strategy not in MAIN_SYNC_STRATEGIES:
+        emit_json(_enum_err("--strategy", args.strategy, MAIN_SYNC_STRATEGIES),
+                  exit_code=1)
+    artifact_root = Path(args.feature).resolve()
+
+    cur = _git(["rev-parse", "--abbrev-ref", "HEAD"], cwd=main_wt)
+    cur_branch = cur.stdout.strip() if cur.returncode == 0 else ""
+    if cur_branch != merge_target:
+        emit_json({
+            "verdict": "FAIL", "command": "main-sync",
+            "error": f"主工作区当前在 {cur_branch!r} 分支 · 非 merge_target {merge_target!r}",
+            "hint": f"git checkout {merge_target} · 再跑 state.py main-sync",
+        }, exit_code=1)
+
+    f = _git(["fetch", "origin", merge_target], cwd=main_wt, timeout=120)
+    if f.returncode != 0:
+        emit_json({
+            "verdict": "FAIL", "command": "main-sync",
+            "error": f"git fetch origin {merge_target} 失败:{f.stderr.strip()[:120]}",
+            "hint": "检查网络 / remote 配置 · 修复后重跑",
+        }, exit_code=1)
+
+    res = _main_sync_apply_strategy(
+        main_wt, merge_target, artifact_root, state, args.strategy,
+        message=getattr(args, "message", None))
+
+    emit_json({
+        "verdict": "PASS",
+        "command": "main-sync",
+        "feature_id": state.get("feature_id"),
+        "strategy": args.strategy,
+        "merge_target": merge_target,
+        "main_sync_status": res["status"],
+        "main_sync_note": res["note"],
+        "pushed": res.get("pushed", False),
+        **({"stash_ref": res["stash_ref"]} if res.get("stash_ref") else {}),
+        **({"warnings": res["warnings"]} if res["warnings"] else {}),
+        "next_action_brief": _main_sync_brief(state, args.strategy, res),
+    })
+
+
 def _finalize_push_fail(ship: dict, reason: str, msg: str) -> tuple:
     """记录 finalize-push 失败到 ship 字段 · 返回 (False, msg)。"""
     ship["merge_target_pushed_at"] = None
@@ -1168,10 +1417,15 @@ def _finalize_push_plumbing(repo_cwd: str, artifact_root: Path,
 
 
 def _ship_finalize_brief(state: dict, ship: dict, finalize_ok: bool,
-                         wt_removed: bool, warnings: list) -> str:
-    """ship-finalize 完成 brief · 全绿一句话 / 有降级则逐条列。"""
+                         wt_removed: bool, warnings: list,
+                         main_sync_decision: Optional[dict] = None) -> str:
+    """ship-finalize 完成 brief · 全绿一句话 / 有降级则逐条列。
+
+    v8.70:主工作区有用户改动时(main_sync_decision)· 追加「是否净化」暂停点指引 ·
+    PMO 须按 SKILL.md R5(b) 转成编号选项暂停点给用户。
+    """
     fid = state.get("feature_id") or "Feature"
-    if finalize_ok and wt_removed and not warnings:
+    if finalize_ok and wt_removed and not warnings and not main_sync_decision:
         return (
             f"✅ {fid} 已完整 ship · MR 合入已验证 + state.json 已同步 merge_target "
             f"+ worktree 已清理 · 流程终态 completed。\n"
@@ -1184,6 +1438,15 @@ def _ship_finalize_brief(state: dict, ship: dict, finalize_ok: bool,
         lines.append(
             "  🔴 state.json 未同步到 merge_target · Feature 已合入但状态记录滞后 · "
             "网络/冲突修复后重跑 state.py ship-finalize(可重入 · 自动跳过已完成步骤)"
+        )
+    if main_sync_decision:
+        rec = main_sync_decision.get("recommended", "stash-pull")
+        n = main_sync_decision.get("dirty_count", 0)
+        lines.append(
+            f"  ⏸️ 主工作区有 {n} 个用户未提交改动 · ship 已完成 · "
+            f"PMO 须按 R5(b) 暂停点问用户【是否净化主工作区(保持干净+最新)】· "
+            f"选项见 emit.main_sync_decision.options(推荐 {rec})· "
+            f"用户拍板后跑对应 state.py main-sync --strategy <id>"
         )
     return "\n".join(lines)
 
@@ -1453,6 +1716,7 @@ def cmd_ship_finalize(args: argparse.Namespace) -> None:
     # 注入段 + harness 锁)→ stash+ff-pull+unstash 安全自动同步;若含用户真改动 → 跳过。
     main_sync_status = "skipped"
     main_sync_note = ""
+    main_sync_decision: Optional[dict] = None  # v8.70:普通模式 user-dirty 时的「是否净化」决策
     f2 = _git(["fetch", "origin", merge_target], cwd=main_wt, timeout=120)
     if f2.returncode != 0:
         warnings.append(
@@ -1582,37 +1846,32 @@ def cmd_ship_finalize(args: argparse.Namespace) -> None:
                                     f"(等用户 commit / G2 ignore)"
                                 )
             else:
-                # v8.62 治本"总是残留"(用户实证):dirty 含用户真改动时旧逻辑**整段跳过** ·
-                # 连 feature_artifacts(state.json/review-log.jsonl · finalize-push 已推 origin
-                # 的冗余本地副本)也不清 → 主分支永久残留 + 没 pull。改:先**无条件**用 origin 版
-                # 覆盖 feature_artifacts(它们总是安全丢弃 · origin 已有终态)· 再尽力 ff-pull
-                # (finalize commit 只动这两文件 · 一般不碰用户改动 · ff 不冲突即成)· 用户真改动始终不动。
-                fa = dirty_result["feature_artifacts"]
-                fa_failed = []
-                for f in fa:
-                    co = _git(["checkout", f"origin/{merge_target}", "--", f],
-                              cwd=main_wt, timeout=15)
-                    if co.returncode != 0:
-                        fa_failed.append(f)
-                pl = _git(["pull", "--ff-only", "origin", merge_target],
-                          cwd=main_wt, timeout=120)
-                pulled = pl.returncode == 0
-                if not pulled:
-                    warnings.append(
-                        f"主工作区 {merge_target} 有 {len(dirty_result['other_files'])} 个用户改动 · "
-                        f"feature_artifacts 已用 origin 覆盖清除 · 但 ff-pull 未通过 · "
-                        f"自行 commit/stash 后 git pull --ff-only origin {merge_target}:"
-                        f"{', '.join(dirty_result['other_files'][:5])}"
-                    )
-                main_sync_status = (
-                    "cleaned_pulled_user_dirty_kept" if pulled
-                    else "cleaned_skip_pull_user_changes")
-                main_sync_note = (
-                    f"feature_artifacts({len(fa) - len(fa_failed)})已用 origin 覆盖清除 · "
-                    + ("ff-pull 到最新 · " if pulled else "ff-pull 未通过 · ")
-                    + f"保留 {len(dirty_result['other_files'])} 个用户改动"
-                    + (f" · {len(fa_failed)} 个 checkout 失败" if fa_failed else "")
-                )
+                # v8.70 治本(用户实证):主工作区有用户真改动时 · 旧逻辑(v8.62)是
+                # 「清 feature_artifacts + 尽力 ff-pull + 静默保留用户改动 + WARN」——
+                # 主工作区停在脏态 · 不主动处理 · 用户得手动 commit/stash/pull。改为:
+                #   auto/yolo(无人值守)→ 安全自动净化 stash-pull(改动留 stash · 无数据丢失 ·
+                #                          不推任意改动到集成分支 · 保持干净+最新);
+                #   普通模式 → surface「是否净化」决策(提示)· 用户拍板后跑 state.py main-sync。
+                # 两路都先清 feature_artifacts(origin 版 · 总安全)· 见 _main_sync_apply_strategy。
+                if state.get("auto_mode") or state.get("yolo"):
+                    res = _main_sync_apply_strategy(
+                        main_wt, merge_target, artifact_root, state, "stash-pull")
+                    main_sync_status = f"auto_{res['status']}"
+                    main_sync_note = "无人值守自动净化(stash-pull)· " + res["note"]
+                    warnings.extend(res["warnings"])
+                else:
+                    # 仍做安全清理(feature_artifacts + 尽力 ff-pull · 同 v8.62)· 但不动用户改动
+                    res = _main_sync_apply_strategy(
+                        main_wt, merge_target, artifact_root, state, "skip")
+                    warnings.extend(res["warnings"])
+                    main_sync_status = "user_dirty_decision"
+                    main_sync_note = (
+                        f"主工作区有 {len(dirty_result['other_files'])} 个用户改动 · "
+                        + res["note"]
+                        + " · ⏸️ 等用户决策是否净化(见 main_sync_decision)")
+                    main_sync_decision = _build_main_sync_decision(
+                        feature_path, merge_target, state, dirty_result,
+                        res.get("pulled", False))
 
     emit_json({
         "verdict": "PASS",
@@ -1635,9 +1894,12 @@ def cmd_ship_finalize(args: argparse.Namespace) -> None:
         # v8.31 · step 7 智能 dirty 处理透明留痕(治本 G4 主工作区残留误判)
         "main_sync_status": main_sync_status,
         **({"main_sync_note": main_sync_note} if main_sync_note else {}),
+        # v8.70 · 普通模式 user-dirty 时的「是否净化」决策(PMO 转 R5(b) 暂停点)
+        **({"main_sync_decision": main_sync_decision} if main_sync_decision else {}),
         **({"warnings": warnings} if warnings else {}),
         "next_action_brief": _ship_finalize_brief(
-            state, ship, finalize_ok, wt_removed, warnings),
+            state, ship, finalize_ok, wt_removed, warnings,
+            main_sync_decision),
     })
 
 
@@ -1723,3 +1985,21 @@ def register_v8_ship_subparser(sub) -> None:
                           "用户确认的 merge_target 上合并 commit hash · "
                           "传则检测方式记为 user-reported"))
     fp.set_defaults(func=cmd_ship_finalize)
+
+    # ─── main-sync:主工作区净化(v8.70)─────────────────────────────
+    # 治本:ship-finalize step 7 发现主工作区有用户改动时 · 旧逻辑仅「保留 + WARN」·
+    # 停在脏态。现在 ship-finalize surface「是否净化」决策 · 用户拍板后跑本命令执行。
+    ms = sub.add_parser(
+        "main-sync",
+        help=("[v8.70] 主工作区净化 · ship 后 user-dirty 决策执行入口 · "
+              "--strategy commit-push/stash-pull/skip · 必在主工作区跑"),
+    )
+    ms.add_argument("--feature", required=True, help="Feature artifact_root 路径")
+    ms.add_argument("--strategy", required=True, choices=list(MAIN_SYNC_STRATEGIES),
+                    help=("净化策略:commit-push(git add -A + commit + pull --rebase + "
+                          "push · 推改动到 merge_target)/ stash-pull(stash + ff-pull · "
+                          "改动留 stash 可恢复 · 不推送)/ skip(保留改动 · 仅清 "
+                          "feature_artifacts + 尽力 ff-pull)"))
+    ms.add_argument("--message",
+                    help="[commit-push] 自定义 commit message(缺省自动生成)")
+    ms.set_defaults(func=cmd_main_sync)

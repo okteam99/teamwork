@@ -1,6 +1,6 @@
 ---
 name: teamwork
-version: v8.69.1
+version: v8.70
 description: AI 协作开发一体化框架 · /teamwork 启动
 ---
 
@@ -134,7 +134,8 @@ B 类 · Stage 流转(10 stage × 2 + 4 fix/retry + ship-phase + ship-finalize)
 ├── pm_acceptance-start / pm_acceptance-complete (--decision approved_and_ship|...)
 ├── ship-start / ship-complete
 ├── ship-phase --action {sanitize|push|confirm-merged|cleanup|close-unmerged}
-└── ship-finalize  Phase 2 全自动编排(验证合入→confirm→cleanup→complete→finalize→worktree删→fetch)
+├── ship-finalize  Phase 2 全自动编排(验证合入→confirm→cleanup→complete→finalize→worktree删→main-sync)
+└── main-sync --strategy {commit-push|stash-pull|skip}  [v8.70] 主工作区净化(ship 后 user-dirty 决策执行)
 
 C 类 · 维护(6)
 ├── snapshot(别名 status · 看当前 stage/下一步 · compact 恢复用)/ validate / raw-read / raw-write

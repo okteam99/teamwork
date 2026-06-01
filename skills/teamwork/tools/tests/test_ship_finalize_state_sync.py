@@ -603,5 +603,131 @@ class TestClassifyMainSyncDirty(unittest.TestCase):
         self.assertIn(f"{self.feat.relative_to(self.main)}/PRD.md", r["other_files"][0])
 
 
+class TestMainSyncStrategyV870(unittest.TestCase):
+    """v8.70 · main-sync 净化策略(commit-push / stash-pull / skip)+ 决策结构。
+
+    治本:ship-finalize step 7 发现主工作区有用户改动时旧逻辑「保留 + WARN」停在脏态 ·
+    新增「提示是否净化」决策 + main-sync 命令执行选定策略 · 尽力安全保持干净 + 最新。
+
+    用 bare repo 当 fake origin · 真 git 验证三策略的副作用(push / stash / 保留)。
+    """
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp(prefix="main-sync-v870-"))
+        self.bare = self.tmp / "origin.git"
+        self.bare.mkdir()
+        _git(self.bare, "init", "--bare", "-b", "main")
+        self.main = self.tmp / "main-repo"
+        self.main.mkdir()
+        _git(self.main, "init", "-b", "main")
+        _git(self.main, "config", "user.email", "test@x.com")
+        _git(self.main, "config", "user.name", "test")
+        _git(self.main, "remote", "add", "origin", str(self.bare))
+        # feature dir + state.json(已提交 + 推 origin = 终态)
+        self.feat_rel = "docs/features/F999-demo"
+        self.feat = self.main / self.feat_rel
+        self.feat.mkdir(parents=True)
+        (self.feat / "state.json").write_text(
+            '{"feature_id":"F999-demo","x":1}', encoding="utf-8")
+        (self.main / "README.md").write_text("init", encoding="utf-8")
+        _git(self.main, "add", "-A")
+        _git(self.main, "commit", "-m", "init feature")
+        _git(self.main, "push", "origin", "main")
+        self.state = {"feature_id": "F999-demo", "merge_target": "main"}
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def _apply(self, strategy, message=None):
+        from _v8_ship import _main_sync_apply_strategy  # type: ignore
+        return _main_sync_apply_strategy(
+            str(self.main), "main", self.feat, self.state, strategy, message)
+
+    def _porcelain(self):
+        _, out, _ = _git(self.main, "status", "--porcelain")
+        return out.strip()
+
+    def _dirty_setup(self):
+        """造主工作区脏态:本地改 state.json(feature_artifacts)+ 新增用户文件。"""
+        (self.feat / "state.json").write_text(
+            '{"feature_id":"F999-demo","x":999}', encoding="utf-8")  # 本地偏离 origin
+        (self.main / "app").mkdir(exist_ok=True)
+        (self.main / "app/foo.py").write_text("user wip", encoding="utf-8")
+
+    def test_commit_push_pushes_and_cleans(self):
+        """commit-push:清 feature_artifacts + commit 用户改动 + pull --rebase + push。"""
+        self._dirty_setup()
+        res = self._apply("commit-push")
+        self.assertEqual(res["status"], "committed_pulled_pushed", res)
+        self.assertTrue(res["pushed"])
+        # 主工作区干净
+        self.assertEqual(self._porcelain(), "", "commit-push 后主工作区应干净")
+        # 用户文件已推到 origin/main
+        rc, _, _ = _git(self.main, "show", "origin/main:app/foo.py")
+        self.assertEqual(rc, 0, "app/foo.py 应已 push 到 origin/main")
+        # feature_artifacts 被 origin 版覆盖(本地 x:999 丢弃 → 回 x:1)
+        self.assertIn('"x":1', (self.feat / "state.json").read_text(encoding="utf-8"))
+
+    def test_stash_pull_stashes_not_pushed(self):
+        """stash-pull:清 feature_artifacts + stash 用户改动 + ff-pull · 不推送 · 留 stash。"""
+        self._dirty_setup()
+        res = self._apply("stash-pull")
+        self.assertEqual(res["status"], "stashed_pulled", res)
+        self.assertEqual(res["stash_ref"], "stash@{0}")
+        self.assertFalse(res["pushed"])
+        # 主工作区干净
+        self.assertEqual(self._porcelain(), "", "stash-pull 后主工作区应干净")
+        # stash 非空(改动保留可恢复)
+        _, stash_list, _ = _git(self.main, "stash", "list")
+        self.assertTrue(stash_list.strip(), "用户改动应在 stash 内")
+        # 未推送到 origin
+        rc, _, _ = _git(self.main, "show", "origin/main:app/foo.py")
+        self.assertNotEqual(rc, 0, "stash-pull 不应 push 用户改动")
+        # feature_artifacts 仍被清(回 origin x:1)
+        self.assertIn('"x":1', (self.feat / "state.json").read_text(encoding="utf-8"))
+
+    def test_skip_keeps_user_changes_cleans_artifacts(self):
+        """skip:仅清 feature_artifacts + 尽力 ff-pull · 保留用户改动(用户自处理)。"""
+        self._dirty_setup()
+        res = self._apply("skip")
+        self.assertEqual(res["status"], "skipped_user_handles", res)
+        self.assertTrue(res["pulled"])
+        # 用户文件仍在(未动)· porcelain 把未跟踪目录折叠成 "?? app/"
+        self.assertTrue((self.main / "app/foo.py").exists(), "skip 应保留用户改动")
+        self.assertIn("app/", self._porcelain())
+        # feature_artifacts 被清(回 origin x:1)
+        self.assertIn('"x":1', (self.feat / "state.json").read_text(encoding="utf-8"))
+
+    def test_commit_push_custom_message(self):
+        """commit-push --message 自定义 commit message 生效。"""
+        self._dirty_setup()
+        res = self._apply("commit-push", message="feat: my custom sync")
+        self.assertEqual(res["status"], "committed_pulled_pushed", res)
+        _, subject, _ = _git(self.main, "log", "-1", "--pretty=%s")
+        self.assertEqual(subject.strip(), "feat: my custom sync")
+
+    def test_decision_non_main_recommends_commit_push(self):
+        """非主分支 merge_target → 决策推荐 commit-push(用户本意推改动)· 3 选项。"""
+        from _v8_ship import _build_main_sync_decision  # type: ignore
+        dirty = {"other_files": ["app/foo.py", "app/bar.py"]}
+        d = _build_main_sync_decision("docs/features/F", "dev", self.state, dirty, True)
+        self.assertFalse(d["is_main_branch"])
+        self.assertEqual(d["recommended"], "commit-push")
+        self.assertEqual(d["dirty_count"], 2)
+        ids = [o["id"] for o in d["options"]]
+        self.assertEqual(ids, ["commit-push", "stash-pull", "skip"])
+        self.assertTrue(d["already_pulled_latest"])
+
+    def test_decision_main_recommends_stash_pull(self):
+        """主分支 merge_target → 改荐 stash-pull(推送绕 MR 有风险)· commit-push desc 含慎选。"""
+        from _v8_ship import _build_main_sync_decision  # type: ignore
+        dirty = {"other_files": ["src.py"]}
+        d = _build_main_sync_decision("docs/features/F", "main", self.state, dirty, False)
+        self.assertTrue(d["is_main_branch"])
+        self.assertEqual(d["recommended"], "stash-pull")
+        cp = next(o for o in d["options"] if o["id"] == "commit-push")
+        self.assertIn("慎选", cp["desc"])
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

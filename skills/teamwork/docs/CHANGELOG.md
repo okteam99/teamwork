@@ -1,5 +1,44 @@
 # Changelog
 
+## v8.70 · main-sync 主工作区净化决策(治本 ship 后 user-dirty 停在脏态 · 不 pull 不处理 · dev-only)
+
+> 用户 2026-06-01:"ship2 结束后回到主工作区 · 如果不干净会停在那里 · 不 pull 也不处理。增加逻辑:发现不干净时提示是否净化 · push 当前改动 · pull 最新。目标:尽最大努力安全保持主工作区干净 + 最新。"
+
+### 根因:step 7 main-sync 遇用户改动「保留 + WARN」即收手
+
+- ship-finalize step 7(main-sync)对 dirty 分类:全副产物(state.json/review-log + bootstrap + locks)→ 自动 stash+ff-pull;**含用户真改动**(`other_files`)→ v8.62 只清 feature_artifacts + 尽力 ff-pull + **静默保留用户改动 + WARN**。
+- 结果:主工作区停在脏态 · 既不主动 pull 也不引导处理 · 用户得自己 commit/stash/pull —— 与「保持主工作区干净 + 最新」的目标背离。
+
+### 修复:发现 user-dirty → 提示是否净化 + 新 main-sync 命令执行
+
+| 改动 | 内容 |
+|----|----|
+| ship-finalize step 7(普通模式)| user-dirty 不再静默保留 · 改 emit `main_sync_status="user_dirty_decision"` + `main_sync_decision`(3 选项 + 推荐 + 跟进命令)· `next_action_brief` 引导 PMO 按 R5(b) 转暂停点「是否净化」 |
+| ship-finalize step 7(auto/yolo)| 无人值守 → 安全自动净化 **stash-pull**(改动留 stash · 无数据丢失 · **不推任意改动**到集成分支)· 保持干净 + 最新 |
+| 新 `main-sync --strategy` 命令 | 用户拍板后执行 · 必在主工作区跑 · 校验当前分支 = merge_target + fetch |
+| `_main_sync_apply_strategy` | 三策略(都先清 feature_artifacts · origin 版总安全):**commit-push**(add -A + commit + pull --rebase + push)/ **stash-pull**(stash -u + ff-pull · 留 stash)/ **skip**(仅清 artifacts + 尽力 ff-pull · 保留改动) |
+| 安全 | commit-push 用 `pull --rebase`(本地落后时叠 commit 不冲突)· rebase 冲突 → abort + 保留 commit;push 被拒(分支保护)→ 报告 + 本地已最新;主分支 merge_target → 决策改荐 stash-pull(推送绕 MR review 有风险);**绝不 force**;用户改动**绝不丢**(commit / stash 二选一) |
+| 测试 +6 | TestMainSyncStrategyV870:commit-push 推送+清 / stash-pull 留 stash 不推 / skip 保留 / 自定义 message / 决策非主荐 commit-push / 决策主荐 stash-pull · 408 passed · 68 pre-existing(无关)· 0 regression |
+
+### 决策选项(普通模式 emit · PMO 转 R5(b) 暂停点)
+
+| id | 动作 | 适用 |
+|---|---|---|
+| `commit-push` | git add -A + commit + pull --rebase + push → 主工作区干净+最新+已推 | 改动确实要进 merge_target(非主分支推荐) |
+| `stash-pull` | git stash -u + ff-pull · 改动留 stash(可 pop 恢复)· 不推送 | 改动暂不推 / merge_target 是主分支(推荐) |
+| `skip` | 保留现状 · 用户自处理(feature_artifacts 已自动清) | 用户想手动处理 |
+
+```bash
+# ship-finalize 报 user_dirty_decision 后 · 用户选 commit-push:
+python3 tools/state.py main-sync --feature FEAT --strategy commit-push [--message '<msg>']
+# 或暂存:
+python3 tools/state.py main-sync --feature FEAT --strategy stash-pull
+```
+
+> auto/yolo 自动走 stash-pull(安全 · 留 stash + WARN)· 普通模式停在「是否净化」暂停点由用户拍板。
+
+---
+
 ## v8.69 · set-mode 语义命令(治本 auto_mode/yolo 靠 raw-write 改 · 补 v8.68 遗留缺口 · 用户 case SVC-PLATFORM-F060 · dev-only)
 
 > 用户 2026-05-31:"补一下"(接受 v8.68 末尾 offer)。Codex agent 在 SVC-PLATFORM-F060 诊断里点出:**auto_mode 当时是 raw-write 改的 · 因为没有语义化的 set-auto-mode 命令** —— state audit 里出现裸 raw-write · 不可审计。yolo 同理。
