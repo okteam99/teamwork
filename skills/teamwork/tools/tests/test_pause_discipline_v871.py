@@ -23,10 +23,7 @@ HERE = Path(__file__).resolve().parent
 TOOLS = HERE.parent
 sys.path.insert(0, str(TOOLS))
 
-from _v8_engine import (  # type: ignore  # noqa: E402
-    _render_execution_capability,
-    _render_pause_discipline,
-)
+from _v8_engine import _render_pause_discipline  # type: ignore  # noqa: E402
 from _v8_stage_specs import STAGE_SPECS  # type: ignore  # noqa: E402
 
 
@@ -108,34 +105,29 @@ class TestContinuousStagesRegression(unittest.TestCase):
         self.assertIn("subagent", out)
 
 
-class TestExecutionCapabilityV873(unittest.TestCase):
-    """v8.73:subagent = 标准执行手段 · 每 stage 起手评估(非任务大才用)。
+class TestSubagentInPauseDisciplineV874(unittest.TestCase):
+    """v8.74:subagent 不再独立成 brief 段(防 brief 膨胀)· 仅暂停点纪律内 1 行提及。
 
-    治本:用户指出「合理使用 subagent 应是各个 stage 必须知道的点 · 不是任务大才想起」·
-    故独立成段 · 每 stage brief 都带 · 框成主动标准手段(非 reactive 兜底)。
+    治本:用户指出 ① 「标准执行手段」措辞促 AI 过度使用 → 改「可选 · 详 SKILL.md」;
+    ② brief 不应越来越大 → 删 _render_execution_capability 独立段 · 指引移 SKILL.md/stage.md。
     """
 
-    def test_segment_is_proactive_standard(self):
-        out = _render_execution_capability()
+    def test_pause_line_mentions_subagent_as_optional(self):
+        out = _render_pause_discipline("无暂停 · 完成后自动转 review")
         self.assertIn("subagent", out)
-        self.assertIn("标准", out)
-        self.assertIn("起手", out)            # 每 stage 起手评估
-        # 主动框架 · 明确「不是任务大才用」
-        self.assertIn("非任务大才用", out)
+        self.assertIn("可按需", out)          # 可选措辞 · 非「标准/必用」
+        self.assertIn("SKILL.md", out)        # 指向 spec · 不在 brief 展开
 
-    def test_segment_mentions_benefits_and_boundary(self):
-        out = _render_execution_capability()
-        self.assertIn("并行", out)            # 并行提速
-        self.assertIn("context 干净", out)    # 主编排 context 干净
-        self.assertIn("worktree", out)        # 边界:子 agent 守 worktree 纪律
-        self.assertIn("不外包整个 stage", out)  # 边界:不跳流程
+    def test_render_execution_capability_removed(self):
+        """独立执行手段段已删(防 brief 膨胀)· 函数不应再存在。"""
+        import _v8_engine  # type: ignore
+        self.assertFalse(hasattr(_v8_engine, "_render_execution_capability"),
+                         "v8.74 已删 _render_execution_capability(指引移 SKILL.md/stage.md)")
 
-    def test_no_size_gating_language(self):
-        """不应把 subagent 框成「工作量大 / session 吃紧才用」的兜底。"""
-        out = _render_execution_capability()
-        # 段落主张是「标准 · 起手评估」· 不以「工作量大」为前置条件触发
-        self.assertNotIn("工作量大 →", out)
-        self.assertNotIn("工作量大 / session 吃紧 →", out)
+    def test_pause_discipline_no_dedicated_execution_section(self):
+        out = _render_pause_discipline("无暂停 · 完成后自动转 review")
+        self.assertNotIn("🧩 执行手段", out)   # 不再有独立段标题
+        self.assertNotIn("标准配置", out)
 
 
 if __name__ == "__main__":

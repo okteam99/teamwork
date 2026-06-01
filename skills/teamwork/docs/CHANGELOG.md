@@ -1,6 +1,31 @@
 # Changelog
 
-## v8.73 · subagent 升为「每 stage 标准执行手段」(治本框成兜底 · 接 v8.71/72 · dev-only)
+## v8.74 · subagent 改「可选手段」+ 出 brief 移 spec(纠 v8.73 过度物化 · 用户反馈 · dev-only)
+
+> 用户 2026-06-01:"『标准执行手段』是否应是『可选执行手段』· 我担心 AI 过度使用 subagent。另外是否不需要写 brief · 在 SKILL.md 和 stage.md 说明就好 · 我担心 brief 越来越大。"
+
+### 纠 v8.73 两个过度
+
+v8.73 把 subagent 框成「每 stage 标准执行手段」+ 独立成 brief 段每 stage 必带 —— 两处过头:
+
+1. **「标准」促过度使用**:是否用 subagent / 拆几个 = 典型**不可枚举判断**(设计哲学表「AI 自决」)· 框成「标准/必用」会让 AI 给小/耦合/串行任务也派 agent(纯开销 + 碎片)。
+2. **brief 膨胀**:红线(禁自造暂停)值得物化到必经点 · 但**可选能力**不值得 —— 每 stage brief(start + 转移)+5 行正是 `brief 体量元规则` 警告的 Layer A 累积。
+
+### 修复:降级 + 挪窝
+
+| 改动 | 内容 |
+|----|----|
+| 删 `_render_execution_capability()` + 两处 brief 接入 | brief 回到 v8.72 体量 · 不再每 stage 注入 subagent 段 |
+| 暂停点纪律 subagent 行 | 「独立子任务派 subagent · 见下执行手段」→「**可按需**派 subagent · 详 SKILL.md R4」(1 行 · 红线的正向收口 · 不展开) |
+| SKILL.md R4 | subagent = **可选执行手段(AI 自决 · 非默认 · 非每 stage 必用)**· 列适用(独立可并行/需隔离大块)+ ⚠️ **不过度使用**(小/耦合/串行直接自己做 · 判据:子任务独立且够大才拆) |
+| stages/dev-stage.md | 加 §1.5「组织实现(🧩 subagent 可选 · 按需并行 · 非必须)」· 多端/多模块场景 + 同款不过度使用判据 + worktree 纪律 |
+| 测试 | 删 TestExecutionCapabilityV873 · 加 TestSubagentInPauseDisciplineV874(可选措辞 + 函数已删 + 无独立段)· 419 passed · 68 pre-existing(无关)· 0 regression |
+
+> 定位:subagent 是 **AI 自决的可选手段** —— 知道、按需用、不过度;指引在 **SKILL.md / stage.md**(读一次的背景判断)· **不**塞进每个 brief(防膨胀)。红线(禁自造暂停)仍物化在暂停点纪律 · subagent 只是它的 1 行正向收口。
+
+---
+
+## v8.73 · subagent 升为「每 stage 标准执行手段」(治本框成兜底 · 接 v8.71/72 · dev-only · ⚠️ 部分被 v8.74 纠正)
 
 > 用户 2026-06-01:"合理使用 subagent 应该是 AI 各个 stage 必须知道的点 · 而不是任务大的时候才想起来。"
 
