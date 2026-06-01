@@ -1,5 +1,29 @@
 # Changelog
 
+## v8.75 · 治本 pl 被系统性误删(reviewer checklist Q1 把 PL 价值等同 ROADMAP · 用户实证 · dev-only)
+
+> 用户 2026-06-01:"几乎所有 feature 在 PRD 评审时都移除 pl · 理由是无 roadmap · 是否合理?" 不合理 —— 是工具引导的类目错误。
+
+### 根因:checklist Q1 把 PL 评审价值 = ROADMAP 拆分
+
+- `REVIEWER_THINKING_CHECKLIST[0]`(v8.27)旧:「涉及 ROADMAP 拆分 / 优先级决策?**否 → goal 去 pl(PL 评审价值低)**」。
+- 但 **ROADMAP 是规划层产物**(Feature Planning 产出 · 执行层 Feature 流程里没有)—— 执行层 Feature **几乎都『无 ROADMAP』** → Q1 几乎恒为「否」→ **系统性删 pl**。
+- 而 PL 的真 telos(`roles/product-lead.md`):**业务目标 / 跨项目一致性 / 商业模式 / 变更级联** ——「缺这个视角会留:做了一堆 Feature 但偏离产品方向」。把它窄化成 ROADMAP 是类目错误 · 把产品方向评审从几乎所有 PRD 删掉。
+- 坏示范放大:`prepare.md` 的「建议评审角色」**worked example** 直接把 `goal …(去 pl)· Q1 无 ROADMAP 拆分` 当**标准正确输出**示范 + F-Bv2-8(2026-05-25)case 把它当『好调整』—— AI 照抄成定式。
+
+### 修复:Q1 重构为「产品方向影响」· pl 默认保留 · 去 pl 是少数例外
+
+| 改动 | 内容 |
+|----|----|
+| `state.py` Q1 | 「**有无产品方向影响?**(业务目标/用户可见/商业模式/跨项目一致/变更级联 Level≥2)」· **是(常态)→ 留 pl** · 仅纯内部技术重构零产品面才去 · ⚠️ **『无 ROADMAP』≠ 去 pl 理由**(显式 debunk) |
+| `state.py` hint | 加「pl 默认保留 · 套路化删角色禁止 · 无 ROADMAP 不是去 pl 理由」· 去掉「goal 去 pl(无 ROADMAP)」坏示范 |
+| `prepare.md` Q1 表 + worked example | 同步重构 · 示范从「去 pl」改「留 pl(产品方向相关)」+ 加「pl 不是套路化删」红线段 |
+| 测试 | `test_v875_pl_not_roadmap_gated`(默认留 pl · 删旧『PL 评审价值低』· debunk ROADMAP)· covers_dimensions 维度 ROADMAP→产品方向 · 420 passed · 68 pre-existing(无关)· 0 regression |
+
+> 核心:**PL 评审价值 = 产品方向(业务/一致性/商业模式/级联)· 与 ROADMAP(规划层)无关**。pl 默认保留;去 pl 仅限纯内部技术重构 · 且要给本 Feature 特定理由 —— 不是每个执行层 Feature 都『无 ROADMAP』就套路化删。
+
+---
+
 ## v8.74 · subagent 改「可选手段」+ 出 brief 移 spec(纠 v8.73 过度物化 · 用户反馈 · dev-only)
 
 > 用户 2026-06-01:"『标准执行手段』是否应是『可选执行手段』· 我担心 AI 过度使用 subagent。另外是否不需要写 brief · 在 SKILL.md 和 stage.md 说明就好 · 我担心 brief 越来越大。"

@@ -127,12 +127,14 @@ prepare-check 输出 `reviewer_thinking_checklist` 4 个核心问题 · PMO 在 
 
 | # | 问题 | 命中调整 |
 |---|---|---|
-| Q1 | 涉及 ROADMAP 拆分 / Feature 优先级决策? | 否 → goal 去 pl |
+| Q1 | 有产品方向影响?(业务目标 / 用户可见 / 商业模式 / 跨项目一致 / 变更级联 Level≥2) | **是**(常态)→ goal **留 pl**;仅纯内部技术重构 · 零产品面才去 pl · ⚠️『无 ROADMAP』**不是**去 pl 理由(ROADMAP=规划层 · 与 PRD 产品方向评审无关) |
 | Q2 | 含 UI 改动? | 否 → ui_design 跳过 + browser_e2e 跳过 |
 | Q3 | 跨 ≥3 module 触发点 / 调用方? | 是 → blueprint / review 强 external(异质模型查漏触发) |
 | Q4 | 数据模型重构(删/改老字段 · 表结构变)? | 是 → blueprint 强 architect + 加 dba 评审 |
 
-**case 实证**(F-Bv2-8 · 2026-05-25):PMO 第一次直接抄默认 · 经用户提示 "你的建议评审角色思考了么" 后二次思考才识别 goal 去 pl / ui_design 跳过 / blueprint 强 external 等调整。
+🔴 **pl 不是套路化删**:pl 默认保留(产品方向视角 · 防 Feature 偏离产品方向)· 去 pl 是**少数例外**(纯内部 / 技术重构 · 零产品面 · 零跨项目)· 必给该 Feature 特定理由 · 不得拿『无 ROADMAP』当通用借口(几乎所有执行层 Feature 都『无 ROADMAP』· 那是规划层的事)。
+
+**case 实证**(F-Bv2-8 · 2026-05-25):PMO 第一次直接抄默认 · 经用户提示 "你的建议评审角色思考了么" 后二次思考才识别 ui_design 跳过(后端先行)/ blueprint 强 external(跨 5 module)等调整。
 
 🔴 emit prepare 暂停点 「建议评审角色」段格式(必含调整理由列):
 
@@ -141,7 +143,7 @@ prepare-check 输出 `reviewer_thinking_checklist` 4 个核心问题 · PMO 在 
 
 | stage | 必/选 | 评审角色(调整后) | 调整理由(cite 4 问命中) |
 |---|---|---|---|
-| goal | 必 | pm, qa, architect, external(去 pl) | Q1 无 ROADMAP 拆分(Master Plan 已预 Planning) |
+| goal | 必 | pm, qa, architect, **pl**, external | Q1 有产品方向影响(如支付=商业模式 + 跨端一致)→ **留 pl**(默认 · 别拿无 ROADMAP 去) |
 | ui_design | 跳过 | — | Q2 后端先行 · UI 留 PTR 子 Feature |
 | blueprint | 必 | qa, architect, **external 🔴 强** | Q3 跨 5 module 触发点 · 异质模型查漏 |
 | ... | ... | ... | ... |

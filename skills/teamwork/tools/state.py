@@ -1457,9 +1457,11 @@ def cmd_prepare_check(args: argparse.Namespace) -> None:
     payload["reviewer_thinking_hint"] = (
         "🔴 PMO emit prepare 暂停点 「建议评审角色」段 · 必基于此 checklist 4 问思考 + "
         "给出加减预估 · 不要直接抄 stage_chain_preview 默认值。"
+        "⚠️ 加减须有**本 Feature 特定理由** · 不是套路化删角色 —— 尤其 **pl 默认保留**"
+        "(产品方向视角)·『无 ROADMAP』**不是**去 pl 的理由(ROADMAP=规划层 · 与 PRD 产品方向"
+        "评审无关)· 仅纯内部/技术重构无产品面才去 pl。"
         "case 实证(F-Bv2-8 · 2026-05-25):PMO 第一次直接抄默认 · 经用户提示后二次思考才识别 "
-        "goal 去 pl(无 ROADMAP 拆分)/ ui_design 跳过(后端先行)/ blueprint 强 external"
-        "(跨 5 module 触发点)等调整。"
+        "ui_design 跳过(后端先行)/ blueprint 强 external(跨 5 module 触发点)等调整。"
     )
 
     # v8.44.4:host-aware 输出风格 hint(治本 case 2026-05-28 codex-cli 渲染 markdown 表格失败)
@@ -1494,9 +1496,14 @@ def cmd_prepare_check(args: argparse.Namespace) -> None:
 # 用户决策:Option A(checklist 提示 · 不物化 JSON 必传)· 核心 4 问(不过载)
 REVIEWER_THINKING_CHECKLIST = [
     {
-        "question": "本 Feature 是否涉及 ROADMAP 拆分 / Feature 优先级决策?",
-        "if_no": "goal stage 去 pl(无 ROADMAP 决策 · PL 评审价值低)",
-        "if_yes": "goal stage 保留 pl",
+        "question": ("本 Feature 有无产品方向影响?(业务目标 / 用户可见行为 / 商业模式 / "
+                     "跨项目一致性 / 变更级联 Level≥2 —— 任一即『有』)"),
+        "if_yes": ("goal **保留 pl**(默认 · 常态)· PL 审产品方向对齐 —— "
+                   "telos:防『做了一堆 Feature 但偏离产品方向』"),
+        "if_no": ("仅『纯内部 / 技术重构 · 零产品面 · 零跨项目 · 变更级联 Level-1 局部』"
+                  "才去 pl(少数例外)· ⚠️ **别拿『无 ROADMAP』当借口去 pl** —— "
+                  "ROADMAP 是规划层产物 · 与 PL 的 PRD 评审价值(产品方向)无关 · "
+                  "二者不是一回事"),
     },
     {
         "question": "本 Feature 是否含 UI 改动?",

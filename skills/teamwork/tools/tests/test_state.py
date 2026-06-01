@@ -806,16 +806,36 @@ class TestPrepareCheck(unittest.TestCase):
                             f"Q{i+1} 必含 if_yes 或 if_no 调整建议")
 
     def test_v827_checklist_covers_core_dimensions(self):
-        """4 问覆盖 ROADMAP / UI / 跨 module / 数据模型重构 4 个维度。"""
+        """4 问覆盖 产品方向 / UI / 跨 module / 数据模型重构 4 个维度。"""
         d = self._check("Feature")
         all_text = " ".join(
             q["question"] + (q.get("if_yes", "") or "") + (q.get("if_no", "") or "")
             for q in d["reviewer_thinking_checklist"]
         )
-        self.assertIn("ROADMAP", all_text)
+        self.assertIn("产品方向", all_text)  # v8.75:Q1 维度 ROADMAP → 产品方向
         self.assertIn("UI", all_text)
         self.assertIn("module", all_text)
         self.assertIn("数据模型重构", all_text)
+
+    def test_v875_pl_not_roadmap_gated(self):
+        """v8.75 治本:Q1 不再用『无 ROADMAP → 去 pl』· 默认保留 pl(产品方向视角)。
+
+        根因:旧 Q1 把 PL 评审价值等同 ROADMAP 拆分 —— 但 ROADMAP 是规划层产物 ·
+        执行层 Feature 几乎都『无 ROADMAP』→ 几乎所有 Feature 套路化删 pl(用户实证)。
+        """
+        d = self._check("Feature")
+        q1 = d["reviewer_thinking_checklist"][0]
+        q1_text = q1["question"] + (q1.get("if_yes", "") or "") + (q1.get("if_no", "") or "")
+        # 默认保留 pl(产品方向 · 非 roadmap-gated)
+        self.assertIn("保留 pl", q1_text)
+        self.assertIn("产品方向", q1_text)
+        # 旧的错误框架彻底删除(PL 评审价值低 = 系统性误删的根)
+        self.assertNotIn("PL 评审价值低", q1_text)
+        # 显式 debunk「无 ROADMAP」借口
+        self.assertIn("ROADMAP", q1_text)
+        # hint 也强调 pl 默认保留 + 无 ROADMAP 不是去 pl 理由
+        hint = d["reviewer_thinking_hint"]
+        self.assertIn("pl 默认保留", hint)
 
     def test_v827_hint_cite_f_bv2_8_case(self):
         """hint 提示 PMO 不直接抄默认 · cite F-Bv2-8 case 实证。"""
