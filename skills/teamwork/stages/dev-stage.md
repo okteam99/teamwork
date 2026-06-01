@@ -12,6 +12,13 @@
 - UI.md + preview/*.html(若 ui_design 完成)
 - KNOWLEDGE.md / ARCHITECTURE.md(按需查)
 
+### 1.5 组织实现(🧩 subagent 可选 · 按需并行 · 非必须)
+
+多端 / 多模块 / 多独立文件的 dev(如 Android + iOS + JSSDK)· **可**派 subagent(`Agent` 工具)各做一块并行落地;主对话 RD 留**契约层 / 集成点**自己写(保对齐基准)+ 收口集成。
+
+- ⚠️ **可选非默认**:单模块 / 强耦合 / 文件少的 dev 直接自己串行做 —— subagent 有 context 切换 + 协调 + 结果校验开销 · 滥用反碎片 + 拖慢。**判据:子任务相互独立且够大才值得拆**。
+- 子 agent 写文件守 **worktree 内路径**(同 worktree 纪律 · 防污染主工作区);stage 流转 / commit / dev-complete 仍由**主对话**掌控(不外包整个 stage 跳流程)。
+
 ### 2. TDD 红绿循环(逐 AC / 逐 test)
 1. **红**:照 TC.md 中下一个 test 写测试代码 → 跑测试看红
 2. **绿**:写最小化实现 → 跑测试看绿

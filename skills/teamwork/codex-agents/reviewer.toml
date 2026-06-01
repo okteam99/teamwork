@@ -16,9 +16,8 @@ See standards/external-model-usage.md for full compliance rules.
 
 Read these files first:
 1. The agents/README.md for general Subagent protocol
-2. The stages/review-stage.md for Review Stage contract (scheduling + scope + loop)
-3. The roles/architect-cr.md for Architect Code Review detailed task spec (v7.3.10+P0-87 extracted from review-stage.md)
-4. The roles/qa-cr.md for QA Code Review detailed task spec (v7.3.10+P0-87 extracted from review-stage.md)
+2. The stages/review-stage.md for Review Stage contract (scheduling + scope + loop + Architect/QA Code Review task spec)
+3. The roles/architect.md + roles/qa.md for Architect/QA review perspectives
 
 Execute two reviews in parallel (READ-ONLY analysis only):
 - Architect Code Review: architecture, code quality, ARCHITECTURE.md sync

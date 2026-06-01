@@ -1,25 +1,23 @@
 #!/usr/bin/env python3
 """
-tools/update.py — Teamwork skill 自更新独立脚本(v8.42 抽离 · 用户拍板)。
+tools/update.py — Teamwork skill 自更新独立脚本(v8.42 抽离 · v8.44.3 重设计)。
 
 设计哲学:
 - **职责分离**:更新代码(元工具)与运行时代码(state.py · stage 状态机)解耦
 - **与 bootstrap.py pattern 对齐**:bootstrap 是 setup 元工具 · update 是 upgrade 元工具 · 同级独立
 - **chicken-and-egg 隔离**:若 state.py 自身坏掉 · update.py 仍能跑救命
 - **架构去 git 化**(v8.41 用户拍板):tarball download + 解压覆盖 · 不依赖 git
+- **默认 backup + overwrite**(v8.44.3 用户拍板):删 BLOCK · 改默认安全 · 不再二次问用户
 
-历史:
-- v8.24 加 cmd_update_skill in state.py · 用 git pull
-- v8.35 修 hint placeholder
-- v8.39 加 channel 支持
-- v8.40 加 branch/channel 一致性校验
-- v8.41 架构治本 · 去 git 化 · tarball download · 但代码仍在 state.py
-- v8.42 (本文件):抽离到独立 update.py · 治本元工具混运行时
+向后兼容:保留 `--no-backup` opt-out + `--accept-overwrite` no-op(旧调用不报错)。
+
+(v8.24→v8.44.3 演进:git pull → 去 git 化 tarball → 抽离独立脚本 → 默认 backup+overwrite · 详 docs/CHANGELOG.md)
 
 用法:
-    python3 SKILL_ROOT/tools/update.py [--channel <branch>] [--accept-overwrite]
+    python3 SKILL_ROOT/tools/update.py [--channel <branch>] [--no-backup]
 
 默认 channel:从 cwd 找 project_root · 读 .teamwork_localconfig.json.update_channel · fallback main
+默认 backup 路径:~/.teamwork/backups/<ts>/(用户拍板 B3 · 不污染 skill_root)
 """
 
 from __future__ import annotations
@@ -44,6 +42,9 @@ SKILL_TARBALL_URL_TEMPLATE = (
 SKILL_UPDATE_DOWNLOAD_TIMEOUT_SEC = 60
 SKILL_UPDATE_URL_ENV_TARBALL = "TEAMWORK_SKILL_TARBALL_URL"  # 测试覆盖用
 
+# v8.44.3:backup 路径(用户拍板 B3 · ~/.teamwork/backups/<ts>/ · 不污染 skill_root)
+SKILL_BACKUP_ROOT_ENV = "TEAMWORK_BACKUP_ROOT"  # 测试覆盖用 · 默认 ~/.teamwork/backups
+
 
 # ─── helpers ─────────────────────────────────────────────────────────────
 
@@ -54,9 +55,41 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+def _now_ts_compact() -> str:
+    """紧凑时间戳(20260528T143022Z · 用作 backup 目录名)。"""
+    from datetime import datetime, timezone
+    return datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+
+
 def _emit(payload: dict) -> None:
     """统一 stdout JSON emit · 风格与 state.py / bootstrap.py 对齐。"""
     print(json.dumps(payload, ensure_ascii=False, indent=2))
+
+
+def _backup_root() -> Path:
+    """v8.44.3:backup 根目录 · 默认 ~/.teamwork/backups/ · env 可 override。"""
+    override = os.environ.get(SKILL_BACKUP_ROOT_ENV)
+    if override:
+        return Path(override)
+    return Path.home() / ".teamwork" / "backups"
+
+
+def _backup_skill_root(skill_root: Path) -> tuple[Path, int]:
+    """v8.44.3:backup skill_root 整个目录到 ~/.teamwork/backups/<ts>/ · 返 (backup_path, file_count)。
+
+    用 shutil.copytree 完整复制 · 含全部文件 + 子目录 + mode + mtime。
+    """
+    ts = _now_ts_compact()
+    backup_root = _backup_root()
+    backup_root.mkdir(parents=True, exist_ok=True)
+    backup_dir = backup_root / ts
+    # 若同 ts 已存在(罕见)· 追加 PID 防冲突
+    if backup_dir.exists():
+        backup_dir = backup_root / f"{ts}-{os.getpid()}"
+    shutil.copytree(skill_root, backup_dir, symlinks=False)
+    # 统计文件数
+    file_count = sum(1 for _ in backup_dir.rglob("*") if _.is_file())
+    return backup_dir, file_count
 
 
 def _download_skill_tarball(channel: str, work_dir: Path
@@ -189,15 +222,16 @@ def _resolve_channel(args) -> tuple[str, str]:
 
 def cmd_update(args) -> int:
     """v8.42:update.py 主流程(从 v8.41 state.py:cmd_update_skill 抽离)。
+    v8.44.3 重设计:默认 backup + overwrite · 不再 BLOCK 二次问用户(用户拍板)。
 
-    7 步:
+    流程:
       1. resolve channel(args > localconfig > main)
       2. 读 old version
       3. download tarball + 解压 to /tmp(失败 → FAIL with hint)
       4. 读 new version + 校验完整性
-      5. 检测本地修改
-      6. modified + 无 --accept-overwrite → FAIL with hint
-      7. 覆盖 skill_root · cleanup tmp · emit OK
+      5. 检测本地修改(audit 用 · 不再 BLOCK)
+      6. backup skill_root → ~/.teamwork/backups/<ts>/(默认 · --no-backup 跳过)
+      7. 覆盖 skill_root · cleanup tmp · emit OK + backup_path
     """
     # skill_root:从本文件位置反推(同 bootstrap / state.py pattern)
     skill_root = Path(__file__).resolve().parent.parent
@@ -243,42 +277,45 @@ def cmd_update(args) -> int:
             })
             return 1
 
-        # Step 5: 检测本地修改
+        # Step 5: 检测本地修改(audit 用 · 不再 BLOCK · v8.44.3 治本)
         mods = _detect_local_modifications(skill_root, source_skill_dir)
         modified = mods["modified"]
         new_files = mods["new_files"]
 
-        accept_overwrite = getattr(args, "accept_overwrite", False)
-        if modified and not accept_overwrite:
-            _emit({
-                "verdict": "FAIL",
-                "command": "update",
-                "error": (
-                    f"skill_root 内 {len(modified)} 个文件本地有改动(与 channel={channel} "
-                    f"内容不同)· 拒绝覆盖防丢失本地定制"
-                ),
-                "channel": channel,
-                "channel_source": channel_source,
-                "modified_files": modified[:10],
-                "modified_files_total": len(modified),
-                "new_files_count": len(new_files),
-                "old_version": old_version,
-                "new_version": new_version,
-                "hint": (
-                    f"二选一:\n"
-                    f"  ① [推荐 · 保守] 先 backup 你的改动:\n"
-                    f"     cp -r {skill_root} {skill_root}.local-backup-<ts>\n"
-                    f"     然后 python3 {Path(__file__).resolve()} --accept-overwrite\n"
-                    f"  ② [激进] 直接覆盖(本地改动丢失 · 不可逆):\n"
-                    f"     python3 {Path(__file__).resolve()} --accept-overwrite"
-                    + ("" if channel == "main" else f" --channel {channel}")
-                ),
-                "spec": ("v8.42 update.py 独立 · 治本元工具混运行时 · "
-                         "tarball download + 覆盖 · 本地改动必显式 --accept-overwrite"),
-            })
-            return 1
+        # v8.44.3 deprecation:--accept-overwrite 仍接受但 no-op(向后兼容)
+        accept_overwrite_deprecated = getattr(args, "accept_overwrite", False)
+        deprecation_warning = None
+        if accept_overwrite_deprecated:
+            deprecation_warning = (
+                "--accept-overwrite 已 deprecated(v8.44.3)· 默认就是 backup+overwrite · "
+                "本 flag 仍接受但 no-op · 后续可去掉。如需禁用 backup 用 --no-backup。"
+            )
 
-        # Step 6: 覆盖
+        # Step 6: backup(默认 · --no-backup 跳过)
+        no_backup = getattr(args, "no_backup", False)
+        backup_path: Optional[Path] = None
+        backup_file_count = 0
+        backup_skip_reason = None
+        if no_backup:
+            backup_skip_reason = "--no-backup flag passed · skip backup"
+        else:
+            try:
+                backup_path, backup_file_count = _backup_skill_root(skill_root)
+            except OSError as e:
+                _emit({
+                    "verdict": "FAIL",
+                    "command": "update",
+                    "error": f"backup 失败:{e}",
+                    "channel": channel,
+                    "channel_source": channel_source,
+                    "hint": (
+                        "backup 路径:~/.teamwork/backups/<ts>/ · 检查 disk 空间 / 权限"
+                        " · 或加 --no-backup 跳过(慎用 · 不可恢复)"
+                    ),
+                })
+                return 1
+
+        # Step 7: 覆盖
         copied = _overwrite_skill_files(skill_root, source_skill_dir)
 
         same_version = old_version == new_version
@@ -297,17 +334,26 @@ def cmd_update(args) -> int:
             "modified_overwritten_total": len(modified),
             "new_files_added": new_files[:10] if new_files else [],
             "new_files_added_total": len(new_files),
-            "timestamp": _now_iso(),
+            "backup_path": str(backup_path) if backup_path else None,
+            "backup_file_count": backup_file_count,
+            "backup_skip_reason": backup_skip_reason,
+            "timestamp": _now_ts_compact(),
             "next_hint": (
-                f"✅ 升级 {old_version} → {new_version}{channel_hint} · "
-                f"复制 {copied} 文件(覆盖 {len(modified)} 个本地改动 · "
-                f"新增 {len(new_files)} 个文件)· "
-                f"查 {skill_root}/docs/CHANGELOG.md 顶部新版本段了解变更。"
+                (f"✅ 升级 {old_version} → {new_version}{channel_hint} · "
+                 f"复制 {copied} 文件(覆盖 {len(modified)} 个本地改动 · "
+                 f"新增 {len(new_files)} 个文件)· "
+                 + (f"backup 在 {backup_path}(可对比 diff 决定是否合回本地改动)· "
+                    if backup_path else "(无 backup · --no-backup)· ")
+                 + f"查 {skill_root}/docs/CHANGELOG.md 顶部新版本段了解变更。")
                 if not same_version else
-                f"已在最新版本 {new_version}{channel_hint} · "
-                f"{len(modified)} 个本地改动已覆盖 · {copied} 文件复制" if modified else
-                f"已在最新版本 {new_version}{channel_hint} · 无变化"
+                ((f"已在最新版本 {new_version}{channel_hint} · "
+                  f"{len(modified)} 个本地改动已覆盖 · {copied} 文件复制 · "
+                  + (f"backup 在 {backup_path}" if backup_path else "无 backup"))
+                 if modified else
+                 f"已在最新版本 {new_version}{channel_hint} · 无变化 · "
+                 + (f"backup 在 {backup_path}" if backup_path else "无 backup"))
             ),
+            **({"deprecation_warning": deprecation_warning} if deprecation_warning else {}),
         })
         return 0
     finally:
@@ -319,21 +365,25 @@ def cmd_update(args) -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    """v8.42:独立 argparse(不归 state.py)。"""
+    """v8.42:独立 argparse(不归 state.py)· v8.44.3 重设计 flag。"""
     p = argparse.ArgumentParser(
         prog="update.py",
         description=(
-            "Teamwork skill 自更新(v8.42 独立脚本 · 治本元工具混运行时)。\n"
+            "Teamwork skill 自更新(v8.42 独立脚本 · v8.44.3 默认 backup+overwrite)。\n"
             "下载 GitHub tarball 覆盖 skill_root · 不依赖 git · "
-            "本地改动 → BLOCK 必显式 --accept-overwrite"
+            "默认 backup 到 ~/.teamwork/backups/<ts>/(用户拍板 · 治本 2 次暂停点过度)"
         ),
     )
     p.add_argument("--channel",
                    help=("skill 升级分支 · 默认从 .teamwork_localconfig.json.update_channel 读 · "
                          "fallback main。推荐:稳定环境用 main · 尝鲜用 dev"))
+    p.add_argument("--no-backup", action="store_true",
+                   help=("[v8.44.3] 跳过 backup(默认 backup 到 ~/.teamwork/backups/<ts>/) · "
+                         "慎用 · 本地改动覆盖不可恢复。仅极端用户(不想累积 backup)用"))
+    # v8.44.3:--accept-overwrite 仍接受但 no-op(向后兼容)· 加 deprecation hint
     p.add_argument("--accept-overwrite", action="store_true",
-                   help=("显式承认覆盖本地改动 · 否则有本地改动会 BLOCK。"
-                         "推荐先 cp -r skill_root .local-backup-<ts> 再加此 flag"))
+                   help=("[deprecated v8.44.3] 默认就是 overwrite · 本 flag 接受但 no-op · "
+                         "向后兼容 · 后续可去掉"))
     return p
 
 

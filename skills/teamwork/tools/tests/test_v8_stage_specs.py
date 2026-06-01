@@ -201,7 +201,50 @@ class TestExternalReviewHeteroEnforcement(unittest.TestCase):
         (self.ext / "external-review.md").write_text("review", encoding="utf-8")
         ok, err = self._check()
         self.assertFalse(ok)
-        self.assertIn("异质模型字面", err)
+        self.assertIn("模型族字面", err)  # v8.68:措辞改「已知模型族字面」
+
+    # ── v8.68:host-aware 同源判定(治本 codex-cli host claude 误判) ──
+    def test_v868_codex_host_claude_review_passes(self):
+        """v8.68 治本 SVC-PLATFORM-F060:host=codex-cli + claude external review → 异质 PASS。"""
+        from _v8_stage_specs import _evidence_external_review_artifact  # type: ignore
+        (self.ext / "review-claude.md").write_text(
+            "---\nreview_model: 2.1.158 (Claude Code)\nhost: codex-cli\n---\nbody",
+            encoding="utf-8")
+        state = {"current_stage": "review", "host": "codex-cli",
+                 "stage_review_roles": {"review": ["qa", "architect", "external"]}}
+        ok, err = _evidence_external_review_artifact(state, make_args(feature=str(self.feat)))
+        self.assertTrue(ok, err)
+
+    def test_v868_claude_host_claude_review_blocked(self):
+        """v8.68:host=claude-code + claude review → 同源 FAIL(保留原保护)。"""
+        from _v8_stage_specs import _evidence_external_review_artifact  # type: ignore
+        (self.ext / "review-claude.md").write_text(
+            "---\nreview_model: Claude Code\nhost: claude-code\n---\nbody", encoding="utf-8")
+        state = {"current_stage": "review", "host": "claude-code",
+                 "stage_review_roles": {"review": ["qa", "architect", "external"]}}
+        ok, err = _evidence_external_review_artifact(state, make_args(feature=str(self.feat)))
+        self.assertFalse(ok)
+        self.assertIn("同源", err)
+
+    def test_v868_codex_host_codex_review_blocked(self):
+        """v8.68:host=codex-cli + codex review → 同源 FAIL(codex 评 codex)。"""
+        from _v8_stage_specs import _evidence_external_review_artifact  # type: ignore
+        (self.ext / "review-codex.md").write_text(
+            "---\nreview_model: codex-1.0\nhost: codex-cli\n---\nbody", encoding="utf-8")
+        state = {"current_stage": "review", "host": "codex-cli",
+                 "stage_review_roles": {"review": ["qa", "architect", "external"]}}
+        ok, err = _evidence_external_review_artifact(state, make_args(feature=str(self.feat)))
+        self.assertFalse(ok)
+
+    def test_v868_isolated_blocked_regardless_of_host(self):
+        """v8.68:任意 host + isolated/subagent → 仍 FAIL(机制黑名单 · 无论 host)。"""
+        from _v8_stage_specs import _evidence_external_review_artifact  # type: ignore
+        (self.ext / "review-claude-isolated.md").write_text("x", encoding="utf-8")
+        state = {"current_stage": "review", "host": "codex-cli",
+                 "stage_review_roles": {"review": ["qa", "architect", "external"]}}
+        ok, err = _evidence_external_review_artifact(state, make_args(feature=str(self.feat)))
+        self.assertFalse(ok)
+        self.assertIn("机制", err)
 
     # ── frontmatter review_model 校验 ──
     def test_frontmatter_review_model_blocked_even_if_filename_ok(self):
@@ -253,6 +296,48 @@ class TestExternalReviewHeteroEnforcement(unittest.TestCase):
 
 
 # ─── Bug 2 · _evidence_ac_test_binding 诊断 ─────────────────────
+
+
+class TestYoloExternalRealRun(unittest.TestCase):
+    """v8.67:yolo 严格按流程 · 不内化 —— external 必须真跑(有 v8.55 实跑日志)·
+    防 AI 手写 external-cross-review/*.md 自盖章(治本 WS-002 yolo "mode: yolo-internalized")。"""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix="tw-yolo-ext-")
+        self.feat = Path(self.tmp)  # feat_name = tmp basename(唯一 · 不撞真 ~/.teamwork)
+        (self.feat / "external-cross-review").mkdir(parents=True)
+        (self.feat / "external-cross-review" / "review-codex.md").write_text(
+            "---\nreview_model: codex\n---\n# review", encoding="utf-8")
+        self.log_dir = (Path.home() / ".teamwork" / "external-review-logs"
+                        / self.feat.name)
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+        shutil.rmtree(self.log_dir, ignore_errors=True)
+
+    def _check(self, yolo):
+        from _v8_stage_specs import _evidence_external_review_artifact  # type: ignore
+        state = {"current_stage": "review", "yolo": yolo,
+                 "stage_review_roles": {"review": ["qa", "architect", "external"]}}
+        return _evidence_external_review_artifact(state, make_args(feature=str(self.feat)))
+
+    def test_yolo_no_run_log_fails(self):
+        """yolo + external artifact 但无实跑日志 → FAIL(手写/内化)。"""
+        ok, err = self._check(yolo=True)
+        self.assertFalse(ok)
+        self.assertIn("实跑证据", err)
+
+    def test_yolo_with_run_log_passes(self):
+        """yolo + external artifact + 实跑日志 → PASS。"""
+        self.log_dir.mkdir(parents=True, exist_ok=True)
+        (self.log_dir / "codex-review-20260531T000000Z.log").write_text("ran", encoding="utf-8")
+        ok, err = self._check(yolo=True)
+        self.assertTrue(ok, err)
+
+    def test_non_yolo_no_log_passes(self):
+        """非 yolo 不要求实跑日志(gate 仅 yolo)。"""
+        ok, err = self._check(yolo=False)
+        self.assertTrue(ok, err)
 
 
 class TestAcTestBindingDiagnosis(unittest.TestCase):

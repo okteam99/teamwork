@@ -491,526 +491,6 @@ def cmd_validate(args: argparse.Namespace) -> None:
 # ─── raw-read ──────────────────────────────────────────────────────────
 
 
-# ─── enter-stage / satisfy-gate / complete-stage（P2 写） ─────────────
-
-
-def cmd_enter_stage(args: argparse.Namespace) -> None:
-    path = state_path(args.feature)
-    state = json.loads(path.read_text(encoding="utf-8"))
-    before = json.loads(json.dumps(state))  # deep copy
-
-    target = args.stage
-    current = state.get("current_stage")
-    legal = state.get("legal_next_stages") or compute_legal_next(state, current)
-
-    if target == current:
-        die(3, json.dumps({"verdict": "FAIL",
-                           "error": f"already in stage {target!r} · 不重入",
-                           "current_stage": current}, ensure_ascii=False, indent=2))
-
-    if target not in LEGAL_STAGES:
-        die(3, json.dumps({"verdict": "FAIL",
-                           "error": f"非法 stage: {target!r}",
-                           "legal_stages": sorted(LEGAL_STAGES)}, ensure_ascii=False, indent=2))
-
-    if not args.allow_skip and target not in legal:
-        die(3, json.dumps({
-            "verdict": "FAIL",
-            "error": f"非法转移: {current!r} → {target!r}",
-            "current_stage": current,
-            "legal_next_stages": legal,
-            "hint": "若刻意跳过 / 回炉 · 加 --allow-skip · 自动记 concerns WARN",
-        }, ensure_ascii=False, indent=2))
-
-    # 旧 stage output_satisfied 才能进 completed_stages
-    completed = state.setdefault("completed_stages", [])
-    if current and current not in completed and current not in ("completed",):
-        cur_contract = (state.get("stage_contracts") or {}).get(current) or {}
-        if cur_contract.get("output_satisfied") is True:
-            completed.append(current)
-
-    state["current_stage"] = target
-    state["legal_next_stages"] = compute_legal_next(state, target)
-
-    # 初始化目标 stage_contract 三 gate（不存在则建）
-    contracts = state.setdefault("stage_contracts", {})
-    contract = contracts.setdefault(target, {
-        "input_satisfied": False,
-        "process_satisfied": False,
-        "output_satisfied": False,
-    })
-    contract.setdefault("started_at", now_iso())
-
-    if args.allow_skip and target not in legal:
-        concerns = state.setdefault("concerns", [])
-        concerns.append(f"{now_iso()} WARN enter-stage --allow-skip: {current!r} → {target!r}")
-
-    write_or_die(path, state)
-
-    tracked = ["current_stage", "completed_stages", "legal_next_stages",
-               f"stage_contracts.{target}.started_at"]
-    emit({
-        "verdict": "PASS",
-        "transition": f"{current} → {target}",
-        "updated_fields": diff_dotted(before, state, tracked),
-        "cited_fields": collect_cited(state, args.cite),
-        "next_actions": [
-            f"satisfy-gate --stage {target} --gate input",
-            f"satisfy-gate --stage {target} --gate process",
-            f"satisfy-gate --stage {target} --gate output --auto-commit ...",
-        ],
-    })
-
-
-EXTERNAL_REVIEW_STAGES = ("blueprint", "review")
-
-
-def _check_external_review_artifact(state: dict[str, Any], stage: str) -> str | None:
-    """v7.3.10+P0-154: 治本 SVC-PLATFORM-F043 跳 codex CR case · 物化拦截.
-
-    当 stage ∈ (blueprint, review) AND {stage}_substeps_config.review_roles[] 显式含 external 时 ·
-    校验 {artifact_root}/external-cross-review/ 含 ≥1 *.md 文件.
-
-    Returns: error JSON string if missing, None if PASS / N/A (跳过校验).
-
-    跳过校验场景：
-    - stage 不在 (blueprint, review) → 不适用
-    - {stage}_substeps_config 不存在（未做 Stage 入口实例化）→ 不能判 opt-in/opt-out · 跳
-    - review_roles[] 不含 external → 用户已显式 opt-out · 跳
-    - artifact_root 缺失 → 没有可校验路径 · 跳
-    """
-    if stage not in EXTERNAL_REVIEW_STAGES:
-        return None
-    config = state.get(f"{stage}_substeps_config") or {}
-    if not config:
-        return None
-    review_roles = config.get("review_roles") or []
-    role_names = [r.get("role") if isinstance(r, dict) else r for r in review_roles]
-    if "external" not in role_names:
-        return None
-
-    artifact_root = state.get("artifact_root")
-    if not artifact_root:
-        return None
-
-    ext_dir = Path(artifact_root) / "external-cross-review"
-    if not ext_dir.is_dir():
-        return json.dumps({
-            "verdict": "FAIL",
-            "error": f"review_roles[] 含 external · 但 external-cross-review/ 目录不存在 · codex CR 未跑",
-            "stage": stage,
-            "expected_dir": str(ext_dir),
-            "hint": "跑 codex CR · 产物落 external-cross-review/{stage}-{model}.md · 或显式 opt-out（review_roles[] 移除 external）",
-            "rule": "v7.3.10+P0-154 物化拦截 · 治本 SVC-PLATFORM-F043 跳 codex CR case",
-        }, ensure_ascii=False, indent=2)
-
-    md_files = list(ext_dir.glob("*.md"))
-    if not md_files:
-        return json.dumps({
-            "verdict": "FAIL",
-            "error": f"review_roles[] 含 external · 但 external-cross-review/*.md 不存在 · codex 产物缺失",
-            "stage": stage,
-            "expected_pattern": f"{ext_dir}/*.md",
-            "hint": "跑 codex CR · 产物落 external-cross-review/{stage}-{model}.md · 或显式 opt-out（review_roles[] 移除 external）",
-            "rule": "v7.3.10+P0-154 物化拦截 · 治本 SVC-PLATFORM-F043 跳 codex CR case",
-        }, ensure_ascii=False, indent=2)
-
-    return None
-
-
-def cmd_satisfy_gate(args: argparse.Namespace) -> None:
-    path = state_path(args.feature)
-    state = json.loads(path.read_text(encoding="utf-8"))
-    before = json.loads(json.dumps(state))
-
-    stage = args.stage
-    gate = args.gate  # input / process / output
-
-    if state.get("current_stage") != stage:
-        die(1, json.dumps({"verdict": "FAIL",
-                           "error": f"current_stage={state.get('current_stage')!r} ≠ {stage!r}",
-                           "hint": "先 enter-stage 再 satisfy-gate"}, ensure_ascii=False, indent=2))
-
-    contracts = state.setdefault("stage_contracts", {})
-    contract = contracts.setdefault(stage, {
-        "input_satisfied": False, "process_satisfied": False, "output_satisfied": False,
-    })
-
-    # gate 顺序硬约束
-    if gate == "process" and contract.get("input_satisfied") is not True:
-        die(1, _gate_order_err(stage, gate, "input_satisfied"))
-    if gate == "output" and contract.get("process_satisfied") is not True:
-        die(1, _gate_order_err(stage, gate, "process_satisfied"))
-
-    # v7.3.10+P0-154: external review artifact 物化拦截（治本 SVC-PLATFORM-F043 跳 codex CR）
-    if gate == "output":
-        err = _check_external_review_artifact(state, stage)
-        if err:
-            die(1, err)
-
-    contract[f"{gate}_satisfied"] = True
-
-    if args.artifacts:
-        art_obj = contract.setdefault("artifacts", {})
-        for a in args.artifacts.split(","):
-            a = a.strip()
-            if a:
-                art_obj[a] = "done"
-
-    if args.auto_commit:
-        existing = contract.get("auto_commit")
-        if isinstance(existing, list):
-            existing.append(args.auto_commit)
-        elif existing in (None, ""):
-            contract["auto_commit"] = args.auto_commit
-        else:
-            # 已有单值 + 又来一个 → 自动升数组
-            contract["auto_commit"] = [existing, args.auto_commit]
-
-    write_or_die(path, state)
-
-    tracked = [
-        f"stage_contracts.{stage}.{gate}_satisfied",
-        f"stage_contracts.{stage}.artifacts",
-        f"stage_contracts.{stage}.auto_commit",
-    ]
-    emit({
-        "verdict": "PASS",
-        "stage": stage,
-        "gate": gate,
-        "updated_fields": diff_dotted(before, state, tracked),
-        "cited_fields": collect_cited(state, args.cite),
-        "remaining_gates": [g for g in GATE_NAMES
-                            if contract.get(g) is not True],
-    })
-
-
-def _gate_order_err(stage: str, gate: str, missing: str) -> str:
-    return json.dumps({
-        "verdict": "FAIL",
-        "error": f"stage_contracts.{stage}: 不能 satisfy {gate} · 前置 {missing}=false",
-        "hint": "按 input → process → output 顺序",
-    }, ensure_ascii=False, indent=2)
-
-
-def cmd_complete_stage(args: argparse.Namespace) -> None:
-    """收尾 = output gate satisfied + completed_at + duration_minutes + 准备转移。"""
-    path = state_path(args.feature)
-    state = json.loads(path.read_text(encoding="utf-8"))
-    before = json.loads(json.dumps(state))
-
-    stage = args.stage
-    if state.get("current_stage") != stage:
-        die(1, json.dumps({"verdict": "FAIL",
-                           "error": f"current_stage={state.get('current_stage')!r} ≠ {stage!r}"},
-                          ensure_ascii=False, indent=2))
-
-    contract = (state.get("stage_contracts") or {}).get(stage)
-    if not contract:
-        die(1, json.dumps({"verdict": "FAIL",
-                           "error": f"stage_contracts.{stage} 不存在"},
-                          ensure_ascii=False, indent=2))
-
-    # 三 gate 必须全 true（complete = 终结判定）
-    missing = [g for g in GATE_NAMES if contract.get(g) is not True]
-    if missing:
-        die(1, json.dumps({
-            "verdict": "FAIL",
-            "error": f"stage_contracts.{stage} 三 gate 未全部 satisfied",
-            "missing_gates": missing,
-            "hint": "先 satisfy-gate 把缺的补齐",
-        }, ensure_ascii=False, indent=2))
-
-    if args.auto_commit and not contract.get("auto_commit"):
-        contract["auto_commit"] = args.auto_commit
-
-    completed_at = now_iso()
-    contract["completed_at"] = completed_at
-    started_at = contract.get("started_at")
-    if started_at:
-        try:
-            t0 = datetime.strptime(started_at, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
-            t1 = datetime.strptime(completed_at, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
-            contract["duration_minutes"] = max(0, int((t1 - t0).total_seconds() // 60))
-        except ValueError:
-            pass
-
-    write_or_die(path, state)
-
-    tracked = [
-        f"stage_contracts.{stage}.completed_at",
-        f"stage_contracts.{stage}.duration_minutes",
-        f"stage_contracts.{stage}.auto_commit",
-    ]
-    next_legal = compute_legal_next(state, stage)
-    emit({
-        "verdict": "PASS",
-        "stage": stage,
-        "updated_fields": diff_dotted(before, state, tracked),
-        "cited_fields": collect_cited(state, args.cite),
-        "next_actions": [f"enter-stage --stage {s}" for s in next_legal] or
-                        ["流程结束 · 无后续 stage"],
-    })
-
-
-# ─── ship-* (P3) ──────────────────────────────────────────────────────
-
-
-def _ship_load(args: argparse.Namespace) -> tuple[Path, dict, dict, dict]:
-    """加载 state · 校验 current_stage=ship · 返回 (path, state, before-snapshot, ship-子对象)。"""
-    path = state_path(args.feature)
-    state = json.loads(path.read_text(encoding="utf-8"))
-    if state.get("current_stage") != "ship":
-        die(1, json.dumps({"verdict": "FAIL",
-                           "error": f"current_stage={state.get('current_stage')!r} ≠ 'ship' · 先 enter-stage --stage ship"},
-                          ensure_ascii=False, indent=2))
-    before = json.loads(json.dumps(state))
-    ship = state.setdefault("ship", {})
-    ship.setdefault("started_at", now_iso())
-    return path, state, before, ship
-
-
-def cmd_ship_sanitize(args: argparse.Namespace) -> None:
-    """Step 1：净化记录（不改 phase）。"""
-    path, state, before, ship = _ship_load(args)
-    log = ship.setdefault("sanitize_log", {
-        "residual_commits": [], "cleaned_files": [], "suspicious_files": [],
-    })
-    if args.residual_commits:
-        log["residual_commits"] = json.loads(args.residual_commits)
-    if args.cleaned_files:
-        log["cleaned_files"] = [s.strip() for s in args.cleaned_files.split(",") if s.strip()]
-    if args.suspicious_files:
-        log["suspicious_files"] = json.loads(args.suspicious_files)
-
-    write_or_die(path, state)
-    emit({
-        "verdict": "PASS",
-        "stage": "ship-sanitize",
-        "updated_fields": diff_dotted(before, state, [
-            "ship.sanitize_log.residual_commits",
-            "ship.sanitize_log.cleaned_files",
-            "ship.sanitize_log.suspicious_files",
-        ]),
-        "cited_fields": collect_cited(state, args.cite),
-        "warnings": (["sanitize_log.residual_commits 非空 · PMO 完成报告必须高亮（前序 Stage 漏 commit）"]
-                     if log["residual_commits"] else []) +
-                    (["sanitize_log.suspicious_files 非空 · PMO 完成报告必须列出灰名单 · 不自动处理"]
-                     if log["suspicious_files"] else []),
-    })
-
-
-def cmd_ship_push(args: argparse.Namespace) -> None:
-    """Step 2-3：phase=null → phase=pushed · 必带 5 件套 evidence。"""
-    path, state, before, ship = _ship_load(args)
-    cur_phase = ship.get("phase")
-    # 允许 null → pushed · 也允许 closed_unmerged → pushed（重开 MR 重 push）
-    if cur_phase not in (None, "closed_unmerged"):
-        die(1, _ship_phase_err(cur_phase, "pushed",
-                               "ship-push 仅允许 null → pushed 或 closed_unmerged → pushed"))
-
-    if args.git_host not in SHIP_GIT_HOSTS:
-        die(1, _enum_err("--git-host", args.git_host, SHIP_GIT_HOSTS))
-    if args.mr_creation_method not in SHIP_MR_METHODS:
-        die(1, _enum_err("--mr-creation-method", args.mr_creation_method, SHIP_MR_METHODS))
-    if not args.mr_url and not args.mr_create_url:
-        die(1, json.dumps({"verdict": "FAIL",
-                           "error": "--mr-url 与 --mr-create-url 必至少一个非空"},
-                          ensure_ascii=False, indent=2))
-    if args.mr_creation_method.startswith("cli-") and not args.mr_url:
-        die(1, json.dumps({"verdict": "FAIL",
-                           "error": f"mr_creation_method={args.mr_creation_method} 必带 --mr-url（CLI 实创建）"},
-                          ensure_ascii=False, indent=2))
-    if args.mr_creation_method in {"url-fallback", "unknown-platform"} and not args.mr_create_url:
-        die(1, json.dumps({"verdict": "FAIL",
-                           "error": f"mr_creation_method={args.mr_creation_method} 必带 --mr-create-url（兜底链接）"},
-                          ensure_ascii=False, indent=2))
-
-    ship["phase"] = "pushed"
-    ship["shipped"] = "pushed"
-    ship["feature_head_commit"] = args.feature_head_commit
-    ship["git_host"] = args.git_host
-    ship["mr_creation_method"] = args.mr_creation_method
-    ship["mr_url"] = args.mr_url
-    ship["mr_create_url"] = args.mr_create_url
-    ship["feature_pushed_at"] = args.feature_pushed_at or now_iso()
-
-    write_or_die(path, state)
-    emit({
-        "verdict": "PASS",
-        "stage": "ship-push",
-        "transition": f"{cur_phase} → pushed",
-        "updated_fields": diff_dotted(before, state, [
-            "ship.phase", "ship.shipped", "ship.feature_head_commit",
-            "ship.git_host", "ship.mr_creation_method",
-            "ship.mr_url", "ship.mr_create_url", "ship.feature_pushed_at",
-        ]),
-        "cited_fields": collect_cited(state, args.cite),
-        "next_actions": [
-            "等用户在平台合并 MR · 选 1 后执行 `ship-confirm-merged`",
-            "用户选 3 关闭未合并 → `ship-closed`",
-        ],
-    })
-
-
-def cmd_ship_confirm_merged(args: argparse.Namespace) -> None:
-    """Step 4-8：pushed → merged · 含合并 evidence + 可选 finalize-push 状态。
-
-    🔴 P0-124 治本：必带 merge_commit_hash + merge_detection_method。
-    🔴 P0-156 治本：必须在主工作区运行（非 linked worktree）· 治本 ADMIN-F013 case。
-    """
-    _enforce_main_worktree("ship-confirm-merged")
-    path, state, before, ship = _ship_load(args)
-    if ship.get("phase") != "pushed":
-        die(1, _ship_phase_err(ship.get("phase"), "merged",
-                               "ship-confirm-merged 仅允许 pushed → merged"))
-
-    if args.merge_detection_method not in SHIP_DETECTION_METHODS:
-        die(1, _enum_err("--merge-detection-method", args.merge_detection_method, SHIP_DETECTION_METHODS))
-
-    ship["phase"] = "merged"
-    ship["shipped"] = "merged"
-    ship["merge_commit_hash"] = args.merge_commit_hash
-    ship["merge_detection_method"] = args.merge_detection_method
-    ship["mr_merged_at"] = args.mr_merged_at or now_iso()
-
-    # finalize-push 状态（Step 8 push merge_target）· 二选一可选
-    if args.merge_target_pushed_at:
-        ship["merge_target_pushed_at"] = args.merge_target_pushed_at
-        ship["merge_target_push_failed"] = False
-        ship["merge_target_push_failed_reason"] = None
-    elif args.merge_target_push_failed:
-        if not args.failed_reason or args.failed_reason not in SHIP_FINALIZE_PUSH_REASONS:
-            die(1, _enum_err("--failed-reason", args.failed_reason, SHIP_FINALIZE_PUSH_REASONS))
-        ship["merge_target_pushed_at"] = None
-        ship["merge_target_push_failed"] = True
-        ship["merge_target_push_failed_reason"] = args.failed_reason
-        # 自动追加 concerns
-        concerns = state.setdefault("concerns", [])
-        concerns.append(
-            f"{now_iso()} WARN ship-finalize-push 失败（{args.failed_reason}）→ "
-            f"降级到 feature 分支 push · merge_target 上 state.json 仍为 phase=pushed · "
-            f"用户可手动 cherry-pick 同步状态"
-        )
-
-    warnings = []
-    if args.merge_detection_method == "user-reported":
-        warnings.append("merge_detection_method=user-reported · 用户自报 · 自动 git 校验未通过 · concerns 已加 INFO")
-        concerns = state.setdefault("concerns", [])
-        concerns.append(
-            f"{now_iso()} INFO ship-confirm-merged: user-reported merge_commit={args.merge_commit_hash}"
-        )
-
-    write_or_die(path, state)
-    emit({
-        "verdict": "PASS",
-        "stage": "ship-confirm-merged",
-        "transition": "pushed → merged",
-        "updated_fields": diff_dotted(before, state, [
-            "ship.phase", "ship.shipped", "ship.merge_commit_hash",
-            "ship.merge_detection_method", "ship.mr_merged_at",
-            "ship.merge_target_pushed_at", "ship.merge_target_push_failed",
-            "ship.merge_target_push_failed_reason",
-        ]),
-        "cited_fields": collect_cited(state, args.cite),
-        "warnings": warnings,
-        "next_actions": ["ship-cleanup --status {cleaned|deferred|n_a}"],
-    })
-
-
-def cmd_ship_cleanup(args: argparse.Namespace) -> None:
-    """Step 9：worktree 清理状态记录。
-
-    🔴 P0-124 治本硬门禁：destructive op 前必须 phase=merged + shipped=merged。
-    🔴 P0-156 治本：必须在主工作区运行（非 linked worktree）· 治本 ADMIN-F013 case。
-    """
-    _enforce_main_worktree("ship-cleanup")
-    path, state, before, ship = _ship_load(args)
-    if args.status not in SHIP_CLEANUP_ENUM:
-        die(1, _enum_err("--status", args.status, SHIP_CLEANUP_ENUM))
-
-    # 🔴 hard gate：cleanup 前 phase 必须 merged（worktree=off 时 status=n_a 例外）
-    if args.status == "cleaned":
-        if ship.get("phase") != "merged" or ship.get("shipped") != "merged":
-            die(1, json.dumps({
-                "verdict": "BLOCKED",
-                "error": "ship-cleanup --status cleaned 被拒：合并未确认（治本 P0-124）",
-                "current_ship_phase": ship.get("phase"),
-                "current_ship_shipped": ship.get("shipped"),
-                "hint": "先 `ship-confirm-merged` · 或 worktree=off 时用 --status n_a",
-            }, ensure_ascii=False, indent=2))
-        if not ship.get("merge_commit_hash"):
-            die(1, json.dumps({
-                "verdict": "BLOCKED",
-                "error": "ship-cleanup 被拒：merge_commit_hash 缺失（治本 P0-124）",
-            }, ensure_ascii=False, indent=2))
-
-    ship["worktree_cleanup"] = args.status
-
-    # cleanup=cleaned 时即可视为 Stage 完结（PMO 后续走 enter-stage --stage completed）
-    if args.status == "cleaned":
-        ship["completed_at"] = now_iso()
-
-    write_or_die(path, state)
-    emit({
-        "verdict": "PASS",
-        "stage": "ship-cleanup",
-        "updated_fields": diff_dotted(before, state, [
-            "ship.worktree_cleanup", "ship.completed_at",
-        ]),
-        "cited_fields": collect_cited(state, args.cite),
-        "next_actions": ["satisfy-gate --stage ship --gate output", "complete-stage --stage ship",
-                         "enter-stage --stage completed"]
-        if args.status in ("cleaned", "n_a") else
-        ["待 worktree 清理后再次 ship-cleanup --status cleaned"],
-    })
-
-
-def cmd_ship_closed(args: argparse.Namespace) -> None:
-    """异常段：MR 被关闭未合并 → phase=closed_unmerged。"""
-    path, state, before, ship = _ship_load(args)
-    if ship.get("phase") not in ("pushed", None):
-        die(1, _ship_phase_err(ship.get("phase"), "closed_unmerged",
-                               "ship-closed 仅允许 null/pushed → closed_unmerged"))
-    ship["phase"] = "closed_unmerged"
-    ship["shipped"] = "closed_unmerged" if not args.abandon else "abandoned"
-    if args.abandon:
-        ship["completed_at"] = now_iso()
-    if args.reason:
-        concerns = state.setdefault("concerns", [])
-        concerns.append(f"{now_iso()} INFO ship-closed: {args.reason}")
-
-    write_or_die(path, state)
-    emit({
-        "verdict": "PASS",
-        "stage": "ship-closed",
-        "transition": f"pushed → {'abandoned' if args.abandon else 'closed_unmerged'}",
-        "updated_fields": diff_dotted(before, state, [
-            "ship.phase", "ship.shipped", "ship.completed_at",
-        ]),
-        "cited_fields": collect_cited(state, args.cite),
-        "next_actions": (["enter-stage --stage completed"] if args.abandon else
-                         ["ship-push（重开 MR 重新 push）",
-                          "ship-closed --abandon（彻底放弃 Feature）",
-                          "保持现状 · 用户后续决策"]),
-    })
-
-
-def _ship_phase_err(cur: str | None, target: str, hint: str) -> str:
-    return json.dumps({
-        "verdict": "FAIL",
-        "error": f"ship.phase 非法转移: {cur!r} → {target!r}",
-        "hint": hint,
-    }, ensure_ascii=False, indent=2)
-
-
-def _enum_err(name: str, val: Any, enum: set) -> str:
-    return json.dumps({
-        "verdict": "FAIL",
-        "error": f"{name} 非法值: {val!r} ∉ {sorted(enum)}",
-    }, ensure_ascii=False, indent=2)
-
-
 def cmd_raw_read(args: argparse.Namespace) -> None:
     state = load_state(args.feature)
     from _v8_engine import compute_raw_write_audit
@@ -1089,213 +569,6 @@ def cmd_raw_write(args: argparse.Namespace) -> None:
 # 注:cmd_pm_decision(v7 fossil · 写 stage_contracts.pm_acceptance.decision
 # 顶层位 · v8 规范是 evidence.decision)已物理删除 —— 是 landmine,留着会
 # 让 reader 漂移(治本 ADMIN-F013 case · 详 _v8_stage_specs._pm_decision_value)。
-
-
-def cmd_add_concern(args: argparse.Namespace) -> None:
-    path = state_path(args.feature)
-    state = json.loads(path.read_text(encoding="utf-8"))
-    if args.severity not in CONCERN_SEVERITY:
-        die(1, _enum_err("--severity", args.severity, CONCERN_SEVERITY))
-
-    line = f"{now_iso()} {args.severity} {args.message}"
-    concerns = state.setdefault("concerns", [])
-    if line in concerns:
-        emit({"verdict": "OK", "skipped": "重复 concern · 不重复追加"})
-        return
-    concerns.append(line)
-    # add-concern 不触发 full validate（concerns 本身常用于记 invalid 状态的 audit trail）
-    atomic_write(path, state)
-    emit({
-        "verdict": "PASS",
-        "stage": "add-concern",
-        "appended": line,
-        "concerns_count": len(concerns),
-    })
-
-
-# ─── P4: bug-frontmatter（YAML frontmatter 维护） ─────────────────────
-
-
-def _bug_locate(feature: str, bug_id: str) -> Path:
-    """{feature}/bugfix/BUG-{id}-*.md · id 不区分大小写。"""
-    base = Path(feature) / "bugfix"
-    if not base.exists():
-        die(2, json.dumps({"verdict": "FAIL", "error": f"bugfix dir 不存在: {base}"},
-                          ensure_ascii=False, indent=2))
-    pattern = re.compile(rf"^{re.escape(bug_id)}(-.*)?\.md$", re.IGNORECASE)
-    matches = sorted(p for p in base.iterdir() if p.is_file() and pattern.match(p.name))
-    if not matches:
-        die(2, json.dumps({"verdict": "FAIL",
-                           "error": f"未找到 BUG 文件: {base}/{bug_id}-*.md"},
-                          ensure_ascii=False, indent=2))
-    if len(matches) > 1:
-        die(2, json.dumps({"verdict": "FAIL",
-                           "error": f"BUG id 多重匹配 · 请用全名: {[p.name for p in matches]}"},
-                          ensure_ascii=False, indent=2))
-    return matches[0]
-
-
-def _parse_frontmatter(text: str) -> tuple[dict[str, Any], str]:
-    """简易 YAML frontmatter 解析：仅支持平铺 key: value（值按 JSON 解析失败则当字符串）。"""
-    if not text.startswith("---"):
-        return {}, text
-    parts = text.split("\n---", 2)
-    if len(parts) < 2:
-        return {}, text
-    fm_text = parts[0][3:].lstrip("\n")  # 去掉首 "---\n"
-    body = parts[1].lstrip("\n")
-    fm: dict[str, Any] = {}
-    for line in fm_text.splitlines():
-        if not line.strip() or line.lstrip().startswith("#"):
-            continue
-        if ":" not in line:
-            continue
-        k, _, raw = line.partition(":")
-        k = k.strip()
-        raw = raw.strip()
-        if raw == "" or raw.lower() == "null" or raw == "~":
-            fm[k] = None
-        else:
-            try:
-                fm[k] = json.loads(raw)
-            except json.JSONDecodeError:
-                fm[k] = raw.strip('"').strip("'")
-    return fm, body
-
-
-def _dump_frontmatter(fm: dict[str, Any], body: str) -> str:
-    lines = ["---"]
-    for k, v in fm.items():
-        if v is None:
-            lines.append(f"{k}: null")
-        elif isinstance(v, (str, bool, int, float)):
-            # 字符串若含特殊字符则 JSON 引号
-            if isinstance(v, str) and (":" in v or "#" in v or v.startswith(("[", "{", "&", "*"))):
-                lines.append(f"{k}: {json.dumps(v, ensure_ascii=False)}")
-            else:
-                lines.append(f"{k}: {json.dumps(v, ensure_ascii=False)}")
-        else:
-            lines.append(f"{k}: {json.dumps(v, ensure_ascii=False)}")
-    lines.append("---")
-    lines.append("")
-    return "\n".join(lines) + body
-
-
-def _bug_validate_ship_machine(fm: dict[str, Any]) -> list[str]:
-    """对 BUG-REPORT.md frontmatter 应用与 ship 同形态的状态机校验。"""
-    errors: list[str] = []
-    phase = fm.get("phase")
-    if phase not in {None, "summarized", "shipping", "pushed", "merged", "closed_unmerged", "shipped"}:
-        errors.append(f"frontmatter.phase 非法值: {phase!r}")
-    shipped = fm.get("shipped")
-    if shipped not in {None, "pushed", "merged", "closed_unmerged", "abandoned", "failed", False}:
-        errors.append(f"frontmatter.shipped 非法值: {shipped!r}")
-    if phase in {"merged", "shipped"} or shipped == "merged":
-        for req in ("merge_commit_hash", "mr_merged_at"):
-            if not fm.get(req):
-                errors.append(f"phase=merged/shipped 但 {req} 缺失（治本 P0-124 镜像）")
-    if phase == "pushed" and not fm.get("feature_head_commit"):
-        errors.append("phase=pushed 但 feature_head_commit 缺失")
-    return errors
-
-
-def cmd_bug_frontmatter(args: argparse.Namespace) -> None:
-    path = _bug_locate(args.feature, args.bug_id)
-    text = path.read_text(encoding="utf-8")
-    fm, body = _parse_frontmatter(text)
-    before = dict(fm)
-
-    applied: list[tuple[str, Any]] = []
-    for kv in (args.set or []):
-        if "=" not in kv:
-            die(2, json.dumps({"verdict": "FAIL", "error": f"--set 需 key=val: {kv!r}"},
-                              ensure_ascii=False, indent=2))
-        k, _, raw = kv.partition("=")
-        try:
-            val = json.loads(raw)
-        except json.JSONDecodeError:
-            val = raw
-        fm[k.strip()] = val
-        applied.append((k.strip(), val))
-
-    if args.validate_ship:
-        errs = _bug_validate_ship_machine(fm)
-        if errs:
-            die(1, json.dumps({"verdict": "FAIL", "errors": errs,
-                               "stage": "bug-frontmatter validate"},
-                              ensure_ascii=False, indent=2))
-
-    fm.pop("updated_at", None)  # 移到末尾保持人读直觉
-    fm["updated_at"] = now_iso()
-    new_text = _dump_frontmatter(fm, body)
-    # 原子写
-    fd, tmp = tempfile.mkstemp(prefix=".bug.", suffix=".tmp", dir=str(path.parent))
-    with os.fdopen(fd, "w", encoding="utf-8") as f:
-        f.write(new_text)
-    os.replace(tmp, path)
-
-    diff = {k: v for k, v in fm.items() if before.get(k) != v and k != "updated_at"}
-    emit({
-        "verdict": "PASS",
-        "stage": "bug-frontmatter",
-        "file": str(path),
-        "applied": [{"path": k, "value": v} for k, v in applied],
-        "frontmatter_diff": diff,
-        "validate_ship": bool(args.validate_ship),
-    })
-
-
-# ─── P4: micro-validate ──────────────────────────────────────────────
-
-
-def cmd_micro_validate(args: argparse.Namespace) -> None:
-    """Micro 流程无元数据载体 · 只校验 commit 已合入 origin/{merge_target}。"""
-    cmd = ["git", "merge-base", "--is-ancestor", args.commit, f"origin/{args.merge_target}"]
-    try:
-        result = subprocess.run(cmd, capture_output=True, text=True, cwd=args.cwd or None)
-    except FileNotFoundError:
-        die(2, json.dumps({"verdict": "FAIL", "error": "git not found in PATH"},
-                          ensure_ascii=False, indent=2))
-
-    if result.returncode == 0:
-        emit({
-            "verdict": "PASS",
-            "stage": "micro-validate",
-            "commit": args.commit,
-            "merged_into": f"origin/{args.merge_target}",
-            "evidence": {
-                "command": " ".join(cmd),
-                "exit_code": 0,
-                "checked_at": now_iso(),
-            },
-        })
-        return
-    if result.returncode == 1:
-        emit({
-            "verdict": "BLOCKED",
-            "stage": "micro-validate",
-            "commit": args.commit,
-            "error": f"commit {args.commit} 不在 origin/{args.merge_target} 中",
-            "evidence": {
-                "command": " ".join(cmd),
-                "exit_code": 1,
-                "stderr": result.stderr.strip(),
-                "checked_at": now_iso(),
-            },
-            "hint": "用户尚未在平台合并 / 拉错 merge_target / commit hash 错",
-        })
-        sys.exit(1)
-    # 其他错误（commit 不存在 / fetch 没跑）
-    die(1, json.dumps({
-        "verdict": "FAIL",
-        "stage": "micro-validate",
-        "error": f"git 检测异常 exit {result.returncode}",
-        "stderr": result.stderr.strip(),
-        "hint": "先 `git fetch origin {merge_target}` · 或检查 commit hash",
-    }, ensure_ascii=False, indent=2))
-
-
-# ─── argparse ──────────────────────────────────────────────────────────
 
 
 
@@ -1533,6 +806,27 @@ def _check_prepare_audit(feature_id: str) -> dict:
     }
 
 
+def _is_main_branch(branch: str, repo_cwd: Optional[str] = None) -> bool:
+    """branch 是否是主分支(yolo 硬约束:自动 merge 不得直接进 main)。
+    判定:名字 ∈ {main, master} · 或 == 远端默认分支(origin/HEAD 指向)。"""
+    if not branch:
+        return False
+    b = branch.strip().lower()
+    if b in ("main", "master"):
+        return True
+    try:
+        r = subprocess.run(
+            ["git", "symbolic-ref", "refs/remotes/origin/HEAD"],
+            cwd=repo_cwd, capture_output=True, text=True, timeout=5)
+        if r.returncode == 0 and r.stdout.strip():
+            default = r.stdout.strip().rsplit("/", 1)[-1].lower()  # refs/remotes/origin/main → main
+            if default and default == b:
+                return True
+    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+        pass
+    return False
+
+
 def cmd_init_feature(args: argparse.Namespace) -> None:
     """Create initial state.json · 替代手工 Write。"""
     # Feature Planning / 问题排查 不进状态机 · 拒绝
@@ -1550,6 +844,20 @@ def cmd_init_feature(args: argparse.Namespace) -> None:
                 if args.flow_type == "Feature Planning"
                 else "FLOWS.md § 问题排查"
             ),
+        }, ensure_ascii=False, indent=2))
+
+    # v8.65:yolo 可携带 merge_target 分支(--yolo <branch>)· 覆盖 --merge-target / localconfig 默认
+    # nargs='?':args.yolo = None(未传)/ True(--yolo 无值)/ str(--yolo <branch>)
+    yolo_branch = args.yolo if isinstance(args.yolo, str) and args.yolo.strip() else None
+    yolo_enabled = args.yolo is not None
+    merge_target = yolo_branch or args.merge_target
+    if not merge_target:
+        die(2, json.dumps({
+            "verdict": "FAIL",
+            "action": "init-feature",
+            "error": "缺 merge_target",
+            "hint": ("传 --merge-target <branch> · 或 yolo 用 --yolo <branch>"
+                     "(该分支即本需求 merge_target · 覆盖 localconfig 默认)"),
         }, ensure_ascii=False, indent=2))
 
     feature_dir = Path(args.feature)
@@ -1579,6 +887,24 @@ def cmd_init_feature(args: argparse.Namespace) -> None:
             "rule": "v8.14 prepare-check audit 门禁 · 治本 PTR-F054 AI 跳 prepare case",
             "bypass": f"调试 / migration · export {PREPARE_CHECK_BYPASS_ENV}=1",
             "spec": "docs/prepare.md § 0",
+        }, ensure_ascii=False, indent=2))
+
+    # v8.63:yolo 模式硬约束 —— merge_target 必须非主分支(自动 merge 不得直接进 main)
+    # v8.65:merge_target 可来自 --yolo <branch>(已 resolve 进 merge_target)
+    if yolo_enabled and _is_main_branch(merge_target):
+        die(2, json.dumps({
+            "verdict": "FAIL",
+            "action": "init-feature",
+            "error": (
+                f"yolo 模式禁止 merge_target 是主分支({merge_target!r})—— "
+                f"yolo 会**无人 review 自动 merge MR** · 不得直接合进 main/master/远端默认分支"
+            ),
+            "hint": (
+                "yolo 必须合到**非主分支**(如 dev / staging / integration)· 再由人工 gate "
+                "该分支 → main 的提升。改 --merge-target <非主分支> 重跑;若确需合 main · "
+                "别用 --yolo(改 --auto-mode · 保留 MR merge 人工 stop)。"
+            ),
+            "rule": "v8.63 yolo 硬约束 · 自动 merge 不进 main(防 AI 错误/幻觉特性直接进 main)",
         }, ensure_ascii=False, indent=2))
 
     # v8.15:admission consistency 校验(治本 F001 GCP gateway case · AI 选错 flow_type)
@@ -1657,22 +983,24 @@ def cmd_init_feature(args: argparse.Namespace) -> None:
         "host_history": ([{"host": args.host, "at": now_iso(), "source": "init-feature"}]
                           if args.host else []),
         "current_stage": initial_stage,
-        "merge_target": args.merge_target,
+        "merge_target": merge_target,
         "worktree": {
             "strategy": args.worktree_mode,
             "branch": args.branch,
             "path": args.worktree_path,
-            "base_branch": f"origin/{args.merge_target}",
+            "base_branch": f"origin/{merge_target}",
             "created_at": now_iso(),
         },
         "environment_config": {
             "worktree_mode": args.worktree_mode,
             "branch": args.branch,
-            "merge_target": args.merge_target,
-            "base": f"origin/{args.merge_target}",
+            "merge_target": merge_target,
+            "base": f"origin/{merge_target}",
             "executed_at": now_iso(),
         },
-        "auto_mode": args.auto_mode,
+        # v8.63:yolo implies auto_mode(完全自动是 auto_mode 的超集)· v8.65:yolo_enabled(nargs='?')
+        "auto_mode": args.auto_mode or yolo_enabled,
+        "yolo": yolo_enabled,
         # v8.15:admission MISMATCH WARN(audit consistency=MISMATCH 时 init-feature 留痕)
         "concerns": [admission_warning] if admission_warning else [],
         "review_round": 0,
@@ -1756,7 +1084,7 @@ def cmd_init_feature(args: argparse.Namespace) -> None:
                 ),
                 "hint": (
                     f"按 triage emit 的 pause_for_user 指引:\n"
-                    f"  1. git worktree add -b {args.branch} {wt_real} origin/{args.merge_target}\n"
+                    f"  1. git worktree add -b {args.branch} {wt_real} origin/{merge_target}\n"
                     f"  2. cd {wt_real}\n"
                     f"  3. 重跑 state.py init-feature"
                 ),
@@ -2129,10 +1457,18 @@ def cmd_prepare_check(args: argparse.Namespace) -> None:
     payload["reviewer_thinking_hint"] = (
         "🔴 PMO emit prepare 暂停点 「建议评审角色」段 · 必基于此 checklist 4 问思考 + "
         "给出加减预估 · 不要直接抄 stage_chain_preview 默认值。"
+        "⚠️ 加减须有**本 Feature 特定理由** · 不是套路化删角色 —— 尤其 **pl 默认保留**"
+        "(产品方向视角)·『无 ROADMAP』**不是**去 pl 的理由(ROADMAP=规划层 · 与 PRD 产品方向"
+        "评审无关)· 仅纯内部/技术重构无产品面才去 pl。"
         "case 实证(F-Bv2-8 · 2026-05-25):PMO 第一次直接抄默认 · 经用户提示后二次思考才识别 "
-        "goal 去 pl(无 ROADMAP 拆分)/ ui_design 跳过(后端先行)/ blueprint 强 external"
-        "(跨 5 module 触发点)等调整。"
+        "ui_design 跳过(后端先行)/ blueprint 强 external(跨 5 module 触发点)等调整。"
     )
+
+    # v8.44.4:host-aware 输出风格 hint(治本 case 2026-05-28 codex-cli 渲染 markdown 表格失败)
+    # case:AI emit markdown 表格 · codex-cli terminal 显示成 raw 字符 · 用户提示后才改 box-drawing
+    # 治本:prepare-check 物化 host 检测 · emit 风格 hint · PMO 看 hint 决定默认表达方式
+    detected_host, host_source = _detect_host(None)  # prepare-check 无 feature · 仅看 audit/env
+    payload["output_style_hint"] = _build_output_style_hint(detected_host)
 
     # v8.14 + v8.15:写 prepare_check_audit jsonl(init-feature 门禁读这个)
     # 治本 PTR-F054:prepare-check 物化但 AI 不调用 → 下游门禁兜底
@@ -2160,9 +1496,14 @@ def cmd_prepare_check(args: argparse.Namespace) -> None:
 # 用户决策:Option A(checklist 提示 · 不物化 JSON 必传)· 核心 4 问(不过载)
 REVIEWER_THINKING_CHECKLIST = [
     {
-        "question": "本 Feature 是否涉及 ROADMAP 拆分 / Feature 优先级决策?",
-        "if_no": "goal stage 去 pl(无 ROADMAP 决策 · PL 评审价值低)",
-        "if_yes": "goal stage 保留 pl",
+        "question": ("本 Feature 有无产品方向影响?(业务目标 / 用户可见行为 / 商业模式 / "
+                     "跨项目一致性 / 变更级联 Level≥2 —— 任一即『有』)"),
+        "if_yes": ("goal **保留 pl**(默认 · 常态)· PL 审产品方向对齐 —— "
+                   "telos:防『做了一堆 Feature 但偏离产品方向』"),
+        "if_no": ("仅『纯内部 / 技术重构 · 零产品面 · 零跨项目 · 变更级联 Level-1 局部』"
+                  "才去 pl(少数例外)· ⚠️ **别拿『无 ROADMAP』当借口去 pl** —— "
+                  "ROADMAP 是规划层产物 · 与 PL 的 PRD 评审价值(产品方向)无关 · "
+                  "二者不是一回事"),
     },
     {
         "question": "本 Feature 是否含 UI 改动?",
@@ -2180,6 +1521,178 @@ REVIEWER_THINKING_CHECKLIST = [
         "if_no": "blueprint architect 默认即可",
     },
 ]
+
+
+# v8.44.4:host-aware 输出风格 hint(治本 case 2026-05-28 codex-cli 渲染 markdown 表格失败)
+# - claude-code:rich markdown 渲染 OK · 表格 / 加粗 / emoji 都好
+# - codex-cli / gemini-cli / unknown:terminal renderer 对复杂 markdown 表格容易破
+#   推荐 box-drawing(┌─┬─┐│├─┤└─┘)绘制表格 / 纯文本列表 · 避免 raw 字符显示
+HOST_OUTPUT_STYLE_PROFILES = {
+    "claude-code": {
+        "style_id": "markdown_ok",
+        "description": "Rich markdown 渲染 OK · 表格 / 加粗 / emoji / code block 都好",
+        "table_format": "markdown",  # | col | col | + |---|---|
+        "list_format": "markdown",
+        "emphasis": "markdown",      # **粗** / *斜* / `code`
+        "emoji_safe": True,
+    },
+    "codex-cli": {
+        "style_id": "box_drawing_or_plain",
+        "description": ("Terminal renderer 对复杂 markdown 表格容易破(raw 字符显示)· "
+                        "推荐 box-drawing(┌─┬─┐│├─┤└─┘)绘制表格 / 纯文本 key: value 列表"),
+        "table_format": "box_drawing",  # ┌─┬─┐│├─┤└─┘
+        "list_format": "plain",         # "- " / "1. " · 不嵌套粗体
+        "emphasis": "plain",            # 不用 ** 加粗 · 改用 "🔴 " 前缀 / 大写 / 缩进
+        "emoji_safe": True,             # emoji 可用(case 实证)
+    },
+    "gemini-cli": {
+        "style_id": "box_drawing_or_plain",  # 保守同 codex-cli
+        "description": "未实测 · 保守用 box-drawing(同 codex-cli profile)",
+        "table_format": "box_drawing",
+        "list_format": "plain",
+        "emphasis": "plain",
+        "emoji_safe": True,
+    },
+    "unknown": {
+        "style_id": "box_drawing_or_plain",  # 默认保守
+        "description": "host 未知 · 保守用 box-drawing(最大兼容)",
+        "table_format": "box_drawing",
+        "list_format": "plain",
+        "emphasis": "plain",
+        "emoji_safe": True,
+    },
+}
+
+
+def _build_output_style_hint(host: Optional[str]) -> dict:
+    """v8.44.4:按 host 返回输出风格 hint dict · PMO emit 暂停点时按此风格。
+
+    返:
+      {host, style_id, description, table_format, list_format, emphasis, emoji_safe, rationale}
+
+    PMO 看 hint 决定:
+    - codex-cli host → 表格用 box-drawing · 不用 markdown · 避免 raw 字符显示
+    - claude-code host → markdown 表格 OK · 用 markdown 更紧凑
+    """
+    h = host or "unknown"
+    profile = HOST_OUTPUT_STYLE_PROFILES.get(h, HOST_OUTPUT_STYLE_PROFILES["unknown"])
+    return {
+        "host": h,
+        "style_id": profile["style_id"],
+        "description": profile["description"],
+        "table_format": profile["table_format"],
+        "list_format": profile["list_format"],
+        "emphasis": profile["emphasis"],
+        "emoji_safe": profile["emoji_safe"],
+        "rationale": (
+            "treat host 渲染能力为客观信号 · prepare-check 物化检测 + emit hint · "
+            "PMO 按 hint 选默认表达方式 · 避免每次被用户提示后才改"
+            "(治本 case 2026-05-28 codex-cli markdown 表格失败)"
+        ),
+    }
+
+
+# v8.46 C:Feature Planning 物化入口(治本未物化漏洞 · 用户洞察 2026-05-28)
+# 根因:Feature Planning 不进状态机 · 无 state.py 兜底 · PRODUCT-OVERVIEW-INTEGRATION.md / feature-planning.md
+# 纯靠 AI 自觉读 → AI 没读就不按规范(不维护规划状态表 / 草稿态误影响下游)。
+# planning-check 不进状态机(不写 state.json)· 纯 emit checklist + 必读规范 · 物化「你必须想这件事」。
+PLANNING_CHECKLIST = [
+    {"item": "🔴 拆 BL/WS 前调研实际代码现状:每个候选 BL 核验「已做什么 / 真缺口在哪」· 反映真实完成度(不把已完成列 todo · 不把有脚手架的当 greenfield)· decisive 前提(数据是否真入库 / 能力是否真生效)核验实际代码 · 不轻信 Explore/sub-agent 摘要 · 🔴 需 live 数据(查 DB/log)先读 project-specs/TROUBLESHOOTING.md 拿连法,别凭 .env/启动脚本瞎试",
+     "spec": "feature-planning.md §2 Step 1"},
+    {"item": "范围判定:工作区级(改 teamwork-space.md + 多 PROJECT.md)vs 子项目级(单 PROJECT.md + ROADMAP.md + sitemap.md)",
+     "spec": "feature-planning.md §2 Step 2"},
+    {"item": "核心产出 WS(product-overview/workstream/WS-NN.md · 承接 1+ 执行线 · 拆一组 feature)· 0-1 时含业务架构与产品规划.md(愿景+执行线列表)/ sitemap · 🔴 不出代码(R6)· 不进 stage 链",
+     "spec": "feature-planning.md §1 + templates/workstream.md"},
+    {"item": "WS 拆出的 feature 写入 ROADMAP(BL-NNN · 关联 WS)· feature 全写入 = WS ✅ 规划完成 · 每个 BL 后续用户拍板走 prepare 启动 Feature",
+     "spec": "conventions.md §4 + prepare.md §5"},
+    {"item": "🔴 规划完成必 emit R5 暂停点问用户是否提交 push(WS + ROADMAP 登记是未提交工作树改动 · 不擅自 commit 也不放任悬着)· 主工作区直推或开 MR · 不走 ship 流程",
+     "spec": "feature-planning.md §2 Step 8"},
+]
+
+
+def cmd_planning_check(args: argparse.Namespace) -> None:
+    """v8.46:Feature Planning 物化入口 · emit 规划 checklist + 必读规范(不进状态机)。
+
+    治本 Feature Planning 未物化漏洞:规划路径无 stage 兜底 · PRODUCT-OVERVIEW-INTEGRATION /
+    feature-planning 纯靠 AI 自觉读。本命令物化"你必须想这件事"(像 prepare-check)·
+    检测 product-overview/ 存在 → emit 规划状态机 + 必读 · 不存在 → 仍 emit 基础 checklist。
+    """
+    # project_root:--project-root 显式 · 否则 find_project_root(cwd)
+    project_root = None
+    if getattr(args, "project_root", None):
+        project_root = Path(args.project_root).expanduser().resolve()
+    else:
+        try:
+            sys.path.insert(0, str(Path(__file__).resolve().parent))
+            from bootstrap import find_project_root
+            project_root = find_project_root(Path.cwd())
+        except Exception:
+            project_root = Path.cwd()
+
+    po_dir = project_root / "product-overview"
+    po_exists = po_dir.is_dir()
+
+    # v8.48:PRODUCT-OVERVIEW-INTEGRATION.md 是产品规划权威 · 总 must_read
+    #   (无 po 时学怎么冷启动初创 · 有 po 时学状态管理 + 与 teamwork-space 派生关系)
+    must_read = ["PRODUCT-OVERVIEW-INTEGRATION.md", "docs/feature-planning.md"]
+
+    payload = {
+        "verdict": "OK",
+        "command": "planning-check",
+        "project_root": str(project_root),
+        "product_overview_exists": po_exists,
+        "must_read": must_read,
+        "entry_criteria": {
+            "keyword": "规划 / 拆 roadmap / 路线图 / 全景 / 商业模式调整 / 做电商 / 做 SaaS",
+            "complexity_force_upgrade": (
+                "关键词命中 Feature/敏捷需求/Micro 时 · 命中任一强制升 Feature Planning:"
+                "跨仓库联动(≥2)/ 数据模型重构 / 老需求架构性废弃 / 影响 ≥2 BL / 方向级业务变更"
+            ),
+        },
+        "planning_checklist": PLANNING_CHECKLIST,
+        "planning_order": (
+            "🔴 权威链路(详 SKILL.md § teamwork 业务流程架构):业务架构与产品规划(愿景+执行线列表)"
+            "→ ✅确认派生 teamwork-space.md → WS(workstream/ · 承接 1+ 执行线 · 拆一组 feature)"
+            "→ feature 写入 ROADMAP(BL · 关联 WS · 全写入=WS✅规划完成)→ 用户拍板 BL → prepare+init-feature → F。"
+            "teamwork-space.md **不是** Feature Planning 产出 · 由 product-overview「✅ 已确认」内容派生"
+        ),
+        "key_constraints": [
+            "🔴 不进状态机:init-feature --flow-type 'Feature Planning' 会被 reject",
+            "🔴 不出代码(R6 红线)· 产出仅项目级文档",
+            "BL-NNN 在规划期分配 · 不是 Feature ID(无 PRD/TC/TECH)",
+        ],
+        "next_hint": (
+            f"先读 {' + '.join(must_read)} · 按 checklist 在主对话执行 Feature Planning"
+            f"(不进状态机 · PMO 直接做)· 完成后拆出的 BL 用户拍板再走 prepare 启动 Feature"
+        ),
+    }
+
+    if po_exists:
+        # 项目有 product-overview/ → emit 规划状态机(治本"草稿态误影响下游")
+        payload["planning_state_machine"] = {
+            "states": ["📝 草稿", "🔄 讨论中", "⏸️ 待确认", "✅ 已确认"],
+            "downstream_rule": (
+                "🔴 仅「✅ 已确认」内容才影响 teamwork-space.md / 下游执行 · "
+                "草稿/讨论中/待确认 都不更新 teamwork-space.md"
+            ),
+            "required_tables": [
+                "每份 product-overview 文档头部:规划状态表(文档状态 / 最近更新 / 待决议题)",
+                "文档末尾:规划议题追踪表(编号 / 议题 / 状态 / 结论 / 影响章节 / 日期)",
+            ],
+        }
+        payload["product_overview_hint"] = (
+            f"本项目有 product-overview/({po_dir})· 规划必维护规划状态表 + 议题追踪 · "
+            f"详 PRODUCT-OVERVIEW-INTEGRATION.md(加载规则 + 状态管理 + 与 teamwork-space 关系)"
+        )
+    else:
+        # v8.48:无 product-overview → 产品规划优先(不再说"可直接拆 ROADMAP" · 那把上游当 optional)
+        payload["product_overview_hint"] = (
+            f"本项目无 product-overview/ · 🔴 冷启动权威顺序 = 产品规划优先:先建 product-overview"
+            f"(PL 引导模式 · 产品定位/业务架构/执行手册 · 见 PRODUCT-OVERVIEW-INTEGRATION.md 建议章节 + 裁剪规则)"
+            f"→ ✅确认派生 teamwork-space.md → 再拆 ROADMAP。单 Feature 极简项目用户可拍板跳过 · 直接拆 ROADMAP"
+        )
+
+    emit(payload)
 
 
 def _validate_admission_judgment(args) -> dict:
@@ -2424,6 +1937,30 @@ def cmd_change_review_roles(args: argparse.Namespace) -> None:
         }, ensure_ascii=False, indent=2))
 
     before = review_roles[args.stage][:]
+
+    # v8.66:yolo 去 external 评审 = 拆无人值守唯一安全网 → 默认禁止(非必要不得去)
+    # 治本 case(WS-002 yolo):AI 把 yolo 当"简化/提速" · change-review-roles 去 goal/blueprint
+    # external 美其名"集中到 review stage" —— 无人值守下这是拆掉唯一跨模型把关 · 反了。
+    if (state.get("yolo") and "external" in before and "external" not in roles_list
+            and not getattr(args, "accept_external_removal", False)):
+        die(2, json.dumps({
+            "verdict": "FAIL",
+            "command": "change-review-roles",
+            "error": (
+                f"yolo 模式禁止从 {args.stage} 去掉 external 异质模型评审 —— "
+                f"无人值守下 external 是**唯一安全网** · 非必要不得去"
+            ),
+            "hint": (
+                "🔴 yolo 不是简化/提速 · 是无人值守下**更严**的自动把关:\n"
+                "  ① 优先:别去 external · 让 external 评审照常跑(CLI 真不可用先重试 / 修环境)\n"
+                "  ② 仅当 external CLI 客观不可用(未装 / 网络死 · 已重试失败)才加 "
+                "--accept-external-removal --reason '<具体技术原因 + 重试失败证据>'\n"
+                "  🔴 不得以「集中到 review 代码 stage」「效率」「价值低」为由去 external "
+                "(= 擅自简化 · 违 yolo 加重审核原则)"
+            ),
+            "rule": "v8.66 yolo 加重审核 · 非必要不得去 external(SKILL.md § yolo)",
+        }, ensure_ascii=False, indent=2))
+
     if before == roles_list:
         emit({
             "verdict": "NOOP",
@@ -2444,6 +1981,13 @@ def cmd_change_review_roles(args: argparse.Namespace) -> None:
         "adjusted_via": "change-review-roles",
     }
     state.setdefault("stage_review_roles_adjustments", []).append(audit_entry)
+
+    # v8.66:yolo 去 external(已 --accept-external-removal 放行)→ concern WARN 留痕(retro 复盘拆安全网)
+    if state.get("yolo") and "external" in before and "external" not in roles_list:
+        state.setdefault("concerns", []).append(
+            f"{now_iso()} WARN yolo 去 external@{args.stage}(无人值守拆唯一跨模型安全网)· "
+            f"reason: {args.reason}"
+        )
 
     atomic_write(state_file, state)
 
@@ -2532,7 +2076,7 @@ EXTERNAL_STAGE_TO_PROFILE = {
     "review": {"codex": "reviewer.toml", "claude": "reviewer.md"},
 }
 
-EXTERNAL_REVIEW_TIMEOUT_SEC = 300  # codex review 通常 30s-3min · 给 5min buffer
+EXTERNAL_REVIEW_TIMEOUT_SEC = 600  # v8.55:5min→10min(用户 case codex 偶尔卡 / 长 review · 给足 buffer)
 
 
 def _detect_cli_version(cli_name: str) -> str:
@@ -2645,12 +2189,16 @@ def _build_codex_prompt(stage: str, feature_dir_rel: str, commit: str,
     elif stage == "review":
         return (
             f"You are an external code reviewer (codex / GPT) providing heterogeneous "
-            f"perspective. Review code changes at commit `{commit}` (diff against base "
-            f"branch `{base}`) in `{feature_dir_rel}/`. "
-            f"Use `git diff {base}..{commit} -- {feature_dir_rel}` to inspect changes. "
-            f"Focus: correctness, security, performance, edge cases. "
+            f"perspective. Review the FULL code changes this feature introduces vs base "
+            f"branch `{base}`. Run `git diff {base}...{commit}` (PR-style; fall back to "
+            f"`git show {commit}` if the base ref is unavailable) to inspect the complete "
+            f"diff across ALL changed files —— 🔴 the implementation lives OUTSIDE "
+            f"`{feature_dir_rel}/`(that folder is only Feature docs)· do NOT restrict the "
+            f"review to it. "
+            f"Focus: correctness, security, performance, edge cases, regressions. "
             f"Profile reference: codex-agents/{profile_filename}. "
-            f"Output: YAML frontmatter + findings body with file:line cite."
+            f"Output: YAML frontmatter (perspective/target/files_read/findings) + findings "
+            f"body with file:line cite. End with verdict APPROVE or NEEDS_REVISION."
         )
     # 兜底(其他 stage 走 prompt 模式)
     return (
@@ -2659,25 +2207,62 @@ def _build_codex_prompt(stage: str, feature_dir_rel: str, commit: str,
     )
 
 
+def _log_external_run(feature_dir: Optional[Path], label: str, cmd: list,
+                      cwd: str, rc, stdout, stderr, dur_sec: float) -> Optional[str]:
+    """v8.55:默认把 external review(codex/claude)执行过程写日志 ·
+    方便排查"卡住 / 跑不起来"(看到 codex 升级提示 / 鉴权失败 / 网络 / 超时前的部分输出)。
+
+    落 `~/.teamwork/external-review-logs/<feature_name>/<label>-<ts>.log`(出仓 · 不污染 ship ·
+    与 host_audit / prepare_check_audit 同处)· 含 cmd/rc/耗时/stdout/stderr。
+    写失败或 feature_dir 缺失 → 返 None(绝不阻塞 review)。
+    """
+    if feature_dir is None:
+        return None
+
+    def _s(x):
+        if isinstance(x, bytes):
+            return x.decode("utf-8", "replace")
+        return x if isinstance(x, str) else ("" if x is None else str(x))
+
+    try:
+        feat_name = Path(feature_dir).name or "unknown"
+        log_dir = Path.home() / ".teamwork" / "external-review-logs" / feat_name
+        log_dir.mkdir(parents=True, exist_ok=True)
+        ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        log_path = log_dir / f"{label}-{ts}.log"
+        cmd_disp = " ".join(
+            (a[:800] + "…<truncated>") if isinstance(a, str) and len(a) > 800 else str(a)
+            for a in cmd
+        )
+        body = (
+            f"# external-review 执行日志 · {label} · {ts}\n"
+            f"returncode: {rc}\n"
+            f"duration_sec: {dur_sec:.1f}\n"
+            f"timeout_sec: {EXTERNAL_REVIEW_TIMEOUT_SEC}\n"
+            f"cwd: {cwd}\n"
+            f"cmd: {cmd_disp}\n\n"
+            f"===== STDOUT =====\n{_s(stdout)}\n\n"
+            f"===== STDERR =====\n{_s(stderr)}\n"
+        )
+        log_path.write_text(body, encoding="utf-8")
+        return str(log_path)
+    except OSError:
+        return None
+
+
 def _run_codex_review(stage: str, commit: str, base: str, title: str,
                       profile_filename: str, feature_dir: Path, cwd: str,
                       codex_model: Optional[str] = None) -> tuple[int, str, str]:
     """跑 codex CLI 评审 · 返 (returncode, stdout, stderr)。
 
-    v8.26 设计:按 stage 选 codex 子命令(各司其职 · 用户洞察):
-    - **review stage(代码 diff)** → `codex review --commit X --title Z --config "model=..."`
-      · 用 codex review 子命令(专业 diff review · 内置 review prompt 优化)
-      · 只传 --commit(避开 --commit/--base/--uncommitted 三选一互斥)
-      · 不带 [PROMPT](避开 [PROMPT] 与 review 对象 flag 的新版互斥)
-    - **goal / blueprint stage(文档 review)** → `codex exec --config "model=..." [PROMPT]`
-      · 用 codex exec 通用 agent(prompt 自描述 Read PRD/TC/TECH)
-      · review 子命令是 diff-only · 无法 review markdown 文件
-
-    演进:
-    - v8.20 codex review --commit + --base + --title(--commit/--base 互斥)→ FAIL
-    - v8.23 codex review --base + --title + [PROMPT](--base/[PROMPT] 互斥)→ FAIL
-    - v8.25 全 codex exec [PROMPT](统一但 review stage 损失专业 prompt)→ work but suboptimal
-    - v8.26 按 stage 分(review→codex review · goal/blueprint→codex exec)→ 各司其职
+    v8.59(用户 case · 本地实测):**全 stage 统一 `codex exec [PROMPT]`**。
+    治本 review stage `codex review` 子命令 headless 卡死 —— 本地实测
+    `codex review --commit X --title Y`(stdin=DEVNULL)跑满 220s 产 **0 字节 stdout**
+    (超时 · exit 124)· 与用户 AON SVC-PLATFORM-F057 现象一致(goal/blueprint 走 exec
+    早成功 · 唯独 review 走 codex review 持续超时)。codex exec 是稳定 headless 路径
+    (goal/blueprint 已验证)· review 对象差异(代码 diff vs 文档)全由
+    `_build_codex_prompt` 内置 prompt 描述。
+    (codex review↔exec 反复横跳演进史见 docs/CHANGELOG.md)
     """
     # 算 feature_dir 相对 cwd · 让 prompt 用相对路径(codex 在 cwd=git root 跑)
     try:
@@ -2688,33 +2273,39 @@ def _run_codex_review(stage: str, commit: str, base: str, title: str,
     # v8.29:codex_model 非空才传 --config model=...(治本 ChatGPT 订阅 case · 默认模型限制)
     model_args = ["--config", f"model={codex_model}"] if codex_model else []
 
-    if stage == "review":
-        # ── 代码 diff review · codex review 子命令(专业默认 prompt · 不带 [PROMPT]) ──
-        # 只传 --commit(精确)· 不传 --base 避免 --commit/--base 互斥
-        # 不传 [PROMPT] 避免 [PROMPT] 与 review 对象 flag 新版互斥
-        cmd = ["codex", "review",
-               "--commit", commit,
-               "--title", title,
-               *model_args]
-    else:
-        # ── 文档 review(goal / blueprint)· codex exec [PROMPT] ──
-        body_prompt = _build_codex_prompt(
-            stage, feature_dir_rel, commit, base, profile_filename)
-        # title 信息嵌进 PROMPT 顶部(codex exec 没 --title flag)
-        prompt = f"[Review title: {title}]\n\n{body_prompt}"
-        cmd = ["codex", "exec", *model_args, prompt]
+    # v8.59:统一 codex exec [PROMPT] —— review 对象差异由 _build_codex_prompt 描述
+    # (删 stage==review 的 codex review 子命令分支 · 它 headless 卡死)
+    body_prompt = _build_codex_prompt(
+        stage, feature_dir_rel, commit, base, profile_filename)
+    # title 信息嵌进 PROMPT 顶部(codex exec 没 --title flag)
+    prompt = f"[Review title: {title}]\n\n{body_prompt}"
+    cmd = ["codex", "exec", *model_args, prompt]
 
+    t0 = datetime.now(timezone.utc)
     try:
         r = subprocess.run(cmd, capture_output=True, text=True,
-                           timeout=EXTERNAL_REVIEW_TIMEOUT_SEC, cwd=cwd)
+                           timeout=EXTERNAL_REVIEW_TIMEOUT_SEC, cwd=cwd,
+                           stdin=subprocess.DEVNULL)  # v8.55:闭 stdin · 防 codex 交互/升级提示等输入卡住
+        dur = (datetime.now(timezone.utc) - t0).total_seconds()
+        _log_external_run(feature_dir, f"codex-{stage}", cmd, cwd,
+                          r.returncode, r.stdout, r.stderr, dur)
         return r.returncode, r.stdout, r.stderr
-    except subprocess.TimeoutExpired:
-        return 124, "", f"codex 超时({EXTERNAL_REVIEW_TIMEOUT_SEC}s)"
+    except subprocess.TimeoutExpired as e:
+        dur = (datetime.now(timezone.utc) - t0).total_seconds()
+        log_path = _log_external_run(feature_dir, f"codex-{stage}", cmd, cwd,
+                                     "TIMEOUT", e.stdout, e.stderr, dur)
+        tail = f" · 见日志 {log_path}(看是否 codex 升级提示/鉴权/网络卡住)" if log_path else ""
+        return 124, "", f"codex 超时({EXTERNAL_REVIEW_TIMEOUT_SEC}s){tail}"
     except (FileNotFoundError, OSError) as e:
-        return 127, "", f"codex CLI 不可用:{e}"
+        dur = (datetime.now(timezone.utc) - t0).total_seconds()
+        log_path = _log_external_run(feature_dir, f"codex-{stage}", cmd, cwd,
+                                     "ERROR", "", str(e), dur)
+        tail = f" · 见日志 {log_path}" if log_path else ""
+        return 127, "", f"codex CLI 不可用:{e}{tail}"
 
 
-def _run_claude_review(prompt_text: str, model_name: str = "claude-sonnet-4-6"
+def _run_claude_review(prompt_text: str, model_name: str = "claude-sonnet-4-6",
+                       feature_dir: Optional[Path] = None, stage: str = "review"
                        ) -> tuple[int, str, str]:
     """跑 claude -p <prompt_argv> --output-format text · 返 (rc, stdout, stderr)。
 
@@ -2728,12 +2319,22 @@ def _run_claude_review(prompt_text: str, model_name: str = "claude-sonnet-4-6"
     捕获后返 errno=7 · 让上层 emit 清晰 hint 提示 prompt 过长。
     """
     cmd = ["claude", "-p", prompt_text, "--model", model_name, "--output-format", "text"]
+    label = f"claude-{stage}"
+    t0 = datetime.now(timezone.utc)
     try:
         r = subprocess.run(cmd, capture_output=True, text=True,
-                           timeout=EXTERNAL_REVIEW_TIMEOUT_SEC)
+                           timeout=EXTERNAL_REVIEW_TIMEOUT_SEC,
+                           stdin=subprocess.DEVNULL)  # v8.55:闭 stdin · 防交互卡住
+        dur = (datetime.now(timezone.utc) - t0).total_seconds()
+        _log_external_run(feature_dir, label, cmd, "(inherit)",
+                          r.returncode, r.stdout, r.stderr, dur)
         return r.returncode, r.stdout, r.stderr
-    except subprocess.TimeoutExpired:
-        return 124, "", f"claude -p 超时({EXTERNAL_REVIEW_TIMEOUT_SEC}s)"
+    except subprocess.TimeoutExpired as e:
+        dur = (datetime.now(timezone.utc) - t0).total_seconds()
+        log_path = _log_external_run(feature_dir, label, cmd, "(inherit)",
+                                     "TIMEOUT", e.stdout, e.stderr, dur)
+        tail = f" · 见日志 {log_path}" if log_path else ""
+        return 124, "", f"claude -p 超时({EXTERNAL_REVIEW_TIMEOUT_SEC}s){tail}"
     except OSError as e:
         if getattr(e, "errno", None) == 7:  # E2BIG · argument list too long
             return 127, "", (
@@ -2846,6 +2447,110 @@ STAGE_TO_REVIEW_CHECKLIST = {
         "- C5 Test coverage gaps."
     ),
 }
+
+
+def cmd_set_mode(args: argparse.Namespace) -> None:
+    """v8.69:语义化设 auto_mode / yolo(替代 raw-write · 物化 + audit)。
+
+    治本 case(SVC-PLATFORM-F060 · Codex agent 提):改 auto_mode 只能 raw-write ·
+    audit 里出现 raw-write 不理想。本命令把开关 + yolo 非主分支 gate + audit 收进脚本。
+
+    flag:
+      --auto-mode / --no-auto-mode    开/关 auto_mode(互斥)
+      --yolo [<branch>] / --no-yolo    开/关 yolo(互斥)· yolo implies auto_mode ·
+                                       <branch> = 专属 merge_target(覆盖 · 非主分支 gate)
+      --reason 必填(audit)
+    """
+    state = load_state(args.feature)
+    state_file = state_path(args.feature)
+
+    if args.auto_mode and args.no_auto_mode:
+        die(2, json.dumps({"verdict": "FAIL", "command": "set-mode",
+                           "error": "--auto-mode 与 --no-auto-mode 互斥"},
+                          ensure_ascii=False, indent=2))
+    if args.yolo is not None and args.no_yolo:
+        die(2, json.dumps({"verdict": "FAIL", "command": "set-mode",
+                           "error": "--yolo 与 --no-yolo 互斥"},
+                          ensure_ascii=False, indent=2))
+    if not (args.auto_mode or args.no_auto_mode
+            or args.yolo is not None or args.no_yolo):
+        die(2, json.dumps({
+            "verdict": "FAIL", "command": "set-mode",
+            "error": "未指定任何变更",
+            "hint": "至少一个:--auto-mode / --no-auto-mode / --yolo [<branch>] / --no-yolo",
+        }, ensure_ascii=False, indent=2))
+
+    before = {"auto_mode": bool(state.get("auto_mode")),
+              "yolo": bool(state.get("yolo")),
+              "merge_target": state.get("merge_target")}
+    new_auto, new_yolo, new_mt = (before["auto_mode"], before["yolo"],
+                                  before["merge_target"])
+
+    # yolo
+    yolo_branch = (args.yolo if isinstance(args.yolo, str) and args.yolo.strip()
+                   else None)
+    if args.yolo is not None:  # 开 yolo
+        new_yolo = True
+        new_auto = True  # yolo implies auto_mode
+        if yolo_branch:
+            new_mt = yolo_branch
+        if _is_main_branch(new_mt):
+            die(2, json.dumps({
+                "verdict": "FAIL", "command": "set-mode",
+                "error": f"yolo merge_target 必须非主分支(当前 {new_mt!r})—— "
+                         f"yolo 无人 review 自动 merge · 不得直接进 main/master/默认分支",
+                "hint": "用 --yolo <非主分支>(如 dev/staging)· 或先改 merge_target",
+                "rule": "v8.63/69 yolo 硬约束 · 自动 merge 不进 main",
+            }, ensure_ascii=False, indent=2))
+    elif args.no_yolo:
+        new_yolo = False
+
+    # auto_mode(yolo=True 强制 auto=True)
+    if args.auto_mode:
+        new_auto = True
+    if args.no_auto_mode:
+        if new_yolo:
+            die(2, json.dumps({
+                "verdict": "FAIL", "command": "set-mode",
+                "error": "yolo 开启时不能关 auto_mode(yolo implies auto_mode)",
+                "hint": "先 --no-yolo · 再 --no-auto-mode",
+            }, ensure_ascii=False, indent=2))
+        new_auto = False
+
+    after = {"auto_mode": new_auto, "yolo": new_yolo, "merge_target": new_mt}
+    if after == before:
+        emit({"verdict": "NOOP", "command": "set-mode",
+              "current": before, "hint": "新值 == 现值 · 不写不 audit"})
+        return
+
+    state["auto_mode"] = new_auto
+    state["yolo"] = new_yolo
+    if new_mt != before["merge_target"]:
+        state["merge_target"] = new_mt
+        state.setdefault("worktree", {})["base_branch"] = f"origin/{new_mt}"
+        ec = state.setdefault("environment_config", {})
+        ec["merge_target"] = new_mt
+        ec["base"] = f"origin/{new_mt}"
+
+    state.setdefault("mode_changes", []).append({
+        "at": now_iso(), "before": before, "after": after,
+        "reason": args.reason, "via": "set-mode",
+    })
+    # yolo 开启 = 高风险 · 额外 concern WARN(audit 显著)
+    if new_yolo and not before["yolo"]:
+        state.setdefault("concerns", []).append(
+            f"{now_iso()} WARN yolo 开启 via set-mode · merge_target={new_mt} · "
+            f"reason: {args.reason}")
+
+    atomic_write(state_file, state)
+    emit({
+        "verdict": "OK", "command": "set-mode",
+        "before": before, "after": after, "reason": args.reason,
+        "next_action_hint": (
+            "yolo 开启 · 严格按流程 · 不得简化/内化(详 SKILL.md § yolo)"
+            if new_yolo and not before["yolo"]
+            else "auto_mode/yolo 已更新 · audit 写入 state.mode_changes"),
+    })
 
 
 def cmd_scaffold_review_prompt(args: argparse.Namespace) -> None:
@@ -3127,30 +2832,21 @@ def cmd_external_review(args: argparse.Namespace) -> None:
     preview_prompt_full = None
     if args.dry_run:
         if model == "codex":
-            # v8.26 按 stage 分:review→codex review · goal/blueprint→codex exec(各司其职)
+            # v8.59:全 stage 统一 codex exec [PROMPT](删 review→codex review 分支 · 它 headless 卡死)
             # v8.29:codex_model 非空才显 --config(治本 ChatGPT 订阅死锁)
             try:
                 fd_rel = str(feature_dir.relative_to(git_root))
             except ValueError:
                 fd_rel = str(feature_dir)
             model_part = f"--config 'model={codex_model}' " if codex_model else ""
-            if args.stage == "review":
-                # 代码 diff review · 不带 [PROMPT](codex review 内置专业 prompt)
-                preview_cmd = (
-                    f"codex review --commit {commit} --title '{title}' "
-                    f"{model_part}"
-                ).strip()
-                preview_prompt_full = None  # review 模式无 PROMPT
-            else:
-                # 文档 review · codex exec [PROMPT]
-                preview_prompt_full = (
-                    f"[Review title: {title}]\n\n"
-                    + _build_codex_prompt(args.stage, fd_rel, commit, base, profile_path.name)
-                )
-                preview_cmd = (
-                    f"codex exec {model_part}"
-                    f"'{preview_prompt_full[:80]}...'"
-                )
+            preview_prompt_full = (
+                f"[Review title: {title}]\n\n"
+                + _build_codex_prompt(args.stage, fd_rel, commit, base, profile_path.name)
+            )
+            preview_cmd = (
+                f"codex exec {model_part}"
+                f"'{preview_prompt_full[:80]}...'"
+            )
         else:
             preview_cmd = (
                 # v8.38:claude CLI 用 -p(short alias for --print)· 用户约定
@@ -3242,7 +2938,8 @@ def cmd_external_review(args: argparse.Namespace) -> None:
                 f"AI 主对话填 compact summary 后重跑 external-review("
                 f"治本长 prompt 卡 + 不可审计 · v8.44 推荐路径)"
             )
-        rc, stdout, stderr = _run_claude_review(prompt_text)
+        rc, stdout, stderr = _run_claude_review(
+            prompt_text, feature_dir=feature_dir, stage=args.stage)
 
     if rc != 0:
         emit({
@@ -3776,13 +3473,20 @@ def build_parser() -> argparse.ArgumentParser:
     # v7.3.10+P0-149: 删 --artifact-root 冗余参数 · --feature 单源（既是落盘目录又是 artifact_root 字段值）
     ifp.add_argument("--initial-stage",
                      help="缺省按 flow_type 决定（Feature→goal / Bug→dev / Micro→dev / ...）")
-    ifp.add_argument("--merge-target", required=True, help="如 staging / main")
+    ifp.add_argument("--merge-target", required=False,
+                     help="如 staging / dev · yolo 可改用 --yolo <branch> 指定(二选一)")
     ifp.add_argument("--branch", required=True, help="如 feat/admin-f013-x")
     ifp.add_argument("--worktree-mode", choices=["auto", "manual", "off"],
                      default="off")
     ifp.add_argument("--worktree-path",
                      help="worktree 绝对路径 · worktree-mode != off 时建议提供")
     ifp.add_argument("--auto-mode", action="store_true", help="启用 AUTO_MODE")
+    ifp.add_argument("--yolo", nargs="?", const=True, default=None, metavar="BRANCH",
+                     help="[v8.63/65] 完全自动(YOLO)· implies --auto-mode + 自动 approve "
+                          "pm_acceptance + 自动 merge MR(gh/glab)+ 自动 ship-finalize · 零 stop · "
+                          "可选 <BRANCH> = 本需求专属 merge_target(指定则覆盖 --merge-target / "
+                          "localconfig 默认 · 不指定则用 --merge-target)· 🔴 该分支必须非 "
+                          "main/master/默认(防无人 review 直接进 main)")
     ifp.add_argument("--force", action="store_true",
                      help="覆盖现有 state.json（自动 backup .bak.<ts>）")
     # v8.36:host 改 per-feature(治本 v8.21 全局 audit 跨 session 污染 case)
@@ -3858,6 +3562,16 @@ def build_parser() -> argparse.ArgumentParser:
                           "工具校验 recommended_flow_type vs --flow-type · MISMATCH → WARN(不 BLOCK)"))
     pc.set_defaults(func=cmd_prepare_check)
 
+    # v8.46 C:planning-check · Feature Planning 物化入口(治本规划路径未物化漏洞)
+    plc = sub.add_parser(
+        "planning-check",
+        help=("[v8.46] Feature Planning 物化入口 · emit 规划 checklist + 必读规范 + "
+              "(若有 product-overview)规划状态机 · 不进状态机 · 治本规划路径靠 AI 自觉读 spec"),
+    )
+    plc.add_argument("--project-root", default=None,
+                     help="项目根(检测 product-overview/)· 默认从 cwd 找 git 根")
+    plc.set_defaults(func=cmd_planning_check)
+
     # v8.x:change-review-roles · 治本 raw-write 滥用(可枚举进脚本 · R0 哲学)
     crr = sub.add_parser(
         "change-review-roles",
@@ -3871,7 +3585,26 @@ def build_parser() -> argparse.ArgumentParser:
                      help="逗号分隔的角色列表(如 'qa,architect,external') · 必属 REVIEW_ROLE_ENUM")
     crr.add_argument("--reason", required=True,
                      help="调整理由(必填 · 写 stage_review_roles_adjustments audit)")
+    crr.add_argument("--accept-external-removal", action="store_true",
+                     help="[v8.66] yolo 模式去 external 评审的显式逃生口 · 仅限 external CLI "
+                          "客观不可用(未装/网络死·已重试失败)· 不得为效率/集中到 review stage 用 · "
+                          "用了写 concern WARN 留痕")
     crr.set_defaults(func=cmd_change_review_roles)
+
+    # v8.69:set-mode · 语义化设 auto_mode / yolo(替代 raw-write · 物化 + audit)
+    sm = sub.add_parser(
+        "set-mode",
+        help="[v8.69] 设 auto_mode / yolo · 写 mode_changes audit · 替代 raw-write",
+    )
+    sm.add_argument("--feature", required=True, help="Feature 目录(含 state.json)")
+    sm.add_argument("--reason", required=True, help="变更理由(必填 · 写 mode_changes audit)")
+    sm.add_argument("--auto-mode", action="store_true", help="开启 auto_mode")
+    sm.add_argument("--no-auto-mode", action="store_true", help="关闭 auto_mode")
+    sm.add_argument("--yolo", nargs="?", const=True, default=None, metavar="BRANCH",
+                    help="开启 yolo(implies auto_mode)· 可选 <BRANCH> = 专属 merge_target"
+                         "(覆盖 · 必非 main/master/默认)")
+    sm.add_argument("--no-yolo", action="store_true", help="关闭 yolo")
+    sm.set_defaults(func=cmd_set_mode)
 
     # v8.20:external-review · 异质模型评审一条命令调起(治本 SVC-CORE-F034 case)
     er = sub.add_parser(

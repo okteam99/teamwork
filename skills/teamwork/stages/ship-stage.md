@@ -73,6 +73,15 @@ ship-finalize 内部自动编排(**可重入** · 失败步骤修复后重跑即
 - **step 6 worktree-remove 失败**(worktree 占用等):降级 warning · state.json 已 finalize 不丢 · 按 hint 手动 `git worktree remove`。
 - **step 7 pull 跳过**(主工作区不在 merge_target / 工作树有未提交改动 / 与 origin 分叉):降级 warning · 已 fetch · 按 hint 手动 `git pull --ff-only`。
 
+### 5.5 ship 收尾:更新规划层 back-reference + 主工作区 commit(v8.77 · 🔴 必做)
+
+🔴 ship-finalize 成功后 · **还有一步收尾**(emit `planning_backref_pending` + brief 提示):主工作区现已 clean + 跟上 merge_target · 须把**规划层 back-reference** 翻牌并提交 —— **这是 ship 的一部分 · 不是「后续 / 非本次范围 / 下次规划」**。
+
+- **为什么**:`feature = 某 BL 的落地`。规划期把 BL 写进 ROADMAP 是「📋 规划中」· 落地完不翻成「✅ 已交付」→ 规划层(ROADMAP/WS 进度)与执行层永久脱节 · 进度统计失真。
+- **做什么**:① ROADMAP 对应 BL 状态 `规划中/pending → 已交付`(若是 WS 最后一个 BL → WS 标完成);② 关联文档(改了用户可见行为 / 接口契约 → 按项目规范或 `/document-release` 同步)。
+- **然后**:`git add <规划/文档文件>` + commit + push 到 merge_target —— 在已净化主工作区做**一次干净提交**(规划层产物本就在主工作区 · 此处更新 + commit 正当 · 同 feature-planning 的「WS+ROADMAP 登记 commit」· 非 worktree 红线违规)。
+- 🔴 **不要因为「怕弄脏刚净化的主工作区」而搁置**:翻牌 commit 本身就是干净的一笔 · 搁置才是留悬空未提交 / 脱节。找不到 BL → 读 `product-overview/workstream/` + `ROADMAP.md` 定位;确实无关联 BL(ad-hoc Bug/Micro)才跳过。
+
 ### 6. squash / rebase 合并(branch-contains 检测不到)
 
 平台用 **squash** 或 **rebase** 合并 → feature commit hash 变了 · `branch-contains` 自动检测不到 → step 1 FAIL。

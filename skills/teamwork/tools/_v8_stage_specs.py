@@ -588,8 +588,8 @@ def _ui_design_brief(state: dict) -> str:
 Designer 产出 UI.md + HTML 预览 · sitemap 同步(如涉及全景变更)。
 
 ### 结果(完成判定)
-- `UI.md`(frontmatter:`pages: [{{id, title}}]`)
-- `preview/*.html`(每 page.id 对应 1 文件 · 可交互)
+- `UI.md`(frontmatter:`pages: [{{id, title}}]` + `panorama_medium`)
+- 预览产物(按介质):`static-html` → `preview/*.html`(每 page.id 1 文件 · 可交互);`same-stack` → `{{panorama_path}}/preview-project/`(同栈可跑项目 + `preview.sh` + `package.json`)
 - (条件)sitemap.md 已更新
 
 ### 怎么做
@@ -598,7 +598,7 @@ Designer 产出 UI.md + HTML 预览 · sitemap 同步(如涉及全景变更)。
 ### 完成方式
 ```
 state.py ui_design-complete --feature <path> --auto-commit <hash> \
-  --artifacts UI.md,preview/
+  --artifacts UI.md[,preview/]   # same-stack 仅 UI.md(预览权威在 preview-project)
 ```
 """
 
@@ -640,14 +640,15 @@ def _ui_design_transition(state: dict) -> Optional[str]:
 def _evidence_panorama_artifact(state: dict, args) -> tuple[bool, str]:
     """按 UI.md frontmatter 校验 panorama 产物。
 
-    v8.17(全景为唯一权威)· 治本 PTR-F052 双副本不一致 + PTR-F054 介质绕路 case:
-      - **新模式**(推荐 · 有 `pages_changed[]` 字段):全景为权威 · Feature 不存副本 ·
-        校验每个 pages_changed[].panorama_file 真实存在(panorama_path 内)
-      - **老模式**(向后兼容 · 无 `pages_changed[]`):按 `panorama_medium` 走
-          - `same-stack`:不要求 preview/*.html · PASS
-          - `static-html`(或缺省):要求 Feature 内 preview/*.html ≥ 1
+    v8.58(同栈 preview.sh 即唯一预览 · 用户拍板 option B · supersede v8.56 静态 build 物化):
+      - `same-stack`:全景权威 = preview-project 源(committed 可跑独立项目)· 物化 =
+        `{panorama_path}/preview-project/` + `preview.sh` + `package.json`(不再要静态 build 产物)·
+        预览 = 跑 preview.sh 起 dev server(动态端口 · 不在 teamwork 层起 server)
+      - `static-html`:
+          - 有 `pages_changed[]`(v8.17 全景为权威)→ 校验每个 panorama_file 真实存在
+          - 否则 → 要求 Feature 内 `preview/*.html` ≥ 1
 
-    详 stages/ui-design-stage.md § 全景为唯一权威(v8.17)/ § Panorama 介质类型。
+    详 stages/ui-design-stage.md § Panorama 介质类型 / § 预览。
     """
     feature_dir = Path(args.feature)
     ui_md = feature_dir / "UI.md"
@@ -655,22 +656,23 @@ def _evidence_panorama_artifact(state: dict, args) -> tuple[bool, str]:
         return False, f"UI.md 不存在{_template_hint('UI.md')}"
     fm = parse_frontmatter(ui_md) or {}
 
-    # v8.17 新模式:全景为唯一权威(有 pages_changed[])
-    pages_changed = fm.get("pages_changed")
-    if pages_changed and isinstance(pages_changed, list):
-        ok, err = _check_pages_changed_authority(feature_dir, fm, pages_changed)
-        if not ok:
-            return False, err
-        return True, ""
-
-    # 老模式:按 panorama_medium 走(向后兼容)
     medium = fm.get("panorama_medium", "static-html")
     if medium not in ("same-stack", "static-html"):
         return False, (f"panorama_medium={medium!r} 非法 · 应 same-stack 或 static-html "
                        "(详 ui-design-stage.md § Panorama 介质类型)")
+
     if medium == "same-stack":
-        return True, ""  # 同栈 · 不要求 preview/*.html
-    # static-html · 要求 preview/*.html ≥ 1
+        # v8.58 option B:物化 = preview-project 可跑 + preview.sh 存在(不再要静态 build)
+        # v8.61:+ auto_commit 校验(防 preview-project 源未提交 · ship 丢失)
+        return _check_same_stack_preview_project(
+            feature_dir, fm, getattr(args, "auto_commit", None))
+
+    # static-html:v8.17 新模式 · 全景为唯一权威(有 pages_changed[])
+    pages_changed = fm.get("pages_changed")
+    if pages_changed and isinstance(pages_changed, list):
+        return _check_pages_changed_authority(feature_dir, fm, pages_changed)
+
+    # 老模式:Feature 内 preview/*.html ≥ 1
     preview_dir = feature_dir / "preview"
     if not preview_dir.exists() or not list(preview_dir.glob("*.html")):
         return False, (
@@ -680,6 +682,102 @@ def _evidence_panorama_artifact(state: dict, args) -> tuple[bool, str]:
             "详 stages/ui-design-stage.md § 全景为唯一权威)"
         )
     return True, ""
+
+
+def _resolve_panorama_subdir(feature_dir: Path, ppath_raw: str, sub: str) -> list:
+    """resolve {panorama_path}/{sub} 候选路径(绝对 / 相对仓库根 / feature_dir 兜底)。"""
+    import subprocess
+    repo_top = None
+    try:
+        r = subprocess.run(
+            ["git", "-C", str(feature_dir), "rev-parse", "--show-toplevel"],
+            capture_output=True, text=True, timeout=5,
+        )
+        if r.returncode == 0 and r.stdout.strip():
+            repo_top = Path(r.stdout.strip())
+    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+        pass
+    ppath = Path(ppath_raw)
+    candidates = [ppath / sub]
+    if not ppath.is_absolute():
+        if repo_top:
+            candidates.insert(0, repo_top / ppath / sub)
+        candidates.append(feature_dir / ppath / sub)  # 兜底
+    return candidates
+
+
+def _path_in_commit(repo_dir: Path, commit: str, abs_path: Path) -> Optional[bool]:
+    """git ls-tree {commit} -- {abs_path}:非空 → True(路径在该 commit 树内)·
+    空(rc=0)→ False(未提交)· git 失败/路径越界(rc≠0)→ None(无法判定 · 不阻塞)。"""
+    import subprocess
+    try:
+        abs_path = abs_path.resolve()  # 归一 symlink(macOS /var→/private/var)· 防 git "outside repository"
+    except OSError:
+        pass
+    try:
+        r = subprocess.run(
+            ["git", "-C", str(repo_dir), "ls-tree", commit, "--", str(abs_path)],
+            capture_output=True, text=True, timeout=5,
+        )
+    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+        return None
+    if r.returncode != 0:
+        return None
+    return bool(r.stdout.strip())
+
+
+def _check_same_stack_preview_project(feature_dir: Path, fm: dict,
+                                      auto_commit: Optional[str] = None) -> tuple[bool, str]:
+    """v8.58 option B:same-stack 物化 = preview-project 可跑 + preview.sh 存在。
+    v8.61:加 auto_commit 校验(治本 v8.58 物化漏洞:磁盘存在但没提交 → ship 丢失)。
+
+    全景权威 = preview-project 源(committed 可跑独立项目)· 预览靠跑 preview.sh 起 dev server
+    (动态端口 · 不在 teamwork 层起 server)。校验:
+      - panorama_path 声明
+      - {panorama_path}/preview-project/ 存在
+      - preview-project/preview.sh(预览入口)+ package.json(可跑 JS 项目证据)存在
+      - 🔴 上述文件**进了 auto_commit**(传了 auto_commit 时 · git ls-tree 校验 · 防源未提交)
+    """
+    ppath_raw = fm.get("panorama_path")
+    if not ppath_raw:
+        return False, (
+            "panorama_medium=same-stack · 缺 panorama_path · 声明 "
+            "panorama_path={子项目}/docs/design · 在其 preview-project/ 搭同栈可跑项目 + preview.sh。"
+            "详 stages/ui-design-stage.md § Panorama 介质类型"
+        )
+    for proj in _resolve_panorama_subdir(feature_dir, ppath_raw, "preview-project"):
+        if proj.is_dir():
+            missing = []
+            if not (proj / "preview.sh").exists():
+                missing.append("preview.sh(预览入口 · 见 templates/preview-project-preview.sh)")
+            if not (proj / "package.json").exists():
+                missing.append("package.json(可跑项目证据)")
+            if missing:
+                return False, (
+                    f"same-stack preview-project 存在但缺:{' · '.join(missing)} · 目录 {proj} · "
+                    "预览靠跑 preview.sh 起 dev server(动态端口)。详 stages/ui-design-stage.md § 预览"
+                )
+            # v8.61:磁盘存在还不够 · 必须进 auto_commit(治本 v8.58 物化漏洞:
+            # same-stack 全景权威 = preview-project 源 · 没提交则 ship 丢失)
+            if auto_commit:
+                uncommitted = [
+                    f for f in ("preview.sh", "package.json")
+                    if _path_in_commit(feature_dir, auto_commit, proj / f) is False
+                ]
+                if uncommitted:
+                    return False, (
+                        f"same-stack preview-project 文件在磁盘但**未进 auto_commit** "
+                        f"{auto_commit[:8]}:{' · '.join(uncommitted)} · `git add {proj}` + commit "
+                        f"后重试 —— 全景权威 = preview-project 源 · 未提交则 ship 丢失"
+                        f"(治本 v8.58 物化漏洞)。详 stages/ui-design-stage.md § 预览"
+                    )
+            return True, ""
+    return False, (
+        f"panorama_medium=same-stack · 需 {ppath_raw}/preview-project/(同栈可跑独立项目 + preview.sh "
+        f"+ package.json · 全景权威 = preview-project 源)· 不可只写 UI.md markdown。"
+        "预览 = 跑 preview.sh 起 dev server(动态端口 · 不在 teamwork 层起 server)。"
+        "详 stages/ui-design-stage.md § 预览"
+    )
 
 
 def _parse_flow_style_dict(s: str) -> Optional[dict]:
@@ -870,14 +968,14 @@ UI_DESIGN_SPEC = StageSpec(
             frontmatter_required=["pages"],
             description="UI 设计稿 · frontmatter pages[] + panorama_medium",
         ),
-        # preview/*.html 由 _evidence_panorama_artifact 条件化校验
-        # (same-stack 不要求 · static-html 要求 ≥1)· 治本 PTR-F052 case
+        # 预览产物由 _evidence_panorama_artifact 按介质条件化校验
+        # (same-stack: preview-project+preview.sh · static-html: preview/*.html ≥1)
     ],
     evidence_checks=[
         StageEvidenceCheck(
             name="panorama_artifact",
             check_fn=_evidence_panorama_artifact,
-            description="按 panorama_medium 校验:same-stack 跳过 · static-html 要求 preview/*.html ≥ 1",
+            description="按 panorama_medium 校验:same-stack 要 preview-project+preview.sh · static-html 要 preview/*.html ≥ 1",
         ),
         StageEvidenceCheck(
             name="panorama_changed_decided",
@@ -1097,34 +1195,84 @@ def _evidence_ac_test_binding(state: dict, args) -> tuple[bool, str]:
 
 
 # v8.19:external review 异质性硬约束(治本 SVC-CORE-F034 case · AI 用同模型 subagent 自审)
-# 白名单:真异质外部模型字面(case-insensitive 匹配 basename / frontmatter review_model)
-# 黑名单:同源(claude 宿主)或 isolated/subagent 字面 = AI 用 Agent 起 isolated context 自审 ≠ 异质
+# 白名单:已知模型族字面(case-insensitive · host-aware 判定时 host 同族会被排除)
 EXTERNAL_REVIEW_HETERO_KEYWORDS = (
-    "codex", "gpt", "gemini", "deepseek", "qwen", "llama", "grok", "mistral",
+    "claude", "anthropic", "codex", "gpt", "openai", "gemini", "google", "bard",
+    "deepseek", "qwen", "llama", "grok", "mistral",
 )
+# 同源「机制」字面:宿主自起 isolated/subagent 子进程 = 同模型自审 · 无论 host 全 BLOCK
+EXTERNAL_REVIEW_SAME_CONTEXT_BLOCKED = (
+    "isolated", "subagent", "general-purpose", "self",
+)
+# 各模型族字面(host-aware 同源判定:review model 与 host 同族 → 同源)
+_MODEL_FAMILY_KEYWORDS = {
+    "claude": ("claude", "anthropic"),
+    "codex": ("codex", "gpt", "openai"),
+    "gemini": ("gemini", "google", "bard"),
+}
+# 向后兼容别名(老引用 · = 默认 claude host 下的同源字面集)
 EXTERNAL_REVIEW_SAME_SOURCE_BLOCKED = (
-    "claude", "anthropic", "isolated", "subagent", "general-purpose", "self",
+    _MODEL_FAMILY_KEYWORDS["claude"] + EXTERNAL_REVIEW_SAME_CONTEXT_BLOCKED
 )
 
 
-def _check_external_hetero(name: str) -> tuple[bool, str]:
-    """v8.19:校验文件名 / frontmatter review_model 是否真异质模型。
+def _host_to_family(host) -> Optional[str]:
+    """host → 模型族:claude-code→claude / codex-cli→codex / gemini-cli→gemini · 未知→None。"""
+    h = (host or "").lower()
+    if "claude" in h:
+        return "claude"
+    if "codex" in h or "openai" in h:
+        return "codex"
+    if "gemini" in h or "google" in h:
+        return "gemini"
+    return None
 
-    返回 (is_hetero, reason)。is_hetero=False 时 reason 含违规字面。
+
+def _check_external_hetero(name: str, host=None) -> tuple[bool, str]:
+    """v8.68:host-aware 校验文件名 / review_model 是否真异质模型 · 返 (is_hetero, reason)。
+
+    治本 case(SVC-PLATFORM-F060 · host=codex-cli):external-review 已 host-aware
+    (`EXTERNAL_HOST_TO_MODEL` codex-cli→claude)· 但本 checker 旧版**静态**黑名单把 claude
+    一律判同源 → **误判** codex-cli 宿主下合规的 Claude external review = 同源自审。
+
+    同源 = ① 机制字面(isolated/subagent 宿主自起子进程 · 无论 host 全 BLOCK)· 或
+    ② review model 与 host **同族**(codex-cli host 下 claude 是异质 · 不再误判)。
+    host 缺失 → 保守默认 claude-code(历史默认 · 不放宽老 case 的同源保护)。
     """
     low = name.lower()
-    # 1. 黑名单字面命中 → 同源自审 · 不达标
-    for kw in EXTERNAL_REVIEW_SAME_SOURCE_BLOCKED:
+    # 1. 同源机制黑名单(无论 host · subagent/isolated 是宿主自起子进程 · 非真异质进程)
+    for kw in EXTERNAL_REVIEW_SAME_CONTEXT_BLOCKED:
         if kw in low:
-            return False, f"命中同源黑名单字面 {kw!r}"
-    # 2. 白名单字面必含其一 → 真异质
+            return False, f"命中同源机制字面 {kw!r}(宿主自起 isolated/subagent 自审 · 非异质进程)"
+    # 2. host-aware 同源模型族(host 缺失 → 保守默认 claude)
+    host_family = _host_to_family(host) or "claude"
+    for kw in _MODEL_FAMILY_KEYWORDS.get(host_family, ()):
+        if kw in low:
+            return False, (
+                f"命中宿主同源模型族字面 {kw!r}(host={host or '默认 claude-code'}/"
+                f"{host_family} · 同模型评同模型 = 非异质)"
+            )
+    # 3. 必含某已知外部模型族字面 → 真异质
     for kw in EXTERNAL_REVIEW_HETERO_KEYWORDS:
         if kw in low:
             return True, ""
-    # 3. 都不含 → 模糊 · BLOCKED(让 PMO 显式 emit)
     return False, (
-        f"未含异质模型字面(白名单:{', '.join(EXTERNAL_REVIEW_HETERO_KEYWORDS)})"
+        f"未含已知模型族字面(白名单:{', '.join(EXTERNAL_REVIEW_HETERO_KEYWORDS)})"
     )
+
+
+def _external_run_log_exists(feature_dir: Path, stage: str) -> bool:
+    """v8.67:本 stage external 评审有「实跑证据」—— v8.55 _log_external_run 在
+    ~/.teamwork/external-review-logs/<feat>/ 落的 codex-<stage>-*.log / claude-<stage>-*.log。
+    用于 yolo 校验 external 真调了异质模型(不是 AI 手写/内化 external-cross-review)。"""
+    feat_name = feature_dir.name or "unknown"
+    log_dir = Path.home() / ".teamwork" / "external-review-logs" / feat_name
+    if not log_dir.is_dir():
+        return False
+    for model in ("codex", "claude"):
+        if list(log_dir.glob(f"{model}-{stage}-*.log")):
+            return True
+    return False
 
 
 def _evidence_external_review_artifact(state: dict, args) -> tuple[bool, str]:
@@ -1157,20 +1305,19 @@ def _evidence_external_review_artifact(state: dict, args) -> tuple[bool, str]:
             "external-cross-review/*.md 为空 · 跑 codex 外部评审或 change-review-roles 移除 external"
         )
 
-    # v8.19:逐文件校验异质性(文件名 + frontmatter review_model 双重)
+    # v8.36 host per-feature · v8.68 host-aware 异质判定(治本 codex-cli host 下 claude 误判)
+    state_host = state.get("host")
+    # v8.19:逐文件校验异质性(文件名 + frontmatter review_model 双重 · v8.68 host-aware)
     violations: list = []
     for f in md_files:
-        # ① 文件名字面校验(basename 去扩展名)
-        stem = f.stem  # 如 code-codex / code-claude-isolated
-        ok_name, name_reason = _check_external_hetero(stem)
-        # ② frontmatter review_model 字段校验(若有)
         fm = parse_frontmatter(f) or {}
+        # host 优先级:state.host(per-feature)> 文件 frontmatter host(external-review 写)> None(默认 claude)
+        eff_host = state_host or (fm.get("host") or "").strip() or None
+        ok_name, name_reason = _check_external_hetero(f.stem, eff_host)
         rm_value = (fm.get("review_model") or "").strip()
-        rm_ok = True
-        rm_reason = ""
+        rm_ok, rm_reason = True, ""
         if rm_value:
-            rm_ok, rm_reason = _check_external_hetero(rm_value)
-        # 综合判定:文件名 + frontmatter 任一 BLOCKED → 文件违规
+            rm_ok, rm_reason = _check_external_hetero(rm_value, eff_host)
         if not ok_name:
             violations.append(f"{f.name}:文件名 {name_reason}")
         if rm_value and not rm_ok:
@@ -1181,14 +1328,28 @@ def _evidence_external_review_artifact(state: dict, args) -> tuple[bool, str]:
             f"external 异质性违规({len(violations)} 文件)· R3 红线 + standards/"
             f"external-model-usage.md § 七 异质性硬约束:\n  "
             + "\n  ".join(violations)
-            + "\n  规约:文件名 / frontmatter review_model 必含异质模型字面 "
-            f"({', '.join(EXTERNAL_REVIEW_HETERO_KEYWORDS)})· 必不含同源字面 "
-            f"({', '.join(EXTERNAL_REVIEW_SAME_SOURCE_BLOCKED)})。"
-            "\n  典型违规:AI 用 Agent subagent_type=general-purpose 起 Claude isolated "
-            "context 自审 → 同模型自评有盲点 · 不达 R3 异质要求。"
-            "\n  修复:跑 `codex review --commit <SHA> --base <branch>` 落 *-codex.md · "
+            + "\n  规约(v8.68 host-aware):同源 = ① isolated/subagent 等机制字面(全 host BLOCK)· "
+            "或 ② review model 与**宿主同族**(claude-code 宿主下 claude 同源 · "
+            "**codex-cli 宿主下 claude 是异质 · 合规**)。"
+            "\n  典型违规:AI 用 Agent subagent_type=general-purpose 起同模型 isolated context 自审 → 同模型自评有盲点。"
+            "\n  修复:跑 `state.py external-review --stage <X> --feature <path>`"
+            "(host 自动映射异质模型:claude-code→codex · codex-cli→claude · gemini-cli→codex)· "
             "或 change-review-roles 显式移除 external(留 audit)。"
-            "\n  调用前必做:`which codex` 验工具在 · 不在 → stop 问用户 · 不替代。"
+            "\n  🔴 若本就是合规异质评审却被判违规 → 检查 state.json.host 是否 = 你的真实主对话宿主"
+            "(host 错 / 缺 默认 claude · 会把 codex-cli 的 claude 评审误判同源)。"
+        )
+
+    # v8.67:yolo 严格按流程 · 不内化 —— external 必须真跑(state.py external-review 调异质模型)·
+    # 不得 AI 手写 external-cross-review/*.md(文件名/frontmatter 能伪装合规 · 但无实跑日志)。
+    # 治本 case(WS-002 yolo):AI 写 PRD-REVIEW "mode: yolo-internalized" 自盖章 APPROVE · 评审形同虚设。
+    if state.get("yolo") and not _external_run_log_exists(feature_dir, current_stage):
+        return False, (
+            f"yolo 模式 external 评审缺**实跑证据** —— ~/.teamwork/external-review-logs/"
+            f"{feature_dir.name}/ 无本 stage 日志(codex-{current_stage}-*.log / "
+            f"claude-{current_stage}-*.log)。🔴 yolo 严格按流程 · **不得手写/内化** "
+            f"external-cross-review/*.md —— 必须真跑 `state.py external-review --stage "
+            f"{current_stage} --feature {args.feature}`(调异质模型 · v8.55 自动落实跑日志)。"
+            f"\n  (artifact 文件名/frontmatter 能伪装合规 · 但实跑日志伪造不了 · 这是物化防内化)"
         )
     return True, ""
 
@@ -1733,30 +1894,6 @@ def _check_pm_approved_ship(state: dict, args) -> bool:
     if pm_c.get("output_satisfied") is not True:
         return False
     return _pm_decision_value(pm_c) == "approved_and_ship"
-
-
-def _check_cwd_main_worktree(state: dict, args) -> bool:
-    """cwd 在主工作区(非 linked worktree)· 沿用 v7 P0-156 治本逻辑"""
-    import os
-    if os.environ.get("TEAMWORK_BYPASS_MAIN_WORKTREE") == "1":
-        return True
-
-    import subprocess
-    try:
-        result = subprocess.run(
-            ["git", "rev-parse", "--git-dir"],
-            capture_output=True,
-            text=True,
-            timeout=5,
-        )
-        if result.returncode != 0:
-            return True  # 不在 git 仓库 · 跳过此检查
-        git_dir = result.stdout.strip()
-        # linked worktree 的 git_dir 形如 .git/worktrees/<name>
-        # 主工作区的 git_dir 是 .git
-        return "/worktrees/" not in git_dir
-    except (subprocess.TimeoutExpired, FileNotFoundError):
-        return True  # 无 git · 跳过
 
 
 def _check_ship_phase_merged(state: dict, args) -> bool:

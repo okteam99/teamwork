@@ -1,71 +1,55 @@
-# teamwork_space.md 模板
+# teamwork-space.md 模板(实例化骨架)
 
-> 位置：项目根目录 `teamwork_space.md`
-> 🔴 **任何变更（创建/修改/删除）必须暂停等待用户确认！**
->
-> 🔴 **本文件是 teamwork_space.md 的唯一格式权威源**。每个表格紧邻的 quote block 是该表的硬规则；PM/PMO/PL 起草时按本模板硬规则填，不另立约定。
->
-> 🔴 **核心简化原则**：teamwork_space.md 是**全景索引**，不是事件日志 / 进度看板 / 评审记录。**任一表格的任一单元格都应 ≤ 1 行**；详情一律外迁到对应文档（changes/{id}.md / Feature 自己的 state.json + PRD / PROJECT.md / ADR）。这能让 teamwork_space.md 永远保持"一眼看懂全景"，避免演化到几百行难以维护。
+> 位置:项目根 `teamwork-space.md`(多子项目模式的全景索引)
+> 🔴 **任何变更必须暂停等用户确认(R5)** · 任一单元格 ≤ 1 行 · 详情外迁(workstream/WS-NN.md / Feature state.json / PROJECT.md / ADR)。
+> 🔴 **维护规则 / 字段语义 / 生命周期 / 硬约束 → [docs/teamwork-space-guide.md](../docs/teamwork-space-guide.md)**(AI 读 · 不复制进项目文件)。
 
 ```markdown
 # Teamwork Space
 
-> 本文件是多子项目模式的全景入口，定义子项目结构、依赖关系，并链接到各子项目详情。
-> 🔴 本文件的任何变更都需要用户明确确认后才能生效。
+> 多子项目全景入口:子项目结构 + 依赖 + 跨项目追踪入口。任何变更需用户确认。
 
 ---
 
 ## 产品规划引用（有 product-overview/ 时）
 
-> teamwork_space.md 的上游输入。状态同步自 product-overview 文档头部的规划状态表。
-> 只有 ✅ 已确认 的文档内容才会驱动 teamwork_space.md 的子项目规划。
+<!-- 上游输入 · 状态同步自 product-overview 文档头部 · 仅 ✅ 已确认 才驱动下游 · 详 guide §1 -->
 
 | 文档 | 路径 | 规划状态 |
 |------|------|----------|
-| 业务架构与产品规划 | 📎 [\`product-overview/{项目名}_业务架构与产品规划.md\`](product-overview/) | 📝 草稿 / 🔄 讨论中 / ✅ 已确认 |
-| 执行手册 | 📎 [\`product-overview/{项目名}_执行手册.md\`](product-overview/) | 📝 草稿 / 🔄 讨论中 / ✅ 已确认 |
+| 业务架构与产品规划 | 📎 [`product-overview/{项目名}_业务架构与产品规划.md`](product-overview/)（愿景 + 执行线列表） | 📝 / 🔄 / ✅ |
 
-> 无 product-overview/ 的项目可省略此章节。
-> 规划状态含义：📝 初创未讨论 → 🔄 有活跃议题讨论中 → ✅ 用户确认可作为执行依据
+> Workstream（规划单元）落 `product-overview/workstream/WS-NN.md` · 无 product-overview/ 可省本章。
 
 ---
 
 ## 规划状态
 
+<!-- 项目现状统计 = 未完成 WS（规划态·本表）+ 各子项目完成度（执行态·子项目清单）· 详 guide §2 -->
+
 | 字段 | 值 |
 |------|---|
 | 状态 | ✅ 正常 |
 | 当前阶段 | 初始化 / 架构规划中 / 开发中 |
+| 未完成 WS | N 个（如 WS-03 📝 / WS-05 🔄）· 规划态 |
 | 最近规划 | - |
 | 受影响子项目 | - |
 
-> 状态值：✅ 正常 / 📝 规划中 / ⏸️ 架构待确认 / 🔄 子项目 Planning 中 / ✅ 已完成
-> 当前阶段：初始化（仅引用 product-overview）→ 架构规划中（定义子项目）→ 开发中（正常运转）
->
-> 🔴 **硬规则**：每个槽位值 **≤ 1 行**。"最近规划"/"最近更新"只写「日期 + 一句话事件 + 链 changes/{id}.md 或 Feature 路径」；多事件累积时**只保留最近一次**，旧事件移到对应 changes/{id}.md 的「变更日志」段。
-
 ---
 
-## 执行线概览（有 product-overview/ 时）
+## 执行线概览（可选派生视图）
 
-> 执行线是业务价值视角的「要做什么」，从执行手册中提取。
-> 执行线不反向绑定具体子项目或 Feature 编号——映射关系由子项目侧维护。
+<!-- 权威源 = 业务架构「执行线列表」· 本表可省 · WS 向上 tag 承接执行线 · 详 guide §3 -->
 
-| 执行线 | 使命 | 当前阶段 | 关键里程碑 |
-|--------|------|----------|-----------|
-| Line 1 · XXX | [从执行手册提取] | Phase 0 | [里程碑摘要] |
-| Line 2 · YYY | [从执行手册提取] | Phase 0 | [里程碑摘要] |
-
-> 🔴 执行线表中不出现子项目缩写或 Feature 编号。子项目与执行线的映射关系在下方「子项目清单」中维护。
->
-> 🔴 **硬规则**：「使命」/「关键里程碑」列各 **≤ 1 行**，原文取自执行手册（不复述背景 / 不加事件级补充）。
+| 执行线 | 使命（一句话） |
+|--------|---------------|
+| Line 1 · XXX | [取自业务架构执行线列表] |
 
 ---
 
 ## 项目架构全景
 
-> 初始化时由 PL 阶段 2.5 子项目拆分方案产出，PMO 阶段 3 填入。
-> 后续 Workspace Planning 时由 PM 更新。
+<!-- PL 子项目拆分方案产出 · PMO 填入 · 结构变更时 PM 更新 · 详 guide §4 -->
 
 （Mermaid 子项目拓扑 + 依赖关系图）
 
@@ -73,127 +57,49 @@
 
 ## 项目目录结构
 
-> PMO 在子项目拆分确认后生成此 tree 图，反映项目根下的物理目录布局。
-> 每个目录附职责说明，帮助新成员快速理解项目组织方式。
-> 🔴 子项目目录直接放在项目根下，不嵌套 \`packages/\` 等中间目录。
-> 🔴 文档布局遵循 docs/conventions.md §13:workspace 级工程文档(KNOWLEDGE / GLOSSARY / TROUBLESHOOTING / RESOURCES)一律进 \`project-specs/\`(与 \`product-overview/\` 同级) · 顶级仓库不设 teamwork \`docs/\` —— \`docs/\` 只在子项目层，ROADMAP.md 与子项目 KNOWLEDGE.md 均落 \`{子项目}/docs/\`。
-> ⚠️ 决策记录走 ADR 体系(\`{子项目}/docs/adr/\` · docs/conventions.md §3)，不单设 workspace 级 \`decisions/\` —— 早期模板的 \`decisions/\`(DEC-xxx)未纳入 §13，是否需独立的 workspace 级决策日志为开放项(OQ)，暂不在本 tree 体现。
+<!-- PMO 子项目拆分确认后生成 · 子项目直接放根下 · 文档布局遵循 conventions.md §13 · 详 guide §4 -->
 
-\`\`\`
+```
 项目根/
-├── teamwork_space.md # 本文件 — 全景入口（架构图 + 子项目链接 + 跨项目追踪）
-├── product-overview/ # 产品规划文档（业务架构、执行手�）— 有 product-overview 时
-├── project-specs/ # 🔴 workspace 级工程文档（与 product-overview/ 同级）· conventions.md §13
-│ ├── KNOWLEDGE.md # workspace 级知识库（跨子项目 / 仓库级 Gotcha + Convention）
-│ ├── GLOSSARY.md # workspace 级业务术语表
-│ ├── TROUBLESHOOTING.md # workspace 级排查 / 运维手册
-│ └── RESOURCES.md # workspace 级资源配置（连接串/Key 等，与 external/ 互补）
-├── external/ # 🔴 三方/外部资源文档（接入指南、API 参考、SDK 文档，按服务名分子目录）
-│ └── README.md # 目录说明 + 三方资源总览索引
-│
-├── {子项目A}/ # business 子项目 — 负责：{职责}。不负责：{边界}
-│ ├── docs/ # 子项目文档（PROJECT.md + ROADMAP.md + KNOWLEDGE.md + features/ + architecture/）
-│ └── src/ # 子项目源码（内部按技术职能分层）
-│
-└── {子项目B}/ # business 子项目 — 负责：{职责}。不负责：{边界}
- ├── docs/
- └── src/
-\`\`\`
-
-> 📎 各子项目内部目录结构详见 templates/project.md「目录结构」章节。
-> PMO 生成时将 \`{子项目X}\` 替换为实际目录名和职责，与下方「子项目清单」表保持一致。
+├── teamwork-space.md          # 本文件 — 全景入口
+├── product-overview/          # 产品规划（业务架构与产品规划 + workstream/）
+├── project-specs/             # workspace 级工程文档（KNOWLEDGE/GLOSSARY/TROUBLESHOOTING/RESOURCES）
+├── external/                  # 三方/外部资源文档
+├── {子项目A}/                  # business — 负责:{职责}。不负责:{边界}
+│   ├── docs/                  # PROJECT.md + ROADMAP.md + KNOWLEDGE.md + features/ + architecture/
+│   └── src/
+└── {子项目B}/
+```
 
 ---
 
 ## 子项目清单
 
-> 初始化时由 PMO 阶段 3 从 PL 子项目拆分方案填入。
-> 「承接执行线」列维护子项目与执行线的映射关系（执行线侧不反向记录）。
+<!-- 🔴 docs_root 必填（路由权威·缺失则 triage 阻断）· 技术栈前端列非空→same-stack panorama · 完成度=已完成/总数 · 详 guide §5 -->
 
 | 缩写 | 名称 | 类型 | 职责范围 | docs_root | 承接执行线 | 技术栈 | 需要 UI | 消费方 | 完成度 | 项目详情 |
 |------|------|------|----------|-----------|-----------|--------|---------|--------|--------|----------|
-| AUTH | 认证服务 | business | 负责：用户认证、权限管理、Token 签发。不负责：业务权限校验（由各业务子项目自行判断） | auth/docs/features | Line 1 | | 否 | - | 0/0 | [链接] |
-| WEB | 前端应用 | business | 负责：终端用户界面、交互逻辑、前端路由。不负责：业务规则计算（调用后端 API） | web/docs/features | Line 1, Line 2 | | 是 | - | 0/0 | [链接] |
-| PAY | 支付中台 | midplatform | 负责：支付渠道对接、支付状态管理、对账。不负责：订单业务逻辑（由消费方处理） | pay/docs/features | Line 1 | | 否 | AUTH, WEB | 0/0 | [链接] |
+| AUTH | 认证服务 | business | 负责:认证/权限/Token。不负责:业务权限校验 | auth/docs/features | Line 1 | | 否 | - | 0/0 | [链接] |
+| WEB | 前端应用 | business | 负责:终端 UI/交互/路由。不负责:业务规则计算 | web/docs/features | Line 1, Line 2 | React (Vite) | 是 | - | 0/0 | [链接] |
+| PAY | 支付中台 | midplatform | 负责:渠道/状态/对账。不负责:订单逻辑 | pay/docs/features | Line 1 | | 否 | AUTH, WEB | 0/0 | [链接] |
 
-> **类型说明**：\`business\`（默认）= 服务终端用户的业务子项目；\`midplatform\` = 服务内部消费方（其他子项目）的中台子项目。
-> **职责范围**：用「负责：XX。不负责：YY」格式明确边界。PMO 路由需求时依据此列判断该派发到哪个子项目。职责有交叉时在此列标注「与 XX 共同负责 YY」。
->
-> 🔴 **docs_root＼�必填，路由权威）**：
-> - 子项目的 Feature 文档根目录（相对项目根的路径）
-> - 标准格式：`{子项目目录}/docs/features`（如 `auth/docs/features`、`web/docs/features`）
-> - PMO 在 triage Step 9 计算 `state.artifact_root = {docs_root}/{Feature 全名}`，所有 Feature 产物必须落在此根下
-> - 🔴 **路由权威**：PMO 不允许"沿用历史根 docs/features/"等理由偏离 docs_root 列；老 Feature 在根目录的兼容处理见 [roles/pmo.md § 产物路径权威路由](../roles/pmo.md)
-> - 缺失 → triage 阻断（流程违规），用户必须先在 teamwork-space.md 补全
->
-> 🔴 **技术栈（前端栈是 panorama 介质权威信号）**：
-> - 列内**前端部分**（如 `React (Vite)` / `Vue` / `Next` 等）非空 → 该子项目 ui_design **必走 `same-stack` panorama**（复用本栈 + mock data · 详 stages/ui-design-stage.md § Panorama 介质类型）
-> - 列内仅后端栈或留空 → 允许 `static-html` 兜底（Greenfield / POC）
-> - 详细前端栈声明 + mock data 入口 + design route 约定 → 子项目 `PROJECT.md § 技术栈 · 前端` 段
-> - 治本 PTR-F052 case（前端栈已定却用 static-html → 4 轮调像素仍有差异的死循环）
->
-> **消费方**：仅 midplatform 类型填写，列出依赖本子项目能力的其他子项目缩写。business 类型填 \`-\`。
-> **完成度**：格式 \`已完成数/总数\`，基于该子项目 ROADMAP.md 中的 Feature 统计。PMO 在每个 Feature 完成时同步更新此列。无 ROADMAP 时填 \`0/0\`。
->
-> 🔴 **硬规则**：表内**任一单元格 ≤ 1 行**。"当前状态"等可选列只写「最近一次状态结论 + 链 PROJECT.md / ROADMAP.md」，**不复述 Feature 进度详情 / 不堆事件历史**（详情找子项目自己的 PROJECT.md + ROADMAP.md）。
+> 类型:`business`（默认·服务终端用户）/ `midplatform`（服务内部消费方）。
 
 ---
 
 ## 待规划需求池
 
-> 跨 Feature/session 发现的"本次范围外但要做"事项 · 等待用户拍板何时启动。
-> 🔴 任何 PMO/RD/PM 在 stage 内识别到"本 Feature 不做但需后续做"的事 → 必追加到此池(防遗忘 · 防散落在 OQ/Concerns 里没人复盘)。
-> 🔴 mode A query 命中"待做/待规划/pending/还要做什么/backlog"等查询意图时 · PMO 扫此表列给用户(详 SKILL.md § Triage 入口规范 §2.1)。
->
-> **ID 格式**:`PENDING-NNN`(工作区内独立递增 · 项目名前缀可选)
-> **状态**:📝 待规划 / 🔄 规划中(进 Feature Planning)
-> **背景列**:1-3 句 · 含来源 session + 为什么本次不做 + 不做的影响
->
-> 🔴 **表始终只保留 active 项**(📝/🔄):
-> - 转 ✅ 已转(进 Feature/Bug)→ **从表删** · 关联记录到对应 Feature `state.json.related_pending` 字段(audit 反查)
-> - 转 ❌ 不做 → **从表删** · 不做原因可入对应 changes/{id}.md 或仅留 git log
-> - 防表无限膨胀 · 历史不在 teamwork_space.md 沉淀
+<!-- 跨 Feature/session 发现的"范围外但要做"项 · 只保留 active(📝/🔄) · 转化即从表删 · 详 guide §6 -->
 
 | ID | 标题 | 来源 | 目标项目 | 背景(1-3 句) | 状态 | 加入日期 |
 |---|---|---|---|---|---|---|
-| PENDING-001 | <例 · country 字段填充责任方决策> | <例 · SVC-CORE-F024 goal stage 评审 OQ-4> | <例 · gateway / SDK 待拆> | <例 · F-A 协议新增 UserProfile.country · 但谁填(网关 vs SDK)未定 · 影响 geo 过滤上线效果> | 📝 | 2026-05-18 |
+| PENDING-001 | <例·country 字段填充责任方> | <例·SVC-CORE-F024 goal OQ-4> | <gateway / SDK 待拆> | <协议新增 country·谁填未定·影响 geo 过滤> | 📝 | 2026-05-18 |
 
 ---
 
 ## 跨项目变更与历史
 
-> 🟢 **本文件不再维护变更类表格**。teamwork_space.md 的定位是**项目结构静态描述**,不是事件日志 / 状态看板 / 评审记录。
->
-> **变更 / 阻塞 / 历史的单源**：
-> - 🔴 **活跃变更**（含状态 / 简介 / 影响子项目 / 子 Feature / 推进顺序 / 联调依赖 / 锁定决策）→ [`product-overview/changes/`](./product-overview/changes/) 目录下每个 `{change_id}.md` 自己的 frontmatter + 「变更日志」段（schema 见 [templates/change-request.md](~/.claude/skills/teamwork/templates/change-request.md)）
-> - 🔴 **当前阻塞** → 对应 `changes/{change_id}.md` 的「风险与缓解」段 / 或单 Feature 的 `state.concerns`
-> - 🔴 **Feature 级事件**（Stage 流转 / Ship / 评审 finding）→ 各 Feature 自己的 `state.json` + `review-log.jsonl` + git log
-> - 🔴 **跨变更回溯查询**：`ls product-overview/changes/*.md` / `grep -l "status: locked" product-overview/changes/*.md`
->
-> **Feature → 变更反查**：Feature `state.json` 通过 `change_id` 字段反向引用所属变更。
->
-> 🔴 **核心硬约束（保留）**：变更状态 != `locked` 时禁止启动归属本变更的子 Feature，PMO 在 triage 时硬阻塞（保留"用户明确说强制启动"逃生舱）。校验由 PMO 直接读 `changes/{change_id}.md` frontmatter 完成，不再读本文件中的任何索引表。
-\`\`\`
+<!-- 🟢 本文件不维护变更表格 · 规划/阻塞/历史单源 = product-overview/workstream/WS-NN.md · WS 未✅规划完成禁启动其子 Feature · 详 guide §7 -->
 
----
-
-## teamwork_space.md 生命周期
-
-\`\`\`
-teamwork_space.md 随项目演进经历三个阶段：
-
-阶段 1 · 初始化（首次启动 teamwork 时自动创建）
-├── 触发：PMO 首次承接需求，发现无 teamwork_space.md
-├── 内容：根据有无 product-overview/ 或代码目录自动生成
-├── 结果：⏸️ 用户确认后进入阶段 2
-
-阶段 2 · 架构规划（逐个子项目 Planning 或首个 CHG 执行时）
-├── 触发：用户确认开始子项目 Planning / 执行 CHG
-├── PM 在 Workspace Planning 中更新子项目清单、架构全景、各子项目 ROADMAP
-├── 结果：⏸️ 用户确认后进入阶段 3
-
-阶段 3 · 开发期（正常运转）
-├── 子项目清单 + 项目架构全景 + 项目目录结构按结构变更同步更新
-├── 变更 / 阻塞 / 事件历史一律落 product-overview/changes/{id}.md 或 Feature state.json，本文件不再维护此类表格
-└── 自上而下 / 自下而上双向更新
-\`\`\`
+（无表格 · 见 workstream/）
+```

@@ -14,14 +14,14 @@
 ### 1. 加载上下文(主对话 Designer / Architect / PMO 身份)
 - 读 `UI.md`(本 Feature 的 pages_changed[] · IA 改动范围)· `PRD.md`(范围 / AC)
 - 读 panorama 单源:`panorama_path/sitemap.md` + `panorama_path/preview/overview.html`(若存在)
-- 读 `panorama_path/preview/<page>.html`(本 Feature 在 ui_design 已改的全景文件)
+- 读本 Feature 在 ui_design 已改的全景:`static-html` → `panorama_path/preview/<page>.html`;`same-stack`(v8.58 option B)→ `panorama_path/preview-project/` 源(跑 preview.sh 看实时 dev server)
 - 读 `teamwork-space.md § 子项目清单`(识别可能被本变更影响的其他子项目)
 
 ### 2. 更新 sitemap.md + 评审 panorama 文件改动
 - **`sitemap.md`**:新增 / 移动 / 删除页面节点 · 保持层级清晰 · **mtime 必晚于本 stage `started_at`**(evidence_check 物化校验)
 - **`panorama_path/preview/<page>.html`**(v8.17 新模式):本 Feature 已在 ui_design 阶段直接改完 · 本 step 由 architect **review**(不重改 · 仅评)
 - **`overview.html`**(若 panorama 是 `static-html` 介质 + 结构性改动):同步 DOM 变更
-- 项目同栈 panorama(`same-stack`):更新 design route 注册表 / 导航组件 fixture
+- 项目同栈 panorama(`same-stack` · v8.58 option B):评 preview-project 源(组件 / 路由 / mock)· 跑 preview.sh 看实时 dev server(不出静态 build)
 
 🟢 **老模式(无 `pages_changed[]` UI.md)兼容**:仍可在本 step 把 Feature 内 preview/*.html 副本同步到 panorama_path/preview/<page>.html(老路径)· 但新 Feature 推荐 v8.17 新模式(ui_design 直接改全景 · 本 stage 仅 review)。
 

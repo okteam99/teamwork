@@ -8,7 +8,8 @@
 读 PRD.md / TC.md / TECH.md / 实际代码 diff(git diff HEAD~N)
 
 ### 2. Architect 视角 review → REVIEW-arch.md
-技术合理性 / 性能 / 安全 / 架构一致性 · 主对话默认
+技术合理性 / 性能 / 安全 / 架构一致性 + **方案简洁性(防过度设计)** · 主对话默认
+🔴 Architect 是唯一**简洁性 counter-lens**(QA/external 都偏加 rigor):查「实现是否把不该管的复杂度焊进核心抽象 · 能否更简单 · 职责是否归错层(可删 / 可下沉正确 owner)」· external finding 别盲采(对照业务目标 + 简洁性取舍 · 详 `roles/architect.md` Telos)
 
 ### 3. QA 视角 review → REVIEW-qa.md
 AC 逐条对照实现 / 测试覆盖度 / 边界场景
@@ -81,7 +82,7 @@ review-complete --verdict APPROVE | NEEDS_REVISION
 | Substep | 必读 spec | 段 | cite 关键点 |
 |---------|----------|----|------------|
 | 1. 加载上下文 | — | — | (读 PRD/TC/TECH + 实际代码 diff) |
-| 2. Architect 视角 review → REVIEW-arch.md | `roles/architect.md` | § Code Review | 技术合理性 / 性能 / 安全 / 架构 |
+| 2. Architect 视角 review → REVIEW-arch.md | `roles/architect.md` | § Code Review | 技术合理性 / 性能 / 安全 / 架构 / **简洁性(防过度设计 · 唯一 counter-lens)** |
 | 3. QA 视角 review → REVIEW-qa.md | `roles/qa.md` | § Code Review | AC 逐条对照 / 测试覆盖 / 边界场景 |
 | 4. External cross-review | `roles/external-reviewer.md` | § Cross-review 协议 | 异质模型独立 review |
 | 5. 汇合 → REVIEW.md | — | — | (整合 · 无 spec cite) |

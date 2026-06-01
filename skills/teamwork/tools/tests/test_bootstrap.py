@@ -629,6 +629,111 @@ class TestCmdSessionBootstrapE2E(unittest.TestCase):
         self.assertIn("prepare-check", prep_gate["action"])
         self.assertIn("TEAMWORK_BYPASS_PREPARE_CHECK", prep_gate["bypass_env"])
 
+    def _run_and_get_gates(self):
+        result = subprocess.run(
+            ["python3", str(BOOTSTRAP_PY),
+             "--host", "claude-code",
+             "--skill-root", str(SKILL)],
+            cwd=str(self.project), capture_output=True, text=True, check=True,
+        )
+        return json.loads(result.stdout).get("flow_gates", [])
+
+    def test_cold_start_gate_present_when_no_workspace(self):
+        """v8.47/v8.48:project_root 无 teamwork-space.md → emit cold_start gate。
+
+        v8.48 治本(gcpdev case):gate 路由「产品规划优先」(product-overview → 派生 teamwork-space.md)·
+        不再指「进 Feature Planning 生成 teamwork-space.md」(那是 v8.47 硬伤)。
+        setUp 的 project 是裸 git 仓(无 teamwork-space.md 无 product-overview)→ 全冷启动。
+        """
+        gates = self._run_and_get_gates()
+        cs = next((g for g in gates
+                   if g.get("gate") == "cold_start_workspace_uninitialized"), None)
+        self.assertIsNotNone(cs, "无 teamwork-space.md 时必 emit cold_start gate")
+        # 关键字段完整(含 v8.48 新增 authoritative_order)
+        for k in ("trigger", "checks", "action", "skip_consequence",
+                  "product_overview_status", "authoritative_order", "spec"):
+            self.assertIn(k, cs, f"cold_start gate 必含 {k} 字段")
+        # v8.48:action 路由产品规划优先(product-overview 先建)· 不是 Feature Planning 生成
+        self.assertIn("product-overview", cs["action"])
+        self.assertIn("产品规划", cs["action"])
+        # 权威顺序字段:product-overview 必在 teamwork-space 之前(治本路由倒置)
+        self.assertIn("product-overview", cs["authoritative_order"])
+        self.assertLess(cs["authoritative_order"].index("product-overview"),
+                        cs["authoritative_order"].index("teamwork-space"),
+                        "权威顺序 product-overview 必在 teamwork-space 之前")
+        # spec 指向产品规划权威(PRODUCT-OVERVIEW-INTEGRATION)
+        self.assertIn("PRODUCT-OVERVIEW-INTEGRATION", cs["spec"])
+        # 无 product-overview/ → 提示一并建(冷启动第一步)
+        self.assertIn("也缺失", cs["product_overview_status"])
+
+    def test_cold_start_gate_absent_when_workspace_exists(self):
+        """v8.47:teamwork-space.md 存在 → 工作区已初始化 · 不再 emit gate。"""
+        (self.project / "teamwork-space.md").write_text("# workspace\n",
+                                                        encoding="utf-8")
+        gates = self._run_and_get_gates()
+        cs = next((g for g in gates
+                   if g.get("gate") == "cold_start_workspace_uninitialized"), None)
+        self.assertIsNone(cs, "teamwork-space.md 存在时不应 emit cold_start gate")
+
+    def test_cold_start_po_status_when_product_overview_exists(self):
+        """v8.48:有 product-overview/ 但无 teamwork-space.md → gate 在 · 引导从 ✅确认派生(跳过初创)。"""
+        (self.project / "product-overview").mkdir()
+        gates = self._run_and_get_gates()
+        cs = next((g for g in gates
+                   if g.get("gate") == "cold_start_workspace_uninitialized"), None)
+        self.assertIsNotNone(cs, "仅 product-overview/ 不算工作区初始化 · gate 仍应在")
+        # po 已存在 → 状态以「已存在」开头 · action 引导从 ✅确认内容派生 teamwork-space.md
+        self.assertTrue(cs["product_overview_status"].startswith("已存在"),
+                        f"po 存在时 status 应以「已存在」开头 · 实际:{cs['product_overview_status']}")
+        self.assertIn("派生", cs["action"])
+
+    def test_session_entry_priority_when_cold_start(self):
+        """v8.51:cold_start(无 teamwork-space)→ emit session_entry_priority(② 补规划 + ③ 任务)。
+
+        治本 gcpdev case 2026-05-29:PMO 把升级/补规划降脚注、优先级倒置 → 物化优先级到 bootstrap 输出。
+        (① 升级 取决于网络/版本比较 · 不在此断言;② 补规划 由 cold_start 确定性触发)
+        """
+        result = subprocess.run(
+            ["python3", str(BOOTSTRAP_PY),
+             "--host", "claude-code", "--skill-root", str(SKILL)],
+            cwd=str(self.project), capture_output=True, text=True, check=True,
+        )
+        data = json.loads(result.stdout)
+        self.assertIn("session_entry_priority", data,
+                      "cold_start 时必 emit session_entry_priority(物化入口优先级)")
+        sp = data["session_entry_priority"]
+        order_text = " ".join(sp["order"])
+        self.assertIn("补规划", order_text, "② 补规划 必在(cold_start 触发)")
+        self.assertIn("任务", order_text, "③ 任务 必在(且应排在补规划之后)")
+        self.assertLess(order_text.index("补规划"), order_text.index("任务"),
+                        "补规划 必排在 任务 之前(优先级序)")
+        self.assertIn("脚注", sp["rule"], "rule 必强调不可降脚注(治本优先级倒置)")
+
+    def test_pmo_must_read_digest_at_top_survives_truncation(self):
+        """v8.60:pmo_must_read digest 在输出顶部(survive head -5)· 治本 case
+        `bootstrap.py | head -50` 切掉 skill_update_check(JSON 后位)→ PMO 漏升级提示 +
+        误判"bootstrap 没检查升级"。"""
+        result = subprocess.run(
+            ["python3", str(BOOTSTRAP_PY),
+             "--host", "claude-code", "--skill-root", str(SKILL)],
+            cwd=str(self.project), capture_output=True, text=True, check=True,
+        )
+        data = json.loads(result.stdout)
+        # 字段存在 + 在头部(verdict/command 之后 · 位置 ≤ 2 · 截断也能见)
+        self.assertIn("pmo_must_read", data)
+        self.assertLessEqual(list(data.keys()).index("pmo_must_read"), 2,
+                             "pmo_must_read 必在头部(survive 截断)")
+        mr = data["pmo_must_read"]
+        # 含禁截断警告
+        self.assertIn("禁", mr)
+        self.assertIn("head", mr)
+        # cold_start(setUp 裸 git 仓无 teamwork-space)触发 → digest 必提 flow_gates
+        self.assertIn("flow_gates", mr)
+        # 🔴 截断鲁棒性实测:head -5 仍见 pmo_must_read(直接复现 bug 场景)
+        head5 = "\n".join(result.stdout.splitlines()[:5])
+        self.assertIn("pmo_must_read", head5,
+                      "head -5 必见 pmo_must_read(治本 head -50 吞 forewarn)")
+
 
 class TestWriteHostAudit(unittest.TestCase):
     """v8.21:bootstrap.write_host_audit 写 ~/.teamwork/host_audit.json。

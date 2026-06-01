@@ -105,15 +105,23 @@ class TestUpdatePyTarballDownload(unittest.TestCase):
             encoding="utf-8")
 
         # 3. env override TEAMWORK_SKILL_TARBALL_URL → file:// 本地 tarball
-        self._prev_env = os.environ.get("TEAMWORK_SKILL_TARBALL_URL")
+        # v8.44.3:也 override TEAMWORK_BACKUP_ROOT 到 tmp · 不污染 ~/.teamwork/backups
+        self._prev_env_url = os.environ.get("TEAMWORK_SKILL_TARBALL_URL")
+        self._prev_env_backup = os.environ.get("TEAMWORK_BACKUP_ROOT")
         os.environ["TEAMWORK_SKILL_TARBALL_URL"] = f"file://{self.tarball}"
+        self.backup_root = self.tmp / "backups"
+        os.environ["TEAMWORK_BACKUP_ROOT"] = str(self.backup_root)
 
     def tearDown(self):
         shutil.rmtree(self.tmp, ignore_errors=True)
-        if self._prev_env is None:
+        if self._prev_env_url is None:
             os.environ.pop("TEAMWORK_SKILL_TARBALL_URL", None)
         else:
-            os.environ["TEAMWORK_SKILL_TARBALL_URL"] = self._prev_env
+            os.environ["TEAMWORK_SKILL_TARBALL_URL"] = self._prev_env_url
+        if self._prev_env_backup is None:
+            os.environ.pop("TEAMWORK_BACKUP_ROOT", None)
+        else:
+            os.environ["TEAMWORK_BACKUP_ROOT"] = self._prev_env_backup
 
     def _run_update(self, *extra_args) -> dict:
         """跑 update.py(skill_root = self.local_skill)· 捕 JSON。"""
@@ -121,7 +129,9 @@ class TestUpdatePyTarballDownload(unittest.TestCase):
             ["/opt/homebrew/opt/python@3.14/bin/python3.14",
              str(self.local_skill / "tools" / "update.py"), *extra_args],
             capture_output=True, text=True, timeout=30, cwd=str(self.local_skill),
-            env={**os.environ, "TEAMWORK_SKILL_TARBALL_URL": f"file://{self.tarball}"},
+            env={**os.environ,
+                 "TEAMWORK_SKILL_TARBALL_URL": f"file://{self.tarball}",
+                 "TEAMWORK_BACKUP_ROOT": str(self.backup_root)},
         )
         out = (r.stdout or r.stderr).strip()
         idx = out.find("{")
@@ -129,30 +139,75 @@ class TestUpdatePyTarballDownload(unittest.TestCase):
                                 f"未找到 JSON · stdout/stderr=\n{out}")
         return json.loads(out[idx:])
 
-    # ── BLOCK path:本地有改动 + 无 --accept-overwrite ──
+    # ── v8.44.3:默认 backup + overwrite(治本 v8.41 BLOCK 二次问用户)──
 
-    def test_v842_block_when_local_modified_without_accept(self):
-        """本地有改动(SKILL.md v8.41 ≠ 远端 v8.99) + 无 --accept-overwrite → BLOCK。"""
-        d = self._run_update()
-        self.assertEqual(d["verdict"], "FAIL")
+    def test_v8443_default_backup_and_overwrite_succeeds(self):
+        """v8.44.3:有本地改动 + 不带任何 flag · 默认 backup + overwrite · PASS 一步走。
+
+        治本 v8.41 设计:之前 BLOCK 必须 --accept-overwrite · case 暴露用户被迫做 2 次决策。
+        v8.44.3 默认 backup 兜底 · 直接 overwrite · 用户不知道 backup 也安全。
+        """
+        d = self._run_update()  # 不带任何 flag
+        self.assertEqual(d["verdict"], "OK", f"应默认成功 · 实际 emit:\n{json.dumps(d, ensure_ascii=False, indent=2)}")
         self.assertEqual(d["command"], "update")
-        self.assertIn("本地有改动", d["error"])
-        self.assertIn("SKILL.md", str(d["modified_files"]))
-        self.assertGreaterEqual(d["modified_files_total"], 1)
-        # hint 含逃生口
-        self.assertIn("--accept-overwrite", d["hint"])
-        self.assertIn("backup", d["hint"])
-        # hint 提到 update.py(不是 state.py update-skill)
-        self.assertIn("update.py", d["hint"])
-        self.assertNotIn("state.py update-skill", d["hint"])
-        # 仍 emit old/new version
         self.assertEqual(d["old_version"], "v8.41")
         self.assertEqual(d["new_version"], "v8.99")
+        # 文件真被覆盖
+        skill_md = self.local_skill / "SKILL.md"
+        self.assertIn("version: v8.99", skill_md.read_text(encoding="utf-8"))
+        # backup 真创建
+        self.assertIsNotNone(d["backup_path"])
+        self.assertGreater(d["backup_file_count"], 0)
+        backup_path = Path(d["backup_path"])
+        self.assertTrue(backup_path.exists())
+        self.assertTrue(backup_path.is_dir())
+        # backup 含原 SKILL.md(v8.41 版本)
+        backup_skill = backup_path / "SKILL.md"
+        self.assertTrue(backup_skill.exists())
+        self.assertIn("version: v8.41", backup_skill.read_text(encoding="utf-8"))
 
-    # ── PASS path:--accept-overwrite 通过 + 文件被覆盖 ──
+    def test_v8443_backup_path_in_teamwork_backups_dir(self):
+        """v8.44.3:backup 路径在 TEAMWORK_BACKUP_ROOT(默认 ~/.teamwork/backups/<ts>/)。"""
+        d = self._run_update()
+        backup_path = Path(d["backup_path"])
+        # backup 在 self.backup_root(env override)下
+        self.assertTrue(str(backup_path).startswith(str(self.backup_root)),
+                        f"backup 路径应在 {self.backup_root}/ 下 · 实际 {backup_path}")
+        # 路径名是 timestamp 格式(20260528T143022Z)
+        name = backup_path.name
+        self.assertRegex(name, r"^\d{8}T\d{6}Z(-\d+)?$",
+                          f"backup 目录名应为 ISO timestamp 紧凑格式 · 实际 {name}")
+
+    def test_v8443_no_backup_flag_skips_backup(self):
+        """v8.44.3:--no-backup 跳 backup · 仍 overwrite · emit backup_skip_reason。"""
+        d = self._run_update("--no-backup")
+        self.assertEqual(d["verdict"], "OK")
+        self.assertIsNone(d["backup_path"])
+        self.assertEqual(d["backup_file_count"], 0)
+        self.assertIn("--no-backup", d["backup_skip_reason"])
+        # 文件仍被覆盖
+        skill_md = self.local_skill / "SKILL.md"
+        self.assertIn("version: v8.99", skill_md.read_text(encoding="utf-8"))
+        # backup 目录不存在(因为 skip 了)
+        if self.backup_root.exists():
+            self.assertEqual(list(self.backup_root.iterdir()), [],
+                             "backup_root 应为空 · 因为 --no-backup")
+
+    def test_v8443_accept_overwrite_deprecated_no_op(self):
+        """v8.44.3:--accept-overwrite 仍接受但 no-op + emit deprecation_warning(向后兼容)。"""
+        d = self._run_update("--accept-overwrite")
+        self.assertEqual(d["verdict"], "OK")
+        # 仍默认 backup
+        self.assertIsNotNone(d["backup_path"])
+        # deprecation warning 显式提示
+        self.assertIn("deprecation_warning", d)
+        self.assertIn("deprecated", d["deprecation_warning"].lower())
+        self.assertIn("v8.44.3", d["deprecation_warning"])
+
+    # ── v8.42:原有 PASS path 测试调整(仍传 --accept-overwrite 兼容) ──
 
     def test_v842_pass_with_accept_overwrite_and_overwrites_files(self):
-        """有本地改动 + --accept-overwrite → PASS + 文件真被覆盖。"""
+        """v8.42→v8.44.3:--accept-overwrite 仍接受 · 文件真被覆盖。"""
         d = self._run_update("--accept-overwrite")
         self.assertEqual(d["verdict"], "OK")
         self.assertEqual(d["command"], "update")
@@ -160,19 +215,16 @@ class TestUpdatePyTarballDownload(unittest.TestCase):
         self.assertEqual(d["new_version"], "v8.99")
         self.assertTrue(d["version_changed"])
         self.assertGreaterEqual(d["modified_overwritten_total"], 1)
-        # 文件真被覆盖
         skill_md = self.local_skill / "SKILL.md"
         self.assertIn("version: v8.99", skill_md.read_text(encoding="utf-8"))
-        # 新文件也被添加(NEW_FILE.py · 远端有本地没)
         new_file = self.local_skill / "tools" / "NEW_FILE.py"
         self.assertTrue(new_file.exists())
-        # new_files_added_total ≥ 1(NEW_FILE.py · 可能含其他 setUp 拷过去但远端没的文件)
         self.assertGreaterEqual(d["new_files_added_total"], 1)
         self.assertIn("tools/NEW_FILE.py", d["new_files_added"])
-        # 含 timestamp(update.py 独立 emit)
+        # v8.44.3:emit 字段从 timestamp 改名 · 但保留 timestamp 字段(now_ts_compact)
         self.assertIn("timestamp", d)
 
-    # ── BLOCK path:tarball 下载失败 ──
+    # ── BLOCK path:tarball 下载失败(保留 · 不受 v8.44.3 影响) ──
 
     def test_v842_block_when_tarball_url_invalid(self):
         """URL 指向不存在 file:// → curl 失败 → BLOCK with hint。"""
@@ -193,13 +245,13 @@ class TestUpdatePyTarballDownload(unittest.TestCase):
 
     def test_v842_channel_passed_through_to_emit(self):
         """--channel dev → emit channel=dev · channel_source=args。"""
-        d = self._run_update("--accept-overwrite", "--channel", "dev")
+        d = self._run_update("--channel", "dev")  # v8.44.3 不需 --accept-overwrite
         self.assertEqual(d["channel"], "dev")
         self.assertEqual(d["channel_source"], "args")
 
     def test_v842_default_channel_main(self):
         """无 --channel + 无 localconfig → channel=main · channel_source=default。"""
-        d = self._run_update("--accept-overwrite")
+        d = self._run_update()
         self.assertEqual(d["channel"], "main")
         self.assertEqual(d["channel_source"], "default")
 

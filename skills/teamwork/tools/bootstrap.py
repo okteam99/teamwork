@@ -882,6 +882,74 @@ def cmd_session_bootstrap(args: argparse.Namespace) -> None:
         ],
     }
 
+    # v8.47 + v8.48:冷启动检测 — teamwork-space.md 缺失 → forewarn 引导「产品规划优先」冷启动
+    # v8.48 治本(用户 case 2026-05-29 · gcpdev):v8.47 gate 路由指错 —— 写「进 Feature Planning
+    #   生成 teamwork-space.md」· 但 teamwork-space.md 不是 Feature Planning 产出的:权威流是
+    #   product-overview(PL 引导模式)→ ✅确认派生 teamwork-space.md → 再 Feature Planning 拆 ROADMAP
+    #   (PRODUCT-OVERVIEW-INTEGRATION.md:67)。gcpdev 已做 Feature Planning(PROJECT/ROADMAP)却跳过上游产品规划。
+    # 用户决策:产品规划优先(权威流)· 一律引导 product-overview(用户可拒)· spec/wording 修正
+    _AUTH_ORDER = ("product-overview(产品规划 · PL 引导模式)→ ✅确认 → teamwork-space.md(工作区全景)"
+                   "→ Feature Planning(拆 ROADMAP)→ Feature 状态机")
+    _po_exists = (project_root / "product-overview").is_dir()
+    if not (project_root / "teamwork-space.md").exists():
+        if _po_exists:
+            # 已有 product-overview · 仅缺 teamwork-space → 从「✅ 已确认」内容派生(跳过 ① 初创)
+            _cold_action = (
+                "🔴 PMO 本 session 首次响应前 · emit R5 暂停点:本项目有 product-overview/ 但无 teamwork-space.md · "
+                "从 product-overview「✅ 已确认」内容派生 teamwork-space.md(工作区全景索引)→ 再 Feature Planning 拆 ROADMAP。"
+                "选项:1 派生 teamwork-space.md 💡 / 2 跳过直接做任务 / 3 其他"
+            )
+            _po_status = ("已存在 · 从其「✅ 已确认」内容派生 teamwork-space.md"
+                          "(PRODUCT-OVERVIEW-INTEGRATION.md § 与 teamwork-space 关系)")
+        else:
+            # 全冷启动 · 无 product-overview 无 teamwork-space → 产品规划优先(权威流)
+            _cold_action = (
+                "🔴 PMO 本 session 首次响应前 · emit R5 暂停点引导用户:本项目未初始化 teamwork 工作区(无 teamwork-space.md)· "
+                "权威冷启动顺序 = 产品规划优先:① 先建 product-overview/(PL 引导模式 · 产品定位/业务架构/执行线列表 · "
+                "见 PRODUCT-OVERVIEW-INTEGRATION.md 建议章节 + 裁剪规则)→ ② ✅确认后派生 teamwork-space.md → "
+                "③ 再 Feature Planning 拆 ROADMAP。选项:1 进产品规划冷启动(建 product-overview)💡 / "
+                "2 跳过直接做任务(单 Feature 快速场景 · 后续可补)/ 3 其他。"
+                "🔴 即使项目已有 PROJECT/ROADMAP(说明跳过了上游产品规划)· 仍 surface 此引导(让用户决定是否补上游)"
+            )
+            _po_status = "也缺失 · 冷启动第一步就是建它(产品规划上游 · teamwork-space.md 由其「✅ 已确认」内容派生)"
+        result["flow_gates"].append({
+            "gate": "cold_start_workspace_uninitialized",
+            "trigger": "session 启动 · 本项目无 teamwork-space.md(工作区未初始化 · 新项目冷启动)",
+            "checks": "project_root 无 teamwork-space.md · teamwork 项目应有(由 product-overview ✅确认内容派生 · 含子项目清单 + 待规划需求池)",
+            "action": _cold_action,
+            "skip_consequence": (
+                "跳过可直接做任务(用户拍板)· 但缺产品规划上游 + 工作区清单 → 多子项目管理 / 待规划需求池 / "
+                "跨项目变更追踪 / 执行线对齐 缺失 · 后续可随时补"
+            ),
+            "product_overview_status": _po_status,
+            "authoritative_order": _AUTH_ORDER,
+            "spec": ("PRODUCT-OVERVIEW-INTEGRATION.md(产品规划权威 · 引导模式建 product-overview)"
+                     "+ docs/feature-planning.md + templates/teamwork-space.md"),
+        })
+
+    # v8.46 A:检测 product-overview/ → flow_gates 加规划规范 gate(治本 Feature Planning 未物化漏洞)
+    # 根因:Feature Planning 不进状态机 · 无 state.py 兜底 · PRODUCT-OVERVIEW-INTEGRATION.md 纯靠 AI 自觉读
+    # session 启动时若项目有 product-overview/ · forewarn AI 规划类任务必读规范 + 跑 planning-check
+    if _po_exists:
+        result["flow_gates"].append({
+            "gate": "product_overview_planning_spec_required",
+            "trigger": "Feature Planning / 规划类任务(拆 ROADMAP · 更新 product-overview · 商业模式调整)",
+            "checks": (
+                "本项目存在 product-overview/ · 规划有独立状态机"
+                "(📝草稿 / 🔄讨论中 / ⏸️待确认 / ✅已确认)· 不进 teamwork stage 状态机"
+            ),
+            "action": (
+                "规划类任务**先跑** `state.py planning-check --project-root <abs>`(emit 规划状态 "
+                "checklist + 必读规范)· 必读 PRODUCT-OVERVIEW-INTEGRATION.md(加载规则 + 状态管理 + "
+                "议题追踪)· 维护规划状态表 · 仅「✅ 已确认」内容才影响 teamwork-space.md / 下游执行"
+            ),
+            "skip_consequence": (
+                "AI 没读规范 → 不维护规划状态表 / 草稿态内容误影响下游 / 议题追踪缺失。"
+                "Feature Planning 不进状态机 · 无 stage 物化兜底 · 这是 v8 物化盲区(v8.46 用 gate 提示补)"
+            ),
+            "spec": "PRODUCT-OVERVIEW-INTEGRATION.md + docs/feature-planning.md",
+        })
+
     # v8.21:写 host audit(跨 session 全局 host 记忆 · 治本 PMO 还要传 --host 心智)
     # 下游命令(state.py external-review 等)自动读 · PMO 不需要再传 --host
     host_audit_ok = write_host_audit(args.host)
@@ -901,6 +969,52 @@ def cmd_session_bootstrap(args: argparse.Namespace) -> None:
             "status": "skipped",
             "reason": "本地 skill_version 探测失败 · 无法比较",
         }
+
+    # v8.51:session 入口优先级(治本 gcpdev case 2026-05-29 · PMO 把升级/补规划降成脚注 · 优先级倒置)
+    # 物化:把"先升级 → 再补规划 → 最后任务"写进 bootstrap 输出 · AI 跑完即见 · 不靠记 SKILL.md
+    _su_status = result["checks"].get("skill_update_check", {}).get("status")
+    _has_cold_start = any(g.get("gate") == "cold_start_workspace_uninitialized"
+                          for g in result.get("flow_gates", []))
+    if _su_status == "outdated" or _has_cold_start:
+        _priority = []
+        if _su_status == "outdated":
+            _priority.append(
+                "① 升级:skill 落后(见 checks.skill_update_check.upgrade_prompt)· 🔴 最先处理 · "
+                "旧版 = 跑旧行为(规划/冷启动逻辑本身可能已被新版治掉 · 旧版上补规划会白补)"
+            )
+        if _has_cold_start:
+            _priority.append(
+                "② 补规划:工作区未初始化(见 flow_gates.cold_start_workspace_uninitialized)· 升级处理完(或用户忽略)再做"
+            )
+        _priority.append("③ 任务:triage / 启动 Feature / 看板 · 前面处理完或用户明确跳过才轮到")
+        result["session_entry_priority"] = {
+            "order": _priority,
+            "rule": "🔴 PMO 首条响应按此序 · 不可把 ①/② 降成底部「维护提醒」脚注(治本优先级倒置)",
+        }
+
+    # v8.60:截断鲁棒 digest —— 关键 forewarn(升级 / flow_gates / 优先级)在 JSON 后位 ·
+    # AI 习惯 `| head` 截断会吞掉(实证 case:`bootstrap.py | head -50` 吞掉 skill_update_check
+    # → PMO 漏升级提示)。把 1 行 digest 提到输出**顶部**(survive `head -5`)+ 显式禁截断警告。
+    _mr = ["⚠️ 本输出是结构化 JSON · PMO 必**完整读** · 禁 `| head`/`tail`/`sed` 截断"
+           "(关键 forewarn 在 JSON 后位 · 截断必吞)"]
+    _suc = result.get("checks", {}).get("skill_update_check", {})
+    if _suc.get("status") == "outdated":
+        _mr.append(
+            f"🔴 ① skill OUTDATED {_suc.get('local_version')}→{_suc.get('latest_version')}"
+            f" · 跑 update.py --channel {_suc.get('channel', 'main')}(最先处理)")
+    elif _suc.get("status") == "up_to_date":
+        _mr.append(f"skill ✅ {_suc.get('local_version')}")
+    _gates = result.get("flow_gates", [])
+    if _gates:
+        _mr.append("🔴 flow_gates(%d): %s → 逐条读 flow_gates[] 响应"
+                   % (len(_gates), ", ".join(g.get("gate", "?") for g in _gates)))
+    _sep = result.get("session_entry_priority", {})
+    if _sep.get("order"):
+        _mr.append("session_entry_priority: %s(见 session_entry_priority.order)"
+                   % " / ".join(o.split(":")[0].strip() for o in _sep["order"]))
+    # 重排:pmo_must_read 紧跟 command(头部 · 即使 AI 截断输出也能见)
+    result = {"verdict": result.get("verdict"), "command": result.get("command"),
+              "pmo_must_read": " · ".join(_mr), **result}
 
     # silent emit JSON · AI 跑后不必 cite · 用户不可见报告
     print(json.dumps(result, ensure_ascii=False, indent=2))

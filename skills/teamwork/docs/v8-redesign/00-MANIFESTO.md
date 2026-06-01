@@ -1,5 +1,8 @@
 # v8.0 Manifesto · Code-driven Orchestration
 
+> ⚠️ **归档文档(v8.0 重构期蓝图)**:本文件是 v7→v8 重构期的设计/规划文档 · 描述当时的**计划态**。v8 已稳定至 v8.45 · 现行权威以 [SKILL.md](../../SKILL.md) + tools/state.py 实际行为为准。文内可能引用已失效的 RULES.md/TRIAGE.md(并入 SKILL.md)/ 旧 stage 名 / 旧命令。仅 § 十一 9 红线 rationale 仍被现行文档 cite · 保留供追溯。不再维护。
+
+
 > teamwork 从「AI 多角色协作框架」转型为「状态机驱动的 AI 开发编排器」。
 > 本文是 v8.0 重构的设计宪法。所有细节文档以此为准。
 

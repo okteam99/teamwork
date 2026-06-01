@@ -18,25 +18,6 @@
 
 ---
 
-## v7 → v8 standards 变化
-
-| 范式 | 文件数 | 主要内容 |
-|------|--------|---------|
-| v7 | 14 文件 | 技术规范 + 流程规范(evidence-binding / output-tiers / review-verdict / review-scope / prompt-cache / stage-instantiation / discussion-mode / external-model)|
-| v8 | 6 文件 | 仅技术规范(流程规范全部进 state.py) |
-
-**已删除的流程规范文件**(已迁移到 state.py 代码层):
-- `evidence-binding.md` → `_v8_engine.py` execute_stage_complete + `_v8_ship.py` 物化拦截
-- `output-tiers.md` → state.py emit 时自动适配 Tier 1/2/3
-- `review-verdict.md` → state.py `review-complete --verdict` enum + artifact 校验
-- `review-scope.md` → state.py `_v8_stage_specs.py` 各 review 角色 spec
-- `prompt-cache.md` → state.py 内部 Read 顺序固定 + state.json 访问次数控制
-- `stage-instantiation.md` → state.py 各 stage `prerequisites` + `brief_template_fn`
-- `discussion-mode.md` → SKILL.md § Triage 入口规范 § 2 mode E 内置(PMO 主对话行为 · 无 state.py 命令)
-- `external-model-usage.md` → `standards/external-model-usage.md` 单源 + `_v8_engine.py` external review evidence(P0-154 物化)
-
----
-
 ## 加载规则
 
 ```

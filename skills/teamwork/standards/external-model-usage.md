@@ -4,7 +4,7 @@
 >
 > 🟢 **抽出来源**: 实战触发——用户分享 codex 账号收到 OpenAI "cyber abuse" 警告 · 根因是 teamwork 把 codex CLI 当 AI agent 后端用(5/8 profile full sandbox + service_tier=fast + hooks 自动触发 + AI 编排 AI)。
 >
-> 🟢 **v8.20+ PMO 主路径** = `state.py external-review --feature <path> --stage <stage>` · 详 **§十一 异质性硬约束 + 物化主路径**(11.5 v8.20 / 11.6 v8.21)。PMO 心智 = 2 个业务参数 · host / model / which / profile / 文件命名 全自动。本文 §五/§六 是底层实现 · 已 v8.20+ 物化到工具 · PMO 不必读。
+> 🟢 **v8.20+ PMO 主路径** = `state.py external-review --feature <path> --stage <stage>` · 详 `state.py external-review --help` + §十一 异质性硬约束。PMO 心智 = 2 个业务参数 · host / model / which / profile / 文件命名 全自动。本文 §五/§六 是底层实现 · 已 v8.20+ 物化到工具 · PMO 不必读。
 
 ---
 
@@ -23,29 +23,8 @@
 
 4. 调用频率约束：受 review_roles[] 控制 · 用户可 opt-out
  ├── 每个 Stage 实例化时 PMO 决策 active_roles 是否含 external
- └── Blueprint + Review **默认含**＼�· 用户在 PMO 初步分析决策项呈现时可显式 opt-out
+ └── Blueprint + Review **默认含** · 用户在 PMO 初步分析决策项呈现时可显式 opt-out
 ```
-
----
-
-## 二、为什么必须合规（OpenAI ToS 视角）
-
-> 实战触发：用户 codex 账号收到 OpenAI "cyber abuse" 警告。根因如下。
-
-### 触发 OpenAI 自动检测的信号
-
-| 信号 | 检测视角 |
-|------|---------|
-| 5/8 profile sandbox_mode = "full" | 自主任意命令执行能力 |
-| AI 编排 AI（PMO 自动 spawn codex） | 自动化机器人行为 · 非人类交互 |
-| service_tier = "fast" 全局 | API 级程序化优化信号 |
-| 结构化 YAML 输出 + machine-verifiable | 把 CLI 当 API 后端用（绕过付费 API） |
-| codex-agents/hooks.json 持久化触发 | 持久化机器人 |
-| 链式 dispatch（一个完成触发下一个） | 自动化 pipeline |
-
-### OpenAI 的 ToS 红线
-
-**OpenAI 不允许将 Codex CLI 作为另一个 AI 的后端执行引擎**。teamwork 早期把 codex 当"全能 AI agent 替身"用 → 触发 cyber abuse 检测。
 
 ---
 
@@ -75,8 +54,8 @@
 | profile | sandbox | 用途 | dispatch 时机 |
 |---------|---------|------|--------------|
 | `reviewer.toml` | read-only | 代码评审（独立视角） | Review Stage external 角色（opt-in） |
-| `blueprint-reviewer.toml` | read-only | TC + TECH 蓝图评审 | Blueprint Stage external 角色（**opt-out** �） |
-| `prd-reviewer.toml` | read-only | PRD 评审 | Plan Stage external 角色（opt-in） |
+| `blueprint-reviewer.toml` | read-only | TC + TECH 蓝图评审 | Blueprint Stage external 角色（**opt-out**） |
+| `prd-reviewer.toml` | read-only | PRD 评审 | Goal Stage external 角色（opt-in） |
 
 ### 🔴 已废弃
 
@@ -123,7 +102,7 @@ respond "Out of scope. Teamwork uses external models for review only."
 ```
 codex-agents/*.toml 必须满足：
 □ sandbox_mode = "read-only"（无例外 · 含 deprecated profile）
-□ 不含 service_tier = "fast"（删除该�）
+□ 不含 service_tier = "fast"（删除该项）
 □ 不含 approval_policy 显式声明（走 codex 默认 = on-request）
 □ 评审类 profile 的 developer_instructions 含「only review · no write · no exec」
 □ deprecated profile 的 description 以 "[DEPRECATED ]" 起首
@@ -157,7 +136,7 @@ codex-agents/*.toml 必须满足：
 
 ## 九、相关文件
 
-- `tools/state.py` external-review 命令 — v8.20+ **物化主路径**(详 §十一 异质性硬约束 + 物化主路径)
+- `tools/state.py` external-review 命令 — v8.20+ 调用主路径(详 `state.py external-review --help`)
 - `codex-agents/*.toml` — codex profile 配置(全部 read-only · 无 service_tier · state.py 内部按 stage 自动选)
 - `claude-agents/reviewer.md` — claude CLI 评审 prompt 模板(state.py 路径自动 pipe 给 claude -p)
 - `roles/external-reviewer.md` — external 角色契约
@@ -166,36 +145,7 @@ codex-agents/*.toml 必须满足：
 
 ---
 
-## 十、申诉模板（用户使用）
-
-如收到 OpenAI cyber abuse 警告，可参考以下申诉要点：
-
-```
-Subject: Codex CLI usage clarification (account: <email>)
-
-This account uses Codex CLI as a review-only assistant within a software
-development workflow (Teamwork framework · open source).
-
-After reviewing OpenAI's terms, I have updated my configuration:
-- All Codex profiles are now sandbox_mode = "read-only"
-- Removed service_tier = "fast" (was originally for response speed)
-- Removed automated hooks (no persistent triggers)
-- 5 non-review profiles deprecated (won't be invoked by main flow)
-
-Codex is now invoked only for:
-1. Code review (read-only · output: markdown review records)
-2. PRD review (read-only · output: markdown review records)
-3. Architecture review (read-only · output: markdown review records)
-
-Each invocation is preceded by a human pause point in the main session.
-This is not an autonomous AI-controlling-AI setup.
-
-Reference: standards/external-model-usage.md in the Teamwork skill repository.
-```
-
----
-
-## 十一、异质性硬约束 + 物化主路径(v8.19/v8.20/v8.21)
+## 十一、异质性硬约束(v8.19)
 
 > 🔴 **实战触发**:F034 review stage PMO 没找到 `which codex` · 选用 `Agent subagent_type=general-purpose` 起 Claude isolated context 自审 · 标 frontmatter `review_model: claude-opus-4-isolated-context` 「透明」· 用户察觉后承认违 R3 红线。
 >
@@ -260,198 +210,3 @@ Step 3:跑命令 · 落 *-codex.md / *-gemini.md / 等真异质模型文件
 | 看到工具不在就 substitute | "/codex 是 user-only skill 不能 invoke → 用 Agent 起" | 7.3 必先 `which` · 不在 stop |
 | 没 cite 上游 Feature 范式 | F033 既有 `*-codex.md` 在 worktree 内 · F034 没 grep | 7.3 跑前 cite 范例 |
 
-### 11.5 v8.20 物化路径:`state.py external-review`(推荐)
-
-> 🟢 **v8.20 治本 F034 case-AI 5 层根因第 1/2/3 层(没 which / 没 cite / substitute)** —— 调用本身也物化 · PMO 不需要自己拼 codex/claude 命令 / 不需要选 reviewer profile / 不需要管 frontmatter 命名。
-
-```bash
-state.py external-review \
-  --feature <path> \
-  --stage {goal,blueprint,review} \
-  [--host {claude-code,codex-cli,gemini-cli}]   # v8.21 缺省自动从 ~/.teamwork/host_audit.json 读
-  [--model {codex,claude}]   # 显式覆盖 · 默认按 host 自动映射
-  [--codex-model <name>]     # v8.29 缺省 None(用 codex 默认 · ChatGPT 订阅兼容)· name 自查 `codex` 交互
-  [--commit <SHA>]           # 缺省 state.stage_contracts.<stage>.auto_commit / git HEAD
-  [--base <branch>]          # 缺省 state.merge_target
-  [--title <title>]          # 缺省 "<feature_id> · <stage> stage external review"
-  [--dry-run]                # 只输出将跑的命令(含完整 codex_prompt)· 不实际调 CLI
-```
-
-#### 工具内部 7 步 SOP(对应 case 5 层根因)
-
-| Step | 动作 | 治本根因 |
-|---|---|---|
-| 1 | host → model 自动映射 + 异质校验(同源 BLOCK) | 第 5 层(R3 降级)|
-| 2 | `which <cli>` 验工具在 · 不在 BLOCK + hint(绝不 substitute)| 第 3 层(substitute)|
-| 3 | stage → reviewer profile 自动选(prd-reviewer / blueprint-reviewer / reviewer)| 第 2 层(没 cite 范式)|
-| 4 | commit / base 从 state.json fallback | 第 1 层(效率 · 减心智)|
-| 5 | 跑 CLI(同步 · 5min timeout · capture stdout)| 第 1 层(自动)|
-| 6 | 落 `external-cross-review/<stage>-<model>.md`(自动 frontmatter + body)| 第 4 层(透明伪装 = 文件名 + frontmatter 自动合规)|
-| 7 | emit JSON 含 file_path / model_version / finding_count_estimate | 第 4 层(audit 留痕)|
-
-#### F034 case 用 v8.21+v8.23 重跑
-
-```
-$ state.py external-review --feature services/core/.../F034 --stage review
-# v8.21:host 自动 audit → claude-code → model=codex
-# step 2:which codex → /opt/homebrew/bin/codex ✅
-# step 3:stage=review → profile=codex-agents/reviewer.toml
-# step 4:commit=state.stage_contracts.dev.auto_commit / base=state.merge_target / cwd=git root
-# step 5(v8.23):跑 codex review --base ... --title ... --config 'model=gpt-5-codex' '<PROMPT>'
-#                (PROMPT 模式 · 按 stage 内置 review prompt template · 含 cite 文件路径 + 视角约束)
-# step 6:落 external-cross-review/review-codex.md(frontmatter review_model=codex-cli 0.133.0)
-# step 7:emit OK + finding_count_estimate=12
-```
-
-→ PMO 不需要 grep F033 / 不需要拼 codex 命令 / 不需要管 host / 不需要管文件名 · 一条命令完成。
-
-#### v8.23 关键改动:PROMPT 模式 + stage-specific prompt
-
-v8.20 用 `--commit X --base Y --title Z`(diff 模式)· 但实测发现:
-1. **codex CLI flag 兼容性问题**:某些 codex 版本 `--commit` 与 `--base` 互斥(case F035 实测)
-2. **goal / blueprint stage 不是 diff review**:是文档 review(PRD.md / TC.md+TECH.md)· 没 commit 可 diff
-
-v8.23 改:
-- 所有 stage 改 **PROMPT 模式**(`codex review --base Y --title Z "<PROMPT>"`)
-- prompt 按 stage 内置(goal=PRD reviewer / blueprint=blueprint reviewer / review=code reviewer)
-- 加 `--config 'model=gpt-5-codex'`(专业 code review 模型 · 可 `--codex-model` 覆盖)
-- `cwd = git root`(让 codex 能读 prompt 内的相对路径)
-- emit JSON 加 `codex_prompt` 完整字段(透明 · 不截断)
-
-#### v8.25 关键改动:全面改用 `codex exec`(治本 codex review --base+[PROMPT] 互斥)
-
-F035 round 2(blueprint stage)实测 v8.23 的 `codex review --base Y --title Z [PROMPT]` 仍 FAIL:
-- 新版 codex CLI(>= 0.133)`--base BRANCH` 与 `[PROMPT]` 互斥
-- 根因:`codex review` 子命令设计是**纯 diff review** · `--commit/--base/--uncommitted` 三个 review 对象选择 · 与 `[PROMPT]` 不该混用
-
-v8.25 改:**放弃 `codex review` 子命令 · 全 stage 用 `codex exec [PROMPT]`**(通用 agent 模式)。
-但这是过度统一 —— review stage 损失了 `codex review` 的专业 diff review 默认 prompt。
-
-#### v8.29 / v8.30 关键改动:codex_model 默认 None + 不假设模型字面
-
-**v8.29 case 触发**:用户 codex CLI 用 **ChatGPT 订阅**(不是 API key)· state.py 强制传 `--config 'model=<某虚构模型>'` → 400 `invalid_request_error: model not supported when using Codex with a ChatGPT account`。
-
-**v8.30 case 加深**:用户截图 codex CLI 0.133 交互界面 · 揭穿 v8.23 我用的字面 `gpt-5-codex` 是**虚构模型**(实际不存在 · 即使 API key 也 400)。codex CLI 真实可选(v0.133 时点):
-
-```
-gpt-5.5 (current · Frontier)         # 默认
-gpt-5.4 (Strong everyday coding)
-gpt-5.4-mini (Small/fast/cheap)
-gpt-5.3-codex (Coding-optimized)     # 真"代码 review 模型"
-gpt-5.3-codex-spark (Ultra-fast)
-gpt-5.2 (Professional / long-running)
-```
-
-🔴 **codex CLI 升级会换模型名** · spec / state.py / argparse help **不硬编码** —— 用户用 `codex` 交互界面选 · 或 `codex --help` 查。
-
-**v8.29 + v8.30 治本 · 3 层 fallback**:
-1. `--codex-model <name>` CLI flag(单 Feature override · 最高优先 · 用户自查 codex 取实际 name)
-2. `.teamwork_localconfig.json` `external_review.codex_model`(项目级一次配)
-3. **不传 `--config model=...`**(默认 · 用 codex CLI 自己默认 · 兼容 ChatGPT 订阅 + 永不踩虚构模型)
-
-```bash
-# default(推荐 · 兼容 ChatGPT 订阅 + API key)
-state.py external-review --feature X --stage review
-# → codex review --commit X --title Z   # 不带 --config · 用 codex 当前默认(如 v0.133 是 gpt-5.5)
-
-# API key 用户显式(name 自查 codex 交互)
-state.py external-review --feature X --stage review --codex-model gpt-5.3-codex
-
-# 项目级一次配
-{
-  "external_review": {
-    "codex_model": "gpt-5.3-codex"   # ← 字面值用户自查 · 不固定
-  }
-}
-```
-
-emit JSON `codex_model` 字段值为实际用值(可能 `null`)· 透明。
-
-#### v8.26 关键改动:按 stage 各司其职(review→codex review · goal/blueprint→codex exec)
-
-用户洞察:**`codex review` 子命令本来就是为 diff review 设计的** · review stage 用它更专业 · 不该一刀切。
-
-| stage | 性质 | 子命令 | 命令 |
-|---|---|---|---|
-| `review` | 代码 diff review | `codex review` | `codex review --commit X --title Z --config 'model=gpt-5-codex'` |
-| `goal` | PRD 文档 review | `codex exec` | `codex exec --config 'model=gpt-5-codex' '<PROMPT 含 Read PRD.md>'` |
-| `blueprint` | TC+TECH 文档 review | `codex exec` | `codex exec --config 'model=gpt-5-codex' '<PROMPT 含 Read TC.md+TECH.md>'` |
-
-**review stage 关键设计**:
-- **只传 `--commit`**(不传 `--base` · 避开 `--commit/--base` 互斥)
-- **不传 `[PROMPT]`**(避开与 review 对象 flag 互斥 · `codex review` 自带专业 review 默认 prompt)
-- `--title` 仍传(`codex review` 支持 `--title`)
-- `--config 'model=gpt-5-codex'` 仍传
-
-**goal/blueprint stage 设计**(同 v8.25 保留):
-- `codex exec [PROMPT]` 通用 agent 模式
-- title 进 PROMPT 顶部 `[Review title: ...]` 行(`codex exec` 没 `--title` flag)
-- PROMPT 自带 "Read PRD.md / TC.md+TECH.md" 指令
-
-**为什么 review 不用 codex exec**:
-- review 子命令内置 git diff 优化(--commit 自动只 review 该 commit 引入的变更 · 不需 codex 自己跑 git diff)
-- 内置专业 code review prompt(focus correctness/security/performance · cite file:line)· 比手写 PROMPT 更优
-- 避开"让 codex 自己跑 git diff"的间接性 / 慢 / 不准
-
-**为什么 goal/blueprint 不用 codex review**:
-- `codex review` 是 diff-only · 无法 review markdown 文件(PRD.md / TC.md / TECH.md)
-- 文档 review 天然适合 `codex exec` 通用 agent 模式(prompt 描述读哪个文件 · 怎么 review)
-
-#### v8.19(校验)vs v8.20(主路径)互补
-
-- **v8.19** = 兜底防御层(若 PMO 手工绕过 v8.20 自己写文件 · 仍被拦)
-- **v8.20** = 推荐主路径 + 完全自动化
-
-两者不冲突 · v8.20 的产物天然符合 v8.19 校验(文件名 + frontmatter 都自动合规)。
-
-### 11.6 v8.21 进一步简化 · PMO 心智 2 参数(host 自动探测)
-
-> 🟢 **v8.21 治本"PMO 还要知道宿主细节"** —— v8.20 PMO 还要传 `--host`(主对话宿主 enum)· v8.21 把 host 探测也物化 · PMO 心智 = `--feature` + `--stage` **(2 个业务参数)**。
-
-#### 命令简化
-
-```bash
-# v8.20 PMO 心智 3 参数
-state.py external-review --feature <path> --stage review --host claude-code
-
-# v8.21 PMO 心智 2 参数(host 自动探测)
-state.py external-review --feature <path> --stage review
-```
-
-#### host 探测优先级
-
-1. **`--host` 显式传**(高级用户 / 覆盖 audit)
-2. **`~/.teamwork/host_audit.json`**(bootstrap 跑成功后自动写)
-3. env fallback(预留 hook · 暂未实现)
-
-`bootstrap.py` 跑一次 = 写 `host_audit.json` · 此后所有 state.py 命令自动用此 host。
-
-#### 失败模式
-
-PMO 跑 `state.py external-review --feature ... --stage review` 但既没传 --host 也没 audit:
-```
-FAIL · --host 未传 + 无法自动探测(~/.teamwork/host_audit.json 不存在)
-hint:二选一
-  ① 跑 bootstrap 一次(python3 {SKILL_ROOT}/tools/bootstrap.py --host <claude-code|codex-cli|gemini-cli>)
-     · 之后所有 state.py 命令自动用此 host
-  ② 显式传 --host claude-code(或对应宿主)
-v8.21 设计:bootstrap 跑过一次后 · PMO 心智 = --feature + --stage(2 个业务参数)· host 全自动
-```
-
-#### 透明留痕
-
-emit JSON 含 `host_source` 字段(`explicit` / `audit` / `env`)· PMO 看到 host 来自哪里。
-
-#### v8.20 vs v8.21 对比
-
-| 维度 | v8.20 | v8.21 |
-|---|---|---|
-| PMO 必传参数 | `--feature` + `--stage` + `--host`(3 个)| `--feature` + `--stage`(2 个)|
-| host 来源 | PMO 显式传 | bootstrap audit 自动读 |
-| host_source emit | 无 | 有(explicit / audit / env)|
-
-PMO 心智负担 -33% · 治本"PMO 不该关心的内部细节"(host enum / 宿主映射等)。
-
----
-
-末。

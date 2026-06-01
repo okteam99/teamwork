@@ -1,0 +1,89 @@
+#!/usr/bin/env bash
+# git pre-push hook · 治本"dev push 忘 bump version" · 用户拍板 2026-05-28
+#
+# 行为:
+# - 检测 push 的本地 ref 是否含 refs/heads/dev
+# - 是 dev + 最新 commit 不含 [auto-bump] 标记 → 跑 bump_patch_version.py + auto-commit + exit 1
+# - 用户重跑 git push origin dev · 这次最新 commit 已含 [auto-bump] → 放行
+# - 非 dev 分支(main / feature 等)→ 跳过
+#
+# 安装:
+#   ln -sf <SKILL_ROOT>/git-hooks/pre-push <REPO>/.git/hooks/pre-push
+#   或:cp <SKILL_ROOT>/git-hooks/pre-push <REPO>/.git/hooks/pre-push && chmod +x ...
+#
+# 卸载:
+#   rm <REPO>/.git/hooks/pre-push
+#
+# stdin 格式:<local_ref> <local_sha> <remote_ref> <remote_sha>  per ref
+
+set -euo pipefail
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+BUMP_SCRIPT="$REPO_ROOT/skills/teamwork/tools/bump_patch_version.py"
+SKILL_MD="$REPO_ROOT/skills/teamwork/SKILL.md"
+TARGET_BRANCH="refs/heads/dev"
+# v8.44.2 治本:marker 改更稀有字符串 + 只检测 commit subject(不含 body)
+# 旧 marker [auto-bump] 太通用 · commit message body 描述 marker 时易撞 → 误判已 bump
+AUTO_BUMP_MARKER="<teamwork-auto-bump-v1>"
+AUTO_BUMP_SUBJECT_PREFIX="chore(version): auto-bump patch"
+
+# 仅在 dev push 触发
+dev_being_pushed=false
+while read -r local_ref local_sha remote_ref remote_sha; do
+  if [[ "$local_ref" == "$TARGET_BRANCH" ]]; then
+    dev_being_pushed=true
+    break
+  fi
+done
+
+if [[ "$dev_being_pushed" != "true" ]]; then
+  exit 0
+fi
+
+# 已 bump 过 → 放行(避免无限循环)
+# v8.44.2 治本:用 %s 只取 subject(第 1 行)· 不看 body
+# 旧实现用 %B 全 message · CHANGELOG/commit 描述 marker 时会撞 → 误判
+last_subject=$(git log -1 --pretty=%s HEAD)
+if [[ "$last_subject" == "$AUTO_BUMP_SUBJECT_PREFIX"* ]] || \
+   [[ "$last_subject" == *"$AUTO_BUMP_MARKER"* ]]; then
+  exit 0
+fi
+
+# 校验 bump 脚本存在
+if [[ ! -x "$BUMP_SCRIPT" ]]; then
+  echo "[pre-push hook] ❌ bump_patch_version.py 不存在或不可执行:$BUMP_SCRIPT" >&2
+  exit 1
+fi
+
+# 跑 bump · 捕 stdout
+bump_output=$("$BUMP_SCRIPT" "$SKILL_MD")
+bump_rc=$?
+if [[ $bump_rc -ne 0 ]]; then
+  echo "[pre-push hook] ❌ bump_patch_version.py 失败(exit=$bump_rc):$bump_output" >&2
+  exit 1
+fi
+
+# 创建 auto-bump commit
+# subject 用 AUTO_BUMP_SUBJECT_PREFIX 开头 · body 留 marker(双 guard 都过)
+git add "$SKILL_MD"
+git commit -m "$AUTO_BUMP_SUBJECT_PREFIX · $bump_output" -m "$AUTO_BUMP_MARKER" --no-verify
+commit_sha=$(git rev-parse --short HEAD)
+
+# 阻止本次 push · 提示用户重跑(让 push 包含 auto-bump commit)
+cat >&2 <<EOF
+
+╔══════════════════════════════════════════════════════════╗
+║ [pre-push hook] ✅ 已 auto-bump patch · 创建 commit       ║
+╠══════════════════════════════════════════════════════════╣
+║  bump: $bump_output
+║  commit: $commit_sha
+║                                                          ║
+║  ⚠️ 本次 push 被拦截(防 GitHub 收不到 auto-bump commit) ║
+║  请重跑: git push origin dev                              ║
+║                                                          ║
+║  下次 push 会自动放行(检测到 [auto-bump] 标记)          ║
+╚══════════════════════════════════════════════════════════╝
+
+EOF
+
+exit 1

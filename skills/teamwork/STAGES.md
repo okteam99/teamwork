@@ -4,12 +4,13 @@
 
 ---
 
-## 1. 10 stage 索引
+## 1. 11 stage 索引
 
 | Stage | 文件 | 适用 flow_type |
 |---|---|---|
 | goal | [stages/goal-stage.md](./stages/goal-stage.md) | Feature / 敏捷需求 |
 | ui_design | [stages/ui-design-stage.md](./stages/ui-design-stage.md) | Feature(--needs-ui=true) |
+| panorama_sync | [stages/panorama-sync-stage.md](./stages/panorama-sync-stage.md) | Feature(sitemap / 全景同步) |
 | blueprint | [stages/blueprint-stage.md](./stages/blueprint-stage.md) | Feature |
 | blueprint_lite | [stages/blueprint-lite-stage.md](./stages/blueprint-lite-stage.md) | 敏捷需求 |
 | dev | [stages/dev-stage.md](./stages/dev-stage.md) | Feature / 敏捷需求 / Bug / Micro |

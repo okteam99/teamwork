@@ -21,3 +21,8 @@ __pycache__/
 /GLOSSARY.md
 /TROUBLESHOOTING.md
 /project-specs/
+# Teamwork worktree root (default)
+.worktree/
+# Teamwork harness locks (session pid · 不该 commit · v8.31)
+.claude/scheduled_tasks.lock
+.claude/agents.lock

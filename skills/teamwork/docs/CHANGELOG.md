@@ -1,5 +1,1423 @@
 # Changelog
 
+## v8.77 · ship 收尾必更新规划层 back-reference + commit(治本 ROADMAP BL 翻牌被当「后续」搁置 · 用户 case WEB-F031 · dev-only)
+
+> 用户 2026-06-01:"ship2 之后应该把关联改动也更新下 · 然后再主工作区提交一下。" case:WEB-F031 ship 完成后 · WEB ROADMAP / WS-01 S2 仍标「📋 规划中/pending」· AI 把翻牌当「后续(非本次范围)」搁置 —— 还说「避免在刚净化的主工作区留新的未提交改动」。
+
+### 根因:ship 流程缺「BL 状态翻牌」的对称步
+
+- 规划期:`feature 写入 ROADMAP` = BL「📋 规划中」(有 commit 步)。
+- 但 ship 完成后**没有对称的**「BL → ✅ 已交付 + commit」步 —— ship-finalize 干完 state.json 同步 + worktree 清理就结束 · brief 只说「流程终态 completed · 向用户汇报」· **不提规划层 back-reference**。
+- 后果:① 规划层(ROADMAP/WS 进度)与执行层永久**脱节** · 进度统计失真;② AI 没有物化指令 → 把它当「后续/下次规划」搁置 · 还被 v8.70 main-sync「保持主工作区干净」误导成「不敢改」。
+
+### 修复:ship-finalize 成功后必物化「收尾步」
+
+| 改动 | 内容 |
+|----|----|
+| `_planning_backref_reminder()`(新)| ship 收尾指令:① ROADMAP 对应 BL 状态 规划中→已交付(WS 最后一个 BL → WS 标完成)② 关联文档同步 ③ `git add + commit + push` 到 merge_target · 明确「**不是后续/非本次范围**」+「别因怕弄脏主工作区搁置(翻牌 commit 本就干净)」 |
+| `_ship_finalize_brief` | `finalize_ok` 时必追加收尾步(成功 + 有降级项两路都带)· 失败时不带(优先修 ship) |
+| emit | 加 `planning_backref_pending: true`(ship 成功时)· 机器可见 |
+| `ship-stage.md` §5.5(新)| 文档化 ship 收尾步 · 解释「feature=BL 落地 · 不翻牌=脱节」+ 规划层产物在主工作区 commit 正当(非 worktree 红线违规) |
+| `SKILL.md` 快速开始 | ship 步加收尾注 |
+| 测试 +4 | TestPlanningBackrefReminderV877(成功带 / 失败不带 / 降级仍带 / helper 含 commit+反搁置)· 428 passed · 68 pre-existing(无关)· 0 regression |
+
+> 定位:「BL 翻牌 + commit」是 **ship 的一部分**(可枚举的流程步 · 物化到 ship 必经点)· 具体改哪个 BL / 什么文案是 **AI 判断**(项目特定 · 读 ROADMAP 定位)。与 v8.70 main-sync 不冲突:main-sync 清 feature 残留 · 此步是 ship 的一笔**有意的规划层干净提交**。
+
+---
+
+## v8.76 · 加「简洁性 counter-lens」(治本评审只加 rigor 无防过度设计 · 用户 case SDK-F038 · dev-only)
+
+> 用户 2026-06-01:"PRD 评审重点是产出业务目标 / 当前环境是否可实现 / 是否合理 · 不应太注重边界细节。" case:SDK-F038 16 AC 全绿 + 3 轮 external 闭环 · 用户在 pm_acceptance 一眼看出**过度设计**(SDK 哑管道被焊进字段语义)· 回炉重切。
+
+### 根因:所有评审视角都偏「加 rigor」· 无人审「简洁性 / 职责归位」
+
+- goal/review 的评审视角:PM 看 **AC 完整** · QA 看 **边界覆盖** · Architect 看可行性/性能/安全 · external **找缺口** —— **全在加复杂度**。
+- external review 天然「找缺口 → 加校验」· 每条单看合理 · **合起来把方案做臃肿 / 把责任焊进错的层**。AI 的诚实反思:"external 一路推我加 UUID 闸 / reserved-key 解析 / 位置参数 · 把本该对 SDK 透明的参数语义焊进了传输层。"
+- **结构性缺口**:没有任何角色owning「**是否过度设计 · 能否更简单 · 职责是否归错层**」—— 评审越严 · 方案越臃肿 · 直到 pm_acceptance 用户兜底。
+
+### 修复:Architect = 唯一「简洁性 counter-lens」+ PRD 评审聚焦
+
+| 改动 | 内容 |
+|----|----|
+| `roles/architect.md` Telos | 加「**方案简洁性(防过度设计)**」+ 明确「其余角色都偏加 rigor · Architect 是唯一简洁性 counter-lens · 反问:能否更简单 / 每处复杂是否被业务目标(非边界 rigor)证成 / 职责是否归错层」 |
+| `goal-stage.md` | 加 **PRD 评审聚焦**:① 业务目标清晰 ② 当前环境可实现 ③ 方案合理且**恰当简洁** · AC 写「行为/价值」高度(WHAT)**不下沉实现机制** · §非目标用足收窄 · + Architect 简洁性 lens + **external finding 须对照业务目标+简洁性取舍**(别盲采加 rigor) |
+| `blueprint-stage.md` | Tech Review 加简洁性 lens 「**拦过度设计的最佳时机**(改 TECH 比改代码便宜)」 |
+| `review-stage.md` | Architect Code Review 加简洁性 counter-lens(焊进核心抽象的复杂度可删/可下沉) |
+| 测试 +4 | TestArchitectOwnsSimplicityLens / TestStageDocsCarrySimplicityLens(锁文案不回退)· 424 passed · 68 pre-existing(无关)· 0 regression |
+
+### 你我对齐的原则
+
+- **PRD 评的是业务目标 + 可实现性 + 恰当简洁** · 不是边界细节大全(边界要处理 · 但在**对的层** · 不是堆进核心抽象)。
+- **评审需要简洁性 counter-lens** 平衡「找缺口」的天然加复杂度倾向 —— external finding 修真 bug 才采 · 别为 rigor 而 rigor。
+- **过度设计拦得越早越省**:TECH review(改方案)> code review(改实现)> pm_acceptance(回炉)。
+
+---
+
+## v8.75 · 治本 pl 被系统性误删(reviewer checklist Q1 把 PL 价值等同 ROADMAP · 用户实证 · dev-only)
+
+> 用户 2026-06-01:"几乎所有 feature 在 PRD 评审时都移除 pl · 理由是无 roadmap · 是否合理?" 不合理 —— 是工具引导的类目错误。
+
+### 根因:checklist Q1 把 PL 评审价值 = ROADMAP 拆分
+
+- `REVIEWER_THINKING_CHECKLIST[0]`(v8.27)旧:「涉及 ROADMAP 拆分 / 优先级决策?**否 → goal 去 pl(PL 评审价值低)**」。
+- 但 **ROADMAP 是规划层产物**(Feature Planning 产出 · 执行层 Feature 流程里没有)—— 执行层 Feature **几乎都『无 ROADMAP』** → Q1 几乎恒为「否」→ **系统性删 pl**。
+- 而 PL 的真 telos(`roles/product-lead.md`):**业务目标 / 跨项目一致性 / 商业模式 / 变更级联** ——「缺这个视角会留:做了一堆 Feature 但偏离产品方向」。把它窄化成 ROADMAP 是类目错误 · 把产品方向评审从几乎所有 PRD 删掉。
+- 坏示范放大:`prepare.md` 的「建议评审角色」**worked example** 直接把 `goal …(去 pl)· Q1 无 ROADMAP 拆分` 当**标准正确输出**示范 + F-Bv2-8(2026-05-25)case 把它当『好调整』—— AI 照抄成定式。
+
+### 修复:Q1 重构为「产品方向影响」· pl 默认保留 · 去 pl 是少数例外
+
+| 改动 | 内容 |
+|----|----|
+| `state.py` Q1 | 「**有无产品方向影响?**(业务目标/用户可见/商业模式/跨项目一致/变更级联 Level≥2)」· **是(常态)→ 留 pl** · 仅纯内部技术重构零产品面才去 · ⚠️ **『无 ROADMAP』≠ 去 pl 理由**(显式 debunk) |
+| `state.py` hint | 加「pl 默认保留 · 套路化删角色禁止 · 无 ROADMAP 不是去 pl 理由」· 去掉「goal 去 pl(无 ROADMAP)」坏示范 |
+| `prepare.md` Q1 表 + worked example | 同步重构 · 示范从「去 pl」改「留 pl(产品方向相关)」+ 加「pl 不是套路化删」红线段 |
+| 测试 | `test_v875_pl_not_roadmap_gated`(默认留 pl · 删旧『PL 评审价值低』· debunk ROADMAP)· covers_dimensions 维度 ROADMAP→产品方向 · 420 passed · 68 pre-existing(无关)· 0 regression |
+
+> 核心:**PL 评审价值 = 产品方向(业务/一致性/商业模式/级联)· 与 ROADMAP(规划层)无关**。pl 默认保留;去 pl 仅限纯内部技术重构 · 且要给本 Feature 特定理由 —— 不是每个执行层 Feature 都『无 ROADMAP』就套路化删。
+
+---
+
+## v8.74 · subagent 改「可选手段」+ 出 brief 移 spec(纠 v8.73 过度物化 · 用户反馈 · dev-only)
+
+> 用户 2026-06-01:"『标准执行手段』是否应是『可选执行手段』· 我担心 AI 过度使用 subagent。另外是否不需要写 brief · 在 SKILL.md 和 stage.md 说明就好 · 我担心 brief 越来越大。"
+
+### 纠 v8.73 两个过度
+
+v8.73 把 subagent 框成「每 stage 标准执行手段」+ 独立成 brief 段每 stage 必带 —— 两处过头:
+
+1. **「标准」促过度使用**:是否用 subagent / 拆几个 = 典型**不可枚举判断**(设计哲学表「AI 自决」)· 框成「标准/必用」会让 AI 给小/耦合/串行任务也派 agent(纯开销 + 碎片)。
+2. **brief 膨胀**:红线(禁自造暂停)值得物化到必经点 · 但**可选能力**不值得 —— 每 stage brief(start + 转移)+5 行正是 `brief 体量元规则` 警告的 Layer A 累积。
+
+### 修复:降级 + 挪窝
+
+| 改动 | 内容 |
+|----|----|
+| 删 `_render_execution_capability()` + 两处 brief 接入 | brief 回到 v8.72 体量 · 不再每 stage 注入 subagent 段 |
+| 暂停点纪律 subagent 行 | 「独立子任务派 subagent · 见下执行手段」→「**可按需**派 subagent · 详 SKILL.md R4」(1 行 · 红线的正向收口 · 不展开) |
+| SKILL.md R4 | subagent = **可选执行手段(AI 自决 · 非默认 · 非每 stage 必用)**· 列适用(独立可并行/需隔离大块)+ ⚠️ **不过度使用**(小/耦合/串行直接自己做 · 判据:子任务独立且够大才拆) |
+| stages/dev-stage.md | 加 §1.5「组织实现(🧩 subagent 可选 · 按需并行 · 非必须)」· 多端/多模块场景 + 同款不过度使用判据 + worktree 纪律 |
+| 测试 | 删 TestExecutionCapabilityV873 · 加 TestSubagentInPauseDisciplineV874(可选措辞 + 函数已删 + 无独立段)· 419 passed · 68 pre-existing(无关)· 0 regression |
+
+> 定位:subagent 是 **AI 自决的可选手段** —— 知道、按需用、不过度;指引在 **SKILL.md / stage.md**(读一次的背景判断)· **不**塞进每个 brief(防膨胀)。红线(禁自造暂停)仍物化在暂停点纪律 · subagent 只是它的 1 行正向收口。
+
+---
+
+## v8.73 · subagent 升为「每 stage 标准执行手段」(治本框成兜底 · 接 v8.71/72 · dev-only · ⚠️ 部分被 v8.74 纠正)
+
+> 用户 2026-06-01:"合理使用 subagent 应该是 AI 各个 stage 必须知道的点 · 而不是任务大的时候才想起来。"
+
+### 根因:v8.71/72 把 subagent 框成「工作量大」的兜底
+
+- v8.71/72 的 subagent 指引绑在暂停点纪律里 · 措辞是「工作量大 / session 吃紧 → 派 subagent」—— **reactive**(任务大才用)· 不是 AI 每 stage 起手就该想到的标准手段。
+- 后果:AI 默认串行闷头干 · 只有撑不住才想起 subagent · 错过 dev 多模块并行、调研丢 subagent 保持主 context 干净等常规收益。
+
+### 修复:独立成段 · 每 stage brief 都带 · 框成主动标准
+
+| 改动 | 内容 |
+|----|----|
+| `_render_execution_capability()`(新)| 「🧩 执行手段:subagent 是标准配置(每 stage 起手评估 · 非任务大才用)」· 起手即问哪些独立子任务可并行/隔离(dev 多模块 / goal·blueprint 多方案调研 / review 多关注点)· 收益(主 context 干净 + 并行提速 + 隔离)· 边界(只干子任务 · 不外包整个 stage 跳流程 · 守 worktree 纪律)|
+| 接入两处必经点 | `execute_stage_start` + 自动流转 emit 都 append —— **每个 stage(start + 转移那刻)都见** |
+| 暂停点纪律去 reactive | subagent 行从「工作量大才」改「规模/节奏 AI 自决 · 独立子任务派 subagent · 见『🧩 执行手段』」 |
+| SKILL.md R4 | 「subagent 是标准执行手段 · 每 stage 起手评估 · **不是任务大才想起** · session 吃紧更要用」 |
+| 测试 +3 | TestExecutionCapabilityV873(主动标准措辞 · 收益+边界 · 无 size-gating)· 419 passed · 68 pre-existing(无关)· 0 regression |
+
+> 核心:subagent 从「撑不住的兜底」升为「每 stage 起手就评估的标准执行手段」—— 主编排 context 干净 + 并行提速是常态收益 · 不是大任务专属。
+
+---
+
+## v8.72 · 执行节奏伪决策护栏改通用红线(治本不止 dev · 所有 stage · 接 v8.71 · dev-only)
+
+> 用户 2026-06-01:"不只是 dev · 其他阶段是否也会遇到类似问题。" 答:会 · 且分两类。
+
+### 分析:两类 stage · 两种暴露面
+
+| 类 | stage | v8.71 覆盖? |
+|---|---|---|
+| **无暂停**(连续执行) | dev / blueprint / blueprint_lite / test | ✅ 已覆盖(`"无暂停"` 通用检测 · 4 个全中) |
+| **有授权暂停** | goal / ui_design / review / browser_e2e / pm_acceptance / ship / panorama_sync | ⚠️ **漏**:执行节奏伪决策护栏 + subagent 只在无暂停 stage 触发 |
+
+- v8.71 把「禁执行节奏伪决策 + 体量大派 subagent」绑在 `"无暂停"` 分支 —— 但**执行节奏伪决策是通用失败模式**:有授权暂停点的 stage 也可能在「那一个」授权暂停**之外**自造伪暂停(如 goal「PRD 16 AC 要分批起草给你看吗」· review「先评核心模块给你看?」)。
+- base 纪律只提「Open Questions(疑问)写进评审」· 框定的是**不确定性** · 没点名**执行节奏伪决策**(SDK-F038 的 AI 不觉得自己在"提问" · 觉得在"给落地节奏选择")。
+
+### 修复:护栏拆两层
+
+| 层 | 适用 | 内容 |
+|----|----|----|
+| **通用红线**(所有 11 stage)| 全部 | ⛔ 禁"如何推进/落地节奏/先做一层/一次性还是分批"执行节奏伪决策暂停 · "改动大/破坏式/不可逆/文件多/用户参与设计"非暂停理由 · ✅ 体量大 → plan + subagent 自决 |
+| **无暂停抬头**(连续执行 stage)| dev/blueprint/blueprint_lite/test | 🔴 本 stage 无授权暂停点 · 任何暂停都违规 |
+
+- `_render_pause_discipline`:执行节奏 + subagent 行移出 `"无暂停"` 分支 → base(通用)· `"无暂停"` 分支只留「任何暂停都违规」抬头
+- 测试 8 例(原 5 → 8):TestUniversalExecutionPacingGuard(每个 stage 都含护栏 + subagent · 抬头只在无暂停 stage)+ TestContinuousStagesRegression(无暂停集合 = {dev,blueprint,blueprint_lite,test} 固定 · 防漂移)· 416 passed · 68 pre-existing(无关)· 0 regression
+
+> 核心:**「禁执行节奏伪决策 + 体量大用 subagent」对所有 stage 生效**(不止无暂停 stage)· 只是无暂停 stage 额外强调「任何暂停都违规」。
+
+---
+
+## v8.71 · 无暂停 stage 禁自造伪决策暂停(治本 AI 不会自己解决问题 · 用户 case SDK-F038 · dev-only)
+
+> 用户 2026-06-01:"AI 似乎不知道怎么自己解决问题 · 是否需要在规范里说明一下。" case:AI 在 blueprint PASS(自动转 dev)后 · 构造「⏸️ dev 如何推进」3 选项暂停点(先做一层给你看 / 一次性全落 / 先停审阅)· 把"破坏式跨端大改 + 不可逆 + 你全程参与设计"包装成"落地节奏选择"。用户当场纠正:dev 无授权暂停点 · session 太大该派 subagent · 不该停下问。
+
+### 根因:规则只有「负面禁止」· 缺「正面怎么办」· 且不在必经点
+
+- R4 早有「自动流转节点禁插暂停 · 容量预算不构成暂停理由」· 授权暂停点清单也写「stage 间自动流转 · 非暂停点」—— **规则在 · AI 仍违规**(self-correct 时才引用 R4)。
+- 两个缺口:① 规则只说**别为容量暂停**(负面)· 没给**正面模式**(工作量大 → 内部 plan + subagent 消化)· AI 感到任务大时唯一会的工具就是"停下问用户怎么推进";② `_render_pause_discipline` 只在 `xx-start` 追加 · **自动流转 emit(blueprint→dev)不带** —— AI 在转移那刻看到的 dev brief **没有**「无暂停」提醒 · 等之后 dev-start 才有 · 那时伪暂停已构造。
+
+### 修复:必经点物化 + 正向指引(两层)
+
+| 改动 | 内容 |
+|----|----|
+| `_render_pause_discipline`(无暂停 stage 强化)| `authorized_pause_point` 含「无暂停」时追加:⛔ 禁构造"如何推进/落地节奏/先做一层/一次性还是分批"伪决策暂停 · ⛔"改动大/破坏式/不可逆/文件多/用户参与设计"都不是暂停理由 · ✅ 体量大 → 自己 plan + 派 subagent(`Agent` 工具)· 不停下问 |
+| 自动流转 emit 带纪律(必经点)| `execute_stage_complete` 转移到下一 stage 时 · `next_stage_brief` 现追加下一 stage 的暂停点纪律 —— AI 在 blueprint→dev **转移那刻**即见「dev 无暂停 · 禁自造暂停」· 不靠之后 dev-start |
+| SKILL.md R4 加正向指引 | 「授权暂停点=用户决策点(固定闭集)· stage 内怎么执行=AI 自决细节」· 「工作量大是 AI 自己的执行问题 · 不甩用户 · session 吃紧→派 subagent」· 「用户参与设计 ≠ 用户决定执行节奏」 |
+| 04-PAUSE-POINT-DISCIPLINE.md | 反模式黑名单加 SDK-F038 条目(执行节奏伪决策)+ case 复盘 |
+| 测试 +5 | TestNoPauseHardening 3 + TestContinuousStagesTriggerHardening 2(dev 必触发 · 防回归改 pause point 字面丢强化)· 413 passed · 68 pre-existing(无关)· 0 regression |
+
+> 核心:**授权暂停点是固定闭集(用户决策)· stage 内"怎么干"是 AI 自决的执行细节**。改动大/破坏式/不可逆/用户参与设计**都不是**暂停理由 —— 工作量大 AI 自己 plan + subagent 消化 · 闷头干到 stage 完成 · 后果由 review/test/pm_acceptance 下游 gate 兜。
+
+---
+
+## v8.70 · main-sync 主工作区净化决策(治本 ship 后 user-dirty 停在脏态 · 不 pull 不处理 · dev-only)
+
+> 用户 2026-06-01:"ship2 结束后回到主工作区 · 如果不干净会停在那里 · 不 pull 也不处理。增加逻辑:发现不干净时提示是否净化 · push 当前改动 · pull 最新。目标:尽最大努力安全保持主工作区干净 + 最新。"
+
+### 根因:step 7 main-sync 遇用户改动「保留 + WARN」即收手
+
+- ship-finalize step 7(main-sync)对 dirty 分类:全副产物(state.json/review-log + bootstrap + locks)→ 自动 stash+ff-pull;**含用户真改动**(`other_files`)→ v8.62 只清 feature_artifacts + 尽力 ff-pull + **静默保留用户改动 + WARN**。
+- 结果:主工作区停在脏态 · 既不主动 pull 也不引导处理 · 用户得自己 commit/stash/pull —— 与「保持主工作区干净 + 最新」的目标背离。
+
+### 修复:发现 user-dirty → 提示是否净化 + 新 main-sync 命令执行
+
+| 改动 | 内容 |
+|----|----|
+| ship-finalize step 7(普通模式)| user-dirty 不再静默保留 · 改 emit `main_sync_status="user_dirty_decision"` + `main_sync_decision`(3 选项 + 推荐 + 跟进命令)· `next_action_brief` 引导 PMO 按 R5(b) 转暂停点「是否净化」 |
+| ship-finalize step 7(auto/yolo)| 无人值守 → 安全自动净化 **stash-pull**(改动留 stash · 无数据丢失 · **不推任意改动**到集成分支)· 保持干净 + 最新 |
+| 新 `main-sync --strategy` 命令 | 用户拍板后执行 · 必在主工作区跑 · 校验当前分支 = merge_target + fetch |
+| `_main_sync_apply_strategy` | 三策略(都先清 feature_artifacts · origin 版总安全):**commit-push**(add -A + commit + pull --rebase + push)/ **stash-pull**(stash -u + ff-pull · 留 stash)/ **skip**(仅清 artifacts + 尽力 ff-pull · 保留改动) |
+| 安全 | commit-push 用 `pull --rebase`(本地落后时叠 commit 不冲突)· rebase 冲突 → abort + 保留 commit;push 被拒(分支保护)→ 报告 + 本地已最新;主分支 merge_target → 决策改荐 stash-pull(推送绕 MR review 有风险);**绝不 force**;用户改动**绝不丢**(commit / stash 二选一) |
+| 测试 +6 | TestMainSyncStrategyV870:commit-push 推送+清 / stash-pull 留 stash 不推 / skip 保留 / 自定义 message / 决策非主荐 commit-push / 决策主荐 stash-pull · 408 passed · 68 pre-existing(无关)· 0 regression |
+
+### 决策选项(普通模式 emit · PMO 转 R5(b) 暂停点)
+
+| id | 动作 | 适用 |
+|---|---|---|
+| `commit-push` | git add -A + commit + pull --rebase + push → 主工作区干净+最新+已推 | 改动确实要进 merge_target(非主分支推荐) |
+| `stash-pull` | git stash -u + ff-pull · 改动留 stash(可 pop 恢复)· 不推送 | 改动暂不推 / merge_target 是主分支(推荐) |
+| `skip` | 保留现状 · 用户自处理(feature_artifacts 已自动清) | 用户想手动处理 |
+
+```bash
+# ship-finalize 报 user_dirty_decision 后 · 用户选 commit-push:
+python3 tools/state.py main-sync --feature FEAT --strategy commit-push [--message '<msg>']
+# 或暂存:
+python3 tools/state.py main-sync --feature FEAT --strategy stash-pull
+```
+
+> auto/yolo 自动走 stash-pull(安全 · 留 stash + WARN)· 普通模式停在「是否净化」暂停点由用户拍板。
+
+---
+
+## v8.69 · set-mode 语义命令(治本 auto_mode/yolo 靠 raw-write 改 · 补 v8.68 遗留缺口 · 用户 case SVC-PLATFORM-F060 · dev-only)
+
+> 用户 2026-05-31:"补一下"(接受 v8.68 末尾 offer)。Codex agent 在 SVC-PLATFORM-F060 诊断里点出:**auto_mode 当时是 raw-write 改的 · 因为没有语义化的 set-auto-mode 命令** —— state audit 里出现裸 raw-write · 不可审计。yolo 同理。
+
+### 根因:改 auto_mode/yolo 无正式入口
+
+- `init-feature` 能在创建时设 `--auto-mode`/`--yolo` · 但**中途切换**没命令 —— 只能 raw-write `state.json`(违反「state.json 写操作走 state.py 单源」软约束 · 且无 audit/无校验)。
+- 后果:① audit trail 缺失(谁、何时、为何切 yolo 不可查)· ② 绕过 yolo 非 main 硬门 + implies-auto 隐含规则 · ③ 与 v8.55 物化哲学相悖。
+
+### 修复:`set-mode` 子命令(语义 + 物化 + audit)
+
+| 改动 | 内容 |
+|----|----|
+| `cmd_set_mode(args)` | 语义化 auto_mode/yolo 切换器 · 互斥校验(`--auto-mode`/`--no-auto-mode` · `--yolo`/`--no-yolo`)· 至少一个 flag · 必填 `--reason` |
+| yolo 启用 | `--yolo [<分支>]` → `new_yolo=True` + `new_auto=True`(implies)· `<分支>` 设 merge_target · `_is_main_branch` 非 main 硬门(同 init-feature) |
+| 隐含规则护栏 | yolo=True 时 `--no-auto-mode` → FAIL(auto 是 yolo 前置 · 不许拆) |
+| 物化 + audit | 写 `state.mode_changes` 审计列表(before/after/reason/ts)· yolo 启用追加 concern WARN · 同步 merge_target/worktree.base_branch/environment_config |
+| NOOP 保护 | after==before → 友好提示「新值 == 现值」· 不写空 audit |
+| 测试 +7 | TestSetMode:enable_auto / yolo+branch implies auto / yolo main 拒 / disable yolo 留 auto / no-auto-while-yolo 拒 / 无 flag 拒 / NOOP · 402 passed · 68 pre-existing(无关)· 0 regression |
+
+### 用法
+
+```bash
+# 中途切 auto 模式
+python3 tools/state.py set-mode --feature FEAT --auto-mode --reason "夜间无人值守"
+# 切 yolo + 指定专属 merge_target(非 main)
+python3 tools/state.py set-mode --feature FEAT --yolo dev-integration --reason "全自动跑通到集成分支"
+# 关 yolo(保留 auto)
+python3 tools/state.py set-mode --feature FEAT --no-yolo --reason "恢复人工把关合并"
+```
+
+> 自此 auto_mode/yolo 的**任何**变更都有正式入口 + audit · raw-write 不再是唯一路径。
+
+---
+
+## v8.68 · external 异质性校验 host-aware(治本 codex-cli 宿主 claude 评审误判同源 · 用户 case SVC-PLATFORM-F060 · dev-only)
+
+> 用户 2026-05-31(SVC-PLATFORM-F060 · 主对话宿主 = codex-cli · Codex agent 已诊断):review-complete 把**合规**的 Claude external review 误判"同源自审" · 被迫 `change-review-roles` 绕过(语义不对 · external 明明真存在)。
+
+### 根因:工具前后口径不一致
+
+- `state.py external-review` **已 host-aware**:`EXTERNAL_HOST_TO_MODEL` 映 `codex-cli→claude` —— 所以 Codex 主对话跑 Claude external 是正确异质路径 · 产出合规 `external-cross-review/review-claude.md`。
+- 但 `_check_external_hetero`(review-complete 校验)是 **Claude-host 时代的静态黑名单** `("claude","anthropic",...)` —— 把 claude 一律判同源。
+- 矛盾:前半段「codex-cli → claude(异质)」· 后半段「artifact 含 claude → 同源违规」。
+
+### 修复:host-aware 同源判定
+
+| 改动 | 内容 |
+|----|----|
+| `_check_external_hetero(name, host=None)` | host-aware · 同源 = ① 机制字面(isolated/subagent · 无论 host)· 或 ② review model 与 **host 同族**(`_host_to_family` + `_MODEL_FAMILY_KEYWORDS`)· host 缺失 → 保守默认 claude-code |
+| 白名单扩展 | `EXTERNAL_REVIEW_HETERO_KEYWORDS` 加 claude/anthropic/openai/google/bard(host-aware 排除 host 自族) |
+| `_evidence_external_review_artifact` | 读 host(state.host > 文件 frontmatter host > None)逐文件传入 · 错误 hint 改 host-aware(同源依 host · 修复跑 `state.py external-review` 而非硬编码 codex review) |
+| 测试 +4 | codex-cli+claude PASS / claude-code+claude FAIL / codex-cli+codex FAIL / 任意 host+isolated FAIL(+ ambiguous 措辞 1 例)· 395 passed · 68 pre-existing(无关)· 0 regression |
+
+### 判定矩阵(实测)
+
+| host | review model | 结果 |
+|---|---|---|
+| codex-cli | claude | ✅ 异质 PASS(**bug 修复**) |
+| claude-code | claude | ❌ 同源 FAIL |
+| codex-cli | codex | ❌ 同源 FAIL |
+| claude-code | codex | ✅ 异质 PASS |
+| 任意 | *-isolated/subagent | ❌ 机制 FAIL(保留 F034 保护) |
+| 缺 host | claude | ❌ 保守默认 claude → FAIL(不放宽老 case) |
+
+> 📌 case 附带提的 set-auto-mode 语义命令缺口(auto_mode 当时靠 raw-write 改)· 另列 · 本次不含。
+
+---
+
+## v8.67 · yolo 严格按流程 · 不内化(external 实跑日志物化校验 · 用户 case WS-002 · dev-only)
+
+> 用户 2026-05-30:"yolo 模式必须严格按 teamwork 流程流转 · 不能内化。"
+
+### 根因(yolo 把评审"内化"= 走过场)
+
+WS-002 yolo case:AI 写 `PRD-REVIEW.md` `mode: yolo-internalized` 自盖章 pm/qa/architect APPROVE + 去掉 goal/blueprint external(v8.66 已堵)→ 评审形同虚设。v8.63–66 强调"零 stop / 自主解决",AI 误把"无人值守"读成"AI 自己内化评审走完流程"。**反了**:无人值守 = AI 仍须做**真实评审工作**(多角色真分析 + external 真调异质模型)· 零 stop 只针对**人工决策点** · 不是省评审。
+
+### 修复:物化防内化
+
+| 改动 | 内容 |
+|----|----|
+| `_external_run_log_exists` helper | 校验 `~/.teamwork/external-review-logs/<feat>/codex-<stage>-*.log` / `claude-<stage>-*.log`(v8.55 实跑日志)存在 |
+| `_evidence_external_review_artifact` yolo gate | yolo + external 评审**无实跑日志** → **FAIL** · hint:必真跑 `state.py external-review`(不得手写 external-cross-review)。**文件名/frontmatter 能伪装合规 · 实跑日志伪造不了** |
+| `SKILL.md § yolo` | 加 🔴🔴「严格按流程 · 不得内化」:评审必真跑(多角色真分析 + external 真调)· 不得 `yolo-internalized` 自盖章 / 手写 external · external 实跑日志物化校验。澄清 auto_mode「内化」措辞(仅指跳过用户确认 · 非伪造评审)· 修表 2 处 |
+| 测试 +3 | yolo 无日志 FAIL / 有日志 PASS / 非 yolo 不受影响 · 391 passed · 68 pre-existing(无关)· 0 regression |
+
+### 物化哲学
+
+artifact 的文件名 / frontmatter `review_model` 能被 AI 伪装合规(v8.19 黑名单只挡明显同源)· 但 **external-review 实跑日志**(state.py 真调 codex/claude 时 v8.55 自动落)伪造不了 —— 把"真跑了异质模型"钉在 AI 必经的物化点。
+
+---
+
+## v8.66 · yolo 加重审核(非简化)· change-review-roles 去 external 物化 BLOCK(用户 case WS-002 · dev-only)
+
+> 用户 2026-05-30(WS-002 yolo 实战):"yolo 不得擅自简化流程 · yolo 模式本来就无人值守 · 需要加重各环节审核力度 · 非必要不得去掉外部模型评审。"
+
+### 根因(yolo 哲学被理解反了)
+
+v8.63–65 yolo spec 强调"零 stop / 自主解决",AI 据此把 yolo 当**简化/提速** —— WS-002 实战 AI 合并 9 BL 为 4 feature + `change-review-roles` 去掉 goal/blueprint 的 external 评审(美其名"集中到 review stage")。**反了**:无人值守 = 没人在看 → 自动化评审(尤其 external 异质模型)是**唯一安全网** · 应**加重**不应削弱。
+
+### 修复
+
+| 改动 | 内容 |
+|----|----|
+| **物化 gate** `cmd_change_review_roles` | yolo + 去 external(before 有 / after 无)+ 无 `--accept-external-removal` → **BLOCK** · hint 明列"不得为效率/集中去 external" |
+| `--accept-external-removal` flag | 显式逃生口 · 仅 external CLI **客观不可用**(未装/网络死·重试失败)· 用了写 concern WARN 留痕 |
+| `SKILL.md § yolo` | 顶部加 🔴🔴「yolo ≠ 简化/提速 · 是加重审核」原则(零 stop 只针对人工决策点 · 技术/评审环节一个不少 · 不得去 external / 合并 BL / 跳 stage / 减 review 轮次 · **可以加重**)· 修「自主解决」表 external 行(优先重试 · 绝不为效率去) |
+| 测试 +3 | yolo 去 external BLOCK / `--accept` 放行+WARN / 非 yolo 不受影响 · 388 passed · 68 pre-existing(无关)· 0 regression |
+
+### 原则
+
+yolo「零 stop」**只**针对人工决策暂停点(prepare / pm_acceptance / MR merge)· **技术与评审环节一个不省**。BL 拆分是 Planning 已定范围 · yolo 不重打包。无人值守正该**更严**。
+
+---
+
+## v8.65 · yolo 可携带专属 merge_target 分支(--yolo <branch> · 覆盖 localconfig 默认 · 用户拍板 · dev-only)
+
+> 用户 2026-05-30:"yolo 可以指定一个分支 · 这个分支就是这个需求的 merge_target · 如果指定了则不使用 localconfig 的 merge_target。"
+
+### 是什么
+
+`init-feature --yolo <branch>` · `<branch>` = 本需求专属 `merge_target` · **覆盖** `--merge-target` / localconfig 默认(`templates/teamwork_localconfig.json` 的 `"merge_target":"staging"`)。推荐给每个 yolo 需求一个**专属集成分支**(如 `--yolo yolo/feat-x`)· 隔离无人 review 自动合入的代码。
+
+### 改动
+
+| 改动 | 内容 |
+|----|----|
+| `--yolo` `store_true` → `nargs='?' const=True`(可选 `<BRANCH>` 值) | tools/state.py |
+| `--merge-target` `required=True` → `False`(yolo 可用 `--yolo <branch>` 提供) | tools/state.py |
+| `cmd_init_feature` 早解析:`merge_target = yolo_branch or args.merge_target` · 都空 → FAIL · 全 6 处 `args.merge_target` 改用 resolved | tools/state.py |
+| `_is_main_branch` gate 用 resolved merge_target(`--yolo main` 同样 FAIL) | tools/state.py |
+| `SKILL.md § yolo`:`--yolo [<分支>]` 语法 + 专属集成分支隔离建议 | SKILL.md |
+| 测试 +4(--yolo branch=merge_target / branch 覆盖 --merge-target / --yolo main FAIL / 都没 merge_target FAIL) | test_state.py |
+
+### 解析优先级
+
+`merge_target` = `--yolo <branch>`(最高) > `--merge-target` > (都空 → FAIL)。`state.json.yolo` / `auto_mode` = `args.yolo is not None`(nargs='?' 三态:None 未传 / True 无值 / str 分支)。385 passed · 68 pre-existing(无关)· 0 regression。
+
+---
+
+## v8.64 · yolo 自主解决语义(失败/卡点也零人工 · require_user_confirmed yolo 放行 · 用户澄清核心目标 · dev-only)
+
+> 用户 2026-05-30:"yolo 模式的核心目标是 AI 自主解决所有的问题 · 不需要人工干预。" → v8.63 只覆盖 happy-path 零 stop · 没定义**失败/升级/bypass**时的行为(正是"零人工"最关键处)· 补上。
+
+### 根因(v8.63 的 gap)
+
+v8.63 yolo 去了 pm_acceptance + MR merge 两个 designed stop · 但**失败路径**仍会停下问人:stage 校验 FAIL 3 次 → bypass 协议**暂停问用户**(`require_user_confirmed` 物化拦截 · 设计本意"防 AI 自决逃生")。这与 yolo「零人工」核心目标直接冲突。
+
+### 修复:autonomous resolution
+
+| 改动 | 内容 |
+|----|----|
+| `require_user_confirmed(args, yolo=False)` | yolo=True → 视作用户已 blanket 委托(`--yolo`)· 放行不拦(仍 `--reason` + `bypass_log` + concerns WARN)· 4 个调用点(`_v8_engine` ×3 + `_v8_ship` ×1)传 `yolo=state.get("yolo")` |
+| `SKILL.md § yolo 自主解决` | 失败/卡点行为表(FAIL→持续自解 / bypass→自授权 / external CLI 缺→自动 change-review-roles)· 🔴 **优先级 解决 > 绕过**(bypass 是穷尽后兜底 · 非遇错就推 · `bypass_log` 频率 = yolo 健康度)· 真·硬停(环境彻底不可用)极少 |
+| 测试 +3 | `TestYoloBypass`(yolo 放行 / 非 yolo 仍拦 sys.exit(1) / 显式 --user-confirmed 兼容)· 381 passed · 68 pre-existing(无关)· 0 regression |
+
+### 设计要点
+
+- **解决 > 绕过**:yolo 不是"遇错 bypass 硬推" · 是 AI 当负责工程师穷尽手段**真解决**;bypass 是不停下的最后兜底 · 每次 WARN 留痕(`bypass_log` 频率高 = AI 没在真解决 · 该回炉/降级 yolo)。
+- **安全仍在**:① yolo 只合非主分支(v8.63 gate)② 每次 bypass 写 `bypass_log` + concerns WARN ③ **非 yolo** 的 `require_user_confirmed` 拦截**不变**(防 AI 在非 yolo 下自决逃生)。
+
+---
+
+## v8.63 · 新增 yolo 模式(完全自动 · 无人值守 · 硬约束 merge_target 非主分支 · 用户拍板 · dev-only)
+
+> 用户 2026-05-30:"增加一个 full-auto 模式 · 完全自动 · 包括自动 merge · 处理主工作区。" → 命名定 **yolo**(诚实标注"无人 review 自动合 main"的风险)+ "这种模式 MR 目标必须指定非 main 分支"。
+
+### 是什么
+
+`yolo` = `auto_mode` **超集** · 启动后**零 stop**(把 auto_mode 残留的 pm_acceptance + MR merge 两个 stop 也自动了):
+- pm_acceptance → 自动 `approved_and_ship` + WARN 审计
+- ship Phase 1 MR → 自动 merge(`gh pr merge --auto --merge` / `glab mr merge`)
+- ship-finalize → 自动跑(v8.62 已修 main-sync 干净)
+- 只剩 kickoff 输入(说要建什么)· 之后无人值守跑到底
+
+### 🔴 硬约束(物化):merge_target 必须非主分支
+
+`init-feature --yolo` + `merge_target` ∈ {`main`/`master`/远端默认} → **FAIL**(`_is_main_branch` gate)。理由:yolo **无人 review 自动 merge** · 不得让 AI 错误/幻觉特性直接进 main —— 只能合 `dev`/`staging`/`integration` · 主分支提升仍**人工 gate**。
+
+### 改动
+
+| 改动 | 文件 |
+|----|----|
+| `--yolo` flag(init-feature)· `state.json.yolo` + **implies `auto_mode`** | tools/state.py |
+| `_is_main_branch(branch, repo_cwd)` helper(名字 main/master · 或 == 远端默认分支 origin/HEAD) | tools/state.py |
+| init-feature gate:yolo + 主分支 → FAIL(早于建 state/worktree) | tools/state.py |
+| `SKILL.md § yolo 模式`(行为表 + 硬约束 + 安全栏:尊重分支保护 / WARN 审计 / per-feature opt-in) | SKILL.md |
+| 测试 +4(yolo+main FAIL / yolo+master FAIL / yolo+dev OK 且 implies auto_mode / 非 yolo+main 不受影响) | test_state.py |
+
+### 物化边界(诚实)
+
+materialize 的是 **flag + 非主分支 gate**(关键安全约束);auto-merge 执行 / pm_acceptance 自动过 / ship-finalize 自动跑 是 **PMO 按 SKILL.md spec 行为**(与 auto_mode 同源 · auto_mode 本身就 spec-driven · 代码只存 flag)。安全网双保险:① gate 物化挡住 main ② 分支保护由平台 server 端强制(`gh`/`glab` merge 失败即退回手动 stop + WARN)。378 passed · 68 pre-existing(无关)· 0 regression。
+
+---
+
+## v8.62 · ship-finalize main-sync 主分支残留治本(feature_artifacts 无条件清 + ff-pull · 用户 case · dev-only)
+
+> 用户 2026-05-30:"总是发现主分支残留 state.json 和一个 jsonl · 是否有必要回主分支后 git pull · 一般刚有新 MR 合入 · 尽量保证主分支干净最新。"
+
+### 根因(两个叠加)
+
+ship-finalize step 7 main-sync 本就 `git fetch` + `pull --ff-only` + 尝试清 feature_artifacts(state.json / review-log.jsonl = finalize-push 已推 origin 的**冗余本地副本**)· 但:
+1. **清理被 gate 在「无其他 dirty」**:`else` 分支(主工作区含任何用户改动 → `safe_to_stash=False`)整段 `skipped_user_changes` —— 连 feature_artifacts 也不清 → 永久残留 + 主分支没 pull。主工作区几乎总有点 dirty(bootstrap 注入 / 用户 WIP)→ 用户实证"总是残留"。
+2. **feature_rel 误分类**:`feature_dir.relative_to(main_wt)` 不 resolve · symlink 不一致(macOS /var→/private/var)时抛 ValueError → `feature_rel=""` → state.json/jsonl 落 other_files → 触发 (1)。
+
+### 修复
+
+| 改动 | 内容 |
+|----|----|
+| `_classify_main_sync_dirty` | relative_to 前先 `resolve()` 双边(归一 symlink)· 防 state.json/jsonl 误落 other_files |
+| main-sync `else` 分支 | 不再整段跳过:**无条件** `git checkout origin/<mt> --` 覆盖清除 feature_artifacts(它们总是安全丢弃 · origin 已有终态)+ 尽力 `ff-pull`(finalize commit 只动这两文件 · 一般不碰用户改动)· 用户真改动**始终保留不动** · 新 status `cleaned_pulled_user_dirty_kept` / `cleaned_skip_pull_user_changes` |
+| 测试 | classifier 加 mixed 场景(feature_artifacts + 用户改动 → feature_artifacts 仍识别 2 · safe_to_stash=False)· 374 passed · 68 pre-existing(无关)· 0 regression |
+
+### 回答用户
+
+不必额外手动 `git pull` —— main-sync 本就 fetch + ff-pull · 问题是清理被 gate 跳过。治本后:**即便主工作区有用户改动 · 也会清掉冗余 state.json/jsonl(用 origin 终态覆盖)+ ff-pull 到最新 · 保留你的改动不动** → 主分支干净 + 最新。
+
+---
+
+## v8.61 · 修 v8.58 同栈预览 3 个 gap(v8.59 修好的 codex 异质评审实战挑出 · dev-only)
+
+> v8.59 修好的 codex exec 评审跑 commit 56a8715(v8.58 改动)报 NEEDS_REVISION · 挑出 3 个真 gap —— 异质评审修好后第一次实战就见效。
+
+### gap 1(真物化漏洞)· same-stack ui_design-complete 不验证 preview-project 已提交
+
+v8.58 `_check_same_stack_preview_project` 只校验 `preview-project/` + `preview.sh` + `package.json` 在**磁盘**上存在 · 不验证进了 `auto_commit` → 预览源没提交也 PASS → ship 丢失(same-stack 全景权威 = preview-project **源**)。
+- **修**:加 `_path_in_commit`(`git ls-tree {commit} -- {abspath}` · 3 态:在树内/未提交/无法判定)· `_check_same_stack_preview_project` 加 `auto_commit` 参数 · 校验 preview.sh + package.json 进了 auto_commit · 未提交 → FAIL + hint(`git add` + commit)· 不传 auto_commit 时仅磁盘校验(向后兼容 · None 不阻塞)· symlink 归一(macOS /var→/private/var)
+
+### gap 2 · ui_design-start 脚手架没提 preview.sh
+
+`_v8_engine.py` `STAGE_TEMPLATES.ui_design` 只列 UI.md + preview/*.html(static-html)· 没 same-stack 的 preview.sh。
+- **修**:加 `preview-project/preview.sh` → `preview-project-preview.sh`(scaffold 提示 · 拷入后按框架改 dev server 行)
+
+### gap 3 · templates/ui.md 残留 static-preview 引用与 same-stack 冲突
+
+同栈 Designer 读模板同时看到「用 preview.sh」(frontmatter)和「填 §全景权威索引 preview/*.html」(§表格 / §HTML 预览稿模板)· 矛盾。
+- **修**:① frontmatter 注释 v8.56「编译出 preview/*.html」→ v8.58「源即权威 · preview.sh · 不出 build」② 顶部「视觉真相」改介质感知 + 加「🔵 介质分流」note ③「§全景权威索引」「§HTML 预览稿模板」标题标「🔵 static-html 介质专用 · same-stack 跳过」
+
+### 测试
+
+`TestPanoramaArtifactEvidence` +3(uncommitted preview-project → FAIL / committed → PASS / 无 auto_commit → 仅磁盘校验)· 373 passed · 68 pre-existing(无关)· 0 regression。
+
+---
+
+## v8.60 · bootstrap 截断鲁棒 pmo_must_read digest + 禁截断工具输出规则(用户 case · dev-only)
+
+> 用户 2026-05-30(AON session):AI 跑 `bootstrap.py | head -50` 把 `skill_update_check`(JSON 后位)切掉 → 漏升级提示 + 误判"bootstrap 没检查升级"(实际检查了 · 是 head -50 吞了)。"约束 AI 不要截断 py 脚本输出 · 检查我们输出不要太长 · 过长则写文档传路径。"
+
+### 根因
+
+bootstrap 输出 102 行 · 关键 forewarn(`skill_update_check`〔行 67〕/ `flow_gates`〔行 74〕/ `session_entry_priority`〔行 95〕)全在**后 1/3** · 顶部是 silent 维护噪声(skeletons/chmod/hooks)。AI 习惯 `| head` 截断长输出 → 正好切掉 PMO 必须 act 的部分。
+
+### 修复(物化 + 规则双管)
+
+| 改动 | 内容 |
+|----|----|
+| **bootstrap.py 截断鲁棒 digest** | 输出**顶部**(verdict/command 之后 · 位置 2)置 `pmo_must_read` 一行 digest:禁截断警告 + skill 升级状态 + flow_gates 名单 + session_entry_priority —— **survive `head -5`**(实测) |
+| **SKILL.md 禁截断规则** | § bootstrap flow_gates 响应 加 🔴「禁截断工具输出」:teamwork 工具(bootstrap / state.py / update.py)输出 = 结构化 JSON · 字段顺序有意义 · 关键 forewarn 在后位 · **禁 `\| head`/`tail`/`sed` 截断** · 必完整读;工具输出罕见过长 → 落文件 emit 路径(不 inline 巨串) |
+| 测试 | `test_pmo_must_read_digest_at_top_survives_truncation`:断言 digest 在头部(位置 ≤2)+ 含禁截断警告 + 提 flow_gates + **head -5 实测仍见**(直接复现 bug 场景)· 370 passed · 68 pre-existing(无关)· 0 regression |
+
+### 三问对账(用户)
+
+1. **约束 AI 不截断** → SKILL.md 硬规则 + digest 顶置(即便习惯性截断也见关键信息)
+2. **检查输出不要太长** → digest 给 1 行短读路径(AI 不必啃全 102 行)· 详细仍在 JSON 后位
+3. **过长写文档传路径** → 规则写明「工具输出罕见过长 → 落文件 emit 路径」(external-review 已是此模式)
+
+---
+
+## v8.59 · 异质评审 review stage 改 codex exec(治本 codex review 子命令 headless 卡死 · 用户 case + 本地实测 · dev-only)
+
+> 用户 2026-05-30(AON SVC-PLATFORM-F057 review stage):"执行异质模型评审总是报错 · 看下逻辑是否有问题 · 本地测试下" + "不一定非要统一 exec · 只要确保 review 正常即可"。
+
+### 根因(两层)
+
+1. **直接诱因 · 安装的 skill 旧(v8.50.1)**:`~/.claude/skills/teamwork` 软链 v8.50.1(pre-v8.55)· 超时仍 300s + 无 `stdin=DEVNULL` 抗卡 + 无执行日志 → AON 看到的"300s exit 124 + 无日志"全对得上(v8.55 早已升 600s + DEVNULL + 日志 · 但用户没 update 拉新)。
+2. **真根因 · `codex review` 子命令 headless 卡死**:review stage 用 `codex review --commit X --title Y`(goal/blueprint 用 `codex exec`)。**本地实测**(codex-cli 0.135.0 · `stdin=DEVNULL`):
+   - `codex review --commit` → 跑满 220s 产 **0 字节 stdout**(超时)❌
+   - `codex exec <review prompt>` → **RC=0 · 169.7s · 1488 字节真实评审**(含 NEEDS_REVISION verdict · 还真挑出 v8.58 几处 gap)✅
+   与 AON 现象一致:同 Feature goal/blueprint(走 exec)早成功 · 唯独 review(走 codex review)持续超时。
+
+### 修复:全 stage 统一 codex exec
+
+| 改动 | 文件 |
+|----|----|
+| `_run_codex_review` 删 `stage==review` 的 `codex review` 子命令分支 → 全走 `codex exec [PROMPT]`(exec 已被 goal/blueprint 验证 · codex review 历史反复横跳 v8.23/25/26) | `tools/state.py` |
+| `_build_codex_prompt` review 分支修 **diff scope bug**:旧 `git diff base..commit -- {feature_dir}`(只看 Feature docs · **漏掉真实代码**·实现在 `src/`)→ `git diff base...commit`(全量 · 显式提示实现在 feature_dir 之外 · 加 verdict 要求) | `tools/state.py` |
+| `cmd_external_review` dry_run 删 review 特例 → 统一 exec preview | `tools/state.py` |
+| 测试:dry_run / v8.23 / v8.26 三例从断言 `codex review` → 断言 `codex exec` + PROMPT 含 `git diff` + verdict | `tools/tests/test_state.py`(369 passed · 68 pre-existing 无关 · 0 regression) |
+
+### 🔴 用户须知
+
+AON 装的是 v8.50.1(旧)· 即使逻辑修了也要 **`python3 ~/.claude/skills/teamwork/tools/update.py`**(channel=dev)拉到 v8.59 才生效 —— 同时拿到 v8.55 的 600s 超时 + 抗卡 + 执行日志(`~/.teamwork/external-review-logs/`)。
+
+---
+
+## v8.58 · same-stack 预览改 preview-project/preview.sh(dev server + 动态端口 · supersede v8.57 hub + v8.56 静态 build · 用户拍板 option B · dev-only)
+
+> 用户 2026-05-30:"最好针对预览稿直接编译运行 · 设计确认时直接给 URL · **不用在 teamwork 层起 server** · 直接用项目的 dev 环境 · 只是端口动态生成一个 · 是否可以在 preview-project 内也有一个 preview.sh 脚本 · 执行调用编译运行后输出可打开 URL。"
+
+### 方向修正:v8.57 hub 被 supersede
+
+v8.57 在 teamwork 层起单 hub serve 静态构建 —— 用户否定("不用在 teamwork 层起 server")。更干净的方案:preview-project 就是个可跑项目 · 让它自己的 dev server 跑预览 · **每次选动态空闲端口**(并行 worktree/多终端天然不冲突)· 用 `preview.sh` 封装。
+
+### 用户拍板 option B(AskUserQuestion)
+
+「加了 preview.sh 后 v8.56 的静态 build 必产 + 物化校验怎么处理」→ **去掉 · preview.sh 即唯一预览**:
+- same-stack 全景权威 = **preview-project 源**(committed 可跑独立项目 · 要看跑 preview.sh)· **不再出静态 `docs/design/preview/*.html`**
+- 物化闸改为 `preview-project/` + `preview.sh` + `package.json` 存在(`_check_same_stack_preview_project`)· 比 v8.56 静态产物校验弱 · 但用户接受(换 DX:实时热更 + 一键 URL)
+
+### 改动
+
+| 文件 | 内容 |
+|----|------|
+| **删** `tools/preview.py` + `tools/tests/test_preview.py` | v8.57 单 hub 整体回退(不在 teamwork 层起 server) |
+| **新** `templates/preview-project-preview.sh` | preview.sh 模板:按 lockfile 选包管理器 + 缺则装依赖 + `node net` 选动态空闲端口(`PORT` env 可覆盖)+ 打印 `PREVIEW_URL=` + 起 dev server(vite/next/CRA · 一行按框架改)· 拷入 preview-project 根 |
+| `tools/_v8_stage_specs.py` | `_evidence_panorama_artifact` 重构:same-stack → `_check_same_stack_preview_project`(preview-project+preview.sh+package.json · 不再要静态 build)· static-html 不变 · 加 `_resolve_panorama_subdir` helper |
+| `stages/ui-design-stage.md` | same-stack 模型重述(源即权威 · 删静态 build)· 新 § 预览(preview.sh · dev server · 动态端口)替换 v8.57 § 预览服务 hub · step 3/5 + 物化拦截 + Output Contract 改 preview.sh |
+| `roles/designer.md` / `templates/ui.md` / `docs/conventions.md` / `stages/panorama-sync-stage.md` | same-stack 验证改 preview.sh · 去 preview.py / base:'./' / 静态产物 |
+| `SKILL.md` | 删 tools/preview.py 文档清单行 |
+| 测试 | TestPanoramaArtifactEvidence same-stack 3→4 例(无 panorama_path FAIL / preview-project+preview.sh+pkg PASS / 无 preview-project FAIL / 缺 preview.sh FAIL)· 369 passed · 68 pre-existing(无关)· 0 regression |
+
+### 🔴 preview.sh 用法
+
+PMO 后台跑 `bash {子项目}/docs/design/preview-project/preview.sh` → 读早期 stdout 的 `PREVIEW_URL=` 行 → 等就绪 browse → 用完 kill。dev server 前台阻塞 · 故 `run_in_background`。仅 localhost。
+
+---
+
+## v8.57 · UI 预览静态服务单 hub(治本 same-stack 预览端口冲突 + 跨 session 可访问 · 用户 case · dev-only)
+
+> 用户 2026-05-30:"同栈项目预览稿无法直接预览 · 需启动服务 · 需要一个机制让各 session 的 UI 预览稿可访问 · 要考虑并行 worktree · 多终端开发端口冲突。"
+
+### 根因:3 个真实痛点
+
+1. **`file://` 打不开 same-stack 预览**:v8.56 same-stack 预览是 preview-project 编译出的 ES-module bundle · `file://` 因 CORS 不加载 module(browse 停 about:blank · CW-F002 已踩)→ 必须 HTTP server。
+2. **裸 `python3 -m http.server` 端口冲突**:并行 worktree / 多终端各自起服务抢同一端口(8799…)· 互相占用。
+3. **预览稿跨 session 不可访问**:每个 session 自起的服务彼此不知道 · 没有统一入口看"全机有哪些预览稿在跑"。
+
+### 方案:单 hub(治本)
+
+- **全机唯一一个常驻 hub 进程**·绑一个端口(默认 8799 · 占用则顺延扫 60 个)· detached 脱离终端(终端关了仍活)· 仅 `127.0.0.1` 不对外。
+- **共享 registry**(`~/.teamwork/preview/registry.json` · 落 $HOME → 跨 worktree/终端/session 共享):slug → 预览目录映射。
+- hub 按路径前缀 `http://127.0.0.1:<port>/<slug>/` 分发到各预览目录 · **后续 session 不再起新 server · 只注册自己的目录 + 复用同一 hub → 永不端口冲突**(竞态:进 flock 锁内二次探活 · 防双 hub)。
+
+### 新增 `tools/preview.py`(独立元工具 · parallel update.py / bootstrap.py)
+
+| 子命令 | 作用 |
+|----|------|
+| `serve --dir <编译产物目录>` / `--feature <feat_dir>` | 解析预览目录(`--feature` 读 UI.md `pages_changed[].panorama_file` / `feature/preview`)· 注册 + 确保 hub 起 · 返 `url`/`page_urls` |
+| `list` | hub 状态 + 全部已注册预览 + URL(跨 session 找别人预览稿) |
+| `stop --all` / `--slug X` / `--prune` | 停 hub(registry 保留)/ 注销单个 / 清 stale |
+| `run-hub --port P` | [隐藏] detached 子进程实际跑 server |
+
+安全:路径穿越守卫(raw `..` + URL-encoded `%2e%2e` 均 403)· 仅 bind 127.0.0.1。
+
+### 接线
+
+| 文件 | 内容 |
+|----|------|
+| `tools/preview.py` | 新增(~470 行) |
+| `stages/ui-design-stage.md` | step 3 same-stack 验证从裸 `python3 -m http.server` → `preview.py serve`(标注会端口冲突 · 不要手动起)· step 5 决策参考给 hub url · 新 § 预览服务 hub(子命令表 + `base:'./'` 相对资产 + 仅本机 note) |
+| `roles/designer.md` / `templates/ui.md` | HTML 预览验证改 preview.py serve + `base:'./'` |
+| `SKILL.md` | 文档清单加 tools/preview.py 行 |
+| 测试 | `tools/tests/test_preview.py` 新增 14 例(slugify / register / prune / feature 解析 / e2e serve+fetch / **hub 复用不抢端口** / 路径穿越 403 / list / stop)· 全 PASS |
+
+### 🔴 same-stack build 注意
+
+preview-project 的 build 必须用**相对资产路径**(vite `base:'./'` 或等价)· 否则 hub `/<slug>/` 前缀下 `/assets/*` 绝对路径 404。
+
+---
+
+## v8.56 · ui_design same-stack 重定义 = docs/design/preview-project + 可视全景物化(用户 case CW-F002 · dev-only)
+
+> 用户 2026-05-30(supersdk CW-F002 · Tailwind→antd 迁移):"你怎么没出全景设计?" + "应在 design 目录建 antd 项目编译静态 HTML" + "目录应为 子项目/docs/design/preview-project(与实际前端项目同技术栈)+ 设计规范"。
+
+### 根因:3 个真实 gap
+
+1. **cut-corner 有缝**:same-stack 的可视交付物没物化校验 —— `_evidence_panorama_artifact` 对 same-stack **直接 `return True`**(仅校验 UI.md 自查)→ AI 拿"验证器只校验 UI.md""same-stack 不要求 preview"当借口,只写 markdown token 表、零可视全景。最低物化闸被当成免做交付物许可。
+2. **same-stack 污染真实工程 + 新库鸡蛋问题**:旧 same-stack = 在真实前端 app 加 `/design/*` 路由 → 污染工程;且本 Feature 正要引入 antd(还没装)→ "用自身组件预览 antd" 先有鸡还是蛋。
+3. **static-html 介质差**:手搓 CDN ≠ 真实组件渲染。
+
+### 用户决策
+
+| 决策 | 内容 |
+|----|------|
+| ① **重定义 same-stack** | 实现从「真实 app 内 /design 路由」改成「`{子项目}/docs/design/preview-project` 同栈独立项目(自带目标库)→ `npm run build` → `docs/design/preview/*.html`」· 不污染工程 + 解新库鸡蛋问题 · 仍 2 介质(same-stack + static-html)· 老 Feature 向后兼容 |
+| ② **可视全景物化** | 编译出的静态全景 `docs/design/preview/*.html` 必产 + ui_design-complete 校验存在(治 cut-corner) |
+
+### 改动
+
+| 文件 | 内容 |
+|----|------|
+| `stages/ui-design-stage.md` | same-stack 重定义(preview-project 模型 + docs/design 结构)· 硬规则加「必产可视全景」· 加 `python3 -m http.server` 验证 note(`file://` 在 browse 不加载 · 治本 CW-F002 误判"渲染正常") |
+| `tools/_v8_stage_specs.py` | `_evidence_panorama_artifact` same-stack `return True` → 要求 `panorama_path/preview/*.html` 编译产物存在(缺 panorama_path / 缺 preview → FAIL) |
+| `templates/ui.md` / `roles/designer.md` / `conventions.md §13` | same-stack realization 改 preview-project + http.server + docs/design/ 目录约定 |
+| 测试 | TestPanoramaArtifactEvidence same-stack 3 例改(无 panorama_path FAIL / 有编译产物 PASS / 声明但没编译 FAIL)· 368 passed · 68 pre-existing(无关)· 0 regression |
+
+---
+
+## v8.55 · external wrapper(codex/claude)抗卡 + 超时 10min + 默认落执行日志(用户 case · dev-only)
+
+> 用户 2026-05-29:"external wrapper 执行 codex 有时卡住(疑似 codex 升级提示)· 是否有参数禁用 · 超时 5min→10min · codex 执行输出默认写文件方便排查跑不起来。"
+
+### 改动(`tools/state.py` external review 封装)
+
+| 项 | 处理 |
+|----|------|
+| **抗卡(升级提示)** | codex / claude subprocess 加 `stdin=subprocess.DEVNULL` —— 闭 stdin · 任何交互/升级提示等输入立即 EOF 不再卡(治本 hang)。**诚实**:codex 没有我确认过的"禁用升级检查" flag,不臆造;DEVNULL 是通用抗卡机制,日志会显示是否真是升级提示,届时可精准加 codex config/flag |
+| **超时 5→10min** | `EXTERNAL_REVIEW_TIMEOUT_SEC` 300 → 600(codex/claude 同) |
+| **默认落执行日志** | 新 `_log_external_run`:每次 external review 默认写 `~/.teamwork/external-review-logs/<feature>/<codex\|claude>-<stage>-<ts>.log`(cmd/rc/耗时/timeout/stdout/stderr)· **出仓不污染 ship** · 超时/失败时把日志路径回填进 error stderr(FAIL emit 可见)· 排查"跑不起来"看这个 |
+
+### 设计
+
+- 日志落 `~/.teamwork/`(与 host_audit / prepare_check_audit 同处)· 不放 feature_dir(那会被 ship `git add` 带进仓)。
+- `_run_claude_review` 加可选 `feature_dir/stage`(默认 None → 不写 · 保留 `_run_claude_review("prompt")` 测试签名)。
+- 测试 +3(日志写入 / None 不崩 / 超时 600)· 全套 366 passed · 68 pre-existing(无关)· 0 regression。
+
+---
+
+## v8.54 · Feature Planning 完成必问是否提交 push(用户 case · dev-only)
+
+> 用户 2026-05-29:"feature planning 结束时应该提示是否提交 push。"
+
+### 根因:Step 8 提交是平铺指令 · 非显式暂停点
+
+Feature Planning 产出(WS + 各 ROADMAP 登记 + 业务架构 if 改)是**未提交的工作树改动**。但 `feature-planning.md` Step 8 只写「git add → commit → push(用户决定)」—— 平铺指令,没框成 R5 暂停点 → AI 可能**不提示就把改动悬着**(规划白做、易丢)或擅自 commit。
+
+### 治本:Step 8 = 必问的 R5 暂停点
+
+- **feature-planning.md Step 8** 改成显式 R5 暂停点:规划完成必 emit「提交并 push 💡 / 先不提交 / 其他」· 不擅自 commit、也不放任悬着 · 主工作区直推或开 MR · 不走 ship。
+- **planning-check checklist** 末项强化:「🔴 规划完成必 emit R5 暂停点问是否提交 push」(物化到 AI 必经的 planning-check 输出)。
+- 测试:checklist 仍 5 项(改文案非数量)· 全套 363 passed · 68 pre-existing(无关)· 0 regression。
+
+---
+
+## v8.53 · 需连环境先读 TROUBLESHOOTING.md(用户 case AON staging DB · dev-only)
+
+> 用户 2026-05-29:"staging 数据库怎么连在 troubleshooting.md 有定义,但是 AI 不知道。"
+
+### 根因:env-access 路由只对"用户提到" · AI 自己需连环境时改瞎试
+
+承 v8.52 代码调研:AI 需查 staging DB 真实 category 数据 → 但**不知连法**,grep `.env` / `dev_start.sh` / 试本地 docker / DNS 不解析 / psql 一通报错。而 **staging 连法 `TROUBLESHOOTING.md` 早有定义**。
+
+teamwork 路由表本有「查 DB / 查环境 → TROUBLESHOOTING.md」,但语义是「**用户提到** X」(mode A triage)· AI 在**规划期代码调研 / stage 内**自己需连环境时,这条没触发 → 改即兴 grep 配置试错。且 TROUBLESHOOTING 是**用户主权**运维手册,AI 本应「按需读」却重新发明。
+
+### 治本:AI 自己需连环境也走 TROUBLESHOOTING · 先读不瞎试
+
+| 改动 | 内容 |
+|----|------|
+| **SKILL.md § 按场景路由** | 加 🔴 note:**AI 自己需连环境(查 DB/log/服务/跑运维命令)时也走 `TROUBLESHOOTING.md`**(不只用户提到 · 含规划期代码调研需 live 数据 / stage 联调)· **先读拿连接+操作方式,别凭 `.env`/启动脚本瞎试** · 用户主权手册按需读不重新发明 · 连法缺失补进它 |
+| **feature-planning.md Step 1** | 代码调研块加:调研需 live 环境数据 → 先读 TROUBLESHOOTING.md 拿连接(附 AON 试错实证) |
+
+### 设计
+
+- 呼应设计哲学「用户主权:排查命令 → 用户填,teamwork 按需读」—— 本 case 是 AI 没「按需读」。
+- **v8.53.2 强化**(用户追问"不够清晰 vs AI 没读"):根因是**passive table · AI 不主动读**(路由表加 note 对"没读"无力)→ 把提醒**物化进 `planning-check` 输出**(AI 必经、刚跑完就看到,本 case AI 确实跑了 planning-check)+ 修 `文档清单` 何时 read 列一致(原"mode A/E"太窄)。env-access 不可枚举 · 无法硬物化拦截 · 剩下靠纪律 + 必经点提醒。
+- 全套 363 passed · 68 pre-existing(无关)· 0 regression。
+
+---
+
+## v8.52 · Feature Planning 必须结合实际代码调研(用户 case AON category · dev-only)
+
+> 用户 2026-05-29(实战验证 case · aon-core):"feature planning 应该结合实际代码调研。"
+
+### 根因:WS 拆解凭 spec/假设 + 轻信 sub-agent 摘要
+
+AON「category 单源化」规划:AI 切 PL 拆出 WS-001 5 个 BL,**全凭 spec + 子项目结构假设**。用户追问"结合实际代码验证,是否有些已做完" → AI 实跑代码核验,发现**决定性事实**:
+- migration 全是 schema-only(**0 INSERT**)· `offer_categories` 表为空 · partner 的"DB-first"是**空壳**永远走 fallback —— 即 ① 的真缺口是「seed 数据 + DB 校验」,不是原以为的「建接口」。
+- **第一次排查的 Explore agent 误报**"migration 含 11 条 seed INSERT"(实际纯 schema)· 差点让整个 WS 拆解基于错前提。
+
+即:Feature Planning 流程**没强制 grounded 实际代码** → AI 只在用户提示后才核验。Explore/sub-agent 读 excerpt 会漏内容,decisive 前提轻信摘要 = 拆错。
+
+### 治本:代码调研 = Feature Planning 必经步骤
+
+| 改动 | 内容 |
+|----|------|
+| **feature-planning.md Step 1** | 加「🔴 实际代码调研」:每个候选 BL 核验「已做什么/真缺口」· 反映真实完成度(不把已完成列 todo / 不把有脚手架的当 greenfield)· **decisive 前提必 Read 实际文件 · 不轻信 Explore/sub-agent 摘要**(附 AON seed 误报实证) |
+| **planning-check checklist** | 首项加「拆 BL/WS 前调研实际代码现状 · 标注真实完成度 · 核验 decisive 前提」(4→5 项) |
+| **templates/workstream.md** | `features[]` 加 `current_state` 字段(由代码调研填:已有脚手架/复用点 vs 真缺口)+ 设计要点 5「拆解 grounded 实际代码」 |
+| **测试** | test_state planning_checklist 长度断言 4→5 · 全套 363 passed · 68 pre-existing(无关)· 0 regression |
+
+### 设计
+
+- 不是新机制 · 是把"凭记忆/spec 拆"纠正为"凭实际代码拆"(planning 的 R7 evidence 精神延伸到规划层)。
+- `current_state` 让 WS 文档**显式记录每个 feature 的复用点 vs 真缺口** —— 拆解可审计、不重复造轮子、不漏命门。
+
+---
+
+## v8.51 · session 入口优先级:升级 → 补规划 → 任务(用户 case gcpdev · dev-only)
+
+> 用户 2026-05-29(实战验证 case · gcpdev 仍跑 v8.47.1):"应该先处理升级,然后补规划,最后再处理别的。"
+
+### 根因:多信号同时触发时无优先级 → PMO 倒置
+
+bootstrap 同时 emit `skill_update_check: outdated`(v8.47.1→v8.50.1)+ `cold_start`(缺 teamwork-space),但:
+- **SKILL.md 零优先级规则**(「升级」相关条目全是 mode-升级 即 Feature Planning/Bug · **没有 skill-版本-升级** 的处理)。
+- 结果:PMO 把「升级」+「补规划」降成底部「📎 维护提醒(不阻塞)」脚注,反把「启动 BL-001」放成选项 1 —— **优先级倒置**。
+- 深层:**停在旧版 = 跑旧行为** —— 连规划/冷启动逻辑本身都可能是已被新版治掉的(本 case 正是 v8.47.1 旧路由),旧版上"补规划"会白补。所以升级必须最先。
+
+### 治本:定义 session 入口优先级 + 物化到 bootstrap 输出
+
+| 层 | 改动 |
+|----|------|
+| **SKILL.md** | § bootstrap flow_gates 响应 顶部加「session 入口处理优先级」:① 升级(skill_update_check outdated · 最先 · 旧版=旧行为)→ ② 补规划(cold_start)→ ③ 任务 · **不可把 ①/② 降脚注** · 附 gcpdev 反模式实证 |
+| **bootstrap.py** | emit `session_entry_priority`(检测 skill outdated / cold_start → 列有序优先级 + rule「不可降脚注」)· 物化到工具输出 · AI 跑完即见,不靠记 SKILL.md(治本:本 case AI 手里有 outdated 信号却仍忽略) |
+| **测试** | test_bootstrap 加 session_entry_priority(cold_start → ②补规划 + ③任务 · 序正确 · rule 含「脚注」) |
+
+### 设计
+
+- **非硬 BLOCK**:升级/补规划仍是 R5 暂停点(用户可忽略/跳过)· 只是**呈现优先级** —— 先 surface 让用户拍,不埋脚注。
+- 测试:bootstrap docs+emit · 全套 363 passed · 68 pre-existing failed(render+scan · 无关)· 0 regression。
+
+---
+
+## v8.50 · 模板瘦身:teamwork-space template↔维护规范 解耦(用户洞察 · dev-only)
+
+> 用户 2026-05-29:"teamwork-space.md 模板里太多不必要内容 · 很多是 AI 知道就好 · 是否单独起一个维护规范.md · 模板引用一下,不耦合在一个文档,其他模板也一样。"
+
+### 根因:模板自相矛盾 + 违 skill 边界原则
+
+`templates/teamwork-space.md`(~200 行)每个 section 都挂一段 `>` 规则块(生命周期/状态机/硬规则/字段语义/单源声明)。但:
+- **自相矛盾**:它开头写「≤1 行 · 一眼看懂全景 · 不是事件日志」,自己却塞满 meta-rules。
+- **违 skill 边界原则**(本 session 早先沉淀):这些是 **AI 维护行为**,该在 spec 层,不该耦合进「会被实例化进用户项目」的模板 —— 否则项目里那份 teamwork-space.md 一复制就臃肿。
+
+### 解耦(用户决策 A:v8.49 收尾后单独做)
+
+| 文件 | 角色 |
+|----|------|
+| **新建 `docs/teamwork-space-guide.md`** | 维护规范(AI 读):核心定位 + 各 section 字段语义/硬规则 + 生命周期 + 进度统计公式 + 跨项目变更单源 + 路由权威(docs_root / 技术栈 panorama 信号) |
+| **`templates/teamwork-space.md` 瘦身**(~200→~105 行) | 只留实例化骨架:section 头 + 表头 + 示例行 + 每节一句话 `<!-- 这里放什么 · 详 guide §N -->` + 顶部引用 guide |
+| **`SKILL.md`** | session 入口必读段加「创建/维护 teamwork-space 的规则 → docs/teamwork-space-guide.md」(PMO 常驻可发现) |
+
+效果:实例化进项目的 teamwork-space.md **永远精简**(骨架 + breadcrumb)· 规则单源在 skill guide(AI 读 · 不复制)。
+
+### 范围控制(R4 不膨胀)
+
+- teamwork-space 是**重灾户**(规则 >> 骨架)→ 本次解耦。
+- `roadmap.md` / `workstream.md` / `project.md` 规则:骨架比例合理(字段语义贴着表头反而有用)→ **暂不拆**(避免为边际收益增 guide 文件)· 后续如确有需要再议。
+- 测试:docs-only 改 · 全套 362 passed · 68 pre-existing failed(render+scan · 无关)· 0 regression。
+
+---
+
+## v8.49 · 规划模型重构:执行线 → WS → roadmap/BL → F(用户共创 · 删执行手册 · dev-only)
+
+> 用户 2026-05-29 连环追问 → 共创:"BL / BG / 执行线 本质都是产出一组 feature,是否统一更合理?我们重新梳理 feature 规划整体流程。"
+
+### 背景:规划概念空间过载 + 取样偏差纠错
+
+排查发现规划层概念太多(BL / CR / BG / PENDING / 执行线 / F),关系不清。实际用量证据(joli/aon 旗舰多子项目):**执行线 7 条 + BG 23 个 + BL 947 处引用全在用**(我一度因只搜 okok/ 误判"BG 零使用",用户用 aon 纠正 → 重查确认三者都活跃)。结论:它们是**三个真实层级**,但:① BG/CR 与初始规划/执行线的边界糊;② BG.sub_features ↔ ROADMAP.BL 身份重复;③ 执行手册只在 0-1 有用,迭代期冻结(aon 执行手册停更 2 个月而 BG 活跃)。
+
+### 用户共创的收敛模型
+
+```
+业务架构与产品规划.md(愿景 + 执行线列表 · taxonomy · 稳定)
+   └─ WS-NN(product-overview/workstream/)  ← feature-planning 产物 · 承接 1+ 执行线
+        └─ ROADMAP/BL-NNN(关联 WS)         ← 完成标准:feature 全写入 roadmap(原子)
+────────── 规划→执行 交接 = 用户拍板 BL + prepare + init-feature ──────────
+   └─ F-NNN  goal→…→ship
+```
+
+关键决策(用户逐步拍板):
+- **删执行手册**:执行线降级为业务架构里的小列表(taxonomy · 不跟踪 · 不登记 WS · WS 向上 tag · 反查得索引);非开发工作 teamwork 不跟踪。
+- **WS = feature-planning 产物**:不在流程外 ad-hoc 手搓;"起 WS" = 进 feature-planning(PMO 切 Product Lead)。
+- **承接 1+ 执行线**(与子项目「承接执行线」多值一致)。
+- **进度统计 = N 未完成 WS(规划态)+ 各 ROADMAP BL(执行态)**;WS ✅规划完成即从规划计数移除(不双计)。
+- **lock 语义承旧 BG**:WS 未规划完成禁启动其子 Feature(防边规划边启动)。
+
+### 实现(4 phase · ~13 文件)
+
+| Phase | 改动 |
+|----|------|
+| **P1 核心 spec** | SKILL.md 新增「teamwork 业务流程架构(PMO 常驻认知)」锚点(根治"PMO 不知道规划模型"的反复 mis-route)· PRODUCT-OVERVIEW-INTEGRATION 重构(删执行手册必备 · 执行线入业务架构 · CHG/changes→WS · 变更级联/自下而上 reframe)· feature-planning 产出改 WS · conventions §8 加 WS-NN namespace + §4 执行线→WS→BL→F 链 · roles/product-lead 更新 |
+| **P2 模板** | 新建 `templates/workstream.md`(WS · 由 change-request 泛化)+ `workstream-readme.md` · change-request 标 DEPRECATED · roadmap 加「关联 WS」列 · teamwork-space 进度统计加「未完成 WS」+ 执行线概览简化为派生视图 + 跨项目变更 CHG→WS · pl-pm-feedback 修 |
+| **P3 工具接线** | planning-check 产出/planning_order 改 WS · SKILL 项目级文档信息架构加 workstream/ + 执行线路由 · bootstrap cold_start gate 措辞 执行手册→执行线列表 |
+| **P4 测试发布** | test_state planning_order 断言改新链路 · 全套 pytest 362 passed · 68 pre-existing failed(render+scan · 无关)· 0 regression |
+
+### 兼容 + 后续
+
+- **向前兼容**:老项目 `执行手册.md` / `changes/*.md`(CHG/BG)保留可读 · 不强迁。
+- **v8.50 待办**:模板瘦身 —— template(实例化骨架)↔ 维护规范(AI 行为)解耦(用户洞察:teamwork-space 模板规则过载 · 违 skill 边界原则 · 自相矛盾)。
+
+---
+
+## v8.48 · 治本 v8.47 冷启动路由倒置(用户 case gcpdev · 产品规划优先 · dev-only)
+
+> 用户 2026-05-29 跑 `/teamwork`(gcpdev 项目):"预期应该指引我做项目规划 · 最终生成 teamwork-space.md 和 product-overview。" 实际 AI 出了个看板 · 把 teamwork-space.md 缺失降成「不阻塞 · 可随时补」脚注 · product-overview 没提。
+
+### 根因:v8.47 的两处硬伤(bootstrap gate 正确触发 · 但行为/概念层错)
+
+实测 gcpdev:`cold_start_workspace_uninitialized` gate **正确触发**了(bootstrap 层 OK)。问题在路由 + mode 接线:
+
+| 根因 | 错在哪 |
+|----|------|
+| **路由倒置** | v8.47 gate action 写「进 Feature Planning 流程…生成 teamwork-space.md」· **双重错**:① teamwork-space.md 不是 Feature Planning 产出的 —— 权威流是 `product-overview`(PL 引导模式)→ ✅确认 **派生** teamwork-space.md(`PRODUCT-OVERVIEW-INTEGRATION.md:67`)· ② gcpdev 已做 Feature Planning(PROJECT/ROADMAP/sitemap)却跳过上游 product-overview |
+| **mode-D 降级** | bare `/teamwork` = mode D 看板 · v8.47 接线「mode A/D/E → 轻提一句」→ teamwork-space.md 缺失成脚注 · product-overview 没出现。但 bare `/teamwork` 落未初始化项目 **恰恰是最该强引导的时刻** |
+| **子系统偏向拆 ROADMAP** | 连 planning-check 也:无 product-overview 时说「可直接拆 ROADMAP」· 把产品规划上游当 optional |
+
+### 权威冷启动顺序(PRODUCT-OVERVIEW-INTEGRATION.md 确立)
+
+```
+product-overview(产品规划 · PL 引导模式)
+    ↓ 状态达 ✅ 已确认
+teamwork-space.md(工作区全景 · 由 ✅确认内容派生)
+    ↓
+Feature Planning(拆 ROADMAP · 子项目级)
+    ↓
+Feature 状态机(goal→ship)
+```
+
+### 用户决策:产品规划优先 · 一律引导 product-overview · spec/wording 修正(不加新命令)
+
+| 改动 | 内容 |
+|----|------|
+| **bootstrap.py** | cold_start gate action 改「产品规划优先」(① 建 product-overview → ② ✅确认派生 teamwork-space.md → ③ Feature Planning)· 按 `_po_exists` 自适应(已有 po → 直接从 ✅确认派生)· 加 `authoritative_order` 字段 · spec 指向 PRODUCT-OVERVIEW-INTEGRATION.md |
+| **SKILL.md** | § bootstrap flow_gates 响应:bare `/teamwork`(mode D 无任务)→ 🔴 不当静默看板 · 首条响应强引导(即便已有 PROJECT/ROADMAP 仍 surface)· 明确「teamwork-space.md 不是 Feature Planning 产出」· 别再指用户进 Feature Planning 生成它 |
+| **state.py planning-check** | `must_read` 总含 PRODUCT-OVERVIEW-INTEGRATION.md(无 po 时学冷启动初创)· 加 `planning_order` 字段 · 无-po hint 改「产品规划优先」(删「可直接拆 ROADMAP」把上游当 optional 的措辞) |
+| **feature-planning.md** | 加冷启动顺序说明(本流程是下游 · teamwork-space.md genesis 在 product-overview 上游 · §2 Step 5 改 teamwork-space 指已存在后迭代非首次) |
+| **PRODUCT-OVERVIEW-INTEGRATION.md** | 加 § 冷启动:首次创建 product-overview(PL 引导模式 5 步)· 治本「文档假设 product-overview 已存在 · 无 cold-start 创建入口」 |
+| **测试** | test_bootstrap cold_start 3 例更新(action 改 product-overview 优先 + authoritative_order 顺序断言)· test_state planning-check 2 例更新(must_read + planning_order) |
+
+### 与 v8.46/v8.47 的关系
+
+v8.46(product-overview 存在→读规范)+ v8.47(teamwork-space 不存在→引导)建了 gate · v8.48 **修正 v8.47 的路由方向**(从「下游 Feature Planning」纠正为「上游产品规划优先」)。三版共同补 Feature Planning / 产品规划上游不进状态机的物化盲区(forewarn gate · 非 BLOCK · PMO 按 mode 用判断)。
+
+---
+
+## v8.47 · 治本新项目冷启动无引导(用户洞察 · bootstrap cold_start gate · dev-only)
+
+> 用户 2026-05-29:"目前新项目缺少产品规划和 teamwork_space.md 生成路径 · 是否可以 session 启动检测 product-overview teamwork_space.md · 没有引导用户进入产品规划流程。"
+
+### 根因:冷启动盲区(v8.46 的对偶)
+
+v8.46 补了「项目**有** product-overview/ → 提示读规范」的正向门;但反向盲区还在:**新项目什么都没有**(无 teamwork-space.md / 无 product-overview/)时 · session 启动**零引导** · 用户(和 AI)不知道该先做产品规划 · 直接散做单 Feature → 缺工作区清单(子项目管理 / 待规划需求池 / 跨项目变更追踪)。
+
+```
+v8.46 gate:product-overview/ 存在 → 提示「规划类任务读规范」(正向)
+        ↓ 但
+新项目冷启动:teamwork-space.md 不存在 → 无任何 forewarn(盲区)
+        ↓
+用户不知道有 Feature Planning 流程 · AI 不主动引导 · 直接 init-feature 单做
+        ↓
+🔴 工作区永不初始化 · 多子项目 / 需求池 / 跨项目追踪能力缺失
+```
+
+### 用户决策:A · 两者都检 · forewarn 分强度 + Feature Planning 流程产出
+
+| 维度 | 决策 |
+|----|------|
+| **检测对象** | teamwork-space.md(主判据 · 工作区初始化标志)+ product-overview/(辅:缺则提示一并建) |
+| **强度** | forewarn(非 BLOCK)· bootstrap 不拦截 · 按 mode 分强度引导(mode B 强 emit R5 / A·D·E 轻提 / C silent skip) |
+| **产出路径** | 引导进 **Feature Planning 流程**(跑 `state.py planning-check` + 生成 teamwork-space.md)· 不新造流程 |
+
+### 实现
+
+| 层 | 机制 |
+|----|------|
+| **bootstrap gate** | `cmd_session_bootstrap` 检 `teamwork-space.md` 不存在 → flow_gates emit `cold_start_workspace_uninitialized`(含 product_overview_status:也缺失/已存在)· 与 v8.46 product-overview gate 互补 |
+| **SKILL.md 接线** | Triage 新增 § bootstrap flow_gates 响应(首条响应前必扫)· cold_start 按 mode 分强度:mode B 首条响应 emit R5 暂停点(1 进 Feature Planning 💡 / 2 跳过 / 3 其他)· 用户拍板前不擅自建文件(R5) |
+| **测试** | test_bootstrap.py 加 3 例(无 ws → gate 在 · 有 ws → gate 无 · 仅 po → po_status 已存在) |
+
+### 与 v8.46 的关系
+
+v8.46(product-overview 存在→读规范)+ v8.47(teamwork-space 不存在→引导初始化)= 规划路径双向物化补全。两个 gate 同源(Feature Planning 不进状态机 · 无 state.py 兜底的物化盲区)· 都用 forewarn flow_gates 补(不强 BLOCK · PMO 按 mode 用判断)。
+
+---
+
+## v8.46 · 治本 Feature Planning 路径未物化漏洞(用户洞察 · A bootstrap gate + C planning-check)
+
+> 用户 2026-05-28:"PRODUCT-OVERVIEW-INTEGRATION.md 这个 AI 每次会必读么 · 是否会存在 AI 没读这个文件 · 导致在一个 feature 需要规划的时候不按这个规范来。"
+
+### 根因:v8 物化覆盖的盲区
+
+调研确认用户担心成立:PRODUCT-OVERVIEW-INTEGRATION.md **零物化触发点**(只有 conventions.md 一个表格 reference + scan 工具列它)。深层根因:
+
+```
+v8 核心承诺:可枚举流程 → state.py 物化(主动告知 · 不靠 AI 读 spec 凭记忆)
+        ↓
+但 Feature Planning + 问题排查「不进状态机」(prepare.md 明说)
+        ↓
+退回 v7 模式:PMO 主对话凭记忆 + 自觉读 markdown spec
+        ↓
+🔴 PRODUCT-OVERVIEW-INTEGRATION.md / feature-planning.md 纯 spec-driven
+   → AI 没读 = 不维护规划状态表 / 草稿态误影响下游 / 议题追踪缺失
+```
+
+stage 链路径(goal→ship)有 state.py 主动告知兜底,但 **Feature Planning 路径没有** —— 这正是 v8 本要消灭的"凭记忆"问题在规划路径的残留。
+
+### 用户决策:A+C 双层
+
+| 层 | 机制 |
+|----|------|
+| **A · bootstrap gate** | session 启动检测 product-overview/ → flow_gates emit「规划类任务必读规范 + 跑 planning-check」 |
+| **C · planning-check 命令** | Feature Planning 物化入口(像 prepare-check)· emit 规划 checklist + 必读 + 规划状态机 |
+
+### 实施
+
+#### A · bootstrap.py product-overview gate
+
+`cmd_session_bootstrap` 检测 `project_root/product-overview/` 存在 → flow_gates append:
+```json
+{
+  "gate": "product_overview_planning_spec_required",
+  "trigger": "Feature Planning / 规划类任务",
+  "action": "先跑 planning-check · 必读 PRODUCT-OVERVIEW-INTEGRATION.md · 维护规划状态表 · 仅✅已确认才影响下游",
+  "skip_consequence": "AI 没读 → 草稿态误影响下游 / 议题追踪缺失 · Feature Planning 无 stage 兜底"
+}
+```
+
+#### C · state.py planning-check 命令(不进状态机 · emit-only)
+
+```
+state.py planning-check --project-root <abs>
+```
+emit:
+- `product_overview_exists` + `must_read`(有 po → 加 PRODUCT-OVERVIEW-INTEGRATION.md)
+- `planning_checklist`(4 条:范围判定 / 产出 PROJECT+ROADMAP+sitemap 不出代码 R6 / 拆 BL-NNN / commit-push 不走 ship)
+- `entry_criteria`(关键词 + 复杂度强制升级判据)
+- `key_constraints`(不进状态机 / 不出代码 R6 / BL-NNN 非 Feature ID)
+- 有 product-overview → `planning_state_machine`(📝草稿/🔄讨论中/⏸️待确认/✅已确认 + 「仅✅已确认才影响下游」+ 规划状态表/议题追踪要求)
+
+物化「你必须想这件事」—— AI 跑命令就拿到规范要点,不依赖记得读 spec。
+
+#### spec 接线
+
+feature-planning.md 头部加「🔴 进入本流程前先跑 planning-check」。
+
+### 测试(3 个 planning-check + e2e bootstrap gate)
+
+`TestPlanningCheck`:
+- `test_v846_planning_check_no_product_overview`(must_read 只 feature-planning · 无 state_machine)
+- `test_v846_planning_check_with_product_overview`(must_read 含 PRODUCT-OVERVIEW + 规划状态机 + 议题追踪)
+- `test_v846_planning_check_checklist_and_constraints`(4 条 checklist + 不进状态机/不出代码 R6)
+
+bootstrap gate e2e 验证(有 product-overview/ → flow_gates 含 product_overview_planning_spec_required)。
+
+359 passed / 68 failed(pre-existing render+scan · 与本次无关)· 0 引入新失败。
+
+### 设计哲学
+
+把"AI 自觉读 spec"变成"工具物化提示"——这是 v8 的核心,本次补上了规划路径的盲区。R0:可枚举(checklist / 状态机 / 必读清单)进脚本,emit 给 AI;不可枚举(具体规划内容)留 AI。
+
+### 同 commit 含 follow-up 产物
+
+本 commit 的 test_state.py 含 spawn follow-up session 补的 `TestReadOnlyCommands`(批次1 删 TestP1ReadOnly 丢的 snapshot/validate/raw-read v8 覆盖 · 4 passed)。.gitignore 加 worktree/harness-locks ignore(teamwork repo 自身用 worktree 开发需要)。
+
+---
+
+## v8.45 · 全文件 review 大清理(用户「逐文件 review」· 4 agent 并行审 + 28 项发现 · 分 5 批)
+
+> 用户 2026-05-28:"review 一下 teamwork 的逐个文件 · 看下哪些不合理 + 哪些没必要的描述需要清理"。
+> 派 4 个 general-purpose agent 并行审 tools / docs / stages+standards / templates+roles+agents · 加自审根目录导航 md · 共 28 项发现 · 分 P0-P4 五批清理。
+
+### 批次 1 · P1 删 v7 遗留 dead code + dead test(本提交 · 净删 1489 行)
+
+**根因**:v8.0 范式切换(commit bb11e1d)从 v7 的 `enter-stage / satisfy-gate / complete-stage`(P2 命名)+ `ship-sanitize/push/...` 改为 `*-start / *-complete` + `ship-phase`,但旧实现的函数体 + 对应测试 + fixture 引用没清干净,残留至今(v8.44)。
+
+删除内容:
+- `state.py`:11 个 v7-style `cmd_*`(enter-stage / satisfy-gate / complete-stage / ship-sanitize / ship-push / ship-confirm-merged / ship-cleanup / ship-closed / add-concern / bug-frontmatter / micro-validate)+ 9 个私有 helper(_check_external_review_artifact / _gate_order_err / _ship_load / _ship_phase_err / _bug_locate / _parse_frontmatter / _dump_frontmatter / _bug_validate_ship_machine / _enum_err)+ EXTERNAL_REVIEW_STAGES 常量 = **-727 行**。全部零 argparse 注册、零 import。
+- `test_state.py`:`_Base` 基类 + 6 个继承类(TestP1ReadOnly / TestP2Transitions / TestP3Ship / TestP4General / TestBugFrontmatter / TestMicroValidate)= **-370 行**。这套依赖 v8.0 删掉的 fixture `templates/feature-state.json`,**从 v8.0 起就没通过**——正是长期"97 failed baseline"的主体(其中 29 个是测上述 dead cmd 的 dead test)。
+- `_feature_context.py`(169)+ `test_feature_context.py`(199):整个模块零 import。
+- `_v8_stage_specs.py`:`_check_cwd_main_worktree`(24)定义后从不用。
+
+**关键陷阱(诚实记录)**:第一次删 494-1300 整块时误删了夹在 dead cmd 中间的**活函数** `cmd_raw_read`(1014)/ `cmd_raw_write`(1036)→ build_parser NameError。git checkout 恢复后重新精确切分(dead 块不连续):删 494-1013 + 1094-1300,保留 1014-1093。教训:大块删除前必须 grep build_parser 注册 vs 区间内每个 def,不能假设"整块全 dead"。
+
+**验证**:`test_state.py` + `test_v8_stage_specs.py` 199 passed(我改过的文件零失败)· raw-read/raw-write 运行时实测 OK · baseline 97 → 68(清掉 29 dead test · 0 引入新失败)。
+
+**follow-up**(spawn task):删 TestP1ReadOnly 丢了 snapshot/validate/raw-read 显式覆盖 → 用 init-feature 真 fixture 补回;另查剩 68 个 pre-existing render 失败(test_render_* + test_scan_spec_consumer · 与本清理无关)根因。
+
+### 批次 2 · P0 死引用 + deprecated toml(commit 9684b11)
+
+修 6 处死引用(会让 subagent 启动读空文件):reviewer.toml architect-cr/qa-cr → review-stage + roles · prd-reviewer plan-stage → goal-stage · README prepare-stage → docs/prepare.md · claude reviewer invoke.md → state.py · README codex-cross-review → external-cross-review。删 5 个 deprecated codex-agents toml(designer/e2e-runner/planner/rd-developer/tester · bootstrap glob 误部署到每个用户)· 剩 3 active(reviewer/prd-reviewer/blueprint-reviewer)。
+
+### 批次 3 · P2 过时文档归档(commit 1851ba2)
+
+删 02-CLEANUP / 03-MIGRATION(一次性迁移指南 · 零引用)· 00/01/04/05 + DESIGN-业务架构 加 archive 头(被活文档 cite § rationale · 保留不断链)。
+
+### 批次 4 · P3 导航 md 历史段(commit 8cf5cc5)
+
+删 ROLES/STANDARDS/FLOWS 的「v7→v8 变化」历史段(纯迁移历史 · ~12-18 行各)· 顺带清 product-lead-change-mgmt「待 v8.x 物化」stale 标记。
+
+### 批次 5 · P4 小修 + SKILL bump v8.45.0(本提交)
+
+- STAGES.md 补 panorama_sync(标题 10→11 stage · 索引漏列正式 stage)
+- common.md 撞号修(两个 `## 四` → `## 四D、QA`)+ 编码损坏修(`执�`→执行 · `校�`→校验 · 多字节字符被截断)
+- ship-stage.md 步数统一(`7 步` → `step 0-7 共 8 步` · 与 §5 一致)
+- goal-stage.md 错行号引用(`_v8_engine.py:742` → `_v8_stage_specs.py _evidence_reviewers_match` · 实际强制位置)
+
+### P3/P4 剩余 · spawn follow-up(主观重写 / 兼容风险 / 独立工作)
+
+批次 1 误删 cmd_raw_read 的教训(长 context 大改动易错):以下推独立 session 细做,不在长 context 里草率改:
+- ✅ **external-model-usage 已做**(commit e6b8672 · 超出原"§11.5 压缩"范围):用户洞察「skill 只写 AI 的 what/how」→ 删 §二 why 事故复盘 + §十 用户申诉模板 + §11.5/11.6 已物化调用演示(379→212 行)。**沉淀 skill 边界原则**:skill 读者是 AI · 内容 = AI 的 what/how + 不可妥协约束;用户手册(申诉)/ 纯 why(事故复盘)/ 已物化的调用演示 都不属于 skill。
+- common.md TDD 指针化 / agents README 瘦身 / PRODUCT-OVERVIEW 精简 / 代码演进注释 → spawn task(主观重写 · 逐项细评 · 可顺带应用上述 skill 边界原则)
+- snapshot/validate/raw-read v8 测试覆盖(批次1 删 TestP1ReadOnly 丢的)+ 68 pre-existing render 失败诊断 → spawn task
+- **保留不删**(兼容风险 / deprecation 周期太短):host_audit.json fallback · update.py `--accept-overwrite` no-op flag · reviewer.toml NEEDS_FIX 枚举(待与 README 枚举统一时一起)
+
+### 总账
+
+| 批次 | 内容 | 净行数 |
+|------|------|--------|
+| 1 | dead code + dead test | -1489 |
+| 2 | 死引用修 + 5 toml 删 | -~120 |
+| 3 | 文档归档(02/03 删 + 5 archive 头) | -~450 |
+| 4 | 导航 md 历史段 | -~45 |
+| 5 | P4 小修 | +~5 |
+
+baseline:97 failed → 68 failed(清掉 29 个测 dead cmd 的 dead test · 剩 68 全是 pre-existing render/scan 失败 · 与清理无关)。我改过的 test_state.py + test_v8_stage_specs.py 199 passed · 0 引入新失败。
+
+---
+
+## v8.44.4 · prepare-check emit host-aware output_style_hint(治本 codex-cli markdown 表格渲染失败 case)
+
+> 用户 2026-05-28 case · SVC-PLATFORM-F055 prepare 暂停点:
+> - AI 第一次用 markdown 表格 emit · codex-cli terminal 渲染**破** · 表格显示成 raw `| stage |...| ` 字符
+> - 用户:"内容不要 markdown 输出 · 直接绘制表格"
+> - AI 第二次改用 box-drawing(`┌─┬─┐│├─┤└─┘`)· 渲染正常
+> - **用户希望框架治本** · 不让每次都靠用户提示
+
+### 根因诊断
+
+不同 host terminal renderer 对复杂 markdown 表格能力不同:
+
+| Host | 复杂 markdown 表格 |
+|------|-------------------|
+| `claude-code` | ✅ 渲染好(rich markdown) |
+| `codex-cli` | ⚠️ 复杂表格(含 markdown 加粗 + emoji)容易破成 raw 字符 |
+| `gemini-cli` / `unknown` | ❓ 未实测 · 保守 |
+
+AI 自觉读 spec 决定风格不可靠 → 物化进 prepare-check emit。
+
+### 用户决策
+
+| 选项 | 用户选 |
+|------|--------|
+| A spec 加 1 句 / **B state.py 物化 hint** / C 双层 / D 不动 | **C · prepare-check emit 加 host-aware 输出风格 hint** |
+
+### 实施
+
+**1. 加 host-aware profile 表**:
+
+```python
+HOST_OUTPUT_STYLE_PROFILES = {
+    "claude-code": {
+        "style_id": "markdown_ok",
+        "table_format": "markdown",  # | col | col |
+        "list_format": "markdown",
+        "emphasis": "markdown",      # **粗** / *斜*
+    },
+    "codex-cli": {
+        "style_id": "box_drawing_or_plain",
+        "table_format": "box_drawing",  # ┌─┬─┐│├─┤└─┘
+        "list_format": "plain",
+        "emphasis": "plain",            # 不用 ** · 改用 "🔴 " 前缀 / 缩进
+    },
+    "gemini-cli" / "unknown": 保守同 codex-cli profile,
+}
+```
+
+**2. cmd_prepare_check emit 加 output_style_hint**:
+
+```python
+detected_host, host_source = _detect_host(None)
+payload["output_style_hint"] = _build_output_style_hint(detected_host)
+```
+
+emit JSON 含:
+```json
+{
+  "output_style_hint": {
+    "host": "codex-cli",
+    "style_id": "box_drawing_or_plain",
+    "description": "Terminal renderer 对复杂 markdown 表格容易破 · 推荐 box-drawing ...",
+    "table_format": "box_drawing",
+    "list_format": "plain",
+    "emphasis": "plain",
+    "emoji_safe": true,
+    "rationale": "..."
+  }
+}
+```
+
+### 测试覆盖(5 个新加)
+
+- `test_v8444_output_style_hint_emitted`(prepare-check emit 必含字段)
+- `test_v8444_codex_cli_host_recommends_box_drawing`
+- `test_v8444_claude_code_host_recommends_markdown`
+- `test_v8444_unknown_host_defaults_to_box_drawing`(None / "unknown" / 未知 host 都保守)
+- `test_v8444_gemini_cli_host_box_drawing_too`
+
+367 passed / 97 baseline / 0 regression
+
+### PMO 工作流变化
+
+**改前**(每次 AI 都用 markdown · 在 codex-cli 渲染破 · 用户提示后才改):
+```
+AI emit markdown 表格 → codex 显示 raw `| stage |` → 用户:"不要 markdown" → AI 改 box-drawing
+```
+
+**改后**(prepare-check emit 含 output_style_hint · AI 直接按 hint 风格 emit):
+```
+state.py prepare-check → emit output_style_hint{host:codex-cli, table_format:box_drawing}
+AI 看 hint → 直接用 box-drawing emit → 渲染正常 · 不被用户提示
+```
+
+### 设计哲学
+
+R0 哲学:**host 渲染能力是客观信号 · 进脚本物化**
+- 可枚举:host → 推荐风格映射表(HOST_OUTPUT_STYLE_PROFILES)
+- 不可枚举:具体 emit 内容(reviewer 思考 / 建议文案)→ 留 AI
+
+case-driven 教训:**spec 写一句"codex-cli 用 box-drawing"** 不够(AI 可能漏读)· 物化到 prepare-check emit 让 AI 跑命令就看到 hint · 更可靠。
+
+### Hash
+
+- state.py:_build_output_style_hint + HOST_OUTPUT_STYLE_PROFILES = 净 +60 行 · cmd_prepare_check 加 4 行
+- test_state.py:5 测新加 = 净 +45 行
+- docs/CHANGELOG.md:本段
+
+### 发布
+
+v8.44.4 push origin/dev only · hook 自动 bump · 实际版本号 v8.44.5(本 commit + auto-bump commit)。
+
+---
+
+## v8.44.3 · update.py 默认 backup+overwrite(治本 2 次暂停点过度 · 用户拍板)
+
+> 用户 2026-05-28 case:`/teamwork` 升级流程跑了 **2 个 R5 暂停点**:
+> 1. "升级 / 跳过 / 其他"(用户回 1)
+> 2. update.py BLOCK + AI emit "backup+覆盖 / 直接覆盖 / 取消 / 其他"(用户回 2)
+>
+> 用户:"看下下面的流程是否合理 · 是否应该直接按建议处理 · 不给用户是否覆盖的选择"
+
+### 根因诊断
+
+v8.41 我设计 `--accept-overwrite` BLOCK 是为**防误删用户定制**。但实测:
+- **99% 用户**:从不改 skill_root(git clone / zip 装好就用)· BLOCK 是噪声
+- **1% 开发者**:改了 skill_root · 他自己知道改了什么 · 不需要 BLOCK 提醒
+
+更治本:**默认 backup + overwrite** —— 不可逆问题被 backup 解决 · BLOCK 多余。
+
+### 用户决策
+
+| 维度 | 选项 | 用户选 |
+|------|------|--------|
+| 治本方向 | A 默认 backup+overwrite / B AI 行为改 / C 组合 flag / D 不动 | **A · update.py 默认 backup+overwrite** |
+| backup 路径 | B3 ~/.teamwork/backups/<ts>/ / B1 skill_root.backup-<ts>/ / B2 轮转保留 3 份 | **B3 · ~/.teamwork/backups/<ts>/** |
+
+### 实施(`tools/update.py` 重设计)
+
+#### 行为变化
+
+```diff
+- if modified and not accept_overwrite:
+-     emit FAIL with hint "二选一:① backup+overwrite / ② --accept-overwrite"
+-     return 1
++ # v8.44.3:默认 backup + overwrite · 不再 BLOCK
++ if not no_backup:
++     backup_path, backup_file_count = _backup_skill_root(skill_root)
++ # 直接 overwrite
++ copied = _overwrite_skill_files(skill_root, source_skill_dir)
+```
+
+#### 新 helper
+
+```python
+def _backup_root() -> Path:
+    """默认 ~/.teamwork/backups/ · TEAMWORK_BACKUP_ROOT env 可 override(测试用)"""
+
+def _backup_skill_root(skill_root) -> tuple[Path, int]:
+    """shutil.copytree skill_root → ~/.teamwork/backups/<ts>/ · 返 (path, file_count)"""
+
+def _now_ts_compact() -> str:
+    """20260528T143022Z(ISO compact · 用作 backup 目录名)"""
+```
+
+#### argparse 变化
+
+```diff
+- p.add_argument("--accept-overwrite", help="显式承认覆盖本地改动 · 否则 BLOCK")
++ p.add_argument("--no-backup", help="[v8.44.3] 跳过 backup · 慎用")
++ p.add_argument("--accept-overwrite", help="[deprecated v8.44.3] no-op · 向后兼容")
+```
+
+#### emit 字段变化
+
+```diff
++ "backup_path": "/home/user/.teamwork/backups/20260528T143022Z",
++ "backup_file_count": 117,
++ "backup_skip_reason": null,  # 或 "--no-backup flag passed"
++ "deprecation_warning": "..." (若用了 --accept-overwrite)
+```
+
+next_hint 自动提示 backup 路径:`backup 在 /home/user/.teamwork/backups/<ts>(可对比 diff 决定是否合回本地改动)`
+
+### 用户工作流变化
+
+**改前**(v8.41-v8.44.2):
+```bash
+state.py external-review → bootstrap 检测 outdated → 用户回 1 升级
+  → AI 跑 update.py
+  → BLOCK(本地有改动)
+  → AI emit 第二暂停点(backup/覆盖/取消)
+  → 用户回 2(直接覆盖)
+  → AI 跑 update.py --accept-overwrite
+  → 成功 · 但本地改动丢失(无 backup)
+2 次 R5 暂停点 · 4 命令
+```
+
+**改后**(v8.44.3):
+```bash
+bootstrap 检测 outdated → 用户回 1 升级
+  → AI 跑 update.py
+  → 自动 backup 到 ~/.teamwork/backups/<ts>/ + overwrite
+  → 成功 · 本地改动 backup 兜底 · 可对比 diff
+1 次 R5 暂停点 · 2 命令
+```
+
+### 向后兼容
+
+- `--accept-overwrite` 仍接受但 no-op + emit `deprecation_warning`(老 AI / 老脚本平滑迁移)
+- 不影响 main channel 用户(他们升级路径不变 · 只是少 1 个暂停点)
+
+### 测试(4 个新加 · 1 个删除 · 2 个调整)
+
+新加:
+- `test_v8443_default_backup_and_overwrite_succeeds`(默认行为 · backup + overwrite + 文件覆盖)
+- `test_v8443_backup_path_in_teamwork_backups_dir`(backup 路径在 TEAMWORK_BACKUP_ROOT 下 · ISO timestamp 格式)
+- `test_v8443_no_backup_flag_skips_backup`(--no-backup 跳 backup + 仍 overwrite + emit backup_skip_reason)
+- `test_v8443_accept_overwrite_deprecated_no_op`(--accept-overwrite 仍接受但 emit deprecation_warning)
+
+删除:
+- `test_v842_block_when_local_modified_without_accept`(v8.41 BLOCK 行为已删 · 测试不再适用)
+
+调整:
+- setUp / tearDown 加 `TEAMWORK_BACKUP_ROOT` env override · 测试 backup 不污染真 ~/.teamwork
+- `test_v842_channel_passed_through_to_emit` 去掉 `--accept-overwrite`(不再需要)
+
+362 passed / 97 baseline / 0 regression
+
+### 设计哲学
+
+R0 哲学:**保守默认 + opt-out 极端**
+- 默认安全(backup 兜底 · 用户改动可恢复)
+- 极端 opt-out(--no-backup 给"不想累积 backup" 的用户)
+- 不再"BLOCK + 必须 flag"(强制用户做不必要决策 = 坏 UX)
+
+case-driven 教训:
+- v8.41 设计 BLOCK 是"防止覆盖" · 实测发现 "防止" = "强迫用户做决策" · UX 灾难
+- 治本不是"加更多 flag" 而是"让默认行为安全 · 让用户不用做决策"
+- 这是连续第 6 次 case-driven 架构层治本(v8.40-v8.44.3)
+
+### Hash
+
+- tools/update.py:删 BLOCK 块 + 加 _backup_root / _backup_skill_root / _now_ts_compact helpers + 改 cmd_update Step 6/7 + 改 argparse = 净 +75 行
+- tests/test_update.py:删 1 测 + 新加 4 测 + 调整 2 测 = 净 +60 行
+- docs/CHANGELOG.md:本段
+
+### 发布
+
+v8.44.3 push origin/dev only · hook 自动 bump → 实际版本号 v8.44.4(本提交本身)+ auto-bump commit。
+
+---
+
+## v8.44.2 · 修 v8.44.1 hook marker 误判 bug(commit body 含 marker 字符串就被跳过)
+
+> 上一轮 v8.44.1 commit message body 描述功能时写了`[auto-bump]` 字面字符串 · hook 用 `%B` 全 message 检测 marker 时误判已 bump · 直接放行 · 第一次 push 没 trigger hook · 用户报"hook 没生效"。bash -x trace 实证:`[[ ... contains [auto-bump] == *[auto-bump]* ]]` 真 → exit 0。
+
+### 治本(2 处改 hook)
+
+1. **marker 改更稀有字符串**:`[auto-bump]` → `<teamwork-auto-bump-v1>`(角括号 + 含 teamwork 命名空间 · 不易撞)
+2. **检测改 subject 不看 body**:`git log -1 --pretty=%B` → `git log -1 --pretty=%s` · 只看 subject(第 1 行)
+3. **双 guard**:subject 含 `chore(version): auto-bump patch` 前缀 OR body 含 marker · 任一过 → 放行
+
+### auto-bump commit 格式改
+
+```diff
+- git commit -m "chore(version): auto-bump patch · $bump_output $AUTO_BUMP_MARKER" --no-verify
++ # subject 前缀 + body marker · 双 guard 都过
++ git commit -m "$AUTO_BUMP_SUBJECT_PREFIX · $bump_output" -m "$AUTO_BUMP_MARKER" --no-verify
+```
+
+### 实测验证(本次 push)
+
+预期:
+- v8.44 → v8.44.1(上次 push 我手动 bump 修)
+- v8.44.1 → v8.44.2(本次 hook 触发 bump · push 含本 v8.44.2 commit + auto-bump commit)
+
+### 诚实记录
+
+v8.44.1 设计 marker 时没考虑"commit body 描述功能时会撞 marker 字符串"这个边界 case。case 实证 → 用户 push 后看到"hook 没生效"。
+
+修法用更稀有 marker + subject-only 检测 · 双重保险。
+
+### Hash
+
+- git-hooks/pre-push:marker 改 + subject 检测 + 双 guard
+- SKILL.md:v8.44.1 → v8.44.2(上次手动 bump 时已是 v8.44.1 · 本次 push hook 触发 → v8.44.2)
+- docs/CHANGELOG.md:本段
+
+---
+
+## v8.44.1 · dev push auto-bump patch + pre-push hook + bump_patch_version.py(用户拍板)
+
+> 用户 2026-05-28:"后续改下规则 · 每次 dev 有新提交自动增加小版本"
+
+### 用户决策
+
+| 维度 | 选项 | 用户选 |
+|------|------|--------|
+| 版本粒度 | A patch / B minor | **A · patch 段(v8.44 → v8.44.1)** |
+| 实施方式 | CI GitHub Actions / 本地 helper / **git pre-push hook** | **git pre-push hook** |
+
+### 设计
+
+**触发**:`git push origin dev` 时 · pre-push hook 检测 push 目标含 dev → 跑 bump + 创建 auto-bump commit + exit 1(阻止本次 push)→ 用户重跑 `git push origin dev`(此次最新 commit 含 `[auto-bump]` 标记 hook 放行)
+
+**为什么 exit 1**:hook 在 git push resolve sha 之后跑 · 此时新加 commit 不在本次 push 范围。让 push fail · 用户重跑 · 才能把 auto-bump commit 真正推到 GitHub。两次 push 是必要代价(可接受 · 不偷偷改 sha 让用户困惑)。
+
+**循环避免**:hook 检测最新 commit message 含 `[auto-bump]` → 跳(放行)。第二次 push 时自然过。
+
+**非 dev 分支跳过**:hook 检测 push 目标 ref · 若不含 `refs/heads/dev`(如 main / feature)→ 不动作。
+
+### 实施(3 个新文件 + 1 个 install 脚本)
+
+#### 1. `tools/bump_patch_version.py`(60 行 · stdlib only)
+
+```python
+# v8.44 → v8.44.1(无 patch 段 → 加 .1)
+# v8.44.1 → v8.44.2(patch 段 +1 · 无上限)
+# 不合法 frontmatter → exit 2
+python3 tools/bump_patch_version.py [path/to/SKILL.md]
+```
+
+独立小脚本 · 不依赖 state.py / bootstrap.py。
+
+#### 2. `git-hooks/pre-push`(模板 hook · 用户手动 install)
+
+```bash
+# 安装
+ln -sf <REPO>/skills/teamwork/git-hooks/pre-push <REPO>/.git/hooks/pre-push
+# 或
+cp <REPO>/skills/teamwork/git-hooks/pre-push <REPO>/.git/hooks/pre-push
+chmod +x <REPO>/.git/hooks/pre-push
+
+# 卸载
+rm <REPO>/.git/hooks/pre-push
+```
+
+模板提供框架默认值(REPO_ROOT 自动推导 · BUMP_SCRIPT 路径相对仓库根)。用户 fork / 改名 SKILL_ROOT 时只需改 BUMP_SCRIPT 一行。
+
+#### 3. `tests/test_bump_patch_version.py`(10 测)
+
+- `TestBumpPatchFunction`(5)· 纯函数测试
+- `TestBumpPatchE2E`(5)· 真文件 + subprocess 跑独立脚本
+
+### 用户工作流变化
+
+**改前**(漏 bump 风险):
+```bash
+git push origin dev
+  → push 成功
+  → SKILL.md version 还是 v8.44(忘 bump · 用户拿不到 outdated 提示)
+```
+
+**改后**(2 次 push · 1 次 bump):
+```bash
+git push origin dev
+  → pre-push hook 跑 bump_patch_version.py → SKILL.md v8.44 → v8.44.1
+  → 创建 auto-bump commit "chore(version): auto-bump patch · v8.44 → v8.44.1 [auto-bump]"
+  → exit 1 · 提示重 push
+git push origin dev
+  → hook 检测 [auto-bump] → 放行
+  → push 成功(含原 commit + auto-bump commit)
+```
+
+### 版本规则
+
+- **patch 段**:dev 每次 push 自动 bump(本 hook)· 频率高
+- **minor 段**:merge dev → main 时人工 bump(release · 频率低 · 累积 patch 一次性升 minor)
+- **major 段**:重大架构变更(v7 → v8 那种)· 极少
+
+### CHANGELOG 规则约定
+
+- 每次 patch bump 不强制写 CHANGELOG 段(实质改动是触发 bump 的那个 commit · CHANGELOG 写在那个 commit 里)
+- minor release 时写完整 CHANGELOG 段(累积 patch 的总结)
+- 本 v8.44.1 是首个 patch · 专门写段说明机制本身
+
+### 0 regression
+
+- 359 passed / 97 baseline(与 v8.44 一致 · 10 个新加全 pass)
+
+### Hash
+
+- 新文件 tools/bump_patch_version.py(60 行)
+- 新文件 git-hooks/pre-push(模板)
+- 新文件 tests/test_bump_patch_version.py(10 测)
+- docs/CHANGELOG.md:本段
+
+### 发布
+
+- 本仓自身已 install hook(symlink 到 git-hooks/pre-push)· 下次 commit 后 push 实测验证
+- v8.44.1 push origin/dev · 期望 hook 触发 → 第 2 次 push 才上去
+
+---
+
 ## v8.44 · external-review 改 doc-based default + scaffold-review-prompt 子命令(治本 case round 4 长 prompt 卡)
 
 > 用户 2026-05-27 case round 4 实战:

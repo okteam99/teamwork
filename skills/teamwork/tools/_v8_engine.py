@@ -347,18 +347,26 @@ def parse_frontmatter(file_path: Path) -> Optional[dict]:
 # ─── bypass 协议 ──────────────────────────────────────────────────────
 
 
-def require_user_confirmed(args: argparse.Namespace) -> None:
-    """逃生时强制要求 --user-confirmed flag · 缺则拦截"""
-    if not getattr(args, "user_confirmed", False):
-        emit_json({
-            "verdict": "FAIL",
-            "error": "--bypass requires --user-confirmed flag(防 AI 自决逃生)",
-            "hint": (
-                "暂停点询问用户 · 用户明确确认后再调用此命令 · "
-                "并加 --user-confirmed flag。"
-                "审计时若发现 AI 自加此 flag 而对话历史无用户确认 = 红线违规。"
-            ),
-        }, exit_code=1)
+def require_user_confirmed(args: argparse.Namespace, yolo: bool = False) -> None:
+    """逃生时强制要求 --user-confirmed flag · 缺则拦截。
+
+    v8.64:yolo 模式 = 用户已 blanket 委托(init-feature --yolo · 见 SKILL.md § yolo)→
+    视作已 confirmed · 不再拦人工确认 —— 实现 yolo「AI 自主解决所有问题 · 零人工干预」核心目标。
+    🔴 但 yolo 优先级是「**解决 > 绕过**」:bypass 只是穷尽自主解决(更多轮 / 换思路 / 深挖根因)
+    后的兜底 · 不是遇错就推。每次 bypass 仍 write_bypass_log + concerns WARN 留痕(详 SKILL.md § yolo 自主解决)。
+    """
+    if getattr(args, "user_confirmed", False) or yolo:
+        return
+    emit_json({
+        "verdict": "FAIL",
+        "error": "--bypass requires --user-confirmed flag(防 AI 自决逃生)",
+        "hint": (
+            "暂停点询问用户 · 用户明确确认后再调用此命令 · "
+            "并加 --user-confirmed flag。"
+            "审计时若发现 AI 自加此 flag 而对话历史无用户确认 = 红线违规。"
+            "(yolo 模式例外:--yolo 即用户 blanket 委托 · 无需 --user-confirmed · 见 SKILL.md § yolo)"
+        ),
+    }, exit_code=1)
 
 
 def write_bypass_log(
@@ -465,7 +473,7 @@ def execute_stage_start(
                         "error": "worktree 物理不存在 + bypass 但 --missing 未含 worktree_physical_exists",
                         "hint": "加 --missing worktree_physical_exists 显式承认",
                     }, exit_code=1)
-                require_user_confirmed(args)
+                require_user_confirmed(args, yolo=state.get("yolo", False))
                 write_bypass_log(state, stage_spec.name, "start", [wt_missing], args)
             else:
                 emit_json({
@@ -498,7 +506,7 @@ def execute_stage_start(
 
     # 4. bypass 处理
     if missing and args.bypass:
-        require_user_confirmed(args)
+        require_user_confirmed(args, yolo=state.get("yolo", False))
         # 用户声称跳过的 missing 必须与实际 missing 重叠
         user_missing = set(args.missing.split(",")) if args.missing else set()
         actual_missing_ids = set(m["id"] for m in missing)
@@ -665,6 +673,8 @@ STAGE_TEMPLATES: dict[str, dict] = {
         "templates": {
             "UI.md": "ui.md",
             "preview/*.html": None,  # static-html 介质 · 项目设计语言决定
+            # same-stack 介质(v8.58):拷入 {panorama_path}/preview-project/ 根 · 按框架改 dev server 行
+            "preview-project/preview.sh": "preview-project-preview.sh",
         },
         "validators": {},
     },
@@ -970,25 +980,43 @@ def render_status_line(state: dict, next_action: str = "") -> str:
 
 
 def _render_pause_discipline(authorized_pause_point: str) -> str:
-    """暂停点纪律段 · append 到 brief 末尾(紧凑版 · 8 行)。
+    """暂停点纪律段 · append 到 brief 末尾(紧凑版)。
 
     v8.0+P0-1 治本 PTR-F033 case · L2 substep 链 AI 自觉区。
+    v8.71→v8.72 治本 SDK-F038 case(AI 在 blueprint→dev 自造「如何推进 / 落地节奏」
+    伪暂停 · 把改动大/破坏式/不可逆/用户参与设计当暂停理由 · 实为 R4 违规):
+      - **通用红线(所有 stage)**:禁执行节奏伪决策暂停 + 体量大派 subagent 自决 ——
+        有授权暂停点的 stage 也可能在「那一个」授权暂停之外自造执行节奏伪暂停。
+      - **无暂停 stage 额外抬头**:dev/blueprint/blueprint_lite/test = 连续执行 ·
+        任何暂停都违规。
     详细 rationale + 反模式黑名单见 docs/v8-redesign/04-PAUSE-POINT-DISCIPLINE.md
     (违规被 hint 时再读 · 不每次 inline 全文)。
     """
-    return f"""
+    head = f"""
 
 ---
 
 ### 🔴 暂停点纪律(R5 物化)
 
 唯一授权暂停:**{authorized_pause_point}**
-
+"""
+    # v8.72:无暂停 stage(dev/blueprint/blueprint_lite/test)= 连续执行 · 加「任何暂停都违规」抬头
+    if "无暂停" in authorized_pause_point:
+        head += """
+🔴 **本 stage 无授权暂停点 = 连续执行到 stage 完成 · 自动转下一 stage · 任何暂停都是违规**
+"""
+    # v8.72:执行节奏伪决策 + subagent 自决 = **通用红线**(所有 stage · 治本 SDK-F038)。
+    # 有授权暂停点的 stage(goal/ui_design/review/...)也可能在「那一个」授权暂停**之外**
+    # 自造执行节奏伪暂停(如"PRD 16 AC 要分批起草给你看吗") · 故不限无暂停 stage。
+    head += """
+- ⛔ 禁自造"如何推进 / 落地节奏 / 先做一层给你看 / 一次性还是分批 / 要不要先停"等**执行节奏伪决策暂停**(R4 不膨胀 · 执行细节 AI 自决 · **非用户决策**)· "改动大 / 破坏式 / 不可逆 / 文件多 / 用户全程参与设计"**都不是**暂停理由
+- ✅ 规模 / 节奏是 AI 自决的执行问题 → 自己组织(可按需派 subagent 并行 · 详 SKILL.md R4)· **不停下问用户怎么干**
 - ⛔ Substep 中间禁 AskUserQuestion · Open Questions 写进 PRD/Review 评审
 - ✅ 全部疑问到授权暂停点**一次性** escalate
 - 🛡️ 兜底:state.py 校验 review mtime + frontmatter.revision_history
 - 📖 详细:[docs/v8-redesign/04-PAUSE-POINT-DISCIPLINE.md](../docs/v8-redesign/04-PAUSE-POINT-DISCIPLINE.md)
 """
+    return head
 
 
 # ─── brief 体量元规则(防 Layer A 累积膨胀) ────────────────────────
@@ -1271,7 +1299,7 @@ def execute_stage_complete(
         issues.extend(failed_evidence)
 
     if issues and args.bypass:
-        require_user_confirmed(args)
+        require_user_confirmed(args, yolo=state.get("yolo", False))
         write_bypass_log(state, stage_spec.name, "complete", issues, args)
         issues = []
     elif issues:
@@ -1456,11 +1484,16 @@ def execute_stage_complete(
         completed = state.setdefault("completed_stages", [])
         if stage_spec.name not in completed:
             completed.append(stage_spec.name)
-        # 渲染下一 stage brief(含建议评审角色)
+        # 渲染下一 stage brief(含建议评审角色 + 暂停点纪律 + 执行手段)
         if next_stage in stage_specs_registry:
             next_spec = stage_specs_registry[next_stage]
             next_brief = next_spec.brief_template_fn(state)
             next_brief += _render_review_roles_suggestion(state, next_stage)
+            # v8.71:自动流转 emit 也带下一 stage 的暂停点纪律(治本 SDK-F038 ·
+            # AI 在 blueprint→dev 自动转移那一刻就看到「dev 无暂停 · 禁自造伪决策暂停」·
+            # 不靠之后 dev-start 才看到 · 那时伪暂停已构造)
+            if next_spec.authorized_pause_point:
+                next_brief += _render_pause_discipline(next_spec.authorized_pause_point)
 
     # pm_acceptance rejected_with_feedback · 列回退选项暂停点(v8.10 + v8.11 jump-to-stage)
     pause_options_markdown = None

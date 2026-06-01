@@ -15,13 +15,16 @@
 - 切到 PL 视角 · 审视 PRD 业务方向
 - PL finding 直接追加到 PRD 内对应 AC 后注释(不开新文件)
 
+🔴 **PRD 评审聚焦(高度对齐)**:PRD 评的是 **① 业务目标清晰**(为谁 · 解决什么 · 价值)+ **② 当前环境下可实现**(架构 / 技术约束内能落地)+ **③ 方案合理且恰当简洁**(无过度设计 · 责任在对的层)。AC 写在「**行为 / 价值**」高度(WHAT)· **不下沉到实现机制细节**(字段解析 / 校验闸 / 内部数据结构 —— 那是 blueprint/dev 的事 · 且应保持最小)。`§边界与非目标` 用足「**非目标**」主动收窄(写清「**不做什么 / 不归我管什么**」= 防过度设计第一道闸)。
+
 ### 3. 多角色并行评审 → PRD-REVIEW.md
-- **必含 5 角色**(state.stage_review_roles[goal] · _v8_engine.py:742 强制)· 缺角色 → goal-complete FAIL:
+- **必含 5 角色**(state.stage_review_roles[goal] · _v8_stage_specs.py _evidence_reviewers_match 强制)· 缺角色 → goal-complete FAIL:
   - PM 视角:需求清晰度 / AC 完整性
   - QA 视角:测试覆盖性 / 边界场景 / AC 可测试性
-  - Architect 视角:技术可行性 / 架构影响 / 性能安全
+  - Architect 视角:技术可行性 / 架构影响 / 性能安全 / **方案简洁性(是否过度设计 · 职责是否归错层 · 能否更简单达成业务目标)** —— 🔴 唯一的**简洁性 counter-lens**(详 `roles/architect.md` Telos)
   - PL 视角:业务方向 / 路线图对齐
   - External Reviewer:**跑** `state.py external-review --feature ... --stage goal`(v8.20+ 物化主路径 · host/model/profile 全自动 · 落 `external-cross-review/goal-<model>.md` · 详 standards §十一)
+- 🔴 **external finding 须对照业务目标 + 简洁性取舍**:external review 天然「找缺口 → 加校验」· **每条**单看都合理 · 合起来却可能把方案做臃肿 / 把责任焊进错层。采纳「修真 bug / 真业务缺口」的 · 用 Architect 简洁性视角挡住「为 rigor 而 rigor」的复杂度(实证 SDK-F038:盲采 external 的显式校验 / 字段解析 → SDK 哑管道变复杂 · pm_acceptance 才被用户揪出回炉)。
 - 落 `{Feature}/PRD-REVIEW.md` · frontmatter `reviewers: [pm, qa, architect, pl, external]` + `verdicts: {role: APPROVE|NEEDS_REVISION}`
 
 ### 4. PM 回应 + 修订 PRD

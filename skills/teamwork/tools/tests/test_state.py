@@ -20,7 +20,6 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 TOOLS = HERE.parent
 SKILL = TOOLS.parent
-TEMPLATE_STATE = SKILL / "templates" / "feature-state.json"
 STATE_PY = TOOLS / "state.py"
 sys.path.insert(0, str(TOOLS))  # 让 from _v8_stage_specs / _v8_engine 等内部模块 import 可用
 
@@ -41,362 +40,6 @@ def run(args: list[str], expect_exit: int = 0,
     )
     raw = r.stdout if r.returncode == 0 else (r.stdout or r.stderr)
     return json.loads(raw) if raw.strip().startswith("{") else {}
-
-
-class _Base(unittest.TestCase):
-    def setUp(self) -> None:
-        self.fix = Path(tempfile.mkdtemp(prefix="state_test_"))
-        shutil.copy2(TEMPLATE_STATE, self.fix / "state.json")
-
-    def tearDown(self) -> None:
-        shutil.rmtree(self.fix, ignore_errors=True)
-
-    def feat(self) -> str:
-        return str(self.fix)
-
-    def push_to_stage(self, stage: str, allow_skip: bool = True) -> None:
-        """模板初始 current_stage=dev · 推到目标 stage。"""
-        for g in ("process", "output"):
-            run(["satisfy-gate", "--feature", self.feat(), "--stage", "dev",
-                 "--gate", g, "--auto-commit", "c1"])
-        run(["complete-stage", "--feature", self.feat(), "--stage", "dev"])
-        order = ["review", "test", "pm_acceptance", "ship", "completed"]
-        for s in order:
-            args = ["enter-stage", "--feature", self.feat(), "--stage", s]
-            if allow_skip:
-                args.append("--allow-skip")
-            run(args)
-            if s == stage:
-                return
-
-
-class TestP1ReadOnly(_Base):
-    def test_snapshot_core(self) -> None:
-        d = run(["snapshot", "--feature", self.feat()])
-        self.assertEqual(d["verdict"], "OK")
-        self.assertEqual(d["snapshot"]["current_stage"], "dev")
-        self.assertIn("ship.phase", d["snapshot"])
-
-    def test_snapshot_full(self) -> None:
-        d = run(["snapshot", "--feature", self.feat(), "--tier", "full"])
-        self.assertIn("snapshot", d)
-        self.assertEqual(d["snapshot"]["feature_id"], "AUTH-F042-email-login")
-
-    def test_validate_clean_template(self) -> None:
-        d = run(["validate", "--feature", self.feat()])
-        self.assertEqual(d["verdict"], "PASS")
-
-    def test_validate_inject_illegal(self) -> None:
-        p = self.fix / "state.json"
-        s = json.loads(p.read_text())
-        s["current_stage"] = "hacking"
-        s["ship"]["phase"] = "merged"
-        s["ship"].pop("merge_commit_hash", None)
-        p.write_text(json.dumps(s))
-        d = run(["validate", "--feature", self.feat()], expect_exit=1)
-        self.assertEqual(d["verdict"], "FAIL")
-        self.assertGreaterEqual(d["error_count"], 2)
-        self.assertTrue(any("hacking" in e for e in d["errors"]))
-        self.assertTrue(any("merge_commit_hash" in e for e in d["errors"]))
-
-    def test_raw_read_field(self) -> None:
-        d = run(["raw-read", "--feature", self.feat(), "--field", "current_stage"])
-        self.assertEqual(d["value"], "dev")
-
-
-class TestP2Transitions(_Base):
-    def test_enter_stage_legal(self) -> None:
-        for g in ("process", "output"):
-            run(["satisfy-gate", "--feature", self.feat(), "--stage", "dev",
-                 "--gate", g, "--auto-commit", "c1"])
-        run(["complete-stage", "--feature", self.feat(), "--stage", "dev"])
-        d = run(["enter-stage", "--feature", self.feat(), "--stage", "review"])
-        self.assertEqual(d["verdict"], "PASS")
-        # review 已进入 · legal_next_stages 是 review 之后的（test / dev 回炉）
-        self.assertIn("test", d["updated_fields"]["legal_next_stages"])
-
-    def test_enter_stage_illegal_rejected(self) -> None:
-        d = run(["enter-stage", "--feature", self.feat(), "--stage", "ship"], expect_exit=3)
-        self.assertEqual(d["verdict"], "FAIL")
-        self.assertIn("dev", d["error"])
-
-    def test_satisfy_gate_order_violation(self) -> None:
-        # template dev gate.input=true / process=false
-        d = run(["satisfy-gate", "--feature", self.feat(), "--stage", "dev",
-                 "--gate", "output"], expect_exit=1)
-        self.assertEqual(d["verdict"], "FAIL")
-        self.assertIn("process_satisfied", d["error"])
-
-    def test_complete_stage_missing_gates(self) -> None:
-        d = run(["complete-stage", "--feature", self.feat(), "--stage", "dev"], expect_exit=1)
-        self.assertEqual(d["verdict"], "FAIL")
-        self.assertIn("missing_gates", d)
-
-    def test_allow_skip_writes_concern(self) -> None:
-        d = run(["enter-stage", "--feature", self.feat(), "--stage", "ship",
-                 "--allow-skip"])
-        self.assertEqual(d["verdict"], "PASS")
-        c = run(["raw-read", "--feature", self.feat(), "--field", "concerns"])
-        self.assertTrue(any("allow-skip" in x for x in c["value"]))
-
-    # ─── v7.3.10+P0-154: external review artifact 物化拦截 ─────────────
-    # 治本 SVC-PLATFORM-F043 跳 codex CR case · review_roles[] 含 external 时
-    # 必须有 {artifact_root}/external-cross-review/*.md · 否则 satisfy-gate output FAIL
-
-    def _inject_state(self, mutator) -> None:
-        """改 state.json · 移除 checksum（fallback 到 legacy 模式）· 让 state.py 下次写自动重 stamp."""
-        p = self.fix / "state.json"
-        s = json.loads(p.read_text())
-        s.pop("_state_checksum", None)
-        mutator(s)
-        p.write_text(json.dumps(s))
-
-    def test_satisfy_gate_output_review_external_artifact_missing(self) -> None:
-        """review_roles[] 含 external · 无 codex 产物 → FAIL（治本 P0-154）."""
-        self.push_to_stage("review")
-
-        def m(s: dict) -> None:
-            s["review_substeps_config"] = {
-                "review_roles": [{"role": "external", "execution": "subagent"}],
-            }
-            s["artifact_root"] = str(self.fix)
-        self._inject_state(m)
-
-        for g in ("input", "process"):
-            run(["satisfy-gate", "--feature", self.feat(), "--stage", "review",
-                 "--gate", g])
-        d = run(["satisfy-gate", "--feature", self.feat(), "--stage", "review",
-                 "--gate", "output", "--auto-commit", "c2"], expect_exit=1)
-        self.assertEqual(d["verdict"], "FAIL")
-        self.assertIn("external", d["error"])
-        self.assertIn("P0-154", d["rule"])
-
-    def test_satisfy_gate_output_review_external_artifact_present(self) -> None:
-        """review_roles[] 含 external + 产物存在 → PASS（治本 P0-154）."""
-        self.push_to_stage("review")
-
-        def m(s: dict) -> None:
-            s["review_substeps_config"] = {
-                "review_roles": [{"role": "external"}]
-            }
-            s["artifact_root"] = str(self.fix)
-        self._inject_state(m)
-
-        ecr = self.fix / "external-cross-review"
-        ecr.mkdir()
-        (ecr / "review-external-codex.md").write_text(
-            "---\nperspective: external-codex\n---\n# Codex Review\n",
-            encoding="utf-8",
-        )
-
-        for g in ("input", "process"):
-            run(["satisfy-gate", "--feature", self.feat(), "--stage", "review",
-                 "--gate", g])
-        d = run(["satisfy-gate", "--feature", self.feat(), "--stage", "review",
-                 "--gate", "output", "--auto-commit", "c2"])
-        self.assertEqual(d["verdict"], "PASS")
-
-    def test_satisfy_gate_output_review_external_opt_out(self) -> None:
-        """review_roles[] 不含 external · 无产物仍 PASS（用户已 opt-out · 治本 P0-154）."""
-        self.push_to_stage("review")
-
-        def m(s: dict) -> None:
-            s["review_substeps_config"] = {
-                "review_roles": [{"role": "architect"}, {"role": "qa"}]
-            }
-            s["artifact_root"] = str(self.fix)
-        self._inject_state(m)
-
-        for g in ("input", "process"):
-            run(["satisfy-gate", "--feature", self.feat(), "--stage", "review",
-                 "--gate", g])
-        d = run(["satisfy-gate", "--feature", self.feat(), "--stage", "review",
-                 "--gate", "output", "--auto-commit", "c2"])
-        self.assertEqual(d["verdict"], "PASS")
-
-    def test_satisfy_gate_output_dev_skips_external_check(self) -> None:
-        """dev stage 不在 EXTERNAL_REVIEW_STAGES · 不触发 codex 校验（治本 P0-154 · 边界）."""
-        run(["satisfy-gate", "--feature", self.feat(), "--stage", "dev",
-             "--gate", "process"])
-        d = run(["satisfy-gate", "--feature", self.feat(), "--stage", "dev",
-                 "--gate", "output", "--auto-commit", "c1"])
-        self.assertEqual(d["verdict"], "PASS")
-
-
-class TestP3Ship(_Base):
-    def test_ship_full_happy_path(self) -> None:
-        self.push_to_stage("ship")
-        run(["ship-sanitize", "--feature", self.feat()])
-        run(["ship-push", "--feature", self.feat(),
-             "--feature-head-commit", "abc1234",
-             "--git-host", "github",
-             "--mr-creation-method", "cli-gh",
-             "--mr-url", "http://x/p/1"])
-        run(["ship-confirm-merged", "--feature", self.feat(),
-             "--merge-commit-hash", "abc1234",
-             "--merge-detection-method", "branch-contains"])
-        d = run(["ship-cleanup", "--feature", self.feat(), "--status", "cleaned"])
-        self.assertEqual(d["verdict"], "PASS")
-        self.assertEqual(d["updated_fields"]["ship.worktree_cleanup"], "cleaned")
-
-    def test_ship_cleanup_blocked_before_merged(self) -> None:
-        """治本 P0-124：cleanup --status cleaned 在 phase ≠ merged 时 BLOCKED。"""
-        self.push_to_stage("ship")
-        run(["ship-push", "--feature", self.feat(),
-             "--feature-head-commit", "abc1234",
-             "--git-host", "github",
-             "--mr-creation-method", "cli-gh",
-             "--mr-url", "http://x/p/1"])
-        d = run(["ship-cleanup", "--feature", self.feat(), "--status", "cleaned"],
-                expect_exit=1)
-        self.assertEqual(d["verdict"], "BLOCKED")
-        self.assertEqual(d["current_ship_phase"], "pushed")
-
-    def test_ship_push_cli_gh_missing_mr_url(self) -> None:
-        self.push_to_stage("ship")
-        d = run(["ship-push", "--feature", self.feat(),
-                 "--feature-head-commit", "abc",
-                 "--git-host", "github",
-                 "--mr-creation-method", "cli-gh",
-                 "--mr-create-url", "http://fallback/x"], expect_exit=1)
-        self.assertEqual(d["verdict"], "FAIL")
-        self.assertIn("--mr-url", d["error"])
-
-    def test_ship_confirm_merged_user_reported_logs_concern(self) -> None:
-        self.push_to_stage("ship")
-        run(["ship-push", "--feature", self.feat(),
-             "--feature-head-commit", "abc",
-             "--git-host", "github",
-             "--mr-creation-method", "cli-gh",
-             "--mr-url", "http://x"])
-        d = run(["ship-confirm-merged", "--feature", self.feat(),
-                 "--merge-commit-hash", "abc",
-                 "--merge-detection-method", "user-reported"])
-        self.assertTrue(any("user-reported" in w for w in d["warnings"]))
-        c = run(["raw-read", "--feature", self.feat(), "--field", "concerns"])
-        self.assertTrue(any("user-reported" in x for x in c["value"]))
-
-    def test_ship_cleanup_n_a_unblocked(self) -> None:
-        """worktree=off 路径 · status=n_a 不需 phase=merged。"""
-        self.push_to_stage("ship")
-        d = run(["ship-cleanup", "--feature", self.feat(), "--status", "n_a"])
-        self.assertEqual(d["verdict"], "PASS")
-
-    def test_ship_closed_abandon(self) -> None:
-        self.push_to_stage("ship")
-        run(["ship-push", "--feature", self.feat(),
-             "--feature-head-commit", "abc",
-             "--git-host", "github",
-             "--mr-creation-method", "cli-gh",
-             "--mr-url", "http://x"])
-        d = run(["ship-closed", "--feature", self.feat(), "--abandon",
-                 "--reason", "用户放弃"])
-        self.assertEqual(d["updated_fields"]["ship.shipped"], "abandoned")
-
-    # ─── v7.3.10+P0-156: linked-worktree 物化拦截 · 治本 ADMIN-F013 ────
-
-    def test_ship_confirm_merged_rejects_linked_worktree(self) -> None:
-        """ship-confirm-merged 在 linked worktree → FAIL early（治本 P0-156）."""
-        d = run([
-            "ship-confirm-merged", "--feature", self.feat(),
-            "--merge-commit-hash", "abc",
-            "--merge-detection-method", "branch-contains",
-        ], expect_exit=2, env_extra={
-            "TEAMWORK_FORCE_LINKED_WORKTREE": "/path/main/.git/worktrees/feat-x"
-        })
-        self.assertEqual(d["verdict"], "FAIL")
-        self.assertIn("linked worktree", d["error"])
-        self.assertIn("P0-156", d["rule"])
-        self.assertIn("ship-stage.md", d["cite"])
-
-    def test_ship_cleanup_rejects_linked_worktree(self) -> None:
-        """ship-cleanup 同型保护（治本 P0-156）."""
-        d = run([
-            "ship-cleanup", "--feature", self.feat(), "--status", "cleaned",
-        ], expect_exit=2, env_extra={
-            "TEAMWORK_FORCE_LINKED_WORKTREE": "/path/main/.git/worktrees/feat-x"
-        })
-        self.assertEqual(d["verdict"], "FAIL")
-        self.assertIn("linked worktree", d["error"])
-        self.assertIn("P0-156", d["rule"])
-
-    def test_ship_confirm_merged_bypass_main_worktree(self) -> None:
-        """TEAMWORK_BYPASS_MAIN_WORKTREE=1 旁路 · 不强制（debug 场景）."""
-        self.push_to_stage("ship")
-        run(["ship-push", "--feature", self.feat(),
-             "--feature-head-commit", "abc1234",
-             "--git-host", "github",
-             "--mr-creation-method", "cli-gh",
-             "--mr-url", "http://x/p/1"])
-        # 即使 force linked · BYPASS 旁路掉
-        d = run(["ship-confirm-merged", "--feature", self.feat(),
-                 "--merge-commit-hash", "abc1234",
-                 "--merge-detection-method", "branch-contains"],
-                env_extra={
-                    "TEAMWORK_FORCE_LINKED_WORKTREE": "/fake/worktrees/x",
-                    "TEAMWORK_BYPASS_MAIN_WORKTREE": "1",
-                })
-        self.assertEqual(d["verdict"], "PASS")
-
-
-class TestP4General(_Base):
-    def test_add_concern_dedup(self) -> None:
-        run(["add-concern", "--feature", self.feat(),
-             "--severity", "WARN", "--message", "测试 dedup"])
-        d = run(["add-concern", "--feature", self.feat(),
-                 "--severity", "WARN", "--message", "测试 dedup"])
-        self.assertIn("skipped", d)
-
-    def test_raw_write_requires_reason(self) -> None:
-        r = subprocess.run(
-            [sys.executable, str(STATE_PY), "raw-write",
-             "--feature", self.feat(), "--set", "foo.bar=1"],
-            capture_output=True, text=True,
-        )
-        self.assertNotEqual(r.returncode, 0)
-
-    def test_raw_write_logs_warn_concern(self) -> None:
-        d = run(["raw-write", "--feature", self.feat(),
-                 "--set", "foo.bar=42",
-                 "--reason", "P3 未覆盖字段兜底"])
-        self.assertEqual(d["verdict"], "OK")
-        c = run(["raw-read", "--feature", self.feat(), "--field", "concerns"])
-        self.assertTrue(any("raw-write" in x and "P3 未覆盖" in x for x in c["value"]))
-
-
-class TestBugFrontmatter(_Base):
-    def _setup_bug(self) -> Path:
-        bug_dir = self.fix / "bugfix"
-        bug_dir.mkdir()
-        bug = bug_dir / "BUG-001-login-fail.md"
-        bug.write_text(
-            "---\n"
-            "flow_type: bug\n"
-            "phase: summarized\n"
-            "shipped: null\n"
-            "---\n\n"
-            "# Bug\n",
-            encoding="utf-8",
-        )
-        return bug
-
-    def test_bug_set_phase_pushed(self) -> None:
-        self._setup_bug()
-        d = run(["bug-frontmatter", "--feature", self.feat(),
-                 "--bug-id", "BUG-001",
-                 "--set", "phase=pushed",
-                 "--set", "feature_head_commit=abc1234",
-                 "--validate-ship"])
-        self.assertEqual(d["verdict"], "PASS")
-
-    def test_bug_merged_missing_triple_blocked(self) -> None:
-        """治本 P0-124 镜像：phase=merged 缺 hash + mr_merged_at 拒绝。"""
-        self._setup_bug()
-        d = run(["bug-frontmatter", "--feature", self.feat(),
-                 "--bug-id", "BUG-001",
-                 "--set", "phase=merged", "--validate-ship"], expect_exit=1)
-        self.assertEqual(d["verdict"], "FAIL")
-        self.assertTrue(any("merge_commit_hash" in e for e in d["errors"]))
 
 
 class TestInitFeature(unittest.TestCase):
@@ -467,6 +110,154 @@ class TestInitFeature(unittest.TestCase):
         ], expect_exit=2)
         self.assertEqual(d["verdict"], "FAIL")
         self.assertIn("already exists", d["error"])
+
+    # ── v8.63:yolo 模式硬约束(merge_target 必须非主分支)──
+
+    def test_v863_yolo_rejects_main_merge_target(self) -> None:
+        """v8.63:yolo + merge_target=main → FAIL(自动 merge 不得直接进 main)。"""
+        target = self.tmp / "docs" / "features" / "YOLO-F001"
+        d = run([
+            "init-feature", "--feature", str(target),
+            "--feature-id", "YOLO-F001", "--flow-type", "Feature",
+            "--merge-target", "main", "--branch", "feat/yolo", "--yolo",
+        ], expect_exit=2)
+        self.assertEqual(d["verdict"], "FAIL")
+        self.assertIn("主分支", d["error"])
+        self.assertFalse((target / "state.json").exists())  # gate 早于建 state
+
+    def test_v863_yolo_rejects_master_merge_target(self) -> None:
+        """v8.63:yolo + merge_target=master → 同样 FAIL。"""
+        target = self.tmp / "docs" / "features" / "YOLO-F002"
+        d = run([
+            "init-feature", "--feature", str(target),
+            "--feature-id", "YOLO-F002", "--flow-type", "Feature",
+            "--merge-target", "master", "--branch", "feat/yolo2", "--yolo",
+        ], expect_exit=2)
+        self.assertEqual(d["verdict"], "FAIL")
+
+    def test_v863_yolo_non_main_target_ok_implies_auto_mode(self) -> None:
+        """v8.63:yolo + 非主分支(dev)→ OK · state.json yolo=true + auto_mode=true(implies)。"""
+        target = self.tmp / "docs" / "features" / "YOLO-F003"
+        d = run([
+            "init-feature", "--feature", str(target),
+            "--feature-id", "YOLO-F003", "--flow-type", "Feature",
+            "--merge-target", "dev", "--branch", "feat/yolo3", "--yolo",
+        ])
+        self.assertEqual(d["verdict"], "OK")
+        state = json.loads((target / "state.json").read_text(encoding="utf-8"))
+        self.assertTrue(state["yolo"])
+        self.assertTrue(state["auto_mode"])  # yolo implies auto_mode
+
+    def test_v863_non_yolo_main_target_unaffected(self) -> None:
+        """v8.63:非 yolo + main → 不受 gate 影响(向后兼容)· yolo=false。"""
+        target = self.tmp / "docs" / "features" / "YOLO-F004"
+        d = run([
+            "init-feature", "--feature", str(target),
+            "--feature-id", "YOLO-F004", "--flow-type", "Feature",
+            "--merge-target", "main", "--branch", "feat/normal",
+        ])
+        self.assertEqual(d["verdict"], "OK")
+        state = json.loads((target / "state.json").read_text(encoding="utf-8"))
+        self.assertFalse(state["yolo"])
+
+    # ── v8.65:--yolo <branch> 携带 merge_target(覆盖 --merge-target / localconfig)──
+
+    def test_v865_yolo_branch_is_merge_target(self) -> None:
+        """v8.65:--yolo <branch>(无 --merge-target)→ branch 即 merge_target。"""
+        target = self.tmp / "docs" / "features" / "YOLO-F005"
+        d = run([
+            "init-feature", "--feature", str(target),
+            "--feature-id", "YOLO-F005", "--flow-type", "Feature",
+            "--branch", "feat/yolo5", "--yolo", "dev-integration",
+        ])
+        self.assertEqual(d["verdict"], "OK")
+        state = json.loads((target / "state.json").read_text(encoding="utf-8"))
+        self.assertEqual(state["merge_target"], "dev-integration")
+        self.assertTrue(state["yolo"])
+        self.assertTrue(state["auto_mode"])
+
+    def test_v865_yolo_branch_overrides_merge_target(self) -> None:
+        """v8.65:--yolo <branch> 同时给 --merge-target → yolo branch 胜出。"""
+        target = self.tmp / "docs" / "features" / "YOLO-F006"
+        d = run([
+            "init-feature", "--feature", str(target),
+            "--feature-id", "YOLO-F006", "--flow-type", "Feature",
+            "--branch", "feat/yolo6", "--merge-target", "staging", "--yolo", "dedicated-int",
+        ])
+        self.assertEqual(d["verdict"], "OK")
+        state = json.loads((target / "state.json").read_text(encoding="utf-8"))
+        self.assertEqual(state["merge_target"], "dedicated-int")  # yolo branch 覆盖 --merge-target
+
+    def test_v865_yolo_branch_main_rejected(self) -> None:
+        """v8.65:--yolo main(branch=主分支)→ FAIL(gate 同样拦)。"""
+        target = self.tmp / "docs" / "features" / "YOLO-F007"
+        d = run([
+            "init-feature", "--feature", str(target),
+            "--feature-id", "YOLO-F007", "--flow-type", "Feature",
+            "--branch", "feat/yolo7", "--yolo", "main",
+        ], expect_exit=2)
+        self.assertEqual(d["verdict"], "FAIL")
+        self.assertIn("主分支", d["error"])
+
+    def test_v865_no_merge_target_source_fails(self) -> None:
+        """v8.65:既无 --merge-target 又无 --yolo <branch> → FAIL(缺 merge_target)。"""
+        target = self.tmp / "docs" / "features" / "YOLO-F008"
+        d = run([
+            "init-feature", "--feature", str(target),
+            "--feature-id", "YOLO-F008", "--flow-type", "Feature",
+            "--branch", "feat/yolo8",
+        ], expect_exit=2)
+        self.assertEqual(d["verdict"], "FAIL")
+        self.assertIn("merge_target", d["error"])
+
+    # ── v8.66:yolo 加重审核 · change-review-roles 去 external 物化 BLOCK ──
+
+    def test_v866_yolo_blocks_external_removal(self) -> None:
+        """v8.66:yolo 模式 change-review-roles 去 external → BLOCK(唯一安全网)。"""
+        target = self.tmp / "docs" / "features" / "YOLO-F009"
+        run([
+            "init-feature", "--feature", str(target),
+            "--feature-id", "YOLO-F009", "--flow-type", "Feature",
+            "--branch", "feat/yolo9", "--yolo", "dev-int",
+        ])
+        d = run([
+            "change-review-roles", "--feature", str(target),
+            "--stage", "blueprint", "--roles", "qa,architect", "--reason", "efficiency",
+        ], expect_exit=2)
+        self.assertEqual(d["verdict"], "FAIL")
+        self.assertIn("external", d["error"])
+
+    def test_v866_yolo_external_removal_with_ack(self) -> None:
+        """v8.66:--accept-external-removal → 放行 + concern WARN 留痕。"""
+        target = self.tmp / "docs" / "features" / "YOLO-F010"
+        run([
+            "init-feature", "--feature", str(target),
+            "--feature-id", "YOLO-F010", "--flow-type", "Feature",
+            "--branch", "feat/yolo10", "--yolo", "dev-int",
+        ])
+        d = run([
+            "change-review-roles", "--feature", str(target),
+            "--stage", "blueprint", "--roles", "qa,architect",
+            "--reason", "external CLI 未装 · 重试失败", "--accept-external-removal",
+        ])
+        self.assertEqual(d["verdict"], "OK")
+        state = json.loads((target / "state.json").read_text(encoding="utf-8"))
+        self.assertNotIn("external", state["stage_review_roles"]["blueprint"])
+        self.assertTrue(any("yolo 去 external" in c for c in state.get("concerns", [])))
+
+    def test_v866_non_yolo_external_removal_ok(self) -> None:
+        """v8.66:非 yolo 去 external 不受 guard 影响(向后兼容)。"""
+        target = self.tmp / "docs" / "features" / "YOLO-F011"
+        run([
+            "init-feature", "--feature", str(target),
+            "--feature-id", "YOLO-F011", "--flow-type", "Feature",
+            "--branch", "feat/n", "--merge-target", "staging",
+        ])
+        d = run([
+            "change-review-roles", "--feature", str(target),
+            "--stage", "blueprint", "--roles", "qa,architect", "--reason", "non-yolo",
+        ])
+        self.assertEqual(d["verdict"], "OK")
 
     def test_init_feature_uses_feature_as_single_source_for_path(self) -> None:
         """v7.3.10+P0-149 regression：PTR-F032 case · 防 --feature 和 artifact_root 分裂。
@@ -585,6 +376,106 @@ class TestInitFeature(unittest.TestCase):
         ], capture_output=True, text=True)
         self.assertNotEqual(r.returncode, 0)
         self.assertIn("made-up-host", r.stderr)
+
+
+class TestYoloBypass(unittest.TestCase):
+    """v8.64:yolo 模式 require_user_confirmed 放行(零人工 bypass · AI 自主解决核心目标)。"""
+
+    def _args(self, user_confirmed: bool = False):
+        a = type("A", (), {})()
+        a.user_confirmed = user_confirmed
+        return a
+
+    def test_yolo_skips_user_confirmed_gate(self):
+        """v8.64:yolo=True + 无 --user-confirmed → 放行(返回 None · 不 exit)。"""
+        sys.path.insert(0, str(TOOLS))
+        from _v8_engine import require_user_confirmed  # type: ignore
+        self.assertIsNone(
+            require_user_confirmed(self._args(user_confirmed=False), yolo=True))
+
+    def test_non_yolo_requires_user_confirmed(self):
+        """v8.64:yolo=False + 无 --user-confirmed → emit FAIL + sys.exit(1)(防 AI 自决保留)。"""
+        sys.path.insert(0, str(TOOLS))
+        from _v8_engine import require_user_confirmed  # type: ignore
+        import io
+        from contextlib import redirect_stdout
+        with self.assertRaises(SystemExit) as cm, redirect_stdout(io.StringIO()):
+            require_user_confirmed(self._args(user_confirmed=False), yolo=False)
+        self.assertEqual(cm.exception.code, 1)
+
+    def test_explicit_user_confirmed_passes_regardless(self):
+        """v8.64:显式 --user-confirmed → 放行(yolo 与否都行 · 向后兼容)。"""
+        sys.path.insert(0, str(TOOLS))
+        from _v8_engine import require_user_confirmed  # type: ignore
+        self.assertIsNone(
+            require_user_confirmed(self._args(user_confirmed=True), yolo=False))
+
+
+class TestSetMode(unittest.TestCase):
+    """v8.69:set-mode 语义化设 auto_mode / yolo(替代 raw-write · 物化 + audit)。"""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        self._prev = os.environ.get("TEAMWORK_BYPASS_PREPARE_CHECK")
+        os.environ["TEAMWORK_BYPASS_PREPARE_CHECK"] = "1"
+        self.feat = self.tmp / "docs" / "features" / "SM-F001"
+        run(["init-feature", "--feature", str(self.feat), "--feature-id", "SM-F001",
+             "--flow-type", "Feature", "--branch", "feat/sm", "--merge-target", "staging"])
+
+    def tearDown(self):
+        if self._prev is None:
+            os.environ.pop("TEAMWORK_BYPASS_PREPARE_CHECK", None)
+        else:
+            os.environ["TEAMWORK_BYPASS_PREPARE_CHECK"] = self._prev
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def _state(self):
+        return json.loads((self.feat / "state.json").read_text(encoding="utf-8"))
+
+    def _sm(self, *flags, expect_exit=0):
+        return run(["set-mode", "--feature", str(self.feat), *flags], expect_exit=expect_exit)
+
+    def test_enable_auto_mode(self):
+        d = self._sm("--auto-mode", "--reason", "x")
+        self.assertEqual(d["verdict"], "OK")
+        st = self._state()
+        self.assertTrue(st["auto_mode"])
+        self.assertEqual(len(st["mode_changes"]), 1)
+
+    def test_enable_yolo_with_branch_implies_auto(self):
+        d = self._sm("--yolo", "dev-int", "--reason", "go yolo")
+        self.assertEqual(d["verdict"], "OK")
+        st = self._state()
+        self.assertTrue(st["yolo"])
+        self.assertTrue(st["auto_mode"])           # implies
+        self.assertEqual(st["merge_target"], "dev-int")
+        self.assertTrue(any("yolo 开启" in c for c in st.get("concerns", [])))
+
+    def test_yolo_main_rejected(self):
+        d = self._sm("--yolo", "main", "--reason", "bad", expect_exit=2)
+        self.assertEqual(d["verdict"], "FAIL")
+        self.assertIn("主分支", d["error"])
+
+    def test_disable_yolo_keeps_auto(self):
+        self._sm("--yolo", "dev-int", "--reason", "on")
+        d = self._sm("--no-yolo", "--reason", "off")
+        self.assertEqual(d["verdict"], "OK")
+        st = self._state()
+        self.assertFalse(st["yolo"])
+        self.assertTrue(st["auto_mode"])
+
+    def test_no_auto_while_yolo_fails(self):
+        self._sm("--yolo", "dev-int", "--reason", "on")
+        d = self._sm("--no-auto-mode", "--reason", "x", expect_exit=2)
+        self.assertEqual(d["verdict"], "FAIL")
+
+    def test_no_flags_fails(self):
+        d = self._sm("--reason", "nothing", expect_exit=2)
+        self.assertEqual(d["verdict"], "FAIL")
+
+    def test_noop_when_no_change(self):
+        d = self._sm("--no-yolo", "--reason", "already off")  # yolo 本就 off
+        self.assertEqual(d["verdict"], "NOOP")
 
 
 class TestChecksumGuard(unittest.TestCase):
@@ -706,17 +597,76 @@ class TestRecover(unittest.TestCase):
         self.assertTrue(any("recovered after manual edit" in c.get("message", "") for c in warns))
 
 
-class TestMicroValidate(_Base):
-    def test_valid_commit_in_main(self) -> None:
-        # 用本仓 HEAD against origin/main · CI 环境可能不一致 · 仅校验脚本不崩
-        # 真实 PASS / BLOCKED / FAIL 都接受
-        cmd = [sys.executable, str(STATE_PY), "micro-validate",
-               "--commit", "HEAD", "--merge-target", "main",
-               "--cwd", str(SKILL.parent.parent)]
-        r = subprocess.run(cmd, capture_output=True, text=True)
-        self.assertIn(r.returncode, (0, 1))
-        d = json.loads(r.stdout or r.stderr)
-        self.assertIn(d["verdict"], ("PASS", "BLOCKED", "FAIL"))
+class TestReadOnlyCommands(unittest.TestCase):
+    """v8.45:补回 snapshot / validate / raw-read 三个 C 类维护命令的直接覆盖。
+
+    背景:v8.45 清理删除了依赖缺失 fixture(`templates/feature-state.json` · v8.0
+    切换时就删了 · 从 v8.0 起 v7 遗留的 TestP1ReadOnly 等类一直没通过)的 broken
+    测试 · 连带删掉了对这 3 个**活命令**的直接单元测试。本类不依赖任何缺失模板 ·
+    用 init-feature(TEAMWORK_BYPASS_PREPARE_CHECK=1 绕过 prepare 门禁)在临时目录
+    造合法 state.json · 补回覆盖(pattern 同 TestChecksumGuard / TestRecover)。
+    """
+
+    def setUp(self) -> None:
+        self.tmp = Path(tempfile.mkdtemp(prefix="readonly_"))
+        self._prev_bypass = os.environ.get("TEAMWORK_BYPASS_PREPARE_CHECK")
+        os.environ["TEAMWORK_BYPASS_PREPARE_CHECK"] = "1"
+        run([
+            "init-feature",
+            "--feature", str(self.tmp),
+            "--feature-id", "RO-F001",
+            "--flow-type", "Feature",
+            "--merge-target", "main",
+            "--branch", "feat/ro",
+        ])
+
+    def tearDown(self) -> None:
+        shutil.rmtree(self.tmp, ignore_errors=True)
+        if self._prev_bypass is None:
+            os.environ.pop("TEAMWORK_BYPASS_PREPARE_CHECK", None)
+        else:
+            os.environ["TEAMWORK_BYPASS_PREPARE_CHECK"] = self._prev_bypass
+
+    # ── snapshot ──────────────────────────────────────────────────────
+    def test_snapshot_verdict_ok_and_current_stage(self) -> None:
+        """snapshot(默认 core tier)→ verdict OK · Feature 初始 current_stage=goal。"""
+        d = run(["snapshot", "--feature", str(self.tmp)])
+        self.assertEqual(d["verdict"], "OK")
+        self.assertEqual(d["tier"], "core")
+        self.assertEqual(d["snapshot"]["current_stage"], "goal")
+        self.assertEqual(d["snapshot"]["feature_id"], "RO-F001")
+
+    # ── validate ──────────────────────────────────────────────────────
+    def test_validate_legal_state_passes(self) -> None:
+        """合法 state(init-feature 刚建)→ validate PASS · exit 0。"""
+        d = run(["validate", "--feature", str(self.tmp)])
+        self.assertEqual(d["verdict"], "PASS")
+        self.assertIn("stage enum", d["checks_passed"])
+
+    def test_validate_illegal_current_stage_fails(self) -> None:
+        """注入非法 current_stage → validate FAIL · exit 1 · 错误指向 current_stage。
+
+        用 raw-write 注入(而非手工 Write 改 state.json):手工改会先触发 checksum
+        guard(exit 2)· validate 的 schema 校验根本跑不到;raw-write 走 atomic_write
+        重算 checksum · state checksum 合法但 schema 非法 · 才隔离得出纯 schema FAIL。
+        """
+        run([
+            "raw-write", "--feature", str(self.tmp),
+            "--set", "current_stage=bogus_stage",
+            "--reason", "test:注入非法 stage 验证 validate FAIL 路径",
+        ])
+        d = run(["validate", "--feature", str(self.tmp)], expect_exit=1)
+        self.assertEqual(d["verdict"], "FAIL")
+        self.assertGreaterEqual(d["error_count"], 1)
+        self.assertTrue(any("current_stage" in e for e in d["errors"]))
+
+    # ── raw-read ──────────────────────────────────────────────────────
+    def test_raw_read_field_current_stage(self) -> None:
+        """raw-read --field current_stage → verdict OK · 返回该字段值(goal)。"""
+        d = run(["raw-read", "--feature", str(self.tmp), "--field", "current_stage"])
+        self.assertEqual(d["verdict"], "OK")
+        self.assertEqual(d["field"], "current_stage")
+        self.assertEqual(d["value"], "goal")
 
 
 class TestPrepareCheck(unittest.TestCase):
@@ -856,16 +806,36 @@ class TestPrepareCheck(unittest.TestCase):
                             f"Q{i+1} 必含 if_yes 或 if_no 调整建议")
 
     def test_v827_checklist_covers_core_dimensions(self):
-        """4 问覆盖 ROADMAP / UI / 跨 module / 数据模型重构 4 个维度。"""
+        """4 问覆盖 产品方向 / UI / 跨 module / 数据模型重构 4 个维度。"""
         d = self._check("Feature")
         all_text = " ".join(
             q["question"] + (q.get("if_yes", "") or "") + (q.get("if_no", "") or "")
             for q in d["reviewer_thinking_checklist"]
         )
-        self.assertIn("ROADMAP", all_text)
+        self.assertIn("产品方向", all_text)  # v8.75:Q1 维度 ROADMAP → 产品方向
         self.assertIn("UI", all_text)
         self.assertIn("module", all_text)
         self.assertIn("数据模型重构", all_text)
+
+    def test_v875_pl_not_roadmap_gated(self):
+        """v8.75 治本:Q1 不再用『无 ROADMAP → 去 pl』· 默认保留 pl(产品方向视角)。
+
+        根因:旧 Q1 把 PL 评审价值等同 ROADMAP 拆分 —— 但 ROADMAP 是规划层产物 ·
+        执行层 Feature 几乎都『无 ROADMAP』→ 几乎所有 Feature 套路化删 pl(用户实证)。
+        """
+        d = self._check("Feature")
+        q1 = d["reviewer_thinking_checklist"][0]
+        q1_text = q1["question"] + (q1.get("if_yes", "") or "") + (q1.get("if_no", "") or "")
+        # 默认保留 pl(产品方向 · 非 roadmap-gated)
+        self.assertIn("保留 pl", q1_text)
+        self.assertIn("产品方向", q1_text)
+        # 旧的错误框架彻底删除(PL 评审价值低 = 系统性误删的根)
+        self.assertNotIn("PL 评审价值低", q1_text)
+        # 显式 debunk「无 ROADMAP」借口
+        self.assertIn("ROADMAP", q1_text)
+        # hint 也强调 pl 默认保留 + 无 ROADMAP 不是去 pl 理由
+        hint = d["reviewer_thinking_hint"]
+        self.assertIn("pl 默认保留", hint)
 
     def test_v827_hint_cite_f_bv2_8_case(self):
         """hint 提示 PMO 不直接抄默认 · cite F-Bv2-8 case 实证。"""
@@ -873,6 +843,52 @@ class TestPrepareCheck(unittest.TestCase):
         hint = d["reviewer_thinking_hint"]
         self.assertIn("不要直接抄", hint)
         self.assertIn("F-Bv2-8", hint)
+
+    # ── v8.44.4:output_style_hint(治本 case 2026-05-28 codex-cli markdown 表格失败)──
+
+    def test_v8444_output_style_hint_emitted(self):
+        """v8.44.4:prepare-check emit 必含 output_style_hint dict。"""
+        d = self._check("Feature")
+        self.assertIn("output_style_hint", d)
+        hint = d["output_style_hint"]
+        # 必含 host / style_id / table_format / list_format / emphasis / emoji_safe / rationale
+        for key in ["host", "style_id", "description", "table_format",
+                    "list_format", "emphasis", "emoji_safe", "rationale"]:
+            self.assertIn(key, hint, f"output_style_hint 缺字段 {key!r}")
+
+    def test_v8444_codex_cli_host_recommends_box_drawing(self):
+        """v8.44.4:host=codex-cli → table_format=box_drawing(避免 raw markdown 失败)。"""
+        from state import _build_output_style_hint  # type: ignore
+        hint = _build_output_style_hint("codex-cli")
+        self.assertEqual(hint["host"], "codex-cli")
+        self.assertEqual(hint["style_id"], "box_drawing_or_plain")
+        self.assertEqual(hint["table_format"], "box_drawing")
+        self.assertEqual(hint["list_format"], "plain")
+        self.assertEqual(hint["emphasis"], "plain")
+        self.assertTrue(hint["emoji_safe"])
+
+    def test_v8444_claude_code_host_recommends_markdown(self):
+        """v8.44.4:host=claude-code → table_format=markdown(rich renderer 支持)。"""
+        from state import _build_output_style_hint  # type: ignore
+        hint = _build_output_style_hint("claude-code")
+        self.assertEqual(hint["host"], "claude-code")
+        self.assertEqual(hint["style_id"], "markdown_ok")
+        self.assertEqual(hint["table_format"], "markdown")
+
+    def test_v8444_unknown_host_defaults_to_box_drawing(self):
+        """v8.44.4:host=unknown / None → 保守默认 box_drawing(最大兼容)。"""
+        from state import _build_output_style_hint  # type: ignore
+        for h in [None, "unknown", "weird-cli"]:
+            hint = _build_output_style_hint(h)
+            self.assertEqual(hint["table_format"], "box_drawing",
+                             f"host={h!r} 应保守 box_drawing")
+            self.assertEqual(hint["style_id"], "box_drawing_or_plain")
+
+    def test_v8444_gemini_cli_host_box_drawing_too(self):
+        """v8.44.4:host=gemini-cli → 保守同 codex-cli(未实测)。"""
+        from state import _build_output_style_hint  # type: ignore
+        hint = _build_output_style_hint("gemini-cli")
+        self.assertEqual(hint["table_format"], "box_drawing")
 
 
 class TestPrepareAuditGate(unittest.TestCase):
@@ -1265,21 +1281,20 @@ class TestExternalReviewCommand(unittest.TestCase):
 
     # ── dry-run 输出 preview_command(v8.26 stage-specific + v8.29 default 不传 model) ──
     def test_dry_run_includes_preview_command(self):
-        """review stage 用 codex review 子命令(v8.26 各司其职 · v8.29 默认不传 --config)。"""
+        """v8.59:review stage 统一用 codex exec [PROMPT](治本 codex review headless 卡死)。"""
         d = run(["external-review", "--feature", str(self.feat),
                  "--stage", "review", "--host", "claude-code", "--dry-run"])
         self.assertTrue(d["dry_run"])
         self.assertIn("preview_command", d)
-        # v8.26:review stage 改回 codex review(专业 diff review · 内置 prompt)
-        self.assertIn("codex review", d["preview_command"])
-        self.assertIn("--commit", d["preview_command"])
-        self.assertIn("--title", d["preview_command"])
+        # v8.59:review 改 codex exec(本地实测 codex review --commit headless 跑 220s 产 0 字节)
+        self.assertIn("codex exec", d["preview_command"])
+        self.assertNotIn("codex review", d["preview_command"])
         # v8.29:默认不传 --config(ChatGPT 订阅兼容)· --codex-model 显式才传
         self.assertNotIn("--config", d["preview_command"])
-        # 不带 [PROMPT](避免与 review 对象 flag 互斥)· 不带 --base(避免与 --commit 互斥)
-        self.assertNotIn("--base", d["preview_command"])
-        # codex_prompt 字段 None(review 模式无 PROMPT)
-        self.assertIsNone(d["codex_prompt"])
+        # exec 模式有 PROMPT(codex_prompt 非 None · 含 review 指令 + 全量 diff 提示)
+        self.assertIsNotNone(d["codex_prompt"])
+        self.assertIn("code reviewer", d["codex_prompt"])
+        self.assertIn("git diff", d["codex_prompt"])
         # 没真跑 · 不该有 model_version 字段
         self.assertNotIn("model_version", d)
 
@@ -1360,6 +1375,36 @@ class TestExternalReviewCommand(unittest.TestCase):
         self.assertEqual(captured_cmd[2], "v843 test prompt body")
         self.assertIn("--model", captured_cmd)
         self.assertIn("--output-format", captured_cmd)
+
+    # ── v8.55:external review 执行默认落日志(排查 codex/claude 卡住 / 跑不起来) ──
+
+    def test_v855_log_external_run_writes_log(self):
+        """v8.55:_log_external_run 落 ~/.teamwork/external-review-logs/<feat>/<label>-ts.log(含 rc/cmd/输出)。"""
+        from unittest import mock
+        from state import _log_external_run  # type: ignore
+        with tempfile.TemporaryDirectory() as home:
+            with mock.patch("state.Path.home", return_value=Path(home)):
+                p = _log_external_run(Path("/x/PTR-F042-foo"), "codex-review",
+                                      ["codex", "exec", "PROMPT"], "/x",
+                                      124, "the-stdout", "the-stderr", 12.3)
+            self.assertIsNotNone(p, "应返回日志路径")
+            self.assertTrue(Path(p).exists())
+            self.assertIn("PTR-F042-foo", p)  # feature-scoped 子目录
+            body = Path(p).read_text(encoding="utf-8")
+            self.assertIn("returncode: 124", body)
+            self.assertIn("codex exec", body)
+            self.assertIn("the-stdout", body)
+            self.assertIn("the-stderr", body)
+
+    def test_v855_log_external_run_none_feature_dir_no_crash(self):
+        """v8.55:feature_dir=None → 不写 · 返 None(绝不阻塞 review)。"""
+        from state import _log_external_run  # type: ignore
+        self.assertIsNone(_log_external_run(None, "x", [], "", 0, "", "", 0.0))
+
+    def test_v855_timeout_10min(self):
+        """v8.55:EXTERNAL_REVIEW_TIMEOUT_SEC = 600(5min→10min)。"""
+        from state import EXTERNAL_REVIEW_TIMEOUT_SEC  # type: ignore
+        self.assertEqual(EXTERNAL_REVIEW_TIMEOUT_SEC, 600)
 
     # ── v8.43:reviewer.md 占位符真替换(治本 Bug B) ──
 
@@ -1577,18 +1622,19 @@ class TestExternalReviewCommand(unittest.TestCase):
         self.assertIn("TC.md and TECH.md", d["codex_prompt"])
 
     def test_v823_review_stage_uses_code_review_prompt(self):
-        """review stage:v8.26 用 codex review 子命令 · 无 PROMPT(codex review 内置专业 prompt)。
+        """v8.59:review stage 用 codex exec [PROMPT](内置 code-review prompt · 含全量 diff 指令)。
 
-        v8.23/v8.25 曾用 PROMPT 模式 · v8.26 用户洞察:review 用 codex review 子命令
-        各司其职 · 不再传 PROMPT(避免与 --commit/--base/--uncommitted 互斥)。
+        演进:v8.23/25 PROMPT 模式 → v8.26 codex review 子命令 → v8.59 回到 codex exec
+        (本地实测 codex review --commit headless 卡死 · 0 字节/220s 超时 · 与 AON case 一致)。
         """
         d = run(["external-review", "--feature", str(self.feat),
                  "--stage", "review", "--host", "claude-code", "--dry-run"])
-        # codex review 子命令 · 不带 PROMPT
-        self.assertIn("codex review", d["preview_command"])
-        self.assertIsNone(d["codex_prompt"])
-        # commit SHA 通过 --commit flag 传(不在 PROMPT)
-        self.assertIn("abc123def", d["preview_command"])
+        # codex exec + 内置 review PROMPT
+        self.assertIn("codex exec", d["preview_command"])
+        self.assertIsNotNone(d["codex_prompt"])
+        # commit SHA 通过 git diff 指令进 PROMPT(全量 diff · 不限 feature_dir)
+        self.assertIn("abc123def", d["codex_prompt"])
+        self.assertIn("git diff", d["codex_prompt"])
 
     def test_v823_codex_model_default_gpt_5_codex(self):
         """v8.29 治本 ChatGPT 订阅 case · 缺省 codex_model=None(不传 --config · 用账号默认模型)。"""
@@ -1624,16 +1670,17 @@ class TestExternalReviewCommand(unittest.TestCase):
         self.assertEqual(d["model"], "claude")
         self.assertIsNone(d["codex_model"])  # claude 路径 codex_model 为 None
 
-    # ── v8.26:stage-specific dispatch · review→codex review · others→codex exec ──
-    def test_v826_review_stage_uses_codex_review(self):
-        """v8.26 用户洞察:review stage 用 codex review 子命令(专业 diff review)。"""
+    # ── v8.59:全 stage 统一 codex exec(治本 codex review 子命令 headless 卡死)──
+    def test_v859_review_stage_uses_codex_exec(self):
+        """v8.59 用户 case + 本地实测:review stage 改用 codex exec(codex review --commit
+        headless 跑满 220s 产 0 字节 stdout · 与 AON SVC-PLATFORM-F057 现象一致)。"""
         d = run(["external-review", "--feature", str(self.feat),
                  "--stage", "review", "--host", "claude-code", "--dry-run"])
-        self.assertIn("codex review", d["preview_command"])
-        self.assertNotIn("codex exec", d["preview_command"])
-        # title 用 --title flag(codex review 支持)· 不进 PROMPT
-        self.assertIn("--title", d["preview_command"])
-        self.assertIsNone(d["codex_prompt"])  # review 模式无 PROMPT
+        self.assertIn("codex exec", d["preview_command"])
+        self.assertNotIn("codex review", d["preview_command"])
+        # exec 模式 title 进 PROMPT 顶部(codex exec 无 --title flag)
+        self.assertIsNotNone(d["codex_prompt"])
+        self.assertIn("[Review title:", d["codex_prompt"])
 
     def test_v826_goal_blueprint_stage_uses_codex_exec(self):
         """v8.26:goal / blueprint stage 用 codex exec(文档 review · review 子命令是 diff-only)。"""
@@ -1907,8 +1954,9 @@ class TestPMDecisionTolerance(unittest.TestCase):
 
 
 class TestPanoramaArtifactEvidence(unittest.TestCase):
-    """UI_DESIGN_SPEC _evidence_panorama_artifact 按 panorama_medium 校验
-    (治本 PTR-F052:same-stack 跳过 preview/*.html 要求 · static-html 维持原校验)。"""
+    """UI_DESIGN_SPEC _evidence_panorama_artifact 按 panorama_medium 校验。
+    v8.58 option B:same-stack 物化 = preview-project + preview.sh + package.json(用户拍板 ·
+    supersede v8.56 静态 build)· static-html 维持 Feature 内 preview/*.html 校验。"""
 
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp(prefix="tw-panorama-"))
@@ -1920,17 +1968,102 @@ class TestPanoramaArtifactEvidence(unittest.TestCase):
         class _A: pass
         a = _A(); a.feature = str(self.tmp); return a
 
-    def _write_ui(self, medium=None):
+    def _write_ui(self, medium=None, panorama_path=None):
         lines = ["---", "pages:", "  - {id: page1, title: \"页面 1\"}"]
         if medium is not None:
             lines.append(f"panorama_medium: {medium}")
+        if panorama_path is not None:
+            lines.append(f"panorama_path: {panorama_path}")
         lines += ["---", "# UI"]
         (self.tmp / "UI.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
-    def test_same_stack_no_preview_passes(self):
+    def _scaffold_preview_project(self, panorama_path="design",
+                                  with_sh=True, with_pkg=True):
+        proj = self.tmp / panorama_path / "preview-project"
+        proj.mkdir(parents=True)
+        if with_sh:
+            (proj / "preview.sh").write_text("#!/usr/bin/env bash\n", encoding="utf-8")
+        if with_pkg:
+            (proj / "package.json").write_text("{}", encoding="utf-8")
+        return proj
+
+    def test_v858_same_stack_no_panorama_path_fails(self):
+        """v8.58:same-stack 无 panorama_path → FAIL。"""
         from _v8_stage_specs import _evidence_panorama_artifact
         self._write_ui(medium="same-stack")
         ok, err = _evidence_panorama_artifact({}, self._args())
+        self.assertFalse(ok)
+        self.assertIn("panorama_path", err)
+
+    def test_v858_same_stack_with_preview_project_passes(self):
+        """v8.58 option B:same-stack + preview-project + preview.sh + package.json → PASS。"""
+        from _v8_stage_specs import _evidence_panorama_artifact
+        self._write_ui(medium="same-stack", panorama_path="design")
+        self._scaffold_preview_project()
+        ok, err = _evidence_panorama_artifact({}, self._args())
+        self.assertTrue(ok, err)
+
+    def test_v858_same_stack_no_preview_project_fails(self):
+        """v8.58:same-stack 声明 panorama_path 但无 preview-project → FAIL。"""
+        from _v8_stage_specs import _evidence_panorama_artifact
+        self._write_ui(medium="same-stack", panorama_path="design")
+        ok, err = _evidence_panorama_artifact({}, self._args())
+        self.assertFalse(ok)
+        self.assertIn("preview-project", err)
+
+    def test_v858_same_stack_missing_preview_sh_fails(self):
+        """v8.58:preview-project 存在但缺 preview.sh → FAIL。"""
+        from _v8_stage_specs import _evidence_panorama_artifact
+        self._write_ui(medium="same-stack", panorama_path="design")
+        self._scaffold_preview_project(with_sh=False)
+        ok, err = _evidence_panorama_artifact({}, self._args())
+        self.assertFalse(ok)
+        self.assertIn("preview.sh", err)
+
+    # ── v8.61:auto_commit 校验(治本 v8.58 物化漏洞:磁盘存在但没提交)──
+
+    def _git_init_commit(self, *rel_or_abs_paths):
+        """self.tmp 建 git 仓 + 提交指定路径 · 返 commit hash。"""
+        env = {**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
+               "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}
+
+        def sh(*a):
+            return subprocess.run(["git", "-C", str(self.tmp), *a],
+                                  capture_output=True, text=True, env=env)
+        sh("init", "-q")
+        for p in rel_or_abs_paths:
+            sh("add", str(p))
+        sh("commit", "-q", "-m", "x")
+        return sh("rev-parse", "HEAD").stdout.strip()
+
+    def test_v861_same_stack_uncommitted_preview_project_fails(self):
+        """v8.61:preview-project 在磁盘但未进 auto_commit → FAIL(治本 v8.58 物化漏洞)。"""
+        from _v8_stage_specs import _evidence_panorama_artifact
+        self._write_ui(medium="same-stack", panorama_path="design")
+        self._scaffold_preview_project()              # 建文件但不提交
+        commit = self._git_init_commit("UI.md")        # 只提交 UI.md
+        a = self._args(); a.auto_commit = commit
+        ok, err = _evidence_panorama_artifact({}, a)
+        self.assertFalse(ok)
+        self.assertIn("未进 auto_commit", err)
+
+    def test_v861_same_stack_committed_preview_project_passes(self):
+        """v8.61:preview-project 已提交进 auto_commit → PASS。"""
+        from _v8_stage_specs import _evidence_panorama_artifact
+        self._write_ui(medium="same-stack", panorama_path="design")
+        proj = self._scaffold_preview_project()
+        commit = self._git_init_commit(
+            "UI.md", proj / "preview.sh", proj / "package.json")
+        a = self._args(); a.auto_commit = commit
+        ok, err = _evidence_panorama_artifact({}, a)
+        self.assertTrue(ok, err)
+
+    def test_v861_same_stack_no_auto_commit_skips_commit_check(self):
+        """v8.61:不传 auto_commit → 仅磁盘校验(向后兼容 · None 不阻塞)。"""
+        from _v8_stage_specs import _evidence_panorama_artifact
+        self._write_ui(medium="same-stack", panorama_path="design")
+        self._scaffold_preview_project()
+        ok, err = _evidence_panorama_artifact({}, self._args())  # _args 无 auto_commit
         self.assertTrue(ok, err)
 
     def test_static_html_no_preview_fails(self):
@@ -2227,6 +2360,64 @@ class TestExternalReviewContentQuality(unittest.TestCase):
         )
         warnings = _check_external_review_quality(body, stage="goal", model="claude")
         self.assertEqual(warnings, [])
+
+
+class TestPlanningCheck(unittest.TestCase):
+    """v8.46:planning-check · Feature Planning 物化入口(治本规划路径未物化漏洞)。
+
+    用户洞察 2026-05-28:PRODUCT-OVERVIEW-INTEGRATION.md 纯靠 AI 自觉读 · Feature Planning
+    不进状态机无兜底 · planning-check 物化 emit checklist + 必读规范 + 规划状态机。
+    """
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp(prefix="tw-planning-"))
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def test_v846_planning_check_no_product_overview(self):
+        """无 product-overview/ → must_read 仍含 PRODUCT-OVERVIEW-INTEGRATION(v8.48 总必读)· 无 state_machine。"""
+        d = run(["planning-check", "--project-root", str(self.tmp)])
+        self.assertEqual(d["verdict"], "OK")
+        self.assertFalse(d["product_overview_exists"])
+        # v8.48:PRODUCT-OVERVIEW-INTEGRATION 总 must_read(无 po 时学冷启动初创 · 产品规划优先)
+        self.assertEqual(d["must_read"],
+                         ["PRODUCT-OVERVIEW-INTEGRATION.md", "docs/feature-planning.md"])
+        self.assertNotIn("planning_state_machine", d)
+        self.assertIn("无 product-overview", d["product_overview_hint"])
+        # v8.48:产品规划优先(不再把上游当 optional 直接拆 ROADMAP)
+        self.assertIn("产品规划优先", d["product_overview_hint"])
+        self.assertIn("先建 product-overview", d["product_overview_hint"])
+
+    def test_v846_planning_check_with_product_overview(self):
+        """有 product-overview/ → must_read 含 PRODUCT-OVERVIEW-INTEGRATION + 规划状态机。"""
+        (self.tmp / "product-overview").mkdir()
+        d = run(["planning-check", "--project-root", str(self.tmp)])
+        self.assertTrue(d["product_overview_exists"])
+        self.assertIn("PRODUCT-OVERVIEW-INTEGRATION.md", d["must_read"])
+        self.assertIn("planning_state_machine", d)
+        sm = d["planning_state_machine"]
+        self.assertIn("✅ 已确认", sm["states"])
+        self.assertIn("已确认", sm["downstream_rule"])
+        self.assertEqual(len(sm["required_tables"]), 2)
+
+    def test_v846_planning_check_checklist_and_constraints(self):
+        """checklist 4 条 + key_constraints 含「不进状态机」+「不出代码 R6」。"""
+        d = run(["planning-check", "--project-root", str(self.tmp)])
+        self.assertEqual(len(d["planning_checklist"]), 5)  # v8.52:+ 实际代码调研项
+        constraints = " ".join(d["key_constraints"])
+        self.assertIn("不进状态机", constraints)
+        self.assertIn("不出代码", constraints)
+        self.assertIn("R6", constraints)
+        self.assertIn("complexity_force_upgrade", d["entry_criteria"])
+        # v8.49:planning_order 是权威链路 · 业务架构(愿景) → teamwork-space → WS → ROADMAP
+        self.assertIn("planning_order", d)
+        po = d["planning_order"]
+        self.assertIn("WS", po)
+        self.assertLess(po.index("业务架构"), po.index("teamwork-space"),
+                        "业务架构(愿景) 必在 teamwork-space 之前")
+        self.assertLess(po.index("teamwork-space"), po.index("ROADMAP"),
+                        "teamwork-space 必在 ROADMAP 之前(WS 在中间)")
 
 
 if __name__ == "__main__":

@@ -1,5 +1,8 @@
 # v8.0+P0-1 · 暂停点纪律物化(L2 substep 链)
 
+> ⚠️ **归档文档(v8.0 重构期蓝图)**:本文件是 v7→v8 重构期的设计/规划文档 · 描述当时的**计划态**。v8 已稳定至 v8.45 · 现行权威以 [SKILL.md](../../SKILL.md) + tools/state.py 实际行为为准。文内可能引用已失效的 RULES.md/TRIAGE.md(并入 SKILL.md)/ 旧 stage 名 / 旧命令。暂停点纪律已并入 SKILL.md § R5(b) + § ok 作用域 · 本文为早期推导稿。不再维护。
+
+
 > 治本 PTR-F033 实战 case · L2 substep 链内部 AI 自觉区漏洞。
 > v8.0 把可枚举规则全部物化,但 brief 输出后 AI 在 substep 链内的行为是 state.py 看不见的盲区。
 
@@ -76,7 +79,13 @@ AI 完全自治。可枚举规则物化只到了"命令调用层",没到"substep
   ❌ Open Questions 直接抛给用户
   ❌ "我有 N 个细节想跟你确认"
   ❌ "先问几个问题再做"
+  ❌ (v8.71 · SDK-F038)无暂停 stage 自造执行节奏伪决策:
+     "如何推进 dev / 落地节奏由你定 / 先做一层给你看 / 一次性还是分批 / 要不要先停审阅"
+  ❌ 把"改动大 / 破坏式 / 不可逆 / 文件多 / 你全程参与设计"当暂停理由
+     (这些是 AI 自己的执行问题 · 体量大 → 内部 plan + 派 subagent · 不停下问用户)
 ```
+
+> **v8.71→v8.72 治本 SDK-F038**:AI 在 blueprint PASS(自动转 dev)后 · 构造「⏸️ dev 如何推进」3 选项暂停点(先做一层 / 一次性全落 / 先停审阅)· 把"破坏式跨端大改 + 用户全程参与设计"包装成"落地节奏选择"。本质 = R4 违规:dev 无授权暂停点 · 执行节奏是 AI 自决细节 · "session 太大"应派 subagent 而非停下问用户。修复:① **执行节奏伪决策 + subagent 自决 = 通用红线**(所有 stage · v8.72)—— 有授权暂停点的 stage 也可能在「那一个」授权暂停之外自造执行节奏伪暂停(如 goal「16 AC 分批起草给你看吗」)· `_render_pause_discipline` 对所有 stage 注入;无暂停 stage(dev/blueprint/blueprint_lite/test)额外加「任何暂停都违规」抬头 + ② 自动流转 emit 也带下一 stage 纪律(AI 转移那刻即见)+ ③ SKILL.md R4 正向指引(怎么办 = subagent · 不是停)。
 
 AI 在执行那一刻就看到红线 · 不需要回头扫 CLAUDE.md。
 
