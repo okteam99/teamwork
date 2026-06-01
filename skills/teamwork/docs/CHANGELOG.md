@@ -1,5 +1,33 @@
 # Changelog
 
+## v8.76 · 加「简洁性 counter-lens」(治本评审只加 rigor 无防过度设计 · 用户 case SDK-F038 · dev-only)
+
+> 用户 2026-06-01:"PRD 评审重点是产出业务目标 / 当前环境是否可实现 / 是否合理 · 不应太注重边界细节。" case:SDK-F038 16 AC 全绿 + 3 轮 external 闭环 · 用户在 pm_acceptance 一眼看出**过度设计**(SDK 哑管道被焊进字段语义)· 回炉重切。
+
+### 根因:所有评审视角都偏「加 rigor」· 无人审「简洁性 / 职责归位」
+
+- goal/review 的评审视角:PM 看 **AC 完整** · QA 看 **边界覆盖** · Architect 看可行性/性能/安全 · external **找缺口** —— **全在加复杂度**。
+- external review 天然「找缺口 → 加校验」· 每条单看合理 · **合起来把方案做臃肿 / 把责任焊进错的层**。AI 的诚实反思:"external 一路推我加 UUID 闸 / reserved-key 解析 / 位置参数 · 把本该对 SDK 透明的参数语义焊进了传输层。"
+- **结构性缺口**:没有任何角色owning「**是否过度设计 · 能否更简单 · 职责是否归错层**」—— 评审越严 · 方案越臃肿 · 直到 pm_acceptance 用户兜底。
+
+### 修复:Architect = 唯一「简洁性 counter-lens」+ PRD 评审聚焦
+
+| 改动 | 内容 |
+|----|----|
+| `roles/architect.md` Telos | 加「**方案简洁性(防过度设计)**」+ 明确「其余角色都偏加 rigor · Architect 是唯一简洁性 counter-lens · 反问:能否更简单 / 每处复杂是否被业务目标(非边界 rigor)证成 / 职责是否归错层」 |
+| `goal-stage.md` | 加 **PRD 评审聚焦**:① 业务目标清晰 ② 当前环境可实现 ③ 方案合理且**恰当简洁** · AC 写「行为/价值」高度(WHAT)**不下沉实现机制** · §非目标用足收窄 · + Architect 简洁性 lens + **external finding 须对照业务目标+简洁性取舍**(别盲采加 rigor) |
+| `blueprint-stage.md` | Tech Review 加简洁性 lens 「**拦过度设计的最佳时机**(改 TECH 比改代码便宜)」 |
+| `review-stage.md` | Architect Code Review 加简洁性 counter-lens(焊进核心抽象的复杂度可删/可下沉) |
+| 测试 +4 | TestArchitectOwnsSimplicityLens / TestStageDocsCarrySimplicityLens(锁文案不回退)· 424 passed · 68 pre-existing(无关)· 0 regression |
+
+### 你我对齐的原则
+
+- **PRD 评的是业务目标 + 可实现性 + 恰当简洁** · 不是边界细节大全(边界要处理 · 但在**对的层** · 不是堆进核心抽象)。
+- **评审需要简洁性 counter-lens** 平衡「找缺口」的天然加复杂度倾向 —— external finding 修真 bug 才采 · 别为 rigor 而 rigor。
+- **过度设计拦得越早越省**:TECH review(改方案)> code review(改实现)> pm_acceptance(回炉)。
+
+---
+
 ## v8.75 · 治本 pl 被系统性误删(reviewer checklist Q1 把 PL 价值等同 ROADMAP · 用户实证 · dev-only)
 
 > 用户 2026-06-01:"几乎所有 feature 在 PRD 评审时都移除 pl · 理由是无 roadmap · 是否合理?" 不合理 —— 是工具引导的类目错误。
