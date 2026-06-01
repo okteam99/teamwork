@@ -1,6 +1,6 @@
 ---
 name: teamwork
-version: v8.76.1
+version: v8.77
 description: AI 协作开发一体化框架 · /teamwork 启动
 ---
 
@@ -89,6 +89,7 @@ state.py ship-phase --action sanitize --feature <path> ...
 state.py ship-phase --action push --feature <path> ...
 # ⏸️ 等用户在平台合并 MR · 再 cd 回主工作区
 state.py ship-finalize --feature <path>      # Phase 2 全自动 7 步(可重入)
+# 🔴 ship 收尾(必做 · 非「后续」· v8.77):主工作区更新规划层 back-ref(ROADMAP 对应 BL → 已交付 · WS 进度)+ 关联文档 · git commit + push(详 stages/ship-stage.md §5.5)
 
 # 5. 错误处理(state.py 主动 hint · PMO 优先按建议修)
 # FAIL → 看 missing_prerequisites[*].hint → 自动修复 → 重试

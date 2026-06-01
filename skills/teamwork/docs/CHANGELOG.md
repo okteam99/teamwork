@@ -1,5 +1,30 @@
 # Changelog
 
+## v8.77 · ship 收尾必更新规划层 back-reference + commit(治本 ROADMAP BL 翻牌被当「后续」搁置 · 用户 case WEB-F031 · dev-only)
+
+> 用户 2026-06-01:"ship2 之后应该把关联改动也更新下 · 然后再主工作区提交一下。" case:WEB-F031 ship 完成后 · WEB ROADMAP / WS-01 S2 仍标「📋 规划中/pending」· AI 把翻牌当「后续(非本次范围)」搁置 —— 还说「避免在刚净化的主工作区留新的未提交改动」。
+
+### 根因:ship 流程缺「BL 状态翻牌」的对称步
+
+- 规划期:`feature 写入 ROADMAP` = BL「📋 规划中」(有 commit 步)。
+- 但 ship 完成后**没有对称的**「BL → ✅ 已交付 + commit」步 —— ship-finalize 干完 state.json 同步 + worktree 清理就结束 · brief 只说「流程终态 completed · 向用户汇报」· **不提规划层 back-reference**。
+- 后果:① 规划层(ROADMAP/WS 进度)与执行层永久**脱节** · 进度统计失真;② AI 没有物化指令 → 把它当「后续/下次规划」搁置 · 还被 v8.70 main-sync「保持主工作区干净」误导成「不敢改」。
+
+### 修复:ship-finalize 成功后必物化「收尾步」
+
+| 改动 | 内容 |
+|----|----|
+| `_planning_backref_reminder()`(新)| ship 收尾指令:① ROADMAP 对应 BL 状态 规划中→已交付(WS 最后一个 BL → WS 标完成)② 关联文档同步 ③ `git add + commit + push` 到 merge_target · 明确「**不是后续/非本次范围**」+「别因怕弄脏主工作区搁置(翻牌 commit 本就干净)」 |
+| `_ship_finalize_brief` | `finalize_ok` 时必追加收尾步(成功 + 有降级项两路都带)· 失败时不带(优先修 ship) |
+| emit | 加 `planning_backref_pending: true`(ship 成功时)· 机器可见 |
+| `ship-stage.md` §5.5(新)| 文档化 ship 收尾步 · 解释「feature=BL 落地 · 不翻牌=脱节」+ 规划层产物在主工作区 commit 正当(非 worktree 红线违规) |
+| `SKILL.md` 快速开始 | ship 步加收尾注 |
+| 测试 +4 | TestPlanningBackrefReminderV877(成功带 / 失败不带 / 降级仍带 / helper 含 commit+反搁置)· 428 passed · 68 pre-existing(无关)· 0 regression |
+
+> 定位:「BL 翻牌 + commit」是 **ship 的一部分**(可枚举的流程步 · 物化到 ship 必经点)· 具体改哪个 BL / 什么文案是 **AI 判断**(项目特定 · 读 ROADMAP 定位)。与 v8.70 main-sync 不冲突:main-sync 清 feature 残留 · 此步是 ship 的一笔**有意的规划层干净提交**。
+
+---
+
 ## v8.76 · 加「简洁性 counter-lens」(治本评审只加 rigor 无防过度设计 · 用户 case SDK-F038 · dev-only)
 
 > 用户 2026-06-01:"PRD 评审重点是产出业务目标 / 当前环境是否可实现 / 是否合理 · 不应太注重边界细节。" case:SDK-F038 16 AC 全绿 + 3 轮 external 闭环 · 用户在 pm_acceptance 一眼看出**过度设计**(SDK 哑管道被焊进字段语义)· 回炉重切。

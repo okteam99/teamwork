@@ -729,5 +729,48 @@ class TestMainSyncStrategyV870(unittest.TestCase):
         self.assertIn("慎选", cp["desc"])
 
 
+class TestPlanningBackrefReminderV877(unittest.TestCase):
+    """v8.77 · ship 成功后必提示「更新规划层 back-ref(ROADMAP BL → 已交付)+ commit」。
+
+    治本 case(WEB-F031):ship-finalize 后 AI 把 ROADMAP BL 翻牌当「后续 / 非本次范围」
+    搁置 · 留悬空 TODO。修复:ship-finalize brief 在 finalize_ok 时必追加收尾步。
+    """
+
+    def _state(self):
+        return {"feature_id": "WEB-F031", "merge_target": "staging"}
+
+    def test_success_brief_includes_backref(self):
+        from _v8_ship import _ship_finalize_brief  # type: ignore
+        brief = _ship_finalize_brief(self._state(), {}, True, True, [])
+        self.assertIn("ship 收尾", brief)
+        self.assertIn("已交付", brief)
+        self.assertIn("ROADMAP", brief)
+        self.assertIn("BL", brief)
+        self.assertIn("不是**「后续", brief)  # 明确不是「后续」
+
+    def test_failed_brief_no_backref(self):
+        """finalize 失败 → 优先修 ship · 不提示规划层收尾(避免误导)。"""
+        from _v8_ship import _ship_finalize_brief  # type: ignore
+        brief = _ship_finalize_brief(self._state(), {}, False, False, ["x"])
+        self.assertNotIn("ship 收尾", brief)
+        self.assertNotIn("已交付", brief)
+
+    def test_shipped_with_warnings_still_has_backref(self):
+        """ship 成功但有降级项 → 收尾步仍要做(降级处理完后)。"""
+        from _v8_ship import _ship_finalize_brief  # type: ignore
+        brief = _ship_finalize_brief(self._state(), {}, True, True, ["某降级项"])
+        self.assertIn("ship 收尾", brief)
+
+    def test_helper_mentions_commit_and_not_defer(self):
+        from _v8_ship import _planning_backref_reminder  # type: ignore
+        r = _planning_backref_reminder(self._state())
+        self.assertIn("commit", r)
+        self.assertIn("push", r)
+        self.assertIn("staging", r)        # merge_target 填入
+        self.assertIn("规划层", r)
+        # 明确反「搁置当 TODO」
+        self.assertTrue("别留悬空" in r or "别当 TODO" in r)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

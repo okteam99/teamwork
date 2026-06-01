@@ -1416,6 +1416,29 @@ def _finalize_push_plumbing(repo_cwd: str, artifact_root: Path,
     return True, "", new_commit
 
 
+def _planning_backref_reminder(state: dict) -> str:
+    """v8.77:ship 收尾 · 更新规划层 back-reference(ROADMAP BL 状态 → 已交付)+ 主工作区 commit。
+
+    治本 case(WEB-F031):ship-finalize 后 AI 把「ROADMAP BL 状态 pending→已交付」当
+    「后续 / 非本次范围」搁置 · 留悬空 TODO(且怕弄脏刚净化的主工作区 → 不敢改)。但
+    BL 状态翻牌 + commit 是 ** ship 的一部分**:feature = 某 BL 的落地 · 落地完 BL 不更新 =
+    规划层(ROADMAP/WS)与执行层永久脱节。规划层产物在主工作区 · 此处更新 + commit 正当
+    (同 feature-planning 的「WS+ROADMAP 登记 commit」· 非 worktree 红线违规)。
+    """
+    mt = state.get("merge_target") or "merge_target"
+    return (
+        "🔴 ship 收尾(必做 · **不是**「后续 / 非本次范围 / 下次规划」):主工作区已 clean + "
+        f"跟上 {mt} · 现更新**规划层 back-reference** 并提交:\n"
+        "  1. 本 Feature 若来自 ROADMAP 某 BL(多数都是)→ 把该 BL 状态 「📋 规划中/pending」"
+        "→「✅ 已交付」;若是其 WS 最后一个 BL → WS 标规划/交付完成\n"
+        "  2. 关联文档(改了用户可见行为 / 接口契约)→ 按项目规范或 /document-release 同步\n"
+        f"  3. `git add <这些规划/文档文件>` + commit + push 到 {mt} —— 在已净化主工作区做"
+        "**一次干净提交** · 别留悬空未提交 · 别当 TODO 甩给下次\n"
+        "  📎 找不到对应 BL?读 product-overview/workstream/ + ROADMAP.md 定位本 Feature 条目 · "
+        "确实无关联 BL(ad-hoc Bug/Micro)才跳过本步。"
+    )
+
+
 def _ship_finalize_brief(state: dict, ship: dict, finalize_ok: bool,
                          wt_removed: bool, warnings: list,
                          main_sync_decision: Optional[dict] = None) -> str:
@@ -1423,13 +1446,17 @@ def _ship_finalize_brief(state: dict, ship: dict, finalize_ok: bool,
 
     v8.70:主工作区有用户改动时(main_sync_decision)· 追加「是否净化」暂停点指引 ·
     PMO 须按 SKILL.md R5(b) 转成编号选项暂停点给用户。
+    v8.77:ship 成功(finalize_ok)必追加「更新规划层 back-reference + commit」收尾步 ·
+    治本 AI 把 ROADMAP BL 翻牌当「后续」搁置(WEB-F031 case)。
     """
     fid = state.get("feature_id") or "Feature"
+    backref = _planning_backref_reminder(state) if finalize_ok else ""
     if finalize_ok and wt_removed and not warnings and not main_sync_decision:
         return (
             f"✅ {fid} 已完整 ship · MR 合入已验证 + state.json 已同步 merge_target "
             f"+ worktree 已清理 · 流程终态 completed。\n"
-            f"PMO 向用户汇报 Feature 全流程完成。"
+            f"{backref}\n"
+            f"完成上面收尾提交后 · PMO 向用户汇报 Feature 全流程完成。"
         )
     lines = [f"⚠️ {fid} ship-finalize 完成 · 但有降级项 · PMO 须向用户说明:"]
     for w in warnings:
@@ -1448,6 +1475,9 @@ def _ship_finalize_brief(state: dict, ship: dict, finalize_ok: bool,
             f"选项见 emit.main_sync_decision.options(推荐 {rec})· "
             f"用户拍板后跑对应 state.py main-sync --strategy <id>"
         )
+    if backref:
+        # ship 成功但有降级项 · 收尾步仍要做(降级项处理完后)
+        lines.append(backref)
     return "\n".join(lines)
 
 
@@ -1896,6 +1926,8 @@ def cmd_ship_finalize(args: argparse.Namespace) -> None:
         **({"main_sync_note": main_sync_note} if main_sync_note else {}),
         # v8.70 · 普通模式 user-dirty 时的「是否净化」决策(PMO 转 R5(b) 暂停点)
         **({"main_sync_decision": main_sync_decision} if main_sync_decision else {}),
+        # v8.77 · ship 成功后的规划层 back-reference 收尾步(ROADMAP BL → 已交付 + commit)
+        **({"planning_backref_pending": True} if finalize_ok else {}),
         **({"warnings": warnings} if warnings else {}),
         "next_action_brief": _ship_finalize_brief(
             state, ship, finalize_ok, wt_removed, warnings,
