@@ -2389,7 +2389,7 @@ def _run_codex_review(stage: str, commit: str, base: str, title: str,
         return 127, "", f"codex CLI 不可用:{e}{tail}"
 
 
-def _run_claude_review(prompt_text: str, model_name: str = "claude-sonnet-4-6",
+def _run_claude_review(prompt_text: str,
                        feature_dir: Optional[Path] = None, stage: str = "review"
                        ) -> tuple[int, str, str]:
     """跑 claude -p <prompt_argv> --output-format text · 返 (rc, stdout, stderr)。
@@ -2398,12 +2398,14 @@ def _run_claude_review(prompt_text: str, model_name: str = "claude-sonnet-4-6",
     v8.43(case SVC-PLATFORM-F054 blueprint round 3):prompt 从 stdin 改 argv ·
     治本 Claude CLI 2.1.153 在 stdin 模式触发 "Not logged in · Please run /login"
     bug(case 实测:claude -p 'prompt' OK · printf 'prompt' | claude -p FAIL)。
+    v8.84(用户拍板):**不再 --model 指定模型 · 用 claude CLI 默认值**(治本工具
+    假设模型名 · 同 v8.30 codex 去虚构模型名原则 · 模型随用户 claude 配置)。
 
     argv 模式限制:macOS ARG_MAX ≈ 256KB · Linux ≈ 128KB · prompt 含 file 内容
     inline 时可能超。极端长 prompt 撞 ARG_MAX 时 OSError("Argument list too long")
     捕获后返 errno=7 · 让上层 emit 清晰 hint 提示 prompt 过长。
     """
-    cmd = ["claude", "-p", prompt_text, "--model", model_name, "--output-format", "text"]
+    cmd = ["claude", "-p", prompt_text, "--output-format", "text"]
     label = f"claude-{stage}"
     t0 = datetime.now(timezone.utc)
     try:
@@ -2935,8 +2937,8 @@ def cmd_external_review(args: argparse.Namespace) -> None:
         else:
             preview_cmd = (
                 # v8.38:claude CLI 用 -p(short alias for --print)· 用户约定
-                f"cat {profile_path} | claude -p "
-                f"--model claude-sonnet-4-6 --output-format text"
+                # v8.84:不 --model 指定模型 · 用 claude 默认值
+                f"cat {profile_path} | claude -p --output-format text"
             )
         emit({
             "verdict": "OK",

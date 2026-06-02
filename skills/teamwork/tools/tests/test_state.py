@@ -1482,7 +1482,8 @@ class TestExternalReviewCommand(unittest.TestCase):
         self.assertEqual(captured_cmd[0], "claude")
         self.assertEqual(captured_cmd[1], "-p")
         self.assertEqual(captured_cmd[2], "v843 test prompt body")
-        self.assertIn("--model", captured_cmd)
+        # v8.84:不再 --model 指定模型 · 用 claude CLI 默认值(治本工具假设模型名)
+        self.assertNotIn("--model", captured_cmd)
         self.assertIn("--output-format", captured_cmd)
 
     # ── v8.55:external review 执行默认落日志(排查 codex/claude 卡住 / 跑不起来) ──
