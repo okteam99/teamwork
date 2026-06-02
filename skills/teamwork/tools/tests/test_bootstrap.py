@@ -338,10 +338,11 @@ class TestMaintainGitignoreWorktree(unittest.TestCase):
 
     def test_gitignore_already_present(self):
         from bootstrap import maintain_gitignore_worktree
-        # v8.31:teamwork 维护 4 项 entries · 全预填 → already_present
+        # teamwork 维护 entries 全预填 → already_present(v8.85 加 review_start.log)
         (self.tmp / ".gitignore").write_text(
             "node_modules/\n.worktree/\n.teamwork_localconfig.json\n"
             ".claude/scheduled_tasks.lock\n.claude/agents.lock\n"
+            "review_start.log\n"
         )
         result = maintain_gitignore_worktree(self.tmp)
         self.assertEqual(result["status"], "already_present")

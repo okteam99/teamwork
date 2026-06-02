@@ -16,11 +16,14 @@
 进状态机的顶层 artifact —— 每个有独立目录 + `state.json`。**按 flow_type 分字母**:
 
 ```
-格式: {项目缩写}-{字母}{NNN}-{Kebab-Case-名称}
-示例: PTR-F033-Credit-Note-Adjustment        (Feature)
-      SVC-PLATFORM-F043-Adapter-MobPower      (敏捷需求 · 共用 F 序列)
-      PTR-B019-UserMenu-Logout-Dropdown       (Bug)
-      PTR-M003-Footer-Copyright-Year          (Micro)
+格式: {项目缩写}-{字母}{号段}-{Kebab-Case-名称}
+号段两种策略(per-project · .teamwork_localconfig.json → id_strategy):
+  ① utc-yymmddhhmmss(v8.79 默认)= UTC0 秒级时间戳 YYMMDDHHMMSS(12 位定宽 · 跨机防撞号)
+  ② sequential(opt-out)         = 顺序号 NNN(3 位 · 单 clone 项目 · 好念短序号)
+示例: SVC-PLATFORM-F260601143012-Offer-Ranking   (Feature · utc 默认)
+      PTR-F033-Credit-Note-Adjustment            (Feature · sequential opt-out)
+      PTR-B019-UserMenu-Logout-Dropdown          (Bug · sequential)
+      PTR-M003-Footer-Copyright-Year             (Micro · sequential)
 ```
 
 | flow_type | 字母 | namespace | 说明 |
@@ -31,10 +34,11 @@
 | Micro | `M` | 项目独立 | 微改(改文案 / 改配置) |
 
 - **项目缩写**:来自 teamwork-space.md(多项目)或 config.md(单项目)的项目缩写字段
-- **{NNN}**:三位数字 · **各项目 × 各字母独立递增**(`PTR-F` 与 `PTR-B` 各自一条序列 · `PTR-F033` 与 `SVC-PLATFORM-F033` 可并存 · 不跨项目共享)
+- **{号段}**(v8.79):默认 **UTC 秒级时间戳**(`YYMMDDHHMMSS` · 12 位定宽 · 字典序=时间序 · 跨机/多 agent 并行各自生成、免中心协调 → 根治分布式 `max+1` 撞号);项目可 `id_strategy: sequential` opt-out 回 **3 位顺序号**(`各项目 × 各字母独立递增` · `PTR-F` 与 `PTR-B` 各一条序列)。两策略均**不跨项目共享**(`PTR-F033` 与 `SVC-PLATFORM-F033` 可并存)· **存量 ID 不重编号**(新旧天然可区分:3-4 位 vs 12 位)。
+- **撞号硬校验**(v8.79 · R0):`init-feature` 若目标 `{PREFIX}-{字母}{号段}` 已被**另一**目录占用 → FAIL(同 clone race 兜底 · 任一策略生效);跨 clone 不可见的撞号靠 utc 时间戳策略根治。
 - **名称**:多词用 `-` 拼接 · 不超过 6 词
 - **目录**:`{docs_root}/features/{artifact ID}/`(完整 ID · 不省略名称 · 4 类 flow 同放 `features/` 下)
-- **下一编号**:`state.py prepare-check --feature-id-prefix <PREFIX> --flow-type <type>` 按 flow_type 字母自动扫描 + 推荐 —— **不手填**(漏传 `--flow-type` 会退回字母 F)
+- **下一编号**:`state.py prepare-check --feature-id-prefix <PREFIX> --flow-type <type>` 按 `id_strategy` 推荐 `next_available_id_stem` —— **不手填**(utc 策略:已生成秒级号勿手算 · 重跑得新号 · 漏传 `--flow-type` 会退回字母 F)
 
 state.py 校验:basename(--feature) 必须包含 --feature-id(防 slug 错位)。
 
@@ -202,6 +206,20 @@ cd <主工作区>  # ⚠️ 必须先 cd 出 worktree(P0-156 拦截 · ship-stag
 git worktree remove <worktree-path>
 git branch -d <branch>
 ```
+
+## 12.5 浏览器验证截图(transient · v8.86)
+
+🔴 **「看一眼」的浏览器截图 → 系统临时目录 · 绝不落 worktree / 主工作区根**。
+
+各 stage 常需 browse 预览/页面**截图自检渲染**(ui_design 预览验证 · dev/review/pm 顺手核对 UI)。这类截图是**一次性验证产物**(AI 自己看 · 非交付 · 不 commit)· **必须写到系统临时目录** · 否则散落主工作区根(实证:`<repo>/f<id>-full-en.png` 等污染根目录)。
+
+- **统一位置**:`${TMPDIR:-/tmp}/teamwork/<feature_id>/screenshots/`(按 feature 命名 · session 内可复寻 · 系统自动回收)。
+  ```bash
+  SHOT_DIR="${TMPDIR:-/tmp}/teamwork/<feature_id>/screenshots"; mkdir -p "$SHOT_DIR"
+  # 浏览器截图存 "$SHOT_DIR/<name>.png" · 再按绝对路径 Read 查看
+  ```
+- **零工作区脚印**:在系统 temp · 不需 gitignore · 不进任何 commit · 不污染并行 Feature 基线(worktree 红线)。
+- **⚠️ 与 browser_e2e 证据区分**:`browser_e2e` stage 的**证据截图**是交付物 · 仍落 **`<feature_dir>/screenshots/*.png`**(committed · pm_acceptance 复核 · 详 browser-e2e-stage.md SOP)· **不**走临时目录。临时目录只放「自检看一眼」的非证据截图。
 
 ---
 

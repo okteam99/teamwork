@@ -27,6 +27,6 @@ v8 沿用主对话默认 · 不强制 Subagent · 保留架构演进的连续上
 
 ## 相关
 
-- 设计宪法:[../docs/v8-redesign/00-MANIFESTO.md](../docs/v8-redesign/00-MANIFESTO.md)
-- 命令 schema:[../docs/v8-redesign/01-COMMAND-SCHEMA.md](../docs/v8-redesign/01-COMMAND-SCHEMA.md)
+- 设计宪法:[../docs/archive/v8-redesign/00-MANIFESTO.md](../docs/archive/v8-redesign/00-MANIFESTO.md)
+- 命令权威:`state.py --help` + [../tools/_v8_stage_specs.py](../tools/_v8_stage_specs.py)(各 stage 契约 schema · 现行权威)
 - 通用引擎:[../tools/_v8_engine.py](../tools/_v8_engine.py)

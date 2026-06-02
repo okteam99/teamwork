@@ -945,6 +945,27 @@ def cmd_init_feature(args: argparse.Namespace) -> None:
             "bypass": "确属特例:export TEAMWORK_BYPASS_ROUTING_CHECK=1",
         }, ensure_ascii=False, indent=2))
 
+    # v8.79:撞号硬校验(R0 物化 · 治本 AON 13 组实测撞号 · 分布式 max+1 race 兜底)
+    # 目标 {PREFIX}-{字母}{number} 已被**另一**兄弟目录占用 → FAIL(同 clone 内兜;跨 clone 靠 utc 策略)
+    _collision = _detect_id_collision(feature_dir, args.feature_id)
+    if _collision and not args.force:
+        die(2, json.dumps({
+            "verdict": "FAIL",
+            "action": "init-feature",
+            "error": (
+                f"artifact 号段撞号:{_collision['number_id']} 已被现存目录 "
+                f"{_collision['existing']!r} 占用 · 与本次 {feature_dir.name!r} 同号"
+            ),
+            "hint": (
+                "另一 feature 已占该号段(多 agent/多机并行 race)· 换号重建:\n"
+                "  重跑 prepare-check 取新 next_available_id_stem · 改 --feature / --feature-id 后再 init。\n"
+                "  (utc 时间戳策略:重跑即得新秒级号 · sequential 策略:取 max+1 避让 existing_ids)"
+            ),
+            "collision": _collision,
+            "rule": "v8.79 撞号硬校验 · 可枚举规则进脚本(R0)· 治本分布式 max+1 race",
+            "bypass": "确属同号续作(罕见):--force 跳过撞号校验",
+        }, ensure_ascii=False, indent=2))
+
     if state_file.exists() and not args.force:
         die(2, json.dumps({
             "verdict": "FAIL",
@@ -1342,6 +1363,58 @@ def cmd_reset_prev(args: argparse.Namespace) -> None:
     })
 
 
+def _read_id_strategy(start: Path) -> str:
+    """读项目根 `.teamwork_localconfig.json` 的 `id_strategy`(v8.79)。
+
+    从 `start` 向上逐级找 `.teamwork_localconfig.json`(到 `.git` 项目边界为止)·
+    命中且值合法则用之 · 否则用默认。
+    - 默认 = `utc-yymmddhhmmss`(v8.79 起 · 治本分布式 `max+1` 撞号 · 详 docs/conventions.md §1)。
+    - opt-out = `sequential`(旧顺序号 `max+1` · 单 clone 项目可保留好念的短序号)。
+    """
+    DEFAULT = "utc-yymmddhhmmss"
+    VALID = {"sequential", "utc-yymmddhhmmss"}
+    try:
+        node = start.resolve()
+    except OSError:
+        return DEFAULT
+    for d in [node, *node.parents]:
+        cfg = d / ".teamwork_localconfig.json"
+        if cfg.exists():
+            try:
+                strat = json.loads(cfg.read_text(encoding="utf-8")).get("id_strategy")
+            except (OSError, json.JSONDecodeError):
+                return DEFAULT
+            return strat if strat in VALID else DEFAULT
+        if (d / ".git").exists():
+            break  # 到项目边界仍无配置 → 默认
+    return DEFAULT
+
+
+def _detect_id_collision(feature_dir: Path, feature_id: str) -> "dict | None":
+    """撞号硬校验(v8.79 · R0 物化 · 治本 AON 13 组实测撞号)。
+
+    扫 `feature_dir` 的兄弟目录 · 若有**另一**目录共享同 `{PREFIX}-{字母}{number}`
+    号段(同名 = 自身 · re-init/force · 不算撞)→ 返回撞号详情 · 否则 None。
+    注:仅兜**同 clone** race;跨 clone(各自看不到对方在途目录)的撞号此处兜不住 —— 合并时才现 ·
+    故 `utc-yymmddhhmmss` 才是跨 clone 的根治。两层互补 · 详 docs/conventions.md §1。
+    """
+    import re as _re
+    m = _re.match(r"^(.+?-[FBM]\d+)", feature_id)
+    if not m:
+        return None
+    number_id = m.group(1)  # e.g. PTR-F045 / SVC-PLATFORM-F260601143012
+    root = feature_dir.parent
+    if not root.exists():
+        return None
+    self_name = feature_dir.name
+    # number_id 后必接非数字或结尾(防 PTR-F045 误匹配 PTR-F0451-*)
+    pat = _re.compile(rf"^{_re.escape(number_id)}(?:\D|$)")
+    for child in root.iterdir():
+        if child.is_dir() and child.name != self_name and pat.match(child.name):
+            return {"number_id": number_id, "existing": child.name}
+    return None
+
+
 def cmd_prepare_check(args: argparse.Namespace) -> None:
     """v8.13:prepare 子流程 ID 冲突预检 · 推荐 next_available_id。
 
@@ -1392,9 +1465,17 @@ def cmd_prepare_check(args: argparse.Namespace) -> None:
     existing_ids = [name for _, name in existing]
     used_numbers = {n for n, _ in existing}
 
-    # 推荐下一可用编号 = max + 1(连续递增 · 不填空洞 · 详 docs/conventions.md § 1 "项目内独立递增")
-    next_num = (max(used_numbers) + 1) if used_numbers else 1
-    next_id_stem = f"{prefix}-{id_letter}{next_num:03d}"
+    # v8.79:号段分配按 id_strategy(默认 utc 时间戳 · opt-out sequential · 详 docs/conventions.md §1)
+    id_strategy = _read_id_strategy(root)
+    if id_strategy == "sequential":
+        # 顺序号 max+1(连续递增 · 不填空洞)· ⚠️ 分布式 race 隐患 · 靠 init-feature 撞号硬校验兜
+        next_num = (max(used_numbers) + 1) if used_numbers else 1
+        next_id_stem = f"{prefix}-{id_letter}{next_num:03d}"
+    else:  # utc-yymmddhhmmss(默认 v8.79)· UTC0 秒级时间戳 · 跨机分布式免协调
+        from datetime import datetime, timezone
+        ts = datetime.now(timezone.utc).strftime("%y%m%d%H%M%S")
+        next_num = int(ts)
+        next_id_stem = f"{prefix}-{id_letter}{ts}"
 
     payload = {
         "verdict": "OK",
@@ -1404,11 +1485,15 @@ def cmd_prepare_check(args: argparse.Namespace) -> None:
         "id_letter": id_letter,
         "existing_ids": existing_ids,
         "existing_count": len(existing_ids),
+        "id_strategy": id_strategy,
         "next_available_number": next_num,
         "next_available_id_stem": next_id_stem,
         "hint": (
             f"prepare 暂停点 artifact ID 默认填 {next_id_stem}-<Kebab-Case-名称> · "
             f"用户可改 · 但应避开 existing_ids 中已占编号"
+            + (" · 🕐 id_strategy=utc-yymmddhhmmss(UTC 秒级时间戳 · 已生成勿手算 · 重跑得新号)"
+               if id_strategy != "sequential"
+               else " · id_strategy=sequential(顺序号 max+1)")
             + ("" if args.flow_type
                else " · ⚠️ 未传 --flow-type · ID 字母默认 F · Bug/Micro 务必补 --flow-type")
         ),
@@ -2077,6 +2162,7 @@ EXTERNAL_STAGE_TO_PROFILE = {
 }
 
 EXTERNAL_REVIEW_TIMEOUT_SEC = 600  # v8.55:5min→10min(用户 case codex 偶尔卡 / 长 review · 给足 buffer)
+CLAUDE_REVIEW_ARGV_LIMIT = 200  # v8.85:claude argv prompt 超此长度 → 落 doc · argv 只发短引用句(治本长 argv)
 
 
 def _detect_cli_version(cli_name: str) -> str:
@@ -2262,7 +2348,7 @@ def _run_codex_review(stage: str, commit: str, base: str, title: str,
     早成功 · 唯独 review 走 codex review 持续超时)。codex exec 是稳定 headless 路径
     (goal/blueprint 已验证)· review 对象差异(代码 diff vs 文档)全由
     `_build_codex_prompt` 内置 prompt 描述。
-    (codex review↔exec 反复横跳演进史见 docs/CHANGELOG.md)
+    (codex review↔exec 反复横跳演进史见 docs/CHANGELOG-ARCHIVE.md · v8.23-26)
     """
     # 算 feature_dir 相对 cwd · 让 prompt 用相对路径(codex 在 cwd=git root 跑)
     try:
@@ -2304,34 +2390,65 @@ def _run_codex_review(stage: str, commit: str, base: str, title: str,
         return 127, "", f"codex CLI 不可用:{e}{tail}"
 
 
-def _run_claude_review(prompt_text: str, model_name: str = "claude-sonnet-4-6",
-                       feature_dir: Optional[Path] = None, stage: str = "review"
-                       ) -> tuple[int, str, str]:
-    """跑 claude -p <prompt_argv> --output-format text · 返 (rc, stdout, stderr)。
+def _build_claude_review_cmd(prompt_text: str, feature_dir: Optional[Path],
+                             prompt_doc: Optional[Path]
+                             ) -> tuple[list, Optional[str]]:
+    """v8.85:按 prompt 长度选 inline / doc 模式 · 返 (cmd, cwd)。
+
+    - 短(≤200 字符):argv inline · `claude -p <prompt> --output-format text`(纯文本 · 无工具 · 快)。
+    - 长(>200):prompt 落 doc · argv 只发 ≤200 字符短句「先写 review_start.log 时间戳证明在工作 ·
+      再读 <doc> 做 review」· `--allowedTools Write Read`(只放行读+写 liveness 日志 · 不放行
+      Bash/执行 · 守只读评审)· cwd=feature_dir(review_start.log + doc 相对路径都落 feature 目录)。
+    单测可直接调本函数断言 cmd(不真跑 CLI)。
+    """
+    use_doc = (prompt_doc is not None and feature_dir is not None
+               and len(prompt_text) > CLAUDE_REVIEW_ARGV_LIMIT)
+    if use_doc:
+        try:
+            prompt_doc.parent.mkdir(parents=True, exist_ok=True)
+            if not prompt_doc.exists():
+                # fallback inline 模式也物化 doc(可审计 + 可复跑)
+                prompt_doc.write_text(prompt_text, encoding="utf-8")
+            rel = prompt_doc.resolve().relative_to(Path(feature_dir).resolve()).as_posix()
+        except (OSError, ValueError):
+            use_doc = False
+    if use_doc:
+        # ≤200 字符短 argv(rel 短 · 总长受控):liveness 日志 + 读 doc
+        short = (f"First write review_start.log (UTC timestamp) in cwd (liveness), "
+                 f"then read {rel} and follow it; output only the review, no other writes.")
+        cmd = ["claude", "-p", short, "--allowedTools", "Write", "Read",
+               "--output-format", "text"]
+        return cmd, str(feature_dir)
+    return ["claude", "-p", prompt_text, "--output-format", "text"], None
+
+
+def _run_claude_review(prompt_text: str,
+                       feature_dir: Optional[Path] = None, stage: str = "review",
+                       prompt_doc: Optional[Path] = None) -> tuple[int, str, str]:
+    """跑 claude review · 返 (rc, stdout, stderr)。
 
     v8.38(用户拍板 2026-05-27):用 `-p`(short)替代 `--print`(long)。
     v8.43(case SVC-PLATFORM-F054 blueprint round 3):prompt 从 stdin 改 argv ·
-    治本 Claude CLI 2.1.153 在 stdin 模式触发 "Not logged in · Please run /login"
-    bug(case 实测:claude -p 'prompt' OK · printf 'prompt' | claude -p FAIL)。
-
-    argv 模式限制:macOS ARG_MAX ≈ 256KB · Linux ≈ 128KB · prompt 含 file 内容
-    inline 时可能超。极端长 prompt 撞 ARG_MAX 时 OSError("Argument list too long")
-    捕获后返 errno=7 · 让上层 emit 清晰 hint 提示 prompt 过长。
+    治本 Claude CLI 2.1.153 在 stdin 模式触发 "Not logged in · Please run /login" bug。
+    v8.84(用户拍板):**不再 --model 指定模型 · 用 claude CLI 默认值**。
+    v8.85(用户拍板):**短 prompt 走 argv inline;长 prompt(>200)落 doc · argv 只发
+    短引用句 + 让 reviewer 先写 review_start.log 时间戳证明在工作**(详 _build_claude_review_cmd)·
+    治本长 argv 卡 / 把模板当问题 / 调用方无法判断模型是否卡死。
     """
-    cmd = ["claude", "-p", prompt_text, "--model", model_name, "--output-format", "text"]
+    cmd, cwd = _build_claude_review_cmd(prompt_text, feature_dir, prompt_doc)
     label = f"claude-{stage}"
     t0 = datetime.now(timezone.utc)
     try:
         r = subprocess.run(cmd, capture_output=True, text=True,
                            timeout=EXTERNAL_REVIEW_TIMEOUT_SEC,
-                           stdin=subprocess.DEVNULL)  # v8.55:闭 stdin · 防交互卡住
+                           stdin=subprocess.DEVNULL, cwd=cwd)  # v8.55:闭 stdin · 防交互卡住
         dur = (datetime.now(timezone.utc) - t0).total_seconds()
-        _log_external_run(feature_dir, label, cmd, "(inherit)",
+        _log_external_run(feature_dir, label, cmd, cwd or "(inherit)",
                           r.returncode, r.stdout, r.stderr, dur)
         return r.returncode, r.stdout, r.stderr
     except subprocess.TimeoutExpired as e:
         dur = (datetime.now(timezone.utc) - t0).total_seconds()
-        log_path = _log_external_run(feature_dir, label, cmd, "(inherit)",
+        log_path = _log_external_run(feature_dir, label, cmd, cwd or "(inherit)",
                                      "TIMEOUT", e.stdout, e.stderr, dur)
         tail = f" · 见日志 {log_path}" if log_path else ""
         return 124, "", f"claude -p 超时({EXTERNAL_REVIEW_TIMEOUT_SEC}s){tail}"
@@ -2339,7 +2456,7 @@ def _run_claude_review(prompt_text: str, model_name: str = "claude-sonnet-4-6",
         if getattr(e, "errno", None) == 7:  # E2BIG · argument list too long
             return 127, "", (
                 f"claude -p prompt 过长(ARG_MAX 超限 · prompt_bytes={len(prompt_text)})· "
-                f"考虑减少 inline 文件数或精简 file_list(v8.43 limitation)"
+                f"应已落 doc 模式 · 检查 prompt_doc 是否可写"
             )
         return 127, "", f"claude CLI 不可用:{e}"
     except FileNotFoundError as e:
@@ -2849,9 +2966,13 @@ def cmd_external_review(args: argparse.Namespace) -> None:
             )
         else:
             preview_cmd = (
-                # v8.38:claude CLI 用 -p(short alias for --print)· 用户约定
-                f"cat {profile_path} | claude -p "
-                f"--model claude-sonnet-4-6 --output-format text"
+                # v8.38 用 -p · v8.84 不 --model(用默认)· v8.85 doc 模式:
+                # 长 prompt 落 external-review-prompts/<stage>-<model>.md · argv 只发短引用句
+                # (先写 review_start.log liveness · 再读 doc) · --allowedTools Write Read · cwd=feature_dir
+                "cd <feature_dir> && claude -p "
+                "'First write review_start.log (UTC timestamp) in cwd (liveness), then read "
+                f"external-review-prompts/{args.stage}-{model}.md and follow it; output only the review' "
+                "--allowedTools Write Read --output-format text"
             )
         emit({
             "verdict": "OK",
@@ -2939,21 +3060,42 @@ def cmd_external_review(args: argparse.Namespace) -> None:
                 f"治本长 prompt 卡 + 不可审计 · v8.44 推荐路径)"
             )
         rc, stdout, stderr = _run_claude_review(
-            prompt_text, feature_dir=feature_dir, stage=args.stage)
+            prompt_text, feature_dir=feature_dir, stage=args.stage,
+            prompt_doc=prompt_doc)
+
+    # v8.85:claude doc 模式 reviewer 会先写 review_start.log(时间戳)证明在工作 ·
+    # 读取作 liveness 留痕 + 清理(不污染 feature 目录)· codex 路径无此文件(read-only sandbox)
+    liveness_at = None
+    _rsl = feature_dir / "review_start.log"
+    if _rsl.exists():
+        try:
+            liveness_at = (_rsl.read_text(encoding="utf-8").strip()[:80] or "present")
+        except OSError:
+            liveness_at = "present"
+        try:
+            _rsl.unlink()
+        except OSError:
+            pass
 
     if rc != 0:
+        # v8.85:liveness 区分「模型从未响应」vs「启动了但没跑完(慢/限流)」
+        if liveness_at:
+            live_hint = (f"reviewer 已写 review_start.log({liveness_at})· 即模型**已启动但未跑完** · "
+                         f"多半是慢 / 限流 · 直接重跑(并发跑多个 claude 会限流 · 串行重试)· "
+                         f"🔴 切勿伪造 tool_error 文件或自列 external 通过门禁")
+        else:
+            live_hint = (f"无 review_start.log · 模型**可能从未响应** · 查 ① 网络 / token"
+                         f"(setup-token / OAuth)· ② {cli_name} --version · ③ 是否并发限流 · 再重跑")
         emit({
             "verdict": "FAIL",
             "command": "external-review",
             "error": f"{cli_name} 执行失败(exit={rc}): {stderr[:300]}",
-            "hint": (
-                f"排查 ① 网络 / token(setup-token / OAuth)· "
-                f"② {cli_name} --version 验本地工具 · ③ 重跑 state.py external-review"
-            ),
+            "hint": live_hint,
             "host": host,
             "model": model,
             "cli_exit_code": rc,
             "cli_stderr": stderr[:500],
+            **({"liveness_confirmed_at": liveness_at} if liveness_at else {}),
         })
         return
 
@@ -3070,6 +3212,8 @@ def cmd_external_review(args: argparse.Namespace) -> None:
             if model == "claude" and prompt_doc_used else {}),
         **({"prompt_doc_fallback_warning": fallback_warning}
             if model == "claude" and fallback_warning else {}),
+        # v8.85:claude doc 模式 reviewer 写的 review_start.log 时间戳(liveness 留痕)
+        **({"liveness_confirmed_at": liveness_at} if liveness_at else {}),
     })
 
 
@@ -3677,8 +3821,9 @@ def build_parser() -> argparse.ArgumentParser:
     # 不再在 state.py 注册 subparser(治本"元工具混运行时"+ chicken-and-egg)
 
     # ─── v8.0 stage 命令注册(Code-driven Orchestration) ─────────────
-    # 设计文档:docs/v8-redesign/00-MANIFESTO.md
-    # 命令 schema:docs/v8-redesign/01-COMMAND-SCHEMA.md
+    # 设计文档:docs/archive/v8-redesign/00-MANIFESTO.md(rationale · 历史归档)
+    # 命令 schema 现行权威:state.py --help + _v8_stage_specs.py
+    #   (01-COMMAND-SCHEMA.md 为 v8.0 归档快照 · 命令已大幅演进)
     # 引擎模块:
     # - _v8_engine.py   通用 stage start/complete + bypass 协议
     # - _v8_stage_specs.py  11 stage 完整契约

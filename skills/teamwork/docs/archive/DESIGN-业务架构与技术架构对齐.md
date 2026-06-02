@@ -4,7 +4,7 @@
 
 
 > 解决 teamwork skill 中「子项目 = 业务域边界」假设导致的三个对不齐问题。
-> 状态：✅ 已落地 v3 · 变更已同步到 SKILL.md / ROLES.md / TEMPLATES.md(RULES.md 已删 · 内容并入 SKILL.md「PMO 软约束」+ docs/v8-redesign/00-MANIFESTO.md「九红线」)
+> 状态：✅ 已落地 v3 · 变更已同步到 SKILL.md / ROLES.md / TEMPLATES.md(RULES.md 已删 · 内容并入 SKILL.md「PMO 软约束」+ docs/archive/v8-redesign/00-MANIFESTO.md「九红线」)
 
 ---
 

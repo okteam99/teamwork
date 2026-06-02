@@ -60,16 +60,16 @@ ship-finalize 内部自动编排(**可重入** · 失败步骤修复后重跑即
 | 2 | confirm-merged | `ship.phase` pushed → merged |
 | 3 | cleanup | `ship.worktree_cleanup` = cleaned / n_a |
 | 4 | ship-complete | `current_stage` → completed |
-| 5 | finalize-push | git plumbing 把 `state.json` 直推 merge_target(零 checkout · §12 例外) |
-| 6 | worktree-remove | 物理删 feature worktree + 本地 feature 分支 |
-| 7 | main-sync | 主工作区 `git fetch` + 安全 `git pull --ff-only`(在 merge_target 分支且工作树干净时 · 让本地跟上 ship 结果)|
+| 5 | **finalize-deliver(v8.80 去直推 · v8.82 加归档)** | **去直推**:state.py 暂存收尾 commit 到 `ship-finalize/<id>` 分支 → 交接 AI 用 gh/glab **创 MR + 自动合并** → 重跑检测已合 → 续。**v8.82(`archive_on_ship`·默认 true)**:收尾分支不止同步 state.json · 而是把交付的**过程层** feature 目录 zip 进 `features/_archive/<id>.zip`(+ INDEX.md)· 并从 merge_target **删原目录**(详 §15)· 已交付判定 = zip 在 merge_target 存在。未合 → emit `PENDING`。merge_target **只经 MR**(兼容保护分支 · 主工作区只 pull) |
+| 6 | worktree-remove | 物理删 feature worktree + 本地 feature 分支(🔴 **收尾 MR 合并后**才删) |
+| 7 | main-sync | 主工作区 `git fetch` + 安全 `git pull --ff-only`(让本地跟上 ship 结果)。**v8.82 归档已交付**:先把本地 feature 目录恢复 HEAD 干净态(内容已进 zip)→ ff-pull 干净删除该目录 |
 
 **为什么必在主工作区**:step 6 worktree-remove 不能删自身所在 worktree · 且 Phase 2 状态同步语义属于 merge_target 主工作区(P0-156)。在 linked worktree 跑 → precheck FAIL · hint 给精确 cd 目标。
 
 **AI 只在失败点干预**(其余全自动):
 - **step 0 FAIL**(worktree 已被手工删 + 主工作区 state.json 不全):无路可走 · hint 排查 worktree path / --feature 路径 / 当前分支 · 或 bypass 后手工 finalize。
 - **step 1 FAIL**(feature_head 不在 merge_target):两种可能 → ① MR 尚未合并 · 等用户;② squash / rebase 合并(见 §6)。按 R5 给用户 1/2 选项判断。
-- **step 5 finalize-push 失败**(冲突 / 保护分支 / 网络):§12 降级 · worktree 保留为 state.json 唯一副本 · 修复后重跑 ship-finalize(可重入自动跳过已完成步骤)。
+- **step 5 finalize-deliver PENDING(v8.80)**:收尾分支已暂存 · 待 AI 用 gh/glab 创 MR + 自动合。**降级**:gh/glab 不可用(未登录 / token 无 scope / 网络)→ 报明确原因给用户 · 解决后重跑;无法自动合 → 给 MR(create)链接让用户手动合 → 合后重跑。worktree **保留**(未交付不删)· 重跑可重入(语义检测已合 → 续删 worktree + pull)。
 - **step 6 worktree-remove 失败**(worktree 占用等):降级 warning · state.json 已 finalize 不丢 · 按 hint 手动 `git worktree remove`。
 - **step 7 pull 跳过**(主工作区不在 merge_target / 工作树有未提交改动 / 与 origin 分叉):降级 warning · 已 fetch · 按 hint 手动 `git pull --ff-only`。
 
@@ -122,9 +122,11 @@ ship-phase --action confirm-merged → ship-phase --action cleanup --status clea
 
 ---
 
-## 12. Phase 2 finalize · state.json 直推例外
+## 12. Phase 2 finalize · 收尾投递(v8.80 去直推 → 收尾 MR)
 
-> 🔴 `ship-finalize` step 5(finalize-push)已**自动完成**本节直推(git plumbing · 零 checkout · 单文件 state.json diff)· 本节是**原理说明** + §7 手动路径参考。
+> 🔴 **v8.80 变更**:step 5 已从「state.json 直推 merge_target」改为 **finalize-deliver**(收尾改动暂存到 `ship-finalize/<id>` 分支 → AI 用 gh/glab 创 MR + 自动合并 → 重跑语义检测已合)。**merge_target 全程只经 MR**(兼容保护分支)· 主工作区**只 pull · 不再制造脏 main** · worktree 删除/主分支 pull **在收尾 MR 合并之后**。降级:gh/glab 不可用 → 报因 + 用户解决重跑 / 给 MR 链接手合。详 CHANGELOG v8.80。
+> 🔴 **v8.82 增量**:收尾 MR 不止同步 state.json · 默认(`archive_on_ship`)还把交付的过程层 feature 目录 **zip 进 `features/_archive/<id>.zip` + 删原目录**(防 AI 检索过时信息 · 代码是唯一真相)· 已交付判定改为「zip 在 merge_target 存在」。详 **§15**。
+> ⚠️ 下方「直推例外」段为 **≤v8.79 历史原理**(state-sync 实证仍有效 · 直推机制已被收尾 MR 取代)。
 
 🟢 **实证 case · SVC-CORE-B006(2026-05-21)· step 0 state-sync 治本根因**:
 Phase 1 `ship-phase sanitize / push` 写 state.json 后**不自动 commit**(by design · 防 MR 被 chore commit 弄脏)· 所以 push 到 feature 分支的 commit 不含完整 state.json(缺 `ship.phase=pushed` / `feature_head_commit` 等)。用户 merge MR 后 · 主工作区 `git pull` 拉下的 state.json 是合并前快照(不全)· Phase 2 step 1 verify-merge 读不到 `feature_head_commit` → FAIL。**完整态 state.json 永远在 worktree 内工作树**(sanitize/push 写入但未 commit)· v8.16 step 0 state-sync 自动把 worktree 内完整态拷到主工作区 · step 5 finalize-push 把完整态直推到 merge_target · 闭环。
@@ -212,6 +214,52 @@ confirm-merged 必传 · git 校验存在
 
 ### `state.ship.worktree_cleanup`
 cleaned / deferred / n_a · cleaned 必 phase=merged
+
+---
+
+## 14. ship1 知识沉淀闸门(distill · v8.81)
+
+> 🔴 **过程 / 知识两层**:`docs/features/{id}/`(PRD/TC/TECH/report/state)= **过程层**(交付即历史快照 · 会 drift)· 而 `KNOWLEDGE.md`/`ADR`/`REG`/`retro`/`ARCHITECTURE.md`/`database-schema.md` = **知识层**(持久 · 须保鲜)。**「描述代码」的文档随代码进 MR** —— ship 前(Phase 1)把该 graduate 的知识提到知识层,**随本次 feature MR 一起被 review + 合**。
+
+**硬闸门**:`ship-phase --action sanitize` **必带 `--distill`**(JSON · 知识层 6 项决策)· 缺 / 非法 / 缺项 → BLOCK。
+
+```
+--distill '{
+  "knowledge":     "promoted <gotcha/约定> / none",     # KNOWLEDGE.md(project-specs)
+  "adr":           "ADR-NNNN <决策> / none",            # docs/adr/(决策有备选+后果)
+  "reg":           "REG-<case> / none",                 # e2e-registry(可复用测试场景)
+  "retro":         "done / n/a",                        # docs/retros/(复盘)
+  "architecture":  "updated <模块/接口> / no-change",   # docs/architecture/ARCHITECTURE.md
+  "db_schema":     "updated <表> / no-change / data-only migration"  # docs/architecture/database-schema.md
+}'
+```
+
+- **R0**:强制 AI **逐项走一遍**(每项记 `updated/promoted <what>` 或显式 `none`/`n/a` · 证明已判断)· **质量留 AI · 「走没走」进脚本**。
+- 🔴 **迁移↔schema 机械校验**:feature diff 含 `migration` 文件 **且** `db_schema` 声明无变更 **且** `database-schema.md` 未更 → **BLOCK**(治本 schema 文档 drift)。纯数据迁移 → `db_schema` 写 `data-only migration`。
+- 🔴 建了 ADR → `ARCHITECTURE.md`「技术设计决策」表应有对应行(architecture.md §)。
+- **落点**:6 项写的知识层文件须在 worktree **commit**(随 feature MR 合)· 不是直接改主工作区。`ship["distill"]` 记录决策留痕。
+- **为什么在 ship1(合入前)**:知识层是「代码的文档」→ 随代码同 MR 被确认;且它是 feature 目录归档(过程层 · §15)的**前置** —— 先把真相提到知识层,过程稿才能安心归档。
+
+---
+
+## 15. ship2 归档本体(archive · v8.82)
+
+> 🔴 **过程层归档**:distill(§14)已把「描述代码」的知识 graduate 到知识层(随 feature MR 合)· 过程层 `docs/features/{id}/` 的使命已尽。**ship2 收尾 MR** 把它 zip 进 `features/_archive/<id>.zip` · 并从 merge_target **删原目录**。
+>
+> **为什么删而不是留**:归档的主要目的是**防止 AI 检索到过时的 feature 信息**(PRD/TECH 等过程稿交付即开始 drift · 与实际代码不匹配)。**代码是唯一真相** · 知识层是代码的文档 · 过程稿只留可追溯的 zip 快照。
+
+**何时**:`ship-finalize` step 5 finalize-deliver(`archive_on_ship`·默认 true)· **随收尾 MR 一起合**(MR 合入后目录才从 merge_target 消失 · 经 review)。
+
+**机制**(state.py 全自动 · AI 只在 PENDING 处创/合 MR):
+1. step 1-4 把终态写进本地 feature 目录(含 `state.json current_stage=completed`)。
+2. step 5 把整个 feature 目录打成 `features/_archive/<id>.zip`(arcname=`<id>/...` · 自描述)· 追加 `_archive/INDEX.md` 一行 · 并在收尾 commit 里 **删除 feature 目录的所有 tree 条目** · push 到 `ship-finalize/<id>` 分支 → emit `PENDING`(交接 AI 创 MR + 自动合 · 同 §12)。
+3. 收尾 MR 合并后重跑:**已交付判定 = zip 在 `origin/merge_target` 存在**(抗 squash)· 续 step 6/7。
+4. step 7 主工作区:先把本地 feature 目录恢复 HEAD 干净态(内容已进 zip)→ `ff-pull` 干净删除该目录 + 落地 zip。
+5. **幂等 3rd-run**:目录已被删 → state-sync 找不到 state.json · 但检测到 zip 已在 merge_target → emit 幂等 `PASS`(已交付终态 · 无动作)。
+
+**opt-out**:`archive_on_ship: false` → 退回 v8.80(收尾 MR 只同步终态 `state.json` · 不 zip · 目录留存)。详 templates/config.md。
+
+**取历史**:`unzip features/_archive/<id>.zip` · 或读 `_archive/INDEX.md` 索引。
 
 ---
 

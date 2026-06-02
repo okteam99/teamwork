@@ -1,4 +1,4 @@
-# UI 模板�真相归 HTML · 本文件只承载意图 / 追溯 / 审计）
+# UI 模板（真相归 HTML · 本文件只承载意图 / 追溯 / 审计）
 
 > 🔴 **职责单源**：
 > - **视觉真相** = 预览产物（布局 / 组件 / 主色 / 字号 / 间距 / 响应式 / 4 态 / 用户流程交互）· 按 `panorama_medium`：`static-html` → `preview/*.html`；**`same-stack`（v8.58 option B）→ `preview-project/` 源**（跑 `preview.sh` 看实时 dev server · 不出静态 build）
@@ -59,7 +59,7 @@ pages_changed:
 
 ---
 
-## Designer 自查报告（🔴 出口必填 �化 · verify-panorama.py 校�）
+## Designer 自查报告（🔴 出口必填 物化 · verify-panorama.py 校验）
 
 > 详细规范 cite [standards/common.md § 四B Designer 自查规范](../standards/common.md)。Designer 完成设计后必填本段 · 5 维度全 ✅ 才进 ⏸️ 用户确认。
 

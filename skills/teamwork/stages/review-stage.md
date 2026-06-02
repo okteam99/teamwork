@@ -17,6 +17,10 @@ AC 逐条对照实现 / 测试覆盖度 / 边界场景
 ### 4. External cross-review → external-cross-review/review-<model>.md
 **跑** `state.py external-review --feature <path> --stage review`(v8.20+ 物化主路径 · host/model/profile 全自动 · 异质性硬约束物理墙 · 至少 1 份 · P0-154)。详 [standards/external-model-usage.md §十一](../standards/external-model-usage.md)。
 
+🔴 **同步 · 慢 · 别提前 kill(v8.85)**:external-review **同步阻塞**跑(timeout 600s)· 真实评审常 **30s–3min**(模型并发 / 限流时更久 · `claude -p` 会静默无输出)。**前台跑、耐心等满 600s · 不要中途 kill**。
+- **liveness 信号**:claude doc 模式下 reviewer 启动后会先在 feature 目录写 `review_start.log`(时间戳)证明在工作 —— 后台轮询看到它出现 = 模型正常,继续等;一直没出现才是真没响应。state.py 跑完把它读进 `liveness_confirmed_at` 并清理。
+- **真超时 / 空输出 = `verdict: FAIL`(门禁未达)· 不是放行**:🔴 **禁止**伪造 `tool_error` 文件、或把 external 自列进 REVIEW.md `reviewers` 当通过。按 FAIL 的 hint 串行重跑(并发会限流);仍不行 → 报因给用户,**不得**绕过 P0-154。
+
 ### 5. 汇合 → REVIEW.md
 frontmatter `reviewers + verdict: APPROVE|NEEDS_REVISION` · body §finding / §修复建议 / §verdict
 

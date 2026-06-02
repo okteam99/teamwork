@@ -414,13 +414,11 @@ class TestCmdShipFinalizeStep7NoNameError(unittest.TestCase):
             "merge_target": "main",
             "worktree": {"strategy": "off"},  # 跳过 worktree-remove
             "ship": {
-                "phase": "merged",   # step 1+2+5 全 skipped
+                "phase": "merged",   # step 1+2 全 skipped
                 "shipped": "merged",
                 "feature_head_commit": "deadbeef",
                 "merge_commit_hash": "cafebabe",
                 "worktree_cleanup": "n_a",
-                "merge_target_pushed_at": "2026-05-25T00:00:00Z",
-                "merge_target_push_failed": False,
             },
             "stage_contracts": {
                 "ship": {
@@ -435,9 +433,15 @@ class TestCmdShipFinalizeStep7NoNameError(unittest.TestCase):
         (feat_dir / "state.json").write_text(
             json.dumps(state, ensure_ascii=False, indent=2),
             encoding="utf-8")
+        # v8.82:本套测 v8.80 非归档路径(state.json 终态同步)· archive_on_ship=false 固定行为
+        (self.main / ".teamwork_localconfig.json").write_text(
+            json.dumps({"archive_on_ship": False}), encoding="utf-8")
         _git(self.main, "add", "-A")
         _git(self.main, "commit", "-m", "init")
         _git(self.main, "push", "origin", "main")
+        # v8.80:模拟收尾分支已并入(= main HEAD · ancestor)→ step 5 finalize-deliver 检测已合 → 直入 step 7
+        _git(self.main, "push", "origin",
+             "main:refs/heads/ship-finalize/INFRA-M999-test")
         self.feature_arg = str(feat_dir)
 
         # bypass main worktree check + checksum + state-sync 网络
@@ -484,6 +488,117 @@ class TestCmdShipFinalizeStep7NoNameError(unittest.TestCase):
                               f"未进 step 7 · emit:{d}")
         finally:
             os.chdir(prev_cwd)
+
+
+class TestFinalizeDeliverV880(unittest.TestCase):
+    """v8.80:ship-finalize step 5 finalize-deliver(去直推 · 收尾改动经 MR · AI 驱动合)。
+
+    覆盖:
+    - 首跑:暂存收尾 commit 到 ship-finalize/<id> 分支 + emit PENDING(未达 step 7 · 不删 worktree)
+    - 全周期:暂存 → 模拟远端合并(ff origin/main)→ 重跑 ancestor-check 检测已合 → 交付 + 达 step 7
+    """
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp(prefix="ship-deliver-v880-"))
+        self.bare = self.tmp / "origin.git"
+        self.bare.mkdir()
+        _git(self.bare, "init", "--bare", "-b", "main")
+        self.main = self.tmp / "main-repo"
+        self.main.mkdir()
+        _git(self.main, "init", "-b", "main")
+        _git(self.main, "config", "user.email", "test@x.com")
+        _git(self.main, "config", "user.name", "test")
+        _git(self.main, "remote", "add", "origin", str(self.bare))
+        self.feat_rel = "infra/docs/features/INFRA-M888-deliver"
+        feat_dir = self.main / self.feat_rel
+        feat_dir.mkdir(parents=True)
+        state = {
+            "feature_id": "INFRA-M888-deliver",
+            "flow_type": "Micro",
+            "current_stage": "ship",   # step 4 ship-complete 会改 → 保证有 delta
+            "merge_target": "main",
+            "worktree": {"strategy": "off"},   # 跳过 worktree-remove
+            "ship": {
+                "phase": "merged",     # step 1+2 skip
+                "shipped": "merged",
+                "feature_head_commit": "deadbeef",
+                "merge_commit_hash": "cafebabe",
+            },
+            "stage_contracts": {},
+            "completed_stages": ["goal", "dev", "review", "test", "pm_acceptance"],
+            "concerns": [],
+        }
+        (feat_dir / "state.json").write_text(
+            json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
+        # v8.82:本套测 v8.80 非归档投递路径 · archive_on_ship=false 固定行为(归档默认 true)
+        (self.main / ".teamwork_localconfig.json").write_text(
+            json.dumps({"archive_on_ship": False}), encoding="utf-8")
+        _git(self.main, "add", "-A")
+        _git(self.main, "commit", "-m", "init")
+        _git(self.main, "push", "origin", "main")
+        self.feature_arg = str(feat_dir)
+        self.state_path = feat_dir / "state.json"
+        self._prev_env = {
+            "TEAMWORK_BYPASS_MAIN_WORKTREE": os.environ.get("TEAMWORK_BYPASS_MAIN_WORKTREE"),
+            "TEAMWORK_BYPASS_CHECKSUM": os.environ.get("TEAMWORK_BYPASS_CHECKSUM"),
+        }
+        os.environ["TEAMWORK_BYPASS_MAIN_WORKTREE"] = "1"
+        os.environ["TEAMWORK_BYPASS_CHECKSUM"] = "1"
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+        for k, v in self._prev_env.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
+
+    def _finalize(self):
+        prev = os.getcwd()
+        os.chdir(str(self.main))
+        try:
+            r = subprocess.run(
+                [sys.executable, str(STATE_PY), "ship-finalize",
+                 "--feature", self.feature_arg],
+                capture_output=True, text=True, timeout=30)
+            self.assertNotIn("NameError", r.stderr, r.stderr[:400])
+            d = json.loads(r.stdout) if r.stdout.strip().startswith("{") else {}
+            return r, d
+        finally:
+            os.chdir(prev)
+
+    def test_first_run_stages_branch_and_pending(self):
+        _, d = self._finalize()
+        self.assertEqual(d.get("verdict"), "PENDING", d)
+        self.assertEqual(d.get("pending_step"), "finalize-deliver")
+        self.assertEqual(d["finalize_mr"]["branch"], "ship-finalize/INFRA-M888-deliver")
+        self.assertTrue(d["finalize_mr"]["head_commit"])
+        # 未达 step 7(收尾未合 · 不删 worktree / 不 pull)
+        self.assertNotIn("main_sync_status", d)
+        # 收尾分支真推到 origin(投递锚 · 不持久化 finalize_mr 到 state.json · 避免与交付版分叉)
+        _, out, _ = _git(self.main, "ls-remote", "origin",
+                         "ship-finalize/INFRA-M888-deliver")
+        self.assertIn("ship-finalize/INFRA-M888-deliver", out)
+
+    def test_full_cycle_delivers_after_merge(self):
+        _, d1 = self._finalize()
+        self.assertEqual(d1.get("verdict"), "PENDING")
+        sf_commit = d1["finalize_mr"]["head_commit"]
+        # 模拟远端 MR 合并:ff origin/main 到收尾 commit(收尾 commit 父 = origin/main)
+        rc, _, err = _git(self.main, "push", "origin", f"{sf_commit}:main")
+        self.assertEqual(rc, 0, f"模拟合并 push 失败:{err}")
+        # 重跑:ancestor-check 检测已合 → 交付 → 达 step 7
+        _, d2 = self._finalize()
+        self.assertEqual(d2.get("verdict"), "PASS", d2)
+        merged_steps = d2.get("completed_steps", []) + d2.get("skipped_steps", [])
+        self.assertIn("finalize-deliver", merged_steps)
+        self.assertIn("main_sync_status", d2)   # 达 step 7(收尾已合 → 续 worktree/pull)
+        # 幂等:再跑仍交付(不重新暂存 PENDING)· merge_target 是真相 ·
+        # state.json 已由 step 7 同步为 merge_target 版 → 无 delta → 走 no-delta 交付
+        _, d3 = self._finalize()
+        self.assertEqual(d3.get("verdict"), "PASS", d3)
+        self.assertNotEqual(d3.get("verdict"), "PENDING")
+        self.assertIn("main_sync_status", d3)
 
 
 class TestClassifyMainSyncDirty(unittest.TestCase):

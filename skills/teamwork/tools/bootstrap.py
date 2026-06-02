@@ -452,6 +452,9 @@ def maintain_gitignore_worktree(project_root: Path,
          "# Teamwork harness locks (session pid · 不该 commit · v8.31)"),
         (".claude/agents.lock", ".claude/agents.lock",
          "# Teamwork harness locks (session pid · 不该 commit · v8.31)"),
+        # v8.85:external review reviewer 写的 liveness 标记(state.py 跑完会清 · 兜底防残留误入)
+        ("review_start.log", "review_start.log",
+         "# Teamwork external-review liveness marker (transient · v8.85)"),
     ]
 
     # 仅在 git repo 内执行
