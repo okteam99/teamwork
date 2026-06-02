@@ -1,10 +1,19 @@
-# Changelog Archive(v8.83 → v1)
+# Changelog Archive(v8.84 → v1)
 
-> 📦 **历史归档**:本文件保存 teamwork **v8.83 及更早**的全部 changelog(含 v7/v6/…/v1 等 v8.0 之前的旧系统)· 仅供追溯,**不再维护**。
-> 现行 changelog(最近 1 版 · v8.84)见 [CHANGELOG.md](./CHANGELOG.md)。
+> 📦 **历史归档**:本文件保存 teamwork **v8.84 及更早**的全部 changelog(含 v7/v6/…/v1 等 v8.0 之前的旧系统)· 仅供追溯,**不再维护**。
+> 现行 changelog(最近 1 版 · v8.85)见 [CHANGELOG.md](./CHANGELOG.md)。
 > ⚠️ v8.0 是「范式切换 · 不向下兼容」的重构 —— **v7 及更早描述的是已不存在的旧系统**,其机制/命令/红线编号均不适用于现行 v8。
 
 ---
+
+## v8.84 · 外部评审 claude 不再指定模型 · 用 CLI 默认值(dev-only)
+
+> 用户拍板:外部评审调 claude 时**不要 `--model` 指定模型 · 用默认值**。承接 v8.30「工具不假设模型名」原则(当时只治了 codex 的虚构 `gpt-5-codex` · claude 路径仍硬编码 `claude-sonnet-4-6`)。
+
+### 变更
+- `_run_claude_review`:去掉 `--model claude-sonnet-4-6` · cmd = `claude -p <prompt> --output-format text`(模型随用户 claude CLI 默认配置)。删掉无用的 `model_name` 形参。
+- dry-run `preview_command` 同步去 `--model`。
+- pytest **3 failed / 460 passed**(baseline 3 = scan-spec 既有失败 · 零回归)。`test_v843` 断言 `assertIn('--model')` → `assertNotIn` 锚定新行为。
 
 ## v8.83 · 文档卫生(死链修复 + 归档引用去权威化 + 删 v7 死测试 · dev-only)
 

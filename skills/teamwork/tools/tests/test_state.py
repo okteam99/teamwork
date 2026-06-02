@@ -1486,6 +1486,55 @@ class TestExternalReviewCommand(unittest.TestCase):
         self.assertNotIn("--model", captured_cmd)
         self.assertIn("--output-format", captured_cmd)
 
+    # ── v8.85:短 prompt inline / 长 prompt 落 doc + 短 argv + review_start.log liveness ──
+
+    def test_v885_short_prompt_inline(self):
+        """v8.85:≤200 字符 prompt → argv inline · 无 --allowedTools · cwd=None。"""
+        from state import _build_claude_review_cmd  # type: ignore
+        with tempfile.TemporaryDirectory() as d:
+            feat = Path(d)
+            cmd, cwd = _build_claude_review_cmd("short prompt", feat, feat / "doc.md")
+        self.assertEqual(cmd[2], "short prompt")
+        self.assertNotIn("--allowedTools", cmd)
+        self.assertIsNone(cwd)
+
+    def test_v885_long_prompt_doc_mode(self):
+        """v8.85:>200 字符 prompt → 落 doc · argv 发短引用句(含 review_start.log + doc rel)·
+        --allowedTools Write Read · cwd=feature_dir · 全文不进 argv。"""
+        from state import _build_claude_review_cmd  # type: ignore
+        with tempfile.TemporaryDirectory() as d:
+            feat = Path(d)
+            doc = feat / "external-review-prompts" / "review-claude.md"
+            long_prompt = "X" * 500
+            cmd, cwd = _build_claude_review_cmd(long_prompt, feat, doc)
+            argv_prompt = cmd[2]
+            # doc 被物化落盘(含全文 · 可审计)
+            self.assertTrue(doc.exists())
+            self.assertEqual(doc.read_text(encoding="utf-8"), long_prompt)
+        # argv 短句:含 liveness 日志 + doc 相对路径 · 不含全文
+        self.assertIn("review_start.log", argv_prompt)
+        self.assertIn("external-review-prompts/review-claude.md", argv_prompt)
+        self.assertNotIn("XXXX", argv_prompt)
+        # ≤200 字符(用户硬要求)
+        self.assertLessEqual(len(argv_prompt), 200, f"argv 短句应 ≤200 · 实际 {len(argv_prompt)}")
+        # 只放行 Write+Read(守只读评审 · 不放 Bash/执行)· cwd=feature_dir
+        self.assertIn("--allowedTools", cmd)
+        self.assertIn("Write", cmd)
+        self.assertIn("Read", cmd)
+        self.assertNotIn("Bash", cmd)
+        self.assertEqual(cwd, str(feat))
+
+    def test_v885_doc_mode_uses_existing_doc_not_overwrite(self):
+        """v8.85:doc 已存在(AI 填好的 scaffold)→ 不覆盖 · 直接引用。"""
+        from state import _build_claude_review_cmd  # type: ignore
+        with tempfile.TemporaryDirectory() as d:
+            feat = Path(d)
+            doc = feat / "external-review-prompts" / "review-claude.md"
+            doc.parent.mkdir(parents=True)
+            doc.write_text("FILLED BY AI", encoding="utf-8")
+            _build_claude_review_cmd("Y" * 500, feat, doc)
+            self.assertEqual(doc.read_text(encoding="utf-8"), "FILLED BY AI")
+
     # ── v8.55:external review 执行默认落日志(排查 codex/claude 卡住 / 跑不起来) ──
 
     def test_v855_log_external_run_writes_log(self):

@@ -2162,6 +2162,7 @@ EXTERNAL_STAGE_TO_PROFILE = {
 }
 
 EXTERNAL_REVIEW_TIMEOUT_SEC = 600  # v8.55:5min→10min(用户 case codex 偶尔卡 / 长 review · 给足 buffer)
+CLAUDE_REVIEW_ARGV_LIMIT = 200  # v8.85:claude argv prompt 超此长度 → 落 doc · argv 只发短引用句(治本长 argv)
 
 
 def _detect_cli_version(cli_name: str) -> str:
@@ -2389,36 +2390,65 @@ def _run_codex_review(stage: str, commit: str, base: str, title: str,
         return 127, "", f"codex CLI 不可用:{e}{tail}"
 
 
+def _build_claude_review_cmd(prompt_text: str, feature_dir: Optional[Path],
+                             prompt_doc: Optional[Path]
+                             ) -> tuple[list, Optional[str]]:
+    """v8.85:按 prompt 长度选 inline / doc 模式 · 返 (cmd, cwd)。
+
+    - 短(≤200 字符):argv inline · `claude -p <prompt> --output-format text`(纯文本 · 无工具 · 快)。
+    - 长(>200):prompt 落 doc · argv 只发 ≤200 字符短句「先写 review_start.log 时间戳证明在工作 ·
+      再读 <doc> 做 review」· `--allowedTools Write Read`(只放行读+写 liveness 日志 · 不放行
+      Bash/执行 · 守只读评审)· cwd=feature_dir(review_start.log + doc 相对路径都落 feature 目录)。
+    单测可直接调本函数断言 cmd(不真跑 CLI)。
+    """
+    use_doc = (prompt_doc is not None and feature_dir is not None
+               and len(prompt_text) > CLAUDE_REVIEW_ARGV_LIMIT)
+    if use_doc:
+        try:
+            prompt_doc.parent.mkdir(parents=True, exist_ok=True)
+            if not prompt_doc.exists():
+                # fallback inline 模式也物化 doc(可审计 + 可复跑)
+                prompt_doc.write_text(prompt_text, encoding="utf-8")
+            rel = prompt_doc.resolve().relative_to(Path(feature_dir).resolve()).as_posix()
+        except (OSError, ValueError):
+            use_doc = False
+    if use_doc:
+        # ≤200 字符短 argv(rel 短 · 总长受控):liveness 日志 + 读 doc
+        short = (f"First write review_start.log (UTC timestamp) in cwd (liveness), "
+                 f"then read {rel} and follow it; output only the review, no other writes.")
+        cmd = ["claude", "-p", short, "--allowedTools", "Write", "Read",
+               "--output-format", "text"]
+        return cmd, str(feature_dir)
+    return ["claude", "-p", prompt_text, "--output-format", "text"], None
+
+
 def _run_claude_review(prompt_text: str,
-                       feature_dir: Optional[Path] = None, stage: str = "review"
-                       ) -> tuple[int, str, str]:
-    """跑 claude -p <prompt_argv> --output-format text · 返 (rc, stdout, stderr)。
+                       feature_dir: Optional[Path] = None, stage: str = "review",
+                       prompt_doc: Optional[Path] = None) -> tuple[int, str, str]:
+    """跑 claude review · 返 (rc, stdout, stderr)。
 
     v8.38(用户拍板 2026-05-27):用 `-p`(short)替代 `--print`(long)。
     v8.43(case SVC-PLATFORM-F054 blueprint round 3):prompt 从 stdin 改 argv ·
-    治本 Claude CLI 2.1.153 在 stdin 模式触发 "Not logged in · Please run /login"
-    bug(case 实测:claude -p 'prompt' OK · printf 'prompt' | claude -p FAIL)。
-    v8.84(用户拍板):**不再 --model 指定模型 · 用 claude CLI 默认值**(治本工具
-    假设模型名 · 同 v8.30 codex 去虚构模型名原则 · 模型随用户 claude 配置)。
-
-    argv 模式限制:macOS ARG_MAX ≈ 256KB · Linux ≈ 128KB · prompt 含 file 内容
-    inline 时可能超。极端长 prompt 撞 ARG_MAX 时 OSError("Argument list too long")
-    捕获后返 errno=7 · 让上层 emit 清晰 hint 提示 prompt 过长。
+    治本 Claude CLI 2.1.153 在 stdin 模式触发 "Not logged in · Please run /login" bug。
+    v8.84(用户拍板):**不再 --model 指定模型 · 用 claude CLI 默认值**。
+    v8.85(用户拍板):**短 prompt 走 argv inline;长 prompt(>200)落 doc · argv 只发
+    短引用句 + 让 reviewer 先写 review_start.log 时间戳证明在工作**(详 _build_claude_review_cmd)·
+    治本长 argv 卡 / 把模板当问题 / 调用方无法判断模型是否卡死。
     """
-    cmd = ["claude", "-p", prompt_text, "--output-format", "text"]
+    cmd, cwd = _build_claude_review_cmd(prompt_text, feature_dir, prompt_doc)
     label = f"claude-{stage}"
     t0 = datetime.now(timezone.utc)
     try:
         r = subprocess.run(cmd, capture_output=True, text=True,
                            timeout=EXTERNAL_REVIEW_TIMEOUT_SEC,
-                           stdin=subprocess.DEVNULL)  # v8.55:闭 stdin · 防交互卡住
+                           stdin=subprocess.DEVNULL, cwd=cwd)  # v8.55:闭 stdin · 防交互卡住
         dur = (datetime.now(timezone.utc) - t0).total_seconds()
-        _log_external_run(feature_dir, label, cmd, "(inherit)",
+        _log_external_run(feature_dir, label, cmd, cwd or "(inherit)",
                           r.returncode, r.stdout, r.stderr, dur)
         return r.returncode, r.stdout, r.stderr
     except subprocess.TimeoutExpired as e:
         dur = (datetime.now(timezone.utc) - t0).total_seconds()
-        log_path = _log_external_run(feature_dir, label, cmd, "(inherit)",
+        log_path = _log_external_run(feature_dir, label, cmd, cwd or "(inherit)",
                                      "TIMEOUT", e.stdout, e.stderr, dur)
         tail = f" · 见日志 {log_path}" if log_path else ""
         return 124, "", f"claude -p 超时({EXTERNAL_REVIEW_TIMEOUT_SEC}s){tail}"
@@ -2426,7 +2456,7 @@ def _run_claude_review(prompt_text: str,
         if getattr(e, "errno", None) == 7:  # E2BIG · argument list too long
             return 127, "", (
                 f"claude -p prompt 过长(ARG_MAX 超限 · prompt_bytes={len(prompt_text)})· "
-                f"考虑减少 inline 文件数或精简 file_list(v8.43 limitation)"
+                f"应已落 doc 模式 · 检查 prompt_doc 是否可写"
             )
         return 127, "", f"claude CLI 不可用:{e}"
     except FileNotFoundError as e:
@@ -2936,9 +2966,13 @@ def cmd_external_review(args: argparse.Namespace) -> None:
             )
         else:
             preview_cmd = (
-                # v8.38:claude CLI 用 -p(short alias for --print)· 用户约定
-                # v8.84:不 --model 指定模型 · 用 claude 默认值
-                f"cat {profile_path} | claude -p --output-format text"
+                # v8.38 用 -p · v8.84 不 --model(用默认)· v8.85 doc 模式:
+                # 长 prompt 落 external-review-prompts/<stage>-<model>.md · argv 只发短引用句
+                # (先写 review_start.log liveness · 再读 doc) · --allowedTools Write Read · cwd=feature_dir
+                "cd <feature_dir> && claude -p "
+                "'First write review_start.log (UTC timestamp) in cwd (liveness), then read "
+                f"external-review-prompts/{args.stage}-{model}.md and follow it; output only the review' "
+                "--allowedTools Write Read --output-format text"
             )
         emit({
             "verdict": "OK",
@@ -3026,21 +3060,42 @@ def cmd_external_review(args: argparse.Namespace) -> None:
                 f"治本长 prompt 卡 + 不可审计 · v8.44 推荐路径)"
             )
         rc, stdout, stderr = _run_claude_review(
-            prompt_text, feature_dir=feature_dir, stage=args.stage)
+            prompt_text, feature_dir=feature_dir, stage=args.stage,
+            prompt_doc=prompt_doc)
+
+    # v8.85:claude doc 模式 reviewer 会先写 review_start.log(时间戳)证明在工作 ·
+    # 读取作 liveness 留痕 + 清理(不污染 feature 目录)· codex 路径无此文件(read-only sandbox)
+    liveness_at = None
+    _rsl = feature_dir / "review_start.log"
+    if _rsl.exists():
+        try:
+            liveness_at = (_rsl.read_text(encoding="utf-8").strip()[:80] or "present")
+        except OSError:
+            liveness_at = "present"
+        try:
+            _rsl.unlink()
+        except OSError:
+            pass
 
     if rc != 0:
+        # v8.85:liveness 区分「模型从未响应」vs「启动了但没跑完(慢/限流)」
+        if liveness_at:
+            live_hint = (f"reviewer 已写 review_start.log({liveness_at})· 即模型**已启动但未跑完** · "
+                         f"多半是慢 / 限流 · 直接重跑(并发跑多个 claude 会限流 · 串行重试)· "
+                         f"🔴 切勿伪造 tool_error 文件或自列 external 通过门禁")
+        else:
+            live_hint = (f"无 review_start.log · 模型**可能从未响应** · 查 ① 网络 / token"
+                         f"(setup-token / OAuth)· ② {cli_name} --version · ③ 是否并发限流 · 再重跑")
         emit({
             "verdict": "FAIL",
             "command": "external-review",
             "error": f"{cli_name} 执行失败(exit={rc}): {stderr[:300]}",
-            "hint": (
-                f"排查 ① 网络 / token(setup-token / OAuth)· "
-                f"② {cli_name} --version 验本地工具 · ③ 重跑 state.py external-review"
-            ),
+            "hint": live_hint,
             "host": host,
             "model": model,
             "cli_exit_code": rc,
             "cli_stderr": stderr[:500],
+            **({"liveness_confirmed_at": liveness_at} if liveness_at else {}),
         })
         return
 
@@ -3157,6 +3212,8 @@ def cmd_external_review(args: argparse.Namespace) -> None:
             if model == "claude" and prompt_doc_used else {}),
         **({"prompt_doc_fallback_warning": fallback_warning}
             if model == "claude" and fallback_warning else {}),
+        # v8.85:claude doc 模式 reviewer 写的 review_start.log 时间戳(liveness 留痕)
+        **({"liveness_confirmed_at": liveness_at} if liveness_at else {}),
     })
 
 
