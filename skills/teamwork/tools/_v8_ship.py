@@ -11,8 +11,9 @@ action 枚举:
 - cleanup:            worktree 清理 · 必须 phase=merged
 - close-unmerged:     pushed → closed_unmerged 或 abandoned
 
-设计哲学见 docs/archive/v8-redesign/00-MANIFESTO.md。
-ship-phase schema 见 docs/archive/v8-redesign/01-COMMAND-SCHEMA.md B11。
+设计哲学见 docs/archive/v8-redesign/00-MANIFESTO.md(rationale · 历史归档)。
+ship-phase schema 现行权威 = state.py --help + _v8_stage_specs.py SHIP_SPEC
+(01-COMMAND-SCHEMA.md B11 为 v8.0 归档快照 · 勿当现行)。
 v8.W2 实现 · 取代 v7 ship-*(W3 减负时物理删除 v7 ship-* 子命令)。
 """
 
@@ -2410,7 +2411,7 @@ def register_v8_ship_subparser(sub) -> None:
     )
     sp.add_argument("--feature", required=True, help="Feature artifact_root 路径")
     sp.add_argument("--action", required=True, choices=list(SHIP_ACTIONS),
-                    help="子动作 · 详细 schema 见 docs/archive/v8-redesign/01-COMMAND-SCHEMA.md B11")
+                    help="子动作 · schema 见 state.py --help + _v8_stage_specs.py SHIP_SPEC")
 
     # action=sanitize 参数
     sp.add_argument("--residual-commits",

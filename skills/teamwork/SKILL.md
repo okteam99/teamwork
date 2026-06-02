@@ -1,6 +1,6 @@
 ---
 name: teamwork
-version: v8.82.1
+version: v8.83
 description: AI 协作开发一体化框架 · /teamwork 启动
 ---
 
@@ -144,7 +144,7 @@ C 类 · 维护(6)
 └── migrate-v7-to-v8 一次性迁移老 Feature
 ```
 
-详细 schema 见 [`docs/archive/v8-redesign/01-COMMAND-SCHEMA.md`](./docs/archive/v8-redesign/01-COMMAND-SCHEMA.md)。
+命令现行权威 = `state.py --help` + [`tools/_v8_stage_specs.py`](./tools/_v8_stage_specs.py)(各 stage 契约)。v8.0 历史快照(已归档 · 命令已大幅演进 · 勿当现行)见 [docs/archive/v8-redesign/01-COMMAND-SCHEMA.md](./docs/archive/v8-redesign/01-COMMAND-SCHEMA.md)。
 
 ---
 

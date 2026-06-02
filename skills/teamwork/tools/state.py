@@ -3762,8 +3762,9 @@ def build_parser() -> argparse.ArgumentParser:
     # 不再在 state.py 注册 subparser(治本"元工具混运行时"+ chicken-and-egg)
 
     # ─── v8.0 stage 命令注册(Code-driven Orchestration) ─────────────
-    # 设计文档:docs/archive/v8-redesign/00-MANIFESTO.md
-    # 命令 schema:docs/archive/v8-redesign/01-COMMAND-SCHEMA.md
+    # 设计文档:docs/archive/v8-redesign/00-MANIFESTO.md(rationale · 历史归档)
+    # 命令 schema 现行权威:state.py --help + _v8_stage_specs.py
+    #   (01-COMMAND-SCHEMA.md 为 v8.0 归档快照 · 命令已大幅演进)
     # 引擎模块:
     # - _v8_engine.py   通用 stage start/complete + bypass 协议
     # - _v8_stage_specs.py  11 stage 完整契约

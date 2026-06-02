@@ -22,7 +22,7 @@
 
 > 本文件记录项目开发过程中积累的**特有事实**、**团队约定**和**用户偏好**。
 > 不记录决策（走 ADR）、不记录通用规范（走 standards/rules）、不记录复盘（走 retros/）。
-> Teamwork 在 triage（用户输入承接阶段）会扫描本文件，注入「📚 相关项目事实」段。详见 [TRIAGE.md](../TRIAGE.md)。
+> Teamwork 在 triage（用户输入承接阶段）会扫描本文件，注入「📚 相关项目事实」段。详见 [SKILL.md § Triage 入口规范](../SKILL.md)。
 
 ## 📚 Glossary（术语词典）
 
