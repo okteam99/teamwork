@@ -2,7 +2,7 @@
 
 An AI works from a team-collaboration perspective — through **flow orchestration + role-perspective switching + contractualized stages + a machine-readable state machine** — to drive the complete software lifecycle from product planning to delivery.
 
-[中文](./README.md) · Version: **v8.0**
+[中文](./README.md) · Version: **v8.87** (continuously evolving since the v8.0 paradigm rewrite)
 
 ---
 
@@ -76,8 +76,8 @@ npx skills update okteam99/teamwork
 | Review | Wait | Architect + QA + **heterogeneous model (e.g. codex / claude)** — three independent reviews |
 | Test | Wait (start the app if needed) | QA integration tests + scripted API E2E |
 | Acceptance | Reply ok / feedback | PM-perspective acceptance + PMO compiles delivery report + auto-commit |
-| **Ship Phase 1** | Click the merge button | MR/PR created · MR link given → ⏸️ await merge |
-| **Ship Phase 2** | Wait | Verify merge + wrap-up (state.json terminal state + worktree cleanup) → ✅ |
+| **Ship Phase 1** | Click the merge button | Knowledge distill + MR/PR created · link given → ⏸️ await merge |
+| **Ship Phase 2** | Wait | Verify merge + wrap-up via MR (terminal state + process artifacts archived as zip) + worktree cleanup + main-branch sync → ✅ |
 
 Typical Feature pause points: **3-5**.
 
@@ -236,7 +236,9 @@ The project-level `KNOWLEDGE.md` has three categories: **Gotcha** (pitfalls) / *
 
 ### Ship Stage
 
-**Phase 1 push** (inside the worktree: sanitize → push branch → create MR via CLI) → ⏸️ user merges on the platform → **Phase 2 finalize** (in the main worktree: verify merge + worktree cleanup + mark state.json completed).
+**Phase 1 (inside the worktree)**: sanitize commits → **knowledge distill** (graduate "code-describing" knowledge into the knowledge layer — KNOWLEDGE / ADR / REG / ARCHITECTURE / database-schema — reviewed + merged with the feature MR) → push branch → create MR via CLI → ⏸️ user merges on the platform.
+
+**Phase 2 (main worktree · fully automatic · re-entrant)**: verify merge → **wrap-up via MR** (no direct push · protected-branch friendly · auto-merged via gh/glab) → **archive** (the process-layer feature dir is zipped into `features/_archive/<id>.zip` and the original dir removed from the main branch — prevents the AI from retrieving stale feature info · code is the single source of truth) → remove worktree → pull-sync the main branch · mark state.json completed.
 
 MR/PR is actually created by PMO via the `gh` / `glab` CLI with a real link · when the CLI is unavailable, a URL is generated from the platform template as a fallback + the user is prompted to click manually.
 
@@ -295,7 +297,7 @@ Teamwork's 9 core red lines — 8 of them materially enforced by the `state.py` 
 | **R8** Write-op hard gate chain | Reject stage-start before prepare is done · Ship Phase 1 CLI-first |
 | **R9** Session bootstrap | Entry must run bootstrap.py + PMO 5-mode triage |
 
-Full red-line text in [SKILL.md](./skills/teamwork/SKILL.md) and [docs/v8-redesign/00-MANIFESTO.md](./skills/teamwork/docs/v8-redesign/00-MANIFESTO.md).
+Full red-line text in [SKILL.md](./skills/teamwork/SKILL.md) (current authority) · design rationale in [docs/archive/v8-redesign/00-MANIFESTO.md](./skills/teamwork/docs/archive/v8-redesign/00-MANIFESTO.md) (archived from the v8.0 rewrite).
 
 ---
 
@@ -316,7 +318,7 @@ Full red-line text in [SKILL.md](./skills/teamwork/SKILL.md) and [docs/v8-redesi
 | [roles/*.md](./skills/teamwork/roles/) | Role telos + authoring guidelines |
 | [standards/*.md](./skills/teamwork/standards/) | Technical standards (common / backend / frontend / tdd, etc.) |
 | [tools/state.py](./skills/teamwork/tools/state.py) | The sole orchestrator entry |
-| [docs/CHANGELOG.md](./skills/teamwork/docs/CHANGELOG.md) | Full version changelog |
+| [docs/CHANGELOG.md](./skills/teamwork/docs/CHANGELOG.md) | Latest 1 version (history in CHANGELOG-ARCHIVE.md) |
 
 For the detailed directory structure see [skills/teamwork/](./skills/teamwork/).
 
@@ -324,7 +326,7 @@ For the detailed directory structure see [skills/teamwork/](./skills/teamwork/).
 
 ## Version
 
-Currently **v8.0**. Full changelog in [skills/teamwork/docs/CHANGELOG.md](./skills/teamwork/docs/CHANGELOG.md).
+Currently **v8.87** (continuously evolving since the v8.0 paradigm rewrite). Changelog in [docs/CHANGELOG.md](./skills/teamwork/docs/CHANGELOG.md) (latest 1 version) · history in [docs/CHANGELOG-ARCHIVE.md](./skills/teamwork/docs/CHANGELOG-ARCHIVE.md).
 
 ---
 
