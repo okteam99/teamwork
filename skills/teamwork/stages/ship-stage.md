@@ -60,8 +60,8 @@ ship-finalize 内部自动编排(**可重入** · 失败步骤修复后重跑即
 | 2 | confirm-merged | `ship.phase` pushed → merged |
 | 3 | cleanup | `ship.worktree_cleanup` = cleaned / n_a |
 | 4 | ship-complete | `current_stage` → completed |
-| 5 | finalize-push | git plumbing 把 `state.json` 直推 merge_target(零 checkout · §12 例外) |
-| 6 | worktree-remove | 物理删 feature worktree + 本地 feature 分支 |
+| 5 | **finalize-deliver(v8.80)** | **去直推**:state.py 暂存收尾 commit 到 `ship-finalize/<id>` 分支 → 交接 AI 用 gh/glab **创 MR + 自动合并** → 重跑语义检测已合(origin/merge_target 的 state.json `current_stage=completed`)→ 续。未合 → emit `PENDING`(降级见下)。merge_target **只经 MR**(兼容保护分支 · 主工作区只 pull) |
+| 6 | worktree-remove | 物理删 feature worktree + 本地 feature 分支(🔴 **收尾 MR 合并后**才删) |
 | 7 | main-sync | 主工作区 `git fetch` + 安全 `git pull --ff-only`(在 merge_target 分支且工作树干净时 · 让本地跟上 ship 结果)|
 
 **为什么必在主工作区**:step 6 worktree-remove 不能删自身所在 worktree · 且 Phase 2 状态同步语义属于 merge_target 主工作区(P0-156)。在 linked worktree 跑 → precheck FAIL · hint 给精确 cd 目标。
@@ -69,7 +69,7 @@ ship-finalize 内部自动编排(**可重入** · 失败步骤修复后重跑即
 **AI 只在失败点干预**(其余全自动):
 - **step 0 FAIL**(worktree 已被手工删 + 主工作区 state.json 不全):无路可走 · hint 排查 worktree path / --feature 路径 / 当前分支 · 或 bypass 后手工 finalize。
 - **step 1 FAIL**(feature_head 不在 merge_target):两种可能 → ① MR 尚未合并 · 等用户;② squash / rebase 合并(见 §6)。按 R5 给用户 1/2 选项判断。
-- **step 5 finalize-push 失败**(冲突 / 保护分支 / 网络):§12 降级 · worktree 保留为 state.json 唯一副本 · 修复后重跑 ship-finalize(可重入自动跳过已完成步骤)。
+- **step 5 finalize-deliver PENDING(v8.80)**:收尾分支已暂存 · 待 AI 用 gh/glab 创 MR + 自动合。**降级**:gh/glab 不可用(未登录 / token 无 scope / 网络)→ 报明确原因给用户 · 解决后重跑;无法自动合 → 给 MR(create)链接让用户手动合 → 合后重跑。worktree **保留**(未交付不删)· 重跑可重入(语义检测已合 → 续删 worktree + pull)。
 - **step 6 worktree-remove 失败**(worktree 占用等):降级 warning · state.json 已 finalize 不丢 · 按 hint 手动 `git worktree remove`。
 - **step 7 pull 跳过**(主工作区不在 merge_target / 工作树有未提交改动 / 与 origin 分叉):降级 warning · 已 fetch · 按 hint 手动 `git pull --ff-only`。
 
@@ -122,9 +122,10 @@ ship-phase --action confirm-merged → ship-phase --action cleanup --status clea
 
 ---
 
-## 12. Phase 2 finalize · state.json 直推例外
+## 12. Phase 2 finalize · 收尾投递(v8.80 去直推 → 收尾 MR)
 
-> 🔴 `ship-finalize` step 5(finalize-push)已**自动完成**本节直推(git plumbing · 零 checkout · 单文件 state.json diff)· 本节是**原理说明** + §7 手动路径参考。
+> 🔴 **v8.80 变更**:step 5 已从「state.json 直推 merge_target」改为 **finalize-deliver**(收尾改动暂存到 `ship-finalize/<id>` 分支 → AI 用 gh/glab 创 MR + 自动合并 → 重跑语义检测已合)。**merge_target 全程只经 MR**(兼容保护分支)· 主工作区**只 pull · 不再制造脏 main** · worktree 删除/主分支 pull **在收尾 MR 合并之后**。降级:gh/glab 不可用 → 报因 + 用户解决重跑 / 给 MR 链接手合。详 CHANGELOG v8.80。
+> ⚠️ 下方「直推例外」段为 **≤v8.79 历史原理**(state-sync 实证仍有效 · 直推机制已被收尾 MR 取代)。
 
 🟢 **实证 case · SVC-CORE-B006(2026-05-21)· step 0 state-sync 治本根因**:
 Phase 1 `ship-phase sanitize / push` 写 state.json 后**不自动 commit**(by design · 防 MR 被 chore commit 弄脏)· 所以 push 到 feature 分支的 commit 不含完整 state.json(缺 `ship.phase=pushed` / `feature_head_commit` 等)。用户 merge MR 后 · 主工作区 `git pull` 拉下的 state.json 是合并前快照(不全)· Phase 2 step 1 verify-merge 读不到 `feature_head_commit` → FAIL。**完整态 state.json 永远在 worktree 内工作树**(sanitize/push 写入但未 commit)· v8.16 step 0 state-sync 自动把 worktree 内完整态拷到主工作区 · step 5 finalize-push 把完整态直推到 merge_target · 闭环。

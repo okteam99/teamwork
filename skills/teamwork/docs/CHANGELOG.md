@@ -1,31 +1,33 @@
 # Changelog
 
-> 📦 v8.78 及更早(含 v7/v6/… 旧系统)已归档 → [CHANGELOG-ARCHIVE.md](./CHANGELOG-ARCHIVE.md)。本文件**只留最近 1 版**(每次发布把上一版迁入归档)。
+> 📦 v8.79 及更早(含 v7/v6/… 旧系统)已归档 → [CHANGELOG-ARCHIVE.md](./CHANGELOG-ARCHIVE.md)。本文件**只留最近 1 版**(每次发布把上一版迁入归档)。
 
-## v8.79 · artifact ID 默认改 UTC 时间戳号段(治本多机并行撞号 · ⚠️ 默认行为变更 · 用户拍板 · dev-only)
+## v8.80 · ship-finalize 去直推 → 收尾 MR(投递重构 · 兼容保护分支 · 主工作区只 pull · dev-only)
 
-> 用户提案 2026-06-02:artifact ID 顺序号 `max+1`(扫本地目录取 max)在多 clone/多 agent 并行下必然 race —— AON 实测 324 feature 中 **13 组撞号**(2 组活跃)。同项目 DB migration 版本号早已同因改时间戳。用户拍板:**默认改新规则**(非 opt-in)。
+> 用户拍板:ship2(finalize)直推 merge_target 在保护分支下不兼容 · 且后续要给 finalize 加实质改动(归档/ROADMAP)· 直推「单文件零业务影响」的合法性不再成立。去直推 · 收尾改动也走一个 MR · gh/glab 自动合 · 合并后才回主工作区删 worktree + pull。
 
-### ⚠️ 默认行为变更(全体 teamwork 项目)
-- **新建 feature 的 ID 号段默认 = UTC0 秒级时间戳 `YYMMDDHHMMSS`(12 位)**,如 `SVC-PLATFORM-F260601143012-Offer-Ranking`。
-- 要回旧顺序号(`PTR-F045`):`.teamwork_localconfig.json` 设 `id_strategy: sequential` **opt-out**。
-- **存量 ID 不重编号**(改 ship 过的目录会断 git/ROADMAP 引用)· 新旧天然可区分(3-4 位 vs 12 位)· migration 版本号格式不动。
+### 变更:step 5 finalize-push(直推)→ finalize-deliver(收尾 MR · AI 驱动)
+- state.py 把收尾 commit(state.json + review-log)暂存到 `ship-finalize/<id>` 分支(git plumbing 零 checkout · 复用 v8.18 commit-building)· **不再直推 merge_target**。
+- 交接 AI 用 **gh/glab 创 MR + 自动合并**(state.py 不代跑 CLI · 与 Phase 1 创 MR 同模型 · 架构一致)· emit `PENDING` + next_action + resume。
+- **降级阶梯**:gh/glab 不可用(未登录 / token 无 scope / 网络)→ 报明确原因 · 用户解决后重跑;无法自动合 → 给 MR(create)链接让用户手动合 → 合后重跑。
+- **可重入 · 语义检测**:重跑判「已交付」= origin/merge_target 上 state.json `current_stage == completed`(抗 squash 合并 + save_state 非确定性 · 不靠 commit ancestor / 字节 no-delta)。
+- **reorder**:worktree-remove(step 6)+ main-sync(step 7)**移到收尾 MR 合并之后**(未合 PENDING 即 return · 不删 worktree · 投递没成 worktree 还在可重试)。
 
-### 根因 + 两层互补修复
-- 根因:密集顺序号 + 分布式分配 = 必然 race(无原子中心分配器)。
-- **timestamp 策略**(默认):各机各自生成不同秒 → 跨 clone 免协调防撞(根治)。
-- **撞号硬校验**(R0 物化):`init-feature` 目标号段被**另一**目录占用 → FAIL · 兜**同 clone** race(任一策略生效)。两层治不同 race 拓扑(跨 clone vs 同 clone)· 互补不可替代。
+### 效果
+- **merge_target 全程只经 MR** → 兼容保护分支(原直推撞 protect-rule 只能降级)。
+- **主工作区只 pull · ship 不再制造脏 main**(收尾改动不在本地直接 commit)。
+- **不持久化额外字段**:本地 state.json == 交付内容 → step 7 pull 不分叉冲突。
 
-### 实现(blast radius 受限)
-- `state.py`:`_read_id_strategy`(走查 localconfig 到 .git 边界)+ `_detect_id_collision` + `cmd_prepare_check` 按 strategy 分支 + `cmd_init_feature` 撞号硬校验(`--force` 可逃生)。
-- 既有 ID 解析正则本就变长匹配 + basename 子串校验 → **零改动兼容 12 位 ID**。
-- `templates/teamwork_localconfig.json` + `templates/config.md` + `docs/conventions.md §1` 同步。
+### 实现 + 验证
+- `_v8_ship.py`:`_finalize_push_plumbing` 加 `push_ref/force`(推收尾分支)· 新 `_remote_finalize_delivered`(语义判定)· 新 `_ship_finalize_deliver_pending`(PENDING 交接)· 重写 step 5 + 删 step 6 旧「finalize 失败保留 worktree」死分支。
+- pytest:**67 failed / 439 passed**(baseline 67 · 新增 2 deliver 测试[首跑暂存+PENDING / 全周期 暂存→合→交付→幂等]· 零回归)。
+- ship-stage.md step 表 + §12 同步(直推例外标历史)。
 
-### 验证
-- pytest:**67 failed / 437 passed**(baseline 67 · 新增 8 测试全过 · 零回归)· 覆盖 AC1-AC6(双策略 + 非法值兜底默认 + 撞号 FAIL/force/distinct + 时间戳 ID 接受)。
+### 后续
+- v8.81:archive(zip+rm)+ distill(知识层 6 项 ship1 闸门)+ ROADMAP forced-marker —— 架在本投递重构之上(实质改动随收尾 MR 走)。
 
 ---
 
-## 更早版本(v8.78 → v1)
+## 更早版本(v8.79 → v1)
 
 完整历史已归档 → [CHANGELOG-ARCHIVE.md](./CHANGELOG-ARCHIVE.md)(v8.0 之前的 v7/v6/… 旧系统亦在此)。

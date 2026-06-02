@@ -626,8 +626,9 @@ def cmd_ship_phase(args: argparse.Namespace) -> None:
 #   2. confirm-merged  ship.phase pushed → merged
 #   3. cleanup         ship.worktree_cleanup = cleaned / n_a(状态字段)
 #   4. ship-complete   current_stage → completed
-#   5. finalize-push   git plumbing 把 state.json 推到 merge_target(零 checkout)
-#   6. worktree-remove 物理删 feature worktree(state.json 已推远端 · 不丢)
+#   5. finalize-deliver(v8.80 去直推)state.py 暂存收尾 commit 到 ship-finalize/<id> 分支 →
+#      交接 AI 用 gh/glab 创 MR + 自动合并 → 重跑 ancestor-check 验证已合(未合 emit PENDING)
+#   6. worktree-remove 物理删 feature worktree(收尾 MR 已合 · state.json 在 merge_target · 不丢)
 #   7. main-sync       主工作区 git fetch + 安全 pull --ff-only(让本地跟上 ship 结果)
 #
 # 可重入:每步先查 state · 已完成则跳过(skipped_steps)。
@@ -642,7 +643,7 @@ SHIP_FINALIZE_STEPS = (
     # 不含完整 state.json · merge 后主工作区拉下的是合并前快照 · verify-merge 会 FAIL
     "state-sync",
     "verify-merge", "confirm-merged", "cleanup",
-    "ship-complete", "finalize-push", "worktree-remove", "main-sync",
+    "ship-complete", "finalize-deliver", "worktree-remove", "main-sync",
 )
 
 
@@ -754,6 +755,71 @@ def _ship_finalize_fail(step: str, error: str, hint: str,
     if extra:
         payload.update(extra)
     emit_json(payload, exit_code=1)
+
+
+def _ship_finalize_deliver_pending(feature_path: str, merge_target: str,
+                                   sf_branch: str, commit: str,
+                                   completed: list, skipped: list,
+                                   warnings: list) -> None:
+    """v8.80:收尾改动已暂存到 ship-finalize 分支 · 待 AI 用 gh/glab 创 MR + 自动合并。
+
+    去直推后 merge_target 全程只经 MR(兼容保护分支 · 主工作区只 pull)。
+    emit PENDING + 交接(state.py 不代跑 gh/glab · AI 来跑 · 与 Phase 1 创 MR 同模型)·
+    exit 0(非失败 · 是「待 AI 动作」)。收尾 MR 合并后重跑 ship-finalize ·
+    检测已合(分支 ancestor / 无 delta)→ 续 worktree-remove + main-sync。
+    """
+    payload: dict = {
+        "verdict": "PENDING",
+        "command": "ship-finalize",
+        "completed_steps": completed,
+        "skipped_steps": skipped,
+        "pending_step": "finalize-deliver",
+        "finalize_mr": {"branch": sf_branch, "head_commit": commit,
+                        "merge_target": merge_target},
+        "next_action": (
+            f"收尾分支已暂存:{sf_branch}(commit {commit[:12]}) → 目标 {merge_target}。\n"
+            "🔴 去直推(v8.80):收尾改动(state.json 等)必须经 MR 合入 merge_target。"
+            "用 gh/glab 创建 MR 并自动合并(state.py 不代跑 CLI · 由你执行 · 同 Phase 1):\n"
+            f"  GitHub:gh pr create --base {merge_target} --head {sf_branch} "
+            f"--title 'chore: ship-finalize {sf_branch}' --body 'teamwork ship-finalize 收尾' "
+            f"&& gh pr merge {sf_branch} --merge --delete-branch\n"
+            f"  GitLab:glab mr create --source-branch {sf_branch} "
+            f"--target-branch {merge_target} --title 'chore: ship-finalize {sf_branch}' --yes "
+            f"&& glab mr merge {sf_branch} --yes --remove-source-branch\n"
+            "降级:\n"
+            "  - gh/glab 不可用(未登录 / token 无 scope / 网络隔离)→ 报明确原因给用户 · "
+            "用户解决后重跑 ship-finalize\n"
+            "  - 无法自动合 → 用上面 create 命令拿 MR 链接给用户手动合 → 合后重跑 ship-finalize"
+        ),
+        "resume": (
+            f"收尾 MR 合并后重跑:state.py ship-finalize --feature {feature_path}"
+            "(可重入 · ancestor-check 检测已合 → 续删 worktree + 主分支 pull)"
+        ),
+    }
+    if warnings:
+        payload["warnings"] = warnings
+    emit_json(payload, exit_code=0)
+
+
+def _remote_finalize_delivered(main_wt: str, artifact_root: Path,
+                               merge_target: str) -> bool:
+    """v8.80:origin/merge_target 上本 feature 的 state.json 是否已是终态(交付完成)。
+
+    语义判定 current_stage == "completed":抗 squash 合并 + save_state 非确定性
+    (不依赖 commit ancestor / 字节级 no-delta)· 收尾 MR 合并后 merge_target 上即为终态。
+    调用前应已 fetch origin/merge_target。
+    """
+    pre = _git(["rev-parse", "--show-prefix"], cwd=str(artifact_root))
+    if pre.returncode != 0:
+        return False
+    repo_rel = (pre.stdout.strip() + "state.json").lstrip("/")
+    rs = _git(["show", f"origin/{merge_target}:{repo_rel}"], cwd=main_wt)
+    if rs.returncode != 0:
+        return False
+    try:
+        return json.loads(rs.stdout).get("current_stage") == "completed"
+    except (ValueError, json.JSONDecodeError):
+        return False
 
 
 def _step_state_sync(main_wt: str, feature_path: str) -> dict:
@@ -1278,7 +1344,9 @@ def _finalize_push_fail(ship: dict, reason: str, msg: str) -> tuple:
 def _finalize_push_plumbing(repo_cwd: str, artifact_root: Path,
                             state_json_path: Path, merge_target: str,
                             state: dict, ship: dict,
-                            extra_files: Optional[list] = None) -> tuple:
+                            extra_files: Optional[list] = None,
+                            push_ref: Optional[str] = None,
+                            force: bool = False) -> tuple:
     """git plumbing 把 state.json(+ extra_files)推到 origin/<merge_target> · 零 checkout。
 
     v8.18 治本 SVC-CORE-F028 case · 改进:
@@ -1387,9 +1455,11 @@ def _finalize_push_plumbing(repo_cwd: str, artifact_root: Path,
         return ok, m, ""
     new_commit = ct.stdout.strip()
 
-    # 7. push <commit>:<merge_target>
-    pr = _git(["push", "origin", f"{new_commit}:{merge_target}"],
-              cwd=repo_cwd, timeout=120)
+    # 7. push <commit>:<target_ref>(v8.80:push_ref=收尾分支 时 force · throwaway branch)
+    target_ref = push_ref or merge_target
+    _push_args = ["push"] + (["--force"] if force else []) + \
+        ["origin", f"{new_commit}:{target_ref}"]
+    pr = _git(_push_args, cwd=repo_cwd, timeout=120)
     if pr.returncode != 0:
         err = (pr.stderr or "").lower()
         if any(k in err for k in ("protected", "pre-receive", "hook declined", "denied")):
@@ -1402,8 +1472,7 @@ def _finalize_push_plumbing(repo_cwd: str, artifact_root: Path,
             reason = "other"
         ok, m = _finalize_push_fail(
             ship, reason,
-            f"push origin {merge_target} 失败({reason})· state.json 未同步 merge_target:"
-            f"{pr.stderr.strip()[:200]}")
+            f"push origin {target_ref} 失败({reason}):{pr.stderr.strip()[:200]}")
         state.setdefault("concerns", []).append(
             f"{now_iso()} WARN ship-finalize finalize-push 失败({reason})· "
             f"merge_target 上 state.json 仍为合并前快照(phase=pushed)· "
@@ -1657,58 +1726,64 @@ def cmd_ship_finalize(args: argparse.Namespace) -> None:
             pass
         completed.append("ship-complete")
 
-    # v8.18 治本 SVC-CORE-F028 case · step 5 时序重排:
-    # 旧:save → plumbing(回写 finalize_commit / pushed_at)→ save 第二次(留 delta)
-    # 新:预设 pushed_at/failed=false → save → plumbing(不回写 finalize_commit · 也不二次 save)
-    #     成功路径:state.json 已与推的 commit 一致 · worktree 0 delta · 主工作区 ff-pull 可走
-    #     失败路径:plumbing 内部写 failed=true + reason · 走老 save 路径(异常已 emit)
-
-    # ── Step 5:finalize-push(git plumbing · 零 checkout · v8.18 0 delta)──
+    # ── Step 5:finalize-deliver(v8.80 · 去直推 · 收尾经 MR · AI 驱动 gh/glab 合)──
+    # 旧(≤v8.79):plumbing 直推 state.json 到 merge_target(§12 例外)。
+    # 新(v8.80):state.py 把终态 state.json 暂存到 ship-finalize/<id> 分支 → 交接 AI 用 gh/glab
+    #   创 MR + 自动合并 → 重跑检测已合 → 续 step 6/7。merge_target 只经 MR(兼容保护分支)。
+    # 🔴 不持久化额外字段:本地 state.json(step 1-4 终态)== 交付内容 → step 7 pull 不分叉冲突。
+    #   已交付判定 = origin/merge_target 上本 feature 的 state.json.current_stage == "completed"
+    #   (语义判定 · 抗 squash / save_state 非确定性)。未交付:
+    #     收尾分支已在 origin(暂存过 · 未合)→ PENDING(交接 AI 合)
+    #     收尾分支不在 → 构建收尾 commit + push 分支 → PENDING(交接 AI 创 MR + 自动合)
+    finalize_ok = True
     finalize_commit_hash = ""
-    if ship.get("merge_target_pushed_at") and not ship.get("merge_target_push_failed"):
-        skipped.append("finalize-push")
-        finalize_ok = True
-        # 可重入:无需 save(state.json 已与已推的 commit 一致)
-        save_state(state_json_path, state)  # 但 confirm-merged/cleanup/ship-complete 字段需落盘
+    sf_branch = f"ship-finalize/{state.get('feature_id') or 'feature'}"
+    sf_ref = f"refs/heads/{sf_branch}"
+    save_state(state_json_path, state)  # 落盘终态(step 1-4 字段)
+    _git(["fetch", "origin", merge_target], cwd=main_wt, timeout=120)
+    if _remote_finalize_delivered(main_wt, artifact_root, merge_target):
+        # origin/merge_target 已终态 → 收尾 MR 已合 → 交付 · 清理残留收尾分支(best-effort)
+        _git(["push", "origin", "--delete", sf_branch], cwd=main_wt, timeout=60)
+        completed.append("finalize-deliver")
     else:
-        # v8.18:预设 pushed_at / failed=false(写进 commit · 推完无 delta)
-        ship["merge_target_pushed_at"] = now_iso()
-        ship["merge_target_push_failed"] = False
-        ship["merge_target_push_failed_reason"] = None
-        # 落盘 · 包含所有 step 1-4 + 预设字段(plumbing 读这个文件 hash)
-        save_state(state_json_path, state)
-
-        # multi-file:state.json + review-log.jsonl(若 exists · 通常 step 4 已 write_review_log_entry)
-        review_log_path = artifact_root / "review-log.jsonl"
-        extra = []
-        if review_log_path.exists():
-            extra.append(("review-log.jsonl", review_log_path))
-
-        finalize_ok, fin_warn, finalize_commit_hash = _finalize_push_plumbing(
-            main_wt, artifact_root, state_json_path, merge_target, state, ship,
-            extra_files=extra,
-        )
-        if finalize_ok:
-            completed.append("finalize-push")
-            # 成功路径:不再 save_state(state.json 已与推的 commit 一致 · 0 delta)
+        _git(["fetch", "origin", sf_branch], cwd=main_wt, timeout=60)  # 收尾分支(可能不存在)
+        sf_remote = _git(["rev-parse", "--verify", "--quiet", f"origin/{sf_branch}"],
+                         cwd=main_wt)
+        if sf_remote.returncode == 0 and sf_remote.stdout.strip():
+            # 已暂存但未合 → 待 AI 创/合 MR
+            finalize_commit_hash = sf_remote.stdout.strip()
+            _ship_finalize_deliver_pending(
+                feature_path, merge_target, sf_branch, finalize_commit_hash,
+                completed, skipped, warnings)  # emit PENDING + exit
         else:
-            # 失败:plumbing 内部已写 failed=true + reason · 此处 save 让 state.json 反映失败状态
-            warnings.append(fin_warn)
-            save_state(state_json_path, state)
+            # 未暂存 → 构建收尾 commit + push 分支
+            review_log_path = artifact_root / "review-log.jsonl"
+            extra = [("review-log.jsonl", review_log_path)] if review_log_path.exists() else []
+            ok, warn, commit = _finalize_push_plumbing(
+                main_wt, artifact_root, state_json_path, merge_target, state, ship,
+                extra_files=extra, push_ref=sf_ref, force=True)
+            if not ok:
+                _ship_finalize_fail(
+                    "finalize-deliver",
+                    f"暂存收尾分支 {sf_branch} 失败:{warn}",
+                    "检查网络 / origin 远程 / 推送权限 · 修复后重跑 ship-finalize",
+                    completed, skipped)
+            if not commit:
+                # 无 delta(罕见)→ 终态已在 merge_target → 已交付
+                completed.append("finalize-deliver")
+            else:
+                finalize_commit_hash = commit
+                _ship_finalize_deliver_pending(
+                    feature_path, merge_target, sf_branch, commit,
+                    completed, skipped, warnings)  # emit PENDING + exit
 
     # ── Step 6:worktree-remove(物理删 · state.json 已推远端 · 不丢)──
+    # v8.80:走到这步即收尾 MR 已合并(未合并时 step 5 已 emit PENDING + return)·
+    # 故 worktree-remove + main-sync 必在「收尾 MR 合并之后」· 不再有 finalize-push 失败保留分支
     wt_removed = False
     if wt_strategy == "off" or not wt_path:
         skipped.append("worktree-remove")
         wt_removed = True
-    elif not finalize_ok:
-        # finalize-push 失败 → worktree 是 finalize 后 state.json 的唯一副本 · 保留
-        warnings.append(
-            "finalize-push 失败 · 跳过 worktree-remove · "
-            "worktree 保留为终态 state.json 的唯一副本 · 修复后重跑 ship-finalize"
-        )
-        ship["worktree_cleanup"] = "deferred"
-        save_state(state_json_path, state)
     else:
         still_there = any(
             _same_path(w.get("path"), wt_path) for w in _list_worktrees(main_wt)
