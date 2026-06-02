@@ -1,10 +1,19 @@
-# Changelog Archive(v8.85 → v1)
+# Changelog Archive(v8.86 → v1)
 
-> 📦 **历史归档**:本文件保存 teamwork **v8.85 及更早**的全部 changelog(含 v7/v6/…/v1 等 v8.0 之前的旧系统)· 仅供追溯,**不再维护**。
-> 现行 changelog(最近 1 版 · v8.86)见 [CHANGELOG.md](./CHANGELOG.md)。
+> 📦 **历史归档**:本文件保存 teamwork **v8.86 及更早**的全部 changelog(含 v7/v6/…/v1 等 v8.0 之前的旧系统)· 仅供追溯,**不再维护**。
+> 现行 changelog(最近 1 版 · v8.87)见 [CHANGELOG.md](./CHANGELOG.md)。
 > ⚠️ v8.0 是「范式切换 · 不向下兼容」的重构 —— **v7 及更早描述的是已不存在的旧系统**,其机制/命令/红线编号均不适用于现行 v8。
 
 ---
+
+## v8.86 · 浏览器验证截图 → 系统临时目录(不污染主工作区根 · dev-only)
+
+> 用户:有些流程会调用浏览器截图,这些(自检「看一眼」的)截图应放临时文件,别落主工作区根。实证:`<repo>/f<id>-full-en.png` 等散落仓库根目录。
+
+### 约定:transient 浏览器验证截图 → `${TMPDIR:-/tmp}/teamwork/<feature_id>/screenshots/`
+- ui_design 预览验证 + 各 stage 顺手核对 UI 的截图 = **一次性验证产物**(AI 自己看 · 非交付 · 不 commit)· 现统一写**系统临时目录**(零工作区脚印 · 不需 gitignore)。
+- **⚠️ 与 browser_e2e 证据区分**:`browser_e2e` **证据截图**仍落 `<feature_dir>/screenshots/*.png`(committed · pm_acceptance 复核)· **不**走临时目录。
+- 落点:`conventions.md §12.5`(新增)+ `ui-design-stage.md` 预览「browse 截图」+ `SKILL.md` worktree 红线。纯 spec(无 code)· pytest 3 failed / 463 passed(零回归)。
 
 ## v8.85 · 外部评审 claude 短 prompt 化 + review_start.log liveness(dev-only)
 

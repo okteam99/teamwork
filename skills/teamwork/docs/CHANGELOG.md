@@ -1,20 +1,18 @@
 # Changelog
 
-> 📦 v8.85 及更早(含 v7/v6/… 旧系统)已归档 → [CHANGELOG-ARCHIVE.md](./CHANGELOG-ARCHIVE.md)。本文件**只留最近 1 版**(每次发布把上一版迁入归档)。
+> 📦 v8.86 及更早(含 v7/v6/… 旧系统)已归档 → [CHANGELOG-ARCHIVE.md](./CHANGELOG-ARCHIVE.md)。本文件**只留最近 1 版**(每次发布把上一版迁入归档)。
 
-## v8.86 · 浏览器验证截图 → 系统临时目录(不污染主工作区根 · dev-only)
+## v8.87 · 修 ship2 归档后主工作区残留 feature 目录(state.json/review-log.jsonl · dev-only)
 
-> 用户:有些流程会调用浏览器截图,这些(自检「看一眼」的)截图应放临时文件,别落主工作区根。实证:`<repo>/f<id>-full-en.png` 等散落仓库根目录。
+> 用户实证(SVC-F001):ship2 归档后 `_archive/<id>.zip` 已生成,但原 `<feature_dir>/` 仍残留 `state.json` + `review-log.jsonl`。预期:worktree 内 ship2 后,主工作区不应多出任何文件。
 
-### 约定:transient 浏览器验证截图 → `${TMPDIR:-/tmp}/teamwork/<feature_id>/screenshots/`
-- ui_design 预览验证(`browse 截图` 自检渲染)+ 各 stage 顺手核对 UI 的截图 = **一次性验证产物**(AI 自己看 · 非交付 · 不 commit)· 现统一写**系统临时目录**(按 feature 命名 · session 内可复寻 · 系统自动回收 · 零工作区脚印 · 不需 gitignore)。
-- 治本 worktree 红线:此前无落点约定 → AI 随手存仓库根 → 污染主工作区 / 并行 Feature 基线。
-- **⚠️ 与 browser_e2e 证据区分**:`browser_e2e` stage 的**证据截图**是交付物 · 仍落 `<feature_dir>/screenshots/*.png`(committed · pm_acceptance 复核)· **不**走临时目录。临时目录只放非证据的自检截图。
+### 根因
+v8.82 的 step 7 清理依赖「`checkout HEAD` 恢复 feature 目录 → ff-pull 删掉」。但 ff-pull **被跳过/失败**时(主工作区与 origin 分叉 / 非 merge_target 分支 / 有其他 dirty),恢复出来的 `state.json` 留在原地;`lingering worktree` 还可能把 `state.json` resurrect 回来 + 触发 ship-complete 重写 `review-log.jsonl` → 主工作区残留过程层文件。
 
-### 落点
-- `docs/conventions.md` §12.5(新增 · transient 截图位置 + 与证据区分 + mkdir 示例)。
-- `stages/ui-design-stage.md` §3 same-stack 预览「browse 截图」→ 点明存系统临时目录 · 不落 worktree 根。
-- `SKILL.md` worktree 红线加一条:浏览器「看一眼」截图 → 系统临时目录 · 绝不落 worktree / 主工作区根(browser_e2e 证据例外)。
+### 修复(双保险 · zip 是真相)
+- **step 7 最终保证**:`archive_delivered` 且当前在 merge_target → 强制物理清除本地 feature 目录(`git rm -r -f --ignore-unmatch` + `rmtree` 残余 untracked)· **不再依赖 ff-pull 成功**。staged 删除下次 pull 自愈 · 并 emit warning 留痕。
+- **幂等路径兜底**:3rd-run(state-sync not-found + zip 已交付)也 `rmtree` 任何残留 feature 目录(防 untracked `review-log.jsonl` 残留)。
 
 ### 验证
-- 纯 spec/约定改动(无 code)· pytest **3 failed / 463 passed**(baseline 3 = scan-spec 既有 · 零回归)。
+- 新增 `test_v887_purges_even_when_ff_pull_skipped`:复刻「归档已交付 + 本地 main 与 origin 分叉 → ff-pull 跳过」· 断言 feature 目录(含 state.json/review-log.jsonl)仍被强制清除。
+- pytest **3 failed / 464 passed**(baseline 3 = scan-spec 既有 · 零回归 · +1 测试)· 既有 `test_full_cycle_archives_and_purges`(clean 路径)仍绿(net 为 no-op)。

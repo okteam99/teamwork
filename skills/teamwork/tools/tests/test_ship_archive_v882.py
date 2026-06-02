@@ -293,6 +293,29 @@ class TestArchiveOnShipV882(unittest.TestCase):
         self.assertTrue(d3.get("idempotent"), d3)
         self.assertEqual(d3.get("archive"), self.zip_rel)
 
+    def test_v887_purges_even_when_ff_pull_skipped(self):
+        """v8.87 治本 SVC-F001:archive 已交付但 ff-pull 被跳过(主工作区 merge_target 分叉)·
+        旧版会残留 <feature_dir>/{state.json,review-log.jsonl} · 现强制清除。"""
+        _, d1 = self._finalize()
+        self.assertEqual(d1.get("verdict"), "PENDING", d1)
+        sf_commit = d1["finalize_mr"]["head_commit"]
+        # 模拟收尾 MR 合并到 origin/main(含归档 · 删 feature 目录)
+        rc, _, err = _git(self.main, "push", "origin", f"{sf_commit}:main")
+        self.assertEqual(rc, 0, f"模拟合并失败:{err}")
+        # 制造本地 main 与 origin 分叉 → ff-pull 必失败(不 fast-forward)
+        (self.main / "DIVERGE.md").write_text("local-only commit", encoding="utf-8")
+        _git(self.main, "add", "DIVERGE.md")
+        _git(self.main, "commit", "-m", "local diverge")
+        self.assertTrue((self.main / self.feat_rel).exists(), "前置:feature 目录此刻仍在")
+        # 重跑:delivered=True · ff-pull 因分叉跳过 · v8.87 net 仍强制清 feature 目录
+        _, d2 = self._finalize()
+        self.assertEqual(d2.get("verdict"), "PASS", d2)
+        self.assertTrue(d2.get("archived"), d2)
+        self.assertFalse((self.main / self.feat_rel).exists(),
+                         "🔴 v8.87:即便 ff-pull 跳过 · 本地 feature 目录也必须被强制清除")
+        self.assertFalse((self.main / self.feat_rel / "state.json").exists())
+        self.assertFalse((self.main / self.feat_rel / "review-log.jsonl").exists())
+
 
 # ─── 集成:archive_on_ship=false 退回 v8.80 ──────────────────────────
 

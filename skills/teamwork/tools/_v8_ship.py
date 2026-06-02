@@ -1916,6 +1916,12 @@ def cmd_ship_finalize(args: argparse.Namespace) -> None:
             zip_rel = _archive_idempotent_zip(main_wt, feature_path)
             if zip_rel:
                 fid = Path(feature_path).name
+                # v8.87:幂等也兜底清残留(state.json 没了但 review-log.jsonl 等 untracked 可能残留)
+                idem_warn = None
+                feat_abs = Path(feature_path).resolve()
+                if feat_abs.exists():
+                    shutil.rmtree(feat_abs, ignore_errors=True)
+                    idem_warn = f"清除残留本地 feature 目录 {feat_abs.name}/(已归档 · zip 是真相)"
                 emit_json({
                     "verdict": "PASS",
                     "command": "ship-finalize",
@@ -1926,6 +1932,7 @@ def cmd_ship_finalize(args: argparse.Namespace) -> None:
                     "archive": zip_rel,
                     "note": ("feature 过程层目录已归档(zip 在 merge_target)· 目录已删 · "
                              "本次 ship-finalize 无需动作(幂等 · 已交付终态)"),
+                    **({"warnings": [idem_warn]} if idem_warn else {}),
                     "next_action_brief": (
                         f"✅ {fid} 已完整 ship + 归档(归档物:{zip_rel})· "
                         "流程终态 · 无后续动作。"),
@@ -2365,6 +2372,26 @@ def cmd_ship_finalize(args: argparse.Namespace) -> None:
                     main_sync_decision = _build_main_sync_decision(
                         feature_path, merge_target, state, dirty_result,
                         res.get("pulled", False))
+
+    # ── v8.87:archive 已交付的最终保证 —— 本地 feature 目录绝不残留 ──
+    # 治本:ff-pull 被跳过(主工作区脏 / 分叉 / 非 merge_target)或 lingering worktree 把
+    # state.json resurrect 回来 → 主工作区残留 `<feature_dir>/{state.json,review-log.jsonl}`
+    # (实证 SVC-F001:_archive/<id>.zip 已在 · 但原 feature 目录仍带 state/review-log)。
+    # zip 是真相 → 在 merge_target 上强制物理清除残留目录(git rm staged · 下次 pull 自愈)。
+    if archive_delivered:
+        cb = _git(["rev-parse", "--abbrev-ref", "HEAD"], cwd=main_wt)
+        on_mt = cb.returncode == 0 and cb.stdout.strip() == merge_target
+        fp = _archive_repo_paths(main_wt, artifact_root, feature_id)
+        if on_mt and fp:
+            feat_abs = Path(main_wt) / fp[0]
+            if feat_abs.exists():
+                # tracked → git rm(index+worktree · staged 删)· 残余 untracked → rmtree
+                _git(["rm", "-r", "-f", "--quiet", "--ignore-unmatch", fp[0]], cwd=main_wt)
+                if feat_abs.exists():
+                    shutil.rmtree(feat_abs, ignore_errors=True)
+                warnings.append(
+                    f"archive 已交付 · 本地 feature 目录 {fp[0]} 残留(ff-pull 未删/被跳过)→ "
+                    f"已强制清除(zip 是真相 · 防主工作区残留 state.json/review-log.jsonl)")
 
     emit_json({
         "verdict": "PASS",
