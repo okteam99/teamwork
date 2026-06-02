@@ -1,33 +1,30 @@
 # Changelog
 
-> 📦 v8.79 及更早(含 v7/v6/… 旧系统)已归档 → [CHANGELOG-ARCHIVE.md](./CHANGELOG-ARCHIVE.md)。本文件**只留最近 1 版**(每次发布把上一版迁入归档)。
+> 📦 v8.80 及更早(含 v7/v6/… 旧系统)已归档 → [CHANGELOG-ARCHIVE.md](./CHANGELOG-ARCHIVE.md)。本文件**只留最近 1 版**(每次发布把上一版迁入归档)。
 
-## v8.80 · ship-finalize 去直推 → 收尾 MR(投递重构 · 兼容保护分支 · 主工作区只 pull · dev-only)
+## v8.81 · ship1 知识沉淀闸门(distill · 过程/知识两层 · 防归档丢知识 · dev-only)
 
-> 用户拍板:ship2(finalize)直推 merge_target 在保护分支下不兼容 · 且后续要给 finalize 加实质改动(归档/ROADMAP)· 直推「单文件零业务影响」的合法性不再成立。去直推 · 收尾改动也走一个 MR · gh/glab 自动合 · 合并后才回主工作区删 worktree + pull。
+> 用户:文档分过程/知识两层 · 过程产物(feature 目录)归档前,「描述代码」的知识必须先 graduate 到知识层(随 feature MR 合)· 否则归档 = 埋掉未沉淀的知识。本版落 ship1 distill 硬闸门(归档的知识安全前置 · 归档本身见后续 v8.82)。
 
-### 变更:step 5 finalize-push(直推)→ finalize-deliver(收尾 MR · AI 驱动)
-- state.py 把收尾 commit(state.json + review-log)暂存到 `ship-finalize/<id>` 分支(git plumbing 零 checkout · 复用 v8.18 commit-building)· **不再直推 merge_target**。
-- 交接 AI 用 **gh/glab 创 MR + 自动合并**(state.py 不代跑 CLI · 与 Phase 1 创 MR 同模型 · 架构一致)· emit `PENDING` + next_action + resume。
-- **降级阶梯**:gh/glab 不可用(未登录 / token 无 scope / 网络)→ 报明确原因 · 用户解决后重跑;无法自动合 → 给 MR(create)链接让用户手动合 → 合后重跑。
-- **可重入 · 语义检测**:重跑判「已交付」= origin/merge_target 上 state.json `current_stage == completed`(抗 squash 合并 + save_state 非确定性 · 不靠 commit ancestor / 字节 no-delta)。
-- **reorder**:worktree-remove(step 6)+ main-sync(step 7)**移到收尾 MR 合并之后**(未合 PENDING 即 return · 不删 worktree · 投递没成 worktree 还在可重试)。
+### sanitize 加 `--distill` 硬闸门(知识层 6 项)
+- `ship-phase --action sanitize` 必带 `--distill`(JSON · knowledge/adr/reg/retro/architecture/db_schema)· 缺 / 非法 / 缺项 → BLOCK。
+- R0:强制 AI **逐项走一遍**知识层(每项记 `updated/promoted <what>` 或显式 `none`/`n/a`)· 质量留 AI · 「走没走」进脚本。记 `ship.distill` 留痕。
+- 知识层 6 项:KNOWLEDGE(gotcha/约定)· ADR(决策)· REG(测试场景)· retro(复盘)· **ARCHITECTURE.md · database-schema.md**(用户特别要求查这俩 living 文档是否需更)。
+- 「描述代码的文档随代码进 MR」:6 项写的知识层文件在 worktree commit · 随本次 feature MR 一起 review + 合(ship1 · 合入前)。
 
-### 效果
-- **merge_target 全程只经 MR** → 兼容保护分支(原直推撞 protect-rule 只能降级)。
-- **主工作区只 pull · ship 不再制造脏 main**(收尾改动不在本地直接 commit)。
-- **不持久化额外字段**:本地 state.json == 交付内容 → step 7 pull 不分叉冲突。
+### 🔴 迁移↔schema 机械校验(治本 schema 文档 drift)
+- feature diff 含 `migration` 文件 **且** `db_schema` 声明无变更 **且** `database-schema.md` 未更 → **BLOCK**(改了表却称无库改 = 矛盾)。纯数据迁移 → db_schema 写 `data-only migration`。best-effort(无法 diff 则跳过)。
 
 ### 实现 + 验证
-- `_v8_ship.py`:`_finalize_push_plumbing` 加 `push_ref/force`(推收尾分支)· 新 `_remote_finalize_delivered`(语义判定)· 新 `_ship_finalize_deliver_pending`(PENDING 交接)· 重写 step 5 + 删 step 6 旧「finalize 失败保留 worktree」死分支。
-- pytest:**67 failed / 439 passed**(baseline 67 · 新增 2 deliver 测试[首跑暂存+PENDING / 全周期 暂存→合→交付→幂等]· 零回归)。
-- ship-stage.md step 表 + §12 同步(直推例外标历史)。
+- `_v8_ship.py`:`DISTILL_KEYS` + `_validate_distill` + `_check_migration_schema` + sanitize 接线 + `--distill` argparse。
+- pytest:**67 failed / 446 passed**(baseline 67 · 新增 7 测试[缺/非法/缺项/空值/有效记录 + 迁移↔schema BLOCK/放行]· 零回归)。
+- ship-stage.md §14(distill 闸门 + 过程/知识两层 + 6 项表)。
 
 ### 后续
-- v8.81:archive(zip+rm)+ distill(知识层 6 项 ship1 闸门)+ ROADMAP forced-marker —— 架在本投递重构之上(实质改动随收尾 MR 走)。
+- v8.82:archive(过程层 feature 目录 zip+rm · 随收尾 MR · 语义检测改「zip 存在」)+ ROADMAP/WS forced-marker。distill(本版)是归档的知识安全前置。
 
 ---
 
-## 更早版本(v8.79 → v1)
+## 更早版本(v8.80 → v1)
 
 完整历史已归档 → [CHANGELOG-ARCHIVE.md](./CHANGELOG-ARCHIVE.md)(v8.0 之前的 v7/v6/… 旧系统亦在此)。

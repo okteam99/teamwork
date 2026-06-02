@@ -216,6 +216,31 @@ cleaned / deferred / n_a · cleaned 必 phase=merged
 
 ---
 
+## 14. ship1 知识沉淀闸门(distill · v8.81)
+
+> 🔴 **过程 / 知识两层**:`docs/features/{id}/`(PRD/TC/TECH/report/state)= **过程层**(交付即历史快照 · 会 drift)· 而 `KNOWLEDGE.md`/`ADR`/`REG`/`retro`/`ARCHITECTURE.md`/`database-schema.md` = **知识层**(持久 · 须保鲜)。**「描述代码」的文档随代码进 MR** —— ship 前(Phase 1)把该 graduate 的知识提到知识层,**随本次 feature MR 一起被 review + 合**。
+
+**硬闸门**:`ship-phase --action sanitize` **必带 `--distill`**(JSON · 知识层 6 项决策)· 缺 / 非法 / 缺项 → BLOCK。
+
+```
+--distill '{
+  "knowledge":     "promoted <gotcha/约定> / none",     # KNOWLEDGE.md(project-specs)
+  "adr":           "ADR-NNNN <决策> / none",            # docs/adr/(决策有备选+后果)
+  "reg":           "REG-<case> / none",                 # e2e-registry(可复用测试场景)
+  "retro":         "done / n/a",                        # docs/retros/(复盘)
+  "architecture":  "updated <模块/接口> / no-change",   # docs/architecture/ARCHITECTURE.md
+  "db_schema":     "updated <表> / no-change / data-only migration"  # docs/architecture/database-schema.md
+}'
+```
+
+- **R0**:强制 AI **逐项走一遍**(每项记 `updated/promoted <what>` 或显式 `none`/`n/a` · 证明已判断)· **质量留 AI · 「走没走」进脚本**。
+- 🔴 **迁移↔schema 机械校验**:feature diff 含 `migration` 文件 **且** `db_schema` 声明无变更 **且** `database-schema.md` 未更 → **BLOCK**(治本 schema 文档 drift)。纯数据迁移 → `db_schema` 写 `data-only migration`。
+- 🔴 建了 ADR → `ARCHITECTURE.md`「技术设计决策」表应有对应行(architecture.md §)。
+- **落点**:6 项写的知识层文件须在 worktree **commit**(随 feature MR 合)· 不是直接改主工作区。`ship["distill"]` 记录决策留痕。
+- **为什么在 ship1(合入前)**:知识层是「代码的文档」→ 随代码同 MR 被确认;且它是 feature 目录后续归档(过程层)的**前置** —— 先把真相提到知识层,过程稿才能安心归档(归档见后续版本)。
+
+---
+
 ## 相关
 
 - 引擎:[../tools/_v8_engine.py](../tools/_v8_engine.py)

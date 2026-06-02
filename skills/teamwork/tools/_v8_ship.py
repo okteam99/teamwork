@@ -56,6 +56,10 @@ SHIP_DETECTION_METHODS = ("branch-contains", "user-reported")
 SHIP_FINALIZE_PUSH_REASONS = ("conflict", "protect-rule", "network", "other")
 SHIP_CLEANUP_ENUM = ("cleaned", "deferred", "n_a")
 
+# v8.81:ship1 知识沉淀闸门 · 知识层 6 项(随 feature MR graduate · 详 stages/ship-stage.md §13)
+# 「描述代码的文档随代码进 MR」· 每项 sanitize 前必记一条决策(updated / none)· 强制走一遍。
+DISTILL_KEYS = ("knowledge", "adr", "reg", "retro", "architecture", "db_schema")
+
 
 # ─── 主工作区拦截(沿用 v7 P0-156 治本) ─────────────────────────────
 
@@ -146,10 +150,87 @@ def _require_ship_stage(state: dict, action: str) -> None:
 # ─── action 1:sanitize ────────────────────────────────────────────
 
 
+def _check_migration_schema(feature_dir: str, merge_target: str, distill: dict) -> None:
+    """v8.81:迁移↔schema 文档一致性硬校验(R0)。
+
+    feature diff 含 migration 文件 + distill.db_schema 声明「无变更」+ database-schema.md 未更
+    → 矛盾 → BLOCK。best-effort:无法 diff(无 merge_target ref 等)则跳过。
+    """
+    if not merge_target:
+        return
+    db = (distill.get("db_schema") or "").lower()
+    declares_no_db = any(k in db for k in
+                         ("no-change", "no_db", "no-db", "无变更", "无库", "无 db", "n/a", "none"))
+    if not declares_no_db:
+        return  # 已声明有 schema 变更 → 不矛盾 · 放行
+    dr = _git(["diff", "--name-only", f"origin/{merge_target}...HEAD"], cwd=feature_dir)
+    if dr.returncode != 0:
+        dr = _git(["diff", "--name-only", f"{merge_target}...HEAD"], cwd=feature_dir)
+    if dr.returncode != 0:
+        return  # 无法判定 → 跳过(best-effort)
+    files = [f for f in dr.stdout.splitlines() if f.strip()]
+    mig = [f for f in files if "migration" in f.lower()]
+    touched_schema = any("database-schema.md" in f for f in files)
+    if mig and not touched_schema:
+        emit_json({
+            "verdict": "FAIL", "stage": "ship", "action": "sanitize",
+            "error": ("distill.db_schema 声明无 DB 变更 · 但 feature diff 含 migration 文件 · "
+                      "且 docs/architecture/database-schema.md 未更新 —— 矛盾"),
+            "hint": ("迁移改了表结构 → 必须同步 docs/architecture/database-schema.md"
+                     "(表/字段/ORM 引用点)· 并把 --distill 的 db_schema 改为 'updated <表>'。"
+                     "确属无需更新(纯数据迁移 backfill)→ db_schema 写明 'data-only migration'。"),
+            "migration_files": mig[:10],
+            "rule": "v8.81 迁移↔schema 一致性硬校验(R0)· 治本 schema 文档 drift",
+        }, exit_code=1)
+
+
+def _validate_distill(args: argparse.Namespace, state: dict) -> dict:
+    """v8.81:校验 ship1 知识沉淀 --distill(知识层 6 项决策)· 缺/非法 → BLOCK · 返回记录。
+
+    R0:强制 AI 逐项走一遍知识层(每项记 promoted/none · 证明已沉淀)· 质量留 AI ·
+    「走没走」进脚本。+ 迁移↔schema 机械校验。详 stages/ship-stage.md §13。
+    """
+    raw = getattr(args, "distill", None)
+    if not raw:
+        emit_json({
+            "verdict": "FAIL", "stage": "ship", "action": "sanitize",
+            "error": "缺 --distill(ship1 知识沉淀闸门 · v8.81)",
+            "hint": ("ship 前必把「描述代码」的知识 graduate 到知识层(随本次 feature MR)· "
+                     "逐项决策 --distill '"
+                     + json.dumps({k: "..." for k in DISTILL_KEYS}, ensure_ascii=False)
+                     + "'(每项填 'updated/promoted <what>' 或 'none'/'n/a' · 无则显式 none · "
+                     "详 ship-stage.md §13)"),
+            "distill_keys": list(DISTILL_KEYS),
+        }, exit_code=1)
+    try:
+        d = json.loads(raw)
+    except (json.JSONDecodeError, TypeError) as e:
+        emit_json({"verdict": "FAIL", "stage": "ship", "action": "sanitize",
+                   "error": f"--distill 不是合法 JSON:{e}"}, exit_code=1)
+    if not isinstance(d, dict):
+        emit_json({"verdict": "FAIL", "stage": "ship", "action": "sanitize",
+                   "error": "--distill 必须是 JSON 对象(知识层 6 项决策)"}, exit_code=1)
+    missing = [k for k in DISTILL_KEYS
+               if not (isinstance(d.get(k), str) and d[k].strip())]
+    if missing:
+        emit_json({
+            "verdict": "FAIL", "stage": "ship", "action": "sanitize",
+            "error": f"--distill 缺项 / 空值:{missing}",
+            "hint": "6 项全填(无则 'none'/'n/a' · 证明已逐项判断):" + " / ".join(DISTILL_KEYS),
+        }, exit_code=1)
+    _check_migration_schema(args.feature, state.get("merge_target") or "", d)
+    rec = {k: d[k].strip() for k in DISTILL_KEYS}
+    rec["distilled_at"] = now_iso()
+    return rec
+
+
 def _handle_ship_sanitize(state: dict, args: argparse.Namespace) -> dict:
-    """Step 1:净化 commit 记录 · 不改 ship.phase。"""
+    """Step 1:净化 commit 记录 + ship1 知识沉淀闸门(v8.81)· 不改 ship.phase。"""
     ship = state.setdefault("ship", {})
     ship.setdefault("started_at", now_iso())
+
+    # v8.81:ship1 知识沉淀硬闸门 —— 知识层 6 项随 feature MR graduate(缺/非法/迁移↔schema 矛盾 → BLOCK)
+    ship["distill"] = _validate_distill(args, state)
 
     log = ship.setdefault("sanitize_log", {
         "residual_commits": [],
@@ -190,9 +271,12 @@ def _handle_ship_sanitize(state: dict, args: argparse.Namespace) -> dict:
         "action": "sanitize",
         "phase": ship.get("phase"),  # 不变
         "sanitize_log": log,
+        "distill": ship["distill"],  # v8.81:知识层 6 项沉淀决策(随 feature MR graduate)
         "warnings": warnings,
         "next_action_brief": (
-            "✅ 净化完成。下一步:"
+            "✅ 净化 + 知识沉淀(distill)完成。🔴 确保 distill 涉及的知识层文件"
+            "(KNOWLEDGE/ADR/REG/retro/ARCHITECTURE/database-schema)已在 worktree commit · "
+            "随本次 feature MR 一起合。下一步:"
             "state.py ship-phase --action push --feature <path> "
             "--feature-head-commit <hash> --git-host <host> "
             "--mr-creation-method <method> --mr-url/mr-create-url <url>"
@@ -2030,6 +2114,10 @@ def register_v8_ship_subparser(sub) -> None:
                     help="[sanitize] 逗号分隔 · 已净化文件白名单")
     sp.add_argument("--suspicious-files",
                     help="[sanitize] JSON · [{path,reason}] · 灰名单文件")
+    sp.add_argument("--distill",
+                    help=("[sanitize · v8.81 必填] JSON · ship1 知识沉淀 6 项决策 "
+                          "{knowledge,adr,reg,retro,architecture,db_schema} · "
+                          "每项 'updated/promoted <what>' 或 'none'/'n/a' · 详 ship-stage.md §13"))
 
     # action=push 参数
     sp.add_argument("--feature-head-commit",
