@@ -207,6 +207,20 @@ git worktree remove <worktree-path>
 git branch -d <branch>
 ```
 
+## 12.5 浏览器验证截图(transient · v8.86)
+
+🔴 **「看一眼」的浏览器截图 → 系统临时目录 · 绝不落 worktree / 主工作区根**。
+
+各 stage 常需 browse 预览/页面**截图自检渲染**(ui_design 预览验证 · dev/review/pm 顺手核对 UI)。这类截图是**一次性验证产物**(AI 自己看 · 非交付 · 不 commit)· **必须写到系统临时目录** · 否则散落主工作区根(实证:`<repo>/f<id>-full-en.png` 等污染根目录)。
+
+- **统一位置**:`${TMPDIR:-/tmp}/teamwork/<feature_id>/screenshots/`(按 feature 命名 · session 内可复寻 · 系统自动回收)。
+  ```bash
+  SHOT_DIR="${TMPDIR:-/tmp}/teamwork/<feature_id>/screenshots"; mkdir -p "$SHOT_DIR"
+  # 浏览器截图存 "$SHOT_DIR/<name>.png" · 再按绝对路径 Read 查看
+  ```
+- **零工作区脚印**:在系统 temp · 不需 gitignore · 不进任何 commit · 不污染并行 Feature 基线(worktree 红线)。
+- **⚠️ 与 browser_e2e 证据区分**:`browser_e2e` stage 的**证据截图**是交付物 · 仍落 **`<feature_dir>/screenshots/*.png`**(committed · pm_acceptance 复核 · 详 browser-e2e-stage.md SOP)· **不**走临时目录。临时目录只放「自检看一眼」的非证据截图。
+
 ---
 
 # 文档布局

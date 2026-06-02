@@ -1,22 +1,20 @@
 # Changelog
 
-> 📦 v8.84 及更早(含 v7/v6/… 旧系统)已归档 → [CHANGELOG-ARCHIVE.md](./CHANGELOG-ARCHIVE.md)。本文件**只留最近 1 版**(每次发布把上一版迁入归档)。
+> 📦 v8.85 及更早(含 v7/v6/… 旧系统)已归档 → [CHANGELOG-ARCHIVE.md](./CHANGELOG-ARCHIVE.md)。本文件**只留最近 1 版**(每次发布把上一版迁入归档)。
 
-## v8.85 · 外部评审 claude 短 prompt 化 + review_start.log liveness(dev-only)
+## v8.86 · 浏览器验证截图 → 系统临时目录(不污染主工作区根 · dev-only)
 
-> 用户拍板:提交 review 的 prompt 不超过 200 字符 · 超过则落文档让 review 模型去读;并在最前面加一句「正式 review 前先写 review_start.log(时间戳)到当前目录,证明模型能正常工作」。治本长 argv 卡 / 模型把模板当问题 / 调用方分不清「慢」与「卡死」。
+> 用户:有些流程会调用浏览器截图,这些(自检「看一眼」的)截图应放临时文件,别落主工作区根。实证:`<repo>/f<id>-full-en.png` 等散落仓库根目录。
 
-### `_run_claude_review` 改 inline/doc 双模(`_build_claude_review_cmd`)
-- **短 prompt(≤200 字符)**:`claude -p <prompt> --output-format text`(纯文本 · 无工具 · 快 · 同旧)。
-- **长 prompt(>200)**:prompt 落 `external-review-prompts/<stage>-<model>.md`(已存在则不覆盖;fallback inline 也物化 · 可审计)· argv 只发 **≤200 字符短句**:「先在 cwd 写 `review_start.log`(UTC 时间戳)证明 liveness · 再读 `<doc 相对路径>` 按其做 review · 只输出评审」。
-- doc 模式用 **`--allowedTools Write Read`**(只放行读 + 写 liveness 日志 · **不放行 Bash/执行** · 守只读评审)· `cwd=feature_dir`(`review_start.log` + doc 相对路径都落 feature 目录)。
+### 约定:transient 浏览器验证截图 → `${TMPDIR:-/tmp}/teamwork/<feature_id>/screenshots/`
+- ui_design 预览验证(`browse 截图` 自检渲染)+ 各 stage 顺手核对 UI 的截图 = **一次性验证产物**(AI 自己看 · 非交付 · 不 commit)· 现统一写**系统临时目录**(按 feature 命名 · session 内可复寻 · 系统自动回收 · 零工作区脚印 · 不需 gitignore)。
+- 治本 worktree 红线:此前无落点约定 → AI 随手存仓库根 → 污染主工作区 / 并行 Feature 基线。
+- **⚠️ 与 browser_e2e 证据区分**:`browser_e2e` stage 的**证据截图**是交付物 · 仍落 `<feature_dir>/screenshots/*.png`(committed · pm_acceptance 复核)· **不**走临时目录。临时目录只放非证据的自检截图。
 
-### review_start.log = liveness 信号(治本「分不清慢 vs 卡死」)
-- reviewer 启动后**几秒内**先写 `review_start.log` → 后台轮询看到它 = 模型正常工作,继续等;**一直没出现**才是真没响应。state.py 跑完把它读进 emit 的 `liveness_confirmed_at` 并清理(不污染 feature 目录)。
-- 超时(rc=124)hint 据 liveness 分流:有日志 = 模型**启动了但没跑完**(慢/限流 · 串行重跑);无日志 = **可能从未响应**(查 auth/网络/并发限流)。🔴 明确**禁止**伪造 `tool_error` 文件 / 自列 external 通过门禁绕过 P0-154。
-- `bootstrap.py` gitignore 维护加 `review_start.log`(兜底防 cleanup 失败时残留误入 commit)。
+### 落点
+- `docs/conventions.md` §12.5(新增 · transient 截图位置 + 与证据区分 + mkdir 示例)。
+- `stages/ui-design-stage.md` §3 same-stack 预览「browse 截图」→ 点明存系统临时目录 · 不落 worktree 根。
+- `SKILL.md` worktree 红线加一条:浏览器「看一眼」截图 → 系统临时目录 · 绝不落 worktree / 主工作区根(browser_e2e 证据例外)。
 
 ### 验证
-- 实测(live):doc 模式 `_run_claude_review` rc=0 · ~30s · 模型确写出 `review_start.log`(timestamp)+ 读 doc + 出评审。短句 argv 实测 ≤200 字符。
-- pytest **3 failed / 463 passed**(baseline 3 = scan-spec 既有 · 零回归 · 新增 3 测试[短 inline / 长 doc 模式 argv≤200+allowedTools+cwd / doc 已存在不覆盖])。
-- spec:review-stage.md §4 加「同步·慢·别提前 kill + liveness + 超时=FAIL 不旁路」。
+- 纯 spec/约定改动(无 code)· pytest **3 failed / 463 passed**(baseline 3 = scan-spec 既有 · 零回归)。

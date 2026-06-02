@@ -1,10 +1,24 @@
-# Changelog Archive(v8.84 → v1)
+# Changelog Archive(v8.85 → v1)
 
-> 📦 **历史归档**:本文件保存 teamwork **v8.84 及更早**的全部 changelog(含 v7/v6/…/v1 等 v8.0 之前的旧系统)· 仅供追溯,**不再维护**。
-> 现行 changelog(最近 1 版 · v8.85)见 [CHANGELOG.md](./CHANGELOG.md)。
+> 📦 **历史归档**:本文件保存 teamwork **v8.85 及更早**的全部 changelog(含 v7/v6/…/v1 等 v8.0 之前的旧系统)· 仅供追溯,**不再维护**。
+> 现行 changelog(最近 1 版 · v8.86)见 [CHANGELOG.md](./CHANGELOG.md)。
 > ⚠️ v8.0 是「范式切换 · 不向下兼容」的重构 —— **v7 及更早描述的是已不存在的旧系统**,其机制/命令/红线编号均不适用于现行 v8。
 
 ---
+
+## v8.85 · 外部评审 claude 短 prompt 化 + review_start.log liveness(dev-only)
+
+> 用户拍板:提交 review 的 prompt 不超过 200 字符 · 超过则落文档让 review 模型去读;并在最前面加一句「正式 review 前先写 review_start.log(时间戳)到当前目录,证明模型能正常工作」。治本长 argv 卡 / 模型把模板当问题 / 调用方分不清「慢」与「卡死」。
+
+### `_run_claude_review` 改 inline/doc 双模(`_build_claude_review_cmd`)
+- **短 prompt(≤200 字符)**:`claude -p <prompt> --output-format text`(纯文本 · 无工具 · 快 · 同旧)。
+- **长 prompt(>200)**:prompt 落 `external-review-prompts/<stage>-<model>.md`(已存在则不覆盖;fallback inline 也物化 · 可审计)· argv 只发 **≤200 字符短句**:「先在 cwd 写 `review_start.log`(UTC 时间戳)证明 liveness · 再读 `<doc 相对路径>` 按其做 review · 只输出评审」。
+- doc 模式用 **`--allowedTools Write Read`**(只放行读 + 写 liveness 日志 · **不放行 Bash/执行** · 守只读评审)· `cwd=feature_dir`。
+
+### review_start.log = liveness 信号
+- reviewer 启动后几秒内先写 `review_start.log` → 后台轮询看到 = 模型正常工作;一直没出现才是真没响应。state.py 跑完读进 emit `liveness_confirmed_at` 并清理。
+- 超时 hint 据 liveness 分流(有=慢/限流串行重跑;无=查 auth/网络/限流)· 🔴 禁伪造 tool_error / 自列 external 绕 P0-154。`bootstrap` gitignore 加 `review_start.log`。
+- pytest **3 failed / 463 passed**(baseline 3 = scan-spec · 零回归 · +3 测试)· review-stage.md §4 加同步/慢/别 kill/liveness 说明。
 
 ## v8.84 · 外部评审 claude 不再指定模型 · 用 CLI 默认值(dev-only)
 

@@ -1,6 +1,6 @@
 ---
 name: teamwork
-version: v8.85.1
+version: v8.86
 description: AI 协作开发一体化框架 · /teamwork 启动
 ---
 
@@ -109,6 +109,7 @@ state.py xx-start --bypass --reason "<用户确认理由>" --user-confirmed --mi
 - 🔴 **确需写入主工作区的** · **须先经用户确认**(R5 暂停点)· 不可 AI 自决(注:ship Phase 2 的 state.json 同步由 `ship-finalize` 用 git plumbing 零 checkout 完成 · 不写主工作区文件 · 无需此例外)
 - **物化兜底**:`xx-complete` 时 state.py 检测主工作区是否冒出本 Feature 文件 → 命中写 `concerns WARN` + emit `main_tree_pollution` —— 但这是**事后兜底** · AI 应**事前**就把文件写在 worktree 内
 - 改完文件在 worktree 内 `git add -A {feature_dir}/` + commit(详 ship-stage.md R-S7)
+- 🔴 **浏览器「看一眼」验证截图 → 系统临时目录**(`${TMPDIR:-/tmp}/teamwork/<feature_id>/screenshots/`)· **绝不落 worktree / 主工作区根**(预览自检 / UI 核对的一次性截图 · 非交付 · 不 commit · 详 [conventions §12.5](./docs/conventions.md))· browser_e2e **证据**截图例外(交付物 · 落 `<feature_dir>/screenshots/`)
 
 worktree 路径规范见 [docs/conventions.md §9-12](./docs/conventions.md)。
 
