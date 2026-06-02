@@ -2,7 +2,7 @@
 
 An AI works from a team-collaboration perspective — through **flow orchestration + role-perspective switching + contractualized stages + a machine-readable state machine** — to drive the complete software lifecycle from product planning to delivery.
 
-[中文](./README.md) · Version: **v8.87** (continuously evolving since the v8.0 paradigm rewrite)
+[中文](./README.md) · Version: **v8.87**
 
 ---
 
@@ -143,6 +143,17 @@ The flow type is identified automatically by the prepare sub-flow at the mode-B 
 ```
 
 Pause-point options are numbered (💡 recommended item first, the last option is always "other instructions") — **just reply with a digit**, no typing. Multi-decision combos are supported (e.g. `1A 2B`). Global shortcuts: `ok` = take the recommendation, `all default` = use all defaults.
+
+### Automation levels: auto_mode / yolo
+
+By default teamwork **stops at every user-decision pause point** for your confirmation. Two opt-in levels raise the automation:
+
+- **`auto_mode`**: the AI handles **stage-to-stage flow** for you — it only auto-accepts + documents "user-decision" pause points (e.g. PRD / UI confirmation, with a `concerns WARN` left for audit); **review work (multi-role + heterogeneous model) still runs for real**.
+- **`yolo` (v8.63 · fully unattended · 🔴 high-risk)**: a superset of `auto_mode` with **zero stops** (even PM acceptance + MR merge are automatic). Enable with `init-feature --yolo [<integration-branch>]` (implies `auto_mode`); switch mid-flow via `state.py set-mode --feature <F> --yolo [<branch>] --reason '...'` (audited — don't raw-write `state.json`).
+
+🔴 **yolo is NOT "simplify / speed up" — it's "heavier review"**: unattended = nobody watching → automated review (especially **external heterogeneous cross-review**) is the only safety net and must be kept / strengthened, **never weakened**. Zero-stop applies **only** to human-decision points (prepare / pm_acceptance / MR merge); every stage's review roles, the real heterogeneous external-model call (**verified via real run logs — can't be faked**), and test rounds all run in full. Failures / blockers / exhausted retries / bypass are **resolved autonomously by the AI** (priority: resolve > bypass; bypass is a last resort after exhausting fixes, always WARN-logged — `bypass_log` frequency = yolo health).
+
+🔴 **Hard gate**: a yolo `merge_target` **must be a non-main branch** (main / master) — auto-merges only land on integration branches like `dev` / `staging` / `integration`; promotion to the main branch stays **human-gated**. Give yolo a dedicated integration branch (e.g. `--yolo yolo/feat-x`) to isolate auto-merged code. Per-feature opt-in (not sticky · passed explicitly each time).
 
 ### Role System
 
@@ -326,7 +337,7 @@ For the detailed directory structure see [skills/teamwork/](./skills/teamwork/).
 
 ## Version
 
-Currently **v8.87** (continuously evolving since the v8.0 paradigm rewrite). Changelog in [docs/CHANGELOG.md](./skills/teamwork/docs/CHANGELOG.md) (latest 1 version) · history in [docs/CHANGELOG-ARCHIVE.md](./skills/teamwork/docs/CHANGELOG-ARCHIVE.md).
+Currently **v8.87**. Changelog in [docs/CHANGELOG.md](./skills/teamwork/docs/CHANGELOG.md) (latest 1 version) · history in [docs/CHANGELOG-ARCHIVE.md](./skills/teamwork/docs/CHANGELOG-ARCHIVE.md).
 
 ---
 
