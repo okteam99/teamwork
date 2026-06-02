@@ -433,6 +433,9 @@ class TestCmdShipFinalizeStep7NoNameError(unittest.TestCase):
         (feat_dir / "state.json").write_text(
             json.dumps(state, ensure_ascii=False, indent=2),
             encoding="utf-8")
+        # v8.82:本套测 v8.80 非归档路径(state.json 终态同步)· archive_on_ship=false 固定行为
+        (self.main / ".teamwork_localconfig.json").write_text(
+            json.dumps({"archive_on_ship": False}), encoding="utf-8")
         _git(self.main, "add", "-A")
         _git(self.main, "commit", "-m", "init")
         _git(self.main, "push", "origin", "main")
@@ -527,6 +530,9 @@ class TestFinalizeDeliverV880(unittest.TestCase):
         }
         (feat_dir / "state.json").write_text(
             json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
+        # v8.82:本套测 v8.80 非归档投递路径 · archive_on_ship=false 固定行为(归档默认 true)
+        (self.main / ".teamwork_localconfig.json").write_text(
+            json.dumps({"archive_on_ship": False}), encoding="utf-8")
         _git(self.main, "add", "-A")
         _git(self.main, "commit", "-m", "init")
         _git(self.main, "push", "origin", "main")

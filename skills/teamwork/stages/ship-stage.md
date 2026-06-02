@@ -60,9 +60,9 @@ ship-finalize 内部自动编排(**可重入** · 失败步骤修复后重跑即
 | 2 | confirm-merged | `ship.phase` pushed → merged |
 | 3 | cleanup | `ship.worktree_cleanup` = cleaned / n_a |
 | 4 | ship-complete | `current_stage` → completed |
-| 5 | **finalize-deliver(v8.80)** | **去直推**:state.py 暂存收尾 commit 到 `ship-finalize/<id>` 分支 → 交接 AI 用 gh/glab **创 MR + 自动合并** → 重跑语义检测已合(origin/merge_target 的 state.json `current_stage=completed`)→ 续。未合 → emit `PENDING`(降级见下)。merge_target **只经 MR**(兼容保护分支 · 主工作区只 pull) |
+| 5 | **finalize-deliver(v8.80 去直推 · v8.82 加归档)** | **去直推**:state.py 暂存收尾 commit 到 `ship-finalize/<id>` 分支 → 交接 AI 用 gh/glab **创 MR + 自动合并** → 重跑检测已合 → 续。**v8.82(`archive_on_ship`·默认 true)**:收尾分支不止同步 state.json · 而是把交付的**过程层** feature 目录 zip 进 `features/_archive/<id>.zip`(+ INDEX.md)· 并从 merge_target **删原目录**(详 §15)· 已交付判定 = zip 在 merge_target 存在。未合 → emit `PENDING`。merge_target **只经 MR**(兼容保护分支 · 主工作区只 pull) |
 | 6 | worktree-remove | 物理删 feature worktree + 本地 feature 分支(🔴 **收尾 MR 合并后**才删) |
-| 7 | main-sync | 主工作区 `git fetch` + 安全 `git pull --ff-only`(在 merge_target 分支且工作树干净时 · 让本地跟上 ship 结果)|
+| 7 | main-sync | 主工作区 `git fetch` + 安全 `git pull --ff-only`(让本地跟上 ship 结果)。**v8.82 归档已交付**:先把本地 feature 目录恢复 HEAD 干净态(内容已进 zip)→ ff-pull 干净删除该目录 |
 
 **为什么必在主工作区**:step 6 worktree-remove 不能删自身所在 worktree · 且 Phase 2 状态同步语义属于 merge_target 主工作区(P0-156)。在 linked worktree 跑 → precheck FAIL · hint 给精确 cd 目标。
 
@@ -125,6 +125,7 @@ ship-phase --action confirm-merged → ship-phase --action cleanup --status clea
 ## 12. Phase 2 finalize · 收尾投递(v8.80 去直推 → 收尾 MR)
 
 > 🔴 **v8.80 变更**:step 5 已从「state.json 直推 merge_target」改为 **finalize-deliver**(收尾改动暂存到 `ship-finalize/<id>` 分支 → AI 用 gh/glab 创 MR + 自动合并 → 重跑语义检测已合)。**merge_target 全程只经 MR**(兼容保护分支)· 主工作区**只 pull · 不再制造脏 main** · worktree 删除/主分支 pull **在收尾 MR 合并之后**。降级:gh/glab 不可用 → 报因 + 用户解决重跑 / 给 MR 链接手合。详 CHANGELOG v8.80。
+> 🔴 **v8.82 增量**:收尾 MR 不止同步 state.json · 默认(`archive_on_ship`)还把交付的过程层 feature 目录 **zip 进 `features/_archive/<id>.zip` + 删原目录**(防 AI 检索过时信息 · 代码是唯一真相)· 已交付判定改为「zip 在 merge_target 存在」。详 **§15**。
 > ⚠️ 下方「直推例外」段为 **≤v8.79 历史原理**(state-sync 实证仍有效 · 直推机制已被收尾 MR 取代)。
 
 🟢 **实证 case · SVC-CORE-B006(2026-05-21)· step 0 state-sync 治本根因**:
@@ -237,7 +238,28 @@ cleaned / deferred / n_a · cleaned 必 phase=merged
 - 🔴 **迁移↔schema 机械校验**:feature diff 含 `migration` 文件 **且** `db_schema` 声明无变更 **且** `database-schema.md` 未更 → **BLOCK**(治本 schema 文档 drift)。纯数据迁移 → `db_schema` 写 `data-only migration`。
 - 🔴 建了 ADR → `ARCHITECTURE.md`「技术设计决策」表应有对应行(architecture.md §)。
 - **落点**:6 项写的知识层文件须在 worktree **commit**(随 feature MR 合)· 不是直接改主工作区。`ship["distill"]` 记录决策留痕。
-- **为什么在 ship1(合入前)**:知识层是「代码的文档」→ 随代码同 MR 被确认;且它是 feature 目录后续归档(过程层)的**前置** —— 先把真相提到知识层,过程稿才能安心归档(归档见后续版本)。
+- **为什么在 ship1(合入前)**:知识层是「代码的文档」→ 随代码同 MR 被确认;且它是 feature 目录归档(过程层 · §15)的**前置** —— 先把真相提到知识层,过程稿才能安心归档。
+
+---
+
+## 15. ship2 归档本体(archive · v8.82)
+
+> 🔴 **过程层归档**:distill(§14)已把「描述代码」的知识 graduate 到知识层(随 feature MR 合)· 过程层 `docs/features/{id}/` 的使命已尽。**ship2 收尾 MR** 把它 zip 进 `features/_archive/<id>.zip` · 并从 merge_target **删原目录**。
+>
+> **为什么删而不是留**:归档的主要目的是**防止 AI 检索到过时的 feature 信息**(PRD/TECH 等过程稿交付即开始 drift · 与实际代码不匹配)。**代码是唯一真相** · 知识层是代码的文档 · 过程稿只留可追溯的 zip 快照。
+
+**何时**:`ship-finalize` step 5 finalize-deliver(`archive_on_ship`·默认 true)· **随收尾 MR 一起合**(MR 合入后目录才从 merge_target 消失 · 经 review)。
+
+**机制**(state.py 全自动 · AI 只在 PENDING 处创/合 MR):
+1. step 1-4 把终态写进本地 feature 目录(含 `state.json current_stage=completed`)。
+2. step 5 把整个 feature 目录打成 `features/_archive/<id>.zip`(arcname=`<id>/...` · 自描述)· 追加 `_archive/INDEX.md` 一行 · 并在收尾 commit 里 **删除 feature 目录的所有 tree 条目** · push 到 `ship-finalize/<id>` 分支 → emit `PENDING`(交接 AI 创 MR + 自动合 · 同 §12)。
+3. 收尾 MR 合并后重跑:**已交付判定 = zip 在 `origin/merge_target` 存在**(抗 squash)· 续 step 6/7。
+4. step 7 主工作区:先把本地 feature 目录恢复 HEAD 干净态(内容已进 zip)→ `ff-pull` 干净删除该目录 + 落地 zip。
+5. **幂等 3rd-run**:目录已被删 → state-sync 找不到 state.json · 但检测到 zip 已在 merge_target → emit 幂等 `PASS`(已交付终态 · 无动作)。
+
+**opt-out**:`archive_on_ship: false` → 退回 v8.80(收尾 MR 只同步终态 `state.json` · 不 zip · 目录留存)。详 templates/config.md。
+
+**取历史**:`unzip features/_archive/<id>.zip` · 或读 `_archive/INDEX.md` 索引。
 
 ---
 
