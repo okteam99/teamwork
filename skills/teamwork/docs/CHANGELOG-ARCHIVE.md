@@ -1,10 +1,21 @@
-# Changelog Archive(v8.89 → v1)
+# Changelog Archive(v8.90 → v1)
 
-> 📦 **历史归档**:本文件保存 teamwork **v8.89 及更早**的全部 changelog(含 v7/v6/…/v1 等 v8.0 之前的旧系统)· 仅供追溯,**不再维护**。
-> 现行 changelog(最近 1 版 · v8.90)见 [CHANGELOG.md](./CHANGELOG.md)。
+> 📦 **历史归档**:本文件保存 teamwork **v8.90 及更早**的全部 changelog(含 v7/v6/…/v1 等 v8.0 之前的旧系统)· 仅供追溯,**不再维护**。
+> 现行 changelog(最近 1 版 · v8.91)见 [CHANGELOG.md](./CHANGELOG.md)。
 > ⚠️ v8.0 是「范式切换 · 不向下兼容」的重构 —— **v7 及更早描述的是已不存在的旧系统**,其机制/命令/红线编号均不适用于现行 v8。
 
 ---
+
+## v8.90 · 单模型用户可禁异质评审(`disable_heterogeneous_review` · 默认开异质 · dev-only)
+
+> 用户:只有一个模型(如 codex 环境下 claude 不可用/未登录/配额满)时,允许降级到当前模型 exec 自审;可在 `.teamwork_localconfig.json` 配置是否禁用异质,**默认关**(异质开);禁用时默认用 exec;每次 teamwork 启动 WARN 提醒交叉 review 质量下降、建议恢复异质。
+
+### localconfig `disable_heterogeneous_review`(默认 false = 异质开)
+- `true` → `external-review` **自动**用宿主自身模型 fresh exec 自审(无需 `--self-review-fallback`),落 `external-cross-review/<stage>-<model>.md`(**满足 P0-154**)· frontmatter 标 `heterogeneous:false degraded:true degraded_mode:config-disabled` + banner + `concern WARN`。
+- 🔴 **review-complete 门禁配套**:`_evidence_external_review_artifact` 在 disable 时**接受**标 `degraded:true heterogeneous:false` 的降级自审 · 仍 BLOCK 未标记的同模型文件(防伪装)· 异质项目(默认)不受影响。
+- 🔴 **每次启动 WARN**:bootstrap `checks.heterogeneous_review.status=disabled` + `pmo_must_read` 顶部 forewarn。
+- 与 v8.88 `--self-review-fallback` 区分:后者临时 stopgap(self-review/·不满足门禁)· 本项目级长期策略(external-cross-review/·满足门禁但 startup WARN 持续提醒)。
+- pytest 3 failed / 475 passed(baseline 3 · 零回归 · +5 测试)。spec:standards §11 + localconfig 模板/config.md。
 
 ## v8.89 · 本地敏感配置统一目录 `.teamwork-local-env/`(kubeconfig/密码/API key · dev-only)
 

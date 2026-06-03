@@ -651,6 +651,77 @@ def write_bootstrap_marker(project_root: Path, skill_version: str,
         return False
 
 
+# v8.91:localconfig schema 自愈默认值(缺字段补上 · 尤其 _bootstrap 段 + 新增 feature 开关)
+# 🔴 与 templates/teamwork_localconfig.json 保持同步(新增字段两处都加)。
+LOCALCONFIG_CONFIG_DEFAULTS = {
+    "worktree": "auto",
+    "worktree_root_path": ".worktree",
+    "scope": "all",
+    "merge_target": "staging",
+    "worktree_cleanup": "ask",
+    "mr_url_template": None,
+    "id_strategy": "utc-yymmddhhmmss",
+    "archive_on_ship": True,
+    "local_env_auto_create": True,
+    "disable_heterogeneous_review": False,
+}
+LOCALCONFIG_BOOTSTRAP_DEFAULTS = {
+    "skill_version": None,
+    "host": None,
+    "last_maintain_at": None,
+    "last_maintain_results": {},
+}
+
+
+def ensure_localconfig_complete(project_root: Path, skill_root: Path) -> dict:
+    """v8.91:bootstrap 启动自愈 localconfig —— 缺的已知字段补默认值(尤其 `_bootstrap` 段)。
+
+    治本:localconfig 由**老版 bootstrap / 手建 / 部分写入** 时 · `_bootstrap` 子键或新增
+    feature 开关(archive_on_ship / disable_heterogeneous_review 等)缺失 · 且版本命中
+    skip_maintain 时这些缺口**永不补** · 用户也看不到新选项。
+    - 仅 **additive**:只补缺的键 · **绝不覆盖**用户已有值(含显式 false/null)。
+    - 仅当 localconfig **已存在**时跑(不存在 = 冷启动 · 由 maintain / prepare 创建 · 不在此凭空造)。
+    - skill 仓自身 skip(同其他 maintain · v8.35)。无变化不写盘(防 churn)。
+    返回 {status, added_config:[...], added_bootstrap:[...]}。
+    """
+    try:
+        if project_root.resolve() == skill_root.resolve():
+            return {"status": "skipped_skill_root"}
+    except OSError:
+        pass
+    cfg_path = project_root / LOCALCONFIG_FILE
+    if not cfg_path.exists():
+        return {"status": "skipped_absent"}  # 冷启动 · 不在此创建(prepare/maintain 负责)
+    try:
+        data = json.loads(cfg_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {"status": "skipped_unreadable"}  # 损坏 · 不强改(避免覆盖用户内容)
+    if not isinstance(data, dict):
+        return {"status": "skipped_not_object"}
+
+    added_config = [k for k in LOCALCONFIG_CONFIG_DEFAULTS if k not in data]
+    for k in added_config:
+        data[k] = LOCALCONFIG_CONFIG_DEFAULTS[k]
+    bs = data.get("_bootstrap")
+    if not isinstance(bs, dict):
+        bs = {}
+        data["_bootstrap"] = bs
+    added_bootstrap = [k for k in LOCALCONFIG_BOOTSTRAP_DEFAULTS if k not in bs]
+    for k in added_bootstrap:
+        bs[k] = LOCALCONFIG_BOOTSTRAP_DEFAULTS[k]
+
+    if not added_config and not added_bootstrap:
+        return {"status": "complete"}
+    try:
+        cfg_path.write_text(
+            json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    except OSError as e:
+        return {"status": "write_failed", "error": str(e),
+                "added_config": added_config, "added_bootstrap": added_bootstrap}
+    return {"status": "backfilled", "added_config": added_config,
+            "added_bootstrap": added_bootstrap}
+
+
 # v8.24:skill 自更新检测(GitHub raw · 5s timeout silent · 落后 emit R5 1/2 选项)
 # 治本 PMO 不知道何时升级 · 跨 session 长时间不更新错过治本
 # v8.39(用户拍板 2026-05-27):支持 update_channel · 默认 main · dev 用于尝鲜
@@ -907,6 +978,11 @@ def cmd_session_bootstrap(args: argparse.Namespace) -> None:
         write_bootstrap_marker(project_root, skill_version,
                                 args.host, marker_results)
 
+    # v8.91:localconfig schema 自愈 —— 缺字段(尤其 _bootstrap 段 + 新增 feature 开关)补默认值。
+    # 跑在 maintain 之后(无论 skip 与否)· 覆盖「版本命中 skip_maintain 时缺口永不补」的洞 ·
+    # additive 不覆盖用户值 · 不存在不创建 · 无变化不写盘。
+    localconfig_backfill = ensure_localconfig_complete(project_root, skill_root)
+
     result = {
         "verdict": "PASS",  # silent · 总是 PASS · 不阻塞
         "command": "session-bootstrap",
@@ -916,6 +992,7 @@ def cmd_session_bootstrap(args: argparse.Namespace) -> None:
         "skill_version": skill_version,
         "project_root": str(project_root),
         "maintain_status": maintain_status,
+        "localconfig_backfill": localconfig_backfill,
         "marker_skill_version_before": marker_version,
         "checks": {
             "skill_version": version_check,
