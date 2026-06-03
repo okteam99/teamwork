@@ -188,6 +188,14 @@ archive_on_ship: true
 <!-- false = 不主动创建（opt-out · 仍保留 gitignore 预留规则）。 -->
 local_env_auto_create: true
 
+### 禁用异质模型审核（v8.90 · 单模型用户）
+<!-- disable_heterogeneous_review: false（默认）/ true -->
+<!-- false = external 评审跑异质模型（claude↔codex 交叉 · 唯一跨模型安全网 · 推荐）。 -->
+<!-- true = 只有一个模型时：external-review 自动降级为宿主自身模型 exec 自审（落 external-cross-review/ 满足 P0-154 · frontmatter 标 degraded · 非异质 · 同盲点 · 交叉 review 质量下降）· 每次 bootstrap 启动 WARN 提醒。 -->
+<!-- 区分 v8.88 --self-review-fallback（异质暂时不可用的临时 stopgap · 落 self-review/ · 不满足门禁）：本项是项目级长期策略。 -->
+<!-- 装好第二个模型 CLI 后建议删此项 / 设 false 恢复异质，交叉 review 质量更高。 -->
+disable_heterogeneous_review: false
+
 ## 备注
 <!-- 可选：记录当前阶段重点、临时分工调整等 -->
 \`\`\`

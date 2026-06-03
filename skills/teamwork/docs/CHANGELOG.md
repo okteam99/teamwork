@@ -1,26 +1,24 @@
 # Changelog
 
-> 📦 v8.88 及更早(含 v7/v6/… 旧系统)已归档 → [CHANGELOG-ARCHIVE.md](./CHANGELOG-ARCHIVE.md)。本文件**只留最近 1 版**(每次发布把上一版迁入归档)。
+> 📦 v8.89 及更早(含 v7/v6/… 旧系统)已归档 → [CHANGELOG-ARCHIVE.md](./CHANGELOG-ARCHIVE.md)。本文件**只留最近 1 版**(每次发布把上一版迁入归档)。
 
-## v8.89 · 本地敏感配置统一目录 `.teamwork-local-env/`(kubeconfig/密码/API key · dev-only)
+## v8.90 · 单模型用户可禁异质评审(`disable_heterogeneous_review` · 默认开异质 · dev-only)
 
-> 用户:本地敏感配置(kubeconfig / DB 密码 / 个人 API key)散落 · 规范一个统一目录、默认 gitignore、TROUBLESHOOTING 配合读、session 初始化自动创建。决策 **A**(默认自动建)。
+> 用户:只有一个模型(如 codex 环境下 claude 不可用/未登录/配额满)时,允许降级到当前模型 exec 自审;可在 `.teamwork_localconfig.json` 配置是否禁用异质,**默认关**(异质开);禁用时默认用 exec;每次 teamwork 启动 WARN 提醒交叉 review 质量下降、建议恢复异质。
 
-### bootstrap 自动维护 `.teamwork-local-env/`(项目根 · `maintain_local_env`)
-- **缺失 → 自动建**:目录 + `config.properties` 模板(注释示例 · **无真密钥**)+ 目录内 `.gitignore`(`*`)。
-- **已存在 → skip**:绝不覆盖用户真 secret(仅补缺失的目录内 .gitignore)。skill 仓自身 skip。
-- **opt-out**:`.teamwork_localconfig.json` 的 `local_env_auto_create: false`(默认 true)。
-- 用途:键值型(DB 密码 / API key / token)→ `config.properties`(`KEY=value`);整文件型(kubeconfig / 证书)→ 直接放本目录。
+### localconfig `disable_heterogeneous_review`(默认 false = 异质开)
+- `true` → `external-review` **自动**用宿主自身模型 fresh exec 自审(无需 `--self-review-fallback`),落 `external-cross-review/<stage>-<model>.md`(**满足 P0-154** · 让单模型用户走完流程)· frontmatter 标 `heterogeneous:false degraded:true degraded_mode:config-disabled` + 正文 banner + 写 `concern WARN`。
+- `_read_disable_heterogeneous_review`(state.py · 向上找 localconfig 到 `.git` 边界 · 默认 false)。
 
-### 🔐 双重 gitignore(防御纵深 · secret 绝不进仓库)
-- 项目根 `.gitignore` 加 `.teamwork-local-env/`(`maintain_gitignore_worktree`)· **且**目录内自带 `.gitignore`(`*`)—— 即便根 .gitignore 漏/子 repo/手删,目录仍自我忽略全部内容。
-- 与 `.teamwork_localconfig.json` 严格区分:前者 = **你的** secret(gitignored)· 后者 = **teamwork 自己**的配置(可提交)。
+### 🔴 每次启动 WARN(bootstrap · 持续提醒)
+- `bootstrap.py` 检测 `disable_heterogeneous_review:true` → `checks.heterogeneous_review.status=disabled` + warning · 并把一行 forewarn 提进 `pmo_must_read`(顶部 digest · 抗 `head` 截断)· PMO 须告知用户「已禁用异质 · 交叉 review 质量下降 · 建议装第二模型 CLI 后恢复」。
 
-### 配套
-- **template** `templates/local-env-config.properties`(带警告头 + 注释示例 + kubeconfig 用法)。
-- **TROUBLESHOOTING.md 模板** §五:本地敏感配置来源(从 `.teamwork-local-env/` 加载的命令示例 · 真值只在此目录 · 本文只写变量名)。
-- **conventions.md §13** + **localconfig 模板/config.md** 文档化 `local_env_auto_create`。
+### 与 v8.88 self-review-fallback 的区分(两种降级)
+- **v8.88 `--self-review-fallback`**(异质**暂时**不可用的临时 stopgap):落 `self-review/` · **不满足 P0-154** · 仍须修环境重跑或 `change-review-roles` 移除 external。
+- **v8.90 `disable_heterogeneous_review`**(**项目级长期策略** · 单模型):落 `external-cross-review/` · **满足 P0-154** · 但被 startup WARN 持续提醒。
+- emit `degraded_mode` 区分二者;`satisfies_p0_154` 分别 false / true。
 
 ### 验证
-- live 实跑:created(目录+模板+目录内.gitignore)/ existed(secret 保留不覆盖)/ disabled(opt-out 不建)/ 根 gitignore appended 全验证。
-- pytest **3 failed / 470 passed**(baseline 3 = scan-spec 既有 · 零回归 · +3 测试:created/不覆盖/opt-out)· 修 `test_gitignore_already_present`(加新 pattern)。
+- live:config-disabled external-review → model=宿主自身 · 落 external-cross-review/(满足门禁);bootstrap → pmo_must_read 含「异质评审已禁用」+ checks.heterogeneous_review=disabled。
+- pytest **3 failed / 472 passed**(baseline 3 = scan-spec 既有 · 零回归 · +2 测试:helper 默认/true · config-disabled 路由)。
+- spec:standards/external-model-usage.md §11(单模型 opt-out)+ localconfig 模板/config.md 文档化。

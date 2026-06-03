@@ -1406,6 +1406,31 @@ class TestExternalReviewCommand(unittest.TestCase):
         self.assertIn("/self-review/", d["output_file"])
         self.assertNotIn("external-cross-review", d["output_file"])
 
+    # ── v8.90:localconfig 禁用异质评审(单模型用户)──
+    def test_read_disable_heterogeneous_review_helper(self):
+        from state import _read_disable_heterogeneous_review  # type: ignore
+        (self.tmp / ".git").mkdir()  # bound 向上 walk
+        # 默认 false(无 localconfig)
+        self.assertFalse(_read_disable_heterogeneous_review(self.feat))
+        # 显式 true
+        (self.tmp / ".teamwork_localconfig.json").write_text(
+            json.dumps({"disable_heterogeneous_review": True}), encoding="utf-8")
+        self.assertTrue(_read_disable_heterogeneous_review(self.feat))
+
+    def test_config_disabled_routes_to_external_cross_review(self):
+        """🔴 v8.90:disable_heterogeneous_review=true → 自动宿主自身模型 exec 自审 ·
+        落 external-cross-review/(满足 P0-154 · 区别于 self-review-fallback 落 self-review/)。"""
+        (self.tmp / ".git").mkdir()
+        (self.tmp / ".teamwork_localconfig.json").write_text(
+            json.dumps({"disable_heterogeneous_review": True}), encoding="utf-8")
+        d = run(["external-review", "--feature", str(self.feat), "--stage", "review",
+                 "--host", "claude-code", "--commit", "abc123def456",
+                 "--base", "staging", "--dry-run"])
+        self.assertEqual(d["verdict"], "OK", d)
+        self.assertEqual(d["model"], "claude")  # 宿主自身模型(降级 · 非异质 codex)
+        self.assertIn("/external-cross-review/", d["output_file"])
+        self.assertNotIn("self-review/", d["output_file"])
+
     # ── stage 校验 ──
     def test_stage_choices_enforced(self):
         """argparse choices 限定 goal/blueprint/review · 其他直接 argparse error。"""

@@ -1065,6 +1065,17 @@ def cmd_session_bootstrap(args: argparse.Namespace) -> None:
             "rule": "🔴 PMO 首条响应按此序 · 不可把 ①/② 降成底部「维护提醒」脚注(治本优先级倒置)",
         }
 
+    # v8.90:异质评审被 localconfig 禁用 → 每次启动 WARN(交叉 review 质量下降 · 建议恢复)
+    _het_disabled = read_localconfig(project_root).get("disable_heterogeneous_review") is True
+    result["checks"]["heterogeneous_review"] = {
+        "status": "disabled" if _het_disabled else "enabled",
+        **({"warning": (
+            "⚠️ 已禁用异质模型审核(disable_heterogeneous_review=true)· external 评审降级为同模型 "
+            "exec 自审 · **交叉 review 质量下降**(同盲点 · 漏检风险↑)· 强烈建议改 "
+            ".teamwork_localconfig.json 恢复异质(删该项 / 设 false · 装好第二个模型 CLI 后)")}
+            if _het_disabled else {}),
+    }
+
     # v8.60:截断鲁棒 digest —— 关键 forewarn(升级 / flow_gates / 优先级)在 JSON 后位 ·
     # AI 习惯 `| head` 截断会吞掉(实证 case:`bootstrap.py | head -50` 吞掉 skill_update_check
     # → PMO 漏升级提示)。把 1 行 digest 提到输出**顶部**(survive `head -5`)+ 显式禁截断警告。
@@ -1077,6 +1088,9 @@ def cmd_session_bootstrap(args: argparse.Namespace) -> None:
             f" · 跑 update.py --channel {_suc.get('channel', 'main')}(最先处理)")
     elif _suc.get("status") == "up_to_date":
         _mr.append(f"skill ✅ {_suc.get('local_version')}")
+    if _het_disabled:
+        _mr.append("🔴 异质评审已禁用(disable_heterogeneous_review=true)· 交叉 review 降级为"
+                   "同模型自审 · PMO 须告知用户(见 checks.heterogeneous_review · 建议恢复异质)")
     _gates = result.get("flow_gates", [])
     if _gates:
         _mr.append("🔴 flow_gates(%d): %s → 逐条读 flow_gates[] 响应"
