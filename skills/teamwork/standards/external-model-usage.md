@@ -164,6 +164,8 @@ codex-agents/*.toml 必须满足：
 | 主对话 Claude → claude-cli 子进程 | ❌ **不算** | 同模型自审 |
 | 用 frontmatter `review_model: claude-isolated` 标"透明" | ❌ **不算** | 透明 ≠ 合规;透明只承认"我做了不达标" · 不替代"做达标" |
 
+> **v8.88 诚实降级自审(self-review-fallback)**:异质 CLI **客观不可用**(未装/未登录/配额满·已重试失败)时 · 可 `external-review --self-review-fallback --reason '...'` 跑同模型 fresh exec 自审 —— 但它**仍是上表第 4 行(不算异质)**,故落 `self-review/`(不进 `external-cross-review/`)· **不满足 P0-154**。它只是异质不可用时的**弱安全网 + audit evidence**,要继续仍须修环境重跑真异质、或 `change-review-roles` 显式移除 external。**绝不**用它冒充异质通过门禁。
+
 ### 11.2 文件命名硬规约(state.py 物化校验)
 
 `external-cross-review/*.md` 文件名 + frontmatter `review_model` 字段必须:

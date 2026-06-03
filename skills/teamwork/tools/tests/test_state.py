@@ -1376,6 +1376,36 @@ class TestExternalReviewCommand(unittest.TestCase):
         self.assertEqual(d["verdict"], "FAIL")
         self.assertIn("同源", d["error"])
 
+    # ── v8.88:诚实降级自审兜底(self-review-fallback)──
+    def test_self_review_fallback_requires_reason(self):
+        """--self-review-fallback 无 --reason → FAIL(降级必留痕)。"""
+        d = run(["external-review", "--feature", str(self.feat),
+                 "--stage", "review", "--host", "claude-code",
+                 "--self-review-fallback", "--dry-run"], expect_exit=0)
+        self.assertEqual(d["verdict"], "FAIL")
+        self.assertIn("reason", d["error"].lower())
+
+    def test_self_review_fallback_rejects_unsupported_host(self):
+        """gemini 宿主无 self-review runner → FAIL(指向 change-review-roles)。"""
+        d = run(["external-review", "--feature", str(self.feat),
+                 "--stage", "review", "--host", "gemini-cli",
+                 "--self-review-fallback", "--reason", "异质不可用", "--dry-run"],
+                expect_exit=0)
+        self.assertEqual(d["verdict"], "FAIL")
+        self.assertIn("claude/codex", d["error"])
+
+    def test_self_review_fallback_routes_to_self_review_dir(self):
+        """🔴 核心:self-review 落 self-review/(非 external-cross-review/)· 用宿主自身模型 ·
+        结构上**不满足 P0-154**(P0-154 只查 external-cross-review/)。dry-run 验路由。"""
+        d = run(["external-review", "--feature", str(self.feat),
+                 "--stage", "review", "--host", "claude-code",
+                 "--self-review-fallback", "--reason", "异质 codex 未登录·已重试失败",
+                 "--dry-run"], expect_exit=0)
+        self.assertEqual(d["verdict"], "OK", d)
+        self.assertEqual(d["model"], "claude")  # 宿主自身模型(claude-code → claude · 故意同源)
+        self.assertIn("/self-review/", d["output_file"])
+        self.assertNotIn("external-cross-review", d["output_file"])
+
     # ── stage 校验 ──
     def test_stage_choices_enforced(self):
         """argparse choices 限定 goal/blueprint/review · 其他直接 argparse error。"""

@@ -1,10 +1,20 @@
-# Changelog Archive(v8.86 → v1)
+# Changelog Archive(v8.87 → v1)
 
-> 📦 **历史归档**:本文件保存 teamwork **v8.86 及更早**的全部 changelog(含 v7/v6/…/v1 等 v8.0 之前的旧系统)· 仅供追溯,**不再维护**。
-> 现行 changelog(最近 1 版 · v8.87)见 [CHANGELOG.md](./CHANGELOG.md)。
+> 📦 **历史归档**:本文件保存 teamwork **v8.87 及更早**的全部 changelog(含 v7/v6/…/v1 等 v8.0 之前的旧系统)· 仅供追溯,**不再维护**。
+> 现行 changelog(最近 1 版 · v8.88)见 [CHANGELOG.md](./CHANGELOG.md)。
 > ⚠️ v8.0 是「范式切换 · 不向下兼容」的重构 —— **v7 及更早描述的是已不存在的旧系统**,其机制/命令/红线编号均不适用于现行 v8。
 
 ---
+
+## v8.87 · 修 ship2 归档后主工作区残留 feature 目录(state.json/review-log.jsonl · dev-only)
+
+> 用户实证(SVC-F001):ship2 归档后 `_archive/<id>.zip` 已生成,但原 `<feature_dir>/` 仍残留 `state.json` + `review-log.jsonl`。预期:worktree 内 ship2 后,主工作区不应多出任何文件。
+
+### 根因 + 修复(双保险 · zip 是真相)
+- 根因:v8.82 step 7 清理依赖「`checkout HEAD` 恢复 + ff-pull 删」· ff-pull 被跳过/失败(分叉 / 非 merge_target / 其他 dirty)或 lingering worktree resurrect 时残留。
+- **step 7 最终保证**:`archive_delivered` 且在 merge_target → 强制物理清除本地 feature 目录(`git rm -r -f --ignore-unmatch` + `rmtree`)· 不再依赖 ff-pull 成功 · emit warn。
+- **幂等路径兜底**:3rd-run 也 rmtree 残留 feature 目录(防 untracked review-log.jsonl)。
+- 新增 `test_v887_purges_even_when_ff_pull_skipped`(复刻分叉→ff-pull 跳过 · 断言强清)· pytest 3 failed / 464 passed(零回归)。
 
 ## v8.86 · 浏览器验证截图 → 系统临时目录(不污染主工作区根 · dev-only)
 
