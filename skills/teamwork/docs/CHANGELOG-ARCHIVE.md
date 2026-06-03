@@ -1,68 +1,10 @@
-# Changelog Archive(v8.92 → v1)
+# Changelog Archive(v8.88 → v1)
 
-> 📦 **历史归档**:本文件保存 teamwork **v8.92 及更早**的全部 changelog(含 v7/v6/…/v1 等 v8.0 之前的旧系统)· 仅供追溯,**不再维护**。
-> 现行 changelog(最近 1 版 · v8.93)见 [CHANGELOG.md](./CHANGELOG.md)。
+> 📦 **历史归档**:本文件保存 teamwork **v8.88 及更早**的全部 changelog(含 v7/v6/…/v1 等 v8.0 之前的旧系统)· 仅供追溯,**不再维护**。
+> 现行 changelog(最近 5 版 · v8.89–v8.93)见 [CHANGELOG.md](./CHANGELOG.md)。
 > ⚠️ v8.0 是「范式切换 · 不向下兼容」的重构 —— **v7 及更早描述的是已不存在的旧系统**,其机制/命令/红线编号均不适用于现行 v8。
 
 ---
-
-## v8.92 · review-stage §5 澄清「汇总层 ≠ 合并」(防三视角揉进一个 REVIEW.md · doc-only)
-
-> 用户:看下面的 case,是否是 review 规范写的不清楚 —— 案例里 AI 跑完 arch/qa/external 三视角后只写了一份汇总 `REVIEW.md`(+ `reviewers:[…]` list),review-complete 因缺 per-role 文件 FAIL,补 `REVIEW-arch.md`/`REVIEW-qa.md` 后才过。
-
-### 诊断:不是「漏写」· 是 §5 决策点的认知陷阱
-- per-role 文件其实在 **8 处**写明(stage.md §2/§3/命令清单/质量基线/Output Contract + `_review_brief` 结果清单/完成命令 `--artifacts` + `REVIEW_SPEC.artifacts` 硬门禁)→ 信息完整,gate 弹回是**正确行为**(不动 gate)。
-- 但 **§5「汇合 → REVIEW.md」** 落在「AI 决定产物形态」那一步,四个信号合力把人往「一个文件搞定」带:① "汇合" 字面像 merge into one;② `reviewers:[arch,qa,external]` 是 list-frontmatter 暗示"一个文件装所有视角";③ per-role 文件零内容校验显得像可选脚手架;④ gate 重点 `reviewers_match` 只查 REVIEW.md。多视角独立性 WHY(防鼓掌效应)又埋在质量基线、没出现在决策点。
-
-### 改法(doc-only · 不动 gate 逻辑)
-- **`stages/review-stage.md` §5**:标题改「🔴 汇总层 · 不是合并:arch/qa/external 三份产物都要独立留盘」+ 正文点明「REVIEW.md 是三份产物**之上**的汇总,**不替代**它们(P0 门禁硬要求 · 原因:多视角独立性 SOP 防鼓掌效应)」+ 显式警告「别揉进一个 REVIEW.md + reviewers list 就交差 → review-complete 会因缺 per-role 文件 FAIL」。
-- **§cite 表第 5 行**:从「(整合 · 无 spec cite)」改为「(汇总层 · REVIEW-arch/qa 已各自落盘 · REVIEW.md 只汇总不替代)」。
-
-### 验证
-- doc-only · 无代码变更 · gate 与测试不受影响(per-role 硬门禁本就正确)。
-
-## v8.91 · bootstrap 启动自愈 localconfig schema(缺字段补默认值 · dev-only)
-
-> 用户:bootstrap.py 启动时检查 `.teamwork_localconfig.json`,`_bootstrap` 段字段不足的要补上默认值。
-
-### `ensure_localconfig_complete`(bootstrap.py · 每次启动跑)
-- **治本**:localconfig 由老版 bootstrap / 手建 / 部分写入时,`_bootstrap` 子键(`skill_version`/`host`/`last_maintain_at`/`last_maintain_results`)或**新增 feature 开关**(`archive_on_ship`/`local_env_auto_create`/`disable_heterogeneous_review`/`id_strategy`)缺失;且**版本命中 `skip_maintain` 时这些缺口永不补**(`write_bootstrap_marker` 只在 maintain 跑时重写 `_bootstrap`,且从不补新 config 键)→ 用户也看不到新选项。
-- **行为**:补全 `_bootstrap` 4 子键 + 所有已知顶层 config 键的默认值。🔴 **additive only · 绝不覆盖**用户已有值(含显式 false/null);只在**已存在**的 localconfig 上跑(不存在 = 冷启动,由 prepare/maintain 创建,不在此凭空造);**无变化不写盘**(防 churn);skill 仓自身 skip。
-- **接线**:跑在 maintain 之后(无论 skip 与否),覆盖 `skip_maintain` 缺口;结果落 `result.localconfig_backfill`(audit)。
-- **默认源**:`LOCALCONFIG_CONFIG_DEFAULTS` + `LOCALCONFIG_BOOTSTRAP_DEFAULTS`(🔴 与 `templates/teamwork_localconfig.json` 保持同步,新增字段两处都加)。
-
-### 验证
-- live:incomplete(缺 `_bootstrap` + 新开关)→ backfilled 且用户值(merge_target=dev/worktree=off)保留;complete → `status:complete` 不写盘;absent → skip 不创建;部分 `_bootstrap` 子键 → 只补缺的。
-- pytest **3 failed / 480 passed**(baseline 3 = scan-spec 既有 · 零回归 · +5 测试:补全保留用户值 / 部分 `_bootstrap` 补缺 / complete 不写 / absent 不建 / skill_root skip)。
-
-## v8.90 · 单模型用户可禁异质评审(`disable_heterogeneous_review` · 默认开异质 · dev-only)
-
-> 用户:只有一个模型(如 codex 环境下 claude 不可用/未登录/配额满)时,允许降级到当前模型 exec 自审;可在 `.teamwork_localconfig.json` 配置是否禁用异质,**默认关**(异质开);禁用时默认用 exec;每次 teamwork 启动 WARN 提醒交叉 review 质量下降、建议恢复异质。
-
-### localconfig `disable_heterogeneous_review`(默认 false = 异质开)
-- `true` → `external-review` **自动**用宿主自身模型 fresh exec 自审(无需 `--self-review-fallback`),落 `external-cross-review/<stage>-<model>.md`(**满足 P0-154**)· frontmatter 标 `heterogeneous:false degraded:true degraded_mode:config-disabled` + banner + `concern WARN`。
-- 🔴 **review-complete 门禁配套**:`_evidence_external_review_artifact` 在 disable 时**接受**标 `degraded:true heterogeneous:false` 的降级自审 · 仍 BLOCK 未标记的同模型文件(防伪装)· 异质项目(默认)不受影响。
-- 🔴 **每次启动 WARN**:bootstrap `checks.heterogeneous_review.status=disabled` + `pmo_must_read` 顶部 forewarn。
-- 与 v8.88 `--self-review-fallback` 区分:后者临时 stopgap(self-review/·不满足门禁)· 本项目级长期策略(external-cross-review/·满足门禁但 startup WARN 持续提醒)。
-- pytest 3 failed / 475 passed(baseline 3 · 零回归 · +5 测试)。spec:standards §11 + localconfig 模板/config.md。
-
-## v8.89 · 本地敏感配置统一目录 `.teamwork-local-env/`(kubeconfig/密码/API key · dev-only)
-
-> 用户:本地敏感配置(kubeconfig / DB 密码 / 个人 API key)散落 · 规范一个统一目录、默认 gitignore、TROUBLESHOOTING 配合读、session 初始化自动创建。决策 **A**(默认自动建)。目录名 v8.89 patch 内由下划线改连字符 `.teamwork-local-env/`(对齐连字符命名)。
-
-### bootstrap 自动维护 `.teamwork-local-env/`(项目根 · `maintain_local_env`)
-- **缺失 → 自动建**:目录 + `config.properties` 模板(注释示例 · **无真密钥**)+ 目录内 `.gitignore`(`*`)。
-- **已存在 → skip**:绝不覆盖用户真 secret(仅补缺失的目录内 .gitignore)。skill 仓自身 skip。
-- **opt-out**:`.teamwork_localconfig.json` 的 `local_env_auto_create: false`(默认 true)。
-- 用途:键值型(DB 密码 / API key / token)→ `config.properties`(`KEY=value`);整文件型(kubeconfig / 证书)→ 直接放本目录。
-
-### 🔐 双重 gitignore(防御纵深 · secret 绝不进仓库)
-- 项目根 `.gitignore` 加 `.teamwork-local-env/`(`maintain_gitignore_worktree`)· **且**目录内自带 `.gitignore`(`*`)—— 即便根 .gitignore 漏/子 repo/手删,目录仍自我忽略全部内容。
-- 与 `.teamwork_localconfig.json` 严格区分:前者 = **你的** secret(gitignored)· 后者 = **teamwork 自己**的配置(可提交)。
-
-### 配套 + 验证
-- template `local-env-config.properties` + TROUBLESHOOTING.md §五(从 `.teamwork-local-env/` 加载命令示例 · 真值只在此目录)+ conventions.md §13 + localconfig/config.md 文档化 `local_env_auto_create`。
-- pytest **3 failed / 470 passed**(baseline 3 · 零回归 · +3 测试)。
 
 ## v8.88 · 外部评审诚实降级自审兜底(self-review-fallback · 异质不可用时 · dev-only)
 
