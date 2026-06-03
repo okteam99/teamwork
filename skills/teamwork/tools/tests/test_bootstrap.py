@@ -338,14 +338,44 @@ class TestMaintainGitignoreWorktree(unittest.TestCase):
 
     def test_gitignore_already_present(self):
         from bootstrap import maintain_gitignore_worktree
-        # teamwork 维护 entries 全预填 → already_present(v8.85 加 review_start.log)
+        # teamwork 维护 entries 全预填 → already_present(v8.85 review_start.log · v8.89 local_env)
         (self.tmp / ".gitignore").write_text(
             "node_modules/\n.worktree/\n.teamwork_localconfig.json\n"
             ".claude/scheduled_tasks.lock\n.claude/agents.lock\n"
-            "review_start.log\n"
+            "review_start.log\n.teamwork_local_env/\n"
         )
         result = maintain_gitignore_worktree(self.tmp)
         self.assertEqual(result["status"], "already_present")
+
+    # ── v8.89:本地敏感配置目录 .teamwork_local_env/ ──
+    def test_local_env_created_with_double_gitignore(self):
+        from bootstrap import maintain_local_env
+        skill = Path(__file__).resolve().parents[1]  # skills/teamwork
+        r = maintain_local_env(skill, self.tmp)
+        self.assertEqual(r["status"], "created")
+        env = self.tmp / ".teamwork_local_env"
+        self.assertTrue((env / "config.properties").exists())
+        # 目录内 .gitignore = 防御纵深(忽略全部内容)
+        self.assertEqual((env / ".gitignore").read_text().strip().splitlines()[-1], "*")
+
+    def test_local_env_existing_not_overwritten(self):
+        """已存在 secret → skip 不覆盖(只补缺失 .gitignore)。"""
+        from bootstrap import maintain_local_env
+        skill = Path(__file__).resolve().parents[1]
+        env = self.tmp / ".teamwork_local_env"; env.mkdir()
+        (env / "config.properties").write_text("DB_PASSWORD=keepme\n", encoding="utf-8")
+        r = maintain_local_env(skill, self.tmp)
+        self.assertEqual(r["status"], "existed")
+        self.assertIn("keepme", (env / "config.properties").read_text())
+
+    def test_local_env_opt_out_disabled(self):
+        from bootstrap import maintain_local_env
+        skill = Path(__file__).resolve().parents[1]
+        (self.tmp / ".teamwork_localconfig.json").write_text(
+            json.dumps({"local_env_auto_create": False}), encoding="utf-8")
+        r = maintain_local_env(skill, self.tmp)
+        self.assertEqual(r["status"], "disabled")
+        self.assertFalse((self.tmp / ".teamwork_local_env").exists())
 
     def test_v831_harness_locks_appended(self):
         """v8.31 治本 INFRA-F025 G2:harness 锁文件自动 ignore。"""

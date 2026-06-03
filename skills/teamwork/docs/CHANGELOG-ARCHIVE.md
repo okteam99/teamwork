@@ -1,10 +1,18 @@
-# Changelog Archive(v8.87 → v1)
+# Changelog Archive(v8.88 → v1)
 
-> 📦 **历史归档**:本文件保存 teamwork **v8.87 及更早**的全部 changelog(含 v7/v6/…/v1 等 v8.0 之前的旧系统)· 仅供追溯,**不再维护**。
-> 现行 changelog(最近 1 版 · v8.88)见 [CHANGELOG.md](./CHANGELOG.md)。
+> 📦 **历史归档**:本文件保存 teamwork **v8.88 及更早**的全部 changelog(含 v7/v6/…/v1 等 v8.0 之前的旧系统)· 仅供追溯,**不再维护**。
+> 现行 changelog(最近 1 版 · v8.89)见 [CHANGELOG.md](./CHANGELOG.md)。
 > ⚠️ v8.0 是「范式切换 · 不向下兼容」的重构 —— **v7 及更早描述的是已不存在的旧系统**,其机制/命令/红线编号均不适用于现行 v8。
 
 ---
+
+## v8.88 · 外部评审诚实降级自审兜底(self-review-fallback · 异质不可用时 · dev-only)
+
+> 用户:codex 环境下异质 claude 不可用(未登录/配额满)怎么办?决策 B:加**诚实降级**——同模型 fresh exec 自审作弱安全网,但**绝不冒充异质、不满足 P0-154**(§11.1 早把「同模型子进程」归类为非异质:只隔离对话历史不隔离权重 · 同盲点)。
+
+- `external-review --self-review-fallback --reason '<原因>'`:宿主自身模型 fresh exec 自审 · 落 `self-review/`(**不进** `external-cross-review/` → P0-154 结构性不满足)· frontmatter `self-degraded/heterogeneous:false/degraded:true` + 正文 banner + concern WARN + emit `satisfies_p0_154:false`。
+- 必带 `--reason`(异质为何不可用 + 重试证据)· gemini 宿主无 runner → FAIL 指向 change-review-roles。要继续仍须修环境重跑真异质 或 change-review-roles 移除 external(本自审作 audit evidence)。
+- 异质主路径(elif/else)字节不变。pytest 3 failed / 467 passed(零回归 · +3 测试)。spec:review-stage.md §4 + standards/external-model-usage.md §11.1。
 
 ## v8.87 · 修 ship2 归档后主工作区残留 feature 目录(state.json/review-log.jsonl · dev-only)
 

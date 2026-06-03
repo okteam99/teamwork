@@ -128,6 +128,14 @@ def read_skill_version(skill_root: Path) -> dict:
 
 PROJECT_SPECS_DIR = "project-specs"
 
+# v8.89:本地敏感配置统一目录(kubeconfig / DB 密码 / 个人 API key)· 双重 gitignore · 不进仓库
+LOCAL_ENV_DIR = ".teamwork_local_env"
+LOCAL_ENV_CONFIG = "config.properties"
+LOCAL_ENV_DIR_GITIGNORE = (
+    "# teamwork: 本目录全部内容禁提交(双重保险 · 即便项目根 .gitignore 漏掉本目录)\n"
+    "*\n"
+)
+
 
 def maintain_project_skeletons(skill_root: Path, project_root: Path) -> dict:
     """silent 维护 project-specs/ 下的项目级骨架文档。
@@ -185,6 +193,63 @@ def maintain_project_skeletons(skill_root: Path, project_root: Path) -> dict:
         "failed": failed,
         "dir": PROJECT_SPECS_DIR,
     }
+
+
+# ─── 本地敏感配置目录 .teamwork_local_env/(v8.89) ──────────
+
+
+def maintain_local_env(skill_root: Path, project_root: Path) -> dict:
+    """v8.89:本地敏感配置统一目录 `.teamwork_local_env/`(kubeconfig / DB 密码 / API key)。
+
+    用户拍板:统一一个 gitignored 目录放本机敏感配置 · 别散落 · session 初始化自动创建。
+    - 缺失 → 自动建目录 + `config.properties` 模板(注释示例 · **无真密钥**)+ 目录内
+      `.gitignore`(`*` · 防御纵深:即便项目根 .gitignore 漏 / 子 repo 也不泄密)。
+    - 已存在 → **skip**(绝不覆盖用户真 secret)· 仅补缺失的目录内 .gitignore(历史目录加固)。
+    - skill 仓自身 → skip(同其他 maintain · 不污染 skill repo · v8.35)。
+    - localconfig `local_env_auto_create: false` → disabled(opt-out)。
+    根 `.gitignore` 加 `.teamwork_local_env/` 由 `maintain_gitignore_worktree` 负责(双重保险其一)。
+    """
+    try:
+        if project_root.resolve() == skill_root.resolve():
+            return {"status": "skipped_skill_root", "dir": LOCAL_ENV_DIR}
+    except OSError:
+        pass
+    # opt-out:localconfig local_env_auto_create:false
+    try:
+        cfg = project_root / LOCALCONFIG_FILE
+        if cfg.exists():
+            data = json.loads(cfg.read_text(encoding="utf-8"))
+            if data.get("local_env_auto_create") is False:
+                return {"status": "disabled", "dir": LOCAL_ENV_DIR}
+    except (OSError, json.JSONDecodeError):
+        pass
+
+    env_dir = project_root / LOCAL_ENV_DIR
+    cfg_file = env_dir / LOCAL_ENV_CONFIG
+    dir_gitignore = env_dir / ".gitignore"
+    created: list = []
+    try:
+        if env_dir.exists():
+            # 已存在 → 不覆盖 secret · 仅补目录内 .gitignore(历史目录可能没有 · 加固)
+            if not dir_gitignore.exists():
+                dir_gitignore.write_text(LOCAL_ENV_DIR_GITIGNORE, encoding="utf-8")
+                created.append(".gitignore")
+            return {"status": "existed", "dir": LOCAL_ENV_DIR, "created": created}
+        env_dir.mkdir(parents=True, exist_ok=True)
+        # 目录内 .gitignore(防御纵深 · 先写 · 确保任何后续写入都已被 ignore)
+        dir_gitignore.write_text(LOCAL_ENV_DIR_GITIGNORE, encoding="utf-8")
+        created.append(".gitignore")
+        # config.properties 模板(无真密钥)
+        template = skill_root / "templates" / "local-env-config.properties"
+        if template.exists():
+            shutil.copy(template, cfg_file)
+        else:
+            cfg_file.write_text(
+                "# teamwork 本地敏感配置 · 绝不提交 git(KEY=value)\n", encoding="utf-8")
+        created.append(LOCAL_ENV_CONFIG)
+        return {"status": "created", "dir": LOCAL_ENV_DIR, "created": created}
+    except OSError as e:
+        return {"status": "failed", "dir": LOCAL_ENV_DIR, "error": str(e)}
 
 
 # ─── workspace 文件名迁移(v7 下划线 → v8 连字符) ──────────
@@ -455,6 +520,9 @@ def maintain_gitignore_worktree(project_root: Path,
         # v8.85:external review reviewer 写的 liveness 标记(state.py 跑完会清 · 兜底防残留误入)
         ("review_start.log", "review_start.log",
          "# Teamwork external-review liveness marker (transient · v8.85)"),
+        # v8.89:本地敏感配置目录(kubeconfig/密码/API key · 双重保险 · 目录内另有 .gitignore)
+        (LOCAL_ENV_DIR + "/", LOCAL_ENV_DIR + "/",
+         "# Teamwork local sensitive config dir (secrets · 绝不提交 · v8.89)"),
     ]
 
     # 仅在 git repo 内执行
@@ -801,6 +869,7 @@ def cmd_session_bootstrap(args: argparse.Namespace) -> None:
     skill_version = version_check.get("version")
     skeletons = maintain_project_skeletons(skill_root, project_root)
     workspace_file = maintain_workspace_filename(project_root)
+    local_env = maintain_local_env(skill_root, project_root)  # v8.89:本地敏感配置目录
     pending_v7 = scan_v7_state_json(project_root)
 
     # 版本门禁:marker 记录的版本 == 当前版本 → 跳过 maintain 4 项
@@ -852,6 +921,7 @@ def cmd_session_bootstrap(args: argparse.Namespace) -> None:
             "skill_version": version_check,
             "skeletons": skeletons,
             "workspace_filename": workspace_file,
+            "local_env": local_env,  # v8.89:本地敏感配置目录 .teamwork_local_env/
             "chmod": chmod_result,
             "hooks": hooks_result,
             "host_injection": injection,
