@@ -1,10 +1,57 @@
-# Changelog Archive(v8.86 → v1)
+# Changelog Archive(v8.90 → v1)
 
-> 📦 **历史归档**:本文件保存 teamwork **v8.86 及更早**的全部 changelog(含 v7/v6/…/v1 等 v8.0 之前的旧系统)· 仅供追溯,**不再维护**。
-> 现行 changelog(最近 1 版 · v8.87)见 [CHANGELOG.md](./CHANGELOG.md)。
+> 📦 **历史归档**:本文件保存 teamwork **v8.90 及更早**的全部 changelog(含 v7/v6/…/v1 等 v8.0 之前的旧系统)· 仅供追溯,**不再维护**。
+> 现行 changelog(最近 1 版 · v8.91)见 [CHANGELOG.md](./CHANGELOG.md)。
 > ⚠️ v8.0 是「范式切换 · 不向下兼容」的重构 —— **v7 及更早描述的是已不存在的旧系统**,其机制/命令/红线编号均不适用于现行 v8。
 
 ---
+
+## v8.90 · 单模型用户可禁异质评审(`disable_heterogeneous_review` · 默认开异质 · dev-only)
+
+> 用户:只有一个模型(如 codex 环境下 claude 不可用/未登录/配额满)时,允许降级到当前模型 exec 自审;可在 `.teamwork_localconfig.json` 配置是否禁用异质,**默认关**(异质开);禁用时默认用 exec;每次 teamwork 启动 WARN 提醒交叉 review 质量下降、建议恢复异质。
+
+### localconfig `disable_heterogeneous_review`(默认 false = 异质开)
+- `true` → `external-review` **自动**用宿主自身模型 fresh exec 自审(无需 `--self-review-fallback`),落 `external-cross-review/<stage>-<model>.md`(**满足 P0-154**)· frontmatter 标 `heterogeneous:false degraded:true degraded_mode:config-disabled` + banner + `concern WARN`。
+- 🔴 **review-complete 门禁配套**:`_evidence_external_review_artifact` 在 disable 时**接受**标 `degraded:true heterogeneous:false` 的降级自审 · 仍 BLOCK 未标记的同模型文件(防伪装)· 异质项目(默认)不受影响。
+- 🔴 **每次启动 WARN**:bootstrap `checks.heterogeneous_review.status=disabled` + `pmo_must_read` 顶部 forewarn。
+- 与 v8.88 `--self-review-fallback` 区分:后者临时 stopgap(self-review/·不满足门禁)· 本项目级长期策略(external-cross-review/·满足门禁但 startup WARN 持续提醒)。
+- pytest 3 failed / 475 passed(baseline 3 · 零回归 · +5 测试)。spec:standards §11 + localconfig 模板/config.md。
+
+## v8.89 · 本地敏感配置统一目录 `.teamwork-local-env/`(kubeconfig/密码/API key · dev-only)
+
+> 用户:本地敏感配置(kubeconfig / DB 密码 / 个人 API key)散落 · 规范一个统一目录、默认 gitignore、TROUBLESHOOTING 配合读、session 初始化自动创建。决策 **A**(默认自动建)。目录名 v8.89 patch 内由下划线改连字符 `.teamwork-local-env/`(对齐连字符命名)。
+
+### bootstrap 自动维护 `.teamwork-local-env/`(项目根 · `maintain_local_env`)
+- **缺失 → 自动建**:目录 + `config.properties` 模板(注释示例 · **无真密钥**)+ 目录内 `.gitignore`(`*`)。
+- **已存在 → skip**:绝不覆盖用户真 secret(仅补缺失的目录内 .gitignore)。skill 仓自身 skip。
+- **opt-out**:`.teamwork_localconfig.json` 的 `local_env_auto_create: false`(默认 true)。
+- 用途:键值型(DB 密码 / API key / token)→ `config.properties`(`KEY=value`);整文件型(kubeconfig / 证书)→ 直接放本目录。
+
+### 🔐 双重 gitignore(防御纵深 · secret 绝不进仓库)
+- 项目根 `.gitignore` 加 `.teamwork-local-env/`(`maintain_gitignore_worktree`)· **且**目录内自带 `.gitignore`(`*`)—— 即便根 .gitignore 漏/子 repo/手删,目录仍自我忽略全部内容。
+- 与 `.teamwork_localconfig.json` 严格区分:前者 = **你的** secret(gitignored)· 后者 = **teamwork 自己**的配置(可提交)。
+
+### 配套 + 验证
+- template `local-env-config.properties` + TROUBLESHOOTING.md §五(从 `.teamwork-local-env/` 加载命令示例 · 真值只在此目录)+ conventions.md §13 + localconfig/config.md 文档化 `local_env_auto_create`。
+- pytest **3 failed / 470 passed**(baseline 3 · 零回归 · +3 测试)。
+
+## v8.88 · 外部评审诚实降级自审兜底(self-review-fallback · 异质不可用时 · dev-only)
+
+> 用户:codex 环境下异质 claude 不可用(未登录/配额满)怎么办?决策 B:加**诚实降级**——同模型 fresh exec 自审作弱安全网,但**绝不冒充异质、不满足 P0-154**(§11.1 早把「同模型子进程」归类为非异质:只隔离对话历史不隔离权重 · 同盲点)。
+
+- `external-review --self-review-fallback --reason '<原因>'`:宿主自身模型 fresh exec 自审 · 落 `self-review/`(**不进** `external-cross-review/` → P0-154 结构性不满足)· frontmatter `self-degraded/heterogeneous:false/degraded:true` + 正文 banner + concern WARN + emit `satisfies_p0_154:false`。
+- 必带 `--reason`(异质为何不可用 + 重试证据)· gemini 宿主无 runner → FAIL 指向 change-review-roles。要继续仍须修环境重跑真异质 或 change-review-roles 移除 external(本自审作 audit evidence)。
+- 异质主路径(elif/else)字节不变。pytest 3 failed / 467 passed(零回归 · +3 测试)。spec:review-stage.md §4 + standards/external-model-usage.md §11.1。
+
+## v8.87 · 修 ship2 归档后主工作区残留 feature 目录(state.json/review-log.jsonl · dev-only)
+
+> 用户实证(SVC-F001):ship2 归档后 `_archive/<id>.zip` 已生成,但原 `<feature_dir>/` 仍残留 `state.json` + `review-log.jsonl`。预期:worktree 内 ship2 后,主工作区不应多出任何文件。
+
+### 根因 + 修复(双保险 · zip 是真相)
+- 根因:v8.82 step 7 清理依赖「`checkout HEAD` 恢复 + ff-pull 删」· ff-pull 被跳过/失败(分叉 / 非 merge_target / 其他 dirty)或 lingering worktree resurrect 时残留。
+- **step 7 最终保证**:`archive_delivered` 且在 merge_target → 强制物理清除本地 feature 目录(`git rm -r -f --ignore-unmatch` + `rmtree`)· 不再依赖 ff-pull 成功 · emit warn。
+- **幂等路径兜底**:3rd-run 也 rmtree 残留 feature 目录(防 untracked review-log.jsonl)。
+- 新增 `test_v887_purges_even_when_ff_pull_skipped`(复刻分叉→ff-pull 跳过 · 断言强清)· pytest 3 failed / 464 passed(零回归)。
 
 ## v8.86 · 浏览器验证截图 → 系统临时目录(不污染主工作区根 · dev-only)
 

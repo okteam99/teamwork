@@ -338,14 +338,44 @@ class TestMaintainGitignoreWorktree(unittest.TestCase):
 
     def test_gitignore_already_present(self):
         from bootstrap import maintain_gitignore_worktree
-        # teamwork 维护 entries 全预填 → already_present(v8.85 加 review_start.log)
+        # teamwork 维护 entries 全预填 → already_present(v8.85 review_start.log · v8.89 local_env)
         (self.tmp / ".gitignore").write_text(
             "node_modules/\n.worktree/\n.teamwork_localconfig.json\n"
             ".claude/scheduled_tasks.lock\n.claude/agents.lock\n"
-            "review_start.log\n"
+            "review_start.log\n.teamwork-local-env/\n"
         )
         result = maintain_gitignore_worktree(self.tmp)
         self.assertEqual(result["status"], "already_present")
+
+    # ── v8.89:本地敏感配置目录 .teamwork-local-env/ ──
+    def test_local_env_created_with_double_gitignore(self):
+        from bootstrap import maintain_local_env
+        skill = Path(__file__).resolve().parents[1]  # skills/teamwork
+        r = maintain_local_env(skill, self.tmp)
+        self.assertEqual(r["status"], "created")
+        env = self.tmp / ".teamwork-local-env"
+        self.assertTrue((env / "config.properties").exists())
+        # 目录内 .gitignore = 防御纵深(忽略全部内容)
+        self.assertEqual((env / ".gitignore").read_text().strip().splitlines()[-1], "*")
+
+    def test_local_env_existing_not_overwritten(self):
+        """已存在 secret → skip 不覆盖(只补缺失 .gitignore)。"""
+        from bootstrap import maintain_local_env
+        skill = Path(__file__).resolve().parents[1]
+        env = self.tmp / ".teamwork-local-env"; env.mkdir()
+        (env / "config.properties").write_text("DB_PASSWORD=keepme\n", encoding="utf-8")
+        r = maintain_local_env(skill, self.tmp)
+        self.assertEqual(r["status"], "existed")
+        self.assertIn("keepme", (env / "config.properties").read_text())
+
+    def test_local_env_opt_out_disabled(self):
+        from bootstrap import maintain_local_env
+        skill = Path(__file__).resolve().parents[1]
+        (self.tmp / ".teamwork_localconfig.json").write_text(
+            json.dumps({"local_env_auto_create": False}), encoding="utf-8")
+        r = maintain_local_env(skill, self.tmp)
+        self.assertEqual(r["status"], "disabled")
+        self.assertFalse((self.tmp / ".teamwork-local-env").exists())
 
     def test_v831_harness_locks_appended(self):
         """v8.31 治本 INFRA-F025 G2:harness 锁文件自动 ignore。"""
@@ -488,6 +518,84 @@ class TestBootstrapMarker(unittest.TestCase):
         self.assertEqual(cfg["scope"], "all")
         self.assertEqual(cfg["merge_target"], "staging")
         self.assertEqual(cfg["_bootstrap"]["skill_version"], "v8.6")
+
+
+class TestEnsureLocalconfigComplete(unittest.TestCase):
+    """v8.91:bootstrap 启动自愈 localconfig —— 缺字段(_bootstrap 段 + 新增开关)补默认值。"""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        self.skill_root = Path(tempfile.mkdtemp())  # 不等于 project_root
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+        shutil.rmtree(self.skill_root, ignore_errors=True)
+
+    def _read(self):
+        import json as _json
+        from bootstrap import LOCALCONFIG_FILE
+        return _json.loads((self.tmp / LOCALCONFIG_FILE).read_text(encoding="utf-8"))
+
+    def test_backfills_missing_bootstrap_and_toggles_preserving_user_values(self):
+        import json as _json
+        from bootstrap import ensure_localconfig_complete, LOCALCONFIG_FILE
+        # 用户设了 merge_target/worktree · 缺 _bootstrap + 新开关
+        (self.tmp / LOCALCONFIG_FILE).write_text(
+            _json.dumps({"merge_target": "dev", "worktree": "off"}), encoding="utf-8")
+        r = ensure_localconfig_complete(self.tmp, self.skill_root)
+        self.assertEqual(r["status"], "backfilled")
+        data = self._read()
+        # 用户值保留(不覆盖)
+        self.assertEqual(data["merge_target"], "dev")
+        self.assertEqual(data["worktree"], "off")
+        # 新开关补默认
+        self.assertEqual(data["archive_on_ship"], True)
+        self.assertEqual(data["disable_heterogeneous_review"], False)
+        self.assertEqual(data["local_env_auto_create"], True)
+        self.assertEqual(data["id_strategy"], "utc-yymmddhhmmss")
+        # _bootstrap 段补全 4 子键
+        self.assertEqual(sorted(data["_bootstrap"].keys()),
+                         ["host", "last_maintain_at", "last_maintain_results", "skill_version"])
+
+    def test_partial_bootstrap_subkeys_backfilled(self):
+        """_bootstrap 存在但缺子键 → 只补缺的 · 保留已有(治本 skip_maintain 时缺口)。"""
+        import json as _json
+        from bootstrap import ensure_localconfig_complete, LOCALCONFIG_FILE
+        full = {k: "x" for k in ("worktree", "worktree_root_path", "scope",
+                                 "merge_target", "worktree_cleanup", "mr_url_template",
+                                 "id_strategy", "archive_on_ship", "local_env_auto_create",
+                                 "disable_heterogeneous_review")}
+        full["_bootstrap"] = {"skill_version": "v8.90", "host": "codex-cli"}  # 缺 2 子键
+        (self.tmp / LOCALCONFIG_FILE).write_text(_json.dumps(full), encoding="utf-8")
+        r = ensure_localconfig_complete(self.tmp, self.skill_root)
+        self.assertEqual(r["status"], "backfilled")
+        self.assertEqual(set(r["added_bootstrap"]), {"last_maintain_at", "last_maintain_results"})
+        data = self._read()
+        self.assertEqual(data["_bootstrap"]["skill_version"], "v8.90")  # 已有保留
+        self.assertEqual(data["_bootstrap"]["host"], "codex-cli")
+        self.assertEqual(data["_bootstrap"]["last_maintain_results"], {})
+
+    def test_complete_config_no_rewrite(self):
+        import json as _json
+        from bootstrap import ensure_localconfig_complete, LOCALCONFIG_FILE
+        # 先补全一次
+        (self.tmp / LOCALCONFIG_FILE).write_text(_json.dumps({"worktree": "auto"}), encoding="utf-8")
+        ensure_localconfig_complete(self.tmp, self.skill_root)
+        mtime = (self.tmp / LOCALCONFIG_FILE).stat().st_mtime_ns
+        r = ensure_localconfig_complete(self.tmp, self.skill_root)  # 第二次
+        self.assertEqual(r["status"], "complete")
+        self.assertEqual((self.tmp / LOCALCONFIG_FILE).stat().st_mtime_ns, mtime)  # 未写盘
+
+    def test_absent_not_created(self):
+        from bootstrap import ensure_localconfig_complete, LOCALCONFIG_FILE
+        r = ensure_localconfig_complete(self.tmp, self.skill_root)
+        self.assertEqual(r["status"], "skipped_absent")
+        self.assertFalse((self.tmp / LOCALCONFIG_FILE).exists())
+
+    def test_skill_root_skipped(self):
+        from bootstrap import ensure_localconfig_complete
+        r = ensure_localconfig_complete(self.skill_root, self.skill_root)
+        self.assertEqual(r["status"], "skipped_skill_root")
 
 
 # ─── scan_v7_state_json ──────────────────────────────────

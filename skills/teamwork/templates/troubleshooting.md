@@ -42,6 +42,25 @@
 - ...
 ```
 
+## 五、本地敏感配置来源（`.teamwork-local-env/`）
+
+🔐 本机敏感配置统一放 **`.teamwork-local-env/`**（项目根 · teamwork session 初始化自动创建 + 双重 gitignore · **绝不进仓库 / 不进 feature 产物 / 不进归档 zip**）：
+
+- **键值型**（DB 密码 / API key / token）→ `.teamwork-local-env/config.properties`（`KEY=value`）
+- **整文件型**（kubeconfig / 证书 / `service-account.json`）→ 直接作为文件放本目录
+
+下面填**你项目实际的加载方式**（teamwork 不假设技术栈）：
+
+```bash
+# 键值型 secret（任选其一 · 看你的栈）
+set -a; . ./.teamwork-local-env/config.properties; set +a   # shell source 进环境变量
+# 整文件型，如 kubeconfig
+export KUBECONFIG=.teamwork-local-env/kubeconfig
+# 然后跑排查命令：kubectl get pods / PGPASSWORD=$DB_PASSWORD psql -h $DB_HOST ... / ...
+```
+
+🔴 本文（TROUBLESHOOTING.md **会进仓库**）里**只写变量名 / 加载方式**，**真值只在 `.teamwork-local-env/`**。
+
 ---
 
 ## 安全约束（必读）
@@ -49,7 +68,7 @@
 🔴 PMO 排查时必守：
 
 - staging 任意 / production 只读优先 / 写操作必须 ⏸️ 用户暂停点授权（红线 R8）
-- 不写 secret / token / 密码到本文（用 `{VAR}` / `$ENV_VAR` 占位符）
+- 不写 secret / token / 密码到本文（用 `{VAR}` / `$ENV_VAR` 占位符）· **真值放 `.teamwork-local-env/`（见 §五）**
 - 不复述 secret 到主对话
 - 不下载 dump / backup（合规风险）
 

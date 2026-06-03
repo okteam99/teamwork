@@ -181,6 +181,21 @@ id_strategy: utc-yymmddhhmmss
 <!-- false = 退回 v8.80（收尾 MR 只同步终态 state.json · 不归档 · feature 目录留存）。详 stages/ship-stage.md §14。 -->
 archive_on_ship: true
 
+### 本地敏感配置目录（v8.89）
+<!-- local_env_auto_create: true（默认）/ false -->
+<!-- true = bootstrap 在 .teamwork-local-env/ 缺失时自动创建（config.properties 模板 + 目录内 .gitignore），已存在不覆盖。 -->
+<!-- 用途：kubeconfig / DB 密码 / 个人 API key 等本机敏感配置统一放此目录 · 双重 gitignore（根 .gitignore + 目录内 .gitignore）绝不进仓库。读取约定见 TROUBLESHOOTING.md。 -->
+<!-- false = 不主动创建（opt-out · 仍保留 gitignore 预留规则）。 -->
+local_env_auto_create: true
+
+### 禁用异质模型审核（v8.90 · 单模型用户）
+<!-- disable_heterogeneous_review: false（默认）/ true -->
+<!-- false = external 评审跑异质模型（claude↔codex 交叉 · 唯一跨模型安全网 · 推荐）。 -->
+<!-- true = 只有一个模型时：external-review 自动降级为宿主自身模型 exec 自审（落 external-cross-review/ 满足 P0-154 · frontmatter 标 degraded · 非异质 · 同盲点 · 交叉 review 质量下降）· 每次 bootstrap 启动 WARN 提醒。 -->
+<!-- 区分 v8.88 --self-review-fallback（异质暂时不可用的临时 stopgap · 落 self-review/ · 不满足门禁）：本项是项目级长期策略。 -->
+<!-- 装好第二个模型 CLI 后建议删此项 / 设 false 恢复异质，交叉 review 质量更高。 -->
+disable_heterogeneous_review: false
+
 ## 备注
 <!-- 可选：记录当前阶段重点、临时分工调整等 -->
 \`\`\`

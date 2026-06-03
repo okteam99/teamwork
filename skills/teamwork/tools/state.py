@@ -1390,6 +1390,32 @@ def _read_id_strategy(start: Path) -> str:
     return DEFAULT
 
 
+def _read_disable_heterogeneous_review(start) -> bool:
+    """读项目根 `.teamwork_localconfig.json` 的 `disable_heterogeneous_review`(v8.90)。
+
+    从 `start` 向上找 `.teamwork_localconfig.json`(到 `.git` 边界止)· 默认 **false**(异质开)。
+    true = 单模型用户主动禁用异质评审 → external-review 自动用宿主自身模型 exec 自审(降级 ·
+    写 external-cross-review/ 满足 P0-154 但 frontmatter 标 degraded)· 每次 bootstrap 启动 WARN。
+    与 v8.88 `--self-review-fallback`(异质暂时不可用的临时 stopgap · 落 self-review/ · 不满足门禁)
+    区分:本项是**项目级长期策略**(用户接受质量下降 · 已被 startup WARN 持续提醒)。
+    """
+    try:
+        node = Path(start).resolve()
+    except OSError:
+        return False
+    for d in [node, *node.parents]:
+        cfg = d / ".teamwork_localconfig.json"
+        if cfg.exists():
+            try:
+                val = json.loads(cfg.read_text(encoding="utf-8")).get("disable_heterogeneous_review")
+            except (OSError, json.JSONDecodeError):
+                return False
+            return bool(val) if isinstance(val, bool) else False
+        if (d / ".git").exists():
+            break
+    return False
+
+
 def _detect_id_collision(feature_dir: Path, feature_id: str) -> "dict | None":
     """撞号硬校验(v8.79 · R0 物化 · 治本 AON 13 组实测撞号)。
 
@@ -2810,7 +2836,52 @@ def cmd_external_review(args: argparse.Namespace) -> None:
         })
         return
 
-    if args.model:
+    # v8.88:诚实降级自审兜底 —— 异质模型客观不可用(未装/未登录/配额满·已重试失败)时 ·
+    # 跑**同模型 fresh exec** 自审(非异质 · 只隔离对话历史不隔离权重 · 同盲点)· 作弱安全网。
+    # 🔴 落 self-review/(不进 external-cross-review/)· **不满足 P0-154 异质门禁** ·
+    # 仍需修环境重跑真异质 或 change-review-roles 显式移除 external(本产物作降级 evidence)。
+    self_fallback = getattr(args, "self_review_fallback", False)
+    sr_reason = (getattr(args, "reason", "") or "").strip()
+    # v8.90:localconfig 禁用异质评审(单模型用户)→ 自动用宿主自身模型 exec 自审(降级 · 满足门禁)
+    het_disabled = _read_disable_heterogeneous_review(args.feature)
+    degraded_self = False  # True → config-disabled 降级自审(落 external-cross-review/ · 满足 P0-154)
+    if self_fallback:
+        # v8.88 临时 stopgap:异质暂不可用 · 落 self-review/ · **不满足 P0-154**(异质仍是目标)
+        if not sr_reason:
+            emit({
+                "verdict": "FAIL",
+                "command": "external-review",
+                "error": "--self-review-fallback 必带 --reason(异质为何不可用 + 已重试证据)",
+                "hint": "示例 --reason '异质 claude 未登录·已 retry 失败·降级同模型自审兜底'",
+            })
+            return
+        model = host.split("-")[0]  # claude-code→claude · codex-cli→codex(故意同源 · 降级)
+        if model not in ("codex", "claude"):
+            emit({
+                "verdict": "FAIL",
+                "command": "external-review",
+                "error": f"--self-review-fallback 暂仅支持 claude/codex 宿主自审(host={host})",
+                "hint": "gemini 等宿主无 self-review runner · 改 change-review-roles 移除 external",
+            })
+            return
+    elif het_disabled:
+        # v8.90 项目级长期策略:用户禁异质(单模型)→ 自动宿主自身模型 exec 自审 ·
+        # 落 external-cross-review/(满足 P0-154 · 让单模型用户能走完流程)· frontmatter 标 degraded ·
+        # 每次 bootstrap 启动 WARN 持续提醒「交叉 review 质量下降 · 建议恢复异质」。
+        model = host.split("-")[0]  # 宿主自身模型(故意同源)
+        if model not in ("codex", "claude"):
+            emit({
+                "verdict": "FAIL",
+                "command": "external-review",
+                "error": f"disable_heterogeneous_review=true 但宿主 {host} 无 self-exec runner(仅 claude/codex)",
+                "hint": ("改回异质(删 localconfig disable_heterogeneous_review)· "
+                         "或 change-review-roles 移除 external"),
+            })
+            return
+        degraded_self = True
+        sr_reason = (sr_reason or "localconfig disable_heterogeneous_review=true"
+                     "(单模型 · 异质评审降级为同模型 exec 自审 · 已 startup WARN)")
+    elif args.model:
         model = args.model
         # 异质校验:model 不能与 host 同源
         host_keyword = host.split("-")[0]  # claude-code → claude · codex-cli → codex
@@ -2821,7 +2892,8 @@ def cmd_external_review(args: argparse.Namespace) -> None:
                 "error": f"--model={model!r} 与 --host={host!r} 同源 · 违 R3 异质约束",
                 "hint": (
                     f"host={host} 主对话宿主 = {host_keyword} · external 必跑异质 · "
-                    f"推荐 --model {EXTERNAL_HOST_TO_MODEL[host]}(自动映射 · 留空即默认)"
+                    f"推荐 --model {EXTERNAL_HOST_TO_MODEL[host]}(自动映射 · 留空即默认)· "
+                    f"或异质客观不可用时 --self-review-fallback --reason '...' 降级自审(不满足门禁)"
                 ),
                 "spec": "standards/external-model-usage.md § 7.1 异质性定义",
             })
@@ -2944,7 +3016,8 @@ def cmd_external_review(args: argparse.Namespace) -> None:
     # codex_model 此时可能 None(ChatGPT 订阅默认行为)/ config 配字面 / 显式覆盖值
 
     # ── dry-run · 仅输出将跑的命令 + 校验信息 ──
-    output_dir = feature_dir / "external-cross-review"
+    # v8.88:self-review 降级落 self-review/(不进 external-cross-review/ · 不满足 P0-154 门禁)
+    output_dir = feature_dir / ("self-review" if self_fallback else "external-cross-review")
     output_file = output_dir / f"{args.stage}-{model}.md"
     preview_prompt_full = None
     if args.dry_run:
@@ -3113,7 +3186,7 @@ def cmd_external_review(args: argparse.Namespace) -> None:
     frontmatter_lines = [
         "---",
         f"review_model: {model_version}",
-        f"review_role: external",
+        f"review_role: {'self-degraded' if (self_fallback or degraded_self) else 'external'}",
         f"review_stage: {args.stage}",
         f"target_commit: {commit}",
         f"target_base: {base}",
@@ -3121,10 +3194,33 @@ def cmd_external_review(args: argparse.Namespace) -> None:
         f"generated_at: \"{now_iso()}\"",
         f"invoked_by: state.py external-review (v8.20)",
         f"host: {host}",
-        "---",
-        "",
     ]
-    output_file.write_text("\n".join(frontmatter_lines) + stdout, encoding="utf-8")
+    if self_fallback or degraded_self:
+        # v8.88/v8.90:诚实标注 —— 同模型自审 · 非异质 · 同盲点
+        frontmatter_lines += [
+            "heterogeneous: false",
+            "degraded: true",
+            f"degraded_mode: {'self-review-fallback' if self_fallback else 'config-disabled'}",
+            f"degraded_reason: \"{sr_reason}\"",
+        ]
+    frontmatter_lines += ["---", ""]
+    body = stdout
+    if self_fallback:
+        # 正文顶 banner · 任何人打开都立刻知道这是降级自审(非异质 · 不可当 external 通过证据)
+        body = (
+            "> ⚠️ **同模型自审(self-review · 降级)· 非异质 external** —— 只隔离对话历史不隔离"
+            "模型权重 · 同盲点 · **不满足 P0-154 异质门禁** · 仅作异质不可用时的弱安全网。\n"
+            f"> 降级理由:{sr_reason}\n\n"
+        ) + stdout
+    elif degraded_self:
+        # v8.90 config-disabled:本项目禁异质 · 此自审是「该项目的 review of record」(满足门禁)·
+        # 但仍非异质 · 同盲点 · 交叉 review 质量下降 —— banner + startup WARN 持续提醒。
+        body = (
+            "> ⚠️ **同模型自审(config 禁用异质 · 降级)** —— `disable_heterogeneous_review=true` ·"
+            "只隔离对话历史不隔离模型权重 · 同盲点 · 交叉 review 质量下降。删 localconfig 该项可恢复异质。\n"
+            f"> 降级理由:{sr_reason}\n\n"
+        ) + stdout
+    output_file.write_text("\n".join(frontmatter_lines) + body, encoding="utf-8")
 
     # ── Step 6.5 · v8.36 内容质量轻校验 → v8.43 升级 template_echo 为 BLOCK ──
     # v8.36 决策 WARN 不 BLOCK · 但 case SVC-PLATFORM-F054 blueprint round 3 实证:
@@ -3178,6 +3274,39 @@ def cmd_external_review(args: argparse.Namespace) -> None:
             f"file={output_file}"
         )
 
+    # v8.88/v8.90:self-review 降级 → 写 concern WARN(audit · retro 可见 · 降级必留痕)
+    if self_fallback or degraded_self:
+        try:
+            _mode = "self-review-fallback·不满足 P0-154" if self_fallback else \
+                    "config-disabled·满足门禁但同盲点"
+            state.setdefault("concerns", []).append(
+                f"{now_iso()} WARN self-review 降级@{args.stage}(同模型 {model} 自审 · "
+                f"非异质 · {_mode})· reason: {sr_reason} · file={output_file}"
+            )
+            atomic_write(state_path(args.feature), state)
+        except Exception:
+            pass
+
+    if self_fallback:
+        next_hint = (
+            f"⚠️ 降级自审已落 {output_file}(self-review/ · **非异质 · 不满足 P0-154 门禁**)。"
+            f"两条路继续:① [首选] 修环境(装/登录/等配额)→ 重跑真异质 external-review;"
+            f"② 异质确实修不了 → state.py change-review-roles --feature {args.feature} "
+            f"--stage {args.stage} --roles '<不含 external>' --reason '异质不可用·已自审降级' "
+            f"(本自审产物作 audit evidence)· yolo 下还需 --accept-external-removal。"
+            f"🔴 不得把本 self-review 当 external 通过证据。"
+        )
+    elif degraded_self:
+        next_hint = (
+            f"⚠️ 异质评审已被 localconfig 禁用(disable_heterogeneous_review=true)· 已用同模型 "
+            f"{model} exec 自审落 {output_file}(满足 P0-154 · 但**非异质 · 同盲点 · 交叉 review 质量下降**)。"
+            f"PMO 整合 finding 到 REVIEW.md → {args.stage}-complete。"
+            f"🔴 想恢复异质评审质量:删 .teamwork_localconfig.json 的 disable_heterogeneous_review。"
+        )
+    else:
+        next_hint = (f"file 已落盘 · PMO 整合 finding 到 REVIEW.md · "
+                     f"然后跑 state.py {args.stage}-complete --artifacts ...")
+
     emit({
         "verdict": "OK",
         "command": "external-review",
@@ -3194,10 +3323,13 @@ def cmd_external_review(args: argparse.Namespace) -> None:
         "file_path": str(output_file),
         "finding_count_estimate": finding_count,
         "stdout_bytes": len(stdout),
-        "next_hint": (
-            f"file 已落盘 · PMO 整合 finding 到 REVIEW.md · "
-            f"然后跑 state.py {args.stage}-complete --artifacts ..."
-        ),
+        # v8.88/v8.90:self-review 降级标记(诚实 · 调用方/审计一眼可辨 · 不冒充异质)
+        # self-review-fallback(临时):不满足 P0-154 · config-disabled(项目策略):满足门禁但同盲点
+        **({"degraded": True, "heterogeneous": False, "review_role": "self-degraded",
+            "degraded_mode": ("self-review-fallback" if self_fallback else "config-disabled"),
+            "satisfies_p0_154": (False if self_fallback else True)}
+            if (self_fallback or degraded_self) else {}),
+        "next_hint": next_hint,
         # v8.36:host 来源 deprecated 警告 + 内容质量轻校验 WARN(不 BLOCK · R0 兜底)
         **({"deprecation_warning": deprecation_warning} if deprecation_warning else {}),
         **({"quality_warnings": quality_warnings} if quality_warnings else {}),
@@ -3799,6 +3931,14 @@ def build_parser() -> argparse.ArgumentParser:
                     help=("[v8.44] 显式 prompt-doc 路径 · 不传则默认 "
                           "<feature>/external-review-prompts/<stage>-<model>.md。"
                           "doc 不存在 → fallback v8.43 inline + emit WARN 提示 scaffold"))
+    # v8.88:诚实降级自审兜底(异质客观不可用·已重试失败 时的弱安全网)
+    er.add_argument("--self-review-fallback", action="store_true",
+                    help=("[v8.88] 异质模型客观不可用(未装/未登录/配额满·已重试失败)时 · "
+                          "跑**同模型 fresh exec** 自审 · 落 self-review/(非异质 · **不满足 "
+                          "P0-154 异质门禁** · 仅弱安全网)· 必带 --reason。仍需修环境重跑真异质 "
+                          "或 change-review-roles 移除 external(本产物作降级 evidence)"))
+    er.add_argument("--reason",
+                    help="[v8.88] --self-review-fallback 必带 · 异质为何不可用 + 已重试证据")
     er.set_defaults(func=cmd_external_review)
 
     # v8.44:scaffold-review-prompt · 生成 prompt-doc skeleton(AI 主对话填 compact summary)
