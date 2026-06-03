@@ -1,6 +1,22 @@
 # Changelog
 
-> 📦 v8.89 及更早(含 v7/v6/… 旧系统)已归档 → [CHANGELOG-ARCHIVE.md](./CHANGELOG-ARCHIVE.md)。本文件**保留最近 5 版**(每次发布:新增本版 → 若超过 5 版,把最旧的一版迁入归档)。
+> 📦 v8.90 及更早(含 v7/v6/… 旧系统)已归档 → [CHANGELOG-ARCHIVE.md](./CHANGELOG-ARCHIVE.md)。本文件**保留最近 5 版**(每次发布:新增本版 → 若超过 5 版,把最旧的一版迁入归档)。
+
+## v8.95 · 禁异质项目的 external 违规 FAIL 改给专属修复指引(去通用「调异质」误导 · hint-only)
+
+> 用户:看 case(aon SVC-PLATFORM-B260603103943)—— 关掉异质后物化校验真的不认么?案例里 `disable_heterogeneous_review=true` 项目,AI **手写**同模型自审(没打降级标记)被 review-complete 异质门禁拦。
+
+### 诊断:认 —— 只认 `state.py external-review` 跑出的降级文件,不认手写
+- 门禁 `_evidence_external_review_artifact` 在 `disable_heterogeneous_review=true` 时**接受** `external-cross-review/*.md` frontmatter 带 `degraded:true`+`heterogeneous:false` 的降级自审(v8.90);而 `state.py external-review` 在该项目里**自动**打这俩标(state.py config-disabled 分支 L3201-3203)→ 两边严丝合缝,本就认。
+- 案例 FAIL 因 AI **手写**自审、没打标(把 `heterogeneous_review: degraded` 写进 **REVIEW.md** · 而门禁查的是 external-cross-review **文件**的 `degraded`/`heterogeneous` 键)→ 判同源伪装拦(v8.67 反伪造 · 拦得对)。
+
+### 改法:violation FAIL 文案分 het_disabled(hint-only · 不动门禁逻辑)
+- `het_disabled=true` 的 violation → 给**专属**修复:跑 `state.py external-review`(config-disabled 自动产出被接受的降级自审 · **别手写**)· 或补 `degraded:true`+`heterogeneous:false`(写在 external-cross-review 文件 · 非 REVIEW.md)· 想恢复真异质 → 删 disable 开关。
+- 默认(未禁)项目仍走原通用 hint(host 自动映射异质模型 / change-review-roles)。治本:旧文案在禁异质项目里仍喊「调异质模型」误导单模型用户(与 v8.90 opt-out 初衷相悖 · case 里 AI 就是被带去找 codex)。
+
+### 验证
+- `test_v8_stage_specs.py` 扩断言:het_disabled violation → 含 `disable_heterogeneous_review`/`别手写`/`state.py external-review` · **不含**「host 自动映射异质模型」;默认项目反之(锁两分支)。
+- pytest **3 failed / 498 passed**(baseline 3 = scan-spec 既有 · 零回归)。
 
 ## v8.94 · feature 归档加极简描述(`--archive-desc` ≤50 字 → INDEX.md 描述列)
 
@@ -65,14 +81,3 @@
 ### 验证
 - live:incomplete(缺 `_bootstrap` + 新开关)→ backfilled 且用户值(merge_target=dev/worktree=off)保留;complete → `status:complete` 不写盘;absent → skip 不创建;部分 `_bootstrap` 子键 → 只补缺的。
 - pytest **3 failed / 480 passed**(baseline 3 = scan-spec 既有 · 零回归 · +5 测试:补全保留用户值 / 部分 `_bootstrap` 补缺 / complete 不写 / absent 不建 / skill_root skip)。
-
-## v8.90 · 单模型用户可禁异质评审(`disable_heterogeneous_review` · 默认开异质 · dev-only)
-
-> 用户:只有一个模型(如 codex 环境下 claude 不可用/未登录/配额满)时,允许降级到当前模型 exec 自审;可在 `.teamwork_localconfig.json` 配置是否禁用异质,**默认关**(异质开);禁用时默认用 exec;每次 teamwork 启动 WARN 提醒交叉 review 质量下降、建议恢复异质。
-
-### localconfig `disable_heterogeneous_review`(默认 false = 异质开)
-- `true` → `external-review` **自动**用宿主自身模型 fresh exec 自审(无需 `--self-review-fallback`),落 `external-cross-review/<stage>-<model>.md`(**满足 P0-154**)· frontmatter 标 `heterogeneous:false degraded:true degraded_mode:config-disabled` + banner + `concern WARN`。
-- 🔴 **review-complete 门禁配套**:`_evidence_external_review_artifact` 在 disable 时**接受**标 `degraded:true heterogeneous:false` 的降级自审 · 仍 BLOCK 未标记的同模型文件(防伪装)· 异质项目(默认)不受影响。
-- 🔴 **每次启动 WARN**:bootstrap `checks.heterogeneous_review.status=disabled` + `pmo_must_read` 顶部 forewarn。
-- 与 v8.88 `--self-review-fallback` 区分:后者临时 stopgap(self-review/·不满足门禁)· 本项目级长期策略(external-cross-review/·满足门禁但 startup WARN 持续提醒)。
-- pytest 3 failed / 475 passed(baseline 3 · 零回归 · +5 测试)。spec:standards §11 + localconfig 模板/config.md。

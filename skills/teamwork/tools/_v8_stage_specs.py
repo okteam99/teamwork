@@ -1360,19 +1360,37 @@ def _evidence_external_review_artifact(state: dict, args) -> tuple[bool, str]:
             violations.append(f"{f.name}:frontmatter review_model={rm_value!r} {rm_reason}")
 
     if violations:
+        # v8.95:het_disabled 项目的违规 = 文件缺降级标记(多半 AI 手写没打标)· 给**专属**修复指引
+        # (不要走通用「调异质模型」分支 —— 那对单模型 opt-out 用户误导 · 正与 v8.90 初衷相悖)。
+        if het_disabled:
+            fix_section = (
+                "\n  🔴 修复(本项目 `disable_heterogeneous_review=true` · 单模型 opt-out):"
+                "external-cross-review 文件**缺降级标记** → 被判同源。"
+                "\n  正解 = 跑 `state.py external-review --stage "
+                f"{current_stage} --feature {args.feature}` —— config-disabled 模式会**自动**产出 "
+                "`degraded:true heterogeneous:false` 的降级同模型自审(被门禁接受)· **别手写**"
+                "(手写没实跑标记 · 看起来像伪造 → 拦)。"
+                "\n  或给现有 external-cross-review/*.md 补 `degraded: true` + `heterogeneous: false` "
+                "两个 frontmatter 键(注:写在 external-cross-review 文件里 · 不是 REVIEW.md)。"
+                "\n  想恢复真异质把关 → 删 localconfig 的 `disable_heterogeneous_review`。"
+            )
+        else:
+            fix_section = (
+                "\n  规约(v8.68 host-aware):同源 = ① isolated/subagent 等机制字面(全 host BLOCK)· "
+                "或 ② review model 与**宿主同族**(claude-code 宿主下 claude 同源 · "
+                "**codex-cli 宿主下 claude 是异质 · 合规**)。"
+                "\n  典型违规:AI 用 Agent subagent_type=general-purpose 起同模型 isolated context 自审 → 同模型自评有盲点。"
+                "\n  修复:跑 `state.py external-review --stage <X> --feature <path>`"
+                "(host 自动映射异质模型:claude-code→codex · codex-cli→claude · gemini-cli→codex)· "
+                "或 change-review-roles 显式移除 external(留 audit)。"
+                "\n  🔴 若本就是合规异质评审却被判违规 → 检查 state.json.host 是否 = 你的真实主对话宿主"
+                "(host 错 / 缺 默认 claude · 会把 codex-cli 的 claude 评审误判同源)。"
+            )
         return False, (
             f"external 异质性违规({len(violations)} 文件)· R3 红线 + standards/"
             f"external-model-usage.md § 七 异质性硬约束:\n  "
             + "\n  ".join(violations)
-            + "\n  规约(v8.68 host-aware):同源 = ① isolated/subagent 等机制字面(全 host BLOCK)· "
-            "或 ② review model 与**宿主同族**(claude-code 宿主下 claude 同源 · "
-            "**codex-cli 宿主下 claude 是异质 · 合规**)。"
-            "\n  典型违规:AI 用 Agent subagent_type=general-purpose 起同模型 isolated context 自审 → 同模型自评有盲点。"
-            "\n  修复:跑 `state.py external-review --stage <X> --feature <path>`"
-            "(host 自动映射异质模型:claude-code→codex · codex-cli→claude · gemini-cli→codex)· "
-            "或 change-review-roles 显式移除 external(留 audit)。"
-            "\n  🔴 若本就是合规异质评审却被判违规 → 检查 state.json.host 是否 = 你的真实主对话宿主"
-            "(host 错 / 缺 默认 claude · 会把 codex-cli 的 claude 评审误判同源)。"
+            + fix_section
         )
 
     # v8.67:yolo 严格按流程 · 不内化 —— external 必须真跑(state.py external-review 调异质模型)·
