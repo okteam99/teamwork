@@ -1,6 +1,20 @@
 # Changelog
 
-> 📦 v8.91 及更早(含 v7/v6/… 旧系统)已归档 → [CHANGELOG-ARCHIVE.md](./CHANGELOG-ARCHIVE.md)。本文件**保留最近 5 版**(每次发布:新增本版 → 若超过 5 版,把最旧的一版迁入归档)。
+> 📦 v8.92 及更早(含 v7/v6/… 旧系统)已归档 → [CHANGELOG-ARCHIVE.md](./CHANGELOG-ARCHIVE.md)。本文件**保留最近 5 版**(每次发布:新增本版 → 若超过 5 版,把最旧的一版迁入归档)。
+
+## v8.97 · ship-stage.md 去噪(删版本标 / case-id / 演进叙事 · 只留 how/后果/反模式 · doc-only)
+
+> 用户:review ship-stage.md 是否冗余 —— spec 目的是让 AI 知道**怎么做 / 不做的后果 / 反模式**,不需要「哪个版本发生过什么」这类背景噪音(那是 CHANGELOG 的活)。
+
+### 去噪(doc-only · 不改任何行为/命令/门禁)
+- 删全部版本标 `(v8.xx)`(21 行)+ case-id(SVC-CORE-B006/B007/F028 · PTR-A018 · aon ADMIN-…)+ 演进叙事(「旧…改成…增量」)。
+- **合并废弃 §12**:原「Phase 2 收尾投递」演进 deep-dive(含已被收尾 MR 取代的**直推机制**历史)收敛为「state.json 直推例外(逃生口 · 仅状态档)」—— 只留仍有效的规则 + 命令 + 🔴 禁止滥用(业务文件必走 MR)。
+- 保留全部可执行信息:step 表 / 决策树 / 命令 / 后果(「不翻牌 → 规划层永久脱节」)/ 反模式(❌ 列表)/ 逃生口。§5.5/§12/§13/§14/§15 锚点不变。
+- **275 → 248 行**;版本标 **21→0** · case/历史 **12→0**。
+
+### 验证
+- doc-only · pytest **3 failed / 499 passed**(baseline 3 = scan-spec 既有 · 零回归)。
+- 试点:效果好则同手法全 skill 铺开 + 把「spec 无版本标/无 case-id · 历史只进 CHANGELOG」定为长期规约(待用户拍板)。
 
 ## v8.96 · 项目开发规范从 KNOWLEDGE 拆出 → `project-specs/DEV-RULES.md`(人维护 · blueprint/dev 必读)
 
@@ -68,18 +82,3 @@
 - 新增 `test_ship_planning_bundle_v893.py` **7 测试**:planning gate 首跑不暂存 / `--no-planning-changes` 归档-only / `--planning-artifacts` 翻牌入收尾分支 + 工作树还原 / 文件不存在·仓外 FAIL / 全周期原子合入(origin/main + 工作树含翻牌内容)/ 收尾分支 reuse 不 amend + warning。
 - 旧 `test_ship_archive_v882.py` + `test_ship_finalize_state_sync.py` 的 `_finalize` 补 `--no-planning-changes`(跳 gate 直入暂存 · 语义不变)· 旧 post-step 测试类改写为 v8.93 行为。
 - pytest **3 failed / 486 passed**(baseline 3 = scan-spec 既有 · 零回归 · 净 +6 测试)。
-
-## v8.92 · review-stage §5 澄清「汇总层 ≠ 合并」(防三视角揉进一个 REVIEW.md · doc-only)
-
-> 用户:看下面的 case,是否是 review 规范写的不清楚 —— 案例里 AI 跑完 arch/qa/external 三视角后只写了一份汇总 `REVIEW.md`(+ `reviewers:[…]` list),review-complete 因缺 per-role 文件 FAIL,补 `REVIEW-arch.md`/`REVIEW-qa.md` 后才过。
-
-### 诊断:不是「漏写」· 是 §5 决策点的认知陷阱
-- per-role 文件其实在 **8 处**写明(stage.md §2/§3/命令清单/质量基线/Output Contract + `_review_brief` 结果清单/完成命令 `--artifacts` + `REVIEW_SPEC.artifacts` 硬门禁)→ 信息完整,gate 弹回是**正确行为**(不动 gate)。
-- 但 **§5「汇合 → REVIEW.md」** 落在「AI 决定产物形态」那一步,四个信号合力把人往「一个文件搞定」带:① "汇合" 字面像 merge into one;② `reviewers:[arch,qa,external]` 是 list-frontmatter 暗示"一个文件装所有视角";③ per-role 文件零内容校验显得像可选脚手架;④ gate 重点 `reviewers_match` 只查 REVIEW.md。多视角独立性 WHY(防鼓掌效应)又埋在质量基线、没出现在决策点。
-
-### 改法(doc-only · 不动 gate 逻辑)
-- **`stages/review-stage.md` §5**:标题改「🔴 汇总层 · 不是合并:arch/qa/external 三份产物都要独立留盘」+ 正文点明「REVIEW.md 是三份产物**之上**的汇总,**不替代**它们(P0 门禁硬要求 · 原因:多视角独立性 SOP 防鼓掌效应)」+ 显式警告「别揉进一个 REVIEW.md + reviewers list 就交差 → review-complete 会因缺 per-role 文件 FAIL」。
-- **§cite 表第 5 行**:从「(整合 · 无 spec cite)」改为「(汇总层 · REVIEW-arch/qa 已各自落盘 · REVIEW.md 只汇总不替代)」。
-
-### 验证
-- doc-only · 无代码变更 · gate 与测试不受影响(per-role 硬门禁本就正确)。
