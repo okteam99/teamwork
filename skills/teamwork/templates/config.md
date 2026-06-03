@@ -183,7 +183,7 @@ archive_on_ship: true
 
 ### 本地敏感配置目录（v8.89）
 <!-- local_env_auto_create: true（默认）/ false -->
-<!-- true = bootstrap 在 .teamwork_local_env/ 缺失时自动创建（config.properties 模板 + 目录内 .gitignore），已存在不覆盖。 -->
+<!-- true = bootstrap 在 .teamwork-local-env/ 缺失时自动创建（config.properties 模板 + 目录内 .gitignore），已存在不覆盖。 -->
 <!-- 用途：kubeconfig / DB 密码 / 个人 API key 等本机敏感配置统一放此目录 · 双重 gitignore（根 .gitignore + 目录内 .gitignore）绝不进仓库。读取约定见 TROUBLESHOOTING.md。 -->
 <!-- false = 不主动创建（opt-out · 仍保留 gitignore 预留规则）。 -->
 local_env_auto_create: true

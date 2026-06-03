@@ -237,10 +237,10 @@ teamwork 文档分 **workspace 级**(仓库根)和 **子项目级**两层。
 | `project-specs/` | 工程层项目文档:`KNOWLEDGE.md` · `GLOSSARY.md` · `TROUBLESHOOTING.md` | bootstrap 建空骨架 · 项目维护 |
 | `teamwork-space.md` | 多项目索引 / 路由(单项目仓库无此文件) | PM |
 | `CLAUDE.md` / `AGENTS.md` | host 指令入口 · 固定位置 · 不可移 | teamwork 注入 |
-| `.teamwork_local_env/`(v8.89) | 🔐 本机敏感配置:`config.properties`(KEY=value:DB 密码 / API key)+ 整文件(kubeconfig / 证书)· **双重 gitignore · 绝不进仓库**。bootstrap 缺失时自动建(`local_env_auto_create` 默认 true)· 已存在不覆盖。读取约定见 `TROUBLESHOOTING.md §五`。 | 用户(secret 真值)/ bootstrap(骨架) |
+| `.teamwork-local-env/`(v8.89) | 🔐 本机敏感配置:`config.properties`(KEY=value:DB 密码 / API key)+ 整文件(kubeconfig / 证书)· **双重 gitignore · 绝不进仓库**。bootstrap 缺失时自动建(`local_env_auto_create` 默认 true)· 已存在不覆盖。读取约定见 `TROUBLESHOOTING.md §五`。 | 用户(secret 真值)/ bootstrap(骨架) |
 
 🔴 **`project-specs/` 与 `product-overview/` 同级** —— 产品视角 ↔ 工程视角成对。workspace 级工程文档**一律进 `project-specs/`** · 不散在仓库根。
-🔴 **`.teamwork_local_env/` ≠ `.teamwork_localconfig.json`**:前者是**你的** secret(kubeconfig/密码/key · gitignored)· 后者是 **teamwork 自己**的配置(worktree/scope/id_strategy 等 · 可提交)。
+🔴 **`.teamwork-local-env/` ≠ `.teamwork_localconfig.json`**:前者是**你的** secret(kubeconfig/密码/key · gitignored)· 后者是 **teamwork 自己**的配置(worktree/scope/id_strategy 等 · 可提交)。
 
 ### 子项目级(`{子项目}/docs/`)
 

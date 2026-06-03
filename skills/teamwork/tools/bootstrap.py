@@ -129,7 +129,7 @@ def read_skill_version(skill_root: Path) -> dict:
 PROJECT_SPECS_DIR = "project-specs"
 
 # v8.89:本地敏感配置统一目录(kubeconfig / DB 密码 / 个人 API key)· 双重 gitignore · 不进仓库
-LOCAL_ENV_DIR = ".teamwork_local_env"
+LOCAL_ENV_DIR = ".teamwork-local-env"
 LOCAL_ENV_CONFIG = "config.properties"
 LOCAL_ENV_DIR_GITIGNORE = (
     "# teamwork: 本目录全部内容禁提交(双重保险 · 即便项目根 .gitignore 漏掉本目录)\n"
@@ -195,11 +195,11 @@ def maintain_project_skeletons(skill_root: Path, project_root: Path) -> dict:
     }
 
 
-# ─── 本地敏感配置目录 .teamwork_local_env/(v8.89) ──────────
+# ─── 本地敏感配置目录 .teamwork-local-env/(v8.89) ──────────
 
 
 def maintain_local_env(skill_root: Path, project_root: Path) -> dict:
-    """v8.89:本地敏感配置统一目录 `.teamwork_local_env/`(kubeconfig / DB 密码 / API key)。
+    """v8.89:本地敏感配置统一目录 `.teamwork-local-env/`(kubeconfig / DB 密码 / API key)。
 
     用户拍板:统一一个 gitignored 目录放本机敏感配置 · 别散落 · session 初始化自动创建。
     - 缺失 → 自动建目录 + `config.properties` 模板(注释示例 · **无真密钥**)+ 目录内
@@ -207,7 +207,7 @@ def maintain_local_env(skill_root: Path, project_root: Path) -> dict:
     - 已存在 → **skip**(绝不覆盖用户真 secret)· 仅补缺失的目录内 .gitignore(历史目录加固)。
     - skill 仓自身 → skip(同其他 maintain · 不污染 skill repo · v8.35)。
     - localconfig `local_env_auto_create: false` → disabled(opt-out)。
-    根 `.gitignore` 加 `.teamwork_local_env/` 由 `maintain_gitignore_worktree` 负责(双重保险其一)。
+    根 `.gitignore` 加 `.teamwork-local-env/` 由 `maintain_gitignore_worktree` 负责(双重保险其一)。
     """
     try:
         if project_root.resolve() == skill_root.resolve():
@@ -921,7 +921,7 @@ def cmd_session_bootstrap(args: argparse.Namespace) -> None:
             "skill_version": version_check,
             "skeletons": skeletons,
             "workspace_filename": workspace_file,
-            "local_env": local_env,  # v8.89:本地敏感配置目录 .teamwork_local_env/
+            "local_env": local_env,  # v8.89:本地敏感配置目录 .teamwork-local-env/
             "chmod": chmod_result,
             "hooks": hooks_result,
             "host_injection": injection,

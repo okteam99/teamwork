@@ -15,7 +15,7 @@
   "_comment_archive_on_ship": "v8.82+ ship2 归档本体 · true(默认):交付后过程层 feature 目录 zip 进 features/_archive/<id>.zip(+ INDEX.md)· 原目录从 merge_target 删 · 随收尾 MR 合(防 AI 检索过时 feature 信息 · 代码是唯一真相)。false:退回 v8.80(收尾 MR 只同步终态 state.json · 不归档 · 目录留存)。",
   "archive_on_ship": true,
 
-  "_comment_local_env_auto_create": "v8.89+ 本地敏感配置目录 .teamwork_local_env/(kubeconfig/DB密码/API key)· true(默认):bootstrap 在缺失时自动建目录 + config.properties 模板 + 双重 gitignore(根 + 目录内)· 已存在不覆盖。false:不主动建(opt-out · 仍保留 gitignore 预留规则)。读取约定见 TROUBLESHOOTING.md。",
+  "_comment_local_env_auto_create": "v8.89+ 本地敏感配置目录 .teamwork-local-env/(kubeconfig/DB密码/API key)· true(默认):bootstrap 在缺失时自动建目录 + config.properties 模板 + 双重 gitignore(根 + 目录内)· 已存在不覆盖。false:不主动建(opt-out · 仍保留 gitignore 预留规则)。读取约定见 TROUBLESHOOTING.md。",
   "local_env_auto_create": true,
 
   "_bootstrap": {
