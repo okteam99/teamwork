@@ -214,7 +214,7 @@ class TestArchiveOnShipV882(unittest.TestCase):
         try:
             r = subprocess.run(
                 [sys.executable, str(STATE_PY), "ship-finalize",
-                 "--feature", self.feature_arg],
+                 "--feature", self.feature_arg, "--no-planning-changes"],
                 capture_output=True, text=True, timeout=40)
             self.assertNotIn("NameError", r.stderr, r.stderr[:400])
             self.assertNotIn("Traceback", r.stderr, r.stderr[:400])
@@ -378,7 +378,7 @@ class TestArchiveOffFallbackV882(unittest.TestCase):
         try:
             r = subprocess.run(
                 [sys.executable, str(STATE_PY), "ship-finalize",
-                 "--feature", self.feature_arg],
+                 "--feature", self.feature_arg, "--no-planning-changes"],
                 capture_output=True, text=True, timeout=40)
             d = json.loads(r.stdout) if r.stdout.strip().startswith("{") else {}
             return r, d

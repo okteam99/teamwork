@@ -60,7 +60,7 @@ ship-finalize 内部自动编排(**可重入** · 失败步骤修复后重跑即
 | 2 | confirm-merged | `ship.phase` pushed → merged |
 | 3 | cleanup | `ship.worktree_cleanup` = cleaned / n_a |
 | 4 | ship-complete | `current_stage` → completed |
-| 5 | **finalize-deliver(v8.80 去直推 · v8.82 加归档)** | **去直推**:state.py 暂存收尾 commit 到 `ship-finalize/<id>` 分支 → 交接 AI 用 gh/glab **创 MR + 自动合并** → 重跑检测已合 → 续。**v8.82(`archive_on_ship`·默认 true)**:收尾分支不止同步 state.json · 而是把交付的**过程层** feature 目录 zip 进 `features/_archive/<id>.zip`(+ INDEX.md)· 并从 merge_target **删原目录**(详 §15)· 已交付判定 = zip 在 merge_target 存在。未合 → emit `PENDING`。merge_target **只经 MR**(兼容保护分支 · 主工作区只 pull) |
+| 5 | **finalize-deliver(v8.80 去直推 · v8.82 加归档 · v8.93 规划层 back-ref 同 MR)** | **v8.93**:暂存收尾分支**前先停 `planning-backref` 暂停点** —— AI 翻规划层 back-ref(ROADMAP/WS/teamwork-space.md/变更单)→ `--planning-artifacts <files>` 随同一收尾 MR 合入(或 `--no-planning-changes` 跳过)· 详 §5.5。**去直推**:state.py 暂存收尾 commit 到 `ship-finalize/<id>` 分支 → 交接 AI 用 gh/glab **创 MR + 自动合并** → 重跑检测已合 → 续。**v8.82(`archive_on_ship`·默认 true)**:收尾分支同步 state.json + 把交付的**过程层** feature 目录 zip 进 `features/_archive/<id>.zip`(+ INDEX.md)· 从 merge_target **删原目录**(详 §15)· 已交付判定 = zip 在 merge_target 存在。未合 → emit `PENDING`。merge_target **只经 MR**(兼容保护分支 · 主工作区只 pull) |
 | 6 | worktree-remove | 物理删 feature worktree + 本地 feature 分支(🔴 **收尾 MR 合并后**才删) |
 | 7 | main-sync | 主工作区 `git fetch` + 安全 `git pull --ff-only`(让本地跟上 ship 结果)。**v8.82 归档已交付**:先把本地 feature 目录恢复 HEAD 干净态(内容已进 zip)→ ff-pull 干净删除该目录 |
 
@@ -73,14 +73,16 @@ ship-finalize 内部自动编排(**可重入** · 失败步骤修复后重跑即
 - **step 6 worktree-remove 失败**(worktree 占用等):降级 warning · state.json 已 finalize 不丢 · 按 hint 手动 `git worktree remove`。
 - **step 7 pull 跳过**(主工作区不在 merge_target / 工作树有未提交改动 / 与 origin 分叉):降级 warning · 已 fetch · 按 hint 手动 `git pull --ff-only`。
 
-### 5.5 ship 收尾:更新规划层 back-reference + 主工作区 commit(v8.77 · 🔴 必做)
+### 5.5 规划层 back-reference 翻牌(随收尾 MR 一起合入 · v8.93 · 🔴 必做)
 
-🔴 ship-finalize 成功后 · **还有一步收尾**(emit `planning_backref_pending` + brief 提示):主工作区现已 clean + 跟上 merge_target · 须把**规划层 back-reference** 翻牌并提交 —— **这是 ship 的一部分 · 不是「后续 / 非本次范围 / 下次规划」**。
+🔴 ship-finalize 进 step 5 finalize-deliver 时 · **暂存收尾分支之前先停在 `planning-backref` 暂停点**(emit PENDING + brief):须把**规划层 back-reference** 翻牌 —— **这是 ship 的一部分 · 不是「后续 / 非本次范围 / 下次规划」**。
 
-- **为什么**:`feature = 某 BL 的落地`。规划期把 BL 写进 ROADMAP 是「📋 规划中」· 落地完不翻成「✅ 已交付」→ 规划层(ROADMAP/WS 进度)与执行层永久脱节 · 进度统计失真。
-- **做什么**:① ROADMAP 对应 BL 状态 `规划中/pending → 已交付`(若是 WS 最后一个 BL → WS 标完成);② 关联文档(改了用户可见行为 / 接口契约 → 按项目规范或 `/document-release` 同步)。
-- **然后**:`git add <规划/文档文件>` + commit + push 到 merge_target —— 在已净化主工作区做**一次干净提交**(规划层产物本就在主工作区 · 此处更新 + commit 正当 · 同 feature-planning 的「WS+ROADMAP 登记 commit」· 非 worktree 红线违规)。
-- 🔴 **不要因为「怕弄脏刚净化的主工作区」而搁置**:翻牌 commit 本身就是干净的一笔 · 搁置才是留悬空未提交 / 脱节。找不到 BL → 读 `product-overview/workstream/` + `ROADMAP.md` 定位;确实无关联 BL(ad-hoc Bug/Micro)才跳过。
+- **为什么翻牌**:`feature = 某 BL 的落地`。规划期把 BL 写进 ROADMAP 是「📋 规划中」· 落地完不翻成「✅ 已交付」→ 规划层(ROADMAP/WS 进度)与执行层永久脱节 · 进度统计失真。
+- **为什么随收尾 MR**(v8.93 治本):back-ref 翻牌与归档(都表示「本 feature 已交付」)本是**同一件事** · 应**原子合入同一个收尾 MR**。旧 v8.77 把它当 finalize **之后**的 post-step + **直推 merge_target** —— 与 v8.80「去直推」自相矛盾(保护分支会拒推)· 且收尾 MR 此刻早已关闭 → 规划层物理塞不进 → 非原子 + 直推隐患(治本 case:aon ADMIN-F260603063006 · staging 受保护 · 第三笔直推被拒)。
+- **做什么**:① AI 判断这几处哪些要翻「📋 规划中 → ✅ 已交付」(只改相关的 · 本质是 AI 自决):ROADMAP 对应 BL(若是 WS 最后一个 BL → WS 标完成)· `product-overview/workstream/WS-NN.md`(WS 进度)· `teamwork-space.md`(工作区索引 · 按需)· 项目变更单(如 `BG-NNN.md` 阶段状态 · 按需);② 在**主工作区**改好这些文件(**不要 commit** · ship-finalize 会随收尾 MR 带走)。
+- **然后**:`state.py ship-finalize --feature <path> --planning-artifacts <逗号分隔相对路径>` → state.py 把这些文件随 {归档 zip + 删目录 + 终态 state.json} **同一收尾分支**暂存(并还原工作树 HEAD 防 step7 ff-pull 冲突)→ 你创建并合并**一个**收尾 MR(归档 + 规划翻牌原子)→ 重跑 ship-finalize 续清理 worktree + 主分支 pull。
+- **确无可翻**(ad-hoc Bug/Micro · 无关联 BL)→ `state.py ship-finalize --feature <path> --no-planning-changes` 显式跳过(找不到 BL 别急着跳:先读 `product-overview/workstream/` + `ROADMAP.md` 定位本 Feature 条目)。
+- 🔴 **不 amend**:收尾分支一次打包成型 · 不重建已暂存分支;若暂存后才发现漏文件 → `git push origin --delete ship-finalize/<id>` 删分支再重跑 `--planning-artifacts`。
 
 ### 6. squash / rebase 合并(branch-contains 检测不到)
 
@@ -126,6 +128,7 @@ ship-phase --action confirm-merged → ship-phase --action cleanup --status clea
 
 > 🔴 **v8.80 变更**:step 5 已从「state.json 直推 merge_target」改为 **finalize-deliver**(收尾改动暂存到 `ship-finalize/<id>` 分支 → AI 用 gh/glab 创 MR + 自动合并 → 重跑语义检测已合)。**merge_target 全程只经 MR**(兼容保护分支)· 主工作区**只 pull · 不再制造脏 main** · worktree 删除/主分支 pull **在收尾 MR 合并之后**。降级:gh/glab 不可用 → 报因 + 用户解决重跑 / 给 MR 链接手合。详 CHANGELOG v8.80。
 > 🔴 **v8.82 增量**:收尾 MR 不止同步 state.json · 默认(`archive_on_ship`)还把交付的过程层 feature 目录 **zip 进 `features/_archive/<id>.zip` + 删原目录**(防 AI 检索过时信息 · 代码是唯一真相)· 已交付判定改为「zip 在 merge_target 存在」。详 **§15**。
+> 🔴 **v8.93 增量**:收尾 MR 再加上**规划层 back-ref 翻牌**(ROADMAP BL / WS / teamwork-space.md / 变更单 → 已交付)· 经 `--planning-artifacts` 随**同一收尾 MR** 原子合入(治本旧 v8.77 post-step 直推 merge_target 与「去直推」矛盾的隐患)· 详 **§5.5**。
 > ⚠️ 下方「直推例外」段为 **≤v8.79 历史原理**(state-sync 实证仍有效 · 直推机制已被收尾 MR 取代)。
 
 🟢 **实证 case · SVC-CORE-B006(2026-05-21)· step 0 state-sync 治本根因**:
