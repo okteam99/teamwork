@@ -22,7 +22,8 @@ AC 逐条对照实现 / 测试覆盖度 / 边界场景
 - **真超时 / 空输出 = `verdict: FAIL`(门禁未达)· 不是放行**:🔴 **禁止**伪造 `tool_error` 文件、或把 external 自列进 REVIEW.md `reviewers` 当通过。按 FAIL 的 hint 串行重跑(并发会限流);仍不行 → 报因给用户,**不得**绕过 P0-154。
 - **异质客观不可用(未装/未登录/配额满·已重试失败)→ 诚实降级自审(v8.88)**:`state.py external-review ... --self-review-fallback --reason '<原因+重试证据>'` 跑**同模型 fresh exec** 自审 · 落 `self-review/`(`heterogeneous:false · degraded:true`)· 🔴 **不满足 P0-154**(只隔离对话历史不隔离权重 · 同盲点)。要继续仍须:① 修环境重跑真异质 · 或 ② `change-review-roles` 移除 external(本自审产物作 audit evidence)。**不可**把 self-review 当 external 通过证据。
 
-### 5. 汇合 → REVIEW.md
+### 5. 汇合 → REVIEW.md(🔴 汇总层 · 不是合并:arch/qa/external 三份产物都要独立留盘)
+REVIEW.md 是 REVIEW-arch.md + REVIEW-qa.md + external-cross-review/*.md **之上**的汇总 · **不替代**它们(三份独立产物是 P0 门禁硬要求 · 原因:多视角独立性 SOP · 各视角各自落盘防鼓掌效应 · 详 §质量基线)。🔴 别把三视角揉进一个 REVIEW.md + `reviewers:[…]` list 就交差 —— review-complete 会因缺 REVIEW-arch.md/REVIEW-qa.md FAIL。
 frontmatter `reviewers + verdict: APPROVE|NEEDS_REVISION` · body §finding / §修复建议 / §verdict
 
 ### 6. complete --verdict
@@ -90,7 +91,7 @@ review-complete --verdict APPROVE | NEEDS_REVISION
 | 2. Architect 视角 review → REVIEW-arch.md | `roles/architect.md` | § Code Review | 技术合理性 / 性能 / 安全 / 架构 / **简洁性(防过度设计 · 唯一 counter-lens)** |
 | 3. QA 视角 review → REVIEW-qa.md | `roles/qa.md` | § Code Review | AC 逐条对照 / 测试覆盖 / 边界场景 |
 | 4. External cross-review | `roles/external-reviewer.md` | § Cross-review 协议 | 异质模型独立 review |
-| 5. 汇合 → REVIEW.md | — | — | (整合 · 无 spec cite) |
+| 5. 汇合 → REVIEW.md | — | — | (汇总层 · REVIEW-arch/qa 已各自落盘 · REVIEW.md 只汇总不替代) |
 | 6. complete --verdict | — | — | (无) |
 
 
