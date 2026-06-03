@@ -1,6 +1,20 @@
 # Changelog
 
-> 📦 v8.88 及更早(含 v7/v6/… 旧系统)已归档 → [CHANGELOG-ARCHIVE.md](./CHANGELOG-ARCHIVE.md)。本文件**保留最近 5 版**(每次发布:新增本版 → 若超过 5 版,把最旧的一版迁入归档)。
+> 📦 v8.89 及更早(含 v7/v6/… 旧系统)已归档 → [CHANGELOG-ARCHIVE.md](./CHANGELOG-ARCHIVE.md)。本文件**保留最近 5 版**(每次发布:新增本版 → 若超过 5 版,把最旧的一版迁入归档)。
+
+## v8.94 · feature 归档加极简描述(`--archive-desc` ≤50 字 → INDEX.md 描述列)
+
+> 用户:feature archive 的时候给一段极简的 feature 描述(限 50 字以内),写到 INDEX.md。
+
+### `--archive-desc`(ship-finalize · 写入 `_archive/INDEX.md` 描述列)
+- **新参数**:`ship-finalize --archive-desc '<≤50 字>'` —— AI 在 planning-backref 暂停点连同 `--planning-artifacts` 一起给本 feature 一句极简描述(是判断活 · 故 AI 给 · 非脚本自动抽)。`_clean_archive_desc` 净化:折叠空白 + 去 `|`/换行(防破表格)+ **≤50 字**(超则截 49+`…`)+ 缺省 `—`;超长 emit warning。
+- **INDEX.md 加列**:`| Feature | 描述 | 交付归档时间 | 归档物 |`(原 3 列)· 便于日后**不解压**就识别归档内容。
+- **旧行自动迁移**:base 上旧 3 列 INDEX 行下次归档时补 `—` 迁为 4 列(`_build_archive_index`)· re-archive 同 feature 去重。
+- **接线**:planning-backref gate brief + 命令示例 + argparse + ship-stage.md §5.5/§15。仅 archive 模式(`archive_on_ship` 默认 true)写 INDEX。
+
+### 验证
+- 新增 `test_ship_archive_desc_v894.py` **12 测试**:`_clean_archive_desc`(正常/超 50 截断/`|` 净化/换行折叠/空→`—`/恰好 50)· `_build_archive_index`(新列/缺省 `—`/旧 3 列迁移/re-archive dedup)· 集成(--archive-desc 入 INDEX / 超 50 截断 + warning)。
+- pytest **3 failed / 498 passed**(baseline 3 = scan-spec 既有 · 零回归 · +12 测试)。
 
 ## v8.93 · 规划层 back-ref 随收尾 MR 原子合入(planning-backref 暂停点 · 去 §5.5 直推)
 
@@ -62,21 +76,3 @@
 - 🔴 **每次启动 WARN**:bootstrap `checks.heterogeneous_review.status=disabled` + `pmo_must_read` 顶部 forewarn。
 - 与 v8.88 `--self-review-fallback` 区分:后者临时 stopgap(self-review/·不满足门禁)· 本项目级长期策略(external-cross-review/·满足门禁但 startup WARN 持续提醒)。
 - pytest 3 failed / 475 passed(baseline 3 · 零回归 · +5 测试)。spec:standards §11 + localconfig 模板/config.md。
-
-## v8.89 · 本地敏感配置统一目录 `.teamwork-local-env/`(kubeconfig/密码/API key · dev-only)
-
-> 用户:本地敏感配置(kubeconfig / DB 密码 / 个人 API key)散落 · 规范一个统一目录、默认 gitignore、TROUBLESHOOTING 配合读、session 初始化自动创建。决策 **A**(默认自动建)。目录名 v8.89 patch 内由下划线改连字符 `.teamwork-local-env/`(对齐连字符命名)。
-
-### bootstrap 自动维护 `.teamwork-local-env/`(项目根 · `maintain_local_env`)
-- **缺失 → 自动建**:目录 + `config.properties` 模板(注释示例 · **无真密钥**)+ 目录内 `.gitignore`(`*`)。
-- **已存在 → skip**:绝不覆盖用户真 secret(仅补缺失的目录内 .gitignore)。skill 仓自身 skip。
-- **opt-out**:`.teamwork_localconfig.json` 的 `local_env_auto_create: false`(默认 true)。
-- 用途:键值型(DB 密码 / API key / token)→ `config.properties`(`KEY=value`);整文件型(kubeconfig / 证书)→ 直接放本目录。
-
-### 🔐 双重 gitignore(防御纵深 · secret 绝不进仓库)
-- 项目根 `.gitignore` 加 `.teamwork-local-env/`(`maintain_gitignore_worktree`)· **且**目录内自带 `.gitignore`(`*`)—— 即便根 .gitignore 漏/子 repo/手删,目录仍自我忽略全部内容。
-- 与 `.teamwork_localconfig.json` 严格区分:前者 = **你的** secret(gitignored)· 后者 = **teamwork 自己**的配置(可提交)。
-
-### 配套 + 验证
-- template `local-env-config.properties` + TROUBLESHOOTING.md §五(从 `.teamwork-local-env/` 加载命令示例 · 真值只在此目录)+ conventions.md §13 + localconfig/config.md 文档化 `local_env_auto_create`。
-- pytest **3 failed / 470 passed**(baseline 3 · 零回归 · +3 测试)。
