@@ -229,7 +229,7 @@ cleaned / deferred / n_a · cleaned 必 phase=merged
 
 ```
 --distill '{
-  "knowledge":     "promoted <gotcha/约定> / none",     # KNOWLEDGE.md(project-specs)
+  "knowledge":     "promoted <gotcha/事实> / none",     # KNOWLEDGE.md(AI 沉淀 · 约定/规范→DEV-RULES.md 人维护 · AI 只提示用户加 · 不代写)
   "adr":           "ADR-NNNN <决策> / none",            # docs/adr/(决策有备选+后果)
   "reg":           "REG-<case> / none",                 # e2e-registry(可复用测试场景)
   "retro":         "done / n/a",                        # docs/retros/(复盘)

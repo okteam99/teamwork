@@ -1,6 +1,22 @@
 # Changelog
 
-> 📦 v8.90 及更早(含 v7/v6/… 旧系统)已归档 → [CHANGELOG-ARCHIVE.md](./CHANGELOG-ARCHIVE.md)。本文件**保留最近 5 版**(每次发布:新增本版 → 若超过 5 版,把最旧的一版迁入归档)。
+> 📦 v8.91 及更早(含 v7/v6/… 旧系统)已归档 → [CHANGELOG-ARCHIVE.md](./CHANGELOG-ARCHIVE.md)。本文件**保留最近 5 版**(每次发布:新增本版 → 若超过 5 版,把最旧的一版迁入归档)。
+
+## v8.96 · 项目开发规范从 KNOWLEDGE 拆出 → `project-specs/DEV-RULES.md`(人维护 · blueprint/dev 必读)
+
+> 用户:项目开发规范是**人维护的团队约定**,KNOWLEDGE.md 是 **AI 沉淀的经验**——维护者不同应拆开;且 KNOWLEDGE 有点重,顺带精简。doc 名定 `DEV-RULES.md`;bootstrap 无则从模板建、有则不动。
+
+### 拆分(按维护者轴:人定规矩 vs AI 沉淀)
+- **新 `project-specs/DEV-RULES.md`(人维护)**:本项目强制开发规范(分层 / 命名 / 错误处理 / 依赖方向 / 测试策略 / 风格)· 模板 `templates/dev-rules.md` · bootstrap `maintain_project_skeletons` absent→从模板建 / present→**绝不改**(人维护)。
+- **blueprint + dev 必读**:两 stage §1 + P0-11 cite 表 → `DEV-RULES.md`「存在则必读 · 须遵守」(不存在 skip · 不硬 FAIL · 用户主权 doc)。
+- **KNOWLEDGE.md 瘦身**:抽走 Conventions(→ DEV-RULES);删通用架构词汇(8 词)+「删除测试」启发式(通用 · 违反它自己「通用走 standards」边界);Glossary 段去重为指向 GLOSSARY.md。KNOWLEDGE 回归本质「Gotchas / 已澄清歧义 / Preferences / 已否方向」(AI 沉淀)。
+- **distill 不代写**:ship1 distill 的 `knowledge` 只 promote gotcha/事实 → KNOWLEDGE;约定/规范 → DEV-RULES.md 人维护,AI 只提示用户加。
+- 接线:SKILL.md doc-index + 关键词路由、docs/conventions.md §13 布局 + 两层表、ship-stage.md distill 注释。
+- 🔴 **存量项目不自动迁移**:已有 KNOWLEDGE.md 的项目,bootstrap 只补建空 DEV-RULES.md(不动 KNOWLEDGE);旧 Conventions 留在 KNOWLEDGE,用户按需手动搬。
+
+### 验证
+- `test_bootstrap.py`:fresh 建 4 骨架(含 DEV-RULES.md)+ 新增「DEV-RULES.md 已存在则 existed · 内容不改」测试 + E2E existed 列表更新。
+- pytest **3 failed / 499 passed**(baseline 3 = scan-spec 既有 · 零回归 · +1 测试)。
 
 ## v8.95 · 禁异质项目的 external 违规 FAIL 改给专属修复指引(去通用「调异质」误导 · hint-only)
 
@@ -67,17 +83,3 @@
 
 ### 验证
 - doc-only · 无代码变更 · gate 与测试不受影响(per-role 硬门禁本就正确)。
-
-## v8.91 · bootstrap 启动自愈 localconfig schema(缺字段补默认值 · dev-only)
-
-> 用户:bootstrap.py 启动时检查 `.teamwork_localconfig.json`,`_bootstrap` 段字段不足的要补上默认值。
-
-### `ensure_localconfig_complete`(bootstrap.py · 每次启动跑)
-- **治本**:localconfig 由老版 bootstrap / 手建 / 部分写入时,`_bootstrap` 子键(`skill_version`/`host`/`last_maintain_at`/`last_maintain_results`)或**新增 feature 开关**(`archive_on_ship`/`local_env_auto_create`/`disable_heterogeneous_review`/`id_strategy`)缺失;且**版本命中 `skip_maintain` 时这些缺口永不补**(`write_bootstrap_marker` 只在 maintain 跑时重写 `_bootstrap`,且从不补新 config 键)→ 用户也看不到新选项。
-- **行为**:补全 `_bootstrap` 4 子键 + 所有已知顶层 config 键的默认值。🔴 **additive only · 绝不覆盖**用户已有值(含显式 false/null);只在**已存在**的 localconfig 上跑(不存在 = 冷启动,由 prepare/maintain 创建,不在此凭空造);**无变化不写盘**(防 churn);skill 仓自身 skip。
-- **接线**:跑在 maintain 之后(无论 skip 与否),覆盖 `skip_maintain` 缺口;结果落 `result.localconfig_backfill`(audit)。
-- **默认源**:`LOCALCONFIG_CONFIG_DEFAULTS` + `LOCALCONFIG_BOOTSTRAP_DEFAULTS`(🔴 与 `templates/teamwork_localconfig.json` 保持同步,新增字段两处都加)。
-
-### 验证
-- live:incomplete(缺 `_bootstrap` + 新开关)→ backfilled 且用户值(merge_target=dev/worktree=off)保留;complete → `status:complete` 不写盘;absent → skip 不创建;部分 `_bootstrap` 子键 → 只补缺的。
-- pytest **3 failed / 480 passed**(baseline 3 = scan-spec 既有 · 零回归 · +5 测试:补全保留用户值 / 部分 `_bootstrap` 补缺 / complete 不写 / absent 不建 / skill_root skip)。

@@ -5,7 +5,8 @@
 ## 怎么做
 
 ### 1. 加载上下文
-读 PRD.md(权威需求)· ARCHITECTURE.md(系统架构)· KNOWLEDGE.md · standards/tdd.md
+读 PRD.md(权威需求)· ARCHITECTURE.md(系统架构)· KNOWLEDGE.md(项目踩坑/事实)· standards/tdd.md。
+🔴 **`project-specs/DEV-RULES.md` 存在 → 必读**(本项目**强制开发规范** · 人维护:分层 / 命名 / 错误处理 / 依赖方向 / 测试策略 / 风格)· TECH 方案**须遵守**;冲突要么改方案、要么在 TECH 显式记原因。不存在 → skip(人维护 doc · 可能未建 · 不硬 FAIL)。
 
 ### 2. QA 起草 TC.md
 BDD Given/When/Then · frontmatter `tests: [{id, covers_ac, description}]` · 每 AC 至少 1 test
@@ -57,7 +58,7 @@ blueprint-complete 前 **必 emit R5 标准 1/2/3 暂停点 · 等用户拍板**
 
 | Substep | 必读 spec | 段 | cite 关键点 |
 |---------|----------|----|------------|
-| 1. 加载上下文 | — | — | (读 PRD/ARCHITECTURE · 无 spec cite) |
+| 1. 加载上下文 | `project-specs/DEV-RULES.md`(若存在) | 全文 | 项目强制开发规范 · TECH 须遵守(+ 读 PRD/ARCHITECTURE/KNOWLEDGE) |
 | 2. QA 起草 TC.md | `roles/qa.md + standards/tdd.md` | § TC 起草 + § BDD | Given/When/Then 风格 / AC↔Test 绑定 |
 | 3. RD 起草 TECH.md | `roles/rd.md + standards/common.md` | § TECH 起草 | 模块/数据/接口/依赖/风险 5 段 |
 | 4. Architect Tech Review → TECH-REVIEW.md | `roles/architect.md` | § Tech Review | 技术合理性 + 架构一致性 + **简洁性(防过度设计 · 拦在 TECH 比拦在代码便宜)** |

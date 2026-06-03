@@ -1,6 +1,6 @@
 ---
 name: teamwork
-version: v8.95.1
+version: v8.96
 description: AI 协作开发一体化框架 · /teamwork 启动
 ---
 
@@ -516,7 +516,8 @@ PMO 按 hint 自动执行修复(silent)
 | `PROJECT.md` | 产品全景(子项目级) | 讨论产品方向 / 创建 Feature |
 | `ROADMAP.md` | Feature(BL) 列表 + 优先级 + 排期 + 关联 WS | 讨论 Feature 优先级 / 创建 Feature |
 | `sitemap.md` | 信息架构 / 页面层级 | 讨论 UI / 创建含 UI 的 Feature |
-| `project-specs/KNOWLEDGE.md` | Gotcha / Convention / Architecture(项目级踩坑 + 约定)| triage 期 + 涉项目级约定时 |
+| `project-specs/DEV-RULES.md` | **项目强制开发规范(人维护)**:分层 / 命名 / 错误处理 / 依赖方向 / 测试策略 / 风格 | **blueprint(TECH)+ dev(实现)必读** · 起草/写码前 |
+| `project-specs/KNOWLEDGE.md` | Gotcha(踩坑)/ Preference / 已澄清歧义 / 已否方向(AI 沉淀)| triage 期 + 涉项目踩坑/事实时 |
 | `project-specs/GLOSSARY.md` | 业务术语 + 实体关系 + 命名约定 + 别名歧义 | PM 起草 PRD 前 / RD 起草 TECH 前 |
 | `project-specs/TROUBLESHOOTING.md` | 排查 / 运维操作手册(log / DB / 监控 / 部署)| mode A/E 涉排查 · **或 AI 自己需连环境/查 DB/log(任何 stage/规划)→ 先读拿连法** |
 | `docs/architecture/ARCHITECTURE.md` | 系统架构 | 讨论架构决策 |
@@ -530,7 +531,8 @@ PMO 按 hint 自动执行修复(silent)
 | 执行线 / 业务线 / 某能力下有哪些 feature | `业务架构与产品规划.md § 执行线列表`（反查 `workstream/` 的 tag） |
 | 产品方向 / Feature 排期 / Roadmap | `PROJECT.md` / `ROADMAP.md` |
 | 页面层级 / UI 整体 / 信息架构 | `sitemap.md` |
-| Convention / 命名 / 约定 / Gotcha / 踩坑 | `project-specs/KNOWLEDGE.md` |
+| 开发规范 / 约定 / 分层 / 命名 / 错误处理 / 依赖方向 / 测试策略 / 代码风格 | `project-specs/DEV-RULES.md` |
+| Gotcha / 踩坑 / 历史坑 / 项目特有约束 / 用户偏好 | `project-specs/KNOWLEDGE.md` |
 | 业务术语 / 实体关系 / 别名 | `project-specs/GLOSSARY.md` |
 | **报错 / 502 / 查 log / 排查 / 异常 / 服务挂了 / 查环境 / 查 DB / 查 Redis / 部署 / 回滚** | **`project-specs/TROUBLESHOOTING.md`** |
 | 架构 / 数据库 / schema | `docs/architecture/` |

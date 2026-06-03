@@ -150,6 +150,9 @@ def maintain_project_skeletons(skill_root: Path, project_root: Path) -> dict:
         ("KNOWLEDGE.md", "knowledge.md"),
         ("TROUBLESHOOTING.md", "troubleshooting.md"),
         ("GLOSSARY.md", "glossary.md"),
+        # v8.96:人维护的项目开发规范(分层/命名/错误处理/测试/风格)· blueprint+dev 必读 ·
+        # 与 KNOWLEDGE(AI 沉淀)分家。absent→从模板建;present→不动(人维护)。
+        ("DEV-RULES.md", "dev-rules.md"),
     ]
     specs_dir = project_root / PROJECT_SPECS_DIR
 

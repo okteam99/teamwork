@@ -138,7 +138,7 @@ class TestMaintainProjectSkeletons(unittest.TestCase):
         self.templates_dir = self.skill_root / "templates"
         self.templates_dir.mkdir(parents=True)
         # 模拟 templates
-        for name in ["knowledge.md", "troubleshooting.md", "glossary.md"]:
+        for name in ["knowledge.md", "troubleshooting.md", "glossary.md", "dev-rules.md"]:
             (self.templates_dir / name).write_text(f"# {name}", encoding="utf-8")
 
         self.project_root = self.tmp / "project"
@@ -152,16 +152,29 @@ class TestMaintainProjectSkeletons(unittest.TestCase):
         result = maintain_project_skeletons(self.skill_root, self.project_root)
         self.assertEqual(
             sorted(result["created"]),
-            ["GLOSSARY.md", "KNOWLEDGE.md", "TROUBLESHOOTING.md"],
+            ["DEV-RULES.md", "GLOSSARY.md", "KNOWLEDGE.md", "TROUBLESHOOTING.md"],
         )
         self.assertEqual(result["existed"], [])
         self.assertEqual(result["migrated"], [])
         self.assertEqual(result["failed"], [])
         # 实际文件创建在 project-specs/ 下 · 不散在仓库根
         specs = self.project_root / "project-specs"
-        for name in ["KNOWLEDGE.md", "TROUBLESHOOTING.md", "GLOSSARY.md"]:
+        for name in ["KNOWLEDGE.md", "TROUBLESHOOTING.md", "GLOSSARY.md", "DEV-RULES.md"]:
             self.assertTrue((specs / name).exists(), f"project-specs/{name} 未创建")
             self.assertFalse((self.project_root / name).exists(), f"{name} 不应散在仓库根")
+
+    def test_dev_rules_present_not_modified(self):
+        """v8.96:DEV-RULES.md 人维护 —— 已存在则 existed(不 created · 内容**绝不改**)。"""
+        from bootstrap import maintain_project_skeletons
+        specs = self.project_root / "project-specs"
+        specs.mkdir(parents=True, exist_ok=True)
+        original = "# 人手写的开发规范\n禁止直接拼 SQL\n"
+        (specs / "DEV-RULES.md").write_text(original, encoding="utf-8")
+        result = maintain_project_skeletons(self.skill_root, self.project_root)
+        self.assertIn("DEV-RULES.md", result["existed"])
+        self.assertNotIn("DEV-RULES.md", result["created"])
+        self.assertEqual((specs / "DEV-RULES.md").read_text(encoding="utf-8"), original,
+                         "已存在的 DEV-RULES.md 不可被 bootstrap 改动(人维护)")
 
     def test_idempotent_existed(self):
         """重复跑 · project-specs/ 下已存在文件不重创建。"""
@@ -703,7 +716,7 @@ class TestCmdSessionBootstrapE2E(unittest.TestCase):
         self.assertEqual(data["checks"]["skeletons"]["created"], [])
         self.assertEqual(
             sorted(data["checks"]["skeletons"]["existed"]),
-            ["GLOSSARY.md", "KNOWLEDGE.md", "TROUBLESHOOTING.md"],
+            ["DEV-RULES.md", "GLOSSARY.md", "KNOWLEDGE.md", "TROUBLESHOOTING.md"],
         )
 
     def test_emits_flow_gates_forewarn(self):

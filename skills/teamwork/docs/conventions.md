@@ -234,7 +234,7 @@ teamwork 文档分 **workspace 级**(仓库根)和 **子项目级**两层。
 | 目录 / 文件 | 内容 | 维护方 |
 |---|---|---|
 | `product-overview/` | 产品愿景 / 业务架构 / 执行线列表 + `workstream/`(WS · 详 [PRODUCT-OVERVIEW-INTEGRATION.md](../PRODUCT-OVERVIEW-INTEGRATION.md)) | Product Lead |
-| `project-specs/` | 工程层项目文档:`KNOWLEDGE.md` · `GLOSSARY.md` · `TROUBLESHOOTING.md` | bootstrap 建空骨架 · 项目维护 |
+| `project-specs/` | 工程层项目文档:`DEV-RULES.md`(人维护开发规范 · blueprint/dev 必读)· `KNOWLEDGE.md`(AI 沉淀踩坑/事实)· `GLOSSARY.md` · `TROUBLESHOOTING.md` | bootstrap 建空骨架 · 项目维护 |
 | `teamwork-space.md` | 多项目索引 / 路由(单项目仓库无此文件) | PM |
 | `CLAUDE.md` / `AGENTS.md` | host 指令入口 · 固定位置 · 不可移 | teamwork 注入 |
 | `.teamwork-local-env/`(v8.89) | 🔐 本机敏感配置:`config.properties`(KEY=value:DB 密码 / API key)+ 整文件(kubeconfig / 证书)· **双重 gitignore · 绝不进仓库**。bootstrap 缺失时自动建(`local_env_auto_create` 默认 true)· 已存在不覆盖。读取约定见 `TROUBLESHOOTING.md §五`。 | 用户(secret 真值)/ bootstrap(骨架) |
@@ -244,16 +244,18 @@ teamwork 文档分 **workspace 级**(仓库根)和 **子项目级**两层。
 
 ### 子项目级(`{子项目}/docs/`)
 
-`PROJECT.md`(业务总览)· `ROADMAP.md`(Feature 清单 + 优先级)· `KNOWLEDGE.md`(子项目级 Gotcha)· `sitemap.md` · `architecture/` · `adr/` · `features/{artifact ID}/`(详 §1)· `design/`(same-stack panorama:`preview-project/` 同栈设计预览项目 · 源即全景权威 + `preview.sh` 起 dev server 实时预览〔动态端口〕· v8.58 option B · `node_modules` gitignore · 不出静态 build 产物)。
+`PROJECT.md`(业务总览)· `ROADMAP.md`(Feature 清单 + 优先级)· `DEV-RULES.md`(子项目级开发规范 · 人维护)· `KNOWLEDGE.md`(子项目级 Gotcha)· `sitemap.md` · `architecture/` · `adr/` · `features/{artifact ID}/`(详 §1)· `design/`(same-stack panorama:`preview-project/` 同栈设计预览项目 · 源即全景权威 + `preview.sh` 起 dev server 实时预览〔动态端口〕· v8.58 option B · `node_modules` gitignore · 不出静态 build 产物)。
 
 🔴 **顶级仓库不设 teamwork `docs/`** —— `docs/` 只在子项目层。单项目仓库 = 仓库根即项目根 · `project-specs/` 与 `docs/` 都在仓库根。
 
-### KNOWLEDGE.md 两层
+### KNOWLEDGE.md / DEV-RULES.md 两层
+
+> 🔴 **分家(v8.96)**:KNOWLEDGE = AI 沉淀(踩坑/事实/偏好);DEV-RULES = 人维护(开发规范/约定)。各自 workspace + 子项目两层。
 
 | 层 | 路径 | 内容 |
 |---|---|---|
-| workspace | `project-specs/KNOWLEDGE.md` | 跨子项目 / 仓库级 Gotcha + Convention(构建系统 · 共享库 · CI) |
-| 子项目 | `{子项目}/docs/KNOWLEDGE.md` | 该子项目特有的 Gotcha + Convention |
+| workspace | `project-specs/KNOWLEDGE.md` · `project-specs/DEV-RULES.md` | 跨子项目/仓库级:踩坑/事实(KNOWLEDGE)+ 开发规范(DEV-RULES · 构建/共享库/CI 约定)|
+| 子项目 | `{子项目}/docs/KNOWLEDGE.md` · `{子项目}/docs/DEV-RULES.md` | 该子项目特有的踩坑(KNOWLEDGE)+ 开发规范(DEV-RULES)|
 
 `GLOSSARY.md` / `TROUBLESHOOTING.md` 默认只在 workspace 级(`project-specs/`)。
 
