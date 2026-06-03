@@ -155,6 +155,45 @@ class TestExternalReviewHeteroEnforcement(unittest.TestCase):
         args = make_args(feature=str(self.feat))
         return _evidence_external_review_artifact({}, args)
 
+    # ── v8.90:单模型 disable_heterogeneous_review · 接受降级同模型自审 ──
+    _DEGRADED_FM = ("---\nreview_role: self-degraded\nhost: claude-code\n"
+                    "heterogeneous: false\ndegraded: true\n"
+                    "degraded_mode: config-disabled\n---\nself-review body\n")
+
+    def _set_config(self, disabled: bool):
+        (Path(self.tmp) / ".git").mkdir(exist_ok=True)  # bound 向上 walk
+        (Path(self.tmp) / ".teamwork_localconfig.json").write_text(
+            json.dumps({"disable_heterogeneous_review": disabled}), encoding="utf-8")
+
+    def _check_host(self):
+        from _v8_stage_specs import _evidence_external_review_artifact  # type: ignore
+        return _evidence_external_review_artifact(
+            {"host": "claude-code", "current_stage": "review"},
+            make_args(feature=str(self.feat)))
+
+    def test_v890_config_disabled_accepts_degraded_self_review(self):
+        """config 禁异质 + 降级同模型自审(degraded:true heterogeneous:false)→ 满足门禁。"""
+        self._set_config(True)
+        (self.ext / "review-claude.md").write_text(self._DEGRADED_FM, encoding="utf-8")
+        ok, err = self._check_host()
+        self.assertTrue(ok, f"config-disabled 应接受降级自审 · err={err!r}")
+
+    def test_v890_config_enabled_still_blocks_same_model(self):
+        """config 未禁(默认)+ 同模型文件 → 异质门禁仍 BLOCK(不因 v8.90 放水)。"""
+        self._set_config(False)
+        (self.ext / "review-claude.md").write_text(self._DEGRADED_FM, encoding="utf-8")
+        ok, err = self._check_host()
+        self.assertFalse(ok)
+        self.assertIn("异质", err)
+
+    def test_v890_config_disabled_still_blocks_unmarked_same_model(self):
+        """config 禁异质 · 但同模型文件**无 degraded 标记**(手写伪装?)→ 仍 BLOCK。"""
+        self._set_config(True)
+        (self.ext / "review-claude.md").write_text(
+            "---\nreview_role: external\nhost: claude-code\n---\nbody\n", encoding="utf-8")
+        ok, err = self._check_host()
+        self.assertFalse(ok, "config-disabled 也不接受未标记 degraded 的同模型文件")
+
     # ── 白名单字面 · PASS ──
     def test_codex_filename_passes(self):
         (self.ext / "code-codex.md").write_text("review", encoding="utf-8")

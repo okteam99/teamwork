@@ -9,6 +9,7 @@
 ### localconfig `disable_heterogeneous_review`(默认 false = 异质开)
 - `true` → `external-review` **自动**用宿主自身模型 fresh exec 自审(无需 `--self-review-fallback`),落 `external-cross-review/<stage>-<model>.md`(**满足 P0-154** · 让单模型用户走完流程)· frontmatter 标 `heterogeneous:false degraded:true degraded_mode:config-disabled` + 正文 banner + 写 `concern WARN`。
 - `_read_disable_heterogeneous_review`(state.py · 向上找 localconfig 到 `.git` 边界 · 默认 false)。
+- 🔴 **review-complete 门禁配套**(否则单模型用户在 review-complete 仍被异质硬校验卡死 = 功能形同虚设):`_evidence_external_review_artifact`(`_v8_stage_specs.py`)在 `disable_heterogeneous_review:true` 时**接受** external-cross-review/ 里标 `degraded:true heterogeneous:false` 的降级自审 —— 但仍 **BLOCK 未标记 degraded 的同模型文件**(防手写伪装)· 异质项目(默认)的硬校验**不受影响**。
 
 ### 🔴 每次启动 WARN(bootstrap · 持续提醒)
 - `bootstrap.py` 检测 `disable_heterogeneous_review:true` → `checks.heterogeneous_review.status=disabled` + warning · 并把一行 forewarn 提进 `pmo_must_read`(顶部 digest · 抗 `head` 截断)· PMO 须告知用户「已禁用异质 · 交叉 review 质量下降 · 建议装第二模型 CLI 后恢复」。

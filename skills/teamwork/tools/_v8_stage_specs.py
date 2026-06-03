@@ -1276,8 +1276,35 @@ def _external_run_log_exists(feature_dir: Path, stage: str) -> bool:
     return False
 
 
+def _localconfig_disable_hetero(feature_dir: Path) -> bool:
+    """v8.90:读 localconfig `disable_heterogeneous_review`(向上找到 .git 边界 · 默认 false)。
+
+    内联实现(避免 _v8_stage_specs 循环 import state.py)· 与 state._read_disable_heterogeneous_review 同义。
+    """
+    import json as _json
+    try:
+        node = Path(feature_dir).resolve()
+    except OSError:
+        return False
+    for d in [node, *node.parents]:
+        cfg = d / ".teamwork_localconfig.json"
+        if cfg.exists():
+            try:
+                return _json.loads(cfg.read_text(encoding="utf-8")).get(
+                    "disable_heterogeneous_review") is True
+            except (OSError, ValueError):
+                return False
+        if (d / ".git").exists():
+            break
+    return False
+
+
 def _evidence_external_review_artifact(state: dict, args) -> tuple[bool, str]:
     """external-cross-review/ 至少 1 份 markdown · 且必须是真异质模型评审(v8.19 加强)。
+
+    v8.90:`disable_heterogeneous_review:true`(localconfig · 单模型用户)时 · 接受
+    external-review 写的**降级同模型自审**文件(frontmatter `degraded:true heterogeneous:false`)·
+    跳过异质违规(用户已 opt-out · bootstrap 每次启动 WARN 持续提醒)。详 standards §11。
 
     联动 state.stage_review_roles:若当前 stage 的 reviewers 列表不含 'external'
     (通过 change-review-roles 调整去除) → skip 校验(audit 已在 stage_review_roles_adjustments)。
@@ -1306,12 +1333,20 @@ def _evidence_external_review_artifact(state: dict, args) -> tuple[bool, str]:
             "external-cross-review/*.md 为空 · 跑 codex 外部评审或 change-review-roles 移除 external"
         )
 
+    # v8.90:单模型用户 localconfig 禁异质 → 接受 external-review 写的降级同模型自审(跳过异质违规)
+    het_disabled = _localconfig_disable_hetero(feature_dir)
     # v8.36 host per-feature · v8.68 host-aware 异质判定(治本 codex-cli host 下 claude 误判)
     state_host = state.get("host")
     # v8.19:逐文件校验异质性(文件名 + frontmatter review_model 双重 · v8.68 host-aware)
     violations: list = []
     for f in md_files:
         fm = parse_frontmatter(f) or {}
+        # v8.90:config-disabled 项目 + 文件是合规降级自审(external-review 写 degraded:true
+        # heterogeneous:false)→ 视作满足门禁(用户已 opt-out · startup WARN 持续提醒)· 跳过异质校验。
+        # 注:parse_frontmatter 是朴素解析 · 值为字符串("true"/"false")。
+        if het_disabled and str(fm.get("degraded", "")).lower() == "true" \
+                and str(fm.get("heterogeneous", "")).lower() == "false":
+            continue
         # host 优先级:state.host(per-feature)> 文件 frontmatter host(external-review 写)> None(默认 claude)
         eff_host = state_host or (fm.get("host") or "").strip() or None
         ok_name, name_reason = _check_external_hetero(f.stem, eff_host)
