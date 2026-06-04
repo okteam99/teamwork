@@ -1,6 +1,13 @@
 # Changelog
 
-> 📦 v8.93 及更早(含 v7/v6/… 旧系统)已归档 → [CHANGELOG-ARCHIVE.md](./CHANGELOG-ARCHIVE.md)。本文件**保留最近 5 版**(每次发布:新增本版 → 若超过 5 版,把最旧的一版迁入归档)。
+> 📦 v8.94 及更早(含 v7/v6/… 旧系统)已归档 → [CHANGELOG-ARCHIVE.md](./CHANGELOG-ARCHIVE.md)。本文件**保留最近 5 版**(每次发布:新增本版 → 若超过 5 版,把最旧的一版迁入归档)。
+
+## v8.99 · DEV-RULES 模板去示例(只留段骨架 + 填写引导)
+
+> 用户:DEV-RULES 模板不用给示例。
+
+- `templates/dev-rules.md` 内嵌骨架各段(架构/分层 · 命名 · 错误处理 · 测试策略 · 代码风格 · 其他约定)删掉 `示例:…` 条目 · 只留 `## 段标题` + 一行 `>` 填写引导。人维护时空段直接填,不被示例干扰 / 误当真规则。
+- doc-only · 无 code/测试影响(bootstrap scaffold 用本模板 · 测试用 fake 模板不依赖其内容)。
 
 ## v8.98 · spec 全文档去噪(删版本标 / case-id / 演进叙事 · 只留 how/后果/反模式)+ 立写作规约
 
@@ -64,17 +71,3 @@
 ### 验证
 - `test_v8_stage_specs.py` 扩断言:het_disabled violation → 含 `disable_heterogeneous_review`/`别手写`/`state.py external-review` · **不含**「host 自动映射异质模型」;默认项目反之(锁两分支)。
 - pytest **3 failed / 498 passed**(baseline 3 = scan-spec 既有 · 零回归)。
-
-## v8.94 · feature 归档加极简描述(`--archive-desc` ≤50 字 → INDEX.md 描述列)
-
-> 用户:feature archive 的时候给一段极简的 feature 描述(限 50 字以内),写到 INDEX.md。
-
-### `--archive-desc`(ship-finalize · 写入 `_archive/INDEX.md` 描述列)
-- **新参数**:`ship-finalize --archive-desc '<≤50 字>'` —— AI 在 planning-backref 暂停点连同 `--planning-artifacts` 一起给本 feature 一句极简描述(是判断活 · 故 AI 给 · 非脚本自动抽)。`_clean_archive_desc` 净化:折叠空白 + 去 `|`/换行(防破表格)+ **≤50 字**(超则截 49+`…`)+ 缺省 `—`;超长 emit warning。
-- **INDEX.md 加列**:`| Feature | 描述 | 交付归档时间 | 归档物 |`(原 3 列)· 便于日后**不解压**就识别归档内容。
-- **旧行自动迁移**:base 上旧 3 列 INDEX 行下次归档时补 `—` 迁为 4 列(`_build_archive_index`)· re-archive 同 feature 去重。
-- **接线**:planning-backref gate brief + 命令示例 + argparse + ship-stage.md §5.5/§15。仅 archive 模式(`archive_on_ship` 默认 true)写 INDEX。
-
-### 验证
-- 新增 `test_ship_archive_desc_v894.py` **12 测试**:`_clean_archive_desc`(正常/超 50 截断/`|` 净化/换行折叠/空→`—`/恰好 50)· `_build_archive_index`(新列/缺省 `—`/旧 3 列迁移/re-archive dedup)· 集成(--archive-desc 入 INDEX / 超 50 截断 + warning)。
-- pytest **3 failed / 498 passed**(baseline 3 = scan-spec 既有 · 零回归 · +12 测试)。

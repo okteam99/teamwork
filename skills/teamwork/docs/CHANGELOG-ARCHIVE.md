@@ -1,10 +1,24 @@
-# Changelog Archive(v8.93 → v1)
+# Changelog Archive(v8.94 → v1)
 
-> 📦 **历史归档**:本文件保存 teamwork **v8.93 及更早**的全部 changelog(含 v7/v6/…/v1 等 v8.0 之前的旧系统)· 仅供追溯,**不再维护**。
-> 现行 changelog(最近 5 版 · v8.94–v8.98)见 [CHANGELOG.md](./CHANGELOG.md)。
+> 📦 **历史归档**:本文件保存 teamwork **v8.94 及更早**的全部 changelog(含 v7/v6/…/v1 等 v8.0 之前的旧系统)· 仅供追溯,**不再维护**。
+> 现行 changelog(最近 5 版 · v8.95–v8.99)见 [CHANGELOG.md](./CHANGELOG.md)。
 > ⚠️ v8.0 是「范式切换 · 不向下兼容」的重构 —— **v7 及更早描述的是已不存在的旧系统**,其机制/命令/红线编号均不适用于现行 v8。
 
 ---
+
+## v8.94 · feature 归档加极简描述(`--archive-desc` ≤50 字 → INDEX.md 描述列)
+
+> 用户:feature archive 的时候给一段极简的 feature 描述(限 50 字以内),写到 INDEX.md。
+
+### `--archive-desc`(ship-finalize · 写入 `_archive/INDEX.md` 描述列)
+- **新参数**:`ship-finalize --archive-desc '<≤50 字>'` —— AI 在 planning-backref 暂停点连同 `--planning-artifacts` 一起给本 feature 一句极简描述(是判断活 · 故 AI 给 · 非脚本自动抽)。`_clean_archive_desc` 净化:折叠空白 + 去 `|`/换行(防破表格)+ **≤50 字**(超则截 49+`…`)+ 缺省 `—`;超长 emit warning。
+- **INDEX.md 加列**:`| Feature | 描述 | 交付归档时间 | 归档物 |`(原 3 列)· 便于日后**不解压**就识别归档内容。
+- **旧行自动迁移**:base 上旧 3 列 INDEX 行下次归档时补 `—` 迁为 4 列(`_build_archive_index`)· re-archive 同 feature 去重。
+- **接线**:planning-backref gate brief + 命令示例 + argparse + ship-stage.md §5.5/§15。仅 archive 模式(`archive_on_ship` 默认 true)写 INDEX。
+
+### 验证
+- 新增 `test_ship_archive_desc_v894.py` **12 测试**:`_clean_archive_desc`(正常/超 50 截断/`|` 净化/换行折叠/空→`—`/恰好 50)· `_build_archive_index`(新列/缺省 `—`/旧 3 列迁移/re-archive dedup)· 集成(--archive-desc 入 INDEX / 超 50 截断 + warning)。
+- pytest **3 failed / 498 passed**(baseline 3 = scan-spec 既有 · 零回归 · +12 测试)。
 
 ## v8.93 · 规划层 back-ref 随收尾 MR 原子合入(planning-backref 暂停点 · 去 §5.5 直推)
 

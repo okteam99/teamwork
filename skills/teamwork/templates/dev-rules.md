@@ -28,39 +28,25 @@
 
 > 模块边界、分层规则、依赖方向(谁能依赖谁、禁止反向依赖)。
 
-- 示例:所有 DB 访问只经 `repository/` 层 · service 层禁止直接拼 SQL。
-- 示例:依赖方向 `handler → service → repository` 单向 · 禁止 service 依赖 handler。
-
 ## 命名
 
 > 文件 / 类型 / 函数 / 变量 / 数据库对象的命名约定(只列与语言默认不同的)。
-
-- 示例:DB 表前缀 `app_` · 禁用 `tbl_`。
-- 示例:前端表单字段一律 camelCase(不跟后端 snake_case)。
 
 ## 错误处理
 
 > 错误返回结构 / 异常 vs 错误码 / 日志级别约定。
 
-- 示例:所有 API error 返回 `{code, message, details}` 结构。
-- 示例:用 `Result<T, E>` 显式传错 · 禁止吞异常。
-
 ## 测试策略
 
 > 测试分层 / 覆盖要求 / 测试框架与约定 / 什么必须测。
-
-- 示例:集成测试用 testcontainers · 不 mock DB。
-- 示例:每个 public 接口至少 1 个 happy-path + 1 个 边界 test。
 
 ## 代码风格
 
 > formatter / linter / import 顺序等(只列工具命令 + 与默认不同的约定)。
 
-- 示例:`cargo fmt` + `clippy -D warnings` 必过 · 无格式 PR。
-
 ## 其他约定
 
-- 示例:配置走环境变量 · 禁止硬编码;敏感配置走 `.teamwork-local-env/`。
+> 配置 / secret / 提交 等其他必守约定。
 ```
 
 ## 与其他文档的协作
