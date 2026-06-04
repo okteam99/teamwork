@@ -1,6 +1,30 @@
 # Changelog
 
-> 📦 v8.94 及更早(含 v7/v6/… 旧系统)已归档 → [CHANGELOG-ARCHIVE.md](./CHANGELOG-ARCHIVE.md)。本文件**保留最近 5 版**(每次发布:新增本版 → 若超过 5 版,把最旧的一版迁入归档)。
+> 📦 v8.95 及更早(含 v7/v6/… 旧系统)已归档 → [CHANGELOG-ARCHIVE.md](./CHANGELOG-ARCHIVE.md)。本文件**保留最近 5 版**(每次发布:新增本版 → 若超过 5 版,把最旧的一版迁入归档)。
+
+## v8.100 · UI 可视全景前移到规划层(拆 WS 前先出全景初步规划 · feature 边界对齐 UI 结构)
+
+> 用户:UI 可视全景能否更早出 —— 放到 feature 阶段就晚了。确认链路:feature-planning 讨论需求规划逻辑 → 产出 UI 全景初步规划 → 据全景拆成最终 WS(1 个或多个)。
+
+### 设计(全景出生点前移:per-Feature ui_design → 规划层 feature-planning)
+- **拆 WS 之前先出全景初步**:涉 UI 的轮次,feature-planning 在拆 WS 前于 `{子项目}/docs/design/preview-project/` 出 design system + 关键页(🔴 **初步**:系统 + 代表页 · **非每页** · 防瀑布 · 跑 `preview.sh` 看)+ 同步 `sitemap.md`(IA 地图 · 🔴 只写层级/导航不写视觉)· 完成产生 git diff = **拆 WS 的输入**。非 UI 轮跳过(WS 标 `N-A`)。
+- **WS 据全景拆 · 1..N 个**:feature-planning 输入=全景 diff + 业务目标 → 拆 **1 或多个 WS**(feature 边界对齐 UI 结构)· 每 WS 记 `ui_panorama: ✅/N-A` + `ui_panorama_pages`(覆盖页清单 · 替代模糊的"基于哪轮全景")· 涉 UI 必 ✅ 才转「规划完成」。
+- **ui_design 改增量扩**:全景规划期已出生 · ui_design 阶段在已有全景上**增量补**本 Feature 的页与细节(源即权威)· 非从零搭;老项目/跳过规划路径 → 此处首次 seed(回退)。
+- **三者分工厘清**:`sitemap.md`=IA 地图(文字 · 不写视觉)· `preview-project/`=视觉权威(可跑)· 单 Feature `UI.md`=本 feature 涉及的页(不重复全局)。
+
+### 接线(8 文档/工具 · 一个 release)
+- `docs/feature-planning.md`:§2 重排 Step —— 新 Step 5「🎨 UI 全景初步规划(条件)」插在拆 WS 之前 · 新 Step 6 显式「拆 WS(1..N)」· §1/§4 产物加 preview-project · 坑 4 改三者分工。
+- `templates/workstream.md`:frontmatter 加 `ui_panorama` + `ui_panorama_pages` · 状态生命周期加「全景初规子门禁」(涉 UI 必 ✅ 才转规划完成)· 设计要点 +1。
+- `stages/ui-design-stage.md`:§3 加「全景在规划期已出生 · ui_design 增量扩」框定 + same-stack 措辞「扩/搭」。
+- `PRODUCT-OVERVIEW-INTEGRATION.md`:权威冷启动顺序 ×2 插入「(涉 UI)UI 全景初步规划」。
+- `docs/conventions.md §13`:`design/` 加「首次 seed 在规划层」注 · `sitemap.md` 标「只写地图不写视觉」。
+- `tools/state.py cmd_planning_check`:checklist +「🎨 全景UI初步规划」项 + WS 项加全景状态/页清单 + `planning_order` 加全景环。
+- `roles/designer.md` + `roles/product-lead.md`:规划层参与/主导全景初规。
+- `SKILL.md § 业务流程架构`:纵向链路图加「(涉 UI)UI 全景初步规划」一环 + 2 bullet。
+
+### 验证
+- 新增 `test_v8100_planning_check_panorama_before_ws`(全景在 WS 之前 + checklist 项 + WS 状态/页清单文案)· `planning_checklist` 5→6。
+- pytest **3 failed / 500 passed**(baseline 3 = scan-spec 既有 · 零回归 · +1 测试)。
 
 ## v8.99 · DEV-RULES 模板去示例(只留段骨架 + 填写引导)
 
@@ -55,19 +79,3 @@
 ### 验证
 - `test_bootstrap.py`:fresh 建 4 骨架(含 DEV-RULES.md)+ 新增「DEV-RULES.md 已存在则 existed · 内容不改」测试 + E2E existed 列表更新。
 - pytest **3 failed / 499 passed**(baseline 3 = scan-spec 既有 · 零回归 · +1 测试)。
-
-## v8.95 · 禁异质项目的 external 违规 FAIL 改给专属修复指引(去通用「调异质」误导 · hint-only)
-
-> 用户:看 case(aon SVC-PLATFORM-B260603103943)—— 关掉异质后物化校验真的不认么?案例里 `disable_heterogeneous_review=true` 项目,AI **手写**同模型自审(没打降级标记)被 review-complete 异质门禁拦。
-
-### 诊断:认 —— 只认 `state.py external-review` 跑出的降级文件,不认手写
-- 门禁 `_evidence_external_review_artifact` 在 `disable_heterogeneous_review=true` 时**接受** `external-cross-review/*.md` frontmatter 带 `degraded:true`+`heterogeneous:false` 的降级自审(v8.90);而 `state.py external-review` 在该项目里**自动**打这俩标(state.py config-disabled 分支 L3201-3203)→ 两边严丝合缝,本就认。
-- 案例 FAIL 因 AI **手写**自审、没打标(把 `heterogeneous_review: degraded` 写进 **REVIEW.md** · 而门禁查的是 external-cross-review **文件**的 `degraded`/`heterogeneous` 键)→ 判同源伪装拦(v8.67 反伪造 · 拦得对)。
-
-### 改法:violation FAIL 文案分 het_disabled(hint-only · 不动门禁逻辑)
-- `het_disabled=true` 的 violation → 给**专属**修复:跑 `state.py external-review`(config-disabled 自动产出被接受的降级自审 · **别手写**)· 或补 `degraded:true`+`heterogeneous:false`(写在 external-cross-review 文件 · 非 REVIEW.md)· 想恢复真异质 → 删 disable 开关。
-- 默认(未禁)项目仍走原通用 hint(host 自动映射异质模型 / change-review-roles)。治本:旧文案在禁异质项目里仍喊「调异质模型」误导单模型用户(与 v8.90 opt-out 初衷相悖 · case 里 AI 就是被带去找 codex)。
-
-### 验证
-- `test_v8_stage_specs.py` 扩断言:het_disabled violation → 含 `disable_heterogeneous_review`/`别手写`/`state.py external-review` · **不含**「host 自动映射异质模型」;默认项目反之(锁两分支)。
-- pytest **3 failed / 498 passed**(baseline 3 = scan-spec 既有 · 零回归)。

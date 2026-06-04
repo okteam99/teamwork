@@ -43,7 +43,8 @@ Feature Planning 的产出是**规划文档**(不是单 Feature 的 artifact)· 
 - 🔴 **WS 是本流程的产物** —— "起一个 WS" = 进 feature-planning(PMO 切 Product Lead 引导/讨论)· **不在流程外 ad-hoc 创建 WS**
 - **WS**(`product-overview/workstream/WS-NN.md`)= 一块规划 → 拆一组 feature(详 [SKILL.md § teamwork 业务流程架构](../SKILL.md))
 - feature 写入 **ROADMAP**(BL · 关联回 WS)· **完成标准 = feature 写进 roadmap**
-- 0-1 冷启动时还含 `业务架构与产品规划.md`(愿景 + 执行线列表)/ `sitemap.md`(信息架构)
+- **涉 UI 时**:拆 WS 前先出 **UI 可视全景初步规划** → `{子项目}/docs/design/preview-project/`(视觉 · 系统+关键页)+ `sitemap.md`(IA 地图)
+- 0-1 冷启动还含 `业务架构与产品规划.md`(愿景 + 执行线列表)
 
 特点:
 - 没有"Feature ID"(规划期分配 BL-NNN · WS 用 WS-NN · 见 [conventions.md § 4](./conventions.md))
@@ -86,13 +87,27 @@ Feature Planning 的产出是**规划文档**(不是单 Feature 的 artifact)· 
 
 无 product-overview/ → 跳过 Level 判定 · 直接进 Step 4。
 
-### Step 4 · 起草 PROJECT.md
+### Step 4 ·(条件)起草/更新 PROJECT.md 业务架构
 
-§业务架构 + §执行线列表 + §关键决策 · PL(Product Lead)主导。
+仅 **Level 2/3 或新增子项目**时 · §业务架构 + §执行线对齐 + §关键决策 · PL(Product Lead)主导。Level 1 跳过。模板见 [templates/project.md](../templates/project.md)。
 
-模板见 [templates/project.md](../templates/project.md)。
+### Step 5 · 🎨 UI 全景初步规划(条件:本轮涉 UI · 否则跳过)
 
-### Step 5 · 起草 ROADMAP.md(BL-NNN 分配)
+🔴 **在拆 WS 之前出** —— 先看清"产品长啥样",WS 才能把 feature 切对(边界跟 UI 结构对齐)。对**本轮 scope 做一次**(不是 per-WS 各画),在 `{子项目}/docs/design/preview-project/`:
+- **出 design system + 本轮关键页**(🔴 **初步**:系统 + 代表页 · **不是每页** · 细节随各 feature 的 ui_design 增量补 · 防瀑布)· 跑 `preview.sh` 实时看(同 ui_design 同栈机制)。
+- 同步 `sitemap.md`(IA 地图:本轮新增/调整的页节点 · 🔴 **只写层级/导航/路由,不写视觉** —— 视觉在 preview-project · 防双副本漂移)。
+- 🔴 全景是**一份活物**:不存在 → 首次 seed;已存在 → 扩本轮的页(源即权威)。完成即产生 git diff(= 本轮全景产出 · 下一步拆 WS 的输入)。
+- **非 UI 轮**(纯后端/基建)→ 跳过此步 · 下游 WS 标 `全景初规: N-A`。
+
+### Step 6 · 拆 WS(🔴 核心产出 · `workstream/WS-NN.md` · 1 或多个)
+
+**输入 = 本轮全景产出(Step 5 的 diff)+ 业务目标 + 承接执行线** · 把 scope 切成 **1..N 个 WS**:
+- 每个 WS:背景 / 承接 1+ 执行线 / 拆哪些 feature(`features[].current_state` 记复用点 vs 真缺口)/ 跨子项目依赖 / 风险。
+- 🔴 每个 WS 记 **全景初规状态**(`✅` 本 WS 的页已在全景 / `N-A` 非 UI)+ **覆盖的全景页清单**(本 WS owns 哪几页 · 替代模糊的"哪一轮")。
+- **WS 是原子单位**:scope 大(如冷启动 MVP)就按执行线/能力拆**多个** WS(各自独立状态/启动)· 别塞巨型 WS;稳态一个方向变更 = 一个 WS。
+- 模板见 [templates/workstream.md](../templates/workstream.md)。
+
+### Step 7 · 写 ROADMAP.md(BL-NNN 分配)
 
 Feature 列表 + 优先级 + 排期(当前/下一/储备)。
 - **每个 Backlog 分配 BL-NNN**(三位数字 · 各项目独立递增)· 详见 [conventions.md § 4](./conventions.md)
@@ -102,21 +117,17 @@ Feature 列表 + 优先级 + 排期(当前/下一/储备)。
 
 模板见 [templates/roadmap.md](../templates/roadmap.md)。
 
-### Step 6 · 起草 sitemap.md
-
-信息架构 · 页面层级 · 模块边界(整体页面架构 · 不重复单 Feature UI.md)。
-
-### Step 7 · PL-PM 讨论 + 多角色 review
+### Step 8 · PL-PM 讨论 + 多角色 review
 
 PL 把方向 · PM 把可执行性 · Architect 把技术可行。
 PMO 主对话切换角色 · 讨论收敛 · 不需要单独 review artifact。
 
-### Step 8 · 提交(🔴 R5 暂停点 · 必问)
+### Step 9 · 提交(🔴 R5 暂停点 · 必问)
 
-规划产出(WS + 各 ROADMAP 登记 + 业务架构 if 改)是**未提交的工作树改动**。规划完成时**必 emit R5 暂停点问用户是否提交 push** —— 不擅自 commit,也不放任改动悬着不提:
+规划产出(WS + 各 ROADMAP 登记 + preview-project/sitemap if 涉 UI + 业务架构 if 改)是**未提交的工作树改动** · **一次规划提交含本轮全部产出**(WS-NN.md + ROADMAP BL + preview-project diff)。规划完成时**必 emit R5 暂停点问用户是否提交 push** —— 不擅自 commit,也不放任改动悬着不提:
 
 ```
-⏸️ 规划完成 · 产出 <WS-NN + N 个 ROADMAP 登记 + …> · 请选择:
+⏸️ 规划完成 · 产出 <WS-NN + N 个 ROADMAP 登记 + 全景 if UI + …> · 请选择:
 1. 提交并 push(commit + 直推 / 开 MR)💡 推荐 —— 规划文档落库,后续启动 Feature 有据
 2. 先不提交(继续调整 / 你稍后自己提)
 3. 其他指示
@@ -147,11 +158,12 @@ task 是 Feature 内 PRD 的事 · ROADMAP 只到 Feature 名 + 简述。
 
 **对策**:ROADMAP 一 Feature 一行 · 标题 + 优先级 + 状态。
 
-### 坑 4 · sitemap 与单 Feature UI.md 重复
+### 坑 4 · sitemap / 可视全景 / 单 Feature UI.md 三者分工
 
-两处同步成本高。
-
-**对策**:sitemap = 整体页面架构 · 单 Feature UI.md = 本 Feature 涉及的页面 · 后者不重复全局。
+**对策**:三者各司其职 · 不重叠:
+- `sitemap.md` = **IA 地图**(页面层级 / 导航 / 路由 · 文字 · 🔴 不写视觉 —— 防与全景漂移)
+- `preview-project/` = **视觉权威**(design system + 页面 · 可跑)
+- 单 Feature `UI.md` = 本 Feature 涉及的页(不重复全局)
 
 ### 坑 5 · Planning 完成自动启 Feature
 
@@ -168,17 +180,20 @@ PL 在 ROADMAP 拆完后顺手起 Feature flow · 越权(用户没拍板)。
 
 ## 4. 产出形态参考
 
-### `product-overview/workstream/WS-NN-XXX.md`(核心产出)
-背景 + 怎么落 + 拆哪些 feature + 跨哪些子项目 + 承接 1+ 执行线 · 完成 = feature 写入 roadmap · 详 [templates/workstream.md](../templates/workstream.md)
+### `product-overview/workstream/WS-NN-XXX.md`(核心产出 · 1 或多个)
+背景 + 怎么落 + 拆哪些 feature + 跨哪些子项目 + 承接 1+ 执行线 + **全景初规状态(✅/N-A)+ 覆盖的全景页清单** · 完成 = feature 写入 roadmap · 详 [templates/workstream.md](../templates/workstream.md)
+
+### `{子项目}/docs/design/preview-project/`(涉 UI 时 · UI 可视全景初步规划)
+design system + 本轮关键页(初步 · 系统+代表页 · 同栈可跑 · 源即视觉权威)· ui_design 后续增量扩
+
+### `sitemap.md`(涉 UI 时 · IA 地图)
+页面层级 / 导航 / 路由(文字 · 🔴 不写视觉 · 视觉在 preview-project)
 
 ### `ROADMAP.md`(各子项目)
 Feature(BL)列表 + 优先级 + 「关联 WS」列 · 一 Feature 一行
 
 ### `业务架构与产品规划.md` / `PROJECT.md`(0-1 / 方向级变更时)
 产品定位 + 业务架构 + 执行线列表(taxonomy)+ 关键决策
-
-### `sitemap.md`(含 UI 时)
-信息架构 · 页面层级
 
 ---
 

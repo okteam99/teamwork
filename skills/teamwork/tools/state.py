@@ -1712,8 +1712,10 @@ PLANNING_CHECKLIST = [
      "spec": "feature-planning.md §2 Step 1"},
     {"item": "范围判定:工作区级(改 teamwork-space.md + 多 PROJECT.md)vs 子项目级(单 PROJECT.md + ROADMAP.md + sitemap.md)",
      "spec": "feature-planning.md §2 Step 2"},
-    {"item": "核心产出 WS(product-overview/workstream/WS-NN.md · 承接 1+ 执行线 · 拆一组 feature)· 0-1 时含业务架构与产品规划.md(愿景+执行线列表)/ sitemap · 🔴 不出代码(R6)· 不进 stage 链",
-     "spec": "feature-planning.md §1 + templates/workstream.md"},
+    {"item": "🎨 全景UI初步规划(本轮涉 UI 时 · 🔴 拆 WS 之前出):在 {子项目}/docs/design/preview-project/ 出/扩 design system + 本轮关键页(初步 · 系统+代表页 · 非每页 · 防瀑布 · 跑 preview.sh 看)+ 同步 sitemap.md(IA 地图 · 只写层级/导航不写视觉)· 完成产生 git diff = 拆 WS 的输入;非 UI 轮跳过(下游 WS 标 全景初规:N-A)",
+     "spec": "feature-planning.md §2 Step 5"},
+    {"item": "核心产出 WS(product-overview/workstream/WS-NN.md · 1..N 个 · 输入=全景diff+业务目标 · 承接 1+ 执行线 · 拆一组 feature · 🔴 每 WS 记 全景初规状态(✅/N-A)+ 覆盖的全景页清单)· 0-1 时含业务架构与产品规划.md(愿景+执行线列表)· 🔴 不出代码(R6)· 不进 stage 链",
+     "spec": "feature-planning.md §2 Step 6 + templates/workstream.md"},
     {"item": "WS 拆出的 feature 写入 ROADMAP(BL-NNN · 关联 WS)· feature 全写入 = WS ✅ 规划完成 · 每个 BL 后续用户拍板走 prepare 启动 Feature",
      "spec": "conventions.md §4 + prepare.md §5"},
     {"item": "🔴 规划完成必 emit R5 暂停点问用户是否提交 push(WS + ROADMAP 登记是未提交工作树改动 · 不擅自 commit 也不放任悬着)· 主工作区直推或开 MR · 不走 ship 流程",
@@ -1763,7 +1765,8 @@ def cmd_planning_check(args: argparse.Namespace) -> None:
         "planning_checklist": PLANNING_CHECKLIST,
         "planning_order": (
             "🔴 权威链路(详 SKILL.md § teamwork 业务流程架构):业务架构与产品规划(愿景+执行线列表)"
-            "→ ✅确认派生 teamwork-space.md → WS(workstream/ · 承接 1+ 执行线 · 拆一组 feature)"
+            "→ ✅确认派生 teamwork-space.md →(涉 UI)全景UI初步规划(preview-project + sitemap · 拆 WS 前)"
+            "→ WS(workstream/ · 1..N · 承接 1+ 执行线 · 拆一组 feature · 每 WS 记 全景初规状态)"
             "→ feature 写入 ROADMAP(BL · 关联 WS · 全写入=WS✅规划完成)→ 用户拍板 BL → prepare+init-feature → F。"
             "teamwork-space.md **不是** Feature Planning 产出 · 由 product-overview「✅ 已确认」内容派生"
         ),

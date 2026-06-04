@@ -1,6 +1,6 @@
 ---
 name: teamwork
-version: v8.99.1
+version: v8.100
 description: AI 协作开发一体化框架 · /teamwork 启动
 ---
 
@@ -45,15 +45,17 @@ state.py 被动记录 AI 按 state.py 指示执行
 ```
 规划层(PMO 主对话 · 不进状态机)
   业务架构与产品规划.md       愿景 + 执行线列表(Line N · taxonomy · 稳定 · 新线才更新)
-     └─ WS-NN(product-overview/workstream/)
-            承接 1+ 执行线 · 拆一组 feature · 跨 0+ 子项目 · 完成 = feature 写入 roadmap
-          └─ ROADMAP/BL-NNN   feature 原子(关联回 WS-NN)
+     └─(涉 UI)UI 全景初步规划  preview-project(系统+关键页)+ sitemap(IA 地图)· 🔴 拆 WS 之前出 · = 拆 WS 的输入
+        └─ WS-NN(product-overview/workstream/ · 1..N 个)
+               承接 1+ 执行线 · 拆一组 feature · 全景初规 ✅/N-A + 覆盖页清单 · 完成 = feature 写入 roadmap
+             └─ ROADMAP/BL-NNN   feature 原子(关联回 WS-NN)
 ────────── 规划→执行 交接 = 用户拍板某 BL + prepare + init-feature ──────────
 执行层(state.py 状态机)
      └─ F-NNN   goal →(ui_design)→ blueprint → dev → review → test →(browser_e2e)→ pm_acceptance → ship
 ```
 
-- **WS 怎么来**:WS 是 **feature-planning 流程的产物** —— "起一个 WS" = 进 feature-planning(PMO 切 Product Lead 引导/讨论 → 拆 feature → 写 roadmap)· **不在流程外 ad-hoc 手搓**。
+- **WS 怎么来**:WS 是 **feature-planning 流程的产物** —— "起一个 WS" = 进 feature-planning(PMO 切 Product Lead 引导/讨论 → 涉 UI 先出全景初步规划 → 据全景 + 业务目标拆 **1..N 个 feature** → 写 roadmap)· **不在流程外 ad-hoc 手搓**。
+- **全景先于 WS**(涉 UI):feature-planning 在拆 WS 前先在 `{子项目}/docs/design/preview-project/` 出 **UI 全景初步规划**(design system + 关键页 · 初步 · 非每页)+ `sitemap.md`(IA 地图)· 看清产品长啥样 → feature 边界对齐 UI 结构 · 每 WS 记 `全景初规 ✅/N-A` + 覆盖页清单 · ui_design 阶段在此全景上增量扩(详 [docs/feature-planning.md](./docs/feature-planning.md) Step 5-6)。
 - **进度统计** = N 个未完成 WS(规划态)+ 各子项目 ROADMAP 的 BL(执行态)· 业务架构/执行线不计入(它们是愿景 / taxonomy)。
 - **能力级索引**:WS 向上 tag 执行线 · 反查得「某执行线下有哪些 WS / feature」· 业务架构**不登记 WS**(保持稳定小列表)。
 - **非开发工作**(运营/推广/BD):teamwork 不跟踪 · 执行线列表留个名即可。

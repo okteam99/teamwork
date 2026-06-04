@@ -2616,9 +2616,9 @@ class TestPlanningCheck(unittest.TestCase):
         self.assertEqual(len(sm["required_tables"]), 2)
 
     def test_v846_planning_check_checklist_and_constraints(self):
-        """checklist 4 条 + key_constraints 含「不进状态机」+「不出代码 R6」。"""
+        """checklist 6 条 + key_constraints 含「不进状态机」+「不出代码 R6」。"""
         d = run(["planning-check", "--project-root", str(self.tmp)])
-        self.assertEqual(len(d["planning_checklist"]), 5)  # v8.52:+ 实际代码调研项
+        self.assertEqual(len(d["planning_checklist"]), 6)  # v8.52:+ 实际代码调研项;v8.100:+ 全景UI初步规划
         constraints = " ".join(d["key_constraints"])
         self.assertIn("不进状态机", constraints)
         self.assertIn("不出代码", constraints)
@@ -2632,6 +2632,18 @@ class TestPlanningCheck(unittest.TestCase):
                         "业务架构(愿景) 必在 teamwork-space 之前")
         self.assertLess(po.index("teamwork-space"), po.index("ROADMAP"),
                         "teamwork-space 必在 ROADMAP 之前(WS 在中间)")
+
+    def test_v8100_planning_check_panorama_before_ws(self):
+        """v8.100:全景UI初步规划 checklist 项存在 · planning_order 里全景在 WS 之前。"""
+        d = run(["planning-check", "--project-root", str(self.tmp)])
+        items = " ".join(c["item"] for c in d["planning_checklist"])
+        self.assertIn("全景UI初步规划", items)        # 新 checklist 项
+        self.assertIn("全景初规", items)               # WS 项记状态
+        self.assertIn("覆盖的全景页清单", items)        # WS 项记页清单
+        po = d["planning_order"]
+        self.assertIn("全景UI初步规划", po)
+        self.assertLess(po.index("全景UI初步规划"), po.index("WS"),
+                        "全景UI初步规划 必在 WS 之前(拆 WS 前先出全景)")
 
 
 if __name__ == "__main__":

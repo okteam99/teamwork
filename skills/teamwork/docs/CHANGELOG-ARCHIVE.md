@@ -1,10 +1,26 @@
-# Changelog Archive(v8.94 → v1)
+# Changelog Archive(v8.95 → v1)
 
-> 📦 **历史归档**:本文件保存 teamwork **v8.94 及更早**的全部 changelog(含 v7/v6/…/v1 等 v8.0 之前的旧系统)· 仅供追溯,**不再维护**。
-> 现行 changelog(最近 5 版 · v8.95–v8.99)见 [CHANGELOG.md](./CHANGELOG.md)。
+> 📦 **历史归档**:本文件保存 teamwork **v8.95 及更早**的全部 changelog(含 v7/v6/…/v1 等 v8.0 之前的旧系统)· 仅供追溯,**不再维护**。
+> 现行 changelog(最近 5 版 · v8.96–v8.100)见 [CHANGELOG.md](./CHANGELOG.md)。
 > ⚠️ v8.0 是「范式切换 · 不向下兼容」的重构 —— **v7 及更早描述的是已不存在的旧系统**,其机制/命令/红线编号均不适用于现行 v8。
 
 ---
+
+## v8.95 · 禁异质项目的 external 违规 FAIL 改给专属修复指引(去通用「调异质」误导 · hint-only)
+
+> 用户:看 case(aon SVC-PLATFORM-B260603103943)—— 关掉异质后物化校验真的不认么?案例里 `disable_heterogeneous_review=true` 项目,AI **手写**同模型自审(没打降级标记)被 review-complete 异质门禁拦。
+
+### 诊断:认 —— 只认 `state.py external-review` 跑出的降级文件,不认手写
+- 门禁 `_evidence_external_review_artifact` 在 `disable_heterogeneous_review=true` 时**接受** `external-cross-review/*.md` frontmatter 带 `degraded:true`+`heterogeneous:false` 的降级自审(v8.90);而 `state.py external-review` 在该项目里**自动**打这俩标(state.py config-disabled 分支 L3201-3203)→ 两边严丝合缝,本就认。
+- 案例 FAIL 因 AI **手写**自审、没打标(把 `heterogeneous_review: degraded` 写进 **REVIEW.md** · 而门禁查的是 external-cross-review **文件**的 `degraded`/`heterogeneous` 键)→ 判同源伪装拦(v8.67 反伪造 · 拦得对)。
+
+### 改法:violation FAIL 文案分 het_disabled(hint-only · 不动门禁逻辑)
+- `het_disabled=true` 的 violation → 给**专属**修复:跑 `state.py external-review`(config-disabled 自动产出被接受的降级自审 · **别手写**)· 或补 `degraded:true`+`heterogeneous:false`(写在 external-cross-review 文件 · 非 REVIEW.md)· 想恢复真异质 → 删 disable 开关。
+- 默认(未禁)项目仍走原通用 hint(host 自动映射异质模型 / change-review-roles)。治本:旧文案在禁异质项目里仍喊「调异质模型」误导单模型用户(与 v8.90 opt-out 初衷相悖 · case 里 AI 就是被带去找 codex)。
+
+### 验证
+- `test_v8_stage_specs.py` 扩断言:het_disabled violation → 含 `disable_heterogeneous_review`/`别手写`/`state.py external-review` · **不含**「host 自动映射异质模型」;默认项目反之(锁两分支)。
+- pytest **3 failed / 498 passed**(baseline 3 = scan-spec 既有 · 零回归)。
 
 ## v8.94 · feature 归档加极简描述(`--archive-desc` ≤50 字 → INDEX.md 描述列)
 

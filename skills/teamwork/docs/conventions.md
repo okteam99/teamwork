@@ -244,7 +244,7 @@ teamwork 文档分 **workspace 级**(仓库根)和 **子项目级**两层。
 
 ### 子项目级(`{子项目}/docs/`)
 
-`PROJECT.md`(业务总览)· `ROADMAP.md`(Feature 清单 + 优先级)· `DEV-RULES.md`(子项目级开发规范 · 人维护)· `KNOWLEDGE.md`(子项目级 Gotcha)· `sitemap.md` · `architecture/` · `adr/` · `features/{artifact ID}/`(详 §1)· `design/`(same-stack panorama:`preview-project/` 同栈设计预览项目 · 源即全景权威 + `preview.sh` 起 dev server 实时预览〔动态端口〕· `node_modules` gitignore · 不出静态 build 产物)。
+`PROJECT.md`(业务总览)· `ROADMAP.md`(Feature 清单 + 优先级)· `DEV-RULES.md`(子项目级开发规范 · 人维护)· `KNOWLEDGE.md`(子项目级 Gotcha)· `sitemap.md`(IA 地图:页面层级/导航/路由 · 🔴 只写地图不写视觉)· `architecture/` · `adr/` · `features/{artifact ID}/`(详 §1)· `design/`(same-stack panorama:`preview-project/` 同栈设计预览项目 · 源即全景权威 + `preview.sh` 起 dev server 实时预览〔动态端口〕· `node_modules` gitignore · 不出静态 build 产物 · 🔴 **首次 seed 在规划层「UI 全景初步规划」**〔feature-planning Step 5 · 拆 WS 前〕· ui_design 阶段增量扩本 Feature 页)。
 
 🔴 **顶级仓库不设 teamwork `docs/`** —— `docs/` 只在子项目层。单项目仓库 = 仓库根即项目根 · `project-specs/` 与 `docs/` 都在仓库根。
 

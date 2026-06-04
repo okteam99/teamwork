@@ -10,14 +10,14 @@
 > 触发:bare `/teamwork` 或 mode B execute 落在无 `teamwork-space.md` 的项目(详 [SKILL.md § bootstrap flow_gates 响应](SKILL.md))。
 
 **权威冷启动顺序**(详 [SKILL.md § teamwork 业务流程架构](SKILL.md)):
-`业务架构与产品规划.md`(愿景 + 执行线列表)→ ✅确认 → 派生 `teamwork-space.md` → 起 WS 拆 feature → roadmap → Feature 状态机。
+`业务架构与产品规划.md`(愿景 + 执行线列表)→ ✅确认 → 派生 `teamwork-space.md` → **(涉 UI)UI 全景初步规划** → 起 WS 拆 feature → roadmap → Feature 状态机。
 
 **PL 引导模式初创步骤**:
 1. PMO 切 Product Lead 角色([roles/product-lead.md](roles/product-lead.md))
 2. PL 与用户讨论 → 起草 `{项目名}_业务架构与产品规划.md`(产品定位 + 业务架构 + MVP + **执行线列表** · 按下方「建议章节 + 裁剪规则」按复杂度自适应裁剪)
 3. 文档头部填「规划状态」表(初始 📝 草稿)· 末尾「规划议题追踪」表
 4. 文档状态流转 📝→🔄→⏸️→✅(见下方「文档状态流转」)· 🔴 仅「✅ 已确认」内容才派生 `teamwork-space.md`
-5. ✅确认后 → 派生 `teamwork-space.md`(工作区全景)→ 起 WS(`workstream/WS-NN`)拆一组 feature → 写 roadmap
+5. ✅确认后 → 派生 `teamwork-space.md`(工作区全景)→ **(涉 UI)UI 全景初步规划**(在 `{子项目}/docs/design/preview-project/` 出 design system + 关键页 + `sitemap.md` IA 地图 · 拆 WS 前先看清产品长啥样 · 详 [docs/feature-planning.md Step 5](docs/feature-planning.md))→ 起 WS(`workstream/WS-NN`)拆一组 feature → 写 roadmap
 
 🔴 **用户拍板前不擅自建 `product-overview/`**(R5 暂停点)· 单 Feature 极简项目用户可拍板跳过、直接拆 ROADMAP。
 
