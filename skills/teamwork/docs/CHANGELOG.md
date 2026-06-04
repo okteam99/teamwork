@@ -1,6 +1,27 @@
 # Changelog
 
-> 📦 v8.95 及更早(含 v7/v6/… 旧系统)已归档 → [CHANGELOG-ARCHIVE.md](./CHANGELOG-ARCHIVE.md)。本文件**保留最近 5 版**(每次发布:新增本版 → 若超过 5 版,把最旧的一版迁入归档)。
+> 📦 v8.96 及更早(含 v7/v6/… 旧系统)已归档 → [CHANGELOG-ARCHIVE.md](./CHANGELOG-ARCHIVE.md)。本文件**保留最近 5 版**(每次发布:新增本版 → 若超过 5 版,把最旧的一版迁入归档)。
+
+## v8.101 · 待规划需求池外置 → `product-overview/PENDING.md`(teamwork-space 瘦身 · 只留 1 行指针)
+
+> 用户:teamwork-space.md 有点臃肿 · 尤其待规划需求(Backlog)部分 · 应拆出子文档单独管理 · 不占 teamwork-space 内容。
+
+### 诊断:Backlog 是全景索引里唯一 append-heavy 的节
+- teamwork-space 其余节都**结构静态**(子项目清单 / 架构全景 / 目录 · 仅 restructure 时变);待规划需求池每次跨 Feature 发现就 append 一行 · 即便「只留 active」也会撑大 · 违背它自己的「≤1 行 / 一眼看懂」。
+- 决策(用户拍板):外置到 **`product-overview/PENDING.md`**(规划层 inbox · 用 PENDING 名对齐已有 `PENDING-NNN` id · 避开与 ROADMAP `BL-NNN` 撞名)· teamwork-space 只留 1 行指针。
+
+### 改动(doc-only · state.py 从不碰此池 · 零 code/测试影响)
+- **新 `templates/pending.md`**:实例化骨架 + 自描述规则头(ID `PENDING-NNN` / 只留 active 📝🔄 / 追加触发 / 转化即删 / ≤1 行)。
+- `templates/teamwork-space.md`:§ 待规划需求池 整张表 → 1 行指针(→ `product-overview/PENDING.md`)。
+- `docs/teamwork-space-guide.md §6`:收敛为「已外置」说明 + context 收益 + 指模板头。
+- `SKILL.md`:① backlog-scan 触发改**按需读** `product-overview/PENDING.md`(不再 silent-read)· ② session 入口 silent-read 列表删「§ 待规划需求池」→ 移入「按需读」· ③ 追加机制 / §310 指针更新。
+- `docs/conventions.md §13` + `PRODUCT-OVERVIEW-INTEGRATION.md` 目录树 + `bootstrap.py` 冷启动 hint:product-overview/ 内容加 `PENDING.md`。
+
+### context 收益
+- 待规划池**不再随每个 session 入口 silent-read 进 PMO 上下文** · 改为 mode A query 命中 backlog 关键词时按需读 · 池越长收益越大。
+
+### 验证
+- pytest **3 failed / 500 passed**(baseline 3 = scan-spec 既有 · 零回归 · doc-only 无新测试)。
 
 ## v8.100 · UI 可视全景前移到规划层(拆 WS 前先出全景初步规划 · feature 边界对齐 UI 结构)
 
@@ -63,19 +84,3 @@
 ### 验证
 - doc-only · pytest **3 failed / 499 passed**(baseline 3 = scan-spec 既有 · 零回归)。
 - 试点:效果好则同手法全 skill 铺开 + 把「spec 无版本标/无 case-id · 历史只进 CHANGELOG」定为长期规约(待用户拍板)。
-
-## v8.96 · 项目开发规范从 KNOWLEDGE 拆出 → `project-specs/DEV-RULES.md`(人维护 · blueprint/dev 必读)
-
-> 用户:项目开发规范是**人维护的团队约定**,KNOWLEDGE.md 是 **AI 沉淀的经验**——维护者不同应拆开;且 KNOWLEDGE 有点重,顺带精简。doc 名定 `DEV-RULES.md`;bootstrap 无则从模板建、有则不动。
-
-### 拆分(按维护者轴:人定规矩 vs AI 沉淀)
-- **新 `project-specs/DEV-RULES.md`(人维护)**:本项目强制开发规范(分层 / 命名 / 错误处理 / 依赖方向 / 测试策略 / 风格)· 模板 `templates/dev-rules.md` · bootstrap `maintain_project_skeletons` absent→从模板建 / present→**绝不改**(人维护)。
-- **blueprint + dev 必读**:两 stage §1 + P0-11 cite 表 → `DEV-RULES.md`「存在则必读 · 须遵守」(不存在 skip · 不硬 FAIL · 用户主权 doc)。
-- **KNOWLEDGE.md 瘦身**:抽走 Conventions(→ DEV-RULES);删通用架构词汇(8 词)+「删除测试」启发式(通用 · 违反它自己「通用走 standards」边界);Glossary 段去重为指向 GLOSSARY.md。KNOWLEDGE 回归本质「Gotchas / 已澄清歧义 / Preferences / 已否方向」(AI 沉淀)。
-- **distill 不代写**:ship1 distill 的 `knowledge` 只 promote gotcha/事实 → KNOWLEDGE;约定/规范 → DEV-RULES.md 人维护,AI 只提示用户加。
-- 接线:SKILL.md doc-index + 关键词路由、docs/conventions.md §13 布局 + 两层表、ship-stage.md distill 注释。
-- 🔴 **存量项目不自动迁移**:已有 KNOWLEDGE.md 的项目,bootstrap 只补建空 DEV-RULES.md(不动 KNOWLEDGE);旧 Conventions 留在 KNOWLEDGE,用户按需手动搬。
-
-### 验证
-- `test_bootstrap.py`:fresh 建 4 骨架(含 DEV-RULES.md)+ 新增「DEV-RULES.md 已存在则 existed · 内容不改」测试 + E2E existed 列表更新。
-- pytest **3 failed / 499 passed**(baseline 3 = scan-spec 既有 · 零回归 · +1 测试)。

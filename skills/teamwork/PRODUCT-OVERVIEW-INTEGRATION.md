@@ -31,6 +31,7 @@ product-overview/
 ├── workstream/                      # 规划单元目录(WS · 替代旧 changes/ + 执行手册的规划职责)
 │   ├── README.md                    # 目录说明(放什么 / WS 命名)
 │   └── WS-NN-{名}.md                # 一个 Workstream · 详 templates/workstream.md
+├── PENDING.md                       # 待规划需求池(跨 Feature/session 的"范围外但要做"项 · 从 teamwork-space 外置 · 详 templates/pending.md)
 └── {项目名}_Product_Plan.md         # 可选 · 原始产品想法
 ```
 

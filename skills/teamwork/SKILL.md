@@ -1,6 +1,6 @@
 ---
 name: teamwork
-version: v8.100.1
+version: v8.101
 description: AI 协作开发一体化框架 · /teamwork 启动
 ---
 
@@ -307,7 +307,7 @@ mode A 排查 / mode E 讨论收尾时 · 命中以下场景必须建议升 mode
 
 2. **暂不升级**(仅排查闭合 / 继续讨论)
    理由:<你想先观察 / 排期 / 自己改>
-   动作:<排查报告留档 · 可记入待规划需求池 | 继续当前讨论>
+   动作:<排查报告留档 · 可记入待规划需求池(product-overview/PENDING.md)| 继续当前讨论>
 
 3. **其他指示**
 ```
@@ -339,14 +339,14 @@ prepare 子流程动作概览:流程类型识别(§2.1/§2.2 扫信号)→ workt
 
 ### 待规划需求池(命中查询意图时扫描)
 
-🔴 **触发条件**:mode A query 关键词命中以下任一时 · PMO 扫 `teamwork-space.md § 待规划需求池` 列 status=📝/🔄 的项:
+🔴 **触发条件**:mode A query 关键词命中以下任一时 · PMO **按需读** `product-overview/PENDING.md`(🔴 v8.101 外置 · 不再随 session 入口 silent-read)· 列 status=📝/🔄 的项:
 - "待做 / 待规划 / pending / backlog / 待办"
 - "还有什么 / 还要做 / 接下来做什么 / 下一个"
 - "看下池子 / 看下待规划"
 
 emit 格式:
 ```
-📋 待规划需求池:N 个 active 项(详 teamwork-space.md § 待规划需求池)
+📋 待规划需求池:N 个 active 项(详 product-overview/PENDING.md)
 1. PENDING-NNN · <标题>(来源:<source> · 状态:📝/🔄)
 2. ...
 回 "启动 PENDING-NNN" → 进 prepare 子流程 · 或 "稍后" 闭合。
@@ -354,7 +354,7 @@ emit 格式:
 
 **不扫场景**:mode B/C/D/E 入口(用户没问 → 不主动 emit)/ 关键词不命中 / 池空 → silent skip(避免噪音)。
 
-**追加机制**(session 内发现新待规划项):PMO/RD/PM 在 stage 内识别"本 Feature 范围外但要做"→ 主对话内 append 到表(用户确认后落盘)。
+**追加机制**(session 内发现新待规划项):PMO/RD/PM 在 stage 内识别"本 Feature 范围外但要做"→ 主对话内 append 到 `product-overview/PENDING.md` 表(用户确认后落盘 · 无该文件则从 [templates/pending.md](./templates/pending.md) 建)。
 
 **闭环清理**(防池臃肿):PENDING-NNN 转 ✅ 已转(进 Feature/Bug)或 ❌ 不做 → **立即从表删** · 关联落对应 Feature `state.json.related_pending` audit。表始终只保留 active(📝/🔄)。
 
@@ -582,10 +582,10 @@ PMO 只关注流程编排 · 系统维护是 `bootstrap.py` 的职责。
 
 🔴 PMO bootstrap.py 完成后 · 进 mode 分诊前 · **必 silent Read `teamwork-space.md`**(存在即读 · 缺失 silent skip):
 
-- 项目结构(单/多子项目) · 子项目清单 · 跨项目变更 ID · § 待规划需求池
+- 项目结构(单/多子项目) · 子项目清单 · 跨项目变更 ID
 
 **为什么只读这一份**:teamwork-space.md 是轻量结构索引(通常 < 200 行)· 已含分诊所需的全景上下文。
-**PROJECT.md / ROADMAP.md / sitemap.md** 等详档**按需读**(用户提到 / 任务涉及时再 Read 对应段)· 不全文加载到 PMO 上下文(避免 context 浪费)。
+**PROJECT.md / ROADMAP.md / sitemap.md / `product-overview/PENDING.md`(待规划需求池)** 等详档**按需读**(用户提到 / 任务涉及时再 Read 对应段 · 待规划池在命中 backlog 查询时才读)· 不全文加载到 PMO 上下文(避免 context 浪费)。
 
 🔴 **创建/维护 teamwork-space.md 的规则**(字段语义 / 硬规则 / 生命周期 / 进度统计 / 跨项目变更单源)→ [docs/teamwork-space-guide.md](./docs/teamwork-space-guide.md)(规则外迁 · 模板 [templates/teamwork-space.md](./templates/teamwork-space.md) 只留实例化骨架)。
 

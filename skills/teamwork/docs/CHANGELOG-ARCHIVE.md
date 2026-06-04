@@ -1,10 +1,26 @@
-# Changelog Archive(v8.95 → v1)
+# Changelog Archive(v8.96 → v1)
 
-> 📦 **历史归档**:本文件保存 teamwork **v8.95 及更早**的全部 changelog(含 v7/v6/…/v1 等 v8.0 之前的旧系统)· 仅供追溯,**不再维护**。
-> 现行 changelog(最近 5 版 · v8.96–v8.100)见 [CHANGELOG.md](./CHANGELOG.md)。
+> 📦 **历史归档**:本文件保存 teamwork **v8.96 及更早**的全部 changelog(含 v7/v6/…/v1 等 v8.0 之前的旧系统)· 仅供追溯,**不再维护**。
+> 现行 changelog(最近 5 版 · v8.97–v8.101)见 [CHANGELOG.md](./CHANGELOG.md)。
 > ⚠️ v8.0 是「范式切换 · 不向下兼容」的重构 —— **v7 及更早描述的是已不存在的旧系统**,其机制/命令/红线编号均不适用于现行 v8。
 
 ---
+
+## v8.96 · 项目开发规范从 KNOWLEDGE 拆出 → `project-specs/DEV-RULES.md`(人维护 · blueprint/dev 必读)
+
+> 用户:项目开发规范是**人维护的团队约定**,KNOWLEDGE.md 是 **AI 沉淀的经验**——维护者不同应拆开;且 KNOWLEDGE 有点重,顺带精简。doc 名定 `DEV-RULES.md`;bootstrap 无则从模板建、有则不动。
+
+### 拆分(按维护者轴:人定规矩 vs AI 沉淀)
+- **新 `project-specs/DEV-RULES.md`(人维护)**:本项目强制开发规范(分层 / 命名 / 错误处理 / 依赖方向 / 测试策略 / 风格)· 模板 `templates/dev-rules.md` · bootstrap `maintain_project_skeletons` absent→从模板建 / present→**绝不改**(人维护)。
+- **blueprint + dev 必读**:两 stage §1 + P0-11 cite 表 → `DEV-RULES.md`「存在则必读 · 须遵守」(不存在 skip · 不硬 FAIL · 用户主权 doc)。
+- **KNOWLEDGE.md 瘦身**:抽走 Conventions(→ DEV-RULES);删通用架构词汇(8 词)+「删除测试」启发式(通用 · 违反它自己「通用走 standards」边界);Glossary 段去重为指向 GLOSSARY.md。KNOWLEDGE 回归本质「Gotchas / 已澄清歧义 / Preferences / 已否方向」(AI 沉淀)。
+- **distill 不代写**:ship1 distill 的 `knowledge` 只 promote gotcha/事实 → KNOWLEDGE;约定/规范 → DEV-RULES.md 人维护,AI 只提示用户加。
+- 接线:SKILL.md doc-index + 关键词路由、docs/conventions.md §13 布局 + 两层表、ship-stage.md distill 注释。
+- 🔴 **存量项目不自动迁移**:已有 KNOWLEDGE.md 的项目,bootstrap 只补建空 DEV-RULES.md(不动 KNOWLEDGE);旧 Conventions 留在 KNOWLEDGE,用户按需手动搬。
+
+### 验证
+- `test_bootstrap.py`:fresh 建 4 骨架(含 DEV-RULES.md)+ 新增「DEV-RULES.md 已存在则 existed · 内容不改」测试 + E2E existed 列表更新。
+- pytest **3 failed / 499 passed**(baseline 3 = scan-spec 既有 · 零回归 · +1 测试)。
 
 ## v8.95 · 禁异质项目的 external 违规 FAIL 改给专属修复指引(去通用「调异质」误导 · hint-only)
 

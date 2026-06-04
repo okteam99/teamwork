@@ -233,7 +233,7 @@ teamwork 文档分 **workspace 级**(仓库根)和 **子项目级**两层。
 
 | 目录 / 文件 | 内容 | 维护方 |
 |---|---|---|
-| `product-overview/` | 产品愿景 / 业务架构 / 执行线列表 + `workstream/`(WS · 详 [PRODUCT-OVERVIEW-INTEGRATION.md](../PRODUCT-OVERVIEW-INTEGRATION.md)) | Product Lead |
+| `product-overview/` | 产品愿景 / 业务架构 / 执行线列表 + `workstream/`(WS)+ `PENDING.md`(待规划需求池 · 从 teamwork-space 外置 · 详 [PRODUCT-OVERVIEW-INTEGRATION.md](../PRODUCT-OVERVIEW-INTEGRATION.md)) | Product Lead |
 | `project-specs/` | 工程层项目文档:`DEV-RULES.md`(人维护开发规范 · blueprint/dev 必读)· `KNOWLEDGE.md`(AI 沉淀踩坑/事实)· `GLOSSARY.md` · `TROUBLESHOOTING.md` | bootstrap 建空骨架 · 项目维护 |
 | `teamwork-space.md` | 多项目索引 / 路由(单项目仓库无此文件) | PM |
 | `CLAUDE.md` / `AGENTS.md` | host 指令入口 · 固定位置 · 不可移 | teamwork 注入 |

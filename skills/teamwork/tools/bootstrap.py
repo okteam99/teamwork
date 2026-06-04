@@ -1068,7 +1068,7 @@ def cmd_session_bootstrap(args: argparse.Namespace) -> None:
         result["flow_gates"].append({
             "gate": "cold_start_workspace_uninitialized",
             "trigger": "session 启动 · 本项目无 teamwork-space.md(工作区未初始化 · 新项目冷启动)",
-            "checks": "project_root 无 teamwork-space.md · teamwork 项目应有(由 product-overview ✅确认内容派生 · 含子项目清单 + 待规划需求池)",
+            "checks": "project_root 无 teamwork-space.md · teamwork 项目应有(由 product-overview ✅确认内容派生 · 含子项目清单 · 待规划需求池外置 product-overview/PENDING.md)",
             "action": _cold_action,
             "skip_consequence": (
                 "跳过可直接做任务(用户拍板)· 但缺产品规划上游 + 工作区清单 → 多子项目管理 / 待规划需求池 / "
