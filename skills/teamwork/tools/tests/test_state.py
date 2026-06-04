@@ -2648,6 +2648,7 @@ class TestPlanningCheck(unittest.TestCase):
         self.assertIn("全景UI初步规划", items)        # 新 checklist 项
         self.assertIn("全景初规", items)               # WS 项记状态
         self.assertIn("覆盖的全景页清单", items)        # WS 项记页清单
+        self.assertIn("并行", items)                   # v8.104:WS 项给执行顺序与并行建议(波次)
         po = d["planning_order"]
         self.assertIn("全景UI初步规划", po)
         self.assertLess(po.index("全景UI初步规划"), po.index("WS"),

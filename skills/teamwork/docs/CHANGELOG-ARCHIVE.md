@@ -1,10 +1,17 @@
-# Changelog Archive(v8.98 → v1)
+# Changelog Archive(v8.99 → v1)
 
-> 📦 **历史归档**:本文件保存 teamwork **v8.98 及更早**的全部 changelog(含 v7/v6/…/v1 等 v8.0 之前的旧系统)· 仅供追溯,**不再维护**。
-> 现行 changelog(最近 5 版 · v8.99–v8.103)见 [CHANGELOG.md](./CHANGELOG.md)。
+> 📦 **历史归档**:本文件保存 teamwork **v8.99 及更早**的全部 changelog(含 v7/v6/…/v1 等 v8.0 之前的旧系统)· 仅供追溯,**不再维护**。
+> 现行 changelog(最近 5 版 · v8.100–v8.104)见 [CHANGELOG.md](./CHANGELOG.md)。
 > ⚠️ v8.0 是「范式切换 · 不向下兼容」的重构 —— **v7 及更早描述的是已不存在的旧系统**,其机制/命令/红线编号均不适用于现行 v8。
 
 ---
+
+## v8.99 · DEV-RULES 模板去示例(只留段骨架 + 填写引导)
+
+> 用户:DEV-RULES 模板不用给示例。
+
+- `templates/dev-rules.md` 内嵌骨架各段(架构/分层 · 命名 · 错误处理 · 测试策略 · 代码风格 · 其他约定)删掉 `示例:…` 条目 · 只留 `## 段标题` + 一行 `>` 填写引导。人维护时空段直接填,不被示例干扰 / 误当真规则。
+- doc-only · 无 code/测试影响(bootstrap scaffold 用本模板 · 测试用 fake 模板不依赖其内容)。
 
 ## v8.98 · spec 全文档去噪(删版本标 / case-id / 演进叙事 · 只留 how/后果/反模式)+ 立写作规约
 

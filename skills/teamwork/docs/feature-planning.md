@@ -105,6 +105,7 @@ Feature Planning 的产出是**规划文档**(不是单 Feature 的 artifact)· 
 - 每个 WS:背景 / 承接 1+ 执行线 / 拆哪些 feature(`features[].current_state` 记复用点 vs 真缺口)/ 跨子项目依赖 / 风险。
 - 🔴 每个 WS 记 **全景初规状态**(`✅` 本 WS 的页已在全景 / `N-A` 非 UI)+ **覆盖的全景页清单**(本 WS owns 哪几页 · 替代模糊的"哪一轮")。
 - **WS 是原子单位**:scope 大(如冷启动 MVP)就按执行线/能力拆**多个** WS(各自独立状态/启动)· 别塞巨型 WS;稳态一个方向变更 = 一个 WS。
+- 🔴 **给执行顺序与并行建议**:拆完按 `features[].dependencies` 算**波次**(同波互不依赖 → 可并行 · 各自 worktree;跨波串行)写进 WS §执行顺序与并行建议 + frontmatter `execution_waves` · 并标 **同改面 / 跨子项目方向 / 带宽** 的额外串行约束 —— 让用户拿到 WS 就知道先起哪几个、能同时开几个。
 - 模板见 [templates/workstream.md](../templates/workstream.md)。
 
 ### Step 7 · 写 ROADMAP.md(BL-NNN 分配)
