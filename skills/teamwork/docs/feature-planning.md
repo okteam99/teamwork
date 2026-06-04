@@ -4,14 +4,14 @@
 > `state.py init-feature --flow-type "Feature Planning"` **会被 reject** ·
 > 不创建 state.json · 不分 stage · 不走 stage 链。
 >
-> 🔴 **进入本流程前先跑** `state.py planning-check --project-root <abs>`(v8.46 物化入口)·
+> 🔴 **进入本流程前先跑** `state.py planning-check --project-root <abs>`(物化入口)·
 > emit 规划 checklist + 必读规范 + (若有 product-overview/)规划状态机。
 > 治本「规划路径不进状态机 · 无 state.py 兜底 · 纯靠 AI 自觉读 spec」漏洞 —— planning-check
 > 让 AI 跑命令就拿到规范要点,不依赖记得读本文件 / PRODUCT-OVERVIEW-INTEGRATION.md。
 
 ---
 
-> 🔴 **冷启动顺序(v8.48 · 治本 gcpdev case)**:本流程(Feature Planning · 拆 ROADMAP)是**下游**。
+> 🔴 **冷启动顺序**:本流程(Feature Planning · 拆 ROADMAP)是**下游**。
 > 新项目权威顺序 = `product-overview`(产品规划 · PL 引导模式 · 见 [PRODUCT-OVERVIEW-INTEGRATION.md](../PRODUCT-OVERVIEW-INTEGRATION.md))
 > → ✅确认 → **派生** `teamwork-space.md`(工作区全景)→ **再**进本流程拆 ROADMAP。
 >
@@ -41,7 +41,7 @@
 
 Feature Planning 的产出是**规划文档**(不是单 Feature 的 artifact)· 核心是 **WS**:
 - 🔴 **WS 是本流程的产物** —— "起一个 WS" = 进 feature-planning(PMO 切 Product Lead 引导/讨论)· **不在流程外 ad-hoc 创建 WS**
-- **WS**(`product-overview/workstream/WS-NN.md`)= 一块规划 → 拆一组 feature(v8.49 · 详 [SKILL.md § teamwork 业务流程架构](../SKILL.md))
+- **WS**(`product-overview/workstream/WS-NN.md`)= 一块规划 → 拆一组 feature(详 [SKILL.md § teamwork 业务流程架构](../SKILL.md))
 - feature 写入 **ROADMAP**(BL · 关联回 WS)· **完成标准 = feature 写进 roadmap**
 - 0-1 冷启动时还含 `业务架构与产品规划.md`(愿景 + 执行线列表)/ `sitemap.md`(信息架构)
 
@@ -62,10 +62,10 @@ Feature Planning 的产出是**规划文档**(不是单 Feature 的 artifact)· 
 
 读 PROJECT.md(若存在 · 当前业务架构)+ ROADMAP.md(若存在 · 现有 Backlog)+ 用户需求。
 
-🔴 **拆 BL/WS 前必须调研实际代码现状**(治本 · AON category case 2026-05-29):
+🔴 **拆 BL/WS 前必须调研实际代码现状**:
 - 每个候选 BL 核验「**已做什么 / 真缺口在哪**」· 拆解反映**真实完成度** —— 不把已完成的列为 todo,不把"已有脚手架"的当 greenfield;WS `features[].current_state` 记录复用点 vs 真缺口。
 - 🔴 **decisive 前提必 Read 实际文件核验 · 不轻信 Explore/sub-agent 摘要**。实证:Explore 误报"migration 含 11 条 seed INSERT" · 实际 schema-only(表为空)· 差点让 WS 拆解基于错前提("建接口" → 实际接口骨架已有、真缺口是 seed 数据 + DB 校验)。"数据是否真入库 / 某能力是否真生效"这类命门事实,必看真实代码,不靠摘要。
-- 🔴 **调研需 live 环境数据**(查 staging DB / log 真实状态)→ **先读 `project-specs/TROUBLESHOOTING.md` 拿连接 + 操作方式**(运维权威 · 用户主权)· 别凭 `.env` / 启动脚本瞎试(实证 AON:连法 TROUBLESHOOTING.md 早有定义,AI 却 grep `.env`/`dev_start.sh` 试错 + psql 报错)。连法缺失 → 补进 TROUBLESHOOTING.md。
+- 🔴 **调研需 live 环境数据**(查 staging DB / log 真实状态)→ **先读 `project-specs/TROUBLESHOOTING.md` 拿连接 + 操作方式**(运维权威 · 用户主权)· 别凭 `.env` / 启动脚本瞎试。连法缺失 → 补进 TROUBLESHOOTING.md。
 
 ### Step 2 · 范围判定
 
@@ -98,7 +98,7 @@ Feature 列表 + 优先级 + 排期(当前/下一/储备)。
 - **每个 Backlog 分配 BL-NNN**(三位数字 · 各项目独立递增)· 详见 [conventions.md § 4](./conventions.md)
 - **不分配 F-NNN**(F-NNN 在 Feature 流程启动时由 PMO 在 init-feature 时分配)
 - 不细化到 task 级 · 一 Feature 一行(标题 + 优先级 + 状态 + 核心 AC ①②③)
-- **BL 关联回 WS-NN**(ROADMAP 加「关联 WS」列)· 这一组 feature 全写进 ROADMAP = 对应 WS「规划完成」(v8.49)
+- **BL 关联回 WS-NN**(ROADMAP 加「关联 WS」列)· 这一组 feature 全写进 ROADMAP = 对应 WS「规划完成」
 
 模板见 [templates/roadmap.md](../templates/roadmap.md)。
 
@@ -168,7 +168,7 @@ PL 在 ROADMAP 拆完后顺手起 Feature flow · 越权(用户没拍板)。
 
 ## 4. 产出形态参考
 
-### `product-overview/workstream/WS-NN-XXX.md`(核心产出 · v8.49)
+### `product-overview/workstream/WS-NN-XXX.md`(核心产出)
 背景 + 怎么落 + 拆哪些 feature + 跨哪些子项目 + 承接 1+ 执行线 · 完成 = feature 写入 roadmap · 详 [templates/workstream.md](../templates/workstream.md)
 
 ### `ROADMAP.md`(各子项目)

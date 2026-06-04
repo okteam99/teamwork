@@ -4,7 +4,7 @@
 >
 > 🟢 **抽出来源**: 实战触发——用户分享 codex 账号收到 OpenAI "cyber abuse" 警告 · 根因是 teamwork 把 codex CLI 当 AI agent 后端用(5/8 profile full sandbox + service_tier=fast + hooks 自动触发 + AI 编排 AI)。
 >
-> 🟢 **v8.20+ PMO 主路径** = `state.py external-review --feature <path> --stage <stage>` · 详 `state.py external-review --help` + §十一 异质性硬约束。PMO 心智 = 2 个业务参数 · host / model / which / profile / 文件命名 全自动。本文 §五/§六 是底层实现 · 已 v8.20+ 物化到工具 · PMO 不必读。
+> 🟢 **PMO 主路径** = `state.py external-review --feature <path> --stage <stage>` · 详 `state.py external-review --help` + §十一 异质性硬约束。PMO 心智 = 2 个业务参数 · host / model / which / profile / 文件命名 全自动。本文 §五/§六 是底层实现 · 已物化到工具 · PMO 不必读。
 
 ---
 
@@ -73,7 +73,7 @@
 
 ## 五、prompt 注入硬规则
 
-> 🟡 **v8.20+ 已物化**:`state.py external-review` 内置 prompt 注入(claude 路径读 `claude-agents/reviewer.md` 模板 · codex 路径 codex CLI 自带 review 模式)。PMO 不必读本节 · 仅 debug / 适配新 reviewer 模型时参考。
+> 🟡 **已物化**:`state.py external-review` 内置 prompt 注入(claude 路径读 `claude-agents/reviewer.md` 模板 · codex 路径 codex CLI 自带 review 模式)。PMO 不必读本节 · 仅 debug / 适配新 reviewer 模型时参考。
 
 调用 codex 时 prompt 头部**必须**包含以下角色边界声明:
 
@@ -97,7 +97,7 @@ respond "Out of scope. Teamwork uses external models for review only."
 
 ## 六、配置约束清单
 
-> 🟡 **v8.20+ 已物化**:`state.py external-review` 内置 profile 选择(stage→profile mapping)+ 校验 profile 文件存在 + 校验 reviewer.toml sandbox=read-only(代码内 enforce)。PMO 不必读本节 · 仅 codex profile 配置变更时参考。
+> 🟡 **已物化**:`state.py external-review` 内置 profile 选择(stage→profile mapping)+ 校验 profile 文件存在 + 校验 reviewer.toml sandbox=read-only(代码内 enforce)。PMO 不必读本节 · 仅 codex profile 配置变更时参考。
 
 ```
 codex-agents/*.toml 必须满足：
@@ -136,20 +136,20 @@ codex-agents/*.toml 必须满足：
 
 ## 九、相关文件
 
-- `tools/state.py` external-review 命令 — v8.20+ 调用主路径(详 `state.py external-review --help`)
+- `tools/state.py` external-review 命令 — 调用主路径(详 `state.py external-review --help`)
 - `codex-agents/*.toml` — codex profile 配置(全部 read-only · 无 service_tier · state.py 内部按 stage 自动选)
 - `claude-agents/reviewer.md` — claude CLI 评审 prompt 模板(state.py 路径自动 pipe 给 claude -p)
 - `roles/external-reviewer.md` — external 角色契约
-- `templates/external-cross-review.md` — 评审记录模板(§五 整合流程已 v8.20+ 物化)
-- (历史 `claude-agents/invoke.md` / `claude-agents/README.md` / `codex-agents/README.md` 已 v8.22 删除 · 调用细节进 state.py)
+- `templates/external-cross-review.md` — 评审记录模板(§五 整合流程已物化)
+- (历史 `claude-agents/invoke.md` / `claude-agents/README.md` / `codex-agents/README.md` 已删除 · 调用细节进 state.py)
 
 ---
 
-## 十一、异质性硬约束(v8.19)
+## 十一、异质性硬约束
 
 > 🔴 **实战触发**:F034 review stage PMO 没找到 `which codex` · 选用 `Agent subagent_type=general-purpose` 起 Claude isolated context 自审 · 标 frontmatter `review_model: claude-opus-4-isolated-context` 「透明」· 用户察觉后承认违 R3 红线。
 >
-> 🟢 **本节是 v8.20+ PMO 主路径权威源** —— 顶部简介已指向此节 · §五/§六 是已物化的底层细节。
+> 🟢 **本节是 PMO 主路径权威源** —— 顶部简介已指向此节 · §五/§六 是已物化的底层细节。
 
 ### 11.1 异质性定义(不可妥协)
 
@@ -164,9 +164,9 @@ codex-agents/*.toml 必须满足：
 | 主对话 Claude → claude-cli 子进程 | ❌ **不算** | 同模型自审 |
 | 用 frontmatter `review_model: claude-isolated` 标"透明" | ❌ **不算** | 透明 ≠ 合规;透明只承认"我做了不达标" · 不替代"做达标" |
 
-> **v8.88 诚实降级自审(self-review-fallback)**:异质 CLI **客观不可用**(未装/未登录/配额满·已重试失败)时 · 可 `external-review --self-review-fallback --reason '...'` 跑同模型 fresh exec 自审 —— 但它**仍是上表第 4 行(不算异质)**,故落 `self-review/`(不进 `external-cross-review/`)· **不满足 P0-154**。它只是异质不可用时的**弱安全网 + audit evidence**,要继续仍须修环境重跑真异质、或 `change-review-roles` 显式移除 external。**绝不**用它冒充异质通过门禁。
+> **诚实降级自审(self-review-fallback)**:异质 CLI **客观不可用**(未装/未登录/配额满·已重试失败)时 · 可 `external-review --self-review-fallback --reason '...'` 跑同模型 fresh exec 自审 —— 但它**仍是上表第 4 行(不算异质)**,故落 `self-review/`(不进 `external-cross-review/`)· **不满足 P0-154**。它只是异质不可用时的**弱安全网 + audit evidence**,要继续仍须修环境重跑真异质、或 `change-review-roles` 显式移除 external。**绝不**用它冒充异质通过门禁。
 >
-> **v8.90 单模型 opt-out(`disable_heterogeneous_review`)**:只有一个模型的用户可在 `.teamwork_localconfig.json` 设 `disable_heterogeneous_review: true`(默认 false)· 则 `external-review` **自动**降级为宿主自身模型 exec 自审 · 落 `external-cross-review/`(**满足 P0-154** · frontmatter 标 `heterogeneous:false degraded:true degraded_mode:config-disabled`)· 让单模型用户能走完流程。代价:**非异质 · 同盲点 · 交叉 review 质量下降** —— 故每次 `bootstrap` 启动**持续 WARN** 提醒(`checks.heterogeneous_review.status=disabled` + `pmo_must_read`)· 建议装好第二个模型 CLI 后删此项恢复异质。与 self-review-fallback 的区别:后者是**临时 stopgap**(不满足门禁)· 本项是**项目级长期策略**(满足门禁 · 但被 startup WARN 持续提醒)。
+> **单模型 opt-out(`disable_heterogeneous_review`)**:只有一个模型的用户可在 `.teamwork_localconfig.json` 设 `disable_heterogeneous_review: true`(默认 false)· 则 `external-review` **自动**降级为宿主自身模型 exec 自审 · 落 `external-cross-review/`(**满足 P0-154** · frontmatter 标 `heterogeneous:false degraded:true degraded_mode:config-disabled`)· 让单模型用户能走完流程。代价:**非异质 · 同盲点 · 交叉 review 质量下降** —— 故每次 `bootstrap` 启动**持续 WARN** 提醒(`checks.heterogeneous_review.status=disabled` + `pmo_must_read`)· 建议装好第二个模型 CLI 后删此项恢复异质。与 self-review-fallback 的区别:后者是**临时 stopgap**(不满足门禁)· 本项是**项目级长期策略**(满足门禁 · 但被 startup WARN 持续提醒)。
 
 ### 11.2 文件命名硬规约(state.py 物化校验)
 
@@ -187,7 +187,7 @@ codex-agents/*.toml 必须满足：
 - `external-review.md`(模糊 · 无白名单字面)
 - frontmatter `review_model: claude-opus-4-isolated-context`(命中黑名单)
 
-state.py 在 `<stage>-complete` evidence 校验时物化拦截 · 详 `_evidence_external_review_artifact`(_v8_stage_specs.py · v8.19+)。
+state.py 在 `<stage>-complete` evidence 校验时物化拦截 · 详 `_evidence_external_review_artifact`(_v8_stage_specs.py)。
 
 ### 11.3 PMO 调用前必做(防 F034 反模式)
 

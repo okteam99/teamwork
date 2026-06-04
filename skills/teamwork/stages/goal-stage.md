@@ -23,8 +23,8 @@
   - QA 视角:测试覆盖性 / 边界场景 / AC 可测试性
   - Architect 视角:技术可行性 / 架构影响 / 性能安全 / **方案简洁性(是否过度设计 · 职责是否归错层 · 能否更简单达成业务目标)** —— 🔴 唯一的**简洁性 counter-lens**(详 `roles/architect.md` Telos)
   - PL 视角:业务方向 / 路线图对齐
-  - External Reviewer:**跑** `state.py external-review --feature ... --stage goal`(v8.20+ 物化主路径 · host/model/profile 全自动 · 落 `external-cross-review/goal-<model>.md` · 详 standards §十一)
-- 🔴 **external finding 须对照业务目标 + 简洁性取舍**:external review 天然「找缺口 → 加校验」· **每条**单看都合理 · 合起来却可能把方案做臃肿 / 把责任焊进错层。采纳「修真 bug / 真业务缺口」的 · 用 Architect 简洁性视角挡住「为 rigor 而 rigor」的复杂度(实证 SDK-F038:盲采 external 的显式校验 / 字段解析 → SDK 哑管道变复杂 · pm_acceptance 才被用户揪出回炉)。
+  - External Reviewer:**跑** `state.py external-review --feature ... --stage goal`(host/model/profile 全自动 · 落 `external-cross-review/goal-<model>.md` · 详 standards §十一)
+- 🔴 **external finding 须对照业务目标 + 简洁性取舍**:external review 天然「找缺口 → 加校验」· **每条**单看都合理 · 合起来却可能把方案做臃肿 / 把责任焊进错层。采纳「修真 bug / 真业务缺口」的 · 用 Architect 简洁性视角挡住「为 rigor 而 rigor」的复杂度。
 - 落 `{Feature}/PRD-REVIEW.md` · frontmatter `reviewers: [pm, qa, architect, pl, external]` + `verdicts: {role: APPROVE|NEEDS_REVISION}`
 
 ### 4. PM 回应 + 修订 PRD
@@ -100,7 +100,7 @@
 - body ≥ 20 行 · 每 reviewer 单独段 · cite PRD 行号
 
 ### `external-cross-review/goal-<model>.md`(若启用)
-- **跑** `state.py external-review --feature ... --stage goal`(v8.20+ 自动落产物 · 不要手写)· 详 [standards/external-model-usage.md §十一](../standards/external-model-usage.md)。
+- **跑** `state.py external-review --feature ... --stage goal`(自动落产物 · 不要手写)· 详 [standards/external-model-usage.md §十一](../standards/external-model-usage.md)。
 
 ---
 

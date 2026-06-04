@@ -45,13 +45,13 @@ AC↔Test 全覆盖物化校验 · 漏覆盖 FAIL
 
 ### 7. complete
 
-🟢 **v8.28+ 主路径(推荐)· 工具自跑 · AI 不能伪造 stdout**:
+🟢 **主路径(推荐)· 工具自跑 · AI 不能伪造 stdout**:
 ```
 state.py test-complete --feature <path> --run-tests
 # 工具自 subprocess 跑 .teamwork_localconfig.json test_commands 配的 cmd
 # 完整 log 落 <feature_dir>/test-stdout.log(不污染主 PMO context · 仅 emit tail 100 行)
 # 自动设 evidence.integration_test_exit_code = subprocess 真实 exit_code
-# 治本 F037 case-AI 自报 "67 test 全跑了" 但实际只跑 3 framework test · 借 "context 不够" 不做
+# 防 AI 自报 "67 test 全跑了" 但实际只跑 3 framework test · 借 "context 不够" 不做
 ```
 
 `.teamwork_localconfig.json` 配 test cmd(一次配 · 全 Feature 用):
@@ -79,7 +79,7 @@ state.py test-complete --integration-test-exit-code 0 --e2e-test-exit-code 0 ...
 
 ---
 
-## fix-retry 循环(stage 内 · v8.10 · 同 review v8.9 模式)
+## fix-retry 循环(stage 内 · 同 review 模式)
 
 test 失败时 stage 内 fix-retry · 不切 stage:
 
