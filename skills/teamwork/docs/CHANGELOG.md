@@ -1,6 +1,23 @@
 # Changelog
 
-> 📦 v8.97 及更早(含 v7/v6/… 旧系统)已归档 → [CHANGELOG-ARCHIVE.md](./CHANGELOG-ARCHIVE.md)。本文件**保留最近 5 版**(每次发布:新增本版 → 若超过 5 版,把最旧的一版迁入归档)。
+> 📦 v8.98 及更早(含 v7/v6/… 旧系统)已归档 → [CHANGELOG-ARCHIVE.md](./CHANGELOG-ARCHIVE.md)。本文件**保留最近 5 版**(每次发布:新增本版 → 若超过 5 版,把最旧的一版迁入归档)。
+
+## v8.103 · 外部 claude 评审 hermetic 化(`--bare` 跳宿主 MCP/hooks · 治本消费项目 dev-server MCP 卡死)
+
+> 用户:异质 Blueprint review 跑 `state.py external-review` 卡住(写了 review_start.log liveness 后无 stdout · CPU 近 0 · 直到 timeout)· 裸 `claude -p 'OK'` 3 秒返回。卡住的原因是什么。
+
+### 诊断:`--allowedTools` 激活工具栈 → 自动 spawn 消费项目 MCP → 卡死
+- v8.85 起长 prompt 走 doc 模式:`claude -p <短句> --allowedTools Write Read`。`--allowedTools` 激活 claude **agentic 工具栈** → headless 下**自动发现并 spawn 消费项目的 `.mcp.json` MCP servers + `.claude/hooks/`**。
+- 案例 aon 项目 `.mcp.json` 的 `aon-demo` = `npm run … dev`(长跑 dev/watch server · 永不返回 MCP 握手)→ MCP 子系统 block → 整个 `-p` 卡死至 600s timeout。liveness Write 先落(核心工具 · 快)→ 之后卡在 MCP = 正是观察到的"先写 liveness 再卡住"顺序。
+- 裸 `claude -p 'OK'`(无 `--allowedTools`)不进工具栈 → 不载 MCP → 3 秒返回。**非代码 / 文档 / v8.102 问题**。
+
+### 改法(`state.py` · external review 必须 hermetic)
+- `_build_claude_review_cmd` 两路都加 **`--bare`**(🔴 跳宿主项目 MCP/hooks/CLAUDE.md/skills 自动发现 · 直接消因);doc 模式再加 **`--permission-mode dontAsk`**(非白名单工具自动拒 · 不 abort 不挂)+ 白名单扩到 **`Read Grep Glob Write`**(读+导航 + 仅 liveness 写 · 仍不放 Bash/Edit)。
+- 同步 PMO-facing `preview_cmd` 文案。flags 均在 claude CLI v2.1.162 验证存在。
+
+### 验证
+- `test_v885_short_prompt_inline` + `test_v885_long_prompt_doc_mode` 扩断言(`--bare` / `dontAsk` / `Grep`/`Glob` 在 · `Bash` 不在)· pytest **3 failed / 500 passed**(baseline 3 = scan-spec 既有 · 零回归)。
+- 🔴 消费项目需 `tools/update.py` 拉本版才生效(aon 现 v8.101.1)· 临时绕过:删/注释消费项目 `.mcp.json` 的 dev-server MCP · 或手跑 `claude -p "$(cat <doc>)"`(无工具栈)。
 
 ## v8.102 · 异质评审 prompt 与 review_start.log liveness 调和(READ-ONLY carve-out 唯一允许写)
 
@@ -70,20 +87,3 @@
 
 - `templates/dev-rules.md` 内嵌骨架各段(架构/分层 · 命名 · 错误处理 · 测试策略 · 代码风格 · 其他约定)删掉 `示例:…` 条目 · 只留 `## 段标题` + 一行 `>` 填写引导。人维护时空段直接填,不被示例干扰 / 误当真规则。
 - doc-only · 无 code/测试影响(bootstrap scaffold 用本模板 · 测试用 fake 模板不依赖其内容)。
-
-## v8.98 · spec 全文档去噪(删版本标 / case-id / 演进叙事 · 只留 how/后果/反模式)+ 立写作规约
-
-> 用户:review ship-stage.md 是否冗余 —— 目的是让 AI 遵守(说清**怎么做** / **不做的后果** / **反模式**)· 不要描述背景(哪个版本发生过什么)= 噪音。承 v8.97(ship-stage 试点),本轮全 skill 铺开 + 立长期规约防再长。
-
-### 去噪(15 文档 · code-heavy 的 frontend/backend/tdd/common/scripts 零改)
-- **删**:版本标 `(v8.xx)` / `[v8.xx]` / `v8.xx 变更·已物化`(~110 处)· case-id 叙事 `治本 SVC-CORE-Bxxx case` / `实证 PTR-Fxxx` / `旧实现…改成…`(~45 处)· 长 case 复盘段(SKILL F001 GCP gateway · prepare F-Bv2-8 等)。
-- **留**:怎么做(步骤/命令/决策树)· 不做的后果(驱动遵守)· 反模式(防具体失败)· 设计 rationale(去版本/case)。
-- 覆盖:`SKILL.md` · `conventions/prepare/feature-planning` · goal/blueprint/review/test/ui-design/panorama/pm-acceptance stage · `external-model-usage` · roles/designer·product-lead · `PRODUCT-OVERVIEW-INTEGRATION`。
-- 残留版本标 / case-id **0**(CHANGELOG 与 SKILL 版本号除外)· 无 mangle · 保护 `v8.0` 范式标记。
-
-### 立规约(治本 · 防再长)
-- `docs/conventions.md` 新增「# spec 文档写作约定」:**spec = 现行真相**,不写版本标 / case-id / 演进叙事,**当它一直如此**地写;历史只进 CHANGELOG;发版加新规则别在 spec 写 `(v8.xx 新增)`。
-
-### 验证
-- pytest **3 failed / 499 passed**(baseline 3 = scan-spec 既有 · 零回归 · doc-only)。
-- 护栏:code-heavy 文档 git diff 零改 · 残留 `v8.[1-9]` grep = 0 · 新增行无 mangle(空括号/悬挂分隔)。

@@ -1544,13 +1544,15 @@ class TestExternalReviewCommand(unittest.TestCase):
     # ── v8.85:短 prompt inline / 长 prompt 落 doc + 短 argv + review_start.log liveness ──
 
     def test_v885_short_prompt_inline(self):
-        """v8.85:≤200 字符 prompt → argv inline · 无 --allowedTools · cwd=None。"""
+        """v8.85:≤200 字符 prompt → argv inline · 无 --allowedTools · cwd=None。
+        v8.103:加 --bare(hermetic · 不载消费项目 MCP/hooks/CLAUDE.md)。"""
         from state import _build_claude_review_cmd  # type: ignore
         with tempfile.TemporaryDirectory() as d:
             feat = Path(d)
             cmd, cwd = _build_claude_review_cmd("short prompt", feat, feat / "doc.md")
         self.assertEqual(cmd[2], "short prompt")
         self.assertNotIn("--allowedTools", cmd)
+        self.assertIn("--bare", cmd)  # v8.103:hermetic
         self.assertIsNone(cwd)
 
     def test_v885_long_prompt_doc_mode(self):
@@ -1572,11 +1574,17 @@ class TestExternalReviewCommand(unittest.TestCase):
         self.assertNotIn("XXXX", argv_prompt)
         # ≤200 字符(用户硬要求)
         self.assertLessEqual(len(argv_prompt), 200, f"argv 短句应 ≤200 · 实际 {len(argv_prompt)}")
-        # 只放行 Write+Read(守只读评审 · 不放 Bash/执行)· cwd=feature_dir
+        # 放行 Read/Grep/Glob(读+导航)+ Write(仅 liveness)· 不放 Bash/Edit · cwd=feature_dir
         self.assertIn("--allowedTools", cmd)
         self.assertIn("Write", cmd)
         self.assertIn("Read", cmd)
+        self.assertIn("Grep", cmd)   # v8.103:导航工具(防 model 够不到文件)
+        self.assertIn("Glob", cmd)
         self.assertNotIn("Bash", cmd)
+        # v8.103:hermetic + 不挂(治本消费项目 .mcp.json 长跑 dev-server MCP 卡死 headless claude)
+        self.assertIn("--bare", cmd)
+        self.assertIn("--permission-mode", cmd)
+        self.assertIn("dontAsk", cmd)
         self.assertEqual(cwd, str(feat))
 
     def test_v885_doc_mode_uses_existing_doc_not_overwrite(self):

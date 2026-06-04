@@ -2424,10 +2424,13 @@ def _build_claude_review_cmd(prompt_text: str, feature_dir: Optional[Path],
                              ) -> tuple[list, Optional[str]]:
     """v8.85:按 prompt 长度选 inline / doc 模式 · 返 (cmd, cwd)。
 
-    - 短(≤200 字符):argv inline · `claude -p <prompt> --output-format text`(纯文本 · 无工具 · 快)。
-    - 长(>200):prompt 落 doc · argv 只发 ≤200 字符短句「先写 review_start.log 时间戳证明在工作 ·
-      再读 <doc> 做 review」· `--allowedTools Write Read`(只放行读+写 liveness 日志 · 不放行
-      Bash/执行 · 守只读评审)· cwd=feature_dir(review_start.log + doc 相对路径都落 feature 目录)。
+    - 短(≤200 字符):argv inline · `claude -p <prompt> --bare --output-format text`(纯文本 · 无工具 · 快)。
+    - 长(>200):prompt 落 doc · argv 只发 ≤200 字符短句「先写 review_start.log · 再读 <doc> 做 review」·
+      `--bare`(🔴 跳宿主项目 MCP/hooks/CLAUDE.md/skills 自动发现 · 治本:带工具的 headless claude 会
+      spawn 消费项目 `.mcp.json` 里的长跑 dev-server MCP → 卡死至 timeout)· `--permission-mode dontAsk`
+      (非白名单工具自动拒 · 不 abort 不挂)· `--allowedTools Read Grep Glob Write`(读+导航 + 写 liveness ·
+      不放 Bash/Edit · 守只读评审)· cwd=feature_dir(review_start.log + doc 相对路径都落 feature 目录)。
+    🔴 external review 必须 **hermetic** —— 不加载消费项目的 MCP/hooks/CLAUDE.md(防卡死 + 防上下文污染)。
     单测可直接调本函数断言 cmd(不真跑 CLI)。
     """
     use_doc = (prompt_doc is not None and feature_dir is not None
@@ -2445,10 +2448,16 @@ def _build_claude_review_cmd(prompt_text: str, feature_dir: Optional[Path],
         # ≤200 字符短 argv(rel 短 · 总长受控):liveness 日志 + 读 doc
         short = (f"First write review_start.log (UTC timestamp) in cwd (liveness), "
                  f"then read {rel} and follow it; output only the review, no other writes.")
-        cmd = ["claude", "-p", short, "--allowedTools", "Write", "Read",
+        # v8.103:--bare 跳宿主项目 MCP/hooks/CLAUDE.md 自动发现(治本消费项目 .mcp.json 长跑
+        #   dev-server MCP 卡死 headless claude)· dontAsk 非白名单工具自动拒(不挂)·
+        #   白名单 Read/Grep/Glob(读+导航)+ Write(仅 liveness)· 不放 Bash/Edit。
+        cmd = ["claude", "-p", short, "--bare",
+               "--permission-mode", "dontAsk",
+               "--allowedTools", "Read", "Grep", "Glob", "Write",
                "--output-format", "text"]
         return cmd, str(feature_dir)
-    return ["claude", "-p", prompt_text, "--output-format", "text"], None
+    # inline 短 prompt 也加 --bare(hermetic · 不让消费项目 CLAUDE.md/MCP 污染或拖慢)
+    return ["claude", "-p", prompt_text, "--bare", "--output-format", "text"], None
 
 
 def _run_claude_review(prompt_text: str,
@@ -3042,13 +3051,12 @@ def cmd_external_review(args: argparse.Namespace) -> None:
             )
         else:
             preview_cmd = (
-                # v8.38 用 -p · v8.84 不 --model(用默认)· v8.85 doc 模式:
-                # 长 prompt 落 external-review-prompts/<stage>-<model>.md · argv 只发短引用句
-                # (先写 review_start.log liveness · 再读 doc) · --allowedTools Write Read · cwd=feature_dir
+                # v8.38 -p · v8.84 不 --model · v8.85 doc 模式 · v8.103 --bare(跳宿主 MCP/hooks/CLAUDE.md
+                # · 治本消费项目长跑 dev-server MCP 卡死)+ --permission-mode dontAsk + 白名单 Read/Grep/Glob/Write
                 "cd <feature_dir> && claude -p "
                 "'First write review_start.log (UTC timestamp) in cwd (liveness), then read "
                 f"external-review-prompts/{args.stage}-{model}.md and follow it; output only the review' "
-                "--allowedTools Write Read --output-format text"
+                "--bare --permission-mode dontAsk --allowedTools Read Grep Glob Write --output-format text"
             )
         emit({
             "verdict": "OK",

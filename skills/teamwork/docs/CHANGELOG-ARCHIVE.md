@@ -1,10 +1,27 @@
-# Changelog Archive(v8.97 → v1)
+# Changelog Archive(v8.98 → v1)
 
-> 📦 **历史归档**:本文件保存 teamwork **v8.97 及更早**的全部 changelog(含 v7/v6/…/v1 等 v8.0 之前的旧系统)· 仅供追溯,**不再维护**。
-> 现行 changelog(最近 5 版 · v8.98–v8.102)见 [CHANGELOG.md](./CHANGELOG.md)。
+> 📦 **历史归档**:本文件保存 teamwork **v8.98 及更早**的全部 changelog(含 v7/v6/…/v1 等 v8.0 之前的旧系统)· 仅供追溯,**不再维护**。
+> 现行 changelog(最近 5 版 · v8.99–v8.103)见 [CHANGELOG.md](./CHANGELOG.md)。
 > ⚠️ v8.0 是「范式切换 · 不向下兼容」的重构 —— **v7 及更早描述的是已不存在的旧系统**,其机制/命令/红线编号均不适用于现行 v8。
 
 ---
+
+## v8.98 · spec 全文档去噪(删版本标 / case-id / 演进叙事 · 只留 how/后果/反模式)+ 立写作规约
+
+> 用户:review ship-stage.md 是否冗余 —— 目的是让 AI 遵守(说清**怎么做** / **不做的后果** / **反模式**)· 不要描述背景(哪个版本发生过什么)= 噪音。承 v8.97(ship-stage 试点),本轮全 skill 铺开 + 立长期规约防再长。
+
+### 去噪(15 文档 · code-heavy 的 frontend/backend/tdd/common/scripts 零改)
+- **删**:版本标 `(v8.xx)` / `[v8.xx]` / `v8.xx 变更·已物化`(~110 处)· case-id 叙事 `治本 SVC-CORE-Bxxx case` / `实证 PTR-Fxxx` / `旧实现…改成…`(~45 处)· 长 case 复盘段(SKILL F001 GCP gateway · prepare F-Bv2-8 等)。
+- **留**:怎么做(步骤/命令/决策树)· 不做的后果(驱动遵守)· 反模式(防具体失败)· 设计 rationale(去版本/case)。
+- 覆盖:`SKILL.md` · `conventions/prepare/feature-planning` · goal/blueprint/review/test/ui-design/panorama/pm-acceptance stage · `external-model-usage` · roles/designer·product-lead · `PRODUCT-OVERVIEW-INTEGRATION`。
+- 残留版本标 / case-id **0**(CHANGELOG 与 SKILL 版本号除外)· 无 mangle · 保护 `v8.0` 范式标记。
+
+### 立规约(治本 · 防再长)
+- `docs/conventions.md` 新增「# spec 文档写作约定」:**spec = 现行真相**,不写版本标 / case-id / 演进叙事,**当它一直如此**地写;历史只进 CHANGELOG;发版加新规则别在 spec 写 `(v8.xx 新增)`。
+
+### 验证
+- pytest **3 failed / 499 passed**(baseline 3 = scan-spec 既有 · 零回归 · doc-only)。
+- 护栏:code-heavy 文档 git diff 零改 · 残留 `v8.[1-9]` grep = 0 · 新增行无 mangle(空括号/悬挂分隔)。
 
 ## v8.97 · ship-stage.md 去噪(删版本标 / case-id / 演进叙事 · 只留 how/后果/反模式 · doc-only)
 
