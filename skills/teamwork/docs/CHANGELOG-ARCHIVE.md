@@ -1,10 +1,24 @@
-# Changelog Archive(v8.96 → v1)
+# Changelog Archive(v8.97 → v1)
 
-> 📦 **历史归档**:本文件保存 teamwork **v8.96 及更早**的全部 changelog(含 v7/v6/…/v1 等 v8.0 之前的旧系统)· 仅供追溯,**不再维护**。
-> 现行 changelog(最近 5 版 · v8.97–v8.101)见 [CHANGELOG.md](./CHANGELOG.md)。
+> 📦 **历史归档**:本文件保存 teamwork **v8.97 及更早**的全部 changelog(含 v7/v6/…/v1 等 v8.0 之前的旧系统)· 仅供追溯,**不再维护**。
+> 现行 changelog(最近 5 版 · v8.98–v8.102)见 [CHANGELOG.md](./CHANGELOG.md)。
 > ⚠️ v8.0 是「范式切换 · 不向下兼容」的重构 —— **v7 及更早描述的是已不存在的旧系统**,其机制/命令/红线编号均不适用于现行 v8。
 
 ---
+
+## v8.97 · ship-stage.md 去噪(删版本标 / case-id / 演进叙事 · 只留 how/后果/反模式 · doc-only)
+
+> 用户:review ship-stage.md 是否冗余 —— spec 目的是让 AI 知道**怎么做 / 不做的后果 / 反模式**,不需要「哪个版本发生过什么」这类背景噪音(那是 CHANGELOG 的活)。
+
+### 去噪(doc-only · 不改任何行为/命令/门禁)
+- 删全部版本标 `(v8.xx)`(21 行)+ case-id(SVC-CORE-B006/B007/F028 · PTR-A018 · aon ADMIN-…)+ 演进叙事(「旧…改成…增量」)。
+- **合并废弃 §12**:原「Phase 2 收尾投递」演进 deep-dive(含已被收尾 MR 取代的**直推机制**历史)收敛为「state.json 直推例外(逃生口 · 仅状态档)」—— 只留仍有效的规则 + 命令 + 🔴 禁止滥用(业务文件必走 MR)。
+- 保留全部可执行信息:step 表 / 决策树 / 命令 / 后果(「不翻牌 → 规划层永久脱节」)/ 反模式(❌ 列表)/ 逃生口。§5.5/§12/§13/§14/§15 锚点不变。
+- **275 → 248 行**;版本标 **21→0** · case/历史 **12→0**。
+
+### 验证
+- doc-only · pytest **3 failed / 499 passed**(baseline 3 = scan-spec 既有 · 零回归)。
+- 试点:效果好则同手法全 skill 铺开 + 把「spec 无版本标/无 case-id · 历史只进 CHANGELOG」定为长期规约(待用户拍板)。
 
 ## v8.96 · 项目开发规范从 KNOWLEDGE 拆出 → `project-specs/DEV-RULES.md`(人维护 · blueprint/dev 必读)
 

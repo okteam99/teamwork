@@ -1,6 +1,23 @@
 # Changelog
 
-> 📦 v8.96 及更早(含 v7/v6/… 旧系统)已归档 → [CHANGELOG-ARCHIVE.md](./CHANGELOG-ARCHIVE.md)。本文件**保留最近 5 版**(每次发布:新增本版 → 若超过 5 版,把最旧的一版迁入归档)。
+> 📦 v8.97 及更早(含 v7/v6/… 旧系统)已归档 → [CHANGELOG-ARCHIVE.md](./CHANGELOG-ARCHIVE.md)。本文件**保留最近 5 版**(每次发布:新增本版 → 若超过 5 版,把最旧的一版迁入归档)。
+
+## v8.102 · 异质评审 prompt 与 review_start.log liveness 调和(READ-ONLY carve-out 唯一允许写)
+
+> 用户:异质模型评审 prompt 要求"不能写文件",但和 `review_start.log` 的 liveness 记录冲突,优化下。
+
+### 诊断:claude doc 模式下 prompt 自相矛盾
+- v8.85 起 claude doc 模式调用 · state.py argv 让 reviewer「先写 `review_start.log` 时间戳证明在工作」+ 授 `--allowedTools Write Read`(liveness:区分"模型没响应" vs "在跑但慢")。
+- 但 reviewer 读到的 prompt(`claude-agents/reviewer.md`)STRICT CONSTRAINTS 写「不能写文件 · 改文件→Out of scope」—— **严格遵守的 reviewer 会拒写 liveness** → 信号永不出现 → state.py 误判"模型可能从未响应"。
+- codex 路径无此问题:`sandbox_mode=read-only` 物理拦截 · 本就不写 liveness 文件。
+
+### 改法(doc-only · 调和 prompt · 保留 liveness 机制 · 不动 state.py)
+- `claude-agents/reviewer.md` STRICT CONSTRAINTS:`不能写文件` → `不改动代码库`(不改/不新建源码·文档·评审产物)+ 🟢 显式 carve-out「**唯一允许的写 = `review_start.log`**(liveness · 非评审产物 · 写完正常评审 · 除此不写)」· 评审记录明确「经 stdout 返回 · 不落文件」· out-of-scope 行加注「写 liveness 不算'评审之外'」。
+- `standards/external-model-usage.md §一`:只读约束拆 codex(sandbox 物理拦截 · 无 liveness 文件)vs claude doc(唯一例外 `review_start.log` · `--allowedTools Write` 限范围 + 跑完清理)两路。
+- **不动** codex prompt 头(§78-91):codex sandbox 真只读 · "Cannot write files" 正确。**不动** state.py:argv 早已指示写 liveness · 本次只让 prompt 与之一致。
+
+### 验证
+- pytest **3 failed / 500 passed**(baseline 3 = scan-spec 既有 · 零回归 · doc-only 无新测试)。
 
 ## v8.101 · 待规划需求池外置 → `product-overview/PENDING.md`(teamwork-space 瘦身 · 只留 1 行指针)
 
@@ -70,17 +87,3 @@
 ### 验证
 - pytest **3 failed / 499 passed**(baseline 3 = scan-spec 既有 · 零回归 · doc-only)。
 - 护栏:code-heavy 文档 git diff 零改 · 残留 `v8.[1-9]` grep = 0 · 新增行无 mangle(空括号/悬挂分隔)。
-
-## v8.97 · ship-stage.md 去噪(删版本标 / case-id / 演进叙事 · 只留 how/后果/反模式 · doc-only)
-
-> 用户:review ship-stage.md 是否冗余 —— spec 目的是让 AI 知道**怎么做 / 不做的后果 / 反模式**,不需要「哪个版本发生过什么」这类背景噪音(那是 CHANGELOG 的活)。
-
-### 去噪(doc-only · 不改任何行为/命令/门禁)
-- 删全部版本标 `(v8.xx)`(21 行)+ case-id(SVC-CORE-B006/B007/F028 · PTR-A018 · aon ADMIN-…)+ 演进叙事(「旧…改成…增量」)。
-- **合并废弃 §12**:原「Phase 2 收尾投递」演进 deep-dive(含已被收尾 MR 取代的**直推机制**历史)收敛为「state.json 直推例外(逃生口 · 仅状态档)」—— 只留仍有效的规则 + 命令 + 🔴 禁止滥用(业务文件必走 MR)。
-- 保留全部可执行信息:step 表 / 决策树 / 命令 / 后果(「不翻牌 → 规划层永久脱节」)/ 反模式(❌ 列表)/ 逃生口。§5.5/§12/§13/§14/§15 锚点不变。
-- **275 → 248 行**;版本标 **21→0** · case/历史 **12→0**。
-
-### 验证
-- doc-only · pytest **3 failed / 499 passed**(baseline 3 = scan-spec 既有 · 零回归)。
-- 试点:效果好则同手法全 skill 铺开 + 把「spec 无版本标/无 case-id · 历史只进 CHANGELOG」定为长期规约(待用户拍板)。

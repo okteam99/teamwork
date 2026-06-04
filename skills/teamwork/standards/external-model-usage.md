@@ -11,8 +11,9 @@
 ## 一、核心原则（4 条硬约束）
 
 ```
-1. 只读约束：外部模型只能读代码 · 不能写文件 · 不能执行命令
- └── 物理拦截：所有 codex profile sandbox_mode = "read-only"
+1. 只读约束：外部模型只能读代码 · 不写代码库 · 不能执行命令
+ ├── codex 路径：物理拦截 · 所有 codex profile sandbox_mode = "read-only"（写被 sandbox 挡 · 无 liveness 文件）
+ └── claude doc 模式：唯一例外 = 启动写 `review_start.log`（liveness 信号 · 非评审产物 · `--allowedTools Write` 限范围 + state.py 跑完清理）· 其余一律不写
 
 2. 评审角色约束：外部模型在 teamwork 中**只承担评审角色**
  ├── reviewer.toml（代码评审）/ blueprint-reviewer.toml（蓝图评审）/ prd-reviewer.toml（PRD 评审）
