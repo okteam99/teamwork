@@ -10,7 +10,8 @@
 - TECH.md(技术方案 · Bug 流程跳过)
 - TC.md(测试用例 · QA 起草)
 - UI.md + preview/*.html(若 ui_design 完成)
-- KNOWLEDGE.md / ARCHITECTURE.md(按需查)
+- 🔴 `project-specs/DEV-RULES.md`(存在则**必读** · 本项目强制开发规范:分层 / 命名 / 错误处理 / 依赖方向 / 测试策略 / 风格)· 实现**须遵守**(不存在 → skip · 人维护 doc 可能未建)
+- KNOWLEDGE.md(项目踩坑/事实)/ ARCHITECTURE.md(按需查)
 
 ### 1.5 组织实现(🧩 subagent 可选 · 按需并行 · 非必须)
 
@@ -72,7 +73,7 @@ state.py 校验:
 
 | Substep | 必读 spec | 段 | cite 关键点 |
 |---------|----------|----|------------|
-| 1. 加载上下文 | — | — | (读 PRD/TECH/TC · 无 spec cite) |
+| 1. 加载上下文 | `project-specs/DEV-RULES.md`(若存在) | 全文 | 项目强制开发规范 · 实现须遵守(+ 读 PRD/TECH/TC) |
 | 2. TDD 红绿循环 | `standards/tdd.md + roles/rd.md` | § Iron Law + § TDD | 先红 → 后绿 → refactor / 每绿点 commit |
 | 3. UI 还原(若 ui_design 完成) | `roles/designer.md` | § UI 还原校验 | verify-panorama / preview 未覆盖 → TECH fallback |
 | 4. 代码自查清单 | `roles/rd.md + standards/common.md` | § 自查规范 | 规范 / 无回归 / build / linter |

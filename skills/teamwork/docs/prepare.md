@@ -17,9 +17,9 @@
 
 ---
 
-## 0.5 反模式黑名单 + 物化拦截 TODO(治本 PTR-F054 case)
+## 0.5 反模式黑名单 + 物化拦截 TODO
 
-🔴 **AI 凭直觉 / 短回路跳步骤 · 大概率被用户叫停重做 · 不省 token · 反多消耗**(case 实证 PTR-F054 一次性 6 条全违规)。以下都是 R5 违规 · 列出供 PMO 自检:
+🔴 **AI 凭直觉 / 短回路跳步骤 · 大概率被用户叫停重做 · 不省 token · 反多消耗**。以下都是 R5 违规 · 列出供 PMO 自检:
 
 | # | 违规 | 触发场景 | 治本 spec 位 |
 |---|---|---|---|
@@ -43,9 +43,9 @@
 
 | TODO | 位置 | 治本机制 | 状态 |
 |---|---|---|---|
-| `init-feature` 加门禁 | `state.py` | 本 session 未为 prefix 跑过 prepare-check → FAIL with hint(无 audit 不可 init-feature) | ✅ v8.14 已物化 |
+| `init-feature` 加门禁 | `state.py` | 本 session 未为 prefix 跑过 prepare-check → FAIL with hint(无 audit 不可 init-feature) | ✅ 已物化 |
 | `prepare-check` 内部合并 worktree ID | `state.py prepare-check` | 内部跑 `git worktree list --porcelain` 解析 ID · 与 `existing_ids` 取并集 · 输出统一 `next_available_id_stem` | ⏳ TODO |
-| `prepare-check` 加 `--user-intent "<原文>"` + `--admission-judgment '<JSON>'` | `state.py prepare-check` | 接收用户原文(留痕)+ AI 读 §2.1/§2.2 后的判断(JSON 必含 sections_reviewed / matched_signals / recommended_flow_type / ai_rationale 4 字段)· 工具校验 JSON schema + consistency(recommended vs --flow-type)· MISMATCH → WARN(不 BLOCK · R0 兜底) · init-feature 读 audit 也 emit MISMATCH WARN | ✅ v8.15 已物化(治本 F001 GCP gateway case · 用 AI judgment 替代 regex 关键词) |
+| `prepare-check` 加 `--user-intent "<原文>"` + `--admission-judgment '<JSON>'` | `state.py prepare-check` | 接收用户原文(留痕)+ AI 读 §2.1/§2.2 后的判断(JSON 必含 sections_reviewed / matched_signals / recommended_flow_type / ai_rationale 4 字段)· 工具校验 JSON schema + consistency(recommended vs --flow-type)· MISMATCH → WARN(不 BLOCK · R0 兜底) · init-feature 读 audit 也 emit MISMATCH WARN | ✅ 已物化(用 AI judgment 替代 regex 关键词) |
 | `prepare-check` 返回 `emit_template_markdown` | `state.py prepare-check` | 5 段填好的 markdown 字段 · AI 复制粘贴 emit · 漏段不可能(同 stage `next_action_brief` 模式) | ⏳ TODO |
 | `prepare-check` 加 `--subproject <PREFIX>` | `state.py prepare-check` | 替代裸 `--features-root` · 内部读 teamwork-space.md docs_root · 传错 prefix → FAIL with hint | ⏳ TODO |
 
@@ -102,7 +102,7 @@ PMO 移交 prepare 后 · **必走以下 4 项准备**(emit 暂停点之前):
 
 低复杂度 / 用户已知 → 跳。
 
-🔴 **路由前缀必判**(即便跳过上面的可选深挖):据**改动代码所在的子项目目录**定 artifact 前缀 + docs_root —— 查 `teamwork-space.md` 子项目清单(代码在 `apps/partner/` → 用 PTR 注册前缀 + docs_root · 在 `services/` → SVC-* · …)。**不可沿用上一个 Feature 的前缀**。错前缀 / 错路径 → `init-feature` 路由物化校验 FAIL(治本 F049:代码在 partner 却建成 `SVC-PLATFORM-F049` 落仓库根)。
+🔴 **路由前缀必判**(即便跳过上面的可选深挖):据**改动代码所在的子项目目录**定 artifact 前缀 + docs_root —— 查 `teamwork-space.md` 子项目清单(代码在 `apps/partner/` → 用 PTR 注册前缀 + docs_root · 在 `services/` → SVC-* · …)。**不可沿用上一个 Feature 的前缀**。错前缀 / 错路径 → `init-feature` 路由物化校验 FAIL(错前缀会落错位置)。
 
 ### 1.5.4 · ID 冲突预检 + stage 评审角色预览(强制)
 
@@ -114,14 +114,14 @@ state.py prepare-check --feature-id-prefix <PROJ> --flow-type <Feature|Bug|Micro
 - `next_available_id_stem` + `existing_ids` + `id_letter`(ID 冲突预检 · 字母 F/B/M 由 `--flow-type` 定 · 详 conventions.md §1)
 - `stage_chain_preview`(stage × 评审角色预览 · 让 AI 在 prepare 阶段就看到各 stage 的建议评审角色)
 
-🔴 `--flow-type` 必传:Bug → `PREFIX-B{NNN}` · Micro → `PREFIX-M{NNN}` · Feature/敏捷需求 → `PREFIX-F{NNN}`。漏传退回字母 F · Bug/Micro 会错号(治本 PTR Bug 误推 PTR-F047 case)。
+🔴 `--flow-type` 必传:Bug → `PREFIX-B{NNN}` · Micro → `PREFIX-M{NNN}` · Feature/敏捷需求 → `PREFIX-F{NNN}`。漏传退回字母 F · Bug/Micro 会错号(漏传会错号)。
 
 PMO 把数据填进暂停点表格:
 - `next_available_id_stem` → artifact ID 推荐默认值
 - `stage_chain_preview` → 渲染「📋 各 stage 评审角色」子表(详 §4 emit 模板)
-- 🔴 `reviewer_thinking_checklist`(v8.27)→ **必基于 4 问思考 + 给出加减预估**(不直接抄 stage_chain_preview 默认)
+- 🔴 `reviewer_thinking_checklist`→ **必基于 4 问思考 + 给出加减预估**(不直接抄 stage_chain_preview 默认)
 
-🔴 **评审角色思考清单**(v8.27 治本 F-Bv2-8 PMO 直接抄默认 case):
+🔴 **评审角色思考清单**(防 PMO 直接抄默认):
 
 prepare-check 输出 `reviewer_thinking_checklist` 4 个核心问题 · PMO 在 emit prepare 暂停点的「建议评审角色」段时必基于此思考:
 
@@ -134,7 +134,7 @@ prepare-check 输出 `reviewer_thinking_checklist` 4 个核心问题 · PMO 在 
 
 🔴 **pl 不是套路化删**:pl 默认保留(产品方向视角 · 防 Feature 偏离产品方向)· 去 pl 是**少数例外**(纯内部 / 技术重构 · 零产品面 · 零跨项目)· 必给该 Feature 特定理由 · 不得拿『无 ROADMAP』当通用借口(几乎所有执行层 Feature 都『无 ROADMAP』· 那是规划层的事)。
 
-**case 实证**(F-Bv2-8 · 2026-05-25):PMO 第一次直接抄默认 · 经用户提示 "你的建议评审角色思考了么" 后二次思考才识别 ui_design 跳过(后端先行)/ blueprint 强 external(跨 5 module)等调整。
+**不直接抄默认**:据本 Feature 实际(前后端先行 / 模块数 / 是否需 ui_design)给评审角色加减预估 · 不照搬 stage_chain_preview(后端先行→ui_design 可跳 · 跨多 module→blueprint 强 external)。
 
 🔴 emit prepare 暂停点 「建议评审角色」段格式(必含调整理由列):
 

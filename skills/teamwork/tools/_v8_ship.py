@@ -847,10 +847,59 @@ def _ship_finalize_fail(step: str, error: str, hint: str,
     emit_json(payload, exit_code=1)
 
 
+def _ship_finalize_planning_pending(feature_path: str, merge_target: str,
+                                    completed: list, skipped: list,
+                                    warnings: list) -> None:
+    """v8.93:收尾交付前的「规划层 back-ref 翻牌」暂停点(gate)。
+
+    治本 case:旧 §5.5 在 ship-finalize 全跑完(收尾 MR 已合 + worktree 已清)**之后**才提
+    规划层翻牌 · 且用**直推 merge_target**(与 v8.80「去直推」自相矛盾 · 保护分支会被拒 · 且
+    收尾 MR 早已关闭 → 规划层物理上塞不进去 → 非原子 + 直推隐患)。
+    现在改成:finalize-deliver **暂存收尾分支前**先停在此 · 让 AI 判断 WS/ROADMAP/teamwork-space.md
+    (+ 项目变更单)哪些要翻「已交付」· 改完用 `--planning-artifacts <files>` 重跑 → 这些文件
+    随 {archive zip + 删目录 + state.json} **同一收尾 MR** 合入(原子 · 走 MR · 兼容保护分支)。
+    确无可翻(ad-hoc Bug/Micro 无关联 BL)→ `--no-planning-changes` 显式跳过。
+    emit PENDING + exit 0(非失败 · 待 AI 翻牌)。
+    """
+    payload: dict = {
+        "verdict": "PENDING",
+        "command": "ship-finalize",
+        "completed_steps": completed,
+        "skipped_steps": skipped,
+        "pending_step": "planning-backref",
+        "next_action": (
+            "🔴 收尾交付前 · 先翻规划层 back-reference(feature = 某 BL 的落地 · 落地完不翻牌 → "
+            "规划层与执行层永久脱节 · 进度统计失真):\n"
+            "  ① 判断这几处哪些需翻「📋 规划中/可启动 → ✅ 已交付」(只改相关的 · AI 自决):\n"
+            "     - ROADMAP.md 对应 BL(若是 WS 最后一个 BL → WS 标完成)\n"
+            "     - product-overview/workstream/WS-NN.md(WS 进度)\n"
+            "     - teamwork-space.md(工作区级索引 · 按需)\n"
+            "     - 项目变更单(如 BG-NNN.md 的对应阶段状态 · 按需)\n"
+            "  ② 在**主工作区**改好这些文件(不要 commit · ship-finalize 会随收尾 MR 一起带走)\n"
+            "  ③ 重跑把它们随收尾 MR 一起合入 · 同时给本 feature 一句 **≤50 字**极简描述"
+            "(写进归档 INDEX.md · 便于日后不解压识别):\n"
+            f"     state.py ship-finalize --feature {feature_path} "
+            "--planning-artifacts <逗号分隔的相对路径> --archive-desc '<≤50 字描述>'\n"
+            "  确无可翻(ad-hoc Bug/Micro · 无关联 BL)→ 显式跳过(仍可给 --archive-desc):\n"
+            f"     state.py ship-finalize --feature {feature_path} --no-planning-changes "
+            "--archive-desc '<≤50 字描述>'"
+        ),
+        "resume": (
+            "翻牌(或确认无需翻)后重跑带 --planning-artifacts / --no-planning-changes · "
+            "state.py 会把规划层改动 + 归档 zip 暂存进同一收尾分支 → 你创建并合并**一个** MR → "
+            "再重跑 ship-finalize 续清理 worktree + 主分支 pull。"
+        ),
+    }
+    if warnings:
+        payload["warnings"] = warnings
+    emit_json(payload, exit_code=0)
+
+
 def _ship_finalize_deliver_pending(feature_path: str, merge_target: str,
                                    sf_branch: str, commit: str,
                                    completed: list, skipped: list,
-                                   warnings: list, archived: bool = False) -> None:
+                                   warnings: list, archived: bool = False,
+                                   planning_bundled: Optional[list] = None) -> None:
     """v8.80:收尾改动已暂存到 ship-finalize 分支 · 待 AI 用 gh/glab 创 MR + 自动合并。
 
     去直推后 merge_target 全程只经 MR(兼容保护分支 · 主工作区只 pull)。
@@ -859,14 +908,20 @@ def _ship_finalize_deliver_pending(feature_path: str, merge_target: str,
     检测已合(zip/ancestor)→ 续 worktree-remove + main-sync。
     v8.82:archived=True 时收尾分支含「feature 目录 zip 进 _archive/ + 删原目录」· MR 文案点明归档。
     """
+    plan_n = len(planning_bundled or [])
+    plan_seg = (f" + 规划层翻牌 {plan_n} 文件({', '.join(planning_bundled)})"
+                if plan_n else "")
     deliver_desc = (
-        ("收尾改动(过程层 feature 目录已 zip 进 _archive/ + 删原目录 + 终态 state.json/INDEX)"
-         if archived else "收尾改动(终态 state.json 等)")
+        ("收尾改动(过程层 feature 目录已 zip 进 _archive/ + 删原目录 + 终态 state.json/INDEX"
+         + plan_seg + ")"
+         if archived else "收尾改动(终态 state.json 等" + plan_seg + ")")
     )
     title = (f"chore: ship-finalize archive {sf_branch}" if archived
              else f"chore: ship-finalize {sf_branch}")
     body = ("teamwork ship-finalize 收尾 · 归档过程层 feature 目录(代码是唯一真相)"
             if archived else "teamwork ship-finalize 收尾")
+    if plan_n:
+        body += f" + 规划层 back-ref 翻牌(BL/WS → 已交付 · {plan_n} 文件)"
     payload: dict = {
         "verdict": "PENDING",
         "command": "ship-finalize",
@@ -874,10 +929,13 @@ def _ship_finalize_deliver_pending(feature_path: str, merge_target: str,
         "skipped_steps": skipped,
         "pending_step": "finalize-deliver",
         "finalize_mr": {"branch": sf_branch, "head_commit": commit,
-                        "merge_target": merge_target, "archived": archived},
+                        "merge_target": merge_target, "archived": archived,
+                        **({"planning_bundled": planning_bundled} if plan_n else {})},
         "next_action": (
             f"收尾分支已暂存:{sf_branch}(commit {commit[:12]}) → 目标 {merge_target}。\n"
-            f"🔴 去直推(v8.80):{deliver_desc}必须经 MR 合入 merge_target。"
+            + (f"✅ 规划层 back-ref({plan_n} 文件)已随同一收尾分支暂存 · "
+               "与归档 zip 同一个 MR 原子合入。\n" if plan_n else "")
+            + f"🔴 去直推(v8.80):{deliver_desc}必须经 MR 合入 merge_target。"
             "用 gh/glab 创建 MR 并自动合并(state.py 不代跑 CLI · 由你执行 · 同 Phase 1):\n"
             f"  GitHub:gh pr create --base {merge_target} --head {sf_branch} "
             f"--title '{title}' --body '{body}' "
@@ -1009,16 +1067,32 @@ def _build_archive_zip(artifact_root: Path) -> bytes:
     return buf.getvalue()
 
 
+def _clean_archive_desc(raw: Optional[str]) -> str:
+    """v8.94:极简 feature 描述净化 —— 折叠空白 + 去 markdown 表格危险字符(`|`/换行)+
+    ≤50 字(超则截 49 + `…`)。空 → `—`(占位 · 表格不塌)。"""
+    if not raw:
+        return "—"
+    s = " ".join(str(raw).split()).replace("|", "/")
+    if len(s) > 50:
+        s = s[:49] + "…"
+    return s or "—"
+
+
 def _build_archive_index(repo_cwd: str, base_commit: str, index_rel: str,
-                         feature_id: str, when: str) -> str:
-    """v8.82:读 base 上现有 INDEX.md(若有)· 去本 feature 旧行 · 追加新行 · 返回新内容。"""
+                         feature_id: str, when: str,
+                         archive_desc: Optional[str] = None) -> str:
+    """v8.82:读 base 上现有 INDEX.md(若有)· 去本 feature 旧行 · 追加新行 · 返回新内容。
+
+    v8.94:加「描述」列(≤50 字极简 feature 描述 · AI 在 planning-backref 暂停点经
+    `--archive-desc` 提供 · 便于日后不解压就能识别归档内容)· 旧 3 列行自动迁移为 4 列(补 `—`)。
+    """
     header = (
         "# Feature 归档索引\n\n"
         "> teamwork ship-finalize 自动维护 · 每个交付 Feature 的**过程层**产物归档为 "
         "`<id>.zip`(含 state.json / 各 stage 产物)· **代码是唯一真相** · 此处仅留可追溯快照。\n"
         "> 需要历史细节时 `unzip <id>.zip`。\n\n"
-        "| Feature | 交付归档时间 | 归档物 |\n"
-        "| --- | --- | --- |\n"
+        "| Feature | 描述 | 交付归档时间 | 归档物 |\n"
+        "| --- | --- | --- | --- |\n"
     )
     rows: list = []
     show = _git(["show", f"{base_commit}:{index_rel}"], cwd=repo_cwd)
@@ -1032,17 +1106,27 @@ def _build_archive_index(repo_cwd: str, base_commit: str, index_rel: str,
                 continue  # 跳过表头 / 分隔行
             if cells[0] == feature_id:
                 continue  # 去重旧行(re-archive 覆盖)
-            rows.append(s)
-    rows.append(f"| {feature_id} | {when} | `{feature_id}.zip` |")
+            # v8.94:旧 3 列(Feature|时间|归档物)→ 迁移为 4 列(补描述占位 `—`)
+            if len(cells) == 3:
+                rows.append(f"| {cells[0]} | — | {cells[1]} | {cells[2]} |")
+            else:
+                rows.append(s)
+    rows.append(f"| {feature_id} | {_clean_archive_desc(archive_desc)} | "
+                f"{when} | `{feature_id}.zip` |")
     return header + "\n".join(rows) + "\n"
 
 
 def _stage_archive_commit(repo_cwd: str, artifact_root: Path, feature_id: str,
-                          merge_target: str, sf_ref: str) -> tuple:
+                          merge_target: str, sf_ref: str,
+                          planning_files: Optional[list] = None,
+                          archive_desc: Optional[str] = None) -> tuple:
     """v8.82:构建归档收尾 commit(add zip + INDEX.md · rm feature 目录)· push 到 sf_ref(force)。
 
     base = origin/<merge_target>。零 checkout(临时 GIT_INDEX_FILE)。feature 目录(过程层)的
     终态产物已在本地 artifact_root(step 1-4 save_state 写入)· 一并打进 zip。
+    v8.93:planning_files=[(repo_rel, abs_path), ...] —— 规划层 back-ref 翻牌文件
+    (WS/ROADMAP/teamwork-space.md + 变更单)随**同一收尾 MR** 合入(去 §5.5 post-step 直推)·
+    hash 工作树内容(AI 刚翻牌的版本)→ update-index --add 进收尾 commit。
     返回 (ok: bool, warn: str, commit_hash: str)。无 delta → (True, "", "")。
     """
     paths = _archive_repo_paths(repo_cwd, artifact_root, feature_id)
@@ -1073,7 +1157,8 @@ def _stage_archive_commit(repo_cwd: str, artifact_root: Path, feature_id: str,
 
     # INDEX.md blob
     index_content = _build_archive_index(repo_cwd, base_commit, index_rel,
-                                         feature_id, now_iso())
+                                         feature_id, now_iso(),
+                                         archive_desc=archive_desc)
     try:
         hi = subprocess.run(["git", "hash-object", "-w", "--stdin"], cwd=repo_cwd,
                             input=index_content.encode("utf-8"),
@@ -1084,6 +1169,14 @@ def _stage_archive_commit(repo_cwd: str, artifact_root: Path, feature_id: str,
         return False, ("hash-object INDEX.md 失败:"
                        + hi.stderr.decode("utf-8", "replace").strip()), ""
     index_blob = hi.stdout.decode().strip()
+
+    # v8.93:规划层 back-ref 文件 blob(hash 工作树内容 · AI 刚翻牌的版本)· 随收尾 MR 一起合入
+    planning_blobs: list = []  # [(repo_rel, blob), ...]
+    for prel, pabs in (planning_files or []):
+        hp = _git(["hash-object", "-w", str(pabs)], cwd=repo_cwd)
+        if hp.returncode != 0:
+            return False, f"hash-object 规划层文件 {prel} 失败:{hp.stderr.strip()}", ""
+        planning_blobs.append((prel, hp.stdout.strip()))
 
     # 列出 base tree 上 feature 目录的所有条目(逐条 --force-remove)
     ls = _git(["ls-tree", "-r", "--name-only", base_tree, "--", feature_rel],
@@ -1107,6 +1200,12 @@ def _stage_archive_commit(repo_cwd: str, artifact_root: Path, feature_id: str,
             ur = _git(["update-index", "--force-remove", entry], cwd=repo_cwd, env=env)
             if ur.returncode != 0:
                 return False, f"update-index --force-remove {entry} 失败:{ur.stderr.strip()}", ""
+        # v8.93:规划层翻牌文件加进同一收尾 commit(在 force-remove 之后 · 防被误删)
+        for prel, blob in planning_blobs:
+            up = _git(["update-index", "--add", "--cacheinfo", f"100644,{blob},{prel}"],
+                      cwd=repo_cwd, env=env)
+            if up.returncode != 0:
+                return False, f"update-index add 规划层文件 {prel} 失败:{up.stderr.strip()}", ""
         wtr = _git(["write-tree"], cwd=repo_cwd, env=env)
         if wtr.returncode != 0:
             return False, f"write-tree 失败:{wtr.stderr.strip()}", ""
@@ -1117,8 +1216,9 @@ def _stage_archive_commit(repo_cwd: str, artifact_root: Path, feature_id: str,
     if new_tree == base_tree:
         return True, "", ""  # 无变化(罕见 · 已归档)→ 视作已交付
 
+    plan_note = (f" + 规划层翻牌 {len(planning_blobs)} 文件" if planning_blobs else "")
     msg = (f"chore({feature_id}): archive feature 过程层 → "
-           f"{ARCHIVE_DIR_NAME}/{feature_id}.zip + rm 目录 [teamwork ship-finalize]")
+           f"{ARCHIVE_DIR_NAME}/{feature_id}.zip + rm 目录{plan_note} [teamwork ship-finalize]")
     ct = _git(["commit-tree", new_tree, "-p", base_commit, "-m", msg], cwd=repo_cwd)
     if ct.returncode != 0:
         return False, f"commit-tree 失败:{ct.stderr.strip()}", ""
@@ -1689,7 +1789,8 @@ def _finalize_push_plumbing(repo_cwd: str, artifact_root: Path,
                             state: dict, ship: dict,
                             extra_files: Optional[list] = None,
                             push_ref: Optional[str] = None,
-                            force: bool = False) -> tuple:
+                            force: bool = False,
+                            planning_files: Optional[list] = None) -> tuple:
     """git plumbing 把 state.json(+ extra_files)推到 origin/<merge_target> · 零 checkout。
 
     v8.18 治本 SVC-CORE-F028 case · 改进:
@@ -1729,6 +1830,11 @@ def _finalize_push_plumbing(repo_cwd: str, artifact_root: Path,
                 push_entries.append((repo_prefix + ef_rel_or_abs, ef_abs))
             else:
                 push_entries.append((ef_rel_or_abs.lstrip("/"), ef_abs))
+    # v8.93:规划层 back-ref 文件(已是 repo-root 相对 · 在仓根/其他目录 · 不在 feature 目录下 ·
+    # 不拼 feature prefix)随**同一收尾 MR** 合入(archive_on_ship=false 路径也支持)
+    for pf_rel, pf_abs in (planning_files or []):
+        if pf_abs.exists():
+            push_entries.append((pf_rel, pf_abs))
 
     # 2. base = origin/<merge_target>
     base = _git(["rev-parse", f"origin/{merge_target}"], cwd=repo_cwd)
@@ -1789,7 +1895,8 @@ def _finalize_push_plumbing(repo_cwd: str, artifact_root: Path,
 
     # 6. commit-tree(单文件 state.json + 状态档 · §12 直推例外)
     extra_note = f" + {len(extra_files)} state file(s)" if extra_files else ""
-    msg = (f"chore({feature_id}): finalize ship state.json{extra_note} "
+    plan_note = f" + {len(planning_files)} 规划层文件" if planning_files else ""
+    msg = (f"chore({feature_id}): finalize ship state.json{extra_note}{plan_note} "
            f"[teamwork ship-finalize]")
     ct = _git(["commit-tree", new_tree, "-p", base_commit, "-m", msg], cwd=repo_cwd)
     if ct.returncode != 0:
@@ -1828,29 +1935,6 @@ def _finalize_push_plumbing(repo_cwd: str, artifact_root: Path,
     return True, "", new_commit
 
 
-def _planning_backref_reminder(state: dict) -> str:
-    """v8.77:ship 收尾 · 更新规划层 back-reference(ROADMAP BL 状态 → 已交付)+ 主工作区 commit。
-
-    治本 case(WEB-F031):ship-finalize 后 AI 把「ROADMAP BL 状态 pending→已交付」当
-    「后续 / 非本次范围」搁置 · 留悬空 TODO(且怕弄脏刚净化的主工作区 → 不敢改)。但
-    BL 状态翻牌 + commit 是 ** ship 的一部分**:feature = 某 BL 的落地 · 落地完 BL 不更新 =
-    规划层(ROADMAP/WS)与执行层永久脱节。规划层产物在主工作区 · 此处更新 + commit 正当
-    (同 feature-planning 的「WS+ROADMAP 登记 commit」· 非 worktree 红线违规)。
-    """
-    mt = state.get("merge_target") or "merge_target"
-    return (
-        "🔴 ship 收尾(必做 · **不是**「后续 / 非本次范围 / 下次规划」):主工作区已 clean + "
-        f"跟上 {mt} · 现更新**规划层 back-reference** 并提交:\n"
-        "  1. 本 Feature 若来自 ROADMAP 某 BL(多数都是)→ 把该 BL 状态 「📋 规划中/pending」"
-        "→「✅ 已交付」;若是其 WS 最后一个 BL → WS 标规划/交付完成\n"
-        "  2. 关联文档(改了用户可见行为 / 接口契约)→ 按项目规范或 /document-release 同步\n"
-        f"  3. `git add <这些规划/文档文件>` + commit + push 到 {mt} —— 在已净化主工作区做"
-        "**一次干净提交** · 别留悬空未提交 · 别当 TODO 甩给下次\n"
-        "  📎 找不到对应 BL?读 product-overview/workstream/ + ROADMAP.md 定位本 Feature 条目 · "
-        "确实无关联 BL(ad-hoc Bug/Micro)才跳过本步。"
-    )
-
-
 def _ship_finalize_brief(state: dict, ship: dict, finalize_ok: bool,
                          wt_removed: bool, warnings: list,
                          main_sync_decision: Optional[dict] = None,
@@ -1859,20 +1943,20 @@ def _ship_finalize_brief(state: dict, ship: dict, finalize_ok: bool,
 
     v8.70:主工作区有用户改动时(main_sync_decision)· 追加「是否净化」暂停点指引 ·
     PMO 须按 SKILL.md R5(b) 转成编号选项暂停点给用户。
-    v8.77:ship 成功(finalize_ok)必追加「更新规划层 back-reference + commit」收尾步 ·
-    治本 AI 把 ROADMAP BL 翻牌当「后续」搁置(WEB-F031 case)。
+    v8.93:规划层 back-ref 翻牌已前移到 finalize-deliver 的 planning-backref 暂停点 · 随收尾 MR
+    一起原子合入(治本旧 v8.77 post-step 直推 merge_target 与 v8.80 去直推自相矛盾的隐患)·
+    故 PASS 不再追加 post-step 收尾提醒(翻牌此刻已在合入的 MR 里)。
     v8.82:archived=True 时点明过程层 feature 目录已归档(zip)+ 本地已清。
     """
     fid = state.get("feature_id") or "Feature"
-    backref = _planning_backref_reminder(state) if finalize_ok else ""
     delivered_what = ("过程层 feature 目录已归档(zip 进 _archive/)+ 原目录删 + 本地已清"
                       if archived else "state.json 已同步 merge_target")
     if finalize_ok and wt_removed and not warnings and not main_sync_decision:
         return (
             f"✅ {fid} 已完整 ship · MR 合入已验证 + {delivered_what} "
+            f"+ 规划层 back-ref 已随收尾 MR 合入(或已 --no-planning-changes 声明无需翻)"
             f"+ worktree 已清理 · 流程终态 completed。\n"
-            f"{backref}\n"
-            f"完成上面收尾提交后 · PMO 向用户汇报 Feature 全流程完成。"
+            f"PMO 向用户汇报 Feature 全流程完成。"
         )
     lines = [f"⚠️ {fid} ship-finalize 完成 · 但有降级项 · PMO 须向用户说明:"]
     for w in warnings:
@@ -1891,10 +1975,58 @@ def _ship_finalize_brief(state: dict, ship: dict, finalize_ok: bool,
             f"选项见 emit.main_sync_decision.options(推荐 {rec})· "
             f"用户拍板后跑对应 state.py main-sync --strategy <id>"
         )
-    if backref:
-        # ship 成功但有降级项 · 收尾步仍要做(降级项处理完后)
-        lines.append(backref)
     return "\n".join(lines)
+
+
+def _resolve_planning_artifacts(main_wt: str, raw_arg: Optional[str],
+                                completed: list, skipped: list) -> list:
+    """v8.93:解析 --planning-artifacts 逗号分隔路径 → [(repo_rel, abs_path), ...]。
+
+    路径相对主工作区 cwd(或绝对)· 必须**存在** + **在 git 仓内**(随收尾 MR 合入)·
+    否则 _ship_finalize_fail(不静默跳过 · 防漏翻 AI 想翻的 back-ref)。空参 → []。
+    """
+    if not raw_arg:
+        return []
+    top = _git(["rev-parse", "--show-toplevel"], cwd=main_wt)
+    toplevel = Path(top.stdout.strip()).resolve() if top.returncode == 0 else Path(main_wt).resolve()
+    resolved: list = []
+    for raw in raw_arg.split(","):
+        raw = raw.strip()
+        if not raw:
+            continue
+        abs_p = (Path(raw) if os.path.isabs(raw) else (Path(main_wt) / raw)).resolve()
+        if not abs_p.exists():
+            _ship_finalize_fail(
+                "planning-backref",
+                f"--planning-artifacts 文件不存在:{raw}",
+                "在主工作区改好规划层文件(ROADMAP/WS/teamwork-space.md 等)后再传 · "
+                "路径相对主工作区根 · 或用 --no-planning-changes 显式跳过",
+                completed, skipped)
+        try:
+            rel = str(abs_p.relative_to(toplevel))
+        except ValueError:
+            _ship_finalize_fail(
+                "planning-backref",
+                f"--planning-artifacts 文件在 git 仓库外:{raw}",
+                "规划层文件须在当前 git 仓库内(随收尾 MR 合入 merge_target)",
+                completed, skipped)
+        resolved.append((rel, abs_p))
+    return resolved
+
+
+def _restore_planning_worktree(main_wt: str, planning_files: list) -> None:
+    """v8.93:规划层文件内容已 hash 进收尾分支 → 把主工作区工作树这些文件恢复 HEAD 干净态
+    (tracked → checkout HEAD;新建未跟踪 → 删)· 使后续 step7 ff-pull 能干净拉回收尾 MR 的
+    最终内容(否则未提交改动会让 ff-pull「would be overwritten by merge」失败)。"""
+    for rel, abs_p in planning_files:
+        co = _git(["checkout", "HEAD", "--", rel], cwd=main_wt, timeout=15)
+        if co.returncode != 0:
+            # 不在 HEAD(新建文件)→ 删工作树副本(内容已进收尾分支 · MR 合并后 pull 拉回)
+            try:
+                if abs_p.exists():
+                    abs_p.unlink()
+            except OSError:
+                pass
 
 
 def cmd_ship_finalize(args: argparse.Namespace) -> None:
@@ -2128,33 +2260,62 @@ def cmd_ship_finalize(args: argparse.Namespace) -> None:
         _git(["push", "origin", "--delete", sf_branch], cwd=main_wt, timeout=60)
         completed.append("finalize-deliver")
     else:
+        # v8.93:收尾交付前先翻规划层 back-ref · 随**同一收尾 MR** 合入(治本旧 §5.5 post-step
+        # 直推 merge_target —— 与 v8.80「去直推」自相矛盾 · 保护分支被拒 · 且收尾 MR 早已关闭 →
+        # 规划层物理塞不进 → 非原子 + 直推隐患)。三态:① 收尾分支已暂存 → reuse(不 amend)·
+        # ② 规划未决定且未暂存 → planning gate · ③ 规划已决定 → 暂存 {zip + 规划文件} 一次。
+        planning_files = _resolve_planning_artifacts(
+            main_wt, getattr(args, "planning_artifacts", None), completed, skipped)
+        planning_decided = bool(planning_files) or getattr(args, "no_planning_changes", False)
         _git(["fetch", "origin", sf_branch], cwd=main_wt, timeout=60)  # 收尾分支(可能不存在)
         sf_remote = _git(["rev-parse", "--verify", "--quiet", f"origin/{sf_branch}"],
                          cwd=main_wt)
-        if sf_remote.returncode == 0 and sf_remote.stdout.strip():
-            # 已暂存但未合 → 待 AI 创/合 MR
+        sf_exists = sf_remote.returncode == 0 and bool(sf_remote.stdout.strip())
+        if sf_exists:
+            # 已暂存但未合(上一轮已含规划决定)→ reuse · 🔴 不 amend(一次打包一个 MR)
             finalize_commit_hash = sf_remote.stdout.strip()
+            if planning_files:
+                warnings.append(
+                    f"收尾分支 {sf_branch} 已存在(上一轮暂存)· 本次 --planning-artifacts 未重新打包"
+                    f"(本设计不 amend 已暂存分支)· 如需变更收尾内容:先 "
+                    f"git push origin --delete {sf_branch} 再重跑 --planning-artifacts")
             _ship_finalize_deliver_pending(
                 feature_path, merge_target, sf_branch, finalize_commit_hash,
                 completed, skipped, warnings, archived=archive_on)  # emit PENDING + exit
+        elif not planning_decided:
+            # gate:收尾分支未暂存 + 规划决定未给 → 先翻规划层 back-ref(judgment 活 · AI 自决)
+            _ship_finalize_planning_pending(
+                feature_path, merge_target, completed, skipped, warnings)  # emit PENDING + exit
         else:
-            # 未暂存 → 构建收尾 commit + push 分支
+            # 规划已决定(翻牌文件 或 --no-planning-changes)→ 暂存收尾 commit(含规划文件)+ push
+            planning_rels = [rel for rel, _ in planning_files]
+            # v8.94:极简 feature 描述(≤50 字)写入归档 INDEX.md(便于不解压识别归档内容)
+            raw_desc = getattr(args, "archive_desc", None)
+            archive_desc = _clean_archive_desc(raw_desc)
+            if raw_desc and len(" ".join(str(raw_desc).split()).replace("|", "/")) > 50:
+                warnings.append(
+                    f"--archive-desc 超 50 字 · 已截断为「{archive_desc}」写入 INDEX.md")
             if archive_on:
                 ok, warn, commit = _stage_archive_commit(
-                    main_wt, artifact_root, feature_id, merge_target, sf_ref)
+                    main_wt, artifact_root, feature_id, merge_target, sf_ref,
+                    planning_files=planning_files, archive_desc=archive_desc)
             else:
                 review_log_path = artifact_root / "review-log.jsonl"
                 extra = ([("review-log.jsonl", review_log_path)]
                          if review_log_path.exists() else [])
                 ok, warn, commit = _finalize_push_plumbing(
                     main_wt, artifact_root, state_json_path, merge_target, state, ship,
-                    extra_files=extra, push_ref=sf_ref, force=True)
+                    extra_files=extra, push_ref=sf_ref, force=True,
+                    planning_files=planning_files)
             if not ok:
                 _ship_finalize_fail(
                     "finalize-deliver",
                     f"暂存收尾分支 {sf_branch} 失败:{warn}",
                     "检查网络 / origin 远程 / 推送权限 · 修复后重跑 ship-finalize",
                     completed, skipped)
+            # 规划层内容已 hash 进收尾分支 → 还原工作树(防 step7 ff-pull「would be overwritten」冲突)
+            if planning_files:
+                _restore_planning_worktree(main_wt, planning_files)
             if not commit:
                 # 无 delta(罕见)→ 终态已在 merge_target → 已交付
                 completed.append("finalize-deliver")
@@ -2162,7 +2323,8 @@ def cmd_ship_finalize(args: argparse.Namespace) -> None:
                 finalize_commit_hash = commit
                 _ship_finalize_deliver_pending(
                     feature_path, merge_target, sf_branch, commit,
-                    completed, skipped, warnings, archived=archive_on)  # emit PENDING + exit
+                    completed, skipped, warnings, archived=archive_on,
+                    planning_bundled=planning_rels)  # emit PENDING + exit
 
     # ── Step 6:worktree-remove(物理删 · state.json 已推远端 · 不丢)──
     # v8.80:走到这步即收尾 MR 已合并(未合并时 step 5 已 emit PENDING + return)·
@@ -2418,8 +2580,8 @@ def cmd_ship_finalize(args: argparse.Namespace) -> None:
         **({"main_sync_note": main_sync_note} if main_sync_note else {}),
         # v8.70 · 普通模式 user-dirty 时的「是否净化」决策(PMO 转 R5(b) 暂停点)
         **({"main_sync_decision": main_sync_decision} if main_sync_decision else {}),
-        # v8.77 · ship 成功后的规划层 back-reference 收尾步(ROADMAP BL → 已交付 + commit)
-        **({"planning_backref_pending": True} if finalize_ok else {}),
+        # v8.93 · 规划层 back-ref 已前移到 finalize-deliver 的 planning-backref 暂停点(随收尾 MR
+        # 合入)· 此处不再 emit planning_backref_pending(翻牌此刻已在已合的 MR 里 · 非 post-step)
         **({"warnings": warnings} if warnings else {}),
         "next_action_brief": _ship_finalize_brief(
             state, ship, finalize_ok, wt_removed, warnings,
@@ -2512,6 +2674,19 @@ def register_v8_ship_subparser(sub) -> None:
                     help=("squash / rebase 合并(branch-contains 自动检测不到)时 · "
                           "用户确认的 merge_target 上合并 commit hash · "
                           "传则检测方式记为 user-reported"))
+    fp.add_argument("--planning-artifacts",
+                    help=("[v8.93] 逗号分隔 · 规划层 back-ref 翻牌文件相对路径"
+                          "(ROADMAP.md / workstream/WS-NN.md / teamwork-space.md / 变更单 等)· "
+                          "随**同一收尾 MR** 与归档 zip 原子合入(去 §5.5 直推)· "
+                          "AI 在 planning-backref 暂停点判断哪些要翻 · 改好后传入"))
+    fp.add_argument("--no-planning-changes", action="store_true",
+                    help=("[v8.93] 显式声明本 Feature 无规划层 back-ref 可翻"
+                          "(ad-hoc Bug/Micro · 无关联 BL)· 跳过 planning-backref 暂停点 · "
+                          "收尾 MR 只含归档 zip + state.json"))
+    fp.add_argument("--archive-desc",
+                    help=("[v8.94] 极简 feature 描述(**≤50 字** · 超则截断)· 写入归档 "
+                          "_archive/INDEX.md 的「描述」列 · 便于日后不解压就识别归档内容 · "
+                          "AI 在 planning-backref 暂停点连同 --planning-artifacts 一起给"))
     fp.set_defaults(func=cmd_ship_finalize)
 
     # ─── main-sync:主工作区净化(v8.70)─────────────────────────────

@@ -185,6 +185,9 @@ class TestExternalReviewHeteroEnforcement(unittest.TestCase):
         ok, err = self._check_host()
         self.assertFalse(ok)
         self.assertIn("异质", err)
+        # v8.95:默认(未禁)项目走通用 hint(host 自动映射异质模型)· 不混入 config-disabled 文案
+        self.assertIn("host 自动映射异质模型", err)
+        self.assertNotIn("别手写", err)
 
     def test_v890_config_disabled_still_blocks_unmarked_same_model(self):
         """config 禁异质 · 但同模型文件**无 degraded 标记**(手写伪装?)→ 仍 BLOCK。"""
@@ -193,6 +196,13 @@ class TestExternalReviewHeteroEnforcement(unittest.TestCase):
             "---\nreview_role: external\nhost: claude-code\n---\nbody\n", encoding="utf-8")
         ok, err = self._check_host()
         self.assertFalse(ok, "config-disabled 也不接受未标记 degraded 的同模型文件")
+        # v8.95:het_disabled 项目给**专属**修复指引(治本 case:AI 手写自审被拦后被通用
+        # 「调异质模型」hint 误导 · 与 v8.90 单模型 opt-out 初衷相悖)。
+        self.assertIn("disable_heterogeneous_review", err)
+        self.assertIn("别手写", err)
+        self.assertIn("state.py external-review", err)
+        self.assertNotIn("host 自动映射异质模型", err,
+                         "het_disabled 项目不应给通用「调异质模型」误导 hint")
 
     # ── 白名单字面 · PASS ──
     def test_codex_filename_passes(self):

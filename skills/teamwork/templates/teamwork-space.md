@@ -89,11 +89,9 @@
 
 ## 待规划需求池
 
-<!-- 跨 Feature/session 发现的"范围外但要做"项 · 只保留 active(📝/🔄) · 转化即从表删 · 详 guide §6 -->
+<!-- 🔴 外置:append-heavy · 不占全景索引 · 只留 1 行指针 · 详 guide §6 -->
 
-| ID | 标题 | 来源 | 目标项目 | 背景(1-3 句) | 状态 | 加入日期 |
-|---|---|---|---|---|---|---|
-| PENDING-001 | <例·country 字段填充责任方> | <例·SVC-CORE-F024 goal OQ-4> | <gateway / SDK 待拆> | <协议新增 country·谁填未定·影响 geo 过滤> | 📝 | 2026-05-18 |
+> 🔗 **已外置** → [`product-overview/PENDING.md`](product-overview/PENDING.md)(跨 Feature/session 的"范围外但要做"项 · 按需读 · 模板 templates/pending.md)。
 
 ---
 

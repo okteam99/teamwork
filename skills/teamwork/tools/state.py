@@ -1712,8 +1712,10 @@ PLANNING_CHECKLIST = [
      "spec": "feature-planning.md §2 Step 1"},
     {"item": "范围判定:工作区级(改 teamwork-space.md + 多 PROJECT.md)vs 子项目级(单 PROJECT.md + ROADMAP.md + sitemap.md)",
      "spec": "feature-planning.md §2 Step 2"},
-    {"item": "核心产出 WS(product-overview/workstream/WS-NN.md · 承接 1+ 执行线 · 拆一组 feature)· 0-1 时含业务架构与产品规划.md(愿景+执行线列表)/ sitemap · 🔴 不出代码(R6)· 不进 stage 链",
-     "spec": "feature-planning.md §1 + templates/workstream.md"},
+    {"item": "🎨 全景UI初步规划(本轮涉 UI 时 · 🔴 拆 WS 之前出):在 {子项目}/docs/design/preview-project/ 出/扩 design system + 本轮关键页(初步 · 系统+代表页 · 非每页 · 防瀑布 · 跑 preview.sh 看)+ 同步 sitemap.md(IA 地图 · 只写层级/导航不写视觉)· 完成产生 git diff = 拆 WS 的输入;非 UI 轮跳过(下游 WS 标 全景初规:N-A)",
+     "spec": "feature-planning.md §2 Step 5"},
+    {"item": "核心产出 WS(product-overview/workstream/WS-NN.md · 1..N 个 · 输入=全景diff+业务目标 · 承接 1+ 执行线 · 拆一组 feature · 🔴 每 WS 记 全景初规状态(✅/N-A)+ 覆盖的全景页清单 + 执行顺序与并行建议(波次:同波可并行/各自 worktree · 跨波串行 + 同改面/跨子项目方向额外串行))· 0-1 时含业务架构与产品规划.md(愿景+执行线列表)· 🔴 不出代码(R6)· 不进 stage 链",
+     "spec": "feature-planning.md §2 Step 6 + templates/workstream.md"},
     {"item": "WS 拆出的 feature 写入 ROADMAP(BL-NNN · 关联 WS)· feature 全写入 = WS ✅ 规划完成 · 每个 BL 后续用户拍板走 prepare 启动 Feature",
      "spec": "conventions.md §4 + prepare.md §5"},
     {"item": "🔴 规划完成必 emit R5 暂停点问用户是否提交 push(WS + ROADMAP 登记是未提交工作树改动 · 不擅自 commit 也不放任悬着)· 主工作区直推或开 MR · 不走 ship 流程",
@@ -1763,7 +1765,8 @@ def cmd_planning_check(args: argparse.Namespace) -> None:
         "planning_checklist": PLANNING_CHECKLIST,
         "planning_order": (
             "🔴 权威链路(详 SKILL.md § teamwork 业务流程架构):业务架构与产品规划(愿景+执行线列表)"
-            "→ ✅确认派生 teamwork-space.md → WS(workstream/ · 承接 1+ 执行线 · 拆一组 feature)"
+            "→ ✅确认派生 teamwork-space.md →(涉 UI)全景UI初步规划(preview-project + sitemap · 拆 WS 前)"
+            "→ WS(workstream/ · 1..N · 承接 1+ 执行线 · 拆一组 feature · 每 WS 记 全景初规状态)"
             "→ feature 写入 ROADMAP(BL · 关联 WS · 全写入=WS✅规划完成)→ 用户拍板 BL → prepare+init-feature → F。"
             "teamwork-space.md **不是** Feature Planning 产出 · 由 product-overview「✅ 已确认」内容派生"
         ),
@@ -2421,10 +2424,13 @@ def _build_claude_review_cmd(prompt_text: str, feature_dir: Optional[Path],
                              ) -> tuple[list, Optional[str]]:
     """v8.85:按 prompt 长度选 inline / doc 模式 · 返 (cmd, cwd)。
 
-    - 短(≤200 字符):argv inline · `claude -p <prompt> --output-format text`(纯文本 · 无工具 · 快)。
-    - 长(>200):prompt 落 doc · argv 只发 ≤200 字符短句「先写 review_start.log 时间戳证明在工作 ·
-      再读 <doc> 做 review」· `--allowedTools Write Read`(只放行读+写 liveness 日志 · 不放行
-      Bash/执行 · 守只读评审)· cwd=feature_dir(review_start.log + doc 相对路径都落 feature 目录)。
+    - 短(≤200 字符):argv inline · `claude -p <prompt> --bare --output-format text`(纯文本 · 无工具 · 快)。
+    - 长(>200):prompt 落 doc · argv 只发 ≤200 字符短句「先写 review_start.log · 再读 <doc> 做 review」·
+      `--bare`(🔴 跳宿主项目 MCP/hooks/CLAUDE.md/skills 自动发现 · 治本:带工具的 headless claude 会
+      spawn 消费项目 `.mcp.json` 里的长跑 dev-server MCP → 卡死至 timeout)· `--permission-mode dontAsk`
+      (非白名单工具自动拒 · 不 abort 不挂)· `--allowedTools Read Grep Glob Write`(读+导航 + 写 liveness ·
+      不放 Bash/Edit · 守只读评审)· cwd=feature_dir(review_start.log + doc 相对路径都落 feature 目录)。
+    🔴 external review 必须 **hermetic** —— 不加载消费项目的 MCP/hooks/CLAUDE.md(防卡死 + 防上下文污染)。
     单测可直接调本函数断言 cmd(不真跑 CLI)。
     """
     use_doc = (prompt_doc is not None and feature_dir is not None
@@ -2442,10 +2448,16 @@ def _build_claude_review_cmd(prompt_text: str, feature_dir: Optional[Path],
         # ≤200 字符短 argv(rel 短 · 总长受控):liveness 日志 + 读 doc
         short = (f"First write review_start.log (UTC timestamp) in cwd (liveness), "
                  f"then read {rel} and follow it; output only the review, no other writes.")
-        cmd = ["claude", "-p", short, "--allowedTools", "Write", "Read",
+        # v8.103:--bare 跳宿主项目 MCP/hooks/CLAUDE.md 自动发现(治本消费项目 .mcp.json 长跑
+        #   dev-server MCP 卡死 headless claude)· dontAsk 非白名单工具自动拒(不挂)·
+        #   白名单 Read/Grep/Glob(读+导航)+ Write(仅 liveness)· 不放 Bash/Edit。
+        cmd = ["claude", "-p", short, "--bare",
+               "--permission-mode", "dontAsk",
+               "--allowedTools", "Read", "Grep", "Glob", "Write",
                "--output-format", "text"]
         return cmd, str(feature_dir)
-    return ["claude", "-p", prompt_text, "--output-format", "text"], None
+    # inline 短 prompt 也加 --bare(hermetic · 不让消费项目 CLAUDE.md/MCP 污染或拖慢)
+    return ["claude", "-p", prompt_text, "--bare", "--output-format", "text"], None
 
 
 def _run_claude_review(prompt_text: str,
@@ -3039,13 +3051,12 @@ def cmd_external_review(args: argparse.Namespace) -> None:
             )
         else:
             preview_cmd = (
-                # v8.38 用 -p · v8.84 不 --model(用默认)· v8.85 doc 模式:
-                # 长 prompt 落 external-review-prompts/<stage>-<model>.md · argv 只发短引用句
-                # (先写 review_start.log liveness · 再读 doc) · --allowedTools Write Read · cwd=feature_dir
+                # v8.38 -p · v8.84 不 --model · v8.85 doc 模式 · v8.103 --bare(跳宿主 MCP/hooks/CLAUDE.md
+                # · 治本消费项目长跑 dev-server MCP 卡死)+ --permission-mode dontAsk + 白名单 Read/Grep/Glob/Write
                 "cd <feature_dir> && claude -p "
                 "'First write review_start.log (UTC timestamp) in cwd (liveness), then read "
                 f"external-review-prompts/{args.stage}-{model}.md and follow it; output only the review' "
-                "--allowedTools Write Read --output-format text"
+                "--bare --permission-mode dontAsk --allowedTools Read Grep Glob Write --output-format text"
             )
         emit({
             "verdict": "OK",

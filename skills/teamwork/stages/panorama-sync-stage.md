@@ -3,9 +3,9 @@
 > **workspace 级 panorama 评审 + 跨 Feature 协调** —— Feature 的 UI 改动影响全景 IA(sitemap / overview)时,architect 评审跨 Feature 影响 + 起草协调 summary。
 >
 > 条件 stage:`ui_design-complete --panorama-changed=true` 时自动进入;`false` 时跳过(直进 blueprint)。
-> 治本 case:历史把 panorama 同步埋成 ui_design step 4(隐式动作)· 跨 Feature 影响 / 跨团队评审无显式暂停点 / 审计混在 Feature UI commit 里。
+> panorama 同步若埋成 ui_design 隐式动作 → 跨 Feature 影响 / 跨团队评审无显式暂停点 / 审计混在 Feature UI commit 里。
 
-🟢 **v8.17 全景为唯一权威**:`panorama_path/preview/<page>.html` 已在 ui_design 阶段直接改完(全景权威 · 不存 Feature 副本)· 本 stage **不再"同步副本到全景"** · 只做 sitemap.md 节点更新 + architect 评审 + 跨 Feature 协调 summary。
+🟢 **全景为唯一权威**:`panorama_path/preview/<page>.html` 已在 ui_design 阶段直接改完(全景权威 · 不存 Feature 副本)· 本 stage **不再"同步副本到全景"** · 只做 sitemap.md 节点更新 + architect 评审 + 跨 Feature 协调 summary。
 
 ---
 
@@ -14,16 +14,16 @@
 ### 1. 加载上下文(主对话 Designer / Architect / PMO 身份)
 - 读 `UI.md`(本 Feature 的 pages_changed[] · IA 改动范围)· `PRD.md`(范围 / AC)
 - 读 panorama 单源:`panorama_path/sitemap.md` + `panorama_path/preview/overview.html`(若存在)
-- 读本 Feature 在 ui_design 已改的全景:`static-html` → `panorama_path/preview/<page>.html`;`same-stack`(v8.58 option B)→ `panorama_path/preview-project/` 源(跑 preview.sh 看实时 dev server)
+- 读本 Feature 在 ui_design 已改的全景:`static-html` → `panorama_path/preview/<page>.html`;`same-stack`→ `panorama_path/preview-project/` 源(跑 preview.sh 看实时 dev server)
 - 读 `teamwork-space.md § 子项目清单`(识别可能被本变更影响的其他子项目)
 
 ### 2. 更新 sitemap.md + 评审 panorama 文件改动
 - **`sitemap.md`**:新增 / 移动 / 删除页面节点 · 保持层级清晰 · **mtime 必晚于本 stage `started_at`**(evidence_check 物化校验)
-- **`panorama_path/preview/<page>.html`**(v8.17 新模式):本 Feature 已在 ui_design 阶段直接改完 · 本 step 由 architect **review**(不重改 · 仅评)
+- **`panorama_path/preview/<page>.html`**(新模式):本 Feature 已在 ui_design 阶段直接改完 · 本 step 由 architect **review**(不重改 · 仅评)
 - **`overview.html`**(若 panorama 是 `static-html` 介质 + 结构性改动):同步 DOM 变更
-- 项目同栈 panorama(`same-stack` · v8.58 option B):评 preview-project 源(组件 / 路由 / mock)· 跑 preview.sh 看实时 dev server(不出静态 build)
+- 项目同栈 panorama(`same-stack`):评 preview-project 源(组件 / 路由 / mock)· 跑 preview.sh 看实时 dev server(不出静态 build)
 
-🟢 **老模式(无 `pages_changed[]` UI.md)兼容**:仍可在本 step 把 Feature 内 preview/*.html 副本同步到 panorama_path/preview/<page>.html(老路径)· 但新 Feature 推荐 v8.17 新模式(ui_design 直接改全景 · 本 stage 仅 review)。
+🟢 **老模式(无 `pages_changed[]` UI.md)兼容**:仍可在本 step 把 Feature 内 preview/*.html 副本同步到 panorama_path/preview/<page>.html(老路径)· 但新 Feature 推荐新模式(ui_design 直接改全景 · 本 stage 仅 review)。
 
 ### 3. 起草 `panorama-change-summary.md`(本 Feature 目录)
 frontmatter 必含 `reviewers` + `conclusion`(详 Output Contract)· body 列:

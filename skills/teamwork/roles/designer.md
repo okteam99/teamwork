@@ -8,8 +8,9 @@
 ## 创作要点(角色身份切换时参考)
 
 - UI.md 起草:§页面列表 · §交互流 · §视觉规范 · §字段映射(对应 PRD.AC)
-- HTML 预览(可视全景):`static-html` → 手写 `preview/*.html`(每页一文件给 RD 直接 diff 还原);**`same-stack`(v8.58 option B)→ `{子项目}/docs/design/preview-project` 同栈独立项目 · 源即全景权威**(真实组件渲染 · 不污染真实工程 · 解新库引入鸡蛋问题)· 🔴 验证渲染:从 `{SKILL_ROOT}/templates/preview-project-preview.sh` 拷 `preview.sh` 进 preview-project 根 · 后台跑 `bash preview.sh` → 读 `PREVIEW_URL=` browse 截图(dev server 实时 · 动态端口并行不冲突 · 不在 teamwork 层起 server · `file://` 因 CORS 打不开)
-- sitemap 同步:信息架构变化时维护项目根 sitemap.md
+- HTML 预览(可视全景):`static-html` → 手写 `preview/*.html`(每页一文件给 RD 直接 diff 还原);**`same-stack`→ `{子项目}/docs/design/preview-project` 同栈独立项目 · 源即全景权威**(真实组件渲染 · 不污染真实工程 · 解新库引入鸡蛋问题)· 🔴 验证渲染:从 `{SKILL_ROOT}/templates/preview-project-preview.sh` 拷 `preview.sh` 进 preview-project 根 · 后台跑 `bash preview.sh` → 读 `PREVIEW_URL=` browse 截图(dev server 实时 · 动态端口并行不冲突 · 不在 teamwork 层起 server · `file://` 因 CORS 打不开)
+- 🔴 **规划层全景初步规划(前移)**:涉 UI 的轮次在 [feature-planning Step 5](../docs/feature-planning.md) 即出 `preview-project` 全景**初步**(design system + 关键页 · 系统+代表页 · **非每页** · 防瀑布)· Designer 随 PL/PM 讨论在**规划期就参与**;到 ui_design 阶段是**在这份活全景上增量扩**本 Feature 的页与细节 · 不是从零搭。
+- sitemap 同步:信息架构变化时维护 sitemap.md(IA 地图:层级/导航/路由 · 🔴 只写地图不写视觉 · 视觉在 preview-project)
 - UI 还原验收:Dev 完成后 cross-check 实现 vs 设计(verify-panorama.py)
 
 ## 协作关系

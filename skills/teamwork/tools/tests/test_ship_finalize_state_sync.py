@@ -559,7 +559,7 @@ class TestFinalizeDeliverV880(unittest.TestCase):
         try:
             r = subprocess.run(
                 [sys.executable, str(STATE_PY), "ship-finalize",
-                 "--feature", self.feature_arg],
+                 "--feature", self.feature_arg, "--no-planning-changes"],
                 capture_output=True, text=True, timeout=30)
             self.assertNotIn("NameError", r.stderr, r.stderr[:400])
             d = json.loads(r.stdout) if r.stdout.strip().startswith("{") else {}
@@ -844,47 +844,36 @@ class TestMainSyncStrategyV870(unittest.TestCase):
         self.assertIn("慎选", cp["desc"])
 
 
-class TestPlanningBackrefReminderV877(unittest.TestCase):
-    """v8.77 · ship 成功后必提示「更新规划层 back-ref(ROADMAP BL → 已交付)+ commit」。
+class TestPlanningBackrefBundledV893(unittest.TestCase):
+    """v8.93 · 规划层 back-ref 翻牌前移到 finalize-deliver 的 planning-backref 暂停点 ·
+    随**收尾 MR** 一起原子合入(治本旧 v8.77 post-step 直推 merge_target —— 与 v8.80
+    「去直推」自相矛盾 · 保护分支被拒 · 且收尾 MR 早已关闭 → 规划层物理塞不进)。
 
-    治本 case(WEB-F031):ship-finalize 后 AI 把 ROADMAP BL 翻牌当「后续 / 非本次范围」
-    搁置 · 留悬空 TODO。修复:ship-finalize brief 在 finalize_ok 时必追加收尾步。
+    PASS brief 不再追加 post-step 收尾提醒(翻牌此刻已在合入的 MR 里 · 非事后直推)。
     """
 
     def _state(self):
         return {"feature_id": "WEB-F031", "merge_target": "staging"}
 
-    def test_success_brief_includes_backref(self):
+    def test_success_brief_says_bundled_not_poststep(self):
         from _v8_ship import _ship_finalize_brief  # type: ignore
         brief = _ship_finalize_brief(self._state(), {}, True, True, [])
-        self.assertIn("ship 收尾", brief)
-        self.assertIn("已交付", brief)
-        self.assertIn("ROADMAP", brief)
-        self.assertIn("BL", brief)
-        self.assertIn("不是**「后续", brief)  # 明确不是「后续」
+        # 新:点明规划层已随收尾 MR 合入(或显式无需翻)
+        self.assertIn("随收尾 MR 合入", brief)
+        # 旧 post-step 文案不再出现(治本:不再事后直推 merge_target)
+        self.assertNotIn("ship 收尾(必做", brief)
+        self.assertNotIn("别当 TODO", brief)
 
-    def test_failed_brief_no_backref(self):
-        """finalize 失败 → 优先修 ship · 不提示规划层收尾(避免误导)。"""
+    def test_failed_brief_no_backref_noise(self):
+        """finalize 失败 → 优先修 ship · 不混入规划层收尾文案。"""
         from _v8_ship import _ship_finalize_brief  # type: ignore
         brief = _ship_finalize_brief(self._state(), {}, False, False, ["x"])
-        self.assertNotIn("ship 收尾", brief)
-        self.assertNotIn("已交付", brief)
+        self.assertNotIn("随收尾 MR 合入", brief)
 
-    def test_shipped_with_warnings_still_has_backref(self):
-        """ship 成功但有降级项 → 收尾步仍要做(降级处理完后)。"""
-        from _v8_ship import _ship_finalize_brief  # type: ignore
-        brief = _ship_finalize_brief(self._state(), {}, True, True, ["某降级项"])
-        self.assertIn("ship 收尾", brief)
-
-    def test_helper_mentions_commit_and_not_defer(self):
-        from _v8_ship import _planning_backref_reminder  # type: ignore
-        r = _planning_backref_reminder(self._state())
-        self.assertIn("commit", r)
-        self.assertIn("push", r)
-        self.assertIn("staging", r)        # merge_target 填入
-        self.assertIn("规划层", r)
-        # 明确反「搁置当 TODO」
-        self.assertTrue("别留悬空" in r or "别当 TODO" in r)
+    def test_old_poststep_helper_removed(self):
+        """v8.93:旧 post-step 提醒函数 _planning_backref_reminder 已删(planning 改前移 gate)。"""
+        import _v8_ship  # type: ignore
+        self.assertFalse(hasattr(_v8_ship, "_planning_backref_reminder"))
 
 
 if __name__ == "__main__":

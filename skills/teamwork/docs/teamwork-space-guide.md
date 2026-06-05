@@ -50,13 +50,12 @@
 - **完成度**:`已完成数/总数` · 基于子项目 ROADMAP feature 统计 · PMO 每 Feature 完成时同步 · 无 ROADMAP 填 `0/0`。
 - 🔴 **硬规则**:任一单元格 ≤ 1 行 · 可选列只写「最近状态结论 + 链 PROJECT.md/ROADMAP.md」· 不复述 Feature 进度详情。
 
-## 6. § 待规划需求池
+## 6. § 待规划需求池(🔴 已外置 → `product-overview/PENDING.md`)
 
-- 跨 Feature/session 发现的"本次范围外但要做"事项 · 等用户拍板何时启动。
-- 🔴 任何 PMO/RD/PM 在 stage 内识别"本 Feature 不做但需后续做" → 必追加(防遗忘 / 防散落 OQ)。
-- 🔴 mode A query 命中"待做/待规划/pending/还要做什么/backlog" → PMO 扫此表给用户(SKILL.md § Triage §2.1)。
-- **ID** `PENDING-NNN`(工作区独立递增)· **状态** 📝 待规划 / 🔄 规划中 · **背景** 1-3 句(来源 session + 为什么本次不做 + 影响)。
-- 🔴 **只保留 active(📝/🔄)**:转 ✅ 已转(进 Feature/Bug)→ 从表删 + 记 Feature `state.json.related_pending`;转 ❌ 不做 → 从表删(原因入 workstream/WS-NN.md 或 git log)· 防表膨胀。
+- 🟢 **不再放 teamwork-space.md**:此池 append-heavy(每次跨 Feature 发现追加一行)· 违背全景索引"≤1 行 / 一眼看懂"原则 · 外置到 `product-overview/PENDING.md`(规划层 inbox)· teamwork-space 只留 1 行指针。
+- 🟢 **context 收益**:不再随 session 入口 silent-read 进 PMO 上下文 · 改为 mode A query 命中 backlog 关键词时**按需读**。
+- 维护规则(ID `PENDING-NNN` / 只留 active 📝🔄 / 追加触发 / 转化即删 / 每格 ≤1 行)→ 见 [templates/pending.md](../templates/pending.md) 头部(自描述)。
+- mode A query 命中"待做 / 待规划 / pending / backlog / 还要做什么" → PMO 读 `product-overview/PENDING.md` 给用户(详 SKILL.md § Triage §2.1)。
 
 ## 7. § 跨项目变更与历史
 

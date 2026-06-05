@@ -15,14 +15,15 @@
 AC 逐条对照实现 / 测试覆盖度 / 边界场景
 
 ### 4. External cross-review → external-cross-review/review-<model>.md
-**跑** `state.py external-review --feature <path> --stage review`(v8.20+ 物化主路径 · host/model/profile 全自动 · 异质性硬约束物理墙 · 至少 1 份 · P0-154)。详 [standards/external-model-usage.md §十一](../standards/external-model-usage.md)。
+**跑** `state.py external-review --feature <path> --stage review`(host/model/profile 全自动 · 异质性硬约束物理墙 · 至少 1 份 · P0-154)。详 [standards/external-model-usage.md §十一](../standards/external-model-usage.md)。
 
-🔴 **同步 · 慢 · 别提前 kill(v8.85)**:external-review **同步阻塞**跑(timeout 600s)· 真实评审常 **30s–3min**(模型并发 / 限流时更久 · `claude -p` 会静默无输出)。**前台跑、耐心等满 600s · 不要中途 kill**。
+🔴 **同步 · 慢 · 别提前 kill**:external-review **同步阻塞**跑(timeout 600s)· 真实评审常 **30s–3min**(模型并发 / 限流时更久 · `claude -p` 会静默无输出)。**前台跑、耐心等满 600s · 不要中途 kill**。
 - **liveness 信号**:claude doc 模式下 reviewer 启动后会先在 feature 目录写 `review_start.log`(时间戳)证明在工作 —— 后台轮询看到它出现 = 模型正常,继续等;一直没出现才是真没响应。state.py 跑完把它读进 `liveness_confirmed_at` 并清理。
 - **真超时 / 空输出 = `verdict: FAIL`(门禁未达)· 不是放行**:🔴 **禁止**伪造 `tool_error` 文件、或把 external 自列进 REVIEW.md `reviewers` 当通过。按 FAIL 的 hint 串行重跑(并发会限流);仍不行 → 报因给用户,**不得**绕过 P0-154。
-- **异质客观不可用(未装/未登录/配额满·已重试失败)→ 诚实降级自审(v8.88)**:`state.py external-review ... --self-review-fallback --reason '<原因+重试证据>'` 跑**同模型 fresh exec** 自审 · 落 `self-review/`(`heterogeneous:false · degraded:true`)· 🔴 **不满足 P0-154**(只隔离对话历史不隔离权重 · 同盲点)。要继续仍须:① 修环境重跑真异质 · 或 ② `change-review-roles` 移除 external(本自审产物作 audit evidence)。**不可**把 self-review 当 external 通过证据。
+- **异质客观不可用(未装/未登录/配额满·已重试失败)→ 诚实降级自审**:`state.py external-review ... --self-review-fallback --reason '<原因+重试证据>'` 跑**同模型 fresh exec** 自审 · 落 `self-review/`(`heterogeneous:false · degraded:true`)· 🔴 **不满足 P0-154**(只隔离对话历史不隔离权重 · 同盲点)。要继续仍须:① 修环境重跑真异质 · 或 ② `change-review-roles` 移除 external(本自审产物作 audit evidence)。**不可**把 self-review 当 external 通过证据。
 
-### 5. 汇合 → REVIEW.md
+### 5. 汇合 → REVIEW.md(🔴 汇总层 · 不是合并:arch/qa/external 三份产物都要独立留盘)
+REVIEW.md 是 REVIEW-arch.md + REVIEW-qa.md + external-cross-review/*.md **之上**的汇总 · **不替代**它们(三份独立产物是 P0 门禁硬要求 · 原因:多视角独立性 SOP · 各视角各自落盘防鼓掌效应 · 详 §质量基线)。🔴 别把三视角揉进一个 REVIEW.md + `reviewers:[…]` list 就交差 —— review-complete 会因缺 REVIEW-arch.md/REVIEW-qa.md FAIL。
 frontmatter `reviewers + verdict: APPROVE|NEEDS_REVISION` · body §finding / §修复建议 / §verdict
 
 ### 6. complete --verdict
@@ -30,7 +31,7 @@ APPROVE → 自动进 test · NEEDS_REVISION → 留 review-stage · 走 fix-ret
 
 ---
 
-## fix-retry 循环(stage 内 · 治本回退切 stage 噪音 · v8.9)
+## fix-retry 循环(stage 内 · 减回退切 stage 噪音)
 
 review-stage 含 **stage 内 fix-retry 循环** · NEEDS_REVISION 不切 stage:
 
@@ -61,9 +62,9 @@ review-complete --verdict APPROVE | NEEDS_REVISION
 ]
 ```
 
-**为什么 stage 内循环**(v8.8 → v8.9 设计演进):
-- v8.8 试 stage 间循环(review NEEDS_REVISION → 自动转 dev)· stage 切换 4 次/轮 · audit 噪音
-- v8.9 改 stage 内循环 · 1 次 stage 切换/Feature(只在最终 APPROVE 时切 test)
+**为什么 stage 内循环**:
+- stage 间循环(NEEDS_REVISION → 自动转 dev)= stage 切换 4 次/轮 · audit 噪音
+- stage 内循环 = 1 次 stage 切换/Feature(只在最终 APPROVE 时切 test)
 - R1 红线不变:fix 由 RD 角色跑(review-fix 命令 · 角色仍是 RD · 只是物理 stage 在 review)
 - 镜像 GitHub PR 工作流(review → push → 重审)· 业界标准
 
@@ -90,7 +91,7 @@ review-complete --verdict APPROVE | NEEDS_REVISION
 | 2. Architect 视角 review → REVIEW-arch.md | `roles/architect.md` | § Code Review | 技术合理性 / 性能 / 安全 / 架构 / **简洁性(防过度设计 · 唯一 counter-lens)** |
 | 3. QA 视角 review → REVIEW-qa.md | `roles/qa.md` | § Code Review | AC 逐条对照 / 测试覆盖 / 边界场景 |
 | 4. External cross-review | `roles/external-reviewer.md` | § Cross-review 协议 | 异质模型独立 review |
-| 5. 汇合 → REVIEW.md | — | — | (整合 · 无 spec cite) |
+| 5. 汇合 → REVIEW.md | — | — | (汇总层 · REVIEW-arch/qa 已各自落盘 · REVIEW.md 只汇总不替代) |
 | 6. complete --verdict | — | — | (无) |
 
 
@@ -114,7 +115,7 @@ review-complete --verdict APPROVE | NEEDS_REVISION
 
 > 📋 **起草模板**(避免找历史 Feature 抄):
 > - REVIEW.md / REVIEW-arch.md / REVIEW-qa.md → 无独立模板 · 见下方 schema · 各 reviewer 按视角分段
-> - external-cross-review/*.md → 跑 `state.py external-review --feature ... --stage review`(v8.20+ 自动落产物 · 不要手写 · 详 standards §十一)
+> - external-cross-review/*.md → 跑 `state.py external-review --feature ... --stage review`(自动落产物 · 不要手写 · 详 standards §十一)
 
 ### `REVIEW.md`
 frontmatter `reviewers + verdict` · §finding 汇总 / §修复建议 / §verdict
