@@ -1,6 +1,24 @@
 # Changelog
 
-> 📦 v8.99 及更早(含 v7/v6/… 旧系统)已归档 → [CHANGELOG-ARCHIVE.md](./CHANGELOG-ARCHIVE.md)。本文件**保留最近 5 版**(每次发布:新增本版 → 若超过 5 版,把最旧的一版迁入归档)。
+> 📦 v8.100 及更早(含 v7/v6/… 旧系统)已归档 → [CHANGELOG-ARCHIVE.md](./CHANGELOG-ARCHIVE.md)。本文件**保留最近 5 版**(每次发布:新增本版 → 若超过 5 版,把最旧的一版迁入归档)。
+
+## v8.105 · external review 消费侧规则:「信号 ≠ 判决」逐条裁决(治本 AI 盲采异质评审被误导)
+
+> 用户(/loop):AI 对异质模型评审的内容倾向于相信,可能会被误导,是否需要优化规则。
+
+### 诊断:规则有不对称 —— 合规侧重 · 消费侧空
+- §十一 大力确保 review 真异质(反替身 / 文件名墙 / 反鼓掌);但**怎么消费 reviewer 说的**几乎无规则 —— 仅 review-stage 一行「Architect 别盲采」(范围窄)。
+- 后果:AI 默认**相信**异质 review(语气笃定 + 当门禁跑)→ 被误导。但真异质 reviewer **没本项目上下文**(不懂 DEV-RULES / 不知 intentional 设计 / 会 hallucinate)→ 照单全收 = import 外部模型的误判。
+
+### 改法(doc-only · 加消费侧规则)
+- **`standards/external-model-usage.md` 新 §十二「消费侧:external review 是信号不是判决」**:
+  - **裁决三态**(每条 finding 落其一 · 带依据):`confirmed`(核实真问题 → 修)/ `rejected`(false positive / 误解 intentional / 冲突 DEV-RULES → 不修 · 🔴 必记驳回依据)/ `deferred`(范围外 → PENDING)。
+  - **两头都是反模式**:盲采(over-trust · 默认倾向 · import 误判/churn/regression)❌ · 盲驳(under-trust · 全 dismiss 让它过 · 异质 review 白跑)❌ · 裁决(带依据)✅ · **举证责任在主对话**。
+  - **grounded 实际代码**:finding 是待核实断言 · 回读真实代码/AC/DEV-RULES 自己确认 · 不轻信 reviewer 转述 · 与 DEV-RULES 冲突 → DEV-RULES 优先 · 通用于代码/PRD/blueprint review。
+- **`stages/review-stage.md` §5 汇合**:加「逐条裁决 external finding」段 + cite 表 row 5 指 §十二。
+
+### 验证
+- doc-only · pytest **3 failed / 500 passed**(baseline 3 = scan-spec 既有 · 零回归)。
 
 ## v8.104 · WS 规划完成给「执行顺序与并行建议」(波次 + 哪些可并行 · 作为 WS 文档一部分)
 
@@ -77,27 +95,3 @@
 
 ### 验证
 - pytest **3 failed / 500 passed**(baseline 3 = scan-spec 既有 · 零回归 · doc-only 无新测试)。
-
-## v8.100 · UI 可视全景前移到规划层(拆 WS 前先出全景初步规划 · feature 边界对齐 UI 结构)
-
-> 用户:UI 可视全景能否更早出 —— 放到 feature 阶段就晚了。确认链路:feature-planning 讨论需求规划逻辑 → 产出 UI 全景初步规划 → 据全景拆成最终 WS(1 个或多个)。
-
-### 设计(全景出生点前移:per-Feature ui_design → 规划层 feature-planning)
-- **拆 WS 之前先出全景初步**:涉 UI 的轮次,feature-planning 在拆 WS 前于 `{子项目}/docs/design/preview-project/` 出 design system + 关键页(🔴 **初步**:系统 + 代表页 · **非每页** · 防瀑布 · 跑 `preview.sh` 看)+ 同步 `sitemap.md`(IA 地图 · 🔴 只写层级/导航不写视觉)· 完成产生 git diff = **拆 WS 的输入**。非 UI 轮跳过(WS 标 `N-A`)。
-- **WS 据全景拆 · 1..N 个**:feature-planning 输入=全景 diff + 业务目标 → 拆 **1 或多个 WS**(feature 边界对齐 UI 结构)· 每 WS 记 `ui_panorama: ✅/N-A` + `ui_panorama_pages`(覆盖页清单 · 替代模糊的"基于哪轮全景")· 涉 UI 必 ✅ 才转「规划完成」。
-- **ui_design 改增量扩**:全景规划期已出生 · ui_design 阶段在已有全景上**增量补**本 Feature 的页与细节(源即权威)· 非从零搭;老项目/跳过规划路径 → 此处首次 seed(回退)。
-- **三者分工厘清**:`sitemap.md`=IA 地图(文字 · 不写视觉)· `preview-project/`=视觉权威(可跑)· 单 Feature `UI.md`=本 feature 涉及的页(不重复全局)。
-
-### 接线(8 文档/工具 · 一个 release)
-- `docs/feature-planning.md`:§2 重排 Step —— 新 Step 5「🎨 UI 全景初步规划(条件)」插在拆 WS 之前 · 新 Step 6 显式「拆 WS(1..N)」· §1/§4 产物加 preview-project · 坑 4 改三者分工。
-- `templates/workstream.md`:frontmatter 加 `ui_panorama` + `ui_panorama_pages` · 状态生命周期加「全景初规子门禁」(涉 UI 必 ✅ 才转规划完成)· 设计要点 +1。
-- `stages/ui-design-stage.md`:§3 加「全景在规划期已出生 · ui_design 增量扩」框定 + same-stack 措辞「扩/搭」。
-- `PRODUCT-OVERVIEW-INTEGRATION.md`:权威冷启动顺序 ×2 插入「(涉 UI)UI 全景初步规划」。
-- `docs/conventions.md §13`:`design/` 加「首次 seed 在规划层」注 · `sitemap.md` 标「只写地图不写视觉」。
-- `tools/state.py cmd_planning_check`:checklist +「🎨 全景UI初步规划」项 + WS 项加全景状态/页清单 + `planning_order` 加全景环。
-- `roles/designer.md` + `roles/product-lead.md`:规划层参与/主导全景初规。
-- `SKILL.md § 业务流程架构`:纵向链路图加「(涉 UI)UI 全景初步规划」一环 + 2 bullet。
-
-### 验证
-- 新增 `test_v8100_planning_check_panorama_before_ws`(全景在 WS 之前 + checklist 项 + WS 状态/页清单文案)· `planning_checklist` 5→6。
-- pytest **3 failed / 500 passed**(baseline 3 = scan-spec 既有 · 零回归 · +1 测试)。

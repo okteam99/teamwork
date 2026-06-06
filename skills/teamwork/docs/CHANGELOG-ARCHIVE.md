@@ -1,10 +1,34 @@
-# Changelog Archive(v8.99 → v1)
+# Changelog Archive(v8.100 → v1)
 
-> 📦 **历史归档**:本文件保存 teamwork **v8.99 及更早**的全部 changelog(含 v7/v6/…/v1 等 v8.0 之前的旧系统)· 仅供追溯,**不再维护**。
-> 现行 changelog(最近 5 版 · v8.100–v8.104)见 [CHANGELOG.md](./CHANGELOG.md)。
+> 📦 **历史归档**:本文件保存 teamwork **v8.100 及更早**的全部 changelog(含 v7/v6/…/v1 等 v8.0 之前的旧系统)· 仅供追溯,**不再维护**。
+> 现行 changelog(最近 5 版 · v8.101–v8.105)见 [CHANGELOG.md](./CHANGELOG.md)。
 > ⚠️ v8.0 是「范式切换 · 不向下兼容」的重构 —— **v7 及更早描述的是已不存在的旧系统**,其机制/命令/红线编号均不适用于现行 v8。
 
 ---
+
+## v8.100 · UI 可视全景前移到规划层(拆 WS 前先出全景初步规划 · feature 边界对齐 UI 结构)
+
+> 用户:UI 可视全景能否更早出 —— 放到 feature 阶段就晚了。确认链路:feature-planning 讨论需求规划逻辑 → 产出 UI 全景初步规划 → 据全景拆成最终 WS(1 个或多个)。
+
+### 设计(全景出生点前移:per-Feature ui_design → 规划层 feature-planning)
+- **拆 WS 之前先出全景初步**:涉 UI 的轮次,feature-planning 在拆 WS 前于 `{子项目}/docs/design/preview-project/` 出 design system + 关键页(🔴 **初步**:系统 + 代表页 · **非每页** · 防瀑布 · 跑 `preview.sh` 看)+ 同步 `sitemap.md`(IA 地图 · 🔴 只写层级/导航不写视觉)· 完成产生 git diff = **拆 WS 的输入**。非 UI 轮跳过(WS 标 `N-A`)。
+- **WS 据全景拆 · 1..N 个**:feature-planning 输入=全景 diff + 业务目标 → 拆 **1 或多个 WS**(feature 边界对齐 UI 结构)· 每 WS 记 `ui_panorama: ✅/N-A` + `ui_panorama_pages`(覆盖页清单 · 替代模糊的"基于哪轮全景")· 涉 UI 必 ✅ 才转「规划完成」。
+- **ui_design 改增量扩**:全景规划期已出生 · ui_design 阶段在已有全景上**增量补**本 Feature 的页与细节(源即权威)· 非从零搭;老项目/跳过规划路径 → 此处首次 seed(回退)。
+- **三者分工厘清**:`sitemap.md`=IA 地图(文字 · 不写视觉)· `preview-project/`=视觉权威(可跑)· 单 Feature `UI.md`=本 feature 涉及的页(不重复全局)。
+
+### 接线(8 文档/工具 · 一个 release)
+- `docs/feature-planning.md`:§2 重排 Step —— 新 Step 5「🎨 UI 全景初步规划(条件)」插在拆 WS 之前 · 新 Step 6 显式「拆 WS(1..N)」· §1/§4 产物加 preview-project · 坑 4 改三者分工。
+- `templates/workstream.md`:frontmatter 加 `ui_panorama` + `ui_panorama_pages` · 状态生命周期加「全景初规子门禁」(涉 UI 必 ✅ 才转规划完成)· 设计要点 +1。
+- `stages/ui-design-stage.md`:§3 加「全景在规划期已出生 · ui_design 增量扩」框定 + same-stack 措辞「扩/搭」。
+- `PRODUCT-OVERVIEW-INTEGRATION.md`:权威冷启动顺序 ×2 插入「(涉 UI)UI 全景初步规划」。
+- `docs/conventions.md §13`:`design/` 加「首次 seed 在规划层」注 · `sitemap.md` 标「只写地图不写视觉」。
+- `tools/state.py cmd_planning_check`:checklist +「🎨 全景UI初步规划」项 + WS 项加全景状态/页清单 + `planning_order` 加全景环。
+- `roles/designer.md` + `roles/product-lead.md`:规划层参与/主导全景初规。
+- `SKILL.md § 业务流程架构`:纵向链路图加「(涉 UI)UI 全景初步规划」一环 + 2 bullet。
+
+### 验证
+- 新增 `test_v8100_planning_check_panorama_before_ws`(全景在 WS 之前 + checklist 项 + WS 状态/页清单文案)· `planning_checklist` 5→6。
+- pytest **3 failed / 500 passed**(baseline 3 = scan-spec 既有 · 零回归 · +1 测试)。
 
 ## v8.99 · DEV-RULES 模板去示例(只留段骨架 + 填写引导)
 

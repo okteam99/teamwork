@@ -215,3 +215,31 @@ Step 3:跑命令 · 落 *-codex.md / *-gemini.md / 等真异质模型文件
 | 看到工具不在就 substitute | "/codex 是 user-only skill 不能 invoke → 用 Agent 起" | 7.3 必先 `which` · 不在 stop |
 | 没 cite 上游 Feature 范式 | F033 既有 `*-codex.md` 在 worktree 内 · F034 没 grep | 7.3 跑前 cite 范例 |
 
+---
+
+## 十二、消费侧:external review 是「信号」不是「判决」
+
+> 🔴 异质 review 的价值 = **独立视角采样盲点**;但同一独立性 = 它**没有完整上下文**(不懂本项目 DEV-RULES / 不知某设计是 intentional / 可能 hallucinate finding)。**照单全收 = 把外部模型的误判 import 进来**。主对话消费 external/异质 review(代码 / PRD / blueprint 通用)必须**逐条裁决**,不是 obey。
+>
+> 🔴 默认倾向是**相信**异质 review(它语气笃定、又被 teamwork 当门禁跑)—— 这正是要纠的偏:reviewer 的 finding 是**待核实的断言**,不是事实。
+
+### 12.1 裁决三态(每条 external finding 落其一 · 带依据)
+
+| 裁决 | 判据 | 处置 |
+|---|---|---|
+| ✅ confirmed | 回读实际代码 / AC / DEV-RULES 核实**确为真问题** | 修(进 fix-retry)· REVIEW.md 记 finding + 依据 |
+| ❌ rejected | false positive / 误解 intentional 设计 / 与 DEV-RULES 冲突 / reviewer 没看全上下文 | **不修** · 🔴 **必记驳回依据**(指真实代码 / 规约 / 业务目标)· 不静默忽略 |
+| ⏸️ deferred | 真问题但**本 Feature 范围外** | → `product-overview/PENDING.md` · 不本轮强塞 |
+
+### 12.2 两头都是反模式
+
+- ❌ **盲采(over-trust · 默认倾向)**:reviewer 说啥改啥 → import 误判 / 无谓 churn / 按错误 finding 改出 regression。
+- ❌ **盲驳(under-trust)**:嫌麻烦全 dismiss 让它过门禁 → 异质 review 形同虚设(等于没跑 · 违 P0-154 初衷)。
+- ✅ **裁决(adjudicate)**:每条独立核实 → 三态归类 → 带依据落 REVIEW.md。**举证责任在主对话** —— rejected 必给"为什么不是问题"的实证(真实文件 / 规约 / 目标),不是一句"我觉得没事"。
+
+### 12.3 裁决 grounded 实际代码(不轻信 reviewer 断言)
+
+- finding 是**待核实断言**:裁决前**回读真实代码 / PRD.AC / DEV-RULES 自己确认**,不轻信 reviewer 的转述/推断(同 [feature-planning](../docs/feature-planning.md) decisive 前提「核验真实文件 · 不轻信摘要」的 epistemics)。
+- reviewer 与本项目 **DEV-RULES 冲突 → DEV-RULES 优先**(它是人定的项目真相;reviewer 给的是通用最佳实践 · 可能不适配本项目)。
+- 高置信但与你核实结果**矛盾**的 finding:以**真实代码**为准 · 不被 reviewer 的笃定语气带走。
+

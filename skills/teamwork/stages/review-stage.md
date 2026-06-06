@@ -24,6 +24,9 @@ AC 逐条对照实现 / 测试覆盖度 / 边界场景
 
 ### 5. 汇合 → REVIEW.md(🔴 汇总层 · 不是合并:arch/qa/external 三份产物都要独立留盘)
 REVIEW.md 是 REVIEW-arch.md + REVIEW-qa.md + external-cross-review/*.md **之上**的汇总 · **不替代**它们(三份独立产物是 P0 门禁硬要求 · 原因:多视角独立性 SOP · 各视角各自落盘防鼓掌效应 · 详 §质量基线)。🔴 别把三视角揉进一个 REVIEW.md + `reviewers:[…]` list 就交差 —— review-complete 会因缺 REVIEW-arch.md/REVIEW-qa.md FAIL。
+
+🔴 **逐条裁决 external finding(信号 ≠ 判决)**:异质 review 是独立视角采样盲点 · 但**没完整上下文**(可能 false positive / 不懂 DEV-RULES / hallucinate)· **默认倾向是相信它 —— 正是要纠的偏**。每条 external finding **回读真实代码 / AC / DEV-RULES 独立核实** → 归 **confirmed(修)/ rejected(不修 · 🔴 必记驳回依据)/ deferred(→ PENDING)** · 带依据落 REVIEW.md。**两头都错**:盲采 = import 误判 / churn / regression;盲驳(全 dismiss 让它过)= 异质 review 白跑。**举证责任在主对话**(rejected 必给实证 · 不是"我觉得没事")· 详 [standards/external-model-usage.md §十二](../standards/external-model-usage.md)。
+
 frontmatter `reviewers + verdict: APPROVE|NEEDS_REVISION` · body §finding / §修复建议 / §verdict
 
 ### 6. complete --verdict
@@ -91,7 +94,7 @@ review-complete --verdict APPROVE | NEEDS_REVISION
 | 2. Architect 视角 review → REVIEW-arch.md | `roles/architect.md` | § Code Review | 技术合理性 / 性能 / 安全 / 架构 / **简洁性(防过度设计 · 唯一 counter-lens)** |
 | 3. QA 视角 review → REVIEW-qa.md | `roles/qa.md` | § Code Review | AC 逐条对照 / 测试覆盖 / 边界场景 |
 | 4. External cross-review | `roles/external-reviewer.md` | § Cross-review 协议 | 异质模型独立 review |
-| 5. 汇合 → REVIEW.md | — | — | (汇总层 · REVIEW-arch/qa 已各自落盘 · REVIEW.md 只汇总不替代) |
+| 5. 汇合 → REVIEW.md | `standards/external-model-usage.md` | §十二 | 逐条裁决 external finding:confirmed / rejected(必记依据)/ deferred · **信号≠判决 · 不盲采不盲驳** |
 | 6. complete --verdict | — | — | (无) |
 
 
