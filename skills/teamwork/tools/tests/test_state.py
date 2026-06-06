@@ -1544,48 +1544,34 @@ class TestExternalReviewCommand(unittest.TestCase):
     # ── v8.85:短 prompt inline / 长 prompt 落 doc + 短 argv + review_start.log liveness ──
 
     def test_v885_short_prompt_inline(self):
-        """v8.85:≤200 字符 prompt → argv inline · 无 --allowedTools · cwd=None。
-        v8.103:加 --bare(hermetic · 不载消费项目 MCP/hooks/CLAUDE.md)。"""
+        """v8.106:claude 评审只用 `claude -p <prompt> --output-format text` · 无 --bare / --allowedTools · cwd=None。"""
         from state import _build_claude_review_cmd  # type: ignore
         with tempfile.TemporaryDirectory() as d:
             feat = Path(d)
             cmd, cwd = _build_claude_review_cmd("short prompt", feat, feat / "doc.md")
-        self.assertEqual(cmd[2], "short prompt")
+        self.assertEqual(cmd, ["claude", "-p", "short prompt", "--output-format", "text"])
         self.assertNotIn("--allowedTools", cmd)
-        self.assertIn("--bare", cmd)  # v8.103:hermetic
+        self.assertNotIn("--bare", cmd)            # v8.106:--bare 砸登录上下文 → "Not logged in" · 删
+        self.assertNotIn("--permission-mode", cmd)
         self.assertIsNone(cwd)
 
-    def test_v885_long_prompt_doc_mode(self):
-        """v8.85:>200 字符 prompt → 落 doc · argv 发短引用句(含 review_start.log + doc rel)·
-        --allowedTools Write Read · cwd=feature_dir · 全文不进 argv。"""
+    def test_v8106_long_prompt_still_inline(self):
+        """v8.106:长 prompt 也走 argv inline(删 v8.85 doc 模式短引用 + v8.103 --bare)·
+        prompt_doc 仍写盘(审计 + 可复跑)· 全文进 argv · 无工具。"""
         from state import _build_claude_review_cmd  # type: ignore
         with tempfile.TemporaryDirectory() as d:
             feat = Path(d)
             doc = feat / "external-review-prompts" / "review-claude.md"
             long_prompt = "X" * 500
             cmd, cwd = _build_claude_review_cmd(long_prompt, feat, doc)
-            argv_prompt = cmd[2]
-            # doc 被物化落盘(含全文 · 可审计)
+            # 全文走 argv inline(不再短引用 doc)
+            self.assertEqual(cmd, ["claude", "-p", long_prompt, "--output-format", "text"])
+            # doc 仍写盘(审计 + 可复跑)
             self.assertTrue(doc.exists())
             self.assertEqual(doc.read_text(encoding="utf-8"), long_prompt)
-        # argv 短句:含 liveness 日志 + doc 相对路径 · 不含全文
-        self.assertIn("review_start.log", argv_prompt)
-        self.assertIn("external-review-prompts/review-claude.md", argv_prompt)
-        self.assertNotIn("XXXX", argv_prompt)
-        # ≤200 字符(用户硬要求)
-        self.assertLessEqual(len(argv_prompt), 200, f"argv 短句应 ≤200 · 实际 {len(argv_prompt)}")
-        # 放行 Read/Grep/Glob(读+导航)+ Write(仅 liveness)· 不放 Bash/Edit · cwd=feature_dir
-        self.assertIn("--allowedTools", cmd)
-        self.assertIn("Write", cmd)
-        self.assertIn("Read", cmd)
-        self.assertIn("Grep", cmd)   # v8.103:导航工具(防 model 够不到文件)
-        self.assertIn("Glob", cmd)
-        self.assertNotIn("Bash", cmd)
-        # v8.103:hermetic + 不挂(治本消费项目 .mcp.json 长跑 dev-server MCP 卡死 headless claude)
-        self.assertIn("--bare", cmd)
-        self.assertIn("--permission-mode", cmd)
-        self.assertIn("dontAsk", cmd)
-        self.assertEqual(cwd, str(feat))
+        self.assertNotIn("--allowedTools", cmd)
+        self.assertNotIn("--bare", cmd)
+        self.assertIsNone(cwd)
 
     def test_v885_doc_mode_uses_existing_doc_not_overwrite(self):
         """v8.85:doc 已存在(AI 填好的 scaffold)→ 不覆盖 · 直接引用。"""

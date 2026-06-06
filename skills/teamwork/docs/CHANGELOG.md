@@ -1,6 +1,23 @@
 # Changelog
 
-> 📦 v8.100 及更早(含 v7/v6/… 旧系统)已归档 → [CHANGELOG-ARCHIVE.md](./CHANGELOG-ARCHIVE.md)。本文件**保留最近 5 版**(每次发布:新增本版 → 若超过 5 版,把最旧的一版迁入归档)。
+> 📦 v8.101 及更早(含 v7/v6/… 旧系统)已归档 → [CHANGELOG-ARCHIVE.md](./CHANGELOG-ARCHIVE.md)。本文件**保留最近 5 版**(每次发布:新增本版 → 若超过 5 版,把最旧的一版迁入归档)。
+
+## v8.106 · 外部 claude 评审回退纯 `claude -p`(删 --bare/--allowedTools/doc 模式 · 治本 --bare 砸登录)
+
+> 用户(case PTR-F260606):state.py 预期只用 `claude -p`。case:`claude --bare -p` 报 "Not logged in" 而裸 `claude -p` 正常。
+
+### 诊断:v8.103 的 `--bare` 砸了登录上下文
+- v8.85 起长 prompt 走 doc 模式(短 argv + `--allowedTools` 让 reviewer 自己 Read)· v8.103 加 `--bare`(想跳消费项目 MCP 防卡死)。
+- 但 `--bare`(minimal mode)**也跳了 claude 的登录/认证上下文** → `claude --bare -p` = "Not logged in"(裸 `claude -p` 已登录)。v8.103 想用 `--bare` 救 MCP-hang · 反而砸了认证 —— 比病更重。
+
+### 改法(用户拍板「只用 claude -p」)
+- `_build_claude_review_cmd`:**只用 `["claude","-p",<full inline prompt>,"--output-format","text"]`**(cwd=None)· 删 doc 模式短引用 + `--allowedTools` + `--bare` + `--permission-mode` + liveness。
+- prompt **自包含**(goal/blueprint 已 inline 待评审文件内容 · `_gather_review_files_for_claude`)· reviewer 无需工具 / 文件系统访问 · 一次性纯文本生成 —— 一并消除 MCP-hang(无工具栈)+ 认证回归(无 `--bare`)。
+- 仍写 prompt_doc(审计 + 可复跑 · 不 clobber PMO 预写)· 删死常量 `CLAUDE_REVIEW_ARGV_LIMIT`。
+
+### 验证
+- 重写 `test_v885_short_prompt_inline` + 新 `test_v8106_long_prompt_still_inline`(长短都 inline · 无 `--bare`/工具 · doc 仍写盘)· pytest **3 failed / 500 passed**(baseline 3 · 零回归)。
+- 🔴 下一步(v8.107):降级策略统一改 **subagent**(不用 exec)· 实现「降级而不是去掉」(用户已确认设计:subagent 自审满足门禁 + WARN · 显式带 reason)。
 
 ## v8.105 · external review 消费侧规则:「信号 ≠ 判决」逐条裁决(治本 AI 盲采异质评审被误导)
 
@@ -71,27 +88,6 @@
 - `claude-agents/reviewer.md` STRICT CONSTRAINTS:`不能写文件` → `不改动代码库`(不改/不新建源码·文档·评审产物)+ 🟢 显式 carve-out「**唯一允许的写 = `review_start.log`**(liveness · 非评审产物 · 写完正常评审 · 除此不写)」· 评审记录明确「经 stdout 返回 · 不落文件」· out-of-scope 行加注「写 liveness 不算'评审之外'」。
 - `standards/external-model-usage.md §一`:只读约束拆 codex(sandbox 物理拦截 · 无 liveness 文件)vs claude doc(唯一例外 `review_start.log` · `--allowedTools Write` 限范围 + 跑完清理)两路。
 - **不动** codex prompt 头(§78-91):codex sandbox 真只读 · "Cannot write files" 正确。**不动** state.py:argv 早已指示写 liveness · 本次只让 prompt 与之一致。
-
-### 验证
-- pytest **3 failed / 500 passed**(baseline 3 = scan-spec 既有 · 零回归 · doc-only 无新测试)。
-
-## v8.101 · 待规划需求池外置 → `product-overview/PENDING.md`(teamwork-space 瘦身 · 只留 1 行指针)
-
-> 用户:teamwork-space.md 有点臃肿 · 尤其待规划需求(Backlog)部分 · 应拆出子文档单独管理 · 不占 teamwork-space 内容。
-
-### 诊断:Backlog 是全景索引里唯一 append-heavy 的节
-- teamwork-space 其余节都**结构静态**(子项目清单 / 架构全景 / 目录 · 仅 restructure 时变);待规划需求池每次跨 Feature 发现就 append 一行 · 即便「只留 active」也会撑大 · 违背它自己的「≤1 行 / 一眼看懂」。
-- 决策(用户拍板):外置到 **`product-overview/PENDING.md`**(规划层 inbox · 用 PENDING 名对齐已有 `PENDING-NNN` id · 避开与 ROADMAP `BL-NNN` 撞名)· teamwork-space 只留 1 行指针。
-
-### 改动(doc-only · state.py 从不碰此池 · 零 code/测试影响)
-- **新 `templates/pending.md`**:实例化骨架 + 自描述规则头(ID `PENDING-NNN` / 只留 active 📝🔄 / 追加触发 / 转化即删 / ≤1 行)。
-- `templates/teamwork-space.md`:§ 待规划需求池 整张表 → 1 行指针(→ `product-overview/PENDING.md`)。
-- `docs/teamwork-space-guide.md §6`:收敛为「已外置」说明 + context 收益 + 指模板头。
-- `SKILL.md`:① backlog-scan 触发改**按需读** `product-overview/PENDING.md`(不再 silent-read)· ② session 入口 silent-read 列表删「§ 待规划需求池」→ 移入「按需读」· ③ 追加机制 / §310 指针更新。
-- `docs/conventions.md §13` + `PRODUCT-OVERVIEW-INTEGRATION.md` 目录树 + `bootstrap.py` 冷启动 hint:product-overview/ 内容加 `PENDING.md`。
-
-### context 收益
-- 待规划池**不再随每个 session 入口 silent-read 进 PMO 上下文** · 改为 mode A query 命中 backlog 关键词时按需读 · 池越长收益越大。
 
 ### 验证
 - pytest **3 failed / 500 passed**(baseline 3 = scan-spec 既有 · 零回归 · doc-only 无新测试)。

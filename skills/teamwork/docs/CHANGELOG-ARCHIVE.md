@@ -1,10 +1,31 @@
-# Changelog Archive(v8.100 → v1)
+# Changelog Archive(v8.101 → v1)
 
-> 📦 **历史归档**:本文件保存 teamwork **v8.100 及更早**的全部 changelog(含 v7/v6/…/v1 等 v8.0 之前的旧系统)· 仅供追溯,**不再维护**。
-> 现行 changelog(最近 5 版 · v8.101–v8.105)见 [CHANGELOG.md](./CHANGELOG.md)。
+> 📦 **历史归档**:本文件保存 teamwork **v8.101 及更早**的全部 changelog(含 v7/v6/…/v1 等 v8.0 之前的旧系统)· 仅供追溯,**不再维护**。
+> 现行 changelog(最近 5 版 · v8.102–v8.106)见 [CHANGELOG.md](./CHANGELOG.md)。
 > ⚠️ v8.0 是「范式切换 · 不向下兼容」的重构 —— **v7 及更早描述的是已不存在的旧系统**,其机制/命令/红线编号均不适用于现行 v8。
 
 ---
+
+## v8.101 · 待规划需求池外置 → `product-overview/PENDING.md`(teamwork-space 瘦身 · 只留 1 行指针)
+
+> 用户:teamwork-space.md 有点臃肿 · 尤其待规划需求(Backlog)部分 · 应拆出子文档单独管理 · 不占 teamwork-space 内容。
+
+### 诊断:Backlog 是全景索引里唯一 append-heavy 的节
+- teamwork-space 其余节都**结构静态**(子项目清单 / 架构全景 / 目录 · 仅 restructure 时变);待规划需求池每次跨 Feature 发现就 append 一行 · 即便「只留 active」也会撑大 · 违背它自己的「≤1 行 / 一眼看懂」。
+- 决策(用户拍板):外置到 **`product-overview/PENDING.md`**(规划层 inbox · 用 PENDING 名对齐已有 `PENDING-NNN` id · 避开与 ROADMAP `BL-NNN` 撞名)· teamwork-space 只留 1 行指针。
+
+### 改动(doc-only · state.py 从不碰此池 · 零 code/测试影响)
+- **新 `templates/pending.md`**:实例化骨架 + 自描述规则头(ID `PENDING-NNN` / 只留 active 📝🔄 / 追加触发 / 转化即删 / ≤1 行)。
+- `templates/teamwork-space.md`:§ 待规划需求池 整张表 → 1 行指针(→ `product-overview/PENDING.md`)。
+- `docs/teamwork-space-guide.md §6`:收敛为「已外置」说明 + context 收益 + 指模板头。
+- `SKILL.md`:① backlog-scan 触发改**按需读** `product-overview/PENDING.md`(不再 silent-read)· ② session 入口 silent-read 列表删「§ 待规划需求池」→ 移入「按需读」· ③ 追加机制 / §310 指针更新。
+- `docs/conventions.md §13` + `PRODUCT-OVERVIEW-INTEGRATION.md` 目录树 + `bootstrap.py` 冷启动 hint:product-overview/ 内容加 `PENDING.md`。
+
+### context 收益
+- 待规划池**不再随每个 session 入口 silent-read 进 PMO 上下文** · 改为 mode A query 命中 backlog 关键词时按需读 · 池越长收益越大。
+
+### 验证
+- pytest **3 failed / 500 passed**(baseline 3 = scan-spec 既有 · 零回归 · doc-only 无新测试)。
 
 ## v8.100 · UI 可视全景前移到规划层(拆 WS 前先出全景初步规划 · feature 边界对齐 UI 结构)
 

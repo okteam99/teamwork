@@ -2191,7 +2191,6 @@ EXTERNAL_STAGE_TO_PROFILE = {
 }
 
 EXTERNAL_REVIEW_TIMEOUT_SEC = 600  # v8.55:5min→10min(用户 case codex 偶尔卡 / 长 review · 给足 buffer)
-CLAUDE_REVIEW_ARGV_LIMIT = 200  # v8.85:claude argv prompt 超此长度 → 落 doc · argv 只发短引用句(治本长 argv)
 
 
 def _detect_cli_version(cli_name: str) -> str:
@@ -2422,42 +2421,27 @@ def _run_codex_review(stage: str, commit: str, base: str, title: str,
 def _build_claude_review_cmd(prompt_text: str, feature_dir: Optional[Path],
                              prompt_doc: Optional[Path]
                              ) -> tuple[list, Optional[str]]:
-    """v8.85:按 prompt 长度选 inline / doc 模式 · 返 (cmd, cwd)。
+    """v8.106(用户拍板):**只用 `claude -p <full inline prompt> --output-format text`** · 返 (cmd, None)。
 
-    - 短(≤200 字符):argv inline · `claude -p <prompt> --bare --output-format text`(纯文本 · 无工具 · 快)。
-    - 长(>200):prompt 落 doc · argv 只发 ≤200 字符短句「先写 review_start.log · 再读 <doc> 做 review」·
-      `--bare`(🔴 跳宿主项目 MCP/hooks/CLAUDE.md/skills 自动发现 · 治本:带工具的 headless claude 会
-      spawn 消费项目 `.mcp.json` 里的长跑 dev-server MCP → 卡死至 timeout)· `--permission-mode dontAsk`
-      (非白名单工具自动拒 · 不 abort 不挂)· `--allowedTools Read Grep Glob Write`(读+导航 + 写 liveness ·
-      不放 Bash/Edit · 守只读评审)· cwd=feature_dir(review_start.log + doc 相对路径都落 feature 目录)。
-    🔴 external review 必须 **hermetic** —— 不加载消费项目的 MCP/hooks/CLAUDE.md(防卡死 + 防上下文污染)。
-    单测可直接调本函数断言 cmd(不真跑 CLI)。
+    🔴 删 v8.85 doc 模式(短 argv + `--allowedTools` 让 reviewer 自己 Read)+ v8.103 `--bare`:
+    - `--bare` 跳了 claude 的**登录/认证上下文** → `claude --bare -p` 报 "Not logged in"(裸 `claude -p`
+      已登录)· 治本 case PTR-F260606(`--bare` 引入的认证回归)。
+    - `--allowedTools` 激活 agentic 工具栈 → 自动 spawn 消费项目 `.mcp.json` MCP → 卡死(v8.103 想用 `--bare`
+      救 MCP · 反而砸了认证)。一并删 · 回到最朴素最可靠的 `claude -p`。
+    - prompt **自包含**(goal/blueprint 已 inline 待评审文件内容 · 见 _gather_review_files_for_claude)·
+      reviewer 无需任何工具 / 文件系统访问 · 一次性纯文本生成。
+    仍把 prompt 写进 prompt_doc(审计 + 可复跑 · 不存在才写 · 不 clobber PMO 预写)· 但执行走 argv inline。
+    prompt 过长(ARG_MAX)由 _run_claude_review 的 errno 7 兜底报错。单测可直接调本函数断言 cmd。
     """
-    use_doc = (prompt_doc is not None and feature_dir is not None
-               and len(prompt_text) > CLAUDE_REVIEW_ARGV_LIMIT)
-    if use_doc:
+    # 写 doc(审计 · 可复跑)· 不影响执行(执行用 argv inline)
+    if prompt_doc is not None and feature_dir is not None:
         try:
             prompt_doc.parent.mkdir(parents=True, exist_ok=True)
             if not prompt_doc.exists():
-                # fallback inline 模式也物化 doc(可审计 + 可复跑)
                 prompt_doc.write_text(prompt_text, encoding="utf-8")
-            rel = prompt_doc.resolve().relative_to(Path(feature_dir).resolve()).as_posix()
-        except (OSError, ValueError):
-            use_doc = False
-    if use_doc:
-        # ≤200 字符短 argv(rel 短 · 总长受控):liveness 日志 + 读 doc
-        short = (f"First write review_start.log (UTC timestamp) in cwd (liveness), "
-                 f"then read {rel} and follow it; output only the review, no other writes.")
-        # v8.103:--bare 跳宿主项目 MCP/hooks/CLAUDE.md 自动发现(治本消费项目 .mcp.json 长跑
-        #   dev-server MCP 卡死 headless claude)· dontAsk 非白名单工具自动拒(不挂)·
-        #   白名单 Read/Grep/Glob(读+导航)+ Write(仅 liveness)· 不放 Bash/Edit。
-        cmd = ["claude", "-p", short, "--bare",
-               "--permission-mode", "dontAsk",
-               "--allowedTools", "Read", "Grep", "Glob", "Write",
-               "--output-format", "text"]
-        return cmd, str(feature_dir)
-    # inline 短 prompt 也加 --bare(hermetic · 不让消费项目 CLAUDE.md/MCP 污染或拖慢)
-    return ["claude", "-p", prompt_text, "--bare", "--output-format", "text"], None
+        except OSError:
+            pass
+    return ["claude", "-p", prompt_text, "--output-format", "text"], None
 
 
 def _run_claude_review(prompt_text: str,
@@ -2469,9 +2453,8 @@ def _run_claude_review(prompt_text: str,
     v8.43(case SVC-PLATFORM-F054 blueprint round 3):prompt 从 stdin 改 argv ·
     治本 Claude CLI 2.1.153 在 stdin 模式触发 "Not logged in · Please run /login" bug。
     v8.84(用户拍板):**不再 --model 指定模型 · 用 claude CLI 默认值**。
-    v8.85(用户拍板):**短 prompt 走 argv inline;长 prompt(>200)落 doc · argv 只发
-    短引用句 + 让 reviewer 先写 review_start.log 时间戳证明在工作**(详 _build_claude_review_cmd)·
-    治本长 argv 卡 / 把模板当问题 / 调用方无法判断模型是否卡死。
+    v8.106(用户拍板):**只用 `claude -p <full inline prompt> --output-format text`**(删 v8.85 doc 模式
+    + v8.103 --bare)· prompt 自包含 · 无工具 / 无 --bare(--bare 砸登录上下文 → "Not logged in")· 详 _build_claude_review_cmd。
     """
     cmd, cwd = _build_claude_review_cmd(prompt_text, feature_dir, prompt_doc)
     label = f"claude-{stage}"
@@ -3051,12 +3034,9 @@ def cmd_external_review(args: argparse.Namespace) -> None:
             )
         else:
             preview_cmd = (
-                # v8.38 -p · v8.84 不 --model · v8.85 doc 模式 · v8.103 --bare(跳宿主 MCP/hooks/CLAUDE.md
-                # · 治本消费项目长跑 dev-server MCP 卡死)+ --permission-mode dontAsk + 白名单 Read/Grep/Glob/Write
-                "cd <feature_dir> && claude -p "
-                "'First write review_start.log (UTC timestamp) in cwd (liveness), then read "
-                f"external-review-prompts/{args.stage}-{model}.md and follow it; output only the review' "
-                "--bare --permission-mode dontAsk --allowedTools Read Grep Glob Write --output-format text"
+                # v8.106 只用 claude -p <full inline prompt>(删 v8.85 doc 模式 + v8.103 --bare · --bare 砸登录上下文)
+                "claude -p '<self-contained review prompt · 见 external-review-prompts/"
+                f"{args.stage}-{model}.md>' --output-format text"
             )
         emit({
             "verdict": "OK",
