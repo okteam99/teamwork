@@ -11,7 +11,7 @@
 | 流程 | 适用场景 | 默认暂停点 | 产出 |
 |------|---------|----------|------|
 | **Feature** | 完整功能(含 UI/架构/产品方向)| 3-5 | 代码 + 完整文档 + 测试 |
-| **Bug** | 缺陷修复 | 3-4 | 修复 + BUG 报告 + 回归测试 |
+| **Bug** | 缺陷修复 | 4-5 | 根因+修复方案(diagnose · 用户确认)+ 修复 + 回归测试 |
 | **Micro** | 零逻辑改动(文案/样式/资源/配置)| 3 | 代码直改 |
 | **敏捷需求** | ≤5 文件 + 无 UI/架构变更 + 方案明确 | 2-3 | 代码 + 简化文档 + 测试 |
 | **Feature Planning** | 从产品目标拆 ROADMAP | 1(仅摘要确认)| PROJECT.md + ROADMAP.md + sitemap.md(不出代码 · R6)|
@@ -28,9 +28,10 @@
 适用 Feature 触发场景:用户提"实现/开发/做一个 X 功能"。
 
 ### Bug
-**精简 stage 链**(跳过 goal / blueprint):dev → review → test → pm_acceptance → ship → completed
+**stage 链**(跳过 goal / blueprint · 但 dev 前先 diagnose):diagnose → dev → review → test → pm_acceptance → ship → completed
 
-解决:**已知现象 + 已知期望 · 直接进入修复 · 不重复需求讨论**。
+解决:**已知现象 + 已知期望 · 不重复需求讨论;但先 diagnose 深查根因 + 出修复方案 + 用户确认,再 dev 写 fix(防修偏)**。
+🔴 **diagnose**(首 stage):深读代码挖真因 → §根因/§修复方案 → R5 用户确认 → 才进 dev。详 [stages/diagnose-stage.md](./stages/diagnose-stage.md)。
 Ship Stage 缩简(标题 `[Bug] <简述> (<Bug ID>)` · 如 `(PTR-B019)` · Bug 流程 artifact ID 见 conventions.md §1)。
 
 ### Micro

@@ -1,10 +1,31 @@
-# Changelog Archive(v8.103 → v1)
+# Changelog Archive(v8.104 → v1)
 
-> 📦 **历史归档**:本文件保存 teamwork **v8.103 及更早**的全部 changelog(含 v7/v6/…/v1 等 v8.0 之前的旧系统)· 仅供追溯,**不再维护**。
-> 现行 changelog(最近 5 版 · v8.104–v8.108)见 [CHANGELOG.md](./CHANGELOG.md)。
+> 📦 **历史归档**:本文件保存 teamwork **v8.104 及更早**的全部 changelog(含 v7/v6/…/v1 等 v8.0 之前的旧系统)· 仅供追溯,**不再维护**。
+> 现行 changelog(最近 5 版 · v8.105–v8.109)见 [CHANGELOG.md](./CHANGELOG.md)。
 > ⚠️ v8.0 是「范式切换 · 不向下兼容」的重构 —— **v7 及更早描述的是已不存在的旧系统**,其机制/命令/红线编号均不适用于现行 v8。
 
 ---
+
+## v8.104 · WS 规划完成给「执行顺序与并行建议」(波次 + 哪些可并行 · 作为 WS 文档一部分)
+
+> 用户:workstream 规划完成后,需要给出并行执行建议,列出建议的执行顺序、哪些需求可并行,作为 WS 文档的一部分。
+
+### 背景:WS 只有 flat launch_order · 不 surface 并行
+- WS 此前仅 frontmatter `launch_order`(线性拓扑)+ per-feature `dependencies` · 不显式说「哪些可并行」。ROADMAP 模板早有 Wave/并行度,但那是 **per-子项目**;WS 才是**跨子项目**依赖全景所在 —— 并行编排该落 WS(用户判断正确)。
+
+### 改动(doc-only · 仍是 PL 判断 · 不进 state.py 自动算)
+- **`templates/workstream.md`**:
+  - frontmatter 加 `execution_waves`(结构化:每 wave = 一组可并行 feature + `after` 前置)· `launch_order` 注明降级为线性回退。
+  - body 加 **§执行顺序与并行建议**:波次表(可并行 feature / 前置 / 约束)+ 🔴 **DAG 之外的额外串行约束**(同改面防 merge 冲突 / 跨子项目 provider→consumer 方向 / 带宽 ≤3)+ 与 ROADMAP Wave 关系(WS=跨子项目权威 · ROADMAP=本地视图)。
+  - 完成标准 +③、设计要点 +7:规划完成必给并行建议。
+- **`docs/feature-planning.md` Step 6**:拆完 WS 必算波次 + 标额外串行约束。
+- **`tools/state.py` planning-check**:WS checklist 项加「执行顺序与并行建议(波次)」。
+
+### 为什么不进 state.py 自动算
+- 波次的**逻辑层**可由 `dependencies` DAG 算,但**同改面 / 跨子项目方向 / 带宽**是 judgment(依赖字段不含)· 纯 DAG 自动算会误导 → 留 PL 判断(符合「不可枚举留 AI」)。
+
+### 验证
+- `test_v8100_planning_check_panorama_before_ws` 加断言(checklist 含「并行」)· pytest **3 failed / 500 passed**(baseline 3 = scan-spec 既有 · 零回归)。
 
 ## v8.103 · 外部 claude 评审 hermetic 化(`--bare` 跳宿主 MCP/hooks · 治本消费项目 dev-server MCP 卡死)
 

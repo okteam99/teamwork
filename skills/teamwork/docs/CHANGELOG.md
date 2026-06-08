@@ -1,6 +1,25 @@
 # Changelog
 
-> 📦 v8.103 及更早(含 v7/v6/… 旧系统)已归档 → [CHANGELOG-ARCHIVE.md](./CHANGELOG-ARCHIVE.md)。本文件**保留最近 5 版**(每次发布:新增本版 → 若超过 5 版,把最旧的一版迁入归档)。
+> 📦 v8.104 及更早(含 v7/v6/… 旧系统)已归档 → [CHANGELOG-ARCHIVE.md](./CHANGELOG-ARCHIVE.md)。本文件**保留最近 5 版**(每次发布:新增本版 → 若超过 5 版,把最旧的一版迁入归档)。
+
+## v8.109 · 跨文档一致性 sweep(清理 + 4-agent 审计修 v8.100–108 遗留的 conflict/stale/broken-ref)
+
+> 用户:清理(SKILL 命令计数 + reviewer.md liveness carve-out)· 并整体 review 各 md 文件看语义冲突 / 冗余 / 缺失。
+
+### 清理(2 项)
+- `SKILL.md` 命令清单:`10 stage × 2` → `11`(补 diagnose-start/complete 条目)。
+- `claude-agents/reviewer.md`:删 v8.102 liveness carve-out(`review_start.log`)—— v8.106 已删 doc 模式 / Write 工具 · 该 carve-out 已 moot;READ-ONLY 改「不写任何文件 · 经 stdout 返回」· stdin→argv。
+
+### 审计(4 并行 agent 扫 SKILL/planning · stages · standards/roles · templates)→ 修 conflict/stale/broken-ref
+- **v8.107 diagnose 接线漏修**:`dev-stage.md`(§1 加 Bug 读 diagnose 的 BUG 报告为输入 · §5/Output 改「dev 追加 §回归测试/§修复记录 · 不重写根因/方案」)· `FLOWS.md` Bug 链补 diagnose · `bug-report.md` `current_stage` enum 换 v8 BUG_FLOW(删 defunct triage 枚举)+ body 段对齐(根因/方案=diagnose · §回归测试=dev · 删复杂度评估/PMO 流程判断)· `roles/rd.md` + `SKILL.md` 授权暂停点 Bug 行加 diagnose。
+- **v8.106/108 external-review 接线漏修**:`external-model-usage.md §一`(claude 路径删 doc 模式/liveness/--allowedTools → 纯 claude -p)· §11.2 加 honest-degrade 黑名单例外 · §11.4 修 broken ref `7.x→11.x` + subagent 反模式区分伪装 vs §11.5 诚实降级 · §11.3 决策树降级优先 · `review-stage.md §4` 删 liveness bullet。
+- **v8.100/101/104 planning 接线**:`prepare.md` 死术语 `panorama-design`→「UI 全景初步规划」(3 处)· `feature-planning.md`「只产 3 文档」→ WS+preview-project · `PRODUCT-OVERVIEW`/`roadmap.md` launch_order→execution_waves + WS/ROADMAP 波次权威关系。
+- **broken-ref / stale**:`workstream.md`/`workstream-readme.md`「§ 进度统计」→「§ 规划状态」· `external-reviewer.md` `{review_id}.md`→`<stage>-<model>.md`(合 §11.2)+ host-aware 异质 · `templates/README.md` knowledge「3 类含 Conventions」→ 4 类(Conventions 已迁 DEV-RULES)+ 补 pending/dev-rules 行 · `agents/README.md §三` 加「权威已迁 §11」指针。
+- **去版本标**(违 v8.98 spec 写作约定):清掉近期加到 SKILL/prepare/feature-planning/teamwork-space-guide 的 `(v8.10x)` inline 标。
+
+### 验证
+- 残留 grep(panorama-design / 旧 liveness / § 进度统计 section-ref)= 0 · doc-only · pytest **3 failed / 503 passed**(baseline 3 = scan-spec · 零回归)。
+- 余(cosmetic · 不阻塞):external-model-usage §二/§十 编号跳号 · ui.md/config.md 旧版本标 · state.py vestigial `review_start.log` 读(无害)。
 
 ## v8.108 · 外部评审降级策略统一改 subagent(不 exec · 降级而不是去掉 · 满足门禁)
 
@@ -77,24 +96,3 @@
 
 ### 验证
 - doc-only · pytest **3 failed / 500 passed**(baseline 3 = scan-spec 既有 · 零回归)。
-
-## v8.104 · WS 规划完成给「执行顺序与并行建议」(波次 + 哪些可并行 · 作为 WS 文档一部分)
-
-> 用户:workstream 规划完成后,需要给出并行执行建议,列出建议的执行顺序、哪些需求可并行,作为 WS 文档的一部分。
-
-### 背景:WS 只有 flat launch_order · 不 surface 并行
-- WS 此前仅 frontmatter `launch_order`(线性拓扑)+ per-feature `dependencies` · 不显式说「哪些可并行」。ROADMAP 模板早有 Wave/并行度,但那是 **per-子项目**;WS 才是**跨子项目**依赖全景所在 —— 并行编排该落 WS(用户判断正确)。
-
-### 改动(doc-only · 仍是 PL 判断 · 不进 state.py 自动算)
-- **`templates/workstream.md`**:
-  - frontmatter 加 `execution_waves`(结构化:每 wave = 一组可并行 feature + `after` 前置)· `launch_order` 注明降级为线性回退。
-  - body 加 **§执行顺序与并行建议**:波次表(可并行 feature / 前置 / 约束)+ 🔴 **DAG 之外的额外串行约束**(同改面防 merge 冲突 / 跨子项目 provider→consumer 方向 / 带宽 ≤3)+ 与 ROADMAP Wave 关系(WS=跨子项目权威 · ROADMAP=本地视图)。
-  - 完成标准 +③、设计要点 +7:规划完成必给并行建议。
-- **`docs/feature-planning.md` Step 6**:拆完 WS 必算波次 + 标额外串行约束。
-- **`tools/state.py` planning-check**:WS checklist 项加「执行顺序与并行建议(波次)」。
-
-### 为什么不进 state.py 自动算
-- 波次的**逻辑层**可由 `dependencies` DAG 算,但**同改面 / 跨子项目方向 / 带宽**是 judgment(依赖字段不含)· 纯 DAG 自动算会误导 → 留 PL 判断(符合「不可枚举留 AI」)。
-
-### 验证
-- `test_v8100_planning_check_panorama_before_ws` 加断言(checklist 含「并行」)· pytest **3 failed / 500 passed**(baseline 3 = scan-spec 既有 · 零回归)。

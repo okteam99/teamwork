@@ -1,6 +1,6 @@
 ---
 name: teamwork
-version: v8.108.1
+version: v8.109
 description: AI 协作开发一体化框架 · /teamwork 启动
 ---
 
@@ -126,11 +126,12 @@ A 类 · 状态机入口(用户确认 worktree 后 · 在 worktree 内运行)
 (triage 是 PMO 入口行为 · 不是 state.py 命令 · 见 SKILL.md § Triage 入口规范)
 (prepare 是 PMO 主对话子流程 · 不是 state.py 命令 · 见 docs/prepare.md)
 
-B 类 · Stage 流转(10 stage × 2 + 4 fix/retry + ship-phase + ship-finalize)
+B 类 · Stage 流转(11 stage × 2 + 4 fix/retry + ship-phase + ship-finalize)
 ├── goal-start / goal-complete
 ├── ui_design-start / ui_design-complete (optional · --needs-ui)
 ├── blueprint-start / blueprint-complete
 ├── blueprint_lite-start / blueprint_lite-complete (敏捷需求 only)
+├── diagnose-start / diagnose-complete (Bug only · 根因细查+修复方案 · 用户确认后才进 dev)
 ├── dev-start / dev-complete
 ├── review-start / review-complete (--verdict APPROVE|NEEDS_REVISION) + review-fix / review-retry
 ├── test-start / test-complete (--integration/e2e-test-exit-code) + test-fix / test-retry
@@ -281,7 +282,7 @@ session 启动 `bootstrap.py` emit `checks.skill_update_check` + `flow_gates[]`(
 - `prepare_check_required_before_init_feature`(常驻)→ mode B 走 prepare(详 § Mode B 移交)
 - `product_overview_planning_spec_required`(项目有 `product-overview/`)→ 规划类任务先跑 `state.py planning-check`(详 [docs/feature-planning.md](./docs/feature-planning.md))
 - `cold_start_workspace_uninitialized`(项目无 `teamwork-space.md`)→ 🔴 **冷启动引导**:
-  - 🔴 **权威冷启动顺序**:`product-overview`(产品规划 · PL 引导模式)→ ✅确认 → 派生 `teamwork-space.md`(工作区全景)→ Feature Planning(拆 ROADMAP)→ Feature 状态机。**teamwork-space.md 不是 Feature Planning 产出的** —— 它由 product-overview「✅ 已确认」内容派生([PRODUCT-OVERVIEW-INTEGRATION.md](./PRODUCT-OVERVIEW-INTEGRATION.md))· **别再指用户"进 Feature Planning 生成 teamwork-space.md"**  - **bare `/teamwork` / mode D 无具体任务** → 🔴 **不当静默看板** · 这是最该引导的时刻 · 首条响应 emit 下方 R5 暂停点(即便项目已有 PROJECT/ROADMAP · 说明跳过了上游产品规划 · 仍 surface「product-overview + teamwork-space.md 缺失」· 不降级成脚注)
+  - 🔴 **权威冷启动顺序**:`product-overview`(产品规划 · PL 引导模式)→ ✅确认 → 派生 `teamwork-space.md`(工作区全景)→ Feature Planning(涉 UI 先出全景初步规划 → 拆 WS / ROADMAP)→ Feature 状态机。**teamwork-space.md 不是 Feature Planning 产出的** —— 它由 product-overview「✅ 已确认」内容派生([PRODUCT-OVERVIEW-INTEGRATION.md](./PRODUCT-OVERVIEW-INTEGRATION.md))· **别再指用户"进 Feature Planning 生成 teamwork-space.md"**  - **bare `/teamwork` / mode D 无具体任务** → 🔴 **不当静默看板** · 这是最该引导的时刻 · 首条响应 emit 下方 R5 暂停点(即便项目已有 PROJECT/ROADMAP · 说明跳过了上游产品规划 · 仍 surface「product-overview + teamwork-space.md 缺失」· 不降级成脚注)
   - **mode B execute** → 首条响应 emit 同一 R5 暂停点(执行前先问要不要补产品规划上游)
   - **mode A/E** query/discuss → 轻提一句(可选)· 不强暂停
   - **mode C** resume(已有 state.json 续作)→ silent skip(不打扰)
@@ -339,7 +340,7 @@ prepare 子流程动作概览:流程类型识别(§2.1/§2.2 扫信号)→ workt
 
 ### 待规划需求池(命中查询意图时扫描)
 
-🔴 **触发条件**:mode A query 关键词命中以下任一时 · PMO **按需读** `product-overview/PENDING.md`(🔴 v8.101 外置 · 不再随 session 入口 silent-read)· 列 status=📝/🔄 的项:
+🔴 **触发条件**:mode A query 关键词命中以下任一时 · PMO **按需读** `product-overview/PENDING.md`(外置 · 不随 session 入口 silent-read · 命中 backlog 查询才读)· 列 status=📝/🔄 的项:
 - "待做 / 待规划 / pending / backlog / 待办"
 - "还有什么 / 还要做 / 接下来做什么 / 下一个"
 - "看下池子 / 看下待规划"
@@ -408,7 +409,8 @@ emit 格式:
 |---|---|
 | **Feature** | ① prepare 4 项配置 → ② goal PRD 最终确认 → ③ ui_design UI 预览确认(若 --needs-ui) → ④ blueprint DB schema 变更确认(条件 · 见下) → ⑤ pm_acceptance 三选项 → ⑥ ship Phase 1 等平台合并 |
 | **敏捷需求** | ① prepare 4 项配置 → ② goal PRD 最终确认 → ③ pm_acceptance 三选项 → ④ ship Phase 1 |
-| **Bug / Micro** | ① prepare 4 项配置 → ② pm_acceptance 三选项 → ③ ship Phase 1 |
+| **Bug** | ① prepare 4 项配置 → ② **diagnose 修复方案确认**(根因+方案 · 用户拍板才进 dev) → ③ pm_acceptance 三选项 → ④ ship Phase 1 |
+| **Micro** | ① prepare 4 项配置 → ② pm_acceptance 三选项 → ③ ship Phase 1 |
 
 📎 **blueprint DB schema 条件暂停点**:Feature 的 TECH 方案涉及**数据库数据结构变更**(新建/删除/修改 表、字段、索引、约束、migration)时 · blueprint-complete 前必 emit 用户确认暂停点(详 [stages/blueprint-stage.md § 7.5](./stages/blueprint-stage.md))· 不涉及则跳过。**敏捷需求 / Bug / Micro** 不应涉及 DB 数据结构变更(属架构性 · 命中则按 prepare §2.2 升 Feature)。
 📎 stage 间(goal-complete→ui_design / dev→review 等)是 state.py **自动流转** · 非暂停点 · 不插确认。

@@ -8,6 +8,7 @@
 读必读 artifact(brief 末尾给绝对路径):
 - PRD.md(AC + 边界)
 - TECH.md(技术方案 · Bug 流程跳过)
+- 🔴 **flow_type=Bug**:读 `bugfix/BUG-*.md`(diagnose 阶段已产出并**经用户确认**的 §根因 + §修复方案)= 本阶段**权威输入** · 按确认的方案写 fix(详 [diagnose-stage.md](./diagnose-stage.md))
 - TC.md(测试用例 · QA 起草)
 - UI.md + preview/*.html(若 ui_design 完成)
 - 🔴 `project-specs/DEV-RULES.md`(存在则**必读** · 本项目强制开发规范:分层 / 命名 / 错误处理 / 依赖方向 / 测试策略 / 风格)· 实现**须遵守**(不存在 → skip · 人维护 doc 可能未建)
@@ -48,10 +49,10 @@
 - [ ] commit message 含 Feature ID
 - [ ] 改动文件全在 commit changeset 内
 
-### 5. Bug fix 报告(flow_type=Bug 时)
-落 `{Feature}/bugfix/BUG-XXX.md`:
-- frontmatter:`bug_id` / `symptom` / `root_cause` / `fix_summary`
-- body:§现象描述(重现步骤)/ §根因分析 / §修复方案 / §回归测试
+### 5. Bug fix 报告(flow_type=Bug 时 · 🔴 §现象/§根因/§修复方案 diagnose 已写并确认 · 不重写)
+在 diagnose 已创建的 `bugfix/BUG-*.md` **追加** dev 产出:
+- §回归测试(原 bug 不复发 + 周边无新错)+ §修复记录(按已确认的 §修复方案写 fix · 偏离方案要回 diagnose 复议)
+- 🔴 **不重写 §根因/§修复方案**(那是 diagnose 经用户确认的产物)· 真发现根因判错 → `jump-to-stage --to diagnose` 复议
 
 ### 6. dev-complete(必传测试 evidence)
 ```
@@ -118,7 +119,7 @@ state.py 校验:
 - `--test-exit-code 0` 必传 · 必 = 0
 
 ### Bug fix 报告(flow_type=Bug)
-- `{Feature}/bugfix/BUG-XXX.md` frontmatter 4 字段 + body 4 段
+- `bugfix/BUG-*.md`(diagnose 已建 · 含 §根因/§修复方案)· dev **追加** §回归测试 + §修复记录(不重写根因/方案)
 
 ---
 

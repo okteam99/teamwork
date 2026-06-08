@@ -17,8 +17,7 @@ AC 逐条对照实现 / 测试覆盖度 / 边界场景
 ### 4. External cross-review → external-cross-review/review-<model>.md
 **跑** `state.py external-review --feature <path> --stage review`(host/model/profile 全自动 · 异质性硬约束物理墙 · 至少 1 份 · P0-154)。详 [standards/external-model-usage.md §十一](../standards/external-model-usage.md)。
 
-🔴 **同步 · 慢 · 别提前 kill**:external-review **同步阻塞**跑(timeout 600s)· 真实评审常 **30s–3min**(模型并发 / 限流时更久 · `claude -p` 会静默无输出)。**前台跑、耐心等满 600s · 不要中途 kill**。
-- **liveness 信号**:claude doc 模式下 reviewer 启动后会先在 feature 目录写 `review_start.log`(时间戳)证明在工作 —— 后台轮询看到它出现 = 模型正常,继续等;一直没出现才是真没响应。state.py 跑完把它读进 `liveness_confirmed_at` 并清理。
+🔴 **同步 · 慢 · 别提前 kill**:external-review **同步阻塞**跑(timeout 600s · claude 路径 = 纯 `claude -p <自包含 prompt>` 一次性生成 · 无工具 / 无 doc 模式 / 无 liveness 文件)· 真实评审常 **30s–3min**(模型并发 / 限流更久 · `claude -p` 会静默无输出)。**前台跑、耐心等满 600s · 不要中途 kill**。
 - **真超时 / 空输出 = `verdict: FAIL`(门禁未达)· 不是放行**:🔴 **禁止**伪造 `tool_error` 文件、或把 external 自列进 REVIEW.md `reviewers` 当通过。按 FAIL 的 hint 串行重跑(并发会限流);仍不行 → 报因给用户,**不得**绕过 P0-154。
 - **异质客观不可用(未装/未登录/配额满·已重试失败)→ 降级 subagent 自审(v8.108 · 降级优先于移除)**:`state.py external-review ... --self-review-fallback --reason '<原因+重试证据>'` → **emit subagent 配方**(🔴 不再 exec CLI · PMO 起 `Agent` subagent 同模型自审 · harness 内跑 · 治本 exec 反复出认证/卡死)→ 写 `external-cross-review/<stage>-<model>-subagent-degraded.md`(frontmatter `heterogeneous:false degraded:true degraded_mode:subagent-fallback degraded_reason:'...'`)· **满足 P0-154**(降级 · 让你继续)· 非异质 · 同盲点。能修环境就重跑真异质;🔴 **绝不偷偷**用 subagent 冒充异质(必显式标 degraded)。详 [standards/external-model-usage.md §11.5](../standards/external-model-usage.md)。
 

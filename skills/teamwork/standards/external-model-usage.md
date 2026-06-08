@@ -12,8 +12,8 @@
 
 ```
 1. 只读约束：外部模型只能读代码 · 不写代码库 · 不能执行命令
- ├── codex 路径：物理拦截 · 所有 codex profile sandbox_mode = "read-only"（写被 sandbox 挡 · 无 liveness 文件）
- └── claude doc 模式：唯一例外 = 启动写 `review_start.log`（liveness 信号 · 非评审产物 · `--allowedTools Write` 限范围 + state.py 跑完清理）· 其余一律不写
+ ├── codex 路径：物理拦截 · 所有 codex profile sandbox_mode = "read-only"（写被 sandbox 挡）
+ └── claude 路径（纯 `claude -p` · 无工具 / 无 `--bare`）：评审结果经 **stdout** 返回 · **不写任何文件**（与 codex read-only 对称 · 评审产物由主对话 PMO 落盘）
 
 2. 评审角色约束：外部模型在 teamwork 中**只承担评审角色**
  ├── reviewer.toml（代码评审）/ blueprint-reviewer.toml（蓝图评审）/ prd-reviewer.toml（PRD 评审）
@@ -188,6 +188,8 @@ codex-agents/*.toml 必须满足：
 - `external-review.md`(模糊 · 无白名单字面)
 - frontmatter `review_model: claude-opus-4-isolated-context`(命中黑名单)
 
+🟢 **例外 · 诚实降级(v8.108)**:frontmatter 含 `degraded:true` + `heterogeneous:false` + `degraded_mode:subagent-fallback` 的降级文件 —— 文件名/标记**可含** `subagent`/`claude`(如 `review-claude-subagent-degraded.md`)· 门禁**先认 degraded marker 放行**(不落黑名单 · 详 §11.5)。🔴 **无** degraded marker 的 subagent/claude 文件仍 BLOCK(F034 伪装)—— 区别在「显式标 degraded 诚实承认非异质」vs「冒充异质」。
+
 state.py 在 `<stage>-complete` evidence 校验时物化拦截 · 详 `_evidence_external_review_artifact`(_v8_stage_specs.py)。
 
 ### 11.3 PMO 调用前必做(防 F034 反模式)
@@ -195,10 +197,11 @@ state.py 在 `<stage>-complete` evidence 校验时物化拦截 · 详 `_evidence
 ```
 Step 1:`which codex`(/ gemini / 其他白名单 CLI)
         ├── ✅ 在 → 跑(走合规 §三 架构)
-        └── ❌ 不在 → STOP 问用户:
-              "external review 候选 CLI 都不在(已查 codex/gemini/...) ·
-               请提供 ① 安装哪个 / ② change-review-roles 移除 external(留 audit)"
-              · 绝不 substitute(不用 Agent subagent 自审)
+        └── ❌ 不在 → 三选一(🔴 降级优先于移除 · 详 §11.5):
+              ① 🟢 降级:`--self-review-fallback --reason '...'` → subagent 同模型自审(满足门禁 · 标 degraded)
+              ② 装异质 CLI 恢复真异质
+              ③ `change-review-roles` 移除 external(最后手段 · 留 audit)
+              · 🔴 绝不**偷偷** substitute(subagent 冒充异质)· 必走 ① 显式标 degraded
 
 Step 2:跑前 cite 上游 Feature 1 个范例(grep F033/external-cross-review/*codex*)
         · 验证范式一致(文件命名 / frontmatter / verdict 结构)
@@ -210,10 +213,10 @@ Step 3:跑命令 · 落 *-codex.md / *-gemini.md / 等真异质模型文件
 
 | 反模式 | 案例 | 治本 |
 |---|---|---|
-| Agent subagent 当 external 自审 | F034 PRD/TECH/Code 3 阶段 fall(2026-05-24)| 7.2 文件名校验 BLOCKED |
-| 透明 frontmatter 伪装合规 | `review_model: claude-isolated` 自承"不达标"但仍提交 | 7.2 frontmatter 校验 BLOCKED |
-| 看到工具不在就 substitute | "/codex 是 user-only skill 不能 invoke → 用 Agent 起" | 7.3 必先 `which` · 不在 stop |
-| 没 cite 上游 Feature 范式 | F033 既有 `*-codex.md` 在 worktree 内 · F034 没 grep | 7.3 跑前 cite 范例 |
+| subagent **冒充异质**(无 degraded marker)| F034 PRD/TECH/Code 3 阶段 fall(2026-05-24)| 11.2 文件名校验 BLOCKED(🟢 诚实降级 subagent 带 marker 合规 · 见 §11.5)|
+| 透明 frontmatter 伪装合规 | `review_model: claude-isolated` 自承"不达标"但仍提交 | 11.2 frontmatter 校验 BLOCKED |
+| 看到工具不在就 substitute / 直接移除 | "/codex 不能 invoke → 用 Agent 起" 冒充异质 | 11.3 必先 `which` · 不在 → §11.5 降级优先(subagent · 非只能 stop/移除)|
+| 没 cite 上游 Feature 范式 | F033 既有 `*-codex.md` 在 worktree 内 · F034 没 grep | 11.3 跑前 cite 范例 |
 
 ### 11.5 降级策略 = subagent(🔴 不 exec · 降级而不是去掉)
 

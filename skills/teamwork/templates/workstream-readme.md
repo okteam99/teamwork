@@ -2,7 +2,7 @@
 
 > 本目录存放本项目的 **Workstream（WS）** —— feature-planning 流程的产物。
 > 每个 WS = 一块规划（一个能力 / 变更）→ 拆一组 feature 写进各子项目 ROADMAP。
-> 🔴 本 README 是**静态向导**，不是看板 —— WS 状态汇总进 `teamwork-space.md § 进度统计`。
+> 🔴 本 README 是**静态向导**，不是看板 —— WS 状态汇总进 `teamwork-space.md § 规划状态`。
 
 ## 这里放什么
 

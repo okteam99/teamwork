@@ -18,7 +18,7 @@ classification: simple | complex # PMO 在 Bug 流程判断后填入
 flow_type: bug # 固定值（与 feature 区分）
 
 # 状态机字段
-current_stage: triage | rd_diagnosis | pmo_classification | qa_test_supplement | rd_fix | architect_cr | qa_verify | pm_doc_sync | pmo_summary | ship | completed
+current_stage: diagnose | dev | review | test | pm_acceptance | ship | completed   # = state.py BUG_FLOW(v8.107:首 stage diagnose · 根因细查+修复方案确认)
 completed_stages: [] # 已完成阶段列表
 phase: in_progress | summarized | shipping | shipping_finalize | shipped # 端到端 phase
 started_at: "<ISO 8601 UTC>"
@@ -88,33 +88,35 @@ planned_execution: {} # 各 Stage 的 Execution Plan 历史
 
 ---
 
-## 根因分析（RD 填写）
+> 🔴 §问题描述 + §复现步骤 = 现象(diagnose 阶段锁定 · 可复现)。
+
+---
+
+## 根因分析（diagnose 阶段产出 · 🔴 深读代码挖真因 · 非表面猜测）
 
 ### 相关代码
 | 文件 | 行号 | 问题描述 |
 |------|------|----------|
 | | | |
 
-### 问题原因
-[技术层面的原因描述]
+### 根因（真因 · 非症状）
+[技术层面的真因:哪行 / 哪个调用 / 哪个字段 / 为什么 · 🔴 区分症状 vs 根因(改症状会复发)]
 
 ### 调用链路
 \`\`\`
-[入口] → [模块A] → [模块B] → [问题点]
+[入口] → [模块A] → [模块B] → [真因点]
 \`\`\`
 
 ---
 
-## 修复方案（RD 填写）
+## 修复方案（diagnose 阶段产出 · 🔴 用户确认后才进 dev · 本阶段不写 fix 码）
 
 ### 方案描述
-[如何修复这个问题]
+[改哪 / 怎么改 / 取舍 / 影响面;多候选方案列出 + 推荐]
 
 ### 修复层级
-- [ ] 🟢 根因修复（修复问题的根本原因）
-- [ ] 🟡 症状修复（仅处理表面症状，未修复根因）
-
-> 若选择症状修复，必须说明原因：[为何不做根因修复？是否有后续计划？]
+- [ ] 🟢 根因修复（修复根本原因）
+- [ ] 🟡 症状修复（仅表面 · 必说明原因 + 后续计划）
 
 ### 修改范围
 | 文件 | 修改类型 | 说明 |
@@ -122,39 +124,21 @@ planned_execution: {} # 各 Stage 的 Execution Plan 历史
 | | 新增/修改/删除 | |
 
 ### 影响评估
-- [ ] 是否影响其他功能
-- [ ] 是否需要数据迁移
-- [ ] 是否需要更新文档
+- [ ] 是否影响其他功能 · [ ] 是否需数据迁移 · [ ] 是否需更新文档
+
+> 📋 复杂度 = frontmatter `classification`(simple / complex)· 进入流程时定。入口**恒为 diagnose**(无需"起点阶段"判断)· complex Bug 升 Feature 流程见上方「复杂 Bug 例外」。
 
 ---
 
-## 复杂度评估（RD 填写）
+## 回归测试（dev 阶段产出）
 
-| 评估项 | 结果 | 说明 |
-|--------|------|------|
-| 修改文件数 | X 个 | |
-| 是否涉及 UI | 是/否 | |
-| 是否涉及架构 | 是/否 | |
-| 是否需求偏差 | 是/否 | |
-| **使用流程** | 简单 Bug 流程 / 复杂 Bug 流程 | |
+[原 bug 不复发的测试 + 周边无新错 · 对应 §修复方案 · dev 按已确认方案写 fix 时一并补]
 
 ---
 
-## PMO 流程判断
+## 修复记录（dev 阶段 · fix 落地后填）
 
-**RD 建议**：简单 Bug / 复杂 Bug
-**PMO 判断**：✅ 同意 / ⚠️ 调整为 [XXX]
-**流程路径**：简化流程 / 完整流程
-**起点阶段**：[从哪个阶段开始]
-
----
-
-## 修复记录（修复后填写）
-
-**修复时间**：
-**修复人**：
-**提交 hash**：
-**QA 验证**：✅ 通过 / ❌ 未通过
+**修复时间**： · **提交 hash**： · **QA 验证**：✅ 通过 / ❌ 未通过
 
 ---
 

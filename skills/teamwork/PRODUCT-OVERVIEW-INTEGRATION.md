@@ -197,7 +197,7 @@ Level 3 变更      → 先更新业务架构 → ✅确认 → 起 WS 落地
 
 第四层 · 收尾
 ├── WS-NN.md 记「变更日志」· teamwork-space 进度统计该 WS 转「规划完成」（从未完成 WS 计数移除）
-└── ⏸️ 最终确认 → 逐个启动新增/修改的 Feature（按 WS 内 launch_order · prepare + init-feature）
+└── ⏸️ 最终确认 → 逐个启动新增/修改的 Feature（按 WS 内 execution_waves 波次 / launch_order · prepare + init-feature）
 ```
 
 **🔴 级联规则强制约束**：

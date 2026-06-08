@@ -2,7 +2,7 @@
 
 > 本文件是 `teamwork-space.md` 的**维护行为规范** —— 规则 / 生命周期 / 字段语义 / 硬约束。
 > 🔴 模板 [templates/teamwork-space.md](../templates/teamwork-space.md) 只放**实例化骨架**(项目里那份);本文件放"AI 怎么维护它"(不进用户项目)。
-> v8.50 解耦:模板瘦身,规则外迁本文件,避免实例化的 teamwork-space.md 臃肿、违背它自己的"≤1 行一眼看懂"原则。
+> 模板↔规则解耦:模板瘦身,规则外迁本文件,避免实例化的 teamwork-space.md 臃肿、违背它自己的"≤1 行一眼看懂"原则。
 
 ---
 
@@ -17,7 +17,7 @@
 
 - teamwork-space 的**上游输入** · 状态同步自 product-overview 文档头部规划状态表 · 🔴 仅「✅ 已确认」内容才驱动子项目规划。
 - 规划状态含义:📝 初创未讨论 → 🔄 有活跃议题讨论中 → ✅ 用户确认可作执行依据。
-- 🔴 v8.49:执行手册已废弃(执行线移入业务架构「执行线列表」)· Workstream 落 `product-overview/workstream/WS-NN.md` · 老 `执行手册.md` 向前兼容 · 无 product-overview/ 可省本章。
+- 🔴 执行手册已废弃(执行线移入业务架构「执行线列表」)· Workstream 落 `product-overview/workstream/WS-NN.md` · 老 `执行手册.md` 向前兼容 · 无 product-overview/ 可省本章。
 
 ## 2. § 规划状态
 
@@ -60,7 +60,7 @@
 ## 7. § 跨项目变更与历史
 
 - 🟢 本文件**不维护变更类表格**(结构静态描述 · 非事件日志/看板)。
-- **规划/阻塞/历史单源(v8.49 · WS)**:
+- **规划/阻塞/历史单源(WS)**:
   - 🔴 活跃规划(WS · 状态/拆解/承接执行线/影响子项目/拆出 feature/launch_order/风险)→ `product-overview/workstream/WS-NN.md` frontmatter + 「变更日志」(schema 见 [templates/workstream.md](../templates/workstream.md))。
   - 🔴 当前阻塞 → 对应 `workstream/WS-NN.md`「风险与缓解」段 / 单 Feature `state.concerns`。
   - 🔴 Feature 级事件(Stage/Ship/评审)→ Feature `state.json` + `review-log.jsonl` + git log。
