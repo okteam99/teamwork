@@ -1,10 +1,28 @@
-# Changelog Archive(v8.104 → v1)
+# Changelog Archive(v8.105 → v1)
 
-> 📦 **历史归档**:本文件保存 teamwork **v8.104 及更早**的全部 changelog(含 v7/v6/…/v1 等 v8.0 之前的旧系统)· 仅供追溯,**不再维护**。
-> 现行 changelog(最近 5 版 · v8.105–v8.109)见 [CHANGELOG.md](./CHANGELOG.md)。
+> 📦 **历史归档**:本文件保存 teamwork **v8.105 及更早**的全部 changelog(含 v7/v6/…/v1 等 v8.0 之前的旧系统)· 仅供追溯,**不再维护**。
+> 现行 changelog(最近 5 版 · v8.106–v8.110)见 [CHANGELOG.md](./CHANGELOG.md)。
 > ⚠️ v8.0 是「范式切换 · 不向下兼容」的重构 —— **v7 及更早描述的是已不存在的旧系统**,其机制/命令/红线编号均不适用于现行 v8。
 
 ---
+
+## v8.105 · external review 消费侧规则:「信号 ≠ 判决」逐条裁决(治本 AI 盲采异质评审被误导)
+
+> 用户(/loop):AI 对异质模型评审的内容倾向于相信,可能会被误导,是否需要优化规则。
+
+### 诊断:规则有不对称 —— 合规侧重 · 消费侧空
+- §十一 大力确保 review 真异质(反替身 / 文件名墙 / 反鼓掌);但**怎么消费 reviewer 说的**几乎无规则 —— 仅 review-stage 一行「Architect 别盲采」(范围窄)。
+- 后果:AI 默认**相信**异质 review(语气笃定 + 当门禁跑)→ 被误导。但真异质 reviewer **没本项目上下文**(不懂 DEV-RULES / 不知 intentional 设计 / 会 hallucinate)→ 照单全收 = import 外部模型的误判。
+
+### 改法(doc-only · 加消费侧规则)
+- **`standards/external-model-usage.md` 新 §十二「消费侧:external review 是信号不是判决」**:
+  - **裁决三态**(每条 finding 落其一 · 带依据):`confirmed`(核实真问题 → 修)/ `rejected`(false positive / 误解 intentional / 冲突 DEV-RULES → 不修 · 🔴 必记驳回依据)/ `deferred`(范围外 → PENDING)。
+  - **两头都是反模式**:盲采(over-trust · 默认倾向 · import 误判/churn/regression)❌ · 盲驳(under-trust · 全 dismiss 让它过 · 异质 review 白跑)❌ · 裁决(带依据)✅ · **举证责任在主对话**。
+  - **grounded 实际代码**:finding 是待核实断言 · 回读真实代码/AC/DEV-RULES 自己确认 · 不轻信 reviewer 转述 · 与 DEV-RULES 冲突 → DEV-RULES 优先 · 通用于代码/PRD/blueprint review。
+- **`stages/review-stage.md` §5 汇合**:加「逐条裁决 external finding」段 + cite 表 row 5 指 §十二。
+
+### 验证
+- doc-only · pytest **3 failed / 500 passed**(baseline 3 = scan-spec 既有 · 零回归)。
 
 ## v8.104 · WS 规划完成给「执行顺序与并行建议」(波次 + 哪些可并行 · 作为 WS 文档一部分)
 

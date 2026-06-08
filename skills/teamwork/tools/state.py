@@ -3192,29 +3192,14 @@ def cmd_external_review(args: argparse.Namespace) -> None:
             prompt_text, feature_dir=feature_dir, stage=args.stage,
             prompt_doc=prompt_doc)
 
-    # v8.85:claude doc 模式 reviewer 会先写 review_start.log(时间戳)证明在工作 ·
-    # 读取作 liveness 留痕 + 清理(不污染 feature 目录)· codex 路径无此文件(read-only sandbox)
-    liveness_at = None
-    _rsl = feature_dir / "review_start.log"
-    if _rsl.exists():
-        try:
-            liveness_at = (_rsl.read_text(encoding="utf-8").strip()[:80] or "present")
-        except OSError:
-            liveness_at = "present"
-        try:
-            _rsl.unlink()
-        except OSError:
-            pass
-
     if rc != 0:
-        # v8.85:liveness 区分「模型从未响应」vs「启动了但没跑完(慢/限流)」
-        if liveness_at:
-            live_hint = (f"reviewer 已写 review_start.log({liveness_at})· 即模型**已启动但未跑完** · "
-                         f"多半是慢 / 限流 · 直接重跑(并发跑多个 claude 会限流 · 串行重试)· "
-                         f"🔴 切勿伪造 tool_error 文件或自列 external 通过门禁")
-        else:
-            live_hint = (f"无 review_start.log · 模型**可能从未响应** · 查 ① 网络 / token"
-                         f"(setup-token / OAuth)· ② {cli_name} --version · ③ 是否并发限流 · 再重跑")
+        # v8.106:纯 claude -p(无工具)/ codex read-only · 无 liveness 文件 · 失败即模型未跑通
+        live_hint = (
+            f"{cli_name} 执行失败 · 查 ① 网络 / token(setup-token / OAuth)· "
+            f"② {cli_name} --version · ③ 是否并发限流(串行重试)· 再重跑。"
+            f"🔴 切勿伪造 tool_error 文件或自列 external 通过门禁;"
+            f"异质客观不可用(已重试失败)→ --self-review-fallback(subagent 降级 · 详 standards §11.5)"
+        )
         emit({
             "verdict": "FAIL",
             "command": "external-review",
@@ -3224,7 +3209,6 @@ def cmd_external_review(args: argparse.Namespace) -> None:
             "model": model,
             "cli_exit_code": rc,
             "cli_stderr": stderr[:500],
-            **({"liveness_confirmed_at": liveness_at} if liveness_at else {}),
         })
         return
 
@@ -3400,8 +3384,6 @@ def cmd_external_review(args: argparse.Namespace) -> None:
             if model == "claude" and prompt_doc_used else {}),
         **({"prompt_doc_fallback_warning": fallback_warning}
             if model == "claude" and fallback_warning else {}),
-        # v8.85:claude doc 模式 reviewer 写的 review_start.log 时间戳(liveness 留痕)
-        **({"liveness_confirmed_at": liveness_at} if liveness_at else {}),
     })
 
 

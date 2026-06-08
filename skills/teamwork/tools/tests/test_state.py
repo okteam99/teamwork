@@ -1552,7 +1552,7 @@ class TestExternalReviewCommand(unittest.TestCase):
         self.assertNotIn("--model", captured_cmd)
         self.assertIn("--output-format", captured_cmd)
 
-    # ── v8.85:短 prompt inline / 长 prompt 落 doc + 短 argv + review_start.log liveness ──
+    # ── claude review cmd:纯 `claude -p` inline(v8.106 删 doc 模式 / --bare / liveness)──
 
     def test_v885_short_prompt_inline(self):
         """v8.106:claude 评审只用 `claude -p <prompt> --output-format text` · 无 --bare / --allowedTools · cwd=None。"""
