@@ -37,6 +37,7 @@ LEGAL_STAGES = {
     "panorama_sync",
     "blueprint",
     "blueprint_lite",
+    "diagnose",
     "dev",
     "review",
     "test",
@@ -75,6 +76,7 @@ FEATURE_FLOW: dict[str, list[str]] = {
 }
 
 BUG_FLOW: dict[str, list[str]] = {
+    "diagnose": ["dev"],                 # v8.107:根因细查 + 修复方案 · 🔴 用户确认后才进 dev(防修偏)
     "dev": ["review"],
     "review": ["test", "dev"],
     "test": ["pm_acceptance"],
@@ -577,7 +579,7 @@ def cmd_raw_write(args: argparse.Namespace) -> None:
 
 DEFAULT_INITIAL_STAGE = {
     "Feature": "goal",
-    "Bug": "dev",
+    "Bug": "diagnose",   # v8.107:Bug 先 diagnose(根因细查+修复方案确认)再 dev
     "Micro": "dev",
     "敏捷需求": "goal",  # 敏捷需求 FLOW = goal → blueprint_lite → ... · blueprint_lite-start 前置要 goal 完成
 }
@@ -1202,8 +1204,8 @@ def _init_feature_next_brief(args, initial_stage: str) -> str:
     triage 已确认 worktree · PMO 已显式建 + cd · init-feature 仅创建 state.json。
     所以 brief 直接告知"进下一步" · 不需要再讨论 worktree。
 
-    Bug 流程额外提示:dev-start 物化拦截要求 bugfix/BUG-*.md 必须先存在 ·
-    所以 brief 明示"先起草 BUG 单 · 再 dev-start" · 治本 AI 撞拦截后才补的反模式。
+    Bug 流程额外提示(v8.107):先 diagnose(根因细查 + 修复方案 · 用户确认)再 dev ·
+    diagnose **产出** BUG 报告的 §根因/§修复方案(不是 dev 前置)· 防 fix 修偏。
     """
     wt_note = ""
     if args.worktree_mode == "off":
@@ -1211,14 +1213,17 @@ def _init_feature_next_brief(args, initial_stage: str) -> str:
     else:
         wt_note = f"(worktree_mode={args.worktree_mode} · cwd={Path.cwd()} 已通过 cwd 校验)"
 
-    # Bug 流程前置:起草 BUG 单(治本 dev-start 物化拦截鸡生蛋)
+    # v8.107:Bug 流程先 diagnose(根因细查 + 修复方案确认)· diagnose 产出 BUG 报告 · 用户确认后才进 dev
     pre_stage_action = ""
     if args.flow_type == "Bug":
         pre_stage_action = f"""
-🔴 **Bug 流程前置(在 {initial_stage}-start 之前必做)**:
-   起草 `{Path(args.feature)}/bugfix/BUG-<bug-id>.md`(模板 `templates/bug-report.md`)·
-   含 frontmatter `bug_id/symptom/root_cause/fix_summary` + body §现象/§根因/§修复方案/§回归测试。
-   不起草 → {initial_stage}-start 物化拦截 FAIL。
+🔴 **Bug 流程:先 diagnose(根因细查 + 修复方案)· 用户确认后才进 dev**(治本 fix 修偏):
+   1. `diagnose-start` → 🔴 **深读相关代码做根因细查**(triage/prepare 时读的代码往往不够细 · 必须深挖到真因)
+   2. 写 `{Path(args.feature)}/bugfix/BUG-<bug-id>.md`(模板 `templates/bug-report.md`)·
+      §现象 + §根因(深查实证:哪行/哪个调用/为什么)+ §修复方案(怎么改 · 改哪 · 取舍 · 影响面)·
+      frontmatter `bug_id/symptom/root_cause/fix_summary`
+   3. 🔴 **把 §修复方案 给用户确认**(R5 暂停点)· 用户 ok 后才 `diagnose-complete` → dev
+   4. dev 阶段才按**已确认的方案**写 fix 代码 + §回归测试(不在 diagnose 写 fix 码)
 """
 
     return f"""## init-feature 完成 · 下一步

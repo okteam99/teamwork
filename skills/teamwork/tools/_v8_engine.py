@@ -644,6 +644,7 @@ STAGE_SPEC_FILES = {
     "planning": "planning-stage.md",
     "blueprint": "blueprint-stage.md",
     "blueprint_lite": "blueprint-lite-stage.md",
+    "diagnose": "diagnose-stage.md",
     "dev": "dev-stage.md",
     "review": "review-stage.md",
     "test": "test-stage.md",
@@ -1108,7 +1109,8 @@ FLOW_STAGE_CHAIN: dict[str, list[tuple[str, bool, str, str]]] = {
         ("ship", False, "", "无评审 · PMO 编排"),
     ],
     "Bug": [
-        ("dev", False, "", "无评审 · RD 起草 BUG 报告(模板 templates/bug-report.md)+ 写 fix + commit"),
+        ("diagnose", False, "", "🔴 根因细查(深读代码)+ 修复方案 · 用户确认后才进 dev(防 fix 修偏)· 无评审角色"),
+        ("dev", False, "", "无评审 · RD 按**已确认的修复方案**写 fix + commit(BUG 报告根因/方案 diagnose 已出)"),
         ("review", False, "", "修复方案 Architect + QA + External 把关(防 fix 引入新问题)"),
         ("test", False, "", "QA 验收回归测试(原 bug 不复发 + 周边无新错)"),
         ("pm_acceptance", False, "", "PM 验收(纯 infra/低风险 fix 可加快)"),

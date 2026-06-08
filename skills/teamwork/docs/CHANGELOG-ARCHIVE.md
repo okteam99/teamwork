@@ -1,10 +1,29 @@
-# Changelog Archive(v8.101 → v1)
+# Changelog Archive(v8.102 → v1)
 
-> 📦 **历史归档**:本文件保存 teamwork **v8.101 及更早**的全部 changelog(含 v7/v6/…/v1 等 v8.0 之前的旧系统)· 仅供追溯,**不再维护**。
-> 现行 changelog(最近 5 版 · v8.102–v8.106)见 [CHANGELOG.md](./CHANGELOG.md)。
+> 📦 **历史归档**:本文件保存 teamwork **v8.102 及更早**的全部 changelog(含 v7/v6/…/v1 等 v8.0 之前的旧系统)· 仅供追溯,**不再维护**。
+> 现行 changelog(最近 5 版 · v8.103–v8.107)见 [CHANGELOG.md](./CHANGELOG.md)。
 > ⚠️ v8.0 是「范式切换 · 不向下兼容」的重构 —— **v7 及更早描述的是已不存在的旧系统**,其机制/命令/红线编号均不适用于现行 v8。
 
 ---
+
+## v8.102 · 异质评审 prompt 与 review_start.log liveness 调和(READ-ONLY carve-out 唯一允许写)
+
+> 用户:异质模型评审 prompt 要求"不能写文件",但和 `review_start.log` 的 liveness 记录冲突,优化下。
+
+### 诊断:claude doc 模式下 prompt 自相矛盾
+- v8.85 起 claude doc 模式调用 · state.py argv 让 reviewer「先写 `review_start.log` 时间戳证明在工作」+ 授 `--allowedTools Write Read`(liveness:区分"模型没响应" vs "在跑但慢")。
+- 但 reviewer 读到的 prompt(`claude-agents/reviewer.md`)STRICT CONSTRAINTS 写「不能写文件 · 改文件→Out of scope」—— **严格遵守的 reviewer 会拒写 liveness** → 信号永不出现 → state.py 误判"模型可能从未响应"。
+- codex 路径无此问题:`sandbox_mode=read-only` 物理拦截 · 本就不写 liveness 文件。
+
+### 改法(doc-only · 调和 prompt · 保留 liveness 机制 · 不动 state.py)
+- `claude-agents/reviewer.md` STRICT CONSTRAINTS:`不能写文件` → `不改动代码库`(不改/不新建源码·文档·评审产物)+ 🟢 显式 carve-out「**唯一允许的写 = `review_start.log`**(liveness · 非评审产物 · 写完正常评审 · 除此不写)」· 评审记录明确「经 stdout 返回 · 不落文件」· out-of-scope 行加注「写 liveness 不算'评审之外'」。
+- `standards/external-model-usage.md §一`:只读约束拆 codex(sandbox 物理拦截 · 无 liveness 文件)vs claude doc(唯一例外 `review_start.log` · `--allowedTools Write` 限范围 + 跑完清理)两路。
+- **不动** codex prompt 头(§78-91):codex sandbox 真只读 · "Cannot write files" 正确。**不动** state.py:argv 早已指示写 liveness · 本次只让 prompt 与之一致。
+
+> 🔴 注:v8.106 已删 claude doc 模式 + `--allowedTools` + liveness 机制(回退纯 `claude -p`)· 故本条 liveness carve-out 后续已 moot(reviewer.md carve-out 成无害死引导 · 待后续去噪清)。
+
+### 验证
+- pytest **3 failed / 500 passed**(baseline 3 = scan-spec 既有 · 零回归 · doc-only 无新测试)。
 
 ## v8.101 · 待规划需求池外置 → `product-overview/PENDING.md`(teamwork-space 瘦身 · 只留 1 行指针)
 

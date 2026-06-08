@@ -443,18 +443,105 @@ GOAL_SPEC = StageSpec(
 )
 
 
+# ─── B5.5 · diagnose(仅 Bug · 根因细查 + 修复方案确认 · v8.107)─────────
+
+
+def _check_flow_is_bug(state: dict, args) -> bool:
+    return state.get("flow_type") == "Bug"
+
+
+def _evidence_diagnose_doc(state: dict, args) -> tuple[bool, str]:
+    """diagnose 产出 = bugfix/BUG-*.md 且含根因 + 修复方案(深查实证 · 用户已确认)。
+
+    检查:① bugfix/BUG-*.md 存在 · ② frontmatter root_cause + fix_summary 非空
+    (fix_summary = 修复**方案**摘要 · 不是「已修」· diagnose 阶段还没写 fix 码)。
+    BUG-*.md 动态命名 → 用 evidence_check(非固定路径 artifact)。
+    """
+    feature_dir = Path(args.feature)
+    bug_files = list(feature_dir.glob("bugfix/BUG-*.md"))
+    if not bug_files:
+        return False, (
+            "diagnose 未产出 bugfix/BUG-*.md(模板 templates/bug-report.md)· "
+            "深读代码做根因细查 → 写 §现象/§根因/§修复方案 → 用户确认修复方案后再 diagnose-complete"
+        )
+    f = bug_files[0]
+    fm = parse_frontmatter(f) or {}
+    missing = [k for k in ("root_cause", "fix_summary") if not str(fm.get(k, "")).strip()]
+    if missing:
+        return False, (
+            f"{f.name} frontmatter 缺 {missing}(根因 / 修复方案)· "
+            "diagnose 必须深查真因 + 给出修复方案(改哪 / 怎么改 / 取舍)· 用户确认后才 complete"
+        )
+    return True, ""
+
+
+def _diagnose_brief(state: dict) -> str:
+    return """## Diagnose Stage(Bug · 根因细查 + 修复方案确认)
+
+### 目标
+🔴 **深读相关代码做根因细查**(triage/prepare 时读的代码往往不够细 · 必挖到真因)· 出修复方案 · **用户确认后才进 dev**。治本 fix 修偏。
+
+### 结果(完成判定)
+- `bugfix/BUG-*.md`(模板 templates/bug-report.md)· frontmatter `root_cause` + `fix_summary` 非空
+- §现象(可复现)+ §根因(深查实证:哪行 / 哪个调用 / 为什么 · 非表面猜测)+ §修复方案(改哪 · 怎么改 · 取舍 · 影响面)
+- 🔴 **不在本阶段写 fix 代码**(只查 + 规划 · 写码在 dev)
+
+### 怎么做
+**必读** `stages/diagnose-stage.md`(深读代码方法 + 根因实证 + 修复方案要素 + 用户确认协议)。
+
+### 完成方式(🔴 R5 暂停点:先把 §修复方案 给用户确认 · 用户 ok 才跑)
+```
+state.py diagnose-complete --feature <path> --auto-commit <hash> --artifacts bugfix/BUG-<id>.md
+```
+"""
+
+
+def _diagnose_transition(state: dict) -> Optional[str]:
+    return "dev"
+
+
+DIAGNOSE_SPEC = StageSpec(
+    name="diagnose",
+    prerequisites=[
+        StagePrerequisite(
+            id="flow_type_is_bug",
+            check_fn=_check_flow_is_bug,
+            hint="diagnose 仅 Bug 流程 · 检查 state.flow_type",
+            description="flow_type == 'Bug'",
+        ),
+    ],
+    artifacts=[],  # BUG-*.md 动态命名 → 用 evidence_check 校验(非固定路径 artifact)
+    evidence_checks=[
+        StageEvidenceCheck(
+            name="diagnose_doc",
+            check_fn=_evidence_diagnose_doc,
+            description="bugfix/BUG-*.md 存在 + 根因/修复方案非空(深查 · 用户确认)",
+        ),
+    ],
+    brief_template_fn=_diagnose_brief,
+    auto_transition_fn=_diagnose_transition,
+    allowed_flow_types=["Bug"],
+    authorized_pause_point="diagnose-complete 前 · 🔴 把 §修复方案 给用户确认(R5)· 用户 ok 才 complete → dev",
+)
+
+
 # ─── B6 · dev(完整模板示范) ─────────────────────────────────────────
 
 
 def _check_blueprint_or_alt_done(state: dict, args) -> bool:
-    """blueprint / blueprint_lite output_satisfied 或 Bug/Micro 流程直入"""
+    """dev 准入:blueprint/blueprint_lite output_satisfied · 或 Bug 流程 diagnose 完成 · 或 Micro 直入。
+
+    v8.107:Bug 不再直入 dev —— 必先 diagnose(根因细查 + 修复方案 · 用户确认)· 防 fix 修偏。
+    """
     contracts = state.get("stage_contracts", {})
     if contracts.get("blueprint", {}).get("output_satisfied") is True:
         return True
     if contracts.get("blueprint_lite", {}).get("output_satisfied") is True:
         return True
     flow = state.get("flow_type")
-    if flow in ("Bug", "Micro"):
+    if flow == "Bug":
+        return contracts.get("diagnose", {}).get("output_satisfied") is True
+    if flow == "Micro":
         return True
     return False
 
@@ -525,10 +612,11 @@ DEV_SPEC = StageSpec(
             check_fn=_check_blueprint_or_alt_done,
             hint=(
                 "Feature/敏捷流程:先完成 blueprint(-complete) 或 blueprint_lite(-complete)。"
-                "Bug/Micro 流程:无需 blueprint · 可直入 dev。"
+                "Bug 流程:先完成 diagnose(-complete · 根因细查 + 修复方案确认)· 不再直入 dev。"
+                "Micro 流程:无需前置 · 可直入 dev。"
                 "当前 flow_type / stage_contracts 不满足任一条件。"
             ),
-            description="blueprint 或 blueprint_lite output_satisfied,或 flow_type ∈ {Bug, Micro}",
+            description="blueprint/blueprint_lite output_satisfied · 或 Bug diagnose 完成 · 或 Micro",
         ),
         StagePrerequisite(
             id="prd_or_bug_report_exists",
@@ -2043,6 +2131,7 @@ STAGE_SPECS: dict[str, StageSpec] = {
     "panorama_sync": PANORAMA_SYNC_SPEC,
     "blueprint": BLUEPRINT_SPEC,
     "blueprint_lite": BLUEPRINT_LITE_SPEC,
+    "diagnose": DIAGNOSE_SPEC,
     "dev": DEV_SPEC,
     "review": REVIEW_SPEC,
     "test": TEST_SPEC,

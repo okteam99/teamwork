@@ -1,6 +1,30 @@
 # Changelog
 
-> 📦 v8.101 及更早(含 v7/v6/… 旧系统)已归档 → [CHANGELOG-ARCHIVE.md](./CHANGELOG-ARCHIVE.md)。本文件**保留最近 5 版**(每次发布:新增本版 → 若超过 5 版,把最旧的一版迁入归档)。
+> 📦 v8.102 及更早(含 v7/v6/… 旧系统)已归档 → [CHANGELOG-ARCHIVE.md](./CHANGELOG-ARCHIVE.md)。本文件**保留最近 5 版**(每次发布:新增本版 → 若超过 5 版,把最旧的一版迁入归档)。
+
+## v8.107 · Bug 流程加 `diagnose` 阶段(根因细查 + 修复方案确认 · 用户确认后才进 dev · 治本 fix 修偏)
+
+> 用户(case INFRA-B260606100214):Bug 流程 prepare → ok → dev 一口气写 BUG 报告 + fix + commit · prepare 时读的代码不够细 → 易修偏。需在 dev 前加根因细查 + 修复方案确认(用户确认后才进 dev)。
+
+### 诊断:Bug 流程缺「计划确认」闸
+- Feature 有 goal(PRD)+ blueprint(TECH)在 dev 前确认「what + how」;Bug **直入 dev**,根因/方案是 dev 里(写 fix 时)顺手写的 → 无独立确认闸 → 修偏。
+- 根因细查需**深读代码**:triage/prepare 读的代码只够判流程类型 + 给大致方向 · 不够细。
+
+### 改法:新 `diagnose` stage(Bug 专属 · 插在 dev 前)
+- **新 Bug 链**:`diagnose → dev → review → test → pm_acceptance → ship`(Bug 首 stage 改 diagnose)。
+- **diagnose 产出**:`bugfix/BUG-*.md` 的 §现象/§根因/§修复方案(frontmatter `root_cause` + `fix_summary` 非空)· 🔴 深读代码挖真因 · **不写 fix 码**。
+- **R5 用户确认闸**:diagnose-complete 前必停 · 把修复方案给用户确认 · ok 才 → dev。dev 按**已确认方案**写 fix + §回归测试。
+- **dev 准入**:Bug 现要求 `diagnose` output_satisfied(不再直入)· Micro 仍直入。
+
+### 接线(状态机 + spec + 文档)
+- `state.py`:LEGAL_STAGES + `BUG_FLOW`(diagnose→dev)+ `DEFAULT_INITIAL_STAGE[Bug]=diagnose` + init brief。
+- `_v8_stage_specs.py`:`DIAGNOSE_SPEC`(flow=Bug 准入 · evidence=BUG 报告根因/方案非空 · R5 暂停点 · auto→dev)+ 注册 + dev 准入门禁改(Bug 需 diagnose 完成)。
+- `_v8_engine.py`:`FLOW_STAGE_CHAIN[Bug]` + stage→spec-doc 映射。
+- 新 `stages/diagnose-stage.md`(深读方法 + 根因实证 + 方案要素 + 用户确认协议)· `templates/bug-report.md` + `docs/prepare.md` 加 diagnose/dev 分工。
+
+### 验证
+- 更新 `test_init_feature_bug_defaults_to_diagnose`(Bug 首 stage = diagnose)+ 新 `test_v8107_bug_dev_requires_diagnose`(dev 准入要 diagnose · Micro 仍直入)· pytest **3 failed / 501 passed**(baseline 3 = scan-spec · 零回归 · +1 测试)。
+- 🔴 顺延:外部评审降级策略统一改 subagent(原计划 v8.107 · 改为后续版本)。
 
 ## v8.106 · 外部 claude 评审回退纯 `claude -p`(删 --bare/--allowedTools/doc 模式 · 治本 --bare 砸登录)
 
@@ -74,20 +98,3 @@
 ### 验证
 - `test_v885_short_prompt_inline` + `test_v885_long_prompt_doc_mode` 扩断言(`--bare` / `dontAsk` / `Grep`/`Glob` 在 · `Bash` 不在)· pytest **3 failed / 500 passed**(baseline 3 = scan-spec 既有 · 零回归)。
 - 🔴 消费项目需 `tools/update.py` 拉本版才生效(aon 现 v8.101.1)· 临时绕过:删/注释消费项目 `.mcp.json` 的 dev-server MCP · 或手跑 `claude -p "$(cat <doc>)"`(无工具栈)。
-
-## v8.102 · 异质评审 prompt 与 review_start.log liveness 调和(READ-ONLY carve-out 唯一允许写)
-
-> 用户:异质模型评审 prompt 要求"不能写文件",但和 `review_start.log` 的 liveness 记录冲突,优化下。
-
-### 诊断:claude doc 模式下 prompt 自相矛盾
-- v8.85 起 claude doc 模式调用 · state.py argv 让 reviewer「先写 `review_start.log` 时间戳证明在工作」+ 授 `--allowedTools Write Read`(liveness:区分"模型没响应" vs "在跑但慢")。
-- 但 reviewer 读到的 prompt(`claude-agents/reviewer.md`)STRICT CONSTRAINTS 写「不能写文件 · 改文件→Out of scope」—— **严格遵守的 reviewer 会拒写 liveness** → 信号永不出现 → state.py 误判"模型可能从未响应"。
-- codex 路径无此问题:`sandbox_mode=read-only` 物理拦截 · 本就不写 liveness 文件。
-
-### 改法(doc-only · 调和 prompt · 保留 liveness 机制 · 不动 state.py)
-- `claude-agents/reviewer.md` STRICT CONSTRAINTS:`不能写文件` → `不改动代码库`(不改/不新建源码·文档·评审产物)+ 🟢 显式 carve-out「**唯一允许的写 = `review_start.log`**(liveness · 非评审产物 · 写完正常评审 · 除此不写)」· 评审记录明确「经 stdout 返回 · 不落文件」· out-of-scope 行加注「写 liveness 不算'评审之外'」。
-- `standards/external-model-usage.md §一`:只读约束拆 codex(sandbox 物理拦截 · 无 liveness 文件)vs claude doc(唯一例外 `review_start.log` · `--allowedTools Write` 限范围 + 跑完清理)两路。
-- **不动** codex prompt 头(§78-91):codex sandbox 真只读 · "Cannot write files" 正确。**不动** state.py:argv 早已指示写 liveness · 本次只让 prompt 与之一致。
-
-### 验证
-- pytest **3 failed / 500 passed**(baseline 3 = scan-spec 既有 · 零回归 · doc-only 无新测试)。

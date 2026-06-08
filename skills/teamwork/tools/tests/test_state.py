@@ -87,7 +87,8 @@ class TestInitFeature(unittest.TestCase):
         self.assertEqual(state["worktree"]["branch"], "feat/admin-f013-tax-billing")
         self.assertIn("_state_checksum", state)
 
-    def test_init_feature_bug_defaults_to_dev(self) -> None:
+    def test_init_feature_bug_defaults_to_diagnose(self) -> None:
+        """v8.107:Bug 首 stage = diagnose(根因细查 + 修复方案确认)· 不再直入 dev(防修偏)。"""
         target = self.tmp / "bug"
         d = run([
             "init-feature",
@@ -97,7 +98,17 @@ class TestInitFeature(unittest.TestCase):
             "--merge-target", "main",
             "--branch", "fix/login",
         ])
-        self.assertEqual(d["current_stage"], "dev")
+        self.assertEqual(d["current_stage"], "diagnose")
+
+    def test_v8107_bug_dev_requires_diagnose(self) -> None:
+        """v8.107:Bug 流程 dev 准入要求 diagnose output_satisfied(不再直入)· Micro 仍直入。"""
+        from _v8_stage_specs import _check_blueprint_or_alt_done  # type: ignore
+        self.assertFalse(_check_blueprint_or_alt_done(
+            {"flow_type": "Bug", "stage_contracts": {}}, None))
+        self.assertTrue(_check_blueprint_or_alt_done(
+            {"flow_type": "Bug", "stage_contracts": {"diagnose": {"output_satisfied": True}}}, None))
+        self.assertTrue(_check_blueprint_or_alt_done(
+            {"flow_type": "Micro", "stage_contracts": {}}, None))
 
     def test_init_feature_existing_state_fails_without_force(self) -> None:
         target = self.tmp / "exists"
