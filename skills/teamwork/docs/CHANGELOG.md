@@ -1,6 +1,19 @@
 # Changelog
 
-> 📦 v8.106 及更早(含 v7/v6/… 旧系统)已归档 → [CHANGELOG-ARCHIVE.md](./CHANGELOG-ARCHIVE.md)。本文件**保留最近 5 版**(每次发布:新增本版 → 若超过 5 版,把最旧的一版迁入归档)。
+> 📦 v8.107 及更早(含 v7/v6/… 旧系统)已归档 → [CHANGELOG-ARCHIVE.md](./CHANGELOG-ARCHIVE.md)。本文件**保留最近 5 版**(每次发布:新增本版 → 若超过 5 版,把最旧的一版迁入归档)。
+
+## v8.112 · 归档 INDEX.md feature 描述上限 50 → 200 字
+
+> 用户:feature index.md feature 描述上限扩展到 200 字符以内。
+
+### 改动
+- **`_clean_archive_desc`(`_v8_ship.py`)**:`--archive-desc` 净化上限 **50 → 200 字**(超则截 199 + `…`)· 给更完整的 feature 描述空间。同步改 4 处文案:`_build_archive_index` 描述列说明 / finalize-deliver hint(`<≤200 字描述>`)/ 截断 warning(`超 200 字`)/ argparse help。
+- **`stages/ship-stage.md`**:§归档 INDEX 描述列 + `--archive-desc` 说明 50 → 200。
+- 历史 `CHANGELOG-ARCHIVE.md` v8.94 条目(记录当时「50 字上限」)= 历史真相 · **不改**。
+
+### 验证
+- `test_ship_archive_desc_v894.py`:`test_over_50_truncated`→`test_over_200_truncated`(199+`…`)· `test_exactly_50_kept`→`test_exactly_200_kept` · 新 `test_between_50_and_200_kept`(防回退:51–200 字不再截)· 集成 warning 测试改 `超 200 字`。
+- pytest **3 failed / 510 passed**(baseline 3 = scan-spec 既有 · 零回归 · +1 新测试)。
 
 ## v8.111 · Bug 流程 2 摩擦点修复:reviewer 名精确匹配过严 + test brief 对 Bug 撒谎
 
@@ -71,27 +84,3 @@
 
 ### 验证
 - 更新 3 测(self-review-fallback / config-disabled → SUBAGENT_FALLBACK recipe · which-cli hint)+ 新 2 测(honest subagent-degrade 放行〔即便未 opt-out + 含 claude 文件名〕· bare subagent 仍 BLOCK)· pytest **3 failed / 503 passed**(baseline 3 = scan-spec · 零回归 · +2 测试)。
-
-## v8.107 · Bug 流程加 `diagnose` 阶段(根因细查 + 修复方案确认 · 用户确认后才进 dev · 治本 fix 修偏)
-
-> 用户(case INFRA-B260606100214):Bug 流程 prepare → ok → dev 一口气写 BUG 报告 + fix + commit · prepare 时读的代码不够细 → 易修偏。需在 dev 前加根因细查 + 修复方案确认(用户确认后才进 dev)。
-
-### 诊断:Bug 流程缺「计划确认」闸
-- Feature 有 goal(PRD)+ blueprint(TECH)在 dev 前确认「what + how」;Bug **直入 dev**,根因/方案是 dev 里(写 fix 时)顺手写的 → 无独立确认闸 → 修偏。
-- 根因细查需**深读代码**:triage/prepare 读的代码只够判流程类型 + 给大致方向 · 不够细。
-
-### 改法:新 `diagnose` stage(Bug 专属 · 插在 dev 前)
-- **新 Bug 链**:`diagnose → dev → review → test → pm_acceptance → ship`(Bug 首 stage 改 diagnose)。
-- **diagnose 产出**:`bugfix/BUG-*.md` 的 §现象/§根因/§修复方案(frontmatter `root_cause` + `fix_summary` 非空)· 🔴 深读代码挖真因 · **不写 fix 码**。
-- **R5 用户确认闸**:diagnose-complete 前必停 · 把修复方案给用户确认 · ok 才 → dev。dev 按**已确认方案**写 fix + §回归测试。
-- **dev 准入**:Bug 现要求 `diagnose` output_satisfied(不再直入)· Micro 仍直入。
-
-### 接线(状态机 + spec + 文档)
-- `state.py`:LEGAL_STAGES + `BUG_FLOW`(diagnose→dev)+ `DEFAULT_INITIAL_STAGE[Bug]=diagnose` + init brief。
-- `_v8_stage_specs.py`:`DIAGNOSE_SPEC`(flow=Bug 准入 · evidence=BUG 报告根因/方案非空 · R5 暂停点 · auto→dev)+ 注册 + dev 准入门禁改(Bug 需 diagnose 完成)。
-- `_v8_engine.py`:`FLOW_STAGE_CHAIN[Bug]` + stage→spec-doc 映射。
-- 新 `stages/diagnose-stage.md`(深读方法 + 根因实证 + 方案要素 + 用户确认协议)· `templates/bug-report.md` + `docs/prepare.md` 加 diagnose/dev 分工。
-
-### 验证
-- 更新 `test_init_feature_bug_defaults_to_diagnose`(Bug 首 stage = diagnose)+ 新 `test_v8107_bug_dev_requires_diagnose`(dev 准入要 diagnose · Micro 仍直入)· pytest **3 failed / 501 passed**(baseline 3 = scan-spec · 零回归 · +1 测试)。
-- 🔴 顺延:外部评审降级策略统一改 subagent(原计划 v8.107 · 改为后续版本)。

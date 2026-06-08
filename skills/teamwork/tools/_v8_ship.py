@@ -876,13 +876,13 @@ def _ship_finalize_planning_pending(feature_path: str, merge_target: str,
             "     - teamwork-space.md(工作区级索引 · 按需)\n"
             "     - 项目变更单(如 BG-NNN.md 的对应阶段状态 · 按需)\n"
             "  ② 在**主工作区**改好这些文件(不要 commit · ship-finalize 会随收尾 MR 一起带走)\n"
-            "  ③ 重跑把它们随收尾 MR 一起合入 · 同时给本 feature 一句 **≤50 字**极简描述"
+            "  ③ 重跑把它们随收尾 MR 一起合入 · 同时给本 feature 一句 **≤200 字**极简描述"
             "(写进归档 INDEX.md · 便于日后不解压识别):\n"
             f"     state.py ship-finalize --feature {feature_path} "
-            "--planning-artifacts <逗号分隔的相对路径> --archive-desc '<≤50 字描述>'\n"
+            "--planning-artifacts <逗号分隔的相对路径> --archive-desc '<≤200 字描述>'\n"
             "  确无可翻(ad-hoc Bug/Micro · 无关联 BL)→ 显式跳过(仍可给 --archive-desc):\n"
             f"     state.py ship-finalize --feature {feature_path} --no-planning-changes "
-            "--archive-desc '<≤50 字描述>'"
+            "--archive-desc '<≤200 字描述>'"
         ),
         "resume": (
             "翻牌(或确认无需翻)后重跑带 --planning-artifacts / --no-planning-changes · "
@@ -1069,12 +1069,13 @@ def _build_archive_zip(artifact_root: Path) -> bytes:
 
 def _clean_archive_desc(raw: Optional[str]) -> str:
     """v8.94:极简 feature 描述净化 —— 折叠空白 + 去 markdown 表格危险字符(`|`/换行)+
-    ≤50 字(超则截 49 + `…`)。空 → `—`(占位 · 表格不塌)。"""
+    长度上限(超则截 + `…`)。空 → `—`(占位 · 表格不塌)。
+    v8.112:上限 50 → 200 字(超则截 199 + `…`)· 给更完整的 feature 描述空间。"""
     if not raw:
         return "—"
     s = " ".join(str(raw).split()).replace("|", "/")
-    if len(s) > 50:
-        s = s[:49] + "…"
+    if len(s) > 200:
+        s = s[:199] + "…"
     return s or "—"
 
 
@@ -1083,7 +1084,7 @@ def _build_archive_index(repo_cwd: str, base_commit: str, index_rel: str,
                          archive_desc: Optional[str] = None) -> str:
     """v8.82:读 base 上现有 INDEX.md(若有)· 去本 feature 旧行 · 追加新行 · 返回新内容。
 
-    v8.94:加「描述」列(≤50 字极简 feature 描述 · AI 在 planning-backref 暂停点经
+    v8.94:加「描述」列(≤200 字极简 feature 描述 · AI 在 planning-backref 暂停点经
     `--archive-desc` 提供 · 便于日后不解压就能识别归档内容)· 旧 3 列行自动迁移为 4 列(补 `—`)。
     """
     header = (
@@ -2289,12 +2290,12 @@ def cmd_ship_finalize(args: argparse.Namespace) -> None:
         else:
             # 规划已决定(翻牌文件 或 --no-planning-changes)→ 暂存收尾 commit(含规划文件)+ push
             planning_rels = [rel for rel, _ in planning_files]
-            # v8.94:极简 feature 描述(≤50 字)写入归档 INDEX.md(便于不解压识别归档内容)
+            # v8.94:极简 feature 描述(v8.112:≤200 字)写入归档 INDEX.md(便于不解压识别归档内容)
             raw_desc = getattr(args, "archive_desc", None)
             archive_desc = _clean_archive_desc(raw_desc)
-            if raw_desc and len(" ".join(str(raw_desc).split()).replace("|", "/")) > 50:
+            if raw_desc and len(" ".join(str(raw_desc).split()).replace("|", "/")) > 200:
                 warnings.append(
-                    f"--archive-desc 超 50 字 · 已截断为「{archive_desc}」写入 INDEX.md")
+                    f"--archive-desc 超 200 字 · 已截断为「{archive_desc}」写入 INDEX.md")
             if archive_on:
                 ok, warn, commit = _stage_archive_commit(
                     main_wt, artifact_root, feature_id, merge_target, sf_ref,
@@ -2684,7 +2685,7 @@ def register_v8_ship_subparser(sub) -> None:
                           "(ad-hoc Bug/Micro · 无关联 BL)· 跳过 planning-backref 暂停点 · "
                           "收尾 MR 只含归档 zip + state.json"))
     fp.add_argument("--archive-desc",
-                    help=("[v8.94] 极简 feature 描述(**≤50 字** · 超则截断)· 写入归档 "
+                    help=("[v8.94] 极简 feature 描述(**≤200 字** · 超则截断)· 写入归档 "
                           "_archive/INDEX.md 的「描述」列 · 便于日后不解压就识别归档内容 · "
                           "AI 在 planning-backref 暂停点连同 --planning-artifacts 一起给"))
     fp.set_defaults(func=cmd_ship_finalize)

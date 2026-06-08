@@ -80,8 +80,8 @@ ship-finalize 内部自动编排(**可重入** · 失败步骤修复后重跑即
 - **为什么翻牌**:`feature = 某 BL 的落地`。规划期把 BL 写进 ROADMAP 是「📋 规划中」· 落地完不翻成「✅ 已交付」→ 规划层(ROADMAP/WS 进度)与执行层永久脱节 · 进度统计失真。
 - **为什么随收尾 MR**:back-ref 翻牌与归档(都表示「本 feature 已交付」)是**同一件事** · 应**原子合入同一个收尾 MR**。🔴 **不要**事后单独直推 merge_target 翻牌 —— 保护分支会拒推 · 且收尾 MR 此刻已关闭、规划层塞不进 → 非原子 + 直推隐患。
 - **做什么**:① AI 判断这几处哪些要翻「📋 规划中 → ✅ 已交付」(只改相关的 · AI 自决):ROADMAP 对应 BL(若是 WS 最后一个 BL → WS 标完成)· `product-overview/workstream/WS-NN.md`(WS 进度)· `teamwork-space.md`(工作区索引 · 按需)· 项目变更单(如 `BG-NNN.md` 阶段状态 · 按需);② 在**主工作区**改好这些文件(**不要 commit** · ship-finalize 会随收尾 MR 带走)。
-- **然后**:`state.py ship-finalize --feature <path> --planning-artifacts <逗号分隔相对路径> --archive-desc '<≤50 字描述>'` → state.py 把这些文件随 {归档 zip + 删目录 + 终态 state.json} **同一收尾分支**暂存(并还原工作树 HEAD 防 step7 ff-pull 冲突)→ 你创建并合并**一个**收尾 MR(归档 + 规划翻牌原子)→ 重跑 ship-finalize 续清理 worktree + 主分支 pull。
-  - **`--archive-desc`**:给本 feature 一句 **≤50 字**极简描述 · 写进归档 `_archive/INDEX.md` 的「描述」列(便于日后不解压识别)· 超 50 字自动截断 · 缺省 `—`。
+- **然后**:`state.py ship-finalize --feature <path> --planning-artifacts <逗号分隔相对路径> --archive-desc '<≤200 字描述>'` → state.py 把这些文件随 {归档 zip + 删目录 + 终态 state.json} **同一收尾分支**暂存(并还原工作树 HEAD 防 step7 ff-pull 冲突)→ 你创建并合并**一个**收尾 MR(归档 + 规划翻牌原子)→ 重跑 ship-finalize 续清理 worktree + 主分支 pull。
+  - **`--archive-desc`**:给本 feature 一句 **≤200 字**极简描述 · 写进归档 `_archive/INDEX.md` 的「描述」列(便于日后不解压识别)· 超 200 字自动截断 · 缺省 `—`。
 - **确无可翻**(ad-hoc Bug/Micro · 无关联 BL)→ `state.py ship-finalize --feature <path> --no-planning-changes` 显式跳过(找不到 BL 别急着跳:先读 `product-overview/workstream/` + `ROADMAP.md` 定位本 Feature 条目)。
 - 🔴 **不 amend**:收尾分支一次打包成型 · 不重建已暂存分支;若暂存后才发现漏文件 → `git push origin --delete ship-finalize/<id>` 删分支再重跑 `--planning-artifacts`。
 
@@ -230,7 +230,7 @@ cleaned / deferred / n_a · cleaned 必 phase=merged
 **机制**(state.py 全自动 · AI 只在 PENDING 处创/合 MR):
 1. step 1-4 把终态写进本地 feature 目录(含 `state.json current_stage=completed`)。
 2. step 5 把整个 feature 目录打成 `features/_archive/<id>.zip`(arcname=`<id>/...` · 自描述)· 追加 `_archive/INDEX.md` 一行 · 并在收尾 commit 里 **删除 feature 目录的所有 tree 条目** · push 到 `ship-finalize/<id>` 分支 → emit `PENDING`(交接 AI 创 MR + 自动合)。
-   - **INDEX 描述列**:`INDEX.md` 表为 `| Feature | 描述 | 交付归档时间 | 归档物 |`。「描述」= AI 经 `--archive-desc '<≤50 字>'` 给的极简 feature 描述(超 50 字截断为 49+`…` · `|`/换行净化 · 缺省 `—`)· 便于日后不解压就识别归档内容。旧 3 列 INDEX 行下次归档时自动迁移补 `—`。
+   - **INDEX 描述列**:`INDEX.md` 表为 `| Feature | 描述 | 交付归档时间 | 归档物 |`。「描述」= AI 经 `--archive-desc '<≤200 字>'` 给的极简 feature 描述(超 200 字截断为 199+`…` · `|`/换行净化 · 缺省 `—`)· 便于日后不解压就识别归档内容。旧 3 列 INDEX 行下次归档时自动迁移补 `—`。
 3. 收尾 MR 合并后重跑:**已交付判定 = zip 在 `origin/merge_target` 存在**(抗 squash)· 续 step 6/7。
 4. step 7 主工作区:先把本地 feature 目录恢复 HEAD 干净态(内容已进 zip)→ `ff-pull` 干净删除该目录 + 落地 zip。
 5. **幂等 3rd-run**:目录已被删 → state-sync 找不到 state.json · 但检测到 zip 已在 merge_target → emit 幂等 `PASS`(已交付终态 · 无动作)。

@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
-"""v8.94 归档 INDEX.md 加「描述」列(≤50 字极简 feature 描述)回归套件。
+"""v8.94 归档 INDEX.md 加「描述」列(极简 feature 描述)回归套件。
 
-用户:feature archive 的时候给一段极简的 feature 描述(限 50 字以内),写到 INDEX.md。
-实现:`ship-finalize --archive-desc '<≤50 字>'`(AI 在 planning-backref 暂停点连同
+用户:feature archive 的时候给一段极简的 feature 描述,写到 INDEX.md。
+实现:`ship-finalize --archive-desc '<≤200 字>'`(AI 在 planning-backref 暂停点连同
 --planning-artifacts 一起给)→ 写进 `_archive/INDEX.md` 的「描述」列 · 便于日后不解压识别。
+v8.112:上限 50 → 200 字(给更完整的描述空间)。
 
 覆盖:
-- `_clean_archive_desc`:正常 / 超 50 截断(49+…)/ `|` 净化 / 换行折叠 / 空 → `—`
+- `_clean_archive_desc`:正常 / 超 200 截断(199+…)/ `|` 净化 / 换行折叠 / 空 → `—`
 - `_build_archive_index`:新行含描述列 + 旧 3 列行自动迁移 4 列(补 `—`)+ dedup
 - 集成:ship-finalize --archive-desc → 收尾分支 INDEX.md 含描述
 
@@ -53,15 +54,22 @@ class TestCleanArchiveDesc(unittest.TestCase):
         self.assertEqual(self._c(""), "—")
         self.assertEqual(self._c("   "), "—")
 
-    def test_over_50_truncated(self):
-        raw = "字" * 60
+    def test_over_200_truncated(self):
+        raw = "字" * 210
         out = self._c(raw)
-        self.assertEqual(len(out), 50, "≤50 字(49 + …)")
+        self.assertEqual(len(out), 200, "≤200 字(199 + …)")
         self.assertTrue(out.endswith("…"))
-        self.assertEqual(out, "字" * 49 + "…")
+        self.assertEqual(out, "字" * 199 + "…")
 
-    def test_exactly_50_kept(self):
-        raw = "字" * 50
+    def test_exactly_200_kept(self):
+        raw = "字" * 200
+        out = self._c(raw)
+        self.assertEqual(out, raw)
+        self.assertNotIn("…", out)
+
+    def test_between_50_and_200_kept(self):
+        """v8.112 回归:51–200 字现在不再截断(旧上限会截 · 防回退)。"""
+        raw = "描" * 120
         out = self._c(raw)
         self.assertEqual(out, raw)
         self.assertNotIn("…", out)
@@ -232,16 +240,16 @@ class TestArchiveDescIntegration(unittest.TestCase):
         self.assertIn(self.FID, content)
         self.assertIn("Admin 改单原子化 CAS 加固", content)
 
-    def test_over_50_truncated_with_warning(self):
-        long_desc = "描" * 60
+    def test_over_200_truncated_with_warning(self):
+        long_desc = "描" * 210
         _, d = self._finalize("--no-planning-changes", "--archive-desc", long_desc)
         sf = f"ship-finalize/{self.FID}"
         _git(self.main, "fetch", "origin", sf)
         rc, content, _ = _git(self.main, "show", f"origin/{sf}:{self.index_rel}")
         self.assertEqual(rc, 0)
-        self.assertIn("描" * 49 + "…", content, "超 50 字应截断为 49+…")
+        self.assertIn("描" * 199 + "…", content, "超 200 字应截断为 199+…")
         warns = json.dumps(d.get("warnings", []), ensure_ascii=False)
-        self.assertIn("超 50 字", warns)
+        self.assertIn("超 200 字", warns)
 
 
 if __name__ == "__main__":
