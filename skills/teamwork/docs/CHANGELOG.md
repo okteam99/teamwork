@@ -1,6 +1,22 @@
 # Changelog
 
-> 📦 v8.107 及更早(含 v7/v6/… 旧系统)已归档 → [CHANGELOG-ARCHIVE.md](./CHANGELOG-ARCHIVE.md)。本文件**保留最近 5 版**(每次发布:新增本版 → 若超过 5 版,把最旧的一版迁入归档)。
+> 📦 v8.108 及更早(含 v7/v6/… 旧系统)已归档 → [CHANGELOG-ARCHIVE.md](./CHANGELOG-ARCHIVE.md)。本文件**保留最近 5 版**(每次发布:新增本版 → 若超过 5 版,把最旧的一版迁入归档)。
+
+## v8.113 · 归档 INDEX.md 描述超 200 改「压缩重写」而非截断(FAIL 门禁 · 不丢尾)
+
+> 用户:超则截 199 + 需要优化 —— 超过则压缩表达方式,压缩到 200 以内。
+
+### 诊断:截断 = 机械丢尾 · 压缩是 AI 判断(不可枚举 → 留 AI)
+- v8.112 的「超 200 截 199+`…`」机械丢尾失信息 · 用户要的是**压缩表达方式**(精简措辞 / 去枝节 / 保要点)塞进 200 —— 这是语言判断 · 纯函数做不了 · 归 AI(SKILL.md 哲学:不可枚举的判断留 AI)。
+
+### 改法:门禁 FAIL 驱动 AI 压缩重跑(物化闸 · 不靠截断)
+- **`_clean_archive_desc`(`_v8_ship.py`)**:删 `s[:199]+…` 截断 · 退化为**纯净化**(折叠空白 + 去 `|`/换行)· 任意长度照原样返。
+- **`cmd_ship_finalize` 前置门禁**:`--archive-desc` 净化后 > 200 字 → **FAIL**(`failed_step=finalize-deliver` · 在任何归档暂存/推分支**之前**)· hint = 压缩表达方式重写到 ≤200 后重跑(ship-finalize 可重入 · 不丢尾)。
+- **`ship-stage.md` §归档 + argparse help**:截断语义 → 压缩重跑语义。
+
+### 验证
+- `test_ship_archive_desc_v894.py`:`over_200_truncated`→`over_200_not_truncated_by_sanitizer`(净化不截)· 集成 `over_200_truncated_with_warning`→`over_200_blocks_with_compress_hint`(FAIL + 压缩 hint + **暂存前拦** · 收尾分支不推)+ 新 `compressed_under_200_passes`(≤200 完整写入 · 无 `…`)。
+- pytest **3 failed / 511 passed**(baseline 3 = scan-spec 既有 · 零回归 · +1 净增)。
 
 ## v8.112 · 归档 INDEX.md feature 描述上限 50 → 200 字
 
@@ -67,20 +83,3 @@
 ### 验证
 - 残留 grep(panorama-design / 旧 liveness / § 进度统计 section-ref)= 0 · doc-only · pytest **3 failed / 503 passed**(baseline 3 = scan-spec · 零回归)。
 - 余(cosmetic · 不阻塞):external-model-usage §二/§十 编号跳号 · ui.md/config.md 旧版本标 · state.py vestigial `review_start.log` 读(无害)。
-
-## v8.108 · 外部评审降级策略统一改 subagent(不 exec · 降级而不是去掉 · 满足门禁)
-
-> 用户:降级策略统一改用 subagent · 不用 exec 了(exec 在这出过很多次问题:认证 / --bare / 卡死 / 登录)· 降级而不是去掉。
-
-### 诊断:两条降级路径都 exec CLI 自审 → 反复踩坑
-- `--self-review-fallback`(v8.88)+ `disable_heterogeneous_review`(v8.90)都 **exec 宿主自身模型 CLI** 自审 → 子进程 CLI 反复出认证 / `--bare` / MCP 卡死 / "Not logged in" / stdin 问题。
-- 且 `--self-review-fallback` 落 `self-review/` 不满足门禁 → 用户被迫「去掉 external」(change-review-roles)· 与「降级而不是去掉」相悖。
-
-### 改法:降级 = subagent(harness 内 · 不 exec)· 满足门禁
-- **`state.py`**:self_fallback / het_disabled 两路 **不再 exec** · 改 emit `verdict: SUBAGENT_FALLBACK` 配方(state.py 是脚本起不了 `Agent`)→ PMO 起 `Agent` subagent(isolated context · 宿主自身模型 · 同 auth · 无子进程 CLI 问题)产出降级评审 → 写 `external-cross-review/<stage>-<model>-subagent-degraded.md`。exec 只留给**真异质主路径**。
-- **门禁** `_evidence_external_review_artifact`:接受 honest-degrade(`degraded:true heterogeneous:false degraded_mode:subagent-fallback`)→ 满足 P0-154(降级 · 让你继续)。🔴 **无** degraded marker 的 subagent 文件仍落黑名单 BLOCK(防 F034 伪装)· `config-disabled` marker 仍须 `het_disabled` 为真。
-- **降级优先于移除**:which-cli 不在的 FAIL hint 改三选一 —— ① 降级(subagent · 推荐)② 装异质 CLI ③ 移除(最后手段)。
-- **specs**:standards §11.5(降级=subagent · 不 exec)+ §11.1 两注(self-review-fallback / disable_het 改 subagent)+ review-stage §4。
-
-### 验证
-- 更新 3 测(self-review-fallback / config-disabled → SUBAGENT_FALLBACK recipe · which-cli hint)+ 新 2 测(honest subagent-degrade 放行〔即便未 opt-out + 含 claude 文件名〕· bare subagent 仍 BLOCK)· pytest **3 failed / 503 passed**(baseline 3 = scan-spec · 零回归 · +2 测试)。

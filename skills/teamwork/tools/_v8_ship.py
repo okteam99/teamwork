@@ -1068,14 +1068,14 @@ def _build_archive_zip(artifact_root: Path) -> bytes:
 
 
 def _clean_archive_desc(raw: Optional[str]) -> str:
-    """v8.94:极简 feature 描述净化 —— 折叠空白 + 去 markdown 表格危险字符(`|`/换行)+
-    长度上限(超则截 + `…`)。空 → `—`(占位 · 表格不塌)。
-    v8.112:上限 50 → 200 字(超则截 199 + `…`)· 给更完整的 feature 描述空间。"""
+    """v8.94:极简 feature 描述净化 —— 折叠空白 + 去 markdown 表格危险字符(`|`/换行)。
+    空 → `—`(占位 · 表格不塌)。
+    v8.113:**不再截断** —— 长度上限(≤200 字)改由 `cmd_ship_finalize` 前置门禁强制
+    (超则 FAIL · 要求 AI 压缩表达方式重写到 ≤200 重跑 · 不靠截断丢尾)· 本函数只做
+    表格安全净化(任意长度照原样返 · 经门禁后到这里必 ≤200)。"""
     if not raw:
         return "—"
     s = " ".join(str(raw).split()).replace("|", "/")
-    if len(s) > 200:
-        s = s[:199] + "…"
     return s or "—"
 
 
@@ -2290,12 +2290,18 @@ def cmd_ship_finalize(args: argparse.Namespace) -> None:
         else:
             # 规划已决定(翻牌文件 或 --no-planning-changes)→ 暂存收尾 commit(含规划文件)+ push
             planning_rels = [rel for rel, _ in planning_files]
-            # v8.94:极简 feature 描述(v8.112:≤200 字)写入归档 INDEX.md(便于不解压识别归档内容)
+            # v8.94:极简 feature 描述写入归档 INDEX.md(便于不解压识别归档内容)
+            # v8.113:≤200 字硬门禁(在任何归档暂存前)—— 超则 FAIL · 让 AI 压缩表达方式
+            # 重写到 ≤200 重跑(不靠截断丢尾)· ship-finalize 可重入 · 修复后续清理不重复。
             raw_desc = getattr(args, "archive_desc", None)
             archive_desc = _clean_archive_desc(raw_desc)
-            if raw_desc and len(" ".join(str(raw_desc).split()).replace("|", "/")) > 200:
-                warnings.append(
-                    f"--archive-desc 超 200 字 · 已截断为「{archive_desc}」写入 INDEX.md")
+            if raw_desc and len(archive_desc) > 200:
+                _ship_finalize_fail(
+                    "finalize-deliver",
+                    f"--archive-desc 净化后 {len(archive_desc)} 字 · 超 200 字上限",
+                    ("压缩表达方式(精简措辞 / 去枝节 / 保留要点)把描述重写到 ≤200 字后 "
+                     "重跑同一条 ship-finalize —— 不写超长靠截断丢尾 · ship-finalize 可重入"),
+                    completed, skipped)
             if archive_on:
                 ok, warn, commit = _stage_archive_commit(
                     main_wt, artifact_root, feature_id, merge_target, sf_ref,
@@ -2685,7 +2691,7 @@ def register_v8_ship_subparser(sub) -> None:
                           "(ad-hoc Bug/Micro · 无关联 BL)· 跳过 planning-backref 暂停点 · "
                           "收尾 MR 只含归档 zip + state.json"))
     fp.add_argument("--archive-desc",
-                    help=("[v8.94] 极简 feature 描述(**≤200 字** · 超则截断)· 写入归档 "
+                    help=("[v8.94] 极简 feature 描述(**≤200 字** · 超则 FAIL 要求压缩表达重跑 · 不截断)· 写入归档 "
                           "_archive/INDEX.md 的「描述」列 · 便于日后不解压就识别归档内容 · "
                           "AI 在 planning-backref 暂停点连同 --planning-artifacts 一起给"))
     fp.set_defaults(func=cmd_ship_finalize)

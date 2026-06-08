@@ -1,10 +1,27 @@
-# Changelog Archive(v8.107 → v1)
+# Changelog Archive(v8.108 → v1)
 
-> 📦 **历史归档**:本文件保存 teamwork **v8.107 及更早**的全部 changelog(含 v7/v6/…/v1 等 v8.0 之前的旧系统)· 仅供追溯,**不再维护**。
-> 现行 changelog(最近 5 版 · v8.108–v8.112)见 [CHANGELOG.md](./CHANGELOG.md)。
+> 📦 **历史归档**:本文件保存 teamwork **v8.108 及更早**的全部 changelog(含 v7/v6/…/v1 等 v8.0 之前的旧系统)· 仅供追溯,**不再维护**。
+> 现行 changelog(最近 5 版 · v8.109–v8.113)见 [CHANGELOG.md](./CHANGELOG.md)。
 > ⚠️ v8.0 是「范式切换 · 不向下兼容」的重构 —— **v7 及更早描述的是已不存在的旧系统**,其机制/命令/红线编号均不适用于现行 v8。
 
 ---
+
+## v8.108 · 外部评审降级策略统一改 subagent(不 exec · 降级而不是去掉 · 满足门禁)
+
+> 用户:降级策略统一改用 subagent · 不用 exec 了(exec 在这出过很多次问题:认证 / --bare / 卡死 / 登录)· 降级而不是去掉。
+
+### 诊断:两条降级路径都 exec CLI 自审 → 反复踩坑
+- `--self-review-fallback`(v8.88)+ `disable_heterogeneous_review`(v8.90)都 **exec 宿主自身模型 CLI** 自审 → 子进程 CLI 反复出认证 / `--bare` / MCP 卡死 / "Not logged in" / stdin 问题。
+- 且 `--self-review-fallback` 落 `self-review/` 不满足门禁 → 用户被迫「去掉 external」(change-review-roles)· 与「降级而不是去掉」相悖。
+
+### 改法:降级 = subagent(harness 内 · 不 exec)· 满足门禁
+- **`state.py`**:self_fallback / het_disabled 两路 **不再 exec** · 改 emit `verdict: SUBAGENT_FALLBACK` 配方(state.py 是脚本起不了 `Agent`)→ PMO 起 `Agent` subagent(isolated context · 宿主自身模型 · 同 auth · 无子进程 CLI 问题)产出降级评审 → 写 `external-cross-review/<stage>-<model>-subagent-degraded.md`。exec 只留给**真异质主路径**。
+- **门禁** `_evidence_external_review_artifact`:接受 honest-degrade(`degraded:true heterogeneous:false degraded_mode:subagent-fallback`)→ 满足 P0-154(降级 · 让你继续)。🔴 **无** degraded marker 的 subagent 文件仍落黑名单 BLOCK(防 F034 伪装)· `config-disabled` marker 仍须 `het_disabled` 为真。
+- **降级优先于移除**:which-cli 不在的 FAIL hint 改三选一 —— ① 降级(subagent · 推荐)② 装异质 CLI ③ 移除(最后手段)。
+- **specs**:standards §11.5(降级=subagent · 不 exec)+ §11.1 两注(self-review-fallback / disable_het 改 subagent)+ review-stage §4。
+
+### 验证
+- 更新 3 测(self-review-fallback / config-disabled → SUBAGENT_FALLBACK recipe · which-cli hint)+ 新 2 测(honest subagent-degrade 放行〔即便未 opt-out + 含 claude 文件名〕· bare subagent 仍 BLOCK)· pytest **3 failed / 503 passed**(baseline 3 = scan-spec · 零回归 · +2 测试)。
 
 ## v8.107 · Bug 流程加 `diagnose` 阶段(根因细查 + 修复方案确认 · 用户确认后才进 dev · 治本 fix 修偏)
 
