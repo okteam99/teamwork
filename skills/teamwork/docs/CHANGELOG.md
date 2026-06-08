@@ -1,6 +1,24 @@
 # Changelog
 
-> 📦 v8.105 及更早(含 v7/v6/… 旧系统)已归档 → [CHANGELOG-ARCHIVE.md](./CHANGELOG-ARCHIVE.md)。本文件**保留最近 5 版**(每次发布:新增本版 → 若超过 5 版,把最旧的一版迁入归档)。
+> 📦 v8.106 及更早(含 v7/v6/… 旧系统)已归档 → [CHANGELOG-ARCHIVE.md](./CHANGELOG-ARCHIVE.md)。本文件**保留最近 5 版**(每次发布:新增本版 → 若超过 5 版,把最旧的一版迁入归档)。
+
+## v8.111 · Bug 流程 2 摩擦点修复:reviewer 名精确匹配过严 + test brief 对 Bug 撒谎
+
+> 用户:看下我们的 bug 流程是否有问题(附真实 Bug feature 跑流程 transcript:`external-claude` 被拒 + `verify-ac.py` 撞 PRD 不存在)。诊断后选 A+B 都修。
+
+### 诊断:状态机骨架健全 · 坏的是 1 个全局过严匹配 + 1 段对 Bug 撒谎的 brief
+- Bug 链 `diagnose→dev→review→test→pm_acceptance→ship` 全接对 · 门禁对 Bug 安全(`ac_test_binding` 已 skip Bug)· 暴露的 2 点都是文案/匹配层 friction。
+
+### 改动
+- **Fix A · reviewers roll-call 容许「角色-限定」写法**(`_v8_stage_specs.py:_evidence_reviewers_match`):原精确集合差 `required - reviewer_set` 使 `external-claude ≠ external` 被拒 —— 逼用户把更有信息量的「标明异质模型」写法降级成裸 `external`。改为 token 命中 `角色名本身` 或 `角色-<限定>` 前缀即算覆盖(`external-claude` 满足 `external` · `external-` 边界防 `externalize` 误匹配)。异质性不由此 roll-call 保证(由 `_evidence_external_review_artifact` 校验 cross-review 产物 `review_model`)· 放宽安全 · **全流程生效**(非仅 Bug)。
+- **Fix B · `_test_brief` 按 flow_type 分支**(`_v8_stage_specs.py` + `stages/test-stage.md`):原 brief 写死 Feature 视角 · 完成判定列「`verify-ac.py` 通过 / AC 全覆盖」—— 但 **Bug 无 PRD/TC** · 实证有 agent 照着去跑 `verify-ac.py` 撞「PRD 不存在」困惑数轮(**门禁其实对 Bug 自动 skip · 是 brief 在撒谎**)。Bug brief 改为「回归测试转绿 + 既有套件保持绿 · verify-ac/AC 全覆盖 N/A · 别去跑 verify-ac.py」· test-stage.md 加「🐛 Bug 流程分支」callout + §1/§5 内联 Bug 提示。
+
+### 刻意不动(考量 C · 站得住)
+- Bug 的 `test` 仍要 `e2e/*`(≥1)+ 双 exit-code 全绿 · review 需 `external` 异质评审 —— 对小 bug 偏重但能防 fix 引回归 · 可 `change-review-roles` 调 · 不在本轮改。
+
+### 验证
+- 新增 `TestV8111BugFlowFixes` 6 例(role-qualified 满足 / 裸 external 兼容 / 缺 external 仍 BLOCK / `externalize` 不误匹配 / Bug brief 无 verify-ac 假信号 / Feature brief 不回归)。
+- pytest **3 failed / 509 passed**(baseline 3 = scan-spec 既有 · 零回归 · 509 = 503 + 6 新)。
 
 ## v8.110 · cosmetic 清理:删 vestigial `review_start.log` 读代码 + config.md 旧降级语义/版本标
 
@@ -77,20 +95,3 @@
 ### 验证
 - 更新 `test_init_feature_bug_defaults_to_diagnose`(Bug 首 stage = diagnose)+ 新 `test_v8107_bug_dev_requires_diagnose`(dev 准入要 diagnose · Micro 仍直入)· pytest **3 failed / 501 passed**(baseline 3 = scan-spec · 零回归 · +1 测试)。
 - 🔴 顺延:外部评审降级策略统一改 subagent(原计划 v8.107 · 改为后续版本)。
-
-## v8.106 · 外部 claude 评审回退纯 `claude -p`(删 --bare/--allowedTools/doc 模式 · 治本 --bare 砸登录)
-
-> 用户(case PTR-F260606):state.py 预期只用 `claude -p`。case:`claude --bare -p` 报 "Not logged in" 而裸 `claude -p` 正常。
-
-### 诊断:v8.103 的 `--bare` 砸了登录上下文
-- v8.85 起长 prompt 走 doc 模式(短 argv + `--allowedTools` 让 reviewer 自己 Read)· v8.103 加 `--bare`(想跳消费项目 MCP 防卡死)。
-- 但 `--bare`(minimal mode)**也跳了 claude 的登录/认证上下文** → `claude --bare -p` = "Not logged in"(裸 `claude -p` 已登录)。v8.103 想用 `--bare` 救 MCP-hang · 反而砸了认证 —— 比病更重。
-
-### 改法(用户拍板「只用 claude -p」)
-- `_build_claude_review_cmd`:**只用 `["claude","-p",<full inline prompt>,"--output-format","text"]`**(cwd=None)· 删 doc 模式短引用 + `--allowedTools` + `--bare` + `--permission-mode` + liveness。
-- prompt **自包含**(goal/blueprint 已 inline 待评审文件内容 · `_gather_review_files_for_claude`)· reviewer 无需工具 / 文件系统访问 · 一次性纯文本生成 —— 一并消除 MCP-hang(无工具栈)+ 认证回归(无 `--bare`)。
-- 仍写 prompt_doc(审计 + 可复跑 · 不 clobber PMO 预写)· 删死常量 `CLAUDE_REVIEW_ARGV_LIMIT`。
-
-### 验证
-- 重写 `test_v885_short_prompt_inline` + 新 `test_v8106_long_prompt_still_inline`(长短都 inline · 无 `--bare`/工具 · doc 仍写盘)· pytest **3 failed / 500 passed**(baseline 3 · 零回归)。
-- 🔴 下一步(v8.107):降级策略统一改 **subagent**(不用 exec)· 实现「降级而不是去掉」(用户已确认设计:subagent 自审满足门禁 + WARN · 显式带 reason)。

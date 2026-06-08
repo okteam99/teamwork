@@ -2653,5 +2653,79 @@ class TestPlanningCheck(unittest.TestCase):
                         "全景UI初步规划 必在 WS 之前(拆 WS 前先出全景)")
 
 
+class TestV8111BugFlowFixes(unittest.TestCase):
+    """v8.111:Bug 流程 2 摩擦点修复(实证来自真实 Bug feature 跑流程)
+    A. _evidence_reviewers_match 容许「角色-限定」写法(external-claude 满足 external)
+    B. _test_brief 按 flow_type 分支(Bug 不列 verify-ac/AC 全覆盖 = 假信号)
+    """
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp(prefix="tw-v8111-"))
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def _args(self):
+        class _A: pass
+        a = _A(); a.feature = str(self.tmp); return a
+
+    def _write_review(self, reviewers_inline):
+        (self.tmp / "REVIEW.md").write_text(
+            f"---\nreviewers: {reviewers_inline}\nverdict: APPROVE\n---\n# review\n",
+            encoding="utf-8",
+        )
+
+    def _state_review(self):
+        return {"current_stage": "review",
+                "stage_review_roles": {"review": ["architect", "qa", "external"]}}
+
+    # ── Fix A:reviewers roll-call 容许 `角色-限定` ──
+    def test_v8111_role_qualified_external_claude_satisfies_external(self):
+        """external-claude 满足 required external(保留模型 provenance · 不再被拒)。"""
+        from _v8_stage_specs import _evidence_reviewers_match
+        self._write_review("[architect, qa, external-claude]")
+        ok, err = _evidence_reviewers_match("REVIEW.md")(self._state_review(), self._args())
+        self.assertTrue(ok, err)
+
+    def test_v8111_bare_external_still_satisfies(self):
+        """裸 external 仍满足(向后兼容)。"""
+        from _v8_stage_specs import _evidence_reviewers_match
+        self._write_review("[architect, qa, external]")
+        ok, err = _evidence_reviewers_match("REVIEW.md")(self._state_review(), self._args())
+        self.assertTrue(ok, err)
+
+    def test_v8111_missing_external_still_blocks(self):
+        """完全缺 external 角色仍 BLOCK(放宽 ≠ 不校验)。"""
+        from _v8_stage_specs import _evidence_reviewers_match
+        self._write_review("[architect, qa]")
+        ok, err = _evidence_reviewers_match("REVIEW.md")(self._state_review(), self._args())
+        self.assertFalse(ok)
+        self.assertIn("external", err)
+
+    def test_v8111_unrelated_prefix_does_not_falsematch(self):
+        """前缀匹配要 `角色-` 边界 · externalize 不算 external(避免乱匹配)。"""
+        from _v8_stage_specs import _evidence_reviewers_match
+        self._write_review("[architect, qa, externalize]")
+        ok, _ = _evidence_reviewers_match("REVIEW.md")(self._state_review(), self._args())
+        self.assertFalse(ok, "externalize 不应满足 external(需 `external-` 边界)")
+
+    # ── Fix B:_test_brief 按 flow_type 分支 ──
+    def test_v8111_test_brief_bug_no_verify_ac_lie(self):
+        """Bug 流程 brief 不得把 verify-ac.py/AC 全覆盖列成完成判定(假信号)。"""
+        from _v8_stage_specs import _test_brief
+        brief = _test_brief({"flow_type": "Bug"})
+        self.assertIn("回归", brief)
+        self.assertIn("N/A", brief)                       # 明示 verify-ac 对 Bug N/A
+        self.assertNotIn("verify-ac.py 通过", brief)       # 不作为完成判定
+        self.assertNotIn("AC 全覆盖最终验证", brief)
+
+    def test_v8111_test_brief_feature_keeps_verify_ac(self):
+        """Feature 流程 brief 仍列 verify-ac.py 通过 + AC 全覆盖(不回归)。"""
+        from _v8_stage_specs import _test_brief
+        brief = _test_brief({"flow_type": "Feature"})
+        self.assertIn("verify-ac.py 通过", brief)
+        self.assertIn("AC 全覆盖", brief)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

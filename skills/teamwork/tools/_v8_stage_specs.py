@@ -307,11 +307,19 @@ def _evidence_reviewers_match(review_artifact: str):
             return False, f"{review_artifact} frontmatter.reviewers 格式非法"
 
         required_set = {r.lower() for r in required}
-        missing = required_set - reviewer_set
+        # v8.111:角色 roll-call 容许「角色限定写法」—— reviewer token 命中角色名
+        # 本身、或 `角色-<限定>` 前缀,即算该角色已覆盖(如 external-claude 满足
+        # external · 保留异质模型 provenance)。异质性不由此 roll-call 保证 ——
+        # 由 _evidence_external_review_artifact 校验 cross-review 产物的 review_model。
+        def _role_covered(role: str) -> bool:
+            return any(rv == role or rv.startswith(role + "-") for rv in reviewer_set)
+
+        missing = sorted(r for r in required_set if not _role_covered(r))
         if missing:
             return False, (
-                f"{review_artifact} frontmatter.reviewers 缺角色: {sorted(missing)} · "
+                f"{review_artifact} frontmatter.reviewers 缺角色: {missing} · "
                 f"必含 state.stage_review_roles[{current}] = {required} · "
+                f"角色名本身或 `角色-限定`(如 external-claude)均可 · "
                 f"补 reviewer 或在上一 stage complete 时跑 --next-stage-roles 调整"
             )
         return True, ""
@@ -1769,7 +1777,34 @@ def _check_review_approved(state: dict, args) -> bool:
 
 
 def _test_brief(state: dict) -> str:
-    """v8.0+P0-8 极简版:目标 + 结果 + 完成方式 · 怎么做归 stage.md。"""
+    """v8.0+P0-8 极简版:目标 + 结果 + 完成方式 · 怎么做归 stage.md。
+
+    v8.111:按 flow_type 分支 —— Bug 流程无 PRD/TC(规格 = bugfix/BUG-*.md)·
+    不能列「verify-ac.py 通过 / AC 全覆盖」(门禁对 Bug 自动 skip · brief 若列出
+    = 假信号 · 实证有 agent 照着去跑 verify-ac.py 撞 PRD 不存在)。
+    """
+    if state.get("flow_type") == "Bug":
+        return """## Test Stage(Bug 流程)
+
+### 目标
+QA 回归验证 —— **复现 bug 的用例修复后转绿** + 既有套件保持绿 · 防 fix 引入回归。
+
+### 结果(完成判定)
+- `TEST-REPORT.md`(记:复现用例 → 修复后 PASS · 既有套件结果 · 关联 BUG-*.md §回归测试)
+- `e2e/*`(至少 1 文件 · 复跑触发 bug 的关键路径 · 语言无关)
+- integration + e2e exit-code = 0
+- 🚫 **无 PRD/TC → verify-ac / AC 全覆盖 N/A**(门禁对 Bug 自动 skip · 不要去跑 verify-ac.py · 规格依据是 BUG-*.md)
+
+### 怎么做
+**必读** `stages/test-stage.md`(详细步骤 + 注意事项 · 含 Bug 无 PRD/TC 分支)。
+
+### 完成方式
+```
+state.py test-complete --feature <path> --auto-commit <hash> \
+  --artifacts TEST-REPORT.md,e2e/ \
+  --integration-test-exit-code 0 --e2e-test-exit-code 0
+```
+"""
     return f"""## Test Stage
 
 ### 目标

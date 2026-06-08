@@ -1,10 +1,27 @@
-# Changelog Archive(v8.105 → v1)
+# Changelog Archive(v8.106 → v1)
 
-> 📦 **历史归档**:本文件保存 teamwork **v8.105 及更早**的全部 changelog(含 v7/v6/…/v1 等 v8.0 之前的旧系统)· 仅供追溯,**不再维护**。
-> 现行 changelog(最近 5 版 · v8.106–v8.110)见 [CHANGELOG.md](./CHANGELOG.md)。
+> 📦 **历史归档**:本文件保存 teamwork **v8.106 及更早**的全部 changelog(含 v7/v6/…/v1 等 v8.0 之前的旧系统)· 仅供追溯,**不再维护**。
+> 现行 changelog(最近 5 版 · v8.107–v8.111)见 [CHANGELOG.md](./CHANGELOG.md)。
 > ⚠️ v8.0 是「范式切换 · 不向下兼容」的重构 —— **v7 及更早描述的是已不存在的旧系统**,其机制/命令/红线编号均不适用于现行 v8。
 
 ---
+
+## v8.106 · 外部 claude 评审回退纯 `claude -p`(删 --bare/--allowedTools/doc 模式 · 治本 --bare 砸登录)
+
+> 用户(case PTR-F260606):state.py 预期只用 `claude -p`。case:`claude --bare -p` 报 "Not logged in" 而裸 `claude -p` 正常。
+
+### 诊断:v8.103 的 `--bare` 砸了登录上下文
+- v8.85 起长 prompt 走 doc 模式(短 argv + `--allowedTools` 让 reviewer 自己 Read)· v8.103 加 `--bare`(想跳消费项目 MCP 防卡死)。
+- 但 `--bare`(minimal mode)**也跳了 claude 的登录/认证上下文** → `claude --bare -p` = "Not logged in"(裸 `claude -p` 已登录)。v8.103 想用 `--bare` 救 MCP-hang · 反而砸了认证 —— 比病更重。
+
+### 改法(用户拍板「只用 claude -p」)
+- `_build_claude_review_cmd`:**只用 `["claude","-p",<full inline prompt>,"--output-format","text"]`**(cwd=None)· 删 doc 模式短引用 + `--allowedTools` + `--bare` + `--permission-mode` + liveness。
+- prompt **自包含**(goal/blueprint 已 inline 待评审文件内容 · `_gather_review_files_for_claude`)· reviewer 无需工具 / 文件系统访问 · 一次性纯文本生成 —— 一并消除 MCP-hang(无工具栈)+ 认证回归(无 `--bare`)。
+- 仍写 prompt_doc(审计 + 可复跑 · 不 clobber PMO 预写)· 删死常量 `CLAUDE_REVIEW_ARGV_LIMIT`。
+
+### 验证
+- 重写 `test_v885_short_prompt_inline` + 新 `test_v8106_long_prompt_still_inline`(长短都 inline · 无 `--bare`/工具 · doc 仍写盘)· pytest **3 failed / 500 passed**(baseline 3 · 零回归)。
+- 🔴 下一步(v8.107):降级策略统一改 **subagent**(不用 exec)· 实现「降级而不是去掉」(用户已确认设计:subagent 自审满足门禁 + WARN · 显式带 reason)。
 
 ## v8.105 · external review 消费侧规则:「信号 ≠ 判决」逐条裁决(治本 AI 盲采异质评审被误导)
 
