@@ -1,6 +1,23 @@
 # Changelog
 
-> 📦 v8.102 及更早(含 v7/v6/… 旧系统)已归档 → [CHANGELOG-ARCHIVE.md](./CHANGELOG-ARCHIVE.md)。本文件**保留最近 5 版**(每次发布:新增本版 → 若超过 5 版,把最旧的一版迁入归档)。
+> 📦 v8.103 及更早(含 v7/v6/… 旧系统)已归档 → [CHANGELOG-ARCHIVE.md](./CHANGELOG-ARCHIVE.md)。本文件**保留最近 5 版**(每次发布:新增本版 → 若超过 5 版,把最旧的一版迁入归档)。
+
+## v8.108 · 外部评审降级策略统一改 subagent(不 exec · 降级而不是去掉 · 满足门禁)
+
+> 用户:降级策略统一改用 subagent · 不用 exec 了(exec 在这出过很多次问题:认证 / --bare / 卡死 / 登录)· 降级而不是去掉。
+
+### 诊断:两条降级路径都 exec CLI 自审 → 反复踩坑
+- `--self-review-fallback`(v8.88)+ `disable_heterogeneous_review`(v8.90)都 **exec 宿主自身模型 CLI** 自审 → 子进程 CLI 反复出认证 / `--bare` / MCP 卡死 / "Not logged in" / stdin 问题。
+- 且 `--self-review-fallback` 落 `self-review/` 不满足门禁 → 用户被迫「去掉 external」(change-review-roles)· 与「降级而不是去掉」相悖。
+
+### 改法:降级 = subagent(harness 内 · 不 exec)· 满足门禁
+- **`state.py`**:self_fallback / het_disabled 两路 **不再 exec** · 改 emit `verdict: SUBAGENT_FALLBACK` 配方(state.py 是脚本起不了 `Agent`)→ PMO 起 `Agent` subagent(isolated context · 宿主自身模型 · 同 auth · 无子进程 CLI 问题)产出降级评审 → 写 `external-cross-review/<stage>-<model>-subagent-degraded.md`。exec 只留给**真异质主路径**。
+- **门禁** `_evidence_external_review_artifact`:接受 honest-degrade(`degraded:true heterogeneous:false degraded_mode:subagent-fallback`)→ 满足 P0-154(降级 · 让你继续)。🔴 **无** degraded marker 的 subagent 文件仍落黑名单 BLOCK(防 F034 伪装)· `config-disabled` marker 仍须 `het_disabled` 为真。
+- **降级优先于移除**:which-cli 不在的 FAIL hint 改三选一 —— ① 降级(subagent · 推荐)② 装异质 CLI ③ 移除(最后手段)。
+- **specs**:standards §11.5(降级=subagent · 不 exec)+ §11.1 两注(self-review-fallback / disable_het 改 subagent)+ review-stage §4。
+
+### 验证
+- 更新 3 测(self-review-fallback / config-disabled → SUBAGENT_FALLBACK recipe · which-cli hint)+ 新 2 测(honest subagent-degrade 放行〔即便未 opt-out + 含 claude 文件名〕· bare subagent 仍 BLOCK)· pytest **3 failed / 503 passed**(baseline 3 = scan-spec · 零回归 · +2 测试)。
 
 ## v8.107 · Bug 流程加 `diagnose` 阶段(根因细查 + 修复方案确认 · 用户确认后才进 dev · 治本 fix 修偏)
 
@@ -81,20 +98,3 @@
 
 ### 验证
 - `test_v8100_planning_check_panorama_before_ws` 加断言(checklist 含「并行」)· pytest **3 failed / 500 passed**(baseline 3 = scan-spec 既有 · 零回归)。
-
-## v8.103 · 外部 claude 评审 hermetic 化(`--bare` 跳宿主 MCP/hooks · 治本消费项目 dev-server MCP 卡死)
-
-> 用户:异质 Blueprint review 跑 `state.py external-review` 卡住(写了 review_start.log liveness 后无 stdout · CPU 近 0 · 直到 timeout)· 裸 `claude -p 'OK'` 3 秒返回。卡住的原因是什么。
-
-### 诊断:`--allowedTools` 激活工具栈 → 自动 spawn 消费项目 MCP → 卡死
-- v8.85 起长 prompt 走 doc 模式:`claude -p <短句> --allowedTools Write Read`。`--allowedTools` 激活 claude **agentic 工具栈** → headless 下**自动发现并 spawn 消费项目的 `.mcp.json` MCP servers + `.claude/hooks/`**。
-- 案例 aon 项目 `.mcp.json` 的 `aon-demo` = `npm run … dev`(长跑 dev/watch server · 永不返回 MCP 握手)→ MCP 子系统 block → 整个 `-p` 卡死至 600s timeout。liveness Write 先落(核心工具 · 快)→ 之后卡在 MCP = 正是观察到的"先写 liveness 再卡住"顺序。
-- 裸 `claude -p 'OK'`(无 `--allowedTools`)不进工具栈 → 不载 MCP → 3 秒返回。**非代码 / 文档 / v8.102 问题**。
-
-### 改法(`state.py` · external review 必须 hermetic)
-- `_build_claude_review_cmd` 两路都加 **`--bare`**(🔴 跳宿主项目 MCP/hooks/CLAUDE.md/skills 自动发现 · 直接消因);doc 模式再加 **`--permission-mode dontAsk`**(非白名单工具自动拒 · 不 abort 不挂)+ 白名单扩到 **`Read Grep Glob Write`**(读+导航 + 仅 liveness 写 · 仍不放 Bash/Edit)。
-- 同步 PMO-facing `preview_cmd` 文案。flags 均在 claude CLI v2.1.162 验证存在。
-
-### 验证
-- `test_v885_short_prompt_inline` + `test_v885_long_prompt_doc_mode` 扩断言(`--bare` / `dontAsk` / `Grep`/`Glob` 在 · `Bash` 不在)· pytest **3 failed / 500 passed**(baseline 3 = scan-spec 既有 · 零回归)。
-- 🔴 消费项目需 `tools/update.py` 拉本版才生效(aon 现 v8.101.1)· 临时绕过:删/注释消费项目 `.mcp.json` 的 dev-server MCP · 或手跑 `claude -p "$(cat <doc>)"`(无工具栈)。

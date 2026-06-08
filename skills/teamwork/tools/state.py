@@ -2919,14 +2919,16 @@ def cmd_external_review(args: argparse.Namespace) -> None:
             "command": "external-review",
             "error": f"{cli_name} CLI 不在(`which {cli_name}` 失败)",
             "hint": (
-                f"二选一(绝不 substitute · 不可用 Agent subagent 自审):\n"
-                f"  ① 安装 {cli_name} CLI(codex: https://github.com/openai/codex · "
-                f"claude: https://claude.com/claude-code)\n"
-                f"  ② state.py change-review-roles --feature {args.feature} "
-                f"--stage {args.stage} --roles '<不含 external>' --reason "
-                f"'{cli_name} CLI 不在本机' · 留 audit 后继续 stage-complete"
+                f"异质 {cli_name} CLI 不在 · 三选一(🔴 v8.108 降级优先于移除):\n"
+                f"  ① 🟢 **降级(推荐)**:state.py external-review --feature {args.feature} "
+                f"--stage {args.stage} --self-review-fallback --reason '异质 {cli_name} 不在本机·已确认' "
+                f"→ emit subagent 配方(PMO 起 Agent subagent 同模型降级自审 · 满足门禁 · 诚实标 degraded · 非异质)\n"
+                f"  ② 装 {cli_name} CLI(codex: https://github.com/openai/codex · "
+                f"claude: https://claude.com/claude-code)恢复**真异质**\n"
+                f"  ③ change-review-roles 移除 external(最后手段 · 留 audit)\n"
+                f"  🔴 绝不**偷偷**用 subagent 冒充异质(必走 ① 显式降级 · frontmatter 标 degraded · 不伪装合规)"
             ),
-            "rule": "standards/external-model-usage.md § 7.3 · R3 异质硬约束",
+            "rule": "standards/external-model-usage.md §十一.5(降级=subagent · 不 exec)· §7.3 R3 异质硬约束",
         })
         return
 
@@ -2998,6 +3000,64 @@ def cmd_external_review(args: argparse.Namespace) -> None:
 
     feature_id = state.get("feature_id") or feature_dir.name
     title = args.title or f"{feature_id} · {args.stage} stage external review"
+
+    # ── v8.108 · 降级自审走 subagent(不 exec)· 治本 exec CLI 反复出认证/--bare/卡死/登录问题 ──
+    # self_fallback(--self-review-fallback)或 het_disabled(config disable_heterogeneous_review)=
+    # 同模型降级 → 🔴 不 exec CLI · 改 emit 配方 · 由 PMO 起 Agent subagent(isolated context · 宿主
+    # 自身模型 · 在 harness 内跑 · 同 auth · 无 subprocess CLI 问题)产出降级评审 · 写
+    # external-cross-review/(honest-degrade frontmatter)· 门禁接受(降级 · 满足 P0-154 · 记 degraded)。
+    # 详 standards/external-model-usage.md §十一.5。
+    if self_fallback or degraded_self:
+        host_model = host.split("-")[0]  # codex / claude(宿主自身模型 · 同源降级)
+        # subagent 评审指令:用 claude reviewer 模板(host-agnostic prompt)+ inline 待评审文件
+        claude_profile = EXTERNAL_STAGE_TO_PROFILE[args.stage]["claude"]
+        try:
+            prompt_template = (skill_root / "claude-agents" / claude_profile).read_text(encoding="utf-8")
+        except OSError:
+            prompt_template = "You are a code reviewer. Review the following and output a markdown review."
+        file_list_block, _meta = _gather_review_files_for_claude(args.stage, feature_dir)
+        sub_prompt = (
+            prompt_template
+            .replace("{stage}", args.stage)
+            .replace("{target}", STAGE_TO_REVIEW_TARGET.get(args.stage, args.stage))
+            .replace("{feature_name}", feature_id)
+            .replace("{file_list}", file_list_block)
+        )
+        prompt_doc = _default_prompt_doc_path(feature_dir, args.stage, f"{host_model}-subagent")
+        try:
+            prompt_doc.parent.mkdir(parents=True, exist_ok=True)
+            prompt_doc.write_text(sub_prompt, encoding="utf-8")
+        except OSError:
+            pass
+        target_file = f"external-cross-review/{args.stage}-{host_model}-subagent-degraded.md"
+        degraded_mode = "config-disabled" if degraded_self else "subagent-fallback"
+        emit({
+            "verdict": "SUBAGENT_FALLBACK",
+            "command": "external-review",
+            "degraded": True,
+            "host": host,
+            "model": f"{host_model}-subagent",
+            "degraded_reason": sr_reason,
+            "prompt_doc": str(prompt_doc),
+            "target_file": str(feature_dir / target_file),
+            "next_action": (
+                "🔴 降级评审(异质不可用)· 走 **subagent**(不 exec CLI · 也不移除 external):\n"
+                f"  1. 起 Agent subagent(isolated context · 宿主自身模型 {host_model} · 在 harness 内跑)· "
+                f"prompt = 读 {prompt_doc} 的内容(评审指令 + 待评审文件已 inline)\n"
+                f"  2. 把 subagent 产出的评审写到 {feature_dir / target_file} · frontmatter 必含:\n"
+                f"       review_model: {host_model}-subagent-degraded\n"
+                "       heterogeneous: false\n"
+                "       degraded: true\n"
+                f"       degraded_mode: {degraded_mode}\n"
+                f"       degraded_reason: \"{sr_reason}\"\n"
+                "       review_via: subagent\n"
+                f"  3. {args.stage}-complete 门禁接受它(降级 · 满足 P0-154)· 但它**非异质 · 同盲点**\n"
+                "  ⚠️ 这是降级不是异质:能装/登录异质 CLI 就修环境重跑真异质;长期单模型用 disable_heterogeneous_review。"
+            ),
+            "spec": "standards/external-model-usage.md §十一.5(降级=subagent · 不 exec)+ §十二(裁决)",
+            **({"deprecation_warning": deprecation_warning} if deprecation_warning else {}),
+        })
+        return
 
     # v8.23:cwd = git root(让 codex 在仓库根跑 · 能读 prompt 内的相对路径)
     git_root = _git_toplevel(feature_dir) or feature_dir

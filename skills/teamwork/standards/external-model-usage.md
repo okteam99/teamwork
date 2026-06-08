@@ -165,9 +165,9 @@ codex-agents/*.toml 必须满足：
 | 主对话 Claude → claude-cli 子进程 | ❌ **不算** | 同模型自审 |
 | 用 frontmatter `review_model: claude-isolated` 标"透明" | ❌ **不算** | 透明 ≠ 合规;透明只承认"我做了不达标" · 不替代"做达标" |
 
-> **诚实降级自审(self-review-fallback)**:异质 CLI **客观不可用**(未装/未登录/配额满·已重试失败)时 · 可 `external-review --self-review-fallback --reason '...'` 跑同模型 fresh exec 自审 —— 但它**仍是上表第 4 行(不算异质)**,故落 `self-review/`(不进 `external-cross-review/`)· **不满足 P0-154**。它只是异质不可用时的**弱安全网 + audit evidence**,要继续仍须修环境重跑真异质、或 `change-review-roles` 显式移除 external。**绝不**用它冒充异质通过门禁。
+> **诚实降级自审(self-review-fallback)**:异质 CLI **客观不可用**(未装/未登录/配额满·已重试失败)时 · `external-review --self-review-fallback --reason '...'` → **emit subagent 降级配方**(🔴 v8.108:不再 exec CLI · PMO 起宿主自身模型 `Agent` subagent 自审 · 详 §11.5)· 写 `external-cross-review/`(frontmatter `heterogeneous:false degraded:true degraded_mode:subagent-fallback`)· **满足 P0-154**(降级 · 非异质 · 同盲点)。仍是降级不是异质:能修环境就重跑真异质 / 长期单模型走 `disable_heterogeneous_review`。**绝不偷偷**用 subagent 冒充异质(必显式标 degraded · 见 §11.5)。
 >
-> **单模型 opt-out(`disable_heterogeneous_review`)**:只有一个模型的用户可在 `.teamwork_localconfig.json` 设 `disable_heterogeneous_review: true`(默认 false)· 则 `external-review` **自动**降级为宿主自身模型 exec 自审 · 落 `external-cross-review/`(**满足 P0-154** · frontmatter 标 `heterogeneous:false degraded:true degraded_mode:config-disabled`)· 让单模型用户能走完流程。代价:**非异质 · 同盲点 · 交叉 review 质量下降** —— 故每次 `bootstrap` 启动**持续 WARN** 提醒(`checks.heterogeneous_review.status=disabled` + `pmo_must_read`)· 建议装好第二个模型 CLI 后删此项恢复异质。与 self-review-fallback 的区别:后者是**临时 stopgap**(不满足门禁)· 本项是**项目级长期策略**(满足门禁 · 但被 startup WARN 持续提醒)。
+> **单模型 opt-out(`disable_heterogeneous_review`)**:只有一个模型的用户可在 `.teamwork_localconfig.json` 设 `disable_heterogeneous_review: true`(默认 false)· 则 `external-review` **自动 emit subagent 降级配方**(🔴 v8.108:PMO 起宿主自身模型 subagent 自审 · 不 exec · 详 §11.5)· 落 `external-cross-review/`(**满足 P0-154** · frontmatter 标 `heterogeneous:false degraded:true degraded_mode:config-disabled`)· 让单模型用户能走完流程。代价:**非异质 · 同盲点 · 交叉 review 质量下降** —— 故每次 `bootstrap` 启动**持续 WARN** 提醒(`checks.heterogeneous_review.status=disabled` + `pmo_must_read`)· 建议装好第二个模型 CLI 后删此项恢复异质。与 self-review-fallback 的区别:后者是**临时 stopgap**(不满足门禁)· 本项是**项目级长期策略**(满足门禁 · 但被 startup WARN 持续提醒)。
 
 ### 11.2 文件命名硬规约(state.py 物化校验)
 
@@ -214,6 +214,16 @@ Step 3:跑命令 · 落 *-codex.md / *-gemini.md / 等真异质模型文件
 | 透明 frontmatter 伪装合规 | `review_model: claude-isolated` 自承"不达标"但仍提交 | 7.2 frontmatter 校验 BLOCKED |
 | 看到工具不在就 substitute | "/codex 是 user-only skill 不能 invoke → 用 Agent 起" | 7.3 必先 `which` · 不在 stop |
 | 没 cite 上游 Feature 范式 | F033 既有 `*-codex.md` 在 worktree 内 · F034 没 grep | 7.3 跑前 cite 范例 |
+
+### 11.5 降级策略 = subagent(🔴 不 exec · 降级而不是去掉)
+
+> 🔴 异质 CLI **客观不可用**(未装/未登录/配额满/`claude -p` 本身坏 · 已重试失败)时 —— **优先降级,不是直接移除 external**。降级**统一走 subagent**(不再 exec CLI 自审)。
+
+- **为什么 subagent 不 exec**:exec 一个 CLI 子进程做自审,反复踩认证 / `--bare` / MCP 卡死 / "Not logged in" / stdin 等坑(出过很多次)。**subagent(`Agent` 工具)在 harness 内跑** —— 同 auth、无子进程 CLI 问题、无 MCP 自动加载。它**仍是同模型自审**(非异质 · 同盲点),但**可靠**。
+- **机制**:`state.py external-review --self-review-fallback --reason '<异质为何不可用+重试证据>'`(或项目 `disable_heterogeneous_review:true` 自动触发)→ state.py **不 exec** · emit `verdict: SUBAGENT_FALLBACK` 配方(state.py 是脚本 · 起不了 `Agent`)→ **PMO 起 Agent subagent**(isolated context · 宿主自身模型)产出降级评审 → 写 `external-cross-review/<stage>-<model>-subagent-degraded.md`。
+- **满足门禁(降级)**:文件 frontmatter 必含 `heterogeneous:false` + `degraded:true` + `degraded_mode:subagent-fallback` + `degraded_reason:'...'` + `review_via:subagent` → `_evidence_external_review_artifact` 接受(降级 · 满足 P0-154)。**让你继续往下走**(降级而不是去掉)。
+- 🔴 **honest-degrade ≠ F034 伪装**:必须**显式**标 `degraded:true degraded_mode:subagent-fallback`(诚实承认非异质)。**无** degraded marker 的 subagent 文件 → 仍落 11.2 黑名单 BLOCK(防偷偷用 subagent 冒充异质)。
+- **优先级**:① 降级(subagent · 推荐)→ ② 装异质 CLI 恢复真异质 → ③ `change-review-roles` 移除(最后手段)。能修环境就修真异质;长期单模型走 `disable_heterogeneous_review`。
 
 ---
 

@@ -1405,17 +1405,18 @@ class TestExternalReviewCommand(unittest.TestCase):
         self.assertEqual(d["verdict"], "FAIL")
         self.assertIn("claude/codex", d["error"])
 
-    def test_self_review_fallback_routes_to_self_review_dir(self):
-        """🔴 核心:self-review 落 self-review/(非 external-cross-review/)· 用宿主自身模型 ·
-        结构上**不满足 P0-154**(P0-154 只查 external-cross-review/)。dry-run 验路由。"""
+    def test_self_review_fallback_emits_subagent_recipe(self):
+        """🔴 v8.108:--self-review-fallback 不 exec · emit subagent 配方(PMO 起 Agent subagent 降级自审)·
+        target 落 external-cross-review/(诚实降级 · degraded_mode=subagent-fallback · 满足 P0-154)。"""
         d = run(["external-review", "--feature", str(self.feat),
                  "--stage", "review", "--host", "claude-code",
-                 "--self-review-fallback", "--reason", "异质 codex 未登录·已重试失败",
-                 "--dry-run"], expect_exit=0)
-        self.assertEqual(d["verdict"], "OK", d)
-        self.assertEqual(d["model"], "claude")  # 宿主自身模型(claude-code → claude · 故意同源)
-        self.assertIn("/self-review/", d["output_file"])
-        self.assertNotIn("external-cross-review", d["output_file"])
+                 "--self-review-fallback", "--reason", "异质 codex 未登录·已重试失败"],
+                expect_exit=0)
+        self.assertEqual(d["verdict"], "SUBAGENT_FALLBACK", d)
+        self.assertTrue(d["degraded"])
+        self.assertEqual(d["model"], "claude-subagent")  # 宿主自身模型 subagent(claude-code → claude)
+        self.assertIn("external-cross-review", d["target_file"])
+        self.assertIn("degraded_mode: subagent-fallback", d["next_action"])
 
     # ── v8.90:localconfig 禁用异质评审(单模型用户)──
     def test_read_disable_heterogeneous_review_helper(self):
@@ -1428,19 +1429,18 @@ class TestExternalReviewCommand(unittest.TestCase):
             json.dumps({"disable_heterogeneous_review": True}), encoding="utf-8")
         self.assertTrue(_read_disable_heterogeneous_review(self.feat))
 
-    def test_config_disabled_routes_to_external_cross_review(self):
-        """🔴 v8.90:disable_heterogeneous_review=true → 自动宿主自身模型 exec 自审 ·
-        落 external-cross-review/(满足 P0-154 · 区别于 self-review-fallback 落 self-review/)。"""
+    def test_config_disabled_emits_subagent_recipe(self):
+        """🔴 v8.108:disable_heterogeneous_review=true → emit subagent 配方(不 exec)·
+        target 落 external-cross-review/(degraded_mode=config-disabled · 满足 P0-154)。"""
         (self.tmp / ".git").mkdir()
         (self.tmp / ".teamwork_localconfig.json").write_text(
             json.dumps({"disable_heterogeneous_review": True}), encoding="utf-8")
         d = run(["external-review", "--feature", str(self.feat), "--stage", "review",
-                 "--host", "claude-code", "--commit", "abc123def456",
-                 "--base", "staging", "--dry-run"])
-        self.assertEqual(d["verdict"], "OK", d)
-        self.assertEqual(d["model"], "claude")  # 宿主自身模型(降级 · 非异质 codex)
-        self.assertIn("/external-cross-review/", d["output_file"])
-        self.assertNotIn("self-review/", d["output_file"])
+                 "--host", "claude-code", "--commit", "abc123def456", "--base", "staging"])
+        self.assertEqual(d["verdict"], "SUBAGENT_FALLBACK", d)
+        self.assertTrue(d["degraded"])
+        self.assertIn("external-cross-review", d["target_file"])
+        self.assertIn("degraded_mode: config-disabled", d["next_action"])
 
     # ── stage 校验 ──
     def test_stage_choices_enforced(self):
@@ -1796,7 +1796,7 @@ class TestExternalReviewCommand(unittest.TestCase):
 
     # ── which BLOCK(模拟 codex 不在 · 用窄 PATH) ──
     def test_codex_cli_missing_blocked_with_hint(self):
-        """which codex 失败 → BLOCK + hint 含 'change-review-roles' / '绝不 substitute'。"""
+        """which codex 失败 → BLOCK + hint 含 '--self-review-fallback'(v8.108 降级优先)/ 'change-review-roles'(最后手段)。"""
         # 用窄 PATH 模拟 codex 不在(/usr/bin:/bin · 通常没 codex)
         r = subprocess.run(
             [sys.executable, str(STATE_PY), "external-review",
@@ -1808,8 +1808,9 @@ class TestExternalReviewCommand(unittest.TestCase):
         d = json.loads(r.stdout) if r.stdout.strip().startswith("{") else {}
         self.assertEqual(d.get("verdict"), "FAIL", f"应 FAIL · 实际 stdout={r.stdout}")
         self.assertIn("不在", d["error"])
-        self.assertIn("substitute", d["hint"])  # "绝不 substitute"
-        self.assertIn("change-review-roles", d["hint"])
+        self.assertIn("--self-review-fallback", d["hint"])  # v8.108:降级优先于移除
+        self.assertIn("change-review-roles", d["hint"])     # 最后手段仍在
+        self.assertIn("冒充异质", d["hint"])                  # 仍禁偷偷用 subagent 伪装合规
 
     # ── 自动 frontmatter 文件命名 ──
     def test_output_file_path_uses_compliant_naming(self):

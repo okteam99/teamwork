@@ -1,10 +1,29 @@
-# Changelog Archive(v8.102 → v1)
+# Changelog Archive(v8.103 → v1)
 
-> 📦 **历史归档**:本文件保存 teamwork **v8.102 及更早**的全部 changelog(含 v7/v6/…/v1 等 v8.0 之前的旧系统)· 仅供追溯,**不再维护**。
-> 现行 changelog(最近 5 版 · v8.103–v8.107)见 [CHANGELOG.md](./CHANGELOG.md)。
+> 📦 **历史归档**:本文件保存 teamwork **v8.103 及更早**的全部 changelog(含 v7/v6/…/v1 等 v8.0 之前的旧系统)· 仅供追溯,**不再维护**。
+> 现行 changelog(最近 5 版 · v8.104–v8.108)见 [CHANGELOG.md](./CHANGELOG.md)。
 > ⚠️ v8.0 是「范式切换 · 不向下兼容」的重构 —— **v7 及更早描述的是已不存在的旧系统**,其机制/命令/红线编号均不适用于现行 v8。
 
 ---
+
+## v8.103 · 外部 claude 评审 hermetic 化(`--bare` 跳宿主 MCP/hooks · 治本消费项目 dev-server MCP 卡死)
+
+> 用户:异质 Blueprint review 跑 `state.py external-review` 卡住(写了 review_start.log liveness 后无 stdout · CPU 近 0 · 直到 timeout)· 裸 `claude -p 'OK'` 3 秒返回。卡住的原因是什么。
+
+### 诊断:`--allowedTools` 激活工具栈 → 自动 spawn 消费项目 MCP → 卡死
+- v8.85 起长 prompt 走 doc 模式:`claude -p <短句> --allowedTools Write Read`。`--allowedTools` 激活 claude **agentic 工具栈** → headless 下**自动发现并 spawn 消费项目的 `.mcp.json` MCP servers + `.claude/hooks/`**。
+- 案例 aon 项目 `.mcp.json` 的 `aon-demo` = `npm run … dev`(长跑 dev/watch server · 永不返回 MCP 握手)→ MCP 子系统 block → 整个 `-p` 卡死至 600s timeout。liveness Write 先落(核心工具 · 快)→ 之后卡在 MCP = 正是观察到的"先写 liveness 再卡住"顺序。
+- 裸 `claude -p 'OK'`(无 `--allowedTools`)不进工具栈 → 不载 MCP → 3 秒返回。**非代码 / 文档 / v8.102 问题**。
+
+### 改法(`state.py` · external review 必须 hermetic)
+- `_build_claude_review_cmd` 两路都加 **`--bare`**(🔴 跳宿主项目 MCP/hooks/CLAUDE.md/skills 自动发现 · 直接消因);doc 模式再加 **`--permission-mode dontAsk`**(非白名单工具自动拒 · 不 abort 不挂)+ 白名单扩到 **`Read Grep Glob Write`**(读+导航 + 仅 liveness 写 · 仍不放 Bash/Edit)。
+- 同步 PMO-facing `preview_cmd` 文案。flags 均在 claude CLI v2.1.162 验证存在。
+
+> 🔴 注:v8.106 已**回退** `--bare`(它砸 claude 登录上下文 → "Not logged in")+ 删 doc 模式 · 回纯 `claude -p`。本条 hermetic 方案被 v8.106 取代。
+
+### 验证
+- `test_v885_short_prompt_inline` + `test_v885_long_prompt_doc_mode` 扩断言(`--bare` / `dontAsk` / `Grep`/`Glob` 在 · `Bash` 不在)· pytest **3 failed / 500 passed**(baseline 3 = scan-spec 既有 · 零回归)。
+- 🔴 消费项目需 `tools/update.py` 拉本版才生效(aon 现 v8.101.1)· 临时绕过:删/注释消费项目 `.mcp.json` 的 dev-server MCP · 或手跑 `claude -p "$(cat <doc>)"`(无工具栈)。
 
 ## v8.102 · 异质评审 prompt 与 review_start.log liveness 调和(READ-ONLY carve-out 唯一允许写)
 

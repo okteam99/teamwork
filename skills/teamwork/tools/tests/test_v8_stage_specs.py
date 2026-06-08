@@ -204,6 +204,31 @@ class TestExternalReviewHeteroEnforcement(unittest.TestCase):
         self.assertNotIn("host 自动映射异质模型", err,
                          "het_disabled 项目不应给通用「调异质模型」误导 hint")
 
+    # ── v8.108:per-run subagent 降级(degraded_mode=subagent-fallback · 显式 --self-review-fallback)──
+    _SUBAGENT_DEGRADED_FM = (
+        "---\nreview_model: claude-subagent-degraded\nhost: claude-code\n"
+        "heterogeneous: false\ndegraded: true\n"
+        "degraded_mode: subagent-fallback\n"
+        'degraded_reason: "异质 codex 未登录·已重试失败"\n'
+        "review_via: subagent\n---\ndegraded review body\n")
+
+    def test_v8108_subagent_fallback_accepted_without_opt_out(self):
+        """v8.108:per-run subagent 降级(degraded_mode=subagent-fallback)→ 满足门禁 ·
+        即便项目**未** opt-out + 文件名含 `claude`(否则黑名单)· honest-degrade marker 放行。"""
+        self._set_config(False)  # 项目未 opt-out
+        (self.ext / "review-claude-subagent-degraded.md").write_text(
+            self._SUBAGENT_DEGRADED_FM, encoding="utf-8")
+        ok, err = self._check_host()
+        self.assertTrue(ok, f"subagent-fallback 诚实降级应放行 · err={err!r}")
+
+    def test_v8108_bare_subagent_still_blocked(self):
+        """v8.108:无 degraded marker 的 subagent 文件(F034 伪装)→ 仍 BLOCK · 防偷偷用 subagent 冒充异质。"""
+        self._set_config(False)
+        (self.ext / "review-claude-subagent.md").write_text(
+            "---\nreview_model: claude-subagent\nhost: claude-code\n---\nbody\n", encoding="utf-8")
+        ok, err = self._check_host()
+        self.assertFalse(ok, "无 degraded marker 的 subagent 文件必须 BLOCK(防 F034 伪装)")
+
     # ── 白名单字面 · PASS ──
     def test_codex_filename_passes(self):
         (self.ext / "code-codex.md").write_text("review", encoding="utf-8")

@@ -1432,8 +1432,15 @@ def _evidence_external_review_artifact(state: dict, args) -> tuple[bool, str]:
         # v8.90:config-disabled 项目 + 文件是合规降级自审(external-review 写 degraded:true
         # heterogeneous:false)→ 视作满足门禁(用户已 opt-out · startup WARN 持续提醒)· 跳过异质校验。
         # 注:parse_frontmatter 是朴素解析 · 值为字符串("true"/"false")。
-        if het_disabled and str(fm.get("degraded", "")).lower() == "true" \
-                and str(fm.get("heterogeneous", "")).lower() == "false":
+        deg = (str(fm.get("degraded", "")).lower() == "true"
+               and str(fm.get("heterogeneous", "")).lower() == "false")
+        # v8.90:config-disabled 项目(het_disabled=true)→ 接受任何 degraded 自审(用户已 opt-out)。
+        # v8.108:per-run subagent 降级(frontmatter degraded_mode=subagent-fallback)→ 接受(显式降级 ·
+        # 即便项目未 opt-out · 因为是 --self-review-fallback 带 reason 的诚实降级)· 非异质 · 满足 P0-154。
+        # 🔴 config-disabled marker 仍须 het_disabled 为真(防未 opt-out 项目用 stale config-disabled 标绕过);
+        # 无 degraded marker / 非 subagent-fallback → 落下方黑名单(F034 伪装拦)。
+        if deg and (het_disabled
+                    or str(fm.get("degraded_mode", "")).lower() == "subagent-fallback"):
             continue
         # host 优先级:state.host(per-feature)> 文件 frontmatter host(external-review 写)> None(默认 claude)
         eff_host = state_host or (fm.get("host") or "").strip() or None
