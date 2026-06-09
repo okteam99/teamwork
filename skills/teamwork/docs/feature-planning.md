@@ -15,10 +15,10 @@
 > 新项目权威顺序 = `product-overview`(产品规划 · PL 引导模式 · 见 [PRODUCT-OVERVIEW-INTEGRATION.md](../PRODUCT-OVERVIEW-INTEGRATION.md))
 > → ✅确认 → **派生** `teamwork-space.md`(工作区全景)→ **再**进本流程拆 ROADMAP。
 >
-> ⚠️ **`teamwork-space.md` 不是本流程产出的** —— 它由 product-overview「✅ 已确认」内容派生(genesis 在产品规划上游 ·
-> PRODUCT-OVERVIEW-INTEGRATION.md:67)。本流程 §2 Step 5「工作区级」改 teamwork-space.md 指的是**已存在后的迭代**,
-> 不是首次 genesis。冷启动若无 product-overview/teamwork-space → bootstrap emit `cold_start_workspace_uninitialized`
-> gate 引导先走产品规划上游(治本:已做 Feature Planning 却跳过 product-overview + teamwork-space.md)。
+> ⚠️ **`teamwork-space.md` 地图骨架由 bootstrap 自动建(v8.116)**,但**子项目清单**由 product-overview「✅ 已确认」+ 本流程**回填**
+> (taxonomy genesis 在产品规划上游 · PRODUCT-OVERVIEW-INTEGRATION.md:67)。本流程 §2 Step 5「工作区级」改 teamwork-space.md
+> 指的是**回填子项目清单 / 迭代**,不是建文件本身(那是 bootstrap)。冷启动若无 `product-overview/` → bootstrap emit
+> `cold_start_product_planning_recommended` gate 引导先走产品规划上游(治本:已做 Feature Planning 却跳过 product-overview)。
 
 ---
 

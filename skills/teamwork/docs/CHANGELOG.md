@@ -1,6 +1,23 @@
 # Changelog
 
-> 📦 v8.110 及更早(含 v7/v6/… 旧系统)已归档 → [CHANGELOG-ARCHIVE.md](./CHANGELOG-ARCHIVE.md)。本文件**保留最近 5 版**(每次发布:新增本版 → 若超过 5 版,把最旧的一版迁入归档)。
+> 📦 v8.111 及更早(含 v7/v6/… 旧系统)已归档 → [CHANGELOG-ARCHIVE.md](./CHANGELOG-ARCHIVE.md)。本文件**保留最近 5 版**(每次发布:新增本版 → 若超过 5 版,把最旧的一版迁入归档)。
+
+## v8.116 · N≥1 物化:bootstrap 自动建 teamwork-space.md + cold-start 解耦(地图 ≠ 规划)
+
+> 用户:单项目自动建 teamwork-space.md 符合预期 · 没必要兼容(单项目可无)· teamwork 是为复杂业务准备的。承 v8.115 arc 余项。
+
+### 改动(bootstrap-only · **无 state.py 改动**)
+- **`maintain_teamwork_space`(`bootstrap.py`)**:teamwork-space.md 缺失 → 自动建**精简骨架** —— 知识入口表**自动探测**(仅磁盘存在的节点:product-overview / project-specs / external / 归档冷库)+ 子项目清单**空表待规划回填**。幂等(已存在不动)。N≥1:任何项目(含单项目=1 子项目)都有地图根 · **不再"单项目可无"**。
+- **cold-start 解耦**:teamwork-space.md(地图)自动建后,原 `cold_start_workspace_uninitialized`(fire 于无 teamwork-space.md)若不改则**永不触发** → 产品规划 nudge 静默消失。改为 `cold_start_product_planning_recommended`(fire 于无 **product-overview**)· 保留规划引导(reframe:地图自动建 · 规划要人建)· 承 v8.48「产品规划优先」。
+- **路由零改动**:骨架子项目清单**空表** → state.py `_parse_workspace_registry` 返回 `{}` → 路由校验 SKIP(line 661)· 回填子项目行后才生效 · 不误阻断。
+- **spec 同步**:`SKILL.md` triage cold-start 段(gate 改名 + 地图/规划解耦 + N≥1)· `feature-planning.md`(teamwork-space.md 地图骨架自动建 · 子项目清单回填)· guide §0(去「过渡期单项目仍可无」→ 已物化)。
+
+### 验证
+- 重写 3 cold-start 测(gate 改名 + 新 condition:no-PO→gate / PO→planning_spec 接管)+ 新 `test_teamwork_space_auto_created`(知识入口探测 + 空表 + 幂等)· E2E 两场景(fresh→自动建+cold-start gate / 有 PO→无 cold-start)· 骨架空表→registry `{}`→SKIP 已验。
+- pytest **3 failed / 519 passed**(baseline 3 = scan-spec 既有 · 零回归)。
+
+### 知识图谱 arc 收官(v8.114–116)
+- v8.114 契约(律法/地图分工 + 三层律 + N≥1 模型)· v8.115 结构 checker(零死角物化 WARN)· v8.116 N≥1 地图根自动建 + cold-start 解耦。**teamwork 知识导航责任全物化**:从 teamwork-space.md(自动建·必读)零死角(checker 保结构)抵达一切 · 代码唯一真相 · 归档冷库按需解压。
 
 ## v8.115 · 知识图谱结构 checker(零死角从约定升物化 WARN · bootstrap 接线)
 
@@ -65,21 +82,3 @@
 ### 验证
 - `test_ship_archive_desc_v894.py`:`test_over_50_truncated`→`test_over_200_truncated`(199+`…`)· `test_exactly_50_kept`→`test_exactly_200_kept` · 新 `test_between_50_and_200_kept`(防回退:51–200 字不再截)· 集成 warning 测试改 `超 200 字`。
 - pytest **3 failed / 510 passed**(baseline 3 = scan-spec 既有 · 零回归 · +1 新测试)。
-
-## v8.111 · Bug 流程 2 摩擦点修复:reviewer 名精确匹配过严 + test brief 对 Bug 撒谎
-
-> 用户:看下我们的 bug 流程是否有问题(附真实 Bug feature 跑流程 transcript:`external-claude` 被拒 + `verify-ac.py` 撞 PRD 不存在)。诊断后选 A+B 都修。
-
-### 诊断:状态机骨架健全 · 坏的是 1 个全局过严匹配 + 1 段对 Bug 撒谎的 brief
-- Bug 链 `diagnose→dev→review→test→pm_acceptance→ship` 全接对 · 门禁对 Bug 安全(`ac_test_binding` 已 skip Bug)· 暴露的 2 点都是文案/匹配层 friction。
-
-### 改动
-- **Fix A · reviewers roll-call 容许「角色-限定」写法**(`_v8_stage_specs.py:_evidence_reviewers_match`):原精确集合差 `required - reviewer_set` 使 `external-claude ≠ external` 被拒 —— 逼用户把更有信息量的「标明异质模型」写法降级成裸 `external`。改为 token 命中 `角色名本身` 或 `角色-<限定>` 前缀即算覆盖(`external-claude` 满足 `external` · `external-` 边界防 `externalize` 误匹配)。异质性不由此 roll-call 保证(由 `_evidence_external_review_artifact` 校验 cross-review 产物 `review_model`)· 放宽安全 · **全流程生效**(非仅 Bug)。
-- **Fix B · `_test_brief` 按 flow_type 分支**(`_v8_stage_specs.py` + `stages/test-stage.md`):原 brief 写死 Feature 视角 · 完成判定列「`verify-ac.py` 通过 / AC 全覆盖」—— 但 **Bug 无 PRD/TC** · 实证有 agent 照着去跑 `verify-ac.py` 撞「PRD 不存在」困惑数轮(**门禁其实对 Bug 自动 skip · 是 brief 在撒谎**)。Bug brief 改为「回归测试转绿 + 既有套件保持绿 · verify-ac/AC 全覆盖 N/A · 别去跑 verify-ac.py」· test-stage.md 加「🐛 Bug 流程分支」callout + §1/§5 内联 Bug 提示。
-
-### 刻意不动(考量 C · 站得住)
-- Bug 的 `test` 仍要 `e2e/*`(≥1)+ 双 exit-code 全绿 · review 需 `external` 异质评审 —— 对小 bug 偏重但能防 fix 引回归 · 可 `change-review-roles` 调 · 不在本轮改。
-
-### 验证
-- 新增 `TestV8111BugFlowFixes` 6 例(role-qualified 满足 / 裸 external 兼容 / 缺 external 仍 BLOCK / `externalize` 不误匹配 / Bug brief 无 verify-ac 假信号 / Feature brief 不回归)。
-- pytest **3 failed / 509 passed**(baseline 3 = scan-spec 既有 · 零回归 · 509 = 503 + 6 新)。

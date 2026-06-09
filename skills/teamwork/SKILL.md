@@ -1,6 +1,6 @@
 ---
 name: teamwork
-version: v8.115.1
+version: v8.116
 description: AI 协作开发一体化框架 · /teamwork 启动
 ---
 
@@ -281,12 +281,14 @@ session 启动 `bootstrap.py` emit `checks.skill_update_check` + `flow_gates[]`(
 
 - `prepare_check_required_before_init_feature`(常驻)→ mode B 走 prepare(详 § Mode B 移交)
 - `product_overview_planning_spec_required`(项目有 `product-overview/`)→ 规划类任务先跑 `state.py planning-check`(详 [docs/feature-planning.md](./docs/feature-planning.md))
-- `cold_start_workspace_uninitialized`(项目无 `teamwork-space.md`)→ 🔴 **冷启动引导**:
-  - 🔴 **权威冷启动顺序**:`product-overview`(产品规划 · PL 引导模式)→ ✅确认 → 派生 `teamwork-space.md`(工作区全景)→ Feature Planning(涉 UI 先出全景初步规划 → 拆 WS / ROADMAP)→ Feature 状态机。**teamwork-space.md 不是 Feature Planning 产出的** —— 它由 product-overview「✅ 已确认」内容派生([PRODUCT-OVERVIEW-INTEGRATION.md](./PRODUCT-OVERVIEW-INTEGRATION.md))· **别再指用户"进 Feature Planning 生成 teamwork-space.md"**  - **bare `/teamwork` / mode D 无具体任务** → 🔴 **不当静默看板** · 这是最该引导的时刻 · 首条响应 emit 下方 R5 暂停点(即便项目已有 PROJECT/ROADMAP · 说明跳过了上游产品规划 · 仍 surface「product-overview + teamwork-space.md 缺失」· 不降级成脚注)
+- `cold_start_product_planning_recommended`(项目无 `product-overview/` · 地图根 `teamwork-space.md` 已 bootstrap 自动建)→ 🔴 **产品规划上游引导**:
+  - 🔴 **地图 vs 规划解耦(v8.116)**:`teamwork-space.md`(知识地图根)由 **bootstrap 自动建骨架**(N≥1 · 单项目=1 子项目 · 知识入口自动探测 · 子项目清单空表待填 · **不再"单项目可无"**)· `product-overview`(产品规划上游 · 愿景/业务架构/执行线)**要人建** —— gate fire 于**它**缺失。`teamwork-space.md` 子项目清单由 product-overview「✅ 已确认」+ Feature Planning **回填**(派生关系不变 · 仅地图骨架自动化 · [PRODUCT-OVERVIEW-INTEGRATION.md](./PRODUCT-OVERVIEW-INTEGRATION.md))。
+  - 🔴 **权威顺序**:`product-overview`(PL 引导)→ ✅确认 → 回填 `teamwork-space.md` 子项目清单 → Feature Planning(涉 UI 先出全景初步规划 → 拆 WS / ROADMAP)→ Feature 状态机。
+  - **bare `/teamwork` / mode D 无具体任务** → 🔴 **不当静默看板** · 首条响应 emit 下方 R5 暂停点(即便已有 PROJECT/ROADMAP · 说明跳过了上游产品规划 · 仍 surface「缺 product-overview」· 不降级成脚注)
   - **mode B execute** → 首条响应 emit 同一 R5 暂停点(执行前先问要不要补产品规划上游)
   - **mode A/E** query/discuss → 轻提一句(可选)· 不强暂停
   - **mode C** resume(已有 state.json 续作)→ silent skip(不打扰)
-  - **R5 暂停点动作**(一律引导 product-overview · 用户可拒):① 进产品规划冷启动(PL 引导模式建 product-overview → ✅确认派生 teamwork-space.md → 再 Feature Planning)💡 / ② 跳过直接做任务(单 Feature 快速 · 后续可补)/ ③ 其他 · 🔴 **用户拍板前不擅自建 `product-overview/` / `teamwork-space.md`**(R5)· 若项目**已有** product-overview → 跳过 ①,直接从「✅ 已确认」内容派生 teamwork-space.md
+  - **R5 暂停点动作**(引导 product-overview · 用户可拒):① 进产品规划冷启动(PL 引导建 product-overview → ✅确认 → 回填 teamwork-space.md 子项目清单)💡 / ② 跳过直接做任务(单 Feature 快速 · 后续可补)/ ③ 其他 · 🔴 **用户拍板前不擅自建 `product-overview/`**(R5)· 注:`teamwork-space.md` 地图骨架由 bootstrap 自动建(非规划内容 · 无需 R5)
 
 🔴 PMO 漏扫 flow_gates = 退回 v7「凭记忆读 spec」· Feature Planning / 冷启动 / 产品规划上游 不进状态机 · 无 state.py 兜底(物化盲区 · 用 forewarn gate 补)。
 

@@ -11,7 +11,7 @@
 - **定位**:`teamwork-space.md` 是本项目**知识地图根 / 索引之索引**(子项目结构 + 依赖 + **全部知识入口** + 跨项目追踪)· **不是**事件日志 / 进度看板 / 评审记录 · **不承担知识内容**(三层律:地图 / 领土=代码 / 冷库=归档 zip · 详 [SKILL.md § 项目级文档信息架构](../SKILL.md))。
 - 🔴 **核心简化原则**:**任一表格的任一单元格 ≤ 1 行**;详情一律外迁(workstream/WS-NN.md / Feature state.json + PRD / PROJECT.md / ADR)· 永远保持"一眼看懂全景",避免演化到几百行难维护。
 - 🔴 **变更协议**:任何变更(创建/修改/删除)**必须暂停等用户确认**(R5)· 本文件是 teamwork-space.md 的唯一格式权威源。
-- **N≥1 统一模型**:任何 teamwork 项目都有 teamwork-space.md(知识地图根)· **单项目 = 1 个逻辑子项目**(N=1)· 子项目是**职责单元非物理仓** · 知识层与项目是否 monorepo **无直接耦合**。🟢 **结构 checker 已落**(v8.115 · 见 §0.1)· 🔵 其余物化(bootstrap 自动建 teamwork-space.md + cold-start 解耦 + 路由校验 always)→ 后续;**过渡期**单项目仍可无(state.py 路由校验 SKIP)。
+- **N≥1 统一模型**:任何 teamwork 项目都有 teamwork-space.md(知识地图根)· **单项目 = 1 个逻辑子项目**(N=1)· 子项目是**职责单元非物理仓** · 知识层与项目是否 monorepo **无直接耦合**。🟢 **已物化**:bootstrap **自动建** teamwork-space.md 骨架(v8.116 · `maintain_teamwork_space` · 知识入口自动探测 + 子项目清单空表)+ cold-start 解耦(gate fire 于无 `product-overview/` · 非无 teamwork-space.md)+ 结构 checker(v8.115 · 见 §0.1)。**不再"单项目可无"**(子项目清单空表 → state.py 路由校验 SKIP · 回填后生效)。teamwork 面向复杂业务 · 地图根开销是预期。
 
 ## 0.1 § 知识入口(索引之索引 · 零死角律)
 

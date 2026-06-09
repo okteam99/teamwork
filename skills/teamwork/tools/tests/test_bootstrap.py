@@ -760,54 +760,59 @@ class TestCmdSessionBootstrapE2E(unittest.TestCase):
         )
         return json.loads(result.stdout).get("flow_gates", [])
 
-    def test_cold_start_gate_present_when_no_workspace(self):
-        """v8.47/v8.48:project_root 无 teamwork-space.md → emit cold_start gate。
+    def test_cold_start_gate_present_when_no_product_overview(self):
+        """v8.116:无 product-overview/ → emit cold_start_product_planning_recommended gate。
 
-        v8.48 治本(gcpdev case):gate 路由「产品规划优先」(product-overview → 派生 teamwork-space.md)·
-        不再指「进 Feature Planning 生成 teamwork-space.md」(那是 v8.47 硬伤)。
-        setUp 的 project 是裸 git 仓(无 teamwork-space.md 无 product-overview)→ 全冷启动。
+        teamwork-space.md(地图)由 bootstrap 自动建 → gate 不再 fire 于无 teamwork-space.md ·
+        改 fire 于无 product-overview(产品规划上游)。setUp 裸 git 仓(无 PO)→ gate 在 + 地图自动建。
         """
         gates = self._run_and_get_gates()
         cs = next((g for g in gates
-                   if g.get("gate") == "cold_start_workspace_uninitialized"), None)
-        self.assertIsNotNone(cs, "无 teamwork-space.md 时必 emit cold_start gate")
-        # 关键字段完整(含 v8.48 新增 authoritative_order)
+                   if g.get("gate") == "cold_start_product_planning_recommended"), None)
+        self.assertIsNotNone(cs, "无 product-overview 时必 emit cold_start_product_planning_recommended")
         for k in ("trigger", "checks", "action", "skip_consequence",
-                  "product_overview_status", "authoritative_order", "spec"):
-            self.assertIn(k, cs, f"cold_start gate 必含 {k} 字段")
-        # v8.48:action 路由产品规划优先(product-overview 先建)· 不是 Feature Planning 生成
+                  "teamwork_space_status", "authoritative_order", "spec"):
+            self.assertIn(k, cs, f"gate 必含 {k} 字段")
         self.assertIn("product-overview", cs["action"])
         self.assertIn("产品规划", cs["action"])
-        # 权威顺序字段:product-overview 必在 teamwork-space 之前(治本路由倒置)
-        self.assertIn("product-overview", cs["authoritative_order"])
-        self.assertLess(cs["authoritative_order"].index("product-overview"),
-                        cs["authoritative_order"].index("teamwork-space"),
-                        "权威顺序 product-overview 必在 teamwork-space 之前")
-        # spec 指向产品规划权威(PRODUCT-OVERVIEW-INTEGRATION)
         self.assertIn("PRODUCT-OVERVIEW-INTEGRATION", cs["spec"])
-        # 无 product-overview/ → 提示一并建(冷启动第一步)
-        self.assertIn("也缺失", cs["product_overview_status"])
+        # teamwork-space.md 已自动建(骨架)· N≥1:无 PO 也有地图
+        self.assertEqual(cs["teamwork_space_status"], "created")
+        self.assertTrue((self.project / "teamwork-space.md").exists(),
+                        "无 PO 也必自动建 teamwork-space.md 地图骨架(N≥1)")
 
-    def test_cold_start_gate_absent_when_workspace_exists(self):
-        """v8.47:teamwork-space.md 存在 → 工作区已初始化 · 不再 emit gate。"""
-        (self.project / "teamwork-space.md").write_text("# workspace\n",
-                                                        encoding="utf-8")
-        gates = self._run_and_get_gates()
-        cs = next((g for g in gates
-                   if g.get("gate") == "cold_start_workspace_uninitialized"), None)
-        self.assertIsNone(cs, "teamwork-space.md 存在时不应 emit cold_start gate")
-
-    def test_cold_start_po_status_when_product_overview_exists(self):
-        """v8.48:有 product-overview/ 但无 teamwork-space.md → gate 在 · 引导从 ✅确认派生(跳过初创)。"""
+    def test_cold_start_gate_absent_when_product_overview_exists(self):
+        """v8.116:product-overview/ 存在 → 产品规划上游已有 · 不再 emit cold_start gate
+        (改由 product_overview_planning_spec_required 接管)。"""
         (self.project / "product-overview").mkdir()
         gates = self._run_and_get_gates()
         cs = next((g for g in gates
-                   if g.get("gate") == "cold_start_workspace_uninitialized"), None)
-        self.assertIsNotNone(cs, "仅 product-overview/ 不算工作区初始化 · gate 仍应在")
-        # po 已存在 → 状态以「已存在」开头 · action 引导从 ✅确认内容派生 teamwork-space.md
-        self.assertTrue(cs["product_overview_status"].startswith("已存在"),
-                        f"po 存在时 status 应以「已存在」开头 · 实际:{cs['product_overview_status']}")
-        self.assertIn("派生", cs["action"])
+                   if g.get("gate") == "cold_start_product_planning_recommended"), None)
+        self.assertIsNone(cs, "product-overview 存在时不应 emit cold_start gate")
+        self.assertTrue(any(g.get("gate") == "product_overview_planning_spec_required"
+                            for g in gates), "PO 存在 → planning_spec_required 接管")
+
+    def test_teamwork_space_auto_created_with_knowledge_entries(self):
+        """v8.116:teamwork-space.md 缺失 → bootstrap 自动建骨架(知识入口探测 + 子项目清单空表)· 幂等。"""
+        (self.project / "project-specs").mkdir(exist_ok=True)
+        (self.project / "external").mkdir(exist_ok=True)
+
+        def _run():
+            r = subprocess.run(
+                ["python3", str(BOOTSTRAP_PY), "--host", "claude-code", "--skill-root", str(SKILL)],
+                cwd=str(self.project), capture_output=True, text=True, check=True)
+            return json.loads(r.stdout)
+
+        data = _run()
+        self.assertEqual(data["checks"]["teamwork_space"]["status"], "created")
+        space = (self.project / "teamwork-space.md").read_text(encoding="utf-8")
+        self.assertIn("知识入口", space)
+        self.assertIn("project-specs", space)      # 探测到的节点
+        self.assertIn("external", space)
+        self.assertIn("代码", space)                # 末行 代码=唯一真相
+        self.assertIn("待规划填充", space)           # 子项目清单空表占位 · 无示例数据行
+        # 幂等:二次跑 → existed(不覆盖用户/规划已填内容)
+        self.assertEqual(_run()["checks"]["teamwork_space"]["status"], "existed")
 
     def test_session_entry_priority_when_cold_start(self):
         """v8.51:cold_start(无 teamwork-space)→ emit session_entry_priority(② 补规划 + ③ 任务)。

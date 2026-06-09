@@ -1,10 +1,28 @@
-# Changelog Archive(v8.110 → v1)
+# Changelog Archive(v8.111 → v1)
 
-> 📦 **历史归档**:本文件保存 teamwork **v8.110 及更早**的全部 changelog(含 v7/v6/…/v1 等 v8.0 之前的旧系统)· 仅供追溯,**不再维护**。
-> 现行 changelog(最近 5 版 · v8.111–v8.115)见 [CHANGELOG.md](./CHANGELOG.md)。
+> 📦 **历史归档**:本文件保存 teamwork **v8.111 及更早**的全部 changelog(含 v7/v6/…/v1 等 v8.0 之前的旧系统)· 仅供追溯,**不再维护**。
+> 现行 changelog(最近 5 版 · v8.112–v8.116)见 [CHANGELOG.md](./CHANGELOG.md)。
 > ⚠️ v8.0 是「范式切换 · 不向下兼容」的重构 —— **v7 及更早描述的是已不存在的旧系统**,其机制/命令/红线编号均不适用于现行 v8。
 
 ---
+
+## v8.111 · Bug 流程 2 摩擦点修复:reviewer 名精确匹配过严 + test brief 对 Bug 撒谎
+
+> 用户:看下我们的 bug 流程是否有问题(附真实 Bug feature 跑流程 transcript:`external-claude` 被拒 + `verify-ac.py` 撞 PRD 不存在)。诊断后选 A+B 都修。
+
+### 诊断:状态机骨架健全 · 坏的是 1 个全局过严匹配 + 1 段对 Bug 撒谎的 brief
+- Bug 链 `diagnose→dev→review→test→pm_acceptance→ship` 全接对 · 门禁对 Bug 安全(`ac_test_binding` 已 skip Bug)· 暴露的 2 点都是文案/匹配层 friction。
+
+### 改动
+- **Fix A · reviewers roll-call 容许「角色-限定」写法**(`_v8_stage_specs.py:_evidence_reviewers_match`):原精确集合差 `required - reviewer_set` 使 `external-claude ≠ external` 被拒 —— 逼用户把更有信息量的「标明异质模型」写法降级成裸 `external`。改为 token 命中 `角色名本身` 或 `角色-<限定>` 前缀即算覆盖(`external-claude` 满足 `external` · `external-` 边界防 `externalize` 误匹配)。异质性不由此 roll-call 保证(由 `_evidence_external_review_artifact` 校验 cross-review 产物 `review_model`)· 放宽安全 · **全流程生效**(非仅 Bug)。
+- **Fix B · `_test_brief` 按 flow_type 分支**(`_v8_stage_specs.py` + `stages/test-stage.md`):原 brief 写死 Feature 视角 · 完成判定列「`verify-ac.py` 通过 / AC 全覆盖」—— 但 **Bug 无 PRD/TC** · 实证有 agent 照着去跑 `verify-ac.py` 撞「PRD 不存在」困惑数轮(**门禁其实对 Bug 自动 skip · 是 brief 在撒谎**)。Bug brief 改为「回归测试转绿 + 既有套件保持绿 · verify-ac/AC 全覆盖 N/A · 别去跑 verify-ac.py」· test-stage.md 加「🐛 Bug 流程分支」callout + §1/§5 内联 Bug 提示。
+
+### 刻意不动(考量 C · 站得住)
+- Bug 的 `test` 仍要 `e2e/*`(≥1)+ 双 exit-code 全绿 · review 需 `external` 异质评审 —— 对小 bug 偏重但能防 fix 引回归 · 可 `change-review-roles` 调 · 不在本轮改。
+
+### 验证
+- 新增 `TestV8111BugFlowFixes` 6 例(role-qualified 满足 / 裸 external 兼容 / 缺 external 仍 BLOCK / `externalize` 不误匹配 / Bug brief 无 verify-ac 假信号 / Feature brief 不回归)。
+- pytest **3 failed / 509 passed**(baseline 3 = scan-spec 既有 · 零回归 · 509 = 503 + 6 新)。
 
 ## v8.110 · cosmetic 清理:删 vestigial `review_start.log` 读代码 + config.md 旧降级语义/版本标
 
