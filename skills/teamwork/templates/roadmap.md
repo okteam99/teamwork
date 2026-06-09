@@ -18,6 +18,7 @@
 ## 执行批次（Wave）
 
 > 按依赖关系分批，同一 Wave 内的 Feature 无依赖、可并行执行（开多个 Claude）。
+> 🔴 本 Wave = **本子项目内**的本地编排视图;**跨子项目 / 跨 feature 的执行顺序与并行权威** = 对应 `workstream/WS-NN.md § 执行顺序与并行建议`(execution_waves)· 二者一致(WS 是源 · ROADMAP 是落地)。
 > Wave 之间串行：前一个 Wave 全部完成后，才能开始下一个 Wave。
 
 ### Wave 1（并行度：X 个 Claude）

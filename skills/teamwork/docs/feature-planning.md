@@ -145,7 +145,7 @@ PMO 主对话切换角色 · 讨论收敛 · 不需要单独 review artifact。
 
 Planning 流程中起草 PRD / 写代码 = 违 R6。
 
-**对策**:Planning 只产 3 个文档(PROJECT/ROADMAP/sitemap)· 想做某个 Feature → 走 Feature 流程(`init-feature --flow-type Feature` 启动新 session)。
+**对策**:Planning 产规划文档(WS-NN + ROADMAP + 涉 UI 时 preview-project/sitemap + 业务架构 if 改)· 🔴 不出代码(R6)· 想做某个 Feature → 走 Feature 流程(`init-feature --flow-type Feature` 启动新 session)。
 
 ### 坑 2 · PROJECT.md 业务架构 vs 技术架构混淆
 
@@ -174,7 +174,7 @@ PL 在 ROADMAP 拆完后顺手起 Feature flow · 越权(用户没拍板)。
 
 ### 坑 6 · 想跑 state.py planning-start
 
-会 BLOCKED · `planning` stage 已删(v8.x)。
+会 BLOCKED · `planning` stage 已删除(规划层不进状态机)。
 若用户/AI 不知道还跑 `init-feature --flow-type "Feature Planning"`,会被 state.py reject + emit hint 指向本文件。
 
 ---

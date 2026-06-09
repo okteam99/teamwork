@@ -168,31 +168,31 @@ mr_url_template:
 <!-- remove = 默认清理 worktree（仅建议稳定流程用） -->
 worktree_cleanup: ask
 
-### Artifact ID 号段策略（v8.79）
+### Artifact ID 号段策略
 <!-- id_strategy: utc-yymmddhhmmss（默认）/ sequential -->
 <!-- utc-yymmddhhmmss = artifact ID 号段用 UTC0 秒级时间戳 YYMMDDHHMMSS（12 位）。跨机/多 agent 并行各自生成、免中心协调 → 根治分布式 max+1 撞号；字典序=时间序、肉眼可读创建时间。 -->
 <!-- sequential = 旧 3 位顺序号 max+1（单 clone 项目可 opt-out · 保留好念短序号）。 -->
 <!-- 改此项只影响新建 feature · 存量 ID 不重编号（新旧天然可区分：3-4 位 vs 12 位）。详 docs/conventions.md §1。 -->
 id_strategy: utc-yymmddhhmmss
 
-### ship2 归档策略（v8.82）
+### ship2 归档策略
 <!-- archive_on_ship: true（默认）/ false -->
 <!-- true = 交付后过程层 feature 目录 zip 进 features/_archive/<id>.zip（+ INDEX.md）· 原目录从 merge_target 删 · 随收尾 MR 合（防 AI 检索过时 feature 信息 · 代码是唯一真相）。 -->
-<!-- false = 退回 v8.80（收尾 MR 只同步终态 state.json · 不归档 · feature 目录留存）。详 stages/ship-stage.md §14。 -->
+<!-- false = 收尾 MR 只同步终态 state.json · 不归档 · feature 目录留存。详 stages/ship-stage.md §14。 -->
 archive_on_ship: true
 
-### 本地敏感配置目录（v8.89）
+### 本地敏感配置目录
 <!-- local_env_auto_create: true（默认）/ false -->
 <!-- true = bootstrap 在 .teamwork-local-env/ 缺失时自动创建（config.properties 模板 + 目录内 .gitignore），已存在不覆盖。 -->
 <!-- 用途：kubeconfig / DB 密码 / 个人 API key 等本机敏感配置统一放此目录 · 双重 gitignore（根 .gitignore + 目录内 .gitignore）绝不进仓库。读取约定见 TROUBLESHOOTING.md。 -->
 <!-- false = 不主动创建（opt-out · 仍保留 gitignore 预留规则）。 -->
 local_env_auto_create: true
 
-### 禁用异质模型审核（v8.90 · 单模型用户）
+### 禁用异质模型审核（单模型用户）
 <!-- disable_heterogeneous_review: false（默认）/ true -->
 <!-- false = external 评审跑异质模型（claude↔codex 交叉 · 唯一跨模型安全网 · 推荐）。 -->
-<!-- true = 只有一个模型时：external-review 自动降级为宿主自身模型 exec 自审（落 external-cross-review/ 满足 P0-154 · frontmatter 标 degraded · 非异质 · 同盲点 · 交叉 review 质量下降）· 每次 bootstrap 启动 WARN 提醒。 -->
-<!-- 区分 v8.88 --self-review-fallback（异质暂时不可用的临时 stopgap · 落 self-review/ · 不满足门禁）：本项是项目级长期策略。 -->
+<!-- true = 只有一个模型时：external-review 自动 emit subagent 降级配方（PMO 起宿主自身模型 subagent 自审 · 不 exec · 落 external-cross-review/ 满足 P0-154 · frontmatter degraded_mode:config-disabled · 非异质 · 同盲点）· 每次 bootstrap 启动 WARN 提醒。详 standards/external-model-usage.md §11.5。 -->
+<!-- 区分 --self-review-fallback（异质临时不可用的 per-run 降级 · 同走 subagent · degraded_mode:subagent-fallback）：本项是项目级长期策略（每次自动降级）。 -->
 <!-- 装好第二个模型 CLI 后建议删此项 / 设 false 恢复异质，交叉 review 质量更高。 -->
 disable_heterogeneous_review: false
 

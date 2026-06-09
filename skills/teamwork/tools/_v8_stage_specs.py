@@ -307,11 +307,19 @@ def _evidence_reviewers_match(review_artifact: str):
             return False, f"{review_artifact} frontmatter.reviewers 格式非法"
 
         required_set = {r.lower() for r in required}
-        missing = required_set - reviewer_set
+        # v8.111:角色 roll-call 容许「角色限定写法」—— reviewer token 命中角色名
+        # 本身、或 `角色-<限定>` 前缀,即算该角色已覆盖(如 external-claude 满足
+        # external · 保留异质模型 provenance)。异质性不由此 roll-call 保证 ——
+        # 由 _evidence_external_review_artifact 校验 cross-review 产物的 review_model。
+        def _role_covered(role: str) -> bool:
+            return any(rv == role or rv.startswith(role + "-") for rv in reviewer_set)
+
+        missing = sorted(r for r in required_set if not _role_covered(r))
         if missing:
             return False, (
-                f"{review_artifact} frontmatter.reviewers 缺角色: {sorted(missing)} · "
+                f"{review_artifact} frontmatter.reviewers 缺角色: {missing} · "
                 f"必含 state.stage_review_roles[{current}] = {required} · "
+                f"角色名本身或 `角色-限定`(如 external-claude)均可 · "
                 f"补 reviewer 或在上一 stage complete 时跑 --next-stage-roles 调整"
             )
         return True, ""
@@ -443,18 +451,105 @@ GOAL_SPEC = StageSpec(
 )
 
 
+# ─── B5.5 · diagnose(仅 Bug · 根因细查 + 修复方案确认 · v8.107)─────────
+
+
+def _check_flow_is_bug(state: dict, args) -> bool:
+    return state.get("flow_type") == "Bug"
+
+
+def _evidence_diagnose_doc(state: dict, args) -> tuple[bool, str]:
+    """diagnose 产出 = bugfix/BUG-*.md 且含根因 + 修复方案(深查实证 · 用户已确认)。
+
+    检查:① bugfix/BUG-*.md 存在 · ② frontmatter root_cause + fix_summary 非空
+    (fix_summary = 修复**方案**摘要 · 不是「已修」· diagnose 阶段还没写 fix 码)。
+    BUG-*.md 动态命名 → 用 evidence_check(非固定路径 artifact)。
+    """
+    feature_dir = Path(args.feature)
+    bug_files = list(feature_dir.glob("bugfix/BUG-*.md"))
+    if not bug_files:
+        return False, (
+            "diagnose 未产出 bugfix/BUG-*.md(模板 templates/bug-report.md)· "
+            "深读代码做根因细查 → 写 §现象/§根因/§修复方案 → 用户确认修复方案后再 diagnose-complete"
+        )
+    f = bug_files[0]
+    fm = parse_frontmatter(f) or {}
+    missing = [k for k in ("root_cause", "fix_summary") if not str(fm.get(k, "")).strip()]
+    if missing:
+        return False, (
+            f"{f.name} frontmatter 缺 {missing}(根因 / 修复方案)· "
+            "diagnose 必须深查真因 + 给出修复方案(改哪 / 怎么改 / 取舍)· 用户确认后才 complete"
+        )
+    return True, ""
+
+
+def _diagnose_brief(state: dict) -> str:
+    return """## Diagnose Stage(Bug · 根因细查 + 修复方案确认)
+
+### 目标
+🔴 **深读相关代码做根因细查**(triage/prepare 时读的代码往往不够细 · 必挖到真因)· 出修复方案 · **用户确认后才进 dev**。治本 fix 修偏。
+
+### 结果(完成判定)
+- `bugfix/BUG-*.md`(模板 templates/bug-report.md)· frontmatter `root_cause` + `fix_summary` 非空
+- §现象(可复现)+ §根因(深查实证:哪行 / 哪个调用 / 为什么 · 非表面猜测)+ §修复方案(改哪 · 怎么改 · 取舍 · 影响面)
+- 🔴 **不在本阶段写 fix 代码**(只查 + 规划 · 写码在 dev)
+
+### 怎么做
+**必读** `stages/diagnose-stage.md`(深读代码方法 + 根因实证 + 修复方案要素 + 用户确认协议)。
+
+### 完成方式(🔴 R5 暂停点:先把 §修复方案 给用户确认 · 用户 ok 才跑)
+```
+state.py diagnose-complete --feature <path> --auto-commit <hash> --artifacts bugfix/BUG-<id>.md
+```
+"""
+
+
+def _diagnose_transition(state: dict) -> Optional[str]:
+    return "dev"
+
+
+DIAGNOSE_SPEC = StageSpec(
+    name="diagnose",
+    prerequisites=[
+        StagePrerequisite(
+            id="flow_type_is_bug",
+            check_fn=_check_flow_is_bug,
+            hint="diagnose 仅 Bug 流程 · 检查 state.flow_type",
+            description="flow_type == 'Bug'",
+        ),
+    ],
+    artifacts=[],  # BUG-*.md 动态命名 → 用 evidence_check 校验(非固定路径 artifact)
+    evidence_checks=[
+        StageEvidenceCheck(
+            name="diagnose_doc",
+            check_fn=_evidence_diagnose_doc,
+            description="bugfix/BUG-*.md 存在 + 根因/修复方案非空(深查 · 用户确认)",
+        ),
+    ],
+    brief_template_fn=_diagnose_brief,
+    auto_transition_fn=_diagnose_transition,
+    allowed_flow_types=["Bug"],
+    authorized_pause_point="diagnose-complete 前 · 🔴 把 §修复方案 给用户确认(R5)· 用户 ok 才 complete → dev",
+)
+
+
 # ─── B6 · dev(完整模板示范) ─────────────────────────────────────────
 
 
 def _check_blueprint_or_alt_done(state: dict, args) -> bool:
-    """blueprint / blueprint_lite output_satisfied 或 Bug/Micro 流程直入"""
+    """dev 准入:blueprint/blueprint_lite output_satisfied · 或 Bug 流程 diagnose 完成 · 或 Micro 直入。
+
+    v8.107:Bug 不再直入 dev —— 必先 diagnose(根因细查 + 修复方案 · 用户确认)· 防 fix 修偏。
+    """
     contracts = state.get("stage_contracts", {})
     if contracts.get("blueprint", {}).get("output_satisfied") is True:
         return True
     if contracts.get("blueprint_lite", {}).get("output_satisfied") is True:
         return True
     flow = state.get("flow_type")
-    if flow in ("Bug", "Micro"):
+    if flow == "Bug":
+        return contracts.get("diagnose", {}).get("output_satisfied") is True
+    if flow == "Micro":
         return True
     return False
 
@@ -525,10 +620,11 @@ DEV_SPEC = StageSpec(
             check_fn=_check_blueprint_or_alt_done,
             hint=(
                 "Feature/敏捷流程:先完成 blueprint(-complete) 或 blueprint_lite(-complete)。"
-                "Bug/Micro 流程:无需 blueprint · 可直入 dev。"
+                "Bug 流程:先完成 diagnose(-complete · 根因细查 + 修复方案确认)· 不再直入 dev。"
+                "Micro 流程:无需前置 · 可直入 dev。"
                 "当前 flow_type / stage_contracts 不满足任一条件。"
             ),
-            description="blueprint 或 blueprint_lite output_satisfied,或 flow_type ∈ {Bug, Micro}",
+            description="blueprint/blueprint_lite output_satisfied · 或 Bug diagnose 完成 · 或 Micro",
         ),
         StagePrerequisite(
             id="prd_or_bug_report_exists",
@@ -1344,8 +1440,15 @@ def _evidence_external_review_artifact(state: dict, args) -> tuple[bool, str]:
         # v8.90:config-disabled 项目 + 文件是合规降级自审(external-review 写 degraded:true
         # heterogeneous:false)→ 视作满足门禁(用户已 opt-out · startup WARN 持续提醒)· 跳过异质校验。
         # 注:parse_frontmatter 是朴素解析 · 值为字符串("true"/"false")。
-        if het_disabled and str(fm.get("degraded", "")).lower() == "true" \
-                and str(fm.get("heterogeneous", "")).lower() == "false":
+        deg = (str(fm.get("degraded", "")).lower() == "true"
+               and str(fm.get("heterogeneous", "")).lower() == "false")
+        # v8.90:config-disabled 项目(het_disabled=true)→ 接受任何 degraded 自审(用户已 opt-out)。
+        # v8.108:per-run subagent 降级(frontmatter degraded_mode=subagent-fallback)→ 接受(显式降级 ·
+        # 即便项目未 opt-out · 因为是 --self-review-fallback 带 reason 的诚实降级)· 非异质 · 满足 P0-154。
+        # 🔴 config-disabled marker 仍须 het_disabled 为真(防未 opt-out 项目用 stale config-disabled 标绕过);
+        # 无 degraded marker / 非 subagent-fallback → 落下方黑名单(F034 伪装拦)。
+        if deg and (het_disabled
+                    or str(fm.get("degraded_mode", "")).lower() == "subagent-fallback"):
             continue
         # host 优先级:state.host(per-feature)> 文件 frontmatter host(external-review 写)> None(默认 claude)
         eff_host = state_host or (fm.get("host") or "").strip() or None
@@ -1674,7 +1777,34 @@ def _check_review_approved(state: dict, args) -> bool:
 
 
 def _test_brief(state: dict) -> str:
-    """v8.0+P0-8 极简版:目标 + 结果 + 完成方式 · 怎么做归 stage.md。"""
+    """v8.0+P0-8 极简版:目标 + 结果 + 完成方式 · 怎么做归 stage.md。
+
+    v8.111:按 flow_type 分支 —— Bug 流程无 PRD/TC(规格 = bugfix/BUG-*.md)·
+    不能列「verify-ac.py 通过 / AC 全覆盖」(门禁对 Bug 自动 skip · brief 若列出
+    = 假信号 · 实证有 agent 照着去跑 verify-ac.py 撞 PRD 不存在)。
+    """
+    if state.get("flow_type") == "Bug":
+        return """## Test Stage(Bug 流程)
+
+### 目标
+QA 回归验证 —— **复现 bug 的用例修复后转绿** + 既有套件保持绿 · 防 fix 引入回归。
+
+### 结果(完成判定)
+- `TEST-REPORT.md`(记:复现用例 → 修复后 PASS · 既有套件结果 · 关联 BUG-*.md §回归测试)
+- `e2e/*`(至少 1 文件 · 复跑触发 bug 的关键路径 · 语言无关)
+- integration + e2e exit-code = 0
+- 🚫 **无 PRD/TC → verify-ac / AC 全覆盖 N/A**(门禁对 Bug 自动 skip · 不要去跑 verify-ac.py · 规格依据是 BUG-*.md)
+
+### 怎么做
+**必读** `stages/test-stage.md`(详细步骤 + 注意事项 · 含 Bug 无 PRD/TC 分支)。
+
+### 完成方式
+```
+state.py test-complete --feature <path> --auto-commit <hash> \
+  --artifacts TEST-REPORT.md,e2e/ \
+  --integration-test-exit-code 0 --e2e-test-exit-code 0
+```
+"""
     return f"""## Test Stage
 
 ### 目标
@@ -2043,6 +2173,7 @@ STAGE_SPECS: dict[str, StageSpec] = {
     "panorama_sync": PANORAMA_SYNC_SPEC,
     "blueprint": BLUEPRINT_SPEC,
     "blueprint_lite": BLUEPRINT_LITE_SPEC,
+    "diagnose": DIAGNOSE_SPEC,
     "dev": DEV_SPEC,
     "review": REVIEW_SPEC,
     "test": TEST_SPEC,

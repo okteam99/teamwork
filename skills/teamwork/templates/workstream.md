@@ -137,7 +137,7 @@ risks:
 ## 与下游的关系
 
 - **WS → BL**：WS 拆出的每个 feature 写进 `target` 子项目的 `ROADMAP.md` 成一行 BL；ROADMAP「关联 WS」列回指本 `ws_id`，`features[].bl` 回填 BL-NNN。
-- **WS → teamwork-space**：WS `✅ 规划完成` 后，teamwork-space 进度统计把它从"未完成 WS"移除（详 templates/teamwork-space.md § 进度统计）。
+- **WS → teamwork-space**：WS `✅ 规划完成` 后，teamwork-space 把它从"未完成 WS"移除（详 templates/teamwork-space.md § 规划状态）。
 - **BL → F**：用户拍板某 BL 启动 → `prepare` + `init-feature` 分配 F-NNN（详 [docs/conventions.md § 4](../docs/conventions.md)）。
 
 ## 编号约定

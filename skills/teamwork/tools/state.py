@@ -37,6 +37,7 @@ LEGAL_STAGES = {
     "panorama_sync",
     "blueprint",
     "blueprint_lite",
+    "diagnose",
     "dev",
     "review",
     "test",
@@ -75,6 +76,7 @@ FEATURE_FLOW: dict[str, list[str]] = {
 }
 
 BUG_FLOW: dict[str, list[str]] = {
+    "diagnose": ["dev"],                 # v8.107:根因细查 + 修复方案 · 🔴 用户确认后才进 dev(防修偏)
     "dev": ["review"],
     "review": ["test", "dev"],
     "test": ["pm_acceptance"],
@@ -577,7 +579,7 @@ def cmd_raw_write(args: argparse.Namespace) -> None:
 
 DEFAULT_INITIAL_STAGE = {
     "Feature": "goal",
-    "Bug": "dev",
+    "Bug": "diagnose",   # v8.107:Bug 先 diagnose(根因细查+修复方案确认)再 dev
     "Micro": "dev",
     "敏捷需求": "goal",  # 敏捷需求 FLOW = goal → blueprint_lite → ... · blueprint_lite-start 前置要 goal 完成
 }
@@ -1202,8 +1204,8 @@ def _init_feature_next_brief(args, initial_stage: str) -> str:
     triage 已确认 worktree · PMO 已显式建 + cd · init-feature 仅创建 state.json。
     所以 brief 直接告知"进下一步" · 不需要再讨论 worktree。
 
-    Bug 流程额外提示:dev-start 物化拦截要求 bugfix/BUG-*.md 必须先存在 ·
-    所以 brief 明示"先起草 BUG 单 · 再 dev-start" · 治本 AI 撞拦截后才补的反模式。
+    Bug 流程额外提示(v8.107):先 diagnose(根因细查 + 修复方案 · 用户确认)再 dev ·
+    diagnose **产出** BUG 报告的 §根因/§修复方案(不是 dev 前置)· 防 fix 修偏。
     """
     wt_note = ""
     if args.worktree_mode == "off":
@@ -1211,14 +1213,17 @@ def _init_feature_next_brief(args, initial_stage: str) -> str:
     else:
         wt_note = f"(worktree_mode={args.worktree_mode} · cwd={Path.cwd()} 已通过 cwd 校验)"
 
-    # Bug 流程前置:起草 BUG 单(治本 dev-start 物化拦截鸡生蛋)
+    # v8.107:Bug 流程先 diagnose(根因细查 + 修复方案确认)· diagnose 产出 BUG 报告 · 用户确认后才进 dev
     pre_stage_action = ""
     if args.flow_type == "Bug":
         pre_stage_action = f"""
-🔴 **Bug 流程前置(在 {initial_stage}-start 之前必做)**:
-   起草 `{Path(args.feature)}/bugfix/BUG-<bug-id>.md`(模板 `templates/bug-report.md`)·
-   含 frontmatter `bug_id/symptom/root_cause/fix_summary` + body §现象/§根因/§修复方案/§回归测试。
-   不起草 → {initial_stage}-start 物化拦截 FAIL。
+🔴 **Bug 流程:先 diagnose(根因细查 + 修复方案)· 用户确认后才进 dev**(治本 fix 修偏):
+   1. `diagnose-start` → 🔴 **深读相关代码做根因细查**(triage/prepare 时读的代码往往不够细 · 必须深挖到真因)
+   2. 写 `{Path(args.feature)}/bugfix/BUG-<bug-id>.md`(模板 `templates/bug-report.md`)·
+      §现象 + §根因(深查实证:哪行/哪个调用/为什么)+ §修复方案(怎么改 · 改哪 · 取舍 · 影响面)·
+      frontmatter `bug_id/symptom/root_cause/fix_summary`
+   3. 🔴 **把 §修复方案 给用户确认**(R5 暂停点)· 用户 ok 后才 `diagnose-complete` → dev
+   4. dev 阶段才按**已确认的方案**写 fix 代码 + §回归测试(不在 diagnose 写 fix 码)
 """
 
     return f"""## init-feature 完成 · 下一步
@@ -2191,7 +2196,6 @@ EXTERNAL_STAGE_TO_PROFILE = {
 }
 
 EXTERNAL_REVIEW_TIMEOUT_SEC = 600  # v8.55:5min→10min(用户 case codex 偶尔卡 / 长 review · 给足 buffer)
-CLAUDE_REVIEW_ARGV_LIMIT = 200  # v8.85:claude argv prompt 超此长度 → 落 doc · argv 只发短引用句(治本长 argv)
 
 
 def _detect_cli_version(cli_name: str) -> str:
@@ -2422,42 +2426,27 @@ def _run_codex_review(stage: str, commit: str, base: str, title: str,
 def _build_claude_review_cmd(prompt_text: str, feature_dir: Optional[Path],
                              prompt_doc: Optional[Path]
                              ) -> tuple[list, Optional[str]]:
-    """v8.85:按 prompt 长度选 inline / doc 模式 · 返 (cmd, cwd)。
+    """v8.106(用户拍板):**只用 `claude -p <full inline prompt> --output-format text`** · 返 (cmd, None)。
 
-    - 短(≤200 字符):argv inline · `claude -p <prompt> --bare --output-format text`(纯文本 · 无工具 · 快)。
-    - 长(>200):prompt 落 doc · argv 只发 ≤200 字符短句「先写 review_start.log · 再读 <doc> 做 review」·
-      `--bare`(🔴 跳宿主项目 MCP/hooks/CLAUDE.md/skills 自动发现 · 治本:带工具的 headless claude 会
-      spawn 消费项目 `.mcp.json` 里的长跑 dev-server MCP → 卡死至 timeout)· `--permission-mode dontAsk`
-      (非白名单工具自动拒 · 不 abort 不挂)· `--allowedTools Read Grep Glob Write`(读+导航 + 写 liveness ·
-      不放 Bash/Edit · 守只读评审)· cwd=feature_dir(review_start.log + doc 相对路径都落 feature 目录)。
-    🔴 external review 必须 **hermetic** —— 不加载消费项目的 MCP/hooks/CLAUDE.md(防卡死 + 防上下文污染)。
-    单测可直接调本函数断言 cmd(不真跑 CLI)。
+    🔴 删 v8.85 doc 模式(短 argv + `--allowedTools` 让 reviewer 自己 Read)+ v8.103 `--bare`:
+    - `--bare` 跳了 claude 的**登录/认证上下文** → `claude --bare -p` 报 "Not logged in"(裸 `claude -p`
+      已登录)· 治本 case PTR-F260606(`--bare` 引入的认证回归)。
+    - `--allowedTools` 激活 agentic 工具栈 → 自动 spawn 消费项目 `.mcp.json` MCP → 卡死(v8.103 想用 `--bare`
+      救 MCP · 反而砸了认证)。一并删 · 回到最朴素最可靠的 `claude -p`。
+    - prompt **自包含**(goal/blueprint 已 inline 待评审文件内容 · 见 _gather_review_files_for_claude)·
+      reviewer 无需任何工具 / 文件系统访问 · 一次性纯文本生成。
+    仍把 prompt 写进 prompt_doc(审计 + 可复跑 · 不存在才写 · 不 clobber PMO 预写)· 但执行走 argv inline。
+    prompt 过长(ARG_MAX)由 _run_claude_review 的 errno 7 兜底报错。单测可直接调本函数断言 cmd。
     """
-    use_doc = (prompt_doc is not None and feature_dir is not None
-               and len(prompt_text) > CLAUDE_REVIEW_ARGV_LIMIT)
-    if use_doc:
+    # 写 doc(审计 · 可复跑)· 不影响执行(执行用 argv inline)
+    if prompt_doc is not None and feature_dir is not None:
         try:
             prompt_doc.parent.mkdir(parents=True, exist_ok=True)
             if not prompt_doc.exists():
-                # fallback inline 模式也物化 doc(可审计 + 可复跑)
                 prompt_doc.write_text(prompt_text, encoding="utf-8")
-            rel = prompt_doc.resolve().relative_to(Path(feature_dir).resolve()).as_posix()
-        except (OSError, ValueError):
-            use_doc = False
-    if use_doc:
-        # ≤200 字符短 argv(rel 短 · 总长受控):liveness 日志 + 读 doc
-        short = (f"First write review_start.log (UTC timestamp) in cwd (liveness), "
-                 f"then read {rel} and follow it; output only the review, no other writes.")
-        # v8.103:--bare 跳宿主项目 MCP/hooks/CLAUDE.md 自动发现(治本消费项目 .mcp.json 长跑
-        #   dev-server MCP 卡死 headless claude)· dontAsk 非白名单工具自动拒(不挂)·
-        #   白名单 Read/Grep/Glob(读+导航)+ Write(仅 liveness)· 不放 Bash/Edit。
-        cmd = ["claude", "-p", short, "--bare",
-               "--permission-mode", "dontAsk",
-               "--allowedTools", "Read", "Grep", "Glob", "Write",
-               "--output-format", "text"]
-        return cmd, str(feature_dir)
-    # inline 短 prompt 也加 --bare(hermetic · 不让消费项目 CLAUDE.md/MCP 污染或拖慢)
-    return ["claude", "-p", prompt_text, "--bare", "--output-format", "text"], None
+        except OSError:
+            pass
+    return ["claude", "-p", prompt_text, "--output-format", "text"], None
 
 
 def _run_claude_review(prompt_text: str,
@@ -2469,9 +2458,8 @@ def _run_claude_review(prompt_text: str,
     v8.43(case SVC-PLATFORM-F054 blueprint round 3):prompt 从 stdin 改 argv ·
     治本 Claude CLI 2.1.153 在 stdin 模式触发 "Not logged in · Please run /login" bug。
     v8.84(用户拍板):**不再 --model 指定模型 · 用 claude CLI 默认值**。
-    v8.85(用户拍板):**短 prompt 走 argv inline;长 prompt(>200)落 doc · argv 只发
-    短引用句 + 让 reviewer 先写 review_start.log 时间戳证明在工作**(详 _build_claude_review_cmd)·
-    治本长 argv 卡 / 把模板当问题 / 调用方无法判断模型是否卡死。
+    v8.106(用户拍板):**只用 `claude -p <full inline prompt> --output-format text`**(删 v8.85 doc 模式
+    + v8.103 --bare)· prompt 自包含 · 无工具 / 无 --bare(--bare 砸登录上下文 → "Not logged in")· 详 _build_claude_review_cmd。
     """
     cmd, cwd = _build_claude_review_cmd(prompt_text, feature_dir, prompt_doc)
     label = f"claude-{stage}"
@@ -2931,14 +2919,16 @@ def cmd_external_review(args: argparse.Namespace) -> None:
             "command": "external-review",
             "error": f"{cli_name} CLI 不在(`which {cli_name}` 失败)",
             "hint": (
-                f"二选一(绝不 substitute · 不可用 Agent subagent 自审):\n"
-                f"  ① 安装 {cli_name} CLI(codex: https://github.com/openai/codex · "
-                f"claude: https://claude.com/claude-code)\n"
-                f"  ② state.py change-review-roles --feature {args.feature} "
-                f"--stage {args.stage} --roles '<不含 external>' --reason "
-                f"'{cli_name} CLI 不在本机' · 留 audit 后继续 stage-complete"
+                f"异质 {cli_name} CLI 不在 · 三选一(🔴 v8.108 降级优先于移除):\n"
+                f"  ① 🟢 **降级(推荐)**:state.py external-review --feature {args.feature} "
+                f"--stage {args.stage} --self-review-fallback --reason '异质 {cli_name} 不在本机·已确认' "
+                f"→ emit subagent 配方(PMO 起 Agent subagent 同模型降级自审 · 满足门禁 · 诚实标 degraded · 非异质)\n"
+                f"  ② 装 {cli_name} CLI(codex: https://github.com/openai/codex · "
+                f"claude: https://claude.com/claude-code)恢复**真异质**\n"
+                f"  ③ change-review-roles 移除 external(最后手段 · 留 audit)\n"
+                f"  🔴 绝不**偷偷**用 subagent 冒充异质(必走 ① 显式降级 · frontmatter 标 degraded · 不伪装合规)"
             ),
-            "rule": "standards/external-model-usage.md § 7.3 · R3 异质硬约束",
+            "rule": "standards/external-model-usage.md §十一.5(降级=subagent · 不 exec)· §7.3 R3 异质硬约束",
         })
         return
 
@@ -3011,6 +3001,64 @@ def cmd_external_review(args: argparse.Namespace) -> None:
     feature_id = state.get("feature_id") or feature_dir.name
     title = args.title or f"{feature_id} · {args.stage} stage external review"
 
+    # ── v8.108 · 降级自审走 subagent(不 exec)· 治本 exec CLI 反复出认证/--bare/卡死/登录问题 ──
+    # self_fallback(--self-review-fallback)或 het_disabled(config disable_heterogeneous_review)=
+    # 同模型降级 → 🔴 不 exec CLI · 改 emit 配方 · 由 PMO 起 Agent subagent(isolated context · 宿主
+    # 自身模型 · 在 harness 内跑 · 同 auth · 无 subprocess CLI 问题)产出降级评审 · 写
+    # external-cross-review/(honest-degrade frontmatter)· 门禁接受(降级 · 满足 P0-154 · 记 degraded)。
+    # 详 standards/external-model-usage.md §十一.5。
+    if self_fallback or degraded_self:
+        host_model = host.split("-")[0]  # codex / claude(宿主自身模型 · 同源降级)
+        # subagent 评审指令:用 claude reviewer 模板(host-agnostic prompt)+ inline 待评审文件
+        claude_profile = EXTERNAL_STAGE_TO_PROFILE[args.stage]["claude"]
+        try:
+            prompt_template = (skill_root / "claude-agents" / claude_profile).read_text(encoding="utf-8")
+        except OSError:
+            prompt_template = "You are a code reviewer. Review the following and output a markdown review."
+        file_list_block, _meta = _gather_review_files_for_claude(args.stage, feature_dir)
+        sub_prompt = (
+            prompt_template
+            .replace("{stage}", args.stage)
+            .replace("{target}", STAGE_TO_REVIEW_TARGET.get(args.stage, args.stage))
+            .replace("{feature_name}", feature_id)
+            .replace("{file_list}", file_list_block)
+        )
+        prompt_doc = _default_prompt_doc_path(feature_dir, args.stage, f"{host_model}-subagent")
+        try:
+            prompt_doc.parent.mkdir(parents=True, exist_ok=True)
+            prompt_doc.write_text(sub_prompt, encoding="utf-8")
+        except OSError:
+            pass
+        target_file = f"external-cross-review/{args.stage}-{host_model}-subagent-degraded.md"
+        degraded_mode = "config-disabled" if degraded_self else "subagent-fallback"
+        emit({
+            "verdict": "SUBAGENT_FALLBACK",
+            "command": "external-review",
+            "degraded": True,
+            "host": host,
+            "model": f"{host_model}-subagent",
+            "degraded_reason": sr_reason,
+            "prompt_doc": str(prompt_doc),
+            "target_file": str(feature_dir / target_file),
+            "next_action": (
+                "🔴 降级评审(异质不可用)· 走 **subagent**(不 exec CLI · 也不移除 external):\n"
+                f"  1. 起 Agent subagent(isolated context · 宿主自身模型 {host_model} · 在 harness 内跑)· "
+                f"prompt = 读 {prompt_doc} 的内容(评审指令 + 待评审文件已 inline)\n"
+                f"  2. 把 subagent 产出的评审写到 {feature_dir / target_file} · frontmatter 必含:\n"
+                f"       review_model: {host_model}-subagent-degraded\n"
+                "       heterogeneous: false\n"
+                "       degraded: true\n"
+                f"       degraded_mode: {degraded_mode}\n"
+                f"       degraded_reason: \"{sr_reason}\"\n"
+                "       review_via: subagent\n"
+                f"  3. {args.stage}-complete 门禁接受它(降级 · 满足 P0-154)· 但它**非异质 · 同盲点**\n"
+                "  ⚠️ 这是降级不是异质:能装/登录异质 CLI 就修环境重跑真异质;长期单模型用 disable_heterogeneous_review。"
+            ),
+            "spec": "standards/external-model-usage.md §十一.5(降级=subagent · 不 exec)+ §十二(裁决)",
+            **({"deprecation_warning": deprecation_warning} if deprecation_warning else {}),
+        })
+        return
+
     # v8.23:cwd = git root(让 codex 在仓库根跑 · 能读 prompt 内的相对路径)
     git_root = _git_toplevel(feature_dir) or feature_dir
     # v8.29:codex_model 优先级:--codex-model > config.external_review.codex_model > None(不传)
@@ -3051,12 +3099,9 @@ def cmd_external_review(args: argparse.Namespace) -> None:
             )
         else:
             preview_cmd = (
-                # v8.38 -p · v8.84 不 --model · v8.85 doc 模式 · v8.103 --bare(跳宿主 MCP/hooks/CLAUDE.md
-                # · 治本消费项目长跑 dev-server MCP 卡死)+ --permission-mode dontAsk + 白名单 Read/Grep/Glob/Write
-                "cd <feature_dir> && claude -p "
-                "'First write review_start.log (UTC timestamp) in cwd (liveness), then read "
-                f"external-review-prompts/{args.stage}-{model}.md and follow it; output only the review' "
-                "--bare --permission-mode dontAsk --allowedTools Read Grep Glob Write --output-format text"
+                # v8.106 只用 claude -p <full inline prompt>(删 v8.85 doc 模式 + v8.103 --bare · --bare 砸登录上下文)
+                "claude -p '<self-contained review prompt · 见 external-review-prompts/"
+                f"{args.stage}-{model}.md>' --output-format text"
             )
         emit({
             "verdict": "OK",
@@ -3147,29 +3192,14 @@ def cmd_external_review(args: argparse.Namespace) -> None:
             prompt_text, feature_dir=feature_dir, stage=args.stage,
             prompt_doc=prompt_doc)
 
-    # v8.85:claude doc 模式 reviewer 会先写 review_start.log(时间戳)证明在工作 ·
-    # 读取作 liveness 留痕 + 清理(不污染 feature 目录)· codex 路径无此文件(read-only sandbox)
-    liveness_at = None
-    _rsl = feature_dir / "review_start.log"
-    if _rsl.exists():
-        try:
-            liveness_at = (_rsl.read_text(encoding="utf-8").strip()[:80] or "present")
-        except OSError:
-            liveness_at = "present"
-        try:
-            _rsl.unlink()
-        except OSError:
-            pass
-
     if rc != 0:
-        # v8.85:liveness 区分「模型从未响应」vs「启动了但没跑完(慢/限流)」
-        if liveness_at:
-            live_hint = (f"reviewer 已写 review_start.log({liveness_at})· 即模型**已启动但未跑完** · "
-                         f"多半是慢 / 限流 · 直接重跑(并发跑多个 claude 会限流 · 串行重试)· "
-                         f"🔴 切勿伪造 tool_error 文件或自列 external 通过门禁")
-        else:
-            live_hint = (f"无 review_start.log · 模型**可能从未响应** · 查 ① 网络 / token"
-                         f"(setup-token / OAuth)· ② {cli_name} --version · ③ 是否并发限流 · 再重跑")
+        # v8.106:纯 claude -p(无工具)/ codex read-only · 无 liveness 文件 · 失败即模型未跑通
+        live_hint = (
+            f"{cli_name} 执行失败 · 查 ① 网络 / token(setup-token / OAuth)· "
+            f"② {cli_name} --version · ③ 是否并发限流(串行重试)· 再重跑。"
+            f"🔴 切勿伪造 tool_error 文件或自列 external 通过门禁;"
+            f"异质客观不可用(已重试失败)→ --self-review-fallback(subagent 降级 · 详 standards §11.5)"
+        )
         emit({
             "verdict": "FAIL",
             "command": "external-review",
@@ -3179,7 +3209,6 @@ def cmd_external_review(args: argparse.Namespace) -> None:
             "model": model,
             "cli_exit_code": rc,
             "cli_stderr": stderr[:500],
-            **({"liveness_confirmed_at": liveness_at} if liveness_at else {}),
         })
         return
 
@@ -3355,8 +3384,6 @@ def cmd_external_review(args: argparse.Namespace) -> None:
             if model == "claude" and prompt_doc_used else {}),
         **({"prompt_doc_fallback_warning": fallback_warning}
             if model == "claude" and fallback_warning else {}),
-        # v8.85:claude doc 模式 reviewer 写的 review_start.log 时间戳(liveness 留痕)
-        **({"liveness_confirmed_at": liveness_at} if liveness_at else {}),
     })
 
 

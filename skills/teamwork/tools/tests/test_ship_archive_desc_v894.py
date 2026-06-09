@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
-"""v8.94 归档 INDEX.md 加「描述」列(≤50 字极简 feature 描述)回归套件。
+"""v8.94 归档 INDEX.md 加「描述」列(极简 feature 描述)回归套件。
 
-用户:feature archive 的时候给一段极简的 feature 描述(限 50 字以内),写到 INDEX.md。
-实现:`ship-finalize --archive-desc '<≤50 字>'`(AI 在 planning-backref 暂停点连同
+用户:feature archive 的时候给一段极简的 feature 描述,写到 INDEX.md。
+实现:`ship-finalize --archive-desc '<≤200 字>'`(AI 在 planning-backref 暂停点连同
 --planning-artifacts 一起给)→ 写进 `_archive/INDEX.md` 的「描述」列 · 便于日后不解压识别。
+v8.112:上限 50 → 200 字(给更完整的描述空间)。
+v8.113:超 200 不再截断 —— ship-finalize 前置门禁 FAIL · 要求 AI 压缩表达方式重写到 ≤200 重跑。
 
 覆盖:
-- `_clean_archive_desc`:正常 / 超 50 截断(49+…)/ `|` 净化 / 换行折叠 / 空 → `—`
+- `_clean_archive_desc`:正常 / 超 200 不截断(纯净化)/ `|` 净化 / 换行折叠 / 空 → `—`
 - `_build_archive_index`:新行含描述列 + 旧 3 列行自动迁移 4 列(补 `—`)+ dedup
 - 集成:ship-finalize --archive-desc → 收尾分支 INDEX.md 含描述
 
@@ -53,15 +55,22 @@ class TestCleanArchiveDesc(unittest.TestCase):
         self.assertEqual(self._c(""), "—")
         self.assertEqual(self._c("   "), "—")
 
-    def test_over_50_truncated(self):
-        raw = "字" * 60
+    def test_over_200_not_truncated_by_sanitizer(self):
+        """v8.113:净化函数不再截断 —— 长度上限由 ship-finalize 前置门禁 FAIL 强制。"""
+        raw = "字" * 210
         out = self._c(raw)
-        self.assertEqual(len(out), 50, "≤50 字(49 + …)")
-        self.assertTrue(out.endswith("…"))
-        self.assertEqual(out, "字" * 49 + "…")
+        self.assertEqual(out, raw, "原样返回 · 不截断 · 不加 …")
+        self.assertNotIn("…", out)
 
-    def test_exactly_50_kept(self):
-        raw = "字" * 50
+    def test_exactly_200_kept(self):
+        raw = "字" * 200
+        out = self._c(raw)
+        self.assertEqual(out, raw)
+        self.assertNotIn("…", out)
+
+    def test_between_50_and_200_kept(self):
+        """v8.112 回归:51–200 字现在不再截断(旧上限会截 · 防回退)。"""
+        raw = "描" * 120
         out = self._c(raw)
         self.assertEqual(out, raw)
         self.assertNotIn("…", out)
@@ -232,16 +241,32 @@ class TestArchiveDescIntegration(unittest.TestCase):
         self.assertIn(self.FID, content)
         self.assertIn("Admin 改单原子化 CAS 加固", content)
 
-    def test_over_50_truncated_with_warning(self):
-        long_desc = "描" * 60
-        _, d = self._finalize("--no-planning-changes", "--archive-desc", long_desc)
+    def test_over_200_blocks_with_compress_hint(self):
+        """v8.113:超 200 → FAIL(压缩重跑)· 不截断 · 归档暂存前就拦(收尾分支不应被推)。"""
+        long_desc = "描" * 210
+        r, d = self._finalize("--no-planning-changes", "--archive-desc", long_desc)
+        self.assertEqual(d.get("verdict"), "FAIL", d)
+        self.assertEqual(d.get("failed_step"), "finalize-deliver", d)
+        blob = json.dumps(d, ensure_ascii=False)
+        self.assertIn("压缩", blob, "hint 应要求压缩表达方式")
+        self.assertIn("200", blob)
+        self.assertNotIn("…", blob, "不再截断 · 不应出现 …")
+        # BLOCK 发生在归档暂存前 → 收尾分支不应被推
+        sf = f"ship-finalize/{self.FID}"
+        rc, _, _ = _git(self.main, "fetch", "origin", sf)
+        self.assertNotEqual(rc, 0, "FAIL 应在归档暂存前 · 收尾分支不应存在")
+
+    def test_compressed_under_200_passes_after_block(self):
+        """v8.113:压缩到 ≤200 后重跑 → PENDING(门禁放行 · 描述完整写入)。"""
+        compressed = "描" * 180
+        _, d = self._finalize("--no-planning-changes", "--archive-desc", compressed)
+        self.assertEqual(d.get("verdict"), "PENDING", d)
         sf = f"ship-finalize/{self.FID}"
         _git(self.main, "fetch", "origin", sf)
         rc, content, _ = _git(self.main, "show", f"origin/{sf}:{self.index_rel}")
         self.assertEqual(rc, 0)
-        self.assertIn("描" * 49 + "…", content, "超 50 字应截断为 49+…")
-        warns = json.dumps(d.get("warnings", []), ensure_ascii=False)
-        self.assertIn("超 50 字", warns)
+        self.assertIn(compressed, content, "≤200 描述应完整写入 · 无截断")
+        self.assertNotIn("…", content)
 
 
 if __name__ == "__main__":

@@ -87,7 +87,8 @@ class TestInitFeature(unittest.TestCase):
         self.assertEqual(state["worktree"]["branch"], "feat/admin-f013-tax-billing")
         self.assertIn("_state_checksum", state)
 
-    def test_init_feature_bug_defaults_to_dev(self) -> None:
+    def test_init_feature_bug_defaults_to_diagnose(self) -> None:
+        """v8.107:Bug 首 stage = diagnose(根因细查 + 修复方案确认)· 不再直入 dev(防修偏)。"""
         target = self.tmp / "bug"
         d = run([
             "init-feature",
@@ -97,7 +98,17 @@ class TestInitFeature(unittest.TestCase):
             "--merge-target", "main",
             "--branch", "fix/login",
         ])
-        self.assertEqual(d["current_stage"], "dev")
+        self.assertEqual(d["current_stage"], "diagnose")
+
+    def test_v8107_bug_dev_requires_diagnose(self) -> None:
+        """v8.107:Bug 流程 dev 准入要求 diagnose output_satisfied(不再直入)· Micro 仍直入。"""
+        from _v8_stage_specs import _check_blueprint_or_alt_done  # type: ignore
+        self.assertFalse(_check_blueprint_or_alt_done(
+            {"flow_type": "Bug", "stage_contracts": {}}, None))
+        self.assertTrue(_check_blueprint_or_alt_done(
+            {"flow_type": "Bug", "stage_contracts": {"diagnose": {"output_satisfied": True}}}, None))
+        self.assertTrue(_check_blueprint_or_alt_done(
+            {"flow_type": "Micro", "stage_contracts": {}}, None))
 
     def test_init_feature_existing_state_fails_without_force(self) -> None:
         target = self.tmp / "exists"
@@ -1394,17 +1405,18 @@ class TestExternalReviewCommand(unittest.TestCase):
         self.assertEqual(d["verdict"], "FAIL")
         self.assertIn("claude/codex", d["error"])
 
-    def test_self_review_fallback_routes_to_self_review_dir(self):
-        """🔴 核心:self-review 落 self-review/(非 external-cross-review/)· 用宿主自身模型 ·
-        结构上**不满足 P0-154**(P0-154 只查 external-cross-review/)。dry-run 验路由。"""
+    def test_self_review_fallback_emits_subagent_recipe(self):
+        """🔴 v8.108:--self-review-fallback 不 exec · emit subagent 配方(PMO 起 Agent subagent 降级自审)·
+        target 落 external-cross-review/(诚实降级 · degraded_mode=subagent-fallback · 满足 P0-154)。"""
         d = run(["external-review", "--feature", str(self.feat),
                  "--stage", "review", "--host", "claude-code",
-                 "--self-review-fallback", "--reason", "异质 codex 未登录·已重试失败",
-                 "--dry-run"], expect_exit=0)
-        self.assertEqual(d["verdict"], "OK", d)
-        self.assertEqual(d["model"], "claude")  # 宿主自身模型(claude-code → claude · 故意同源)
-        self.assertIn("/self-review/", d["output_file"])
-        self.assertNotIn("external-cross-review", d["output_file"])
+                 "--self-review-fallback", "--reason", "异质 codex 未登录·已重试失败"],
+                expect_exit=0)
+        self.assertEqual(d["verdict"], "SUBAGENT_FALLBACK", d)
+        self.assertTrue(d["degraded"])
+        self.assertEqual(d["model"], "claude-subagent")  # 宿主自身模型 subagent(claude-code → claude)
+        self.assertIn("external-cross-review", d["target_file"])
+        self.assertIn("degraded_mode: subagent-fallback", d["next_action"])
 
     # ── v8.90:localconfig 禁用异质评审(单模型用户)──
     def test_read_disable_heterogeneous_review_helper(self):
@@ -1417,19 +1429,18 @@ class TestExternalReviewCommand(unittest.TestCase):
             json.dumps({"disable_heterogeneous_review": True}), encoding="utf-8")
         self.assertTrue(_read_disable_heterogeneous_review(self.feat))
 
-    def test_config_disabled_routes_to_external_cross_review(self):
-        """🔴 v8.90:disable_heterogeneous_review=true → 自动宿主自身模型 exec 自审 ·
-        落 external-cross-review/(满足 P0-154 · 区别于 self-review-fallback 落 self-review/)。"""
+    def test_config_disabled_emits_subagent_recipe(self):
+        """🔴 v8.108:disable_heterogeneous_review=true → emit subagent 配方(不 exec)·
+        target 落 external-cross-review/(degraded_mode=config-disabled · 满足 P0-154)。"""
         (self.tmp / ".git").mkdir()
         (self.tmp / ".teamwork_localconfig.json").write_text(
             json.dumps({"disable_heterogeneous_review": True}), encoding="utf-8")
         d = run(["external-review", "--feature", str(self.feat), "--stage", "review",
-                 "--host", "claude-code", "--commit", "abc123def456",
-                 "--base", "staging", "--dry-run"])
-        self.assertEqual(d["verdict"], "OK", d)
-        self.assertEqual(d["model"], "claude")  # 宿主自身模型(降级 · 非异质 codex)
-        self.assertIn("/external-cross-review/", d["output_file"])
-        self.assertNotIn("self-review/", d["output_file"])
+                 "--host", "claude-code", "--commit", "abc123def456", "--base", "staging"])
+        self.assertEqual(d["verdict"], "SUBAGENT_FALLBACK", d)
+        self.assertTrue(d["degraded"])
+        self.assertIn("external-cross-review", d["target_file"])
+        self.assertIn("degraded_mode: config-disabled", d["next_action"])
 
     # ── stage 校验 ──
     def test_stage_choices_enforced(self):
@@ -1541,51 +1552,37 @@ class TestExternalReviewCommand(unittest.TestCase):
         self.assertNotIn("--model", captured_cmd)
         self.assertIn("--output-format", captured_cmd)
 
-    # ── v8.85:短 prompt inline / 长 prompt 落 doc + 短 argv + review_start.log liveness ──
+    # ── claude review cmd:纯 `claude -p` inline(v8.106 删 doc 模式 / --bare / liveness)──
 
     def test_v885_short_prompt_inline(self):
-        """v8.85:≤200 字符 prompt → argv inline · 无 --allowedTools · cwd=None。
-        v8.103:加 --bare(hermetic · 不载消费项目 MCP/hooks/CLAUDE.md)。"""
+        """v8.106:claude 评审只用 `claude -p <prompt> --output-format text` · 无 --bare / --allowedTools · cwd=None。"""
         from state import _build_claude_review_cmd  # type: ignore
         with tempfile.TemporaryDirectory() as d:
             feat = Path(d)
             cmd, cwd = _build_claude_review_cmd("short prompt", feat, feat / "doc.md")
-        self.assertEqual(cmd[2], "short prompt")
+        self.assertEqual(cmd, ["claude", "-p", "short prompt", "--output-format", "text"])
         self.assertNotIn("--allowedTools", cmd)
-        self.assertIn("--bare", cmd)  # v8.103:hermetic
+        self.assertNotIn("--bare", cmd)            # v8.106:--bare 砸登录上下文 → "Not logged in" · 删
+        self.assertNotIn("--permission-mode", cmd)
         self.assertIsNone(cwd)
 
-    def test_v885_long_prompt_doc_mode(self):
-        """v8.85:>200 字符 prompt → 落 doc · argv 发短引用句(含 review_start.log + doc rel)·
-        --allowedTools Write Read · cwd=feature_dir · 全文不进 argv。"""
+    def test_v8106_long_prompt_still_inline(self):
+        """v8.106:长 prompt 也走 argv inline(删 v8.85 doc 模式短引用 + v8.103 --bare)·
+        prompt_doc 仍写盘(审计 + 可复跑)· 全文进 argv · 无工具。"""
         from state import _build_claude_review_cmd  # type: ignore
         with tempfile.TemporaryDirectory() as d:
             feat = Path(d)
             doc = feat / "external-review-prompts" / "review-claude.md"
             long_prompt = "X" * 500
             cmd, cwd = _build_claude_review_cmd(long_prompt, feat, doc)
-            argv_prompt = cmd[2]
-            # doc 被物化落盘(含全文 · 可审计)
+            # 全文走 argv inline(不再短引用 doc)
+            self.assertEqual(cmd, ["claude", "-p", long_prompt, "--output-format", "text"])
+            # doc 仍写盘(审计 + 可复跑)
             self.assertTrue(doc.exists())
             self.assertEqual(doc.read_text(encoding="utf-8"), long_prompt)
-        # argv 短句:含 liveness 日志 + doc 相对路径 · 不含全文
-        self.assertIn("review_start.log", argv_prompt)
-        self.assertIn("external-review-prompts/review-claude.md", argv_prompt)
-        self.assertNotIn("XXXX", argv_prompt)
-        # ≤200 字符(用户硬要求)
-        self.assertLessEqual(len(argv_prompt), 200, f"argv 短句应 ≤200 · 实际 {len(argv_prompt)}")
-        # 放行 Read/Grep/Glob(读+导航)+ Write(仅 liveness)· 不放 Bash/Edit · cwd=feature_dir
-        self.assertIn("--allowedTools", cmd)
-        self.assertIn("Write", cmd)
-        self.assertIn("Read", cmd)
-        self.assertIn("Grep", cmd)   # v8.103:导航工具(防 model 够不到文件)
-        self.assertIn("Glob", cmd)
-        self.assertNotIn("Bash", cmd)
-        # v8.103:hermetic + 不挂(治本消费项目 .mcp.json 长跑 dev-server MCP 卡死 headless claude)
-        self.assertIn("--bare", cmd)
-        self.assertIn("--permission-mode", cmd)
-        self.assertIn("dontAsk", cmd)
-        self.assertEqual(cwd, str(feat))
+        self.assertNotIn("--allowedTools", cmd)
+        self.assertNotIn("--bare", cmd)
+        self.assertIsNone(cwd)
 
     def test_v885_doc_mode_uses_existing_doc_not_overwrite(self):
         """v8.85:doc 已存在(AI 填好的 scaffold)→ 不覆盖 · 直接引用。"""
@@ -1799,7 +1796,7 @@ class TestExternalReviewCommand(unittest.TestCase):
 
     # ── which BLOCK(模拟 codex 不在 · 用窄 PATH) ──
     def test_codex_cli_missing_blocked_with_hint(self):
-        """which codex 失败 → BLOCK + hint 含 'change-review-roles' / '绝不 substitute'。"""
+        """which codex 失败 → BLOCK + hint 含 '--self-review-fallback'(v8.108 降级优先)/ 'change-review-roles'(最后手段)。"""
         # 用窄 PATH 模拟 codex 不在(/usr/bin:/bin · 通常没 codex)
         r = subprocess.run(
             [sys.executable, str(STATE_PY), "external-review",
@@ -1811,8 +1808,9 @@ class TestExternalReviewCommand(unittest.TestCase):
         d = json.loads(r.stdout) if r.stdout.strip().startswith("{") else {}
         self.assertEqual(d.get("verdict"), "FAIL", f"应 FAIL · 实际 stdout={r.stdout}")
         self.assertIn("不在", d["error"])
-        self.assertIn("substitute", d["hint"])  # "绝不 substitute"
-        self.assertIn("change-review-roles", d["hint"])
+        self.assertIn("--self-review-fallback", d["hint"])  # v8.108:降级优先于移除
+        self.assertIn("change-review-roles", d["hint"])     # 最后手段仍在
+        self.assertIn("冒充异质", d["hint"])                  # 仍禁偷偷用 subagent 伪装合规
 
     # ── 自动 frontmatter 文件命名 ──
     def test_output_file_path_uses_compliant_naming(self):
@@ -2653,6 +2651,80 @@ class TestPlanningCheck(unittest.TestCase):
         self.assertIn("全景UI初步规划", po)
         self.assertLess(po.index("全景UI初步规划"), po.index("WS"),
                         "全景UI初步规划 必在 WS 之前(拆 WS 前先出全景)")
+
+
+class TestV8111BugFlowFixes(unittest.TestCase):
+    """v8.111:Bug 流程 2 摩擦点修复(实证来自真实 Bug feature 跑流程)
+    A. _evidence_reviewers_match 容许「角色-限定」写法(external-claude 满足 external)
+    B. _test_brief 按 flow_type 分支(Bug 不列 verify-ac/AC 全覆盖 = 假信号)
+    """
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp(prefix="tw-v8111-"))
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def _args(self):
+        class _A: pass
+        a = _A(); a.feature = str(self.tmp); return a
+
+    def _write_review(self, reviewers_inline):
+        (self.tmp / "REVIEW.md").write_text(
+            f"---\nreviewers: {reviewers_inline}\nverdict: APPROVE\n---\n# review\n",
+            encoding="utf-8",
+        )
+
+    def _state_review(self):
+        return {"current_stage": "review",
+                "stage_review_roles": {"review": ["architect", "qa", "external"]}}
+
+    # ── Fix A:reviewers roll-call 容许 `角色-限定` ──
+    def test_v8111_role_qualified_external_claude_satisfies_external(self):
+        """external-claude 满足 required external(保留模型 provenance · 不再被拒)。"""
+        from _v8_stage_specs import _evidence_reviewers_match
+        self._write_review("[architect, qa, external-claude]")
+        ok, err = _evidence_reviewers_match("REVIEW.md")(self._state_review(), self._args())
+        self.assertTrue(ok, err)
+
+    def test_v8111_bare_external_still_satisfies(self):
+        """裸 external 仍满足(向后兼容)。"""
+        from _v8_stage_specs import _evidence_reviewers_match
+        self._write_review("[architect, qa, external]")
+        ok, err = _evidence_reviewers_match("REVIEW.md")(self._state_review(), self._args())
+        self.assertTrue(ok, err)
+
+    def test_v8111_missing_external_still_blocks(self):
+        """完全缺 external 角色仍 BLOCK(放宽 ≠ 不校验)。"""
+        from _v8_stage_specs import _evidence_reviewers_match
+        self._write_review("[architect, qa]")
+        ok, err = _evidence_reviewers_match("REVIEW.md")(self._state_review(), self._args())
+        self.assertFalse(ok)
+        self.assertIn("external", err)
+
+    def test_v8111_unrelated_prefix_does_not_falsematch(self):
+        """前缀匹配要 `角色-` 边界 · externalize 不算 external(避免乱匹配)。"""
+        from _v8_stage_specs import _evidence_reviewers_match
+        self._write_review("[architect, qa, externalize]")
+        ok, _ = _evidence_reviewers_match("REVIEW.md")(self._state_review(), self._args())
+        self.assertFalse(ok, "externalize 不应满足 external(需 `external-` 边界)")
+
+    # ── Fix B:_test_brief 按 flow_type 分支 ──
+    def test_v8111_test_brief_bug_no_verify_ac_lie(self):
+        """Bug 流程 brief 不得把 verify-ac.py/AC 全覆盖列成完成判定(假信号)。"""
+        from _v8_stage_specs import _test_brief
+        brief = _test_brief({"flow_type": "Bug"})
+        self.assertIn("回归", brief)
+        self.assertIn("N/A", brief)                       # 明示 verify-ac 对 Bug N/A
+        self.assertNotIn("verify-ac.py 通过", brief)       # 不作为完成判定
+        self.assertNotIn("AC 全覆盖最终验证", brief)
+
+    def test_v8111_test_brief_feature_keeps_verify_ac(self):
+        """Feature 流程 brief 仍列 verify-ac.py 通过 + AC 全覆盖(不回归)。"""
+        from _v8_stage_specs import _test_brief
+        brief = _test_brief({"flow_type": "Feature"})
+        self.assertIn("verify-ac.py 通过", brief)
+        self.assertIn("AC 全覆盖", brief)
 
 
 if __name__ == "__main__":

@@ -19,10 +19,22 @@
 
 ---
 
+## 🐛 Bug 流程分支(无 PRD/TC · Bug 流程先读这段)
+
+> Bug 流程规格依据 = `bugfix/BUG-*.md`(**非** PRD/TC)· 下面「怎么做」的 Feature 步骤按此调整,**不要照搬 PRD/AC/verify-ac**:
+
+- **§1 加载上下文** → 读 `BUG-*.md`(§现象 / §根因 / §修复方案 / §回归测试)+ 实际代码 + dev commit ·**无 PRD.AC / TC.md**
+- **§5 跑 verify-ac.py** → **skip**:门禁 `ac_test_binding` 对 Bug 自动 N/A(`flow_type in (Bug, Micro)` 直接 return skip)· **别去跑 `verify-ac.py`** —— 它要 PRD.md · 必报「PRD 不存在」· 那是**假信号不是错**
+- **测试焦点 = 回归**:复现 bug 的用例修复后转绿(对齐 `BUG-*.md §回归测试`)+ 既有 integration/api-e2e 套件保持绿 · `e2e/*` 复跑**触发 bug 的关键路径**
+- **§质量基线 / Output Contract 里的 verify-ac 物化校验**:对 Bug 同样 N/A · 但 `TEST-REPORT.md` 仍必产(§回归结果 + exit-code 摘录)
+
+---
+
 ## 怎么做
 
 ### 1. 加载上下文
 读 PRD.AC · TC.md · 实际代码 · dev 阶段 commit
+(Bug 流程:读 `BUG-*.md` 替代 PRD/TC · 详上「🐛 Bug 流程分支」)
 
 ### 2. QA 起草 integration(进程内集成)
 基于 TC.md 用例 · 跨模块 / 跨服务契约(**单进程内** · 不起 live 服务)
@@ -39,6 +51,7 @@ integration + api-e2e 双 exit-code=0
 
 ### 5. 跑 verify-ac.py
 AC↔Test 全覆盖物化校验 · 漏覆盖 FAIL
+🐛 **Bug 流程 skip 本步**:无 PRD/TC · 门禁自动 N/A · 别跑 verify-ac.py(详「🐛 Bug 流程分支」)
 
 ### 6. 起草 TEST-REPORT.md
 §integration 结果 / §api-e2e 结果 / §AC 覆盖度 / §回归
