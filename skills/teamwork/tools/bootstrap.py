@@ -227,7 +227,7 @@ def _kg_entry_rows(project_root: Path) -> list:
     has_archive = (project_root / "docs" / "features" / "_archive").is_dir() or \
         any(project_root.glob("*/docs/features/_archive"))
     if has_archive:
-        rows.append("| 归档冷库 | `docs/features/_archive/INDEX.md` | "
+        rows.append("| 归档冷库 | `{子项目}/docs/features/_archive/INDEX.md`(每子项目 docs_root) | "
                     "已交付 feature(id+描述+zip)· 先读描述 · 必要才解压 |")
     return rows
 

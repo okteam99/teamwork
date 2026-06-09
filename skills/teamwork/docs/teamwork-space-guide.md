@@ -16,7 +16,7 @@
 ## 0.1 § 知识入口(索引之索引 · 零死角律)
 
 - **职责边界**:teamwork-space.md 承担**知识导航(地图)** · **不承担知识内容** —— 三层律「地图 / 领土=代码(细节唯一真相)/ 冷库=归档 zip(按需解压)」详 [SKILL.md § 项目级文档信息架构](../SKILL.md)。
-- 🔴 **零死角律**:本项目**每个磁盘上存在的知识节点**必在「知识入口」表有一行指针 —— 子项目 `docs_root` / `product-overview/` / `project-specs/`(DEV-RULES·KNOWLEDGE·GLOSSARY·TROUBLESHOOTING·RESOURCES)/ `external/` / 归档 `_archive/INDEX.md`。漏一个 = 知识泄露死角。无对应目录的项目删该行(不留空指针)。
+- 🔴 **零死角律**:本项目**每个磁盘上存在的知识节点**必在「知识入口」表有一行指针 —— 子项目 `docs_root` / `product-overview/` / `project-specs/`(DEV-RULES·KNOWLEDGE·GLOSSARY·TROUBLESHOOTING·RESOURCES·ARCHITECTURE)/ `external/` / 归档 `{子项目}/docs/features/_archive/INDEX.md`(每子项目 docs_root 下)。漏一个 = 知识泄露死角。无对应目录的项目删该行(不留空指针)。
 - **一行只写"去哪"**:指针 + 内含摘要 · **不写"是什么"**(文档*类型*语义 = 律法 · 在 SKILL.md · 不复制进项目文件 · 否则每项目背一份会腐烂的副本)。
 - **末行永远是代码**:「细节 → grep+Read 源码 · 不信文档转述」· 地图不替代领土。
 - 🟢 **物化校验已落**(v8.115):`bootstrap.py check_knowledge_graph_integrity`(归档 `INDEX.md`↔`*.zip` 双向对账 + workspace 节点登记)· session 启动跑 · 命中 emit `checks.knowledge_graph` WARN + 截断鲁棒 digest 行。🔴 **只查可达性 · 不查内容新鲜度**(否则 checker 通过会被误读成「知识完整」· 自己成误导信号 · 违 §「信号≠判决」)。「零死角」从约定升为物化 WARN。

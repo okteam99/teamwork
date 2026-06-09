@@ -39,4 +39,4 @@ graph TD
     └── src/
 ```
 
-> 顶层知识节点(`product-overview/` · `project-specs/` · `external/` · `docs/features/_archive/`)→ 见 `teamwork-space.md`「知识入口」(不在此重复)。
+> 知识节点(`product-overview/` · `project-specs/` · `external/` · 各子项目 `{子项目}/docs/features/_archive/` 归档)→ 见 `teamwork-space.md`「知识入口」(不在此重复)。

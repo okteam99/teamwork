@@ -1,10 +1,26 @@
-# Changelog Archive(v8.112 → v1)
+# Changelog Archive(v8.113 → v1)
 
-> 📦 **历史归档**:本文件保存 teamwork **v8.112 及更早**的全部 changelog(含 v7/v6/…/v1 等 v8.0 之前的旧系统)· 仅供追溯,**不再维护**。
-> 现行 changelog(最近 5 版 · v8.113–v8.117)见 [CHANGELOG.md](./CHANGELOG.md)。
+> 📦 **历史归档**:本文件保存 teamwork **v8.113 及更早**的全部 changelog(含 v7/v6/…/v1 等 v8.0 之前的旧系统)· 仅供追溯,**不再维护**。
+> 现行 changelog(最近 5 版 · v8.114–v8.118)见 [CHANGELOG.md](./CHANGELOG.md)。
 > ⚠️ v8.0 是「范式切换 · 不向下兼容」的重构 —— **v7 及更早描述的是已不存在的旧系统**,其机制/命令/红线编号均不适用于现行 v8。
 
 ---
+
+## v8.113 · 归档 INDEX.md 描述超 200 改「压缩重写」而非截断(FAIL 门禁 · 不丢尾)
+
+> 用户:超则截 199 + 需要优化 —— 超过则压缩表达方式,压缩到 200 以内。
+
+### 诊断:截断 = 机械丢尾 · 压缩是 AI 判断(不可枚举 → 留 AI)
+- v8.112 的「超 200 截 199+`…`」机械丢尾失信息 · 用户要的是**压缩表达方式**(精简措辞 / 去枝节 / 保要点)塞进 200 —— 这是语言判断 · 纯函数做不了 · 归 AI(SKILL.md 哲学:不可枚举的判断留 AI)。
+
+### 改法:门禁 FAIL 驱动 AI 压缩重跑(物化闸 · 不靠截断)
+- **`_clean_archive_desc`(`_v8_ship.py`)**:删 `s[:199]+…` 截断 · 退化为**纯净化**(折叠空白 + 去 `|`/换行)· 任意长度照原样返。
+- **`cmd_ship_finalize` 前置门禁**:`--archive-desc` 净化后 > 200 字 → **FAIL**(`failed_step=finalize-deliver` · 在任何归档暂存/推分支**之前**)· hint = 压缩表达方式重写到 ≤200 后重跑(ship-finalize 可重入 · 不丢尾)。
+- **`ship-stage.md` §归档 + argparse help**:截断语义 → 压缩重跑语义。
+
+### 验证
+- `test_ship_archive_desc_v894.py`:`over_200_truncated`→`over_200_not_truncated_by_sanitizer`(净化不截)· 集成 `over_200_truncated_with_warning`→`over_200_blocks_with_compress_hint`(FAIL + 压缩 hint + **暂存前拦** · 收尾分支不推)+ 新 `compressed_under_200_passes`(≤200 完整写入 · 无 `…`)。
+- pytest **3 failed / 511 passed**(baseline 3 = scan-spec 既有 · 零回归 · +1 净增)。
 
 ## v8.112 · 归档 INDEX.md feature 描述上限 50 → 200 字
 

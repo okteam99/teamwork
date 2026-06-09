@@ -1012,9 +1012,10 @@ def _archive_repo_paths(repo_cwd: str, artifact_root: Path,
                         feature_id: str) -> Optional[tuple]:
     """v8.82:算归档相关 repo 相对路径 · 返 (feature_rel, zip_rel, index_rel) 或 None。
 
-    feature_rel: docs/features/<dir-name>      (无尾 /)
-    zip_rel:     docs/features/_archive/<id>.zip
-    index_rel:   docs/features/_archive/INDEX.md
+    路径前缀 = 子项目 docs_root(features 根 git show-prefix)· 多子项目时如 `svc/docs/features`:
+    feature_rel: {prefix}/<dir-name>           (无尾 / · 如 svc/docs/features/<id>)
+    zip_rel:     {prefix}/_archive/<id>.zip     (如 svc/docs/features/_archive/<id>.zip)
+    index_rel:   {prefix}/_archive/INDEX.md     (单项目=repo 根 → docs/features/_archive/INDEX.md)
     用 features 根(artifact_root 父目录)算 show-prefix · 兼容 feature 目录已删(3rd-run)。
     """
     features_root = artifact_root.parent

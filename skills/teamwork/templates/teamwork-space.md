@@ -23,7 +23,7 @@
 | 工程规范（workspace） | [`project-specs/`](project-specs/) | DEV-RULES · KNOWLEDGE · GLOSSARY · TROUBLESHOOTING · RESOURCES |
 | 系统架构（workspace） | [`project-specs/ARCHITECTURE.md`](project-specs/ARCHITECTURE.md) | 子项目拓扑 + 依赖 + 目录布局(偶尔读 · 从本文件外迁) |
 | 三方 / 外部 | [`external/`](external/) | SDK · 协议 · 供应商文档 |
-| 归档冷库 | [`docs/features/_archive/INDEX.md`](docs/features/_archive/) | 已交付 feature(id + 描述 + zip）· 先读描述 · 必要才解压 |
+| 归档冷库 | `{子项目}/docs/features/_archive/INDEX.md`（每子项目 docs_root 下） | 已交付 feature(id + 描述 + zip）· 先读描述 · 必要才解压 |
 | 代码（唯一真相） | `grep` + `Read` 源码 | 🔴 细节一律现查代码 · 不信文档转述 |
 
 > 🔴 每个磁盘上存在的知识节点必在本表有一行 —— 漏一个 = 知识泄露死角。无 product-overview/external 的项目删对应行。
