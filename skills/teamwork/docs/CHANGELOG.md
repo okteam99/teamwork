@@ -1,6 +1,24 @@
 # Changelog
 
-> 📦 v8.108 及更早(含 v7/v6/… 旧系统)已归档 → [CHANGELOG-ARCHIVE.md](./CHANGELOG-ARCHIVE.md)。本文件**保留最近 5 版**(每次发布:新增本版 → 若超过 5 版,把最旧的一版迁入归档)。
+> 📦 v8.109 及更早(含 v7/v6/… 旧系统)已归档 → [CHANGELOG-ARCHIVE.md](./CHANGELOG-ARCHIVE.md)。本文件**保留最近 5 版**(每次发布:新增本版 → 若超过 5 版,把最旧的一版迁入归档)。
+
+## v8.114 · teamwork 知识图谱契约:律法/地图分工 + 三层律 + N≥1 统一模型 + teamwork-space.md 必读地图根
+
+> 用户:teamwork 是否该承担项目知识图谱责任 —— 从 teamwork-space.md 零死角抵达项目架构/文档/「去查什么」· 细查时代码仍是唯一真相 · 归档 zip 必要时解压。多轮讨论收敛后「按建议落实」。
+
+### 定位:teamwork owns 知识导航(地图)· 不 owns 知识内容(防腐烂反向误导)
+- 现状已有 ~80%(SKILL § 项目级文档信息架构路由表 + teamwork-space.md)· 本版**把契约说死 + 闭合死角**(doc 基座)· 物化 checker 顺延 v8.115。
+
+### 改动(doc 基座 · 律法 SKILL / 地图 template+guide 解耦)
+- **`SKILL.md` § 项目级文档信息架构**:加 ① **知识三层律**(地图=teamwork-space/docs · 领土=代码〔细节唯一真相〕· 冷库=归档 zip〔按需解压〕)② **律法/地图分工**(SKILL=generic 律法·不复制进项目;teamwork-space.md=实例地图)③ **N≥1 统一模型**(任何项目=teamwork-space.md + N≥1 逻辑子项目 · 单=N=1 · 知识层与 monorepo 无关)。路由表**闭合死角**:加 `external/` + 归档 `_archive/INDEX.md` 两行(文档清单 + 场景路由)· teamwork-space.md 标「🔴 必读地图根」· 代码行标「唯一真相·不信转述」。
+- **`templates/teamwork-space.md`**:头部重定位「必读知识地图根 · N≥1 · 单=1」+ 三层律 · 新增 **「知识入口」节** —— 本项目每个知识节点一行指针(子项目 docs_root / product-overview / project-specs / external / 归档冷库 / 代码)· 这是「从 teamwork-space.md 零死角抵达一切」的**实例载体**。
+- **`docs/teamwork-space-guide.md` §0**:定位改「知识地图根 · 不承担内容」+ N≥1 模型(替原「单项目可无」)· 新增 **§0.1 知识入口零死角律**(每磁盘节点必有指针 · 一行只写去哪不写是什么 · 末行永远代码 · 物化校验→v8.115)。
+
+### 验证
+- doc-only · pytest **3 failed / 511 passed**(baseline 3 = scan-spec 既有 · 零回归)。
+
+### 顺延 v8.115(物化 arc · 把「零死角」从约定升门禁)
+- bootstrap 自动建 teamwork-space.md(N≥1 落地)+ cold-start 解耦(地图 vs 规划层)+ state.py 路由校验 always + **结构 checker**(入口指向存在 / 归档 INDEX↔zip 对账 / 孤儿检测 → WARN)。
 
 ## v8.113 · 归档 INDEX.md 描述超 200 改「压缩重写」而非截断(FAIL 门禁 · 不丢尾)
 
@@ -64,22 +82,3 @@
 
 ### 验证
 - pytest **3 failed / 503 passed**(baseline 3 · 零回归)· liveness 残留引用 = 0(仅剩 bootstrap `.gitignore` 防御项 · 无害)。
-
-## v8.109 · 跨文档一致性 sweep(清理 + 4-agent 审计修 v8.100–108 遗留的 conflict/stale/broken-ref)
-
-> 用户:清理(SKILL 命令计数 + reviewer.md liveness carve-out)· 并整体 review 各 md 文件看语义冲突 / 冗余 / 缺失。
-
-### 清理(2 项)
-- `SKILL.md` 命令清单:`10 stage × 2` → `11`(补 diagnose-start/complete 条目)。
-- `claude-agents/reviewer.md`:删 v8.102 liveness carve-out(`review_start.log`)—— v8.106 已删 doc 模式 / Write 工具 · 该 carve-out 已 moot;READ-ONLY 改「不写任何文件 · 经 stdout 返回」· stdin→argv。
-
-### 审计(4 并行 agent 扫 SKILL/planning · stages · standards/roles · templates)→ 修 conflict/stale/broken-ref
-- **v8.107 diagnose 接线漏修**:`dev-stage.md`(§1 加 Bug 读 diagnose 的 BUG 报告为输入 · §5/Output 改「dev 追加 §回归测试/§修复记录 · 不重写根因/方案」)· `FLOWS.md` Bug 链补 diagnose · `bug-report.md` `current_stage` enum 换 v8 BUG_FLOW(删 defunct triage 枚举)+ body 段对齐(根因/方案=diagnose · §回归测试=dev · 删复杂度评估/PMO 流程判断)· `roles/rd.md` + `SKILL.md` 授权暂停点 Bug 行加 diagnose。
-- **v8.106/108 external-review 接线漏修**:`external-model-usage.md §一`(claude 路径删 doc 模式/liveness/--allowedTools → 纯 claude -p)· §11.2 加 honest-degrade 黑名单例外 · §11.4 修 broken ref `7.x→11.x` + subagent 反模式区分伪装 vs §11.5 诚实降级 · §11.3 决策树降级优先 · `review-stage.md §4` 删 liveness bullet。
-- **v8.100/101/104 planning 接线**:`prepare.md` 死术语 `panorama-design`→「UI 全景初步规划」(3 处)· `feature-planning.md`「只产 3 文档」→ WS+preview-project · `PRODUCT-OVERVIEW`/`roadmap.md` launch_order→execution_waves + WS/ROADMAP 波次权威关系。
-- **broken-ref / stale**:`workstream.md`/`workstream-readme.md`「§ 进度统计」→「§ 规划状态」· `external-reviewer.md` `{review_id}.md`→`<stage>-<model>.md`(合 §11.2)+ host-aware 异质 · `templates/README.md` knowledge「3 类含 Conventions」→ 4 类(Conventions 已迁 DEV-RULES)+ 补 pending/dev-rules 行 · `agents/README.md §三` 加「权威已迁 §11」指针。
-- **去版本标**(违 v8.98 spec 写作约定):清掉近期加到 SKILL/prepare/feature-planning/teamwork-space-guide 的 `(v8.10x)` inline 标。
-
-### 验证
-- 残留 grep(panorama-design / 旧 liveness / § 进度统计 section-ref)= 0 · doc-only · pytest **3 failed / 503 passed**(baseline 3 = scan-spec · 零回归)。
-- 余(cosmetic · 不阻塞):external-model-usage §二/§十 编号跳号 · ui.md/config.md 旧版本标 · state.py vestigial `review_start.log` 读(无害)。

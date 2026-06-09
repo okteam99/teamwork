@@ -1,13 +1,31 @@
 # teamwork-space.md 模板(实例化骨架)
 
-> 位置:项目根 `teamwork-space.md`(多子项目模式的全景索引)
+> 位置:项目根 `teamwork-space.md`(**必读知识地图根 · 索引之索引** · 任何 teamwork 项目都有 · N≥1 子项目 · **单项目 = 1 个子项目**)。
 > 🔴 **任何变更必须暂停等用户确认(R5)** · 任一单元格 ≤ 1 行 · 详情外迁(workstream/WS-NN.md / Feature state.json / PROJECT.md / ADR)。
 > 🔴 **维护规则 / 字段语义 / 生命周期 / 硬约束 → [docs/teamwork-space-guide.md](../docs/teamwork-space-guide.md)**(AI 读 · 不复制进项目文件)。
+> 🔴 **三层律**:本文件 = **地图**(导航指针)· **代码 = 领土**(细节唯一真相)· `_archive/*.zip` = **冷库**(按需解压)· 详 [SKILL.md § 项目级文档信息架构](../SKILL.md)。
 
 ```markdown
 # Teamwork Space
 
-> 多子项目全景入口:子项目结构 + 依赖 + 跨项目追踪入口。任何变更需用户确认。
+> **本项目知识地图根 · 索引之索引** · 任何 session 先读本文件 → 它指向每个知识节点(子项目 / 规划 / 工程文档 / 三方 / 归档冷库)· 指向的领土(代码 / 大文档)按需读 · **代码是细节唯一真相**。任何变更需用户确认。
+
+---
+
+## 知识入口（索引之索引 · 零死角）
+
+<!-- 🔴 本项目所有知识节点的一行指针 · AI 从这里能抵达一切 · 缺节点 = 知识泄露死角 · 一行只写"去哪"不写"是什么"(文档类型语义 = 律法 · 在 SKILL.md)· 详 guide §0.1 -->
+
+| 知识域 | 入口 | 内含 |
+|--------|------|------|
+| 子项目代码 + 文档 | ↓ § 子项目清单(`docs_root`) | 每个子项目 `docs/`:PROJECT / architecture / ROADMAP / KNOWLEDGE / sitemap / features/ |
+| 产品规划（有时） | [`product-overview/`](product-overview/) | 业务架构+执行线 · `workstream/` · `PENDING.md` |
+| 工程规范（workspace） | [`project-specs/`](project-specs/) | DEV-RULES · KNOWLEDGE · GLOSSARY · TROUBLESHOOTING · RESOURCES |
+| 三方 / 外部 | [`external/`](external/) | SDK · 协议 · 供应商文档 |
+| 归档冷库 | [`docs/features/_archive/INDEX.md`](docs/features/_archive/) | 已交付 feature(id + 描述 + zip）· 先读描述 · 必要才解压 |
+| 代码（唯一真相） | `grep` + `Read` 源码 | 🔴 细节一律现查代码 · 不信文档转述 |
+
+> 🔴 每个磁盘上存在的知识节点必在本表有一行 —— 漏一个 = 知识泄露死角。无 product-overview/external 的项目删对应行。
 
 ---
 

@@ -1,10 +1,29 @@
-# Changelog Archive(v8.108 → v1)
+# Changelog Archive(v8.109 → v1)
 
-> 📦 **历史归档**:本文件保存 teamwork **v8.108 及更早**的全部 changelog(含 v7/v6/…/v1 等 v8.0 之前的旧系统)· 仅供追溯,**不再维护**。
-> 现行 changelog(最近 5 版 · v8.109–v8.113)见 [CHANGELOG.md](./CHANGELOG.md)。
+> 📦 **历史归档**:本文件保存 teamwork **v8.109 及更早**的全部 changelog(含 v7/v6/…/v1 等 v8.0 之前的旧系统)· 仅供追溯,**不再维护**。
+> 现行 changelog(最近 5 版 · v8.110–v8.114)见 [CHANGELOG.md](./CHANGELOG.md)。
 > ⚠️ v8.0 是「范式切换 · 不向下兼容」的重构 —— **v7 及更早描述的是已不存在的旧系统**,其机制/命令/红线编号均不适用于现行 v8。
 
 ---
+
+## v8.109 · 跨文档一致性 sweep(清理 + 4-agent 审计修 v8.100–108 遗留的 conflict/stale/broken-ref)
+
+> 用户:清理(SKILL 命令计数 + reviewer.md liveness carve-out)· 并整体 review 各 md 文件看语义冲突 / 冗余 / 缺失。
+
+### 清理(2 项)
+- `SKILL.md` 命令清单:`10 stage × 2` → `11`(补 diagnose-start/complete 条目)。
+- `claude-agents/reviewer.md`:删 v8.102 liveness carve-out(`review_start.log`)—— v8.106 已删 doc 模式 / Write 工具 · 该 carve-out 已 moot;READ-ONLY 改「不写任何文件 · 经 stdout 返回」· stdin→argv。
+
+### 审计(4 并行 agent 扫 SKILL/planning · stages · standards/roles · templates)→ 修 conflict/stale/broken-ref
+- **v8.107 diagnose 接线漏修**:`dev-stage.md`(§1 加 Bug 读 diagnose 的 BUG 报告为输入 · §5/Output 改「dev 追加 §回归测试/§修复记录 · 不重写根因/方案」)· `FLOWS.md` Bug 链补 diagnose · `bug-report.md` `current_stage` enum 换 v8 BUG_FLOW(删 defunct triage 枚举)+ body 段对齐(根因/方案=diagnose · §回归测试=dev · 删复杂度评估/PMO 流程判断)· `roles/rd.md` + `SKILL.md` 授权暂停点 Bug 行加 diagnose。
+- **v8.106/108 external-review 接线漏修**:`external-model-usage.md §一`(claude 路径删 doc 模式/liveness/--allowedTools → 纯 claude -p)· §11.2 加 honest-degrade 黑名单例外 · §11.4 修 broken ref `7.x→11.x` + subagent 反模式区分伪装 vs §11.5 诚实降级 · §11.3 决策树降级优先 · `review-stage.md §4` 删 liveness bullet。
+- **v8.100/101/104 planning 接线**:`prepare.md` 死术语 `panorama-design`→「UI 全景初步规划」(3 处)· `feature-planning.md`「只产 3 文档」→ WS+preview-project · `PRODUCT-OVERVIEW`/`roadmap.md` launch_order→execution_waves + WS/ROADMAP 波次权威关系。
+- **broken-ref / stale**:`workstream.md`/`workstream-readme.md`「§ 进度统计」→「§ 规划状态」· `external-reviewer.md` `{review_id}.md`→`<stage>-<model>.md`(合 §11.2)+ host-aware 异质 · `templates/README.md` knowledge「3 类含 Conventions」→ 4 类(Conventions 已迁 DEV-RULES)+ 补 pending/dev-rules 行 · `agents/README.md §三` 加「权威已迁 §11」指针。
+- **去版本标**(违 v8.98 spec 写作约定):清掉近期加到 SKILL/prepare/feature-planning/teamwork-space-guide 的 `(v8.10x)` inline 标。
+
+### 验证
+- 残留 grep(panorama-design / 旧 liveness / § 进度统计 section-ref)= 0 · doc-only · pytest **3 failed / 503 passed**(baseline 3 = scan-spec · 零回归)。
+- 余(cosmetic · 不阻塞):external-model-usage §二/§十 编号跳号 · ui.md/config.md 旧版本标 · state.py vestigial `review_start.log` 读(无害)。
 
 ## v8.108 · 外部评审降级策略统一改 subagent(不 exec · 降级而不是去掉 · 满足门禁)
 

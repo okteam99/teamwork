@@ -1,6 +1,6 @@
 ---
 name: teamwork
-version: v8.113.1
+version: v8.114
 description: AI 协作开发一体化框架 · /teamwork 启动
 ---
 
@@ -510,6 +510,20 @@ PMO 按 hint 自动执行修复(silent)
 
 > **teamwork 要求用户项目根含以下文档** · `init-feature` 自动维护(骨架 silent 复制 · 详见下方"系统维护")。
 
+### 🔴 知识三层律 + 律法/地图分工(框架定位)
+
+teamwork 承担**知识导航(索引/地图)**的责任 —— 让 AI 从一个根入口**零死角**抵达任何项目知识 —— 但**不承担知识内容**(内容会与代码漂移 · 腐烂后反向误导)。
+
+| 层 | 角色 | 权威 | 陈旧时 |
+|---|------|------|--------|
+| `teamwork-space.md` + 各 doc | **地图**(指针 / 路由 / 一句话摘要) | teamwork 维护 | 指错一格 · 打开仍对(优雅降级) |
+| **代码** | **领土**(细节唯一真相) | 🔴 **代码** | 永远现 grep+Read · 不信文档转述 |
+| 归档 `_archive/*.zip` | **冷库**(已交付过程文件) | `_archive/INDEX.md` 索引 | 先读 INDEX 描述判相关 · 必要才解压 |
+
+- **律法 vs 地图分工**:本节(SKILL)= **律法**(generic 文档*类型*语义 + 话题路由 · 每项目一样 · 框架知识 · 稳定 · 不复制进项目)· 项目的 `teamwork-space.md` = **地图**(本项目*实例*的知识入口索引 · 随项目变 · 见 § teamwork 业务流程架构)。
+- 🔴 **任何 session 先读 `teamwork-space.md`** —— 它是本项目「**索引之索引**」· 列出每个知识节点的指针(子项目 / 规划 / 工程文档 / 归档冷库)· **必读地图根**。它指向的领土(代码 / 大文档)**按需懒加载** —— 读地图 ≠ 读全量。
+- **N≥1 统一模型**:任何 teamwork 项目 = 1 个 `teamwork-space.md`(地图根)+ **N≥1 个逻辑子项目**(职责单元 · 非物理仓)· **单项目 = N=1**。知识层与项目是否 monorepo **无直接耦合**(子项目是职责分解 · 不是打包方式)。
+
 ### 文档清单 + 权威范围
 
 | 文档 | 权威范围 | 何时 read |
@@ -525,6 +539,8 @@ PMO 按 hint 自动执行修复(silent)
 | `project-specs/TROUBLESHOOTING.md` | 排查 / 运维操作手册(log / DB / 监控 / 部署)| mode A/E 涉排查 · **或 AI 自己需连环境/查 DB/log(任何 stage/规划)→ 先读拿连法** |
 | `docs/architecture/ARCHITECTURE.md` | 系统架构 | 讨论架构决策 |
 | `docs/architecture/database-schema.md` | 数据库 schema | 讨论数据模型 |
+| `external/` | 三方/外部资源文档(SDK / 协议 / 供应商) | 对接外部系统 / 三方 API |
+| `docs/features/_archive/INDEX.md` | 🔵 **归档冷库目录**(已交付 feature 的 id+描述+时间+zip 路径) | 查已交付/历史 feature · 先读描述判相关 → 必要才解压对应 zip |
 
 ### 按场景路由速查(PMO 任意时刻)
 
@@ -541,8 +557,10 @@ PMO 按 hint 自动执行修复(silent)
 | 架构 / 数据库 / schema | `docs/architecture/` |
 | F\d+(具体 Feature 编号) | `docs/features/{F}/` |
 | 历史决策 / ADR | `docs/features/*/adrs/INDEX.md` |
-| 多子项目 / 跨项目 | `teamwork-space.md` |
-| 涉及具体代码 | grep + Read 实际代码 |
+| 对接三方 / 外部 SDK / 供应商协议 | `external/` |
+| 已交付/历史 feature / 翻旧账 / 归档 | `docs/features/_archive/INDEX.md`(先读描述 · 相关才解压 zip) |
+| 多子项目 / 跨项目 / **本项目知识全景入口** | `teamwork-space.md`(🔴 必读地图根 · 索引之索引) |
+| 涉及具体代码(细节唯一真相) | 🔴 grep + Read 实际代码(不信文档转述) |
 
 🔴 **AI 自己需连环境(查 DB / log / 服务 / 跑运维命令)时也走 `TROUBLESHOOTING.md`** —— 不只"用户提到",含**规划期代码调研需 live 数据**、stage 内联调/排错。**先读它拿连接 + 操作方式,别凭 `.env` / 启动脚本瞎试**。TROUBLESHOOTING 是**用户主权**运维手册 · AI 按需读、不重新发明;连法缺失 → 补进它(知识沉淀)。
 
