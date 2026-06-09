@@ -21,6 +21,7 @@
 | 子项目代码 + 文档 | ↓ § 子项目清单(`docs_root`) | 每个子项目 `docs/`:PROJECT / architecture / ROADMAP / KNOWLEDGE / sitemap / features/ |
 | 产品规划（有时） | [`product-overview/`](product-overview/) | 业务架构+执行线 · `workstream/` · `PENDING.md` |
 | 工程规范（workspace） | [`project-specs/`](project-specs/) | DEV-RULES · KNOWLEDGE · GLOSSARY · TROUBLESHOOTING · RESOURCES |
+| 系统架构（workspace） | [`project-specs/ARCHITECTURE.md`](project-specs/ARCHITECTURE.md) | 子项目拓扑 + 依赖 + 目录布局(偶尔读 · 从本文件外迁) |
 | 三方 / 外部 | [`external/`](external/) | SDK · 协议 · 供应商文档 |
 | 归档冷库 | [`docs/features/_archive/INDEX.md`](docs/features/_archive/) | 已交付 feature(id + 描述 + zip）· 先读描述 · 必要才解压 |
 | 代码（唯一真相） | `grep` + `Read` 源码 | 🔴 细节一律现查代码 · 不信文档转述 |
@@ -62,32 +63,6 @@
 | 执行线 | 使命（一句话） |
 |--------|---------------|
 | Line 1 · XXX | [取自业务架构执行线列表] |
-
----
-
-## 项目架构全景
-
-<!-- PL 子项目拆分方案产出 · PMO 填入 · 结构变更时 PM 更新 · 详 guide §4 -->
-
-（Mermaid 子项目拓扑 + 依赖关系图）
-
----
-
-## 项目目录结构
-
-<!-- PMO 子项目拆分确认后生成 · 子项目直接放根下 · 文档布局遵循 conventions.md §13 · 详 guide §4 -->
-
-```
-项目根/
-├── teamwork-space.md          # 本文件 — 全景入口
-├── product-overview/          # 产品规划（业务架构与产品规划 + workstream/）
-├── project-specs/             # workspace 级工程文档（KNOWLEDGE/GLOSSARY/TROUBLESHOOTING/RESOURCES）
-├── external/                  # 三方/外部资源文档
-├── {子项目A}/                  # business — 负责:{职责}。不负责:{边界}
-│   ├── docs/                  # PROJECT.md + ROADMAP.md + KNOWLEDGE.md + features/ + architecture/
-│   └── src/
-└── {子项目B}/
-```
 
 ---
 

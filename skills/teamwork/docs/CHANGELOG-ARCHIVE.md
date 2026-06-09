@@ -1,10 +1,23 @@
-# Changelog Archive(v8.111 → v1)
+# Changelog Archive(v8.112 → v1)
 
-> 📦 **历史归档**:本文件保存 teamwork **v8.111 及更早**的全部 changelog(含 v7/v6/…/v1 等 v8.0 之前的旧系统)· 仅供追溯,**不再维护**。
-> 现行 changelog(最近 5 版 · v8.112–v8.116)见 [CHANGELOG.md](./CHANGELOG.md)。
+> 📦 **历史归档**:本文件保存 teamwork **v8.112 及更早**的全部 changelog(含 v7/v6/…/v1 等 v8.0 之前的旧系统)· 仅供追溯,**不再维护**。
+> 现行 changelog(最近 5 版 · v8.113–v8.117)见 [CHANGELOG.md](./CHANGELOG.md)。
 > ⚠️ v8.0 是「范式切换 · 不向下兼容」的重构 —— **v7 及更早描述的是已不存在的旧系统**,其机制/命令/红线编号均不适用于现行 v8。
 
 ---
+
+## v8.112 · 归档 INDEX.md feature 描述上限 50 → 200 字
+
+> 用户:feature index.md feature 描述上限扩展到 200 字符以内。
+
+### 改动
+- **`_clean_archive_desc`(`_v8_ship.py`)**:`--archive-desc` 净化上限 **50 → 200 字**(超则截 199 + `…`)· 给更完整的 feature 描述空间。同步改 4 处文案:`_build_archive_index` 描述列说明 / finalize-deliver hint(`<≤200 字描述>`)/ 截断 warning(`超 200 字`)/ argparse help。
+- **`stages/ship-stage.md`**:§归档 INDEX 描述列 + `--archive-desc` 说明 50 → 200。
+- 历史 `CHANGELOG-ARCHIVE.md` v8.94 条目(记录当时「50 字上限」)= 历史真相 · **不改**。
+
+### 验证
+- `test_ship_archive_desc_v894.py`:`test_over_50_truncated`→`test_over_200_truncated`(199+`…`)· `test_exactly_50_kept`→`test_exactly_200_kept` · 新 `test_between_50_and_200_kept`(防回退:51–200 字不再截)· 集成 warning 测试改 `超 200 字`。
+- pytest **3 failed / 510 passed**(baseline 3 = scan-spec 既有 · 零回归 · +1 新测试)。
 
 ## v8.111 · Bug 流程 2 摩擦点修复:reviewer 名精确匹配过严 + test brief 对 Bug 撒谎
 

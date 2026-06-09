@@ -153,6 +153,9 @@ def maintain_project_skeletons(skill_root: Path, project_root: Path) -> dict:
         # v8.96:人维护的项目开发规范(分层/命名/错误处理/测试/风格)· blueprint+dev 必读 ·
         # 与 KNOWLEDGE(AI 沉淀)分家。absent→从模板建;present→不动(人维护)。
         ("DEV-RULES.md", "dev-rules.md"),
+        # v8.117:workspace 级系统架构(子项目拓扑+依赖+目录布局)· 从 teamwork-space.md 外迁 ·
+        # 区别于 per-subproject {子项目}/docs/architecture/(单子项目内部技术架构)。
+        ("ARCHITECTURE.md", "architecture-workspace.md"),
     ]
     specs_dir = project_root / PROJECT_SPECS_DIR
 
@@ -218,6 +221,9 @@ def _kg_entry_rows(project_root: Path) -> list:
     for d, label, link, contains in nodes:
         if (project_root / d).is_dir():
             rows.append(f"| {label} | {link} | {contains} |")
+    if (project_root / "project-specs" / "ARCHITECTURE.md").is_file():
+        rows.append("| 系统架构(workspace) | [`project-specs/ARCHITECTURE.md`](project-specs/ARCHITECTURE.md) | "
+                    "子项目拓扑 + 依赖 + 目录布局 |")
     has_archive = (project_root / "docs" / "features" / "_archive").is_dir() or \
         any(project_root.glob("*/docs/features/_archive"))
     if has_archive:
@@ -259,8 +265,8 @@ def maintain_teamwork_space(skill_root: Path, project_root: Path) -> dict:
         "|------|------|------|----------|-----------|-----------|--------|---------|--------|--------|\n"
         "<!-- 待规划填充:此处尚无子项目行 → 路由校验 SKIP -->\n\n"
         "---\n\n"
-        "> 完整结构(规划状态 / 执行线 / 架构全景 / 目录结构 / 待规划池 / 跨项目变更)见模板 "
-        "`templates/teamwork-space.md` + guide · 规划期按需补章节。\n"
+        "> 完整结构(规划状态 / 执行线 / 待规划池 / 跨项目变更)见模板 `templates/teamwork-space.md` + guide · "
+        "**系统架构**(子项目拓扑/依赖/目录)→ `project-specs/ARCHITECTURE.md`(已外迁)· 规划期按需补。\n"
     )
     try:
         target.write_text(content, encoding="utf-8")

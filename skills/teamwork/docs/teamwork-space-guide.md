@@ -40,12 +40,14 @@
 - 执行线不反向绑定子项目 / Feature 编号 —— **WS 在自己文档 tag「承接 1+ 执行线」**,反查得映射。
 - 🔴 **硬规则**:每格 ≤ 1 行,原文取自业务架构(不复述背景 / 不出现子项目缩写或 Feature 编号)。
 
-## 4. § 项目架构全景 + § 项目目录结构
+## 4. § Workspace 架构(🔵 v8.117 已外迁 → `project-specs/ARCHITECTURE.md`)
 
-- **架构全景**:初始化时 PL 子项目拆分方案产出,PMO 填入(Mermaid 拓扑 + 依赖)· 后续结构变更时 PM 更新。
-- **目录结构**:PMO 在子项目拆分确认后生成 tree 图 · 每目录附职责。
+- 🔵 **外迁**:原 teamwork-space.md「项目架构全景(Mermaid 拓扑+依赖)+ 项目目录结构(tree)」两节 → `project-specs/ARCHITECTURE.md`(workspace 级)· teamwork-space.md 只在「知识入口」留 1 行指针(轻量化 · 它是偶尔读的参考详情 · 非每 session 读的导航索引)。bootstrap `maintain_project_skeletons` 自动建空骨架(模板 `templates/architecture-workspace.md`)。
+- **维护**(同迁移前 · 改在 ARCHITECTURE.md):PL 子项目拆分方案产出 → PMO 填入(子项目拓扑 + 依赖)· 后续结构变更时 PM 更新。
+- 🔴 **区别 per-subproject**:`project-specs/ARCHITECTURE.md` = **跨子项目**拓扑(workspace);`{子项目}/docs/architecture/` = **单子项目内部**技术架构(技术栈/分层/模块)—— 别混。
 - 🔴 子项目目录直接放项目根下,不嵌套 `packages/` 等中间层。
-- 🔴 文档布局遵循 [conventions.md §13](./conventions.md):workspace 级工程文档(KNOWLEDGE/GLOSSARY/TROUBLESHOOTING/RESOURCES)进 `project-specs/`(与 `product-overview/` 同级)· 顶级仓库不设 teamwork `docs/` · ROADMAP.md + 子项目 KNOWLEDGE.md 落 `{子项目}/docs/`。
+- 🔴 **目录布局去重**:顶层知识节点(product-overview/project-specs/external/归档)**不**在 ARCHITECTURE.md 目录布局重复 —— 它们在 teamwork-space.md「知识入口」· ARCHITECTURE.md 目录只展开子项目**内部**结构。
+- 🔴 文档布局遵循 [conventions.md §13](./conventions.md):workspace 级工程文档(DEV-RULES/KNOWLEDGE/GLOSSARY/TROUBLESHOOTING/RESOURCES/**ARCHITECTURE**)进 `project-specs/`(与 `product-overview/` 同级)· 顶级仓库不设 teamwork `docs/` · ROADMAP.md + 子项目 KNOWLEDGE.md 落 `{子项目}/docs/`。
 - ⚠️ 决策走 ADR(`{子项目}/docs/adr/` · conventions.md §3)· 不单设 workspace 级 `decisions/`(OQ · 暂不体现)。
 
 ## 5. § 子项目清单(路由权威)
@@ -79,12 +81,12 @@
 ## 8. 生命周期
 
 ```
-阶段 1 · 初始化(首次启动 teamwork · 发现无 teamwork-space.md)
-  → 据有无 product-overview/ 或代码目录自动生成 → ⏸️ 用户确认 → 阶段 2
+阶段 1 · 初始化(首次启动 · bootstrap 自动建 teamwork-space.md 骨架 + project-specs/ARCHITECTURE.md 空骨架 · v8.116/117)
+  → 骨架知识入口自动探测 · 子项目清单/架构待规划回填 → 阶段 2
 阶段 2 · 架构规划(逐个子项目 Planning 或首个 WS 落地)
-  → PM 更新子项目清单 + 架构全景 + 各子项目 ROADMAP → ⏸️ 用户确认 → 阶段 3
+  → PM 回填 teamwork-space.md 子项目清单 + project-specs/ARCHITECTURE.md(系统架构)+ 各子项目 ROADMAP → ⏸️ 用户确认 → 阶段 3
 阶段 3 · 开发期(正常运转)
-  → 子项目清单 + 架构全景 + 目录结构 按结构变更同步 · 变更/阻塞/事件落 workstream/WS-NN.md 或 Feature state.json · 自上而下 / 自下而上双向更新
+  → 子项目清单(teamwork-space.md)+ 系统架构(project-specs/ARCHITECTURE.md)按结构变更同步 · 变更/阻塞/事件落 workstream/WS-NN.md 或 Feature state.json · 自上而下 / 自下而上双向更新
 ```
 
 ---

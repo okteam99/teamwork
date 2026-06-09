@@ -13,7 +13,8 @@
 | verify-ac.py | AC↔test 覆盖校验脚本 | 机器校验入口 | Blueprint/Dev Output Contract 调用 |
 | roadmap.md | ROADMAP | 产品执行路线图（全局 Feature 清单人读视图） | Feature Planning 完成时 PM 编写 |
 | project.md | PROJECT | 子项目业务总览 | 项目初始化时创建 |
-| architecture.md | ARCHITECTURE + database-schema | 技术架构设计 | 项目初始化时创建 |
+| architecture.md | `{子项目}/docs/architecture/ARCHITECTURE` + database-schema | **单子项目内部**技术架构设计 | 项目初始化时创建 |
+| architecture-workspace.md | `project-specs/ARCHITECTURE.md` | **workspace 级**系统架构(子项目拓扑+依赖+目录 · 从 teamwork-space.md 外迁) | bootstrap 建空骨架 · 项目维护 |
 | knowledge.md | KNOWLEDGE | 项目本地知识库（4 类：Flagged Ambiguities / Gotchas / Preferences / Out-of-Scope；**开发规约已迁 DEV-RULES.md**；决策走 ADR） | 项目初始化时创建；Bug 修复/Review/PM 验收时按硬时机写入 |
 | dev-rules.md | DEV-RULES | 项目强制开发规范（人维护 · 分层/命名/错误处理/测试/风格）· blueprint/dev 必读 | bootstrap 无则建空壳 · 人维护 |
 | pending.md | PENDING | 待规划需求池（product-overview/PENDING.md · 跨 Feature/session "范围外但要做"项） | PMO 发现即追加 · 转化即删 |

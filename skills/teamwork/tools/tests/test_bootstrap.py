@@ -138,7 +138,8 @@ class TestMaintainProjectSkeletons(unittest.TestCase):
         self.templates_dir = self.skill_root / "templates"
         self.templates_dir.mkdir(parents=True)
         # 模拟 templates
-        for name in ["knowledge.md", "troubleshooting.md", "glossary.md", "dev-rules.md"]:
+        for name in ["knowledge.md", "troubleshooting.md", "glossary.md", "dev-rules.md",
+                     "architecture-workspace.md"]:
             (self.templates_dir / name).write_text(f"# {name}", encoding="utf-8")
 
         self.project_root = self.tmp / "project"
@@ -152,14 +153,14 @@ class TestMaintainProjectSkeletons(unittest.TestCase):
         result = maintain_project_skeletons(self.skill_root, self.project_root)
         self.assertEqual(
             sorted(result["created"]),
-            ["DEV-RULES.md", "GLOSSARY.md", "KNOWLEDGE.md", "TROUBLESHOOTING.md"],
+            ["ARCHITECTURE.md", "DEV-RULES.md", "GLOSSARY.md", "KNOWLEDGE.md", "TROUBLESHOOTING.md"],
         )
         self.assertEqual(result["existed"], [])
         self.assertEqual(result["migrated"], [])
         self.assertEqual(result["failed"], [])
         # 实际文件创建在 project-specs/ 下 · 不散在仓库根
         specs = self.project_root / "project-specs"
-        for name in ["KNOWLEDGE.md", "TROUBLESHOOTING.md", "GLOSSARY.md", "DEV-RULES.md"]:
+        for name in ["KNOWLEDGE.md", "TROUBLESHOOTING.md", "GLOSSARY.md", "DEV-RULES.md", "ARCHITECTURE.md"]:
             self.assertTrue((specs / name).exists(), f"project-specs/{name} 未创建")
             self.assertFalse((self.project_root / name).exists(), f"{name} 不应散在仓库根")
 
@@ -716,7 +717,7 @@ class TestCmdSessionBootstrapE2E(unittest.TestCase):
         self.assertEqual(data["checks"]["skeletons"]["created"], [])
         self.assertEqual(
             sorted(data["checks"]["skeletons"]["existed"]),
-            ["DEV-RULES.md", "GLOSSARY.md", "KNOWLEDGE.md", "TROUBLESHOOTING.md"],
+            ["ARCHITECTURE.md", "DEV-RULES.md", "GLOSSARY.md", "KNOWLEDGE.md", "TROUBLESHOOTING.md"],
         )
 
     def test_emits_flow_gates_forewarn(self):
@@ -810,6 +811,9 @@ class TestCmdSessionBootstrapE2E(unittest.TestCase):
         self.assertIn("project-specs", space)      # 探测到的节点
         self.assertIn("external", space)
         self.assertIn("代码", space)                # 末行 代码=唯一真相
+        # v8.117:project-specs/ARCHITECTURE.md(skeletons 自动建)→ 知识入口探测到 系统架构 行
+        self.assertIn("系统架构", space)
+        self.assertIn("ARCHITECTURE.md", space)
         self.assertIn("待规划填充", space)           # 子项目清单空表占位 · 无示例数据行
         # 幂等:二次跑 → existed(不覆盖用户/规划已填内容)
         self.assertEqual(_run()["checks"]["teamwork_space"]["status"], "existed")
