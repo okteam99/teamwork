@@ -922,6 +922,91 @@ def write_host_audit(host: str) -> bool:
 # ─── 主入口 ─────────────────────────────────────────
 
 
+# ─── v8.115:知识图谱结构可达性校验(零死角物化 · WARN-only · 非 BLOCK)─────
+#
+# 🔴 只查**结构可达性**(归档对账 + 节点登记)· **不查内容新鲜度**
+# (内容 = 代码唯一真相 + 人/AI 维护 · checker 不碰 —— 否则 checker 通过会被误读成
+# 「知识完整/最新」· 自己成误导信号 · 违 v8.105「信号≠判决」)。teamwork-space.md
+# 缺失 → skip(cold-start gate 另管 · 不重复报)。
+
+
+def _find_archive_dirs(project_root: Path) -> list:
+    """归档目录 `_archive/` · **有界**查找(子项目直接放根下 · 不深递归 node_modules)。"""
+    cands = [project_root / "docs" / "features" / "_archive"]
+    try:
+        cands.extend(project_root.glob("*/docs/features/_archive"))
+    except OSError:
+        pass
+    return [d for d in cands if d.is_dir()]
+
+
+def _parse_archive_index_ids(index_md: Path) -> list:
+    """解析归档 INDEX.md 数据行 → feature_id(col 0)列表。格式 = _v8_ship._build_archive_index。"""
+    ids = []
+    try:
+        for line in index_md.read_text(encoding="utf-8").splitlines():
+            s = line.strip()
+            if not s.startswith("|"):
+                continue
+            cells = [c.strip() for c in s.strip("|").split("|")]
+            if not cells or cells[0] in ("Feature", "---", ""):
+                continue
+            ids.append(cells[0])
+    except OSError:
+        pass
+    return ids
+
+
+def check_knowledge_graph_integrity(project_root: Path) -> dict:
+    """teamwork-space.md 知识图谱**结构可达性**校验(WARN-only · 非 BLOCK)。
+
+    查:① 归档 `INDEX.md` ↔ `*.zip` 双向对账(孤儿 zip / 悬空行 = 翻不到的死角)
+        ② workspace 知识节点登记(`product-overview`/`project-specs`/`external` 存在
+           于磁盘 → 必在 teamwork-space.md 提及 · 缺 = 知识入口死角)。
+    🔴 **不查内容新鲜度**(只保证「可达」· 不保证「最新」· 内容 = 代码唯一真相)。
+    """
+    space = project_root / "teamwork-space.md"
+    if not space.exists():
+        return {"status": "skipped", "reason": "无 teamwork-space.md(cold-start gate 另管)"}
+
+    leaks = []
+
+    # (1) 归档 INDEX ↔ zip 双向对账
+    for adir in _find_archive_dirs(project_root):
+        index_md = adir / "INDEX.md"
+        indexed = set(_parse_archive_index_ids(index_md)) if index_md.exists() else set()
+        try:
+            zips = {p.stem for p in adir.glob("*.zip")}
+        except OSError:
+            zips = set()
+        try:
+            rel = adir.relative_to(project_root)
+        except ValueError:
+            rel = adir
+        for orphan in sorted(zips - indexed):
+            leaks.append(f"归档孤儿:{rel}/{orphan}.zip 无 INDEX.md 登记(已交付但翻不到)")
+        for dangling in sorted(indexed - zips):
+            leaks.append(f"归档悬空:{rel}/INDEX.md 有 {dangling} 行但 {dangling}.zip 缺失(断指针)")
+
+    # (2) workspace 知识节点登记(磁盘存在 → 必在地图提及)
+    try:
+        space_text = space.read_text(encoding="utf-8", errors="ignore")
+    except OSError:
+        space_text = ""
+    for node in ("product-overview", "project-specs", "external"):
+        if (project_root / node).is_dir() and node not in space_text:
+            leaks.append(f"节点未登记:{node}/ 存在但 teamwork-space.md 未提及(知识入口死角)")
+
+    if leaks:
+        return {
+            "status": "leaks_found",
+            "leak_count": len(leaks),
+            "leaks": leaks,
+            "scope_note": "🔴 仅结构可达性(断指针/归档对账/节点登记)· **不代表内容最新**(内容=代码唯一真相)",
+        }
+    return {"status": "ok", "note": "结构可达性零死角(不含内容新鲜度)"}
+
+
 def cmd_session_bootstrap(args: argparse.Namespace) -> None:
     """session 启动 silent 系统维护(替代 install.sh)。
 
@@ -1156,6 +1241,9 @@ def cmd_session_bootstrap(args: argparse.Namespace) -> None:
             if _het_disabled else {}),
     }
 
+    # v8.115:知识图谱结构可达性(零死角物化 · WARN-only · 不进 flow_gates/priority · 不劫持升级>规划>任务序)
+    result["checks"]["knowledge_graph"] = check_knowledge_graph_integrity(project_root)
+
     # v8.60:截断鲁棒 digest —— 关键 forewarn(升级 / flow_gates / 优先级)在 JSON 后位 ·
     # AI 习惯 `| head` 截断会吞掉(实证 case:`bootstrap.py | head -50` 吞掉 skill_update_check
     # → PMO 漏升级提示)。把 1 行 digest 提到输出**顶部**(survive `head -5`)+ 显式禁截断警告。
@@ -1171,6 +1259,11 @@ def cmd_session_bootstrap(args: argparse.Namespace) -> None:
     if _het_disabled:
         _mr.append("🔴 异质评审已禁用(disable_heterogeneous_review=true)· 交叉 review 降级为"
                    "同模型自审 · PMO 须告知用户(见 checks.heterogeneous_review · 建议恢复异质)")
+    _kg = result.get("checks", {}).get("knowledge_graph", {})
+    if _kg.get("status") == "leaks_found":
+        _mr.append("🔴 知识图谱 %d 个结构死角(见 checks.knowledge_graph.leaks)· "
+                   "断指针/归档孤儿/未登记节点 ≠ 内容陈旧 · 修可达性后零死角"
+                   % _kg.get("leak_count", 0))
     _gates = result.get("flow_gates", [])
     if _gates:
         _mr.append("🔴 flow_gates(%d): %s → 逐条读 flow_gates[] 响应"

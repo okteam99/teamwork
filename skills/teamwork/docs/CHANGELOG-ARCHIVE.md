@@ -1,10 +1,26 @@
-# Changelog Archive(v8.109 → v1)
+# Changelog Archive(v8.110 → v1)
 
-> 📦 **历史归档**:本文件保存 teamwork **v8.109 及更早**的全部 changelog(含 v7/v6/…/v1 等 v8.0 之前的旧系统)· 仅供追溯,**不再维护**。
-> 现行 changelog(最近 5 版 · v8.110–v8.114)见 [CHANGELOG.md](./CHANGELOG.md)。
+> 📦 **历史归档**:本文件保存 teamwork **v8.110 及更早**的全部 changelog(含 v7/v6/…/v1 等 v8.0 之前的旧系统)· 仅供追溯,**不再维护**。
+> 现行 changelog(最近 5 版 · v8.111–v8.115)见 [CHANGELOG.md](./CHANGELOG.md)。
 > ⚠️ v8.0 是「范式切换 · 不向下兼容」的重构 —— **v7 及更早描述的是已不存在的旧系统**,其机制/命令/红线编号均不适用于现行 v8。
 
 ---
+
+## v8.110 · cosmetic 清理:删 vestigial `review_start.log` 读代码 + config.md 旧降级语义/版本标
+
+> 用户:ok(清理上一轮列的 3 项 cosmetic)。
+
+### 改动
+- **vestigial 代码(`state.py`)**:删 `cmd_external_review` 里读/清 `review_start.log` 的 liveness 块 + rc!=0 hint 的 liveness 分支 + 两处 `liveness_confirmed_at` emit —— v8.106 纯 `claude -p`(无工具)已不写该文件 · `liveness_at` 恒 None(死代码)。FAIL hint 简化 + 指向 §11.5 subagent 降级。
+- **`config.md`**:`disable_heterogeneous_review` 注释「exec 自审 / v8.88 self-review-fallback 落 self-review · 不满足门禁」→ 改 v8.108 subagent 降级语义(satisfies gate · `degraded_mode`)· 删 4 个 section-header 版本标(v8.79/82/89/90)+ 1 处 v8.80。
+- **`test_state.py`** 旧 section 注释去 doc 模式/liveness 措辞。
+
+### 刻意跳过(re-estimate · 风险 > 价值)
+- **章节重编号**:`external-model-usage.md` §一→§十二 跳号(缺 §二/§十)**无害**(全部引用可解析)· renumber 会牵动 **15+ `§11.x` 跨文档引用**(含 state.py hints + 刚接好的 §11.5/§11.2 cites)· 易引入新 broken-ref → 不做。
+- **`ui.md` v8.17/v8.58 版本标**:是**现行模型**的 provenance(panorama 唯一权威 / same-stack)· 非 stale content · code-fence 多 → 保留(避免 mangle)。
+
+### 验证
+- pytest **3 failed / 503 passed**(baseline 3 · 零回归)· liveness 残留引用 = 0(仅剩 bootstrap `.gitignore` 防御项 · 无害)。
 
 ## v8.109 · 跨文档一致性 sweep(清理 + 4-agent 审计修 v8.100–108 遗留的 conflict/stale/broken-ref)
 

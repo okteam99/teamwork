@@ -1,6 +1,6 @@
 ---
 name: teamwork
-version: v8.114.1
+version: v8.115
 description: AI 协作开发一体化框架 · /teamwork 启动
 ---
 
@@ -586,6 +586,7 @@ python3 <SKILL_ROOT>/tools/bootstrap.py --host <claude-code|codex-cli|gemini-cli
 - 项目骨架检查/创建(project-specs/ 下 KNOWLEDGE/TROUBLESHOOTING/GLOSSARY · 旧散放自动迁移)
 - CLAUDE.md / AGENTS.md / GEMINI.md 注入段检查(对接 sync-drift.py)
 - state.json v7 → v8 迁移扫描
+- **知识图谱结构可达性校验**(归档 `INDEX.md`↔`*.zip` 双向对账 + workspace 节点登记 · 命中 emit `checks.knowledge_graph` WARN + digest 行)· 🔴 只查**可达性**不查**内容新鲜度**(内容=代码唯一真相)· teamwork-space.md 缺则 skip
 
 **设计原则**:
 - 全 silent · 不 emit 用户可见报告

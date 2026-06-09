@@ -1,6 +1,23 @@
 # Changelog
 
-> 📦 v8.109 及更早(含 v7/v6/… 旧系统)已归档 → [CHANGELOG-ARCHIVE.md](./CHANGELOG-ARCHIVE.md)。本文件**保留最近 5 版**(每次发布:新增本版 → 若超过 5 版,把最旧的一版迁入归档)。
+> 📦 v8.110 及更早(含 v7/v6/… 旧系统)已归档 → [CHANGELOG-ARCHIVE.md](./CHANGELOG-ARCHIVE.md)。本文件**保留最近 5 版**(每次发布:新增本版 → 若超过 5 版,把最旧的一版迁入归档)。
+
+## v8.115 · 知识图谱结构 checker(零死角从约定升物化 WARN · bootstrap 接线)
+
+> 用户(承 v8.114 讨论):继续 —— 上 v8.115 物化 arc。本版交付 arc 第一步:**结构 checker**(最自包含)· 余(bootstrap 自动建 + cold-start 解耦 + 路由 always)再后续。
+
+### 改动
+- **`bootstrap.py` 加 `check_knowledge_graph_integrity`**(+ `_find_archive_dirs` / `_parse_archive_index_ids`)· session 启动跑 · 查:① 归档 `INDEX.md`↔`*.zip` **双向对账**(孤儿 zip〔已交付翻不到〕/ 悬空行〔断指针〕)② workspace 节点登记(`product-overview`/`project-specs`/`external` 存在于磁盘 → 必在 teamwork-space.md 提及)。**有界查找**(子项目直接放根下 · `*/docs/features/_archive` · 不深递归 node_modules)。
+- **接线**:`result.checks.knowledge_graph` + 命中 leaks 加**截断鲁棒** `pmo_must_read` digest 行 · **不进 flow_gates/priority**(不劫持「升级>规划>任务」序)· teamwork-space.md 缺则 skip(cold-start gate 另管)。
+- 🔴 **只查结构可达性 · 不查内容新鲜度**:leaks 必带 `scope_note`「不代表内容最新(内容=代码唯一真相)」—— 防 checker 通过被误读成「知识完整」· 自己成误导信号(承 v8.105「信号≠判决」)。
+- **spec 同步**:`SKILL.md`「bootstrap 做什么」加 KG 校验行 · guide §0/§0.1 物化校验「→ v8.115」改「已落」。
+
+### 验证
+- 新增 `TestKnowledgeGraphIntegrity` 8 例(无 space→skip / clean / 孤儿 zip / 悬空行 / 匹配不报 / 节点未登记 / 节点已登记 / scope_note 必带)· E2E 确认 leak 经 digest 行 survive 截断。
+- pytest **3 failed / 519 passed**(baseline 3 = scan-spec 既有 · 零回归 · +8 新)。
+
+### 顺延(arc 余项)
+- bootstrap 自动建 teamwork-space.md(N≥1 落地)+ cold-start 解耦(地图 vs 规划层)+ state.py 路由校验 always。
 
 ## v8.114 · teamwork 知识图谱契约:律法/地图分工 + 三层律 + N≥1 统一模型 + teamwork-space.md 必读地图根
 
@@ -66,19 +83,3 @@
 ### 验证
 - 新增 `TestV8111BugFlowFixes` 6 例(role-qualified 满足 / 裸 external 兼容 / 缺 external 仍 BLOCK / `externalize` 不误匹配 / Bug brief 无 verify-ac 假信号 / Feature brief 不回归)。
 - pytest **3 failed / 509 passed**(baseline 3 = scan-spec 既有 · 零回归 · 509 = 503 + 6 新)。
-
-## v8.110 · cosmetic 清理:删 vestigial `review_start.log` 读代码 + config.md 旧降级语义/版本标
-
-> 用户:ok(清理上一轮列的 3 项 cosmetic)。
-
-### 改动
-- **vestigial 代码(`state.py`)**:删 `cmd_external_review` 里读/清 `review_start.log` 的 liveness 块 + rc!=0 hint 的 liveness 分支 + 两处 `liveness_confirmed_at` emit —— v8.106 纯 `claude -p`(无工具)已不写该文件 · `liveness_at` 恒 None(死代码)。FAIL hint 简化 + 指向 §11.5 subagent 降级。
-- **`config.md`**:`disable_heterogeneous_review` 注释「exec 自审 / v8.88 self-review-fallback 落 self-review · 不满足门禁」→ 改 v8.108 subagent 降级语义(satisfies gate · `degraded_mode`)· 删 4 个 section-header 版本标(v8.79/82/89/90)+ 1 处 v8.80。
-- **`test_state.py`** 旧 section 注释去 doc 模式/liveness 措辞。
-
-### 刻意跳过(re-estimate · 风险 > 价值)
-- **章节重编号**:`external-model-usage.md` §一→§十二 跳号(缺 §二/§十)**无害**(全部引用可解析)· renumber 会牵动 **15+ `§11.x` 跨文档引用**(含 state.py hints + 刚接好的 §11.5/§11.2 cites)· 易引入新 broken-ref → 不做。
-- **`ui.md` v8.17/v8.58 版本标**:是**现行模型**的 provenance(panorama 唯一权威 / same-stack)· 非 stale content · code-fence 多 → 保留(避免 mangle)。
-
-### 验证
-- pytest **3 failed / 503 passed**(baseline 3 · 零回归)· liveness 残留引用 = 0(仅剩 bootstrap `.gitignore` 防御项 · 无害)。

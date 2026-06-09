@@ -11,7 +11,7 @@
 - **定位**:`teamwork-space.md` 是本项目**知识地图根 / 索引之索引**(子项目结构 + 依赖 + **全部知识入口** + 跨项目追踪)· **不是**事件日志 / 进度看板 / 评审记录 · **不承担知识内容**(三层律:地图 / 领土=代码 / 冷库=归档 zip · 详 [SKILL.md § 项目级文档信息架构](../SKILL.md))。
 - 🔴 **核心简化原则**:**任一表格的任一单元格 ≤ 1 行**;详情一律外迁(workstream/WS-NN.md / Feature state.json + PRD / PROJECT.md / ADR)· 永远保持"一眼看懂全景",避免演化到几百行难维护。
 - 🔴 **变更协议**:任何变更(创建/修改/删除)**必须暂停等用户确认**(R5)· 本文件是 teamwork-space.md 的唯一格式权威源。
-- **N≥1 统一模型**:任何 teamwork 项目都有 teamwork-space.md(知识地图根)· **单项目 = 1 个逻辑子项目**(N=1)· 子项目是**职责单元非物理仓** · 知识层与项目是否 monorepo **无直接耦合**。🔵 **物化**(bootstrap 自动建 + cold-start 解耦 + 路由校验 always + 结构 checker)→ v8.115;**过渡期**单项目仍可无(state.py 路由校验 SKIP)。
+- **N≥1 统一模型**:任何 teamwork 项目都有 teamwork-space.md(知识地图根)· **单项目 = 1 个逻辑子项目**(N=1)· 子项目是**职责单元非物理仓** · 知识层与项目是否 monorepo **无直接耦合**。🟢 **结构 checker 已落**(v8.115 · 见 §0.1)· 🔵 其余物化(bootstrap 自动建 teamwork-space.md + cold-start 解耦 + 路由校验 always)→ 后续;**过渡期**单项目仍可无(state.py 路由校验 SKIP)。
 
 ## 0.1 § 知识入口(索引之索引 · 零死角律)
 
@@ -19,7 +19,7 @@
 - 🔴 **零死角律**:本项目**每个磁盘上存在的知识节点**必在「知识入口」表有一行指针 —— 子项目 `docs_root` / `product-overview/` / `project-specs/`(DEV-RULES·KNOWLEDGE·GLOSSARY·TROUBLESHOOTING·RESOURCES)/ `external/` / 归档 `_archive/INDEX.md`。漏一个 = 知识泄露死角。无对应目录的项目删该行(不留空指针)。
 - **一行只写"去哪"**:指针 + 内含摘要 · **不写"是什么"**(文档*类型*语义 = 律法 · 在 SKILL.md · 不复制进项目文件 · 否则每项目背一份会腐烂的副本)。
 - **末行永远是代码**:「细节 → grep+Read 源码 · 不信文档转述」· 地图不替代领土。
-- 🔵 **物化校验**(每入口指向真实存在 / 归档 INDEX↔zip 对账 / 孤儿节点检测 → 命中 emit WARN)→ v8.115 结构 checker。届时「零死角」从约定升为物化门禁。
+- 🟢 **物化校验已落**(v8.115):`bootstrap.py check_knowledge_graph_integrity`(归档 `INDEX.md`↔`*.zip` 双向对账 + workspace 节点登记)· session 启动跑 · 命中 emit `checks.knowledge_graph` WARN + 截断鲁棒 digest 行。🔴 **只查可达性 · 不查内容新鲜度**(否则 checker 通过会被误读成「知识完整」· 自己成误导信号 · 违 §「信号≠判决」)。「零死角」从约定升为物化 WARN。
 
 ## 1. § 产品规划引用(有 product-overview/ 时)
 

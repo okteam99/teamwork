@@ -1084,5 +1084,93 @@ class TestCheckSkillUpdate(unittest.TestCase):
         self.assertEqual(bootstrap._read_update_channel(self.tmp), "main")
 
 
+class TestKnowledgeGraphIntegrity(unittest.TestCase):
+    """v8.115:知识图谱**结构可达性**校验(归档 INDEX↔zip 对账 + 节点登记 · WARN-only)。
+    🔴 只查可达性 · 不查内容新鲜度(内容=代码唯一真相)。
+    """
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp(prefix="tw-kg-"))
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def _space(self, text="# Teamwork Space\n"):
+        (self.tmp / "teamwork-space.md").write_text(text, encoding="utf-8")
+
+    def _archive(self, rows=(), zips=()):
+        adir = self.tmp / "docs" / "features" / "_archive"
+        adir.mkdir(parents=True, exist_ok=True)
+        lines = ["| Feature | 描述 | 交付归档时间 | 归档物 |", "| --- | --- | --- | --- |"]
+        for fid in rows:
+            lines.append(f"| {fid} | x | t | `{fid}.zip` |")
+        (adir / "INDEX.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+        for fid in zips:
+            (adir / f"{fid}.zip").write_bytes(b"PK\x03\x04")
+        return adir
+
+    def test_no_space_skipped(self):
+        from bootstrap import check_knowledge_graph_integrity
+        self.assertEqual(check_knowledge_graph_integrity(self.tmp)["status"], "skipped")
+
+    def test_clean_ok(self):
+        from bootstrap import check_knowledge_graph_integrity
+        (self.tmp / "external").mkdir()
+        (self.tmp / "project-specs").mkdir()
+        self._space("# TS\n知识入口:external/ · project-specs/\n")
+        self._archive(rows=["F-001"], zips=["F-001"])
+        r = check_knowledge_graph_integrity(self.tmp)
+        self.assertEqual(r["status"], "ok", r)
+
+    def test_orphan_zip_leaks(self):
+        """zip 无 INDEX 行 = 已交付但翻不到(孤儿)。"""
+        from bootstrap import check_knowledge_graph_integrity
+        self._space()
+        self._archive(rows=[], zips=["F-ORPHAN"])
+        r = check_knowledge_graph_integrity(self.tmp)
+        self.assertEqual(r["status"], "leaks_found")
+        self.assertTrue(any("F-ORPHAN" in x and "孤儿" in x for x in r["leaks"]), r)
+
+    def test_dangling_row_leaks(self):
+        """INDEX 行无 zip = 断指针(悬空)。"""
+        from bootstrap import check_knowledge_graph_integrity
+        self._space()
+        self._archive(rows=["F-GONE"], zips=[])
+        r = check_knowledge_graph_integrity(self.tmp)
+        self.assertEqual(r["status"], "leaks_found")
+        self.assertTrue(any("F-GONE" in x and "悬空" in x for x in r["leaks"]), r)
+
+    def test_matched_archive_no_leak(self):
+        """INDEX 行 + 匹配 zip → 无归档死角。"""
+        from bootstrap import check_knowledge_graph_integrity
+        self._space()
+        self._archive(rows=["F-1", "F-2"], zips=["F-1", "F-2"])
+        self.assertEqual(check_knowledge_graph_integrity(self.tmp)["status"], "ok")
+
+    def test_unregistered_node_leaks(self):
+        """external/ 存在但 teamwork-space.md 未提及 = 知识入口死角。"""
+        from bootstrap import check_knowledge_graph_integrity
+        self._space("# TS · 没列任何节点\n")
+        (self.tmp / "external").mkdir()
+        r = check_knowledge_graph_integrity(self.tmp)
+        self.assertEqual(r["status"], "leaks_found")
+        self.assertTrue(any("external" in x and "未登记" in x for x in r["leaks"]), r)
+
+    def test_registered_node_no_leak(self):
+        """external/ 存在且地图提及 → 不报。"""
+        from bootstrap import check_knowledge_graph_integrity
+        self._space("# TS\n知识入口 · external/ 在此\n")
+        (self.tmp / "external").mkdir()
+        self.assertEqual(check_knowledge_graph_integrity(self.tmp)["status"], "ok")
+
+    def test_scope_note_present_on_leaks(self):
+        """leaks 必带 scope_note(结构可达 ≠ 内容最新 · 防 checker 自身成误导信号 · v8.105 教训)。"""
+        from bootstrap import check_knowledge_graph_integrity
+        self._space()
+        self._archive(rows=[], zips=["F-X"])
+        r = check_knowledge_graph_integrity(self.tmp)
+        self.assertIn("不代表内容最新", r.get("scope_note", ""))
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
