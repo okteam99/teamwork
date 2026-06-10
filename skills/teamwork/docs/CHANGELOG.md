@@ -1,6 +1,24 @@
 # Changelog
 
-> 📦 v8.118 及更早(含 v7/v6/… 旧系统)已归档 → [CHANGELOG-ARCHIVE.md](./CHANGELOG-ARCHIVE.md)。本文件**保留最近 5 版**(每次发布:新增本版 → 若超过 5 版,把最旧的一版迁入归档)。
+> 📦 v8.119 及更早(含 v7/v6/… 旧系统)已归档 → [CHANGELOG-ARCHIVE.md](./CHANGELOG-ARCHIVE.md)。本文件**保留最近 5 版**(每次发布:新增本版 → 若超过 5 版,把最旧的一版迁入归档)。
+
+## v8.124 · backend.md 同款体检:TDD fork 收敛 + 通用示例删除 + Date.now 腐坏修复(规范主体保留)
+
+> 用户(承 v8.123):后端规范也看下。
+
+### 体检结论:与 frontend 病情不同 · 主体是真规范 · 不大砍
+- 781 行中 §三 响应契约 / §四 日志门禁(承载契约字段的 ✅/❌ 对照示例)/ §五 迁移+FK 策略(单源)/ §六 版本管理 / §二 集成测试报告模板+失败处理 都挂着 teamwork stage/角色语义 → 保留。
+- 病灶三处:§一「开发流程(Red-Green-Refactor)」是 tdd.md 的**未注册 3 步 fork**(缺 VERIFY RED/GREEN · 与 frontend 同款漂移);§二 两段通用 python 验证示例(检查项树已承载规则 · 示例还带 `.json[` 腐坏);§四 示例 **`Date.now` ×3 丢空括号**(同 e1d12b2 事故 · 此前扫描正则未覆盖 `now`)。
+
+### 改动
+- §一 fork → 1 段 cite tdd.md(后端差异仅 pytest / npm test / go test 命令)· tdd.md §七 引用约定表补 backend.md 行 · 保留覆盖率 >80% + 测试命名规范。
+- §二 删两段通用 python 示例(检查项树保留)。
+- §四 修 `Date.now()` ×3。
+- 头部加载指引补 tdd.md + 「通用教程不入库」哲学行(注明边界:保留的 ✅/❌ 示例仅限**承载契约/门禁字段**的对照 · 区别 frontend 教程类全删)。
+- 全仓腐坏复扫(`Date.now`/`.json[`/`jest.fn`/`Math.random` 缺括号):仅 backend.md 7 处 · 本版全清。
+
+### 验证
+- pytest 3 failed / 523 passed(baseline 3 · 零回归)· backend.md 781 → 719 行 · 全仓空括号腐坏 grep = 0。
 
 ## v8.123 · 裁定删除 frontend-guide.md:通用教程不入库 · 知识归模型 · 规则已全在骨架
 
@@ -80,18 +98,3 @@
 
 ### 验证
 - doc-only · 「流程概览」结构仅 prepare.md 一处定义(grep 全仓 = prepare.md + 归档)· 工具层无渲染(`emit_template_markdown` 仍 ⏳ TODO · 物化时直接带上目标行)。
-
-## v8.119 · backend.md migration 命名:优先 DEV-RULES · 否则秒级真实时间戳 · 不读邻居
-
-> 用户(case:consuming 项目 AI 用 `20260609000000` 日级填充时间戳 · 撞项目 version-ceiling 守卫 CI 挂):后端开发有默认规范么。诊断:有但偏松 → 改为「优先 DEV-RULES · 否则秒级 · 不读邻居」。
-
-### 诊断:有规范(`standards/backend.md §五`)· 但命名偏松 + 缺守卫意识
-- §五 命名只写「YYYYMMDD 或 YYYYMMDDHHmmss(按项目框架约定)」· 允许日级 + 没说真实精度/守卫 → AI 用 `20260609000000`(日+`000000` 填充)蒙混 · 同日撞号风险 + 撞未声明的项目 version-ceiling 守卫。
-
-### 改动(`standards/backend.md §五` · doc-only)
-- **命名规范改优先级链**:① 优先按 `DEV-RULES.md`(项目/子项目级)migration 命名/守卫约定 → ② 未规定默认 `YYYYMMDDHHmmss` 秒级**真实时间戳**(不用 `000000` 填充 · 防同日撞号+乱序)· 🔴 **不靠读邻居 migration 推断**(用户决策:邻居可能不一致/有坏样板 · 要么 DEV-RULES 要么秒级默认)。
-- **强制要求加守卫行**:加 migration 前查 DEV-RULES 的 migration 约定/守卫(version-ceiling / 高水位线 / sequence guard)· 同 PR 满足(如 bump ceiling)· 撞未声明守卫(CI 失败)→ 记进 DEV-RULES/KNOWLEDGE。
-- **边界**:项目特异守卫机制本身归项目 `DEV-RULES`/`KNOWLEDGE`(用户主权)· 不进 teamwork 默认。
-
-### 验证
-- doc-only · 无其他 spec 含旧「YYYYMMDD 或」措辞(grep=0)· pytest **3 failed / 519 passed**(baseline 3 = scan-spec 既有 · 零回归)。

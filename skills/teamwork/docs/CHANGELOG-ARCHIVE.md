@@ -1,10 +1,25 @@
-# Changelog Archive(v8.118 → v1)
+# Changelog Archive(v8.119 → v1)
 
-> 📦 **历史归档**:本文件保存 teamwork **v8.118 及更早**的全部 changelog(含 v7/v6/…/v1 等 v8.0 之前的旧系统)· 仅供追溯,**不再维护**。
-> 现行 changelog(最近 5 版 · v8.119–v8.123)见 [CHANGELOG.md](./CHANGELOG.md)。
+> 📦 **历史归档**:本文件保存 teamwork **v8.119 及更早**的全部 changelog(含 v7/v6/…/v1 等 v8.0 之前的旧系统)· 仅供追溯,**不再维护**。
+> 现行 changelog(最近 5 版 · v8.120–v8.124)见 [CHANGELOG.md](./CHANGELOG.md)。
 > ⚠️ v8.0 是「范式切换 · 不向下兼容」的重构 —— **v7 及更早描述的是已不存在的旧系统**,其机制/命令/红线编号均不适用于现行 v8。
 
 ---
+
+## v8.119 · backend.md migration 命名:优先 DEV-RULES · 否则秒级真实时间戳 · 不读邻居
+
+> 用户(case:consuming 项目 AI 用 `20260609000000` 日级填充时间戳 · 撞项目 version-ceiling 守卫 CI 挂):后端开发有默认规范么。诊断:有但偏松 → 改为「优先 DEV-RULES · 否则秒级 · 不读邻居」。
+
+### 诊断:有规范(`standards/backend.md §五`)· 但命名偏松 + 缺守卫意识
+- §五 命名只写「YYYYMMDD 或 YYYYMMDDHHmmss(按项目框架约定)」· 允许日级 + 没说真实精度/守卫 → AI 用 `20260609000000`(日+`000000` 填充)蒙混 · 同日撞号风险 + 撞未声明的项目 version-ceiling 守卫。
+
+### 改动(`standards/backend.md §五` · doc-only)
+- **命名规范改优先级链**:① 优先按 `DEV-RULES.md`(项目/子项目级)migration 命名/守卫约定 → ② 未规定默认 `YYYYMMDDHHmmss` 秒级**真实时间戳**(不用 `000000` 填充 · 防同日撞号+乱序)· 🔴 **不靠读邻居 migration 推断**(用户决策:邻居可能不一致/有坏样板 · 要么 DEV-RULES 要么秒级默认)。
+- **强制要求加守卫行**:加 migration 前查 DEV-RULES 的 migration 约定/守卫(version-ceiling / 高水位线 / sequence guard)· 同 PR 满足(如 bump ceiling)· 撞未声明守卫(CI 失败)→ 记进 DEV-RULES/KNOWLEDGE。
+- **边界**:项目特异守卫机制本身归项目 `DEV-RULES`/`KNOWLEDGE`(用户主权)· 不进 teamwork 默认。
+
+### 验证
+- doc-only · 无其他 spec 含旧「YYYYMMDD 或」措辞(grep=0)· pytest **3 failed / 519 passed**(baseline 3 = scan-spec 既有 · 零回归)。
 
 ## v8.118 · 修文档不准:归档路径 `docs/features/_archive` → `{子项目}/docs/features/_archive`(子项目根)
 

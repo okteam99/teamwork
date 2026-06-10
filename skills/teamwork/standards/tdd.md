@@ -122,5 +122,6 @@ Step 5: REFACTOR — 保持绿态前提下清理代码
 | roles/rd.md「测试先行」+ 反模式段 | 引用本文件 §一 + §四 |
 | roles/qa.md QA 代码审查段 | 引用本文件 §三 |
 | standards/frontend.md §一 前端测试规范 | 引用本文件 §二 5 步流程 + §三 自检清单（前端命令 vitest）· 不复制流程正文 |
+| standards/backend.md §一 后端测试规范 | 引用本文件 §二 5 步流程 + §三 自检清单（后端命令 pytest / npm test / go test）· 不复制流程正文 |
 
 末。

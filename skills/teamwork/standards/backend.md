@@ -1,7 +1,8 @@
 # 后端开发规范
 
-> 后端 RD 必须遵守。通用规范见 📎 [common.md](./common.md)。
-> Subagent 加载指引：后端子项目只需加载本文件 + common.md，无需加载 frontend.md。
+> 后端 RD 必须遵守。通用规范见 📎 [common.md](./common.md) · TDD 流程唯一权威源 📎 [tdd.md](./tdd.md)。
+> Subagent 加载指引：后端子项目加载本文件 + tdd.md + common.md，无需加载 frontend.md。
+> 📎 **通用教程不入库**（同 frontend.md v8.123 裁定）：保留的 ✅/❌ 示例仅限**承载契约/门禁字段**的对照（如 §四 日志必须字段）· 通用技术用法由 AI 按需自生成 · 项目特异约定归各项目 `DEV-RULES.md`。
 
 ---
 
@@ -25,43 +26,7 @@
 
 ### 开发流程（Red-Green-Refactor）
 
-**Step 1: Red（写测试，必须失败）**
-```
-📋 Step 1: 编写测试 (Red)
-
-根据 TC 用例编写单元测试：
-- [ ] test_login_with_valid_credentials_should_succeed
-- [ ] test_login_with_invalid_password_should_fail
-- [ ] test_login_with_nonexistent_user_should_fail
-- [ ] test_login_should_rate_limit_after_5_failures
-
-运行测试: 4 个失败 ✅ (预期)
-```
-
-**Step 2: Green（写实现，让测试通过）**
-```
-📋 Step 2: 实现代码 (Green)
-
-最小实现让测试通过：
-- [ ] 实现 login 方法
-- [ ] 实现密码验证
-- [ ] 实现用户查询
-- [ ] 实现限流逻辑
-
-运行测试: 4 个通过 ✅
-```
-
-**Step 3: Refactor（重构，保持测试通过）**
-```
-📋 Step 3: 重构 (Refactor)
-
-优化代码质量：
-- [ ] 提取公共方法
-- [ ] 优化命名
-- [ ] 添加注释
-
-运行测试: 4 个通过 ✅
-```
+🔴 **单源 = [standards/tdd.md](./tdd.md)**（Iron Law / RED-GREEN-REFACTOR 5 步 / 自检清单 / 反模式 / 例外）· 本文件不复制流程正文（防双源漂移 · 已注册 tdd.md §七 引用约定）。后端落地差异仅测试命令：`pytest path/to/test_xxx.py -v` / `npm test path/to/test.test.ts` / `go test ./path/to/...`（tdd.md §二 Step 2 已列）。
 
 ### 测试命名规范
 
@@ -109,20 +74,6 @@
 └── 异常场景返回正确错误码
 ```
 
-**验证示例**：
-```python
-# 正常场景
-response = api.post("/api/v1/users", data={"name": "test", "email": "test@example.com"})
-assert response.status_code == 200
-assert response.json["code"] == "SUCCESS"
-assert "user_id" in response.json["data"]
-
-# 异常场景
-response = api.post("/api/v1/users", data={"name": ""})
-assert response.status_code == 400
-assert response.json["code"] == "INVALID_PARAM"
-```
-
 #### 2. 数据库验证
 
 ```
@@ -133,19 +84,6 @@ assert response.json["code"] == "INVALID_PARAM"
 ├── 状态变更符合预期
 ├── 时间戳正确记录
 └── 软删除/硬删除正确执行
-```
-
-**验证示例**：
-```python
-# 调用 API 创建用户
-response = api.post("/api/v1/users", data={"name": "test", "email": "test@example.com"})
-user_id = response.json["data"]["user_id"]
-
-# 查询数据库验证
-db_user = db.query("SELECT * FROM users WHERE id = ?", user_id)
-assert db_user["name"] == "test"
-assert db_user["email"] == "test@example.com"
-assert db_user["created_at"] is not None
 ```
 
 #### 3. 测试数据管理
@@ -487,7 +425,7 @@ assert db_user["created_at"] is not None
 **示例**：
 ```javascript
 // ✅ 正确：外部调用异常 ERROR 日志（+ 降级时叠加 WARN）
-const start = Date.now;
+const start = Date.now();
 try {
  const resp = await paymentClient.pay({ orderId, amount });
  if (resp.code !== 0) {
@@ -497,7 +435,7 @@ try {
  traceId: ctx.traceId,
  request: { orderId, amount },
  response: { code: resp.code, msg: resp.msg },
- durationMs: Date.now - start,
+ durationMs: Date.now() - start,
  orderId,
  userId: ctx.userId,
  });
@@ -511,7 +449,7 @@ try {
  traceId: ctx.traceId,
  request: { orderId, amount },
  error: { message: e.message, stack: e.stack },
- durationMs: Date.now - start,
+ durationMs: Date.now() - start,
  orderId,
  userId: ctx.userId,
  });
