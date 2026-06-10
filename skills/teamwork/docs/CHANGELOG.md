@@ -1,6 +1,21 @@
 # Changelog
 
-> 📦 v8.113 及更早(含 v7/v6/… 旧系统)已归档 → [CHANGELOG-ARCHIVE.md](./CHANGELOG-ARCHIVE.md)。本文件**保留最近 5 版**(每次发布:新增本版 → 若超过 5 版,把最旧的一版迁入归档)。
+> 📦 v8.114 及更早(含 v7/v6/… 旧系统)已归档 → [CHANGELOG-ARCHIVE.md](./CHANGELOG-ARCHIVE.md)。本文件**保留最近 5 版**(每次发布:新增本版 → 若超过 5 版,把最旧的一版迁入归档)。
+
+## v8.119 · backend.md migration 命名:优先 DEV-RULES · 否则秒级真实时间戳 · 不读邻居
+
+> 用户(case:consuming 项目 AI 用 `20260609000000` 日级填充时间戳 · 撞项目 version-ceiling 守卫 CI 挂):后端开发有默认规范么。诊断:有但偏松 → 改为「优先 DEV-RULES · 否则秒级 · 不读邻居」。
+
+### 诊断:有规范(`standards/backend.md §五`)· 但命名偏松 + 缺守卫意识
+- §五 命名只写「YYYYMMDD 或 YYYYMMDDHHmmss(按项目框架约定)」· 允许日级 + 没说真实精度/守卫 → AI 用 `20260609000000`(日+`000000` 填充)蒙混 · 同日撞号风险 + 撞未声明的项目 version-ceiling 守卫。
+
+### 改动(`standards/backend.md §五` · doc-only)
+- **命名规范改优先级链**:① 优先按 `DEV-RULES.md`(项目/子项目级)migration 命名/守卫约定 → ② 未规定默认 `YYYYMMDDHHmmss` 秒级**真实时间戳**(不用 `000000` 填充 · 防同日撞号+乱序)· 🔴 **不靠读邻居 migration 推断**(用户决策:邻居可能不一致/有坏样板 · 要么 DEV-RULES 要么秒级默认)。
+- **强制要求加守卫行**:加 migration 前查 DEV-RULES 的 migration 约定/守卫(version-ceiling / 高水位线 / sequence guard)· 同 PR 满足(如 bump ceiling)· 撞未声明守卫(CI 失败)→ 记进 DEV-RULES/KNOWLEDGE。
+- **边界**:项目特异守卫机制本身归项目 `DEV-RULES`/`KNOWLEDGE`(用户主权)· 不进 teamwork 默认。
+
+### 验证
+- doc-only · 无其他 spec 含旧「YYYYMMDD 或」措辞(grep=0)· pytest **3 failed / 519 passed**(baseline 3 = scan-spec 既有 · 零回归)。
 
 ## v8.118 · 修文档不准:归档路径 `docs/features/_archive` → `{子项目}/docs/features/_archive`(子项目根)
 
@@ -68,21 +83,3 @@
 
 ### 顺延(arc 余项)
 - bootstrap 自动建 teamwork-space.md(N≥1 落地)+ cold-start 解耦(地图 vs 规划层)+ state.py 路由校验 always。
-
-## v8.114 · teamwork 知识图谱契约:律法/地图分工 + 三层律 + N≥1 统一模型 + teamwork-space.md 必读地图根
-
-> 用户:teamwork 是否该承担项目知识图谱责任 —— 从 teamwork-space.md 零死角抵达项目架构/文档/「去查什么」· 细查时代码仍是唯一真相 · 归档 zip 必要时解压。多轮讨论收敛后「按建议落实」。
-
-### 定位:teamwork owns 知识导航(地图)· 不 owns 知识内容(防腐烂反向误导)
-- 现状已有 ~80%(SKILL § 项目级文档信息架构路由表 + teamwork-space.md)· 本版**把契约说死 + 闭合死角**(doc 基座)· 物化 checker 顺延 v8.115。
-
-### 改动(doc 基座 · 律法 SKILL / 地图 template+guide 解耦)
-- **`SKILL.md` § 项目级文档信息架构**:加 ① **知识三层律**(地图=teamwork-space/docs · 领土=代码〔细节唯一真相〕· 冷库=归档 zip〔按需解压〕)② **律法/地图分工**(SKILL=generic 律法·不复制进项目;teamwork-space.md=实例地图)③ **N≥1 统一模型**(任何项目=teamwork-space.md + N≥1 逻辑子项目 · 单=N=1 · 知识层与 monorepo 无关)。路由表**闭合死角**:加 `external/` + 归档 `_archive/INDEX.md` 两行(文档清单 + 场景路由)· teamwork-space.md 标「🔴 必读地图根」· 代码行标「唯一真相·不信转述」。
-- **`templates/teamwork-space.md`**:头部重定位「必读知识地图根 · N≥1 · 单=1」+ 三层律 · 新增 **「知识入口」节** —— 本项目每个知识节点一行指针(子项目 docs_root / product-overview / project-specs / external / 归档冷库 / 代码)· 这是「从 teamwork-space.md 零死角抵达一切」的**实例载体**。
-- **`docs/teamwork-space-guide.md` §0**:定位改「知识地图根 · 不承担内容」+ N≥1 模型(替原「单项目可无」)· 新增 **§0.1 知识入口零死角律**(每磁盘节点必有指针 · 一行只写去哪不写是什么 · 末行永远代码 · 物化校验→v8.115)。
-
-### 验证
-- doc-only · pytest **3 failed / 511 passed**(baseline 3 = scan-spec 既有 · 零回归)。
-
-### 顺延 v8.115(物化 arc · 把「零死角」从约定升门禁)
-- bootstrap 自动建 teamwork-space.md(N≥1 落地)+ cold-start 解耦(地图 vs 规划层)+ state.py 路由校验 always + **结构 checker**(入口指向存在 / 归档 INDEX↔zip 对账 / 孤儿检测 → WARN)。

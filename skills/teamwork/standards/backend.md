@@ -597,11 +597,11 @@ try {
 📁 迁移文件位置：
 └── {项目路径}/migrations/ （或项目约定的迁移目录）
 
-📄 命名规范：
-└── {时间戳}_{操作描述}.{扩展名}
- ├── 示例：20260312_add_user_email_index.sql
- ├── 示例：20260312_create_orders_table.sql
- └── 时间戳格式：YYYYMMDD 或 YYYYMMDDHHmmss（按项目框架约定）
+📄 命名规范（🔴 优先级链）：
+└── {时间戳}_{操作描述}.{扩展名} · 例 20260312143022_add_user_email_index.sql
+ ├── ① 优先按 DEV-RULES.md（项目/子项目级）的 migration 命名 / 守卫约定 —— 有则严格照办
+ ├── ② DEV-RULES 未规定 → 默认 YYYYMMDDHHmmss **秒级真实时间戳**（🔴 不用 000000 填充 · 防同日撞号 + 乱序）
+ └── 🔴 **不靠读邻居 migration 推断**格式（邻居可能不一致 / 有坏样板）· 要么 DEV-RULES 要么秒级默认
 ```
 
 ### 强制要求
@@ -609,6 +609,7 @@ try {
 ```
 🔴 必须遵守：
 ├── 每次 schema 变更必须有迁移文件，禁止手动改库
+├── 🔴 加 migration 前先查 DEV-RULES 的 migration 约定 / 守卫（version-ceiling / 高水位线 / sequence guard 等）· 同 PR 满足守卫要求（如 bump ceiling）· 撞到未声明的项目守卫(CI 失败) → 修复后记进 DEV-RULES/KNOWLEDGE（下次不再撞）
 ├── 迁移必须可逆：提供 up（执行）和 down（回滚）
 ├── 迁移文件提交前必须在本地/Docker 环境验证通过
 ├── TECH.md 中必须声明是否涉及 schema 变更
