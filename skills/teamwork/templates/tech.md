@@ -98,7 +98,7 @@ src/
 
 | 表 / 关系 | 决策 | 理由（满足 backend.md § FK 策略 ✅ 任一条件 · 否则 BLOCKER） | CASCADE 行为 |
 |----------|------|---------------------------------------------------------|-------------|
-| | 不引入 / 引入 FK / 引入 FK+CASCADE | （强一致小规模 OLTP / 法务合规 / 内部管理后台 / KNOWLEDGE.md L{行号} 已覆盖默认） | 无 / ON DELETE {RESTRICT\|CASCADE\|SET NULL} · 列出连带删除清单 |
+| | 不引入 / 引入 FK / 引入 FK+CASCADE | （强一致小规模 OLTP / 法务合规 / 内部管理后台 / DEV-RULES.md L{行号} 已覆盖默认） | 无 / ON DELETE {RESTRICT\|CASCADE\|SET NULL} · 列出连带删除清单 |
 
 > ❌ **反模式**（命中即 Tech Review BLOCKER）：理由写"通用最佳实践 / ORM 自动生成 / 防止脏数据 / 开发期方便" · 详见 [backend.md § FK 策略 反模式黑名单](../standards/backend.md)。
 

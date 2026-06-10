@@ -1,6 +1,22 @@
 # Changelog
 
-> 📦 v8.120 及更早(含 v7/v6/… 旧系统)已归档 → [CHANGELOG-ARCHIVE.md](./CHANGELOG-ARCHIVE.md)。本文件**保留最近 5 版**(每次发布:新增本版 → 若超过 5 版,把最旧的一版迁入归档)。
+> 📦 v8.121 及更早(含 v7/v6/… 旧系统)已归档 → [CHANGELOG-ARCHIVE.md](./CHANGELOG-ARCHIVE.md)。本文件**保留最近 5 版**(每次发布:新增本版 → 若超过 5 版,把最旧的一版迁入归档)。
+
+## v8.126 · 覆盖注册处收口单源:DEV-RULES 有则为准 · 没有按当前默认 · 去 KNOWLEDGE 兼容层
+
+> 用户(承 v8.125):「KNOWLEDGE.md 声明为准」改为 DEV-RULES 口径 · 没有则按照当前规范。
+
+### 裁定:覆盖声明唯一注册处 = DEV-RULES.md · 两级链(有声明为准 / 无声明按默认)
+- v8.125 为平滑迁移留了「兼容既有 KNOWLEDGE.md 声明」层 · 用户裁定不要兼容层:单一注册处更干净 · KNOWLEDGE 回归纯「项目事实/踩坑」定位(dev-rules 模板边界表)。
+
+### 改动(6 处去兼容)
+- STANDARDS.md 全局优先级:兼容句 → 「覆盖声明唯一注册处 = DEV-RULES.md(未声明 → 按 standards 当前默认);KNOWLEDGE.md 不作为规范覆盖注册处 · 既有覆盖声明应迁入 DEV-RULES」。
+- backend.md §四 日志 / §五 FK 覆盖条款 + ✅ 条件行 / §六 版本策略:去「兼容既有 KNOWLEDGE 声明」· 统一为「DEV-RULES 声明后以其为准;未声明按本节默认」。
+- templates/tech.md FK 决策行示例:「KNOWLEDGE.md L{行号} 已覆盖默认」→「DEV-RULES.md L{行号}」。
+- 不动(KNOWLEDGE 正确用途):common.md Gotcha 沉淀 / tdd.md「DEV-RULES(规矩)+ KNOWLEDGE(事实/坑)」分档 / backend §五 撞守卫后记 DEV-RULES/KNOWLEDGE(记坑)。
+
+### 验证
+- grep standards+templates+roles:「兼容…KNOWLEDGE」「或既有 KNOWLEDGE」「以 KNOWLEDGE.md 为准」= 0 · pytest 3 failed / 523 passed(零回归)。
 
 ## v8.125 · standards 优先级成文:DEV-RULES 为主 · teamwork 默认为缺省 · §三 API 规范挂优先级链
 
@@ -79,26 +95,3 @@
 
 ### 顺延
 - frontend-guide.md 示例**空调用括号**逐例修复(`jest.fn;` 类 · 已头部声明)· scan-spec-consumer 3 个 baseline failed 测试治理。
-
-## v8.121 · 全量 MD review P0 修复:数字宣称对齐代码 + 断链/旧名/脏标题清理
-
-> 用户:重新 review teamwork 的所有 md · 看下哪些不合理。6 路并行 review + 主对话逐条复核:实锤 16 条(高 7 / 中 5 / 低 4)· 排除误报 3 条。本版收 P0 批次(宣称/断链类 9 项)。
-
-### 诊断:数字型宣称(版本/stage 数/段结构/gate 名/§ 编号)写死多处 · 无单源无校验 → 演进必漂
-- 代码真相 **12 stage**(`STAGE_SPECS`)· 文档四种口径:README「10 stage 索引」· SKILL.md「11 stage × 2」+「10 stage 完整契约」(B 类清单漏 panorama_sync)· STAGES.md「11 stage 索引」且**漏 diagnose 行**(Bug 流首 stage 不在索引)。
-- README 版本徽章 **v8.87**(落后 33 版 · bump 脚本只改 SKILL.md frontmatter)。
-- v8.116 改名的 cold-start gate 在 PRODUCT-OVERVIEW-INTEGRATION.md 残留旧名 `cold_start_workspace_uninitialized` + 触发条件还写「无 teamwork-space.md」(地图根已自动建);prepare.md 必读指向不存在的「SKILL.md § P0-11」(实际 STAGES.md §2);FLOWS.md 引幽灵小节「§ 4.1」;state.py rule 串引幽灵「§3.4」。
-- blueprint-stage 宣称 TECH.md「5 段:模块/数据/接口/依赖/风险」与 templates/tech.md 实际结构不符;goal-stage「必含 5 角色」与 `change-review-roles` 可调机制矛盾(调整后按新值校验);frontend/backend.md「模块设计判定」标题被 v7 清理(e1d12b2)误删成脏字符。
-
-### 改动(doc-only + state.py 2 处显示字符串/注释)
-- **stage 数对齐 12**:README/README-EN「12 stage 索引」· SKILL.md B 类「12 stage × 2 + 4 fix/retry + ship-phase/ship-finalize/main-sync」+ 补 `panorama_sync-start/complete` 行 · 路由表「12 stage 完整契约(stage 数单源 STAGE_SPECS)」· STAGES.md 索引标题挂单源 + 补 diagnose 行 · state.py 注释 11→12。
-- **版本徽章**:README/README-EN v8.87 → v8.121 · 注明「版本单源 = SKILL.md frontmatter」(README 徽章为快照)。
-- **断链/旧名**:POI gate 改 `cold_start_product_planning_recommended` + 触发改「缺 product-overview(v8.116 地图/规划解耦)」· prepare.md 必读改链 [STAGES.md §2](../STAGES.md) · FLOWS.md + feature-planning.md「§ 4.1」→「5 mode 分诊」· conventions.md「§ 4.2/4.3 worktree 决策」改指 prepare.md(R-T2:worktree 决策是 prepare 职责)· `templates/host-instruction-injection.md`(注入块单源)+ 根 CLAUDE.md 实例去坏链(根目录 `../SKILL.md` 指向仓库外)改纯文本 · state.py rule 串去「§3.4」。
-- **口径对齐机制**:blueprint-stage TECH 结构改按 templates/tech.md 真实段(技术方案〔架构/数据结构/接口〕/实现思路/TDD 计划/待决策)· goal-stage 改「必含 `stage_review_roles[goal]` 全部角色(默认 5 · change-review-roles 调整后按新值)」。
-- **标题修复**:frontend/backend.md「## 模块设计判定（借鉴 mattpocock/skills improve-codebase-architecture）」。
-
-### 验证
-- grep 全仓现行 md/py:旧 gate 名 / P0-11 误指 / § 4.1 / §3.4 / 10|11 stage / 「5 段:模块」零残留(CHANGELOG/归档除外)· pytest **3 failed / 519 passed**(baseline 3 = scan-spec 既有 · 零回归)。
-
-### 顺延(P1 · 本版未收)
-- frontend.md TDD fork 瘦身(tdd.md 单源)· external-review「超时重试失败 vs 降级」路径划清 · frontend.md 教程式内容外迁 · 数字宣称纳入 scan-spec 类校验 · bump 脚本顺带改 README 徽章。

@@ -3,7 +3,7 @@
 > 技术规范(不含流程规范 · 流程规范全部物化到 state.py)。
 > 按技术栈拆分,按需加载。
 
-🔴 **全局优先级(用户主权)**:项目/子项目 `DEV-RULES.md`(强制开发规矩 · 人维护)**>** 本目录 standards 默认 —— standards 是「DEV-RULES 未规定时的缺省」· 不是凌驾项目既有约定的法律。存量项目的**对外契约**(如 API 响应结构)一致性优先:沿用存量风格 · 并**提示用户**把该约定固化进 DEV-RULES.md(AI 不代写 · [templates/dev-rules.md](./templates/dev-rules.md) 约定)。兼容:历史上已写进 `KNOWLEDGE.md` 的覆盖声明仍有效 · **新增覆盖一律写 DEV-RULES.md**。
+🔴 **全局优先级(用户主权)**:项目/子项目 `DEV-RULES.md`(强制开发规矩 · 人维护)**>** 本目录 standards 默认 —— standards 是「DEV-RULES 未规定时的缺省」· 不是凌驾项目既有约定的法律。存量项目的**对外契约**(如 API 响应结构)一致性优先:沿用存量风格 · 并**提示用户**把该约定固化进 DEV-RULES.md(AI 不代写 · [templates/dev-rules.md](./templates/dev-rules.md) 约定)。覆盖声明**唯一注册处 = DEV-RULES.md**(未声明 → 按 standards 当前默认);`KNOWLEDGE.md` 不作为规范覆盖注册处(只归项目事实/踩坑 · 既有覆盖声明应迁入 DEV-RULES)。
 
 ---
 
