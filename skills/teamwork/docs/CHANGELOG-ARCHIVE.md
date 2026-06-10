@@ -64,3 +64,21 @@
 
 ### 验证
 - pytest 3 failed / 523 passed(baseline 3 · 零回归)· backend.md 781 → 719 行 · 全仓空括号腐坏 grep = 0。
+
+## v8.125 · standards 优先级成文:DEV-RULES 为主 · teamwork 默认为缺省 · §三 API 规范挂优先级链
+
+> 用户(承 v8.124):服务端 API 接口规范是否需要优先以 DEV-RULES.md 为主 · 没有再降级成现有规范。
+
+### 诊断:对 —— §三 无优先级链 · 且覆盖注册处两套口径(错档)
+- §三 API 规范写成绝对条款(「统一响应格式」「必须遵守」)· 既有项目自有 envelope / camelCase 时直接冲突(违用户主权);v8.119 已为 §五 迁移命名定过「① DEV-RULES → ② 默认」模式 · §三 没挂。
+- backend.md 注册处不一致:§四 日志 / §五 FK(×2)/ §六 版本策略的覆盖条款写「以 KNOWLEDGE.md 为准」(4 处)· 而 dev-rules.md 模板边界表明文「强制开发规矩 → DEV-RULES.md;踩坑/客观约束(AI 沉淀)→ KNOWLEDGE.md」—— 格式/策略类覆盖被错档进 KNOWLEDGE。
+- STANDARDS.md 无全局优先级声明 · tdd.md §二 Step 3 也只提 KNOWLEDGE。
+
+### 改动
+- **STANDARDS.md 加全局优先级**(根治):项目/子项目 DEV-RULES.md(用户主权 · 人维护)> standards 默认 —— standards 是「未规定时的缺省」不是法律;存量对外契约一致性优先 · 沿用时**提示用户**固化进 DEV-RULES(AI 不代写 · 模板红线);兼容既有 KNOWLEDGE 声明 · 新增覆盖一律 DEV-RULES。
+- **backend.md §三 挂优先级链**:① DEV-RULES API 约定 → ② 存量服务已有一致接口风格 → 沿用(对外契约 · 同服务一致性 = 正确性 · 新接口不得自创风格)+ 提示用户固化 → ③ 全新/无约定 → teamwork 默认。📎 注明与 §五 migration「不读邻居」的区别:迁移文件名 = 内部惯例(坏样板不传染);API 响应结构 = 对外契约(消费方依赖)→ 存量在 ② 合法沿用。
+- **覆盖注册处统一 DEV-RULES**(4 处 · 全部兼容既有 KNOWLEDGE 声明):§四 日志格式 / §五 FK 覆盖条款 + ✅ 条件行 / §六 版本策略。
+- tdd.md §二 Step 3:「遵循 KNOWLEDGE.md 项目特定规则」→「遵循 DEV-RULES.md(强制规矩)+ KNOWLEDGE.md(项目事实/坑)」。
+
+### 验证
+- pytest 3 failed / 523 passed(baseline 3 · 零回归)· grep:standards 内「以 KNOWLEDGE.md 为准」独立口径 = 0(全部改为 DEV-RULES 主 + KNOWLEDGE 兼容)。

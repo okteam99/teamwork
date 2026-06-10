@@ -3,7 +3,7 @@
 > 位置:`project-specs/PROCESS-LEDGER.md`(workspace 级 · 与 DEV-RULES / KNOWLEDGE 同级)。
 > **telos**:一行一 feature 的流程仪式价值数据 · 给「该不该砍某环节」提供查表依据。消费方:流程审视场景 + 年检 kill criteria(详 [stages/ship-stage.md §16](../stages/ship-stage.md))。
 > 🔴 区别 `docs/retros/`(业务/工程复盘 · 子项目级 · 知识层):本表只度量 **teamwork 流程本身**的环节价值 · 别混写。
-> 写入时机:ship2(`ship-finalize`)完成后 PMO append。🔴 单元格 ≤1 行 · 机器字段照实抄 state.json / REVIEW.md · **不美化**(过场就写过场)。
+> 写入时机:🔴 **ship2 step 5 `planning-backref` 暂停点** append(此刻 state.json / REVIEW.md 尚在磁盘 · 随收尾 MR 合入;digest 在 ship-finalize 完成后 emit)。漏写兜底:`unzip -p features/_archive/<id>.zip <id>/state.json` 取数补行。🔴 单元格 ≤1 行 · 机器字段照实抄 · **不美化**(过场就写过场)。
 
 ---
 
