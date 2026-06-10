@@ -1,6 +1,6 @@
 ---
 name: teamwork
-version: v8.126
+version: v8.127
 description: AI 协作开发一体化框架 · /teamwork 启动
 ---
 
@@ -149,7 +149,7 @@ C 类 · 维护(6)
 └── migrate-v7-to-v8 一次性迁移老 Feature
 ```
 
-命令现行权威 = `state.py --help` + [`tools/_v8_stage_specs.py`](./tools/_v8_stage_specs.py)(各 stage 契约)。v8.0 历史快照(已归档 · 命令已大幅演进 · 勿当现行)见 [docs/archive/v8-redesign/01-COMMAND-SCHEMA.md](./docs/archive/v8-redesign/01-COMMAND-SCHEMA.md)。
+命令现行权威 = `state.py --help` + [`tools/_v8_stage_specs.py`](./tools/_v8_stage_specs.py)(各 stage 契约)。(v8.0 命令 schema 快照已清理 · git 历史可溯)。
 
 ---
 
@@ -241,7 +241,7 @@ state.py 校验:
 
 **物化语义**:state.py 无法物理验证"用户真的说了" · 但此 flag 的存在性 = AI 声称用户已确认。审计时若发现 AI 自加此 flag(对话历史无用户确认)= 红线违规。
 
-详细 9 红线设计 rationale 见 [docs/archive/v8-redesign/00-MANIFESTO.md § 十一](./docs/archive/v8-redesign/00-MANIFESTO.md)。
+详细 9 红线设计 rationale 原载 v8.0 设计稿(已清理 · git 历史可溯)。
 
 ---
 
@@ -677,7 +677,7 @@ v8 把 v7 的 9 红线中 16/17 子条目物化进 state.py · 仅 1 条(R3 PMO 
 | R8 写操作硬门禁链 | state.py 内部 prepare 完成前拒绝 stage-start · ship Phase 1 CLI-first |
 | R9 session bootstrap 必跑 triage | tools/bootstrap.py + PMO 按 SKILL.md § Triage 入口规范 分诊 |
 
-详细 9 红线 rationale 见 [docs/archive/v8-redesign/00-MANIFESTO.md § 十一](./docs/archive/v8-redesign/00-MANIFESTO.md)。
+详细 9 红线 rationale 原载 v8.0 设计稿(已清理 · git 历史可溯)。
 
 ---
 
@@ -686,7 +686,6 @@ v8 把 v7 的 9 红线中 16/17 子条目物化进 state.py · 仅 1 条(R3 PMO 
 | 文件 | 作用 |
 |------|------|
 | [SKILL.md § Triage 入口规范](./SKILL.md) | **入口规范** · triage 不是 stage · 5 mode 分诊 + mode B worktree 决策 |
-| [docs/archive/v8-redesign/](./docs/archive/v8-redesign/) | 📦 **归档** · v8.0 重构期蓝图(00 设计宪法 + § 十一 9 红线 rationale · 01 命令 schema)· 命令现行权威以 `state.py --help` + `_v8_stage_specs.py` 为准 · 不再维护 |
 | [FLOWS.md](./FLOWS.md) | 6 流程 telos(详细步骤进 docs/prepare.md 子流程 + 各 stage brief) |
 | [ROLES.md](./ROLES.md) | 角色索引(→ roles/*.md) |
 | [STANDARDS.md](./STANDARDS.md) | 技术规范索引(→ standards/*.md · 不含流程规范) |

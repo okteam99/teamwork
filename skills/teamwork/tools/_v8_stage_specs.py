@@ -17,7 +17,7 @@ STAGE_SPECS dict 在文件末尾汇总。
 - ⏳ review / test / browser_e2e / pm_acceptance / ship (B7-B11)
 
 本文件即 stage 契约 schema 的现行权威(配合 state.py --help)。
-v8.0 历史快照 docs/archive/v8-redesign/01-COMMAND-SCHEMA.md 已归档 · 仅供追溯。
+v8.0 命令 schema 快照已清理 · git 历史可溯。
 """
 
 from __future__ import annotations

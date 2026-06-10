@@ -11,7 +11,7 @@ tools/update.py — Teamwork skill 自更新独立脚本(v8.42 抽离 · v8.44.3
 
 向后兼容:保留 `--no-backup` opt-out + `--accept-overwrite` no-op(旧调用不报错)。
 
-(v8.24→v8.44.3 演进:git pull → 去 git 化 tarball → 抽离独立脚本 → 默认 backup+overwrite · 详 docs/CHANGELOG-ARCHIVE.md)
+(v8.24→v8.44.3 演进:git pull → 去 git 化 tarball → 抽离独立脚本 → 默认 backup+overwrite · 详 git 历史)
 
 用法:
     python3 SKILL_ROOT/tools/update.py [--channel <branch>] [--no-backup]

@@ -109,4 +109,3 @@
 - 引擎:[../tools/_v8_engine.py](../tools/_v8_engine.py) `execute_stage_start` / `execute_stage_complete`
 - spec:[../tools/_v8_stage_specs.py](../tools/_v8_stage_specs.py) `GOAL_SPEC`
 - 入口规范:[../SKILL.md § Triage 入口规范](../SKILL.md)
-- 治本反思:[../docs/archive/v8-redesign/05-LESSONS-FROM-PTR-F033.md](../docs/archive/v8-redesign/05-LESSONS-FROM-PTR-F033.md)

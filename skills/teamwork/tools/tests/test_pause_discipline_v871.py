@@ -80,7 +80,7 @@ class TestBaseDisciplineAlwaysPresent(unittest.TestCase):
                     "Substep 6 · 用户最终确认"):
             out = _render_pause_discipline(app)
             self.assertIn("暂停点纪律", out)
-            self.assertIn("04-PAUSE-POINT-DISCIPLINE.md", out)
+            self.assertIn("R5(b)", out)
             self.assertIn(app, out)  # 具体描述被填入
 
 

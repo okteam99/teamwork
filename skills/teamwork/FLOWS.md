@@ -97,6 +97,5 @@ PMO 按以下关键词匹配 + 优先级判定 user input 落入哪类流程(无
 
 - [SKILL.md](./SKILL.md) — 命令清单 + 5 mode 入口
 - [SKILL.md § PMO 软约束](./SKILL.md) — R3 / R4 / R5(b) / bypass 必读
-- [docs/archive/v8-redesign/00-MANIFESTO.md § 十一](./docs/archive/v8-redesign/00-MANIFESTO.md) — 9 红线归宿 + 详细 rationale
 - [stages/*.md](./stages/) — 各 stage Telos + Output Contract
 - [tools/state.py](./tools/state.py) — 编排器入口
