@@ -12,7 +12,8 @@
 | [tdd.md](./standards/tdd.md) | 🔴 TDD 唯一权威源:Iron Law + RED-GREEN-REFACTOR + 自检清单 + 反模式 | **所有 RD + QA Code Review** |
 | [common.md](./standards/common.md) | 测试核心原则、代码架构规范、RD 自查、QA 检查项、Mermaid 规范 | **所有 RD** |
 | [backend.md](./standards/backend.md) | 后端集成测试、API 接口、日志规范 | **后端 RD** |
-| [frontend.md](./standards/frontend.md) | 前端测试分层、E2E 测试要求 | **前端 RD** |
+| [frontend.md](./standards/frontend.md) | 前端规范骨架:测试分层 / 组件测试 / 样式 / 状态管理 / 性能 / 无障碍 / 构建 硬规则 | **前端 RD** |
+| [frontend-guide.md](./standards/frontend-guide.md) | 前端实施指南(选型对比 / 配置 / 代码示例 · frontend.md 各节的展开) | 前端 RD(**按需查阅 · 不默认加载**)|
 | [external-model-usage.md](./standards/external-model-usage.md) | 外部模型 OpenAI ToS 合规(只读评审 · 不参与代码写权) | **PMO**(外部评审调度时)|
 | [scripts-policy.md](./standards/scripts-policy.md) | 脚本设计原则(退出码 / 输出格式 / 模块化)| **state.py 等工具脚本作者** |
 
@@ -23,7 +24,7 @@
 ```
 RD 加载指引:
 ├── 后端子项目 → tdd.md + common.md + backend.md
-├── 前端子项目 → tdd.md + common.md + frontend.md
+├── 前端子项目 → tdd.md + common.md + frontend.md(实施示例按需另查 frontend-guide.md · 不默认加载)
 └── 全栈项目 → tdd.md + common.md + backend.md + frontend.md
 ```
 

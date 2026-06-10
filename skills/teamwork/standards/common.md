@@ -673,7 +673,7 @@ TC 验证率: X/Y (XX%)
 
 ---
 
-## 四点五、调试日志规范Ｔ mattpocock/skills diagnose）
+## 四点五、调试日志规范（借鉴 mattpocock/skills diagnose）
 
 🔴 **`[DEBUG-{Feature}-{NNNN}]` 唯一前缀规则**：临时调试日志（println / console.log / log.debug 等）必须用统一前缀 `[DEBUG-{Feature}-{NNNN}]`，方便 ship 前一次性 grep 清理。
 

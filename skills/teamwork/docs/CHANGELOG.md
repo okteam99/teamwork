@@ -1,6 +1,31 @@
 # Changelog
 
-> 📦 v8.116 及更早(含 v7/v6/… 旧系统)已归档 → [CHANGELOG-ARCHIVE.md](./CHANGELOG-ARCHIVE.md)。本文件**保留最近 5 版**(每次发布:新增本版 → 若超过 5 版,把最旧的一版迁入归档)。
+> 📦 v8.117 及更早(含 v7/v6/… 旧系统)已归档 → [CHANGELOG-ARCHIVE.md](./CHANGELOG-ARCHIVE.md)。本文件**保留最近 5 版**(每次发布:新增本版 → 若超过 5 版,把最旧的一版迁入归档)。
+
+## v8.122 · MD review P1:frontend.md 瘦身 1684→166(guide 外迁)+ TDD 单源收敛 + 降级路径划清 + 数字宣称校验物化
+
+> 用户:继续 P1(承 v8.121 全量 MD review 顺延项)。
+
+### 诊断
+- frontend.md 1684 行 · §二–§七 为教程式内容(选型对比/配置/示例)与 standards「must/must-not」定位不符 · subagent 默认加载即超载;且全文示例代码曾在一次历史格式清理中丢失全部**空括号 `()`**(`jest.fn()`→`jest.fn` · `() =>`→` =>`)· 文末悬空 ``` 破栅栏。
+- §一「前端 TDD 流程」是 tdd.md(自称唯一权威源)的**未注册 fork**:4 步 vs 5 步(缺 VERIFY RED)· 示例腐坏 · tdd.md §七 引用约定表无 frontend.md 行。
+- e1d12b2 清 v7 残留的同次事故还留 **7 处全角「Ｔ」脏标题**(tdd.md ×2 / adr.md ×3 / prd.md / common.md · v8.121 只修到 frontend/backend 标题 2 处)。
+- review-stage「真超时重试失败 → 报因给用户」vs「异质不可用已重试失败 → 降级」边界未划清:持续限流超时归哪条两可 · AI 会在停报与降级间摇摆。
+- v8.121 类数字宣称漂移(stage 数/版本徽章/gate 名)无物化校验 · 只靠人工 grep。
+
+### 改动
+- **frontend.md 瘦身 1684 → 166 行**:§二–§七 原文(决策树+示例)整体外迁新 `standards/frontend-guide.md`(按需查阅 · 不默认加载 · 头部声明历史损坏:箭头参数括号已批量修复 35 处 · 其余空调用括号待逐例修)· frontend.md 各节改硬规则 bullets +「📎 示例 → guide §N」指针 · 修文末破栅栏 · STANDARDS.md 注册 guide + 加载规则注明按需。
+- **TDD 单源收敛**:删 frontend.md「前端 TDD 流程」fork(腐坏示例直接删 · 不外迁)· 改 1 段 cite tdd.md(§二 5 步 + §三 自检 · 前端差异仅 vitest 命令 + 组件测试先行)· tdd.md §七 引用约定表补 frontend.md 行。
+- **脏字符清零(7 处)**:tdd.md「horizontal slicing（借鉴 mattpocock/skills tdd）」「NEVER refactor while RED（借鉴同上）」· adr.md 三条门槛 / 7 类列表 / 极简模板 · prd.md「Out of Scope（借鉴 …to-prd）」· common.md「调试日志规范（借鉴 …diagnose）」。
+- **降级路径划清**:review-stage —— 串行重跑**仍**超时/空输出(环境性)→ 归入「异质客观不可用」走**显式降级**(合法继续 · 报因留痕);🔴 P0-154 禁的是「伪造/冒充/静默跳过」· 不是降级协议本身。客观不可用枚举两处同步补「持续超时·限流(串行重跑仍失败)」(review-stage + external-model-usage §11.5)。
+- **数字宣称校验物化**:新 `tools/tests/test_spec_claims.py` 4 测 —— STAGES.md 索引 == STAGE_SPECS 全集 ·「N stage」宣称 == len(STAGE_SPECS) · README 徽章 major.minor == SKILL frontmatter(patch 不比 → auto-bump 免疫 · README 缺失〔安装副本〕skip)· 现行 md 的 cold_start_* gate 名必存在于 bootstrap/state 源码。负验证:regex 实测命中 5 处 stage 宣称 + 4 处徽章(非空匹配白过)。
+- **bump 脚本(P1 项裁定不改)**:auto-bump 只动 patch 段 · 徽章语义 = major.minor → patch bump 不产生漂移;真实漂移向量 = **人工 minor bump 忘改 README** → 由上述 pytest 拦截(发版必跑)· 改 bump 脚本属误靶。
+
+### 验证
+- pytest **3 failed / 523 passed**(baseline 3 = scan-spec 既有 · +4 新校验全过 · 零回归)· 全仓现行 md/py「Ｔ」= 0 · frontend.md 1684 → 166 行 · guide 1554 行(§二–§七 原文零丢失 + 35 处箭头修复)。
+
+### 顺延
+- frontend-guide.md 示例**空调用括号**逐例修复(`jest.fn;` 类 · 已头部声明)· scan-spec-consumer 3 个 baseline failed 测试治理。
 
 ## v8.121 · 全量 MD review P0 修复:数字宣称对齐代码 + 断链/旧名/脏标题清理
 
@@ -68,21 +93,3 @@
 
 ### 验证
 - pytest **3 failed / 519 passed**(baseline 3 = scan-spec 既有 · 零回归 · 纯文案)。
-
-## v8.117 · teamwork-space.md 瘦身:架构全景 + 目录结构外迁 → `project-specs/ARCHITECTURE.md`
-
-> 用户:teamwork-space.md 架构全景的内容是否有必要拆出 · 作为 project-specs/ 下一个约定文档 · 把 teamwork-space.md 做轻。
-
-### 判断:该拆 —— 它是「参考详情」不是「导航索引」
-- guide §0 自定「单元格 ≤ 1 行 · 详情外迁」· 而 架构全景(Mermaid 拓扑+依赖)+ 目录结构(tree)是文件里**唯二多行重内容**(偶尔读的参考 · 非每 session 读的导航)。且 v8.116 自动建骨架本就**没放**它们 → 拆出顺势让**模板与骨架对齐**。
-
-### 改动(doc + bootstrap)
-- **新 `templates/architecture-workspace.md`**(实例化 `project-specs/ARCHITECTURE.md`):**workspace 级** · 子项目拓扑 + 依赖 + 目录布局 · 🔴 区别 per-subproject `{子项目}/docs/architecture/`(**单子项目内部**技术架构)。
-- **`templates/teamwork-space.md`**:删「项目架构全景 + 项目目录结构」两节 · 「知识入口」加「系统架构」1 行指针(零死角:进知识图谱节点 · v8.115 checker 校验)。
-- **`bootstrap.py`**:`maintain_project_skeletons` 加 `ARCHITECTURE.md`(自动建空骨架)· `_kg_entry_rows` 探测 `project-specs/ARCHITECTURE.md` → 自动建的 teamwork-space.md 骨架含「系统架构」行。
-- **去重**:ARCHITECTURE.md 目录布局**不**重复顶层知识节点(它们在知识入口)· 只展开子项目**内部**结构。
-- **spec 同步**:guide §4(外迁说明+维护)+ §8(生命周期)· conventions §13(project-specs 加 ARCHITECTURE)· SKILL 路由表(workspace vs subproject 架构两行)· `templates/README`(注册新模板)。
-
-### 验证
-- 更新 3 测(skeletons created/existed 加 ARCHITECTURE · fixture 加 `architecture-workspace.md` 模板)+ auto-create 测加「系统架构」断言 · E2E 验证 ARCHITECTURE 自动建 + 骨架探测到。
-- pytest **3 failed / 519 passed**(baseline 3 = scan-spec 既有 · 零回归)。

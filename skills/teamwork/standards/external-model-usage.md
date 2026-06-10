@@ -220,7 +220,7 @@ Step 3:跑命令 · 落 *-codex.md / *-gemini.md / 等真异质模型文件
 
 ### 11.5 降级策略 = subagent(🔴 不 exec · 降级而不是去掉)
 
-> 🔴 异质 CLI **客观不可用**(未装/未登录/配额满/`claude -p` 本身坏 · 已重试失败)时 —— **优先降级,不是直接移除 external**。降级**统一走 subagent**(不再 exec CLI 自审)。
+> 🔴 异质 CLI **客观不可用**(未装/未登录/配额满/持续超时·限流〔串行重跑仍失败〕/`claude -p` 本身坏 · 已重试失败)时 —— **优先降级,不是直接移除 external**。降级**统一走 subagent**(不再 exec CLI 自审)。
 
 - **为什么 subagent 不 exec**:exec 一个 CLI 子进程做自审,反复踩认证 / `--bare` / MCP 卡死 / "Not logged in" / stdin 等坑(出过很多次)。**subagent(`Agent` 工具)在 harness 内跑** —— 同 auth、无子进程 CLI 问题、无 MCP 自动加载。它**仍是同模型自审**(非异质 · 同盲点),但**可靠**。
 - **机制**:`state.py external-review --self-review-fallback --reason '<异质为何不可用+重试证据>'`(或项目 `disable_heterogeneous_review:true` 自动触发)→ state.py **不 exec** · emit `verdict: SUBAGENT_FALLBACK` 配方(state.py 是脚本 · 起不了 `Agent`)→ **PMO 起 Agent subagent**(isolated context · 宿主自身模型)产出降级评审 → 写 `external-cross-review/<stage>-<model>-subagent-degraded.md`。

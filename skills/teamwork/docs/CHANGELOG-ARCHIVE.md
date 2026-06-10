@@ -1,10 +1,28 @@
-# Changelog Archive(v8.116 → v1)
+# Changelog Archive(v8.117 → v1)
 
-> 📦 **历史归档**:本文件保存 teamwork **v8.116 及更早**的全部 changelog(含 v7/v6/…/v1 等 v8.0 之前的旧系统)· 仅供追溯,**不再维护**。
-> 现行 changelog(最近 5 版 · v8.117–v8.121)见 [CHANGELOG.md](./CHANGELOG.md)。
+> 📦 **历史归档**:本文件保存 teamwork **v8.117 及更早**的全部 changelog(含 v7/v6/…/v1 等 v8.0 之前的旧系统)· 仅供追溯,**不再维护**。
+> 现行 changelog(最近 5 版 · v8.118–v8.122)见 [CHANGELOG.md](./CHANGELOG.md)。
 > ⚠️ v8.0 是「范式切换 · 不向下兼容」的重构 —— **v7 及更早描述的是已不存在的旧系统**,其机制/命令/红线编号均不适用于现行 v8。
 
 ---
+
+## v8.117 · teamwork-space.md 瘦身:架构全景 + 目录结构外迁 → `project-specs/ARCHITECTURE.md`
+
+> 用户:teamwork-space.md 架构全景的内容是否有必要拆出 · 作为 project-specs/ 下一个约定文档 · 把 teamwork-space.md 做轻。
+
+### 判断:该拆 —— 它是「参考详情」不是「导航索引」
+- guide §0 自定「单元格 ≤ 1 行 · 详情外迁」· 而 架构全景(Mermaid 拓扑+依赖)+ 目录结构(tree)是文件里**唯二多行重内容**(偶尔读的参考 · 非每 session 读的导航)。且 v8.116 自动建骨架本就**没放**它们 → 拆出顺势让**模板与骨架对齐**。
+
+### 改动(doc + bootstrap)
+- **新 `templates/architecture-workspace.md`**(实例化 `project-specs/ARCHITECTURE.md`):**workspace 级** · 子项目拓扑 + 依赖 + 目录布局 · 🔴 区别 per-subproject `{子项目}/docs/architecture/`(**单子项目内部**技术架构)。
+- **`templates/teamwork-space.md`**:删「项目架构全景 + 项目目录结构」两节 · 「知识入口」加「系统架构」1 行指针(零死角:进知识图谱节点 · v8.115 checker 校验)。
+- **`bootstrap.py`**:`maintain_project_skeletons` 加 `ARCHITECTURE.md`(自动建空骨架)· `_kg_entry_rows` 探测 `project-specs/ARCHITECTURE.md` → 自动建的 teamwork-space.md 骨架含「系统架构」行。
+- **去重**:ARCHITECTURE.md 目录布局**不**重复顶层知识节点(它们在知识入口)· 只展开子项目**内部**结构。
+- **spec 同步**:guide §4(外迁说明+维护)+ §8(生命周期)· conventions §13(project-specs 加 ARCHITECTURE)· SKILL 路由表(workspace vs subproject 架构两行)· `templates/README`(注册新模板)。
+
+### 验证
+- 更新 3 测(skeletons created/existed 加 ARCHITECTURE · fixture 加 `architecture-workspace.md` 模板)+ auto-create 测加「系统架构」断言 · E2E 验证 ARCHITECTURE 自动建 + 骨架探测到。
+- pytest **3 failed / 519 passed**(baseline 3 = scan-spec 既有 · 零回归)。
 
 ## v8.116 · N≥1 物化:bootstrap 自动建 teamwork-space.md + cold-start 解耦(地图 ≠ 规划)
 

@@ -14,9 +14,9 @@
 
 🔴 **不允许"先写实现再补测试"**（违反 = Dev Stage 流程偏离，QA Code Review 必发现并标记 ❌）。
 
-🔴 **不允许 horizontal slicing**Ｔ mattpocock/skills tdd）：禁止"批量先写所有 TC 再批量实现"——每个 TC 走完红→绿→（必要时）重构后再写下一个 TC（vertical slicing）。批量铺测试 + 批量铺实现是反 TDD 模式。
+🔴 **不允许 horizontal slicing**（借鉴 mattpocock/skills tdd）：禁止"批量先写所有 TC 再批量实现"——每个 TC 走完红→绿→（必要时）重构后再写下一个 TC（vertical slicing）。批量铺测试 + 批量铺实现是反 TDD 模式。
 
-🔴 **NEVER refactor while RED**Ｔ）：测试在红色状态时禁止重构——重构必须在绿色（所有测试通过）状态下进行。RED 阶段仅做"让测试通过"的最小改动。
+🔴 **NEVER refactor while RED**（借鉴同上）：测试在红色状态时禁止重构——重构必须在绿色（所有测试通过）状态下进行。RED 阶段仅做"让测试通过"的最小改动。
 
 ---
 
@@ -121,5 +121,6 @@ Step 5: REFACTOR — 保持绿态前提下清理代码
 | standards/common.md §一 TDD 检查清单 + §QA 代码审查 TDD 规范检查 | 整段引用本文件 §三 + §四 |
 | roles/rd.md「测试先行」+ 反模式段 | 引用本文件 §一 + §四 |
 | roles/qa.md QA 代码审查段 | 引用本文件 §三 |
+| standards/frontend.md §一 前端测试规范 | 引用本文件 §二 5 步流程 + §三 自检清单（前端命令 vitest）· 不复制流程正文 |
 
 末。

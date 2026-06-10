@@ -148,7 +148,7 @@ stateDiagram-v2
 ### 消费方接入计划
 <!-- 各消费方何时开始接入、是否需要同步改动 -->
 
-## Out of ScopeＴ mattpocock/skills to-prd · 必填）
+## Out of Scope（借鉴 mattpocock/skills to-prd · 必填）
 
 > 🔴 **必填**：明确写出"本 Feature **不做**什么"——降低后期"为什么没做 X"的拉扯。
 > 业务类 Feature：列业务范围外的功能 / 用户场景；纯技术 refactor：列不在重构范围的模块 / 路径。
