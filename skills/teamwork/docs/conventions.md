@@ -275,7 +275,7 @@ teamwork 文档分 **workspace 级**(仓库根)和 **子项目级**两层。
 
 ## 引用本文件
 
-- [SKILL.md § Triage 入口规范 § 4.2 / 4.3](../SKILL.md) — worktree 决策模板 + 暂停点收集 Feature ID
+- [docs/prepare.md](./prepare.md) — worktree 决策 + 暂停点收集 Feature ID(prepare 子流程引用本文件 §9-12 worktree 规范)
 - [SKILL.md § 状态行](../SKILL.md) — 状态行例子(实际路径)
 - [docs/feature-planning.md § Step 5](./feature-planning.md) — ROADMAP 起草时 BL-NNN 分配
 - [stages/goal-stage.md](../stages/goal-stage.md) — Feature ID 已在 init-feature 时确定

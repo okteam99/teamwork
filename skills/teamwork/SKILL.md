@@ -1,6 +1,6 @@
 ---
 name: teamwork
-version: v8.120
+version: v8.121
 description: AI 协作开发一体化框架 · /teamwork 启动
 ---
 
@@ -126,9 +126,10 @@ A 类 · 状态机入口(用户确认 worktree 后 · 在 worktree 内运行)
 (triage 是 PMO 入口行为 · 不是 state.py 命令 · 见 SKILL.md § Triage 入口规范)
 (prepare 是 PMO 主对话子流程 · 不是 state.py 命令 · 见 docs/prepare.md)
 
-B 类 · Stage 流转(11 stage × 2 + 4 fix/retry + ship-phase + ship-finalize)
+B 类 · Stage 流转(12 stage × 2 + 4 fix/retry + ship-phase/ship-finalize/main-sync)
 ├── goal-start / goal-complete
 ├── ui_design-start / ui_design-complete (optional · --needs-ui)
+├── panorama_sync-start / panorama_sync-complete (conditional · ui_design --panorama-changed=true)
 ├── blueprint-start / blueprint-complete
 ├── blueprint_lite-start / blueprint_lite-complete (敏捷需求 only)
 ├── diagnose-start / diagnose-complete (Bug only · 根因细查+修复方案 · 用户确认后才进 dev)
@@ -695,7 +696,7 @@ v8 把 v7 的 9 红线中 16/17 子条目物化进 state.py · 仅 1 条(R3 PMO 
 | [standards/*.md](./standards/) | 技术规范(common/backend/frontend/tdd · 流程规范已删) |
 | [tools/state.py](./tools/state.py) | 唯一编排器入口 |
 | [tools/_v8_engine.py](./tools/_v8_engine.py) | 通用 stage start/complete + bypass 引擎 |
-| [tools/_v8_stage_specs.py](./tools/_v8_stage_specs.py) | 10 stage 完整契约 |
+| [tools/_v8_stage_specs.py](./tools/_v8_stage_specs.py) | 12 stage 完整契约(stage 数单源 `STAGE_SPECS`) |
 | [tools/_v8_ship.py](./tools/_v8_ship.py) | ship-phase 5 actions |
 | [tools/_v8_migrate.py](./tools/_v8_migrate.py) | v7 → v8 迁移 |
 | [tools/bootstrap.py](./tools/bootstrap.py) | session 启动维护(骨架 / hooks / 注入段) |

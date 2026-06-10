@@ -1111,7 +1111,7 @@ def cmd_init_feature(args: argparse.Namespace) -> None:
                     f"  2. cd {wt_real}\n"
                     f"  3. 重跑 state.py init-feature"
                 ),
-                "rule": "SKILL.md § Triage 入口规范 §3.4 入口完成才进状态机",
+                "rule": "SKILL.md § Triage 入口规范 · 入口完成才进状态机",
                 "bypass": "调试场景 export TEAMWORK_BYPASS_CWD_WORKTREE=1",
             }, ensure_ascii=False, indent=2))
 
@@ -4004,7 +4004,7 @@ def build_parser() -> argparse.ArgumentParser:
     #   (01-COMMAND-SCHEMA.md 为 v8.0 归档快照 · 命令已大幅演进)
     # 引擎模块:
     # - _v8_engine.py   通用 stage start/complete + bypass 协议
-    # - _v8_stage_specs.py  11 stage 完整契约
+    # - _v8_stage_specs.py  12 stage 完整契约
     # - _v8_ship.py     ship-phase 子动作(替代 v7 ship-*)
     # - _v8_migrate.py  migrate-v7-to-v8 一次性迁移
     #

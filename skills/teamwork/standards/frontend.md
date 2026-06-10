@@ -5,7 +5,7 @@
 
 ---
 
-## 模块设计判定Ｔ mattpocock/skills improve-codebase-architecture）
+## 模块设计判定（借鉴 mattpocock/skills improve-codebase-architecture）
 
 🔴 与 backend.md 同源：使用 [templates/knowledge.md § Glossary 通用架构词汇](../templates/knowledge.md) 8 词 + "删除测试" 启发式 + "两个 adapter 才抽象" 规则。前端场景下 Module = React Component / 模块 / Hook · Interface = Props / Context / Hook 签名 · Seam = 跨页面共享 Hook + UI 库的稳定边界。详见 [standards/backend.md § 模块设计判定](./backend.md)（同源 · 不重复）。
 

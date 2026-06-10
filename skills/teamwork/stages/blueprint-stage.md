@@ -60,7 +60,7 @@ blueprint-complete 前 **必 emit R5 标准 1/2/3 暂停点 · 等用户拍板**
 |---------|----------|----|------------|
 | 1. 加载上下文 | `project-specs/DEV-RULES.md`(若存在) | 全文 | 项目强制开发规范 · TECH 须遵守(+ 读 PRD/ARCHITECTURE/KNOWLEDGE) |
 | 2. QA 起草 TC.md | `roles/qa.md + standards/tdd.md` | § TC 起草 + § BDD | Given/When/Then 风格 / AC↔Test 绑定 |
-| 3. RD 起草 TECH.md | `roles/rd.md + standards/common.md` | § TECH 起草 | 模块/数据/接口/依赖/风险 5 段 |
+| 3. RD 起草 TECH.md | `roles/rd.md + standards/common.md` | § TECH 起草 | 按 templates/tech.md 结构(技术方案〔架构/数据结构/接口〕+ 实现思路 + TDD 计划) |
 | 4. Architect Tech Review → TECH-REVIEW.md | `roles/architect.md` | § Tech Review | 技术合理性 + 架构一致性 + **简洁性(防过度设计 · 拦在 TECH 比拦在代码便宜)** |
 | 5. (可选)QA TC Review | `roles/qa.md` | § TC Review | TC 设计能否真验证 AC |
 | 6. External cross-review | `roles/external-reviewer.md` | § 调用规范 | 异质模型只读评审 · OpenAI ToS |
@@ -85,7 +85,7 @@ blueprint-complete 前 **必 emit R5 标准 1/2/3 暂停点 · 等用户拍板**
 
 > 📋 **起草模板**(避免找历史 Feature 抄):
 > - TC.md → `{SKILL_ROOT}/templates/tc.md`(含 frontmatter + tests[].covers_ac BDD 示例)
-> - TECH.md → `{SKILL_ROOT}/templates/tech.md`(含 5 段:模块/数据/接口/依赖/风险)
+> - TECH.md → `{SKILL_ROOT}/templates/tech.md`(结构:技术方案〔架构/数据结构/接口〕· 实现思路〔改动文件清单/数据库变更/前端方案〕· TDD 开发计划 · 待决策)
 > - TECH-REVIEW.md → 无独立模板 · 见下方 schema · 按评审角色 finding 分段
 > - external-cross-review/*.md → 跑 `state.py external-review --feature ... --stage blueprint`(自动落产物 · 不要手写)
 >

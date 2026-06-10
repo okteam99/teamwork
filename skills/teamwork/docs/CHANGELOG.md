@@ -1,6 +1,29 @@
 # Changelog
 
-> 📦 v8.115 及更早(含 v7/v6/… 旧系统)已归档 → [CHANGELOG-ARCHIVE.md](./CHANGELOG-ARCHIVE.md)。本文件**保留最近 5 版**(每次发布:新增本版 → 若超过 5 版,把最旧的一版迁入归档)。
+> 📦 v8.116 及更早(含 v7/v6/… 旧系统)已归档 → [CHANGELOG-ARCHIVE.md](./CHANGELOG-ARCHIVE.md)。本文件**保留最近 5 版**(每次发布:新增本版 → 若超过 5 版,把最旧的一版迁入归档)。
+
+## v8.121 · 全量 MD review P0 修复:数字宣称对齐代码 + 断链/旧名/脏标题清理
+
+> 用户:重新 review teamwork 的所有 md · 看下哪些不合理。6 路并行 review + 主对话逐条复核:实锤 16 条(高 7 / 中 5 / 低 4)· 排除误报 3 条。本版收 P0 批次(宣称/断链类 9 项)。
+
+### 诊断:数字型宣称(版本/stage 数/段结构/gate 名/§ 编号)写死多处 · 无单源无校验 → 演进必漂
+- 代码真相 **12 stage**(`STAGE_SPECS`)· 文档四种口径:README「10 stage 索引」· SKILL.md「11 stage × 2」+「10 stage 完整契约」(B 类清单漏 panorama_sync)· STAGES.md「11 stage 索引」且**漏 diagnose 行**(Bug 流首 stage 不在索引)。
+- README 版本徽章 **v8.87**(落后 33 版 · bump 脚本只改 SKILL.md frontmatter)。
+- v8.116 改名的 cold-start gate 在 PRODUCT-OVERVIEW-INTEGRATION.md 残留旧名 `cold_start_workspace_uninitialized` + 触发条件还写「无 teamwork-space.md」(地图根已自动建);prepare.md 必读指向不存在的「SKILL.md § P0-11」(实际 STAGES.md §2);FLOWS.md 引幽灵小节「§ 4.1」;state.py rule 串引幽灵「§3.4」。
+- blueprint-stage 宣称 TECH.md「5 段:模块/数据/接口/依赖/风险」与 templates/tech.md 实际结构不符;goal-stage「必含 5 角色」与 `change-review-roles` 可调机制矛盾(调整后按新值校验);frontend/backend.md「模块设计判定」标题被 v7 清理(e1d12b2)误删成脏字符。
+
+### 改动(doc-only + state.py 2 处显示字符串/注释)
+- **stage 数对齐 12**:README/README-EN「12 stage 索引」· SKILL.md B 类「12 stage × 2 + 4 fix/retry + ship-phase/ship-finalize/main-sync」+ 补 `panorama_sync-start/complete` 行 · 路由表「12 stage 完整契约(stage 数单源 STAGE_SPECS)」· STAGES.md 索引标题挂单源 + 补 diagnose 行 · state.py 注释 11→12。
+- **版本徽章**:README/README-EN v8.87 → v8.121 · 注明「版本单源 = SKILL.md frontmatter」(README 徽章为快照)。
+- **断链/旧名**:POI gate 改 `cold_start_product_planning_recommended` + 触发改「缺 product-overview(v8.116 地图/规划解耦)」· prepare.md 必读改链 [STAGES.md §2](../STAGES.md) · FLOWS.md + feature-planning.md「§ 4.1」→「5 mode 分诊」· conventions.md「§ 4.2/4.3 worktree 决策」改指 prepare.md(R-T2:worktree 决策是 prepare 职责)· `templates/host-instruction-injection.md`(注入块单源)+ 根 CLAUDE.md 实例去坏链(根目录 `../SKILL.md` 指向仓库外)改纯文本 · state.py rule 串去「§3.4」。
+- **口径对齐机制**:blueprint-stage TECH 结构改按 templates/tech.md 真实段(技术方案〔架构/数据结构/接口〕/实现思路/TDD 计划/待决策)· goal-stage 改「必含 `stage_review_roles[goal]` 全部角色(默认 5 · change-review-roles 调整后按新值)」。
+- **标题修复**:frontend/backend.md「## 模块设计判定（借鉴 mattpocock/skills improve-codebase-architecture）」。
+
+### 验证
+- grep 全仓现行 md/py:旧 gate 名 / P0-11 误指 / § 4.1 / §3.4 / 10|11 stage / 「5 段:模块」零残留(CHANGELOG/归档除外)· pytest **3 failed / 519 passed**(baseline 3 = scan-spec 既有 · 零回归)。
+
+### 顺延(P1 · 本版未收)
+- frontend.md TDD fork 瘦身(tdd.md 单源)· external-review「超时重试失败 vs 降级」路径划清 · frontend.md 教程式内容外迁 · 数字宣称纳入 scan-spec 类校验 · bump 脚本顺带改 README 徽章。
 
 ## v8.120 · prepare 流程概览加「流程目标」首行:用户 review 第一校准点
 
@@ -63,20 +86,3 @@
 ### 验证
 - 更新 3 测(skeletons created/existed 加 ARCHITECTURE · fixture 加 `architecture-workspace.md` 模板)+ auto-create 测加「系统架构」断言 · E2E 验证 ARCHITECTURE 自动建 + 骨架探测到。
 - pytest **3 failed / 519 passed**(baseline 3 = scan-spec 既有 · 零回归)。
-
-## v8.116 · N≥1 物化:bootstrap 自动建 teamwork-space.md + cold-start 解耦(地图 ≠ 规划)
-
-> 用户:单项目自动建 teamwork-space.md 符合预期 · 没必要兼容(单项目可无)· teamwork 是为复杂业务准备的。承 v8.115 arc 余项。
-
-### 改动(bootstrap-only · **无 state.py 改动**)
-- **`maintain_teamwork_space`(`bootstrap.py`)**:teamwork-space.md 缺失 → 自动建**精简骨架** —— 知识入口表**自动探测**(仅磁盘存在的节点:product-overview / project-specs / external / 归档冷库)+ 子项目清单**空表待规划回填**。幂等(已存在不动)。N≥1:任何项目(含单项目=1 子项目)都有地图根 · **不再"单项目可无"**。
-- **cold-start 解耦**:teamwork-space.md(地图)自动建后,原 `cold_start_workspace_uninitialized`(fire 于无 teamwork-space.md)若不改则**永不触发** → 产品规划 nudge 静默消失。改为 `cold_start_product_planning_recommended`(fire 于无 **product-overview**)· 保留规划引导(reframe:地图自动建 · 规划要人建)· 承 v8.48「产品规划优先」。
-- **路由零改动**:骨架子项目清单**空表** → state.py `_parse_workspace_registry` 返回 `{}` → 路由校验 SKIP(line 661)· 回填子项目行后才生效 · 不误阻断。
-- **spec 同步**:`SKILL.md` triage cold-start 段(gate 改名 + 地图/规划解耦 + N≥1)· `feature-planning.md`(teamwork-space.md 地图骨架自动建 · 子项目清单回填)· guide §0(去「过渡期单项目仍可无」→ 已物化)。
-
-### 验证
-- 重写 3 cold-start 测(gate 改名 + 新 condition:no-PO→gate / PO→planning_spec 接管)+ 新 `test_teamwork_space_auto_created`(知识入口探测 + 空表 + 幂等)· E2E 两场景(fresh→自动建+cold-start gate / 有 PO→无 cold-start)· 骨架空表→registry `{}`→SKIP 已验。
-- pytest **3 failed / 519 passed**(baseline 3 = scan-spec 既有 · 零回归)。
-
-### 知识图谱 arc 收官(v8.114–116)
-- v8.114 契约(律法/地图分工 + 三层律 + N≥1 模型)· v8.115 结构 checker(零死角物化 WARN)· v8.116 N≥1 地图根自动建 + cold-start 解耦。**teamwork 知识导航责任全物化**:从 teamwork-space.md(自动建·必读)零死角(checker 保结构)抵达一切 · 代码唯一真相 · 归档冷库按需解压。

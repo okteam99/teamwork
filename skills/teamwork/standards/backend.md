@@ -5,7 +5,7 @@
 
 ---
 
-## 模块设计判定Ｔ mattpocock/skills improve-codebase-architecture）
+## 模块设计判定（借鉴 mattpocock/skills improve-codebase-architecture）
 
 🔴 **统一架构词汇**：使用 [templates/knowledge.md § Glossary 通用架构词汇](../templates/knowledge.md) 的 8 词（Module / Interface / Depth / Seam / Adapter / Leverage / Locality / Boundary）。**禁止**在主对话 / TECH.md 自创"组件 / 服务 / 层"等同义异形词。
 

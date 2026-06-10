@@ -6,8 +6,8 @@
 ## 冷启动:首次创建 product-overview(PL 引导模式)
 
 > 🔴 项目**无** `product-overview/` 时(新项目冷启动)· session 启动 `bootstrap.py` emit
-> `cold_start_workspace_uninitialized` gate 引导**产品规划优先**(权威冷启动顺序的第一步)。
-> 触发:bare `/teamwork` 或 mode B execute 落在无 `teamwork-space.md` 的项目(详 [SKILL.md § bootstrap flow_gates 响应](SKILL.md))。
+> `cold_start_product_planning_recommended` gate 引导**产品规划优先**(权威冷启动顺序的第一步)。
+> 触发:项目缺 `product-overview/`(v8.116 地图/规划解耦:地图根 `teamwork-space.md` 由 bootstrap 自动建 · 不再是触发条件)· bare `/teamwork` 与 mode B execute 首条响应均 emit(详 [SKILL.md § bootstrap flow_gates 响应](SKILL.md))。
 
 **权威冷启动顺序**(详 [SKILL.md § teamwork 业务流程架构](SKILL.md)):
 `业务架构与产品规划.md`(愿景 + 执行线列表)→ ✅确认 → 派生 `teamwork-space.md` → **(涉 UI)UI 全景初步规划** → 起 WS 拆 feature → roadmap → Feature 状态机。
