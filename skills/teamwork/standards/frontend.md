@@ -2,7 +2,7 @@
 
 > 前端 RD 必须遵守。通用规范见 📎 [common.md](./common.md) · TDD 流程唯一权威源 📎 [tdd.md](./tdd.md)。
 > Subagent 加载指引：前端子项目加载本文件 + tdd.md + common.md，无需加载 backend.md。
-> 📎 选型对比 / 配置样例 / 代码示例在 [frontend-guide.md](./frontend-guide.md)（**按需查阅 · 不默认加载**）· 各节「📎 示例」指向对应 §。
+> 📎 **实施示例 / 选型教程不入库**（v8.123 裁定）：通用技术用法是模型自带知识 · AI 按需自生成（防教程腐烂反向误导 · 承 v8.114 三层律「不 own 知识内容」）· 项目特异约定归各项目 `DEV-RULES.md`（用户主权）。本文件只保留 must/must-not 硬规则。
 
 ---
 
@@ -91,8 +91,6 @@ E2E 测试文件位置：
 - **标准检验点 5 项**：渲染 / 交互 / 边界状态（空数据 · 加载中 · 错误 · 超长文本）/ Props 组合 / 可访问性（axe）。
 - **Mock 策略**：API 用 MSW（拦截网络层而非代码层）· Context 不 mock 本身、只提供最小 Provider 测试数据 · Router 用 MemoryRouter · 时间用 fakeTimers · 🔴 **禁止 mock 被测组件自身的内部方法**。
 
-📎 示例（Button 五检验点测试 / MSW 配置）→ [frontend-guide.md §二](./frontend-guide.md)
-
 ---
 
 ## 三、样式与 UI 规范
@@ -103,8 +101,6 @@ E2E 测试文件位置：
 - **命名**：CSS Modules = camelCase · Tailwind = 官方类名（@apply 组合防类爆炸）· 原生 CSS = BEM。
 - 🔴 **全局样式仅限 reset / base / typography** · 禁止在全局样式中定义业务组件样式。
 
-📎 方案选型对比 / Design Tokens 配置 / BEM 示例 → [frontend-guide.md §三](./frontend-guide.md)
-
 ---
 
 ## 四、状态管理规范
@@ -112,8 +108,6 @@ E2E 测试文件位置：
 - **状态分层**（作用域决策）：仅当前组件 → `useState` / `ref`；父子共享 ≤3 层 → props / Context（provide-inject）；跨页面共享才进全局库；**服务端数据归数据获取库**（TanStack Query / SWR）· 不存入 Zustand / Pinia（避免重复缓存）。
 - **选型**：简单全局状态默认 Zustand（React）/ Pinia（Vue）· 复杂状态机 XState · Redux 仅存量项目维护（新项目不推荐）。
 - 🔴 **反模式**：Context API 当全局状态库（性能问题）· 所有状态塞全局（过度全局化 = 隐式耦合）· 组件中直接 fetch / axios（必须封装为自定义 hook / 数据获取库）。
-
-📎 决策树 / Zustand · Pinia · TanStack Query · 乐观更新示例 → [frontend-guide.md §四](./frontend-guide.md)
 
 ---
 
@@ -124,8 +118,6 @@ E2E 测试文件位置：
 - **图片**：WebP 优先（AVIF 进阶需 fallback）· 非首屏全部 `loading="lazy"` · 必须给 width/height 防 CLS · 响应式 srcset · 裁剪/转格式交给图片 CDN。
 - **Bundle**：单 PR 增量 > 50KB 必须说明原因 · 引库前查 bundlephobia · ESM + tree-shaking（如 `import { debounce } from 'lodash-es'`）· size-limit / bundlesize 进 CI。
 - **渲染**：memo / useMemo / useCallback 按需用（🔴 禁无脑全加）· 列表 > 100 条用虚拟列表 · 不在 render 中创建新对象/函数 · 快变慢变数据分 store。
-
-📎 各项实施与配置示例 → [frontend-guide.md §五](./frontend-guide.md)
 
 ---
 
@@ -138,8 +130,6 @@ E2E 测试文件位置：
 - **对比度**：正文 ≥ 4.5:1 · 大文本/图形 UI ≥ 3:1 · 🔴 禁仅靠颜色传达状态（文字 + 图标 + 颜色并用）。
 - **自动化**：jest-axe / @axe-core 进组件测试 · Lighthouse a11y ≥ 90 · 关键页面手动键盘 + 屏幕阅读器抽测。
 
-📎 语义化 / ARIA / 焦点陷阱实现示例 → [frontend-guide.md §六](./frontend-guide.md)
-
 ---
 
 ## 七、构建与部署规范
@@ -148,8 +138,6 @@ E2E 测试文件位置：
 - **缓存**：构建产物 content hash 命名 · 静态资源 `max-age=31536000` · HTML 入口 no-cache（保证总能拿到新版本）。
 - **Source Map**：生产用 hidden-source-map 并上传错误监控（Sentry 等）· 🔴 严禁生产 inline-source-map / source-map（泄源码）· `.map` 文件不进生产 public。
 - **CI 检查顺序**：类型检查 → lint / format → 测试（覆盖率 70% 门禁）→ build → bundle 体积（可选）→ a11y（可选）→ Lighthouse（可选 · 性能 ≥ 80 / a11y ≥ 90）。
-
-📎 .env / Vite / Nginx 缓存 / Sentry / GitHub Actions 配置示例 → [frontend-guide.md §七](./frontend-guide.md)
 
 ---
 

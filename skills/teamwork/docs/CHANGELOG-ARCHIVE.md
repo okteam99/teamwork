@@ -1,10 +1,25 @@
-# Changelog Archive(v8.117 → v1)
+# Changelog Archive(v8.118 → v1)
 
-> 📦 **历史归档**:本文件保存 teamwork **v8.117 及更早**的全部 changelog(含 v7/v6/…/v1 等 v8.0 之前的旧系统)· 仅供追溯,**不再维护**。
-> 现行 changelog(最近 5 版 · v8.118–v8.122)见 [CHANGELOG.md](./CHANGELOG.md)。
+> 📦 **历史归档**:本文件保存 teamwork **v8.118 及更早**的全部 changelog(含 v7/v6/…/v1 等 v8.0 之前的旧系统)· 仅供追溯,**不再维护**。
+> 现行 changelog(最近 5 版 · v8.119–v8.123)见 [CHANGELOG.md](./CHANGELOG.md)。
 > ⚠️ v8.0 是「范式切换 · 不向下兼容」的重构 —— **v7 及更早描述的是已不存在的旧系统**,其机制/命令/红线编号均不适用于现行 v8。
 
 ---
+
+## v8.118 · 修文档不准:归档路径 `docs/features/_archive` → `{子项目}/docs/features/_archive`(子项目根)
+
+> 用户:`docs/features/_archive/` 描述不准确 · 应该是 子项目root/docs/features。
+
+### 诊断:对(代码=真相)· v8.114–116 pointer 把归档写成顶层 · 实际在 per-subproject `docs_root` 下
+- 真相 = `_v8_ship._archive_repo_paths`:`index_rel = {子项目 docs_root}/_archive/INDEX.md`(`features 根 git show-prefix`)· `test_ship_archive_v882` 实测断言 `svc/docs/features/_archive/INDEX.md`。`docs/features/_archive/` 只是 **N=1 单项目**(代码在 repo 根)的退化形 —— 多子项目(teamwork 主场)每子项目各有归档。
+
+### 改动(doc 准确性 · **无行为变更**)
+- 修 pointer text `docs/features/_archive/INDEX.md` → `{子项目}/docs/features/_archive/INDEX.md`(每子项目 docs_root):SKILL 路由表 2 行 · `teamwork-space.md` 知识入口 · guide §0.1 零死角律 · `architecture-workspace.md` 节点列 · bootstrap skeleton 知识入口行。
+- `_v8_ship.py` 归档路径 docstring:澄清 prefix = 子项目 docs_root(如 `svc/docs/features`)· `docs/features/_archive/` 标「单项目=repo 根」。
+- **不动**:checker `_find_archive_dirs` 本就 glob 两态(top-level + `*/docs/features/_archive`)· N=1 测试 fixture(单项目布局 · valid)。
+
+### 验证
+- pytest **3 failed / 519 passed**(baseline 3 = scan-spec 既有 · 零回归 · 纯文案)。
 
 ## v8.117 · teamwork-space.md 瘦身:架构全景 + 目录结构外迁 → `project-specs/ARCHITECTURE.md`
 

@@ -1,6 +1,23 @@
 # Changelog
 
-> 📦 v8.117 及更早(含 v7/v6/… 旧系统)已归档 → [CHANGELOG-ARCHIVE.md](./CHANGELOG-ARCHIVE.md)。本文件**保留最近 5 版**(每次发布:新增本版 → 若超过 5 版,把最旧的一版迁入归档)。
+> 📦 v8.118 及更早(含 v7/v6/… 旧系统)已归档 → [CHANGELOG-ARCHIVE.md](./CHANGELOG-ARCHIVE.md)。本文件**保留最近 5 版**(每次发布:新增本版 → 若超过 5 版,把最旧的一版迁入归档)。
+
+## v8.123 · 裁定删除 frontend-guide.md:通用教程不入库 · 知识归模型 · 规则已全在骨架
+
+> 用户(承 v8.122):frontend-guide.md 是否有必要 · 或是否需要精简 → 委托裁定(「你觉得怎么处理合理」)。
+
+### 裁定:删除(非精简 · 非保留)
+- **消费者是 AI RD · 内容零增量**:1554 行中 90% 为代码栅栏(452 行通用决策树 + ~950 行示例)· 全是 Testing Library / MSW / Zustand / TanStack Query / WCAG / Vite / GH Actions 通用用法 = 模型训练数据常识;AI 需要示例时自生成的比腐坏样例(仍残 ~20 处空调用括号)质量高。
+- **规范零丢失**:数值门禁 / 禁项 / 选型默认已 100% 在 frontend.md 骨架(v8.122 提炼)。
+- **框架哲学对齐**:v8.114 三层律 teamwork 不 own 知识内容(防腐烂反向误导)· 通用教程无归属层 —— 项目特异归各项目 `DEV-RULES.md`(用户主权)· 通用知识归模型本身。精简成决策树版只把负资产变小 · 不解决归属。
+- **可逆**:原文完整在 git 历史(v8.122 commit 8a76a43)。
+
+### 改动
+- 删 `standards/frontend-guide.md` · frontend.md 去 7 处 guide 指针 + 头部加「实施示例/选型教程不入库」哲学行(防未来被加回)· STANDARDS.md 去注册行 + 加载规则还原。
+- 撤销 v8.122 顺延项「guide 示例空调用括号逐例修复」(随删除作废)。
+
+### 验证
+- grep 全仓 frontend-guide 引用 = 0(CHANGELOG 历史除外)· pytest 3 failed / 523 passed(baseline 3 · 含 4 项 spec 宣称校验 · 零回归)。
 
 ## v8.122 · MD review P1:frontend.md 瘦身 1684→166(guide 外迁)+ TDD 单源收敛 + 降级路径划清 + 数字宣称校验物化
 
@@ -78,18 +95,3 @@
 
 ### 验证
 - doc-only · 无其他 spec 含旧「YYYYMMDD 或」措辞(grep=0)· pytest **3 failed / 519 passed**(baseline 3 = scan-spec 既有 · 零回归)。
-
-## v8.118 · 修文档不准:归档路径 `docs/features/_archive` → `{子项目}/docs/features/_archive`(子项目根)
-
-> 用户:`docs/features/_archive/` 描述不准确 · 应该是 子项目root/docs/features。
-
-### 诊断:对(代码=真相)· v8.114–116 pointer 把归档写成顶层 · 实际在 per-subproject `docs_root` 下
-- 真相 = `_v8_ship._archive_repo_paths`:`index_rel = {子项目 docs_root}/_archive/INDEX.md`(`features 根 git show-prefix`)· `test_ship_archive_v882` 实测断言 `svc/docs/features/_archive/INDEX.md`。`docs/features/_archive/` 只是 **N=1 单项目**(代码在 repo 根)的退化形 —— 多子项目(teamwork 主场)每子项目各有归档。
-
-### 改动(doc 准确性 · **无行为变更**)
-- 修 pointer text `docs/features/_archive/INDEX.md` → `{子项目}/docs/features/_archive/INDEX.md`(每子项目 docs_root):SKILL 路由表 2 行 · `teamwork-space.md` 知识入口 · guide §0.1 零死角律 · `architecture-workspace.md` 节点列 · bootstrap skeleton 知识入口行。
-- `_v8_ship.py` 归档路径 docstring:澄清 prefix = 子项目 docs_root(如 `svc/docs/features`)· `docs/features/_archive/` 标「单项目=repo 根」。
-- **不动**:checker `_find_archive_dirs` 本就 glob 两态(top-level + `*/docs/features/_archive`)· N=1 测试 fixture(单项目布局 · valid)。
-
-### 验证
-- pytest **3 failed / 519 passed**(baseline 3 = scan-spec 既有 · 零回归 · 纯文案)。
