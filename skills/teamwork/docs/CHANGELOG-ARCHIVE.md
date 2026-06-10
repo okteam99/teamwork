@@ -1,10 +1,24 @@
-# Changelog Archive(v8.119 → v1)
+# Changelog Archive(v8.120 → v1)
 
-> 📦 **历史归档**:本文件保存 teamwork **v8.119 及更早**的全部 changelog(含 v7/v6/…/v1 等 v8.0 之前的旧系统)· 仅供追溯,**不再维护**。
-> 现行 changelog(最近 5 版 · v8.120–v8.124)见 [CHANGELOG.md](./CHANGELOG.md)。
+> 📦 **历史归档**:本文件保存 teamwork **v8.120 及更早**的全部 changelog(含 v7/v6/…/v1 等 v8.0 之前的旧系统)· 仅供追溯,**不再维护**。
+> 现行 changelog(最近 5 版 · v8.121–v8.125)见 [CHANGELOG.md](./CHANGELOG.md)。
 > ⚠️ v8.0 是「范式切换 · 不向下兼容」的重构 —— **v7 及更早描述的是已不存在的旧系统**,其机制/命令/红线编号均不适用于现行 v8。
 
 ---
+
+## v8.120 · prepare 流程概览加「流程目标」首行:用户 review 第一校准点
+
+> 用户(case:PTR Assets 上传 Feature 的 prepare 总览):流程概览时需要输出流程目标概述(如需求目标 / bug 解决目标)· 方便 review。
+
+### 诊断:`# 流程概览` 只有 flow_type + stage 链 + 理由 —— 全是「怎么流转」· 没有「要达成什么」
+- 「理由」解释的是流程类型判定依据 · 「上下文准备」是事实盘点 · 用户 review 暂停点时无处校准「AI 对任务目标的理解」—— 目标理解偏 → 后面 goal/blueprint 全偏 · review 成本最低的校准点反而缺位。
+
+### 改动(`docs/prepare.md §4` · doc-only)
+- emit 模板 `# 流程概览` 首行加 `📋 **流程目标**`:1-2 句概述本次流程要达成什么 · 从用户原文/BL 描述提炼 · 按 flow_type 措辞(Feature/敏捷需求=需求目标〔给谁 · 什么能力/价值〕· Bug=解决目标〔问题现象 → 期望修复后行为〕· Micro=改动目标)· 🔴 写「要什么」不写「怎么做」(防目标位被写成实现方案)。
+- §4 5 段定义 + §4.1 emit 自检清单同步为「流程目标 + flow_type + stage 链 + 理由」· 自检项注明动机(目标 = 用户 review 第一校准点)。
+
+### 验证
+- doc-only · 「流程概览」结构仅 prepare.md 一处定义(grep 全仓 = prepare.md + 归档)· 工具层无渲染(`emit_template_markdown` 仍 ⏳ TODO · 物化时直接带上目标行)。
 
 ## v8.119 · backend.md migration 命名:优先 DEV-RULES · 否则秒级真实时间戳 · 不读邻居
 

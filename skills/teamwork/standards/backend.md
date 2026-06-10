@@ -192,6 +192,12 @@
 
 ## 三、服务端 API 接口规范
 
+> 🔴 **优先级链**(同 §五 迁移命名 v8.119 模式 · 本节全部小节适用:响应结构 / JSON 命名 / 状态码 / 分页):
+> ① 优先按项目/子项目 `DEV-RULES.md` 的 API 约定 —— 有则严格照办 · 本节默认不适用。
+> ② DEV-RULES 未规定 · 但**存量服务已有明确一致的接口风格**(envelope / 命名 / 错误码)→ **沿用存量**(对外契约 · 同服务内一致性 = 正确性 · 新接口不得自创风格)· 🔴 并**提示用户**把该约定固化进 DEV-RULES.md(AI 不代写 · dev-rules 模板约定)。
+> ③ 全新服务 / 无任何既有约定 → 用本节 teamwork 默认。
+> 📎 与 §五 migration「不读邻居」的区别:迁移文件名是**内部惯例**(坏样板不该传染 · 要么 DEV-RULES 要么默认);API 响应结构是**对外契约**(消费方依赖 · 同服务不一致即破坏)→ 存量风格在 ② 合法沿用。
+
 ### 统一响应格式
 
 ```json
@@ -303,7 +309,7 @@
 
 ### 结构化日志格式（服务端必须遵守）
 
-> 默认推荐以下结构化日志格式（示例如下）。项目可在 `docs/KNOWLEDGE.md` 中声明自定义日志格式（如 ELK/Datadog/自建方案），声明后以 KNOWLEDGE.md 中的格式为准。
+> 默认推荐以下结构化日志格式（示例如下）。项目可在 `DEV-RULES.md`（强制规范 · 推荐注册处）声明自定义日志格式（如 ELK/Datadog/自建方案），声明后以其为准（兼容:既有 `KNOWLEDGE.md` 声明仍有效 · 新增一律写 DEV-RULES）。
 
 ```json
 {
@@ -574,7 +580,7 @@ try {
 
 > 🔴 **默认避免** DB-level `FOREIGN KEY` 约束（含 `ON DELETE CASCADE` / `ON UPDATE CASCADE`）。引用完整性由应用层 / ORM hook / 服务边界保证。
 >
-> 项目可在 `KNOWLEDGE.md` 中声明覆盖此默认（如"本项目默认启用 FK"），声明后以 KNOWLEDGE.md 为准 + TECH.md 引用 KNOWLEDGE.md 行号。
+> 项目可在 `DEV-RULES.md`（推荐注册处）声明覆盖此默认（如"本项目默认启用 FK"），声明后以其为准 + TECH.md 引用声明行号（兼容既有 `KNOWLEDGE.md` 声明）。
 
 #### 默认避免的理由（行业常见取向）
 
@@ -594,7 +600,7 @@ try {
 ✅ 强一致小规模 OLTP（单库 · 不会分片 · 行数预估 <10M · 写入 QPS 低）
 ✅ 法务 / 合规 / 财务类强约束（应用层不可信 · DB 是最后真值防线）
 ✅ 内部管理后台 / 配置表（写入极低频 · 一致性 > 性能）
-✅ KNOWLEDGE.md 已明文记录"本项目默认启用 FK"约定（cite 行号）
+✅ DEV-RULES.md（或既有 KNOWLEDGE.md）已明文记录"本项目默认启用 FK"约定（cite 行号）
 ```
 
 ❌ **反模式黑名单**（命中即架构师 Tech Review BLOCKER · 不可降级为非阻塞 concern）：
@@ -669,7 +675,7 @@ PMO 完成报告 → 确认 database-schema.md 已完整同步（设计层 + 实
 └── /api/v{N}/...
  ├── v1: /api/v1/users
  ├── v2: /api/v2/users
- └── 项目可在 KNOWLEDGE.md 中声明使用其他策略（如 Header 版本），声明后以 KNOWLEDGE.md 为准
+ └── 项目可在 DEV-RULES.md 声明使用其他策略（如 Header 版本），声明后以其为准（兼容既有 KNOWLEDGE.md 声明）
 ```
 
 ### 何时需要升版本

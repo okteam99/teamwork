@@ -39,7 +39,7 @@ Step 2: VERIFY RED — 运行测试，确认全部失败（预期行为）
 Step 3: GREEN — 写最简实现让测试通过
  ├── 遵循 TECH.md 技术方案
  ├── 遵循 standards/common.md + 对应技术栈规范（backend.md / frontend.md）
- ├── 遵循 KNOWLEDGE.md 项目特定规则
+ ├── 遵循 DEV-RULES.md（项目强制规矩）+ KNOWLEDGE.md（项目事实/坑）
  └── 禁止：本 step 内追加无关功能 / 重构无关代码 / 过度工程
 
 Step 4: VERIFY GREEN — 运行测试，确认全部通过
