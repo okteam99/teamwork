@@ -64,9 +64,10 @@ PL(Product Lead)主导。Feature 启动前的"想清楚拆什么"。
 - 按问题描述 grep / Read 代码 + 日志
 - 读 TROUBLESHOOTING.md(如存在)
 - 给出根因分析
-- ⏸️ 用户选:不动 / 转 Bug / 转 Feature
+- ⏸️ 用户选:不动 / 转 Bug / 转 Micro / 转 Feature / revert 肇事 commit(升级暂停点 · 详 SKILL.md § Mode A / E 升级触发)
 
 解决:**用户想理解一个现象 · 不一定要代码修复**。
+🔴 **排查先行律**:根因未定的现象类输入(报错 / 挂了 / CI 失败)一律先到这里 —— 排查闭合再定流程;转 Bug 时排查结论直接作为 prepare「代码现状」+ diagnose 输入(复核不重查 · 详 [docs/prepare.md §2](./docs/prepare.md))。
 state.py 不为问题排查启 stage 链 · 由 PMO 在主对话执行类似 mode A 的工作。
 
 ---
@@ -75,8 +76,8 @@ state.py 不为问题排查启 stage 链 · 由 PMO 在主对话执行类似 mod
 
 PMO 按以下关键词匹配 + 优先级判定 user input 落入哪类流程(无 state.py 命令 · triage 是主对话行为):
 1. **Feature Planning**:`规划` / `Feature Planning` / `feature planning` / `更新 roadmap` / `拆 roadmap` / `路线图` / `做电商/SaaS`
-2. **问题排查**:`排查` / `查 log` / `why X 慢/挂` / `调研`
-3. **Bug**:`修复` / `bug` / `报错` / `500/502` / `挂了`
+2. **问题排查**:`排查` / `查 log` / `why X 慢/挂` / `调研` · 🔴 以及一切**根因未定的现象类输入**(报错 / 挂了 / CI·编译失败 · 无修复指令)—— 排查先行律(详 [docs/prepare.md §2](./docs/prepare.md))
+3. **Bug**:`修复` / `fix` · 🔴 仅当**缺陷已指认**(用户明确要求修复 · 现象+期望+大致位置已知);纯现象陈述 → 先走问题排查
 4. **Micro**:`换 logo` / `改文案` / `换图`
 5. **敏捷需求**:`加个按钮` / `加导出` / `列表加列`
 6. **Feature**:`实现` / `开发` / `做功能`(兜底)
