@@ -1,6 +1,20 @@
 # Changelog
 
-> 📦 v8.114 及更早(含 v7/v6/… 旧系统)已归档 → [CHANGELOG-ARCHIVE.md](./CHANGELOG-ARCHIVE.md)。本文件**保留最近 5 版**(每次发布:新增本版 → 若超过 5 版,把最旧的一版迁入归档)。
+> 📦 v8.115 及更早(含 v7/v6/… 旧系统)已归档 → [CHANGELOG-ARCHIVE.md](./CHANGELOG-ARCHIVE.md)。本文件**保留最近 5 版**(每次发布:新增本版 → 若超过 5 版,把最旧的一版迁入归档)。
+
+## v8.120 · prepare 流程概览加「流程目标」首行:用户 review 第一校准点
+
+> 用户(case:PTR Assets 上传 Feature 的 prepare 总览):流程概览时需要输出流程目标概述(如需求目标 / bug 解决目标)· 方便 review。
+
+### 诊断:`# 流程概览` 只有 flow_type + stage 链 + 理由 —— 全是「怎么流转」· 没有「要达成什么」
+- 「理由」解释的是流程类型判定依据 · 「上下文准备」是事实盘点 · 用户 review 暂停点时无处校准「AI 对任务目标的理解」—— 目标理解偏 → 后面 goal/blueprint 全偏 · review 成本最低的校准点反而缺位。
+
+### 改动(`docs/prepare.md §4` · doc-only)
+- emit 模板 `# 流程概览` 首行加 `📋 **流程目标**`:1-2 句概述本次流程要达成什么 · 从用户原文/BL 描述提炼 · 按 flow_type 措辞(Feature/敏捷需求=需求目标〔给谁 · 什么能力/价值〕· Bug=解决目标〔问题现象 → 期望修复后行为〕· Micro=改动目标)· 🔴 写「要什么」不写「怎么做」(防目标位被写成实现方案)。
+- §4 5 段定义 + §4.1 emit 自检清单同步为「流程目标 + flow_type + stage 链 + 理由」· 自检项注明动机(目标 = 用户 review 第一校准点)。
+
+### 验证
+- doc-only · 「流程概览」结构仅 prepare.md 一处定义(grep 全仓 = prepare.md + 归档)· 工具层无渲染(`emit_template_markdown` 仍 ⏳ TODO · 物化时直接带上目标行)。
 
 ## v8.119 · backend.md migration 命名:优先 DEV-RULES · 否则秒级真实时间戳 · 不读邻居
 
@@ -66,20 +80,3 @@
 
 ### 知识图谱 arc 收官(v8.114–116)
 - v8.114 契约(律法/地图分工 + 三层律 + N≥1 模型)· v8.115 结构 checker(零死角物化 WARN)· v8.116 N≥1 地图根自动建 + cold-start 解耦。**teamwork 知识导航责任全物化**:从 teamwork-space.md(自动建·必读)零死角(checker 保结构)抵达一切 · 代码唯一真相 · 归档冷库按需解压。
-
-## v8.115 · 知识图谱结构 checker(零死角从约定升物化 WARN · bootstrap 接线)
-
-> 用户(承 v8.114 讨论):继续 —— 上 v8.115 物化 arc。本版交付 arc 第一步:**结构 checker**(最自包含)· 余(bootstrap 自动建 + cold-start 解耦 + 路由 always)再后续。
-
-### 改动
-- **`bootstrap.py` 加 `check_knowledge_graph_integrity`**(+ `_find_archive_dirs` / `_parse_archive_index_ids`)· session 启动跑 · 查:① 归档 `INDEX.md`↔`*.zip` **双向对账**(孤儿 zip〔已交付翻不到〕/ 悬空行〔断指针〕)② workspace 节点登记(`product-overview`/`project-specs`/`external` 存在于磁盘 → 必在 teamwork-space.md 提及)。**有界查找**(子项目直接放根下 · `*/docs/features/_archive` · 不深递归 node_modules)。
-- **接线**:`result.checks.knowledge_graph` + 命中 leaks 加**截断鲁棒** `pmo_must_read` digest 行 · **不进 flow_gates/priority**(不劫持「升级>规划>任务」序)· teamwork-space.md 缺则 skip(cold-start gate 另管)。
-- 🔴 **只查结构可达性 · 不查内容新鲜度**:leaks 必带 `scope_note`「不代表内容最新(内容=代码唯一真相)」—— 防 checker 通过被误读成「知识完整」· 自己成误导信号(承 v8.105「信号≠判决」)。
-- **spec 同步**:`SKILL.md`「bootstrap 做什么」加 KG 校验行 · guide §0/§0.1 物化校验「→ v8.115」改「已落」。
-
-### 验证
-- 新增 `TestKnowledgeGraphIntegrity` 8 例(无 space→skip / clean / 孤儿 zip / 悬空行 / 匹配不报 / 节点未登记 / 节点已登记 / scope_note 必带)· E2E 确认 leak 经 digest 行 survive 截断。
-- pytest **3 failed / 519 passed**(baseline 3 = scan-spec 既有 · 零回归 · +8 新)。
-
-### 顺延(arc 余项)
-- bootstrap 自动建 teamwork-space.md(N≥1 落地)+ cold-start 解耦(地图 vs 规划层)+ state.py 路由校验 always。
