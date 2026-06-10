@@ -27,6 +27,7 @@
 | **adr.md** | ADR 单条决策 | 架构决策记录（Context / Alternatives≥2 / Decision / Consequences） | Blueprint Stage Step 4.1「3 问触发器」全 yes 时，架构师创建 |
 | **adr-index.md** | ADR 索引 | 每子项目 `docs/adr/INDEX.md`（活跃/提案/已废弃 + 主题索引） | 首次产 ADR 时创建，每次 ADR 变更时同步 |
 | **retros-index.md** | 复盘索引 | 每子项目 `docs/retros/INDEX.md`（时间线 + 流程类型索引 + 偏差警报） | 每次产单条复盘时同步（PMO 完成报告 8️⃣-A 阶段） |
+| **process-ledger.md** | PROCESS-LEDGER | 流程价值台账（workspace 级 `project-specs/` · 一行一 feature 的仪式价值数据 · 年检 kill criteria 数据源 · 🔴 区别 retros 业务复盘） | ship2 完成后 PMO append · 无则按模板建 |
 
 ## 按流程查看模板
 

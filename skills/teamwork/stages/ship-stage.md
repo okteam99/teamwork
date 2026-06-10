@@ -241,6 +241,37 @@ cleaned / deferred / n_a · cleaned 必 phase=merged
 
 ---
 
+## 16. 流程价值反思(ship2 后输出 · 零暂停)
+
+> 🔴 **telos**:给流程仪式攒「该不该活着」的数据 —— 框架此前只有负反馈(出事 → 判例 → 加规则)· 没有正/零反馈(这环节这次拦没拦住东西)→ 规则只增不减 · 仪式价值靠信念。本节把它变成台账。
+> 🔴 **与 `docs/retros/`(§14 distill.retro)的分工**:retros = **业务/工程复盘**(这个 feature 本身做得如何 · 子项目级 · 知识层);本节 = **流程仪式价值度量**(teamwork 流程哪个环节值不值 · workspace 级)。**别混写**。
+
+**触发**:`ship-finalize` 全部完成(归档 PASS / 幂等终态)后 · PMO 输出。🔴 **零新增暂停点**(纯情报 · 不等用户确认 · auto/yolo 模式照常输出)。
+
+**两层输出**:
+
+1. **台账行**(持久 · 累积):append 到 workspace `project-specs/PROCESS-LEDGER.md`(无则按 [templates/process-ledger.md](../templates/process-ledger.md) 创建)· 一行一 feature。🔴 字段以**机器可抽**为主(state.json:实走 stages / stage 时间戳 / rounds / bypass / concerns;REVIEW.md:verdicts / external 逐条裁决)· AI 判断仅「过场候选 / 反思摘要」两格 · **照实抄不美化**。
+2. **digest**(emit ≤10 行 · 固定 4 问 · 不落 feature 目录):
+
+```
+📊 流程价值反思(<ID> · <flow> · 总时长 <X>)
+- 拦住真问题:<external confirmed N 条(列举) / test 抓回归 / diagnose 改变修复方向 | 无>
+- 纯过场候选:<零 finding + 零修订 + 全默认的环节 | 无>
+- 流程新判例:<违规/摩擦 → 建议反馈 teamwork(consuming 项目不自改 spec) | 无>
+- 成本异常:<rounds 过多 / bypass(理由) / 重试 | 无>
+→ 台账 +1 行 · 建议:<保持 | 此类 feature 建议 X(仅建议 · 用户拍板)>
+```
+
+**豁免**:Micro 流程只记台账行 · 不出 digest(最轻通道不再加仪式)。
+
+**消费方**(🔴 指名 · 写而不读 = 白写):
+- **流程审视场景**(用户问「流程价值 / 哪些环节该砍」)→ PMO 读台账算:external confirmed 率 · 各角色真 finding 率 · 暂停点 all-default 率;
+- **年检 kill criteria 数据源**:连续数月无新判例 → 流程仪式砍半;external confirmed ≈ 0 → 异质强制(P0-154)降可选;某角色长期零真 finding → 评审矩阵收缩。
+
+⏳ **物化 TODO(v2)**:`ship-finalize` 自动抽机器字段 emit `ledger_row`(AI 只补 2 个判断格)· 同 prepare §0.5 渐进物化模式。
+
+---
+
 ## 相关
 
 - 引擎:[../tools/_v8_engine.py](../tools/_v8_engine.py)

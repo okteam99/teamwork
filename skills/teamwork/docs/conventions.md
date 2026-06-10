@@ -234,7 +234,7 @@ teamwork 文档分 **workspace 级**(仓库根)和 **子项目级**两层。
 | 目录 / 文件 | 内容 | 维护方 |
 |---|---|---|
 | `product-overview/` | 产品愿景 / 业务架构 / 执行线列表 + `workstream/`(WS)+ `PENDING.md`(待规划需求池 · 从 teamwork-space 外置 · 详 [PRODUCT-OVERVIEW-INTEGRATION.md](../PRODUCT-OVERVIEW-INTEGRATION.md)) | Product Lead |
-| `project-specs/` | 工程层项目文档:`DEV-RULES.md`(人维护开发规范 · blueprint/dev 必读)· `KNOWLEDGE.md`(AI 沉淀踩坑/事实)· `GLOSSARY.md` · `TROUBLESHOOTING.md` · `ARCHITECTURE.md`(workspace 级系统架构:子项目拓扑+依赖+目录 · 从 teamwork-space.md 外迁 · 区别 `{子项目}/docs/architecture/` 单子项目内部) | bootstrap 建空骨架 · 项目维护 |
+| `project-specs/` | 工程层项目文档:`DEV-RULES.md`(人维护开发规范 · blueprint/dev 必读)· `KNOWLEDGE.md`(AI 沉淀踩坑/事实)· `GLOSSARY.md` · `TROUBLESHOOTING.md` · `ARCHITECTURE.md`(workspace 级系统架构:子项目拓扑+依赖+目录 · 从 teamwork-space.md 外迁 · 区别 `{子项目}/docs/architecture/` 单子项目内部)· `PROCESS-LEDGER.md`(流程价值台账 · ship2 后 append · 年检数据源 · 详 ship-stage §16) | bootstrap 建空骨架 · 项目维护 |
 | `teamwork-space.md` | 多项目索引 / 路由(单项目仓库无此文件) | PM |
 | `CLAUDE.md` / `AGENTS.md` | host 指令入口 · 固定位置 · 不可移 | teamwork 注入 |
 | `.teamwork-local-env/` | 🔐 本机敏感配置:`config.properties`(KEY=value:DB 密码 / API key)+ 整文件(kubeconfig / 证书)· **双重 gitignore · 绝不进仓库**。bootstrap 缺失时自动建(`local_env_auto_create` 默认 true)· 已存在不覆盖。读取约定见 `TROUBLESHOOTING.md §五`。 | 用户(secret 真值)/ bootstrap(骨架) |
