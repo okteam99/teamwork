@@ -14,6 +14,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -1692,14 +1693,16 @@ class TestExternalReviewCommand(unittest.TestCase):
 
     # ── v8.44:doc-based prompt(治本 case round 4 长 prompt 卡 + 不可审计)──
 
-    def test_v844_default_prompt_doc_path(self):
-        """v8.44:_default_prompt_doc_path 返 <feature>/external-review-prompts/<stage>-<model>.md。"""
-        from state import _default_prompt_doc_path  # type: ignore
+    def test_v8136_new_prompt_doc_path_unique_per_round(self):
+        """v8.136:_new_prompt_doc_path 带时间戳唯一命名(治 v8.44 固定名跨轮复用 → stale review)。"""
+        from state import _new_prompt_doc_path  # type: ignore
         feat = Path("/tmp/foo")
-        p = _default_prompt_doc_path(feat, "blueprint", "claude")
-        self.assertEqual(p, feat / "external-review-prompts" / "blueprint-claude.md")
-        p2 = _default_prompt_doc_path(feat, "goal", "codex")
-        self.assertEqual(p2, feat / "external-review-prompts" / "goal-codex.md")
+        p = _new_prompt_doc_path(feat, "blueprint", "claude", ts="20260611T100000Z")
+        self.assertEqual(p, feat / "external-review-prompts" / "blueprint-claude-20260611T100000Z.md")
+        p2 = _new_prompt_doc_path(feat, "blueprint", "claude", ts="20260611T100001Z")
+        self.assertNotEqual(p, p2)  # 不同轮 → 不同文件 · 永不隐式复用
+        p3 = _new_prompt_doc_path(feat, "goal", "codex")  # 缺省 ts = 当前 UTC
+        self.assertRegex(p3.name, r"^goal-codex-\d{8}T\d{6}Z\.md$")
 
     def test_v844_scaffold_creates_doc_with_required_sections(self):
         """v8.44:scaffold-review-prompt 生成 doc 含必要 sections(checklist / TODO / Schema)。"""
@@ -1724,36 +1727,23 @@ class TestExternalReviewCommand(unittest.TestCase):
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
 
-    def test_v844_scaffold_block_when_exists_without_force(self):
-        """v8.44:scaffold 若 doc 已存在 + 无 --force → BLOCK(防覆盖编辑)。"""
-        tmp = Path(tempfile.mkdtemp(prefix="tw-v844-exists-"))
+    def test_v8136_scaffold_twice_yields_distinct_docs(self):
+        """v8.136:唯一命名 → 两次 scaffold 产两份 doc · 第一份不被动(无覆盖冲突 · --force 成 no-op)。"""
+        tmp = Path(tempfile.mkdtemp(prefix="tw-v8136-scaffold-"))
         try:
-            run(["scaffold-review-prompt", "--feature", str(tmp),
-                 "--stage", "blueprint", "--model", "claude"])
-            d = run(["scaffold-review-prompt", "--feature", str(tmp),
-                     "--stage", "blueprint", "--model", "claude"], expect_exit=0)
-            self.assertEqual(d["verdict"], "FAIL")
-            self.assertIn("已存在", d["error"])
-            self.assertIn("--force", d["hint"])
-        finally:
-            shutil.rmtree(tmp, ignore_errors=True)
-
-    def test_v844_scaffold_force_overwrites(self):
-        """v8.44:--force 通过覆盖 · 用户编辑会丢但用户已显式承认。"""
-        tmp = Path(tempfile.mkdtemp(prefix="tw-v844-force-"))
-        try:
-            run(["scaffold-review-prompt", "--feature", str(tmp),
-                 "--stage", "goal", "--model", "claude"])
-            doc = tmp / "external-review-prompts" / "goal-claude.md"
-            # 手动改 doc · 模拟用户编辑
-            doc.write_text("USER EDITED · should be overwritten with --force\n",
-                            encoding="utf-8")
-            d = run(["scaffold-review-prompt", "--feature", str(tmp),
-                     "--stage", "goal", "--model", "claude", "--force"])
-            self.assertEqual(d["verdict"], "OK")
-            body = doc.read_text(encoding="utf-8")
-            self.assertNotIn("USER EDITED", body)
-            self.assertIn("Review Checklist", body)
+            d1 = run(["scaffold-review-prompt", "--feature", str(tmp),
+                      "--stage", "blueprint", "--model", "claude"])
+            self.assertEqual(d1["verdict"], "OK")
+            doc1 = Path(d1["prompt_doc"])
+            doc1.write_text("USER EDITED ROUND 1\n", encoding="utf-8")  # 模拟用户编辑
+            time.sleep(1.1)  # 时间戳粒度为秒 · 保证第二轮新名
+            d2 = run(["scaffold-review-prompt", "--feature", str(tmp),
+                      "--stage", "blueprint", "--model", "claude"])
+            self.assertEqual(d2["verdict"], "OK")
+            doc2 = Path(d2["prompt_doc"])
+            self.assertNotEqual(doc1, doc2)
+            self.assertEqual(doc1.read_text(encoding="utf-8"), "USER EDITED ROUND 1\n")  # 第一份未被动
+            self.assertIn("Review Checklist", doc2.read_text(encoding="utf-8"))
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
 
@@ -2725,6 +2715,51 @@ class TestV8111BugFlowFixes(unittest.TestCase):
         brief = _test_brief({"flow_type": "Feature"})
         self.assertIn("verify-ac.py 通过", brief)
         self.assertIn("AC 全覆盖", brief)
+
+
+class TestExternalReviewPromptV8136(unittest.TestCase):
+    """v8.136:claude -p 链路三修(治 case PTR-F260611065743):
+    ① 固定名审计副本被下一轮当 prompt 优先读 → stale review(唯一命名根治 · 见路径测试)
+    ② 模板整文件替换 → 占位符说明表里的 {file_list} 也被灌入完整 PRD(双嵌 · 提取 Prompt 主体根治)
+    ③ 显式 --prompt-doc 无 staleness 防线(mtime 门禁根治)
+    """
+
+    def test_extract_prompt_body_excludes_template_docs(self):
+        """提取后不含模板元说明/占位符表/对照表 · {file_list} 恰出现 1 次。"""
+        from state import _extract_prompt_body  # type: ignore
+        template = (SKILL / "claude-agents" / "reviewer.md").read_text(encoding="utf-8")
+        self.assertGreaterEqual(template.count("{file_list}"), 2)  # 前提:整文件确有多处(主体 + 说明表)
+        body = _extract_prompt_body(template)
+        self.assertNotIn("占位符说明", body)
+        self.assertNotIn("codex-agents/reviewer.toml 的对照", body)
+        self.assertEqual(body.count("{file_list}"), 1)  # 双嵌根治:替换点唯一
+
+    def test_extract_prompt_body_fallback_without_marker(self):
+        """无「Prompt 主体」标记的自定义模板 → 原样返回(兼容)。"""
+        from state import _extract_prompt_body  # type: ignore
+        custom = "You are a reviewer. {file_list}"
+        self.assertEqual(_extract_prompt_body(custom), custom)
+
+    def test_prompt_doc_stale_gate(self):
+        """显式 doc 旧于待评审文件 → 返 stale 原因;新于 → None;review stage 无清单 → None。"""
+        from state import _prompt_doc_stale_reason  # type: ignore
+        tmp = Path(tempfile.mkdtemp(prefix="tw-v8136-stale-"))
+        try:
+            doc = tmp / "p.md"
+            doc.write_text("old prompt", encoding="utf-8")
+            time.sleep(0.05)
+            (tmp / "PRD.md").write_text("newer prd", encoding="utf-8")
+            os.utime(tmp / "PRD.md", (time.time() + 5, time.time() + 5))
+            reason = _prompt_doc_stale_reason(doc, tmp, "goal")
+            self.assertIsNotNone(reason)
+            self.assertIn("PRD.md", reason)
+            # doc 新于 PRD → 通过
+            os.utime(doc, (time.time() + 10, time.time() + 10))
+            self.assertIsNone(_prompt_doc_stale_reason(doc, tmp, "goal"))
+            # review stage:无 inline 清单 → 不检查
+            self.assertIsNone(_prompt_doc_stale_reason(doc, tmp, "review"))
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
 
 
 if __name__ == "__main__":
