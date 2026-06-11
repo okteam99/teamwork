@@ -933,6 +933,8 @@ def _ship_finalize_deliver_pending(feature_path: str, merge_target: str,
                         **({"planning_bundled": planning_bundled} if plan_n else {})},
         "next_action": (
             f"收尾分支已暂存:{sf_branch}(commit {commit[:12]}) → 目标 {merge_target}。\n"
+            "(零 checkout 暂存:该分支**只在远端 origin** · 本地 `git branch --list` "
+            "查不到属正常 · MR 直接从远端分支创建)\n"
             + (f"✅ 规划层 back-ref({plan_n} 文件)已随同一收尾分支暂存 · "
                "与归档 zip 同一个 MR 原子合入。\n" if plan_n else "")
             + f"🔴 去直推(v8.80):{deliver_desc}必须经 MR 合入 merge_target。"
@@ -1244,6 +1246,52 @@ def _purge_local_feature_dir_for_archive(main_wt: str, feature_rel: str) -> list
     if cl.returncode != 0:
         warns.append(f"git clean {feature_rel} 失败(非致命):{cl.stderr.strip()[:80]}")
     return warns
+
+
+def _behind_ahead(main_wt: str, merge_target: str) -> Optional[tuple]:
+    """v8.144:本地 HEAD vs origin/<mt> 的 (behind, ahead)。失败返 None。
+
+    治本 step 7 把一切 pull 失败都喊「分叉 · 需手动 rebase」—— 实证 case
+    (SVC-PLATFORM-B260611083636):仅落后 + 脏 index · 被误导成 ~20 条手工
+    git 手术 · 实际一条 `git pull --ff-only` 即愈(沙箱 E2 实测:staged 删除
+    + 无关 M 文件不阻塞 ff-pull)。
+    """
+    r = _git(["rev-list", "--left-right", "--count",
+              f"origin/{merge_target}...HEAD"], cwd=main_wt, timeout=30)
+    if r.returncode != 0:
+        return None
+    parts = r.stdout.split()
+    if len(parts) != 2:
+        return None
+    try:
+        return int(parts[0]), int(parts[1])  # (behind, ahead)
+    except ValueError:
+        return None
+
+
+def _pull_failure_remedy(main_wt: str, merge_target: str) -> str:
+    """v8.144:pull --ff-only 失败后的真相判别 + 对症 remedy(不再一律喊 rebase)。"""
+    ba = _behind_ahead(main_wt, merge_target)
+    if ba is None:
+        return "无法判别落后/分叉(rev-list 失败)· 手动 git fetch origin 后检查"
+    behind, ahead = ba
+    if ahead == 0:
+        return (f"本地仅落后 {behind} commit · 无分叉 —— 脏文件/staged 删除不阻塞 ff-pull · "
+                f"直接 `git pull --ff-only origin {merge_target}`(或重跑 ship-finalize 幂等)")
+    return (f"真分叉(落后 {behind} · 本地多 {ahead} commit)· 需处理本地 commit:"
+            f"`git rebase origin/{merge_target}` 后 pull · 或与用户确认本地 commit 去留")
+
+
+def _list_teamwork_stashes(main_wt: str) -> list:
+    """v8.144:盘点 teamwork 系自动 stash 残留(被埋改动 / 跨 feature 陈旧)。
+
+    实证 case:3 个 teamwork stash 跨 2 个 feature 堆积 · 其中一个埋着
+    bootstrap 注入块改动 → AI 以为改动丢了 · 手工重写 = 与 stash 双份地雷。
+    """
+    r = _git(["stash", "list", "--format=%gd %s"], cwd=main_wt, timeout=15)
+    if r.returncode != 0:
+        return []
+    return [ln.strip() for ln in r.stdout.splitlines() if "teamwork" in ln.lower()]
 
 
 def _archive_idempotent_zip(main_wt: str, feature_path: str) -> Optional[str]:
@@ -2260,6 +2308,9 @@ def cmd_ship_finalize(args: argparse.Namespace) -> None:
         # 收尾 MR 已合 → 交付 · 清理残留收尾分支(best-effort)
         archive_delivered = archive_on
         _git(["push", "origin", "--delete", sf_branch], cwd=main_wt, timeout=60)
+        # v8.144:顺手 prune 本地 remote-tracking 残影(平台 --remove-source-branch 删过
+        # 远端后 · 本地 origin/ship-finalize/* ref 仍在 · 实证 case AI 手动 fetch --prune)
+        _git(["fetch", "--prune", "origin"], cwd=main_wt, timeout=60)
         completed.append("finalize-deliver")
     else:
         # v8.93:收尾交付前先翻规划层 back-ref · 随**同一收尾 MR** 合入(治本旧 §5.5 post-step
@@ -2416,12 +2467,13 @@ def cmd_ship_finalize(args: argparse.Namespace) -> None:
                 pl = _git(["pull", "--ff-only", "origin", merge_target],
                           cwd=main_wt, timeout=120)
                 if pl.returncode != 0:
+                    remedy = _pull_failure_remedy(main_wt, merge_target)
                     warnings.append(
-                        f"主工作区 {merge_target} 与 origin 分叉 · git pull --ff-only 未通过 · "
-                        f"已 fetch · 需手动 rebase/merge:{pl.stderr.strip()[:120]}"
+                        f"主工作区 git pull --ff-only 未通过 · 已 fetch · {remedy} · "
+                        f"原始错误:{pl.stderr.strip()[:100]}"
                     )
                     main_sync_status = "diverged"
-                    main_sync_note = f"分叉 · 需手动 rebase:{pl.stderr.strip()[:80]}"
+                    main_sync_note = remedy
                 else:
                     main_sync_status = "ff_pulled"
                     main_sync_note = "主工作区已 ff-pull 到最新"
@@ -2488,18 +2540,34 @@ def cmd_ship_finalize(args: argparse.Namespace) -> None:
                                       cwd=main_wt, timeout=120)
                             pop = _git(["stash", "pop"], cwd=main_wt, timeout=30)
                             if pl.returncode != 0:
-                                warnings.append(
-                                    f"feature_artifacts checkout 成功 · ff-pull 失败(分叉)· "
-                                    f"stash 已 pop · 需手动 rebase:{pl.stderr.strip()[:120]}"
-                                )
-                                main_sync_status = "diverged_stash_popped"
-                                main_sync_note = "分叉 · 需手动 rebase"
+                                # v8.144:① pop 结果必须查(旧逻辑此分支无视 pop · 失败也宣称
+                                # 「stash 已 pop」→ 改动被埋 stash · AI 误以为丢失手工重写 = 双份)
+                                # ② 不再一律喊「分叉 · 需手动 rebase」· rev-list 判别对症
+                                remedy = _pull_failure_remedy(main_wt, merge_target)
+                                if pop.returncode != 0:
+                                    warnings.append(
+                                        f"ff-pull 未通过 + stash pop 也失败 —— 改动(bootstrap/lock)"
+                                        f"仍埋在 stash『{stash_msg}』· 🔴 先 `git stash pop` 恢复"
+                                        f"(勿手工重写内容 · 防与 stash 双份冲突)· 同步:{remedy} · "
+                                        f"pop 错误:{pop.stderr.strip()[:80]}"
+                                    )
+                                    main_sync_status = "pull_failed_stash_stuck"
+                                    main_sync_note = (
+                                        f"ff-pull 未通过 · stash 未恢复(『{stash_msg}』)· {remedy}")
+                                else:
+                                    warnings.append(
+                                        f"feature_artifacts checkout 成功 · ff-pull 未通过 · "
+                                        f"stash 已 pop(改动已回工作区)· {remedy}"
+                                    )
+                                    main_sync_status = "diverged_stash_popped"
+                                    main_sync_note = remedy
                             elif pop.returncode != 0:
                                 # bootstrap/lock pop 冲突极罕(origin 通常不改这些)
                                 warnings.append(
                                     f"feature_artifacts checkout + ff-pull 成功 · "
-                                    f"但 bootstrap/lock stash pop 冲突 · stash 保留 · "
-                                    f"git stash list / git stash pop 手动:"
+                                    f"但 bootstrap/lock stash pop 冲突 · 改动留在 stash"
+                                    f"『teamwork ship-finalize v8.32 step 7 auto-stash』· "
+                                    f"git stash pop 手动恢复(勿手工重写):"
                                     f"{pop.stderr.strip()[:120]}"
                                 )
                                 main_sync_status = "pulled_unstash_conflict"
@@ -2559,9 +2627,35 @@ def cmd_ship_finalize(args: argparse.Namespace) -> None:
                 _git(["rm", "-r", "-f", "--quiet", "--ignore-unmatch", fp[0]], cwd=main_wt)
                 if feat_abs.exists():
                     shutil.rmtree(feat_abs, ignore_errors=True)
-                warnings.append(
-                    f"archive 已交付 · 本地 feature 目录 {fp[0]} 残留(ff-pull 未删/被跳过)→ "
-                    f"已强制清除(zip 是真相 · 防主工作区残留 state.json/review-log.jsonl)")
+                # v8.144:清除后立即补一次 ff-pull(沙箱 E1/E2 实测:staged 删除〔本地删 vs
+                # origin 同删〕+ 无关 M 文件都不阻塞 ff-pull)—— 旧行为留着 staged D + behind
+                # 等「下次 pull 自愈」· 实证 case 里这个终态把 AI 误导进 20 条手工 git 手术。
+                heal = _git(["pull", "--ff-only", "origin", merge_target],
+                            cwd=main_wt, timeout=120)
+                if heal.returncode == 0:
+                    warnings.append(
+                        f"archive 已交付 · 本地残留 feature 目录 {fp[0]} 已强制清除 + "
+                        f"已补 ff-pull 到最新(staged 删除随 pull 收敛 · 主工作区干净)")
+                    if main_sync_status in ("diverged", "diverged_stash_popped",
+                                            "pull_failed_stash_stuck",
+                                            "stash_failed_after_checkout", "skipped"):
+                        main_sync_status = "purged_pulled"
+                        main_sync_note = "残留清除后补 ff-pull 成功 · 主工作区干净+最新"
+                else:
+                    warnings.append(
+                        f"archive 已交付 · 本地残留 {fp[0]} 已强制清除(staged 删除保留 · "
+                        f"实测不阻塞 ff-pull)· 补 pull 未通过:"
+                        f"{_pull_failure_remedy(main_wt, merge_target)}")
+
+    # v8.144:teamwork 自动 stash 残留盘点(实证:3 个跨 2 feature 堆积 · 一个埋着被
+    # 自动暂存的注入块改动 → AI 误以为丢失手工重写)· 透出让 AI/用户处置 · 防堆积
+    tw_stashes = _list_teamwork_stashes(main_wt)
+    if tw_stashes:
+        warnings.append(
+            f"主工作区残留 {len(tw_stashes)} 个 teamwork 自动 stash:"
+            f"{';'.join(tw_stashes[:4])}{' …' if len(tw_stashes) > 4 else ''} · "
+            f"可能埋着被自动暂存的改动(本 feature 或更早)· 逐个 `git stash show -p <ref>` "
+            f"核对:要恢复 → pop;确认冗余 → drop(勿放任堆积)")
 
     emit_json({
         "verdict": "PASS",
@@ -2588,6 +2682,8 @@ def cmd_ship_finalize(args: argparse.Namespace) -> None:
         **({"main_sync_note": main_sync_note} if main_sync_note else {}),
         # v8.70 · 普通模式 user-dirty 时的「是否净化」决策(PMO 转 R5(b) 暂停点)
         **({"main_sync_decision": main_sync_decision} if main_sync_decision else {}),
+        # v8.144 · teamwork 自动 stash 残留(可能埋改动 · 见 warnings 处置指引)
+        **({"teamwork_stashes": tw_stashes} if tw_stashes else {}),
         # v8.93 · 规划层 back-ref 已前移到 finalize-deliver 的 planning-backref 暂停点(随收尾 MR
         # 合入)· 此处不再 emit planning_backref_pending(翻牌此刻已在已合的 MR 里 · 非 post-step)
         **({"warnings": warnings} if warnings else {}),
