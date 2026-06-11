@@ -1493,7 +1493,8 @@ class TestExternalReviewCommand(unittest.TestCase):
         self.assertNotIn("--print", d["preview_command"])
 
     def test_v838_run_claude_review_cmd_array_uses_dash_p(self):
-        """v8.38:_run_claude_review subprocess cmd 数组必带 '-p'(不退回 '--print')。"""
+        """v8.38:_run_claude_review cmd 数组必带 '-p'(不退回 '--print')。
+        v8.139:执行器换 _run_streamed_to_log · mock 它捕 cmd。"""
         from unittest import mock
         from state import _run_claude_review  # type: ignore
 
@@ -1502,13 +1503,9 @@ class TestExternalReviewCommand(unittest.TestCase):
         def fake_run(cmd, **kwargs):
             captured_cmd.extend(cmd)
             captured_kwargs.update(kwargs)
-            class R:
-                returncode = 0
-                stdout = "ok"
-                stderr = ""
-            return R()
+            return 0, "ok", ""
 
-        with mock.patch("state.subprocess.run", side_effect=fake_run):
+        with mock.patch("state._run_streamed_to_log", side_effect=fake_run):
             rc, stdout, stderr = _run_claude_review("test prompt")
         self.assertEqual(rc, 0)
         # 必带 "-p" · 不含 "--print"
@@ -1532,13 +1529,9 @@ class TestExternalReviewCommand(unittest.TestCase):
         def fake_run(cmd, **kwargs):
             captured_cmd.extend(cmd)
             captured_kwargs.update(kwargs)
-            class R:
-                returncode = 0
-                stdout = "ok"
-                stderr = ""
-            return R()
+            return 0, "ok", ""
 
-        with mock.patch("state.subprocess.run", side_effect=fake_run):
+        with mock.patch("state._run_streamed_to_log", side_effect=fake_run):
             _run_claude_review("v843 test prompt body")
 
         # prompt 在 argv 里(治本 stdin "Not logged in")
@@ -1556,12 +1549,14 @@ class TestExternalReviewCommand(unittest.TestCase):
     # ── claude review cmd:纯 `claude -p` inline(v8.106 删 doc 模式 / --bare / liveness)──
 
     def test_v885_short_prompt_inline(self):
-        """v8.106:claude 评审只用 `claude -p <prompt> --output-format text` · 无 --bare / --allowedTools · cwd=None。"""
+        """v8.106:claude 评审 `claude -p <prompt> --output-format text` · 无 --bare / --allowedTools · cwd=None。
+        v8.141:+--strict-mcp-config(MCP 隔离)。"""
         from state import _build_claude_review_cmd  # type: ignore
         with tempfile.TemporaryDirectory() as d:
             feat = Path(d)
             cmd, cwd = _build_claude_review_cmd("short prompt", feat, feat / "doc.md")
-        self.assertEqual(cmd, ["claude", "-p", "short prompt", "--output-format", "text"])
+        self.assertEqual(cmd, ["claude", "-p", "short prompt", "--output-format", "text",
+                               "--strict-mcp-config"])
         self.assertNotIn("--allowedTools", cmd)
         self.assertNotIn("--bare", cmd)            # v8.106:--bare 砸登录上下文 → "Not logged in" · 删
         self.assertNotIn("--permission-mode", cmd)
@@ -1577,13 +1572,28 @@ class TestExternalReviewCommand(unittest.TestCase):
             long_prompt = "X" * 500
             cmd, cwd = _build_claude_review_cmd(long_prompt, feat, doc)
             # 全文走 argv inline(不再短引用 doc)
-            self.assertEqual(cmd, ["claude", "-p", long_prompt, "--output-format", "text"])
+            self.assertEqual(cmd, ["claude", "-p", long_prompt, "--output-format", "text",
+                                   "--strict-mcp-config"])
             # doc 仍写盘(审计 + 可复跑)
             self.assertTrue(doc.exists())
             self.assertEqual(doc.read_text(encoding="utf-8"), long_prompt)
         self.assertNotIn("--allowedTools", cmd)
         self.assertNotIn("--bare", cmd)
         self.assertIsNone(cwd)
+
+    def test_v8141_strict_mcp_config_isolates_project_mcp(self):
+        """v8.141 MCP 隔离:--strict-mcp-config 必在 + 绝不传 --mcp-config(零 MCP spawn)。
+
+        本地 CLI 2.1.173 四组对照实测(marker 文件):裸 -p 与 --allowedTools 都 spawn
+        消费项目 .mcp.json(卡死与 allowedTools 无关 · v8.106 归因翻案);
+        strict 不传 --mcp-config = 零 spawn 且 auth 完好。评审 prompt 自包含零工具 ·
+        不该碰项目 MCP —— 不赌 CLI 版本连接是否阻塞。"""
+        from state import _build_claude_review_cmd  # type: ignore
+        with tempfile.TemporaryDirectory() as d:
+            feat = Path(d)
+            cmd, _ = _build_claude_review_cmd("p", feat, feat / "doc.md")
+        self.assertIn("--strict-mcp-config", cmd)
+        self.assertNotIn("--mcp-config", cmd)  # strict 无 --mcp-config = 零 MCP · 缺一不可
 
     def test_v885_doc_mode_uses_existing_doc_not_overwrite(self):
         """v8.85:doc 已存在(AI 填好的 scaffold)→ 不覆盖 · 直接引用。"""
@@ -1596,30 +1606,144 @@ class TestExternalReviewCommand(unittest.TestCase):
             _build_claude_review_cmd("Y" * 500, feat, doc)
             self.assertEqual(doc.read_text(encoding="utf-8"), "FILLED BY AI")
 
-    # ── v8.55:external review 执行默认落日志(排查 codex/claude 卡住 / 跑不起来) ──
+    # ── v8.139:外部评审过程实时落盘(治「发起后完全黑盒」· 取代 v8.55 事后日志) ──
 
-    def test_v855_log_external_run_writes_log(self):
-        """v8.55:_log_external_run 落 ~/.teamwork/external-review-logs/<feat>/<label>-ts.log(含 rc/cmd/输出)。"""
+    def test_v8139_streamed_log_start_first_line_then_output_then_end(self):
+        """发起即写 START 行(harness UTC 时间戳 · 不靠模型自报)· stdout 原样 ·
+        stderr 带 [stderr] 前缀 · 结束 END 行含 rc。返回值同 subprocess.run 契约。"""
+        from state import _run_streamed_to_log  # type: ignore
+        with tempfile.TemporaryDirectory() as d:
+            log = Path(d) / "external-review-prompts" / "goal-claude-X.log"
+            rc, out, err = _run_streamed_to_log(
+                ["sh", "-c", "echo body-line; echo auth-warn 1>&2"],
+                log_path=log, label="claude-goal")
+            self.assertEqual((rc, out, err), (0, "body-line\n", "auth-warn\n"))
+            lines = log.read_text(encoding="utf-8").splitlines()
+            # 第一行 = harness START 行(时间戳开头)· 早于一切模型输出
+            self.assertTrue(lines[0].startswith("[2"), lines[0])
+            self.assertIn("START claude-goal", lines[0])
+            self.assertIn("pid=", lines[1])
+            self.assertIn("body-line", "\n".join(lines))
+            self.assertIn("[stderr] auth-warn", "\n".join(lines))
+            self.assertIn("END · rc=0", lines[-1])
+
+    def test_v8139_timeout_kills_and_keeps_partial_stdout(self):
+        """超时:杀进程 · rc=124 · **保留已收部分输出**(旧实现返空丢诊断料)· log 记 TIMEOUT 行。"""
+        from state import _run_streamed_to_log  # type: ignore
+        with tempfile.TemporaryDirectory() as d:
+            log = Path(d) / "review-codex-X.log"
+            rc, out, err = _run_streamed_to_log(
+                ["sh", "-c", "echo before-hang; sleep 30"],
+                log_path=log, label="codex-review", timeout_sec=1)
+            self.assertEqual(rc, 124)
+            self.assertIn("before-hang", out)
+            self.assertIn("超时", err)
+            self.assertIn("TIMEOUT", log.read_text(encoding="utf-8"))
+
+    def test_v8139_rerun_appends_not_clobbers(self):
+        """同 log 重跑(显式 --prompt-doc 重试)→ append 叠加 · 上一轮失败证据不被覆盖。"""
+        from state import _run_streamed_to_log  # type: ignore
+        with tempfile.TemporaryDirectory() as d:
+            log = Path(d) / "goal-claude-X.log"
+            _run_streamed_to_log(["sh", "-c", "echo r1"], log_path=log, label="claude-goal")
+            _run_streamed_to_log(["sh", "-c", "echo r2"], log_path=log, label="claude-goal")
+            body = log.read_text(encoding="utf-8")
+            self.assertEqual(body.count("START claude-goal"), 2)
+            self.assertIn("r1", body)
+            self.assertIn("r2", body)
+
+    def test_v8139_no_log_path_still_runs(self):
+        """log_path=None(测试/降级)→ 不写盘照常执行(日志绝不阻塞评审)。"""
+        from state import _run_streamed_to_log  # type: ignore
+        rc, out, err = _run_streamed_to_log(["sh", "-c", "echo ok"], label="x")
+        self.assertEqual((rc, out.strip()), (0, "ok"))
+
+    def test_v8139_claude_review_pairs_log_with_prompt_doc(self):
+        """claude 路径:log = prompt_doc 同目录同名 .log(审计三件套成组)。"""
         from unittest import mock
-        from state import _log_external_run  # type: ignore
-        with tempfile.TemporaryDirectory() as home:
-            with mock.patch("state.Path.home", return_value=Path(home)):
-                p = _log_external_run(Path("/x/PTR-F042-foo"), "codex-review",
-                                      ["codex", "exec", "PROMPT"], "/x",
-                                      124, "the-stdout", "the-stderr", 12.3)
-            self.assertIsNotNone(p, "应返回日志路径")
-            self.assertTrue(Path(p).exists())
-            self.assertIn("PTR-F042-foo", p)  # feature-scoped 子目录
-            body = Path(p).read_text(encoding="utf-8")
-            self.assertIn("returncode: 124", body)
-            self.assertIn("codex exec", body)
-            self.assertIn("the-stdout", body)
-            self.assertIn("the-stderr", body)
+        from state import _run_claude_review  # type: ignore
+        captured = {}
+        def fake_run(cmd, **kw):
+            captured.update(kw)
+            return 0, "ok", ""
+        with tempfile.TemporaryDirectory() as d:
+            doc = Path(d) / "external-review-prompts" / "goal-claude-20260611T000000Z.md"
+            with mock.patch("state._run_streamed_to_log", side_effect=fake_run):
+                _run_claude_review("p", feature_dir=Path(d), stage="goal", prompt_doc=doc)
+            self.assertEqual(captured["log_path"], doc.with_suffix(".log"))
+            self.assertEqual(captured["label"], "claude-goal")
 
-    def test_v855_log_external_run_none_feature_dir_no_crash(self):
-        """v8.55:feature_dir=None → 不写 · 返 None(绝不阻塞 review)。"""
-        from state import _log_external_run  # type: ignore
-        self.assertIsNone(_log_external_run(None, "x", [], "", 0, "", "", 0.0))
+    def test_v8139_codex_review_writes_audit_doc_and_pairs_log(self):
+        """codex 路径:v8.139 补审计=输入(prompt 落唯一命名 doc · 执行仍 argv inline)+ 同名 .log。"""
+        from unittest import mock
+        from state import _run_codex_review  # type: ignore
+        captured = {}
+        def fake_run(cmd, **kw):
+            captured["cmd"] = cmd
+            captured.update(kw)
+            return 0, "ok", ""
+        with tempfile.TemporaryDirectory() as d:
+            feat = Path(d)
+            doc = feat / "external-review-prompts" / "review-codex-20260611T000000Z.md"
+            with mock.patch("state._run_streamed_to_log", side_effect=fake_run):
+                rc, out, err = _run_codex_review(
+                    stage="review", commit="abc", base="main", title="t",
+                    profile_filename="reviewer.md", feature_dir=feat,
+                    cwd=str(feat), prompt_doc=doc)
+            self.assertEqual(rc, 0)
+            self.assertTrue(doc.exists(), "codex prompt 必落审计 doc")
+            # doc 内容 = 实际跑的 prompt(审计=输入)
+            self.assertIn(doc.read_text(encoding="utf-8"), captured["cmd"][-1] or "")
+            self.assertEqual(captured["log_path"], doc.with_suffix(".log"))
+            # v8.140:ACK 自证契约注入(doc 与实跑 prompt 都含 · 不分叉)
+            self.assertIn(f"REVIEW-ACK {doc.stem}", doc.read_text(encoding="utf-8"))
+
+    # ── v8.140:RUNNING 心跳 + 首行 ACK 自证(用户 case:模型自报开始的可行化) ──
+
+    def test_v8140_heartbeat_running_lines_during_silent_window(self):
+        """模型吐字前盲窗:RUNNING 心跳行(已等待秒数 + 已收字节)· tail -f 分清生成中 vs 卡死。"""
+        from state import _run_streamed_to_log  # type: ignore
+        with tempfile.TemporaryDirectory() as d:
+            log = Path(d) / "goal-claude-X.log"
+            rc, out, _ = _run_streamed_to_log(
+                ["sh", "-c", "sleep 0.7; echo done"],
+                log_path=log, label="claude-goal", heartbeat_sec=0.2)
+            self.assertEqual(rc, 0)
+            body = log.read_text(encoding="utf-8")
+            self.assertIn("RUNNING · 已等待", body)
+            self.assertIn("已收 stdout 0 chars", body)  # 静默期心跳报 0 字节(属正常 · 非卡死误报)
+
+    def test_v8140_heartbeat_zero_disables(self):
+        """heartbeat_sec=0 → 不起心跳线程(短命令/测试不受扰)。"""
+        from state import _run_streamed_to_log  # type: ignore
+        with tempfile.TemporaryDirectory() as d:
+            log = Path(d) / "x.log"
+            _run_streamed_to_log(["sh", "-c", "echo q"], log_path=log,
+                                 label="x", heartbeat_sec=0)
+            self.assertNotIn("RUNNING", log.read_text(encoding="utf-8"))
+
+    def test_v8140_ack_block_contains_doc_stem_contract(self):
+        """ACK 注入块:首行契约 = REVIEW-ACK <doc stem>(stem 自带 stage/model/UTC 时间戳)。"""
+        from state import _ack_block  # type: ignore
+        doc = Path("/x/external-review-prompts/goal-claude-20260611T083001Z.md")
+        block = _ack_block(doc)
+        self.assertIn("REVIEW-ACK goal-claude-20260611T083001Z", block)
+        self.assertIn("第一行", block)
+
+    def test_v8140_review_ack_status_three_states(self):
+        """验证三态:verified(头 200 字符内回显)/ missing / None(无 doc 不适用)。"""
+        from state import _review_ack_status  # type: ignore
+        doc = Path("/x/goal-claude-20260611T083001Z.md")
+        ok = "REVIEW-ACK goal-claude-20260611T083001Z\n\n## Review\n..."
+        self.assertEqual(_review_ack_status(ok, doc), "verified")
+        # 容忍前置空行/fence
+        self.assertEqual(_review_ack_status("\n```\nREVIEW-ACK goal-claude-20260611T083001Z\n```\n正文", doc),
+                         "verified")
+        # 回显错轮次(stale 输出绑不上本轮 doc)→ missing
+        self.assertEqual(_review_ack_status("REVIEW-ACK goal-claude-20250101T000000Z\n正文", doc),
+                         "missing")
+        self.assertEqual(_review_ack_status("直接正文无回显", doc), "missing")
+        self.assertIsNone(_review_ack_status("whatever", None))
 
     def test_v855_timeout_10min(self):
         """v8.55:EXTERNAL_REVIEW_TIMEOUT_SEC = 600(5min→10min)。"""
@@ -2513,6 +2637,23 @@ class TestPanoramaSyncStage(unittest.TestCase):
         ok, err = _evidence_sitemap_updated(st, self._args())
         self.assertFalse(ok)
         self.assertIn("早于", err)
+
+    # ── v8.138 变更判级(L1 不暂停 / L2 必停)──────────────────────
+
+    def test_v8138_summary_frontmatter_requires_change_level(self):
+        """判级决定停不停 · 级别声明必须物化留痕(frontmatter 缺 change_level 即 FAIL)。"""
+        from _v8_stage_specs import PANORAMA_SYNC_SPEC
+        summary = next(a for a in PANORAMA_SYNC_SPEC.artifacts
+                       if a.path == "panorama-change-summary.md")
+        self.assertIn("change_level", summary.frontmatter_required)
+
+    def test_v8138_pause_point_is_conditional_by_level(self):
+        """authorized_pause_point 必须是条件式(L2 停 / L1 不暂停)· 不再无条件停。"""
+        from _v8_stage_specs import PANORAMA_SYNC_SPEC
+        pause = PANORAMA_SYNC_SPEC.authorized_pause_point
+        self.assertIn("L2", pause)
+        self.assertIn("L1", pause)
+        self.assertIn("不暂停", pause)
 
 
 class TestExternalReviewContentQuality(unittest.TestCase):
