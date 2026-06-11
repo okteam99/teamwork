@@ -929,21 +929,33 @@ class TestCheckSkillUpdate(unittest.TestCase):
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp(prefix="skill-update-"))
         self.fake_skill_md = self.tmp / "SKILL.md"
+        self.fake_changelog = self.tmp / "CHANGELOG.md"
         self._prev = os.environ.get("TEAMWORK_SKILL_UPDATE_URL")
+        self._prev_cl = os.environ.get("TEAMWORK_SKILL_CHANGELOG_URL")
         os.environ["TEAMWORK_SKILL_UPDATE_URL"] = f"file://{self.fake_skill_md}"
+        # v8.142:默认指向不存在文件(fetch 失败 → 降级路径)· 防既有测试外呼真 GitHub
+        os.environ["TEAMWORK_SKILL_CHANGELOG_URL"] = f"file://{self.fake_changelog}"
         sys.path.insert(0, str(TOOLS))
 
     def tearDown(self):
         shutil.rmtree(self.tmp, ignore_errors=True)
-        if self._prev is None:
-            os.environ.pop("TEAMWORK_SKILL_UPDATE_URL", None)
-        else:
-            os.environ["TEAMWORK_SKILL_UPDATE_URL"] = self._prev
+        for k, prev in (("TEAMWORK_SKILL_UPDATE_URL", self._prev),
+                        ("TEAMWORK_SKILL_CHANGELOG_URL", self._prev_cl)):
+            if prev is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = prev
 
     def _write_fake_remote(self, version: str):
         self.fake_skill_md.write_text(
             f"---\nname: teamwork\nversion: {version}\n---\nbody\n",
             encoding="utf-8")
+
+    def _write_fake_changelog(self, entries: list):
+        """entries = [(version, title), ...] 新→旧。"""
+        body = "# Changelog\n\n> header\n\n" + "\n".join(
+            f"## {v} · {t}\n\n- 细节\n" for v, t in entries)
+        self.fake_changelog.write_text(body, encoding="utf-8")
 
     # ── 版本比较 ──
     def test_up_to_date(self):
@@ -980,6 +992,55 @@ class TestCheckSkillUpdate(unittest.TestCase):
         self._write_fake_remote("v8.20")
         d = bootstrap.check_skill_update("v8.23")
         self.assertEqual(d["status"], "up_to_date")
+
+    # ── v8.142:升级提示带变更描述(线上 CHANGELOG 标题行) ──
+
+    def test_v8142_outdated_prompt_includes_changelog_titles(self):
+        """落后时 prompt 带「本次升级包含」:本地之后各版标题 · 本地及更早不列。"""
+        import bootstrap  # type: ignore
+        self._write_fake_remote("v8.23")
+        self._write_fake_changelog([
+            ("v8.23", "修 C"), ("v8.22", "修 B"), ("v8.21", "修 A(本地版 · 不该出现)"),
+        ])
+        d = bootstrap.check_skill_update("v8.21")
+        self.assertEqual(d["status"], "outdated")
+        p = d["upgrade_prompt"]
+        self.assertIn("本次升级包含", p)
+        self.assertIn("v8.23 · 修 C", p)
+        self.assertIn("v8.22 · 修 B", p)
+        self.assertNotIn("修 A", p)  # <= 本地版本不列
+        self.assertEqual(d["changelog_titles"], ["v8.23 · 修 C", "v8.22 · 修 B"])
+
+    def test_v8142_changelog_fetch_fail_degrades_to_pointer(self):
+        """changelog 拉取失败(文件不存在)→ prompt 照常 emit · 降级回指针 · 不阻塞。"""
+        import bootstrap  # type: ignore
+        self._write_fake_remote("v8.23")  # fake_changelog 未写 = fetch 失败
+        d = bootstrap.check_skill_update("v8.21")
+        self.assertEqual(d["status"], "outdated")
+        self.assertNotIn("本次升级包含", d["upgrade_prompt"])
+        self.assertIn("CHANGELOG.md", d["upgrade_prompt"])  # 指针仍在
+        self.assertIsNone(d["changelog_titles"])
+
+    def test_v8142_keep5_gap_gets_git_history_note(self):
+        """落后超出线上 keep-5 范围(扫不到 <= 本地的条目)→ 加「更早见 git 历史」注。"""
+        import bootstrap  # type: ignore
+        self._write_fake_remote("v8.141")
+        self._write_fake_changelog([
+            ("v8.141", "E"), ("v8.140", "D"), ("v8.139", "C"),
+            ("v8.138", "B"), ("v8.137", "A"),
+        ])
+        d = bootstrap.check_skill_update("v8.120")  # 落后 21 版 · 线上只剩 5 条
+        self.assertIn("git 历史", d["upgrade_prompt"])
+        self.assertEqual(len(d["changelog_titles"]), 5)
+
+    def test_v8142_up_to_date_skips_changelog_fetch(self):
+        """up_to_date 不拉 changelog(常态路径零额外网络)。"""
+        import bootstrap  # type: ignore
+        self._write_fake_remote("v8.23")
+        self._write_fake_changelog([("v8.23", "X")])
+        d = bootstrap.check_skill_update("v8.23")
+        self.assertEqual(d["status"], "up_to_date")
+        self.assertNotIn("changelog_titles", d)
 
     # ── 版本 tuple 比较(防 v8.10 vs v8.9 字符串比较 bug)──
     def test_version_tuple_compares_numerically(self):
