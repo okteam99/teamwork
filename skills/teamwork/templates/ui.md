@@ -29,6 +29,7 @@ pages_changed:
 > 🔴 panorama_path: {绝对路径 / null（项目无全景）} · 全景权威根
 > 🔴 panorama_medium: same-stack(推荐 · v8.58 option B:`{子项目}/docs/design/preview-project` 同栈独立项目 · 源即全景权威 · 真实组件渲染 · 不污染真实工程 · 解新库引入鸡蛋问题 · 验证渲染:拷 `{SKILL_ROOT}/templates/preview-project-preview.sh` 进 preview-project 根 · 后台跑 `bash preview.sh` 读 `PREVIEW_URL=` browse〔dev server · 动态端口 · 不在 teamwork 层起 server〕)| static-html(兜底 · 手写 CDN · 仅作 IA / 视觉层级 / Token 一致性参考 · 介质差异不可像素级仿 live)
 > 🟢 **v8.17 全景为唯一权威**:本 Feature 不存 preview/*.html 副本 · 直接编辑 panorama_path/preview/<page>.html(权威) · pages_changed[] 声明本 Feature 改了哪几个 page + 链到权威文件。详 [stages/ui-design-stage.md § 全景为唯一权威](../stages/ui-design-stage.md)。
+> 🔴 **v8.134 分层同构**(same-stack):全景页 = **意图权威**(四要素:布局结构 / 交互流 / 状态 / 字段映射 —— 即本文 body 各段 · dev 还原对照物 · 像素/代码组织自由)· 设计权威**至该页 ship 止**(此后代码即真相 · 全景页转历史参考);基建层(shell / 组件库 / 主题 / 架构)走**共享包**完全一致。详 [stages/ui-design-stage.md § 分层同构律](../stages/ui-design-stage.md)。
 
 ## 状态
 草稿 | 待评审 | 已确认

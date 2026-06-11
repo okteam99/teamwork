@@ -94,7 +94,7 @@ Feature Planning 的产出是**规划文档**(不是单 Feature 的 artifact)· 
 ### Step 5 · 🎨 UI 全景初步规划(条件:本轮涉 UI · 否则跳过)
 
 🔴 **在拆 WS 之前出** —— 先看清"产品长啥样",WS 才能把 feature 切对(边界跟 UI 结构对齐)。对**本轮 scope 做一次**(不是 per-WS 各画),在 `{子项目}/docs/design/preview-project/`:
-- **出 design system + 本轮关键页**(🔴 **初步**:系统 + 代表页 · **不是每页** · 细节随各 feature 的 ui_design 增量补 · 防瀑布)· 🔴 seed 即按**真实路由结构**组织(router 必含 · `/` = 首页设计稿 · 各页挂真实 path · 与 sitemap 一致 · 详 ui-design-stage § IA 镜像律)· 跑 `preview.sh` 实时看(同 ui_design 同栈机制)。
+- **出 design system + 本轮关键页**(🔴 **初步**:系统 + 代表页 · **不是每页** · 细节随各 feature 的 ui_design 增量补 · 防瀑布)· 🔴 seed 即按**真实路由结构**组织(router 必含 · `/` = 首页设计稿 · 各页挂真实 path · 与 sitemap 一致 · 详 ui-design-stage § IA 镜像律)· 基建层优先依赖真实 app 的**共享包**(packages/ui · theme · shell · 详 ui-design-stage § 分层同构律)· 跑 `preview.sh` 实时看(同 ui_design 同栈机制)。
 - 同步 `sitemap.md`(IA 地图:本轮新增/调整的页节点 · 🔴 **只写层级/导航/路由,不写视觉** —— 视觉在 preview-project · 防双副本漂移)。
 - 🔴 全景是**一份活物**:不存在 → 首次 seed;已存在 → 扩本轮的页(源即权威)。完成即产生 git diff(= 本轮全景产出 · 下一步拆 WS 的输入)。
 - **非 UI 轮**(纯后端/基建)→ 跳过此步 · 下游 WS 标 `全景初规: N-A`。
