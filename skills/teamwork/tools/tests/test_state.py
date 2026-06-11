@@ -1493,7 +1493,8 @@ class TestExternalReviewCommand(unittest.TestCase):
         self.assertNotIn("--print", d["preview_command"])
 
     def test_v838_run_claude_review_cmd_array_uses_dash_p(self):
-        """v8.38:_run_claude_review subprocess cmd 数组必带 '-p'(不退回 '--print')。"""
+        """v8.38:_run_claude_review cmd 数组必带 '-p'(不退回 '--print')。
+        v8.139:执行器换 _run_streamed_to_log · mock 它捕 cmd。"""
         from unittest import mock
         from state import _run_claude_review  # type: ignore
 
@@ -1502,13 +1503,9 @@ class TestExternalReviewCommand(unittest.TestCase):
         def fake_run(cmd, **kwargs):
             captured_cmd.extend(cmd)
             captured_kwargs.update(kwargs)
-            class R:
-                returncode = 0
-                stdout = "ok"
-                stderr = ""
-            return R()
+            return 0, "ok", ""
 
-        with mock.patch("state.subprocess.run", side_effect=fake_run):
+        with mock.patch("state._run_streamed_to_log", side_effect=fake_run):
             rc, stdout, stderr = _run_claude_review("test prompt")
         self.assertEqual(rc, 0)
         # 必带 "-p" · 不含 "--print"
@@ -1532,13 +1529,9 @@ class TestExternalReviewCommand(unittest.TestCase):
         def fake_run(cmd, **kwargs):
             captured_cmd.extend(cmd)
             captured_kwargs.update(kwargs)
-            class R:
-                returncode = 0
-                stdout = "ok"
-                stderr = ""
-            return R()
+            return 0, "ok", ""
 
-        with mock.patch("state.subprocess.run", side_effect=fake_run):
+        with mock.patch("state._run_streamed_to_log", side_effect=fake_run):
             _run_claude_review("v843 test prompt body")
 
         # prompt 在 argv 里(治本 stdin "Not logged in")
@@ -1596,30 +1589,95 @@ class TestExternalReviewCommand(unittest.TestCase):
             _build_claude_review_cmd("Y" * 500, feat, doc)
             self.assertEqual(doc.read_text(encoding="utf-8"), "FILLED BY AI")
 
-    # ── v8.55:external review 执行默认落日志(排查 codex/claude 卡住 / 跑不起来) ──
+    # ── v8.139:外部评审过程实时落盘(治「发起后完全黑盒」· 取代 v8.55 事后日志) ──
 
-    def test_v855_log_external_run_writes_log(self):
-        """v8.55:_log_external_run 落 ~/.teamwork/external-review-logs/<feat>/<label>-ts.log(含 rc/cmd/输出)。"""
+    def test_v8139_streamed_log_start_first_line_then_output_then_end(self):
+        """发起即写 START 行(harness UTC 时间戳 · 不靠模型自报)· stdout 原样 ·
+        stderr 带 [stderr] 前缀 · 结束 END 行含 rc。返回值同 subprocess.run 契约。"""
+        from state import _run_streamed_to_log  # type: ignore
+        with tempfile.TemporaryDirectory() as d:
+            log = Path(d) / "external-review-prompts" / "goal-claude-X.log"
+            rc, out, err = _run_streamed_to_log(
+                ["sh", "-c", "echo body-line; echo auth-warn 1>&2"],
+                log_path=log, label="claude-goal")
+            self.assertEqual((rc, out, err), (0, "body-line\n", "auth-warn\n"))
+            lines = log.read_text(encoding="utf-8").splitlines()
+            # 第一行 = harness START 行(时间戳开头)· 早于一切模型输出
+            self.assertTrue(lines[0].startswith("[2"), lines[0])
+            self.assertIn("START claude-goal", lines[0])
+            self.assertIn("pid=", lines[1])
+            self.assertIn("body-line", "\n".join(lines))
+            self.assertIn("[stderr] auth-warn", "\n".join(lines))
+            self.assertIn("END · rc=0", lines[-1])
+
+    def test_v8139_timeout_kills_and_keeps_partial_stdout(self):
+        """超时:杀进程 · rc=124 · **保留已收部分输出**(旧实现返空丢诊断料)· log 记 TIMEOUT 行。"""
+        from state import _run_streamed_to_log  # type: ignore
+        with tempfile.TemporaryDirectory() as d:
+            log = Path(d) / "review-codex-X.log"
+            rc, out, err = _run_streamed_to_log(
+                ["sh", "-c", "echo before-hang; sleep 30"],
+                log_path=log, label="codex-review", timeout_sec=1)
+            self.assertEqual(rc, 124)
+            self.assertIn("before-hang", out)
+            self.assertIn("超时", err)
+            self.assertIn("TIMEOUT", log.read_text(encoding="utf-8"))
+
+    def test_v8139_rerun_appends_not_clobbers(self):
+        """同 log 重跑(显式 --prompt-doc 重试)→ append 叠加 · 上一轮失败证据不被覆盖。"""
+        from state import _run_streamed_to_log  # type: ignore
+        with tempfile.TemporaryDirectory() as d:
+            log = Path(d) / "goal-claude-X.log"
+            _run_streamed_to_log(["sh", "-c", "echo r1"], log_path=log, label="claude-goal")
+            _run_streamed_to_log(["sh", "-c", "echo r2"], log_path=log, label="claude-goal")
+            body = log.read_text(encoding="utf-8")
+            self.assertEqual(body.count("START claude-goal"), 2)
+            self.assertIn("r1", body)
+            self.assertIn("r2", body)
+
+    def test_v8139_no_log_path_still_runs(self):
+        """log_path=None(测试/降级)→ 不写盘照常执行(日志绝不阻塞评审)。"""
+        from state import _run_streamed_to_log  # type: ignore
+        rc, out, err = _run_streamed_to_log(["sh", "-c", "echo ok"], label="x")
+        self.assertEqual((rc, out.strip()), (0, "ok"))
+
+    def test_v8139_claude_review_pairs_log_with_prompt_doc(self):
+        """claude 路径:log = prompt_doc 同目录同名 .log(审计三件套成组)。"""
         from unittest import mock
-        from state import _log_external_run  # type: ignore
-        with tempfile.TemporaryDirectory() as home:
-            with mock.patch("state.Path.home", return_value=Path(home)):
-                p = _log_external_run(Path("/x/PTR-F042-foo"), "codex-review",
-                                      ["codex", "exec", "PROMPT"], "/x",
-                                      124, "the-stdout", "the-stderr", 12.3)
-            self.assertIsNotNone(p, "应返回日志路径")
-            self.assertTrue(Path(p).exists())
-            self.assertIn("PTR-F042-foo", p)  # feature-scoped 子目录
-            body = Path(p).read_text(encoding="utf-8")
-            self.assertIn("returncode: 124", body)
-            self.assertIn("codex exec", body)
-            self.assertIn("the-stdout", body)
-            self.assertIn("the-stderr", body)
+        from state import _run_claude_review  # type: ignore
+        captured = {}
+        def fake_run(cmd, **kw):
+            captured.update(kw)
+            return 0, "ok", ""
+        with tempfile.TemporaryDirectory() as d:
+            doc = Path(d) / "external-review-prompts" / "goal-claude-20260611T000000Z.md"
+            with mock.patch("state._run_streamed_to_log", side_effect=fake_run):
+                _run_claude_review("p", feature_dir=Path(d), stage="goal", prompt_doc=doc)
+            self.assertEqual(captured["log_path"], doc.with_suffix(".log"))
+            self.assertEqual(captured["label"], "claude-goal")
 
-    def test_v855_log_external_run_none_feature_dir_no_crash(self):
-        """v8.55:feature_dir=None → 不写 · 返 None(绝不阻塞 review)。"""
-        from state import _log_external_run  # type: ignore
-        self.assertIsNone(_log_external_run(None, "x", [], "", 0, "", "", 0.0))
+    def test_v8139_codex_review_writes_audit_doc_and_pairs_log(self):
+        """codex 路径:v8.139 补审计=输入(prompt 落唯一命名 doc · 执行仍 argv inline)+ 同名 .log。"""
+        from unittest import mock
+        from state import _run_codex_review  # type: ignore
+        captured = {}
+        def fake_run(cmd, **kw):
+            captured["cmd"] = cmd
+            captured.update(kw)
+            return 0, "ok", ""
+        with tempfile.TemporaryDirectory() as d:
+            feat = Path(d)
+            doc = feat / "external-review-prompts" / "review-codex-20260611T000000Z.md"
+            with mock.patch("state._run_streamed_to_log", side_effect=fake_run):
+                rc, out, err = _run_codex_review(
+                    stage="review", commit="abc", base="main", title="t",
+                    profile_filename="reviewer.md", feature_dir=feat,
+                    cwd=str(feat), prompt_doc=doc)
+            self.assertEqual(rc, 0)
+            self.assertTrue(doc.exists(), "codex prompt 必落审计 doc")
+            # doc 内容 = 实际跑的 prompt(审计=输入)
+            self.assertIn(doc.read_text(encoding="utf-8"), captured["cmd"][-1] or "")
+            self.assertEqual(captured["log_path"], doc.with_suffix(".log"))
 
     def test_v855_timeout_10min(self):
         """v8.55:EXTERNAL_REVIEW_TIMEOUT_SEC = 600(5min→10min)。"""

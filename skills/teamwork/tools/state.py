@@ -2326,52 +2326,109 @@ def _build_codex_prompt(stage: str, feature_dir_rel: str, commit: str,
     )
 
 
-def _log_external_run(feature_dir: Optional[Path], label: str, cmd: list,
-                      cwd: str, rc, stdout, stderr, dur_sec: float) -> Optional[str]:
-    """v8.55:默认把 external review(codex/claude)执行过程写日志 ·
-    方便排查"卡住 / 跑不起来"(看到 codex 升级提示 / 鉴权失败 / 网络 / 超时前的部分输出)。
+def _run_streamed_to_log(cmd: list, *, cwd: Optional[str] = None,
+                         log_path: Optional[Path] = None, label: str = "external",
+                         timeout_sec: Optional[int] = None) -> tuple[int, str, str]:
+    """v8.139:外部评审执行器 · Popen + 过程**实时**落盘(治「发起后完全黑盒」)。
 
-    落 `~/.teamwork/external-review-logs/<feature_name>/<label>-<ts>.log`(出仓 · 不污染 ship ·
-    与 host_audit / prepare_check_audit 同处)· 含 cmd/rc/耗时/stdout/stderr。
-    写失败或 feature_dir 缺失 → 返 None(绝不阻塞 review)。
+    取代 v8.55 `_log_external_run`(跑完才写 · 藏 ~/.teamwork · 与 prompt-doc 不配对):
+    - **发起即写 START 行**(UTC 时间戳 · harness 写 · 🔴 不靠评审模型自报 —— claude -p
+      print 模式输出整体到达 · 模型的「开始」行不可能先到;模型挂死/认证失败时恰恰
+      零输出 · harness 行才是诊断锚点)· spawn 后补 pid 行(可 kill / ps 对账)
+    - stdout 原样实时追加(评审输出主体)· stderr 逐行 `[stderr] ` 前缀 —— 鉴权失败/
+      codex 升级提示/网络卡 **秒级可见**(不再等超时后验尸)· log mtime = 心跳
+    - 结束写 END 行(rc/耗时/字节)· 超时写 TIMEOUT 行 + **保留已收部分输出**(rc=124 ·
+      旧实现超时返空 stdout 丢诊断料)
+    - **append 模式**:同 log 重跑(显式 --prompt-doc 重试)历史叠加 · 失败证据不被覆盖
+    - log_path 约定 = prompt-doc 同名 `.log`(审计三件套同目录成组:输入 .md ·
+      过程 .log · 结果 external-cross-review/<stage>-<model>.md)
+    日志任何 OSError 静默降级(绝不阻塞评审)。返 (rc, stdout, stderr)。
+    FileNotFoundError / OSError(E2BIG 等)照常上抛 · 由调用方按引擎语义处理。
     """
-    if feature_dir is None:
-        return None
+    import threading
+    timeout_sec = timeout_sec or EXTERNAL_REVIEW_TIMEOUT_SEC
+    lock = threading.Lock()
 
-    def _s(x):
-        if isinstance(x, bytes):
-            return x.decode("utf-8", "replace")
-        return x if isinstance(x, str) else ("" if x is None else str(x))
+    def _ts() -> str:
+        return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
+    def _append(text: str) -> None:
+        nonlocal log_path
+        if log_path is None:
+            return
+        try:
+            with lock:
+                with open(log_path, "a", encoding="utf-8") as f:
+                    f.write(text)
+                    f.flush()
+        except OSError:
+            log_path = None  # 日志降级 · 不阻塞评审
+
+    t0 = datetime.now(timezone.utc)
+    sep = ""
+    if log_path is not None:
+        try:
+            log_path.parent.mkdir(parents=True, exist_ok=True)
+            if log_path.exists() and log_path.stat().st_size:
+                sep = "\n"  # 重跑叠加 · 空行分隔上一轮
+        except OSError:
+            log_path = None
+    cmd_disp = " ".join(
+        (str(a)[:160] + "…<truncated>") if len(str(a)) > 160 else str(a) for a in cmd)
+    _append(f"{sep}[{_ts()}] START {label} · timeout={timeout_sec}s · "
+            f"cwd={cwd or '(inherit)'} · cmd={cmd_disp}\n")
+    # 发起即告知观察点(stderr · 不污染 stdout JSON)· 后台跑时立即可见
+    print(f"[external-review] {label} 已发起 · 过程日志: "
+          f"{log_path or '(无 · 日志降级)'}(tail -f 可观察)",
+          file=sys.stderr, flush=True)
+
+    proc = subprocess.Popen(cmd, cwd=cwd, stdin=subprocess.DEVNULL,
+                            stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                            text=True, encoding="utf-8", errors="replace")
+    _append(f"[{_ts()}] pid={proc.pid}\n")
+    out_buf: list = []
+    err_buf: list = []
+
+    def _pump(stream, buf, tag):
+        try:
+            for line in iter(stream.readline, ""):
+                buf.append(line)
+                _append((tag + line) if tag else line)
+        finally:
+            try:
+                stream.close()
+            except OSError:
+                pass
+
+    t_out = threading.Thread(target=_pump, args=(proc.stdout, out_buf, ""), daemon=True)
+    t_err = threading.Thread(target=_pump, args=(proc.stderr, err_buf, "[stderr] "), daemon=True)
+    t_out.start()
+    t_err.start()
+    timed_out = False
     try:
-        feat_name = Path(feature_dir).name or "unknown"
-        log_dir = Path.home() / ".teamwork" / "external-review-logs" / feat_name
-        log_dir.mkdir(parents=True, exist_ok=True)
-        ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-        log_path = log_dir / f"{label}-{ts}.log"
-        cmd_disp = " ".join(
-            (a[:800] + "…<truncated>") if isinstance(a, str) and len(a) > 800 else str(a)
-            for a in cmd
-        )
-        body = (
-            f"# external-review 执行日志 · {label} · {ts}\n"
-            f"returncode: {rc}\n"
-            f"duration_sec: {dur_sec:.1f}\n"
-            f"timeout_sec: {EXTERNAL_REVIEW_TIMEOUT_SEC}\n"
-            f"cwd: {cwd}\n"
-            f"cmd: {cmd_disp}\n\n"
-            f"===== STDOUT =====\n{_s(stdout)}\n\n"
-            f"===== STDERR =====\n{_s(stderr)}\n"
-        )
-        log_path.write_text(body, encoding="utf-8")
-        return str(log_path)
-    except OSError:
-        return None
+        proc.wait(timeout=timeout_sec)
+    except subprocess.TimeoutExpired:
+        timed_out = True
+        proc.kill()
+        proc.wait()
+    t_out.join(timeout=15)
+    t_err.join(timeout=15)
+    dur = (datetime.now(timezone.utc) - t0).total_seconds()
+    stdout, stderr = "".join(out_buf), "".join(err_buf)
+    if timed_out:
+        _append(f"[{_ts()}] TIMEOUT · {timeout_sec}s 已杀进程(pid={proc.pid})· "
+                f"已收 stdout {len(stdout)} chars\n")
+        tail = f" · 过程日志: {log_path}" if log_path else ""
+        return 124, stdout, f"{label} 超时({timeout_sec}s){tail}"
+    _append(f"[{_ts()}] END · rc={proc.returncode} · {dur:.1f}s · "
+            f"stdout {len(stdout)} chars · stderr {len(stderr)} chars\n")
+    return proc.returncode, stdout, stderr
 
 
 def _run_codex_review(stage: str, commit: str, base: str, title: str,
                       profile_filename: str, feature_dir: Path, cwd: str,
-                      codex_model: Optional[str] = None) -> tuple[int, str, str]:
+                      codex_model: Optional[str] = None,
+                      prompt_doc: Optional[Path] = None) -> tuple[int, str, str]:
     """跑 codex CLI 评审 · 返 (returncode, stdout, stderr)。
 
     v8.59(用户 case · 本地实测):**全 stage 统一 `codex exec [PROMPT]`**。
@@ -2382,6 +2439,8 @@ def _run_codex_review(stage: str, commit: str, base: str, title: str,
     (goal/blueprint 已验证)· review 对象差异(代码 diff vs 文档)全由
     `_build_codex_prompt` 内置 prompt 描述。
     (codex review↔exec 反复横跳演进史见 git 历史 · v8.23-26)
+    v8.139:prompt 落唯一命名 doc(审计=输入 · 对齐 claude 路径 · codex 不读 doc ·
+    执行仍 argv inline)+ 同名 .log 过程实时落盘(_run_streamed_to_log)。
     """
     # 算 feature_dir 相对 cwd · 让 prompt 用相对路径(codex 在 cwd=git root 跑)
     try:
@@ -2400,26 +2459,19 @@ def _run_codex_review(stage: str, commit: str, base: str, title: str,
     prompt = f"[Review title: {title}]\n\n{body_prompt}"
     cmd = ["codex", "exec", *model_args, prompt]
 
-    t0 = datetime.now(timezone.utc)
+    log_path = None
+    if prompt_doc is not None:
+        try:
+            prompt_doc.parent.mkdir(parents=True, exist_ok=True)
+            prompt_doc.write_text(prompt, encoding="utf-8")
+        except OSError:
+            pass  # 审计缺本轮 doc · 不阻塞执行
+        log_path = prompt_doc.with_suffix(".log")
     try:
-        r = subprocess.run(cmd, capture_output=True, text=True,
-                           timeout=EXTERNAL_REVIEW_TIMEOUT_SEC, cwd=cwd,
-                           stdin=subprocess.DEVNULL)  # v8.55:闭 stdin · 防 codex 交互/升级提示等输入卡住
-        dur = (datetime.now(timezone.utc) - t0).total_seconds()
-        _log_external_run(feature_dir, f"codex-{stage}", cmd, cwd,
-                          r.returncode, r.stdout, r.stderr, dur)
-        return r.returncode, r.stdout, r.stderr
-    except subprocess.TimeoutExpired as e:
-        dur = (datetime.now(timezone.utc) - t0).total_seconds()
-        log_path = _log_external_run(feature_dir, f"codex-{stage}", cmd, cwd,
-                                     "TIMEOUT", e.stdout, e.stderr, dur)
-        tail = f" · 见日志 {log_path}(看是否 codex 升级提示/鉴权/网络卡住)" if log_path else ""
-        return 124, "", f"codex 超时({EXTERNAL_REVIEW_TIMEOUT_SEC}s){tail}"
+        return _run_streamed_to_log(cmd, cwd=cwd, log_path=log_path,
+                                    label=f"codex-{stage}")
     except (FileNotFoundError, OSError) as e:
-        dur = (datetime.now(timezone.utc) - t0).total_seconds()
-        log_path = _log_external_run(feature_dir, f"codex-{stage}", cmd, cwd,
-                                     "ERROR", "", str(e), dur)
-        tail = f" · 见日志 {log_path}" if log_path else ""
+        tail = f" · 过程日志 {log_path}" if log_path else ""
         return 127, "", f"codex CLI 不可用:{e}{tail}"
 
 
@@ -2460,24 +2512,13 @@ def _run_claude_review(prompt_text: str,
     v8.84(用户拍板):**不再 --model 指定模型 · 用 claude CLI 默认值**。
     v8.106(用户拍板):**只用 `claude -p <full inline prompt> --output-format text`**(删 v8.85 doc 模式
     + v8.103 --bare)· prompt 自包含 · 无工具 / 无 --bare(--bare 砸登录上下文 → "Not logged in")· 详 _build_claude_review_cmd。
+    v8.139:执行走 _run_streamed_to_log · 过程实时落 prompt_doc 同名 .log(治黑盒)。
     """
     cmd, cwd = _build_claude_review_cmd(prompt_text, feature_dir, prompt_doc)
     label = f"claude-{stage}"
-    t0 = datetime.now(timezone.utc)
+    log_path = prompt_doc.with_suffix(".log") if prompt_doc is not None else None
     try:
-        r = subprocess.run(cmd, capture_output=True, text=True,
-                           timeout=EXTERNAL_REVIEW_TIMEOUT_SEC,
-                           stdin=subprocess.DEVNULL, cwd=cwd)  # v8.55:闭 stdin · 防交互卡住
-        dur = (datetime.now(timezone.utc) - t0).total_seconds()
-        _log_external_run(feature_dir, label, cmd, cwd or "(inherit)",
-                          r.returncode, r.stdout, r.stderr, dur)
-        return r.returncode, r.stdout, r.stderr
-    except subprocess.TimeoutExpired as e:
-        dur = (datetime.now(timezone.utc) - t0).total_seconds()
-        log_path = _log_external_run(feature_dir, label, cmd, cwd or "(inherit)",
-                                     "TIMEOUT", e.stdout, e.stderr, dur)
-        tail = f" · 见日志 {log_path}" if log_path else ""
-        return 124, "", f"claude -p 超时({EXTERNAL_REVIEW_TIMEOUT_SEC}s){tail}"
+        return _run_streamed_to_log(cmd, cwd=cwd, log_path=log_path, label=label)
     except OSError as e:
         if getattr(e, "errno", None) == 7:  # E2BIG · argument list too long
             return 127, "", (
@@ -3143,8 +3184,9 @@ def cmd_external_review(args: argparse.Namespace) -> None:
         else:
             preview_cmd = (
                 # v8.106 只用 claude -p <full inline prompt>(删 v8.85 doc 模式 + v8.103 --bare · --bare 砸登录上下文)
+                # v8.136/139:doc 每轮唯一命名 · 同名 .log 实时过程日志
                 "claude -p '<self-contained review prompt · 见 external-review-prompts/"
-                f"{args.stage}-{model}.md>' --output-format text"
+                f"{args.stage}-{model}-<ts>.md · 过程日志同名 .log>' --output-format text"
             )
         emit({
             "verdict": "OK",
@@ -3172,21 +3214,29 @@ def cmd_external_review(args: argparse.Namespace) -> None:
 
     # ── Step 5 · 跑 CLI ──
     output_dir.mkdir(parents=True, exist_ok=True)
+    # v8.139:两引擎统一审计配对 —— prompt-doc(输入 .md)+ 同名过程日志(.log)+ 结果文件
+    prompt_doc: Optional[Path] = None
+    prompt_doc_used = None
+    prompt_doc_source = None
+    files_inline_meta: list[dict] = []
+    fallback_warning = None
     if model == "codex":
+        prompt_doc = _new_prompt_doc_path(feature_dir, args.stage, model)
+        prompt_doc_source = "generated"
         rc, stdout, stderr = _run_codex_review(
             stage=args.stage, commit=commit, base=base, title=title,
             profile_filename=profile_path.name,
             feature_dir=feature_dir, cwd=str(git_root),
             codex_model=codex_model,
+            prompt_doc=prompt_doc,
         )
+        prompt_doc_used = str(prompt_doc) if prompt_doc.exists() else None
     else:
         # claude 路径(v8.136 · 治 v8.44 固定名缓存中毒):
         #   默认:每轮**现生成**唯一 prompt-doc(模板 Prompt 主体提取 + inline 当前文件 →
         #         写 <stage>-<model>-<ts>.md → 用它执行)· 审计 = 输入 · 旧轮留档不复用。
         #   显式 --prompt-doc:PMO 预写 compact summary 场景 · 优先用 · 过 staleness 门禁。
         prompt_doc_override = getattr(args, "prompt_doc", None)
-        files_inline_meta: list[dict] = []
-        fallback_warning = None
         if prompt_doc_override:
             prompt_doc = Path(prompt_doc_override).expanduser().resolve()
             prompt_doc_source = "args"
@@ -3251,11 +3301,16 @@ def cmd_external_review(args: argparse.Namespace) -> None:
             prompt_text, feature_dir=feature_dir, stage=args.stage,
             prompt_doc=prompt_doc)
 
+    # v8.139:过程日志(prompt-doc 同名 .log)· 失败/成功 emit 都透出 —— 失败时它就是验尸现场
+    process_log = prompt_doc.with_suffix(".log") if prompt_doc is not None else None
+    process_log_str = str(process_log) if (process_log is not None and process_log.exists()) else None
+
     if rc != 0:
         # v8.106:纯 claude -p(无工具)/ codex read-only · 无 liveness 文件 · 失败即模型未跑通
         live_hint = (
-            f"{cli_name} 执行失败 · 查 ① 网络 / token(setup-token / OAuth)· "
-            f"② {cli_name} --version · ③ 是否并发限流(串行重试)· 再重跑。"
+            f"{cli_name} 执行失败 · 查 ① 过程日志(START/[stderr]/END 时间线 · 鉴权/限流/卡点一眼可见)· "
+            f"② 网络 / token(setup-token / OAuth)· ③ {cli_name} --version · "
+            f"④ 是否并发限流(串行重试)· 再重跑。"
             f"🔴 切勿伪造 tool_error 文件或自列 external 通过门禁;"
             f"异质客观不可用(已重试失败)→ --self-review-fallback(subagent 降级 · 详 standards §11.5)"
         )
@@ -3268,6 +3323,7 @@ def cmd_external_review(args: argparse.Namespace) -> None:
             "model": model,
             "cli_exit_code": rc,
             "cli_stderr": stderr[:500],
+            **({"process_log": process_log_str} if process_log_str else {}),
         })
         return
 
@@ -3276,7 +3332,8 @@ def cmd_external_review(args: argparse.Namespace) -> None:
             "verdict": "FAIL",
             "command": "external-review",
             "error": f"{cli_name} 返回空 stdout · 视作 review 失败",
-            "hint": f"检查 {cli_name} 配置 · 或重跑(网络抖动可能)",
+            "hint": f"检查 {cli_name} 配置 · 或重跑(网络抖动可能)· 过程日志看卡点",
+            **({"process_log": process_log_str} if process_log_str else {}),
         })
         return
 
@@ -3437,10 +3494,12 @@ def cmd_external_review(args: argparse.Namespace) -> None:
             if model == "claude" and files_inline_meta else {}),
         # v8.43:bypass quality_warnings(template_echo)留痕
         **({"quality_bypass_warning": bypass_warning} if bypass_warning else {}),
-        # v8.44:doc-based prompt 路径(治本 case round 4 长 prompt 卡)
+        # v8.44/v8.139:doc-based prompt 路径(两引擎统一 · codex 也落审计 doc)
         **({"prompt_doc": prompt_doc_used,
             "prompt_doc_source": prompt_doc_source}
-            if model == "claude" and prompt_doc_used else {}),
+            if prompt_doc_used else {}),
+        # v8.139:过程日志(prompt-doc 同名 .log · START/pid/[stderr]/END 实时时间线)
+        **({"process_log": process_log_str} if process_log_str else {}),
         **({"prompt_doc_fallback_warning": fallback_warning}
             if model == "claude" and fallback_warning else {}),
     })
