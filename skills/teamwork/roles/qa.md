@@ -26,6 +26,5 @@ v8 沿用 + 强化:test-complete 自动跑 verify-ac.py · 不通过 FAIL。
 
 ## 相关
 
-- 设计宪法:[../docs/archive/v8-redesign/00-MANIFESTO.md](../docs/archive/v8-redesign/00-MANIFESTO.md)
 - 命令权威:`state.py --help` + [../tools/_v8_stage_specs.py](../tools/_v8_stage_specs.py)(各 stage 契约 schema · 现行权威)
 - 通用引擎:[../tools/_v8_engine.py](../tools/_v8_engine.py)

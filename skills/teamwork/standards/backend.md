@@ -1,11 +1,12 @@
 # 后端开发规范
 
-> 后端 RD 必须遵守。通用规范见 📎 [common.md](./common.md)。
-> Subagent 加载指引：后端子项目只需加载本文件 + common.md，无需加载 frontend.md。
+> 后端 RD 必须遵守。通用规范见 📎 [common.md](./common.md) · TDD 流程唯一权威源 📎 [tdd.md](./tdd.md)。
+> Subagent 加载指引：后端子项目加载本文件 + tdd.md + common.md，无需加载 frontend.md。
+> 📎 **通用教程不入库**（同 frontend.md v8.123 裁定）：保留的 ✅/❌ 示例仅限**承载契约/门禁字段**的对照（如 §四 日志必须字段）· 通用技术用法由 AI 按需自生成 · 项目特异约定归各项目 `DEV-RULES.md`。
 
 ---
 
-## 模块设计判定Ｔ mattpocock/skills improve-codebase-architecture）
+## 模块设计判定（借鉴 mattpocock/skills improve-codebase-architecture）
 
 🔴 **统一架构词汇**：使用 [templates/knowledge.md § Glossary 通用架构词汇](../templates/knowledge.md) 的 8 词（Module / Interface / Depth / Seam / Adapter / Leverage / Locality / Boundary）。**禁止**在主对话 / TECH.md 自创"组件 / 服务 / 层"等同义异形词。
 
@@ -25,43 +26,7 @@
 
 ### 开发流程（Red-Green-Refactor）
 
-**Step 1: Red（写测试，必须失败）**
-```
-📋 Step 1: 编写测试 (Red)
-
-根据 TC 用例编写单元测试：
-- [ ] test_login_with_valid_credentials_should_succeed
-- [ ] test_login_with_invalid_password_should_fail
-- [ ] test_login_with_nonexistent_user_should_fail
-- [ ] test_login_should_rate_limit_after_5_failures
-
-运行测试: 4 个失败 ✅ (预期)
-```
-
-**Step 2: Green（写实现，让测试通过）**
-```
-📋 Step 2: 实现代码 (Green)
-
-最小实现让测试通过：
-- [ ] 实现 login 方法
-- [ ] 实现密码验证
-- [ ] 实现用户查询
-- [ ] 实现限流逻辑
-
-运行测试: 4 个通过 ✅
-```
-
-**Step 3: Refactor（重构，保持测试通过）**
-```
-📋 Step 3: 重构 (Refactor)
-
-优化代码质量：
-- [ ] 提取公共方法
-- [ ] 优化命名
-- [ ] 添加注释
-
-运行测试: 4 个通过 ✅
-```
+🔴 **单源 = [standards/tdd.md](./tdd.md)**（Iron Law / RED-GREEN-REFACTOR 5 步 / 自检清单 / 反模式 / 例外）· 本文件不复制流程正文（防双源漂移 · 已注册 tdd.md §七 引用约定）。后端落地差异仅测试命令：`pytest path/to/test_xxx.py -v` / `npm test path/to/test.test.ts` / `go test ./path/to/...`（tdd.md §二 Step 2 已列）。
 
 ### 测试命名规范
 
@@ -109,20 +74,6 @@
 └── 异常场景返回正确错误码
 ```
 
-**验证示例**：
-```python
-# 正常场景
-response = api.post("/api/v1/users", data={"name": "test", "email": "test@example.com"})
-assert response.status_code == 200
-assert response.json["code"] == "SUCCESS"
-assert "user_id" in response.json["data"]
-
-# 异常场景
-response = api.post("/api/v1/users", data={"name": ""})
-assert response.status_code == 400
-assert response.json["code"] == "INVALID_PARAM"
-```
-
 #### 2. 数据库验证
 
 ```
@@ -133,19 +84,6 @@ assert response.json["code"] == "INVALID_PARAM"
 ├── 状态变更符合预期
 ├── 时间戳正确记录
 └── 软删除/硬删除正确执行
-```
-
-**验证示例**：
-```python
-# 调用 API 创建用户
-response = api.post("/api/v1/users", data={"name": "test", "email": "test@example.com"})
-user_id = response.json["data"]["user_id"]
-
-# 查询数据库验证
-db_user = db.query("SELECT * FROM users WHERE id = ?", user_id)
-assert db_user["name"] == "test"
-assert db_user["email"] == "test@example.com"
-assert db_user["created_at"] is not None
 ```
 
 #### 3. 测试数据管理
@@ -253,6 +191,12 @@ assert db_user["created_at"] is not None
 ---
 
 ## 三、服务端 API 接口规范
+
+> 🔴 **优先级链**(同 §五 迁移命名 v8.119 模式 · 本节全部小节适用:响应结构 / JSON 命名 / 状态码 / 分页):
+> ① 优先按项目/子项目 `DEV-RULES.md` 的 API 约定 —— 有则严格照办 · 本节默认不适用。
+> ② DEV-RULES 未规定 · 但**存量服务已有明确一致的接口风格**(envelope / 命名 / 错误码)→ **沿用存量**(对外契约 · 同服务内一致性 = 正确性 · 新接口不得自创风格)· 🔴 并**提示用户**把该约定固化进 DEV-RULES.md(AI 不代写 · dev-rules 模板约定)。
+> ③ 全新服务 / 无任何既有约定 → 用本节 teamwork 默认。
+> 📎 与 §五 migration「不读邻居」的区别:迁移文件名是**内部惯例**(坏样板不该传染 · 要么 DEV-RULES 要么默认);API 响应结构是**对外契约**(消费方依赖 · 同服务不一致即破坏)→ 存量风格在 ② 合法沿用。
 
 ### 统一响应格式
 
@@ -365,7 +309,7 @@ assert db_user["created_at"] is not None
 
 ### 结构化日志格式（服务端必须遵守）
 
-> 默认推荐以下结构化日志格式（示例如下）。项目可在 `docs/KNOWLEDGE.md` 中声明自定义日志格式（如 ELK/Datadog/自建方案），声明后以 KNOWLEDGE.md 中的格式为准。
+> 默认推荐以下结构化日志格式（示例如下）。项目可在 `DEV-RULES.md` 声明自定义日志格式（如 ELK/Datadog/自建方案），声明后以其为准；未声明则按本节默认格式。
 
 ```json
 {
@@ -487,7 +431,7 @@ assert db_user["created_at"] is not None
 **示例**：
 ```javascript
 // ✅ 正确：外部调用异常 ERROR 日志（+ 降级时叠加 WARN）
-const start = Date.now;
+const start = Date.now();
 try {
  const resp = await paymentClient.pay({ orderId, amount });
  if (resp.code !== 0) {
@@ -497,7 +441,7 @@ try {
  traceId: ctx.traceId,
  request: { orderId, amount },
  response: { code: resp.code, msg: resp.msg },
- durationMs: Date.now - start,
+ durationMs: Date.now() - start,
  orderId,
  userId: ctx.userId,
  });
@@ -511,7 +455,7 @@ try {
  traceId: ctx.traceId,
  request: { orderId, amount },
  error: { message: e.message, stack: e.stack },
- durationMs: Date.now - start,
+ durationMs: Date.now() - start,
  orderId,
  userId: ctx.userId,
  });
@@ -597,11 +541,11 @@ try {
 📁 迁移文件位置：
 └── {项目路径}/migrations/ （或项目约定的迁移目录）
 
-📄 命名规范：
-└── {时间戳}_{操作描述}.{扩展名}
- ├── 示例：20260312_add_user_email_index.sql
- ├── 示例：20260312_create_orders_table.sql
- └── 时间戳格式：YYYYMMDD 或 YYYYMMDDHHmmss（按项目框架约定）
+📄 命名规范（🔴 优先级链）：
+└── {时间戳}_{操作描述}.{扩展名} · 例 20260312143022_add_user_email_index.sql
+ ├── ① 优先按 DEV-RULES.md（项目/子项目级）的 migration 命名 / 守卫约定 —— 有则严格照办
+ ├── ② DEV-RULES 未规定 → 默认 YYYYMMDDHHmmss **秒级真实时间戳**（🔴 不用 000000 填充 · 防同日撞号 + 乱序）
+ └── 🔴 **不靠读邻居 migration 推断**格式（邻居可能不一致 / 有坏样板）· 要么 DEV-RULES 要么秒级默认
 ```
 
 ### 强制要求
@@ -609,6 +553,7 @@ try {
 ```
 🔴 必须遵守：
 ├── 每次 schema 变更必须有迁移文件，禁止手动改库
+├── 🔴 加 migration 前先查 DEV-RULES 的 migration 约定 / 守卫（version-ceiling / 高水位线 / sequence guard 等）· 同 PR 满足守卫要求（如 bump ceiling）· 撞到未声明的项目守卫(CI 失败) → 修复后记进 DEV-RULES/KNOWLEDGE（下次不再撞）
 ├── 迁移必须可逆：提供 up（执行）和 down（回滚）
 ├── 迁移文件提交前必须在本地/Docker 环境验证通过
 ├── TECH.md 中必须声明是否涉及 schema 变更
@@ -635,7 +580,7 @@ try {
 
 > 🔴 **默认避免** DB-level `FOREIGN KEY` 约束（含 `ON DELETE CASCADE` / `ON UPDATE CASCADE`）。引用完整性由应用层 / ORM hook / 服务边界保证。
 >
-> 项目可在 `KNOWLEDGE.md` 中声明覆盖此默认（如"本项目默认启用 FK"），声明后以 KNOWLEDGE.md 为准 + TECH.md 引用 KNOWLEDGE.md 行号。
+> 项目可在 `DEV-RULES.md` 声明覆盖此默认（如"本项目默认启用 FK"），声明后以其为准 + TECH.md 引用 DEV-RULES 行号；未声明则按本节默认（避免 FK）。
 
 #### 默认避免的理由（行业常见取向）
 
@@ -655,7 +600,7 @@ try {
 ✅ 强一致小规模 OLTP（单库 · 不会分片 · 行数预估 <10M · 写入 QPS 低）
 ✅ 法务 / 合规 / 财务类强约束（应用层不可信 · DB 是最后真值防线）
 ✅ 内部管理后台 / 配置表（写入极低频 · 一致性 > 性能）
-✅ KNOWLEDGE.md 已明文记录"本项目默认启用 FK"约定（cite 行号）
+✅ DEV-RULES.md 已明文记录"本项目默认启用 FK"约定（cite 行号）
 ```
 
 ❌ **反模式黑名单**（命中即架构师 Tech Review BLOCKER · 不可降级为非阻塞 concern）：
@@ -730,7 +675,7 @@ PMO 完成报告 → 确认 database-schema.md 已完整同步（设计层 + 实
 └── /api/v{N}/...
  ├── v1: /api/v1/users
  ├── v2: /api/v2/users
- └── 项目可在 KNOWLEDGE.md 中声明使用其他策略（如 Header 版本），声明后以 KNOWLEDGE.md 为准
+ └── 项目可在 DEV-RULES.md 声明使用其他策略（如 Header 版本），声明后以其为准；未声明默认 URL Path 版本
 ```
 
 ### 何时需要升版本

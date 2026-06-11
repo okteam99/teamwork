@@ -1048,5 +1048,84 @@ class TestRunTestsViaSubprocess(unittest.TestCase):
         self.assertIn("exit_code: 0", full)
 
 
+class TestGoalQualityGatesV8132(unittest.TestCase):
+    """v8.132:goal-complete 物化「全员通过判定」+ PL 对抗质疑存在性。
+
+    治本 goal review case(2026-06-11):verdicts 全 NEEDS_REVISION 也能 goal-complete
+    (「全员 APPROVE」此前是纸面纪律)· PL-PM 同上下文切帽子无对抗物证(鼓掌过场)。
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.feat = Path(self.tmp) / "feat"
+        self.feat.mkdir()
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def _write_review(self, fm: str, body: str = "## pl 段\nPL-CHALLENGE-1(范围最小化):AC-7/8 砍掉不影响目标\n"):
+        (self.feat / "PRD-REVIEW.md").write_text(f"---\n{fm}\n---\n\n{body}", encoding="utf-8")
+
+    def _verdicts(self):
+        from _v8_stage_specs import _evidence_prd_verdicts_all_pass  # type: ignore
+        return _evidence_prd_verdicts_all_pass({}, make_args(feature=str(self.feat)))
+
+    def _challenge(self, roles):
+        from _v8_stage_specs import _evidence_pl_challenge_present  # type: ignore
+        state = {"stage_review_roles": {"goal": roles}}
+        return _evidence_pl_challenge_present(state, make_args(feature=str(self.feat)))
+
+    # ── verdicts 全员通过(行内 {} / 缩进 map 两种写法) ──
+    def test_all_approve_inline_passes(self):
+        self._write_review("reviewers: [pm, qa]\nverdicts: {pm: APPROVE, qa: APPROVE}")
+        ok, msg = self._verdicts()
+        self.assertTrue(ok, msg)
+
+    def test_indented_map_with_skip_passes(self):
+        self._write_review(
+            "reviewers: [pm, qa, external]\nverdicts:\n  pm: APPROVE\n  qa: approve\n  external: SKIP")
+        ok, msg = self._verdicts()
+        self.assertTrue(ok, msg)
+
+    def test_needs_revision_fails(self):
+        self._write_review("reviewers: [pm, qa]\nverdicts: {pm: APPROVE, qa: NEEDS_REVISION}")
+        ok, msg = self._verdicts()
+        self.assertFalse(ok)
+        self.assertIn("NEEDS_REVISION", msg)
+
+    def test_legacy_pass_vocab_rejected(self):
+        """旧词表 PASS/PASS_WITH_CONCERNS 不算通过(强制 canon 词表 APPROVE|NEEDS_REVISION|SKIP)。"""
+        self._write_review("verdicts: {pm: PASS_WITH_CONCERNS}")
+        ok, _ = self._verdicts()
+        self.assertFalse(ok)
+
+    def test_missing_verdicts_fails(self):
+        self._write_review("reviewers: [pm]")
+        ok, msg = self._verdicts()
+        self.assertFalse(ok)
+        self.assertIn("verdicts", msg)
+
+    def test_missing_file_fails(self):
+        ok, _ = self._verdicts()
+        self.assertFalse(ok)
+
+    # ── PL-CHALLENGE 对抗质疑物化 ──
+    def test_pl_in_roles_requires_marker(self):
+        self._write_review("verdicts: {pl: APPROVE}", body="## pl 段\n无质疑\n")
+        ok, msg = self._challenge(["pm", "qa", "pl"])
+        self.assertFalse(ok)
+        self.assertIn("PL-CHALLENGE", msg)
+
+    def test_pl_marker_present_passes(self):
+        self._write_review("verdicts: {pl: APPROVE}")  # 默认 body 含 PL-CHALLENGE-1
+        ok, msg = self._challenge(["pl"])
+        self.assertTrue(ok, msg)
+
+    def test_no_pl_role_auto_passes(self):
+        """敏捷需求 goal 角色集 [pm,qa,architect] 无 pl → 自动放行(连 PRD-REVIEW 缺失也不拦)。"""
+        ok, _ = self._challenge(["pm", "qa", "architect"])
+        self.assertTrue(ok)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

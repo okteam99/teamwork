@@ -32,9 +32,27 @@
 
 按 `UI.md` frontmatter `panorama_medium` 走:
 
-- **`same-stack`** —— 真渲染 diff(项目自身 `/design/<page-id>` 路由 vs live 实现 · 同栈像素级 fidelity 由构造保证):
-  - 跑项目自有 visual regression(storybook diff / playwright screenshot / chromatic 等)· teamwork 尚未提供统一同栈 diff 工具(后续 Feature)
-  - 差异 → 修代码 或 修 design route + mock data
+- **`same-stack`** —— 分层对照(详 [ui-design-stage § 分层同构律](./ui-design-stage.md) · 旧「in-app /design 路由 diff」模型已废):
+  - **Layer 1 基建**:实现**复用共享包**(packages/ui · theme · shell)· 🔴 不在真实 app 里复制/重写全景已用的基建(发现全景用了未共享的基建 → 先抽包/对齐)
+  - **Layer 2 页面**:对齐**意图四要素**(布局结构 / 交互流 / 状态〔normal·empty·loading·error〕/ 字段映射 · 以 UI.md + 全景页为准)· 像素与代码组织自由 · **非字节还原**
+  - 起全景 dev server(preview.sh)与实现并排对照 · 视觉回归工具(playwright screenshot 等)可选
+  - 差异处置:四要素不一致 → 修实现;认为设计本身要改 → 🔴 不在 dev 顺手改 · 走 `--panorama-changed` / 回 ui_design(设计变更须重新对齐)
+
+### 3.5 共享基建变更 → 全景编译契约(条件必跑 · v8.134)
+
+**触发**:本 feature diff 触及**全景的依赖**(preview-project workspace 依赖的共享包 · 如 packages/ui / theme / shell —— 读 preview-project `package.json` workspace 依赖与 diff 路径求交)。未触及 → 跳过本节。
+
+**动作**(dev-complete 前 · worktree 内):
+```bash
+cd {子项目}/docs/design/preview-project && pnpm build   # 或项目等价 build/typecheck · exit 0 = 契约满足
+```
+
+**失败处置**:
+- 基建 API 变更导致的**机械适配**(改全景页用法 · 不改设计语义)→ 本 feature 内顺手修(合法 · UI.md 变更记录 +1 行)
+- 适配引发**视觉/交互变化** → 那是设计变更 · 走 `--panorama-changed=true` / panorama_sync(🔴 不可静默)
+- 不想适配 → 收回破坏性基建改动 —— **改 API 者负责迁移所有消费者**(同 backend §五 Schema 影响分析的责任模型 · 全景是消费者之一)
+
+**证据**:build exit 0 记入 dev 测试证据(同 §6 test evidence 模式)。⏳ 物化 TODO:dev-complete 条件 evidence(diff ∩ 共享包路径 → 要求 `--panorama-build-exit-code`)。
 - **`static-html`** —— IA + 视觉层级 + Token 一致性校验(不强像素 · 介质差异不可调和):
   - 跑 `verify-panorama.py`(已 medium-aware · 同栈下自动 skip HTML 检查 · 不卡流程)或 `diff-html-vs-panorama.py`
   - 对比实现 vs `UI.md` / `preview/*.html`
@@ -45,6 +63,7 @@
 - [ ] 规范符合(common.md / backend.md / frontend.md 对应)
 - [ ] 跑已有测试无回归(`pytest` / `npm test` 等 · exit-code=0)
 - [ ] build 通过(`make` / `npm run build` 等 · exit-code=0)
+- [ ] 改了共享基建 → 全景编译通过(§3.5 · exit-code=0)
 - [ ] linter pass(若项目有 · 如 `ruff` / `eslint`)
 - [ ] commit message 含 Feature ID
 - [ ] 改动文件全在 commit changeset 内

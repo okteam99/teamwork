@@ -15,10 +15,10 @@
 > 新项目权威顺序 = `product-overview`(产品规划 · PL 引导模式 · 见 [PRODUCT-OVERVIEW-INTEGRATION.md](../PRODUCT-OVERVIEW-INTEGRATION.md))
 > → ✅确认 → **派生** `teamwork-space.md`(工作区全景)→ **再**进本流程拆 ROADMAP。
 >
-> ⚠️ **`teamwork-space.md` 不是本流程产出的** —— 它由 product-overview「✅ 已确认」内容派生(genesis 在产品规划上游 ·
-> PRODUCT-OVERVIEW-INTEGRATION.md:67)。本流程 §2 Step 5「工作区级」改 teamwork-space.md 指的是**已存在后的迭代**,
-> 不是首次 genesis。冷启动若无 product-overview/teamwork-space → bootstrap emit `cold_start_workspace_uninitialized`
-> gate 引导先走产品规划上游(治本:已做 Feature Planning 却跳过 product-overview + teamwork-space.md)。
+> ⚠️ **`teamwork-space.md` 地图骨架由 bootstrap 自动建(v8.116)**,但**子项目清单**由 product-overview「✅ 已确认」+ 本流程**回填**
+> (taxonomy genesis 在产品规划上游 · PRODUCT-OVERVIEW-INTEGRATION.md:67)。本流程 §2 Step 5「工作区级」改 teamwork-space.md
+> 指的是**回填子项目清单 / 迭代**,不是建文件本身(那是 bootstrap)。冷启动若无 `product-overview/` → bootstrap emit
+> `cold_start_product_planning_recommended` gate 引导先走产品规划上游(治本:已做 Feature Planning 却跳过 product-overview)。
 
 ---
 
@@ -94,7 +94,7 @@ Feature Planning 的产出是**规划文档**(不是单 Feature 的 artifact)· 
 ### Step 5 · 🎨 UI 全景初步规划(条件:本轮涉 UI · 否则跳过)
 
 🔴 **在拆 WS 之前出** —— 先看清"产品长啥样",WS 才能把 feature 切对(边界跟 UI 结构对齐)。对**本轮 scope 做一次**(不是 per-WS 各画),在 `{子项目}/docs/design/preview-project/`:
-- **出 design system + 本轮关键页**(🔴 **初步**:系统 + 代表页 · **不是每页** · 细节随各 feature 的 ui_design 增量补 · 防瀑布)· 跑 `preview.sh` 实时看(同 ui_design 同栈机制)。
+- **出 design system + 本轮关键页**(🔴 **初步**:系统 + 代表页 · **不是每页** · 细节随各 feature 的 ui_design 增量补 · 防瀑布)· 🔴 seed 即按**真实路由结构**组织(router 必含 · `/` = 首页设计稿 · 各页挂真实 path · 与 sitemap 一致 · 详 ui-design-stage § IA 镜像律)· 基建层优先依赖真实 app 的**共享包**(packages/ui · theme · shell · 详 ui-design-stage § 分层同构律)· 跑 `preview.sh` 实时看(同 ui_design 同栈机制)。
 - 同步 `sitemap.md`(IA 地图:本轮新增/调整的页节点 · 🔴 **只写层级/导航/路由,不写视觉** —— 视觉在 preview-project · 防双副本漂移)。
 - 🔴 全景是**一份活物**:不存在 → 首次 seed;已存在 → 扩本轮的页(源即权威)。完成即产生 git diff(= 本轮全景产出 · 下一步拆 WS 的输入)。
 - **非 UI 轮**(纯后端/基建)→ 跳过此步 · 下游 WS 标 `全景初规: N-A`。
@@ -223,7 +223,7 @@ BL ↔ F 编号映射规则见 [conventions.md § 4](./conventions.md)。
 
 ## 6. 相关
 
-- [SKILL.md § Triage 入口规范 § 4.1](../SKILL.md) — 流程类型识别(Feature Planning 关键词命中)
+- [SKILL.md § Triage 入口规范 · 5 mode 分诊](../SKILL.md) — 流程类型识别(Feature Planning 关键词命中)
 - [docs/prepare.md](./prepare.md) — 进状态机前的准备子流程(启 Feature 时走)
 - [FLOWS.md § Feature Planning](../FLOWS.md) — telos
 - [conventions.md § 4](./conventions.md) — BL ↔ F 编号

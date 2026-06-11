@@ -2,7 +2,7 @@
 
 An AI works from a team-collaboration perspective — through **flow orchestration + role-perspective switching + contractualized stages + a machine-readable state machine** — to drive the complete software lifecycle from product planning to delivery.
 
-[中文](./README.md) · Version: **v8.87**
+[中文](./README.md) · Version: **v8.136** (version source of truth = [SKILL.md](./skills/teamwork/SKILL.md) frontmatter)
 
 ---
 
@@ -308,7 +308,7 @@ Teamwork's 9 core red lines — 8 of them materially enforced by the `state.py` 
 | **R8** Write-op hard gate chain | Reject stage-start before prepare is done · Ship Phase 1 CLI-first |
 | **R9** Session bootstrap | Entry must run bootstrap.py + PMO 5-mode triage |
 
-Full red-line text in [SKILL.md](./skills/teamwork/SKILL.md) (current authority) · design rationale in [docs/archive/v8-redesign/00-MANIFESTO.md](./skills/teamwork/docs/archive/v8-redesign/00-MANIFESTO.md) (archived from the v8.0 rewrite).
+Full red-line text in [SKILL.md](./skills/teamwork/SKILL.md) (current authority).
 
 ---
 
@@ -318,7 +318,7 @@ Full red-line text in [SKILL.md](./skills/teamwork/SKILL.md) (current authority)
 |------|---------|
 | [SKILL.md](./skills/teamwork/SKILL.md) | Main entry: design philosophy + command list + Triage entry spec + 9 red lines + project-level doc architecture |
 | [FLOWS.md](./skills/teamwork/FLOWS.md) | 6 flow types — telos and use cases |
-| [STAGES.md](./skills/teamwork/STAGES.md) | 10-stage index + common cite discipline |
+| [STAGES.md](./skills/teamwork/STAGES.md) | 12-stage index + common cite discipline |
 | [ROLES.md](./skills/teamwork/ROLES.md) | Role index (→ roles/*.md) |
 | [STANDARDS.md](./skills/teamwork/STANDARDS.md) | Technical standards index (→ standards/*.md) |
 | [TEMPLATES.md](./skills/teamwork/TEMPLATES.md) | Document template index |
@@ -329,7 +329,7 @@ Full red-line text in [SKILL.md](./skills/teamwork/SKILL.md) (current authority)
 | [roles/*.md](./skills/teamwork/roles/) | Role telos + authoring guidelines |
 | [standards/*.md](./skills/teamwork/standards/) | Technical standards (common / backend / frontend / tdd, etc.) |
 | [tools/state.py](./skills/teamwork/tools/state.py) | The sole orchestrator entry |
-| [docs/CHANGELOG.md](./skills/teamwork/docs/CHANGELOG.md) | Latest 1 version (history in CHANGELOG-ARCHIVE.md) |
+| [docs/CHANGELOG.md](./skills/teamwork/docs/CHANGELOG.md) | Latest 5 versions (older history via git log) |
 
 For the detailed directory structure see [skills/teamwork/](./skills/teamwork/).
 
@@ -337,7 +337,7 @@ For the detailed directory structure see [skills/teamwork/](./skills/teamwork/).
 
 ## Version
 
-Currently **v8.87**. Changelog in [docs/CHANGELOG.md](./skills/teamwork/docs/CHANGELOG.md) (latest 1 version) · history in [docs/CHANGELOG-ARCHIVE.md](./skills/teamwork/docs/CHANGELOG-ARCHIVE.md).
+Currently **v8.136** (version source of truth = [SKILL.md](./skills/teamwork/SKILL.md) frontmatter). Changelog in [docs/CHANGELOG.md](./skills/teamwork/docs/CHANGELOG.md) (latest 5 versions) · older history via git log (CHANGELOG-ARCHIVE is **periodically wiped**).
 
 ---
 

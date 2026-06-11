@@ -4,13 +4,14 @@
 #
 # 解决:① same-stack 预览是 ES-module bundle · file:// 因 CORS 打不开 → 必须 dev server
 #       ② 并行 worktree / 多终端裸起 server 抢端口 → 本脚本每次选一个动态空闲端口 · 天然不冲突
-#       ③ 设计确认时直接拿可打开 URL(PMO 抓 PREVIEW_URL= 那行给用户)
+#       ③ 设计确认时直接拿可打开 URL(PMO 抓 PREVIEW_URL= 行 + 拼 UI.md pages_changed[].route_path = 页面直达 URL · 根 / = 首页设计稿)
 #
 # 用法:
 #   bash preview.sh            # 选动态空闲端口 · 打印 PREVIEW_URL= · 前台运行(Ctrl-C 停)
 #   PORT=5180 bash preview.sh  # 指定端口(覆盖动态选择)
 #
-# PMO 接法:后台跑本脚本(run_in_background)· 读早期 stdout 的 `PREVIEW_URL=...` 行 · 给用户 browse。
+# PMO 接法:后台跑本脚本(run_in_background)· 读早期 stdout 的 `PREVIEW_URL=...` 行 ·
+#          拼本次设计页 route_path 成**直达 URL** 给用户 browse(IA 镜像:/ = 首页设计稿 · 详 ui-design-stage § 预览地址约定)。
 set -euo pipefail
 cd "$(dirname "$0")"
 

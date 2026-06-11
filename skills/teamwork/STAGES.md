@@ -4,7 +4,7 @@
 
 ---
 
-## 1. 11 stage 索引
+## 1. 12 stage 索引(与 [tools/_v8_stage_specs.py](./tools/_v8_stage_specs.py) `STAGE_SPECS` 对齐)
 
 | Stage | 文件 | 适用 flow_type |
 |---|---|---|
@@ -13,6 +13,7 @@
 | panorama_sync | [stages/panorama-sync-stage.md](./stages/panorama-sync-stage.md) | Feature(sitemap / 全景同步) |
 | blueprint | [stages/blueprint-stage.md](./stages/blueprint-stage.md) | Feature |
 | blueprint_lite | [stages/blueprint-lite-stage.md](./stages/blueprint-lite-stage.md) | 敏捷需求 |
+| diagnose | [stages/diagnose-stage.md](./stages/diagnose-stage.md) | Bug(流首 stage · 根因细查+修复方案 · 用户确认后进 dev) |
 | dev | [stages/dev-stage.md](./stages/dev-stage.md) | Feature / 敏捷需求 / Bug / Micro |
 | review | [stages/review-stage.md](./stages/review-stage.md) | Feature / 敏捷需求 / Bug |
 | test | [stages/test-stage.md](./stages/test-stage.md) | Feature / 敏捷需求 / Bug |

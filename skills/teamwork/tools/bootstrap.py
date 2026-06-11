@@ -153,6 +153,9 @@ def maintain_project_skeletons(skill_root: Path, project_root: Path) -> dict:
         # v8.96:人维护的项目开发规范(分层/命名/错误处理/测试/风格)· blueprint+dev 必读 ·
         # 与 KNOWLEDGE(AI 沉淀)分家。absent→从模板建;present→不动(人维护)。
         ("DEV-RULES.md", "dev-rules.md"),
+        # v8.117:workspace 级系统架构(子项目拓扑+依赖+目录布局)· 从 teamwork-space.md 外迁 ·
+        # 区别于 per-subproject {子项目}/docs/architecture/(单子项目内部技术架构)。
+        ("ARCHITECTURE.md", "architecture-workspace.md"),
     ]
     specs_dir = project_root / PROJECT_SPECS_DIR
 
@@ -196,6 +199,80 @@ def maintain_project_skeletons(skill_root: Path, project_root: Path) -> dict:
         "failed": failed,
         "dir": PROJECT_SPECS_DIR,
     }
+
+
+# ─── v8.116:teamwork-space.md(知识地图根)自动建骨架 ──────────
+#
+# N≥1 统一模型:任何 teamwork 项目都有 teamwork-space.md(单项目=1 子项目 · 不再"单项目可无")。
+# 🔴 骨架 = **地图**(知识入口自动探测 + 子项目清单待规划填充)· 子项目 taxonomy 由
+# product-overview「✅ 已确认」+ Feature Planning 回填(派生关系不变)。已存在 → 不动(幂等)。
+
+
+def _kg_entry_rows(project_root: Path) -> list:
+    """知识入口表行 —— **仅为磁盘上存在**的知识节点生成指针(零死角 · 不存在不留空指针)。"""
+    rows = []
+    nodes = [
+        ("product-overview", "产品规划", "[`product-overview/`](product-overview/)",
+         "业务架构+执行线 · workstream/ · PENDING.md"),
+        ("project-specs", "工程规范(workspace)", "[`project-specs/`](project-specs/)",
+         "DEV-RULES · KNOWLEDGE · GLOSSARY · TROUBLESHOOTING · RESOURCES"),
+        ("external", "三方 / 外部", "[`external/`](external/)", "SDK · 协议 · 供应商文档"),
+    ]
+    for d, label, link, contains in nodes:
+        if (project_root / d).is_dir():
+            rows.append(f"| {label} | {link} | {contains} |")
+    if (project_root / "project-specs" / "ARCHITECTURE.md").is_file():
+        rows.append("| 系统架构(workspace) | [`project-specs/ARCHITECTURE.md`](project-specs/ARCHITECTURE.md) | "
+                    "子项目拓扑 + 依赖 + 目录布局 |")
+    has_archive = (project_root / "docs" / "features" / "_archive").is_dir() or \
+        any(project_root.glob("*/docs/features/_archive"))
+    if has_archive:
+        rows.append("| 归档冷库 | `{子项目}/docs/features/_archive/INDEX.md`(每子项目 docs_root) | "
+                    "已交付 feature(id+描述+zip)· 先读描述 · 必要才解压 |")
+    return rows
+
+
+def maintain_teamwork_space(skill_root: Path, project_root: Path) -> dict:
+    """teamwork-space.md 缺失 → 自动建**精简骨架**(知识入口自动探测 + 子项目清单空表待填)。
+
+    🔴 子项目清单**空表** → state.py 路由校验 SKIP(填入后才生效)· 不误阻断。
+    已存在 → 不动(幂等 · 含用户/规划已填充内容)。
+    """
+    target = project_root / "teamwork-space.md"
+    if target.exists():
+        return {"status": "existed"}
+    entry_rows = _kg_entry_rows(project_root)
+    entry_block = "\n".join(entry_rows) if entry_rows else \
+        "| (暂无 workspace 知识节点) | — | bootstrap 探测到即补 |"
+    content = (
+        "# Teamwork Space\n\n"
+        "> **本项目知识地图根 · 索引之索引** · 任何 session 先读本文件 → 指向每个知识节点"
+        "(子项目 / 规划 / 工程文档 / 三方 / 归档冷库)· **代码是细节唯一真相**。\n"
+        "> 🔴 变更需用户确认(R5)· 任一单元格 ≤ 1 行 · 维护规范 → "
+        "`docs/teamwork-space-guide.md`(随 skill · 不复制进项目)。\n"
+        "> 🔴 本文件 bootstrap **自动建骨架** · 子项目清单 / 规划章节由 product-overview"
+        "「✅ 已确认」+ Feature Planning 回填(派生关系不变)。\n\n"
+        "## 知识入口（索引之索引 · 零死角）\n\n"
+        "<!-- 🔴 每个磁盘上存在的知识节点一行指针 · 漏一个 = 知识泄露死角 · bootstrap 自动探测维护 -->\n\n"
+        "| 知识域 | 入口 | 内含 |\n"
+        "|--------|------|------|\n"
+        f"{entry_block}\n"
+        "| 代码（唯一真相） | `grep` + `Read` 源码 | 🔴 细节一律现查代码 · 不信文档转述 |\n\n"
+        "## 子项目清单（路由权威 · 待规划填充）\n\n"
+        "<!-- 🔴 docs_root 必填(路由权威)· 由 product-overview ✅确认 + Feature Planning 拆分后"
+        "填入 · 单项目 = 1 行 · **空表时 state.py 路由校验 SKIP**(填入后才生效) -->\n\n"
+        "| 缩写 | 名称 | 类型 | 职责范围 | docs_root | 承接执行线 | 技术栈 | 需要 UI | 消费方 | 完成度 |\n"
+        "|------|------|------|----------|-----------|-----------|--------|---------|--------|--------|\n"
+        "<!-- 待规划填充:此处尚无子项目行 → 路由校验 SKIP -->\n\n"
+        "---\n\n"
+        "> 完整结构(规划状态 / 执行线 / 待规划池 / 跨项目变更)见模板 `templates/teamwork-space.md` + guide · "
+        "**系统架构**(子项目拓扑/依赖/目录)→ `project-specs/ARCHITECTURE.md`(已外迁)· 规划期按需补。\n"
+    )
+    try:
+        target.write_text(content, encoding="utf-8")
+        return {"status": "created", "knowledge_entries": len(entry_rows)}
+    except OSError as e:
+        return {"status": "failed", "reason": str(e)}
 
 
 # ─── 本地敏感配置目录 .teamwork-local-env/(v8.89) ──────────
@@ -922,6 +999,91 @@ def write_host_audit(host: str) -> bool:
 # ─── 主入口 ─────────────────────────────────────────
 
 
+# ─── v8.115:知识图谱结构可达性校验(零死角物化 · WARN-only · 非 BLOCK)─────
+#
+# 🔴 只查**结构可达性**(归档对账 + 节点登记)· **不查内容新鲜度**
+# (内容 = 代码唯一真相 + 人/AI 维护 · checker 不碰 —— 否则 checker 通过会被误读成
+# 「知识完整/最新」· 自己成误导信号 · 违 v8.105「信号≠判决」)。teamwork-space.md
+# 缺失 → skip(cold-start gate 另管 · 不重复报)。
+
+
+def _find_archive_dirs(project_root: Path) -> list:
+    """归档目录 `_archive/` · **有界**查找(子项目直接放根下 · 不深递归 node_modules)。"""
+    cands = [project_root / "docs" / "features" / "_archive"]
+    try:
+        cands.extend(project_root.glob("*/docs/features/_archive"))
+    except OSError:
+        pass
+    return [d for d in cands if d.is_dir()]
+
+
+def _parse_archive_index_ids(index_md: Path) -> list:
+    """解析归档 INDEX.md 数据行 → feature_id(col 0)列表。格式 = _v8_ship._build_archive_index。"""
+    ids = []
+    try:
+        for line in index_md.read_text(encoding="utf-8").splitlines():
+            s = line.strip()
+            if not s.startswith("|"):
+                continue
+            cells = [c.strip() for c in s.strip("|").split("|")]
+            if not cells or cells[0] in ("Feature", "---", ""):
+                continue
+            ids.append(cells[0])
+    except OSError:
+        pass
+    return ids
+
+
+def check_knowledge_graph_integrity(project_root: Path) -> dict:
+    """teamwork-space.md 知识图谱**结构可达性**校验(WARN-only · 非 BLOCK)。
+
+    查:① 归档 `INDEX.md` ↔ `*.zip` 双向对账(孤儿 zip / 悬空行 = 翻不到的死角)
+        ② workspace 知识节点登记(`product-overview`/`project-specs`/`external` 存在
+           于磁盘 → 必在 teamwork-space.md 提及 · 缺 = 知识入口死角)。
+    🔴 **不查内容新鲜度**(只保证「可达」· 不保证「最新」· 内容 = 代码唯一真相)。
+    """
+    space = project_root / "teamwork-space.md"
+    if not space.exists():
+        return {"status": "skipped", "reason": "无 teamwork-space.md(cold-start gate 另管)"}
+
+    leaks = []
+
+    # (1) 归档 INDEX ↔ zip 双向对账
+    for adir in _find_archive_dirs(project_root):
+        index_md = adir / "INDEX.md"
+        indexed = set(_parse_archive_index_ids(index_md)) if index_md.exists() else set()
+        try:
+            zips = {p.stem for p in adir.glob("*.zip")}
+        except OSError:
+            zips = set()
+        try:
+            rel = adir.relative_to(project_root)
+        except ValueError:
+            rel = adir
+        for orphan in sorted(zips - indexed):
+            leaks.append(f"归档孤儿:{rel}/{orphan}.zip 无 INDEX.md 登记(已交付但翻不到)")
+        for dangling in sorted(indexed - zips):
+            leaks.append(f"归档悬空:{rel}/INDEX.md 有 {dangling} 行但 {dangling}.zip 缺失(断指针)")
+
+    # (2) workspace 知识节点登记(磁盘存在 → 必在地图提及)
+    try:
+        space_text = space.read_text(encoding="utf-8", errors="ignore")
+    except OSError:
+        space_text = ""
+    for node in ("product-overview", "project-specs", "external"):
+        if (project_root / node).is_dir() and node not in space_text:
+            leaks.append(f"节点未登记:{node}/ 存在但 teamwork-space.md 未提及(知识入口死角)")
+
+    if leaks:
+        return {
+            "status": "leaks_found",
+            "leak_count": len(leaks),
+            "leaks": leaks,
+            "scope_note": "🔴 仅结构可达性(断指针/归档对账/节点登记)· **不代表内容最新**(内容=代码唯一真相)",
+        }
+    return {"status": "ok", "note": "结构可达性零死角(不含内容新鲜度)"}
+
+
 def cmd_session_bootstrap(args: argparse.Namespace) -> None:
     """session 启动 silent 系统维护(替代 install.sh)。
 
@@ -942,7 +1104,8 @@ def cmd_session_bootstrap(args: argparse.Namespace) -> None:
     version_check = read_skill_version(skill_root)
     skill_version = version_check.get("version")
     skeletons = maintain_project_skeletons(skill_root, project_root)
-    workspace_file = maintain_workspace_filename(project_root)
+    workspace_file = maintain_workspace_filename(project_root)  # legacy 下划线名迁移(先)
+    space_skeleton = maintain_teamwork_space(skill_root, project_root)  # v8.116:地图根自动建(后)
     local_env = maintain_local_env(skill_root, project_root)  # v8.89:本地敏感配置目录
     pending_v7 = scan_v7_state_json(project_root)
 
@@ -1001,6 +1164,7 @@ def cmd_session_bootstrap(args: argparse.Namespace) -> None:
             "skill_version": version_check,
             "skeletons": skeletons,
             "workspace_filename": workspace_file,
+            "teamwork_space": space_skeleton,  # v8.116:知识地图根自动建骨架
             "local_env": local_env,  # v8.89:本地敏感配置目录 .teamwork-local-env/
             "chmod": chmod_result,
             "hooks": hooks_result,
@@ -1035,49 +1199,38 @@ def cmd_session_bootstrap(args: argparse.Namespace) -> None:
         ],
     }
 
-    # v8.47 + v8.48:冷启动检测 — teamwork-space.md 缺失 → forewarn 引导「产品规划优先」冷启动
-    # v8.48 治本(用户 case 2026-05-29 · gcpdev):v8.47 gate 路由指错 —— 写「进 Feature Planning
-    #   生成 teamwork-space.md」· 但 teamwork-space.md 不是 Feature Planning 产出的:权威流是
-    #   product-overview(PL 引导模式)→ ✅确认派生 teamwork-space.md → 再 Feature Planning 拆 ROADMAP
-    #   (PRODUCT-OVERVIEW-INTEGRATION.md:67)。gcpdev 已做 Feature Planning(PROJECT/ROADMAP)却跳过上游产品规划。
-    # 用户决策:产品规划优先(权威流)· 一律引导 product-overview(用户可拒)· spec/wording 修正
-    _AUTH_ORDER = ("product-overview(产品规划 · PL 引导模式)→ ✅确认 → teamwork-space.md(工作区全景)"
-                   "→ Feature Planning(拆 ROADMAP)→ Feature 状态机")
+    # v8.116:cold-start 解耦 —— teamwork-space.md(地图)已 bootstrap 自动建(maintain_teamwork_space)·
+    #   gate 不再 fire 于「无 teamwork-space.md」(地图自动有)· 改 fire 于「无 product-overview」
+    #   (产品规划上游缺失)· 保留 planning nudge(reframe)。地图 ≠ 规划:地图自动建 · 规划要人建。
+    #   承 v8.48 决策(产品规划优先)· teamwork-space.md 子项目清单仍由 product-overview ✅确认回填。
+    _AUTH_ORDER = ("product-overview(产品规划 · PL 引导模式)→ ✅确认 → 回填 teamwork-space.md 子项目清单"
+                   "(地图骨架已自动建)→ Feature Planning(拆 ROADMAP)→ Feature 状态机")
     _po_exists = (project_root / "product-overview").is_dir()
-    if not (project_root / "teamwork-space.md").exists():
-        if _po_exists:
-            # 已有 product-overview · 仅缺 teamwork-space → 从「✅ 已确认」内容派生(跳过 ① 初创)
-            _cold_action = (
-                "🔴 PMO 本 session 首次响应前 · emit R5 暂停点:本项目有 product-overview/ 但无 teamwork-space.md · "
-                "从 product-overview「✅ 已确认」内容派生 teamwork-space.md(工作区全景索引)→ 再 Feature Planning 拆 ROADMAP。"
-                "选项:1 派生 teamwork-space.md 💡 / 2 跳过直接做任务 / 3 其他"
-            )
-            _po_status = ("已存在 · 从其「✅ 已确认」内容派生 teamwork-space.md"
-                          "(PRODUCT-OVERVIEW-INTEGRATION.md § 与 teamwork-space 关系)")
-        else:
-            # 全冷启动 · 无 product-overview 无 teamwork-space → 产品规划优先(权威流)
-            _cold_action = (
-                "🔴 PMO 本 session 首次响应前 · emit R5 暂停点引导用户:本项目未初始化 teamwork 工作区(无 teamwork-space.md)· "
-                "权威冷启动顺序 = 产品规划优先:① 先建 product-overview/(PL 引导模式 · 产品定位/业务架构/执行线列表 · "
-                "见 PRODUCT-OVERVIEW-INTEGRATION.md 建议章节 + 裁剪规则)→ ② ✅确认后派生 teamwork-space.md → "
-                "③ 再 Feature Planning 拆 ROADMAP。选项:1 进产品规划冷启动(建 product-overview)💡 / "
-                "2 跳过直接做任务(单 Feature 快速场景 · 后续可补)/ 3 其他。"
-                "🔴 即使项目已有 PROJECT/ROADMAP(说明跳过了上游产品规划)· 仍 surface 此引导(让用户决定是否补上游)"
-            )
-            _po_status = "也缺失 · 冷启动第一步就是建它(产品规划上游 · teamwork-space.md 由其「✅ 已确认」内容派生)"
+    _space_created = space_skeleton.get("status") == "created"
+    if not _po_exists:
         result["flow_gates"].append({
-            "gate": "cold_start_workspace_uninitialized",
-            "trigger": "session 启动 · 本项目无 teamwork-space.md(工作区未初始化 · 新项目冷启动)",
-            "checks": "project_root 无 teamwork-space.md · teamwork 项目应有(由 product-overview ✅确认内容派生 · 含子项目清单 · 待规划需求池外置 product-overview/PENDING.md)",
-            "action": _cold_action,
-            "skip_consequence": (
-                "跳过可直接做任务(用户拍板)· 但缺产品规划上游 + 工作区清单 → 多子项目管理 / 待规划需求池 / "
-                "跨项目变更追踪 / 执行线对齐 缺失 · 后续可随时补"
+            "gate": "cold_start_product_planning_recommended",
+            "trigger": ("session 启动 · 本项目无 product-overview/(产品规划上游缺失)· "
+                        "teamwork-space.md 地图骨架已 bootstrap 自动维护"),
+            "checks": ("project_root 无 product-overview/ · teamwork 面向复杂业务 · 建议补产品规划上游"
+                       "(愿景 / 业务架构 / 执行线列表)· 地图根 teamwork-space.md 已自动建"
+                       "(知识入口已探测 · 子项目清单待规划回填 · 空表时路由校验 SKIP)"),
+            "action": (
+                "🔴 PMO 本 session 首次响应前 emit R5 暂停点:地图根 teamwork-space.md 已自动建"
+                + ("(本 session 新建骨架)" if _space_created else "(已存在)")
+                + " · 但缺**产品规划上游** product-overview/(愿景/业务架构/执行线)· 选项:"
+                "1 进产品规划冷启动(PL 引导建 product-overview → ✅确认 → 回填 teamwork-space.md 子项目清单)💡 / "
+                "2 跳过直接做任务(单 Feature 快速 · 后续可补)/ 3 其他。"
+                "🔴 即使已有 PROJECT/ROADMAP(说明跳过了上游产品规划)· 仍 surface(让用户决定补否)"
             ),
-            "product_overview_status": _po_status,
+            "skip_consequence": (
+                "跳过可直接做任务(用户拍板)· 但缺产品规划上游 → 多子项目 taxonomy / 待规划需求池 / "
+                "执行线对齐 / 跨项目追踪 缺失 · teamwork-space.md 子项目清单留空(路由校验 SKIP)· 后续可随时补"
+            ),
+            "teamwork_space_status": space_skeleton.get("status"),
             "authoritative_order": _AUTH_ORDER,
             "spec": ("PRODUCT-OVERVIEW-INTEGRATION.md(产品规划权威 · 引导模式建 product-overview)"
-                     "+ docs/feature-planning.md + templates/teamwork-space.md"),
+                     "+ docs/feature-planning.md"),
         })
 
     # v8.46 A:检测 product-overview/ → flow_gates 加规划规范 gate(治本 Feature Planning 未物化漏洞)
@@ -1126,7 +1279,7 @@ def cmd_session_bootstrap(args: argparse.Namespace) -> None:
     # v8.51:session 入口优先级(治本 gcpdev case 2026-05-29 · PMO 把升级/补规划降成脚注 · 优先级倒置)
     # 物化:把"先升级 → 再补规划 → 最后任务"写进 bootstrap 输出 · AI 跑完即见 · 不靠记 SKILL.md
     _su_status = result["checks"].get("skill_update_check", {}).get("status")
-    _has_cold_start = any(g.get("gate") == "cold_start_workspace_uninitialized"
+    _has_cold_start = any(g.get("gate") == "cold_start_product_planning_recommended"
                           for g in result.get("flow_gates", []))
     if _su_status == "outdated" or _has_cold_start:
         _priority = []
@@ -1137,7 +1290,7 @@ def cmd_session_bootstrap(args: argparse.Namespace) -> None:
             )
         if _has_cold_start:
             _priority.append(
-                "② 补规划:工作区未初始化(见 flow_gates.cold_start_workspace_uninitialized)· 升级处理完(或用户忽略)再做"
+                "② 补规划:缺产品规划上游 product-overview(见 flow_gates.cold_start_product_planning_recommended)· 升级处理完(或用户忽略)再做"
             )
         _priority.append("③ 任务:triage / 启动 Feature / 看板 · 前面处理完或用户明确跳过才轮到")
         result["session_entry_priority"] = {
@@ -1156,6 +1309,9 @@ def cmd_session_bootstrap(args: argparse.Namespace) -> None:
             if _het_disabled else {}),
     }
 
+    # v8.115:知识图谱结构可达性(零死角物化 · WARN-only · 不进 flow_gates/priority · 不劫持升级>规划>任务序)
+    result["checks"]["knowledge_graph"] = check_knowledge_graph_integrity(project_root)
+
     # v8.60:截断鲁棒 digest —— 关键 forewarn(升级 / flow_gates / 优先级)在 JSON 后位 ·
     # AI 习惯 `| head` 截断会吞掉(实证 case:`bootstrap.py | head -50` 吞掉 skill_update_check
     # → PMO 漏升级提示)。把 1 行 digest 提到输出**顶部**(survive `head -5`)+ 显式禁截断警告。
@@ -1171,6 +1327,11 @@ def cmd_session_bootstrap(args: argparse.Namespace) -> None:
     if _het_disabled:
         _mr.append("🔴 异质评审已禁用(disable_heterogeneous_review=true)· 交叉 review 降级为"
                    "同模型自审 · PMO 须告知用户(见 checks.heterogeneous_review · 建议恢复异质)")
+    _kg = result.get("checks", {}).get("knowledge_graph", {})
+    if _kg.get("status") == "leaks_found":
+        _mr.append("🔴 知识图谱 %d 个结构死角(见 checks.knowledge_graph.leaks)· "
+                   "断指针/归档孤儿/未登记节点 ≠ 内容陈旧 · 修可达性后零死角"
+                   % _kg.get("leak_count", 0))
     _gates = result.get("flow_gates", [])
     if _gates:
         _mr.append("🔴 flow_gates(%d): %s → 逐条读 flow_gates[] 响应"

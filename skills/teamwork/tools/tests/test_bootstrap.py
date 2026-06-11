@@ -138,7 +138,8 @@ class TestMaintainProjectSkeletons(unittest.TestCase):
         self.templates_dir = self.skill_root / "templates"
         self.templates_dir.mkdir(parents=True)
         # 模拟 templates
-        for name in ["knowledge.md", "troubleshooting.md", "glossary.md", "dev-rules.md"]:
+        for name in ["knowledge.md", "troubleshooting.md", "glossary.md", "dev-rules.md",
+                     "architecture-workspace.md"]:
             (self.templates_dir / name).write_text(f"# {name}", encoding="utf-8")
 
         self.project_root = self.tmp / "project"
@@ -152,14 +153,14 @@ class TestMaintainProjectSkeletons(unittest.TestCase):
         result = maintain_project_skeletons(self.skill_root, self.project_root)
         self.assertEqual(
             sorted(result["created"]),
-            ["DEV-RULES.md", "GLOSSARY.md", "KNOWLEDGE.md", "TROUBLESHOOTING.md"],
+            ["ARCHITECTURE.md", "DEV-RULES.md", "GLOSSARY.md", "KNOWLEDGE.md", "TROUBLESHOOTING.md"],
         )
         self.assertEqual(result["existed"], [])
         self.assertEqual(result["migrated"], [])
         self.assertEqual(result["failed"], [])
         # 实际文件创建在 project-specs/ 下 · 不散在仓库根
         specs = self.project_root / "project-specs"
-        for name in ["KNOWLEDGE.md", "TROUBLESHOOTING.md", "GLOSSARY.md", "DEV-RULES.md"]:
+        for name in ["KNOWLEDGE.md", "TROUBLESHOOTING.md", "GLOSSARY.md", "DEV-RULES.md", "ARCHITECTURE.md"]:
             self.assertTrue((specs / name).exists(), f"project-specs/{name} 未创建")
             self.assertFalse((self.project_root / name).exists(), f"{name} 不应散在仓库根")
 
@@ -716,7 +717,7 @@ class TestCmdSessionBootstrapE2E(unittest.TestCase):
         self.assertEqual(data["checks"]["skeletons"]["created"], [])
         self.assertEqual(
             sorted(data["checks"]["skeletons"]["existed"]),
-            ["DEV-RULES.md", "GLOSSARY.md", "KNOWLEDGE.md", "TROUBLESHOOTING.md"],
+            ["ARCHITECTURE.md", "DEV-RULES.md", "GLOSSARY.md", "KNOWLEDGE.md", "TROUBLESHOOTING.md"],
         )
 
     def test_emits_flow_gates_forewarn(self):
@@ -760,54 +761,62 @@ class TestCmdSessionBootstrapE2E(unittest.TestCase):
         )
         return json.loads(result.stdout).get("flow_gates", [])
 
-    def test_cold_start_gate_present_when_no_workspace(self):
-        """v8.47/v8.48:project_root 无 teamwork-space.md → emit cold_start gate。
+    def test_cold_start_gate_present_when_no_product_overview(self):
+        """v8.116:无 product-overview/ → emit cold_start_product_planning_recommended gate。
 
-        v8.48 治本(gcpdev case):gate 路由「产品规划优先」(product-overview → 派生 teamwork-space.md)·
-        不再指「进 Feature Planning 生成 teamwork-space.md」(那是 v8.47 硬伤)。
-        setUp 的 project 是裸 git 仓(无 teamwork-space.md 无 product-overview)→ 全冷启动。
+        teamwork-space.md(地图)由 bootstrap 自动建 → gate 不再 fire 于无 teamwork-space.md ·
+        改 fire 于无 product-overview(产品规划上游)。setUp 裸 git 仓(无 PO)→ gate 在 + 地图自动建。
         """
         gates = self._run_and_get_gates()
         cs = next((g for g in gates
-                   if g.get("gate") == "cold_start_workspace_uninitialized"), None)
-        self.assertIsNotNone(cs, "无 teamwork-space.md 时必 emit cold_start gate")
-        # 关键字段完整(含 v8.48 新增 authoritative_order)
+                   if g.get("gate") == "cold_start_product_planning_recommended"), None)
+        self.assertIsNotNone(cs, "无 product-overview 时必 emit cold_start_product_planning_recommended")
         for k in ("trigger", "checks", "action", "skip_consequence",
-                  "product_overview_status", "authoritative_order", "spec"):
-            self.assertIn(k, cs, f"cold_start gate 必含 {k} 字段")
-        # v8.48:action 路由产品规划优先(product-overview 先建)· 不是 Feature Planning 生成
+                  "teamwork_space_status", "authoritative_order", "spec"):
+            self.assertIn(k, cs, f"gate 必含 {k} 字段")
         self.assertIn("product-overview", cs["action"])
         self.assertIn("产品规划", cs["action"])
-        # 权威顺序字段:product-overview 必在 teamwork-space 之前(治本路由倒置)
-        self.assertIn("product-overview", cs["authoritative_order"])
-        self.assertLess(cs["authoritative_order"].index("product-overview"),
-                        cs["authoritative_order"].index("teamwork-space"),
-                        "权威顺序 product-overview 必在 teamwork-space 之前")
-        # spec 指向产品规划权威(PRODUCT-OVERVIEW-INTEGRATION)
         self.assertIn("PRODUCT-OVERVIEW-INTEGRATION", cs["spec"])
-        # 无 product-overview/ → 提示一并建(冷启动第一步)
-        self.assertIn("也缺失", cs["product_overview_status"])
+        # teamwork-space.md 已自动建(骨架)· N≥1:无 PO 也有地图
+        self.assertEqual(cs["teamwork_space_status"], "created")
+        self.assertTrue((self.project / "teamwork-space.md").exists(),
+                        "无 PO 也必自动建 teamwork-space.md 地图骨架(N≥1)")
 
-    def test_cold_start_gate_absent_when_workspace_exists(self):
-        """v8.47:teamwork-space.md 存在 → 工作区已初始化 · 不再 emit gate。"""
-        (self.project / "teamwork-space.md").write_text("# workspace\n",
-                                                        encoding="utf-8")
-        gates = self._run_and_get_gates()
-        cs = next((g for g in gates
-                   if g.get("gate") == "cold_start_workspace_uninitialized"), None)
-        self.assertIsNone(cs, "teamwork-space.md 存在时不应 emit cold_start gate")
-
-    def test_cold_start_po_status_when_product_overview_exists(self):
-        """v8.48:有 product-overview/ 但无 teamwork-space.md → gate 在 · 引导从 ✅确认派生(跳过初创)。"""
+    def test_cold_start_gate_absent_when_product_overview_exists(self):
+        """v8.116:product-overview/ 存在 → 产品规划上游已有 · 不再 emit cold_start gate
+        (改由 product_overview_planning_spec_required 接管)。"""
         (self.project / "product-overview").mkdir()
         gates = self._run_and_get_gates()
         cs = next((g for g in gates
-                   if g.get("gate") == "cold_start_workspace_uninitialized"), None)
-        self.assertIsNotNone(cs, "仅 product-overview/ 不算工作区初始化 · gate 仍应在")
-        # po 已存在 → 状态以「已存在」开头 · action 引导从 ✅确认内容派生 teamwork-space.md
-        self.assertTrue(cs["product_overview_status"].startswith("已存在"),
-                        f"po 存在时 status 应以「已存在」开头 · 实际:{cs['product_overview_status']}")
-        self.assertIn("派生", cs["action"])
+                   if g.get("gate") == "cold_start_product_planning_recommended"), None)
+        self.assertIsNone(cs, "product-overview 存在时不应 emit cold_start gate")
+        self.assertTrue(any(g.get("gate") == "product_overview_planning_spec_required"
+                            for g in gates), "PO 存在 → planning_spec_required 接管")
+
+    def test_teamwork_space_auto_created_with_knowledge_entries(self):
+        """v8.116:teamwork-space.md 缺失 → bootstrap 自动建骨架(知识入口探测 + 子项目清单空表)· 幂等。"""
+        (self.project / "project-specs").mkdir(exist_ok=True)
+        (self.project / "external").mkdir(exist_ok=True)
+
+        def _run():
+            r = subprocess.run(
+                ["python3", str(BOOTSTRAP_PY), "--host", "claude-code", "--skill-root", str(SKILL)],
+                cwd=str(self.project), capture_output=True, text=True, check=True)
+            return json.loads(r.stdout)
+
+        data = _run()
+        self.assertEqual(data["checks"]["teamwork_space"]["status"], "created")
+        space = (self.project / "teamwork-space.md").read_text(encoding="utf-8")
+        self.assertIn("知识入口", space)
+        self.assertIn("project-specs", space)      # 探测到的节点
+        self.assertIn("external", space)
+        self.assertIn("代码", space)                # 末行 代码=唯一真相
+        # v8.117:project-specs/ARCHITECTURE.md(skeletons 自动建)→ 知识入口探测到 系统架构 行
+        self.assertIn("系统架构", space)
+        self.assertIn("ARCHITECTURE.md", space)
+        self.assertIn("待规划填充", space)           # 子项目清单空表占位 · 无示例数据行
+        # 幂等:二次跑 → existed(不覆盖用户/规划已填内容)
+        self.assertEqual(_run()["checks"]["teamwork_space"]["status"], "existed")
 
     def test_session_entry_priority_when_cold_start(self):
         """v8.51:cold_start(无 teamwork-space)→ emit session_entry_priority(② 补规划 + ③ 任务)。
@@ -1082,6 +1091,94 @@ class TestCheckSkillUpdate(unittest.TestCase):
         (self.tmp / ".teamwork_localconfig.json").write_text(
             json.dumps({"update_channel": "  "}), encoding="utf-8")
         self.assertEqual(bootstrap._read_update_channel(self.tmp), "main")
+
+
+class TestKnowledgeGraphIntegrity(unittest.TestCase):
+    """v8.115:知识图谱**结构可达性**校验(归档 INDEX↔zip 对账 + 节点登记 · WARN-only)。
+    🔴 只查可达性 · 不查内容新鲜度(内容=代码唯一真相)。
+    """
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp(prefix="tw-kg-"))
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def _space(self, text="# Teamwork Space\n"):
+        (self.tmp / "teamwork-space.md").write_text(text, encoding="utf-8")
+
+    def _archive(self, rows=(), zips=()):
+        adir = self.tmp / "docs" / "features" / "_archive"
+        adir.mkdir(parents=True, exist_ok=True)
+        lines = ["| Feature | 描述 | 交付归档时间 | 归档物 |", "| --- | --- | --- | --- |"]
+        for fid in rows:
+            lines.append(f"| {fid} | x | t | `{fid}.zip` |")
+        (adir / "INDEX.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+        for fid in zips:
+            (adir / f"{fid}.zip").write_bytes(b"PK\x03\x04")
+        return adir
+
+    def test_no_space_skipped(self):
+        from bootstrap import check_knowledge_graph_integrity
+        self.assertEqual(check_knowledge_graph_integrity(self.tmp)["status"], "skipped")
+
+    def test_clean_ok(self):
+        from bootstrap import check_knowledge_graph_integrity
+        (self.tmp / "external").mkdir()
+        (self.tmp / "project-specs").mkdir()
+        self._space("# TS\n知识入口:external/ · project-specs/\n")
+        self._archive(rows=["F-001"], zips=["F-001"])
+        r = check_knowledge_graph_integrity(self.tmp)
+        self.assertEqual(r["status"], "ok", r)
+
+    def test_orphan_zip_leaks(self):
+        """zip 无 INDEX 行 = 已交付但翻不到(孤儿)。"""
+        from bootstrap import check_knowledge_graph_integrity
+        self._space()
+        self._archive(rows=[], zips=["F-ORPHAN"])
+        r = check_knowledge_graph_integrity(self.tmp)
+        self.assertEqual(r["status"], "leaks_found")
+        self.assertTrue(any("F-ORPHAN" in x and "孤儿" in x for x in r["leaks"]), r)
+
+    def test_dangling_row_leaks(self):
+        """INDEX 行无 zip = 断指针(悬空)。"""
+        from bootstrap import check_knowledge_graph_integrity
+        self._space()
+        self._archive(rows=["F-GONE"], zips=[])
+        r = check_knowledge_graph_integrity(self.tmp)
+        self.assertEqual(r["status"], "leaks_found")
+        self.assertTrue(any("F-GONE" in x and "悬空" in x for x in r["leaks"]), r)
+
+    def test_matched_archive_no_leak(self):
+        """INDEX 行 + 匹配 zip → 无归档死角。"""
+        from bootstrap import check_knowledge_graph_integrity
+        self._space()
+        self._archive(rows=["F-1", "F-2"], zips=["F-1", "F-2"])
+        self.assertEqual(check_knowledge_graph_integrity(self.tmp)["status"], "ok")
+
+    def test_unregistered_node_leaks(self):
+        """external/ 存在但 teamwork-space.md 未提及 = 知识入口死角。"""
+        from bootstrap import check_knowledge_graph_integrity
+        self._space("# TS · 没列任何节点\n")
+        (self.tmp / "external").mkdir()
+        r = check_knowledge_graph_integrity(self.tmp)
+        self.assertEqual(r["status"], "leaks_found")
+        self.assertTrue(any("external" in x and "未登记" in x for x in r["leaks"]), r)
+
+    def test_registered_node_no_leak(self):
+        """external/ 存在且地图提及 → 不报。"""
+        from bootstrap import check_knowledge_graph_integrity
+        self._space("# TS\n知识入口 · external/ 在此\n")
+        (self.tmp / "external").mkdir()
+        self.assertEqual(check_knowledge_graph_integrity(self.tmp)["status"], "ok")
+
+    def test_scope_note_present_on_leaks(self):
+        """leaks 必带 scope_note(结构可达 ≠ 内容最新 · 防 checker 自身成误导信号 · v8.105 教训)。"""
+        from bootstrap import check_knowledge_graph_integrity
+        self._space()
+        self._archive(rows=[], zips=["F-X"])
+        r = check_knowledge_graph_integrity(self.tmp)
+        self.assertIn("不代表内容最新", r.get("scope_note", ""))
 
 
 if __name__ == "__main__":

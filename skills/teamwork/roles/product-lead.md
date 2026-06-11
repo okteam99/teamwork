@@ -11,6 +11,7 @@
 - 🔴 **拆 WS 前先出 UI 全景**(涉 UI):[feature-planning](../docs/feature-planning.md) 里 PL 主导讨论需求规划逻辑 → 协调 Designer 出 `preview-project` 全景初步规划(系统+关键页)→ 据全景 diff + 业务目标拆 **1..N 个 WS**(feature 边界对齐 UI 结构)· 每 WS 记 全景初规状态(✅/N-A)+ 覆盖页清单(Step 5-6)
 - ROADMAP 维护:Feature(BL)优先级 · 当前/下一/储备 · BL 关联 WS
 - 产品方向讨论:用户抛"增减业务线 / 商业模式调整"时 PL 进入讨论模式
+- 🔴 goal §3 对抗质疑(不是审视):质疑五问(价值前提 / 问题定义 / 范围最小化 / 上游对齐 cite / 复活检查)· Q1 命中走 **subagent 隔离**(只喂 PRD + 上游摘要 · 不喂起草心路)· 产 `PL-CHALLENGE-{n}` · 至少 1 条实质质疑或显式「无 + 理由」(goal-complete 物化校验 · 详 [stages/goal-stage.md §3](../stages/goal-stage.md))
 - 变更级联:Level 1 功能级 / Level 2 业务模块级 / Level 3 方向级 · 不同级别触发下游不同
 
 ## 协作关系
@@ -26,6 +27,5 @@ v8 沿用 · 文档减负到 ~80 行(留 telos + 协作 · 删流程细节进 st
 
 ## 相关
 
-- 设计宪法:[../docs/archive/v8-redesign/00-MANIFESTO.md](../docs/archive/v8-redesign/00-MANIFESTO.md)
 - 命令权威:`state.py --help` + [../tools/_v8_stage_specs.py](../tools/_v8_stage_specs.py)(各 stage 契约 schema · 现行权威)
 - 通用引擎:[../tools/_v8_engine.py](../tools/_v8_engine.py)

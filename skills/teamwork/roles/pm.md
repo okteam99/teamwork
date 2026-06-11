@@ -7,9 +7,11 @@
 
 ## 创作要点(角色身份切换时参考)
 
-- PRD 起草:§需求背景 · §用户场景 · §AC(结构化 frontmatter)· §边界与非目标
-- AC 必须可测试(BDD 风格 · 避免模糊措辞)
-- PL-PM 讨论:对业务方向不清晰时主动切到 PL 视角讨论
+- 🔴 起草前现状调研(自答优先 · 四类:代码现状 / KNOWLEDGE〔FA·Pref·OoS〕/ GLOSSARY / 上游规划)· 早问门入场券 · 详 [stages/goal-stage.md §1](../stages/goal-stage.md)
+- PRD 起草:结构单源 [templates/prd.md](../templates/prd.md)(§背景 · §用户故事 · §交付预期 · §验收标准 · §Out of Scope · §待决策项)+ § PM 起草规范 checklist · 🔴 规模反压:AC > 10 必评估拆分
+- AC 必须可测试(BDD 风格 · WHAT 高度 · 避免模糊措辞)
+- 早问门(goal §4 三闸):只问用户主权问题 · 每问带 调研证据 / 选项+影响 / 推荐 · ≤3 问
+- 回应 PL 对抗质疑:CHALLENGE 逐条回应 · `adversarial_self_check` 先模拟对方最强论据才可 REJECT
 - PM 验收:对照 PRD.AC 逐条检查实现 · 三选一决策(approved_and_ship / approved_no_ship / rejected_with_feedback)
 
 ## 协作关系
@@ -26,6 +28,5 @@ v8 用 state.py pm_acceptance-complete --decision 把三选项物化 · 防止 A
 
 ## 相关
 
-- 设计宪法:[../docs/archive/v8-redesign/00-MANIFESTO.md](../docs/archive/v8-redesign/00-MANIFESTO.md)
 - 命令权威:`state.py --help` + [../tools/_v8_stage_specs.py](../tools/_v8_stage_specs.py)(各 stage 契约 schema · 现行权威)
 - 通用引擎:[../tools/_v8_engine.py](../tools/_v8_engine.py)

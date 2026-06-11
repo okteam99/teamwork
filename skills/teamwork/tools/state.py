@@ -1111,7 +1111,7 @@ def cmd_init_feature(args: argparse.Namespace) -> None:
                     f"  2. cd {wt_real}\n"
                     f"  3. 重跑 state.py init-feature"
                 ),
-                "rule": "SKILL.md § Triage 入口规范 §3.4 入口完成才进状态机",
+                "rule": "SKILL.md § Triage 入口规范 · 入口完成才进状态机",
                 "bypass": "调试场景 export TEAMWORK_BYPASS_CWD_WORKTREE=1",
             }, ensure_ascii=False, indent=2))
 
@@ -2381,7 +2381,7 @@ def _run_codex_review(stage: str, commit: str, base: str, title: str,
     早成功 · 唯独 review 走 codex review 持续超时)。codex exec 是稳定 headless 路径
     (goal/blueprint 已验证)· review 对象差异(代码 diff vs 文档)全由
     `_build_codex_prompt` 内置 prompt 描述。
-    (codex review↔exec 反复横跳演进史见 docs/CHANGELOG-ARCHIVE.md · v8.23-26)
+    (codex review↔exec 反复横跳演进史见 git 历史 · v8.23-26)
     """
     # 算 feature_dir 相对 cwd · 让 prompt 用相对路径(codex 在 cwd=git root 跑)
     try:
@@ -2494,9 +2494,61 @@ def _run_claude_review(prompt_text: str,
 # 解决 v8.43 inline 全 PRD/TC/TECH 卡 claude -p 长 prompt 问题
 
 
-def _default_prompt_doc_path(feature_dir: Path, stage: str, model: str) -> Path:
-    """v8.44:prompt-doc 默认路径 `<feature_dir>/external-review-prompts/<stage>-<model>.md`。"""
-    return feature_dir / "external-review-prompts" / f"{stage}-{model}.md"
+def _new_prompt_doc_path(feature_dir: Path, stage: str, model: str,
+                         ts: Optional[str] = None) -> Path:
+    """v8.136:每轮唯一 prompt-doc 路径(治 v8.44 固定名跨轮隐式复用 → stale review)。
+
+    `<feature_dir>/external-review-prompts/<stage>-<model>-<UTC紧凑时间戳>.md`
+    审计 = 输入(本轮实际跑的 prompt 即本文件)· 旧轮留档不复用 · 随 feature 归档。
+    case PTR-F260611065743:round 1 的审计副本(固定名)被 round 2 当 prompt 优先读 →
+    评审 stale PRD;手工删 doc 后 round 3 又写回 → round 4 必复发。唯一命名根治。
+    """
+    if ts is None:
+        ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    return feature_dir / "external-review-prompts" / f"{stage}-{model}-{ts}.md"
+
+
+def _extract_prompt_body(template_text: str) -> str:
+    """v8.136:从 claude-agents/reviewer.md 模板只取「## Prompt 主体」fenced block 内文本。
+
+    治 v8.43 fallback 拿**整文件**做占位符替换的双嵌 bug:模板尾部「占位符说明」表含
+    `{file_list}` 示例格 · 全局 replace 把完整 PRD 再灌进表格单元格 → prompt 含模板元说明 +
+    对照表 + 双份 PRD(~400 行垃圾 · 加重长 prompt 卡)。找不到标记 → 原样返回(兼容自定义模板)。
+    """
+    i = template_text.find("## Prompt 主体")
+    if i == -1:
+        return template_text
+    fence = template_text.find("```", i)
+    if fence == -1:
+        return template_text
+    start = template_text.find("\n", fence)
+    if start == -1:
+        return template_text
+    start += 1
+    end = template_text.find("\n```", start)
+    if end == -1:
+        return template_text
+    return template_text[start:end]
+
+
+def _prompt_doc_stale_reason(prompt_doc: Path, feature_dir: Path,
+                             stage: str) -> Optional[str]:
+    """v8.136:显式 --prompt-doc 的 staleness 门禁 —— doc 必须新于全部待评审文件。
+
+    返 stale 原因(str)或 None。review stage 无 inline 文件清单 → 不检查。
+    """
+    try:
+        doc_mtime = prompt_doc.stat().st_mtime
+    except OSError:
+        return None
+    for name in STAGE_REVIEW_FILES.get(stage, []):
+        f = feature_dir / name
+        try:
+            if f.exists() and f.stat().st_mtime > doc_mtime:
+                return f"{name} 修改时间晚于 prompt-doc(doc 已 stale · 评审输入会是旧内容)"
+        except OSError:
+            continue
+    return None
 
 
 SCAFFOLD_PROMPT_DOC_TEMPLATE = """# {model_cap} {stage_cap} External Review Prompt
@@ -2714,18 +2766,8 @@ def cmd_scaffold_review_prompt(args: argparse.Namespace) -> None:
 
     stage = args.stage
     model = args.model
-    doc_path = _default_prompt_doc_path(feature_dir, stage, model)
-
-    if doc_path.exists() and not getattr(args, "force", False):
-        emit({
-            "verdict": "FAIL",
-            "command": "scaffold-review-prompt",
-            "error": f"prompt-doc 已存在 · 拒绝覆盖防丢失编辑:{doc_path}",
-            "hint": ("二选一:\n"
-                     f"  ① 直接编辑现有 doc:{doc_path}\n"
-                     f"  ② 加 --force 覆盖重生(本地编辑丢失 · 慎用)"),
-        })
-        return
+    # v8.136:唯一命名(时间戳)· 不再有覆盖冲突(--force 保留为 no-op 兼容旧调用)
+    doc_path = _new_prompt_doc_path(feature_dir, stage, model)
 
     # 推 feature_id 从路径(basename 即 ID-Name)
     feature_id = feature_dir.name
@@ -3016,6 +3058,7 @@ def cmd_external_review(args: argparse.Namespace) -> None:
         except OSError:
             prompt_template = "You are a code reviewer. Review the following and output a markdown review."
         file_list_block, _meta = _gather_review_files_for_claude(args.stage, feature_dir)
+        prompt_template = _extract_prompt_body(prompt_template)  # v8.136:防占位符说明表双嵌
         sub_prompt = (
             prompt_template
             .replace("{stage}", args.stage)
@@ -3023,7 +3066,7 @@ def cmd_external_review(args: argparse.Namespace) -> None:
             .replace("{feature_name}", feature_id)
             .replace("{file_list}", file_list_block)
         )
-        prompt_doc = _default_prompt_doc_path(feature_dir, args.stage, f"{host_model}-subagent")
+        prompt_doc = _new_prompt_doc_path(feature_dir, args.stage, f"{host_model}-subagent")
         try:
             prompt_doc.parent.mkdir(parents=True, exist_ok=True)
             prompt_doc.write_text(sub_prompt, encoding="utf-8")
@@ -3137,22 +3180,37 @@ def cmd_external_review(args: argparse.Namespace) -> None:
             codex_model=codex_model,
         )
     else:
-        # claude 路径:v8.44 doc-based default(治本 case round 4 长 prompt 卡 claude -p)
-        # 优先:读 feature_dir/external-review-prompts/<stage>-<model>.md · 作 claude argv prompt
-        #   - AI 主对话填 compact summary(提炼契约 · 不复制全文)
-        #   - prompt 可审计 / 可编辑 / 可复跑 · 短不卡
-        # Fallback:doc 不存在 → v8.43 inline 全文模式 + emit WARN 提示 scaffold
+        # claude 路径(v8.136 · 治 v8.44 固定名缓存中毒):
+        #   默认:每轮**现生成**唯一 prompt-doc(模板 Prompt 主体提取 + inline 当前文件 →
+        #         写 <stage>-<model>-<ts>.md → 用它执行)· 审计 = 输入 · 旧轮留档不复用。
+        #   显式 --prompt-doc:PMO 预写 compact summary 场景 · 优先用 · 过 staleness 门禁。
         prompt_doc_override = getattr(args, "prompt_doc", None)
+        files_inline_meta: list[dict] = []
+        fallback_warning = None
         if prompt_doc_override:
             prompt_doc = Path(prompt_doc_override).expanduser().resolve()
             prompt_doc_source = "args"
-        else:
-            prompt_doc = _default_prompt_doc_path(feature_dir, args.stage, model)
-            prompt_doc_source = "default"
-
-        files_inline_meta: list[dict] = []
-        fallback_warning = None
-        if prompt_doc.exists():
+            if not prompt_doc.exists():
+                emit({
+                    "verdict": "FAIL",
+                    "command": "external-review",
+                    "error": f"--prompt-doc 不存在:{prompt_doc}",
+                    "hint": "去掉 --prompt-doc 走每轮自动生成 · 或先 scaffold-review-prompt 生成后填写",
+                })
+                return
+            stale = _prompt_doc_stale_reason(prompt_doc, feature_dir, args.stage)
+            if stale:
+                emit({
+                    "verdict": "FAIL",
+                    "command": "external-review",
+                    "error": f"prompt-doc 已 stale:{stale}",
+                    "hint": (
+                        f"待评审文件已更新 · 旧 doc 会让 reviewer 评旧内容(case PTR-F260611065743)。"
+                        f"二选一:① 重新生成/编辑 {prompt_doc.name} 使其新于待评审文件 "
+                        f"② 去掉 --prompt-doc 走每轮自动生成(推荐)"
+                    ),
+                })
+                return
             try:
                 prompt_text = prompt_doc.read_text(encoding="utf-8")
                 prompt_doc_used = str(prompt_doc)
@@ -3164,8 +3222,9 @@ def cmd_external_review(args: argparse.Namespace) -> None:
                 })
                 return
         else:
-            # v8.44 fallback:v8.43 inline 模式 + WARN 提示 scaffold
-            prompt_template = profile_path.read_text(encoding="utf-8")
+            # v8.136 默认:每轮现生成唯一 doc(只取模板 Prompt 主体 · 防占位符说明表双嵌 PRD)
+            prompt_template = _extract_prompt_body(
+                profile_path.read_text(encoding="utf-8"))
             file_list_block, files_inline_meta = _gather_review_files_for_claude(
                 args.stage, feature_dir
             )
@@ -3180,14 +3239,14 @@ def cmd_external_review(args: argparse.Namespace) -> None:
                 .replace("{{base}}", base)
                 .replace("{{feature_id}}", feature_id)
             )
-            prompt_doc_used = None
-            fallback_warning = (
-                f"⚠️ prompt-doc 不存在({prompt_doc})· 走 v8.43 inline 模式 fallback。"
-                f" 推荐:跑 state.py scaffold-review-prompt --feature {feature_dir} "
-                f"--stage {args.stage} --model {model} 生成 skeleton · "
-                f"AI 主对话填 compact summary 后重跑 external-review("
-                f"治本长 prompt 卡 + 不可审计 · v8.44 推荐路径)"
-            )
+            prompt_doc = _new_prompt_doc_path(feature_dir, args.stage, model)
+            try:
+                prompt_doc.parent.mkdir(parents=True, exist_ok=True)
+                prompt_doc.write_text(prompt_text, encoding="utf-8")
+                prompt_doc_used = str(prompt_doc)
+            except OSError:
+                prompt_doc_used = None  # 写盘失败不阻塞执行(审计缺本轮 · prompt 照跑)
+            prompt_doc_source = "generated"
         rc, stdout, stderr = _run_claude_review(
             prompt_text, feature_dir=feature_dir, stage=args.stage,
             prompt_doc=prompt_doc)
@@ -3999,12 +4058,12 @@ def build_parser() -> argparse.ArgumentParser:
     # 不再在 state.py 注册 subparser(治本"元工具混运行时"+ chicken-and-egg)
 
     # ─── v8.0 stage 命令注册(Code-driven Orchestration) ─────────────
-    # 设计文档:docs/archive/v8-redesign/00-MANIFESTO.md(rationale · 历史归档)
+    # 设计文档:v8.0 设计稿已清理(git 历史可溯)
     # 命令 schema 现行权威:state.py --help + _v8_stage_specs.py
-    #   (01-COMMAND-SCHEMA.md 为 v8.0 归档快照 · 命令已大幅演进)
+    #   (v8.0 命令 schema 快照已清理 · git 历史可溯)
     # 引擎模块:
     # - _v8_engine.py   通用 stage start/complete + bypass 协议
-    # - _v8_stage_specs.py  11 stage 完整契约
+    # - _v8_stage_specs.py  12 stage 完整契约
     # - _v8_ship.py     ship-phase 子动作(替代 v7 ship-*)
     # - _v8_migrate.py  migrate-v7-to-v8 一次性迁移
     #
