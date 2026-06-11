@@ -18,7 +18,8 @@ panorama_path: {绝对路径 / null（项目无全景）}  # 全景权威根(wor
 # pages_changed[] 有 → Feature 不存 preview/ 副本 · panorama_file 是唯一权威 · 直接改全景文件
 pages_changed:
   - page_id: page1                                          # 必 · 对应 pages[].id
-    panorama_file: {panorama_path}/preview/page1.html       # 必 · 全景权威文件(绝对/相对仓库根)
+    route_path: /page1                                      # same-stack 必 · 真实 app 目标路由(预览直达 URL = PREVIEW_URL+route_path · 与 sitemap 一致 · / 留给首页设计稿)
+    panorama_file: {panorama_path}/preview/page1.html       # static-html 必 / same-stack 可选(渲染该页的源/路由)
     change_range: "本 Feature 改动描述(如:Tabs 与 Table 之间新增 filter 区)"
     acceptance_criteria_refs: [AC-01, AC-03]                # 可选 · 关联 PRD AC
 ---
