@@ -2328,7 +2328,8 @@ def _build_codex_prompt(stage: str, feature_dir_rel: str, commit: str,
 
 def _run_streamed_to_log(cmd: list, *, cwd: Optional[str] = None,
                          log_path: Optional[Path] = None, label: str = "external",
-                         timeout_sec: Optional[int] = None) -> tuple[int, str, str]:
+                         timeout_sec: Optional[int] = None,
+                         heartbeat_sec: float = 60) -> tuple[int, str, str]:
     """v8.139:外部评审执行器 · Popen + 过程**实时**落盘(治「发起后完全黑盒」)。
 
     取代 v8.55 `_log_external_run`(跑完才写 · 藏 ~/.teamwork · 与 prompt-doc 不配对):
@@ -2337,6 +2338,9 @@ def _run_streamed_to_log(cmd: list, *, cwd: Optional[str] = None,
       零输出 · harness 行才是诊断锚点)· spawn 后补 pid 行(可 kill / ps 对账)
     - stdout 原样实时追加(评审输出主体)· stderr 逐行 `[stderr] ` 前缀 —— 鉴权失败/
       codex 升级提示/网络卡 **秒级可见**(不再等超时后验尸)· log mtime = 心跳
+    - v8.140:**RUNNING 心跳行**(默认 60s · heartbeat_sec=0 关)—— claude -p print
+      模式 stdout 完成前零输出 · pid 行到 END 行之间原本仍是盲窗;心跳行报
+      已等待秒数 + 已收字节 · tail -f 一眼分清「在生成」vs「卡死」
     - 结束写 END 行(rc/耗时/字节)· 超时写 TIMEOUT 行 + **保留已收部分输出**(rc=124 ·
       旧实现超时返空 stdout 丢诊断料)
     - **append 模式**:同 log 重跑(显式 --prompt-doc 重试)历史叠加 · 失败证据不被覆盖
@@ -2404,6 +2408,21 @@ def _run_streamed_to_log(cmd: list, *, cwd: Optional[str] = None,
     t_err = threading.Thread(target=_pump, args=(proc.stderr, err_buf, "[stderr] "), daemon=True)
     t_out.start()
     t_err.start()
+
+    # v8.140:RUNNING 心跳(模型吐字前的盲窗活性信号 · claude -p 完成前 stdout 为 0 属正常)
+    stop_hb = threading.Event()
+
+    def _heartbeat():
+        while not stop_hb.wait(heartbeat_sec):
+            elapsed = int((datetime.now(timezone.utc) - t0).total_seconds())
+            got = sum(len(x) for x in out_buf)
+            _append(f"[{_ts()}] RUNNING · 已等待 {elapsed}s · 已收 stdout {got} chars\n")
+
+    t_hb = None
+    if log_path is not None and heartbeat_sec > 0:
+        t_hb = threading.Thread(target=_heartbeat, daemon=True)
+        t_hb.start()
+
     timed_out = False
     try:
         proc.wait(timeout=timeout_sec)
@@ -2411,6 +2430,9 @@ def _run_streamed_to_log(cmd: list, *, cwd: Optional[str] = None,
         timed_out = True
         proc.kill()
         proc.wait()
+    stop_hb.set()
+    if t_hb is not None:
+        t_hb.join(timeout=5)
     t_out.join(timeout=15)
     t_err.join(timeout=15)
     dur = (datetime.now(timezone.utc) - t0).total_seconds()
@@ -2457,6 +2479,9 @@ def _run_codex_review(stage: str, commit: str, base: str, title: str,
         stage, feature_dir_rel, commit, base, profile_filename)
     # title 信息嵌进 PROMPT 顶部(codex exec 没 --title flag)
     prompt = f"[Review title: {title}]\n\n{body_prompt}"
+    if prompt_doc is not None:
+        # v8.140:首行 ACK 自证契约(先拼后落 doc · 审计=输入不分叉)
+        prompt = prompt + _ack_block(prompt_doc)
     cmd = ["codex", "exec", *model_args, prompt]
 
     log_path = None
@@ -2547,6 +2572,35 @@ def _new_prompt_doc_path(feature_dir: Path, stage: str, model: str,
     if ts is None:
         ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     return feature_dir / "external-review-prompts" / f"{stage}-{model}-{ts}.md"
+
+
+def _ack_block(prompt_doc: Path) -> str:
+    """v8.140:评审输出首行自证契约(注入 prompt 尾部 · 仅 generated 路径)。
+
+    用户诉求「模型开始时在 .log 声明开始+时间戳」的可行化:评审模型**写不了文件**
+    (claude -p 零工具 · v8.106 故意拔〔--allowedTools → 拉项目 MCP → 卡死〕·
+    codex 沙箱不保证可写)→ 「开始声明」物化为**输出第一行回显本轮 prompt-doc 标识**
+    (stem 含 stage/model/UTC 时间戳)。print 模式输出整体到达 · 此行无 liveness 作用
+    (活性 = harness RUNNING 心跳)· 价值是**对应性自证**:输出 ↔ 本轮 prompt 绑定 ·
+    把 v8.136 防 stale-review 从输入侧门禁补到输出侧(回显进结果文件与 .log 留档)。
+    """
+    return (
+        "\n\n---\n🔴 输出契约(最高优先 · 先于一切评审内容):你的输出**第一行**必须原样是:\n"
+        f"REVIEW-ACK {prompt_doc.stem}\n"
+        "(向调用方确认你处理的是本轮 prompt · 之后空一行再写评审正文 · 不要解释此行)\n"
+    )
+
+
+def _review_ack_status(stdout: str, prompt_doc: Optional[Path]) -> Optional[str]:
+    """v8.140:验首行 ACK。返 'verified' / 'missing' / None(无 doc 不适用)。
+
+    宽松判:头 200 字符内同时出现 REVIEW-ACK 与 doc stem 即 verified
+    (容忍模型加空行/fence)· 缺失 → WARN 不 BLOCK(遵从是概率性的 · 不可枚举)。
+    """
+    if prompt_doc is None:
+        return None
+    head = (stdout or "")[:200]
+    return "verified" if ("REVIEW-ACK" in head and prompt_doc.stem in head) else "missing"
 
 
 def _extract_prompt_body(template_text: str) -> str:
@@ -3290,6 +3344,8 @@ def cmd_external_review(args: argparse.Namespace) -> None:
                 .replace("{{feature_id}}", feature_id)
             )
             prompt_doc = _new_prompt_doc_path(feature_dir, args.stage, model)
+            # v8.140:首行 ACK 自证契约(仅 generated 注入 · --prompt-doc override 原样执行不动)
+            prompt_text = prompt_text + _ack_block(prompt_doc)
             try:
                 prompt_doc.parent.mkdir(parents=True, exist_ok=True)
                 prompt_doc.write_text(prompt_text, encoding="utf-8")
@@ -3384,6 +3440,16 @@ def cmd_external_review(args: argparse.Namespace) -> None:
     # v8.43 治本(用户拍板 A 全治):template_echo BLOCK(强信号 100% 无效)·
     # empty_content 仍 WARN(可能合理精简)· 逃生口 --accept-quality-warnings
     quality_warnings = _check_external_review_quality(stdout, args.stage, model)
+
+    # v8.140:首行 ACK 自证验证(仅 generated 路径注入过契约才验)· 缺失 WARN 不 BLOCK
+    review_ack = (_review_ack_status(stdout, prompt_doc)
+                  if prompt_doc_source == "generated" else None)
+    if review_ack == "missing":
+        quality_warnings.append({
+            "type": "ack_missing",
+            "hint": (f"输出未回显 REVIEW-ACK {prompt_doc.stem} —— 首行自证缺失 · "
+                     f"无法确认输出对应本轮 prompt(WARN 不 BLOCK · 人工核对结果文件与 prompt-doc 时间戳)"),
+        })
 
     template_echo_hit = [w for w in quality_warnings if w.get("type") == "template_echo"]
     if template_echo_hit and not getattr(args, "accept_quality_warnings", False):
@@ -3500,6 +3566,8 @@ def cmd_external_review(args: argparse.Namespace) -> None:
             if prompt_doc_used else {}),
         # v8.139:过程日志(prompt-doc 同名 .log · START/pid/[stderr]/END 实时时间线)
         **({"process_log": process_log_str} if process_log_str else {}),
+        # v8.140:首行 ACK 自证(verified=输出绑定本轮 prompt · missing 已入 quality_warnings)
+        **({"review_ack": review_ack} if review_ack else {}),
         **({"prompt_doc_fallback_warning": fallback_warning}
             if model == "claude" and fallback_warning else {}),
     })

@@ -228,12 +228,13 @@ Step 3:跑命令 · 落 *-codex.md / *-gemini.md / 等真异质模型文件
 - 🔴 **honest-degrade ≠ F034 伪装**:必须**显式**标 `degraded:true degraded_mode:subagent-fallback`(诚实承认非异质)。**无** degraded marker 的 subagent 文件 → 仍落 11.2 黑名单 BLOCK(防偷偷用 subagent 冒充异质)。
 - **优先级**:① 降级(subagent · 推荐)→ ② 装异质 CLI 恢复真异质 → ③ `change-review-roles` 移除(最后手段)。能修环境就修真异质;长期单模型走 `disable_heterogeneous_review`。
 
-### 11.6 过程可观测性:prompt-doc 同名 `.log` 实时落盘(v8.139)
+### 11.6 过程可观测性:prompt-doc 同名 `.log` 实时落盘(v8.139/140)
 
 > 治「发起后完全黑盒」:执行期(最长 timeout 全程)磁盘上原来什么都没有 · 失败要等超时后验尸。
 
 - **审计三件套同目录成组**(`external-review-prompts/`):输入 `<stage>-<model>-<ts>.md`(v8.136 唯一命名)· 过程 `<stage>-<model>-<ts>.log`(同名配对)· 结果 `external-cross-review/<stage>-<model>.md`。codex 路径 v8.139 起同样落审计 doc(执行仍 argv inline · codex 不读 doc)。
-- **log 结构**:首行 `[UTC时间戳] START <label> · timeout · cwd · cmd` —— 🔴 **harness 写 · 不靠评审模型自报**(`claude -p` print 模式输出整体到达 · 模型「已开始」行不可能先到;模型挂死/认证失败时恰恰零输出 · harness 行才是诊断锚点)→ `pid=` 行(可 kill/对账)→ stdout 原样实时追加 + stderr 逐行 `[stderr] ` 前缀(鉴权失败/codex 升级提示/限流**秒级可见** · 不再等超时)→ 尾行 `END · rc · 耗时 · 字节`(超时则 `TIMEOUT` 行 + 保留已收部分输出)。
+- **log 结构**:首行 `[UTC时间戳] START <label> · timeout · cwd · cmd` —— 🔴 **harness 写 · 不靠评审模型自报**(`claude -p` print 模式输出整体到达 · 模型「已开始」行不可能先到;模型挂死/认证失败时恰恰零输出 · harness 行才是诊断锚点)→ `pid=` 行(可 kill/对账)→ **`RUNNING` 心跳行**(v8.140 · 默认 60s · 报已等待秒数 + 已收字节 —— claude -p 完成前 stdout 0 chars 属正常 · 心跳让 tail -f 分清「生成中」vs「卡死」)→ stdout 原样实时追加 + stderr 逐行 `[stderr] ` 前缀(鉴权失败/codex 升级提示/限流**秒级可见** · 不再等超时)→ 尾行 `END · rc · 耗时 · 字节`(超时则 `TIMEOUT` 行 + 保留已收部分输出)。
+- **首行 ACK 自证**(v8.140):generated 路径 prompt 尾注入输出契约 —— 评审输出**第一行**必须 `REVIEW-ACK <prompt-doc stem>`(stem 自带 stage/model/UTC 时间戳)。🔴 评审模型**写不了 .log**(claude -p 零工具 · v8.106 故意拔〔--allowedTools → 拉项目 MCP → 卡死〕· codex 沙箱不保证)· 「模型自报开始」物化为可行的**输出回显**:无 liveness 作用(print 模式整体到达)· 价值是**对应性自证**(输出 ↔ 本轮 prompt 绑定 · v8.136 防 stale 从输入侧补到输出侧)。验证:头 200 字符内回显即 `verified`(emit `review_ack`)· 缺失 → `ack_missing` WARN 不 BLOCK;`--prompt-doc` override 路径不注入不验(doc 原样执行契约)。
 - **观察方式**:发起时 stderr 即打印 log 路径(后台跑立即可见)· `tail -f <log>` 实时看 · log mtime = 心跳;emit 含 `process_log` 字段(成功/失败都有 · 失败时它就是验尸现场)。
 - **重跑 append 叠加**(不覆盖):上一轮失败证据保留 · 全史可溯。
 

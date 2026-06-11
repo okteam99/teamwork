@@ -1678,6 +1678,55 @@ class TestExternalReviewCommand(unittest.TestCase):
             # doc 内容 = 实际跑的 prompt(审计=输入)
             self.assertIn(doc.read_text(encoding="utf-8"), captured["cmd"][-1] or "")
             self.assertEqual(captured["log_path"], doc.with_suffix(".log"))
+            # v8.140:ACK 自证契约注入(doc 与实跑 prompt 都含 · 不分叉)
+            self.assertIn(f"REVIEW-ACK {doc.stem}", doc.read_text(encoding="utf-8"))
+
+    # ── v8.140:RUNNING 心跳 + 首行 ACK 自证(用户 case:模型自报开始的可行化) ──
+
+    def test_v8140_heartbeat_running_lines_during_silent_window(self):
+        """模型吐字前盲窗:RUNNING 心跳行(已等待秒数 + 已收字节)· tail -f 分清生成中 vs 卡死。"""
+        from state import _run_streamed_to_log  # type: ignore
+        with tempfile.TemporaryDirectory() as d:
+            log = Path(d) / "goal-claude-X.log"
+            rc, out, _ = _run_streamed_to_log(
+                ["sh", "-c", "sleep 0.7; echo done"],
+                log_path=log, label="claude-goal", heartbeat_sec=0.2)
+            self.assertEqual(rc, 0)
+            body = log.read_text(encoding="utf-8")
+            self.assertIn("RUNNING · 已等待", body)
+            self.assertIn("已收 stdout 0 chars", body)  # 静默期心跳报 0 字节(属正常 · 非卡死误报)
+
+    def test_v8140_heartbeat_zero_disables(self):
+        """heartbeat_sec=0 → 不起心跳线程(短命令/测试不受扰)。"""
+        from state import _run_streamed_to_log  # type: ignore
+        with tempfile.TemporaryDirectory() as d:
+            log = Path(d) / "x.log"
+            _run_streamed_to_log(["sh", "-c", "echo q"], log_path=log,
+                                 label="x", heartbeat_sec=0)
+            self.assertNotIn("RUNNING", log.read_text(encoding="utf-8"))
+
+    def test_v8140_ack_block_contains_doc_stem_contract(self):
+        """ACK 注入块:首行契约 = REVIEW-ACK <doc stem>(stem 自带 stage/model/UTC 时间戳)。"""
+        from state import _ack_block  # type: ignore
+        doc = Path("/x/external-review-prompts/goal-claude-20260611T083001Z.md")
+        block = _ack_block(doc)
+        self.assertIn("REVIEW-ACK goal-claude-20260611T083001Z", block)
+        self.assertIn("第一行", block)
+
+    def test_v8140_review_ack_status_three_states(self):
+        """验证三态:verified(头 200 字符内回显)/ missing / None(无 doc 不适用)。"""
+        from state import _review_ack_status  # type: ignore
+        doc = Path("/x/goal-claude-20260611T083001Z.md")
+        ok = "REVIEW-ACK goal-claude-20260611T083001Z\n\n## Review\n..."
+        self.assertEqual(_review_ack_status(ok, doc), "verified")
+        # 容忍前置空行/fence
+        self.assertEqual(_review_ack_status("\n```\nREVIEW-ACK goal-claude-20260611T083001Z\n```\n正文", doc),
+                         "verified")
+        # 回显错轮次(stale 输出绑不上本轮 doc)→ missing
+        self.assertEqual(_review_ack_status("REVIEW-ACK goal-claude-20250101T000000Z\n正文", doc),
+                         "missing")
+        self.assertEqual(_review_ack_status("直接正文无回显", doc), "missing")
+        self.assertIsNone(_review_ack_status("whatever", None))
 
     def test_v855_timeout_10min(self):
         """v8.55:EXTERNAL_REVIEW_TIMEOUT_SEC = 600(5min→10min)。"""
