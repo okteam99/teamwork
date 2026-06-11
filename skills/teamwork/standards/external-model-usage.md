@@ -13,7 +13,7 @@
 ```
 1. 只读约束：外部模型只能读代码 · 不写代码库 · 不能执行命令
  ├── codex 路径：物理拦截 · 所有 codex profile sandbox_mode = "read-only"（写被 sandbox 挡）
- └── claude 路径（纯 `claude -p` · 无工具 / 无 `--bare`）：评审结果经 **stdout** 返回 · **不写任何文件**（与 codex read-only 对称 · 评审产物由主对话 PMO 落盘）
+ └── claude 路径（纯 `claude -p` · 无工具 / 无 `--bare` · `--strict-mcp-config` MCP 隔离）：评审结果经 **stdout** 返回 · **不写任何文件**（与 codex read-only 对称 · 评审产物由主对话 PMO 落盘）
 
 2. 评审角色约束：外部模型在 teamwork 中**只承担评审角色**
  ├── reviewer.toml（代码评审）/ blueprint-reviewer.toml（蓝图评审）/ prd-reviewer.toml（PRD 评审）
@@ -234,7 +234,22 @@ Step 3:跑命令 · 落 *-codex.md / *-gemini.md / 等真异质模型文件
 
 - **审计三件套同目录成组**(`external-review-prompts/`):输入 `<stage>-<model>-<ts>.md`(v8.136 唯一命名)· 过程 `<stage>-<model>-<ts>.log`(同名配对)· 结果 `external-cross-review/<stage>-<model>.md`。codex 路径 v8.139 起同样落审计 doc(执行仍 argv inline · codex 不读 doc)。
 - **log 结构**:首行 `[UTC时间戳] START <label> · timeout · cwd · cmd` —— 🔴 **harness 写 · 不靠评审模型自报**(`claude -p` print 模式输出整体到达 · 模型「已开始」行不可能先到;模型挂死/认证失败时恰恰零输出 · harness 行才是诊断锚点)→ `pid=` 行(可 kill/对账)→ **`RUNNING` 心跳行**(v8.140 · 默认 60s · 报已等待秒数 + 已收字节 —— claude -p 完成前 stdout 0 chars 属正常 · 心跳让 tail -f 分清「生成中」vs「卡死」)→ stdout 原样实时追加 + stderr 逐行 `[stderr] ` 前缀(鉴权失败/codex 升级提示/限流**秒级可见** · 不再等超时)→ 尾行 `END · rc · 耗时 · 字节`(超时则 `TIMEOUT` 行 + 保留已收部分输出)。
-- **首行 ACK 自证**(v8.140):generated 路径 prompt 尾注入输出契约 —— 评审输出**第一行**必须 `REVIEW-ACK <prompt-doc stem>`(stem 自带 stage/model/UTC 时间戳)。🔴 评审模型**写不了 .log**(claude -p 零工具 · v8.106 故意拔〔--allowedTools → 拉项目 MCP → 卡死〕· codex 沙箱不保证)· 「模型自报开始」物化为可行的**输出回显**:无 liveness 作用(print 模式整体到达)· 价值是**对应性自证**(输出 ↔ 本轮 prompt 绑定 · v8.136 防 stale 从输入侧补到输出侧)。验证:头 200 字符内回显即 `verified`(emit `review_ack`)· 缺失 → `ack_missing` WARN 不 BLOCK;`--prompt-doc` override 路径不注入不验(doc 原样执行契约)。
+- **首行 ACK 自证**(v8.140):generated 路径 prompt 尾注入输出契约 —— 评审输出**第一行**必须 `REVIEW-ACK <prompt-doc stem>`(stem 自带 stage/model/UTC 时间戳)。🔴 评审模型**写不了 .log**(claude -p 零工具 · v8.106 故意拔 · codex 沙箱不保证)· 「模型自报开始」物化为可行的**输出回显**:无 liveness 作用(print 模式整体到达)· 价值是**对应性自证**(输出 ↔ 本轮 prompt 绑定 · v8.136 防 stale 从输入侧补到输出侧)。验证:头 200 字符内回显即 `verified`(emit `review_ack`)· 缺失 → `ack_missing` WARN 不 BLOCK;`--prompt-doc` override 路径不注入不验(doc 原样执行契约)。
+
+### 11.7 MCP 隔离:`--strict-mcp-config`(v8.141 · 本地 CLI 2.1.173 四组对照实测)
+
+> 治「claude -p 偶发 MCP 卡死」整类 —— 不赌 CLI 版本连接是否阻塞。
+
+| 案 | flags | 项目 MCP 真 spawn(marker 实测) | 结果 |
+|---|---|---|---|
+| C1 | 裸 `claude -p` | **True** | 5.4s OK |
+| C2 | `--allowedTools Read` | **True** | 4.2s OK |
+| C3 | `--strict-mcp-config` | **False** | 4.8s OK |
+| C4 | strict + `--allowedTools Read` | **False** | 7.4s OK |
+
+- 🔴 **v8.106 归因翻案**:裸 `claude -p` 也每轮 spawn 消费项目 `.mcp.json` 全部 server(C1)· 卡死与 `--allowedTools` 无关(C2)—— 真正变量 = 项目 MCP 被 spawn + CLI 版本连接行为(2.1.15x 阻塞 → 卡死;2.1.173 不阻塞 → 侥幸不卡)。评审 prompt 自包含零工具 · 本就不该碰项目 MCP。
+- **解法**:`--strict-mcp-config` 且**不传** `--mcp-config` = 零 MCP spawn(C3/C4)· 不碰登录上下文(无 `--bare` 认证回归)。已进 `_build_claude_review_cmd` 固定 argv · 测试 pin(`--strict-mcp-config` 必在 + `--mcp-config` 必不在)。
+- **解锁备忘**:strict 隔离下 `--allowedTools Read` 实测安全(C4)—— 未来长 prompt 卡 ARG_MAX 可走「短 prompt + reviewer 自己 Read + strict」;当前保持零工具 inline(自包含可靠性优先)。
 - **观察方式**:发起时 stderr 即打印 log 路径(后台跑立即可见)· `tail -f <log>` 实时看 · log mtime = 心跳;emit 含 `process_log` 字段(成功/失败都有 · 失败时它就是验尸现场)。
 - **重跑 append 叠加**(不覆盖):上一轮失败证据保留 · 全史可溯。
 

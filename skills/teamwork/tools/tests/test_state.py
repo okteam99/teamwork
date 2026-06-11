@@ -1549,12 +1549,14 @@ class TestExternalReviewCommand(unittest.TestCase):
     # ── claude review cmd:纯 `claude -p` inline(v8.106 删 doc 模式 / --bare / liveness)──
 
     def test_v885_short_prompt_inline(self):
-        """v8.106:claude 评审只用 `claude -p <prompt> --output-format text` · 无 --bare / --allowedTools · cwd=None。"""
+        """v8.106:claude 评审 `claude -p <prompt> --output-format text` · 无 --bare / --allowedTools · cwd=None。
+        v8.141:+--strict-mcp-config(MCP 隔离)。"""
         from state import _build_claude_review_cmd  # type: ignore
         with tempfile.TemporaryDirectory() as d:
             feat = Path(d)
             cmd, cwd = _build_claude_review_cmd("short prompt", feat, feat / "doc.md")
-        self.assertEqual(cmd, ["claude", "-p", "short prompt", "--output-format", "text"])
+        self.assertEqual(cmd, ["claude", "-p", "short prompt", "--output-format", "text",
+                               "--strict-mcp-config"])
         self.assertNotIn("--allowedTools", cmd)
         self.assertNotIn("--bare", cmd)            # v8.106:--bare 砸登录上下文 → "Not logged in" · 删
         self.assertNotIn("--permission-mode", cmd)
@@ -1570,13 +1572,28 @@ class TestExternalReviewCommand(unittest.TestCase):
             long_prompt = "X" * 500
             cmd, cwd = _build_claude_review_cmd(long_prompt, feat, doc)
             # 全文走 argv inline(不再短引用 doc)
-            self.assertEqual(cmd, ["claude", "-p", long_prompt, "--output-format", "text"])
+            self.assertEqual(cmd, ["claude", "-p", long_prompt, "--output-format", "text",
+                                   "--strict-mcp-config"])
             # doc 仍写盘(审计 + 可复跑)
             self.assertTrue(doc.exists())
             self.assertEqual(doc.read_text(encoding="utf-8"), long_prompt)
         self.assertNotIn("--allowedTools", cmd)
         self.assertNotIn("--bare", cmd)
         self.assertIsNone(cwd)
+
+    def test_v8141_strict_mcp_config_isolates_project_mcp(self):
+        """v8.141 MCP 隔离:--strict-mcp-config 必在 + 绝不传 --mcp-config(零 MCP spawn)。
+
+        本地 CLI 2.1.173 四组对照实测(marker 文件):裸 -p 与 --allowedTools 都 spawn
+        消费项目 .mcp.json(卡死与 allowedTools 无关 · v8.106 归因翻案);
+        strict 不传 --mcp-config = 零 spawn 且 auth 完好。评审 prompt 自包含零工具 ·
+        不该碰项目 MCP —— 不赌 CLI 版本连接是否阻塞。"""
+        from state import _build_claude_review_cmd  # type: ignore
+        with tempfile.TemporaryDirectory() as d:
+            feat = Path(d)
+            cmd, _ = _build_claude_review_cmd("p", feat, feat / "doc.md")
+        self.assertIn("--strict-mcp-config", cmd)
+        self.assertNotIn("--mcp-config", cmd)  # strict 无 --mcp-config = 零 MCP · 缺一不可
 
     def test_v885_doc_mode_uses_existing_doc_not_overwrite(self):
         """v8.85:doc 已存在(AI 填好的 scaffold)→ 不覆盖 · 直接引用。"""

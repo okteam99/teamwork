@@ -2508,12 +2508,20 @@ def _build_claude_review_cmd(prompt_text: str, feature_dir: Optional[Path],
     🔴 删 v8.85 doc 模式(短 argv + `--allowedTools` 让 reviewer 自己 Read)+ v8.103 `--bare`:
     - `--bare` 跳了 claude 的**登录/认证上下文** → `claude --bare -p` 报 "Not logged in"(裸 `claude -p`
       已登录)· 治本 case PTR-F260606(`--bare` 引入的认证回归)。
-    - `--allowedTools` 激活 agentic 工具栈 → 自动 spawn 消费项目 `.mcp.json` MCP → 卡死(v8.103 想用 `--bare`
-      救 MCP · 反而砸了认证)。一并删 · 回到最朴素最可靠的 `claude -p`。
     - prompt **自包含**(goal/blueprint 已 inline 待评审文件内容 · 见 _gather_review_files_for_claude)·
       reviewer 无需任何工具 / 文件系统访问 · 一次性纯文本生成。
     仍把 prompt 写进 prompt_doc(审计 + 可复跑 · 不存在才写 · 不 clobber PMO 预写)· 但执行走 argv inline。
     prompt 过长(ARG_MAX)由 _run_claude_review 的 errno 7 兜底报错。单测可直接调本函数断言 cmd。
+
+    v8.141 **MCP 隔离**(`--strict-mcp-config` · 本地 CLI 2.1.173 四组对照实测):
+    - 🔴 v8.106 归因翻案:**裸 `claude -p` 也每轮 spawn 消费项目 .mcp.json 全部 server**
+      (marker 实测 C1=spawn True)· 与 --allowedTools 无关(C2 同 spawn)—— 卡不卡取决
+      server 行为 + CLI 版本(2.1.15x 连接阻塞 → 卡死;2.1.173 不阻塞 → 侥幸不卡)。
+    - `--strict-mcp-config` 不传 --mcp-config = **零 MCP spawn**(C3/C4 marker False)·
+      不碰登录上下文(rc=0 · 无 --bare 认证回归)。评审 prompt 自包含零工具 · 本就不该
+      碰项目 MCP —— 根治「偶发卡死/慢启动/stderr 噪音」整类 · 不赌 CLI 版本行为。
+    - 解锁备忘:strict 隔离下 `--allowedTools Read` 实测安全(C4)· 未来 ARG_MAX 卡长
+      prompt 可走「短 prompt + reviewer 自己 Read + strict」· 当前仍保持零工具 inline。
     """
     # 写 doc(审计 · 可复跑)· 不影响执行(执行用 argv inline)
     if prompt_doc is not None and feature_dir is not None:
@@ -2523,7 +2531,8 @@ def _build_claude_review_cmd(prompt_text: str, feature_dir: Optional[Path],
                 prompt_doc.write_text(prompt_text, encoding="utf-8")
         except OSError:
             pass
-    return ["claude", "-p", prompt_text, "--output-format", "text"], None
+    return ["claude", "-p", prompt_text, "--output-format", "text",
+            "--strict-mcp-config"], None
 
 
 def _run_claude_review(prompt_text: str,
@@ -2578,7 +2587,7 @@ def _ack_block(prompt_doc: Path) -> str:
     """v8.140:评审输出首行自证契约(注入 prompt 尾部 · 仅 generated 路径)。
 
     用户诉求「模型开始时在 .log 声明开始+时间戳」的可行化:评审模型**写不了文件**
-    (claude -p 零工具 · v8.106 故意拔〔--allowedTools → 拉项目 MCP → 卡死〕·
+    (claude -p 零工具 · v8.106 故意拔 · MCP 卡死真因详 v8.141 _build_claude_review_cmd ·
     codex 沙箱不保证可写)→ 「开始声明」物化为**输出第一行回显本轮 prompt-doc 标识**
     (stem 含 stage/model/UTC 时间戳)。print 模式输出整体到达 · 此行无 liveness 作用
     (活性 = harness RUNNING 心跳)· 价值是**对应性自证**:输出 ↔ 本轮 prompt 绑定 ·
