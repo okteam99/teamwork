@@ -2514,6 +2514,23 @@ class TestPanoramaSyncStage(unittest.TestCase):
         self.assertFalse(ok)
         self.assertIn("早于", err)
 
+    # ── v8.138 变更判级(L1 不暂停 / L2 必停)──────────────────────
+
+    def test_v8138_summary_frontmatter_requires_change_level(self):
+        """判级决定停不停 · 级别声明必须物化留痕(frontmatter 缺 change_level 即 FAIL)。"""
+        from _v8_stage_specs import PANORAMA_SYNC_SPEC
+        summary = next(a for a in PANORAMA_SYNC_SPEC.artifacts
+                       if a.path == "panorama-change-summary.md")
+        self.assertIn("change_level", summary.frontmatter_required)
+
+    def test_v8138_pause_point_is_conditional_by_level(self):
+        """authorized_pause_point 必须是条件式(L2 停 / L1 不暂停)· 不再无条件停。"""
+        from _v8_stage_specs import PANORAMA_SYNC_SPEC
+        pause = PANORAMA_SYNC_SPEC.authorized_pause_point
+        self.assertIn("L2", pause)
+        self.assertIn("L1", pause)
+        self.assertIn("不暂停", pause)
+
 
 class TestExternalReviewContentQuality(unittest.TestCase):
     """v8.36 治本 SVC-PLATFORM-F054 Bug 2:reviewer 只 echo template 不真 review case。

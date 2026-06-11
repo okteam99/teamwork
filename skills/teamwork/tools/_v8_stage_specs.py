@@ -1211,11 +1211,11 @@ workspace 级 panorama(sitemap.md / overview.html / 设计 token)同步 ·
 
 ### 结果(完成判定)
 - `panorama_path/sitemap.md` mtime > 本 stage started_at(panorama 真被更新)
-- `panorama-change-summary.md` 存在 · frontmatter 含 reviewers + conclusion
+- `panorama-change-summary.md` 存在 · frontmatter 含 reviewers + conclusion + change_level(L1|L2)
 
 ### 怎么做
 **必读** `stages/panorama-sync-stage.md`(5 substep:加载上下文 / 更新 panorama 单源 /
-起草 change-summary / ⏸️ 跨团队 reviewer 评审 / complete)。
+起草 change-summary + 变更判级 / ⏸️ L2 才暂停(L1 不暂停 · WARN 留痕)/ complete)。
 
 ### 完成方式
 ```
@@ -1255,9 +1255,9 @@ PANORAMA_SYNC_SPEC = StageSpec(
     artifacts=[
         StageArtifactSpec(
             path="panorama-change-summary.md",
-            frontmatter_required=["reviewers", "conclusion"],
+            frontmatter_required=["reviewers", "conclusion", "change_level"],
             body_min_lines=8,
-            description="panorama 变更摘要 · 列变更/受影响 Features/协调结论",
+            description="panorama 变更摘要 · 列变更/受影响 Features/协调结论 · change_level: L1|L2 判级留痕",
         ),
     ],
     evidence_checks=[
@@ -1269,7 +1269,10 @@ PANORAMA_SYNC_SPEC = StageSpec(
     ],
     brief_template_fn=_panorama_sync_brief,
     auto_transition_fn=_panorama_sync_transition,
-    authorized_pause_point="跨 Feature owner 协调确认 + reviewer 评审通过",
+    authorized_pause_point=(
+        "条件暂停:L2(节点增删移/路由/token/共享视觉基线变更 或 跨 Feature 冲突命中)"
+        "需 reviewer 评审 + owner 协调确认;L1(节点内增量 · 三判据全过)不暂停 · WARN 留痕自动继续"
+    ),
 )
 
 

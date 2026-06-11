@@ -1,6 +1,6 @@
 ---
 name: teamwork
-version: v8.137.1
+version: v8.138
 description: AI 协作开发一体化框架 · /teamwork 启动
 ---
 
@@ -427,7 +427,7 @@ emit 格式:
 | **prepare 4 项配置** | **stop** | 用户初始配置(artifact ID / worktree / branch / merge_target)· AI 不能替选 |
 | goal PRD 最终确认 | skip | PRD 已多角色 review(**真跑**)· auto 跳过的是**用户确认** · 非评审本身 |
 | ui_design UI 预览确认 | skip | 设计意图已落 UI.md / preview · auto 用户接受 |
-| panorama_sync 跨团队 reviewer | **skip + WARN** | `panorama-change-summary.md` 已文档化 · auto 用户接受跨 Feature 影响 · PMO 必 `state.py add-concern --severity WARN --message "auto skip: panorama change scope=..."` 留 audit |
+| panorama_sync 跨团队 reviewer(仅 L2 结构变更停 · L1 节点内增量任何模式都不暂停) | **skip + WARN** | `panorama-change-summary.md` 已文档化 · auto 用户接受跨 Feature 影响 · PMO 必 `state.py add-concern --severity WARN --message "auto skip: panorama change scope=..."` 留 audit |
 | blueprint DB schema 变更确认 | **skip + WARN** | 技术决策 auto 委托 AI · 但 DB 变更高风险 · PMO 必 `state.py add-concern --severity WARN --message "auto skip: DB schema change ··· tables/fields/migrations: ..."` 留 audit(便于 dev/review 复查) |
 | browser_e2e 用户看截图 | skip | 截图已入 evidence · auto 用户接受 |
 | **pm_acceptance 三选项** | **stop** | 产品决策权:approved_and_ship / approved_no_ship / rejected_with_feedback · AI 不能替用户拍板(违 R3) |
