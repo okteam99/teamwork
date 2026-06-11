@@ -85,9 +85,23 @@
 - 基于 PRD 内容判定是否需要独立 UI Design Stage
 - 准备 `state.py goal-complete --needs-ui {true|false} ...`
 
-### 9. ⏸️ 用户最终确认(R5 暂停点)
+### 9. ⏸️ 用户最终确认(R5 暂停点 · 带重点 review 指引)
 
 🔴 **`auto_mode=true` 时跳过此暂停点** —— PRD 已经多角色 review 内化 · auto 用户接受(详 [SKILL.md § auto_mode=true 时各暂停点行为](../SKILL.md))。
+
+🔴 **请求确认前先 emit「重点 review 指引」**(v8.137 · 用户重点 review 的导读 · 镜像 v8.120 流程目标的校准定位):固定 6 节 · 每节 ≤2 行 · 🔴 **全部照实抄自既有落盘产物 · 不即兴总结不美化** · 空节显式写「无」(证明查过 · 不可省节):
+
+```
+📌 重点 review 指引(导读 · 不替代 PRD)
+- 替你做的判断:<被 REJECT/DEFER 的 external·PL finding:谁提 · 驳/缓一句理由(源:pm_response)| 无>
+- 核心取舍:<评审中有争议、已裁决的点 · cite finding/PL-CHALLENGE id(源:PRD-REVIEW)| 无>
+- 范围收窄:<Out of Scope 中用户可能预期在内的项(源:§Out of Scope)| 无显著>
+- 影响面:<跨服务/跨模块清单(源:PM 自查·影响范围)>
+- 修订轨迹:<v0.1→v0.N 实质变化 1-2 句 · 哪轮评审驱动(源:revision_history + ADOPT findings)>
+- 残留风险/假设:<未完全解决项 + §待决策项剩余(将在下方选项一次性 escalate)| 无>
+```
+
+🔴 **「替你做的判断」放第一节**:REJECT/DEFER 是 AI 判断替代用户判断之处 · 用户抽查此节性价比最高。六节来源全部是已落盘结构化数据(`findings[].pm_response` / `PL-CHALLENGE` / `revision_history` / `§Out of Scope` / PM 自查 / `§待决策项`)—— 脱离产物自由发挥 = 违规(同 PROCESS-LEDGER「照实抄」纪律)。
 
 🔴 emit R5 标准 1/2/3(模板见 [SKILL.md § R5(b)](../SKILL.md))· 一次性 escalate 剩余 §待决策项(§4 早问门已问过的**不重复问**):
 1. **确认 PRD · 进入下一 stage** 💡 推荐 — `goal-complete --needs-ui <true/false>` → 自动转 ui_design/blueprint
@@ -127,6 +141,7 @@
 - 每轮 NEEDS_REVISION 后修订 · 加 1 条 `revision_history` 记录(版本号 + 修订理由)
 - substep 链中禁 AskUserQuestion · 用户主权问题统一走 §4 早问门(三闸)· 剩余在 Substep 9 一次性 escalate
 - 🔴 早问门反模式:未调研先问(闸 1)/ 问事实类(闸 2)/ 无选项无推荐(闸 3)—— 都是 R5 违规
+- 🔴 重点 review 指引反模式(Substep 9):复述 PRD 全文 / 营销式总结(「本 PRD 经多轮评审已完善」)/ 省略空节 / 内容无产物出处 —— 指引是导读不是宣传 · 六节照实抄 · 空节写「无」
 
 **对抗有效性观测**(防仪式化):PL-CHALLENGE 采纳率 / 早问门「改:默」由 [PROCESS-LEDGER](../templates/process-ledger.md) 列观测 —— PM 长期零采纳 CHALLENGE = 过场信号 · 用户从不改早问门推荐 = 问多了收紧闸 2。
 
