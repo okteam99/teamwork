@@ -22,6 +22,7 @@ v8.0 命令 schema 快照已清理 · git 历史可溯。
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Optional
 
@@ -79,10 +80,6 @@ def _pause_discipline_block(authorized_pause_substep: str) -> str:
 
 
 # ─── 通用前置 check 函数(共享) ──────────────────────────────────────
-
-
-def _check_prepare_completed(state: dict, args) -> bool:
-    return "prepare" in state.get("completed_stages", []) or state.get("flow_type") is not None
 
 
 def _check_feature_initialized(state: dict, args) -> bool:
@@ -335,15 +332,15 @@ def _goal_brief(state: dict) -> str:
     return f"""## Goal Stage
 
 ### 目标
-PM 起草 PRD · PL-PM 讨论 · 多角色并行评审 · 收敛后用户确认 · 决策是否需要 UI Design Stage。
+PM 现状调研(自答优先)· 起草 PRD · PL 对抗质疑 · (条件)goal-critical 早问门 · 多角色并行评审 · 收敛后用户确认 · 决策是否需要 UI Design Stage。
 
 ### 结果(完成判定)
 - `PRD.md`(frontmatter:`acceptance_criteria` + `revision_history`)
-- `PRD-REVIEW.md`(frontmatter:`reviewers` + `verdicts` · mtime > PRD.md)
+- `PRD-REVIEW.md`(frontmatter:`reviewers` + `verdicts` **全 APPROVE/SKIP** · 含 `PL-CHALLENGE` 段〔角色含 pl 时〕· mtime > PRD.md)
 - `state.execution_hints.ui_design_needed` 已决策(由 `--needs-ui`)
 
 ### 怎么做
-**必读** `stages/goal-stage.md`(详细步骤 7 步 + 注意事项 5 条)。
+**必读** `stages/goal-stage.md`(详细步骤 9 步:调研 → 起草 → PL 质疑 → 早问门 → 评审 → 修订 → 判定 → needs-ui → 确认)。
 
 ### 完成方式
 ```
@@ -379,6 +376,63 @@ def _goal_transition(state: dict) -> Optional[str]:
     return None
 
 
+def _evidence_prd_verdicts_all_pass(state: dict, args) -> tuple[bool, str]:
+    """v8.132:PRD-REVIEW verdicts 全 APPROVE/SKIP 才 goal-complete(物化 substep 7「全员通过判定」·
+    此前为纸面纪律 · 全 NEEDS_REVISION 也能过门禁)。
+
+    解析策略:parse_frontmatter 是简易解析器(不支持嵌套 map)→ 直接在 frontmatter 原文上取
+    verdicts 块(行内 {..} 或缩进 map 两种写法均兼容)· 扫描块内裁决词 · 任一非 APPROVE/SKIP → FAIL。
+    """
+    f = Path(args.feature) / "PRD-REVIEW.md"
+    if not f.exists():
+        return False, "PRD-REVIEW.md 不存在 · 无法校验 verdicts"
+    text = f.read_text(encoding="utf-8")
+    if not text.startswith("---\n"):
+        return False, "PRD-REVIEW.md 缺 frontmatter · 无法校验 verdicts"
+    end = text.find("\n---\n", 4)
+    fm_text = text[4:end] if end != -1 else ""
+    m = re.search(r"^verdicts:(.*(?:\n[ \t]+[^\n]+)*)", fm_text, re.M)
+    if not m:
+        return False, (
+            "PRD-REVIEW.md frontmatter 缺 verdicts(role: APPROVE|NEEDS_REVISION|SKIP)· "
+            "模板见 templates/prd.md § PRD-REVIEW schema"
+        )
+    tokens = re.findall(
+        r"\b(APPROVE|NEEDS_REVISION|SKIP|PASS_WITH_CONCERNS|PASS|REJECTED|REJECT)\b",
+        m.group(1), re.I)
+    if not tokens:
+        return False, "verdicts 块未解析到任何裁决值(role: APPROVE|NEEDS_REVISION|SKIP)"
+    bad = sorted({t.upper() for t in tokens} - {"APPROVE", "SKIP"})
+    if bad:
+        return False, (
+            f"verdicts 未全员通过(含 {'/'.join(bad)})· "
+            "NEEDS_REVISION → PM 回应修订 PRD 后重评(goal-stage substep 6→7)· "
+            "全员 APPROVE/SKIP 才可 goal-complete(词表只认 APPROVE|NEEDS_REVISION|SKIP)"
+        )
+    return True, ""
+
+
+def _evidence_pl_challenge_present(state: dict, args) -> tuple[bool, str]:
+    """v8.132:stage_review_roles[goal] 含 pl 时 · PRD-REVIEW.md 必含「PL-CHALLENGE」标记
+    (PL 对抗质疑物化 · 防同上下文切帽子的鼓掌过场)。
+
+    敏捷需求 goal 默认角色无 pl → 自动放行;change-review-roles 去 pl 同理。
+    """
+    roles = [str(r).lower() for r in (state.get("stage_review_roles") or {}).get("goal", [])]
+    if "pl" not in roles:
+        return True, ""
+    f = Path(args.feature) / "PRD-REVIEW.md"
+    if not f.exists():
+        return False, "PRD-REVIEW.md 不存在 · 无法校验 PL-CHALLENGE"
+    if "PL-CHALLENGE" not in f.read_text(encoding="utf-8"):
+        return False, (
+            "PRD-REVIEW.md 缺 PL-CHALLENGE 段:PL 须按质疑五问(价值前提/问题定义/范围最小化/"
+            "上游对齐/复活检查)发起对抗质疑 · 至少 1 条实质质疑或显式「无实质质疑 + 理由」· "
+            "finding id 用 PL-CHALLENGE-{n} · 详 stages/goal-stage.md §3"
+        )
+    return True, ""
+
+
 GOAL_SPEC = StageSpec(
     name="goal",
     prerequisites=[
@@ -388,12 +442,9 @@ GOAL_SPEC = StageSpec(
             hint="先跑 state.py init-feature 创建 state.json",
             description="state.feature_id + state.flow_type 必须存在",
         ),
-        StagePrerequisite(
-            id="prepare_completed",
-            check_fn=_check_prepare_completed,
-            hint="先跑 state.py prepare --feature <path> --user-input <...>",
-            description="prepare stage 必须先完成(扫 KNOWLEDGE/ADR + 流程类型识别)",
-        ),
+        # v8.132:删 prepare_completed 死门禁(flow_type 恒非空 → 恒真 · 且 hint 引用 P0-12
+        # 已删除的 state.py prepare 命令)· prepare 准入由 init-feature 的 prepare-check
+        # audit 门禁承担(prepare.md §0.5 已物化)· 此处重复校验无信息量。
     ],
     # goal stage = 业务目标确认 · 产 PRD · Feature / 敏捷需求 流程专属
     # Feature Planning 走单 stage planning · 不进 goal
@@ -443,11 +494,27 @@ GOAL_SPEC = StageSpec(
             check_fn=_evidence_reviewers_match("PRD-REVIEW.md"),
             description="PRD-REVIEW.md frontmatter.reviewers 必含 state.stage_review_roles[goal]",
         ),
+        # v8.132:物化 substep 7「全员通过判定」(此前纸面纪律 · NEEDS_REVISION 也能 complete)
+        StageEvidenceCheck(
+            name="prd_verdicts_all_pass",
+            check_fn=_evidence_prd_verdicts_all_pass,
+            description="PRD-REVIEW.md frontmatter.verdicts 全 APPROVE/SKIP · 全员通过才 goal-complete",
+        ),
+        # v8.132:PL 对抗质疑物化(防 self-talk 过场 · 角色无 pl 自动放行)
+        StageEvidenceCheck(
+            name="pl_challenge_present",
+            check_fn=_evidence_pl_challenge_present,
+            description="PRD-REVIEW.md 含 PL-CHALLENGE 段(质疑五问 · stage_review_roles[goal] 含 pl 时强制)",
+        ),
     ],
     brief_template_fn=_goal_brief,
     auto_transition_fn=_goal_transition,
     allowed_flow_types=["Feature", "敏捷需求"],  # Feature Planning 走 planning · 不进 goal
-    authorized_pause_point="Substep 6 · 用户最终确认(全员 review 通过后)",
+    authorized_pause_point=(
+        "Substep 9 · 用户最终确认(全员 review 通过后)"
+        "+ 条件暂停:Substep 4 goal-critical 早问门(三闸过审的用户主权问题 ≤3 · 一次性 · "
+        "auto 模式不停转 §待决策项 + WARN · 详 stages/goal-stage.md §4)"
+    ),
 )
 
 

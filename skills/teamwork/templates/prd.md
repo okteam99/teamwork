@@ -169,87 +169,9 @@ stateDiagram-v2
 
 ---
 
-## PRD-REVIEW.md（PRD 技术评审记录）
-
-```markdown
-# {功能名称} - PRD 技术评审记录
-
-## 当前状态
-🔄 第 X 轮评审中 | ✅ 已通过
-
----
-
-## RD 评审（技术角度）
-| ID | 问题 | 类型 | 建议 | 用户确认 | 状态 |
-|----|------|------|------|----------|------|
-| R1 | | 可行性/复杂度/风险/遗漏 | | 修改/忽略 | 待处理/已处理 |
-
-**工作量预估**: X 人天
-**技术风险**: 低/中/高
-**RD 结论**: ✅ 可行 / ⚠️ 有风险 / ❌ 不可行
-
----
-
-## Designer 评审（设计角度）
-| ID | 问题 | 类型 | 建议 | 用户确认 | 状态 |
-|----|------|------|------|----------|------|
-| D1 | | 交互/信息架构/状态/响应式 | | 修改/忽略 | 待处理/已处理 |
-
-**设计工作量**: X 人天
-**Designer 结论**: ✅ 可行 / ⚠️ 需补充
-
----
-
-## QA 评审（测试角度）
-| ID | 问题 | 类型 | 建议 | 用户确认 | 状态 |
-|----|------|------|------|----------|------|
-| Q1 | | 验收标准/边界/异常/可测性 | | 修改/忽略 | 待处理/已处理 |
-
-**QA 结论**: ✅ 清晰 / ⚠️ 需补充
-
----
-
-## PMO 评审（项目角度）
-| ID | 问题 | 类型 | 建议 | 用户确认 | 状态 |
-|----|------|------|------|----------|------|
-| P1 | | 范围/依赖/时间/优先级/冲突 | | 修改/忽略 | 待处理/已处理 |
-
-**项目风险**: 低/中/高
-**PMO 结论**: ✅ 可控 / ⚠️ 有风险
-
----
-
-## 待用户确认汇总
-| 序号 | 来源 | 问题 | 建议方案 | 用户决定 |
-|------|------|------|----------|----------|
-| 1 | | | | |
-
----
-
-## 用户确认方式
-- 回复「修改 R1」→ PM 按建议修改 PRD
-- 回复「忽略 D1」→ 标记为已忽略，记录原因
-- 回复「全部接受」→ PM 按所有建议修改
-- 回复「通过」→ PRD 进入「已确认」状态
-
----
-
-## 评审历史
-
-### 第 1 轮 - [日期]
-- RD 问题: X 个
-- Designer 问题: X 个
-- QA 问题: X 个
-- PMO 问题: X 个
-- 用户确认: 修改 X / 忽略 X
-- 结论: 继续修改 / 通过
-```
-
----
-
 ## PRD-REVIEW.md frontmatter schema（机读）
 
-> Goal Stage 子步骤 2「多角色并行评审」产出 `{Feature}/PRD-REVIEW.md`，含以下机读 frontmatter。
+> Goal Stage substep 5「多角色并行评审」产出 `{Feature}/PRD-REVIEW.md`(单源 schema · v8.132 删旧 4 视角叙述模板 · git 可溯)。机读 frontmatter:
 
 ```yaml
 ---
@@ -257,18 +179,18 @@ prd_feature_id: F025
 review_round: 1
 review_started_at: "<ISO 8601 UTC>"
 review_completed_at: "<ISO 8601 UTC>"
+reviewers: [pm, qa, architect, pl, external]  # 机读汇总 · = state.stage_review_roles[goal] · 校验 reviewers_match
+verdicts: {pm: APPROVE, qa: APPROVE, architect: APPROVE, pl: APPROVE, external: SKIP}  # 🔴 全 APPROVE/SKIP 才可 goal-complete(prd_verdicts_all_pass · v8.132 · 词表 APPROVE|NEEDS_REVISION|SKIP)
 reviews:
  # schema 调整：reviews[] 仅含 qa / rd / designer? / external?
- # 加 review_scope 字段：标识本次评审范围
- # PL 走子步骤 2 PL-PM 讨论模式（独立产物 discuss/PL-FEEDBACK + PM-RESPONSE，不在本 reviews[] 数组）
- # PMO 不独立评审（折叠到 PMO 调度责任，整合 finding）
- - role: qa | rd | designer | architect | external  # 删 pl/pmo · 加 architect（架构师独立化 · PRD 评审中默认不参与 · 但 schema 通用复用 TC-REVIEW / TECH-REVIEW / REVIEW.md · architect 值合法）
- review_scope: prd # ：值 prd | blueprint | code-review，标识评审范围
- # PRD 评审仅审产品视角（业务可行性 / AC 可测试性 / 用户故事完整性）
- # 技术实现 / 测试用例细节在 Blueprint Stage 评审（review_scope=blueprint）
- # architect 仅在 review_scope=blueprint / code-review 出现（不参与 prd scope）
+ # v8.132 对齐现行系统:goal 评审角色 = state.stage_review_roles[goal](默认 pm/qa/architect/pl/external · prepare 4 问可调)
+ # PMO 不独立评审(折叠到调度责任 · 整合 finding)
+ - role: pm | qa | architect | pl | external  # schema 通用 · rd/designer 值用于 TC-REVIEW / TECH-REVIEW / REVIEW.md 复用场景
+ review_scope: prd # 值 prd | blueprint | code-review
+ # PRD 评审审产品视角(业务可行性 / AC 可测试性 / 用户故事完整性)· 技术/测试细节归 Blueprint Stage(review_scope=blueprint)
+ # 🔴 pl 段 = 对抗质疑段:finding id 用 PL-CHALLENGE-{n} · category=premise-challenge(质疑五问 · 至少 1 条实质质疑或显式「无实质质疑+理由」· 详 stages/goal-stage.md §3)
  execution: subagent | main-conversation
- verdict: PASS | PASS_WITH_CONCERNS | NEEDS_REVISION
+ verdict: APPROVE | NEEDS_REVISION  # v8.132 词表统一 · 原 PASS_WITH_CONCERNS = APPROVE + advisory finding 留痕
  started_at: "<ISO 8601 UTC>"
  completed_at: "<ISO 8601 UTC>"
  files_read:
@@ -279,7 +201,7 @@ reviews:
  severity: high | medium | low | info
  description: "1-2 句问题描述"
  suggestion: "建议改法（可执行的具体方向）"
- category: technical-consistency | business-alignment | ux | quality | business-decision | terminology-ambiguity # 新增 / +P0-78 加 terminology-ambiguity（触发 Flagged Ambiguities 写入）
+ category: technical-consistency | business-alignment | ux | quality | business-decision | terminology-ambiguity | premise-challenge # terminology-ambiguity 触发 Flagged Ambiguities 写入 · premise-challenge = PL 质疑五问(v8.132)
  cross_role: []  # （可选）· 一个 finding 同时关联多视角时（如 [qa, rd]）· 仍归入主要视角段 · 不复制到多段
  # ：涉及代码现状的 finding 必填 code_evidence（category=technical-consistency 时强制）
  code_evidence: # 可选 · category=technical-consistency 时必填
@@ -300,7 +222,7 @@ reviews:
  我的 REJECT 理由必须证明这两点不成立或代价可接受。"
  rationale: "ADOPT 时填'已修订：{改了什么 + PRD 段落引用}'；REJECT 时填'反方论据为何不成立 + 替代方案'；DEFER 时填'延后理由 + 追踪位置 + 上升给用户决策的具体问题'"
  responded_at: "<ISO 8601 UTC>"
-overall_verdict: PASS | PASS_WITH_CONCERNS | NEEDS_REVISION
+overall_verdict: APPROVE | NEEDS_REVISION
 next_round_required: true | false
 overall_decided_at: "<ISO 8601 UTC>"
 ---
@@ -311,7 +233,7 @@ overall_decided_at: "<ISO 8601 UTC>"
 
 ### {role} 评审段（execution: {subagent|main-conversation}）
 
-verdict: {PASS|PASS_WITH_CONCERNS|NEEDS_REVISION}
+verdict: {APPROVE|NEEDS_REVISION}
 
 #### Findings
 
@@ -332,7 +254,7 @@ verdict: {PASS|PASS_WITH_CONCERNS|NEEDS_REVISION}
 
 - overall_verdict: {结果}
 - next_round_required: {true|false}
-- 下一步：{PM 修订 PRD 进 Round N+1 / 全员通过进子步骤 5 / 超 3 轮 ⏸️ 用户决策}
+- 下一步：{PM 修订 PRD 进 Round N+1 / 全员通过进 substep 7 判定 → 8 needs-ui / 超 3 轮 ⏸️ 用户决策}
 ```
 
 ### 机器可校验
@@ -358,7 +280,7 @@ verdict: {PASS|PASS_WITH_CONCERNS|NEEDS_REVISION}
 
 ### 🔴 起草前必读：代码现状 Read
 
-> **触发实证**：PM 不读代码 → PRD 假设功能不存在但实际有 / AC 与现有约束冲突 / 漏掉代码已知边界 → 子步骤 3 RD 评审才发现 → 评审循环多 1 轮（实测 1-3 轮）。本段把"PM 起草前必有代码意识"从隐性期望提升为 checklist 硬项。
+> **触发实证**：PM 不读代码 → PRD 假设功能不存在但实际有 / AC 与现有约束冲突 / 漏掉代码已知边界 → substep 5 多角色评审(architect/qa)才发现 → 评审循环多 1 轮（实测 1-3 轮）。本段把"PM 起草前必有代码意识"从隐性期望提升为 checklist 硬项。
 
 🔴 **PM 起草 PRD 前必须 Read 相关代码模块**（只读不输出 brief，靠 PM 内化）：
 
@@ -396,7 +318,9 @@ Step 4: PM 起草时把发现内化到 PRD
 - 时间预算：5-10 min（不是完整代码调研）
 - 输出形式：**只读不输出**（不产 brief 文件 · 不在主对话列读过的文件）
 - 唯一痕迹：PM 起草后 self_check 勾选 `code_context_read: true`（一个 boolean 承诺）
-- 兜底：子步骤 3 RD 评审仍会做最后一道核对，PM Read 是前置补强不是替代
+- 兜底：substep 5 多角色评审(architect/qa)仍会做最后一道核对，PM Read 是前置补强不是替代
+
+🔴 **调研四类**(v8.132 · §4 早问门入场券 · 单源 stages/goal-stage.md §1):代码现状(本段)+ KNOWLEDGE(Flagged Ambiguities / Preferences / Out-of-Scope)+ GLOSSARY + 上游规划(BL / WS / 愿景 / PENDING + prepare 流程目标)—— 全部 AI 可自答 · 没查完没资格问用户。
 
 📎 **与方向 A grep + 方向 B brief 的对比**：本 P0-73 = 方向 B 只读不输出（无 brief 文档 · 无 stage 膨胀）。如未来发现 PM 偷读不读 → 升级到方向 B 原版（加 brief 输出 / 加 PMO 校验段）；当前先靠 boolean self_check + 角色纪律。
 
@@ -452,7 +376,7 @@ Step 4: PM 起草时把发现内化到 PRD
 
 写入 `PRD-REVIEW.md.reviews[role=pm].pm_self_check`（schema：`{checklist_passed: true|false, code_context_read: true|false, failed_items: ["..."], notes: "..."}`），不复述 checklist 全文（避免主对话重复述 3 遍）。
 
-🔴 **`code_context_read` 字段**：标记 PM 起草前是否完成"代码现状 Read"硬规则（grep 关键词 + Read 3-5 个核心文件 / 5-10 min 内化）。`code_context_read: false` = 跳过 Read 起草 → 子步骤 3 RD 评审若发现 AC 与代码现状冲突，PMO 自动 NEEDS_REVISION 打回 PM 重读重起；不接受"PM 自报已读"以外的省略。
+🔴 **`code_context_read` 字段**：标记 PM 起草前是否完成"代码现状 Read"硬规则（grep 关键词 + Read 3-5 个核心文件 / 5-10 min 内化）。`code_context_read: false` = 跳过 Read 起草 → substep 5 多角色评审若发现 AC 与代码现状冲突，PMO 自动 NEEDS_REVISION 打回 PM 重读重起；不接受"PM 自报已读"以外的省略。
 
 ---
 

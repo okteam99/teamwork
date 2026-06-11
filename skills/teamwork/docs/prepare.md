@@ -130,7 +130,7 @@ prepare-check 输出 `reviewer_thinking_checklist` 4 个核心问题 · PMO 在 
 
 | # | 问题 | 命中调整 |
 |---|---|---|
-| Q1 | 有产品方向影响?(业务目标 / 用户可见 / 商业模式 / 跨项目一致 / 变更级联 Level≥2) | **是**(常态)→ goal **留 pl**;仅纯内部技术重构 · 零产品面才去 pl · ⚠️『无 ROADMAP』**不是**去 pl 理由(ROADMAP=规划层 · 与 PRD 产品方向评审无关) |
+| Q1 | 有产品方向影响?(业务目标 / 用户可见 / 商业模式 / 跨项目一致 / 变更级联 Level≥2) | **是**(常态)→ goal **留 pl** + goal §3 PL 质疑走 **subagent 隔离版**(详 goal-stage §3);仅纯内部技术重构 · 零产品面才去 pl · ⚠️『无 ROADMAP』**不是**去 pl 理由(ROADMAP=规划层 · 与 PRD 产品方向评审无关) |
 | Q2 | 含 UI 改动? | 否 → ui_design 跳过 + browser_e2e 跳过 |
 | Q3 | 跨 ≥3 module 触发点 / 调用方? | 是 → blueprint / review 强 external(异质模型查漏触发) |
 | Q4 | 数据模型重构(删/改老字段 · 表结构变)? | 是 → blueprint 强 architect + 加 dba 评审 |
