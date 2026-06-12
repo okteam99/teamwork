@@ -112,11 +112,11 @@ class TestHandleShipPushUrlFallbackGate(unittest.TestCase):
 
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp(prefix="tw-v837-"))
-        # 准备 fake state(current_stage=ship · phase=null)
+        # 准备 fake state(current_stage=ship · phase=archived —— v8.145 push 前必先 archive)
         self.state = {
             "current_stage": "ship",
             "feature_id": "TEST-B007",
-            "ship": {},  # phase=null
+            "ship": {"phase": "archived"},
             "concerns": [],
         }
 

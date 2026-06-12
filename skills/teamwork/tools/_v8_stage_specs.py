@@ -2150,41 +2150,38 @@ def _check_pm_approved_ship(state: dict, args) -> bool:
     return _pm_decision_value(pm_c) == "approved_and_ship"
 
 
-def _check_ship_phase_merged(state: dict, args) -> bool:
-    """ship.phase == 'merged'(由 v7 ship-confirm-merged 设置)"""
-    return state.get("ship", {}).get("phase") == "merged"
-
-
-def _check_ship_cleanup_done(state: dict, args) -> bool:
-    """ship.worktree_cleanup IN ('cleaned', 'n_a')"""
-    return state.get("ship", {}).get("worktree_cleanup") in ("cleaned", "n_a")
+def _check_ship_phase_terminal(state: dict, args) -> bool:
+    """v8.145:ship.phase == 'archived'(ship1 终幕 archive 设置 · 即 ship1 全交付)。"""
+    return state.get("ship", {}).get("phase") in ("archived", "pushed")
 
 
 def _ship_brief(state: dict) -> str:
     """v8.0+P0-8 极简版:目标 + 结果 + 完成方式 · 怎么做归 stage.md。"""
-    return f"""## Ship Stage
+    return f"""## Ship Stage(v8.145 · ship1 全交付 / ship2 零内容清场)
 
 ### 目标
-push feature → CLI 创 MR → 等用户合并 → 验证合入 + 同步 state.json + 清理 worktree。
+ship1(全在 worktree):净化 → 归档+翻牌进 feature 分支 → push + 创 MR · 终点 = MR 提交。
+ship2(主工作区 · MR 合并后):验已交付 → 删 worktree → 净化主工作区。
 
-### 结果(完成判定)
-- `state.ship.phase = "merged"`
-- `state.ship.merge_commit_hash` 锚定
-- `state.ship.worktree_cleanup ∈ {{cleaned, n_a}}`
-- `current_stage = "completed"`
+### 结果(ship1 完成判定)
+- `state.ship.phase = "pushed"`(archive → push 记录后)
+- `current_stage = "completed"`(archive 时写入 · 随 MR 原子可见)
+- 归档 zip + 规划翻牌 + 终态 state.json 全在 feature 分支(单 MR · 无第二收尾 MR)
 
 ### 怎么做
-**必读** `stages/ship-stage.md`(Phase 1 手动 3 步 + Phase 2 一条 ship-finalize · 含主工作区拦截 / CLI-first trap)。
+**必读** `stages/ship-stage.md`(ship1 三 action + ⏸️ 等 MR 合并 + ship2 一条命令)。
 
 ### 完成方式
 ```
-# Phase 1(在 worktree 内):
+# ship1(全在 worktree 内):
 state.py ship-start --feature <path>
 state.py ship-phase --action sanitize ...
-state.py ship-phase --action push ...
-# ⏸️ 等用户在平台合并 MR
-# Phase 2(cd 回主工作区 · 一条命令跑完 7 步):
-state.py ship-finalize --feature <path>
+state.py ship-phase --action archive --planning-artifacts <翻牌文件>|--no-planning-changes --archive-desc '<≤200 字>'
+# → git push + gh/glab 创 MR(CLI-first)→
+state.py ship-phase --action push --mr-url <真实 URL> ...
+# ⏸️ 提示用户合并 MR —— feature 的 ship 到此结束
+# ship2(用户合并后 · cd 回主工作区 · 零内容清场):
+state.py ship-finalize --feature <worktree 内 feature 路径>
 ```
 """
 
@@ -2205,32 +2202,24 @@ SHIP_SPEC = StageSpec(
             ),
             description="pm_acceptance.decision == approved_and_ship",
         ),
-        # 注:ship-start 不再要求主工作区(Phase 1 sanitize/push 都在 worktree 内跑 ·
-        # 因为 git push 必须从 feature branch checkout 位置)· Phase 2 (confirm-merged/cleanup)
-        # 由 _v8_ship.py _require_main_worktree 独立拦截 · 保持职责分明。
+        # 注:ship1(sanitize/archive/push)全在 worktree 内跑;ship2(ship-finalize)
+        # 由 _v8_ship.py _ship_finalize_precheck 独立拦截必在主工作区 · 职责分明(v8.145)。
     ],
     artifacts=[],  # ship 无 markdown 产物 · 看 state.ship 字段
     evidence_checks=[
         StageEvidenceCheck(
-            name="ship_phase_merged",
+            name="ship_phase_terminal",
             check_fn=lambda state, args: (
-                (True, "") if _check_ship_phase_merged(state, args)
-                else (False, "state.ship.phase != 'merged' · 先跑 ship-confirm-merged")
+                (True, "") if _check_ship_phase_terminal(state, args)
+                else (False, "state.ship.phase 未达 archived(v8.145 ship1 终幕)· "
+                             "先跑 ship-phase --action archive")
             ),
-            description="state.ship.phase == 'merged'",
-        ),
-        StageEvidenceCheck(
-            name="ship_cleanup_done",
-            check_fn=lambda state, args: (
-                (True, "") if _check_ship_cleanup_done(state, args)
-                else (False, "state.ship.worktree_cleanup not cleaned/n_a · 先跑 ship-cleanup")
-            ),
-            description="state.ship.worktree_cleanup ∈ ('cleaned', 'n_a')",
+            description="state.ship.phase ∈ ('archived', 'pushed')(v8.145)",
         ),
     ],
     brief_template_fn=_ship_brief,
     auto_transition_fn=_ship_transition,
-    authorized_pause_point="Phase 1 → Phase 2 间断点 · 等用户在平台 merge MR",
+    authorized_pause_point="ship1 终点 · 等用户在平台 merge feature MR(合并后 ship2 清场)",
 )
 
 

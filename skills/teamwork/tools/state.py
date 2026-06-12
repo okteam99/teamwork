@@ -49,13 +49,10 @@ LEGAL_STAGES = {
 
 GATE_NAMES = ("input_satisfied", "process_satisfied", "output_satisfied")
 
-SHIP_PHASE_ENUM = {None, "pushed", "merged", "closed_unmerged"}
-SHIP_SHIPPED_ENUM = {None, "pushed", "merged", "closed_unmerged", "abandoned", "failed"}
+SHIP_PHASE_ENUM = {None, "archived", "pushed", "merged", "closed_unmerged"}  # v8.145 +archived
+SHIP_SHIPPED_ENUM = {None, "archived", "pushed", "merged", "closed_unmerged", "abandoned", "failed"}
 SHIP_GIT_HOSTS = {"github", "gitlab", "gitlab-self-hosted", "gitee", "bitbucket", "unknown"}
 SHIP_MR_METHODS = {"cli-gh", "cli-glab", "url-fallback", "unknown-platform"}
-SHIP_DETECTION_METHODS = {"branch-contains", "user-reported"}
-SHIP_FINALIZE_PUSH_REASONS = {"conflict", "protect-rule", "network", "other"}
-SHIP_CLEANUP_ENUM = {"cleaned", "deferred", "n_a"}
 
 CONCERN_SEVERITY = {"INFO", "WARN", "ERROR"}
 
