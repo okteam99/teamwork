@@ -4,6 +4,21 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.147 · LEDGER 冲突升级机械自动解:三方对比纯增行判定 · union 进脚本(实战 case 驱动)
+
+> 用户(截图 case:SVC-CORE-B260612051432 · aon 实战):v8.146 防线首战 —— PROCESS-LEDGER 三行追加冲突按 ③ 留给 AI · AI 的处置 = 删标记保双方行 · **零判断纯机械**。判定:该进脚本(v8.146 保守只解 INDEX · 实战证明 LEDGER 同样可枚举)。
+
+### 设计:安全前提物化
+- `_try_append_union_resolve`:三方对比 base(:1:)/ours(:2:)/theirs(:3:)· **双方相对 base 都是纯增行**(base 行序列为两侧保序子序列)才自动 union(theirs 全文为基 + 本侧增量去重后置)· 任一侧有删/改 → 拒动留 AI(PENDING 提示改为「台账类但非纯增行 · 人工合」)。
+- 适用名单制(`PROCESS-LEDGER.md`)· 不做通用文件 union(代码文件双方尾部追加 union 可能语义错误)。
+- sync 返回升级:status 统一 `auto_resolved` + `auto_resolved_files` 清单 · archive emit 的 `sync` 注明解了哪些文件(透明可审计)。
+
+### 实战判读(截图 case · 防线首战全对)
+- 重跑 archive = 冲突修复入口 ✓ · INDEX 静默处理 ✓ · LEDGER union 保双方行 ✓ · 只 add 冲突文件不碰 untracked 接力卡 ✓ —— AI 处置零瑕疵 · 但这步本可不存在 · 故升级。
+
+### 验证
+- 测试 +2(纯增行自动 union 双方行都在 / 非纯增行〔同行双改〕拒动 PENDING 留 AI)· pytest 3 failed / 525 passed(baseline 3 · 净 +2)。
+
 ## v8.146 · ship1 冲突防线:archive 前置 sync 自动合 · INDEX 冲突机械自动解 · 代码冲突留 AI
 
 > 用户(承 v8.145):ship1 在 MR 创建后大概率会冲突 · 是否有必要增加检测冲突环节 · 自动评估处理。判定:有必要 —— v8.145 设计时把该 trade-off 低估为「可能」· 实为「并行 ship 窗口重叠时必然」(INDEX/LEDGER 是 every-feature 同位追加)。
@@ -76,20 +91,4 @@
 
 ### 验证
 - doc-only · pytest 3 failed / 549 passed(零回归)。
-
-## v8.142 · 升级提示带变更描述:线上 CHANGELOG 标题行进暂停点 · keep-5 断档加 git 历史注
-
-> 用户:更新提示出现时 · 需要带一下更新描述。
-
-### 诊断
-- 升级暂停点只报版本号 + 「去 GitHub 看 CHANGELOG」指针 —— 用户在暂停点上无法判断「这次升级对我有什么」· 决策要出门。发版纪律里每版标题行本就是一行蒸馏摘要 · 现成可用。
-
-### 改动
-- **`_fetch_changelog_titles`**(bootstrap.py):outdated 时拉线上 `docs/CHANGELOG.md`(channel 同 SKILL.md · env `TEAMWORK_SKILL_CHANGELOG_URL` 测试覆盖)· 抽「本地版本之后」各版 `## vX.Y · 标题` 行(新→旧 · 扫到 ≤ 本地即停)· prompt 加「本次升级包含」清单(cap 8 · 超出加共 N 版注)。
-- **keep-5 断档识别**:扫完未遇到 ≤ 本地的条目 = 落后超出线上留存范围 → 加「(线上 CHANGELOG 仅存最近 5 版 · 更早变更见 git 历史)」注。
-- **best-effort**:拉取/解析失败返 None · prompt 降级回原指针 · 绝不阻塞 bootstrap;up_to_date 路径零额外网络(只在 outdated 才拉)。emit 增机器可读 `changelog_titles`。
-- 测试 +4(标题进 prompt 且 ≤ 本地不列 / 拉取失败降级 / keep-5 断档注 / up_to_date 不拉)· setUp 把 changelog env 指向受控 file://(防既有测试外呼真 GitHub)。
-
-### 验证
-- pytest 3 failed / 549 passed(baseline 3 · 净 +4)。
 

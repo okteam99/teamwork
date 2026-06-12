@@ -504,6 +504,53 @@ def _own_index_row(wt_root: str, index_rel: str, feature_id: str) -> Optional[st
     return None
 
 
+def _try_append_union_resolve(wt_root: str, rel: str) -> bool:
+    """v8.147:追加型冲突机械 union(实战 case:SVC-CORE-B260612051432 重跑 archive ·
+    PROCESS-LEDGER 三行追加冲突 · AI 的处置 = 删标记保双方行 —— 零判断纯机械 · 该进脚本)。
+
+    安全前提(物化):三方对比 base(:1:)/ours(:2:)/theirs(:3:)· **双方相对 base 都是
+    纯增行**(base 行序列是两侧的保序子序列)才自动解;任何一方有删/改 → 返 False 留 AI。
+    union = theirs 全文 + ours 新增行(去重)—— origin 侧(已合事实)为基 · 本侧增量后置。
+    """
+    def _show(stage: int) -> Optional[str]:
+        r = _git(["show", f":{stage}:{rel}"], cwd=wt_root)
+        return r.stdout if r.returncode == 0 else None
+
+    base, ours, theirs = _show(1), _show(2), _show(3)
+    if base is None or ours is None or theirs is None:
+        return False
+    base_lines = base.splitlines()
+
+    def _added_only(side_text: str) -> Optional[list]:
+        """base 是 side 的保序子序列 → 返回 side 的新增行;否则 None(有删/改)。"""
+        b = 0
+        added = []
+        for ln in side_text.splitlines():
+            if b < len(base_lines) and ln == base_lines[b]:
+                b += 1
+            else:
+                added.append(ln)
+        return added if b == len(base_lines) else None
+
+    ours_add = _added_only(ours)
+    theirs_add = _added_only(theirs)
+    if ours_add is None or theirs_add is None:
+        return False
+    theirs_lines = theirs.splitlines()
+    theirs_set = set(theirs_lines)
+    extra = [ln for ln in ours_add if ln not in theirs_set]
+    content = "\n".join(theirs_lines + extra)
+    if not content.endswith("\n"):
+        content += "\n"
+    try:
+        (Path(wt_root) / rel).write_text(content, encoding="utf-8")
+    except OSError:
+        return False
+    ad = _git(["add", "--", rel], cwd=wt_root)
+    return ad.returncode == 0
+
+
+
 def _sync_feature_branch(wt_root: str, merge_target: str, index_rel: str,
                          feature_id: str) -> dict:
     """v8.146:ship1 冲突防线 —— feature 分支与 origin/<mt> 同步(merge · 不 rebase 已推分支)。
@@ -534,6 +581,7 @@ def _sync_feature_branch(wt_root: str, merge_target: str, index_rel: str,
     if mg.returncode == 0:
         return {"status": "merged_clean", "conflict_files": [], "behind": behind}
     conflicts = _conflicted_files(wt_root)
+    auto_resolved: list = []
     # ② INDEX.md 机械自动解:origin 侧为基(最新已合状态)+ 重放本 feature 行
     if index_rel in conflicts:
         own_row = _own_index_row(wt_root, index_rel, feature_id)
@@ -547,11 +595,19 @@ def _sync_feature_branch(wt_root: str, merge_target: str, index_rel: str,
             (Path(wt_root) / index_rel).write_text(content, encoding="utf-8")
             _git(["add", "--", index_rel], cwd=wt_root)
             conflicts = [c for c in conflicts if c != index_rel]
+            auto_resolved.append(index_rel)
+    # ②b v8.147:追加型台账冲突机械 union(三方对比 · 双方纯增行才解 · 否则留 AI)
+    APPEND_UNION_BASENAMES = ("PROCESS-LEDGER.md",)
+    for rel in list(conflicts):
+        if rel.rsplit("/", 1)[-1] in APPEND_UNION_BASENAMES \
+                and _try_append_union_resolve(wt_root, rel):
+            conflicts.remove(rel)
+            auto_resolved.append(rel)
     if not conflicts:
         cm = _git(["commit", "--no-edit"], cwd=wt_root, timeout=30)
         if cm.returncode == 0:
-            return {"status": "index_auto_resolved", "conflict_files": [],
-                    "behind": behind}
+            return {"status": "auto_resolved", "conflict_files": [],
+                    "auto_resolved_files": auto_resolved, "behind": behind}
         return {"status": "conflict", "conflict_files": ["(commit 失败:%s)" % cm.stderr.strip()[:80]],
                 "behind": behind}
     return {"status": "conflict", "conflict_files": conflicts, "behind": behind}
@@ -570,7 +626,7 @@ def _sync_conflict_pending(action: str, sync: dict, feature_path: str) -> None:
              f"🔴 与 origin 同步发生冲突({len(files)} 文件)—— worktree 是解决冲突的合法场所"
              "(v8.145:内容性工作在可控环境):\n")
             + "  ① 逐文件评估处理(AI 自决 · 业务歧义大再上抛用户):\n"
-            + "".join(f"     - {f}" + ("(追加台账类 · 通常 = 保留双方行 union)"
+            + "".join(f"     - {f}" + ("(台账类但非纯增行 · 机械 union 不敢动 · 人工合)"
                                         if f.endswith("PROCESS-LEDGER.md") else "") + "\n"
                        for f in files[:10])
             + "  ② `git add <已解文件>` → `git commit --no-edit`(完成 merge)\n"
@@ -632,9 +688,10 @@ def _handle_ship_archive(state: dict, args: argparse.Namespace) -> dict:
         elif sync["status"] == "merged_clean":
             sync_note = (f"已自动合入 origin/{merge_target}(落后 {sync['behind']} commit · "
                          "无冲突 · 记得重新 git push)")
-        elif sync["status"] == "index_auto_resolved":
-            sync_note = (f"已合入 origin/{merge_target} · INDEX.md 行冲突已机械自动解"
-                         "(origin 为基 + 重放本 feature 行 · 记得重新 git push)")
+        elif sync["status"] == "auto_resolved":
+            files = "、".join(sync.get("auto_resolved_files", [])) or "追加型台账"
+            sync_note = (f"已合入 origin/{merge_target} · 冲突已机械自动解({files} · "
+                         "origin 为基 + 重放本侧增量 · 记得重新 git push)")
 
     # 幂等:HEAD 已含 zip 且不含过程目录 → 已归档(重跑 = 同步后直接给 push 指引)
     zin = _git(["cat-file", "-e", f"HEAD:{zip_rel}"], cwd=wt_root)

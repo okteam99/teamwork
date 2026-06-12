@@ -37,8 +37,8 @@ state.py 一口气做完(单 commit 进 feature 分支):
 
 **冲突防线(v8.146 · 内置于 archive · 治本「共享追加文件进 feature 分支 → 并行 MR 大概率冲突」)**:
 - ① **前置 sync**:archive 开头 fetch + behind 检测 → 落后自动 `merge origin/<mt>`(不 rebase 已推分支)· 干净则无感 · MR 开出来即可合;
-- ② **INDEX.md 冲突机械自动解**(可枚举进脚本):origin 侧为基 + 重放本 feature 行(追加表语义确定);
-- ③ **代码/规划文件冲突留 AI**(不可枚举):emit `PENDING merge-conflict` + 文件清单 · AI 在 **worktree 内**评估处理(LEDGER 类通常 union 保留双方行)→ `git add` → `git commit` → 重跑 archive;
+- ② **追加型台账冲突机械自动解**(可枚举进脚本):INDEX.md(origin 为基 + 重放本 feature 行)+ PROCESS-LEDGER.md(v8.147 · 三方对比 **双方相对 base 纯增行**才 union:theirs 全文 + 本侧增量 · 任一侧有删改 → 拒动留 AI);
+- ③ **代码/其余文件冲突留 AI**(不可枚举):emit `PENDING merge-conflict` + 文件清单 · AI 在 **worktree 内**评估处理 → `git add` → `git commit` → 重跑 archive;
 - **MR 窗口期别人先合 → 平台报冲突**:回 worktree **重跑 archive**(= 冲突修复入口 · 自动 sync + 机械解)→ `git push` → MR 自动更新 → 用户再合。
 
 ### 3.5 规划层 back-reference 翻牌(随 feature MR 原子合入 · 🔴 必做)

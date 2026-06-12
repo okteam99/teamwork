@@ -344,6 +344,50 @@ class TestShip1ConflictDefense(_ShipFlowBase):
         self.assertEqual(d2.get("verdict"), "PASS", d2)
 
 
+
+    def test_ledger_append_conflict_auto_union(self):
+        """v8.147(实战 case:SVC-CORE-B260612051432):LEDGER 双方纯增行 → 机械 union 自动解。"""
+        ledger_rel = "project-specs/PROCESS-LEDGER.md"
+        base = "# LEDGER\n\n| Feature | 备注 |\n| --- | --- |\n| OLD-F0 | 既有 |\n"
+        # base 行进 origin + 同步进本分支(共同祖先)
+        self._origin_commit({ledger_rel: base}, "ledger base")
+        rc, _, err = _git(self.wt, "pull", "--no-rebase", "--no-edit", "origin", "main")
+        self.assertEqual(rc, 0, err)
+        # 本分支追加自己的行(模拟翻牌采写 · commit 进分支)
+        (self.wt / ledger_rel).write_text(base + f"| {self.FID} | 本特性 |\n", encoding="utf-8")
+        _git(self.wt, "add", ledger_rel)
+        _git(self.wt, "commit", "-qm", "ledger own row")
+        # origin 同位追加别家两行(并行 feature 先合)
+        self._origin_commit(
+            {ledger_rel: base + "| OTHER-F1 | 别家一 |\n| OTHER-F2 | 别家二 |\n"},
+            "other rows")
+        _, d = self._archive("--no-planning-changes", "--archive-desc", "x")
+        self.assertEqual(d.get("verdict"), "PASS", d)
+        self.assertIn("机械自动解", d.get("sync", ""), d)
+        self.assertIn("PROCESS-LEDGER.md", d.get("sync", ""), d)
+        rc, content, _ = _git(self.wt, "show", f"HEAD:{ledger_rel}")
+        for token in ("OTHER-F1", "OTHER-F2", self.FID):
+            self.assertIn(token, content, f"union 后应含 {token}")
+
+    def test_ledger_non_append_conflict_left_to_ai(self):
+        """v8.147 安全前提:任一侧有删/改(非纯增行)→ 机械 union 拒动 · PENDING 留 AI。"""
+        ledger_rel = "project-specs/PROCESS-LEDGER.md"
+        base = "# LEDGER\n\n| Feature | 备注 |\n| --- | --- |\n| OLD-F0 | 既有 |\n"
+        self._origin_commit({ledger_rel: base}, "ledger base")
+        rc, _, err = _git(self.wt, "pull", "--no-rebase", "--no-edit", "origin", "main")
+        self.assertEqual(rc, 0, err)
+        # 本分支「改」既有行(非纯增)
+        (self.wt / ledger_rel).write_text(base.replace("既有", "本侧改写"), encoding="utf-8")
+        _git(self.wt, "add", ledger_rel)
+        _git(self.wt, "commit", "-qm", "edit existing row")
+        # origin 同行不同改
+        self._origin_commit({ledger_rel: base.replace("既有", "对侧改写")}, "their edit")
+        _, d = self._archive("--no-planning-changes", "--archive-desc", "x")
+        self.assertEqual(d.get("verdict"), "PENDING", d)
+        self.assertEqual(d.get("pending_step"), "merge-conflict")
+        self.assertIn(ledger_rel, d.get("conflict_files", []), d)
+
+
 class TestMainSyncFeatureless(unittest.TestCase):
     """v8.145:main-sync 不依赖 feature(接力卡可已消亡)。"""
 
