@@ -33,7 +33,13 @@ state.py 一口气做完(单 commit 进 feature 分支):
 
 **MR diff 干净**:过程目录在分支历史里「加了又删」· 对 merge_target **净零** —— feature MR 的 diff 只剩 代码 + zip + INDEX 行 + 翻牌行。
 🔴 archive 之后**勿在 worktree 跑 `git add -A`**(会把 untracked 接力卡目录加回分支)。
-幂等:重跑检测「HEAD 含 zip + 不含目录」→ 直接给 push 指引。
+幂等:重跑检测「HEAD 含 zip + 不含目录」→ 同步后直接给 push 指引。
+
+**冲突防线(v8.146 · 内置于 archive · 治本「共享追加文件进 feature 分支 → 并行 MR 大概率冲突」)**:
+- ① **前置 sync**:archive 开头 fetch + behind 检测 → 落后自动 `merge origin/<mt>`(不 rebase 已推分支)· 干净则无感 · MR 开出来即可合;
+- ② **INDEX.md 冲突机械自动解**(可枚举进脚本):origin 侧为基 + 重放本 feature 行(追加表语义确定);
+- ③ **代码/规划文件冲突留 AI**(不可枚举):emit `PENDING merge-conflict` + 文件清单 · AI 在 **worktree 内**评估处理(LEDGER 类通常 union 保留双方行)→ `git add` → `git commit` → 重跑 archive;
+- **MR 窗口期别人先合 → 平台报冲突**:回 worktree **重跑 archive**(= 冲突修复入口 · 自动 sync + 机械解)→ `git push` → MR 自动更新 → 用户再合。
 
 ### 3.5 规划层 back-reference 翻牌(随 feature MR 原子合入 · 🔴 必做)
 
@@ -68,7 +74,10 @@ state.py ship-phase --action push --feature <path> \
    动作:回 `1` → PMO cd 主工作区 · 跑 `ship-finalize`(ship2 清场)
 2. ⏳ **暂未合并 / 还在 review**
    动作:无需操作 · 任意时刻回来回 `1` 继续
-3. ❌ **撤回 / 关闭 MR**
+3. ⚠️ **平台报冲突(别的 feature 先合了)**
+   动作:回 `冲突` → PMO 回 worktree 重跑 `--action archive`(自动 sync · INDEX 机械解 ·
+   代码冲突 AI 处理)→ `git push` → MR 更新 → 你再合并
+4. ❌ **撤回 / 关闭 MR**
    动作:回 `撤回` → close-unmerged(`--abandon=true` 终态 / false 留口子)
 
 📚 决策参考:MR URL = <url> · 平台 review 状态 / CI 结果

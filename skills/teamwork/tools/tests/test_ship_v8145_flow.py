@@ -119,6 +119,23 @@ class _ShipFlowBase(unittest.TestCase):
                 os.environ[k] = v
 
     # helpers
+    def _origin_commit(self, files: dict, msg: str):
+        """借第二个 clone 给 origin/main 推一笔(模拟并行 feature 已合)。"""
+        b = self.tmp / "sideclone"
+        if not b.exists():
+            _git(self.tmp, "clone", "-q", str(self.bare), str(b))
+            _git(b, "config", "user.email", "t@x.com")
+            _git(b, "config", "user.name", "t")
+        _git(b, "pull", "-q", "--ff-only", "origin", "main")
+        for rel, content in files.items():
+            fp = b / rel
+            fp.parent.mkdir(parents=True, exist_ok=True)
+            fp.write_text(content, encoding="utf-8")
+        _git(b, "add", "-A")
+        _git(b, "commit", "-qm", msg)
+        rc, _, err = _git(b, "push", "origin", "main")
+        assert rc == 0, err
+
     def _archive(self, *extra):
         return _run_state(self.wt, "ship-phase", "--action", "archive",
                           "--feature", self.feature_arg, *extra)
@@ -275,6 +292,56 @@ class TestShip2Finalize(_ShipFlowBase):
             self.assertIn("--merge-target", opt["command"])
             self.assertNotIn("--feature", opt["command"])
         self.assertTrue(self.main.joinpath("notes.txt").exists(), "用户改动不被自动动")
+
+
+class TestShip1ConflictDefense(_ShipFlowBase):
+    """v8.146:冲突防线 —— 共享追加文件进 feature 分支后 · 并行 MR 大概率冲突(用户指出)。"""
+
+    def test_presync_merges_behind_clean(self):
+        """① 前置 sync:origin 推进(无关文件)→ archive 自动 merge · 无感 · MR 开出即可合。"""
+        self._origin_commit({"OTHER.md": "parallel work\n"}, "other feature")
+        _, d = self._archive("--no-planning-changes", "--archive-desc", "x")
+        self.assertEqual(d.get("verdict"), "PASS", d)
+        self.assertIn("已自动合入", d.get("sync", ""), d)
+        # merge 真发生:origin 的文件在 HEAD
+        rc, _, _ = _git(self.wt, "cat-file", "-e", "HEAD:OTHER.md")
+        self.assertEqual(rc, 0)
+
+    def test_rerun_auto_resolves_index_conflict(self):
+        """② MR 窗口期别人先合(INDEX 同位追加)→ 重跑 archive 机械自动解 · 双方行都在。"""
+        _, d1 = self._archive("--no-planning-changes", "--archive-desc", "本特性")
+        self.assertEqual(d1.get("verdict"), "PASS", d1)
+        # 模拟并行 feature 已合:origin 的 INDEX.md 同表追加另一行
+        other_index = (
+            "# Feature 归档索引\n\n> head\n\n"
+            "| Feature | 描述 | 交付归档时间 | 归档物 |\n| --- | --- | --- | --- |\n"
+            "| OTHER-F1 | 别家特性 | 2026-06-12T00:00:00Z | `OTHER-F1.zip` |\n")
+        self._origin_commit({self.index_rel: other_index}, "other feature archive")
+        _, d2 = self._archive("--no-planning-changes", "--archive-desc", "本特性")
+        self.assertEqual(d2.get("verdict"), "PASS", d2)
+        self.assertIn("机械自动解", d2.get("sync", ""), d2)
+        rc, content, _ = _git(self.wt, "show", f"HEAD:{self.index_rel}")
+        self.assertEqual(rc, 0)
+        self.assertIn("OTHER-F1", content, "对方行保留")
+        self.assertIn(self.FID, content, "本 feature 行重放")
+
+    def test_presync_code_conflict_pending_then_resolve(self):
+        """③ 代码冲突留 AI:PENDING 列清单 → AI 解完 commit → 重跑 archive 通过。"""
+        # 分支上改 README(已 commit) · origin 同文件不同改 → 冲突
+        (self.wt / "README.md").write_text("# repo\nbranch change\n", encoding="utf-8")
+        _git(self.wt, "add", "README.md")
+        _git(self.wt, "commit", "-qm", "branch readme")
+        self._origin_commit({"README.md": "# repo\norigin change\n"}, "origin readme")
+        _, d = self._archive("--no-planning-changes", "--archive-desc", "x")
+        self.assertEqual(d.get("verdict"), "PENDING", d)
+        self.assertEqual(d.get("pending_step"), "merge-conflict")
+        self.assertIn("README.md", d.get("conflict_files", []), d)
+        # AI 解冲突 → 完成 merge → 重跑
+        (self.wt / "README.md").write_text("# repo\nmerged change\n", encoding="utf-8")
+        _git(self.wt, "add", "README.md")
+        _git(self.wt, "commit", "--no-edit", "-qm", "merge resolved")
+        _, d2 = self._archive("--no-planning-changes", "--archive-desc", "x")
+        self.assertEqual(d2.get("verdict"), "PASS", d2)
 
 
 class TestMainSyncFeatureless(unittest.TestCase):

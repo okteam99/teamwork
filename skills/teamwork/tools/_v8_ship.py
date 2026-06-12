@@ -477,6 +477,110 @@ def _resolve_planning_paths(repo_root: str, raw_arg: Optional[str]) -> tuple:
     return resolved, None
 
 
+def _merge_in_progress(wt_root: str) -> bool:
+    """worktree 是否有未完成 merge(MERGE_HEAD 存在)。"""
+    r = _git(["rev-parse", "-q", "--verify", "MERGE_HEAD"], cwd=wt_root)
+    return r.returncode == 0
+
+
+def _conflicted_files(wt_root: str) -> list:
+    """当前 merge 冲突文件清单(git diff --name-only --diff-filter=U)。"""
+    r = _git(["diff", "--name-only", "--diff-filter=U"], cwd=wt_root, timeout=30)
+    if r.returncode != 0:
+        return []
+    return [ln.strip() for ln in r.stdout.splitlines() if ln.strip()]
+
+
+def _own_index_row(wt_root: str, index_rel: str, feature_id: str) -> Optional[str]:
+    """从本分支(HEAD 或工作树)INDEX.md 抽本 feature 的行(冲突自动解时重放用)。"""
+    for ref in (f"HEAD:{index_rel}",):
+        r = _git(["show", ref], cwd=wt_root)
+        if r.returncode != 0:
+            continue
+        for line in r.stdout.splitlines():
+            cells = [c.strip() for c in line.strip().strip("|").split("|")]
+            if cells and cells[0] == feature_id:
+                return line.strip()
+    return None
+
+
+def _sync_feature_branch(wt_root: str, merge_target: str, index_rel: str,
+                         feature_id: str) -> dict:
+    """v8.146:ship1 冲突防线 —— feature 分支与 origin/<mt> 同步(merge · 不 rebase 已推分支)。
+
+    背景:v8.145 把共享追加文件(INDEX/LEDGER/ROADMAP 翻牌)放进 feature 分支 ·
+    并行 feature 的 MR 窗口重叠时后合者**必然**撞行冲突(设计时低估为「可能」·
+    用户指出「大概率」属实)。三层防线:
+      ① behind → 自动 merge(干净则无感 · MR 开出来即可合)
+      ② INDEX.md 冲突**机械自动解**(确定性再生成:origin 侧为基 + 重放本 feature 行 ·
+         追加表语义明确 · 可枚举进脚本)
+      ③ 其余冲突(代码/规划文件)→ 留 AI 在 worktree 评估处理(不可枚举 ·
+         LEDGER 类提示 union)
+    返回 {status: up_to_date|merged_clean|index_auto_resolved|conflict|merge_in_progress,
+          conflict_files: [...], behind: int}。
+    """
+    if _merge_in_progress(wt_root):
+        return {"status": "merge_in_progress",
+                "conflict_files": _conflicted_files(wt_root), "behind": -1}
+    f = _git(["fetch", "origin", merge_target], cwd=wt_root, timeout=120)
+    if f.returncode != 0:
+        return {"status": "fetch_failed", "conflict_files": [], "behind": -1,
+                "error": f.stderr.strip()[:120]}
+    ba = _behind_ahead(wt_root, merge_target)
+    behind = ba[0] if ba else 0
+    if behind == 0:
+        return {"status": "up_to_date", "conflict_files": [], "behind": 0}
+    mg = _git(["merge", "--no-edit", f"origin/{merge_target}"], cwd=wt_root, timeout=120)
+    if mg.returncode == 0:
+        return {"status": "merged_clean", "conflict_files": [], "behind": behind}
+    conflicts = _conflicted_files(wt_root)
+    # ② INDEX.md 机械自动解:origin 侧为基(最新已合状态)+ 重放本 feature 行
+    if index_rel in conflicts:
+        own_row = _own_index_row(wt_root, index_rel, feature_id)
+        base = _git(["show", f"origin/{merge_target}:{index_rel}"], cwd=wt_root)
+        if own_row and base.returncode == 0:
+            content = base.stdout
+            if not content.endswith("\n"):
+                content += "\n"
+            if feature_id not in content:
+                content += own_row + "\n"
+            (Path(wt_root) / index_rel).write_text(content, encoding="utf-8")
+            _git(["add", "--", index_rel], cwd=wt_root)
+            conflicts = [c for c in conflicts if c != index_rel]
+    if not conflicts:
+        cm = _git(["commit", "--no-edit"], cwd=wt_root, timeout=30)
+        if cm.returncode == 0:
+            return {"status": "index_auto_resolved", "conflict_files": [],
+                    "behind": behind}
+        return {"status": "conflict", "conflict_files": ["(commit 失败:%s)" % cm.stderr.strip()[:80]],
+                "behind": behind}
+    return {"status": "conflict", "conflict_files": conflicts, "behind": behind}
+
+
+def _sync_conflict_pending(action: str, sync: dict, feature_path: str) -> None:
+    """冲突留 AI:emit PENDING + 处置指引 · exit 0。"""
+    files = sync.get("conflict_files", [])
+    emit_json({
+        "verdict": "PENDING", "stage": "ship", "action": action,
+        "pending_step": "merge-conflict",
+        "conflict_files": files,
+        "next_action": (
+            ("⏸️ worktree 有未完成 merge —— 先收尾:解完冲突 `git add` → `git commit` → 重跑。\n"
+             if sync["status"] == "merge_in_progress" else
+             f"🔴 与 origin 同步发生冲突({len(files)} 文件)—— worktree 是解决冲突的合法场所"
+             "(v8.145:内容性工作在可控环境):\n")
+            + "  ① 逐文件评估处理(AI 自决 · 业务歧义大再上抛用户):\n"
+            + "".join(f"     - {f}" + ("(追加台账类 · 通常 = 保留双方行 union)"
+                                        if f.endswith("PROCESS-LEDGER.md") else "") + "\n"
+                       for f in files[:10])
+            + "  ② `git add <已解文件>` → `git commit --no-edit`(完成 merge)\n"
+            + f"  ③ 重跑 state.py ship-phase --action {action} --feature {feature_path}"
+            "(幂等 · 已归档则同步后给 push 指引)"
+        ),
+    }, exit_code=0)
+
+
+
 def _handle_ship_archive(state: dict, args: argparse.Namespace) -> dict:
     """v8.145 ship1 终幕(tool-executed · worktree 内):规划翻牌 gate → 终态 state.json →
     zip + INDEX → `git rm --cached` 过程目录 → 单 commit 进 feature 分支。
@@ -514,7 +618,25 @@ def _handle_ship_archive(state: dict, args: argparse.Namespace) -> dict:
                   exit_code=1)
     feature_rel, zip_rel, index_rel = paths
 
-    # 幂等:HEAD 已含 zip 且不含过程目录 → 已归档(重跑 = 直接给 push 指引)
+    # ── v8.146 冲突防线:与 origin/<mt> 同步(首跑防开 MR 即冲突 · 重跑 = MR 窗口期
+    # 冲突修复入口)· INDEX.md 冲突机械自动解 · 其余留 AI(详 _sync_feature_branch)──
+    merge_target = state.get("merge_target") or ""
+    sync_note = None
+    if merge_target:
+        sync = _sync_feature_branch(wt_root, merge_target, index_rel, feature_id)
+        if sync["status"] in ("conflict", "merge_in_progress"):
+            _sync_conflict_pending("archive", sync, args.feature)  # emit PENDING + exit
+        if sync["status"] == "fetch_failed":
+            sync_note = (f"⚠️ sync fetch 失败({sync.get('error', '')})· 冲突防线降级 · "
+                         "MR 若报冲突 → 网络恢复后重跑 archive 同步")
+        elif sync["status"] == "merged_clean":
+            sync_note = (f"已自动合入 origin/{merge_target}(落后 {sync['behind']} commit · "
+                         "无冲突 · 记得重新 git push)")
+        elif sync["status"] == "index_auto_resolved":
+            sync_note = (f"已合入 origin/{merge_target} · INDEX.md 行冲突已机械自动解"
+                         "(origin 为基 + 重放本 feature 行 · 记得重新 git push)")
+
+    # 幂等:HEAD 已含 zip 且不含过程目录 → 已归档(重跑 = 同步后直接给 push 指引)
     zin = _git(["cat-file", "-e", f"HEAD:{zip_rel}"], cwd=wt_root)
     din = _git(["cat-file", "-e", f"HEAD:{feature_rel}/state.json"], cwd=wt_root)
     if zin.returncode == 0 and din.returncode != 0:
@@ -522,6 +644,7 @@ def _handle_ship_archive(state: dict, args: argparse.Namespace) -> dict:
         return {
             "verdict": "PASS", "stage": "ship", "action": "archive",
             "already_archived": True, "zip": zip_rel,
+            **({"sync": sync_note} if sync_note else {}),
             "next_action_brief": _ship1_push_brief(feature_id, args.feature),
         }
 
@@ -619,6 +742,7 @@ def _handle_ship_archive(state: dict, args: argparse.Namespace) -> dict:
         "verdict": "PASS", "stage": "ship", "action": "archive",
         "transition": f"{cur_phase} → archived",
         "phase": "archived",
+        **({"sync": sync_note} if sync_note else {}),
         "archive_commit": head,
         "zip": zip_rel,
         "planning_bundled": [rel for rel, _ in planning_files],
