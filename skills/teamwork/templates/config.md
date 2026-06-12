@@ -175,11 +175,8 @@ worktree_cleanup: ask
 <!-- 改此项只影响新建 feature · 存量 ID 不重编号（新旧天然可区分：3-4 位 vs 12 位）。详 docs/conventions.md §1。 -->
 id_strategy: utc-yymmddhhmmss
 
-### ship2 归档策略
-<!-- archive_on_ship: true（默认）/ false -->
-<!-- true = 交付后过程层 feature 目录 zip 进 features/_archive/<id>.zip（+ INDEX.md）· 原目录从 merge_target 删 · 随收尾 MR 合（防 AI 检索过时 feature 信息 · 代码是唯一真相）。 -->
-<!-- false = 收尾 MR 只同步终态 state.json · 不归档 · feature 目录留存。详 stages/ship-stage.md §14。 -->
-archive_on_ship: true
+### ship 归档
+<!-- v8.145 起归档属 ship1(archive action · 统一执行 · 无配置项)· 旧 archive_on_ship 配置已废弃 · 残留时被忽略 + WARN。详 stages/ship-stage.md §15。 -->
 
 ### 本地敏感配置目录
 <!-- local_env_auto_create: true（默认）/ false -->

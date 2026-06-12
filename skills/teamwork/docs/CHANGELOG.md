@@ -2,95 +2,93 @@
 
 > 📦 本文件**保留最近 5 版**(发布时最旧一版迁入 [CHANGELOG-ARCHIVE.md](./CHANGELOG-ARCHIVE.md))。归档**定期清空**(v8.127 立制 · 完整历史 = git 提交历史 · 不在工作区热存)。
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
+> 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
-## v8.141 · claude -p MCP 隔离:--strict-mcp-config 零 spawn · v8.106 归因翻案(裸跑也拉项目 MCP)
+## v8.147 · LEDGER 冲突升级机械自动解:三方对比纯增行判定 · union 进脚本(实战 case 驱动)
 
-> 用户:claude -p 是否支持 --allowedTools · 重点解决 MCP 卡死。答:支持(CLI 2.1.173 实测)· 卡死真因不是 --allowedTools。
+> 用户(截图 case:SVC-CORE-B260612051432 · aon 实战):v8.146 防线首战 —— PROCESS-LEDGER 三行追加冲突按 ③ 留给 AI · AI 的处置 = 删标记保双方行 · **零判断纯机械**。判定:该进脚本(v8.146 保守只解 INDEX · 实战证明 LEDGER 同样可枚举)。
 
-### 实测(本地四组对照 · marker 文件法 · 毒 MCP 项目)
-| 案 | flags | 项目 MCP 真 spawn | 结果 |
-|---|---|---|---|
-| C1 | 裸 `claude -p` | **True** | 5.4s OK |
-| C2 | `--allowedTools Read` | **True** | 4.2s OK |
-| C3 | `--strict-mcp-config` | **False** | 4.8s OK |
-| C4 | strict + `--allowedTools Read` | **False** | 7.4s OK |
+### 设计:安全前提物化
+- `_try_append_union_resolve`:三方对比 base(:1:)/ours(:2:)/theirs(:3:)· **双方相对 base 都是纯增行**(base 行序列为两侧保序子序列)才自动 union(theirs 全文为基 + 本侧增量去重后置)· 任一侧有删/改 → 拒动留 AI(PENDING 提示改为「台账类但非纯增行 · 人工合」)。
+- 适用名单制(`PROCESS-LEDGER.md`)· 不做通用文件 union(代码文件双方尾部追加 union 可能语义错误)。
+- sync 返回升级:status 统一 `auto_resolved` + `auto_resolved_files` 清单 · archive emit 的 `sync` 注明解了哪些文件(透明可审计)。
 
-### 诊断:v8.106 归因翻案
-- **裸 `claude -p` 也每轮 spawn 消费项目 .mcp.json 全部 server**(C1)—— 现行外部评审一直在拉火药库 · 只是 CLI 2.1.173 连接不阻塞所以侥幸不卡;卡死与 `--allowedTools` 无关(C2 同 spawn)· 真正变量 = 项目 MCP 被 spawn + CLI 版本连接行为(2.1.15x 阻塞 → 当年卡死)。
-- 评审 prompt 自包含零工具 · 本就不该碰项目 MCP —— 修法是**隔离整类**而不是赌 CLI 版本。
+### 实战判读(截图 case · 防线首战全对)
+- 重跑 archive = 冲突修复入口 ✓ · INDEX 静默处理 ✓ · LEDGER union 保双方行 ✓ · 只 add 冲突文件不碰 untracked 接力卡 ✓ —— AI 处置零瑕疵 · 但这步本可不存在 · 故升级。
+
+### 验证
+- 测试 +2(纯增行自动 union 双方行都在 / 非纯增行〔同行双改〕拒动 PENDING 留 AI)· pytest 3 failed / 525 passed(baseline 3 · 净 +2)。
+
+## v8.146 · ship1 冲突防线:archive 前置 sync 自动合 · INDEX 冲突机械自动解 · 代码冲突留 AI
+
+> 用户(承 v8.145):ship1 在 MR 创建后大概率会冲突 · 是否有必要增加检测冲突环节 · 自动评估处理。判定:有必要 —— v8.145 设计时把该 trade-off 低估为「可能」· 实为「并行 ship 窗口重叠时必然」(INDEX/LEDGER 是 every-feature 同位追加)。
+
+### 设计(按框架哲学拆:可枚举进脚本 · 不可枚举留 AI)
+- 解决场所 = worktree(到 ship2 前一直活着 · 正是 v8.145「内容性工作在可控环境」的合法位置)。
+- 同步用 **merge 不 rebase**(分支已推 · MR 已开 · 不破 review 历史)。
 
 ### 改动(代码 + 测试 + 文档)
-- **`_build_claude_review_cmd` 固定加 `--strict-mcp-config`**(不传 --mcp-config = 零 MCP spawn · 不碰登录上下文 · 无 --bare 认证回归)· 生产 argv 形态在毒项目实测 3.9s rc=0 零 spawn。
-- 测试:2 处 cmd pin 更新 + 新 1(strict 必在 + --mcp-config 必不在 · 缺一不可)。
-- standards 新 §11.7(对照表 + 翻案记录)· §一 claude 路径行 + state.py 两处 docstring 同步修正因果。
-- **解锁备忘**:strict 隔离下 `--allowedTools Read` 实测安全(C4)· 未来 ARG_MAX 卡长 prompt 可走「短 prompt + reviewer 自己 Read + strict」· 当前保持零工具 inline。
+- **`_sync_feature_branch`(内置于 archive · 首跑+幂等重跑共用)**:fetch + behind 检测 → 落后自动 `merge origin/<mt>` —— ① 干净则无感(MR 开出来即可合 · INDEX 基于合并后状态生成);② **INDEX.md 冲突机械自动解**(确定性再生成:origin 侧为基 + 重放本 feature 行 · 追加表语义明确);③ 其余冲突(代码/规划文件)→ emit `PENDING merge-conflict` + 文件清单(LEDGER 类提示 union)· AI 在 worktree 评估处理 → `git add`/`git commit` → 重跑 archive。
+- **重跑 archive = MR 窗口期冲突修复入口**:平台报冲突 → 回 worktree 重跑(自动 sync + 机械解)→ `git push` → MR 自动更新;⏸️ ship1 暂停点加「平台报冲突」选项;emit 增 `sync` 字段(同步动作透明)。
+- fetch 失败降级(冲突防线降级不阻塞归档 · WARN);未完成 merge 检测(MERGE_HEAD)→ 先收尾再重跑。
+- 测试 +3(前置 sync 无感合 / INDEX 冲突自动解双方行都在 / 代码冲突 PENDING→解→重跑通过)· ship-stage.md §3 冲突防线成文。
 
 ### 验证
-- pytest 3 failed / 545 passed(baseline 3 · 净 +1)。
+- pytest 3 failed / 523 passed(baseline 3 · 净 +3)。
 
-## v8.140 · 评审「开始声明」可行化:RUNNING 心跳(harness)+ 首行 REVIEW-ACK 自证(模型)
+## v8.145 · ship 架构重构:ship1 全交付(worktree 内 · 终点 = MR 提交)· ship2 零内容清场 · 砍双 MR 链路
 
-> 用户(承 v8.139):能否在 prompt 注入 · 让评审模型开始运行时在同名 .log 声明开始 + 时间戳。
+> 用户拍板:单个 ship 的终点就是提 MR · 收尾更新状态不属于本次 ship。ship1 全交付 feature 内容(文档总结/压缩 zip 全在 worktree 内)· 完成后提示用户合并 MR 即结束;ship2 回主工作区删 worktree · 净化(脏内容提交 · 影响大给方案由用户决策)· pull · push。**ship2 不修改任何内容**。三项确认:INDEX.md 保留 / 副产物自动 commit / 不留兼容期。
 
-### 裁定:直写 .log 不可行 · 拆成两个可行层
-- **模型写不了文件**:claude -p 零工具(v8.106 故意拔 —— --allowedTools 激活 agentic 栈 → 拉消费项目 MCP → 卡死 · 恢复工具 = 复活该 bug 类);codex 沙箱不保证可写。且「开始时」恰是模型还没起来的窗口(认证/排队/网络)· 谁都报不了。
-- 诉求拆解:① 运行中活性(还活着么)→ **harness 心跳**;② 模型亲口确认「处理的是本轮」→ **输出首行回显**(prompt 注入 · 可行)。
+### 架构裁定(为什么对)
+- 旧链路十二个版本(v8.16/31/32/33/70/80/82/87/93/113/130/144)反复修同一条尾巴 —— 根因 = 在**不可控的主工作区**(脏树/分叉/并行 feature/保护分支)做**内容性工作**(归档/翻牌/状态)。新原则:内容全部发生在可控环境(worktree · 自己的分支)随 feature MR **原子合入**;主工作区只清理。
+- **单 MR**:归档 zip + 规划翻牌 + 终态 state.json 全进 feature MR · 不再有 ship-finalize/<id> 第二分支 + 第二个 MR。**MR diff 反而更干净**:过程目录在分支历史「加了又删」对 merge_target 净零 · diff 只剩代码 + zip + INDEX 行 + 翻牌行。
+- **翻牌语义更对**:随 MR 原子生效 —— MR 不合 ROADMAP 不显示已交付 · revert 同退(旧模型有 merge 后时间窗)。
+- **主工作区从未物化过程目录**:v8.82 purge / v8.87 残留清除 / v8.144 staged-D 终态 那批债结构性消失。
 
-### 改动(代码 + 测试 + 文档)
-- **RUNNING 心跳行**(`_run_streamed_to_log` 增 heartbeat 线程 · 默认 60s · 0 关):报已等待秒数 + 已收字节 —— claude -p 完成前 stdout 0 chars 属正常 · pid 行到 END 行之间原本仍是盲窗 · 心跳让 tail -f 分清「生成中」vs「卡死」。
-- **首行 ACK 自证**(`_ack_block` 注入 + `_review_ack_status` 验证):generated 路径 prompt 尾注入输出契约「第一行必须 `REVIEW-ACK <prompt-doc stem>`」(stem 自带 stage/model/UTC ts)· 头 200 字符回显即 verified(emit `review_ack`)· 缺失 → `ack_missing` **WARN 不 BLOCK**(遵从概率性 · 不可枚举);两引擎先拼后落 doc(审计=输入不分叉)· `--prompt-doc` override 原样执行不注入不验。无 liveness 作用(print 模式整体到达)· 价值 = 输出 ↔ 本轮 prompt **对应性绑定**(v8.136 防 stale 从输入侧门禁补到输出侧自证 · 回显进结果文件与 .log 留档)。
-- 测试 +4(心跳盲窗 0 字节/0 关/ACK 块契约/验证三态 + codex 测试加 ACK 断言)· standards §11.6 补两层。
-
-### 验证
-- pytest 3 failed / 544 passed(baseline 3 · 净 +4)。
-
-## v8.139 · 外部评审过程实时落盘:prompt-doc 同名 .log · START 行 harness 写 · 黑盒窗口可观测
-
-> 用户:触发外部评审后完全黑盒 · 提议过程输出写同名 log · 第一行由评审模型自报已开始 + 时间戳。裁定:同名配对 ✅ · 首行改 **harness 写**(模型自报不可行也不可靠)。
-
-### 诊断:v8.55 日志三缺陷 = 黑盒根源
-- **跑完才写**:`_log_external_run` 在 subprocess.run 返回(或超时)后落盘 —— 运行中窗口(最长整个 timeout)磁盘零痕迹 · 黑盒恰是这段。
-- **藏 ~/.teamwork + 独立时间戳命名**:与 feature 内 prompt-doc 不同目录不同名 · 无法配对 · 用户不知其存在。
-- **stderr 死因等验尸**:鉴权失败/codex 升级提示/限流都在 stderr 早期出现 · 却要等超时后才可见;超时还返空 stdout(丢已收部分)。
-- **首行模型自报不可行**:`claude -p` print 模式输出整体到达 · 模型「已开始」行不可能先到;挂死/认证失败时恰恰零输出;且把流程关切注入评审 prompt(遵从概率性)。时间戳可枚举 → 归脚本(框架哲学)。
-
-### 改动(代码 + 测试 + 文档)
-- **`_run_streamed_to_log` 取代 `_log_external_run`**:Popen + 双 reader 线程实时落盘 —— 发起即写 `[UTC] START` 行(harness 时间戳)→ `pid=` 行 → stdout 原样 + stderr 逐行 `[stderr] ` 前缀(死因秒级可见 · mtime=心跳)→ `END · rc · 耗时 · 字节`;超时写 `TIMEOUT` 行 + **保留已收部分输出**(rc=124);重跑 append 叠加不覆盖;日志 OSError 静默降级绝不阻塞评审。
-- **同名配对律**:log = prompt-doc `.with_suffix(".log")` · 审计三件套同目录成组(输入 .md / 过程 .log / 结果 external-cross-review/)。**codex 路径补齐审计=输入**(prompt 落唯一命名 doc · 执行仍 argv inline · 对齐 v8.136 claude 路径)。
-- **透出**:发起时 stderr 打印 log 路径(tail -f 可观察 · 不污染 stdout JSON)· emit 增 `process_log`(成功/失败都有 · 失败 hint 第一条改「查过程日志」)· prompt_doc 字段放开到两引擎。
-- 测试:改 2(mock 执行器)删 2(v8.55 旧日志)新 6(首行 START 序/超时保留部分输出/append 叠加/无 log 照跑/两引擎配对)· standards/external-model-usage.md 新 §11.6。
+### 改动(代码 −979 行 · 测试 · 文档)
+- **ship-phase 新 action `archive`**(ship1 终幕 · tool-executed):规划翻牌 gate(--planning-artifacts/--no-planning-changes · v8.93 前移)→ 终态 state.json(current_stage=completed · 墓碑进 zip · 宣称与落地随 MR 原子可见)→ zip + INDEX(--archive-desc ≤200 门禁保留)→ `git rm --cached` 过程目录(**工作树保留 = ship2 接力卡**)→ 单 commit。幂等;push 门禁改 archived → pushed。
+- **ship-finalize 重定义为 ship2**(零内容):verify-delivered(zip 在 origin · 抗 squash · 未合 PENDING 绝不删 worktree)→ worktree-remove(+fetch --prune)→ main-sync(**副产物注入块/锁自动 commit** · 用户真改动决策面板 · pull --rebase/--ff-only 对症 · push 被拒提示)→ stash 盘点 + digest 指引。幂等:接力卡消亡 → origin 全树搜 zip → noop。
+- **删除(不留兼容期)**:confirm-merged/cleanup 子动作 · state-sync · finalize-deliver 双 MR 链路 · 零 checkout plumbing(_stage_archive_commit/_finalize_push_plumbing)· v8.82 purge · v8.87 强清 · §12 state.json 直推例外 · archive_on_ship 配置(残留忽略 + WARN)。
+- **main-sync 去 feature 依赖**(接力卡可已消亡):--feature 可选 · --merge-target 三级推导;决策面板命令串同步。
+- 测试:新 test_ship_v8145_flow.py(13 测:archive gate/归档形态/翻牌原子/幂等/ship2 全周期/副产物自动 commit/决策面板/featureless main-sync)· 删旧链路 ~37 测 · ship 存量套件适配;SHIP_SPEC/SKILL/ship-stage.md/模板 全面改写。
+- PROCESS-LEDGER 采写时机:planning-backref(主工作区)→ **archive 规划 gate(worktree 内)** · 数据源就在工作树。
 
 ### 验证
-- pytest 3 failed / 540 passed(baseline 3 · 净 +4)。
+- pytest 3 failed / 520 passed(baseline 3 · 旧链路测试删除后净 −29 · 新流程 13 测全绿)。
 
-## v8.138 · panorama_sync 变更判级:L1 节点内增量不暂停(WARN 留痕)· L2 结构变更才停
+## v8.144 · ship-finalize 收尾终态治理:pop 结果必查 · pull 失败对症判别 · 残留清除即补 pull · stash 盘点
 
-> 用户(case:PTR-F260611065743 panorama_sync):全景修改的暂停点是否有必要 —— sitemap 仅描述行更新 · AI 推荐理由自证「IA 不变 · 未发现跨 Feature 冲突」· 用户按 1 纯放行。
+> 用户(case:SVC-PLATFORM-B260611083636 收尾 transcript):看下收尾动作是否有问题 · 是否需要优化。终态正确(双 MR merged · 归档落位)· 但尾段甩给 AI ~20 条 git 手术 · 其中两处是框架自造的债。
 
-### 诊断:暂停粒度与触发粒度错配 · 「纯过场」活标本
-- 暂停保护两件事:IA 权威变更需多方评审 · 跨 Feature 影响需 owner 协调。case 两条件均不成立且 stage 内已查明(冲突扫描零命中 + 无节点增删)—— 事实已知还停 = 上抛已知事实(v8.128/v8.132 同款判别:停不停看事实已知度)· 收获只有默认放行。PROCESS-LEDGER「暂停点 改:默」kill criteria 的第一个判例(改:默 = 0:1)。
-- 根因:`--panorama-changed=true` 判据是「panorama 文件动没动」(文件级 · sitemap 描述列更新也必走本 stage —— ui_design 不许直改 sitemap);暂停语义是「结构变更/跨 Feature 冲突」(语义级)。**stage 该进 · 暂停不该一律停**。
+### 诊断(代码对照 + git 沙箱实测)
+- **pop 结果被无视**:step 7 stash→pull→pop 链 · pull 失败分支不查 pop.returncode · 宣称「stash 已 pop」—— 实证里 pop 没成 · bootstrap 注入块改动埋在 auto-stash · AI 误以为丢失**手工重写** = 与 stash 双份地雷。
+- **「分叉 · 需手动 rebase」一刀切误导**:任何 pull 失败都喊分叉。沙箱实测(E2):staged 删除(本地删 vs origin 同删)+ 无关 M 文件**不阻塞** ff-pull —— 实际仅落后 · 一条 `git pull --ff-only` 即愈 · AI 却被引上 reset/stash/pull 手术路径。
+- **v8.87「下次 pull 自愈」只对一半**:残留清除用 git rm 留 staged 删除等下次 pull —— 前提成立(实测)但「下次」不该留给人:PASS 终态停在 behind + staged D。
+- **teamwork 自动 stash 跨 feature 堆积**(实证 3 个跨 2 feature)无人盘点;收尾分支零 checkout 仅存远端 · emit 不说 · AI 烧 4 条命令重发现;remote-tracking 残影要手动 prune。
 
-### 改动
-- **变更判级**(substep 3 · 受影响 Features 扫描后判 · 依据逐条写进 §协调结论):**L1 节点内增量** = 三判据全满足(① 无节点增删移/路由变化 ② 无设计 token/共享视觉基线变更 ③ 受影响 Features 零命中);**L2 结构变更** = 任一不满足 · 拿不准按 L2。
-- **L1 不暂停(任何模式)**:add-concern WARN 留痕(复用 auto-skip 语式)+ 零暂停 digest(≤3 行:变更/判据/产物指针)+ 直接 complete;**L2 必停**照旧(auto_mode 跳过规则不变)。
-- **物化**:summary frontmatter 必含 `change_level: L1|L2`(缺即 FAIL —— 判级决定停不停 · 级别必须留痕);`authorized_pause_point` 改条件式。深校验(L1 时 sitemap diff 真无节点增删)不可枚举(sitemap 格式各项目异)→ AI 判 + 声明审计 + LEDGER L1/L2 比例兜底。
-- **判级反模式成文**:结构变更标 L1 逃暂停 = R5 违规同级;ui-design-stage 触发处加期望管理(`true` ≠ 必暂停 · 不必预判影响大小)。
+### 改动(代码 + 测试)
+- **`_behind_ahead` + `_pull_failure_remedy`**:rev-list --left-right 判别「仅落后(给 pull · 不喊 rebase)」vs「真分叉(才给 rebase)」· clean 路径 / v8.32 stash 路径 / v8.87 补 pull 三处接入。
+- **pop 必查**:pull 失败分支区分 pop 成败 —— 失败 → `pull_failed_stash_stuck` + 「改动埋在 stash『名』· 先 pop 勿手工重写」;两处 pop 失败文案都带 stash 名。
+- **v8.87 残留清除后立即补 ff-pull**(E1/E2 背书)→ 成功即 `purged_pulled` 干净+最新 · PASS 不再留 behind+staged D 终态。
+- **stash 盘点**:emit `teamwork_stashes` + 处置指引(show -p 核对 → pop/drop · 勿堆积);deliver_pending 注明「分支仅存远端 · 本地查不到属正常」;delivered 清理后自动 `fetch --prune`。
+- 测试:新 test_ship_main_sync_v8144.py(8 测 · 含 staged-D ff-pull 地面真相固化 · 防 git 行为回退静默失真)· ship 既有 55 测零回归。
 
 ### 验证
-- pytest 3 failed / 536 passed(baseline 3 · 净 +2:change_level 物化 pin + 条件暂停 pin)。
+- pytest 3 failed / 557 passed(baseline 3 · 净 +8)。
 
-## v8.137 · goal 确认前置「重点 review 指引」:六节照实抄导读 · 替你做的判断放第一节
+## v8.143 · 发版交付边界:止于 push dev · 砍本机 rsync · 消费项目统一走 update.py(channel=dev)
 
-> 用户:PRD 在 AI 评审后直接交用户确认 · 希望请求确认前最后输出值得关注和了解的点 · 方便重点 review。
+> 用户:rsync 去掉 · 本地其他项目走 dev 版本升级 · 你只负责将修改提交到 dev。
 
-### 诊断:出口缺导读(v8.120 流程目标的对偶)
-- 入口已有「流程目标」校准「要做什么」;出口(substep 9)用户面对的是全员 APPROVE 的成品 PRD · 没有导读告诉他**哪里值得抽查** —— 尤其 AI 在评审循环里替用户做过的判断(REJECT/DEFER 的 finding)完全不可见。
+### 诊断
+- 发版例程里的 `rsync → ~/.agents/skills/teamwork` 是 session 习惯(仓内零成文)· 效果 = 本机消费项目被静默推到未过 main 发布门的版本:无升级提示(本地恒新于线上)· 无确认 · 无 update.py 的 backup · 回滚要手动。用户在 codex session 撞见「静默最新」后拍板砍掉。
 
 ### 改动(doc-only)
-- **goal-stage substep 9 加「重点 review 指引」**(请求确认前 emit · 固定 6 节 · 每节 ≤2 行):① **替你做的判断**(REJECT/DEFER 的 finding · AI 判断替代用户判断之处 · 抽查性价比最高 · 放第一节)② 核心取舍(争议已裁决 · cite id)③ 范围收窄(Out of Scope 中用户可能预期在内的)④ 影响面 ⑤ 修订轨迹(哪轮评审驱动)⑥ 残留风险/假设。
-- **反即兴约束**:六节全部照实抄自已落盘结构化产物(pm_response / PL-CHALLENGE / revision_history / Out of Scope / PM 自查 / §待决策项)· 空节显式写「无」不可省 · 反模式成文(复述全文 / 营销式总结 /「经多轮评审已完善」/ 无产物出处)。
+- **CHANGELOG 头部加「交付止于 push dev」规则**(发版 session 必读处 · 防未来 session 凭惯性恢复 rsync):发版不碰本机安装副本 · 框架仓工作区 ≠ 交付渠道。
+- **本机消费项目与其他机器同路**:bootstrap 升级提示(v8.142 起带变更描述)→ 用户确认 → `update.py` tarball 覆盖(自带 backup)。本机项目在各自 `.teamwork_localconfig.json` 配 `"update_channel": "dev"`(项目侧动作 · 不在本仓)。
+- 链路已验通:update.py 自 v8.41 去 git 化(tarball 下载覆盖)· 对非 git 安装副本可用;当前安装副本 v8.142.1 == dev tip · 下一版起提示自然出现。
 
 ### 验证
-- doc-only · pytest 3 failed / 534 passed(零回归)。
+- doc-only · pytest 3 failed / 549 passed(零回归)。
 

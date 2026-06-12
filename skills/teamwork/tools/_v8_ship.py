@@ -7,8 +7,7 @@ ship-cleanup / ship-closed),改为统一的 `ship-phase --action <name>`。
 action 枚举:
 - sanitize:           净化 commit 记录(不改 phase)
 - push:               null/closed_unmerged → pushed · 含 git-host + MR 创建
-- confirm-merged:     pushed → merged · 含主工作区拦截 + finalize-push 状态
-- cleanup:            worktree 清理 · 必须 phase=merged
+- archive(v8.145):  ship1 终幕 · 归档+翻牌进 feature 分支(null → archived)
 - close-unmerged:     pushed → closed_unmerged 或 abandoned
 
 设计哲学:v8.0 设计稿已清理(git 历史可溯)。
@@ -44,18 +43,18 @@ from _v8_engine import (
 # ─── 常量 ──────────────────────────────────────────────────────────────
 
 
-SHIP_ACTIONS = ("sanitize", "push", "confirm-merged", "cleanup", "close-unmerged")
+SHIP_ACTIONS = ("sanitize", "archive", "push", "close-unmerged")
+# v8.145 ship 重构(用户拍板):ship1 全交付(worktree 内 · sanitize → archive → push ·
+# 终点 = feature MR 提交)· ship2(ship-finalize)零内容只清场(删 worktree · 净化主工作区)。
+# confirm-merged / cleanup 子动作随旧 Phase 2 链路一并删除(不留兼容期)。
 
 # v8.70:main-sync 净化策略(ship 后主工作区 user-dirty 决策的执行选项)
 MAIN_SYNC_STRATEGIES = ("commit-push", "stash-pull", "skip")
 
-SHIP_PHASE_ENUM = (None, "pushed", "merged", "closed_unmerged")
-SHIP_SHIPPED_ENUM = (None, "pushed", "merged", "closed_unmerged", "abandoned", "failed")
+SHIP_PHASE_ENUM = (None, "archived", "pushed", "merged", "closed_unmerged")  # v8.145 +archived
+SHIP_SHIPPED_ENUM = (None, "archived", "pushed", "merged", "closed_unmerged", "abandoned", "failed")
 SHIP_GIT_HOSTS = ("github", "gitlab", "gitlab-self-hosted", "gitee", "bitbucket", "unknown")
 SHIP_MR_METHODS = ("cli-gh", "cli-glab", "url-fallback", "unknown-platform")
-SHIP_DETECTION_METHODS = ("branch-contains", "user-reported")
-SHIP_FINALIZE_PUSH_REASONS = ("conflict", "protect-rule", "network", "other")
-SHIP_CLEANUP_ENUM = ("cleaned", "deferred", "n_a")
 
 # v8.81:ship1 知识沉淀闸门 · 知识层 6 项(随 feature MR graduate · 详 stages/ship-stage.md §13)
 # 「描述代码的文档随代码进 MR」· 每项 sanitize 前必记一条决策(updated / none)· 强制走一遍。
@@ -68,59 +67,6 @@ ARCHIVE_DIR_NAME = "_archive"
 
 
 # ─── 主工作区拦截(沿用 v7 P0-156 治本) ─────────────────────────────
-
-
-def _enforce_main_worktree(action_name: str) -> None:
-    """ship-phase --action {confirm-merged, cleanup} 必须在主工作区跑。
-
-    治本 v7.3.10+P0-156:state.json 在 linked worktree 被删丢失。
-    Bypass:TEAMWORK_BYPASS_MAIN_WORKTREE=1(调试/迁移场景)
-    """
-    if os.environ.get("TEAMWORK_BYPASS_MAIN_WORKTREE") == "1":
-        return
-
-    # 测试 hook
-    forced = os.environ.get("TEAMWORK_FORCE_LINKED_WORKTREE")
-    if forced:
-        emit_json({
-            "verdict": "FAIL",
-            "error": f"ship-phase --action {action_name} 必须在主工作区运行 · 当前 cwd 在 linked worktree",
-            "cwd": os.getcwd(),
-            "linked_worktree_git_dir": forced,
-            "hint": (
-                "cd 到 merge_target 主工作区(git clone 原仓库位置 · 不是 git worktree add 的 linked 路径)· "
-                "git checkout {merge_target} + git pull --ff-only · 再跑此命令"
-            ),
-            "rule": "v7.3.10+P0-156 物化拦截 · v8 沿用 · 治本 ADMIN-F013 case",
-            "bypass": "调试场景设 TEAMWORK_BYPASS_MAIN_WORKTREE=1",
-        }, exit_code=1)
-        return
-
-    try:
-        result = subprocess.run(
-            ["git", "rev-parse", "--git-dir"],
-            capture_output=True,
-            text=True,
-            timeout=5,
-        )
-        if result.returncode != 0:
-            return  # 不在 git 仓库 · 跳过
-        git_dir = result.stdout.strip()
-        if "/worktrees/" in git_dir:
-            emit_json({
-                "verdict": "FAIL",
-                "error": f"ship-phase --action {action_name} 必须在主工作区运行 · 当前 cwd 在 linked worktree",
-                "cwd": os.getcwd(),
-                "linked_worktree_git_dir": git_dir,
-                "hint": (
-                    "cd 到主工作区(原 git clone 位置)· "
-                    "git checkout {merge_target} + git pull --ff-only · 再跑此命令"
-                ),
-                "rule": "v7.3.10+P0-156 物化拦截 · v8 沿用",
-                "bypass": "调试场景设 TEAMWORK_BYPASS_MAIN_WORKTREE=1",
-            }, exit_code=1)
-    except (subprocess.TimeoutExpired, FileNotFoundError):
-        return  # git 不可用 · 跳过
 
 
 # ─── 工具函数 ──────────────────────────────────────────────────────────
@@ -143,14 +89,24 @@ def _phase_err(current: Any, target: str, allowed_msg: str) -> dict:
 
 
 def _require_ship_stage(state: dict, action: str) -> None:
-    """current_stage 必须是 ship · 否则 FAIL"""
-    if state.get("current_stage") != "ship":
-        emit_json({
-            "verdict": "FAIL",
-            "error": f"current_stage={state.get('current_stage')!r} · 不是 ship",
-            "hint": "先跑 state.py ship-start · 进 ship stage",
-            "action": action,
-        }, exit_code=1)
+    """current_stage 必须是 ship · 否则 FAIL。
+
+    v8.145 例外:archive 把 current_stage 写成 completed(终态进 zip)· 工作树接力卡
+    随之是 completed —— archive 幂等重跑 / push 记录 / close-unmerged 仍须可跑。
+    """
+    cur = state.get("current_stage")
+    if cur == "ship":
+        return
+    if (cur == "completed"
+            and state.get("ship", {}).get("phase") in ("archived", "pushed")
+            and action in ("archive", "push", "close-unmerged")):
+        return
+    emit_json({
+        "verdict": "FAIL",
+        "error": f"current_stage={cur!r} · 不是 ship",
+        "hint": "先跑 state.py ship-start · 进 ship stage",
+        "action": action,
+    }, exit_code=1)
 
 
 # ─── action 1:sanitize ────────────────────────────────────────────
@@ -282,10 +238,10 @@ def _handle_ship_sanitize(state: dict, args: argparse.Namespace) -> dict:
         "next_action_brief": (
             "✅ 净化 + 知识沉淀(distill)完成。🔴 确保 distill 涉及的知识层文件"
             "(KNOWLEDGE/ADR/REG/retro/ARCHITECTURE/database-schema)已在 worktree commit · "
-            "随本次 feature MR 一起合。下一步:"
-            "state.py ship-phase --action push --feature <path> "
-            "--feature-head-commit <hash> --git-host <host> "
-            "--mr-creation-method <method> --mr-url/mr-create-url <url>"
+            "随本次 feature MR 一起合。下一步(v8.145 ship1 终幕):"
+            "state.py ship-phase --action archive --feature <path> "
+            "--planning-artifacts <规划翻牌文件>|--no-planning-changes "
+            "--archive-desc '<≤200 字>'(归档+翻牌进 feature 分支)· 然后 push + MR"
         ),
     }
 
@@ -357,9 +313,11 @@ def _handle_ship_push(state: dict, args: argparse.Namespace) -> dict:
     ship.setdefault("started_at", now_iso())
 
     cur_phase = ship.get("phase")
-    if cur_phase not in (None, "closed_unmerged"):
+    if cur_phase != "archived":
         emit_json(
-            _phase_err(cur_phase, "pushed", "push 仅允许 null → pushed 或 closed_unmerged → pushed"),
+            _phase_err(cur_phase, "pushed",
+                       "v8.145:push 仅允许 archived → pushed —— 先跑 ship-phase --action archive"
+                       "(归档+翻牌进 feature 分支 · ship1 全交付)再 push + MR"),
             exit_code=1,
         )
 
@@ -475,14 +433,13 @@ def _handle_ship_push(state: dict, args: argparse.Namespace) -> dict:
         "mr_url": ship["mr_url"],
         "mr_create_url": ship["mr_create_url"],
         "next_action_brief": (
-            "✅ Push + MR 创建完成。\n\n"
-            "⏸️ 等用户在平台合并 MR。\n\n"
-            "用户合并后:\n"
+            "✅ Push + MR 记录完成 —— **feature 的 ship 到此结束**(v8.145 ship1 全交付:"
+            "归档/翻牌/终态已随本 MR)。\n\n"
+            "⏸️ 提示用户在平台合并 MR(本暂停点 = ship1 唯一出口)。\n\n"
+            "用户合并后(ship2 · 清场 · 零内容):\n"
             "1. cd 到主工作区(非 linked worktree · 治本 P0-156)\n"
-            "2. git fetch origin <merge_target>; git pull --ff-only\n"
-            "3. state.py ship-phase --action confirm-merged "
-            "--feature <path> --merge-commit-hash <hash> "
-            "--merge-detection-method branch-contains\n\n"
+            "2. state.py ship-finalize --feature <worktree 内 feature 路径>"
+            "(验已交付 → 删 worktree → 净化主工作区 · 可重入)\n\n"
             "用户关闭未合并:\n"
             "state.py ship-phase --action close-unmerged --feature <path>"
         ),
@@ -492,146 +449,381 @@ def _handle_ship_push(state: dict, args: argparse.Namespace) -> dict:
     }
 
 
-# ─── action 3:confirm-merged ────────────────────────────────────
+
+# ─── action 2.5:archive(v8.145 ship1 终幕 · tool-executed)────────
 
 
-def _handle_ship_confirm_merged(state: dict, args: argparse.Namespace) -> dict:
-    """Step 4-8:phase pushed → merged · 含主工作区拦截。"""
-    _enforce_main_worktree("confirm-merged")
+def _resolve_planning_paths(repo_root: str, raw_arg: Optional[str]) -> tuple:
+    """v8.145:解析 --planning-artifacts(worktree 内路径)→ ([(rel, abs)], err)。
 
-    ship = state.setdefault("ship", {})
+    路径相对 worktree 根(或绝对)· 必须存在 + 在仓内。err 非 None = 校验失败信息。
+    """
+    if not raw_arg:
+        return [], None
+    toplevel = Path(repo_root).resolve()
+    resolved = []
+    for raw in raw_arg.split(","):
+        raw = raw.strip()
+        if not raw:
+            continue
+        abs_p = (Path(raw) if os.path.isabs(raw) else (toplevel / raw)).resolve()
+        if not abs_p.exists():
+            return [], f"--planning-artifacts 文件不存在:{raw}(路径相对 worktree 根 · 先在 worktree 内翻牌再传)"
+        try:
+            rel = str(abs_p.relative_to(toplevel))
+        except ValueError:
+            return [], f"--planning-artifacts 文件在 worktree 仓库外:{raw}(规划层文件须随 feature MR 合入)"
+        resolved.append((rel, abs_p))
+    return resolved, None
 
-    if ship.get("phase") != "pushed":
-        emit_json(
-            _phase_err(ship.get("phase"), "merged", "confirm-merged 仅允许 pushed → merged"),
-            exit_code=1,
-        )
 
-    if not args.merge_commit_hash:
-        emit_json({"verdict": "FAIL", "error": "--merge-commit-hash 必传"}, exit_code=1)
+def _merge_in_progress(wt_root: str) -> bool:
+    """worktree 是否有未完成 merge(MERGE_HEAD 存在)。"""
+    r = _git(["rev-parse", "-q", "--verify", "MERGE_HEAD"], cwd=wt_root)
+    return r.returncode == 0
 
-    if args.merge_detection_method not in SHIP_DETECTION_METHODS:
-        emit_json(_enum_err("--merge-detection-method", args.merge_detection_method, SHIP_DETECTION_METHODS), exit_code=1)
 
-    ship["phase"] = "merged"
-    ship["shipped"] = "merged"
-    ship["merge_commit_hash"] = args.merge_commit_hash
-    ship["merge_detection_method"] = args.merge_detection_method
-    ship["mr_merged_at"] = args.mr_merged_at or now_iso()
+def _conflicted_files(wt_root: str) -> list:
+    """当前 merge 冲突文件清单(git diff --name-only --diff-filter=U)。"""
+    r = _git(["diff", "--name-only", "--diff-filter=U"], cwd=wt_root, timeout=30)
+    if r.returncode != 0:
+        return []
+    return [ln.strip() for ln in r.stdout.splitlines() if ln.strip()]
 
-    warnings = []
 
-    # finalize-push 状态(可选 · push merge_target 同步 state.json)
-    if args.merge_target_pushed_at:
-        ship["merge_target_pushed_at"] = args.merge_target_pushed_at
-        ship["merge_target_push_failed"] = False
-        ship["merge_target_push_failed_reason"] = None
-    elif args.merge_target_push_failed:
-        if not args.failed_reason or args.failed_reason not in SHIP_FINALIZE_PUSH_REASONS:
-            emit_json(
-                _enum_err("--failed-reason", args.failed_reason, SHIP_FINALIZE_PUSH_REASONS),
-                exit_code=1,
-            )
-        ship["merge_target_pushed_at"] = None
-        ship["merge_target_push_failed"] = True
-        ship["merge_target_push_failed_reason"] = args.failed_reason
-        # 自动追加 concerns
-        state.setdefault("concerns", []).append(
-            f"{now_iso()} WARN ship-finalize-push 失败({args.failed_reason})→ "
-            f"降级到 feature 分支 push · merge_target 上 state.json 仍为 phase=pushed · "
-            f"用户可手动 cherry-pick 同步状态"
-        )
+def _own_index_row(wt_root: str, index_rel: str, feature_id: str) -> Optional[str]:
+    """从本分支(HEAD 或工作树)INDEX.md 抽本 feature 的行(冲突自动解时重放用)。"""
+    for ref in (f"HEAD:{index_rel}",):
+        r = _git(["show", ref], cwd=wt_root)
+        if r.returncode != 0:
+            continue
+        for line in r.stdout.splitlines():
+            cells = [c.strip() for c in line.strip().strip("|").split("|")]
+            if cells and cells[0] == feature_id:
+                return line.strip()
+    return None
 
-    if args.merge_detection_method == "user-reported":
-        warnings.append(
-            "merge_detection_method=user-reported · 用户自报 · 自动 git 校验未通过 · concerns 已加 INFO"
-        )
-        state.setdefault("concerns", []).append(
-            f"{now_iso()} INFO ship-confirm-merged: user-reported merge_commit={args.merge_commit_hash}"
-        )
 
-    return {
-        "verdict": "PASS",
-        "stage": "ship",
-        "action": "confirm-merged",
-        "transition": "pushed → merged",
-        "phase": "merged",
-        "merge_commit_hash": ship["merge_commit_hash"],
-        "warnings": warnings,
-        "next_action_brief": (
-            "✅ 合入已确认。\n\n"
-            "🔴 state.json finalize 直推(合法例外 · 详 ship-stage.md §11):\n"
-            "  - merge_target 上 state.json 仍是 Phase 1 phase=pushed · 需 push 同步\n"
-            "  - 走直推 · **不创 MR**(单文件 + 仅状态字段 + 零业务影响)\n"
-            "  - 同类例外:Bug 流程 BUG-REPORT.md frontmatter 直推\n"
-            "  - 禁止:业务文件 / state.json 业务字段 / BUG-REPORT.md 正文 · 这些必走 MR\n\n"
-            "下一步:\n"
-            "0. 二次验证合入(防 user-reported 误报 / 时间间隔后状态变化):\n"
-            "   git fetch origin <merge-target>\n"
-            "   git branch -r --contains "
-            f"{ship['merge_commit_hash']} | grep origin/<merge-target>   "
-            "# 命中 = 真合入 · 空 = 未合入(BLOCKED · 排查 MR 状态)\n"
-            "1. git push origin <merge-target>(state.json finalize 直推)\n"
-            "   失败:--merge-target-push-failed --failed-reason {conflict|protect-rule|network|other}\n"
-            "2. git worktree remove <worktree-path>(如有 worktree)\n"
-            "3. git branch -d <feature-branch>\n"
-            "4. state.py ship-phase --action cleanup "
-            "--feature <path> --status cleaned\n"
-            "5. state.py ship-complete --feature <path> --auto-commit <hash>"
+def _try_append_union_resolve(wt_root: str, rel: str) -> bool:
+    """v8.147:追加型冲突机械 union(实战 case:SVC-CORE-B260612051432 重跑 archive ·
+    PROCESS-LEDGER 三行追加冲突 · AI 的处置 = 删标记保双方行 —— 零判断纯机械 · 该进脚本)。
+
+    安全前提(物化):三方对比 base(:1:)/ours(:2:)/theirs(:3:)· **双方相对 base 都是
+    纯增行**(base 行序列是两侧的保序子序列)才自动解;任何一方有删/改 → 返 False 留 AI。
+    union = theirs 全文 + ours 新增行(去重)—— origin 侧(已合事实)为基 · 本侧增量后置。
+    """
+    def _show(stage: int) -> Optional[str]:
+        r = _git(["show", f":{stage}:{rel}"], cwd=wt_root)
+        return r.stdout if r.returncode == 0 else None
+
+    base, ours, theirs = _show(1), _show(2), _show(3)
+    if base is None or ours is None or theirs is None:
+        return False
+    base_lines = base.splitlines()
+
+    def _added_only(side_text: str) -> Optional[list]:
+        """base 是 side 的保序子序列 → 返回 side 的新增行;否则 None(有删/改)。"""
+        b = 0
+        added = []
+        for ln in side_text.splitlines():
+            if b < len(base_lines) and ln == base_lines[b]:
+                b += 1
+            else:
+                added.append(ln)
+        return added if b == len(base_lines) else None
+
+    ours_add = _added_only(ours)
+    theirs_add = _added_only(theirs)
+    if ours_add is None or theirs_add is None:
+        return False
+    theirs_lines = theirs.splitlines()
+    theirs_set = set(theirs_lines)
+    extra = [ln for ln in ours_add if ln not in theirs_set]
+    content = "\n".join(theirs_lines + extra)
+    if not content.endswith("\n"):
+        content += "\n"
+    try:
+        (Path(wt_root) / rel).write_text(content, encoding="utf-8")
+    except OSError:
+        return False
+    ad = _git(["add", "--", rel], cwd=wt_root)
+    return ad.returncode == 0
+
+
+
+def _sync_feature_branch(wt_root: str, merge_target: str, index_rel: str,
+                         feature_id: str) -> dict:
+    """v8.146:ship1 冲突防线 —— feature 分支与 origin/<mt> 同步(merge · 不 rebase 已推分支)。
+
+    背景:v8.145 把共享追加文件(INDEX/LEDGER/ROADMAP 翻牌)放进 feature 分支 ·
+    并行 feature 的 MR 窗口重叠时后合者**必然**撞行冲突(设计时低估为「可能」·
+    用户指出「大概率」属实)。三层防线:
+      ① behind → 自动 merge(干净则无感 · MR 开出来即可合)
+      ② INDEX.md 冲突**机械自动解**(确定性再生成:origin 侧为基 + 重放本 feature 行 ·
+         追加表语义明确 · 可枚举进脚本)
+      ③ 其余冲突(代码/规划文件)→ 留 AI 在 worktree 评估处理(不可枚举 ·
+         LEDGER 类提示 union)
+    返回 {status: up_to_date|merged_clean|index_auto_resolved|conflict|merge_in_progress,
+          conflict_files: [...], behind: int}。
+    """
+    if _merge_in_progress(wt_root):
+        return {"status": "merge_in_progress",
+                "conflict_files": _conflicted_files(wt_root), "behind": -1}
+    f = _git(["fetch", "origin", merge_target], cwd=wt_root, timeout=120)
+    if f.returncode != 0:
+        return {"status": "fetch_failed", "conflict_files": [], "behind": -1,
+                "error": f.stderr.strip()[:120]}
+    ba = _behind_ahead(wt_root, merge_target)
+    behind = ba[0] if ba else 0
+    if behind == 0:
+        return {"status": "up_to_date", "conflict_files": [], "behind": 0}
+    mg = _git(["merge", "--no-edit", f"origin/{merge_target}"], cwd=wt_root, timeout=120)
+    if mg.returncode == 0:
+        return {"status": "merged_clean", "conflict_files": [], "behind": behind}
+    conflicts = _conflicted_files(wt_root)
+    auto_resolved: list = []
+    # ② INDEX.md 机械自动解:origin 侧为基(最新已合状态)+ 重放本 feature 行
+    if index_rel in conflicts:
+        own_row = _own_index_row(wt_root, index_rel, feature_id)
+        base = _git(["show", f"origin/{merge_target}:{index_rel}"], cwd=wt_root)
+        if own_row and base.returncode == 0:
+            content = base.stdout
+            if not content.endswith("\n"):
+                content += "\n"
+            if feature_id not in content:
+                content += own_row + "\n"
+            (Path(wt_root) / index_rel).write_text(content, encoding="utf-8")
+            _git(["add", "--", index_rel], cwd=wt_root)
+            conflicts = [c for c in conflicts if c != index_rel]
+            auto_resolved.append(index_rel)
+    # ②b v8.147:追加型台账冲突机械 union(三方对比 · 双方纯增行才解 · 否则留 AI)
+    APPEND_UNION_BASENAMES = ("PROCESS-LEDGER.md",)
+    for rel in list(conflicts):
+        if rel.rsplit("/", 1)[-1] in APPEND_UNION_BASENAMES \
+                and _try_append_union_resolve(wt_root, rel):
+            conflicts.remove(rel)
+            auto_resolved.append(rel)
+    if not conflicts:
+        cm = _git(["commit", "--no-edit"], cwd=wt_root, timeout=30)
+        if cm.returncode == 0:
+            return {"status": "auto_resolved", "conflict_files": [],
+                    "auto_resolved_files": auto_resolved, "behind": behind}
+        return {"status": "conflict", "conflict_files": ["(commit 失败:%s)" % cm.stderr.strip()[:80]],
+                "behind": behind}
+    return {"status": "conflict", "conflict_files": conflicts, "behind": behind}
+
+
+def _sync_conflict_pending(action: str, sync: dict, feature_path: str) -> None:
+    """冲突留 AI:emit PENDING + 处置指引 · exit 0。"""
+    files = sync.get("conflict_files", [])
+    emit_json({
+        "verdict": "PENDING", "stage": "ship", "action": action,
+        "pending_step": "merge-conflict",
+        "conflict_files": files,
+        "next_action": (
+            ("⏸️ worktree 有未完成 merge —— 先收尾:解完冲突 `git add` → `git commit` → 重跑。\n"
+             if sync["status"] == "merge_in_progress" else
+             f"🔴 与 origin 同步发生冲突({len(files)} 文件)—— worktree 是解决冲突的合法场所"
+             "(v8.145:内容性工作在可控环境):\n")
+            + "  ① 逐文件评估处理(AI 自决 · 业务歧义大再上抛用户):\n"
+            + "".join(f"     - {f}" + ("(台账类但非纯增行 · 机械 union 不敢动 · 人工合)"
+                                        if f.endswith("PROCESS-LEDGER.md") else "") + "\n"
+                       for f in files[:10])
+            + "  ② `git add <已解文件>` → `git commit --no-edit`(完成 merge)\n"
+            + f"  ③ 重跑 state.py ship-phase --action {action} --feature {feature_path}"
+            "(幂等 · 已归档则同步后给 push 指引)"
         ),
-    }
+    }, exit_code=0)
 
 
-# ─── action 4:cleanup ───────────────────────────────────────────
 
+def _handle_ship_archive(state: dict, args: argparse.Namespace) -> dict:
+    """v8.145 ship1 终幕(tool-executed · worktree 内):规划翻牌 gate → 终态 state.json →
+    zip + INDEX → `git rm --cached` 过程目录 → 单 commit 进 feature 分支。
 
-def _handle_ship_cleanup(state: dict, args: argparse.Namespace) -> dict:
-    """Step 9:worktree 清理状态 · cleaned 必须 phase=merged(治本 P0-124)。"""
-    _enforce_main_worktree("cleanup")
-
+    架构(用户拍板):ship1 全交付 —— 归档/翻牌/台账全部发生在可控环境(worktree · 自己的
+    分支)· 随 **feature MR 原子合入**(不再有第二条 ship-finalize 分支 + 第二个 MR)。
+    - MR diff 干净:过程目录在分支历史里「加了又删」· 对 merge_target 净零 · diff 只剩
+      代码 + zip + INDEX 行 + 规划翻牌行
+    - 翻牌随 MR 原子生效:MR 不合 · ROADMAP 不显示已交付;MR revert · 翻牌同退
+    - 工作树保留目录(`git rm --cached` 只删 index)→ state.json 转 untracked =
+      **ship2 接力卡**(push 记录 MR 用 · ship2 读元数据 · 随 worktree 删除消亡)
+    - zip 内 state.json = 终态墓碑(current_stage=completed)· 它与「completed 宣称」
+      随 MR 合入同刻可见 —— 宣称与落地原子
+    """
     ship = state.setdefault("ship", {})
+    ship.setdefault("started_at", now_iso())
+    cur_phase = ship.get("phase")
+    if cur_phase not in (None, "closed_unmerged", "archived"):
+        emit_json(_phase_err(cur_phase, "archived",
+                             "archive 仅允许 null/archived(幂等)→ archived · 或 closed_unmerged 重开"),
+                  exit_code=1)
 
-    if args.status not in SHIP_CLEANUP_ENUM:
-        emit_json(_enum_err("--status", args.status, SHIP_CLEANUP_ENUM), exit_code=1)
+    artifact_root = Path(args.feature).resolve()
+    feature_id = state.get("feature_id") or artifact_root.name
+    top = _git(["rev-parse", "--show-toplevel"], cwd=str(artifact_root))
+    if top.returncode != 0:
+        emit_json({"verdict": "FAIL", "action": "archive",
+                   "error": f"--feature 不在 git 仓内:{top.stderr.strip()[:120]}"},
+                  exit_code=1)
+    wt_root = top.stdout.strip()
+    paths = _archive_repo_paths(wt_root, artifact_root, feature_id)
+    if not paths:
+        emit_json({"verdict": "FAIL", "action": "archive",
+                   "error": "无法解析归档 repo 相对路径(rev-parse --show-prefix 失败)"},
+                  exit_code=1)
+    feature_rel, zip_rel, index_rel = paths
 
-    # 🔴 hard gate(治本 P0-124):cleanup --status cleaned 时 phase 必须 merged
-    if args.status == "cleaned":
-        if ship.get("phase") != "merged" or ship.get("shipped") != "merged":
-            emit_json({
-                "verdict": "BLOCKED",
-                "error": "ship-phase --action cleanup --status cleaned 被拒:合并未确认(治本 P0-124)",
-                "current_ship_phase": ship.get("phase"),
-                "current_ship_shipped": ship.get("shipped"),
-                "hint": (
-                    "先跑 ship-phase --action confirm-merged · "
-                    "或 worktree=off 时用 --status n_a"
-                ),
-            }, exit_code=1)
-        if not ship.get("merge_commit_hash"):
-            emit_json({
-                "verdict": "BLOCKED",
-                "error": "ship-phase --action cleanup 被拒:merge_commit_hash 缺失(治本 P0-124)",
-            }, exit_code=1)
+    # ── v8.146 冲突防线:与 origin/<mt> 同步(首跑防开 MR 即冲突 · 重跑 = MR 窗口期
+    # 冲突修复入口)· INDEX.md 冲突机械自动解 · 其余留 AI(详 _sync_feature_branch)──
+    merge_target = state.get("merge_target") or ""
+    sync_note = None
+    if merge_target:
+        sync = _sync_feature_branch(wt_root, merge_target, index_rel, feature_id)
+        if sync["status"] in ("conflict", "merge_in_progress"):
+            _sync_conflict_pending("archive", sync, args.feature)  # emit PENDING + exit
+        if sync["status"] == "fetch_failed":
+            sync_note = (f"⚠️ sync fetch 失败({sync.get('error', '')})· 冲突防线降级 · "
+                         "MR 若报冲突 → 网络恢复后重跑 archive 同步")
+        elif sync["status"] == "merged_clean":
+            sync_note = (f"已自动合入 origin/{merge_target}(落后 {sync['behind']} commit · "
+                         "无冲突 · 记得重新 git push)")
+        elif sync["status"] == "auto_resolved":
+            files = "、".join(sync.get("auto_resolved_files", [])) or "追加型台账"
+            sync_note = (f"已合入 origin/{merge_target} · 冲突已机械自动解({files} · "
+                         "origin 为基 + 重放本侧增量 · 记得重新 git push)")
 
-    ship["worktree_cleanup"] = args.status
+    # 幂等:HEAD 已含 zip 且不含过程目录 → 已归档(重跑 = 同步后直接给 push 指引)
+    zin = _git(["cat-file", "-e", f"HEAD:{zip_rel}"], cwd=wt_root)
+    din = _git(["cat-file", "-e", f"HEAD:{feature_rel}/state.json"], cwd=wt_root)
+    if zin.returncode == 0 and din.returncode != 0:
+        ship["phase"] = "archived"  # closed_unmerged 重开:归档已在分支 · 直接续 push
+        return {
+            "verdict": "PASS", "stage": "ship", "action": "archive",
+            "already_archived": True, "zip": zip_rel,
+            **({"sync": sync_note} if sync_note else {}),
+            "next_action_brief": _ship1_push_brief(feature_id, args.feature),
+        }
 
-    if args.status == "cleaned":
-        ship["completed_at"] = now_iso()
+    # v8.93 规划翻牌 gate(前移自旧 finalize-deliver):翻牌随 feature MR 原子合入
+    planning_files, perr = _resolve_planning_paths(wt_root, getattr(args, "planning_artifacts", None))
+    if perr:
+        emit_json({"verdict": "FAIL", "action": "archive", "error": perr}, exit_code=1)
+    if not planning_files and not getattr(args, "no_planning_changes", False):
+        emit_json({
+            "verdict": "PENDING", "stage": "ship", "action": "archive",
+            "pending_step": "planning-backref",
+            "next_action": (
+                "🔴 归档前先翻规划层 back-reference(feature = 某 BL 的落地 · 不翻牌 → "
+                "规划层与执行层脱节 · 进度统计失真):\n"
+                "  ① 判断哪些需翻「📋 → ✅ 已交付」(只改相关的 · AI 自决):"
+                "ROADMAP.md 对应 BL / WS-NN.md 进度 / teamwork-space.md / 项目变更单\n"
+                "  ② 🔴 在 **worktree 内**改好(不 commit · archive 会随归档 commit 一起带走 · "
+                "随 feature MR 原子合入 —— MR 不合翻牌不生效 · revert 同退)\n"
+                f"  ③ 重跑:state.py ship-phase --action archive --feature {args.feature} "
+                "--planning-artifacts <逗号分隔 worktree 相对路径> --archive-desc '<≤200 字>'\n"
+                f"  确无可翻(ad-hoc Bug/Micro)→ state.py ship-phase --action archive "
+                f"--feature {args.feature} --no-planning-changes --archive-desc '<≤200 字>'"
+            ),
+        }, exit_code=0)
 
-    next_brief = (
-        "✅ 清理完成。下一步:state.py ship-complete --feature <path> --auto-commit <hash>"
-        if args.status in ("cleaned", "n_a")
-        else "⏸️ 待 worktree 清理后再次 ship-phase --action cleanup --status cleaned"
-    )
+    # v8.113 描述门禁(≤200 字 · 写 INDEX.md)
+    raw_desc = getattr(args, "archive_desc", None)
+    archive_desc = _clean_archive_desc(raw_desc)
+    if raw_desc and len(archive_desc) > 200:
+        emit_json({
+            "verdict": "FAIL", "action": "archive",
+            "error": f"--archive-desc 净化后 {len(archive_desc)} 字 · 超 200 字上限",
+            "hint": "压缩表达方式重写到 ≤200 字后重跑(不靠截断丢尾 · archive 可重入)",
+        }, exit_code=1)
+
+    # 终态 state.json(zip 快照 = 墓碑 · 宣称随 MR 合入与落地原子可见)
+    ship["phase"] = "archived"
+    ship["shipped"] = "archived"
+    ship["archived_at"] = now_iso()
+    contracts = state.setdefault("stage_contracts", {})
+    contract = contracts.setdefault("ship", {})
+    contract.setdefault("started_at", ship.get("started_at") or now_iso())
+    contract["input_satisfied"] = True
+    contract["process_satisfied"] = True
+    contract["output_satisfied"] = True
+    contract["completed_at"] = now_iso()
+    contract["auto_commit"] = git_head(cwd=wt_root) or ""
+    contract.setdefault("artifacts", [])
+    state["current_stage"] = "completed"
+    state["legal_next_stages"] = []
+    cs = state.setdefault("completed_stages", [])
+    if "ship" not in cs:
+        cs.append("ship")
+    save_state(artifact_root / "state.json", state)
+    try:
+        write_review_log_entry(state, artifact_root, "ship", "completed", contract)
+    except Exception:
+        pass
+
+    # zip + INDEX(物理写工作树)
+    zip_bytes = _build_archive_zip(artifact_root)
+    zip_abs = Path(wt_root) / zip_rel
+    zip_abs.parent.mkdir(parents=True, exist_ok=True)
+    zip_abs.write_bytes(zip_bytes)
+    index_abs = Path(wt_root) / index_rel
+    index_abs.write_text(
+        _build_archive_index(wt_root, "HEAD", index_rel, feature_id, now_iso(),
+                             archive_desc=archive_desc),
+        encoding="utf-8")
+
+    # git rm --cached(index only · 工作树保留 = ship2 接力卡)→ add → 单 commit
+    rm = _git(["rm", "-r", "-q", "--cached", "--ignore-unmatch", feature_rel], cwd=wt_root)
+    if rm.returncode != 0:
+        emit_json({"verdict": "FAIL", "action": "archive",
+                   "error": f"git rm --cached {feature_rel} 失败:{rm.stderr.strip()[:150]}"},
+                  exit_code=1)
+    adds = [zip_rel, index_rel] + [rel for rel, _ in planning_files]
+    ad = _git(["add", "--", *adds], cwd=wt_root)
+    if ad.returncode != 0:
+        emit_json({"verdict": "FAIL", "action": "archive",
+                   "error": f"git add 归档产物失败:{ad.stderr.strip()[:150]}"},
+                  exit_code=1)
+    plan_seg = (f" + 规划翻牌 {len(planning_files)} 文件" if planning_files else "")
+    cm = _git(["commit", "-m",
+               f"chore({feature_id}): ship1 archive · 过程层 → _archive/{feature_id}.zip{plan_seg}"],
+              cwd=wt_root)
+    if cm.returncode != 0:
+        emit_json({"verdict": "FAIL", "action": "archive",
+                   "error": f"归档 commit 失败:{cm.stderr.strip()[:200]}",
+                   "hint": "检查 git user 配置 / hooks · 修复后重跑(可重入)"},
+                  exit_code=1)
+    head = git_head(cwd=wt_root) or ""
 
     return {
-        "verdict": "PASS",
-        "stage": "ship",
-        "action": "cleanup",
-        "phase": ship.get("phase"),
-        "worktree_cleanup": args.status,
-        "next_action_brief": next_brief,
+        "verdict": "PASS", "stage": "ship", "action": "archive",
+        "transition": f"{cur_phase} → archived",
+        "phase": "archived",
+        **({"sync": sync_note} if sync_note else {}),
+        "archive_commit": head,
+        "zip": zip_rel,
+        "planning_bundled": [rel for rel, _ in planning_files],
+        "warnings": [
+            "过程目录已转 untracked 接力卡(工作树保留 · 分支树已删)· "
+            "🔴 此后勿在 worktree 跑 `git add -A`(会把目录加回来)",
+        ],
+        "next_action_brief": _ship1_push_brief(feature_id, args.feature),
     }
+
+
+def _ship1_push_brief(feature_id: str, feature_path: str) -> str:
+    """archive 后的 push + MR 指引(P0-113 CLI-first)。"""
+    return (
+        "✅ 归档已进 feature 分支(MR diff 干净:过程文件加了又删 = 净零 · 只剩 "
+        "代码 + zip + INDEX + 翻牌行)。接下来:\n"
+        "  ① git push origin <feature 分支>\n"
+        "  ② CLI-first 创建 feature MR(P0-113):gh pr create / glab mr create "
+        "(拿真实 MR URL · 不退化用 push hint 表单链接)\n"
+        f"  ③ 记录:state.py ship-phase --action push --feature {feature_path} "
+        "--feature-head-commit <push 后 HEAD> --git-host <host> "
+        "--mr-creation-method cli-<gh|glab> --mr-url <真实 URL>\n"
+        "  ⏸️ 然后提示用户合并 MR —— **feature 的 ship 到此结束**(worktree 留给 ship2 清场)"
+    )
 
 
 # ─── action 5:close-unmerged ──────────────────────────────────
@@ -673,7 +865,7 @@ def _handle_ship_close_unmerged(state: dict, args: argparse.Namespace) -> dict:
             "❌ MR 已关闭未合并。\n\n"
             "Feature 终止路径:\n"
             "- 放弃:跑 ship-complete --bypass --reason ... --user-confirmed(进 abandoned 终态)\n"
-            "- 重开:跑 ship-phase --action push(重 push 重 MR · null → pushed 反向转移)"
+            "- 重开:跑 ship-phase --action archive → push(v8.145 · 重归档重 MR)"
         ),
     }
 
@@ -693,9 +885,8 @@ def cmd_ship_phase(args: argparse.Namespace) -> None:
 
     handlers = {
         "sanitize": _handle_ship_sanitize,
+        "archive": _handle_ship_archive,
         "push": _handle_ship_push,
-        "confirm-merged": _handle_ship_confirm_merged,
-        "cleanup": _handle_ship_cleanup,
         "close-unmerged": _handle_ship_close_unmerged,
     }
 
@@ -704,37 +895,20 @@ def cmd_ship_phase(args: argparse.Namespace) -> None:
     emit_json(result)
 
 
-# ─── ship-finalize:Phase 2 全自动编排 ─────────────────────────────
+# ─── ship-finalize:ship2 主工作区清场(v8.145 重构 · 零内容修改)────
 #
-# 治本:Phase 2(confirm-merged → cleanup → ship-complete → finalize 直推 →
-# worktree 清理 → 主工作区 fetch)原本是 6+ 条命令 + 1 次 cd · PMO 手工编排 ·
-# 易漏步 / 漏 cd / 漏 finalize 直推。ship-finalize 把可枚举的 7 步收进脚本 ·
-# 一条命令跑完 · 仅在「MR 未合并」这类不可枚举判断点 FAIL 让 AI 干预。
-#
-# 7 步:
-#   1. verify-merge    git fetch + merge-base 验证 feature_head 已进 merge_target
-#   2. confirm-merged  ship.phase pushed → merged
-#   3. cleanup         ship.worktree_cleanup = cleaned / n_a(状态字段)
-#   4. ship-complete   current_stage → completed
-#   5. finalize-deliver(v8.80 去直推)state.py 暂存收尾 commit 到 ship-finalize/<id> 分支 →
-#      交接 AI 用 gh/glab 创 MR + 自动合并 → 重跑 ancestor-check 验证已合(未合 emit PENDING)
-#   6. worktree-remove 物理删 feature worktree(收尾 MR 已合 · state.json 在 merge_target · 不丢)
-#   7. main-sync       主工作区 git fetch + 安全 pull --ff-only(让本地跟上 ship 结果)
-#
-# 可重入:每步先查 state · 已完成则跳过(skipped_steps)。
-# 必须在主工作区跑(step 6 不能删自身所在 worktree · 沿用 P0-156)。
+# 用户拍板架构:ship1 全交付(worktree 内 · sanitize → archive → push · 终点 = feature
+# MR 提交 · 归档/翻牌/终态全随 feature MR 原子合入);ship2 不修改任何内容 · 只清理:
+#   1. verify-delivered  zip 在 origin/<merge_target>(= MR 已合)· 未合 PENDING 绝不删 worktree
+#   2. worktree-remove   删 feature worktree + 本地分支(接力卡 state.json 随之消亡)
+#   3. main-sync         净化主工作区:副产物(注入块/锁)自动 commit · 用户真改动决策 ·
+#                        pull(--rebase 若有本地 commit)· push(被保护分支拒 → 提示)
+# 旧 Phase 2 链路(state-sync / verify-merge / confirm-merged / cleanup / ship-complete /
+# finalize-deliver 第二分支第二 MR / 零 checkout plumbing)v8.145 整体删除 · 不留兼容期。
+# 十二个版本(v8.16→v8.144)反复修补的根因 = 在不可控的主工作区做内容性工作 · 现已移除。
 
 
-SHIP_FINALIZE_STEPS = (
-    # v8.16:state-sync 是 step 0(治本 SVC-CORE-B006 case)
-    # ① fetch+ff-pull merge_target(主工作区拉下 MR 合并后的 features dir)
-    # ② 检测主工作区 state.json:不存在/缺 ship.feature_head_commit → 从 worktree 同步完整态
-    # 理由:Phase 1 sanitize/push 写 state.json 但不 commit · push 到 feature 的 commit
-    # 不含完整 state.json · merge 后主工作区拉下的是合并前快照 · verify-merge 会 FAIL
-    "state-sync",
-    "verify-merge", "confirm-merged", "cleanup",
-    "ship-complete", "finalize-deliver", "worktree-remove", "main-sync",
-)
+SHIP_FINALIZE_STEPS = ("verify-delivered", "worktree-remove", "main-sync")
 
 
 class _GitResult:
@@ -845,139 +1019,6 @@ def _ship_finalize_fail(step: str, error: str, hint: str,
     if extra:
         payload.update(extra)
     emit_json(payload, exit_code=1)
-
-
-def _ship_finalize_planning_pending(feature_path: str, merge_target: str,
-                                    completed: list, skipped: list,
-                                    warnings: list) -> None:
-    """v8.93:收尾交付前的「规划层 back-ref 翻牌」暂停点(gate)。
-
-    治本 case:旧 §5.5 在 ship-finalize 全跑完(收尾 MR 已合 + worktree 已清)**之后**才提
-    规划层翻牌 · 且用**直推 merge_target**(与 v8.80「去直推」自相矛盾 · 保护分支会被拒 · 且
-    收尾 MR 早已关闭 → 规划层物理上塞不进去 → 非原子 + 直推隐患)。
-    现在改成:finalize-deliver **暂存收尾分支前**先停在此 · 让 AI 判断 WS/ROADMAP/teamwork-space.md
-    (+ 项目变更单)哪些要翻「已交付」· 改完用 `--planning-artifacts <files>` 重跑 → 这些文件
-    随 {archive zip + 删目录 + state.json} **同一收尾 MR** 合入(原子 · 走 MR · 兼容保护分支)。
-    确无可翻(ad-hoc Bug/Micro 无关联 BL)→ `--no-planning-changes` 显式跳过。
-    emit PENDING + exit 0(非失败 · 待 AI 翻牌)。
-    """
-    payload: dict = {
-        "verdict": "PENDING",
-        "command": "ship-finalize",
-        "completed_steps": completed,
-        "skipped_steps": skipped,
-        "pending_step": "planning-backref",
-        "next_action": (
-            "🔴 收尾交付前 · 先翻规划层 back-reference(feature = 某 BL 的落地 · 落地完不翻牌 → "
-            "规划层与执行层永久脱节 · 进度统计失真):\n"
-            "  ① 判断这几处哪些需翻「📋 规划中/可启动 → ✅ 已交付」(只改相关的 · AI 自决):\n"
-            "     - ROADMAP.md 对应 BL(若是 WS 最后一个 BL → WS 标完成)\n"
-            "     - product-overview/workstream/WS-NN.md(WS 进度)\n"
-            "     - teamwork-space.md(工作区级索引 · 按需)\n"
-            "     - 项目变更单(如 BG-NNN.md 的对应阶段状态 · 按需)\n"
-            "  ② 在**主工作区**改好这些文件(不要 commit · ship-finalize 会随收尾 MR 一起带走)\n"
-            "  ③ 重跑把它们随收尾 MR 一起合入 · 同时给本 feature 一句 **≤200 字**极简描述"
-            "(写进归档 INDEX.md · 便于日后不解压识别):\n"
-            f"     state.py ship-finalize --feature {feature_path} "
-            "--planning-artifacts <逗号分隔的相对路径> --archive-desc '<≤200 字描述>'\n"
-            "  确无可翻(ad-hoc Bug/Micro · 无关联 BL)→ 显式跳过(仍可给 --archive-desc):\n"
-            f"     state.py ship-finalize --feature {feature_path} --no-planning-changes "
-            "--archive-desc '<≤200 字描述>'"
-        ),
-        "resume": (
-            "翻牌(或确认无需翻)后重跑带 --planning-artifacts / --no-planning-changes · "
-            "state.py 会把规划层改动 + 归档 zip 暂存进同一收尾分支 → 你创建并合并**一个** MR → "
-            "再重跑 ship-finalize 续清理 worktree + 主分支 pull。"
-        ),
-    }
-    if warnings:
-        payload["warnings"] = warnings
-    emit_json(payload, exit_code=0)
-
-
-def _ship_finalize_deliver_pending(feature_path: str, merge_target: str,
-                                   sf_branch: str, commit: str,
-                                   completed: list, skipped: list,
-                                   warnings: list, archived: bool = False,
-                                   planning_bundled: Optional[list] = None) -> None:
-    """v8.80:收尾改动已暂存到 ship-finalize 分支 · 待 AI 用 gh/glab 创 MR + 自动合并。
-
-    去直推后 merge_target 全程只经 MR(兼容保护分支 · 主工作区只 pull)。
-    emit PENDING + 交接(state.py 不代跑 gh/glab · AI 来跑 · 与 Phase 1 创 MR 同模型)·
-    exit 0(非失败 · 是「待 AI 动作」)。收尾 MR 合并后重跑 ship-finalize ·
-    检测已合(zip/ancestor)→ 续 worktree-remove + main-sync。
-    v8.82:archived=True 时收尾分支含「feature 目录 zip 进 _archive/ + 删原目录」· MR 文案点明归档。
-    """
-    plan_n = len(planning_bundled or [])
-    plan_seg = (f" + 规划层翻牌 {plan_n} 文件({', '.join(planning_bundled)})"
-                if plan_n else "")
-    deliver_desc = (
-        ("收尾改动(过程层 feature 目录已 zip 进 _archive/ + 删原目录 + 终态 state.json/INDEX"
-         + plan_seg + ")"
-         if archived else "收尾改动(终态 state.json 等" + plan_seg + ")")
-    )
-    title = (f"chore: ship-finalize archive {sf_branch}" if archived
-             else f"chore: ship-finalize {sf_branch}")
-    body = ("teamwork ship-finalize 收尾 · 归档过程层 feature 目录(代码是唯一真相)"
-            if archived else "teamwork ship-finalize 收尾")
-    if plan_n:
-        body += f" + 规划层 back-ref 翻牌(BL/WS → 已交付 · {plan_n} 文件)"
-    payload: dict = {
-        "verdict": "PENDING",
-        "command": "ship-finalize",
-        "completed_steps": completed,
-        "skipped_steps": skipped,
-        "pending_step": "finalize-deliver",
-        "finalize_mr": {"branch": sf_branch, "head_commit": commit,
-                        "merge_target": merge_target, "archived": archived,
-                        **({"planning_bundled": planning_bundled} if plan_n else {})},
-        "next_action": (
-            f"收尾分支已暂存:{sf_branch}(commit {commit[:12]}) → 目标 {merge_target}。\n"
-            + (f"✅ 规划层 back-ref({plan_n} 文件)已随同一收尾分支暂存 · "
-               "与归档 zip 同一个 MR 原子合入。\n" if plan_n else "")
-            + f"🔴 去直推(v8.80):{deliver_desc}必须经 MR 合入 merge_target。"
-            "用 gh/glab 创建 MR 并自动合并(state.py 不代跑 CLI · 由你执行 · 同 Phase 1):\n"
-            f"  GitHub:gh pr create --base {merge_target} --head {sf_branch} "
-            f"--title '{title}' --body '{body}' "
-            f"&& gh pr merge {sf_branch} --merge --delete-branch\n"
-            f"  GitLab:glab mr create --source-branch {sf_branch} "
-            f"--target-branch {merge_target} --title '{title}' --yes "
-            f"&& glab mr merge {sf_branch} --yes --remove-source-branch\n"
-            "降级:\n"
-            "  - gh/glab 不可用(未登录 / token 无 scope / 网络隔离)→ 报明确原因给用户 · "
-            "用户解决后重跑 ship-finalize\n"
-            "  - 无法自动合 → 用上面 create 命令拿 MR 链接给用户手动合 → 合后重跑 ship-finalize"
-        ),
-        "resume": (
-            f"收尾 MR 合并后重跑:state.py ship-finalize --feature {feature_path}"
-            "(可重入 · 检测已合 → 续删 worktree + 主分支 pull"
-            + (" + 清本地已归档 feature 目录" if archived else "") + ")"
-        ),
-    }
-    if warnings:
-        payload["warnings"] = warnings
-    emit_json(payload, exit_code=0)
-
-
-def _remote_finalize_delivered(main_wt: str, artifact_root: Path,
-                               merge_target: str) -> bool:
-    """v8.80:origin/merge_target 上本 feature 的 state.json 是否已是终态(交付完成)。
-
-    语义判定 current_stage == "completed":抗 squash 合并 + save_state 非确定性
-    (不依赖 commit ancestor / 字节级 no-delta)· 收尾 MR 合并后 merge_target 上即为终态。
-    调用前应已 fetch origin/merge_target。
-    """
-    pre = _git(["rev-parse", "--show-prefix"], cwd=str(artifact_root))
-    if pre.returncode != 0:
-        return False
-    repo_rel = (pre.stdout.strip() + "state.json").lstrip("/")
-    rs = _git(["show", f"origin/{merge_target}:{repo_rel}"], cwd=main_wt)
-    if rs.returncode != 0:
-        return False
-    try:
-        return json.loads(rs.stdout).get("current_stage") == "completed"
-    except (ValueError, json.JSONDecodeError):
-        return False
 
 
 # ─── v8.82:ship2 归档本体(过程层 feature 目录 zip + 从 merge_target 删 · 随收尾 MR)──
@@ -1118,132 +1159,50 @@ def _build_archive_index(repo_cwd: str, base_commit: str, index_rel: str,
     return header + "\n".join(rows) + "\n"
 
 
-def _stage_archive_commit(repo_cwd: str, artifact_root: Path, feature_id: str,
-                          merge_target: str, sf_ref: str,
-                          planning_files: Optional[list] = None,
-                          archive_desc: Optional[str] = None) -> tuple:
-    """v8.82:构建归档收尾 commit(add zip + INDEX.md · rm feature 目录)· push 到 sf_ref(force)。
+def _behind_ahead(main_wt: str, merge_target: str) -> Optional[tuple]:
+    """v8.144:本地 HEAD vs origin/<mt> 的 (behind, ahead)。失败返 None。
 
-    base = origin/<merge_target>。零 checkout(临时 GIT_INDEX_FILE)。feature 目录(过程层)的
-    终态产物已在本地 artifact_root(step 1-4 save_state 写入)· 一并打进 zip。
-    v8.93:planning_files=[(repo_rel, abs_path), ...] —— 规划层 back-ref 翻牌文件
-    (WS/ROADMAP/teamwork-space.md + 变更单)随**同一收尾 MR** 合入(去 §5.5 post-step 直推)·
-    hash 工作树内容(AI 刚翻牌的版本)→ update-index --add 进收尾 commit。
-    返回 (ok: bool, warn: str, commit_hash: str)。无 delta → (True, "", "")。
+    治本 step 7 把一切 pull 失败都喊「分叉 · 需手动 rebase」—— 实证 case
+    (SVC-PLATFORM-B260611083636):仅落后 + 脏 index · 被误导成 ~20 条手工
+    git 手术 · 实际一条 `git pull --ff-only` 即愈(沙箱 E2 实测:staged 删除
+    + 无关 M 文件不阻塞 ff-pull)。
     """
-    paths = _archive_repo_paths(repo_cwd, artifact_root, feature_id)
-    if not paths:
-        return False, "无法解析归档 repo 相对路径(rev-parse --show-prefix 失败)", ""
-    feature_rel, zip_rel, index_rel = paths
-
-    base = _git(["rev-parse", f"origin/{merge_target}"], cwd=repo_cwd)
-    if base.returncode != 0:
-        return False, f"无法解析 origin/{merge_target}:{base.stderr.strip()}", ""
-    base_commit = base.stdout.strip()
-    bt = _git(["rev-parse", f"{base_commit}^{{tree}}"], cwd=repo_cwd)
-    if bt.returncode != 0:
-        return False, f"无法解析 base tree:{bt.stderr.strip()}", ""
-    base_tree = bt.stdout.strip()
-
-    # zip blob(二进制 · 走 subprocess input · _git text 模式不收二进制)
-    zip_bytes = _build_archive_zip(artifact_root)
+    r = _git(["rev-list", "--left-right", "--count",
+              f"origin/{merge_target}...HEAD"], cwd=main_wt, timeout=30)
+    if r.returncode != 0:
+        return None
+    parts = r.stdout.split()
+    if len(parts) != 2:
+        return None
     try:
-        hz = subprocess.run(["git", "hash-object", "-w", "--stdin"], cwd=repo_cwd,
-                            input=zip_bytes, capture_output=True, timeout=60)
-    except (subprocess.TimeoutExpired, OSError) as e:
-        return False, f"hash-object zip 异常:{e}", ""
-    if hz.returncode != 0:
-        return False, ("hash-object zip 失败:"
-                       + hz.stderr.decode("utf-8", "replace").strip()), ""
-    zip_blob = hz.stdout.decode().strip()
-
-    # INDEX.md blob
-    index_content = _build_archive_index(repo_cwd, base_commit, index_rel,
-                                         feature_id, now_iso(),
-                                         archive_desc=archive_desc)
-    try:
-        hi = subprocess.run(["git", "hash-object", "-w", "--stdin"], cwd=repo_cwd,
-                            input=index_content.encode("utf-8"),
-                            capture_output=True, timeout=30)
-    except (subprocess.TimeoutExpired, OSError) as e:
-        return False, f"hash-object INDEX.md 异常:{e}", ""
-    if hi.returncode != 0:
-        return False, ("hash-object INDEX.md 失败:"
-                       + hi.stderr.decode("utf-8", "replace").strip()), ""
-    index_blob = hi.stdout.decode().strip()
-
-    # v8.93:规划层 back-ref 文件 blob(hash 工作树内容 · AI 刚翻牌的版本)· 随收尾 MR 一起合入
-    planning_blobs: list = []  # [(repo_rel, blob), ...]
-    for prel, pabs in (planning_files or []):
-        hp = _git(["hash-object", "-w", str(pabs)], cwd=repo_cwd)
-        if hp.returncode != 0:
-            return False, f"hash-object 规划层文件 {prel} 失败:{hp.stderr.strip()}", ""
-        planning_blobs.append((prel, hp.stdout.strip()))
-
-    # 列出 base tree 上 feature 目录的所有条目(逐条 --force-remove)
-    ls = _git(["ls-tree", "-r", "--name-only", base_tree, "--", feature_rel],
-              cwd=repo_cwd)
-    feature_entries = ([ln.strip() for ln in ls.stdout.splitlines() if ln.strip()]
-                       if ls.returncode == 0 else [])
-
-    tmp_dir = tempfile.mkdtemp(prefix="tw-ship-archive-")
-    idx_path = os.path.join(tmp_dir, "index")
-    env = {**os.environ, "GIT_INDEX_FILE": idx_path}
-    try:
-        rt = _git(["read-tree", base_tree], cwd=repo_cwd, env=env)
-        if rt.returncode != 0:
-            return False, f"read-tree 失败:{rt.stderr.strip()}", ""
-        for blob, rel in ((zip_blob, zip_rel), (index_blob, index_rel)):
-            ui = _git(["update-index", "--add", "--cacheinfo", f"100644,{blob},{rel}"],
-                      cwd=repo_cwd, env=env)
-            if ui.returncode != 0:
-                return False, f"update-index add {rel} 失败:{ui.stderr.strip()}", ""
-        for entry in feature_entries:
-            ur = _git(["update-index", "--force-remove", entry], cwd=repo_cwd, env=env)
-            if ur.returncode != 0:
-                return False, f"update-index --force-remove {entry} 失败:{ur.stderr.strip()}", ""
-        # v8.93:规划层翻牌文件加进同一收尾 commit(在 force-remove 之后 · 防被误删)
-        for prel, blob in planning_blobs:
-            up = _git(["update-index", "--add", "--cacheinfo", f"100644,{blob},{prel}"],
-                      cwd=repo_cwd, env=env)
-            if up.returncode != 0:
-                return False, f"update-index add 规划层文件 {prel} 失败:{up.stderr.strip()}", ""
-        wtr = _git(["write-tree"], cwd=repo_cwd, env=env)
-        if wtr.returncode != 0:
-            return False, f"write-tree 失败:{wtr.stderr.strip()}", ""
-        new_tree = wtr.stdout.strip()
-    finally:
-        shutil.rmtree(tmp_dir, ignore_errors=True)
-
-    if new_tree == base_tree:
-        return True, "", ""  # 无变化(罕见 · 已归档)→ 视作已交付
-
-    plan_note = (f" + 规划层翻牌 {len(planning_blobs)} 文件" if planning_blobs else "")
-    msg = (f"chore({feature_id}): archive feature 过程层 → "
-           f"{ARCHIVE_DIR_NAME}/{feature_id}.zip + rm 目录{plan_note} [teamwork ship-finalize]")
-    ct = _git(["commit-tree", new_tree, "-p", base_commit, "-m", msg], cwd=repo_cwd)
-    if ct.returncode != 0:
-        return False, f"commit-tree 失败:{ct.stderr.strip()}", ""
-    new_commit = ct.stdout.strip()
-
-    pr = _git(["push", "--force", "origin", f"{new_commit}:{sf_ref}"],
-              cwd=repo_cwd, timeout=120)
-    if pr.returncode != 0:
-        return False, f"push {sf_ref} 失败:{pr.stderr.strip()[:200]}", ""
-    return True, "", new_commit
+        return int(parts[0]), int(parts[1])  # (behind, ahead)
+    except ValueError:
+        return None
 
 
-def _purge_local_feature_dir_for_archive(main_wt: str, feature_rel: str) -> list:
-    """v8.82:归档已交付 · 把本地 feature 目录恢复到 HEAD 干净态(restore tracked + clean untracked)·
-    使后续 ff-pull 能干净删除该目录(origin 已删)· 返回 warnings。"""
-    warns: list = []
-    # restore tracked 文件到 HEAD(丢弃 step 1-4 写入的本地终态改动 · 内容已进 zip)
-    _git(["checkout", "HEAD", "--", feature_rel], cwd=main_wt, timeout=30)
-    # 清 feature 目录内 untracked(如未 commit 的 review-log.jsonl · 内容已进 zip)
-    cl = _git(["clean", "-fdq", "--", feature_rel], cwd=main_wt, timeout=30)
-    if cl.returncode != 0:
-        warns.append(f"git clean {feature_rel} 失败(非致命):{cl.stderr.strip()[:80]}")
-    return warns
+def _pull_failure_remedy(main_wt: str, merge_target: str) -> str:
+    """v8.144:pull --ff-only 失败后的真相判别 + 对症 remedy(不再一律喊 rebase)。"""
+    ba = _behind_ahead(main_wt, merge_target)
+    if ba is None:
+        return "无法判别落后/分叉(rev-list 失败)· 手动 git fetch origin 后检查"
+    behind, ahead = ba
+    if ahead == 0:
+        return (f"本地仅落后 {behind} commit · 无分叉 —— 脏文件/staged 删除不阻塞 ff-pull · "
+                f"直接 `git pull --ff-only origin {merge_target}`(或重跑 ship-finalize 幂等)")
+    return (f"真分叉(落后 {behind} · 本地多 {ahead} commit)· 需处理本地 commit:"
+            f"`git rebase origin/{merge_target}` 后 pull · 或与用户确认本地 commit 去留")
+
+
+def _list_teamwork_stashes(main_wt: str) -> list:
+    """v8.144:盘点 teamwork 系自动 stash 残留(被埋改动 / 跨 feature 陈旧)。
+
+    实证 case:3 个 teamwork stash 跨 2 个 feature 堆积 · 其中一个埋着
+    bootstrap 注入块改动 → AI 以为改动丢了 · 手工重写 = 与 stash 双份地雷。
+    """
+    r = _git(["stash", "list", "--format=%gd %s"], cwd=main_wt, timeout=15)
+    if r.returncode != 0:
+        return []
+    return [ln.strip() for ln in r.stdout.splitlines() if "teamwork" in ln.lower()]
 
 
 def _archive_idempotent_zip(main_wt: str, feature_path: str) -> Optional[str]:
@@ -1260,195 +1219,23 @@ def _archive_idempotent_zip(main_wt: str, feature_path: str) -> Optional[str]:
         return None
     _git(["fetch", "origin", mt], cwd=main_wt, timeout=60)
     paths = _archive_repo_paths(main_wt, artifact_root, feature_id)
-    if not paths:
+    if paths:
+        _feat_rel, zip_rel, _index_rel = paths
+        r = _git(["cat-file", "-e", f"origin/{mt}:{zip_rel}"], cwd=main_wt)
+        return zip_rel if r.returncode == 0 else None
+    # v8.145:worktree(含 feature 路径)已物理删除 → rev-parse --show-prefix 不可用 ·
+    # 退化:在 origin/<mt> 全树搜 `**/_archive/<feature_id>.zip`
+    ls = _git(["ls-tree", "-r", "--name-only", f"origin/{mt}"], cwd=main_wt, timeout=60)
+    if ls.returncode != 0:
         return None
-    _feat_rel, zip_rel, _index_rel = paths
-    r = _git(["cat-file", "-e", f"origin/{mt}:{zip_rel}"], cwd=main_wt)
-    return zip_rel if r.returncode == 0 else None
+    suffix = f"_archive/{feature_id}.zip"
+    for line in ls.stdout.splitlines():
+        if line.strip().endswith(suffix):
+            return line.strip()
+    return None
 
 
-def _step_state_sync(main_wt: str, feature_path: str) -> dict:
-    """v8.16 ship-finalize step 0:把 worktree 内完整态 state.json 桥接到主工作区。
-
-    治本 case SVC-CORE-B006(2026-05-21):
-    Phase 1 ship-phase sanitize / push 写 state.json 后不自动 commit(by design ·
-    防 MR 被 chore commit 弄脏)· 所以 push 到 feature 分支的 commit 不含完整
-    state.json(缺 ship.phase=pushed / feature_head_commit 等)。
-    用户 merge MR 后 · 主工作区 git pull 拉下的 state.json 是合并前快照(不全)·
-    ship-finalize step 1 verify-merge 读不到 feature_head_commit → FAIL。
-    完整态 state.json 永远在 **worktree 内工作树**(sanitize/push 写入但未 commit)·
-    必须自动同步到主工作区 · step 5 finalize-push 才能直推完整态到 merge_target。
-
-    流程:
-      ① 主工作区 git fetch + ff-pull merge_target(若在 merge_target 分支 + 工作树干净)
-      ② 检测主工作区 state.json:
-         - 不存在 + worktree 内存在 → 复制(不 commit · step 5 finalize-push 直推)
-         - 存在但缺 ship.feature_head_commit + worktree 内完整 → 用 worktree 内覆盖
-         - 主工作区已完整 → skip(可重入)
-      ③ emit sync_action 字段告诉 AI 干了啥(transparent · 不静默)
-
-    返回 {ok: bool, sync_action: str, error?: str, hint?: str}。
-    """
-    feature_dir_abs = Path(feature_path).resolve()
-    state_json_path = feature_dir_abs / "state.json"
-
-    # 算 worktree 内对应 state.json 路径(从主工作区 state.worktree.path + feature_dir 相对路径)
-    # 优先用 worktree 内已存在的 state.json(完整态)· 失败则尝试主工作区现状
-    main_wt_path = Path(main_wt).resolve()
-
-    # 提前算 main_wt 的 merge_target 名(后续 fetch + 主工作区 state.json 都要)
-    # 没法从 state.json 读(可能不存在)· 用 main_wt 当前分支猜
-    cur = _git(["rev-parse", "--abbrev-ref", "HEAD"], cwd=main_wt)
-    main_branch = cur.stdout.strip() if cur.returncode == 0 else ""
-
-    # ① 主工作区先 fetch + 安全 ff-pull(让本地拿到 MR 合并后的 features dir)
-    sync_actions: list = []
-    fetched = False
-    if main_branch:
-        f = _git(["fetch", "origin", main_branch], cwd=main_wt, timeout=120)
-        if f.returncode == 0:
-            fetched = True
-            sync_actions.append(f"fetched origin/{main_branch}")
-            dirty = _git(["status", "--porcelain"], cwd=main_wt)
-            is_dirty = bool(dirty.stdout.strip()) if dirty.returncode == 0 else False
-            if not is_dirty:
-                pl = _git(["pull", "--ff-only", "origin", main_branch],
-                          cwd=main_wt, timeout=120)
-                if pl.returncode == 0:
-                    sync_actions.append(f"ff-pulled origin/{main_branch}")
-                else:
-                    # 分叉 · ff 失败 · 不致命 · 后续 step 0.5 检查 state.json
-                    sync_actions.append(
-                        f"ff-pull skipped(分叉:{pl.stderr.strip()[:80]})")
-            else:
-                sync_actions.append("ff-pull skipped(工作树脏)")
-        else:
-            sync_actions.append(
-                f"fetch FAIL(non-fatal):{f.stderr.strip()[:80]}")
-
-    # ② 主工作区 state.json 是否完整?
-    main_state_complete = False
-    if state_json_path.exists():
-        try:
-            with state_json_path.open("r", encoding="utf-8") as fp:
-                main_state = json.load(fp)
-            ship = main_state.get("ship") or {}
-            # 完整态判据:有 ship.feature_head_commit(Phase 1 push 写入)
-            if ship.get("feature_head_commit"):
-                main_state_complete = True
-        except (OSError, json.JSONDecodeError):
-            pass
-
-    # 主工作区已完整 → skip · 可重入
-    if main_state_complete:
-        sync_actions.append("main state.json 完整 · skip sync")
-        return {"ok": True, "sync_action": " · ".join(sync_actions)}
-
-    # ③ 主工作区不全 / 缺 → 找 worktree 内 state.json
-    # 先读已有 state.json(主工作区或不全) → 拿 state.worktree.path
-    # 若主工作区 state.json 不存在 → 退而求其次扫所有 linked worktree 找 state.json
-    wt_state_path = None
-    if state_json_path.exists():
-        # 读不全的主工作区 state.json 拿 worktree.path 字段(state.worktree.path 是相对主工作区 OR 绝对)
-        try:
-            with state_json_path.open("r", encoding="utf-8") as fp:
-                tmp_state = json.load(fp)
-            wt_info = tmp_state.get("worktree") or {}
-            wt_path_raw = wt_info.get("path") or ""
-            if wt_path_raw:
-                wt_path = Path(wt_path_raw)
-                if not wt_path.is_absolute():
-                    wt_path = (main_wt_path / wt_path_raw).resolve()
-                else:
-                    wt_path = wt_path.resolve()
-                # 算 worktree 内对应 state.json:wt_path + (feature_dir 相对 main_wt 的 path)
-                try:
-                    feat_rel = feature_dir_abs.relative_to(main_wt_path)
-                    candidate = wt_path / feat_rel / "state.json"
-                    if candidate.exists():
-                        wt_state_path = candidate
-                except ValueError:
-                    pass
-        except (OSError, json.JSONDecodeError):
-            pass
-
-    # 主工作区 state.json 不存在或无法读出 wt path → 扫 git worktree list 找含 state.json 的
-    if wt_state_path is None:
-        for w in _list_worktrees(main_wt):
-            wp = Path(w.get("path") or "")
-            if not wp.exists() or wp.resolve() == main_wt_path:
-                continue
-            try:
-                feat_rel = feature_dir_abs.relative_to(main_wt_path)
-                candidate = wp / feat_rel / "state.json"
-                if candidate.exists():
-                    wt_state_path = candidate
-                    break
-            except ValueError:
-                pass
-
-    if wt_state_path is None:
-        # 完全找不到 worktree state.json · BLOCK
-        return {
-            "ok": False,
-            "sync_action": " · ".join(sync_actions),
-            "error": (
-                f"state.json not found in main workspace ({state_json_path}) · "
-                f"也未找到 worktree 内副本 · 无法同步完整态"
-            ),
-            "hint": (
-                "可能原因:① worktree 已被手工删 · ② --feature 路径错 · "
-                "③ 用户未在主工作区 merge_target 分支(当前分支:"
-                f"{main_branch!r} · 应在 merge_target 分支跑 ship-finalize) · "
-                "排查后重跑 · 或 export TEAMWORK_BYPASS_MAIN_WORKTREE=1 跳过物化校验后手工 finalize"
-            ),
-        }
-
-    # 验证 worktree 内 state.json 是否完整(有 feature_head_commit)
-    try:
-        with wt_state_path.open("r", encoding="utf-8") as fp:
-            wt_state = json.load(fp)
-    except (OSError, json.JSONDecodeError) as e:
-        return {
-            "ok": False,
-            "sync_action": " · ".join(sync_actions),
-            "error": f"worktree state.json 读失败({wt_state_path}): {e}",
-            "hint": "排查 worktree state.json 完整性 · 修复后重跑",
-        }
-    wt_ship = wt_state.get("ship") or {}
-    if not wt_ship.get("feature_head_commit"):
-        return {
-            "ok": False,
-            "sync_action": " · ".join(sync_actions),
-            "error": (
-                f"worktree state.json({wt_state_path})也缺 ship.feature_head_commit · "
-                "Phase 1 push 未完成 · 无法 finalize"
-            ),
-            "hint": (
-                "回 worktree 跑 state.py ship-phase --action push(push feature 分支 + 创 MR)· "
-                "再回主工作区重跑 ship-finalize"
-            ),
-        }
-
-    # ④ 复制 worktree 内完整态 → 主工作区(不 commit · step 5 finalize-push 直推完整态)
-    try:
-        feature_dir_abs.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(wt_state_path, state_json_path)
-        sync_actions.append(
-            f"synced state.json from worktree:{wt_state_path} → {state_json_path}"
-        )
-    except OSError as e:
-        return {
-            "ok": False,
-            "sync_action": " · ".join(sync_actions),
-            "error": f"复制 worktree state.json 失败: {e}",
-            "hint": "排查文件权限 / 磁盘 · 修复后重跑",
-        }
-
-    return {"ok": True, "sync_action": " · ".join(sync_actions)}
-
-
-def _classify_main_sync_dirty(main_wt: str, feature_dir: Path, state: dict) -> dict:
+def _classify_main_sync_dirty(main_wt: str, feature_dir: Optional[Path], state: dict) -> dict:
     """v8.31:step 7 main-sync 前 · 分类 dirty 文件(治本主工作区残留 case)。
 
     返回:
@@ -1475,8 +1262,9 @@ def _classify_main_sync_dirty(main_wt: str, feature_dir: Path, state: dict) -> d
     # 否则 relative_to 抛 ValueError → feature_rel="" → state.json/review-log.jsonl
     # 落 other_files → safe_to_stash=False → main-sync 整段跳过(治本"总是残留")
     try:
-        feature_rel = str(feature_dir.resolve().relative_to(Path(main_wt).resolve()))
-    except (ValueError, OSError):
+        feature_rel = (str(feature_dir.resolve().relative_to(Path(main_wt).resolve()))
+                       if feature_dir is not None else "")
+    except (ValueError, OSError, AttributeError):
         feature_rel = ""
 
     feature_artifacts: list = []
@@ -1546,7 +1334,7 @@ def _main_sync_clean_feature_artifacts(
 
 
 def _main_sync_apply_strategy(
-        main_wt: str, merge_target: str, artifact_root: Path, state: dict,
+        main_wt: str, merge_target: str, artifact_root: Optional[Path], state: dict,
         strategy: str, message: Optional[str] = None) -> dict:
     """v8.70:对主工作区 merge_target 应用 main-sync 净化策略 · 返回结果 dict。
 
@@ -1673,7 +1461,8 @@ def _build_main_sync_decision(
     # 推荐:用户本意是「push 当前改动」→ commit-push;但 merge_target 是主分支时
     # 推送绕 MR review 有风险 → 改荐 stash-pull(安全 · 不推任意改动)。
     recommended = "stash-pull" if is_main else "commit-push"
-    fcmd = f"state.py main-sync --feature {feature_path} --strategy"
+    # v8.145:worktree(含接力卡)此刻已删 · main-sync 不再依赖 --feature
+    fcmd = f"state.py main-sync --merge-target {merge_target} --strategy"
     return {
         "reason": ("主工作区(merge_target)有用户未提交改动 · ship 已完成 · "
                    "是否净化以保持主工作区干净 + 最新"),
@@ -1729,18 +1518,27 @@ def cmd_main_sync(args: argparse.Namespace) -> None:
     必在主工作区跑 · 对 merge_target 应用 --strategy:commit-push/stash-pull/skip。
     """
     main_wt = _ship_finalize_precheck()  # 复用主工作区校验(linked worktree → FAIL)
-    _, state = load_state(args.feature)
-    merge_target = state.get("merge_target") or ""
+    # v8.145:--feature 可选(worktree/接力卡可能已删)· merge_target 来源三级:
+    # --merge-target > state.json(若 --feature 可读)> 主工作区当前分支
+    state: dict = {}
+    artifact_root = None
+    if getattr(args, "feature", None) and (Path(args.feature) / "state.json").exists():
+        _, state = load_state(args.feature)
+        artifact_root = Path(args.feature).resolve()
+    merge_target = (getattr(args, "merge_target", None)
+                    or state.get("merge_target") or "")
+    if not merge_target:
+        cur0 = _git(["rev-parse", "--abbrev-ref", "HEAD"], cwd=main_wt)
+        merge_target = cur0.stdout.strip() if cur0.returncode == 0 else ""
     if not merge_target:
         emit_json({
             "verdict": "FAIL", "command": "main-sync",
-            "error": "state.merge_target 为空 · 无法 main-sync",
-            "hint": "确认 Feature 已 init-feature 设 merge_target",
+            "error": "无法确定 merge_target(--merge-target 未传 · 无接力卡 · 分支名解析失败)",
+            "hint": "显式传 --merge-target <branch>",
         }, exit_code=1)
     if args.strategy not in MAIN_SYNC_STRATEGIES:
         emit_json(_enum_err("--strategy", args.strategy, MAIN_SYNC_STRATEGIES),
                   exit_code=1)
-    artifact_root = Path(args.feature).resolve()
 
     cur = _git(["rev-parse", "--abbrev-ref", "HEAD"], cwd=main_wt)
     cur_branch = cur.stdout.strip() if cur.returncode == 0 else ""
@@ -1778,573 +1576,96 @@ def cmd_main_sync(args: argparse.Namespace) -> None:
     })
 
 
-def _finalize_push_fail(ship: dict, reason: str, msg: str) -> tuple:
-    """记录 finalize-push 失败到 ship 字段 · 返回 (False, msg)。"""
-    ship["merge_target_pushed_at"] = None
-    ship["merge_target_push_failed"] = True
-    ship["merge_target_push_failed_reason"] = reason
-    return False, msg
-
-
-def _finalize_push_plumbing(repo_cwd: str, artifact_root: Path,
-                            state_json_path: Path, merge_target: str,
-                            state: dict, ship: dict,
-                            extra_files: Optional[list] = None,
-                            push_ref: Optional[str] = None,
-                            force: bool = False,
-                            planning_files: Optional[list] = None) -> tuple:
-    """git plumbing 把 state.json(+ extra_files)推到 origin/<merge_target> · 零 checkout。
-
-    v8.18 治本 SVC-CORE-F028 case · 改进:
-    - **multi-file 支持**:extra_files=[(repo_rel: str, abs_path: Path), ...] · 一并推
-      (典型:review-log.jsonl)· 推完后 worktree 内这些文件与 commit 一致 · 无 delta
-    - **去自引用**:不再回写 ship.merge_target_finalize_commit(自引用字段)·
-      调用方需要 commit hash 用 emit JSON 顶层 / git log 反查
-    - **预设字段**:调用方应在调本函数前预设 ship.merge_target_pushed_at /
-      merge_target_push_failed=false · 这样它们已含在推的 commit 里 · 推完无 delta
-
-    流程:hash-object 建 blob → 临时 GIT_INDEX_FILE read-tree base + update-index
-    换条目 → write-tree → commit-tree → push <commit>:<merge_target>。
-    全程不碰真实 index / 工作区 / HEAD · 不需要 checkout merge_target。
-
-    返回 (ok: bool, warn: str, commit_hash: str)。失败时 commit_hash="" · 已写
-    ship.merge_target_push_failed*(失败路径仍写 · 用户/AI 能看到失败状态)。
-    """
-    feature_id = state.get("feature_id") or "feature"
-    extra_files = extra_files or []
-
-    # 1. state.json 的 repo 相对路径(feature worktree 与 merge_target 同仓 · 路径一致)
-    pre = _git(["rev-parse", "--show-prefix"], cwd=str(artifact_root))
-    if pre.returncode != 0:
-        ok, m = _finalize_push_fail(
-            ship, "other",
-            f"无法解析 state.json repo 相对路径:{pre.stderr.strip()}")
-        return ok, m, ""
-    repo_prefix = pre.stdout.strip()  # 如 "services/core/docs/features/F028/"
-    repo_rel = (repo_prefix + "state.json").lstrip("/")
-
-    # 整理 push entries:state.json + extra_files(每条算绝对路径 + repo 相对)
-    push_entries: list = [(repo_rel, state_json_path)]
-    for ef_rel_or_abs, ef_abs in extra_files:
-        if ef_abs.exists():
-            # 若 caller 给的是相对(如 "review-log.jsonl") · 拼 repo_prefix
-            if not ef_rel_or_abs.startswith(repo_prefix.lstrip("/")):
-                push_entries.append((repo_prefix + ef_rel_or_abs, ef_abs))
-            else:
-                push_entries.append((ef_rel_or_abs.lstrip("/"), ef_abs))
-    # v8.93:规划层 back-ref 文件(已是 repo-root 相对 · 在仓根/其他目录 · 不在 feature 目录下 ·
-    # 不拼 feature prefix)随**同一收尾 MR** 合入(archive_on_ship=false 路径也支持)
-    for pf_rel, pf_abs in (planning_files or []):
-        if pf_abs.exists():
-            push_entries.append((pf_rel, pf_abs))
-
-    # 2. base = origin/<merge_target>
-    base = _git(["rev-parse", f"origin/{merge_target}"], cwd=repo_cwd)
-    if base.returncode != 0:
-        ok, m = _finalize_push_fail(
-            ship, "other",
-            f"无法解析 origin/{merge_target}:{base.stderr.strip()}")
-        return ok, m, ""
-    base_commit = base.stdout.strip()
-    bt = _git(["rev-parse", f"{base_commit}^{{tree}}"], cwd=repo_cwd)
-    if bt.returncode != 0:
-        ok, m = _finalize_push_fail(
-            ship, "other", f"无法解析 base tree:{bt.stderr.strip()}")
-        return ok, m, ""
-    base_tree = bt.stdout.strip()
-
-    # 3. hash-object 每个文件 → 共享 object DB
-    blobs: list = []  # [(repo_rel, blob_hash), ...]
-    for prel, pabs in push_entries:
-        ho = _git(["hash-object", "-w", str(pabs)], cwd=repo_cwd)
-        if ho.returncode != 0:
-            ok, m = _finalize_push_fail(
-                ship, "other", f"hash-object {prel} 失败:{ho.stderr.strip()}")
-            return ok, m, ""
-        blobs.append((prel, ho.stdout.strip()))
-
-    # 4. 临时 index 构建新 tree(零 checkout · 不碰真实 index / 工作区)
-    tmp_dir = tempfile.mkdtemp(prefix="tw-ship-finalize-")
-    idx_path = os.path.join(tmp_dir, "index")  # git 自动创建
-    env = {**os.environ, "GIT_INDEX_FILE": idx_path}
-    try:
-        rt = _git(["read-tree", base_tree], cwd=repo_cwd, env=env)
-        if rt.returncode != 0:
-            ok, m = _finalize_push_fail(
-                ship, "other", f"read-tree 失败:{rt.stderr.strip()}")
-            return ok, m, ""
-        for prel, blob in blobs:
-            ui = _git(["update-index", "--add", "--cacheinfo",
-                       f"100644,{blob},{prel}"], cwd=repo_cwd, env=env)
-            if ui.returncode != 0:
-                ok, m = _finalize_push_fail(
-                    ship, "other",
-                    f"update-index {prel} 失败:{ui.stderr.strip()}")
-                return ok, m, ""
-        wtr = _git(["write-tree"], cwd=repo_cwd, env=env)
-        if wtr.returncode != 0:
-            ok, m = _finalize_push_fail(
-                ship, "other", f"write-tree 失败:{wtr.stderr.strip()}")
-            return ok, m, ""
-        new_tree = wtr.stdout.strip()
-    finally:
-        shutil.rmtree(tmp_dir, ignore_errors=True)
-
-    # 5. tree 无变化 → merge_target 上已是终态 · 视作已同步
-    # ship.merge_target_pushed_at / failed=false 已由 caller 预设 · 此处不再写
-    if new_tree == base_tree:
-        return True, "", ""
-
-    # 6. commit-tree(单文件 state.json + 状态档 · §12 直推例外)
-    extra_note = f" + {len(extra_files)} state file(s)" if extra_files else ""
-    plan_note = f" + {len(planning_files)} 规划层文件" if planning_files else ""
-    msg = (f"chore({feature_id}): finalize ship state.json{extra_note}{plan_note} "
-           f"[teamwork ship-finalize]")
-    ct = _git(["commit-tree", new_tree, "-p", base_commit, "-m", msg], cwd=repo_cwd)
-    if ct.returncode != 0:
-        ok, m = _finalize_push_fail(
-            ship, "other", f"commit-tree 失败:{ct.stderr.strip()}")
-        return ok, m, ""
-    new_commit = ct.stdout.strip()
-
-    # 7. push <commit>:<target_ref>(v8.80:push_ref=收尾分支 时 force · throwaway branch)
-    target_ref = push_ref or merge_target
-    _push_args = ["push"] + (["--force"] if force else []) + \
-        ["origin", f"{new_commit}:{target_ref}"]
-    pr = _git(_push_args, cwd=repo_cwd, timeout=120)
-    if pr.returncode != 0:
-        err = (pr.stderr or "").lower()
-        if any(k in err for k in ("protected", "pre-receive", "hook declined", "denied")):
-            reason = "protect-rule"
-        elif any(k in err for k in ("non-fast-forward", "fetch first", "rejected", "stale info")):
-            reason = "conflict"
-        elif any(k in err for k in ("could not resolve", "timed out", "timeout", "network", "connection")):
-            reason = "network"
-        else:
-            reason = "other"
-        ok, m = _finalize_push_fail(
-            ship, reason,
-            f"push origin {target_ref} 失败({reason}):{pr.stderr.strip()[:200]}")
-        state.setdefault("concerns", []).append(
-            f"{now_iso()} WARN ship-finalize finalize-push 失败({reason})· "
-            f"merge_target 上 state.json 仍为合并前快照(phase=pushed)· "
-            f"重跑 ship-finalize 可重试 · 或手动同步"
-        )
-        return ok, m, ""
-
-    # 成功:**不再回写自引用字段** · pushed_at / failed=false 已由 caller 预设
-    # 返 commit hash 给 caller(emit JSON 顶层用 · 不持久化 state.json · 治本 v8.18)
-    return True, "", new_commit
-
-
-def _ship_finalize_brief(state: dict, ship: dict, finalize_ok: bool,
-                         wt_removed: bool, warnings: list,
-                         main_sync_decision: Optional[dict] = None,
-                         archived: bool = False) -> str:
-    """ship-finalize 完成 brief · 全绿一句话 / 有降级则逐条列。
-
-    v8.70:主工作区有用户改动时(main_sync_decision)· 追加「是否净化」暂停点指引 ·
-    PMO 须按 SKILL.md R5(b) 转成编号选项暂停点给用户。
-    v8.93:规划层 back-ref 翻牌已前移到 finalize-deliver 的 planning-backref 暂停点 · 随收尾 MR
-    一起原子合入(治本旧 v8.77 post-step 直推 merge_target 与 v8.80 去直推自相矛盾的隐患)·
-    故 PASS 不再追加 post-step 收尾提醒(翻牌此刻已在合入的 MR 里)。
-    v8.82:archived=True 时点明过程层 feature 目录已归档(zip)+ 本地已清。
-    """
-    fid = state.get("feature_id") or "Feature"
-    delivered_what = ("过程层 feature 目录已归档(zip 进 _archive/)+ 原目录删 + 本地已清"
-                      if archived else "state.json 已同步 merge_target")
-    if finalize_ok and wt_removed and not warnings and not main_sync_decision:
-        return (
-            f"✅ {fid} 已完整 ship · MR 合入已验证 + {delivered_what} "
-            f"+ 规划层 back-ref 已随收尾 MR 合入(或已 --no-planning-changes 声明无需翻)"
-            f"+ worktree 已清理 · 流程终态 completed。\n"
-            f"PMO 向用户汇报 Feature 全流程完成。"
-        )
-    lines = [f"⚠️ {fid} ship-finalize 完成 · 但有降级项 · PMO 须向用户说明:"]
-    for w in warnings:
-        lines.append(f"  - {w}")
-    if not finalize_ok:
-        lines.append(
-            "  🔴 state.json 未同步到 merge_target · Feature 已合入但状态记录滞后 · "
-            "网络/冲突修复后重跑 state.py ship-finalize(可重入 · 自动跳过已完成步骤)"
-        )
-    if main_sync_decision:
-        rec = main_sync_decision.get("recommended", "stash-pull")
-        n = main_sync_decision.get("dirty_count", 0)
-        lines.append(
-            f"  ⏸️ 主工作区有 {n} 个用户未提交改动 · ship 已完成 · "
-            f"PMO 须按 R5(b) 暂停点问用户【是否净化主工作区(保持干净+最新)】· "
-            f"选项见 emit.main_sync_decision.options(推荐 {rec})· "
-            f"用户拍板后跑对应 state.py main-sync --strategy <id>"
-        )
-    return "\n".join(lines)
-
-
-def _resolve_planning_artifacts(main_wt: str, raw_arg: Optional[str],
-                                completed: list, skipped: list) -> list:
-    """v8.93:解析 --planning-artifacts 逗号分隔路径 → [(repo_rel, abs_path), ...]。
-
-    路径相对主工作区 cwd(或绝对)· 必须**存在** + **在 git 仓内**(随收尾 MR 合入)·
-    否则 _ship_finalize_fail(不静默跳过 · 防漏翻 AI 想翻的 back-ref)。空参 → []。
-    """
-    if not raw_arg:
-        return []
-    top = _git(["rev-parse", "--show-toplevel"], cwd=main_wt)
-    toplevel = Path(top.stdout.strip()).resolve() if top.returncode == 0 else Path(main_wt).resolve()
-    resolved: list = []
-    for raw in raw_arg.split(","):
-        raw = raw.strip()
-        if not raw:
-            continue
-        abs_p = (Path(raw) if os.path.isabs(raw) else (Path(main_wt) / raw)).resolve()
-        if not abs_p.exists():
-            _ship_finalize_fail(
-                "planning-backref",
-                f"--planning-artifacts 文件不存在:{raw}",
-                "在主工作区改好规划层文件(ROADMAP/WS/teamwork-space.md 等)后再传 · "
-                "路径相对主工作区根 · 或用 --no-planning-changes 显式跳过",
-                completed, skipped)
-        try:
-            rel = str(abs_p.relative_to(toplevel))
-        except ValueError:
-            _ship_finalize_fail(
-                "planning-backref",
-                f"--planning-artifacts 文件在 git 仓库外:{raw}",
-                "规划层文件须在当前 git 仓库内(随收尾 MR 合入 merge_target)",
-                completed, skipped)
-        resolved.append((rel, abs_p))
-    return resolved
-
-
-def _restore_planning_worktree(main_wt: str, planning_files: list) -> None:
-    """v8.93:规划层文件内容已 hash 进收尾分支 → 把主工作区工作树这些文件恢复 HEAD 干净态
-    (tracked → checkout HEAD;新建未跟踪 → 删)· 使后续 step7 ff-pull 能干净拉回收尾 MR 的
-    最终内容(否则未提交改动会让 ff-pull「would be overwritten by merge」失败)。"""
-    for rel, abs_p in planning_files:
-        co = _git(["checkout", "HEAD", "--", rel], cwd=main_wt, timeout=15)
-        if co.returncode != 0:
-            # 不在 HEAD(新建文件)→ 删工作树副本(内容已进收尾分支 · MR 合并后 pull 拉回)
-            try:
-                if abs_p.exists():
-                    abs_p.unlink()
-            except OSError:
-                pass
-
-
 def cmd_ship_finalize(args: argparse.Namespace) -> None:
-    """ship-finalize:ship Phase 2 全自动编排(8 步 · 可重入 · 失败 AI 干预)。
+    """v8.145 ship2 · 主工作区清场(零内容修改 · 用户拍板)。
 
-    v8.16:加 step 0 state-sync(治本 SVC-CORE-B006 case · 把 worktree 内完整态
-    state.json 桥接到主工作区 · 详 _step_state_sync 注释)。
+    ship1(worktree 内)已全交付:归档 zip + 规划翻牌 + 终态 state.json 全在 feature MR。
+    本命令不写 state · 不产内容 · 只清理:
+      1. verify-delivered  fetch 后验 zip 在 origin/<merge_target>(= feature MR 已合)·
+                           未合 → PENDING(🔴 绝不在合并前删 worktree)
+      2. worktree-remove   删 feature worktree + 本地分支(接力卡随之消亡)+ fetch --prune
+      3. main-sync         副产物(bootstrap 注入块/harness 锁)自动 commit ·
+                           用户真改动 → 影响评估 + 决策面板 · pull / push
+    尾随:teamwork stash 盘点(v8.144)+ digest 指引(stages/ship-stage.md §16)。
+    幂等:接力卡已消亡(worktree 已删)→ zip-on-origin 判已交付 → PASS noop。
     """
     main_wt = _ship_finalize_precheck()
-    feature_path = args.feature
-
-    # ── Step 0:state-sync(v8.16 治本)──────────────────────────────
-    # 必须在 load_state 之前 · 因为 load_state 会读主工作区 state.json(可能不全 / 不存在)
-    sync = _step_state_sync(main_wt, feature_path)
-    if not sync["ok"]:
-        # v8.82:feature 目录已被归档删除(3rd-run · zip 在 merge_target)→ 幂等成功
-        # (state.json 已随目录删 · state-sync 必然 not-found · 但本就是「已交付+已归档」终态)
-        if _read_archive_on_ship(feature_path):
-            zip_rel = _archive_idempotent_zip(main_wt, feature_path)
-            if zip_rel:
-                fid = Path(feature_path).name
-                # v8.87:幂等也兜底清残留(state.json 没了但 review-log.jsonl 等 untracked 可能残留)
-                idem_warn = None
-                feat_abs = Path(feature_path).resolve()
-                if feat_abs.exists():
-                    shutil.rmtree(feat_abs, ignore_errors=True)
-                    idem_warn = f"清除残留本地 feature 目录 {feat_abs.name}/(已归档 · zip 是真相)"
-                emit_json({
-                    "verdict": "PASS",
-                    "command": "ship-finalize",
-                    "feature_id": fid,
-                    "completed_steps": [],
-                    "skipped_steps": list(SHIP_FINALIZE_STEPS),
-                    "idempotent": True,
-                    "archive": zip_rel,
-                    "note": ("feature 过程层目录已归档(zip 在 merge_target)· 目录已删 · "
-                             "本次 ship-finalize 无需动作(幂等 · 已交付终态)"),
-                    **({"warnings": [idem_warn]} if idem_warn else {}),
-                    "next_action_brief": (
-                        f"✅ {fid} 已完整 ship + 归档(归档物:{zip_rel})· "
-                        "流程终态 · 无后续动作。"),
-                }, exit_code=0)
-        emit_json({
-            "verdict": "FAIL",
-            "command": "ship-finalize",
-            "completed_steps": [],
-            "failed_step": "state-sync",
-            "error": sync["error"],
-            "hint": sync["hint"],
-            "sync_action": sync["sync_action"],
-            "resume": (
-                "修复后重跑 state.py ship-finalize --feature <path> · "
-                "可重入(已完成步骤自动跳过)"
-            ),
-        }, exit_code=1)
-    state_sync_action = sync["sync_action"]
-
-    _, state = load_state(feature_path)
-
-    artifact_root = Path(feature_path).resolve()
-    state_json_path = artifact_root / "state.json"
-
-    cur_stage = state.get("current_stage")
-    if cur_stage not in ("ship", "completed"):
-        emit_json({
-            "verdict": "FAIL",
-            "command": "ship-finalize",
-            "error": f"current_stage={cur_stage!r} · 不是 ship",
-            "hint": (
-                "ship-finalize 是 ship stage Phase 2 编排 · "
-                "先确认 pm_acceptance 通过 + ship-start + Phase 1(sanitize/push)完成"
-            ),
-        }, exit_code=1)
-
-    ship = state.setdefault("ship", {})
-    # v8.16:state-sync 已在 step 0 跑完(load_state 之前)· 这里记入 completed
-    completed: list = ["state-sync"]
+    feature_dir = Path(args.feature).resolve()
+    completed: list = []
     skipped: list = []
     warnings: list = []
 
+    # ── 接力卡(worktree 内 untracked state.json · ship1 archive 留下)──
+    state: dict = {}
+    if (feature_dir / "state.json").exists():
+        _, state = load_state(args.feature)
+    feature_id = state.get("feature_id") or feature_dir.name
     merge_target = state.get("merge_target") or ""
-    feature_head = ship.get("feature_head_commit") or ""
+    if not merge_target:
+        # 接力卡消亡(worktree 已删 / 手清)→ 幂等:zip-on-origin 判已交付
+        zip_rel = _archive_idempotent_zip(main_wt, args.feature)
+        if zip_rel:
+            emit_json({
+                "verdict": "PASS", "command": "ship-finalize",
+                "feature_id": feature_id, "idempotent": True,
+                "completed_steps": ["verify-delivered"],
+                "skipped_steps": ["worktree-remove", "main-sync"],
+                "note": f"归档已在 origin({zip_rel})· worktree/接力卡已消亡 · 无事可做",
+                "next_action_brief": (
+                    "✅ ship2 幂等确认:已交付已清场。主工作区如有脏内容需净化 · "
+                    "单独跑 state.py main-sync --strategy <commit-push|stash-pull|skip>"),
+            })
+            return
+        _ship_finalize_fail(
+            "verify-delivered",
+            f"接力卡缺失({feature_dir}/state.json 不存在)且 origin 未见归档 zip",
+            "确认 --feature 指向 worktree 内 feature 目录 · ship1(sanitize → archive → push)是否完成",
+            completed, skipped)
+
+    ship = state.get("ship", {}) or {}
     wt_info = state.get("worktree") or {}
     wt_strategy = wt_info.get("strategy") or "off"
     wt_path_raw = wt_info.get("path") or ""
     wt_branch = (wt_info.get("branch") or "").replace("refs/heads/", "")
-    wt_path = (
-        str((Path(main_wt) / wt_path_raw).resolve()) if wt_path_raw else ""
-    )
+    wt_path = (str((Path(main_wt) / wt_path_raw).resolve()) if wt_path_raw else "")
 
-    # ── Step 1 + 2:verify-merge → confirm-merged ──────────────────
-    if ship.get("phase") == "merged":
-        skipped += ["verify-merge", "confirm-merged"]
-    else:
-        if ship.get("phase") not in (None, "pushed"):
-            _ship_finalize_fail(
-                "verify-merge",
-                f"ship.phase={ship.get('phase')!r} · 非 pushed · 无法 finalize",
-                "phase=closed_unmerged → MR 已关闭 · 走 ship-phase --action push "
-                "重开 · 或放弃 Feature",
-                completed, skipped,
-            )
-        if not feature_head:
-            _ship_finalize_fail(
-                "verify-merge", "ship.feature_head_commit 缺失",
-                "Phase 1 未完成 · 先跑 ship-phase --action push(push feature 分支 + 创 MR)",
-                completed, skipped,
-            )
-        if not merge_target:
-            _ship_finalize_fail(
-                "verify-merge", "state.merge_target 缺失",
-                "state.json 无 merge_target · 检查 init-feature 参数",
-                completed, skipped,
-            )
+    if not _read_archive_on_ship(str(feature_dir)):
+        warnings.append(
+            "localconfig archive_on_ship=false 已废弃(v8.145 起 ship1 统一归档)· 配置被忽略")
 
-        # git fetch
-        fr = _git(["fetch", "origin", merge_target], cwd=main_wt, timeout=120)
-        if fr.returncode != 0:
-            _ship_finalize_fail(
-                "verify-merge",
-                f"git fetch origin {merge_target} 失败:{fr.stderr.strip()[:200]}",
-                "检查网络 / origin 远程 / merge_target 分支名 · 修复后重跑",
-                completed, skipped,
-            )
-
-        # 合入检测
-        if args.merge_commit_hash:
-            merge_commit = args.merge_commit_hash
-            detection = "user-reported"
+    # ── Step 1:verify-delivered(安全闸)──────────────────────────
+    fr = _git(["fetch", "origin", merge_target], cwd=main_wt, timeout=120)
+    if fr.returncode != 0:
+        _ship_finalize_fail(
+            "verify-delivered",
+            f"git fetch origin {merge_target} 失败:{fr.stderr.strip()[:200]}",
+            "检查网络 / origin 远程 / merge_target 分支名 · 修复后重跑(可重入)",
+            completed, skipped)
+    if not _remote_archive_delivered(main_wt, feature_dir, feature_id, merge_target):
+        if ship.get("phase") != "pushed":
+            hint = (f"ship1 未完成(ship.phase={ship.get('phase')!r} · 应为 pushed):"
+                    "回 worktree 跑 ship-phase --action archive → git push + MR → --action push 记录")
         else:
-            anc = _git(["merge-base", "--is-ancestor", feature_head,
-                        f"origin/{merge_target}"], cwd=main_wt)
-            if anc.returncode != 0:
-                _ship_finalize_fail(
-                    "verify-merge",
-                    f"feature_head_commit {feature_head[:12]} 不在 "
-                    f"origin/{merge_target} 中 · 自动检测未确认合入",
-                    (
-                        "两种可能 · 请向用户确认后处理:\n"
-                        "  ① MR 尚未合并 → 等用户在平台合并后 · 重跑 state.py ship-finalize\n"
-                        "  ② squash / rebase 合并(commit hash 已变 · branch-contains 检测不到)\n"
-                        "     → 用户确认已合并后 · 重跑 state.py ship-finalize "
-                        "--feature <path> --merge-commit-hash <merge_target 上的合并 commit>"
-                    ),
-                    completed, skipped,
-                )
-            detection = "branch-contains"
-            mc = _git(["rev-list", "--merges", "--ancestry-path",
-                       f"{feature_head}..origin/{merge_target}"], cwd=main_wt)
-            merges = [ln.strip() for ln in mc.stdout.splitlines() if ln.strip()]
-            merge_commit = merges[-1] if merges else feature_head
+            hint = ("feature MR 尚未合并 —— 等用户在平台合并后重跑本命令(可重入)。"
+                    "🔴 未合并前绝不删 worktree(内容还没上岸)")
+        emit_json({
+            "verdict": "PENDING", "command": "ship-finalize",
+            "pending_step": "verify-delivered",
+            "feature_id": feature_id,
+            "mr_url": ship.get("mr_url"),
+            "next_action": hint,
+            **({"warnings": warnings} if warnings else {}),
+        }, exit_code=0)
+    completed.append("verify-delivered")
 
-        completed.append("verify-merge")
-
-        # confirm-merged
-        ship["phase"] = "merged"
-        ship["shipped"] = "merged"
-        ship["merge_commit_hash"] = merge_commit
-        ship["merge_detection_method"] = detection
-        ship["mr_merged_at"] = ship.get("mr_merged_at") or now_iso()
-        if detection == "user-reported":
-            warnings.append(
-                f"merge_detection_method=user-reported · 用户自报合并"
-                f"(merge_commit={merge_commit[:12]})· 自动 git 校验未执行"
-            )
-            state.setdefault("concerns", []).append(
-                f"{now_iso()} INFO ship-finalize: user-reported "
-                f"merge_commit={merge_commit}"
-            )
-        completed.append("confirm-merged")
-
-    # ── Step 3:cleanup(状态字段 · 物理删在 step 6)─────────────────
-    if ship.get("worktree_cleanup") in ("cleaned", "n_a"):
-        skipped.append("cleanup")
-    else:
-        if wt_strategy == "off" or not wt_path:
-            ship["worktree_cleanup"] = "n_a"
-        else:
-            ship["worktree_cleanup"] = "cleaned"  # step 6 物理删 · 失败则降级 deferred
-        completed.append("cleanup")
-
-    # ── Step 4:ship-complete ───────────────────────────────────────
-    if state.get("current_stage") == "completed":
-        skipped.append("ship-complete")
-    else:
-        contracts = state.setdefault("stage_contracts", {})
-        contract = contracts.setdefault("ship", {})
-        contract.setdefault("started_at", ship.get("started_at") or now_iso())
-        contract["input_satisfied"] = True
-        contract["process_satisfied"] = True
-        contract["output_satisfied"] = True
-        contract["completed_at"] = now_iso()
-        contract["auto_commit"] = feature_head or git_head(cwd=main_wt) or ""
-        contract.setdefault("artifacts", [])
-        state["current_stage"] = "completed"
-        state["legal_next_stages"] = []
-        cs = state.setdefault("completed_stages", [])
-        if "ship" not in cs:
-            cs.append("ship")
-        try:
-            write_review_log_entry(state, artifact_root, "ship", "completed", contract)
-        except Exception:
-            pass
-        completed.append("ship-complete")
-
-    # ── Step 5:finalize-deliver(v8.80 去直推 · v8.82 加归档本体)──
-    # 旧(≤v8.79):plumbing 直推 state.json 到 merge_target(§12 例外)。
-    # v8.80:终态暂存到 ship-finalize/<id> 分支 → 交接 AI 用 gh/glab 创 MR + 自动合 → 重跑续 step6/7。
-    # v8.82(archive_on_ship · 默认 true):收尾分支不止同步 state.json · 而是把交付的**过程层**
-    #   feature 目录 zip 进 features/_archive/<id>.zip(+ INDEX.md)· 并从 merge_target 删原目录
-    #   (防 AI 检索过时 feature 信息 · 代码是唯一真相)· 随同一收尾 MR 合入。
-    #   已交付判定 = zip 在 origin/merge_target 存在(抗 squash)。archive_on_ship=false → 退回 v8.80
-    #   行为(state.json 终态同步 · current_stage==completed 判定 · 目录留存)。
-    # 🔴 不持久化额外字段:本地 state.json(step 1-4 终态)== 交付内容 → step 7 pull 不分叉冲突。
-    finalize_ok = True
-    finalize_commit_hash = ""
-    archive_delivered = False  # v8.82:archive 模式 + 已交付 → step 7 需清本地 feature 目录
-    feature_id = state.get("feature_id") or artifact_root.name
-    sf_branch = f"ship-finalize/{feature_id}"
-    sf_ref = f"refs/heads/{sf_branch}"
-    archive_on = _read_archive_on_ship(str(artifact_root))
-    save_state(state_json_path, state)  # 落盘终态(step 1-4 字段)
-    _git(["fetch", "origin", merge_target], cwd=main_wt, timeout=120)
-    if archive_on:
-        delivered = _remote_archive_delivered(main_wt, artifact_root, feature_id, merge_target)
-    else:
-        delivered = _remote_finalize_delivered(main_wt, artifact_root, merge_target)
-    if delivered:
-        # 收尾 MR 已合 → 交付 · 清理残留收尾分支(best-effort)
-        archive_delivered = archive_on
-        _git(["push", "origin", "--delete", sf_branch], cwd=main_wt, timeout=60)
-        completed.append("finalize-deliver")
-    else:
-        # v8.93:收尾交付前先翻规划层 back-ref · 随**同一收尾 MR** 合入(治本旧 §5.5 post-step
-        # 直推 merge_target —— 与 v8.80「去直推」自相矛盾 · 保护分支被拒 · 且收尾 MR 早已关闭 →
-        # 规划层物理塞不进 → 非原子 + 直推隐患)。三态:① 收尾分支已暂存 → reuse(不 amend)·
-        # ② 规划未决定且未暂存 → planning gate · ③ 规划已决定 → 暂存 {zip + 规划文件} 一次。
-        planning_files = _resolve_planning_artifacts(
-            main_wt, getattr(args, "planning_artifacts", None), completed, skipped)
-        planning_decided = bool(planning_files) or getattr(args, "no_planning_changes", False)
-        _git(["fetch", "origin", sf_branch], cwd=main_wt, timeout=60)  # 收尾分支(可能不存在)
-        sf_remote = _git(["rev-parse", "--verify", "--quiet", f"origin/{sf_branch}"],
-                         cwd=main_wt)
-        sf_exists = sf_remote.returncode == 0 and bool(sf_remote.stdout.strip())
-        if sf_exists:
-            # 已暂存但未合(上一轮已含规划决定)→ reuse · 🔴 不 amend(一次打包一个 MR)
-            finalize_commit_hash = sf_remote.stdout.strip()
-            if planning_files:
-                warnings.append(
-                    f"收尾分支 {sf_branch} 已存在(上一轮暂存)· 本次 --planning-artifacts 未重新打包"
-                    f"(本设计不 amend 已暂存分支)· 如需变更收尾内容:先 "
-                    f"git push origin --delete {sf_branch} 再重跑 --planning-artifacts")
-            _ship_finalize_deliver_pending(
-                feature_path, merge_target, sf_branch, finalize_commit_hash,
-                completed, skipped, warnings, archived=archive_on)  # emit PENDING + exit
-        elif not planning_decided:
-            # gate:收尾分支未暂存 + 规划决定未给 → 先翻规划层 back-ref(judgment 活 · AI 自决)
-            _ship_finalize_planning_pending(
-                feature_path, merge_target, completed, skipped, warnings)  # emit PENDING + exit
-        else:
-            # 规划已决定(翻牌文件 或 --no-planning-changes)→ 暂存收尾 commit(含规划文件)+ push
-            planning_rels = [rel for rel, _ in planning_files]
-            # v8.94:极简 feature 描述写入归档 INDEX.md(便于不解压识别归档内容)
-            # v8.113:≤200 字硬门禁(在任何归档暂存前)—— 超则 FAIL · 让 AI 压缩表达方式
-            # 重写到 ≤200 重跑(不靠截断丢尾)· ship-finalize 可重入 · 修复后续清理不重复。
-            raw_desc = getattr(args, "archive_desc", None)
-            archive_desc = _clean_archive_desc(raw_desc)
-            if raw_desc and len(archive_desc) > 200:
-                _ship_finalize_fail(
-                    "finalize-deliver",
-                    f"--archive-desc 净化后 {len(archive_desc)} 字 · 超 200 字上限",
-                    ("压缩表达方式(精简措辞 / 去枝节 / 保留要点)把描述重写到 ≤200 字后 "
-                     "重跑同一条 ship-finalize —— 不写超长靠截断丢尾 · ship-finalize 可重入"),
-                    completed, skipped)
-            if archive_on:
-                ok, warn, commit = _stage_archive_commit(
-                    main_wt, artifact_root, feature_id, merge_target, sf_ref,
-                    planning_files=planning_files, archive_desc=archive_desc)
-            else:
-                review_log_path = artifact_root / "review-log.jsonl"
-                extra = ([("review-log.jsonl", review_log_path)]
-                         if review_log_path.exists() else [])
-                ok, warn, commit = _finalize_push_plumbing(
-                    main_wt, artifact_root, state_json_path, merge_target, state, ship,
-                    extra_files=extra, push_ref=sf_ref, force=True,
-                    planning_files=planning_files)
-            if not ok:
-                _ship_finalize_fail(
-                    "finalize-deliver",
-                    f"暂存收尾分支 {sf_branch} 失败:{warn}",
-                    "检查网络 / origin 远程 / 推送权限 · 修复后重跑 ship-finalize",
-                    completed, skipped)
-            # 规划层内容已 hash 进收尾分支 → 还原工作树(防 step7 ff-pull「would be overwritten」冲突)
-            if planning_files:
-                _restore_planning_worktree(main_wt, planning_files)
-            if not commit:
-                # 无 delta(罕见)→ 终态已在 merge_target → 已交付
-                completed.append("finalize-deliver")
-            else:
-                finalize_commit_hash = commit
-                _ship_finalize_deliver_pending(
-                    feature_path, merge_target, sf_branch, commit,
-                    completed, skipped, warnings, archived=archive_on,
-                    planning_bundled=planning_rels)  # emit PENDING + exit
-
-    # ── Step 6:worktree-remove(物理删 · state.json 已推远端 · 不丢)──
-    # v8.80:走到这步即收尾 MR 已合并(未合并时 step 5 已 emit PENDING + return)·
-    # 故 worktree-remove + main-sync 必在「收尾 MR 合并之后」· 不再有 finalize-push 失败保留分支
+    # ── Step 2:worktree-remove(内容已上岸 · 接力卡随之消亡)──────
     wt_removed = False
     if wt_strategy == "off" or not wt_path:
         skipped.append("worktree-remove")
         wt_removed = True
     else:
         still_there = any(
-            _same_path(w.get("path"), wt_path) for w in _list_worktrees(main_wt)
-        )
+            _same_path(w.get("path"), wt_path) for w in _list_worktrees(main_wt))
         if not still_there:
             skipped.append("worktree-remove")
             wt_removed = True
@@ -2354,11 +1675,7 @@ def cmd_ship_finalize(args: argparse.Namespace) -> None:
             if rm.returncode != 0:
                 warnings.append(
                     f"git worktree remove 失败:{rm.stderr.strip()[:150]} · "
-                    f"state.json 已 finalize 到 merge_target(不丢)· "
-                    f"手动 git worktree remove --force {wt_path}"
-                )
-                ship["worktree_cleanup"] = "deferred"
-                save_state(state_json_path, state)
+                    f"内容已上岸(zip 在 origin)不丢 · 手动 git worktree remove --force {wt_path}")
             else:
                 wt_removed = True
                 completed.append("worktree-remove")
@@ -2367,233 +1684,133 @@ def cmd_ship_finalize(args: argparse.Namespace) -> None:
                     if bd.returncode != 0:
                         warnings.append(
                             f"本地 feature 分支 {wt_branch} 未删(可能未完全合并)· "
-                            f"确认已合入后手动 git branch -D {wt_branch}"
-                        )
+                            f"确认已合入后手动 git branch -D {wt_branch}")
+    _git(["fetch", "--prune", "origin"], cwd=main_wt, timeout=60)  # remote-tracking 残影清理
 
-    # ── Step 7:main-sync(v8.31 智能 dirty 处理 · 治本主工作区残留 case)──
-    # 治本:ship Phase 2 完成后 · 主工作区本地 merge_target 分支仍停在旧 commit ·
-    # 与 origin/merge_target(已含 MR 合并 + finalize-push)脱节。
-    # v8.16:能快进则快进 · 分叉/脏树则安全跳过 + WARN · 不强 merge。
-    # v8.31:dirty 分类 · 若 dirty 全是工具副产物(feature artifacts + bootstrap
-    # 注入段 + harness 锁)→ stash+ff-pull+unstash 安全自动同步;若含用户真改动 → 跳过。
+    # ── Step 3:main-sync(纯清理 · 零内容)─────────────────────────
     main_sync_status = "skipped"
     main_sync_note = ""
-    main_sync_decision: Optional[dict] = None  # v8.70:普通模式 user-dirty 时的「是否净化」决策
-    f2 = _git(["fetch", "origin", merge_target], cwd=main_wt, timeout=120)
-    if f2.returncode != 0:
+    main_sync_decision: Optional[dict] = None
+    byproduct_commit = None
+    cur = _git(["rev-parse", "--abbrev-ref", "HEAD"], cwd=main_wt)
+    cur_branch = cur.stdout.strip() if cur.returncode == 0 else ""
+    if cur_branch != merge_target:
         warnings.append(
-            f"主工作区 git fetch origin {merge_target} 失败:"
-            f"{f2.stderr.strip()[:120]} · 非致命 · 手动 git fetch 即可"
-        )
-        main_sync_status = "fetch_failed"
-        main_sync_note = f"fetch fail · 网络/remote 问题:{f2.stderr.strip()[:80]}"
+            f"主工作区当前在 {cur_branch!r} 分支(非 {merge_target})· 已 fetch 未 pull · "
+            f"需要时自行 git checkout {merge_target} && git pull --ff-only")
+        main_sync_status = "wrong_branch"
+        main_sync_note = f"在 {cur_branch!r} 分支 · 非 {merge_target}"
     else:
         completed.append("main-sync")
-        cur = _git(["rev-parse", "--abbrev-ref", "HEAD"], cwd=main_wt)
-        cur_branch = cur.stdout.strip() if cur.returncode == 0 else ""
-        if cur_branch != merge_target:
-            warnings.append(
-                f"主工作区当前在 {cur_branch!r} 分支(非 {merge_target})· 已 fetch 未 pull · "
-                f"需要时自行 git checkout {merge_target} && git pull --ff-only"
-            )
-            main_sync_status = "wrong_branch"
-            main_sync_note = (f"在 {cur_branch!r} 分支 · 非 {merge_target} · "
-                              f"已 fetch · 需要时自行切分支 + pull")
-        else:
-            # v8.82:归档已交付 → 先把本地 feature 目录恢复 HEAD 干净态(restore tracked +
-            # clean untracked)· 内容已进 zip · 让随后的 ff-pull 能干净删除该目录(origin 已删)·
-            # 否则本地终态改动会让 ff-pull「would be overwritten by merge」失败 / 残留脏目录。
-            if archive_delivered:
-                feat_paths = _archive_repo_paths(main_wt, artifact_root, feature_id)
-                if feat_paths:
-                    warnings.extend(
-                        _purge_local_feature_dir_for_archive(main_wt, feat_paths[0]))
-            # v8.31 dirty 分类 + 智能 stash 处理
-            # v8.33 fix:用 artifact_root(line 1097 已定义)· v8.31 误传 feature_dir(NameError)
-            dirty_result = _classify_main_sync_dirty(main_wt, artifact_root, state)
-            if not dirty_result["is_dirty"]:
-                # clean · 直接 ff-pull(原 v8.16 路径)
+        dirty = _classify_main_sync_dirty(main_wt, None, state)
+        # 防御:主工作区理论上不再出现 feature artifacts(新架构从未物化)· 出现即清
+        if dirty["feature_artifacts"]:
+            failed = _main_sync_clean_feature_artifacts(main_wt, merge_target, dirty)
+            if failed:
+                warnings.append(
+                    f"feature_artifacts checkout origin 失败({len(failed)}):"
+                    f"{', '.join(failed[:5])}")
+        # 副产物自动 commit(用户拍板:注入块/锁 不走 stash 大戏 · 直接安顿)
+        byproducts = dirty["bootstrap_pointers"] + dirty["harness_locks"]
+        if byproducts:
+            _git(["add", "--", *byproducts], cwd=main_wt, timeout=30)
+            cm = _git(["commit", "-m",
+                       f"chore(teamwork): ship2 净化 · bootstrap 注入块/锁({feature_id})"],
+                      cwd=main_wt, timeout=30)
+            if cm.returncode == 0:
+                byproduct_commit = git_head(cwd=main_wt) or ""
+            else:
+                warnings.append(
+                    f"副产物自动 commit 失败:{cm.stderr.strip()[:100]} · 文件保留工作区")
+        # 用户真改动:auto/yolo 自动净化(stash-pull)· 普通模式决策面板
+        if dirty["other_files"]:
+            if state.get("auto_mode") or state.get("yolo"):
+                res = _main_sync_apply_strategy(
+                    main_wt, merge_target, None, state, "stash-pull")
+                main_sync_status = f"auto_{res['status']}"
+                main_sync_note = "无人值守自动净化(stash-pull)· " + res["note"]
+                warnings.extend(res["warnings"])
+            else:
+                main_sync_status = "user_dirty_decision"
+                main_sync_note = (
+                    f"主工作区有 {len(dirty['other_files'])} 个用户改动 · "
+                    "⏸️ 等用户决策是否净化(见 main_sync_decision)")
+                main_sync_decision = _build_main_sync_decision(
+                    args.feature, merge_target, state, dirty, pulled=False)
+        # 同步:有本地 commit(副产物/用户先前的)→ pull --rebase + push;否则 ff-pull
+        if main_sync_status not in ("user_dirty_decision",) or not dirty["other_files"]:
+            pass
+        ba = _behind_ahead(main_wt, merge_target)
+        ahead = ba[1] if ba else 0
+        if main_sync_status != "user_dirty_decision":
+            if ahead > 0:
+                pl = _git(["pull", "--rebase", "origin", merge_target],
+                          cwd=main_wt, timeout=120)
+                if pl.returncode != 0:
+                    _git(["rebase", "--abort"], cwd=main_wt, timeout=30)
+                    warnings.append(
+                        f"git pull --rebase 失败(已 abort):{pl.stderr.strip()[:100]} · "
+                        f"{_pull_failure_remedy(main_wt, merge_target)}")
+                    main_sync_status = "rebase_failed"
+                else:
+                    ps = _git(["push", "origin", merge_target], cwd=main_wt, timeout=120)
+                    if ps.returncode != 0:
+                        warnings.append(
+                            f"git push 被拒(保护分支?):{ps.stderr.strip()[:120]} · "
+                            f"本地 commit 保留 · 走 MR 合入或按分支策略处理")
+                        main_sync_status = "pulled_push_rejected"
+                        main_sync_note = "已 pull --rebase · push 被拒 · 本地 commit 待走 MR"
+                    else:
+                        main_sync_status = "cleaned_pulled_pushed"
+                        main_sync_note = "副产物已 commit · pull --rebase · push · 主工作区干净+最新"
+            else:
                 pl = _git(["pull", "--ff-only", "origin", merge_target],
                           cwd=main_wt, timeout=120)
                 if pl.returncode != 0:
-                    warnings.append(
-                        f"主工作区 {merge_target} 与 origin 分叉 · git pull --ff-only 未通过 · "
-                        f"已 fetch · 需手动 rebase/merge:{pl.stderr.strip()[:120]}"
-                    )
+                    remedy = _pull_failure_remedy(main_wt, merge_target)
+                    warnings.append(f"git pull --ff-only 未通过 · {remedy} · "
+                                    f"原始错误:{pl.stderr.strip()[:100]}")
                     main_sync_status = "diverged"
-                    main_sync_note = f"分叉 · 需手动 rebase:{pl.stderr.strip()[:80]}"
-                else:
+                    main_sync_note = remedy
+                elif main_sync_status == "skipped":
                     main_sync_status = "ff_pulled"
                     main_sync_note = "主工作区已 ff-pull 到最新"
-            elif dirty_result["safe_to_stash"]:
-                # v8.32 治本(修 v8.31 stash 全部撞 feature_artifacts pop 冲突 bug):
-                # 分类型处理 · 不一刀切 stash 全部
-                # ① feature_artifacts:本地必旧(ship-finalize 是最权威推送 · origin 有新版)
-                #    → git checkout origin/<merge_target> -- <files>(丢本地 · 用 origin 新版)
-                # ② bootstrap_pointers + harness_locks:origin 不改这些文件 · stash 仅这些 + pop 安全
-                checkout_failed = []
-                for f in dirty_result["feature_artifacts"]:
-                    co = _git(["checkout", f"origin/{merge_target}", "--", f],
-                              cwd=main_wt, timeout=15)
-                    if co.returncode != 0:
-                        checkout_failed.append((f, co.stderr.strip()[:80]))
 
-                if checkout_failed:
-                    warnings.append(
-                        f"git checkout origin/{merge_target} -- 失败"
-                        f"({len(checkout_failed)} 文件)· 跳过 ff-pull · 手动处理:"
-                        f"{', '.join(f for f, _ in checkout_failed)}"
-                    )
-                    main_sync_status = "checkout_failed"
-                    main_sync_note = "feature_artifacts checkout 失败 · 未 ff-pull"
-                else:
-                    # feature_artifacts 已用 origin 版本覆盖 · 现 dirty 只剩 bootstrap + locks
-                    remaining = (dirty_result["bootstrap_pointers"]
-                                 + dirty_result["harness_locks"])
-                    if not remaining:
-                        # working tree 等价 clean(checkout 后本地 = origin 新版)
-                        pl = _git(["pull", "--ff-only", "origin", merge_target],
-                                  cwd=main_wt, timeout=120)
-                        if pl.returncode != 0:
-                            warnings.append(
-                                f"feature_artifacts 已 checkout · 但 ff-pull 失败(分叉):"
-                                f"{pl.stderr.strip()[:120]}"
-                            )
-                            main_sync_status = "diverged"
-                            main_sync_note = (
-                                "feature_artifacts 已用 origin 覆盖 · 但分叉 · 需手动 rebase")
-                        else:
-                            main_sync_status = "checkout_pulled"
-                            main_sync_note = (
-                                f"v8.32:checkout {len(dirty_result['feature_artifacts'])} "
-                                f"个 feature_artifacts(本地旧 → origin 新)· ff-pull · "
-                                f"主工作区 clean 且最新"
-                            )
-                    else:
-                        # stash 仅 bootstrap + locks(不含 feature_artifacts · 已 checkout)
-                        # git stash push -u -m <msg> -- <pathspec>(stash 指定路径 · 含 untracked)
-                        stash_msg = "teamwork ship-finalize v8.32 step 7 auto-stash"
-                        st = _git(["stash", "push", "-u", "-m", stash_msg, "--",
-                                   *remaining], cwd=main_wt, timeout=30)
-                        if st.returncode != 0:
-                            warnings.append(
-                                f"git stash 失败:{st.stderr.strip()[:100]} · "
-                                f"feature_artifacts 已 checkout · 但 stash 剩余失败 · "
-                                f"手动处理:{', '.join(remaining[:5])}"
-                            )
-                            main_sync_status = "stash_failed_after_checkout"
-                            main_sync_note = "feature_artifacts checkout 成功 · 但剩余 stash 失败"
-                        else:
-                            pl = _git(["pull", "--ff-only", "origin", merge_target],
-                                      cwd=main_wt, timeout=120)
-                            pop = _git(["stash", "pop"], cwd=main_wt, timeout=30)
-                            if pl.returncode != 0:
-                                warnings.append(
-                                    f"feature_artifacts checkout 成功 · ff-pull 失败(分叉)· "
-                                    f"stash 已 pop · 需手动 rebase:{pl.stderr.strip()[:120]}"
-                                )
-                                main_sync_status = "diverged_stash_popped"
-                                main_sync_note = "分叉 · 需手动 rebase"
-                            elif pop.returncode != 0:
-                                # bootstrap/lock pop 冲突极罕(origin 通常不改这些)
-                                warnings.append(
-                                    f"feature_artifacts checkout + ff-pull 成功 · "
-                                    f"但 bootstrap/lock stash pop 冲突 · stash 保留 · "
-                                    f"git stash list / git stash pop 手动:"
-                                    f"{pop.stderr.strip()[:120]}"
-                                )
-                                main_sync_status = "pulled_unstash_conflict"
-                                main_sync_note = (
-                                    "已 ff-pull · bootstrap/lock unstash 冲突 stash 保留(罕见)"
-                                )
-                            else:
-                                main_sync_status = "checkout_stashed_pulled_unstashed"
-                                main_sync_note = (
-                                    f"v8.32:checkout {len(dirty_result['feature_artifacts'])} "
-                                    f"个 feature_artifacts(本地旧 → origin 新)+ "
-                                    f"stash {len(remaining)} 个 bootstrap/lock + ff-pull + pop · "
-                                    f"feature_artifacts clean · bootstrap/lock 保留原 dirty"
-                                    f"(等用户 commit / G2 ignore)"
-                                )
-            else:
-                # v8.70 治本(用户实证):主工作区有用户真改动时 · 旧逻辑(v8.62)是
-                # 「清 feature_artifacts + 尽力 ff-pull + 静默保留用户改动 + WARN」——
-                # 主工作区停在脏态 · 不主动处理 · 用户得手动 commit/stash/pull。改为:
-                #   auto/yolo(无人值守)→ 安全自动净化 stash-pull(改动留 stash · 无数据丢失 ·
-                #                          不推任意改动到集成分支 · 保持干净+最新);
-                #   普通模式 → surface「是否净化」决策(提示)· 用户拍板后跑 state.py main-sync。
-                # 两路都先清 feature_artifacts(origin 版 · 总安全)· 见 _main_sync_apply_strategy。
-                if state.get("auto_mode") or state.get("yolo"):
-                    res = _main_sync_apply_strategy(
-                        main_wt, merge_target, artifact_root, state, "stash-pull")
-                    main_sync_status = f"auto_{res['status']}"
-                    main_sync_note = "无人值守自动净化(stash-pull)· " + res["note"]
-                    warnings.extend(res["warnings"])
-                else:
-                    # 仍做安全清理(feature_artifacts + 尽力 ff-pull · 同 v8.62)· 但不动用户改动
-                    res = _main_sync_apply_strategy(
-                        main_wt, merge_target, artifact_root, state, "skip")
-                    warnings.extend(res["warnings"])
-                    main_sync_status = "user_dirty_decision"
-                    main_sync_note = (
-                        f"主工作区有 {len(dirty_result['other_files'])} 个用户改动 · "
-                        + res["note"]
-                        + " · ⏸️ 等用户决策是否净化(见 main_sync_decision)")
-                    main_sync_decision = _build_main_sync_decision(
-                        feature_path, merge_target, state, dirty_result,
-                        res.get("pulled", False))
+    # ── teamwork stash 盘点(v8.144)──
+    tw_stashes = _list_teamwork_stashes(main_wt)
+    if tw_stashes:
+        warnings.append(
+            f"主工作区残留 {len(tw_stashes)} 个 teamwork 自动 stash:"
+            f"{';'.join(tw_stashes[:4])}{' …' if len(tw_stashes) > 4 else ''} · "
+            f"逐个 `git stash show -p <ref>` 核对:要恢复 → pop;确认冗余 → drop")
 
-    # ── v8.87:archive 已交付的最终保证 —— 本地 feature 目录绝不残留 ──
-    # 治本:ff-pull 被跳过(主工作区脏 / 分叉 / 非 merge_target)或 lingering worktree 把
-    # state.json resurrect 回来 → 主工作区残留 `<feature_dir>/{state.json,review-log.jsonl}`
-    # (实证 SVC-F001:_archive/<id>.zip 已在 · 但原 feature 目录仍带 state/review-log)。
-    # zip 是真相 → 在 merge_target 上强制物理清除残留目录(git rm staged · 下次 pull 自愈)。
-    if archive_delivered:
-        cb = _git(["rev-parse", "--abbrev-ref", "HEAD"], cwd=main_wt)
-        on_mt = cb.returncode == 0 and cb.stdout.strip() == merge_target
-        fp = _archive_repo_paths(main_wt, artifact_root, feature_id)
-        if on_mt and fp:
-            feat_abs = Path(main_wt) / fp[0]
-            if feat_abs.exists():
-                # tracked → git rm(index+worktree · staged 删)· 残余 untracked → rmtree
-                _git(["rm", "-r", "-f", "--quiet", "--ignore-unmatch", fp[0]], cwd=main_wt)
-                if feat_abs.exists():
-                    shutil.rmtree(feat_abs, ignore_errors=True)
-                warnings.append(
-                    f"archive 已交付 · 本地 feature 目录 {fp[0]} 残留(ff-pull 未删/被跳过)→ "
-                    f"已强制清除(zip 是真相 · 防主工作区残留 state.json/review-log.jsonl)")
+    zip_hint = ""
+    fp = _archive_repo_paths(main_wt, feature_dir, feature_id)
+    if fp:
+        zip_hint = fp[1]
 
     emit_json({
         "verdict": "PASS",
         "command": "ship-finalize",
-        "feature_id": state.get("feature_id"),
+        "feature_id": feature_id,
+        "merge_target": merge_target,
         "completed_steps": completed,
         "skipped_steps": skipped,
-        "ship_phase": ship.get("phase"),
-        "ship_shipped": ship.get("shipped"),
-        "merge_commit_hash": ship.get("merge_commit_hash"),
-        "current_stage": state.get("current_stage"),
-        "finalize_push": ("ok" if finalize_ok
-                          else f"failed:{ship.get('merge_target_push_failed_reason')}"),
-        # v8.18:finalize_commit 放 emit 顶层(不持久化 state.json · 治本 SVC-CORE-F028 自引用残留)
-        # AI 想查 audit · 从 emit 看 / git log origin/<merge_target> 反查
-        **({"finalize_commit": finalize_commit_hash} if finalize_commit_hash else {}),
-        # v8.82:归档已交付(过程层 feature 目录已 zip 进 _archive/ + 删原目录 + 本地已清)
-        **({"archived": True} if archive_delivered else {}),
         "worktree_removed": wt_removed,
-        # v8.16:state-sync 透明留痕(干了啥)· 治本 SVC-CORE-B006 case
-        "state_sync_action": state_sync_action,
-        # v8.31 · step 7 智能 dirty 处理透明留痕(治本 G4 主工作区残留误判)
         "main_sync_status": main_sync_status,
         **({"main_sync_note": main_sync_note} if main_sync_note else {}),
-        # v8.70 · 普通模式 user-dirty 时的「是否净化」决策(PMO 转 R5(b) 暂停点)
         **({"main_sync_decision": main_sync_decision} if main_sync_decision else {}),
-        # v8.93 · 规划层 back-ref 已前移到 finalize-deliver 的 planning-backref 暂停点(随收尾 MR
-        # 合入)· 此处不再 emit planning_backref_pending(翻牌此刻已在已合的 MR 里 · 非 post-step)
+        **({"byproduct_commit": byproduct_commit} if byproduct_commit else {}),
+        **({"teamwork_stashes": tw_stashes} if tw_stashes else {}),
+        **({"archive_zip": zip_hint} if zip_hint else {}),
         **({"warnings": warnings} if warnings else {}),
-        "next_action_brief": _ship_finalize_brief(
-            state, ship, finalize_ok, wt_removed, warnings,
-            main_sync_decision, archived=archive_delivered),
+        "next_action_brief": (
+            f"✅ ship2 清场完成({feature_id})。"
+            + (f"\n⏸️ 主工作区有用户改动待决策(见 main_sync_decision · PMO 转 R5(b) 暂停点)。"
+               if main_sync_decision else "")
+            + (f"\n📋 收尾 digest(纯输出 · 不暂停):按 stages/ship-stage.md §16 读 "
+               f"{zip_hint or '_archive/<id>.zip'} 出 ≤10 行流程价值反思。" )
+        ),
     })
 
 
@@ -2644,23 +1861,14 @@ def register_v8_ship_subparser(sub) -> None:
                     help=("[push] v8.37 bypass 时必带 · 标记用户已确认逃生 "
                           "(防 AI 自决)· 与 stage-start --user-confirmed pattern 一致"))
 
-    # action=confirm-merged 参数
-    sp.add_argument("--merge-commit-hash",
-                    help="[confirm-merged] 合入到 merge_target 的 merge commit hash")
-    sp.add_argument("--merge-detection-method", choices=list(SHIP_DETECTION_METHODS),
-                    help="[confirm-merged] 合入检测方式")
-    sp.add_argument("--mr-merged-at",
-                    help="[confirm-merged] ISO 8601 · 缺省 now")
-    sp.add_argument("--merge-target-pushed-at",
-                    help="[confirm-merged] finalize-push 成功时间")
-    sp.add_argument("--merge-target-push-failed", action="store_true",
-                    help="[confirm-merged] finalize-push 失败")
-    sp.add_argument("--failed-reason", choices=list(SHIP_FINALIZE_PUSH_REASONS),
-                    help="[confirm-merged] 失败原因 · 失败时必传")
-
-    # action=cleanup 参数
-    sp.add_argument("--status", choices=list(SHIP_CLEANUP_ENUM),
-                    help="[cleanup] worktree 清理状态 · cleaned 必须 phase=merged")
+    # action=archive 参数(v8.145 ship1 终幕 · 归档+翻牌进 feature 分支)
+    sp.add_argument("--planning-artifacts",
+                    help=("[archive] 逗号分隔 · 规划层 back-ref 翻牌文件(worktree 相对路径)· "
+                          "随 feature MR 原子合入 · AI 先在 worktree 内翻牌再传"))
+    sp.add_argument("--no-planning-changes", action="store_true",
+                    help="[archive] 显式声明无规划层可翻(ad-hoc Bug/Micro · 无关联 BL)")
+    sp.add_argument("--archive-desc",
+                    help="[archive] ≤200 字极简 feature 描述 · 写归档 INDEX.md · 超长 FAIL")
 
     # action=close-unmerged 参数
     sp.add_argument("--abandon", action="store_true",
@@ -2670,31 +1878,15 @@ def register_v8_ship_subparser(sub) -> None:
 
     sp.set_defaults(func=cmd_ship_phase)
 
-    # ─── ship-finalize:Phase 2 全自动编排(7 步一条命令)───────────
+    # ─── ship-finalize:ship2 主工作区清场(v8.145 · 零内容修改)──────
     fp = sub.add_parser(
         "ship-finalize",
-        help=("[v8] ship Phase 2 全自动编排 · 一条命令跑 7 步"
-              "(验证合入→confirm-merged→cleanup→ship-complete→finalize 直推"
-              "→worktree 删→主工作区 fetch)· 可重入 · 必在主工作区跑"),
+        help=("[v8.145] ship2 主工作区清场(零内容):verify-delivered(zip 在 origin)"
+              "→ worktree 删 → main-sync(副产物自动 commit · 用户改动决策 · pull/push)· "
+              "可重入 · 必在主工作区跑 · ship1 交付全在 worktree(archive+push)"),
     )
-    fp.add_argument("--feature", required=True, help="Feature artifact_root 路径")
-    fp.add_argument("--merge-commit-hash",
-                    help=("squash / rebase 合并(branch-contains 自动检测不到)时 · "
-                          "用户确认的 merge_target 上合并 commit hash · "
-                          "传则检测方式记为 user-reported"))
-    fp.add_argument("--planning-artifacts",
-                    help=("[v8.93] 逗号分隔 · 规划层 back-ref 翻牌文件相对路径"
-                          "(ROADMAP.md / workstream/WS-NN.md / teamwork-space.md / 变更单 等)· "
-                          "随**同一收尾 MR** 与归档 zip 原子合入(去 §5.5 直推)· "
-                          "AI 在 planning-backref 暂停点判断哪些要翻 · 改好后传入"))
-    fp.add_argument("--no-planning-changes", action="store_true",
-                    help=("[v8.93] 显式声明本 Feature 无规划层 back-ref 可翻"
-                          "(ad-hoc Bug/Micro · 无关联 BL)· 跳过 planning-backref 暂停点 · "
-                          "收尾 MR 只含归档 zip + state.json"))
-    fp.add_argument("--archive-desc",
-                    help=("[v8.94] 极简 feature 描述(**≤200 字** · 超则 FAIL 要求压缩表达重跑 · 不截断)· 写入归档 "
-                          "_archive/INDEX.md 的「描述」列 · 便于日后不解压就识别归档内容 · "
-                          "AI 在 planning-backref 暂停点连同 --planning-artifacts 一起给"))
+    fp.add_argument("--feature", required=True,
+                    help="worktree 内 feature 目录路径(接力卡 state.json 所在 · 已删则幂等判定)")
     fp.set_defaults(func=cmd_ship_finalize)
 
     # ─── main-sync:主工作区净化(v8.70)─────────────────────────────
@@ -2702,15 +1894,15 @@ def register_v8_ship_subparser(sub) -> None:
     # 停在脏态。现在 ship-finalize surface「是否净化」决策 · 用户拍板后跑本命令执行。
     ms = sub.add_parser(
         "main-sync",
-        help=("[v8.70] 主工作区净化 · ship 后 user-dirty 决策执行入口 · "
-              "--strategy commit-push/stash-pull/skip · 必在主工作区跑"),
+        help=("[v8.70/v8.145] 主工作区净化(ship2 user-dirty 决策执行)· "
+              "--strategy commit-push|stash-pull|skip · 必在主工作区跑 · "
+              "v8.145 起不依赖 feature(接力卡可已消亡)"),
     )
-    ms.add_argument("--feature", required=True, help="Feature artifact_root 路径")
-    ms.add_argument("--strategy", required=True, choices=list(MAIN_SYNC_STRATEGIES),
-                    help=("净化策略:commit-push(git add -A + commit + pull --rebase + "
-                          "push · 推改动到 merge_target)/ stash-pull(stash + ff-pull · "
-                          "改动留 stash 可恢复 · 不推送)/ skip(保留改动 · 仅清 "
-                          "feature_artifacts + 尽力 ff-pull)"))
-    ms.add_argument("--message",
-                    help="[commit-push] 自定义 commit message(缺省自动生成)")
+    ms.add_argument("--feature", required=False,
+                    help="(可选)feature 目录 · 接力卡在则读 merge_target/feature_id")
+    ms.add_argument("--merge-target",
+                    help="(可选)目标分支 · 缺省:接力卡 → 主工作区当前分支")
+    ms.add_argument("--strategy", required=True,
+                    help="净化策略:commit-push / stash-pull / skip")
+    ms.add_argument("--message", help="commit-push 时的 commit message(可选)")
     ms.set_defaults(func=cmd_main_sync)

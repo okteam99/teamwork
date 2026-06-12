@@ -811,6 +811,57 @@ SKILL_UPDATE_RAW_URL_TEMPLATE = (
 SKILL_UPDATE_DEFAULT_CHANNEL = "main"
 SKILL_UPDATE_TIMEOUT_SEC = 5
 SKILL_UPDATE_URL_ENV = "TEAMWORK_SKILL_UPDATE_URL"  # 测试覆盖用
+# v8.142:升级提示带变更描述(拉线上 CHANGELOG 抽标题行)
+SKILL_UPDATE_CHANGELOG_URL_TEMPLATE = (
+    "https://raw.githubusercontent.com/okteam99/teamwork/{channel}/skills/teamwork/docs/CHANGELOG.md"
+)
+SKILL_UPDATE_CHANGELOG_URL_ENV = "TEAMWORK_SKILL_CHANGELOG_URL"  # 测试覆盖用
+SKILL_UPDATE_CHANGELOG_MAX_TITLES = 8
+
+
+def _fetch_changelog_titles(channel: str, local_version: str) -> Optional[dict]:
+    """v8.142:升级提示带变更描述 —— 拉线上 CHANGELOG.md · 抽「本地版本之后」各版标题行。
+
+    标题行即蒸馏摘要(发版纪律:`## v8.NNN · <一行描述>`)· 不带 body(暂停点须可读 ·
+    详情仍指 CHANGELOG)。CHANGELOG 顶部新→旧有序 · 扫到 <= 本地版本即停。
+    🔴 best-effort:网络/解析失败返 None · 提示降级回「去看 CHANGELOG」指针 · 绝不阻塞。
+    注意 keep-5 轮转:落后 >5 版时线上只剩最近 5 版标题 · 加「更早见 git 历史」注。
+    返 {"titles": [...], "note": str|None}。
+    """
+    import re
+    url = os.environ.get(SKILL_UPDATE_CHANGELOG_URL_ENV) or \
+        SKILL_UPDATE_CHANGELOG_URL_TEMPLATE.format(channel=channel)
+    try:
+        r = subprocess.run(
+            ["curl", "-s", "-L", "--max-time", str(SKILL_UPDATE_TIMEOUT_SEC), url],
+            capture_output=True, text=True, timeout=SKILL_UPDATE_TIMEOUT_SEC + 2,
+        )
+        if r.returncode != 0 or not r.stdout.strip():
+            return None
+    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+        return None
+    local_t = _version_tuple(local_version)
+    titles: list = []
+    reached_local = False  # 扫到 <= 本地的条目 = 覆盖无断档(keep-5 未轮转掉中间版本)
+    for line in r.stdout.splitlines():
+        if not line.startswith("## "):
+            continue
+        m = re.match(r"^##\s+(v[\d.]+)\s*[·:]?\s*(.*)$", line)
+        if not m:
+            continue
+        ver, title = m.group(1), m.group(2).strip()
+        if _version_tuple(ver) <= local_t:
+            reached_local = True
+            break
+        titles.append(f"{ver} · {title}" if title else ver)
+    if not titles:
+        return None
+    note = None
+    if len(titles) > SKILL_UPDATE_CHANGELOG_MAX_TITLES:
+        note = f"…共 {len(titles)} 版新增 · 仅列最近 {SKILL_UPDATE_CHANGELOG_MAX_TITLES} · 全量见 CHANGELOG"
+    elif not reached_local:
+        note = "(线上 CHANGELOG 仅存最近 5 版 · 你落后更多 · 更早变更见 git 历史)"
+    return {"titles": titles[:SKILL_UPDATE_CHANGELOG_MAX_TITLES], "note": note}
 
 
 def _read_update_channel(project_root: Optional[Path]) -> str:
@@ -915,6 +966,7 @@ def check_skill_update(local_version: str,
     # outdated → emit R5 1/2 选项
     # v8.39:channel != main 时 prompt 标注尝鲜 channel(避免用户混淆)
     # v8.42:update 命令改 `python3 SKILL_ROOT/tools/update.py`(独立脚本 · 不再 state.py update-skill)
+    # v8.142:带变更描述(线上 CHANGELOG 标题行 · best-effort · 失败降级回指针)
     channel_note = (
         f"(channel: **{channel}** · 默认 main · 配置在 "
         f"`.teamwork_localconfig.json.update_channel`)"
@@ -924,9 +976,16 @@ def check_skill_update(local_version: str,
         if channel == SKILL_UPDATE_DEFAULT_CHANNEL
         else f"`python3 $SKILL_ROOT/tools/update.py --channel {channel}`"
     )
+    changelog = _fetch_changelog_titles(channel, local_version)
+    changes_block = ""
+    if changelog:
+        bullets = "\n".join(f"- {t}" for t in changelog["titles"])
+        tail = f"\n{changelog['note']}" if changelog["note"] else ""
+        changes_block = f"\n本次升级包含:\n{bullets}{tail}\n"
     prompt = (
         f"⏸️ teamwork skill 检测到新版本(本地 **{local_version}** · 线上 **{latest}**)"
-        f"{channel_note}\n\n"
+        f"{channel_note}\n"
+        f"{changes_block}\n"
         "请选择:\n\n"
         "1. ✅ **升级** 💡 推荐\n"
         "   理由:获取治本 / 新功能 / bug fix\n"
@@ -935,7 +994,8 @@ def check_skill_update(local_version: str,
         "2. ⏭️ **本 session 跳过**\n"
         "   理由:正在赶进度 / 评估 changelog 后再决定\n"
         "   动作:回 `2` → 本 session 不再提示(下个 session bootstrap 仍会检测)\n\n"
-        f"📚 决策参考:看 GitHub `docs/CHANGELOG.md` 顶部新增段了解变更"
+        + ("📚 决策参考:各版详情见 GitHub `docs/CHANGELOG.md`" if changelog
+           else "📚 决策参考:看 GitHub `docs/CHANGELOG.md` 顶部新增段了解变更")
         + (f"\n⚠️ channel=`{channel}` 是尝鲜分支 · 可能不稳定 · 评估后再升"
            if channel != SKILL_UPDATE_DEFAULT_CHANNEL else "")
     )
@@ -945,6 +1005,8 @@ def check_skill_update(local_version: str,
         "latest_version": latest,
         "channel": channel,
         "upgrade_prompt": prompt,
+        # v8.142:机器可读变更标题(None = changelog 拉取失败 · prompt 已降级)
+        "changelog_titles": changelog["titles"] if changelog else None,
     }
 
 
