@@ -4,6 +4,20 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.159 · PRD 模板瘦身:删迁移考古 + 版本演进注 + 「：」artifact · 留有用 why
+
+> 用户(承 v8.158):看下 PRD 模板是否需要瘦身 · 过时内容/历史背景描述。
+
+### 改动(模板 · 删死历史留有用 why)
+- **删迁移考古**:「重构(PRD 模板合并 · 原两套)」「删除 prd_variant/business_direction_locked_at 字段」「历史 PRD-REVIEW.md 兼容性段」「方向 A grep + 方向 B brief 对比(P0-73)」—— 填 PRD 的人不需要知道历史上合并过/删过啥/有过哪些方案。
+- **删版本演进注**:`v7.3 契约化更新`/`v8.132 删旧 4 视角`/`原 PASS_WITH_CONCERNS`/`+P0-51`/`schema 调整` —— 留规则本身、去「它曾经是什么」。
+- **清「：」「／）」artifact**(历史 label 清理留下的悬空符 · ~7 处)· `触发实证` 长 para 压成一行 why。
+- **留有用 why**(非可枚举判断的依据 · 不砍):frontmatter 防漂移 / PM 读代码省评审轮 / PRD 不写技术细节 / 三阶段职责正交。
+- 384 → 367 行 · verify-ac.py 实测解析正常 · 段结构/schema/checklist 实质全留。
+
+### 验证
+- doc-only(模板)· pytest 3 failed / 534 passed(零回归)。
+
 ## v8.158 · PRD 模板优化:frontmatter AC 瘦身(去机读冗余 description)· 待决策项移到交付预期下
 
 > 用户:① 机读内容能否用注释在 MD 预览隐藏 ② 把待裁决/已裁决项放交付预期下面方便快读。
@@ -65,17 +79,4 @@
 
 ### 验证
 - pytest 3 failed / 530 passed(baseline 3 · 零回归)· 8 步链 + cite 表 + brief + Output Contract 全对齐。
-
-## v8.154 · disable_external_review 改 hard rename:撤 v8.153 旧名兼容(无项目使用 · 不留)
-
-> 用户(承 v8.153):不用兼容。
-
-### 改动(代码 + 模板 + 文档 + 测试)
-- 撤掉 v8.153 加的旧名 OR 兼容:两 reader(state / _v8_stage_specs)+ bootstrap WARN reader **只读新名** `disable_external_review` · 旧名 `disable_heterogeneous_review` 废弃不再读取。
-- 依据:核过无任何消费项目设旧名(只框架仓自己 · v8.153 已改新名)· 硬改无 silent break 风险 —— 同 v8.145「不留兼容期」路子。
-- templates / standards 的「旧名仍兼容」注 → 改「v8.154 旧名已废弃」。
-- 测试:v8.153 兼容测试反转为 hard-break 回归守护(单设旧名 true **不再生效** · 防有人误把 OR fallback 加回)。
-
-### 验证
-- pytest 3 failed / 530 passed(baseline 3 · 零回归)· 旧名非-docstring/非-守护引用清零。
 

@@ -1,27 +1,17 @@
 # PRD 模板
 
-> 🔴 v7.3 契约化更新：PRD 文件头必须包含 YAML frontmatter，将 `acceptance_criteria[]` 结构化为机器可读。
-> 原因：AC 与 TC 测试反查绑定（`tests[].covers_ac`）是防止"需求→代码"漂移的关键机制。
-> 机器校验脚本 `{SKILL_ROOT}/templates/verify-ac.py` 会校验每条 AC 都有对应测试。直接调用，无需各项目复制：
-> `python3 {SKILL_ROOT}/templates/verify-ac.py {Feature 目录}`
+> frontmatter 必含机读 `acceptance_criteria[]`(AC↔TC `tests[].covers_ac` 反查绑定 = 防「需求→代码」漂移)· 校验:`python3 {SKILL_ROOT}/templates/verify-ac.py {Feature 目录}`(直接调 · 无需复制)。
 
-## PRD.md（统一通用模板）
+## PRD.md(统一通用模板 · 按需必填)
 
-> 🟢 ** 重构（PRD 模板合并）**：原"标准模板（业务类）" + "技术类变体"两套合并为统一通用模板。差异通过"按需必填"标注表达：
-> - 业务类 Feature：用户故事 / 埋点需求必填（删"功能需求 P0/P1/P2"段 · 与 AC 重复 · AC 已分优先级）
-> - 纯技术 refactor：用户故事可省（或写"使用方故事"）/ 埋点需求标"不适用"
-> - 中台子项目：消费方分析必填
-> - 其他子项目：消费方分析不填
->
-> 删除：`prd_variant` frontmatter 字段（合并后不需要变体区分）
+> 按 Feature 类型差异填:业务类 → 用户故事/埋点必填;纯技术 refactor → 用户故事可省、埋点标「不适用」;中台子项目 → 消费方分析必填(其他子项目不填)。
 
 ```markdown
 ---
 feature_id: "{缩写}-F{编号}-{功能名}"
 status: draft # draft | pending_review | confirmed
 requires_ui: false  # 是否触发 Designer 评审（双保险之一；PMO 也按 UI 关键词识别）
-business_direction_locked: false # ：PL-PM 讨论收敛后由 PMO 写 true／）
-# 删除：business_direction_locked_at（时刻信息由 state.json 单一记录）
+business_direction_locked: false  # PL-PM 讨论收敛后 PMO 写 true
 acceptance_criteria:   # 🔴 机读单源(verify-ac.py 读 id↔TC.covers_ac)· v8.158 瘦身:只留机读字段 · AC 描述/BDD 全文在 body §验收标准表(人读单源 · 不再两处同步 description)
  - id: AC-1
  category: functional   # functional / telemetry / logging / config / performance / security / monitoring
@@ -163,7 +153,7 @@ stateDiagram-v2
 
 ## PRD-REVIEW.md frontmatter schema（机读）
 
-> Goal Stage substep 3「并行冷审」产出 `{Feature}/PRD-REVIEW.md`(单源 schema · v8.132 删旧 4 视角叙述模板 · git 可溯)。机读 frontmatter:
+> Goal Stage substep 3「并行冷审」产出 `{Feature}/PRD-REVIEW.md`(单源 schema)。机读 frontmatter:
 
 ```yaml
 ---
@@ -182,7 +172,7 @@ reviews:
  # PRD 评审审产品视角(业务可行性 / AC 可测试性 / 用户故事完整性)· 技术/测试细节归 Blueprint Stage(review_scope=blueprint)
  # 🔴 pl 段 = 对抗质疑段:finding id 用 PL-CHALLENGE-{n} · category=premise-challenge(质疑六问〔含 ⑥ 既有行为变更〕· 至少 1 条实质质疑或显式「无实质质疑+理由」· 详 stages/goal-stage.md §3)
  execution: subagent | main-conversation
- verdict: APPROVE | NEEDS_REVISION  # v8.132 词表统一 · 原 PASS_WITH_CONCERNS = APPROVE + advisory finding 留痕
+ verdict: APPROVE | NEEDS_REVISION  # 词表:APPROVE(含 advisory finding 留痕)| NEEDS_REVISION
  started_at: "<ISO 8601 UTC>"
  completed_at: "<ISO 8601 UTC>"
  files_read:
@@ -195,7 +185,7 @@ reviews:
  suggestion: "建议改法（可执行的具体方向）"
  category: technical-consistency | business-alignment | ux | quality | business-decision | terminology-ambiguity | premise-challenge # terminology-ambiguity 触发 Flagged Ambiguities 写入 · premise-challenge = PL 质疑六问(v8.132 五问 + v8.157 ⑥ 既有行为变更)
  cross_role: []  # （可选）· 一个 finding 同时关联多视角时（如 [qa, rd]）· 仍归入主要视角段 · 不复制到多段
- # ：涉及代码现状的 finding 必填 code_evidence（category=technical-consistency 时强制）
+ # 涉及代码现状的 finding 必填 code_evidence(category=technical-consistency 时强制)
  code_evidence: # 可选 · category=technical-consistency 时必填
  file_path: "{绝对路径或仓库相对路径}"
  line_range: "{起始行-结束行，如 42-58}"
@@ -203,9 +193,9 @@ reviews:
  # 以下字段在 PM 回应后填入（Round 2+）
  pm_response:
  action: ADOPT | REJECT | DEFER
- # ：DEFER 严格收紧，仅允许 category=business-decision 时使用
+ # DEFER 严格收紧:仅 category=business-decision 可用
  category: business-decision # 仅 action=DEFER 时必填，其他类别 DEFER = 违规
- # ：对抗性自查段（🔴 方向对称 · 每条 ADOPT/REJECT 前必填 · 默认姿态=质疑 · 不盲目认同）
+ # 对抗性自查段（🔴 方向对称 · 每条 ADOPT/REJECT 前必填 · 默认姿态=质疑 · 不盲目认同）
  # 详 standards/external-model-usage.md §12（处理顺序 质疑→确认→裁决 + 对称举证）
  adversarial_self_check: |
  ADOPT 方向（先质疑 finding 再采纳 · 防盲采=最常踩）：写「这条 finding 不成立的最强反方」
@@ -258,25 +248,19 @@ verdict: {APPROVE|NEEDS_REVISION}
 - yq 可解析所有 frontmatter 字段
 - 每个 reviews[].findings[] 必须有 id / severity / description / suggestion / category 5 字段
 - Round 2+ 的 NEEDS_REVISION findings 必须含 pm_response.action + pm_response.adversarial_self_check + pm_response.rationale
-- ：`pm_response.action == "DEFER"` 时必须 `pm_response.category == "business-decision"`，否则视为违规（PMO 校验拦截，打回 PM 重做）
-- ：每条 `pm_response.action ∈ {ADOPT, REJECT}` 必须含非空 `adversarial_self_check`（≥2 句反方论据模拟），否则视为对抗强度不足（PMO 打回）
-- ：finding `category=technical-consistency` 时必含 `code_evidence.{file_path, line_range}` —— 防止"猜测式 finding"（reviewer 没读代码就提出问题）。空值 = PMO 打回 reviewer 重审 + 提示"必须 cite 代码 location"
-- ：finding `category=terminology-ambiguity` 触发后澄清结论必须**实时**写入 KNOWLEDGE.md `## Flagged Ambiguities` 段（不等评审循环结束批处理）+ `pm_response.rationale` 字段引用 FA-NNN 编号
+- `pm_response.action == "DEFER"` 时必须 `pm_response.category == "business-decision"`，否则视为违规（PMO 校验拦截，打回 PM 重做）
+- 每条 `pm_response.action ∈ {ADOPT, REJECT}` 必须含非空 `adversarial_self_check`（≥2 句反方论据模拟），否则视为对抗强度不足（PMO 打回）
+- finding `category=technical-consistency` 时必含 `code_evidence.{file_path, line_range}` —— 防止"猜测式 finding"（reviewer 没读代码就提出问题）。空值 = PMO 打回 reviewer 重审 + 提示"必须 cite 代码 location"
+- finding `category=terminology-ambiguity` 触发后澄清结论必须**实时**写入 KNOWLEDGE.md `## Flagged Ambiguities` 段（不等评审循环结束批处理）+ `pm_response.rationale` 字段引用 FA-NNN 编号
 - overall_verdict 必须与所有 reviews[].verdict 一致（任一 NEEDS_REVISION → overall = NEEDS_REVISION）
-
-### 历史 PRD-REVIEW.md 兼容性
-
- 之前的 PRD-REVIEW.md（无机读 frontmatter，4 视角文字汇总）仍允许存在；新建 Feature 用本 schema。
-
----
 
 ## 🔴 PM 起草规范 checklist（单源化）
 
-> 🟢 ** 边界 / +P0-51 单源化**：PRD 仅回答「做什么 + 为什么」，技术/测试细节在 Blueprint Stage 由 RD/QA 起草。本 checklist 是 PM 起草 PRD 时的产品视角必填项；goal-stage.md 仅 cite 本段，不复述细节。
+> PRD 仅回答「做什么 + 为什么」· 技术/测试细节归 Blueprint(RD/QA 起草)。本 checklist 是 PM 产品视角必填项 · goal-stage.md/roles/pm.md 仅 cite 不复述(单源)。
 
 ### 🔴 起草前必读：代码现状 Read
 
-> **触发实证**：PM 不读代码 → PRD 假设功能不存在但实际有 / AC 与现有约束冲突 / 漏掉代码已知边界 → substep 5 多角色评审(architect/qa)才发现 → 评审循环多 1 轮（实测 1-3 轮）。本段把"PM 起草前必有代码意识"从隐性期望提升为 checklist 硬项。
+> 为什么硬规则:PM 不读代码 → PRD 假设功能不存在但实际有 / AC 与现有约束冲突 → 冷审才发现 → 多 1 轮评审。
 
 🔴 **PM 起草 PRD 前必须 Read 相关代码模块**（只读不输出 brief，靠 PM 内化）：
 
@@ -318,7 +302,6 @@ Step 4: PM 起草时把发现内化到 PRD
 
 🔴 **调研四类**(v8.132 · §4 早问门入场券 · 单源 stages/goal-stage.md §1):代码现状(本段)+ KNOWLEDGE(Flagged Ambiguities / Preferences / Out-of-Scope)+ GLOSSARY + 上游规划(BL / WS / 愿景 / PENDING + prepare 流程目标)—— 全部 AI 可自答 · 没查完没资格问用户。
 
-📎 **与方向 A grep + 方向 B brief 的对比**：本 P0-73 = 方向 B 只读不输出（无 brief 文档 · 无 stage 膨胀）。如未来发现 PM 偷读不读 → 升级到方向 B 原版（加 brief 输出 / 加 PMO 校验段）；当前先靠 boolean self_check + 角色纪律。
 
 ### 通用 checklist（所有 Feature 必填）
 
@@ -381,4 +364,4 @@ Step 4: PM 起草时把发现内化到 PRD
 - TECH.md 回答"怎么做"（Blueprint Stage RD 写）
 - TC.md 回答"怎么测"（Blueprint Stage QA 写）
 - 三阶段职责正交，PRD 不再被技术/测试细节淹没
-- ：本 checklist 单源在本文件，goal-stage.md / roles/pm.md 仅 cite，不复述
+- 本 checklist 单源此文件 · goal-stage.md / roles/pm.md 仅 cite 不复述

@@ -5,6 +5,19 @@
 
 ---
 
+## v8.154 · disable_external_review 改 hard rename:撤 v8.153 旧名兼容(无项目使用 · 不留)
+
+> 用户(承 v8.153):不用兼容。
+
+### 改动(代码 + 模板 + 文档 + 测试)
+- 撤掉 v8.153 加的旧名 OR 兼容:两 reader(state / _v8_stage_specs)+ bootstrap WARN reader **只读新名** `disable_external_review` · 旧名 `disable_heterogeneous_review` 废弃不再读取。
+- 依据:核过无任何消费项目设旧名(只框架仓自己 · v8.153 已改新名)· 硬改无 silent break 风险 —— 同 v8.145「不留兼容期」路子。
+- templates / standards 的「旧名仍兼容」注 → 改「v8.154 旧名已废弃」。
+- 测试:v8.153 兼容测试反转为 hard-break 回归守护(单设旧名 true **不再生效** · 防有人误把 OR fallback 加回)。
+
+### 验证
+- pytest 3 failed / 530 passed(baseline 3 · 零回归)· 旧名非-docstring/非-守护引用清零。
+
 ## v8.153 · config 改名 disable_heterogeneous_review → disable_external_review(旧名 OR 兼容)
 
 > 用户:`disable_heterogeneous_review` 这个配置名字改为 `disable_external_review`。
