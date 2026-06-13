@@ -22,29 +22,19 @@ status: draft # draft | pending_review | confirmed
 requires_ui: false  # 是否触发 Designer 评审（双保险之一；PMO 也按 UI 关键词识别）
 business_direction_locked: false # ：PL-PM 讨论收敛后由 PMO 写 true／）
 # 删除：business_direction_locked_at（时刻信息由 state.json 单一记录）
-acceptance_criteria:
+acceptance_criteria:   # 🔴 机读单源(verify-ac.py 读 id↔TC.covers_ac)· v8.158 瘦身:只留机读字段 · AC 描述/BDD 全文在 body §验收标准表(人读单源 · 不再两处同步 description)
  - id: AC-1
- description: "用户能用邮箱和密码登录"
- category: functional # ：functional / telemetry / logging / config / performance / security / monitoring
+ category: functional   # functional / telemetry / logging / config / performance / security / monitoring
  priority: P0
- test_refs: [] # Blueprint Stage 产出 TC 时填入测试 ID
- ui_refs: [] # UI Design Stage 产出时填入页面/状态（如 "login-page/normal"）
- - id: AC-2
- description: "密码错误显示红色提示"
- category: functional
+ test_refs: []          # Blueprint 产 TC 时填测试 ID
+ ui_refs: []            # UI Design 产出时填页面/状态
+ # 非功能 AC(埋点/日志/配置/性能/安全/监控)必标 category · Review QA Step 4.5 按 category grep 对账(不过 TC 中转)
+ - id: AC-7
+ category: telemetry
  priority: P0
  test_refs: []
- ui_refs: []
- # 实战补强：非功能性 AC（埋点 / 日志 / 配置 / 性能 / 安全 / 监控）必须显式声明 category
- # 因为 TC 通常无法覆盖这类 AC，Review Stage QA Step 4.5 会按 category 走 grep 对账（不通过 TC 中转）
- - id: AC-7
- description: "登录成功上报 login_success 埋点（含 user_id / source / timestamp）"
- category: telemetry # 必标 · 触发 Step 4.5 grep SReporter
- priority: P0
- test_refs: [] # 可为空（非功能性 AC TC 难覆盖）
- grep_keyword: "SReporter.*login_success" # 新增 · 供 Step 4.5 直接使用
+ grep_keyword: "SReporter.*login_success"   # 非功能 AC · 供 Step 4.5 grep
  - id: AC-8
- description: "登录关键路径打 INFO 日志（user_id 脱敏）"
  category: logging
  priority: P1
  test_refs: []
@@ -69,16 +59,22 @@ acceptance_criteria:
 |------|----------|
 | {描述用户可感知的具体变化} | {在哪个页面/入口/命令可以看到效果} |
 
+## 待决策项
+
+<!-- 🔴 改既有用户可感知默认行为必入此段(v8.157 · 实证 TermPro locate-vs-open case):本 Feature 若改了某既有默认行为(原 A → 现 B · 如「文件点击 原打开→现只定位」)· **必须**作为显式待决策项让用户拍板(列 原行为/新行为/为什么改/推荐)· **不可**只在背景/「既有行为取舍」叙述段当既定事实写掉(那不是用户拍过板的)。PL 质疑六问 ⑥ 专查此项。本表收待裁决(决策列空)+ 已裁决(决策列填) · 紧跟交付预期便于用户快读。 -->
+
+| ID | 问题 | 选项 | 决策 |
+|----|------|------|------|
+
+
 ## 验收标准
 
-> 🟢 v7.3.3 布局调整：验收标准紧跟交付预期，便于人类审查时聚焦"做完后长啥样 + 怎么判定做完"的契约核心。
-> 🔴 v7.3 起，验收标准必须与 frontmatter 的 `acceptance_criteria[]` 一一对应（id 一致、description 一致）。
-> 本 section 是人读视图，frontmatter 是机读源头。修改 AC 必须同步改两处（工具可校验一致性）。
+<!-- 🔴 v8.158:本表 = AC **人读单源**(BDD 全文在此)· frontmatter acceptance_criteria 只存机读字段(id/category/priority/test_refs/grep)· 两处 **id 一致** 即可(描述不再同步两份 · verify-ac.py 按 id↔TC.covers_ac 校验)· AC 写 BDD(Given/When/Then)· 行为/价值高度。 -->
 
-| ID | 描述 | 优先级 | 覆盖测试（填到 frontmatter test_refs） |
-|----|------|--------|---------------------------------------|
-| AC-1 | {description} | P0 | {测试 ID，如 T-001, T-002} |
-| AC-2 | {description} | P0 | |
+| ID | 描述(BDD) | 优先级 | 覆盖测试 |
+|----|-----------|--------|----------|
+| AC-1 | Given {前置} / When {操作} / Then {结果} | P0 | {测试 ID · Blueprint 填} |
+| AC-2 | Given … / When … / Then … | P0 | |
 
 ## 业务流程图 / 交互时序图（按需必填）
 
@@ -157,13 +153,6 @@ stateDiagram-v2
 - {本 Feature 不做的事 1 + 简短理由}
 - {本 Feature 不做的事 2 + 简短理由}
 - ...
-
-## 待决策项
-
-> 🔴 **改既有用户可感知默认行为必入此段**(v8.157 · 实证 TermPro 文件 locate-vs-open case):本 Feature 若改了某个**既有默认行为**(原 A → 现 B · 如「文件点击 原打开 → 现只定位」)· **必须**作为显式待决策项让用户拍板(列 原行为 / 新行为 / 为什么改 / 推荐)· **不可**只在 §背景 / 「既有行为取舍」叙述段当既定事实写掉 —— 那不是用户拍过板的 · 会让 goal 确认暂停点拿到一份已焊死的 PRD。PL 质疑六问 ⑥ 专查此项。
-
-| ID | 问题 | 选项 | 决策 |
-|----|------|------|------|
 
 ## 变更记录
 | 日期 | 变更 |
