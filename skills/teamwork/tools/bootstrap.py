@@ -743,7 +743,7 @@ LOCALCONFIG_CONFIG_DEFAULTS = {
     "id_strategy": "utc-yymmddhhmmss",
     "archive_on_ship": True,
     "local_env_auto_create": True,
-    "disable_heterogeneous_review": False,
+    "disable_external_review": False,
 }
 LOCALCONFIG_BOOTSTRAP_DEFAULTS = {
     "skill_version": None,
@@ -757,7 +757,7 @@ def ensure_localconfig_complete(project_root: Path, skill_root: Path) -> dict:
     """v8.91:bootstrap 启动自愈 localconfig —— 缺的已知字段补默认值(尤其 `_bootstrap` 段)。
 
     治本:localconfig 由**老版 bootstrap / 手建 / 部分写入** 时 · `_bootstrap` 子键或新增
-    feature 开关(archive_on_ship / disable_heterogeneous_review 等)缺失 · 且版本命中
+    feature 开关(archive_on_ship / disable_external_review 等)缺失 · 且版本命中
     skip_maintain 时这些缺口**永不补** · 用户也看不到新选项。
     - 仅 **additive**:只补缺的键 · **绝不覆盖**用户已有值(含显式 false/null)。
     - 仅当 localconfig **已存在**时跑(不存在 = 冷启动 · 由 maintain / prepare 创建 · 不在此凭空造)。
@@ -1361,14 +1361,15 @@ def cmd_session_bootstrap(args: argparse.Namespace) -> None:
         }
 
     # v8.90:异质评审被 localconfig 禁用 → 每次启动 WARN(交叉 review 质量下降 · 建议恢复)
-    _het_disabled = read_localconfig(project_root).get("disable_heterogeneous_review") is True
+    _ext_disabled = (read_localconfig(project_root).get("disable_external_review") is True
+                     or read_localconfig(project_root).get("disable_heterogeneous_review") is True)  # 旧名兼容
     result["checks"]["heterogeneous_review"] = {
-        "status": "disabled" if _het_disabled else "enabled",
+        "status": "disabled" if _ext_disabled else "enabled",
         **({"warning": (
-            "⚠️ 已禁用异质模型审核(disable_heterogeneous_review=true)· external 评审降级为同模型 "
+            "⚠️ 已禁用 external 评审(disable_external_review=true)· external 评审降级为同模型 "
             "exec 自审 · **交叉 review 质量下降**(同盲点 · 漏检风险↑)· 强烈建议改 "
             ".teamwork_localconfig.json 恢复异质(删该项 / 设 false · 装好第二个模型 CLI 后)")}
-            if _het_disabled else {}),
+            if _ext_disabled else {}),
     }
 
     # v8.115:知识图谱结构可达性(零死角物化 · WARN-only · 不进 flow_gates/priority · 不劫持升级>规划>任务序)
@@ -1386,8 +1387,8 @@ def cmd_session_bootstrap(args: argparse.Namespace) -> None:
             f" · 跑 update.py --channel {_suc.get('channel', 'main')}(最先处理)")
     elif _suc.get("status") == "up_to_date":
         _mr.append(f"skill ✅ {_suc.get('local_version')}")
-    if _het_disabled:
-        _mr.append("🔴 异质评审已禁用(disable_heterogeneous_review=true)· 交叉 review 降级为"
+    if _ext_disabled:
+        _mr.append("🔴 external 评审已禁用(disable_external_review=true)· 交叉 review 降级为"
                    "同模型自审 · PMO 须告知用户(见 checks.heterogeneous_review · 建议恢复异质)")
     _kg = result.get("checks", {}).get("knowledge_graph", {})
     if _kg.get("status") == "leaks_found":

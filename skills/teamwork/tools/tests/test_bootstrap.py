@@ -564,7 +564,7 @@ class TestEnsureLocalconfigComplete(unittest.TestCase):
         self.assertEqual(data["worktree"], "off")
         # 新开关补默认
         self.assertEqual(data["archive_on_ship"], True)
-        self.assertEqual(data["disable_heterogeneous_review"], False)
+        self.assertEqual(data["disable_external_review"], False)  # v8.153 改名
         self.assertEqual(data["local_env_auto_create"], True)
         self.assertEqual(data["id_strategy"], "utc-yymmddhhmmss")
         # _bootstrap 段补全 4 子键
@@ -578,7 +578,7 @@ class TestEnsureLocalconfigComplete(unittest.TestCase):
         full = {k: "x" for k in ("worktree", "worktree_root_path", "scope",
                                  "merge_target", "worktree_cleanup", "mr_url_template",
                                  "id_strategy", "archive_on_ship", "local_env_auto_create",
-                                 "disable_heterogeneous_review")}
+                                 "disable_external_review")}  # v8.153 改名
         full["_bootstrap"] = {"skill_version": "v8.90", "host": "codex-cli"}  # 缺 2 子键
         (self.tmp / LOCALCONFIG_FILE).write_text(_json.dumps(full), encoding="utf-8")
         r = ensure_localconfig_complete(self.tmp, self.skill_root)

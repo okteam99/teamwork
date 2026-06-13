@@ -1392,14 +1392,16 @@ def _read_id_strategy(start: Path) -> str:
     return DEFAULT
 
 
-def _read_disable_heterogeneous_review(start) -> bool:
-    """读项目根 `.teamwork_localconfig.json` 的 `disable_heterogeneous_review`(v8.90)。
+def _read_disable_external_review(start) -> bool:
+    """读项目根 `.teamwork_localconfig.json` 的 `disable_external_review`(v8.153 改名 · 原 `disable_heterogeneous_review`)。
 
-    从 `start` 向上找 `.teamwork_localconfig.json`(到 `.git` 边界止)· 默认 **false**(异质开)。
-    true = 单模型用户主动禁用异质评审 → external-review 自动用宿主自身模型 exec 自审(降级 ·
-    写 external-cross-review/ 满足 P0-154 但 frontmatter 标 degraded)· 每次 bootstrap 启动 WARN。
-    与 v8.88 `--self-review-fallback`(异质暂时不可用的临时 stopgap · 落 self-review/ · 不满足门禁)
-    区分:本项是**项目级长期策略**(用户接受质量下降 · 已被 startup WARN 持续提醒)。
+    从 `start` 向上找 `.teamwork_localconfig.json`(到 `.git` 边界止)· 默认 **false**(external 评审开)。
+    true = 单模型用户主动禁用 external 评审 → external-review 自动 emit subagent 降级配方
+    (宿主自身模型 subagent 自审 · 写 external-cross-review/ 满足 P0-154 但 frontmatter 标 degraded)·
+    每次 bootstrap 启动 WARN。与 v8.88 `--self-review-fallback`(异质暂时不可用的临时 stopgap ·
+    落 self-review/ · 不满足门禁)区分:本项是**项目级长期策略**(用户接受质量下降)。
+    🔴 v8.153 向后兼容:新名 `disable_external_review` 与旧名 `disable_heterogeneous_review`
+    **任一为 true 即禁用**(OR 语义)—— 防 bootstrap additive 自愈把新名补默认 false 顶翻旧 true。
     """
     try:
         node = Path(start).resolve()
@@ -1409,10 +1411,11 @@ def _read_disable_heterogeneous_review(start) -> bool:
         cfg = d / ".teamwork_localconfig.json"
         if cfg.exists():
             try:
-                val = json.loads(cfg.read_text(encoding="utf-8")).get("disable_heterogeneous_review")
+                data = json.loads(cfg.read_text(encoding="utf-8"))
             except (OSError, json.JSONDecodeError):
                 return False
-            return bool(val) if isinstance(val, bool) else False
+            return (data.get("disable_external_review") is True
+                    or data.get("disable_heterogeneous_review") is True)  # 旧名兼容
         if (d / ".git").exists():
             break
     return False
@@ -2997,7 +3000,7 @@ def cmd_external_review(args: argparse.Namespace) -> None:
     self_fallback = getattr(args, "self_review_fallback", False)
     sr_reason = (getattr(args, "reason", "") or "").strip()
     # v8.90:localconfig 禁用异质评审(单模型用户)→ 自动用宿主自身模型 exec 自审(降级 · 满足门禁)
-    het_disabled = _read_disable_heterogeneous_review(args.feature)
+    ext_disabled = _read_disable_external_review(args.feature)
     degraded_self = False  # True → config-disabled 降级自审(落 external-cross-review/ · 满足 P0-154)
     if self_fallback:
         # v8.88 临时 stopgap:异质暂不可用 · 落 self-review/ · **不满足 P0-154**(异质仍是目标)
@@ -3018,7 +3021,7 @@ def cmd_external_review(args: argparse.Namespace) -> None:
                 "hint": "gemini 等宿主无 self-review runner · 改 change-review-roles 移除 external",
             })
             return
-    elif het_disabled:
+    elif ext_disabled:
         # v8.90 项目级长期策略:用户禁异质(单模型)→ 自动宿主自身模型 exec 自审 ·
         # 落 external-cross-review/(满足 P0-154 · 让单模型用户能走完流程)· frontmatter 标 degraded ·
         # 每次 bootstrap 启动 WARN 持续提醒「交叉 review 质量下降 · 建议恢复异质」。
@@ -3027,13 +3030,13 @@ def cmd_external_review(args: argparse.Namespace) -> None:
             emit({
                 "verdict": "FAIL",
                 "command": "external-review",
-                "error": f"disable_heterogeneous_review=true 但宿主 {host} 无 self-exec runner(仅 claude/codex)",
-                "hint": ("改回异质(删 localconfig disable_heterogeneous_review)· "
+                "error": f"disable_external_review=true 但宿主 {host} 无 self-exec runner(仅 claude/codex)",
+                "hint": ("改回异质(删 localconfig disable_external_review)· "
                          "或 change-review-roles 移除 external"),
             })
             return
         degraded_self = True
-        sr_reason = (sr_reason or "localconfig disable_heterogeneous_review=true"
+        sr_reason = (sr_reason or "localconfig disable_external_review=true"
                      "(单模型 · 异质评审降级为同模型 exec 自审 · 已 startup WARN)")
     elif args.model:
         model = args.model
@@ -3156,7 +3159,7 @@ def cmd_external_review(args: argparse.Namespace) -> None:
     title = args.title or f"{feature_id} · {args.stage} stage external review"
 
     # ── v8.108 · 降级自审走 subagent(不 exec)· 治本 exec CLI 反复出认证/--bare/卡死/登录问题 ──
-    # self_fallback(--self-review-fallback)或 het_disabled(config disable_heterogeneous_review)=
+    # self_fallback(--self-review-fallback)或 ext_disabled(config disable_external_review)=
     # 同模型降级 → 🔴 不 exec CLI · 改 emit 配方 · 由 PMO 起 Agent subagent(isolated context · 宿主
     # 自身模型 · 在 harness 内跑 · 同 auth · 无 subprocess CLI 问题)产出降级评审 · 写
     # external-cross-review/(honest-degrade frontmatter)· 门禁接受(降级 · 满足 P0-154 · 记 degraded)。
@@ -3207,7 +3210,7 @@ def cmd_external_review(args: argparse.Namespace) -> None:
                 f"       degraded_reason: \"{sr_reason}\"\n"
                 "       review_via: subagent\n"
                 f"  3. {args.stage}-complete 门禁接受它(降级 · 满足 P0-154)· 但它**非异质 · 同盲点**\n"
-                "  ⚠️ 这是降级不是异质:能装/登录异质 CLI 就修环境重跑真异质;长期单模型用 disable_heterogeneous_review。"
+                "  ⚠️ 这是降级不是异质:能装/登录异质 CLI 就修环境重跑真异质;长期单模型用 disable_external_review。"
             ),
             "spec": "standards/external-model-usage.md §十一.5(降级=subagent · 不 exec)+ §十二(裁决)",
             **({"deprecation_warning": deprecation_warning} if deprecation_warning else {}),
@@ -3445,7 +3448,7 @@ def cmd_external_review(args: argparse.Namespace) -> None:
         # v8.90 config-disabled:本项目禁异质 · 此自审是「该项目的 review of record」(满足门禁)·
         # 但仍非异质 · 同盲点 · 交叉 review 质量下降 —— banner + startup WARN 持续提醒。
         body = (
-            "> ⚠️ **同模型自审(config 禁用异质 · 降级)** —— `disable_heterogeneous_review=true` ·"
+            "> ⚠️ **同模型自审(config 禁用异质 · 降级)** —— `disable_external_review=true` ·"
             "只隔离对话历史不隔离模型权重 · 同盲点 · 交叉 review 质量下降。删 localconfig 该项可恢复异质。\n"
             f"> 降级理由:{sr_reason}\n\n"
         ) + stdout
@@ -3537,10 +3540,10 @@ def cmd_external_review(args: argparse.Namespace) -> None:
         )
     elif degraded_self:
         next_hint = (
-            f"⚠️ 异质评审已被 localconfig 禁用(disable_heterogeneous_review=true)· 已用同模型 "
+            f"⚠️ external 评审已被 localconfig 禁用(disable_external_review=true)· 已用同模型 "
             f"{model} exec 自审落 {output_file}(满足 P0-154 · 但**非异质 · 同盲点 · 交叉 review 质量下降**)。"
             f"PMO 整合 finding 到 REVIEW.md → {args.stage}-complete。{_FINDING_POSTURE_HINT}"
-            f"🔴 想恢复异质评审质量:删 .teamwork_localconfig.json 的 disable_heterogeneous_review。"
+            f"🔴 想恢复异质评审质量:删 .teamwork_localconfig.json 的 disable_external_review。"
         )
     else:
         next_hint = (f"file 已落盘 · PMO 整合 finding 到 REVIEW.md · "

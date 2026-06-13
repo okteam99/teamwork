@@ -1419,23 +1419,34 @@ class TestExternalReviewCommand(unittest.TestCase):
         self.assertIn("external-cross-review", d["target_file"])
         self.assertIn("degraded_mode: subagent-fallback", d["next_action"])
 
-    # ── v8.90:localconfig 禁用异质评审(单模型用户)──
-    def test_read_disable_heterogeneous_review_helper(self):
-        from state import _read_disable_heterogeneous_review  # type: ignore
+    # ── v8.90/v8.153:localconfig 禁用 external 评审(单模型用户)──
+    def test_read_disable_external_review_helper(self):
+        from state import _read_disable_external_review  # type: ignore
         (self.tmp / ".git").mkdir()  # bound 向上 walk
         # 默认 false(无 localconfig)
-        self.assertFalse(_read_disable_heterogeneous_review(self.feat))
-        # 显式 true
+        self.assertFalse(_read_disable_external_review(self.feat))
+        # 显式 true(新名)
         (self.tmp / ".teamwork_localconfig.json").write_text(
-            json.dumps({"disable_heterogeneous_review": True}), encoding="utf-8")
-        self.assertTrue(_read_disable_heterogeneous_review(self.feat))
+            json.dumps({"disable_external_review": True}), encoding="utf-8")
+        self.assertTrue(_read_disable_external_review(self.feat))
+
+    def test_v8153_legacy_key_still_honored(self):
+        """v8.153 兼容:旧名 disable_heterogeneous_review=true 仍生效(OR 语义 ·
+        防 bootstrap additive 补新名默认 false 顶翻旧 true)。"""
+        from state import _read_disable_external_review  # type: ignore
+        (self.tmp / ".git").mkdir()
+        # 旧名 true + 新名 false(模拟 healer 补默认)→ 仍禁用
+        (self.tmp / ".teamwork_localconfig.json").write_text(
+            json.dumps({"disable_heterogeneous_review": True,
+                        "disable_external_review": False}), encoding="utf-8")
+        self.assertTrue(_read_disable_external_review(self.feat))
 
     def test_config_disabled_emits_subagent_recipe(self):
-        """🔴 v8.108:disable_heterogeneous_review=true → emit subagent 配方(不 exec)·
+        """🔴 v8.108:disable_external_review=true → emit subagent 配方(不 exec)·
         target 落 external-cross-review/(degraded_mode=config-disabled · 满足 P0-154)。"""
         (self.tmp / ".git").mkdir()
         (self.tmp / ".teamwork_localconfig.json").write_text(
-            json.dumps({"disable_heterogeneous_review": True}), encoding="utf-8")
+            json.dumps({"disable_external_review": True}), encoding="utf-8")
         d = run(["external-review", "--feature", str(self.feat), "--stage", "review",
                  "--host", "claude-code", "--commit", "abc123def456", "--base", "staging"])
         self.assertEqual(d["verdict"], "SUBAGENT_FALLBACK", d)
