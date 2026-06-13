@@ -2195,6 +2195,15 @@ EXTERNAL_STAGE_TO_PROFILE = {
 EXTERNAL_REVIEW_TIMEOUT_SEC = 600  # v8.55:5min→10min(用户 case codex 偶尔卡 / 长 review · 给足 buffer)
 
 
+# v8.151:finding 消费姿态提示(brief 主动推 · 防 v8.150 spec 只被动躺 doc 里 · 盲采是默认倾向)
+_FINDING_POSTURE_HINT = (
+    " 🔴 finding 处理默认姿态=**质疑**(不盲目认同):逐条 ① 先质疑(过度设计/错层/"
+    "false positive/没看全)→ ② 回读真实代码/AC/DEV-RULES 确认 → ③ 才 ADOPT/REJECT;"
+    "**ADOPT 也要给实证**(为何确为真+为何这样改对)·「reviewer 说得对」不是采纳理由 · "
+    "举证责任对称(详 standards/external-model-usage.md §12)。"
+)
+
+
 def _detect_cli_version(cli_name: str) -> str:
     """探测 CLI 版本字符串(用于 frontmatter review_model 字段)。"""
     try:
@@ -3528,12 +3537,12 @@ def cmd_external_review(args: argparse.Namespace) -> None:
         next_hint = (
             f"⚠️ 异质评审已被 localconfig 禁用(disable_heterogeneous_review=true)· 已用同模型 "
             f"{model} exec 自审落 {output_file}(满足 P0-154 · 但**非异质 · 同盲点 · 交叉 review 质量下降**)。"
-            f"PMO 整合 finding 到 REVIEW.md → {args.stage}-complete。"
+            f"PMO 整合 finding 到 REVIEW.md → {args.stage}-complete。{_FINDING_POSTURE_HINT}"
             f"🔴 想恢复异质评审质量:删 .teamwork_localconfig.json 的 disable_heterogeneous_review。"
         )
     else:
         next_hint = (f"file 已落盘 · PMO 整合 finding 到 REVIEW.md · "
-                     f"然后跑 state.py {args.stage}-complete --artifacts ...")
+                     f"然后跑 state.py {args.stage}-complete --artifacts ...{_FINDING_POSTURE_HINT}")
 
     emit({
         "verdict": "OK",

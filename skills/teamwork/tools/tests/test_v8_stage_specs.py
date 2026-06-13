@@ -1129,3 +1129,18 @@ class TestGoalQualityGatesV8132(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+
+
+class TestFindingPostureHintV8151(unittest.TestCase):
+    """v8.151:finding 消费姿态进 brief(主动推 · 防 v8.150 spec 只被动躺 doc)。"""
+
+    def test_posture_hint_carries_skeptical_first(self):
+        from state import _FINDING_POSTURE_HINT  # type: ignore
+        for tok in ("质疑", "回读", "ADOPT 也要给实证", "举证责任对称", "§12"):
+            self.assertIn(tok, _FINDING_POSTURE_HINT, f"posture hint 缺 {tok}")
+
+    def test_review_brief_carries_posture(self):
+        from _v8_stage_specs import _review_brief  # type: ignore
+        b = _review_brief({})
+        self.assertIn("默认姿态=质疑", b)
+        self.assertIn("采纳也要给实证", b)

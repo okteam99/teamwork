@@ -4,6 +4,22 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.151 · finding 质疑姿态进 brief:消费时点主动推 · 防 v8.150 spec 只被动躺 doc
+
+> 用户(承 v8.150):相关的 brief 是否要有对应的提示。
+
+### 诊断:spec 被动 · brief 主动 —— 防线得在决策那一刻到场
+- v8.150 把「先质疑→确认→采纳 · 举证对称」写进了 §12 / schema / stage doc · 但这些是**被动 spec**(AI 要主动去读才生效)。而 findings 刚产出、即将被消费的那一刻,state.py 主动推的是 `next_action_brief` —— 它当时只说「整合 finding 到 REVIEW.md → complete」· 零质疑姿态。光改 doc 不改 brief = 防线在文档里、决策在别处(框架「可枚举/主动告知」哲学的要害)。
+
+### 改动(代码 + 测试)
+- **`_FINDING_POSTURE_HINT` 常量**:① 先质疑(过度设计/错层/false positive/没看全)→ ② 回读真实代码/AC/DEV-RULES 确认 → ③ 才 ADOPT/REJECT · **ADOPT 也要给实证** ·「reviewer 说得对」不是采纳理由 · 举证责任对称。
+- **接进 external-review 成功 emit 的 next_hint**(default + degraded 两分支)—— 每个 stage(goal/blueprint/review)external finding 消费的必经处 · 一处覆盖三阶段。
+- **`_review_brief` 加姿态行**(review stage start 即带)。
+- 测试 +2(posture hint 关键 token / review brief 含姿态)。
+
+### 验证
+- pytest 3 failed / 529 passed(baseline 3 · 净 +2)。
+
 ## v8.150 · review finding 处理对称化:先质疑→确认→采纳/驳 · 举证责任对称 · 治本盲采
 
 > 用户:AI 对 review 结果的处理过程应该是先质疑、再确认、再采纳、给出采纳理由的思考过程 · 不能盲目认同。
@@ -70,21 +86,4 @@
 
 ### 验证
 - 测试 +2(纯增行自动 union 双方行都在 / 非纯增行〔同行双改〕拒动 PENDING 留 AI)· pytest 3 failed / 525 passed(baseline 3 · 净 +2)。
-
-## v8.146 · ship1 冲突防线:archive 前置 sync 自动合 · INDEX 冲突机械自动解 · 代码冲突留 AI
-
-> 用户(承 v8.145):ship1 在 MR 创建后大概率会冲突 · 是否有必要增加检测冲突环节 · 自动评估处理。判定:有必要 —— v8.145 设计时把该 trade-off 低估为「可能」· 实为「并行 ship 窗口重叠时必然」(INDEX/LEDGER 是 every-feature 同位追加)。
-
-### 设计(按框架哲学拆:可枚举进脚本 · 不可枚举留 AI)
-- 解决场所 = worktree(到 ship2 前一直活着 · 正是 v8.145「内容性工作在可控环境」的合法位置)。
-- 同步用 **merge 不 rebase**(分支已推 · MR 已开 · 不破 review 历史)。
-
-### 改动(代码 + 测试 + 文档)
-- **`_sync_feature_branch`(内置于 archive · 首跑+幂等重跑共用)**:fetch + behind 检测 → 落后自动 `merge origin/<mt>` —— ① 干净则无感(MR 开出来即可合 · INDEX 基于合并后状态生成);② **INDEX.md 冲突机械自动解**(确定性再生成:origin 侧为基 + 重放本 feature 行 · 追加表语义明确);③ 其余冲突(代码/规划文件)→ emit `PENDING merge-conflict` + 文件清单(LEDGER 类提示 union)· AI 在 worktree 评估处理 → `git add`/`git commit` → 重跑 archive。
-- **重跑 archive = MR 窗口期冲突修复入口**:平台报冲突 → 回 worktree 重跑(自动 sync + 机械解)→ `git push` → MR 自动更新;⏸️ ship1 暂停点加「平台报冲突」选项;emit 增 `sync` 字段(同步动作透明)。
-- fetch 失败降级(冲突防线降级不阻塞归档 · WARN);未完成 merge 检测(MERGE_HEAD)→ 先收尾再重跑。
-- 测试 +3(前置 sync 无感合 / INDEX 冲突自动解双方行都在 / 代码冲突 PENDING→解→重跑通过)· ship-stage.md §3 冲突防线成文。
-
-### 验证
-- pytest 3 failed / 523 passed(baseline 3 · 净 +3)。
 
