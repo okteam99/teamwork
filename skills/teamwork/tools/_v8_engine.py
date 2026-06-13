@@ -1039,7 +1039,7 @@ REVIEW_ROLE_ENUM = {"pm", "qa", "architect", "rd", "designer", "pl", "external"}
 # (flow_type, stage) → 默认 review 角色清单
 DEFAULT_REVIEW_ROLES: dict[tuple[str, str], list[str]] = {
     # Feature 流程
-    ("Feature", "goal"): ["pm", "qa", "architect", "pl"],  # v8.149:去 external —— goal 是业务目标对齐(用户审 PRD)· external 天然挑细节/过度设计 = 错阶段;细节/边界归 blueprint(external 在那)· 仍可 change-review-roles 显式 opt-in
+    ("Feature", "goal"): ["qa", "architect", "pl"],  # v8.155:去 pm(作者审自己最锚定 · PM 退整合者)· 三角色走并行隔离 subagent 冷审(防鼓掌 · 详 goal-stage §3)· v8.149 去 external(opt-in 保留)
     ("Feature", "ui_design"): ["designer", "pm"],
     ("Feature", "panorama_sync"): ["pm", "architect"],
     ("Feature", "blueprint"): ["qa", "architect", "external"],
@@ -1049,7 +1049,7 @@ DEFAULT_REVIEW_ROLES: dict[tuple[str, str], list[str]] = {
     ("Feature", "pm_acceptance"): ["pm"],
 
     # 敏捷需求
-    ("敏捷需求", "goal"): ["pm", "qa", "architect"],
+    ("敏捷需求", "goal"): ["qa", "architect"],  # v8.155:去 pm(整合者)· QA+Architect 并行冷审
     ("敏捷需求", "blueprint_lite"): ["qa"],
     ("敏捷需求", "review"): ["architect", "qa", "external"],
     ("敏捷需求", "test"): ["qa"],
@@ -1087,7 +1087,7 @@ def build_default_stage_review_roles(flow_type: str) -> dict[str, list[str]]:
 FLOW_STAGE_CHAIN: dict[str, list[tuple[str, bool, str, str]]] = {
     # (stage_name, optional, optional_trigger_note, review_reason_hint)
     "Feature": [
-        ("goal", False, "", "PRD 业务目标对齐(用户审):PM/QA/Architect/PL 各自专业领域 · 无 External(细节/边界归 blueprint · 防过度设计提前涌入)"),
+        ("goal", False, "", "PRD 业务目标对齐(用户审):草稿后并行派 QA/Architect/PL 三个隔离 subagent 冷审(防鼓掌锚定)· PM 整合 · 无 External(细节归 blueprint · opt-in 保留)"),
         ("ui_design", True, "goal-complete --needs-ui=true 时启用", "Designer 视觉一致 + PM 流程合理"),
         ("panorama_sync", True, "ui_design-complete --panorama-changed=true 时启用", "PM 跨 Feature 视角 + Architect IA 影响"),
         ("blueprint", False, "", "TECH 选型与测试规划需 Architect/QA 把关 + External 异质 review"),
@@ -1099,7 +1099,7 @@ FLOW_STAGE_CHAIN: dict[str, list[tuple[str, bool, str, str]]] = {
         ("ship", False, "", "无评审 · PMO 编排 push + MR + 合入 + cleanup"),
     ],
     "敏捷需求": [
-        ("goal", False, "", "需求小但仍需 PM 清晰度 + QA 测试视角 + Architect 技术可行(无 PL/External)"),
+        ("goal", False, "", "需求小:QA + Architect 两个隔离 subagent 冷审(无 PL/External · PM 整合)"),
         ("blueprint_lite", False, "", "QA 测试规划(TC 精简版)· 不要 TECH-REVIEW"),
         ("dev", False, "", "无评审 · RD 自写 + commit"),
         ("review", False, "", "Architect/QA + External cross-review(同 Feature)"),

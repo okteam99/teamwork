@@ -18,12 +18,14 @@
 
 - Architect ↔ PM:PRD 评审给"技术可行性"反馈
 - Architect ↔ RD:TECH 起草后 Tech Review · 实现后 Code Review
-- Architect → 主对话:默认在主对话(保留架构上下文 + 怀疑者视角防鼓掌)
+- Architect 执行方式(v8.155 修正):
+  - **goal PRD 评审 → 🔴 默认隔离 subagent 冷审**(只喂 PRD + cite + KB 摘录 · 不喂主对话起草心路)· 与 PL/QA 并行 · 详 [goal-stage §3](../stages/goal-stage.md)
+  - **blueprint TECH 评审 / review Code 评审 → 默认主对话**(保留架构演进连续上下文 · 评的是 RD 写的 TECH/代码 · 非自己起草物 · 锚定风险低)
 
 ## Rationale
 
 Architect 是 独立 peer-level role(与 RD 平级)。
-v8 沿用主对话默认 · 不强制 Subagent · 保留架构演进的连续上下文。
+🔴 **v8.155 翻案**:原「goal 也默认主对话 · 怀疑者视角防鼓掌」—— 数据证伪(实证 in-context 的 architect 在 goal 只产 info-only 鼓掌 · 漏细微契约 gap · 被冷审的 external/PL 反超)。根因:同一 AI 起草完审自己 = 带起草记忆脑补填缝。**goal 评 PRD = 评主对话自己的起草物 → 必隔离**;blueprint/review 评的是 RD 产物(非自己起草)→ 主对话锚定风险低 · 沿用连续上下文。
 
 ## 相关
 

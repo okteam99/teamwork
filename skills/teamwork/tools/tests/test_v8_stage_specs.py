@@ -1122,7 +1122,7 @@ class TestGoalQualityGatesV8132(unittest.TestCase):
         self.assertTrue(ok, msg)
 
     def test_no_pl_role_auto_passes(self):
-        """敏捷需求 goal 角色集 [pm,qa,architect] 无 pl → 自动放行(连 PRD-REVIEW 缺失也不拦)。"""
+        """角色集无 pl(如敏捷 goal = qa/architect)→ pl_challenge 自动放行(连 PRD-REVIEW 缺失也不拦)。"""
         ok, _ = self._challenge(["pm", "qa", "architect"])
         self.assertTrue(ok)
 

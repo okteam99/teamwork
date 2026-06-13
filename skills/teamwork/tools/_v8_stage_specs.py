@@ -332,15 +332,15 @@ def _goal_brief(state: dict) -> str:
     return f"""## Goal Stage
 
 ### 目标
-PM 现状调研(自答优先)· 起草 PRD · PL 对抗质疑 · (条件)goal-critical 早问门 · 多角色并行评审 · 收敛后用户确认 · 决策是否需要 UI Design Stage。
+PM 调研(自答优先)· 起草 PRD · 🔴 **并行派 3 个隔离 Agent 冷审**(QA/Architect/PL · 防鼓掌锚定)· (条件)早问门 · PM 整合修订 · 冷审循环收敛 · 用户确认 · 决策是否需要 UI。
 
 ### 结果(完成判定)
 - `PRD.md`(frontmatter:`acceptance_criteria` + `revision_history`)
-- `PRD-REVIEW.md`(frontmatter:`reviewers` + `verdicts` **全 APPROVE/SKIP** · 含 `PL-CHALLENGE` 段〔角色含 pl 时〕· mtime > PRD.md)
+- `PRD-REVIEW.md`(frontmatter:`reviewers: [qa, architect, pl]`〔v8.155 去 pm〕 + `verdicts` **全 APPROVE/SKIP** · 含 `PL-CHALLENGE` 段 · mtime > PRD.md)
 - `state.execution_hints.ui_design_needed` 已决策(由 `--needs-ui`)
 
 ### 怎么做
-**必读** `stages/goal-stage.md`(详细步骤 9 步:调研 → 起草 → PL 质疑 → 早问门 → 评审 → 修订 → 判定 → needs-ui → 确认)。
+**必读** `stages/goal-stage.md`(8 步:调研 → 起草 v0.1 → 🔴 **并行 3 隔离 Agent 冷审**(QA/Architect/PL · 不喂起草心路 · v8.155)→ 早问门(冷审后)→ PM 整合修订 → 冷审循环(Round 2+ 验证模式 · 全 APPROVE 收敛)→ needs-ui → 用户确认)。
 
 ### 完成方式
 ```

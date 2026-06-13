@@ -171,7 +171,7 @@ stateDiagram-v2
 
 ## PRD-REVIEW.md frontmatter schema（机读）
 
-> Goal Stage substep 5「多角色并行评审」产出 `{Feature}/PRD-REVIEW.md`(单源 schema · v8.132 删旧 4 视角叙述模板 · git 可溯)。机读 frontmatter:
+> Goal Stage substep 3「并行冷审」产出 `{Feature}/PRD-REVIEW.md`(单源 schema · v8.132 删旧 4 视角叙述模板 · git 可溯)。机读 frontmatter:
 
 ```yaml
 ---
@@ -179,11 +179,11 @@ prd_feature_id: F025
 review_round: 1
 review_started_at: "<ISO 8601 UTC>"
 review_completed_at: "<ISO 8601 UTC>"
-reviewers: [pm, qa, architect, pl]  # 机读汇总 · = state.stage_review_roles[goal](v8.149 默认无 external)· 校验 reviewers_match
-verdicts: {pm: APPROVE, qa: APPROVE, architect: APPROVE, pl: APPROVE}  # 🔴 全 APPROVE/SKIP 才可 goal-complete(prd_verdicts_all_pass · v8.132 · 词表 APPROVE|NEEDS_REVISION|SKIP)
+reviewers: [qa, architect, pl]  # 机读汇总 · = state.stage_review_roles[goal](v8.155 去 pm:PM 是整合者非 reviewer · v8.149 无 external)· 校验 reviewers_match
+verdicts: {qa: APPROVE, architect: APPROVE, pl: APPROVE}  # 🔴 全 APPROVE/SKIP 才可 goal-complete(prd_verdicts_all_pass · v8.132 · 词表 APPROVE|NEEDS_REVISION|SKIP · v8.155 去 pm verdict)
 reviews:
  # schema 调整：reviews[] 仅含 qa / rd / designer? / external?
- # v8.149:goal 评审角色 = state.stage_review_roles[goal](默认 pm/qa/architect/pl · 无 external · prepare 4 问可调 · external opt-in)
+ # v8.155:goal 评审角色 = state.stage_review_roles[goal](默认 qa/architect/pl · 并行隔离 subagent 冷审 · PM 整合非 reviewer · 无 external · external opt-in)
  # PMO 不独立评审(折叠到调度责任 · 整合 finding)
  - role: pm | qa | architect | pl | external  # schema 通用 · rd/designer 值用于 TC-REVIEW / TECH-REVIEW / REVIEW.md 复用场景
  review_scope: prd # 值 prd | blueprint | code-review
