@@ -213,14 +213,18 @@ reviews:
  action: ADOPT | REJECT | DEFER
  # ：DEFER 严格收紧，仅允许 category=business-decision 时使用
  category: business-decision # 仅 action=DEFER 时必填，其他类别 DEFER = 违规
- # ：对抗性自查段（每条 ADOPT/REJECT 前必须先模拟反方最强论据）
+ # ：对抗性自查段（🔴 方向对称 · 每条 ADOPT/REJECT 前必填 · 默认姿态=质疑 · 不盲目认同）
+ # 详 standards/external-model-usage.md §12（处理顺序 质疑→确认→裁决 + 对称举证）
  adversarial_self_check: |
- 站在 finding 提出方视角写最强反驳论据（≥2 句具体内容）。
- 示例（finding 由 RD 提，PM 想 REJECT）：
- "RD 反方最强论据：当前 PRD 接口缺 token 刷新策略，会导致鉴权失败回退到登录页，
- 用户体验断点；如果不加，跨租户场景会出现幽灵会话。
+ ADOPT 方向（先质疑 finding 再采纳 · 防盲采=最常踩）：写「这条 finding 不成立的最强反方」
+ ——是否 false positive / 过度设计 / 责任焊错层 / 不适用本项目 / reviewer 没看全上下文？
+ 然后说明「我回读 {真实代码/AC/DEV-RULES} 确认这些反方都不成立，所以确为真问题」（≥2 句）。
+ REJECT 方向（先 steelman finding 再驳）：站在 finding 提出方视角写最强反驳论据（≥2 句）。
+ 示例（REJECT）："RD 反方最强论据：PRD 接口缺 token 刷新策略 → 鉴权失败回退登录页 + 跨租户幽灵会话；
  我的 REJECT 理由必须证明这两点不成立或代价可接受。"
- rationale: "ADOPT 时填'已修订：{改了什么 + PRD 段落引用}'；REJECT 时填'反方论据为何不成立 + 替代方案'；DEFER 时填'延后理由 + 追踪位置 + 上升给用户决策的具体问题'"
+ 示例（ADOPT）："质疑：这条『加幂等键』可能是过度设计——本接口是只读查询，无副作用。
+ 回读 dev/handler.go:42 确认它确有写库分支（缓存回填），并发下确会重复写 → 质疑不成立 → 采纳。"
+ rationale: "🔴 ADOPT 必含『质疑→确认链』：① 我质疑了什么 ② 回读 {文件/AC} 确认质疑不成立 ③ 故采纳 + 改了什么 + PRD 段落引用（不接受『reviewer 说得对』式无核实采纳）；REJECT 填'反方论据为何不成立 + 替代方案'；DEFER 填'延后理由 + 追踪位置 + 上升给用户决策的具体问题'"
  responded_at: "<ISO 8601 UTC>"
 overall_verdict: APPROVE | NEEDS_REVISION
 next_round_required: true | false

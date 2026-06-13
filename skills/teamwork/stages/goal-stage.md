@@ -70,7 +70,7 @@
 
 ### 6. PM 回应 + 修订 PRD
 
-- 逐条响应 review finding(`pm_response.action` = ADOPT / REJECT / DEFER · 🔴 ADOPT/REJECT 前先填 `adversarial_self_check` 模拟对方最强论据 · DEFER 仅限 `business-decision` 类)
+- 逐条响应 review finding(`pm_response.action` = ADOPT / REJECT / DEFER · DEFER 仅限 `business-decision` 类)· 🔴 **默认姿态=质疑 · 不盲目认同**:`adversarial_self_check` 方向对称 —— **ADOPT 前**先质疑 finding 不成立的最强反方(过度设计/错层/false positive)再回读代码确认它真成立才采纳;**REJECT 前**先 steelman finding 再驳。盲采(「reviewer 说得对」式无核实采纳)= 最常踩反模式 · 详 [standards/external-model-usage.md §12](../standards/external-model-usage.md)
 - 修订 PRD → draft-v0.2 / v0.3 ... · `revision_history` 追新条目(版本号 + 修订理由)
 - NEEDS_REVISION 时循环 · 直到全员 APPROVE
 

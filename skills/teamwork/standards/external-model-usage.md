@@ -256,20 +256,26 @@ Step 3:跑命令 · 落 *-codex.md / *-gemini.md / 等真异质模型文件
 > 🔴 异质 review 的价值 = **独立视角采样盲点**;但同一独立性 = 它**没有完整上下文**(不懂本项目 DEV-RULES / 不知某设计是 intentional / 可能 hallucinate finding)。**照单全收 = 把外部模型的误判 import 进来**。主对话消费 external/异质 review(代码 / PRD / blueprint 通用)必须**逐条裁决**,不是 obey。
 >
 > 🔴 默认倾向是**相信**异质 review(它语气笃定、又被 teamwork 当门禁跑)—— 这正是要纠的偏:reviewer 的 finding 是**待核实的断言**,不是事实。
+>
+> 🔴 **处理每条 finding 的固定思考顺序(默认姿态 = 质疑 · 不盲目认同)**:
+> **① 质疑** —— 先假设它**不成立**:false positive?误解 intentional 设计?与 DEV-RULES 冲突?过度设计 / 责任焊错层?reviewer 没看全上下文?
+> **② 确认** —— 带着质疑**回读真实代码 / AC / DEV-RULES / 业务目标**核实(不轻信 reviewer 转述)。
+> **③ 裁决 + 给理由** —— 经①②才落 ADOPT/REJECT/DEFER · **每个方向都写思考过程**(ADOPT 不是「改了什么」· 是「我质疑了 X · 回读 Y 确认它真成立 · 故采纳」)。
+> 🔴 **举证责任对称**:旧规范只逼 reject 给依据 → ADOPT 成了无摩擦默认 = 盲采的温床。**confirmed 与 rejected 举证责任相同** —— 采纳也要给「为何确为真 + 为何这样改对」的实证,不是一句「reviewer 说得对」。
 
 ### 12.1 裁决三态(每条 external finding 落其一 · 带依据)
 
 | 裁决 | 判据 | 处置 |
 |---|---|---|
-| ✅ confirmed | 回读实际代码 / AC / DEV-RULES 核实**确为真问题** | 修(进 fix-retry)· REVIEW.md 记 finding + 依据 |
+| ✅ confirmed | **先质疑**(是否 false positive / 过度设计 / 错层 / 不适用本项目)→ 回读实际代码 / AC / DEV-RULES 核实**质疑不成立、确为真问题** | 修(进 fix-retry)· 🔴 REVIEW.md 记 finding + **采纳依据**(为何确为真 + 为何这样改对 · 与 rejected 举证责任对称) |
 | ❌ rejected | false positive / 误解 intentional 设计 / 与 DEV-RULES 冲突 / reviewer 没看全上下文 | **不修** · 🔴 **必记驳回依据**(指真实代码 / 规约 / 业务目标)· 不静默忽略 |
 | ⏸️ deferred | 真问题但**本 Feature 范围外** | → `product-overview/PENDING.md` · 不本轮强塞 |
 
 ### 12.2 两头都是反模式
 
-- ❌ **盲采(over-trust · 默认倾向)**:reviewer 说啥改啥 → import 误判 / 无谓 churn / 按错误 finding 改出 regression。
+- ❌ **盲采(over-trust · 默认倾向 · 🔴 最常踩)**:reviewer 说啥改啥 → import 误判 / 无谓 churn / 按错误 finding 改出 regression。**「reviewer 说得对所以采纳」不是理由** —— 没经过①质疑②确认的 ADOPT = 盲采。
 - ❌ **盲驳(under-trust)**:嫌麻烦全 dismiss 让它过门禁 → 异质 review 形同虚设(等于没跑 · 违 P0-154 初衷)。
-- ✅ **裁决(adjudicate)**:每条独立核实 → 三态归类 → 带依据落 REVIEW.md。**举证责任在主对话** —— rejected 必给"为什么不是问题"的实证(真实文件 / 规约 / 目标),不是一句"我觉得没事"。
+- ✅ **裁决(adjudicate)**:每条按①质疑→②确认→③裁决独立核实 → 带依据落 REVIEW.md。**举证责任在主对话 · 两个方向对称** —— rejected 给"为什么不是问题"的实证,**confirmed 给"为什么确是问题 + 为什么这样改对"的实证**(真实文件 / 规约 / 目标),都不是一句"我觉得"/"reviewer 说的"。
 
 ### 12.3 裁决 grounded 实际代码(不轻信 reviewer 断言)
 
