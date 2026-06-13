@@ -21,7 +21,7 @@
 ```bash
 state.py ship-phase --action archive --feature <path> \
   --planning-artifacts <逗号分隔 worktree 相对路径> \
-  --archive-desc '<≤200 字极简描述>'
+  --archive-desc '<业务摘要 ≤200 字 · 只业务不过程>'
 # 确无规划可翻(ad-hoc Bug/Micro · 无关联 BL)→ 用 --no-planning-changes 替代 --planning-artifacts
 ```
 
@@ -178,7 +178,9 @@ ship1 交付本体(随 feature MR)· zip 内 state.json = 终态墓碑(current_s
 >
 > **为什么删而不是留**:防 AI 检索过时 feature 信息(过程稿交付即 drift)。**代码是唯一真相** · 知识层是代码的文档 · 过程稿只留可追溯的 zip 快照。
 
-- **INDEX 描述列**:`| Feature | 描述 | 交付归档时间 | 归档物 |`。「描述」= `--archive-desc '<≤200 字>'`(超 200 → FAIL · 压缩表达重写后重跑 · 不截断 · `|`/换行净化 · 缺省 `—`)。旧 3 列行下次归档自动迁移补 `—`。
+- **INDEX 描述列 = 业务索引**:`| Feature | 描述 | 交付归档时间 | 归档物 |`。「描述」= `--archive-desc`(≤200 字 · 超 200 → FAIL · `|`/换行净化 · 缺省 `—`)· 🔴 **只写业务**(这需求是什么 · 做了什么 · 业务影响/对外契约)· **不写过程信息**(评审轮次/bug 数/测试数/「全绿」/external 独家/code review —— 那些在 zip 内 state.json/REVIEW.md · 不进业务索引 · 命中明显过程信号 archive emit WARN)。
+  - ✅ 业务:「CPS 安装归因计佣后端地基:cps 4 表 + 安装归因绑定/dl 校验/点击端点 + 计佣 post-commit(GalaxyEdge+IAP 双路·幂等)+ 退款冲销。对外暴露 promoter/install/click/refund 契约」
+  - ❌ 过程:「…评审拦 10 真 bug(external 独家 4·含 2 money bug)。cps11+集成11+回归520全绿」(评审/测试数据属过程 · 不进业务索引)
 - **已交付判定**(ship2 安全闸)= zip 在 `origin/<merge_target>`(抗 squash · 物理真相)。
 - ~~`archive_on_ship: false` opt-out~~ **v8.145 废弃**(归档是新架构根基)· 残留配置被忽略 + WARN。
 - **取历史**:`unzip features/_archive/<id>.zip` · 或读 `_archive/INDEX.md` 索引。

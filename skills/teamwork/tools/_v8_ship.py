@@ -241,7 +241,7 @@ def _handle_ship_sanitize(state: dict, args: argparse.Namespace) -> dict:
             "随本次 feature MR 一起合。下一步(v8.145 ship1 终幕):"
             "state.py ship-phase --action archive --feature <path> "
             "--planning-artifacts <规划翻牌文件>|--no-planning-changes "
-            "--archive-desc '<≤200 字>'(归档+翻牌进 feature 分支)· 然后 push + MR"
+            "--archive-desc '<业务摘要 ≤200 字 · 只业务不过程>'(归档+翻牌进 feature 分支)· 然后 push + MR"
         ),
     }
 
@@ -721,9 +721,12 @@ def _handle_ship_archive(state: dict, args: argparse.Namespace) -> dict:
                 "  ② 🔴 在 **worktree 内**改好(不 commit · archive 会随归档 commit 一起带走 · "
                 "随 feature MR 原子合入 —— MR 不合翻牌不生效 · revert 同退)\n"
                 f"  ③ 重跑:state.py ship-phase --action archive --feature {args.feature} "
-                "--planning-artifacts <逗号分隔 worktree 相对路径> --archive-desc '<≤200 字>'\n"
+                "--planning-artifacts <逗号分隔 worktree 相对路径> --archive-desc '<业务摘要 ≤200 字>'\n"
                 f"  确无可翻(ad-hoc Bug/Micro)→ state.py ship-phase --action archive "
-                f"--feature {args.feature} --no-planning-changes --archive-desc '<≤200 字>'"
+                f"--feature {args.feature} --no-planning-changes --archive-desc '<业务摘要 ≤200 字>'\n"
+                "  🔴 **--archive-desc = 业务摘要**(这需求是什么 · 做了什么 · 业务影响/对外契约)· "
+                "**只业务不过程** —— 不写评审轮次/bug 数/测试数/「全绿」/external 独家/code review 等"
+                "过程信息(那些在 zip 内 state.json/REVIEW.md · 不进业务索引)。"
             ),
         }, exit_code=0)
 
@@ -736,6 +739,8 @@ def _handle_ship_archive(state: dict, args: argparse.Namespace) -> dict:
             "error": f"--archive-desc 净化后 {len(archive_desc)} 字 · 超 200 字上限",
             "hint": "压缩表达方式重写到 ≤200 字后重跑(不靠截断丢尾 · archive 可重入)",
         }, exit_code=1)
+    # v8.156:过程信息嗅探(INDEX 是业务索引 · 不该灌评审/测试过程数据)· WARN 不 BLOCK
+    desc_warn = _archive_desc_process_smell(archive_desc)
 
     # 终态 state.json(zip 快照 = 墓碑 · 宣称随 MR 合入与落地原子可见)
     ship["phase"] = "archived"
@@ -806,7 +811,7 @@ def _handle_ship_archive(state: dict, args: argparse.Namespace) -> dict:
         "warnings": [
             "过程目录已转 untracked 接力卡(工作树保留 · 分支树已删)· "
             "🔴 此后勿在 worktree 跑 `git add -A`(会把目录加回来)",
-        ],
+        ] + ([desc_warn] if desc_warn else []),
         "next_action_brief": _ship1_push_brief(feature_id, args.feature),
     }
 
@@ -1110,15 +1115,42 @@ def _build_archive_zip(artifact_root: Path) -> bytes:
 
 
 def _clean_archive_desc(raw: Optional[str]) -> str:
-    """v8.94:极简 feature 描述净化 —— 折叠空白 + 去 markdown 表格危险字符(`|`/换行)。
+    """v8.94:极简 feature **业务**描述净化 —— 折叠空白 + 去 markdown 表格危险字符(`|`/换行)。
     空 → `—`(占位 · 表格不塌)。
     v8.113:**不再截断** —— 长度上限(≤200 字)改由 `cmd_ship_finalize` 前置门禁强制
     (超则 FAIL · 要求 AI 压缩表达方式重写到 ≤200 重跑 · 不靠截断丢尾)· 本函数只做
-    表格安全净化(任意长度照原样返 · 经门禁后到这里必 ≤200)。"""
+    表格安全净化(任意长度照原样返 · 经门禁后到这里必 ≤200)。
+    v8.156:INDEX = **业务索引**(需求是什么/做了什么/影响)· 非过程数据(过程信息嗅探见
+    `_archive_desc_process_smell`)。"""
     if not raw:
         return "—"
     s = " ".join(str(raw).split()).replace("|", "/")
     return s or "—"
+
+
+# v8.156:INDEX 描述列业务-only 嗅探 —— 命中明显过程信号 → WARN(不 BLOCK · 过程信息检测不可枚举 ·
+# 只逮无歧义的强信号:评审/测试/全绿/回归 N/external 独家/code review/money bug/N 轮)
+_ARCHIVE_DESC_PROCESS_PATTERNS = (
+    "评审", "全绿", "code review", "回归", "external 异质", "external 独家",
+    "money bug", "真bug", "真 bug", "视角 review", "轮 external", "集成测试通过", "测试全",
+)
+
+
+def _archive_desc_process_smell(desc: str) -> Optional[str]:
+    """命中过程信号词 → 返 WARN 提示;否则 None。INDEX 是业务索引 · 过程数据在 zip 内 state/REVIEW。"""
+    if not desc or desc == "—":
+        return None
+    low = desc.lower()
+    hits = [p for p in _ARCHIVE_DESC_PROCESS_PATTERNS if p.lower() in low]
+    # 「N轮」「N 视角」「拦 N」等计数式过程描述
+    import re as _re
+    if _re.search(r"\d+\s*轮|\d+\s*视角|拦\s*\d+|\d+\s*真", desc):
+        hits.append("过程计数")
+    if not hits:
+        return None
+    return (f"--archive-desc 疑含过程信息({'、'.join(hits[:4])})· INDEX 是**业务索引**"
+            "(需求是什么/做了什么/业务影响)· 过程数据(评审轮次/bug 数/测试/全绿)在 zip 内 "
+            "state.json/REVIEW.md · 不进业务索引 · 建议重写为纯业务摘要(WARN 不阻塞)")
 
 
 def _build_archive_index(repo_cwd: str, base_commit: str, index_rel: str,
