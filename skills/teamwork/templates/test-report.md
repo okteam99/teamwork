@@ -163,7 +163,7 @@ PASS
 
 ## 起草要点(QA cite · 写时删)
 
-📚 **必读 cite**(P0-11):
+📚 **必读 cite**:
 - `roles/qa.md § 集成测试` —— integration = 进程内 · 跨模块/服务契约 · 不抹边界
 - `roles/qa.md § E2E 测试` —— api-e2e = Python · live 跨进程 · 跑通即可
 - `stages/test-stage.md § SOP` —— stdout 必摘录 · exit-code 必数值 · 不口述

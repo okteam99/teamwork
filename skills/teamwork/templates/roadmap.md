@@ -96,7 +96,7 @@ graph LR
 - **当前阶段**：状态为 \`进行中\` 时填写实际阶段（如 \`RD 开发中\`、\`QA 审查中\`），\`待开始\` / \`已完成\` 时填 \`-\`。PMO 每次阶段流转时同步更新
 - **阻塞标注**：状态为 \`⏳ 等待外部依赖\` 时，在状态列附注阻塞原因，格式：\`⏳ 等待外部依赖（DEP-XXX@模块缩写）\`
 - **对应 F编号**：Feature 进入 Feature 流程后填写（如 \`F001-用户登录\`），实现 Roadmap → Feature 追踪
-- **关联 WS**：本 BL 由哪个 Workstream 拆出（如 \`WS-01\`）· 回指 \`product-overview/workstream/WS-NN.md\`，反查"某 WS / 执行线下有哪些 feature"（v8.49）
+- **关联 WS**：本 BL 由哪个 Workstream 拆出（如 \`WS-01\`）· 回指 \`product-overview/workstream/WS-NN.md\`，反查"某 WS / 执行线下有哪些 feature"
 - **依赖**：填 Feature ID（如 \`BL-001\`），无依赖填 \`无\`
 - **并行度**：同一 Wave 内无互相依赖的 Feature 数量，即可同时开几个 Claude 执行
 

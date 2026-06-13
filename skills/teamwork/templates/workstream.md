@@ -6,7 +6,7 @@
 > **完成标准**：① 涉 UI 时 **全景初规 ✅**（本 WS 的页已在 `preview-project` · 非 UI 标 `N-A`）+ ② 这组 feature **全部写入 ROADMAP**（原子）+ ③ **执行顺序与并行建议**已给（§执行顺序与并行建议 · 波次 + 哪些可并行）→ WS 转 `✅ 规划完成`，执行态交给 ROADMAP/BL 跟踪。
 > 详 [SKILL.md § teamwork 业务流程架构](../SKILL.md) · [docs/feature-planning.md](../docs/feature-planning.md)。
 >
-> 🔴 取代 v8.49 前的 `changes/` 变更单（CHG/BG）+ 执行手册的"拆 feature"职责。老项目 `changes/*.md` 向前兼容（保留可读）。
+> 🔴 取代旧的 `changes/` 变更单（CHG/BG）+ 执行手册的"拆 feature"职责。老项目 `changes/*.md` 向前兼容（保留可读）。
 
 ---
 
