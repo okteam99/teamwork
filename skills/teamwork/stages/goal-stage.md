@@ -60,13 +60,12 @@
 
 ### 5. 多角色并行评审 → PRD-REVIEW.md
 
-- **必含 `state.stage_review_roles[goal]` 全部角色**(默认 5:PM/QA/Architect/PL/External · 经 `state.py change-review-roles` 调整后按新值校验 · `_evidence_reviewers_match` 强制)· 缺角色 → goal-complete FAIL:
+- **必含 `state.stage_review_roles[goal]` 全部角色**(默认 4:PM/QA/Architect/PL · v8.149 去 External · 经 `state.py change-review-roles` 调整后按新值校验 · `_evidence_reviewers_match` 强制)· 缺角色 → goal-complete FAIL:
   - PM 视角:需求清晰度 / AC 完整性(+ `pm_self_check` 落 frontmatter · 含 `code_context_read`)
   - QA 视角:测试覆盖性 / 边界场景 / AC 可测试性
   - Architect 视角:技术可行性 / 架构影响 / 性能安全 / **方案简洁性(是否过度设计 · 职责是否归错层 · 能否更简单达成业务目标)** —— 🔴 唯一的**简洁性 counter-lens**(详 `roles/architect.md` Telos)
   - PL 视角:业务方向 / 路线图对齐(cite 上游依据)+ **确认 §3 CHALLENGE 已解决 / 留痕**
-  - External Reviewer:**跑** `state.py external-review --feature ... --stage goal`(host/model/profile 全自动 · 落 `external-cross-review/goal-<model>.md` · 详 standards §十一)
-- 🔴 **external finding 须对照业务目标 + 简洁性取舍**:external review 天然「找缺口 → 加校验」· **每条**单看都合理 · 合起来却可能把方案做臃肿 / 把责任焊进错层。采纳「修真 bug / 真业务缺口」的 · 用 Architect 简洁性视角挡住「为 rigor 而 rigor」的复杂度。
+- 🔴 **goal 不做 external 评审(v8.149)**:goal 是**业务目标对齐**(用户亲审 PRD)· external 天然「找缺口 → 加校验」· 每条单看都合理 · 合起来把方案做臃肿 / 责任焊错层 —— 在「定要做什么」阶段是噪音。**过度设计防线 = Architect 简洁性 counter-lens(内审)**;细节 / 边界 / 异质 cross-review 全部归 **blueprint**(技术方案阶段 · external 在那)。确需对某 PRD 上 external → `change-review-roles --stage goal --roles '...,external'` 显式 opt-in。
 - 落 `{Feature}/PRD-REVIEW.md` · frontmatter `reviewers: [...]` + `verdicts: {role: APPROVE|NEEDS_REVISION|SKIP}` · Round 结构 / findings / `pm_response`(ADOPT|REJECT|DEFER + 对抗自查)schema 单源 = [templates/prd.md § PRD-REVIEW schema](../templates/prd.md)
 
 ### 6. PM 回应 + 修订 PRD
@@ -93,7 +92,7 @@
 
 ```
 📌 重点 review 指引(导读 · 不替代 PRD)
-- 替你做的判断:<被 REJECT/DEFER 的 external·PL finding:谁提 · 驳/缓一句理由(源:pm_response)| 无>
+- 替你做的判断:<被 REJECT/DEFER 的 PL finding:谁提 · 驳/缓一句理由(源:pm_response)| 无>
 - 核心取舍:<评审中有争议、已裁决的点 · cite finding/PL-CHALLENGE id(源:PRD-REVIEW)| 无>
 - 范围收窄:<Out of Scope 中用户可能预期在内的项(源:§Out of Scope)| 无显著>
 - 影响面:<跨服务/跨模块清单(源:PM 自查·影响范围)>
@@ -161,12 +160,12 @@
 
 ### `PRD-REVIEW.md`
 - frontmatter:
- - `reviewers: [pm, qa, architect, pl, external]`(按 stage_review_roles[goal])
+ - `reviewers: [pm, qa, architect, pl]`(按 stage_review_roles[goal] · v8.149 默认无 external)
  - `verdicts: {role: APPROVE|NEEDS_REVISION|SKIP}`(🔴 全 APPROVE/SKIP 才可 complete)
 - body ≥ 20 行 · 每 reviewer 单独段 · cite PRD 行号 · **PL 段 = PL-CHALLENGE 段**(`PL-CHALLENGE-{n}`)
 
-### `external-cross-review/goal-<model>.md`(若启用)
-- **跑** `state.py external-review --feature ... --stage goal`(自动落产物 · 不要手写)· 详 [standards/external-model-usage.md §十一](../standards/external-model-usage.md)。
+### `external-cross-review/goal-<model>.md`(v8.149 默认不产 · 仅 opt-in 时)
+- goal 默认无 external(细节归 blueprint)· 仅 `change-review-roles --stage goal --roles '...,external'` 显式启用时才 **跑** `state.py external-review --feature ... --stage goal`(自动落产物)· 详 [standards/external-model-usage.md §十一](../standards/external-model-usage.md)。
 
 ---
 

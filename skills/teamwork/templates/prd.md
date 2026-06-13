@@ -179,11 +179,11 @@ prd_feature_id: F025
 review_round: 1
 review_started_at: "<ISO 8601 UTC>"
 review_completed_at: "<ISO 8601 UTC>"
-reviewers: [pm, qa, architect, pl, external]  # 机读汇总 · = state.stage_review_roles[goal] · 校验 reviewers_match
-verdicts: {pm: APPROVE, qa: APPROVE, architect: APPROVE, pl: APPROVE, external: SKIP}  # 🔴 全 APPROVE/SKIP 才可 goal-complete(prd_verdicts_all_pass · v8.132 · 词表 APPROVE|NEEDS_REVISION|SKIP)
+reviewers: [pm, qa, architect, pl]  # 机读汇总 · = state.stage_review_roles[goal](v8.149 默认无 external)· 校验 reviewers_match
+verdicts: {pm: APPROVE, qa: APPROVE, architect: APPROVE, pl: APPROVE}  # 🔴 全 APPROVE/SKIP 才可 goal-complete(prd_verdicts_all_pass · v8.132 · 词表 APPROVE|NEEDS_REVISION|SKIP)
 reviews:
  # schema 调整：reviews[] 仅含 qa / rd / designer? / external?
- # v8.132 对齐现行系统:goal 评审角色 = state.stage_review_roles[goal](默认 pm/qa/architect/pl/external · prepare 4 问可调)
+ # v8.149:goal 评审角色 = state.stage_review_roles[goal](默认 pm/qa/architect/pl · 无 external · prepare 4 问可调 · external opt-in)
  # PMO 不独立评审(折叠到调度责任 · 整合 finding)
  - role: pm | qa | architect | pl | external  # schema 通用 · rd/designer 值用于 TC-REVIEW / TECH-REVIEW / REVIEW.md 复用场景
  review_scope: prd # 值 prd | blueprint | code-review

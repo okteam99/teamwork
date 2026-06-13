@@ -146,7 +146,7 @@ prepare-check 输出 `reviewer_thinking_checklist` 4 个核心问题 · PMO 在 
 
 | stage | 必/选 | 评审角色(调整后) | 调整理由(cite 4 问命中) |
 |---|---|---|---|
-| goal | 必 | pm, qa, architect, **pl**, external | Q1 有产品方向影响(如支付=商业模式 + 跨端一致)→ **留 pl**(默认 · 别拿无 ROADMAP 去) |
+| goal | 必 | pm, qa, architect, **pl** | Q1 有产品方向影响(如支付=商业模式 + 跨端一致)→ **留 pl**(默认 · 别拿无 ROADMAP 去)· v8.149 默认无 external(细节归 blueprint) |
 | ui_design | 跳过 | — | Q2 后端先行 · UI 留 PTR 子 Feature |
 | blueprint | 必 | qa, architect, **external 🔴 强** | Q3 跨 5 module 触发点 · 异质模型查漏 |
 | ... | ... | ... | ... |

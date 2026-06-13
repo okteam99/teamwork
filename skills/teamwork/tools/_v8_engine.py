@@ -1039,7 +1039,7 @@ REVIEW_ROLE_ENUM = {"pm", "qa", "architect", "rd", "designer", "pl", "external"}
 # (flow_type, stage) → 默认 review 角色清单
 DEFAULT_REVIEW_ROLES: dict[tuple[str, str], list[str]] = {
     # Feature 流程
-    ("Feature", "goal"): ["pm", "qa", "architect", "pl", "external"],
+    ("Feature", "goal"): ["pm", "qa", "architect", "pl"],  # v8.149:去 external —— goal 是业务目标对齐(用户审 PRD)· external 天然挑细节/过度设计 = 错阶段;细节/边界归 blueprint(external 在那)· 仍可 change-review-roles 显式 opt-in
     ("Feature", "ui_design"): ["designer", "pm"],
     ("Feature", "panorama_sync"): ["pm", "architect"],
     ("Feature", "blueprint"): ["qa", "architect", "external"],
@@ -1087,7 +1087,7 @@ def build_default_stage_review_roles(flow_type: str) -> dict[str, list[str]]:
 FLOW_STAGE_CHAIN: dict[str, list[tuple[str, bool, str, str]]] = {
     # (stage_name, optional, optional_trigger_note, review_reason_hint)
     "Feature": [
-        ("goal", False, "", "PRD 需多视角把关:PM/QA/Architect/PL 各自专业领域 + External 异质模型 cross-review"),
+        ("goal", False, "", "PRD 业务目标对齐(用户审):PM/QA/Architect/PL 各自专业领域 · 无 External(细节/边界归 blueprint · 防过度设计提前涌入)"),
         ("ui_design", True, "goal-complete --needs-ui=true 时启用", "Designer 视觉一致 + PM 流程合理"),
         ("panorama_sync", True, "ui_design-complete --panorama-changed=true 时启用", "PM 跨 Feature 视角 + Architect IA 影响"),
         ("blueprint", False, "", "TECH 选型与测试规划需 Architect/QA 把关 + External 异质 review"),
