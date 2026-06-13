@@ -159,6 +159,9 @@ stateDiagram-v2
 - ...
 
 ## 待决策项
+
+> 🔴 **改既有用户可感知默认行为必入此段**(v8.157 · 实证 TermPro 文件 locate-vs-open case):本 Feature 若改了某个**既有默认行为**(原 A → 现 B · 如「文件点击 原打开 → 现只定位」)· **必须**作为显式待决策项让用户拍板(列 原行为 / 新行为 / 为什么改 / 推荐)· **不可**只在 §背景 / 「既有行为取舍」叙述段当既定事实写掉 —— 那不是用户拍过板的 · 会让 goal 确认暂停点拿到一份已焊死的 PRD。PL 质疑六问 ⑥ 专查此项。
+
 | ID | 问题 | 选项 | 决策 |
 |----|------|------|------|
 
@@ -188,7 +191,7 @@ reviews:
  - role: pm | qa | architect | pl | external  # schema 通用 · rd/designer 值用于 TC-REVIEW / TECH-REVIEW / REVIEW.md 复用场景
  review_scope: prd # 值 prd | blueprint | code-review
  # PRD 评审审产品视角(业务可行性 / AC 可测试性 / 用户故事完整性)· 技术/测试细节归 Blueprint Stage(review_scope=blueprint)
- # 🔴 pl 段 = 对抗质疑段:finding id 用 PL-CHALLENGE-{n} · category=premise-challenge(质疑五问 · 至少 1 条实质质疑或显式「无实质质疑+理由」· 详 stages/goal-stage.md §3)
+ # 🔴 pl 段 = 对抗质疑段:finding id 用 PL-CHALLENGE-{n} · category=premise-challenge(质疑六问〔含 ⑥ 既有行为变更〕· 至少 1 条实质质疑或显式「无实质质疑+理由」· 详 stages/goal-stage.md §3)
  execution: subagent | main-conversation
  verdict: APPROVE | NEEDS_REVISION  # v8.132 词表统一 · 原 PASS_WITH_CONCERNS = APPROVE + advisory finding 留痕
  started_at: "<ISO 8601 UTC>"
@@ -201,7 +204,7 @@ reviews:
  severity: high | medium | low | info
  description: "1-2 句问题描述"
  suggestion: "建议改法（可执行的具体方向）"
- category: technical-consistency | business-alignment | ux | quality | business-decision | terminology-ambiguity | premise-challenge # terminology-ambiguity 触发 Flagged Ambiguities 写入 · premise-challenge = PL 质疑五问(v8.132)
+ category: technical-consistency | business-alignment | ux | quality | business-decision | terminology-ambiguity | premise-challenge # terminology-ambiguity 触发 Flagged Ambiguities 写入 · premise-challenge = PL 质疑六问(v8.132 五问 + v8.157 ⑥ 既有行为变更)
  cross_role: []  # （可选）· 一个 finding 同时关联多视角时（如 [qa, rd]）· 仍归入主要视角段 · 不复制到多段
  # ：涉及代码现状的 finding 必填 code_evidence（category=technical-consistency 时强制）
  code_evidence: # 可选 · category=technical-consistency 时必填
