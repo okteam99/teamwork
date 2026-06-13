@@ -187,12 +187,22 @@ ship1 交付本体(随 feature MR)· zip 内 state.json = 终态墓碑(current_s
 
 ## 16. 流程价值反思(ship2 后输出 · 零暂停)
 
-> 🔴 **telos**:给流程仪式攒「该不该活着」的数据 —— 框架此前只有负反馈(出事 → 判例 → 加规则)· 没有正/零反馈 → 规则只增不减。本节把它变成台账。
+> 🔴 **telos**:给流程仪式攒「该不该活着」的数据 —— 框架此前只有负反馈(出事 → 判例 → 加规则)· 没有正/零反馈 → 规则只增不减。本节把它变成台账 + 跨项目回收。
 > 🔴 **与 `docs/retros/`(§14 distill.retro)的分工**:retros = 业务/工程复盘(子项目级 · 知识层);本节 = 流程仪式价值度量(workspace 级)。**别混写**。
 
-**时机(v8.145 两段式)**:
+**三处落点(各管一段链路 · 别混)**:
+| 落点 | 粒度 | 写时机 | 消费方 |
+|---|---|---|---|
+| `project-specs/PROCESS-LEDGER.md`(项目侧) | 一行一 feature · 机器字段 | §3 archive 规划 gate(worktree 内) | 项目自己流程审视 |
+| **`<skill 安装目录>/docs/audit/<id>.md`(框架回收侧 · v8.148)** | 一份一 feature · 机器数据 + 三段判断 | **ship2 PASS 后工具落草稿 → AI 静默补判断** | **框架跨项目 harvest 流程质量** |
+| `docs/RETRO-LEDGER.md`(框架仓) | 一行一版 · 永久 | 框架改进发版时 | 年检 / 存在性审视 |
+
+**时机(v8.145/148 两段式)**:
 - **采集 + 写台账行 = §3 archive 的规划 gate 时**(worktree 内 · `state.json`/`REVIEW.md`/`external-cross-review/` 全在工作树 · 取数零成本):PMO 在 worktree append `project-specs/PROCESS-LEDGER.md` 行(无则按 [templates/process-ledger.md](../templates/process-ledger.md) 创建)· 路径加进 `--planning-artifacts`(随 feature MR 原子合入)。
-- **digest = ship2(ship-finalize)PASS 后 emit**(从台账行 + ship2 结果渲染)。🔴 **零新增暂停点**(纯情报 · auto/yolo 照常输出)。时长口径 = init → archive(不含 MR 等待)。
+- **审计回收 + digest = ship2(ship-finalize)PASS 后**:
+  - 🔴 **工具自动落** `<安装目录>/docs/audit/<id>.md` 草稿(机器数据段确定性抽自 state.json · 喂 kill-criteria 不可幻觉)· emit `audit_record` 路径;
+  - 🔴 **AI 静默补完三段判断**(做的好的 / 发现的问题 / 待优化的 · 照实抄 REVIEW.md·state · 空写「无」· 改 frontmatter `audit_status: done`)—— **零新增暂停点 · 不等确认 · 写完即结束**(auto/yolo 照常)。「发现的问题」段 = 框架级 bug / 工具判例的**持久回收口**(取代旧易逝 digest 的「建议反馈 teamwork」行 · 详 [docs/audit/README.md](../docs/audit/README.md));
+  - digest 仍可 emit(≤10 行 · 纯情报)。时长口径 = init → archive(不含 MR 等待)。
 - **兜底**(漏写时):`unzip -p features/_archive/<id>.zip <id>/state.json` 取数 · 补行随下次任意 MR。
 
 **两层输出**:
