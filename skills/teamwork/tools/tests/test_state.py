@@ -1430,16 +1430,15 @@ class TestExternalReviewCommand(unittest.TestCase):
             json.dumps({"disable_external_review": True}), encoding="utf-8")
         self.assertTrue(_read_disable_external_review(self.feat))
 
-    def test_v8153_legacy_key_still_honored(self):
-        """v8.153 兼容:旧名 disable_heterogeneous_review=true 仍生效(OR 语义 ·
-        防 bootstrap additive 补新名默认 false 顶翻旧 true)。"""
+    def test_v8154_legacy_key_no_longer_honored(self):
+        """v8.154 hard rename(用户:不用兼容):旧名 disable_heterogeneous_review 已废弃 ·
+        单设旧名 true **不再生效**(只读新名)· 防有人误把 OR fallback 加回来。"""
         from state import _read_disable_external_review  # type: ignore
         (self.tmp / ".git").mkdir()
-        # 旧名 true + 新名 false(模拟 healer 补默认)→ 仍禁用
         (self.tmp / ".teamwork_localconfig.json").write_text(
-            json.dumps({"disable_heterogeneous_review": True,
-                        "disable_external_review": False}), encoding="utf-8")
-        self.assertTrue(_read_disable_external_review(self.feat))
+            json.dumps({"disable_heterogeneous_review": True}), encoding="utf-8")
+        self.assertFalse(_read_disable_external_review(self.feat),
+                         "旧名已废弃 · 不应再触发禁用")
 
     def test_config_disabled_emits_subagent_recipe(self):
         """🔴 v8.108:disable_external_review=true → emit subagent 配方(不 exec)·

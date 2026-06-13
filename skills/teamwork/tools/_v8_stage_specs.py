@@ -1447,7 +1447,7 @@ def _localconfig_disable_external(feature_dir: Path) -> bool:
     向上找到 .git 边界 · 默认 false。
 
     内联实现(避免 _v8_stage_specs 循环 import state.py)· 与 state._read_disable_external_review 同义。
-    🔴 v8.153 兼容:新旧名任一为 true 即禁用(OR · 防 bootstrap additive 补默认 false 顶翻旧 true)。
+    🔴 v8.154 hard rename:只读新名 · 旧名 `disable_heterogeneous_review` 已废弃(不留兼容)。
     """
     import json as _json
     try:
@@ -1461,8 +1461,7 @@ def _localconfig_disable_external(feature_dir: Path) -> bool:
                 data = _json.loads(cfg.read_text(encoding="utf-8"))
             except (OSError, ValueError):
                 return False
-            return (data.get("disable_external_review") is True
-                    or data.get("disable_heterogeneous_review") is True)  # 旧名兼容
+            return data.get("disable_external_review") is True
         if (d / ".git").exists():
             break
     return False
@@ -1471,7 +1470,7 @@ def _localconfig_disable_external(feature_dir: Path) -> bool:
 def _evidence_external_review_artifact(state: dict, args) -> tuple[bool, str]:
     """external-cross-review/ 至少 1 份 markdown · 且必须是真异质模型评审(v8.19 加强)。
 
-    v8.90/v8.153:`disable_external_review:true`(原 `disable_heterogeneous_review` · localconfig · 单模型用户)时 · 接受
+    v8.90/v8.153:`disable_external_review:true`(localconfig · 单模型用户)时 · 接受
     external-review 写的**降级同模型自审**文件(frontmatter `degraded:true heterogeneous:false`)·
     跳过异质违规(用户已 opt-out · bootstrap 每次启动 WARN 持续提醒)。详 standards §11。
 

@@ -1400,8 +1400,8 @@ def _read_disable_external_review(start) -> bool:
     (宿主自身模型 subagent 自审 · 写 external-cross-review/ 满足 P0-154 但 frontmatter 标 degraded)·
     每次 bootstrap 启动 WARN。与 v8.88 `--self-review-fallback`(异质暂时不可用的临时 stopgap ·
     落 self-review/ · 不满足门禁)区分:本项是**项目级长期策略**(用户接受质量下降)。
-    🔴 v8.153 向后兼容:新名 `disable_external_review` 与旧名 `disable_heterogeneous_review`
-    **任一为 true 即禁用**(OR 语义)—— 防 bootstrap additive 自愈把新名补默认 false 顶翻旧 true。
+    🔴 v8.154 hard rename:只读新名 `disable_external_review` · 旧名 `disable_heterogeneous_review`
+    已废弃不再读取(无消费项目使用 · 不留兼容)。
     """
     try:
         node = Path(start).resolve()
@@ -1414,8 +1414,7 @@ def _read_disable_external_review(start) -> bool:
                 data = json.loads(cfg.read_text(encoding="utf-8"))
             except (OSError, json.JSONDecodeError):
                 return False
-            return (data.get("disable_external_review") is True
-                    or data.get("disable_heterogeneous_review") is True)  # 旧名兼容
+            return data.get("disable_external_review") is True
         if (d / ".git").exists():
             break
     return False

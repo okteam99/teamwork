@@ -4,6 +4,19 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.154 · disable_external_review 改 hard rename:撤 v8.153 旧名兼容(无项目使用 · 不留)
+
+> 用户(承 v8.153):不用兼容。
+
+### 改动(代码 + 模板 + 文档 + 测试)
+- 撤掉 v8.153 加的旧名 OR 兼容:两 reader(state / _v8_stage_specs)+ bootstrap WARN reader **只读新名** `disable_external_review` · 旧名 `disable_heterogeneous_review` 废弃不再读取。
+- 依据:核过无任何消费项目设旧名(只框架仓自己 · v8.153 已改新名)· 硬改无 silent break 风险 —— 同 v8.145「不留兼容期」路子。
+- templates / standards 的「旧名仍兼容」注 → 改「v8.154 旧名已废弃」。
+- 测试:v8.153 兼容测试反转为 hard-break 回归守护(单设旧名 true **不再生效** · 防有人误把 OR fallback 加回)。
+
+### 验证
+- pytest 3 failed / 530 passed(baseline 3 · 零回归)· 旧名非-docstring/非-守护引用清零。
+
 ## v8.153 · config 改名 disable_heterogeneous_review → disable_external_review(旧名 OR 兼容)
 
 > 用户:`disable_heterogeneous_review` 这个配置名字改为 `disable_external_review`。
@@ -63,22 +76,4 @@
 
 ### 验证
 - doc-only · pytest 3 failed / 527 passed(零回归)· 无测试 pin §12 措辞。
-
-## v8.149 · goal 阶段去 external 评审:业务对齐阶段不做技术细节挑刺 · 细节/边界归 blueprint
-
-> 用户:goal 阶段的外部评审去掉 —— 总会挑出细节和过度设计;这阶段目的是对齐业务目标(用户会看 PRD)· 细节和边界在技术方案阶段定就行。
-
-### 判断:对的工具 · 错的阶段(非「external 没用」)
-- external 整体 82% 采纳(实测数据)· 是框架 MVP —— 但**采纳率高 ≠ 每个阶段都该有**。goal 产物是业务对齐的 PRD、用户亲审;external 天然「找缺口 → 加校验」· 在「定要做什么」阶段把技术细节/边界审进来 = 噪音 + 过度设计提前涌入。external 留在 blueprint(技术方案)+ review(代码)· 那里技术挑刺正当其位。
-- **框架早知道病只贴了创可贴**:goal-stage.md 原有「🔴 external finding 须对照简洁性取舍 · 每条单看合理 · 合起来把方案做臃肿」—— 承认了过度设计,却只让 AI 自己筛。v8.149 移除病因(不在此阶段做),而非继续筛。
-
-### 改动(代码 1 处 + 文档)
-- **`DEFAULT_REVIEW_ROLES[("Feature","goal")]`**:`[pm,qa,architect,pl,external]` → `[pm,qa,architect,pl]`(唯一硬接线处)。verdicts 门禁通用(谁在查谁 · 不硬要 external)· pl_challenge 独立 → 拆得干净。
-- **能力保留**:`EXTERNAL_STAGE_TO_PROFILE` 仍含 goal · 确需对某 PRD 上 external → `change-review-roles --stage goal --roles '...,external'` 显式 opt-in(降默认不删能力)。
-- **goal 过度设计防线 = Architect 简洁性 counter-lens(内审)**:external 走后这条内审 lens 成为 goal 唯一简洁性把关 · 文档强化。
-- 文档对齐:goal-stage.md(默认 5→4 · 删 External Reviewer bullet · 新「goal 不做 external」段 · 重点 review 指引去 external)· prd.md 模板(reviewers/verdicts 示例)· prepare.md 角色表 · FLOW_STAGE_CHAIN hint。测试 1 处 pin 更新(simplicity-lens v8.76)。
-- 🔴 敏捷需求 goal 本就无 external(不变)· Feature Planning goal/planning 的 external **未动**(不同 flow · 跨 feature 粒度 · 待用户单独定夺)。
-
-### 验证
-- pytest 3 failed / 527 passed(baseline 3 · 零回归)· build_default_stage_review_roles('Feature')['goal'] 验证去 external · blueprint external 保留。
 

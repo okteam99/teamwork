@@ -1361,8 +1361,7 @@ def cmd_session_bootstrap(args: argparse.Namespace) -> None:
         }
 
     # v8.90:异质评审被 localconfig 禁用 → 每次启动 WARN(交叉 review 质量下降 · 建议恢复)
-    _ext_disabled = (read_localconfig(project_root).get("disable_external_review") is True
-                     or read_localconfig(project_root).get("disable_heterogeneous_review") is True)  # 旧名兼容
+    _ext_disabled = read_localconfig(project_root).get("disable_external_review") is True
     result["checks"]["heterogeneous_review"] = {
         "status": "disabled" if _ext_disabled else "enabled",
         **({"warning": (
