@@ -1136,11 +1136,15 @@ class TestFindingPostureHintV8151(unittest.TestCase):
 
     def test_posture_hint_carries_skeptical_first(self):
         from state import _FINDING_POSTURE_HINT  # type: ignore
-        for tok in ("质疑", "回读", "ADOPT 也要给实证", "举证责任对称", "§12"):
+        # v8.152:两个方向都摆明实证(ADOPT 与 REJECT 都点名 · 不只抽象「对称」)
+        for tok in ("质疑", "回读", "两个方向都必给实证", "ADOPT 给", "REJECT 给",
+                    "举证责任对称", "§12"):
             self.assertIn(tok, _FINDING_POSTURE_HINT, f"posture hint 缺 {tok}")
 
     def test_review_brief_carries_posture(self):
         from _v8_stage_specs import _review_brief  # type: ignore
         b = _review_brief({})
         self.assertIn("默认姿态=质疑", b)
-        self.assertIn("采纳也要给实证", b)
+        # v8.152:采纳 + 驳回都摆明
+        self.assertIn("两个方向都给实证", b)
+        self.assertIn("驳回给", b)

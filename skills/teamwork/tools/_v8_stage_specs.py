@@ -1738,7 +1738,7 @@ def _review_brief(state: dict) -> str:
 
 ### 怎么做
 **必读** `stages/review-stage.md`(详细步骤 6 步 + 注意事项 5 条)。
-🔴 **finding 处理默认姿态=质疑**(不盲目认同):逐条 先质疑(过度设计/错层/false positive)→ 回读真实代码确认 → 才 confirmed/rejected · **采纳也要给实证** ·「reviewer 说得对」不是理由(详 standards/external-model-usage.md §12)。
+🔴 **finding 处理默认姿态=质疑**(不盲目认同):逐条 先质疑(过度设计/错层/false positive)→ 回读真实代码确认 → 才 confirmed/rejected · **两个方向都给实证**:采纳给「为何确为真+为何这样改对」· 驳回给「为何不是问题」·「reviewer 说得对」与「我觉得没事」都不是理由(详 standards/external-model-usage.md §12)。
 
 ### 完成方式
 ```

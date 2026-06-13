@@ -2195,11 +2195,13 @@ EXTERNAL_STAGE_TO_PROFILE = {
 EXTERNAL_REVIEW_TIMEOUT_SEC = 600  # v8.55:5min→10min(用户 case codex 偶尔卡 / 长 review · 给足 buffer)
 
 
-# v8.151:finding 消费姿态提示(brief 主动推 · 防 v8.150 spec 只被动躺 doc 里 · 盲采是默认倾向)
+# v8.151:finding 消费姿态提示(brief 主动推 · 防 spec 只被动躺 doc 里 · 盲采是默认倾向)
+# v8.152:两个方向都摆明实证(v8.151 hint 只写 ADOPT · REJECT 只剩抽象「对称」· 又写歪了)
 _FINDING_POSTURE_HINT = (
     " 🔴 finding 处理默认姿态=**质疑**(不盲目认同):逐条 ① 先质疑(过度设计/错层/"
     "false positive/没看全)→ ② 回读真实代码/AC/DEV-RULES 确认 → ③ 才 ADOPT/REJECT;"
-    "**ADOPT 也要给实证**(为何确为真+为何这样改对)·「reviewer 说得对」不是采纳理由 · "
+    "**两个方向都必给实证**:ADOPT 给「为何确为真+为何这样改对」· REJECT 给「为何不是"
+    "问题(指真实代码/规约/目标)」·「reviewer 说得对」与「我觉得没事」都不是理由 · "
     "举证责任对称(详 standards/external-model-usage.md §12)。"
 )
 
