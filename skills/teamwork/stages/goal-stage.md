@@ -19,7 +19,7 @@
 
 ### 2. PM 起草 PRD 初稿(主对话 PM 身份)
 
-- 落 `{Feature}/PRD.md` · 🔴 **结构单源 = [templates/prd.md](../templates/prd.md)**(§背景 / §用户故事 / §交付预期 / §验收标准 / §Out of Scope / §待决策项 · 按需:流程图 / 埋点 / 消费方分析)· 起草前过模板 **§PM 起草规范 checklist**(产品目标 Why / AC 规范 / 影响范围 / PRD 不写什么 / 起草后自查 `pm_self_check`)
+- 落 `{Feature}/PRD.md` · 🔴 **结构单源 = [templates/prd.md](../templates/prd.md)**(必填核:§背景 / §用户故事 / §交付预期 / §待决策项 / §验收标准 / §Out of Scope / **§开工前必须想清的**〔开放区 · 至少 1 实质或「无+理由」〕· 按需:流程图 / 埋点 / 消费方分析)· 起草前过模板 **§PM 起草规范 checklist**(产品目标 Why / AC 规范 / 影响范围 / PRD 不写什么 / 起草后自查 `pm_self_check`)
 - frontmatter 必含 `acceptance_criteria` 数组 + `revision_history` 数组(可空 · 后续填)
 - AC 写成 BDD(Given/When/Then)· 写在「**行为 / 价值**」高度(WHAT)· 不下沉实现机制;`§Out of Scope` 用足「非目标」主动收窄(防过度设计第一道闸)
 - 🔴 **规模反压**:AC > 10 → §待决策项 必写「为什么不拆」或给拆分建议(回 planning 拆 BL / 拆子 Feature)—— 超大 PRD 的业务目标必然稀释
