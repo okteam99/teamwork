@@ -1,6 +1,6 @@
 # PRD 模板
 
-> frontmatter 必含机读 `acceptance_criteria[]`(AC↔TC `tests[].covers_ac` 反查绑定 = 防「需求→代码」漂移)· 校验:`python3 {SKILL_ROOT}/templates/verify-ac.py {Feature 目录}`(直接调 · 无需复制)。
+> 🔴 机读契约落 `TEAMWORK-MACHINE` HTML 注释块(MD 预览隐藏 · **非 frontmatter** · 解决 Zed/GitHub 等渲染器裸露机读内容)· 含机读 `acceptance_criteria[]`(AC↔TC `tests[].covers_ac` 反查绑定 = 防「需求→代码」漂移)· 校验:`python3 {SKILL_ROOT}/templates/verify-ac.py {Feature 目录}`(直接调 · 无需复制)。
 
 ## PRD.md(三层 · 必填核 / 按需 / 开放区)
 
@@ -11,29 +11,31 @@
 > 🔴 **PRD 的脊 = prepare 已确认的意图**(🎯理解 / 📦范围 / 🔁既有行为)· 起草不得偏离 · 冷审据此核对(防 goal 起草 re-drift)。
 
 ```markdown
----
+<!-- TEAMWORK-MACHINE · 机读契约 · MD 预览隐藏(所有渲染器都不显)· verify-ac + goal-complete 解析此块 · 保持 <!-- --> 包裹 + 标准 2 空格缩进
 feature_id: "{缩写}-F{编号}-{功能名}"
 status: draft # draft | pending_review | confirmed
 requires_ui: false  # 是否触发 Designer 评审（双保险之一；PMO 也按 UI 关键词识别）
 business_direction_locked: false  # PL-PM 讨论收敛后 PMO 写 true
 acceptance_criteria:   # 🔴 机读单源(verify-ac.py 读 id↔TC.covers_ac)· v8.158 瘦身:只留机读字段 · AC 描述/BDD 全文在 body §验收标准表(人读单源 · 不再两处同步 description)
- - id: AC-1
- category: functional   # functional / telemetry / logging / config / performance / security / monitoring
- priority: P0
- test_refs: []          # Blueprint 产 TC 时填测试 ID
- ui_refs: []            # UI Design 产出时填页面/状态
- # 非功能 AC(埋点/日志/配置/性能/安全/监控)必标 category · Review QA Step 4.5 按 category grep 对账(不过 TC 中转)
- - id: AC-7
- category: telemetry
- priority: P0
- test_refs: []
- grep_keyword: "SReporter.*login_success"   # 非功能 AC · 供 Step 4.5 grep
- - id: AC-8
- category: logging
- priority: P1
- test_refs: []
- grep_keyword: "SLogger.i.*login\\|Log.i.*login"
----
+  - id: AC-1
+    category: functional   # functional / telemetry / logging / config / performance / security / monitoring
+    priority: P0
+    test_refs: []          # Blueprint 产 TC 时填测试 ID
+    ui_refs: []            # UI Design 产出时填页面/状态
+  # 非功能 AC(埋点/日志/配置/性能/安全/监控)必标 category · Review QA Step 4.5 按 category grep 对账(不过 TC 中转)
+  - id: AC-7
+    category: telemetry
+    priority: P0
+    test_refs: []
+    grep_keyword: "SReporter.*login_success"   # 非功能 AC · 供 Step 4.5 grep
+  - id: AC-8
+    category: logging
+    priority: P1
+    test_refs: []
+    grep_keyword: "SLogger.i.*login\\|Log.i.*login"
+revision_history:   # 🔴 goal-complete 校验 ≥1 条(证明经 review 收敛)· 每轮修订 append 一条
+  - {version: "0.1", date: "{YYYY-MM-DD}", changes: "首版草稿"}
+-->
 
 # {功能名称}
 
@@ -63,7 +65,7 @@ acceptance_criteria:   # 🔴 机读单源(verify-ac.py 读 id↔TC.covers_ac)·
 
 ## 验收标准
 
-<!-- 🔴 v8.158:本表 = AC **人读单源**(BDD 全文在此)· frontmatter acceptance_criteria 只存机读字段(id/category/priority/test_refs/grep)· 两处 **id 一致** 即可(描述不再同步两份 · verify-ac.py 按 id↔TC.covers_ac 校验)· AC 写 BDD(Given/When/Then)· 行为/价值高度。 -->
+<!-- 🔴 v8.158:本表 = AC **人读单源**(BDD 全文在此)· TEAMWORK-MACHINE 块 acceptance_criteria 只存机读字段(id/category/priority/test_refs/grep)· 两处 **id 一致** 即可(描述不再同步两份 · verify-ac.py 按 id↔TC.covers_ac 校验)· AC 写 BDD(Given/When/Then)· 行为/价值高度。 -->
 
 | ID | 描述(BDD) | 优先级 | 覆盖测试 |
 |----|-----------|--------|----------|

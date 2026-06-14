@@ -4,6 +4,19 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.165 · PRD 机读契约搬进 `<!-- TEAMWORK-MACHINE -->` 注释块:所有渲染器都隐藏
+
+> 用户实测(TermPro + Zed 双截图):YAML frontmatter 在 **Zed / GitHub 等主流渲染器不隐藏** · 机读 AC 裸露在 PRD 预览顶部 = 冗余。v8.158「机读内容预览隐藏」赌的是「frontmatter 被隐藏」· 但现实只有 frontmatter-aware 渲染器隐藏 → 目标对 frontmatter 没达成。「修 viewer」行不通(改不了 Zed)· 只能产物侧治。
+
+### 改动(选 C·彻底隐藏·非半截瘦身)
+- **机读契约从 YAML frontmatter 搬进 `<!-- TEAMWORK-MACHINE ... -->` HTML 注释块**(所有渲染器都隐藏 HTML 注释)· PRD 预览只剩人读正文 · 顶部零机读裸露。
+- **两个解析器优先读注释块 · 兜底 `---` frontmatter**:`verify-ac.extract_frontmatter`(re · 行首锚定)+ 引擎 `parse_frontmatter`(str · 行首锚定)。`frontmatter_required` + `revision_history` 两个 goal-complete 门都走引擎 parse_frontmatter · 改一处全覆盖。
+- **兜底不破**:in-flight PRD(TermPro/aifriend 现存 `---`)+ 其他产物(TC/PRD-REVIEW 仍 frontmatter)走兜底分支 · 零破坏 · 平滑迁移(新 PRD 用注释块 · 旧的继续跑)。
+- 模板 AC 块顺手修成合法 2 空格 YAML(原 1 空格 illustrative-malformed)+ 补 revision_history 例 + 行首锚定防 prose 字面引用误命中。
+
+### 验证
+- 新增 `test_machine_block_v8165.py` +6(引擎读注释块/兜底/两者无→None/注释块优先 · verify-ac 抽注释块/兜底)· 模板块 PyYAML 合法 + grep_keyword `\|` 字节完好 · pytest 3 failed(baseline)/ 551 passed。
+
 ## v8.164 · PRD 模板三层 + 挑衅式开放区:必填核/按需/开放区显式 · 既有行为侦测提成主动挑衅
 
 > 设计讨论结论(③④⑤+① 接力):模板该分「必填核(消费测试过)/ 按需 / 开放区」· 开放区给结构没问到的留逼判断的尖问题(非空白自由发挥)· 既有行为变更从待决策项里的被动 HTML 注释提成开放区的主动必答挑衅。
@@ -55,17 +68,4 @@
 
 ### 验证
 - 新增 `test_review_base_commit_v8161.py` +11(冻结 4 / 祖先校验 3 / dry-run 解析 4)· pytest 3 failed(baseline)/ 545 passed。
-
-## v8.160 · 全模板瘦身:剥贴在活规则上的版本号 + 删「已移除字段/撤销旧决策/上线计划」考古
-
-> 用户(承 v8.159):查看其他模板是否有 prd.md 同类问题(过时/历史背景)。
-
-### 改动(10 模板 · 同 v8.159 律:剥死历史留 why)
-- **剥版本号前缀**(贴在仍有效规则上 · 规则留、`vX.Y` 去):`bug-report`(v8.107×2 / v7.3)· `tc`(v7.3 契约化×2)· `external-cross-review`(v8.19/20/21)· `ui`(v8.17×4 / v8.58 option B×3 / v8.134)· `config`(v7.3.8)· `roadmap`(v8.49)· `必读 cite(P0-11)`×3(browser-test/pm-note/test-report)。
-- **删决策/迁移考古块**:`config`「撤销 默认 off 决策」4 bullet(留「改 off 的合理理由」=何时选 off 的 why)+「已移除字段 ship_rebase/ship_policy」+ disable_external_review「改名自…旧名已废弃」(v8.154 已硬改名无兼容)· `external-cross-review`「字段重命名重构」note +「十、启用路线 Week 1-2」上线计划(早物化)· `ui`「旧模板…段已删除」改写为 live 规则。
-- **保留 why / live 行为**(不误伤):ui「治本双副本不一致 / 介质 drift」· config archive_on_ship「残留被忽略+WARN」(代码仍读)· 老模式向前兼容 note。
-- **假阳性不碰**:host-injection `teamwork-pointer v8.2`(sync-drift.py 解析的功能 marker)· ADR/e2e/workstream「废弃」状态枚举(live 数据模型)· tech 迁移策略段 · config P0-154(live 约束追溯)。
-
-### 验证
-- doc-only(模板)· 10 文件 −18 行 · pytest 3 failed(baseline)/ 534 passed(零回归)。
 

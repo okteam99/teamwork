@@ -314,12 +314,27 @@ def parse_frontmatter(file_path: Path) -> Optional[dict]:
         return None
     try:
         text = file_path.read_text(encoding="utf-8")
-        if not text.startswith("---\n"):
-            return None
-        end = text.find("\n---\n", 4)
-        if end == -1:
-            return None
-        fm_text = text[4:end]
+        # v8.x:机读契约优先读 <!-- TEAMWORK-MACHINE ... --> 注释块(预览隐藏 · 所有渲染器都不显)·
+        # 兜底文件头 --- frontmatter(旧 PRD / 其他产物 TC/REVIEW 仍用 frontmatter)。
+        fm_text = None
+        _ms = "<!-- TEAMWORK-MACHINE"
+        if text.startswith(_ms):                               # 仅行首 marker(防正文 prose 里字面引用误命中)
+            marker = 0
+        else:
+            _i = text.find("\n" + _ms)
+            marker = _i + 1 if _i != -1 else -1
+        if marker != -1:
+            nl = text.find("\n", marker)                       # 跳过 marker 行(可带说明)
+            close = text.find("\n-->", nl) if nl != -1 else -1
+            if nl != -1 and close != -1:
+                fm_text = text[nl + 1:close]
+        if fm_text is None:
+            if not text.startswith("---\n"):
+                return None
+            end = text.find("\n---\n", 4)
+            if end == -1:
+                return None
+            fm_text = text[4:end]
         # 简易 YAML 解析(只支持 key: value 和 key:\n  - list)
         result = {}
         current_key = None
@@ -1250,7 +1265,7 @@ def execute_stage_complete(
                     missing_artifacts.append({
                         "spec": art_spec.path,
                         "reason": "frontmatter parse failed",
-                        "hint": "确保文件头部有 --- YAML frontmatter --- 块",
+                        "hint": "确保文件头部有 `<!-- TEAMWORK-MACHINE ... -->` 机读块(PRD)或 `--- ... ---` frontmatter(TC/REVIEW 等)",
                     })
                     continue
                 missing_fm = [k for k in art_spec.frontmatter_required if k not in fm]
