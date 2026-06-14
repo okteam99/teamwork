@@ -1269,8 +1269,28 @@ def _feature_duration_h(state: dict) -> Optional[str]:
     return f"{secs / 3600:.1f}h" if secs >= 0 else None
 
 
+def _stage_durations(state: dict):
+    """从 stage_contracts 抽各 stage `duration_minutes`(确定性)· 返 (breakdown, analysis)。
+
+    breakdown = "goal 12m · blueprint 25m · …"(completed_stages 顺序)
+    analysis  = "阶段总和 Nm · 最耗时 X Ym(P%)"· 与「总时长」差 = 阶段间等待。
+    无 duration 数据返 (None, None)。
+    """
+    contracts = state.get("stage_contracts", {}) or {}
+    order = state.get("completed_stages", []) or list(contracts.keys())
+    items = [(s, contracts.get(s, {}).get("duration_minutes")) for s in order]
+    items = [(s, m) for s, m in items if isinstance(m, int)]
+    if not items:
+        return None, None
+    breakdown = " · ".join(f"{s} {m}m" for s, m in items)
+    total = sum(m for _, m in items)
+    longest_s, longest_m = max(items, key=lambda x: x[1])
+    pct = f"{round(100 * longest_m / total)}%" if total else "?"
+    return breakdown, f"阶段总和 {total}m · 最耗时 {longest_s} {longest_m}m({pct})"
+
+
 def _write_audit_record(state: dict, feature_id: str, merge_target: str,
-                        main_wt: str) -> Optional[str]:
+                        main_wt: str, main_model: Optional[str] = None) -> Optional[str]:
     """v8.148(用户拍板):ship2 后落「流程质量审计」到安装目录 docs/audit/<id>.md ·
     框架层面跨项目搜集流程质量。
 
@@ -1300,6 +1320,10 @@ def _write_audit_record(state: dict, feature_id: str, merge_target: str,
         warn_n = sum(1 for c in concerns if isinstance(c, str) and "WARN" in c)
         bypass_n = len(state.get("ship", {}).get("bypass_log", []) or [])
         flow = state.get("flow_type") or "?"
+        stage_dur, stage_analysis = _stage_durations(state)
+        host = state.get("host") or "未记录"
+        model_suffix = (f" · 模型 {main_model}" if main_model
+                        else " · 模型(未声明 · ship-finalize 传 --main-model 记录)")
 
         body = (
             f"---\n"
@@ -1316,6 +1340,9 @@ def _write_audit_record(state: dict, feature_id: str, merge_target: str,
             f"- flow:{flow}\n"
             f"- 实走 stages:{stages}\n"
             f"- 总时长:{dur}(init → archive · 不含 MR 等待)\n"
+            f"- 各阶段耗时:{stage_dur or '(无 duration 数据)'}\n"
+            f"- 耗时分析:{stage_analysis or '?'}(总时长含阶段间等待 · 阶段总和=纯在阶段内)\n"
+            f"- 主对话:host={host}{model_suffix}\n"
             f"- concerns:{len(concerns)}(WARN {warn_n})· bypass:{bypass_n}\n"
             f"- 细数据源:本 feature `project-specs/PROCESS-LEDGER.md` 行"
             f"(external 总/采/驳 · 角色真 finding · 暂停点 改:默)\n\n"
@@ -1920,7 +1947,8 @@ def cmd_ship_finalize(args: argparse.Namespace) -> None:
         zip_hint = fp[1]
 
     # ── v8.148:流程质量审计落安装目录 docs/audit/(框架跨项目搜集)· AI 静默补判断 ──
-    audit_record = _write_audit_record(state, feature_id, merge_target, main_wt)
+    audit_record = _write_audit_record(state, feature_id, merge_target, main_wt,
+                                       getattr(args, "main_model", None))
 
     emit_json({
         "verdict": "PASS",
@@ -2025,6 +2053,9 @@ def register_v8_ship_subparser(sub) -> None:
     )
     fp.add_argument("--feature", required=True,
                     help="worktree 内 feature 目录路径(接力卡 state.json 所在 · 已删则幂等判定)")
+    fp.add_argument("--main-model", default=None,
+                    help="主对话(PMO)模型 · PMO 声明(它知道自身 model · 如 claude-opus-4-8)· "
+                         "写入 audit 实际数据 · 缺省只记 host · 供 harvest 按模型分析流程质量")
     fp.set_defaults(func=cmd_ship_finalize)
 
     # ─── main-sync:主工作区净化(v8.70)─────────────────────────────

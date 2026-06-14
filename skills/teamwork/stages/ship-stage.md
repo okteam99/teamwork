@@ -87,7 +87,8 @@ state.py ship-phase --action push --feature <path> \
 
 ```bash
 cd <main-tree>                                        # 🔴 必在主工作区(P0-156)
-state.py ship-finalize --feature <worktree 内 feature 目录路径>
+state.py ship-finalize --feature <worktree 内 feature 目录路径> \
+  --main-model "<你的模型 · 如 claude-opus-4-8 · 写入 audit 供按模型分析流程质量>"
 ```
 
 | 步 | 动作 | 内容 |
