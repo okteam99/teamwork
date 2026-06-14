@@ -1004,6 +1004,9 @@ def cmd_init_feature(args: argparse.Namespace) -> None:
                           if args.host else []),
         "current_stage": initial_stage,
         "merge_target": merge_target,
+        # v8.161:进 dev 那刻由 stage-complete 冻结的 pre-dev HEAD · review-stage external-review
+        # 的增量 diff 基线(评本 feature dev 增量 · 非 merge_target...HEAD 累积)。init 占位 None。
+        "review_base_commit": None,
         "worktree": {
             "strategy": args.worktree_mode,
             "branch": args.branch,
@@ -2319,7 +2322,8 @@ def _build_codex_prompt(stage: str, feature_dir_rel: str, commit: str,
         return (
             f"You are an external code reviewer (codex / GPT) providing heterogeneous "
             f"perspective. Review the FULL code changes this feature introduces vs base "
-            f"branch `{base}`. Run `git diff {base}...{commit}` (PR-style; fall back to "
+            f"ref `{base}` (a branch or this feature's pre-dev commit). Run "
+            f"`git diff {base}...{commit}` (PR-style; fall back to "
             f"`git show {commit}` if the base ref is unavailable) to inspect the complete "
             f"diff across ALL changed files —— 🔴 the implementation lives OUTSIDE "
             f"`{feature_dir_rel}/`(that folder is only Feature docs)· do NOT restrict the "
@@ -2925,6 +2929,21 @@ def cmd_scaffold_review_prompt(args: argparse.Namespace) -> None:
     })
 
 
+def _is_ancestor(ancestor: str, commit: str, cwd: str) -> bool:
+    """`git merge-base --is-ancestor`:ancestor 是 commit 的祖先(或相等)→ True。
+
+    v8.161:external-review 用它校验 review_base_commit 是否真在 review 目标 commit 的
+    历史里 —— 是才用作增量 diff base · 否则兜底 merge_target。任何 git 失败(无 ref /
+    非 repo / git 缺失)→ False(安全:回退到 merge_target 既有行为 · 绝不因锚点失效而 BLOCK)。
+    """
+    try:
+        r = subprocess.run(["git", "merge-base", "--is-ancestor", ancestor, commit],
+                           capture_output=True, text=True, cwd=cwd)
+        return r.returncode == 0
+    except (FileNotFoundError, OSError):
+        return False
+
+
 def cmd_external_review(args: argparse.Namespace) -> None:
     """v8.20:state.py external-review · 异质模型评审一条命令调起。
 
@@ -3144,13 +3163,24 @@ def cmd_external_review(args: argparse.Namespace) -> None:
         })
         return
 
-    base = args.base or state.get("merge_target")
+    # v8.161:review stage 默认评本 feature 的增量 diff —— review_base_commit(进 dev 时
+    # 冻结的 pre-dev HEAD)而非 merge_target...HEAD(长 WS / stacked 分支累积 → 跨 feature
+    # 串味 + 超时;实证 aifriend yolo/ws02)。仅 review stage 用(goal/blueprint 评文档不评
+    # diff · base 不入 prompt)· 且锚点须是目标 commit 的祖先方采用(失效则透明兜底 merge_target)。
+    base = args.base
+    base_source = "--base" if base else None
+    if not base and args.stage == "review":
+        rbc = state.get("review_base_commit")
+        if rbc and _is_ancestor(rbc, commit, cwd=str(feature_dir)):
+            base, base_source = rbc, "review_base_commit"
+    if not base:
+        base, base_source = state.get("merge_target"), "merge_target"
     if not base:
         emit({
             "verdict": "FAIL",
             "command": "external-review",
-            "error": "无法算 base(--base 未传 + state.merge_target 缺)",
-            "hint": "显式传 --base <branch>",
+            "error": "无法算 base(--base 未传 + review_base_commit 无 + state.merge_target 缺)",
+            "hint": "显式传 --base <branch-or-commit>",
         })
         return
 
@@ -3272,6 +3302,7 @@ def cmd_external_review(args: argparse.Namespace) -> None:
             "profile": str(profile_path),
             "commit": commit,
             "base": base,
+            "base_source": base_source,  # v8.161:--base / review_base_commit(增量) / merge_target(兜底)
             "title": title,
             "codex_model": codex_model if model == "codex" else None,
             "cwd": str(git_root),
@@ -3559,6 +3590,7 @@ def cmd_external_review(args: argparse.Namespace) -> None:
         "profile": str(profile_path),
         "commit": commit,
         "base": base,
+        "base_source": base_source,  # v8.161:--base / review_base_commit(增量) / merge_target(兜底)
         "codex_model": codex_model if model == "codex" else None,  # v8.23
         "cwd": str(git_root),  # v8.23:codex 实际跑的 cwd
         "file_path": str(output_file),
@@ -4153,7 +4185,9 @@ def build_parser() -> argparse.ArgumentParser:
                     help=("review 目标 commit SHA · 缺省从 state.stage_contracts."
                           "<stage>.auto_commit 取 · 再缺从 git HEAD"))
     er.add_argument("--base", default=None,
-                    help="diff base 分支 · 缺省 state.merge_target")
+                    help=("diff base(分支或 commit)· 缺省:review stage 用 state."
+                          "review_base_commit(进 dev 冻结的增量基线)· 失效/其他 stage 兜底 "
+                          "state.merge_target。显式传可覆盖(如审跨 feature 全量)"))
     er.add_argument("--title", default=None,
                     help="review 标题 · 缺省 '<feature_id> · <stage> stage external review'")
     er.add_argument("--codex-model", default=None,

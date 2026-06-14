@@ -1159,6 +1159,25 @@ MAX_BRIEF_LINES = 100
 """
 
 
+def maybe_freeze_review_base(state: dict, next_stage: str,
+                             pre_dev_commit: Optional[str]) -> bool:
+    """v8.161:首次进 dev 时把 pre-dev HEAD 冻结进 state.review_base_commit。
+
+    review-stage external-review 用它作增量 diff base(评 base...HEAD = 本 feature 的 dev
+    增量)· 而非 merge_target...HEAD —— 后者在长 WS / stacked 分支上随 deliverable 累积 →
+    跨 feature 串味 + 600s 超时(实证 aifriend yolo/ws02)。pre_dev_commit = 完成 stage
+    (blueprint / diagnose / blueprint_lite)的 commit · 在 commit graph 上是 dev HEAD 的祖先
+    → base...HEAD 天然排除 prior features(拓扑无关)。
+
+    仅 next_stage==dev 且尚未冻结且 commit 非空时设(review→dev 回退不覆盖 · 再审仍覆盖全部
+    dev 增量)。返回是否本次设置(便于测试 / audit)。
+    """
+    if next_stage == "dev" and not state.get("review_base_commit") and pre_dev_commit:
+        state["review_base_commit"] = pre_dev_commit
+        return True
+    return False
+
+
 def execute_stage_complete(
     stage_spec: StageSpec,
     args: argparse.Namespace,
@@ -1470,6 +1489,9 @@ def execute_stage_complete(
             flow_graph = flow_by_type.get(flow_type, {})
             state["current_stage"] = next_stage
             state["legal_next_stages"] = flow_graph.get(next_stage, [])
+
+            # v8.161:进 dev 那一刻冻结 pre-dev HEAD 作 review-stage 外审的增量 diff 基线。
+            maybe_freeze_review_base(state, next_stage, auto_commit)
 
             # 初始化下一 stage contract
             next_contract = contracts.setdefault(next_stage, {
