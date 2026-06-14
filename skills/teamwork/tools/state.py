@@ -1573,8 +1573,9 @@ def cmd_prepare_check(args: argparse.Namespace) -> None:
     # 不强制 JSON 必传(Option A · 用户拍板)· 不像 v8.15 admission_judgment 物化
     payload["reviewer_thinking_checklist"] = REVIEWER_THINKING_CHECKLIST
     payload["reviewer_thinking_hint"] = (
-        "🔴 PMO emit prepare 暂停点 「建议评审角色」段 · 必基于此 checklist 4 问思考 + "
-        "给出加减预估 · 不要直接抄 stage_chain_preview 默认值。"
+        "🔴 PMO 必基于此 checklist 4 问思考 · 设定实际评审角色 + stage 链"
+        "(结果进默认 · prepare 暂停点「⚙️ 配置」段**一行**带过 · 不铺表 · v8.162)· "
+        "不要直接抄 stage_chain_preview 默认值。"
         "⚠️ 加减须有**本 Feature 特定理由** · 不是套路化删角色 —— 尤其 **pl 默认保留**"
         "(产品方向视角)·『无 ROADMAP』**不是**去 pl 的理由(ROADMAP=规划层 · 与 PRD 产品方向"
         "评审无关)· 仅纯内部/技术重构无产品面才去 pl。"

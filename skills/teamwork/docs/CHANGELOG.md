@@ -4,6 +4,20 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.162 · prepare 暂停点信噪比反转:意图确认提到最前(暴露补的假设)· 执行 setup 塌一行
+
+> 设计讨论结论:意图 fidelity(我们有没有理解对你要什么)只能由用户校验(用户是自己意图的唯一 oracle)· 而 prepare/triage 是规划→执行的那层膜 —— 这个唯一不可转移的校验该锁在前门。旧 prepare 暂停点领头是执行 setup(被 `ok` 盖章)· 把意图埋成一行 restatement → 误读搭便车溜过(实证 TermPro 前提盲:8 轮打磨错前提)。
+
+### 改动(prepare.md 暂停点重排 · 同一处编辑解两个诉求)
+- **意图确认提到最前**(`# 🎯 我的理解`):🗣️ 用户原话 + 🎯 理解 + **🧩 我补的假设**(摊开「你没说、我替你补的」= 抓误读核心零件 · 干净 restatement 会把假设藏起)+ 📦 范围 + 🔁 既有行为。**数据全是 prepare-check 已采的**(`--user-intent` + `--admission-judgment.ai_rationale`)· 只是从「目标概述」reframe 成「暴露假设的确认」。
+- **执行 setup 塌一行**:旧 5 段(流程概览/评审角色表/上下文/Worktree/4 项配置)· 派生值多、用户盖章 → 配置一段 + 评审一行(各 stage-start 会再 emit · prepare 重列 = 噪音)+ 上下文**仅异常出**(上游未就绪/撞号/Planning 未 ship · 全绿不显)。
+- **风险分级**:请求一清二楚 → 🧩 写「无补」秒过;含糊/大范围/改既有行为 → 摊假设让用户校(短指令恰是误读高发区)。
+- 配套改自身护栏:§0.5 反模式 #6 / 自检 #5 / §4.1 自检 / §1.5 喂数据引用 / state.py `reviewer_thinking_hint`(评审思考结果进默认 · 不铺表)· prepare.md 459→417。
+
+### 边界 + 验证
+- 这是**浅意图门**(prepare · 调研前 · 拦粗误读)· **深意图**(goal 调研后才浮出的形状)是 goal 侧后续。
+- doc + 1 hint 字符串(测试断言的 pl 默认保留/不要直接抄/F-Bv2-8 全保留)· pytest 3 failed(baseline)/ 545 passed。
+
 ## v8.161 · review 外审评本 feature 增量 diff:进 dev 冻结 base 锚 · 治跨 feature 串味 + 超时
 
 > harvest docs/audit/(aifriend 20 条)最高频框架信号:external review 评 `merge_target...HEAD` · 在长 WS / stacked 分支(yolo/ws02)随 deliverable 累积 → ① 跨 feature 串味(B014/B017 实测:一次涌 5 个跨子系统 finding · 本 bug 只占 1 · in/out scope 全靠 AI 自决无工具)② 600s 超时(B016/B017:base...head 全量随 deliverable 增长)。
@@ -56,20 +70,4 @@
 
 ### 验证
 - doc-only(模板)· verify-ac.py 实测解析瘦身 frontmatter 正常 · pytest 3 failed / 534 passed(零回归)。
-
-## v8.157 · PL 质疑加第六问「既有行为变更」:改既有默认行为必入待决策项 · 治 premise 焊死蒙混
-
-> 用户(实证 TermPro 文件 locate-vs-open case · 排查 transcript):终端链接点击默认全走文件定位 · 查哪个需求引入 · 为什么没评估到位。
-
-### 诊断:方向级默认行为变更被当既定事实 · 没进用户拍板点
-- 根因不是实现 bug(代码 100% 忠实 PRD)· 是 PRD 把「文件点击 原打开 → 现只定位」这个**既有默认行为变更**登记成「既有行为取舍/有意改变」叙述段 · §待决策项 空 → **从没进 goal 确认暂停点让用户拍板**。8 轮 external 全打磨「怎么定位」却没人回炉「该不该只定位」前提(评审越细越巩固 locate-first 框)。
-- 框架缺口:PL 质疑五问(价值前提/问题定义/范围最小化/上游对齐/复活检查)**没一问覆盖「既有默认行为变更 → 必须 ratify」**;§待决策项 也无「改既有行为必入此段」规则。
-
-### 改动(doc-only · 治本)
-- **PL 质疑五问 → 六问**:加 ⑥ **既有行为变更**(PRD 改了某既有用户可感知默认行为〔原 A → 现 B〕→ 🔴 必升级为显式 §待决策项让用户拍板 · 不可登记「取舍/有意改变」叙述蒙混)· goal-stage §3 + product-lead.md(附实证 case + 「评审越细越要防被越打磨越巩固的框带走」)。
-- **PRD 模板 §待决策项 加硬规则**:改既有默认行为必入此段(列 原/新/为什么改/推荐)· 不可只在背景/取舍段当既定事实写掉。
-- 全仓「五问」字面 → 六问(goal cite 表 / prd schema 注 · CHANGELOG/RETRO 历史不动)。
-
-### 验证
-- doc-only · pytest 3 failed / 534 passed(零回归)· 无测试 pin「五问」字面。
 

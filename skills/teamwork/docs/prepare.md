@@ -13,7 +13,7 @@
 - **`.teamwork_localconfig.json`** — 项目级 worktree_root_path 配置(读 `worktree_root_path` 字段 · 不存在用 `.worktree`)
 - **[feature-planning.md §0](./feature-planning.md)** — 何时改走 Feature Planning(关键词 + 复杂度双触发)
 
-🔴 **PMO 必先 Read 本 prepare.md(工具调用)再 emit 任何 prepare 内容** —— SKILL.md 只给"移交 prepare 子流程"指针 · 具体 5 段模板 / 准入校验 / prepare-check 用法都在本文件。不读直接 emit = R5 违规(详 §0.5 #1)。
+🔴 **PMO 必先 Read 本 prepare.md(工具调用)再 emit 任何 prepare 内容** —— SKILL.md 只给"移交 prepare 子流程"指针 · 具体 emit 模板(🎯 意图确认 + ⚙️ 配置)/ 准入校验 / prepare-check 用法都在本文件。不读直接 emit = R5 违规(详 §0.5 #1)。
 
 ---
 
@@ -28,17 +28,17 @@
 | 3 | 跑 `prepare-check` 但漏 / 错 `--features-root`(没传子项目对应 docs_root)→ 拿主 tree 结果 → 错号 | monorepo 子项目场景(`apps/partner` 在 PTR namespace) | § 1.5.4 + conventions §1 |
 | 4 | `prepare-check` 未叠加 worktree branch 上 in-flight Feature 占用的 ID → 撞号 | 并行 Feature 多 worktree 时 | § 1.5.4 |
 | 5 | 关键词命中即推流程类型 · 漏 §2.2 准入**反向扫描**("加按钮"→ 敏捷需求 · 没扫"改 UI 结构"信号) | 用户原文含 UI 调整 / 加组件 / 改布局 / 改交互 | § 2.2 |
-| 6 | emit 简化版(只给 4 项配置 + 备选)· 漏「流程概览 / 评审角色 / 上下文 / Worktree」4 段 | 短回路认知偏差("4 项就够了") | § 4 |
+| 6 | 漏「🎯 我的理解」意图确认段 / 把意图埋到配置后 / 🧩 假设不摊开(只给干净 restatement)| 短回路("配置够了" · 或怕暴露假设) | § 4 |
 | 7 | 现象类输入未排查直接定 Bug + emit prepare(「代码现状」填未验证猜测 · 命名/路由押在猜测上) | 用户只给现象(CI 失败/报错/挂了)· 无修复指令 | § 2 排查先行律 |
 
-🔴 **AI 短回路 ≠ 用户授权**:用户给短指令("改下页面")**不等于** AI 可省略 5 段表。用户已通过本 prepare.md 决定承担 5 段的"重量" · AI 无权简化。
+🔴 **AI 短回路 ≠ 用户授权**:用户给短指令("改下页面")**不等于** AI 可跳意图确认。指令越短 · AI 补的假设越多 · 越**该**摊开让用户校(短指令恰是误读高发区)· AI 无权省。
 
 🔴 **PMO 自检顺序**(动手 emit 前过一遍 · 任一 ❌ 即重来):
 1. ✅ 我读完本 prepare.md 全文了吗?
 2. ✅ 我跑过 `prepare-check --features-root <子项目对应 docs_root> --flow-type <type>` 了吗?
 3. ✅ 我手动 `git worktree list --porcelain | grep -oE '<PREFIX>-[FBM][0-9]+'` 叠加占用 ID 了吗?
 4. ✅ 我反向扫过 §2.2 准入信号(UI / 架构 / 文件数)了吗?(关键词命中 ≠ 流程类型推完)
-5. ✅ 我准备 emit 的 5 段(§4.1 自检清单)全有吗?
+5. ✅ 我 emit 的「🎯 我的理解」在最前 + 🧩 假设摊开了吗?(§4.1 自检清单)
 
 ### 物化拦截 TODO(违规可枚举消除 · 工具未到位前靠 PMO 自觉 + 上面自检清单)
 
@@ -47,7 +47,7 @@
 | `init-feature` 加门禁 | `state.py` | 本 session 未为 prefix 跑过 prepare-check → FAIL with hint(无 audit 不可 init-feature) | ✅ 已物化 |
 | `prepare-check` 内部合并 worktree ID | `state.py prepare-check` | 内部跑 `git worktree list --porcelain` 解析 ID · 与 `existing_ids` 取并集 · 输出统一 `next_available_id_stem` | ⏳ TODO |
 | `prepare-check` 加 `--user-intent "<原文>"` + `--admission-judgment '<JSON>'` | `state.py prepare-check` | 接收用户原文(留痕)+ AI 读 §2.1/§2.2 后的判断(JSON 必含 sections_reviewed / matched_signals / recommended_flow_type / ai_rationale 4 字段)· 工具校验 JSON schema + consistency(recommended vs --flow-type)· MISMATCH → WARN(不 BLOCK · R0 兜底) · init-feature 读 audit 也 emit MISMATCH WARN | ✅ 已物化(用 AI judgment 替代 regex 关键词) |
-| `prepare-check` 返回 `emit_template_markdown` | `state.py prepare-check` | 5 段填好的 markdown 字段 · AI 复制粘贴 emit · 漏段不可能(同 stage `next_action_brief` 模式) | ⏳ TODO |
+| `prepare-check` 返回 `emit_template_markdown` | `state.py prepare-check` | 🎯 意图确认 + ⚙️ 配置 填好的 markdown(🗣️🎯🧩 由 user-intent/ai_rationale 渲染)· AI 复制粘贴 emit · 漏段不可能(同 stage `next_action_brief` 模式) | ⏳ TODO |
 | `prepare-check` 加 `--subproject <PREFIX>` | `state.py prepare-check` | 替代裸 `--features-root` · 内部读 teamwork-space.md docs_root · 传错 prefix → FAIL with hint | ⏳ TODO |
 
 📎 物化策略说明:
@@ -83,7 +83,7 @@ PMO 移交 prepare 后 · **必走以下 4 项准备**(emit 暂停点之前):
 若用户启动来自 ROADMAP 某 BL-NNN(Feature Planning 已完成):
 - 读 ROADMAP.md 定位该 BL 行
 - 检 Planning Feature 已 ship 的 commit hash(`git log --grep='<Planning Feature ID>'`)
-- 输出"Planning ship 状态"行(给暂停点表格 · 用户看到 = 上游已 ready)
+- Planning **未 ship** 才入暂停点 ⚠️ 异常行(已 ship / N-A → 不显 · 全绿不噪)
 
 无 Planning(直接 mode B execute)→ 跳此项。
 
@@ -91,7 +91,7 @@ PMO 移交 prepare 后 · **必走以下 4 项准备**(emit 暂停点之前):
 
 若 prepare 是从已有 Feature 衍生:
 - 检上游 Feature 的 `state.blocking.pending_external_deps`
-- 列已就绪 / 待中(给暂停点表格)
+- **有待中依赖**才入暂停点 ⚠️ 异常行(全就绪 → 不显)
 
 无上游 → 跳。
 
@@ -99,7 +99,7 @@ PMO 移交 prepare 后 · **必走以下 4 项准备**(emit 暂停点之前):
 
 可选(高复杂度 Feature 推荐):
 - grep 关键模块当前实现(如 PTR-F041 = adapter.rs Impact-only 硬编码)
-- 给暂停点表格 1 句话总结 · 让用户验证启动方向无误
+- 1 句话总结 · 喂「🎯 我的理解」的 📦 范围 / 🧩 假设(让用户据代码现实校启动方向)
 
 低复杂度 / 用户已知 → 跳。
 
@@ -126,7 +126,7 @@ PMO 把数据填进暂停点表格:
 
 🔴 **评审角色思考清单**(防 PMO 直接抄默认):
 
-prepare-check 输出 `reviewer_thinking_checklist` 4 个核心问题 · PMO 在 emit prepare 暂停点的「建议评审角色」段时必基于此思考:
+prepare-check 输出 `reviewer_thinking_checklist` 4 个核心问题 · PMO 据此**设定实际评审角色 + stage 链**(结果进默认 · 暂停点「⚙️ 配置」段一行带过 · 不铺表):
 
 | # | 问题 | 命中调整 |
 |---|---|---|
@@ -139,18 +139,7 @@ prepare-check 输出 `reviewer_thinking_checklist` 4 个核心问题 · PMO 在 
 
 **不直接抄默认**:据本 Feature 实际(前后端先行 / 模块数 / 是否需 ui_design)给评审角色加减预估 · 不照搬 stage_chain_preview(后端先行→ui_design 可跳 · 跨多 module→blueprint 强 external)。
 
-🔴 emit prepare 暂停点 「建议评审角色」段格式(必含调整理由列):
-
-```markdown
-建议评审角色 🔴(基于 reviewer_thinking_checklist 思考 · 见调整理由)
-
-| stage | 必/选 | 评审角色(调整后) | 调整理由(cite 4 问命中) |
-|---|---|---|---|
-| goal | 必 | pm, qa, architect, **pl** | Q1 有产品方向影响(如支付=商业模式 + 跨端一致)→ **留 pl**(默认 · 别拿无 ROADMAP 去)· v8.149 默认无 external(细节归 blueprint) |
-| ui_design | 跳过 | — | Q2 后端先行 · UI 留 PTR 子 Feature |
-| blueprint | 必 | qa, architect, **external 🔴 强** | Q3 跨 5 module 触发点 · 异质模型查漏 |
-| ... | ... | ... | ... |
-```
+🔴 **Q1-Q4 思考的结果进默认 · 不在 prepare 暂停点铺成表**(v8.162 信噪比):据 4 问设定实际 `stage_review_roles` + stage 链(如留 pl / 跳 ui_design / blueprint 加 external)· 暂停点「⚙️ 配置」段只用**一行**带过(`评审:各 stage 按 flow 默认 · 已据 Q1-Q4 设 · stage-start 再确认`)· 各 stage-start 时 state.py 会再 emit 本 stage 建议角色(prepare 重列 = 噪音)。用户想**全局**调评审强度 → 暂停点回一句即可。
 
 ---
 
@@ -281,64 +270,35 @@ PMO 按 flow_type 算 branch 前缀 + worktree path 建议:
 
 ---
 
-## 4. Step 3 · emit 完整表格(1 次完整 · 不分多轮)
+## 4. Step 3 · emit 暂停点(🎯 意图 + ⚙️ 配置 · 1 次完整 · 不分多轮)
 
-PMO 复制给用户 · 🔴 **必含全 5 段**(漏任一段 = R5 暂停点违规 · 用户可叫停):
+PMO 复制给用户 · 🔴 **意图确认在最前** —— 它是用户 review 的**第一校准点**(AI 对意图理解偏 → 后面全偏)· 配置塌一段(均默认)· 异常才展开:
 
-1. `# 流程概览`(流程目标 + flow_type + stage 链 + 理由)
-2. `# 建议评审角色`(stage × 评审角色 × 建议理由表 · 数据从 `prepare-check --flow-type` 渲染)
-3. `# 上下文准备(Step 0 已读)`(Planning ship / 上游依赖 / 代码现状 / ID 冲突)
-4. `# Worktree 策略`(branch 前缀 + worktree_root_path + 推荐 path)
-5. `# 4 项配置`(artifact ID + merge_target + worktree path + branch)
+1. `# 🎯 我的理解`(意图确认 · **暴露补的假设** · 每次必出 · 在最前)
+2. `# ⚙️ 配置`(flow + stage 链 + 4 项配置 + 评审一行 · 均默认可改)
+3. `⚠️ 异常行`(仅上游未就绪 / ID 撞号 / Planning 未 ship 时出 · 全绿不显)
+
+🔴 **信噪比反转(v8.162)**:旧版 5 段领头是执行 setup(被 `ok` 盖章)· 把意图埋成一行 restatement → 误读搭便车溜过。意图提前 + **摊开「你没说、我替你补的假设」** = 用户一眼抓误读;评审表不在此展开(各 stage-start 会再 emit · prepare 重列 = 噪音)。
 
 ```markdown
-⏸️ Prepare · 进入流程前总览(回 `ok` / `all default` 全用推荐 · 或修改某几项 + 确认)
+⏸️ Prepare(回 `ok` 全默认 · 或纠正某项)
 
-# 流程概览
-📋 **流程目标**:<1-2 句概述本次流程要达成什么 · 从用户原文/BL 描述提炼 · Feature/敏捷需求=需求目标(给谁 · 什么能力/价值)· Bug=解决目标(问题现象 → 期望修复后行为)· Micro=改动目标 · 写「要什么」不写「怎么做」>
-📋 **流程类型**:<flow_type>(命中关键词 /<keyword>/)
-📋 **stage 链**:<完整 stage 链 · 由 FLOW_BY_TYPE[flow_type] 渲染>
-📋 **理由**:<识别理由 1 句>
+# 🎯 我的理解(先确认这个 · 下面配置可 default)
+🗣️ 你说的:「<用户原话节选 · 源 --user-intent>」
+🎯 理解:<要达成什么 · 1-2 句 · 要什么不写怎么做>
+🧩 我补的假设〔做了非平凡解读才列 · 否则写「请求明确 · 无补」〕:
+   - <你没明说、我按 X 理解的点 · 错了请纠 · 源 admission-judgment.ai_rationale>
+📦 范围:做 <Y> · 不做 <Z>
+🔁 既有行为:<改「原 A → 现 B」· goal 将升级为待决策项 | 否 · 不动既有默认行为>
 
-# 建议评审角色 🔴(初步建议 · 各 stage 进入时可按方案复杂度调整)
-> 数据从 `prepare-check --flow-type` 输出 `stage_chain_preview` 渲染 · **不可跳过**。
+# ⚙️ 配置(均默认 · 改某项才说 · 回 `ok` 即全默认)
+flow=<Feature> · 链=<goal→…→ship · 已反映 ui_design 跳过等> · ID=<PTR-F033> · merge_target=<staging> · wt=<.worktree/PTR-F033> · branch=<feature/ptr-f033>
+评审:各 stage 按 flow 默认(已据 §1.5.4 Q1-Q4 设:如留 pl / 跳 ui_design / 加 external)· stage-start 再确认 · 高风险想**全局**加 external 现在说
 
-| stage | 必/选 | 建议评审角色 | 建议理由 |
-|---|---|---|---|
-| <stage> | <必跑/可选(若可选括号注触发条件)> | <reviewers 列表 / — (无 reviewer)> | <从 reason 字段渲染 · 1 句话为什么这些角色> |
-| ...(每 stage 一行) | | | |
-
-📎 reviewers="—" 表示 stage 无多角色评审(dev = RD 自写代码 + git commit / ship = PMO 编排 push+MR)。
-📎 **初步建议 · 可调整**:
-  - 各 stage-start 时 state.py 会再次输出本 stage 的「建议评审角色」段 · AI 按方案复杂度判定是否需调整
-  - 简单方案可去 external · 高风险方案补 architect/external
-  - **调整命令**:
-    ```bash
-    state.py change-review-roles --feature <path> --stage <stage> --roles 'a,b,c' --reason '<理由>'
-    ```
-    自动写 `stage_review_roles_adjustments` audit · 后续 stage-complete 校验按新值。
-
-# 上下文准备(Step 0 已读)
-- **Planning ship 状态**:<✅ <Planning Feature ID> · commit ... merge 到 staging | ⏭️ N/A>
-- **上游依赖**:<✅ <list> | ⏭️ 无外部依赖>
-- **当前代码现状**(可选):<1 句话总结 | ⏭️ 跳过>
-- **ID 冲突扫描**:<已占 [<ids>] · 推荐 <next_available_id>>
-
-# Worktree 策略
-- **branch 前缀**:<feature/ | agile/ | fix/ | micro/>(由 flow_type 决定)
-- **worktree_root_path**:<.worktree | ../<repo>-worktrees>(读 .teamwork_localconfig.json · 默认 .worktree)
-- **推荐 path**:`{repo-root}/{worktree_root_path}/<Feature-ID>`
-
-# 4 项配置(默认推荐 · 可改)
-| # | 字段 | 推荐 | 理由 |
-|---|---|---|---|
-| 1 | **artifact ID** | <prepare-check `next_available_id_stem` · 字母 F/B/M 按 flow_type> | <冲突避让 + 业务命名> |
-| 2 | **merge_target** | staging | <与项目历史 Feature 一致> |
-| 3 | **worktree path** | <推荐 path 同上> | 默认 worktree_root_path |
-| 4 | **branch** | <branch-prefix><Feature-ID-kebab-case> | 与 ID 一致 |
-
-📎 **是否需要 UI Design Stage** 由 goal-complete 时 `--needs-ui` 决策 · prepare 入口不强制提前拍板。
+⚠️ <上游依赖未就绪:… | ID 撞号:… | Planning 未 ship:…> ← 仅有问题才出此行 · 全绿删除
 ```
+
+🔴 **意图段全是 prepare-check 已采数据**(非即兴):🗣️=`--user-intent` 原话 · 🎯🧩=`--admission-judgment.ai_rationale` 解读。🧩「补的假设」是抓误读**核心零件**(干净 restatement 会把假设藏起)· 无非平凡假设时显式写「请求明确 · 无补」(证明想过)。`ok` = 意图在最前的**知情**点头 · 非盲签。
 
 flow_type → first_stage 映射:
 - Feature / 敏捷需求 → `goal`
@@ -349,15 +309,13 @@ flow_type → first_stage 映射:
 🔴 **必 1 次完整 emit · 不分多轮**(防 PMO 先建议 + 再"最终确认"的 2 轮交互浪费)。
 🔴 **用户回 `ok`** · PMO 视作"按建议全部默认值" · 不再二次确认 · 立即执行 §5。
 
-### 4.1 · emit 自检清单(PMO emit 前自查 5 段齐)
+### 4.1 · emit 自检清单(PMO emit 前自查)
 
-- [ ] § 流程概览(流程目标 + flow_type + stage 链 + 理由 · 目标 = 用户 review 第一校准点:AI 对目标理解偏 → 后面全偏)
-- [ ] § 建议评审角色(prepare-check `stage_chain_preview` 表已渲染 · 不可漏)
-- [ ] § 上下文准备(4 子项:Planning / 上游 / 代码 / ID 冲突)
-- [ ] § Worktree 策略(branch 前缀 + worktree_root_path + 推荐 path)
-- [ ] § 4 项配置(artifact ID + merge_target + worktree path + branch)
+- [ ] § 🎯 我的理解(🗣️原话 + 🎯理解 + 🧩假设〔非平凡解读必摊开 · 否则「无补」〕+ 📦范围 + 🔁既有行为)· **在最前 = 第一校准点**
+- [ ] § ⚙️ 配置(flow + stage 链 + ID + merge_target + wt + branch + 评审一行 · 均默认)
+- [ ] ⚠️ 异常行(上游 / 撞号 / Planning · **仅有问题才出** · 全绿无此行 = 正常)
 
-任一项缺 → 重 emit(用户不应被迫忽略漏段)。
+🔴 意图段缺 / 埋到配置后 / 🧩假设藏起不摊开 → 重 emit(误读会溜过)· 信噪比倒置违规。
 
 ---
 
