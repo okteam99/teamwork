@@ -40,9 +40,9 @@
 🟡 opt-in = PMO 在**初步分析**阶段询问用户后启用；决策写入 `state.external_cross_review.{enabled, model, decided_at, decided_by, note}`。
 
 > Feature / Feature Planning 的 Plan + Blueprint 阶段为"🟡 opt-in 默认 OFF"。
-> ** 重构**：从 `codex_cross_review` 字段名重命名为 `external_cross_review`；外部模型实例由 PMO 运行时探测决定。
+> 外部模型实例由 PMO 运行时探测决定（同源 BLOCK）。
 >
-> 修订原因：
+> 为何默认 OFF：
 > - Plan/Blueprint 产物为文档（PRD / TC / TECH），内部多视角（RD/Designer/QA/PMO + 架构师）评审已覆盖质量下限
 > - 外部模型的最大价值在 **Review Stage 的代码审查**（盲区独立采样 + 静态分析），此场景保持🔴强制，不受本开关影响
 > - 默认 OFF 可节省 Feature 冷启 10-20 min + ~10K token；用户可按风险/规模在 PMO 初步分析时手工开启
@@ -158,9 +158,9 @@ findings_summary:
 
 ---
 
-## 五、PMO 整合流程(v8.20+ 物化主路径)
+## 五、PMO 整合流程(物化主路径)
 
-> 🟢 **v8.20+ 已物化** —— 调用细节(host 探测 / which 校验 / profile 选择 / CLI 拼装 / 落产物)全部进 `state.py external-review`。PMO 心智 = 2 个业务参数(--feature + --stage) + 4 个整合步骤。详 [standards/external-model-usage.md § 十一 异质性硬约束 + 物化主路径](../standards/external-model-usage.md)。
+> 🟢 **已物化** —— 调用细节(host 探测 / which 校验 / profile 选择 / CLI 拼装 / 落产物)全部进 `state.py external-review`。PMO 心智 = 2 个业务参数(--feature + --stage) + 4 个整合步骤。详 [standards/external-model-usage.md § 十一 异质性硬约束 + 物化主路径](../standards/external-model-usage.md)。
 
 ```
 Step 1 - PMO 内部 review(🔴 防外包 · 强制前置)
@@ -169,7 +169,7 @@ Step 1 - PMO 内部 review(🔴 防外包 · 强制前置)
 
 Step 2 - 调起异质模型评审(一条命令)
  state.py external-review --feature <path> --stage <goal|blueprint|review>
- · 工具自动:host 探测(v8.21) → 异质 model 选择(同源 BLOCK) →
+ · 工具自动:host 探测 → 异质 model 选择(同源 BLOCK) →
    which CLI 校验(不在 BLOCK · 绝不 substitute) → profile 自动选 →
    跑 CLI(同步 5min timeout) → 落合规 external-cross-review/<stage>-<model>.md
    (自动 frontmatter:review_model / target_commit / generated_at)
@@ -193,7 +193,7 @@ Step 5 - 合入多视角评审文件
  Goal Stage: PRD-REVIEW.md 新增"外部模型评审 ({model} · 外部视角)" 章节
  Blueprint Stage: TC-REVIEW.md + TECH-REVIEW.md 各新增"外部模型评审" 章节
 
-Step 6 - stage-complete 自动校验(v8.19 兜底防御)
+Step 6 - stage-complete 自动校验(兜底防御)
  跑 state.py <stage>-complete 时 · 工具自动校验 external-cross-review/*.md:
  ├── 文件名 + frontmatter review_model 必含异质模型字面(codex/gpt/gemini/...)
  ├── 必不含同源字面(claude/isolated/subagent/anthropic/...)
@@ -251,7 +251,7 @@ PMO 写入 `docs/retros/external-cross-review-{YYYY-WW}.md`，核心指标：
 | R4 | 禁止无条件全盘采纳外部模型意见（= 反向外包） |
 | R5 | findings 全空不视为"通过"，触发 §六 二次挑战 |
 | R6 | 调用失败降级执行时必须在 review-log 标 DONE_WITH_CONCERNS + state.concerns 写 WARN |
-| R7 | 🟡 重构（保留 P0-13 决策）：Feature / Feature Planning 的 Plan+Blueprint 为 opt-in 默认 OFF；用户决策写入 state.external_cross_review。Review Stage 代码审查仍🔴强制（如有可用候选），不受本开关影响 |
+| R7 | 🟡 Feature / Feature Planning 的 Plan+Blueprint 为 opt-in 默认 OFF；用户决策写入 state.external_cross_review。Review Stage 代码审查仍🔴强制（如有可用候选），不受本开关影响 |
 | R8 | Output schema 机器校验失败必须重跑，不得降级接受 |
 | R9 | 🔴 ：选定的外部模型必须与主对话宿主**不同源**（standards/external-model-usage.md §三 E1 约束） |
 
@@ -269,17 +269,6 @@ PMO 写入 `docs/retros/external-cross-review-{YYYY-WW}.md`，核心指标：
 | [codex-agents/blueprint-reviewer.toml](../codex-agents/blueprint-reviewer.toml) | TC+TECH 变体 Codex CLI agent（model=codex 时使用） |
 | [claude-agents/](../claude-agents/) | Claude CLI 调用规范（model=claude 时使用） |
 | [templates/review-log.jsonl](./review-log.jsonl) | stage 枚举已新增 plan-external-review / blueprint-external-review |
-
----
-
-## 十、启用路线
-
-```
-Week 1-2: Feature 流程 / Goal Stage 启用 PRD 变体（仅一个插入点，观察 ROI）
-Week 3-4: 扩展到 Blueprint Stage（TC+TECH 变体）
-Week 5+: 依前 4 周数据调整 checklist / 启用矩阵 / 降级策略
- 每次规则变动更新"变更记录"
-```
 
 ---
 

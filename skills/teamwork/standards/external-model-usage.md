@@ -165,9 +165,9 @@ codex-agents/*.toml 必须满足：
 | 主对话 Claude → claude-cli 子进程 | ❌ **不算** | 同模型自审 |
 | 用 frontmatter `review_model: claude-isolated` 标"透明" | ❌ **不算** | 透明 ≠ 合规;透明只承认"我做了不达标" · 不替代"做达标" |
 
-> **诚实降级自审(self-review-fallback)**:异质 CLI **客观不可用**(未装/未登录/配额满·已重试失败)时 · `external-review --self-review-fallback --reason '...'` → **emit subagent 降级配方**(🔴 v8.108:不再 exec CLI · PMO 起宿主自身模型 `Agent` subagent 自审 · 详 §11.5)· 写 `external-cross-review/`(frontmatter `heterogeneous:false degraded:true degraded_mode:subagent-fallback`)· **满足 P0-154**(降级 · 非异质 · 同盲点)。仍是降级不是异质:能修环境就重跑真异质 / 长期单模型走 `disable_heterogeneous_review`。**绝不偷偷**用 subagent 冒充异质(必显式标 degraded · 见 §11.5)。
+> **诚实降级自审(self-review-fallback)**:异质 CLI **客观不可用**(未装/未登录/配额满·已重试失败)时 · `external-review --self-review-fallback --reason '...'` → **emit subagent 降级配方**(🔴 v8.108:不再 exec CLI · PMO 起宿主自身模型 `Agent` subagent 自审 · 详 §11.5)· 写 `external-cross-review/`(frontmatter `heterogeneous:false degraded:true degraded_mode:subagent-fallback`)· **满足 P0-154**(降级 · 非异质 · 同盲点)。仍是降级不是异质:能修环境就重跑真异质 / 长期单模型走 `disable_external_review`。**绝不偷偷**用 subagent 冒充异质(必显式标 degraded · 见 §11.5)。
 >
-> **单模型 opt-out(`disable_heterogeneous_review`)**:只有一个模型的用户可在 `.teamwork_localconfig.json` 设 `disable_heterogeneous_review: true`(默认 false)· 则 `external-review` **自动 emit subagent 降级配方**(🔴 v8.108:PMO 起宿主自身模型 subagent 自审 · 不 exec · 详 §11.5)· 落 `external-cross-review/`(**满足 P0-154** · frontmatter 标 `heterogeneous:false degraded:true degraded_mode:config-disabled`)· 让单模型用户能走完流程。代价:**非异质 · 同盲点 · 交叉 review 质量下降** —— 故每次 `bootstrap` 启动**持续 WARN** 提醒(`checks.heterogeneous_review.status=disabled` + `pmo_must_read`)· 建议装好第二个模型 CLI 后删此项恢复异质。与 self-review-fallback 的区别:后者是**临时 stopgap**(不满足门禁)· 本项是**项目级长期策略**(满足门禁 · 但被 startup WARN 持续提醒)。
+> **单模型 opt-out(`disable_external_review`)**(v8.153 改名自 `disable_heterogeneous_review` · v8.154 旧名已废弃):只有一个模型的用户可在 `.teamwork_localconfig.json` 设 `disable_external_review: true`(默认 false)· 则 `external-review` **自动 emit subagent 降级配方**(🔴 v8.108:PMO 起宿主自身模型 subagent 自审 · 不 exec · 详 §11.5)· 落 `external-cross-review/`(**满足 P0-154** · frontmatter 标 `heterogeneous:false degraded:true degraded_mode:config-disabled`)· 让单模型用户能走完流程。代价:**非异质 · 同盲点 · 交叉 review 质量下降** —— 故每次 `bootstrap` 启动**持续 WARN** 提醒(`checks.heterogeneous_review.status=disabled` + `pmo_must_read`)· 建议装好第二个模型 CLI 后删此项恢复异质。与 self-review-fallback 的区别:后者是**临时 stopgap**(不满足门禁)· 本项是**项目级长期策略**(满足门禁 · 但被 startup WARN 持续提醒)。
 
 ### 11.2 文件命名硬规约(state.py 物化校验)
 
@@ -223,10 +223,10 @@ Step 3:跑命令 · 落 *-codex.md / *-gemini.md / 等真异质模型文件
 > 🔴 异质 CLI **客观不可用**(未装/未登录/配额满/持续超时·限流〔串行重跑仍失败〕/`claude -p` 本身坏 · 已重试失败)时 —— **优先降级,不是直接移除 external**。降级**统一走 subagent**(不再 exec CLI 自审)。
 
 - **为什么 subagent 不 exec**:exec 一个 CLI 子进程做自审,反复踩认证 / `--bare` / MCP 卡死 / "Not logged in" / stdin 等坑(出过很多次)。**subagent(`Agent` 工具)在 harness 内跑** —— 同 auth、无子进程 CLI 问题、无 MCP 自动加载。它**仍是同模型自审**(非异质 · 同盲点),但**可靠**。
-- **机制**:`state.py external-review --self-review-fallback --reason '<异质为何不可用+重试证据>'`(或项目 `disable_heterogeneous_review:true` 自动触发)→ state.py **不 exec** · emit `verdict: SUBAGENT_FALLBACK` 配方(state.py 是脚本 · 起不了 `Agent`)→ **PMO 起 Agent subagent**(isolated context · 宿主自身模型)产出降级评审 → 写 `external-cross-review/<stage>-<model>-subagent-degraded.md`。
+- **机制**:`state.py external-review --self-review-fallback --reason '<异质为何不可用+重试证据>'`(或项目 `disable_external_review:true` 自动触发)→ state.py **不 exec** · emit `verdict: SUBAGENT_FALLBACK` 配方(state.py 是脚本 · 起不了 `Agent`)→ **PMO 起 Agent subagent**(isolated context · 宿主自身模型)产出降级评审 → 写 `external-cross-review/<stage>-<model>-subagent-degraded.md`。
 - **满足门禁(降级)**:文件 frontmatter 必含 `heterogeneous:false` + `degraded:true` + `degraded_mode:subagent-fallback` + `degraded_reason:'...'` + `review_via:subagent` → `_evidence_external_review_artifact` 接受(降级 · 满足 P0-154)。**让你继续往下走**(降级而不是去掉)。
 - 🔴 **honest-degrade ≠ F034 伪装**:必须**显式**标 `degraded:true degraded_mode:subagent-fallback`(诚实承认非异质)。**无** degraded marker 的 subagent 文件 → 仍落 11.2 黑名单 BLOCK(防偷偷用 subagent 冒充异质)。
-- **优先级**:① 降级(subagent · 推荐)→ ② 装异质 CLI 恢复真异质 → ③ `change-review-roles` 移除(最后手段)。能修环境就修真异质;长期单模型走 `disable_heterogeneous_review`。
+- **优先级**:① 降级(subagent · 推荐)→ ② 装异质 CLI 恢复真异质 → ③ `change-review-roles` 移除(最后手段)。能修环境就修真异质;长期单模型走 `disable_external_review`。
 
 ### 11.6 过程可观测性:prompt-doc 同名 `.log` 实时落盘(v8.139/140)
 
@@ -256,20 +256,26 @@ Step 3:跑命令 · 落 *-codex.md / *-gemini.md / 等真异质模型文件
 > 🔴 异质 review 的价值 = **独立视角采样盲点**;但同一独立性 = 它**没有完整上下文**(不懂本项目 DEV-RULES / 不知某设计是 intentional / 可能 hallucinate finding)。**照单全收 = 把外部模型的误判 import 进来**。主对话消费 external/异质 review(代码 / PRD / blueprint 通用)必须**逐条裁决**,不是 obey。
 >
 > 🔴 默认倾向是**相信**异质 review(它语气笃定、又被 teamwork 当门禁跑)—— 这正是要纠的偏:reviewer 的 finding 是**待核实的断言**,不是事实。
+>
+> 🔴 **处理每条 finding 的固定思考顺序(默认姿态 = 质疑 · 不盲目认同)**:
+> **① 质疑** —— 先假设它**不成立**:false positive?误解 intentional 设计?与 DEV-RULES 冲突?过度设计 / 责任焊错层?reviewer 没看全上下文?
+> **② 确认** —— 带着质疑**回读真实代码 / AC / DEV-RULES / 业务目标**核实(不轻信 reviewer 转述)。
+> **③ 裁决 + 给理由** —— 经①②才落 ADOPT/REJECT/DEFER · **每个方向都写思考过程**(ADOPT 不是「改了什么」· 是「我质疑了 X · 回读 Y 确认它真成立 · 故采纳」)。
+> 🔴 **举证责任对称**:旧规范只逼 reject 给依据 → ADOPT 成了无摩擦默认 = 盲采的温床。**confirmed 与 rejected 举证责任相同** —— 采纳也要给「为何确为真 + 为何这样改对」的实证,不是一句「reviewer 说得对」。
 
 ### 12.1 裁决三态(每条 external finding 落其一 · 带依据)
 
 | 裁决 | 判据 | 处置 |
 |---|---|---|
-| ✅ confirmed | 回读实际代码 / AC / DEV-RULES 核实**确为真问题** | 修(进 fix-retry)· REVIEW.md 记 finding + 依据 |
+| ✅ confirmed | **先质疑**(是否 false positive / 过度设计 / 错层 / 不适用本项目)→ 回读实际代码 / AC / DEV-RULES 核实**质疑不成立、确为真问题** | 修(进 fix-retry)· 🔴 REVIEW.md 记 finding + **采纳依据**(为何确为真 + 为何这样改对 · 与 rejected 举证责任对称) |
 | ❌ rejected | false positive / 误解 intentional 设计 / 与 DEV-RULES 冲突 / reviewer 没看全上下文 | **不修** · 🔴 **必记驳回依据**(指真实代码 / 规约 / 业务目标)· 不静默忽略 |
 | ⏸️ deferred | 真问题但**本 Feature 范围外** | → `product-overview/PENDING.md` · 不本轮强塞 |
 
 ### 12.2 两头都是反模式
 
-- ❌ **盲采(over-trust · 默认倾向)**:reviewer 说啥改啥 → import 误判 / 无谓 churn / 按错误 finding 改出 regression。
+- ❌ **盲采(over-trust · 默认倾向 · 🔴 最常踩)**:reviewer 说啥改啥 → import 误判 / 无谓 churn / 按错误 finding 改出 regression。**「reviewer 说得对所以采纳」不是理由** —— 没经过①质疑②确认的 ADOPT = 盲采。
 - ❌ **盲驳(under-trust)**:嫌麻烦全 dismiss 让它过门禁 → 异质 review 形同虚设(等于没跑 · 违 P0-154 初衷)。
-- ✅ **裁决(adjudicate)**:每条独立核实 → 三态归类 → 带依据落 REVIEW.md。**举证责任在主对话** —— rejected 必给"为什么不是问题"的实证(真实文件 / 规约 / 目标),不是一句"我觉得没事"。
+- ✅ **裁决(adjudicate)**:每条按①质疑→②确认→③裁决独立核实 → 带依据落 REVIEW.md。**举证责任在主对话 · 两个方向对称** —— rejected 给"为什么不是问题"的实证,**confirmed 给"为什么确是问题 + 为什么这样改对"的实证**(真实文件 / 规约 / 目标),都不是一句"我觉得"/"reviewer 说的"。
 
 ### 12.3 裁决 grounded 实际代码(不轻信 reviewer 断言)
 

@@ -12,6 +12,7 @@
 - AC 必须可测试(BDD 风格 · WHAT 高度 · 避免模糊措辞)
 - 早问门(goal §4 三闸):只问用户主权问题 · 每问带 调研证据 / 选项+影响 / 推荐 · ≤3 问
 - 回应 PL 对抗质疑:CHALLENGE 逐条回应 · `adversarial_self_check` 先模拟对方最强论据才可 REJECT
+- 处理 review finding:🔴 默认姿态=**质疑**(不盲目认同)· **ADOPT 前**先质疑 finding 不成立的最强反方(过度设计/错层/false positive)→ 回读代码确认它真成立才采纳(举证责任与 REJECT 对称 ·「reviewer 说得对」不是采纳理由 · 详 standards/external-model-usage.md §12)
 - PM 验收:对照 PRD.AC 逐条检查实现 · 三选一决策(approved_and_ship / approved_no_ship / rejected_with_feedback)
 
 ## 协作关系

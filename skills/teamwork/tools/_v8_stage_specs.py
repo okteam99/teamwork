@@ -332,15 +332,15 @@ def _goal_brief(state: dict) -> str:
     return f"""## Goal Stage
 
 ### 目标
-PM 现状调研(自答优先)· 起草 PRD · PL 对抗质疑 · (条件)goal-critical 早问门 · 多角色并行评审 · 收敛后用户确认 · 决策是否需要 UI Design Stage。
+PM 调研(自答优先)· 起草 PRD · 🔴 **并行派 3 个隔离 Agent 冷审**(QA/Architect/PL · 防鼓掌锚定)· (条件)早问门 · PM 整合修订 · 冷审循环收敛 · 用户确认 · 决策是否需要 UI。
 
 ### 结果(完成判定)
 - `PRD.md`(frontmatter:`acceptance_criteria` + `revision_history`)
-- `PRD-REVIEW.md`(frontmatter:`reviewers` + `verdicts` **全 APPROVE/SKIP** · 含 `PL-CHALLENGE` 段〔角色含 pl 时〕· mtime > PRD.md)
+- `PRD-REVIEW.md`(frontmatter:`reviewers: [qa, architect, pl]`〔v8.155 去 pm〕 + `verdicts` **全 APPROVE/SKIP** · 含 `PL-CHALLENGE` 段 · mtime > PRD.md)
 - `state.execution_hints.ui_design_needed` 已决策(由 `--needs-ui`)
 
 ### 怎么做
-**必读** `stages/goal-stage.md`(详细步骤 9 步:调研 → 起草 → PL 质疑 → 早问门 → 评审 → 修订 → 判定 → needs-ui → 确认)。
+**必读** `stages/goal-stage.md`(8 步:调研 → 起草 v0.1 → 🔴 **并行 3 隔离 Agent 冷审**(QA/Architect/PL · 不喂起草心路 · v8.155)→ 早问门(冷审后)→ PM 整合修订 → 冷审循环(Round 2+ 验证模式 · 全 APPROVE 收敛)→ needs-ui → 用户确认)。
 
 ### 完成方式
 ```
@@ -1442,10 +1442,12 @@ def _external_run_log_exists(feature_dir: Path, stage: str) -> bool:
     return False
 
 
-def _localconfig_disable_hetero(feature_dir: Path) -> bool:
-    """v8.90:读 localconfig `disable_heterogeneous_review`(向上找到 .git 边界 · 默认 false)。
+def _localconfig_disable_external(feature_dir: Path) -> bool:
+    """v8.90/v8.153:读 localconfig `disable_external_review`(原名 `disable_heterogeneous_review`)·
+    向上找到 .git 边界 · 默认 false。
 
-    内联实现(避免 _v8_stage_specs 循环 import state.py)· 与 state._read_disable_heterogeneous_review 同义。
+    内联实现(避免 _v8_stage_specs 循环 import state.py)· 与 state._read_disable_external_review 同义。
+    🔴 v8.154 hard rename:只读新名 · 旧名 `disable_heterogeneous_review` 已废弃(不留兼容)。
     """
     import json as _json
     try:
@@ -1456,10 +1458,10 @@ def _localconfig_disable_hetero(feature_dir: Path) -> bool:
         cfg = d / ".teamwork_localconfig.json"
         if cfg.exists():
             try:
-                return _json.loads(cfg.read_text(encoding="utf-8")).get(
-                    "disable_heterogeneous_review") is True
+                data = _json.loads(cfg.read_text(encoding="utf-8"))
             except (OSError, ValueError):
                 return False
+            return data.get("disable_external_review") is True
         if (d / ".git").exists():
             break
     return False
@@ -1468,7 +1470,7 @@ def _localconfig_disable_hetero(feature_dir: Path) -> bool:
 def _evidence_external_review_artifact(state: dict, args) -> tuple[bool, str]:
     """external-cross-review/ 至少 1 份 markdown · 且必须是真异质模型评审(v8.19 加强)。
 
-    v8.90:`disable_heterogeneous_review:true`(localconfig · 单模型用户)时 · 接受
+    v8.90/v8.153:`disable_external_review:true`(localconfig · 单模型用户)时 · 接受
     external-review 写的**降级同模型自审**文件(frontmatter `degraded:true heterogeneous:false`)·
     跳过异质违规(用户已 opt-out · bootstrap 每次启动 WARN 持续提醒)。详 standards §11。
 
@@ -1500,7 +1502,7 @@ def _evidence_external_review_artifact(state: dict, args) -> tuple[bool, str]:
         )
 
     # v8.90:单模型用户 localconfig 禁异质 → 接受 external-review 写的降级同模型自审(跳过异质违规)
-    het_disabled = _localconfig_disable_hetero(feature_dir)
+    ext_disabled = _localconfig_disable_external(feature_dir)
     # v8.36 host per-feature · v8.68 host-aware 异质判定(治本 codex-cli host 下 claude 误判)
     state_host = state.get("host")
     # v8.19:逐文件校验异质性(文件名 + frontmatter review_model 双重 · v8.68 host-aware)
@@ -1512,12 +1514,12 @@ def _evidence_external_review_artifact(state: dict, args) -> tuple[bool, str]:
         # 注:parse_frontmatter 是朴素解析 · 值为字符串("true"/"false")。
         deg = (str(fm.get("degraded", "")).lower() == "true"
                and str(fm.get("heterogeneous", "")).lower() == "false")
-        # v8.90:config-disabled 项目(het_disabled=true)→ 接受任何 degraded 自审(用户已 opt-out)。
+        # v8.90:config-disabled 项目(ext_disabled=true)→ 接受任何 degraded 自审(用户已 opt-out)。
         # v8.108:per-run subagent 降级(frontmatter degraded_mode=subagent-fallback)→ 接受(显式降级 ·
         # 即便项目未 opt-out · 因为是 --self-review-fallback 带 reason 的诚实降级)· 非异质 · 满足 P0-154。
-        # 🔴 config-disabled marker 仍须 het_disabled 为真(防未 opt-out 项目用 stale config-disabled 标绕过);
+        # 🔴 config-disabled marker 仍须 ext_disabled 为真(防未 opt-out 项目用 stale config-disabled 标绕过);
         # 无 degraded marker / 非 subagent-fallback → 落下方黑名单(F034 伪装拦)。
-        if deg and (het_disabled
+        if deg and (ext_disabled
                     or str(fm.get("degraded_mode", "")).lower() == "subagent-fallback"):
             continue
         # host 优先级:state.host(per-feature)> 文件 frontmatter host(external-review 写)> None(默认 claude)
@@ -1533,11 +1535,11 @@ def _evidence_external_review_artifact(state: dict, args) -> tuple[bool, str]:
             violations.append(f"{f.name}:frontmatter review_model={rm_value!r} {rm_reason}")
 
     if violations:
-        # v8.95:het_disabled 项目的违规 = 文件缺降级标记(多半 AI 手写没打标)· 给**专属**修复指引
+        # v8.95:ext_disabled 项目的违规 = 文件缺降级标记(多半 AI 手写没打标)· 给**专属**修复指引
         # (不要走通用「调异质模型」分支 —— 那对单模型 opt-out 用户误导 · 正与 v8.90 初衷相悖)。
-        if het_disabled:
+        if ext_disabled:
             fix_section = (
-                "\n  🔴 修复(本项目 `disable_heterogeneous_review=true` · 单模型 opt-out):"
+                "\n  🔴 修复(本项目 `disable_external_review=true` · 单模型 opt-out):"
                 "external-cross-review 文件**缺降级标记** → 被判同源。"
                 "\n  正解 = 跑 `state.py external-review --stage "
                 f"{current_stage} --feature {args.feature}` —— config-disabled 模式会**自动**产出 "
@@ -1545,7 +1547,7 @@ def _evidence_external_review_artifact(state: dict, args) -> tuple[bool, str]:
                 "(手写没实跑标记 · 看起来像伪造 → 拦)。"
                 "\n  或给现有 external-cross-review/*.md 补 `degraded: true` + `heterogeneous: false` "
                 "两个 frontmatter 键(注:写在 external-cross-review 文件里 · 不是 REVIEW.md)。"
-                "\n  想恢复真异质把关 → 删 localconfig 的 `disable_heterogeneous_review`。"
+                "\n  想恢复真异质把关 → 删 localconfig 的 `disable_external_review`。"
             )
         else:
             fix_section = (
@@ -1738,6 +1740,7 @@ def _review_brief(state: dict) -> str:
 
 ### 怎么做
 **必读** `stages/review-stage.md`(详细步骤 6 步 + 注意事项 5 条)。
+🔴 **finding 处理默认姿态=质疑**(不盲目认同):逐条 先质疑(过度设计/错层/false positive)→ 回读真实代码确认 → 才 confirmed/rejected · **两个方向都给实证**:采纳给「为何确为真+为何这样改对」· 驳回给「为何不是问题」·「reviewer 说得对」与「我觉得没事」都不是理由(详 standards/external-model-usage.md §12)。
 
 ### 完成方式
 ```

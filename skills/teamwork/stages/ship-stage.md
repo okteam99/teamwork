@@ -21,7 +21,7 @@
 ```bash
 state.py ship-phase --action archive --feature <path> \
   --planning-artifacts <逗号分隔 worktree 相对路径> \
-  --archive-desc '<≤200 字极简描述>'
+  --archive-desc '<业务摘要 ≤200 字 · 只业务不过程>'
 # 确无规划可翻(ad-hoc Bug/Micro · 无关联 BL)→ 用 --no-planning-changes 替代 --planning-artifacts
 ```
 
@@ -87,7 +87,8 @@ state.py ship-phase --action push --feature <path> \
 
 ```bash
 cd <main-tree>                                        # 🔴 必在主工作区(P0-156)
-state.py ship-finalize --feature <worktree 内 feature 目录路径>
+state.py ship-finalize --feature <worktree 内 feature 目录路径> \
+  --main-model "<你的模型 · 如 claude-opus-4-8 · 写入 audit 供按模型分析流程质量>"
 ```
 
 | 步 | 动作 | 内容 |
@@ -178,7 +179,9 @@ ship1 交付本体(随 feature MR)· zip 内 state.json = 终态墓碑(current_s
 >
 > **为什么删而不是留**:防 AI 检索过时 feature 信息(过程稿交付即 drift)。**代码是唯一真相** · 知识层是代码的文档 · 过程稿只留可追溯的 zip 快照。
 
-- **INDEX 描述列**:`| Feature | 描述 | 交付归档时间 | 归档物 |`。「描述」= `--archive-desc '<≤200 字>'`(超 200 → FAIL · 压缩表达重写后重跑 · 不截断 · `|`/换行净化 · 缺省 `—`)。旧 3 列行下次归档自动迁移补 `—`。
+- **INDEX 描述列 = 业务索引**:`| Feature | 描述 | 交付归档时间 | 归档物 |`。「描述」= `--archive-desc`(≤200 字 · 超 200 → FAIL · `|`/换行净化 · 缺省 `—`)· 🔴 **只写业务**(这需求是什么 · 做了什么 · 业务影响/对外契约)· **不写过程信息**(评审轮次/bug 数/测试数/「全绿」/external 独家/code review —— 那些在 zip 内 state.json/REVIEW.md · 不进业务索引 · 命中明显过程信号 archive emit WARN)。
+  - ✅ 业务:「CPS 安装归因计佣后端地基:cps 4 表 + 安装归因绑定/dl 校验/点击端点 + 计佣 post-commit(GalaxyEdge+IAP 双路·幂等)+ 退款冲销。对外暴露 promoter/install/click/refund 契约」
+  - ❌ 过程:「…评审拦 10 真 bug(external 独家 4·含 2 money bug)。cps11+集成11+回归520全绿」(评审/测试数据属过程 · 不进业务索引)
 - **已交付判定**(ship2 安全闸)= zip 在 `origin/<merge_target>`(抗 squash · 物理真相)。
 - ~~`archive_on_ship: false` opt-out~~ **v8.145 废弃**(归档是新架构根基)· 残留配置被忽略 + WARN。
 - **取历史**:`unzip features/_archive/<id>.zip` · 或读 `_archive/INDEX.md` 索引。
@@ -187,12 +190,22 @@ ship1 交付本体(随 feature MR)· zip 内 state.json = 终态墓碑(current_s
 
 ## 16. 流程价值反思(ship2 后输出 · 零暂停)
 
-> 🔴 **telos**:给流程仪式攒「该不该活着」的数据 —— 框架此前只有负反馈(出事 → 判例 → 加规则)· 没有正/零反馈 → 规则只增不减。本节把它变成台账。
+> 🔴 **telos**:给流程仪式攒「该不该活着」的数据 —— 框架此前只有负反馈(出事 → 判例 → 加规则)· 没有正/零反馈 → 规则只增不减。本节把它变成台账 + 跨项目回收。
 > 🔴 **与 `docs/retros/`(§14 distill.retro)的分工**:retros = 业务/工程复盘(子项目级 · 知识层);本节 = 流程仪式价值度量(workspace 级)。**别混写**。
 
-**时机(v8.145 两段式)**:
+**三处落点(各管一段链路 · 别混)**:
+| 落点 | 粒度 | 写时机 | 消费方 |
+|---|---|---|---|
+| `project-specs/PROCESS-LEDGER.md`(项目侧) | 一行一 feature · 机器字段 | §3 archive 规划 gate(worktree 内) | 项目自己流程审视 |
+| **`<skill 安装目录>/docs/audit/<id>.md`(框架回收侧 · v8.148)** | 一份一 feature · 机器数据 + 三段判断 | **ship2 PASS 后工具落草稿 → AI 静默补判断** | **框架跨项目 harvest 流程质量** |
+| `docs/RETRO-LEDGER.md`(框架仓) | 一行一版 · 永久 | 框架改进发版时 | 年检 / 存在性审视 |
+
+**时机(v8.145/148 两段式)**:
 - **采集 + 写台账行 = §3 archive 的规划 gate 时**(worktree 内 · `state.json`/`REVIEW.md`/`external-cross-review/` 全在工作树 · 取数零成本):PMO 在 worktree append `project-specs/PROCESS-LEDGER.md` 行(无则按 [templates/process-ledger.md](../templates/process-ledger.md) 创建)· 路径加进 `--planning-artifacts`(随 feature MR 原子合入)。
-- **digest = ship2(ship-finalize)PASS 后 emit**(从台账行 + ship2 结果渲染)。🔴 **零新增暂停点**(纯情报 · auto/yolo 照常输出)。时长口径 = init → archive(不含 MR 等待)。
+- **审计回收 + digest = ship2(ship-finalize)PASS 后**:
+  - 🔴 **工具自动落** `<安装目录>/docs/audit/<id>.md` 草稿(机器数据段确定性抽自 state.json · 喂 kill-criteria 不可幻觉)· emit `audit_record` 路径;
+  - 🔴 **AI 静默补完三段判断**(做的好的 / 发现的问题 / 待优化的 · 照实抄 REVIEW.md·state · 空写「无」· 改 frontmatter `audit_status: done`)—— **零新增暂停点 · 不等确认 · 写完即结束**(auto/yolo 照常)。「发现的问题」段 = 框架级 bug / 工具判例的**持久回收口**(取代旧易逝 digest 的「建议反馈 teamwork」行 · 详 [docs/audit/README.md](../docs/audit/README.md));
+  - digest 仍可 emit(≤10 行 · 纯情报)。时长口径 = init → archive(不含 MR 等待)。
 - **兜底**(漏写时):`unzip -p features/_archive/<id>.zip <id>/state.json` 取数 · 补行随下次任意 MR。
 
 **两层输出**:

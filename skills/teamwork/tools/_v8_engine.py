@@ -314,12 +314,27 @@ def parse_frontmatter(file_path: Path) -> Optional[dict]:
         return None
     try:
         text = file_path.read_text(encoding="utf-8")
-        if not text.startswith("---\n"):
-            return None
-        end = text.find("\n---\n", 4)
-        if end == -1:
-            return None
-        fm_text = text[4:end]
+        # v8.x:机读契约优先读 <!-- TEAMWORK-MACHINE ... --> 注释块(预览隐藏 · 所有渲染器都不显)·
+        # 兜底文件头 --- frontmatter(旧 PRD / 其他产物 TC/REVIEW 仍用 frontmatter)。
+        fm_text = None
+        _ms = "<!-- TEAMWORK-MACHINE"
+        if text.startswith(_ms):                               # 仅行首 marker(防正文 prose 里字面引用误命中)
+            marker = 0
+        else:
+            _i = text.find("\n" + _ms)
+            marker = _i + 1 if _i != -1 else -1
+        if marker != -1:
+            nl = text.find("\n", marker)                       # 跳过 marker 行(可带说明)
+            close = text.find("\n-->", nl) if nl != -1 else -1
+            if nl != -1 and close != -1:
+                fm_text = text[nl + 1:close]
+        if fm_text is None:
+            if not text.startswith("---\n"):
+                return None
+            end = text.find("\n---\n", 4)
+            if end == -1:
+                return None
+            fm_text = text[4:end]
         # 简易 YAML 解析(只支持 key: value 和 key:\n  - list)
         result = {}
         current_key = None
@@ -1039,7 +1054,7 @@ REVIEW_ROLE_ENUM = {"pm", "qa", "architect", "rd", "designer", "pl", "external"}
 # (flow_type, stage) → 默认 review 角色清单
 DEFAULT_REVIEW_ROLES: dict[tuple[str, str], list[str]] = {
     # Feature 流程
-    ("Feature", "goal"): ["pm", "qa", "architect", "pl", "external"],
+    ("Feature", "goal"): ["qa", "architect", "pl"],  # v8.155:去 pm(作者审自己最锚定 · PM 退整合者)· 三角色走并行隔离 subagent 冷审(防鼓掌 · 详 goal-stage §3)· v8.149 去 external(opt-in 保留)
     ("Feature", "ui_design"): ["designer", "pm"],
     ("Feature", "panorama_sync"): ["pm", "architect"],
     ("Feature", "blueprint"): ["qa", "architect", "external"],
@@ -1049,7 +1064,7 @@ DEFAULT_REVIEW_ROLES: dict[tuple[str, str], list[str]] = {
     ("Feature", "pm_acceptance"): ["pm"],
 
     # 敏捷需求
-    ("敏捷需求", "goal"): ["pm", "qa", "architect"],
+    ("敏捷需求", "goal"): ["qa", "architect"],  # v8.155:去 pm(整合者)· QA+Architect 并行冷审
     ("敏捷需求", "blueprint_lite"): ["qa"],
     ("敏捷需求", "review"): ["architect", "qa", "external"],
     ("敏捷需求", "test"): ["qa"],
@@ -1087,7 +1102,7 @@ def build_default_stage_review_roles(flow_type: str) -> dict[str, list[str]]:
 FLOW_STAGE_CHAIN: dict[str, list[tuple[str, bool, str, str]]] = {
     # (stage_name, optional, optional_trigger_note, review_reason_hint)
     "Feature": [
-        ("goal", False, "", "PRD 需多视角把关:PM/QA/Architect/PL 各自专业领域 + External 异质模型 cross-review"),
+        ("goal", False, "", "PRD 业务目标对齐(用户审):草稿后并行派 QA/Architect/PL 三个隔离 subagent 冷审(防鼓掌锚定)· PM 整合 · 无 External(细节归 blueprint · opt-in 保留)"),
         ("ui_design", True, "goal-complete --needs-ui=true 时启用", "Designer 视觉一致 + PM 流程合理"),
         ("panorama_sync", True, "ui_design-complete --panorama-changed=true 时启用", "PM 跨 Feature 视角 + Architect IA 影响"),
         ("blueprint", False, "", "TECH 选型与测试规划需 Architect/QA 把关 + External 异质 review"),
@@ -1099,7 +1114,7 @@ FLOW_STAGE_CHAIN: dict[str, list[tuple[str, bool, str, str]]] = {
         ("ship", False, "", "无评审 · PMO 编排 push + MR + 合入 + cleanup"),
     ],
     "敏捷需求": [
-        ("goal", False, "", "需求小但仍需 PM 清晰度 + QA 测试视角 + Architect 技术可行(无 PL/External)"),
+        ("goal", False, "", "需求小:QA + Architect 两个隔离 subagent 冷审(无 PL/External · PM 整合)"),
         ("blueprint_lite", False, "", "QA 测试规划(TC 精简版)· 不要 TECH-REVIEW"),
         ("dev", False, "", "无评审 · RD 自写 + commit"),
         ("review", False, "", "Architect/QA + External cross-review(同 Feature)"),
@@ -1157,6 +1172,25 @@ MAX_BRIEF_LINES = 100
 
 参考 v7 教训:RULES.md(v8.15 已删 · 内容迁 SKILL.md / MANIFESTO)累积到 1883 行 · v8 不能在 brief 重蹈覆辙。
 """
+
+
+def maybe_freeze_review_base(state: dict, next_stage: str,
+                             pre_dev_commit: Optional[str]) -> bool:
+    """v8.161:首次进 dev 时把 pre-dev HEAD 冻结进 state.review_base_commit。
+
+    review-stage external-review 用它作增量 diff base(评 base...HEAD = 本 feature 的 dev
+    增量)· 而非 merge_target...HEAD —— 后者在长 WS / stacked 分支上随 deliverable 累积 →
+    跨 feature 串味 + 600s 超时(实证 aifriend yolo/ws02)。pre_dev_commit = 完成 stage
+    (blueprint / diagnose / blueprint_lite)的 commit · 在 commit graph 上是 dev HEAD 的祖先
+    → base...HEAD 天然排除 prior features(拓扑无关)。
+
+    仅 next_stage==dev 且尚未冻结且 commit 非空时设(review→dev 回退不覆盖 · 再审仍覆盖全部
+    dev 增量)。返回是否本次设置(便于测试 / audit)。
+    """
+    if next_stage == "dev" and not state.get("review_base_commit") and pre_dev_commit:
+        state["review_base_commit"] = pre_dev_commit
+        return True
+    return False
 
 
 def execute_stage_complete(
@@ -1231,7 +1265,7 @@ def execute_stage_complete(
                     missing_artifacts.append({
                         "spec": art_spec.path,
                         "reason": "frontmatter parse failed",
-                        "hint": "确保文件头部有 --- YAML frontmatter --- 块",
+                        "hint": "确保文件头部有 `<!-- TEAMWORK-MACHINE ... -->` 机读块(PRD)或 `--- ... ---` frontmatter(TC/REVIEW 等)",
                     })
                     continue
                 missing_fm = [k for k in art_spec.frontmatter_required if k not in fm]
@@ -1470,6 +1504,9 @@ def execute_stage_complete(
             flow_graph = flow_by_type.get(flow_type, {})
             state["current_stage"] = next_stage
             state["legal_next_stages"] = flow_graph.get(next_stage, [])
+
+            # v8.161:进 dev 那一刻冻结 pre-dev HEAD 作 review-stage 外审的增量 diff 基线。
+            maybe_freeze_review_base(state, next_stage, auto_commit)
 
             # 初始化下一 stage contract
             next_contract = contracts.setdefault(next_stage, {

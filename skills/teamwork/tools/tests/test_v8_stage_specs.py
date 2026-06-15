@@ -155,7 +155,7 @@ class TestExternalReviewHeteroEnforcement(unittest.TestCase):
         args = make_args(feature=str(self.feat))
         return _evidence_external_review_artifact({}, args)
 
-    # ── v8.90:单模型 disable_heterogeneous_review · 接受降级同模型自审 ──
+    # ── v8.90/v8.153:单模型 disable_external_review · 接受降级同模型自审 ──
     _DEGRADED_FM = ("---\nreview_role: self-degraded\nhost: claude-code\n"
                     "heterogeneous: false\ndegraded: true\n"
                     "degraded_mode: config-disabled\n---\nself-review body\n")
@@ -163,7 +163,7 @@ class TestExternalReviewHeteroEnforcement(unittest.TestCase):
     def _set_config(self, disabled: bool):
         (Path(self.tmp) / ".git").mkdir(exist_ok=True)  # bound 向上 walk
         (Path(self.tmp) / ".teamwork_localconfig.json").write_text(
-            json.dumps({"disable_heterogeneous_review": disabled}), encoding="utf-8")
+            json.dumps({"disable_external_review": disabled}), encoding="utf-8")
 
     def _check_host(self):
         from _v8_stage_specs import _evidence_external_review_artifact  # type: ignore
@@ -196,13 +196,13 @@ class TestExternalReviewHeteroEnforcement(unittest.TestCase):
             "---\nreview_role: external\nhost: claude-code\n---\nbody\n", encoding="utf-8")
         ok, err = self._check_host()
         self.assertFalse(ok, "config-disabled 也不接受未标记 degraded 的同模型文件")
-        # v8.95:het_disabled 项目给**专属**修复指引(治本 case:AI 手写自审被拦后被通用
+        # v8.95:ext_disabled 项目给**专属**修复指引(治本 case:AI 手写自审被拦后被通用
         # 「调异质模型」hint 误导 · 与 v8.90 单模型 opt-out 初衷相悖)。
-        self.assertIn("disable_heterogeneous_review", err)
+        self.assertIn("disable_external_review", err)  # v8.153 改名
         self.assertIn("别手写", err)
         self.assertIn("state.py external-review", err)
         self.assertNotIn("host 自动映射异质模型", err,
-                         "het_disabled 项目不应给通用「调异质模型」误导 hint")
+                         "ext_disabled 项目不应给通用「调异质模型」误导 hint")
 
     # ── v8.108:per-run subagent 降级(degraded_mode=subagent-fallback · 显式 --self-review-fallback)──
     _SUBAGENT_DEGRADED_FM = (
@@ -1122,10 +1122,29 @@ class TestGoalQualityGatesV8132(unittest.TestCase):
         self.assertTrue(ok, msg)
 
     def test_no_pl_role_auto_passes(self):
-        """敏捷需求 goal 角色集 [pm,qa,architect] 无 pl → 自动放行(连 PRD-REVIEW 缺失也不拦)。"""
+        """角色集无 pl(如敏捷 goal = qa/architect)→ pl_challenge 自动放行(连 PRD-REVIEW 缺失也不拦)。"""
         ok, _ = self._challenge(["pm", "qa", "architect"])
         self.assertTrue(ok)
 
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+
+
+class TestFindingPostureHintV8151(unittest.TestCase):
+    """v8.151:finding 消费姿态进 brief(主动推 · 防 v8.150 spec 只被动躺 doc)。"""
+
+    def test_posture_hint_carries_skeptical_first(self):
+        from state import _FINDING_POSTURE_HINT  # type: ignore
+        # v8.152:两个方向都摆明实证(ADOPT 与 REJECT 都点名 · 不只抽象「对称」)
+        for tok in ("质疑", "回读", "两个方向都必给实证", "ADOPT 给", "REJECT 给",
+                    "举证责任对称", "§12"):
+            self.assertIn(tok, _FINDING_POSTURE_HINT, f"posture hint 缺 {tok}")
+
+    def test_review_brief_carries_posture(self):
+        from _v8_stage_specs import _review_brief  # type: ignore
+        b = _review_brief({})
+        self.assertIn("默认姿态=质疑", b)
+        # v8.152:采纳 + 驳回都摆明
+        self.assertIn("两个方向都给实证", b)
+        self.assertIn("驳回给", b)

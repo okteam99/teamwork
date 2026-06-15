@@ -1004,6 +1004,9 @@ def cmd_init_feature(args: argparse.Namespace) -> None:
                           if args.host else []),
         "current_stage": initial_stage,
         "merge_target": merge_target,
+        # v8.161:进 dev 那刻由 stage-complete 冻结的 pre-dev HEAD · review-stage external-review
+        # 的增量 diff 基线(评本 feature dev 增量 · 非 merge_target...HEAD 累积)。init 占位 None。
+        "review_base_commit": None,
         "worktree": {
             "strategy": args.worktree_mode,
             "branch": args.branch,
@@ -1392,14 +1395,16 @@ def _read_id_strategy(start: Path) -> str:
     return DEFAULT
 
 
-def _read_disable_heterogeneous_review(start) -> bool:
-    """读项目根 `.teamwork_localconfig.json` 的 `disable_heterogeneous_review`(v8.90)。
+def _read_disable_external_review(start) -> bool:
+    """读项目根 `.teamwork_localconfig.json` 的 `disable_external_review`(v8.153 改名 · 原 `disable_heterogeneous_review`)。
 
-    从 `start` 向上找 `.teamwork_localconfig.json`(到 `.git` 边界止)· 默认 **false**(异质开)。
-    true = 单模型用户主动禁用异质评审 → external-review 自动用宿主自身模型 exec 自审(降级 ·
-    写 external-cross-review/ 满足 P0-154 但 frontmatter 标 degraded)· 每次 bootstrap 启动 WARN。
-    与 v8.88 `--self-review-fallback`(异质暂时不可用的临时 stopgap · 落 self-review/ · 不满足门禁)
-    区分:本项是**项目级长期策略**(用户接受质量下降 · 已被 startup WARN 持续提醒)。
+    从 `start` 向上找 `.teamwork_localconfig.json`(到 `.git` 边界止)· 默认 **false**(external 评审开)。
+    true = 单模型用户主动禁用 external 评审 → external-review 自动 emit subagent 降级配方
+    (宿主自身模型 subagent 自审 · 写 external-cross-review/ 满足 P0-154 但 frontmatter 标 degraded)·
+    每次 bootstrap 启动 WARN。与 v8.88 `--self-review-fallback`(异质暂时不可用的临时 stopgap ·
+    落 self-review/ · 不满足门禁)区分:本项是**项目级长期策略**(用户接受质量下降)。
+    🔴 v8.154 hard rename:只读新名 `disable_external_review` · 旧名 `disable_heterogeneous_review`
+    已废弃不再读取(无消费项目使用 · 不留兼容)。
     """
     try:
         node = Path(start).resolve()
@@ -1409,10 +1414,10 @@ def _read_disable_heterogeneous_review(start) -> bool:
         cfg = d / ".teamwork_localconfig.json"
         if cfg.exists():
             try:
-                val = json.loads(cfg.read_text(encoding="utf-8")).get("disable_heterogeneous_review")
+                data = json.loads(cfg.read_text(encoding="utf-8"))
             except (OSError, json.JSONDecodeError):
                 return False
-            return bool(val) if isinstance(val, bool) else False
+            return data.get("disable_external_review") is True
         if (d / ".git").exists():
             break
     return False
@@ -1568,8 +1573,9 @@ def cmd_prepare_check(args: argparse.Namespace) -> None:
     # 不强制 JSON 必传(Option A · 用户拍板)· 不像 v8.15 admission_judgment 物化
     payload["reviewer_thinking_checklist"] = REVIEWER_THINKING_CHECKLIST
     payload["reviewer_thinking_hint"] = (
-        "🔴 PMO emit prepare 暂停点 「建议评审角色」段 · 必基于此 checklist 4 问思考 + "
-        "给出加减预估 · 不要直接抄 stage_chain_preview 默认值。"
+        "🔴 PMO 必基于此 checklist 4 问思考 · 设定实际评审角色 + stage 链"
+        "(结果进默认 · prepare 暂停点「⚙️ 配置」段**一行**带过 · 不铺表 · v8.162)· "
+        "不要直接抄 stage_chain_preview 默认值。"
         "⚠️ 加减须有**本 Feature 特定理由** · 不是套路化删角色 —— 尤其 **pl 默认保留**"
         "(产品方向视角)·『无 ROADMAP』**不是**去 pl 的理由(ROADMAP=规划层 · 与 PRD 产品方向"
         "评审无关)· 仅纯内部/技术重构无产品面才去 pl。"
@@ -2195,6 +2201,17 @@ EXTERNAL_STAGE_TO_PROFILE = {
 EXTERNAL_REVIEW_TIMEOUT_SEC = 600  # v8.55:5min→10min(用户 case codex 偶尔卡 / 长 review · 给足 buffer)
 
 
+# v8.151:finding 消费姿态提示(brief 主动推 · 防 spec 只被动躺 doc 里 · 盲采是默认倾向)
+# v8.152:两个方向都摆明实证(v8.151 hint 只写 ADOPT · REJECT 只剩抽象「对称」· 又写歪了)
+_FINDING_POSTURE_HINT = (
+    " 🔴 finding 处理默认姿态=**质疑**(不盲目认同):逐条 ① 先质疑(过度设计/错层/"
+    "false positive/没看全)→ ② 回读真实代码/AC/DEV-RULES 确认 → ③ 才 ADOPT/REJECT;"
+    "**两个方向都必给实证**:ADOPT 给「为何确为真+为何这样改对」· REJECT 给「为何不是"
+    "问题(指真实代码/规约/目标)」·「reviewer 说得对」与「我觉得没事」都不是理由 · "
+    "举证责任对称(详 standards/external-model-usage.md §12)。"
+)
+
+
 def _detect_cli_version(cli_name: str) -> str:
     """探测 CLI 版本字符串(用于 frontmatter review_model 字段)。"""
     try:
@@ -2306,7 +2323,8 @@ def _build_codex_prompt(stage: str, feature_dir_rel: str, commit: str,
         return (
             f"You are an external code reviewer (codex / GPT) providing heterogeneous "
             f"perspective. Review the FULL code changes this feature introduces vs base "
-            f"branch `{base}`. Run `git diff {base}...{commit}` (PR-style; fall back to "
+            f"ref `{base}` (a branch or this feature's pre-dev commit). Run "
+            f"`git diff {base}...{commit}` (PR-style; fall back to "
             f"`git show {commit}` if the base ref is unavailable) to inspect the complete "
             f"diff across ALL changed files —— 🔴 the implementation lives OUTSIDE "
             f"`{feature_dir_rel}/`(that folder is only Feature docs)· do NOT restrict the "
@@ -2912,6 +2930,21 @@ def cmd_scaffold_review_prompt(args: argparse.Namespace) -> None:
     })
 
 
+def _is_ancestor(ancestor: str, commit: str, cwd: str) -> bool:
+    """`git merge-base --is-ancestor`:ancestor 是 commit 的祖先(或相等)→ True。
+
+    v8.161:external-review 用它校验 review_base_commit 是否真在 review 目标 commit 的
+    历史里 —— 是才用作增量 diff base · 否则兜底 merge_target。任何 git 失败(无 ref /
+    非 repo / git 缺失)→ False(安全:回退到 merge_target 既有行为 · 绝不因锚点失效而 BLOCK)。
+    """
+    try:
+        r = subprocess.run(["git", "merge-base", "--is-ancestor", ancestor, commit],
+                           capture_output=True, text=True, cwd=cwd)
+        return r.returncode == 0
+    except (FileNotFoundError, OSError):
+        return False
+
+
 def cmd_external_review(args: argparse.Namespace) -> None:
     """v8.20:state.py external-review · 异质模型评审一条命令调起。
 
@@ -2986,7 +3019,7 @@ def cmd_external_review(args: argparse.Namespace) -> None:
     self_fallback = getattr(args, "self_review_fallback", False)
     sr_reason = (getattr(args, "reason", "") or "").strip()
     # v8.90:localconfig 禁用异质评审(单模型用户)→ 自动用宿主自身模型 exec 自审(降级 · 满足门禁)
-    het_disabled = _read_disable_heterogeneous_review(args.feature)
+    ext_disabled = _read_disable_external_review(args.feature)
     degraded_self = False  # True → config-disabled 降级自审(落 external-cross-review/ · 满足 P0-154)
     if self_fallback:
         # v8.88 临时 stopgap:异质暂不可用 · 落 self-review/ · **不满足 P0-154**(异质仍是目标)
@@ -3007,7 +3040,7 @@ def cmd_external_review(args: argparse.Namespace) -> None:
                 "hint": "gemini 等宿主无 self-review runner · 改 change-review-roles 移除 external",
             })
             return
-    elif het_disabled:
+    elif ext_disabled:
         # v8.90 项目级长期策略:用户禁异质(单模型)→ 自动宿主自身模型 exec 自审 ·
         # 落 external-cross-review/(满足 P0-154 · 让单模型用户能走完流程)· frontmatter 标 degraded ·
         # 每次 bootstrap 启动 WARN 持续提醒「交叉 review 质量下降 · 建议恢复异质」。
@@ -3016,13 +3049,13 @@ def cmd_external_review(args: argparse.Namespace) -> None:
             emit({
                 "verdict": "FAIL",
                 "command": "external-review",
-                "error": f"disable_heterogeneous_review=true 但宿主 {host} 无 self-exec runner(仅 claude/codex)",
-                "hint": ("改回异质(删 localconfig disable_heterogeneous_review)· "
+                "error": f"disable_external_review=true 但宿主 {host} 无 self-exec runner(仅 claude/codex)",
+                "hint": ("改回异质(删 localconfig disable_external_review)· "
                          "或 change-review-roles 移除 external"),
             })
             return
         degraded_self = True
-        sr_reason = (sr_reason or "localconfig disable_heterogeneous_review=true"
+        sr_reason = (sr_reason or "localconfig disable_external_review=true"
                      "(单模型 · 异质评审降级为同模型 exec 自审 · 已 startup WARN)")
     elif args.model:
         model = args.model
@@ -3131,13 +3164,24 @@ def cmd_external_review(args: argparse.Namespace) -> None:
         })
         return
 
-    base = args.base or state.get("merge_target")
+    # v8.161:review stage 默认评本 feature 的增量 diff —— review_base_commit(进 dev 时
+    # 冻结的 pre-dev HEAD)而非 merge_target...HEAD(长 WS / stacked 分支累积 → 跨 feature
+    # 串味 + 超时;实证 aifriend yolo/ws02)。仅 review stage 用(goal/blueprint 评文档不评
+    # diff · base 不入 prompt)· 且锚点须是目标 commit 的祖先方采用(失效则透明兜底 merge_target)。
+    base = args.base
+    base_source = "--base" if base else None
+    if not base and args.stage == "review":
+        rbc = state.get("review_base_commit")
+        if rbc and _is_ancestor(rbc, commit, cwd=str(feature_dir)):
+            base, base_source = rbc, "review_base_commit"
+    if not base:
+        base, base_source = state.get("merge_target"), "merge_target"
     if not base:
         emit({
             "verdict": "FAIL",
             "command": "external-review",
-            "error": "无法算 base(--base 未传 + state.merge_target 缺)",
-            "hint": "显式传 --base <branch>",
+            "error": "无法算 base(--base 未传 + review_base_commit 无 + state.merge_target 缺)",
+            "hint": "显式传 --base <branch-or-commit>",
         })
         return
 
@@ -3145,7 +3189,7 @@ def cmd_external_review(args: argparse.Namespace) -> None:
     title = args.title or f"{feature_id} · {args.stage} stage external review"
 
     # ── v8.108 · 降级自审走 subagent(不 exec)· 治本 exec CLI 反复出认证/--bare/卡死/登录问题 ──
-    # self_fallback(--self-review-fallback)或 het_disabled(config disable_heterogeneous_review)=
+    # self_fallback(--self-review-fallback)或 ext_disabled(config disable_external_review)=
     # 同模型降级 → 🔴 不 exec CLI · 改 emit 配方 · 由 PMO 起 Agent subagent(isolated context · 宿主
     # 自身模型 · 在 harness 内跑 · 同 auth · 无 subprocess CLI 问题)产出降级评审 · 写
     # external-cross-review/(honest-degrade frontmatter)· 门禁接受(降级 · 满足 P0-154 · 记 degraded)。
@@ -3196,7 +3240,7 @@ def cmd_external_review(args: argparse.Namespace) -> None:
                 f"       degraded_reason: \"{sr_reason}\"\n"
                 "       review_via: subagent\n"
                 f"  3. {args.stage}-complete 门禁接受它(降级 · 满足 P0-154)· 但它**非异质 · 同盲点**\n"
-                "  ⚠️ 这是降级不是异质:能装/登录异质 CLI 就修环境重跑真异质;长期单模型用 disable_heterogeneous_review。"
+                "  ⚠️ 这是降级不是异质:能装/登录异质 CLI 就修环境重跑真异质;长期单模型用 disable_external_review。"
             ),
             "spec": "standards/external-model-usage.md §十一.5(降级=subagent · 不 exec)+ §十二(裁决)",
             **({"deprecation_warning": deprecation_warning} if deprecation_warning else {}),
@@ -3259,6 +3303,7 @@ def cmd_external_review(args: argparse.Namespace) -> None:
             "profile": str(profile_path),
             "commit": commit,
             "base": base,
+            "base_source": base_source,  # v8.161:--base / review_base_commit(增量) / merge_target(兜底)
             "title": title,
             "codex_model": codex_model if model == "codex" else None,
             "cwd": str(git_root),
@@ -3434,7 +3479,7 @@ def cmd_external_review(args: argparse.Namespace) -> None:
         # v8.90 config-disabled:本项目禁异质 · 此自审是「该项目的 review of record」(满足门禁)·
         # 但仍非异质 · 同盲点 · 交叉 review 质量下降 —— banner + startup WARN 持续提醒。
         body = (
-            "> ⚠️ **同模型自审(config 禁用异质 · 降级)** —— `disable_heterogeneous_review=true` ·"
+            "> ⚠️ **同模型自审(config 禁用异质 · 降级)** —— `disable_external_review=true` ·"
             "只隔离对话历史不隔离模型权重 · 同盲点 · 交叉 review 质量下降。删 localconfig 该项可恢复异质。\n"
             f"> 降级理由:{sr_reason}\n\n"
         ) + stdout
@@ -3526,14 +3571,14 @@ def cmd_external_review(args: argparse.Namespace) -> None:
         )
     elif degraded_self:
         next_hint = (
-            f"⚠️ 异质评审已被 localconfig 禁用(disable_heterogeneous_review=true)· 已用同模型 "
+            f"⚠️ external 评审已被 localconfig 禁用(disable_external_review=true)· 已用同模型 "
             f"{model} exec 自审落 {output_file}(满足 P0-154 · 但**非异质 · 同盲点 · 交叉 review 质量下降**)。"
-            f"PMO 整合 finding 到 REVIEW.md → {args.stage}-complete。"
-            f"🔴 想恢复异质评审质量:删 .teamwork_localconfig.json 的 disable_heterogeneous_review。"
+            f"PMO 整合 finding 到 REVIEW.md → {args.stage}-complete。{_FINDING_POSTURE_HINT}"
+            f"🔴 想恢复异质评审质量:删 .teamwork_localconfig.json 的 disable_external_review。"
         )
     else:
         next_hint = (f"file 已落盘 · PMO 整合 finding 到 REVIEW.md · "
-                     f"然后跑 state.py {args.stage}-complete --artifacts ...")
+                     f"然后跑 state.py {args.stage}-complete --artifacts ...{_FINDING_POSTURE_HINT}")
 
     emit({
         "verdict": "OK",
@@ -3546,6 +3591,7 @@ def cmd_external_review(args: argparse.Namespace) -> None:
         "profile": str(profile_path),
         "commit": commit,
         "base": base,
+        "base_source": base_source,  # v8.161:--base / review_base_commit(增量) / merge_target(兜底)
         "codex_model": codex_model if model == "codex" else None,  # v8.23
         "cwd": str(git_root),  # v8.23:codex 实际跑的 cwd
         "file_path": str(output_file),
@@ -4140,7 +4186,9 @@ def build_parser() -> argparse.ArgumentParser:
                     help=("review 目标 commit SHA · 缺省从 state.stage_contracts."
                           "<stage>.auto_commit 取 · 再缺从 git HEAD"))
     er.add_argument("--base", default=None,
-                    help="diff base 分支 · 缺省 state.merge_target")
+                    help=("diff base(分支或 commit)· 缺省:review stage 用 state."
+                          "review_base_commit(进 dev 冻结的增量基线)· 失效/其他 stage 兜底 "
+                          "state.merge_target。显式传可覆盖(如审跨 feature 全量)"))
     er.add_argument("--title", default=None,
                     help="review 标题 · 缺省 '<feature_id> · <stage> stage external review'")
     er.add_argument("--codex-model", default=None,

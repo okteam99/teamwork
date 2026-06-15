@@ -30,3 +30,7 @@ __pycache__/
 review_start.log
 # Teamwork local sensitive config dir (secrets · 绝不提交 · v8.89)
 .teamwork-local-env/
+
+# v8.148 流程质量审计回收:运行时 <feature_id>.md 是 transient 本机回收料(仅 README 入库)
+skills/teamwork/docs/audit/*.md
+!skills/teamwork/docs/audit/README.md

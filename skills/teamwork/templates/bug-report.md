@@ -3,7 +3,7 @@
 > 位置：`{artifact 目录}/bugfix/BUG-{缩写}-{F|B}{NNN}-{序号}.md`（artifact = Feature 目录 或标准 Bug 流程目录）
 > 编号规则：详见 [docs/conventions.md § 1-2](../docs/conventions.md)（§1 顶层 artifact ID `{PREFIX}-{F|B|M}{NNN}` · §2 本 bug 报告文件 ID）
 > 🔴 BUG-REPORT.md **必须包含 YAML frontmatter**（机读状态字段，承担 Bug 流程的 state.json 职能）。
-> 🔴 **v8.107 · diagnose/dev 分工**：§现象 + §根因 + §修复方案 在 **diagnose** 阶段产出并**经用户确认**（深读代码挖真因 · frontmatter `root_cause`/`fix_summary` 非空）；实际 fix 代码 + §回归测试在 **dev** 阶段（按已确认的方案写 · 不在 diagnose 写 fix）。详 [stages/diagnose-stage.md](../stages/diagnose-stage.md)。
+> 🔴 **diagnose/dev 分工**：§现象 + §根因 + §修复方案 在 **diagnose** 阶段产出并**经用户确认**（深读代码挖真因 · frontmatter `root_cause`/`fix_summary` 非空）；实际 fix 代码 + §回归测试在 **dev** 阶段（按已确认的方案写 · 不在 diagnose 写 fix）。详 [stages/diagnose-stage.md](../stages/diagnose-stage.md)。
 
 ## YAML frontmatter（机读字段）
 
@@ -18,7 +18,7 @@ classification: simple | complex # PMO 在 Bug 流程判断后填入
 flow_type: bug # 固定值（与 feature 区分）
 
 # 状态机字段
-current_stage: diagnose | dev | review | test | pm_acceptance | ship | completed   # = state.py BUG_FLOW(v8.107:首 stage diagnose · 根因细查+修复方案确认)
+current_stage: diagnose | dev | review | test | pm_acceptance | ship | completed   # = state.py BUG_FLOW(首 stage diagnose · 根因细查+修复方案确认)
 completed_stages: [] # 已完成阶段列表
 phase: in_progress | summarized | shipping | shipping_finalize | shipped # 端到端 phase
 started_at: "<ISO 8601 UTC>"
@@ -39,7 +39,7 @@ related_pr: null # 关联的 PR/MR 链接
 related_bugs: [] # 关联的其他 Bug
 review_log_path: "{Feature}/review-log.jsonl" # 复用 Feature 的 review-log
 
-# AI Plan 模式（v7.3 红线 R7）
+# AI Plan 模式（红线 R7）
 planned_execution: {} # 各 Stage 的 Execution Plan 历史
 ---
 ```

@@ -1,55 +1,41 @@
 # PRD 模板
 
-> 🔴 v7.3 契约化更新：PRD 文件头必须包含 YAML frontmatter，将 `acceptance_criteria[]` 结构化为机器可读。
-> 原因：AC 与 TC 测试反查绑定（`tests[].covers_ac`）是防止"需求→代码"漂移的关键机制。
-> 机器校验脚本 `{SKILL_ROOT}/templates/verify-ac.py` 会校验每条 AC 都有对应测试。直接调用，无需各项目复制：
-> `python3 {SKILL_ROOT}/templates/verify-ac.py {Feature 目录}`
+> 🔴 机读契约落 `TEAMWORK-MACHINE` HTML 注释块(MD 预览隐藏 · **非 frontmatter** · 解决 Zed/GitHub 等渲染器裸露机读内容)· 含机读 `acceptance_criteria[]`(AC↔TC `tests[].covers_ac` 反查绑定 = 防「需求→代码」漂移)· 校验:`python3 {SKILL_ROOT}/templates/verify-ac.py {Feature 目录}`(直接调 · 无需复制)。
 
-## PRD.md（统一通用模板）
+## PRD.md(三层 · 必填核 / 按需 / 开放区)
 
-> 🟢 ** 重构（PRD 模板合并）**：原"标准模板（业务类）" + "技术类变体"两套合并为统一通用模板。差异通过"按需必填"标注表达：
-> - 业务类 Feature：用户故事 / 埋点需求必填（删"功能需求 P0/P1/P2"段 · 与 AC 重复 · AC 已分优先级）
-> - 纯技术 refactor：用户故事可省（或写"使用方故事"）/ 埋点需求标"不适用"
-> - 中台子项目：消费方分析必填
-> - 其他子项目：消费方分析不填
->
-> 删除：`prd_variant` frontmatter 字段（合并后不需要变体区分）
+> **三层结构**(消费测试定档:有工具或下游读者真读它 → 必填核):
+> - **必填核**(每个 Feature 都填):背景 / 用户故事〔业务类;refactor 可写"使用方故事"或省〕/ 交付预期 / 待决策项 / 验收标准 / Out of Scope —— 被 verify-ac / PM / dev / 冷审消费 · 或不可省的 what/why/scope/决策。
+> - **按需**(按 Feature 类型):业务流程图(多步/分支)/ 埋点(前端业务)/ 消费方分析(中台子项目)· 不适用标「N-A」。
+> - **开放区**(结构没问到的):§开工前必须想清的 —— 逼判断的尖问题 · 人读不机读。
+> 🔴 **PRD 的脊 = prepare 已确认的意图**(🎯理解 / 📦范围 / 🔁既有行为)· 起草不得偏离 · 冷审据此核对(防 goal 起草 re-drift)。
 
 ```markdown
----
+<!-- TEAMWORK-MACHINE · 机读契约 · MD 预览隐藏(所有渲染器都不显)· verify-ac + goal-complete 解析此块 · 保持 <!-- --> 包裹 + 标准 2 空格缩进
 feature_id: "{缩写}-F{编号}-{功能名}"
 status: draft # draft | pending_review | confirmed
 requires_ui: false  # 是否触发 Designer 评审（双保险之一；PMO 也按 UI 关键词识别）
-business_direction_locked: false # ：PL-PM 讨论收敛后由 PMO 写 true／）
-# 删除：business_direction_locked_at（时刻信息由 state.json 单一记录）
-acceptance_criteria:
- - id: AC-1
- description: "用户能用邮箱和密码登录"
- category: functional # ：functional / telemetry / logging / config / performance / security / monitoring
- priority: P0
- test_refs: [] # Blueprint Stage 产出 TC 时填入测试 ID
- ui_refs: [] # UI Design Stage 产出时填入页面/状态（如 "login-page/normal"）
- - id: AC-2
- description: "密码错误显示红色提示"
- category: functional
- priority: P0
- test_refs: []
- ui_refs: []
- # 实战补强：非功能性 AC（埋点 / 日志 / 配置 / 性能 / 安全 / 监控）必须显式声明 category
- # 因为 TC 通常无法覆盖这类 AC，Review Stage QA Step 4.5 会按 category 走 grep 对账（不通过 TC 中转）
- - id: AC-7
- description: "登录成功上报 login_success 埋点（含 user_id / source / timestamp）"
- category: telemetry # 必标 · 触发 Step 4.5 grep SReporter
- priority: P0
- test_refs: [] # 可为空（非功能性 AC TC 难覆盖）
- grep_keyword: "SReporter.*login_success" # 新增 · 供 Step 4.5 直接使用
- - id: AC-8
- description: "登录关键路径打 INFO 日志（user_id 脱敏）"
- category: logging
- priority: P1
- test_refs: []
- grep_keyword: "SLogger.i.*login\\|Log.i.*login"
----
+business_direction_locked: false  # PL-PM 讨论收敛后 PMO 写 true
+acceptance_criteria:   # 🔴 机读单源(verify-ac.py 读 id↔TC.covers_ac)· v8.158 瘦身:只留机读字段 · AC 描述/BDD 全文在 body §验收标准表(人读单源 · 不再两处同步 description)
+  - id: AC-1
+    category: functional   # functional / telemetry / logging / config / performance / security / monitoring
+    priority: P0
+    test_refs: []          # Blueprint 产 TC 时填测试 ID
+    ui_refs: []            # UI Design 产出时填页面/状态
+  # 非功能 AC(埋点/日志/配置/性能/安全/监控)必标 category · Review QA Step 4.5 按 category grep 对账(不过 TC 中转)
+  - id: AC-7
+    category: telemetry
+    priority: P0
+    test_refs: []
+    grep_keyword: "SReporter.*login_success"   # 非功能 AC · 供 Step 4.5 grep
+  - id: AC-8
+    category: logging
+    priority: P1
+    test_refs: []
+    grep_keyword: "SLogger.i.*login\\|Log.i.*login"
+revision_history:   # 🔴 goal-complete 校验 ≥1 条(证明经 review 收敛)· 每轮修订 append 一条
+  - {version: "0.1", date: "{YYYY-MM-DD}", changes: "首版草稿"}
+-->
 
 # {功能名称}
 
@@ -69,16 +55,22 @@ acceptance_criteria:
 |------|----------|
 | {描述用户可感知的具体变化} | {在哪个页面/入口/命令可以看到效果} |
 
+## 待决策项
+
+<!-- 🔴 既有行为变更 → 必入此段(**刚性后果**):本 Feature 若改了某既有用户可感知默认行为(原 A → 现 B · 如「文件点击 原打开→现只定位」)· **必须**列为显式待决策项让用户拍板(原行为/新行为/为什么改/推荐)· **不可**在背景/「取舍」叙述段当既定事实蒙混。**侦测**在 §开工前必须想清的(🔁 主动挑衅)· 命中 → 后果落此段 · PL 质疑六问⑥ 复查。本表收待裁决(决策列空)+ 已裁决(决策列填)。 -->
+
+| ID | 问题 | 选项 | 决策 |
+|----|------|------|------|
+
+
 ## 验收标准
 
-> 🟢 v7.3.3 布局调整：验收标准紧跟交付预期，便于人类审查时聚焦"做完后长啥样 + 怎么判定做完"的契约核心。
-> 🔴 v7.3 起，验收标准必须与 frontmatter 的 `acceptance_criteria[]` 一一对应（id 一致、description 一致）。
-> 本 section 是人读视图，frontmatter 是机读源头。修改 AC 必须同步改两处（工具可校验一致性）。
+<!-- 🔴 v8.158:本表 = AC **人读单源**(BDD 全文在此)· TEAMWORK-MACHINE 块 acceptance_criteria 只存机读字段(id/category/priority/test_refs/grep)· 两处 **id 一致** 即可(描述不再同步两份 · verify-ac.py 按 id↔TC.covers_ac 校验)· AC 写 BDD(Given/When/Then)· 行为/价值高度。 -->
 
-| ID | 描述 | 优先级 | 覆盖测试（填到 frontmatter test_refs） |
-|----|------|--------|---------------------------------------|
-| AC-1 | {description} | P0 | {测试 ID，如 T-001, T-002} |
-| AC-2 | {description} | P0 | |
+| ID | 描述(BDD) | 优先级 | 覆盖测试 |
+|----|-----------|--------|----------|
+| AC-1 | Given {前置} / When {操作} / Then {结果} | P0 | {测试 ID · Blueprint 填} |
+| AC-2 | Given … / When … / Then … | P0 | |
 
 ## 业务流程图 / 交互时序图（按需必填）
 
@@ -158,9 +150,15 @@ stateDiagram-v2
 - {本 Feature 不做的事 2 + 简短理由}
 - ...
 
-## 待决策项
-| ID | 问题 | 选项 | 决策 |
-|----|------|------|------|
+## 开工前必须想清的（结构没问到的）
+
+<!-- 🔴 人读 · 机器禁入(无机读字段 / 不被 grep)· 至少 1 条实质 · 或显式「无 + 理由」· 冷审查此段是否过场(空着 / 套话 = NEEDS_REVISION)。 -->
+
+> 逐条答(无则「无 + 为什么没有」· 证明想过不是跳过):
+- **🔁 既有行为**:改了某既有用户可感知默认行为吗(原 A→现 B)? 若是 → 必入 §待决策项(刚性后果)。 → {答}
+- **🧱 隐藏前提**:方案默认成立、但没写出来的前提是什么? 哪条错了会塌? → {答}
+- **🌊 跨子系统涟漪**:改动波及哪些没列进 scope 的调用方 / 数据 / 契约? → {答}
+- **❓ 最不确定**:你对这个 Feature 最没把握的一处是什么? → {答}
 
 ## 变更记录
 | 日期 | 变更 |
@@ -171,7 +169,7 @@ stateDiagram-v2
 
 ## PRD-REVIEW.md frontmatter schema（机读）
 
-> Goal Stage substep 5「多角色并行评审」产出 `{Feature}/PRD-REVIEW.md`(单源 schema · v8.132 删旧 4 视角叙述模板 · git 可溯)。机读 frontmatter:
+> Goal Stage substep 3「并行冷审」产出 `{Feature}/PRD-REVIEW.md`(单源 schema)。机读 frontmatter:
 
 ```yaml
 ---
@@ -179,18 +177,18 @@ prd_feature_id: F025
 review_round: 1
 review_started_at: "<ISO 8601 UTC>"
 review_completed_at: "<ISO 8601 UTC>"
-reviewers: [pm, qa, architect, pl, external]  # 机读汇总 · = state.stage_review_roles[goal] · 校验 reviewers_match
-verdicts: {pm: APPROVE, qa: APPROVE, architect: APPROVE, pl: APPROVE, external: SKIP}  # 🔴 全 APPROVE/SKIP 才可 goal-complete(prd_verdicts_all_pass · v8.132 · 词表 APPROVE|NEEDS_REVISION|SKIP)
+reviewers: [qa, architect, pl]  # 机读汇总 · = state.stage_review_roles[goal](v8.155 去 pm:PM 是整合者非 reviewer · v8.149 无 external)· 校验 reviewers_match
+verdicts: {qa: APPROVE, architect: APPROVE, pl: APPROVE}  # 🔴 全 APPROVE/SKIP 才可 goal-complete(prd_verdicts_all_pass · v8.132 · 词表 APPROVE|NEEDS_REVISION|SKIP · v8.155 去 pm verdict)
 reviews:
  # schema 调整：reviews[] 仅含 qa / rd / designer? / external?
- # v8.132 对齐现行系统:goal 评审角色 = state.stage_review_roles[goal](默认 pm/qa/architect/pl/external · prepare 4 问可调)
+ # v8.155:goal 评审角色 = state.stage_review_roles[goal](默认 qa/architect/pl · 并行隔离 subagent 冷审 · PM 整合非 reviewer · 无 external · external opt-in)
  # PMO 不独立评审(折叠到调度责任 · 整合 finding)
  - role: pm | qa | architect | pl | external  # schema 通用 · rd/designer 值用于 TC-REVIEW / TECH-REVIEW / REVIEW.md 复用场景
  review_scope: prd # 值 prd | blueprint | code-review
  # PRD 评审审产品视角(业务可行性 / AC 可测试性 / 用户故事完整性)· 技术/测试细节归 Blueprint Stage(review_scope=blueprint)
- # 🔴 pl 段 = 对抗质疑段:finding id 用 PL-CHALLENGE-{n} · category=premise-challenge(质疑五问 · 至少 1 条实质质疑或显式「无实质质疑+理由」· 详 stages/goal-stage.md §3)
+ # 🔴 pl 段 = 对抗质疑段:finding id 用 PL-CHALLENGE-{n} · category=premise-challenge(质疑六问〔含 ⑥ 既有行为变更〕· 至少 1 条实质质疑或显式「无实质质疑+理由」· 详 stages/goal-stage.md §3)
  execution: subagent | main-conversation
- verdict: APPROVE | NEEDS_REVISION  # v8.132 词表统一 · 原 PASS_WITH_CONCERNS = APPROVE + advisory finding 留痕
+ verdict: APPROVE | NEEDS_REVISION  # 词表:APPROVE(含 advisory finding 留痕)| NEEDS_REVISION
  started_at: "<ISO 8601 UTC>"
  completed_at: "<ISO 8601 UTC>"
  files_read:
@@ -201,9 +199,9 @@ reviews:
  severity: high | medium | low | info
  description: "1-2 句问题描述"
  suggestion: "建议改法（可执行的具体方向）"
- category: technical-consistency | business-alignment | ux | quality | business-decision | terminology-ambiguity | premise-challenge # terminology-ambiguity 触发 Flagged Ambiguities 写入 · premise-challenge = PL 质疑五问(v8.132)
+ category: technical-consistency | business-alignment | ux | quality | business-decision | terminology-ambiguity | premise-challenge # terminology-ambiguity 触发 Flagged Ambiguities 写入 · premise-challenge = PL 质疑六问(v8.132 五问 + v8.157 ⑥ 既有行为变更)
  cross_role: []  # （可选）· 一个 finding 同时关联多视角时（如 [qa, rd]）· 仍归入主要视角段 · 不复制到多段
- # ：涉及代码现状的 finding 必填 code_evidence（category=technical-consistency 时强制）
+ # 涉及代码现状的 finding 必填 code_evidence(category=technical-consistency 时强制)
  code_evidence: # 可选 · category=technical-consistency 时必填
  file_path: "{绝对路径或仓库相对路径}"
  line_range: "{起始行-结束行，如 42-58}"
@@ -211,16 +209,20 @@ reviews:
  # 以下字段在 PM 回应后填入（Round 2+）
  pm_response:
  action: ADOPT | REJECT | DEFER
- # ：DEFER 严格收紧，仅允许 category=business-decision 时使用
+ # DEFER 严格收紧:仅 category=business-decision 可用
  category: business-decision # 仅 action=DEFER 时必填，其他类别 DEFER = 违规
- # ：对抗性自查段（每条 ADOPT/REJECT 前必须先模拟反方最强论据）
+ # 对抗性自查段（🔴 方向对称 · 每条 ADOPT/REJECT 前必填 · 默认姿态=质疑 · 不盲目认同）
+ # 详 standards/external-model-usage.md §12（处理顺序 质疑→确认→裁决 + 对称举证）
  adversarial_self_check: |
- 站在 finding 提出方视角写最强反驳论据（≥2 句具体内容）。
- 示例（finding 由 RD 提，PM 想 REJECT）：
- "RD 反方最强论据：当前 PRD 接口缺 token 刷新策略，会导致鉴权失败回退到登录页，
- 用户体验断点；如果不加，跨租户场景会出现幽灵会话。
+ ADOPT 方向（先质疑 finding 再采纳 · 防盲采=最常踩）：写「这条 finding 不成立的最强反方」
+ ——是否 false positive / 过度设计 / 责任焊错层 / 不适用本项目 / reviewer 没看全上下文？
+ 然后说明「我回读 {真实代码/AC/DEV-RULES} 确认这些反方都不成立，所以确为真问题」（≥2 句）。
+ REJECT 方向（先 steelman finding 再驳）：站在 finding 提出方视角写最强反驳论据（≥2 句）。
+ 示例（REJECT）："RD 反方最强论据：PRD 接口缺 token 刷新策略 → 鉴权失败回退登录页 + 跨租户幽灵会话；
  我的 REJECT 理由必须证明这两点不成立或代价可接受。"
- rationale: "ADOPT 时填'已修订：{改了什么 + PRD 段落引用}'；REJECT 时填'反方论据为何不成立 + 替代方案'；DEFER 时填'延后理由 + 追踪位置 + 上升给用户决策的具体问题'"
+ 示例（ADOPT）："质疑：这条『加幂等键』可能是过度设计——本接口是只读查询，无副作用。
+ 回读 dev/handler.go:42 确认它确有写库分支（缓存回填），并发下确会重复写 → 质疑不成立 → 采纳。"
+ rationale: "🔴 ADOPT 必含『质疑→确认链』：① 我质疑了什么 ② 回读 {文件/AC} 确认质疑不成立 ③ 故采纳 + 改了什么 + PRD 段落引用（不接受『reviewer 说得对』式无核实采纳）；REJECT 填'反方论据为何不成立 + 替代方案'；DEFER 填'延后理由 + 追踪位置 + 上升给用户决策的具体问题'"
  responded_at: "<ISO 8601 UTC>"
 overall_verdict: APPROVE | NEEDS_REVISION
 next_round_required: true | false
@@ -262,25 +264,19 @@ verdict: {APPROVE|NEEDS_REVISION}
 - yq 可解析所有 frontmatter 字段
 - 每个 reviews[].findings[] 必须有 id / severity / description / suggestion / category 5 字段
 - Round 2+ 的 NEEDS_REVISION findings 必须含 pm_response.action + pm_response.adversarial_self_check + pm_response.rationale
-- ：`pm_response.action == "DEFER"` 时必须 `pm_response.category == "business-decision"`，否则视为违规（PMO 校验拦截，打回 PM 重做）
-- ：每条 `pm_response.action ∈ {ADOPT, REJECT}` 必须含非空 `adversarial_self_check`（≥2 句反方论据模拟），否则视为对抗强度不足（PMO 打回）
-- ：finding `category=technical-consistency` 时必含 `code_evidence.{file_path, line_range}` —— 防止"猜测式 finding"（reviewer 没读代码就提出问题）。空值 = PMO 打回 reviewer 重审 + 提示"必须 cite 代码 location"
-- ：finding `category=terminology-ambiguity` 触发后澄清结论必须**实时**写入 KNOWLEDGE.md `## Flagged Ambiguities` 段（不等评审循环结束批处理）+ `pm_response.rationale` 字段引用 FA-NNN 编号
+- `pm_response.action == "DEFER"` 时必须 `pm_response.category == "business-decision"`，否则视为违规（PMO 校验拦截，打回 PM 重做）
+- 每条 `pm_response.action ∈ {ADOPT, REJECT}` 必须含非空 `adversarial_self_check`（≥2 句反方论据模拟），否则视为对抗强度不足（PMO 打回）
+- finding `category=technical-consistency` 时必含 `code_evidence.{file_path, line_range}` —— 防止"猜测式 finding"（reviewer 没读代码就提出问题）。空值 = PMO 打回 reviewer 重审 + 提示"必须 cite 代码 location"
+- finding `category=terminology-ambiguity` 触发后澄清结论必须**实时**写入 KNOWLEDGE.md `## Flagged Ambiguities` 段（不等评审循环结束批处理）+ `pm_response.rationale` 字段引用 FA-NNN 编号
 - overall_verdict 必须与所有 reviews[].verdict 一致（任一 NEEDS_REVISION → overall = NEEDS_REVISION）
-
-### 历史 PRD-REVIEW.md 兼容性
-
- 之前的 PRD-REVIEW.md（无机读 frontmatter，4 视角文字汇总）仍允许存在；新建 Feature 用本 schema。
-
----
 
 ## 🔴 PM 起草规范 checklist（单源化）
 
-> 🟢 ** 边界 / +P0-51 单源化**：PRD 仅回答「做什么 + 为什么」，技术/测试细节在 Blueprint Stage 由 RD/QA 起草。本 checklist 是 PM 起草 PRD 时的产品视角必填项；goal-stage.md 仅 cite 本段，不复述细节。
+> PRD 仅回答「做什么 + 为什么」· 技术/测试细节归 Blueprint(RD/QA 起草)。本 checklist 是 PM 产品视角必填项 · goal-stage.md/roles/pm.md 仅 cite 不复述(单源)。
 
 ### 🔴 起草前必读：代码现状 Read
 
-> **触发实证**：PM 不读代码 → PRD 假设功能不存在但实际有 / AC 与现有约束冲突 / 漏掉代码已知边界 → substep 5 多角色评审(architect/qa)才发现 → 评审循环多 1 轮（实测 1-3 轮）。本段把"PM 起草前必有代码意识"从隐性期望提升为 checklist 硬项。
+> 为什么硬规则:PM 不读代码 → PRD 假设功能不存在但实际有 / AC 与现有约束冲突 → 冷审才发现 → 多 1 轮评审。
 
 🔴 **PM 起草 PRD 前必须 Read 相关代码模块**（只读不输出 brief，靠 PM 内化）：
 
@@ -322,7 +318,6 @@ Step 4: PM 起草时把发现内化到 PRD
 
 🔴 **调研四类**(v8.132 · §4 早问门入场券 · 单源 stages/goal-stage.md §1):代码现状(本段)+ KNOWLEDGE(Flagged Ambiguities / Preferences / Out-of-Scope)+ GLOSSARY + 上游规划(BL / WS / 愿景 / PENDING + prepare 流程目标)—— 全部 AI 可自答 · 没查完没资格问用户。
 
-📎 **与方向 A grep + 方向 B brief 的对比**：本 P0-73 = 方向 B 只读不输出（无 brief 文档 · 无 stage 膨胀）。如未来发现 PM 偷读不读 → 升级到方向 B 原版（加 brief 输出 / 加 PMO 校验段）；当前先靠 boolean self_check + 角色纪律。
 
 ### 通用 checklist（所有 Feature 必填）
 
@@ -385,4 +380,4 @@ Step 4: PM 起草时把发现内化到 PRD
 - TECH.md 回答"怎么做"（Blueprint Stage RD 写）
 - TC.md 回答"怎么测"（Blueprint Stage QA 写）
 - 三阶段职责正交，PRD 不再被技术/测试细节淹没
-- ：本 checklist 单源在本文件，goal-stage.md / roles/pm.md 仅 cite，不复述
+- 本 checklist 单源此文件 · goal-stage.md / roles/pm.md 仅 cite 不复述

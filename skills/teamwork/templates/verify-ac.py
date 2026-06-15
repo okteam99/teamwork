@@ -46,11 +46,19 @@ except ImportError:
 
 
 def extract_frontmatter(md_path: Path) -> str:
-    """从 markdown 文件提取 YAML frontmatter 文本段（--- 之间的内容）。"""
+    """提取机读 YAML 文本段。
+
+    优先 `<!-- TEAMWORK-MACHINE ... -->` 注释块(MD 预览隐藏 · 所有渲染器都不显机读契约)·
+    兜底文件开头的 `--- ... ---` frontmatter(旧 PRD 兼容)。
+    """
     if not md_path.exists():
         return ""
     text = md_path.read_text(encoding="utf-8")
-    # 匹配文件开头的 --- ... --- 块
+    # 机读契约注释块(预览隐藏)优先
+    m = re.search(r"(?:\A|\n)<!--[ \t]*TEAMWORK-MACHINE[^\n]*\n(.*?)\n-->", text, re.DOTALL)
+    if m:
+        return m.group(1)
+    # 兜底:文件开头的 --- ... --- frontmatter
     m = re.match(r"^---\r?\n(.*?)\r?\n---\r?\n", text, re.DOTALL)
     return m.group(1) if m else ""
 

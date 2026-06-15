@@ -101,10 +101,13 @@ class _ShipFlowBase(unittest.TestCase):
         _git(self.wt, "add", "-A")
         _git(self.wt, "commit", "-m", "feature work")
         self.feature_arg = str(feat_dir)
+        self.audit_dir = self.tmp / "audit-inbox"
         self._prev_env = {k: os.environ.get(k) for k in
-                          ("TEAMWORK_BYPASS_MAIN_WORKTREE", "TEAMWORK_BYPASS_CHECKSUM")}
+                          ("TEAMWORK_BYPASS_MAIN_WORKTREE", "TEAMWORK_BYPASS_CHECKSUM",
+                           "TEAMWORK_AUDIT_DIR")}
         os.environ["TEAMWORK_BYPASS_MAIN_WORKTREE"] = "1"
         os.environ["TEAMWORK_BYPASS_CHECKSUM"] = "1"
+        os.environ["TEAMWORK_AUDIT_DIR"] = str(self.audit_dir)
 
     def _write_state(self):
         (self.wt / self.feat_rel / "state.json").write_text(
@@ -260,6 +263,41 @@ class TestShip2Finalize(_ShipFlowBase):
         _, d2 = self._finalize()
         self.assertEqual(d2.get("verdict"), "PASS", d2)
         self.assertTrue(d2.get("idempotent"), d2)
+
+
+    def test_v8148_audit_record_written_to_install_docs_audit(self):
+        """v8.148:ship2 PASS 后落流程质量审计草稿到 docs/audit/<id>.md(机器数据 + 判断占位)。"""
+        self._ship1()
+        self._merge_mr()
+        _, d = self._finalize()
+        self.assertEqual(d.get("verdict"), "PASS", d)
+        audit = self.audit_dir / f"{self.FID}.md"
+        self.assertTrue(audit.exists(), "审计草稿应落 TEAMWORK_AUDIT_DIR")
+        self.assertEqual(d.get("audit_record"), str(audit), d)
+        body = audit.read_text(encoding="utf-8")
+        # 机器数据段(工具确定性抽)
+        self.assertIn(f"feature_id: {self.FID}", body)
+        self.assertIn("audit_status: pending", body)
+        self.assertIn("实走 stages:", body)
+        self.assertIn("source_project:", body)
+        # 三段 AI 判断占位
+        for sect in ("## 做的好的", "## 发现的问题", "## 待优化的"):
+            self.assertIn(sect, body)
+        self.assertIn("AI 静默填", body)
+        # brief 指示静默补完 · 不暂停
+        self.assertIn("静默补完", d.get("next_action_brief", ""))
+
+    def test_v8148_audit_record_not_clobbered_on_rerun(self):
+        """幂等:AI 已填的审计文件不被重跑覆盖。"""
+        self._ship1()
+        self._merge_mr()
+        self._finalize()
+        audit = self.audit_dir / f"{self.FID}.md"
+        audit.write_text("AI 已填完整内容", encoding="utf-8")
+        # 重跑 ship-finalize(幂等路径)
+        self._finalize()
+        self.assertEqual(audit.read_text(encoding="utf-8"), "AI 已填完整内容",
+                         "已填审计不可被覆盖")
 
     def test_byproduct_autocommit_and_push(self):
         self._ship1()

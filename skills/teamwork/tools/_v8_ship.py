@@ -241,7 +241,7 @@ def _handle_ship_sanitize(state: dict, args: argparse.Namespace) -> dict:
             "随本次 feature MR 一起合。下一步(v8.145 ship1 终幕):"
             "state.py ship-phase --action archive --feature <path> "
             "--planning-artifacts <规划翻牌文件>|--no-planning-changes "
-            "--archive-desc '<≤200 字>'(归档+翻牌进 feature 分支)· 然后 push + MR"
+            "--archive-desc '<业务摘要 ≤200 字 · 只业务不过程>'(归档+翻牌进 feature 分支)· 然后 push + MR"
         ),
     }
 
@@ -721,9 +721,12 @@ def _handle_ship_archive(state: dict, args: argparse.Namespace) -> dict:
                 "  ② 🔴 在 **worktree 内**改好(不 commit · archive 会随归档 commit 一起带走 · "
                 "随 feature MR 原子合入 —— MR 不合翻牌不生效 · revert 同退)\n"
                 f"  ③ 重跑:state.py ship-phase --action archive --feature {args.feature} "
-                "--planning-artifacts <逗号分隔 worktree 相对路径> --archive-desc '<≤200 字>'\n"
+                "--planning-artifacts <逗号分隔 worktree 相对路径> --archive-desc '<业务摘要 ≤200 字>'\n"
                 f"  确无可翻(ad-hoc Bug/Micro)→ state.py ship-phase --action archive "
-                f"--feature {args.feature} --no-planning-changes --archive-desc '<≤200 字>'"
+                f"--feature {args.feature} --no-planning-changes --archive-desc '<业务摘要 ≤200 字>'\n"
+                "  🔴 **--archive-desc = 业务摘要**(这需求是什么 · 做了什么 · 业务影响/对外契约)· "
+                "**只业务不过程** —— 不写评审轮次/bug 数/测试数/「全绿」/external 独家/code review 等"
+                "过程信息(那些在 zip 内 state.json/REVIEW.md · 不进业务索引)。"
             ),
         }, exit_code=0)
 
@@ -736,6 +739,8 @@ def _handle_ship_archive(state: dict, args: argparse.Namespace) -> dict:
             "error": f"--archive-desc 净化后 {len(archive_desc)} 字 · 超 200 字上限",
             "hint": "压缩表达方式重写到 ≤200 字后重跑(不靠截断丢尾 · archive 可重入)",
         }, exit_code=1)
+    # v8.156:过程信息嗅探(INDEX 是业务索引 · 不该灌评审/测试过程数据)· WARN 不 BLOCK
+    desc_warn = _archive_desc_process_smell(archive_desc)
 
     # 终态 state.json(zip 快照 = 墓碑 · 宣称随 MR 合入与落地原子可见)
     ship["phase"] = "archived"
@@ -806,7 +811,7 @@ def _handle_ship_archive(state: dict, args: argparse.Namespace) -> dict:
         "warnings": [
             "过程目录已转 untracked 接力卡(工作树保留 · 分支树已删)· "
             "🔴 此后勿在 worktree 跑 `git add -A`(会把目录加回来)",
-        ],
+        ] + ([desc_warn] if desc_warn else []),
         "next_action_brief": _ship1_push_brief(feature_id, args.feature),
     }
 
@@ -1110,15 +1115,42 @@ def _build_archive_zip(artifact_root: Path) -> bytes:
 
 
 def _clean_archive_desc(raw: Optional[str]) -> str:
-    """v8.94:极简 feature 描述净化 —— 折叠空白 + 去 markdown 表格危险字符(`|`/换行)。
+    """v8.94:极简 feature **业务**描述净化 —— 折叠空白 + 去 markdown 表格危险字符(`|`/换行)。
     空 → `—`(占位 · 表格不塌)。
     v8.113:**不再截断** —— 长度上限(≤200 字)改由 `cmd_ship_finalize` 前置门禁强制
     (超则 FAIL · 要求 AI 压缩表达方式重写到 ≤200 重跑 · 不靠截断丢尾)· 本函数只做
-    表格安全净化(任意长度照原样返 · 经门禁后到这里必 ≤200)。"""
+    表格安全净化(任意长度照原样返 · 经门禁后到这里必 ≤200)。
+    v8.156:INDEX = **业务索引**(需求是什么/做了什么/影响)· 非过程数据(过程信息嗅探见
+    `_archive_desc_process_smell`)。"""
     if not raw:
         return "—"
     s = " ".join(str(raw).split()).replace("|", "/")
     return s or "—"
+
+
+# v8.156:INDEX 描述列业务-only 嗅探 —— 命中明显过程信号 → WARN(不 BLOCK · 过程信息检测不可枚举 ·
+# 只逮无歧义的强信号:评审/测试/全绿/回归 N/external 独家/code review/money bug/N 轮)
+_ARCHIVE_DESC_PROCESS_PATTERNS = (
+    "评审", "全绿", "code review", "回归", "external 异质", "external 独家",
+    "money bug", "真bug", "真 bug", "视角 review", "轮 external", "集成测试通过", "测试全",
+)
+
+
+def _archive_desc_process_smell(desc: str) -> Optional[str]:
+    """命中过程信号词 → 返 WARN 提示;否则 None。INDEX 是业务索引 · 过程数据在 zip 内 state/REVIEW。"""
+    if not desc or desc == "—":
+        return None
+    low = desc.lower()
+    hits = [p for p in _ARCHIVE_DESC_PROCESS_PATTERNS if p.lower() in low]
+    # 「N轮」「N 视角」「拦 N」等计数式过程描述
+    import re as _re
+    if _re.search(r"\d+\s*轮|\d+\s*视角|拦\s*\d+|\d+\s*真", desc):
+        hits.append("过程计数")
+    if not hits:
+        return None
+    return (f"--archive-desc 疑含过程信息({'、'.join(hits[:4])})· INDEX 是**业务索引**"
+            "(需求是什么/做了什么/业务影响)· 过程数据(评审轮次/bug 数/测试/全绿)在 zip 内 "
+            "state.json/REVIEW.md · 不进业务索引 · 建议重写为纯业务摘要(WARN 不阻塞)")
 
 
 def _build_archive_index(repo_cwd: str, base_commit: str, index_rel: str,
@@ -1203,6 +1235,131 @@ def _list_teamwork_stashes(main_wt: str) -> list:
     if r.returncode != 0:
         return []
     return [ln.strip() for ln in r.stdout.splitlines() if "teamwork" in ln.lower()]
+
+
+def _audit_dir() -> Path:
+    """v8.148:流程质量审计回收目录 · 默认 skill 安装目录 docs/audit/ · env 可 override(测试用)。
+
+    🔴 安装目录(非框架仓)= 本机所有 consuming 项目共享的回收点 —— 框架层面跨项目搜集流程质量。
+    docs/audit/ 运行时文件抗 update.py 覆盖(_overwrite_skill_files「不删 target 多余文件」)。
+    """
+    env = os.environ.get("TEAMWORK_AUDIT_DIR")
+    if env:
+        return Path(env)
+    skill_root = Path(__file__).resolve().parent.parent  # tools/ → skill 根
+    return skill_root / "docs" / "audit"
+
+
+def _feature_duration_h(state: dict) -> Optional[str]:
+    """从 stage_contracts 时间戳算总时长(最早 started_at → 最晚 completed_at)· 小时 1 位。"""
+    contracts = state.get("stage_contracts", {})
+    starts, ends = [], []
+    for c in contracts.values():
+        for key, bucket in (("started_at", starts), ("completed_at", ends)):
+            v = c.get(key)
+            if not v:
+                continue
+            try:
+                bucket.append(datetime.strptime(v, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc))
+            except (ValueError, TypeError):
+                pass
+    if not starts or not ends:
+        return None
+    secs = (max(ends) - min(starts)).total_seconds()
+    return f"{secs / 3600:.1f}h" if secs >= 0 else None
+
+
+def _stage_durations(state: dict):
+    """从 stage_contracts 抽各 stage `duration_minutes`(确定性)· 返 (breakdown, analysis)。
+
+    breakdown = "goal 12m · blueprint 25m · …"(completed_stages 顺序)
+    analysis  = "阶段总和 Nm · 最耗时 X Ym(P%)"· 与「总时长」差 = 阶段间等待。
+    无 duration 数据返 (None, None)。
+    """
+    contracts = state.get("stage_contracts", {}) or {}
+    order = state.get("completed_stages", []) or list(contracts.keys())
+    items = [(s, contracts.get(s, {}).get("duration_minutes")) for s in order]
+    items = [(s, m) for s, m in items if isinstance(m, int)]
+    if not items:
+        return None, None
+    breakdown = " · ".join(f"{s} {m}m" for s, m in items)
+    total = sum(m for _, m in items)
+    longest_s, longest_m = max(items, key=lambda x: x[1])
+    pct = f"{round(100 * longest_m / total)}%" if total else "?"
+    return breakdown, f"阶段总和 {total}m · 最耗时 {longest_s} {longest_m}m({pct})"
+
+
+def _write_audit_record(state: dict, feature_id: str, merge_target: str,
+                        main_wt: str, main_model: Optional[str] = None) -> Optional[str]:
+    """v8.148(用户拍板):ship2 后落「流程质量审计」到安装目录 docs/audit/<id>.md ·
+    框架层面跨项目搜集流程质量。
+
+    机器数据(实走 stages / 时长 / concerns / bypass)工具确定性抽(喂 kill-criteria 决策
+    不可幻觉);三段判断(做的好的 / 发现的问题 / 待优化的)留占位 · 由 AI **静默**补完
+    (零暂停 · 不等确认)。写失败静默降级(绝不阻塞 ship2)· 返回文件路径或 None。
+    已存在(AI 已填)→ 不覆盖。
+    """
+    try:
+        audit_dir = _audit_dir()
+        audit_dir.mkdir(parents=True, exist_ok=True)
+        out = audit_dir / f"{feature_id}.md"
+        if out.exists():
+            return str(out)  # 已落(含 AI 已填判断)· 幂等不覆盖
+
+        # 来源项目(跨项目回收时区分哪个项目)
+        rr = _git(["remote", "get-url", "origin"], cwd=main_wt, timeout=10)
+        if rr.returncode == 0 and rr.stdout.strip():
+            source = rr.stdout.strip().rstrip("/").rsplit("/", 1)[-1]
+            source = source[:-4] if source.endswith(".git") else source
+        else:
+            source = Path(main_wt).name
+
+        stages = "→".join(state.get("completed_stages", [])) or "?"
+        dur = _feature_duration_h(state) or "?"
+        concerns = state.get("concerns", []) or []
+        warn_n = sum(1 for c in concerns if isinstance(c, str) and "WARN" in c)
+        bypass_n = len(state.get("ship", {}).get("bypass_log", []) or [])
+        flow = state.get("flow_type") or "?"
+        stage_dur, stage_analysis = _stage_durations(state)
+        host = state.get("host") or "未记录"
+        model_suffix = (f" · 模型 {main_model}" if main_model
+                        else " · 模型(未声明 · ship-finalize 传 --main-model 记录)")
+
+        body = (
+            f"---\n"
+            f"feature_id: {feature_id}\n"
+            f"source_project: {source}\n"
+            f"flow_type: {flow}\n"
+            f"merge_target: {merge_target}\n"
+            f"generated_at: \"{now_iso()}\"\n"
+            f"audit_status: pending\n"  # AI 填完判断 → 改 done(harvest 时筛)
+            f"---\n\n"
+            f"# 流程质量审计 · {feature_id}\n\n"
+            f"## 实际数据(工具自动抽 · 勿改)\n"
+            f"- 来源项目:{source}\n"
+            f"- flow:{flow}\n"
+            f"- 实走 stages:{stages}\n"
+            f"- 总时长:{dur}(init → archive · 不含 MR 等待)\n"
+            f"- 各阶段耗时:{stage_dur or '(无 duration 数据)'}\n"
+            f"- 耗时分析:{stage_analysis or '?'}(总时长含阶段间等待 · 阶段总和=纯在阶段内)\n"
+            f"- 主对话:host={host}{model_suffix}\n"
+            f"- concerns:{len(concerns)}(WARN {warn_n})· bypass:{bypass_n}\n"
+            f"- 细数据源:本 feature `project-specs/PROCESS-LEDGER.md` 行"
+            f"(external 总/采/驳 · 角色真 finding · 暂停点 改:默)\n\n"
+            f"## 做的好的\n"
+            f"<!-- AI 静默填:本 feature 流程上真正有效的环节(external 拦真 bug / "
+            f"test 抓回归 / diagnose 改修复方向)· 照实抄 REVIEW.md/state · 无则写「无」 -->\n\n"
+            f"## 发现的问题\n"
+            f"<!-- AI 静默填:流程摩擦 / 工具判例 / 框架级 bug(= 该反馈 teamwork 的)· "
+            f"照实 · 无则写「无」 -->\n\n"
+            f"## 待优化的\n"
+            f"<!-- AI 静默填:本 feature 暴露的可优化点(纯过场环节 / 成本异常)· "
+            f"仅记录不自改 spec · 无则写「无」 -->\n"
+        )
+        out.write_text(body, encoding="utf-8")
+        return str(out)
+    except OSError:
+        return None
 
 
 def _archive_idempotent_zip(main_wt: str, feature_path: str) -> Optional[str]:
@@ -1789,6 +1946,10 @@ def cmd_ship_finalize(args: argparse.Namespace) -> None:
     if fp:
         zip_hint = fp[1]
 
+    # ── v8.148:流程质量审计落安装目录 docs/audit/(框架跨项目搜集)· AI 静默补判断 ──
+    audit_record = _write_audit_record(state, feature_id, merge_target, main_wt,
+                                       getattr(args, "main_model", None))
+
     emit_json({
         "verdict": "PASS",
         "command": "ship-finalize",
@@ -1803,11 +1964,16 @@ def cmd_ship_finalize(args: argparse.Namespace) -> None:
         **({"byproduct_commit": byproduct_commit} if byproduct_commit else {}),
         **({"teamwork_stashes": tw_stashes} if tw_stashes else {}),
         **({"archive_zip": zip_hint} if zip_hint else {}),
+        **({"audit_record": audit_record} if audit_record else {}),
         **({"warnings": warnings} if warnings else {}),
         "next_action_brief": (
             f"✅ ship2 清场完成({feature_id})。"
             + (f"\n⏸️ 主工作区有用户改动待决策(见 main_sync_decision · PMO 转 R5(b) 暂停点)。"
                if main_sync_decision else "")
+            + (f"\n📊 流程质量审计草稿已落 {audit_record}(框架跨项目搜集用)· "
+               f"🔴 **静默补完三段判断**(做的好的 / 发现的问题 / 待优化的 · 照实抄 "
+               f"REVIEW.md·state · 空写「无」)· 改 frontmatter audit_status: done · "
+               f"**不暂停不等确认 · 写完即结束**。" if audit_record else "")
             + (f"\n📋 收尾 digest(纯输出 · 不暂停):按 stages/ship-stage.md §16 读 "
                f"{zip_hint or '_archive/<id>.zip'} 出 ≤10 行流程价值反思。" )
         ),
@@ -1887,6 +2053,9 @@ def register_v8_ship_subparser(sub) -> None:
     )
     fp.add_argument("--feature", required=True,
                     help="worktree 内 feature 目录路径(接力卡 state.json 所在 · 已删则幂等判定)")
+    fp.add_argument("--main-model", default=None,
+                    help="主对话(PMO)模型 · PMO 声明(它知道自身 model · 如 claude-opus-4-8)· "
+                         "写入 audit 实际数据 · 缺省只记 host · 供 harvest 按模型分析流程质量")
     fp.set_defaults(func=cmd_ship_finalize)
 
     # ─── main-sync:主工作区净化(v8.70)─────────────────────────────

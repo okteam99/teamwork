@@ -85,6 +85,35 @@ class TestCleanArchiveDesc(unittest.TestCase):
 # ─── 单元:_build_archive_index(git repo · base_commit)──────────────
 
 
+class TestArchiveDescProcessSmellV8156(unittest.TestCase):
+    """v8.156:INDEX 业务-only 嗅探(过程信息 → WARN · 治本截图 case API-F051 描述灌评审/测试数据)。"""
+
+    def test_process_info_warns(self):
+        from _v8_ship import _archive_desc_process_smell  # type: ignore
+        bad = ("CPS 安装归因计佣后端地基: cps 4表 + 计佣post-commit。"
+               "评审拦10真bug(external异质独家4·含2 money bug)。cps11+集成11+回归520全绿")
+        w = _archive_desc_process_smell(bad)
+        self.assertIsNotNone(w)
+        self.assertIn("业务索引", w)
+
+    def test_pure_business_no_warn(self):
+        from _v8_ship import _archive_desc_process_smell  # type: ignore
+        good = ("CPS 安装归因计佣后端地基: cps 4 表 + 安装归因绑定/dl 校验/点击端点 + "
+                "计佣 post-commit(GalaxyEdge+IAP 双路·幂等)+ 退款冲销。对外暴露 "
+                "promoter/install/click/refund 契约")
+        self.assertIsNone(_archive_desc_process_smell(good))
+
+    def test_count_pattern_warns(self):
+        from _v8_ship import _archive_desc_process_smell  # type: ignore
+        # 「N 轮」「N 视角」过程计数
+        self.assertIsNotNone(_archive_desc_process_smell("CPS 计佣引擎。11 轮 external blueprint 评审 + 3 视角 code review"))
+
+    def test_empty_no_warn(self):
+        from _v8_ship import _archive_desc_process_smell  # type: ignore
+        self.assertIsNone(_archive_desc_process_smell("—"))
+        self.assertIsNone(_archive_desc_process_smell(""))
+
+
 class TestBuildArchiveIndex(unittest.TestCase):
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp(prefix="arch-idx-v894-"))

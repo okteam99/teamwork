@@ -107,15 +107,9 @@ scope:
 
 ## Git Worktree 策略
 <!-- worktree: off / auto / manual -->
-<!-- auto = PMO 在 Goal-Plan Stage 入口自动创建 worktree（v7.3.8 前移），Feature 完成后询问用户清理【默认】 -->
+<!-- auto = PMO 在 Goal-Plan Stage 入口自动创建 worktree，Feature 完成后询问用户清理【默认】 -->
 <!-- manual = PMO 提醒用户自行管理 worktree，不自动创建/清理 -->
 <!-- off = 不使用 worktree，所有 Feature 在主分支开发（适合单 Feature 串行 / megarepo / IDE 跨 worktree 跳转受限场景） -->
-<!-- -->
-<!-- 默认值变更（撤销 默认 off 决策）： -->
-<!-- - 多 Feature 并行场景实际更常见，worktree 隔离避免主分支污染 -->
-<!-- - Ship Stage 双段流程后 worktree 清理已闭环（合并验证后自动清理） -->
-<!-- - worktree deps 处理已有完整指引（standards/common.md） -->
-<!-- - 环境配置预检前置到 triage，worktree 创建已自动化无暂停点 -->
 <!-- -->
 <!-- 改 off 的合理理由（保留 off 为可选）： -->
 <!-- - megarepo：每个 worktree 是全量 checkout，多 Feature 并行时磁盘/索引代价高 -->
@@ -138,8 +132,7 @@ worktree_root_path: .worktree
 
 ## Ship 策略
 
-<!-- 🟢 变更：Ship Stage 改为 MR 模式（PMO 只负责净化 + push feature + 生成 MR/PR create URL，不做本地 merge / push merge_target / 冲突解决）。 -->
-<!-- 已移除字段：ship_rebase_before_push（不再做 rebase）、ship_policy（不再有 merge+push 暂停点）。 -->
+<!-- Ship Stage = MR 模式：PMO 只负责净化 + push feature + 生成 MR/PR create URL，不做本地 merge / push merge_target / 冲突解决）。 -->
 
 ### 合并目标分支
 <!-- merge_target: Feature 的目标分支，用于 MR/PR 的 base 分支。默认 staging。 -->
@@ -176,7 +169,7 @@ worktree_cleanup: ask
 id_strategy: utc-yymmddhhmmss
 
 ### ship 归档
-<!-- v8.145 起归档属 ship1(archive action · 统一执行 · 无配置项)· 旧 archive_on_ship 配置已废弃 · 残留时被忽略 + WARN。详 stages/ship-stage.md §15。 -->
+<!-- 归档属 ship1(archive action · 统一执行 · 无配置项)· 残留 archive_on_ship 配置被忽略 + WARN。详 stages/ship-stage.md §15。 -->
 
 ### 本地敏感配置目录
 <!-- local_env_auto_create: true（默认）/ false -->
@@ -186,12 +179,12 @@ id_strategy: utc-yymmddhhmmss
 local_env_auto_create: true
 
 ### 禁用异质模型审核（单模型用户）
-<!-- disable_heterogeneous_review: false（默认）/ true -->
+<!-- disable_external_review: false（默认）/ true -->
 <!-- false = external 评审跑异质模型（claude↔codex 交叉 · 唯一跨模型安全网 · 推荐）。 -->
 <!-- true = 只有一个模型时：external-review 自动 emit subagent 降级配方（PMO 起宿主自身模型 subagent 自审 · 不 exec · 落 external-cross-review/ 满足 P0-154 · frontmatter degraded_mode:config-disabled · 非异质 · 同盲点）· 每次 bootstrap 启动 WARN 提醒。详 standards/external-model-usage.md §11.5。 -->
 <!-- 区分 --self-review-fallback（异质临时不可用的 per-run 降级 · 同走 subagent · degraded_mode:subagent-fallback）：本项是项目级长期策略（每次自动降级）。 -->
 <!-- 装好第二个模型 CLI 后建议删此项 / 设 false 恢复异质，交叉 review 质量更高。 -->
-disable_heterogeneous_review: false
+disable_external_review: false
 
 ## 备注
 <!-- 可选：记录当前阶段重点、临时分工调整等 -->
