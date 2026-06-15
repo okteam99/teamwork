@@ -110,7 +110,7 @@ bash {子项目}/docs/design/preview-project/preview.sh    # → PREVIEW_URL=htt
 读 PRD.md(用户场景)· sitemap.md(信息架构)· KNOWLEDGE.md(项目级 UI 规范)· `PROJECT.md § 技术栈`(决定 panorama_medium)
 
 ### 2. Designer 起草 UI.md
-frontmatter `pages: [{id, title}]` + `panorama_medium: same-stack|static-html` 必 · body §页面列表 / §交互流 / §视觉规范 / §字段映射(对应 PRD.AC)
+frontmatter `pages: [{id, title}]` + `panorama_medium: same-stack|static-html` 必 · body §页面列表 / §交互流 / §视觉规范 / §字段映射(对应 PRD.AC)· 🔴 §交互流/§视觉规范 **逐条对照下文 § 交互 & 视觉质量 rubric**(治「对交互没判断力」· 不等用户逐条纠)
 
 ### 3. 产出 panorama(按 `panorama_medium` 分支)
 
@@ -154,12 +154,37 @@ state.py ui_design-complete --feature X --auto-commit Y \
 
 ---
 
+## 交互 & 视觉质量 rubric(设计时逐条对照 · dev 还原 + 评审同一基准 · 单源)
+
+> 🔴 **为什么有这份 rubric**:模型对交互体验缺天生判断力(实战反馈:涉交互改动「降智」· 要人逐条纠正)· 把**可枚举**的设计判断前置成清单 → 模型主动答、不靠人喂(真正的 taste 那层仍归 §5 用户预览)。蒸馏自 `design-review`(交互状态/排版/颜色/间距)+ `frontend-design`(copy)· 🔴 按「**扩展既有 app**」裁剪 —— 品牌独特性那套**只在全景首版/greenfield 用**,per-feature 要的是**和既有系统一致**。
+
+### A. 交互状态(每个交互元素逐条 · 治「对交互没判断力」)
+- **反馈**:hover · 按下 active · `focus-visible` 环(禁 `outline:none` 不补替代)· loading **骨架匹配真实布局**(非裸转圈)· success 确认 + 自动消失
+- **完备态**:normal / **empty**(消息 + 主操作 + 视觉 · 非「无数据」)/ loading / **error**(具体原因 + 下一步怎么做 · 非「出错了」)/ disabled(opacity + `cursor:not-allowed`)· 首次 vs 回访(如适用)
+- **可恢复**:破坏性操作有确认 · 误操作能撤销/退回(接 PL 质疑六问⑥ 既有行为变更)
+- **边界退化**:超长文本/溢出 · 慢网/超时 · 快速重复点击 · 并发 · 超大列表 —— 交互怎么不崩
+- **触控/指针**:可点元素 `cursor:pointer` · 触控目标 ≥ 44px
+
+### B. 视觉质量地板(🔴 对照既有设计系统 · 不自造)
+- **排版**:复用既有字阶/字重 · body ≥ 16px · 不跳标题级 · 数字列 `tabular-nums`
+- **颜色**:复用既有语义色(success/error/warning)· WCAG AA(正文 4.5:1)· 不靠颜色单独编码(配图标/文字)
+- **间距**:既有 4/8px scale · 不臆造值 · 对齐既有栅格 · radius 跟既有层级
+- **一致 > 独特**:页面**匹配现有组件/模式 · 不重新发明**(独特品牌设计仅全景首版/greenfield 相关)
+
+### C. 文案(copy = 设计材料 · 非装饰)
+- 从**用户视角**命名(「通知」非「webhook 配置」)· active voice(「保存更改」非「提交」)
+- 同一动作**全流程同名**(按钮「发布」→ toast「已发布」)· error/empty 当**指引**不当情绪:说清出了什么 + 下一步
+
+🔴 **rubric 是设计/还原/评审同一基准**:Designer 起草(§2)逐条过 · dev 还原(dev-stage §3)按它核 · §5 用户预览前 Designer 自查报告对 **A 段逐项过**(无则显式「N-A + 理由」)· reviewer 审对着这份(防凭空 generic 评)。
+
+---
+
 ## 必读 cite 清单(P0-11 · 各 substep 动手前主对话输出)
 
 | Substep | 必读 spec | 段 | cite 关键点 |
 |---------|----------|----|------------|
 | 1. 加载上下文 | `roles/designer.md` | § Telos + 创作要点 | UX 视角 |
-| 2. Designer 起草 UI.md | `roles/designer.md` | § 创作要点 | frontmatter pages[] + body 4 段 |
+| 2. Designer 起草 UI.md | `roles/designer.md` + 本文件 § 交互 & 视觉质量 rubric | § 创作要点 + rubric A/B/C | frontmatter pages[] + body 4 段 · 🔴 §交互流/§视觉规范 逐条对照 rubric |
 | 3. 产出 panorama | `roles/designer.md` | § 创作要点 | 按 `panorama_medium` 走 · same-stack 搭 preview-project + preview.sh(源即权威)· static-html 产 preview/*.html · 含可交互 |
 | 4. panorama 判定 | — | — | (无 cite 要求 · 涉变更交 panorama_sync stage) |
 | 5. ⏸️ 用户预览确认 | — | — | (无) |
