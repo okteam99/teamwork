@@ -234,7 +234,7 @@ teamwork 文档分 **workspace 级**(仓库根)和 **子项目级**两层。
 | 目录 / 文件 | 内容 | 维护方 |
 |---|---|---|
 | `product-overview/` | 产品愿景 / 业务架构 / 执行线列表 + `workstream/`(WS)+ `PENDING.md`(待规划需求池 · 从 teamwork-space 外置 · 详 [PRODUCT-OVERVIEW-INTEGRATION.md](../PRODUCT-OVERVIEW-INTEGRATION.md)) | Product Lead |
-| `project-specs/` | 工程层项目文档:`DEV-RULES.md`(人维护开发规范 · blueprint/dev 必读)· `KNOWLEDGE.md`(AI 沉淀踩坑/事实)· `GLOSSARY.md` · `TROUBLESHOOTING.md` · `ARCHITECTURE.md`(workspace 级系统架构:子项目拓扑+依赖+目录 · 从 teamwork-space.md 外迁 · 区别 `{子项目}/docs/architecture/` 单子项目内部)· `PROCESS-LEDGER.md`(流程价值台账 · ship2 planning-backref 随收尾 MR append · 年检数据源 · 详 ship-stage §16) | bootstrap 建空骨架 · 项目维护 |
+| `project-specs/` | 工程层项目文档:`DEV-RULES.md`(人维护开发规范 · blueprint/dev 必读)· `UI-RULES.md`(人维护设计规范:控件/色板策略/交互约定 · 装策略不装视觉值)· `KNOWLEDGE.md`(AI 沉淀踩坑/事实)· `GLOSSARY.md` · `TROUBLESHOOTING.md` · `ARCHITECTURE.md`(workspace 级系统架构:子项目拓扑+依赖+目录 · 从 teamwork-space.md 外迁 · 区别 `{子项目}/docs/architecture/` 单子项目内部)· `PROCESS-LEDGER.md`(流程价值台账 · ship2 planning-backref 随收尾 MR append · 年检数据源 · 详 ship-stage §16) | bootstrap 建空骨架 · 项目维护 |
 | `teamwork-space.md` | 多项目索引 / 路由(单项目仓库无此文件) | PM |
 | `CLAUDE.md` / `AGENTS.md` | host 指令入口 · 固定位置 · 不可移 | teamwork 注入 |
 | `.teamwork-local-env/` | 🔐 本机敏感配置:`config.properties`(KEY=value:DB 密码 / API key)+ 整文件(kubeconfig / 证书)· **双重 gitignore · 绝不进仓库**。bootstrap 缺失时自动建(`local_env_auto_create` 默认 true)· 已存在不覆盖。读取约定见 `TROUBLESHOOTING.md §五`。 | 用户(secret 真值)/ bootstrap(骨架) |
@@ -244,13 +244,13 @@ teamwork 文档分 **workspace 级**(仓库根)和 **子项目级**两层。
 
 ### 子项目级(`{子项目}/docs/`)
 
-`PROJECT.md`(业务总览)· `ROADMAP.md`(Feature 清单 + 优先级)· `DEV-RULES.md`(子项目级开发规范 · 人维护)· `KNOWLEDGE.md`(子项目级 Gotcha)· `sitemap.md`(IA 地图:页面层级/导航/路由 · 🔴 只写地图不写视觉)· `architecture/` · `adr/` · `features/{artifact ID}/`(详 §1)· `design/`(same-stack panorama:`preview-project/` 同栈设计预览项目 · 源即全景权威 + `preview.sh` 起 dev server 实时预览〔动态端口〕· `node_modules` gitignore · 不出静态 build 产物 · 🔴 **首次 seed 在规划层「UI 全景初步规划」**〔feature-planning Step 5 · 拆 WS 前〕· ui_design 阶段增量扩本 Feature 页)。
+`PROJECT.md`(业务总览)· `ROADMAP.md`(Feature 清单 + 优先级)· `DEV-RULES.md`(子项目级开发规范 · 人维护)· `UI-RULES.md`(子项目级设计规范 · 人维护)· `KNOWLEDGE.md`(子项目级 Gotcha)· `sitemap.md`(IA 地图:页面层级/导航/路由 · 🔴 只写地图不写视觉)· `architecture/` · `adr/` · `features/{artifact ID}/`(详 §1)· `design/`(same-stack panorama:`preview-project/` 同栈设计预览项目 · 源即全景权威 + `preview.sh` 起 dev server 实时预览〔动态端口〕· `node_modules` gitignore · 不出静态 build 产物 · 🔴 **首次 seed 在规划层「UI 全景初步规划」**〔feature-planning Step 5 · 拆 WS 前〕· ui_design 阶段增量扩本 Feature 页)。
 
 🔴 **顶级仓库不设 teamwork `docs/`** —— `docs/` 只在子项目层。单项目仓库 = 仓库根即项目根 · `project-specs/` 与 `docs/` 都在仓库根。
 
 ### KNOWLEDGE.md / DEV-RULES.md 两层
 
-> 🔴 **分家**:KNOWLEDGE = AI 沉淀(踩坑/事实/偏好);DEV-RULES = 人维护(开发规范/约定)。各自 workspace + 子项目两层。
+> 🔴 **分家**:KNOWLEDGE = AI 沉淀(踩坑/事实/偏好);DEV-RULES = 人维护(开发规范);**UI-RULES = 人维护(设计规范:控件/色板策略/交互约定 · 装策略不装视觉值)**。各自 workspace + 子项目两层。
 
 | 层 | 路径 | 内容 |
 |---|---|---|

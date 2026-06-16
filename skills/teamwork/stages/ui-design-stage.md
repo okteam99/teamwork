@@ -72,7 +72,9 @@ teamwork 支持两种 panorama 介质 · 项目应在 ui_design 启动前明确,
 > 🔴 **IA 镜像律**(v8.133):preview-project 的**路由结构 = 真实 app**(与 `sitemap.md` 一致)—— 本次设计页挂**真实目标 path**(`pages_changed[].route_path` · 如 `/settings/ingest`)· **`/` = 真实首页设计稿**(已有则复用 · 全景首版即建)· **router 必含**(「单页预览不需要路由 · 有意省略」= 漂移反模式 —— 全景的价值就在用户能沿真实导航走到新页)。
 > 🔴 **分层同构律**(v8.134 · 替代 v8.133「数据层唯一差异律」· 同构承诺按「能否由结构保证」分层):
 > - **Layer 1 基建层(业务无关 · 完全一致)**:页面框架(shell/layout)· 前端架构(构建链/路由机制/栈版本)· UI 组件库 · 主题 tokens。实现优先级:① **共享包**(monorepo workspace 包 · preview-project 与真实 app **依赖同一份代码** · 一致性由单源结构保证 · 零镜像维护)② 暂不可抽包 → 版本锁定镜像(退路 · UI.md 记豁免 + 回收计划)。
-> - **Layer 2 业务页面层(意图权威 · 允许不同构)**:全景页承载**意图四要素** —— 布局结构 / 交互流 / 状态(normal·empty·loading·error)/ 字段映射(UI.md 既有段落即契约载体)。实现代码「重点参考」= **四要素必须对齐**(dev 还原与 pm_acceptance 的对照物)· 像素与代码组织自由。
+> - **Layer 2 业务页面层**:全景页承载**意图四要素** —— 布局结构 / 交互流 / 状态(normal·empty·loading·error)/ 字段映射(UI.md 既有段落即契约载体)。🔴 **一致性按介质定**:
+>   - **same-stack → 完全一致**:页面内容从**同一份共享组件 / 真实页面源**渲染 · **零预览痕迹** · 设计=代码是「**构造保证**」非人肉对齐 · **不留「像素自由」口子**。🔴 机制 = **预览工具全外置到 dev 顶栏**(页面切换 + 状态 Data/Loading/Empty/Error 切换都在 dev-only 全局顶栏 · 真实 app 无 · 页面内容**禁内嵌任何预览控件**)· 详 § preview dev 顶栏。
+>   - **static-html → 仅参考**:介质差异客观不可像素仿 · 四要素对齐即可(dev 还原与 pm_acceptance 的对照物)。
 > - **权威时效(防权威倒置)**:页面层全景的设计权威**至该页 ship 为止** —— ship 后代码即唯一真相 · 全景页转历史参考 + 下一轮设计底版。🔴 反模式:拿停更的全景页「纠正」已演化的真实页面。
 > - **下游编译契约**:共享基建有两个消费者(真实 app + 全景)· 任何 feature 改共享基建 → **dev 结束须保证全景编译通过**(详 [dev-stage.md §3.5](./dev-stage.md))。
 > 🟢 **same-stack 去静态 build 产物**(用户拍板):**去掉静态 build 产物**(`docs/design/preview/*.html` 不再必产)· 全景权威 = preview-project **源**(committed · 要看跑 preview.sh)· 预览 = dev server 实时(动态端口 · 不在 teamwork 层起 server)。`pages_changed[].panorama_file` 对 same-stack 可选(指向 preview-project 内渲染该页的源/路由 · 非文件存在性校验)。
@@ -104,10 +106,21 @@ bash {子项目}/docs/design/preview-project/preview.sh    # → PREVIEW_URL=htt
 
 ---
 
+## preview dev 顶栏(测试入口集中 · 页面=真代码)
+
+> 🔴 **预览工具一律外置到 dev-only 全局顶栏 · 页面内容零预览痕迹**(治本:状态切换器内嵌进页面 = 真实 app 没有它 = 设计 ≠ 代码)。preview-project 加一个 **dev 布局外壳**(真实 app 不存在 · dev wrapper 注入),顶栏两个区:
+> - **页面区**:每个全景页一个入口 → `route_path`(点击直达 · 与 sitemap 一致)
+> - **状态区**:当前页的**状态 / 场景测试入口按钮**(Data / Loading / Empty / Error …)
+>
+> 🔴 **页面内容(栏下)= 真实渲染**:从共享组件渲染 · **禁内嵌 state-switcher / 场景 toggle** · 状态切换由顶栏驱动(顶栏选中 → mock-data provider 按状态注入 · 页面组件**不知道自己在被预览**)。= **Storybook 模型**:顶栏选「页 × 状态」· 画布渲染干净组件。
+> 🔴 **不违 IA 镜像**:`/` 仍是真实首页 · 顶栏是 `/` 之上的**工具层**(不占真实路由)。
+
+---
+
 ## 怎么做
 
 ### 1. 加载上下文
-读 PRD.md(用户场景)· sitemap.md(信息架构)· KNOWLEDGE.md(项目级 UI 规范)· `PROJECT.md § 技术栈`(决定 panorama_medium)
+读 PRD.md(用户场景)· sitemap.md(信息架构)· 🔴 **UI-RULES.md(设计规范:控件偏好/色板策略/交互约定/a11y · workspace `project-specs/` + 子项目 `{子项目}/docs/` 两层)**· KNOWLEDGE.md(项目级 UI 踩坑)· `PROJECT.md § 技术栈`(决定 panorama_medium)
 
 ### 2. Designer 起草 UI.md
 frontmatter `pages: [{id, title}]` + `panorama_medium: same-stack|static-html` 必 · body §页面列表 / §交互流 / §视觉规范 / §字段映射(对应 PRD.AC)· 🔴 §交互流/§视觉规范 **逐条对照下文 § 交互 & 视觉质量 rubric**(治「对交互没判断力」· 不等用户逐条纠)
@@ -169,7 +182,7 @@ state.py ui_design-complete --feature X --auto-commit Y \
 - **排版**:复用既有字阶/字重 · body ≥ 16px · 不跳标题级 · 数字列 `tabular-nums`
 - **颜色**:复用既有语义色(success/error/warning)· WCAG AA(正文 4.5:1)· 不靠颜色单独编码(配图标/文字)
 - **间距**:既有 4/8px scale · 不臆造值 · 对齐既有栅格 · radius 跟既有层级
-- **一致 > 独特**:页面**匹配现有组件/模式 · 不重新发明**(独特品牌设计仅全景首版/greenfield 相关)
+- **一致 > 独特**:页面**匹配现有组件/模式 · 不重新发明**(🔴 策略对照 **UI-RULES**〔控件偏好/色板策略〕· 视觉值对照 preview-project tokens · 独特品牌设计仅全景首版/greenfield 相关)
 
 ### C. 文案(copy = 设计材料 · 非装饰)
 - 从**用户视角**命名(「通知」非「webhook 配置」)· active voice(「保存更改」非「提交」)

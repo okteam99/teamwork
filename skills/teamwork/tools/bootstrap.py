@@ -153,6 +153,9 @@ def maintain_project_skeletons(skill_root: Path, project_root: Path) -> dict:
         # v8.96:人维护的项目开发规范(分层/命名/错误处理/测试/风格)· blueprint+dev 必读 ·
         # 与 KNOWLEDGE(AI 沉淀)分家。absent→从模板建;present→不动(人维护)。
         ("DEV-RULES.md", "dev-rules.md"),
+        # v8.x:人维护的项目设计规范(控件偏好/色板策略/交互约定/a11y · 装策略不装视觉值)·
+        # ui_design 必读 · 与 DEV-RULES(工程)分家。视觉值在 preview-project 代码。
+        ("UI-RULES.md", "ui-rules.md"),
         # v8.117:workspace 级系统架构(子项目拓扑+依赖+目录布局)· 从 teamwork-space.md 外迁 ·
         # 区别于 per-subproject {子项目}/docs/architecture/(单子项目内部技术架构)。
         ("ARCHITECTURE.md", "architecture-workspace.md"),
