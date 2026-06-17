@@ -1999,6 +1999,10 @@ def execute_stage_fix(stage_name: str, args: argparse.Namespace) -> None:
 
     last_round["fix_commit"] = args.auto_commit
     last_round["fix_at"] = now_iso()
+    # v8.172:推进本 stage 的 review target 到 fix commit —— 否则下轮 external-review 默认锚
+    # stage_contracts.<stage>.auto_commit(= pre-fix 树)· 评旧代码报 stale finding 引旧行号
+    # (实证 audit ×3:ADMIN-Offer-Detail / ANDROID-F017 / INFRA-F018 都要手动 --commit HEAD)。
+    state.setdefault("stage_contracts", {}).setdefault(stage_name, {})["auto_commit"] = args.auto_commit
     if getattr(args, "addresses_findings", None):
         last_round["addresses_findings"] = [
             s.strip() for s in args.addresses_findings.split(",") if s.strip()

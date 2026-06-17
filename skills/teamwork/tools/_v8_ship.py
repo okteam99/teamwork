@@ -1269,11 +1269,17 @@ def _feature_duration_h(state: dict) -> Optional[str]:
     return f"{secs / 3600:.1f}h" if secs >= 0 else None
 
 
+# v8.172:纯用户决策等待 stage —— 其 duration = 等用户拍板的墙钟 · 非阶段内工作 ·
+# 不能计入「最耗时(工作)」(实证 audit ×5:pm_acceptance 占 84%/87%/73% 全是等用户)。
+_AWAIT_USER_STAGES = {"pm_acceptance"}
+
+
 def _stage_durations(state: dict):
     """从 stage_contracts 抽各 stage `duration_minutes`(确定性)· 返 (breakdown, analysis)。
 
-    breakdown = "goal 12m · blueprint 25m · …"(completed_stages 顺序)
-    analysis  = "阶段总和 Nm · 最耗时 X Ym(P%)"· 与「总时长」差 = 阶段间等待。
+    breakdown = "goal 12m · blueprint 25m · …"(completed_stages 顺序 · 全列)
+    analysis  = "工作阶段总和 Nm · 最耗时(工作)X Ym(P%)" + 用户决策等待 stage 单列
+      —— 🔴 pm_acceptance 等纯等用户的墙钟**不计入最耗时**(否则把「等用户」误判成「阶段慢」)。
     无 duration 数据返 (None, None)。
     """
     contracts = state.get("stage_contracts", {}) or {}
@@ -1283,10 +1289,19 @@ def _stage_durations(state: dict):
     if not items:
         return None, None
     breakdown = " · ".join(f"{s} {m}m" for s, m in items)
-    total = sum(m for _, m in items)
-    longest_s, longest_m = max(items, key=lambda x: x[1])
-    pct = f"{round(100 * longest_m / total)}%" if total else "?"
-    return breakdown, f"阶段总和 {total}m · 最耗时 {longest_s} {longest_m}m({pct})"
+    work = [(s, m) for s, m in items if s not in _AWAIT_USER_STAGES]
+    awaiting = [(s, m) for s, m in items if s in _AWAIT_USER_STAGES]
+    if work:
+        wtotal = sum(m for _, m in work)
+        ls, lm = max(work, key=lambda x: x[1])
+        pct = f"{round(100 * lm / wtotal)}%" if wtotal else "?"
+        analysis = f"工作阶段总和 {wtotal}m · 最耗时(工作){ls} {lm}m({pct})"
+    else:
+        analysis = "无工作阶段时长数据"
+    if awaiting:
+        aw = " + ".join(f"{s} {m}m" for s, m in awaiting)
+        analysis += f" · ⏸️ {aw}=用户决策等待(墙钟 · 非工作 · 不计入最耗时)"
+    return breakdown, analysis
 
 
 def _write_audit_record(state: dict, feature_id: str, merge_target: str,

@@ -5,6 +5,19 @@
 
 ---
 
+## v8.167 · ui_design 加交互 & 视觉质量 rubric · 治「对交互没判断力」
+
+> 实战反馈(Deli Yang · teamwork+Codex):涉交互改动效果「降智」· 模型对交互体验没判断力 · 要人逐条纠正。诊断坐实:designer 角色 ~90% 讲全景生产/预览机制 · ~0% 讲「什么是好交互」(§交互流 只是段落标题无 rubric)· 模型既无 taste 又无 rubric → 必然 generic。Qianliu 提「找设计 skill 吸收」—— 对,但吸收知识不吸收 skill(Codex 调不了 Claude/gstack skill)。
+
+### 改动(吸收设计判断 · host-agnostic)
+- **ui-design-stage.md 加 § 交互 & 视觉质量 rubric**(单源):**A 交互状态**(反馈 hover/active/focus-visible/loading 骨架/success · 完备态 normal/empty/error/disabled · 可恢复 · 边界退化 · 触控 ≥44px)+ **B 视觉地板**(排版/颜色 WCAG/间距 · **对照既有系统不自造**)+ **C 文案**(用户视角命名/active voice/全流程同名/error 当指引)。
+- **蒸馏自 `design-review`(交互状态/排版/颜色/间距 80 项)+ `frontend-design`(copy)**· 🔴 **按「扩展既有 app」裁剪**:品牌独特性 ethos **只在全景首版/greenfield 用** · per-feature 要一致不要独特(不 cargo-cult)。
+- rubric = **设计/dev 还原/评审同一基准**:Designer 起草逐条过 · §5 预览前自查 A 段 · reviewer 对着审(防凭空 generic)。designer.md §交互流 + cite 清单 cite 它。
+
+### 边界 + 验证
+- rubric 治「可枚举」那层(状态/反馈/边界/约定)· 真正的 taste/delight 仍归 §5 用户预览(框架给不了品味 · 但能让模型不交 generic 半成品)· Claude Code 额外可委托 design-review 跑 live QA(增强非依赖)。
+- doc-only(ui-design-stage.md +25 / designer.md)· pytest 3 failed(baseline)/ 555 passed。
+
 ## v8.166 · audit 记录加各阶段耗时 + 耗时分析 + 主对话模型
 
 > 用户(看 TermPro audit 截图):实际数据该加 ① 各阶段耗时 ② 耗时分析 ③ 主对话用的模型 —— 让 harvest 能按阶段/按模型分析流程质量,不只看总时长。

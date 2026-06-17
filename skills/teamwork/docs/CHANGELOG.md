@@ -4,6 +4,25 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.172 · harvest P0 四修:耗时区分等用户 + 补 add-concern + review-fix 推进 target + 截图兼容
+
+> harvest docs/audit/(31 done 记录 · 3 项目)的高频框架反馈,四个干净 bug:
+
+### ① v8.166 耗时统计把「等用户」当工作(5× · 我自己加的功能数据立刻打脸)
+pm_acceptance 在多条记录占 84%/87%/73% —— 全是等用户拍板墙钟,非阶段内工作。`_stage_durations` 现**区分工作阶段 vs 用户决策等待**(`_AWAIT_USER_STAGES={pm_acceptance}`):最耗时只在工作阶段算,pm_acceptance 单列「用户决策等待(墙钟·不计入)」。治「误判验收环节慢」。
+
+### ② `state.py add-concern` 命令重新实现(3× · doc/impl 漂移)
+SKILL/goal-stage 多处引用 `add-concern --severity WARN --message`,但命令曾被误删 → AI 想记 incidental-scope concern 失败,只能塞 commit message。重加命令(append `state.concerns` · choices WARN/ERROR/INFO)+ 改 state.py 删除说明的 stale 注释。
+
+### ③ review-fix 推进 review target 到 fix commit(3× · v8.161 姊妹 bug)
+review-fix 写 `rounds[-1].fix_commit` 但不更新 `stage_contracts.<stage>.auto_commit` → 下轮 external-review 默认锚 pre-fix 树 · 报 stale finding 引旧行号(实证 ADMIN-Offer-Detail/ANDROID-F017/INFRA-F018 都要手动 `--commit HEAD`)。现 review-fix 同步推进 auto_commit。
+
+### ⑥ playwright MCP 截图目录兼容(2× 连续)
+MCP allowed-root 只能写 `<主仓根>/.playwright-mcp/`,写不了 §12.5 约定的 temp 目录 → 截图漏落主区。conventions §12.5 文档化:用 MCP 时 `.playwright-mcp/` 即可接受的自检截图目录(+ gitignore)· 别跟沙箱较劲。
+
+### 验证
+- 新增 test_add_concern_v8172 +4 · test_audit_timing 更新 + 等用户分离测试 · pytest 3 failed(baseline)/ 561 passed。
+
 ## v8.171 · 修 TEAMWORK-MACHINE marker 自闭合 · 机读块在预览又裸露了
 
 > 实测(TermPro 编辑器 · 用户):PRD 机读块**仍裸露在预览**。根因 = v8.165 我自己埋的:marker 行写了「保持 `<!-- -->` 包裹」—— 那个**字面 `-->` 提前闭合了 HTML 注释**,浏览器在第一个 `-->`(描述文字里)就结束注释,后面 YAML 全可见。讽刺:v8.165 隐藏机读内容的目标被它自己 marker 的描述文字破坏了。
@@ -51,17 +70,4 @@
 
 ### 验证
 - doc-only(goal-stage.md)· 无测试 pin 旧文案 · pytest 3 failed(baseline)/ 555 passed。
-
-## v8.167 · ui_design 加交互 & 视觉质量 rubric · 治「对交互没判断力」
-
-> 实战反馈(Deli Yang · teamwork+Codex):涉交互改动效果「降智」· 模型对交互体验没判断力 · 要人逐条纠正。诊断坐实:designer 角色 ~90% 讲全景生产/预览机制 · ~0% 讲「什么是好交互」(§交互流 只是段落标题无 rubric)· 模型既无 taste 又无 rubric → 必然 generic。Qianliu 提「找设计 skill 吸收」—— 对,但吸收知识不吸收 skill(Codex 调不了 Claude/gstack skill)。
-
-### 改动(吸收设计判断 · host-agnostic)
-- **ui-design-stage.md 加 § 交互 & 视觉质量 rubric**(单源):**A 交互状态**(反馈 hover/active/focus-visible/loading 骨架/success · 完备态 normal/empty/error/disabled · 可恢复 · 边界退化 · 触控 ≥44px)+ **B 视觉地板**(排版/颜色 WCAG/间距 · **对照既有系统不自造**)+ **C 文案**(用户视角命名/active voice/全流程同名/error 当指引)。
-- **蒸馏自 `design-review`(交互状态/排版/颜色/间距 80 项)+ `frontend-design`(copy)**· 🔴 **按「扩展既有 app」裁剪**:品牌独特性 ethos **只在全景首版/greenfield 用** · per-feature 要一致不要独特(不 cargo-cult)。
-- rubric = **设计/dev 还原/评审同一基准**:Designer 起草逐条过 · §5 预览前自查 A 段 · reviewer 对着审(防凭空 generic)。designer.md §交互流 + cite 清单 cite 它。
-
-### 边界 + 验证
-- rubric 治「可枚举」那层(状态/反馈/边界/约定)· 真正的 taste/delight 仍归 §5 用户预览(框架给不了品味 · 但能让模型不交 generic 半成品)· Claude Code 额外可委托 design-review 跑 live QA(增强非依赖)。
-- doc-only(ui-design-stage.md +25 / designer.md)· pytest 3 failed(baseline)/ 555 passed。
 

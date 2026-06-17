@@ -570,6 +570,29 @@ def cmd_raw_write(args: argparse.Namespace) -> None:
 # 让 reader 漂移(治本 ADMIN-F013 case · 详 _v8_stage_specs._pm_decision_value)。
 
 
+def cmd_add_concern(args: argparse.Namespace) -> None:
+    """v8.172:append 一条 concern 到 state.concerns(审计锚 · auto/skip+WARN 自决留痕)。
+
+    治本:SKILL/goal-stage 多处文档引用 `add-concern --severity WARN --message`(命令曾被
+    误删 · 实证 audit ×3:AI 想记 incidental-scope concern 失败 · 只能塞 commit message)。
+    格式同既有 append(reset-prev 等):`<ISO> <SEVERITY> <message>`。
+    """
+    path = state_path(args.feature)
+    state = load_state(args.feature)
+    entry = f"{now_iso()} {args.severity} {args.message}"
+    state.setdefault("concerns", []).append(entry)
+    state["updated_at"] = now_iso()
+    state["updated_by"] = "add-concern"
+    atomic_write(path, state)
+    emit({
+        "verdict": "OK",
+        "action": "add-concern",
+        "severity": args.severity,
+        "message": args.message,
+        "concerns_count": len(state["concerns"]),
+        "entry": entry,
+    })
+
 
 # ─── init-feature / recover (v7.3.10+P0-148) ──────────────────────────
 
@@ -4000,11 +4023,11 @@ def build_parser() -> argparse.ArgumentParser:
     rw.set_defaults(func=cmd_raw_write)
 
     # v8.0:enter-stage / satisfy-gate / complete-stage / ship-* / pm-decision /
-    # add-concern / bug-frontmatter / micro-validate 全部已物理删除(v8 用各 stage
-    # -start/-complete + ship-phase --action 替代)。
-    # 上述 cmd_* 函数中 add_concern / bug_frontmatter / micro_validate 保留为内部
-    # utility(可能被迁移工具调用)· cmd_pm_decision **已物理删除** —— v7 fossil
-    # 写 contract.decision(v8 用 evidence.decision)· 留着是 landmine。
+    # bug-frontmatter / micro-validate 全部已物理删除(v8 用各 stage -start/-complete +
+    # ship-phase --action 替代)。🔴 add-concern v8.172 **重新实现**(文档多处引用 ·
+    # 治 doc/impl 漂移 · 见 cmd_add_concern)。
+    # 上述 cmd_* 函数中 bug_frontmatter / micro_validate 保留为内部 utility · cmd_pm_decision
+    # **已物理删除** —— v7 fossil 写 contract.decision(v8 用 evidence.decision)· 留着是 landmine。
 
     # P5 (v7.3.10+P0-148): init-feature + recover
     ifp = sub.add_parser(
@@ -4057,6 +4080,15 @@ def build_parser() -> argparse.ArgumentParser:
     rcv.add_argument("--reason", required=True,
                      help="必填 · 解释为什么手动改了 state.json · 入 audit")
     rcv.set_defaults(func=cmd_recover)
+
+    acp = sub.add_parser("add-concern",
+                         help="[v8] append 一条 concern 到 state.concerns(审计锚 · auto/skip+WARN 留痕)")
+    acp.add_argument("--feature", required=True, help="Feature artifact_root 路径")
+    acp.add_argument("--severity", required=True, choices=["WARN", "ERROR", "INFO"],
+                     help="concern 级别(文档惯例 WARN)")
+    acp.add_argument("--message", required=True,
+                     help="concern 内容(如 'auto skip: DB schema change tables/fields: ...')")
+    acp.set_defaults(func=cmd_add_concern)
 
     # v8.0+P0-6:reset-prev 状态机回退一步(替代 raw-write 滥用)
     rp = sub.add_parser(
