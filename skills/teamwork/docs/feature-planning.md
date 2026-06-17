@@ -115,6 +115,7 @@ Feature 列表 + 优先级 + 排期(当前/下一/储备)。
 - **不分配 F-NNN**(F-NNN 在 Feature 流程启动时由 PMO 在 init-feature 时分配)
 - 不细化到 task 级 · 一 Feature 一行(标题 + 优先级 + 状态 + 核心 AC ①②③)
 - **BL 关联回 WS-NN**(ROADMAP 加「关联 WS」列)· 这一组 feature 全写进 ROADMAP = 对应 WS「规划完成」
+- 🔴 **首刷 WS 进度块**:写完 ROADMAP(含「关联 WS」列)后跑 `state.py ws-progress --ws WS-NN --write` —— WS 的 §feature 总览即按 ROADMAP「状态」列**派生**出进度(规划完成时全「待开始」)· 之后 ship 翻 BL 牌时自动再刷(职责单一:WS 不手抄执行态)。
 
 模板见 [templates/roadmap.md](../templates/roadmap.md)。
 
