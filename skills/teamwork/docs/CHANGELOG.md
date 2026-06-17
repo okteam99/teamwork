@@ -4,6 +4,19 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.171 · 修 TEAMWORK-MACHINE marker 自闭合 · 机读块在预览又裸露了
+
+> 实测(TermPro 编辑器 · 用户):PRD 机读块**仍裸露在预览**。根因 = v8.165 我自己埋的:marker 行写了「保持 `<!-- -->` 包裹」—— 那个**字面 `-->` 提前闭合了 HTML 注释**,浏览器在第一个 `-->`(描述文字里)就结束注释,后面 YAML 全可见。讽刺:v8.165 隐藏机读内容的目标被它自己 marker 的描述文字破坏了。
+
+### 改动
+- **模板 marker 行去掉字面 `<!-- -->`**(`保持 <!-- --> 包裹` → `勿删外层注释包裹`)· 注释现在是单个 well-formed HTML 注释 · 第一个 `-->` 即真正闭合 · YAML 全在注释内(预览隐藏)。
+- parser **不受影响**(verify-ac/engine 用 `[^\n]*` 读 marker 行 · 只有渲染器在意 `-->`)· 实测仍抽到 AC + revision_history。
+- 加防回归测试 `test_no_premature_comment_close`:模板 marker 到第一个 `-->` 之间必含完整 YAML(feature_id + revision_history)· 防再有人在 marker 写字面 `-->`。
+
+### 边界 + 验证
+- **存量 PRD**(已生成的 · 如 ADMIN-Offer-Analysis)copy 了破损 marker · 仍裸露 · 需各自把 PRD marker 行的 `<!-- -->` 删掉(一行)或重生成。
+- doc+test · pytest 3 failed(baseline)/ 556 passed(+1)。
+
 ## v8.170 · ui_design brief 补 UI-RULES/rubric/dev顶栏 · 治 spec 改了 brief 没跟
 
 > 用户 QA:UI-RULES 自动建么 · stage 和 brief 匹配么。查出真缺口:v8.167/169 只改了**被动躺的 spec**(ui-design-stage.md),`_ui_design_brief`(stage-start **主动推**的那段)完全没提 UI-RULES/rubric/dev顶栏 —— 违 v8.151「消费时点主动推 · 防 spec 只被动躺 doc」。
@@ -51,17 +64,4 @@
 ### 边界 + 验证
 - rubric 治「可枚举」那层(状态/反馈/边界/约定)· 真正的 taste/delight 仍归 §5 用户预览(框架给不了品味 · 但能让模型不交 generic 半成品)· Claude Code 额外可委托 design-review 跑 live QA(增强非依赖)。
 - doc-only(ui-design-stage.md +25 / designer.md)· pytest 3 failed(baseline)/ 555 passed。
-
-## v8.166 · audit 记录加各阶段耗时 + 耗时分析 + 主对话模型
-
-> 用户(看 TermPro audit 截图):实际数据该加 ① 各阶段耗时 ② 耗时分析 ③ 主对话用的模型 —— 让 harvest 能按阶段/按模型分析流程质量,不只看总时长。
-
-### 改动(audit 生成器 · _v8_ship.py)
-- **各阶段耗时**(确定性抽):`_stage_durations` 从 `stage_contracts[*].duration_minutes` 渲染「goal 22m · blueprint 28m · dev 41m · …」(completed_stages 顺序)。
-- **耗时分析**(确定性):阶段总和 + 最耗时阶段及占比(「阶段总和 160m · 最耗时 dev 41m(26%)」)· 与总时长差 = 阶段间等待。
-- **主对话 host + 模型**:host 从 `state.host`(确定性)· 精确 model 由 PMO 在 `ship-finalize --main-model` 声明(它知道自身 model · state 不记)· 缺省只记 host。
-- 配套:`--main-model` 加到 **ship-finalize** parser(非 ship-phase · 两个 subparser 别搞错)· ship-stage.md SOP + docs/audit/README 同步。
-
-### 验证
-- 新增 `test_audit_timing_v8166.py` +4(breakdown 顺序 / 最耗时% / 跳无 duration stage / 空兜底)· ship-finalize --help 实测含 --main-model · pytest 3 failed(baseline)/ 555 passed。
 

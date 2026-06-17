@@ -5,6 +5,19 @@
 
 ---
 
+## v8.166 · audit 记录加各阶段耗时 + 耗时分析 + 主对话模型
+
+> 用户(看 TermPro audit 截图):实际数据该加 ① 各阶段耗时 ② 耗时分析 ③ 主对话用的模型 —— 让 harvest 能按阶段/按模型分析流程质量,不只看总时长。
+
+### 改动(audit 生成器 · _v8_ship.py)
+- **各阶段耗时**(确定性抽):`_stage_durations` 从 `stage_contracts[*].duration_minutes` 渲染「goal 22m · blueprint 28m · dev 41m · …」(completed_stages 顺序)。
+- **耗时分析**(确定性):阶段总和 + 最耗时阶段及占比(「阶段总和 160m · 最耗时 dev 41m(26%)」)· 与总时长差 = 阶段间等待。
+- **主对话 host + 模型**:host 从 `state.host`(确定性)· 精确 model 由 PMO 在 `ship-finalize --main-model` 声明(它知道自身 model · state 不记)· 缺省只记 host。
+- 配套:`--main-model` 加到 **ship-finalize** parser(非 ship-phase · 两个 subparser 别搞错)· ship-stage.md SOP + docs/audit/README 同步。
+
+### 验证
+- 新增 `test_audit_timing_v8166.py` +4(breakdown 顺序 / 最耗时% / 跳无 duration stage / 空兜底)· ship-finalize --help 实测含 --main-model · pytest 3 failed(baseline)/ 555 passed。
+
 ## v8.165 · PRD 机读契约搬进 `<!-- TEAMWORK-MACHINE -->` 注释块:所有渲染器都隐藏
 
 > 用户实测(TermPro + Zed 双截图):YAML frontmatter 在 **Zed / GitHub 等主流渲染器不隐藏** · 机读 AC 裸露在 PRD 预览顶部 = 冗余。v8.158「机读内容预览隐藏」赌的是「frontmatter 被隐藏」· 但现实只有 frontmatter-aware 渲染器隐藏 → 目标对 frontmatter 没达成。「修 viewer」行不通(改不了 Zed)· 只能产物侧治。
