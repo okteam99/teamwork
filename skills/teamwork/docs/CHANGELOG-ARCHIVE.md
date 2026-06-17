@@ -5,6 +5,18 @@
 
 ---
 
+## v8.168 · goal 重点 review 指引:冷审逐条(每条 NEEDS_REVISION 一句话+结论)· 禁 collapse
+
+> 实战(ADMIN-Offer-Management):重点 review 指引第一节把 QA/PL 的 NEEDS_REVISION **collapse 成一句「全部 ADOPT」**,藏掉了 reviewer 实际发现了什么。用户:逐条列、每条一句话通俗总结 + 结论。
+
+### 改动(goal-stage.md Substep 8 指引模板)
+- **第一节「替你做的判断」(只 REJECT/DEFER · collapse)→「冷审逐条」**:每条 NEEDS_REVISION finding 一行 = `[角色] 一句话问题(通俗)→ ✅ADOPT 改了啥 / 🔴REJECT 理由 / 🟡DEFER 去哪`,**全列不 collapse**。
+- **🔴REJECT/🟡DEFER 标「重点抽查」**(AI 判断替代了 reviewer 建议 · ROI 最高)—— 保留原「替你做的判断」抽查重心,但不再藏掉 ADOPT 的实际发现。
+- 配套:intro「每节 ≤2 行」→「首节逐条 + 余 5 节 ≤2 行」· rationale 更新 · §质量基线加反模式「多条 finding collapse 成『全部 ADOPT』= 藏掉 reviewer 发现 · 必逐条列」。
+
+### 验证
+- doc-only(goal-stage.md)· 无测试 pin 旧文案 · pytest 3 failed(baseline)/ 555 passed。
+
 ## v8.167 · ui_design 加交互 & 视觉质量 rubric · 治「对交互没判断力」
 
 > 实战反馈(Deli Yang · teamwork+Codex):涉交互改动效果「降智」· 模型对交互体验没判断力 · 要人逐条纠正。诊断坐实:designer 角色 ~90% 讲全景生产/预览机制 · ~0% 讲「什么是好交互」(§交互流 只是段落标题无 rubric)· 模型既无 taste 又无 rubric → 必然 generic。Qianliu 提「找设计 skill 吸收」—— 对,但吸收知识不吸收 skill(Codex 调不了 Claude/gstack skill)。
