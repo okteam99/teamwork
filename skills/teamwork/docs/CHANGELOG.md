@@ -4,6 +4,41 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.170 · ui_design brief 补 UI-RULES/rubric/dev顶栏 · 治 spec 改了 brief 没跟
+
+> 用户 QA:UI-RULES 自动建么 · stage 和 brief 匹配么。查出真缺口:v8.167/169 只改了**被动躺的 spec**(ui-design-stage.md),`_ui_design_brief`(stage-start **主动推**的那段)完全没提 UI-RULES/rubric/dev顶栏 —— 违 v8.151「消费时点主动推 · 防 spec 只被动躺 doc」。
+
+### 改动
+- **`_ui_design_brief` 加两行主动推**:① 设计前读 UI-RULES(workspace + 子项目两层 · 缺则从 templates 建)+ 对照 § 交互&视觉 rubric(治降智)② same-stack 设计=代码:预览工具走 dev 顶栏 · 页面零预览痕迹(禁内嵌 switcher)。
+- **子项目 UI-RULES 自动建说明**:workspace `project-specs/UI-RULES.md` 由 bootstrap 自动建;子项目 `{子项目}/docs/UI-RULES.md` **不自动建**(同子项目 KNOWLEDGE/DEV-RULES · bootstrap 时不知子项目清单)· 改由 brief 主动提示「缺则建」(首次 UI 工作时按需建)。
+
+### 验证
+- code(brief string)· brief 渲染含 UI-RULES/rubric/dev顶栏/零预览痕迹 · pytest 3 failed(baseline)/ 555 passed。
+
+## v8.169 · UI 规范包:UI-RULES 两层 + 同构按介质拆 + preview dev 顶栏(设计=代码)
+
+> 用户:① 子项目要有放 UI 设计规范的地方(全局 + 子项目两层 · 颜色主题/优先控件)② 设计稿要和实际代码完全一致 ③ 全景顶部全局导航条放每页测试入口。实证 AON Admin:Data/Loading/Empty/Error 切换器**内嵌在页面里** = 真实 app 没有它 = 设计 ≠ 代码。
+
+### 改动(三件一版)
+- **UI-RULES 两层**(人维护设计规范 · 同 DEV-RULES 模式):`project-specs/UI-RULES.md`(workspace 共享设计语言)+ `{子项目}/docs/UI-RULES.md`(子项目特有)· 装**策略/约定**(控件偏好/色板策略/交互约定/a11y/copy)· 🔴 **不装视觉值**(hex/px 在 preview-project tokens · markdown 复述必 drift)。`templates/ui-rules.md` + bootstrap 建空骨架 + conventions §13 登记 + ui_design substep1/rubric cite。
+- **分层同构律按介质拆**(修订 v8.134):**same-stack → 完全一致**(页面内容从共享组件渲染 · 零预览痕迹 · 设计=代码是「构造保证」非人肉对齐 · 删「像素自由」口子)· **static-html → 仅参考**(介质差异不可像素仿)· 权威至 ship 止保留(time-authority · 不改永远同步 = 不重引双维护)。
+- **preview dev 顶栏**(治「设计≠代码」根因):预览工具全外置到 **dev-only 全局顶栏**(页面区→route_path · 状态区→Data/Loading/Empty/Error 测试入口)· 页面内容**禁内嵌 switcher** · 状态由顶栏 mock-data provider 驱动 = Storybook 模型(顶栏选页×状态 · 画布渲染干净组件)· 不违 IA 镜像。Designer 自查加「状态走顶栏」。
+
+### 验证
+- code+doc(7 文件)· test_bootstrap 骨架清单 +UI-RULES(setUp + 3 断言)· pytest 3 failed(baseline)/ 555 passed。
+
+## v8.168 · goal 重点 review 指引:冷审逐条(每条 NEEDS_REVISION 一句话+结论)· 禁 collapse
+
+> 实战(ADMIN-Offer-Management):重点 review 指引第一节把 QA/PL 的 NEEDS_REVISION **collapse 成一句「全部 ADOPT」**,藏掉了 reviewer 实际发现了什么。用户:逐条列、每条一句话通俗总结 + 结论。
+
+### 改动(goal-stage.md Substep 8 指引模板)
+- **第一节「替你做的判断」(只 REJECT/DEFER · collapse)→「冷审逐条」**:每条 NEEDS_REVISION finding 一行 = `[角色] 一句话问题(通俗)→ ✅ADOPT 改了啥 / 🔴REJECT 理由 / 🟡DEFER 去哪`,**全列不 collapse**。
+- **🔴REJECT/🟡DEFER 标「重点抽查」**(AI 判断替代了 reviewer 建议 · ROI 最高)—— 保留原「替你做的判断」抽查重心,但不再藏掉 ADOPT 的实际发现。
+- 配套:intro「每节 ≤2 行」→「首节逐条 + 余 5 节 ≤2 行」· rationale 更新 · §质量基线加反模式「多条 finding collapse 成『全部 ADOPT』= 藏掉 reviewer 发现 · 必逐条列」。
+
+### 验证
+- doc-only(goal-stage.md)· 无测试 pin 旧文案 · pytest 3 failed(baseline)/ 555 passed。
+
 ## v8.167 · ui_design 加交互 & 视觉质量 rubric · 治「对交互没判断力」
 
 > 实战反馈(Deli Yang · teamwork+Codex):涉交互改动效果「降智」· 模型对交互体验没判断力 · 要人逐条纠正。诊断坐实:designer 角色 ~90% 讲全景生产/预览机制 · ~0% 讲「什么是好交互」(§交互流 只是段落标题无 rubric)· 模型既无 taste 又无 rubric → 必然 generic。Qianliu 提「找设计 skill 吸收」—— 对,但吸收知识不吸收 skill(Codex 调不了 Claude/gstack skill)。
@@ -29,42 +64,4 @@
 
 ### 验证
 - 新增 `test_audit_timing_v8166.py` +4(breakdown 顺序 / 最耗时% / 跳无 duration stage / 空兜底)· ship-finalize --help 实测含 --main-model · pytest 3 failed(baseline)/ 555 passed。
-
-## v8.165 · PRD 机读契约搬进 `<!-- TEAMWORK-MACHINE -->` 注释块:所有渲染器都隐藏
-
-> 用户实测(TermPro + Zed 双截图):YAML frontmatter 在 **Zed / GitHub 等主流渲染器不隐藏** · 机读 AC 裸露在 PRD 预览顶部 = 冗余。v8.158「机读内容预览隐藏」赌的是「frontmatter 被隐藏」· 但现实只有 frontmatter-aware 渲染器隐藏 → 目标对 frontmatter 没达成。「修 viewer」行不通(改不了 Zed)· 只能产物侧治。
-
-### 改动(选 C·彻底隐藏·非半截瘦身)
-- **机读契约从 YAML frontmatter 搬进 `<!-- TEAMWORK-MACHINE ... -->` HTML 注释块**(所有渲染器都隐藏 HTML 注释)· PRD 预览只剩人读正文 · 顶部零机读裸露。
-- **两个解析器优先读注释块 · 兜底 `---` frontmatter**:`verify-ac.extract_frontmatter`(re · 行首锚定)+ 引擎 `parse_frontmatter`(str · 行首锚定)。`frontmatter_required` + `revision_history` 两个 goal-complete 门都走引擎 parse_frontmatter · 改一处全覆盖。
-- **兜底不破**:in-flight PRD(TermPro/aifriend 现存 `---`)+ 其他产物(TC/PRD-REVIEW 仍 frontmatter)走兜底分支 · 零破坏 · 平滑迁移(新 PRD 用注释块 · 旧的继续跑)。
-- 模板 AC 块顺手修成合法 2 空格 YAML(原 1 空格 illustrative-malformed)+ 补 revision_history 例 + 行首锚定防 prose 字面引用误命中。
-
-### 验证
-- 新增 `test_machine_block_v8165.py` +6(引擎读注释块/兜底/两者无→None/注释块优先 · verify-ac 抽注释块/兜底)· 模板块 PyYAML 合法 + grep_keyword `\|` 字节完好 · pytest 3 failed(baseline)/ 551 passed。
-
-## v8.164 · PRD 模板三层 + 挑衅式开放区:必填核/按需/开放区显式 · 既有行为侦测提成主动挑衅
-
-> 设计讨论结论(③④⑤+① 接力):模板该分「必填核(消费测试过)/ 按需 / 开放区」· 开放区给结构没问到的留逼判断的尖问题(非空白自由发挥)· 既有行为变更从待决策项里的被动 HTML 注释提成开放区的主动必答挑衅。
-
-### 改动(prd.md 产物层 · 零代码)
-- **③ 三层显式**:intro 改成「必填核(背景/用户故事/交付预期/待决策项/验收标准/Out of Scope)· 按需(流程图/埋点/消费方分析)· 开放区」· 消费测试定档(工具或下游真读 → 必填核)。
-- **④ 挑衅式开放区**(`## 开工前必须想清的`):**可见**挑衅 4 问(🔁既有行为 / 🧱隐藏前提 / 🌊跨子系统涟漪 / ❓最不确定)· 「至少 1 实质 or 显式『无+理由』」· **人读 · 机器禁入**(无机读字段/不被 grep)· 冷审查是否过场。
-- **⑤ 既有行为:被动注释 → 主动挑衅**:侦测(改了既有默认行为吗)提成开放区必答 🔁 · 后果(命中 → 必入待决策项让用户拍板)留刚性核(待决策项注释剥成「刚性后果」)。治 TermPro「8 轮打磨错前提」的结构成因。
-- **① 残留接力**:必填核标「PRD 的脊 = prepare 已确认的意图(🎯/📦/🔁)· 起草不得偏离 · 冷审据此核对」· 防 goal 起草 re-drift(① 主体已被 v8.162/163 prepare 意图门吸收 · 不另建门)。
-- goal-stage.md step 2 结构列表同步加 §开工前 + 修正段序对齐模板。
-
-### 验证
-- doc-only(模板)· prd.md 367→381(+开放区)· verify-ac 实测解析正常(开放区不碰机读)· pytest 3 failed(baseline)/ 545 passed。
-
-## v8.163 · prepare 意图门 🧩 假设加硬约束:只列意图解读 · 禁抛未验证代码猜测
-
-> 承 v8.162 · 用户追问「prepare 前会读代码查事实么」暴露的洞:prepare 在强制读代码**之前**(§1.5.3 代码现状可选 · 强制深调研在 goal step-1)· 故 🧩 暴露的假设只能基于用户的话 · 若 AI 在此抛**猜的代码事实**(「我假设后端有 X 列」)= 让用户确认 AI 本该去查的事(正是 §1.5.3「代码现状只写已验证事实」+ 反模式 #7 已防的洞 · v8.162 的 🧩 措辞没把这纪律带进去)。
-
-### 改动(prepare.md §4 · 一句硬约束)
-- **🧩 只列「我假设你想要 X」类意图解读假设**(用户域 · 用户能直接拍)· **禁抛未验证代码/可行性猜测**(留给 goal 调研后的深门 · 或先验证再写)。
-- 把浅/深意图门分工说干净:prepare 🧩 = 「我假设你**想要**什么」(意图 · 读代码前 · 用户拍)· goal 深门 = 「我读代码**发现**了什么、它怎么重塑意图」(现实 · 调研后 · 如 CPS-F003 后端 GAP)。
-
-### 验证
-- doc-only(prepare.md · 模板 🧩 行 + footnote 各一句)· pytest 3 failed(baseline)/ 545 passed(零碰)。
 

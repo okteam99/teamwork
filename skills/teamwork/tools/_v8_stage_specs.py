@@ -758,6 +758,8 @@ Designer 产出 UI.md + HTML 预览 · sitemap 同步(如涉及全景变更)。
 
 ### 怎么做
 **必读** `stages/ui-design-stage.md`(详细步骤 6 步 + 注意事项 5 条)。
+🔴 **设计前读 UI-RULES**(`project-specs/UI-RULES.md` + `{{子项目}}/docs/UI-RULES.md`:控件偏好/色板策略/交互约定 · 缺则从 `templates/ui-rules.md` 建)+ **对照 § 交互&视觉质量 rubric**(治「对交互没判断力」)。
+🔴 **same-stack 设计=代码**:预览工具(页/状态切换)走 **dev 全局顶栏** · 页面内容**零预览痕迹**(禁内嵌 switcher · 详 § preview dev 顶栏)。
 
 ### 完成方式
 ```
