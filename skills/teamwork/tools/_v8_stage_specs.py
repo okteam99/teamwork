@@ -662,6 +662,7 @@ def _dev_brief(state: dict) -> str:
 
 ### 怎么做
 **必读** `stages/dev-stage.md`(详细步骤 6 步 + 注意事项 5 条 · 含 TDD / UI 还原 / TECH 模糊 fallback)。
+🔴 **UI feature(走过 ui_design)→ 设计↔实际一致性核对必做**(治「设计稿和实际不一致」):实现后起全景 dev server(preview.sh)+ 跑真实路由,**两边并排 browse 截图**,逐项核对意图四要素(布局/交互流/状态/字段映射)给「一致/背离」结论 · 背离 → 修实现 or 回 ui_design(不在 dev 顺手改设计 · 不静默放过)· 详 § dev-stage §3。
 
 ### 完成方式
 ```

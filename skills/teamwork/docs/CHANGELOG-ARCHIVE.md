@@ -5,6 +5,18 @@
 
 ---
 
+## v8.171 · 修 TEAMWORK-MACHINE marker 自闭合 · 机读块在预览又裸露了
+
+> 实测(TermPro 编辑器 · 用户):PRD 机读块**仍裸露在预览**。根因 = v8.165 我自己埋的:marker 行写了「保持 `<!-- -->` 包裹」—— 那个**字面 `-->` 提前闭合了 HTML 注释**,浏览器在第一个 `-->`(描述文字里)就结束注释,后面 YAML 全可见。讽刺:v8.165 隐藏机读内容的目标被它自己 marker 的描述文字破坏了。
+
+### 改动
+- **模板 marker 行去掉字面 `<!-- -->`**(`保持 <!-- --> 包裹` → `勿删外层注释包裹`)· 注释现在是单个 well-formed HTML 注释 · 第一个 `-->` 即真正闭合 · YAML 全在注释内(预览隐藏)。
+- parser **不受影响**(verify-ac/engine 用 `[^\n]*` 读 marker 行 · 只有渲染器在意 `-->`)· 实测仍抽到 AC + revision_history。
+- 加防回归测试 `test_no_premature_comment_close`:模板 marker 到第一个 `-->` 之间必含完整 YAML(feature_id + revision_history)· 防再有人在 marker 写字面 `-->`。
+
+### 边界 + 验证
+- **存量 PRD**(已生成的 · 如 ADMIN-Offer-Analysis)copy 了破损 marker · 仍裸露 · 需各自把 PRD marker 行的 `<!-- -->` 删掉(一行)或重生成。
+- doc+test · pytest 3 failed(baseline)/ 556 passed(+1)。
 ## v8.170 · ui_design brief 补 UI-RULES/rubric/dev顶栏 · 治 spec 改了 brief 没跟
 
 > 用户 QA:UI-RULES 自动建么 · stage 和 brief 匹配么。查出真缺口:v8.167/169 只改了**被动躺的 spec**(ui-design-stage.md),`_ui_design_brief`(stage-start **主动推**的那段)完全没提 UI-RULES/rubric/dev顶栏 —— 违 v8.151「消费时点主动推 · 防 spec 只被动躺 doc」。
