@@ -760,6 +760,7 @@ Designer 产出 UI.md + HTML 预览 · sitemap 同步(如涉及全景变更)。
 **必读** `stages/ui-design-stage.md`(详细步骤 6 步 + 注意事项 5 条)。
 🔴 **设计前读 UI-RULES**(`project-specs/UI-RULES.md` + `{{子项目}}/docs/UI-RULES.md`:控件偏好/色板策略/交互约定 · 缺则从 `templates/ui-rules.md` 建)+ **对照 § 交互&视觉质量 rubric**(治「对交互没判断力」)。
 🔴 **same-stack 设计=代码**:预览工具(页/状态切换)走 **dev 全局顶栏** · 页面内容**零预览痕迹**(禁内嵌 switcher · 详 § preview dev 顶栏)。
+🔴 **扩已有页 → 复现整页再加 feature(禁概念页)**:本 Feature 若给**已存在的真实页**加东西 → 先**读该页真实代码的当前形态**(布局/筛选区/KPI/卡片/表格列),在 preview-project 按真实形态复现整页(same-stack 直接复用真实共享组件)· 再集成新部分 · **不画孤立概念页**(实证 AON Offer-Analysis:概念页与真实页结构没对齐被打回)· 详 § 怎么做 §3 复现门。
 
 ### 完成方式
 ```

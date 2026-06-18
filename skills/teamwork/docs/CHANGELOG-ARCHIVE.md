@@ -5,6 +5,16 @@
 
 ---
 
+## v8.170 · ui_design brief 补 UI-RULES/rubric/dev顶栏 · 治 spec 改了 brief 没跟
+
+> 用户 QA:UI-RULES 自动建么 · stage 和 brief 匹配么。查出真缺口:v8.167/169 只改了**被动躺的 spec**(ui-design-stage.md),`_ui_design_brief`(stage-start **主动推**的那段)完全没提 UI-RULES/rubric/dev顶栏 —— 违 v8.151「消费时点主动推 · 防 spec 只被动躺 doc」。
+
+### 改动
+- **`_ui_design_brief` 加两行主动推**:① 设计前读 UI-RULES(workspace + 子项目两层 · 缺则从 templates 建)+ 对照 § 交互&视觉 rubric(治降智)② same-stack 设计=代码:预览工具走 dev 顶栏 · 页面零预览痕迹(禁内嵌 switcher)。
+- **子项目 UI-RULES 自动建说明**:workspace `project-specs/UI-RULES.md` 由 bootstrap 自动建;子项目 `{子项目}/docs/UI-RULES.md` **不自动建**(同子项目 KNOWLEDGE/DEV-RULES · bootstrap 时不知子项目清单)· 改由 brief 主动提示「缺则建」(首次 UI 工作时按需建)。
+
+### 验证
+- code(brief string)· brief 渲染含 UI-RULES/rubric/dev顶栏/零预览痕迹 · pytest 3 failed(baseline)/ 555 passed。
 ## v8.169 · UI 规范包:UI-RULES 两层 + 同构按介质拆 + preview dev 顶栏(设计=代码)
 
 > 用户:① 子项目要有放 UI 设计规范的地方(全局 + 子项目两层 · 颜色主题/优先控件)② 设计稿要和实际代码完全一致 ③ 全景顶部全局导航条放每页测试入口。实证 AON Admin:Data/Loading/Empty/Error 切换器**内嵌在页面里** = 真实 app 没有它 = 设计 ≠ 代码。
