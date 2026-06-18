@@ -101,7 +101,7 @@ risks:
 {拆解思路 · 跨子项目怎么协调 · 关键设计取舍（细节落各 Feature PRD / ADR）}
 
 ## feature 总览（进度 · 工具汇总）
-> 🔧 下方进度块由 `python3 {SKILL_ROOT}/tools/state.py ws-progress --ws WS-01 --write` 自各子项目 ROADMAP「状态」列**确定性汇总** · 🔴 **勿手改**（职责单一：执行态单一源在 ROADMAP，WS 只读派生）· 规划期 feature 未落 ROADMAP 时为空，规划完成后刷新即出 · 建议在 stage 流转 / WS review 时刷新。
+> 🔧 进度块由 `state.py ws-progress --ws WS-NN --write` 自 ROADMAP「状态」列汇总 · 🔴 勿手改 · 规划完成后刷新即出。
 
 <!-- WS-PROGRESS:START · 工具生成(state.py ws-progress) · 自各 ROADMAP「状态」列汇总 · 勿手改 -->
 进度 暂无数据（feature 尚未写入 ROADMAP · 规划完成后 ws-progress 刷新自动出现）
