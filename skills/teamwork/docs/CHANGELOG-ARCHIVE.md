@@ -5,6 +5,24 @@
 
 ---
 
+## v8.172 · harvest P0 四修:耗时区分等用户 + 补 add-concern + review-fix 推进 target + 截图兼容
+
+> harvest docs/audit/(31 done 记录 · 3 项目)的高频框架反馈,四个干净 bug:
+
+### ① v8.166 耗时统计把「等用户」当工作(5× · 我自己加的功能数据立刻打脸)
+pm_acceptance 在多条记录占 84%/87%/73% —— 全是等用户拍板墙钟,非阶段内工作。`_stage_durations` 现**区分工作阶段 vs 用户决策等待**(`_AWAIT_USER_STAGES={pm_acceptance}`):最耗时只在工作阶段算,pm_acceptance 单列「用户决策等待(墙钟·不计入)」。治「误判验收环节慢」。
+
+### ② `state.py add-concern` 命令重新实现(3× · doc/impl 漂移)
+SKILL/goal-stage 多处引用 `add-concern --severity WARN --message`,但命令曾被误删 → AI 想记 incidental-scope concern 失败,只能塞 commit message。重加命令(append `state.concerns` · choices WARN/ERROR/INFO)+ 改 state.py 删除说明的 stale 注释。
+
+### ③ review-fix 推进 review target 到 fix commit(3× · v8.161 姊妹 bug)
+review-fix 写 `rounds[-1].fix_commit` 但不更新 `stage_contracts.<stage>.auto_commit` → 下轮 external-review 默认锚 pre-fix 树 · 报 stale finding 引旧行号(实证 ADMIN-Offer-Detail/ANDROID-F017/INFRA-F018 都要手动 `--commit HEAD`)。现 review-fix 同步推进 auto_commit。
+
+### ⑥ playwright MCP 截图目录兼容(2× 连续)
+MCP allowed-root 只能写 `<主仓根>/.playwright-mcp/`,写不了 §12.5 约定的 temp 目录 → 截图漏落主区。conventions §12.5 文档化:用 MCP 时 `.playwright-mcp/` 即可接受的自检截图目录(+ gitignore)· 别跟沙箱较劲。
+
+### 验证
+- 新增 test_add_concern_v8172 +4 · test_audit_timing 更新 + 等用户分离测试 · pytest 3 failed(baseline)/ 561 passed。
 ## v8.171 · 修 TEAMWORK-MACHINE marker 自闭合 · 机读块在预览又裸露了
 
 > 实测(TermPro 编辑器 · 用户):PRD 机读块**仍裸露在预览**。根因 = v8.165 我自己埋的:marker 行写了「保持 `<!-- -->` 包裹」—— 那个**字面 `-->` 提前闭合了 HTML 注释**,浏览器在第一个 `-->`(描述文字里)就结束注释,后面 YAML 全可见。讽刺:v8.165 隐藏机读内容的目标被它自己 marker 的描述文字破坏了。
