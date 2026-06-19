@@ -219,6 +219,7 @@ git branch -d <branch>
   # 浏览器截图存 "$SHOT_DIR/<name>.png" · 再按绝对路径 Read 查看
   ```
 - **零工作区脚印**:在系统 temp · 不需 gitignore · 不进任何 commit · 不污染并行 Feature 基线(worktree 红线)。
+- **🔴 playwright MCP 兼容**(实证 ×2):playwright MCP 的 allowed-root 只能写 `<主仓根>/.playwright-mcp/`,**写不了上面的 temp 目录**。用 MCP 截图时 → **`.playwright-mcp/` 即可接受的自检截图目录**(同属一次性非交付)· 🔴 项目根 `.gitignore` 加 `.playwright-mcp/`(ship2 不必手动清)· 别跟 MCP 沙箱较劲。非 MCP 的 browse 仍优先上面的 temp 目录。
 - **⚠️ 与 browser_e2e 证据区分**:`browser_e2e` stage 的**证据截图**是交付物 · 仍落 **`<feature_dir>/screenshots/*.png`**(committed · pm_acceptance 复核 · 详 browser-e2e-stage.md SOP)· **不**走临时目录。临时目录只放「自检看一眼」的非证据截图。
 
 ---

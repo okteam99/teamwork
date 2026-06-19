@@ -122,12 +122,20 @@ bash {子项目}/docs/design/preview-project/preview.sh    # → PREVIEW_URL=htt
 ### 1. 加载上下文
 读 PRD.md(用户场景)· sitemap.md(信息架构)· 🔴 **UI-RULES.md(设计规范:控件偏好/色板策略/交互约定/a11y · workspace `project-specs/` + 子项目 `{子项目}/docs/` 两层)**· KNOWLEDGE.md(项目级 UI 踩坑)· `PROJECT.md § 技术栈`(决定 panorama_medium)
 
+🔴 **判定:扩已有真实页 vs 全新页**(决定设计稿的单位)。本 Feature 若是给**已存在的真实页**加东西(真实代码已渲染该页 · 如给 `/analytics/offers` 加 tab)→ **必读该页真实组件/路由源的当前实际形态**(整体布局 / 筛选区 / KPI·funnel·trend / 卡片位置 / 表格列…)作 grounding(同 prepare/goal「decisive 前提核验真实文件」· 不靠 Explore 摘要猜)· 设计单位是**整张页**(见 §3 复现门)。全新页 → 从 design system + UI-RULES 起草。
+
 ### 2. Designer 起草 UI.md
 frontmatter `pages: [{id, title}]` + `panorama_medium: same-stack|static-html` 必 · body §页面列表 / §交互流 / §视觉规范 / §字段映射(对应 PRD.AC)· 🔴 §交互流/§视觉规范 **逐条对照下文 § 交互 & 视觉质量 rubric**(治「对交互没判断力」· 不等用户逐条纠)
 
 ### 3. 产出 panorama(按 `panorama_medium` 分支)
 
-🔴 **全景在规划期已出生 · ui_design 是增量扩**:涉 UI 的 WS 在 [feature-planning Step 5「UI 可视全景初步规划」](../docs/feature-planning.md) 时已 seed `preview-project`(design system + 关键页)。ui_design 默认在**已有全景上增量补**本 Feature 的页与细节(同一份活物 · 源即权威)· **不是从零搭**。仅当规划期没出全景(老项目 / 跳过规划路径)→ 此处**首次 seed**(回退)。
+🔴 **全景在规划期已出生 · ui_design 是增量扩**:涉 UI 的 WS 在 [feature-planning Step 5「UI 可视全景初步规划」](../docs/feature-planning.md) 时已 seed `preview-project`(design system + 关键页)。ui_design 默认在**已有全景上增量补**本 Feature 的页与细节(同一份活物 · 源即权威)· **不是从零搭**。仅当规划期没出全景(老项目 / 跳过规划路径)→ 此处**首次 seed**(回退 · 扩已有页则按下方「复现门」按真实代码补全这张页 · **不是画概念**)。
+
+🔴 **扩已有页 → 设计稿 = 真实页全貌复现 + 新部分集成(治「概念页 / 局部设计」)**:本 Feature 给已存在的真实页加东西时,设计稿的单位是**整张页**,不是孤立新控件:
+- ① **读真实代码定形态**(不是猜):打开该页真实组件/路由源,抓当前实际布局 —— 筛选区 / KPI·funnel·trend / 卡片位置 / 表格列 / Top card…(grounding 同 prepare/goal「核验真实文件」· 不轻信 Explore 摘要)。
+- ② **preview-project 按真实形态复现整页 → 再集成本 Feature 新部分**。🔴 **复现 ≠ 重写**(已有页本身就是真实代码 · 优先级同 Layer 1):**㉑ 导入真实页/组件源**(同 monorepo workspace 包 → preview 与真实 app **同一份代码** · 一致性单源结构保证 · 改真实页 preview 自动跟 = 最大限度一致)→ **㉒ 暂不可导入**(app-local 未抽包)→ **按真实源 1:1 镜像** + UI.md 记豁免 + 抽包回收计划(退路 · 非默认)→ 🔴 **绝不凭印象重画**(= 概念页变体 · drift 源头)。新部分(本 Feature)是唯一净新增,在真实上下文里定位新 tab / 区块怎么落。
+- 🔴 **禁出「概念页」**:只画新控件、不复现它所在真实页的结构 = 局部设计 = 评审/用户看不出真实落地效果。**实证 AON Offer-Analysis case**:预览只做概念页 · 真实 `/analytics/offers` 的筛选区 / KPI / Top card 位置没对齐 → 用户判「设计稿不完整、和实际不一致」要求重做。
+- 全景里**已有该页保真复现** → 直接走下方「增量补」;**没有**(brownfield / 规划期没 seed 这张)→ 先按 ①② 复现这张页(**不是从零画概念** · 是按真实代码补全 + 集成)。
 
 🟢 **推荐:全景为唯一权威**(详上 § 全景为唯一权威 · UI.md frontmatter 加 `pages_changed[]`):
 
@@ -216,7 +224,7 @@ state.py ui_design-complete --feature X --auto-commit Y \
 **preview SOP**(违反 → dev 还原 / pm_acceptance 打回):
 - 抽公共组件 / CSS class · preview 引用统一样式表 · 不每页 inline(维护噩梦)
 - preview HTML 含点击 / 表单 / 跳转(真实交互)· 不只是静态图 · 让 dev 可 verify 交互
-- 🔴 **分层同构反模式**(same-stack):新设计页渲染在 `/` 顶掉首页 / 省略 router / 路由与 sitemap 不一致(IA 层);基建层不走共享包而自造组件·自配主题·版本漂移(Layer 1);全景页缺意图四要素(Layer 2);拿停更全景页纠正已 ship 页面(权威倒置);改共享基建不验全景编译(下游契约 · dev-stage §3.5)
+- 🔴 **分层同构反模式**(same-stack):新设计页渲染在 `/` 顶掉首页 / 省略 router / 路由与 sitemap 不一致(IA 层);基建层不走共享包而自造组件·自配主题·版本漂移(Layer 1);全景页缺意图四要素(Layer 2);**扩已有页凭印象重画 existing page(不导入/不镜像真实页源)= 概念页变体**(复现门 §3 · drift 源头);**dev 跳过设计↔实际一致性核对**(dev-stage §3 · 落地闸);拿停更全景页纠正已 ship 页面(权威倒置);改共享基建不验全景编译(下游契约 · dev-stage §3.5)
 - ⏳ 物化 TODO:same-stack 时 `pages_changed[].route_path` 必填的工具校验(parse_frontmatter 不支持嵌套 list-of-dict · 需 raw 文本扫描 · 渐进物化)
 
 **sitemap 改动**:必显式列影响范围 · 主对话与相关 Feature owner 协调(防破坏现有路由)

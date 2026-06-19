@@ -27,12 +27,14 @@
 🔴 **lock 语义**（承旧 BG locked）：WS 未 `✅ 规划完成` 前**禁止启动其子 Feature** —— 防"边规划边启动"。
 🔴 **全景初规子门禁**（涉 UI 时）：`ui_panorama` 必为 `✅`（本 WS 的页已在规划期的 `preview-project` 全景里出过 · 见 [feature-planning Step 5](../docs/feature-planning.md)）才能转 `✅ 规划完成`；非 UI WS 标 `N-A` 直接放行。**先有全景、再拆 WS** —— 防 feature 边界跟 UI 结构对不齐。
 
+🔴 **WS 状态 ≠ feature 进度**（两个维度别混）：本节 `📝→✅ 规划完成` 是 **WS 规划生命周期**（拆解定没定）；feature 的**执行进度**（建到哪了）是另一维，看 §feature 总览（`ws-progress` 自各 ROADMAP「状态」列**派生**，规划完成、feature 进 ROADMAP 后才有数据）。
+
 ---
 
 ## 模板
 
 ```markdown
----
+<!-- TEAMWORK-MACHINE · WS 机读/元数据契约 · 勿删外层注释包裹 · 标准 2 空格缩进
 ws_id: WS-01
 title: <一句话标题>
 status: 📝 草稿        # 📝 草稿 / 🔄 讨论中 / ⏸️ 待确认 / ✅ 规划完成 / 🗑️ 废弃
@@ -83,9 +85,11 @@ risks:
     description: "..."
     mitigation: "..."
     severity: high | medium | low
----
+-->
 
 # WS-01：{title}
+
+> **状态** {status} · **承接** {见 §承接执行线} · **进度** 见下方 §feature 总览（`ws-progress` 自各 ROADMAP 汇总）
 
 ## 背景
 {为什么做这块 · 业务/技术驱动 · 触发来源}
@@ -96,8 +100,16 @@ risks:
 ## 怎么落实
 {拆解思路 · 跨子项目怎么协调 · 关键设计取舍（细节落各 Feature PRD / ADR）}
 
-## 拆出的 feature
-### {feature_id}（→ {子项目} ROADMAP）
+## feature 总览（进度 · 工具汇总）
+> 🔧 进度块由 `state.py ws-progress --ws WS-NN --write` 自 ROADMAP「状态」列汇总 · 🔴 勿手改 · 规划完成后刷新即出。
+
+<!-- WS-PROGRESS:START · 工具生成(state.py ws-progress) · 自各 ROADMAP「状态」列汇总 · 勿手改 -->
+进度 暂无数据（feature 尚未写入 ROADMAP · 规划完成后 ws-progress 刷新自动出现）
+<!-- WS-PROGRESS:END -->
+
+## 拆出的 feature（拆解明细 · 规划态 · 人维护）
+> 每个 feature 的范围/依赖/高层 AC（详细 AC 在各 Feature PRD）· 写入 ROADMAP 后**执行进度看上方 §feature 总览**，此处不复制状态（防双源 stale）。
+### {feature_id}（→ {子项目} ROADMAP · BL 待回填）
 - **范围**：{做什么}
 - **flow_type**：{feature / agile / bug / micro}
 - **依赖**：{其他 WS-01-Sx}
@@ -148,9 +160,11 @@ risks:
 ## 设计要点
 
 1. **WS = feature-planning 产物**：进 feature-planning（切 Product Lead）才产出 · 不 ad-hoc。
-2. **职责单一**：WS 存"规划/拆解/跨项目编排"；feature 的执行态（stage/状态）在 ROADMAP/BL + state.json，不在 WS 复制。
+2. **职责单一**：WS 存"规划/拆解/跨项目编排"；feature 的执行态（stage/状态）在 ROADMAP/BL + state.json，**不在 WS 手抄** —— WS 的 §feature 总览 是 `ws-progress` 自 ROADMAP **确定性派生的只读视图**（单源派生 · 防 stale 双源）。
 3. **原子完成**：feature 全写入 ROADMAP 才算 `✅ 规划完成`（防写一半两边重复计数）。
 4. **承接执行线 1+**：与子项目「承接执行线」多值一致 · 反查得能力级索引。
 5. **拆解 grounded 实际代码**：`features[].current_state` 必由代码调研填（已做/真缺口）· 不凭假设/spec · decisive 前提（数据是否真入库 / 能力是否真生效）核验真实文件,不轻信 Explore/sub-agent 摘要（治本 AON category case 2026-05-29）。
 6. **全景先于 WS**：涉 UI 的轮次先在 [feature-planning Step 5](../docs/feature-planning.md) 出 `preview-project` 全景初步规划（design system + 关键页），WS 才据全景 diff + 业务目标拆 feature（边界对齐 UI 结构）· `ui_panorama_pages` 记本 WS owns 哪几页（替代模糊的"基于哪轮全景"）。
 7. **规划完成给并行建议**：拆完 feature 必产出 §执行顺序与并行建议（波次 + 哪些可并行 + 同改面 / 跨子项目方向 / 带宽 的额外串行约束）+ frontmatter `execution_waves`（结构化）—— 让用户拿到 WS 就知道"先起哪几个、能同时开几个 worktree"，不必自己重排依赖。
+8. **进度可见但不双源**（v8.174）：用户翻一个 WS 就该一眼看到"这条线建到哪了"，但执行态单一源在 ROADMAP「状态」列 → `state.py ws-progress --ws WS-NN --write` glob 全仓 `ROADMAP.md`、按「关联 WS」列过滤、确定性汇总进 WS 的 `WS-PROGRESS` 标记区（顶部 rollup「X/N 已完成」+ 总览表）· 治本：旧 WS 只有规划态、用户得翻 N 个子项目 ROADMAP 交叉比对才知进度。
+9. **元数据隐藏**（v8.174）：机读/元数据契约包进 `<!-- TEAMWORK-MACHINE ... -->` 注释（同 PRD v8.165）—— 在 TermPro/Zed 等"显示 frontmatter"的渲染器里**不再当正文渲染成一面 YAML 墙**（治"内容乱"主因）· body 章节是唯一可见权威。🔴 注释内**严禁出现字面 `-->`**（v8.171 教训：会提前闭合注释）。

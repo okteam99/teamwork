@@ -35,8 +35,8 @@
 - **`same-stack`** —— 分层对照(详 [ui-design-stage § 分层同构律](./ui-design-stage.md) · 旧「in-app /design 路由 diff」模型已废):
   - **Layer 1 基建**:实现**复用共享包**(packages/ui · theme · shell)· 🔴 不在真实 app 里复制/重写全景已用的基建(发现全景用了未共享的基建 → 先抽包/对齐)
   - **Layer 2 页面**:对齐**意图四要素**(布局结构 / 交互流 / 状态〔normal·empty·loading·error〕/ 字段映射 · 以 UI.md + 全景页为准)· 像素与代码组织自由 · **非字节还原**
-  - 起全景 dev server(preview.sh)与实现并排对照 · 视觉回归工具(playwright screenshot 等)可选
-  - 差异处置:四要素不一致 → 修实现;认为设计本身要改 → 🔴 不在 dev 顺手改 · 走 `--panorama-changed` / 回 ui_design(设计变更须重新对齐)
+  - 🔴 **设计↔实际 一致性核对(必做 · 非可选 · 治「设计稿和实际不一致」)**:起全景 dev server(preview.sh)+ 跑真实 app 目标路由 → **两边同开、browse 截图并排核对**意图四要素(布局结构 / 交互流 / 状态〔normal·empty·loading·error〕/ 字段映射)· 🔴 **逐要素给「一致 / 背离」结论**(不许「看一眼就过」· 截图存 `${TMPDIR:-/tmp}/teamwork/<feature_id>/screenshots/` · 非交付)· 核对的是**四要素不是像素**(像素自由 · 非字节还原)· 视觉回归工具(playwright screenshot diff)= 可选增强,**结构核对必做**。
+  - 差异处置:四要素不一致 → 修实现;认为设计本身要改 → 🔴 不在 dev 顺手改 · 走 `--panorama-changed` / 回 ui_design(设计变更须重新对齐)· 🔴 **背离不许静默放过**(修掉 or 留 concerns · 这道核对就是「设计稿=实际效果」的落地闸)
 
 ### 3.5 共享基建变更 → 全景编译契约(条件必跑 · v8.134)
 

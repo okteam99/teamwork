@@ -32,9 +32,9 @@ class TestStageDurations(unittest.TestCase):
         }
         breakdown, analysis = _stage_durations(state)
         self.assertEqual(breakdown, "goal 20m · blueprint 30m · dev 50m")
-        # 阶段总和 100 · 最耗时 dev 50(50%)
-        self.assertIn("阶段总和 100m", analysis)
-        self.assertIn("最耗时 dev 50m(50%)", analysis)
+        # v8.172:工作阶段总和 100 · 最耗时(工作)dev 50(50%)· 无 pm_acceptance 故无等用户段
+        self.assertIn("工作阶段总和 100m", analysis)
+        self.assertIn("最耗时(工作)dev 50m(50%)", analysis)
 
     def test_order_follows_completed_stages(self):
         # breakdown 按 completed_stages 顺序 · 非 dict 顺序
@@ -59,7 +59,24 @@ class TestStageDurations(unittest.TestCase):
         }
         breakdown, analysis = _stage_durations(state)
         self.assertEqual(breakdown, "goal 15m")
-        self.assertIn("最耗时 goal 15m(100%)", analysis)
+        self.assertIn("最耗时(工作)goal 15m(100%)", analysis)
+
+    def test_await_user_stage_excluded_from_longest(self):
+        # v8.172:pm_acceptance 等用户的墙钟不计入「最耗时(工作)」· 单列为决策等待
+        state = {
+            "completed_stages": ["goal", "dev", "pm_acceptance"],
+            "stage_contracts": {
+                "goal": {"duration_minutes": 20},
+                "dev": {"duration_minutes": 40},
+                "pm_acceptance": {"duration_minutes": 200},  # 等用户墙钟 · 占 77% 但不该算最耗时
+            },
+        }
+        breakdown, analysis = _stage_durations(state)
+        self.assertIn("pm_acceptance 200m", breakdown)                # breakdown 仍全列
+        self.assertIn("工作阶段总和 60m", analysis)                    # 工作=goal+dev=60 · 不含 pm_acceptance
+        self.assertIn("最耗时(工作)dev 40m", analysis)                # 最耗时是 dev 不是 pm_acceptance
+        self.assertIn("pm_acceptance 200m=用户决策等待", analysis)     # 单列
+        self.assertNotIn("最耗时(工作)pm_acceptance", analysis)       # 绝不把等用户当最耗时
 
     def test_empty_returns_none(self):
         self.assertEqual(_stage_durations({}), (None, None))

@@ -717,7 +717,9 @@ def _handle_ship_archive(state: dict, args: argparse.Namespace) -> dict:
                 "🔴 归档前先翻规划层 back-reference(feature = 某 BL 的落地 · 不翻牌 → "
                 "规划层与执行层脱节 · 进度统计失真):\n"
                 "  ① 判断哪些需翻「📋 → ✅ 已交付」(只改相关的 · AI 自决):"
-                "ROADMAP.md 对应 BL / WS-NN.md 进度 / teamwork-space.md / 项目变更单\n"
+                "ROADMAP.md 对应 BL(先翻 · WS 进度派生自它)/ teamwork-space.md / 项目变更单;"
+                "🔴 WS 的 §feature 总览进度块**别手改** · 翻完 ROADMAP BL 后跑 "
+                "`state.py ws-progress --ws WS-NN --write` 自动刷新(顺序要紧:WS 派生自 ROADMAP)\n"
                 "  ② 🔴 在 **worktree 内**改好(不 commit · archive 会随归档 commit 一起带走 · "
                 "随 feature MR 原子合入 —— MR 不合翻牌不生效 · revert 同退)\n"
                 f"  ③ 重跑:state.py ship-phase --action archive --feature {args.feature} "
@@ -1269,11 +1271,17 @@ def _feature_duration_h(state: dict) -> Optional[str]:
     return f"{secs / 3600:.1f}h" if secs >= 0 else None
 
 
+# v8.172:纯用户决策等待 stage —— 其 duration = 等用户拍板的墙钟 · 非阶段内工作 ·
+# 不能计入「最耗时(工作)」(实证 audit ×5:pm_acceptance 占 84%/87%/73% 全是等用户)。
+_AWAIT_USER_STAGES = {"pm_acceptance"}
+
+
 def _stage_durations(state: dict):
     """从 stage_contracts 抽各 stage `duration_minutes`(确定性)· 返 (breakdown, analysis)。
 
-    breakdown = "goal 12m · blueprint 25m · …"(completed_stages 顺序)
-    analysis  = "阶段总和 Nm · 最耗时 X Ym(P%)"· 与「总时长」差 = 阶段间等待。
+    breakdown = "goal 12m · blueprint 25m · …"(completed_stages 顺序 · 全列)
+    analysis  = "工作阶段总和 Nm · 最耗时(工作)X Ym(P%)" + 用户决策等待 stage 单列
+      —— 🔴 pm_acceptance 等纯等用户的墙钟**不计入最耗时**(否则把「等用户」误判成「阶段慢」)。
     无 duration 数据返 (None, None)。
     """
     contracts = state.get("stage_contracts", {}) or {}
@@ -1283,10 +1291,19 @@ def _stage_durations(state: dict):
     if not items:
         return None, None
     breakdown = " · ".join(f"{s} {m}m" for s, m in items)
-    total = sum(m for _, m in items)
-    longest_s, longest_m = max(items, key=lambda x: x[1])
-    pct = f"{round(100 * longest_m / total)}%" if total else "?"
-    return breakdown, f"阶段总和 {total}m · 最耗时 {longest_s} {longest_m}m({pct})"
+    work = [(s, m) for s, m in items if s not in _AWAIT_USER_STAGES]
+    awaiting = [(s, m) for s, m in items if s in _AWAIT_USER_STAGES]
+    if work:
+        wtotal = sum(m for _, m in work)
+        ls, lm = max(work, key=lambda x: x[1])
+        pct = f"{round(100 * lm / wtotal)}%" if wtotal else "?"
+        analysis = f"工作阶段总和 {wtotal}m · 最耗时(工作){ls} {lm}m({pct})"
+    else:
+        analysis = "无工作阶段时长数据"
+    if awaiting:
+        aw = " + ".join(f"{s} {m}m" for s, m in awaiting)
+        analysis += f" · ⏸️ {aw}=用户决策等待(墙钟 · 非工作 · 不计入最耗时)"
+    return breakdown, analysis
 
 
 def _write_audit_record(state: dict, feature_id: str, merge_target: str,

@@ -1,7 +1,7 @@
 ---
 name: teamwork
-version: v8.170.1
-description: AI 协作开发一体化框架 · /teamwork 启动
+version: v8.176.1
+description: AI 协作开发一体化框架 - 需求功能开发, bug 修复, 问题排查 · /teamwork 启动
 ---
 
 # Teamwork Skill · v8.0 Code-driven Orchestration

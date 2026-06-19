@@ -120,5 +120,24 @@ class TestVerifyAcExtract(unittest.TestCase):
         self.assertEqual(self._ids(FM_PRD), ["AC-9"])
 
 
+class TestTemplateMachineBlockWellFormed(unittest.TestCase):
+    """v8.171:模板 TEAMWORK-MACHINE 块必须是**单个 well-formed HTML 注释** ——
+    marker 行禁含字面 `-->`(否则浏览器在第一个 `-->` 提前闭合注释 · YAML 裸露在
+    预览 · v8.165 隐藏机读内容的目标被自身 marker 文字破坏 · 实测 TermPro 编辑器)。
+    """
+
+    def test_no_premature_comment_close(self):
+        prd = (TOOLS.parent / "templates" / "prd.md").read_text(encoding="utf-8")
+        start = prd.index("<!-- TEAMWORK-MACHINE")
+        # 浏览器看到的注释 = 从 <!-- 到**第一个** -->
+        close = prd.index("-->", start)
+        browser_comment = prd[start:close]
+        # 若 marker 行无字面 --> · 第一个 --> 即真正闭合 · 注释含完整 YAML
+        self.assertIn("feature_id:", browser_comment,
+                      "marker 行可能含字面 --> 提前闭合注释 · feature_id 裸露在预览")
+        self.assertIn("revision_history:", browser_comment,
+                      "marker 行含字面 --> · YAML 尾部裸露在预览")
+
+
 if __name__ == "__main__":
     unittest.main()
