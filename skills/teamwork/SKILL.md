@@ -1,6 +1,6 @@
 ---
 name: teamwork
-version: v8.178.1
+version: v8.179
 description: AI 协作开发一体化框架 - 需求功能开发, bug 修复, 问题排查 · /teamwork 启动
 ---
 
@@ -442,6 +442,8 @@ emit 格式:
 ### yolo 模式(完全自动 · 无人值守 · 🔴 高风险)
 
 🔴 `yolo` = `auto_mode` **超集** —— 启动后**零 stop**(连 pm_acceptance 产品验收 + MR merge 都自动)。启用:`init-feature --yolo [<分支>]`(自动 implies `auto_mode`)。
+
+🔴🔴 **yolo 预研门(正式自主前 · 物化硬门 · v8.179)**:`init-feature --yolo` **前**必产出 `YOLO-PREFLIGHT.md`(模板 `templates/yolo-preflight.md`)—— ① **深入调研真实代码**(任务实质 / 范围 / 未知 / 风险 · grounded 实际文件、不靠假设)② 提炼**核心重要决策**(错了会让整条自主跑偏的:技术路线 / 数据模型 / 对外契约 / 范围取舍 / 安全)③ 和用户**逐条确认**。`init-feature --yolo` **校验该产物存在 + 已填**(哨兵 `YOLO-PREFLIGHT-UNFILLED` 已删 + 含核心决策/用户确认段)· 否则 FAIL。**理由**:yolo 启动后零暂停点 · 意图理解偏差 / 关键取舍错了**没机会中途纠**(没人在看)→ 意图保真膜必 **front-load 到跑前**,而不是边跑边发现。
 - **`--yolo <分支>`** = 本需求专属 `merge_target`(**覆盖** `--merge-target` / localconfig 默认)· 推荐给 yolo 一个**专属集成分支**隔离自动合入的代码(如 `--yolo yolo/feat-x`)· 该分支即 yolo 自动 merge 的目标
 - **`--yolo`**(无值)= 用 `--merge-target` 的分支(二者至少给一个 · 都没 → FAIL)
 - **中途切换** = `state.py set-mode --feature <F> --yolo [<分支>] --reason '<原因>'`(或 `--auto-mode` / `--no-yolo` / `--no-auto-mode`)· 语义命令 · 走 `state.mode_changes` audit + 同款非 main 硬门 + implies-auto 护栏 · **不要 raw-write `state.json` 改 auto_mode/yolo**(无 audit·绕门禁)
@@ -449,6 +451,7 @@ emit 格式:
 🔴🔴 **yolo ≠ 简化/提速 · 是「加重审核」**:无人值守 = **没人在看** → 自动化评审(尤其 **external 异质模型 cross-review**)是**唯一安全网** · 必须**保留 / 加重** · **绝不削弱**。yolo 的「零 stop」**只**针对**人工决策暂停点**(prepare / pm_acceptance / MR merge)· 技术与评审环节**一个不少**。
 - 🔴🔴 **严格按 teamwork 流程流转 · 不得「内化」**:每个 stage 的评审必**真跑** —— 多角色真分析(找真问题 · 不是 `mode: yolo-internalized` 自盖章 APPROVE)· external 必**真调异质模型**(`state.py external-review --stage <X>` · 不得 AI 手写 `external-cross-review/*.md`)。external **实跑日志物化校验**:yolo 下 `xx-complete` 校验 `~/.teamwork/external-review-logs/<feat>/codex-<stage>-*.log` 存在(无 → FAIL · 文件名/frontmatter 能伪装合规 · 实跑日志伪造不了)。auto_mode 的「内化」**仅指跳过用户确认暂停点**(AI 代用户接受)· **绝非**跳过/伪造评审工作本身。
 - 🔴 **不得去 external 评审**(以"集中到 review stage""效率""价值低"为由)—— yolo 下 `change-review-roles` 去 external **物化 BLOCK** · 仅 external CLI **客观不可用**(未装 / 网络死 · 已重试失败)才 `--accept-external-removal --reason '<技术原因>'`(写 concern WARN)
+- 🔴 **异质开关 = localconfig 单源**(v8.179):异质 external 评审受 `.teamwork_localconfig.json` 的 `disable_external_review: true/false` 控制(**单一开关** · 单模型用户长期 opt-out)。`disable_external_review=true` 时:① `init-feature --yolo` kickoff **醒目警告**(`yolo_external_warning` · 安全网降级 · 无人值守须知悉)② 降级评审**必须是 subagent 冷审**(isolated context · 宿主自身模型 fresh · **非主对话热审 / 非 AI 手写**)· yolo 门禁校验 `external-cross-review/*.md` 含 `review_via: subagent`(无 → FAIL)—— **「非异质」也不许「不冷审」**(同模型但冷上下文,仍是独立采样;主对话自评 = 无效)。跑 `state.py external-review --stage <X>` 自动 emit subagent 冷审配方。
 - 🔴 **不得擅自合并 BL / 跳 stage / 减 review 轮次 / 简化流程** —— 该走的 stage、该跑的评审角色一个不省;BL 拆分是 Planning 已定的范围,yolo 不重新打包
 - ✅ **可以加重**:必要时每个 stage 都跑 external、加 review 轮次、提高测试覆盖 —— 无人值守正该更严
 

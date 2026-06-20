@@ -1642,14 +1642,29 @@ def _evidence_external_review_artifact(state: dict, args) -> tuple[bool, str]:
     # 不得 AI 手写 external-cross-review/*.md(文件名/frontmatter 能伪装合规 · 但无实跑日志)。
     # 治本 case(WS-002 yolo):AI 写 PRD-REVIEW "mode: yolo-internalized" 自盖章 APPROVE · 评审形同虚设。
     if state.get("yolo") and not _external_run_log_exists(feature_dir, current_stage):
-        return False, (
-            f"yolo 模式 external 评审缺**实跑证据** —— ~/.teamwork/external-review-logs/"
-            f"{feature_dir.name}/ 无本 stage 日志(codex-{current_stage}-*.log / "
-            f"claude-{current_stage}-*.log)。🔴 yolo 严格按流程 · **不得手写/内化** "
-            f"external-cross-review/*.md —— 必须真跑 `state.py external-review --stage "
-            f"{current_stage} --feature {args.feature}`(调异质模型 · v8.55 自动落实跑日志)。"
-            f"\n  (artifact 文件名/frontmatter 能伪装合规 · 但实跑日志伪造不了 · 这是物化防内化)"
-        )
+        # v8.179:yolo + 单模型(disable_external_review)→ 异质实跑日志本就不存在(非异质是用户
+        # 显式 opt-out)· 改认 **subagent 冷审** 证据(review_via:subagent · 非主对话热审 / AI 手写)。
+        # 治本:旧 1644 闸无 ext_disabled 豁免 · 误 BLOCK 单模型 yolo 用户(异质日志永远拿不到)。
+        if ext_disabled:
+            cold = any(str((parse_frontmatter(f) or {}).get("review_via", "")).lower() == "subagent"
+                       for f in md_files)
+            if not cold:
+                return False, (
+                    "yolo + 单模型(localconfig disable_external_review)· 降级评审**必须是 subagent 冷审** "
+                    "—— external-cross-review/*.md 缺 `review_via: subagent`(= 没走 isolated subagent 冷审 · "
+                    "疑主对话热审 / AI 手写)。跑 `state.py external-review --stage "
+                    f"{current_stage} --feature {args.feature}` → 按 SUBAGENT_FALLBACK 配方起 **isolated "
+                    "subagent 冷审**(宿主自身模型 · 隔离上下文 · 非主对话)· 产出带 `review_via: subagent` 的降级评审。"
+                )
+        else:
+            return False, (
+                f"yolo 模式 external 评审缺**实跑证据** —— ~/.teamwork/external-review-logs/"
+                f"{feature_dir.name}/ 无本 stage 日志(codex-{current_stage}-*.log / "
+                f"claude-{current_stage}-*.log)。🔴 yolo 严格按流程 · **不得手写/内化** "
+                f"external-cross-review/*.md —— 必须真跑 `state.py external-review --stage "
+                f"{current_stage} --feature {args.feature}`(调异质模型 · v8.55 自动落实跑日志)。"
+                f"\n  (artifact 文件名/frontmatter 能伪装合规 · 但实跑日志伪造不了 · 这是物化防内化)"
+            )
     return True, ""
 
 

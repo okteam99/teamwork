@@ -5,6 +5,18 @@
 
 ---
 
+## v8.174 · WS 进度可见:ws-progress 自 ROADMAP 派生 rollup + frontmatter 藏注释去 YAML 墙
+
+> 用户(看 TermPro WS-01 文档):WS 有模板么 · 内容有点乱 · 没有进度标识。诊断:① frontmatter 被渲染器当正文显示成 YAML 墙 + 与 body 章节重复(乱)② `features[].status` 只是规划态、执行态从不上卷到 WS · 要翻 5 个子项目 ROADMAP 交叉比对才知进度(无进度)。
+
+### 改动
+- **ws-progress 命令**(`state.py` · 进度派生 · 不手抄):glob 全仓 `ROADMAP.md` · 按「关联 WS」列过滤 · 确定性汇总成「X/N 已完成」rollup + 总览表(BL/子项目/功能/状态/当前阶段/F)· `--write` 写回 WS 的 `<!-- WS-PROGRESS:START/END -->` 标记区。执行态**单一源仍在 ROADMAP**(职责单一)· WS 只读派生 —— 防 stale 双源。按列名定位解析、容列序差异、扫一文件多表、容裸数字 `--ws 1`。
+- **frontmatter 藏进 TEAMWORK-MACHINE 注释**(同 PRD v8.165):workstream.md 机读/元数据契约外壳 `---` → `<!-- ... -->` · **字段全保留**(零悬空引用 · features[].current_state 等仍在)· 但 TermPro/Zed 不再当正文渲染成 YAML 墙(治「乱」主因)· body 章节成唯一可见权威。
+- **三处消费点接好**(v8.151 消费时点主动推):feature-planning Step 7(写完 ROADMAP 首刷)+ ship `planning-backref`(翻 BL 牌后刷 · 顺序:WS 派生自 ROADMAP)+ 模板 §feature 总览(刷新命令 + 🔴 勿手改)。
+- **WS 状态 ≠ feature 进度** 澄清:规划生命周期(📝→✅ 规划完成)与执行进度(建到哪了)是两维 · 模板状态生命周期 + 设计要点 #8/#9 写明。
+
+### 验证
+- code(`state.py` +ws-progress · `_v8_ship`/`feature-planning` 钩子)+ doc(workstream.md 重构)· `test_ws_progress_v8174` +12(解析/过滤/rollup/裸数字/写回幂等)· pytest 3 failed(baseline)/ 573 passed。
 ## v8.173 · 重点 review 指引改两层 + 选择题 + 说人话 · 治「读起来难」
 
 > 实战(aon auth case · 用户):v8.168「冷审逐条全列」的导读**读起来难** —— 13 条 external ADOPT 和 4 条用户决策**平铺等权**(决策被淹)+ 代码 id(CR-1/PL-2/R-8/AC-12/Q3)当正文(逼用户回翻 PRD,而导读的意义就是不用回翻)。

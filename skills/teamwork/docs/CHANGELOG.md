@@ -4,6 +4,19 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.179 · yolo 策略调整:预研门(物化硬门)+ 非异质降级 subagent 冷审 + localconfig 单源
+
+> 用户调整 yolo 策略 3 点:① 异质 review 受 localconfig 控制(确认)② yolo 启动非异质 → 醒目提示 + 确保 subagent 冷审 ③ yolo 正式跑前深入调研 + 核心重要问题提前和用户确认。
+
+### 改动
+- **yolo 预研门**(③ · 物化硬门):`init-feature --yolo` **前**必产 `YOLO-PREFLIGHT.md`(深入调研真实代码 + 核心重要决策**逐条用户确认**)· 工具校验存在 + 已填(哨兵删)否则 FAIL。**理由**:yolo 零暂停点 → 意图保真膜必 **front-load**(意图/关键取舍错了没机会中途纠)。模板 `templates/yolo-preflight.md`。
+- **非异质降级 subagent 冷审**(② · 修真 bug):旧 1644 yolo 实跑日志闸**无 ext_disabled 豁免** → 误 BLOCK 单模型 yolo(异质日志永远拿不到)。修:yolo + `disable_external_review` 改认 **subagent 冷审**证据(校验 `review_via: subagent` · 非主对话热审 / 手写)· 「非异质」也不许「不冷审」。+ `init-feature --yolo` 检测 `disable_external_review` → kickoff **醒目警告**(`yolo_external_warning`)。
+- **localconfig 单源**(① · 确认):异质 external 受 `.teamwork_localconfig.json` `disable_external_review` **单一开关**控制 · SKILL § yolo 写明。
+- **测试** `test_yolo_strategy_v8179` +8 + `test_state` CLI +2(preflight 缺失 / 哨兵 BLOCK)· 现有 5 个 yolo init 测试补 seed preflight。
+
+### 验证
+- code(`state.py` init 预研门 + 警告 · `_v8_stage_specs` 1644 闸)+ template + SKILL doctrine + test · pytest 3 failed(baseline)/ 614 passed。
+
 ## v8.178 · 测试基线失败集差分 gate · 治 brownfield 反复 stash-baseline（欠最久 harvest 项）
 
 > harvest 89 条审计:「基线失败集 / stale 测试无门禁」**跨 3 次 harvest 复现**(8× · 欠最久)。brownfield 共享套件常 base 即红(历史重构遗留 / 他人欠债),没登记机制时每个 feature 都重复「stash → 跑 base → diff → REVIEW 论证非本 feature」甄别(实证跨 3+ feature 反复确认同一批 5-6 个失败)。
@@ -57,16 +70,3 @@
 
 ### 验证
 - doc(ui-design-stage §1/§3)+ brief(`_v8_stage_specs`)+ test · pytest 3 failed(baseline)/ 576 passed。
-
-## v8.174 · WS 进度可见:ws-progress 自 ROADMAP 派生 rollup + frontmatter 藏注释去 YAML 墙
-
-> 用户(看 TermPro WS-01 文档):WS 有模板么 · 内容有点乱 · 没有进度标识。诊断:① frontmatter 被渲染器当正文显示成 YAML 墙 + 与 body 章节重复(乱)② `features[].status` 只是规划态、执行态从不上卷到 WS · 要翻 5 个子项目 ROADMAP 交叉比对才知进度(无进度)。
-
-### 改动
-- **ws-progress 命令**(`state.py` · 进度派生 · 不手抄):glob 全仓 `ROADMAP.md` · 按「关联 WS」列过滤 · 确定性汇总成「X/N 已完成」rollup + 总览表(BL/子项目/功能/状态/当前阶段/F)· `--write` 写回 WS 的 `<!-- WS-PROGRESS:START/END -->` 标记区。执行态**单一源仍在 ROADMAP**(职责单一)· WS 只读派生 —— 防 stale 双源。按列名定位解析、容列序差异、扫一文件多表、容裸数字 `--ws 1`。
-- **frontmatter 藏进 TEAMWORK-MACHINE 注释**(同 PRD v8.165):workstream.md 机读/元数据契约外壳 `---` → `<!-- ... -->` · **字段全保留**(零悬空引用 · features[].current_state 等仍在)· 但 TermPro/Zed 不再当正文渲染成 YAML 墙(治「乱」主因)· body 章节成唯一可见权威。
-- **三处消费点接好**(v8.151 消费时点主动推):feature-planning Step 7(写完 ROADMAP 首刷)+ ship `planning-backref`(翻 BL 牌后刷 · 顺序:WS 派生自 ROADMAP)+ 模板 §feature 总览(刷新命令 + 🔴 勿手改)。
-- **WS 状态 ≠ feature 进度** 澄清:规划生命周期(📝→✅ 规划完成)与执行进度(建到哪了)是两维 · 模板状态生命周期 + 设计要点 #8/#9 写明。
-
-### 验证
-- code(`state.py` +ws-progress · `_v8_ship`/`feature-planning` 钩子)+ doc(workstream.md 重构)· `test_ws_progress_v8174` +12(解析/过滤/rollup/裸数字/写回幂等)· pytest 3 failed(baseline)/ 573 passed。

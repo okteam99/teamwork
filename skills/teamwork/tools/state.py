@@ -1199,6 +1199,22 @@ def _is_main_branch(branch: str, repo_cwd: Optional[str] = None) -> bool:
     return False
 
 
+def _check_yolo_preflight(pf: Path) -> tuple[bool, str]:
+    """v8.179:校验 YOLO-PREFLIGHT.md 存在 + 已填(核心决策 + 用户确认 · 哨兵已删)。
+
+    yolo 零暂停点 → 意图保真膜 front-load:深入调研 + 核心决策逐条用户确认后才进自主。
+    哨兵 `YOLO-PREFLIGHT-UNFILLED` 必须删(强制真填 · 不是建个空模板)。
+    """
+    if not pf.is_file():
+        return False, "YOLO-PREFLIGHT.md 不存在(yolo 不得裸启动 · 先深入调研 + 核心决策用户确认)"
+    text = pf.read_text(encoding="utf-8", errors="replace")
+    if "YOLO-PREFLIGHT-UNFILLED" in text:
+        return False, "YOLO-PREFLIGHT.md 仍含未完成哨兵(深入调研 + 核心决策用户确认后删该哨兵行)"
+    if "核心" not in text or ("用户确认" not in text and "用户拍板" not in text):
+        return False, "YOLO-PREFLIGHT.md 缺『核心决策』或『用户确认』段(按模板补全)"
+    return True, ""
+
+
 def cmd_init_feature(args: argparse.Namespace) -> None:
     """Create initial state.json · 替代手工 Write。"""
     # Feature Planning / 问题排查 不进状态机 · 拒绝
@@ -1278,6 +1294,26 @@ def cmd_init_feature(args: argparse.Namespace) -> None:
             ),
             "rule": "v8.63 yolo 硬约束 · 自动 merge 不进 main(防 AI 错误/幻觉特性直接进 main)",
         }, ensure_ascii=False, indent=2))
+
+    # v8.179:yolo 预研门(硬门)—— 正式自主前必产 YOLO-PREFLIGHT.md(深入调研 + 核心决策用户确认)。
+    # yolo 零暂停点 → 意图保真膜必 front-load · 防裸启动直接闷头跑偏(无人值守 · 错了没机会中途纠)。
+    if yolo_enabled:
+        pf_ok, pf_reason = _check_yolo_preflight(feature_dir / "YOLO-PREFLIGHT.md")
+        if not pf_ok:
+            die(2, json.dumps({
+                "verdict": "FAIL",
+                "action": "init-feature",
+                "error": f"yolo 预研门未过:{pf_reason}",
+                "hint": (
+                    "yolo 正式自主前必须:① 深入调研真实代码(任务实质 / 范围 / 未知 / 风险)"
+                    " ② 提炼核心重要决策 ③ 和用户**逐条确认** → 落 "
+                    f"{feature_dir}/YOLO-PREFLIGHT.md(模板 {{SKILL_ROOT}}/templates/yolo-preflight.md)"
+                    " · 填完删哨兵行 · 再重跑 init-feature --yolo。\n"
+                    "理由:yolo 启动后零暂停点 · 意图 / 关键取舍错了没机会中途纠 → 必须跑前确认。"
+                ),
+                "rule": "v8.179 yolo 预研门 · front-load 意图保真膜(无人值守 · 跑前确认核心决策)",
+                "bypass": "确无核心决策 · 仍须产出 YOLO-PREFLIGHT.md 写明「无核心决策 · 已确认」",
+            }, ensure_ascii=False, indent=2))
 
     # v8.15:admission consistency 校验(治本 F001 GCP gateway case · AI 选错 flow_type)
     # audit 里若 consistency=MISMATCH(AI judgment 推荐 flow_type ≠ init --flow-type)→ WARN
@@ -1555,6 +1591,15 @@ def cmd_init_feature(args: argparse.Namespace) -> None:
     # v8.0+P0-13:项目级系统维护已挪到 session-bootstrap(session 级 · 不是 Feature 级)
     # init-feature 只管 Feature 级状态机操作
 
+    # v8.179:yolo + 单模型(localconfig disable_external_review)→ kickoff 醒目警告 ——
+    # external 异质安全网降级为同模型 subagent 冷审(弱)· 无人值守下风险更高 · 用户须知悉。
+    yolo_ext_warning = None
+    if yolo_enabled and _read_disable_external_review(args.feature):
+        yolo_ext_warning = (
+            "🔴🔴 yolo + 单模型评审:本项目 .teamwork_localconfig.json `disable_external_review=true` → "
+            "external **异质**安全网已降级为**同模型 subagent 冷审**(非异质 · 同盲点 · 弱于异质交叉评审)。"
+            "yolo 无人值守 · 这是唯一安全网且已降级 —— 知悉再继续;想恢复异质把关 → 删该 localconfig 项。"
+        )
     emit({
         "verdict": "OK",
         "action": "init-feature",
@@ -1568,6 +1613,8 @@ def cmd_init_feature(args: argparse.Namespace) -> None:
         "next_action_brief": _init_feature_next_brief(args, initial_stage),
         # v8.15:admission MISMATCH 时 emit 顶层显警告(AI 一定看到)+ state.concerns 已留痕
         **({"admission_warning": admission_warning} if admission_warning else {}),
+        # v8.179:yolo + 非异质评审醒目警告(降级安全网 · 无人值守须知悉)
+        **({"yolo_external_warning": yolo_ext_warning} if yolo_ext_warning else {}),
     })
 
 
