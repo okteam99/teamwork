@@ -5,6 +5,19 @@
 
 ---
 
+## v8.173 · 重点 review 指引改两层 + 选择题 + 说人话 · 治「读起来难」
+
+> 实战(aon auth case · 用户):v8.168「冷审逐条全列」的导读**读起来难** —— 13 条 external ADOPT 和 4 条用户决策**平铺等权**(决策被淹)+ 代码 id(CR-1/PL-2/R-8/AC-12/Q3)当正文(逼用户回翻 PRD,而导读的意义就是不用回翻)。
+
+### 改动(goal-stage §8 重点 review 指引模板)
+- **第一节拆两层**:🟡 **你要拍板的**(REJECT/DEFER/升级 = AI 替你判断/升级 · 抽查 ROI 最高)+ ✅ **已处理**(ADOPT · 备查可跳)—— 决策不再被 ADOPT recap 淹。
+- **决策写成选择题**:`<一句话背景> —— A)… / B)… · 我倾向 X(理由)` · 不再埋在 prose 末尾。
+- **说人话**:CR/PL/AC/R/Q/v 等代码 id 挪进括号当 ref · 不当正文(导读要让没读过 PRD 的人也看懂)。
+- **已处理压主题**:external N 轮压成「主题一句 + 共 M 条」· 不逐个 spell CR 码。🔴 **compact ≠ collapse**:压主题保留了「抓到什么」(substance)· 禁的仍是 v8.167 藏 substance 的「全部 ADOPT」。
+- 反模式同步更新(平铺等权 / 代码当正文 / 没写选择题 / collapse 藏 substance)。
+
+### 验证
+- doc-only(goal-stage.md)· 无测试 pin 旧文案 · pytest 3 failed(baseline)/ 561 passed。
 ## v8.172 · harvest P0 四修:耗时区分等用户 + 补 add-concern + review-fix 推进 target + 截图兼容
 
 > harvest docs/audit/(31 done 记录 · 3 项目)的高频框架反馈,四个干净 bug:

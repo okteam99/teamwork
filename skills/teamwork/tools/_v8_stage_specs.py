@@ -150,14 +150,79 @@ def _template_hint(artifact: str) -> str:
     return f" · 起草模板:{tmpl_path}"
 
 
+# ─── 测试基线失败集 · 差分 gate（v8.178）──────────────────────────────
+# 治本(实证 audit ×8):brownfield 共享套件常带预存在失败(base 即红)· 没登记机制时
+# 每个 feature 都重复 stash-baseline 甄别「正交 vs 回归」。project-specs/test-baseline.md
+# 登记成项目级单源 → gate 改差分:当前失败 ⊆ 基线(0 新增)→ 红 base 也放行。
+
+
+def _find_specs_root(start) -> Optional[Path]:
+    """从 feature 路径上溯找含 project-specs/ 的项目根。"""
+    try:
+        p = Path(start).resolve()
+    except (TypeError, OSError):
+        return None
+    for cand in [p, *p.parents]:
+        if (cand / "project-specs").is_dir():
+            return cand
+    return None
+
+
+def _read_test_baseline(feature_path) -> set:
+    """读 project-specs/test-baseline.md 登记的预存在失败 id(表第一列)。不存在 → 空集。"""
+    if not feature_path:
+        return set()
+    root = _find_specs_root(feature_path)
+    if not root:
+        return set()
+    f = root / "project-specs" / "test-baseline.md"
+    if not f.is_file():
+        return set()
+    ids = set()
+    for ln in f.read_text(encoding="utf-8", errors="replace").splitlines():
+        s = ln.strip()
+        if not s.startswith("|"):
+            continue
+        cells = [c.strip().strip("`").strip() for c in s.strip("|").split("|")]
+        if not cells or not cells[0]:
+            continue
+        first = cells[0]
+        if first in ("失败用例 (id)", "失败用例", "test id", "用例") or set(first) <= set("-: "):
+            continue
+        ids.add(first)
+    return ids
+
+
+def _test_new_failures(args) -> tuple:
+    """(new, excluded):当前失败集对照基线 · new = 不在基线的(回归 or 新预存在)· excluded = 在基线的。"""
+    cur_raw = getattr(args, "current_failures", None) or ""
+    current = [c.strip() for c in re.split(r"[,\n]", cur_raw) if c.strip()]
+    registered = _read_test_baseline(getattr(args, "feature", None))
+    new = [c for c in current if c not in registered]
+    excluded = [c for c in current if c in registered]
+    return new, excluded
+
+
 def _evidence_test_exit_code_zero(state: dict, args) -> tuple[bool, str]:
-    """校验 --test-exit-code == 0"""
+    """校验 --test-exit-code == 0 · v8.178:红 base 走差分(当前失败 ⊆ 基线 → 放行)。"""
     exit_code = getattr(args, "test_exit_code", None)
     if exit_code is None:
         return False, "缺 --test-exit-code 参数"
-    if int(exit_code) != 0:
-        return False, f"test_exit_code={exit_code} ≠ 0 · 测试未通过"
-    return True, ""
+    if int(exit_code) == 0:
+        return True, ""
+    cur = getattr(args, "current_failures", None)
+    if not cur:
+        return False, (f"test_exit_code={exit_code} ≠ 0 · 测试未通过。"
+                       "（若 base 即红:补 --current-failures 列当前失败用例 id · 工具对照 "
+                       "project-specs/test-baseline.md 算新增 · 0 新增则放行 · 详 templates/test-baseline.md）")
+    new, excluded = _test_new_failures(args)
+    if new:
+        more = "…" if len(new) > 8 else ""
+        return False, (f"test_exit_code={exit_code} ≠ 0 · 差分有 {len(new)} 个**新增**失败"
+                       f"(= 回归 或 新出现的预存在):{' · '.join(new[:8])}{more} —— "
+                       "回归则修;确属 base 即红 → `state.py test-baseline --add` 登记原因后重跑")
+    state.setdefault("execution_hints", {})["test_baseline_excluded"] = len(excluded)
+    return True, ""   # 差分 clean:当前失败全在基线 · 非本 feature 回归
 
 
 def _evidence_needs_ui_decided(state: dict, args) -> tuple[bool, str]:
@@ -662,6 +727,7 @@ def _dev_brief(state: dict) -> str:
 
 ### 怎么做
 **必读** `stages/dev-stage.md`(详细步骤 6 步 + 注意事项 5 条 · 含 TDD / UI 还原 / TECH 模糊 fallback)。
+🔴 **base 即红(共享套件预存在失败)→ 差分基线**:`--test-exit-code` 非 0 时,先 `state.py test-baseline --diff --current "<当前失败 id>"` 对照 `project-specs/test-baseline.md` · 0 新增 → dev-complete 传 `--current-failures` 即放行;有新增 = 回归(修)或新预存在(`test-baseline --add` 登记)· **别人肉 stash-baseline 反复甄别**。
 🔴 **UI feature(走过 ui_design)→ 设计↔实际一致性核对必做**(治「设计稿和实际不一致」):实现后起全景 dev server(preview.sh)+ 跑真实路由,**两边并排 browse 截图**,逐项核对意图四要素(布局/交互流/状态/字段映射)给「一致/背离」结论 · 背离 → 修实现 or 回 ui_design(不在 dev 顺手改设计 · 不静默放过)· 详 § dev-stage §3。
 
 ### 完成方式
@@ -1895,12 +1961,14 @@ QA 集成测试 + API E2E · AC 全覆盖最终验证。
 
 ### 怎么做
 **必读** `stages/test-stage.md`(详细步骤 7 步 + 注意事项 5 条 · 含 skip 走捷径反模式)。
+🔴 **base 即红(brownfield 共享套件预存在失败)→ 走差分基线、别反复人肉 stash-baseline**:`state.py test-baseline --diff --current "<当前失败 id>"` 对照 `project-specs/test-baseline.md` · **0 新增**(当前失败 ⊆ 基线)→ test-complete 传 `--current-failures` 即转移;有新增 = 回归(修)或新预存在(核实后 `test-baseline --add` 登记原因)。
 
 ### 完成方式
 ```
 state.py test-complete --feature <path> --auto-commit <hash> \
   --artifacts TEST-REPORT.md,e2e/ \
   --integration-test-exit-code 0 --e2e-test-exit-code 0
+  # base 即红:--integration-test-exit-code <真实非0> --current-failures "id1,id2"(差分 0 新增 → 放行)
 ```
 """
 
@@ -1911,7 +1979,9 @@ def _test_transition(state: dict) -> Optional[str]:
     ev = test_c.get("evidence", {})
     int_code = ev.get("integration_test_exit_code")
     e2e_code = ev.get("e2e_test_exit_code")
-    if int_code != 0 or e2e_code != 0:
+    # v8.178:integration 红但差分干净(预存在 ⊆ 基线)也算通过 · e2e 仍严格 0(feature-scoped)
+    int_ok = (int_code == 0) or (ev.get("integration_diff_clean") is True)
+    if not int_ok or e2e_code != 0:
         return None  # 失败 · 留 test stage · 走 test-fix → test-retry
     hints = state.get("execution_hints", {})
     if hints.get("browser_e2e_needed") is True:
@@ -1920,11 +1990,18 @@ def _test_transition(state: dict) -> Optional[str]:
 
 
 def _evidence_integration_test_present(state: dict, args) -> tuple[bool, str]:
-    """v8.10:只校验 --integration-test-exit-code 已传 · 任何 exit_code 都允许 ·
-    失败时 transition 返 None(留 test 走 fix-retry)而不是 die FAIL。"""
+    """v8.10:校验 --integration-test-exit-code 已传(任何值 · 失败留 fix-retry)。
+    v8.178:integration 红 + 传 --current-failures → 算差分基线 · 写 args.integration_diff_clean
+    (持久化进 evidence · _test_transition / is_failed_round 读)· 0 新增 → 红 base 也转 pm_acceptance。"""
     code = getattr(args, "integration_test_exit_code", None)
     if code is None:
         return False, "缺 --integration-test-exit-code 参数"
+    if int(code) != 0 and getattr(args, "current_failures", None):
+        new, excluded = _test_new_failures(args)
+        args.integration_diff_clean = (len(new) == 0)
+        hints = state.setdefault("execution_hints", {})
+        hints["integration_new_failures"] = new
+        hints["integration_excluded_baseline"] = len(excluded)
     return True, ""
 
 

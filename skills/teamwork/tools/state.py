@@ -895,6 +895,55 @@ def cmd_ws_progress(args: argparse.Namespace) -> None:
           "written_to": wrote, "dag_written": dag_written, "block": block, "dag": dag})
 
 
+# ─── test-baseline:预存在失败注册表 + 差分（v8.178）──────────────────
+# 治本(audit ×8):brownfield 共享套件预存在失败 · 每 feature 重复 stash-baseline 甄别。
+# project-specs/test-baseline.md 登记成项目级单源 · test/dev gate 差分(0 新增 → 红 base 放行)。
+
+def cmd_test_baseline(args: argparse.Namespace) -> None:
+    """v8.178:维护/查询 project-specs/test-baseline.md + 当前失败集差分。"""
+    from _v8_stage_specs import _read_test_baseline, _find_specs_root  # noqa
+    feature = getattr(args, "feature", None)
+
+    if args.action == "list":
+        ids = _read_test_baseline(feature)
+        emit({"verdict": "OK", "action": "list", "count": len(ids), "baseline": sorted(ids)})
+        return
+
+    if args.action == "diff":
+        registered = _read_test_baseline(feature)
+        current = [c.strip() for c in re.split(r"[,\n]", args.current or "") if c.strip()]
+        if not current:
+            emit({"verdict": "FAIL", "reason": "--diff 需 --current '<逗号/换行分隔的当前失败 id>'"})
+            return
+        new = [c for c in current if c not in registered]
+        excluded = [c for c in current if c in registered]
+        stale = [c for c in sorted(registered) if c not in current]
+        emit({"verdict": "OK" if not new else "NEW_FAILURES", "action": "diff",
+              "new": new, "excluded": excluded, "stale_registered": stale,
+              "hint": ("new=[] → 红 base 可放行(test-complete/dev-complete 同传 --current-failures);"
+                       "new 非空 → 回归(修)或新预存在(核实后 --add 登记原因);"
+                       "stale_registered = 基线里已不再失败的(可删)")})
+        return
+
+    # add
+    if not args.test_id or not args.reason:
+        emit({"verdict": "FAIL", "reason": "--add 需 --test-id + --reason(预存在失败必须写原因/清账计划)"})
+        return
+    root = (_find_specs_root(feature) if feature else None) or _git_toplevel(Path.cwd()) or Path.cwd()
+    f = root / "project-specs" / "test-baseline.md"
+    if not f.is_file():
+        f.parent.mkdir(parents=True, exist_ok=True)
+        tmpl = Path(__file__).resolve().parent.parent / "templates" / "test-baseline.md"
+        f.write_text(tmpl.read_text(encoding="utf-8") if tmpl.is_file()
+                     else "# 测试基线失败集\n\n| 失败用例 (id) | 套件/命令 | 基线 commit | 原因（谁的债 · 何时清） | 登记于 |\n|---|---|---|---|---|\n",
+                     encoding="utf-8")
+    with f.open("a", encoding="utf-8") as fh:
+        fh.write(f"| {args.test_id} | {args.suite or '—'} | {args.base_commit or '—'} "
+                 f"| {args.reason} | {now_iso()[:10]} |\n")
+    emit({"verdict": "OK", "action": "add", "test_id": args.test_id,
+          "file": str(f), "baseline_count": len(_read_test_baseline(str(f)))})
+
+
 # ─── init-feature / recover (v7.3.10+P0-148) ──────────────────────────
 
 
@@ -4399,6 +4448,26 @@ def build_parser() -> argparse.ArgumentParser:
     wpp.add_argument("--write", action="store_true",
                      help="写回 WS 文档的 <!-- WS-PROGRESS:START/END --> 标记区(缺标记则仅输出)")
     wpp.set_defaults(func=cmd_ws_progress)
+
+    # v8.178:test-baseline 预存在失败注册表 + 差分(红 base 0 新增放行 · 治反复 stash-baseline)
+    tbp = sub.add_parser(
+        "test-baseline",
+        help="[v8.178] 维护/查询预存在失败注册表(project-specs/test-baseline.md)+ 差分 · 红 base 0 新增可放行")
+    tbp.add_argument("--feature", default=None,
+                     help="feature 路径(定位 project-specs/ · 缺则用 cwd 的 git 根)")
+    grp = tbp.add_mutually_exclusive_group(required=True)
+    grp.add_argument("--add", dest="action", action="store_const", const="add",
+                     help="登记一个预存在失败(需 --test-id + --reason)")
+    grp.add_argument("--list", dest="action", action="store_const", const="list",
+                     help="列出已登记的预存在失败")
+    grp.add_argument("--diff", dest="action", action="store_const", const="diff",
+                     help="当前失败集对照基线算新增(需 --current)")
+    tbp.add_argument("--test-id", help="--add:失败用例 id(与 --current-failures 同格式)")
+    tbp.add_argument("--suite", help="--add:套件/命令(如 'cargo test --lib')")
+    tbp.add_argument("--reason", help="--add:为何红 · 谁的债 · 何时清(必填)")
+    tbp.add_argument("--base-commit", help="--add:基线 commit(可选)")
+    tbp.add_argument("--current", help="--diff:逗号/换行分隔的当前失败用例 id")
+    tbp.set_defaults(func=cmd_test_baseline)
 
     # v8.0+P0-6:reset-prev 状态机回退一步(替代 raw-write 滥用)
     rp = sub.add_parser(
