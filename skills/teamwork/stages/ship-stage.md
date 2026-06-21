@@ -45,7 +45,8 @@ state.py 一口气做完(单 commit 进 feature 分支):
 
 - **为什么翻牌**:`feature = 某 BL 的落地`。落地完不翻「📋 → ✅ 已交付」→ 规划层与执行层永久脱节 · 进度统计失真。
 - **v8.145 为什么更对**:翻牌在 worktree 内改 · 随 feature MR **原子生效** —— MR 不合 · ROADMAP 不显示已交付;MR 被 revert · 翻牌同退。不再有「merge 后另一个 MR 翻牌」的时间窗。
-- **做什么**:① AI 判断哪些要翻(只改相关的 · AI 自决):ROADMAP 对应 BL(若是 WS 最后一个 BL → WS 标完成)· `product-overview/workstream/WS-NN.md` · `teamwork-space.md`(按需)· 项目变更单(按需);② **PROCESS-LEDGER 行**(§16 采写 · 数据源 state.json/REVIEW.md 此刻就在 worktree);③ 在 **worktree 内**改好(不 commit)→ 全部路径传 `--planning-artifacts` → archive 随归档 commit 带走。
+- **做什么**:① AI 判断哪些要翻(只改相关的 · AI 自决):**ROADMAP 对应 BL**(翻「📋 → ✅ 已交付」+ 🔴 **填「对应 F编号」= 本 feature 的 F-id**〔archive 靠它自解析所属 WS〕· 若是 WS 最后一个 BL → WS 标完成)· `teamwork-space.md`(按需)· 项目变更单(按需);② **PROCESS-LEDGER 行**(§16 采写 · 数据源 state.json/REVIEW.md 此刻就在 worktree);③ 在 **worktree 内**改好(不 commit)→ 全部路径传 `--planning-artifacts` → archive 随归档 commit 带走。
+- 🔴 **WS 进度块不用手动刷**(v8.180):`WS-NN.md` 的 §feature 总览 / 依赖图是**工具生成区**(标「勿手改」)—— **archive 自动**从本 feature 解析所属 WS(对应F编号 → 关联WS)+ 跑 `ws-progress --write` 刷新 + 把 WS 文档纳进归档 commit(emit `ws_progress_refreshed`)。你只要把 **ROADMAP BL + 对应F编号** 翻对,WS 进度块 archive **自刷**(治本:旧「手动跑 ws-progress」软指令 · yolo 自主无人接住 → routinely stale)。
 - 找不到 BL 别急着跳:先读 `product-overview/workstream/` + `ROADMAP.md` 定位本 Feature 条目;确无 → `--no-planning-changes` 显式声明。
 - **并行提示**:INDEX.md / PROCESS-LEDGER / ROADMAP 是共享文件 · 并行 feature 的 MR 合并窗口重叠时可能行冲突(append 类 · 解决简单)。
 

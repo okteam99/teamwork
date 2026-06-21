@@ -808,21 +808,70 @@ def _splice_block(text: str, start_tok: str, end_tok: str, body: str):
     return pat.sub(lambda m: m.group(1) + "\n" + body + "\n" + m.group(2), text)
 
 
+def _resolve_ws_from_feature(feature_dir: Path, root: Path) -> "Optional[str]":
+    """v8.180:从 feature 的 F-id 在 ROADMAP「对应F编号」匹配 → 关联WS(ship 自刷用 · 不靠 AI 报 --ws)。
+
+    链路:feature_id 抽 F-token → 扫 ROADMAP 找「对应F编号」含该 token 的行 → 读「关联 WS」·
+    无关联WS 则用该行 BL 反查各 WS 名册(features[].bl)· 都不中返 None(best-effort · ship 退回提示)。
+    """
+    fid = ""
+    sj = feature_dir / "state.json"
+    if sj.is_file():
+        try:
+            fid = json.loads(sj.read_text(encoding="utf-8")).get("feature_id", "") or ""
+        except (OSError, ValueError):
+            pass
+    fid = fid or feature_dir.name
+    m = re.search(r"F-?\d+", fid, re.I)
+    if not m:
+        return None
+    ftoken = m.group(0).replace("-", "").upper()
+    _SKIP = {"node_modules", ".git", "_archive", "dist", "build", ".next", "vendor"}
+    roadmaps = [p for p in root.rglob("ROADMAP.md") if not (set(p.parts) & _SKIP)]
+    bl_hit = None
+    for rm in roadmaps:
+        for r in _parse_roadmap_rows(rm):
+            if ftoken in (r.get("f_id", "") or "").replace("-", "").upper():
+                ws = _ws_nums(r.get("ws", ""))
+                if ws:
+                    return "WS-%02d" % min(ws)
+                bl_hit = bl_hit or r.get("bl")    # 有 BL 无关联WS → 名册反查退路
+    if bl_hit:
+        for wsf in root.rglob("WS-*.md"):
+            if "workstream" not in str(wsf).lower() or (set(wsf.parts) & _SKIP):
+                continue
+            if any(f.get("bl") == bl_hit for f in _parse_ws_features(wsf)):
+                n = _ws_nums(wsf.name)
+                if n:
+                    return "WS-%02d" % min(n)
+    return None
+
+
 def cmd_ws_progress(args: argparse.Namespace) -> None:
-    """v8.174/177:汇总某 WS 下 feature 执行态 → 进度 rollup + 依赖 DAG（派生 · 不手抄）。
+    """v8.174/177/180:汇总某 WS 下 feature 执行态 → 进度 rollup + 依赖 DAG（派生 · 不手抄）。
+
+    v8.180:--feature 替代 --ws —— 自 feature F-id 解析所属 WS(ship 自刷用 · 不靠 AI 报 WS 编号)。
 
     v8.177:名册驱动 —— 读 WS frontmatter features[] 当权威 roster(声明的 feature 全列出 · 含
     跨子项目/legacy 的 K0)· 状态自 ROADMAP 按 bl 匹配(放宽解析器吃 legacy 表)· 匹配不到标「未匹配」·
     并自 dependencies 派生 Mermaid DAG。无名册 → 回退 v8.174 纯「关联 WS」扫(向后兼容)。
     """
-    raw = (args.ws or "").strip()
+    root = _git_toplevel(Path.cwd()) or Path.cwd()
+    raw = (getattr(args, "ws", None) or "").strip()
+    if not raw and getattr(args, "feature", None):   # v8.180:--feature → 自解析 WS
+        resolved = _resolve_ws_from_feature(Path(args.feature), root)
+        if not resolved:
+            emit({"verdict": "WARN", "action": "ws-progress", "resolved_ws": None,
+                  "reason": ("--feature 无法解析 WS(F-id 未在任何 ROADMAP「对应F编号」匹配 · "
+                             "或该 feature 不属任何 WS)· 跳过刷新 —— 若确属某 WS 用 --ws 显式指定")})
+            return
+        raw = resolved
     bare = re.fullmatch(r"0*(\d+)", raw)          # 容裸数字 01 / 1（help 承诺）
     targets = _ws_nums(raw) or ({int(bare.group(1))} if bare else set())
     if not targets:
-        emit({"verdict": "FAIL", "reason": f"--ws {args.ws!r} 抽不出 WS 编号"})
+        emit({"verdict": "FAIL", "reason": "需 --ws <编号> 或 --feature <路径>(抽不出 WS 编号)"})
         return
     ws_label = "WS-%02d" % min(targets)
-    root = _git_toplevel(Path.cwd()) or Path.cwd()
     _SKIP = {"node_modules", ".git", "_archive", "dist", "build", ".next", "vendor"}
 
     ws_file = _find_ws_file(root, ws_label, _SKIP)
@@ -4491,7 +4540,8 @@ def build_parser() -> argparse.ArgumentParser:
     wpp = sub.add_parser(
         "ws-progress",
         help="[v8.174/177] 名册驱动汇总某 WS 的 feature 执行态(含跨子项目/legacy)→ 进度块 + 依赖 DAG(--write 写回 WS-PROGRESS/WS-DAG 标记区)")
-    wpp.add_argument("--ws", required=True, help="WS 编号(WS-01 / 01 / WS-1 均可)")
+    wpp.add_argument("--ws", help="WS 编号(WS-01 / 01 / WS-1 均可)· 与 --feature 二选一")
+    wpp.add_argument("--feature", help="[v8.180] feature 路径 · 自其 F-id 在 ROADMAP「对应F编号」解析所属 WS(ship 自刷用 · 不必报 WS 编号)")
     wpp.add_argument("--write", action="store_true",
                      help="写回 WS 文档的 <!-- WS-PROGRESS:START/END --> 标记区(缺标记则仅输出)")
     wpp.set_defaults(func=cmd_ws_progress)

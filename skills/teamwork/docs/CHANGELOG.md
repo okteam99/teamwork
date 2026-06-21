@@ -4,6 +4,19 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.180 · ship 确定性自刷 WS 进度块 · 治 yolo 下 WS 文档 stale(软指令没人接住)
+
+> 用户看 yolo ship2:感觉没更新 WS 文档。诊断:① WS 更新本在 **ship1 §3.5 翻牌**(不在 ship2 · ship2 零内容清场)② §3.5 spec 只说「改 WS-NN.md」**没说跑 ws-progress**(v8.174 只接了 emit 没同步 spec)③ planning-backref 门**软**(只看传没传 `--planning-artifacts` · 不校验 WS 刷没刷)→ yolo 自主无人接住 · WS 进度块 routinely stale。
+
+### 改动
+- **`ws-progress --feature`**(新):自 feature 的 F-id 在各 ROADMAP「对应F编号」匹配 → 解析**所属 WS**(关联WS · 带 BL→名册反查退路)· 不必报 WS 编号。解析不到 → WARN 跳过(best-effort)。
+- **ship archive 确定性自刷**(主修):翻牌后 ship **自动** invoke `ws-progress --feature --write` 刷新 WS 进度块 / 依赖 DAG + 把 WS 文档纳进归档 commit(emit `ws_progress_refreshed`)· **不靠 AI 纪律 · yolo 也一定刷**。
+- **§3.5 spec 同步**:翻牌填「对应F编号 = 本 feature F-id」(archive 靠它解析 WS)· WS 进度块**不用手动刷**(archive 自刷)· planning-backref emit 对齐。
+- **测试** `test_ws_resolve_v8180` +6(解析 / 名册退路 / 归一化 / CLI)。
+
+### 验证
+- code(`state.py` --feature 解析 + `_v8_ship` archive 自刷)+ spec · pytest 3 failed(baseline)/ 620 passed。
+
 ## v8.179 · yolo 策略调整:预研门(物化硬门)+ 非异质降级 subagent 冷审 + localconfig 单源
 
 > 用户调整 yolo 策略 3 点:① 异质 review 受 localconfig 控制(确认)② yolo 启动非异质 → 醒目提示 + 确保 subagent 冷审 ③ yolo 正式跑前深入调研 + 核心重要问题提前和用户确认。
@@ -57,16 +70,3 @@
 
 ### 验证
 - doc(ui-design §3/反模式 · dev §3)+ brief(`_dev_brief`)+ test · pytest 3 failed(baseline)/ 579 passed。
-
-## v8.175 · ui_design「扩已有页」复现门:设计稿基于真实代码整页复现 · 禁概念页
-
-> 实证 AON Offer-Analysis case:feature 给已有真实页 `/analytics/offers` 加 tab,ui_design 却产出孤立**概念页** —— 只画新 tab、没按真实代码复现整页(筛选区 / KPI·funnel·trend / Top card 位置),用户判「设计稿不完整、和实际不一致」打回重做。根因:规范的「在已有全景上增量补」**默认那张页早被规划期 seed 进 preview-project**;brownfield(扩已有页、规划期没 seed 这张)时「增量」无所补、「首次 seed」又没说「按真实代码复现整页」→ AI 画了概念页。
-
-### 改动
-- **§3 复现门**(ui-design-stage.md · 主修):扩已有真实页时设计稿单位 = **整张页** —— ① 读该页真实组件/路由源定当前形态(grounding 同 prepare/goal 核验真实文件)② preview-project 按真实形态复现整页(same-stack 直接复用真实共享组件 → 保真)再集成新部分 · 🔴 **禁「概念页」**(只画新控件不复现真实页结构 = 局部 = 评审/用户看不出落地效果)。
-- **§1 判定**:加载上下文时先判「扩已有页 vs 全新页」· 扩已有页 → 必读真实代码当前形态作 grounding。
-- **brief 同步推**(v8.170 铁律 · 治「模型不主动复现」):`_ui_design_brief` 加「扩已有页→复现整页·禁概念页」一行 —— spec 改了 brief 必跟,否则规则躺 doc 被跳过。
-- **brief 断言测试** `test_ui_design_brief_v8175` +3:锁 brief 携带复现门 + 回归护栏(v8.170 的 UI-RULES/dev顶栏不许被挤掉)· 补上 v8.170 漏建的 brief-content 测试洞。
-
-### 验证
-- doc(ui-design-stage §1/§3)+ brief(`_v8_stage_specs`)+ test · pytest 3 failed(baseline)/ 576 passed。
