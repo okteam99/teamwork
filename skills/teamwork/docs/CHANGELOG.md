@@ -4,6 +4,18 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.182 · TECH 加「完工自查」物化清单 · RD 实现完逐项打钩 · 对着设计防「设计了没实现」
+
+> 用户:需要 RD 开发完在文档内逐项打钩的自查清单么?现状:dev-stage §4 **有**自查清单,但 ① 在 spec 里、**不在 per-feature 文档**(打钩只在 AI 脑子)② 通用门(规范/build/linter),**不覆盖 TECH 设计承诺**(新加的 §错误处理/§依赖与影响/§测试策略 + v8.176 parity + v8.178 基线)。
+
+### 改动
+- **TECH.md §完工自查**(新 · RD 实现完逐项打 ✅):**对着本 TECH 设计逐条**(现状基线前提 / §错误处理 / §依赖与影响消费方 / §数据结构跨层 / §数据库变更 / §测试策略集成契约)+ 通用门(规范/无回归/build/linter/commit)+ (UI)设计↔实际核对。每项指向证据(测试/文件/编译)· 不适用 `N-A` · **专防「设计了没实现」**。
+- **dev-stage §4 改物化**:「读清单」→「在 `TECH.md §完工自查` **文档内逐项打钩** · review 据此核」· cite 清单 + `_dev_brief` 同步推(消费点)。
+- **定位**:soft **完整性**自证 —— 强门禁(test exit-code / verify-ac / external-review)仍是硬墙;本清单补「设计↔实现」完整性 · review 验 · 非橡皮图章。
+
+### 验证
+- doc(`tech.md` +完工自查 · `dev-stage.md` §4/cite)+ brief(`_dev_brief`)· `test_v8_stage_specs` 90 passed · pytest 3 failed(baseline)/ 620 passed。
+
 ## v8.181 · TECH 模板补 6 缺口 · 进 dev 前最后 spec 完整化
 
 > 用户 review TECH 模板(进 dev 前最后 spec)找遗漏。交叉比对:blueprint 规范 §3 要求 TECH 含「§模块 · §数据 · §接口 · §依赖与影响 · §风险」5 段,**模板只有前 3 段** —— §依赖与影响、§风险 规范要求但模板**没槽位**(AI 必漏)。另有 4 处真盲区。
@@ -55,16 +67,3 @@
 
 ### 验证
 - code(`state.py` 命令 + `_v8_stage_specs` 3 gate + `_v8_engine` arg/evidence 白名单/fix-retry)+ template + spec/brief + test · pytest 3 failed(baseline)/ 604 passed。
-
-## v8.177 · ws-progress 名册驱动 + 依赖 DAG · 跨子项目/legacy feature 不漏 + 派生依赖图
-
-> 实证 supersimples WS-03:① 跨子项目前置 K0=SDK-F040 登记在 SDK ROADMAP 的 **legacy 表**(无「关联 WS」列)→ v8.174 ws-progress 只扫「关联 WS」漏掉它 · 总览只 6 个不是 7 个(用户被迫手写 📌 补注)② 无 feature 执行依赖关系图。根因:工具从不读 WS 自己的名册,而「WS 拥有哪些 feature」只在 WS frontmatter `features[]` 里声明。
-
-### 改动
-- **名册驱动**(`state.py` · 主修):ws-progress 读 WS frontmatter `features[]` 当**权威名册** —— 声明的 feature **全列出**(含跨子项目/前置)· 状态自各 ROADMAP 按 BL 匹配 · 匹配不到标「未匹配」不漏报。解析器放宽:① 表头门槛降到 BL+状态(吃无「关联 WS」列的 **legacy 表**)② 行 id 放行名册声明的非 BL id(SDK-Fxxx)。无名册 → 回退 v8.174 纯「关联 WS」扫(向后兼容)。
-- **依赖 DAG**(新):自 `features[].dependencies` 派生 Mermaid flowchart,写回 WS 的 `WS-DAG` 标记区(节点=feature 短名 · 边=依赖→被依赖)。
-- **模板**:加 `## feature 依赖关系图` + `WS-DAG` 标记区 · 总览注释 / 设计要点 #8 改名册驱动。
-- **测试** +8(`test_ws_roster_dag_v8177`:名册解析 / legacy 表 / DAG / K0 现身)· v8.174 套件适配新签名。
-
-### 验证
-- code(`state.py` ws-progress 重写)+ template + test · pytest 3 failed(baseline)/ 587 passed。

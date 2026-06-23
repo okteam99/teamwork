@@ -221,4 +221,23 @@ sequenceDiagram
 ## 变更记录
 | 日期 | 变更 |
 |------|------|
+
+## 完工自查（🔴 RD 实现完逐项打钩 · review 据此核）
+
+> **不是橡皮图章**:每项 ✅ 要能指向证据(测试名 / 文件路径 / 编译结果)· 不适用写 `N-A + 原因`。强门禁(test exit-code / verify-ac / external-review)仍在;本清单补**完整性** —— 专防「**设计了没实现**」(尤其下面对着 TECH 各段的横切维度)。
+
+**对照本 TECH 的设计落地:**
+- [ ] **现状基线**:实现中关键前提仍成立(没发现假设错 · 错了已回 blueprint/diagnose 复议,未硬写下去)
+- [ ] **§错误处理/异常路径**:每条失败路径都实现了(不是只跑通 happy-path)
+- [ ] **§依赖与影响**:消费方清单都同步改了 —— 证据 `tsc -b` / 编译零报错(口径=编译过,非固定名单,防漏迁)
+- [ ] **§数据结构**:字段跨层一致(DTO ↔ Model ↔ DB · 无类型/必填漂移)
+- [ ] **§数据库变更**(若有):migration up/down 实跑过 · Schema 影响表的 Model/SQL 都改了
+- [ ] **§测试策略**:该写的**集成/契约测试**写了(不只单测 · 跨层契约真打真实 DB/BFF · 不靠两边 mock)
+
+**通用质量门:**
+- [ ] 规范符合(DEV-RULES / common / backend / frontend)
+- [ ] 已有测试无回归(exit-code=0 · brownfield 红 base 走 `test-baseline` 差分「0 新增」)
+- [ ] build 通过 · linter pass · 改了共享基建则全景编译过(dev-stage §3.5)
+- [ ] (UI feature)**设计↔实际一致性核对**做了(意图四要素 · dev-stage §3)
+- [ ] commit message 含 Feature ID · 改动文件全在 commit changeset 内
 ```
