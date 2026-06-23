@@ -12,7 +12,7 @@
 BDD Given/When/Then · frontmatter `tests: [{id, covers_ac, description}]` · 每 AC 至少 1 test
 
 ### 3. RD 起草 TECH.md
-§模块划分 · §数据模型 · §接口定义 · §依赖与影响 · §风险
+**§现状基线**(🔴 grounded 真实代码 · 不靠假设)· §模块划分 · §数据模型 · §接口定义 · **§错误处理/异常路径**(失败语义 + 每条 WARN/ERROR 日志 · 不静默吞)· **§依赖与影响**(改契约必列消费方 · grep 不凭记忆)· **§查询性能**(涉 SQL · 分析并给理由)· §TDD 计划含 **§测试策略**(单元/集成/契约 · 哪里要真实 DB/BFF)· **§风险** · 复杂度评估含**简洁性自查**(RD 主动自证 · 防过度设计)。
 🔴 §数据模型 必明确标注:本方案**是否涉及数据库数据结构变更**(新建/删除/修改 表、字段、索引、约束、migration)· 涉及 → 触发 §7.5 用户确认暂停点。
 
 ### 4. Architect Tech Review → TECH-REVIEW.md
@@ -85,7 +85,7 @@ blueprint-complete 前 **必 emit R5 标准 1/2/3 暂停点 · 等用户拍板**
 
 > 📋 **起草模板**(避免找历史 Feature 抄):
 > - TC.md → `{SKILL_ROOT}/templates/tc.md`(含 frontmatter + tests[].covers_ac BDD 示例)
-> - TECH.md → `{SKILL_ROOT}/templates/tech.md`(结构:技术方案〔架构/数据结构/接口〕· 实现思路〔改动文件清单/数据库变更/前端方案〕· TDD 开发计划 · 待决策)
+> - TECH.md → `{SKILL_ROOT}/templates/tech.md`(结构:复杂度+简洁性自查 · **现状基线**〔grounded 真实代码〕· 技术方案〔架构/数据结构/接口/**错误处理+日志**/**依赖与影响**〕· 实现思路〔改动文件/DB变更/**查询性能**/前端〕· TDD计划〔**测试策略层次**/步骤〕· **风险** · 待决策 · **完工自查**〔RD 实现完逐项打钩〕)
 > - TECH-REVIEW.md → 无独立模板 · 见下方 schema · 按评审角色 finding 分段
 > - external-cross-review/*.md → 跑 `state.py external-review --feature ... --stage blueprint`(自动落产物 · 不要手写)
 >

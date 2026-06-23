@@ -717,9 +717,10 @@ def _handle_ship_archive(state: dict, args: argparse.Namespace) -> dict:
                 "🔴 归档前先翻规划层 back-reference(feature = 某 BL 的落地 · 不翻牌 → "
                 "规划层与执行层脱节 · 进度统计失真):\n"
                 "  ① 判断哪些需翻「📋 → ✅ 已交付」(只改相关的 · AI 自决):"
-                "ROADMAP.md 对应 BL(先翻 · WS 进度派生自它)/ teamwork-space.md / 项目变更单;"
-                "🔴 WS 的 §feature 总览进度块**别手改** · 翻完 ROADMAP BL 后跑 "
-                "`state.py ws-progress --ws WS-NN --write` 自动刷新(顺序要紧:WS 派生自 ROADMAP)\n"
+                "ROADMAP.md 对应 BL(翻状态 + 🔴 填「对应 F编号」= 本 feature 的 F-id · archive 靠它自解析所属 WS)"
+                " / teamwork-space.md / 项目变更单;"
+                "🔴 WS 的 §feature 总览进度块**别手改、也不必手动跑 ws-progress** —— archive 会从本 feature "
+                "自解析 WS + 自刷 + 纳进归档 commit(v8.180 · emit ws_progress_refreshed)\n"
                 "  ② 🔴 在 **worktree 内**改好(不 commit · archive 会随归档 commit 一起带走 · "
                 "随 feature MR 原子合入 —— MR 不合翻牌不生效 · revert 同退)\n"
                 f"  ③ 重跑:state.py ship-phase --action archive --feature {args.feature} "
@@ -779,6 +780,22 @@ def _handle_ship_archive(state: dict, args: argparse.Namespace) -> dict:
                              archive_desc=archive_desc),
         encoding="utf-8")
 
+    # v8.180:确定性自刷 WS 进度块 —— 翻牌后从 feature 自解析所属 WS(F-id→ROADMAP 对应F编号→关联WS)
+    # + 跑 ws-progress --write · 纳进归档 commit。治本:WS 进度块更新原是软指令(§3.5)· yolo 自主
+    # 无人接住 → routinely stale。best-effort:解析不到(feature 不属 WS / 对应F编号 没填)则静默跳过。
+    ws_refreshed = None
+    try:
+        _r = subprocess.run(
+            [sys.executable, str(Path(__file__).resolve().parent / "state.py"),
+             "ws-progress", "--feature", str(artifact_root), "--write"],
+            cwd=wt_root, capture_output=True, text=True, timeout=60)
+        if _r.stdout.strip().startswith("{"):
+            _d = json.loads(_r.stdout)
+            if _d.get("verdict") == "OK" and _d.get("written_to"):
+                ws_refreshed = _d["written_to"]
+    except (subprocess.SubprocessError, OSError, ValueError):
+        pass
+
     # git rm --cached(index only · 工作树保留 = ship2 接力卡)→ add → 单 commit
     rm = _git(["rm", "-r", "-q", "--cached", "--ignore-unmatch", feature_rel], cwd=wt_root)
     if rm.returncode != 0:
@@ -786,6 +803,8 @@ def _handle_ship_archive(state: dict, args: argparse.Namespace) -> dict:
                    "error": f"git rm --cached {feature_rel} 失败:{rm.stderr.strip()[:150]}"},
                   exit_code=1)
     adds = [zip_rel, index_rel] + [rel for rel, _ in planning_files]
+    if ws_refreshed and ws_refreshed not in adds:
+        adds.append(ws_refreshed)        # v8.180:自刷的 WS 进度块文档纳进归档 commit
     ad = _git(["add", "--", *adds], cwd=wt_root)
     if ad.returncode != 0:
         emit_json({"verdict": "FAIL", "action": "archive",
@@ -810,6 +829,8 @@ def _handle_ship_archive(state: dict, args: argparse.Namespace) -> dict:
         "archive_commit": head,
         "zip": zip_rel,
         "planning_bundled": [rel for rel, _ in planning_files],
+        # v8.180:WS 进度块确定性自刷结果(None = feature 不属 WS / 对应F编号 未填 → 未刷 · 见 §3.5)
+        "ws_progress_refreshed": ws_refreshed,
         "warnings": [
             "过程目录已转 untracked 接力卡(工作树保留 · 分支树已删)· "
             "🔴 此后勿在 worktree 跑 `git add -A`(会把目录加回来)",

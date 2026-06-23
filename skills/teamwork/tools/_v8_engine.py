@@ -1402,6 +1402,8 @@ def execute_stage_complete(
         "decision",                  # pm_acceptance
         "note",                      # pm_acceptance
         "panorama_changed",          # ui_design(决定 panorama_sync 条件 stage 是否进入)
+        "current_failures",          # v8.178 test/dev:红 base 差分基线的当前失败集
+        "integration_diff_clean",    # v8.178 test:差分判定结果(evidence 检查写 · _test_transition 读)
     )
     for field in _EVIDENCE_FIELDS:
         val = getattr(args, field, None)
@@ -1731,6 +1733,9 @@ def _add_stage_specific_args(parser: argparse.ArgumentParser, stage_name: str, p
                             help="测试 stdout(文件路径或字符串)· 必须非空")
         parser.add_argument("--test-exit-code", type=int, default=None,
                             help="测试 exit code · 必须 = 0")
+        parser.add_argument("--current-failures", default="",
+                            help="[v8.178] 红 base 差分基线:逗号/换行分隔的当前失败用例 id · "
+                                 "工具对照 project-specs/test-baseline.md 算新增(0 新增 → 红 base 也放行)")
     elif stage_name == "review" and phase == "complete":
         parser.add_argument("--verdict", choices=["APPROVE", "NEEDS_REVISION"],
                             required=True, help="评审结论")
@@ -1741,6 +1746,9 @@ def _add_stage_specific_args(parser: argparse.ArgumentParser, stage_name: str, p
                             help="[deprecated] 集成测试 exit code · v8.28 推荐 --run-tests 工具自跑")
         parser.add_argument("--e2e-test-exit-code", type=int, default=None,
                             help="[deprecated] API E2E exit code · v8.28 推荐 --run-tests 工具自跑")
+        parser.add_argument("--current-failures", default="",
+                            help="[v8.178] 红 base 差分基线:逗号/换行分隔的当前(integration)失败用例 id · "
+                                 "对照 project-specs/test-baseline.md 算新增 · 0 新增 → 红 base 也转 pm_acceptance")
         # v8.28:test 验证物化(治本 F037 case-AI 自报 stdout 漏洞 · 不污染主 context)
         parser.add_argument("--run-tests", action="store_true",
                             help=("[v8.28] 工具自 subprocess 跑测试 · capture exit_code · "
@@ -1917,14 +1925,19 @@ _STAGE_FIX_RETRY_CONFIG = {
     },
     "test": {
         "commit_field": "test_commit",
+        # v8.178:integration 红但差分干净(integration_diff_clean=True)不算失败轮(预存在 ⊆ 基线)
         "is_failed_round": lambda r: (
-            (r.get("integration_test_exit_code") not in (None, 0))
+            (r.get("integration_test_exit_code") not in (None, 0)
+             and r.get("integration_diff_clean") is not True)
             or (r.get("e2e_test_exit_code") not in (None, 0))
         ),
-        "evidence_keys_to_clear": ["integration_test_exit_code", "e2e_test_exit_code"],
+        "evidence_keys_to_clear": ["integration_test_exit_code", "e2e_test_exit_code",
+                                   "integration_diff_clean", "current_failures"],
         "round_init_fields": {
             "integration_test_exit_code": None,
             "e2e_test_exit_code": None,
+            "integration_diff_clean": None,
+            "current_failures": None,
         },
         "complete_command_template": (
             "state.py test-complete --feature {feature} --auto-commit <hash> "

@@ -601,6 +601,8 @@ def cmd_add_concern(args: argparse.Namespace) -> None:
 
 _WS_PROG_START = "<!-- WS-PROGRESS:START"
 _WS_PROG_END = "<!-- WS-PROGRESS:END -->"
+_WS_DAG_START = "<!-- WS-DAG:START"
+_WS_DAG_END = "<!-- WS-DAG:END -->"
 # 渲染时给 ROADMAP 状态文案配图标(只认前缀 · 其余原样)· 与 roadmap.md §状态 词表对齐
 _WS_STATUS_ICON = {"已完成": "✅", "进行中": "🔄", "已取消": "🗑️"}
 
@@ -610,11 +612,65 @@ def _ws_nums(text: str) -> set[int]:
     return {int(n) for n in re.findall(r"WS-?0*(\d+)", text or "", re.I)}
 
 
-def _parse_roadmap_rows(path: Path) -> list[dict]:
+def _ws_short(fid: str, ws_label: str) -> str:
+    """feature 临时 id 短名:WS-03-K0 → K0 · WS-03-S1 → S1（DAG 节点 / 总览用）。"""
+    return re.sub(r"^WS-?\d+-", "", (fid or "").strip()) or (fid or "")
+
+
+def _parse_ws_features(ws_file: Path) -> list[dict]:
+    """raw-scan WS frontmatter 的 `features:` 列 → [{id,target,bl,deps,status,scope}]。
+
+    治本(v8.177):跨子项目/legacy 格式的 feature(如 K0=SDK-F040 在 SDK ROADMAP 无「关联 WS」列)
+    只在 WS 自己的名册里登记 · ws-progress 必须读名册才不漏。frontmatter 是 list-of-dict(简单
+    key:value 解析器不支持)→ 限定在 TEAMWORK-MACHINE 注释区行扫描。
+    """
+    try:
+        text = ws_file.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return []
+    mc = re.search(r"<!--\s*TEAMWORK-MACHINE.*?\n(.*?)\n-->", text, re.S)
+    head = mc.group(1) if mc else text.split("\n# ", 1)[0]   # 退路:首个 body H1 之前
+    feats: list[dict] = []
+    cur: dict | None = None
+    in_feats = False
+    for ln in head.splitlines():
+        if re.match(r"^\s{0,2}features:\s*(#.*)?$", ln):
+            in_feats = True
+            continue
+        if not in_feats:
+            continue
+        if re.match(r"^[A-Za-z_]\w*:", ln):        # 回到顶层另一键 → features 段结束
+            break
+        m_id = re.match(r"^\s*-\s*id:\s*(.+?)\s*(#.*)?$", ln)
+        if m_id:
+            if cur:
+                feats.append(cur)
+            cur = {"id": m_id.group(1).strip().strip("\"'"), "target": "", "bl": "",
+                   "deps": [], "status": "", "scope": ""}
+            continue
+        if cur is None:
+            continue
+        m_kv = re.match(r"^\s*(target|bl|status|scope|dependencies):\s*(.*?)\s*$", ln)
+        if m_kv:
+            k, v = m_kv.group(1), m_kv.group(2).strip().strip("\"'")
+            if k == "dependencies":
+                inner = v.strip().lstrip("[").rstrip("]").strip()
+                cur["deps"] = [d.strip().strip("\"'") for d in inner.split(",") if d.strip()]
+            elif k == "bl":
+                cur["bl"] = "" if v in ("null", "~", "") else v
+            else:
+                cur[k] = v
+    if cur:
+        feats.append(cur)
+    return feats
+
+
+def _parse_roadmap_rows(path: Path, id_allow: set[str] | None = None) -> list[dict]:
     """解析一个 ROADMAP.md 内**所有** Feature 表 → [{bl,name,status,stage,f_id,ws}]。
 
-    按列名定位(Feature ID / 功能名称 / 状态 / 当前阶段 / 对应 F编号 / 关联 WS)·
-    容忍列序差异 / 多余列 / 一个文件多张表(各 Wave 段)· 蓝本同 _parse_workspace_registry。
+    按列名定位(Feature ID / 功能名称 / 状态 / 当前阶段 / 对应 F编号 / 关联 WS)· 容列序/多余列/
+    多表。v8.177:① 表头门槛降到 BL+状态(「关联 WS」列可缺 · 吃 legacy 表)② 行 id 除 BL-NNN 外
+    放行 id_allow(WS 名册声明的跨子项目 id 如 SDK-F040)。
     """
     try:
         lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
@@ -645,16 +701,16 @@ def _parse_roadmap_rows(path: Path) -> list[dict]:
                     if any(n in c for n in names):
                         found[key] = i
                         break
-            if {"bl", "status", "ws"} <= found.keys():
-                col = found    # 认作有效 ROADMAP 表头(至少有 BL+状态+关联WS)
+            if {"bl", "status"} <= found.keys():
+                col = found    # v8.177:有 BL+状态即认表头(关联WS 列可缺 · legacy 表)
             continue
 
         def cell(key: str) -> str:
             i = col.get(key)
             return cells[i] if i is not None and i < len(cells) else ""
         bl = cell("bl")
-        if not re.match(r"BL-?\d+", bl, re.I):
-            continue           # 非 BL 行(技术债表 / 占位)跳过
+        if not (re.match(r"BL-?\d+", bl, re.I) or (id_allow and bl in id_allow)):
+            continue           # 非 BL 行跳过 · 但放行名册声明的 id(SDK-F040 等)
         rows.append({
             "bl": bl, "name": cell("name"), "status": cell("status") or "待开始",
             "stage": cell("stage"), "f_id": cell("f_id"), "ws": cell("ws"),
@@ -662,9 +718,12 @@ def _parse_roadmap_rows(path: Path) -> list[dict]:
     return rows
 
 
-def _render_ws_progress(ws_label: str, items: list[dict], n_roadmaps: int) -> str:
-    """汇总行 + 总览表(markdown)· items 已按 WS 过滤 · 含 subproject 字段。"""
+def _render_ws_progress(ws_label: str, items: list[dict], n_roadmaps: int,
+                        roster_driven: bool) -> str:
+    """汇总行 + 总览表(markdown)· items 含 subproject/short 字段。"""
     def bucket(st: str) -> str:
+        if "未匹配" in st or "未写入" in st:
+            return "未匹配"
         for k in _WS_STATUS_ICON:
             if k in st:
                 return k
@@ -673,80 +732,265 @@ def _render_ws_progress(ws_label: str, items: list[dict], n_roadmaps: int) -> st
         return "待开始"
     counts: dict[str, int] = {}
     for it in items:
-        counts[bucket(it["status"])] = counts.get(bucket(it["status"]), 0) + 1
+        b = bucket(it["status"])
+        counts[b] = counts.get(b, 0) + 1
     total = sum(v for k, v in counts.items() if k != "已取消")
     done = counts.get("已完成", 0)
     seq = [("进行中", counts.get("进行中", 0)), ("待开始", counts.get("待开始", 0)),
-           ("等待依赖", counts.get("等待依赖", 0)), ("已取消", counts.get("已取消", 0))]
+           ("等待依赖", counts.get("等待依赖", 0)), ("未匹配", counts.get("未匹配", 0)),
+           ("已取消", counts.get("已取消", 0))]
     tail = " · ".join(f"{n} {k}" for k, n in seq if n)
+    src = (f"名册 {len(items)} feature · 状态自 {n_roadmaps} 个 ROADMAP 匹配"
+           if roster_driven else f"自 {n_roadmaps} 个 ROADMAP 汇总")
     if not items:
         head = "进度 暂无数据(本 WS 的 feature 尚未写入任何 ROADMAP · 规划完成后自动出现)"
     else:
         head = f"进度 {done}/{total} 已完成" + (f" · {tail}" if tail else "")
-    lines = [head, f"（自 {n_roadmaps} 个 ROADMAP 汇总 · {now_iso()}）", ""]
+    lines = [head, f"（{src} · {now_iso()}）", ""]
     if items:
-        lines += ["| BL | 子项目 | 功能 | 状态 | 当前阶段 | F |",
-                  "|----|--------|------|------|----------|---|"]
-        for it in sorted(items, key=lambda x: (x["subproject"], x["bl"])):
+        lines += ["| feature | BL | 子项目 | 功能 | 状态 | 当前阶段 | F |",
+                  "|---------|----|--------|------|------|----------|---|"]
+        for it in sorted(items, key=lambda x: (x.get("subproject", ""), x["bl"])):
             icon = next((v for k, v in _WS_STATUS_ICON.items() if k in it["status"]), "")
             st = f"{icon} {it['status']}".strip()
             lines.append(
-                f"| {it['bl']} | {it['subproject']} | {it['name'] or '—'} | {st} "
-                f"| {it['stage'] or '—'} | {it['f_id'] or '—'} |")
+                f"| {it.get('short') or '—'} | {it['bl']} | {it.get('subproject') or '—'} "
+                f"| {it['name'] or '—'} | {st} | {it['stage'] or '—'} | {it['f_id'] or '—'} |")
     return "\n".join(lines)
 
 
+def _render_ws_dag(roster: list[dict], ws_label: str) -> str | None:
+    """自 features[].dependencies 派生 Mermaid 依赖 DAG(节点=feature 短名 · 边=dep→feature)。"""
+    live = [f for f in roster if f.get("status") != "废弃"]
+    if not live:
+        return None
+    ids = {f["id"] for f in live}
+    out = ["```mermaid", "flowchart LR"]
+    for f in live:
+        sid = _ws_short(f["id"], ws_label)
+        bl = f["bl"] or "待回填"
+        out.append(f'  {sid}["{sid} · {bl}"]')
+    edged = False
+    for f in live:
+        sid = _ws_short(f["id"], ws_label)
+        for d in f["deps"]:
+            if d in ids:
+                out.append(f"  {_ws_short(d, ws_label)} --> {sid}")
+                edged = True
+    if not edged:
+        out.append("  %% 无声明依赖(features[].dependencies 全空)")
+    out.append("```")
+    return "\n".join(out)
+
+
+def _ws_subproject(rm: Path, root: Path) -> str:
+    """ROADMAP 路径 → 可读子项目名(多在 {子项目}/docs/ 或 project-specs/{子项目}/ 下)。"""
+    sub = rm.parent.name if rm.parent != root else root.name
+    if rm.parent.name in {"docs", "project-specs"} and rm.parent.parent != root:
+        sub = rm.parent.parent.name
+    return sub
+
+
+def _find_ws_file(root: Path, ws_label: str, skip: set[str]):
+    cands = [p for p in root.rglob(f"{ws_label}*.md")
+             if not (set(p.parts) & skip) and "workstream" in str(p).lower()]
+    if not cands:
+        cands = [p for p in root.rglob(f"{ws_label}*.md") if not (set(p.parts) & skip)]
+    return cands[0] if cands else None
+
+
+def _splice_block(text: str, start_tok: str, end_tok: str, body: str):
+    """替换 <!-- START ...-->\\n...\\n<!-- END --> 之间内容 · 无标记返回 None。"""
+    pat = re.compile(r"(" + re.escape(start_tok) + r"[^\n]*-->)\n.*?\n(" +
+                     re.escape(end_tok) + r")", re.S)
+    if not pat.search(text):
+        return None
+    return pat.sub(lambda m: m.group(1) + "\n" + body + "\n" + m.group(2), text)
+
+
+def _resolve_ws_from_feature(feature_dir: Path, root: Path) -> "Optional[str]":
+    """v8.180:从 feature 的 F-id 在 ROADMAP「对应F编号」匹配 → 关联WS(ship 自刷用 · 不靠 AI 报 --ws)。
+
+    链路:feature_id 抽 F-token → 扫 ROADMAP 找「对应F编号」含该 token 的行 → 读「关联 WS」·
+    无关联WS 则用该行 BL 反查各 WS 名册(features[].bl)· 都不中返 None(best-effort · ship 退回提示)。
+    """
+    fid = ""
+    sj = feature_dir / "state.json"
+    if sj.is_file():
+        try:
+            fid = json.loads(sj.read_text(encoding="utf-8")).get("feature_id", "") or ""
+        except (OSError, ValueError):
+            pass
+    fid = fid or feature_dir.name
+    m = re.search(r"F-?\d+", fid, re.I)
+    if not m:
+        return None
+    ftoken = m.group(0).replace("-", "").upper()
+    _SKIP = {"node_modules", ".git", "_archive", "dist", "build", ".next", "vendor"}
+    roadmaps = [p for p in root.rglob("ROADMAP.md") if not (set(p.parts) & _SKIP)]
+    bl_hit = None
+    for rm in roadmaps:
+        for r in _parse_roadmap_rows(rm):
+            if ftoken in (r.get("f_id", "") or "").replace("-", "").upper():
+                ws = _ws_nums(r.get("ws", ""))
+                if ws:
+                    return "WS-%02d" % min(ws)
+                bl_hit = bl_hit or r.get("bl")    # 有 BL 无关联WS → 名册反查退路
+    if bl_hit:
+        for wsf in root.rglob("WS-*.md"):
+            if "workstream" not in str(wsf).lower() or (set(wsf.parts) & _SKIP):
+                continue
+            if any(f.get("bl") == bl_hit for f in _parse_ws_features(wsf)):
+                n = _ws_nums(wsf.name)
+                if n:
+                    return "WS-%02d" % min(n)
+    return None
+
+
 def cmd_ws_progress(args: argparse.Namespace) -> None:
-    """v8.174:汇总某 WS 下各 ROADMAP feature 的执行态 → 进度 rollup（派生 · 不手抄）。"""
-    raw = (args.ws or "").strip()
+    """v8.174/177/180:汇总某 WS 下 feature 执行态 → 进度 rollup + 依赖 DAG（派生 · 不手抄）。
+
+    v8.180:--feature 替代 --ws —— 自 feature F-id 解析所属 WS(ship 自刷用 · 不靠 AI 报 WS 编号)。
+
+    v8.177:名册驱动 —— 读 WS frontmatter features[] 当权威 roster(声明的 feature 全列出 · 含
+    跨子项目/legacy 的 K0)· 状态自 ROADMAP 按 bl 匹配(放宽解析器吃 legacy 表)· 匹配不到标「未匹配」·
+    并自 dependencies 派生 Mermaid DAG。无名册 → 回退 v8.174 纯「关联 WS」扫(向后兼容)。
+    """
+    root = _git_toplevel(Path.cwd()) or Path.cwd()
+    raw = (getattr(args, "ws", None) or "").strip()
+    if not raw and getattr(args, "feature", None):   # v8.180:--feature → 自解析 WS
+        resolved = _resolve_ws_from_feature(Path(args.feature), root)
+        if not resolved:
+            emit({"verdict": "WARN", "action": "ws-progress", "resolved_ws": None,
+                  "reason": ("--feature 无法解析 WS(F-id 未在任何 ROADMAP「对应F编号」匹配 · "
+                             "或该 feature 不属任何 WS)· 跳过刷新 —— 若确属某 WS 用 --ws 显式指定")})
+            return
+        raw = resolved
     bare = re.fullmatch(r"0*(\d+)", raw)          # 容裸数字 01 / 1（help 承诺）
     targets = _ws_nums(raw) or ({int(bare.group(1))} if bare else set())
     if not targets:
-        emit({"verdict": "FAIL", "reason": f"--ws {args.ws!r} 抽不出 WS 编号"})
+        emit({"verdict": "FAIL", "reason": "需 --ws <编号> 或 --feature <路径>(抽不出 WS 编号)"})
         return
     ws_label = "WS-%02d" % min(targets)
-    root = _git_toplevel(Path.cwd()) or Path.cwd()
     _SKIP = {"node_modules", ".git", "_archive", "dist", "build", ".next", "vendor"}
-    roadmaps = [p for p in root.rglob("ROADMAP.md")
-                if not (set(p.parts) & _SKIP)]
-    items: list[dict] = []
+
+    ws_file = _find_ws_file(root, ws_label, _SKIP)
+    roster = [f for f in (_parse_ws_features(ws_file) if ws_file else [])
+              if f.get("status") != "废弃"]
+    roster_bls = {f["bl"] for f in roster if f["bl"]}
+
+    roadmaps = [p for p in root.rglob("ROADMAP.md") if not (set(p.parts) & _SKIP)]
+    rm_rows: list[tuple[str, dict]] = []
     for rm in roadmaps:
-        sub = rm.parent.name if rm.parent != root else root.name
-        # 子项目名:ROADMAP 多在 {子项目}/docs/ 下 → 取再上一层更可读
-        if rm.parent.name in {"docs", "project-specs"} and rm.parent.parent != root:
-            sub = rm.parent.parent.name
-        for r in _parse_roadmap_rows(rm):
-            if targets & _ws_nums(r["ws"]):
+        sub = _ws_subproject(rm, root)
+        for r in _parse_roadmap_rows(rm, id_allow=roster_bls):
+            rm_rows.append((sub, r))
+    by_bl: dict[str, tuple[str, dict]] = {}
+    for sub, r in rm_rows:
+        by_bl.setdefault(r["bl"], (sub, r))
+
+    items: list[dict] = []
+    if roster:                                    # 名册驱动:声明的 feature 全列出
+        for f in roster:
+            short = _ws_short(f["id"], ws_label)
+            hit = by_bl.get(f["bl"]) if f["bl"] else None
+            if hit:
+                sub, r = hit
+                items.append({**r, "subproject": f["target"] or sub, "short": short})
+            else:
+                items.append({
+                    "bl": f["bl"] or "—", "name": f.get("scope", "")[:24],
+                    "status": "未匹配 ROADMAP" if f["bl"] else "未写入 ROADMAP",
+                    "stage": "", "f_id": "", "ws": ws_label,
+                    "subproject": f["target"] or "—", "short": short})
+        seen = roster_bls
+        for sub, r in rm_rows:                     # 名册外但「关联 WS」命中 → 孤儿(surfacing)
+            if (targets & _ws_nums(r["ws"])) and r["bl"] not in seen:
+                seen = seen | {r["bl"]}
                 items.append({**r, "subproject": sub,
-                              "roadmap": str(rm.relative_to(root))})
-    block = _render_ws_progress(ws_label, items, len(roadmaps))
+                              "short": "⚠️名册外"})
+    else:                                          # 回退:无名册 → 纯关联WS 扫(v8.174)
+        for sub, r in rm_rows:
+            if targets & _ws_nums(r["ws"]):
+                items.append({**r, "subproject": sub, "short": ""})
+
+    block = _render_ws_progress(ws_label, items, len(roadmaps), bool(roster))
+    dag = _render_ws_dag(roster, ws_label) if roster else None
 
     wrote = None
+    dag_written = False
     if args.write:
-        cands = [p for p in root.rglob(f"{ws_label}*.md")
-                 if not (set(p.parts) & _SKIP) and "workstream" in str(p).lower()]
-        if not cands:
-            cands = [p for p in root.rglob(f"{ws_label}*.md") if not (set(p.parts) & _SKIP)]
-        if not cands:
+        if not ws_file:
             emit({"verdict": "WARN", "ws": ws_label, "reason": "找不到 WS 文档 · 仅输出 block",
-                  "rows": len(items), "block": block})
+                  "rows": len(items), "block": block, "dag": dag})
             return
-        ws_file = cands[0]
         text = ws_file.read_text(encoding="utf-8", errors="replace")
-        pat = re.compile(r"(" + re.escape(_WS_PROG_START) + r"[^\n]*-->)\n.*?\n(" +
-                         re.escape(_WS_PROG_END) + r")", re.S)
-        if not pat.search(text):
+        spliced = _splice_block(text, _WS_PROG_START, _WS_PROG_END, block)
+        if spliced is None:
             emit({"verdict": "WARN", "ws": ws_label, "file": str(ws_file.relative_to(root)),
-                  "reason": "WS 文档缺 WS-PROGRESS 标记区 · 仅输出 block(请按模板加标记后再 --write)",
-                  "rows": len(items), "block": block})
+                  "reason": "WS 文档缺 WS-PROGRESS 标记区 · 仅输出 block(按模板加标记后再 --write)",
+                  "rows": len(items), "block": block, "dag": dag})
             return
-        new = pat.sub(lambda m: m.group(1) + "\n" + block + "\n" + m.group(2), text)
-        ws_file.write_text(new, encoding="utf-8")
+        text = spliced
+        if dag:                                    # DAG 块可选 · 有标记才写
+            d2 = _splice_block(text, _WS_DAG_START, _WS_DAG_END, dag)
+            if d2 is not None:
+                text, dag_written = d2, True
+        ws_file.write_text(text, encoding="utf-8")
         wrote = str(ws_file.relative_to(root))
 
     emit({"verdict": "OK", "action": "ws-progress", "ws": ws_label,
-          "roadmaps_scanned": len(roadmaps), "rows": len(items),
-          "written_to": wrote, "block": block})
+          "roadmaps_scanned": len(roadmaps), "roster": len(roster), "rows": len(items),
+          "written_to": wrote, "dag_written": dag_written, "block": block, "dag": dag})
+
+
+# ─── test-baseline:预存在失败注册表 + 差分（v8.178）──────────────────
+# 治本(audit ×8):brownfield 共享套件预存在失败 · 每 feature 重复 stash-baseline 甄别。
+# project-specs/test-baseline.md 登记成项目级单源 · test/dev gate 差分(0 新增 → 红 base 放行)。
+
+def cmd_test_baseline(args: argparse.Namespace) -> None:
+    """v8.178:维护/查询 project-specs/test-baseline.md + 当前失败集差分。"""
+    from _v8_stage_specs import _read_test_baseline, _find_specs_root  # noqa
+    feature = getattr(args, "feature", None)
+
+    if args.action == "list":
+        ids = _read_test_baseline(feature)
+        emit({"verdict": "OK", "action": "list", "count": len(ids), "baseline": sorted(ids)})
+        return
+
+    if args.action == "diff":
+        registered = _read_test_baseline(feature)
+        current = [c.strip() for c in re.split(r"[,\n]", args.current or "") if c.strip()]
+        if not current:
+            emit({"verdict": "FAIL", "reason": "--diff 需 --current '<逗号/换行分隔的当前失败 id>'"})
+            return
+        new = [c for c in current if c not in registered]
+        excluded = [c for c in current if c in registered]
+        stale = [c for c in sorted(registered) if c not in current]
+        emit({"verdict": "OK" if not new else "NEW_FAILURES", "action": "diff",
+              "new": new, "excluded": excluded, "stale_registered": stale,
+              "hint": ("new=[] → 红 base 可放行(test-complete/dev-complete 同传 --current-failures);"
+                       "new 非空 → 回归(修)或新预存在(核实后 --add 登记原因);"
+                       "stale_registered = 基线里已不再失败的(可删)")})
+        return
+
+    # add
+    if not args.test_id or not args.reason:
+        emit({"verdict": "FAIL", "reason": "--add 需 --test-id + --reason(预存在失败必须写原因/清账计划)"})
+        return
+    root = (_find_specs_root(feature) if feature else None) or _git_toplevel(Path.cwd()) or Path.cwd()
+    f = root / "project-specs" / "test-baseline.md"
+    if not f.is_file():
+        f.parent.mkdir(parents=True, exist_ok=True)
+        tmpl = Path(__file__).resolve().parent.parent / "templates" / "test-baseline.md"
+        f.write_text(tmpl.read_text(encoding="utf-8") if tmpl.is_file()
+                     else "# 测试基线失败集\n\n| 失败用例 (id) | 套件/命令 | 基线 commit | 原因（谁的债 · 何时清） | 登记于 |\n|---|---|---|---|---|\n",
+                     encoding="utf-8")
+    with f.open("a", encoding="utf-8") as fh:
+        fh.write(f"| {args.test_id} | {args.suite or '—'} | {args.base_commit or '—'} "
+                 f"| {args.reason} | {now_iso()[:10]} |\n")
+    emit({"verdict": "OK", "action": "add", "test_id": args.test_id,
+          "file": str(f), "baseline_count": len(_read_test_baseline(str(f)))})
 
 
 # ─── init-feature / recover (v7.3.10+P0-148) ──────────────────────────
@@ -1004,6 +1248,22 @@ def _is_main_branch(branch: str, repo_cwd: Optional[str] = None) -> bool:
     return False
 
 
+def _check_yolo_preflight(pf: Path) -> tuple[bool, str]:
+    """v8.179:校验 YOLO-PREFLIGHT.md 存在 + 已填(核心决策 + 用户确认 · 哨兵已删)。
+
+    yolo 零暂停点 → 意图保真膜 front-load:深入调研 + 核心决策逐条用户确认后才进自主。
+    哨兵 `YOLO-PREFLIGHT-UNFILLED` 必须删(强制真填 · 不是建个空模板)。
+    """
+    if not pf.is_file():
+        return False, "YOLO-PREFLIGHT.md 不存在(yolo 不得裸启动 · 先深入调研 + 核心决策用户确认)"
+    text = pf.read_text(encoding="utf-8", errors="replace")
+    if "YOLO-PREFLIGHT-UNFILLED" in text:
+        return False, "YOLO-PREFLIGHT.md 仍含未完成哨兵(深入调研 + 核心决策用户确认后删该哨兵行)"
+    if "核心" not in text or ("用户确认" not in text and "用户拍板" not in text):
+        return False, "YOLO-PREFLIGHT.md 缺『核心决策』或『用户确认』段(按模板补全)"
+    return True, ""
+
+
 def cmd_init_feature(args: argparse.Namespace) -> None:
     """Create initial state.json · 替代手工 Write。"""
     # Feature Planning / 问题排查 不进状态机 · 拒绝
@@ -1083,6 +1343,26 @@ def cmd_init_feature(args: argparse.Namespace) -> None:
             ),
             "rule": "v8.63 yolo 硬约束 · 自动 merge 不进 main(防 AI 错误/幻觉特性直接进 main)",
         }, ensure_ascii=False, indent=2))
+
+    # v8.179:yolo 预研门(硬门)—— 正式自主前必产 YOLO-PREFLIGHT.md(深入调研 + 核心决策用户确认)。
+    # yolo 零暂停点 → 意图保真膜必 front-load · 防裸启动直接闷头跑偏(无人值守 · 错了没机会中途纠)。
+    if yolo_enabled:
+        pf_ok, pf_reason = _check_yolo_preflight(feature_dir / "YOLO-PREFLIGHT.md")
+        if not pf_ok:
+            die(2, json.dumps({
+                "verdict": "FAIL",
+                "action": "init-feature",
+                "error": f"yolo 预研门未过:{pf_reason}",
+                "hint": (
+                    "yolo 正式自主前必须:① 深入调研真实代码(任务实质 / 范围 / 未知 / 风险)"
+                    " ② 提炼核心重要决策 ③ 和用户**逐条确认** → 落 "
+                    f"{feature_dir}/YOLO-PREFLIGHT.md(模板 {{SKILL_ROOT}}/templates/yolo-preflight.md)"
+                    " · 填完删哨兵行 · 再重跑 init-feature --yolo。\n"
+                    "理由:yolo 启动后零暂停点 · 意图 / 关键取舍错了没机会中途纠 → 必须跑前确认。"
+                ),
+                "rule": "v8.179 yolo 预研门 · front-load 意图保真膜(无人值守 · 跑前确认核心决策)",
+                "bypass": "确无核心决策 · 仍须产出 YOLO-PREFLIGHT.md 写明「无核心决策 · 已确认」",
+            }, ensure_ascii=False, indent=2))
 
     # v8.15:admission consistency 校验(治本 F001 GCP gateway case · AI 选错 flow_type)
     # audit 里若 consistency=MISMATCH(AI judgment 推荐 flow_type ≠ init --flow-type)→ WARN
@@ -1360,6 +1640,15 @@ def cmd_init_feature(args: argparse.Namespace) -> None:
     # v8.0+P0-13:项目级系统维护已挪到 session-bootstrap(session 级 · 不是 Feature 级)
     # init-feature 只管 Feature 级状态机操作
 
+    # v8.179:yolo + 单模型(localconfig disable_external_review)→ kickoff 醒目警告 ——
+    # external 异质安全网降级为同模型 subagent 冷审(弱)· 无人值守下风险更高 · 用户须知悉。
+    yolo_ext_warning = None
+    if yolo_enabled and _read_disable_external_review(args.feature):
+        yolo_ext_warning = (
+            "🔴🔴 yolo + 单模型评审:本项目 .teamwork_localconfig.json `disable_external_review=true` → "
+            "external **异质**安全网已降级为**同模型 subagent 冷审**(非异质 · 同盲点 · 弱于异质交叉评审)。"
+            "yolo 无人值守 · 这是唯一安全网且已降级 —— 知悉再继续;想恢复异质把关 → 删该 localconfig 项。"
+        )
     emit({
         "verdict": "OK",
         "action": "init-feature",
@@ -1373,6 +1662,8 @@ def cmd_init_feature(args: argparse.Namespace) -> None:
         "next_action_brief": _init_feature_next_brief(args, initial_stage),
         # v8.15:admission MISMATCH 时 emit 顶层显警告(AI 一定看到)+ state.concerns 已留痕
         **({"admission_warning": admission_warning} if admission_warning else {}),
+        # v8.179:yolo + 非异质评审醒目警告(降级安全网 · 无人值守须知悉)
+        **({"yolo_external_warning": yolo_ext_warning} if yolo_ext_warning else {}),
     })
 
 
@@ -4248,11 +4539,32 @@ def build_parser() -> argparse.ArgumentParser:
     # v8.174:ws-progress WS 进度 rollup(派生 · 自各 ROADMAP「状态」列 · 职责单一禁手抄)
     wpp = sub.add_parser(
         "ws-progress",
-        help="[v8.174] 汇总某 WS 下各 ROADMAP feature 的执行态 → 进度块(--write 写回 WS 标记区)")
-    wpp.add_argument("--ws", required=True, help="WS 编号(WS-01 / 01 / WS-1 均可)")
+        help="[v8.174/177] 名册驱动汇总某 WS 的 feature 执行态(含跨子项目/legacy)→ 进度块 + 依赖 DAG(--write 写回 WS-PROGRESS/WS-DAG 标记区)")
+    wpp.add_argument("--ws", help="WS 编号(WS-01 / 01 / WS-1 均可)· 与 --feature 二选一")
+    wpp.add_argument("--feature", help="[v8.180] feature 路径 · 自其 F-id 在 ROADMAP「对应F编号」解析所属 WS(ship 自刷用 · 不必报 WS 编号)")
     wpp.add_argument("--write", action="store_true",
                      help="写回 WS 文档的 <!-- WS-PROGRESS:START/END --> 标记区(缺标记则仅输出)")
     wpp.set_defaults(func=cmd_ws_progress)
+
+    # v8.178:test-baseline 预存在失败注册表 + 差分(红 base 0 新增放行 · 治反复 stash-baseline)
+    tbp = sub.add_parser(
+        "test-baseline",
+        help="[v8.178] 维护/查询预存在失败注册表(project-specs/test-baseline.md)+ 差分 · 红 base 0 新增可放行")
+    tbp.add_argument("--feature", default=None,
+                     help="feature 路径(定位 project-specs/ · 缺则用 cwd 的 git 根)")
+    grp = tbp.add_mutually_exclusive_group(required=True)
+    grp.add_argument("--add", dest="action", action="store_const", const="add",
+                     help="登记一个预存在失败(需 --test-id + --reason)")
+    grp.add_argument("--list", dest="action", action="store_const", const="list",
+                     help="列出已登记的预存在失败")
+    grp.add_argument("--diff", dest="action", action="store_const", const="diff",
+                     help="当前失败集对照基线算新增(需 --current)")
+    tbp.add_argument("--test-id", help="--add:失败用例 id(与 --current-failures 同格式)")
+    tbp.add_argument("--suite", help="--add:套件/命令(如 'cargo test --lib')")
+    tbp.add_argument("--reason", help="--add:为何红 · 谁的债 · 何时清(必填)")
+    tbp.add_argument("--base-commit", help="--add:基线 commit(可选)")
+    tbp.add_argument("--current", help="--diff:逗号/换行分隔的当前失败用例 id")
+    tbp.set_defaults(func=cmd_test_baseline)
 
     # v8.0+P0-6:reset-prev 状态机回退一步(替代 raw-write 滥用)
     rp = sub.add_parser(

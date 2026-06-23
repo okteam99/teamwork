@@ -101,11 +101,18 @@ risks:
 {拆解思路 · 跨子项目怎么协调 · 关键设计取舍（细节落各 Feature PRD / ADR）}
 
 ## feature 总览（进度 · 工具汇总）
-> 🔧 进度块由 `state.py ws-progress --ws WS-NN --write` 自 ROADMAP「状态」列汇总 · 🔴 勿手改 · 规划完成后刷新即出。
+> 🔧 `state.py ws-progress --ws WS-NN --write` 自刷 · 🔴 勿手改 · 规划完成后刷新即出。**名册驱动**：以 frontmatter `features[]` 为权威名册（声明的 feature 全列出 · 含跨子项目/前置如 SDK-Fxxx），状态自各 ROADMAP 按 BL 匹配（含无「关联 WS」列的 legacy 表）· 匹配不到标「未匹配」不漏报。
 
-<!-- WS-PROGRESS:START · 工具生成(state.py ws-progress) · 自各 ROADMAP「状态」列汇总 · 勿手改 -->
+<!-- WS-PROGRESS:START · 工具生成(state.py ws-progress) · 名册驱动 · 自各 ROADMAP 匹配状态 · 勿手改 -->
 进度 暂无数据（feature 尚未写入 ROADMAP · 规划完成后 ws-progress 刷新自动出现）
 <!-- WS-PROGRESS:END -->
+
+## feature 依赖关系图（工具汇总）
+> 🔧 同 `ws-progress --write` 自 frontmatter `features[].dependencies` 派生 Mermaid DAG · 🔴 勿手改（依赖语义改 features[] · 非改图）。节点 = feature 短名 · 边 = 依赖 → 被依赖。
+
+<!-- WS-DAG:START · 工具生成(state.py ws-progress) · 自 features[].dependencies 派生 · 勿手改 -->
+（规划完成后 ws-progress --write 刷新即出）
+<!-- WS-DAG:END -->
 
 ## 拆出的 feature（拆解明细 · 规划态 · 人维护）
 > 每个 feature 的范围/依赖/高层 AC（详细 AC 在各 Feature PRD）· 写入 ROADMAP 后**执行进度看上方 §feature 总览**，此处不复制状态（防双源 stale）。
@@ -166,5 +173,5 @@ risks:
 5. **拆解 grounded 实际代码**：`features[].current_state` 必由代码调研填（已做/真缺口）· 不凭假设/spec · decisive 前提（数据是否真入库 / 能力是否真生效）核验真实文件,不轻信 Explore/sub-agent 摘要（治本 AON category case 2026-05-29）。
 6. **全景先于 WS**：涉 UI 的轮次先在 [feature-planning Step 5](../docs/feature-planning.md) 出 `preview-project` 全景初步规划（design system + 关键页），WS 才据全景 diff + 业务目标拆 feature（边界对齐 UI 结构）· `ui_panorama_pages` 记本 WS owns 哪几页（替代模糊的"基于哪轮全景"）。
 7. **规划完成给并行建议**：拆完 feature 必产出 §执行顺序与并行建议（波次 + 哪些可并行 + 同改面 / 跨子项目方向 / 带宽 的额外串行约束）+ frontmatter `execution_waves`（结构化）—— 让用户拿到 WS 就知道"先起哪几个、能同时开几个 worktree"，不必自己重排依赖。
-8. **进度可见但不双源**（v8.174）：用户翻一个 WS 就该一眼看到"这条线建到哪了"，但执行态单一源在 ROADMAP「状态」列 → `state.py ws-progress --ws WS-NN --write` glob 全仓 `ROADMAP.md`、按「关联 WS」列过滤、确定性汇总进 WS 的 `WS-PROGRESS` 标记区（顶部 rollup「X/N 已完成」+ 总览表）· 治本：旧 WS 只有规划态、用户得翻 N 个子项目 ROADMAP 交叉比对才知进度。
+8. **进度可见但不双源**（v8.174/177）：用户翻一个 WS 就该一眼看到"这条线建到哪了"，但执行态单一源在 ROADMAP「状态」列 → `state.py ws-progress --ws WS-NN --write` **名册驱动**汇总进 `WS-PROGRESS` 标记区（rollup + 总览表）+ 自 `features[].dependencies` 派生 Mermaid DAG 进 `WS-DAG` 标记区。🔴 **名册驱动**（v8.177）：以 frontmatter `features[]` 为权威名册（声明的 feature 全列出 · 含**跨子项目前置**如 SDK-Fxxx），状态自各 ROADMAP 按 BL 匹配（解析器吃无「关联 WS」列的 **legacy 表**）· 匹配不到标「未匹配」不漏报 —— 治本：纯按「关联 WS」扫会漏掉登记在 legacy ROADMAP 的跨子项目 feature（实证 supersimples WS-03 的 SDK-F040）。
 9. **元数据隐藏**（v8.174）：机读/元数据契约包进 `<!-- TEAMWORK-MACHINE ... -->` 注释（同 PRD v8.165）—— 在 TermPro/Zed 等"显示 frontmatter"的渲染器里**不再当正文渲染成一面 YAML 墙**（治"内容乱"主因）· body 章节是唯一可见权威。🔴 注释内**严禁出现字面 `-->`**（v8.171 教训：会提前闭合注释）。

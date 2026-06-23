@@ -90,6 +90,14 @@ state.py test-complete --integration-test-exit-code 0 --e2e-test-exit-code 0 ...
 - exit_code 都 0 → 自动转 pm_acceptance(或 browser_e2e · 看 needs_browser_e2e)
 - 任一 exit_code 非 0 → 留 test-stage · 走 §fix-retry 循环
 
+### 🔴 base 即红 → 差分基线(治反复 stash-baseline · v8.178)
+brownfield 共享套件常**预存在失败**(base 即红 · 历史重构遗留 / 他人欠债)· 全量跑 integration 永远非 0 → 老做法 targeted 子集 + 每个 feature 人肉 `stash → 跑 base → diff → REVIEW 论证非本 feature`(实证 audit:跨 3+ feature 反复确认同一批 5-6 个失败 · 高频重复成本)。改**差分基线**:
+- 预存在失败登记进 `project-specs/test-baseline.md`(项目级单源 · 含原因/清账计划 · 详 [templates/test-baseline.md](../templates/test-baseline.md))。
+- 跑**全量** integration → 得当前失败 id 集 → `state.py test-baseline --diff --current "id1,id2"` 对照基线:
+  - **0 新增**(当前 ⊆ 基线)→ `test-complete --integration-test-exit-code <真实非0> --current-failures "id1,id2"` · 工具算差分干净 → **照常转 pm_acceptance**(不留 fix-retry · 红 base 非回归)。
+  - **有新增**(当前 − 基线 ≠ ∅)→ = **回归**(修)**或** 新出现的预存在(在 base 上核实即红 → `test-baseline --add` 登记原因后重跑)。
+- 🔴 纪律:**本 feature 新引入的失败绝不登记**(那是回归必修)· id 与 `--current-failures` 同格式 · e2e 仍严格 0(feature-scoped · 不走差分)。
+
 ---
 
 ## fix-retry 循环(stage 内 · 同 review 模式)

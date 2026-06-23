@@ -59,14 +59,12 @@ cd {子项目}/docs/design/preview-project && pnpm build   # 或项目等价 bui
   - 差异处:preview 未覆盖 → TECH.md fallback;TECH 也未覆盖 → concerns + 主对话讨论
   - 🔴 **不要在 static-html 上死磕像素级 fidelity** —— 介质差异(系统字体 / CDN Tailwind / shadcn token 缺失)无法靠调 panorama 解决,治本是迁 same-stack(详 ui-design-stage.md § Panorama 介质类型)
 
-### 4. 自查清单(实现完后跑)
-- [ ] 规范符合(common.md / backend.md / frontend.md 对应)
-- [ ] 跑已有测试无回归(`pytest` / `npm test` 等 · exit-code=0)
-- [ ] build 通过(`make` / `npm run build` 等 · exit-code=0)
-- [ ] 改了共享基建 → 全景编译通过(§3.5 · exit-code=0)
-- [ ] linter pass(若项目有 · 如 `ruff` / `eslint`)
-- [ ] commit message 含 Feature ID
-- [ ] 改动文件全在 commit changeset 内
+### 4. 完工自查(🔴 实现完 · 在 `TECH.md` 末尾 §完工自查 **文档内逐项打 ✅**)
+不只读清单 —— **在 TECH.md 的 §完工自查 段逐项打钩**(每项 ✅ 指向证据:测试名/文件/编译结果 · 不适用写 `N-A + 原因`)· review 据此核。该清单**对着本 TECH 的设计逐条**:
+- 设计落地:现状基线前提仍成立 · §错误处理每条失败路径实现 · §依赖与影响**消费方都同步改**(`tsc -b`/编译零报错)· §数据结构跨层一致 · §数据库变更 migration 实跑 · §测试策略**集成/契约测试写了**(不只单测)
+- 通用门:规范(DEV-RULES/common/backend/frontend)· 无回归(exit-code=0 · 红 base 走 `test-baseline` 差分)· build · linter · commit 含 Feature ID · 改动全在 changeset
+- (UI feature)**设计↔实际一致性核对**(意图四要素 · §3)
+- 🔴 **专防「设计了没实现」**。强门禁(test exit-code / verify-ac / external-review)仍是硬墙;本清单是**完整性自证**(soft · review 验 · 非橡皮图章)。
 
 ### 5. Bug fix 报告(flow_type=Bug 时 · 🔴 §现象/§根因/§修复方案 diagnose 已写并确认 · 不重写)
 在 diagnose 已创建的 `bugfix/BUG-*.md` **追加** dev 产出:
@@ -96,7 +94,7 @@ state.py 校验:
 | 1. 加载上下文 | `project-specs/DEV-RULES.md`(若存在) | 全文 | 项目强制开发规范 · 实现须遵守(+ 读 PRD/TECH/TC) |
 | 2. TDD 红绿循环 | `standards/tdd.md + roles/rd.md` | § Iron Law + § TDD | 先红 → 后绿 → refactor / 每绿点 commit |
 | 3. UI 还原(若 ui_design 完成) | `roles/designer.md` | § UI 还原校验 | verify-panorama / preview 未覆盖 → TECH fallback |
-| 4. 代码自查清单 | `roles/rd.md + standards/common.md` | § 自查规范 | 规范 / 无回归 / build / linter |
+| 4. 完工自查 | `TECH.md §完工自查` + `roles/rd.md` | § 自查规范 | 在 **TECH 文档内逐项打 ✅**(对着设计:现状基线/错误处理/依赖消费方/测试策略 + 通用门)· review 据此核 |
 | 5. Bug fix 报告(flow_type=Bug) | `roles/rd.md` | § Bug 排查报告 | bugfix/BUG-*.md frontmatter 4 字段 |
 | 6. dev-complete | — | — | (无) |
 

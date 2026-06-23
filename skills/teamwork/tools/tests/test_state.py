@@ -147,9 +147,17 @@ class TestInitFeature(unittest.TestCase):
         ], expect_exit=2)
         self.assertEqual(d["verdict"], "FAIL")
 
+    def _seed_yolo_preflight(self, target) -> None:
+        """v8.179:yolo 预研门 —— init-feature --yolo 前 feature 目录须有已填 YOLO-PREFLIGHT.md。"""
+        target.mkdir(parents=True, exist_ok=True)
+        (target / "YOLO-PREFLIGHT.md").write_text(
+            "# YOLO 预研\n## 1. 深入调研\nx\n## 2. 核心重要决策\n无 · 已充分清晰\n"
+            "## 3. 用户确认\n用户已确认 · 授权 yolo 自主", encoding="utf-8")
+
     def test_v863_yolo_non_main_target_ok_implies_auto_mode(self) -> None:
         """v8.63:yolo + 非主分支(dev)→ OK · state.json yolo=true + auto_mode=true(implies)。"""
         target = self.tmp / "docs" / "features" / "YOLO-F003"
+        self._seed_yolo_preflight(target)
         d = run([
             "init-feature", "--feature", str(target),
             "--feature-id", "YOLO-F003", "--flow-type", "Feature",
@@ -159,6 +167,31 @@ class TestInitFeature(unittest.TestCase):
         state = json.loads((target / "state.json").read_text(encoding="utf-8"))
         self.assertTrue(state["yolo"])
         self.assertTrue(state["auto_mode"])  # yolo implies auto_mode
+
+    def test_v8179_yolo_without_preflight_blocks(self) -> None:
+        """v8.179:yolo 预研门 —— 无 YOLO-PREFLIGHT.md → init-feature --yolo FAIL。"""
+        target = self.tmp / "docs" / "features" / "YOLO-F179"
+        d = run([
+            "init-feature", "--feature", str(target),
+            "--feature-id", "YOLO-F179", "--flow-type", "Feature",
+            "--branch", "feat/y179", "--yolo", "dev-int",
+        ], expect_exit=2)
+        self.assertEqual(d["verdict"], "FAIL")
+        self.assertIn("预研门", d["error"])
+
+    def test_v8179_yolo_preflight_sentinel_blocks(self) -> None:
+        """v8.179:YOLO-PREFLIGHT.md 仍含未完成哨兵 → FAIL(强制真填)。"""
+        target = self.tmp / "docs" / "features" / "YOLO-F180"
+        target.mkdir(parents=True, exist_ok=True)
+        (target / "YOLO-PREFLIGHT.md").write_text(
+            "# x\n<!-- YOLO-PREFLIGHT-UNFILLED -->\n## 核心\n## 用户确认\n", encoding="utf-8")
+        d = run([
+            "init-feature", "--feature", str(target),
+            "--feature-id", "YOLO-F180", "--flow-type", "Feature",
+            "--branch", "feat/y180", "--yolo", "dev-int",
+        ], expect_exit=2)
+        self.assertEqual(d["verdict"], "FAIL")
+        self.assertIn("哨兵", d["error"])
 
     def test_v863_non_yolo_main_target_unaffected(self) -> None:
         """v8.63:非 yolo + main → 不受 gate 影响(向后兼容)· yolo=false。"""
@@ -177,6 +210,7 @@ class TestInitFeature(unittest.TestCase):
     def test_v865_yolo_branch_is_merge_target(self) -> None:
         """v8.65:--yolo <branch>(无 --merge-target)→ branch 即 merge_target。"""
         target = self.tmp / "docs" / "features" / "YOLO-F005"
+        self._seed_yolo_preflight(target)
         d = run([
             "init-feature", "--feature", str(target),
             "--feature-id", "YOLO-F005", "--flow-type", "Feature",
@@ -191,6 +225,7 @@ class TestInitFeature(unittest.TestCase):
     def test_v865_yolo_branch_overrides_merge_target(self) -> None:
         """v8.65:--yolo <branch> 同时给 --merge-target → yolo branch 胜出。"""
         target = self.tmp / "docs" / "features" / "YOLO-F006"
+        self._seed_yolo_preflight(target)
         d = run([
             "init-feature", "--feature", str(target),
             "--feature-id", "YOLO-F006", "--flow-type", "Feature",
@@ -227,6 +262,7 @@ class TestInitFeature(unittest.TestCase):
     def test_v866_yolo_blocks_external_removal(self) -> None:
         """v8.66:yolo 模式 change-review-roles 去 external → BLOCK(唯一安全网)。"""
         target = self.tmp / "docs" / "features" / "YOLO-F009"
+        self._seed_yolo_preflight(target)
         run([
             "init-feature", "--feature", str(target),
             "--feature-id", "YOLO-F009", "--flow-type", "Feature",
@@ -242,6 +278,7 @@ class TestInitFeature(unittest.TestCase):
     def test_v866_yolo_external_removal_with_ack(self) -> None:
         """v8.66:--accept-external-removal → 放行 + concern WARN 留痕。"""
         target = self.tmp / "docs" / "features" / "YOLO-F010"
+        self._seed_yolo_preflight(target)
         run([
             "init-feature", "--feature", str(target),
             "--feature-id", "YOLO-F010", "--flow-type", "Feature",

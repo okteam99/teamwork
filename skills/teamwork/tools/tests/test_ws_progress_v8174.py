@@ -81,21 +81,22 @@ class TestRender(unittest.TestCase):
         ]
 
     def test_rollup_line(self):
-        out = _render_ws_progress("WS-01", self._items(), 2)
+        out = _render_ws_progress("WS-01", self._items(), 2, False)
         self.assertIn("进度 1/3 已完成", out)
         self.assertIn("1 进行中", out)
         self.assertIn("1 待开始", out)
 
     def test_table_has_icons_and_sorted(self):
-        out = _render_ws_progress("WS-01", self._items(), 2)
+        out = _render_ws_progress("WS-01", self._items(), 2, False)
         self.assertIn("✅ 已完成", out)
         self.assertIn("🔄 进行中", out)
-        self.assertIn("| BL | 子项目 | 功能 | 状态 | 当前阶段 | F |", out)
+        # v8.177:表头加 feature 列(短 id)
+        self.assertIn("| feature | BL | 子项目 | 功能 | 状态 | 当前阶段 | F |", out)
 
     def test_empty_items_friendly_message(self):
-        out = _render_ws_progress("WS-01", [], 3)
+        out = _render_ws_progress("WS-01", [], 3, False)
         self.assertIn("暂无数据", out)
-        self.assertNotIn("| BL |", out)  # 空表不渲染表头
+        self.assertNotIn("| feature |", out)  # 空表不渲染表头
 
 
 def _write(txt: str) -> Path:
