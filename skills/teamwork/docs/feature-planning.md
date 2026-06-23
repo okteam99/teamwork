@@ -49,15 +49,29 @@ Feature Planning 的产出是**规划文档**(不是单 Feature 的 artifact)· 
 特点:
 - 没有"Feature ID"(规划期分配 BL-NNN · WS 用 WS-NN · 见 [conventions.md § 4](./conventions.md))
 - 没有 PRD / TC / TECH(那是 Feature 流程的事)
-- 不出代码(R6 红线)
-- 不需要 worktree(在主工作区写文档即可 · 用户决定是否 worktree)
-- 不需要 ship 流程(项目级文档直接 commit + push 或开 MR)
+- 不出 **feature 实现代码**(R6 红线)· **但**产出含**全景 `preview-project`**(设计代码 · 会改文件)+ WS / ROADMAP / product-overview 文档
+- 🔴 **进流程先建临时 worktree**(隔离规划产物 · 同 feature worktree 策略)—— 规划产出 committed 文档 + 全景代码,落主工作区会**污染主分支**、撞**并行 feature 基线**(主工作区是它们的 baseline)。详 §2 Step 0 + `state.py planning-check` 的 `worktree_setup`(trivial 单文档微调 · 用户可决定免 worktree)
+- **不进状态机**(无 stage 链)· **但走 worktree + MR**(规划产物随 MR 原子合入 · 仅**不走 ship 状态机**)
 
-强行套状态机会增加复杂度而无收益(stage 链只 1 步 · 校验都是文档存在性 · PMO 主对话能直接做)。
+强行套**执行层状态机**会增加复杂度而无收益(stage 链只 1 步 · 校验都是文档存在性 · PMO 主对话能直接做)· 但 worktree 隔离与状态机无关 —— 它只是文件隔离,planning 仍是「PMO 主对话直接做」,只是在 worktree 内做。
 
 ---
 
 ## 2. PMO 主对话执行流程
+
+### Step 0 · 🔴 建临时 worktree(进流程第一步 · 隔离规划产物)
+
+规划产出 committed 文档(WS / ROADMAP / product-overview)+ 全景 `preview-project` 代码 —— 落主工作区会污染主分支、撞并行 feature 基线。**进流程先建临时 worktree**(同 feature worktree 策略 · `state.py planning-check` 的 `worktree_setup` 给完整命令):
+
+```bash
+git fetch origin
+git worktree add -b planning/<短名> <repo-root>/.worktree/planning-<短名> origin/<merge-target>
+cd <worktree-path>   # 🔴 之后所有规划产物写 worktree 内路径(推荐绝对路径 · 同 worktree 纪律)
+```
+
+- `merge-target` 同 feature 默认(集成分支 · dev/staging · localconfig 默认或用户指定)· 分支用 `planning/<短名>`。
+- **trivial 单文档微调**(改一行 WS / 修 typo)· 用户可决定免 worktree 直接主工作区改 —— 但涉全景 / 多文档 / 跨子项目 → 必 worktree。
+- 与状态机无关:planning 仍「PMO 主对话直接做」· worktree 只是文件隔离。
 
 ### Step 1 · 加载上下文 + 🔴 实际代码调研
 
@@ -130,13 +144,14 @@ PMO 主对话切换角色 · 讨论收敛 · 不需要单独 review artifact。
 
 ```
 ⏸️ 规划完成 · 产出 <WS-NN + N 个 ROADMAP 登记 + 全景 if UI + …> · 请选择:
-1. 提交并 push(commit + 直推 / 开 MR)💡 推荐 —— 规划文档落库,后续启动 Feature 有据
+1. 提交并开 MR(worktree 内 commit + push + 开 MR)💡 推荐 —— 规划产物随 MR 原子合入 · 后续启动 Feature 有据
 2. 先不提交(继续调整 / 你稍后自己提)
 3. 其他指示
 ```
 
-🔴 在**主工作区**提交(Feature Planning 不进 worktree)· 推到当前分支(直推或开 MR · 用户决定)· 不走 ship 流程。
-完成 · 不需要 state.json / state.py 命令。
+🔴 在 **Step 0 建的临时 worktree 内**提交(不是主工作区)· `git add` 规划产物 + commit + push 分支 + 开 MR(`gh`/`glab` CLI-first · 同 feature)· **不走 ship 状态机**(无 ship-phase · 纯文档/全景 MR)。
+🔴 **MR 合并后清理 worktree**:`cd` 回主工作区 → `git worktree remove <worktree-path>`(同 feature ship2 清场 · 规划产物已随 MR 进集成分支)。
+完成 · 不需要 state.json / state.py 命令(规划层不进状态机)。
 
 ---
 

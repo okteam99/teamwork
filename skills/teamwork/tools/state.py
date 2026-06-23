@@ -2247,14 +2247,25 @@ def cmd_planning_check(args: argparse.Namespace) -> None:
             "→ feature 写入 ROADMAP(BL · 关联 WS · 全写入=WS✅规划完成)→ 用户拍板 BL → prepare+init-feature → F。"
             "teamwork-space.md **不是** Feature Planning 产出 · 由 product-overview「✅ 已确认」内容派生"
         ),
+        "worktree_setup": (
+            "🔴 进入 feature-planning 前先建**临时 worktree**(隔离规划产物 · 同 feature worktree 策略 —— "
+            "防 WS/ROADMAP/product-overview + 全景 preview-project 代码落主工作区污染主分支、撞并行 feature 基线):\n"
+            "  git fetch origin\n"
+            "  git worktree add -b planning/<短名> <repo-root>/.worktree/planning-<短名> origin/<merge-target>\n"
+            "  cd <worktree-path>   # 🔴 规划产物全写 worktree 内路径(同 worktree 纪律)\n"
+            "  → 规划完成(feature-planning Step 9)在 worktree 内 commit + push + 开 MR → 合并后删 worktree\n"
+            "  (trivial 单文档微调 · 用户可决定免 worktree)"
+        ),
         "key_constraints": [
             "🔴 不进状态机:init-feature --flow-type 'Feature Planning' 会被 reject",
-            "🔴 不出代码(R6 红线)· 产出仅项目级文档",
+            "🔴 在**临时 worktree 内**做(见 worktree_setup)· 不写主工作区 · 规划产物随 MR 原子合入",
+            "🔴 不出 feature 实现代码(R6 红线)· 产出 = 项目级文档 + 全景 preview-project(设计代码 · 故更需 worktree 隔离)",
             "BL-NNN 在规划期分配 · 不是 Feature ID(无 PRD/TC/TECH)",
         ],
         "next_hint": (
-            f"先读 {' + '.join(must_read)} · 按 checklist 在主对话执行 Feature Planning"
-            f"(不进状态机 · PMO 直接做)· 完成后拆出的 BL 用户拍板再走 prepare 启动 Feature"
+            f"🔴 先按 worktree_setup 建临时 worktree + cd 进去 · 再读 {' + '.join(must_read)} · "
+            f"按 checklist 在主对话执行 Feature Planning(不进状态机 · PMO 直接做 · 但在 worktree 内)· "
+            f"完成后拆出的 BL 用户拍板再走 prepare 启动 Feature"
         ),
     }
 

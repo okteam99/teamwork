@@ -2800,13 +2800,17 @@ class TestPlanningCheck(unittest.TestCase):
         self.assertEqual(len(sm["required_tables"]), 2)
 
     def test_v846_planning_check_checklist_and_constraints(self):
-        """checklist 6 条 + key_constraints 含「不进状态机」+「不出代码 R6」。"""
+        """checklist 6 条 + key_constraints 含「不进状态机」+「不出 feature 实现代码 R6」+ v8.184 worktree。"""
         d = run(["planning-check", "--project-root", str(self.tmp)])
         self.assertEqual(len(d["planning_checklist"]), 6)  # v8.52:+ 实际代码调研项;v8.100:+ 全景UI初步规划
         constraints = " ".join(d["key_constraints"])
         self.assertIn("不进状态机", constraints)
-        self.assertIn("不出代码", constraints)
+        self.assertIn("不出 feature 实现代码", constraints)  # v8.184:精确化(全景 preview-project 是设计代码)
         self.assertIn("R6", constraints)
+        # v8.184:feature-planning 进流程先建临时 worktree(隔离规划产物 · 同 feature 策略)
+        self.assertIn("worktree_setup", d)
+        self.assertIn("git worktree add", d["worktree_setup"])
+        self.assertIn("worktree", constraints)
         self.assertIn("complexity_force_upgrade", d["entry_criteria"])
         # v8.49:planning_order 是权威链路 · 业务架构(愿景) → teamwork-space → WS → ROADMAP
         self.assertIn("planning_order", d)
