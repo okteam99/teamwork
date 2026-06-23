@@ -1,6 +1,6 @@
 ---
 name: teamwork
-version: v8.184.1
+version: v8.185
 description: AI 协作开发一体化框架 - 需求功能开发, bug 修复, 问题排查 · /teamwork 启动
 ---
 
@@ -55,7 +55,7 @@ state.py 被动记录 AI 按 state.py 指示执行
 ```
 
 - **WS 怎么来**:WS 是 **feature-planning 流程的产物** —— "起一个 WS" = 进 feature-planning(PMO 切 Product Lead 引导/讨论 → 涉 UI 先出全景初步规划 → 据全景 + 业务目标拆 **1..N 个 feature** → 写 roadmap)· **不在流程外 ad-hoc 手搓**。
-- **全景先于 WS**(涉 UI):feature-planning 在拆 WS 前先在 `{子项目}/docs/design/preview-project/` 出 **UI 全景初步规划**(design system + 关键页 · 初步 · 非每页)+ `sitemap.md`(IA 地图)· 看清产品长啥样 → feature 边界对齐 UI 结构 · 每 WS 记 `全景初规 ✅/N-A` + 覆盖页清单 · ui_design 阶段在此全景上增量扩(详 [docs/feature-planning.md](./docs/feature-planning.md) Step 5-6)。
+- **全景先于 WS**(涉 UI):feature-planning 在拆 WS 前先在 `{子项目}/docs/design/preview-project/` 出 **UI 全景初步规划**(design system + 关键页 · 初步 · 非每页)+ `sitemap.md`(IA 地图)· 看清产品长啥样 → feature 边界对齐 UI 结构 · 🔴 **全景出完必给用户可访问预览 URL + 等用户确认**(R5 · 用户没确认过 = 不算规划完成)· 每 WS 记 `全景初规 ✅/N-A` + `ui_panorama_confirmed`(用户确认 ISO)+ 覆盖页清单 · ui_design 阶段在此全景上增量扩(详 [docs/feature-planning.md](./docs/feature-planning.md) Step 5-6)。
 - **进度统计** = N 个未完成 WS(规划态)+ 各子项目 ROADMAP 的 BL(执行态)· 业务架构/执行线不计入(它们是愿景 / taxonomy)。
 - **能力级索引**:WS 向上 tag 执行线 · 反查得「某执行线下有哪些 WS / feature」· 业务架构**不登记 WS**(保持稳定小列表)。
 - **非开发工作**(运营/推广/BD):teamwork 不跟踪 · 执行线列表留个名即可。

@@ -3,7 +3,7 @@
 > **位置**：`product-overview/workstream/WS-{NN}-{短名}.md`
 > **产出者**：feature-planning 流程（PMO 切 Product Lead 引导/讨论 · 🔴 不在流程外 ad-hoc 手搓）
 > **定位**：一块规划单元 —— 把一个能力/变更拆成**一组 feature**，写进各子项目 ROADMAP。
-> **完成标准**：① 涉 UI 时 **全景初规 ✅**（本 WS 的页已在 `preview-project` · 非 UI 标 `N-A`）+ ② 这组 feature **全部写入 ROADMAP**（原子）+ ③ **执行顺序与并行建议**已给（§执行顺序与并行建议 · 波次 + 哪些可并行）→ WS 转 `✅ 规划完成`，执行态交给 ROADMAP/BL 跟踪。
+> **完成标准**：① 涉 UI 时 **全景初规 ✅ 且 `ui_panorama_confirmed` 已填**（页已在 `preview-project` **且用户看预览 URL 确认过** · 非 UI 标 `N-A`）+ ② 这组 feature **全部写入 ROADMAP**（原子）+ ③ **执行顺序与并行建议**已给（§执行顺序与并行建议 · 波次 + 哪些可并行）→ WS 转 `✅ 规划完成`，执行态交给 ROADMAP/BL 跟踪。
 > 详 [SKILL.md § teamwork 业务流程架构](../SKILL.md) · [docs/feature-planning.md](../docs/feature-planning.md)。
 >
 > 🔴 取代旧的 `changes/` 变更单（CHG/BG）+ 执行手册的"拆 feature"职责。老项目 `changes/*.md` 向前兼容（保留可读）。
@@ -21,11 +21,11 @@
 | 状态 | 含义 | 进度统计 |
 |------|------|---------|
 | `📝 草稿` / `🔄 讨论中` / `⏸️ 待确认` | 规划中（拆解未定 / 议题未决 / 待用户拍板） | **算"未完成 WS"** |
-| `✅ 规划完成` | **全景初规 ✅(涉 UI)** + 所有 feature 已写入各子项目 ROADMAP（成 BL） | 不算（转 ROADMAP 执行态统计） |
+| `✅ 规划完成` | **全景初规 ✅ + 已用户确认(涉 UI · `ui_panorama_confirmed` 已填)** + 所有 feature 已写入各子项目 ROADMAP（成 BL） | 不算（转 ROADMAP 执行态统计） |
 | `🗑️ 废弃` | 用户决定不做 | 不算（只读归档） |
 
 🔴 **lock 语义**（承旧 BG locked）：WS 未 `✅ 规划完成` 前**禁止启动其子 Feature** —— 防"边规划边启动"。
-🔴 **全景初规子门禁**（涉 UI 时）：`ui_panorama` 必为 `✅`（本 WS 的页已在规划期的 `preview-project` 全景里出过 · 见 [feature-planning Step 5](../docs/feature-planning.md)）才能转 `✅ 规划完成`；非 UI WS 标 `N-A` 直接放行。**先有全景、再拆 WS** —— 防 feature 边界跟 UI 结构对不齐。
+🔴 **全景初规子门禁**（涉 UI 时）：`ui_panorama` 必为 `✅`（本 WS 的页已在规划期的 `preview-project` 全景里出过）**且 `ui_panorama_confirmed` 已填**（用户在 [feature-planning Step 5](../docs/feature-planning.md) 看**可访问预览 URL** 确认过全景设计）才能转 `✅ 规划完成`；非 UI WS 标 `N-A` 直接放行。🔴 **用户没确认过全景 = 不算规划完成** —— 光「页在 preview-project」是 AI 自标,得用户拍板。**先有全景、再拆 WS** —— 防 feature 边界跟 UI 结构对不齐。
 
 🔴 **WS 状态 ≠ feature 进度**（两个维度别混）：本节 `📝→✅ 规划完成` 是 **WS 规划生命周期**（拆解定没定）；feature 的**执行进度**（建到哪了）是另一维，看 §feature 总览（`ws-progress` 自各 ROADMAP「状态」列**派生**，规划完成、feature 进 ROADMAP 后才有数据）。
 
@@ -38,7 +38,8 @@
 ws_id: WS-01
 title: <一句话标题>
 status: 📝 草稿        # 📝 草稿 / 🔄 讨论中 / ⏸️ 待确认 / ✅ 规划完成 / 🗑️ 废弃
-ui_panorama: N-A       # 🔴 全景初规:✅(本 WS 的页已在 preview-project 全景)/ N-A(非 UI WS)· 涉 UI 必 ✅ 才能规划完成
+ui_panorama: N-A       # 🔴 全景初规:✅(本 WS 的页已在 preview-project 全景)/ N-A(非 UI WS)
+ui_panorama_confirmed: N-A  # 🔴 全景设计**已用户确认**:<ISO>(feature-planning Step 5 · 用户看预览 URL 拍板)/ N-A(非 UI)· 涉 UI 必填才能规划完成(光 ui_panorama:✅「页在全景」不够 · 得用户确认过)
 ui_panorama_pages: []  # 本 WS 覆盖/新增的全景页(如 [offers-list, offer-detail])· 非 UI 留空(替代模糊的"哪一轮")
 承接执行线:            # 🔴 1+ 条 · tag 业务架构「执行线列表」里的 Line(反查得"某线下有哪些 WS")
   - Line 1
