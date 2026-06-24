@@ -944,6 +944,63 @@ def cmd_ws_progress(args: argparse.Namespace) -> None:
           "written_to": wrote, "dag_written": dag_written, "block": block, "dag": dag})
 
 
+# ─── ws-lint:WS 文档最新模板符合性校验（v8.186）─────────────────────
+# 治本(实证 AON WS-012):AI 做 feature-planning 写 WS 时抄项目里旧/混合格式 · 无符合性检查 ·
+# 只有用户主动问「按最新模板写的么」才发现。lint 对照 templates/workstream.md 硬性形态。
+
+def _lint_ws_doc(text: str) -> list:
+    """校验 WS 文档符合最新 templates/workstream.md 形态 → 缺项列表(空 = 符合)。"""
+    missing: list = []
+    if "TEAMWORK-MACHINE" not in text:
+        if re.match(r"^﻿?---\s*\n", text):
+            missing.append("机读块是裸 `---` frontmatter · 最新模板要求 `<!-- TEAMWORK-MACHINE -->` "
+                           "注释块(v8.174 · 渲染器不裸露成 YAML 墙)")
+        else:
+            missing.append("缺 `<!-- TEAMWORK-MACHINE -->` 机读块(v8.174)")
+    for key in ("ws_id", "status", "ui_panorama", "ui_panorama_confirmed",
+                "承接执行线", "affected_subprojects", "features"):
+        if not re.search(rf"(?m)^\s*{re.escape(key)}\s*:", text):
+            note = "(v8.185 · 涉 UI 用户确认全景标识)" if key == "ui_panorama_confirmed" else ""
+            missing.append(f"frontmatter 缺 `{key}`{note}")
+    if _WS_PROG_START not in text or _WS_PROG_END not in text:
+        missing.append("缺 `WS-PROGRESS:START/END` 标记区(v8.174 · ws-progress 自刷进度块)")
+    if _WS_DAG_START not in text or _WS_DAG_END not in text:
+        missing.append("缺 `WS-DAG:START/END` 标记区(v8.177 · ws-progress 派生依赖图)")
+    return missing
+
+
+def cmd_ws_lint(args: argparse.Namespace) -> None:
+    """v8.186:校验 WS 文档符合最新模板形态(治 AI 抄项目旧 WS · 无符合性检查)。"""
+    root = _git_toplevel(Path.cwd()) or Path.cwd()
+    _SKIP = {"node_modules", ".git", "_archive", "dist", "build", ".next", "vendor"}
+    raw = (getattr(args, "ws", None) or "").strip()
+    if not raw and getattr(args, "feature", None):
+        resolved = _resolve_ws_from_feature(Path(args.feature), root)
+        if resolved:
+            raw = resolved
+    bare = re.fullmatch(r"0*(\d+)", raw) if raw else None
+    targets = _ws_nums(raw) or ({int(bare.group(1))} if bare else set())
+    if not targets:
+        emit({"verdict": "FAIL", "reason": "需 --ws <编号> 或 --feature <路径>(抽不出 WS 编号)"})
+        return
+    ws_label = "WS-%02d" % min(targets)
+    ws_file = _find_ws_file(root, ws_label, _SKIP)
+    if not ws_file:
+        emit({"verdict": "FAIL", "ws": ws_label, "reason": f"找不到 {ws_label} 文档"})
+        return
+    missing = _lint_ws_doc(ws_file.read_text(encoding="utf-8", errors="replace"))
+    emit({
+        "verdict": "OK" if not missing else "NONCONFORMANT",
+        "action": "ws-lint", "ws": ws_label,
+        "file": str(ws_file.relative_to(root)),
+        "conformant": not missing, "missing": missing,
+        "hint": ("✅ 符合最新 templates/workstream.md"
+                 if not missing else
+                 "🔴 不符合最新模板 —— **别抄项目里旧 WS** · 照 {SKILL_ROOT}/templates/workstream.md "
+                 f"补齐上述缺项 · 再跑 `state.py ws-progress --ws {ws_label} --write` 填进度/DAG 块"),
+    })
+
+
 # ─── test-baseline:预存在失败注册表 + 差分（v8.178）──────────────────
 # 治本(audit ×8):brownfield 共享套件预存在失败 · 每 feature 重复 stash-baseline 甄别。
 # project-specs/test-baseline.md 登记成项目级单源 · test/dev gate 差分(0 新增 → 红 base 放行)。
@@ -2191,7 +2248,7 @@ PLANNING_CHECKLIST = [
      "spec": "feature-planning.md §2 Step 2"},
     {"item": "🎨 全景UI初步规划(本轮涉 UI 时 · 🔴 拆 WS 之前出):在 {子项目}/docs/design/preview-project/ 出/扩 design system + 本轮关键页(初步 · 系统+代表页 · 非每页 · 防瀑布 · 跑 preview.sh 看)+ 同步 sitemap.md(IA 地图 · 只写层级/导航不写视觉)· 完成产生 git diff = 拆 WS 的输入 · 🔴 **出完必给用户可访问预览 URL(跑 preview.sh 抓 PREVIEW_URL)+ emit R5 等用户确认全景 · 用户没确认过 = 不算规划完成**(auto/yolo 自动确认 + add-concern WARN);非 UI 轮跳过(下游 WS 标 全景初规:N-A)",
      "spec": "feature-planning.md §2 Step 5"},
-    {"item": "核心产出 WS(product-overview/workstream/WS-NN.md · 1..N 个 · 输入=全景diff+业务目标 · 承接 1+ 执行线 · 拆一组 feature · 🔴 每 WS 记 全景初规状态(✅/N-A)+ 🔴 ui_panorama_confirmed(涉 UI 用户确认全景的 ISO · 必填才能规划完成)+ 覆盖的全景页清单 + 执行顺序与并行建议(波次:同波可并行/各自 worktree · 跨波串行 + 同改面/跨子项目方向额外串行))· 0-1 时含业务架构与产品规划.md(愿景+执行线列表)· 🔴 不出 feature 实现代码(R6 · 全景 preview-project 是设计代码例外)· 不进 stage 链",
+    {"item": "核心产出 WS(product-overview/workstream/WS-NN.md · 1..N 个 · 输入=全景diff+业务目标 · 承接 1+ 执行线 · 拆一组 feature · 🔴 每 WS 记 全景初规状态(✅/N-A)+ 🔴 ui_panorama_confirmed(涉 UI 用户确认全景的 ISO · 必填才能规划完成)+ 覆盖的全景页清单 + 执行顺序与并行建议(波次:同波可并行/各自 worktree · 跨波串行 + 同改面/跨子项目方向额外串行))· 0-1 时含业务架构与产品规划.md(愿景+执行线列表)· 🔴 照 templates/workstream.md 起草**别抄项目旧 WS** · 写完跑 `state.py ws-lint --ws WS-NN` 校验最新模板(TEAMWORK-MACHINE 块+WS-PROGRESS/WS-DAG 标记)· 🔴 不出 feature 实现代码(R6 · 全景 preview-project 是设计代码例外)· 不进 stage 链",
      "spec": "feature-planning.md §2 Step 6 + templates/workstream.md"},
     {"item": "WS 拆出的 feature 写入 ROADMAP(BL-NNN · 关联 WS)· feature 全写入 = WS ✅ 规划完成 · 每个 BL 后续用户拍板走 prepare 启动 Feature",
      "spec": "conventions.md §4 + prepare.md §5"},
@@ -4556,6 +4613,14 @@ def build_parser() -> argparse.ArgumentParser:
     wpp.add_argument("--write", action="store_true",
                      help="写回 WS 文档的 <!-- WS-PROGRESS:START/END --> 标记区(缺标记则仅输出)")
     wpp.set_defaults(func=cmd_ws_progress)
+
+    # v8.186:ws-lint WS 文档最新模板符合性校验(治 AI 抄项目旧 WS · 无检查)
+    wlp = sub.add_parser(
+        "ws-lint",
+        help="[v8.186] 校验 WS 文档符合最新 templates/workstream.md 形态(TEAMWORK-MACHINE 块 + WS-PROGRESS/WS-DAG 标记 + 必备 frontmatter)")
+    wlp.add_argument("--ws", help="WS 编号(WS-01 / 01 均可)· 与 --feature 二选一")
+    wlp.add_argument("--feature", help="feature 路径 · 自 F-id 解析所属 WS")
+    wlp.set_defaults(func=cmd_ws_lint)
 
     # v8.178:test-baseline 预存在失败注册表 + 差分(红 base 0 新增放行 · 治反复 stash-baseline)
     tbp = sub.add_parser(
