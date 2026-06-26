@@ -35,7 +35,7 @@ class TestUiDesignBrief(unittest.TestCase):
     def test_v8170_rules_still_pushed(self):
         # 回归护栏:v8.170 的 UI-RULES + dev 顶栏(设计=代码)不许被后续编辑挤掉
         self.assertIn("UI-RULES", self.brief)
-        self.assertIn("dev 全局顶栏", self.brief)
+        self.assertIn("dev 顶栏", self.brief)  # v8.187:措辞从「dev 全局顶栏」精确化(顶栏只放页面到不了的态)
         self.assertIn("rubric", self.brief)
 
     def test_brief_renders_without_fstring_break(self):

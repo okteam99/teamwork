@@ -4,6 +4,18 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.187 · preview 修订:真实交互页面内做 · dev 顶栏只放页面到不了的态(修 v8.169 过度)
+
+> 用户(实战 AON admin 预览):全景设计尽量**页面内直接跳转**(点「新建模型」按钮直接开 Drawer)· 不要都依赖 dev 顶栏切换 · 顶栏只放**页面入口覆盖不到的**(错误/加载/难自然触发的态)。v8.169 当时矫枉过正 ——「页面切换 + 状态切换**都**走顶栏 · 页面禁内嵌**任何**预览控件」把真实可达的交互(按钮→Drawer)也赶到顶栏 · 反不如真实 app 保真。
+
+### 改动(ui-design § preview dev 顶栏 + 分层同构 + brief)
+- **区分「交互可达性」vs「状态注入」**:① 真实 app 点页面按钮能到的(新建/编辑 Drawer · Modal · 行→详情 · 页内导航/Tab)→ **页面内做成真实可点**(默认 · 交互保真 · 正是「设计=代码」要的)② dev 顶栏只放**真实交互无法自然触发的态**(`Loading/Error/Empty/边缘态` · 难自然触发的展示态 / preset 直开)。
+- **「禁内嵌 switcher」澄清**:禁的是**预览专属控件**(真实 app 没有的 state-switcher 下拉/场景 toggle)· **不是禁真实交互按钮**。状态注入仍走顶栏(Storybook args)· 但**交互可达性走页面**。
+- 页间跳转有**页内入口**则页内优先 · 顶栏兜底无页内入口的页。
+
+### 验证
+- doc(ui-design-stage § preview dev 顶栏 / 分层同构 line76)+ brief(`_ui_design_brief`)· `test_ui_design_brief` 断言措辞同步 · pytest 3 failed(baseline)/ 627 passed。
+
 ## v8.186 · ws-lint:WS 文档最新模板符合性校验 · 治 AI 抄项目旧 WS 无人检查
 
 > 实证 AON WS-012:AI 做 feature-planning 写 WS 时**抄项目里旧/混合格式**(裸 `---` frontmatter · 无 `TEAMWORK-MACHINE` 块 · 无 `WS-PROGRESS`/`WS-DAG` 标记 · 缺 `ui_panorama_confirmed`)· **无符合性检查** · 只有用户主动问「按最新模板写的么」才发现。
@@ -53,15 +65,3 @@
 
 ### 验证
 - doc(`tech.md` 224→257 · `blueprint-stage.md` §3/§88)· 无 .py 改 · `test_v8_stage_specs` 90 passed · pytest 3 failed(baseline)/ 620 passed。
-
-## v8.182 · TECH 加「完工自查」物化清单 · RD 实现完逐项打钩 · 对着设计防「设计了没实现」
-
-> 用户:需要 RD 开发完在文档内逐项打钩的自查清单么?现状:dev-stage §4 **有**自查清单,但 ① 在 spec 里、**不在 per-feature 文档**(打钩只在 AI 脑子)② 通用门(规范/build/linter),**不覆盖 TECH 设计承诺**(新加的 §错误处理/§依赖与影响/§测试策略 + v8.176 parity + v8.178 基线)。
-
-### 改动
-- **TECH.md §完工自查**(新 · RD 实现完逐项打 ✅):**对着本 TECH 设计逐条**(现状基线前提 / §错误处理 / §依赖与影响消费方 / §数据结构跨层 / §数据库变更 / §测试策略集成契约)+ 通用门(规范/无回归/build/linter/commit)+ (UI)设计↔实际核对。每项指向证据(测试/文件/编译)· 不适用 `N-A` · **专防「设计了没实现」**。
-- **dev-stage §4 改物化**:「读清单」→「在 `TECH.md §完工自查` **文档内逐项打钩** · review 据此核」· cite 清单 + `_dev_brief` 同步推(消费点)。
-- **定位**:soft **完整性**自证 —— 强门禁(test exit-code / verify-ac / external-review)仍是硬墙;本清单补「设计↔实现」完整性 · review 验 · 非橡皮图章。
-
-### 验证
-- doc(`tech.md` +完工自查 · `dev-stage.md` §4/cite)+ brief(`_dev_brief`)· `test_v8_stage_specs` 90 passed · pytest 3 failed(baseline)/ 620 passed。
