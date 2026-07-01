@@ -4,6 +4,18 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.189 · 规划收尾 finalize:用户合并后切回主分支 + 清 worktree + 净化主分支(= ship2)
+
+> 用户续 v8.188:规划 MR 建好提示用户后,用户说「已合并」→ 该进规划收尾流程:**切回主分支、清理 planning worktree、净化主分支**。补全 = 把规划收尾对齐 feature 的 **ship1→ship2** 两段。
+
+### 改动(feature-planning Step 9 + planning-check)
+- **收尾-2 finalize**(新 · = feature `ship-finalize`/ship2):用户说「已合并」→ 3 步镜像 ship-finalize:① `cd` 回主工作区 ② `git worktree remove` 清 planning worktree ③ `state.py main-sync --merge-target <mt>` 净化主分支(v8.145 起**不依赖 feature** · fetch + 按策略 pull 合并后规划产物 · 主工作区干净+最新)。
+- **收尾-1** 的 MR 提示改成「合并完回来说『已合并』· 我进收尾」(引导第二段)。
+- `planning-check` `worktree_setup` + checklist item 6 同步 finalize。
+
+### 验证
+- doc(feature-planning Step 9)+ code(`planning-check`)· `test_state` planning 4 passed · pytest 3 failed(baseline)/ 627 passed。
+
 ## v8.188 · 规划收尾:暂停问合入 merge_target → 建 MR → 提示用户合并 → 停(不自动起下一 feature)
 
 > 实证 AON KA-PAGES:AI 规划完成后**自己** commit→push→建 draft MR,然后**立刻**跳进下一个 feature 的 prepare(还把新 feature 的 `merge_target` 设成**未合并的** `planning/ka-pages` 分支)—— 没有「是否合入 merge_target」确认暂停点,也没有「MR 建好 → 提示用户合并 → 停」。
@@ -51,16 +63,3 @@
 
 ### 验证
 - code(`state.py` PLANNING_CHECKLIST)+ doc(feature-planning §5/6/7 · workstream.md · SKILL §58)· `test_state` planning 4 passed · pytest 3 failed(baseline)/ 620 passed。
-
-## v8.184 · feature-planning 进流程建临时 worktree · 隔离规划产物(文档+全景代码)
-
-> 用户:feature-planning 可能动文档和全景设计,进流程时应按 worktree 策略建临时 worktree。现状反例:feature-planning.md 明确「**不需要 worktree** · 在主工作区写文档」—— 但 planning 现在产出 WS/ROADMAP/product-overview 文档 **+ 全景 `preview-project` 代码**(v8.169 后是带 package.json 的真 code),落主工作区**污染主分支、撞并行 feature 基线**。
-
-### 改动(反转「planning 不进 worktree」)
-- **planning-check emit `worktree_setup`**(物化入口 · 同 feature 策略):进流程先 `git worktree add -b planning/<短名> .worktree/planning-<短名> origin/<merge-target>` + cd · 规划产物全写 worktree 内 · 完成 push + MR → 合并删 worktree。+ `key_constraints`/`next_hint` 同步。
-- **feature-planning.md**:§1 反转「不需要 worktree」+ R6 nuance(不出 **feature 实现**代码 · 但全景 preview-project 是设计代码会改)· §2 加 **Step 0**(建 worktree 进流程第一步)· Step 9 改 worktree 内 commit + MR + 清理 worktree。
-- **bootstrap 规划 forewarn** 加 worktree 提示。
-- **定位**:worktree 只是**文件隔离** · planning 仍「PMO 主对话直接做」不进状态机 · 仅不走 ship 状态机(纯文档/全景 MR)· trivial 单文档微调用户可免。
-
-### 验证
-- code(`state.py` planning-check + `bootstrap` forewarn)+ doc(feature-planning.md §1/§2/§9)· `test_state` planning +worktree 断言 · pytest 3 failed(baseline)/ 620 passed。

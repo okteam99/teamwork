@@ -163,17 +163,20 @@ PMO 主对话切换角色 · 讨论收敛 · 不需要单独 review artifact。
 3. 其他指示
 ```
 
-用户选 1 → 在 **Step 0 worktree 内** `git add` 规划产物 + commit + push planning 分支 + 开 MR(`gh`/`glab` CLI-first · 🔴 **target = `merge_target`**〔集成分支 dev/staging〕· 不走 ship 状态机 · 纯文档/全景 MR)→ 🔴 **⏸️ 提示用户合并 + 到此结束**(同 feature ship1「MR 已创建 · 等用户合并」):
+**【收尾-1 · 建 MR + 提示合并】**(= feature ship1):用户选 1 → 在 **Step 0 worktree 内** `git add` 规划产物 + commit + push planning 分支 + 开 MR(`gh`/`glab` CLI-first · 🔴 **target = `merge_target`**〔集成分支 dev/staging〕· 不走 ship 状态机 · 纯文档/全景 MR)→ 🔴 **⏸️ 提示用户合并 + 停**:
 
 ```
 ⏸️ 规划 MR 已创建:<MR URL> · target `<merge_target>` · 请 review + 合并。
-合并后:① `cd` 回主工作区 → `git worktree remove <worktree-path>` 清理 planning worktree
-       ② 拆出的 BL 用户拍板再走 prepare 启动 Feature
+合并完回来告诉我「已合并」· 我进规划收尾(清 worktree + 净化主分支)。
 ```
 
-🔴 **规划收尾 = MR 创建 + 等用户合并 · 不自动继续启动下一个 Feature** —— 启动实施是**用户合并规划 MR 之后**的独立决策(用户拍板某 BL → prepare)。
-🔴 **别在未合并的 planning 分支上叠起 feature**:feature 的 `merge_target` 应是**集成分支**(dev/staging)· **不是 planning 分支** —— 否则实现 diff 混着未合并的规划、基线不稳(实证:AON KA-PAGES 规划完就把新 feature target 到 `planning/ka-pages`)。
-完成 · 不需要 state.json / state.py 命令(规划层不进状态机)。
+🔴 **规划收尾 = MR 创建 + 等用户合并 · 不自动继续启动下一个 Feature** —— 启动实施是**用户合并规划 MR 之后**的独立决策(用户拍板某 BL → prepare)。🔴 **别在未合并的 planning 分支上叠起 feature**:feature 的 `merge_target` 应是**集成分支**(dev/staging)· **不是 planning 分支** —— 否则实现 diff 混着未合并的规划、基线不稳(实证:AON KA-PAGES 规划完就把新 feature target 到 `planning/ka-pages`)。
+
+**【收尾-2 · finalize(用户合并后 · = feature ship2 / ship-finalize)】**🔴 用户说「已合并」→ **进规划收尾流程**(3 步 · 镜像 ship-finalize:verify → worktree-remove → main-sync):
+1. **切回主工作区**:`cd <主工作区路径>`(在 `merge_target` / 主分支上 · 非 planning worktree)。
+2. **清理 planning worktree**:`git worktree remove <planning-worktree-path>`(规划产物已随 MR 进集成分支 · worktree 使命完成 · 删不掉先 `git worktree remove --force` 兜底)。
+3. **净化主分支**:`python3 {SKILL_ROOT}/tools/state.py main-sync --merge-target <merge_target>`(v8.145 起**不依赖 feature** · fetch + 按策略 pull 合并后的规划产物 → 主工作区**干净 + 最新** · 主工作区若有用户改动会 surface 净化决策)。
+→ 完成 · 拆出的 BL 用户拍板再走 prepare 启动 Feature(此时集成分支基线**已含规划产物**)· 规划层不进状态机。
 
 ---
 
