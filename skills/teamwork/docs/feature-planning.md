@@ -152,19 +152,27 @@ Feature 列表 + 优先级 + 排期(当前/下一/储备)。
 PL 把方向 · PM 把可执行性 · Architect 把技术可行。
 PMO 主对话切换角色 · 讨论收敛 · 不需要单独 review artifact。
 
-### Step 9 · 提交(🔴 R5 暂停点 · 必问)
+### Step 9 · 提交 + 开 MR + ⏸️ 提示用户合并(规划收尾 · 🔴 R5 暂停点 · 必问)
 
-规划产出(WS + 各 ROADMAP 登记 + preview-project/sitemap if 涉 UI + 业务架构 if 改)是**未提交的工作树改动** · **一次规划提交含本轮全部产出**(WS-NN.md + ROADMAP BL + preview-project diff)。规划完成时**必 emit R5 暂停点问用户是否提交 push** —— 不擅自 commit,也不放任改动悬着不提:
+规划产出(WS + 各 ROADMAP 登记 + preview-project/sitemap if 涉 UI + 业务架构 if 改)是 **Step 0 worktree 内未提交的改动**。规划完成 → **必 emit R5 暂停点问用户是否把规划产物合入 `merge_target`** —— 不擅自 commit / 合并,也不放任改动悬着:
 
 ```
-⏸️ 规划完成 · 产出 <WS-NN + N 个 ROADMAP 登记 + 全景 if UI + …> · 请选择:
-1. 提交并开 MR(worktree 内 commit + push + 开 MR)💡 推荐 —— 规划产物随 MR 原子合入 · 后续启动 Feature 有据
+⏸️ 规划完成 · 产出 <WS-NN + N 个 ROADMAP 登记 + 全景 if UI> · 是否合入 <merge_target>?
+1. 提交并创 MR 合入 <merge_target> 💡 推荐 —— 我 commit + push planning 分支 + 开 MR · 你在平台 review + 合并
 2. 先不提交(继续调整 / 你稍后自己提)
 3. 其他指示
 ```
 
-🔴 在 **Step 0 建的临时 worktree 内**提交(不是主工作区)· `git add` 规划产物 + commit + push 分支 + 开 MR(`gh`/`glab` CLI-first · 同 feature)· **不走 ship 状态机**(无 ship-phase · 纯文档/全景 MR)。
-🔴 **MR 合并后清理 worktree**:`cd` 回主工作区 → `git worktree remove <worktree-path>`(同 feature ship2 清场 · 规划产物已随 MR 进集成分支)。
+用户选 1 → 在 **Step 0 worktree 内** `git add` 规划产物 + commit + push planning 分支 + 开 MR(`gh`/`glab` CLI-first · 🔴 **target = `merge_target`**〔集成分支 dev/staging〕· 不走 ship 状态机 · 纯文档/全景 MR)→ 🔴 **⏸️ 提示用户合并 + 到此结束**(同 feature ship1「MR 已创建 · 等用户合并」):
+
+```
+⏸️ 规划 MR 已创建:<MR URL> · target `<merge_target>` · 请 review + 合并。
+合并后:① `cd` 回主工作区 → `git worktree remove <worktree-path>` 清理 planning worktree
+       ② 拆出的 BL 用户拍板再走 prepare 启动 Feature
+```
+
+🔴 **规划收尾 = MR 创建 + 等用户合并 · 不自动继续启动下一个 Feature** —— 启动实施是**用户合并规划 MR 之后**的独立决策(用户拍板某 BL → prepare)。
+🔴 **别在未合并的 planning 分支上叠起 feature**:feature 的 `merge_target` 应是**集成分支**(dev/staging)· **不是 planning 分支** —— 否则实现 diff 混着未合并的规划、基线不稳(实证:AON KA-PAGES 规划完就把新 feature target 到 `planning/ka-pages`)。
 完成 · 不需要 state.json / state.py 命令(规划层不进状态机)。
 
 ---

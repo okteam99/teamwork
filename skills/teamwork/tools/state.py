@@ -2252,7 +2252,7 @@ PLANNING_CHECKLIST = [
      "spec": "feature-planning.md §2 Step 6 + templates/workstream.md"},
     {"item": "WS 拆出的 feature 写入 ROADMAP(BL-NNN · 关联 WS)· feature 全写入 = WS ✅ 规划完成 · 每个 BL 后续用户拍板走 prepare 启动 Feature",
      "spec": "conventions.md §4 + prepare.md §5"},
-    {"item": "🔴 规划完成必 emit R5 暂停点问用户是否提交 push(WS + ROADMAP 登记是未提交工作树改动 · 不擅自 commit 也不放任悬着)· 主工作区直推或开 MR · 不走 ship 流程",
+    {"item": "🔴 规划收尾必 emit R5 暂停点问用户**是否合入 merge_target**(WS+ROADMAP+全景是 Step 0 worktree 内未提交改动)→ 确认后 worktree 内 commit+push planning 分支+开 MR(target=merge_target 集成分支)→ 🔴 **⏸️提示用户合并 + 到此结束**(同 feature ship1)· 🔴 不自动起下一 feature · 别叠 feature 在未合并 planning 分支 · 不走 ship 状态机",
      "spec": "feature-planning.md §2 Step 8"},
 ]
 
@@ -2310,7 +2310,8 @@ def cmd_planning_check(args: argparse.Namespace) -> None:
             "  git fetch origin\n"
             "  git worktree add -b planning/<短名> <repo-root>/.worktree/planning-<短名> origin/<merge-target>\n"
             "  cd <worktree-path>   # 🔴 规划产物全写 worktree 内路径(同 worktree 纪律)\n"
-            "  → 规划完成(feature-planning Step 9)在 worktree 内 commit + push + 开 MR → 合并后删 worktree\n"
+            "  → 规划完成 → ⏸️暂停问「是否合入 merge_target」→ 建 MR(target=merge_target)+ 🔴 提示用户合并 + **停**"
+            "(别自动起下一 feature · 别叠 feature 在未合并 planning 分支)· 合并后 cd 回主工作区删 worktree(详 Step 9)\n"
             "  (trivial 单文档微调 · 用户可决定免 worktree)"
         ),
         "key_constraints": [

@@ -5,6 +5,18 @@
 
 ---
 
+## v8.183 · TECH 加错误日志(WARN/ERROR)+ SQL 查询性能(给理由)两必查项
+
+> 用户:① 错误异常是否有 **WARN/ERROR 日志**作必查项 ② 涉 **SQL 查询**是否考虑性能优化也检查**并给理由**。
+
+### 改动
+- **§错误处理加「日志级别」列 + 不静默吞异常**:每条 catch / error 路径必有 **WARN**(可恢复/预期)或 **ERROR**(意外/需排查)日志 + 足够上下文(feature / 业务 id)· 静默 catch = 线上盲区、排查无据。
+- **§查询性能**(新 · 涉 SQL 必填 · 🔴 给理由):list / 聚合 / JOIN / 高频查询分析性能特征(索引命中 / N+1 / 全表扫 / 分页)并 **justify 两个方向**(够快说为什么 · 要优化说优化了什么为什么)· 漏理由 = Tech Review 打回(同 §简洁性 / §FK 的 justify 模式)。
+- **完工自查 +2 必查项**:错误/异常有 WARN/ERROR 日志(不静默吞)· 涉 SQL 查询性能已分析并给理由。
+- **blueprint 规范同步**(§3 + §88 Output Contract)。
+
+### 验证
+- doc(`tech.md` 224→257 · `blueprint-stage.md` §3/§88)· 无 .py 改 · `test_v8_stage_specs` 90 passed · pytest 3 failed(baseline)/ 620 passed。
 ## v8.182 · TECH 加「完工自查」物化清单 · RD 实现完逐项打钩 · 对着设计防「设计了没实现」
 
 > 用户:需要 RD 开发完在文档内逐项打钩的自查清单么?现状:dev-stage §4 **有**自查清单,但 ① 在 spec 里、**不在 per-feature 文档**(打钩只在 AI 脑子)② 通用门(规范/build/linter),**不覆盖 TECH 设计承诺**(新加的 §错误处理/§依赖与影响/§测试策略 + v8.176 parity + v8.178 基线)。
