@@ -4,6 +4,19 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.190 · main-sync 回收 teamwork auto-stash · 治 stash 累积无回收(harvest 跨两次最高频)
+
+> 第二轮 harvest(163 条 · +74):「ship 收尾 / 主工作区 auto-stash 累积无回收」**26×**(上次 23×)· **跨两次 harvest 稳居第一**。main-sync `stash-pull` 每次备份 stash 但不 pop → 跨 feature/session 累积 **11+** · human 难判哪些可 drop。
+
+### 改动
+- **main-sync 回收 stash**(新 · 默认自动跑):`_reclaim_stashes` 只认 **teamwork 自建**的 main-sync stash(消息标识)· **drop 可证冗余的**(空 / 内容已在分支 · `git apply --reverse --check` 通过)· 剩含未合内容的 **surface**(feature 标签 + hint)· 🔴 **绝不碰用户自己的 stash**。
+- **`--drop-stashes`**:用户确认不需要任何备份 → 全清 teamwork main-sync stash。
+- ship-finalize / 规划 finalize / 独立 main-sync 都**自动回收**(emit `stash_reclaim`)· 不再累积。
+- **测试** `test_stash_reclaim_v8190` +5(drop 冗余 / 留 live / 不碰用户 / drop-all / hint)。
+
+### 验证
+- code(`_v8_ship` `_reclaim_stashes` + main-sync emit + `--drop-stashes`)+ doc(ship-stage §6 · SKILL 命令行)· pytest 3 failed(baseline)/ 632 passed。
+
 ## v8.189 · 规划收尾 finalize:用户合并后切回主分支 + 清 worktree + 净化主分支(= ship2)
 
 > 用户续 v8.188:规划 MR 建好提示用户后,用户说「已合并」→ 该进规划收尾流程:**切回主分支、清理 planning worktree、净化主分支**。补全 = 把规划收尾对齐 feature 的 **ship1→ship2** 两段。
@@ -51,15 +64,3 @@
 
 ### 验证
 - code(`state.py` ws-lint)+ doc(feature-planning §2 + planning-check checklist)· pytest 3 failed(baseline)/ 627 passed。
-
-## v8.185 · feature-planning 涉 UI 加全景用户确认暂停点(预览 URL)· 未确认不算规划完成
-
-> 用户:feature-planning 涉 UI 要有**全景确认暂停点** + 给**可访问预览 URL** · 用户未确认过全景**不能算规划完成** · WS 加「全景设计已确认」标识。现状缺口:Step 5 出全景但**无用户确认暂停点**;WS `ui_panorama:✅` 只表「页在 preview-project」(AI 可自标)≠ 用户确认;规划完成门只卡 ✅ → WS 能在**用户没看过全景**时转规划完成。
-
-### 改动
-- **Step 5 加全景确认暂停点**(R5 · 拆 WS 前):全景出完 → 跑 `preview.sh` 抓 `PREVIEW_URL` → **给用户可访问预览 URL**(根 + 关键页直达)+ emit R5 等用户确认 · `auto_mode`/yolo 自动确认 + `add-concern` WARN 留痕。
-- **WS 加 `ui_panorama_confirmed` 字段**(用户确认全景的 ISO · 非 UI `N-A`):区别于 `ui_panorama:✅`(页在全景 · AI 自标)—— 这是**用户拍板**标识。
-- **规划完成硬门**:涉 UI WS 必 `ui_panorama:✅` **且** `ui_panorama_confirmed` 已填才能转 `✅ 规划完成` —— **用户没确认过全景 = 不算规划完成**。完成标准 / lifecycle / 子门禁 / Step 7 + planning-check checklist + SKILL §58 全同步。
-
-### 验证
-- code(`state.py` PLANNING_CHECKLIST)+ doc(feature-planning §5/6/7 · workstream.md · SKILL §58)· `test_state` planning 4 passed · pytest 3 failed(baseline)/ 620 passed。

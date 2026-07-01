@@ -96,7 +96,7 @@ state.py ship-finalize --feature <worktree 内 feature 目录路径> \
 |---|---|---|
 | 1 | **verify-delivered** | fetch 后验 **zip 在 `origin/<merge_target>`**(= feature MR 已合 · 抗 squash)。未合 → emit `PENDING` 等用户 · 🔴 **绝不在合并前删 worktree** |
 | 2 | worktree-remove | 删 feature worktree + 本地 feature 分支(接力卡 state.json 随之消亡)+ `fetch --prune` |
-| 3 | main-sync | 净化主工作区:**副产物(bootstrap 注入块 / harness 锁)自动 commit**(用户拍板)· 用户真改动 → 影响评估 + R5(b) 决策面板(commit-push / stash-pull / skip)· pull(`--rebase` 若有本地 commit)· push(被保护分支拒 → 提示走 MR) |
+| 3 | main-sync | 净化主工作区:**副产物(bootstrap 注入块 / harness 锁)自动 commit**(用户拍板)· 用户真改动 → 影响评估 + R5(b) 决策面板(commit-push / stash-pull / skip)· pull(`--rebase` 若有本地 commit)· push(被保护分支拒 → 提示走 MR)· 🔴 **v8.190 顺带回收 teamwork main-sync auto-stash**(drop 可证冗余的〔空 / 内容已在分支〕· 剩含未合内容的 surface + `--drop-stashes` 用户确认全清)—— 治 stash 累积无回收(harvest 26×) |
 
 尾随:teamwork stash 盘点(v8.144 · 防自动 stash 堆积埋改动)+ digest 指引(§16)。
 

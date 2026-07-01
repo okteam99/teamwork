@@ -5,6 +5,17 @@
 
 ---
 
+## v8.185 · feature-planning 涉 UI 加全景用户确认暂停点(预览 URL)· 未确认不算规划完成
+
+> 用户:feature-planning 涉 UI 要有**全景确认暂停点** + 给**可访问预览 URL** · 用户未确认过全景**不能算规划完成** · WS 加「全景设计已确认」标识。现状缺口:Step 5 出全景但**无用户确认暂停点**;WS `ui_panorama:✅` 只表「页在 preview-project」(AI 可自标)≠ 用户确认;规划完成门只卡 ✅ → WS 能在**用户没看过全景**时转规划完成。
+
+### 改动
+- **Step 5 加全景确认暂停点**(R5 · 拆 WS 前):全景出完 → 跑 `preview.sh` 抓 `PREVIEW_URL` → **给用户可访问预览 URL**(根 + 关键页直达)+ emit R5 等用户确认 · `auto_mode`/yolo 自动确认 + `add-concern` WARN 留痕。
+- **WS 加 `ui_panorama_confirmed` 字段**(用户确认全景的 ISO · 非 UI `N-A`):区别于 `ui_panorama:✅`(页在全景 · AI 自标)—— 这是**用户拍板**标识。
+- **规划完成硬门**:涉 UI WS 必 `ui_panorama:✅` **且** `ui_panorama_confirmed` 已填才能转 `✅ 规划完成` —— **用户没确认过全景 = 不算规划完成**。完成标准 / lifecycle / 子门禁 / Step 7 + planning-check checklist + SKILL §58 全同步。
+
+### 验证
+- code(`state.py` PLANNING_CHECKLIST)+ doc(feature-planning §5/6/7 · workstream.md · SKILL §58)· `test_state` planning 4 passed · pytest 3 failed(baseline)/ 620 passed。
 ## v8.184 · feature-planning 进流程建临时 worktree · 隔离规划产物(文档+全景代码)
 
 > 用户:feature-planning 可能动文档和全景设计,进流程时应按 worktree 策略建临时 worktree。现状反例:feature-planning.md 明确「**不需要 worktree** · 在主工作区写文档」—— 但 planning 现在产出 WS/ROADMAP/product-overview 文档 **+ 全景 `preview-project` 代码**(v8.169 后是带 package.json 的真 code),落主工作区**污染主分支、撞并行 feature 基线**。

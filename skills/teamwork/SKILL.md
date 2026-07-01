@@ -1,6 +1,6 @@
 ---
 name: teamwork
-version: v8.189.1
+version: v8.190
 description: AI 协作开发一体化框架 - 需求功能开发, bug 修复, 问题排查 · /teamwork 启动
 ---
 
@@ -143,7 +143,7 @@ B 类 · Stage 流转(12 stage × 2 + 4 fix/retry + ship-phase/ship-finalize/mai
 ├── ship-start / ship-complete
 ├── ship-phase --action {sanitize|archive|push|close-unmerged}(v8.145:archive = ship1 终幕 · 归档+翻牌进 feature 分支)
 ├── ship-finalize  ship2 零内容清场(verify-delivered→worktree 删→main-sync)· 必在主工作区
-└── main-sync --strategy {commit-push|stash-pull|skip} [--merge-target <br>]  主工作区净化(不依赖 feature)
+└── main-sync --strategy {commit-push|stash-pull|skip} [--merge-target <br>] [--drop-stashes]  主工作区净化(不依赖 feature · v8.190 顺带回收 teamwork auto-stash)
 
 C 类 · 维护(6)
 ├── snapshot(别名 status · 看当前 stage/下一步 · compact 恢复用)/ validate / raw-read / raw-write
