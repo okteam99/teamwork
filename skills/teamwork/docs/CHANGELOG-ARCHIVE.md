@@ -5,6 +5,17 @@
 
 ---
 
+## v8.186 · ws-lint:WS 文档最新模板符合性校验 · 治 AI 抄项目旧 WS 无人检查
+
+> 实证 AON WS-012:AI 做 feature-planning 写 WS 时**抄项目里旧/混合格式**(裸 `---` frontmatter · 无 `TEAMWORK-MACHINE` 块 · 无 `WS-PROGRESS`/`WS-DAG` 标记 · 缺 `ui_panorama_confirmed`)· **无符合性检查** · 只有用户主动问「按最新模板写的么」才发现。
+
+### 改动
+- **`state.py ws-lint`**(新):对照 `templates/workstream.md` 硬性形态校验 WS —— `TEAMWORK-MACHINE` 注释块(非裸 `---`)+ 必备 frontmatter(ws_id / status / ui_panorama / ui_panorama_confirmed / 承接执行线 / affected_subprojects / features)+ `WS-PROGRESS`/`WS-DAG` 标记区。`NONCONFORMANT` 列缺项 + hint「**别抄旧 WS** · 照模板补」。`--ws` / `--feature`。
+- **feature-planning Step 6 + planning-check**:🔴 照 `templates/workstream.md` 起草 **别抄项目旧 WS** · 写完跑 `ws-lint` 校验 → 再 `ws-progress --write`。
+- **测试** `test_ws_lint_v8186` +7(含 WS-012 复刻)。
+
+### 验证
+- code(`state.py` ws-lint)+ doc(feature-planning §2 + planning-check checklist)· pytest 3 failed(baseline)/ 627 passed。
 ## v8.185 · feature-planning 涉 UI 加全景用户确认暂停点(预览 URL)· 未确认不算规划完成
 
 > 用户:feature-planning 涉 UI 要有**全景确认暂停点** + 给**可访问预览 URL** · 用户未确认过全景**不能算规划完成** · WS 加「全景设计已确认」标识。现状缺口:Step 5 出全景但**无用户确认暂停点**;WS `ui_panorama:✅` 只表「页在 preview-project」(AI 可自标)≠ 用户确认;规划完成门只卡 ✅ → WS 能在**用户没看过全景**时转规划完成。

@@ -16,6 +16,7 @@ AC 逐条对照实现 / 测试覆盖度 / 边界场景
 
 ### 4. External cross-review → external-cross-review/review-<model>.md
 **跑** `state.py external-review --feature <path> --stage review`(host/model/profile 全自动 · 异质性硬约束物理墙 · 至少 1 份 · P0-154)。详 [standards/external-model-usage.md §十一](../standards/external-model-usage.md)。
+🔴 **跑之前先 `--preflight`**(v8.191 · 秒级):which + 微 probe 验**登录/网络/配额** E2E 通 · 失败此刻修环境(治 harvest 20×「到 review 跑完 600s 才发现 CLI 未登录 → 降级折腾」)。超时/空跑本体已**自动重试一次**(1.5x timeout · emit `attempts`)· 长 review 项目 localconfig `external_review_timeout_sec` 可调基础超时。
 
 🔴 **同步 · 慢 · 别提前 kill**:external-review **同步阻塞**跑(timeout 600s · claude 路径 = 纯 `claude -p <自包含 prompt>` 一次性生成 · 无工具 / 无 doc 模式 / 无 liveness 文件)· 真实评审常 **30s–3min**(模型并发 / 限流更久 · `claude -p` 会静默无输出)。**前台跑、耐心等满 600s · 不要中途 kill**。
 - **真超时 / 空输出 = `verdict: FAIL`(门禁未达)· 不是放行**:🔴 **禁止**伪造 `tool_error` 文件、或把 external 自列进 REVIEW.md `reviewers` 当通过。按 FAIL 的 hint 串行重跑(并发会限流);**串行重跑仍超时/空输出**(限流/配额/网络等环境性原因)→ 归入下一条「异质客观不可用 · 已重试失败」走**显式降级**(合法继续路径 · 同时报因给用户留痕)。🔴 **不得**绕过 P0-154 —— 禁的是「伪造/冒充/静默跳过」· 不是降级协议本身。
@@ -46,6 +47,9 @@ review-fix --auto-commit <hash> [--addresses-findings F1,F2]
   ↓ (写 rounds[-1].fix_commit + fix_at)
 review-retry
   ↓ (rounds 加 round N+1 · 重置 contract gates · 清 evidence.verdict)
+  ↓ 🔴 重验轮 external 用 --verify-fixes(v8.191 · 增量):只验「上轮已评 commit..HEAD」的修复 diff
+  ↓   + 上轮每条 finding 给 fixed/not-fixed verdict · 不全量重评整个 feature(治「每采纳 finding 即
+  ↓   全量重跑 · 微改动 80% 墙钟是重跑」· 锚点失效〔rebase〕自动 FAIL 提示退回全量)
 重新做评审(architect/qa/external)
   ↓
 review-complete --verdict APPROVE | NEEDS_REVISION

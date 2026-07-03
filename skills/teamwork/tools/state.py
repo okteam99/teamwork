@@ -2740,6 +2740,85 @@ EXTERNAL_STAGE_TO_PROFILE = {
 EXTERNAL_REVIEW_TIMEOUT_SEC = 600  # v8.55:5min→10min(用户 case codex 偶尔卡 / 长 review · 给足 buffer)
 
 
+# ─── external 机械成本三连修(v8.191 · harvest:20× 超时/重试/未登录/全量重跑)────
+
+def _external_timeout_sec(start) -> int:
+    """localconfig `external_review_timeout_sec` 覆盖默认超时(长 review 项目调大 · 不硬编码)。"""
+    try:
+        d = Path(start).resolve()
+        for cand in [d, *d.parents]:
+            cfg = cand / ".teamwork_localconfig.json"
+            if cfg.is_file():
+                v = json.loads(cfg.read_text(encoding="utf-8")).get("external_review_timeout_sec")
+                return int(v) if isinstance(v, (int, float)) and v > 0 else EXTERNAL_REVIEW_TIMEOUT_SEC
+            if (cand / ".git").exists():
+                break
+    except (OSError, ValueError, TypeError):
+        pass
+    return EXTERNAL_REVIEW_TIMEOUT_SEC
+
+
+def _preflight_external(cli_name: str, timeout_sec: int = 120) -> dict:
+    """v8.191:CLI 登录/网络 preflight(治「到 review 才发现未登录 → 降级折腾」· harvest 实锤)。
+
+    which(存在)→ version → **微 probe**(一次极小调用 · 秒级 · 证 E2E 通:认证/网络/配额)。
+    在 review 干活**之前**跑 · 失败此刻修环境 · 不烧完整评审的墙钟。
+    """
+    import shutil as _sh
+    if not _sh.which(cli_name):
+        return {"ok": False, "step": "which", "reason": f"{cli_name} CLI 不在 PATH",
+                "fix": f"装 {cli_name} CLI · 或走 --self-review-fallback 降级"}
+    probe_cmd = (["codex", "exec", "Reply with exactly: PONG"] if cli_name == "codex"
+                 else ["claude", "-p", "Reply with exactly: PONG",
+                       "--output-format", "text", "--strict-mcp-config"])
+    try:
+        r = subprocess.run(probe_cmd, capture_output=True, text=True, timeout=timeout_sec)
+    except subprocess.TimeoutExpired:
+        return {"ok": False, "step": "probe", "reason": f"probe 超时({timeout_sec}s)· 网络/限流?",
+                "fix": "检查网络/配额 · 稍后重试 · 持续不通走 --self-review-fallback"}
+    except (FileNotFoundError, OSError) as e:
+        return {"ok": False, "step": "probe", "reason": f"probe 启动失败:{e}", "fix": "检查 CLI 安装"}
+    err = (r.stderr or "").lower()
+    if r.returncode != 0 or any(k in err for k in ("not logged in", "login", "unauthorized", "auth")):
+        return {"ok": False, "step": "probe", "rc": r.returncode,
+                "reason": f"probe 失败(rc={r.returncode})· 疑未登录/认证:{(r.stderr or '')[:150]}",
+                "fix": f"登录 {cli_name} CLI(此刻修 · 别等 review 跑完才发现)· 修不了走 --self-review-fallback"}
+    if not (r.stdout or "").strip():
+        return {"ok": False, "step": "probe", "reason": "probe 空输出", "fix": "重试一次 · 持续空输出查 CLI 配置"}
+    return {"ok": True, "step": "probe", "note": f"{cli_name} E2E 通(认证/网络 OK)"}
+
+
+def _find_prior_external_review(feature_dir: Path, stage: str):
+    """v8.191:找上一轮 external 结果文件 + 它评过的 commit → (path, target_commit) · 无 → None。"""
+    d = feature_dir / "external-cross-review"
+    if not d.is_dir():
+        return None
+    best = None
+    for f in d.glob(f"{stage}-*.md"):
+        try:
+            head = f.read_text(encoding="utf-8", errors="replace")[:2000]
+        except OSError:
+            continue
+        m = re.search(r"^target_commit:\s*(\S+)", head, re.M)
+        if m and (best is None or f.stat().st_mtime > best[0]):
+            best = (f.stat().st_mtime, f, m.group(1))
+    return (best[1], best[2]) if best else None
+
+
+def _build_verify_fixes_block(prior_txt: str, prior_commit: str, commit: str, fix_diff: str) -> str:
+    """v8.191:增量重验 prompt 块(替代「每采纳 finding 即全量重跑」· 微改动上尤其亏)。"""
+    prior_txt = prior_txt[:20000]
+    fix_diff = fix_diff[:30000]
+    return (
+        "\n\n---\n🔴 **本轮 = 增量重验(verify-fixes)· 不是全量 re-review**:"
+        f"上一轮你已评审 commit `{prior_commit}` · 本轮只看 `{prior_commit}..{commit}` 的**修复 diff**。\n"
+        "任务:① 对上一轮**每条 finding** 给 verdict:`fixed` / `not-fixed` / `n-a`(一句依据)"
+        "② 只检查修复 diff **本身引入的新问题** · 🔴 不重评整个 feature(全量上一轮已做)。\n"
+        f"\n## 上一轮 findings(原文)\n{prior_txt}\n"
+        + (f"\n## 修复 diff(`{prior_commit}..{commit}`)\n```diff\n{fix_diff}\n```\n" if fix_diff.strip() else "")
+    )
+
+
 # v8.151:finding 消费姿态提示(brief 主动推 · 防 spec 只被动躺 doc 里 · 盲采是默认倾向)
 # v8.152:两个方向都摆明实证(v8.151 hint 只写 ADOPT · REJECT 只剩抽象「对称」· 又写歪了)
 _FINDING_POSTURE_HINT = (
@@ -3004,7 +3083,9 @@ def _run_streamed_to_log(cmd: list, *, cwd: Optional[str] = None,
 def _run_codex_review(stage: str, commit: str, base: str, title: str,
                       profile_filename: str, feature_dir: Path, cwd: str,
                       codex_model: Optional[str] = None,
-                      prompt_doc: Optional[Path] = None) -> tuple[int, str, str]:
+                      prompt_doc: Optional[Path] = None,
+                      timeout_sec: Optional[int] = None,
+                      extra_prompt: str = "") -> tuple[int, str, str]:
     """跑 codex CLI 评审 · 返 (returncode, stdout, stderr)。
 
     v8.59(用户 case · 本地实测):**全 stage 统一 `codex exec [PROMPT]`**。
@@ -3031,6 +3112,8 @@ def _run_codex_review(stage: str, commit: str, base: str, title: str,
     # (删 stage==review 的 codex review 子命令分支 · 它 headless 卡死)
     body_prompt = _build_codex_prompt(
         stage, feature_dir_rel, commit, base, profile_filename)
+    if extra_prompt:
+        body_prompt += extra_prompt   # v8.191:verify-fixes 增量重验块
     # title 信息嵌进 PROMPT 顶部(codex exec 没 --title flag)
     prompt = f"[Review title: {title}]\n\n{body_prompt}"
     if prompt_doc is not None:
@@ -3048,7 +3131,7 @@ def _run_codex_review(stage: str, commit: str, base: str, title: str,
         log_path = prompt_doc.with_suffix(".log")
     try:
         return _run_streamed_to_log(cmd, cwd=cwd, log_path=log_path,
-                                    label=f"codex-{stage}")
+                                    label=f"codex-{stage}", timeout_sec=timeout_sec)
     except (FileNotFoundError, OSError) as e:
         tail = f" · 过程日志 {log_path}" if log_path else ""
         return 127, "", f"codex CLI 不可用:{e}{tail}"
@@ -3091,7 +3174,8 @@ def _build_claude_review_cmd(prompt_text: str, feature_dir: Optional[Path],
 
 def _run_claude_review(prompt_text: str,
                        feature_dir: Optional[Path] = None, stage: str = "review",
-                       prompt_doc: Optional[Path] = None) -> tuple[int, str, str]:
+                       prompt_doc: Optional[Path] = None,
+                       timeout_sec: Optional[int] = None) -> tuple[int, str, str]:
     """跑 claude review · 返 (rc, stdout, stderr)。
 
     v8.38(用户拍板 2026-05-27):用 `-p`(short)替代 `--print`(long)。
@@ -3106,7 +3190,8 @@ def _run_claude_review(prompt_text: str,
     label = f"claude-{stage}"
     log_path = prompt_doc.with_suffix(".log") if prompt_doc is not None else None
     try:
-        return _run_streamed_to_log(cmd, cwd=cwd, log_path=log_path, label=label)
+        return _run_streamed_to_log(cmd, cwd=cwd, log_path=log_path, label=label,
+                                    timeout_sec=timeout_sec)
     except OSError as e:
         if getattr(e, "errno", None) == 7:  # E2BIG · argument list too long
             return 127, "", (
@@ -3647,6 +3732,21 @@ def cmd_external_review(args: argparse.Namespace) -> None:
         })
         return
 
+    # ── v8.191 · --preflight:review 干活前验 CLI 登录/网络(微 probe · 秒级)──
+    # 治 harvest 20×:「Claude CLI 未登录 · 到 review 跑完才发现 → 降级折腾」· 失败此刻修环境。
+    if getattr(args, "preflight", False):
+        pf = _preflight_external(cli_name)
+        emit({
+            "verdict": "OK" if pf.get("ok") else "FAIL",
+            "command": "external-review",
+            "action": "preflight",
+            "cli": cli_name,
+            **pf,
+            "next_hint": ("preflight 通过 · external-review 可正常跑" if pf.get("ok")
+                          else "先按 fix 修环境再进 review 干活(别烧完整评审墙钟才发现)"),
+        })
+        return
+
     # ── Step 3 · stage→profile 自动选 ──
     if args.stage not in EXTERNAL_STAGE_TO_PROFILE:
         emit({
@@ -3724,8 +3824,41 @@ def cmd_external_review(args: argparse.Namespace) -> None:
         })
         return
 
+    # ── v8.191 · --verify-fixes:增量重验(治「每采纳 finding 即全量重跑」· 微改动 80% 墙钟是重跑)──
+    verify_meta = None
+    if getattr(args, "verify_fixes", False):
+        if args.stage != "review":
+            emit({"verdict": "FAIL", "command": "external-review",
+                  "error": "--verify-fixes 仅支持 --stage review(fix-retry 循环的增量重验)"})
+            return
+        if getattr(args, "prompt_doc", None):
+            emit({"verdict": "FAIL", "command": "external-review",
+                  "error": "--verify-fixes 与 --prompt-doc 互斥(重验 prompt 自动生成 · 防审计输入分叉)"})
+            return
+        prior = _find_prior_external_review(feature_dir, args.stage)
+        if not prior:
+            emit({"verdict": "FAIL", "command": "external-review",
+                  "error": "--verify-fixes 找不到上一轮 external 结果(external-cross-review/review-*.md 含 target_commit)",
+                  "hint": "先跑一轮全量 external-review · 修复后再用 --verify-fixes 增量重验"})
+            return
+        prior_file, prior_commit = prior
+        if prior_commit == commit:
+            emit({"verdict": "FAIL", "command": "external-review",
+                  "error": f"--verify-fixes:目标 commit 与上一轮已评 commit 相同({commit[:12]})· 无修复增量",
+                  "hint": "先 review-fix 提交修复(推进 auto_commit)再重验 · 或去掉 --verify-fixes 全量重跑"})
+            return
+        if not _is_ancestor(prior_commit, commit, cwd=str(feature_dir)):
+            emit({"verdict": "FAIL", "command": "external-review",
+                  "error": f"--verify-fixes:上一轮已评 commit {prior_commit[:12]} 不是目标 {commit[:12]} 的祖先(rebase?)",
+                  "hint": "锚点失效 · 去掉 --verify-fixes 跑全量(锚回 review_base_commit)"})
+            return
+        base, base_source = prior_commit, "verify_fixes(上一轮已评 commit)"
+        verify_meta = {"prior_file": prior_file, "prior_commit": prior_commit}
+
     feature_id = state.get("feature_id") or feature_dir.name
     title = args.title or f"{feature_id} · {args.stage} stage external review"
+    if verify_meta:
+        title = f"[FIX-VERIFY 增量重验] {title}"
 
     # ── v8.108 · 降级自审走 subagent(不 exec)· 治本 exec CLI 反复出认证/--bare/卡死/登录问题 ──
     # self_fallback(--self-review-fallback)或 ext_disabled(config disable_external_review)=
@@ -3805,7 +3938,9 @@ def cmd_external_review(args: argparse.Namespace) -> None:
     # ── dry-run · 仅输出将跑的命令 + 校验信息 ──
     # v8.88:self-review 降级落 self-review/(不进 external-cross-review/ · 不满足 P0-154 门禁)
     output_dir = feature_dir / ("self-review" if self_fallback else "external-cross-review")
-    output_file = output_dir / f"{args.stage}-{model}.md"
+    # v8.191:verify-fixes 结果单独命名(不 clobber 全量轮 · 后续重验仍能找到最新已评 commit)
+    output_file = output_dir / (f"{args.stage}-{model}-fixverify.md" if verify_meta
+                                else f"{args.stage}-{model}.md")
     preview_prompt_full = None
     if args.dry_run:
         if model == "codex":
@@ -3858,6 +3993,21 @@ def cmd_external_review(args: argparse.Namespace) -> None:
 
     # ── Step 5 · 跑 CLI ──
     output_dir.mkdir(parents=True, exist_ok=True)
+    # v8.191:verify-fixes 增量重验块(上一轮 findings + 修复 diff · 只验修复不全量重评)
+    verify_block = ""
+    if verify_meta:
+        try:
+            prior_txt = Path(verify_meta["prior_file"]).read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            prior_txt = "(读取上一轮 external 结果失败 · 按 diff 验)"
+        try:
+            dr = subprocess.run(["git", "diff", f"{base}..{commit}"],
+                                cwd=str(git_root), capture_output=True, text=True, timeout=30)
+            fix_diff = dr.stdout if dr.returncode == 0 else ""
+        except (subprocess.SubprocessError, OSError):
+            fix_diff = ""
+        verify_block = _build_verify_fixes_block(
+            prior_txt, verify_meta["prior_commit"], commit, fix_diff)
     # v8.139:两引擎统一审计配对 —— prompt-doc(输入 .md)+ 同名过程日志(.log)+ 结果文件
     prompt_doc: Optional[Path] = None
     prompt_doc_used = None
@@ -3867,14 +4017,14 @@ def cmd_external_review(args: argparse.Namespace) -> None:
     if model == "codex":
         prompt_doc = _new_prompt_doc_path(feature_dir, args.stage, model)
         prompt_doc_source = "generated"
-        rc, stdout, stderr = _run_codex_review(
+        runner = lambda _ts: _run_codex_review(  # noqa: E731
             stage=args.stage, commit=commit, base=base, title=title,
             profile_filename=profile_path.name,
             feature_dir=feature_dir, cwd=str(git_root),
             codex_model=codex_model,
             prompt_doc=prompt_doc,
+            timeout_sec=_ts, extra_prompt=verify_block,
         )
-        prompt_doc_used = str(prompt_doc) if prompt_doc.exists() else None
     else:
         # claude 路径(v8.136 · 治 v8.44 固定名缓存中毒):
         #   默认:每轮**现生成**唯一 prompt-doc(模板 Prompt 主体提取 + inline 当前文件 →
@@ -3933,6 +4083,8 @@ def cmd_external_review(args: argparse.Namespace) -> None:
                 .replace("{{base}}", base)
                 .replace("{{feature_id}}", feature_id)
             )
+            if verify_block:
+                prompt_text += verify_block   # v8.191:增量重验块(claude prompt 自包含)
             prompt_doc = _new_prompt_doc_path(feature_dir, args.stage, model)
             # v8.140:首行 ACK 自证契约(仅 generated 注入 · --prompt-doc override 原样执行不动)
             prompt_text = prompt_text + _ack_block(prompt_doc)
@@ -3943,9 +4095,21 @@ def cmd_external_review(args: argparse.Namespace) -> None:
             except OSError:
                 prompt_doc_used = None  # 写盘失败不阻塞执行(审计缺本轮 · prompt 照跑)
             prompt_doc_source = "generated"
-        rc, stdout, stderr = _run_claude_review(
+        runner = lambda _ts: _run_claude_review(  # noqa: E731
             prompt_text, feature_dir=feature_dir, stage=args.stage,
-            prompt_doc=prompt_doc)
+            prompt_doc=prompt_doc, timeout_sec=_ts)
+
+    # v8.191:超时(rc=124)/空跑 自动重试一次(1.5x timeout)· 治「手动重跑吃墙钟」(harvest:
+    # 「2 超时 + 1 空跑」× 每次 600s)。localconfig external_review_timeout_sec 可调基础超时。
+    base_timeout = _external_timeout_sec(feature_dir)
+    rc, stdout, stderr = runner(base_timeout)
+    attempts, used_timeout = 1, base_timeout
+    if rc == 124 or (rc == 0 and not stdout.strip()):
+        used_timeout = int(base_timeout * 1.5)
+        rc, stdout, stderr = runner(used_timeout)
+        attempts = 2
+    if model == "codex":
+        prompt_doc_used = str(prompt_doc) if (prompt_doc and prompt_doc.exists()) else None
 
     # v8.139:过程日志(prompt-doc 同名 .log)· 失败/成功 emit 都透出 —— 失败时它就是验尸现场
     process_log = prompt_doc.with_suffix(".log") if prompt_doc is not None else None
@@ -3967,6 +4131,8 @@ def cmd_external_review(args: argparse.Namespace) -> None:
             "hint": live_hint,
             "host": host,
             "model": model,
+            "attempts": attempts,          # v8.191:≥2 = 已自动重试(1.5x timeout)仍失败 → 环境性
+            "timeout_sec_used": used_timeout,
             "cli_exit_code": rc,
             "cli_stderr": stderr[:500],
             **({"process_log": process_log_str} if process_log_str else {}),
@@ -4004,6 +4170,12 @@ def cmd_external_review(args: argparse.Namespace) -> None:
             "degraded: true",
             f"degraded_mode: {'self-review-fallback' if self_fallback else 'config-disabled'}",
             f"degraded_reason: \"{sr_reason}\"",
+        ]
+    if verify_meta:
+        # v8.191:增量重验轮标注(target_commit = 本轮已验 commit · 供下一轮 verify 锚)
+        frontmatter_lines += [
+            "verify_fixes: true",
+            f"verified_prior_commit: {verify_meta['prior_commit']}",
         ]
     frontmatter_lines += ["---", ""]
     body = stdout
@@ -4796,6 +4968,10 @@ def build_parser() -> argparse.ArgumentParser:
                           "<feature>/external-review-prompts/<stage>-<model>.md。"
                           "doc 不存在 → fallback v8.43 inline + emit WARN 提示 scaffold"))
     # v8.88:诚实降级自审兜底(异质客观不可用·已重试失败 时的弱安全网)
+    er.add_argument("--preflight", action="store_true",
+                    help="[v8.191] 只验 CLI 登录/网络(which+version+微 probe · 秒级)· review 干活前跑 · 不执行评审")
+    er.add_argument("--verify-fixes", action="store_true",
+                    help="[v8.191] 增量重验(仅 review):只验上一轮 findings 的修复 diff(上轮已评 commit..HEAD)· 不全量重跑")
     er.add_argument("--self-review-fallback", action="store_true",
                     help=("[v8.88] 异质模型客观不可用(未装/未登录/配额满·已重试失败)时 · "
                           "跑**同模型 fresh exec** 自审 · 落 self-review/(非异质 · **不满足 "

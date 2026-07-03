@@ -4,6 +4,19 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.191 · external 机械成本三连修:preflight + 超时自动重试 + verify-fixes 增量重验
+
+> 耗时归因(138 条 per-stage 数据)原因 2:external 的**机械 overhead**(非评审价值)—— 20× 实锤:「3 行改动跑 5 次 external(2 真轮+1 空跑+2 超时)review 墙钟 49m(80%)」「CLI 未登录到 review 才发现 → 降级折腾」「每采纳 finding 即全量重跑」。
+
+### 改动(不动「评审必须真跑」原则 · 只砍机械成本)
+- **`--preflight`**(①):review 干活前 which + **微 probe**(一次极小调用 · 秒级)验登录/网络/配额 E2E 通 · 失败此刻修环境 · 不烧完整评审墙钟才发现。
+- **超时/空跑自动重试**(②):rc=124 / 空 stdout → **自动重试一次**(1.5x timeout · emit `attempts`/`timeout_sec_used`)· 省手动重跑轮;localconfig `external_review_timeout_sec` 调基础超时(长 review 项目)。
+- **`--verify-fixes`**(③ · 仅 review):增量重验 —— base 锚**上一轮已评 commit**(结果文件 frontmatter `target_commit`)· prompt = 上轮 findings 全文 + 修复 diff · 任务 = 逐 finding 给 `fixed/not-fixed` verdict + 只查修复 diff 新问题 · **不全量重评**。结果落 `review-<model>-fixverify.md`(不 clobber 全量轮 · 供下轮再锚)· 锚点失效(rebase/同 commit)FAIL 提示退全量 · 与 `--prompt-doc` 互斥。
+- review-stage.md 同步(external 步 + fix-retry 循环)。
+
+### 验证
+- code(`state.py` 4 helpers + cmd_external_review 三分支 + runners timeout/extra_prompt)+ doc · `test_external_mech_v8191` +12 · pytest 3 failed(baseline)/ 644 passed。
+
 ## v8.190 · main-sync 回收 teamwork auto-stash · 治 stash 累积无回收(harvest 跨两次最高频)
 
 > 第二轮 harvest(163 条 · +74):「ship 收尾 / 主工作区 auto-stash 累积无回收」**26×**(上次 23×)· **跨两次 harvest 稳居第一**。main-sync `stash-pull` 每次备份 stash 但不 pop → 跨 feature/session 累积 **11+** · human 难判哪些可 drop。
@@ -52,15 +65,3 @@
 
 ### 验证
 - doc(ui-design-stage § preview dev 顶栏 / 分层同构 line76)+ brief(`_ui_design_brief`)· `test_ui_design_brief` 断言措辞同步 · pytest 3 failed(baseline)/ 627 passed。
-
-## v8.186 · ws-lint:WS 文档最新模板符合性校验 · 治 AI 抄项目旧 WS 无人检查
-
-> 实证 AON WS-012:AI 做 feature-planning 写 WS 时**抄项目里旧/混合格式**(裸 `---` frontmatter · 无 `TEAMWORK-MACHINE` 块 · 无 `WS-PROGRESS`/`WS-DAG` 标记 · 缺 `ui_panorama_confirmed`)· **无符合性检查** · 只有用户主动问「按最新模板写的么」才发现。
-
-### 改动
-- **`state.py ws-lint`**(新):对照 `templates/workstream.md` 硬性形态校验 WS —— `TEAMWORK-MACHINE` 注释块(非裸 `---`)+ 必备 frontmatter(ws_id / status / ui_panorama / ui_panorama_confirmed / 承接执行线 / affected_subprojects / features)+ `WS-PROGRESS`/`WS-DAG` 标记区。`NONCONFORMANT` 列缺项 + hint「**别抄旧 WS** · 照模板补」。`--ws` / `--feature`。
-- **feature-planning Step 6 + planning-check**:🔴 照 `templates/workstream.md` 起草 **别抄项目旧 WS** · 写完跑 `ws-lint` 校验 → 再 `ws-progress --write`。
-- **测试** `test_ws_lint_v8186` +7(含 WS-012 复刻)。
-
-### 验证
-- code(`state.py` ws-lint)+ doc(feature-planning §2 + planning-check checklist)· pytest 3 failed(baseline)/ 627 passed。
