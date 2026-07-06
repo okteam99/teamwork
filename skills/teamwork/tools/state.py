@@ -1039,7 +1039,20 @@ def cmd_ws_lint(args: argparse.Namespace) -> None:
     if not ws_file:
         emit({"verdict": "FAIL", "ws": ws_label, "reason": f"找不到 {ws_label} 文档"})
         return
-    missing = _lint_ws_doc(ws_file.read_text(encoding="utf-8", errors="replace"))
+    ws_text = ws_file.read_text(encoding="utf-8", errors="replace")
+    missing = _lint_ws_doc(ws_text)
+    # v8.197:执行线存在性(愿景层→WS taxonomy 校验)—— WS 承接的 Line 必须在业务架构「执行线列表」
+    # 存在 · 否则是幽灵 Line(反查「某线下有哪些 WS」会断)。无业务架构文档 → skip(非所有项目有)。
+    ws_lines = {re.sub(r"\s+", "", x) for x in re.findall(r"(?m)^\s*-\s*(Line\s*\d+)", ws_text)}
+    if ws_lines:
+        arch = next(iter(root.glob("product-overview/*业务架构*.md")), None)
+        if arch:
+            arch_lines = {re.sub(r"\s+", "", x) for x in
+                          re.findall(r"Line\s*\d+", arch.read_text(encoding="utf-8", errors="replace"))}
+            ghost = sorted(ws_lines - arch_lines)
+            if ghost:
+                missing.append(f"承接执行线含业务架构不存在的 {ghost}(幽灵 Line · "
+                               f"对照 {arch.name} 执行线列表 · 新线先在业务架构登记)")
     emit({
         "verdict": "OK" if not missing else "NONCONFORMANT",
         "action": "ws-lint", "ws": ws_label,

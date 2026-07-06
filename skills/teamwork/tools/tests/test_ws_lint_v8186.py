@@ -118,3 +118,31 @@ class TestCli(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestV8197LineCheck(unittest.TestCase):
+    def setUp(self):
+        self.root = Path(tempfile.mkdtemp(prefix="wsl7-"))
+        (self.root / "product-overview" / "workstream").mkdir(parents=True)
+        ws = _GOOD.replace("承接执行线:\n  - Line 1", "承接执行线:\n  - Line 1\n  - Line 4")
+        (self.root / "product-overview" / "workstream" / "WS-01-x.md").write_text(ws, encoding="utf-8")
+
+    def _run(self):
+        r = subprocess.run([sys.executable, str(STATE_PY), "ws-lint", "--ws", "WS-01"],
+                           capture_output=True, text=True, timeout=30, cwd=str(self.root))
+        return json.loads(r.stdout)
+
+    def test_ghost_line_flagged(self):
+        (self.root / "product-overview" / "X_业务架构与产品规划.md").write_text(
+            "## 执行线列表\n- Line 1 · 主线\n", encoding="utf-8")   # 无 Line 4
+        out = self._run()
+        self.assertEqual(out["verdict"], "NONCONFORMANT")
+        self.assertTrue(any("幽灵 Line" in m for m in out["missing"]))
+
+    def test_lines_exist_ok(self):
+        (self.root / "product-overview" / "X_业务架构与产品规划.md").write_text(
+            "## 执行线列表\n- Line 1 · 主线\n- Line 4 · 工具链\n", encoding="utf-8")
+        self.assertEqual(self._run()["verdict"], "OK")
+
+    def test_no_arch_doc_skips(self):
+        self.assertEqual(self._run()["verdict"], "OK")   # 无业务架构 → skip 不误报

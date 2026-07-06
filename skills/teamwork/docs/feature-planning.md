@@ -180,6 +180,14 @@ PMO 主对话切换角色 · 讨论收敛 · 不需要单独 review artifact。
 
 ---
 
+### Step 10 · 规划后变更(WS ✅ 规划完成之后 · v8.197)
+
+规划完成 ≠ 冻结,但也不是随便改 —— 按变更性质分两路:
+
+- **追加 feature(轻量 · 不重开全流程)**:R5 一句确认 → 在 Step 0 同款临时 worktree 内:WS 名册 `features[]` 加条目 + §拆出的 feature 补节 + §变更日志 +1 行 + ROADMAP 登记 BL(关联 WS)→ `ws-lint` + `ws-progress --write` 刷新 → commit + MR(同 Step 9 收尾)。实证:WS-03 追加 BL-006(publish_to_github)。
+- **砍 feature / 改方向 / 动拆解边界**:影响拆解结构 → **回 feature-planning**(Step 1 调研起 · WS 状态回 `🔄 讨论中` · 重走确认)。
+- 🔴 **已启动(F 已 init)的 feature 不在此列** —— 那是执行层变更(jump-to-stage / close-unmerged / 新 Bug 流),别用规划变更掩盖执行返工。
+
 ## 3. 注意事项
 
 ### 坑 1 · R6 红线 · Planning 出代码
