@@ -5037,7 +5037,6 @@ def build_parser() -> argparse.ArgumentParser:
     # - _v8_engine.py   通用 stage start/complete + bypass 协议
     # - _v8_stage_specs.py  12 stage 完整契约
     # - _v8_ship.py     ship-phase 子动作(替代 v7 ship-*)
-    # - _v8_migrate.py  migrate-v7-to-v8 一次性迁移
     #
     # 注:v8.0+P0-12 删除 _v8_init.py(triage + prepare 命令)·
     #     入口分诊是 PMO 行为(按 SKILL.md § Triage 入口规范 规范做)· 不在 state.py 范围。
@@ -5045,11 +5044,9 @@ def build_parser() -> argparse.ArgumentParser:
         from _v8_engine import register_v8_subparsers
         from _v8_stage_specs import STAGE_SPECS as V8_STAGE_SPECS
         from _v8_ship import register_v8_ship_subparser
-        from _v8_migrate import register_v8_migrate_subparser
 
         register_v8_subparsers(sub, V8_STAGE_SPECS, FLOW_BY_TYPE)
         register_v8_ship_subparser(sub)
-        register_v8_migrate_subparser(sub)
     except ImportError as _e:
         # v8 模块不可用 · 不影响 v7 命令 · 不打印警告(silent execution)
         pass

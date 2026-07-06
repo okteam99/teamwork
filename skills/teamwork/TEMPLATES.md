@@ -27,7 +27,7 @@
 │
 └── 🔴 state.json 特别注意
  state.json 由 `tools/state.py` 单源维护(schema 演化由 state.py + _v8_stage_specs.py 控制)。
- peer Feature 的 state.json 可能是老 schema · 必须走 state.py validate / migrate-v7-to-v8。
+ peer Feature 的 state.json 可能是老 schema · 必须走 state.py validate。
 ```
 
 📎 该红线由 PMO / PM / RD 共同遵守，触发流程见 roles/{pmo,pm,rd}.md 对应「格式权威」条目。

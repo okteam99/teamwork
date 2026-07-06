@@ -1,13 +1,12 @@
 ---
 name: teamwork
-version: v8.192.1
+version: v8.193
 description: AI 协作开发一体化框架 - 需求功能开发, bug 修复, 问题排查 · /teamwork 启动
 ---
 
 # Teamwork Skill · v8.0 Code-driven Orchestration
 
-> v7 → v8 是范式切换 · 不向下兼容。
-> 老 Feature 跑 `state.py migrate-v7-to-v8 --feature <path>` 迁移。
+> v7 → v8 是范式切换 · 不向下兼容(v7 迁移工具已退役 · git 历史可溯)。
 
 ---
 
@@ -147,8 +146,7 @@ B 类 · Stage 流转(12 stage × 2 + 4 fix/retry + ship-phase/ship-finalize/mai
 
 C 类 · 维护(6)
 ├── snapshot(别名 status · 看当前 stage/下一步 · compact 恢复用)/ validate / raw-read / raw-write
-├── recover state.json 被外部改后认证
-└── migrate-v7-to-v8 一次性迁移老 Feature
+└── recover state.json 被外部改后认证
 ```
 
 命令现行权威 = `state.py --help` + [`tools/_v8_stage_specs.py`](./tools/_v8_stage_specs.py)(各 stage 契约)。(v8.0 命令 schema 快照已清理 · git 历史可溯)。
@@ -705,7 +703,6 @@ v8 把 v7 的 9 红线中 16/17 子条目物化进 state.py · 仅 1 条(R3 PMO 
 | [tools/_v8_engine.py](./tools/_v8_engine.py) | 通用 stage start/complete + bypass 引擎 |
 | [tools/_v8_stage_specs.py](./tools/_v8_stage_specs.py) | 12 stage 完整契约(stage 数单源 `STAGE_SPECS`) |
 | [tools/_v8_ship.py](./tools/_v8_ship.py) | ship-phase 5 actions |
-| [tools/_v8_migrate.py](./tools/_v8_migrate.py) | v7 → v8 迁移 |
 | [tools/bootstrap.py](./tools/bootstrap.py) | session 启动维护(骨架 / hooks / 注入段) |
 | [docs/CHANGELOG.md](./docs/CHANGELOG.md) | 完整变更记录 |
 

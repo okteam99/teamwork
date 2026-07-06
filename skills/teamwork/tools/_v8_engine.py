@@ -707,7 +707,6 @@ STAGE_TEMPLATES: dict[str, dict] = {
         "templates": {
             "PRD.md": "prd.md",
             "PRD-REVIEW.md": None,  # 无独立模板 · 按 reviewer 分段
-            "external-cross-review/prd-{model}.md": "external-cross-review.md",
         },
         "validators": {},
     },
@@ -733,7 +732,6 @@ STAGE_TEMPLATES: dict[str, dict] = {
             "TC.md": "tc.md",
             "TECH.md": "tech.md",
             "TECH-REVIEW.md": None,
-            "external-cross-review/*.md": "external-cross-review.md",
         },
         "validators": {
             "TC.md": ("verify-ac.py",
@@ -761,7 +759,6 @@ STAGE_TEMPLATES: dict[str, dict] = {
             "REVIEW.md": None,
             "REVIEW-arch.md": None,
             "REVIEW-qa.md": None,
-            "external-cross-review/*.md": "external-cross-review.md",
         },
         "validators": {},
     },
