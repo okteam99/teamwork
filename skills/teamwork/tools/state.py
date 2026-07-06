@@ -838,11 +838,23 @@ def _resolve_ws_from_feature(feature_dir: Path, root: Path) -> "Optional[str]":
     """
     fid = ""
     sj = feature_dir / "state.json"
+    state_bl = ""
     if sj.is_file():
         try:
-            fid = json.loads(sj.read_text(encoding="utf-8")).get("feature_id", "") or ""
+            _st = json.loads(sj.read_text(encoding="utf-8"))
+            fid = _st.get("feature_id", "") or ""
+            state_bl = _st.get("bl") or ""
         except (OSError, ValueError):
             pass
+    _SKIP0 = {"node_modules", ".git", "_archive", "dist", "build", ".next", "vendor"}
+    if state_bl:  # v8.196:state.bl 机读绑定优先 · 直接名册反查(不依赖 ROADMAP 手填「对应F编号」)
+        for wsf in root.rglob("WS-*.md"):
+            if "workstream" not in str(wsf).lower() or (set(wsf.parts) & _SKIP0):
+                continue
+            if any(f.get("bl") == state_bl for f in _parse_ws_features(wsf)):
+                n = _ws_nums(wsf.name)
+                if n:
+                    return "WS-%02d" % min(n)
     fid = fid or feature_dir.name
     m = re.search(r"F-?\d+", fid, re.I)
     if not m:
@@ -939,6 +951,22 @@ def cmd_ws_progress(args: argparse.Namespace) -> None:
     block = _render_ws_progress(ws_label, items, len(roadmaps), bool(roster))
     dag = _render_ws_dag(roster, ws_label) if roster else None
 
+    # v8.196:可启动集 —— 名册里依赖全 ✅ 已完成、自身待开始的 feature(治「下一个做什么」人肉对照 DAG)
+    ready = []
+    if roster:
+        stat = {}
+        for f in roster:
+            hit = by_bl.get(f["bl"]) if f["bl"] else None
+            stat[f["id"]] = (hit[1]["status"] if hit else "")
+        for f in roster:
+            own = stat.get(f["id"], "")
+            deps_done = all("已完成" in stat.get(d, "") for d in f["deps"] if d in stat)
+            if "待开始" in own and deps_done:
+                ready.append({"feature": _ws_short(f["id"], ws_label), "bl": f["bl"]})
+        if ready:
+            block += "\n▶ **可启动(依赖已齐)**:" + " · ".join(
+                f"{r['feature']}({r['bl']})" for r in ready)
+
     wrote = None
     dag_written = False
     if args.write:
@@ -963,7 +991,8 @@ def cmd_ws_progress(args: argparse.Namespace) -> None:
 
     emit({"verdict": "OK", "action": "ws-progress", "ws": ws_label,
           "roadmaps_scanned": len(roadmaps), "roster": len(roster), "rows": len(items),
-          "written_to": wrote, "dag_written": dag_written, "block": block, "dag": dag})
+          "written_to": wrote, "dag_written": dag_written,
+          "ready_to_start": ready, "block": block, "dag": dag})
 
 
 # ─── ws-lint:WS 文档最新模板符合性校验（v8.186）─────────────────────
@@ -1531,6 +1560,7 @@ def cmd_init_feature(args: argparse.Namespace) -> None:
 
     state: dict[str, Any] = {
         "feature_id": args.feature_id,
+        "bl": getattr(args, "bl", None) or None,  # v8.196:承接的 BL(F↔BL 机读绑定 · 链路最脆一环治本)
         "sub_project": args.sub_project or "",
         "flow_type": args.flow_type,
         "artifact_root": str(feature_dir),  # v7.3.10+P0-149: 单源 · 不再独立 --artifact-root
@@ -4749,6 +4779,9 @@ def build_parser() -> argparse.ArgumentParser:
                           "如 apps/admin/docs/features/ADMIN-F013-x · "
                           "**不是仅 feature 名**（v7.3.10+P0-149 修复 PTR-F032 实战 bug）· "
                           "state.json 落此处 · 同时作为 state.artifact_root 字段值")
+    ifp.add_argument("--bl", default=None,
+                     help="[v8.196] 本 F 承接的 BL 编号(如 BL-003)· 写入 state.json.bl · "
+                          "ship 翻牌/ws-progress 解析所属 WS 优先读它(不再单靠 ROADMAP 手填「对应F编号」)")
     ifp.add_argument("--feature-id", required=True,
                      help="如 ADMIN-F013-tax-billing · 应是 --feature basename")
     ifp.add_argument("--flow-type", required=True,
