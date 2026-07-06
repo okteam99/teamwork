@@ -100,3 +100,34 @@ class TestCliFeature(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestV8196Chain(unittest.TestCase):
+    def test_state_bl_resolves_without_f_column(self):
+        # v8.196:state.json.bl 机读绑定 → 名册反查 · 不依赖 ROADMAP「对应F编号」
+        root, feat, _ = _proj(
+            "| BL-001 | Tabs | P0 | x | ① | 无 | 已完成 | - | - | - |")  # F列/关联WS 都空
+        (feat / "state.json").write_text(
+            json.dumps({"feature_id": "ADMIN-F999-Other", "bl": "BL-001"}), encoding="utf-8")
+        self.assertEqual(_resolve_ws_from_feature(feat, root), "WS-03")
+
+    def test_ready_to_start_emitted(self):
+        # S1 已完成 → S2(依赖 S1)可启动;roster 需两条
+        root = Path(tempfile.mkdtemp(prefix="rdy-"))
+        (root / "project-specs" / "simp").mkdir(parents=True)
+        (root / "product-overview" / "workstream").mkdir(parents=True)
+        (root / "project-specs" / "simp" / "ROADMAP.md").write_text(
+            "# SIMP\n" + _RM_HDR +
+            "| BL-001 | A | P0 | x | ① | 无 | 已完成 | - | F-1 | WS-03 |\n"
+            "| BL-002 | B | P0 | y | ① | BL-001 | 待开始 | - | - | WS-03 |\n", encoding="utf-8")
+        (root / "product-overview" / "workstream" / "WS-03-x.md").write_text(
+            "<!-- TEAMWORK-MACHINE\nws_id: WS-03\nfeatures:\n"
+            "  - id: WS-03-S1\n    target: SIMP\n    bl: BL-001\n    dependencies: []\n"
+            "  - id: WS-03-S2\n    target: SIMP\n    bl: BL-002\n    dependencies: [WS-03-S1]\n"
+            "-->\n# WS-03\n<!-- WS-PROGRESS:START x -->\n（待刷新）\n<!-- WS-PROGRESS:END -->\n",
+            encoding="utf-8")
+        r = subprocess.run([sys.executable, str(STATE_PY), "ws-progress", "--ws", "WS-03"],
+                           capture_output=True, text=True, timeout=30, cwd=str(root))
+        out = json.loads(r.stdout)
+        self.assertEqual(out["ready_to_start"], [{"feature": "S2", "bl": "BL-002"}])
+        self.assertIn("可启动", out["block"])

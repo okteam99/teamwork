@@ -49,15 +49,29 @@ Feature Planning 的产出是**规划文档**(不是单 Feature 的 artifact)· 
 特点:
 - 没有"Feature ID"(规划期分配 BL-NNN · WS 用 WS-NN · 见 [conventions.md § 4](./conventions.md))
 - 没有 PRD / TC / TECH(那是 Feature 流程的事)
-- 不出代码(R6 红线)
-- 不需要 worktree(在主工作区写文档即可 · 用户决定是否 worktree)
-- 不需要 ship 流程(项目级文档直接 commit + push 或开 MR)
+- 不出 **feature 实现代码**(R6 红线)· **但**产出含**全景 `preview-project`**(设计代码 · 会改文件)+ WS / ROADMAP / product-overview 文档
+- 🔴 **进流程先建临时 worktree**(隔离规划产物 · 同 feature worktree 策略)—— 规划产出 committed 文档 + 全景代码,落主工作区会**污染主分支**、撞**并行 feature 基线**(主工作区是它们的 baseline)。详 §2 Step 0 + `state.py planning-check` 的 `worktree_setup`(trivial 单文档微调 · 用户可决定免 worktree)
+- **不进状态机**(无 stage 链)· **但走 worktree + MR**(规划产物随 MR 原子合入 · 仅**不走 ship 状态机**)
 
-强行套状态机会增加复杂度而无收益(stage 链只 1 步 · 校验都是文档存在性 · PMO 主对话能直接做)。
+强行套**执行层状态机**会增加复杂度而无收益(stage 链只 1 步 · 校验都是文档存在性 · PMO 主对话能直接做)· 但 worktree 隔离与状态机无关 —— 它只是文件隔离,planning 仍是「PMO 主对话直接做」,只是在 worktree 内做。
 
 ---
 
 ## 2. PMO 主对话执行流程
+
+### Step 0 · 🔴 建临时 worktree(进流程第一步 · 隔离规划产物)
+
+规划产出 committed 文档(WS / ROADMAP / product-overview)+ 全景 `preview-project` 代码 —— 落主工作区会污染主分支、撞并行 feature 基线。**进流程先建临时 worktree**(同 feature worktree 策略 · `state.py planning-check` 的 `worktree_setup` 给完整命令):
+
+```bash
+git fetch origin
+git worktree add -b planning/<短名> <repo-root>/.worktree/planning-<短名> origin/<merge-target>
+cd <worktree-path>   # 🔴 之后所有规划产物写 worktree 内路径(推荐绝对路径 · 同 worktree 纪律)
+```
+
+- `merge-target` 同 feature 默认(集成分支 · dev/staging · localconfig 默认或用户指定)· 分支用 `planning/<短名>`。
+- **trivial 单文档微调**(改一行 WS / 修 typo)· 用户可决定免 worktree 直接主工作区改 —— 但涉全景 / 多文档 / 跨子项目 → 必 worktree。
+- 与状态机无关:planning 仍「PMO 主对话直接做」· worktree 只是文件隔离。
 
 ### Step 1 · 加载上下文 + 🔴 实际代码调研
 
@@ -99,14 +113,27 @@ Feature Planning 的产出是**规划文档**(不是单 Feature 的 artifact)· 
 - 🔴 全景是**一份活物**:不存在 → 首次 seed;已存在 → 扩本轮的页(源即权威)。完成即产生 git diff(= 本轮全景产出 · 下一步拆 WS 的输入)。
 - **非 UI 轮**(纯后端/基建)→ 跳过此步 · 下游 WS 标 `全景初规: N-A`。
 
+🔴 **全景用户确认暂停点(涉 UI 必经 · R5 · 拆 WS 前)**:全景初步规划出完 → **给用户可访问的预览 URL** + 等用户确认,**不能 AI 自己说"全景 ok"就往下拆**:
+- 后台跑 `bash {子项目}/docs/design/preview-project/preview.sh` → 抓早期 stdout 的 `PREVIEW_URL=` 行 → 把 **URL 给用户**(根 `/` = 首页设计稿 · 多页给关键页直达清单 · dev server 实时 · 动态端口 · 同 ui_design 机制)。
+- emit R5 标准暂停点:
+```
+⏸️ UI 全景初步规划已出 · 预览:<PREVIEW_URL>(根 + 关键页直达 <route>)· 请确认是否符合预期:
+1. 确认全景 · 据此拆 WS 💡 推荐 —— design system + 关键页符合预期
+2. 要改全景 —— {改 design system / 页结构 / 关键页}后重出预览再确认
+3. 其他指示
+```
+- 🔴 **用户确认后**才在下游 WS frontmatter 记 `ui_panorama_confirmed: <ISO 用户确认时间>` · **未确认不得拆 WS、更不得转 `✅ 规划完成`**(见 Step 9 + 完成标准)。
+- 🔴 **`auto_mode=true` / yolo 跳过此暂停点**(用户已委托)· 但必 `state.py add-concern --severity WARN --message "auto skip: 全景确认 · preview <url>"` 留 audit + 仍记 `ui_panorama_confirmed`(标 auto)· 详 [SKILL.md § auto_mode 暂停点](../SKILL.md)。
+
 ### Step 6 · 拆 WS(🔴 核心产出 · `workstream/WS-NN.md` · 1 或多个)
 
 **输入 = 本轮全景产出(Step 5 的 diff)+ 业务目标 + 承接执行线** · 把 scope 切成 **1..N 个 WS**:
 - 每个 WS:背景 / 承接 1+ 执行线 / 拆哪些 feature(`features[].current_state` 记复用点 vs 真缺口)/ 跨子项目依赖 / 风险。
-- 🔴 每个 WS 记 **全景初规状态**(`✅` 本 WS 的页已在全景 / `N-A` 非 UI)+ **覆盖的全景页清单**(本 WS owns 哪几页 · 替代模糊的"哪一轮")。
+- 🔴 每个 WS 记 **全景初规状态**(`✅` 本 WS 的页已在全景 / `N-A` 非 UI)+ **覆盖的全景页清单**(本 WS owns 哪几页 · 替代模糊的"哪一轮")+ 🔴 **`ui_panorama_confirmed`**(Step 5 用户确认全景后填 ISO 时间 · 涉 UI 必有才能规划完成 · 非 UI 留 `N-A`)。
 - **WS 是原子单位**:scope 大(如冷启动 MVP)就按执行线/能力拆**多个** WS(各自独立状态/启动)· 别塞巨型 WS;稳态一个方向变更 = 一个 WS。
 - 🔴 **给执行顺序与并行建议**:拆完按 `features[].dependencies` 算**波次**(同波互不依赖 → 可并行 · 各自 worktree;跨波串行)写进 WS §执行顺序与并行建议 + frontmatter `execution_waves` · 并标 **同改面 / 跨子项目方向 / 带宽** 的额外串行约束 —— 让用户拿到 WS 就知道先起哪几个、能同时开几个。
-- 模板见 [templates/workstream.md](../templates/workstream.md)。
+- 🔴 **照 [templates/workstream.md](../templates/workstream.md) 起草 · 别抄项目里现有 WS**(易抄到旧/混合格式):最新形态 = `<!-- TEAMWORK-MACHINE -->` 注释块(非裸 `---`)+ `WS-PROGRESS`/`WS-DAG` 标记区 + frontmatter 含 `ui_panorama_confirmed`。
+- 🔴 **写完每个 WS 跑 `state.py ws-lint --ws WS-NN` 校验符合最新模板**(NONCONFORMANT → 按缺项补)· 再跑 `ws-progress --ws WS-NN --write` 填进度/DAG。治本(实证 AON WS-012):抄旧格式无人检查 · 只有用户问才发现。
 
 ### Step 7 · 写 ROADMAP.md(BL-NNN 分配)
 
@@ -115,6 +142,7 @@ Feature 列表 + 优先级 + 排期(当前/下一/储备)。
 - **不分配 F-NNN**(F-NNN 在 Feature 流程启动时由 PMO 在 init-feature 时分配)
 - 不细化到 task 级 · 一 Feature 一行(标题 + 优先级 + 状态 + 核心 AC ①②③)
 - **BL 关联回 WS-NN**(ROADMAP 加「关联 WS」列)· 这一组 feature 全写进 ROADMAP = 对应 WS「规划完成」
+- 🔴 **涉 UI 的 WS 转「✅ 规划完成」硬前提**:`ui_panorama: ✅` **且** `ui_panorama_confirmed` 已填(Step 5 用户确认过全景)—— **用户没确认过全景 = 不算规划完成**(光「页在 preview-project」不够,得用户看过预览 URL 拍板)。非 UI WS(`N-A`)直接放行。
 - 🔴 **首刷 WS 进度块**:写完 ROADMAP(含「关联 WS」列)后跑 `state.py ws-progress --ws WS-NN --write` —— WS 的 §feature 总览即按 ROADMAP「状态」列**派生**出进度(规划完成时全「待开始」)· 之后 ship 翻 BL 牌时自动再刷(职责单一:WS 不手抄执行态)。
 
 模板见 [templates/roadmap.md](../templates/roadmap.md)。
@@ -124,21 +152,41 @@ Feature 列表 + 优先级 + 排期(当前/下一/储备)。
 PL 把方向 · PM 把可执行性 · Architect 把技术可行。
 PMO 主对话切换角色 · 讨论收敛 · 不需要单独 review artifact。
 
-### Step 9 · 提交(🔴 R5 暂停点 · 必问)
+### Step 9 · 提交 + 开 MR + ⏸️ 提示用户合并(规划收尾 · 🔴 R5 暂停点 · 必问)
 
-规划产出(WS + 各 ROADMAP 登记 + preview-project/sitemap if 涉 UI + 业务架构 if 改)是**未提交的工作树改动** · **一次规划提交含本轮全部产出**(WS-NN.md + ROADMAP BL + preview-project diff)。规划完成时**必 emit R5 暂停点问用户是否提交 push** —— 不擅自 commit,也不放任改动悬着不提:
+规划产出(WS + 各 ROADMAP 登记 + preview-project/sitemap if 涉 UI + 业务架构 if 改)是 **Step 0 worktree 内未提交的改动**。规划完成 → **必 emit R5 暂停点问用户是否把规划产物合入 `merge_target`** —— 不擅自 commit / 合并,也不放任改动悬着:
 
 ```
-⏸️ 规划完成 · 产出 <WS-NN + N 个 ROADMAP 登记 + 全景 if UI + …> · 请选择:
-1. 提交并 push(commit + 直推 / 开 MR)💡 推荐 —— 规划文档落库,后续启动 Feature 有据
+⏸️ 规划完成 · 产出 <WS-NN + N 个 ROADMAP 登记 + 全景 if UI> · 是否合入 <merge_target>?
+1. 提交并创 MR 合入 <merge_target> 💡 推荐 —— 我 commit + push planning 分支 + 开 MR · 你在平台 review + 合并
 2. 先不提交(继续调整 / 你稍后自己提)
 3. 其他指示
 ```
 
-🔴 在**主工作区**提交(Feature Planning 不进 worktree)· 推到当前分支(直推或开 MR · 用户决定)· 不走 ship 流程。
-完成 · 不需要 state.json / state.py 命令。
+**【收尾-1 · 建 MR + 提示合并】**(= feature ship1):用户选 1 → 在 **Step 0 worktree 内** `git add` 规划产物 + commit + push planning 分支 + 开 MR(`gh`/`glab` CLI-first · 🔴 **target = `merge_target`**〔集成分支 dev/staging〕· 不走 ship 状态机 · 纯文档/全景 MR)→ 🔴 **⏸️ 提示用户合并 + 停**:
+
+```
+⏸️ 规划 MR 已创建:<MR URL> · target `<merge_target>` · 请 review + 合并。
+合并完回来告诉我「已合并」· 我进规划收尾(清 worktree + 净化主分支)。
+```
+
+🔴 **规划收尾 = MR 创建 + 等用户合并 · 不自动继续启动下一个 Feature** —— 启动实施是**用户合并规划 MR 之后**的独立决策(用户拍板某 BL → prepare)。🔴 **别在未合并的 planning 分支上叠起 feature**:feature 的 `merge_target` 应是**集成分支**(dev/staging)· **不是 planning 分支** —— 否则实现 diff 混着未合并的规划、基线不稳(实证:AON KA-PAGES 规划完就把新 feature target 到 `planning/ka-pages`)。
+
+**【收尾-2 · finalize(用户合并后 · = feature ship2 / ship-finalize)】**🔴 用户说「已合并」→ **进规划收尾流程**(3 步 · 镜像 ship-finalize:verify → worktree-remove → main-sync):
+1. **切回主工作区**:`cd <主工作区路径>`(在 `merge_target` / 主分支上 · 非 planning worktree)。
+2. **清理 planning worktree**:`git worktree remove <planning-worktree-path>`(规划产物已随 MR 进集成分支 · worktree 使命完成 · 删不掉先 `git worktree remove --force` 兜底)。
+3. **净化主分支**:`python3 {SKILL_ROOT}/tools/state.py main-sync --merge-target <merge_target>`(v8.145 起**不依赖 feature** · fetch + 按策略 pull 合并后的规划产物 → 主工作区**干净 + 最新** · 主工作区若有用户改动会 surface 净化决策)。
+→ 完成 · 拆出的 BL 用户拍板再走 prepare 启动 Feature(此时集成分支基线**已含规划产物**)· 规划层不进状态机。
 
 ---
+
+### Step 10 · 规划后变更(WS ✅ 规划完成之后 · v8.197)
+
+规划完成 ≠ 冻结,但也不是随便改 —— 按变更性质分两路:
+
+- **追加 feature(轻量 · 不重开全流程)**:R5 一句确认 → 在 Step 0 同款临时 worktree 内:WS 名册 `features[]` 加条目 + §拆出的 feature 补节 + §变更日志 +1 行 + ROADMAP 登记 BL(关联 WS)→ `ws-lint` + `ws-progress --write` 刷新 → commit + MR(同 Step 9 收尾)。实证:WS-03 追加 BL-006(publish_to_github)。
+- **砍 feature / 改方向 / 动拆解边界**:影响拆解结构 → **回 feature-planning**(Step 1 调研起 · WS 状态回 `🔄 讨论中` · 重走确认)。
+- 🔴 **已启动(F 已 init)的 feature 不在此列** —— 那是执行层变更(jump-to-stage / close-unmerged / 新 Bug 流),别用规划变更掩盖执行返工。
 
 ## 3. 注意事项
 

@@ -1311,8 +1311,10 @@ def cmd_session_bootstrap(args: argparse.Namespace) -> None:
             ),
             "action": (
                 "规划类任务**先跑** `state.py planning-check --project-root <abs>`(emit 规划状态 "
-                "checklist + 必读规范)· 必读 PRODUCT-OVERVIEW-INTEGRATION.md(加载规则 + 状态管理 + "
-                "议题追踪)· 维护规划状态表 · 仅「✅ 已确认」内容才影响 teamwork-space.md / 下游执行"
+                "checklist + 必读规范 + 🔴 `worktree_setup`:规划产出文档+全景代码 · **进流程先建临时 "
+                "worktree** 隔离〔同 feature 策略 · 防污染主分支/撞并行基线〕)· 必读 "
+                "PRODUCT-OVERVIEW-INTEGRATION.md(加载规则 + 状态管理 + 议题追踪)· 维护规划状态表 · "
+                "仅「✅ 已确认」内容才影响 teamwork-space.md / 下游执行"
             ),
             "skip_consequence": (
                 "AI 没读规范 → 不维护规划状态表 / 草稿态内容误影响下游 / 议题追踪缺失。"

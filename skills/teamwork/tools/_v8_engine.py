@@ -415,6 +415,30 @@ def write_bypass_log(
 # ─── 通用引擎 ──────────────────────────────────────────────────────────
 
 
+
+def close_open_pause(state: dict) -> None:
+    """v8.192:闭合 open_pause · 把等待墙钟累计进该 stage 的 await_minutes(计时排毒)。
+
+    治本:stage 内 R5 暂停(PRD 确认/预览确认/DB 确认)的等用户墙钟全算成「工作」·
+    goal 均值 157m vs 中位 22m(max 128h)· 每次耗时归因都要人肉排毒。
+    打点:AI emit 暂停点时跑 `state.py pause-mark` 写 open_pause;本函数在下一个流程
+    命令(start/complete/fix/retry)自动闭合 —— resume 侧零纪律要求。
+    """
+    op = state.get("open_pause")
+    if not isinstance(op, dict) or not op.get("started_at"):
+        return
+    try:
+        t0 = datetime.fromisoformat(op["started_at"].replace("Z", "+00:00"))
+        mins = max(0, int((datetime.now(timezone.utc) - t0).total_seconds() // 60))
+    except (ValueError, TypeError):
+        mins = 0
+    stage = op.get("stage") or state.get("current_stage") or ""
+    if stage and mins:
+        c = state.setdefault("stage_contracts", {}).setdefault(stage, {})
+        c["await_minutes"] = int(c.get("await_minutes") or 0) + mins
+    state.pop("open_pause", None)
+
+
 def execute_stage_start(
     stage_spec: StageSpec,
     args: argparse.Namespace,
@@ -424,6 +448,7 @@ def execute_stage_start(
     """xx-stage-start 通用执行流程。"""
     feature_path = args.feature
     path, state = load_state(feature_path)
+    close_open_pause(state)  # v8.192:闭合 stage 内暂停等待
 
     # 1. flow_type 校验
     if stage_spec.allowed_flow_types:
@@ -682,7 +707,6 @@ STAGE_TEMPLATES: dict[str, dict] = {
         "templates": {
             "PRD.md": "prd.md",
             "PRD-REVIEW.md": None,  # 无独立模板 · 按 reviewer 分段
-            "external-cross-review/prd-{model}.md": "external-cross-review.md",
         },
         "validators": {},
     },
@@ -708,7 +732,6 @@ STAGE_TEMPLATES: dict[str, dict] = {
             "TC.md": "tc.md",
             "TECH.md": "tech.md",
             "TECH-REVIEW.md": None,
-            "external-cross-review/*.md": "external-cross-review.md",
         },
         "validators": {
             "TC.md": ("verify-ac.py",
@@ -736,7 +759,6 @@ STAGE_TEMPLATES: dict[str, dict] = {
             "REVIEW.md": None,
             "REVIEW-arch.md": None,
             "REVIEW-qa.md": None,
-            "external-cross-review/*.md": "external-cross-review.md",
         },
         "validators": {},
     },
@@ -1203,6 +1225,7 @@ def execute_stage_complete(
     """xx-stage-complete 通用执行流程。"""
     feature_path = args.feature
     path, state = load_state(feature_path)
+    close_open_pause(state)  # v8.192:闭合 stage 内暂停等待
 
     # 1. current_stage 必须是本 stage
     if state.get("current_stage") != stage_spec.name:
@@ -1959,6 +1982,7 @@ def execute_stage_fix(stage_name: str, args: argparse.Namespace) -> None:
 
     cfg = _STAGE_FIX_RETRY_CONFIG[stage_name]
     path, state = load_state(args.feature)
+    close_open_pause(state)  # v8.192:闭合 stage 内暂停等待
 
     if state.get("current_stage") != stage_name:
         emit_json({
@@ -2048,6 +2072,7 @@ def execute_stage_retry(stage_name: str, args: argparse.Namespace) -> None:
 
     cfg = _STAGE_FIX_RETRY_CONFIG[stage_name]
     path, state = load_state(args.feature)
+    close_open_pause(state)  # v8.192:闭合 stage 内暂停等待
 
     if state.get("current_stage") != stage_name:
         emit_json({

@@ -2,9 +2,22 @@
 
 An AI works from a team-collaboration perspective — through **flow orchestration + role-perspective switching + contractualized stages + a machine-readable state machine** — to drive the complete software lifecycle from product planning to delivery.
 
-[中文](./README.md) · Version: **v8.183** (version source of truth = [SKILL.md](./skills/teamwork/SKILL.md) frontmatter)
+[中文](./README.md) · Version: **v8.197** (version source of truth = [SKILL.md](./skills/teamwork/SKILL.md) frontmatter)
 
 ---
+
+## What We Solve
+
+**An AI writing software under weak supervision faces four unavoidable, structural risks** — they do not disappear as models get smarter. Each of Teamwork's four pillars addresses one:
+
+| Fundamental risk | Why it's unavoidable | Teamwork's answer |
+|-----------------|---------------------|-------------------|
+| **Intent drift** (building the wrong thing) | Information asymmetry: no model, however smart, knows what the user didn't say | Pause points / intent gates (prepare intent check · goal deep gate · panorama user confirmation) |
+| **Quality blind spots** (building it badly) | Self-review blindness is mathematical: a model can't see its own gaps | Multi-role perspective switching + **heterogeneous-model** cross-review |
+| **State drift** (losing / corrupting things) | Finite context is physical: long flows drift when they rely on memory | Machine-readable state machine + materialized artifact gates + worktree isolation |
+| **Knowledge loss** (repeating mistakes) | Every session starts from zero | KNOWLEDGE distillation + cross-project audit harvest feedback loop |
+
+Cross-project audit evidence (as of v8.191 · 163 shipped-feature audits): zero state-machine escapes (bypass 0/163) · 92 real issues caught by review · 32 cases where pause points genuinely reshaped the design · the last ~20 releases were all driven by audit data.
 
 ## Premise
 
@@ -337,7 +350,7 @@ For the detailed directory structure see [skills/teamwork/](./skills/teamwork/).
 
 ## Version
 
-Currently **v8.183** (version source of truth = [SKILL.md](./skills/teamwork/SKILL.md) frontmatter). Changelog in [docs/CHANGELOG.md](./skills/teamwork/docs/CHANGELOG.md) (latest 5 versions) · older history via git log (CHANGELOG-ARCHIVE is **periodically wiped**).
+Currently **v8.197** (version source of truth = [SKILL.md](./skills/teamwork/SKILL.md) frontmatter). Changelog in [docs/CHANGELOG.md](./skills/teamwork/docs/CHANGELOG.md) (latest 5 versions) · older history via git log (CHANGELOG-ARCHIVE is **periodically wiped**).
 
 ---
 

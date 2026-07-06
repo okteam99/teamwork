@@ -594,6 +594,28 @@ def cmd_add_concern(args: argparse.Namespace) -> None:
     })
 
 
+
+def cmd_pause_mark(args: argparse.Namespace) -> None:
+    """v8.192:标记 stage 内暂停点开始(计时排毒 · emit R5 暂停点时跑)。
+
+    下一个流程命令(xx-start/complete/fix/retry)自动闭合 · 等待墙钟累计进该 stage 的
+    await_minutes · 耗时分析工作/等待分离(resume 侧零纪律)。重复 mark = 覆盖(取最新)。
+    """
+    path = state_path(args.feature)
+    state = load_state(args.feature)
+    state["open_pause"] = {
+        "stage": state.get("current_stage") or "",
+        "label": (getattr(args, "label", None) or "").strip() or "R5 pause",
+        "started_at": now_iso(),
+    }
+    state["updated_at"] = now_iso()
+    state["updated_by"] = "pause-mark"
+    atomic_write(path, state)
+    emit({"verdict": "OK", "action": "pause-mark", "stage": state["open_pause"]["stage"],
+          "label": state["open_pause"]["label"],
+          "note": "下一个流程命令自动闭合 · 等待墙钟计入该 stage await_minutes(不算工作)"})
+
+
 # ─── ws-progress:WS 进度 rollup（v8.174）──────────────────────────────
 # 治本:WS 文档只有「规划态」(features[].status=pending/planned)· 无「执行态」进度。
 # 执行态单一源在各子项目 ROADMAP 的「状态」列(职责单一 · 禁手抄进 WS)→ 只能派生。
@@ -816,11 +838,23 @@ def _resolve_ws_from_feature(feature_dir: Path, root: Path) -> "Optional[str]":
     """
     fid = ""
     sj = feature_dir / "state.json"
+    state_bl = ""
     if sj.is_file():
         try:
-            fid = json.loads(sj.read_text(encoding="utf-8")).get("feature_id", "") or ""
+            _st = json.loads(sj.read_text(encoding="utf-8"))
+            fid = _st.get("feature_id", "") or ""
+            state_bl = _st.get("bl") or ""
         except (OSError, ValueError):
             pass
+    _SKIP0 = {"node_modules", ".git", "_archive", "dist", "build", ".next", "vendor"}
+    if state_bl:  # v8.196:state.bl 机读绑定优先 · 直接名册反查(不依赖 ROADMAP 手填「对应F编号」)
+        for wsf in root.rglob("WS-*.md"):
+            if "workstream" not in str(wsf).lower() or (set(wsf.parts) & _SKIP0):
+                continue
+            if any(f.get("bl") == state_bl for f in _parse_ws_features(wsf)):
+                n = _ws_nums(wsf.name)
+                if n:
+                    return "WS-%02d" % min(n)
     fid = fid or feature_dir.name
     m = re.search(r"F-?\d+", fid, re.I)
     if not m:
@@ -917,6 +951,22 @@ def cmd_ws_progress(args: argparse.Namespace) -> None:
     block = _render_ws_progress(ws_label, items, len(roadmaps), bool(roster))
     dag = _render_ws_dag(roster, ws_label) if roster else None
 
+    # v8.196:可启动集 —— 名册里依赖全 ✅ 已完成、自身待开始的 feature(治「下一个做什么」人肉对照 DAG)
+    ready = []
+    if roster:
+        stat = {}
+        for f in roster:
+            hit = by_bl.get(f["bl"]) if f["bl"] else None
+            stat[f["id"]] = (hit[1]["status"] if hit else "")
+        for f in roster:
+            own = stat.get(f["id"], "")
+            deps_done = all("已完成" in stat.get(d, "") for d in f["deps"] if d in stat)
+            if "待开始" in own and deps_done:
+                ready.append({"feature": _ws_short(f["id"], ws_label), "bl": f["bl"]})
+        if ready:
+            block += "\n▶ **可启动(依赖已齐)**:" + " · ".join(
+                f"{r['feature']}({r['bl']})" for r in ready)
+
     wrote = None
     dag_written = False
     if args.write:
@@ -941,7 +991,78 @@ def cmd_ws_progress(args: argparse.Namespace) -> None:
 
     emit({"verdict": "OK", "action": "ws-progress", "ws": ws_label,
           "roadmaps_scanned": len(roadmaps), "roster": len(roster), "rows": len(items),
-          "written_to": wrote, "dag_written": dag_written, "block": block, "dag": dag})
+          "written_to": wrote, "dag_written": dag_written,
+          "ready_to_start": ready, "block": block, "dag": dag})
+
+
+# ─── ws-lint:WS 文档最新模板符合性校验（v8.186）─────────────────────
+# 治本(实证 AON WS-012):AI 做 feature-planning 写 WS 时抄项目里旧/混合格式 · 无符合性检查 ·
+# 只有用户主动问「按最新模板写的么」才发现。lint 对照 templates/workstream.md 硬性形态。
+
+def _lint_ws_doc(text: str) -> list:
+    """校验 WS 文档符合最新 templates/workstream.md 形态 → 缺项列表(空 = 符合)。"""
+    missing: list = []
+    if "TEAMWORK-MACHINE" not in text:
+        if re.match(r"^﻿?---\s*\n", text):
+            missing.append("机读块是裸 `---` frontmatter · 最新模板要求 `<!-- TEAMWORK-MACHINE -->` "
+                           "注释块(v8.174 · 渲染器不裸露成 YAML 墙)")
+        else:
+            missing.append("缺 `<!-- TEAMWORK-MACHINE -->` 机读块(v8.174)")
+    for key in ("ws_id", "status", "ui_panorama", "ui_panorama_confirmed",
+                "承接执行线", "affected_subprojects", "features"):
+        if not re.search(rf"(?m)^\s*{re.escape(key)}\s*:", text):
+            note = "(v8.185 · 涉 UI 用户确认全景标识)" if key == "ui_panorama_confirmed" else ""
+            missing.append(f"frontmatter 缺 `{key}`{note}")
+    if _WS_PROG_START not in text or _WS_PROG_END not in text:
+        missing.append("缺 `WS-PROGRESS:START/END` 标记区(v8.174 · ws-progress 自刷进度块)")
+    if _WS_DAG_START not in text or _WS_DAG_END not in text:
+        missing.append("缺 `WS-DAG:START/END` 标记区(v8.177 · ws-progress 派生依赖图)")
+    return missing
+
+
+def cmd_ws_lint(args: argparse.Namespace) -> None:
+    """v8.186:校验 WS 文档符合最新模板形态(治 AI 抄项目旧 WS · 无符合性检查)。"""
+    root = _git_toplevel(Path.cwd()) or Path.cwd()
+    _SKIP = {"node_modules", ".git", "_archive", "dist", "build", ".next", "vendor"}
+    raw = (getattr(args, "ws", None) or "").strip()
+    if not raw and getattr(args, "feature", None):
+        resolved = _resolve_ws_from_feature(Path(args.feature), root)
+        if resolved:
+            raw = resolved
+    bare = re.fullmatch(r"0*(\d+)", raw) if raw else None
+    targets = _ws_nums(raw) or ({int(bare.group(1))} if bare else set())
+    if not targets:
+        emit({"verdict": "FAIL", "reason": "需 --ws <编号> 或 --feature <路径>(抽不出 WS 编号)"})
+        return
+    ws_label = "WS-%02d" % min(targets)
+    ws_file = _find_ws_file(root, ws_label, _SKIP)
+    if not ws_file:
+        emit({"verdict": "FAIL", "ws": ws_label, "reason": f"找不到 {ws_label} 文档"})
+        return
+    ws_text = ws_file.read_text(encoding="utf-8", errors="replace")
+    missing = _lint_ws_doc(ws_text)
+    # v8.197:执行线存在性(愿景层→WS taxonomy 校验)—— WS 承接的 Line 必须在业务架构「执行线列表」
+    # 存在 · 否则是幽灵 Line(反查「某线下有哪些 WS」会断)。无业务架构文档 → skip(非所有项目有)。
+    ws_lines = {re.sub(r"\s+", "", x) for x in re.findall(r"(?m)^\s*-\s*(Line\s*\d+)", ws_text)}
+    if ws_lines:
+        arch = next(iter(root.glob("product-overview/*业务架构*.md")), None)
+        if arch:
+            arch_lines = {re.sub(r"\s+", "", x) for x in
+                          re.findall(r"Line\s*\d+", arch.read_text(encoding="utf-8", errors="replace"))}
+            ghost = sorted(ws_lines - arch_lines)
+            if ghost:
+                missing.append(f"承接执行线含业务架构不存在的 {ghost}(幽灵 Line · "
+                               f"对照 {arch.name} 执行线列表 · 新线先在业务架构登记)")
+    emit({
+        "verdict": "OK" if not missing else "NONCONFORMANT",
+        "action": "ws-lint", "ws": ws_label,
+        "file": str(ws_file.relative_to(root)),
+        "conformant": not missing, "missing": missing,
+        "hint": ("✅ 符合最新 templates/workstream.md"
+                 if not missing else
+                 "🔴 不符合最新模板 —— **别抄项目里旧 WS** · 照 {SKILL_ROOT}/templates/workstream.md "
+                 f"补齐上述缺项 · 再跑 `state.py ws-progress --ws {ws_label} --write` 填进度/DAG 块"),
+    })
 
 
 # ─── test-baseline:预存在失败注册表 + 差分（v8.178）──────────────────
@@ -1452,6 +1573,7 @@ def cmd_init_feature(args: argparse.Namespace) -> None:
 
     state: dict[str, Any] = {
         "feature_id": args.feature_id,
+        "bl": getattr(args, "bl", None) or None,  # v8.196:承接的 BL(F↔BL 机读绑定 · 链路最脆一环治本)
         "sub_project": args.sub_project or "",
         "flow_type": args.flow_type,
         "artifact_root": str(feature_dir),  # v7.3.10+P0-149: 单源 · 不再独立 --artifact-root
@@ -2189,13 +2311,13 @@ PLANNING_CHECKLIST = [
      "spec": "feature-planning.md §2 Step 1"},
     {"item": "范围判定:工作区级(改 teamwork-space.md + 多 PROJECT.md)vs 子项目级(单 PROJECT.md + ROADMAP.md + sitemap.md)",
      "spec": "feature-planning.md §2 Step 2"},
-    {"item": "🎨 全景UI初步规划(本轮涉 UI 时 · 🔴 拆 WS 之前出):在 {子项目}/docs/design/preview-project/ 出/扩 design system + 本轮关键页(初步 · 系统+代表页 · 非每页 · 防瀑布 · 跑 preview.sh 看)+ 同步 sitemap.md(IA 地图 · 只写层级/导航不写视觉)· 完成产生 git diff = 拆 WS 的输入;非 UI 轮跳过(下游 WS 标 全景初规:N-A)",
+    {"item": "🎨 全景UI初步规划(本轮涉 UI 时 · 🔴 拆 WS 之前出):在 {子项目}/docs/design/preview-project/ 出/扩 design system + 本轮关键页(初步 · 系统+代表页 · 非每页 · 防瀑布 · 跑 preview.sh 看)+ 同步 sitemap.md(IA 地图 · 只写层级/导航不写视觉)· 完成产生 git diff = 拆 WS 的输入 · 🔴 **出完必给用户可访问预览 URL(跑 preview.sh 抓 PREVIEW_URL)+ emit R5 等用户确认全景 · 用户没确认过 = 不算规划完成**(auto/yolo 自动确认 + add-concern WARN);非 UI 轮跳过(下游 WS 标 全景初规:N-A)",
      "spec": "feature-planning.md §2 Step 5"},
-    {"item": "核心产出 WS(product-overview/workstream/WS-NN.md · 1..N 个 · 输入=全景diff+业务目标 · 承接 1+ 执行线 · 拆一组 feature · 🔴 每 WS 记 全景初规状态(✅/N-A)+ 覆盖的全景页清单 + 执行顺序与并行建议(波次:同波可并行/各自 worktree · 跨波串行 + 同改面/跨子项目方向额外串行))· 0-1 时含业务架构与产品规划.md(愿景+执行线列表)· 🔴 不出代码(R6)· 不进 stage 链",
+    {"item": "核心产出 WS(product-overview/workstream/WS-NN.md · 1..N 个 · 输入=全景diff+业务目标 · 承接 1+ 执行线 · 拆一组 feature · 🔴 每 WS 记 全景初规状态(✅/N-A)+ 🔴 ui_panorama_confirmed(涉 UI 用户确认全景的 ISO · 必填才能规划完成)+ 覆盖的全景页清单 + 执行顺序与并行建议(波次:同波可并行/各自 worktree · 跨波串行 + 同改面/跨子项目方向额外串行))· 0-1 时含业务架构与产品规划.md(愿景+执行线列表)· 🔴 照 templates/workstream.md 起草**别抄项目旧 WS** · 写完跑 `state.py ws-lint --ws WS-NN` 校验最新模板(TEAMWORK-MACHINE 块+WS-PROGRESS/WS-DAG 标记)· 🔴 不出 feature 实现代码(R6 · 全景 preview-project 是设计代码例外)· 不进 stage 链",
      "spec": "feature-planning.md §2 Step 6 + templates/workstream.md"},
     {"item": "WS 拆出的 feature 写入 ROADMAP(BL-NNN · 关联 WS)· feature 全写入 = WS ✅ 规划完成 · 每个 BL 后续用户拍板走 prepare 启动 Feature",
      "spec": "conventions.md §4 + prepare.md §5"},
-    {"item": "🔴 规划完成必 emit R5 暂停点问用户是否提交 push(WS + ROADMAP 登记是未提交工作树改动 · 不擅自 commit 也不放任悬着)· 主工作区直推或开 MR · 不走 ship 流程",
+    {"item": "🔴 规划收尾必 emit R5 暂停点问用户**是否合入 merge_target**(WS+ROADMAP+全景是 Step 0 worktree 内未提交改动)→ 确认后 worktree 内 commit+push planning 分支+开 MR(target=merge_target 集成分支)→ 🔴 **⏸️提示用户合并 + 停**(同 feature ship1)· 🔴 用户说「已合并」→ **规划收尾 finalize**(= ship2:cd 回主工作区 → `git worktree remove` 清 planning worktree → `state.py main-sync --merge-target <mt>` 净化主分支)· 🔴 不自动起下一 feature · 别叠 feature 在未合并 planning 分支 · 不走 ship 状态机",
      "spec": "feature-planning.md §2 Step 8"},
 ]
 
@@ -2247,14 +2369,27 @@ def cmd_planning_check(args: argparse.Namespace) -> None:
             "→ feature 写入 ROADMAP(BL · 关联 WS · 全写入=WS✅规划完成)→ 用户拍板 BL → prepare+init-feature → F。"
             "teamwork-space.md **不是** Feature Planning 产出 · 由 product-overview「✅ 已确认」内容派生"
         ),
+        "worktree_setup": (
+            "🔴 进入 feature-planning 前先建**临时 worktree**(隔离规划产物 · 同 feature worktree 策略 —— "
+            "防 WS/ROADMAP/product-overview + 全景 preview-project 代码落主工作区污染主分支、撞并行 feature 基线):\n"
+            "  git fetch origin\n"
+            "  git worktree add -b planning/<短名> <repo-root>/.worktree/planning-<短名> origin/<merge-target>\n"
+            "  cd <worktree-path>   # 🔴 规划产物全写 worktree 内路径(同 worktree 纪律)\n"
+            "  → 规划完成 → ⏸️暂停问「是否合入 merge_target」→ 建 MR(target=merge_target)+ 🔴 提示用户合并 + **停**"
+            "(别自动起下一 feature · 别叠 feature 在未合并 planning 分支)· 🔴 用户说「已合并」→ 进收尾:"
+            "cd 回主工作区 → git worktree remove → `state.py main-sync --merge-target <mt>` 净化主分支(=ship-finalize · 详 Step 9)\n"
+            "  (trivial 单文档微调 · 用户可决定免 worktree)"
+        ),
         "key_constraints": [
             "🔴 不进状态机:init-feature --flow-type 'Feature Planning' 会被 reject",
-            "🔴 不出代码(R6 红线)· 产出仅项目级文档",
+            "🔴 在**临时 worktree 内**做(见 worktree_setup)· 不写主工作区 · 规划产物随 MR 原子合入",
+            "🔴 不出 feature 实现代码(R6 红线)· 产出 = 项目级文档 + 全景 preview-project(设计代码 · 故更需 worktree 隔离)",
             "BL-NNN 在规划期分配 · 不是 Feature ID(无 PRD/TC/TECH)",
         ],
         "next_hint": (
-            f"先读 {' + '.join(must_read)} · 按 checklist 在主对话执行 Feature Planning"
-            f"(不进状态机 · PMO 直接做)· 完成后拆出的 BL 用户拍板再走 prepare 启动 Feature"
+            f"🔴 先按 worktree_setup 建临时 worktree + cd 进去 · 再读 {' + '.join(must_read)} · "
+            f"按 checklist 在主对话执行 Feature Planning(不进状态机 · PMO 直接做 · 但在 worktree 内)· "
+            f"完成后拆出的 BL 用户拍板再走 prepare 启动 Feature"
         ),
     }
 
@@ -2670,6 +2805,85 @@ EXTERNAL_STAGE_TO_PROFILE = {
 EXTERNAL_REVIEW_TIMEOUT_SEC = 600  # v8.55:5min→10min(用户 case codex 偶尔卡 / 长 review · 给足 buffer)
 
 
+# ─── external 机械成本三连修(v8.191 · harvest:20× 超时/重试/未登录/全量重跑)────
+
+def _external_timeout_sec(start) -> int:
+    """localconfig `external_review_timeout_sec` 覆盖默认超时(长 review 项目调大 · 不硬编码)。"""
+    try:
+        d = Path(start).resolve()
+        for cand in [d, *d.parents]:
+            cfg = cand / ".teamwork_localconfig.json"
+            if cfg.is_file():
+                v = json.loads(cfg.read_text(encoding="utf-8")).get("external_review_timeout_sec")
+                return int(v) if isinstance(v, (int, float)) and v > 0 else EXTERNAL_REVIEW_TIMEOUT_SEC
+            if (cand / ".git").exists():
+                break
+    except (OSError, ValueError, TypeError):
+        pass
+    return EXTERNAL_REVIEW_TIMEOUT_SEC
+
+
+def _preflight_external(cli_name: str, timeout_sec: int = 120) -> dict:
+    """v8.191:CLI 登录/网络 preflight(治「到 review 才发现未登录 → 降级折腾」· harvest 实锤)。
+
+    which(存在)→ version → **微 probe**(一次极小调用 · 秒级 · 证 E2E 通:认证/网络/配额)。
+    在 review 干活**之前**跑 · 失败此刻修环境 · 不烧完整评审的墙钟。
+    """
+    import shutil as _sh
+    if not _sh.which(cli_name):
+        return {"ok": False, "step": "which", "reason": f"{cli_name} CLI 不在 PATH",
+                "fix": f"装 {cli_name} CLI · 或走 --self-review-fallback 降级"}
+    probe_cmd = (["codex", "exec", "Reply with exactly: PONG"] if cli_name == "codex"
+                 else ["claude", "-p", "Reply with exactly: PONG",
+                       "--output-format", "text", "--strict-mcp-config"])
+    try:
+        r = subprocess.run(probe_cmd, capture_output=True, text=True, timeout=timeout_sec)
+    except subprocess.TimeoutExpired:
+        return {"ok": False, "step": "probe", "reason": f"probe 超时({timeout_sec}s)· 网络/限流?",
+                "fix": "检查网络/配额 · 稍后重试 · 持续不通走 --self-review-fallback"}
+    except (FileNotFoundError, OSError) as e:
+        return {"ok": False, "step": "probe", "reason": f"probe 启动失败:{e}", "fix": "检查 CLI 安装"}
+    err = (r.stderr or "").lower()
+    if r.returncode != 0 or any(k in err for k in ("not logged in", "login", "unauthorized", "auth")):
+        return {"ok": False, "step": "probe", "rc": r.returncode,
+                "reason": f"probe 失败(rc={r.returncode})· 疑未登录/认证:{(r.stderr or '')[:150]}",
+                "fix": f"登录 {cli_name} CLI(此刻修 · 别等 review 跑完才发现)· 修不了走 --self-review-fallback"}
+    if not (r.stdout or "").strip():
+        return {"ok": False, "step": "probe", "reason": "probe 空输出", "fix": "重试一次 · 持续空输出查 CLI 配置"}
+    return {"ok": True, "step": "probe", "note": f"{cli_name} E2E 通(认证/网络 OK)"}
+
+
+def _find_prior_external_review(feature_dir: Path, stage: str):
+    """v8.191:找上一轮 external 结果文件 + 它评过的 commit → (path, target_commit) · 无 → None。"""
+    d = feature_dir / "external-cross-review"
+    if not d.is_dir():
+        return None
+    best = None
+    for f in d.glob(f"{stage}-*.md"):
+        try:
+            head = f.read_text(encoding="utf-8", errors="replace")[:2000]
+        except OSError:
+            continue
+        m = re.search(r"^target_commit:\s*(\S+)", head, re.M)
+        if m and (best is None or f.stat().st_mtime > best[0]):
+            best = (f.stat().st_mtime, f, m.group(1))
+    return (best[1], best[2]) if best else None
+
+
+def _build_verify_fixes_block(prior_txt: str, prior_commit: str, commit: str, fix_diff: str) -> str:
+    """v8.191:增量重验 prompt 块(替代「每采纳 finding 即全量重跑」· 微改动上尤其亏)。"""
+    prior_txt = prior_txt[:20000]
+    fix_diff = fix_diff[:30000]
+    return (
+        "\n\n---\n🔴 **本轮 = 增量重验(verify-fixes)· 不是全量 re-review**:"
+        f"上一轮你已评审 commit `{prior_commit}` · 本轮只看 `{prior_commit}..{commit}` 的**修复 diff**。\n"
+        "任务:① 对上一轮**每条 finding** 给 verdict:`fixed` / `not-fixed` / `n-a`(一句依据)"
+        "② 只检查修复 diff **本身引入的新问题** · 🔴 不重评整个 feature(全量上一轮已做)。\n"
+        f"\n## 上一轮 findings(原文)\n{prior_txt}\n"
+        + (f"\n## 修复 diff(`{prior_commit}..{commit}`)\n```diff\n{fix_diff}\n```\n" if fix_diff.strip() else "")
+    )
+
+
 # v8.151:finding 消费姿态提示(brief 主动推 · 防 spec 只被动躺 doc 里 · 盲采是默认倾向)
 # v8.152:两个方向都摆明实证(v8.151 hint 只写 ADOPT · REJECT 只剩抽象「对称」· 又写歪了)
 _FINDING_POSTURE_HINT = (
@@ -2934,7 +3148,9 @@ def _run_streamed_to_log(cmd: list, *, cwd: Optional[str] = None,
 def _run_codex_review(stage: str, commit: str, base: str, title: str,
                       profile_filename: str, feature_dir: Path, cwd: str,
                       codex_model: Optional[str] = None,
-                      prompt_doc: Optional[Path] = None) -> tuple[int, str, str]:
+                      prompt_doc: Optional[Path] = None,
+                      timeout_sec: Optional[int] = None,
+                      extra_prompt: str = "") -> tuple[int, str, str]:
     """跑 codex CLI 评审 · 返 (returncode, stdout, stderr)。
 
     v8.59(用户 case · 本地实测):**全 stage 统一 `codex exec [PROMPT]`**。
@@ -2961,6 +3177,8 @@ def _run_codex_review(stage: str, commit: str, base: str, title: str,
     # (删 stage==review 的 codex review 子命令分支 · 它 headless 卡死)
     body_prompt = _build_codex_prompt(
         stage, feature_dir_rel, commit, base, profile_filename)
+    if extra_prompt:
+        body_prompt += extra_prompt   # v8.191:verify-fixes 增量重验块
     # title 信息嵌进 PROMPT 顶部(codex exec 没 --title flag)
     prompt = f"[Review title: {title}]\n\n{body_prompt}"
     if prompt_doc is not None:
@@ -2978,7 +3196,7 @@ def _run_codex_review(stage: str, commit: str, base: str, title: str,
         log_path = prompt_doc.with_suffix(".log")
     try:
         return _run_streamed_to_log(cmd, cwd=cwd, log_path=log_path,
-                                    label=f"codex-{stage}")
+                                    label=f"codex-{stage}", timeout_sec=timeout_sec)
     except (FileNotFoundError, OSError) as e:
         tail = f" · 过程日志 {log_path}" if log_path else ""
         return 127, "", f"codex CLI 不可用:{e}{tail}"
@@ -3021,7 +3239,8 @@ def _build_claude_review_cmd(prompt_text: str, feature_dir: Optional[Path],
 
 def _run_claude_review(prompt_text: str,
                        feature_dir: Optional[Path] = None, stage: str = "review",
-                       prompt_doc: Optional[Path] = None) -> tuple[int, str, str]:
+                       prompt_doc: Optional[Path] = None,
+                       timeout_sec: Optional[int] = None) -> tuple[int, str, str]:
     """跑 claude review · 返 (rc, stdout, stderr)。
 
     v8.38(用户拍板 2026-05-27):用 `-p`(short)替代 `--print`(long)。
@@ -3036,7 +3255,8 @@ def _run_claude_review(prompt_text: str,
     label = f"claude-{stage}"
     log_path = prompt_doc.with_suffix(".log") if prompt_doc is not None else None
     try:
-        return _run_streamed_to_log(cmd, cwd=cwd, log_path=log_path, label=label)
+        return _run_streamed_to_log(cmd, cwd=cwd, log_path=log_path, label=label,
+                                    timeout_sec=timeout_sec)
     except OSError as e:
         if getattr(e, "errno", None) == 7:  # E2BIG · argument list too long
             return 127, "", (
@@ -3577,6 +3797,21 @@ def cmd_external_review(args: argparse.Namespace) -> None:
         })
         return
 
+    # ── v8.191 · --preflight:review 干活前验 CLI 登录/网络(微 probe · 秒级)──
+    # 治 harvest 20×:「Claude CLI 未登录 · 到 review 跑完才发现 → 降级折腾」· 失败此刻修环境。
+    if getattr(args, "preflight", False):
+        pf = _preflight_external(cli_name)
+        emit({
+            "verdict": "OK" if pf.get("ok") else "FAIL",
+            "command": "external-review",
+            "action": "preflight",
+            "cli": cli_name,
+            **pf,
+            "next_hint": ("preflight 通过 · external-review 可正常跑" if pf.get("ok")
+                          else "先按 fix 修环境再进 review 干活(别烧完整评审墙钟才发现)"),
+        })
+        return
+
     # ── Step 3 · stage→profile 自动选 ──
     if args.stage not in EXTERNAL_STAGE_TO_PROFILE:
         emit({
@@ -3654,8 +3889,41 @@ def cmd_external_review(args: argparse.Namespace) -> None:
         })
         return
 
+    # ── v8.191 · --verify-fixes:增量重验(治「每采纳 finding 即全量重跑」· 微改动 80% 墙钟是重跑)──
+    verify_meta = None
+    if getattr(args, "verify_fixes", False):
+        if args.stage != "review":
+            emit({"verdict": "FAIL", "command": "external-review",
+                  "error": "--verify-fixes 仅支持 --stage review(fix-retry 循环的增量重验)"})
+            return
+        if getattr(args, "prompt_doc", None):
+            emit({"verdict": "FAIL", "command": "external-review",
+                  "error": "--verify-fixes 与 --prompt-doc 互斥(重验 prompt 自动生成 · 防审计输入分叉)"})
+            return
+        prior = _find_prior_external_review(feature_dir, args.stage)
+        if not prior:
+            emit({"verdict": "FAIL", "command": "external-review",
+                  "error": "--verify-fixes 找不到上一轮 external 结果(external-cross-review/review-*.md 含 target_commit)",
+                  "hint": "先跑一轮全量 external-review · 修复后再用 --verify-fixes 增量重验"})
+            return
+        prior_file, prior_commit = prior
+        if prior_commit == commit:
+            emit({"verdict": "FAIL", "command": "external-review",
+                  "error": f"--verify-fixes:目标 commit 与上一轮已评 commit 相同({commit[:12]})· 无修复增量",
+                  "hint": "先 review-fix 提交修复(推进 auto_commit)再重验 · 或去掉 --verify-fixes 全量重跑"})
+            return
+        if not _is_ancestor(prior_commit, commit, cwd=str(feature_dir)):
+            emit({"verdict": "FAIL", "command": "external-review",
+                  "error": f"--verify-fixes:上一轮已评 commit {prior_commit[:12]} 不是目标 {commit[:12]} 的祖先(rebase?)",
+                  "hint": "锚点失效 · 去掉 --verify-fixes 跑全量(锚回 review_base_commit)"})
+            return
+        base, base_source = prior_commit, "verify_fixes(上一轮已评 commit)"
+        verify_meta = {"prior_file": prior_file, "prior_commit": prior_commit}
+
     feature_id = state.get("feature_id") or feature_dir.name
     title = args.title or f"{feature_id} · {args.stage} stage external review"
+    if verify_meta:
+        title = f"[FIX-VERIFY 增量重验] {title}"
 
     # ── v8.108 · 降级自审走 subagent(不 exec)· 治本 exec CLI 反复出认证/--bare/卡死/登录问题 ──
     # self_fallback(--self-review-fallback)或 ext_disabled(config disable_external_review)=
@@ -3735,7 +4003,9 @@ def cmd_external_review(args: argparse.Namespace) -> None:
     # ── dry-run · 仅输出将跑的命令 + 校验信息 ──
     # v8.88:self-review 降级落 self-review/(不进 external-cross-review/ · 不满足 P0-154 门禁)
     output_dir = feature_dir / ("self-review" if self_fallback else "external-cross-review")
-    output_file = output_dir / f"{args.stage}-{model}.md"
+    # v8.191:verify-fixes 结果单独命名(不 clobber 全量轮 · 后续重验仍能找到最新已评 commit)
+    output_file = output_dir / (f"{args.stage}-{model}-fixverify.md" if verify_meta
+                                else f"{args.stage}-{model}.md")
     preview_prompt_full = None
     if args.dry_run:
         if model == "codex":
@@ -3788,6 +4058,21 @@ def cmd_external_review(args: argparse.Namespace) -> None:
 
     # ── Step 5 · 跑 CLI ──
     output_dir.mkdir(parents=True, exist_ok=True)
+    # v8.191:verify-fixes 增量重验块(上一轮 findings + 修复 diff · 只验修复不全量重评)
+    verify_block = ""
+    if verify_meta:
+        try:
+            prior_txt = Path(verify_meta["prior_file"]).read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            prior_txt = "(读取上一轮 external 结果失败 · 按 diff 验)"
+        try:
+            dr = subprocess.run(["git", "diff", f"{base}..{commit}"],
+                                cwd=str(git_root), capture_output=True, text=True, timeout=30)
+            fix_diff = dr.stdout if dr.returncode == 0 else ""
+        except (subprocess.SubprocessError, OSError):
+            fix_diff = ""
+        verify_block = _build_verify_fixes_block(
+            prior_txt, verify_meta["prior_commit"], commit, fix_diff)
     # v8.139:两引擎统一审计配对 —— prompt-doc(输入 .md)+ 同名过程日志(.log)+ 结果文件
     prompt_doc: Optional[Path] = None
     prompt_doc_used = None
@@ -3797,14 +4082,14 @@ def cmd_external_review(args: argparse.Namespace) -> None:
     if model == "codex":
         prompt_doc = _new_prompt_doc_path(feature_dir, args.stage, model)
         prompt_doc_source = "generated"
-        rc, stdout, stderr = _run_codex_review(
+        runner = lambda _ts: _run_codex_review(  # noqa: E731
             stage=args.stage, commit=commit, base=base, title=title,
             profile_filename=profile_path.name,
             feature_dir=feature_dir, cwd=str(git_root),
             codex_model=codex_model,
             prompt_doc=prompt_doc,
+            timeout_sec=_ts, extra_prompt=verify_block,
         )
-        prompt_doc_used = str(prompt_doc) if prompt_doc.exists() else None
     else:
         # claude 路径(v8.136 · 治 v8.44 固定名缓存中毒):
         #   默认:每轮**现生成**唯一 prompt-doc(模板 Prompt 主体提取 + inline 当前文件 →
@@ -3863,6 +4148,8 @@ def cmd_external_review(args: argparse.Namespace) -> None:
                 .replace("{{base}}", base)
                 .replace("{{feature_id}}", feature_id)
             )
+            if verify_block:
+                prompt_text += verify_block   # v8.191:增量重验块(claude prompt 自包含)
             prompt_doc = _new_prompt_doc_path(feature_dir, args.stage, model)
             # v8.140:首行 ACK 自证契约(仅 generated 注入 · --prompt-doc override 原样执行不动)
             prompt_text = prompt_text + _ack_block(prompt_doc)
@@ -3873,9 +4160,21 @@ def cmd_external_review(args: argparse.Namespace) -> None:
             except OSError:
                 prompt_doc_used = None  # 写盘失败不阻塞执行(审计缺本轮 · prompt 照跑)
             prompt_doc_source = "generated"
-        rc, stdout, stderr = _run_claude_review(
+        runner = lambda _ts: _run_claude_review(  # noqa: E731
             prompt_text, feature_dir=feature_dir, stage=args.stage,
-            prompt_doc=prompt_doc)
+            prompt_doc=prompt_doc, timeout_sec=_ts)
+
+    # v8.191:超时(rc=124)/空跑 自动重试一次(1.5x timeout)· 治「手动重跑吃墙钟」(harvest:
+    # 「2 超时 + 1 空跑」× 每次 600s)。localconfig external_review_timeout_sec 可调基础超时。
+    base_timeout = _external_timeout_sec(feature_dir)
+    rc, stdout, stderr = runner(base_timeout)
+    attempts, used_timeout = 1, base_timeout
+    if rc == 124 or (rc == 0 and not stdout.strip()):
+        used_timeout = int(base_timeout * 1.5)
+        rc, stdout, stderr = runner(used_timeout)
+        attempts = 2
+    if model == "codex":
+        prompt_doc_used = str(prompt_doc) if (prompt_doc and prompt_doc.exists()) else None
 
     # v8.139:过程日志(prompt-doc 同名 .log)· 失败/成功 emit 都透出 —— 失败时它就是验尸现场
     process_log = prompt_doc.with_suffix(".log") if prompt_doc is not None else None
@@ -3897,6 +4196,8 @@ def cmd_external_review(args: argparse.Namespace) -> None:
             "hint": live_hint,
             "host": host,
             "model": model,
+            "attempts": attempts,          # v8.191:≥2 = 已自动重试(1.5x timeout)仍失败 → 环境性
+            "timeout_sec_used": used_timeout,
             "cli_exit_code": rc,
             "cli_stderr": stderr[:500],
             **({"process_log": process_log_str} if process_log_str else {}),
@@ -3934,6 +4235,12 @@ def cmd_external_review(args: argparse.Namespace) -> None:
             "degraded: true",
             f"degraded_mode: {'self-review-fallback' if self_fallback else 'config-disabled'}",
             f"degraded_reason: \"{sr_reason}\"",
+        ]
+    if verify_meta:
+        # v8.191:增量重验轮标注(target_commit = 本轮已验 commit · 供下一轮 verify 锚)
+        frontmatter_lines += [
+            "verify_fixes: true",
+            f"verified_prior_commit: {verify_meta['prior_commit']}",
         ]
     frontmatter_lines += ["---", ""]
     body = stdout
@@ -4485,6 +4792,9 @@ def build_parser() -> argparse.ArgumentParser:
                           "如 apps/admin/docs/features/ADMIN-F013-x · "
                           "**不是仅 feature 名**（v7.3.10+P0-149 修复 PTR-F032 实战 bug）· "
                           "state.json 落此处 · 同时作为 state.artifact_root 字段值")
+    ifp.add_argument("--bl", default=None,
+                     help="[v8.196] 本 F 承接的 BL 编号(如 BL-003)· 写入 state.json.bl · "
+                          "ship 翻牌/ws-progress 解析所属 WS 优先读它(不再单靠 ROADMAP 手填「对应F编号」)")
     ifp.add_argument("--feature-id", required=True,
                      help="如 ADMIN-F013-tax-billing · 应是 --feature basename")
     ifp.add_argument("--flow-type", required=True,
@@ -4545,6 +4855,21 @@ def build_parser() -> argparse.ArgumentParser:
     wpp.add_argument("--write", action="store_true",
                      help="写回 WS 文档的 <!-- WS-PROGRESS:START/END --> 标记区(缺标记则仅输出)")
     wpp.set_defaults(func=cmd_ws_progress)
+
+    # v8.192:pause-mark 计时排毒(stage 内 R5 暂停等待与工作分离)
+    pmk = sub.add_parser("pause-mark",
+                         help="[v8.192] 标记 stage 内暂停开始(emit R5 暂停点时跑)· 下一流程命令自动闭合 · 等待计入 await_minutes")
+    pmk.add_argument("--feature", required=True, help="Feature artifact_root 路径")
+    pmk.add_argument("--label", help="暂停点标签(如 'PRD 确认')")
+    pmk.set_defaults(func=cmd_pause_mark)
+
+    # v8.186:ws-lint WS 文档最新模板符合性校验(治 AI 抄项目旧 WS · 无检查)
+    wlp = sub.add_parser(
+        "ws-lint",
+        help="[v8.186] 校验 WS 文档符合最新 templates/workstream.md 形态(TEAMWORK-MACHINE 块 + WS-PROGRESS/WS-DAG 标记 + 必备 frontmatter)")
+    wlp.add_argument("--ws", help="WS 编号(WS-01 / 01 均可)· 与 --feature 二选一")
+    wlp.add_argument("--feature", help="feature 路径 · 自 F-id 解析所属 WS")
+    wlp.set_defaults(func=cmd_ws_lint)
 
     # v8.178:test-baseline 预存在失败注册表 + 差分(红 base 0 新增放行 · 治反复 stash-baseline)
     tbp = sub.add_parser(
@@ -4718,6 +5043,10 @@ def build_parser() -> argparse.ArgumentParser:
                           "<feature>/external-review-prompts/<stage>-<model>.md。"
                           "doc 不存在 → fallback v8.43 inline + emit WARN 提示 scaffold"))
     # v8.88:诚实降级自审兜底(异质客观不可用·已重试失败 时的弱安全网)
+    er.add_argument("--preflight", action="store_true",
+                    help="[v8.191] 只验 CLI 登录/网络(which+version+微 probe · 秒级)· review 干活前跑 · 不执行评审")
+    er.add_argument("--verify-fixes", action="store_true",
+                    help="[v8.191] 增量重验(仅 review):只验上一轮 findings 的修复 diff(上轮已评 commit..HEAD)· 不全量重跑")
     er.add_argument("--self-review-fallback", action="store_true",
                     help=("[v8.88] 异质模型客观不可用(未装/未登录/配额满·已重试失败)时 · "
                           "跑**同模型 fresh exec** 自审 · 落 self-review/(非异质 · **不满足 "
@@ -4754,7 +5083,6 @@ def build_parser() -> argparse.ArgumentParser:
     # - _v8_engine.py   通用 stage start/complete + bypass 协议
     # - _v8_stage_specs.py  12 stage 完整契约
     # - _v8_ship.py     ship-phase 子动作(替代 v7 ship-*)
-    # - _v8_migrate.py  migrate-v7-to-v8 一次性迁移
     #
     # 注:v8.0+P0-12 删除 _v8_init.py(triage + prepare 命令)·
     #     入口分诊是 PMO 行为(按 SKILL.md § Triage 入口规范 规范做)· 不在 state.py 范围。
@@ -4762,11 +5090,9 @@ def build_parser() -> argparse.ArgumentParser:
         from _v8_engine import register_v8_subparsers
         from _v8_stage_specs import STAGE_SPECS as V8_STAGE_SPECS
         from _v8_ship import register_v8_ship_subparser
-        from _v8_migrate import register_v8_migrate_subparser
 
         register_v8_subparsers(sub, V8_STAGE_SPECS, FLOW_BY_TYPE)
         register_v8_ship_subparser(sub)
-        register_v8_migrate_subparser(sub)
     except ImportError as _e:
         # v8 模块不可用 · 不影响 v7 命令 · 不打印警告(silent execution)
         pass

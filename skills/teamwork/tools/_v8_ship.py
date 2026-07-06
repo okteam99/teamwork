@@ -21,6 +21,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -1307,13 +1308,18 @@ def _stage_durations(state: dict):
     """
     contracts = state.get("stage_contracts", {}) or {}
     order = state.get("completed_stages", []) or list(contracts.keys())
-    items = [(s, contracts.get(s, {}).get("duration_minutes")) for s in order]
-    items = [(s, m) for s, m in items if isinstance(m, int)]
+    # v8.192:duration 扣 stage 内暂停等待(await_minutes · pause-mark 打点)→ 工作时长为真
+    def _wa(s):
+        c = contracts.get(s, {})
+        d, a = c.get("duration_minutes"), int(c.get("await_minutes") or 0)
+        return (max(0, d - a), a) if isinstance(d, int) else (None, a)
+    items = [(s, *_wa(s)) for s in order]
+    items = [(s, m, a) for s, m, a in items if isinstance(m, int)]
     if not items:
         return None, None
-    breakdown = " · ".join(f"{s} {m}m" for s, m in items)
-    work = [(s, m) for s, m in items if s not in _AWAIT_USER_STAGES]
-    awaiting = [(s, m) for s, m in items if s in _AWAIT_USER_STAGES]
+    breakdown = " · ".join(f"{s} {m}m" + (f"(+等待{a}m)" if a else "") for s, m, a in items)
+    work = [(s, m) for s, m, a in items if s not in _AWAIT_USER_STAGES]
+    awaiting = [(s, m + a) for s, m, a in items if s in _AWAIT_USER_STAGES]
     if work:
         wtotal = sum(m for _, m in work)
         ls, lm = max(work, key=lambda x: x[1])
@@ -1703,6 +1709,57 @@ def _main_sync_brief(state: dict, strategy: str, res: dict) -> str:
     return "\n".join(lines)
 
 
+def _reclaim_stashes(main_wt, drop_all: bool = False) -> dict:
+    """v8.190:回收 teamwork main-sync auto-stash(治本 harvest 26×:stash-pull 每次备份不 pop ·
+    跨 feature/session 累积 11+ · human 难判哪些可 drop)。
+
+    🔴 只认 **teamwork 自建**的 main-sync stash(消息含标识)· 绝不碰用户自己的 stash。
+    默认(drop_all=False):只 drop **可证冗余的**(空 / 内容已在分支 · `git apply --reverse --check` 通过)·
+    其余含未合内容的 surface。drop_all=True(用户 --drop-stashes 确认)→ 全清 teamwork main-sync stash。
+    """
+    def _tw_stashes():
+        r = _git(["stash", "list", "--format=%gd%x09%s"], cwd=main_wt, timeout=15)
+        out = []
+        for ln in (r.stdout or "").splitlines():
+            ref, _, subj = ln.partition("\t")
+            m = re.match(r"stash@\{(\d+)\}", ref.strip())
+            if m and ("teamwork main-sync stash" in subj or "净化主工作区遗留" in subj
+                      or re.search(r"\bmain-sync\b", subj)):
+                out.append((int(m.group(1)), ref.strip(), subj.strip()))
+        return out
+
+    tw = _tw_stashes()
+    if not tw:
+        return {"teamwork_stashes": 0, "dropped": 0, "remaining_count": 0, "remaining": []}
+
+    def _redundant(ref):
+        # 🔴 --include-untracked:含新增文件(否则只 stash 了 untracked 的会被误判为空 diff)
+        diff = _git(["stash", "show", "-p", "--include-untracked", ref],
+                    cwd=main_wt, timeout=20).stdout or ""
+        if not diff.strip():
+            return True   # 真空 stash → 安全 drop
+        chk = subprocess.run(["git", "-C", str(main_wt), "apply", "--reverse", "--check"],
+                             input=diff, capture_output=True, text=True, timeout=20)
+        return chk.returncode == 0   # 反向 patch 可 apply = 内容已在树 → 安全 drop
+
+    drop_idx = [idx for idx, ref, _ in tw if drop_all or _redundant(ref)]
+    for idx in sorted(drop_idx, reverse=True):   # 高 index 先 drop · 低 ref 不移位
+        _git(["stash", "drop", f"stash@{{{idx}}}"], cwd=main_wt, timeout=15)
+
+    def _label(subj):
+        m = re.search(r"·\s*([\w.-]+)\s*$", subj)
+        return m.group(1) if m else subj[:40]
+    rem = [{"ref": r, "feature": _label(s)} for _, r, s in _tw_stashes()]  # 重列拿新 ref
+    out = {"teamwork_stashes": len(tw), "dropped": len(drop_idx),
+           "dropped_reason": ("--drop-stashes(用户确认全清)" if drop_all
+                              else "空 / 内容已在分支(可证冗余 · 安全)"),
+           "remaining_count": len(rem), "remaining": rem}
+    if rem:
+        out["hint"] = (f"剩 {len(rem)} 个 teamwork main-sync stash 含**未合内容** · 逐个 "
+                       "`git stash show -p <ref>` 核 · 确不需要 → `main-sync --drop-stashes` 全清")
+    return out
+
+
 def cmd_main_sync(args: argparse.Namespace) -> None:
     """v8.70:主工作区净化(ship 后 user-dirty 决策的执行入口)。
 
@@ -1756,6 +1813,9 @@ def cmd_main_sync(args: argparse.Namespace) -> None:
         main_wt, merge_target, artifact_root, state, args.strategy,
         message=getattr(args, "message", None))
 
+    # v8.190:回收 teamwork main-sync auto-stash(治 harvest 26× 累积无回收)· 默认只 drop 可证冗余的
+    reclaim = _reclaim_stashes(main_wt, drop_all=getattr(args, "drop_stashes", False))
+
     emit_json({
         "verdict": "PASS",
         "command": "main-sync",
@@ -1767,6 +1827,8 @@ def cmd_main_sync(args: argparse.Namespace) -> None:
         "pushed": res.get("pushed", False),
         **({"stash_ref": res["stash_ref"]} if res.get("stash_ref") else {}),
         **({"warnings": res["warnings"]} if res["warnings"] else {}),
+        # v8.190:teamwork stash 回收结果(盘点 · drop 冗余 · surface 未合)
+        **({"stash_reclaim": reclaim} if reclaim.get("teamwork_stashes") else {}),
         "next_action_brief": _main_sync_brief(state, args.strategy, res),
     })
 
@@ -2112,4 +2174,7 @@ def register_v8_ship_subparser(sub) -> None:
     ms.add_argument("--strategy", required=True,
                     help="净化策略:commit-push / stash-pull / skip")
     ms.add_argument("--message", help="commit-push 时的 commit message(可选)")
+    ms.add_argument("--drop-stashes", action="store_true",
+                    help="[v8.190] 全清 teamwork main-sync auto-stash(用户确认不需要任何备份)· "
+                         "默认只 drop 可证冗余的(空/内容已在分支)")
     ms.set_defaults(func=cmd_main_sync)
