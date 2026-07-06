@@ -4,6 +4,18 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.192 · pause-mark 计时排毒 · stage 内 R5 等待与工作分离(待优化 #5)
+
+> 耗时归因:goal 均值 157m vs 中位 22m(max 128h)—— stage 内 R5 暂停(PRD 确认/预览确认/DB 确认)的**等用户墙钟全算成工作**(v8.172 只拆了 pm_acceptance)· 每次归因都要人肉排毒。
+
+### 改动
+- **`state.py pause-mark`**(新):emit R5 暂停点前打点(写 `open_pause`)· **下一个流程命令(start/complete/fix/retry)自动闭合**(`close_open_pause` 接进引擎 4 choke 点)· 等待累计进该 stage `await_minutes` —— resume 侧零纪律。
+- **`_stage_durations`**:工作时长 = duration − await(breakdown 显示 `goal 20m(+等待30m)`)· 最耗时(工作)不再被等待污染。
+- SKILL R5 协议加打点行。
+
+### 验证
+- code(engine helper+4 接线 · state.py 命令 · ship durations)· `test_pause_mark_v8192` +5 · v8.166 套件未破 · pytest 3 failed(baseline)/ 649 passed。
+
 ## v8.191 · external 机械成本三连修:preflight + 超时自动重试 + verify-fixes 增量重验
 
 > 耗时归因(138 条 per-stage 数据)原因 2:external 的**机械 overhead**(非评审价值)—— 20× 实锤:「3 行改动跑 5 次 external(2 真轮+1 空跑+2 超时)review 墙钟 49m(80%)」「CLI 未登录到 review 才发现 → 降级折腾」「每采纳 finding 即全量重跑」。
@@ -53,15 +65,3 @@
 
 ### 验证
 - doc(feature-planning Step 9)+ code(`planning-check`)· `test_state` planning 4 passed · pytest 3 failed(baseline)/ 627 passed。
-
-## v8.187 · preview 修订:真实交互页面内做 · dev 顶栏只放页面到不了的态(修 v8.169 过度)
-
-> 用户(实战 AON admin 预览):全景设计尽量**页面内直接跳转**(点「新建模型」按钮直接开 Drawer)· 不要都依赖 dev 顶栏切换 · 顶栏只放**页面入口覆盖不到的**(错误/加载/难自然触发的态)。v8.169 当时矫枉过正 ——「页面切换 + 状态切换**都**走顶栏 · 页面禁内嵌**任何**预览控件」把真实可达的交互(按钮→Drawer)也赶到顶栏 · 反不如真实 app 保真。
-
-### 改动(ui-design § preview dev 顶栏 + 分层同构 + brief)
-- **区分「交互可达性」vs「状态注入」**:① 真实 app 点页面按钮能到的(新建/编辑 Drawer · Modal · 行→详情 · 页内导航/Tab)→ **页面内做成真实可点**(默认 · 交互保真 · 正是「设计=代码」要的)② dev 顶栏只放**真实交互无法自然触发的态**(`Loading/Error/Empty/边缘态` · 难自然触发的展示态 / preset 直开)。
-- **「禁内嵌 switcher」澄清**:禁的是**预览专属控件**(真实 app 没有的 state-switcher 下拉/场景 toggle)· **不是禁真实交互按钮**。状态注入仍走顶栏(Storybook args)· 但**交互可达性走页面**。
-- 页间跳转有**页内入口**则页内优先 · 顶栏兜底无页内入口的页。
-
-### 验证
-- doc(ui-design-stage § preview dev 顶栏 / 分层同构 line76)+ brief(`_ui_design_brief`)· `test_ui_design_brief` 断言措辞同步 · pytest 3 failed(baseline)/ 627 passed。

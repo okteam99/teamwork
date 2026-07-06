@@ -1308,13 +1308,18 @@ def _stage_durations(state: dict):
     """
     contracts = state.get("stage_contracts", {}) or {}
     order = state.get("completed_stages", []) or list(contracts.keys())
-    items = [(s, contracts.get(s, {}).get("duration_minutes")) for s in order]
-    items = [(s, m) for s, m in items if isinstance(m, int)]
+    # v8.192:duration 扣 stage 内暂停等待(await_minutes · pause-mark 打点)→ 工作时长为真
+    def _wa(s):
+        c = contracts.get(s, {})
+        d, a = c.get("duration_minutes"), int(c.get("await_minutes") or 0)
+        return (max(0, d - a), a) if isinstance(d, int) else (None, a)
+    items = [(s, *_wa(s)) for s in order]
+    items = [(s, m, a) for s, m, a in items if isinstance(m, int)]
     if not items:
         return None, None
-    breakdown = " · ".join(f"{s} {m}m" for s, m in items)
-    work = [(s, m) for s, m in items if s not in _AWAIT_USER_STAGES]
-    awaiting = [(s, m) for s, m in items if s in _AWAIT_USER_STAGES]
+    breakdown = " · ".join(f"{s} {m}m" + (f"(+等待{a}m)" if a else "") for s, m, a in items)
+    work = [(s, m) for s, m, a in items if s not in _AWAIT_USER_STAGES]
+    awaiting = [(s, m + a) for s, m, a in items if s in _AWAIT_USER_STAGES]
     if work:
         wtotal = sum(m for _, m in work)
         ls, lm = max(work, key=lambda x: x[1])

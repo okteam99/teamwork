@@ -5,6 +5,17 @@
 
 ---
 
+## v8.187 · preview 修订:真实交互页面内做 · dev 顶栏只放页面到不了的态(修 v8.169 过度)
+
+> 用户(实战 AON admin 预览):全景设计尽量**页面内直接跳转**(点「新建模型」按钮直接开 Drawer)· 不要都依赖 dev 顶栏切换 · 顶栏只放**页面入口覆盖不到的**(错误/加载/难自然触发的态)。v8.169 当时矫枉过正 ——「页面切换 + 状态切换**都**走顶栏 · 页面禁内嵌**任何**预览控件」把真实可达的交互(按钮→Drawer)也赶到顶栏 · 反不如真实 app 保真。
+
+### 改动(ui-design § preview dev 顶栏 + 分层同构 + brief)
+- **区分「交互可达性」vs「状态注入」**:① 真实 app 点页面按钮能到的(新建/编辑 Drawer · Modal · 行→详情 · 页内导航/Tab)→ **页面内做成真实可点**(默认 · 交互保真 · 正是「设计=代码」要的)② dev 顶栏只放**真实交互无法自然触发的态**(`Loading/Error/Empty/边缘态` · 难自然触发的展示态 / preset 直开)。
+- **「禁内嵌 switcher」澄清**:禁的是**预览专属控件**(真实 app 没有的 state-switcher 下拉/场景 toggle)· **不是禁真实交互按钮**。状态注入仍走顶栏(Storybook args)· 但**交互可达性走页面**。
+- 页间跳转有**页内入口**则页内优先 · 顶栏兜底无页内入口的页。
+
+### 验证
+- doc(ui-design-stage § preview dev 顶栏 / 分层同构 line76)+ brief(`_ui_design_brief`)· `test_ui_design_brief` 断言措辞同步 · pytest 3 failed(baseline)/ 627 passed。
 ## v8.186 · ws-lint:WS 文档最新模板符合性校验 · 治 AI 抄项目旧 WS 无人检查
 
 > 实证 AON WS-012:AI 做 feature-planning 写 WS 时**抄项目里旧/混合格式**(裸 `---` frontmatter · 无 `TEAMWORK-MACHINE` 块 · 无 `WS-PROGRESS`/`WS-DAG` 标记 · 缺 `ui_panorama_confirmed`)· **无符合性检查** · 只有用户主动问「按最新模板写的么」才发现。

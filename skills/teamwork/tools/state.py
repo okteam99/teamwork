@@ -594,6 +594,28 @@ def cmd_add_concern(args: argparse.Namespace) -> None:
     })
 
 
+
+def cmd_pause_mark(args: argparse.Namespace) -> None:
+    """v8.192:标记 stage 内暂停点开始(计时排毒 · emit R5 暂停点时跑)。
+
+    下一个流程命令(xx-start/complete/fix/retry)自动闭合 · 等待墙钟累计进该 stage 的
+    await_minutes · 耗时分析工作/等待分离(resume 侧零纪律)。重复 mark = 覆盖(取最新)。
+    """
+    path = state_path(args.feature)
+    state = load_state(args.feature)
+    state["open_pause"] = {
+        "stage": state.get("current_stage") or "",
+        "label": (getattr(args, "label", None) or "").strip() or "R5 pause",
+        "started_at": now_iso(),
+    }
+    state["updated_at"] = now_iso()
+    state["updated_by"] = "pause-mark"
+    atomic_write(path, state)
+    emit({"verdict": "OK", "action": "pause-mark", "stage": state["open_pause"]["stage"],
+          "label": state["open_pause"]["label"],
+          "note": "下一个流程命令自动闭合 · 等待墙钟计入该 stage await_minutes(不算工作)"})
+
+
 # ─── ws-progress:WS 进度 rollup（v8.174）──────────────────────────────
 # 治本:WS 文档只有「规划态」(features[].status=pending/planned)· 无「执行态」进度。
 # 执行态单一源在各子项目 ROADMAP 的「状态」列(职责单一 · 禁手抄进 WS)→ 只能派生。
@@ -4787,6 +4809,13 @@ def build_parser() -> argparse.ArgumentParser:
     wpp.add_argument("--write", action="store_true",
                      help="写回 WS 文档的 <!-- WS-PROGRESS:START/END --> 标记区(缺标记则仅输出)")
     wpp.set_defaults(func=cmd_ws_progress)
+
+    # v8.192:pause-mark 计时排毒(stage 内 R5 暂停等待与工作分离)
+    pmk = sub.add_parser("pause-mark",
+                         help="[v8.192] 标记 stage 内暂停开始(emit R5 暂停点时跑)· 下一流程命令自动闭合 · 等待计入 await_minutes")
+    pmk.add_argument("--feature", required=True, help="Feature artifact_root 路径")
+    pmk.add_argument("--label", help="暂停点标签(如 'PRD 确认')")
+    pmk.set_defaults(func=cmd_pause_mark)
 
     # v8.186:ws-lint WS 文档最新模板符合性校验(治 AI 抄项目旧 WS · 无检查)
     wlp = sub.add_parser(
