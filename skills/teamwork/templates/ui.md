@@ -85,20 +85,13 @@ pages_changed:
 - 导航位置：{本 Feature 页面在 sitemap 中的层级路径}
 - 全景变更类型：⏭️ 无 / 🟡 增量 / 🔴 结构性
 
-#### 🔴 HTML 物化对齐校验＂移"）
+#### 🔴 全景对齐校验（static-html 介质 · v8.195 起走 verify-panorama.py · medium-aware）
 
 ```bash
-python3 {SKILL_ROOT}/tools/diff-html-vs-panorama.py \
- --panorama {panorama_path}/preview/overview.html \
- --feature-dir {Feature_dir}/preview
+python3 {SKILL_ROOT}/tools/verify-panorama.py --feature {Feature_dir}
 ```
 
-- verdict: ☐ OK / ☐ WARN / ☐ FAIL
-- 命中 extra colors（如有 · 列 token 名 + 修复路径）：
-- 命中 extra font sizes（如有）：
-- 命中 extra layouts（如有）：
-- 缺 required landmarks（如有 · main 等）：
-- 工具 stdout JSON 入 state.json.ui_substeps_config.html_diff_evidence
+- verdict: ☐ OK / ☐ WARN / ☐ FAIL（same-stack 自动 skip HTML 检查）
 
 ### 全景增量 diff（仅 🟡 增量类型必填）
 \`\`\`diff

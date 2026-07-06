@@ -9,7 +9,7 @@
 
 - TECH.md 起草:§模块划分 · §数据模型 · §接口定义 · §依赖与影响 · §风险
 - TDD 红绿循环:测试先行 · 红 → 绿 → refactor · 每个绿点都 auto-commit
-- UI 还原:如 ui_design 完成 · 必跑 verify-panorama.py / diff-html-vs-panorama.py
+- UI 还原:如 ui_design 完成 · 必跑 verify-panorama.py
 - 自查:规范符合 · 跑已有测试无回归 · build 通过
 - Bug 流程:diagnose stage 深读代码出**根因 + 修复方案**(bugfix/BUG-*.md)→ 🔴 用户确认方案 → dev 才写 fix(详 stages/diagnose-stage.md)
 

@@ -54,7 +54,7 @@ cd {子项目}/docs/design/preview-project && pnpm build   # 或项目等价 bui
 
 **证据**:build exit 0 记入 dev 测试证据(同 §6 test evidence 模式)。⏳ 物化 TODO:dev-complete 条件 evidence(diff ∩ 共享包路径 → 要求 `--panorama-build-exit-code`)。
 - **`static-html`** —— IA + 视觉层级 + Token 一致性校验(不强像素 · 介质差异不可调和):
-  - 跑 `verify-panorama.py`(已 medium-aware · 同栈下自动 skip HTML 检查 · 不卡流程)或 `diff-html-vs-panorama.py`
+  - 跑 `verify-panorama.py`(已 medium-aware · 同栈下自动 skip HTML 检查 · 不卡流程)
   - 对比实现 vs `UI.md` / `preview/*.html`
   - 差异处:preview 未覆盖 → TECH.md fallback;TECH 也未覆盖 → concerns + 主对话讨论
   - 🔴 **不要在 static-html 上死磕像素级 fidelity** —— 介质差异(系统字体 / CDN Tailwind / shadcn token 缺失)无法靠调 panorama 解决,治本是迁 same-stack(详 ui-design-stage.md § Panorama 介质类型)
