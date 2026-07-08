@@ -28,3 +28,27 @@ class TestAwaitMergeCli(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestPrdConformanceV8201(unittest.TestCase):
+    def _chk(self, body):
+        import tempfile
+        from types import SimpleNamespace as NS
+        from _v8_stage_specs import _evidence_prd_template_conformance
+        d = Path(tempfile.mkdtemp()); (d / "PRD.md").write_text(body, encoding="utf-8")
+        return _evidence_prd_template_conformance({}, NS(feature=str(d)))
+
+    def test_freeform_prd_blocked_with_all_three(self):
+        ok, msg = self._chk("自由结构\n## 背景\n")
+        self.assertFalse(ok)
+        for k in ("机读块", "验收标准", "开工前"): self.assertIn(k, msg)
+        self.assertIn("别抄项目里旧 PRD", msg)
+
+    def test_canonical_passes(self):
+        ok, _ = self._chk("<!-- TEAMWORK-MACHINE\nx: 1\n-->\n# P\n## 验收标准\n- AC-1\n## 开工前必须想清的\n无\n")
+        self.assertTrue(ok)
+
+    def test_legacy_frontmatter_with_ac_needs_zone(self):
+        ok, msg = self._chk("---\nacceptance_criteria: [a]\n---\n# P\n")
+        self.assertFalse(ok)                      # 缺扩展区仍拦
+        self.assertIn("开工前", msg)
