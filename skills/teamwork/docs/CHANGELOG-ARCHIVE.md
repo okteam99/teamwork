@@ -84,3 +84,14 @@
 
 ### 验证
 - doc-only · pytest 3 failed(baseline)/ 640 passed。
+## v8.195 · 🟡 待确认项裁决:删 diff-html-vs-panorama(static-html 退役工具)· 其余 3 件确认活消费保留
+
+> 承 v8.193/194 删减:🟡 批次逐件消费点确认。**diff-html-vs-panorama.py**(340 行):仅 static-html 分支引用 · 163 条 audit 里 static-html 使用 = **1** · 前端栈已定项目强制 same-stack · verify-panorama 已 medium-aware 覆盖 → **删**(+测试 −10 · dev-stage/roles/ui.md 3 处引用改指 verify-panorama)。
+
+### 确认保留(活消费实证)
+- **e2e-registry.md**:ship §16 采写 `reg` 字段(REG-case)消费。
+- **config.md**:conventions 3 处(缩写注册 + localconfig 模板)。
+- **architecture.md**:含 database-schema 模板 = TECH §Schema 影响分析的上游。
+
+### 验证
+- 净减 ~700 行 · 引用清零 · pytest 3 failed(baseline)/ 630 passed。
