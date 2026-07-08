@@ -5,7 +5,7 @@
 > 🔴 **设计原则**：
 > - **极简**：仅 cite SKILL.md · 不复述红线全文（避免 token 重复）
 > - **稳定 marker**：`<!-- TEAMWORK_BEGIN:section vX.X.X -->` ... `<!-- TEAMWORK_END:section -->`
-> - **版本敏感**：marker 上 version 字段 · sync-drift.py 比对决定是否更新
+> - **内容敏感**：注入块内容变化才更新（内容相同即 unchanged 不重写 · marker 版本号不参与比对 · 仅随内容更新）
 > - **用户内容外置**：marker 之间是 teamwork 管 · 之外是用户自由编辑 · 互不污染
 >
 > 当前注入 1 个 section · 后续需要时按需扩 section。

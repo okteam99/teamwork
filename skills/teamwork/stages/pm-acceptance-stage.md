@@ -71,19 +71,6 @@ pm_acceptance rejected 不强制 fix-retry(反馈类型多样)· state.py emit 4
 
 ---
 
-## 必读 cite 清单(P0-11 · 各 substep 动手前主对话输出)
-
-| Substep | 必读 spec | 段 | cite 关键点 |
-|---------|----------|----|------------|
-| 1. 加载上下文 | — | — | (读 PRD.AC + TEST-REPORT + 截图) |
-| 2. PM 逐条 AC 对照实现 | `roles/pm.md` | § 验收规范 | 对照 TEST-REPORT 实际数据 · 不口述 OK |
-| 3. (可选)主对话试用 | — | — | (无) |
-| 4. emit 三选项暂停点 | `stages/pm-acceptance-stage.md` | § 怎么做 4 | emit 三选项 · 用户拍板 · AI 不自决 |
-| 5. complete --decision --note | — | — | (用户拍板后才跑) |
-
-
-📎 **cite 纪律**(输出格式 / 强约束 / 为什么 cite)· 单源详 [../STAGES.md § 2 P0-11 cite 纪律](../STAGES.md)
-
 ## 质量基线
 
 📎 **物化拦截**:

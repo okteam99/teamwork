@@ -85,7 +85,7 @@ pages_changed:
 - 导航位置：{本 Feature 页面在 sitemap 中的层级路径}
 - 全景变更类型：⏭️ 无 / 🟡 增量 / 🔴 结构性
 
-#### 🔴 全景对齐校验（static-html 介质 · v8.195 起走 verify-panorama.py · medium-aware）
+#### 🔴 全景对齐校验（static-html 介质 · 走 verify-panorama.py · medium-aware）
 
 ```bash
 python3 {SKILL_ROOT}/tools/verify-panorama.py --feature {Feature_dir}
@@ -132,3 +132,8 @@ overview.html DOM 变更：
 </body>
 </html>
 ```
+
+## 🧩 补充洞察（AI 自由发挥 · 可留空）
+
+> 模板槽位之外你认为**重要但没处落**的：非常规风险 / 更好方案的线索 / 跨 feature 影响 / 用户没问但该想清的。
+> 🔴 模板是**地板不是天花板** —— 填完槽位 ≠ 想完了。没有就写「无」或删本节 · **不为凑内容而写**（硬凑 = 新仪式）。

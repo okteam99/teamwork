@@ -254,4 +254,10 @@ sequenceDiagram
 - [ ] build 通过 · linter pass · 改了共享基建则全景编译过(dev-stage §3.5)
 - [ ] (UI feature)**设计↔实际一致性核对**做了(意图四要素 · dev-stage §3)
 - [ ] commit message 含 Feature ID · 改动文件全在 commit changeset 内
+
+## 🧩 补充洞察（AI 自由发挥 · 可留空）
+
+> 模板槽位之外你认为**重要但没处落**的：非常规风险 / 更好方案的线索 / 跨 feature 影响 / 用户没问但该想清的。
+> 🔴 模板是**地板不是天花板** —— 填完槽位 ≠ 想完了。没有就写「无」或删本节 · **不为凑内容而写**（硬凑 = 新仪式）。
+
 ```

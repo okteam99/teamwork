@@ -77,7 +77,7 @@ flowchart LR
 > | mock data 入口 | `[填:如 src/test/mocks/ · MockDataProvider 路径]` | same-stack panorama 渲染所用 fixture |
 > | design route 约定 | `[填:如 /design/<page-id>(开发模式启用 / production 屏蔽)]` | panorama 复用本栈时的访问入口 |
 >
-> 「frontend_stack 已填 + 某 Feature panorama 仍 static-html」= **规范违规** · 必须开 Feature 迁移到 same-stack(治本 PTR-F052 case)。
+> 「frontend_stack 已填 + 某 Feature panorama 仍 static-html」= **规范违规** · 必须开 Feature 迁移到 same-stack。
 
 ## 当前状态
 

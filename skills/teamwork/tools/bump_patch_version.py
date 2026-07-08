@@ -19,8 +19,7 @@ tools/bump_patch_version.py — 把 SKILL.md frontmatter version 的 patch 段 +
 
 退出码:
     0 = OK · stdout 打印 "v8.X.Y → v8.X.Y+1"
-    1 = OK 但已 bump(idempotent · 同一 SKILL.md 多次跑保持安全 · 仅打印当前 version)
-        (注:本工具默认每次都 bump · idempotent 由调用方[hook]控制 · 见 hook 内 [auto-bump] guard)
+        (本工具每次跑都 bump · 重复防护由调用方[pre-push hook]的 auto-bump subject guard 控制)
     2 = 错误(文件不存在 / 无 frontmatter / 无 version 字段 / version 不合法)
 """
 

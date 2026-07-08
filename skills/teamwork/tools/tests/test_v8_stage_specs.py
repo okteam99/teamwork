@@ -536,22 +536,26 @@ class TestRevisionHistoryPresent(unittest.TestCase):
 class TestNeedsUiDecided(unittest.TestCase):
     """v8.0+P0-6:--needs-ui 必传 + 写 state.execution_hints。"""
 
-    def test_needs_ui_true_passes_and_writes(self):
-        from _v8_stage_specs import _evidence_needs_ui_decided
+    def test_needs_ui_true_passes_and_persists(self):
+        """校验函数是纯谓词 · 字段落库走 persist_args_to_evidence(校验前统一执行)。"""
+        from _v8_stage_specs import _evidence_needs_ui_decided, persist_args_to_evidence
 
         state = {"flow_type": "Feature"}
         args = SimpleNamespace(needs_ui="true")
         passed, err = _evidence_needs_ui_decided(state, args)
         self.assertTrue(passed, err)
+        self.assertNotIn("execution_hints", state)  # 纯谓词:校验不写 state
+        persist_args_to_evidence("goal", state, args)
         self.assertTrue(state["execution_hints"]["ui_design_needed"])
 
-    def test_needs_ui_false_passes_and_writes(self):
-        from _v8_stage_specs import _evidence_needs_ui_decided
+    def test_needs_ui_false_passes_and_persists(self):
+        from _v8_stage_specs import _evidence_needs_ui_decided, persist_args_to_evidence
 
         state = {"flow_type": "Feature"}
         args = SimpleNamespace(needs_ui="false")
         passed, err = _evidence_needs_ui_decided(state, args)
         self.assertTrue(passed, err)
+        persist_args_to_evidence("goal", state, args)
         self.assertFalse(state["execution_hints"]["ui_design_needed"])
 
     def test_needs_ui_missing_fails(self):

@@ -1,6 +1,6 @@
 # 测试基线失败集（test-baseline · 项目级单源）
 
-> **telos**：brownfield 项目的共享测试套件常带**预存在失败**（base 即红 · 历史重构遗留 / 其他 feature 欠债）。没有登记机制时，**每个**碰到该套件的 feature 都要重复「stash → 跑 base → diff → 在 REVIEW 里论证非本 feature 回归」的甄别成本（实证 audit：跨 3+ feature 反复确认同一批 5-6 个失败）。
+> **telos**：brownfield 项目的共享测试套件常带**预存在失败**（base 即红 · 历史重构遗留 / 其他 feature 欠债）。没有登记机制时，**每个**碰到该套件的 feature 都要重复「stash → 跑 base → diff → 在 REVIEW 里论证非本 feature 回归」的甄别成本（同一批失败被逐 feature 反复甄别）。
 >
 > 本文件把「base 上**已知**的预存在失败」登记成**项目级单源**，让 test gate 改成**差分**判定：
 > - **0 个新增失败**（当前失败 ⊆ 本表）→ 红 base 也放行（不是回归）。

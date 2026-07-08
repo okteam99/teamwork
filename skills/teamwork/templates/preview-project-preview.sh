@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # preview.sh — same-stack UI 预览:编译运行 + 输出可打开 URL(动态端口)
-# v8.58 teamwork · 放在 preview-project 根 · 用项目自己的 dev server(不在 teamwork 层起 server)
+# teamwork · 放在 preview-project 根 · 用项目自己的 dev server(不在 teamwork 层起 server)
 #
 # 解决:① same-stack 预览是 ES-module bundle · file:// 因 CORS 打不开 → 必须 dev server
 #       ② 并行 worktree / 多终端裸起 server 抢端口 → 本脚本每次选一个动态空闲端口 · 天然不冲突

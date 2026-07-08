@@ -11,7 +11,7 @@
 - **定位**:`teamwork-space.md` 是本项目**知识地图根 / 索引之索引**(子项目结构 + 依赖 + **全部知识入口** + 跨项目追踪)· **不是**事件日志 / 进度看板 / 评审记录 · **不承担知识内容**(三层律:地图 / 领土=代码 / 冷库=归档 zip · 详 [SKILL.md § 项目级文档信息架构](../SKILL.md))。
 - 🔴 **核心简化原则**:**任一表格的任一单元格 ≤ 1 行**;详情一律外迁(workstream/WS-NN.md / Feature state.json + PRD / PROJECT.md / ADR)· 永远保持"一眼看懂全景",避免演化到几百行难维护。
 - 🔴 **变更协议**:任何变更(创建/修改/删除)**必须暂停等用户确认**(R5)· 本文件是 teamwork-space.md 的唯一格式权威源。
-- **N≥1 统一模型**:任何 teamwork 项目都有 teamwork-space.md(知识地图根)· **单项目 = 1 个逻辑子项目**(N=1)· 子项目是**职责单元非物理仓** · 知识层与项目是否 monorepo **无直接耦合**。🟢 **已物化**:bootstrap **自动建** teamwork-space.md 骨架(v8.116 · `maintain_teamwork_space` · 知识入口自动探测 + 子项目清单空表)+ cold-start 解耦(gate fire 于无 `product-overview/` · 非无 teamwork-space.md)+ 结构 checker(v8.115 · 见 §0.1)。**不再"单项目可无"**(子项目清单空表 → state.py 路由校验 SKIP · 回填后生效)。teamwork 面向复杂业务 · 地图根开销是预期。
+- **N≥1 统一模型**:任何 teamwork 项目都有 teamwork-space.md(知识地图根)· **单项目 = 1 个逻辑子项目**(N=1)· 子项目是**职责单元非物理仓** · 知识层与项目是否 monorepo **无直接耦合**。🟢 **已物化**:bootstrap **自动建** teamwork-space.md 骨架(`maintain_teamwork_space` · 知识入口自动探测 + 子项目清单空表)+ cold-start 解耦(gate fire 于无 `product-overview/` · 非无 teamwork-space.md)+ 结构 checker(见 §0.1)。**不再"单项目可无"**(子项目清单空表 → state.py 路由校验 SKIP · 回填后生效)。teamwork 面向复杂业务 · 地图根开销是预期。
 
 ## 0.1 § 知识入口(索引之索引 · 零死角律)
 
@@ -19,7 +19,7 @@
 - 🔴 **零死角律**:本项目**每个磁盘上存在的知识节点**必在「知识入口」表有一行指针 —— 子项目 `docs_root` / `product-overview/` / `project-specs/`(DEV-RULES·KNOWLEDGE·GLOSSARY·TROUBLESHOOTING·RESOURCES·ARCHITECTURE)/ `external/` / 归档 `{子项目}/docs/features/_archive/INDEX.md`(每子项目 docs_root 下)。漏一个 = 知识泄露死角。无对应目录的项目删该行(不留空指针)。
 - **一行只写"去哪"**:指针 + 内含摘要 · **不写"是什么"**(文档*类型*语义 = 律法 · 在 SKILL.md · 不复制进项目文件 · 否则每项目背一份会腐烂的副本)。
 - **末行永远是代码**:「细节 → grep+Read 源码 · 不信文档转述」· 地图不替代领土。
-- 🟢 **物化校验已落**(v8.115):`bootstrap.py check_knowledge_graph_integrity`(归档 `INDEX.md`↔`*.zip` 双向对账 + workspace 节点登记)· session 启动跑 · 命中 emit `checks.knowledge_graph` WARN + 截断鲁棒 digest 行。🔴 **只查可达性 · 不查内容新鲜度**(否则 checker 通过会被误读成「知识完整」· 自己成误导信号 · 违 §「信号≠判决」)。「零死角」从约定升为物化 WARN。
+- 🟢 **物化校验已落**:`bootstrap.py check_knowledge_graph_integrity`(归档 `INDEX.md`↔`*.zip` 双向对账 + workspace 节点登记)· session 启动跑 · 命中 emit `checks.knowledge_graph` WARN + 截断鲁棒 digest 行。🔴 **只查可达性 · 不查内容新鲜度**(否则 checker 通过会被误读成「知识完整」· 自己成误导信号 · 违 §「信号≠判决」)。「零死角」从约定升为物化 WARN。
 
 ## 1. § 产品规划引用(有 product-overview/ 时)
 
@@ -40,7 +40,7 @@
 - 执行线不反向绑定子项目 / Feature 编号 —— **WS 在自己文档 tag「承接 1+ 执行线」**,反查得映射。
 - 🔴 **硬规则**:每格 ≤ 1 行,原文取自业务架构(不复述背景 / 不出现子项目缩写或 Feature 编号)。
 
-## 4. § Workspace 架构(🔵 v8.117 已外迁 → `project-specs/ARCHITECTURE.md`)
+## 4. § Workspace 架构(🔵 已外迁 → `project-specs/ARCHITECTURE.md`)
 
 - 🔵 **外迁**:原 teamwork-space.md「项目架构全景(Mermaid 拓扑+依赖)+ 项目目录结构(tree)」两节 → `project-specs/ARCHITECTURE.md`(workspace 级)· teamwork-space.md 只在「知识入口」留 1 行指针(轻量化 · 它是偶尔读的参考详情 · 非每 session 读的导航索引)。bootstrap `maintain_project_skeletons` 自动建空骨架(模板 `templates/architecture-workspace.md`)。
 - **维护**(同迁移前 · 改在 ARCHITECTURE.md):PL 子项目拆分方案产出 → PMO 填入(子项目拓扑 + 依赖)· 后续结构变更时 PM 更新。
@@ -55,7 +55,7 @@
 - 初始化时 PMO 从 PL 子项目拆分方案填入 · 「承接执行线」列维护子项目↔执行线映射(多值 · 执行线侧不反向记录)。
 - **职责范围**:「负责:XX。不负责:YY」格式 · PMO 路由依据 · 交叉时标「与 XX 共同负责 YY」。
 - 🔴 **docs_root(必填 · 路由权威)**:子项目 Feature 文档根(相对项目根)· 标准 `{子项目}/docs/features` · PMO triage 时算 `state.artifact_root = {docs_root}/{Feature 全名}` · 不允许"沿用历史根"偏离 · 缺失 → triage 阻断(用户先补)。
-- 🔴 **技术栈(前端栈 = panorama 介质权威信号)**:列内前端部分(`React (Vite)`/`Vue`/`Next`)非空 → ui_design 必走 `same-stack` panorama(详 stages/ui-design-stage.md)· 仅后端/留空 → 允许 `static-html` 兜底 · 详细前端栈声明落子项目 `PROJECT.md § 技术栈·前端`(治本 PTR-F052 死循环)。
+- 🔴 **技术栈(前端栈 = panorama 介质权威信号)**:列内前端部分(`React (Vite)`/`Vue`/`Next`)非空 → ui_design 必走 `same-stack` panorama(详 stages/ui-design-stage.md)· 仅后端/留空 → 允许 `static-html` 兜底 · 详细前端栈声明落子项目 `PROJECT.md § 技术栈·前端`(缺声明会导致介质判定死循环)。
 - **消费方**:仅 midplatform 填(依赖本子项目的其他子项目缩写)· business 填 `-`。
 - **完成度**:`已完成数/总数` · 基于子项目 ROADMAP feature 统计 · PMO 每 Feature 完成时同步 · 无 ROADMAP 填 `0/0`。
 - 🔴 **硬规则**:任一单元格 ≤ 1 行 · 可选列只写「最近状态结论 + 链 PROJECT.md/ROADMAP.md」· 不复述 Feature 进度详情。
@@ -81,7 +81,7 @@
 ## 8. 生命周期
 
 ```
-阶段 1 · 初始化(首次启动 · bootstrap 自动建 teamwork-space.md 骨架 + project-specs/ARCHITECTURE.md 空骨架 · v8.116/117)
+阶段 1 · 初始化(首次启动 · bootstrap 自动建 teamwork-space.md 骨架 + project-specs/ARCHITECTURE.md 空骨架)
   → 骨架知识入口自动探测 · 子项目清单/架构待规划回填 → 阶段 2
 阶段 2 · 架构规划(逐个子项目 Planning 或首个 WS 落地)
   → PM 回填 teamwork-space.md 子项目清单 + project-specs/ARCHITECTURE.md(系统架构)+ 各子项目 ROADMAP → ⏸️ 用户确认 → 阶段 3

@@ -90,7 +90,7 @@ class TestBumpPatchE2E(unittest.TestCase):
     def _run(self, args):
         import subprocess
         return subprocess.run(
-            ["/opt/homebrew/opt/python@3.14/bin/python3.14",
+            [sys.executable,
              str(BUMP_PY), *args],
             capture_output=True, text=True, timeout=10,
         )

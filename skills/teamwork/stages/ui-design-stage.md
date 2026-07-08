@@ -202,20 +202,6 @@ state.py ui_design-complete --feature X --auto-commit Y \
 
 ---
 
-## 必读 cite 清单(P0-11 · 各 substep 动手前主对话输出)
-
-| Substep | 必读 spec | 段 | cite 关键点 |
-|---------|----------|----|------------|
-| 1. 加载上下文 | `roles/designer.md` | § Telos + 创作要点 | UX 视角 |
-| 2. Designer 起草 UI.md | `roles/designer.md` + 本文件 § 交互 & 视觉质量 rubric | § 创作要点 + rubric A/B/C | frontmatter pages[] + body 4 段 · 🔴 §交互流/§视觉规范 逐条对照 rubric |
-| 3. 产出 panorama | `roles/designer.md` | § 创作要点 | 按 `panorama_medium` 走 · same-stack 搭 preview-project + preview.sh(源即权威)· static-html 产 preview/*.html · 含可交互 |
-| 4. panorama 判定 | — | — | (无 cite 要求 · 涉变更交 panorama_sync stage) |
-| 5. ⏸️ 用户预览确认 | — | — | (无) |
-| 6. complete | — | — | (无) |
-
-
-📎 **cite 纪律**(输出格式 / 强约束 / 为什么 cite)· 单源详 [../STAGES.md § 2 P0-11 cite 纪律](../STAGES.md)
-
 ## 质量基线
 
 📎 **物化拦截**(均按 `panorama_medium` 适配):

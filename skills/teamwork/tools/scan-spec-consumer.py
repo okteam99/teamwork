@@ -235,7 +235,7 @@ def main() -> None:
     files = discover_spec_files(skill_root)
     if not files:
         fail("未发现任何 spec 文件",
-             hint=f"检查 {skill_root} 下 stages/ standards/ roles/ rules/")
+             hint=f"检查 {skill_root} 下 stages/ standards/ roles/ docs/")
 
     all_hits: list[RuleHit] = []
     for f in files:

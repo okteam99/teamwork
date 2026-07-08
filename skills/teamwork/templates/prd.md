@@ -15,8 +15,8 @@
 feature_id: "{缩写}-F{编号}-{功能名}"
 status: draft # draft | pending_review | confirmed
 requires_ui: false  # 是否触发 Designer 评审（双保险之一；PMO 也按 UI 关键词识别）
-business_direction_locked: false  # PL-PM 讨论收敛后 PMO 写 true
-acceptance_criteria:   # 🔴 机读单源(verify-ac.py 读 id↔TC.covers_ac)· v8.158 瘦身:只留机读字段 · AC 描述/BDD 全文在 body §验收标准表(人读单源 · 不再两处同步 description)
+business_direction_locked: false  # 产品方向收敛(goal 评审 PL 质疑闭合 / 用户拍板)后 PMO 写 true
+acceptance_criteria:   # 🔴 机读单源(verify-ac.py 读 id↔TC.covers_ac)· 只留机读字段 · AC 描述/BDD 全文在 body §验收标准表(人读单源 · 不两处同步 description)
   - id: AC-1
     category: functional   # functional / telemetry / logging / config / performance / security / monitoring
     priority: P0
@@ -65,7 +65,7 @@ revision_history:   # 🔴 goal-complete 校验 ≥1 条(证明经 review 收敛
 
 ## 验收标准
 
-<!-- 🔴 v8.158:本表 = AC **人读单源**(BDD 全文在此)· TEAMWORK-MACHINE 块 acceptance_criteria 只存机读字段(id/category/priority/test_refs/grep)· 两处 **id 一致** 即可(描述不再同步两份 · verify-ac.py 按 id↔TC.covers_ac 校验)· AC 写 BDD(Given/When/Then)· 行为/价值高度。 -->
+<!-- 🔴 本表 = AC **人读单源**(BDD 全文在此)· TEAMWORK-MACHINE 块 acceptance_criteria 只存机读字段(id/category/priority/test_refs/grep)· 两处 **id 一致** 即可(描述不再同步两份 · verify-ac.py 按 id↔TC.covers_ac 校验)· AC 写 BDD(Given/When/Then)· 行为/价值高度。 -->
 
 | ID | 描述(BDD) | 优先级 | 覆盖测试 |
 |----|-----------|--------|----------|
@@ -119,7 +119,7 @@ stateDiagram-v2
 ## 消费方分析（中台子项目必填）
 
 > 🔴 仅 midplatform 类型子项目的 Feature 需要填写此章节。business 类型子项目删除此章节。
-> PMO 在 PM 编写 PRD 阶段启动时提示 PM 补充此章节（PRD 初稿即包含，PL-PM 讨论时可完善）。
+> PMO 在 PM 编写 PRD 阶段启动时提示 PM 补充此章节（PRD 初稿即包含，评审讨论中可完善）。
 
 ### 消费方列表
 | 消费方子项目 | 需要的能力 | 接入优先级 | 当前状态 |
@@ -177,11 +177,11 @@ prd_feature_id: F025
 review_round: 1
 review_started_at: "<ISO 8601 UTC>"
 review_completed_at: "<ISO 8601 UTC>"
-reviewers: [qa, architect, pl]  # 机读汇总 · = state.stage_review_roles[goal](v8.155 去 pm:PM 是整合者非 reviewer · v8.149 无 external)· 校验 reviewers_match
-verdicts: {qa: APPROVE, architect: APPROVE, pl: APPROVE}  # 🔴 全 APPROVE/SKIP 才可 goal-complete(prd_verdicts_all_pass · v8.132 · 词表 APPROVE|NEEDS_REVISION|SKIP · v8.155 去 pm verdict)
+reviewers: [qa, architect, pl]  # 机读汇总 · = state.stage_review_roles[goal](无 pm:PM 是整合者非 reviewer · 默认无 external)· 校验 reviewers_match
+verdicts: {qa: APPROVE, architect: APPROVE, pl: APPROVE}  # 🔴 全 APPROVE/SKIP 才可 goal-complete(prd_verdicts_all_pass · 词表 APPROVE|NEEDS_REVISION|SKIP · 无 pm verdict)
 reviews:
  # schema 调整：reviews[] 仅含 qa / rd / designer? / external?
- # v8.155:goal 评审角色 = state.stage_review_roles[goal](默认 qa/architect/pl · 并行隔离 subagent 冷审 · PM 整合非 reviewer · 无 external · external opt-in)
+ # goal 评审角色 = state.stage_review_roles[goal](默认 qa/architect/pl · 并行隔离 subagent 冷审 · PM 整合非 reviewer · 无 external · external opt-in)
  # PMO 不独立评审(折叠到调度责任 · 整合 finding)
  - role: pm | qa | architect | pl | external  # schema 通用 · rd/designer 值用于 TC-REVIEW / TECH-REVIEW / REVIEW.md 复用场景
  review_scope: prd # 值 prd | blueprint | code-review
@@ -199,7 +199,7 @@ reviews:
  severity: high | medium | low | info
  description: "1-2 句问题描述"
  suggestion: "建议改法（可执行的具体方向）"
- category: technical-consistency | business-alignment | ux | quality | business-decision | terminology-ambiguity | premise-challenge # terminology-ambiguity 触发 Flagged Ambiguities 写入 · premise-challenge = PL 质疑六问(v8.132 五问 + v8.157 ⑥ 既有行为变更)
+ category: technical-consistency | business-alignment | ux | quality | business-decision | terminology-ambiguity | premise-challenge # terminology-ambiguity 触发 Flagged Ambiguities 写入 · premise-challenge = PL 质疑六问(含 ⑥ 既有行为变更)
  cross_role: []  # （可选）· 一个 finding 同时关联多视角时（如 [qa, rd]）· 仍归入主要视角段 · 不复制到多段
  # 涉及代码现状的 finding 必填 code_evidence(category=technical-consistency 时强制)
  code_evidence: # 可选 · category=technical-consistency 时必填
@@ -316,7 +316,7 @@ Step 4: PM 起草时把发现内化到 PRD
 - 唯一痕迹：PM 起草后 self_check 勾选 `code_context_read: true`（一个 boolean 承诺）
 - 兜底：substep 5 多角色评审(architect/qa)仍会做最后一道核对，PM Read 是前置补强不是替代
 
-🔴 **调研四类**(v8.132 · §4 早问门入场券 · 单源 stages/goal-stage.md §1):代码现状(本段)+ KNOWLEDGE(Flagged Ambiguities / Preferences / Out-of-Scope)+ GLOSSARY + 上游规划(BL / WS / 愿景 / PENDING + prepare 流程目标)—— 全部 AI 可自答 · 没查完没资格问用户。
+🔴 **调研四类**(§4 早问门入场券 · 单源 stages/goal-stage.md §1):代码现状(本段)+ KNOWLEDGE(Flagged Ambiguities / Preferences / Out-of-Scope)+ GLOSSARY + 上游规划(BL / WS / 愿景 / PENDING + prepare 流程目标)—— 全部 AI 可自答 · 没查完没资格问用户。
 
 
 ### 通用 checklist（所有 Feature 必填）

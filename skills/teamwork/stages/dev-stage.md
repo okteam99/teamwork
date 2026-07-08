@@ -87,20 +87,6 @@ state.py 校验:
 
 ---
 
-## 必读 cite 清单(P0-11 · 各 substep 动手前主对话输出)
-
-| Substep | 必读 spec | 段 | cite 关键点 |
-|---------|----------|----|------------|
-| 1. 加载上下文 | `project-specs/DEV-RULES.md`(若存在) | 全文 | 项目强制开发规范 · 实现须遵守(+ 读 PRD/TECH/TC) |
-| 2. TDD 红绿循环 | `standards/tdd.md + roles/rd.md` | § Iron Law + § TDD | 先红 → 后绿 → refactor / 每绿点 commit |
-| 3. UI 还原(若 ui_design 完成) | `roles/designer.md` | § UI 还原校验 | verify-panorama / preview 未覆盖 → TECH fallback |
-| 4. 完工自查 | `TECH.md §完工自查` + `roles/rd.md` | § 自查规范 | 在 **TECH 文档内逐项打 ✅**(对着设计:现状基线/错误处理/依赖消费方/测试策略 + 通用门)· review 据此核 |
-| 5. Bug fix 报告(flow_type=Bug) | `roles/rd.md` | § Bug 排查报告 | bugfix/BUG-*.md frontmatter 4 字段 |
-| 6. dev-complete | — | — | (无) |
-
-
-📎 **cite 纪律**(输出格式 / 强约束 / 为什么 cite)· 单源详 [../STAGES.md § 2 P0-11 cite 纪律](../STAGES.md)
-
 ## 质量基线
 
 📎 **物化拦截**:`verify-panorama.py`(UI 还原差异校验 · ui_design 完成时必跑)

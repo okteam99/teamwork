@@ -54,22 +54,6 @@ blueprint-complete 前 **必 emit R5 标准 1/2/3 暂停点 · 等用户拍板**
 
 ---
 
-## 必读 cite 清单(P0-11 · 各 substep 动手前主对话输出)
-
-| Substep | 必读 spec | 段 | cite 关键点 |
-|---------|----------|----|------------|
-| 1. 加载上下文 | `project-specs/DEV-RULES.md`(若存在) | 全文 | 项目强制开发规范 · TECH 须遵守(+ 读 PRD/ARCHITECTURE/KNOWLEDGE) |
-| 2. QA 起草 TC.md | `roles/qa.md + standards/tdd.md` | § TC 起草 + § BDD | Given/When/Then 风格 / AC↔Test 绑定 |
-| 3. RD 起草 TECH.md | `roles/rd.md + standards/common.md` | § TECH 起草 | 按 templates/tech.md 结构(技术方案〔架构/数据结构/接口〕+ 实现思路 + TDD 计划) |
-| 4. Architect Tech Review → TECH-REVIEW.md | `roles/architect.md` | § Tech Review | 技术合理性 + 架构一致性 + **简洁性(防过度设计 · 拦在 TECH 比拦在代码便宜)** |
-| 5. (可选)QA TC Review | `roles/qa.md` | § TC Review | TC 设计能否真验证 AC |
-| 6. External cross-review | `roles/external-reviewer.md` | § 调用规范 | 异质模型只读评审 · OpenAI ToS |
-| 7. PM 回应 + 修订循环 | `roles/pm.md` | § Review 反馈处理 | NEEDS_REVISION 主对话内闭环 |
-| 8. complete | — | — | (无) |
-
-
-📎 **cite 纪律**(输出格式 / 强约束 / 为什么 cite)· 单源详 [../STAGES.md § 2 P0-11 cite 纪律](../STAGES.md)
-
 ## 质量基线
 
 📎 **物化拦截**:`verify-ac.py`(每 AC ↔ TC.md `tests[].covers_ac`) · P0-154(`external-cross-review/*.md` 非空)

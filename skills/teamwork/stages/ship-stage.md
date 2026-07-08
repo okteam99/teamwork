@@ -68,6 +68,7 @@ state.py ship-phase --action push --feature <path> \
 
 ```markdown
 ⏸️ ship1 完成 · feature MR 已创建(含代码 + 归档 + 规划翻牌)· 等用户在平台 review + 合并
+🔴 v8.198:emit 本提示后**跑 `state.py await-merge --feature <path>`**(30s 轮询 · MERGED → 自动 ship-finalize · WAITING → 重跑续等 · 用户随时可打断改人工)—— 等待窗不再无人看(治 132h 长尾 / CI 红无人接)
 
 请选择:
 
@@ -106,18 +107,6 @@ state.py ship-finalize --feature <worktree 内 feature 目录路径> \
 
 ### 异常 · close-unmerged
 放弃合入 → `--action close-unmerged --abandon=true` · 暂时关闭(后续重开)→ `--abandon=false`。重开走 §3 archive(幂等)→ §4 push 重 MR。
-
----
-
-## 必读 cite 清单(P0-11)
-
-本 stage 是 PMO 编排操作(不涉及内容创作角色)· **无 cite 要求**。
-
-📎 **物化拦截清单**(已在工具层 BLOCKED + hint · spec 不重复展开):
-- P0-6 ship 后 reset-prev FAIL
-- P0-113 push 必 CLI-first 拿 MR URL · `url-fallback` 在 CLI 已装+已认证时 **BLOCKED**(逃生口:`--accept-cli-unavailable --reason '<原因>' --user-confirmed` · bypass log + concerns WARN 留痕)
-- v8.145 push 必先 archive(`phase: archived → pushed` 物化)· archive 规划 gate(`--planning-artifacts` / `--no-planning-changes` 二选一)
-- P0-156 ship-finalize 必在主工作区跑(linked worktree precheck FAIL)
 
 ---
 

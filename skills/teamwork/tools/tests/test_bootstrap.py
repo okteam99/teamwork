@@ -2,12 +2,13 @@
 """bootstrap.py 回归套件(P0-13 治本 · session 启动 silent 系统维护)。
 
 覆盖:
-- find_project_root(主 tree / worktree → 都回主 tree)
+- find_project_root(主 tree / worktree → 都回主 tree)+ 非 git 目录守卫(零写盘)
 - read_skill_version(ok / missing / no-frontmatter / version-field-missing)
 - maintain_project_skeletons(创建/已存在/失败)
 - check_host_injection(注入段 ok / missing / file_missing)
-- scan_v7_state_json(v7 / v8 / 混合)
-- cmd_session_bootstrap 端到端(silent emit JSON)
+- check_skill_update + 24h TTL 缓存(命中不外呼)
+- hooks 源定位(只认 skill_root/hooks)· external-review-logs 保留策略
+- cmd_session_bootstrap 端到端(silent emit JSON · flow_gates 四字段)
 
 运行:
     python3 -m pytest skills/teamwork/tools/tests/test_bootstrap.py -v
@@ -563,10 +564,11 @@ class TestEnsureLocalconfigComplete(unittest.TestCase):
         self.assertEqual(data["merge_target"], "dev")
         self.assertEqual(data["worktree"], "off")
         # 新开关补默认
-        self.assertEqual(data["archive_on_ship"], True)
         self.assertEqual(data["disable_external_review"], False)  # v8.153 改名
         self.assertEqual(data["local_env_auto_create"], True)
         self.assertEqual(data["id_strategy"], "utc-yymmddhhmmss")
+        # archive_on_ship 已废弃(ship1 统一归档 · 配置被忽略)· defaults 不再回填
+        self.assertNotIn("archive_on_ship", data)
         # _bootstrap 段补全 4 子键
         self.assertEqual(sorted(data["_bootstrap"].keys()),
                          ["host", "last_maintain_at", "last_maintain_results", "skill_version"])
@@ -577,7 +579,7 @@ class TestEnsureLocalconfigComplete(unittest.TestCase):
         from bootstrap import ensure_localconfig_complete, LOCALCONFIG_FILE
         full = {k: "x" for k in ("worktree", "worktree_root_path", "scope",
                                  "merge_target", "worktree_cleanup", "mr_url_template",
-                                 "id_strategy", "archive_on_ship", "local_env_auto_create",
+                                 "id_strategy", "local_env_auto_create",
                                  "disable_external_review")}  # v8.153 改名
         full["_bootstrap"] = {"skill_version": "v8.90", "host": "codex-cli"}  # 缺 2 子键
         (self.tmp / LOCALCONFIG_FILE).write_text(_json.dumps(full), encoding="utf-8")
@@ -612,73 +614,41 @@ class TestEnsureLocalconfigComplete(unittest.TestCase):
         self.assertEqual(r["status"], "skipped_skill_root")
 
 
-# ─── scan_v7_state_json ──────────────────────────────────
-
-
-class TestScanV7StateJson(unittest.TestCase):
-    """扫 docs/features/*/state.json 找需 migrate 的。"""
-
-    def setUp(self):
-        self.tmp = Path(tempfile.mkdtemp())
-        self.features = self.tmp / "docs" / "features"
-        self.features.mkdir(parents=True)
-
-    def tearDown(self):
-        shutil.rmtree(self.tmp, ignore_errors=True)
-
-    def test_no_features_dir_returns_empty(self):
-        from bootstrap import scan_v7_state_json
-        empty = Path(tempfile.mkdtemp())
-        try:
-            result = scan_v7_state_json(empty)
-            self.assertEqual(result, [])
-        finally:
-            shutil.rmtree(empty, ignore_errors=True)
-
-    def test_v8_features_not_pending(self):
-        from bootstrap import scan_v7_state_json
-        f = self.features / "F001"
-        f.mkdir()
-        (f / "state.json").write_text(
-            json.dumps({"schema_version": "v8.0", "feature_id": "F001"}),
-            encoding="utf-8",
-        )
-        result = scan_v7_state_json(self.tmp)
-        self.assertEqual(result, [])
-
-    def test_v7_features_pending(self):
-        from bootstrap import scan_v7_state_json
-        f = self.features / "F001"
-        f.mkdir()
-        # v7 没 schema_version 字段
-        (f / "state.json").write_text(
-            json.dumps({"feature_id": "F001", "current_stage": "dev"}),
-            encoding="utf-8",
-        )
-        result = scan_v7_state_json(self.tmp)
-        self.assertEqual(len(result), 1)
-        self.assertIn("F001/state.json", result[0])
-
-
 # ─── 端到端:cmd_session_bootstrap ──────────────────────
 
 
 class TestCmdSessionBootstrapE2E(unittest.TestCase):
-    """端到端跑 bootstrap.py · 验证 silent emit JSON 含 4 项检查。"""
+    """端到端跑 bootstrap.py · 验证 silent emit JSON 含 4 项检查。
+
+    env 隔离:升级检测指向不存在的 file:// URL(不真外呼 GitHub)·
+    external-review-logs 清理指向 tmp(不碰用户 ~/.teamwork)。
+    """
+
+    _ENV_KEYS = ("TEAMWORK_SKILL_UPDATE_URL", "TEAMWORK_SKILL_CHANGELOG_URL",
+                 "TEAMWORK_EXTERNAL_REVIEW_LOGS_DIR")
 
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp())
         self.project = self.tmp / "project"
         self.project.mkdir()
         make_git_repo(self.project)
+        self._prev_env = {k: os.environ.get(k) for k in self._ENV_KEYS}
+        os.environ["TEAMWORK_SKILL_UPDATE_URL"] = f"file://{self.tmp}/no-remote.md"
+        os.environ["TEAMWORK_SKILL_CHANGELOG_URL"] = f"file://{self.tmp}/no-cl.md"
+        os.environ["TEAMWORK_EXTERNAL_REVIEW_LOGS_DIR"] = str(self.tmp / "review-logs")
 
     def tearDown(self):
+        for k, prev in self._prev_env.items():
+            if prev is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = prev
         shutil.rmtree(self.tmp, ignore_errors=True)
 
     def test_end_to_end_silent_emit(self):
         result = subprocess.run(
             [
-                "python3", str(BOOTSTRAP_PY),
+                sys.executable, str(BOOTSTRAP_PY),
                 "--host", "claude-code",
                 "--skill-root", str(SKILL),
                 "--skill-version", "v8.0.0",
@@ -693,13 +663,22 @@ class TestCmdSessionBootstrapE2E(unittest.TestCase):
         self.assertIn("skill_version", data["checks"])
         self.assertIn("skeletons", data["checks"])
         self.assertIn("host_injection", data["checks"])
-        self.assertIn("v7_features_pending_migrate", data["checks"])
+        # v7 迁移扫描已随 migrate-v7-to-v8 命令一并删除 · 字段不再 emit
+        self.assertNotIn("v7_features_pending_migrate", data["checks"])
+        # host_audit(deprecated 全局文件)已停写 · 字段不再 emit
+        self.assertNotIn("host_audit", data["checks"])
+        # hooks 从 skill_root/hooks 找到并部署(4 个 .sh + hooks.json)
+        self.assertEqual(data["checks"]["hooks"]["status"], "deployed")
+        self.assertGreaterEqual(data["checks"]["hooks"]["sh_count"], 4)
+        self.assertTrue((self.project / ".claude" / "hooks" / "hooks.json").exists())
+        # housekeeping:external-review-logs 保留策略必 emit
+        self.assertIn("external_review_logs_prune", data["checks"])
 
     def test_idempotent_second_run_no_skeleton_created(self):
         """第二次跑 · 骨架文档已 existed · 不重创建。"""
         # 第一次
         subprocess.run(
-            ["python3", str(BOOTSTRAP_PY),
+            [sys.executable, str(BOOTSTRAP_PY),
              "--host", "claude-code",
              "--skill-root", str(SKILL),
              "--skill-version", "v8.0.0"],
@@ -707,7 +686,7 @@ class TestCmdSessionBootstrapE2E(unittest.TestCase):
         )
         # 第二次
         result = subprocess.run(
-            ["python3", str(BOOTSTRAP_PY),
+            [sys.executable, str(BOOTSTRAP_PY),
              "--host", "claude-code",
              "--skill-root", str(SKILL),
              "--skill-version", "v8.0.0"],
@@ -727,7 +706,7 @@ class TestCmdSessionBootstrapE2E(unittest.TestCase):
         「init-feature 会校验 prepare-check audit」· 知道跳过会撞墙 · 主动先跑 prepare-check。
         """
         result = subprocess.run(
-            ["python3", str(BOOTSTRAP_PY),
+            [sys.executable, str(BOOTSTRAP_PY),
              "--host", "claude-code",
              "--skill-root", str(SKILL)],
             cwd=str(self.project), capture_output=True, text=True, check=True,
@@ -746,15 +725,18 @@ class TestCmdSessionBootstrapE2E(unittest.TestCase):
         )
         self.assertIsNotNone(prep_gate,
                              "必含 prepare_check_required_before_init_feature 门禁说明")
-        # 关键字段完整(机制描述 · 不是宣誓)
-        for k in ("trigger", "checks", "action", "skip_consequence", "bypass_env"):
-            self.assertIn(k, prep_gate, f"flow_gate 必含 {k} 字段")
+        # 四字段瘦身结构:gate/trigger/action(一行结论)/spec(文档指针)· 不再内嵌长篇 checks
+        self.assertEqual(sorted(prep_gate.keys()),
+                         ["action", "gate", "spec", "trigger"],
+                         "gate 必为四字段结构(长说明去 spec 指向的文档读)")
         self.assertIn("prepare-check", prep_gate["action"])
-        self.assertIn("TEAMWORK_BYPASS_PREPARE_CHECK", prep_gate["bypass_env"])
+        self.assertIn("BLOCKED", prep_gate["action"])  # 跳过后果仍一行说清
+        self.assertIn("TEAMWORK_BYPASS_PREPARE_CHECK", prep_gate["action"])
+        self.assertIn("docs/prepare.md", prep_gate["spec"])
 
     def _run_and_get_gates(self):
         result = subprocess.run(
-            ["python3", str(BOOTSTRAP_PY),
+            [sys.executable, str(BOOTSTRAP_PY),
              "--host", "claude-code",
              "--skill-root", str(SKILL)],
             cwd=str(self.project), capture_output=True, text=True, check=True,
@@ -771,14 +753,13 @@ class TestCmdSessionBootstrapE2E(unittest.TestCase):
         cs = next((g for g in gates
                    if g.get("gate") == "cold_start_product_planning_recommended"), None)
         self.assertIsNotNone(cs, "无 product-overview 时必 emit cold_start_product_planning_recommended")
-        for k in ("trigger", "checks", "action", "skip_consequence",
-                  "teamwork_space_status", "authoritative_order", "spec"):
-            self.assertIn(k, cs, f"gate 必含 {k} 字段")
+        # 四字段瘦身结构 · gate 语义保住:R5 暂停点 + 选项 + 规范指针
+        self.assertEqual(sorted(cs.keys()), ["action", "gate", "spec", "trigger"])
         self.assertIn("product-overview", cs["action"])
         self.assertIn("产品规划", cs["action"])
+        self.assertIn("R5", cs["action"])
         self.assertIn("PRODUCT-OVERVIEW-INTEGRATION", cs["spec"])
         # teamwork-space.md 已自动建(骨架)· N≥1:无 PO 也有地图
-        self.assertEqual(cs["teamwork_space_status"], "created")
         self.assertTrue((self.project / "teamwork-space.md").exists(),
                         "无 PO 也必自动建 teamwork-space.md 地图骨架(N≥1)")
 
@@ -793,6 +774,19 @@ class TestCmdSessionBootstrapE2E(unittest.TestCase):
         self.assertTrue(any(g.get("gate") == "product_overview_planning_spec_required"
                             for g in gates), "PO 存在 → planning_spec_required 接管")
 
+    def test_all_gates_are_slim_four_field(self):
+        """flow_gates 瘦身:每个 gate 恒四字段(gate/trigger/action/spec)· 不再全量内嵌
+        长篇 checks/skip_consequence 说明文(每 session 进 PMO 上下文 · 详情去读 spec)。"""
+        # 场景 1:无 product-overview(prep + cold_start)
+        for g in self._run_and_get_gates():
+            self.assertEqual(sorted(g.keys()), ["action", "gate", "spec", "trigger"],
+                             f"gate {g.get('gate')} 必为四字段")
+        # 场景 2:有 product-overview(prep + planning_spec)
+        (self.project / "product-overview").mkdir()
+        for g in self._run_and_get_gates():
+            self.assertEqual(sorted(g.keys()), ["action", "gate", "spec", "trigger"],
+                             f"gate {g.get('gate')} 必为四字段")
+
     def test_teamwork_space_auto_created_with_knowledge_entries(self):
         """v8.116:teamwork-space.md 缺失 → bootstrap 自动建骨架(知识入口探测 + 子项目清单空表)· 幂等。"""
         (self.project / "project-specs").mkdir(exist_ok=True)
@@ -800,7 +794,7 @@ class TestCmdSessionBootstrapE2E(unittest.TestCase):
 
         def _run():
             r = subprocess.run(
-                ["python3", str(BOOTSTRAP_PY), "--host", "claude-code", "--skill-root", str(SKILL)],
+                [sys.executable, str(BOOTSTRAP_PY), "--host", "claude-code", "--skill-root", str(SKILL)],
                 cwd=str(self.project), capture_output=True, text=True, check=True)
             return json.loads(r.stdout)
 
@@ -825,7 +819,7 @@ class TestCmdSessionBootstrapE2E(unittest.TestCase):
         (① 升级 取决于网络/版本比较 · 不在此断言;② 补规划 由 cold_start 确定性触发)
         """
         result = subprocess.run(
-            ["python3", str(BOOTSTRAP_PY),
+            [sys.executable, str(BOOTSTRAP_PY),
              "--host", "claude-code", "--skill-root", str(SKILL)],
             cwd=str(self.project), capture_output=True, text=True, check=True,
         )
@@ -845,7 +839,7 @@ class TestCmdSessionBootstrapE2E(unittest.TestCase):
         `bootstrap.py | head -50` 切掉 skill_update_check(JSON 后位)→ PMO 漏升级提示 +
         误判"bootstrap 没检查升级"。"""
         result = subprocess.run(
-            ["python3", str(BOOTSTRAP_PY),
+            [sys.executable, str(BOOTSTRAP_PY),
              "--host", "claude-code", "--skill-root", str(SKILL)],
             cwd=str(self.project), capture_output=True, text=True, check=True,
         )
@@ -866,58 +860,17 @@ class TestCmdSessionBootstrapE2E(unittest.TestCase):
                       "head -5 必见 pmo_must_read(治本 head -50 吞 forewarn)")
 
 
-class TestWriteHostAudit(unittest.TestCase):
-    """v8.21:bootstrap.write_host_audit 写 ~/.teamwork/host_audit.json。
+class TestBootstrapStopsWritingHostAudit(unittest.TestCase):
+    """deprecated 全局 ~/.teamwork/host_audit.json 已停写(主路径 = per-feature state.json.host)。
 
-    治本 PMO 心智 · external-review 等下游命令自动读 · 不再要 PMO 传 --host。
+    bootstrap 内不再有写入函数(write_host_audit / _host_audit_path 已删)·
+    state.py external-review 的读 fallback 不归本套件管。
     """
 
-    def setUp(self):
-        self.tmp = Path(tempfile.mkdtemp(prefix="host-audit-"))
-        self.audit_path = self.tmp / "host_audit.json"
-        self._prev = os.environ.get("TEAMWORK_HOST_AUDIT_PATH")
-        os.environ["TEAMWORK_HOST_AUDIT_PATH"] = str(self.audit_path)
-
-    def tearDown(self):
-        shutil.rmtree(self.tmp, ignore_errors=True)
-        if self._prev is None:
-            os.environ.pop("TEAMWORK_HOST_AUDIT_PATH", None)
-        else:
-            os.environ["TEAMWORK_HOST_AUDIT_PATH"] = self._prev
-
-    def test_write_host_audit_creates_file(self):
-        sys.path.insert(0, str(TOOLS))
+    def test_write_functions_removed(self):
         import bootstrap  # type: ignore
-        ok = bootstrap.write_host_audit("claude-code")
-        self.assertTrue(ok)
-        self.assertTrue(self.audit_path.exists())
-        data = json.loads(self.audit_path.read_text(encoding="utf-8"))
-        self.assertEqual(data["host"], "claude-code")
-        self.assertIn("timestamp", data)
-
-    def test_write_host_audit_overwrites_existing(self):
-        sys.path.insert(0, str(TOOLS))
-        import bootstrap  # type: ignore
-        bootstrap.write_host_audit("claude-code")
-        bootstrap.write_host_audit("codex-cli")
-        data = json.loads(self.audit_path.read_text(encoding="utf-8"))
-        self.assertEqual(data["host"], "codex-cli")  # 后者覆盖 · 保留最新
-
-    def test_write_host_audit_creates_parent_dir(self):
-        """audit_path 父目录不存在 → 自动 mkdir -p。"""
-        deep_path = self.tmp / "deep" / "nested" / "host_audit.json"
-        os.environ["TEAMWORK_HOST_AUDIT_PATH"] = str(deep_path)
-        sys.path.insert(0, str(TOOLS))
-        import bootstrap  # type: ignore
-        ok = bootstrap.write_host_audit("gemini-cli")
-        self.assertTrue(ok)
-        self.assertTrue(deep_path.exists())
-
-    def test_host_audit_path_helper_respects_env_override(self):
-        sys.path.insert(0, str(TOOLS))
-        import bootstrap  # type: ignore
-        p = bootstrap._host_audit_path()
-        self.assertEqual(p, self.audit_path)  # env 覆盖生效
+        self.assertFalse(hasattr(bootstrap, "write_host_audit"))
+        self.assertFalse(hasattr(bootstrap, "_host_audit_path"))
 
 
 class TestCheckSkillUpdate(unittest.TestCase):
@@ -1152,6 +1105,291 @@ class TestCheckSkillUpdate(unittest.TestCase):
         (self.tmp / ".teamwork_localconfig.json").write_text(
             json.dumps({"update_channel": "  "}), encoding="utf-8")
         self.assertEqual(bootstrap._read_update_channel(self.tmp), "main")
+
+
+class TestUpdateCheckTTLCache(unittest.TestCase):
+    """升级检测 24h TTL 缓存(localconfig._bootstrap)· 治本每 session 无条件外呼 GitHub。
+
+    验证不外呼的手法:TEAMWORK_SKILL_UPDATE_URL 指向不存在的 file:// —— 真发请求
+    必得 network_failed · 若返回缓存态(如 up_to_date)即证明没发请求。
+    """
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp(prefix="ttl-cache-"))
+        self._prev = {k: os.environ.get(k) for k in (
+            "TEAMWORK_SKILL_UPDATE_URL", "TEAMWORK_SKILL_CHANGELOG_URL",
+            "TEAMWORK_FORCE_UPDATE_CHECK")}
+        os.environ["TEAMWORK_SKILL_UPDATE_URL"] = f"file://{self.tmp}/no-remote.md"
+        os.environ["TEAMWORK_SKILL_CHANGELOG_URL"] = f"file://{self.tmp}/no-cl.md"
+        os.environ.pop("TEAMWORK_FORCE_UPDATE_CHECK", None)
+        sys.path.insert(0, str(TOOLS))
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+        for k, prev in self._prev.items():
+            if prev is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = prev
+
+    def _write_cache(self, at_iso: str, result: dict):
+        import bootstrap  # type: ignore
+        (self.tmp / bootstrap.LOCALCONFIG_FILE).write_text(json.dumps({
+            "_bootstrap": {
+                "last_update_check_at": at_iso,
+                "last_update_check_result": result,
+            },
+        }), encoding="utf-8")
+
+    def _iso_hours_ago(self, hours: float) -> str:
+        from datetime import datetime, timedelta, timezone
+        return (datetime.now(timezone.utc) - timedelta(hours=hours)
+                ).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    def test_cache_hit_within_ttl_no_network_request(self):
+        """24h 内命中缓存 → 直接返回上次结果 · 不发请求(URL 坏也不见 network_failed)。"""
+        import bootstrap  # type: ignore
+        self._write_cache(self._iso_hours_ago(1), {
+            "status": "up_to_date", "local_version": "v8.1",
+            "latest_version": "v8.1", "channel": "main"})
+        d = bootstrap.check_skill_update_cached("v8.1", "main", self.tmp)
+        self.assertEqual(d["status"], "up_to_date")
+        self.assertTrue(d.get("from_cache"), "命中必标 from_cache")
+
+    def test_cache_expired_refetches_and_rewrites(self):
+        """超 24h → 重新实查(fake URL → network_failed)· 并回写新缓存。"""
+        import bootstrap  # type: ignore
+        self._write_cache(self._iso_hours_ago(25), {
+            "status": "up_to_date", "local_version": "v8.1",
+            "latest_version": "v8.1", "channel": "main"})
+        d = bootstrap.check_skill_update_cached("v8.1", "main", self.tmp)
+        self.assertEqual(d["status"], "network_failed")
+        self.assertNotIn("from_cache", d)
+        cfg = json.loads((self.tmp / bootstrap.LOCALCONFIG_FILE).read_text(encoding="utf-8"))
+        self.assertEqual(cfg["_bootstrap"]["last_update_check_result"]["status"],
+                         "network_failed", "实查后缓存必回写")
+
+    def test_force_env_bypasses_fresh_cache(self):
+        """TEAMWORK_FORCE_UPDATE_CHECK=1 → 忽略新鲜缓存强制实查。"""
+        import bootstrap  # type: ignore
+        self._write_cache(self._iso_hours_ago(1), {
+            "status": "up_to_date", "local_version": "v8.1",
+            "latest_version": "v8.1", "channel": "main"})
+        os.environ["TEAMWORK_FORCE_UPDATE_CHECK"] = "1"
+        d = bootstrap.check_skill_update_cached("v8.1", "main", self.tmp)
+        self.assertEqual(d["status"], "network_failed")
+
+    def test_local_version_change_invalidates_cache(self):
+        """升级后本地版本变 → 缓存的 outdated 立刻作废(重新实查)。"""
+        import bootstrap  # type: ignore
+        self._write_cache(self._iso_hours_ago(1), {
+            "status": "outdated", "local_version": "v8.1",
+            "latest_version": "v8.2", "channel": "main"})
+        d = bootstrap.check_skill_update_cached("v8.2", "main", self.tmp)
+        self.assertEqual(d["status"], "network_failed")  # 实查了(URL 坏)
+
+    def test_channel_change_invalidates_cache(self):
+        import bootstrap  # type: ignore
+        self._write_cache(self._iso_hours_ago(1), {
+            "status": "up_to_date", "local_version": "v8.1",
+            "latest_version": "v8.1", "channel": "main"})
+        d = bootstrap.check_skill_update_cached("v8.1", "dev", self.tmp)
+        self.assertEqual(d["status"], "network_failed")
+
+    def test_fresh_check_writes_cache_first_time(self):
+        """无缓存 → 实查并写 last_update_check_at + result。"""
+        import bootstrap  # type: ignore
+        d = bootstrap.check_skill_update_cached("v8.1", "main", self.tmp)
+        self.assertEqual(d["status"], "network_failed")
+        cfg = json.loads((self.tmp / bootstrap.LOCALCONFIG_FILE).read_text(encoding="utf-8"))
+        self.assertIn("last_update_check_at", cfg["_bootstrap"])
+        self.assertEqual(cfg["_bootstrap"]["last_update_check_result"]["local_version"], "v8.1")
+
+    def test_marker_write_preserves_cache_keys(self):
+        """write_bootstrap_marker merge 不整段覆盖 · maintain 重跑不抹升级检测缓存。"""
+        import bootstrap  # type: ignore
+        self._write_cache(self._iso_hours_ago(1), {
+            "status": "up_to_date", "local_version": "v8.1",
+            "latest_version": "v8.1", "channel": "main"})
+        bootstrap.write_bootstrap_marker(self.tmp, "v8.2", "claude-code", {"chmod": "ok"})
+        marker = bootstrap.read_bootstrap_marker(self.tmp)
+        self.assertEqual(marker["skill_version"], "v8.2")
+        self.assertIn("last_update_check_at", marker, "marker 写入不得抹掉缓存键")
+        self.assertEqual(marker["last_update_check_result"]["status"], "up_to_date")
+
+
+class TestNotAGitRepoGuard(unittest.TestCase):
+    """非 git 目录守卫:跳过一切项目写盘动作 · emit not_a_git_repo WARN gate · 恒 exit 0。
+
+    治本:骨架/space/local-env 维护无 git 仓前置 → 在家目录跑一次就铺一堆文件。
+    """
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp(prefix="no-git-"))
+        self._prev = os.environ.get("TEAMWORK_EXTERNAL_REVIEW_LOGS_DIR")
+        os.environ["TEAMWORK_EXTERNAL_REVIEW_LOGS_DIR"] = str(self.tmp / "review-logs")
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+        if self._prev is None:
+            os.environ.pop("TEAMWORK_EXTERNAL_REVIEW_LOGS_DIR", None)
+        else:
+            os.environ["TEAMWORK_EXTERNAL_REVIEW_LOGS_DIR"] = self._prev
+
+    def test_non_git_dir_zero_writes_and_warn_gate(self):
+        workdir = self.tmp / "home-like"
+        workdir.mkdir()
+        result = subprocess.run(
+            [sys.executable, str(BOOTSTRAP_PY),
+             "--host", "claude-code", "--skill-root", str(SKILL)],
+            cwd=str(workdir), capture_output=True, text=True, timeout=15,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)  # 恒 exit 0
+        data = json.loads(result.stdout)
+        self.assertEqual(data["verdict"], "PASS")
+        self.assertEqual(data["maintain_status"], "skipped_not_a_git_repo")
+        # WARN gate:提示 cd 到项目再跑 · 四字段结构
+        gates = data["flow_gates"]
+        self.assertEqual(len(gates), 1)
+        self.assertEqual(gates[0]["gate"], "not_a_git_repo")
+        self.assertEqual(sorted(gates[0].keys()), ["action", "gate", "spec", "trigger"])
+        self.assertIn("cd", gates[0]["action"])
+        # 项目维护项全 skipped · 升级检测不外呼
+        for key in ("skeletons", "teamwork_space", "local_env", "hooks",
+                    "host_injection", "gitignore_worktree"):
+            self.assertEqual(data["checks"][key]["status"], "skipped", key)
+        self.assertEqual(data["checks"]["skill_update_check"]["status"], "skipped")
+        # 🔴 核心:目录里一个文件都没写(零写盘)
+        self.assertEqual(list(workdir.iterdir()), [],
+                         "非 git 目录不得铺任何 teamwork 文件")
+        # digest 也提示非 git
+        self.assertIn("git", data["pmo_must_read"])
+
+    def test_git_dir_has_no_warn_gate(self):
+        """对照:git 仓内跑 → 无 not_a_git_repo gate(正常维护)。"""
+        workdir = self.tmp / "repo"
+        workdir.mkdir()
+        make_git_repo(workdir)
+        result = subprocess.run(
+            [sys.executable, str(BOOTSTRAP_PY),
+             "--host", "claude-code", "--skill-root", str(SKILL)],
+            cwd=str(workdir), capture_output=True, text=True, timeout=15,
+        )
+        data = json.loads(result.stdout)
+        self.assertNotIn("not_a_git_repo",
+                         [g["gate"] for g in data["flow_gates"]])
+        self.assertNotEqual(data["maintain_status"], "skipped_not_a_git_repo")
+
+
+class TestPruneExternalReviewLogs(unittest.TestCase):
+    """external-review-logs 保留策略:mtime > 45 天的日志按文件删 · 失败不阻塞。"""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp(prefix="review-logs-"))
+        self.logs = self.tmp / "external-review-logs"
+        self._prev = os.environ.get("TEAMWORK_EXTERNAL_REVIEW_LOGS_DIR")
+        os.environ["TEAMWORK_EXTERNAL_REVIEW_LOGS_DIR"] = str(self.logs)
+        sys.path.insert(0, str(TOOLS))
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+        if self._prev is None:
+            os.environ.pop("TEAMWORK_EXTERNAL_REVIEW_LOGS_DIR", None)
+        else:
+            os.environ["TEAMWORK_EXTERNAL_REVIEW_LOGS_DIR"] = self._prev
+
+    def _make_log(self, rel: str, age_days: int) -> Path:
+        import time
+        p = self.logs / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text("log", encoding="utf-8")
+        old = time.time() - age_days * 86400
+        os.utime(p, (old, old))
+        return p
+
+    def test_old_files_pruned_recent_kept(self):
+        import bootstrap  # type: ignore
+        old1 = self._make_log("FEAT-A/codex-blueprint-1.log", 60)
+        old2 = self._make_log("FEAT-B/claude-review-1.log", 46)
+        keep = self._make_log("FEAT-B/codex-dev-2.log", 10)
+        r = bootstrap.prune_external_review_logs()
+        self.assertEqual(r["status"], "ok")
+        self.assertEqual(r["pruned"], 2)
+        self.assertFalse(old1.exists())
+        self.assertFalse(old2.exists())
+        self.assertTrue(keep.exists(), "45 天内的日志必须保留")
+        # 按文件不按目录:目录本身保留
+        self.assertTrue((self.logs / "FEAT-A").is_dir())
+
+    def test_missing_dir_is_na(self):
+        import bootstrap  # type: ignore
+        r = bootstrap.prune_external_review_logs()
+        self.assertEqual(r["status"], "n_a")
+        self.assertEqual(r["pruned"], 0)
+
+    def test_nothing_to_prune(self):
+        import bootstrap  # type: ignore
+        keep = self._make_log("FEAT-C/codex-qa-1.log", 1)
+        r = bootstrap.prune_external_review_logs()
+        self.assertEqual(r["status"], "ok")
+        self.assertEqual(r["pruned"], 0)
+        self.assertTrue(keep.exists())
+
+
+class TestHooksSource(unittest.TestCase):
+    """hooks 源定位:只认 skill_root/hooks(parent.parent fallback 已删 ·
+    标准安装位下会误指 ~/.claude/hooks 用户全局目录)。"""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp(prefix="hooks-src-"))
+        sys.path.insert(0, str(TOOLS))
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def test_found_at_skill_root_hooks(self):
+        from bootstrap import _find_hooks_src
+        skill = self.tmp / "skills" / "teamwork"
+        (skill / "hooks").mkdir(parents=True)
+        (skill / "hooks" / "a.sh").write_text("#!/bin/bash\n", encoding="utf-8")
+        self.assertEqual(_find_hooks_src(skill), skill / "hooks")
+
+    def test_no_parent_parent_fallback(self):
+        """skill_root 无 hooks/ 时 · 即便 parent.parent 有 hooks/ 也不捡(防误复制全局目录)。"""
+        from bootstrap import _find_hooks_src, maintain_host_hooks
+        skill = self.tmp / "skills" / "teamwork"
+        skill.mkdir(parents=True)
+        outside = self.tmp / "hooks"  # 模拟 ~/.claude/hooks 位置关系
+        outside.mkdir()
+        (outside / "evil.sh").write_text("#!/bin/bash\n", encoding="utf-8")
+        self.assertIsNone(_find_hooks_src(skill))
+        project = self.tmp / "project"
+        project.mkdir()
+        r = maintain_host_hooks(skill, project, "claude-code")
+        self.assertEqual(r["status"], "skipped")
+        self.assertFalse((project / ".claude" / "hooks" / "evil.sh").exists())
+
+    def test_real_skill_ships_hooks_inside(self):
+        """hooks 已随 skill 分发(仓库 skills/teamwork/hooks/)· tarball 用户拿得到。"""
+        from bootstrap import _find_hooks_src
+        src = _find_hooks_src(SKILL)
+        self.assertEqual(src, SKILL / "hooks")
+        self.assertTrue((src / "hooks.json").exists())
+        self.assertGreaterEqual(len(list(src.glob("*.sh"))), 4)
+
+    def test_deploy_claude_code_from_skill_hooks(self):
+        from bootstrap import maintain_host_hooks
+        skill = self.tmp / "skills" / "teamwork"
+        (skill / "hooks").mkdir(parents=True)
+        (skill / "hooks" / "a.sh").write_text("#!/bin/bash\n", encoding="utf-8")
+        (skill / "hooks" / "hooks.json").write_text("{}", encoding="utf-8")
+        project = self.tmp / "project"
+        project.mkdir()
+        r = maintain_host_hooks(skill, project, "claude-code")
+        self.assertEqual(r["status"], "deployed")
+        self.assertEqual(r["sh_count"], 1)
+        self.assertTrue((project / ".claude" / "hooks" / "a.sh").exists())
+        self.assertTrue((project / ".claude" / "hooks" / "hooks.json").exists())
 
 
 class TestKnowledgeGraphIntegrity(unittest.TestCase):

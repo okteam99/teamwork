@@ -151,6 +151,8 @@ class TestExternalReviewBaseResolution(unittest.TestCase):
             "feature_id": "F1", "flow_type": "Feature",
             "current_stage": stage, "merge_target": "main",
             "artifact_root": "docs/features/F1",
+            # host 单源 = state.json.host(全局 host_audit.json 已退役 · 不再兜底)
+            "host": "claude-code",
         }
         if review_base_commit is not None:
             st["review_base_commit"] = review_base_commit

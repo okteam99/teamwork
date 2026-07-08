@@ -2,10 +2,12 @@
 # git pre-push hook · 治本"dev push 忘 bump version" · 用户拍板 2026-05-28
 #
 # 行为:
-# - 检测 push 的本地 ref 是否含 refs/heads/dev
-# - 是 dev + 最新 commit 不含 [auto-bump] 标记 → 跑 bump_patch_version.py + auto-commit + exit 1
-# - 用户重跑 git push origin dev · 这次最新 commit 已含 [auto-bump] → 放行
-# - 非 dev 分支(main / feature 等)→ 跳过
+# - 从 stdin(pre-push 协议)检测 push 的本地 ref 是否含 refs/heads/dev
+# - 推 dev 且当前检出分支 = dev + 最新 commit subject 非 auto-bump →
+#   先跑测试守门(pytest tools/tests · TEAMWORK_SKIP_TESTS=1 可跳过)
+#   再跑 bump_patch_version.py + auto-commit(只含 SKILL.md)+ exit 1
+# - 用户重跑 git push origin dev · 这次最新 commit subject 已是 auto-bump → 放行
+# - 非 dev ref / 当前分支非 dev(如在 feature 分支上推 dev)→ 跳过 bump 不阻塞
 #
 # 安装:
 #   ln -sf <SKILL_ROOT>/git-hooks/pre-push <REPO>/.git/hooks/pre-push
@@ -19,7 +21,8 @@
 set -euo pipefail
 
 REPO_ROOT="$(git rev-parse --show-toplevel)"
-BUMP_SCRIPT="$REPO_ROOT/skills/teamwork/tools/bump_patch_version.py"
+TOOLS_DIR="$REPO_ROOT/skills/teamwork/tools"
+BUMP_SCRIPT="$TOOLS_DIR/bump_patch_version.py"
 SKILL_MD="$REPO_ROOT/skills/teamwork/SKILL.md"
 TARGET_BRANCH="refs/heads/dev"
 # v8.44.2 治本:marker 改更稀有字符串 + 只检测 commit subject(不含 body)
@@ -40,6 +43,14 @@ if [[ "$dev_being_pushed" != "true" ]]; then
   exit 0
 fi
 
+# 当前检出分支必须也是 dev:git commit 落在当前分支 · 若在 feature 分支上
+# `git push origin dev` · bump commit 会写错分支 → 跳过 bump(不阻塞 push)
+current_branch=$(git symbolic-ref --short -q HEAD || true)
+if [[ "$current_branch" != "dev" ]]; then
+  echo "[pre-push hook] ℹ️ 正在推 dev · 但当前检出分支是 '${current_branch:-detached}' · 跳过 auto-bump(bump commit 只能落在检出的 dev 上)" >&2
+  exit 0
+fi
+
 # 已 bump 过 → 放行(避免无限循环)
 # v8.44.2 治本:用 %s 只取 subject(第 1 行)· 不看 body
 # 旧实现用 %B 全 message · CHANGELOG/commit 描述 marker 时会撞 → 误判
@@ -49,24 +60,35 @@ if [[ "$last_subject" == "$AUTO_BUMP_SUBJECT_PREFIX"* ]] || \
   exit 0
 fi
 
+# 测试守门:bump 前跑全量 pytest(约 80s)· 失败拒绝 push
+# TEAMWORK_SKIP_TESTS=1 逃生口(打 WARN · 慎用)
+if [[ "${TEAMWORK_SKIP_TESTS:-}" == "1" ]]; then
+  echo "[pre-push hook] ⚠️ WARN: TEAMWORK_SKIP_TESTS=1 · 跳过测试守门(未验证的代码将发出)" >&2
+else
+  echo "[pre-push hook] 🧪 测试守门:python3 -m pytest tests -q(约 80s · TEAMWORK_SKIP_TESTS=1 可跳过)…" >&2
+  if ! (cd "$TOOLS_DIR" && python3 -m pytest tests -q); then
+    echo "[pre-push hook] ❌ 测试失败 · 拒绝 push。修复后重试 · 或 TEAMWORK_SKIP_TESTS=1 git push origin dev 逃生(慎用)" >&2
+    exit 1
+  fi
+fi
+
 # 校验 bump 脚本存在
 if [[ ! -x "$BUMP_SCRIPT" ]]; then
   echo "[pre-push hook] ❌ bump_patch_version.py 不存在或不可执行:$BUMP_SCRIPT" >&2
   exit 1
 fi
 
-# 跑 bump · 捕 stdout
-bump_output=$("$BUMP_SCRIPT" "$SKILL_MD")
-bump_rc=$?
-if [[ $bump_rc -ne 0 ]]; then
-  echo "[pre-push hook] ❌ bump_patch_version.py 失败(exit=$bump_rc):$bump_output" >&2
+# 跑 bump · 捕 stdout(if ! 显式接失败 · set -e 下裸 $? 是死代码)
+if ! bump_output=$("$BUMP_SCRIPT" "$SKILL_MD" 2>&1); then
+  echo "[pre-push hook] ❌ bump_patch_version.py 失败:$bump_output" >&2
   exit 1
 fi
 
 # 创建 auto-bump commit
 # subject 用 AUTO_BUMP_SUBJECT_PREFIX 开头 · body 留 marker(双 guard 都过)
+# pathspec 限定只提交 SKILL.md · 不卷入用户已 staged 的其他改动
 git add "$SKILL_MD"
-git commit -m "$AUTO_BUMP_SUBJECT_PREFIX · $bump_output" -m "$AUTO_BUMP_MARKER" --no-verify
+git commit -m "$AUTO_BUMP_SUBJECT_PREFIX · $bump_output" -m "$AUTO_BUMP_MARKER" --no-verify -- "$SKILL_MD"
 commit_sha=$(git rev-parse --short HEAD)
 
 # 阻止本次 push · 提示用户重跑(让 push 包含 auto-bump commit)
@@ -81,7 +103,8 @@ cat >&2 <<EOF
 ║  ⚠️ 本次 push 被拦截(防 GitHub 收不到 auto-bump commit) ║
 ║  请重跑: git push origin dev                              ║
 ║                                                          ║
-║  下次 push 会自动放行(检测到 [auto-bump] 标记)          ║
+║  下次 push 会自动放行(最新 commit subject 已是            ║
+║  "chore(version): auto-bump patch" 前缀)                 ║
 ╚══════════════════════════════════════════════════════════╝
 
 EOF

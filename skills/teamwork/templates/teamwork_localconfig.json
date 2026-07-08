@@ -1,5 +1,5 @@
 {
-  "_comment": "Teamwork 本地配置 + bootstrap state 单源(v8.7+)。本地配置(不提交 git · 由 bootstrap.py 自动加 .gitignore)。",
+  "_comment": "Teamwork 本地配置 + bootstrap state 单源。本地配置(不提交 git · 由 bootstrap.py 自动加 .gitignore)。",
   "_doc": "字段说明见 docs/conventions.md / docs/prepare.md / templates/config.md(§.teamwork_localconfig)",
 
   "worktree": "auto",
@@ -9,14 +9,14 @@
   "worktree_cleanup": "ask",
   "mr_url_template": null,
 
-  "_comment_id_strategy": "v8.79+ artifact ID 号段策略 · utc-yymmddhhmmss(默认 · UTC0 秒级时间戳 · 跨机/多 agent 并行免协调防撞号)| sequential(旧顺序号 max+1 · 单 clone 项目可 opt-out 保留好念短序号)。改此项只影响新建 feature · 存量 ID 不重编号。",
+  "_comment_id_strategy": "artifact ID 号段策略 · utc-yymmddhhmmss(默认 · UTC0 秒级时间戳 · 跨机/多 agent 并行免协调防撞号)| sequential(顺序号 max+1 · 单 clone 项目可 opt-out 保留好念短序号)。改此项只影响新建 feature · 存量 ID 不重编号。",
   "id_strategy": "utc-yymmddhhmmss",
 
 
-  "_comment_local_env_auto_create": "v8.89+ 本地敏感配置目录 .teamwork-local-env/(kubeconfig/DB密码/API key)· true(默认):bootstrap 在缺失时自动建目录 + config.properties 模板 + 双重 gitignore(根 + 目录内)· 已存在不覆盖。false:不主动建(opt-out · 仍保留 gitignore 预留规则)。读取约定见 TROUBLESHOOTING.md。",
+  "_comment_local_env_auto_create": "本地敏感配置目录 .teamwork-local-env/(kubeconfig/DB密码/API key)· true(默认):bootstrap 在缺失时自动建目录 + config.properties 模板 + 双重 gitignore(根 + 目录内)· 已存在不覆盖。false:不主动建(opt-out · 仍保留 gitignore 预留规则)。读取约定见 TROUBLESHOOTING.md。",
   "local_env_auto_create": true,
 
-  "_comment_disable_external_review": "v8.90+ 禁用 external 评审(单模型用户 · v8.153 改名自 disable_heterogeneous_review · v8.154 旧名已废弃)· false(默认):external 评审跑异质模型(claude↔codex 交叉 · 唯一跨模型安全网)。true:只有一个模型时 · external-review 自动 emit subagent 降级配方(宿主自身模型 subagent 自审 · 落 external-cross-review/ 满足 P0-154 · frontmatter 标 degraded · 非异质 · 同盲点 · 交叉 review 质量下降)· 且每次 bootstrap 启动 WARN 提醒建议恢复异质。区分 v8.88 --self-review-fallback(异质暂时不可用的临时 stopgap · 不满足门禁)。",
+  "_comment_disable_external_review": "禁用 external 评审(单模型用户 · 旧名 disable_heterogeneous_review 已废弃不再读取)· false(默认):external 评审跑异质模型(claude↔codex 交叉 · 唯一跨模型安全网)。true:只有一个模型时 · external-review 自动 emit subagent 降级配方(宿主自身模型 subagent 自审 · 落 external-cross-review/ 满足 external 物化门禁 · frontmatter 标 degraded · 非异质 · 同盲点 · 交叉 review 质量下降)· 且每次 bootstrap 启动 WARN 提醒建议恢复异质。区分 --self-review-fallback(异质暂时不可用的临时 stopgap · 不满足门禁)。",
   "disable_external_review": false,
 
   "_bootstrap": {
