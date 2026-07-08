@@ -1,78 +1,63 @@
 # 文档模板索引
 
-本目录包含 Teamwork 所有文档模板。
+本目录是 Teamwork 所有产出文档的**格式唯一真相源**（红线详 [TEMPLATES.md](../TEMPLATES.md)）。
+任何 teamwork 产出的格式 / 字段 / frontmatter schema / 表头结构，以本目录对应模板为准；禁止以 peer Feature 产物为格式基准。
 
-## 模板清单
+> 无手写模板的两类机读产物：`state.json`（`tools/state.py` 单源维护）与 Feature 内 `review-log.jsonl`（state.py 各 stage 完成时自动追加）——**工具单源 · 不在本目录**。
 
-| 文件名 | 模板类型 | 用途 | 加载时机 |
-|--------|---------|------|----------|
-| prd.md | PRD + PRD (技术) | 产品需求文档（含 YAML frontmatter acceptance_criteria[]） | Feature Planning 后 PM 编写 |
-| tc.md | TC + TC-REVIEW | 测试用例文档（含 YAML frontmatter tests[].covers_ac） | 需求评审后 QA 编写 |
-| tech.md | TECH | 技术方案设计 | PRD 确认后 RD 编写 |
-| ui.md | UI | UI 设计文档 | 需求明确后 Designer 设计 |
-| verify-ac.py | AC↔test 覆盖校验脚本 | 机器校验入口 | Blueprint/Dev Output Contract 调用 |
-| roadmap.md | ROADMAP | 产品执行路线图（全局 Feature 清单人读视图） | Feature Planning 完成时 PM 编写 |
-| project.md | PROJECT | 子项目业务总览 | 项目初始化时创建 |
-| architecture.md | `{子项目}/docs/architecture/ARCHITECTURE` + database-schema | **单子项目内部**技术架构设计 | 项目初始化时创建 |
-| architecture-workspace.md | `project-specs/ARCHITECTURE.md` | **workspace 级**系统架构(子项目拓扑+依赖+目录 · 从 teamwork-space.md 外迁) | bootstrap 建空骨架 · 项目维护 |
-| knowledge.md | KNOWLEDGE | 项目本地知识库（4 类：Flagged Ambiguities / Gotchas / Preferences / Out-of-Scope；**开发规约已迁 DEV-RULES.md**；决策走 ADR） | 项目初始化时创建；Bug 修复/Review/PM 验收时按硬时机写入 |
-| dev-rules.md | DEV-RULES | 项目强制开发规范（人维护 · 分层/命名/错误处理/测试/风格）· blueprint/dev 必读 | bootstrap 无则建空壳 · 人维护 |
-| pending.md | PENDING | 待规划需求池（product-overview/PENDING.md · 跨 Feature/session "范围外但要做"项） | PMO 发现即追加 · 转化即删 |
-| teamwork-space.md | teamwork_space | 多子项目全景入口 | 多子项目项目初始化时创建 |
-| bug-report.md | BUG-REPORT | Bug 排查与修复报告 | Bug 流程中创建 |
-| config.md | RESOURCES + .teamwork_localconfig + external/README | 项目配置与资源管理 | 项目初始化时创建 |
-| dependency.md | DEPENDENCY-REQUESTS | 跨子项目依赖请求追踪 | 需要依赖时创建 |
-| e2e-registry.md | E2E REGISTRY + ENVIRONMENT + REG case | E2E 回归测试中心 | Feature 完成时创建 |
-| pl-pm-feedback.md | PL-FEEDBACK + PM-RESPONSE | PL-PM 讨论反馈 | Feature 讨论阶段产出 |
-| **adr.md** | ADR 单条决策 | 架构决策记录（Context / Alternatives≥2 / Decision / Consequences） | Blueprint Stage Step 4.1「3 问触发器」全 yes 时，架构师创建 |
-| **adr-index.md** | ADR 索引 | 每子项目 `docs/adr/INDEX.md`（活跃/提案/已废弃 + 主题索引） | 首次产 ADR 时创建，每次 ADR 变更时同步 |
-| **retros-index.md** | 复盘索引 | 每子项目 `docs/retros/INDEX.md`（时间线 + 流程类型索引 + 偏差警报） | 每次产单条复盘时同步（PMO 完成报告 8️⃣-A 阶段） |
-| **process-ledger.md** | PROCESS-LEDGER | 流程价值台账（workspace 级 `project-specs/` · 一行一 feature 的仪式价值数据 · 年检 kill criteria 数据源 · 🔴 区别 retros 业务复盘） | ship2 planning-backref 暂停点 append(随收尾 MR · 此刻 state.json 尚在磁盘)· 无则按模板建 |
+## 执行链产物（Feature 状态机内各 stage 产出）
 
-## 按流程查看模板
+| 文件 | 用途 | 主要消费方 / 时机 |
+|------|------|------------------|
+| [prd.md](./prd.md) | PRD（`TEAMWORK-MACHINE` 机读块含 `acceptance_criteria[]`） | goal stage PM 起草 · verify-ac / 评审 / dev 消费 |
+| [tc.md](./tc.md) | 测试用例（frontmatter `tests[].covers_ac` 反查 AC） | blueprint stage QA 起草 · verify-ac 校验覆盖 |
+| [tech.md](./tech.md) | 技术方案设计 | blueprint stage RD 起草 · 架构师 Tech Review |
+| [ui.md](./ui.md) | UI 意图 / 追溯 / 审计（视觉真相在 preview 产物） | ui_design stage Designer 产出 |
+| [bug-report.md](./bug-report.md) | Bug 排查修复报告（frontmatter 承担 Bug 流程机读状态） | diagnose stage 产出根因+方案 · dev stage 补 fix+回归 |
+| [test-report.md](./test-report.md) | 测试报告（`test-complete` 物化 evidence） | test stage QA 产出 |
+| [browser-test-report.md](./browser-test-report.md) | 浏览器 E2E 测试报告 | browser_e2e stage QA+Designer 产出 |
+| [pm-note.md](./pm-note.md) | PM 验收说明（可选 · rejected 时 finding 必填） | pm_acceptance stage PM 产出 |
+| [yolo-preflight.md](./yolo-preflight.md) | YOLO 预研 + 核心决策确认（含未填哨兵行） | `init-feature --yolo` 物化校验存在且已填 |
 
-### Feature 开发全流程
+## 项目骨架（bootstrap 自动建 / 项目级长期文档）
 
-1. **PRD 阶段**
- - 📄 [prd.md](./prd.md) - PM 编写产品需求
+| 文件 | 用途 | 主要消费方 / 时机 |
+|------|------|------------------|
+| [teamwork-space.md](./teamwork-space.md) | 知识地图根实例化骨架（N≥1 统一模型 · 单项目也有） | bootstrap 缺失时自动建 · 每 session 必读入口 · 维护规则见 [docs/teamwork-space-guide.md](../docs/teamwork-space-guide.md) |
+| [architecture-workspace.md](./architecture-workspace.md) | `project-specs/ARCHITECTURE.md`（workspace 级：子项目拓扑+依赖+目录） | bootstrap 建空骨架 · 结构变更时 PM 更新 |
+| [architecture.md](./architecture.md) | 单子项目内部技术架构（含 database-schema） | 子项目初始化时创建 · RD/架构师维护 |
+| [project.md](./project.md) | 子项目业务总览（业务语言 · 非技术细节） | 子项目初始化 / Feature Planning 后更新 |
+| [knowledge.md](./knowledge.md) | KNOWLEDGE（AI 沉淀：Gotchas / Flagged Ambiguities / Preferences / Out-of-Scope） | bootstrap 建骨架 · bug/review/验收硬时机追加 |
+| [dev-rules.md](./dev-rules.md) | DEV-RULES（人维护强制开发规范） | bootstrap 无则建空壳 · blueprint/dev 必读 |
+| [ui-rules.md](./ui-rules.md) | UI-RULES（人维护设计策略 · 装策略不装视觉值） | bootstrap 无则建空壳 · ui_design 必读 |
+| [glossary.md](./glossary.md) | GLOSSARY 业务术语表 | bootstrap 建空壳 · PRD/TECH 起草前 + triage 按需读 |
+| [troubleshooting.md](./troubleshooting.md) | TROUBLESHOOTING 排查工具集（环境 / log / DB / 敏感配置读法） | bootstrap 建空壳 · 排查与 AI 连环境时必读 |
+| [process-ledger.md](./process-ledger.md) | PROCESS-LEDGER 流程价值台账（一行一 feature · 年检数据源） | ship1 规划 gate append · 无则按模板建 |
 
-2. **PL-PM 讨论阶段**
- - 📄 [pl-pm-feedback.md](./pl-pm-feedback.md) - PL 反馈、PM 回应
+## 规划层（product-overview / 子项目 ROADMAP）
 
-3. **评审阶段**
- - 📄 [prd.md](./prd.md) - PRD 技术评审（含评审记录）
+| 文件 | 用途 | 主要消费方 / 时机 |
+|------|------|------------------|
+| [workstream.md](./workstream.md) | WS 规划单元（frontmatter 名册 + WS-PROGRESS/WS-DAG 标记区） | feature-planning 产出 · `state.py ws-lint / ws-progress` 消费 |
+| [roadmap.md](./roadmap.md) | ROADMAP（BL 清单 + Wave 编排 + 关联 WS） | feature-planning 写入 · PMO 随 Feature 流转同步 |
+| [pending.md](./pending.md) | PENDING 待规划需求池（`product-overview/PENDING.md`） | PMO 发现"范围外但要做"即追加 · 转化即删 |
 
-4. **设计阶段（有 UI 时）**
- - 📄 [ui.md](./ui.md) - UI 设计文档
+## 配置与脚本
 
-5. **测试用例阶段**
- - 📄 [tc.md](./tc.md) - 测试用例编写与评审
+| 文件 | 用途 | 主要消费方 / 时机 |
+|------|------|------------------|
+| [config.md](./config.md) | RESOURCES.md + `.teamwork_localconfig.json` 字段说明 + external/README | 项目初始化 / 配置调整时对照 |
+| [teamwork_localconfig.json](./teamwork_localconfig.json) | `.teamwork_localconfig.json` 实例模板（worktree / scope / id_strategy 等 + bootstrap state） | bootstrap 创建与维护 |
+| [local-env-config.properties](./local-env-config.properties) | `.teamwork-local-env/config.properties` 模板（本机 secret · 双重 gitignore） | bootstrap 缺失时自动建 · 用户填真值 |
+| [host-instruction-injection.md](./host-instruction-injection.md) | CLAUDE.md / AGENTS.md 注入段 canonical 内容源 | `tools/sync-drift.py` 读取同步 |
+| [preview-project-preview.sh](./preview-project-preview.sh) | same-stack 预览脚本（动态端口 dev server · 输出 PREVIEW_URL） | ui_design / 规划层全景 seed 时拷入 `preview-project/` |
+| [verify-ac.py](./verify-ac.py) | AC↔test 覆盖机器校验脚本（直接调 · 无需复制） | blueprint / dev Output Contract 调用 |
 
-6. **技术方案阶段**
- - 📄 [tech.md](./tech.md) - 技术方案设计
- - 📄 [adr.md](./adr.md) + [adr-index.md](./adr-index.md) - 架构决策记录（**仅**在 Blueprint Step 4.1「3 问触发器」全 yes 时产出）
+## 机制文件（决策 / 测试资产）
 
-7. **状态追踪**
- - state.json 由 `tools/state.py` 自动维护（机读权威 + 人读详情）
- - 📄 [verify-ac.py](./verify-ac.py) - AC↔test 覆盖校验脚本
- - 全局视图见 [roadmap.md](./roadmap.md)
-
-8. **E2E 回归**
- - 📄 [e2e-registry.md](./e2e-registry.md) - E2E 测试用例与注册
-
-### 项目级文档
-
-- 📄 [project.md](./project.md) - 子项目业务总览
-- 📄 [architecture.md](./architecture.md) - 技术架构（含 database-schema）
-- 📄 [knowledge.md](./knowledge.md) - 项目知识库
-- 📄 [roadmap.md](./roadmap.md) - 产品路线图
-- 📄 [teamwork-space.md](./teamwork-space.md) - 多子项目全景
-- 📄 [config.md](./config.md) - 配置与资源
-
-### Bug 流程
-
-- 📄 [bug-report.md](./bug-report.md) - Bug 排查报告
-
-### 跨项目协作
-
-- 📄 [dependency.md](./dependency.md) - 跨项目依赖请求
+| 文件 | 用途 | 主要消费方 / 时机 |
+|------|------|------------------|
+| [adr.md](./adr.md) | ADR 单条决策（Context / Alternatives≥2 / Decision / Consequences） | Blueprint「3 问触发器」全 yes 时架构师创建 · 落 `{子项目}/docs/adr/` |
+| [adr-index.md](./adr-index.md) | ADR 索引（每子项目 `docs/adr/INDEX.md`） | 首条 ADR 时创建 · 每次 ADR 变更同步 · PMO triage 读 |
+| [e2e-registry.md](./e2e-registry.md) | E2E 回归中心（REG case 完全自包含） | QA 在 Feature 完成时晋升 / 同步 REG case |
+| [test-baseline.md](./test-baseline.md) | 测试基线失败集（brownfield 预存在失败登记 · test gate 差分判定） | test stage 差分判定 · `--add` 登记核实过的预存在失败 |

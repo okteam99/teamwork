@@ -25,9 +25,10 @@
 │ 发现 peer Feature 与 templates/ 格式不一致 → templates/ 优先；
 │ 在 concerns 记录漂移（"F0xx 的 state.json 缺 ship 字段，建议归档时补齐"）。
 │
-└── 🔴 state.json 特别注意
+└── 🔴 state.json / review-log.jsonl 特别注意(工具单源 · 无手写模板)
  state.json 由 `tools/state.py` 单源维护(schema 演化由 state.py + _v8_stage_specs.py 控制)。
  peer Feature 的 state.json 可能是老 schema · 必须走 state.py validate。
+ review-log.jsonl 同为工具单源:state.py 各 stage 完成时自动追加 · templates/ 不放手写模板 · 禁手写/仿写行。
 ```
 
 📎 该红线由 PMO / PM / RD 共同遵守，触发流程见 roles/{pmo,pm,rd}.md 对应「格式权威」条目。

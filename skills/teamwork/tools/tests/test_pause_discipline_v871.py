@@ -85,13 +85,15 @@ class TestBaseDisciplineAlwaysPresent(unittest.TestCase):
 
 
 class TestContinuousStagesRegression(unittest.TestCase):
-    """防回归:dev/blueprint/blueprint_lite/test 仍是无暂停 · 触发抬头 + subagent。
+    """防回归:dev/blueprint_lite/test 仍是无暂停 · 触发抬头 + subagent。
 
     有人改 dev 的 pause point 字面 · 若不再含「无暂停」· 此 test 红 ·
     提醒同步强化逻辑(治本 SDK-F038 = dev 无暂停 · AI 自造暂停)。
+    注:blueprint 不在集合内 —— 它有条件暂停(TECH 涉数据库结构变更须用户确认 ·
+    stage.md §7.5)· 字段与 brief 红线对齐后不再声明「无暂停」。
     """
 
-    EXPECTED_NO_PAUSE = {"dev", "blueprint", "blueprint_lite", "test"}
+    EXPECTED_NO_PAUSE = {"dev", "blueprint_lite", "test"}
 
     def test_expected_no_pause_set(self):
         actual = {n for n, s in STAGE_SPECS.items()

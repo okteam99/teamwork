@@ -47,7 +47,6 @@ class _Base(unittest.TestCase):
         (self.tmp / "stages").mkdir()
         (self.tmp / "standards").mkdir()
         (self.tmp / "roles").mkdir()
-        (self.tmp / "rules").mkdir()
 
     def tearDown(self) -> None:
         shutil.rmtree(self.tmp, ignore_errors=True)
@@ -99,8 +98,8 @@ class TestDetection(_Base):
         self.assertEqual(payload["missing_consumer"], 0)
 
     def test_multiple_keywords_detected(self) -> None:
-        """必须 / 必填 / 必读 / 禁止 都识别为规则触发。"""
-        self.write("rules/check.md", """\
+        """必须 / 必填 / 必读 / 禁止 都识别为规则触发(fixture 放默认扫描目录 stages/)。"""
+        self.write("stages/check.md", """\
             # Rules
 
             🔴 必填字段 X。
@@ -115,7 +114,7 @@ class TestDetection(_Base):
 
 class TestOutputFormats(_Base):
     def test_json_output_well_formed(self) -> None:
-        self.write("rules/x.md", "🔴 必须 do something.\n")
+        self.write("stages/x.md", "🔴 必须 do something.\n")
         _, payload = run(["--skill-root", str(self.tmp), "--limit", "0"])
         assert payload is not None
         # 必含字段
@@ -127,7 +126,7 @@ class TestOutputFormats(_Base):
     def test_markdown_output_renders(self) -> None:
         # 两条规则用足够空行分隔（避开 ±8 行扫描窗口）· 一 writer-only / 一 has-consumer
         sep = "\n" * 20
-        self.write("rules/x.md", f"🔴 必须 do X.{sep}🔴 必须 do Y · exit 1 否则.\n")
+        self.write("stages/x.md", f"🔴 必须 do X.{sep}🔴 必须 do Y · exit 1 否则.\n")
         out, _ = run([
             "--skill-root", str(self.tmp),
             "--output-format", "markdown", "--limit", "0",
@@ -139,7 +138,7 @@ class TestOutputFormats(_Base):
     def test_limit_truncates_output(self) -> None:
         # 创建 5 条 writer-only 规则
         lines = "\n".join(f"🔴 必须 do {i}." for i in range(5))
-        self.write("rules/x.md", lines)
+        self.write("stages/x.md", lines)
         _, payload = run(["--skill-root", str(self.tmp), "--limit", "2"])
         assert payload is not None
         self.assertEqual(payload["missing_consumer"], 5)

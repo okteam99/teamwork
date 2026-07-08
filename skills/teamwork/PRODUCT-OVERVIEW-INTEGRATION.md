@@ -7,7 +7,7 @@
 
 > 🔴 项目**无** `product-overview/` 时(新项目冷启动)· session 启动 `bootstrap.py` emit
 > `cold_start_product_planning_recommended` gate 引导**产品规划优先**(权威冷启动顺序的第一步)。
-> 触发:项目缺 `product-overview/`(v8.116 地图/规划解耦:地图根 `teamwork-space.md` 由 bootstrap 自动建 · 不再是触发条件)· bare `/teamwork` 与 mode B execute 首条响应均 emit(详 [SKILL.md § bootstrap flow_gates 响应](SKILL.md))。
+> 触发:项目缺 `product-overview/`(地图/规划解耦:地图根 `teamwork-space.md` 由 bootstrap 自动建 · 不是触发条件)· bare `/teamwork` 与 mode B execute 首条响应均 emit(详 [SKILL.md § bootstrap flow_gates 响应](SKILL.md))。
 
 **权威冷启动顺序**(详 [SKILL.md § teamwork 业务流程架构](SKILL.md)):
 `业务架构与产品规划.md`(愿景 + 执行线列表)→ ✅确认 → 派生 `teamwork-space.md` → **(涉 UI)UI 全景初步规划** → 起 WS 拆 feature → roadmap → Feature 状态机。
@@ -29,7 +29,6 @@
 product-overview/
 ├── {项目名}_业务架构与产品规划.md   # 必须 · 愿景(产品定位 + 业务架构 + MVP)+ 执行线列表
 ├── workstream/                      # 规划单元目录(WS · 替代旧 changes/ + 执行手册的规划职责)
-│   ├── README.md                    # 目录说明(放什么 / WS 命名)
 │   └── WS-NN-{名}.md                # 一个 Workstream · 详 templates/workstream.md
 ├── PENDING.md                       # 待规划需求池(跨 Feature/session 的"范围外但要做"项 · 从 teamwork-space 外置 · 详 templates/pending.md)
 └── {项目名}_Product_Plan.md         # 可选 · 原始产品想法
@@ -188,7 +187,7 @@ Level 3 变更      → 先更新业务架构 → ✅确认 → 起 WS 落地
 └── ⏸️ 用户确认 WS 拆解 → WS 状态 📝 → 🔄
 
 第二层 · 工作区架构更新（Level 3 · 增删子项目时；Level 2 跳过）
-├── PM 更新 teamwork-space.md（架构图 + 子项目清单）· 执行线列表已在业务架构 ✅确认时定
+├── PM 更新 teamwork-space.md（子项目清单）+ `project-specs/ARCHITECTURE.md`（子项目拓扑/依赖 · 架构图已从 teamwork-space 外迁 · 详 [teamwork-space-guide.md §4](docs/teamwork-space-guide.md)）· 执行线列表已在业务架构 ✅确认时定
 └── ⏸️ 用户确认
 
 第三层 · feature 写入各子项目 ROADMAP（= WS 规划完成标准）

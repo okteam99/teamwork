@@ -1,6 +1,6 @@
 # {项目名} 术语表（GLOSSARY）
 
-> 🟢 **本文是 teamwork prepare-stage 自动创建的空骨架**。
+> 🟢 **本文是 teamwork bootstrap 自动创建的空骨架**。
 > ⏳ **请按业务填术语** · 填完后 PMO/PM/RD/架构师在起草 PRD / TECH 前会自动 read。
 >
 > teamwork 在以下场景按需 read：

@@ -19,7 +19,7 @@ bootstrap.py — Teamwork session 启动系统维护(独立脚本 · 替代 inst
 - 宿主 hooks 部署(.claude/hooks/ 或 .codex/hooks.json)
 - CLAUDE.md / AGENTS.md / GEMINI.md 注入段同步(跑 sync-drift.py)
 - .worktree/ → .gitignore(默认 worktree_root_path · 详 docs/conventions.md § 10)
-- state.json v7 → v8 迁移扫描
+- ~/.teamwork/external-review-logs/ 过期日志清理(housekeeping)
 
 版本门禁:
 - `.teamwork_localconfig.json` 单文件含两段:
@@ -57,12 +57,13 @@ def now_iso() -> str:
 # ─── 项目根推断 ──────────────────────────────────────────────
 
 
-def find_project_root(start: Path) -> Path:
-    """从 start 向上找 git common dir 的 parent(主 tree)。
+def _git_project_root(start: Path) -> Optional[Path]:
+    """从 start 找 git 仓根(主 tree)· **非 git 仓返回 None**(调用侧决定 fallback)。
 
     使用 git rev-parse --git-common-dir 确保:
     - worktree 内跑时返回主 tree(共享骨架文档)
     - 主 tree 内跑时返回主 tree
+    git 不可用时向上扫 .git 兜底。
     """
     try:
         result = subprocess.run(
@@ -87,7 +88,13 @@ def find_project_root(start: Path) -> Path:
         if p.parent == p:
             break
         p = p.parent
-    return start.resolve()
+    return None
+
+
+def find_project_root(start: Path) -> Path:
+    """git 仓根(主 tree)· 非 git 仓 fallback 到 start(state.py / update.py 复用)。"""
+    root = _git_project_root(start)
+    return root if root is not None else start.resolve()
 
 
 # ─── SKILL 版本号自读(单源 = SKILL.md frontmatter) ──────────
@@ -472,14 +479,15 @@ def maintain_chmod_tools(skill_root: Path) -> dict:
 
 
 def _find_hooks_src(skill_root: Path) -> Optional[Path]:
-    """找 hooks/ 源目录(*.sh 在这里):优先 skill_root/hooks · fallback repo 根。"""
-    candidates = [
-        skill_root / "hooks",                      # skill 内嵌
-        skill_root.parent.parent / "hooks",        # symlink 模式 repo 根 hooks/
-    ]
-    for c in candidates:
-        if c.is_dir() and any(c.glob("*.sh")):
-            return c
+    """找 hooks/ 源目录(hooks.json + *.sh 随 skill 分发):只认 `skill_root/hooks`。
+
+    不做任何 parent fallback —— 标准安装位(~/.claude/skills/teamwork)的
+    parent.parent 是 ~/.claude · 那里的 hooks/ 是用户全局目录 · 误捡会整目录
+    复制进项目。
+    """
+    c = skill_root / "hooks"
+    if c.is_dir() and any(c.glob("*.sh")):
+        return c
     return None
 
 
@@ -653,29 +661,6 @@ def maintain_gitignore_worktree(project_root: Path,
         return {"status": "write_failed", "error": str(e)}
 
 
-# ─── v7 state.json 扫描(迁移检测) ──────────────────────
-
-
-def scan_v7_state_json(project_root: Path) -> list[str]:
-    """扫 docs/features/*/state.json · 找需要 migrate-v7-to-v8 的。
-
-    v8 state.json 含 schema_version=v8.0 · v7 没此字段。
-    """
-    pending = []
-    features_dir = project_root / "docs" / "features"
-    if not features_dir.exists():
-        return pending
-
-    for state_json in features_dir.glob("*/state.json"):
-        try:
-            data = json.loads(state_json.read_text(encoding="utf-8"))
-            if data.get("schema_version") != "v8.0":
-                pending.append(str(state_json))
-        except (OSError, json.JSONDecodeError):
-            continue
-    return pending
-
-
 # ─── localconfig(单源 · config + _bootstrap state) ─────────
 
 
@@ -715,15 +700,23 @@ def read_bootstrap_marker(project_root: Path) -> dict:
 
 def write_bootstrap_marker(project_root: Path, skill_version: str,
                             host: str, maintain_results: dict) -> bool:
-    """写 marker 到 localconfig._bootstrap · 保留用户 config 段不动。"""
+    """写 marker 到 localconfig._bootstrap · 保留用户 config 段不动。
+
+    `_bootstrap` 段**merge 不整段覆盖** —— 段内还有升级检测缓存
+    (last_update_check_*)等其他工具维护键 · 整段替换会把缓存抹掉。
+    """
     cfg = project_root / LOCALCONFIG_FILE
     data = read_localconfig(project_root)  # 保留现有 config 段
-    data["_bootstrap"] = {
+    bs = data.get("_bootstrap")
+    if not isinstance(bs, dict):
+        bs = {}
+    bs.update({
         "skill_version": skill_version,
         "host": host,
         "last_maintain_at": now_iso(),
         "last_maintain_results": maintain_results,
-    }
+    })
+    data["_bootstrap"] = bs
     try:
         cfg.write_text(
             json.dumps(data, ensure_ascii=False, indent=2) + "\n",
@@ -744,7 +737,6 @@ LOCALCONFIG_CONFIG_DEFAULTS = {
     "worktree_cleanup": "ask",
     "mr_url_template": None,
     "id_strategy": "utc-yymmddhhmmss",
-    "archive_on_ship": True,
     "local_env_auto_create": True,
     "disable_external_review": False,
 }
@@ -760,7 +752,7 @@ def ensure_localconfig_complete(project_root: Path, skill_root: Path) -> dict:
     """v8.91:bootstrap 启动自愈 localconfig —— 缺的已知字段补默认值(尤其 `_bootstrap` 段)。
 
     治本:localconfig 由**老版 bootstrap / 手建 / 部分写入** 时 · `_bootstrap` 子键或新增
-    feature 开关(archive_on_ship / disable_external_review 等)缺失 · 且版本命中
+    feature 开关(disable_external_review 等)缺失 · 且版本命中
     skip_maintain 时这些缺口**永不补** · 用户也看不到新选项。
     - 仅 **additive**:只补缺的键 · **绝不覆盖**用户已有值(含显式 false/null)。
     - 仅当 localconfig **已存在**时跑(不存在 = 冷启动 · 由 maintain / prepare 创建 · 不在此凭空造)。
@@ -819,7 +811,8 @@ SKILL_UPDATE_CHANGELOG_URL_TEMPLATE = (
     "https://raw.githubusercontent.com/okteam99/teamwork/{channel}/skills/teamwork/docs/CHANGELOG.md"
 )
 SKILL_UPDATE_CHANGELOG_URL_ENV = "TEAMWORK_SKILL_CHANGELOG_URL"  # 测试覆盖用
-SKILL_UPDATE_CHANGELOG_MAX_TITLES = 8
+# 线上 CHANGELOG 只存最近 5 版(keep-5 轮转)· 上限对齐 · 不可能更多
+SKILL_UPDATE_CHANGELOG_MAX_TITLES = 5
 
 
 def _fetch_changelog_titles(channel: str, local_version: str) -> Optional[dict]:
@@ -859,10 +852,9 @@ def _fetch_changelog_titles(channel: str, local_version: str) -> Optional[dict]:
         titles.append(f"{ver} · {title}" if title else ver)
     if not titles:
         return None
+    # keep-5 轮转:扫不到 <= 本地的条目 = 你落后超出线上留存范围
     note = None
-    if len(titles) > SKILL_UPDATE_CHANGELOG_MAX_TITLES:
-        note = f"…共 {len(titles)} 版新增 · 仅列最近 {SKILL_UPDATE_CHANGELOG_MAX_TITLES} · 全量见 CHANGELOG"
-    elif not reached_local:
+    if not reached_local:
         note = "(线上 CHANGELOG 仅存最近 5 版 · 你落后更多 · 更早变更见 git 历史)"
     return {"titles": titles[:SKILL_UPDATE_CHANGELOG_MAX_TITLES], "note": note}
 
@@ -1013,52 +1005,110 @@ def check_skill_update(local_version: str,
     }
 
 
-# v8.21:host audit · 跨 session 全局 host 记忆(治本 PMO 还要传 --host 心智)
-# 落 ~/.teamwork/host_audit.json · state.py 跨命令自动读取 · PMO 心智 -1 参数
-HOST_AUDIT_PATH_ENV = "TEAMWORK_HOST_AUDIT_PATH"
+# ─── 升级检测 24h TTL 缓存(治本每 session 无条件外呼 GitHub) ─────────
+#
+# 缓存落 localconfig._bootstrap(工具维护段):
+#   last_update_check_at(ISO)+ last_update_check_result(上次完整结果)
+# 24h 内且 local_version / channel 未变 → 直接返回缓存 · 不发网络请求。
+# TEAMWORK_FORCE_UPDATE_CHECK=1 强制实查(debug / 用户主动查新)。
+
+SKILL_UPDATE_CHECK_TTL_HOURS = 24
+SKILL_UPDATE_FORCE_ENV = "TEAMWORK_FORCE_UPDATE_CHECK"
 
 
-def _host_audit_path() -> Path:
-    """host audit 落位 · 用户级跨项目(与 prepare_check_audit 同目录)。
+def _cached_update_check(marker: dict, local_version: str,
+                         channel: str) -> Optional[dict]:
+    """读 localconfig._bootstrap 里的上次检测结果 · 命中返回(带 from_cache)· 否则 None。
 
-    覆盖路径:TEAMWORK_HOST_AUDIT_PATH=<path>(测试用)。
+    失效条件:无缓存 / 超 TTL / 时钟回拨(负龄)/ 本地版本或 channel 已变
+    (升级后缓存的 outdated 必须立刻作废)。
     """
-    override = os.environ.get(HOST_AUDIT_PATH_ENV)
-    if override:
-        return Path(override)
-    return Path.home() / ".teamwork" / "host_audit.json"
-
-
-def write_host_audit(host: str) -> bool:
-    """v8.21:bootstrap 跑成功后写 host audit · external-review 等下游命令自动读取。
-
-    单条记录(覆盖写 · 不 append)· 保留最新一次 bootstrap 的 host:
-        {"host": "claude-code", "timestamp": "2026-05-25T..."}
-
-    v8.36 DEPRECATED:全局 audit 跨 session 残留 · 治本 SVC-PLATFORM-F054 case
-    (PMO 切到 Codex CLI 但 audit 残留 claude-code · 推出 model=codex 同源 · 异质失效)
-    主路径已改 per-feature state.json.host(init-feature / stage-start 传 --host 写入)
-    audit 仅作为 fallback 兼容路径 · v8.37 计划删除。
-    """
+    if os.environ.get(SKILL_UPDATE_FORCE_ENV) == "1":
+        return None
+    at = marker.get("last_update_check_at")
+    cached = marker.get("last_update_check_result")
+    if not isinstance(at, str) or not isinstance(cached, dict):
+        return None
+    if cached.get("local_version") != local_version or \
+            cached.get("channel") != channel:
+        return None
     try:
-        p = _host_audit_path()
-        p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_text(
-            json.dumps({
-                "host": host,
-                "timestamp": now_iso(),
-                # v8.36:audit 标 deprecated · 下游 _detect_host 读到 emit deprecation_warning
-                "_deprecated": (
-                    "v8.36 → ~/.teamwork/host_audit.json 是 fallback 兼容路径 · "
-                    "主路径请 init-feature/stage-start 传 --host 写 state.json.host · "
-                    "v8.37 将删此全局文件"
-                ),
-            }, ensure_ascii=False, indent=2),
+        then = datetime.strptime(at, "%Y-%m-%dT%H:%M:%SZ").replace(
+            tzinfo=timezone.utc)
+    except ValueError:
+        return None
+    age_sec = (datetime.now(timezone.utc) - then).total_seconds()
+    if not (0 <= age_sec < SKILL_UPDATE_CHECK_TTL_HOURS * 3600):
+        return None
+    return {**cached, "from_cache": True}
+
+
+def _write_update_check_cache(project_root: Path, result: dict) -> None:
+    """本次检测结果写进 localconfig._bootstrap(保留其余键 · 失败 silent 不阻塞)。"""
+    cfg = project_root / LOCALCONFIG_FILE
+    data = read_localconfig(project_root)
+    bs = data.get("_bootstrap")
+    if not isinstance(bs, dict):
+        bs = {}
+        data["_bootstrap"] = bs
+    bs["last_update_check_at"] = now_iso()
+    bs["last_update_check_result"] = result
+    try:
+        cfg.write_text(
+            json.dumps(data, ensure_ascii=False, indent=2) + "\n",
             encoding="utf-8",
         )
-        return True
     except OSError:
-        return False
+        pass
+
+
+def check_skill_update_cached(local_version: str, channel: str,
+                              project_root: Path) -> dict:
+    """check_skill_update 的 24h TTL 缓存皮(缓存键 = local_version + channel)。"""
+    hit = _cached_update_check(
+        read_bootstrap_marker(project_root), local_version, channel)
+    if hit is not None:
+        return hit
+    result = check_skill_update(local_version, channel)
+    _write_update_check_cache(project_root, result)
+    return result
+
+
+# ─── external-review-logs 保留策略(housekeeping) ──────────
+
+EXTERNAL_REVIEW_LOGS_DIR_ENV = "TEAMWORK_EXTERNAL_REVIEW_LOGS_DIR"  # 测试覆盖用
+EXTERNAL_REVIEW_LOGS_RETENTION_DAYS = 45
+
+
+def prune_external_review_logs(
+        retention_days: int = EXTERNAL_REVIEW_LOGS_RETENTION_DAYS) -> dict:
+    """清理 ~/.teamwork/external-review-logs/ 里 mtime 超 retention 的日志文件。
+
+    external 评审实跑日志只在评审后短期有对账价值 · 无保留策略会无限膨胀
+    (实测 300MB+)。**按文件不按目录**(活跃 feature 目录里的旧文件也清)·
+    只删文件不删目录 · 失败不阻塞(计数记录)。
+    """
+    override = os.environ.get(EXTERNAL_REVIEW_LOGS_DIR_ENV)
+    logs_dir = (Path(override) if override
+                else Path.home() / ".teamwork" / "external-review-logs")
+    if not logs_dir.is_dir():
+        return {"status": "n_a", "pruned": 0}
+    cutoff = datetime.now(timezone.utc).timestamp() - retention_days * 86400
+    pruned, failed = 0, 0
+    try:
+        for f in logs_dir.rglob("*"):
+            try:
+                if f.is_file() and f.stat().st_mtime < cutoff:
+                    f.unlink()
+                    pruned += 1
+            except OSError:
+                failed += 1
+    except OSError:
+        failed += 1
+    out = {"status": "ok", "pruned": pruned, "retention_days": retention_days}
+    if failed:
+        out["failed"] = failed
+    return out
 
 
 # ─── 主入口 ─────────────────────────────────────────
@@ -1163,16 +1213,68 @@ def cmd_session_bootstrap(args: argparse.Namespace) -> None:
     skill_root = (Path(args.skill_root).resolve() if args.skill_root
                   else Path(__file__).resolve().parent.parent)
     cwd = Path.cwd()
-    project_root = find_project_root(cwd)
+    git_root = _git_project_root(cwd)
+    project_root = git_root if git_root is not None else cwd.resolve()
 
     # 每次必跑(轻量 · 幂等)· 版本号自读 SKILL.md frontmatter(单源 · 不由 AI 传)
     version_check = read_skill_version(skill_root)
     skill_version = version_check.get("version")
+
+    # 全局 housekeeping(~/.teamwork · 与项目无关 · 失败不阻塞)
+    logs_prune = prune_external_review_logs()
+
+    # 非 git 目录守卫:骨架/space/local-env 维护都以「项目仓库」为前提 ——
+    # 在家目录等任意 cwd 跑会铺一堆 teamwork 文件。跳过一切项目写盘动作
+    # (skeletons/space/local-env/gitignore/hooks/注入段/localconfig)·
+    # emit WARN gate 提示 cd 到项目再跑 · 恒 exit 0 不阻塞。
+    if git_root is None:
+        _skip = {"status": "skipped", "reason": "not_a_git_repo"}
+        result = {
+            "verdict": "PASS",  # silent · 不阻塞
+            "command": "session-bootstrap",
+            "pmo_must_read": (
+                "⚠️ 本输出是结构化 JSON · PMO 必**完整读** · "
+                f"🔴 当前目录不是 git 仓库(cwd={cwd})· 已跳过全部项目写盘维护 · "
+                "请 cd 到项目仓库根后重跑 bootstrap · flow_gates(1): not_a_git_repo"
+            ),
+            "timestamp": now_iso(),
+            "host": args.host,
+            "skill_root": str(skill_root),
+            "skill_version": skill_version,
+            "project_root": str(project_root),
+            "maintain_status": "skipped_not_a_git_repo",
+            "checks": {
+                "skill_version": version_check,
+                "skeletons": _skip,
+                "workspace_filename": _skip,
+                "teamwork_space": _skip,
+                "local_env": _skip,
+                "chmod": _skip,
+                "hooks": _skip,
+                "host_injection": _skip,
+                "gitignore_worktree": _skip,
+                "external_review_logs_prune": logs_prune,
+                "skill_update_check": {
+                    "status": "skipped",
+                    "reason": "not_a_git_repo(无项目 localconfig 可写缓存 · 不外呼)",
+                },
+                "knowledge_graph": _skip,
+            },
+            "flow_gates": [{
+                "gate": "not_a_git_repo",
+                "trigger": f"bootstrap 运行目录不是 git 仓库(cwd={cwd})",
+                "action": ("⚠️ WARN:已跳过骨架/space/local-env/gitignore/hooks/"
+                           "注入段全部写盘动作 · 请 cd 到项目仓库根后重跑 bootstrap"),
+                "spec": "SKILL.md § 项目级系统维护",
+            }],
+        }
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        sys.exit(0)
+
     skeletons = maintain_project_skeletons(skill_root, project_root)
     workspace_file = maintain_workspace_filename(project_root)  # legacy 下划线名迁移(先)
-    space_skeleton = maintain_teamwork_space(skill_root, project_root)  # v8.116:地图根自动建(后)
-    local_env = maintain_local_env(skill_root, project_root)  # v8.89:本地敏感配置目录
-    pending_v7 = scan_v7_state_json(project_root)
+    space_skeleton = maintain_teamwork_space(skill_root, project_root)  # 地图根自动建(后)
+    local_env = maintain_local_env(skill_root, project_root)  # 本地敏感配置目录
 
     # 版本门禁:marker 记录的版本 == 当前版本 → 跳过 maintain 4 项
     marker = read_bootstrap_marker(project_root)
@@ -1235,108 +1337,65 @@ def cmd_session_bootstrap(args: argparse.Namespace) -> None:
             "hooks": hooks_result,
             "host_injection": injection,
             "gitignore_worktree": gitignore,
-            "v7_features_pending_migrate": pending_v7,
+            "external_review_logs_prune": logs_prune,
         },
-        # v8.14:forewarn AI 下游硬墙 · 治本 PTR-F054 prepare 跳过 case
-        # 因果机制描述(非宣誓):AI 知道 init-feature 会 BLOCK · 主动先 prepare-check
-        # 避免「直跑 init-feature → BLOCKED → 回头 prepare → 重跑」round-trip
+        # forewarn AI 下游硬墙(因果机制描述 · 非宣誓)· gate 统一四字段:
+        # gate / trigger / action(一行结论)/ spec(文档指针 · 详情去读 spec)
         "flow_gates": [
             {
                 "gate": "prepare_check_required_before_init_feature",
                 "trigger": "state.py init-feature",
-                "checks": (
-                    "扫 ~/.teamwork/prepare_check_audit.jsonl · 找近 60min 匹配 "
-                    "--feature-id 前缀的 record · 无 → BLOCKED"
-                ),
                 "action": (
-                    "规划 Feature/Bug/Micro 时 · 先跑 `state.py prepare-check "
-                    "--feature-id-prefix <PREFIX> --features-root <abs> --flow-type <type>` · "
-                    "再 init-feature(prepare-check 输出含 next_available_id_stem · "
-                    "暂停点表格直接填)"
+                    "规划 Feature/Bug/Micro 时先跑 `state.py prepare-check "
+                    "--feature-id-prefix <PREFIX> --features-root <abs> "
+                    "--flow-type <type>` 再 init-feature · 否则 init-feature BLOCKED"
+                    "(bypass 仅 debug:TEAMWORK_BYPASS_PREPARE_CHECK=1)"
                 ),
-                "skip_consequence": (
-                    "init-feature 物化 FAIL · hint 指回 prepare-check · "
-                    "跳过这一步等于浪费一轮 round-trip"
-                ),
-                "bypass_env": "TEAMWORK_BYPASS_PREPARE_CHECK=1(仅 debug / migration)",
                 "spec": "docs/prepare.md § 0",
             }
         ],
     }
 
-    # v8.116:cold-start 解耦 —— teamwork-space.md(地图)已 bootstrap 自动建(maintain_teamwork_space)·
-    #   gate 不再 fire 于「无 teamwork-space.md」(地图自动有)· 改 fire 于「无 product-overview」
-    #   (产品规划上游缺失)· 保留 planning nudge(reframe)。地图 ≠ 规划:地图自动建 · 规划要人建。
-    #   承 v8.48 决策(产品规划优先)· teamwork-space.md 子项目清单仍由 product-overview ✅确认回填。
-    _AUTH_ORDER = ("product-overview(产品规划 · PL 引导模式)→ ✅确认 → 回填 teamwork-space.md 子项目清单"
-                   "(地图骨架已自动建)→ Feature Planning(拆 ROADMAP)→ Feature 状态机")
+    # cold-start:地图(teamwork-space.md)bootstrap 自动建 · 产品规划上游(product-overview)
+    # 要人建 —— gate fire 于后者缺失。子项目清单由 product-overview ✅确认回填(派生关系不变)。
     _po_exists = (project_root / "product-overview").is_dir()
-    _space_created = space_skeleton.get("status") == "created"
     if not _po_exists:
         result["flow_gates"].append({
             "gate": "cold_start_product_planning_recommended",
-            "trigger": ("session 启动 · 本项目无 product-overview/(产品规划上游缺失)· "
-                        "teamwork-space.md 地图骨架已 bootstrap 自动维护"),
-            "checks": ("project_root 无 product-overview/ · teamwork 面向复杂业务 · 建议补产品规划上游"
-                       "(愿景 / 业务架构 / 执行线列表)· 地图根 teamwork-space.md 已自动建"
-                       "(知识入口已探测 · 子项目清单待规划回填 · 空表时路由校验 SKIP)"),
+            "trigger": ("session 启动 · 本项目无 product-overview/(产品规划上游缺失 · "
+                        "地图根 teamwork-space.md 已 bootstrap 自动维护)"),
             "action": (
-                "🔴 PMO 本 session 首次响应前 emit R5 暂停点:地图根 teamwork-space.md 已自动建"
-                + ("(本 session 新建骨架)" if _space_created else "(已存在)")
-                + " · 但缺**产品规划上游** product-overview/(愿景/业务架构/执行线)· 选项:"
-                "1 进产品规划冷启动(PL 引导建 product-overview → ✅确认 → 回填 teamwork-space.md 子项目清单)💡 / "
-                "2 跳过直接做任务(单 Feature 快速 · 后续可补)/ 3 其他。"
-                "🔴 即使已有 PROJECT/ROADMAP(说明跳过了上游产品规划)· 仍 surface(让用户决定补否)"
-            ),
-            "skip_consequence": (
-                "跳过可直接做任务(用户拍板)· 但缺产品规划上游 → 多子项目 taxonomy / 待规划需求池 / "
-                "执行线对齐 / 跨项目追踪 缺失 · teamwork-space.md 子项目清单留空(路由校验 SKIP)· 后续可随时补"
-            ),
-            "teamwork_space_status": space_skeleton.get("status"),
-            "authoritative_order": _AUTH_ORDER,
-            "spec": ("PRODUCT-OVERVIEW-INTEGRATION.md(产品规划权威 · 引导模式建 product-overview)"
-                     "+ docs/feature-planning.md"),
-        })
-
-    # v8.46 A:检测 product-overview/ → flow_gates 加规划规范 gate(治本 Feature Planning 未物化漏洞)
-    # 根因:Feature Planning 不进状态机 · 无 state.py 兜底 · PRODUCT-OVERVIEW-INTEGRATION.md 纯靠 AI 自觉读
-    # session 启动时若项目有 product-overview/ · forewarn AI 规划类任务必读规范 + 跑 planning-check
-    if _po_exists:
-        result["flow_gates"].append({
-            "gate": "product_overview_planning_spec_required",
-            "trigger": "Feature Planning / 规划类任务(拆 ROADMAP · 更新 product-overview · 商业模式调整)",
-            "checks": (
-                "本项目存在 product-overview/ · 规划有独立状态机"
-                "(📝草稿 / 🔄讨论中 / ⏸️待确认 / ✅已确认)· 不进 teamwork stage 状态机"
-            ),
-            "action": (
-                "规划类任务**先跑** `state.py planning-check --project-root <abs>`(emit 规划状态 "
-                "checklist + 必读规范 + 🔴 `worktree_setup`:规划产出文档+全景代码 · **进流程先建临时 "
-                "worktree** 隔离〔同 feature 策略 · 防污染主分支/撞并行基线〕)· 必读 "
-                "PRODUCT-OVERVIEW-INTEGRATION.md(加载规则 + 状态管理 + 议题追踪)· 维护规划状态表 · "
-                "仅「✅ 已确认」内容才影响 teamwork-space.md / 下游执行"
-            ),
-            "skip_consequence": (
-                "AI 没读规范 → 不维护规划状态表 / 草稿态内容误影响下游 / 议题追踪缺失。"
-                "Feature Planning 不进状态机 · 无 stage 物化兜底 · 这是 v8 物化盲区(v8.46 用 gate 提示补)"
+                "🔴 PMO 本 session 首次响应前 emit R5 暂停点(即使已有 PROJECT/ROADMAP 仍 surface):"
+                "1 进产品规划冷启动(PL 引导建 product-overview → ✅确认 → 回填 "
+                "teamwork-space.md 子项目清单)💡 / 2 跳过直接做任务(后续可补 · "
+                "子项目清单留空时路由校验 SKIP)/ 3 其他"
             ),
             "spec": "PRODUCT-OVERVIEW-INTEGRATION.md + docs/feature-planning.md",
         })
 
-    # v8.21:写 host audit(跨 session 全局 host 记忆 · 治本 PMO 还要传 --host 心智)
-    # 下游命令(state.py external-review 等)自动读 · PMO 不需要再传 --host
-    host_audit_ok = write_host_audit(args.host)
-    result["checks"]["host_audit"] = {
-        "status": "written" if host_audit_ok else "write_failed",
-        "path": str(_host_audit_path()),
-    }
+    # 有 product-overview/ → 规划类任务必读规范 gate(Feature Planning 不进状态机 ·
+    # 无 state.py 兜底 · 物化盲区用 forewarn gate 补)
+    if _po_exists:
+        result["flow_gates"].append({
+            "gate": "product_overview_planning_spec_required",
+            "trigger": ("Feature Planning / 规划类任务(拆 ROADMAP · 更新 product-overview · "
+                        "商业模式调整)"),
+            "action": (
+                "规划类任务**先跑** `state.py planning-check --project-root <abs>`"
+                "(emit 规划状态 checklist + worktree_setup)· 必读 "
+                "PRODUCT-OVERVIEW-INTEGRATION.md · 仅「✅ 已确认」内容才影响 "
+                "teamwork-space.md / 下游执行"
+            ),
+            "spec": "PRODUCT-OVERVIEW-INTEGRATION.md + docs/feature-planning.md",
+        })
 
-    # v8.24:检测 GitHub 上 skill 最新版本 · 落后 emit R5 1/2 选项暂停点
-    # 网络失败 silent skip 不阻塞 bootstrap · 治本 PMO 不知何时升级
-    # v8.39:加 channel 支持(默认 main · 用户可配 .teamwork_localconfig.json.update_channel)
+    # 检测 GitHub 上 skill 最新版本 · 落后 emit R5 1/2 选项暂停点
+    # 24h TTL 缓存(localconfig._bootstrap)· 网络失败 silent skip 不阻塞 ·
+    # TEAMWORK_FORCE_UPDATE_CHECK=1 强制实查 · channel 可配 update_channel
     if skill_version:
         channel = _read_update_channel(project_root)
-        result["checks"]["skill_update_check"] = check_skill_update(skill_version, channel)
+        result["checks"]["skill_update_check"] = check_skill_update_cached(
+            skill_version, channel, project_root)
     else:
         result["checks"]["skill_update_check"] = {
             "status": "skipped",

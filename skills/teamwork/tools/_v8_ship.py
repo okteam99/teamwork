@@ -26,6 +26,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
@@ -52,14 +53,19 @@ SHIP_ACTIONS = ("sanitize", "archive", "push", "close-unmerged")
 # v8.70:main-sync 净化策略(ship 后主工作区 user-dirty 决策的执行选项)
 MAIN_SYNC_STRATEGIES = ("commit-push", "stash-pull", "skip")
 
-SHIP_PHASE_ENUM = (None, "archived", "pushed", "merged", "closed_unmerged")  # v8.145 +archived
-SHIP_SHIPPED_ENUM = (None, "archived", "pushed", "merged", "closed_unmerged", "abandoned", "failed")
+# ship.phase / ship.shipped 枚举单源在 state.py(SHIP_PHASE_ENUM / SHIP_SHIPPED_ENUM ·
+# 校验发生在那边)· 本文件不再重复定义。
 SHIP_GIT_HOSTS = ("github", "gitlab", "gitlab-self-hosted", "gitee", "bitbucket", "unknown")
 SHIP_MR_METHODS = ("cli-gh", "cli-glab", "url-fallback", "unknown-platform")
 
 # v8.81:ship1 知识沉淀闸门 · 知识层 6 项(随 feature MR graduate · 详 stages/ship-stage.md §13)
 # 「描述代码的文档随代码进 MR」· 每项 sanitize 前必记一条决策(updated / none)· 强制走一遍。
 DISTILL_KEYS = ("knowledge", "adr", "reg", "retro", "architecture", "db_schema")
+
+# 流程减负:Micro(文案/样式/配置 · 零逻辑)distill 简表 —— 只强制 knowledge 一键
+# (gotcha 沉淀 · 最可能有信号的一项)· 其余 5 键缺省自动填 MICRO_DISTILL_AUTO。
+MICRO_DISTILL_REQUIRED = ("knowledge",)
+MICRO_DISTILL_AUTO = "无(Micro)"
 
 # v8.82:ship2 归档本体 · 过程层 feature 目录交付后 zip 进 features/_archive/ · 原目录从
 # merge_target 删(防 AI 检索过时 feature 信息 · 代码是唯一真相)· 随收尾 MR 一起合(MR 合入后)。
@@ -152,18 +158,28 @@ def _validate_distill(args: argparse.Namespace, state: dict) -> dict:
 
     R0:强制 AI 逐项走一遍知识层(每项记 promoted/none · 证明已沉淀)· 质量留 AI ·
     「走没走」进脚本。+ 迁移↔schema 机械校验。详 stages/ship-stage.md §13。
+
+    流程减负 · Micro 简表:flow_type=Micro 只强制 knowledge 一键(gotcha)· 其余 5 键
+    缺省自动填「无(Micro)」(零逻辑改动 · 逐项走 6 键是无信号仪式)。其他 flow 行为不变。
     """
+    is_micro = state.get("flow_type") == "Micro"
+    required_keys = MICRO_DISTILL_REQUIRED if is_micro else DISTILL_KEYS
     raw = getattr(args, "distill", None)
     if not raw:
-        emit_json({
-            "verdict": "FAIL", "stage": "ship", "action": "sanitize",
-            "error": "缺 --distill(ship1 知识沉淀闸门 · v8.81)",
-            "hint": ("ship 前必把「描述代码」的知识 graduate 到知识层(随本次 feature MR)· "
+        micro_hint = (
+            "Micro 简表:--distill '" + json.dumps({"knowledge": "..."}, ensure_ascii=False)
+            + "'(只强制 knowledge 一键 · 填 gotcha 或 'none' · 其余 5 键自动填「无(Micro)」)"
+        )
+        full_hint = ("ship 前必把「描述代码」的知识 graduate 到知识层(随本次 feature MR)· "
                      "逐项决策 --distill '"
                      + json.dumps({k: "..." for k in DISTILL_KEYS}, ensure_ascii=False)
                      + "'(每项填 'updated/promoted <what>' 或 'none'/'n/a' · 无则显式 none · "
-                     "详 ship-stage.md §13)"),
-            "distill_keys": list(DISTILL_KEYS),
+                     "详 ship-stage.md §13)")
+        emit_json({
+            "verdict": "FAIL", "stage": "ship", "action": "sanitize",
+            "error": "缺 --distill(ship1 知识沉淀闸门 · v8.81)",
+            "hint": micro_hint if is_micro else full_hint,
+            "distill_keys": list(required_keys),
         }, exit_code=1)
     try:
         d = json.loads(raw)
@@ -173,14 +189,20 @@ def _validate_distill(args: argparse.Namespace, state: dict) -> dict:
     if not isinstance(d, dict):
         emit_json({"verdict": "FAIL", "stage": "ship", "action": "sanitize",
                    "error": "--distill 必须是 JSON 对象(知识层 6 项决策)"}, exit_code=1)
-    missing = [k for k in DISTILL_KEYS
+    missing = [k for k in required_keys
                if not (isinstance(d.get(k), str) and d[k].strip())]
     if missing:
         emit_json({
             "verdict": "FAIL", "stage": "ship", "action": "sanitize",
             "error": f"--distill 缺项 / 空值:{missing}",
-            "hint": "6 项全填(无则 'none'/'n/a' · 证明已逐项判断):" + " / ".join(DISTILL_KEYS),
+            "hint": ("Micro 只强制 knowledge 一键(gotcha 或 'none' · 其余自动填「无(Micro)」)"
+                     if is_micro else
+                     "6 项全填(无则 'none'/'n/a' · 证明已逐项判断):" + " / ".join(DISTILL_KEYS)),
         }, exit_code=1)
+    if is_micro:
+        for k in DISTILL_KEYS:
+            if not (isinstance(d.get(k), str) and d[k].strip()):
+                d[k] = MICRO_DISTILL_AUTO
     _check_migration_schema(args.feature, state.get("merge_target") or "", d)
     rec = {k: d[k].strip() for k in DISTILL_KEYS}
     rec["distilled_at"] = now_iso()
@@ -314,10 +336,11 @@ def _handle_ship_push(state: dict, args: argparse.Namespace) -> dict:
     ship.setdefault("started_at", now_iso())
 
     cur_phase = ship.get("phase")
-    if cur_phase != "archived":
+    if cur_phase not in ("archived", "pushed"):
         emit_json(
             _phase_err(cur_phase, "pushed",
-                       "v8.145:push 仅允许 archived → pushed —— 先跑 ship-phase --action archive"
+                       "push 仅允许 archived → pushed(pushed 重跑 = 幂等重录 · 覆盖登记)"
+                       "—— 先跑 ship-phase --action archive"
                        "(归档+翻牌进 feature 分支 · ship1 全交付)再 push + MR"),
             exit_code=1,
         )
@@ -415,6 +438,12 @@ def _handle_ship_push(state: dict, args: argparse.Namespace) -> dict:
             "error": "--feature-head-commit 必传(push 后的 commit hash)",
         }, exit_code=1)
 
+    # pushed → pushed:幂等重录(MR 重开 / URL·head 修正)· 允许覆盖登记 · concerns 留痕
+    if cur_phase == "pushed":
+        state.setdefault("concerns", []).append(
+            f"{now_iso()} WARN ship-push 重录:phase 已是 pushed · "
+            f"覆盖 feature_head_commit/mr_url 登记(旧 mr_url={ship.get('mr_url')!r})")
+
     # 更新 ship 字段
     ship["phase"] = "pushed"
     ship["shipped"] = "pushed"
@@ -431,6 +460,7 @@ def _handle_ship_push(state: dict, args: argparse.Namespace) -> dict:
         "action": "push",
         "transition": f"{cur_phase} → pushed",
         "phase": "pushed",
+        **({"rerecorded": True} if cur_phase == "pushed" else {}),
         "mr_url": ship["mr_url"],
         "mr_create_url": ship["mr_create_url"],
         "next_action_brief": (
@@ -493,16 +523,28 @@ def _conflicted_files(wt_root: str) -> list:
 
 
 def _own_index_row(wt_root: str, index_rel: str, feature_id: str) -> Optional[str]:
-    """从本分支(HEAD 或工作树)INDEX.md 抽本 feature 的行(冲突自动解时重放用)。"""
-    for ref in (f"HEAD:{index_rel}",):
-        r = _git(["show", ref], cwd=wt_root)
-        if r.returncode != 0:
-            continue
-        for line in r.stdout.splitlines():
-            cells = [c.strip() for c in line.strip().strip("|").split("|")]
-            if cells and cells[0] == feature_id:
-                return line.strip()
+    """从本分支 HEAD 的 INDEX.md 抽本 feature 的行(冲突自动解时重放用)。"""
+    r = _git(["show", f"HEAD:{index_rel}"], cwd=wt_root)
+    if r.returncode != 0:
+        return None
+    for line in r.stdout.splitlines():
+        cells = [c.strip() for c in line.strip().strip("|").split("|")]
+        if cells and cells[0] == feature_id:
+            return line.strip()
     return None
+
+
+def _index_has_row(content: str, feature_id: str) -> bool:
+    """INDEX 内容里是否已有本 feature 的行 —— 表格首列单元格精确匹配
+    (子串判断会把 F001 误认成 F0012 的行 · 导致本 feature 行漏重放)。"""
+    for line in content.splitlines():
+        s = line.strip()
+        if not s.startswith("|"):
+            continue
+        cells = [c.strip() for c in s.strip("|").split("|")]
+        if cells and cells[0] == feature_id:
+            return True
+    return False
 
 
 def _try_append_union_resolve(wt_root: str, rel: str) -> bool:
@@ -564,8 +606,9 @@ def _sync_feature_branch(wt_root: str, merge_target: str, index_rel: str,
          追加表语义明确 · 可枚举进脚本)
       ③ 其余冲突(代码/规划文件)→ 留 AI 在 worktree 评估处理(不可枚举 ·
          LEDGER 类提示 union)
-    返回 {status: up_to_date|merged_clean|index_auto_resolved|conflict|merge_in_progress,
-          conflict_files: [...], behind: int}。
+    返回 {status: up_to_date|merged_clean|auto_resolved|conflict|merge_in_progress|
+          local_dirty|fetch_failed, conflict_files: [...], behind: int}
+    (local_dirty = 本地未提交改动挡住 merge · git 拒绝启动 · 非冲突)。
     """
     if _merge_in_progress(wt_root):
         return {"status": "merge_in_progress",
@@ -581,6 +624,14 @@ def _sync_feature_branch(wt_root: str, merge_target: str, index_rel: str,
     mg = _git(["merge", "--no-edit", f"origin/{merge_target}"], cwd=wt_root, timeout=120)
     if mg.returncode == 0:
         return {"status": "merged_clean", "conflict_files": [], "behind": behind}
+    # merge 因本地未提交改动被 git 拒绝(根本没启动 · 非冲突):U 列表为空 ·
+    # 走冲突路径会误 commit / 误诊 —— 单列 status 由调用方给对症指引
+    blob = (mg.stderr or "") + "\n" + (mg.stdout or "")
+    if not _merge_in_progress(wt_root) and (
+            "would be overwritten" in blob
+            or "Please commit your changes or stash them" in blob):
+        return {"status": "local_dirty", "conflict_files": [], "behind": behind,
+                "detail": blob.strip()[:400]}
     conflicts = _conflicted_files(wt_root)
     auto_resolved: list = []
     # ② INDEX.md 机械自动解:origin 侧为基(最新已合状态)+ 重放本 feature 行
@@ -591,7 +642,7 @@ def _sync_feature_branch(wt_root: str, merge_target: str, index_rel: str,
             content = base.stdout
             if not content.endswith("\n"):
                 content += "\n"
-            if feature_id not in content:
+            if not _index_has_row(content, feature_id):
                 content += own_row + "\n"
             (Path(wt_root) / index_rel).write_text(content, encoding="utf-8")
             _git(["add", "--", index_rel], cwd=wt_root)
@@ -683,6 +734,20 @@ def _handle_ship_archive(state: dict, args: argparse.Namespace) -> dict:
         sync = _sync_feature_branch(wt_root, merge_target, index_rel, feature_id)
         if sync["status"] in ("conflict", "merge_in_progress"):
             _sync_conflict_pending("archive", sync, args.feature)  # emit PENDING + exit
+        if sync["status"] == "local_dirty":
+            emit_json({
+                "verdict": "PENDING", "stage": "ship", "action": "archive",
+                "pending_step": "local-dirty",
+                "detail": sync.get("detail", ""),
+                "next_action": (
+                    "🔴 worktree 有未提交本地改动挡住与 origin 的同步(git 拒绝启动 merge · "
+                    "非冲突 · 文件清单见 detail):\n"
+                    "  ① 内容性改动(规划翻牌等)→ `git add` + `git commit`"
+                    "(它们本该进 feature 分支);纯临时文件 → `git stash -u` 或移出 worktree\n"
+                    f"  ② 重跑 state.py ship-phase --action archive --feature {args.feature}"
+                    "(幂等)"
+                ),
+            }, exit_code=0)
         if sync["status"] == "fetch_failed":
             sync_note = (f"⚠️ sync fetch 失败({sync.get('error', '')})· 冲突防线降级 · "
                          "MR 若报冲突 → 网络恢复后重跑 archive 同步")
@@ -746,7 +811,31 @@ def _handle_ship_archive(state: dict, args: argparse.Namespace) -> dict:
     # v8.156:过程信息嗅探(INDEX 是业务索引 · 不该灌评审/测试过程数据)· WARN 不 BLOCK
     desc_warn = _archive_desc_process_smell(archive_desc)
 
-    # 终态 state.json(zip 快照 = 墓碑 · 宣称随 MR 合入与落地原子可见)
+    # 终态 state.json(zip 快照 = 墓碑 · 宣称随 MR 合入与落地原子可见)。
+    # 🔴 终态只为 zip 打包临时落盘 · 打包完即恢复原文件:终态的持久化推迟到归档 commit
+    # 成功之后(cmd_ship_phase 出口统一 save_state)—— commit 失败时磁盘不留
+    # completed/archived 假象(宣称不得先于归档落地)。
+    state_path = artifact_root / "state.json"
+    try:
+        _orig_state_raw = state_path.read_text(encoding="utf-8")
+    except OSError:
+        _orig_state_raw = None
+    _orig_state = json.loads(json.dumps(state))
+
+    def _restore_orig_state_file() -> None:
+        if _orig_state_raw is not None:
+            try:
+                state_path.write_text(_orig_state_raw, encoding="utf-8")
+            except OSError:
+                pass
+
+    def _rollback_archive_fail(payload: dict) -> None:
+        """归档 commit 未成 → 内存/磁盘回到进入时状态 · emit FAIL(可重入重跑)。"""
+        state.clear()
+        state.update(_orig_state)
+        _restore_orig_state_file()
+        emit_json(payload, exit_code=1)
+
     ship["phase"] = "archived"
     ship["shipped"] = "archived"
     ship["archived_at"] = now_iso()
@@ -764,22 +853,31 @@ def _handle_ship_archive(state: dict, args: argparse.Namespace) -> dict:
     cs = state.setdefault("completed_stages", [])
     if "ship" not in cs:
         cs.append("ship")
-    save_state(artifact_root / "state.json", state)
+    save_state(state_path, state)
     try:
         write_review_log_entry(state, artifact_root, "ship", "completed", contract)
     except Exception:
         pass
 
-    # zip + INDEX(物理写工作树)
-    zip_bytes = _build_archive_zip(artifact_root)
-    zip_abs = Path(wt_root) / zip_rel
-    zip_abs.parent.mkdir(parents=True, exist_ok=True)
-    zip_abs.write_bytes(zip_bytes)
-    index_abs = Path(wt_root) / index_rel
-    index_abs.write_text(
-        _build_archive_index(wt_root, "HEAD", index_rel, feature_id, now_iso(),
-                             archive_desc=archive_desc),
-        encoding="utf-8")
+    # zip + INDEX(物理写工作树)· 磁盘 IO 失败按 JSON 契约报错(不裸 traceback)并回滚
+    try:
+        zip_bytes = _build_archive_zip(artifact_root)
+        zip_abs = Path(wt_root) / zip_rel
+        zip_abs.parent.mkdir(parents=True, exist_ok=True)
+        zip_abs.write_bytes(zip_bytes)
+        index_abs = Path(wt_root) / index_rel
+        index_abs.write_text(
+            _build_archive_index(wt_root, "HEAD", index_rel, feature_id, now_iso(),
+                                 archive_desc=archive_desc),
+            encoding="utf-8")
+    except OSError as e:
+        _rollback_archive_fail({
+            "verdict": "FAIL", "action": "archive",
+            "error": f"归档产物写入失败:{e}",
+            "hint": "检查磁盘空间 / 路径权限 · 修复后重跑(可重入 · state 已回滚)"})
+
+    # zip 已含终态墓碑 → 磁盘接力卡先恢复原状态(终态落盘等归档 commit 成功后由出口 save)
+    _restore_orig_state_file()
 
     # v8.180:确定性自刷 WS 进度块 —— 翻牌后从 feature 自解析所属 WS(F-id→ROADMAP 对应F编号→关联WS)
     # + 跑 ws-progress --write · 纳进归档 commit。治本:WS 进度块更新原是软指令(§3.5)· yolo 自主
@@ -800,26 +898,27 @@ def _handle_ship_archive(state: dict, args: argparse.Namespace) -> dict:
     # git rm --cached(index only · 工作树保留 = ship2 接力卡)→ add → 单 commit
     rm = _git(["rm", "-r", "-q", "--cached", "--ignore-unmatch", feature_rel], cwd=wt_root)
     if rm.returncode != 0:
-        emit_json({"verdict": "FAIL", "action": "archive",
-                   "error": f"git rm --cached {feature_rel} 失败:{rm.stderr.strip()[:150]}"},
-                  exit_code=1)
+        _rollback_archive_fail({
+            "verdict": "FAIL", "action": "archive",
+            "error": f"git rm --cached {feature_rel} 失败:{rm.stderr.strip()[:150]}"})
     adds = [zip_rel, index_rel] + [rel for rel, _ in planning_files]
     if ws_refreshed and ws_refreshed not in adds:
         adds.append(ws_refreshed)        # v8.180:自刷的 WS 进度块文档纳进归档 commit
     ad = _git(["add", "--", *adds], cwd=wt_root)
     if ad.returncode != 0:
-        emit_json({"verdict": "FAIL", "action": "archive",
-                   "error": f"git add 归档产物失败:{ad.stderr.strip()[:150]}"},
-                  exit_code=1)
+        _rollback_archive_fail({
+            "verdict": "FAIL", "action": "archive",
+            "error": f"git add 归档产物失败:{ad.stderr.strip()[:150]}"})
     plan_seg = (f" + 规划翻牌 {len(planning_files)} 文件" if planning_files else "")
     cm = _git(["commit", "-m",
                f"chore({feature_id}): ship1 archive · 过程层 → _archive/{feature_id}.zip{plan_seg}"],
               cwd=wt_root)
     if cm.returncode != 0:
-        emit_json({"verdict": "FAIL", "action": "archive",
-                   "error": f"归档 commit 失败:{cm.stderr.strip()[:200]}",
-                   "hint": "检查 git user 配置 / hooks · 修复后重跑(可重入)"},
-                  exit_code=1)
+        _rollback_archive_fail({
+            "verdict": "FAIL", "action": "archive",
+            "error": f"归档 commit 失败:{cm.stderr.strip()[:200]}",
+            "hint": ("检查 git user 配置 / hooks · 修复后重跑(可重入)· "
+                     "终态未持久化(state 已回滚到进入时状态)")})
     head = git_head(cwd=wt_root) or ""
 
     return {
@@ -1262,16 +1361,16 @@ def _list_teamwork_stashes(main_wt: str) -> list:
 
 
 def _audit_dir() -> Path:
-    """v8.148:流程质量审计回收目录 · 默认 skill 安装目录 docs/audit/ · env 可 override(测试用)。
+    """流程质量审计回收目录 · 默认 `~/.teamwork/audit/` · env TEAMWORK_AUDIT_DIR 可 override(测试用)。
 
-    🔴 安装目录(非框架仓)= 本机所有 consuming 项目共享的回收点 —— 框架层面跨项目搜集流程质量。
-    docs/audit/ 运行时文件抗 update.py 覆盖(_overwrite_skill_files「不删 target 多余文件」)。
+    🔴 本机所有 consuming 项目共享的回收点 —— 框架层面跨项目搜集流程质量。
+    与 backups / prepare_check_audit 同域(~/.teamwork)· 运行时数据不落 skill 安装目录
+    (审计只写不读 · 无需从旧位置 docs/audit/ 迁移)。
     """
     env = os.environ.get("TEAMWORK_AUDIT_DIR")
     if env:
         return Path(env)
-    skill_root = Path(__file__).resolve().parent.parent  # tools/ → skill 根
-    return skill_root / "docs" / "audit"
+    return Path.home() / ".teamwork" / "audit"
 
 
 def _feature_duration_h(state: dict) -> Optional[str]:
@@ -1335,7 +1434,7 @@ def _stage_durations(state: dict):
 
 def _write_audit_record(state: dict, feature_id: str, merge_target: str,
                         main_wt: str, main_model: Optional[str] = None) -> Optional[str]:
-    """v8.148(用户拍板):ship2 后落「流程质量审计」到安装目录 docs/audit/<id>.md ·
+    """ship2 后落「流程质量审计」到 ~/.teamwork/audit/<id>.md(_audit_dir)·
     框架层面跨项目搜集流程质量。
 
     机器数据(实走 stages / 时长 / concerns / bypass)工具确定性抽(喂 kill-criteria 决策
@@ -1709,23 +1808,39 @@ def _main_sync_brief(state: dict, strategy: str, res: dict) -> str:
     return "\n".join(lines)
 
 
-def _reclaim_stashes(main_wt, drop_all: bool = False) -> dict:
+def _stash_hashes(main_wt) -> set:
+    """当前全部 stash 的 commit hash 集(净化策略执行前快照用)· 列取失败返空集
+    (空集 = drop_all 全部按「新建」排除 · 只保不删 · 安全方向)。"""
+    r = _git(["stash", "list", "--format=%H"], cwd=main_wt, timeout=15)
+    if r.returncode != 0:
+        return set()
+    return {ln.strip() for ln in r.stdout.splitlines() if ln.strip()}
+
+
+def _reclaim_stashes(main_wt, drop_all: bool = False,
+                     preexisting: Optional[set] = None) -> dict:
     """v8.190:回收 teamwork main-sync auto-stash(治本 harvest 26×:stash-pull 每次备份不 pop ·
     跨 feature/session 累积 11+ · human 难判哪些可 drop)。
 
     🔴 只认 **teamwork 自建**的 main-sync stash(消息含标识)· 绝不碰用户自己的 stash。
     默认(drop_all=False):只 drop **可证冗余的**(空 / 内容已在分支 · `git apply --reverse --check` 通过)·
     其余含未合内容的 surface。drop_all=True(用户 --drop-stashes 确认)→ 全清 teamwork main-sync stash。
+    preexisting:本次净化策略执行前的 stash hash 快照 —— drop_all 只清快照中已存在的 ·
+    本次策略(stash-pull)刚建的备份不在快照 → 排除不 drop(否则「全清」把新备份一起清掉)。
+    None = 不排除(直接调用场景)。
     """
     def _tw_stashes():
-        r = _git(["stash", "list", "--format=%gd%x09%s"], cwd=main_wt, timeout=15)
+        r = _git(["stash", "list", "--format=%gd%x09%H%x09%s"], cwd=main_wt, timeout=15)
         out = []
         for ln in (r.stdout or "").splitlines():
-            ref, _, subj = ln.partition("\t")
+            parts = ln.split("\t", 2)
+            if len(parts) != 3:
+                continue
+            ref, sha, subj = parts
             m = re.match(r"stash@\{(\d+)\}", ref.strip())
             if m and ("teamwork main-sync stash" in subj or "净化主工作区遗留" in subj
                       or re.search(r"\bmain-sync\b", subj)):
-                out.append((int(m.group(1)), ref.strip(), subj.strip()))
+                out.append((int(m.group(1)), ref.strip(), sha.strip(), subj.strip()))
         return out
 
     tw = _tw_stashes()
@@ -1734,26 +1849,45 @@ def _reclaim_stashes(main_wt, drop_all: bool = False) -> dict:
 
     def _redundant(ref):
         # 🔴 --include-untracked:含新增文件(否则只 stash 了 untracked 的会被误判为空 diff)
-        diff = _git(["stash", "show", "-p", "--include-untracked", ref],
-                    cwd=main_wt, timeout=20).stdout or ""
+        show = _git(["stash", "show", "-p", "--include-untracked", ref],
+                    cwd=main_wt, timeout=20)
+        if show.returncode != 0:
+            return False  # 取不到 diff(timeout / 老 git 不支持等)→ 不可证冗余 · 保留
+        diff = show.stdout or ""
         if not diff.strip():
-            return True   # 真空 stash → 安全 drop
-        chk = subprocess.run(["git", "-C", str(main_wt), "apply", "--reverse", "--check"],
-                             input=diff, capture_output=True, text=True, timeout=20)
+            return True   # 真空 stash(returncode==0 且 diff 空)→ 安全 drop
+        try:
+            chk = subprocess.run(["git", "-C", str(main_wt), "apply", "--reverse", "--check"],
+                                 input=diff, capture_output=True, text=True, timeout=20)
+        except (subprocess.SubprocessError, OSError):
+            return False  # 校验跑不起来 → 不可证冗余 · 保留
         return chk.returncode == 0   # 反向 patch 可 apply = 内容已在树 → 安全 drop
 
-    drop_idx = [idx for idx, ref, _ in tw if drop_all or _redundant(ref)]
+    excluded_new = 0
+    drop_idx = []
+    for idx, ref, sha, _subj in tw:
+        if drop_all:
+            if preexisting is not None and sha not in preexisting:
+                excluded_new += 1   # 本次策略新建的备份 · 全清也不碰
+                continue
+            drop_idx.append(idx)
+        elif _redundant(ref):
+            drop_idx.append(idx)
     for idx in sorted(drop_idx, reverse=True):   # 高 index 先 drop · 低 ref 不移位
         _git(["stash", "drop", f"stash@{{{idx}}}"], cwd=main_wt, timeout=15)
 
     def _label(subj):
         m = re.search(r"·\s*([\w.-]+)\s*$", subj)
         return m.group(1) if m else subj[:40]
-    rem = [{"ref": r, "feature": _label(s)} for _, r, s in _tw_stashes()]  # 重列拿新 ref
+    rem = [{"ref": r, "feature": _label(s)} for _, r, _, s in _tw_stashes()]  # 重列拿新 ref
     out = {"teamwork_stashes": len(tw), "dropped": len(drop_idx),
-           "dropped_reason": ("--drop-stashes(用户确认全清)" if drop_all
+           "dropped_reason": (("--drop-stashes(用户确认全清"
+                               + (f" · 排除本次新建 {excluded_new} 个)" if excluded_new else ")"))
+                              if drop_all
                               else "空 / 内容已在分支(可证冗余 · 安全)"),
            "remaining_count": len(rem), "remaining": rem}
+    if excluded_new:
+        out["excluded_new"] = excluded_new
     if rem:
         out["hint"] = (f"剩 {len(rem)} 个 teamwork main-sync stash 含**未合内容** · 逐个 "
                        "`git stash show -p <ref>` 核 · 确不需要 → `main-sync --drop-stashes` 全清")
@@ -1809,12 +1943,17 @@ def cmd_main_sync(args: argparse.Namespace) -> None:
             "hint": "检查网络 / remote 配置 · 修复后重跑",
         }, exit_code=1)
 
+    # 策略执行前快照现有 stash(hash)—— --drop-stashes 全清只清快照内的 ·
+    # 本次 stash-pull 新建的备份排除(刚备份就被「全清」删掉 = 数据丢失)
+    pre_stashes = _stash_hashes(main_wt)
+
     res = _main_sync_apply_strategy(
         main_wt, merge_target, artifact_root, state, args.strategy,
         message=getattr(args, "message", None))
 
     # v8.190:回收 teamwork main-sync auto-stash(治 harvest 26× 累积无回收)· 默认只 drop 可证冗余的
-    reclaim = _reclaim_stashes(main_wt, drop_all=getattr(args, "drop_stashes", False))
+    reclaim = _reclaim_stashes(main_wt, drop_all=getattr(args, "drop_stashes", False),
+                               preexisting=pre_stashes)
 
     emit_json({
         "verdict": "PASS",
@@ -1927,6 +2066,58 @@ def cmd_ship_finalize(args: argparse.Namespace) -> None:
             skipped.append("worktree-remove")
             wt_removed = True
         else:
+            # --force 删除前置检查:worktree 内除接力卡(feature 目录及其子路径)外
+            # 仍有 dirty/untracked → 不删(--force 会连带销毁)· PENDING 交 AI/用户处置。
+            # 已 commit 未 push 的分支内容由下方 branch -d(未合并即拒删)兜底 · 不在此检查。
+            st = _git(["status", "--porcelain"], cwd=wt_path, timeout=30)
+            if st.returncode != 0:
+                emit_json({
+                    "verdict": "PENDING", "command": "ship-finalize",
+                    "pending_step": "worktree-remove",
+                    "feature_id": feature_id,
+                    "completed_steps": completed,
+                    "error": f"worktree 内 git status 失败:{st.stderr.strip()[:150]}",
+                    "next_action": (
+                        "无法确认 worktree 是否干净 · 不执行删除。修复后重跑 "
+                        f"state.py ship-finalize --feature {args.feature}(可重入)"),
+                    **({"warnings": warnings} if warnings else {}),
+                }, exit_code=0)
+            try:
+                feat_rel_wt = str(feature_dir.relative_to(Path(wt_path)))
+            except ValueError:
+                try:
+                    feat_rel_wt = str(
+                        feature_dir.resolve().relative_to(Path(wt_path).resolve()))
+                except (ValueError, OSError):
+                    feat_rel_wt = None
+            leftover = []
+            for line in st.stdout.splitlines():
+                if len(line) < 4:
+                    continue
+                p = line[3:].strip()
+                if " -> " in p:
+                    p = p.split(" -> ", 1)[1].strip()
+                p = p.strip('"').rstrip("/")
+                if feat_rel_wt and (p == feat_rel_wt
+                                    or p.startswith(feat_rel_wt + "/")):
+                    continue  # 接力卡目录 archive 后本就 untracked · 属预期
+                leftover.append(p)
+            if leftover:
+                emit_json({
+                    "verdict": "PENDING", "command": "ship-finalize",
+                    "pending_step": "worktree-remove",
+                    "feature_id": feature_id,
+                    "completed_steps": completed,
+                    "dirty_count": len(leftover),
+                    "dirty_files": leftover[:20],
+                    "next_action": (
+                        f"🔴 worktree 内有接力卡之外的未提交内容({len(leftover)} 个 · "
+                        "见 dirty_files)· --force 删 worktree 会连带销毁 —— 逐个核:\n"
+                        "  · 要保留 → 移出 worktree(MR 已合 · 后续内容走新分支/MR)\n"
+                        "  · 确认丢弃 → 在 worktree 内删除/还原这些文件\n"
+                        f"  然后重跑 state.py ship-finalize --feature {args.feature}(可重入)"),
+                    **({"warnings": warnings} if warnings else {}),
+                }, exit_code=0)
             rm = _git(["worktree", "remove", "--force", wt_path],
                       cwd=main_wt, timeout=60)
             if rm.returncode != 0:
@@ -1995,8 +2186,6 @@ def cmd_ship_finalize(args: argparse.Namespace) -> None:
                 main_sync_decision = _build_main_sync_decision(
                     args.feature, merge_target, state, dirty, pulled=False)
         # 同步:有本地 commit(副产物/用户先前的)→ pull --rebase + push;否则 ff-pull
-        if main_sync_status not in ("user_dirty_decision",) or not dirty["other_files"]:
-            pass
         ba = _behind_ahead(main_wt, merge_target)
         ahead = ba[1] if ba else 0
         if main_sync_status != "user_dirty_decision":
@@ -2046,7 +2235,7 @@ def cmd_ship_finalize(args: argparse.Namespace) -> None:
     if fp:
         zip_hint = fp[1]
 
-    # ── v8.148:流程质量审计落安装目录 docs/audit/(框架跨项目搜集)· AI 静默补判断 ──
+    # ── 流程质量审计落 ~/.teamwork/audit/(框架跨项目搜集)· AI 静默补判断 ──
     audit_record = _write_audit_record(state, feature_id, merge_target, main_wt,
                                        getattr(args, "main_model", None))
 
@@ -2081,6 +2270,74 @@ def cmd_ship_finalize(args: argparse.Namespace) -> None:
 
 
 # ─── argparse 注册 ──────────────────────────────────────────────
+
+
+
+def _mr_state(mr_url: str) -> str:
+    """查 MR/PR 状态 → 'MERGED' / 'OPEN' / 'CLOSED' / 'UNKNOWN'(命令失败)。GitHub gh / GitLab glab。"""
+    try:
+        if "github.com" in mr_url:
+            r = _git_run(["gh", "pr", "view", mr_url, "--json", "state"], timeout=30)
+            if r.returncode == 0:
+                return (json.loads(r.stdout).get("state") or "UNKNOWN").upper()
+        else:
+            r = _git_run(["glab", "mr", "view", mr_url, "-F", "json"], timeout=30)
+            if r.returncode == 0:
+                st = (json.loads(r.stdout).get("state") or "").lower()
+                return {"merged": "MERGED", "opened": "OPEN", "closed": "CLOSED"}.get(st, "UNKNOWN")
+    except (OSError, ValueError, subprocess.SubprocessError):
+        pass
+    return "UNKNOWN"
+
+
+def _git_run(cmd, timeout=30):
+    return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+
+
+def cmd_await_merge(args: argparse.Namespace) -> None:
+    """v8.198:MR 等待窗轮询(30s)· 合并即自动进下一步(ship-finalize / 规划 finalize)。
+
+    治本(loops 对照):ship1/规划收尾停在「等用户合并」是无人看的结构性等待窗(实证 132h 长尾 ·
+    CI 红无人接)。本命令把等待窗变成 time-based loop:每 --interval 查一次 · MERGED → emit 下一步;
+    一轮 --max-checks 用尽仍 OPEN → emit WAITING(AI 重跑本命令续等 · 用户随时可打断)。
+    """
+    mr_url = (getattr(args, "mr_url", None) or "").strip()
+    feature = getattr(args, "feature", None)
+    if not mr_url and feature:
+        try:
+            _, st = load_state(feature)
+            mr_url = (st.get("ship", {}) or {}).get("mr_url") or ""
+        except Exception:
+            pass
+    if not mr_url:
+        emit_json({"verdict": "FAIL", "command": "await-merge",
+                   "error": "无 MR URL(--mr-url 直传 · 或 --feature 的 state.ship.mr_url)"}, exit_code=1)
+    interval = max(5, int(getattr(args, "interval", 30) or 30))
+    max_checks = max(1, int(getattr(args, "max_checks", 18) or 18))
+    unknown_streak = 0
+    for i in range(max_checks):
+        stt = _mr_state(mr_url)
+        if stt == "MERGED":
+            nxt = ("state.py ship-finalize --feature <worktree 内 feature 路径>(ship2 清场)"
+                   if feature else
+                   "规划 finalize:cd 主工作区 → git worktree remove <planning-worktree> → "
+                   "state.py main-sync --merge-target <mt>")
+            emit_json({"verdict": "MERGED", "command": "await-merge", "mr_url": mr_url,
+                       "checks": i + 1,
+                       "next_action": f"🔴 已合并 · 自动进下一步:{nxt}"})
+        if stt == "CLOSED":
+            emit_json({"verdict": "CLOSED", "command": "await-merge", "mr_url": mr_url,
+                       "hint": "MR 被关闭未合并 · surface 用户(close-unmerged / 重开)"}, exit_code=1)
+        unknown_streak = unknown_streak + 1 if stt == "UNKNOWN" else 0
+        if unknown_streak >= 3:
+            emit_json({"verdict": "FAIL", "command": "await-merge", "mr_url": mr_url,
+                       "error": "连续 3 次查询失败(gh/glab 未装或未登录?)",
+                       "hint": "修环境后重跑 · 或退回人工「合并后告诉我」"}, exit_code=1)
+        if i < max_checks - 1:
+            time.sleep(interval)
+    emit_json({"verdict": "WAITING", "command": "await-merge", "mr_url": mr_url,
+               "checks": max_checks, "interval_sec": interval,
+               "next_action": "仍未合并 · 重跑本命令续等(AI 应自动重跑 · 用户随时可打断改人工)"})
 
 
 def register_v8_ship_subparser(sub) -> None:
@@ -2178,3 +2435,12 @@ def register_v8_ship_subparser(sub) -> None:
                     help="[v8.190] 全清 teamwork main-sync auto-stash(用户确认不需要任何备份)· "
                          "默认只 drop 可证冗余的(空/内容已在分支)")
     ms.set_defaults(func=cmd_main_sync)
+
+    # v8.198:await-merge MR 等待窗轮询(30s · 合并自动下一步 · time-based loop)
+    am = sub.add_parser("await-merge",
+                        help="[v8.198] 轮询 MR 状态(默认 30s×18)· MERGED→emit 下一步(ship-finalize/规划 finalize)· WAITING→重跑续等")
+    am.add_argument("--feature", help="feature 路径(读 state.ship.mr_url)· 与 --mr-url 二选一")
+    am.add_argument("--mr-url", help="MR/PR URL 直传(规划收尾等无 state 场景)")
+    am.add_argument("--interval", type=int, default=30, help="轮询间隔秒(默认 30)")
+    am.add_argument("--max-checks", type=int, default=18, help="单次命令最多查几轮(默认 18≈9min · 用尽 emit WAITING 重跑)")
+    am.set_defaults(func=cmd_await_merge)

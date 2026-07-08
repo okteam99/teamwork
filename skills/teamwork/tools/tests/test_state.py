@@ -417,7 +417,7 @@ class TestInitFeature(unittest.TestCase):
         import subprocess
         target = self.tmp / "v836_illegal"
         r = subprocess.run([
-            "/opt/homebrew/opt/python@3.14/bin/python3.14",
+            sys.executable,
             str(STATE_PY), "init-feature", "--feature", str(target),
             "--feature-id", "TEST-F903", "--flow-type", "Feature",
             "--merge-target", "main", "--branch", "feat/test-f903",
@@ -640,10 +640,12 @@ class TestRecover(unittest.TestCase):
         # 之后 snapshot 通过
         d2 = run(["snapshot", "--feature", str(self.tmp)])
         self.assertEqual(d2["snapshot"]["feature_id"], "MANUALLY-EDITED")
-        # concerns 含 recover audit
+        # concerns 含 recover audit(统一字符串格式 "<ISO> WARN <msg>" · 与 add-concern 等一致)
         state = json.loads(sf.read_text(encoding="utf-8"))
-        warns = [c for c in state["concerns"] if c.get("severity") == "WARN"]
-        self.assertTrue(any("recovered after manual edit" in c.get("message", "") for c in warns))
+        warns = [c for c in state["concerns"] if isinstance(c, str) and " WARN " in c]
+        self.assertTrue(any("recovered after manual edit" in c for c in warns))
+        # 防混型回归:concerns 全部是字符串(不再有 dict 条目)
+        self.assertTrue(all(isinstance(c, str) for c in state["concerns"]))
 
 
 class TestReadOnlyCommands(unittest.TestCase):
@@ -2135,11 +2137,11 @@ class TestExternalReviewCommand(unittest.TestCase):
 
 
 class TestHostAutoDetect(unittest.TestCase):
-    """v8.21 → v8.36:host 自动探测。
+    """host 自动探测:单源 = per-feature state.json.host。
 
-    v8.21:全局 ~/.teamwork/host_audit.json
-    v8.36:主路径 per-feature state.json.host · audit 仅 fallback(deprecation WARN)
-    治本 SVC-PLATFORM-F054 case · 全局 audit 跨 session 残留 · 异质映射出错。
+    全局 ~/.teamwork/host_audit.json 已退役(bootstrap 停写 · state.py 停读):
+    跨 session 共享文件会残留旧宿主 · 污染异质模型映射(SVC-PLATFORM-F054 case)。
+    本类同时锁「audit 文件存在也不被读取」的退役行为。
     """
 
     def setUp(self):
@@ -2177,14 +2179,14 @@ class TestHostAutoDetect(unittest.TestCase):
         (self.feat / "state.json").write_text(json.dumps(state, ensure_ascii=False, indent=2),
                                                  encoding="utf-8")
 
-    # ── audit 不存在 + state.json 无 host + --host 缺 → BLOCK ──
+    # ── state.json 无 host + --host 缺 → BLOCK(hint 指 <stage>-start --host 写入)──
     def test_no_audit_no_host_blocked_with_hint(self):
         d = run(["external-review", "--feature", str(self.feat),
                  "--stage", "review", "--dry-run"], expect_exit=0)
         self.assertEqual(d["verdict"], "FAIL")
-        # v8.36:错误信息改"无法确定主对话宿主"(覆盖 state.json/audit/env 三源)
         self.assertIn("无法确定", d["error"])
-        self.assertIn("v8.36", d["hint"])
+        self.assertIn("--host", d["hint"])
+        self.assertIn("-start", d["hint"])  # 指引 <stage>-start --host 写 state.json.host
 
     # ── v8.36 主路径:state.json.host 存在 → host_source=state_json ──
     def test_v836_state_json_host_main_path(self):
@@ -2198,20 +2200,15 @@ class TestHostAutoDetect(unittest.TestCase):
         # 主路径不应有 deprecation_warning
         self.assertNotIn("deprecation_warning", d)
 
-    # ── v8.36 fallback:audit 存在 + state.json 无 host → audit_deprecated + WARN ──
-    def test_v836_audit_fallback_with_deprecation_warning(self):
+    # ── 全局 audit 已退役:audit 文件存在也不读 · state.json 无 host → 仍 BLOCK ──
+    def test_global_audit_retired_not_read(self):
         self.audit_path.write_text(json.dumps({
             "host": "claude-code", "timestamp": "2026-05-25T00:00:00Z"
         }), encoding="utf-8")
         d = run(["external-review", "--feature", str(self.feat),
-                 "--stage", "review", "--dry-run"])
-        self.assertEqual(d["verdict"], "OK")
-        self.assertEqual(d["host"], "claude-code")
-        self.assertEqual(d["host_source"], "audit_deprecated")
-        # v8.36:fallback 路径应携带 deprecation_warning
-        self.assertIn("deprecation_warning", d)
-        self.assertIn("v8.36", d["deprecation_warning"])
-        self.assertIn("per-feature", d["deprecation_warning"])
+                 "--stage", "review", "--dry-run"], expect_exit=0)
+        self.assertEqual(d["verdict"], "FAIL")
+        self.assertIn("无法确定", d["error"])
 
     # ── v8.36 优先级:state.json.host 优先于 audit ──
     def test_v836_state_json_overrides_audit(self):
@@ -2258,14 +2255,14 @@ class TestHostAutoDetect(unittest.TestCase):
         self.assertIn("无法确定", d["error"])
 
     # ── _detect_host helper 单元测试 ──
-    def test_detect_host_helper_returns_audit_source_v836(self):
-        """v8.36:audit 命中时 source=audit_deprecated(原 audit)。"""
+    def test_detect_host_helper_ignores_global_audit(self):
+        """全局 audit 已退役:audit 文件存在也返回 (None, 'none')。"""
         from state import _detect_host  # type: ignore
         self.audit_path.write_text(json.dumps({"host": "codex-cli"}),
                                     encoding="utf-8")
-        host, source = _detect_host()  # 不传 feature → 走 audit fallback
-        self.assertEqual(host, "codex-cli")
-        self.assertEqual(source, "audit_deprecated")
+        host, source = _detect_host()  # 不传 feature · 无 state.json.host 可读
+        self.assertIsNone(host)
+        self.assertEqual(source, "none")
 
     def test_v836_detect_host_helper_state_json_priority(self):
         """v8.36:_detect_host(feature) 命中 state.json → source=state_json。"""
@@ -2602,11 +2599,11 @@ class TestPanoramaSyncStage(unittest.TestCase):
               "execution_hints": {"panorama_changed": False}}
         self.assertEqual(_ui_design_transition(st), "blueprint")
 
-    def test_transition_panorama_changed_false_agile_goes_to_blueprint_lite(self):
-        from _v8_stage_specs import _ui_design_transition
-        st = {"flow_type": "敏捷需求",
-              "execution_hints": {"panorama_changed": False}}
-        self.assertEqual(_ui_design_transition(st), "blueprint_lite")
+    def test_agile_flow_has_no_ui_design_stage(self):
+        """敏捷需求流程图不含 ui_design(goal 强制 --needs-ui=false 直去 blueprint_lite)·
+        故 _ui_design_transition 无敏捷分支(不可达代码已删)。"""
+        from state import AGILE_FLOW
+        self.assertNotIn("ui_design", AGILE_FLOW)
 
     def test_transition_no_hint_defaults_to_blueprint(self):
         """无 panorama_changed hint · 回退非-panorama-sync 路径(向后兼容)。"""
@@ -2621,18 +2618,24 @@ class TestPanoramaSyncStage(unittest.TestCase):
         self.assertFalse(ok)
         self.assertIn("--panorama-changed", err)
 
-    def test_panorama_changed_true_writes_hint(self):
-        from _v8_stage_specs import _evidence_panorama_changed_decided
+    def test_panorama_changed_true_persisted_to_hint(self):
+        """校验函数是纯谓词 · hint 落库走 persist_args_to_evidence(校验前统一执行)。"""
+        from _v8_stage_specs import _evidence_panorama_changed_decided, persist_args_to_evidence
         st = {}
-        ok, err = _evidence_panorama_changed_decided(st, self._args(panorama_changed="true"))
+        args = self._args(panorama_changed="true")
+        ok, err = _evidence_panorama_changed_decided(st, args)
         self.assertTrue(ok, err)
+        self.assertNotIn("execution_hints", st)  # 纯谓词:校验不写 state
+        persist_args_to_evidence("ui_design", st, args)
         self.assertIs(st["execution_hints"]["panorama_changed"], True)
 
-    def test_panorama_changed_false_writes_hint(self):
-        from _v8_stage_specs import _evidence_panorama_changed_decided
+    def test_panorama_changed_false_persisted_to_hint(self):
+        from _v8_stage_specs import _evidence_panorama_changed_decided, persist_args_to_evidence
         st = {}
-        ok, err = _evidence_panorama_changed_decided(st, self._args(panorama_changed="false"))
+        args = self._args(panorama_changed="false")
+        ok, err = _evidence_panorama_changed_decided(st, args)
         self.assertTrue(ok, err)
+        persist_args_to_evidence("ui_design", st, args)
         self.assertIs(st["execution_hints"]["panorama_changed"], False)
 
     # ── _evidence_sitemap_updated ───────────────────────────────

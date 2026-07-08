@@ -99,11 +99,18 @@ class TestDevGate(unittest.TestCase):
 
 
 class TestTestGateTransition(unittest.TestCase):
-    def test_integration_diff_clean_set(self):
+    def test_integration_diff_clean_persisted(self):
+        """差分结果由 persist_args_to_evidence 落 evidence(校验函数是纯谓词 · 不写 args)。"""
         feat = _proj("suite::a")
         args = NS(integration_test_exit_code=1, current_failures="suite::a", feature=feat)
-        S._evidence_integration_test_present({}, args)
-        self.assertTrue(args.integration_diff_clean)
+        ok, _ = S._evidence_integration_test_present({}, args)
+        self.assertTrue(ok)
+        self.assertFalse(hasattr(args, "integration_diff_clean"))  # 纯谓词:不写 args
+        st = {}
+        S.persist_args_to_evidence("test", st, args)
+        self.assertIs(
+            st["stage_contracts"]["test"]["evidence"]["integration_diff_clean"], True)
+        self.assertEqual(st["execution_hints"]["integration_new_failures"], [])
 
     def test_transition_diff_clean_advances(self):
         st = {"stage_contracts": {"test": {"evidence": {

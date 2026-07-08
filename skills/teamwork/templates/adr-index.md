@@ -14,7 +14,7 @@
 ```markdown
 # ADR 索引
 
-> 本项目的架构决策记录索引。ADR 体系见 [templates/adr.md](../../teamwork/templates/adr.md)。
+> 本项目的架构决策记录索引。ADR 体系与单条格式基准 = teamwork skill 的 `templates/adr.md`（随 skill 安装 · 不在本项目内 · 不放相对链接）。
 
 ## 活跃决策 (Accepted)
 

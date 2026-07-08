@@ -181,7 +181,7 @@ local_env_auto_create: true
 ### 禁用异质模型审核（单模型用户）
 <!-- disable_external_review: false（默认）/ true -->
 <!-- false = external 评审跑异质模型（claude↔codex 交叉 · 唯一跨模型安全网 · 推荐）。 -->
-<!-- true = 只有一个模型时：external-review 自动 emit subagent 降级配方（PMO 起宿主自身模型 subagent 自审 · 不 exec · 落 external-cross-review/ 满足 P0-154 · frontmatter degraded_mode:config-disabled · 非异质 · 同盲点）· 每次 bootstrap 启动 WARN 提醒。详 standards/external-model-usage.md §11.5。 -->
+<!-- true = 只有一个模型时：external-review 自动 emit subagent 降级配方（PMO 起宿主自身模型 subagent 自审 · 不 exec · 落 external-cross-review/ 满足 external 物化门禁 · frontmatter degraded_mode:config-disabled · 非异质 · 同盲点）· 每次 bootstrap 启动 WARN 提醒。详 standards/external-model-usage.md §11.5。 -->
 <!-- 区分 --self-review-fallback（异质临时不可用的 per-run 降级 · 同走 subagent · degraded_mode:subagent-fallback）：本项是项目级长期策略（每次自动降级）。 -->
 <!-- 装好第二个模型 CLI 后建议删此项 / 设 false 恢复异质，交叉 review 质量更高。 -->
 disable_external_review: false

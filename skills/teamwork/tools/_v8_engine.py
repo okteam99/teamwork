@@ -285,17 +285,18 @@ def git_head(cwd: Optional[str] = None) -> Optional[str]:
         return None
 
 
-def _worktree_physically_exists(wt_path: str) -> bool:
+def _worktree_physically_exists(wt_path: str, cwd: Optional[str] = None) -> bool:
     """检查 wt_path 是否在 `git worktree list` 输出内。
 
-    v8.0+P0-2 治本 PTR-F033-type-2 case · stage-start 通用 worktree 校验。
+    cwd 传 feature 目录(state.json 所在仓)· 保证查询的是该仓的 worktree 清单 ·
+    不受调用进程 cwd 恰好落在别的仓影响。
     """
     if not wt_path:
         return False
     try:
         result = subprocess.run(
             ["git", "worktree", "list", "--porcelain"],
-            capture_output=True, text=True, timeout=10,
+            capture_output=True, text=True, timeout=10, cwd=cwd,
         )
         if result.returncode != 0:
             return True  # 不在 git repo · 跳过此校验(让 cwd-based 校验兜底)
@@ -385,6 +386,24 @@ def require_user_confirmed(args: argparse.Namespace, yolo: bool = False) -> None
     }, exit_code=1)
 
 
+def require_bypass_reason(args: argparse.Namespace) -> None:
+    """bypass 必带非空 --reason(concerns WARN / bypass_log 的 audit 依据)· 空白串同缺失。"""
+    if (getattr(args, "reason", "") or "").strip():
+        return
+    emit_json({
+        "verdict": "FAIL",
+        "error": "--bypass 必带非空 --reason(空串/空白不算)",
+        "hint": "补 --reason '<为什么必须逃生>' · 该理由写入 bypass_log + concerns WARN(audit 单源)",
+    }, exit_code=1)
+
+
+def _issue_label(m) -> str:
+    """bypass 条目标识:prerequisite 用 id · artifact 用 spec · evidence 用 name。"""
+    if isinstance(m, dict):
+        return str(m.get("id") or m.get("spec") or m.get("name") or "unknown")
+    return str(m)
+
+
 def write_bypass_log(
     state: dict,
     stage: str,
@@ -399,7 +418,7 @@ def write_bypass_log(
         "stage": stage,
         "phase": phase,
         "at": ts,
-        "missing": [m["id"] if isinstance(m, dict) else m for m in missing],
+        "missing": [_issue_label(m) for m in missing],
         "reason": args.reason,
         "user_confirmed": True,
         "retry_count_before_bypass": retry_count,
@@ -407,7 +426,8 @@ def write_bypass_log(
     })
     # 同步写 concerns WARN
     state.setdefault("concerns", []).append(
-        f"{ts} WARN {stage}-{phase} bypass · missing={','.join(m['id'] if isinstance(m, dict) else m for m in missing)} · reason: {args.reason}"
+        f"{ts} WARN {stage}-{phase} bypass · "
+        f"missing={','.join(_issue_label(m) for m in missing)} · reason: {args.reason}"
     )
     return ts
 
@@ -442,7 +462,6 @@ def close_open_pause(state: dict) -> None:
 def execute_stage_start(
     stage_spec: StageSpec,
     args: argparse.Namespace,
-    legal_transitions: dict[str, dict[str, list[str]]],
     flow_by_type: dict[str, dict],
 ) -> None:
     """xx-stage-start 通用执行流程。"""
@@ -466,10 +485,22 @@ def execute_stage_start(
     # 2. legal 转移校验
     current = state.get("current_stage")
     flow_type = state.get("flow_type")
+    if flow_type not in flow_by_type:
+        # 未知 flow_type 不静默回退空图(空图会伪装成"非法转移"误导排查)· 显式 FAIL
+        emit_json({
+            "verdict": "FAIL",
+            "stage": stage_spec.name,
+            "phase": "start",
+            "error": f"flow_type={flow_type!r} 不在已知流程表",
+            "known_flow_types": sorted(flow_by_type),
+            "hint": "state.flow_type 被外改或损坏 · 核对 state.json(不可枚举的流程不进状态机)",
+        }, exit_code=1)
     flow_graph = flow_by_type.get(flow_type, {})
     legal_next = flow_graph.get(current, [])
     is_initial_entry = current is None or current == stage_spec.name
     if not is_initial_entry and stage_spec.name not in legal_next:
+        # 非法转移无 bypass 出口:stage-start 不做跨 stage 改道 ·
+        # 显式改道走 jump-to-stage(写 concerns WARN + 重置目标 contract)。
         emit_json({
             "verdict": "FAIL",
             "stage": stage_spec.name,
@@ -480,9 +511,11 @@ def execute_stage_start(
             "hint": (
                 f"当前 stage {current!r} 不能直接进入 {stage_spec.name!r}。"
                 f"合法下一 stage: {legal_next}。"
-                "若刻意跳过/回炉 · 加 --bypass --reason ... --user-confirmed --missing legal_transition"
+                f"若确需跳过/回炉 · 走显式改道命令:"
+                f"state.py jump-to-stage --feature {args.feature} "
+                f"--to {stage_spec.name} --reason '<改道原因>'(自动 concerns WARN 留痕)"
             ),
-        }, exit_code=1 if not args.bypass else 0)
+        }, exit_code=1)
 
     # 2.5. 通用 worktree 物理存在校验(v8.0+P0-2 治本 PTR-F033-type-2 case)
     # 治本根因:init-feature 只写 worktree 元数据 · PMO 漏跑 git worktree add ·
@@ -492,7 +525,9 @@ def execute_stage_start(
     wt_strategy = wt.get("strategy", "off")
     wt_path = wt.get("path")
     if wt_strategy != "off" and wt_path:
-        if not _worktree_physically_exists(wt_path):
+        _feature_dir_for_git = Path(feature_path).resolve()
+        _wt_query_cwd = str(_feature_dir_for_git) if _feature_dir_for_git.is_dir() else None
+        if not _worktree_physically_exists(wt_path, cwd=_wt_query_cwd):
             wt_missing = {
                 "id": "worktree_physical_exists",
                 "description": "state.worktree.path 必须实际存在(git worktree list 含此 path)",
@@ -514,6 +549,7 @@ def execute_stage_start(
                         "error": "worktree 物理不存在 + bypass 但 --missing 未含 worktree_physical_exists",
                         "hint": "加 --missing worktree_physical_exists 显式承认",
                     }, exit_code=1)
+                require_bypass_reason(args)
                 require_user_confirmed(args, yolo=state.get("yolo", False))
                 write_bypass_log(state, stage_spec.name, "start", [wt_missing], args)
             else:
@@ -547,6 +583,7 @@ def execute_stage_start(
 
     # 4. bypass 处理
     if missing and args.bypass:
+        require_bypass_reason(args)
         require_user_confirmed(args, yolo=state.get("yolo", False))
         # 用户声称跳过的 missing 必须与实际 missing 重叠
         user_missing = set(args.missing.split(",")) if args.missing else set()
@@ -616,14 +653,18 @@ def execute_stage_start(
     brief = stage_spec.brief_template_fn(state)
     brief += _render_review_roles_suggestion(state, stage_spec.name)
     if stage_spec.authorized_pause_point:
-        brief += _render_pause_discipline(stage_spec.authorized_pause_point)
+        brief += _render_pause_discipline(
+            stage_spec.authorized_pause_point,
+            has_review_convergence_evidence=_has_review_convergence_evidence(stage_spec),
+        )
     # 必读路径速查(P0-4)
     brief += _render_required_paths(Path(args.feature).resolve(), stage_spec.name)
     # 状态行模板(P0-10:AI 每次主对话回复末尾必含)
     next_hint = f"按 brief 完成 stage 工作 → 跑 {stage_spec.name}-complete"
     brief += _render_status_line_block(state, next_hint)
 
-    # 7.1 体量元规则:超 MAX_BRIEF_LINES 则截断 + 写完整版到磁盘
+    # 7.1 体量元规则:超 MAX_BRIEF_LINES 则截中段 + 写完整版到磁盘
+    # (头部 + 尾部纪律段/状态行模板段强制保留 · 尾部红线不被截断吃掉)
     brief_lines = brief.count("\n") + 1
     brief_overflow_path = None
     if brief_lines > MAX_BRIEF_LINES:
@@ -631,12 +672,7 @@ def execute_stage_start(
         try:
             full_path.write_text(brief, encoding="utf-8")
             brief_overflow_path = str(full_path)
-            # brief 留前 80 行 + 摘要尾巴
-            head = brief.splitlines()[:80]
-            brief = "\n".join(head) + (
-                f"\n\n---\n\n⚠️ brief 共 {brief_lines} 行 > {MAX_BRIEF_LINES} · 截断 · "
-                f"完整版见 [{full_path.name}]({full_path.name})"
-            )
+            brief = truncate_brief(brief, full_path.name)
         except OSError:
             pass  # 写磁盘失败 · 用完整 brief
 
@@ -681,7 +717,6 @@ STAGE_SPEC_FILES = {
     "goal": "goal-stage.md",
     "ui_design": "ui-design-stage.md",
     "panorama_sync": "panorama-sync-stage.md",
-    "planning": "planning-stage.md",
     "blueprint": "blueprint-stage.md",
     "blueprint_lite": "blueprint-lite-stage.md",
     "diagnose": "diagnose-stage.md",
@@ -701,7 +736,8 @@ STAGE_SPEC_FILES = {
 # - artifact_name → template_filename(相对 SKILL_ROOT/templates/)· None = 无模板
 # - validators[artifact_name] = (script_filename, 一句话说明)
 #
-# 不要在此放 dev / ship(无文档模板)· 不要放 review-log.jsonl(state.py append)
+# 不要在此放 ship(无文档模板)· 不要放 review-log.jsonl(state.py append)
+# dev 仅 Bug 流程有 bugfix/BUG-XXX.md 模板 · 代码产物本身无模板
 STAGE_TEMPLATES: dict[str, dict] = {
     "goal": {
         "templates": {
@@ -1018,7 +1054,19 @@ def render_status_line(state: dict, next_action: str = "") -> str:
     return f"{line1}\n{line2}\n{line3}"
 
 
-def _render_pause_discipline(authorized_pause_point: str) -> str:
+def _has_review_convergence_evidence(stage_spec: "StageSpec") -> bool:
+    """本 stage spec 是否真配了 review 收敛类 evidence(mtime 先后 / revision_history)。
+
+    暂停点纪律段的「state.py 校验兜底」行只对真有此类校验的 stage 渲染 · 不过度声称。
+    """
+    return any(
+        ("review_after" in c.name) or ("revision_history" in c.name)
+        for c in stage_spec.evidence_checks
+    )
+
+
+def _render_pause_discipline(authorized_pause_point: str,
+                             has_review_convergence_evidence: bool = False) -> str:
     """暂停点纪律段 · append 到 brief 末尾(紧凑版)。
 
     v8.0+P0-1 治本 PTR-F033 case · L2 substep 链 AI 自觉区。
@@ -1026,8 +1074,9 @@ def _render_pause_discipline(authorized_pause_point: str) -> str:
     伪暂停 · 把改动大/破坏式/不可逆/用户参与设计当暂停理由 · 实为 R4 违规):
       - **通用红线(所有 stage)**:禁执行节奏伪决策暂停 + 体量大派 subagent 自决 ——
         有授权暂停点的 stage 也可能在「那一个」授权暂停之外自造执行节奏伪暂停。
-      - **无暂停 stage 额外抬头**:dev/blueprint/blueprint_lite/test = 连续执行 ·
-        任何暂停都违规。
+      - **无暂停 stage 额外抬头**:连续执行 · 任何暂停都违规。
+    has_review_convergence_evidence:本 stage 的 spec 真有 review mtime /
+    revision_history evidence 校验时才渲染「state.py 校验兜底」行(不对所有 stage 过度声称)。
     详细 rationale 原载 v8.0 设计稿 04-PAUSE-POINT-DISCIPLINE(已清理 · git 历史可溯)。
     """
     head = f"""
@@ -1049,10 +1098,13 @@ def _render_pause_discipline(authorized_pause_point: str) -> str:
     head += """
 - ⛔ 禁自造"如何推进 / 落地节奏 / 先做一层给你看 / 一次性还是分批 / 要不要先停"等**执行节奏伪决策暂停**(R4 不膨胀 · 执行细节 AI 自决 · **非用户决策**)· "改动大 / 破坏式 / 不可逆 / 文件多 / 用户全程参与设计"**都不是**暂停理由
 - ✅ 规模 / 节奏是 AI 自决的执行问题 → 自己组织(可按需派 subagent 并行 · 详 SKILL.md R4)· **不停下问用户怎么干**
-- ⛔ Substep 中间禁 AskUserQuestion · Open Questions 写进 PRD/Review 评审
+- ⛔ Substep 中间禁 AskUserQuestion · 疑问/待决策项写进本 stage 评审产物 · 不中途抛给用户
 - ✅ 全部疑问到授权暂停点**一次性** escalate
-- 🛡️ 兜底:state.py 校验 review mtime + frontmatter.revision_history
-- 📖 详细:SKILL.md § R5(b) 暂停点标准格式(现行权威)
+"""
+    if has_review_convergence_evidence:
+        head += """- 🛡️ 兜底:state.py 校验 review mtime + frontmatter.revision_history
+"""
+    head += """- 📖 详细:SKILL.md § R5(b) 暂停点标准格式(现行权威)
 """
     return head
 
@@ -1085,10 +1137,10 @@ DEFAULT_REVIEW_ROLES: dict[tuple[str, str], list[str]] = {
     ("Feature", "browser_e2e"): ["qa", "designer"],
     ("Feature", "pm_acceptance"): ["pm"],
 
-    # 敏捷需求
-    ("敏捷需求", "goal"): ["qa", "architect"],  # v8.155:去 pm(整合者)· QA+Architect 并行冷审
+    # 敏捷需求(流程减负:冷审 2→1 + pl 保对抗质疑门禁;review 去 external = opt-in 加回)
+    ("敏捷需求", "goal"): ["qa", "pl"],  # 1 冷审(QA)+ PL challenge(_evidence_pl_challenge_present 门禁)
     ("敏捷需求", "blueprint_lite"): ["qa"],
-    ("敏捷需求", "review"): ["architect", "qa", "external"],
+    ("敏捷需求", "review"): ["architect", "qa"],  # external 默认关 · change-review-roles 可加回
     ("敏捷需求", "test"): ["qa"],
     ("敏捷需求", "pm_acceptance"): ["pm"],
 
@@ -1100,9 +1152,7 @@ DEFAULT_REVIEW_ROLES: dict[tuple[str, str], list[str]] = {
     # Micro 流程
     ("Micro", "pm_acceptance"): ["pm"],
 
-    # Feature Planning
-    ("Feature Planning", "goal"): ["pm", "pl", "external"],
-    ("Feature Planning", "planning"): ["pl", "pm", "external"],
+    # Feature Planning / 问题排查 不进状态机(init-feature 拒建 state.json)· 无默认矩阵
 }
 
 
@@ -1136,10 +1186,10 @@ FLOW_STAGE_CHAIN: dict[str, list[tuple[str, bool, str, str]]] = {
         ("ship", False, "", "无评审 · PMO 编排 push + MR + 合入 + cleanup"),
     ],
     "敏捷需求": [
-        ("goal", False, "", "需求小:QA + Architect 两个隔离 subagent 冷审(无 PL/External · PM 整合)"),
+        ("goal", False, "", "需求小:QA 隔离 subagent 冷审 + PL 对抗质疑(无 External · PM 整合)"),
         ("blueprint_lite", False, "", "QA 测试规划(TC 精简版)· 不要 TECH-REVIEW"),
         ("dev", False, "", "无评审 · RD 自写 + commit"),
-        ("review", False, "", "Architect/QA + External cross-review(同 Feature)"),
+        ("review", False, "", "Architect/QA 双视角(external 默认关 · change-review-roles 可 opt-in 加回)"),
         ("test", False, "", "QA 验收"),
         ("pm_acceptance", False, "", "PM 用户视角验收"),
         ("ship", False, "", "无评审 · PMO 编排"),
@@ -1196,6 +1246,47 @@ MAX_BRIEF_LINES = 100
 """
 
 
+# brief 截断时强制保留的尾部段标记(暂停点纪律 / 状态行模板 · 命中最早者起整段保留)
+_BRIEF_TAIL_KEEP_MARKERS = ("### 🔴 暂停点纪律", "### 📊 状态行模板")
+_BRIEF_TRUNCATE_HEAD_LINES = 60
+"""截断时保留的头部行数(其余头尾之间的中段折叠成一行标记)。"""
+
+
+def truncate_brief(brief: str, full_name: str) -> str:
+    """brief 超限时截中段:保头部 + 强制保留尾部纪律段/状态行模板段。
+
+    尾部段(暂停点纪律 → 必读路径 → 状态行模板)是 append 的红线/模板 · 不能被
+    "只留前 N 行"吃掉。找不到尾部标记时回退老行为(留头 80 行 + 摘要尾巴)。
+    full_name = 完整版落盘文件名(标记行引导 AI 需要时去读)。
+    """
+    lines = brief.splitlines()
+    total = len(lines)
+    tail_start = next(
+        (i for i, ln in enumerate(lines)
+         if any(m in ln for m in _BRIEF_TAIL_KEEP_MARKERS)),
+        None,
+    )
+    if tail_start is not None:
+        # 尾部段(纪律/状态行)整段保留 · 只截"头部保留区 → 尾部段"之间的中段
+        head_end = min(_BRIEF_TRUNCATE_HEAD_LINES, tail_start)
+        cut_marker = (
+            f"\n\n……(中段截断 · 完整见 [{full_name}]({full_name}))\n\n---\n"
+            if tail_start > head_end else "\n"
+        )
+        return (
+            "\n".join(lines[:head_end])
+            + cut_marker
+            + "\n".join(lines[tail_start:])
+            + (f"\n\n---\n\n⚠️ brief 共 {total} 行 > {MAX_BRIEF_LINES} · "
+               f"已截中段(头部 + 尾部纪律/状态行段保留)· 完整版见 [{full_name}]({full_name})")
+        )
+    # 回退:全文无尾部标记 · 留头 80 行
+    return "\n".join(lines[:80]) + (
+        f"\n\n---\n\n⚠️ brief 共 {total} 行 > {MAX_BRIEF_LINES} · 截断 · "
+        f"完整版见 [{full_name}]({full_name})"
+    )
+
+
 def maybe_freeze_review_base(state: dict, next_stage: str,
                              pre_dev_commit: Optional[str]) -> bool:
     """v8.161:首次进 dev 时把 pre-dev HEAD 冻结进 state.review_base_commit。
@@ -1218,7 +1309,6 @@ def maybe_freeze_review_base(state: dict, next_stage: str,
 def execute_stage_complete(
     stage_spec: StageSpec,
     args: argparse.Namespace,
-    legal_transitions: dict[str, dict[str, list[str]]],
     flow_by_type: dict[str, dict],
     stage_specs_registry: dict,
 ) -> None:
@@ -1262,6 +1352,44 @@ def execute_stage_complete(
             "error": f"auto-commit hash {auto_commit!r} 在 git history 中不存在(cwd={git_cwd})",
             "hint": "确认 git commit 已落库 · 或 hash 拼写正确 · 在 git repo 内运行",
         }, exit_code=1)
+
+    # 2.4. v8.28 · test stage --run-tests 物化跑测试(治本 F037 case-AI 自报 stdout 漏洞)
+    # 结果注入 args.integration_test_exit_code · 🔴 必须在 persist / evidence 校验**之前**跑:
+    # 单独 --run-tests(不带 --integration-test-exit-code)才不会先撞「缺参数」FAIL ·
+    # persist 步(红 base 差分)与 evidence 校验消费的都是注入后的值。
+    test_run_result = None
+    if (stage_spec.name == "test" and getattr(args, "run_tests", False)):
+        feature_id = state.get("feature_id") or feature_dir.name
+        project_root = _find_project_root(feature_dir)
+        cmd_str, source, timeout_sec, tail_lines, err = _resolve_test_cmd(
+            args, feature_id, project_root)
+        if err:
+            emit_json({
+                "verdict": "FAIL",
+                "stage": "test",
+                "phase": "complete",
+                "error": f"--run-tests 但 {err}",
+                "hint": "见 error 中的二选一",
+                "rule": "v8.28 · test 验证物化 · 治本 F037 case-AI 自报 stdout 漏洞",
+            }, exit_code=1)
+        log_path = feature_dir / "test-stdout.log"
+        # 在 git_cwd(repo)跑 · 不在 feature_dir(防 cargo test 找不到 Cargo.toml)
+        test_run_result = run_tests_via_subprocess(
+            cmd_str=cmd_str, cwd=git_cwd,
+            timeout_sec=timeout_sec, log_path=log_path,
+            tail_lines=tail_lines,
+        )
+        test_run_result["source"] = source
+        # 自动注入 args(替代 PMO 自报 --integration-test-exit-code · 工具自跑权威)
+        # 用 integration_test_exit_code 字段(test stage 默认 evidence 字段)
+        # 若 cmd 实际跑的是 e2e · 用户可显式 --e2e-test-exit-code 覆盖
+        args.integration_test_exit_code = test_run_result["exit_code"]
+
+    # 2.5. 决策参数显式落库(evidence/execution_hints)· 在校验之前统一执行
+    # 校验函数是纯谓词(不写 state/args)· bypass 跳过校验时决策字段照样落库 ·
+    # 防「bypass → 副作用不发生 → 转移静默走默认分支」。FAIL 路径不 save_state · 落库不外泄。
+    from _v8_stage_specs import persist_args_to_evidence
+    persist_args_to_evidence(stage_spec.name, state, args)
 
     # 3. 校验 artifacts
     artifacts_passed = []
@@ -1312,9 +1440,20 @@ def execute_stage_complete(
                     })
                     continue
 
-            # commit 校验
-            if art_spec.must_be_in_commit and commit_changeset:
-                in_commit = any(art_spec.path in c for c in commit_changeset)
+            # commit 校验(精确路径匹配 · changeset 是相对仓库根路径 · artifact 路径相对 feature 目录
+            # → 全等或以 "/<artifact 路径>" 结尾才算命中 · 防子串误判如 "a/PRD.md" 命中 "PRD.md.bak")
+            if art_spec.must_be_in_commit:
+                if not commit_changeset:
+                    missing_artifacts.append({
+                        "spec": art_spec.path,
+                        "reason": f"无法获取 commit {auto_commit} changeset(git 失败或空 commit)",
+                        "hint": "确认 auto-commit 正确且真含该文件 · git 环境可用后重试",
+                    })
+                    continue
+                in_commit = any(
+                    c == art_spec.path or c.endswith("/" + art_spec.path)
+                    for c in commit_changeset
+                )
                 if not in_commit:
                     missing_artifacts.append({
                         "spec": art_spec.path,
@@ -1358,6 +1497,7 @@ def execute_stage_complete(
         issues.extend(failed_evidence)
 
     if issues and args.bypass:
+        require_bypass_reason(args)
         require_user_confirmed(args, yolo=state.get("yolo", False))
         write_bypass_log(state, stage_spec.name, "complete", issues, args)
         issues = []
@@ -1382,35 +1522,7 @@ def execute_stage_complete(
     contract["artifacts"] = (args.artifacts or "").split(",") if args.artifacts else []
     contract["cited_specs"] = (args.cite or "").split(",") if args.cite else []
 
-    # v8.28 · test stage --run-tests 物化跑测试(治本 F037 case-AI 自报 stdout 漏洞)
-    # 必须在 evidence 写入之前 · 让自跑结果注入 args.integration_test_exit_code
-    test_run_result = None
-    if (stage_spec.name == "test" and getattr(args, "run_tests", False)):
-        feature_id = state.get("feature_id") or feature_dir.name
-        project_root = _find_project_root(feature_dir)
-        cmd_str, source, timeout_sec, tail_lines, err = _resolve_test_cmd(
-            args, feature_id, project_root)
-        if err:
-            emit_json({
-                "verdict": "FAIL",
-                "stage": "test",
-                "phase": "complete",
-                "error": f"--run-tests 但 {err}",
-                "hint": "见 error 中的二选一",
-                "rule": "v8.28 · test 验证物化 · 治本 F037 case-AI 自报 stdout 漏洞",
-            }, exit_code=1)
-        log_path = feature_dir / "test-stdout.log"
-        # 在 git_cwd(repo)跑 · 不在 feature_dir(防 cargo test 找不到 Cargo.toml)
-        test_run_result = run_tests_via_subprocess(
-            cmd_str=cmd_str, cwd=git_cwd,
-            timeout_sec=timeout_sec, log_path=log_path,
-            tail_lines=tail_lines,
-        )
-        test_run_result["source"] = source
-        # 自动注入 args(替代 PMO 自报 --integration-test-exit-code · 工具自跑权威)
-        # 用 integration_test_exit_code 字段(test stage 默认 evidence 字段)
-        # 若 cmd 实际跑的是 e2e · 用户可显式 --e2e-test-exit-code 覆盖
-        args.integration_test_exit_code = test_run_result["exit_code"]
+    # (v8.28 --run-tests 块已前移至 2.4 · 注入发生在 persist/evidence 校验之前)
 
     # 6.5 持久化 stage 专属 args 到 contract.evidence(治本"PMO 必 raw-write 补 evidence")
     # 白名单字段(_add_stage_specific_args 中定义的 stage-complete 参数)
@@ -1425,8 +1537,8 @@ def execute_stage_complete(
         "decision",                  # pm_acceptance
         "note",                      # pm_acceptance
         "panorama_changed",          # ui_design(决定 panorama_sync 条件 stage 是否进入)
-        "current_failures",          # v8.178 test/dev:红 base 差分基线的当前失败集
-        "integration_diff_clean",    # v8.178 test:差分判定结果(evidence 检查写 · _test_transition 读)
+        "needs_browser_e2e",         # goal/ui_design(可选 · 决定 test 后是否进 browser_e2e)
+        "current_failures",          # test/dev:红 base 差分基线的当前失败集
     )
     for field in _EVIDENCE_FIELDS:
         val = getattr(args, field, None)
@@ -1448,12 +1560,21 @@ def execute_stage_complete(
         cur_round = rounds[-1]
         cur_round["completed_at"] = now_iso()
         cur_round[cfg["commit_field"]] = auto_commit
-        # 写 stage 专属字段(从 args 拿)
+        # 写 stage 专属字段(args 优先 · 派生字段〔如 integration_diff_clean〕
+        # 由 persist 步落在 contract.evidence · 从那里兜底)
         for key in cfg["round_init_fields"]:
-            cur_round[key] = getattr(args, key, None)
-        # review 专属:verdict
+            val = getattr(args, key, None)
+            if val is None:
+                val = evidence.get(key)
+            cur_round[key] = val
+        # review 专属:verdict + findings 台账(review 收敛协议)
         if stage_spec.name == "review":
             cur_round["verdict"] = getattr(args, "verdict", None)
+            # findings 快照 → 跨轮台账(按 id 合并 · 后轮状态覆盖前轮 · 保 round_opened)·
+            # 同时在本轮 round 记 new_findings_count / carried_open_count(收敛审计)。
+            from _v8_stage_specs import merge_findings_ledger, parse_review_findings
+            snapshot, _findings_err = parse_review_findings(feature_dir)
+            merge_findings_ledger(contract, snapshot or [], cur_round)
 
     # duration
     started = contract.get("started_at")
@@ -1526,6 +1647,16 @@ def execute_stage_complete(
 
             # 自动进入下一 stage
             flow_type = state.get("flow_type")
+            if flow_type not in flow_by_type:
+                # 未知 flow_type 不静默回退空图(会把 legal_next_stages 写成 [] 卡死后续)
+                emit_json({
+                    "verdict": "FAIL",
+                    "stage": stage_spec.name,
+                    "phase": "complete",
+                    "error": f"flow_type={flow_type!r} 不在已知流程表 · 无法计算转移图",
+                    "known_flow_types": sorted(flow_by_type),
+                    "hint": "state.flow_type 被外改或损坏 · 核对 state.json 后重试",
+                }, exit_code=1)
             flow_graph = flow_by_type.get(flow_type, {})
             state["current_stage"] = next_stage
             state["legal_next_stages"] = flow_graph.get(next_stage, [])
@@ -1548,16 +1679,18 @@ def execute_stage_complete(
         completed = state.setdefault("completed_stages", [])
         if stage_spec.name not in completed:
             completed.append(stage_spec.name)
-        # 渲染下一 stage brief(含建议评审角色 + 暂停点纪律 + 执行手段)
+        # 下一 stage 只给 3 行摘要 · 完整 brief 由 {next}-start 渲染(单源)——
+        # 消除 complete/start 双份全文渲染 · 且引导必过 {next}-start 前置校验。
+        # 摘要仍带暂停点一行:AI 在转移那一刻即见「无暂停/授权暂停点」红线(不等 start)。
         if next_stage in stage_specs_registry:
             next_spec = stage_specs_registry[next_stage]
-            next_brief = next_spec.brief_template_fn(state)
-            next_brief += _render_review_roles_suggestion(state, next_stage)
-            # v8.71:自动流转 emit 也带下一 stage 的暂停点纪律(治本 SDK-F038 ·
-            # AI 在 blueprint→dev 自动转移那一刻就看到「dev 无暂停 · 禁自造伪决策暂停」·
-            # 不靠之后 dev-start 才看到 · 那时伪暂停已构造)
-            if next_spec.authorized_pause_point:
-                next_brief += _render_pause_discipline(next_spec.authorized_pause_point)
+            pause_line = next_spec.authorized_pause_point or "见 stage brief"
+            next_brief = (
+                f"## 下一 stage:{next_stage}\n"
+                f"- 唯一授权暂停:{pause_line}\n"
+                f"- 跑 `state.py {next_stage}-start --feature {args.feature}` "
+                f"获取完整 brief 并过前置校验(🔴 不要跳过 {next_stage}-start 直接 -complete)"
+            )
 
     # pm_acceptance rejected_with_feedback · 列回退选项暂停点(v8.10 + v8.11 jump-to-stage)
     pause_options_markdown = None
@@ -1605,11 +1738,15 @@ def execute_stage_complete(
     save_state(path, state)
 
     # status_line:基于已转移后的 state(当前 stage 已是 next_stage 或终态)
-    next_hint = (
-        f"按 brief 完成 → {transitioned_to}-complete" if transitioned_to
-        else (f"走 {stage_spec.name}-fix → {stage_spec.name}-retry"
-              if fix_retry_hint else "stage 链结束 / 等用户拍板下一步")
-    )
+    # 下一步指向 {next}-start(先过前置校验拿完整 brief)· 不引导直接 -complete
+    if transitioned_to and transitioned_to in stage_specs_registry:
+        next_hint = f"跑 state.py {transitioned_to}-start"
+    elif transitioned_to:
+        next_hint = f"已转 {transitioned_to} · 流程终态"
+    elif fix_retry_hint:
+        next_hint = f"走 {stage_spec.name}-fix → {stage_spec.name}-retry"
+    else:
+        next_hint = "stage 链结束 / 等用户拍板下一步"
     rw_audit = compute_raw_write_audit(state)
     # v8.14:转到 next_stage 时同步给 next_stage 的 scaffold_hints
     # AI complete 当前 stage 时就拿到下个 stage 的模板地图 · 不用再绕回 stage-start emit
@@ -1738,6 +1875,15 @@ def _add_stage_specific_args(parser: argparse.ArgumentParser, stage_name: str, p
                 "敏捷需求/Planning 必传 false(若 true 应升级 Feature 流程)"
             ),
         )
+        parser.add_argument(
+            "--needs-browser-e2e",
+            choices=["true", "false"],
+            default=None,
+            help=(
+                "可选 · 是否启用 browser_e2e stage(test 通过后转 browser_e2e 而非 pm_acceptance)· "
+                "写 state.execution_hints.browser_e2e_needed · 不传则不改(默认不启用)"
+            ),
+        )
     elif stage_name == "ui_design" and phase == "complete":
         # v8.x:--panorama-changed 必传 · 决定下一 stage 是否 panorama_sync(条件 stage)
         # 治本:panorama 同步原埋在 ui_design step 4 隐式动作 · 拆出后由本字段决策
@@ -1749,6 +1895,15 @@ def _add_stage_specific_args(parser: argparse.ArgumentParser, stage_name: str, p
                 "本 Feature UI 改动是否影响 workspace 级 panorama(sitemap/overview/IA):"
                 "true → 下一 stage=panorama_sync(更新 panorama 单源 + 跨 Feature 评审)/ "
                 "false → 下一 stage=blueprint"
+            ),
+        )
+        parser.add_argument(
+            "--needs-browser-e2e",
+            choices=["true", "false"],
+            default=None,
+            help=(
+                "可选 · 是否启用 browser_e2e stage(test 通过后转 browser_e2e 而非 pm_acceptance)· "
+                "写 state.execution_hints.browser_e2e_needed · 不传则不改(UI feature 建议 true)"
             ),
         )
     elif stage_name == "dev" and phase == "complete":
@@ -1932,6 +2087,59 @@ def run_tests_via_subprocess(cmd_str: str, cwd: str, timeout_sec: int,
 # ─── stage 内 fix-retry 循环(通用 · review/test 复用 · 治本回退切 stage)──
 
 
+# review 轮次预算(review 收敛协议):开新轮 > 预算 → R5 升级暂停点(用户拍板)
+DEFAULT_MAX_REVIEW_ROUNDS = 3
+
+# finding severity 展示顺序(暂停点分组 · 与 specs FINDING_SEVERITIES 同序)
+_FINDING_SEVERITY_ORDER = ("BLOCKER", "MAJOR", "MINOR", "NIT")
+
+
+def _localconfig_max_review_rounds(feature_dir: Path) -> int:
+    """读 localconfig `max_review_rounds`(默认 3)· 向上找到 .git 边界。
+
+    非法值(非正整数)→ 默认。与 specs._localconfig_disable_external 同遍历口径。
+    """
+    try:
+        node = Path(feature_dir).resolve()
+    except (TypeError, OSError):
+        return DEFAULT_MAX_REVIEW_ROUNDS
+    for d in [node, *node.parents]:
+        cfg = d / ".teamwork_localconfig.json"
+        if cfg.exists():
+            try:
+                v = json.loads(cfg.read_text(encoding="utf-8")).get("max_review_rounds")
+            except (OSError, ValueError):
+                return DEFAULT_MAX_REVIEW_ROUNDS
+            if isinstance(v, (int, float)) and not isinstance(v, bool) and int(v) >= 1:
+                return int(v)
+            return DEFAULT_MAX_REVIEW_ROUNDS
+        if (d / ".git").exists():
+            break
+    return DEFAULT_MAX_REVIEW_ROUNDS
+
+
+def _build_review_budget_pause(rounds_done: int, max_rounds: int, ledger: list) -> str:
+    """review 超预算 R5 升级暂停点 markdown(编号 1/2/3 · SKILL.md § R5(b) 格式)。"""
+    open_items = [e for e in ledger if isinstance(e, dict) and e.get("status") == "open"]
+    lines = [
+        f"⏸️ review 已 {rounds_done} 轮未收敛(超过 max_review_rounds={max_rounds})· "
+        f"剩余 open finding:{len(open_items)} 条"
+    ]
+    for sev in _FINDING_SEVERITY_ORDER:
+        group = [e for e in open_items if e.get("severity") == sev]
+        if group:
+            lines.append(
+                f"- {sev}:" + " · ".join(
+                    f"{e.get('id')}({e.get('title', '')})" for e in group))
+    if not open_items:
+        lines.append("- (findings_ledger 无 open 项 · 核对 REVIEW.md frontmatter findings 是否维护)")
+    lines.append("请选择:")
+    lines.append("1. 仅修 BLOCKER/MAJOR 后收口 💡 推荐(动作:MINOR/NIT 全部 deferred → PENDING 池 · 修完走验证轮 APPROVE)")
+    lines.append("2. 继续完整修复(动作:review-retry --user-confirmed --reason '<用户拍板>' 开新一轮)")
+    lines.append("3. 按现状 APPROVE(动作:open 项全部 deferred + concerns WARN 留痕)")
+    return "\n".join(lines)
+
+
 # stage 专属配置 · 加新 stage 在此扩 dict 即可
 _STAGE_FIX_RETRY_CONFIG = {
     "review": {
@@ -1944,7 +2152,11 @@ _STAGE_FIX_RETRY_CONFIG = {
             "--artifacts REVIEW.md,REVIEW-arch.md,REVIEW-qa.md "
             "--verdict {{APPROVE|NEEDS_REVISION}}"
         ),
-        "retry_action_hint": "重新做评审(architect/qa/external)· 完成后:",
+        "retry_action_hint": (
+            "验证轮(范围锁定 · 🔴 禁全量重扫):① 逐条裁决上轮 open finding "
+            "fixed/not-fixed ② 只回归审查修复 diff · 拟 APPROVE 且有 fix → 先跑 "
+            "external-review --verify-fixes · 完成后:"
+        ),
     },
     "test": {
         "commit_field": "test_commit",
@@ -1972,6 +2184,20 @@ _STAGE_FIX_RETRY_CONFIG = {
 }
 
 
+
+YOLO_MAX_FIX_ROUNDS = 10  # v8.198:yolo 同 stage fix-retry 收敛上限(goal-based max-attempts · 防 runaway)
+
+
+def yolo_rounds_exceeded(state: dict, stage_name: str, max_rounds: int = YOLO_MAX_FIX_ROUNDS) -> bool:
+    """v8.198:yolo 下同一 stage 的 fix-retry 轮数达上限 → True(硬停止损 · 真·硬停的合法扩展:
+    不是「该问人」而是「收敛失败」—— 继续烧 token 死磕修不动的问题没有意义)。非 yolo 返 False
+    (普通模式有「3 次 FAIL → 问用户」的既有协议)。"""
+    if not state.get("yolo"):
+        return False
+    rounds = state.get("stage_contracts", {}).get(stage_name, {}).get("rounds") or []
+    return len(rounds) >= max_rounds
+
+
 def execute_stage_fix(stage_name: str, args: argparse.Namespace) -> None:
     """stage 内 fix:RD 修复 + 记录 fix commit 到 rounds[-1]。"""
     if stage_name not in _STAGE_FIX_RETRY_CONFIG:
@@ -1983,6 +2209,13 @@ def execute_stage_fix(stage_name: str, args: argparse.Namespace) -> None:
     cfg = _STAGE_FIX_RETRY_CONFIG[stage_name]
     path, state = load_state(args.feature)
     close_open_pause(state)  # v8.192:闭合 stage 内暂停等待
+    if yolo_rounds_exceeded(state, stage_name):
+        emit_json({
+            "verdict": "FAIL", "command": f"{stage_name}-fix",
+            "error": f"yolo 收敛止损:{stage_name} fix-retry 已 {len(state['stage_contracts'][stage_name]['rounds'])} 轮未收敛(上限 {YOLO_MAX_FIX_ROUNDS})",
+            "hint": ("🔴 硬停 surface(真·硬停扩展 · 收敛失败 ≠ 该继续死磕):向用户汇报 ① 反复失败的具体问题 "
+                     "② 已试过的思路 ③ 建议(回上游 stage 重设计 / 缩范围 / 人工介入)· 不再自动重试"),
+        }, exit_code=1)
 
     if state.get("current_stage") != stage_name:
         emit_json({
@@ -2105,6 +2338,47 @@ def execute_stage_retry(stage_name: str, args: argparse.Namespace) -> None:
         }, exit_code=1)
 
     new_round_num = len(rounds) + 1
+
+    # review 轮次预算(review 收敛协议):开新轮 > max_review_rounds → R5 升级暂停点。
+    # 逃生 = --user-confirmed + 非空 --reason(用户拍板 · 写 concerns WARN 留痕);
+    # yolo = blanket 委托视作已确认(同 require_user_confirmed 语义)· reason 仍必填(audit)。
+    max_review_rounds = None
+    if stage_name == "review":
+        max_review_rounds = _localconfig_max_review_rounds(Path(args.feature))
+        if new_round_num > max_review_rounds:
+            confirmed = getattr(args, "user_confirmed", False) or bool(state.get("yolo"))
+            reason = (getattr(args, "reason", "") or "").strip()
+            if not confirmed:
+                emit_json({
+                    "verdict": "FAIL",
+                    "stage": stage_name,
+                    "action": "retry",
+                    "error": (
+                        f"review 已 {len(rounds)} 轮未收敛 · 开启 round {new_round_num} "
+                        f"超预算(max_review_rounds={max_review_rounds})"
+                    ),
+                    "pause_options_markdown": _build_review_budget_pause(
+                        len(rounds), max_review_rounds,
+                        contract.get("findings_ledger") or []),
+                    "hint": (
+                        "⏸️ 把 pause_options_markdown 原样 emit 给用户拍板(R5)· "
+                        "选 2 → review-retry --user-confirmed --reason '<用户拍板>' 放行;"
+                        "选 1/3 → 先把 open MINOR/NIT 在 REVIEW.md findings 改 deferred(→ PENDING 池)"
+                        "再按对应动作收口"
+                    ),
+                }, exit_code=1)
+            if not reason:
+                emit_json({
+                    "verdict": "FAIL",
+                    "stage": stage_name,
+                    "action": "retry",
+                    "error": "--user-confirmed 超预算放行必带非空 --reason(空串/空白不算)",
+                    "hint": "补 --reason '<用户拍板内容>' · 写入 concerns WARN(audit 单源)",
+                }, exit_code=1)
+            state.setdefault("concerns", []).append(
+                f"{now_iso()} WARN review-retry 超预算放行 · round {new_round_num} > "
+                f"max_review_rounds={max_review_rounds} · reason: {reason}")
+
     new_round = {
         "round": new_round_num,
         cfg["commit_field"]: None,
@@ -2137,6 +2411,8 @@ def execute_stage_retry(stage_name: str, args: argparse.Namespace) -> None:
         "stage": stage_name,
         "action": "retry",
         "round": new_round_num,
+        **({"max_review_rounds": max_review_rounds}
+           if max_review_rounds is not None else {}),
         "next_action_brief": (
             f"✅ {stage_name} round {new_round_num} 已开启。\n"
             f"{cfg['retry_action_hint']}\n"
@@ -2175,7 +2451,7 @@ def register_v8_subparsers(
         # 闭包绑定 stage_spec
         def make_start_handler(spec):
             def handler(args):
-                execute_stage_start(spec, args, {}, flow_by_type)
+                execute_stage_start(spec, args, flow_by_type)
 
             return handler
 
@@ -2191,7 +2467,7 @@ def register_v8_subparsers(
 
         def make_complete_handler(spec):
             def handler(args):
-                execute_stage_complete(spec, args, {}, flow_by_type, stage_specs_registry)
+                execute_stage_complete(spec, args, flow_by_type, stage_specs_registry)
 
             return handler
 
@@ -2230,4 +2506,13 @@ def register_v8_subparsers(
             help=f"[v8] {stage_name}-stage fix 后重新跑一轮 · 加新 round + 重置 contract gates",
         )
         retry_parser.add_argument("--feature", required=True, help="Feature artifact_root")
+        retry_parser.add_argument(
+            "--user-confirmed", action="store_true",
+            help="[review] 超 max_review_rounds 预算的放行标记 · 须用户在升级暂停点拍板"
+                 "(审计发现 AI 自加 = 红线违规)· 必配非空 --reason",
+        )
+        retry_parser.add_argument(
+            "--reason", default="",
+            help="[review] --user-confirmed 超预算放行必填 · 用户拍板内容 · 写 concerns WARN(audit)",
+        )
         retry_parser.set_defaults(func=make_retry_handler(stage_name))

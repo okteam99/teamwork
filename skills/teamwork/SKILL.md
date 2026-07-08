@@ -1,6 +1,6 @@
 ---
 name: teamwork
-version: v8.197.1
+version: v8.198
 description: AI 协作开发一体化框架 - 需求功能开发, bug 修复, 问题排查 · /teamwork 启动
 ---
 
@@ -474,7 +474,7 @@ emit 格式:
 | 卡点 | 正常(非 yolo) | yolo |
 |---|---|---|
 | stage 校验 FAIL | AI 修 + 重试 · 3 次仍 FAIL → 暂停问用户 bypass | **AI 持续自主解决**(更多轮 / 换思路 / 深挖根因)· 不向用户升级 |
-| review NEEDS_REVISION / test FAIL | AI 改 + retry | 同上 · 持续修到绿 · 不回退给人 |
+| review NEEDS_REVISION / test FAIL | AI 改 + retry | 同上 · 持续修到绿 · 不回退给人 · 🔴 **同 stage fix-retry ≤10 轮**(v8.198 · 超 → 硬停止损 surface · 收敛失败 ≠ 继续死磕) |
 | bypass 协议(R8 写门禁) | 停 · 等用户 `--user-confirmed` | **AI 自授权**(`--yolo` = 用户 blanket 委托 · `require_user_confirmed` 物化放行)· 仍 `--reason` + `bypass_log` + concerns WARN |
 | external review CLI 缺/超时 | 问用户 / change-review-roles | 🔴 **优先重试 / 修环境**(external = 唯一安全网 · 默认**保留**)· **仅 CLI 客观不可用**才去 external（物化需 `change-review-roles ... --accept-external-removal` + WARN）· **绝不为效率去** |
 | merge 冲突 | 停 | AI 解冲突(非主分支一般无保护) |

@@ -8,10 +8,13 @@ state.py — Teamwork Feature state.json maintenance tool.
 3. R3 自动满足：每次调用 = 一次原子 read-modify-write，不留中段。
 4. 逃生舱有代价：raw-write 自动追加 concerns WARN「raw-write 跳过校验」。
 
-P1（已实现）：snapshot / validate / raw-read / raw-write
-P2（已实现）：enter-stage / satisfy-gate / complete-stage
-P3（已实现）：ship-sanitize / ship-push / ship-confirm-merged / ship-cleanup / ship-closed
-P4（已实现）：add-concern / bug-frontmatter / micro-validate（pm-decision 已物理删除 · v7 fossil 写错 schema · v8 用 pm_acceptance-complete --decision）
+命令清单单源 = `state.py --help`(本文件 build_parser)：
+- 读:snapshot(status) / validate / raw-read
+- 写:raw-write(逃生舱)/ init-feature / recover / add-concern / pause-mark /
+  reset-prev / jump-to-stage / change-review-roles / set-mode / test-baseline
+- 流程:各 stage 的 -start / -complete / -fix / -retry(_v8_engine 注册)+ ship-phase(_v8_ship)
+- 评审:external-review / scaffold-review-prompt
+- 汇总:audit-raw-writes / prepare-check / planning-check / ws-progress / ws-lint
 """
 
 from __future__ import annotations
@@ -49,8 +52,10 @@ LEGAL_STAGES = {
 
 GATE_NAMES = ("input_satisfied", "process_satisfied", "output_satisfied")
 
-SHIP_PHASE_ENUM = {None, "archived", "pushed", "merged", "closed_unmerged"}  # v8.145 +archived
-SHIP_SHIPPED_ENUM = {None, "archived", "pushed", "merged", "closed_unmerged", "abandoned", "failed"}
+# ship 两段式:ship1 终点 = pushed(MR 已建 · 等用户平台合并)· 合并后 ship-finalize 清场
+# (合并检测在平台侧完成 · 状态机不设 merged 值;放弃/关闭走 closed_unmerged/abandoned)
+SHIP_PHASE_ENUM = {None, "archived", "pushed", "closed_unmerged"}
+SHIP_SHIPPED_ENUM = {None, "archived", "pushed", "closed_unmerged", "abandoned"}
 SHIP_GIT_HOSTS = {"github", "gitlab", "gitlab-self-hosted", "gitee", "bitbucket", "unknown"}
 SHIP_MR_METHODS = {"cli-gh", "cli-glab", "url-fallback", "unknown-platform"}
 
@@ -146,65 +151,17 @@ SNAPSHOT_STAGE_FIELDS = SNAPSHOT_CORE_FIELDS + (
 def state_path(feature: str) -> Path:
     p = Path(feature) / "state.json"
     if not p.exists():
-        die(2, f"state.json not found: {p}")
+        # 输出保持 JSON(与 JsonErrorArgumentParser「全输出可 json.load」承诺一致)
+        die(2, json.dumps({
+            "verdict": "FAIL",
+            "error": f"state.json not found: {p}",
+            "hint": "确认 --feature 指向含 state.json 的 artifact_root · 或先跑 state.py init-feature 创建",
+        }, ensure_ascii=False, indent=2))
     return p
 
 
-# ─── Linked-worktree guard (v7.3.10+P0-156) ──────────────────────────
-# 治本 ADMIN-F013 case：ship-confirm-merged / ship-cleanup 误在 feature
-# worktree 跑 → state.json 写到 worktree → worktree remove --force 时丢失.
-# ship-stage.md Step 6 明文要求"cd 到 merge_target 主工作区"再跑这两命令.
-# 这里加物化拦截 · 不依赖 agent 自觉.
-#
-# 旁路：TEAMWORK_BYPASS_MAIN_WORKTREE=1（migration / debug）
-# 测试模拟：TEAMWORK_FORCE_LINKED_WORKTREE=<git_dir_value>
-
-MAIN_WORKTREE_BYPASS_ENV = "TEAMWORK_BYPASS_MAIN_WORKTREE"
-MAIN_WORKTREE_FORCE_ENV = "TEAMWORK_FORCE_LINKED_WORKTREE"
-
-
-def _check_main_worktree() -> str | None:
-    """检测 cwd 是否在 linked worktree（非 main worktree）.
-
-    Returns: linked worktree git_dir 字符串 if linked · None if main / 非 git repo / 旁路.
-    """
-    if os.environ.get(MAIN_WORKTREE_BYPASS_ENV):
-        return None
-    forced = os.environ.get(MAIN_WORKTREE_FORCE_ENV)
-    if forced:
-        return forced
-    try:
-        result = subprocess.run(
-            ["git", "rev-parse", "--git-dir"],
-            capture_output=True, text=True, check=True, cwd=os.getcwd(),
-        )
-        git_dir = result.stdout.strip()
-        # linked worktree 形如：/path/main/.git/worktrees/{name}
-        if "/worktrees/" in git_dir:
-            return git_dir
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        pass
-    return None
-
-
-def _enforce_main_worktree(command: str) -> None:
-    """Ship Step 6-9 类命令的 cwd 物化拦截 · linked worktree 直接 die."""
-    linked = _check_main_worktree()
-    if not linked:
-        return
-    die(2, json.dumps({
-        "verdict": "FAIL",
-        "error": f"{command} 必须在主工作区运行 · 当前 cwd 在 linked worktree",
-        "cwd": os.getcwd(),
-        "linked_worktree_git_dir": linked,
-        "hint": (
-            "cd 到 merge_target 主工作区（git clone 原仓库位置 · 不是 git worktree add 的 linked 路径）· "
-            "git checkout {merge_target} + git pull --ff-only · 再跑此命令"
-        ),
-        "rule": "v7.3.10+P0-156 物化拦截 · 治本 ADMIN-F013 case state.json 在 worktree 被删丢失",
-        "cite": "ship-stage.md § Step 6 切到 merge_target 主工作区",
-        "bypass": f"如确需 linked worktree 运行（极少 · 调试场景）· export {MAIN_WORKTREE_BYPASS_ENV}=1",
-    }, ensure_ascii=False, indent=2))
+# 注:主工作区拦截(ship2/finalize 必在主工作区)由 _v8_ship._ship_finalize_precheck
+# 独立实现(TEAMWORK_BYPASS_MAIN_WORKTREE 旁路)· state.py 不再持有副本。
 
 
 # ─── Checksum guard (v7.3.10+P0-148) ───────────────────────────────────
@@ -311,15 +268,6 @@ def collect_cited(state: dict[str, Any], cite: str | None) -> dict[str, Any]:
     return out
 
 
-def write_or_die(path: Path, state: dict[str, Any]) -> None:
-    """写入前 full validate · 任一错误即拒绝（治本）。"""
-    errors = validate_state(state)
-    if errors:
-        die(1, json.dumps({"verdict": "FAIL", "errors": errors, "stage": "pre-write validate"},
-                          ensure_ascii=False, indent=2))
-    atomic_write(path, state)
-
-
 def diff_dotted(before: dict, after: dict, fields: list[str]) -> dict[str, Any]:
     """计算指定 dotted 字段的前后差异（用于 updated_fields 输出）。"""
     out = {}
@@ -329,12 +277,6 @@ def diff_dotted(before: dict, after: dict, fields: list[str]) -> dict[str, Any]:
         if b != a:
             out[f] = a
     return out
-
-
-def compute_legal_next(state: dict[str, Any], current: str) -> list[str]:
-    flow_type = state.get("flow_type") or "Feature"
-    flow = FLOW_BY_TYPE.get(flow_type, FEATURE_FLOW)
-    return list(flow.get(current, []))
 
 
 # ─── snapshot ──────────────────────────────────────────────────────────
@@ -386,6 +328,13 @@ def validate_state(state: dict[str, Any]) -> list[str]:
     if cur not in LEGAL_STAGES:
         errors.append(f"current_stage 非法值: {cur!r} ∉ {sorted(LEGAL_STAGES)}")
 
+    flow_type = state.get("flow_type")
+    if flow_type not in FLOW_BY_TYPE:
+        errors.append(
+            f"flow_type 非法值: {flow_type!r} ∉ {sorted(FLOW_BY_TYPE)}"
+            "(不进状态机的流程类型不应有 state.json)"
+        )
+
     completed = state.get("completed_stages") or []
     if not isinstance(completed, list):
         errors.append("completed_stages 必须是数组")
@@ -432,13 +381,6 @@ def validate_state(state: dict[str, Any]) -> list[str]:
         errors.append(
             f"ship.shipped 非法值: {shipped!r} ∉ {sorted(x for x in SHIP_SHIPPED_ENUM if x)}"
         )
-    if phase == "merged":
-        if not ship.get("merge_commit_hash"):
-            errors.append("ship.phase=merged 但 merge_commit_hash 缺失（治本 P0-124）")
-        if not ship.get("merge_detection_method"):
-            errors.append("ship.phase=merged 但 merge_detection_method 缺失（治本 P0-124）")
-        if not ship.get("mr_merged_at"):
-            errors.append("ship.phase=merged 但 mr_merged_at 缺失")
     if phase == "pushed" and not ship.get("feature_head_commit"):
         errors.append("ship.phase=pushed 但 feature_head_commit 缺失（第二段 finalize 依赖）")
 
@@ -477,9 +419,10 @@ def cmd_validate(args: argparse.Namespace) -> None:
             "verdict": "PASS",
             "checks_passed": [
                 "stage enum",
+                "flow_type enum",
                 "stage_contracts gate ordering",
                 "ship phase/shipped enum",
-                "ship merged completeness",
+                "ship pushed completeness",
                 "evidence-binding (P0-101 / P0-119)",
                 "artifact_root present",
             ],
@@ -553,7 +496,7 @@ def cmd_raw_write(args: argparse.Namespace) -> None:
         f"{now_iso()} WARN raw-write 跳过校验 · 改动 {len(applied)} 字段 · 理由：{args.reason}"
     )
 
-    # 不调 write_or_die · raw-write 明确允许 invalid state
+    # raw-write 明确允许 invalid state · 不做写前 validate
     atomic_write(path, state)
     emit({
         "verdict": "OK",
@@ -1285,7 +1228,11 @@ def _parse_iso_utc(s: str):
 def _check_prepare_audit(feature_id: str) -> dict:
     """从 feature_id 抽 prefix · 扫 audit jsonl · 找近 PREPARE_CHECK_WINDOW_SEC 内匹配 record。
 
-    返回 {verdict: PASS|FAIL|SKIP, ...}。SKIP = bypass 环境变量 / 抽不出 prefix。
+    匹配分两级(并行多 feature 场景可辨"prepare 是否为**本** feature 跑过"):
+    - exact:record.next_available_id_stem 是本 feature_id 的号段前缀(stem 本身或 stem-)
+    - prefix_only:仅项目前缀命中(窗内无精确命中)· 仍放行 · init-feature emit WARN + concerns 留痕
+
+    返回 {verdict: PASS|FAIL|SKIP, match: exact|prefix_only, ...}。SKIP = bypass 环境变量 / 抽不出 prefix。
     """
     if os.environ.get(PREPARE_CHECK_BYPASS_ENV) == "1":
         return {"verdict": "SKIP", "reason": f"{PREPARE_CHECK_BYPASS_ENV}=1"}
@@ -1307,7 +1254,8 @@ def _check_prepare_audit(feature_id: str) -> dict:
         lines = audit_path.read_text(encoding="utf-8", errors="replace").splitlines()
     except OSError as e:
         return {"verdict": "SKIP", "reason": f"audit 读失败: {e}"}
-    # 倒序扫(最新在末尾 · 找到一条匹配即返 PASS)
+    prefix_only_hit: Optional[dict] = None  # 窗内最新的 prefix-only 命中
+    # 倒序扫(append-only · 最新在末尾)
     for line in reversed(lines):
         line = line.strip()
         if not line:
@@ -1322,6 +1270,8 @@ def _check_prepare_audit(feature_id: str) -> dict:
         if ts is None:
             continue
         if ts.timestamp() < cutoff:
+            if prefix_only_hit is not None:
+                break  # 已有窗内命中 · 更老的只会更旧
             # 倒序找到的最新匹配也过期 = 全部过期
             return {
                 "verdict": "FAIL",
@@ -1331,15 +1281,32 @@ def _check_prepare_audit(feature_id: str) -> dict:
                 "window_sec": PREPARE_CHECK_WINDOW_SEC,
                 "reason": "最近一次匹配 prepare-check 超出 60min 窗口",
             }
-        # v8.15:return 整条 audit record(含 admission_judgment / consistency / recommended_flow_type)
-        # 供 init-feature 跨字段校验(如 audit consistency=MISMATCH vs init --flow-type)
-        return {
-            "verdict": "PASS",
-            "prefix": prefix,
-            "match_timestamp": rec.get("timestamp"),
-            "age_sec": int(now.timestamp() - ts.timestamp()),
-            "audit_record": rec,
-        }
+        stem = (rec.get("next_available_id_stem") or "").strip()
+        if stem and (feature_id == stem or feature_id.startswith(stem + "-")):
+            # 精确命中:prepare-check 分配的号段即本 feature 的号段
+            # 整条 audit record(含 admission_judgment / consistency / recommended_flow_type)
+            # 供 init-feature 跨字段校验(如 audit consistency=MISMATCH vs init --flow-type)
+            return {
+                "verdict": "PASS",
+                "match": "exact",
+                "prefix": prefix,
+                "matched_stem": stem,
+                "match_timestamp": rec.get("timestamp"),
+                "age_sec": int(now.timestamp() - ts.timestamp()),
+                "audit_record": rec,
+            }
+        if prefix_only_hit is None:
+            prefix_only_hit = {
+                "verdict": "PASS",
+                "match": "prefix_only",
+                "prefix": prefix,
+                "matched_stem": stem or None,
+                "match_timestamp": rec.get("timestamp"),
+                "age_sec": int(now.timestamp() - ts.timestamp()),
+                "audit_record": rec,
+            }
+    if prefix_only_hit is not None:
+        return prefix_only_hit
     return {
         "verdict": "FAIL",
         "prefix": prefix,
@@ -1501,6 +1468,17 @@ def cmd_init_feature(args: argparse.Namespace) -> None:
             f"用 --flow-type={audit_recommended!r} 重走 prepare-check + Feature Planning 或对应流程"
         )
 
+    # prepare-check 仅 prefix 命中(非本 feature 的精确号段)→ 放行但 WARN 留痕
+    # (并行多 feature 场景:同 prefix 的另一 feature 刚跑过 prepare 也会命中 · 显式可见)
+    prepare_match_warning = None
+    if audit.get("verdict") == "PASS" and audit.get("match") == "prefix_only":
+        prepare_match_warning = (
+            f"[WARN] prepare-check audit 仅 prefix 命中:窗内最近 record stem="
+            f"{audit.get('matched_stem')!r} ≠ 本次 feature_id={args.feature_id!r} · "
+            f"并行多 feature 场景请确认 prepare 确为本 feature 跑过 · "
+            f"必要时重跑 prepare-check 取本 feature 的 next_available_id_stem"
+        )
+
     # v8.x:artifact 路由物化校验(治本 F049 子项目错位 case)
     # teamwork-space.md docs_root 是路由权威 · 校验 --feature 路径 + ID 前缀一致
     routing = _check_artifact_routing(feature_dir, args.feature_id)
@@ -1550,11 +1528,8 @@ def cmd_init_feature(args: argparse.Namespace) -> None:
             "error": f"state.json already exists: {state_file}",
             "hint": "Use --force to overwrite (自动 backup .bak.<ts>)",
         }, ensure_ascii=False, indent=2))
-
-    if state_file.exists() and args.force:
-        ts = now_iso().replace(":", "_")
-        backup = state_file.with_suffix(f".json.bak.{ts}")
-        state_file.rename(backup)
+    # 注:--force 的 backup rename 延迟到全部校验通过后、写入前那一刻执行 ——
+    # 防「先移走旧 state.json → 后续 cwd/worktree 校验 die → 旧状态已被毁」。
 
     feature_dir.mkdir(parents=True, exist_ok=True)
     initial_stage = args.initial_stage or DEFAULT_INITIAL_STAGE.get(
@@ -1604,8 +1579,8 @@ def cmd_init_feature(args: argparse.Namespace) -> None:
         # v8.63:yolo implies auto_mode(完全自动是 auto_mode 的超集)· v8.65:yolo_enabled(nargs='?')
         "auto_mode": args.auto_mode or yolo_enabled,
         "yolo": yolo_enabled,
-        # v8.15:admission MISMATCH WARN(audit consistency=MISMATCH 时 init-feature 留痕)
-        "concerns": [admission_warning] if admission_warning else [],
+        # 启动期 WARN 留痕:admission MISMATCH / prepare 门禁仅 prefix 命中
+        "concerns": [w for w in (admission_warning, prepare_match_warning) if w],
         "review_round": 0,
         "stage_contracts": {},
         "completed_stages": [],
@@ -1757,6 +1732,12 @@ def cmd_init_feature(args: argparse.Namespace) -> None:
                     "bypass": "应急 · export TEAMWORK_BYPASS_WORKTREE_PATH_CHECK=1",
                 }, ensure_ascii=False, indent=2))
 
+    # --force 覆盖:全部可 die 的校验已过 · 写入前才移走旧 state.json(backup 留档)
+    if state_file.exists() and args.force:
+        ts = now_iso().replace(":", "_")
+        backup = state_file.with_suffix(f".json.bak.{ts}")
+        state_file.rename(backup)
+
     atomic_write(state_file, state)
 
     # v8.0+P0-13:项目级系统维护已挪到 session-bootstrap(session 级 · 不是 Feature 级)
@@ -1784,6 +1765,8 @@ def cmd_init_feature(args: argparse.Namespace) -> None:
         "next_action_brief": _init_feature_next_brief(args, initial_stage),
         # v8.15:admission MISMATCH 时 emit 顶层显警告(AI 一定看到)+ state.concerns 已留痕
         **({"admission_warning": admission_warning} if admission_warning else {}),
+        # prepare 门禁仅 prefix 命中(非本 feature 精确号段)· 顶层显警告 + concerns 已留痕
+        **({"prepare_match_warning": prepare_match_warning} if prepare_match_warning else {}),
         # v8.179:yolo + 非异质评审醒目警告(降级安全网 · 无人值守须知悉)
         **({"yolo_external_warning": yolo_ext_warning} if yolo_ext_warning else {}),
     })
@@ -1846,25 +1829,18 @@ def cmd_reset_prev(args: argparse.Namespace) -> None:
     - 自动追 concerns WARN
 
     硬门禁:
-    - Ship 后(ship.phase ∈ {pushed, merged})不可回 · 远程已动 · 状态不可逆
+    - Ship 后(ship.phase=pushed · 远程已动)不可回 · 状态不可逆
     - completed_stages 为空 → 无可回退
     """
-    saved = os.environ.get(CHECKSUM_BYPASS_ENV)
-    os.environ[CHECKSUM_BYPASS_ENV] = "1"
-    try:
-        path = state_path(args.feature)
-        state = json.loads(path.read_text(encoding="utf-8"))
-    finally:
-        if saved is None:
-            del os.environ[CHECKSUM_BYPASS_ENV]
-        else:
-            os.environ[CHECKSUM_BYPASS_ENV] = saved
+    # 正常走 checksum 校验:state.json 被外改时 die + 提示先 recover(认证 + audit)再回退
+    path = state_path(args.feature)
+    state = load_state(args.feature)
 
     before = json.loads(json.dumps(state))
 
     # 硬门禁 1:Ship 后不可回
     ship_phase = (state.get("ship") or {}).get("phase")
-    if ship_phase in ("pushed", "merged"):
+    if ship_phase == "pushed":
         die(1, json.dumps({
             "verdict": "FAIL",
             "action": "reset-prev",
@@ -2174,11 +2150,10 @@ def cmd_prepare_check(args: argparse.Namespace) -> None:
         "ui_design 跳过(后端先行)/ blueprint 强 external(跨 5 module 触发点)等调整。"
     )
 
-    # v8.44.4:host-aware 输出风格 hint(治本 case 2026-05-28 codex-cli 渲染 markdown 表格失败)
-    # case:AI emit markdown 表格 · codex-cli terminal 显示成 raw 字符 · 用户提示后才改 box-drawing
-    # 治本:prepare-check 物化 host 检测 · emit 风格 hint · PMO 看 hint 决定默认表达方式
-    detected_host, host_source = _detect_host(None)  # prepare-check 无 feature · 仅看 audit/env
-    payload["output_style_hint"] = _build_output_style_hint(detected_host)
+    # host-aware 输出风格 hint(codex-cli terminal 渲染 markdown 表格易破 · 推荐 box-drawing)
+    # prepare-check 无 --feature(state.json 尚不存在)· host 无从读 → 按 unknown 给保守风格
+    # (host 单源 = state.json.host · 全局 host_audit.json 已退役)
+    payload["output_style_hint"] = _build_output_style_hint(None)
 
     # v8.14 + v8.15:写 prepare_check_audit jsonl(init-feature 门禁读这个)
     # 治本 PTR-F054:prepare-check 物化但 AI 不调用 → 下游门禁兜底
@@ -2745,33 +2720,19 @@ EXTERNAL_HOST_TO_MODEL = {
 }
 
 
-# v8.21:host audit 路径(与 bootstrap.py write_host_audit 对齐 · 跨进程同源读)
-# v8.36:deprecated · 主路径改 per-feature state.json · audit 仅 fallback 兼容
-HOST_AUDIT_PATH_ENV = "TEAMWORK_HOST_AUDIT_PATH"
-
-
 def _detect_host(feature: Optional[str] = None) -> tuple[Optional[str], str]:
-    """探测主对话宿主。
+    """探测主对话宿主 · 单源 = per-feature state.json.host。
 
-    v8.36 优先级(case SVC-PLATFORM-F054 治本 · per-feature 隔离):
-      ① state.json.host(per-feature · 主路径 · 必带 --feature)
-      ② ~/.teamwork/host_audit.json(deprecated · 跨 session 共享 · v8.21 兼容路径)
-      ③ env fallback(占位)
+    (全局 ~/.teamwork/host_audit.json 已退役:bootstrap 停写 · 本函数不再读 ——
+    跨 session 共享文件会残留旧宿主 · 污染异质模型映射。)
 
     返回 (host, source):
       - host:claude-code / codex-cli / gemini-cli / None
-      - source:"state_json" / "audit_deprecated" / "env" / "none"
-
-    v8.21 → v8.36 演进理由:
-    - case SVC-PLATFORM-F054(2026-05-27):全局 audit 跨 session 残留 · PMO 切到 Codex CLI
-      但 audit 残留 claude-code · 推出 model=codex 同源 → 异质失效 · 用户手动覆盖才补救
-    - 治本:host 是 per-feature 属性 · 不是全局属性(同一项目不同 feature 可能用不同 host)
+      - source:"state_json" / "none"
     """
-    # ① state.json.host(v8.36 主路径)
     if feature:
         try:
-            feature_dir = Path(feature)
-            sp = feature_dir / "state.json"
+            sp = Path(feature) / "state.json"
             if sp.exists():
                 data = json.loads(sp.read_text(encoding="utf-8"))
                 host = data.get("host")
@@ -2779,19 +2740,6 @@ def _detect_host(feature: Optional[str] = None) -> tuple[Optional[str], str]:
                     return host, "state_json"
         except (OSError, json.JSONDecodeError):
             pass
-    # ② audit 文件(v8.21 fallback · v8.36 deprecated)
-    override = os.environ.get(HOST_AUDIT_PATH_ENV)
-    audit_path = (Path(override) if override
-                  else Path.home() / ".teamwork" / "host_audit.json")
-    if audit_path.exists():
-        try:
-            data = json.loads(audit_path.read_text(encoding="utf-8"))
-            host = data.get("host")
-            if host in EXTERNAL_HOST_TO_MODEL:
-                return host, "audit_deprecated"
-        except (OSError, json.JSONDecodeError):
-            pass
-    # ③ env fallback(可扩 · 当前仅占位)
     return None, "none"
 
 # stage → reviewer profile 映射(codex profile / claude prompt template 文件名)
@@ -3557,11 +3505,10 @@ def cmd_set_mode(args: argparse.Namespace) -> None:
 
 
 def cmd_scaffold_review_prompt(args: argparse.Namespace) -> None:
-    """v8.44:生成 prompt-doc skeleton 到 feature_dir/external-review-prompts/<stage>-<model>.md。
+    """生成 prompt-doc skeleton 到 feature_dir/external-review-prompts/<stage>-<model>-<ts>.md。
 
     AI 主对话跑此命令拿到 skeleton · 填 PRD/TC/TECH compact summary · 再跑 external-review。
-
-    幂等:doc 已存在 → 不覆盖(防覆盖用户编辑)· emit hint。--force 强制覆盖。
+    每轮唯一命名(时间戳)· 旧 doc 不被覆盖(用户编辑安全)。
     """
     feature_dir = Path(args.feature).resolve()
     if not feature_dir.exists():
@@ -3574,7 +3521,6 @@ def cmd_scaffold_review_prompt(args: argparse.Namespace) -> None:
 
     stage = args.stage
     model = args.model
-    # v8.136:唯一命名(时间戳)· 不再有覆盖冲突(--force 保留为 no-op 兼容旧调用)
     doc_path = _new_prompt_doc_path(feature_dir, stage, model)
 
     # 推 feature_id 从路径(basename 即 ID-Name)
@@ -3655,41 +3601,26 @@ def cmd_external_review(args: argparse.Namespace) -> None:
     - 文件命名 + frontmatter review_model 自动用合规字面(白名单)
     """
     # ── Step 1 · host + model 校验 + 自动映射 ──
-    # v8.36:host 主路径 = state.json.host(per-feature · 治本 SVC-PLATFORM-F054 case)
-    #         · audit fallback 仅兼容(deprecated · WARN)· 治本全局 audit 跨 session 污染
+    # host 单源 = state.json.host(per-feature)· 全局 host_audit.json 已退役(不再读)
     host_source = "explicit"
     host = args.host
-    deprecation_warning = None
     if not host:
         host, source = _detect_host(args.feature)
-        host_source = source  # state_json / audit_deprecated / env / none
-        if source == "audit_deprecated":
-            deprecation_warning = (
-                "[DEPRECATED] host 来自全局 ~/.teamwork/host_audit.json · v8.36 主路径改 "
-                "per-feature state.json.host · 建议:① init-feature 加 --host 显式写入 / "
-                "② 跨 session 切宿主时 stage-start 加 --host 校准 · 删全局依赖。"
-                "audit fallback v8.37 将删除。"
-            )
+        host_source = source  # state_json / none
         if not host:
             emit({
                 "verdict": "FAIL",
                 "command": "external-review",
-                "error": (
-                    "--host 未传 + state.json 无 host + 全局 audit 也无 · 无法确定主对话宿主"
-                ),
+                "error": "--host 未传 + state.json 无 host · 无法确定主对话宿主",
                 "hint": (
-                    "三选一(推荐 ①):\n"
-                    "  ① [v8.36 主路径] 显式传 --host <claude-code|codex-cli|gemini-cli> · "
-                    "顺带写到 state.json:\n"
-                    "     state.py <stage>-start --feature ... --host <host>\n"
-                    "  ② 在 external-review 命令显式传 --host\n"
-                    "  ③ [兼容路径 deprecated] 跑 bootstrap 一次"
-                    "(python3 {SKILL_ROOT}/tools/bootstrap.py --host <host>)· "
-                    "写全局 audit · 但跨 session 易污染 · v8.37 将删\n\n"
-                    "v8.36 设计:host 是 per-feature 属性(同一项目不同 feature 可不同宿主)· "
-                    "不再是全局共享 · 治本 SVC-PLATFORM-F054 case 全局 audit 跨 session 污染"
+                    "二选一(推荐 ①):\n"
+                    "  ① 跑 <stage>-start 时加 --host 写入 state.json.host(此后免传):\n"
+                    "     state.py <stage>-start --feature ... --host <claude-code|codex-cli|gemini-cli>\n"
+                    "  ② 在本命令显式传 --host\n\n"
+                    "host 是 per-feature 属性(同一项目不同 feature 可不同宿主)· "
+                    "决定异质模型映射(claude-code→codex · codex-cli→claude · gemini-cli→codex)"
                 ),
-                "spec": "standards/external-model-usage.md § 7.5 v8.36 per-feature host",
+                "spec": "standards/external-model-usage.md § 7.5 per-feature host",
             })
             return
     if host not in EXTERNAL_HOST_TO_MODEL:
@@ -3980,7 +3911,6 @@ def cmd_external_review(args: argparse.Namespace) -> None:
                 "  ⚠️ 这是降级不是异质:能装/登录异质 CLI 就修环境重跑真异质;长期单模型用 disable_external_review。"
             ),
             "spec": "standards/external-model-usage.md §十一.5(降级=subagent · 不 exec)+ §十二(裁决)",
-            **({"deprecation_warning": deprecation_warning} if deprecation_warning else {}),
         })
         return
 
@@ -4051,8 +3981,6 @@ def cmd_external_review(args: argparse.Namespace) -> None:
             # v8.23:完整 prompt 透明 emit(preview_command 截断到 80 · 此字段无截断)
             "codex_prompt": preview_prompt_full,
             "next": "去掉 --dry-run 实际跑 · 30s-3min 等",
-            # v8.36:host audit deprecation warning(dry-run 也需暴露)
-            **({"deprecation_warning": deprecation_warning} if deprecation_warning else {}),
         })
         return
 
@@ -4078,7 +4006,6 @@ def cmd_external_review(args: argparse.Namespace) -> None:
     prompt_doc_used = None
     prompt_doc_source = None
     files_inline_meta: list[dict] = []
-    fallback_warning = None
     if model == "codex":
         prompt_doc = _new_prompt_doc_path(feature_dir, args.stage, model)
         prompt_doc_source = "generated"
@@ -4360,7 +4287,7 @@ def cmd_external_review(args: argparse.Namespace) -> None:
         "verdict": "OK",
         "command": "external-review",
         "host": host,
-        "host_source": host_source,  # v8.36:state_json / audit_deprecated / explicit
+        "host_source": host_source,  # state_json(per-feature 单源)/ explicit(--host)
         "model": model,
         "model_version": model_version,
         "stage": args.stage,
@@ -4380,8 +4307,7 @@ def cmd_external_review(args: argparse.Namespace) -> None:
             "satisfies_p0_154": (False if self_fallback else True)}
             if (self_fallback or degraded_self) else {}),
         "next_hint": next_hint,
-        # v8.36:host 来源 deprecated 警告 + 内容质量轻校验 WARN(不 BLOCK · R0 兜底)
-        **({"deprecation_warning": deprecation_warning} if deprecation_warning else {}),
+        # 内容质量轻校验 WARN(不 BLOCK · R0 兜底)
         **({"quality_warnings": quality_warnings} if quality_warnings else {}),
         # v8.43:claude 路径 inline 文件 meta(PMO 可验 reviewer 真拿到内容 · v8.44 fallback 时仍出)
         **({"files_inlined": files_inline_meta}
@@ -4396,8 +4322,6 @@ def cmd_external_review(args: argparse.Namespace) -> None:
         **({"process_log": process_log_str} if process_log_str else {}),
         # v8.140:首行 ACK 自证(verified=输出绑定本轮 prompt · missing 已入 quality_warnings)
         **({"review_ack": review_ack} if review_ack else {}),
-        **({"prompt_doc_fallback_warning": fallback_warning}
-            if model == "claude" and fallback_warning else {}),
     })
 
 
@@ -4566,7 +4490,7 @@ def cmd_jump_to_stage(args: argparse.Namespace) -> None:
     - --to 必须在 LEGAL_STAGES
     - --to 必须在当前 flow_type 的 FLOW 表(防跳到该 flow 不存在的 stage)
     - --to != current_stage(防 no-op)
-    - ship 后(ship.phase ∈ {pushed, merged})不可跳 · 状态不可逆
+    - ship 后(ship.phase=pushed · 远程已动)不可跳 · 状态不可逆
 
     动作:
     - current_stage = --to
@@ -4575,16 +4499,9 @@ def cmd_jump_to_stage(args: argparse.Namespace) -> None:
     - 加 concerns WARN(audit)
     - completed_stages 不动(保留历史)
     """
-    saved = os.environ.get(CHECKSUM_BYPASS_ENV)
-    os.environ[CHECKSUM_BYPASS_ENV] = "1"
-    try:
-        path = state_path(args.feature)
-        state = json.loads(path.read_text(encoding="utf-8"))
-    finally:
-        if saved is None:
-            del os.environ[CHECKSUM_BYPASS_ENV]
-        else:
-            os.environ[CHECKSUM_BYPASS_ENV] = saved
+    # 正常走 checksum 校验:state.json 被外改时 die + 提示先 recover(认证 + audit)再跳转
+    path = state_path(args.feature)
+    state = load_state(args.feature)
 
     target = args.to
     current = state.get("current_stage")
@@ -4617,7 +4534,7 @@ def cmd_jump_to_stage(args: argparse.Namespace) -> None:
 
     # 3. ship 后不可跳
     ship_phase = (state.get("ship") or {}).get("phase")
-    if ship_phase in ("pushed", "merged"):
+    if ship_phase == "pushed":
         die(1, json.dumps({
             "verdict": "FAIL",
             "action": "jump-to-stage",
@@ -4693,12 +4610,10 @@ def cmd_recover(args: argparse.Namespace) -> None:
             os.environ[CHECKSUM_BYPASS_ENV] = saved
 
     old_cs = state.get(CHECKSUM_FIELD)
-    concerns = state.setdefault("concerns", [])
-    concerns.append({
-        "severity": "WARN",
-        "message": f"state.json checksum recovered after manual edit · reason: {args.reason}",
-        "timestamp": now_iso(),
-    })
+    # concerns 统一字符串格式 "<ISO> <SEVERITY> <msg>"(与 add-concern / reset-prev 等一致 · 防混型)
+    state.setdefault("concerns", []).append(
+        f"{now_iso()} WARN state.json checksum recovered after manual edit · reason: {args.reason}"
+    )
     atomic_write(path, state)
     emit({
         "verdict": "OK",
@@ -4803,7 +4718,7 @@ def build_parser() -> argparse.ArgumentParser:
     ifp.add_argument("--sub-project", help="如 admin / api-server")
     # v7.3.10+P0-149: 删 --artifact-root 冗余参数 · --feature 单源（既是落盘目录又是 artifact_root 字段值）
     ifp.add_argument("--initial-stage",
-                     help="缺省按 flow_type 决定（Feature→goal / Bug→dev / Micro→dev / ...）")
+                     help="缺省按 flow_type 决定（Feature/敏捷需求→goal / Bug→diagnose / Micro→dev）")
     ifp.add_argument("--merge-target", required=False,
                      help="如 staging / dev · yolo 可改用 --yolo <branch> 指定(二选一)")
     ifp.add_argument("--branch", required=True, help="如 feat/admin-f013-x")
@@ -4820,12 +4735,12 @@ def build_parser() -> argparse.ArgumentParser:
                           "main/master/默认(防无人 review 直接进 main)")
     ifp.add_argument("--force", action="store_true",
                      help="覆盖现有 state.json（自动 backup .bak.<ts>）")
-    # v8.36:host 改 per-feature(治本 v8.21 全局 audit 跨 session 污染 case)
+    # host 是 per-feature 属性 · 单源 state.json.host(全局 host_audit.json 已退役)
     ifp.add_argument("--host",
                      choices=["claude-code", "codex-cli", "gemini-cli"],
-                     help="[v8.36] 主对话宿主 · 写到 state.json.host · external-review 等下游"
-                          "读 per-feature host(不再读全局 ~/.teamwork/host_audit.json)· "
-                          "可选 · 不传则 fallback 读全局 audit(deprecated · 兼容)")
+                     help="主对话宿主 · 写到 state.json.host(per-feature 单源 · external-review "
+                          "等下游读它定异质模型)· 可选 · 不传则后续 <stage>-start --host 补写 · "
+                          "都没有时 external-review 会 FAIL 要求显式传")
     ifp.set_defaults(func=cmd_init_feature)
 
     rcv = sub.add_parser(
@@ -5037,11 +4952,12 @@ def build_parser() -> argparse.ArgumentParser:
                     help=("[v8.43] template_echo BLOCK 时显式承认评审实质 OK(误报) · "
                           "走 bypass log + concerns WARN 留痕 · retro 复盘可见。"
                           "用户应先实际读 file 验证再加此 flag"))
-    # v8.44:doc-based prompt(治本 case round 4 长 prompt 卡 + 不可审计)
+    # doc-based prompt(审计=输入 · 治长 prompt 卡 + 不可审计)
     er.add_argument("--prompt-doc",
-                    help=("[v8.44] 显式 prompt-doc 路径 · 不传则默认 "
-                          "<feature>/external-review-prompts/<stage>-<model>.md。"
-                          "doc 不存在 → fallback v8.43 inline + emit WARN 提示 scaffold"))
+                    help=("显式 prompt-doc 路径(PMO 预写 compact summary 场景 · 仅 claude 路径)· "
+                          "不传则每轮自动生成唯一 doc <feature>/external-review-prompts/"
+                          "<stage>-<model>-<ts>.md。显式传时:doc 不存在 → FAIL;"
+                          "doc 旧于待评审文件 → FAIL(staleness 门禁)"))
     # v8.88:诚实降级自审兜底(异质客观不可用·已重试失败 时的弱安全网)
     er.add_argument("--preflight", action="store_true",
                     help="[v8.191] 只验 CLI 登录/网络(which+version+微 probe · 秒级)· review 干活前跑 · 不执行评审")
@@ -5067,8 +4983,6 @@ def build_parser() -> argparse.ArgumentParser:
                     help="评审 stage(goal/blueprint/review · 各自 checklist 不同)")
     sp.add_argument("--model", required=True, choices=["claude", "codex"],
                     help="reviewer 模型(影响 doc 文件名 + perspective)")
-    sp.add_argument("--force", action="store_true",
-                    help="doc 已存在时覆盖(慎用 · 会丢失本地编辑)")
     sp.set_defaults(func=cmd_scaffold_review_prompt)
 
     # v8.24-v8.41:update-skill · 自更新 → v8.42 抽到独立 tools/update.py

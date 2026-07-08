@@ -1,25 +1,21 @@
 # ADR 模板（Architecture Decision Record）
 
-> 位置：`{子项目路径}/docs/adr/NNNN-{slug}.md`（NNNN 四位数字，从 0001 起连续编号，永不复用）
+> 位置：`{子项目路径}/docs/adr/ADR-NNNN-{topic}.md`（**唯一落点** · 单项目仓库 = 仓库根 `docs/adr/` · ADR 不落 Feature 目录）
+> 命名：`ADR-NNNN` 四位数字 · 全局递增不区分项目 · 永不复用 · 单源规则详 [docs/conventions.md §3](../docs/conventions.md)
 >
 > 受众：**未来的开发者（包括未来的 AI）** — 用决策者视角记录"为什么选 A 而不是 B"，让未来读者能复用/质疑/替换此决策。
 >
 > 用途：记录具有跨 Feature 影响 / 高反悔成本 / 非显然选择的架构决策。**不是每个 Feature 都产 ADR**——由 Blueprint Stage 架构师评审阶段的「3 问触发器」决定。
 >
-> 触发条件（三问全 yes 才产）：
+> 触发条件（「3 问触发器」· 三问全 yes 才产）：
 > 1. 这个决策会影响 ≥ 1 个未来 Feature 吗？
 > 2. 反悔成本很高吗（需要大规模改动）？
 > 3. 存在多个合理方案，选哪个不是显然的吗？
 >
+> 任一问 no → 不产 ADR · 写到 TECH.md 或 KNOWLEDGE.md。
 > 🔴 **备选项至少 2 个，否则不是"决策"，不需要 ADR**。
 >
-> 🔴 **三条门槛 boolean checkbox（借鉴 mattpocock/skills grill-with-docs · 比"3 问触发器"更精准）**：必须**全部 ✅** 才产 ADR：
-> - [ ] **Hard to reverse**（反悔成本大 · 改回去需要大规模改动 / 跨 Feature 影响 ≥ 1）
-> - [ ] **Surprising without context**（未来读者会困惑"为什么这么做"· 不是显而易见的选择）
-> - [ ] **Result of real trade-off**（真实权衡 · 备选项 ≥ 2 + 选当前方案有具体理由）
-> 任一项 ❌ → 不产 ADR · 写到 TECH.md 或 KNOWLEDGE.md。
->
-> 🔴 **7 类合格 ADR 显式列表（借鉴同上）**：以下是真实合格的 ADR 类型，对照命中其一才产：
+> 🔴 **7 类合格 ADR 显式列表**：以下是真实合格的 ADR 类型，对照命中其一才产：
 > 1. **架构形状**（"用 monorepo" / "写读分离 · CQRS"）
 > 2. **跨 Context 集成模式**（"Ordering 与 Billing 通过 domain event 异步通信，不走 HTTP"）
 > 3. **锁定的技术选型**（DB / 消息总线 / 鉴权 / 部署目标 · 不是每个 lib · 是要花季度才能换的那种）
@@ -28,7 +24,7 @@
 > 6. **代码不可见的约束**（"不能用 AWS · 合规要求" / "响应必须 < 200ms · 合作方 API 契约"）
 > 7. **拒绝的方案 · 拒绝理由非显然**（"考虑过 GraphQL 选 REST 因为 X" · 防止 6 个月后又有人提 GraphQL）
 >
-> 🟢 **极简 ADR 模板（借鉴同上）**：如果决策很简单——1-3 句话即可。frontmatter 5 字段必填，正文可只含**背景 1 句 + 决策 1 句 + 理由 1 句**。强制填满下方多段结构会让 ADR 变成"形式主义"。**默认轻量 · 复杂决策才扩到完整结构**。
+> 🟢 **极简 ADR 模板**：如果决策很简单——1-3 句话即可。frontmatter 5 字段必填，正文可只含**背景 1 句 + 决策 1 句 + 理由 1 句**。强制填满下方多段结构会让 ADR 变成"形式主义"。**默认轻量 · 复杂决策才扩到完整结构**。
 >
 > 更新时机：
 > - Blueprint Stage 架构师识别 → 创建（status=proposed）
@@ -45,7 +41,7 @@ title: {决策标题 - 祈使句，如 "采用 PostgreSQL 作为主库"}
 status: proposed | accepted | deprecated | superseded-by-ADR-NNNN
 date: YYYY-MM-DD
 tags: [db, api, auth, frontend, ...] # 至少 1 个主题 tag
-triggered_by: {Feature 目录名，如 "2026-04-用户系统"}
+triggered_by: {Feature 目录名，如 "PTR-F033-Credit-Note-Adjustment"}
 supersedes: [] # 被本决策替代的旧 ADR 列表，如 [ADR-0003]
 ---
 
@@ -125,7 +121,7 @@ supersedes: [] # 被本决策替代的旧 ADR 列表，如 [ADR-0003]
 
 ## 格式硬规则
 
-- 🔴 文件名：`NNNN-{slug}.md`，NNNN 四位数字从 0001 起连续编号，**永不复用**（被 superseded 的 ADR 保留文件，ID 不回收）
+- 🔴 文件名：`ADR-NNNN-{topic}.md`（与 [conventions.md §3](../docs/conventions.md) 一致），NNNN 四位数字从 0001 起全局连续编号，**永不复用**（被 superseded 的 ADR 保留文件，ID 不回收）
 - 🔴 frontmatter 五个字段全必填：`id / title / status / date / tags`
 - 🔴 备选项 ≥ 2（单方案走 TECH.md，不走 ADR）
 - 🔴 每次 ADR 新增 / 状态变更 → 同步更新 `INDEX.md`

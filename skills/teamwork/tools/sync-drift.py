@@ -5,8 +5,9 @@ sync-drift.py — CLAUDE.md / AGENTS.md teamwork 注入段同步引擎（v7.3.10
 职责（与 verify-panorama.py / state.py 同型物化拦截）：
 - marker-aware 同步：仅更新 `<!-- TEAMWORK_BEGIN:X -->` ... `<!-- TEAMWORK_END:X -->` 之间内容
 - 用户编辑的 marker 外内容**永不动**
-- idempotent：同版本 source + target 重跑 = 无 diff
-- 版本敏感：marker 上 version 字段（`vX.X.X+P0-Y`）· sync-drift 比对决定升级
+- idempotent：同 source + target 重跑 = 无 diff
+- 内容敏感：内容相同即 unchanged 不重写（marker 版本号不参与比对 · 仅在内容变化时随之更新 ·
+  避免每次 patch bump 无谓重写宿主文件）
 
 用法：
     # 首次注入（marker 不存在 → 插入到目标文件顶部）
@@ -14,13 +15,13 @@ sync-drift.py — CLAUDE.md / AGENTS.md teamwork 注入段同步引擎（v7.3.10
         --source {SKILL_ROOT}/templates/host-instruction-injection.md \\
         --skill-version v7.3.10+P0-134 --init
 
-    # 升级（marker 存在但版本旧 → 替换 marker 之间内容 + 升 version 标签）
+    # 升级（marker 存在但内容变化 → 替换 marker 之间内容 + version 标签随之更新）
     python3 tools/sync-drift.py --target ./CLAUDE.md --source ... --skill-version ...
 
     # dry-run（只看 diff · 不写）
     python3 tools/sync-drift.py --target ... --source ... --skill-version ... --dry-run
 
-退出码：0 PASS · 1 需注意（unchanged / dry-run）· 2 错误
+退出码（R-SP-5 契约）：0 PASS（含 unchanged noop / dry-run）· 2 FAIL 阻断（source/target 缺失 · 缺 marker 未加 --init）
 
 红线：
 1. 仅动 marker 之间内容（用户外部段绝对保护）
@@ -164,8 +165,9 @@ def main() -> None:
         canonical = render_section(name, args.skill_version, src["content"])
         if name in tgt_sections:
             tgt = tgt_sections[name]
-            # 内容 + 版本完全一致 → unchanged
-            if tgt["content"] == src["content"] and tgt["version"] == args.skill_version:
+            # 内容一致 → unchanged(版本号不参与比对 · 仅内容变化时随之更新 ·
+            # 否则每次 patch bump 都会无谓重写宿主文件)
+            if tgt["content"] == src["content"]:
                 sections_unchanged.append(name)
                 continue
             # 替换整段（保留 marker 外用户内容）
@@ -174,9 +176,9 @@ def main() -> None:
                 "name": name, "from_version": tgt["version"], "to_version": args.skill_version,
             })
         else:
-            # 不存在 marker
+            # 不存在 marker(阻断错误 · R-SP-5 exit 2)
             if not args.init:
-                die(1, {
+                die(2, {
                     "verdict": "FAIL",
                     "error": f"target 缺 section '{name}' marker · 加 --init 首次插入",
                     "hint": ("teamwork 注入段未在 target 找到 · 用户可能编辑过 / "
@@ -187,10 +189,10 @@ def main() -> None:
             sections_inserted.append(name)
 
     # 用户外部内容保留行数（diff snapshot）
-    user_lines = sum(
-        1 for line in tgt_text.splitlines()
-        if not any(line in s["full_match"] for s in tgt_sections.values())
-    )
+    # 精确统计:总行数 − 各 marker 块行数(块在 target 中唯一出现 · 由 parse 保证)。
+    # 不能用「行 in 块」子串判断——空行/短行是任意块的子串 → 统计失真。
+    marker_lines = sum(s["full_match"].count("\n") + 1 for s in tgt_sections.values())
+    user_lines = max(0, len(tgt_text.splitlines()) - marker_lines)
 
     if not sections_updated and not sections_inserted:
         emit({

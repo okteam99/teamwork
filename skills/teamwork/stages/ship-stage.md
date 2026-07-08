@@ -68,6 +68,7 @@ state.py ship-phase --action push --feature <path> \
 
 ```markdown
 ⏸️ ship1 完成 · feature MR 已创建(含代码 + 归档 + 规划翻牌)· 等用户在平台 review + 合并
+🔴 v8.198:emit 本提示后**跑 `state.py await-merge --feature <path>`**(30s 轮询 · MERGED → 自动 ship-finalize · WAITING → 重跑续等 · 用户随时可打断改人工)—— 等待窗不再无人看(治 132h 长尾 / CI 红无人接)
 
 请选择:
 

@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
 """
-verify-ac.py — AC↔test 覆盖校验脚本（标准实现，v7.3.1）
+verify-ac.py — AC↔test 覆盖校验脚本（标准实现）
 
-用法：
+用法（二选一）：
     python3 {SKILL_ROOT}/templates/verify-ac.py <Feature 目录>
+    python3 {SKILL_ROOT}/templates/verify-ac.py --prd <PRD.md 路径> --tc <TC.md 路径>
+
+（--prd/--tc 是 _v8_stage_specs._evidence_ac_test_binding 门禁的调用形态 ·
+  位置参数保留兼容旧用法。）
 
 功能：
     1. 从 PRD.md 的 YAML frontmatter 提取所有 acceptance_criteria[].id
@@ -166,17 +170,35 @@ def parse_frontmatter(fm_text: str) -> dict:
 
 
 def main():
-    if len(sys.argv) < 2:
-        print(f"usage: {sys.argv[0]} <Feature 目录>", file=sys.stderr)
+    import argparse
+
+    ap = argparse.ArgumentParser(
+        description="AC↔test 覆盖校验(PRD.acceptance_criteria ↔ TC.tests[].covers_ac)")
+    ap.add_argument("feature_dir", nargs="?", default=None,
+                    help="Feature 目录(含 PRD.md + TC.md)· 与 --prd/--tc 二选一")
+    ap.add_argument("--prd", default=None, help="PRD.md 路径(与 --tc 成对传)")
+    ap.add_argument("--tc", default=None, help="TC.md 路径(与 --prd 成对传)")
+    ns = ap.parse_args()
+
+    if ns.prd or ns.tc:
+        if not (ns.prd and ns.tc):
+            print("usage: --prd <PRD.md> 与 --tc <TC.md> 必须成对传", file=sys.stderr)
+            return 1
+        prd = Path(ns.prd)
+        tc = Path(ns.tc)
+        feature_dir = prd.parent
+    elif ns.feature_dir:
+        feature_dir = Path(ns.feature_dir)
+        prd = feature_dir / "PRD.md"
+        tc = feature_dir / "TC.md"
+    else:
+        print(f"usage: {sys.argv[0]} <Feature 目录> | --prd <PRD.md> --tc <TC.md>",
+              file=sys.stderr)
         print(
             "  example: python3 verify-ac.py docs/features/AUTH-F042-email-login/",
             file=sys.stderr,
         )
         return 1
-
-    feature_dir = Path(sys.argv[1])
-    prd = feature_dir / "PRD.md"
-    tc = feature_dir / "TC.md"
 
     # 0. 文件存在校验
     if not prd.exists():

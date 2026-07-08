@@ -85,7 +85,7 @@ pages_changed:
 - 导航位置：{本 Feature 页面在 sitemap 中的层级路径}
 - 全景变更类型：⏭️ 无 / 🟡 增量 / 🔴 结构性
 
-#### 🔴 全景对齐校验（static-html 介质 · v8.195 起走 verify-panorama.py · medium-aware）
+#### 🔴 全景对齐校验（static-html 介质 · 走 verify-panorama.py · medium-aware）
 
 ```bash
 python3 {SKILL_ROOT}/tools/verify-panorama.py --feature {Feature_dir}
