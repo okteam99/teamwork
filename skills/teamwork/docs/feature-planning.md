@@ -152,32 +152,31 @@ Feature 列表 + 优先级 + 排期(当前/下一/储备)。
 PL 把方向 · PM 把可执行性 · Architect 把技术可行。
 PMO 主对话切换角色 · 讨论收敛 · 不需要单独 review artifact。
 
-### Step 9 · 提交 + 开 MR + ⏸️ 提示用户合并(规划收尾 · 🔴 R5 暂停点 · 必问)
+### Step 9 · 提交 + 收尾(规划收尾 · 🔴 R5 暂停点 · 必问)
 
-规划产出(WS + 各 ROADMAP 登记 + preview-project/sitemap if 涉 UI + 业务架构 if 改)是 **Step 0 worktree 内未提交的改动**。规划完成 → **必 emit R5 暂停点问用户是否把规划产物合入 `merge_target`** —— 不擅自 commit / 合并,也不放任改动悬着:
-
-```
-⏸️ 规划完成 · 产出 <WS-NN + N 个 ROADMAP 登记 + 全景 if UI> · 是否合入 <merge_target>?
-1. 提交并创 MR 合入 <merge_target> 💡 推荐 —— 我 commit + push planning 分支 + 开 MR · 你在平台 review + 合并
-2. 先不提交(继续调整 / 你稍后自己提)
-3. 其他指示
-```
-
-**【收尾-1 · 建 MR + 提示合并】**(= feature ship1):用户选 1 → 在 **Step 0 worktree 内** `git add` 规划产物 + commit + push planning 分支 + 开 MR(`gh`/`glab` CLI-first · 🔴 **target = `merge_target`**〔集成分支 dev/staging〕· 不走 ship 状态机 · 纯文档/全景 MR)→ 🔴 **⏸️ 提示用户合并 + 停**:
+规划产出(WS + 各 ROADMAP 登记 + preview-project/sitemap if 涉 UI + 业务架构 if 改)是 **Step 0 worktree 内未提交的改动**。规划完成 → **必 emit R5 暂停点问用户如何收尾** —— 不擅自 commit / 合并,也不放任改动悬着。🔴 **头两项 = 一步到位**(治本 case:用户被迫手动「你直接合并然后规划收尾」· 收尾不该是「建 MR → 等你告知已合并 → 再收尾」的多段接力):
 
 ```
-⏸️ 规划 MR 已创建:<MR URL> · target `<merge_target>` · 请 review + 合并。
-合并完回来告诉我「已合并」· 我进规划收尾(清 worktree + 净化主分支)。
-(v8.198:或我直接跑 `state.py await-merge --mr-url <URL>` 30s 轮询 · 合并自动进收尾-2 · 你随时可打断)
+⏸️ 规划完成 · 产出 <WS-NN + N 个 ROADMAP 登记 + 全景 if UI> · 合入 <merge_target> 收尾?
+1. 确认 · 合入 MR + 收尾规划 💡 推荐 —— 我 commit + push + 开 MR + **自动合并** + 清 worktree + 净化主分支(一步到位)
+2. 确认 · 合入收尾 + 启动首个 BL <BL-xxx> —— 同 1 · 收尾完直接 prepare 首波 ready BL(execution_waves W1)进 Feature 流
+3. 建 MR · 我自己平台 review 再合 —— commit + push + 开 MR → 你平台合(或我 `await-merge` 30s 轮询)→ 合后收尾
+4. 先不提交(继续调整 / 你稍后自己提)
+5. 其他指示
 ```
 
-🔴 **规划收尾 = MR 创建 + 等用户合并 · 不自动继续启动下一个 Feature** —— 启动实施是**用户合并规划 MR 之后**的独立决策(用户拍板某 BL → prepare)。🔴 **别在未合并的 planning 分支上叠起 feature**:feature 的 `merge_target` 应是**集成分支**(dev/staging)· **不是 planning 分支** —— 否则实现 diff 混着未合并的规划、基线不稳。
+🔴 **自动合并硬门(选 1 / 2)**:仅当 `merge_target` **非主分支**(main / master)—— 规划 MR 走**集成分支**(dev/staging)· 纯文档/全景 · 低风险 · 同 yolo「自动合入只进非主分支」风险模型。主分支 / 平台要求审批或 CI 门 / 合并命令被拒 → **自动回退选项 3**(surface + 转人工合)· 绝不 force。
 
-**【收尾-2 · finalize(用户合并后 · = feature ship2 / ship-finalize)】**🔴 用户说「已合并」→ **进规划收尾流程**(3 步 · 镜像 ship-finalize:verify → worktree-remove → main-sync):
-1. **切回主工作区**:`cd <主工作区路径>`(在 `merge_target` / 主分支上 · 非 planning worktree)。
-2. **清理 planning worktree**:`git worktree remove <planning-worktree-path>`(规划产物已随 MR 进集成分支 · worktree 使命完成 · 删不掉先 `git worktree remove --force` 兜底)。
-3. **净化主分支**:`python3 {SKILL_ROOT}/tools/state.py main-sync --merge-target <merge_target>`(**不依赖 feature** · fetch + 按策略 pull 合并后的规划产物 → 主工作区**干净 + 最新** · 主工作区若有用户改动会 surface 净化决策)。
-→ 完成 · 拆出的 BL 用户拍板再走 prepare 启动 Feature(此时集成分支基线**已含规划产物**)· 规划层不进状态机。
+**【收尾执行 · commit → 开 MR →(选 1/2)自动合 /(选 3)等合 → finalize】**(= feature ship1+ship2 合流):
+
+1. **建 MR**(= ship1):**Step 0 worktree 内** `git add` 规划产物 + commit + push planning 分支 + 开 MR(`gh`/`glab` CLI-first · 🔴 **target = `merge_target`**〔集成分支〕· 不走 ship 状态机 · 纯文档/全景 MR)。
+2. **合并**:
+   - **选 1/2** → `gh pr merge` / `glab mr merge`(🔴 非主分支硬门)· 成功即进 finalize;被平台拒(审批/CI/保护)→ 回退选项 3 并 surface 原因。
+   - **选 3** → ⏸️ 给 `<MR URL>` · 用户平台合(或 `state.py await-merge --mr-url <URL>` 30s 轮询 · 合并自动续)→ 合后进 finalize。
+3. **finalize**(= ship2 / ship-finalize · 3 步镜像):① `cd <主工作区路径>`(非 planning worktree)② `git worktree remove <planning-worktree-path>`(删不掉 `--force` 兜底)③ `python3 {SKILL_ROOT}/tools/state.py main-sync --merge-target <merge_target>`(不依赖 feature · fetch + 按策略 pull · 主工作区有用户改动会 surface 净化决策)。
+4. **选 2 追加 · 启动首个 BL**:finalize 完 → 首波 ready BL(`<BL-xxx>` · 取 WS `execution_waves` W1 / `ws-progress` 的 `ready_to_start`)→ prepare → init-feature 进 Feature 状态机。
+
+🔴 **启动首个 BL 的前提(选 2 · 守 v8.188 护栏)**:必须 **finalize 完成后**(集成分支基线**已含规划产物**)· 且是**用户显式选择**(非自动起)· 该 feature 的 `merge_target` = **集成分支**(dev/staging · **不是 planning 分支**)—— 「别叠 feature 在未合并 planning 分支」仍成立(规划已合入 · planning 分支已消亡)。选 1/3 收尾后拆出的 BL 同样由用户后续拍板再 prepare。
 
 ---
 

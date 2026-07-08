@@ -2292,7 +2292,7 @@ PLANNING_CHECKLIST = [
      "spec": "feature-planning.md §2 Step 6 + templates/workstream.md"},
     {"item": "WS 拆出的 feature 写入 ROADMAP(BL-NNN · 关联 WS)· feature 全写入 = WS ✅ 规划完成 · 每个 BL 后续用户拍板走 prepare 启动 Feature",
      "spec": "conventions.md §4 + prepare.md §5"},
-    {"item": "🔴 规划收尾必 emit R5 暂停点问用户**是否合入 merge_target**(WS+ROADMAP+全景是 Step 0 worktree 内未提交改动)→ 确认后 worktree 内 commit+push planning 分支+开 MR(target=merge_target 集成分支)→ 🔴 **⏸️提示用户合并 + 停**(同 feature ship1)· 🔴 用户说「已合并」→ **规划收尾 finalize**(= ship2:cd 回主工作区 → `git worktree remove` 清 planning worktree → `state.py main-sync --merge-target <mt>` 净化主分支)· 🔴 不自动起下一 feature · 别叠 feature 在未合并 planning 分支 · 不走 ship 状态机",
+    {"item": "🔴 规划收尾必 emit R5 暂停点问用户**如何收尾**(WS+ROADMAP+全景是 Step 0 worktree 内未提交改动)· 🔴 头两项一步到位(治本:别让用户手动『你直接合并然后收尾』):**1. 确认·合入 MR+收尾**(commit+push+开 MR+**自动合并**+清 worktree+净化主分支一步到位)· **2. 确认·合入收尾+启动首个 BL**(同 1 · 收尾完 prepare 首波 ready BL〔execution_waves W1〕)· **3. 建 MR 我自己平台合**(await-merge 轮询 / 平台合后收尾)· **4. 先不提交** · 🔴 **自动合并硬门(选1/2)= merge_target 非主分支**(main/master → 回退选 3 · 同 yolo 风险模型)· 平台拒(审批/CI)→ 回退选 3 · 🔴 启动首个 BL(选2)前提 = finalize 完成后+用户显式选+feature target=集成分支(守 v8.188『别叠 feature 在未合并 planning 分支』)· 不走 ship 状态机",
      "spec": "feature-planning.md §2 Step 8"},
 ]
 
@@ -2350,9 +2350,9 @@ def cmd_planning_check(args: argparse.Namespace) -> None:
             "  git fetch origin\n"
             "  git worktree add -b planning/<短名> <repo-root>/.worktree/planning-<短名> origin/<merge-target>\n"
             "  cd <worktree-path>   # 🔴 规划产物全写 worktree 内路径(同 worktree 纪律)\n"
-            "  → 规划完成 → ⏸️暂停问「是否合入 merge_target」→ 建 MR(target=merge_target)+ 🔴 提示用户合并 + **停**"
-            "(别自动起下一 feature · 别叠 feature 在未合并 planning 分支)· 🔴 用户说「已合并」→ 进收尾:"
-            "cd 回主工作区 → git worktree remove → `state.py main-sync --merge-target <mt>` 净化主分支(=ship-finalize · 详 Step 9)\n"
+            "  → 规划完成 → ⏸️暂停问「如何收尾」(5 选项 · 头两项一步到位):1.合入 MR+收尾(自动合并+清 worktree+净化) 2.收尾+启动首个 BL 3.建 MR 我自己平台合 4.先不提交 · "
+            "🔴 自动合并硬门 = merge_target 非主分支(main/master → 回退手动)· 🔴 启动首个 BL(选2)必 finalize 完成后(别叠 feature 在未合并 planning 分支)· "
+            "finalize = cd 回主工作区 → git worktree remove → `state.py main-sync --merge-target <mt>`(=ship-finalize · 详 Step 9)\n"
             "  (trivial 单文档微调 · 用户可决定免 worktree)"
         ),
         "key_constraints": [
