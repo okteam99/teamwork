@@ -1743,14 +1743,14 @@ def cmd_init_feature(args: argparse.Namespace) -> None:
     # v8.0+P0-13:项目级系统维护已挪到 session-bootstrap(session 级 · 不是 Feature 级)
     # init-feature 只管 Feature 级状态机操作
 
-    # v8.179:yolo + 单模型(localconfig disable_external_review)→ kickoff 醒目警告 ——
-    # external 异质安全网降级为同模型 subagent 冷审(弱)· 无人值守下风险更高 · 用户须知悉。
+    # v8.204(用户拍板 · 全局一刀切 · yolo 也跟随):external 异质默认关 → 评审第三视角 = 同模型
+    # subagent 隔离冷审(默认常态)· 多角色评审照跑。yolo 无人值守 · 给一条 INFO 提示(非红线告警) ——
+    # 若要 yolo 也上跨模型异质把关,localconfig 显式 disable_external_review:false。
     yolo_ext_warning = None
     if yolo_enabled and _read_disable_external_review(args.feature):
         yolo_ext_warning = (
-            "🔴🔴 yolo + 单模型评审:本项目 .teamwork_localconfig.json `disable_external_review=true` → "
-            "external **异质**安全网已降级为**同模型 subagent 冷审**(非异质 · 同盲点 · 弱于异质交叉评审)。"
-            "yolo 无人值守 · 这是唯一安全网且已降级 —— 知悉再继续;想恢复异质把关 → 删该 localconfig 项。"
+            "ℹ️ yolo 评审第三视角 = 同模型 subagent 隔离冷审(v8.204 默认 · external 异质默认关 · 省 CLI 冷启动)· "
+            "架构师+QA 多角色评审照跑。想要 yolo 也上跨模型异质把关 → localconfig `disable_external_review: false`。"
         )
     emit({
         "verdict": "OK",
@@ -1965,29 +1965,29 @@ def _read_id_strategy(start: Path) -> str:
 def _read_disable_external_review(start) -> bool:
     """读项目根 `.teamwork_localconfig.json` 的 `disable_external_review`(v8.153 改名 · 原 `disable_heterogeneous_review`)。
 
-    从 `start` 向上找 `.teamwork_localconfig.json`(到 `.git` 边界止)· 默认 **false**(external 评审开)。
-    true = 单模型用户主动禁用 external 评审 → external-review 自动 emit subagent 降级配方
-    (宿主自身模型 subagent 自审 · 写 external-cross-review/ 满足 P0-154 但 frontmatter 标 degraded)·
-    每次 bootstrap 启动 WARN。与 v8.88 `--self-review-fallback`(异质暂时不可用的临时 stopgap ·
-    落 self-review/ · 不满足门禁)区分:本项是**项目级长期策略**(用户接受质量下降)。
-    🔴 v8.154 hard rename:只读新名 `disable_external_review` · 旧名 `disable_heterogeneous_review`
-    已废弃不再读取(无消费项目使用 · 不留兼容)。
+    从 `start` 向上找 `.teamwork_localconfig.json`(到 `.git` 边界止)。
+    🔴 v8.204(用户拍板 · 全局一刀切):**默认 true**(external 异质评审**默认关** · external CLI 冷启动太耗时)
+    —— key 缺省 / 无 config / 读失败 → **true**(禁用);显式 `false` = **主动 opt-in 跨模型异质把关**。
+    禁用 = external-review emit subagent 降级配方(宿主自身模型 subagent 隔离冷审 · 写 external-cross-review/
+    满足 P0-154 · frontmatter 标 degraded)· **架构师 + QA 多角色评审不受影响照跑**。与 v8.88
+    `--self-review-fallback`(异质暂时不可用的临时 stopgap · 落 self-review/ · 不满足门禁)区分:本项是项目级长期默认。
+    🔴 v8.154 hard rename:只读新名 `disable_external_review` · 旧名 `disable_heterogeneous_review` 已废弃。
     """
     try:
         node = Path(start).resolve()
     except OSError:
-        return False
+        return True
     for d in [node, *node.parents]:
         cfg = d / ".teamwork_localconfig.json"
         if cfg.exists():
             try:
                 data = json.loads(cfg.read_text(encoding="utf-8"))
             except (OSError, json.JSONDecodeError):
-                return False
-            return data.get("disable_external_review") is True
+                return True
+            return data.get("disable_external_review", True) is True  # 缺省→true(默认关)· 显式 false→开
         if (d / ".git").exists():
             break
-    return False
+    return True
 
 
 def _detect_id_collision(feature_dir: Path, feature_id: str) -> "dict | None":

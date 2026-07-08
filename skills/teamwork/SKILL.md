@@ -1,6 +1,6 @@
 ---
 name: teamwork
-version: v8.203.1
+version: v8.204
 description: AI 协作开发一体化框架 - 需求功能开发, bug 修复, 问题排查 · /teamwork 启动
 ---
 
@@ -448,10 +448,10 @@ emit 格式:
 - **`--yolo`**(无值)= 用 `--merge-target` 的分支(二者至少给一个 · 都没 → FAIL)
 - **中途切换** = `state.py set-mode --feature <F> --yolo [<分支>] --reason '<原因>'`(或 `--auto-mode` / `--no-yolo` / `--no-auto-mode`)· 语义命令 · 走 `state.mode_changes` audit + 同款非 main 硬门 + implies-auto 护栏 · **不要 raw-write `state.json` 改 auto_mode/yolo**(无 audit·绕门禁)
 
-🔴🔴 **yolo ≠ 简化/提速 · 是「加重审核」**:无人值守 = **没人在看** → 自动化评审(尤其 **external 异质模型 cross-review**)是**唯一安全网** · 必须**保留 / 加重** · **绝不削弱**。yolo 的「零 stop」**只**针对**人工决策暂停点**(prepare / pm_acceptance / MR merge)· 技术与评审环节**一个不少**。
-- 🔴🔴 **严格按 teamwork 流程流转 · 不得「内化」**:每个 stage 的评审必**真跑** —— 多角色真分析(找真问题 · 不是 `mode: yolo-internalized` 自盖章 APPROVE)· external 必**真调异质模型**(`state.py external-review --stage <X>` · 不得 AI 手写 `external-cross-review/*.md`)。external **实跑日志物化校验**:yolo 下 `xx-complete` 校验 `~/.teamwork/external-review-logs/<feat>/codex-<stage>-*.log` 存在(无 → FAIL · 文件名/frontmatter 能伪装合规 · 实跑日志伪造不了)。auto_mode 的「内化」**仅指跳过用户确认暂停点**(AI 代用户接受)· **绝非**跳过/伪造评审工作本身。
-- 🔴 **不得去 external 评审**(以"集中到 review stage""效率""价值低"为由)—— yolo 下 `change-review-roles` 去 external **物化 BLOCK** · 仅 external CLI **客观不可用**(未装 / 网络死 · 已重试失败)才 `--accept-external-removal --reason '<技术原因>'`(写 concern WARN)
-- 🔴 **异质开关 = localconfig 单源**(v8.179):异质 external 评审受 `.teamwork_localconfig.json` 的 `disable_external_review: true/false` 控制(**单一开关** · 单模型用户长期 opt-out)。`disable_external_review=true` 时:① `init-feature --yolo` kickoff **醒目警告**(`yolo_external_warning` · 安全网降级 · 无人值守须知悉)② 降级评审**必须是 subagent 冷审**(isolated context · 宿主自身模型 fresh · **非主对话热审 / 非 AI 手写**)· yolo 门禁校验 `external-cross-review/*.md` 含 `review_via: subagent`(无 → FAIL)—— **「非异质」也不许「不冷审」**(同模型但冷上下文,仍是独立采样;主对话自评 = 无效)。跑 `state.py external-review --stage <X>` 自动 emit subagent 冷审配方。
+🔴🔴 **yolo ≠ 简化/提速 · 是「加重审核」**:无人值守 = **没人在看** → 自动化评审是**唯一安全网** · 必须**保留 / 加重** · **绝不削弱**。**三视角评审(架构师 + QA + 第三独立视角)全真跑 · 一个不少**;🔴 v8.204:第三视角**默认 = 同模型 subagent 隔离冷审**(external 异质**默认关** · 省 CLI 冷启动)· 跨模型异质 = **opt-in 升级**(localconfig `disable_external_review: false`)。yolo 的「零 stop」**只**针对**人工决策暂停点**(prepare / pm_acceptance / MR merge)。
+- 🔴🔴 **严格按 teamwork 流程流转 · 不得「内化」**:每个 stage 的评审必**真跑** —— 多角色真分析(找真问题 · 不是 `mode: yolo-internalized` 自盖章 APPROVE)· 第三视角必**真跑**(`state.py external-review --stage <X>` · 不得 AI 手写 `external-cross-review/*.md`)。物化校验按介质:**默认 subagent 隔离冷审** → 校验 frontmatter `review_via: subagent`(无 → FAIL);**opt-in 异质** → 真调异质模型 + `~/.teamwork/external-review-logs/<feat>/codex-<stage>-*.log` 实跑日志(无 → FAIL · 伪造不了)。auto_mode 的「内化」**仅指跳过用户确认暂停点** · **绝非**跳过/伪造评审工作本身。
+- 🔴 **不得去掉第三视角评审**(以"集中到 review stage""效率""价值低"为由)—— 默认第三视角已是轻量 subagent 冷审(非重量异质 CLI · 成本已低)· 去掉**整个第三视角** `change-review-roles` 仍**物化 BLOCK**。
+- 🔴 **异质开关 = localconfig 单源**(v8.204 · 🔴 **默认 true = 关**):external 异质评审受 `.teamwork_localconfig.json` 的 `disable_external_review` 控制 —— **缺省 / true = 关**(第三视角走同模型 subagent 隔离冷审 · CLI 冷启动太耗时)· **显式 false = opt-in 跨模型异质**。默认(关)时:① `init-feature --yolo` kickoff 一行 **INFO**(`yolo_external_warning` · 非红线告警 · 告知第三视角为同模型冷审)② 第三视角**必须是 subagent 冷审**(isolated context · 宿主自身模型 fresh · **非主对话热审 / 非 AI 手写**)· 门禁校验 `external-cross-review/*.md` 含 `review_via: subagent`(无 → FAIL)—— **「非异质」也不许「不冷审」**(同模型但冷上下文仍是独立采样;主对话自评 = 无效)。跑 `state.py external-review --stage <X>` 自动 emit 对应配方(默认冷审 / opt-in 异质)。
 - 🔴 **不得擅自合并 BL / 跳 stage / 减 review 轮次 / 简化流程** —— 该走的 stage、该跑的评审角色一个不省;BL 拆分是 Planning 已定的范围,yolo 不重新打包
 - ✅ **可以加重**:必要时每个 stage 都跑 external、加 review 轮次、提高测试覆盖 —— 无人值守正该更严
 
@@ -476,7 +476,7 @@ emit 格式:
 | stage 校验 FAIL | AI 修 + 重试 · 3 次仍 FAIL → 暂停问用户 bypass | **AI 持续自主解决**(更多轮 / 换思路 / 深挖根因)· 不向用户升级 |
 | review NEEDS_REVISION / test FAIL | AI 改 + retry | 同上 · 持续修到绿 · 不回退给人 · 🔴 **同 stage fix-retry ≤10 轮**(v8.198 · 超 → 硬停止损 surface · 收敛失败 ≠ 继续死磕) |
 | bypass 协议(R8 写门禁) | 停 · 等用户 `--user-confirmed` | **AI 自授权**(`--yolo` = 用户 blanket 委托 · `require_user_confirmed` 物化放行)· 仍 `--reason` + `bypass_log` + concerns WARN |
-| external review CLI 缺/超时 | 问用户 / change-review-roles | 🔴 **优先重试 / 修环境**(external = 唯一安全网 · 默认**保留**)· **仅 CLI 客观不可用**才去 external（物化需 `change-review-roles ... --accept-external-removal` + WARN）· **绝不为效率去** |
+| external CLI 缺/超时(仅 opt-in 异质) | — | 🔴 默认 external **已关**(第三视角=subagent 冷审 · 无此问题)· 仅当项目 opt-in 异质(`disable_external_review:false`)且 CLI 不可用 → **降级 subagent 冷审**(非去掉第三视角)· 冷审仍真跑 |
 | merge 冲突 | 停 | AI 解冲突(非主分支一般无保护) |
 
 🔴 **优先级:解决 > 绕过**。yolo ≠「遇错就 bypass 硬推」· 而是「AI 当负责的工程师 · 穷尽手段把问题**真解决**」;bypass 只是穷尽自主解决后为不停下的**最后兜底** · 每次必 WARN 留痕。审计看 `bypass_log` 频率 = yolo 健康度(频繁 bypass = AI 没在真解决 · 该回炉 / 降级 yolo)。

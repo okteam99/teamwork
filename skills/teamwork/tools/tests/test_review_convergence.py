@@ -309,6 +309,8 @@ class _ReviewFlowCase(unittest.TestCase):
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp(prefix="tw-revflow-"))
         _git(self.tmp, "init", "-b", "main")
+        (self.tmp / ".teamwork_localconfig.json").write_text(  # v8.204:opt-in 异质(默认关)
+            json.dumps({"disable_external_review": False}), encoding="utf-8")
         _git(self.tmp, "config", "user.email", "t@t.co")
         _git(self.tmp, "config", "user.name", "t")
         self.feat = self.tmp / "docs" / "features" / "F1"

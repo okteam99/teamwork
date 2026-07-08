@@ -738,7 +738,9 @@ LOCALCONFIG_CONFIG_DEFAULTS = {
     "mr_url_template": None,
     "id_strategy": "utc-yymmddhhmmss",
     "local_env_auto_create": True,
-    "disable_external_review": False,
+    # v8.204(用户拍板 · 全局一刀切):默认关异质 external 评审(降级为同模型 subagent 隔离冷审)·
+    # external CLI 冷启动太耗时 · 多角色评审(架构师+QA)不受影响照跑 · 想要跨模型异质把关 → 设 false。
+    "disable_external_review": True,
 }
 LOCALCONFIG_BOOTSTRAP_DEFAULTS = {
     "skill_version": None,
@@ -1424,14 +1426,15 @@ def cmd_session_bootstrap(args: argparse.Namespace) -> None:
             "rule": "🔴 PMO 首条响应按此序 · 不可把 ①/② 降成底部「维护提醒」脚注(治本优先级倒置)",
         }
 
-    # v8.90:异质评审被 localconfig 禁用 → 每次启动 WARN(交叉 review 质量下降 · 建议恢复)
-    _ext_disabled = read_localconfig(project_root).get("disable_external_review") is True
+    # v8.204:external 异质评审**默认关**(disable_external_review 缺省→true · CLI 冷启动太耗时)·
+    # 降级为同模型 subagent 隔离冷审 · 多角色评审(架构师+QA)照跑 · 想跨模型异质把关 → 显式设 false。
+    _ext_disabled = read_localconfig(project_root).get("disable_external_review", True) is not False
     result["checks"]["heterogeneous_review"] = {
-        "status": "disabled" if _ext_disabled else "enabled",
-        **({"warning": (
-            "⚠️ 已禁用 external 评审(disable_external_review=true)· external 评审降级为同模型 "
-            "exec 自审 · **交叉 review 质量下降**(同盲点 · 漏检风险↑)· 强烈建议改 "
-            ".teamwork_localconfig.json 恢复异质(删该项 / 设 false · 装好第二个模型 CLI 后)")}
+        "status": "cold-review (default)" if _ext_disabled else "heterogeneous (opt-in)",
+        **({"note": (
+            "ℹ️ external 异质评审默认关(v8.204)· 第三视角 = 同模型 subagent 隔离冷审(fresh session)· "
+            "架构师+QA 多角色评审不受影响照跑 · 想要跨模型异质把关(揭同模型盲区)→ "
+            ".teamwork_localconfig.json 设 `disable_external_review: false`(需装第二个模型 CLI)")}
             if _ext_disabled else {}),
     }
 
@@ -1450,9 +1453,7 @@ def cmd_session_bootstrap(args: argparse.Namespace) -> None:
             f" · 跑 update.py --channel {_suc.get('channel', 'main')}(最先处理)")
     elif _suc.get("status") == "up_to_date":
         _mr.append(f"skill ✅ {_suc.get('local_version')}")
-    if _ext_disabled:
-        _mr.append("🔴 external 评审已禁用(disable_external_review=true)· 交叉 review 降级为"
-                   "同模型自审 · PMO 须告知用户(见 checks.heterogeneous_review · 建议恢复异质)")
+    # v8.204:external 默认关 = 常态 · 不再红字告警(仅在用户 opt-in 异质时无需提示)· 静默
     _kg = result.get("checks", {}).get("knowledge_graph", {})
     if _kg.get("status") == "leaks_found":
         _mr.append("🔴 知识图谱 %d 个结构死角(见 checks.knowledge_graph.leaks)· "
