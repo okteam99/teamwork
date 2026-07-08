@@ -69,18 +69,6 @@ state.py 校验:
 
 ---
 
-## 必读 cite 清单(P0-11)
-
-| Substep | 必读 spec | 段 | cite 关键点 |
-|---|---|---|---|
-| 1. 加载上下文 | — | — | (读 UI/PRD/panorama · 无 spec cite) |
-| 2. 更新 panorama 单源 | `roles/designer.md` | § panorama 同步 | sitemap 节点变更 + mtime 物化 |
-| 3. 起草 summary + 判级 | `roles/designer.md` + `roles/pm.md` | § 跨 Feature 影响评估 | reviewers / 受影响 Features / 协调结论 / change_level 三判据 |
-| 4. ⏸️ reviewer 评审 | — | — | (条件 R5 暂停点 · 仅 L2) |
-| 5. complete | — | — | (无) |
-
-📎 **cite 纪律**详 [../STAGES.md § 2 P0-11 cite 纪律](../STAGES.md)。
-
 ## 质量基线
 
 📎 **物化拦截**:

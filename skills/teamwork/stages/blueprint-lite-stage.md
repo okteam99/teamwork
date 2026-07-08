@@ -18,18 +18,6 @@
 
 ---
 
-## 必读 cite 清单(P0-11 · 各 substep 动手前主对话输出)
-
-| Substep | 必读 spec | 段 | cite 关键点 |
-|---------|----------|----|------------|
-| 1. 加载上下文 | — | — | (读 PRD) |
-| 2. QA 起草 TC.md(精简版) | `roles/qa.md` | § TC 起草 | 精简版 · 每 AC 至少 1 test |
-| 3. (可选)Architect 快速看 | `roles/architect.md` | § Quick Review | 不强制 TECH-REVIEW.md |
-| 4. complete | — | — | (无) |
-
-
-📎 **cite 纪律**(输出格式 / 强约束 / 为什么 cite)· 单源详 [../STAGES.md § 2 P0-11 cite 纪律](../STAGES.md)
-
 ## 质量基线
 
 📎 **物化拦截**:`allowed_flow_types=["敏捷需求"]`(flow_type 错 → start FAIL)

@@ -142,21 +142,6 @@ test-complete --integration-test-exit-code 0 --e2e-test-exit-code 0
 
 ---
 
-## 必读 cite 清单(P0-11 · 各 substep 动手前主对话输出)
-
-| Substep | 必读 spec | 段 | cite 关键点 |
-|---------|----------|----|------------|
-| 1. 加载上下文 | — | — | (读 PRD.AC + TC.md + 代码) |
-| 2. QA 起草 integration | `roles/qa.md` | § 集成测试 | 进程内 · 跨模块/服务契约 · 不抹边界叫 E2E |
-| 3. QA 起草 api-e2e | `roles/qa.md` | § E2E 测试 | Python · live 跨进程 · 跑通即可 |
-| 4. 跑测试 | — | — | (无) |
-| 5. 跑 verify-ac.py | — | — | (物化校验 · 无 spec cite) |
-| 6. 起草 TEST-REPORT.md | — | — | (无) |
-| 7. complete | — | — | (无) |
-
-
-📎 **cite 纪律**(输出格式 / 强约束 / 为什么 cite)· 单源详 [../STAGES.md § 2 P0-11 cite 纪律](../STAGES.md)
-
 ## 质量基线
 
 📎 **物化拦截**:`verify-ac.py`(每 AC ≥1 integration 或 api-e2e · `TC.md frontmatter.tests[].covers_ac` 显式 cite)

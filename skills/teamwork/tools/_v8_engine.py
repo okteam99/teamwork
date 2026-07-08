@@ -1520,7 +1520,6 @@ def execute_stage_complete(
     contract["completed_at"] = now_iso()
     contract["auto_commit"] = auto_commit
     contract["artifacts"] = (args.artifacts or "").split(",") if args.artifacts else []
-    contract["cited_specs"] = (args.cite or "").split(",") if args.cite else []
 
     # (v8.28 --run-tests 块已前移至 2.4 · 注入发生在 persist/evidence 校验之前)
 
@@ -1834,7 +1833,6 @@ def add_common_stage_complete_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--auto-commit", default="",
                         help="本 stage 产出的 git commit hash · 不传则默认取当前 git HEAD")
     parser.add_argument("--artifacts", default="", help="逗号分隔 · 本 stage 实际产出文件")
-    parser.add_argument("--cite", default="", help="逗号分隔 · AI 声明读了哪些 spec")
     parser.add_argument("--bypass", action="store_true", help="逃生 · 跳过 artifact/evidence 校验")
     parser.add_argument("--reason", default="", help="bypass 时必填")
     parser.add_argument("--user-confirmed", action="store_true",

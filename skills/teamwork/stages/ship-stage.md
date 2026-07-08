@@ -110,18 +110,6 @@ state.py ship-finalize --feature <worktree 内 feature 目录路径> \
 
 ---
 
-## 必读 cite 清单(P0-11)
-
-本 stage 是 PMO 编排操作(不涉及内容创作角色)· **无 cite 要求**。
-
-📎 **物化拦截清单**(已在工具层 BLOCKED + hint · spec 不重复展开):
-- P0-6 ship 后 reset-prev FAIL
-- P0-113 push 必 CLI-first 拿 MR URL · `url-fallback` 在 CLI 已装+已认证时 **BLOCKED**(逃生口:`--accept-cli-unavailable --reason '<原因>' --user-confirmed` · bypass log + concerns WARN 留痕)
-- v8.145 push 必先 archive(`phase: archived → pushed` 物化)· archive 规划 gate(`--planning-artifacts` / `--no-planning-changes` 二选一)
-- P0-156 ship-finalize 必在主工作区跑(linked worktree precheck FAIL)
-
----
-
 ## 13 · R-S7 · git add 范围规则(强红线)
 
 **任何 commit Feature 产物**(各 stage-complete 后 · §3 archive **之前**):

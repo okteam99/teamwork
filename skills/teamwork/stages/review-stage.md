@@ -194,21 +194,6 @@ review-complete --verdict APPROVE | NEEDS_REVISION(受 severity 门槛拦截)
 
 ---
 
-## 必读 cite 清单(P0-11 · 各 substep 动手前主对话输出)
-
-| Substep | 必读 spec | 段 | cite 关键点 |
-|---------|----------|----|------------|
-| 1. 加载上下文 | — | — | (读 PRD/TC/TECH + 实际代码 diff) |
-| 2. Architect 视角 review → REVIEW-arch.md | `roles/architect.md` | § Code Review | 技术合理性 / 性能 / 安全 / 架构 / **简洁性(防过度设计 · 唯一 counter-lens)** |
-| 3. QA 视角 review → REVIEW-qa.md | `roles/qa.md` | § Code Review | AC 逐条对照 / 测试覆盖 / 边界场景 |
-| 4. External cross-review | `roles/external-reviewer.md` | § Cross-review 协议 | 异质模型独立 review |
-| 5. 汇合 → REVIEW.md | `standards/external-model-usage.md` | §十二 | 逐条裁决 finding:质疑→确认→裁决 · confirmed / rejected(必记依据)/ deferred · **信号≠判决 · 不盲采不盲驳** · 定 severity 入 findings |
-| 6. complete --verdict | 本文档 | § verdict 门槛 | NEEDS_REVISION 须 open BLOCKER/MAJOR · APPROVE 不得有 |
-| 验证轮(Round 2+) | 本文档 | § 验证轮 | 范围锁定 · rejected 不复提 · 钟摆升级 · verify-fixes |
-
-
-📎 **cite 纪律**(输出格式 / 强约束 / 为什么 cite)· 单源详 [../STAGES.md § 2 P0-11 cite 纪律](../STAGES.md)
-
 ## 质量基线
 
 📎 **物化拦截**:P0-154(`external-cross-review/*.md` 非空 · 跨模型异质 review 必跑一次)+ severity 门槛 + findings 台账 + 轮次预算(本文档 §收敛协议 · review-complete / review-retry 强制)

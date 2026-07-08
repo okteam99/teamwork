@@ -31,20 +31,6 @@ Playwright / Puppeteer / Selenium(项目栈决定)
 
 ---
 
-## 必读 cite 清单(P0-11 · 各 substep 动手前主对话输出)
-
-| Substep | 必读 spec | 段 | cite 关键点 |
-|---------|----------|----|------------|
-| 1. 加载上下文 | — | — | (读 UI.md / preview / 部署 URL) |
-| 2. 选浏览器自动化 | `roles/qa.md` | § E2E 选型 | Playwright / Puppeteer / Selenium |
-| 3. 编写脚本 + 截图 | `roles/qa.md + roles/designer.md` | § 截图规范 | 每 AC 一组截图 · 含 viewport + URL |
-| 4. 起草 BROWSER-TEST-REPORT.md | — | — | (无) |
-| 5. ⏸️ 用户看截图确认 | — | — | (无) |
-| 6. complete | — | — | (无) |
-
-
-📎 **cite 纪律**(输出格式 / 强约束 / 为什么 cite)· 单源详 [../STAGES.md § 2 P0-11 cite 纪律](../STAGES.md)
-
 ## 质量基线
 
 📎 **物化拦截**:`execution_hints.browser_e2e_needed`(state.py auto_transition_fn 按字段判定 · 不强制必跑)

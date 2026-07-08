@@ -46,16 +46,6 @@ state.py diagnose-complete --feature <path> --auto-commit <hash> --artifacts bug
 
 ---
 
-## 必读 cite 清单(P0-11 · 动手前主对话输出)
-
-| Substep | 必读 spec | cite 关键点 |
-|---------|----------|------------|
-| 2. 根因细查 | `project-specs/DEV-RULES.md`(若存在)+ 实际代码 | 深读到真因 · 区分症状/根因 · 核验真实文件 |
-| 3. 修复方案 | `project-specs/TROUBLESHOOTING.md`(若需 live 数据排查) | 改哪/怎么改/取舍/影响面 · 不写 fix 码 |
-| 5. 用户确认 | — | R5 暂停点 · 方案给用户拍板才进 dev |
-
----
-
 ## 质量基线
 
 - 🔴 **根因 ≠ 症状**:§根因 必须是真因(可指到代码位置)· 不是表面现象的复述。
