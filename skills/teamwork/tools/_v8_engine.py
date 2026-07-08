@@ -784,9 +784,15 @@ STAGE_TEMPLATES: dict[str, dict] = {
                       "校验 PRD 每条 AC 在 TC.md tests[].covers_ac ≥1 引用 · 漏覆盖 FAIL"),
         },
     },
+    "diagnose": {
+        "templates": {
+            "bugfix/BUG-XXX.md": "bug-report.md",  # v8.202:diagnose 产 §现象/根因/修复方案(原漏 · Bug 模板 start 时不给)
+        },
+        "validators": {},
+    },
     "dev": {
         "templates": {
-            "bugfix/BUG-XXX.md": "bug-report.md",  # flow_type=Bug 时
+            "bugfix/BUG-XXX.md": "bug-report.md",  # flow_type=Bug 时(追加 §回归测试/§修复记录)
         },
         "validators": {},
     },
@@ -853,6 +859,8 @@ def build_scaffold_hints(stage_name: str) -> dict | None:
     return {
         "expected_artifacts": expected_artifacts,
         "templates": templates_abs,
+        "usage": ("🔴 照上列模板**绝对路径**起草 · **别抄项目里同名旧产物**"
+                  "(旧文件可能是旧版模板快照 · 实测 PRD canonical 到达率 2/11 · 抄旧 = 新机制到达不了)"),
         "validators": validators_abs,
         "hint": (
             "起草前先 cat 模板(已含 frontmatter + body 骨架)· "
