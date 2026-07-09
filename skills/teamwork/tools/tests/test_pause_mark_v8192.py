@@ -104,3 +104,15 @@ class TestTimingSplitV8208(unittest.TestCase):
         self.assertIn("user_email: dev@team.co", body)          # frontmatter
         self.assertIn("AI 自主运行:40m", body)                  # split
         self.assertIn("等待用户:30m", body)
+
+    def test_audit_frontmatter_host(self):
+        import tempfile, os, subprocess
+        from pathlib import Path
+        from _v8_ship import _write_audit_record
+        wt = Path(tempfile.mkdtemp()); subprocess.run(["git","-C",str(wt),"init","-q"],capture_output=True)
+        os.environ["HOME"] = tempfile.mkdtemp()
+        rec = _write_audit_record({"feature_id":"FH","completed_stages":["dev"],"flow_type":"Feature",
+                                   "host":"codex-cli","stage_contracts":{"dev":{"duration_minutes":10}}},
+                                  "FH","staging",str(wt),None,"")
+        self.assertIn("host: codex-cli", Path(rec).read_text(encoding="utf-8"))  # v8.209 宿主 frontmatter
+

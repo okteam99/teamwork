@@ -11,9 +11,10 @@
 
 > 查询示例(年检 / 流程审视时算):external confirmed 率 = Σ采 / Σ总;某角色真 finding 率 = 该角色 finding 数 / feature 数;暂停点 all-default 率 = Σ默 / Σ(改+默)。
 
-| Feature | 用户邮箱 | flow | 实走 stages | 时长(总·AI自主·待用户) | 各阶段耗时 | review/test 轮 | external 总/采/驳 | 角色真 finding | 暂停点 改:默 | bypass/WARN | 反思摘要(≤1 行) |
-|---|---|---|---|---|---|---|---|---|---|---|---|
-| <ID> | <git user.email> | <Feature/Bug/敏捷/Micro> | <goal→blueprint→dev→…→ship> | <2.4h·AI 88m·待 32m> | <goal 20m(+等5m)·dev 40m·review 8m·pm_acceptance 30m> | <1/1> | <3/1/2> | <arch:1 qa:0 ext:1> | <1:2> | <0/0> | <external 拦 1 真问题 · ui_design 零 finding 过场> |
+| Feature | 宿主 | 用户邮箱 | flow | 实走 stages | 时长(总·AI自主·待用户) | 各阶段耗时 | review/test 轮 | external 总/采/驳 | 角色真 finding | 暂停点 改:默 | bypass/WARN | 反思摘要(≤1 行) |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| <ID> | <claude-code/codex-cli/gemini-cli> | <git user.email> | <Feature/Bug/敏捷/Micro> | <goal→blueprint→dev→…→ship> | <2.4h·AI 88m·待 32m> | <goal 20m(+等5m)·dev 40m·review 8m·pm_acceptance 30m> | <1/1> | <3/1/2> | <arch:1 qa:0 ext:1> | <1:2> | <0/0> | <external 拦 1 真问题 · ui_design 零 finding 过场> |
 
 > 🔴 **时长三分(v8.208)**:`总` = 墙钟(init→archive · 不含 MR 等待)· `AI自主` = 扣掉所有人工等待后 AI 真跑的时长(Σ 工作 stage〔duration − stage 内 pause-mark 暂停〕)· `待用户` = 全部人工等待(stage 内暂停 + pm_acceptance 等纯等待 stage 墙钟)。**数据源 = ship1 archive emit 的 `ledger_timing`**(确定性 · 照抄不肉眼算)· `各阶段耗时`同源(`per_stage`)。
 > 🔴 **用户邮箱** = `git config user.email`(archive emit `ledger_timing.user_email`)· 供年检按人/团队分析流程健康度。
+> 🔴 **宿主(v8.209)** = AI 宿主类型 `claude-code` / `codex-cli` / `gemini-cli`(archive emit `ledger_timing.host` = `state.host`)· 供年检**按宿主对比流程质量**(如 external 采纳率 / 过场率 / AI 自主时长在 claude vs codex 上的差异)。

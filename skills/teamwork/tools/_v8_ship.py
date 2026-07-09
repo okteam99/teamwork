@@ -931,9 +931,10 @@ def _handle_ship_archive(state: dict, args: argparse.Namespace) -> dict:
         "archive_commit": head,
         "zip": zip_rel,
         "planning_bundled": [rel for rel, _ in planning_files],
-        # v8.208:PROCESS-LEDGER 时长行采写数据(台账在 ship1 archive 采写 · 见 §3.5/§16)——
-        # AI 照抄进台账「时长(总·AI自主·待)」+「各阶段耗时」+「用户邮箱」列 · 确定性 · 不靠肉眼算 state。
+        # v8.208/v8.209:PROCESS-LEDGER 行采写数据(台账在 ship1 archive 采写 · 见 §3.5/§16)——
+        # AI 照抄进台账「宿主」+「时长(总·AI自主·待)」+「各阶段耗时」+「用户邮箱」列 · 确定性 · 不肉眼算 state。
         "ledger_timing": {
+            "host": state.get("host") or "unknown",  # v8.209:AI 宿主(claude-code/codex-cli/gemini-cli)
             "total_wall": _feature_duration_h(state),
             "ai_autonomous_min": _lt_ai,
             "await_user_min": _lt_wait,
@@ -1550,6 +1551,7 @@ def _write_audit_record(state: dict, feature_id: str, merge_target: str,
             f"source_project: {source}\n"
             f"flow_type: {flow}\n"
             f"merge_target: {merge_target}\n"
+            f"host: {state.get('host') or 'unknown'}\n"  # v8.209:AI 宿主(harvest 按宿主分析 codex/claude)
             f"user_email: {user_email or 'unknown'}\n"  # v8.208:git 用户邮箱(harvest 按人分析)
             f"generated_at: \"{now_iso()}\"\n"
             f"audit_status: pending\n"  # AI 填完判断 → 改 done(harvest 时筛)

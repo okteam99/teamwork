@@ -4,6 +4,18 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.209 · PROCESS-LEDGER + audit 记录 AI 宿主类型(codex / claude / gemini)
+
+> 用户:台账要记 AI 宿主(codex 还是 claude)。宿主已在 `state.host`(claude-code/codex-cli/gemini-cli · audit 正文也有)· 本版落进台账列 + archive emit 采写数据 + audit frontmatter(供 harvest 按宿主分析)。
+
+### 改动
+- **ship1 archive emit `ledger_timing` 加 `host`**(= state.host)· 与时长/邮箱同束 · AI 照抄确定性。
+- **audit frontmatter 加 `host:`**(与 v8.208 `user_email` 并列 · harvest 按宿主筛)。
+- **PROCESS-LEDGER 模板加 `宿主` 列** + 口径说明(供年检**按宿主对比流程质量** —— external 采纳率 / 过场率 / AI 自主时长在 claude vs codex 的差异)。ship-stage §16 同步。
+
+### 验证
+- code(`_v8_ship` archive emit + audit frontmatter)+ 模板/§16 · `test_pause_mark_v8192` +1(host frontmatter)· pytest 818 passed。
+
 ## v8.208 · 流程价值台账时长三分(总/AI自主/等待用户)+ 各阶段细粒度 + 用户邮箱列
 
 > 用户:台账时长要细化 —— 各阶段细粒度耗时 · 区分等待用户 · 排除等待=AI 自主运行耗时;加一列 git 用户邮箱。基础设施(v8.192 pause-mark `await_minutes` + `_AWAIT_USER_STAGES`)已有 · 本版把它落进台账/审计。
@@ -59,18 +71,3 @@
 
 ### 验证
 - doc-only(SKILL/conventions/feature-planning/templates)· pytest 809 passed。
-
-## v8.204 · external 异质评审默认关(用户拍板 · 全局一刀切 · yolo 也跟随)· 省 CLI 冷启动
-
-> 用户:`disable_external_review` 默认改 true(默认关异质评审 · 太耗时)· yolo 也跟随默认关。厘清:开关只降级**第三视角 reviewer**(异质外部 CLI → 同模型 subagent 隔离冷审)· **架构师+QA 多角色评审完全不受影响照跑** · 耗时大头 = external CLI 冷启动。
-
-### 改动(默认翻转 · 三处)
-- **`_read_disable_external_review` + `_localconfig_disable_external` + bootstrap CONFIG_DEFAULTS**:key 缺省 / 无 config / 读失败 → **true**(禁用);**显式 `false` = opt-in 跨模型异质**。template localconfig seed 同步 true。
-- **告警软化**(现在是默认常态 · 不再红字每次响):bootstrap heterogeneous_review status→`cold-review (default)` + note(非 warning)· 删 digest 🔴 行 · yolo kickoff `🔴🔴 醒目告警`→一行 `ℹ️ INFO`。
-- **物化门禁不变**:第三视角**仍必真跑**(默认校验 `review_via: subagent` 冷审 · opt-in 异质校验实跑日志)· 去掉整个第三视角仍 BLOCK · 「非异质」也不许「不冷审」。
-
-### 文档 reframe(避免变假话)
-- README(中英)支柱表 / flow 表 / yolo 段:「异质 cross-review」→「第三视角独立 Review(默认同模型隔离冷审 · 跨模型异质 opt-in 升级)」。SKILL yolo 红线同步(第三视角默认冷审 · 异质 opt-in)。
-
-### 验证
-- pytest 809 passed(21 处 external 测试 setUp 改为显式 opt-in `disable_external_review:false` + 默认断言翻转)· 两读取器冒烟一致。
