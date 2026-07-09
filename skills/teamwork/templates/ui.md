@@ -29,7 +29,7 @@ pages_changed:
 > 🔴 panorama_path: {绝对路径 / null（项目无全景）} · 全景权威根
 > 🔴 panorama_medium: same-stack(推荐 · `{子项目}/docs/design/preview-project` 同栈独立项目 · 源即全景权威 · 真实组件渲染 · 不污染真实工程 · 解新库引入鸡蛋问题 · 验证渲染:拷 `{SKILL_ROOT}/templates/preview-project-preview.sh` 进 preview-project 根 · 后台跑 `bash preview.sh` 读 `PREVIEW_URL=` browse〔dev server · 动态端口 · 不在 teamwork 层起 server〕)| static-html(兜底 · 手写 CDN · 仅作 IA / 视觉层级 / Token 一致性参考 · 介质差异不可像素级仿 live)
 > 🟢 **全景为唯一权威**:本 Feature 不存 preview/*.html 副本 · 直接编辑 panorama_path/preview/<page>.html(权威) · pages_changed[] 声明本 Feature 改了哪几个 page + 链到权威文件。详 [stages/ui-design-stage.md § 全景为唯一权威](../stages/ui-design-stage.md)。
-> 🔴 **分层同构**(same-stack):全景页 = **意图权威**(四要素:布局结构 / 交互流 / 状态 / 字段映射 —— 即本文 body 各段 · dev 还原对照物)· 🔴 **same-stack 页面内容完全一致**(从共享组件渲染 · 零预览痕迹 · 设计=代码构造保证 · 预览工具走 dev 顶栏 · 页面禁内嵌 switcher)· static-html 仅参考;设计权威**至该页 ship 止**(此后代码即真相);基建层(shell / 组件库 / 主题 / 架构)走**共享包**完全一致。详 [stages/ui-design-stage.md § 分层同构律 + § preview dev 顶栏](../stages/ui-design-stage.md)。
+> 🔴 **分层同构**(same-stack):全景页 = **意图权威**(四要素:布局结构 / 交互流 / 状态 / 字段映射 —— 即本文 body 各段 · dev 还原对照物)· 🔴 **same-stack 页面内容完全一致**(从共享组件渲染 · 零预览痕迹 · 设计=代码构造保证 · 预览工具走 dev 悬浮工具面板〔右下角〕· 页面禁内嵌 switcher)· static-html 仅参考;设计权威**至该页 ship 止**(此后代码即真相);基建层(shell / 组件库 / 主题 / 架构)走**共享包**完全一致。详 [stages/ui-design-stage.md § 分层同构律 + § preview dev 工具面板](../stages/ui-design-stage.md)。
 
 ## 状态
 草稿 | 待评审 | 已确认
@@ -69,7 +69,7 @@ pages_changed:
 | 维度 | 检查项 | 通过 | 备注 |
 |------|------|----|----|
 | 1. 全景对齐 | 4 | ?/4 | panorama_path = ... · 宿主 = ... |
-| 2. 状态覆盖 | 4×N页 | ?/? | N 个页面 · 每页 4 态 · 🔴 same-stack 状态走 **dev 顶栏**切（页面内容无内嵌 switcher = 设计=代码）|
+| 2. 状态覆盖 | 4×N页 | ?/? | N 个页面 · 每页 4 态 · 🔴 same-stack 状态走 **dev 悬浮工具面板**〔右下角〕切（页面内容无内嵌 switcher = 设计=代码）|
 | 3. PRD AC 覆盖 | M | ?/M | 详 UI-AC-COVERAGE 表 |
 | 4. 全景增量同步 | 4 | ?/4 | 类型：⏭️ 无 / 🟡 增量 / 🔴 结构性 |
 | 5. 结构性变更红线 | 3 | ?/3 | 任一命中即停 Stage |

@@ -149,3 +149,14 @@
 
 ### 验证
 - doc-only(4 模板各 +5 行)· `test_v8_stage_specs` 90 passed。
+## v8.201 · PRD canonical 到达率:goal brief 约束模板 + goal-complete 三命门校验
+
+> 实测(v8.200 扩展区验证):post-v8.164 的 10 份 live PRD **仅 1 份**用 canonical 模板,其余自由结构/抄项目旧 PRD(同 WS-012 病根)—— 机读块/扩展区等新机制**到达不了**,加什么槽位都白加。
+
+### 改动
+- **goal brief 约束**(消费时点推):🔴 照 `templates/prd.md` 起草 · **别抄项目里旧 PRD**(附实测数据)。
+- **goal-complete 校验**(`prd_template_conformance` evidence):只查**三个机读命门段**(不管字数/风格)—— `TEAMWORK-MACHINE` 机读块(或 legacy frontmatter)· 验收标准/AC(verify-ac 依赖)· 『开工前必须想清的』扩展区(可写「无」但段要在)· 缺 → FAIL + hint 指 canonical 模板。
+- 测试 +3(自由结构拦三段 / canonical 放行 / legacy 缺扩展区仍拦)。
+
+### 验证
+- code(`_v8_stage_specs` check+接线+brief)· pytest 809 passed。
