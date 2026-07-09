@@ -202,6 +202,7 @@ ship1 交付本体(随 feature MR)· zip 内 state.json = 终态墓碑(current_s
 **两层输出**:
 
 1. **台账行**(持久 · 累积):一行一 feature。🔴 字段以**机器可抽**为主(state.json:实走 stages / stage 时间戳 / rounds / bypass / concerns;REVIEW.md:verdicts / external 逐条裁决)· AI 判断仅「过场候选 / 反思摘要」两格 · **照实抄不美化**。
+   - 🔴 **时长三分 + 用户邮箱(v8.208)**:`时长(总·AI自主·待用户)` + `各阶段耗时` + `用户邮箱` **照抄 ship1 archive emit 的 `ledger_timing`**(确定性 —— `total_wall` / `ai_autonomous_min`〔扣人工等待〕/ `await_user_min`〔stage 内 pause-mark 暂停 + pm_acceptance 纯等待〕/ `per_stage` / `user_email`=`git config user.email`)· **不肉眼算 state 时间戳**。
 2. **digest**(emit ≤10 行 · 固定 4 问 · 不落 feature 目录):
 
 ```

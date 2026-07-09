@@ -921,6 +921,8 @@ def _handle_ship_archive(state: dict, args: argparse.Namespace) -> dict:
                      "终态未持久化(state 已回滚到进入时状态)")})
     head = git_head(cwd=wt_root) or ""
 
+    _lt_ai, _lt_wait = _timing_split(state)  # v8.208:台账/审计时长细化(AI 自主 vs 等待用户)
+    _lt_bd, _ = _stage_durations(state)
     return {
         "verdict": "PASS", "stage": "ship", "action": "archive",
         "transition": f"{cur_phase} → archived",
@@ -929,6 +931,15 @@ def _handle_ship_archive(state: dict, args: argparse.Namespace) -> dict:
         "archive_commit": head,
         "zip": zip_rel,
         "planning_bundled": [rel for rel, _ in planning_files],
+        # v8.208:PROCESS-LEDGER 时长行采写数据(台账在 ship1 archive 采写 · 见 §3.5/§16)——
+        # AI 照抄进台账「时长(总·AI自主·待)」+「各阶段耗时」+「用户邮箱」列 · 确定性 · 不靠肉眼算 state。
+        "ledger_timing": {
+            "total_wall": _feature_duration_h(state),
+            "ai_autonomous_min": _lt_ai,
+            "await_user_min": _lt_wait,
+            "per_stage": _lt_bd,
+            "user_email": _git_user_email(wt_root),
+        },
         # v8.180:WS 进度块确定性自刷结果(None = feature 不属 WS / 对应F编号 未填 → 未刷 · 见 §3.5)
         "ws_progress_refreshed": ws_refreshed,
         "warnings": [
@@ -1432,6 +1443,39 @@ def _stage_durations(state: dict):
     return breakdown, analysis
 
 
+def _timing_split(state: dict):
+    """v8.208:把墙钟耗时拆成 **AI 自主运行** vs **等待用户** 两块(分离人工等待)。
+
+    - ai_min   = Σ 工作 stage 的(duration − await_minutes)—— AI 真正在跑的时长(扣 stage 内暂停)
+    - wait_min = Σ 工作 stage 的 await_minutes + Σ 纯等待 stage(_AWAIT_USER_STAGES · 如 pm_acceptance)的 duration
+                 —— 全部人工等待(stage 内暂停 pause-mark 打点 + 纯等用户 stage 的墙钟)
+    返 (ai_min, wait_min);无 duration 数据 → (None, None)。
+    """
+    contracts = state.get("stage_contracts", {}) or {}
+    order = state.get("completed_stages", []) or list(contracts.keys())
+    ai = wait = 0
+    any_dur = False
+    for s in order:
+        c = contracts.get(s, {})
+        d = c.get("duration_minutes")
+        if not isinstance(d, int):
+            continue
+        any_dur = True
+        a = int(c.get("await_minutes") or 0)
+        if s in _AWAIT_USER_STAGES:
+            wait += d                 # 纯等待 stage → 整段算等待
+        else:
+            ai += max(0, d - a)       # AI 工作 = 时长扣 stage 内暂停
+            wait += a                 # stage 内暂停(等用户拍板)算等待
+    return (ai, wait) if any_dur else (None, None)
+
+
+def _git_user_email(cwd: Optional[str]) -> str:
+    """v8.208:当前 git 环境用户邮箱(`git config user.email`)· 取不到返 ""。"""
+    r = _git(["config", "user.email"], cwd=cwd, timeout=10)
+    return r.stdout.strip() if r.returncode == 0 else ""
+
+
 def _capture_audit_sources(feature_dir: Path, max_chars: int = 4000) -> str:
     """v8.207:worktree-remove **前**抓 audit 三段判断的源材料(REVIEW*.md + TEST-REPORT.md)·
     压成紧凑摘录 · 供 _write_audit_record 嵌进草稿(治 AI 事后 unzip 反读归档)。
@@ -1494,6 +1538,8 @@ def _write_audit_record(state: dict, feature_id: str, merge_target: str,
         bypass_n = len(state.get("ship", {}).get("bypass_log", []) or [])
         flow = state.get("flow_type") or "?"
         stage_dur, stage_analysis = _stage_durations(state)
+        ai_min, wait_min = _timing_split(state)   # v8.208:AI 自主 vs 等待用户
+        user_email = _git_user_email(main_wt)     # v8.208:git 用户邮箱
         host = state.get("host") or "未记录"
         model_suffix = (f" · 模型 {main_model}" if main_model
                         else " · 模型(未声明 · ship-finalize 传 --main-model 记录)")
@@ -1504,6 +1550,7 @@ def _write_audit_record(state: dict, feature_id: str, merge_target: str,
             f"source_project: {source}\n"
             f"flow_type: {flow}\n"
             f"merge_target: {merge_target}\n"
+            f"user_email: {user_email or 'unknown'}\n"  # v8.208:git 用户邮箱(harvest 按人分析)
             f"generated_at: \"{now_iso()}\"\n"
             f"audit_status: pending\n"  # AI 填完判断 → 改 done(harvest 时筛)
             f"---\n\n"
@@ -1512,9 +1559,13 @@ def _write_audit_record(state: dict, feature_id: str, merge_target: str,
             f"- 来源项目:{source}\n"
             f"- flow:{flow}\n"
             f"- 实走 stages:{stages}\n"
-            f"- 总时长:{dur}(init → archive · 不含 MR 等待)\n"
+            f"- 总时长(墙钟):{dur}(init → archive · 不含 MR 等待)\n"
+            f"- 🔴 AI 自主运行:{f'{ai_min}m' if ai_min is not None else '?'}"
+            f" · 等待用户:{f'{wait_min}m' if wait_min is not None else '?'}"
+            f"(v8.208 · 墙钟里的人工等待已分离 · stage 内 pause-mark 暂停 + 纯等待 stage)\n"
             f"- 各阶段耗时:{stage_dur or '(无 duration 数据)'}\n"
             f"- 耗时分析:{stage_analysis or '?'}(总时长含阶段间等待 · 阶段总和=纯在阶段内)\n"
+            f"- 用户邮箱:{user_email or '未取到'}\n"
             f"- 主对话:host={host}{model_suffix}\n"
             f"- concerns:{len(concerns)}(WARN {warn_n})· bypass:{bypass_n}\n"
             f"- 细数据源:本 feature `project-specs/PROCESS-LEDGER.md` 行"
