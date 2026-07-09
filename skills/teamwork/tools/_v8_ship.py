@@ -1432,8 +1432,38 @@ def _stage_durations(state: dict):
     return breakdown, analysis
 
 
+def _capture_audit_sources(feature_dir: Path, max_chars: int = 4000) -> str:
+    """v8.207:worktree-remove **前**抓 audit 三段判断的源材料(REVIEW*.md + TEST-REPORT.md)·
+    压成紧凑摘录 · 供 _write_audit_record 嵌进草稿(治 AI 事后 unzip 反读归档)。
+
+    只抽三段判断真正要看的:REVIEW verdict/findings + TEST 结论/AC 覆盖。读失败静默返 ""(绝不阻塞 ship2)。
+    """
+    try:
+        chunks: list = []
+        review_files = sorted(feature_dir.glob("REVIEW*.md"))
+        for rf in review_files:
+            try:
+                txt = rf.read_text(encoding="utf-8", errors="replace").strip()
+            except OSError:
+                continue
+            if txt:
+                chunks.append(f"### {rf.name}\n{txt[:max_chars]}")
+        tr = feature_dir / "TEST-REPORT.md"
+        if tr.is_file():
+            try:
+                txt = tr.read_text(encoding="utf-8", errors="replace").strip()
+                if txt:
+                    chunks.append(f"### TEST-REPORT.md\n{txt[:max_chars]}")
+            except OSError:
+                pass
+        return "\n\n".join(chunks)
+    except OSError:
+        return ""
+
+
 def _write_audit_record(state: dict, feature_id: str, merge_target: str,
-                        main_wt: str, main_model: Optional[str] = None) -> Optional[str]:
+                        main_wt: str, main_model: Optional[str] = None,
+                        audit_sources: str = "") -> Optional[str]:
     """ship2 后落「流程质量审计」到 ~/.teamwork/audit/<id>.md(_audit_dir)·
     框架层面跨项目搜集流程质量。
 
@@ -1489,9 +1519,12 @@ def _write_audit_record(state: dict, feature_id: str, merge_target: str,
             f"- concerns:{len(concerns)}(WARN {warn_n})· bypass:{bypass_n}\n"
             f"- 细数据源:本 feature `project-specs/PROCESS-LEDGER.md` 行"
             f"(external 总/采/驳 · 角色真 finding · 暂停点 改:默)\n\n"
-            f"## 做的好的\n"
+            + (f"## 源材料摘录(v8.207 · worktree 删除前自动抽 · 供三段判断 · 勿改)\n"
+               f"> 🔴 三段判断照实抄本段 + 上方实际数据 · **无需 unzip 归档**(worktree 已删 · 源已在此)。\n\n"
+               f"{audit_sources}\n\n" if audit_sources else "")
+            + f"## 做的好的\n"
             f"<!-- AI 静默填:本 feature 流程上真正有效的环节(external 拦真 bug / "
-            f"test 抓回归 / diagnose 改修复方向)· 照实抄 REVIEW.md/state · 无则写「无」 -->\n\n"
+            f"test 抓回归 / diagnose 改修复方向)· 照实抄**上方『源材料摘录』段** + 实际数据 · 无则写「无」 -->\n\n"
             f"## 发现的问题\n"
             f"<!-- AI 静默填:流程摩擦 / 工具判例 / 框架级 bug(= 该反馈 teamwork 的)· "
             f"照实 · 无则写「无」 -->\n\n"
@@ -1996,6 +2029,10 @@ def cmd_ship_finalize(args: argparse.Namespace) -> None:
     if (feature_dir / "state.json").exists():
         _, state = load_state(args.feature)
     feature_id = state.get("feature_id") or feature_dir.name
+    # v8.207:🔴 worktree-remove **之前**抓 REVIEW/TEST 摘录 —— 治本(实证 case):audit 三段
+    # 判断需 REVIEW.md/TEST-REPORT.md,但它们随 worktree 删除只剩 zip 内 → AI 被迫 unzip 反读。
+    # 此刻 feature_dir 尚在 · 抓成摘录嵌进 audit 草稿 · AI 读草稿即可填三段(不再 unzip)。
+    audit_sources = _capture_audit_sources(feature_dir)
     merge_target = state.get("merge_target") or ""
     if not merge_target:
         # 接力卡消亡(worktree 已删 / 手清)→ 幂等:zip-on-origin 判已交付
@@ -2237,7 +2274,7 @@ def cmd_ship_finalize(args: argparse.Namespace) -> None:
 
     # ── 流程质量审计落 ~/.teamwork/audit/(框架跨项目搜集)· AI 静默补判断 ──
     audit_record = _write_audit_record(state, feature_id, merge_target, main_wt,
-                                       getattr(args, "main_model", None))
+                                       getattr(args, "main_model", None), audit_sources)
 
     emit_json({
         "verdict": "PASS",
@@ -2260,9 +2297,10 @@ def cmd_ship_finalize(args: argparse.Namespace) -> None:
             + (f"\n⏸️ 主工作区有用户改动待决策(见 main_sync_decision · PMO 转 R5(b) 暂停点)。"
                if main_sync_decision else "")
             + (f"\n📊 流程质量审计草稿已落 {audit_record}(框架跨项目搜集用)· "
-               f"🔴 **静默补完三段判断**(做的好的 / 发现的问题 / 待优化的 · 照实抄 "
-               f"REVIEW.md·state · 空写「无」)· 改 frontmatter audit_status: done · "
-               f"**不暂停不等确认 · 写完即结束**。" if audit_record else "")
+               f"🔴 **静默补完三段判断**(做的好的 / 发现的问题 / 待优化的 · 照实抄草稿内"
+               f"**『源材料摘录』段 + 实际数据** · 🔴 **无需 unzip 归档**〔worktree 删除前已抽入草稿〕· "
+               f"空写「无」)· 改 frontmatter audit_status: done · **不暂停不等确认 · 写完即结束**。"
+               if audit_record else "")
             + (f"\n📋 收尾 digest(纯输出 · 不暂停):按 stages/ship-stage.md §16 读 "
                f"{zip_hint or '_archive/<id>.zip'} 出 ≤10 行流程价值反思。" )
         ),
