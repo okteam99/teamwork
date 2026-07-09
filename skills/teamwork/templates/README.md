@@ -39,7 +39,8 @@
 | 文件 | 用途 | 主要消费方 / 时机 |
 |------|------|------------------|
 | [workstream.md](./workstream.md) | WS 规划单元（frontmatter 名册 + WS-PROGRESS/WS-DAG 标记区） | feature-planning 产出 · `state.py ws-lint / ws-progress` 消费 |
-| [roadmap.md](./roadmap.md) | ROADMAP（BL 清单 + Wave 编排 + 关联 WS） | feature-planning 写入 · PMO 随 Feature 流转同步 |
+| [roadmap.md](./roadmap.md) | ROADMAP（BL 清单 + Wave 编排 + 关联 WS · 位置 `docs/ROADMAP.md`） | feature-planning 写入 · PMO 随 Feature 流转同步 |
+| [sitemap.md](./sitemap.md) | IA 地图（页面层级/导航/路由 · 位置 `{子项目}/docs/design/sitemap.md` 与全景同目录） | feature-planning Step 5 seed · ui_design 增量扩页 |
 | [pending.md](./pending.md) | PENDING 待规划需求池（`product-overview/PENDING.md`） | PMO 发现"范围外但要做"即追加 · 转化即删 |
 
 ## 配置与脚本
