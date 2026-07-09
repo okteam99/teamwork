@@ -1579,27 +1579,27 @@ def _external_run_log_exists(feature_dir: Path, stage: str) -> bool:
 
 def _localconfig_disable_external(feature_dir: Path) -> bool:
     """v8.90/v8.153:读 localconfig `disable_external_review`(原名 `disable_heterogeneous_review`)·
-    向上找到 .git 边界 · 默认 false。
+    向上找到 .git 边界。🔴 v8.204(全局一刀切):**默认 true**(external 异质默认关 · CLI 冷启动太耗时)·
+    key 缺省 / 读失败 → true;显式 `false` = 主动 opt-in 异质。多角色评审(架构师+QA)不受影响。
 
     内联实现(避免 _v8_stage_specs 循环 import state.py)· 与 state._read_disable_external_review 同义。
-    🔴 v8.154 hard rename:只读新名 · 旧名 `disable_heterogeneous_review` 已废弃(不留兼容)。
     """
     import json as _json
     try:
         node = Path(feature_dir).resolve()
     except OSError:
-        return False
+        return True
     for d in [node, *node.parents]:
         cfg = d / ".teamwork_localconfig.json"
         if cfg.exists():
             try:
                 data = _json.loads(cfg.read_text(encoding="utf-8"))
             except (OSError, ValueError):
-                return False
-            return data.get("disable_external_review") is True
+                return True
+            return data.get("disable_external_review", True) is True  # 缺省→true(默认关)· 显式 false→开
         if (d / ".git").exists():
             break
-    return False
+    return True
 
 
 def _evidence_external_review_artifact(state: dict, args) -> tuple[bool, str]:

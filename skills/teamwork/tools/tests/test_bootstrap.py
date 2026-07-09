@@ -564,7 +564,7 @@ class TestEnsureLocalconfigComplete(unittest.TestCase):
         self.assertEqual(data["merge_target"], "dev")
         self.assertEqual(data["worktree"], "off")
         # 新开关补默认
-        self.assertEqual(data["disable_external_review"], False)  # v8.153 改名
+        self.assertEqual(data["disable_external_review"], True)  # v8.204:默认翻 true(external 默认关)
         self.assertEqual(data["local_env_auto_create"], True)
         self.assertEqual(data["id_strategy"], "utc-yymmddhhmmss")
         # archive_on_ship 已废弃(ship1 统一归档 · 配置被忽略)· defaults 不再回填

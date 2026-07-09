@@ -1387,6 +1387,9 @@ class TestExternalReviewCommand(unittest.TestCase):
             "concerns": [],
             "completed_stages": ["dev"],
         }, ensure_ascii=False, indent=2), encoding="utf-8")
+        # v8.204:external 默认关 → 本类测 external CLI 路径 · 显式 opt-in(disable=false)
+        (self.tmp / ".teamwork_localconfig.json").write_text(
+            json.dumps({"disable_external_review": False}), encoding="utf-8")
         self._prev_bypass = os.environ.get("TEAMWORK_BYPASS_CHECKSUM")
         os.environ["TEAMWORK_BYPASS_CHECKSUM"] = "1"
 
@@ -1462,9 +1465,14 @@ class TestExternalReviewCommand(unittest.TestCase):
     def test_read_disable_external_review_helper(self):
         from state import _read_disable_external_review  # type: ignore
         (self.tmp / ".git").mkdir()  # bound 向上 walk
-        # 默认 false(无 localconfig)
+        # v8.204 默认 true(无 key / 无 config)· 先删 setUp 写的 opt-in 文件
+        (self.tmp / ".teamwork_localconfig.json").unlink()
+        self.assertTrue(_read_disable_external_review(self.feat))
+        # 显式 false → 开(opt-in 异质)
+        (self.tmp / ".teamwork_localconfig.json").write_text(
+            json.dumps({"disable_external_review": False}), encoding="utf-8")
         self.assertFalse(_read_disable_external_review(self.feat))
-        # 显式 true(新名)
+        # 显式 true → 关
         (self.tmp / ".teamwork_localconfig.json").write_text(
             json.dumps({"disable_external_review": True}), encoding="utf-8")
         self.assertTrue(_read_disable_external_review(self.feat))
@@ -1474,10 +1482,12 @@ class TestExternalReviewCommand(unittest.TestCase):
         单设旧名 true **不再生效**(只读新名)· 防有人误把 OR fallback 加回来。"""
         from state import _read_disable_external_review  # type: ignore
         (self.tmp / ".git").mkdir()
+        # 新名显式 false(开)+ 旧名 true(废弃)→ 结果应为 false(新名胜 · 旧名被忽略)
         (self.tmp / ".teamwork_localconfig.json").write_text(
-            json.dumps({"disable_heterogeneous_review": True}), encoding="utf-8")
+            json.dumps({"disable_external_review": False,
+                        "disable_heterogeneous_review": True}), encoding="utf-8")
         self.assertFalse(_read_disable_external_review(self.feat),
-                         "旧名已废弃 · 不应再触发禁用")
+                         "旧名已废弃 · 不应触发禁用(新名 false 胜)")
 
     def test_config_disabled_emits_subagent_recipe(self):
         """🔴 v8.108:disable_external_review=true → emit subagent 配方(不 exec)·
@@ -2110,7 +2120,8 @@ class TestExternalReviewCommand(unittest.TestCase):
         # 写 config 到 git_root(feat 的 git toplevel)
         cfg = self.feat.parent / ".teamwork_localconfig.json"
         cfg.write_text(json.dumps({
-            "external_review": {"codex_model": "gpt-5-pro"}
+            "external_review": {"codex_model": "gpt-5-pro"},
+            "disable_external_review": False,  # v8.204:opt-in(本写覆盖 setUp)
         }), encoding="utf-8")
         # 让 feat 处于 git repo
         subprocess.run(["git", "-C", str(self.feat.parent), "init", "-q"],
@@ -2124,7 +2135,8 @@ class TestExternalReviewCommand(unittest.TestCase):
         """--codex-model 显式 > config fallback。"""
         cfg = self.feat.parent / ".teamwork_localconfig.json"
         cfg.write_text(json.dumps({
-            "external_review": {"codex_model": "gpt-5-pro"}
+            "external_review": {"codex_model": "gpt-5-pro"},
+            "disable_external_review": False,  # v8.204:opt-in(本写覆盖 setUp)
         }), encoding="utf-8")
         subprocess.run(["git", "-C", str(self.feat.parent), "init", "-q"],
                        capture_output=True)
@@ -2157,6 +2169,9 @@ class TestHostAutoDetect(unittest.TestCase):
             "stage_contracts": {"dev": {"auto_commit": "abc123"}},
             "concerns": [],
         }, ensure_ascii=False, indent=2), encoding="utf-8")
+        # v8.204:external 默认关 → opt-in(本类测 external host 映射路径)
+        (self.tmp / ".teamwork_localconfig.json").write_text(
+            json.dumps({"disable_external_review": False}), encoding="utf-8")
         self.audit_path = self.tmp / "host_audit.json"
         self._prev_audit = os.environ.get("TEAMWORK_HOST_AUDIT_PATH")
         self._prev_bypass = os.environ.get("TEAMWORK_BYPASS_CHECKSUM")

@@ -86,6 +86,8 @@ class TestYoloExternalGate(unittest.TestCase):
     def test_heterogeneous_yolo_without_runlog_blocks(self):
         # 非单模型 yolo · 异质评审缺实跑日志 → 原 BLOCK 文案(未被本次改动放松)
         root = Path(tempfile.mkdtemp(prefix="yh-"))
+        (root / ".teamwork_localconfig.json").write_text(  # v8.204:opt-in 异质(默认已关)
+            json.dumps({"disable_external_review": False}), encoding="utf-8")
         feat = root / "feat"
         (feat / "external-cross-review").mkdir(parents=True)
         (feat / "external-cross-review" / "review-codex.md").write_text(

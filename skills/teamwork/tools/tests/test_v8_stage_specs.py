@@ -382,6 +382,10 @@ class TestYoloExternalRealRun(unittest.TestCase):
         (self.feat / "external-cross-review").mkdir(parents=True)
         (self.feat / "external-cross-review" / "review-codex.md").write_text(
             "---\nreview_model: codex\n---\n# review", encoding="utf-8")
+        # v8.204:external 默认关 → opt-in(本类测异质实跑日志路径)
+        (self.feat / ".git").mkdir(exist_ok=True)
+        (self.feat / ".teamwork_localconfig.json").write_text(
+            json.dumps({"disable_external_review": False}), encoding="utf-8")
         self.log_dir = (Path.home() / ".teamwork" / "external-review-logs"
                         / self.feat.name)
 

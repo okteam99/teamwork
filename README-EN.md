@@ -2,7 +2,7 @@
 
 An AI works from a team-collaboration perspective — through **flow orchestration + role-perspective switching + contractualized stages + a machine-readable state machine** — to drive the complete software lifecycle from product planning to delivery.
 
-[中文](./README.md) · Version: **v8.202** (version source of truth = [SKILL.md](./skills/teamwork/SKILL.md) frontmatter)
+[中文](./README.md) · Version: **v8.204** (version source of truth = [SKILL.md](./skills/teamwork/SKILL.md) frontmatter)
 
 ---
 
@@ -13,7 +13,7 @@ An AI works from a team-collaboration perspective — through **flow orchestrati
 | Fundamental risk | Why it's unavoidable | Teamwork's answer |
 |-----------------|---------------------|-------------------|
 | **Intent drift** (building the wrong thing) | Information asymmetry: no model, however smart, knows what the user didn't say | Pause points / intent gates (prepare intent check · goal deep gate · panorama user confirmation) |
-| **Quality blind spots** (building it badly) | Self-review blindness is mathematical: a model can't see its own gaps | Multi-role perspective switching + **heterogeneous-model** cross-review |
+| **Quality blind spots** (building it badly) | Self-review blindness is mathematical: a model can't see its own gaps | Multi-role perspective switching + **isolated cold review** (independent third-perspective sampling · cross-model heterogeneous as opt-in upgrade) |
 | **State drift** (losing / corrupting things) | Finite context is physical: long flows drift when they rely on memory | Machine-readable state machine + materialized artifact gates + worktree isolation |
 | **Knowledge loss** (repeating mistakes) | Every session starts from zero | KNOWLEDGE distillation + cross-project audit harvest feedback loop |
 
@@ -34,7 +34,7 @@ You only provide requirements and make decisions at key checkpoints.
 - **Create-critique loop**: PM writes PRD → PL critiques from business direction → PM revises. A single role's single-pass output skips blind spots masked by its own perspective.
 - **Attention reallocation**: switching roles = switching checklists = activating different evaluation dimensions
 - **Forced re-read**: a role switch forces the AI to re-read the same document with new questions, surfacing far more than "think again"
-- **Heterogeneous-model review**: review brings in a heterogeneous model for an independent pass (when claude is the main window, external = codex automatically, and vice versa) — a cross-model perspective exposes same-model self-review blind spots
+- **Independent third-perspective review**: review brings in an independent third perspective (default: same-model subagent **isolated cold review** in a fresh session — independent sampling exposes self-review blind spots) · opt-in upgrade to **cross-model heterogeneous** (`disable_external_review: false` · when claude is the main window, external = codex, and vice versa)
 
 ---
 
@@ -84,9 +84,9 @@ npx skills update okteam99/teamwork
 | PRD | Wait / correct | PM drafts PRD + multi-role parallel review + converge |
 | Confirm PRD | Reply ok | — |
 | Design | Wait | Designer produces UI + syncs sitemap |
-| Tech plan | Wait | RD drafts TECH + QA drafts TC + architect + heterogeneous-model review |
+| Tech plan | Wait | RD drafts TECH + QA drafts TC + architect + third-perspective review |
 | Dev | Wait | RD implements via TDD + unit tests + machine checks |
-| Review | Wait | Architect + QA + **heterogeneous model (e.g. codex / claude)** — three independent reviews |
+| Review | Wait | Architect + QA + **independent third perspective** (default same-model cold review · heterogeneous optional) — three independent reviews |
 | Test | Wait (start the app if needed) | QA integration tests + scripted API E2E |
 | Acceptance | Reply ok / feedback | PM-perspective acceptance + PMO compiles delivery report + auto-commit |
 | **Ship Phase 1** | Click the merge button | Knowledge distill + MR/PR created · link given → ⏸️ await merge |
@@ -161,10 +161,10 @@ Pause-point options are numbered (💡 recommended item first, the last option i
 
 By default teamwork **stops at every user-decision pause point** for your confirmation. Two opt-in levels raise the automation:
 
-- **`auto_mode`**: the AI handles **stage-to-stage flow** for you — it only auto-accepts + documents "user-decision" pause points (e.g. PRD / UI confirmation, with a `concerns WARN` left for audit); **review work (multi-role + heterogeneous model) still runs for real**.
+- **`auto_mode`**: the AI handles **stage-to-stage flow** for you — it only auto-accepts + documents "user-decision" pause points (e.g. PRD / UI confirmation, with a `concerns WARN` left for audit); **review work (multi-role + third-perspective isolated cold review) still runs for real**.
 - **`yolo` (v8.63 · fully unattended · 🔴 high-risk)**: a superset of `auto_mode` with **zero stops** (even PM acceptance + MR merge are automatic). Enable with `init-feature --yolo [<integration-branch>]` (implies `auto_mode`); switch mid-flow via `state.py set-mode --feature <F> --yolo [<branch>] --reason '...'` (audited — don't raw-write `state.json`).
 
-🔴 **yolo is NOT "simplify / speed up" — it's "heavier review"**: unattended = nobody watching → automated review (especially **external heterogeneous cross-review**) is the only safety net and must be kept / strengthened, **never weakened**. Zero-stop applies **only** to human-decision points (prepare / pm_acceptance / MR merge); every stage's review roles, the real heterogeneous external-model call (**verified via real run logs — can't be faked**), and test rounds all run in full. Failures / blockers / exhausted retries / bypass are **resolved autonomously by the AI** (priority: resolve > bypass; bypass is a last resort after exhausting fixes, always WARN-logged — `bypass_log` frequency = yolo health).
+🔴 **yolo is NOT "simplify / speed up" — it's "heavier review"**: unattended = nobody watching → automated review is the only safety net and must be kept / strengthened, **never weakened**. All three review perspectives (architect + QA + independent third) run in full, none dropped; 🔴 v8.204: the third perspective **defaults to same-model subagent isolated cold review** (external heterogeneous is off by default · saves CLI cold-start) · cross-model heterogeneous is an opt-in upgrade. Zero-stop applies **only** to human-decision points (prepare / pm_acceptance / MR merge); review roles, the third-perspective cold review (default) / real heterogeneous call (opt-in · verified via real run logs), and test rounds all run in full. Failures / blockers / exhausted retries / bypass are **resolved autonomously by the AI** (priority: resolve > bypass; bypass is a last resort after exhausting fixes, always WARN-logged — `bypass_log` frequency = yolo health).
 
 🔴 **Hard gate**: a yolo `merge_target` **must be a non-main branch** (main / master) — auto-merges only land on integration branches like `dev` / `staging` / `integration`; promotion to the main branch stays **human-gated**. Give yolo a dedicated integration branch (e.g. `--yolo yolo/feat-x`) to isolate auto-merged code. Per-feature opt-in (not sticky · passed explicitly each time).
 
@@ -177,7 +177,7 @@ By default teamwork **stops at every user-decision pause point** for your confir
 - **Architect**: Tech Review (Blueprint) + Code Review (Review Stage) + ARCHITECTURE.md maintenance + ADR decisions
 - **QA**: TC (AC↔test binding) + TC tech review (Blueprint) + Code Review + integration tests / API E2E
 - **RD**: TDD implementation + unit tests + self-check + bug investigation report
-- **External Reviewer**: heterogeneous-model code review (codex / claude · independent-stance hard constraint)
+- **Third-perspective Reviewer**: independent third-perspective code review (default same-model isolated cold review · opt-in cross-model heterogeneous codex / claude · independent-stance hard constraint)
 
 Role collaboration **defaults to main-conversation identity switching** — switching roles = switching checklists + forced re-read; PMO may dispatch a subagent on demand to execute tasks within a stage (context isolation · especially useful on small-context-window hosts), while stage orchestration and state.py commands always stay with the PMO main conversation.
 
@@ -282,7 +282,7 @@ When teamwork mode A query / E · discuss touches "diagnose / error / check logs
 
 External models codex / claude / gemini are used in teamwork **for read-only review only** · they have no code-write authority (red line R1):
 
-- Review brings in a heterogeneous model for an independent pass; the cross-model perspective exposes same-model self-review blind spots
+- Review brings in an independent third perspective (default same-model isolated cold review · optional cross-model heterogeneous); independent sampling exposes same-model self-review blind spots
 - External models run read-only · produce only markdown review artifacts · do not modify code
 
 ### Evidence-Binding Materialized Interception
@@ -350,7 +350,7 @@ For the detailed directory structure see [skills/teamwork/](./skills/teamwork/).
 
 ## Version
 
-Currently **v8.202** (version source of truth = [SKILL.md](./skills/teamwork/SKILL.md) frontmatter). Changelog in [docs/CHANGELOG.md](./skills/teamwork/docs/CHANGELOG.md) (latest 5 versions) · older history via git log (CHANGELOG-ARCHIVE is **periodically wiped**).
+Currently **v8.204** (version source of truth = [SKILL.md](./skills/teamwork/SKILL.md) frontmatter). Changelog in [docs/CHANGELOG.md](./skills/teamwork/docs/CHANGELOG.md) (latest 5 versions) · older history via git log (CHANGELOG-ARCHIVE is **periodically wiped**).
 
 ---
 
