@@ -1,6 +1,6 @@
 ---
 name: teamwork
-version: v8.211.1
+version: v8.212
 description: AI 协作开发一体化框架 - 需求功能开发, bug 修复, 问题排查 · /teamwork 启动
 ---
 
@@ -702,18 +702,27 @@ v8 把 v7 的 9 红线中 16/17 子条目物化进 state.py · 仅 1 条(R3 PMO 
 |------|------|
 | [SKILL.md § Triage 入口规范](./SKILL.md) | **入口规范** · triage 不是 stage · 5 mode 分诊 + mode B worktree 决策 |
 | [FLOWS.md](./FLOWS.md) | 6 流程 telos(详细步骤进 docs/prepare.md 子流程 + 各 stage brief) |
+| [STAGES.md](./STAGES.md) | **stage 编排单源**(定义 / 链 / 通用纪律 / 执行方式 §4) |
 | [ROLES.md](./ROLES.md) | 角色索引(→ roles/*.md) |
 | [STANDARDS.md](./STANDARDS.md) | 技术规范索引(→ standards/*.md · 不含流程规范) |
-| [TEMPLATES.md](./TEMPLATES.md) | 文档模板索引 |
+| [TEMPLATES.md](./TEMPLATES.md) | 文档模板索引(全清单 → [templates/README.md](./templates/README.md)) |
+| [PRODUCT-OVERVIEW-INTEGRATION.md](./PRODUCT-OVERVIEW-INTEGRATION.md) | 产品规划上游(product-overview 引导 / 规划状态管理) |
 | [stages/*.md](./stages/) | 各 stage Telos + Output Contract(校验进 state.py) |
 | [roles/*.md](./roles/) | 角色 telos + 创作要点(协作进 state.py) |
-| [standards/*.md](./standards/) | 技术规范(common/backend/frontend/tdd · 流程规范已删) |
+| [standards/*.md](./standards/) | 技术规范(common/backend/frontend/tdd/external-model-usage) |
+| [agents/README.md](./agents/README.md) | Subagent 执行协议(dispatch / Progress Log / 状态分级) |
+| [docs/prepare.md](./docs/prepare.md) | mode B 必经 prepare 子流程(流程识别 / worktree / 关键词表) |
+| [docs/feature-planning.md](./docs/feature-planning.md) | Feature Planning 流程(Step 0-10 · 全景 / WS / 收尾) |
+| [docs/conventions.md](./docs/conventions.md) | 命名与目录约定(ID / BL / 文档路由) |
+| [docs/teamwork-space-guide.md](./docs/teamwork-space-guide.md) | teamwork-space.md 维护规范 |
 | [tools/state.py](./tools/state.py) | 唯一编排器入口 |
 | [tools/_v8_engine.py](./tools/_v8_engine.py) | 通用 stage start/complete + bypass 引擎 |
 | [tools/_v8_stage_specs.py](./tools/_v8_stage_specs.py) | 12 stage 完整契约(stage 数单源 `STAGE_SPECS`) |
-| [tools/_v8_ship.py](./tools/_v8_ship.py) | ship-phase 5 actions |
+| [tools/_v8_ship.py](./tools/_v8_ship.py) | ship-phase actions + ship-finalize + await-merge |
 | [tools/bootstrap.py](./tools/bootstrap.py) | session 启动维护(骨架 / hooks / 历史注入段清理) |
-| [docs/CHANGELOG.md](./docs/CHANGELOG.md) | 完整变更记录 |
+| [hooks/](./hooks/) | 宿主 hooks(post-compact 恢复 / post-stop / session-restore · hooks.json 部署) |
+| [codex-agents/](./codex-agents/) · [claude-agents/](./claude-agents/) | external-review 宿主 profile(codex `*.toml` / claude `reviewer.md` · `state.py external-review` 按 host 自动选) |
+| [docs/CHANGELOG.md](./docs/CHANGELOG.md) | 变更记录(keep-5 · 归档 → CHANGELOG-ARCHIVE)· [RETRO-LEDGER.md](./docs/RETRO-LEDGER.md) 一行一版自省 |
 
 ---
 

@@ -4,6 +4,16 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.212 · SKILL 文档导航补全(注入退役后 SKILL = 唯一入口 · 导航必须无死角)
+
+> 用户:skill 里有目录索引吗?答:有(两类三层:skill 自身 § 文档导航 + 二级索引 STAGES/ROLES/STANDARDS/TEMPLATES;用户项目侧 § 文档清单/路由速查/结构索引 + teamwork-space)。但核对发现 § 文档导航**缺口真实**:docs/ 只列 CHANGELOG —— prepare(mode B 必经)/ feature-planning / conventions / teamwork-space-guide 全不在;STAGES.md(编排单源!)/ agents/README(subagent 协议)/ PRODUCT-OVERVIEW-INTEGRATION / hooks/ / agents profile 目录也不在。v8.211 注入退役后 SKILL 是唯一载体 · 导航更须全。
+
+### 改动
+- **§ 文档导航 15 行 → 24 行**:补 STAGES.md · PRODUCT-OVERVIEW-INTEGRATION · agents/README · docs/{prepare,feature-planning,conventions,teamwork-space-guide} · hooks/ · codex-agents/+claude-agents(external profile · 核实为活资产非死目录)· RETRO-LEDGER;TEMPLATES 行指向 templates/README 全清单;_v8_ship 描述更新(+ship-finalize/await-merge)。
+
+### 验证
+- doc-only · 相关套件通过。
+
 ## v8.211 · 宿主指令文件注入退役(治共享仓库污染非 teamwork 用户)· 关键信息收进 SKILL.md
 
 > 实证 case(commercial-data-warehouse):bootstrap 往 AGENTS.md/CLAUDE.md 注入 teamwork 段 · 共享仓库同事一 commit · **不用 teamwork 的用户也被迫吃到**。用户拍板:去注入 · 关键信息写进 SKILL.md(加载 skill 即生效 · 只影响用 teamwork 的 session —— 这才是正确的作用边界)。
@@ -56,18 +66,3 @@
 
 ### 验证
 - code(`_v8_ship` 2 helper + archive emit + audit)+ 模板/§16 · `test_pause_mark_v8192` +4 · pytest 817 passed。
-
-## v8.207 · ship2 审计源材料预抽(治「先删 worktree 再要三段判断 → AI 被迫 unzip 反读」)
-
-> 实证 case(用户看 Codex ship2):ship-finalize 删 worktree **后**要 AI 补 audit 三段判断,但源材料(REVIEW.md/TEST-REPORT.md)随 worktree 删除只剩归档 zip 内 → AI 被迫 `unzip -p` 反读。反直觉的人机工学 bug(交付安全无问题 · 主工作区干净)。
-
-### 治本
-- **`_capture_audit_sources(feature_dir)`**(新):ship-finalize 在 **worktree-remove 之前**(feature_dir 尚在)抓 `REVIEW*.md` + `TEST-REPORT.md` 压成紧凑摘录。
-- **嵌进 audit 草稿 `## 源材料摘录` 段** —— AI 读草稿即可填三段(做的好的/发现的问题/待优化的)· 三段占位 + emit brief 改指「照实抄草稿内 §源材料摘录 + 实际数据 · 🔴 **无需 unzip 归档**」。
-- 读失败静默降级(绝不阻塞 ship2)· 无源材料 → 不加空段(三段仍在)。
-
-### 为什么不移到 ship1
-实际数据全来自内存 `state`(worktree 删了也在)· 只有三段的**源文档**随 worktree 消失 —— 预抽摘录是最小修复,保持 v8.145「ship2 out-of-repo bookkeeping」不变(audit 落 `~/.teamwork/audit/` 非仓库)。
-
-### 验证
-- code(`_v8_ship`)+ ship-stage §16 doc · `test_audit_sources_v8207` +4 · pytest 813 passed。
