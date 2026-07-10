@@ -1616,6 +1616,7 @@ def cmd_init_feature(args: argparse.Namespace) -> None:
     state: dict[str, Any] = {
         "feature_id": args.feature_id,
         "bl": getattr(args, "bl", None) or None,  # v8.196:承接的 BL(F↔BL 机读绑定 · 链路最脆一环治本)
+        "clarity": getattr(args, "clarity", "normal") or "normal",  # v8.215:明确度 → 评审强度比例化
         "sub_project": args.sub_project or "",
         "flow_type": args.flow_type,
         "artifact_root": str(feature_dir),  # v7.3.10+P0-149: 单源 · 不再独立 --artifact-root
@@ -2206,6 +2207,20 @@ def cmd_prepare_check(args: argparse.Namespace) -> None:
     # 4 个核心问题 · 软提示 AI 在 emit prepare 暂停点时基于此给思考后的 reviewer 预估
     # 不强制 JSON 必传(Option A · 用户拍板)· 不像 v8.15 admission_judgment 物化
     payload["reviewer_thinking_checklist"] = REVIEWER_THINKING_CHECKLIST
+    # v8.215:分诊证据先行(智能分诊 v1)——「看过再判」:30 秒侦察后填证据 · 空着不给判。
+    # clarity 解耦「大」和「不确定」:改动面大→Feature 骨架;不确定性低→评审走轻档。
+    payload["triage_evidence"] = {
+        "🔴": "PMO 侦察(grep 候选改动面 / 查 KNOWLEDGE / 新依赖)后逐项填 · 凭证据判 clarity · 不猜",
+        "estimated_files": "<侦察后填数量级 · 如 ~12>",
+        "cross_repo": "<true/false>",
+        "new_deps": "<新依赖清单 或 无>",
+        "has_ui": "<true/false>",
+        "mechanical": "<true/false · 机械映射类(外化/重命名/迁移/升级)且无新业务行为>",
+        "clarity": "<explicit/normal/ambiguous · 判定标准:用户给出明确方案 或 mechanical=true → explicit;"
+                   "一句话含方向词/多方案可选 → ambiguous;其余 normal>",
+        "consumption": "init-feature 传 --clarity <判定值> 写入 state · explicit → goal PL 质疑跳过 + 冷审 3→1 + "
+                       "blueprint external 跳过(评审强度随不确定性 · review 三视角不动)",
+    }
     payload["reviewer_thinking_hint"] = (
         "🔴 PMO 必基于此 checklist 4 问思考 · 设定实际评审角色 + stage 链"
         "(结果进默认 · prepare 暂停点「⚙️ 配置」段**一行**带过 · 不铺表 · v8.162)· "
@@ -4774,6 +4789,9 @@ def build_parser() -> argparse.ArgumentParser:
                           "如 apps/admin/docs/features/ADMIN-F013-x · "
                           "**不是仅 feature 名**（v7.3.10+P0-149 修复 PTR-F032 实战 bug）· "
                           "state.json 落此处 · 同时作为 state.artifact_root 字段值")
+    ifp.add_argument("--clarity", default="normal",
+                     choices=["explicit", "normal", "ambiguous"],
+                     help="[v8.215] 需求明确度(prepare 侦察后判)· explicit=明确/机械类 → goal PL 质疑跳过+冷审 3→1+blueprint external 跳过 · review 不动")
     ifp.add_argument("--bl", default=None,
                      help="[v8.196] 本 F 承接的 BL 编号(如 BL-003)· 写入 state.json.bl · "
                           "ship 翻牌/ws-progress 解析所属 WS 优先读它(不再单靠 ROADMAP 手填「对应F编号」)")
