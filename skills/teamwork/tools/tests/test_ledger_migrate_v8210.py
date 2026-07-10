@@ -33,9 +33,10 @@ class TestLedgerMigrate(unittest.TestCase):
         out = _run(d)
         self.assertEqual(out["verdict"], "OK")
         self.assertTrue(out["migrated"])
-        self.assertEqual((out["old_cols"], out["new_cols"]), (10, 13))
+        self.assertEqual(out["old_cols"], 10)
+        self.assertGreater(out["new_cols"], out["old_cols"])   # canonical 单源自模板 · 不写死列数(末尾加列纪律)
         body = (d / "project-specs" / "PROCESS-LEDGER.md").read_text(encoding="utf-8")
-        for c in ("各阶段耗时", "用户邮箱", "宿主"):
+        for c in ("各阶段耗时", "用户邮箱", "宿主", "分诊校准"):
             self.assertIn(c, body.splitlines()[2])          # 表头升级
         self.assertIn(_OLD_ROW, body)                       # 旧数据行逐字未动
 

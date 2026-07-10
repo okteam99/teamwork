@@ -1,6 +1,6 @@
 ---
 name: teamwork
-version: v8.216.1
+version: v8.217
 description: AI 协作开发一体化框架 - 需求功能开发, bug 修复, 问题排查 · /teamwork 启动
 ---
 

@@ -42,3 +42,25 @@ class TestDynamicRoster(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestTriageCalibrationV8217(unittest.TestCase):
+    def test_calibration_bundle(self):
+        import tempfile, subprocess
+        from _v8_ship import _triage_calibration
+        d = Path(tempfile.mkdtemp())
+        subprocess.run(["git", "-C", str(d), "init", "-q", "-b", "main"], capture_output=True)
+        st = {"clarity": "explicit",
+              "stage_review_roles_adjustments": [{"stage": "goal", "roles": ["qa"], "reason": "机械类"}],
+              "stage_contracts": {"goal": {"rounds": []}, "review": {"rounds": [{"round": 1}]}}}
+        c = _triage_calibration(st, str(d), "main")
+        self.assertEqual(c["clarity"], "explicit")
+        self.assertIn("goal→qa", c["roster"])
+        self.assertEqual(c["goal_rounds"], 0)
+        self.assertEqual(c["review_rounds"], 1)
+
+    def test_default_roster_label(self):
+        from _v8_ship import _triage_calibration
+        c = _triage_calibration({}, "/nonexistent", "main")
+        self.assertEqual(c["roster"], "默认矩阵")
+        self.assertEqual(c["clarity"], "normal")
