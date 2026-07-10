@@ -2218,8 +2218,18 @@ def cmd_prepare_check(args: argparse.Namespace) -> None:
         "mechanical": "<true/false · 机械映射类(外化/重命名/迁移/升级)且无新业务行为>",
         "clarity": "<explicit/normal/ambiguous · 判定标准:用户给出明确方案 或 mechanical=true → explicit;"
                    "一句话含方向词/多方案可选 → ambiguous;其余 normal>",
-        "consumption": "init-feature 传 --clarity <判定值> 写入 state · explicit → goal PL 质疑跳过 + 冷审 3→1 + "
-                       "blueprint external 跳过(评审强度随不确定性 · review 三视角不动)",
+        "consumption": "🔴 v8.216 动态决策:凭上述证据 · 按 role_value_criteria **逐 stage 逐角色**判「对本 feature 有没有值」"
+                       "→ 配 stage_review_roles(init 后 `change-review-roles --stage X --roles ... --reason ...` · 审计留痕 · "
+                       "gate 按 roster 自动放行/校验)· 可去 pl 也可去 qa/architect/external(带理由)· "
+                       "clarity 传 `init-feature --clarity` 仅记录进 state(台账/年检校准 · 不触发硬编码行为)",
+    }
+    # v8.216:角色价值判据(给 AI 的判断框架 · 非规则)—— 逐角色问「这个视角对本 feature 能拦住什么」
+    payload["role_value_criteria"] = {
+        "pl": "需求有价值前提/范围可质疑吗?(用户明说要做的机械改动 → 无 · 新能力/改行为 → 有)",
+        "qa": "有边界条件/AC 可测性风险吗?(纯文案/配置 → 弱 · 有状态/并发/输入面 → 强)",
+        "architect": "有架构决策/跨模块影响吗?(单文件机械改 → 弱 · 新依赖/改契约/跨层 → 强)",
+        "external": "多触发点/高风险/同模型盲区值得异质或冷视角吗?(≥3 模块触发 · 或核心链路)",
+        "🔴": "每角色给一行理由(有值留 · 无值去)· review stage 从严(拦真主力 · 建议 ≥2 视角 · <2 需强理由)",
     }
     payload["reviewer_thinking_hint"] = (
         "🔴 PMO 必基于此 checklist 4 问思考 · 设定实际评审角色 + stage 链"
@@ -4791,7 +4801,7 @@ def build_parser() -> argparse.ArgumentParser:
                           "state.json 落此处 · 同时作为 state.artifact_root 字段值")
     ifp.add_argument("--clarity", default="normal",
                      choices=["explicit", "normal", "ambiguous"],
-                     help="[v8.215] 需求明确度(prepare 侦察后判)· explicit=明确/机械类 → goal PL 质疑跳过+冷审 3→1+blueprint external 跳过 · review 不动")
+                     help="[v8.216] 需求明确度(prepare 侦察后判 · 仅记录:台账/年检校准)· 评审配置不由它硬编码 · 由 AI 按 role_value_criteria 配 stage_review_roles")
     ifp.add_argument("--bl", default=None,
                      help="[v8.196] 本 F 承接的 BL 编号(如 BL-003)· 写入 state.json.bl · "
                           "ship 翻牌/ws-progress 解析所属 WS 优先读它(不再单靠 ROADMAP 手填「对应F编号」)")
