@@ -455,79 +455,72 @@ def maintain_chmod_tools(skill_root: Path) -> dict:
     return counts
 
 
-# ─── hooks 部署 ──────────────────────────────────────
+# ─── 宿主 hooks:退役清理 + codex agent toml 部署 ────────────────────
 
-
-def _find_hooks_src(skill_root: Path) -> Optional[Path]:
-    """找 hooks/ 源目录(hooks.json + *.sh 随 skill 分发):只认 `skill_root/hooks`。
-
-    不做任何 parent fallback —— 标准安装位(~/.claude/skills/teamwork)的
-    parent.parent 是 ~/.claude · 那里的 hooks/ 是用户全局目录 · 误捡会整目录
-    复制进项目。
-    """
-    c = skill_root / "hooks"
-    if c.is_dir() and any(c.glob("*.sh")):
-        return c
-    return None
+# v8.213(用户拍板 · Claude hooks 全退役):teamwork 不再部署任何宿主 hooks
+# (post-compact/post-stop/post-subagent/session-restore + hooks.json)。
+# 理由:hooks 是「宿主独有事件的自动触发层」· 与跨宿主原则相悖(scripts-policy)·
+# post-compact 恢复已由 state.json 断点续跑覆盖 · codex hooks.json 更是当年
+# "cyber abuse" 警告的诱因之一(external-model-usage §抽出来源)。
+# 新行为:① 清理项目里历史部署的 teamwork hook 文件(仅列名文件 · 内容含
+# teamwork 签名才删 · 防误删用户同名 hook)② codex-cli 仍部署 .codex/agents/*.toml
+# (subagent profile · 活功能 · 与 hooks 无关)。
+_LEGACY_HOOK_FILES = ("post-compact.sh", "post-stop.sh", "post-subagent.sh",
+                      "session-restore.sh", "hooks.json")
 
 
 def maintain_host_hooks(skill_root: Path, project_root: Path, host: str) -> dict:
-    """部署 hooks 到宿主目录(claude-code → .claude/hooks/ · codex-cli → .codex/)。"""
-    hooks_src = _find_hooks_src(skill_root)
-    if hooks_src is None:
-        return {"status": "skipped", "reason": "no hooks/ source dir found"}
+    """v8.213:清理历史 hooks 部署(签名守卫)+ codex agent toml 部署(保留)。"""
+    removed, kept_foreign = [], []
+    for hooks_dir in (project_root / ".claude" / "hooks", project_root / ".codex"):
+        if not hooks_dir.is_dir():
+            continue
+        for name in _LEGACY_HOOK_FILES:
+            f = hooks_dir / name
+            if not f.is_file():
+                continue
+            try:
+                body = f.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                continue
+            if any(sig in body for sig in ("eamwork", "PMO", "dispatch_log", "STATUS.md")):
+                # 签名守卫:含 teamwork 生态标记才删(文件名+内容双条件 · 防误删用户同名 hook)
+                try:
+                    f.unlink()
+                    removed.append(str(f.relative_to(project_root)))
+                except OSError:
+                    pass
+            else:
+                kept_foreign.append(str(f.relative_to(project_root)))
+    # 清空后的 .claude/hooks 目录顺手删(空目录无意义)
+    ch = project_root / ".claude" / "hooks"
+    try:
+        if ch.is_dir() and not any(ch.iterdir()):
+            ch.rmdir()
+    except OSError:
+        pass
 
-    deployed_sh, deployed_json = [], None
-    failed = []
-
-    if host == "claude-code":
-        target_dir = project_root / ".claude" / "hooks"
-        target_dir.mkdir(parents=True, exist_ok=True)
-        for sh in hooks_src.glob("*.sh"):
-            try:
-                shutil.copy(sh, target_dir / sh.name)
-                deployed_sh.append(sh.name)
-            except OSError as e:
-                failed.append({"file": sh.name, "reason": str(e)})
-        # hooks.json:claude 用 hooks/ 下的(含 PreCompact/PostCompact)
-        src_json = hooks_src / "hooks.json"
-        if src_json.exists():
-            try:
-                shutil.copy(src_json, target_dir / "hooks.json")
-                deployed_json = "hooks.json (claude-code)"
-            except OSError as e:
-                failed.append({"file": "hooks.json", "reason": str(e)})
-    elif host == "codex-cli":
-        target_hooks_dir = project_root / ".codex"
-        target_hooks_dir.mkdir(parents=True, exist_ok=True)
-        # codex hooks.json 在 codex-agents/(独立 · 无 PreCompact)
-        codex_hooks_json = skill_root / "codex-agents" / "hooks.json"
-        if codex_hooks_json.exists():
-            try:
-                shutil.copy(codex_hooks_json, target_hooks_dir / "hooks.json")
-                deployed_json = "hooks.json (codex-cli)"
-            except OSError as e:
-                failed.append({"file": "hooks.json", "reason": str(e)})
-        # codex agent toml
-        agents_target = target_hooks_dir / "agents"
-        agents_target.mkdir(parents=True, exist_ok=True)
+    deployed_tomls, failed = [], []
+    if host == "codex-cli":
+        agents_target = project_root / ".codex" / "agents"
         codex_agents_dir = skill_root / "codex-agents"
         if codex_agents_dir.is_dir():
+            agents_target.mkdir(parents=True, exist_ok=True)
             for toml in codex_agents_dir.glob("*.toml"):
                 try:
                     shutil.copy(toml, agents_target / toml.name)
-                    deployed_sh.append(toml.name)
+                    deployed_tomls.append(toml.name)
                 except OSError as e:
                     failed.append({"file": toml.name, "reason": str(e)})
-    else:
-        return {"status": "host_no_hooks", "host": host}
 
     return {
-        "status": "deployed",
-        "host": host,
-        "sh_count": len(deployed_sh),
-        "hooks_json": deployed_json,
-        "failed": failed,
+        "status": "hooks_retired" + ("_cleanup_removed" if removed else ""),
+        **({"legacy_hooks_removed": removed,
+            "note": "历史 teamwork hooks 已清理(v8.213 hooks 退役 · 签名守卫 · 用户自有 hook 不动)"}
+           if removed else {}),
+        **({"kept_foreign": kept_foreign} if kept_foreign else {}),
+        **({"codex_agents_deployed": deployed_tomls} if deployed_tomls else {}),
+        **({"failed": failed} if failed else {}),
     }
 
 

@@ -1,6 +1,6 @@
 ---
 name: teamwork
-version: v8.212.1
+version: v8.213
 description: AI 协作开发一体化框架 - 需求功能开发, bug 修复, 问题排查 · /teamwork 启动
 ---
 
@@ -719,8 +719,7 @@ v8 把 v7 的 9 红线中 16/17 子条目物化进 state.py · 仅 1 条(R3 PMO 
 | [tools/_v8_engine.py](./tools/_v8_engine.py) | 通用 stage start/complete + bypass 引擎 |
 | [tools/_v8_stage_specs.py](./tools/_v8_stage_specs.py) | 12 stage 完整契约(stage 数单源 `STAGE_SPECS`) |
 | [tools/_v8_ship.py](./tools/_v8_ship.py) | ship-phase actions + ship-finalize + await-merge |
-| [tools/bootstrap.py](./tools/bootstrap.py) | session 启动维护(骨架 / hooks / 历史注入段清理) |
-| [hooks/](./hooks/) | 宿主 hooks(post-compact 恢复 / post-stop / session-restore · hooks.json 部署) |
+| [tools/bootstrap.py](./tools/bootstrap.py) | session 启动维护(骨架 / codex agent toml 部署 / 历史注入段与 hooks 清理) |
 | [codex-agents/](./codex-agents/) · [claude-agents/](./claude-agents/) | external-review 宿主 profile(codex `*.toml` / claude `reviewer.md` · `state.py external-review` 按 host 自动选) |
 | [docs/CHANGELOG.md](./docs/CHANGELOG.md) | 变更记录(keep-5 · 归档 → CHANGELOG-ARCHIVE)· [RETRO-LEDGER.md](./docs/RETRO-LEDGER.md) 一行一版自省 |
 

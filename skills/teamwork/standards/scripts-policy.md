@@ -29,7 +29,7 @@
 - ✅ 必须写在 `tools/*.py`
 - ✅ 必须 `#!/usr/bin/env python3` + `chmod +x`
 - ✅ 必须有对应 `tools/tests/test_*.py`（pytest · ≥3 case：happy / edge / failure）
-- ❌ 不得新增 `hooks/*.sh` 承载业务（即使是"小脚本"）
+- ❌ 不得新增任何宿主 hooks（🔴 v8.213 hooks 已全退役 · hooks/ 目录已删 · bootstrap 只做历史清理）
 - ❌ 不得在 hook .sh 之外的 bash 文件里写业务流程
 
 ### R-SP-2 调用一律 spec 显式 cite
@@ -50,7 +50,7 @@ python3 {SKILL_ROOT}/tools/post-feature.py --project-dir {...} --feature {...}
 
 ### R-SP-3 hook 仅承载宿主 lifecycle 转发
 
-`hooks/*.sh` 仅允许做**两类事**：
+~~`hooks/*.sh` 仅允许做两类事~~(🔴 v8.213 起 hooks 全退役 · 本段仅存历史判据)：
 
 1. CC `settings.json` 的 SessionStart / PreCompact / PostCompact / Stop 等**宿主独有事件的薄壳**——这些事件没有 python 等价物，必须 bash
 2. 薄壳内容仅做"调 python"或"读 prompt 文件"，**禁止业务逻辑**
@@ -194,7 +194,7 @@ P0-146 处理 top 30 (~12% of missing) · 后续 patch 渐进推进。
 | 工具 | 职责 | 模式 |
 |---|---|---|
 | `tools/state.py` | state.json schema/状态机/evidence-binding 单源 | 子命令 + JSON 输出 |
-| `tools/bootstrap.py` | session bootstrap · 骨架/hooks/注入段维护 | 一次性 boot · JSON 输出 |
+| `tools/bootstrap.py` | session bootstrap · 骨架维护 + 历史 hooks/注入段清理 | 一次性 boot · JSON 输出 |
 | `tools/verify-panorama.py` | 全景设计物化校验 | 校验 + JSON 输出 |
 | `tools/post-feature.py` | Feature 收尾 · KNOWLEDGE check + ROADMAP render | 多职责聚合|
 
