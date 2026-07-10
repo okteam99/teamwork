@@ -58,3 +58,61 @@ class TestCli(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestTimingSplitV8208(unittest.TestCase):
+    """v8.208 · 时长三分(AI 自主 vs 等待用户)+ git 邮箱 · 台账/审计细化。"""
+    def _split(self, st):
+        from _v8_ship import _timing_split
+        return _timing_split(st)
+
+    def test_ai_vs_wait_split(self):
+        st = {"completed_stages": ["goal", "dev", "pm_acceptance"], "stage_contracts": {
+            "goal": {"duration_minutes": 20, "await_minutes": 5},   # 15 AI · 5 wait
+            "dev": {"duration_minutes": 40, "await_minutes": 0},    # 40 AI
+            "pm_acceptance": {"duration_minutes": 30}}}             # 30 wait(纯等待 stage)
+        ai, wait = self._split(st)
+        self.assertEqual(ai, 55)
+        self.assertEqual(wait, 35)
+
+    def test_no_duration_returns_none(self):
+        self.assertEqual(self._split({"completed_stages": [], "stage_contracts": {}}), (None, None))
+
+    def test_email_helper(self):
+        import tempfile, subprocess
+        from pathlib import Path
+        from _v8_ship import _git_user_email
+        d = Path(tempfile.mkdtemp())
+        subprocess.run(["git", "-C", str(d), "init", "-q"], capture_output=True)
+        subprocess.run(["git", "-C", str(d), "config", "user.email", "who@x.co"], capture_output=True)
+        self.assertEqual(_git_user_email(str(d)), "who@x.co")
+
+    def test_audit_record_has_email_and_split(self):
+        import tempfile, os, json
+        from pathlib import Path
+        from _v8_ship import _write_audit_record
+        wt = Path(tempfile.mkdtemp())
+        import subprocess
+        subprocess.run(["git", "-C", str(wt), "init", "-q"], capture_output=True)
+        subprocess.run(["git", "-C", str(wt), "config", "user.email", "dev@team.co"], capture_output=True)
+        os.environ["HOME"] = tempfile.mkdtemp()
+        st = {"feature_id": "F9", "completed_stages": ["dev", "pm_acceptance"], "flow_type": "Feature",
+              "stage_contracts": {"dev": {"duration_minutes": 40, "await_minutes": 0},
+                                  "pm_acceptance": {"duration_minutes": 30}}}
+        rec = _write_audit_record(st, "F9", "staging", str(wt), None, "")
+        body = Path(rec).read_text(encoding="utf-8")
+        self.assertIn("user_email: dev@team.co", body)          # frontmatter
+        self.assertIn("AI 自主运行:40m", body)                  # split
+        self.assertIn("等待用户:30m", body)
+
+    def test_audit_frontmatter_host(self):
+        import tempfile, os, subprocess
+        from pathlib import Path
+        from _v8_ship import _write_audit_record
+        wt = Path(tempfile.mkdtemp()); subprocess.run(["git","-C",str(wt),"init","-q"],capture_output=True)
+        os.environ["HOME"] = tempfile.mkdtemp()
+        rec = _write_audit_record({"feature_id":"FH","completed_stages":["dev"],"flow_type":"Feature",
+                                   "host":"codex-cli","stage_contracts":{"dev":{"duration_minutes":10}}},
+                                  "FH","staging",str(wt),None,"")
+        self.assertIn("host: codex-cli", Path(rec).read_text(encoding="utf-8"))  # v8.209 宿主 frontmatter
+

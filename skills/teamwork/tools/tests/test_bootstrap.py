@@ -7,7 +7,7 @@
 - maintain_project_skeletons(创建/已存在/失败)
 - check_host_injection(注入段 ok / missing / file_missing)
 - check_skill_update + 24h TTL 缓存(命中不外呼)
-- hooks 源定位(只认 skill_root/hooks)· external-review-logs 保留策略
+- hooks 退役清理(v8.213 签名守卫)· external-review-logs 保留策略
 - cmd_session_bootstrap 端到端(silent emit JSON · flow_gates 四字段)
 
 运行:
@@ -248,54 +248,47 @@ class TestMaintainProjectSkeletons(unittest.TestCase):
             maintain_workspace_filename(self.project_root)["status"], "n_a")
 
 
-# ─── maintain_host_injection ─────────────────────────────
+# ─── maintain_host_injection(v8.211 · 清理模式)─────────────────────────
 
-
-class TestMaintainHostInjection(unittest.TestCase):
-    """CLAUDE.md / AGENTS.md / GEMINI.md 注入段同步(改 check → maintain)。"""
+class TestHostInjectionCleanup(unittest.TestCase):
+    """v8.211 注入退役:bootstrap 只清理历史注入块 · 不再写入(共享仓库防污染)。"""
 
     def setUp(self):
-        self.tmp = Path(tempfile.mkdtemp())
+        self.tmp = Path(tempfile.mkdtemp(prefix="inj-"))
 
-    def tearDown(self):
-        shutil.rmtree(self.tmp, ignore_errors=True)
-
-    def test_host_unknown(self):
+    def _run(self):
         from bootstrap import maintain_host_injection
-        result = maintain_host_injection(self.tmp, self.tmp, "unknown", "v8.x")
-        self.assertEqual(result["status"], "host_unknown")
+        return maintain_host_injection(self.tmp, self.tmp, "claude-code", "v8.x")
 
-    def test_skipped_when_sync_drift_missing(self):
-        """skill_root 不含 sync-drift.py → skipped(不阻塞)。"""
-        from bootstrap import maintain_host_injection
-        # tmp 当 skill_root 用 · 不含 tools/sync-drift.py
-        result = maintain_host_injection(self.tmp, self.tmp, "claude-code", "v8.x")
-        self.assertEqual(result["status"], "skipped")
+    def test_legacy_block_removed_user_content_kept(self):
+        (self.tmp / "CLAUDE.md").write_text(
+            "<!-- TEAMWORK_BEGIN:teamwork-pointer v8.2 -->\n注入\n"
+            "<!-- TEAMWORK_END:teamwork-pointer -->\n\n# 用户规则\n", encoding="utf-8")
+        r = self._run()
+        self.assertEqual(r["status"], "cleanup_removed")
+        self.assertIn("CLAUDE.md", r["removed_from"])
+        self.assertEqual((self.tmp / "CLAUDE.md").read_text(encoding="utf-8"), "# 用户规则\n")
 
-    def test_other_host_files_skipped_when_absent(self):
-        """v8.14:非当前 host 文件不存在 → skipped_not_present(不主动建)。
+    def test_pure_injection_file_deleted(self):
+        (self.tmp / "AGENTS.md").write_text(
+            "<!-- TEAMWORK_BEGIN:x -->\n注入\n<!-- TEAMWORK_END:x -->\n", encoding="utf-8")
+        r = self._run()
+        self.assertEqual(r["results"]["AGENTS.md"]["status"],
+                         "legacy_injection_removed_file_deleted")
+        self.assertFalse((self.tmp / "AGENTS.md").exists())
 
-        模拟真实 skill_root + project_root + 仅有 CLAUDE.md(无 AGENTS / GEMINI)。
-        """
-        from bootstrap import maintain_host_injection
-        # 用真实 skill 仓库 sync-drift + 模板
-        skill_root = Path(__file__).resolve().parent.parent.parent
-        project_root = Path(tempfile.mkdtemp())
-        try:
-            # 只创建 CLAUDE.md(主 host 文件)· 不创建 AGENTS / GEMINI
-            (project_root / "CLAUDE.md").write_text("# project\n")
-            result = maintain_host_injection(
-                skill_root, project_root, "claude-code", "v8.x",
-            )
-            self.assertEqual(result["status"], "ok")
-            self.assertEqual(result["primary_file"], "CLAUDE.md")
-            # CLAUDE.md 应同步成功
-            self.assertEqual(result["results"]["CLAUDE.md"]["status"], "synced")
-            # AGENTS.md / GEMINI.md 不存在 · 应 skipped_not_present
-            self.assertEqual(result["results"]["AGENTS.md"]["status"], "skipped_not_present")
-            self.assertEqual(result["results"]["GEMINI.md"]["status"], "skipped_not_present")
-        finally:
-            shutil.rmtree(project_root, ignore_errors=True)
+    def test_clean_files_untouched_and_idempotent(self):
+        (self.tmp / "GEMINI.md").write_text("# 用户 gemini\n", encoding="utf-8")
+        r = self._run()
+        self.assertEqual(r["status"], "clean")
+        self.assertEqual((self.tmp / "GEMINI.md").read_text(encoding="utf-8"), "# 用户 gemini\n")
+        self.assertEqual(self._run()["status"], "clean")  # 幂等
+
+    def test_never_creates_files(self):
+        self._run()
+        for f in ("CLAUDE.md", "AGENTS.md", "GEMINI.md"):
+            self.assertFalse((self.tmp / f).exists())  # 🔴 注入退役 = 绝不创建
+
 
 
 # ─── maintain_chmod_tools / maintain_gitignore_worktree ─────────
@@ -502,7 +495,7 @@ class TestBootstrapMarker(unittest.TestCase):
         from bootstrap import read_bootstrap_marker, write_bootstrap_marker
         ok = write_bootstrap_marker(
             self.tmp, "v8.6", "claude-code",
-            {"chmod": "ok", "hooks": "deployed"},
+            {"chmod": "ok", "hooks": "hooks_retired"},
         )
         self.assertTrue(ok)
         marker = read_bootstrap_marker(self.tmp)
@@ -667,10 +660,9 @@ class TestCmdSessionBootstrapE2E(unittest.TestCase):
         self.assertNotIn("v7_features_pending_migrate", data["checks"])
         # host_audit(deprecated 全局文件)已停写 · 字段不再 emit
         self.assertNotIn("host_audit", data["checks"])
-        # hooks 从 skill_root/hooks 找到并部署(4 个 .sh + hooks.json)
-        self.assertEqual(data["checks"]["hooks"]["status"], "deployed")
-        self.assertGreaterEqual(data["checks"]["hooks"]["sh_count"], 4)
-        self.assertTrue((self.project / ".claude" / "hooks" / "hooks.json").exists())
+        # v8.213 hooks 退役:不再部署 · status 为 hooks_retired*
+        self.assertTrue(data["checks"]["hooks"]["status"].startswith("hooks_retired"))
+        self.assertFalse((self.project / ".claude" / "hooks" / "hooks.json").exists())
         # housekeeping:external-review-logs 保留策略必 emit
         self.assertIn("external_review_logs_prune", data["checks"])
 
@@ -1336,60 +1328,41 @@ class TestPruneExternalReviewLogs(unittest.TestCase):
         self.assertTrue(keep.exists())
 
 
-class TestHooksSource(unittest.TestCase):
-    """hooks 源定位:只认 skill_root/hooks(parent.parent fallback 已删 ·
-    标准安装位下会误指 ~/.claude/hooks 用户全局目录)。"""
+class TestHooksRetirement(unittest.TestCase):
+    """v8.213 hooks 退役:清理历史部署(签名守卫)· 保留用户外来 hook · codex toml 照部署。"""
 
     def setUp(self):
-        self.tmp = Path(tempfile.mkdtemp(prefix="hooks-src-"))
-        sys.path.insert(0, str(TOOLS))
+        self.proj = Path(tempfile.mkdtemp(prefix="hkret-"))
+        self.skill = Path(tempfile.mkdtemp(prefix="hkskill-"))
+        (self.skill / "codex-agents").mkdir()
+        (self.skill / "codex-agents" / "reviewer.toml").write_text("x", encoding="utf-8")
 
-    def tearDown(self):
-        shutil.rmtree(self.tmp, ignore_errors=True)
-
-    def test_found_at_skill_root_hooks(self):
-        from bootstrap import _find_hooks_src
-        skill = self.tmp / "skills" / "teamwork"
-        (skill / "hooks").mkdir(parents=True)
-        (skill / "hooks" / "a.sh").write_text("#!/bin/bash\n", encoding="utf-8")
-        self.assertEqual(_find_hooks_src(skill), skill / "hooks")
-
-    def test_no_parent_parent_fallback(self):
-        """skill_root 无 hooks/ 时 · 即便 parent.parent 有 hooks/ 也不捡(防误复制全局目录)。"""
-        from bootstrap import _find_hooks_src, maintain_host_hooks
-        skill = self.tmp / "skills" / "teamwork"
-        skill.mkdir(parents=True)
-        outside = self.tmp / "hooks"  # 模拟 ~/.claude/hooks 位置关系
-        outside.mkdir()
-        (outside / "evil.sh").write_text("#!/bin/bash\n", encoding="utf-8")
-        self.assertIsNone(_find_hooks_src(skill))
-        project = self.tmp / "project"
-        project.mkdir()
-        r = maintain_host_hooks(skill, project, "claude-code")
-        self.assertEqual(r["status"], "skipped")
-        self.assertFalse((project / ".claude" / "hooks" / "evil.sh").exists())
-
-    def test_real_skill_ships_hooks_inside(self):
-        """hooks 已随 skill 分发(仓库 skills/teamwork/hooks/)· tarball 用户拿得到。"""
-        from bootstrap import _find_hooks_src
-        src = _find_hooks_src(SKILL)
-        self.assertEqual(src, SKILL / "hooks")
-        self.assertTrue((src / "hooks.json").exists())
-        self.assertGreaterEqual(len(list(src.glob("*.sh"))), 4)
-
-    def test_deploy_claude_code_from_skill_hooks(self):
+    def _run(self, host="claude-code"):
         from bootstrap import maintain_host_hooks
-        skill = self.tmp / "skills" / "teamwork"
-        (skill / "hooks").mkdir(parents=True)
-        (skill / "hooks" / "a.sh").write_text("#!/bin/bash\n", encoding="utf-8")
-        (skill / "hooks" / "hooks.json").write_text("{}", encoding="utf-8")
-        project = self.tmp / "project"
-        project.mkdir()
-        r = maintain_host_hooks(skill, project, "claude-code")
-        self.assertEqual(r["status"], "deployed")
-        self.assertEqual(r["sh_count"], 1)
-        self.assertTrue((project / ".claude" / "hooks" / "a.sh").exists())
-        self.assertTrue((project / ".claude" / "hooks" / "hooks.json").exists())
+        return maintain_host_hooks(self.skill, self.proj, host)
+
+    def test_legacy_teamwork_hooks_removed_foreign_kept(self):
+        ch = self.proj / ".claude" / "hooks"; ch.mkdir(parents=True)
+        (ch / "post-compact.sh").write_text("# Teamwork PostCompact hook", encoding="utf-8")
+        (ch / "post-subagent.sh").write_text("# PMO Subagent 产出检查", encoding="utf-8")
+        (ch / "post-stop.sh").write_text("# 用户自己的 hook", encoding="utf-8")
+        r = self._run()
+        self.assertTrue(r["status"].startswith("hooks_retired"))
+        self.assertIn(".claude/hooks/post-compact.sh", r["legacy_hooks_removed"])
+        self.assertIn(".claude/hooks/post-subagent.sh", r["legacy_hooks_removed"])
+        self.assertTrue((ch / "post-stop.sh").exists())
+
+    def test_never_deploys_hooks(self):
+        r = self._run()
+        self.assertTrue(r["status"].startswith("hooks_retired"))
+        self.assertFalse((self.proj / ".claude" / "hooks").exists())
+
+    def test_codex_tomls_still_deployed(self):
+        r = self._run(host="codex-cli")
+        self.assertIn("reviewer.toml", r.get("codex_agents_deployed", []))
+        self.assertTrue((self.proj / ".codex" / "agents" / "reviewer.toml").exists())
+        self.assertFalse((self.proj / ".codex" / "hooks.json").exists())
+
 
 
 class TestKnowledgeGraphIntegrity(unittest.TestCase):

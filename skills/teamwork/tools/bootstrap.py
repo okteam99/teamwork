@@ -17,7 +17,7 @@ bootstrap.py — Teamwork session 启动系统维护(独立脚本 · 替代 inst
 - 项目级骨架检查/创建(project-specs/ 下 KNOWLEDGE/TROUBLESHOOTING/GLOSSARY · 旧散放自动迁移)
 - chmod +x tools/*.py + templates/*.py(自愈 · 防丢失可执行位)
 - 宿主 hooks 部署(.claude/hooks/ 或 .codex/hooks.json)
-- CLAUDE.md / AGENTS.md / GEMINI.md 注入段同步(跑 sync-drift.py)
+- CLAUDE.md / AGENTS.md / GEMINI.md 历史注入段清理(v8.211 注入退役 · 只删 TEAMWORK 标记块)
 - .worktree/ → .gitignore(默认 worktree_root_path · 详 docs/conventions.md § 10)
 - ~/.teamwork/external-review-logs/ 过期日志清理(housekeeping)
 
@@ -42,6 +42,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -381,73 +382,52 @@ HOST_INJECTION_FILES = {
 
 def maintain_host_injection(skill_root: Path, project_root: Path, host: str,
                              skill_version: str) -> dict:
-    """同步**所有已存在**的宿主指令文件 teamwork 注入段(v8.14)。
+    """v8.211(用户拍板 · 注入退役):**清理**宿主指令文件里的历史 teamwork 注入段。
 
-    策略:
-    - 当前 host 对应文件:不存在则创建(--init)· 存在则同步
-    - 其他指令文件(CLAUDE.md / AGENTS.md / GEMINI.md):**已存在才同步**(不主动建)
-    - 多工具项目下 · 用户单次 bootstrap 让所有指令文件保持最新
+    背景:旧行为往 CLAUDE.md / AGENTS.md / GEMINI.md 注入 teamwork-pointer 块 —— 共享仓库里
+    同事一 commit · **不用 teamwork 的用户也被迫吃到**(实证 case:commercial-data-warehouse)。
+    注入的关键信息(PMO 定位 / worktree 写路径 / Subagent 默认授权)已收进 SKILL.md
+    (加载 skill 即生效 · 只影响用 teamwork 的 session)。
 
-    标记格式由 sync-drift.py 维护:`<!-- TEAMWORK_BEGIN:teamwork-pointer vX.Y -->`
+    新行为:发现历史注入块(`<!-- TEAMWORK_BEGIN:` ... `<!-- TEAMWORK_END:... -->`)→ **移除**
+    (只删 marker 块 · marker 外用户内容一字不动)· 清理后文件全空 → 连文件一并删。幂等。
     """
-    if host not in HOST_INJECTION_FILES:
-        return {"status": "host_unknown", "host": host}
-    if not skill_version:
-        return {"status": "skipped",
-                "reason": "SKILL.md frontmatter version 读取失败 · 跳过注入(不写坏标记)"}
-
-    sync_drift = skill_root / "tools" / "sync-drift.py"
-    source = skill_root / "templates" / "host-instruction-injection.md"
-
-    if not sync_drift.exists() or not source.exists():
-        return {
-            "status": "skipped",
-            "reason": "sync-drift.py or source template missing",
-        }
-
-    primary_fname = HOST_INJECTION_FILES[host]
+    _ = (skill_root, host, skill_version)  # 签名兼容旧 caller · 清理不需要它们
     results = {}
-
-    for host_name, fname in HOST_INJECTION_FILES.items():
+    _block_re = re.compile(r"[ \t]*<!-- TEAMWORK_BEGIN:.*?<!-- TEAMWORK_END:[^>]*-->\n?", re.S)
+    for fname in HOST_INJECTION_FILES.values():
         target = project_root / fname
-        is_primary = (host_name == host)
-        # 非当前 host 文件 · 已存在才同步 · 不主动创建
-        if not is_primary and not target.exists():
-            results[fname] = {"status": "skipped_not_present"}
+        if not target.exists():
+            results[fname] = {"status": "not_present"}
             continue
-
         try:
-            result = subprocess.run(
-                [
-                    "python3", str(sync_drift),
-                    "--target", str(target),
-                    "--source", str(source),
-                    "--skill-version", skill_version,
-                    "--init",
-                ],
-                capture_output=True, text=True, timeout=10,
-            )
-        except (subprocess.TimeoutExpired, FileNotFoundError) as e:
-            results[fname] = {"status": "subprocess_error", "error": str(e)}
+            body = target.read_text(encoding="utf-8")
+        except OSError as e:
+            results[fname] = {"status": "read_error", "error": str(e)[:120]}
             continue
-
-        if result.returncode == 0:
-            results[fname] = {
-                "status": "synced",
-                "primary": is_primary,
-            }
-        else:
-            results[fname] = {
-                "status": "sync_failed",
-                "exit_code": result.returncode,
-                "stderr": result.stderr.strip()[:200],
-            }
-
+        if "<!-- TEAMWORK_BEGIN:" not in body:
+            results[fname] = {"status": "clean"}
+            continue
+        cleaned = _block_re.sub("", body)
+        cleaned = re.sub(r"\n{3,}", "\n\n", cleaned).lstrip("\n")
+        try:
+            if cleaned.strip():
+                target.write_text(cleaned, encoding="utf-8")
+                results[fname] = {"status": "legacy_injection_removed"}
+            else:
+                target.unlink()
+                results[fname] = {"status": "legacy_injection_removed_file_deleted"}
+        except OSError as e:
+            results[fname] = {"status": "write_error", "error": str(e)[:120]}
+    removed = [f for f, r in results.items() if r["status"].startswith("legacy_injection_removed")]
     return {
-        "status": "ok",
-        "primary_file": primary_fname,
+        "status": "cleanup_removed" if removed else "clean",
+        **({"removed_from": removed,
+            "note": ("历史 teamwork 注入段已移除(v8.211 注入退役 · 关键信息在 SKILL.md · "
+                     "共享仓库不再污染非 teamwork 用户)· 用户自己的内容未动")} if removed else {}),
         "results": results,
     }
+
 
 
 # ─── chmod 工具脚本 ─────────────────────────────────────
@@ -475,79 +455,72 @@ def maintain_chmod_tools(skill_root: Path) -> dict:
     return counts
 
 
-# ─── hooks 部署 ──────────────────────────────────────
+# ─── 宿主 hooks:退役清理 + codex agent toml 部署 ────────────────────
 
-
-def _find_hooks_src(skill_root: Path) -> Optional[Path]:
-    """找 hooks/ 源目录(hooks.json + *.sh 随 skill 分发):只认 `skill_root/hooks`。
-
-    不做任何 parent fallback —— 标准安装位(~/.claude/skills/teamwork)的
-    parent.parent 是 ~/.claude · 那里的 hooks/ 是用户全局目录 · 误捡会整目录
-    复制进项目。
-    """
-    c = skill_root / "hooks"
-    if c.is_dir() and any(c.glob("*.sh")):
-        return c
-    return None
+# v8.213(用户拍板 · Claude hooks 全退役):teamwork 不再部署任何宿主 hooks
+# (post-compact/post-stop/post-subagent/session-restore + hooks.json)。
+# 理由:hooks 是「宿主独有事件的自动触发层」· 与跨宿主原则相悖(scripts-policy)·
+# post-compact 恢复已由 state.json 断点续跑覆盖 · codex hooks.json 更是当年
+# "cyber abuse" 警告的诱因之一(external-model-usage §抽出来源)。
+# 新行为:① 清理项目里历史部署的 teamwork hook 文件(仅列名文件 · 内容含
+# teamwork 签名才删 · 防误删用户同名 hook)② codex-cli 仍部署 .codex/agents/*.toml
+# (subagent profile · 活功能 · 与 hooks 无关)。
+_LEGACY_HOOK_FILES = ("post-compact.sh", "post-stop.sh", "post-subagent.sh",
+                      "session-restore.sh", "hooks.json")
 
 
 def maintain_host_hooks(skill_root: Path, project_root: Path, host: str) -> dict:
-    """部署 hooks 到宿主目录(claude-code → .claude/hooks/ · codex-cli → .codex/)。"""
-    hooks_src = _find_hooks_src(skill_root)
-    if hooks_src is None:
-        return {"status": "skipped", "reason": "no hooks/ source dir found"}
+    """v8.213:清理历史 hooks 部署(签名守卫)+ codex agent toml 部署(保留)。"""
+    removed, kept_foreign = [], []
+    for hooks_dir in (project_root / ".claude" / "hooks", project_root / ".codex"):
+        if not hooks_dir.is_dir():
+            continue
+        for name in _LEGACY_HOOK_FILES:
+            f = hooks_dir / name
+            if not f.is_file():
+                continue
+            try:
+                body = f.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                continue
+            if any(sig in body for sig in ("eamwork", "PMO", "dispatch_log", "STATUS.md")):
+                # 签名守卫:含 teamwork 生态标记才删(文件名+内容双条件 · 防误删用户同名 hook)
+                try:
+                    f.unlink()
+                    removed.append(str(f.relative_to(project_root)))
+                except OSError:
+                    pass
+            else:
+                kept_foreign.append(str(f.relative_to(project_root)))
+    # 清空后的 .claude/hooks 目录顺手删(空目录无意义)
+    ch = project_root / ".claude" / "hooks"
+    try:
+        if ch.is_dir() and not any(ch.iterdir()):
+            ch.rmdir()
+    except OSError:
+        pass
 
-    deployed_sh, deployed_json = [], None
-    failed = []
-
-    if host == "claude-code":
-        target_dir = project_root / ".claude" / "hooks"
-        target_dir.mkdir(parents=True, exist_ok=True)
-        for sh in hooks_src.glob("*.sh"):
-            try:
-                shutil.copy(sh, target_dir / sh.name)
-                deployed_sh.append(sh.name)
-            except OSError as e:
-                failed.append({"file": sh.name, "reason": str(e)})
-        # hooks.json:claude 用 hooks/ 下的(含 PreCompact/PostCompact)
-        src_json = hooks_src / "hooks.json"
-        if src_json.exists():
-            try:
-                shutil.copy(src_json, target_dir / "hooks.json")
-                deployed_json = "hooks.json (claude-code)"
-            except OSError as e:
-                failed.append({"file": "hooks.json", "reason": str(e)})
-    elif host == "codex-cli":
-        target_hooks_dir = project_root / ".codex"
-        target_hooks_dir.mkdir(parents=True, exist_ok=True)
-        # codex hooks.json 在 codex-agents/(独立 · 无 PreCompact)
-        codex_hooks_json = skill_root / "codex-agents" / "hooks.json"
-        if codex_hooks_json.exists():
-            try:
-                shutil.copy(codex_hooks_json, target_hooks_dir / "hooks.json")
-                deployed_json = "hooks.json (codex-cli)"
-            except OSError as e:
-                failed.append({"file": "hooks.json", "reason": str(e)})
-        # codex agent toml
-        agents_target = target_hooks_dir / "agents"
-        agents_target.mkdir(parents=True, exist_ok=True)
+    deployed_tomls, failed = [], []
+    if host == "codex-cli":
+        agents_target = project_root / ".codex" / "agents"
         codex_agents_dir = skill_root / "codex-agents"
         if codex_agents_dir.is_dir():
+            agents_target.mkdir(parents=True, exist_ok=True)
             for toml in codex_agents_dir.glob("*.toml"):
                 try:
                     shutil.copy(toml, agents_target / toml.name)
-                    deployed_sh.append(toml.name)
+                    deployed_tomls.append(toml.name)
                 except OSError as e:
                     failed.append({"file": toml.name, "reason": str(e)})
-    else:
-        return {"status": "host_no_hooks", "host": host}
 
     return {
-        "status": "deployed",
-        "host": host,
-        "sh_count": len(deployed_sh),
-        "hooks_json": deployed_json,
-        "failed": failed,
+        "status": "hooks_retired" + ("_cleanup_removed" if removed else ""),
+        **({"legacy_hooks_removed": removed,
+            "note": "历史 teamwork hooks 已清理(v8.213 hooks 退役 · 签名守卫 · 用户自有 hook 不动)"}
+           if removed else {}),
+        **({"kept_foreign": kept_foreign} if kept_foreign else {}),
+        **({"codex_agents_deployed": deployed_tomls} if deployed_tomls else {}),
+        **({"failed": failed} if failed else {}),
     }
 
 
@@ -1289,19 +1262,21 @@ def cmd_session_bootstrap(args: argparse.Namespace) -> None:
         and marker_host == args.host
     )
 
+    # v8.214:注入段/hooks **清理**挪出 skip_maintain 版本门(每次 bootstrap 都跑 · 同 v8.91
+    # localconfig backfill 先例)—— 治真实边缘:并行分支上旧版注入过的 AGENTS.md 被 git merge
+    # 带回 · 同版本内 skip_maintain 命中 → 旧块永不清(要等下次升级)。清理幂等且轻(字符串查找)。
+    hooks_result = maintain_host_hooks(skill_root, project_root, args.host)
+    injection = maintain_host_injection(
+        skill_root, project_root, args.host, skill_version
+    )
+
     if skip_maintain:
         maintain_status = "skipped_version_unchanged"
         chmod_result = {"status": "skipped"}
-        hooks_result = {"status": "skipped"}
-        injection = {"status": "skipped"}
         gitignore = {"status": "skipped"}
     else:
         maintain_status = "ran" if not args.force else "ran_forced"
         chmod_result = maintain_chmod_tools(skill_root)
-        hooks_result = maintain_host_hooks(skill_root, project_root, args.host)
-        injection = maintain_host_injection(
-            skill_root, project_root, args.host, skill_version
-        )
         gitignore = maintain_gitignore_worktree(project_root, skill_root)  # v8.35:传 skill_root · skip 跨仓污染
         # 跑完 maintain 写 marker 锁版本(下次同版本会 skip)
         marker_results = {

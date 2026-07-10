@@ -39,7 +39,8 @@
 | 文件 | 用途 | 主要消费方 / 时机 |
 |------|------|------------------|
 | [workstream.md](./workstream.md) | WS 规划单元（frontmatter 名册 + WS-PROGRESS/WS-DAG 标记区） | feature-planning 产出 · `state.py ws-lint / ws-progress` 消费 |
-| [roadmap.md](./roadmap.md) | ROADMAP（BL 清单 + Wave 编排 + 关联 WS） | feature-planning 写入 · PMO 随 Feature 流转同步 |
+| [roadmap.md](./roadmap.md) | ROADMAP（BL 清单 + Wave 编排 + 关联 WS · 位置 `docs/ROADMAP.md`） | feature-planning 写入 · PMO 随 Feature 流转同步 |
+| [sitemap.md](./sitemap.md) | IA 地图（页面层级/导航/路由 · 位置 `{子项目}/docs/design/sitemap.md` 与全景同目录） | feature-planning Step 5 seed · ui_design 增量扩页 |
 | [pending.md](./pending.md) | PENDING 待规划需求池（`product-overview/PENDING.md`） | PMO 发现"范围外但要做"即追加 · 转化即删 |
 
 ## 配置与脚本
@@ -49,7 +50,6 @@
 | [config.md](./config.md) | RESOURCES.md + `.teamwork_localconfig.json` 字段说明 + external/README | 项目初始化 / 配置调整时对照 |
 | [teamwork_localconfig.json](./teamwork_localconfig.json) | `.teamwork_localconfig.json` 实例模板（worktree / scope / id_strategy 等 + bootstrap state） | bootstrap 创建与维护 |
 | [local-env-config.properties](./local-env-config.properties) | `.teamwork-local-env/config.properties` 模板（本机 secret · 双重 gitignore） | bootstrap 缺失时自动建 · 用户填真值 |
-| [host-instruction-injection.md](./host-instruction-injection.md) | CLAUDE.md / AGENTS.md 注入段 canonical 内容源 | `tools/sync-drift.py` 读取同步 |
 | [preview-project-preview.sh](./preview-project-preview.sh) | same-stack 预览脚本（动态端口 dev server · 输出 PREVIEW_URL） | ui_design / 规划层全景 seed 时拷入 `preview-project/` |
 | [verify-ac.py](./verify-ac.py) | AC↔test 覆盖机器校验脚本（直接调 · 无需复制） | blueprint / dev Output Contract 调用 |
 

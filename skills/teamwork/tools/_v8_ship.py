@@ -921,6 +921,8 @@ def _handle_ship_archive(state: dict, args: argparse.Namespace) -> dict:
                      "终态未持久化(state 已回滚到进入时状态)")})
     head = git_head(cwd=wt_root) or ""
 
+    _lt_ai, _lt_wait = _timing_split(state)  # v8.208:台账/审计时长细化(AI 自主 vs 等待用户)
+    _lt_bd, _ = _stage_durations(state)
     return {
         "verdict": "PASS", "stage": "ship", "action": "archive",
         "transition": f"{cur_phase} → archived",
@@ -929,6 +931,16 @@ def _handle_ship_archive(state: dict, args: argparse.Namespace) -> dict:
         "archive_commit": head,
         "zip": zip_rel,
         "planning_bundled": [rel for rel, _ in planning_files],
+        # v8.208/v8.209:PROCESS-LEDGER 行采写数据(台账在 ship1 archive 采写 · 见 §3.5/§16)——
+        # AI 照抄进台账「宿主」+「时长(总·AI自主·待)」+「各阶段耗时」+「用户邮箱」列 · 确定性 · 不肉眼算 state。
+        "ledger_timing": {
+            "host": state.get("host") or "unknown",  # v8.209:AI 宿主(claude-code/codex-cli/gemini-cli)
+            "total_wall": _feature_duration_h(state),
+            "ai_autonomous_min": _lt_ai,
+            "await_user_min": _lt_wait,
+            "per_stage": _lt_bd,
+            "user_email": _git_user_email(wt_root),
+        },
         # v8.180:WS 进度块确定性自刷结果(None = feature 不属 WS / 对应F编号 未填 → 未刷 · 见 §3.5)
         "ws_progress_refreshed": ws_refreshed,
         "warnings": [
@@ -1432,8 +1444,71 @@ def _stage_durations(state: dict):
     return breakdown, analysis
 
 
+def _timing_split(state: dict):
+    """v8.208:把墙钟耗时拆成 **AI 自主运行** vs **等待用户** 两块(分离人工等待)。
+
+    - ai_min   = Σ 工作 stage 的(duration − await_minutes)—— AI 真正在跑的时长(扣 stage 内暂停)
+    - wait_min = Σ 工作 stage 的 await_minutes + Σ 纯等待 stage(_AWAIT_USER_STAGES · 如 pm_acceptance)的 duration
+                 —— 全部人工等待(stage 内暂停 pause-mark 打点 + 纯等用户 stage 的墙钟)
+    返 (ai_min, wait_min);无 duration 数据 → (None, None)。
+    """
+    contracts = state.get("stage_contracts", {}) or {}
+    order = state.get("completed_stages", []) or list(contracts.keys())
+    ai = wait = 0
+    any_dur = False
+    for s in order:
+        c = contracts.get(s, {})
+        d = c.get("duration_minutes")
+        if not isinstance(d, int):
+            continue
+        any_dur = True
+        a = int(c.get("await_minutes") or 0)
+        if s in _AWAIT_USER_STAGES:
+            wait += d                 # 纯等待 stage → 整段算等待
+        else:
+            ai += max(0, d - a)       # AI 工作 = 时长扣 stage 内暂停
+            wait += a                 # stage 内暂停(等用户拍板)算等待
+    return (ai, wait) if any_dur else (None, None)
+
+
+def _git_user_email(cwd: Optional[str]) -> str:
+    """v8.208:当前 git 环境用户邮箱(`git config user.email`)· 取不到返 ""。"""
+    r = _git(["config", "user.email"], cwd=cwd, timeout=10)
+    return r.stdout.strip() if r.returncode == 0 else ""
+
+
+def _capture_audit_sources(feature_dir: Path, max_chars: int = 4000) -> str:
+    """v8.207:worktree-remove **前**抓 audit 三段判断的源材料(REVIEW*.md + TEST-REPORT.md)·
+    压成紧凑摘录 · 供 _write_audit_record 嵌进草稿(治 AI 事后 unzip 反读归档)。
+
+    只抽三段判断真正要看的:REVIEW verdict/findings + TEST 结论/AC 覆盖。读失败静默返 ""(绝不阻塞 ship2)。
+    """
+    try:
+        chunks: list = []
+        review_files = sorted(feature_dir.glob("REVIEW*.md"))
+        for rf in review_files:
+            try:
+                txt = rf.read_text(encoding="utf-8", errors="replace").strip()
+            except OSError:
+                continue
+            if txt:
+                chunks.append(f"### {rf.name}\n{txt[:max_chars]}")
+        tr = feature_dir / "TEST-REPORT.md"
+        if tr.is_file():
+            try:
+                txt = tr.read_text(encoding="utf-8", errors="replace").strip()
+                if txt:
+                    chunks.append(f"### TEST-REPORT.md\n{txt[:max_chars]}")
+            except OSError:
+                pass
+        return "\n\n".join(chunks)
+    except OSError:
+        return ""
+
+
 def _write_audit_record(state: dict, feature_id: str, merge_target: str,
-                        main_wt: str, main_model: Optional[str] = None) -> Optional[str]:
+                        main_wt: str, main_model: Optional[str] = None,
+                        audit_sources: str = "") -> Optional[str]:
     """ship2 后落「流程质量审计」到 ~/.teamwork/audit/<id>.md(_audit_dir)·
     框架层面跨项目搜集流程质量。
 
@@ -1464,6 +1539,8 @@ def _write_audit_record(state: dict, feature_id: str, merge_target: str,
         bypass_n = len(state.get("ship", {}).get("bypass_log", []) or [])
         flow = state.get("flow_type") or "?"
         stage_dur, stage_analysis = _stage_durations(state)
+        ai_min, wait_min = _timing_split(state)   # v8.208:AI 自主 vs 等待用户
+        user_email = _git_user_email(main_wt)     # v8.208:git 用户邮箱
         host = state.get("host") or "未记录"
         model_suffix = (f" · 模型 {main_model}" if main_model
                         else " · 模型(未声明 · ship-finalize 传 --main-model 记录)")
@@ -1474,6 +1551,8 @@ def _write_audit_record(state: dict, feature_id: str, merge_target: str,
             f"source_project: {source}\n"
             f"flow_type: {flow}\n"
             f"merge_target: {merge_target}\n"
+            f"host: {state.get('host') or 'unknown'}\n"  # v8.209:AI 宿主(harvest 按宿主分析 codex/claude)
+            f"user_email: {user_email or 'unknown'}\n"  # v8.208:git 用户邮箱(harvest 按人分析)
             f"generated_at: \"{now_iso()}\"\n"
             f"audit_status: pending\n"  # AI 填完判断 → 改 done(harvest 时筛)
             f"---\n\n"
@@ -1482,16 +1561,23 @@ def _write_audit_record(state: dict, feature_id: str, merge_target: str,
             f"- 来源项目:{source}\n"
             f"- flow:{flow}\n"
             f"- 实走 stages:{stages}\n"
-            f"- 总时长:{dur}(init → archive · 不含 MR 等待)\n"
+            f"- 总时长(墙钟):{dur}(init → archive · 不含 MR 等待)\n"
+            f"- 🔴 AI 自主运行:{f'{ai_min}m' if ai_min is not None else '?'}"
+            f" · 等待用户:{f'{wait_min}m' if wait_min is not None else '?'}"
+            f"(v8.208 · 墙钟里的人工等待已分离 · stage 内 pause-mark 暂停 + 纯等待 stage)\n"
             f"- 各阶段耗时:{stage_dur or '(无 duration 数据)'}\n"
             f"- 耗时分析:{stage_analysis or '?'}(总时长含阶段间等待 · 阶段总和=纯在阶段内)\n"
+            f"- 用户邮箱:{user_email or '未取到'}\n"
             f"- 主对话:host={host}{model_suffix}\n"
             f"- concerns:{len(concerns)}(WARN {warn_n})· bypass:{bypass_n}\n"
             f"- 细数据源:本 feature `project-specs/PROCESS-LEDGER.md` 行"
             f"(external 总/采/驳 · 角色真 finding · 暂停点 改:默)\n\n"
-            f"## 做的好的\n"
+            + (f"## 源材料摘录(v8.207 · worktree 删除前自动抽 · 供三段判断 · 勿改)\n"
+               f"> 🔴 三段判断照实抄本段 + 上方实际数据 · **无需 unzip 归档**(worktree 已删 · 源已在此)。\n\n"
+               f"{audit_sources}\n\n" if audit_sources else "")
+            + f"## 做的好的\n"
             f"<!-- AI 静默填:本 feature 流程上真正有效的环节(external 拦真 bug / "
-            f"test 抓回归 / diagnose 改修复方向)· 照实抄 REVIEW.md/state · 无则写「无」 -->\n\n"
+            f"test 抓回归 / diagnose 改修复方向)· 照实抄**上方『源材料摘录』段** + 实际数据 · 无则写「无」 -->\n\n"
             f"## 发现的问题\n"
             f"<!-- AI 静默填:流程摩擦 / 工具判例 / 框架级 bug(= 该反馈 teamwork 的)· "
             f"照实 · 无则写「无」 -->\n\n"
@@ -1996,6 +2082,10 @@ def cmd_ship_finalize(args: argparse.Namespace) -> None:
     if (feature_dir / "state.json").exists():
         _, state = load_state(args.feature)
     feature_id = state.get("feature_id") or feature_dir.name
+    # v8.207:🔴 worktree-remove **之前**抓 REVIEW/TEST 摘录 —— 治本(实证 case):audit 三段
+    # 判断需 REVIEW.md/TEST-REPORT.md,但它们随 worktree 删除只剩 zip 内 → AI 被迫 unzip 反读。
+    # 此刻 feature_dir 尚在 · 抓成摘录嵌进 audit 草稿 · AI 读草稿即可填三段(不再 unzip)。
+    audit_sources = _capture_audit_sources(feature_dir)
     merge_target = state.get("merge_target") or ""
     if not merge_target:
         # 接力卡消亡(worktree 已删 / 手清)→ 幂等:zip-on-origin 判已交付
@@ -2237,7 +2327,7 @@ def cmd_ship_finalize(args: argparse.Namespace) -> None:
 
     # ── 流程质量审计落 ~/.teamwork/audit/(框架跨项目搜集)· AI 静默补判断 ──
     audit_record = _write_audit_record(state, feature_id, merge_target, main_wt,
-                                       getattr(args, "main_model", None))
+                                       getattr(args, "main_model", None), audit_sources)
 
     emit_json({
         "verdict": "PASS",
@@ -2260,9 +2350,10 @@ def cmd_ship_finalize(args: argparse.Namespace) -> None:
             + (f"\n⏸️ 主工作区有用户改动待决策(见 main_sync_decision · PMO 转 R5(b) 暂停点)。"
                if main_sync_decision else "")
             + (f"\n📊 流程质量审计草稿已落 {audit_record}(框架跨项目搜集用)· "
-               f"🔴 **静默补完三段判断**(做的好的 / 发现的问题 / 待优化的 · 照实抄 "
-               f"REVIEW.md·state · 空写「无」)· 改 frontmatter audit_status: done · "
-               f"**不暂停不等确认 · 写完即结束**。" if audit_record else "")
+               f"🔴 **静默补完三段判断**(做的好的 / 发现的问题 / 待优化的 · 照实抄草稿内"
+               f"**『源材料摘录』段 + 实际数据** · 🔴 **无需 unzip 归档**〔worktree 删除前已抽入草稿〕· "
+               f"空写「无」)· 改 frontmatter audit_status: done · **不暂停不等确认 · 写完即结束**。"
+               if audit_record else "")
             + (f"\n📋 收尾 digest(纯输出 · 不暂停):按 stages/ship-stage.md §16 读 "
                f"{zip_hint or '_archive/<id>.zip'} 出 ≤10 行流程价值反思。" )
         ),

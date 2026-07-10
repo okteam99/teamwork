@@ -2,7 +2,7 @@
 
 An AI works from a team-collaboration perspective — through **flow orchestration + role-perspective switching + contractualized stages + a machine-readable state machine** — to drive the complete software lifecycle from product planning to delivery.
 
-[中文](./README.md) · Version: **v8.204** (version source of truth = [SKILL.md](./skills/teamwork/SKILL.md) frontmatter)
+[中文](./README.md) · Version: **v8.214** (version source of truth = [SKILL.md](./skills/teamwork/SKILL.md) frontmatter)
 
 ---
 
@@ -189,7 +189,7 @@ Role collaboration **defaults to main-conversation identity switching** — swit
 | Codex CLI | .codex/ | AGENTS.md |
 | Gemini CLI | .gemini/ | GEMINI.md |
 
-On session start, `bootstrap.py` automatically maintains the teamwork injection section of the corresponding instruction file per host.
+On session start, `bootstrap.py` performs system maintenance (skeletons / hooks / localconfig self-heal). Since v8.211 it **no longer injects** host instruction files (CLAUDE.md / AGENTS.md / GEMINI.md) — in shared repos the injected block would pollute non-teamwork users; key info (PMO role / worktree discipline / subagent authorization) lives solely in SKILL.md, and bootstrap auto-removes legacy injected blocks.
 
 ### Collaboration Model
 
@@ -350,7 +350,7 @@ For the detailed directory structure see [skills/teamwork/](./skills/teamwork/).
 
 ## Version
 
-Currently **v8.204** (version source of truth = [SKILL.md](./skills/teamwork/SKILL.md) frontmatter). Changelog in [docs/CHANGELOG.md](./skills/teamwork/docs/CHANGELOG.md) (latest 5 versions) · older history via git log (CHANGELOG-ARCHIVE is **periodically wiped**).
+Currently **v8.214** (version source of truth = [SKILL.md](./skills/teamwork/SKILL.md) frontmatter). Changelog in [docs/CHANGELOG.md](./skills/teamwork/docs/CHANGELOG.md) (latest 5 versions) · older history via git log (CHANGELOG-ARCHIVE is **periodically wiped**).
 
 ---
 

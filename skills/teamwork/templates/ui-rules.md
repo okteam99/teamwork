@@ -35,7 +35,7 @@
 
 ## 禁用清单（本项目 anti-pattern）
 - {never 用 X}　{不引入新字体}
-- 🔴 **页面内容禁内嵌预览控件**（状态切换 / 场景 toggle）—— 预览工具一律走 **preview dev 全局顶栏**（详 ui-design-stage § preview dev 顶栏 · 保证页面=真实代码）
+- 🔴 **页面内容禁内嵌预览控件**（状态切换 / 场景 toggle）—— 预览工具一律走 **preview dev 悬浮工具面板（右下角 · 非顶栏）**（详 ui-design-stage § preview dev 工具面板 · 悬浮 overlay 不 shift 布局 · 保证页面=真实代码）
 
 ## 变更记录
 | 日期 | 变更 | 作者 |

@@ -192,15 +192,18 @@ ship1 交付本体(随 feature MR)· zip 内 state.json = 终态墓碑(current_s
 
 **时机(v8.145/148 两段式)**:
 - **采集 + 写台账行 = §3 archive 的规划 gate 时**(worktree 内 · `state.json`/`REVIEW.md`/`external-cross-review/` 全在工作树 · 取数零成本):PMO 在 worktree append `project-specs/PROCESS-LEDGER.md` 行(无则按 [templates/process-ledger.md](../templates/process-ledger.md) 创建)· 路径加进 `--planning-artifacts`(随 feature MR 原子合入)。
+  - 🔴 **append 前先跑 `state.py ledger-migrate --feature <path>`**(v8.210 · 幂等):旧项目台账可能是**旧 schema**(缺 各阶段耗时/用户邮箱/宿主 列)→ 该命令**只升级表头一行**(schema 演进纪律 = 只在末尾加列 · 旧数据行是**有效前缀不动**)· 已最新则 no-op · 无台账则 SKIP。**不迁移就直接 append 新行 → 新行 13 列 vs 旧表头 10 列错位**(年检读错列)。migrate 后再照 `ledger_timing` 采写新行。
 - **审计回收 + digest = ship2(ship-finalize)PASS 后**:
   - 🔴 **工具自动落** `<安装目录>/docs/audit/<id>.md` 草稿(机器数据段确定性抽自 state.json · 喂 kill-criteria 不可幻觉)· emit `audit_record` 路径;
-  - 🔴 **AI 静默补完三段判断**(做的好的 / 发现的问题 / 待优化的 · 照实抄 REVIEW.md·state · 空写「无」· 改 frontmatter `audit_status: done`)—— **零新增暂停点 · 不等确认 · 写完即结束**(auto/yolo 照常)。「发现的问题」段 = 框架级 bug / 工具判例的**持久回收口**(取代旧易逝 digest 的「建议反馈 teamwork」行 · 详 [docs/audit/README.md](../docs/audit/README.md));
+  - 🔴 **v8.207 源材料预抽**:ship-finalize 在 **worktree-remove 之前**自动把 `REVIEW*.md` + `TEST-REPORT.md` 摘录嵌进草稿的 **§源材料摘录** 段 —— 治本(实证 case):三段判断需 REVIEW/TEST,但它们随 worktree 删除只剩 zip 内 → 旧流程逼 AI **`unzip -p` 反读归档**(反直觉)。现在源已在草稿内。
+  - 🔴 **AI 静默补完三段判断**(做的好的 / 发现的问题 / 待优化的 · 照实抄草稿内 **§源材料摘录 + 实际数据** · 🔴 **无需 unzip 归档** · 空写「无」· 改 frontmatter `audit_status: done`)—— **零新增暂停点 · 不等确认 · 写完即结束**(auto/yolo 照常)。「发现的问题」段 = 框架级 bug / 工具判例的**持久回收口**(取代旧易逝 digest 的「建议反馈 teamwork」行 · 详 [docs/audit/README.md](../docs/audit/README.md));
   - digest 仍可 emit(≤10 行 · 纯情报)。时长口径 = init → archive(不含 MR 等待)。
 - **兜底**(漏写时):`unzip -p features/_archive/<id>.zip <id>/state.json` 取数 · 补行随下次任意 MR。
 
 **两层输出**:
 
 1. **台账行**(持久 · 累积):一行一 feature。🔴 字段以**机器可抽**为主(state.json:实走 stages / stage 时间戳 / rounds / bypass / concerns;REVIEW.md:verdicts / external 逐条裁决)· AI 判断仅「过场候选 / 反思摘要」两格 · **照实抄不美化**。
+   - 🔴 **宿主 + 时长三分 + 用户邮箱(v8.208/209)**:`宿主` + `时长(总·AI自主·待用户)` + `各阶段耗时` + `用户邮箱` **照抄 ship1 archive emit 的 `ledger_timing`**(确定性 —— `host`〔claude-code/codex-cli/gemini-cli〕/ `total_wall` / `ai_autonomous_min`〔扣人工等待〕/ `await_user_min`〔stage 内 pause-mark 暂停 + pm_acceptance 纯等待〕/ `per_stage` / `user_email`=`git config user.email`)· **不肉眼算 state 时间戳**。
 2. **digest**(emit ≤10 行 · 固定 4 问 · 不落 feature 目录):
 
 ```
