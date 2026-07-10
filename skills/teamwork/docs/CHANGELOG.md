@@ -4,6 +4,20 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.210 · PROCESS-LEDGER schema 演进纪律「只在末尾加列」+ 幂等 ledger-migrate(治旧项目台账不升级)
+
+> 用户:模板升级了但旧项目台账没升级 · 要不要迁移逻辑。查实:台账**无按列位解析的代码**(冲突解是行级 union · 年检 AI 读)→ schema 漂移不 crash;但 v8.208/209 把新列**插在中间/前面** → 新行(13 列)追加到旧表头(10 列)**错位**、年检读错列。
+
+### 治本:改 schema 纪律 = **只在末尾加列**
+- **重排 v8.208/209 新列到表最右**(各阶段耗时/用户邮箱/宿主)→ 旧数据行天然是新 schema 的**有效前缀**(新列它们为空 = 该 feature 早于该指标 · 诚实)· 迁移退化为**仅换表头一行**。零成本(新 schema 刚上 dev · 无真实项目已落)。
+- **`state.py ledger-migrate --feature <path>`**(新 · 幂等):旧 schema → 升级表头 + 分隔行(canonical 表头单源自 `templates/process-ledger.md`)· **旧数据行逐字不动** · 已最新 no-op · 无台账 SKIP。ship-stage §16 append 前必跑。
+
+### 为什么不写重映射迁移器
+「只在末尾加列」让旧行永远是有效前缀 → 永不需要 cell 级重映射 · 任何未来加列都只是表头一行替换。
+
+### 验证
+- code(`state.py` 2 helper + 命令)+ 模板重排 + §16 · `test_ledger_migrate_v8210` +4 · pytest 822 passed。
+
 ## v8.209 · PROCESS-LEDGER + audit 记录 AI 宿主类型(codex / claude / gemini)
 
 > 用户:台账要记 AI 宿主(codex 还是 claude)。宿主已在 `state.host`(claude-code/codex-cli/gemini-cli · audit 正文也有)· 本版落进台账列 + archive emit 采写数据 + audit frontmatter(供 harvest 按宿主分析)。
@@ -59,15 +73,3 @@
 
 ### 验证
 - doc-only · pytest 809 passed。
-
-## v8.205 · 文档位置单源:SKILL 裸文件名误导修复 + sitemap 补模板(治 ROADMAP 落项目根)
-
-> 实证 case(TermPro M5 规划):AI 把 `ROADMAP.md` 放**项目根**、来回挪。根因不是「没规范」而是**位置权威分裂** —— 模板阵营(templates/roadmap.md 头部「位置：docs/ROADMAP.md」)一致,但 SKILL.md 文档清单用**裸文件名**(`PROJECT.md`/`ROADMAP.md`/`sitemap.md` · 无路径)读起来像项目根,成了矛盾的第二源;sitemap 更糟 —— **连模板都没有**,全仓 3 个落点。
-
-### 改动
-- **SKILL.md 文档清单 + 路由速查**:三个裸名加 canonical 路径(`{子项目}/docs/PROJECT.md` · `docs/ROADMAP.md` · `{子项目}/docs/design/sitemap.md`)· 表头加 🔴「**位置权威 = 各 templates/*.md 头部「位置：」· 不在项目根裸放**」(单源指针 · 防再漂)。
-- **新建 `templates/sitemap.md`**(补上唯一缺模板的产物 · 头部「位置：`{子项目}/docs/design/sitemap.md` 与全景同目录」+ IA 地图结构)· 全仓带路径引用本就一致指向 `panorama_path/sitemap.md`,conventions.md 是唯一异类 → 拉齐。
-- **conventions.md** sitemap → `design/sitemap.md`(非 `docs/` 根)· **feature-planning Step 7** 写 ROADMAP 处加路径 + 指模板单源 · **templates/README** 登记 roadmap 位置 + sitemap 行。
-
-### 验证
-- doc-only(SKILL/conventions/feature-planning/templates)· pytest 809 passed。

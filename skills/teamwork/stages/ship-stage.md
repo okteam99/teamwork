@@ -192,6 +192,7 @@ ship1 交付本体(随 feature MR)· zip 内 state.json = 终态墓碑(current_s
 
 **时机(v8.145/148 两段式)**:
 - **采集 + 写台账行 = §3 archive 的规划 gate 时**(worktree 内 · `state.json`/`REVIEW.md`/`external-cross-review/` 全在工作树 · 取数零成本):PMO 在 worktree append `project-specs/PROCESS-LEDGER.md` 行(无则按 [templates/process-ledger.md](../templates/process-ledger.md) 创建)· 路径加进 `--planning-artifacts`(随 feature MR 原子合入)。
+  - 🔴 **append 前先跑 `state.py ledger-migrate --feature <path>`**(v8.210 · 幂等):旧项目台账可能是**旧 schema**(缺 各阶段耗时/用户邮箱/宿主 列)→ 该命令**只升级表头一行**(schema 演进纪律 = 只在末尾加列 · 旧数据行是**有效前缀不动**)· 已最新则 no-op · 无台账则 SKIP。**不迁移就直接 append 新行 → 新行 13 列 vs 旧表头 10 列错位**(年检读错列)。migrate 后再照 `ledger_timing` 采写新行。
 - **审计回收 + digest = ship2(ship-finalize)PASS 后**:
   - 🔴 **工具自动落** `<安装目录>/docs/audit/<id>.md` 草稿(机器数据段确定性抽自 state.json · 喂 kill-criteria 不可幻觉)· emit `audit_record` 路径;
   - 🔴 **v8.207 源材料预抽**:ship-finalize 在 **worktree-remove 之前**自动把 `REVIEW*.md` + `TEST-REPORT.md` 摘录嵌进草稿的 **§源材料摘录** 段 —— 治本(实证 case):三段判断需 REVIEW/TEST,但它们随 worktree 删除只剩 zip 内 → 旧流程逼 AI **`unzip -p` 反读归档**(反直觉)。现在源已在草稿内。

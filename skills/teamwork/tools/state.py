@@ -963,6 +963,73 @@ def _lint_ws_doc(text: str) -> list:
     return missing
 
 
+def _canonical_ledger_header():
+    """从 templates/process-ledger.md 抽 canonical 表头行 + 分隔行(单源 · 不硬编码 schema)。"""
+    tmpl = Path(__file__).resolve().parent.parent / "templates" / "process-ledger.md"
+    try:
+        lines = tmpl.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return None
+    for i, ln in enumerate(lines):
+        s = ln.strip()
+        if s.startswith("| Feature |") and i + 1 < len(lines) and set(lines[i + 1].strip()) <= set("|-: "):
+            return s, lines[i + 1].strip()
+    return None
+
+
+def cmd_ledger_migrate(args: argparse.Namespace) -> None:
+    """v8.210:PROCESS-LEDGER 旧 schema → 升级表头(幂等)。
+
+    schema 演进纪律 = **只在末尾加列**(templates/process-ledger.md)→ 旧数据行天然是新 schema 的
+    **有效前缀**(新列它们为空 = 早于该指标)· 迁移 = **仅换表头 + 分隔行**(旧数据行不动)。
+    header 已最新 → no-op。找不到台账/表头 → SKIP(非错误)。
+    """
+    root = _git_toplevel(Path.cwd()) or Path.cwd()
+    led = None
+    feat = getattr(args, "feature", None)
+    if feat:
+        node = Path(feat).resolve()
+        for d in [node, *node.parents]:
+            cand = d / "project-specs" / "PROCESS-LEDGER.md"
+            if cand.is_file():
+                led = cand
+                break
+            if (d / ".git").exists():
+                break
+    if led is None:
+        cand = root / "project-specs" / "PROCESS-LEDGER.md"
+        led = cand if cand.is_file() else None
+    if led is None:
+        emit({"verdict": "SKIP", "action": "ledger-migrate",
+              "reason": "未找到 project-specs/PROCESS-LEDGER.md(尚未建台账 → 首行按模板创建即最新)"})
+        return
+    canon = _canonical_ledger_header()
+    if not canon:
+        emit({"verdict": "SKIP", "action": "ledger-migrate", "reason": "读不到 templates/process-ledger.md canonical 表头"})
+        return
+    canon_hdr, canon_sep = canon
+    lines = led.read_text(encoding="utf-8", errors="replace").splitlines()
+    hi = next((i for i, ln in enumerate(lines) if ln.strip().startswith("| Feature |")), None)
+    if hi is None:
+        emit({"verdict": "SKIP", "action": "ledger-migrate", "file": str(led.relative_to(root)),
+              "reason": "台账无 `| Feature |` 表头行(空表 / 非标准)· 首次采写按模板即最新"})
+        return
+    if lines[hi].strip() == canon_hdr:
+        emit({"verdict": "OK", "action": "ledger-migrate", "file": str(led.relative_to(root)),
+              "migrated": False, "hint": "表头已是最新 schema · no-op"})
+        return
+    old_cols = lines[hi].strip().count("|") - 1
+    new_cols = canon_hdr.count("|") - 1
+    lines[hi] = canon_hdr
+    if hi + 1 < len(lines) and lines[hi + 1].strip() and set(lines[hi + 1].strip()) <= set("|-: "):
+        lines[hi + 1] = canon_sep
+    led.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    emit({"verdict": "OK", "action": "ledger-migrate", "file": str(led.relative_to(root)),
+          "migrated": True, "old_cols": old_cols, "new_cols": new_cols,
+          "hint": (f"表头升级 {old_cols}→{new_cols} 列(只在末尾加列 · 旧数据行是有效前缀未动 · "
+                   "新列它们天然为空=早于该指标)")})
+
+
 def cmd_ws_lint(args: argparse.Namespace) -> None:
     """v8.186:校验 WS 文档符合最新模板形态(治 AI 抄项目旧 WS · 无符合性检查)。"""
     root = _git_toplevel(Path.cwd()) or Path.cwd()
@@ -4785,6 +4852,13 @@ def build_parser() -> argparse.ArgumentParser:
     wlp.add_argument("--ws", help="WS 编号(WS-01 / 01 均可)· 与 --feature 二选一")
     wlp.add_argument("--feature", help="feature 路径 · 自 F-id 解析所属 WS")
     wlp.set_defaults(func=cmd_ws_lint)
+
+    # v8.210:ledger-migrate PROCESS-LEDGER 旧 schema 升级表头(幂等 · 只换表头 · 只在末尾加列纪律)
+    lmp = sub.add_parser(
+        "ledger-migrate",
+        help="[v8.210] PROCESS-LEDGER 旧 schema → 升级表头(幂等 · 旧数据行是有效前缀不动)· §16 append 前跑")
+    lmp.add_argument("--feature", help="feature 路径(自其向上找 project-specs/PROCESS-LEDGER.md)· 省略则用 git 根")
+    lmp.set_defaults(func=cmd_ledger_migrate)
 
     # v8.178:test-baseline 预存在失败注册表 + 差分(红 base 0 新增放行 · 治反复 stash-baseline)
     tbp = sub.add_parser(
