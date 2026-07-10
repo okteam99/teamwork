@@ -4,6 +4,19 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.211 · 宿主指令文件注入退役(治共享仓库污染非 teamwork 用户)· 关键信息收进 SKILL.md
+
+> 实证 case(commercial-data-warehouse):bootstrap 往 AGENTS.md/CLAUDE.md 注入 teamwork 段 · 共享仓库同事一 commit · **不用 teamwork 的用户也被迫吃到**。用户拍板:去注入 · 关键信息写进 SKILL.md(加载 skill 即生效 · 只影响用 teamwork 的 session —— 这才是正确的作用边界)。
+
+### 改动
+- **`maintain_host_injection` 反转为清理模式**:不再写入;发现历史 `<!-- TEAMWORK_BEGIN: -->` 块 → **移除**(marker 外用户内容一字不动 · 清后全空连文件删 · 幂等)· emit `cleanup_removed` + note。
+- **SKILL.md 新增 § Subagent 默认授权**(载体自宿主注入块迁入 · v8.135 授权长期化的新家)+ 196 行引用改指本段;PMO 定位 / worktree 纪律 SKILL 本就有 · 不再依赖注入。
+- **退役死资产**:`tools/sync-drift.py` + `templates/host-instruction-injection.md` + `test_sync_drift.py`;scripts-policy / templates/README / SKILL 工具清单 / README 中英措辞同步。
+- 本仓根 `CLAUDE.md`(纯注入块)用新逻辑自清 → 已删。
+
+### 验证
+- 冒烟:移除保用户内容 ✓ 纯注入删文件 ✓ 干净不动 ✓ 幂等 ✓ 绝不创建 ✓ · 注入测试重写为清理语义(+4)· pytest 814 passed。
+
 ## v8.210 · PROCESS-LEDGER schema 演进纪律「只在末尾加列」+ 幂等 ledger-migrate(治旧项目台账不升级)
 
 > 用户:模板升级了但旧项目台账没升级 · 要不要迁移逻辑。查实:台账**无按列位解析的代码**(冲突解是行级 union · 年检 AI 读)→ schema 漂移不 crash;但 v8.208/209 把新列**插在中间/前面** → 新行(13 列)追加到旧表头(10 列)**错位**、年检读错列。
@@ -58,18 +71,3 @@
 
 ### 验证
 - code(`_v8_ship`)+ ship-stage §16 doc · `test_audit_sources_v8207` +4 · pytest 813 passed。
-
-## v8.206 · preview dev 工具面板改右下角悬浮(治顶栏 offset 布局 · 违 same-stack「零预览痕迹」)
-
-> 实证 case(用户看预览页):dev 预览导航实际做成**右下角悬浮 Prototype Nav** · 比 spec 规定的**顶栏**合理。v8.187 理清了工具面板「放什么」(页面导航+状态注入 · 页内真实交互优先),但**位置写死「顶栏」**是错的。
-
-### 治本
-- **顶栏是 layout bar** —— 把真实页面内容**整体下推、offset 掉真实位置/尺寸**,恰恰违背 same-stack「**零预览痕迹 · 页面=真实代码**」核心目标(真实 app 没这条顶栏 → 加了预览就不像真实 app)。
-- **右下角悬浮面板 = overlay** —— 不占布局流 · 不 shift 真实页面(页面在真实位置/尺寸渲染)· 右下角是 dev 工具通行惯例(devtools/toolbar 都在角落 · 一眼识别「工具非产品 chrome」)· 可折叠 · 半透明低层级。
-
-### 改动(位置改 · 内容保 v8.187)
-- ui-design-stage § 重命名 `preview dev 顶栏` → `preview dev 工具面板(右下角悬浮 · 非顶栏)` + 加位置治本段(顶栏反模式)· 页面区标注 `Prototype Nav`。
-- 同步 same-stack 段 + `ui-rules.md` + `ui.md`(2 处)+ 新建的 `sitemap.md`:所有 dev shell 引用「顶栏」→「悬浮工具面板(右下角)」(RETRO 历史记录不动)。
-
-### 验证
-- doc-only · pytest 809 passed。

@@ -248,54 +248,47 @@ class TestMaintainProjectSkeletons(unittest.TestCase):
             maintain_workspace_filename(self.project_root)["status"], "n_a")
 
 
-# ─── maintain_host_injection ─────────────────────────────
+# ─── maintain_host_injection(v8.211 · 清理模式)─────────────────────────
 
-
-class TestMaintainHostInjection(unittest.TestCase):
-    """CLAUDE.md / AGENTS.md / GEMINI.md 注入段同步(改 check → maintain)。"""
+class TestHostInjectionCleanup(unittest.TestCase):
+    """v8.211 注入退役:bootstrap 只清理历史注入块 · 不再写入(共享仓库防污染)。"""
 
     def setUp(self):
-        self.tmp = Path(tempfile.mkdtemp())
+        self.tmp = Path(tempfile.mkdtemp(prefix="inj-"))
 
-    def tearDown(self):
-        shutil.rmtree(self.tmp, ignore_errors=True)
-
-    def test_host_unknown(self):
+    def _run(self):
         from bootstrap import maintain_host_injection
-        result = maintain_host_injection(self.tmp, self.tmp, "unknown", "v8.x")
-        self.assertEqual(result["status"], "host_unknown")
+        return maintain_host_injection(self.tmp, self.tmp, "claude-code", "v8.x")
 
-    def test_skipped_when_sync_drift_missing(self):
-        """skill_root 不含 sync-drift.py → skipped(不阻塞)。"""
-        from bootstrap import maintain_host_injection
-        # tmp 当 skill_root 用 · 不含 tools/sync-drift.py
-        result = maintain_host_injection(self.tmp, self.tmp, "claude-code", "v8.x")
-        self.assertEqual(result["status"], "skipped")
+    def test_legacy_block_removed_user_content_kept(self):
+        (self.tmp / "CLAUDE.md").write_text(
+            "<!-- TEAMWORK_BEGIN:teamwork-pointer v8.2 -->\n注入\n"
+            "<!-- TEAMWORK_END:teamwork-pointer -->\n\n# 用户规则\n", encoding="utf-8")
+        r = self._run()
+        self.assertEqual(r["status"], "cleanup_removed")
+        self.assertIn("CLAUDE.md", r["removed_from"])
+        self.assertEqual((self.tmp / "CLAUDE.md").read_text(encoding="utf-8"), "# 用户规则\n")
 
-    def test_other_host_files_skipped_when_absent(self):
-        """v8.14:非当前 host 文件不存在 → skipped_not_present(不主动建)。
+    def test_pure_injection_file_deleted(self):
+        (self.tmp / "AGENTS.md").write_text(
+            "<!-- TEAMWORK_BEGIN:x -->\n注入\n<!-- TEAMWORK_END:x -->\n", encoding="utf-8")
+        r = self._run()
+        self.assertEqual(r["results"]["AGENTS.md"]["status"],
+                         "legacy_injection_removed_file_deleted")
+        self.assertFalse((self.tmp / "AGENTS.md").exists())
 
-        模拟真实 skill_root + project_root + 仅有 CLAUDE.md(无 AGENTS / GEMINI)。
-        """
-        from bootstrap import maintain_host_injection
-        # 用真实 skill 仓库 sync-drift + 模板
-        skill_root = Path(__file__).resolve().parent.parent.parent
-        project_root = Path(tempfile.mkdtemp())
-        try:
-            # 只创建 CLAUDE.md(主 host 文件)· 不创建 AGENTS / GEMINI
-            (project_root / "CLAUDE.md").write_text("# project\n")
-            result = maintain_host_injection(
-                skill_root, project_root, "claude-code", "v8.x",
-            )
-            self.assertEqual(result["status"], "ok")
-            self.assertEqual(result["primary_file"], "CLAUDE.md")
-            # CLAUDE.md 应同步成功
-            self.assertEqual(result["results"]["CLAUDE.md"]["status"], "synced")
-            # AGENTS.md / GEMINI.md 不存在 · 应 skipped_not_present
-            self.assertEqual(result["results"]["AGENTS.md"]["status"], "skipped_not_present")
-            self.assertEqual(result["results"]["GEMINI.md"]["status"], "skipped_not_present")
-        finally:
-            shutil.rmtree(project_root, ignore_errors=True)
+    def test_clean_files_untouched_and_idempotent(self):
+        (self.tmp / "GEMINI.md").write_text("# 用户 gemini\n", encoding="utf-8")
+        r = self._run()
+        self.assertEqual(r["status"], "clean")
+        self.assertEqual((self.tmp / "GEMINI.md").read_text(encoding="utf-8"), "# 用户 gemini\n")
+        self.assertEqual(self._run()["status"], "clean")  # 幂等
+
+    def test_never_creates_files(self):
+        self._run()
+        for f in ("CLAUDE.md", "AGENTS.md", "GEMINI.md"):
+            self.assertFalse((self.tmp / f).exists())  # 🔴 注入退役 = 绝不创建
+
 
 
 # ─── maintain_chmod_tools / maintain_gitignore_worktree ─────────

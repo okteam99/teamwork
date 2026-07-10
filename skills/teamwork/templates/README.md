@@ -50,7 +50,6 @@
 | [config.md](./config.md) | RESOURCES.md + `.teamwork_localconfig.json` 字段说明 + external/README | 项目初始化 / 配置调整时对照 |
 | [teamwork_localconfig.json](./teamwork_localconfig.json) | `.teamwork_localconfig.json` 实例模板（worktree / scope / id_strategy 等 + bootstrap state） | bootstrap 创建与维护 |
 | [local-env-config.properties](./local-env-config.properties) | `.teamwork-local-env/config.properties` 模板（本机 secret · 双重 gitignore） | bootstrap 缺失时自动建 · 用户填真值 |
-| [host-instruction-injection.md](./host-instruction-injection.md) | CLAUDE.md / AGENTS.md 注入段 canonical 内容源 | `tools/sync-drift.py` 读取同步 |
 | [preview-project-preview.sh](./preview-project-preview.sh) | same-stack 预览脚本（动态端口 dev server · 输出 PREVIEW_URL） | ui_design / 规划层全景 seed 时拷入 `preview-project/` |
 | [verify-ac.py](./verify-ac.py) | AC↔test 覆盖机器校验脚本（直接调 · 无需复制） | blueprint / dev Output Contract 调用 |
 

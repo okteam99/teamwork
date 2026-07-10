@@ -17,7 +17,7 @@ bootstrap.py — Teamwork session 启动系统维护(独立脚本 · 替代 inst
 - 项目级骨架检查/创建(project-specs/ 下 KNOWLEDGE/TROUBLESHOOTING/GLOSSARY · 旧散放自动迁移)
 - chmod +x tools/*.py + templates/*.py(自愈 · 防丢失可执行位)
 - 宿主 hooks 部署(.claude/hooks/ 或 .codex/hooks.json)
-- CLAUDE.md / AGENTS.md / GEMINI.md 注入段同步(跑 sync-drift.py)
+- CLAUDE.md / AGENTS.md / GEMINI.md 历史注入段清理(v8.211 注入退役 · 只删 TEAMWORK 标记块)
 - .worktree/ → .gitignore(默认 worktree_root_path · 详 docs/conventions.md § 10)
 - ~/.teamwork/external-review-logs/ 过期日志清理(housekeeping)
 
@@ -42,6 +42,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -381,73 +382,52 @@ HOST_INJECTION_FILES = {
 
 def maintain_host_injection(skill_root: Path, project_root: Path, host: str,
                              skill_version: str) -> dict:
-    """同步**所有已存在**的宿主指令文件 teamwork 注入段(v8.14)。
+    """v8.211(用户拍板 · 注入退役):**清理**宿主指令文件里的历史 teamwork 注入段。
 
-    策略:
-    - 当前 host 对应文件:不存在则创建(--init)· 存在则同步
-    - 其他指令文件(CLAUDE.md / AGENTS.md / GEMINI.md):**已存在才同步**(不主动建)
-    - 多工具项目下 · 用户单次 bootstrap 让所有指令文件保持最新
+    背景:旧行为往 CLAUDE.md / AGENTS.md / GEMINI.md 注入 teamwork-pointer 块 —— 共享仓库里
+    同事一 commit · **不用 teamwork 的用户也被迫吃到**(实证 case:commercial-data-warehouse)。
+    注入的关键信息(PMO 定位 / worktree 写路径 / Subagent 默认授权)已收进 SKILL.md
+    (加载 skill 即生效 · 只影响用 teamwork 的 session)。
 
-    标记格式由 sync-drift.py 维护:`<!-- TEAMWORK_BEGIN:teamwork-pointer vX.Y -->`
+    新行为:发现历史注入块(`<!-- TEAMWORK_BEGIN:` ... `<!-- TEAMWORK_END:... -->`)→ **移除**
+    (只删 marker 块 · marker 外用户内容一字不动)· 清理后文件全空 → 连文件一并删。幂等。
     """
-    if host not in HOST_INJECTION_FILES:
-        return {"status": "host_unknown", "host": host}
-    if not skill_version:
-        return {"status": "skipped",
-                "reason": "SKILL.md frontmatter version 读取失败 · 跳过注入(不写坏标记)"}
-
-    sync_drift = skill_root / "tools" / "sync-drift.py"
-    source = skill_root / "templates" / "host-instruction-injection.md"
-
-    if not sync_drift.exists() or not source.exists():
-        return {
-            "status": "skipped",
-            "reason": "sync-drift.py or source template missing",
-        }
-
-    primary_fname = HOST_INJECTION_FILES[host]
+    _ = (skill_root, host, skill_version)  # 签名兼容旧 caller · 清理不需要它们
     results = {}
-
-    for host_name, fname in HOST_INJECTION_FILES.items():
+    _block_re = re.compile(r"[ \t]*<!-- TEAMWORK_BEGIN:.*?<!-- TEAMWORK_END:[^>]*-->\n?", re.S)
+    for fname in HOST_INJECTION_FILES.values():
         target = project_root / fname
-        is_primary = (host_name == host)
-        # 非当前 host 文件 · 已存在才同步 · 不主动创建
-        if not is_primary and not target.exists():
-            results[fname] = {"status": "skipped_not_present"}
+        if not target.exists():
+            results[fname] = {"status": "not_present"}
             continue
-
         try:
-            result = subprocess.run(
-                [
-                    "python3", str(sync_drift),
-                    "--target", str(target),
-                    "--source", str(source),
-                    "--skill-version", skill_version,
-                    "--init",
-                ],
-                capture_output=True, text=True, timeout=10,
-            )
-        except (subprocess.TimeoutExpired, FileNotFoundError) as e:
-            results[fname] = {"status": "subprocess_error", "error": str(e)}
+            body = target.read_text(encoding="utf-8")
+        except OSError as e:
+            results[fname] = {"status": "read_error", "error": str(e)[:120]}
             continue
-
-        if result.returncode == 0:
-            results[fname] = {
-                "status": "synced",
-                "primary": is_primary,
-            }
-        else:
-            results[fname] = {
-                "status": "sync_failed",
-                "exit_code": result.returncode,
-                "stderr": result.stderr.strip()[:200],
-            }
-
+        if "<!-- TEAMWORK_BEGIN:" not in body:
+            results[fname] = {"status": "clean"}
+            continue
+        cleaned = _block_re.sub("", body)
+        cleaned = re.sub(r"\n{3,}", "\n\n", cleaned).lstrip("\n")
+        try:
+            if cleaned.strip():
+                target.write_text(cleaned, encoding="utf-8")
+                results[fname] = {"status": "legacy_injection_removed"}
+            else:
+                target.unlink()
+                results[fname] = {"status": "legacy_injection_removed_file_deleted"}
+        except OSError as e:
+            results[fname] = {"status": "write_error", "error": str(e)[:120]}
+    removed = [f for f, r in results.items() if r["status"].startswith("legacy_injection_removed")]
     return {
-        "status": "ok",
-        "primary_file": primary_fname,
+        "status": "cleanup_removed" if removed else "clean",
+        **({"removed_from": removed,
+            "note": ("历史 teamwork 注入段已移除(v8.211 注入退役 · 关键信息在 SKILL.md · "
+                     "共享仓库不再污染非 teamwork 用户)· 用户自己的内容未动")} if removed else {}),
         "results": results,
     }
+
 
 
 # ─── chmod 工具脚本 ─────────────────────────────────────
