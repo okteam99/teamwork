@@ -1262,19 +1262,21 @@ def cmd_session_bootstrap(args: argparse.Namespace) -> None:
         and marker_host == args.host
     )
 
+    # v8.214:注入段/hooks **清理**挪出 skip_maintain 版本门(每次 bootstrap 都跑 · 同 v8.91
+    # localconfig backfill 先例)—— 治真实边缘:并行分支上旧版注入过的 AGENTS.md 被 git merge
+    # 带回 · 同版本内 skip_maintain 命中 → 旧块永不清(要等下次升级)。清理幂等且轻(字符串查找)。
+    hooks_result = maintain_host_hooks(skill_root, project_root, args.host)
+    injection = maintain_host_injection(
+        skill_root, project_root, args.host, skill_version
+    )
+
     if skip_maintain:
         maintain_status = "skipped_version_unchanged"
         chmod_result = {"status": "skipped"}
-        hooks_result = {"status": "skipped"}
-        injection = {"status": "skipped"}
         gitignore = {"status": "skipped"}
     else:
         maintain_status = "ran" if not args.force else "ran_forced"
         chmod_result = maintain_chmod_tools(skill_root)
-        hooks_result = maintain_host_hooks(skill_root, project_root, args.host)
-        injection = maintain_host_injection(
-            skill_root, project_root, args.host, skill_version
-        )
         gitignore = maintain_gitignore_worktree(project_root, skill_root)  # v8.35:传 skill_root · skip 跨仓污染
         # 跑完 maintain 写 marker 锁版本(下次同版本会 skip)
         marker_results = {
