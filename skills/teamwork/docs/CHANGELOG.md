@@ -4,6 +4,19 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.218 · 四段结构试点:review + dev stage 重构(目标/硬规则白名单/建议手段菜单/契约)
+
+> 用户方向(第一性重审):保留 stage 划分 · 每 stage 给**目标**(QA=保障质量)+ 保**必须规则**(如异常必有 log)· 评审方式拆细为**建议** · 降低强制比例给模型发挥空间 —— 更好也更快。现状:12 stage 1666 行 · 🔴×139(全是红线 = 没有红线)。
+
+### 改动(试点 2/12)
+- **review-stage 235→77 行**:①目标(拦质量盲区 · 独立采样 92/163)②硬规则 8 条白名单(独立性/定级实证/verdict 门槛/裁决举证对称/范围锁定/轮次预算/external 协议/汇总不替代 · **每条带 why**)③手段菜单 8 项(AC 对照/diff 走查/边界审查/对抗复现/简洁性 counter-lens/测试质量抽查/截图核对/KNOWLEDGE 对照 · 各标「何时值得」· AI 自选 + Execution Plan 留痕)④契约(findings schema/fix-retry 命令链)。
+- **dev-stage 149→63 行**:①目标(设计→可验证实现)②硬规则 7 条(DEV-RULES/worktree 路径/测试证据硬门/设计↔实际核对/全景编译契约/Bug 不重写根因/完工自查打钩)③手段菜单 6 项(🔴 **TDD 红绿从强制降为强烈建议默认** —— 测试证据仍是硬门 · 手段自由)④dev-complete 契约。
+- 「怎么做」步骤教程整段删(目标+菜单+契约足够 · 步骤模型自推)。
+- 安全网:v8.217 分诊校准回路对冲(放权后质量掉 → 台账显形 → 判据回收)。
+
+### 验证
+- 370→140 行 · pytest 819 passed(stage 散文与机器层零耦合实证)· 余 10 stage 待数据后推开。
+
 ## v8.217 · 智能分诊 v2:台账「分诊校准(预测→实际)」列 + 降级触发(持续分诊)
 
 > 承 v8.215/216(维度化+动态 roster):v2 落学习回路的数据侧 —— 分诊判定要能被事后打分,判据才能随数据校准而非拍脑袋。
@@ -51,17 +64,3 @@
 
 ### 验证
 - 冒烟:同版本 skip 下 merge 回流块被清 ✓(CLAUDE.md 只剩用户内容 · hook 同清)· pytest 813 passed。
-
-## v8.213 · Claude hooks 全退役(teamwork 不需要 hooks)· bootstrap 转清理 + codex toml 保留
-
-> 用户拍板:去掉 Claude hooks 相关逻辑。Review 佐证:hooks 是「宿主独有事件的自动触发层」· 与跨宿主原则相悖(scripts-policy 本就限制它只当薄壳);post-compact 恢复已由 state.json 断点续跑覆盖;codex hooks.json 更是当年 codex 账号 "cyber abuse" 警告的诱因之一(external-model-usage §抽出来源)—— 且 spec §110 明令删它 · bootstrap 却还在拷(spec-代码矛盾)。
-
-### 改动(退役三件套:停部署 + 清存量 + 功能找新家)
-- **删 `hooks/`**(hooks.json + post-compact/post-stop/post-subagent/session-restore.sh · 5 件)。
-- **`maintain_host_hooks` 反转清理模式**:绝不部署 hooks;清历史部署(`.claude/hooks/` 5 个列名文件 + `.codex/hooks.json` · 🔴 **签名守卫**:内容含 teamwork 生态标记〔eamwork/PMO/dispatch_log/STATUS.md〕才删 · 用户同名 hook 保留)· 空目录顺手删 · 幂等。
-- **codex agent toml 部署保留**(`.codex/agents/*.toml` = subagent profile · 活功能 · 与 hooks 无关)。
-- **git-hooks/pre-push 不动**(发版 auto-bump · git hook 非 Claude hook)。
-- SKILL 导航删 hooks/ 行 · scripts-policy hooks 段改退役声明 · 本仓 `.claude/hooks/` 自清(5 件全删含 PMO 签名的 post-subagent)。
-
-### 验证
-- 冒烟:签名删 ✓ 外来保留 ✓ toml 照部署 ✓ hooks.json 绝不部署 ✓ 幂等 ✓ · hooks 测试重写为退役语义 · pytest 813 passed。
