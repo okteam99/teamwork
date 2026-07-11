@@ -119,9 +119,12 @@ FLOW_BY_TYPE = {
 }
 
 PUBLIC_FLOW_TYPES = ("Feature", "Bug")
-FEATURE_PRESETS = ("full", "lite", "micro")
-# legacy 名映射(init 传入自动映射 + note · 存量 state.json 读到也归一)
-LEGACY_FLOW_ALIASES = {"敏捷需求": ("Feature", "lite"), "Micro": ("Feature", "micro")}
+# v8.223:lite 退役 —— blueprint_lite 并入 blueprint 后 · lite 链 = Feature 链的 needs-ui=false 剖面
+# (冗余);轻量由动态 roster + clarity 承担。preset 只剩 full/micro(micro 有真结构差:跳 review/test)。
+FEATURE_PRESETS = ("full", "micro")
+# legacy 名映射:敏捷需求 → Feature·full(轻量走 roster/clarity)· Micro → Feature·micro。
+# 存量 state.json preset=lite 仍被 resolve_flow_graph/internal_flow_key 兼容(旧图走完 · 不断链)。
+LEGACY_FLOW_ALIASES = {"敏捷需求": ("Feature", "full"), "Micro": ("Feature", "micro")}
 
 
 def resolve_flow_graph(flow_type: str, preset: str = "full") -> dict:
@@ -4860,7 +4863,7 @@ def build_parser() -> argparse.ArgumentParser:
                      choices=["Feature", "Bug", "Micro", "敏捷需求",
                               "Feature Planning", "问题排查"],
                      help="[v8.220] 对外收缩为 Feature/Bug · 敏捷需求/Micro 为 legacy 别名(自动映射 Feature+preset)· Planning/排查照旧 reject")
-    ifp.add_argument("--preset", default=None, choices=["full", "lite", "micro"],
+    ifp.add_argument("--preset", default=None, choices=["full", "micro"],  # v8.223:lite 退役(存量 state preset=lite 兼容 · 新 init 不再产)
                      help="[v8.220] Feature 重量档(原 敏捷需求=lite · Micro=micro)· 链/角色由它决定 · 默认 full")
     ifp.add_argument("--sub-project", help="如 admin / api-server")
     # v7.3.10+P0-149: 删 --artifact-root 冗余参数 · --feature 单源（既是落盘目录又是 artifact_root 字段值）

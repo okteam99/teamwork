@@ -1847,6 +1847,8 @@ def _blueprint_lite_transition(state: dict) -> Optional[str]:
     return "dev"
 
 
+# v8.223 DEPRECATED:blueprint_lite 仅服务**存量 in-flight**(state.preset=lite / legacy 敏捷需求)·
+# 新 feature 一律走 blueprint(轻量由 roster/clarity)· 存量走完后本 spec 与 stage 文件删除。
 BLUEPRINT_LITE_SPEC = StageSpec(
     name="blueprint_lite",
     prerequisites=[

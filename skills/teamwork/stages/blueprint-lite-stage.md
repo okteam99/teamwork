@@ -1,3 +1,5 @@
+> 🔴 **DEPRECATED(v8.223)**:本 stage 仅服务**存量 in-flight** feature(旧 lite 链)· 新 feature 一律走 [blueprint-stage.md](./blueprint-stage.md)(轻量由动态 roster + clarity 承担)· 存量走完后本文件删除。
+
 # Blueprint Lite Stage
 
 ---

@@ -4,6 +4,18 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.223 · blueprint_lite 并入 blueprint + lite preset 退役(preset 收为 full/micro)
+
+> 用户两连问推到底:① blueprint_lite 还需要吗 —— 它与 blueprint **目标相同**(dev 前方案收敛)· 差异全是重量(评审组合=roster 已管 · verify-ac 分档=一行判断 · 文档深度=四段/模板已管)= 「stage 版的敏捷需求」;② 并入后 lite 链 = Feature 链的 **needs-ui=false 剖面**(一条冗余链)→ lite preset 整体退役。micro 保留(跳 review/test 是真结构差)。
+
+### 改动(新路收口 · 存量三保留)
+- **`FEATURE_PRESETS = (full, micro)`** · `LEGACY_FLOW_ALIASES:敏捷需求 → Feature·full`(轻量由动态 roster + clarity 承担)· `--preset` choices 同步。
+- **存量兼容三保留**(in-flight 不断链):AGILE_FLOW 图原样(`resolve_flow_graph` 对 state.preset=lite 仍解析)· `internal_flow_key/_flow_key` 的 lite→敏捷需求 映射保留 · `BLUEPRINT_LITE_SPEC` 保持注册(标 DEPRECATED · 存量走完后删)。
+- blueprint-lite-stage.md 挂 deprecated 横幅;prepare 关键词行(加按钮类 → Feature · 轻量由 roster/clarity)+ SKILL/README 注记同步。
+
+### 验证
+- pytest 826 passed(存量 lite 兼容断言全绿)。
+
 ## v8.222 · 物化校验 flow 归一审计:10 处 legacy 比较死门复活(含 Micro initial=goal 真 bug)
 
 > 用户点名:检查 python 脚本物化校验是否匹配 v8.220 合并。审计实锤 **10 处失配** —— state 只存 `Feature+preset` 后,所有 `flow_type == "敏捷需求"/"Micro"` 直接比较**静默失配**:最重的是 `DEFAULT_INITIAL_STAGE` 查表 → **preset=micro 错拿 initial=goal(应 dev)**,真 bug;其余 9 处是死门(needs-ui×lite 拦截失效 / goal 转移 lite 走错 blueprint / dev-next micro 不再跳 review / test-done micro 放行失效 / TC-PRD skip 失效 / agile 判定失效 / ship distill micro 键失效)。
@@ -55,16 +67,3 @@
 
 ### 验证
 - 试点累计:review 235→77 · dev 149→63 · goal 153→85(537→225 行)· pytest 819 passed。
-
-## v8.218 · 四段结构试点:review + dev stage 重构(目标/硬规则白名单/建议手段菜单/契约)
-
-> 用户方向(第一性重审):保留 stage 划分 · 每 stage 给**目标**(QA=保障质量)+ 保**必须规则**(如异常必有 log)· 评审方式拆细为**建议** · 降低强制比例给模型发挥空间 —— 更好也更快。现状:12 stage 1666 行 · 🔴×139(全是红线 = 没有红线)。
-
-### 改动(试点 2/12)
-- **review-stage 235→77 行**:①目标(拦质量盲区 · 独立采样 92/163)②硬规则 8 条白名单(独立性/定级实证/verdict 门槛/裁决举证对称/范围锁定/轮次预算/external 协议/汇总不替代 · **每条带 why**)③手段菜单 8 项(AC 对照/diff 走查/边界审查/对抗复现/简洁性 counter-lens/测试质量抽查/截图核对/KNOWLEDGE 对照 · 各标「何时值得」· AI 自选 + Execution Plan 留痕)④契约(findings schema/fix-retry 命令链)。
-- **dev-stage 149→63 行**:①目标(设计→可验证实现)②硬规则 7 条(DEV-RULES/worktree 路径/测试证据硬门/设计↔实际核对/全景编译契约/Bug 不重写根因/完工自查打钩)③手段菜单 6 项(🔴 **TDD 红绿从强制降为强烈建议默认** —— 测试证据仍是硬门 · 手段自由)④dev-complete 契约。
-- 「怎么做」步骤教程整段删(目标+菜单+契约足够 · 步骤模型自推)。
-- 安全网:v8.217 分诊校准回路对冲(放权后质量掉 → 台账显形 → 判据回收)。
-
-### 验证
-- 370→140 行 · pytest 819 passed(stage 散文与机器层零耦合实证)· 余 10 stage 待数据后推开。
