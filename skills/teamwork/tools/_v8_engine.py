@@ -1231,7 +1231,13 @@ def build_stage_chain_preview(flow_type: str) -> list[dict]:
     - reason 是评审建议理由(为什么选这些角色 · 给用户决策参考)
     - 顺序按 FLOW_STAGE_CHAIN 显式定义
     """
-    chain = FLOW_STAGE_CHAIN.get(flow_type, [])
+    # v8.221:Feature+preset 归一到内部旧键(敏捷需求/Micro 图键保留 · 对外语言已收缩)
+    _key = flow_type
+    if flow_type == "Feature:lite":
+        _key = "敏捷需求"
+    elif flow_type == "Feature:micro":
+        _key = "Micro"
+    chain = FLOW_STAGE_CHAIN.get(_key, [])
     return [
         {
             "stage": stage,

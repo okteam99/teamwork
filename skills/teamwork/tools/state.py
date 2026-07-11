@@ -2181,6 +2181,11 @@ def cmd_prepare_check(args: argparse.Namespace) -> None:
         "features_root": str(root),
         "feature_id_prefix": prefix,
         "id_letter": id_letter,
+        # v8.221:对外词汇 = Feature/Bug + preset(配置面板照抄:flow=Feature · preset=micro)
+        "flow_type_public": normalize_flow(args.flow_type or "Feature")[0] if args.flow_type else None,
+        "preset": normalize_flow(args.flow_type or "Feature")[1] if args.flow_type else None,
+        "config_line_hint": ("⚙️ 配置行词汇(v8.220):flow=<Feature|Bug>[ · preset=<lite|micro>(非 full 时标)]"
+                             " · branch 前缀统一 feature/(Bug=fix/)· ID 统一 F/B(M 已退役)"),
         "existing_ids": existing_ids,
         "existing_count": len(existing_ids),
         "id_strategy": id_strategy,
@@ -2203,17 +2208,21 @@ def cmd_prepare_check(args: argparse.Namespace) -> None:
         try:
             sys.path.insert(0, str(Path(__file__).resolve().parent))
             from _v8_engine import build_stage_chain_preview, FLOW_STAGE_CHAIN
+            # v8.221:legacy 名归一 → 链键(敏捷需求/Micro 是 Feature 的 preset)
+            _pub, _pre = normalize_flow(args.flow_type)
+            _chain_key = (args.flow_type if args.flow_type in FLOW_STAGE_CHAIN
+                          else {"lite": "敏捷需求", "micro": "Micro"}.get(_pre, "Feature"))
         except ImportError as e:
             payload["stage_chain_preview_error"] = str(e)
         else:
-            if args.flow_type not in FLOW_STAGE_CHAIN:
+            if _chain_key not in FLOW_STAGE_CHAIN:
                 payload["stage_chain_preview_error"] = (
                     f"flow_type '{args.flow_type}' 不支持 stage chain 预览 · "
                     f"支持: {sorted(FLOW_STAGE_CHAIN)}(Feature Planning / 问题排查 不进状态机 · 无 chain)"
                 )
             else:
                 payload["flow_type"] = args.flow_type
-                payload["stage_chain_preview"] = build_stage_chain_preview(args.flow_type)
+                payload["stage_chain_preview"] = build_stage_chain_preview(_chain_key)
 
     # v8.15:admission 校验(治本 F001 GCP gateway case · AI 不读 prepare.md §2.1/§2.2)
     # 设计:工具不扫关键词 regex(伪枚举 · 死板 · 误判)· 而是强制 AI 必传判断结果(judgment)

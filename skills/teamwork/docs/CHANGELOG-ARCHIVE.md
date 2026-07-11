@@ -327,3 +327,15 @@
 
 ### 验证
 - `test_clarity_v8215` +4(PL 跳/PL 照拦/blueprint 跳/review 不受影响)· pytest 817 passed。
+## v8.216 · 评审配置动态化:拆掉 clarity 硬编码 · AI 按「角色价值判据」逐角色配 roster
+
+> 用户裁决(对 v8.215 的修正):`--clarity` 固定消费(跳 PL+跳 external)还是太规则化 —— 该**动态决策**,不一定去 PL,也可能去 QA / ARCH。机制其实早已存在:`stage_review_roles`(所有 gate 本就按它放行)+ `change-review-roles`(审计留痕)· v8.215 错在绕过它另立硬规则。
+
+### 改动
+- **删两处硬编码 clarity gate**(PL challenge / blueprint external)—— gate 回归纯 roster 路由:角色不在 `stage_review_roles[stage]` → 自动放行(既有逻辑)。
+- **prepare-check emit 加 `role_value_criteria`**(给 AI 的判断框架 · 非规则):逐角色问「这个视角对本 feature 能拦住什么」—— pl=价值前提可质疑?qa=边界/可测性风险?architect=架构决策/跨模块?external=多触发点/同模型盲区?**每角色一行理由(有值留 · 无值去)**· review stage 从严(建议 ≥2 视角 · <2 需强理由)。
+- **`triage_evidence.consumption` 改**:凭证据逐 stage 逐角色配 roster(`change-review-roles --reason` · 审计)· `--clarity` **仅记录**进 state(台账/年检校准 · 不触发硬编码行为)。
+- goal / blueprint brief 推送同步(冷审派谁 = 按 roster · 非按 clarity 一刀切)。
+
+### 验证
+- 测试重写:clarity 单独**不再**跳过任何 gate ✓ · roster 去角色 → gate 放行 ✓(×4)· pytest 817 passed。

@@ -152,8 +152,8 @@ PMO 按以下关键词表判定 user input 落入哪类流程:
 | 规划 / Feature Planning / feature planning / 更新 roadmap / 拆 roadmap / 路线图 / 全景 / 做电商 / 做 SaaS / 商业模式调整 | **Feature Planning** |
 | 排查 / 查 log / 诊断 / why X 慢 / 调研 / 分析根因 · 🔴 以及一切**根因未定的现象类输入**(报错 / 挂了 / CI·编译失败 / 慢 · 无修复指令) | **问题排查**(排查先行律 · 见下) |
 | 修复 / fix / 处理掉 X bug / 生产缺陷 · 🔴 仅当**缺陷已指认**(用户明确要求修复 · 或 现象+期望+大致位置已知) | **Bug** |
-| 换 logo / 换图 / 改文案 / 改样式 / 改颜色 / 改配置常量 | **Micro** |
-| 加按钮 / 加导出 / 加字段 / 列表加列 | **敏捷需求** |
+| 换 logo / 换图 / 改文案 / 改样式 / 改颜色 / 改配置常量 | **Feature · preset=micro** |
+| 加按钮 / 加导出 / 加字段 / 列表加列 | **Feature · preset=lite** |
 | 实现 / 开发 / 做功能 / 新建模块 | **Feature**(兜底)|
 
 落入 6 闭集之一(R2 红线 · enum 强制)。
@@ -251,12 +251,10 @@ PMO 按以下关键词表判定 user input 落入哪类流程:
 
 PMO 按 flow_type 算 branch 前缀 + worktree path 建议:
 
-| flow_type | branch 前缀 | worktree |
+| flow_type(+preset) | branch 前缀 | worktree |
 |----------|-----------|---------|
-| Feature | `feature/` | 必 |
-| 敏捷需求 | `agile/` | 必 |
+| Feature(full/lite/micro 全部)| `feature/` | 必(🔴 v8.220 统一 · `agile/`/`micro/` 前缀退役)|
 | Bug | `fix/` | 必 |
-| Micro | `micro/` | 必 |
 | Feature Planning | — | 不进状态机 · 不走 prepare |
 | 问题排查 | — | 不进状态机 · 不走 prepare |
 
