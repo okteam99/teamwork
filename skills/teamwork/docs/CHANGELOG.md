@@ -4,6 +4,19 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.225 · 模型档位判断框架(任务性质→档)+ 并行姿态翻转(鼓励 subagent/teammate)
+
+> 用户两提案合一:① skill 层加模型建议(规划/方案/关键评审用高档 · 代码用执行档 · 测试验证用轻档 · GPT 同理);② 鼓励多用 subagent/teammate 提并行度。形态守 v8.194/216 判例:**「任务性质 → 档位」判断框架 · 非「stage → 型号」映射**(型号随代际漂移 · 跨宿主不通 · 逐 stage 映射是规则不是判断)。
+
+### 改动
+- **agents/README §一 重写为档位表**:深度档(创造+深度判断:规划/TECH/架构 CR/PRD/诊断/关键裁决)· 执行档(实现 · 主对话继承即是)· 验证档(校验/枚举:TC 对照/测试执行/机械外化)—— 型号列仅当前映射示例(Claude: Fable/Opus↔会话↔Sonnet/Haiku · GPT 对应档)+ 每档标**典型并行形态**。
+- **三条硬边界**:架构 CR 与关键裁决不降档;**评审独立性优先于档位**(两个轻模型冷审 > 一个强模型热审);主对话模型 = 用户主权(AI 只建议)。
+- **并行姿态翻转**(SKILL subagent 条目):从「⚠️ 非默认 · 不过度使用」改为「**默认考虑:每 stage 开工先问哪些子任务可并行**」(冷审 N 路同发/多模块 teammate/调研 fan-out)· 护栏原样(边界清晰且够大/worktree 路径/**流转与整合永归主对话**)。
+- **prepare §1.4**:关键 Feature 建议主对话深度档 + prepare 时标出可并行子任务。台账 host+model(v8.208/209)= 档位建议的年检校准数据源。
+
+### 验证
+- doc-only · pytest 826 passed。
+
 ## v8.224 · skill 全文件描述审计:A 类 7 项「变假话」清零 + FLOWS 重写薄壳(102→40)
 
 > 用户:整体看 skill 各文件描述的冗余与不合理。盘点实锤:合并三连(v8.220-223)后 **7 项过时描述**在教旧规则 + 流程类型**三处平行描述**(FLOWS×SKILL×prepare)。另发现元教训:cite(v8.199)/顶栏(v8.206)/hooks(v8.213)各漏扫一个目录 —— 退役清扫必须覆盖全部内容目录。
@@ -54,18 +67,3 @@
 
 ### 验证
 - pytest 819 passed。
-
-## v8.220 · flow_type 机器层收缩 6→3(用户拍板「直接到位」):Feature/Bug + preset 重量档
-
-> 数据:170 audit 里敏捷+Micro 合计 11% —— 它们是「同一种工作的重量档」非独立工作形态 · 与维度化(clarity/roster)形成冗余平行系统。Bug(diagnose 先行 · 结构不同)与 Planning(不进状态机)保留;问题排查退到 triage mode A 深度版。
-
-### 改动(机器层 · 存量零迁移)
-- **`FLOW_BY_TYPE` 键收编**:`Feature`(=full)/ `Feature:lite`(原敏捷)/ `Feature:micro`(原 Micro)/ `Bug` · 三份转移图**原样保留**(行为等价)。
-- **`resolve_flow_graph(flow_type, preset)` + `normalize_flow`**:legacy 名(敏捷需求/Micro)传入自动归一 → state 只存 `flow_type∈{Feature,Bug}` + `preset∈{full,lite,micro}`;存量 state.json 读到 legacy 值同样归一(零迁移)。
-- **`init-feature --preset`** 新参;legacy choices 保留作别名(肌肉记忆/脚本兼容)。
-- **角色矩阵 preset-aware**:`build_default_stage_review_roles(flow_type, preset)`(内部键映射旧名)。
-- **ID 字母收敛 F/B**(Micro 的 M 退役 · 存量 M-id 不受影响);specs `allowed_flow_types` 收编(blueprint/blueprint_lite → Feature · 链图限定可达)。
-- SKILL/README/prepare 加机器层收缩注记(6 类型表转为语言层预设视图 · 全表重写下版)。
-
-### 验证
-- pytest 819 passed(M→F 断言更新 ×3)· R2 闭集红线新形态 = 枚举 2 + preset 有界。
