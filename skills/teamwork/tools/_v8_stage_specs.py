@@ -30,6 +30,18 @@ from _v8_engine import (
     parse_frontmatter,
 )
 
+def _flow_key(state: dict) -> str:
+    """v8.222:state → 内部流键(Feature+preset 归一到 敏捷需求/Micro 旧键 · legacy 值原样)。
+    物化校验统一走本函数 —— v8.220 后 state.flow_type 只会是 Feature/Bug · 直接比对 legacy 名 = 死门。"""
+    ft = state.get("flow_type") or ""
+    pre = state.get("preset") or "full"
+    if ft == "Feature" and pre == "lite":
+        return "敏捷需求"
+    if ft == "Feature" and pre == "micro":
+        return "Micro"
+    return ft
+
+
 
 # ─── 通用前置 check 函数(共享) ──────────────────────────────────────
 
@@ -196,7 +208,7 @@ def _evidence_needs_ui_decided(state: dict, args) -> tuple[bool, str]:
         )
 
     # 流程类型校验:敏捷需求不应有 UI
-    if val == "true" and state.get("flow_type") == "敏捷需求":
+    if val == "true" and _flow_key(state) == "敏捷需求":
         return False, (
             "敏捷需求流程 + --needs-ui=true 矛盾 · "
             "若有 UI 改动应升级 Feature 流程(reset-prev + 改 flow_type)"
@@ -434,7 +446,7 @@ def _goal_transition(state: dict) -> Optional[str]:
     persist_args_to_evidence 落库)。goal 仅 Feature / 敏捷需求 可进
     (allowed_flow_types 拦 · Bug/Micro 初始 stage 分别是 diagnose/dev · 到不了这里)。
     """
-    flow = state.get("flow_type")
+    flow = _flow_key(state)
     hints = state.get("execution_hints", {})
 
     if flow == "Feature":
@@ -742,7 +754,7 @@ def _check_blueprint_or_alt_done(state: dict, args) -> bool:
         return True
     if contracts.get("blueprint_lite", {}).get("output_satisfied") is True:
         return True
-    flow = state.get("flow_type")
+    flow = _flow_key(state)
     if flow == "Bug":
         return contracts.get("diagnose", {}).get("output_satisfied") is True
     if flow == "Micro":
@@ -758,7 +770,7 @@ def _check_prd_or_bug_report(state: dict, args) -> bool:
     - Bug:必有 bugfix/BUG-*.md(模板 templates/bug-report.md)
     - Feature / 敏捷需求 / 其他:必有 PRD.md(goal stage 产物)
     """
-    flow = state.get("flow_type")
+    flow = _flow_key(state)
     if flow == "Micro":
         return True  # Micro 无 spec 文档 · skip(改 1 行常量 · 不需要长形式 PRD/BUG)
     feature_dir = Path(args.feature)
@@ -805,7 +817,7 @@ state.py dev-complete --feature <path> --auto-commit <hash> \
 
 def _dev_transition(state: dict) -> Optional[str]:
     """dev 完成后的下一 stage。"""
-    flow = state.get("flow_type")
+    flow = _flow_key(state)
     if flow == "Micro":
         return "pm_acceptance"  # Micro 跳过 review/test · 仍走 pm_acceptance(用户验收)→ ship
     return "review"  # Feature / Bug / 敏捷 都走 review
@@ -1448,7 +1460,7 @@ def _evidence_ac_test_binding(state: dict, args) -> tuple[bool, str]:
     v8.x:Bug / Micro 流程不产 PRD/TC(规格 = bugfix/BUG-*.md / 直改)· skip 校验。
         治本 case INFRA-B002:Bug 流程撞 ac_test_binding 门禁 = Feature 门禁泄漏。
     """
-    flow_type = state.get("flow_type", "")
+    flow_type = _flow_key(state)
     if flow_type in ("Bug", "Micro"):
         return True, f"skipped({flow_type} 流程无 PRD/TC · 规格 = bugfix/BUG-*.md 或直改)"
 
@@ -1806,7 +1818,7 @@ BLUEPRINT_SPEC = StageSpec(
 
 
 def _check_flow_is_agile(state: dict, args) -> bool:
-    return state.get("flow_type") == "敏捷需求"
+    return _flow_key(state) == "敏捷需求"
 
 
 def _blueprint_lite_brief(state: dict) -> str:
@@ -2639,7 +2651,7 @@ def _evidence_pm_decision(state: dict, args) -> tuple[bool, str]:
 
 def _check_test_done_or_micro(state: dict, args) -> bool:
     """test output_satisfied · Micro 流程无 test stage(dev → pm_acceptance)· 直接放行。"""
-    if state.get("flow_type") == "Micro":
+    if _flow_key(state) == "Micro":
         return True
     return state.get("stage_contracts", {}).get("test", {}).get("output_satisfied") is True
 

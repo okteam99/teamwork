@@ -133,6 +133,16 @@ def resolve_flow_graph(flow_type: str, preset: str = "full") -> dict:
     return FLOW_BY_TYPE.get(flow_type, {})
 
 
+def internal_flow_key(flow_type: str, preset: str = "full") -> str:
+    """(public 或 legacy)flow → 内部图/表键(敏捷需求/Micro 键保留 · v8.222 物化校验统一入口)。"""
+    ft, pre = normalize_flow(flow_type, preset)
+    if ft == "Feature" and pre == "lite":
+        return "敏捷需求"
+    if ft == "Feature" and pre == "micro":
+        return "Micro"
+    return ft
+
+
 def normalize_flow(flow_type: str, preset: str = None):
     """(legacy 或新)flow_type → (public_flow_type, preset)。"""
     if flow_type in LEGACY_FLOW_ALIASES:
@@ -1623,8 +1633,12 @@ def cmd_init_feature(args: argparse.Namespace) -> None:
     # 防「先移走旧 state.json → 后续 cwd/worktree 校验 die → 旧状态已被毁」。
 
     feature_dir.mkdir(parents=True, exist_ok=True)
+    # v8.220/222:legacy flow_type 先归一(敏捷需求→Feature+lite · Micro→Feature+micro)·
+    # 查表用内部键(归一后直接查会让 micro 错拿 goal)
+    _pub_flow, _preset = normalize_flow(args.flow_type, getattr(args, "preset", None))
+    args.flow_type = _pub_flow  # 后续逻辑(角色矩阵/emit)统一走归一值
     initial_stage = args.initial_stage or DEFAULT_INITIAL_STAGE.get(
-        args.flow_type, "goal"
+        internal_flow_key(args.flow_type, _preset), "goal"
     )
 
     # 启发式校验：basename 应含 feature_id（防 --feature 传了 slug 而不是完整路径）
@@ -1636,10 +1650,6 @@ def cmd_init_feature(args: argparse.Namespace) -> None:
             f"apps/{{sub_project}}/docs/features/{args.feature_id}）而非仅 feature 名",
             file=sys.stderr,
         )
-
-    # v8.220:legacy flow_type 归一(敏捷需求→Feature+lite · Micro→Feature+micro)· 对外只存 public 名
-    _pub_flow, _preset = normalize_flow(args.flow_type, getattr(args, "preset", None))
-    args.flow_type = _pub_flow  # 后续逻辑(角色矩阵/链/emit)统一走归一值
 
     state: dict[str, Any] = {
         "feature_id": args.feature_id,

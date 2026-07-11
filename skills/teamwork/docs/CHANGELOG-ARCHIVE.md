@@ -339,3 +339,14 @@
 
 ### 验证
 - 测试重写:clarity 单独**不再**跳过任何 gate ✓ · roster 去角色 → gate 放行 ✓(×4)· pytest 817 passed。
+## v8.217 · 智能分诊 v2:台账「分诊校准(预测→实际)」列 + 降级触发(持续分诊)
+
+> 承 v8.215/216(维度化+动态 roster):v2 落学习回路的数据侧 —— 分诊判定要能被事后打分,判据才能随数据校准而非拍脑袋。
+
+### 改动
+- **archive emit 加 `triage_calibration` 束**:预测侧 = clarity + roster 调整摘要(审计已留);实际侧 = diff 文件数(git 确定性)+ goal 修订轮数(PRD 被打回?)+ review 轮数。
+- **PROCESS-LEDGER 末尾加「分诊校准(预测→实际)」列**(末尾加列纪律 · ledger-migrate 单源自模板**自动升级**——本版测试实证:旧表 10 列 → 新 canonical 自动 14 列)· 年检算**分诊准确率**(explicit 判定却 PRD 常打回/review 高轮次 → 判据收紧)。
+- **降级触发**(持续分诊 · 补反向):blueprint brief 推「TECH 复杂度=简单且零架构决策而 roster 仍重 → 提议降级(R5 → change-review-roles)」—— 升级触发已有(§2.1)· 分诊不是一次性的。
+
+### 验证
+- `_triage_calibration` 测试 +2 · migrate 测试改不写死列数(canonical 单源验证)· pytest 819 passed(预期)。

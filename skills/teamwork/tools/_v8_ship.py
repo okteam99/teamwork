@@ -162,7 +162,8 @@ def _validate_distill(args: argparse.Namespace, state: dict) -> dict:
     流程减负 · Micro 简表:flow_type=Micro 只强制 knowledge 一键(gotcha)· 其余 5 键
     缺省自动填「无(Micro)」(零逻辑改动 · 逐项走 6 键是无信号仪式)。其他 flow 行为不变。
     """
-    is_micro = state.get("flow_type") == "Micro"
+    is_micro = (state.get("flow_type") == "Micro"
+                or (state.get("flow_type") == "Feature" and state.get("preset") == "micro"))  # v8.222
     required_keys = MICRO_DISTILL_REQUIRED if is_micro else DISTILL_KEYS
     raw = getattr(args, "distill", None)
     if not raw:
