@@ -108,12 +108,36 @@ AGILE_FLOW: dict[str, list[str]] = {
 }
 
 # Feature Planning / 问题排查 不进状态机:由 PMO 主对话执行(详 docs/feature-planning.md)
+# v8.220(用户拍板 · 直接到位):对外 flow_type 收缩为 {Feature, Bug} —— 敏捷需求/Micro 是
+# 「同一种工作的重量档」非独立工作形态(audit 实测合计仅 11%)· 降为 Feature 的 **preset**
+# (full/lite/micro · 链与角色由 preset 决定)。内部转移图保留三份(行为等价 · 存量零迁移)。
 FLOW_BY_TYPE = {
-    "Feature": FEATURE_FLOW,
+    "Feature": FEATURE_FLOW,          # = preset full
+    "Feature:lite": AGILE_FLOW,       # 原 敏捷需求
+    "Feature:micro": MICRO_FLOW,      # 原 Micro
     "Bug": BUG_FLOW,
-    "Micro": MICRO_FLOW,
-    "敏捷需求": AGILE_FLOW,
 }
+
+PUBLIC_FLOW_TYPES = ("Feature", "Bug")
+FEATURE_PRESETS = ("full", "lite", "micro")
+# legacy 名映射(init 传入自动映射 + note · 存量 state.json 读到也归一)
+LEGACY_FLOW_ALIASES = {"敏捷需求": ("Feature", "lite"), "Micro": ("Feature", "micro")}
+
+
+def resolve_flow_graph(flow_type: str, preset: str = "full") -> dict:
+    """按 (flow_type, preset) 解析转移图 · legacy flow_type 自动归一。"""
+    if flow_type in LEGACY_FLOW_ALIASES:
+        flow_type, preset = LEGACY_FLOW_ALIASES[flow_type]
+    if flow_type == "Feature" and preset in ("lite", "micro"):
+        return FLOW_BY_TYPE[f"Feature:{preset}"]
+    return FLOW_BY_TYPE.get(flow_type, {})
+
+
+def normalize_flow(flow_type: str, preset: str = None):
+    """(legacy 或新)flow_type → (public_flow_type, preset)。"""
+    if flow_type in LEGACY_FLOW_ALIASES:
+        return LEGACY_FLOW_ALIASES[flow_type]
+    return flow_type, (preset or "full")
 
 # 不进状态机的流程类型(init-feature 拒绝创建 state.json · PMO 主对话直接执行)
 NON_STATE_MACHINE_FLOWS = {"Feature Planning", "问题排查"}
@@ -329,10 +353,10 @@ def validate_state(state: dict[str, Any]) -> list[str]:
         errors.append(f"current_stage 非法值: {cur!r} ∉ {sorted(LEGAL_STAGES)}")
 
     flow_type = state.get("flow_type")
-    if flow_type not in FLOW_BY_TYPE:
+    if flow_type not in PUBLIC_FLOW_TYPES and flow_type not in LEGACY_FLOW_ALIASES:
         errors.append(
-            f"flow_type 非法值: {flow_type!r} ∉ {sorted(FLOW_BY_TYPE)}"
-            "(不进状态机的流程类型不应有 state.json)"
+            f"flow_type 非法值: {flow_type!r} ∉ {list(PUBLIC_FLOW_TYPES)}"
+            "(legacy 敏捷需求/Micro 自动归一 · 不进状态机的流程类型不应有 state.json)"
         )
 
     completed = state.get("completed_stages") or []
@@ -1613,10 +1637,15 @@ def cmd_init_feature(args: argparse.Namespace) -> None:
             file=sys.stderr,
         )
 
+    # v8.220:legacy flow_type 归一(敏捷需求→Feature+lite · Micro→Feature+micro)· 对外只存 public 名
+    _pub_flow, _preset = normalize_flow(args.flow_type, getattr(args, "preset", None))
+    args.flow_type = _pub_flow  # 后续逻辑(角色矩阵/链/emit)统一走归一值
+
     state: dict[str, Any] = {
         "feature_id": args.feature_id,
         "bl": getattr(args, "bl", None) or None,  # v8.196:承接的 BL(F↔BL 机读绑定 · 链路最脆一环治本)
         "clarity": getattr(args, "clarity", "normal") or "normal",  # v8.215:明确度 → 评审强度比例化
+        "preset": _preset,  # v8.220:Feature 重量档(full/lite/micro)· 链与角色由它决定
         "sub_project": args.sub_project or "",
         "flow_type": args.flow_type,
         "artifact_root": str(feature_dir),  # v7.3.10+P0-149: 单源 · 不再独立 --artifact-root
@@ -1657,7 +1686,7 @@ def cmd_init_feature(args: argparse.Namespace) -> None:
     # v8.0+P0-9:按 flow_type 填默认 stage_review_roles + adjustments audit list
     try:
         from _v8_engine import build_default_stage_review_roles
-        state["stage_review_roles"] = build_default_stage_review_roles(args.flow_type)
+        state["stage_review_roles"] = build_default_stage_review_roles(args.flow_type, _preset)
         state["stage_review_roles_adjustments"] = []
     except ImportError:
         pass
@@ -1972,7 +2001,7 @@ def cmd_reset_prev(args: argparse.Namespace) -> None:
     # started_at 保留(stage 开始时间不变)
 
     # 5. legal_next_stages 重算
-    flow_graph = FLOW_BY_TYPE.get(state.get("flow_type"), {})
+    flow_graph = resolve_flow_graph(state.get("flow_type") or "", state.get("preset") or "full")
     state["legal_next_stages"] = flow_graph.get(last_completed, [])
 
     # 6. 自动 concerns WARN(audit 透明)
@@ -2116,8 +2145,9 @@ def cmd_prepare_check(args: argparse.Namespace) -> None:
 
     # flow_type → artifact ID 字母(详 docs/conventions.md §1)
     # Feature / 敏捷需求 共用 F · Bug=B · Micro=M · 缺省 F(--flow-type 漏传时向后兼容)
-    _FLOW_ID_LETTER = {"Feature": "F", "敏捷需求": "F", "Bug": "B", "Micro": "M"}
-    id_letter = _FLOW_ID_LETTER.get(args.flow_type or "", "F")
+    # v8.220:ID 字母收敛 F/B(Micro 的 M 退役 · legacy 归一后即 Feature)
+    _pub_ft, _ = normalize_flow(args.flow_type or "Feature")
+    id_letter = "B" if _pub_ft == "Bug" else "F"
 
     # 扫匹配 <PREFIX>-<字母><NNN>* 目录(字母由 flow_type 定)
     pattern = re.compile(rf"^{re.escape(prefix)}-{id_letter}(\d+)")
@@ -4609,7 +4639,7 @@ def cmd_jump_to_stage(args: argparse.Namespace) -> None:
 
     # 2. 当前 flow_type 必须含 target stage
     flow_type = state.get("flow_type")
-    flow_graph = FLOW_BY_TYPE.get(flow_type, {})
+    flow_graph = resolve_flow_graph(flow_type, getattr(args, "preset", None) or "full")
     if not flow_graph:
         die(1, json.dumps({
             "verdict": "FAIL",
@@ -4809,7 +4839,10 @@ def build_parser() -> argparse.ArgumentParser:
                      help="如 ADMIN-F013-tax-billing · 应是 --feature basename")
     ifp.add_argument("--flow-type", required=True,
                      choices=["Feature", "Bug", "Micro", "敏捷需求",
-                              "Feature Planning", "问题排查"])
+                              "Feature Planning", "问题排查"],
+                     help="[v8.220] 对外收缩为 Feature/Bug · 敏捷需求/Micro 为 legacy 别名(自动映射 Feature+preset)· Planning/排查照旧 reject")
+    ifp.add_argument("--preset", default=None, choices=["full", "lite", "micro"],
+                     help="[v8.220] Feature 重量档(原 敏捷需求=lite · Micro=micro)· 链/角色由它决定 · 默认 full")
     ifp.add_argument("--sub-project", help="如 admin / api-server")
     # v7.3.10+P0-149: 删 --artifact-root 冗余参数 · --feature 单源（既是落盘目录又是 artifact_root 字段值）
     ifp.add_argument("--initial-stage",

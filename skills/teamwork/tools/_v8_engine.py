@@ -1164,15 +1164,20 @@ DEFAULT_REVIEW_ROLES: dict[tuple[str, str], list[str]] = {
 }
 
 
-def build_default_stage_review_roles(flow_type: str) -> dict[str, list[str]]:
-    """按 flow_type 抽取默认 stage_review_roles dict。
+def build_default_stage_review_roles(flow_type: str, preset: str = "full") -> dict[str, list[str]]:
+    """按 (flow_type, preset) 抽取默认 stage_review_roles dict(v8.220 preset-aware)。
 
-    返回 {stage_name: [roles]} · 仅含该 flow_type 适用的 stage。
+    内部矩阵键沿用旧 flow 名(敏捷需求/Micro)—— 对外已收缩为 Feature+preset · 此处做映射。
     """
+    _key = flow_type
+    if flow_type == "Feature" and preset == "lite":
+        _key = "敏捷需求"
+    elif flow_type == "Feature" and preset == "micro":
+        _key = "Micro"
     return {
         stage: roles[:]  # copy 防共享引用
         for (ft, stage), roles in DEFAULT_REVIEW_ROLES.items()
-        if ft == flow_type
+        if ft == _key
     }
 
 

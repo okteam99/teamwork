@@ -778,9 +778,10 @@ class TestPrepareCheck(unittest.TestCase):
         self.assertEqual(d["next_available_id_stem"], "PTR-F047")
 
     def test_micro_recommends_m_series(self) -> None:
+        # v8.220:Micro 并入 Feature(preset=micro)· M 系退役 · 与 F 系同号池
         d = self._check("Micro")
-        self.assertEqual(d["id_letter"], "M")
-        self.assertEqual(d["next_available_id_stem"], "PTR-M002")
+        self.assertEqual(d["id_letter"], "F")
+        self.assertEqual(d["next_available_id_stem"], "PTR-F047")
 
     def test_no_flow_type_defaults_to_f_with_warn(self) -> None:
         # v8.34:测「未传 --flow-type」分支 · 但 admission_judgment 仍必传
@@ -839,7 +840,7 @@ class TestPrepareCheck(unittest.TestCase):
         self.assertEqual(len(lines), 3)
         recs = [json.loads(l) for l in lines]
         # 顺序保留 · 字母不同
-        self.assertEqual([r["id_letter"] for r in recs], ["F", "B", "M"])
+        self.assertEqual([r["id_letter"] for r in recs], ["F", "B", "F"])  # v8.220:Micro→F(M 退役)
 
     # ── v8.27 · reviewer_thinking_checklist(治本 F-Bv2-8 PMO 直接抄默认 case)──
     def test_v827_emit_includes_reviewer_thinking_checklist(self):

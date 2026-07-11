@@ -638,7 +638,7 @@ GOAL_SPEC = StageSpec(
     ],
     brief_template_fn=_goal_brief,
     auto_transition_fn=_goal_transition,
-    allowed_flow_types=["Feature", "敏捷需求"],  # Feature Planning 走 planning · 不进 goal
+    allowed_flow_types=["Feature"],  # v8.220:敏捷已并入 Feature(preset=lite)· Planning 不进 goal
     authorized_pause_point=(
         "§8 用户最终确认(全员 review 通过后)"
         "+ 条件暂停:§4 goal-critical 早问门(三闸过审的用户主权问题 ≤3 · 一次性 · "
@@ -1867,7 +1867,7 @@ BLUEPRINT_LITE_SPEC = StageSpec(
     evidence_checks=[],  # 敏捷需求不强制 verify-ac.py
     brief_template_fn=_blueprint_lite_brief,
     auto_transition_fn=_blueprint_lite_transition,
-    allowed_flow_types=["敏捷需求"],
+    allowed_flow_types=["Feature"],  # v8.220:blueprint_lite 属 Feature preset=lite 链(链图限定可达性)
     authorized_pause_point="无暂停 · 完成后自动转 dev",
 )
 

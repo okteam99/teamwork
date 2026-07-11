@@ -1,6 +1,6 @@
 ---
 name: teamwork
-version: v8.219.1
+version: v8.220
 description: AI 协作开发一体化框架 - 需求功能开发, bug 修复, 问题排查 · /teamwork 启动
 ---
 
@@ -403,6 +403,8 @@ emit 格式:
 ---
 
 ## 6 流程类型(R 红线闭集)
+> 🔴 **v8.220 机器层已收缩**:`flow_type ∈ {Feature, Bug}` + Feature 重量档 `preset ∈ {full, lite, micro}`(原「敏捷需求」= lite · 「Micro」= micro · 作 **legacy 别名**自动映射 · ID 统一 F/B〔M 退役〕)· Planning/排查照旧不进状态机。下表为**语言层预设视图**(用户说「micro」= 选 micro 档)。
+
 
 | 流程 | 适用场景 | 产出 |
 |------|---------|------|
