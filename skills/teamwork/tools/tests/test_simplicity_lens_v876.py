@@ -45,11 +45,11 @@ class TestStageDocsCarrySimplicityLens(unittest.TestCase):
     def test_goal_stage_focus_and_lens(self):
         t = _read("stages/goal-stage.md")
         # PRD 评审聚焦:业务目标 + 可实现 + 恰当简洁
-        self.assertIn("PRD 评审聚焦", t)
+        self.assertIn("评审聚焦三问", t)  # v8.219 四段重构改名 · substance 同
         self.assertIn("业务目标", t)
         self.assertIn("恰当简洁", t)
         # AC 写行为/价值高度 · 不下沉机制
-        self.assertIn("行为 / 价值", t)
+        self.assertIn("行为/价值", t)  # v8.219 去空格
         # Architect 简洁性 counter-lens
         self.assertIn("简洁性 counter-lens", t)
         # v8.155:goal 默认无 external(opt-in 保留)· 过度设计防线 = Architect 冷审 counter-lens
