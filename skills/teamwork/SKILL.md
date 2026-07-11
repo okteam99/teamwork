@@ -1,6 +1,6 @@
 ---
 name: teamwork
-version: v8.223.1
+version: v8.224
 description: AI 协作开发一体化框架 - 需求功能开发, bug 修复, 问题排查 · /teamwork 启动
 ---
 
@@ -402,18 +402,17 @@ emit 格式:
 
 ---
 
-## 6 流程类型(R 红线闭集)
-> 🔴 **v8.220 机器层已收缩**:`flow_type ∈ {Feature, Bug}` + Feature 重量档 `preset ∈ {full, micro}`(v8.223:lite 退役 —— 敏捷需求 → full〔轻量由动态 roster/clarity 承担〕· Micro → micro · ID 统一 F/B)· Planning/排查照旧不进状态机。下表为**语言层预设视图**(用户说「micro」= 选 micro 档)。
+## 流程类型(R2 闭集 · v8.220-223 收缩)
 
+`flow_type ∈ {Feature, Bug}` + Feature 重量档 `preset ∈ {full, micro}` · Planning/排查不进状态机。轻量由**动态 roster + clarity** 承担(不再有「敏捷需求」独立类型 · legacy 别名自动映射)· telos 详 [FLOWS.md](./FLOWS.md)。
 
 | 流程 | 适用场景 | 产出 |
 |------|---------|------|
-| **Feature** | 完整功能 | 代码 + 文档 + 测试 |
-| **Bug** | 缺陷修复 | 修复 + BUG 报告 + 回归测试 |
-| **Micro** | 零逻辑改动 | 代码直改(文案/样式/资源/配置) |
-| **敏捷需求** | ≤5 文件 + 无 UI/架构变更 + 方案明确 | 代码 + 简化文档 + 测试 |
-| **Feature Planning** | 拆 ROADMAP | PROJECT.md + ROADMAP.md + sitemap.md(不出代码) |
-| **问题排查** | 不出代码 · 仅定位根因 | 排查报告 + 后续 todo 关联 |
+| **Feature · full** | 功能开发(兜底) | 代码 + 文档 + 测试 |
+| **Feature · micro** | 零逻辑改动(文案/样式/资源/配置常量 白名单 · ≤5 文件) | 代码直改 + 用户验收 + ship |
+| **Bug** | 缺陷已指认(diagnose 先行 · 根因经用户确认) | 修复 + BUG 报告 + 回归测试 |
+| **Feature Planning** | 拆 ROADMAP(不出代码 · 不进状态机) | WS + ROADMAP + 全景 |
+| **问题排查** | 只定位根因(不进状态机 · 排查先行律) | 排查报告 + 后续 todo |
 
 ### 授权暂停点清单(非 auto 模式 · 每个独立 emit + 等用户)
 
@@ -422,11 +421,10 @@ emit 格式:
 | 流程 | 授权暂停点(按顺序) |
 |---|---|
 | **Feature** | ① prepare 4 项配置 → ② goal PRD 最终确认 → ③ ui_design UI 预览确认(若 --needs-ui) → ④ blueprint DB schema 变更确认(条件 · 见下) → ⑤ pm_acceptance 三选项 → ⑥ ship1 终点 等平台合并 feature MR |
-| **敏捷需求** | ① prepare 4 项配置 → ② goal PRD 最终确认 → ③ pm_acceptance 三选项 → ④ ship1 终点 |
 | **Bug** | ① prepare 4 项配置 → ② **diagnose 修复方案确认**(根因+方案 · 用户拍板才进 dev) → ③ pm_acceptance 三选项 → ④ ship1 终点 |
-| **Micro** | ① prepare 4 项配置 → ② pm_acceptance 三选项 → ③ ship1 终点 |
+| **Feature · micro** | ① prepare 4 项配置 → ② pm_acceptance 三选项 → ③ ship1 终点 |
 
-📎 **blueprint DB schema 条件暂停点**:Feature 的 TECH 方案涉及**数据库数据结构变更**(新建/删除/修改 表、字段、索引、约束、migration)时 · blueprint-complete 前必 emit 用户确认暂停点(详 [stages/blueprint-stage.md § 7.5](./stages/blueprint-stage.md))· 不涉及则跳过。**敏捷需求 / Bug / Micro** 不应涉及 DB 数据结构变更(属架构性 · 命中则按 prepare §2.2 升 Feature)。
+📎 **blueprint DB schema 条件暂停点**:Feature 的 TECH 方案涉及**数据库数据结构变更**(新建/删除/修改 表、字段、索引、约束、migration)时 · blueprint-complete 前必 emit 用户确认暂停点(详 [stages/blueprint-stage.md § 7.5](./stages/blueprint-stage.md))· 不涉及则跳过。**Bug / Feature·micro** 不应涉及 DB 数据结构变更(属架构性 · 命中则升 full 完整链)。
 📎 stage 间(goal-complete→ui_design / dev→review 等)是 state.py **自动流转** · 非暂停点 · 不插确认。
 
 ### auto_mode=true 时各暂停点行为(按名 · 不按编号)

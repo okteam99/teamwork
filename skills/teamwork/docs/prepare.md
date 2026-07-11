@@ -8,7 +8,7 @@
 
 ## 0. Must-read(PMO 进 prepare 前必读)
 
-🔴 **必读 spec**(动手前主对话 cite 关键原文 · 详 [STAGES.md §2 P0-11 cite 纪律](../STAGES.md)):
+🔴 **必读 spec**(prepare 动手前读 · v8.199 起无 cite 仪式):
 - **[conventions.md §9-12](./conventions.md)** — worktree path 规范(`{worktree_root_path}/{Feature-ID}` · 默认 `.worktree/`)
 - **`.teamwork_localconfig.json`** — 项目级 worktree_root_path 配置(读 `worktree_root_path` 字段 · 不存在用 `.worktree`)
 - **[feature-planning.md §0](./feature-planning.md)** — 何时改走 Feature Planning(关键词 + 复杂度双触发)

@@ -4,6 +4,19 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.224 · skill 全文件描述审计:A 类 7 项「变假话」清零 + FLOWS 重写薄壳(102→40)
+
+> 用户:整体看 skill 各文件描述的冗余与不合理。盘点实锤:合并三连(v8.220-223)后 **7 项过时描述**在教旧规则 + 流程类型**三处平行描述**(FLOWS×SKILL×prepare)。另发现元教训:cite(v8.199)/顶栏(v8.206)/hooks(v8.213)各漏扫一个目录 —— 退役清扫必须覆盖全部内容目录。
+
+### 改动
+- **FLOWS.md 重写 102→40 行**:闭集表 = Feature(full/micro)/Bug/Planning/排查 · telos 一行化 · 判定权威显式指 prepare(结束三处平行:prepare=权威 · SKILL=视图 · FLOWS=薄壳)。
+- **SKILL 类型段真重写**(吃掉 v8.220/223 两层过渡注记):新 5 行表 + 授权暂停点表(删敏捷需求行 · Micro→Feature·micro)+ DB 变更措辞。
+- **STAGES.md** flow 列更新 + blueprint_lite 标 DEPRECATED;**roles/pmo.md** 六闭集行改;**conventions.md §1** ID 表(敏捷/M 行标 legacy · 存量 M-id 有效不迁)。
+- **漏网残留清零**:cite 仪式 ×4(prepare + 三个 report 模板)· dev 顶栏 ×1(scripts-policy)· hooks ×1(prepare)。
+
+### 验证
+- pytest 826 passed。
+
 ## v8.223 · blueprint_lite 并入 blueprint + lite preset 退役(preset 收为 full/micro)
 
 > 用户两连问推到底:① blueprint_lite 还需要吗 —— 它与 blueprint **目标相同**(dev 前方案收敛)· 差异全是重量(评审组合=roster 已管 · verify-ac 分档=一行判断 · 文档深度=四段/模板已管)= 「stage 版的敏捷需求」;② 并入后 lite 链 = Feature 链的 **needs-ui=false 剖面**(一条冗余链)→ lite preset 整体退役。micro 保留(跳 review/test 是真结构差)。
@@ -56,14 +69,3 @@
 
 ### 验证
 - pytest 819 passed(M→F 断言更新 ×3)· R2 闭集红线新形态 = 枚举 2 + preset 有界。
-
-## v8.219 · goal-stage 四段结构(试点 3/12)+ 修 v8.216 roster 硬编码残留
-
-> 用户问 goal 是否需调整 → 判定:比其余更迫切 —— 除四段欠账(🔴×24/153 行 · 密度第二)外还有 **v8.216 活冲突**:§3 写死「Feature 派 3 个/敏捷 2 个」固定组合 · 而 Output Contract 又说「按 stage_review_roles」—— 同 spec 两套口径 · brief 已 roster 驱动 · 旧文字每 feature 都在误导(照章办事风险)。
-
-### 改动
-- **goal-stage 153→85 行**:①目标(拦意图偏差)②硬规则 8 条白名单(PRD 三命门/冷审隔离**不喂心路**〔派谁派几个=按 roster〕/早问门三闸〔事实类上抛=R5 违规〕/物化门禁/既有行为变更必升级/AC>10 反压/收敛软上限/auto 留痕 · 每条 why)③手段菜单(调研四源按需/各角色 mandate 表**按 roster 派**〔质疑六问指 roles 单源〕/双向质疑/验证模式)④契约(PRD/PRD-REVIEW schema + 重点 review 指引压缩为契约段)。
-- **roster 冲突修复**:删「3 个/2 个」硬编码与 external opt-in 特例段 —— 组合全部交给 prepare 的 role_value_criteria + change-review-roles 审计。
-
-### 验证
-- 试点累计:review 235→77 · dev 149→63 · goal 153→85(537→225 行)· pytest 819 passed。

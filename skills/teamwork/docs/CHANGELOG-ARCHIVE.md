@@ -362,3 +362,13 @@
 
 ### 验证
 - 370→140 行 · pytest 819 passed(stage 散文与机器层零耦合实证)· 余 10 stage 待数据后推开。
+## v8.219 · goal-stage 四段结构(试点 3/12)+ 修 v8.216 roster 硬编码残留
+
+> 用户问 goal 是否需调整 → 判定:比其余更迫切 —— 除四段欠账(🔴×24/153 行 · 密度第二)外还有 **v8.216 活冲突**:§3 写死「Feature 派 3 个/敏捷 2 个」固定组合 · 而 Output Contract 又说「按 stage_review_roles」—— 同 spec 两套口径 · brief 已 roster 驱动 · 旧文字每 feature 都在误导(照章办事风险)。
+
+### 改动
+- **goal-stage 153→85 行**:①目标(拦意图偏差)②硬规则 8 条白名单(PRD 三命门/冷审隔离**不喂心路**〔派谁派几个=按 roster〕/早问门三闸〔事实类上抛=R5 违规〕/物化门禁/既有行为变更必升级/AC>10 反压/收敛软上限/auto 留痕 · 每条 why)③手段菜单(调研四源按需/各角色 mandate 表**按 roster 派**〔质疑六问指 roles 单源〕/双向质疑/验证模式)④契约(PRD/PRD-REVIEW schema + 重点 review 指引压缩为契约段)。
+- **roster 冲突修复**:删「3 个/2 个」硬编码与 external opt-in 特例段 —— 组合全部交给 prepare 的 role_value_criteria + change-review-roles 审计。
+
+### 验证
+- 试点累计:review 235→77 · dev 149→63 · goal 153→85(537→225 行)· pytest 819 passed。

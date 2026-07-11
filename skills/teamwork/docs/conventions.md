@@ -11,7 +11,7 @@
 
 ---
 
-## 1. 流程 artifact ID(Feature / Bug / Micro / 敏捷需求)
+## 1. 流程 artifact ID(Feature / Bug · v8.220 后 ID 统一 F/B)
 
 进状态机的顶层 artifact —— 每个有独立目录 + `state.json`。**按 flow_type 分字母**:
 
@@ -29,9 +29,9 @@
 | flow_type | 字母 | namespace | 说明 |
 |---|---|---|---|
 | Feature | `F` | 项目独立 | 完整 Feature |
-| 敏捷需求 | `F` | 项目独立 | Feature 变体 · **与 Feature 共用同一条 F 序列** |
+| (legacy)敏捷需求 | `F` | — | v8.223 并入 Feature·full · 与 F 同序列 |
 | Bug | `B` | 项目独立 | 标准 Bug 流程(独立修复请求 · ≠ Feature 内 bug · 见 §2) |
-| Micro | `M` | 项目独立 | 微改(改文案 / 改配置) |
+| (legacy)Micro | `M` | — | v8.220 起新 init 产 `F`(preset=micro)· 存量 M-id 有效不迁 |
 
 - **项目缩写**:来自 `teamwork-space.md` § 子项目清单「缩写」列(任何 teamwork 项目都有 teamwork-space.md · N≥1 统一模型 · 单项目 = 清单里 1 行 · 详 §7)
 - **{号段}**:默认 **UTC 秒级时间戳**(`YYMMDDHHMMSS` · 12 位定宽 · 字典序=时间序 · 跨机/多 agent 并行各自生成、免中心协调 → 根治分布式 `max+1` 撞号);项目可 `id_strategy: sequential` opt-out 回 **3 位顺序号**(`各项目 × 各字母独立递增` · `PTR-F` 与 `PTR-B` 各一条序列)。两策略均**不跨项目共享**(`PTR-F033` 与 `SVC-PLATFORM-F033` 可并存)· **存量 ID 不重编号**(新旧天然可区分:3-4 位 vs 12 位)。
