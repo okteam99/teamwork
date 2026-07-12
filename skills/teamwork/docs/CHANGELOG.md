@@ -4,6 +4,19 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.226 · external-ingest:ultra review 摄入为第三视角(session 主路径)+ ultracode workflow 姿态
+
+> 让渡战略第一刀(评审执行让给更强的原生能力):`/code-review ultra` = 产品化多智能体独立评审(用户触发/计费/out-of-session)—— 接入为 external 第三视角的 **opt-in 增强源**。🔴 用户修正关键时序:**评审时 MR 多未创建** → 主路径 = **session 摄入**(用户在本 session 跑 ultra · findings 已在对话 · AI 转录)· paste 兜底(标 manual 降级)· pr-comments 留作 MR 窗口期增强(拉取即机器证据)。
+
+### 改动
+- **`state.py external-ingest --from session|paste|pr-comments [--label ultra]`**:归一化落盘 `external-cross-review/review-<label>.md`(frontmatter `review_via: ultra-ingest` + origin + 时间)· 过短拒收 · 🔴 **分层**:命令只做转录归一(确定性)· **裁决永远归 PMO**(emit 明示走 质疑→确认→裁决 管线 · ultra 也会 false positive · 盲采仍是反模式)。
+- **门禁两处**:yolo 冷视角判定认 `review_via ∈ {subagent, ultra-ingest}`;异质文件名白名单校验对 ultra-ingest **豁免**(它非单一模型产物 · 独立性来自 out-of-session pipeline)。
+- **review 手段菜单 +1 行**(关键/高风险改动 · 用户在场愿投入时建议);**agents/README 并行姿态 +1 句**:ultracode 开启的 session 冷审/验证 fan-out 优先用 Workflow(schema 化 findings · 契约不变 · 裁决归主对话)。
+- 战略注记:review_engine 适配层(原 v8.227)确认**不建**(2-3 路负载下负 ROI · ultracode 下 PMO 手写 workflow 即可);workflow 改投**年检工具化**(harvest/spec 审计 50-200 路 fan-out 才是甜区)。
+
+### 验证
+- `test_external_ingest_v8226` +5(session 归一/paste 降级标/过短拒/缺 URL 拒/门禁认)· pytest 831 passed。
+
 ## v8.225 · 模型档位判断框架(任务性质→档)+ 并行姿态翻转(鼓励 subagent/teammate)
 
 > 用户两提案合一:① skill 层加模型建议(规划/方案/关键评审用高档 · 代码用执行档 · 测试验证用轻档 · GPT 同理);② 鼓励多用 subagent/teammate 提并行度。形态守 v8.194/216 判例:**「任务性质 → 档位」判断框架 · 非「stage → 型号」映射**(型号随代际漂移 · 跨宿主不通 · 逐 stage 映射是规则不是判断)。
@@ -53,17 +66,3 @@
 
 ### 验证
 - `test_flow_merge_v8222` +7(键映射 / micro initial=dev / 5 个死门复活断言)· pytest **826 passed**。
-
-## v8.221 · prepare 适配 v8.220:配置面板新词汇(flow=Feature·preset)+ 分支前缀统一 + 链预览归一
-
-> 实证 case(用户看 INFRA CI 缓存 prepare):配置确认还在说旧语言 —— `flow=Micro` · `ID=INFRA-M…`(M 系)· `branch=micro/…`。v8.220 机器层合并后 prepare 面是适配缺口。
-
-### 改动
-- **prepare-check emit 加对外词汇**:`flow_type_public`(Feature/Bug)+ `preset`(full/lite/micro)+ `config_line_hint`(⚙️ 配置行照抄:`flow=Feature · preset=micro` · 非 full 才标)。
-- **链预览归一**:legacy flow 名 → 内部链键映射(engine `FLOW_STAGE_CHAIN` 键保留 · `Feature:lite/micro` 归一)· micro 链照旧 `dev→pm_acceptance→ship`。
-- **分支前缀统一**:`agile/`、`micro/` 退役 —— Feature 全 preset 一律 `feature/`(Bug=`fix/`)· prepare.md 分支表改。
-- **关键词表改 preset 语言**:「换 logo/改文案…」→ Feature·preset=micro;「加按钮/加字段…」→ Feature·preset=lite。
-- 冒烟:legacy `--flow-type Micro` → public=Feature · preset=micro · **ID=F 系** · 链正确。
-
-### 验证
-- pytest 819 passed。

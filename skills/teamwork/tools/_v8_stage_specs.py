@@ -1663,6 +1663,10 @@ def _evidence_external_review_artifact(state: dict, args) -> tuple[bool, str]:
         # v8.90:config-disabled 项目 + 文件是合规降级自审(external-review 写 degraded:true
         # heterogeneous:false)→ 视作满足门禁(用户已 opt-out · startup WARN 持续提醒)· 跳过异质校验。
         # 注:parse_frontmatter 是朴素解析 · 值为字符串("true"/"false")。
+        # v8.226:ultra-ingest(用户触发的产品化多智能体评审摄入)豁免模型名异质校验 ——
+        # 它不是某个模型的产物(文件名无模型族字面是正常的)· 独立性来自 out-of-session pipeline。
+        if str(fm.get("review_via", "")).lower() == "ultra-ingest":
+            continue
         deg = (str(fm.get("degraded", "")).lower() == "true"
                and str(fm.get("heterogeneous", "")).lower() == "false")
         # v8.90:config-disabled 项目(ext_disabled=true)→ 接受任何 degraded 自审(用户已 opt-out)。
@@ -1727,7 +1731,8 @@ def _evidence_external_review_artifact(state: dict, args) -> tuple[bool, str]:
         # 显式 opt-out)· 改认 **subagent 冷审** 证据(review_via:subagent · 非主对话热审 / AI 手写)。
         # 治本:旧 1644 闸无 ext_disabled 豁免 · 误 BLOCK 单模型 yolo 用户(异质日志永远拿不到)。
         if ext_disabled:
-            cold = any(str((parse_frontmatter(f) or {}).get("review_via", "")).lower() == "subagent"
+            # v8.226:ultra-ingest(用户触发的多智能体评审摄入)与 subagent 冷审同为合法第三视角
+            cold = any(str((parse_frontmatter(f) or {}).get("review_via", "")).lower() in ("subagent", "ultra-ingest")
                        for f in md_files)
             if not cold:
                 return False, (

@@ -1014,6 +1014,60 @@ def _canonical_ledger_header():
     return None
 
 
+def cmd_external_ingest(args: argparse.Namespace) -> None:
+    """v8.226:把「外部评审结果」摄入为标准第三视角产物(external-cross-review/review-<label>.md)。
+
+    信源三模式(实证:评审时 MR 多未创建 · 会话内为主):
+    - session(主路径):用户在本 session 跑 /code-review ultra · findings 已在对话 →
+      AI 先把 findings 忠实转录到 --input-file · 本命令归一化落盘(frontmatter + 校验)。
+    - paste(兜底):用户从别处粘贴 → 同 session 但 origin 标 manual-paste(降级语义)。
+    - pr-comments(MR 窗口期增强):gh/glab API 拉取 · 拉取即机器证据(伪造不了)。
+    🔴 分层:本命令只做**转录归一层**(确定性);裁决(质疑→确认→裁决 · 进 findings 台账)永远归 PMO。
+    """
+    feature_dir = Path(args.feature).resolve()
+    out_dir = feature_dir / "external-cross-review"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    label = (args.label or "ultra").strip()
+    mode = args.source
+    body, origin, extra = "", mode, {}
+    if mode == "pr-comments":
+        if not args.mr_url:
+            emit({"verdict": "FAIL", "action": "external-ingest",
+                  "error": "--from pr-comments 需 --mr-url"}); return
+        import subprocess as _sp
+        if "github.com" in args.mr_url:
+            r = _sp.run(["gh", "pr", "view", args.mr_url, "--comments"],
+                        capture_output=True, text=True, timeout=60)
+        else:
+            r = _sp.run(["glab", "mr", "note", "list", args.mr_url],
+                        capture_output=True, text=True, timeout=60)
+        if r.returncode != 0 or not r.stdout.strip():
+            emit({"verdict": "FAIL", "action": "external-ingest",
+                  "error": f"PR comments 拉取失败/为空:{(r.stderr or '')[:120]}",
+                  "hint": "确认 MR 存在且 gh/glab 已登录 · 或改用 --from session(评审窗口常无 MR)"}); return
+        body = r.stdout
+        extra = {"source_url": args.mr_url, "fetch_evidence": "cli-fetch(机器证据)"}
+    else:
+        if not args.input_file or not Path(args.input_file).is_file():
+            emit({"verdict": "FAIL", "action": "external-ingest",
+                  "error": "--from session/paste 需 --input-file <AI 已转录的 findings 文件>"}); return
+        body = Path(args.input_file).read_text(encoding="utf-8", errors="replace")
+        origin = "in-session" if mode == "session" else "manual-paste(降级 · 无机器证据)"
+    if len(body.strip()) < 40:
+        emit({"verdict": "FAIL", "action": "external-ingest",
+              "error": "内容过短(<40 字)· 不像有效评审结果"}); return
+    out = out_dir / f"review-{label}.md"
+    fm = (f"---\nreview_via: ultra-ingest\norigin: {origin}\nlabel: {label}\n"
+          f"heterogeneous: multi-agent-pipeline\ningested_at: \"{now_iso()}\"\n"
+          + "".join(f"{k}: {v}\n" for k, v in extra.items()) + "---\n\n")
+    out.write_text(fm + body.strip() + "\n", encoding="utf-8")
+    emit({"verdict": "OK", "action": "external-ingest", "artifact": str(out),
+          "origin": origin, "chars": len(body),
+          "next_action_brief": ("🔴 转录已落盘(原料层)· PMO 现在走**裁决管线**:逐条 质疑→确认→裁决"
+                                "(confirmed/rejected/deferred 带实证)→ 裁决结果进 REVIEW.md findings 台账 · "
+                                "ultra 也会 false positive · 盲采仍是反模式(§12)")})
+
+
 def cmd_ledger_migrate(args: argparse.Namespace) -> None:
     """v8.210:PROCESS-LEDGER 旧 schema → 升级表头(幂等)。
 
@@ -4942,6 +4996,16 @@ def build_parser() -> argparse.ArgumentParser:
         help="[v8.210] PROCESS-LEDGER 旧 schema → 升级表头(幂等 · 旧数据行是有效前缀不动)· §16 append 前跑")
     lmp.add_argument("--feature", help="feature 路径(自其向上找 project-specs/PROCESS-LEDGER.md)· 省略则用 git 根")
     lmp.set_defaults(func=cmd_ledger_migrate)
+
+    # v8.226:external-ingest 外部评审摄入(ultra review 等 · 转录归一层 · 裁决归 PMO)
+    eip = sub.add_parser("external-ingest",
+        help="[v8.226] 摄入外部评审(如 /code-review ultra)为 external-cross-review 产物 · --from session(主)/paste(兜底)/pr-comments(MR 窗口)")
+    eip.add_argument("--feature", required=True)
+    eip.add_argument("--from", dest="source", required=True, choices=["session", "paste", "pr-comments"])
+    eip.add_argument("--input-file", help="session/paste:AI 已转录的 findings 文件路径")
+    eip.add_argument("--mr-url", help="pr-comments:MR/PR URL")
+    eip.add_argument("--label", default="ultra", help="来源标记(产物名 review-<label>.md)")
+    eip.set_defaults(func=cmd_external_ingest)
 
     # v8.178:test-baseline 预存在失败注册表 + 差分(红 base 0 新增放行 · 治反复 stash-baseline)
     tbp = sub.add_parser(

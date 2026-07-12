@@ -35,6 +35,7 @@
 | **测试质量抽查**(测试是否真断言 · 假绿检测) | 测试全绿但 diff 大时 |
 | **真机/预览截图核对** | UI feature(配合 dev §设计↔实际核对的产物) |
 | **KNOWLEDGE/历史 bug 对照** | 项目有同类踩坑记录时 |
+| **ultra review 摄入**(用户在本 session 跑 `/code-review ultra` → `state.py external-ingest --from session --input-file <转录>`)| 关键/高风险改动 · 用户在场愿投入 —— 产品化多智能体独立评审 · 摄入后照常走裁决管线(可代 external 第三视角)|
 
 评审深度与手段组合是**判断不是清单**:小 diff 机械改 → AC 对照 + diff 走查即可;核心链路/新契约 → 叠加数据流 + 边界 + 对抗复现。
 
