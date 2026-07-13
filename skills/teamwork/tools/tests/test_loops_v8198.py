@@ -52,3 +52,33 @@ class TestPrdConformanceV8201(unittest.TestCase):
         ok, msg = self._chk("---\nacceptance_criteria: [a]\n---\n# P\n")
         self.assertFalse(ok)                      # 缺扩展区仍拦
         self.assertIn("开工前", msg)
+
+
+class TestShip1UserCardV8232(unittest.TestCase):
+    """v8.232 · ship1 终点 user_card:工具生成 · URL 置顶 · AI 原样贴(治 MR 地址埋段落)。"""
+    def test_card_url_first(self):
+        import tempfile, subprocess, json
+        from pathlib import Path as P
+        d = P(tempfile.mkdtemp()); feat = d / "docs" / "features" / "F1"; feat.mkdir(parents=True)
+        subprocess.run(["git", "-C", str(d), "init", "-q", "-b", "feature/f1"], capture_output=True)
+        (feat / "state.json").write_text(json.dumps({
+            "feature_id": "F1", "flow_type": "Feature", "current_stage": "completed",
+            "merge_target": "staging",
+            "ship": {"phase": "archived"}, "stage_contracts": {}, "concerns": []}), encoding="utf-8")
+        import os
+        prev = os.environ.get("TEAMWORK_BYPASS_CHECKSUM"); os.environ["TEAMWORK_BYPASS_CHECKSUM"] = "1"
+        try:
+            r = subprocess.run([sys.executable, str(STATE_PY), "ship-phase", "--action", "push",
+                                "--feature", str(feat), "--feature-head-commit", "deadbeef",
+                                "--git-host", "gitlab", "--mr-creation-method", "cli-glab",
+                                "--mr-url", "http://git.example.com/mr/757"],
+                               capture_output=True, text=True, timeout=30)
+            out = json.loads(r.stdout)
+        finally:
+            if prev is None: os.environ.pop("TEAMWORK_BYPASS_CHECKSUM", None)
+            else: os.environ["TEAMWORK_BYPASS_CHECKSUM"] = prev
+        self.assertIn("user_card", out)
+        lines = [l for l in out["user_card"].splitlines() if l.strip()]
+        self.assertIn("请合并 MR", lines[0])
+        self.assertTrue(lines[1].startswith("🔗 http://git.example.com/mr/757"))  # URL 第二行(标题后首信息)
+        self.assertIn("原样贴", out["next_action_brief"])

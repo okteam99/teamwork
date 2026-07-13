@@ -455,6 +455,25 @@ def _handle_ship_push(state: dict, args: argparse.Namespace) -> dict:
     ship["mr_create_url"] = args.mr_create_url
     ship["feature_pushed_at"] = args.feature_pushed_at or now_iso()
 
+    # v8.232:ship1 终点用户卡片(工具确定性生成 · AI 🔴 原样贴给用户 · 不自由发挥总结)——
+    # 治实证 case:AI 写「本轮总结」长段 · MR URL 埋在段落里 · 用户被迫问「地址发出来啊」。
+    _mr_link = ship["mr_url"] or ship["mr_create_url"] or "<MR URL 缺失 · 检查 push 记录>"
+    _feat_path = getattr(args, "feature", None)
+    _branch = "<feature 分支>"
+    if _feat_path:
+        _r = _git(["rev-parse", "--abbrev-ref", "HEAD"], cwd=str(Path(_feat_path)), timeout=10)
+        if _r.returncode == 0 and _r.stdout.strip():
+            _branch = _r.stdout.strip()
+    user_card = (
+        f"⏸️ **ship1 完成 · 请合并 MR**\n"
+        f"\n"
+        f"🔗 {_mr_link}\n"
+        f"\n"
+        f"- 分支:`{_branch}` → `{state.get('merge_target') or '<merge_target>'}`\n"
+        f"- 包含:代码 + 归档 + 规划翻牌(随本 MR 原子合入)\n"
+        f"- 监控:我将跑 `await-merge` 30s 轮询 —— **你只需在平台点合并** · 合并后自动清场(删 worktree + 净化主工作区)\n"
+        f"- 异常口令:平台报冲突 → 回「冲突」(我回 worktree 重跑 archive 解)· 不想合了 → 回「撤回」"
+    )
     return {
         "verdict": "PASS",
         "stage": "ship",
@@ -464,10 +483,11 @@ def _handle_ship_push(state: dict, args: argparse.Namespace) -> dict:
         **({"rerecorded": True} if cur_phase == "pushed" else {}),
         "mr_url": ship["mr_url"],
         "mr_create_url": ship["mr_create_url"],
+        "user_card": user_card,
         "next_action_brief": (
-            "✅ Push + MR 记录完成 —— **feature 的 ship 到此结束**(v8.145 ship1 全交付:"
-            "归档/翻牌/终态已随本 MR)。\n\n"
-            "⏸️ 提示用户在平台合并 MR(本暂停点 = ship1 唯一出口)。\n\n"
+            "✅ Push + MR 记录完成 —— **feature 的 ship 到此结束**(v8.145 ship1 全交付)。\n\n"
+            "🔴 v8.232:把本 emit 的 **`user_card` 原样贴给用户**(URL 置顶独立行 · 易点易复制)· "
+            "**不要自写总结段**(实证:自由发挥会把 MR 地址埋进段落);要补交付摘要 → 卡片**之后** ≤3 行。\n\n"
             "用户合并后(ship2 · 清场 · 零内容):\n"
             "1. cd 到主工作区(非 linked worktree · 治本 P0-156)\n"
             "2. state.py ship-finalize --feature <worktree 内 feature 路径>"

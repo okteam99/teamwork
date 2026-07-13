@@ -457,3 +457,12 @@
 
 ### 验证
 - `test_external_ingest_v8226` +5(session 归一/paste 降级标/过短拒/缺 URL 拒/门禁认)· pytest 831 passed。
+## v8.227 · README-EN 类型体系补改(v8.224 只改了中文侧的残留)
+
+> backlog #2:EN「6 Flow Types」表 + R2 红线行 + 快捷启动例仍是六类旧口径(变假话残留 · v8.224 描述审计只扫了中文面)。
+
+### 改动
+- EN 类型表重写(Feature·full / Feature·micro / Bug / Planning / Investigation + 机器层收缩说明)· R2 行改 `{Feature,Bug}+preset` · 启动示例注释改 preset 语言。
+
+### 验证
+- doc-only · 词汇残留复扫清零。

@@ -66,24 +66,20 @@ state.py ship-phase --action push --feature <path> \
 🔴 **feature 的 ship 到此结束** —— 归档/翻牌/终态已全部在这个 MR 里。
 🔴 **`auto_mode=true` 也必停此暂停点** —— 用户需在 git host 平台手动 merge · AI 无法代办(详 [SKILL.md § auto_mode=true 时各暂停点行为](../SKILL.md))。
 
+🔴 **输出格式(v8.232 物化)**:push emit 自带 `user_card` —— **原样贴给用户 · 禁自写总结段**(实证 case:自由发挥把 MR URL 埋进「本轮总结」段落 · 用户被迫问地址)。卡片契约:**第一屏第一信息 = MR URL(置顶 · 独立行 · 裸链接)**,其后分支/包含/监控/异常口令各一行;交付摘要要加 → 卡片之后 ≤3 行:
+
 ```markdown
-⏸️ ship1 完成 · feature MR 已创建(含代码 + 归档 + 规划翻牌)· 等用户在平台 review + 合并
-🔴 v8.198:emit 本提示后**跑 `state.py await-merge --feature <path>`**(30s 轮询 · MERGED → 自动 ship-finalize · WAITING → 重跑续等 · 用户随时可打断改人工)—— 等待窗不再无人看(治 132h 长尾 / CI 红无人接)
+⏸️ **ship1 完成 · 请合并 MR**
 
-请选择:
+🔗 <MR URL>
 
-1. ✅ **已合并** 💡 推荐(若你刚点 merge)
-   动作:回 `1` → PMO cd 主工作区 · 跑 `ship-finalize`(ship2 清场)
-2. ⏳ **暂未合并 / 还在 review**
-   动作:无需操作 · 任意时刻回来回 `1` 继续
-3. ⚠️ **平台报冲突(别的 feature 先合了)**
-   动作:回 `冲突` → PMO 回 worktree 重跑 `--action archive`(自动 sync · INDEX 机械解 ·
-   代码冲突 AI 处理)→ `git push` → MR 更新 → 你再合并
-4. ❌ **撤回 / 关闭 MR**
-   动作:回 `撤回` → close-unmerged(`--abandon=true` 终态 / false 留口子)
-
-📚 决策参考:MR URL = <url> · 平台 review 状态 / CI 结果
+- 分支:`<feature 分支>` → `<merge_target>`
+- 包含:代码 + 归档 + 规划翻牌(随本 MR 原子合入)
+- 监控:我将跑 `await-merge` 30s 轮询 —— **你只需在平台点合并** · 合并后自动清场
+- 异常口令:平台报冲突 → 回「冲突」 · 不想合了 → 回「撤回」
 ```
+
+贴完卡片 → **跑 `state.py await-merge --feature <path>`**(30s 轮询 · MERGED → 自动 ship-finalize · WAITING → 重跑续等 · 用户随时打断改人工)。用户无需回编号 —— 合并动作本身就是确认;只有「冲突/撤回」两个异常口令需要回话。
 
 ### 6. ship2:ship-finalize(一条命令 · 在主工作区跑 · 零内容修改)
 
