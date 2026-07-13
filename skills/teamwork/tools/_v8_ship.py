@@ -1480,6 +1480,31 @@ def _git_user_email(cwd: Optional[str]) -> str:
     return r.stdout.strip() if r.returncode == 0 else ""
 
 
+def _dispatch_model_distribution(feature_dir) -> dict:
+    """v8.231:从 dispatch_log/*.md 汇总 per-agent model 分布(档位建议采纳率的观测原料)。
+
+    dispatch 文件 Meta 段有 model 字段(agents/README)· 容错解析(AI 手写 markdown · 宽松匹配
+    首个 `model: xxx` 行)。覆盖面 = 文件化 dispatch(可审计路径);未记 model 的计 unspecified
+    (= 继承会话模型 · 正是要观测的「没分档」信号)。无 dispatch_log → {}。
+    """
+    import re as _re
+    d = Path(feature_dir) / "dispatch_log"
+    if not d.is_dir():
+        return {}
+    dist: dict = {}
+    for f in sorted(d.glob("*.md")):
+        if f.name.upper() == "INDEX.MD":
+            continue
+        try:
+            head = f.read_text(encoding="utf-8", errors="replace")[:2000]
+        except OSError:
+            continue
+        m = _re.search(r"(?im)^\s*[-*]?\s*model\s*[::]\s*([^\s|,()]+)", head)
+        key = m.group(1).strip().lower() if m else "unspecified(继承会话)"
+        dist[key] = dist.get(key, 0) + 1
+    return dist
+
+
 def _triage_calibration(state: dict, wt_root: str, merge_target: str) -> dict:
     """v8.217(智能分诊 v2):分诊「预测 vs 实际」校准束 —— 台账/年检数据源。
 
@@ -1495,12 +1520,15 @@ def _triage_calibration(state: dict, wt_root: str, merge_target: str) -> dict:
     r = _git(["diff", "--name-only", f"origin/{merge_target}...HEAD"], cwd=wt_root, timeout=30)
     if r.returncode == 0:
         diff_files = len([l for l in r.stdout.splitlines() if l.strip()])
+    # v8.231:dispatch 模型分布(档位建议采纳观测 —— unspecified 占比高 = 没分档 · 年检校准原料)
+    dispatch_models = _dispatch_model_distribution(state.get("artifact_root") or "")
     return {
         "clarity": state.get("clarity") or "normal",
         "roster": adj,
         "actual_diff_files": diff_files,
         "goal_rounds": len(contracts.get("goal", {}).get("rounds") or []),
         "review_rounds": len(contracts.get("review", {}).get("rounds") or []),
+        **({"dispatch_models": dispatch_models} if dispatch_models else {}),
     }
 
 
@@ -1571,6 +1599,7 @@ def _write_audit_record(state: dict, feature_id: str, merge_target: str,
         host = state.get("host") or "未记录"
         model_suffix = (f" · 模型 {main_model}" if main_model
                         else " · 模型(未声明 · ship-finalize 传 --main-model 记录)")
+        _dm = _dispatch_model_distribution(state.get("artifact_root") or "")  # v8.231
 
         body = (
             f"---\n"
@@ -1595,7 +1624,9 @@ def _write_audit_record(state: dict, feature_id: str, merge_target: str,
             f"- 各阶段耗时:{stage_dur or '(无 duration 数据)'}\n"
             f"- 耗时分析:{stage_analysis or '?'}(总时长含阶段间等待 · 阶段总和=纯在阶段内)\n"
             f"- 用户邮箱:{user_email or '未取到'}\n"
-            f"- 主对话:host={host}{model_suffix}\n"
+            + (f"- dispatch 模型分布:{_dm}(unspecified=未分档继承会话 · 档位采纳观测 · v8.231)\n"
+               if _dm else "")
+            + f"- 主对话:host={host}{model_suffix}\n"
             f"- concerns:{len(concerns)}(WARN {warn_n})· bypass:{bypass_n}\n"
             f"- 细数据源:本 feature `project-specs/PROCESS-LEDGER.md` 行"
             f"(external 总/采/驳 · 角色真 finding · 暂停点 改:默)\n\n"

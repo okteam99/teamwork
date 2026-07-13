@@ -445,3 +445,15 @@
 
 ### 验证
 - doc-only · pytest 826 passed。
+## v8.226 · external-ingest:ultra review 摄入为第三视角(session 主路径)+ ultracode workflow 姿态
+
+> 让渡战略第一刀(评审执行让给更强的原生能力):`/code-review ultra` = 产品化多智能体独立评审(用户触发/计费/out-of-session)—— 接入为 external 第三视角的 **opt-in 增强源**。🔴 用户修正关键时序:**评审时 MR 多未创建** → 主路径 = **session 摄入**(用户在本 session 跑 ultra · findings 已在对话 · AI 转录)· paste 兜底(标 manual 降级)· pr-comments 留作 MR 窗口期增强(拉取即机器证据)。
+
+### 改动
+- **`state.py external-ingest --from session|paste|pr-comments [--label ultra]`**:归一化落盘 `external-cross-review/review-<label>.md`(frontmatter `review_via: ultra-ingest` + origin + 时间)· 过短拒收 · 🔴 **分层**:命令只做转录归一(确定性)· **裁决永远归 PMO**(emit 明示走 质疑→确认→裁决 管线 · ultra 也会 false positive · 盲采仍是反模式)。
+- **门禁两处**:yolo 冷视角判定认 `review_via ∈ {subagent, ultra-ingest}`;异质文件名白名单校验对 ultra-ingest **豁免**(它非单一模型产物 · 独立性来自 out-of-session pipeline)。
+- **review 手段菜单 +1 行**(关键/高风险改动 · 用户在场愿投入时建议);**agents/README 并行姿态 +1 句**:ultracode 开启的 session 冷审/验证 fan-out 优先用 Workflow(schema 化 findings · 契约不变 · 裁决归主对话)。
+- 战略注记:review_engine 适配层(原 v8.227)确认**不建**(2-3 路负载下负 ROI · ultracode 下 PMO 手写 workflow 即可);workflow 改投**年检工具化**(harvest/spec 审计 50-200 路 fan-out 才是甜区)。
+
+### 验证
+- `test_external_ingest_v8226` +5(session 归一/paste 降级标/过短拒/缺 URL 拒/门禁认)· pytest 831 passed。
