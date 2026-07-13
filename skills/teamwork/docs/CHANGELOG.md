@@ -4,6 +4,18 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.234 · await-merge 全模式必跑:「停 ≠ 停监控」(治 auto 停在 pushed 无人收尾)
+
+> 实证 case(KA-PAGES):auto_mode feature 停在 ship.pushed · 用户 5 分钟后合了 MR · **没人收尾**(worktree/过程目录残留)· 该 session 的 AI 还解释成「auto 不监控 MR · 只有 yolo 才会」。两层缺口:① await-merge 指令只活在 ship-stage 文档 · **push emit(AI 实际照做的那份)没提**;② SKILL「auto 也必停此暂停点」被读成「session 到此结束」。
+
+### 改动
+- **push emit 补必跑步**:贴完卡片+总结后**立即跑 `await-merge`** —— 🔴 **所有模式(普通/auto/yolo)都跑**:「停」= 不能替用户点合并 · **不是停止监控**;MERGED → 自动 ship-finalize;手动 ship-finalize 降为 await-merge 不可用时的兜底。
+- **SKILL auto_mode 表 ship1 行**:`stop` → `stop + 监控`(语义澄清 + 实证注)。
+- **ship-stage §5** auto 措辞同步。
+
+### 验证
+- emit 断言 +2(await-merge / 不是停止监控)· pytest 834 passed。
+
 ## v8.233 · ship1 输出格式修正:卡片 + 交付总结**两段定序都必含**(撤 v8.232「禁总结」过度限制)
 
 > 用户修正 v8.232 的理解偏差:不是让工具替掉总结 —— **总结是要的**(case 里那段链路/决策/解锁的内容本身有价值),要规范的是**格式结构**:URL 不能埋在总结里 · 两者都必含 · 各归其位。
@@ -48,14 +60,3 @@
 
 ### 验证
 - brief 撤净冒烟 ✓ · pytest 831 passed。
-
-## v8.229 · 冷审 dispatch 档位推进 brief(治「goal 冷审全跑主对话模型」)
-
-> 用户观察:goal 冷审实际都是主对话模型。根因 = v8.170 老病复发:档位框架(v8.225)躺 agents/README(被动)· goal/review brief 没推(主动)—— dispatch 不传 model 默认继承会话模型 · **常费而不自知**。
-
-### 改动
-- **goal brief +1 行**:dispatch 按角色性质分档 —— QA 冷审(可测性/边界 = 校验型)→ **验证档**(如 sonnet);**Architect / PL 不降档**(可行+简洁判断 · 价值前提对抗 = 深度判断)—— 三路冷审不该一刀切。
-- **review brief +1 行**:QA code review 可派验证档;架构 CR 不降档(硬边界)。
-
-### 验证
-- brief 冒烟 ✓ · pytest 831 passed。

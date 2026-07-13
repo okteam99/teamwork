@@ -1,6 +1,6 @@
 ---
 name: teamwork
-version: v8.233.1
+version: v8.234
 description: AI 协作开发一体化框架 - 需求功能开发, bug 修复, 问题排查 · /teamwork 启动
 ---
 
@@ -449,7 +449,7 @@ emit 格式:
 | blueprint DB schema 变更确认 | **skip + WARN** | 技术决策 auto 委托 AI · 但 DB 变更高风险 · PMO 必 `state.py add-concern --severity WARN --message "auto skip: DB schema change ··· tables/fields/migrations: ..."` 留 audit(便于 dev/review 复查) |
 | browser_e2e 用户看截图 | skip | 截图已入 evidence · auto 用户接受 |
 | **pm_acceptance 三选项** | **stop** | 产品决策权:approved_and_ship / approved_no_ship / rejected_with_feedback · AI 不能替用户拍板(违 R3) |
-| **ship1 终点 等平台 merge feature MR** | **stop** | 用户在 git host 平台操作 · AI 无法代办 |
+| **ship1 终点 等平台 merge feature MR** | **stop + 监控** | 用户在 git host 平台操作 · AI 无法代办 · 🔴 v8.234:stop = 不替用户点合并 · **仍必须跑 `await-merge` 轮询**(所有模式 · MERGED → 自动 ship-finalize)—— 否则用户合了没人收尾(worktree 残留 · 实证 case) |
 
 🔴 **skip + WARN 行为**:PMO 跳过暂停点 · 但 `state.py add-concern --severity WARN` 写一条 audit 锚定 AI 自决的范围(防 audit 看不到 / 后续复查无迹)。
 

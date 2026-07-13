@@ -64,7 +64,7 @@ state.py ship-phase --action push --feature <path> \
 ### 5. ⏸️ ship1 终点 · 提示用户合并 MR(R5 标准暂停点)
 
 🔴 **feature 的 ship 到此结束** —— 归档/翻牌/终态已全部在这个 MR 里。
-🔴 **`auto_mode=true` 也必停此暂停点** —— 用户需在 git host 平台手动 merge · AI 无法代办(详 [SKILL.md § auto_mode=true 时各暂停点行为](../SKILL.md))。
+🔴 **`auto_mode=true` 也必停此暂停点** —— 用户需在 git host 平台手动 merge · AI 无法代办;🔴 v8.234:**停 ≠ 停监控** —— 所有模式(普通/auto/yolo)贴完输出后都必须跑 `await-merge`(合并后自动 ship-finalize · 治「auto 停在 pushed · 用户合了没人收尾」实证 case)(详 [SKILL.md § auto_mode=true 时各暂停点行为](../SKILL.md))。
 
 🔴 **输出格式规范(v8.232/233)**:ship1 暂停点输出 = **两段定序 · 都必含** —— ① MR 卡片(URL 置顶)② 交付总结。治实证 case:总结写在前、URL 埋进段落 · 用户被迫问「地址发出来啊」。**次序不可倒 · URL 必独立行**:
 

@@ -478,3 +478,13 @@
 
 ### 验证
 - doc-only · pytest 831 passed。
+## v8.229 · 冷审 dispatch 档位推进 brief(治「goal 冷审全跑主对话模型」)
+
+> 用户观察:goal 冷审实际都是主对话模型。根因 = v8.170 老病复发:档位框架(v8.225)躺 agents/README(被动)· goal/review brief 没推(主动)—— dispatch 不传 model 默认继承会话模型 · **常费而不自知**。
+
+### 改动
+- **goal brief +1 行**:dispatch 按角色性质分档 —— QA 冷审(可测性/边界 = 校验型)→ **验证档**(如 sonnet);**Architect / PL 不降档**(可行+简洁判断 · 价值前提对抗 = 深度判断)—— 三路冷审不该一刀切。
+- **review brief +1 行**:QA code review 可派验证档;架构 CR 不降档(硬边界)。
+
+### 验证
+- brief 冒烟 ✓ · pytest 831 passed。

@@ -83,3 +83,5 @@ class TestShip1UserCardV8232(unittest.TestCase):
         self.assertTrue(lines[1].startswith("🔗 http://git.example.com/mr/757"))  # URL 第二行(标题后首信息)
         self.assertIn("交付总结", out["next_action_brief"])   # v8.233:卡片+总结两段定序 · 都必含
         self.assertIn("次序不可倒", out["next_action_brief"])
+        self.assertIn("await-merge", out["next_action_brief"])   # v8.234:所有模式必跑监控
+        self.assertIn("不是停止监控", out["next_action_brief"])
