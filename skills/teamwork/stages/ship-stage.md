@@ -64,26 +64,27 @@ state.py ship-phase --action push --feature <path> \
 ### 5. ⏸️ ship1 终点 · 提示用户合并 MR(R5 标准暂停点)
 
 🔴 **feature 的 ship 到此结束** —— 归档/翻牌/终态已全部在这个 MR 里。
-🔴 **`auto_mode=true` 也必停此暂停点** —— 用户需在 git host 平台手动 merge · AI 无法代办(详 [SKILL.md § auto_mode=true 时各暂停点行为](../SKILL.md))。
+🔴 **`auto_mode=true` 也必停此暂停点** —— 用户需在 git host 平台手动 merge · AI 无法代办;🔴 v8.234:**停 ≠ 停监控** —— 所有模式(普通/auto/yolo)贴完输出后都必须跑 `await-merge`(合并后自动 ship-finalize · 治「auto 停在 pushed · 用户合了没人收尾」实证 case)(详 [SKILL.md § auto_mode=true 时各暂停点行为](../SKILL.md))。
+
+🔴 **输出格式规范(v8.232/233)**:ship1 暂停点输出 = **两段定序 · 都必含** —— ① MR 卡片(URL 置顶)② 交付总结。治实证 case:总结写在前、URL 埋进段落 · 用户被迫问「地址发出来啊」。**次序不可倒 · URL 必独立行**:
 
 ```markdown
-⏸️ ship1 完成 · feature MR 已创建(含代码 + 归档 + 规划翻牌)· 等用户在平台 review + 合并
-🔴 v8.198:emit 本提示后**跑 `state.py await-merge --feature <path>`**(30s 轮询 · MERGED → 自动 ship-finalize · WAITING → 重跑续等 · 用户随时可打断改人工)—— 等待窗不再无人看(治 132h 长尾 / CI 红无人接)
+⏸️ **ship1 完成 · 请合并 MR**
 
-请选择:
+🔗 <MR URL>                                    ← 第一屏第一信息 · 独立行 · 裸链接
 
-1. ✅ **已合并** 💡 推荐(若你刚点 merge)
-   动作:回 `1` → PMO cd 主工作区 · 跑 `ship-finalize`(ship2 清场)
-2. ⏳ **暂未合并 / 还在 review**
-   动作:无需操作 · 任意时刻回来回 `1` 继续
-3. ⚠️ **平台报冲突(别的 feature 先合了)**
-   动作:回 `冲突` → PMO 回 worktree 重跑 `--action archive`(自动 sync · INDEX 机械解 ·
-   代码冲突 AI 处理)→ `git push` → MR 更新 → 你再合并
-4. ❌ **撤回 / 关闭 MR**
-   动作:回 `撤回` → close-unmerged(`--abandon=true` 终态 / false 留口子)
+- 分支:`<feature 分支>` → `<merge_target>`
+- 包含:代码 + 归档 + 规划翻牌(随本 MR 原子合入)
+- 监控:我将跑 `await-merge` 30s 轮询 —— **你只需在平台点合并** · 合并后自动清场
+- 异常口令:平台报冲突 → 回「冲突」 · 不想合了 → 回「撤回」
 
-📚 决策参考:MR URL = <url> · 平台 review 状态 / CI 结果
+📦 **交付总结**(AI 写 · 三槽结构):
+- 链路:<一行走过的流程 · 如 goal 3 轮冷审(拍板 D-1/D-2)→ blueprint 3 视角 → dev 38m/36 tests → review 18 findings 全处置 → test 9/9>
+- 关键决策与遗留:<用户拍板项 · deferred/ARCH-C3 类随验收呈报项 | 无>
+- 合并后解锁:<下游 BL/feature · 如 S5、S11 随本 MR 解锁 | 无>
 ```
+
+卡片段可直接用 push emit 的 `user_card`(工具生成 · URL/分支不抄错);总结段 AI 照实写(照抄落盘产物 · 不美化)。贴完 → **跑 `state.py await-merge --feature <path>`**(30s 轮询 · MERGED → 自动 ship-finalize)。用户无需回编号 —— **合并动作本身就是确认**;仅「冲突/撤回」两个异常口令需要回话。
 
 ### 6. ship2:ship-finalize(一条命令 · 在主工作区跑 · 零内容修改)
 
