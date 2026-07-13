@@ -6,7 +6,7 @@
 - read_skill_version(ok / missing / no-frontmatter / version-field-missing)
 - maintain_project_skeletons(创建/已存在/失败)
 - check_host_injection(注入段 ok / missing / file_missing)
-- check_skill_update + 24h TTL 缓存(命中不外呼)
+- check_skill_update + 8h TTL 缓存(命中不外呼 · v8.237)
 - hooks 退役清理(v8.213 签名守卫)· external-review-logs 保留策略
 - cmd_session_bootstrap 端到端(silent emit JSON · flow_gates 四字段)
 
@@ -1100,7 +1100,7 @@ class TestCheckSkillUpdate(unittest.TestCase):
 
 
 class TestUpdateCheckTTLCache(unittest.TestCase):
-    """升级检测 24h TTL 缓存(localconfig._bootstrap)· 治本每 session 无条件外呼 GitHub。
+    """升级检测 8h TTL 缓存(localconfig._bootstrap · v8.237)· 治本每 session 无条件外呼 GitHub。
 
     验证不外呼的手法:TEAMWORK_SKILL_UPDATE_URL 指向不存在的 file:// —— 真发请求
     必得 network_failed · 若返回缓存态(如 up_to_date)即证明没发请求。
@@ -1139,7 +1139,7 @@ class TestUpdateCheckTTLCache(unittest.TestCase):
                 ).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     def test_cache_hit_within_ttl_no_network_request(self):
-        """24h 内命中缓存 → 直接返回上次结果 · 不发请求(URL 坏也不见 network_failed)。"""
+        """TTL 内命中缓存 → 直接返回上次结果 · 不发请求(URL 坏也不见 network_failed)。"""
         import bootstrap  # type: ignore
         self._write_cache(self._iso_hours_ago(1), {
             "status": "up_to_date", "local_version": "v8.1",
@@ -1149,7 +1149,7 @@ class TestUpdateCheckTTLCache(unittest.TestCase):
         self.assertTrue(d.get("from_cache"), "命中必标 from_cache")
 
     def test_cache_expired_refetches_and_rewrites(self):
-        """超 24h → 重新实查(fake URL → network_failed)· 并回写新缓存。"""
+        """超 TTL → 重新实查(fake URL → network_failed)· 并回写新缓存。"""
         import bootstrap  # type: ignore
         self._write_cache(self._iso_hours_ago(25), {
             "status": "up_to_date", "local_version": "v8.1",
