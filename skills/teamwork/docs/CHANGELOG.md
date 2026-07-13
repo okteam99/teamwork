@@ -4,6 +4,16 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.237 · 升级检测缓存 TTL 24h → 8h(治缓存掩新版)
+
+> 实证 case:发版节奏快(12 小时内 dev 推进 8 个 minor)· bootstrap 升级检测的 24h TTL 缓存命中 → 报 `up_to_date(from_cache)` · 实际已落后。用户拍板:TTL 改 8 小时。
+
+### 改动
+- `SKILL_UPDATE_CHECK_TTL_HOURS = 24 → 8`(失效条件不变:超 TTL / 无缓存 / 时钟回拨 / 本地版本或 channel 变 / `TEAMWORK_FORCE_UPDATE_CHECK=1` 强制实查)· 注释与测试措辞同步(测试逻辑用常量 · 零断言改)。
+
+### 验证
+- pytest 834 passed。
+
 ## v8.236 · dev brief 补并行提示(开工先问哪些模块可并行)+ 修 stale 措辞
 
 > 用户问:dev brief 有提醒用 subagent/teammate/workflow 么?查实:**没有** —— 并行规则全在 SKILL 全局/agents/README(被动),而 dev 恰是并行红利最大的 stage(多端/多模块实现);顺带抓到 brief「详细步骤 6 步 + 注意事项 5 条」是 v8.218 四段重构前的 stale 旧话。
@@ -48,15 +58,3 @@
 
 ### 验证
 - pytest 834 passed。
-
-## v8.232 · ship1 终点输出物化为 user_card(URL 置顶 · 工具生成 · AI 原样贴)
-
-> 实证 case(SVC-PLATFORM offer-goals):ship1 收尾 AI 自由发挥写「本轮总结」长段 · **MR URL 埋进段落** · 用户被迫问「你把 mr 地址发出来啊」。spec 旧模板也把 URL 放最底部「决策参考」行。暂停点内容要**易消费**:第一屏第一信息 = 用户要点的那个链接。
-
-### 改动
-- **push emit 加 `user_card`**(工具确定性生成 · 🔴 AI **原样贴给用户 · 禁自写总结段**):标题行 → **🔗 MR URL 独立行置顶** → 分支/包含/监控/异常口令各一行;交付摘要要加 → 卡片之后 ≤3 行。next_action_brief 首条指令 = 贴卡片。
-- **ship-stage §5 模板重写**:旧「四选项 + URL 沉底」→ 卡片契约 + await-merge 语义收敛(用户无需回编号 —— **合并动作本身就是确认**;仅「冲突/撤回」两个异常口令需要回话)。
-- 卡片构造容错(无 feature 路径/git 失败 → 占位符 · 不阻塞 push)。
-
-### 验证
-- `user_card` URL 置顶断言 +1 · pytest 834 passed。

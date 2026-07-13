@@ -980,14 +980,14 @@ def check_skill_update(local_version: str,
     }
 
 
-# ─── 升级检测 24h TTL 缓存(治本每 session 无条件外呼 GitHub) ─────────
+# ─── 升级检测 8h TTL 缓存(治本每 session 无条件外呼 GitHub · v8.237 24h→8h:实证 12h 内落后 8 个 minor 仍报 up_to_date) ─────────
 #
 # 缓存落 localconfig._bootstrap(工具维护段):
 #   last_update_check_at(ISO)+ last_update_check_result(上次完整结果)
 # 24h 内且 local_version / channel 未变 → 直接返回缓存 · 不发网络请求。
 # TEAMWORK_FORCE_UPDATE_CHECK=1 强制实查(debug / 用户主动查新)。
 
-SKILL_UPDATE_CHECK_TTL_HOURS = 24
+SKILL_UPDATE_CHECK_TTL_HOURS = 8  # v8.237:24→8(用户拍板 · 发版节奏快 · 24h 掩新版)
 SKILL_UPDATE_FORCE_ENV = "TEAMWORK_FORCE_UPDATE_CHECK"
 
 
@@ -1039,7 +1039,7 @@ def _write_update_check_cache(project_root: Path, result: dict) -> None:
 
 def check_skill_update_cached(local_version: str, channel: str,
                               project_root: Path) -> dict:
-    """check_skill_update 的 24h TTL 缓存皮(缓存键 = local_version + channel)。"""
+    """check_skill_update 的 8h TTL 缓存皮(缓存键 = local_version + channel · v8.237 24h→8h)。"""
     hit = _cached_update_check(
         read_bootstrap_marker(project_root), local_version, channel)
     if hit is not None:
@@ -1367,7 +1367,7 @@ def cmd_session_bootstrap(args: argparse.Namespace) -> None:
         })
 
     # 检测 GitHub 上 skill 最新版本 · 落后 emit R5 1/2 选项暂停点
-    # 24h TTL 缓存(localconfig._bootstrap)· 网络失败 silent skip 不阻塞 ·
+    # 8h TTL 缓存(localconfig._bootstrap · v8.237)· 网络失败 silent skip 不阻塞 ·
     # TEAMWORK_FORCE_UPDATE_CHECK=1 强制实查 · channel 可配 update_channel
     if skill_version:
         channel = _read_update_channel(project_root)
