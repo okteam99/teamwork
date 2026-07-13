@@ -420,7 +420,7 @@ def _goal_brief(state: dict) -> str:
     return f"""## Goal Stage
 
 ### 目标
-PM 调研(自答优先)· 起草 PRD · 🔴 **并行派 3 个隔离 Agent 冷审**(QA/Architect/PL · 防鼓掌锚定)· (条件)早问门 · PM 整合修订 · 冷审循环收敛 · 用户确认 · 决策是否需要 UI。\n🔴 v8.216 评审配置动态化:冷审派谁 = **按 `state.stage_review_roles.goal`**(prepare 已按「角色价值判据」逐角色判定 · 非按 clarity 一刀切)—— roster 里没有的角色 gate 自动放行(如去 pl → PL 质疑免)· 调整用 `change-review-roles --reason`(审计留痕)· PRD 照写(术语/决策沉淀载体)。\n🔴 v8.229 dispatch 模型档位(不传 model = 继承会话模型 · 常费而不自知):**按角色性质分档** —— QA 冷审(可测性/边界 = 校验型)→ **验证档**(如 `model: sonnet`);Architect(可行+简洁判断)与 PL(价值前提对抗质疑 = 深度判断)→ **不降档**(会话/深度档)。档位框架详 agents/README §一。
+PM 调研(自答优先)· 起草 PRD · 🔴 **并行派 3 个隔离 Agent 冷审**(QA/Architect/PL · 防鼓掌锚定)· (条件)早问门 · PM 整合修订 · 冷审循环收敛 · 用户确认 · 决策是否需要 UI。\n🔴 v8.216 评审配置动态化:冷审派谁 = **按 `state.stage_review_roles.goal`**(prepare 已按「角色价值判据」逐角色判定 · 非按 clarity 一刀切)—— roster 里没有的角色 gate 自动放行(如去 pl → PL 质疑免)· 调整用 `change-review-roles --reason`(审计留痕)· PRD 照写(术语/决策沉淀载体)。
 
 ### 结果(完成判定)
 - `PRD.md`(frontmatter:`acceptance_criteria` + `revision_history`)
@@ -2248,7 +2248,7 @@ def _review_brief(state: dict) -> str:
 - `REVIEW-arch.md` + `REVIEW-qa.md`
 - `{{artifact_root}}/external-cross-review/*.md`(至少 1 份)
 
-### 怎么做\n🔴 v8.229 dispatch 档位:QA code review(AC 对照 = 校验型)可派**验证档** subagent;架构 CR **不降档**(硬边界 · agents/README §一)· 不传 model = 继承会话模型。
+### 怎么做
 **必读** `stages/review-stage.md`(评审步骤 + 收敛协议:severity 门槛 / 验证轮 / 轮次预算)。
 🔴 **finding 处理默认姿态=质疑**(不盲目认同):逐条 先质疑(过度设计/错层/false positive)→ 回读真实代码确认 → 才 confirmed/rejected · **两个方向都给实证**:采纳给「为何确为真+为何这样改对」· 驳回给「为何不是问题」·「reviewer 说得对」与「我觉得没事」都不是理由(详 standards/external-model-usage.md §12)。
 

@@ -4,6 +4,17 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.230 · dispatch 档位上移 SKILL 全局规则(撤 goal/review brief 散点 · 单源)
+
+> 用户裁定:档位选择是**横切关注点**(任何 stage 任何 dispatch 适用)· 该放 SKILL.md 全局 · 不该散在 goal brief —— v8.229 的两处 brief 行是三处重复(agents/README 表 + 两 brief)· 必漂。
+
+### 改动
+- **SKILL subagent/teammate 条目追加「🎚️ dispatch 档位(全局规则)」**:不传 model = 继承会话模型(常费不自知)→ 派前按任务性质定档(校验/枚举型 → 验证档;判断/创造型 → 不降档)· 档位表与硬边界**单源 = agents/README §一**。
+- **撤 v8.229 两处 brief 行**(goal/review)—— PMO 任何 dispatch 都在 SKILL 语境下 · 全局条目即消费点 · brief 保持极简。
+
+### 验证
+- brief 撤净冒烟 ✓ · pytest 831 passed。
+
 ## v8.229 · 冷审 dispatch 档位推进 brief(治「goal 冷审全跑主对话模型」)
 
 > 用户观察:goal 冷审实际都是主对话模型。根因 = v8.170 老病复发:档位框架(v8.225)躺 agents/README(被动)· goal/review brief 没推(主动)—— dispatch 不传 model 默认继承会话模型 · **常费而不自知**。
@@ -50,16 +61,3 @@
 
 ### 验证
 - `test_external_ingest_v8226` +5(session 归一/paste 降级标/过短拒/缺 URL 拒/门禁认)· pytest 831 passed。
-
-## v8.225 · 模型档位判断框架(任务性质→档)+ 并行姿态翻转(鼓励 subagent/teammate)
-
-> 用户两提案合一:① skill 层加模型建议(规划/方案/关键评审用高档 · 代码用执行档 · 测试验证用轻档 · GPT 同理);② 鼓励多用 subagent/teammate 提并行度。形态守 v8.194/216 判例:**「任务性质 → 档位」判断框架 · 非「stage → 型号」映射**(型号随代际漂移 · 跨宿主不通 · 逐 stage 映射是规则不是判断)。
-
-### 改动
-- **agents/README §一 重写为档位表**:深度档(创造+深度判断:规划/TECH/架构 CR/PRD/诊断/关键裁决)· 执行档(实现 · 主对话继承即是)· 验证档(校验/枚举:TC 对照/测试执行/机械外化)—— 型号列仅当前映射示例(Claude: Fable/Opus↔会话↔Sonnet/Haiku · GPT 对应档)+ 每档标**典型并行形态**。
-- **三条硬边界**:架构 CR 与关键裁决不降档;**评审独立性优先于档位**(两个轻模型冷审 > 一个强模型热审);主对话模型 = 用户主权(AI 只建议)。
-- **并行姿态翻转**(SKILL subagent 条目):从「⚠️ 非默认 · 不过度使用」改为「**默认考虑:每 stage 开工先问哪些子任务可并行**」(冷审 N 路同发/多模块 teammate/调研 fan-out)· 护栏原样(边界清晰且够大/worktree 路径/**流转与整合永归主对话**)。
-- **prepare §1.4**:关键 Feature 建议主对话深度档 + prepare 时标出可并行子任务。台账 host+model(v8.208/209)= 档位建议的年检校准数据源。
-
-### 验证
-- doc-only · pytest 826 passed。
