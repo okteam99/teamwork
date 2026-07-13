@@ -108,12 +108,49 @@ AGILE_FLOW: dict[str, list[str]] = {
 }
 
 # Feature Planning / 问题排查 不进状态机:由 PMO 主对话执行(详 docs/feature-planning.md)
+# v8.220(用户拍板 · 直接到位):对外 flow_type 收缩为 {Feature, Bug} —— 敏捷需求/Micro 是
+# 「同一种工作的重量档」非独立工作形态(audit 实测合计仅 11%)· 降为 Feature 的 **preset**
+# (full/lite/micro · 链与角色由 preset 决定)。内部转移图保留三份(行为等价 · 存量零迁移)。
 FLOW_BY_TYPE = {
-    "Feature": FEATURE_FLOW,
+    "Feature": FEATURE_FLOW,          # = preset full
+    "Feature:lite": AGILE_FLOW,       # 原 敏捷需求
+    "Feature:micro": MICRO_FLOW,      # 原 Micro
     "Bug": BUG_FLOW,
-    "Micro": MICRO_FLOW,
-    "敏捷需求": AGILE_FLOW,
 }
+
+PUBLIC_FLOW_TYPES = ("Feature", "Bug")
+# v8.223:lite 退役 —— blueprint_lite 并入 blueprint 后 · lite 链 = Feature 链的 needs-ui=false 剖面
+# (冗余);轻量由动态 roster + clarity 承担。preset 只剩 full/micro(micro 有真结构差:跳 review/test)。
+FEATURE_PRESETS = ("full", "micro")
+# legacy 名映射:敏捷需求 → Feature·full(轻量走 roster/clarity)· Micro → Feature·micro。
+# 存量 state.json preset=lite 仍被 resolve_flow_graph/internal_flow_key 兼容(旧图走完 · 不断链)。
+LEGACY_FLOW_ALIASES = {"敏捷需求": ("Feature", "full"), "Micro": ("Feature", "micro")}
+
+
+def resolve_flow_graph(flow_type: str, preset: str = "full") -> dict:
+    """按 (flow_type, preset) 解析转移图 · legacy flow_type 自动归一。"""
+    if flow_type in LEGACY_FLOW_ALIASES:
+        flow_type, preset = LEGACY_FLOW_ALIASES[flow_type]
+    if flow_type == "Feature" and preset in ("lite", "micro"):
+        return FLOW_BY_TYPE[f"Feature:{preset}"]
+    return FLOW_BY_TYPE.get(flow_type, {})
+
+
+def internal_flow_key(flow_type: str, preset: str = "full") -> str:
+    """(public 或 legacy)flow → 内部图/表键(敏捷需求/Micro 键保留 · v8.222 物化校验统一入口)。"""
+    ft, pre = normalize_flow(flow_type, preset)
+    if ft == "Feature" and pre == "lite":
+        return "敏捷需求"
+    if ft == "Feature" and pre == "micro":
+        return "Micro"
+    return ft
+
+
+def normalize_flow(flow_type: str, preset: str = None):
+    """(legacy 或新)flow_type → (public_flow_type, preset)。"""
+    if flow_type in LEGACY_FLOW_ALIASES:
+        return LEGACY_FLOW_ALIASES[flow_type]
+    return flow_type, (preset or "full")
 
 # 不进状态机的流程类型(init-feature 拒绝创建 state.json · PMO 主对话直接执行)
 NON_STATE_MACHINE_FLOWS = {"Feature Planning", "问题排查"}
@@ -329,10 +366,10 @@ def validate_state(state: dict[str, Any]) -> list[str]:
         errors.append(f"current_stage 非法值: {cur!r} ∉ {sorted(LEGAL_STAGES)}")
 
     flow_type = state.get("flow_type")
-    if flow_type not in FLOW_BY_TYPE:
+    if flow_type not in PUBLIC_FLOW_TYPES and flow_type not in LEGACY_FLOW_ALIASES:
         errors.append(
-            f"flow_type 非法值: {flow_type!r} ∉ {sorted(FLOW_BY_TYPE)}"
-            "(不进状态机的流程类型不应有 state.json)"
+            f"flow_type 非法值: {flow_type!r} ∉ {list(PUBLIC_FLOW_TYPES)}"
+            "(legacy 敏捷需求/Micro 自动归一 · 不进状态机的流程类型不应有 state.json)"
         )
 
     completed = state.get("completed_stages") or []
@@ -977,6 +1014,60 @@ def _canonical_ledger_header():
     return None
 
 
+def cmd_external_ingest(args: argparse.Namespace) -> None:
+    """v8.226:把「外部评审结果」摄入为标准第三视角产物(external-cross-review/review-<label>.md)。
+
+    信源三模式(实证:评审时 MR 多未创建 · 会话内为主):
+    - session(主路径):用户在本 session 跑 /code-review ultra · findings 已在对话 →
+      AI 先把 findings 忠实转录到 --input-file · 本命令归一化落盘(frontmatter + 校验)。
+    - paste(兜底):用户从别处粘贴 → 同 session 但 origin 标 manual-paste(降级语义)。
+    - pr-comments(MR 窗口期增强):gh/glab API 拉取 · 拉取即机器证据(伪造不了)。
+    🔴 分层:本命令只做**转录归一层**(确定性);裁决(质疑→确认→裁决 · 进 findings 台账)永远归 PMO。
+    """
+    feature_dir = Path(args.feature).resolve()
+    out_dir = feature_dir / "external-cross-review"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    label = (args.label or "ultra").strip()
+    mode = args.source
+    body, origin, extra = "", mode, {}
+    if mode == "pr-comments":
+        if not args.mr_url:
+            emit({"verdict": "FAIL", "action": "external-ingest",
+                  "error": "--from pr-comments 需 --mr-url"}); return
+        import subprocess as _sp
+        if "github.com" in args.mr_url:
+            r = _sp.run(["gh", "pr", "view", args.mr_url, "--comments"],
+                        capture_output=True, text=True, timeout=60)
+        else:
+            r = _sp.run(["glab", "mr", "note", "list", args.mr_url],
+                        capture_output=True, text=True, timeout=60)
+        if r.returncode != 0 or not r.stdout.strip():
+            emit({"verdict": "FAIL", "action": "external-ingest",
+                  "error": f"PR comments 拉取失败/为空:{(r.stderr or '')[:120]}",
+                  "hint": "确认 MR 存在且 gh/glab 已登录 · 或改用 --from session(评审窗口常无 MR)"}); return
+        body = r.stdout
+        extra = {"source_url": args.mr_url, "fetch_evidence": "cli-fetch(机器证据)"}
+    else:
+        if not args.input_file or not Path(args.input_file).is_file():
+            emit({"verdict": "FAIL", "action": "external-ingest",
+                  "error": "--from session/paste 需 --input-file <AI 已转录的 findings 文件>"}); return
+        body = Path(args.input_file).read_text(encoding="utf-8", errors="replace")
+        origin = "in-session" if mode == "session" else "manual-paste(降级 · 无机器证据)"
+    if len(body.strip()) < 40:
+        emit({"verdict": "FAIL", "action": "external-ingest",
+              "error": "内容过短(<40 字)· 不像有效评审结果"}); return
+    out = out_dir / f"review-{label}.md"
+    fm = (f"---\nreview_via: ultra-ingest\norigin: {origin}\nlabel: {label}\n"
+          f"heterogeneous: multi-agent-pipeline\ningested_at: \"{now_iso()}\"\n"
+          + "".join(f"{k}: {v}\n" for k, v in extra.items()) + "---\n\n")
+    out.write_text(fm + body.strip() + "\n", encoding="utf-8")
+    emit({"verdict": "OK", "action": "external-ingest", "artifact": str(out),
+          "origin": origin, "chars": len(body),
+          "next_action_brief": ("🔴 转录已落盘(原料层)· PMO 现在走**裁决管线**:逐条 质疑→确认→裁决"
+                                "(confirmed/rejected/deferred 带实证)→ 裁决结果进 REVIEW.md findings 台账 · "
+                                "ultra 也会 false positive · 盲采仍是反模式(§12)")})
+
+
 def cmd_ledger_migrate(args: argparse.Namespace) -> None:
     """v8.210:PROCESS-LEDGER 旧 schema → 升级表头(幂等)。
 
@@ -1599,8 +1690,12 @@ def cmd_init_feature(args: argparse.Namespace) -> None:
     # 防「先移走旧 state.json → 后续 cwd/worktree 校验 die → 旧状态已被毁」。
 
     feature_dir.mkdir(parents=True, exist_ok=True)
+    # v8.220/222:legacy flow_type 先归一(敏捷需求→Feature+lite · Micro→Feature+micro)·
+    # 查表用内部键(归一后直接查会让 micro 错拿 goal)
+    _pub_flow, _preset = normalize_flow(args.flow_type, getattr(args, "preset", None))
+    args.flow_type = _pub_flow  # 后续逻辑(角色矩阵/emit)统一走归一值
     initial_stage = args.initial_stage or DEFAULT_INITIAL_STAGE.get(
-        args.flow_type, "goal"
+        internal_flow_key(args.flow_type, _preset), "goal"
     )
 
     # 启发式校验：basename 应含 feature_id（防 --feature 传了 slug 而不是完整路径）
@@ -1616,6 +1711,8 @@ def cmd_init_feature(args: argparse.Namespace) -> None:
     state: dict[str, Any] = {
         "feature_id": args.feature_id,
         "bl": getattr(args, "bl", None) or None,  # v8.196:承接的 BL(F↔BL 机读绑定 · 链路最脆一环治本)
+        "clarity": getattr(args, "clarity", "normal") or "normal",  # v8.215:明确度 → 评审强度比例化
+        "preset": _preset,  # v8.220:Feature 重量档(full/lite/micro)· 链与角色由它决定
         "sub_project": args.sub_project or "",
         "flow_type": args.flow_type,
         "artifact_root": str(feature_dir),  # v7.3.10+P0-149: 单源 · 不再独立 --artifact-root
@@ -1656,7 +1753,7 @@ def cmd_init_feature(args: argparse.Namespace) -> None:
     # v8.0+P0-9:按 flow_type 填默认 stage_review_roles + adjustments audit list
     try:
         from _v8_engine import build_default_stage_review_roles
-        state["stage_review_roles"] = build_default_stage_review_roles(args.flow_type)
+        state["stage_review_roles"] = build_default_stage_review_roles(args.flow_type, _preset)
         state["stage_review_roles_adjustments"] = []
     except ImportError:
         pass
@@ -1971,7 +2068,7 @@ def cmd_reset_prev(args: argparse.Namespace) -> None:
     # started_at 保留(stage 开始时间不变)
 
     # 5. legal_next_stages 重算
-    flow_graph = FLOW_BY_TYPE.get(state.get("flow_type"), {})
+    flow_graph = resolve_flow_graph(state.get("flow_type") or "", state.get("preset") or "full")
     state["legal_next_stages"] = flow_graph.get(last_completed, [])
 
     # 6. 自动 concerns WARN(audit 透明)
@@ -2115,8 +2212,9 @@ def cmd_prepare_check(args: argparse.Namespace) -> None:
 
     # flow_type → artifact ID 字母(详 docs/conventions.md §1)
     # Feature / 敏捷需求 共用 F · Bug=B · Micro=M · 缺省 F(--flow-type 漏传时向后兼容)
-    _FLOW_ID_LETTER = {"Feature": "F", "敏捷需求": "F", "Bug": "B", "Micro": "M"}
-    id_letter = _FLOW_ID_LETTER.get(args.flow_type or "", "F")
+    # v8.220:ID 字母收敛 F/B(Micro 的 M 退役 · legacy 归一后即 Feature)
+    _pub_ft, _ = normalize_flow(args.flow_type or "Feature")
+    id_letter = "B" if _pub_ft == "Bug" else "F"
 
     # 扫匹配 <PREFIX>-<字母><NNN>* 目录(字母由 flow_type 定)
     pattern = re.compile(rf"^{re.escape(prefix)}-{id_letter}(\d+)")
@@ -2150,6 +2248,11 @@ def cmd_prepare_check(args: argparse.Namespace) -> None:
         "features_root": str(root),
         "feature_id_prefix": prefix,
         "id_letter": id_letter,
+        # v8.221:对外词汇 = Feature/Bug + preset(配置面板照抄:flow=Feature · preset=micro)
+        "flow_type_public": normalize_flow(args.flow_type or "Feature")[0] if args.flow_type else None,
+        "preset": normalize_flow(args.flow_type or "Feature")[1] if args.flow_type else None,
+        "config_line_hint": ("⚙️ 配置行词汇(v8.220):flow=<Feature|Bug>[ · preset=<lite|micro>(非 full 时标)]"
+                             " · branch 前缀统一 feature/(Bug=fix/)· ID 统一 F/B(M 已退役)"),
         "existing_ids": existing_ids,
         "existing_count": len(existing_ids),
         "id_strategy": id_strategy,
@@ -2172,17 +2275,21 @@ def cmd_prepare_check(args: argparse.Namespace) -> None:
         try:
             sys.path.insert(0, str(Path(__file__).resolve().parent))
             from _v8_engine import build_stage_chain_preview, FLOW_STAGE_CHAIN
+            # v8.221:legacy 名归一 → 链键(敏捷需求/Micro 是 Feature 的 preset)
+            _pub, _pre = normalize_flow(args.flow_type)
+            _chain_key = (args.flow_type if args.flow_type in FLOW_STAGE_CHAIN
+                          else {"lite": "敏捷需求", "micro": "Micro"}.get(_pre, "Feature"))
         except ImportError as e:
             payload["stage_chain_preview_error"] = str(e)
         else:
-            if args.flow_type not in FLOW_STAGE_CHAIN:
+            if _chain_key not in FLOW_STAGE_CHAIN:
                 payload["stage_chain_preview_error"] = (
                     f"flow_type '{args.flow_type}' 不支持 stage chain 预览 · "
                     f"支持: {sorted(FLOW_STAGE_CHAIN)}(Feature Planning / 问题排查 不进状态机 · 无 chain)"
                 )
             else:
                 payload["flow_type"] = args.flow_type
-                payload["stage_chain_preview"] = build_stage_chain_preview(args.flow_type)
+                payload["stage_chain_preview"] = build_stage_chain_preview(_chain_key)
 
     # v8.15:admission 校验(治本 F001 GCP gateway case · AI 不读 prepare.md §2.1/§2.2)
     # 设计:工具不扫关键词 regex(伪枚举 · 死板 · 误判)· 而是强制 AI 必传判断结果(judgment)
@@ -2206,6 +2313,30 @@ def cmd_prepare_check(args: argparse.Namespace) -> None:
     # 4 个核心问题 · 软提示 AI 在 emit prepare 暂停点时基于此给思考后的 reviewer 预估
     # 不强制 JSON 必传(Option A · 用户拍板)· 不像 v8.15 admission_judgment 物化
     payload["reviewer_thinking_checklist"] = REVIEWER_THINKING_CHECKLIST
+    # v8.215:分诊证据先行(智能分诊 v1)——「看过再判」:30 秒侦察后填证据 · 空着不给判。
+    # clarity 解耦「大」和「不确定」:改动面大→Feature 骨架;不确定性低→评审走轻档。
+    payload["triage_evidence"] = {
+        "🔴": "PMO 侦察(grep 候选改动面 / 查 KNOWLEDGE / 新依赖)后逐项填 · 凭证据判 clarity · 不猜",
+        "estimated_files": "<侦察后填数量级 · 如 ~12>",
+        "cross_repo": "<true/false>",
+        "new_deps": "<新依赖清单 或 无>",
+        "has_ui": "<true/false>",
+        "mechanical": "<true/false · 机械映射类(外化/重命名/迁移/升级)且无新业务行为>",
+        "clarity": "<explicit/normal/ambiguous · 判定标准:用户给出明确方案 或 mechanical=true → explicit;"
+                   "一句话含方向词/多方案可选 → ambiguous;其余 normal>",
+        "consumption": "🔴 v8.216 动态决策:凭上述证据 · 按 role_value_criteria **逐 stage 逐角色**判「对本 feature 有没有值」"
+                       "→ 配 stage_review_roles(init 后 `change-review-roles --stage X --roles ... --reason ...` · 审计留痕 · "
+                       "gate 按 roster 自动放行/校验)· 可去 pl 也可去 qa/architect/external(带理由)· "
+                       "clarity 传 `init-feature --clarity` 仅记录进 state(台账/年检校准 · 不触发硬编码行为)",
+    }
+    # v8.216:角色价值判据(给 AI 的判断框架 · 非规则)—— 逐角色问「这个视角对本 feature 能拦住什么」
+    payload["role_value_criteria"] = {
+        "pl": "需求有价值前提/范围可质疑吗?(用户明说要做的机械改动 → 无 · 新能力/改行为 → 有)",
+        "qa": "有边界条件/AC 可测性风险吗?(纯文案/配置 → 弱 · 有状态/并发/输入面 → 强)",
+        "architect": "有架构决策/跨模块影响吗?(单文件机械改 → 弱 · 新依赖/改契约/跨层 → 强)",
+        "external": "多触发点/高风险/同模型盲区值得异质或冷视角吗?(≥3 模块触发 · 或核心链路)",
+        "🔴": "每角色给一行理由(有值留 · 无值去)· review stage 从严(拦真主力 · 建议 ≥2 视角 · <2 需强理由)",
+    }
     payload["reviewer_thinking_hint"] = (
         "🔴 PMO 必基于此 checklist 4 问思考 · 设定实际评审角色 + stage 链"
         "(结果进默认 · prepare 暂停点「⚙️ 配置」段**一行**带过 · 不铺表 · v8.162)· "
@@ -4584,7 +4715,7 @@ def cmd_jump_to_stage(args: argparse.Namespace) -> None:
 
     # 2. 当前 flow_type 必须含 target stage
     flow_type = state.get("flow_type")
-    flow_graph = FLOW_BY_TYPE.get(flow_type, {})
+    flow_graph = resolve_flow_graph(flow_type, getattr(args, "preset", None) or "full")
     if not flow_graph:
         die(1, json.dumps({
             "verdict": "FAIL",
@@ -4774,6 +4905,9 @@ def build_parser() -> argparse.ArgumentParser:
                           "如 apps/admin/docs/features/ADMIN-F013-x · "
                           "**不是仅 feature 名**（v7.3.10+P0-149 修复 PTR-F032 实战 bug）· "
                           "state.json 落此处 · 同时作为 state.artifact_root 字段值")
+    ifp.add_argument("--clarity", default="normal",
+                     choices=["explicit", "normal", "ambiguous"],
+                     help="[v8.216] 需求明确度(prepare 侦察后判 · 仅记录:台账/年检校准)· 评审配置不由它硬编码 · 由 AI 按 role_value_criteria 配 stage_review_roles")
     ifp.add_argument("--bl", default=None,
                      help="[v8.196] 本 F 承接的 BL 编号(如 BL-003)· 写入 state.json.bl · "
                           "ship 翻牌/ws-progress 解析所属 WS 优先读它(不再单靠 ROADMAP 手填「对应F编号」)")
@@ -4781,7 +4915,10 @@ def build_parser() -> argparse.ArgumentParser:
                      help="如 ADMIN-F013-tax-billing · 应是 --feature basename")
     ifp.add_argument("--flow-type", required=True,
                      choices=["Feature", "Bug", "Micro", "敏捷需求",
-                              "Feature Planning", "问题排查"])
+                              "Feature Planning", "问题排查"],
+                     help="[v8.220] 对外收缩为 Feature/Bug · 敏捷需求/Micro 为 legacy 别名(自动映射 Feature+preset)· Planning/排查照旧 reject")
+    ifp.add_argument("--preset", default=None, choices=["full", "micro"],  # v8.223:lite 退役(存量 state preset=lite 兼容 · 新 init 不再产)
+                     help="[v8.220] Feature 重量档(原 敏捷需求=lite · Micro=micro)· 链/角色由它决定 · 默认 full")
     ifp.add_argument("--sub-project", help="如 admin / api-server")
     # v7.3.10+P0-149: 删 --artifact-root 冗余参数 · --feature 单源（既是落盘目录又是 artifact_root 字段值）
     ifp.add_argument("--initial-stage",
@@ -4859,6 +4996,16 @@ def build_parser() -> argparse.ArgumentParser:
         help="[v8.210] PROCESS-LEDGER 旧 schema → 升级表头(幂等 · 旧数据行是有效前缀不动)· §16 append 前跑")
     lmp.add_argument("--feature", help="feature 路径(自其向上找 project-specs/PROCESS-LEDGER.md)· 省略则用 git 根")
     lmp.set_defaults(func=cmd_ledger_migrate)
+
+    # v8.226:external-ingest 外部评审摄入(ultra review 等 · 转录归一层 · 裁决归 PMO)
+    eip = sub.add_parser("external-ingest",
+        help="[v8.226] 摄入外部评审(如 /code-review ultra)为 external-cross-review 产物 · --from session(主)/paste(兜底)/pr-comments(MR 窗口)")
+    eip.add_argument("--feature", required=True)
+    eip.add_argument("--from", dest="source", required=True, choices=["session", "paste", "pr-comments"])
+    eip.add_argument("--input-file", help="session/paste:AI 已转录的 findings 文件路径")
+    eip.add_argument("--mr-url", help="pr-comments:MR/PR URL")
+    eip.add_argument("--label", default="ultra", help="来源标记(产物名 review-<label>.md)")
+    eip.set_defaults(func=cmd_external_ingest)
 
     # v8.178:test-baseline 预存在失败注册表 + 差分(红 base 0 新增放行 · 治反复 stash-baseline)
     tbp = sub.add_parser(

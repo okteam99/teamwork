@@ -162,7 +162,8 @@ def _validate_distill(args: argparse.Namespace, state: dict) -> dict:
     流程减负 · Micro 简表:flow_type=Micro 只强制 knowledge 一键(gotcha)· 其余 5 键
     缺省自动填「无(Micro)」(零逻辑改动 · 逐项走 6 键是无信号仪式)。其他 flow 行为不变。
     """
-    is_micro = state.get("flow_type") == "Micro"
+    is_micro = (state.get("flow_type") == "Micro"
+                or (state.get("flow_type") == "Feature" and state.get("preset") == "micro"))  # v8.222
     required_keys = MICRO_DISTILL_REQUIRED if is_micro else DISTILL_KEYS
     raw = getattr(args, "distill", None)
     if not raw:
@@ -933,6 +934,8 @@ def _handle_ship_archive(state: dict, args: argparse.Namespace) -> dict:
         "planning_bundled": [rel for rel, _ in planning_files],
         # v8.208/v8.209:PROCESS-LEDGER 行采写数据(台账在 ship1 archive 采写 · 见 §3.5/§16)——
         # AI 照抄进台账「宿主」+「时长(总·AI自主·待)」+「各阶段耗时」+「用户邮箱」列 · 确定性 · 不肉眼算 state。
+        # v8.217:分诊校准束(预测 clarity/roster vs 实际 diff/轮次)· 台账「分诊校准」列照抄 · 年检算准确率
+        "triage_calibration": _triage_calibration(state, wt_root, merge_target),
         "ledger_timing": {
             "host": state.get("host") or "unknown",  # v8.209:AI 宿主(claude-code/codex-cli/gemini-cli)
             "total_wall": _feature_duration_h(state),
@@ -1475,6 +1478,30 @@ def _git_user_email(cwd: Optional[str]) -> str:
     """v8.208:当前 git 环境用户邮箱(`git config user.email`)· 取不到返 ""。"""
     r = _git(["config", "user.email"], cwd=cwd, timeout=10)
     return r.stdout.strip() if r.returncode == 0 else ""
+
+
+def _triage_calibration(state: dict, wt_root: str, merge_target: str) -> dict:
+    """v8.217(智能分诊 v2):分诊「预测 vs 实际」校准束 —— 台账/年检数据源。
+
+    预测侧:clarity(prepare 判定)+ roster 调整摘要(去了哪些角色 · 审计已留);
+    实际侧:diff 文件数(git 确定性)+ goal 修订轮数(PRD 被打回?)+ review 轮数(评审拦没拦住东西)。
+    年检据此算分诊准确率:explicit 判定的 feature 若 PRD 常被打回 / review 高轮次 → 判据收紧。
+    """
+    contracts = state.get("stage_contracts", {}) or {}
+    adjustments = state.get("stage_review_roles_adjustments", []) or []
+    adj = "; ".join(f"{a.get('stage')}→{','.join(a.get('roles', []))}"
+                    for a in adjustments if isinstance(a, dict)) or "默认矩阵"
+    diff_files = None
+    r = _git(["diff", "--name-only", f"origin/{merge_target}...HEAD"], cwd=wt_root, timeout=30)
+    if r.returncode == 0:
+        diff_files = len([l for l in r.stdout.splitlines() if l.strip()])
+    return {
+        "clarity": state.get("clarity") or "normal",
+        "roster": adj,
+        "actual_diff_files": diff_files,
+        "goal_rounds": len(contracts.get("goal", {}).get("rounds") or []),
+        "review_rounds": len(contracts.get("review", {}).get("rounds") or []),
+    }
 
 
 def _capture_audit_sources(feature_dir: Path, max_chars: int = 4000) -> str:

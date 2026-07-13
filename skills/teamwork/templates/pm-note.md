@@ -99,7 +99,7 @@ revision_history:
 
 ## 起草要点(PM cite · 写时删)
 
-📚 **必读 cite**:
+📚 **参考**(v8.199 cite 仪式已废 · 按需读):
 - `roles/pm.md § 验收规范` —— 对照 TEST-REPORT 实际数据 · 不口述 OK
 - `stages/pm-acceptance-stage.md § 4 三选项暂停点` —— 三选项 R5 emit 模板 · 用户拍板
 

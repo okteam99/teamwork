@@ -8,18 +8,18 @@
 
 | Stage | 文件 | 适用 flow_type |
 |---|---|---|
-| goal | [stages/goal-stage.md](./stages/goal-stage.md) | Feature / 敏捷需求 |
+| goal | [stages/goal-stage.md](./stages/goal-stage.md) | Feature |
 | ui_design | [stages/ui-design-stage.md](./stages/ui-design-stage.md) | Feature(--needs-ui=true) |
 | panorama_sync | [stages/panorama-sync-stage.md](./stages/panorama-sync-stage.md) | Feature(sitemap / 全景同步) |
 | blueprint | [stages/blueprint-stage.md](./stages/blueprint-stage.md) | Feature |
-| blueprint_lite | [stages/blueprint-lite-stage.md](./stages/blueprint-lite-stage.md) | 敏捷需求 |
+| blueprint_lite | [stages/blueprint-lite-stage.md](./stages/blueprint-lite-stage.md) | 🔴 DEPRECATED(v8.223 · 仅存量 in-flight)|
 | diagnose | [stages/diagnose-stage.md](./stages/diagnose-stage.md) | Bug(流首 stage · 根因细查+修复方案 · 用户确认后进 dev) |
-| dev | [stages/dev-stage.md](./stages/dev-stage.md) | Feature / 敏捷需求 / Bug / Micro |
-| review | [stages/review-stage.md](./stages/review-stage.md) | Feature / 敏捷需求 / Bug |
-| test | [stages/test-stage.md](./stages/test-stage.md) | Feature / 敏捷需求 / Bug |
+| dev | [stages/dev-stage.md](./stages/dev-stage.md) | Feature(full/micro)/ Bug |
+| review | [stages/review-stage.md](./stages/review-stage.md) | Feature / Bug |
+| test | [stages/test-stage.md](./stages/test-stage.md) | Feature / Bug |
 | browser_e2e | [stages/browser-e2e-stage.md](./stages/browser-e2e-stage.md) | Feature(execution_hints.browser_e2e_needed) |
-| pm_acceptance | [stages/pm-acceptance-stage.md](./stages/pm-acceptance-stage.md) | Feature / 敏捷需求 / Bug / Micro |
-| ship | [stages/ship-stage.md](./stages/ship-stage.md) | Feature / 敏捷需求 / Bug / Micro |
+| pm_acceptance | [stages/pm-acceptance-stage.md](./stages/pm-acceptance-stage.md) | Feature(full/micro)/ Bug |
+| ship | [stages/ship-stage.md](./stages/ship-stage.md) | Feature(full/micro)/ Bug |
 
 详细 stage 链 / 转移图见 [tools/state.py](./tools/state.py) `FLOW_BY_TYPE` · 评审角色矩阵见 [tools/_v8_engine.py](./tools/_v8_engine.py) `DEFAULT_REVIEW_ROLES`。
 

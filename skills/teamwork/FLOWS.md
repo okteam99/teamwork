@@ -1,102 +1,24 @@
-# FLOWS · v8.0
+# FLOWS
 
-> 6 流程类型的 telos 与适用场景。
-> 流程类型识别 + 4 项配置由 [docs/prepare.md](./docs/prepare.md) 子流程承接(PMO 主对话执行)·
-> 具体 stage 步骤由各 stage `state.py xxx-start` emit brief。
+> 流程闭集(红线 R2)与各自 telos。**判定权威 = [docs/prepare.md](./docs/prepare.md)**(关键词 + 复杂度 + 明确度)· 本文件只是视图。
+> 🔴 v8.220-223:机器层 `flow_type ∈ {Feature, Bug}` + Feature 重量档 `preset ∈ {full, micro}`;「敏捷需求」「Micro」为 legacy 别名(→ Feature·full / Feature·micro)。
 
----
+## 闭集
 
-## 流程类型闭集(红线 R2)
+| 流程 | telos(解决什么) | 链 | 产出 |
+|------|----------------|-----|------|
+| **Feature**(preset=full) | 从需求到上线的完整闭环 + 多视角质量门禁 | goal → (ui_design) → (panorama_sync) → blueprint → dev → review → test → (browser_e2e) → pm_acceptance → ship | 代码 + 文档 + 测试 |
+| **Feature**(preset=micro) | 零逻辑改动最轻通道(文案/样式/资源/配置常量 白名单 · 文件 ≤5)· 跳 review/test · 仍走用户验收 + ship(R7) | dev → pm_acceptance → ship | 代码直改 |
+| **Bug** | 缺陷已指认 · **diagnose 先行**(根因 + 修复方案经用户确认才许修 · 防修偏) | diagnose → dev → review → test → pm_acceptance → ship | 修复 + BUG 报告 + 回归测试 |
+| **Feature Planning** | 产品方向 → 拆 ROADMAP · 不出代码(R6)· **不进状态机**(init reject · PMO 主对话执行 · 详 [docs/feature-planning.md](./docs/feature-planning.md)) | — | WS + ROADMAP + 全景 |
+| **问题排查** | 理解现象 · 只定位根因 · **不进状态机**(mode A 深度版)· 🔴 排查先行律:根因未定的现象类输入一律先到这里 · 闭合再定流程(转 Bug 时结论直供 diagnose 复核不重查) | — | 排查报告 + 后续 todo |
 
-| 流程 | 适用场景 | 默认暂停点 | 产出 |
-|------|---------|----------|------|
-| **Feature** | 完整功能(含 UI/架构/产品方向)| 3-5 | 代码 + 完整文档 + 测试 |
-| **Bug** | 缺陷修复 | 4-5 | 根因+修复方案(diagnose · 用户确认)+ 修复 + 回归测试 |
-| **Micro** | 零逻辑改动(文案/样式/资源/配置)| 3 | 代码直改 |
-| **敏捷需求** | ≤5 文件 + 无 UI/架构变更 + 方案明确 | 2-3 | 代码 + 简化文档 + 测试 |
-| **Feature Planning** | 从产品目标拆 ROADMAP | 1(仅摘要确认)| PROJECT.md + ROADMAP.md + sitemap.md(不出代码 · R6)|
-| **问题排查** | 不出代码 · 仅定位根因 | 0-1 | 排查报告 + 后续 todo |
+## 关键约束
 
----
-
-## Telos:每种流程在解决什么问题
-
-### Feature
-**完整 stage 链**:goal → (ui_design) → blueprint → dev → review → test → (browser_e2e) → pm_acceptance → ship → completed
-
-解决:**从需求到上线的完整闭环 + 多视角质量门禁**。
-适用 Feature 触发场景:用户提"实现/开发/做一个 X 功能"。
-
-### Bug
-**stage 链**(跳过 goal / blueprint · 但 dev 前先 diagnose):diagnose → dev → review → test → pm_acceptance → ship → completed
-
-解决:**已知现象 + 已知期望 · 不重复需求讨论;但先 diagnose 深查根因 + 出修复方案 + 用户确认,再 dev 写 fix(防修偏)**。
-🔴 **diagnose**(首 stage):深读代码挖真因 → §根因/§修复方案 → R5 用户确认 → 才进 dev。详 [stages/diagnose-stage.md](./stages/diagnose-stage.md)。
-Ship Stage 缩简(标题 `[Bug] <简述> (<Bug ID>)` · 如 `(PTR-B019)` · Bug 流程 artifact ID 见 conventions.md §1)。
-
-### Micro
-**最短 stage 链**:dev → pm_acceptance → ship → completed
-
-解决:**零逻辑改动的最轻量通道 · 跳过 review / test 质量门禁 · 仍走 pm_acceptance 用户验收 + ship**。
-准入:改动类型在白名单(文案 / 样式 / 资源 / 配置常量 / 注释)+ 文件 ≤5。
-超出白名单 → 升级敏捷需求 / Feature。
-代码仍要走 Ship(R7 证据闭环)。
-
-### 敏捷需求
-**简化 stage 链**:goal → blueprint_lite → dev → review → test → pm_acceptance → ship → completed
-
-解决:**简单功能不需要完整 blueprint 的 overkill · 但保留多视角 review**。
-准入:文件 ≤5 + 无 UI/架构变更 + 方案明确(用户无歧义)。
-砍 TECH.md / TECH-REVIEW.md / External(blueprint_lite 只产 TC.md 简化版)。
-
-### Feature Planning
-**不进 stage 链** · 由 PMO 主对话直接执行(类似问题排查 mode A)。
-`state.py init-feature --flow-type "Feature Planning"` 会被 reject(无 state.json / 无 stage 链)。
-
-解决:**产品方向决策 · 拆 ROADMAP · 不出代码(R6)**。
-PL(Product Lead)主导。Feature 启动前的"想清楚拆什么"。
-产出 PROJECT.md + ROADMAP.md + sitemap.md → git commit/push(直推或 MR · 用户决定)。
-
-详细流程见 [docs/feature-planning.md](./docs/feature-planning.md)。
-
-### 问题排查
-**不进 stage 链**(类似 mode A query):
-- 按问题描述 grep / Read 代码 + 日志
-- 读 TROUBLESHOOTING.md(如存在)
-- 给出根因分析
-- ⏸️ 用户选:不动 / 转 Bug / 转 Micro / 转 Feature / revert 肇事 commit(升级暂停点 · 详 SKILL.md § Mode A / E 升级触发)
-
-解决:**用户想理解一个现象 · 不一定要代码修复**。
-🔴 **排查先行律**:根因未定的现象类输入(报错 / 挂了 / CI 失败)一律先到这里 —— 排查闭合再定流程;转 Bug 时排查结论直接作为 prepare「代码现状」+ diagnose 输入(复核不重查 · 详 [docs/prepare.md §2](./docs/prepare.md))。
-state.py 不为问题排查启 stage 链 · 由 PMO 在主对话执行类似 mode A 的工作。
-
----
-
-## 流程类型识别(PMO 主对话按 [SKILL.md § Triage 入口规范 · 5 mode 分诊](./SKILL.md) 关键词表执行)
-
-PMO 按以下关键词匹配 + 优先级判定 user input 落入哪类流程(无 state.py 命令 · triage 是主对话行为):
-1. **Feature Planning**:`规划` / `Feature Planning` / `feature planning` / `更新 roadmap` / `拆 roadmap` / `路线图` / `做电商/SaaS`
-2. **问题排查**:`排查` / `查 log` / `why X 慢/挂` / `调研` · 🔴 以及一切**根因未定的现象类输入**(报错 / 挂了 / CI·编译失败 · 无修复指令)—— 排查先行律(详 [docs/prepare.md §2](./docs/prepare.md))
-3. **Bug**:`修复` / `fix` · 🔴 仅当**缺陷已指认**(用户明确要求修复 · 现象+期望+大致位置已知);纯现象陈述 → 先走问题排查
-4. **Micro**:`换 logo` / `改文案` / `换图`
-5. **敏捷需求**:`加个按钮` / `加导出` / `列表加列`
-6. **Feature**:`实现` / `开发` / `做功能`(兜底)
-
-识别结果落 `state.flow_type` · 后续 stage 链按此走。
-
----
-
-## 关键约束(R6 红线物化)
-
-- **Feature Planning · 不进状态机**:`init-feature --flow-type "Feature Planning"` 被 reject · 由 PMO 主对话执行 · 详 docs/feature-planning.md。
-- **Micro · 涉代码仍要 Ship**:Micro 末尾必须 ship-* · 不能停在本地未 push(v7 P0-136 治本)。
-- **敏捷需求 · 准入校验**:不能用 `blueprint_lite-start` 跳过完整 blueprint(`allowed_flow_types=["敏捷需求"]`)。
-
----
+- 轻量不再靠独立类型:**动态 roster(role_value_criteria)+ clarity** 承担(v8.216/223)· preset=micro 是唯一结构性轻档(白名单准入 · 超出升 full)。
+- micro 涉代码仍必 ship(不停在本地未 push · P0-136)。
+- 存量 legacy(敏捷需求 / blueprint_lite / M-id)兼容走完 · 新 init 不再产。
 
 ## 相关
 
-- [SKILL.md](./SKILL.md) — 命令清单 + 5 mode 入口
-- [SKILL.md § PMO 软约束](./SKILL.md) — R3 / R4 / R5(b) / bypass 必读
-- [stages/*.md](./stages/) — 各 stage Telos + Output Contract
-- [tools/state.py](./tools/state.py) — 编排器入口
+[SKILL.md](./SKILL.md)(入口 + 暂停点) · [docs/prepare.md](./docs/prepare.md)(判定权威) · [STAGES.md](./STAGES.md)(编排单源)

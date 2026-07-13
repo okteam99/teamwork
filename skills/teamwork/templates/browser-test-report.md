@@ -160,7 +160,7 @@ screenshots/
 
 ## 起草要点(QA + Designer cite · 写时删)
 
-📚 **必读 cite**:
+📚 **参考**(v8.199 cite 仪式已废 · 按需读):
 - `roles/qa.md § E2E 选型` —— Playwright / Puppeteer / Selenium · 项目栈决定
 - `roles/qa.md + roles/designer.md § 截图规范` —— 每 AC 一组 · 含 viewport + URL
 - `stages/browser-e2e-stage.md § SOP` —— 截图含浏览器 chrome + URL bar · 不裁剪
