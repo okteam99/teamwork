@@ -2,7 +2,7 @@
 
 An AI works from a team-collaboration perspective — through **flow orchestration + role-perspective switching + contractualized stages + a machine-readable state machine** — to drive the complete software lifecycle from product planning to delivery.
 
-[中文](./README.md) · Version: **v8.226** (version source of truth = [SKILL.md](./skills/teamwork/SKILL.md) frontmatter)
+[中文](./README.md) · Version: **v8.228** (version source of truth = [SKILL.md](./skills/teamwork/SKILL.md) frontmatter)
 
 ---
 
@@ -59,10 +59,10 @@ npx skills update okteam99/teamwork
 # Feature (full requirement → design → dev → test → acceptance → delivery)
 /teamwork implement user login
 
-# Small change (Agile: ≤5 files, clear plan, no UI/architecture change)
+# Small change (lightweight Feature — roster/clarity scale the ceremony down)
 /teamwork add an export-CSV button to the user list
 
-# Micro (zero-logic change — copy / style / asset replacement)
+# Micro preset (zero-logic change — copy / style / asset replacement)
 /teamwork replace the homepage logo with the new image
 
 # Bug fix
@@ -128,18 +128,19 @@ The teamwork entry is PMO's main-conversation **5-mode triage** — it looks onl
 
 **Principle**: start on demand · pick the right flow for the goal.
 
-## 6 Flow Types — Which One
+## Flow Types — Which One (closed set · contracted in v8.220-223)
+
+Machine layer: `flow_type ∈ {Feature, Bug}` plus a Feature weight preset `preset ∈ {full, micro}`. Lightweight work is carried by the **dynamic reviewer roster + clarity** dimensions (no separate "Agile" type anymore); legacy names ("Agile requirement", "Micro") are aliases that auto-map.
 
 | Flow | Use case | Output | Default pause points |
 |------|----------|--------|----------------------|
-| **Feature** | Full feature development | Code + docs + tests | 3-5 |
-| **Agile requirement** | ≤5 files + clear plan + no UI/architecture change | Code + simplified docs + tests | 2-3 |
-| **Micro** | Zero-logic change (copy/style/asset/config constant/doc comment) | Code (direct edit) | 2 (confirm + acceptance) |
-| **Bug** | Production/local defect | Fix + BUG report + regression tests | 3-4 |
-| **Feature Planning** | Break a product goal into a ROADMAP | PROJECT.md + ROADMAP.md + sitemap.md | **1** (final summary confirmation only) |
-| **Investigation** | Root-cause only, no code output | Investigation report + follow-up todos | 0-1 |
+| **Feature · full** | Feature development (default) | Code + docs + tests | 3-5 |
+| **Feature · micro** | Zero-logic change (copy/style/asset/config-constant whitelist · ≤5 files) — skips review/test, still user acceptance + ship | Code (direct edit) | 2 (confirm + acceptance) |
+| **Bug** | Defect already identified — **diagnose first** (root cause + fix plan confirmed by user before any fix) | Fix + BUG report + regression tests | 3-4 |
+| **Feature Planning** | Break a product goal into a ROADMAP (no code · R6 · not in the state machine) | WS + ROADMAP + panorama | **1** (final summary confirmation only) |
+| **Investigation** | Root-cause only, no code output (not in the state machine · investigate-first law) | Investigation report + follow-up todos | 0-1 |
 
-The flow type is identified automatically by the prepare sub-flow at the mode-B entry; you only confirm at pause points. Feature / Agile / Bug / Micro enter the state machine and run the stage chain; Feature Planning / Investigation do not enter the state machine and are executed by PMO in the main conversation.
+The flow type is identified by the prepare sub-flow at the mode-B entry (evidence-first triage); you only confirm at pause points. Feature / Bug enter the state machine and run the stage chain; Feature Planning / Investigation are executed by PMO in the main conversation.
 
 ---
 
@@ -312,7 +313,7 @@ Teamwork's 9 core red lines — 8 of them materially enforced by the `state.py` 
 | Red line | Content (one-liner) |
 |----------|---------------------|
 | **R1** Code-write authority to RD | Code / tests / build config executed by the RD role; external models review-only |
-| **R2** Flow-type closed-set | 6 flows: Feature / Bug / Micro / Agile / Feature Planning / Investigation · no self-invented variants |
+| **R2** Flow-type closed-set | `{Feature, Bug}` + preset `{full, micro}` (v8.220-223) + non-state-machine Planning / Investigation · no self-invented variants |
 | **R3** PMO unified intake | All user input is taken by PMO first · no other role responds directly |
 | **R4** Flow boundary | No simplification (no skipping stages) / no inflation (no inserting pauses at auto-advance nodes) / must give step description |
 | **R5** Pause-point protocol | Must await user confirmation + give 💡 recommendation + numbered (single decision 1/2/3 · multi-decision 1A 2B) |
@@ -350,7 +351,7 @@ For the detailed directory structure see [skills/teamwork/](./skills/teamwork/).
 
 ## Version
 
-Currently **v8.226** (version source of truth = [SKILL.md](./skills/teamwork/SKILL.md) frontmatter). Changelog in [docs/CHANGELOG.md](./skills/teamwork/docs/CHANGELOG.md) (latest 5 versions) · older history via git log (CHANGELOG-ARCHIVE is **periodically wiped**).
+Currently **v8.228** (version source of truth = [SKILL.md](./skills/teamwork/SKILL.md) frontmatter). Changelog in [docs/CHANGELOG.md](./skills/teamwork/docs/CHANGELOG.md) (latest 5 versions) · older history via git log (CHANGELOG-ARCHIVE is **periodically wiped**).
 
 ---
 

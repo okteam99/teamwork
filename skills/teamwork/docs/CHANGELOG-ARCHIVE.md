@@ -399,3 +399,25 @@
 
 ### 验证
 - pytest 819 passed。
+## v8.222 · 物化校验 flow 归一审计:10 处 legacy 比较死门复活(含 Micro initial=goal 真 bug)
+
+> 用户点名:检查 python 脚本物化校验是否匹配 v8.220 合并。审计实锤 **10 处失配** —— state 只存 `Feature+preset` 后,所有 `flow_type == "敏捷需求"/"Micro"` 直接比较**静默失配**:最重的是 `DEFAULT_INITIAL_STAGE` 查表 → **preset=micro 错拿 initial=goal(应 dev)**,真 bug;其余 9 处是死门(needs-ui×lite 拦截失效 / goal 转移 lite 走错 blueprint / dev-next micro 不再跳 review / test-done micro 放行失效 / TC-PRD skip 失效 / agile 判定失效 / ship distill micro 键失效)。
+
+### 修法(一处逻辑 · 十处生效)
+- **`internal_flow_key(flow_type, preset)`**(state.py)+ **`_flow_key(state)`**(specs):public/legacy → 内部图表键(敏捷需求/Micro 键保留 · 存量 state 兼容)。
+- init 的归一提前到 `initial_stage` 查表**之前**(原在其后 → UnboundLocal · 测试首轮 50 failed 抓出)· 查表改内部键。
+- specs 8 位点比较统一走 `_flow_key` · ship distill micro 判定补 preset 分支。
+
+### 验证
+- `test_flow_merge_v8222` +7(键映射 / micro initial=dev / 5 个死门复活断言)· pytest **826 passed**。
+## v8.223 · blueprint_lite 并入 blueprint + lite preset 退役(preset 收为 full/micro)
+
+> 用户两连问推到底:① blueprint_lite 还需要吗 —— 它与 blueprint **目标相同**(dev 前方案收敛)· 差异全是重量(评审组合=roster 已管 · verify-ac 分档=一行判断 · 文档深度=四段/模板已管)= 「stage 版的敏捷需求」;② 并入后 lite 链 = Feature 链的 **needs-ui=false 剖面**(一条冗余链)→ lite preset 整体退役。micro 保留(跳 review/test 是真结构差)。
+
+### 改动(新路收口 · 存量三保留)
+- **`FEATURE_PRESETS = (full, micro)`** · `LEGACY_FLOW_ALIASES:敏捷需求 → Feature·full`(轻量由动态 roster + clarity 承担)· `--preset` choices 同步。
+- **存量兼容三保留**(in-flight 不断链):AGILE_FLOW 图原样(`resolve_flow_graph` 对 state.preset=lite 仍解析)· `internal_flow_key/_flow_key` 的 lite→敏捷需求 映射保留 · `BLUEPRINT_LITE_SPEC` 保持注册(标 DEPRECATED · 存量走完后删)。
+- blueprint-lite-stage.md 挂 deprecated 横幅;prepare 关键词行(加按钮类 → Feature · 轻量由 roster/clarity)+ SKILL/README 注记同步。
+
+### 验证
+- pytest 826 passed(存量 lite 兼容断言全绿)。
