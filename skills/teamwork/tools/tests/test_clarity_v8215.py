@@ -64,3 +64,28 @@ class TestTriageCalibrationV8217(unittest.TestCase):
         c = _triage_calibration({}, "/nonexistent", "main")
         self.assertEqual(c["roster"], "默认矩阵")
         self.assertEqual(c["clarity"], "normal")
+
+
+class TestDispatchModelsV8231(unittest.TestCase):
+    def test_distribution_and_unspecified(self):
+        import tempfile
+        from _v8_ship import _dispatch_model_distribution
+        d = Path(tempfile.mkdtemp()); dl = d / "dispatch_log"; dl.mkdir()
+        (dl / "001-qa.md").write_text("- model: sonnet\n", encoding="utf-8")
+        (dl / "002-pl.md").write_text("task only\n", encoding="utf-8")
+        (dl / "INDEX.md").write_text("| i |\n", encoding="utf-8")
+        dist = _dispatch_model_distribution(d)
+        self.assertEqual(dist.get("sonnet"), 1)
+        self.assertEqual(dist.get("unspecified(继承会话)"), 1)   # 未分档信号
+        self.assertNotIn("INDEX", str(dist))
+        self.assertEqual(_dispatch_model_distribution(Path(tempfile.mkdtemp())), {})
+
+    def test_in_calibration_bundle(self):
+        import tempfile, subprocess
+        from _v8_ship import _triage_calibration
+        d = Path(tempfile.mkdtemp())
+        subprocess.run(["git", "-C", str(d), "init", "-q", "-b", "main"], capture_output=True)
+        dl = d / "dispatch_log"; dl.mkdir()
+        (dl / "001.md").write_text("model: haiku\n", encoding="utf-8")
+        c = _triage_calibration({"artifact_root": str(d)}, str(d), "main")
+        self.assertEqual(c["dispatch_models"], {"haiku": 1})
