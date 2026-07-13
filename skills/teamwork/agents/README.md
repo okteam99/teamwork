@@ -18,7 +18,7 @@
 
 🔴 **三条硬边界**:① 架构 CR 与关键裁决**不降档**(深度判断降档 = 质量盲区回归);② **评审独立性优先于档位**(冷审 fresh context 比模型强弱重要 —— 两个轻模型冷审 > 一个强模型热审);③ 主对话模型 = **用户主权**(AI 只建议不切换)。
 
-**并行姿态(鼓励 · v8.225)**:每个 stage 开工先问一句「**哪些子任务可以并行?**」—— 评审天然并行(冷审 N 路同发)· dev 多模块各派一个 teammate(命名 subagent · 长任务用 Progress Log 汇报)· 调研/探索 fan-out 保主对话 context 干净。护栏不变:子任务**边界清晰且够大**才拆(小/耦合/强串行自己做)· 代码类只写 worktree 内路径 · **stage 流转 / commit / complete / 最终整合永远归主对话**(并行的是执行 · 不是编排)。台账已记 host+model(v8.208/209)—— 年检可验档位建议是否伤质量。🔴 **ultracode 开启的 session**:冷审/验证 fan-out **优先用 Workflow**(`agent(prompt,{schema})` 强制结构化 findings · 聚合在脚本层 · 产物契约不变 · 裁决仍归主对话)。
+**并行姿态(鼓励 · v8.225)**:每个 stage 开工先问一句「**哪些子任务可以并行?**」—— 评审天然并行(冷审 N 路同发)· dev 多模块各派一个 teammate(命名 subagent · 长任务用 Progress Log 汇报)· 调研/探索 fan-out 保主对话 context 干净。护栏不变:子任务**边界清晰且够大**才拆(小/耦合/强串行自己做)· 代码类只写 worktree 内路径 · **stage 流转 / commit / complete / 最终整合永远归主对话**(并行的是执行 · 不是编排)。🔴 **v8.235 声明制**:每次派发(subagent/teammate/workflow 的每个 agent())必声明 **model + 一句为什么**(按上表任务性质对档)—— 让选择有意识 · 也喂台账 dispatch_models 观测(unspecified = 没声明没思考)。台账已记 host+model(v8.208/209)—— 年检可验档位建议是否伤质量。🔴 **ultracode 开启的 session**:冷审/验证 fan-out **优先用 Workflow**(`agent(prompt,{schema})` 强制结构化 findings · 聚合在脚本层 · 产物契约不变 · 裁决仍归主对话)。
 
 ## 二、通用执行约束
 
@@ -44,7 +44,7 @@
 
 - **位置**:`{Feature}/dispatch_log/NNN-{标签}.md`(三位序号 · 并行各独立文件 · INDEX.md 汇总)· 🔴 state.py 不生成 dispatch 文件。
 - **Subagent prompt 极简**(~5 行):角色名 + dispatch 文件绝对路径 + 执行规则(按 Input files 按序读 · 产出 Expected deliverables · 实时维护 Progress Log · 完成 append Result · 未 append = FAILED)。
-- **字段责任**:PMO dispatch 前填 Meta / Task / Input files / Additional inline context / **Key Context** / Edit scope / Expected deliverables / Return format;Subagent 执行中填 **Progress Log**、完成前填 **Result**。
+- **字段责任**:PMO dispatch 前填 Meta(🔴 v8.235 含 **model + model_reason 一句** · 按档位表对档)/ Task / Input files / Additional inline context / **Key Context** / Edit scope / Expected deliverables / Return format;Subagent 执行中填 **Progress Log**、完成前填 **Result**。
 - **注入策略**:长文档(PRD/TC/TECH/standards)→ Input files 让其自读;短约束(仓库级指令文件/短配置)→ inline 复制原文;Result 必含 `Files read` 清单(可追溯)。
 - **Edit scope**(标准段):允许读写 {子项目} + {Feature 目录};只读 project-specs/ + {SKILL_ROOT}/standards/;🚫 其他子项目 · 敏感文件(.env/credentials/*secret*)· .git/ 直接操作。违反 → 停止 + Concerns + `DONE_WITH_CONCERNS`。
 

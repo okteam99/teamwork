@@ -4,6 +4,17 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.235 · dispatch 声明制:派 subagent/teammate/workflow 必声明「model + 一句为什么」+ 并行鼓励强化
+
+> 用户指令:使用 subagent/teammate/workflow 时需给出匹配的模型并**说明为什么**;鼓励多用以提升并行度和效率。承 v8.230(全局档位规则)/v8.231(unspecified 观测)—— 规则有了、观测有了 · 缺**声明动作**逼出有意识选择。
+
+### 改动
+- **SKILL 全局条目升级为声明制**:每次派发必声明「model + 一句为什么」(主对话派发语句 / dispatch 文件 Meta / workflow `agent()` 旁注释)· 例 `model: sonnet(TC 对照 = 校验型 · 验证档够用)` · **不声明 = 默认继承没思考**(台账 unspecified 就在数这个)。⚡ 鼓励并行再强化:**能并行的不串行** · 并行度是效率的第一杠杆(ultracode 时 workflow 优先)。
+- **agents/README**:并行姿态段声明制同步;文件化 dispatch **Meta 字段加 `model + model_reason`**。
+
+### 验证
+- doc-only · pytest 834 passed。
+
 ## v8.234 · await-merge 全模式必跑:「停 ≠ 停监控」(治 auto 停在 pushed 无人收尾)
 
 > 实证 case(KA-PAGES):auto_mode feature 停在 ship.pushed · 用户 5 分钟后合了 MR · **没人收尾**(worktree/过程目录残留)· 该 session 的 AI 还解释成「auto 不监控 MR · 只有 yolo 才会」。两层缺口:① await-merge 指令只活在 ship-stage 文档 · **push emit(AI 实际照做的那份)没提**;② SKILL「auto 也必停此暂停点」被读成「session 到此结束」。
@@ -49,14 +60,3 @@
 
 ### 验证
 - 冒烟(sonnet/opus/unspecified 分布 · INDEX 跳过 · 无目录空)· 测试 +2 · pytest 833 passed。
-
-## v8.230 · dispatch 档位上移 SKILL 全局规则(撤 goal/review brief 散点 · 单源)
-
-> 用户裁定:档位选择是**横切关注点**(任何 stage 任何 dispatch 适用)· 该放 SKILL.md 全局 · 不该散在 goal brief —— v8.229 的两处 brief 行是三处重复(agents/README 表 + 两 brief)· 必漂。
-
-### 改动
-- **SKILL subagent/teammate 条目追加「🎚️ dispatch 档位(全局规则)」**:不传 model = 继承会话模型(常费不自知)→ 派前按任务性质定档(校验/枚举型 → 验证档;判断/创造型 → 不降档)· 档位表与硬边界**单源 = agents/README §一**。
-- **撤 v8.229 两处 brief 行**(goal/review)—— PMO 任何 dispatch 都在 SKILL 语境下 · 全局条目即消费点 · brief 保持极简。
-
-### 验证
-- brief 撤净冒烟 ✓ · pytest 831 passed。
