@@ -4,6 +4,19 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.228 · 管辖判据 + 直答通道:管辖外输入(尤其现状问答)零仪式直答
+
+> 用户指令:输入不属 teamwork 该管的(非 功能/缺陷/排查/规划)—— 尤其**问现状类** —— 直接回答,不走流程。现状病:5-mode 把一切输入往流程装,连「X 怎么实现的」都套 audit_line/mode 宣告/状态行(仪式噪音)。
+
+### 改动
+- **SKILL Triage 新增「🔴 管辖判据 · 直答通道」**(分诊之前先过):不属四类工作 → 直答 · **零 teamwork 输出协议**(无 audit_line/mode 宣告/状态行/recap/流程推销);现状/知识问答明确归此;答后追问升级成工作才进分诊 · **不主动推销流程**;拿不准按直答(误加仪式代价 > 误省)。
+- **audit_line 作用域**:「首条响应必含」→「承接 teamwork 工作时必含 · 直答免」。
+- **状态行作用域**:「有活动 feature/流程时」才输出 · 管辖外轮次免。
+- roles/pmo.md 同步一行。
+
+### 验证
+- doc-only · pytest 831 passed。
+
 ## v8.227 · README-EN 类型体系补改(v8.224 只改了中文侧的残留)
 
 > backlog #2:EN「6 Flow Types」表 + R2 红线行 + 快捷启动例仍是六类旧口径(变假话残留 · v8.224 描述审计只扫了中文面)。
@@ -52,15 +65,3 @@
 
 ### 验证
 - pytest 826 passed。
-
-## v8.223 · blueprint_lite 并入 blueprint + lite preset 退役(preset 收为 full/micro)
-
-> 用户两连问推到底:① blueprint_lite 还需要吗 —— 它与 blueprint **目标相同**(dev 前方案收敛)· 差异全是重量(评审组合=roster 已管 · verify-ac 分档=一行判断 · 文档深度=四段/模板已管)= 「stage 版的敏捷需求」;② 并入后 lite 链 = Feature 链的 **needs-ui=false 剖面**(一条冗余链)→ lite preset 整体退役。micro 保留(跳 review/test 是真结构差)。
-
-### 改动(新路收口 · 存量三保留)
-- **`FEATURE_PRESETS = (full, micro)`** · `LEGACY_FLOW_ALIASES:敏捷需求 → Feature·full`(轻量由动态 roster + clarity 承担)· `--preset` choices 同步。
-- **存量兼容三保留**(in-flight 不断链):AGILE_FLOW 图原样(`resolve_flow_graph` 对 state.preset=lite 仍解析)· `internal_flow_key/_flow_key` 的 lite→敏捷需求 映射保留 · `BLUEPRINT_LITE_SPEC` 保持注册(标 DEPRECATED · 存量走完后删)。
-- blueprint-lite-stage.md 挂 deprecated 横幅;prepare 关键词行(加按钮类 → Feature · 轻量由 roster/clarity)+ SKILL/README 注记同步。
-
-### 验证
-- pytest 826 passed(存量 lite 兼容断言全绿)。
