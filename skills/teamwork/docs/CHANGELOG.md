@@ -4,6 +4,17 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.229 · 冷审 dispatch 档位推进 brief(治「goal 冷审全跑主对话模型」)
+
+> 用户观察:goal 冷审实际都是主对话模型。根因 = v8.170 老病复发:档位框架(v8.225)躺 agents/README(被动)· goal/review brief 没推(主动)—— dispatch 不传 model 默认继承会话模型 · **常费而不自知**。
+
+### 改动
+- **goal brief +1 行**:dispatch 按角色性质分档 —— QA 冷审(可测性/边界 = 校验型)→ **验证档**(如 sonnet);**Architect / PL 不降档**(可行+简洁判断 · 价值前提对抗 = 深度判断)—— 三路冷审不该一刀切。
+- **review brief +1 行**:QA code review 可派验证档;架构 CR 不降档(硬边界)。
+
+### 验证
+- brief 冒烟 ✓ · pytest 831 passed。
+
 ## v8.228 · 管辖判据 + 直答通道:管辖外输入(尤其现状问答)零仪式直答
 
 > 用户指令:输入不属 teamwork 该管的(非 功能/缺陷/排查/规划)—— 尤其**问现状类** —— 直接回答,不走流程。现状病:5-mode 把一切输入往流程装,连「X 怎么实现的」都套 audit_line/mode 宣告/状态行(仪式噪音)。
@@ -52,16 +63,3 @@
 
 ### 验证
 - doc-only · pytest 826 passed。
-
-## v8.224 · skill 全文件描述审计:A 类 7 项「变假话」清零 + FLOWS 重写薄壳(102→40)
-
-> 用户:整体看 skill 各文件描述的冗余与不合理。盘点实锤:合并三连(v8.220-223)后 **7 项过时描述**在教旧规则 + 流程类型**三处平行描述**(FLOWS×SKILL×prepare)。另发现元教训:cite(v8.199)/顶栏(v8.206)/hooks(v8.213)各漏扫一个目录 —— 退役清扫必须覆盖全部内容目录。
-
-### 改动
-- **FLOWS.md 重写 102→40 行**:闭集表 = Feature(full/micro)/Bug/Planning/排查 · telos 一行化 · 判定权威显式指 prepare(结束三处平行:prepare=权威 · SKILL=视图 · FLOWS=薄壳)。
-- **SKILL 类型段真重写**(吃掉 v8.220/223 两层过渡注记):新 5 行表 + 授权暂停点表(删敏捷需求行 · Micro→Feature·micro)+ DB 变更措辞。
-- **STAGES.md** flow 列更新 + blueprint_lite 标 DEPRECATED;**roles/pmo.md** 六闭集行改;**conventions.md §1** ID 表(敏捷/M 行标 legacy · 存量 M-id 有效不迁)。
-- **漏网残留清零**:cite 仪式 ×4(prepare + 三个 report 模板)· dev 顶栏 ×1(scripts-policy)· hooks ×1(prepare)。
-
-### 验证
-- pytest 826 passed。
