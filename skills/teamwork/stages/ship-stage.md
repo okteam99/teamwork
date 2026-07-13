@@ -66,20 +66,25 @@ state.py ship-phase --action push --feature <path> \
 🔴 **feature 的 ship 到此结束** —— 归档/翻牌/终态已全部在这个 MR 里。
 🔴 **`auto_mode=true` 也必停此暂停点** —— 用户需在 git host 平台手动 merge · AI 无法代办(详 [SKILL.md § auto_mode=true 时各暂停点行为](../SKILL.md))。
 
-🔴 **输出格式(v8.232 物化)**:push emit 自带 `user_card` —— **原样贴给用户 · 禁自写总结段**(实证 case:自由发挥把 MR URL 埋进「本轮总结」段落 · 用户被迫问地址)。卡片契约:**第一屏第一信息 = MR URL(置顶 · 独立行 · 裸链接)**,其后分支/包含/监控/异常口令各一行;交付摘要要加 → 卡片之后 ≤3 行:
+🔴 **输出格式规范(v8.232/233)**:ship1 暂停点输出 = **两段定序 · 都必含** —— ① MR 卡片(URL 置顶)② 交付总结。治实证 case:总结写在前、URL 埋进段落 · 用户被迫问「地址发出来啊」。**次序不可倒 · URL 必独立行**:
 
 ```markdown
 ⏸️ **ship1 完成 · 请合并 MR**
 
-🔗 <MR URL>
+🔗 <MR URL>                                    ← 第一屏第一信息 · 独立行 · 裸链接
 
 - 分支:`<feature 分支>` → `<merge_target>`
 - 包含:代码 + 归档 + 规划翻牌(随本 MR 原子合入)
 - 监控:我将跑 `await-merge` 30s 轮询 —— **你只需在平台点合并** · 合并后自动清场
 - 异常口令:平台报冲突 → 回「冲突」 · 不想合了 → 回「撤回」
+
+📦 **交付总结**(AI 写 · 三槽结构):
+- 链路:<一行走过的流程 · 如 goal 3 轮冷审(拍板 D-1/D-2)→ blueprint 3 视角 → dev 38m/36 tests → review 18 findings 全处置 → test 9/9>
+- 关键决策与遗留:<用户拍板项 · deferred/ARCH-C3 类随验收呈报项 | 无>
+- 合并后解锁:<下游 BL/feature · 如 S5、S11 随本 MR 解锁 | 无>
 ```
 
-贴完卡片 → **跑 `state.py await-merge --feature <path>`**(30s 轮询 · MERGED → 自动 ship-finalize · WAITING → 重跑续等 · 用户随时打断改人工)。用户无需回编号 —— 合并动作本身就是确认;只有「冲突/撤回」两个异常口令需要回话。
+卡片段可直接用 push emit 的 `user_card`(工具生成 · URL/分支不抄错);总结段 AI 照实写(照抄落盘产物 · 不美化)。贴完 → **跑 `state.py await-merge --feature <path>`**(30s 轮询 · MERGED → 自动 ship-finalize)。用户无需回编号 —— **合并动作本身就是确认**;仅「冲突/撤回」两个异常口令需要回话。
 
 ### 6. ship2:ship-finalize(一条命令 · 在主工作区跑 · 零内容修改)
 

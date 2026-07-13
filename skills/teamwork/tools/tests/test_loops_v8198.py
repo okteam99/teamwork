@@ -81,4 +81,5 @@ class TestShip1UserCardV8232(unittest.TestCase):
         lines = [l for l in out["user_card"].splitlines() if l.strip()]
         self.assertIn("请合并 MR", lines[0])
         self.assertTrue(lines[1].startswith("🔗 http://git.example.com/mr/757"))  # URL 第二行(标题后首信息)
-        self.assertIn("原样贴", out["next_action_brief"])
+        self.assertIn("交付总结", out["next_action_brief"])   # v8.233:卡片+总结两段定序 · 都必含
+        self.assertIn("次序不可倒", out["next_action_brief"])

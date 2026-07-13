@@ -486,8 +486,9 @@ def _handle_ship_push(state: dict, args: argparse.Namespace) -> dict:
         "user_card": user_card,
         "next_action_brief": (
             "✅ Push + MR 记录完成 —— **feature 的 ship 到此结束**(v8.145 ship1 全交付)。\n\n"
-            "🔴 v8.232:把本 emit 的 **`user_card` 原样贴给用户**(URL 置顶独立行 · 易点易复制)· "
-            "**不要自写总结段**(实证:自由发挥会把 MR 地址埋进段落);要补交付摘要 → 卡片**之后** ≤3 行。\n\n"
+            "🔴 v8.233 输出格式(两段定序 · 都必含):① 先贴本 emit 的 **`user_card`**(URL 置顶独立行)"
+            "② 随后附 **📦 交付总结**(三槽:链路一行 / 关键决策与遗留 / 合并后解锁 · 照实写)。"
+            "🔴 次序不可倒 —— 总结在前会把 MR 地址埋进段落(实证 case)。\n\n"
             "用户合并后(ship2 · 清场 · 零内容):\n"
             "1. cd 到主工作区(非 linked worktree · 治本 P0-156)\n"
             "2. state.py ship-finalize --feature <worktree 内 feature 路径>"
