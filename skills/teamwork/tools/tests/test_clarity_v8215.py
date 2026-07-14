@@ -89,3 +89,12 @@ class TestDispatchModelsV8231(unittest.TestCase):
         (dl / "001.md").write_text("model: haiku\n", encoding="utf-8")
         c = _triage_calibration({"artifact_root": str(d)}, str(d), "main")
         self.assertEqual(c["dispatch_models"], {"haiku": 1})
+
+
+class TestDispatchTierReminderV8238(unittest.TestCase):
+    def test_constant_and_wiring(self):
+        import _v8_engine as E, inspect
+        self.assertIn("声明 model", E.DISPATCH_TIER_REMINDER)
+        self.assertIn("验证档", E.DISPATCH_TIER_REMINDER)
+        src = inspect.getsource(E.execute_stage_start)
+        self.assertIn("dispatch_tier_reminder", src)   # 已接进 stage-start emit
