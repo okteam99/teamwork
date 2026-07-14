@@ -20,14 +20,16 @@ frontmatter `reviewers: <state.stage_review_roles.blueprint 全体角色>` + `ve
 🔴 frontmatter 字段名是 `reviewers`(复数列表)· 必含 `state.stage_review_roles[blueprint]` 全部角色(reviewers_match evidence 校验)
 🔴 **Tech Review 是拦过度设计的最佳时机(改 TECH 比改代码便宜)**:Architect 必过**简洁性 counter-lens** —— 「方案是否过度设计(YAGNI)· 能否更简单达成业务目标 · 每个组件职责是否最小且归对层(该透明的别解析 / 该下沉的别上提)」。external finding 别盲采:天然偏「加校验」· 每条对照业务目标 + 简洁性取舍(详 `roles/architect.md` Telos)。
 
-### 5. (可选)QA TC Review
-复杂 Feature 启用 · 简单跳过
+### 5. (可选)QA 独立 TC Review
+v8.244 默认 QA 并入 §6 外审覆盖方向「可测试」· 复杂 Feature(测试面大)`change-review-roles` 加回时独立启用
 
-### 6. 第三视角冷审(external cross-review · roster 条件式)
-按 `state.stage_review_roles.blueprint` roster + localconfig 三层分支:
+### 6. 第三视角冷审(external cross-review · roster 条件式 · v8.244 默认 roster = `[architect, external]`)
+按 `state.stage_review_roles.blueprint` roster + localconfig 三层分支(与 §4 Architect 主审 ⚡ 并行同发 · 互不喂对方产出):
 - ① **roster 含 external 且 `.teamwork_localconfig.json` 的 `disable_external_review` 显式 `false`(opt-in 异质)** → 跑 `state.py external-review --feature <path> --stage blueprint`(host/model/profile 全自动)· 落 `external-cross-review/blueprint-<model>.md`
 - ② **默认(缺省 / `true`)** → 同模型 subagent 隔离冷审降级承担第三视角(产物仍落 `external-cross-review/*.md` · frontmatter 带 `review_via: subagent`)
 - ③ **roster 无 external** → 整段 skip(机器校验自动过)
+
+🔴 **外审内容契约(覆盖方向制 · v8.244)**:必覆盖 **可测试**(TC 质量 / 测试策略 —— QA 视角并入 · AC↔TC 机械绑定归 verify-ac)· **方案盲区**(依赖 / 影响面 / 迁移风险)+ 🔴 **AI 自主方向 ≥1**(候选:数据一致性 / 迁移风险 / 性能 / 安全边界 · 按 feature 挑或自造)· 每方向给 finding 或「查过无发现」· 产物 frontmatter 记 `coverage: [...]`(物化门 `cross_review_coverage`)。
 
 详 [standards/external-model-usage.md §十一](../standards/external-model-usage.md)。
 

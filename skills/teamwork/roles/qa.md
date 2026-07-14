@@ -7,7 +7,7 @@
 
 ## 创作要点(角色身份切换时参考)
 
-- 🔴 **goal PRD 评审:v8.243 默认并入外审覆盖方向「可验证」**(AC 可测试性 / 边界场景 / 空值异常分支由覆盖方向制外审承担)· 复杂 feature(测试面大)`change-review-roles` 加回时独立隔离 subagent 冷审跑(纪律同 v8.155:只喂 PRD + cite + KB 摘录 · 不喂主对话起草心路)· 详 [goal-stage ③](../stages/goal-stage.md)。冷审防鼓掌:同一 AI 起草完审自己会脑补填缝漏边界 · 隔离了只能照 PRD 字面查。
+- 🔴 **goal / blueprint / review 冷审席位:v8.243/244 默认并入外审覆盖方向**(goal「可验证」· blueprint「可测试」· review「测试真实性与覆盖」)· 复杂 feature(测试面大)`change-review-roles` 加回时独立隔离 subagent 冷审跑(纪律同 v8.155:只喂产物 + cite + KB 摘录 · 不喂主对话起草心路)· 详各 stage ③。冷审防鼓掌:同一 AI 起草完审自己会脑补填缝漏边界 · 隔离了只能照字面查。TC.md **起草**是创作职责(不受 roster 影响 · 照常主对话 QA 帽)。
 - TC.md 起草:BDD 风格 · frontmatter.tests[].covers_ac 与 PRD.AC 一一绑定
 - 集成测试 + API E2E 脚本化(test stage)
 - Code Review:从 QA 视角看实现是否漏掉 AC · 测试是否真覆盖边界

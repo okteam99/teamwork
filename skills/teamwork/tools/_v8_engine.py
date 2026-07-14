@@ -1150,8 +1150,8 @@ DEFAULT_REVIEW_ROLES: dict[tuple[str, str], list[str]] = {
     ("Feature", "goal"): ["pl", "external"],  # v8.243:3 冷审→2 路并行 —— PL 对抗质疑 + 覆盖方向制外审(QA 可验证/ARCH 可实现并入外审必覆盖方向 + AI 自主方向 ≥1 · 物化门 external_coverage_present);复杂 feature change-review-roles 加回独立 qa/architect。史:v8.155 三角色隔离冷审防鼓掌 · v8.149 去 external opt-in
     ("Feature", "ui_design"): ["designer", "pm"],
     ("Feature", "panorama_sync"): ["pm", "architect"],
-    ("Feature", "blueprint"): ["qa", "architect", "external"],
-    ("Feature", "review"): ["architect", "qa", "external"],
+    ("Feature", "blueprint"): ["architect", "external"],  # v8.244:3→2 —— Architect 主审(TECH-REVIEW · 简洁性 counter-lens)+ 覆盖方向制外审(QA 可测试视角并入 · 物化门 cross_review_coverage);复杂 feature 加回独立 qa
+    ("Feature", "review"): ["architect", "external"],  # v8.244:3→2 —— Architect 主审(REVIEW-arch · 实现↔设计一致性)+ 覆盖方向制外审(QA 测试真实性视角并入);review 从严:外审必覆盖清单比 blueprint 重一档
     ("Feature", "test"): ["qa"],
     ("Feature", "browser_e2e"): ["qa", "designer"],
     ("Feature", "pm_acceptance"): ["pm"],
@@ -1164,7 +1164,7 @@ DEFAULT_REVIEW_ROLES: dict[tuple[str, str], list[str]] = {
     ("敏捷需求", "pm_acceptance"): ["pm"],
 
     # Bug 流程
-    ("Bug", "review"): ["architect", "qa", "external"],
+    ("Bug", "review"): ["architect", "external"],  # v8.244:同 Feature review 两路制(代码 review 同刀)
     ("Bug", "test"): ["qa"],
     ("Bug", "pm_acceptance"): ["pm"],
 

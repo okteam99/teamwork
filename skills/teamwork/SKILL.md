@@ -1,6 +1,6 @@
 ---
 name: teamwork
-version: v8.243.1
+version: v8.244
 description: AI 协作开发一体化框架 - 需求功能开发, bug 修复, 问题排查 · /teamwork 启动
 ---
 
@@ -467,7 +467,7 @@ emit 格式:
 - **`--yolo`**(无值)= 用 `--merge-target` 的分支(二者至少给一个 · 都没 → FAIL)
 - **中途切换** = `state.py set-mode --feature <F> --yolo [<分支>] --reason '<原因>'`(或 `--auto-mode` / `--no-yolo` / `--no-auto-mode`)· 语义命令 · 走 `state.mode_changes` audit + 同款非 main 硬门 + implies-auto 护栏 · **不要 raw-write `state.json` 改 auto_mode/yolo**(无 audit·绕门禁)
 
-🔴🔴 **yolo ≠ 简化/提速 · 是「加重审核」**:无人值守 = **没人在看** → 自动化评审是**唯一安全网** · 必须**保留 / 加重** · **绝不削弱**。**三视角评审(架构师 + QA + 第三独立视角)全真跑 · 一个不少**;🔴 v8.204:第三视角**默认 = 同模型 subagent 隔离冷审**(external 异质**默认关** · 省 CLI 冷启动)· 跨模型异质 = **opt-in 升级**(localconfig `disable_external_review: false`)。yolo 的「零 stop」**只**针对**人工决策暂停点**(prepare / pm_acceptance / MR merge)。
+🔴🔴 **yolo ≠ 简化/提速 · 是「加重审核」**:无人值守 = **没人在看** → 自动化评审是**唯一安全网** · 必须**保留 / 加重** · **绝不削弱**。**roster 内评审全真跑 · 一个不少**(v8.244 默认两路:Architect 主审 + 覆盖方向制第三视角〔QA 视角并入必覆盖方向〕· roster 加回的照跑);🔴 v8.204:第三视角**默认 = 同模型 subagent 隔离冷审**(external 异质**默认关** · 省 CLI 冷启动)· 跨模型异质 = **opt-in 升级**(localconfig `disable_external_review: false`)。yolo 的「零 stop」**只**针对**人工决策暂停点**(prepare / pm_acceptance / MR merge)。
 - 🔴🔴 **严格按 teamwork 流程流转 · 不得「内化」**:每个 stage 的评审必**真跑** —— 多角色真分析(找真问题 · 不是 `mode: yolo-internalized` 自盖章 APPROVE)· 第三视角必**真跑**(`state.py external-review --stage <X>` · 不得 AI 手写 `external-cross-review/*.md`)。物化校验按介质:**默认 subagent 隔离冷审** → 校验 frontmatter `review_via: subagent`(无 → FAIL);**opt-in 异质** → 真调异质模型 + `~/.teamwork/external-review-logs/<feat>/codex-<stage>-*.log` 实跑日志(无 → FAIL · 伪造不了)。auto_mode 的「内化」**仅指跳过用户确认暂停点** · **绝非**跳过/伪造评审工作本身。
 - 🔴 **不得去掉第三视角评审**(以"集中到 review stage""效率""价值低"为由)—— 默认第三视角已是轻量 subagent 冷审(非重量异质 CLI · 成本已低)· 去掉**整个第三视角** `change-review-roles` 仍**物化 BLOCK**。
 - 🔴 **异质开关 = localconfig 单源**(v8.204 · 🔴 **默认 true = 关**):external 异质评审受 `.teamwork_localconfig.json` 的 `disable_external_review` 控制 —— **缺省 / true = 关**(第三视角走同模型 subagent 隔离冷审 · CLI 冷启动太耗时)· **显式 false = opt-in 跨模型异质**。默认(关)时:① `init-feature --yolo` kickoff 一行 **INFO**(`yolo_external_warning` · 非红线告警 · 告知第三视角为同模型冷审)② 第三视角**必须是 subagent 冷审**(isolated context · 宿主自身模型 fresh · **非主对话热审 / 非 AI 手写**)· 门禁校验 `external-cross-review/*.md` 含 `review_via: subagent`(无 → FAIL)—— **「非异质」也不许「不冷审」**(同模型但冷上下文仍是独立采样;主对话自评 = 无效)。跑 `state.py external-review --stage <X>` 自动 emit 对应配方(默认冷审 / opt-in 异质)。
