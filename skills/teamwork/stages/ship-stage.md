@@ -22,7 +22,7 @@
 state.py ship-phase --action archive --feature <path> \
   --planning-artifacts <逗号分隔 worktree 相对路径> \
   --archive-desc '<业务摘要 ≤200 字 · 只业务不过程>'
-# 确无规划可翻(ad-hoc Bug/Micro · 无关联 BL)→ 用 --no-planning-changes 替代 --planning-artifacts
+# 确无规划可翻(ad-hoc Bug / Feature·micro · 无关联 BL)→ 用 --no-planning-changes 替代 --planning-artifacts
 ```
 
 state.py 一口气做完(单 commit 进 feature 分支):
@@ -216,11 +216,11 @@ ship1 交付本体(随 feature MR)· zip 内 state.json = 终态墓碑(current_s
 → 台账 +1 行 · 建议:<保持 | 此类 feature 建议 X(仅建议 · 用户拍板)>
 ```
 
-**豁免**:Micro 流程只记台账行 · 不出 digest。
+**豁免**:Feature·micro(含存量 Micro)只记台账行 · 不出 digest。
 
 **消费方**(🔴 指名 · 写而不读 = 白写):
 - **流程审视场景**(用户问「流程价值 / 哪些环节该砍」)→ PMO 读台账算:external confirmed 率 · 各角色真 finding 率 · 暂停点 all-default 率;
-- **年检 kill criteria 数据源**:连续数月无新判例 → 流程仪式砍半;external confirmed ≈ 0 → 异质强制(P0-154)降可选;某角色长期零真 finding → 评审矩阵收缩。
+- **年检 kill criteria 数据源**:连续数月无新判例 → 流程仪式砍半;第三视角冷审长期零 confirmed → 收缩第三视角 roster 判据(异质已默认关 · v8.204);某角色长期零真 finding → 评审矩阵收缩。
 
 ⏳ **物化 TODO(v2)**:archive 在规划 gate 自动抽机器字段 emit `ledger_row` 草稿(AI 只补 2 个判断格)。
 

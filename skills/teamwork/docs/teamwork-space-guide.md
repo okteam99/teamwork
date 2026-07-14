@@ -16,7 +16,7 @@
 ## 0.1 § 知识入口(索引之索引 · 零死角律)
 
 - **职责边界**:teamwork-space.md 承担**知识导航(地图)** · **不承担知识内容** —— 三层律「地图 / 领土=代码(细节唯一真相)/ 冷库=归档 zip(按需解压)」详 [SKILL.md § 项目级文档信息架构](../SKILL.md)。
-- 🔴 **零死角律**:本项目**每个磁盘上存在的知识节点**必在「知识入口」表有一行指针 —— 子项目 `docs_root` / `product-overview/` / `project-specs/`(DEV-RULES·KNOWLEDGE·GLOSSARY·TROUBLESHOOTING·RESOURCES·ARCHITECTURE)/ `external/` / 归档 `{子项目}/docs/features/_archive/INDEX.md`(每子项目 docs_root 下)。漏一个 = 知识泄露死角。无对应目录的项目删该行(不留空指针)。
+- 🔴 **零死角律**:本项目**每个磁盘上存在的知识节点**必在「知识入口」表有一行指针 —— 子项目 `docs_root` / `product-overview/` / `project-specs/`(内容清单单源 [conventions.md §13](./conventions.md):DEV-RULES·UI-RULES·KNOWLEDGE·GLOSSARY·TROUBLESHOOTING·ARCHITECTURE·PROCESS-LEDGER 等)/ `external/` / 归档 `{子项目}/docs/features/_archive/INDEX.md`(每子项目 docs_root 下)。漏一个 = 知识泄露死角。无对应目录的项目删该行(不留空指针)。
 - **一行只写"去哪"**:指针 + 内含摘要 · **不写"是什么"**(文档*类型*语义 = 律法 · 在 SKILL.md · 不复制进项目文件 · 否则每项目背一份会腐烂的副本)。
 - **末行永远是代码**:「细节 → grep+Read 源码 · 不信文档转述」· 地图不替代领土。
 - 🟢 **物化校验已落**:`bootstrap.py check_knowledge_graph_integrity`(归档 `INDEX.md`↔`*.zip` 双向对账 + workspace 节点登记)· session 启动跑 · 命中 emit `checks.knowledge_graph` WARN + 截断鲁棒 digest 行。🔴 **只查可达性 · 不查内容新鲜度**(否则 checker 通过会被误读成「知识完整」· 自己成误导信号 · 违 §「信号≠判决」)。「零死角」从约定升为物化 WARN。
@@ -47,7 +47,7 @@
 - 🔴 **区别 per-subproject**:`project-specs/ARCHITECTURE.md` = **跨子项目**拓扑(workspace);`{子项目}/docs/architecture/` = **单子项目内部**技术架构(技术栈/分层/模块)—— 别混。
 - 🔴 子项目目录直接放项目根下,不嵌套 `packages/` 等中间层。
 - 🔴 **目录布局去重**:顶层知识节点(product-overview/project-specs/external/归档)**不**在 ARCHITECTURE.md 目录布局重复 —— 它们在 teamwork-space.md「知识入口」· ARCHITECTURE.md 目录只展开子项目**内部**结构。
-- 🔴 文档布局遵循 [conventions.md §13](./conventions.md):workspace 级工程文档(DEV-RULES/KNOWLEDGE/GLOSSARY/TROUBLESHOOTING/RESOURCES/**ARCHITECTURE**)进 `project-specs/`(与 `product-overview/` 同级)· 顶级仓库不设 teamwork `docs/` · ROADMAP.md + 子项目 KNOWLEDGE.md 落 `{子项目}/docs/`。
+- 🔴 文档布局遵循 [conventions.md §13](./conventions.md)(内容清单以其为单源):workspace 级工程文档(DEV-RULES/UI-RULES/KNOWLEDGE/GLOSSARY/TROUBLESHOOTING/**ARCHITECTURE** 等)进 `project-specs/`(与 `product-overview/` 同级)· 顶级仓库不设 teamwork `docs/` · ROADMAP.md + 子项目 KNOWLEDGE.md 落 `{子项目}/docs/`。
 - ⚠️ 决策走 ADR(`{子项目}/docs/adr/` · conventions.md §3)· 不单设 workspace 级 `decisions/`(OQ · 暂不体现)。
 
 ## 5. § 子项目清单(路由权威)
@@ -65,7 +65,7 @@
 - 🟢 **不再放 teamwork-space.md**:此池 append-heavy(每次跨 Feature 发现追加一行)· 违背全景索引"≤1 行 / 一眼看懂"原则 · 外置到 `product-overview/PENDING.md`(规划层 inbox)· teamwork-space 只留 1 行指针。
 - 🟢 **context 收益**:不再随 session 入口 silent-read 进 PMO 上下文 · 改为 mode A query 命中 backlog 关键词时**按需读**。
 - 维护规则(ID `PENDING-NNN` / 只留 active 📝🔄 / 追加触发 / 转化即删 / 每格 ≤1 行)→ 见 [templates/pending.md](../templates/pending.md) 头部(自描述)。
-- mode A query 命中"待做 / 待规划 / pending / backlog / 还要做什么" → PMO 读 `product-overview/PENDING.md` 给用户(详 SKILL.md § Triage §2.1)。
+- mode A query 命中"待做 / 待规划 / pending / backlog / 还要做什么" → PMO 读 `product-overview/PENDING.md` 给用户(详 SKILL.md § Triage 入口规范 · 5 mode 分诊)。
 
 ## 7. § 跨项目变更与历史
 

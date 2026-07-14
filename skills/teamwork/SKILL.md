@@ -1,6 +1,6 @@
 ---
 name: teamwork
-version: v8.240.3
+version: v8.241
 description: AI 协作开发一体化框架 - 需求功能开发, bug 修复, 问题排查 · /teamwork 启动
 ---
 
@@ -91,8 +91,9 @@ state.py ship-phase --action sanitize --feature <path> ...
 state.py ship-phase --action archive --feature <path> --planning-artifacts <翻牌文件>|--no-planning-changes --archive-desc '<≤200 字>'
 # → git push + gh/glab 创 feature MR(CLI-first)→ 记录:
 state.py ship-phase --action push --feature <path> --mr-url <真实 URL> ...
-# ⏸️ 提示用户合并 MR —— feature 的 ship 到此结束。合并后 cd 回主工作区:
-state.py ship-finalize --feature <worktree 内 feature 路径>   # ship2:验已交付→删 worktree→净化(可重入 · 零内容)
+# ⏸️ 贴 emit 的 user_card(MR URL 置顶)+ 📦 交付总结 → 立即跑监控(全模式必跑 · 停 ≠ 停监控):
+state.py await-merge --feature <path>   # 30s 轮询 · 检测 MERGED → 自动 ship-finalize(ship2:验已交付→删 worktree→净化)
+# (兜底:轮询不可用时用户合并后手动 cd 回主工作区跑 state.py ship-finalize)
 
 # 5. 错误处理(state.py 主动 hint · PMO 优先按建议修)
 # FAIL → 看 missing_prerequisites[*].hint → 自动修复 → 重试
@@ -125,7 +126,7 @@ worktree 路径规范见 [docs/conventions.md §9-12](./docs/conventions.md)。
 
 ---
 
-## 命令清单(state.py ≈ 40 命令 · 详 `state.py --help`)
+## 命令清单(state.py ≈ 55 命令 · 详 `state.py --help`)
 
 ```
 A 类 · 状态机入口(用户确认 worktree 后 · 在 worktree 内运行)
@@ -134,12 +135,12 @@ A 类 · 状态机入口(用户确认 worktree 后 · 在 worktree 内运行)
 (triage 是 PMO 入口行为 · 不是 state.py 命令 · 见 SKILL.md § Triage 入口规范)
 (prepare 是 PMO 主对话子流程 · 不是 state.py 命令 · 见 docs/prepare.md)
 
-B 类 · Stage 流转(12 stage × 2 + 4 fix/retry + ship-phase/ship-finalize/main-sync)
+B 类 · Stage 流转(12 stage × 2 + 4 fix/retry + ship-phase/await-merge/ship-finalize/main-sync)
 ├── goal-start / goal-complete
 ├── ui_design-start / ui_design-complete (optional · --needs-ui)
 ├── panorama_sync-start / panorama_sync-complete (conditional · ui_design --panorama-changed=true)
 ├── blueprint-start / blueprint-complete
-├── blueprint_lite-start / blueprint_lite-complete (敏捷需求 only)
+├── blueprint_lite-start / blueprint_lite-complete (DEPRECATED · 仅 legacy 敏捷需求存量 in-flight)
 ├── diagnose-start / diagnose-complete (Bug only · 根因细查+修复方案 · 用户确认后才进 dev)
 ├── dev-start / dev-complete
 ├── review-start / review-complete (--verdict APPROVE|NEEDS_REVISION) + review-fix / review-retry
@@ -148,6 +149,7 @@ B 类 · Stage 流转(12 stage × 2 + 4 fix/retry + ship-phase/ship-finalize/mai
 ├── pm_acceptance-start / pm_acceptance-complete (--decision approved_and_ship|...)
 ├── ship-start / ship-complete
 ├── ship-phase --action {sanitize|archive|push|close-unmerged}(v8.145:archive = ship1 终幕 · 归档+翻牌进 feature 分支)
+├── await-merge  ship1 后 MR 合入监控(30s 轮询 · 全模式必跑 · MERGED → 自动 ship-finalize)
 ├── ship-finalize  ship2 零内容清场(verify-delivered→worktree 删→main-sync)· 必在主工作区
 └── main-sync --strategy {commit-push|stash-pull|skip} [--merge-target <br>] [--drop-stashes]  主工作区净化(不依赖 feature · v8.190 顺带回收 teamwork auto-stash)
 
@@ -336,20 +338,19 @@ mode A 排查 / mode E 讨论收尾时 · 命中以下场景必须建议升 mode
 
 ### Mode B 必移交 prepare 子流程
 
-mode B 识别后(**无论后续 flow_type = Feature / 敏捷需求 / Bug / Micro · 都走 prepare**)·
+mode B 识别后(**无论后续 flow_type = Feature〔full/micro〕还是 Bug · 都走 prepare**)·
 PMO **必走** [docs/prepare.md](./docs/prepare.md) · 不可在主对话散述准备步骤。
 
 🔴 **mode B emit 任何 prepare 内容前 · 必先用 Read 工具打开 [docs/prepare.md](./docs/prepare.md)**(命令式 · 不是"参考")· 不读直接 emit 5 段 = R5 违规 + **必漏 §2.1 复杂度升级判据 / §2.2 准入校验**。
 
 📋 **prepare.md §2.1 / §2.2 quick-ref**(读 prepare.md 前就先警觉 · 但**不替代**真读 prepare.md):
-- **§2.1 复杂度升级判据**:关键词命中 Feature 时必再扫这 5 信号(命中任一 → 强制升 **Feature Planning**)
+- **§2.1 复杂度升级判据**:关键词命中任何执行类流程时必再扫这 5 信号(命中任一 → 强制升 **Feature Planning**)
   跨独立部署服务 / 数据模型重构 / 老需求架构性废弃 / 影响 ≥2 BL / 方向级业务变更
-- **§2.2 准入校验**:关键词命中"敏捷需求 / Micro"时必反向扫准入硬约束(任一不满足 → 升 Feature)
-  敏捷需求:≤5 文件 + 无 UI + 无架构 + 方案明确
-  Micro:零逻辑变更 + 仅 文案/样式/资源/配置常量/注释
+- **§2.2 preset=micro 准入校验**:关键词命中「micro / 改文案 / 换图」类轻信号时必反向扫准入硬约束(任一不满足 → preset=full)
+  micro:零逻辑变更 + 仅 文案/样式/资源/配置常量/注释(轻量超纲无独立类型 · 一律 full · roster/clarity 承担)
 
-判据:**进状态机 = 走 prepare**(4 个进状态机流程都需 worktree + branch + merge_target + artifact ID 4 项配置 · ID 按 flow_type 分 F/B/M · 详 conventions.md §1)。
-即便最轻的 Micro(改文案 1 行)也要 prepare · 不可跳过。
+判据:**进状态机 = 走 prepare**(Feature〔full/micro〕+ Bug 三条链都需 worktree + branch + merge_target + artifact ID 4 项配置 · ID 统一 **F/B**〔M 为 legacy 存量〕· 详 conventions.md §1)。
+即便最轻的 Feature·micro(改文案 1 行)也要 prepare · 不可跳过。
 不进状态机的 Feature Planning / 问题排查 → 不走 prepare(由 PMO 主对话执行)。
 
 prepare 子流程动作概览:流程类型识别(§2.1/§2.2 扫信号)→ worktree 决策 → emit 4 项暂停点 → 用户确认 → PMO 跑 git worktree add + cd → state.py init-feature。
@@ -391,7 +392,7 @@ emit 格式:
 **triage 入口完成 = init-feature 前置满足**:
 - ✅ worktree 物理已创建(PMO 显式跑)
 - ✅ cwd 在 worktree 内(PMO 显式 cd)
-- ✅ artifact ID(Feature/Bug/Micro · F/B/M)+ branch + merge_target 已用户确认
+- ✅ artifact ID(Feature/Bug · 字母统一 F/B〔M 为 legacy 存量〕)+ branch + merge_target 已用户确认
 
 📎 项目级骨架(KNOWLEDGE/TROUBLESHOOTING/GLOSSARY)由 init-feature 自动维护 · 不是 triage 职责。
 
@@ -418,7 +419,7 @@ emit 格式:
 | 流程 | 适用场景 | 产出 |
 |------|---------|------|
 | **Feature · full** | 功能开发(兜底) | 代码 + 文档 + 测试 |
-| **Feature · micro** | 零逻辑改动(文案/样式/资源/配置常量 白名单 · ≤5 文件) | 代码直改 + 用户验收 + ship |
+| **Feature · micro** | 零逻辑改动(文案/样式/资源/配置常量/注释 白名单 · 超纲即 full) | 代码直改 + 用户验收 + ship |
 | **Bug** | 缺陷已指认(diagnose 先行 · 根因经用户确认) | 修复 + BUG 报告 + 回归测试 |
 | **Feature Planning** | 拆 ROADMAP(不出代码 · 不进状态机) | WS + ROADMAP + 全景 |
 | **问题排查** | 只定位根因(不进状态机 · 排查先行律) | 排查报告 + 后续 todo |
@@ -429,11 +430,12 @@ emit 格式:
 
 | 流程 | 授权暂停点(按顺序) |
 |---|---|
-| **Feature** | ① prepare 4 项配置 → ② goal PRD 最终确认 → ③ ui_design UI 预览确认(若 --needs-ui) → ④ blueprint DB schema 变更确认(条件 · 见下) → ⑤ pm_acceptance 三选项 → ⑥ ship1 终点 等平台合并 feature MR |
+| **Feature** | ① prepare 4 项配置 → ② goal PRD 最终确认 → ③ ui_design UI 预览确认(若 --needs-ui) → ③′ panorama_sync L2 结构变更跨团队确认(条件 · L1 不停) → ④ blueprint DB schema 变更确认(条件 · 见下) → ⑤ pm_acceptance 三选项 → ⑥ ship1 终点 等平台合并 feature MR |
 | **Bug** | ① prepare 4 项配置 → ② **diagnose 修复方案确认**(根因+方案 · 用户拍板才进 dev) → ③ pm_acceptance 三选项 → ④ ship1 终点 |
 | **Feature · micro** | ① prepare 4 项配置 → ② pm_acceptance 三选项 → ③ ship1 终点 |
 
 📎 **blueprint DB schema 条件暂停点**:Feature 的 TECH 方案涉及**数据库数据结构变更**(新建/删除/修改 表、字段、索引、约束、migration)时 · blueprint-complete 前必 emit 用户确认暂停点(详 [stages/blueprint-stage.md § 7.5](./stages/blueprint-stage.md))· 不涉及则跳过。**Bug / Feature·micro** 不应涉及 DB 数据结构变更(属架构性 · 命中则升 full 完整链)。
+📎 **其余条件暂停**(命中才停 · 未命中自动过 · 不入上表主链):goal 早问门三闸(goal-stage ②3 · 如涉既有行为变更升级待决策)· review 轮次超预算升级(review-stage 硬规则)。
 📎 stage 间(goal-complete→ui_design / dev→review 等)是 state.py **自动流转** · 非暂停点 · 不插确认。
 
 ### auto_mode=true 时各暂停点行为(按名 · 不按编号)
@@ -444,10 +446,10 @@ emit 格式:
 |---|---|---|
 | **prepare 4 项配置** | **stop** | 用户初始配置(artifact ID / worktree / branch / merge_target)· AI 不能替选 |
 | goal PRD 最终确认 | skip | PRD 已多角色 review(**真跑**)· auto 跳过的是**用户确认** · 非评审本身 |
+| diagnose 修复方案确认(Bug) | **skip + WARN** | auto 已委托 · 按推荐方案继续 + `add-concern --severity WARN --message "auto skip: diagnose 方案 ..."` 留痕(diagnose 在状态机内 · 命令可用)· 修偏由 pm_acceptance 兜 |
 | ui_design UI 预览确认 | skip | 设计意图已落 UI.md / preview · auto 用户接受 |
 | panorama_sync 跨团队 reviewer(仅 L2 结构变更停 · L1 节点内增量任何模式都不暂停) | **skip + WARN** | `panorama-change-summary.md` 已文档化 · auto 用户接受跨 Feature 影响 · PMO 必 `state.py add-concern --severity WARN --message "auto skip: panorama change scope=..."` 留 audit |
 | blueprint DB schema 变更确认 | **skip + WARN** | 技术决策 auto 委托 AI · 但 DB 变更高风险 · PMO 必 `state.py add-concern --severity WARN --message "auto skip: DB schema change ··· tables/fields/migrations: ..."` 留 audit(便于 dev/review 复查) |
-| browser_e2e 用户看截图 | skip | 截图已入 evidence · auto 用户接受 |
 | **pm_acceptance 三选项** | **stop** | 产品决策权:approved_and_ship / approved_no_ship / rejected_with_feedback · AI 不能替用户拍板(违 R3) |
 | **ship1 终点 等平台 merge feature MR** | **stop + 监控** | 用户在 git host 平台操作 · AI 无法代办 · 🔴 v8.234:stop = 不替用户点合并 · **仍必须跑 `await-merge` 轮询**(所有模式 · MERGED → 自动 ship-finalize)—— 否则用户合了没人收尾(worktree 残留 · 实证 case) |
 
@@ -649,8 +651,6 @@ PMO 只关注流程编排 · 系统维护是 `bootstrap.py` 的职责。
 - ✅ 仅读相关段 · 不全扫整个文件
 - ❌ 不输出 "我现在 read X 看看"
 
-详细 silent execution 规范见 [SKILL.md § Triage 入口规范](./SKILL.md) 入口部分。
-
 ---
 
 ## 状态行(R5 软约束)
@@ -680,14 +680,14 @@ PMO 只关注流程编排 · 系统维护是 `bootstrap.py` 的职责。
 
 **反模式**(命中 = 流程偏离):
 - ❌ 主对话回复无状态行
-- ❌ 状态行随便写(不按 v8 2 行格式)
+- ❌ 状态行随便写(不按 v8 3 行格式)
 - ❌ 状态行的 next_action 与实际下一步不符
 
 ---
 
 ## 核心保证(对应 v7 9 红线 R1-R9)
 
-v8 把 v7 的 9 红线中 16/17 子条目物化进 state.py · 仅 1 条(R3 PMO 统一承接)仍是软规则。
+v8 把 9 红线的可枚举子条目物化进 state.py;R3(PMO 统一承接)+ 部分行为约束(R4 / R5(b) / bypass)是 PMO 软约束 —— 口径单源详本文件 § PMO 软约束 + 暂停点标准格式。
 
 | v7 红线 | v8 归宿 |
 |---------|---------|
@@ -701,8 +701,6 @@ v8 把 v7 的 9 红线中 16/17 子条目物化进 state.py · 仅 1 条(R3 PMO 
 | R8 写操作硬门禁链 | state.py 内部 prepare 完成前拒绝 stage-start · ship Phase 1 CLI-first |
 | R9 session bootstrap 必跑 triage | tools/bootstrap.py + PMO 按 SKILL.md § Triage 入口规范 分诊 |
 
-详细 9 红线 rationale 原载 v8.0 设计稿(已清理 · git 历史可溯)。
-
 ---
 
 ## 文档导航
@@ -710,7 +708,7 @@ v8 把 v7 的 9 红线中 16/17 子条目物化进 state.py · 仅 1 条(R3 PMO 
 | 文件 | 作用 |
 |------|------|
 | [SKILL.md § Triage 入口规范](./SKILL.md) | **入口规范** · triage 不是 stage · 5 mode 分诊 + mode B worktree 决策 |
-| [FLOWS.md](./FLOWS.md) | 6 流程 telos(详细步骤进 docs/prepare.md 子流程 + 各 stage brief) |
+| [FLOWS.md](./FLOWS.md) | 流程闭集 telos(Feature/Bug × preset + 2 个不进状态机 · 详细步骤进 docs/prepare.md 子流程 + 各 stage brief) |
 | [STAGES.md](./STAGES.md) | **stage 编排单源**(定义 / 链 / 通用纪律 / 执行方式 §4) |
 | [ROLES.md](./ROLES.md) | 角色索引(→ roles/*.md) |
 | [STANDARDS.md](./STANDARDS.md) | 技术规范索引(→ standards/*.md · 不含流程规范) |

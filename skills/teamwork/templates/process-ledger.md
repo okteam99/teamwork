@@ -13,7 +13,7 @@
 
 | Feature | flow | 实走 stages | 时长(总·AI自主·待用户) | review/test 轮 | external 总/采/驳 | 角色真 finding | 暂停点 改:默 | bypass/WARN | 反思摘要(≤1 行) | 各阶段耗时 | 用户邮箱 | 宿主 | 分诊校准(预测→实际) |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| <ID> | <Feature/Bug/敏捷/Micro> | <goal→blueprint→dev→…→ship> | <2.4h·AI 88m·待 32m> | <1/1> | <3/1/2> | <arch:1 qa:0 ext:1> | <1:2> | <0/0> | <external 拦 1 真问题 · ui_design 零 finding 过场> | <goal 20m(+等5m)·dev 40m·review 8m·pm_acceptance 30m> | <git user.email> | <claude-code/codex-cli/gemini-cli> | <explicit·goal→qa → diff 14 files·PRD 0 revision·review 1 轮> |
+| <ID> | <Feature / Feature·micro / Bug> | <goal→blueprint→dev→…→ship> | <2.4h·AI 88m·待 32m> | <1/1> | <3/1/2> | <arch:1 qa:0 ext:1> | <1:2> | <0/0> | <external 拦 1 真问题 · ui_design 零 finding 过场> | <goal 20m(+等5m)·dev 40m·review 8m·pm_acceptance 30m> | <git user.email> | <claude-code/codex-cli/gemini-cli> | <explicit·goal→qa → diff 14 files·PRD 0 revision·review 1 轮> |
 
 > 🔴 **schema 演进纪律(v8.210)= 只在末尾加列** —— 新列一律追加到表**最右**(旧 feature 行天然是**有效前缀** · 新列它们为空 = 该 feature 早于该指标 · 诚实)· **永不在中间插列**(否则旧行错位、年检读错列)。**旧项目台账迁移 = 仅换表头一行**(旧数据行不动):append 前跑 `state.py ledger-migrate --feature <path>`(幂等 · header 已最新则 no-op)。
 > 🔴 **时长三分(v8.208)**:`总` = 墙钟(init→archive · 不含 MR 等待)· `AI自主` = 扣掉所有人工等待后 AI 真跑的时长(Σ 工作 stage〔duration − stage 内 pause-mark 暂停〕)· `待用户` = 全部人工等待(stage 内暂停 + pm_acceptance 等纯等待 stage 墙钟)。**数据源 = ship1 archive emit 的 `ledger_timing`**(确定性 · 照抄不肉眼算)· `各阶段耗时`同源(`per_stage`)。

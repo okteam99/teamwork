@@ -2225,6 +2225,7 @@ def _review_verify_round_brief(state: dict, rounds: list) -> str:
 state.py review-complete --feature <path> --auto-commit <hash> \\
   --artifacts REVIEW.md,REVIEW-arch.md,REVIEW-qa.md \\
   --verdict {{APPROVE|NEEDS_REVISION}}
+# --artifacts 按 roster:上为默认 roster(arch+qa)示例 · 移出 roster 的角色产物不查(v8.241)
 ```
 """
 
@@ -2241,12 +2242,12 @@ def _review_brief(state: dict) -> str:
     return f"""## Review Stage
 
 ### 目标
-三视角独立评审(Architect + QA + External 异质模型)· 收敛 verdict。
+按 roster(`state.stage_review_roles.review`)独立评审(默认 Architect + QA + 第三视角冷审)· 收敛 verdict。
 
-### 结果(完成判定)
+### 结果(完成判定 · roster-aware)
 - `REVIEW.md`(frontmatter:`reviewers + verdict: APPROVE|NEEDS_REVISION` + `findings` 机读台账)
-- `REVIEW-arch.md` + `REVIEW-qa.md`
-- `{{artifact_root}}/external-cross-review/*.md`(至少 1 份)
+- `REVIEW-<role>.md` 按 roster 各一份(默认 `REVIEW-arch.md` + `REVIEW-qa.md` · 移出 roster 不查 · v8.241)
+- `{{artifact_root}}/external-cross-review/*.md`(roster 含 external 时 · 默认同模型 subagent 冷审 · 至少 1 份)
 
 ### 怎么做
 **必读** `stages/review-stage.md`(评审步骤 + 收敛协议:severity 门槛 / 验证轮 / 轮次预算)。
@@ -2258,6 +2259,7 @@ def _review_brief(state: dict) -> str:
 state.py review-complete --feature <path> --auto-commit <hash> \
   --artifacts REVIEW.md,REVIEW-arch.md,REVIEW-qa.md \
   --verdict {{APPROVE|NEEDS_REVISION}}
+# --artifacts 按 roster:上为默认 roster(arch+qa)示例 · 移出 roster 的角色产物不查(v8.241)
 ```
 """
 
@@ -2287,6 +2289,33 @@ def _evidence_review_verdict(state: dict, args) -> tuple[bool, str]:
     return True, ""
 
 
+_REVIEW_ROLE_ARTIFACTS = {"architect": "REVIEW-arch.md", "qa": "REVIEW-qa.md"}
+
+
+def _evidence_review_role_artifacts(state: dict, args) -> tuple[bool, str]:
+    """v8.241:REVIEW-arch/REVIEW-qa 按 roster(stage_review_roles.review)校验。
+
+    治本:v8.216 动态 roster 后 architect/qa 可被合法移出 review roster,
+    而两 artifact 原为静态必查 —— 「角色按 roster 可调」的承诺与门禁互斥。
+    roster 含该角色 → 对应 REVIEW-<role>.md 必须存在;移出则不查。
+    legacy state 无 stage_review_roles → 按旧行为全查(不放松存量)。
+    """
+    roles = (state.get("stage_review_roles") or {}).get("review")
+    if not isinstance(roles, list):
+        roles = list(_REVIEW_ROLE_ARTIFACTS)  # legacy 默认全查
+    feature_dir = Path(args.feature)
+    missing = [f"{r} → {fname}" for r, fname in _REVIEW_ROLE_ARTIFACTS.items()
+               if r in roles and not (feature_dir / fname).exists()]
+    if missing:
+        return False, (
+            "roster 内评审角色产物缺失:" + " · ".join(missing)
+            + " —— stage_review_roles.review 含该角色即必有对应 REVIEW-<role>.md"
+            "(roster 移出的角色不查 · change-review-roles --reason 留痕后生效 · v8.241)"
+        )
+    checked = [fname for r, fname in _REVIEW_ROLE_ARTIFACTS.items() if r in roles]
+    return True, ("roster-aware:" + (" + ".join(checked) if checked else "roster 无 architect/qa · 角色产物不查"))
+
+
 REVIEW_SPEC = StageSpec(
     name="review",
     prerequisites=[
@@ -2313,22 +2342,19 @@ REVIEW_SPEC = StageSpec(
             must_be_in_commit=False,
             description="评审总结",
         ),
-        StageArtifactSpec(
-            path="REVIEW-arch.md",
-            must_be_in_commit=False,
-            description="架构师评审",
-        ),
-        StageArtifactSpec(
-            path="REVIEW-qa.md",
-            must_be_in_commit=False,
-            description="QA 评审",
-        ),
+        # REVIEW-arch.md / REVIEW-qa.md:v8.241 起 roster-aware(见 review_role_artifacts
+        # evidence check)—— 静态必查与动态 roster(v8.216)互斥,角色移出 roster 则不查。
     ],
     evidence_checks=[
         StageEvidenceCheck(
             name="review_verdict",
             check_fn=_evidence_review_verdict,
             description="--verdict 必须是 APPROVE 或 NEEDS_REVISION",
+        ),
+        StageEvidenceCheck(
+            name="review_role_artifacts",
+            check_fn=_evidence_review_role_artifacts,
+            description="REVIEW-<role>.md 按 roster(stage_review_roles.review)各一份 · 移出不查(v8.241)",
         ),
         # review 收敛协议:severity 门槛(NEEDS_REVISION 须 open BLOCKER/MAJOR ·
         # APPROVE 不得有 open BLOCKER/MAJOR · findings 机读台账缺失不能打回)

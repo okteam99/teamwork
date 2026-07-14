@@ -4,6 +4,28 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.241 · 全库文档审计清扫:83 findings 修复 + 退役词表回归网 + 两处工具侧治本
+
+> 用户令「整体 review 各文档找不合理/冲突/冗余」→ 5 路评审 subagent 按文档簇并行(SKILL/stages/docs/templates+roles/对外三件)+ 主对话词表扫描,共 **83 处经双边原文验证的 findings**。病灶高度聚簇:五次大改版(v8.204 外审默认反转 / v8.211 注入退役 / v8.219 四段化 / v8.220-223 流程收缩 / v8.233-234 ship 终点)各留扫尾债。机器契约层(FLOWS↔常量 · frontmatter↔物化校验 · 台账 schema)五路核验零冲突。
+
+### 工具侧治本(2)
+- **REVIEW-arch/REVIEW-qa roster 化**:静态必查与动态 roster(v8.216)互斥(角色可被合法移出 roster 而产物仍硬查)→ 新 `review_role_artifacts` evidence check 按 `stage_review_roles.review` 查(移出不查 · legacy 无 roster 全查不放松存量)。
+- **close-unmerged 任意 stage 可走**:pm_acceptance rejected 的「放弃 Feature」选项此前是死路(emit 给的命令必被 `_require_ship_stage` 拒)→ 放宽该 action(幂等门仍由 phase 检查把守)。
+
+### 文档修复(四大簇 + Tier1)
+- **照抄即错**:规划层 auto 留痕 add-concern 不可执行(规划无状态机 · 全景确认与 v8.239 Step 5.7 同病)→ 改 WS frontmatter/背景节留痕;main-sync 示例与机器 hint 补 required `--strategy`;prepare §5 示例补 `--clarity/--preset/--bl` 落点;config_line_hint 机器残留 `lite` 清除;bug-report 模板补 `symptom/root_cause/fix_summary`(机器 gate 校验它们非空);config.md 外审开关说明与实例相反(「删此项恢复异质」在新语义下效果相反)重写。
+- **v8.204 外审默认反转簇(7)**:blueprint §6 整段旧教义(无条件异质必跑)→ roster 三层条件式;blueprint Architect「主对话不走 subagent」→ 隔离冷审(对齐 goal 实证);roles/external-reviewer 补三层现实;standards/external-model-usage「默认 false + WARN 催恢复」重写;README-EN/ prepare/ ship 措辞。
+- **v8.220-223 流程收缩簇(~20)**:SKILL §2.2 quick-ref 重写为 preset 词表 · 两处 F/B/M→F/B · micro「≤5 文件」两口径删阈值(FLOWS 同步);prepare §2.2 整节重写(敏捷需求准入档退役 · micro 白名单准入单源)· 编号断裂(1.4/1.5×2→1.6/1.7)· lite/M 字残留;conventions M 示例与 §8 补 legacy 标;roadmap 模板 v7 阶段名→v8 stage 名;README CN 6 行流程表→5 行闭集(与 EN 对齐)。
+- **README 双语过时宣称(8)**:Ship 节还在描述 v8.145 已删的旧两-MR 链路 → 重写为 user_card+await-merge 两段现实;PENDING 外置 / TROUBLESHOOTING 收敛 project-specs / KNOWLEDGE 四类 / 执行手册废弃补 workstream/ / hooks 清理措辞 / EN sitemap→panorama 误译。
+- **断链引用(~12)**:四段化后 ui-design→dev §3/§3.5、roles/pm→goal §4/§1;重编号后 conventions→ship-stage §坑1/§8、→feature-planning Step 5、feature-planning 自引 Step 5、checklist spec Step 8→9;三报告模板→roles 不存在小节;SKILL 自指不存在的 silent execution 节。
+- **冗余与小项**:agents/README **保留**(§二/§三 dispatch 协议是 subagent 独立载体 · codex-agents toml 运行时指读)但 §一 姿态/声明制散文去重(指回 SKILL 单源 · 档位表+三硬边界仍单源本文件);SKILL 快速开始 ship 旧剧本→await-merge · auto 表删 browser_e2e 幽灵行 + 补 diagnose 行(skip+WARN)· 暂停点清单补 panorama_sync L2 · ≈40 命令→≈55 + B 类补 await-merge · 物化覆盖率两口径统一 · 状态行 2/3 行统一;pm-acceptance raw-write→jump-to-stage;tc.md TC-REVIEW 死段删;bug-report classification 零消费机制删;9 模板补「位置:」行;project-specs 清单三文档归一 conventions §13。
+
+### 制度化(治「每次大改各留扫尾债」)
+- **退役词表回归网**:新 `test_retired_vocab_sweep.py` —— 退役词(敏捷需求/Micro/blueprint_lite/teamwork_version/Goal-Plan)只许出现在带 legacy 标注的当句 · 裸残留 = pre-push 红。
+
+### 验证
+- 新测试 +7(roster 化 4 + close-unmerged 2 + 词表网 1)· pytest **846 passed**。
+
 ## v8.240 · 拆解边界判据:交付内聚>子项目边界 + 含金量对照 + id 不重排纪律
 
 > 来源 case(JCB 卡片 WS · v8.239 门生效前的存量拆解):7 件逐 feature 代码审计发现 4 件薄(S2/S3/S6 薄配套 · S7 半运营 · 「其余四件加起来的代码量可能不如 S5 一件」),但 v8.239 粒度反压零触发(7<8 · 每件流程上都「站得住」);用户亲自解禁「feature 也可以跨子项目」才合成 5;且落盘后合并触发**第三次编号重排 = 整卷重写防漏引用**。三个判据缺口,不加新暂停点。
@@ -50,13 +72,3 @@
 
 ### 验证
 - 常量+接线断言 +1 · pytest 835 passed。
-
-## v8.237 · 升级检测缓存 TTL 24h → 8h(治缓存掩新版)
-
-> 实证 case:发版节奏快(12 小时内 dev 推进 8 个 minor)· bootstrap 升级检测的 24h TTL 缓存命中 → 报 `up_to_date(from_cache)` · 实际已落后。用户拍板:TTL 改 8 小时。
-
-### 改动
-- `SKILL_UPDATE_CHECK_TTL_HOURS = 24 → 8`(失效条件不变:超 TTL / 无缓存 / 时钟回拨 / 本地版本或 channel 变 / `TEAMWORK_FORCE_UPDATE_CHECK=1` 强制实查)· 注释与测试措辞同步(测试逻辑用常量 · 零断言改)。
-
-### 验证
-- pytest 834 passed。

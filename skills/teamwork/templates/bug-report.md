@@ -7,15 +7,19 @@
 
 ## YAML frontmatter（机读字段）
 
-> 简单 Bug 流程的状态机由本 frontmatter 承载（非新建 state.json 文件，避免简单 Bug 流程膨胀）。
+> frontmatter 为人读镜像 · 权威状态在 state.json（Bug 流同样 init-feature 建）。
 > 字段命名复用 Feature state.json 核心字段（current_stage / phase / shipped 等），保持 schema 一致性。
 
 ```yaml
 ---
 bug_id: "BUG-PTR-F025-001" # 必填，编号规则见 docs/conventions.md § 2
 feature_id: "{缩写}-F025-{所属Feature名}" # 必填，Bug 归属的 Feature
-classification: simple | complex # PMO 在 Bug 流程判断后填入
 flow_type: bug # 固定值（与 feature 区分）
+
+# 诊断字段（diagnose-complete 机器校验）
+symptom: "" # prepare/diagnose 填 · 一句话症状
+root_cause: "" # diagnose 填 · 真因摘要 · 机器校验非空
+fix_summary: "" # diagnose 填 · 修复方案摘要（非「已修」· fix 码在 dev）· 机器校验非空
 
 # 状态机字段
 current_stage: diagnose | dev | review | test | pm_acceptance | ship | completed   # = state.py BUG_FLOW(首 stage diagnose · 根因细查+修复方案确认)
@@ -43,8 +47,6 @@ review_log_path: "{Feature}/review-log.jsonl" # 复用 Feature 的 review-log
 planned_execution: {} # 各 Stage 的 Execution Plan 历史
 ---
 ```
-
-🔴 **复杂 Bug 例外**：复杂 Bug 进入 Feature 流程后，使用 Feature 的 `state.json`，BUG-REPORT.md frontmatter 仅保留 `bug_id / feature_id / classification: complex / flow_type: bug / current_stage: escalated_to_feature`，其他字段委托 Feature state.json 维护。
 
 🔴 **PMO 校验**：进入 Bug 流程后，PMO 必须在 BUG-REPORT.md 创建时初始化 frontmatter；stage 流转由 state.py 状态机物化校验（`FLOW_BY_TYPE`），BUG-REPORT.md frontmatter `current_stage` 仅作标识，权威状态在 `state.json`。
 
@@ -125,8 +127,6 @@ planned_execution: {} # 各 Stage 的 Execution Plan 历史
 
 ### 影响评估
 - [ ] 是否影响其他功能 · [ ] 是否需数据迁移 · [ ] 是否需更新文档
-
-> 📋 复杂度 = frontmatter `classification`(simple / complex)· 进入流程时定。入口**恒为 diagnose**(无需"起点阶段"判断)· complex Bug 升 Feature 流程见上方「复杂 Bug 例外」。
 
 ---
 

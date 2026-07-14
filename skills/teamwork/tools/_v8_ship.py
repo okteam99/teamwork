@@ -100,7 +100,12 @@ def _require_ship_stage(state: dict, action: str) -> None:
 
     v8.145 例外:archive 把 current_stage 写成 completed(终态进 zip)· 工作树接力卡
     随之是 completed —— archive 幂等重跑 / push 记录 / close-unmerged 仍须可跑。
+    v8.241 例外:close-unmerged(放弃)可从任意 stage 走 —— pm_acceptance rejected
+    的「放弃 Feature」选项此前是死路(emit 给的命令必被本门拒)· 幂等门仍由
+    _handle_ship_close_unmerged 的 phase 检查(null/pushed → closed_unmerged)把守。
     """
+    if action == "close-unmerged":
+        return
     cur = state.get("current_stage")
     if cur == "ship":
         return

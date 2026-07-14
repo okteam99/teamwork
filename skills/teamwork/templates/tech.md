@@ -1,5 +1,7 @@
 # TECH 模板
 
+> 位置：`{Feature 目录}/TECH.md`
+
 ```markdown
 # {功能名称} - 技术方案
 

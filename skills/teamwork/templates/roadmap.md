@@ -1,7 +1,7 @@
 # ROADMAP 模板
 
 > 位置：`docs/ROADMAP.md`（项目级）或 `{子项目路径}/docs/ROADMAP.md`（子项目级）
-> 触发：Feature Planning 流程中 PM 基于已确认的 PROJECT.md 产出；技术债由 RD/架构师在开发过程中追加
+> 触发：PL 主导 feature-planning 产出（WS 拆解写入）；技术债由 RD/架构师在开发过程中追加
 > 用途：PROJECT.md 的执行落地文档。将业务目标拆解为可执行的 Feature 序列，按依赖关系编排执行批次（Wave），标注并行度，方便开多个 AI session 并行执行。
 
 ```markdown
@@ -43,8 +43,7 @@
 **ROADMAP「当前阶段」列合法值**：
 \`\`\`
 - : 未开始
-PM 编写 PRD / PL-PM 讨论中 / Designer 设计 / QA Test Plan / QA Write Cases / RD 技术方案 /
-RD 实现计划 / RD 开发中 / Code Review / QA 审查中 / 集成测试中 / PM 验收中 /
+goal / blueprint / dev / review / test / browser_e2e / pm_acceptance / ship /
 ⏳ 等待外部依赖 / ✅ 已完成
 \`\`\`
 > 🔴 ROADMAP 的「当前阶段」使用简化名称（空间有限），完整阶段历史见 {Feature}/state.json 的 executor_history[] 和 review-log.jsonl。
@@ -93,7 +92,7 @@ graph LR
 - **描述**：一句话说明功能做什么
 - **核心验收标准**：2-3 条最关键的验收标准（用 ①②③ 编号），确保即使 PRD 丢失也能重建需求。不需要穷举，只写决定性的标准
 - **状态**：Feature 用 \`待开始\` / \`进行中\` / \`⏳ 等待外部依赖\` / \`已完成\` / \`已取消\`；技术债用 \`待清理\` / \`清理中\` / \`已清理\`
-- **当前阶段**：状态为 \`进行中\` 时填写实际阶段（如 \`RD 开发中\`、\`QA 审查中\`），\`待开始\` / \`已完成\` 时填 \`-\`。PMO 每次阶段流转时同步更新
+- **当前阶段**：状态为 \`进行中\` 时填写实际 stage（如 \`dev\`、\`review\` · v8 stage 名见上方合法值），\`待开始\` / \`已完成\` 时填 \`-\`。PMO 每次阶段流转时同步更新
 - **阻塞标注**：状态为 \`⏳ 等待外部依赖\` 时，在状态列附注阻塞原因，格式：\`⏳ 等待外部依赖（上游模块缩写 + 一句话原因）\`
 - **对应 F编号**：Feature 进入 Feature 流程后填写（如 \`F001-用户登录\`），实现 Roadmap → Feature 追踪
 - **关联 WS**：本 BL 由哪个 Workstream 拆出（如 \`WS-01\`）· 回指 \`product-overview/workstream/WS-NN.md\`，反查"某 WS / 执行线下有哪些 feature"

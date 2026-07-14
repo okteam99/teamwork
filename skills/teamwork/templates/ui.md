@@ -1,5 +1,6 @@
 # UI 模板（真相归 HTML · 本文件只承载意图 / 追溯 / 审计）
 
+> 位置：`{Feature 目录}/UI.md`
 > 🔴 **职责单源**：
 > - **视觉真相** = 预览产物（布局 / 组件 / 主色 / 字号 / 间距 / 响应式 / 4 态 / 用户流程交互）· 按 `panorama_medium`：`static-html` → `preview/*.html`；**`same-stack` → `preview-project/` 源**（跑 `preview.sh` 看实时 dev server · 不出静态 build）
 > - **意图 + 追溯 + 审计** = 本 UI.md（panorama 对齐 / AC 覆盖 / Designer 自查 / 变更记录）

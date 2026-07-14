@@ -19,12 +19,12 @@
 
 - Designer ↔ PM:UI 设计需对齐 PRD.AC 的字段与场景
 - Designer ↔ RD:HTML 预览作为 RD 还原依据
-- Designer → state.py:ui_design-complete 校验 UI.md frontmatter.pages[] + preview/ 文件数
+- Designer → state.py:ui_design-complete 校验 medium-aware —— same-stack 查 preview-project + preview.sh / static-html(pages_changed)逐全景文件 / 兜底 preview/*.html ≥1
 
 ## Rationale
 
 HTML 预览作为硬约束防 RD 自由发挥(对比 v7 之前的文字描述 + RD 想象)。
-v8 ui_design-complete 校验 pages[].id 全部有对应 .html · 物化绑定。
+v8 ui_design-complete 校验 medium-aware(same-stack 查 preview-project + preview.sh · static-html 按 pages_changed 逐全景文件 · 兜底 preview/*.html ≥1)· 物化绑定。
 
 ## 相关
 

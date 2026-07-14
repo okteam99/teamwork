@@ -19,7 +19,7 @@
 5. **验证轮范围锁定**(Round 2+):只裁决上轮 open finding + 回归审查修复 diff · **禁全量重扫**(新 finding 仅限出自修复 diff、或 BLOCKER 级附「为何首轮未发现」);rejected 不得复提(除非新证据);同一代码点相邻轮方向相反(加固↔简化)= 钟摆 → 不修 · 升暂停点(why:全量重扫每轮随机采样出新 nit = 不收敛根因)。
 6. **轮次预算**:超 `max_review_rounds`(默认 3)→ R5 升级暂停点用户裁决(1 仅修 BLOCKER/MAJOR 收口 💡 / 2 继续〔`review-retry --user-confirmed` 必须真有用户拍板 · yolo blanket 例外〕/ 3 按现状 APPROVE + deferred 留痕)。
 7. **external 按 roster + 独立性协议**:roster 含 external → 跑 `state.py external-review --stage review`(先 `--preflight` 秒级验环境;同步慢 · 常 30s–3min · **别提前 kill**;超时/空输出 = FAIL 非放行;客观不可用已重试 → `--self-review-fallback` 显式降级 subagent 冷审 · frontmatter 标 `degraded` · 🔴 **绝不伪造/冒充/静默跳过**)。拟 APPROVE 前有过 fix → `--verify-fixes` 增量重验(物化校验)。
-8. **REVIEW.md 是汇总不是替代**:三份视角产物独立留盘(缺 REVIEW-arch/REVIEW-qa → complete FAIL)。
+8. **REVIEW.md 是汇总不是替代**:各视角产物独立留盘 —— `REVIEW-<role>.md` 按 roster(`stage_review_roles.review`)各一份 · 缺 roster 内角色的产物 → complete FAIL(roster 移出的角色不查 · 机器校验 roster-aware)。
 
 ---
 

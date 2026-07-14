@@ -119,7 +119,7 @@ risks:
 > 每个 feature 的范围/依赖/高层 AC（详细 AC 在各 Feature PRD）· 写入 ROADMAP 后**执行进度看上方 §feature 总览**，此处不复制状态（防双源 stale）。
 ### {feature_id}（→ {子项目} ROADMAP · BL 待回填）
 - **范围**：{做什么}
-- **flow_type**：{feature / agile / bug / micro}
+- **flow_type**：{Feature / Bug}（轻量走 preset: micro · 非独立类型）
 - **依赖**：{其他 WS-01-Sx}
 - **核心 AC**（高层 · 详细 AC 在 Feature PRD）：① ... ② ...
 

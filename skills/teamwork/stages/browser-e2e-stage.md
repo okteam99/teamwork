@@ -5,7 +5,7 @@
 ## 怎么做
 
 ### 1. 加载上下文
-读 UI.md / preview/*.html / 实际部署 URL
+读 UI.md(pages_changed[])· 按 panorama_medium 的全景预览(panorama_path 下)· 实际部署 URL
 
 ### 2. 选浏览器自动化
 Playwright / Puppeteer / Selenium(项目栈决定)

@@ -76,7 +76,7 @@ teamwork 支持两种 panorama 介质 · 项目应在 ui_design 启动前明确,
 >   - **same-stack → 完全一致**:页面内容从**同一份共享组件 / 真实页面源**渲染 · **零预览痕迹** · 设计=代码是「**构造保证**」非人肉对齐 · **不留「像素自由」口子**。🔴 机制 = **真实交互页面内做**(按钮→Drawer/编辑/详情 · 同真实 app · 交互保真)· **dev 工具面板(右下角悬浮)只放页面到不了的态**(Loading/Error/Empty/边缘态 · 真实交互无法自然触发的)· 页面禁的是**预览专属控件**(state-switcher 下拉等真实 app 没有的 · 非真实交互按钮)· 详 § preview dev 工具面板。
 >   - **static-html → 仅参考**:介质差异客观不可像素仿 · 四要素对齐即可(dev 还原与 pm_acceptance 的对照物)。
 > - **权威时效(防权威倒置)**:页面层全景的设计权威**至该页 ship 为止** —— ship 后代码即唯一真相 · 全景页转历史参考 + 下一轮设计底版。🔴 反模式:拿停更的全景页「纠正」已演化的真实页面。
-> - **下游编译契约**:共享基建有两个消费者(真实 app + 全景)· 任何 feature 改共享基建 → **dev 结束须保证全景编译通过**(详 [dev-stage.md §3.5](./dev-stage.md))。
+> - **下游编译契约**:共享基建有两个消费者(真实 app + 全景)· 任何 feature 改共享基建 → **dev 结束须保证全景编译通过**(详 [dev-stage.md ②硬规则 5(共享基建→全景编译契约)](./dev-stage.md))。
 > 🟢 **same-stack 去静态 build 产物**(用户拍板):**去掉静态 build 产物**(`docs/design/preview/*.html` 不再必产)· 全景权威 = preview-project **源**(committed · 要看跑 preview.sh)· 预览 = dev server 实时(动态端口 · 不在 teamwork 层起 server)。`pages_changed[].panorama_file` 对 same-stack 可选(指向 preview-project 内渲染该页的源/路由 · 非文件存在性校验)。
 > 老 Feature(in-app /design 路由 / 静态 preview)向后兼容不强迁 · 新 Feature 用本模型。
 
@@ -200,7 +200,7 @@ state.py ui_design-complete --feature X --auto-commit Y \
 - 从**用户视角**命名(「通知」非「webhook 配置」)· active voice(「保存更改」非「提交」)
 - 同一动作**全流程同名**(按钮「发布」→ toast「已发布」)· error/empty 当**指引**不当情绪:说清出了什么 + 下一步
 
-🔴 **rubric 是设计/还原/评审同一基准**:Designer 起草(§2)逐条过 · dev 还原(dev-stage §3)按它核 · §5 用户预览前 Designer 自查报告对 **A 段逐项过**(无则显式「N-A + 理由」)· reviewer 审对着这份(防凭空 generic 评)。
+🔴 **rubric 是设计/还原/评审同一基准**:Designer 起草(§2)逐条过 · dev 还原(dev-stage ②硬规则 4 · 设计↔实际一致性核对)按它核 · §5 用户预览前 Designer 自查报告对 **A 段逐项过**(无则显式「N-A + 理由」)· reviewer 审对着这份(防凭空 generic 评)。
 
 ---
 
@@ -209,12 +209,12 @@ state.py ui_design-complete --feature X --auto-commit Y \
 📎 **物化拦截**(均按 `panorama_medium` 适配):
 - **`static-html`**:preview HTML 文件名 = `<page.id>.html`(物化校验 `pages[].id` 对应 .html 存在 · 错位 → ui_design-complete FAIL);`verify-panorama.py` 走完整校验(self-check + host marker + preview count + panorama_path)
 - **`same-stack`**(物化):**要求** `{panorama_path}/preview-project/` + `preview.sh` + `package.json` 存在 —— ui_design-complete 校验(`_check_same_stack_preview_project`)· 全景权威 = preview-project **源**(不再要静态 build 产物)· 🔴 **不再「不要求产物 · return True」**(防 cut-corner)· 预览靠跑 preview.sh(动态端口)· UI.md 自查 + frontmatter 仍校验
-- `stage_contracts.ui_design.output_satisfied=true` → dev-start 自动触发 UI 还原校验段(dev-stage §3 按 medium 分支)
+- `stage_contracts.ui_design.output_satisfied=true` → dev-start 自动触发 UI 还原校验段(dev-stage ②硬规则 4 · 设计↔实际一致性核对 · 按 medium 分支)
 
 **preview SOP**(违反 → dev 还原 / pm_acceptance 打回):
 - 抽公共组件 / CSS class · preview 引用统一样式表 · 不每页 inline(维护噩梦)
 - preview HTML 含点击 / 表单 / 跳转(真实交互)· 不只是静态图 · 让 dev 可 verify 交互
-- 🔴 **分层同构反模式**(same-stack):新设计页渲染在 `/` 顶掉首页 / 省略 router / 路由与 sitemap 不一致(IA 层);基建层不走共享包而自造组件·自配主题·版本漂移(Layer 1);全景页缺意图四要素(Layer 2);**扩已有页凭印象重画 existing page(不导入/不镜像真实页源)= 概念页变体**(复现门 §3 · drift 源头);**dev 跳过设计↔实际一致性核对**(dev-stage §3 · 落地闸);拿停更全景页纠正已 ship 页面(权威倒置);改共享基建不验全景编译(下游契约 · dev-stage §3.5)
+- 🔴 **分层同构反模式**(same-stack):新设计页渲染在 `/` 顶掉首页 / 省略 router / 路由与 sitemap 不一致(IA 层);基建层不走共享包而自造组件·自配主题·版本漂移(Layer 1);全景页缺意图四要素(Layer 2);**扩已有页凭印象重画 existing page(不导入/不镜像真实页源)= 概念页变体**(复现门 §3 · drift 源头);**dev 跳过设计↔实际一致性核对**(dev-stage ②硬规则 4 · 落地闸);拿停更全景页纠正已 ship 页面(权威倒置);改共享基建不验全景编译(下游契约 · dev-stage ②硬规则 5)
 - ⏳ 物化 TODO:same-stack 时 `pages_changed[].route_path` 必填的工具校验(parse_frontmatter 不支持嵌套 list-of-dict · 需 raw 文本扫描 · 渐进物化)
 
 **sitemap 改动**:必显式列影响范围 · 主对话与相关 Feature owner 协调(防破坏现有路由)

@@ -24,7 +24,7 @@
 > Bug 流程规格依据 = `bugfix/BUG-*.md`(**非** PRD/TC)· 下面「怎么做」的 Feature 步骤按此调整,**不要照搬 PRD/AC/verify-ac**:
 
 - **§1 加载上下文** → 读 `BUG-*.md`(§现象 / §根因 / §修复方案 / §回归测试)+ 实际代码 + dev commit ·**无 PRD.AC / TC.md**
-- **§5 跑 verify-ac.py** → **skip**:门禁 `ac_test_binding` 对 Bug 自动 N/A(`flow_type in (Bug, Micro)` 直接 return skip)· **别去跑 `verify-ac.py`** —— 它要 PRD.md · 必报「PRD 不存在」· 那是**假信号不是错**
+- **§5 跑 verify-ac.py** → **skip**:门禁 `ac_test_binding` 对 Bug 自动 N/A(机器判 `_flow_key(state) in (Bug, Micro)` 直接 return skip · Feature·preset=micro 亦归一为内部键 Micro)· **别去跑 `verify-ac.py`** —— 它要 PRD.md · 必报「PRD 不存在」· 那是**假信号不是错**
 - **测试焦点 = 回归**:复现 bug 的用例修复后转绿(对齐 `BUG-*.md §回归测试`)+ 既有 integration/api-e2e 套件保持绿 · `e2e/*` 复跑**触发 bug 的关键路径**
 - **§质量基线 / Output Contract 里的 verify-ac 物化校验**:对 Bug 同样 N/A · 但 `TEST-REPORT.md` 仍必产(§回归结果 + exit-code 摘录)
 
@@ -44,7 +44,7 @@
 - 落 `{Feature}/e2e/*.py` 或 `services/<svc>/tests/e2e/<feature-id>/`(按子项目结构 · RD/QA 决定)
 - 起 live 服务 + 真实 HTTP 调用 · 脚本退出码 = api-e2e 真实结果(exit-code=0 = 通过)
 - 🔴 **跑通即可**:**不强求 CI 可复用** · **不统一 DB/seed/env SOP**(各项目环境差异大 · 由项目自维护起服务方式)
-- pm_acceptance / review 阶段会按 state.json evidence 验证据真实性 · test stage 只管 exit-code
+- pm_acceptance / ship 审计会按 state.json evidence 验证据真实性 · test stage 只管 exit-code
 
 ### 4. 跑测试
 integration + api-e2e 双 exit-code=0
@@ -81,7 +81,7 @@ state.py test-complete --feature <path> --run-tests
 }
 ```
 
-🟡 **deprecated 旧路径(仅 debug / 工具不可用时)**:
+🟡 **deprecated 旧路径(仅 debug / 工具不可用时 · 及红 base 差分场景〔§ base 即红 → 差分基线〕—— `--run-tests` 尚不支持差分口径时走本通道)**:
 ```
 state.py test-complete --integration-test-exit-code 0 --e2e-test-exit-code 0 ...
 # AI 自报 stdout / exit_code · 漏洞:可伪造 / 可跳测试

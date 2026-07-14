@@ -561,3 +561,12 @@
 
 ### 验证
 - brief 冒烟 ✓ · pytest 834 passed。
+## v8.237 · 升级检测缓存 TTL 24h → 8h(治缓存掩新版)
+
+> 实证 case:发版节奏快(12 小时内 dev 推进 8 个 minor)· bootstrap 升级检测的 24h TTL 缓存命中 → 报 `up_to_date(from_cache)` · 实际已落后。用户拍板:TTL 改 8 小时。
+
+### 改动
+- `SKILL_UPDATE_CHECK_TTL_HOURS = 24 → 8`(失效条件不变:超 TTL / 无缓存 / 时钟回拨 / 本地版本或 channel 变 / `TEAMWORK_FORCE_UPDATE_CHECK=1` 强制实查)· 注释与测试措辞同步(测试逻辑用常量 · 零断言改)。
+
+### 验证
+- pytest 834 passed。
