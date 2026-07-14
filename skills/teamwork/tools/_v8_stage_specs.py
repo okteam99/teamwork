@@ -420,15 +420,15 @@ def _goal_brief(state: dict) -> str:
     return f"""## Goal Stage
 
 ### 目标
-PM 调研(自答优先)· 起草 PRD · 🔴 **并行派 3 个隔离 Agent 冷审**(QA/Architect/PL · 防鼓掌锚定)· (条件)早问门 · PM 整合修订 · 冷审循环收敛 · 用户确认 · 决策是否需要 UI。\n🔴 v8.216 评审配置动态化:冷审派谁 = **按 `state.stage_review_roles.goal`**(prepare 已按「角色价值判据」逐角色判定 · 非按 clarity 一刀切)—— roster 里没有的角色 gate 自动放行(如去 pl → PL 质疑免)· 调整用 `change-review-roles --reason`(审计留痕)· PRD 照写(术语/决策沉淀载体)。
+PM 调研(自答优先)· 起草 PRD · 🔴 **并行派 2 路隔离冷审**(v8.243 默认:PL 对抗质疑 + 覆盖方向制外审〔必覆盖 可实现/可验证 + AI 自主方向 ≥1〕· 防鼓掌锚定 · ⚡ 同发互不喂对方产出)· (条件)早问门 · PM 整合修订 · 冷审循环收敛 · 用户确认 · 决策是否需要 UI。\n🔴 v8.216 评审配置动态化:冷审派谁 = **按 `state.stage_review_roles.goal`**(prepare 已按「角色价值判据」逐角色判定 · 非按 clarity 一刀切)—— roster 里没有的角色 gate 自动放行(如去 pl → PL 质疑免)· 调整用 `change-review-roles --reason`(审计留痕)· PRD 照写(术语/决策沉淀载体)。
 
 ### 结果(完成判定)
 - `PRD.md`(frontmatter:`acceptance_criteria` + `revision_history`)
-- `PRD-REVIEW.md`(frontmatter:`reviewers: [qa, architect, pl]`〔v8.155 去 pm〕 + `verdicts` **全 APPROVE/SKIP** · 含 `PL-CHALLENGE` 段 · mtime > PRD.md)
+- `PRD-REVIEW.md`(frontmatter:`reviewers` = roster〔v8.243 默认 `[pl, external]`〕+ `verdicts` **全 APPROVE/SKIP** · 含 `PL-CHALLENGE` 段〔roster 含 pl〕· external 段带 `coverage` 申报〔roster 含 external〕· mtime > PRD.md)
 - `state.execution_hints.ui_design_needed` 已决策(由 `--needs-ui`)
 
 ### 怎么做
-🔴 **照 `{{SKILL_ROOT}}/templates/prd.md` 起草 · 别抄项目里旧 PRD**(实测 post-v8.164 十份仅一份用 canonical · 抄旧 = 机读块/扩展区等新机制到达不了)· goal-complete 校验三命门段(机读块/AC/『开工前必须想清的』)。\n**必读** `stages/goal-stage.md`(8 步:调研 → 起草 v0.1 → 🔴 **并行 3 隔离 Agent 冷审**(QA/Architect/PL · 不喂起草心路 · v8.155)→ 早问门(冷审后)→ PM 整合修订 → 冷审循环(Round 2+ 验证模式 · 全 APPROVE 收敛)→ needs-ui → 用户确认)。
+🔴 **照 `{{SKILL_ROOT}}/templates/prd.md` 起草 · 别抄项目里旧 PRD**(实测 post-v8.164 十份仅一份用 canonical · 抄旧 = 机读块/扩展区等新机制到达不了)· goal-complete 校验三命门段(机读块/AC/『开工前必须想清的』)。\n**必读** `stages/goal-stage.md`(8 步:调研 → 起草 v0.1 → 🔴 **并行 2 路隔离冷审**(PL 质疑 + 覆盖方向制外审 · 不喂起草心路 · v8.243)→ 早问门(冷审后)→ PM 整合修订 → 冷审循环(Round 2+ 验证模式 · 全 APPROVE 收敛)→ needs-ui → 用户确认)。外审必覆盖:**可实现**(技术可行/架构影响/简洁性 counter-lens)· **可验证**(AC 可测/边界/异常)+ **AI 自主方向 ≥1**(安全/性能/数据一致性/兼容…按 feature 挑)· 每方向 finding 或「查过无发现」· 段记 `coverage: [...]`。
 
 ### 完成方式
 ```
@@ -517,6 +517,28 @@ def _evidence_prd_verdicts_all_pass(state: dict, args) -> tuple[bool, str]:
             f"verdicts 未全员通过(含 {'/'.join(bad)})· "
             "NEEDS_REVISION → PM 回应修订 PRD 后重评(goal-stage substep 6→7)· "
             "全员 APPROVE/SKIP 才可 goal-complete(词表只认 APPROVE|NEEDS_REVISION|SKIP)"
+        )
+    return True, ""
+
+
+def _evidence_external_coverage_present(state: dict, args) -> tuple[bool, str]:
+    """v8.243:stage_review_roles[goal] 含 external 时 · PRD-REVIEW.md 必含「coverage」申报。
+
+    goal 默认冷审 3→2(pl + external):QA 可验证 / ARCH 可实现并入外审的必覆盖方向 ·
+    coverage 申报是外审没退化成一段泛谈的最低物证(对称 pl_challenge_present)。
+    roster 无 external → 自动放行。
+    """
+    roles = [str(r).lower() for r in (state.get("stage_review_roles") or {}).get("goal", [])]
+    if "external" not in roles:
+        return True, ""
+    f = Path(args.feature) / "PRD-REVIEW.md"
+    if not f.exists():
+        return False, "PRD-REVIEW.md 不存在 · 无法校验外审 coverage 申报"
+    if "coverage" not in f.read_text(encoding="utf-8").lower():
+        return False, (
+            "PRD-REVIEW.md 缺外审 coverage 申报 —— goal 外审是覆盖方向制(v8.243):"
+            "必覆盖 可实现(技术可行/架构影响/简洁性)· 可验证(AC 可测/边界/异常)+ AI 自主方向 ≥1 · "
+            "external 段记 coverage: [...] · 每方向 finding 或「查过无发现」· 详 stages/goal-stage.md ③"
         )
     return True, ""
 
@@ -646,6 +668,12 @@ GOAL_SPEC = StageSpec(
             name="pl_challenge_present",
             check_fn=_evidence_pl_challenge_present,
             description="PRD-REVIEW.md 含 PL-CHALLENGE 段(质疑五问 · stage_review_roles[goal] 含 pl 时强制)",
+        ),
+        # v8.243:外审覆盖方向制物化(QA 可验证/ARCH 可实现并入外审 · 角色无 external 自动放行)
+        StageEvidenceCheck(
+            name="external_coverage_present",
+            check_fn=_evidence_external_coverage_present,
+            description="PRD-REVIEW.md 外审段含 coverage 申报(可实现/可验证 + AI 自主方向 · roster 含 external 时强制)",
         ),
     ],
     brief_template_fn=_goal_brief,

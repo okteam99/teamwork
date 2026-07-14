@@ -52,8 +52,9 @@ class TestStageDocsCarrySimplicityLens(unittest.TestCase):
         self.assertIn("行为/价值", t)  # v8.219 去空格
         # Architect 简洁性 counter-lens
         self.assertIn("简洁性 counter-lens", t)
-        # v8.155:goal 默认无 external(opt-in 保留)· 过度设计防线 = Architect 冷审 counter-lens
-        self.assertIn("external opt-in", t)
+        # v8.243:external 默认在(覆盖方向制)· 简洁性 counter-lens 归外审「可实现」方向 · 异质仍 opt-in
+        self.assertIn("覆盖方向制", t)
+        self.assertIn("异质 opt-in", t)
 
     def test_blueprint_tech_review_simplicity(self):
         t = _read("stages/blueprint-stage.md")

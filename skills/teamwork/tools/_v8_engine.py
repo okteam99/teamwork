@@ -1147,7 +1147,7 @@ REVIEW_ROLE_ENUM = {"pm", "qa", "architect", "rd", "designer", "pl", "external"}
 # (flow_type, stage) → 默认 review 角色清单
 DEFAULT_REVIEW_ROLES: dict[tuple[str, str], list[str]] = {
     # Feature 流程
-    ("Feature", "goal"): ["qa", "architect", "pl"],  # v8.155:去 pm(作者审自己最锚定 · PM 退整合者)· 三角色走并行隔离 subagent 冷审(防鼓掌 · 详 goal-stage §3)· v8.149 去 external(opt-in 保留)
+    ("Feature", "goal"): ["pl", "external"],  # v8.243:3 冷审→2 路并行 —— PL 对抗质疑 + 覆盖方向制外审(QA 可验证/ARCH 可实现并入外审必覆盖方向 + AI 自主方向 ≥1 · 物化门 external_coverage_present);复杂 feature change-review-roles 加回独立 qa/architect。史:v8.155 三角色隔离冷审防鼓掌 · v8.149 去 external opt-in
     ("Feature", "ui_design"): ["designer", "pm"],
     ("Feature", "panorama_sync"): ["pm", "architect"],
     ("Feature", "blueprint"): ["qa", "architect", "external"],

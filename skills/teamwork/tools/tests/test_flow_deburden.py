@@ -49,8 +49,9 @@ class TestAgileReviewRoles(unittest.TestCase):
     def test_feature_review_roles_unchanged(self):
         self.assertEqual(E.DEFAULT_REVIEW_ROLES[("Feature", "review")],
                          ["architect", "qa", "external"])
+        # v8.243:goal 3 冷审 → 2 路并行(PL 对抗质疑 + 覆盖方向制外审)
         self.assertEqual(E.DEFAULT_REVIEW_ROLES[("Feature", "goal")],
-                         ["qa", "architect", "pl"])
+                         ["pl", "external"])
 
     def test_build_default_roles_snapshot(self):
         roles = E.build_default_stage_review_roles("敏捷需求")
