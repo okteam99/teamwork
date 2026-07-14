@@ -35,6 +35,7 @@ affected_subprojects:
 features:
   - id: WS-01-S1
     bl: null
+    current_state: "已有 router 骨架(apps/x/src/router.ts)· 真缺口=查询页"
 -->
 # WS-01
 <!-- WS-PROGRESS:START x -->
@@ -146,3 +147,33 @@ class TestV8197LineCheck(unittest.TestCase):
 
     def test_no_arch_doc_skips(self):
         self.assertEqual(self._run()["verdict"], "OK")   # 无业务架构 → skip 不误报
+
+
+class TestCurrentStateDepthV8239(unittest.TestCase):
+    """v8.239 · 调研深度信号:current_state 缺失/占位 = 拆解未 grounded 实际代码。"""
+    def setUp(self):
+        self.root = Path(tempfile.mkdtemp(prefix="wsl9-"))
+        (self.root / "product-overview" / "workstream").mkdir(parents=True)
+
+    def _run(self, body):
+        (self.root / "product-overview" / "workstream" / "WS-01-x.md").write_text(body, encoding="utf-8")
+        r = subprocess.run([sys.executable, str(STATE_PY), "ws-lint", "--ws", "WS-01"],
+                           capture_output=True, text=True, timeout=30, cwd=str(self.root))
+        return json.loads(r.stdout)
+
+    def test_placeholder_flagged(self):
+        body = _GOOD.replace('bl: null', 'bl: null\n    current_state: "<🔴 由实际代码调研得:...>"')
+        out = self._run(body)
+        self.assertEqual(out["verdict"], "NONCONFORMANT")
+        self.assertTrue(any("占位" in m for m in out["missing"]))
+
+    def test_missing_flagged(self):
+        body = _GOOD.replace('    current_state: "已有 router 骨架(apps/x/src/router.ts)· 真缺口=查询页"\n', "")
+        out = self._run(body)
+        self.assertTrue(any("current_state 缺失" in m for m in out["missing"]))
+
+    def test_grounded_passes(self):
+        body = _GOOD.replace('bl: null',
+            'bl: null\n    current_state: "已有 router 骨架(apps/x/src/router.ts)· 真缺口=查询页(无对应文件)"')
+        out = self._run(body)
+        self.assertFalse(any("current_state" in m for m in out["missing"]))
