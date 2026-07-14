@@ -165,7 +165,7 @@ PMO 按以下关键词表判定 user input 落入哪类流程:
 
 🔴 **排查先行律**(现象类输入不排查就定 Bug 的后果:「代码现状」填上未验证猜测 · 命名/前缀路由/worktree 全押在猜测上 · 真因若在别的子项目就全配错):
 - **现象类输入**(报错 / 挂了 / CI 失败 / 慢)且 根因·影响面·归属 未定 → **不直接定 Bug · 不 emit prepare 总览** —— 先走问题排查(主对话 · 不进状态机 · 详 [FLOWS.md § 问题排查](../FLOWS.md))。
-- 排查闭合 → 按 [SKILL.md § Mode A / E 升级触发](../SKILL.md) emit 升级暂停点:排查小结(**已验证**根因 / 影响面 / 修复性质)+ 建议流程(转 Bug / Feature〔full 或 micro〕/ 不动 / revert 肇事 commit)→ **用户拍板后**才进 prepare。
+- 排查闭合 → 按 [SKILL.md § Mode A / E 升级触发](../SKILL.md) emit 升级暂停点:排查小结(**已验证**根因 / 影响面 / 修复性质)+ 候选动作**逐一编号**(R5 标准 1/2/3 + 💡 推荐 · 模板在 SKILL 该节;🔴 候选如 转 Bug / 修配置不改代码 / Feature / revert 肇事 commit —— **斜杠并列写进一行 = 自由文本** · 用户回 `ok` 无从解析 · 实证白问一轮)→ **用户拍板后**才进 prepare。
 - 转入 prepare 时:排查结论 = 「代码现状」内容(已验证事实 · 非假设)· Feature 命名 / 前缀路由据**真因所在子项目**定;后续 diagnose stage cite 排查结论**复核** · 不重查(详 [stages/diagnose-stage.md](../stages/diagnose-stage.md))。
 - 边界:**Bug 直入仍合法** —— 用户明确指认缺陷并要求修复(现象+期望清楚 · 大致位置已知)→ 直接 Bug 流程 · 根因细查由 diagnose stage 承担。判别题不是「用户用了哪个词」· 是「**定流程所需的事实(根因/归属/规模)是否已知**」。
 
