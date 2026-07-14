@@ -4,6 +4,18 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.242 · 变更确认类暂停点必自带变更点明细(对象|变更|用途 · 治「概括 + 指针」逼用户追问)
+
+> 来源 case:blueprint DB schema 确认点只 emit 四条分类概括(「增加诊断投影与快照序号」「增加日志序列、过期 tombstone、mutation 幂等、Tester durable queue 辅助表」)+ TECH.md 指针 → 用户被迫追问「DB 变更方案是什么」· 追问后 AI 才给出该有的 对象|变更|用途 明细表 + 迁移策略。**病根在 §7.5 模板本身没有变更点槽位**(从「请确认」直跳选项 · 决策参考=文件指针)—— case 里 AI 忠实执行模板仍失败 · 是模板的 bug。与 v8.232 ship1 同类:暂停点内容不可消费。
+
+### 改动(消费点三件套)
+- **blueprint-stage.md §7.5 模板重写**:选项之前必给 ①**变更点明细**(🔴 对象级每条一行:对象|变更|用途 —— 表/字段/索引/约束/新表核心列;分类概括 / 文件指针**不算**变更点)② **关键迁移策略**(≤6 行:有损与否 / 唯一约束前历史冲突预检 / 历史回填口径 / down migration / 清理周期);📚 指针降为深读补充 · 不替代明细。范式即 case 追问后的第二回。
+- **SKILL R5(b) 新红线(全局)**:**方案/变更确认类暂停点必自带变更点清单** —— 情境一句 + 概括 + 指针不算 · 用户被迫追问「方案是什么」= 暂停点白跑一轮 · 决策材料在暂停点内自含。
+- **机器消费点**:blueprint stage-start brief 的 §7.5 行机械附带「必自带变更点明细表」提醒(v8.238 消费时刻原则)。
+
+### 验证
+- pytest 846 passed(doc + brief 文案 · 无行为变更)。
+
 ## v8.241 · 全库文档审计清扫:83 findings 修复 + 退役词表回归网 + 两处工具侧治本
 
 > 用户令「整体 review 各文档找不合理/冲突/冗余」→ 5 路评审 subagent 按文档簇并行(SKILL/stages/docs/templates+roles/对外三件)+ 主对话词表扫描,共 **83 处经双边原文验证的 findings**。病灶高度聚簇:五次大改版(v8.204 外审默认反转 / v8.211 注入退役 / v8.219 四段化 / v8.220-223 流程收缩 / v8.233-234 ship 终点)各留扫尾债。机器契约层(FLOWS↔常量 · frontmatter↔物化校验 · 台账 schema)五路核验零冲突。
@@ -62,13 +74,3 @@
 
 ### 验证
 - ws-lint 深度校验测试 +3(占位抓/缺失抓/grounded 放行)· fixture 补 grounded current_state · pytest 838 passed。
-
-## v8.238 · stage-start emit 附派发档位提醒(治「冷审全跑主对话模型 · 零声明」)
-
-> 实证 case(KA-PAGES goal):三路冷审 subagent 全跑 Fable 5 · 零声明 —— QA(校验型)本应验证档。暴露 v8.230 裁定的盲区:**SKILL 全局规则在 session 早期读一次 · 派发那一刻 AI 实际消费的是 stage-start emit/brief** · goal 冷审恰是最高频派发点 · 那里什么都不提醒。
-
-### 改动(不回退 v8.230 · 不复制规则回各 brief)
-- **engine 单源常量 `DISPATCH_TIER_REMINDER`** 接进**每个 stage-start 成功 emit**(`dispatch_tier_reminder` 字段):一行提醒「派发声明 model+why · 校验型→验证档 · 判断型→不降档 · 未声明=unspecified」+ 指针 SKILL/agents README —— **工具生成 · 所有 stage 消费时点覆盖 · 文本单源一处**。
-
-### 验证
-- 常量+接线断言 +1 · pytest 835 passed。

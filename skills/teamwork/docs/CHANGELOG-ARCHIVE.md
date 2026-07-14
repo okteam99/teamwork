@@ -570,3 +570,12 @@
 
 ### 验证
 - pytest 834 passed。
+## v8.238 · stage-start emit 附派发档位提醒(治「冷审全跑主对话模型 · 零声明」)
+
+> 实证 case(KA-PAGES goal):三路冷审 subagent 全跑 Fable 5 · 零声明 —— QA(校验型)本应验证档。暴露 v8.230 裁定的盲区:**SKILL 全局规则在 session 早期读一次 · 派发那一刻 AI 实际消费的是 stage-start emit/brief** · goal 冷审恰是最高频派发点 · 那里什么都不提醒。
+
+### 改动(不回退 v8.230 · 不复制规则回各 brief)
+- **engine 单源常量 `DISPATCH_TIER_REMINDER`** 接进**每个 stage-start 成功 emit**(`dispatch_tier_reminder` 字段):一行提醒「派发声明 model+why · 校验型→验证档 · 判断型→不降档 · 未声明=unspecified」+ 指针 SKILL/agents README —— **工具生成 · 所有 stage 消费时点覆盖 · 文本单源一处**。
+
+### 验证
+- 常量+接线断言 +1 · pytest 835 passed。
