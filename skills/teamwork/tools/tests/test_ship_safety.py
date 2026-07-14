@@ -370,6 +370,37 @@ class TestPushRerecord(_ShipFlowBase):
         self.assertEqual(d.get("verdict"), "FAIL", d)
         self.assertIn("archive", d.get("hint", "") + d.get("error", ""))
 
+    def test_push_emit_user_card_materialized_v8240(self):
+        """v8.240:user_card 防截断三重物化 —— pmo_must_read 首位 · 落盘 · hint 冗余。
+
+        治实证 case:主对话 key-filter 读 push emit 丢 user_card → 手写卡片 URL
+        被 markdown 包裹 → 用户「没看到链接」。
+        """
+        _, d = self._archive("--no-planning-changes", "--archive-desc", "x")
+        self.assertEqual(d.get("verdict"), "PASS", d)
+        _, d1 = self._push_record("http://mr/1", head="h1")
+        self.assertEqual(d1.get("verdict"), "PASS", d1)
+        keys = list(d1.keys())
+        # ① 位置防御:pmo_must_read 紧随 verdict · user_card 第三(survive head 截断)
+        self.assertEqual(keys.index("pmo_must_read"), 1, keys)
+        self.assertEqual(keys.index("user_card"), 2, keys)
+        # ② 落盘兜底:SHIP-USER-CARD.md 与 emit 内容一致 · 含 MR URL
+        card_file = d1.get("user_card_file")
+        self.assertTrue(card_file, d1)
+        card_path = Path(card_file)
+        self.assertTrue(card_path.is_absolute(), card_file)
+        card_text = card_path.read_text(encoding="utf-8")
+        self.assertIn("http://mr/1", card_text)
+        self.assertEqual(card_text.rstrip("\n"), d1["user_card"])
+        # ③ hint 冗余同一指令(key-filter 惯选 verdict/hint —— 实证 case 的过滤器就选了 hint)
+        self.assertEqual(d1.get("hint"), d1.get("pmo_must_read"))
+        self.assertIn("原样", d1["hint"])
+        # 幂等:重录仍产出卡片
+        _, d2 = self._push_record("http://mr/2", head="h2")
+        self.assertEqual(d2.get("verdict"), "PASS", d2)
+        self.assertIn("http://mr/2",
+                      Path(d2["user_card_file"]).read_text(encoding="utf-8"))
+
 
 class TestFinalizeWorktreeDirtyGuard(_ShipFlowBase):
     def test_stray_content_pending_not_removed(self):
