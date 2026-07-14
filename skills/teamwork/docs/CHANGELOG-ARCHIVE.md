@@ -551,3 +551,13 @@
 
 ### 验证
 - doc-only · pytest 834 passed。
+## v8.236 · dev brief 补并行提示(开工先问哪些模块可并行)+ 修 stale 措辞
+
+> 用户问:dev brief 有提醒用 subagent/teammate/workflow 么?查实:**没有** —— 并行规则全在 SKILL 全局/agents/README(被动),而 dev 恰是并行红利最大的 stage(多端/多模块实现);顺带抓到 brief「详细步骤 6 步 + 注意事项 5 条」是 v8.218 四段重构前的 stale 旧话。
+
+### 改动
+- **dev brief +1 行**(stage 专属手段提示 · 指向全局不复制 · 不违 v8.230 单源判例):🧩 开工先问「哪些模块可并行」→ 多端/多模块各派 subagent/teammate(**ultracode → workflow 优先**)· 派发按 SKILL 🎚️ **声明 model + why** · 契约层/集成点留主对话 · 子 agent 只写 worktree 内路径。
+- 必读行修正为四段结构措辞(6 步旧话清除)。
+
+### 验证
+- brief 冒烟 ✓ · pytest 834 passed。

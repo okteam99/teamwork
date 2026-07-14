@@ -4,6 +4,19 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.240 · 拆解边界判据:交付内聚>子项目边界 + 含金量对照 + id 不重排纪律
+
+> 来源 case(JCB 卡片 WS · v8.239 门生效前的存量拆解):7 件逐 feature 代码审计发现 4 件薄(S2/S3/S6 薄配套 · S7 半运营 · 「其余四件加起来的代码量可能不如 S5 一件」),但 v8.239 粒度反压零触发(7<8 · 每件流程上都「站得住」);用户亲自解禁「feature 也可以跨子项目」才合成 5;且落盘后合并触发**第三次编号重排 = 整卷重写防漏引用**。三个判据缺口,不加新暂停点。
+
+### 改动(Step 5.7 判据升级 + 模板 + checklist 同步)
+- **边界判据**:主判据 = **交付内聚**,**feature 可跨子项目**(`target` 只是 ROADMAP 归属 · 「代码在不同子项目」不是拆分理由,评审 blast radius 才是);**薄承接件默认并入宿主件**(只承接另一件产物/同 surface 严格串行/协调点可内化为里程碑),保持独立须给硬理由之一:外部依赖 gate / 交付节奏不同 / blast radius / 管辖边界(四类全部萃取自该 case 的真实裁决:S1+S2 并 · S6 gate 独 · S7 节奏独 · S3 blast radius 独)。
+- **含金量对照**:讨论稿每条 BL 标「真新增工程量 vs 薄配套(承接/枚举/配置级)」——**含金量悬殊 = 强合并信号**(反压 BL>8 抓不住 7 件 4 薄这类)。
+- **id 纪律**:草案期编号随便改;**落盘后合并/砍件不重排幸存 id**——被并件留一行遗迹(`S2 → 已并入 S1`)· 缺号不补。
+- 模板顺手修:`flow_type` 注释还是 v8.222 合并前旧词表(feature/agile/bug/micro)→ 现闭集(Feature/Bug · micro 是 preset)。
+
+### 验证
+- 文档+模板+checklist 消费点三处同步 · ws-lint 不消费 target/flow_type 注释(纯文案安全)· pytest 839 passed。
+
 ## v8.240 · ship1 push user_card 防截断三重物化(治「AI 过滤 emit 丢卡片 · 用户看不到 MR 链接」)
 
 > 实证 case(KA-PAGES-F260714041628 · aon-main):主对话习惯用 python key-filter 读 state.py emit,`ship-phase --action push` 的 `user_card` 字段被过滤丢弃 → AI 手写卡片把 MR URL 包进 markdown 加粗 → 用户「没看到链接」。v8.233 的纯 prose 防线(「先贴 user_card」)挡得住 head 截断、挡不住 key-filter —— 按「可枚举进脚本」物化。
@@ -47,14 +60,3 @@
 
 ### 验证
 - pytest 834 passed。
-
-## v8.236 · dev brief 补并行提示(开工先问哪些模块可并行)+ 修 stale 措辞
-
-> 用户问:dev brief 有提醒用 subagent/teammate/workflow 么?查实:**没有** —— 并行规则全在 SKILL 全局/agents/README(被动),而 dev 恰是并行红利最大的 stage(多端/多模块实现);顺带抓到 brief「详细步骤 6 步 + 注意事项 5 条」是 v8.218 四段重构前的 stale 旧话。
-
-### 改动
-- **dev brief +1 行**(stage 专属手段提示 · 指向全局不复制 · 不违 v8.230 单源判例):🧩 开工先问「哪些模块可并行」→ 多端/多模块各派 subagent/teammate(**ultracode → workflow 优先**)· 派发按 SKILL 🎚️ **声明 model + why** · 契约层/集成点留主对话 · 子 agent 只写 worktree 内路径。
-- 必读行修正为四段结构措辞(6 步旧话清除)。
-
-### 验证
-- brief 冒烟 ✓ · pytest 834 passed。
