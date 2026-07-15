@@ -177,3 +177,31 @@ class TestCurrentStateDepthV8239(unittest.TestCase):
             'bl: null\n    current_state: "已有 router 骨架(apps/x/src/router.ts)· 真缺口=查询页(无对应文件)"')
         out = self._run(body)
         self.assertFalse(any("current_state" in m for m in out["missing"]))
+
+
+class TestRisksIdsNotFeaturesV8248(unittest.TestCase):
+    """v8.248 · risks[] 的 `- id: R1` 不再被数成 feature(实证:6 feature + 4 risk 误报「缺失 6/10」·
+    模板自带 risks 段 · 照模板写就必中)。"""
+    def setUp(self):
+        self.root = Path(tempfile.mkdtemp(prefix="wsl48-"))
+        (self.root / "product-overview" / "workstream").mkdir(parents=True)
+
+    def _run(self, body):
+        (self.root / "product-overview" / "workstream" / "WS-01-x.md").write_text(body, encoding="utf-8")
+        r = subprocess.run([sys.executable, str(STATE_PY), "ws-lint", "--ws", "WS-01"],
+                           capture_output=True, text=True, timeout=30, cwd=str(self.root))
+        return json.loads(r.stdout)
+
+    _RISKS = "risks:\n  - id: R1\n    description: x\n    severity: high\n  - id: R2\n    description: y\n-->"
+
+    def test_ws_with_risks_stays_conformant(self):
+        out = self._run(_GOOD.replace("-->", self._RISKS, 1))
+        self.assertFalse(any("current_state" in m for m in out["missing"]),
+                         f"risks id 被数成 feature:{out['missing']}")
+
+    def test_real_missing_still_caught_with_risks(self):
+        body = (_GOOD.replace('    current_state: "已有 router 骨架(apps/x/src/router.ts)· 真缺口=查询页"\n', "")
+                     .replace("-->", self._RISKS, 1))
+        out = self._run(body)
+        self.assertTrue(any("current_state 缺失(0/1)" in m for m in out["missing"]),
+                        f"防矫枉过正失败:{out['missing']}")
