@@ -468,6 +468,15 @@ DISPATCH_TIER_REMINDER = (
     "单源详 SKILL 🎚️ / agents/README §一。"
 )
 
+# v8.246:自动流转防歇脚提醒(每次 auto-transition 的 complete emit 附带 · 消费时点覆盖)——
+# 实证 case:test→browser_e2e 流转后 AI 汇报完即结束回合(把回合边界当暂停点)· 用户被迫问
+# 「为什么暂停了」;R4「回合边界不构成暂停理由」规则早在 SKILL · 流转时刻无提醒 = 读过≠在场。
+AUTO_TRANSITION_CONTINUE_REMINDER = (
+    "🔴 自动流转 · **非暂停点**:本回合**立即继续执行 {next_stage} stage**"
+    "(汇报/总结完不停 —— 回合边界 / 容量预算 / 让用户看进度都不是暂停理由 · R4 不膨胀)· "
+    "合法停点仅【SKILL § 授权暂停点清单】· auto/yolo 同理。"
+)
+
 
 def execute_stage_start(
     stage_spec: StageSpec,
@@ -1792,6 +1801,9 @@ def execute_stage_complete(
         "transitioned_to": transitioned_to,
         "next_stage_brief": next_brief,
         "status_line": render_status_line(state, next_hint),
+        # v8.246:自动流转 = 非暂停点 · 机械提醒立即继续(治「汇报完歇脚」)
+        **({"continue_reminder": AUTO_TRANSITION_CONTINUE_REMINDER.format(next_stage=transitioned_to)}
+           if transitioned_to else {}),
         # v8.28 · test --run-tests 透明 emit(主 PMO context 仅 tail · 完整 log 落 log_path)
         **({"test_run_result": test_run_result} if test_run_result else {}),
         **({"next_stage_scaffold_hints": next_stage_scaffold_hints}

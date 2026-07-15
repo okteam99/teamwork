@@ -793,6 +793,40 @@ def _ws_subproject(rm: Path, root: Path) -> str:
     return sub
 
 
+def _pick_bl_row(feat: dict, cands: list, reg: dict, root: Path):
+    """roster feature → ROADMAP 行(v8.248 · BL 撞号判别)。
+
+    🔴 BL-NNN **各项目独立递增**(conventions §4)—— 同号跨子项目撞车时不能
+    「全局首见即胜」(实证:三子项目各有 BL-001 · 勿手改自动块每次刷新都张冠李戴)。
+    多候选按归属挑:① target 缩写经 teamwork-space registry 映射 docs_root ·
+    候选 ROADMAP 在其树下;② 行「对应 F编号」前缀 == target;③ 目录名 ci == target;
+    ④ 单候选 / 全不中兜底首个(维持旧行为 · 不比旧更差)。
+    cands 元素 = (sub, row, roadmap_path)。
+    """
+    if not cands:
+        return None
+    if len(cands) == 1:
+        return cands[0]
+    tgt = (feat.get("target") or "").strip()
+    if tgt:
+        droot = str(reg.get(tgt) or "").strip().rstrip("/")
+        if droot:
+            for sub, r, rm in cands:
+                try:
+                    rel = str(rm.parent.relative_to(root)).rstrip("/")
+                except ValueError:
+                    continue
+                if rel == droot or droot.startswith(rel + "/") or rel.startswith(droot + "/"):
+                    return (sub, r, rm)
+        for sub, r, rm in cands:
+            if str(r.get("f_id") or "").startswith(tgt + "-"):
+                return (sub, r, rm)
+        for sub, r, rm in cands:
+            if sub.lower() == tgt.lower():
+                return (sub, r, rm)
+    return cands[0]
+
+
 def _find_ws_file(root: Path, ws_label: str, skip: set[str]):
     cands = [p for p in root.rglob(f"{ws_label}*.md")
              if not (set(p.parts) & skip) and "workstream" in str(p).lower()]
@@ -894,22 +928,24 @@ def cmd_ws_progress(args: argparse.Namespace) -> None:
     roster_bls = {f["bl"] for f in roster if f["bl"]}
 
     roadmaps = [p for p in root.rglob("ROADMAP.md") if not (set(p.parts) & _SKIP)]
-    rm_rows: list[tuple[str, dict]] = []
+    rm_rows: list[tuple[str, dict, Path]] = []
     for rm in roadmaps:
         sub = _ws_subproject(rm, root)
         for r in _parse_roadmap_rows(rm, id_allow=roster_bls):
-            rm_rows.append((sub, r))
-    by_bl: dict[str, tuple[str, dict]] = {}
-    for sub, r in rm_rows:
-        by_bl.setdefault(r["bl"], (sub, r))
+            rm_rows.append((sub, r, rm))
+    # v8.248:BL 各项目独立递增 · 同号收全部候选 · 按 target 归属判别(_pick_bl_row)
+    by_bl: dict[str, list[tuple[str, dict, Path]]] = {}
+    for sub, r, rm in rm_rows:
+        by_bl.setdefault(r["bl"], []).append((sub, r, rm))
+    _reg = _parse_workspace_registry(root / "teamwork-space.md")
 
     items: list[dict] = []
     if roster:                                    # 名册驱动:声明的 feature 全列出
         for f in roster:
             short = _ws_short(f["id"], ws_label)
-            hit = by_bl.get(f["bl"]) if f["bl"] else None
+            hit = _pick_bl_row(f, by_bl.get(f["bl"], []), _reg, root) if f["bl"] else None
             if hit:
-                sub, r = hit
+                sub, r, _rm = hit
                 items.append({**r, "subproject": f["target"] or sub, "short": short})
             else:
                 items.append({
@@ -918,13 +954,13 @@ def cmd_ws_progress(args: argparse.Namespace) -> None:
                     "stage": "", "f_id": "", "ws": ws_label,
                     "subproject": f["target"] or "—", "short": short})
         seen = roster_bls
-        for sub, r in rm_rows:                     # 名册外但「关联 WS」命中 → 孤儿(surfacing)
+        for sub, r, _rm in rm_rows:                # 名册外但「关联 WS」命中 → 孤儿(surfacing)
             if (targets & _ws_nums(r["ws"])) and r["bl"] not in seen:
                 seen = seen | {r["bl"]}
                 items.append({**r, "subproject": sub,
                               "short": "⚠️名册外"})
     else:                                          # 回退:无名册 → 纯关联WS 扫(v8.174)
-        for sub, r in rm_rows:
+        for sub, r, _rm in rm_rows:
             if targets & _ws_nums(r["ws"]):
                 items.append({**r, "subproject": sub, "short": ""})
 
@@ -936,7 +972,7 @@ def cmd_ws_progress(args: argparse.Namespace) -> None:
     if roster:
         stat = {}
         for f in roster:
-            hit = by_bl.get(f["bl"]) if f["bl"] else None
+            hit = _pick_bl_row(f, by_bl.get(f["bl"], []), _reg, root) if f["bl"] else None
             stat[f["id"]] = (hit[1]["status"] if hit else "")
         for f in roster:
             own = stat.get(f["id"], "")
@@ -1148,8 +1184,12 @@ def cmd_ws_lint(args: argparse.Namespace) -> None:
     _mb = re.search(r"<!--\s*TEAMWORK-MACHINE.*?-->", ws_text, re.S)
     if _mb:
         _blk = _mb.group(0)
-        _n_feat = len(re.findall(r"(?m)^\s*-\s*id\s*:", _blk))
-        _cs = re.findall(r"(?m)^\s*current_state\s*:\s*(.+)$", _blk)
+        # v8.248:只数 features: 段内的条目 —— risks[] 等列表同用 `- id:` 写法(模板自带)·
+        # 全块计数会把 risk 数成 feature(实证:6 feature + 4 risk → 误报「缺失 6/10」)。
+        _feat_m = re.search(r"(?ms)^features\s*:[^\n]*\n(.*?)(?=^\S|\Z)", _blk)
+        _feat_blk = _feat_m.group(1) if _feat_m else ""
+        _n_feat = len(re.findall(r"(?m)^\s*-\s*id\s*:", _feat_blk))
+        _cs = re.findall(r"(?m)^\s*current_state\s*:\s*(.+)$", _feat_blk)
         _placeholder = [c for c in _cs if ("<" in c or c.strip().strip('"').strip("'") in ("...", "", "…"))]
         if _n_feat and len(_cs) < _n_feat:
             missing.append(f"features[].current_state 缺失({len(_cs)}/{_n_feat})—— 拆解必须 grounded 实际代码调研(每 BL 记已有/真缺口+来源文件 · 详 feature-planning Step 1)")

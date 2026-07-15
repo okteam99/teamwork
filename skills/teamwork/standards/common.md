@@ -741,3 +741,22 @@ flowchart TD
  C --> C2[🔗 Goal Stage<br/>PM PRD + PL-PM 讨论 + 评审]
  C2 --> G[⏸️ 用户确认 PRD]
 ```
+
+## 六、临时产物目录(scratch · v8.247)
+
+Stage 执行期间的一切临时产物 —— 测试日志、构建输出(cargo target / 前端构建缓存等)—— **必须**落在统一 scratch 根下:
+
+    ${TMPDIR:-/tmp}/teamwork/<feature_id>/<用途>
+
+- `<feature_id>` 必须是 state.json 中的**完整 feature_id**(如 `SVC-CORE-F029`)· 🔴 **禁止**简称/别名/分支缩写(如 `bl031` —— 实证:即兴命名使 ship2 按 feature_id 回收全部落空 · 42GB 孤儿)。
+- `<用途>` 自由命名(如 `main-target` / `test-stage` / `review-r2-test.log`)。
+- 🔴 **禁止**在 scratch 根之外创建 teamwork 相关临时目录(如 `/tmp/<项目名>-*`)—— 根之外不在回收范围 · 会永久泄漏(实证 6GB)。
+- 与 [conventions.md §12.5](../docs/conventions.md) 浏览器截图约定**同根**(`${TMPDIR:-/tmp}/teamwork/<feature_id>/screenshots/` 是本约定的一个 `<用途>` 实例)。
+
+Rust 项目示例(按 stage 隔离 target 是**正确设计** —— 多 worktree 并行构建会争抢同一 `target/` 的 cargo 文件锁 · 本约定不改变这一点 · 只补回收):
+
+    CARGO_TARGET_DIR=${TMPDIR:-/tmp}/teamwork/SVC-CORE-F029/test-stage cargo test --test '*'
+
+**回收双通道**:ship2 `tmp-cleanup` 即时清理(verify-delivered 通过后整树删 · 内容已上岸零风险)+ bootstrap TTL 兜底(默认 7 天 · 按**目录**整体删 —— cargo target 靠 fingerprint 判增量 · 按文件删会打碎一致性 · 捞回放弃的 feature 与历史孤儿)。
+
+> 背景:CI 机磁盘 100% 打满实证 —— `/tmp/teamwork` 48GB 全是可无损重建的 cargo target(单 feature 26GB · 躺了数月)· 「有人写没人收」的无主命名空间。同类先例 = external-review-logs 无保留策略膨胀 300MB(v8.x 已治)· 本节是同一模式在 160 倍量级上的复用。

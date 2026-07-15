@@ -213,7 +213,7 @@ git branch -d <branch>
 
 各 stage 常需 browse 预览/页面**截图自检渲染**(ui_design 预览验证 · dev/review/pm 顺手核对 UI)。这类截图是**一次性验证产物**(AI 自己看 · 非交付 · 不 commit)· **必须写到系统临时目录** · 否则会散落污染主工作区根目录。
 
-- **统一位置**:`${TMPDIR:-/tmp}/teamwork/<feature_id>/screenshots/`(按 feature 命名 · session 内可复寻 · 系统自动回收)。
+- **统一位置**:`${TMPDIR:-/tmp}/teamwork/<feature_id>/screenshots/`(按 feature 命名 · session 内可复寻 · 回收 = ship2 tmp-cleanup + bootstrap TTL —— scratch 根通则详 [standards/common.md §六](../standards/common.md) · v8.247)。
   ```bash
   SHOT_DIR="${TMPDIR:-/tmp}/teamwork/<feature_id>/screenshots"; mkdir -p "$SHOT_DIR"
   # 浏览器截图存 "$SHOT_DIR/<name>.png" · 再按绝对路径 Read 查看

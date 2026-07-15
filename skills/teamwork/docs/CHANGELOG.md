@@ -4,6 +4,44 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.248 · 两个工具 bug 修复:ws-lint risks 误报 + ws-progress BL 撞号张冠李戴
+
+> 用户在真实规划 session 报的两个 bug(没擅自改 skill · 用全局唯一编号绕开后回报):
+> **①** ws-lint 的 v8.239 调研深度检查用 `^\s*-\s*id\s*:` 在**整个机读块**计数 feature —— `risks[]` 的 `- id: R1` 同写法(模板自带 risks 段)· 6 feature + 4 risk 误报「current_state 缺失(6/10)」——照模板写就必中(v8.239 我埋的)。
+> **②** ws-progress 的 `by_bl.setdefault(r["bl"], ...)` 拿 BL 字符串当全局唯一键 · 但 conventions §4 明写「BL-NNN 各项目独立递增」—— 三子项目各有 BL-001 时先扫到的赢者通吃 · 且错的是标「勿手改」的自动生成块 · 每次刷新重新写错(更危险)。
+
+### 修复
+- **① features 段限定计数**:`- id:`/`current_state:` 只在 `features:` 段内统计(切片到下一个顶层键)—— risks/execution_waves 等列表不再串味;防矫枉过正:真缺失仍抓(0/1 测试锁定)。
+- **② BL 撞号三级判别**(`_pick_bl_row` · 可单测):同号多候选时 ①target 缩写经 teamwork-space registry(`_parse_workspace_registry` 复用)映射 docs_root · 候选 ROADMAP 在其树下 → 命中;②行「对应 F编号」前缀 == target;③目录名 ci == target;④单候选/全不中兜底首个(不比旧行为差)。ready_to_start(v8.196)同一消费点一并修。
+
+### 验证
+- 新测试 +6(risks 不计入 · 真缺失仍抓 · registry 判别胜扫描序 · f_id 前缀回退 · 无 target 保旧 · 单候选直通)· pytest **873 passed**。
+
+## v8.247 · scratch 回收三件套:约定固化 + ship2 tmp-cleanup + bootstrap TTL 兜底(治 48GB 磁盘打满)
+
+> 来源:另一 session 的完整提案(用户递交 · 基于真实事故)—— CI mac 磁盘 100% 打满(可用 51MB),下钻定位到 `/tmp/teamwork` 48GB 全是可无损重建的 cargo target(单 feature bl031 散落 7 目录 26GB · 躺了数月)。三条根因:①`/tmp/teamwork` 是事实约定但框架从未定义管理(agent 即兴命名 `bl031-*` · 无主命名空间「有人写没人收」)②ship2 只清 git worktree 不清 /tmp ③容器 /tmp 非 tmpfs 且无任何兜底回收。同类先例 = external-review-logs 膨胀 300MB(已治)—— 本版是同一模式在 160 倍量级上的复用,且提案给出关键设计差异:**cargo target 必须按目录整体删**(fingerprint 一致性 · 不能照抄 review-logs 的按文件删)。
+
+### 改动(三处对应三根因)
+- **A 约定固化**(standards/common.md 新 §六 + test-stage/conventions §12.5 消费点互链):临时产物统一 `${TMPDIR:-/tmp}/teamwork/<feature_id>/<用途>` —— 🔴 完整 feature_id(禁 `bl031` 类简称 · 实证即兴命名使按 ID 回收全落空)· 🔴 禁 scratch 根之外(实证 `/tmp/<项目名>-*` 泄漏 6GB)· 与截图约定同根;按 stage 隔离 target 是正确设计(防并行 cargo 锁争抢)只补回收。
+- **B ship2 即时回收**(_v8_ship):`SHIP_FINALIZE_STEPS` 增 `tmp-cleanup`(worktree-remove 之后 · main-sync 之前)—— `_prune_feature_tmp()` 在 verify-delivered 通过后整树删 `<scratch>/<feature_id>/`(内容已上岸零对账价值)· 幂等(缺目录 n_a)· 失败不阻塞(warning)· emit 带 `tmp_cleanup.pruned_bytes`。
+- **C bootstrap TTL 兜底**:`prune_teamwork_tmp()`(TTL 7 天 · 深度 2 mtime 判活跃〔cargo `.cargo-lock` 每次构建更新 · 全树 rglob 15GB target 会拖慢启动〕· 🔴 按目录整体删)—— 捞回放弃的 feature / 历史即兴命名孤儿 / 约定推行前存量;与 review-logs pruner 并列跑(git 守卫之前 · 与项目无关)· audit JSON 两处带 `teamwork_tmp_prune`。
+- 参数取舍:TTL 7 天(review logs 45 天 —— 后者小且有对账价值 · cargo target 巨大且可重建);root 统一 `${TMPDIR:-/tmp}` 口径(比提案的硬编码 /tmp 多覆盖 macOS · 与 §12.5 一致)· `TEAMWORK_TMP_ROOT` env 测试注入。
+- 已知局限照提案明示:scratch 根之外仍会泄漏(靠 A 约束)· 存量即兴命名靠 C 的 mtime 捞。
+
+### 验证
+- 新测试 +6(TTL 过期删/活跃留/浅层 mtime 防误删/缺根 n_a/ship 整树删含字节数/幂等 + 步骤时序断言)· pytest **867 passed**。
+
+## v8.246 · 自动流转防歇脚:complete emit 机械附带「非暂停点 · 立即继续」提醒
+
+> 来源 case:test→browser_e2e **自动流转**后 · AI 汇报完状态即结束回合(把回合边界当暂停点)· 用户被迫问「为什么暂停了」· AI 自己复盘用词与 SKILL R4 原文一致(「回合边界不构成暂停理由」)—— 规则早在 · 流转时刻无提醒 = 读过 ≠ 在场(与 v8.238 档位提醒同构的消费时点问题)。
+
+### 改动
+- **engine `AUTO_TRANSITION_CONTINUE_REMINDER`**:每次 auto-transition 的 stage-complete emit 附 `continue_reminder` 字段——「自动流转 · 非暂停点:本回合**立即继续执行 <next> stage**(汇报/总结完不停 · 回合边界/容量预算/让用户看进度都不是暂停理由 · R4)· 合法停点仅授权暂停点清单 · auto/yolo 同理」;fix-retry 未流转(transitioned_to=None)不附。
+- SKILL R4「不膨胀」条款补实证与机器提醒说明。
+
+### 验证
+- 测试 +1(流转 emit 含 continue_reminder · 含下一 stage 名/非暂停点/回合边界关键词)· pytest **861 passed**。
+
 ## v8.245 · 排查升级暂停点:多候选逐一编号 + 斜杠并列即自由文本(治 ok 无从解析)
 
 > 来源 case(问题排查 · codex 宿主):排查报告漂亮,收尾却 emit `⏸️ 请确认后续动作:Bugfix 流程 / 不处理代码(先修正 staging 配置)/ Feature 流程` —— 斜杠并列自由文本 · 无编号无 💡 推荐 → 用户回 `ok`(快捷词协议 = 选推荐项)无从解析 → AI 再问一轮 · 白耗两个来回。**模板其实早就存在**(SKILL Mode A/E 升级触发节 v8 早期就有 R5 格式),病根有二:①模板只有「进 X / 暂不升级」单流程形态 · case 是三候选动作 · 塞不进就退化成斜杠清单;②问题排查不进状态机 · 无机器 emit 可挂消费时刻提醒 · 长会话后凭记忆 emit 格式丢失。
@@ -28,52 +66,3 @@
 
 ### 验证
 - 新测试 +8(三默认 roster + legacy 不动 + coverage 门四态含 stage 特定 hint)· 旧断言 1 处更新 · pytest **860 passed**。
-
-## v8.243 · goal 冷审 3→2 路并行:PL 对抗质疑 + 覆盖方向制外审(QA/ARCH 视角并入 + AI 自主方向)
-
-> 用户拍板:PRD 评审从 3 个(QA/Architect/PL)改为**两路并行**——保留 PL + 外审;外审至少覆盖**可实现、可验证**等,把 QA 和架构师考虑的点并进去,同时要有 **AI 自己的评审角度**。此前「角色→覆盖方向 coverage 化」讨论在 goal 的落刀:少一路冷审的编排/整合开销 · 覆盖不减(方向制)+ 增(AI 自主方向是三角色制没有的)。动态 roster 机制不动 —— 改的是默认值 + 外审内容契约,复杂 feature 仍可 `change-review-roles` 加回独立 qa/architect。
-
-### 改动
-- **默认 roster**:`("Feature","goal") = ["pl", "external"]`(engine · 史注保留 v8.155 三角色防鼓掌与 v8.149 去 external 脉络)。
-- **外审内容契约(覆盖方向制)**:🔴 必覆盖 **可实现**(技术可行 / 架构影响 / **简洁性 counter-lens**——唯一防过度设计 lens 随方向保留)· **可验证**(AC 可测试性 / 边界场景 / 空值异常分支)+ 🔴 **AI 自主方向 ≥1**(按 feature 特性自选:安全/性能/数据一致性/兼容/运维…);每方向给 finding 或「查过无发现」;external 段记 `coverage: [...]`。默认同模型 subagent 冷审 · 异质 opt-in 不变(localconfig false 时改跑 external-review 落 external-cross-review/)。
-- **物化门 `external_coverage_present`**(goal-complete):roster 含 external 时 PRD-REVIEW 必含 coverage 申报(对称 pl_challenge_present · 防外审退化成一段泛谈);roster 无 external 自动放行。
-- **两路并行**:⚡ 同发两个隔离 subagent · 互不喂对方产出(brief/stage 文档明示)。
-- 消费点同步:goal brief(specs)· goal-stage ③ mandate 表(qa/architect 行改「默认并入外审覆盖方向 · roster 加回时独立跑」)· templates/prd.md PRD-REVIEW schema(reviewers/verdicts 示例 + coverage 字段)· roles/qa+architect 席位行 · role_value_criteria(qa/arch 判强才加回 · external goal 默认在)。
-- 顺带修:roles/architect.md 还宣称「blueprint/review 评审默认主对话」——与 v8.241 blueprint 隔离冷审矛盾(审计漏网)· 统一为隔离冷审。
-
-### 验证
-- 新测试 +6(默认 roster 两条 + coverage 门四态)· 旧断言 2 处按新默认更新 · pytest **852 passed**。
-
-## v8.242 · 变更确认类暂停点必自带变更点明细(对象|变更|用途 · 治「概括 + 指针」逼用户追问)
-
-> 来源 case:blueprint DB schema 确认点只 emit 四条分类概括(「增加诊断投影与快照序号」「增加日志序列、过期 tombstone、mutation 幂等、Tester durable queue 辅助表」)+ TECH.md 指针 → 用户被迫追问「DB 变更方案是什么」· 追问后 AI 才给出该有的 对象|变更|用途 明细表 + 迁移策略。**病根在 §7.5 模板本身没有变更点槽位**(从「请确认」直跳选项 · 决策参考=文件指针)—— case 里 AI 忠实执行模板仍失败 · 是模板的 bug。与 v8.232 ship1 同类:暂停点内容不可消费。
-
-### 改动(消费点三件套)
-- **blueprint-stage.md §7.5 模板重写**:选项之前必给 ①**变更点明细**(🔴 对象级每条一行:对象|变更|用途 —— 表/字段/索引/约束/新表核心列;分类概括 / 文件指针**不算**变更点)② **关键迁移策略**(≤6 行:有损与否 / 唯一约束前历史冲突预检 / 历史回填口径 / down migration / 清理周期);📚 指针降为深读补充 · 不替代明细。范式即 case 追问后的第二回。
-- **SKILL R5(b) 新红线(全局)**:**方案/变更确认类暂停点必自带变更点清单** —— 情境一句 + 概括 + 指针不算 · 用户被迫追问「方案是什么」= 暂停点白跑一轮 · 决策材料在暂停点内自含。
-- **机器消费点**:blueprint stage-start brief 的 §7.5 行机械附带「必自带变更点明细表」提醒(v8.238 消费时刻原则)。
-
-### 验证
-- pytest 846 passed(doc + brief 文案 · 无行为变更)。
-
-## v8.241 · 全库文档审计清扫:83 findings 修复 + 退役词表回归网 + 两处工具侧治本
-
-> 用户令「整体 review 各文档找不合理/冲突/冗余」→ 5 路评审 subagent 按文档簇并行(SKILL/stages/docs/templates+roles/对外三件)+ 主对话词表扫描,共 **83 处经双边原文验证的 findings**。病灶高度聚簇:五次大改版(v8.204 外审默认反转 / v8.211 注入退役 / v8.219 四段化 / v8.220-223 流程收缩 / v8.233-234 ship 终点)各留扫尾债。机器契约层(FLOWS↔常量 · frontmatter↔物化校验 · 台账 schema)五路核验零冲突。
-
-### 工具侧治本(2)
-- **REVIEW-arch/REVIEW-qa roster 化**:静态必查与动态 roster(v8.216)互斥(角色可被合法移出 roster 而产物仍硬查)→ 新 `review_role_artifacts` evidence check 按 `stage_review_roles.review` 查(移出不查 · legacy 无 roster 全查不放松存量)。
-- **close-unmerged 任意 stage 可走**:pm_acceptance rejected 的「放弃 Feature」选项此前是死路(emit 给的命令必被 `_require_ship_stage` 拒)→ 放宽该 action(幂等门仍由 phase 检查把守)。
-
-### 文档修复(四大簇 + Tier1)
-- **照抄即错**:规划层 auto 留痕 add-concern 不可执行(规划无状态机 · 全景确认与 v8.239 Step 5.7 同病)→ 改 WS frontmatter/背景节留痕;main-sync 示例与机器 hint 补 required `--strategy`;prepare §5 示例补 `--clarity/--preset/--bl` 落点;config_line_hint 机器残留 `lite` 清除;bug-report 模板补 `symptom/root_cause/fix_summary`(机器 gate 校验它们非空);config.md 外审开关说明与实例相反(「删此项恢复异质」在新语义下效果相反)重写。
-- **v8.204 外审默认反转簇(7)**:blueprint §6 整段旧教义(无条件异质必跑)→ roster 三层条件式;blueprint Architect「主对话不走 subagent」→ 隔离冷审(对齐 goal 实证);roles/external-reviewer 补三层现实;standards/external-model-usage「默认 false + WARN 催恢复」重写;README-EN/ prepare/ ship 措辞。
-- **v8.220-223 流程收缩簇(~20)**:SKILL §2.2 quick-ref 重写为 preset 词表 · 两处 F/B/M→F/B · micro「≤5 文件」两口径删阈值(FLOWS 同步);prepare §2.2 整节重写(敏捷需求准入档退役 · micro 白名单准入单源)· 编号断裂(1.4/1.5×2→1.6/1.7)· lite/M 字残留;conventions M 示例与 §8 补 legacy 标;roadmap 模板 v7 阶段名→v8 stage 名;README CN 6 行流程表→5 行闭集(与 EN 对齐)。
-- **README 双语过时宣称(8)**:Ship 节还在描述 v8.145 已删的旧两-MR 链路 → 重写为 user_card+await-merge 两段现实;PENDING 外置 / TROUBLESHOOTING 收敛 project-specs / KNOWLEDGE 四类 / 执行手册废弃补 workstream/ / hooks 清理措辞 / EN sitemap→panorama 误译。
-- **断链引用(~12)**:四段化后 ui-design→dev §3/§3.5、roles/pm→goal §4/§1;重编号后 conventions→ship-stage §坑1/§8、→feature-planning Step 5、feature-planning 自引 Step 5、checklist spec Step 8→9;三报告模板→roles 不存在小节;SKILL 自指不存在的 silent execution 节。
-- **冗余与小项**:agents/README **保留**(§二/§三 dispatch 协议是 subagent 独立载体 · codex-agents toml 运行时指读)但 §一 姿态/声明制散文去重(指回 SKILL 单源 · 档位表+三硬边界仍单源本文件);SKILL 快速开始 ship 旧剧本→await-merge · auto 表删 browser_e2e 幽灵行 + 补 diagnose 行(skip+WARN)· 暂停点清单补 panorama_sync L2 · ≈40 命令→≈55 + B 类补 await-merge · 物化覆盖率两口径统一 · 状态行 2/3 行统一;pm-acceptance raw-write→jump-to-stage;tc.md TC-REVIEW 死段删;bug-report classification 零消费机制删;9 模板补「位置:」行;project-specs 清单三文档归一 conventions §13。
-
-### 制度化(治「每次大改各留扫尾债」)
-- **退役词表回归网**:新 `test_retired_vocab_sweep.py` —— 退役词(敏捷需求/Micro/blueprint_lite/teamwork_version/Goal-Plan)只许出现在带 legacy 标注的当句 · 裸残留 = pre-push 红。
-
-### 验证
-- 新测试 +7(roster 化 4 + close-unmerged 2 + 词表网 1)· pytest **846 passed**。
