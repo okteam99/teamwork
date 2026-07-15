@@ -20,6 +20,7 @@ bootstrap.py — Teamwork session 启动系统维护(独立脚本 · 替代 inst
 - CLAUDE.md / AGENTS.md / GEMINI.md 历史注入段清理(v8.211 注入退役 · 只删 TEAMWORK 标记块)
 - .worktree/ → .gitignore(默认 worktree_root_path · 详 docs/conventions.md § 10)
 - ~/.teamwork/external-review-logs/ 过期日志清理(housekeeping)
+- ${TMPDIR:-/tmp}/teamwork/ 过期 feature scratch 清理(housekeeping · TTL 7 天 · v8.247)
 
 版本门禁:
 - `.teamwork_localconfig.json` 单文件含两段:
@@ -1089,6 +1090,77 @@ def prune_external_review_logs(
 # ─── 主入口 ─────────────────────────────────────────
 
 
+# ─── v8.247:teamwork scratch 保留策略(housekeeping · TTL 兜底)──────────
+
+TEAMWORK_TMP_ROOT_ENV = "TEAMWORK_TMP_ROOT"          # 测试覆盖用
+TEAMWORK_TMP_RETENTION_DAYS = 7
+
+
+def _tree_recent_mtime(d: Path, max_depth: int = 2) -> float:
+    """取 d 及其浅层子项的最新 mtime。
+
+    不做全树 rglob:cargo target 动辄 15GB / 数十万文件 · 全扫会拖慢每次 session
+    启动。深度 2 足以覆盖 cargo 的活跃写入点(`debug/.cargo-lock` 每次构建更新)。
+    """
+    newest = 0.0
+    stack = [(d, 0)]
+    while stack:
+        cur, depth = stack.pop()
+        try:
+            newest = max(newest, cur.stat().st_mtime)
+            if depth < max_depth and cur.is_dir():
+                stack.extend((c, depth + 1) for c in cur.iterdir())
+        except OSError:
+            continue
+    return newest
+
+
+def prune_teamwork_tmp(
+        retention_days: int = TEAMWORK_TMP_RETENTION_DAYS) -> dict:
+    """清理 ${TMPDIR:-/tmp}/teamwork/ 下 mtime 超 retention 的 feature scratch 目录。
+
+    Stage 临时产物(cargo target / 测试日志)无保留策略会无限膨胀
+    (实证 CI 机 48GB · 单 feature 26GB · 磁盘 100% 打满)。ship2 tmp-cleanup 已
+    即时回收正常交付路径 · 本函数兜底异常路径:放弃的 feature / 历史即兴命名孤儿。
+
+    🔴 **按目录不按文件**(与 prune_external_review_logs 相反):cargo 靠 target/ 内
+    fingerprint 判增量 · 删部分文件会使其不一致(轻则全量重编 · 重则错误增量)——
+    cargo target 是原子单元 · 整体保留或整体删除。
+    只删 <root> 的直接子项 · 不删 <root> 自身 · 失败不阻塞(计数记录)。
+    """
+    override = os.environ.get(TEAMWORK_TMP_ROOT_ENV)
+    root = (Path(override) if override
+            else Path(os.environ.get("TMPDIR") or "/tmp") / "teamwork")
+    if not root.is_dir():
+        return {"status": "n_a", "pruned": 0}
+    cutoff = datetime.now(timezone.utc).timestamp() - retention_days * 86400
+    pruned, freed, failed = 0, 0, 0
+    try:
+        for child in root.iterdir():
+            try:
+                if _tree_recent_mtime(child) >= cutoff:
+                    continue
+                if child.is_dir():
+                    try:
+                        freed += sum(f.stat().st_size
+                                     for f in child.rglob("*") if f.is_file())
+                    except OSError:
+                        pass
+                    shutil.rmtree(child)
+                else:
+                    child.unlink()
+                pruned += 1
+            except OSError:
+                failed += 1
+    except OSError:
+        failed += 1
+    out = {"status": "ok", "pruned": pruned, "freed_bytes": freed,
+           "retention_days": retention_days}
+    if failed:
+        out["failed"] = failed
+    return out
+
+
 # ─── v8.115:知识图谱结构可达性校验(零死角物化 · WARN-only · 非 BLOCK)─────
 #
 # 🔴 只查**结构可达性**(归档对账 + 节点登记)· **不查内容新鲜度**
@@ -1195,8 +1267,9 @@ def cmd_session_bootstrap(args: argparse.Namespace) -> None:
     version_check = read_skill_version(skill_root)
     skill_version = version_check.get("version")
 
-    # 全局 housekeeping(~/.teamwork · 与项目无关 · 失败不阻塞)
+    # 全局 housekeeping(~/.teamwork + scratch 根 · 与项目无关 · 失败不阻塞)
     logs_prune = prune_external_review_logs()
+    tmp_prune = prune_teamwork_tmp()  # v8.247:/tmp/teamwork TTL 兜底(实证 48GB 打满磁盘)
 
     # 非 git 目录守卫:骨架/space/local-env 维护都以「项目仓库」为前提 ——
     # 在家目录等任意 cwd 跑会铺一堆 teamwork 文件。跳过一切项目写盘动作
@@ -1229,6 +1302,7 @@ def cmd_session_bootstrap(args: argparse.Namespace) -> None:
                 "host_injection": _skip,
                 "gitignore_worktree": _skip,
                 "external_review_logs_prune": logs_prune,
+                "teamwork_tmp_prune": tmp_prune,
                 "skill_update_check": {
                     "status": "skipped",
                     "reason": "not_a_git_repo(无项目 localconfig 可写缓存 · 不外呼)",
@@ -1315,6 +1389,7 @@ def cmd_session_bootstrap(args: argparse.Namespace) -> None:
             "host_injection": injection,
             "gitignore_worktree": gitignore,
             "external_review_logs_prune": logs_prune,
+            "teamwork_tmp_prune": tmp_prune,
         },
         # forewarn AI 下游硬墙(因果机制描述 · 非宣誓)· gate 统一四字段:
         # gate / trigger / action(一行结论)/ spec(文档指针 · 详情去读 spec)

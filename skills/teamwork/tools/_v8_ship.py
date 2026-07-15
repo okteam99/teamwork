@@ -1097,14 +1097,52 @@ def cmd_ship_phase(args: argparse.Namespace) -> None:
 # MR 提交 · 归档/翻牌/终态全随 feature MR 原子合入);ship2 不修改任何内容 · 只清理:
 #   1. verify-delivered  zip 在 origin/<merge_target>(= MR 已合)· 未合 PENDING 绝不删 worktree
 #   2. worktree-remove   删 feature worktree + 本地分支(接力卡 state.json 随之消亡)
-#   3. main-sync         净化主工作区:副产物(注入块/锁)自动 commit · 用户真改动决策 ·
+#   3. tmp-cleanup       删 ${TMPDIR:-/tmp}/teamwork/<feature_id>/ scratch(v8.247 · cargo target/
+#                        测试日志等 · 内容已上岸零对账价值 · 实证 CI 机 48GB 打满磁盘)
+#   4. main-sync         净化主工作区:副产物(注入块/锁)自动 commit · 用户真改动决策 ·
 #                        pull(--rebase 若有本地 commit)· push(被保护分支拒 → 提示)
 # 旧 Phase 2 链路(state-sync / verify-merge / confirm-merged / cleanup / ship-complete /
 # finalize-deliver 第二分支第二 MR / 零 checkout plumbing)v8.145 整体删除 · 不留兼容期。
 # 十二个版本(v8.16→v8.144)反复修补的根因 = 在不可控的主工作区做内容性工作 · 现已移除。
 
 
-SHIP_FINALIZE_STEPS = ("verify-delivered", "worktree-remove", "main-sync")
+SHIP_FINALIZE_STEPS = ("verify-delivered", "worktree-remove", "tmp-cleanup", "main-sync")
+
+
+# ─── feature scratch 回收(standards/common.md § 临时产物目录 · v8.247)──────
+
+TEAMWORK_TMP_ROOT_ENV = "TEAMWORK_TMP_ROOT"  # 测试覆盖用
+
+
+def _teamwork_tmp_root() -> Path:
+    """scratch 根 = ${TMPDIR:-/tmp}/teamwork(与 conventions §12.5 截图约定同根)。"""
+    override = os.environ.get(TEAMWORK_TMP_ROOT_ENV)
+    if override:
+        return Path(override)
+    return Path(os.environ.get("TMPDIR") or "/tmp") / "teamwork"
+
+
+def _prune_feature_tmp(feature_id: str) -> dict:
+    """删 scratch 根下 <feature_id>/ 整树(ship2 · verify-delivered 通过后)。
+
+    🔴 时序:必须在 verify-delivered PASS 之后 —— 归档 zip 已确认在 origin ·
+    日志/构建产物无对账价值 · 删除零风险。整目录删除(cargo target 是原子单元 ·
+    按文件删会打碎 fingerprint 一致性)。失败不阻塞(warnings 记录)。
+    """
+    if not feature_id:
+        return {"status": "n_a", "reason": "no_feature_id"}
+    d = _teamwork_tmp_root() / feature_id
+    if not d.is_dir():
+        return {"status": "n_a", "pruned_bytes": 0}
+    try:
+        size = sum(f.stat().st_size for f in d.rglob("*") if f.is_file())
+    except OSError:
+        size = 0
+    try:
+        shutil.rmtree(d)
+        return {"status": "ok", "pruned_bytes": size, "path": str(d)}
+    except OSError as e:
+        return {"status": "failed", "error": str(e)[:120], "path": str(d)}
 
 
 class _GitResult:
@@ -2334,9 +2372,21 @@ def cmd_ship_finalize(args: argparse.Namespace) -> None:
                         warnings.append(
                             f"本地 feature 分支 {wt_branch} 未删(可能未完全合并)· "
                             f"确认已合入后手动 git branch -D {wt_branch}")
+    # ── Step 3:tmp-cleanup(scratch 回收 · 内容已上岸零风险 · v8.247)────
+    tmp_res = _prune_feature_tmp(feature_id)
+    if tmp_res["status"] == "ok":
+        completed.append("tmp-cleanup")
+    elif tmp_res["status"] == "failed":
+        skipped.append("tmp-cleanup")
+        warnings.append(
+            f"scratch 清理失败:{tmp_res['error']} · 不影响交付 · "
+            f"手动 rm -rf {tmp_res['path']}")
+    else:
+        skipped.append("tmp-cleanup")
+
     _git(["fetch", "--prune", "origin"], cwd=main_wt, timeout=60)  # remote-tracking 残影清理
 
-    # ── Step 3:main-sync(纯清理 · 零内容)─────────────────────────
+    # ── Step 4:main-sync(纯清理 · 零内容)─────────────────────────
     main_sync_status = "skipped"
     main_sync_note = ""
     main_sync_decision: Optional[dict] = None
@@ -2447,6 +2497,7 @@ def cmd_ship_finalize(args: argparse.Namespace) -> None:
         "merge_target": merge_target,
         "completed_steps": completed,
         "skipped_steps": skipped,
+        "tmp_cleanup": tmp_res,
         "worktree_removed": wt_removed,
         "main_sync_status": main_sync_status,
         **({"main_sync_note": main_sync_note} if main_sync_note else {}),
