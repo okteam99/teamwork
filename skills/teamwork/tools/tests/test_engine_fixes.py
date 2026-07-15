@@ -139,6 +139,19 @@ class TestRedBaseDevToReview(_RepoCase):
         self.assertEqual(ev["test_exit_code"], 1)
         self.assertIs(ev["dev_diff_clean"], True)
         self.assertEqual(st["execution_hints"]["test_baseline_excluded"], 1)
+
+    def test_auto_transition_carries_continue_reminder(self):
+        """v8.246:自动流转 emit 附「非暂停点 · 立即继续」提醒(治回合边界歇脚 · 实证 browser_e2e case)。"""
+        _write_state(self.feat, current_stage="dev")
+        d = _run_state(self.tmp, "dev-complete", "--feature", self.feat_rel,
+                       "--test-stdout", "1 failed: suite::legacy",
+                       "--test-exit-code", "1",
+                       "--current-failures", "suite::legacy")
+        self.assertEqual(d["transitioned_to"], "review")
+        self.assertIn("continue_reminder", d)
+        self.assertIn("review", d["continue_reminder"])
+        self.assertIn("非暂停点", d["continue_reminder"])
+        self.assertIn("回合边界", d["continue_reminder"])
         # review-start 前置接受差分放行
         d2 = _run_state(self.tmp, "review-start", "--feature", self.feat_rel)
         self.assertEqual(d2["verdict"], "PASS")
