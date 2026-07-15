@@ -1,5 +1,6 @@
 # ARCHITECTURE 模板
 
+> 位置：`{子项目}/docs/architecture/ARCHITECTURE.md`
 > 受众：**技术团队（RD / 架构师）** — 代码级技术细节，技术栈选型、分层架构、模块依赖、接口规范。
 > 业务层面的产品概览见 📎 PROJECT.md。
 

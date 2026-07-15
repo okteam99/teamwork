@@ -18,7 +18,7 @@
 
 🔴 **三条硬边界**:① 架构 CR 与关键裁决**不降档**(深度判断降档 = 质量盲区回归);② **评审独立性优先于档位**(冷审 fresh context 比模型强弱重要 —— 两个轻模型冷审 > 一个强模型热审);③ 主对话模型 = **用户主权**(AI 只建议不切换)。
 
-**并行姿态(鼓励 · v8.225)**:每个 stage 开工先问一句「**哪些子任务可以并行?**」—— 评审天然并行(冷审 N 路同发)· dev 多模块各派一个 teammate(命名 subagent · 长任务用 Progress Log 汇报)· 调研/探索 fan-out 保主对话 context 干净。护栏不变:子任务**边界清晰且够大**才拆(小/耦合/强串行自己做)· 代码类只写 worktree 内路径 · **stage 流转 / commit / complete / 最终整合永远归主对话**(并行的是执行 · 不是编排)。🔴 **v8.235 声明制**:每次派发(subagent/teammate/workflow 的每个 agent())必声明 **model + 一句为什么**(按上表任务性质对档)—— 让选择有意识 · 也喂台账 dispatch_models 观测(unspecified = 没声明没思考)。台账已记 host+model(v8.208/209)—— 年检可验档位建议是否伤质量。🔴 **ultracode 开启的 session**:冷审/验证 fan-out **优先用 Workflow**(`agent(prompt,{schema})` 强制结构化 findings · 聚合在脚本层 · 产物契约不变 · 裁决仍归主对话)。
+📎 **并行姿态 + 声明制(PMO 派发方规则 · 单源 = [SKILL.md](../SKILL.md) § 全局规则「subagent / teammate」条目 · v8.241 去重)**:开工先问「哪些子任务可以并行」· 每次派发声明 **model + 一句为什么**(dispatch Meta 的 `model/model_reason` 字段)· ultracode 开启冷审/验证 fan-out 优先 Workflow —— 全文与护栏见 SKILL 单源(此处不复制 · 防双载体 drift);本表 + 三条硬边界是 SKILL 反向引用的**档位单源**(v8.230)。
 
 ## 二、通用执行约束
 

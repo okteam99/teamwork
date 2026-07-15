@@ -100,7 +100,12 @@ def _require_ship_stage(state: dict, action: str) -> None:
 
     v8.145 例外:archive 把 current_stage 写成 completed(终态进 zip)· 工作树接力卡
     随之是 completed —— archive 幂等重跑 / push 记录 / close-unmerged 仍须可跑。
+    v8.241 例外:close-unmerged(放弃)可从任意 stage 走 —— pm_acceptance rejected
+    的「放弃 Feature」选项此前是死路(emit 给的命令必被本门拒)· 幂等门仍由
+    _handle_ship_close_unmerged 的 phase 检查(null/pushed → closed_unmerged)把守。
     """
+    if action == "close-unmerged":
+        return
     cur = state.get("current_stage")
     if cur == "ship":
         return
@@ -474,8 +479,31 @@ def _handle_ship_push(state: dict, args: argparse.Namespace) -> dict:
         f"- 监控:我将跑 `await-merge` 30s 轮询 —— **你只需在平台点合并** · 合并后自动清场(删 worktree + 净化主工作区)\n"
         f"- 异常口令:平台报冲突 → 回「冲突」(我回 worktree 重跑 archive 解)· 不想合了 → 回「撤回」"
     )
+    # v8.240:user_card 防截断三重物化 —— 治实证 case(KA-PAGES-F260714041628):主对话用
+    # python key-filter 读本 emit,`user_card` 字段被过滤丢弃 → 手写卡片把 URL 包进 markdown
+    # 加粗 → 用户「没看到链接」。v8.233 纯 prose 防线挡得住 head 截断挡不住 key-filter:
+    # ① pmo_must_read 置字段首位(survive head)② user_card 落盘 SHIP-USER-CARD.md
+    #    (untracked · 随 worktree 消亡 · stdout 丢失时 cat 兜底)
+    # ③ hint 字段冗余同一指令(key-filter 惯选 verdict/hint —— 实证 case 的过滤器就选了 hint)。
+    _card_file = None
+    if _feat_path:
+        try:
+            _card_path = (Path(_feat_path) / "SHIP-USER-CARD.md").resolve()
+            _card_path.write_text(user_card + "\n", encoding="utf-8")
+            _card_file = str(_card_path)
+        except OSError:
+            _card_file = None
+    _card_must_read = (
+        "🔴 `user_card` 字段必须**原样**贴给用户(URL 置顶独立行 · 不转写/不加 markdown 包裹)"
+        "· 禁 key-filter/截断本 JSON;"
+        + (f"卡片已落盘 {_card_file}(stdout 丢失时 cat 它原样贴)"
+           if _card_file else "卡片落盘失败 · 只能从本 JSON 的 user_card 取")
+    )
     return {
         "verdict": "PASS",
+        "pmo_must_read": _card_must_read,
+        "user_card": user_card,
+        "user_card_file": _card_file,
         "stage": "ship",
         "action": "push",
         "transition": f"{cur_phase} → pushed",
@@ -483,7 +511,7 @@ def _handle_ship_push(state: dict, args: argparse.Namespace) -> dict:
         **({"rerecorded": True} if cur_phase == "pushed" else {}),
         "mr_url": ship["mr_url"],
         "mr_create_url": ship["mr_create_url"],
-        "user_card": user_card,
+        "hint": _card_must_read,
         "next_action_brief": (
             "✅ Push + MR 记录完成 —— **feature 的 ship 到此结束**(v8.145 ship1 全交付)。\n\n"
             "🔴 v8.233 输出格式(两段定序 · 都必含):① 先贴本 emit 的 **`user_card`**(URL 置顶独立行)"

@@ -60,7 +60,7 @@ pm_acceptance rejected 不强制 fix-retry(反馈类型多样)· state.py emit 4
 **为什么不像 review/test 走 stage 内 fix-retry**:
 - pm_acceptance rejected 的反馈类型多(代码/需求/设计/放弃)· 单一 fix-retry 不够
 - PM 反馈本质是流程层判断 · 适合"暂停 + 用户决策"模式
-- raw-write 自动写 concerns WARN(audit 留痕)· 不是 R5 红线违规
+- jump-to-stage 自动写 concerns WARN(audit 留痕)· 不是 R5 红线违规
 
 **与 review/test fix-retry 的差异**:
 | stage | 失败模式 | 处理 |
@@ -76,7 +76,7 @@ pm_acceptance rejected 不强制 fix-retry(反馈类型多样)· state.py emit 4
 📎 **物化拦截**:
 - ship-start 前置 `pm_acceptance.evidence.decision=approved_and_ship`(绕过 PM 验收 → FAIL)
 - rejected 必传 `--note`(state.py 必填校验)
-- rejected → state.py emit `pause_options_markdown` 4 选项 · 用户选 1/2/3/4 → PMO 显式跑命令(reset-prev / raw-write)· 自动 audit
+- rejected → state.py emit `pause_options_markdown` 4 选项 · 用户选 1/2/3/4 → PMO 显式跑命令(jump-to-stage / reset-prev)· 自动 audit
 
 **SOP**(违反 → 漏 bug 进 ship / 越权):
 - 逐条 AC 对照 TEST-REPORT 实际数据 · 不靠"看起来 OK"口述

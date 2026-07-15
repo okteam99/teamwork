@@ -7,6 +7,11 @@
 
 ## 创作要点(角色身份切换时参考)
 
+🔴 **三层现实(v8.204 · roster + localconfig 决定本角色以何种形态出场)**:
+- **默认(`disable_external_review` 缺省 / `true`)** → 本角色由**同模型 subagent 隔离冷审**降级承担(产物 frontmatter `review_via: subagent`)
+- **roster(`state.stage_review_roles[stage]`)无 external** → 整体 skip(机器校验自动过)
+- **显式 `false`(opt-in)** → 才跑跨模型 CLI(claude 主 → codex / gemini 等 · 真异质)
+
 - 调用方式:由 PMO 在 blueprint / review stage 内部调度(claude 主时调 codex · 反之)
 - 只读评审:外部模型只读 artifact + diff · 不参与代码写权(OpenAI ToS 合规 · v7 P0-104 强约束)
 - 产物:external-cross-review/`<stage>-<model>.md`(🔴 文件名必含白名单模型字面 codex/gemini/… · 不可模糊命名 · 详 external-model-usage.md §11.2)· 在 artifact_root 内

@@ -459,6 +459,16 @@ def close_open_pause(state: dict) -> None:
     state.pop("open_pause", None)
 
 
+# v8.238:派发档位声明提醒(单源常量 · 每个 stage-start emit 附带 · 消费时点覆盖)——
+# 实证 case:goal 三路冷审全跑主对话模型(QA 本应验证档)且零声明 · SKILL 全局规则只在 session 早期被读。
+DISPATCH_TIER_REMINDER = (
+    "🎚️ 本 stage 若派 subagent/teammate/workflow:每个派发**声明 model + 一句为什么**"
+    "(校验/枚举型〔QA 冷审/TC 对照/测试执行/机械外化〕→ 验证档 sonnet/haiku · "
+    "判断/创造型〔Architect/PL/方案/裁决〕→ 不降档)· 未声明 = 继承会话模型(台账计 unspecified)· "
+    "单源详 SKILL 🎚️ / agents/README §一。"
+)
+
+
 def execute_stage_start(
     stage_spec: StageSpec,
     args: argparse.Namespace,
@@ -687,6 +697,7 @@ def execute_stage_start(
         "next_action_brief": brief,
         "status_line": render_status_line(state, f"按 brief 完成 → {stage_spec.name}-complete"),
         **({"scaffold_hints": scaffold_hints} if scaffold_hints else {}),
+        "dispatch_tier_reminder": DISPATCH_TIER_REMINDER,  # v8.238:派发声明制 · 消费时点提醒
         **({"brief_overflow_path": brief_overflow_path} if brief_overflow_path else {}),
         **({"raw_write_audit": rw_audit} if rw_audit else {}),
         # v8.36:host 切换 / 校准信息暴露
@@ -1136,11 +1147,11 @@ REVIEW_ROLE_ENUM = {"pm", "qa", "architect", "rd", "designer", "pl", "external"}
 # (flow_type, stage) → 默认 review 角色清单
 DEFAULT_REVIEW_ROLES: dict[tuple[str, str], list[str]] = {
     # Feature 流程
-    ("Feature", "goal"): ["qa", "architect", "pl"],  # v8.155:去 pm(作者审自己最锚定 · PM 退整合者)· 三角色走并行隔离 subagent 冷审(防鼓掌 · 详 goal-stage §3)· v8.149 去 external(opt-in 保留)
+    ("Feature", "goal"): ["pl", "external"],  # v8.243:3 冷审→2 路并行 —— PL 对抗质疑 + 覆盖方向制外审(QA 可验证/ARCH 可实现并入外审必覆盖方向 + AI 自主方向 ≥1 · 物化门 external_coverage_present);复杂 feature change-review-roles 加回独立 qa/architect。史:v8.155 三角色隔离冷审防鼓掌 · v8.149 去 external opt-in
     ("Feature", "ui_design"): ["designer", "pm"],
     ("Feature", "panorama_sync"): ["pm", "architect"],
-    ("Feature", "blueprint"): ["qa", "architect", "external"],
-    ("Feature", "review"): ["architect", "qa", "external"],
+    ("Feature", "blueprint"): ["architect", "external"],  # v8.244:3→2 —— Architect 主审(TECH-REVIEW · 简洁性 counter-lens)+ 覆盖方向制外审(QA 可测试视角并入 · 物化门 cross_review_coverage);复杂 feature 加回独立 qa
+    ("Feature", "review"): ["architect", "external"],  # v8.244:3→2 —— Architect 主审(REVIEW-arch · 实现↔设计一致性)+ 覆盖方向制外审(QA 测试真实性视角并入);review 从严:外审必覆盖清单比 blueprint 重一档
     ("Feature", "test"): ["qa"],
     ("Feature", "browser_e2e"): ["qa", "designer"],
     ("Feature", "pm_acceptance"): ["pm"],
@@ -1153,7 +1164,7 @@ DEFAULT_REVIEW_ROLES: dict[tuple[str, str], list[str]] = {
     ("敏捷需求", "pm_acceptance"): ["pm"],
 
     # Bug 流程
-    ("Bug", "review"): ["architect", "qa", "external"],
+    ("Bug", "review"): ["architect", "external"],  # v8.244:同 Feature review 两路制(代码 review 同刀)
     ("Bug", "test"): ["qa"],
     ("Bug", "pm_acceptance"): ["pm"],
 

@@ -1144,6 +1144,17 @@ def cmd_ws_lint(args: argparse.Namespace) -> None:
     missing = _lint_ws_doc(ws_text)
     # v8.197:执行线存在性(愿景层→WS taxonomy 校验)—— WS 承接的 Line 必须在业务架构「执行线列表」
     # 存在 · 否则是幽灵 Line(反查「某线下有哪些 WS」会断)。无业务架构文档 → skip(非所有项目有)。
+    # v8.239:调研深度信号 —— features[].current_state 缺失/仍是模板占位 = 拆解未 grounded 实际代码
+    _mb = re.search(r"<!--\s*TEAMWORK-MACHINE.*?-->", ws_text, re.S)
+    if _mb:
+        _blk = _mb.group(0)
+        _n_feat = len(re.findall(r"(?m)^\s*-\s*id\s*:", _blk))
+        _cs = re.findall(r"(?m)^\s*current_state\s*:\s*(.+)$", _blk)
+        _placeholder = [c for c in _cs if ("<" in c or c.strip().strip('"').strip("'") in ("...", "", "…"))]
+        if _n_feat and len(_cs) < _n_feat:
+            missing.append(f"features[].current_state 缺失({len(_cs)}/{_n_feat})—— 拆解必须 grounded 实际代码调研(每 BL 记已有/真缺口+来源文件 · 详 feature-planning Step 1)")
+        if _placeholder:
+            missing.append(f"current_state 含模板占位 {len(_placeholder)} 处(『<...>』/『...』)—— 调研浅信号 · 必由实读代码填并附来源文件")
     ws_lines = {re.sub(r"\s+", "", x) for x in re.findall(r"(?m)^\s*-\s*(Line\s*\d+)", ws_text)}
     if ws_lines:
         arch = next(iter(root.glob("product-overview/*业务架构*.md")), None)
@@ -2251,8 +2262,8 @@ def cmd_prepare_check(args: argparse.Namespace) -> None:
         # v8.221:对外词汇 = Feature/Bug + preset(配置面板照抄:flow=Feature · preset=micro)
         "flow_type_public": normalize_flow(args.flow_type or "Feature")[0] if args.flow_type else None,
         "preset": normalize_flow(args.flow_type or "Feature")[1] if args.flow_type else None,
-        "config_line_hint": ("⚙️ 配置行词汇(v8.220):flow=<Feature|Bug>[ · preset=<lite|micro>(非 full 时标)]"
-                             " · branch 前缀统一 feature/(Bug=fix/)· ID 统一 F/B(M 已退役)"),
+        "config_line_hint": ("⚙️ 配置行词汇(v8.220):flow=<Feature[·micro] / Bug> · clarity=<explicit|normal|ambiguous>"
+                             " · bl=<BL-NNN|无> · branch 前缀统一 feature/(Bug=fix/)· ID 统一 F/B(M 已退役 · lite 已退役)"),
         "existing_ids": existing_ids,
         "existing_count": len(existing_ids),
         "id_strategy": id_strategy,
@@ -2332,9 +2343,9 @@ def cmd_prepare_check(args: argparse.Namespace) -> None:
     # v8.216:角色价值判据(给 AI 的判断框架 · 非规则)—— 逐角色问「这个视角对本 feature 能拦住什么」
     payload["role_value_criteria"] = {
         "pl": "需求有价值前提/范围可质疑吗?(用户明说要做的机械改动 → 无 · 新能力/改行为 → 有)",
-        "qa": "有边界条件/AC 可测性风险吗?(纯文案/配置 → 弱 · 有状态/并发/输入面 → 强)",
-        "architect": "有架构决策/跨模块影响吗?(单文件机械改 → 弱 · 新依赖/改契约/跨层 → 强)",
-        "external": "多触发点/高风险/同模型盲区值得异质或冷视角吗?(≥3 模块触发 · 或核心链路)",
+        "qa": "有边界条件/AC 可测性风险吗?(纯文案/配置 → 弱 · 有状态/并发/输入面 → 强)· goal/blueprint/review 默认并入外审覆盖方向(可验证/可测试/测试真实性)· 判强才加回独立冷审(v8.243/244)",
+        "architect": "有架构决策/跨模块影响吗?(单文件机械改 → 弱 · 新依赖/改契约/跨层 → 强)· goal 默认并入外审覆盖方向「可实现」(blueprint/review 主审席位保留)· 判强才加回 goal 独立冷审(v8.243)",
+        "external": "goal/blueprint/review 默认在(覆盖方向制 v8.243/244:必覆盖方向 + AI 自主方向)· 判据改为:要不要升异质(≥3 模块触发 · 核心链路)或加维度",
         "🔴": "每角色给一行理由(有值留 · 无值去)· review stage 从严(拦真主力 · 建议 ≥2 视角 · <2 需强理由)",
     }
     payload["reviewer_thinking_hint"] = (
@@ -2395,7 +2406,7 @@ REVIEWER_THINKING_CHECKLIST = [
     },
     {
         "question": "本 Feature 跨 ≥3 个 module 触发点 / 调用方?(如跨多 stage / 多 service)",
-        "if_yes": "blueprint / review 强调 external(异质模型查漏触发 · F-Bv2-8 实证有效)",
+        "if_yes": "blueprint / review 强调 external(第三视角查漏 · 默认同模型冷审 · 异质 opt-in · F-Bv2-8 实证有效)",
         "if_no": "blueprint / review external 默认即可",
     },
     {
@@ -2484,14 +2495,14 @@ PLANNING_CHECKLIST = [
      "spec": "feature-planning.md §2 Step 1"},
     {"item": "范围判定:工作区级(改 teamwork-space.md + 多 PROJECT.md)vs 子项目级(单 PROJECT.md + ROADMAP.md + sitemap.md)",
      "spec": "feature-planning.md §2 Step 2"},
-    {"item": "🎨 全景UI初步规划(本轮涉 UI 时 · 🔴 拆 WS 之前出):在 {子项目}/docs/design/preview-project/ 出/扩 design system + 本轮关键页(初步 · 系统+代表页 · 非每页 · 防瀑布 · 跑 preview.sh 看)+ 同步 sitemap.md(IA 地图 · 只写层级/导航不写视觉)· 完成产生 git diff = 拆 WS 的输入 · 🔴 **出完必给用户可访问预览 URL(跑 preview.sh 抓 PREVIEW_URL)+ emit R5 等用户确认全景 · 用户没确认过 = 不算规划完成**(auto/yolo 自动确认 + add-concern WARN);非 UI 轮跳过(下游 WS 标 全景初规:N-A)",
+    {"item": "🎨 全景UI初步规划(本轮涉 UI 时 · 🔴 拆 WS 之前出):在 {子项目}/docs/design/preview-project/ 出/扩 design system + 本轮关键页(初步 · 系统+代表页 · 非每页 · 防瀑布 · 跑 preview.sh 看)+ 同步 sitemap.md(IA 地图 · 只写层级/导航不写视觉)· 完成产生 git diff = 拆 WS 的输入 · 🔴 **出完必给用户可访问预览 URL(跑 preview.sh 抓 PREVIEW_URL)+ emit R5 等用户确认全景 · 用户没确认过 = 不算规划完成**(auto/yolo 自动确认 · 留痕=下游 WS frontmatter ui_panorama_confirmed 标 auto · 🔴 规划不进状态机 add-concern 不可用);非 UI 轮跳过(下游 WS 标 全景初规:N-A)",
      "spec": "feature-planning.md §2 Step 5"},
-    {"item": "核心产出 WS(product-overview/workstream/WS-NN.md · 1..N 个 · 输入=全景diff+业务目标 · 承接 1+ 执行线 · 拆一组 feature · 🔴 每 WS 记 全景初规状态(✅/N-A)+ 🔴 ui_panorama_confirmed(涉 UI 用户确认全景的 ISO · 必填才能规划完成)+ 覆盖的全景页清单 + 执行顺序与并行建议(波次:同波可并行/各自 worktree · 跨波串行 + 同改面/跨子项目方向额外串行))· 0-1 时含业务架构与产品规划.md(愿景+执行线列表)· 🔴 照 templates/workstream.md 起草**别抄项目旧 WS** · 写完跑 `state.py ws-lint --ws WS-NN` 校验最新模板(TEAMWORK-MACHINE 块+WS-PROGRESS/WS-DAG 标记)· 🔴 不出 feature 实现代码(R6 · 全景 preview-project 是设计代码例外)· 不进 stage 链",
+    {"item": "核心产出 WS(product-overview/workstream/WS-NN.md · 1..N 个 · 输入=全景diff+业务目标 · 承接 1+ 执行线 · 拆一组 feature · 🔴 每 WS 记 全景初规状态(✅/N-A)+ 🔴 ui_panorama_confirmed(涉 UI 用户确认全景的 ISO · 必填才能规划完成)+ 覆盖的全景页清单 + 执行顺序与并行建议(波次:同波可并行/各自 worktree · 跨波串行 + 同改面/跨子项目方向额外串行))· 0-1 时含业务架构与产品规划.md(愿景+执行线列表)· 🔴 照 templates/workstream.md 起草**别抄项目旧 WS** · 写完跑 `state.py ws-lint --ws WS-NN` 校验最新模板(TEAMWORK-MACHINE 块+WS-PROGRESS/WS-DAG 标记)· 🔴 不出 feature 实现代码(R6 · 全景 preview-project 是设计代码例外)· 不进 stage 链 · 🔴 v8.239 **拆 WS 前两道深度门**:①调研深度契约(每候选 BL 的 current_state 必出自实读代码 · 附来源文件 · ws-lint 抓占位)②**拆解讨论暂停点(R5 必经)**:拆解草案(候选 BL+边界理由+粒度自检+波次)先给用户讨论收敛(合并/砍/改边界)才落 WS —— WS 必须是「代码现状 × 用户深度讨论」的产物 · 不是 AI 一把拆完;粒度反压:BL>8 或有无独立交付价值的 BL → 草案必须给「为什么不合并」;🔴 v8.240 边界判据:主判据=交付内聚 · feature 可跨子项目(target 只是 ROADMAP 归属 · 子项目边界不是拆分理由)· 薄承接件默认并入宿主(独立须硬理由:外部gate/交付节奏/blast radius/管辖边界 · 含金量悬殊=强合并信号)· 落盘后合并/砍件不重排 id(被并件留 `→ 已并入 Sx`)",
      "spec": "feature-planning.md §2 Step 6 + templates/workstream.md"},
     {"item": "WS 拆出的 feature 写入 ROADMAP(BL-NNN · 关联 WS)· feature 全写入 = WS ✅ 规划完成 · 每个 BL 后续用户拍板走 prepare 启动 Feature",
      "spec": "conventions.md §4 + prepare.md §5"},
     {"item": "🔴 规划收尾必 emit R5 暂停点问用户**如何收尾**(WS+ROADMAP+全景是 Step 0 worktree 内未提交改动)· 🔴 头两项一步到位(治本:别让用户手动『你直接合并然后收尾』):**1. 确认·合入 MR+收尾**(commit+push+开 MR+**自动合并**+清 worktree+净化主分支一步到位)· **2. 确认·合入收尾+启动首个 BL**(同 1 · 收尾完 prepare 首波 ready BL〔execution_waves W1〕)· **3. 建 MR 我自己平台合**(await-merge 轮询 / 平台合后收尾)· **4. 先不提交** · 🔴 **自动合并硬门(选1/2)= merge_target 非主分支**(main/master → 回退选 3 · 同 yolo 风险模型)· 平台拒(审批/CI)→ 回退选 3 · 🔴 启动首个 BL(选2)前提 = finalize 完成后+用户显式选+feature target=集成分支(守 v8.188『别叠 feature 在未合并 planning 分支』)· 不走 ship 状态机",
-     "spec": "feature-planning.md §2 Step 8"},
+     "spec": "feature-planning.md §2 Step 9"},
 ]
 
 
@@ -2550,7 +2561,7 @@ def cmd_planning_check(args: argparse.Namespace) -> None:
             "  cd <worktree-path>   # 🔴 规划产物全写 worktree 内路径(同 worktree 纪律)\n"
             "  → 规划完成 → ⏸️暂停问「如何收尾」(5 选项 · 头两项一步到位):1.合入 MR+收尾(自动合并+清 worktree+净化) 2.收尾+启动首个 BL 3.建 MR 我自己平台合 4.先不提交 · "
             "🔴 自动合并硬门 = merge_target 非主分支(main/master → 回退手动)· 🔴 启动首个 BL(选2)必 finalize 完成后(别叠 feature 在未合并 planning 分支)· "
-            "finalize = cd 回主工作区 → git worktree remove → `state.py main-sync --merge-target <mt>`(=ship-finalize · 详 Step 9)\n"
+            "finalize = cd 回主工作区 → git worktree remove → `state.py main-sync --merge-target <mt> --strategy <commit-push|stash-pull|skip>`(🔴 --strategy 必传 · =ship-finalize · 详 Step 9)\n"
             "  (trivial 单文档微调 · 用户可决定免 worktree)"
         ),
         "key_constraints": [

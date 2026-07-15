@@ -106,7 +106,7 @@
 
 ### PMO preflight 扫描
 
-🔴 PMO 初步分析任何 Feature / 敏捷需求 / Feature Planning 时,必须扫描 KNOWLEDGE.md:
+🔴 PMO 初步分析任何 Feature / Bug / Feature Planning 时,必须扫描 KNOWLEDGE.md:
 - 读 `{目标子项目}/docs/KNOWLEDGE.md`(不存在 → 「本项目暂无 KNOWLEDGE 记录」)
 - 按当前 Feature 主题 + 涉及模块扫描索引,列出可能相关的条目 ID
 - 注入 PMO 初步分析输出的「📚 相关项目事实」行

@@ -2,7 +2,7 @@
 
 An AI works from a team-collaboration perspective — through **flow orchestration + role-perspective switching + contractualized stages + a machine-readable state machine** — to drive the complete software lifecycle from product planning to delivery.
 
-[中文](./README.md) · Version: **v8.237** (version source of truth = [SKILL.md](./skills/teamwork/SKILL.md) frontmatter)
+[中文](./README.md) · Version: **v8.245** (version source of truth = [SKILL.md](./skills/teamwork/SKILL.md) frontmatter)
 
 ---
 
@@ -83,14 +83,14 @@ npx skills update okteam99/teamwork
 | Confirm flow | Reply ok / feedback | Read the necessary knowledge-base docs · start the flow |
 | PRD | Wait / correct | PM drafts PRD + multi-role parallel review + converge |
 | Confirm PRD | Reply ok | — |
-| Design | Wait | Designer produces UI + syncs sitemap |
+| Design | Wait | Designer produces UI + syncs the panorama |
 | Tech plan | Wait | RD drafts TECH + QA drafts TC + architect + third-perspective review |
 | Dev | Wait | RD implements via TDD + unit tests + machine checks |
 | Review | Wait | Architect + QA + **independent third perspective** (default same-model cold review · heterogeneous optional) — three independent reviews |
 | Test | Wait (start the app if needed) | QA integration tests + scripted API E2E |
 | Acceptance | Reply ok / feedback | PM-perspective acceptance + PMO compiles delivery report + auto-commit |
-| **Ship Phase 1** | Click the merge button | Knowledge distill + MR/PR created · link given → ⏸️ await merge |
-| **Ship Phase 2** | Wait | Verify merge + wrap-up via MR (terminal state + process artifacts archived as zip) + worktree cleanup + main-branch sync → ✅ |
+| **Ship Phase 1** | Click the merge button | Sanitize + knowledge distill + archive (merged atomically with the feature MR) + MR/PR created · user_card with the MR link on top + 📦 delivery summary → **await-merge 30s polling** (auto-advances to Phase 2 once the merge is detected) |
+| **Ship Phase 2** | Wait | Zero-content cleanup: verify delivery + worktree cleanup + main-branch sync → ✅ |
 
 Typical Feature pause points: **3-5**.
 
@@ -101,7 +101,7 @@ The breakdown from business overview to concrete Features — led by PL (Product
 | Stage | You | AI |
 |-------|-----|-----|
 | Start | Give a one-line direction (e.g. "build an e-commerce recommender" / "adjust the business model") | PMO recognizes product-direction input · schedules PL |
-| Business overview | Answer PL's key questions (users / value / scenarios) | PL guides building product-overview (business architecture + execution handbook) |
+| Business overview | Answer PL's key questions (users / value / scenarios) | PL guides building product-overview (business architecture + WS breakdown) |
 | Confirm overview | Reply ok / correct | PL lands the product-overview/ docs |
 | Direction discussion | Raise topics (add/remove business lines / business-model change) | PL discussion mode: multi-perspective analysis + options + recommendation |
 | Decide direction | Choose a direction | PL enters execution mode · determines change level (function / business module / direction) |
@@ -174,7 +174,7 @@ By default teamwork **stops at every user-decision pause point** for your confir
 - **PMO** (flow orchestration): accept user input → identify flow → schedule roles → maintain the state machine → pre-checks and pause points
 - **Product Lead (PL)**: product direction. Onboarding mode (build product-overview from scratch) / discussion mode (business topics) / execution mode (change cascade + Change Request lifecycle)
 - **PM**: PRD + structured AC + final acceptance
-- **Designer**: UI restoration + sitemap (sitemap + preview)
+- **Designer**: UI restoration + panorama (sitemap + preview)
 - **Architect**: Tech Review (Blueprint) + Code Review (Review Stage) + ARCHITECTURE.md maintenance + ADR decisions
 - **QA**: TC (AC↔test binding) + TC tech review (Blueprint) + Code Review + integration tests / API E2E
 - **RD**: TDD implementation + unit tests + self-check + bug investigation report
@@ -190,7 +190,7 @@ Role collaboration **defaults to main-conversation identity switching** — swit
 | Codex CLI | .codex/ | AGENTS.md |
 | Gemini CLI | .gemini/ | GEMINI.md |
 
-On session start, `bootstrap.py` performs system maintenance (skeletons / hooks / localconfig self-heal). Since v8.211 it **no longer injects** host instruction files (CLAUDE.md / AGENTS.md / GEMINI.md) — in shared repos the injected block would pollute non-teamwork users; key info (PMO role / worktree discipline / subagent authorization) lives solely in SKILL.md, and bootstrap auto-removes legacy injected blocks.
+On session start, `bootstrap.py` performs system maintenance (skeletons / localconfig self-heal / codex agent toml deployment · cleanup of legacy injected blocks and legacy hooks). Since v8.211 it **no longer injects** host instruction files (CLAUDE.md / AGENTS.md / GEMINI.md) — in shared repos the injected block would pollute non-teamwork users; key info (PMO role / worktree discipline / subagent authorization) lives solely in SKILL.md, and bootstrap auto-removes legacy injected blocks.
 
 ### Collaboration Model
 
@@ -204,7 +204,7 @@ On session start, `bootstrap.py` performs system maintenance (skeletons / hooks 
 
 ### Pending-Needs Pool
 
-Items found across Features/sessions that are "out of current scope but should be done" are recorded in the pending-needs pool in the project-root `teamwork-space.md`. When the user asks "what else is pending / backlog", PMO lists them automatically; once turned into a Feature/Bug, the entry is removed from the pool, keeping it lightweight.
+Items found across Features/sessions that are "out of current scope but should be done" are recorded in `product-overview/PENDING.md` (externalized from teamwork-space.md · read only when a backlog query hits). When the user asks "what else is pending / backlog", PMO lists them automatically; once turned into a Feature/Bug, the entry is removed from the pool, keeping it lightweight.
 
 ### Product Planning System
 
@@ -212,9 +212,9 @@ Teamwork has a built-in **Product Lead (PL)** role that maintains the product-pl
 
 ```
 product-overview/
-├── {project}_business-architecture-and-product-plan.md
-├── {project}_execution-handbook.md
-└── {project}_Product_Plan.md              # optional
+├── {项目名}_业务架构与产品规划.md          # business architecture & product planning (files are generated with Chinese names)
+├── workstream/                             # WS-NN.md · planning units (the core)
+└── {项目名}_Product_Plan.md                # optional
 ```
 
 When a project is first initialized and `product-overview/` does not exist, PMO automatically switches to PL onboarding mode. For product-direction topics (business-model adjustments, adding/removing business lines), PMO schedules PL into discussion mode. When a conclusion needs to land, PL enters execution mode and triggers a downstream cascade into Feature Planning based on the change level (Level 1 function / Level 2 business module / Level 3 direction).
@@ -243,7 +243,7 @@ When tasks are executed directly in the main conversation (PRD discussion, archi
 
 - **Architect**: technical soundness / performance / security / architecture consistency
 - **QA**: AC item-by-item check against the implementation / test coverage / edge cases
-- **Heterogeneous model (External)**: a cross-model independent review (when claude is the main window, external = codex, and vice versa), run once
+- **Independent third perspective (External)**: independent review (default: same-model isolated cold review via subagent · cross-model heterogeneous = opt-in via `disable_external_review: false` · when claude is the main window, external = codex), the third perspective always runs once
 
 The three artifacts are **structurally independent** (each written to its own REVIEW-{role}.md / no cross-reference), machine-verifiable, avoiding the "the last review already said it's fine, so don't look closely" applause effect.
 
@@ -255,15 +255,15 @@ When review / test fails, it retries within the stage (RD fixes the code → re-
 
 When a discussion triggers one of the three questions (Why / Options / Tradeoff) and a non-trivial decision is made, an ADR is automatically written to `{Feature}/adrs/`. PMO scans relevant ADRs at the goal/blueprint entry and injects the context, preventing old decisions from being forgotten and re-debated.
 
-### KNOWLEDGE 3-Category Convergence
+### KNOWLEDGE 4-Category Convergence
 
-The project-level `KNOWLEDGE.md` has three categories: **Gotcha** (pitfalls) / **Convention** / **Architecture** (architecture fragments). Each has a hard trigger timing (e.g. write a Gotcha after debugging, a Convention after Review) — not relying on self-discipline, so the same pitfall isn't hit again. Retrospectives are separated from KNOWLEDGE into `retros/`.
+The project-level `project-specs/KNOWLEDGE.md` (AI-distilled) has four categories: **Gotchas** (pitfalls) / **clarified ambiguities** / **user preferences** / **rejected directions**. Each has a hard trigger timing (e.g. write a Gotcha after debugging, record an ambiguity once clarified) — not relying on self-discipline, so the same pitfall isn't hit again. Division of labor: development rules go to `project-specs/DEV-RULES.md` (human-maintained) · architecture lands in ADR / ARCHITECTURE · retrospectives live separately in `retros/`.
 
 ### Ship Stage
 
-**Phase 1 (inside the worktree)**: sanitize commits → **knowledge distill** (graduate "code-describing" knowledge into the knowledge layer — KNOWLEDGE / ADR / REG / ARCHITECTURE / database-schema — reviewed + merged with the feature MR) → push branch → create MR via CLI → ⏸️ user merges on the platform.
+**Phase 1 (inside the worktree · full delivery)**: sanitize commits → **knowledge distill** (graduate "code-describing" knowledge into the knowledge layer — KNOWLEDGE / ADR / REG / ARCHITECTURE / database-schema) → **archive** (feature-dir archival + planning status flip · a single commit merged atomically with the feature MR) → push branch → create MR via CLI → emit the user_card (MR link on top) + 📦 delivery summary → **await-merge 30s polling** (runs in every mode · detects MERGED and auto-advances to Phase 2).
 
-**Phase 2 (main worktree · fully automatic · re-entrant)**: verify merge → **wrap-up via MR** (no direct push · protected-branch friendly · auto-merged via gh/glab) → **archive** (the process-layer feature dir is zipped into `features/_archive/<id>.zip` and the original dir removed from the main branch — prevents the AI from retrieving stale feature info · code is the single source of truth) → remove worktree → pull-sync the main branch · mark state.json completed.
+**Phase 2 (ship-finalize · main worktree · zero-content cleanup)**: verify-delivered (confirm the delivery landed) → remove worktree → pull-sync the main branch · mark state.json completed.
 
 MR/PR is actually created by PMO via the `gh` / `glab` CLI with a real link · when the CLI is unavailable, a URL is generated from the platform template as a fallback + the user is prompted to click manually.
 
@@ -271,12 +271,11 @@ The PM acceptance pause point is 3-way: ① pass + Ship (auto-enter Ship Stage) 
 
 ### Project Diagnostic Toolkit — TROUBLESHOOTING.md
 
-When teamwork mode A query / E · discuss touches "diagnose / error / check logs / check the environment", PMO automatically reads the project-root `TROUBLESHOOTING.md`:
+When teamwork mode A query / E · discuss touches "diagnose / error / check logs / check the environment", PMO automatically reads `project-specs/TROUBLESHOOTING.md`:
 
-- **Fixed path**: project-root `TROUBLESHOOTING.md` (teamwork doesn't look in docs/ · handled like teamwork-space.md)
+- **Fixed path**: `{project}/project-specs/TROUBLESHOOTING.md` (bootstrap auto-creates an empty skeleton · legacy files scattered at the project root are migrated in automatically)
 - **teamwork provides a template**: [templates/troubleshooting.md](./skills/teamwork/templates/troubleshooting.md) (4-section minimal skeleton: environment / check logs / check data & cache / common errors + safety constraints + maintenance)
-- **Content maintained by the user**: teamwork doesn't assume a tech stack (K8s vs Docker vs Serverless) · doesn't prescribe specific commands
-- **When absent**: PMO gives a one-line prompt to create it from the template (no forcing / no blocking · continues diagnosing with general methods)
+- **Content distilled by user and AI together**: teamwork doesn't assume a tech stack (K8s vs Docker vs Serverless) · doesn't prescribe specific commands
 - Complementary to [KNOWLEDGE.md](./skills/teamwork/templates/knowledge.md): KNOWLEDGE = pitfalls to watch · TROUBLESHOOTING = operational steps
 
 ### External Models — Review-Only
@@ -331,7 +330,7 @@ Full red-line text in [SKILL.md](./skills/teamwork/SKILL.md) (current authority)
 | File | Purpose |
 |------|---------|
 | [SKILL.md](./skills/teamwork/SKILL.md) | Main entry: design philosophy + command list + Triage entry spec + 9 red lines + project-level doc architecture |
-| [FLOWS.md](./skills/teamwork/FLOWS.md) | 6 flow types — telos and use cases |
+| [FLOWS.md](./skills/teamwork/FLOWS.md) | Flow closed-set telos (Feature/Bug × preset + 2 outside the state machine) and use cases |
 | [STAGES.md](./skills/teamwork/STAGES.md) | 12-stage index + common cite discipline |
 | [ROLES.md](./skills/teamwork/ROLES.md) | Role index (→ roles/*.md) |
 | [STANDARDS.md](./skills/teamwork/STANDARDS.md) | Technical standards index (→ standards/*.md) |
@@ -351,7 +350,7 @@ For the detailed directory structure see [skills/teamwork/](./skills/teamwork/).
 
 ## Version
 
-Currently **v8.237** (version source of truth = [SKILL.md](./skills/teamwork/SKILL.md) frontmatter). Changelog in [docs/CHANGELOG.md](./skills/teamwork/docs/CHANGELOG.md) (latest 5 versions) · older history via git log (CHANGELOG-ARCHIVE is **periodically wiped**).
+Currently **v8.245** (version source of truth = [SKILL.md](./skills/teamwork/SKILL.md) frontmatter). Changelog in [docs/CHANGELOG.md](./skills/teamwork/docs/CHANGELOG.md) (latest 5 versions) · older history via git log (CHANGELOG-ARCHIVE is **periodically wiped**).
 
 ---
 

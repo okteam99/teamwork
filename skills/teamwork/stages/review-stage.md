@@ -18,8 +18,8 @@
 4. **逐条裁决 · 举证对称**:每条 finding 走 **质疑 → 确认 → 裁决**(先假设不成立 · 回读真实代码核实 · 再定 confirmed/rejected/deferred);**confirmed 与 rejected 都必记实证**(why:盲采 = churn/误改,盲驳 = 白跑;「reviewer 说得对」不是采纳理由)。
 5. **验证轮范围锁定**(Round 2+):只裁决上轮 open finding + 回归审查修复 diff · **禁全量重扫**(新 finding 仅限出自修复 diff、或 BLOCKER 级附「为何首轮未发现」);rejected 不得复提(除非新证据);同一代码点相邻轮方向相反(加固↔简化)= 钟摆 → 不修 · 升暂停点(why:全量重扫每轮随机采样出新 nit = 不收敛根因)。
 6. **轮次预算**:超 `max_review_rounds`(默认 3)→ R5 升级暂停点用户裁决(1 仅修 BLOCKER/MAJOR 收口 💡 / 2 继续〔`review-retry --user-confirmed` 必须真有用户拍板 · yolo blanket 例外〕/ 3 按现状 APPROVE + deferred 留痕)。
-7. **external 按 roster + 独立性协议**:roster 含 external → 跑 `state.py external-review --stage review`(先 `--preflight` 秒级验环境;同步慢 · 常 30s–3min · **别提前 kill**;超时/空输出 = FAIL 非放行;客观不可用已重试 → `--self-review-fallback` 显式降级 subagent 冷审 · frontmatter 标 `degraded` · 🔴 **绝不伪造/冒充/静默跳过**)。拟 APPROVE 前有过 fix → `--verify-fixes` 增量重验(物化校验)。
-8. **REVIEW.md 是汇总不是替代**:三份视角产物独立留盘(缺 REVIEW-arch/REVIEW-qa → complete FAIL)。
+7. **external 按 roster + 独立性协议 + 覆盖方向制**:roster 含 external → 跑 `state.py external-review --stage review`(先 `--preflight` 秒级验环境;同步慢 · 常 30s–3min · **别提前 kill**;超时/空输出 = FAIL 非放行;客观不可用已重试 → `--self-review-fallback` 显式降级 subagent 冷审 · frontmatter 标 `degraded` · 🔴 **绝不伪造/冒充/静默跳过**)。🔴 **外审内容契约(v8.244 · QA 视角并入)**:必覆盖 **测试真实性与覆盖**(测试真跑 / 覆盖真行为 / 边界回归)· **代码质量盲区**(错误处理 / 日志 / 并发)+ **AI 自主方向 ≥1**(候选:并发 / 资源泄漏 / 脱敏 / 兼容)· 每方向 finding 或「查过无发现」· 产物记 `coverage: [...]`(物化门 `cross_review_coverage` · review 从严:清单比 blueprint 重一档)。拟 APPROVE 前有过 fix → `--verify-fixes` 增量重验(物化校验)。
+8. **REVIEW.md 是汇总不是替代**:各视角产物独立留盘 —— `REVIEW-<role>.md` 按 roster(`stage_review_roles.review`)各一份 · 缺 roster 内角色的产物 → complete FAIL(roster 移出的角色不查 · 机器校验 roster-aware)。
 
 ---
 
@@ -47,7 +47,7 @@
 frontmatter:
 ```yaml
 ---
-reviewers: [architect, qa, external]   # = state.stage_review_roles.review
+reviewers: [architect, external]   # = state.stage_review_roles.review(v8.244 默认两路 · qa 加回时列入)
 verdict: NEEDS_REVISION | APPROVE
 findings:
   - {id: F1, severity: MAJOR, status: open, title: "并发写入丢更新(store.py:88 无锁)", source: arch}
@@ -59,7 +59,7 @@ findings:
 - review-complete 快照合并进 `state.stage_contracts.review.findings_ledger[]`(跨轮单源 · 验证轮 brief 自动注入)。
 
 ### `REVIEW-arch.md` / `REVIEW-qa.md` / `external-cross-review/*.md`
-各视角独立产物(external 由 `state.py external-review` 自动落 · 不手写;验证轮增量 = `review-<model>-fixverify.md`)。
+各视角独立产物(v8.244 默认产 REVIEW-arch + external 冷审〔含 coverage 申报〕· REVIEW-qa 为 roster 加回项;external 由 `state.py external-review` 自动落 · 不手写;验证轮增量 = `review-<model>-fixverify.md`)。
 
 ### fix-retry 循环(stage 内 · 命令契约)
 ```

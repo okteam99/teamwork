@@ -1,5 +1,6 @@
 # PRD 模板
 
+> 位置：`{Feature 目录}/PRD.md`
 > 🔴 机读契约落 `TEAMWORK-MACHINE` HTML 注释块(MD 预览隐藏 · **非 frontmatter** · 解决 Zed/GitHub 等渲染器裸露机读内容)· 含机读 `acceptance_criteria[]`(AC↔TC `tests[].covers_ac` 反查绑定 = 防「需求→代码」漂移)· 校验:`python3 {SKILL_ROOT}/templates/verify-ac.py {Feature 目录}`(直接调 · 无需复制)。
 
 ## PRD.md(三层 · 必填核 / 按需 / 开放区)
@@ -177,16 +178,17 @@ prd_feature_id: F025
 review_round: 1
 review_started_at: "<ISO 8601 UTC>"
 review_completed_at: "<ISO 8601 UTC>"
-reviewers: [qa, architect, pl]  # 机读汇总 · = state.stage_review_roles[goal](无 pm:PM 是整合者非 reviewer · 默认无 external)· 校验 reviewers_match
-verdicts: {qa: APPROVE, architect: APPROVE, pl: APPROVE}  # 🔴 全 APPROVE/SKIP 才可 goal-complete(prd_verdicts_all_pass · 词表 APPROVE|NEEDS_REVISION|SKIP · 无 pm verdict)
+reviewers: [pl, external]  # 机读汇总 · = state.stage_review_roles[goal](v8.243 默认 2 路:PL 对抗质疑 + 覆盖方向制外审 · 无 pm:PM 是整合者非 reviewer)· 校验 reviewers_match
+verdicts: {pl: APPROVE, external: APPROVE}  # 🔴 全 APPROVE/SKIP 才可 goal-complete(prd_verdicts_all_pass · 词表 APPROVE|NEEDS_REVISION|SKIP · 无 pm verdict)
 reviews:
- # schema 调整：reviews[] 仅含 qa / rd / designer? / external?
- # goal 评审角色 = state.stage_review_roles[goal](默认 qa/architect/pl · 并行隔离 subagent 冷审 · PM 整合非 reviewer · 无 external · external opt-in)
+ # goal 评审角色 = state.stage_review_roles[goal](v8.243 默认 pl/external 两路并行隔离冷审 · QA 可验证/ARCH 可实现并入外审覆盖方向 · 复杂 feature change-review-roles 加回独立 qa/architect · PM 整合非 reviewer)
  # PMO 不独立评审(折叠到调度责任 · 整合 finding)
- - role: pm | qa | architect | pl | external  # schema 通用 · rd/designer 值用于 TC-REVIEW / TECH-REVIEW / REVIEW.md 复用场景
+ - role: pm | qa | architect | pl | external  # schema 通用 · rd/designer 值用于 TECH-REVIEW / REVIEW.md 复用场景
  review_scope: prd # 值 prd | blueprint | code-review
  # PRD 评审审产品视角(业务可行性 / AC 可测试性 / 用户故事完整性)· 技术/测试细节归 Blueprint Stage(review_scope=blueprint)
  # 🔴 pl 段 = 对抗质疑段:finding id 用 PL-CHALLENGE-{n} · category=premise-challenge(质疑六问〔含 ⑥ 既有行为变更〕· 至少 1 条实质质疑或显式「无实质质疑+理由」· 详 stages/goal-stage.md §3)
+ # 🔴 external 段 = 覆盖方向制(v8.243):必覆盖 可实现(技术可行/架构影响/简洁性 counter-lens)· 可验证(AC 可测/边界/空值异常)+ AI 自主方向 ≥1(安全/性能/数据一致性/兼容…按 feature 挑)· 每方向 finding 或「查过无发现」· 下方 coverage 必填(物化门 external_coverage_present)
+ coverage: [可实现, 可验证, <AI 自主方向>]  # 仅 role=external 必填 · 申报本次实际覆盖的方向
  execution: subagent | main-conversation
  verdict: APPROVE | NEEDS_REVISION  # 词表:APPROVE(含 advisory finding 留痕)| NEEDS_REVISION
  started_at: "<ISO 8601 UTC>"
@@ -316,7 +318,7 @@ Step 4: PM 起草时把发现内化到 PRD
 - 唯一痕迹：PM 起草后 self_check 勾选 `code_context_read: true`（一个 boolean 承诺）
 - 兜底：substep 5 多角色评审(architect/qa)仍会做最后一道核对，PM Read 是前置补强不是替代
 
-🔴 **调研四类**(§4 早问门入场券 · 单源 stages/goal-stage.md §1):代码现状(本段)+ KNOWLEDGE(Flagged Ambiguities / Preferences / Out-of-Scope)+ GLOSSARY + 上游规划(BL / WS / 愿景 / PENDING + prepare 流程目标)—— 全部 AI 可自答 · 没查完没资格问用户。
+🔴 **调研四类**(§4 早问门入场券 · 单源 stages/goal-stage.md ③手段菜单〔调研四类〕):代码现状(本段)+ KNOWLEDGE(Flagged Ambiguities / Preferences / Out-of-Scope)+ GLOSSARY + 上游规划(BL / WS / 愿景 / PENDING + prepare 流程目标)—— 全部 AI 可自答 · 没查完没资格问用户。
 
 
 ### 通用 checklist（所有 Feature 必填）

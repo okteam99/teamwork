@@ -18,6 +18,7 @@ revision_history:
 
 # {功能名} - PM 验收说明(PM-NOTE)
 
+> 位置：`{Feature 目录}/PM-NOTE.md`
 > 🟢 **本文是 teamwork pm_acceptance-stage 可选产物** · 起草模板 = `{SKILL_ROOT}/templates/pm-note.md`
 > 🔴 **状态字段权威在 state.json** · 本文是人读说明 / rejected 时的 finding 列表 / 决策理由留痕。
 > 🔴 **rejected_with_feedback 时本文 finding 列表必填** · state.py 强校验 `--note`(详 [stages/pm-acceptance-stage.md](../stages/pm-acceptance-stage.md))。
@@ -100,7 +101,7 @@ revision_history:
 ## 起草要点(PM cite · 写时删)
 
 📚 **参考**(v8.199 cite 仪式已废 · 按需读):
-- `roles/pm.md § 验收规范` —— 对照 TEST-REPORT 实际数据 · 不口述 OK
+- `stages/pm-acceptance-stage.md` —— 对照 TEST-REPORT 实际数据 · 不口述 OK
 - `stages/pm-acceptance-stage.md § 4 三选项暂停点` —— 三选项 R5 emit 模板 · 用户拍板
 
 ❌ **反模式**(SOP 红线):

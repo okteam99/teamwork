@@ -27,16 +27,21 @@
 `bugfix/BUG-<bug-id>.md`(模板 [templates/bug-report.md](../templates/bug-report.md))· frontmatter `bug_id / symptom / root_cause / fix_summary`(`fix_summary` = 修复**方案**摘要)· body §现象 / §根因 / §修复方案。
 
 ### 5. 🔴 用户确认修复方案(R5 暂停点 · 必停)
-diagnose-complete **之前必停** · 把 **§根因 + §修复方案**(尤其方案:改哪、怎么改、影响面)呈现给用户:
+diagnose-complete **之前必停** · 把 **§根因 + §修复方案**(尤其方案:改哪、怎么改、影响面)呈现给用户 · emit R5 编号选项:
 
 ```
-⏸️ 根因 + 修复方案(请确认)· 回 ok 进 dev 写 fix · 或指正
+⏸️ 根因 + 修复方案(请确认):
 - 根因:<一句话真因 + 实证位置>
 - 修复方案:<改哪 / 怎么改 / 取舍 / 影响面>
 - (可选)备选方案:<...>
+
+1. **确认根因与修复方案 · 进 dev 修复** 💡
+2. **按指正修订诊断**(重新调查后再确认)
+3. **其他**
 ```
 
-用户 `ok` 才 `diagnose-complete` → dev。用户指正 → 改方案再确认。**不擅自进 dev**。
+🔴 auto_mode/yolo:按推荐方案继续 + `add-concern --severity WARN` 留痕(diagnose 在状态机内 · 命令可用)。
+用户选 1 才 `diagnose-complete` → dev。选 2 → 重新调查 · 修订 §根因/§修复方案后再次确认。**不擅自进 dev**。
 
 ### 6. complete
 ```

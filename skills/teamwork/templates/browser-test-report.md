@@ -23,6 +23,7 @@ revision_history:
 
 # {功能名} - Browser E2E Test Report
 
+> 位置：`{Feature 目录}/BROWSER-TEST-REPORT.md`
 > 🟢 **本文是 teamwork browser_e2e-stage 产物** · 起草模板 = `{SKILL_ROOT}/templates/browser-test-report.md`
 > 🔴 **截图必含浏览器 chrome + URL bar** · 不裁剪(SOP 截图红线 · 见 [stages/browser-e2e-stage.md](../stages/browser-e2e-stage.md))
 
@@ -161,8 +162,8 @@ screenshots/
 ## 起草要点(QA + Designer cite · 写时删)
 
 📚 **参考**(v8.199 cite 仪式已废 · 按需读):
-- `roles/qa.md § E2E 选型` —— Playwright / Puppeteer / Selenium · 项目栈决定
-- `roles/qa.md + roles/designer.md § 截图规范` —— 每 AC 一组 · 含 viewport + URL
+- `stages/browser-e2e-stage.md § 选浏览器自动化` —— Playwright / Puppeteer / Selenium · 项目栈决定
+- `stages/browser-e2e-stage.md § 质量基线` —— 截图 SOP:每 AC 一组 · 含 viewport + URL
 - `stages/browser-e2e-stage.md § SOP` —— 截图含浏览器 chrome + URL bar · 不裁剪
 
 ❌ **反模式**:

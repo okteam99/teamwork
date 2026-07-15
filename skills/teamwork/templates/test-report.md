@@ -20,6 +20,7 @@ revision_history:
 
 # {功能名} - Test Report
 
+> 位置：`{Feature 目录}/TEST-REPORT.md`
 > 🟢 **本文是 teamwork test-stage 产物** · 起草模板 = `{SKILL_ROOT}/templates/test-report.md`
 > 🔴 **必含 stdout 摘录 + exit-code 数值** · 不口述「测试通过」(SOP 红线 · 见 [stages/test-stage.md](../stages/test-stage.md))
 
@@ -164,12 +165,12 @@ PASS
 ## 起草要点(QA cite · 写时删)
 
 📚 **参考**(v8.199 cite 仪式已废 · 按需读):
-- `roles/qa.md § 集成测试` —— integration = 进程内 · 跨模块/服务契约 · 不抹边界
-- `roles/qa.md § E2E 测试` —— api-e2e = Python · live 跨进程 · 跑通即可
+- `stages/test-stage.md § 测试体系` —— integration = 进程内 · 跨模块/服务契约 · 不抹边界
+- `stages/test-stage.md § 测试体系` —— api-e2e = Python · live 跨进程 · 跑通即可
 - `stages/test-stage.md § SOP` —— stdout 必摘录 · exit-code 必数值 · 不口述
 
 ❌ **反模式**(写 TEST-REPORT 时常见):
 - "测试通过" 口述无证据 → 必贴 stdout 摘录 + exit-code 数值
 - skip 不写 reason · 不挂 tracking issue → 必含原因(SOP)
 - xfail 走 exit-code=0 捷径 → 测试失败必修 · 不掩盖(SOP)
-- integration 冒名叫 e2e → 进程数判定(详 stage spec § 测试体系)
+- integration 冒名叫 e2e → 进程数判定(详 stages/test-stage.md § 测试体系)

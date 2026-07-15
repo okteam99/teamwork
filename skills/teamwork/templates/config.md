@@ -83,17 +83,16 @@ cp .env.example .env
 ## 负责人
 - 名称：[用户名 / 昵称]
 
-## Skill 版本标记（🔴 新增·PMO 自动维护，禁止手改）
+## Skill 版本标记（🔴 工具自动维护，禁止手改）
 
-<!-- teamwork_version: PMO 启动时写入的当前 skill 版本号，用作 CLAUDE.md / AGENTS.md 校验缓存。 -->
+<!-- 版本缓存字段 = `_bootstrap.skill_version`（JSON `_bootstrap` 工具维护段 · tools/bootstrap.py 启动时写入）。 -->
 <!-- 机制： -->
-<!-- - 启动 Step 1.2 读取此字段 → 与 SKILL.md frontmatter version 字段比对 -->
-<!-- - 一致 → 跳过 CLAUDE.md / AGENTS.md 逐字符 diff（99%+ 场景，节省 ~65-75% 启动 token） -->
-<!-- - 不一致 / 缺失 / localconfig 不存在 → 走全量校验 + 写回新版本号 -->
-<!-- - 漂移自愈仍保留：skill 升级 → 版本不一致 → 触发一次全量 diff → 写回新版本号 → 下次跳过 -->
-<!-- 逃生舱：`/teamwork force-init` 强制走全量校验（忽略版本缓存）。 -->
-<!-- 🔴 禁止手改：此字段由 PMO 维护。手改后果 = 版本命中但 CLAUDE.md 未同步，红线 R7 风险。 -->
-teamwork_version:
+<!-- - bootstrap 启动读取此字段 → 与 SKILL.md frontmatter version 比对 -->
+<!-- - 版本一致 → 跳过维护项（chmod / hooks / sync-drift / gitignore） -->
+<!-- - 不一致 / 缺失 → 跑 maintain + 写回新版本号（skill 升级 → 自动触发一次 → 下次跳过） -->
+<!-- - 升级检测（外呼 GitHub）走 8h TTL 缓存（缓存同存 `_bootstrap` 段 · 超时 / 版本变更才重查） -->
+<!-- 🔴 禁止手改：`_bootstrap` 段由 tools/bootstrap.py 维护 · 改动 = 触发 maintain 重跑。 -->
+_bootstrap.skill_version:
 
 ## 负责子项目
 <!-- scope: all 表示负责所有子项目；否则列出具体子项目缩写 -->
@@ -107,7 +106,7 @@ scope:
 
 ## Git Worktree 策略
 <!-- worktree: off / auto / manual -->
-<!-- auto = PMO 在 Goal-Plan Stage 入口自动创建 worktree，Feature 完成后询问用户清理【默认】 -->
+<!-- auto = prepare（init-feature）时创建 worktree，Feature 完成后询问用户清理【默认】 -->
 <!-- manual = PMO 提醒用户自行管理 worktree，不自动创建/清理 -->
 <!-- off = 不使用 worktree，所有 Feature 在主分支开发（适合单 Feature 串行 / megarepo / IDE 跨 worktree 跳转受限场景） -->
 <!-- -->
@@ -178,13 +177,13 @@ id_strategy: utc-yymmddhhmmss
 <!-- false = 不主动创建（opt-out · 仍保留 gitignore 预留规则）。 -->
 local_env_auto_create: true
 
-### 禁用异质模型审核（单模型用户）
-<!-- disable_external_review: false（默认）/ true -->
-<!-- false = external 评审跑异质模型（claude↔codex 交叉 · 唯一跨模型安全网 · 推荐）。 -->
-<!-- true = 只有一个模型时：external-review 自动 emit subagent 降级配方（PMO 起宿主自身模型 subagent 自审 · 不 exec · 落 external-cross-review/ 满足 external 物化门禁 · frontmatter degraded_mode:config-disabled · 非异质 · 同盲点）· 每次 bootstrap 启动 WARN 提醒。详 standards/external-model-usage.md §11.5。 -->
-<!-- 区分 --self-review-fallback（异质临时不可用的 per-run 降级 · 同走 subagent · degraded_mode:subagent-fallback）：本项是项目级长期策略（每次自动降级）。 -->
-<!-- 装好第二个模型 CLI 后建议删此项 / 设 false 恢复异质，交叉 review 质量更高。 -->
-disable_external_review: false
+### 禁用异质模型审核（默认关 · 异质 opt-in）
+<!-- disable_external_review: 缺省 / true = 关【默认】；显式 false = opt-in 异质 -->
+<!-- 缺省 / true = 关（默认）：第三视角 = 同模型 subagent 隔离冷审（external-review 自动 emit subagent 配方 · PMO 起宿主自身模型 subagent 冷审 · 不 exec · 落 external-cross-review/ 满足 external 物化门禁 · frontmatter degraded_mode:config-disabled · 非异质 · 同盲点）。 -->
+<!-- 显式 false = opt-in 跨模型异质：external 评审跑异质模型（claude↔codex 交叉 · 唯一跨模型安全网 · 需装好第二个模型 CLI）。详 standards/external-model-usage.md §11.5。 -->
+<!-- 区分 --self-review-fallback（异质临时不可用的 per-run 降级 · 同走 subagent · degraded_mode:subagent-fallback）：本项是项目级长期策略。 -->
+<!-- 🔴 恢复异质 = 显式设 false（**删除该项无效** · 缺省即关）。 -->
+disable_external_review: true
 
 ## 备注
 <!-- 可选：记录当前阶段重点、临时分工调整等 -->

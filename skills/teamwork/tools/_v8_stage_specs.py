@@ -420,15 +420,15 @@ def _goal_brief(state: dict) -> str:
     return f"""## Goal Stage
 
 ### 目标
-PM 调研(自答优先)· 起草 PRD · 🔴 **并行派 3 个隔离 Agent 冷审**(QA/Architect/PL · 防鼓掌锚定)· (条件)早问门 · PM 整合修订 · 冷审循环收敛 · 用户确认 · 决策是否需要 UI。\n🔴 v8.216 评审配置动态化:冷审派谁 = **按 `state.stage_review_roles.goal`**(prepare 已按「角色价值判据」逐角色判定 · 非按 clarity 一刀切)—— roster 里没有的角色 gate 自动放行(如去 pl → PL 质疑免)· 调整用 `change-review-roles --reason`(审计留痕)· PRD 照写(术语/决策沉淀载体)。
+PM 调研(自答优先)· 起草 PRD · 🔴 **并行派 2 路隔离冷审**(v8.243 默认:PL 对抗质疑 + 覆盖方向制外审〔必覆盖 可实现/可验证 + AI 自主方向 ≥1〕· 防鼓掌锚定 · ⚡ 同发互不喂对方产出)· (条件)早问门 · PM 整合修订 · 冷审循环收敛 · 用户确认 · 决策是否需要 UI。\n🔴 v8.216 评审配置动态化:冷审派谁 = **按 `state.stage_review_roles.goal`**(prepare 已按「角色价值判据」逐角色判定 · 非按 clarity 一刀切)—— roster 里没有的角色 gate 自动放行(如去 pl → PL 质疑免)· 调整用 `change-review-roles --reason`(审计留痕)· PRD 照写(术语/决策沉淀载体)。
 
 ### 结果(完成判定)
 - `PRD.md`(frontmatter:`acceptance_criteria` + `revision_history`)
-- `PRD-REVIEW.md`(frontmatter:`reviewers: [qa, architect, pl]`〔v8.155 去 pm〕 + `verdicts` **全 APPROVE/SKIP** · 含 `PL-CHALLENGE` 段 · mtime > PRD.md)
+- `PRD-REVIEW.md`(frontmatter:`reviewers` = roster〔v8.243 默认 `[pl, external]`〕+ `verdicts` **全 APPROVE/SKIP** · 含 `PL-CHALLENGE` 段〔roster 含 pl〕· external 段带 `coverage` 申报〔roster 含 external〕· mtime > PRD.md)
 - `state.execution_hints.ui_design_needed` 已决策(由 `--needs-ui`)
 
 ### 怎么做
-🔴 **照 `{{SKILL_ROOT}}/templates/prd.md` 起草 · 别抄项目里旧 PRD**(实测 post-v8.164 十份仅一份用 canonical · 抄旧 = 机读块/扩展区等新机制到达不了)· goal-complete 校验三命门段(机读块/AC/『开工前必须想清的』)。\n**必读** `stages/goal-stage.md`(8 步:调研 → 起草 v0.1 → 🔴 **并行 3 隔离 Agent 冷审**(QA/Architect/PL · 不喂起草心路 · v8.155)→ 早问门(冷审后)→ PM 整合修订 → 冷审循环(Round 2+ 验证模式 · 全 APPROVE 收敛)→ needs-ui → 用户确认)。
+🔴 **照 `{{SKILL_ROOT}}/templates/prd.md` 起草 · 别抄项目里旧 PRD**(实测 post-v8.164 十份仅一份用 canonical · 抄旧 = 机读块/扩展区等新机制到达不了)· goal-complete 校验三命门段(机读块/AC/『开工前必须想清的』)。\n**必读** `stages/goal-stage.md`(8 步:调研 → 起草 v0.1 → 🔴 **并行 2 路隔离冷审**(PL 质疑 + 覆盖方向制外审 · 不喂起草心路 · v8.243)→ 早问门(冷审后)→ PM 整合修订 → 冷审循环(Round 2+ 验证模式 · 全 APPROVE 收敛)→ needs-ui → 用户确认)。外审必覆盖:**可实现**(技术可行/架构影响/简洁性 counter-lens)· **可验证**(AC 可测/边界/异常)+ **AI 自主方向 ≥1**(安全/性能/数据一致性/兼容…按 feature 挑)· 每方向 finding 或「查过无发现」· 段记 `coverage: [...]`。
 
 ### 完成方式
 ```
@@ -519,6 +519,61 @@ def _evidence_prd_verdicts_all_pass(state: dict, args) -> tuple[bool, str]:
             "全员 APPROVE/SKIP 才可 goal-complete(词表只认 APPROVE|NEEDS_REVISION|SKIP)"
         )
     return True, ""
+
+
+def _evidence_external_coverage_present(state: dict, args) -> tuple[bool, str]:
+    """v8.243:stage_review_roles[goal] 含 external 时 · PRD-REVIEW.md 必含「coverage」申报。
+
+    goal 默认冷审 3→2(pl + external):QA 可验证 / ARCH 可实现并入外审的必覆盖方向 ·
+    coverage 申报是外审没退化成一段泛谈的最低物证(对称 pl_challenge_present)。
+    roster 无 external → 自动放行。
+    """
+    roles = [str(r).lower() for r in (state.get("stage_review_roles") or {}).get("goal", [])]
+    if "external" not in roles:
+        return True, ""
+    f = Path(args.feature) / "PRD-REVIEW.md"
+    if not f.exists():
+        return False, "PRD-REVIEW.md 不存在 · 无法校验外审 coverage 申报"
+    if "coverage" not in f.read_text(encoding="utf-8").lower():
+        return False, (
+            "PRD-REVIEW.md 缺外审 coverage 申报 —— goal 外审是覆盖方向制(v8.243):"
+            "必覆盖 可实现(技术可行/架构影响/简洁性)· 可验证(AC 可测/边界/异常)+ AI 自主方向 ≥1 · "
+            "external 段记 coverage: [...] · 每方向 finding 或「查过无发现」· 详 stages/goal-stage.md ③"
+        )
+    return True, ""
+
+
+_CROSS_REVIEW_COVERAGE_HINTS = {
+    "blueprint": ("必覆盖:可测试(TC 质量/测试策略 · QA 视角并入 · AC↔TC 机械绑定归 verify-ac)· "
+                  "方案盲区(依赖/影响面/迁移风险)+ AI 自主方向 ≥1(候选:数据一致性/迁移风险/性能/安全边界)"),
+    "review": ("必覆盖:测试真实性与覆盖(测试真跑/覆盖真行为/边界回归 · QA 视角并入)· "
+               "代码质量盲区(错误处理/日志/并发)+ AI 自主方向 ≥1(候选:并发/资源泄漏/脱敏/兼容)—— review 从严 · 清单比 blueprint 重一档"),
+}
+
+
+def _evidence_cross_review_coverage(state: dict, args) -> tuple[bool, str]:
+    """v8.244:blueprint/review 外审覆盖方向制物化 —— roster 含 external 时,
+    external-cross-review/*.md 至少一份含 coverage 申报(对称 goal 的 external_coverage_present)。
+
+    3→2 路后 QA 视角并入外审必覆盖方向 · coverage 申报是外审没退化成泛谈的最低物证。
+    roster 无 external → 自动放行(P0-154 同 skip)。
+    """
+    stage = state.get("current_stage") or ""
+    roles = [str(r).lower() for r in (state.get("stage_review_roles") or {}).get(stage, [])]
+    if "external" not in roles:
+        return True, ""
+    d = Path(args.feature) / "external-cross-review"
+    files = sorted(d.glob("*.md")) if d.is_dir() else []
+    if not files:
+        return False, "external-cross-review/ 无产物 · 无法校验 coverage 申报(第三视角产物门同拦)"
+    for f in files:
+        if "coverage" in f.read_text(encoding="utf-8").lower():
+            return True, f"coverage 申报见 {f.name}"
+    hint = _CROSS_REVIEW_COVERAGE_HINTS.get(stage, "必覆盖方向 + AI 自主方向 ≥1")
+    return False, (
+        f"external-cross-review/*.md 缺 coverage 申报 —— {stage} 外审是覆盖方向制(v8.244):{hint} · "
+        "每方向给 finding 或「查过无发现」· frontmatter 记 coverage: [...]"
+    )
 
 
 def _evidence_pl_challenge_present(state: dict, args) -> tuple[bool, str]:
@@ -646,6 +701,12 @@ GOAL_SPEC = StageSpec(
             name="pl_challenge_present",
             check_fn=_evidence_pl_challenge_present,
             description="PRD-REVIEW.md 含 PL-CHALLENGE 段(质疑五问 · stage_review_roles[goal] 含 pl 时强制)",
+        ),
+        # v8.243:外审覆盖方向制物化(QA 可验证/ARCH 可实现并入外审 · 角色无 external 自动放行)
+        StageEvidenceCheck(
+            name="external_coverage_present",
+            check_fn=_evidence_external_coverage_present,
+            description="PRD-REVIEW.md 外审段含 coverage 申报(可实现/可验证 + AI 自主方向 · roster 含 external 时强制)",
         ),
     ],
     brief_template_fn=_goal_brief,
@@ -1427,19 +1488,19 @@ def _blueprint_brief(state: dict) -> str:
     return f"""## Blueprint Stage
 
 ### 目标
-QA 起草 TC(BDD) · RD 起草 TECH · 架构师 + External 多视角评审 · 实现前方案收敛。
+QA 起草 TC(BDD) · RD 起草 TECH · 🔴 **两路并行评审**(v8.244 默认 roster:Architect 主审〔简洁性 counter-lens〕+ 覆盖方向制外审〔QA 可测试视角并入 + AI 自主方向 ≥1〕· ⚡ 同发互不喂)· 实现前方案收敛。
 
 ### 结果(完成判定)
 - `TC.md`(frontmatter:`tests` · verify-ac.py 通过)
 - `TECH.md`(照 `templates/tech.md` 全结构:现状基线 / 模块 / 数据 / 接口 / **错误处理+日志** / **依赖与影响**〔消费方清单〕/ **查询性能**〔涉 SQL 给理由〕/ 测试策略 / 风险 / **完工自查槽**)
 - `TECH-REVIEW.md`(frontmatter:`reviewers + verdict`)
-- `{{artifact_root}}/external-cross-review/*.md`(至少 1 份)
+- `{{artifact_root}}/external-cross-review/*.md`(roster 含 external 时至少 1 份 · 🔴 含 `coverage: [...]` 申报——必覆盖 可测试〔TC 质量/测试策略〕· 方案盲区〔依赖/影响面/迁移风险〕+ AI 自主方向 ≥1〔候选:数据一致性/迁移风险/性能/安全边界〕· 每方向 finding 或「查过无发现」)
 
 ### 怎么做
 **必读** `stages/blueprint-stage.md`(详细步骤 + §7.5 DB schema 条件暂停点)。
 
 🔴 v8.217 持续分诊(降级触发):TECH 写完若复杂度评估=**简单**且零架构决策 · 而 roster 仍重 → 可提议降级(R5 一句确认 → `change-review-roles --reason`)—— 分诊不是一次性的 · 每个 gate 都可重校准(升级触发已有 · 本条补反向)。\n🔴 v8.216 评审配置动态化:external 跑不跑 = **按 `state.stage_review_roles.blueprint`**(prepare 按角色价值判定 · 去 external → gate 自动放行 · 审计留痕)· review 阶段 roster 独立判定(明确 ≠ 不会写错)。\n🔴 **TECH 方案涉及数据库数据结构变更**(新建/删除/修改 表、字段、索引、约束、migration)·
-blueprint-complete 前必 emit R5 用户确认暂停点(stage.md §7.5)· 不涉及则跳过。
+blueprint-complete 前必 emit R5 用户确认暂停点(stage.md §7.5)· 🔴 暂停点**必自带变更点明细表**(对象|变更|用途 每对象一行 + 关键迁移策略 —— 分类概括/文件指针不算 · v8.242 实证:概括式 emit 逼用户追问「方案是什么」)· 不涉及则跳过。
 
 ### 完成方式
 ```
@@ -1802,6 +1863,12 @@ BLUEPRINT_SPEC = StageSpec(
             name="external_review_artifact",
             check_fn=_evidence_external_review_artifact,
             description="external-cross-review/*.md 至少 1 份",
+        ),
+        # v8.244:外审覆盖方向制物化(QA 可测试视角并入 · roster 无 external 自动放行)
+        StageEvidenceCheck(
+            name="cross_review_coverage",
+            check_fn=_evidence_cross_review_coverage,
+            description="external-cross-review/*.md 含 coverage 申报(可测试/方案盲区 + AI 自主方向 · roster 含 external 时强制)",
         ),
         # v8.0+P0-9:TECH-REVIEW.md reviewers 必含 state.stage_review_roles[blueprint]
         StageEvidenceCheck(
@@ -2223,8 +2290,9 @@ def _review_verify_round_brief(state: dict, rounds: list) -> str:
 ### 完成方式
 ```
 state.py review-complete --feature <path> --auto-commit <hash> \\
-  --artifacts REVIEW.md,REVIEW-arch.md,REVIEW-qa.md \\
+  --artifacts REVIEW.md,REVIEW-arch.md \\
   --verdict {{APPROVE|NEEDS_REVISION}}
+# --artifacts 按 roster:v8.244 默认仅 arch(qa 加回时 + REVIEW-qa.md)· 移出 roster 的角色产物不查
 ```
 """
 
@@ -2241,12 +2309,12 @@ def _review_brief(state: dict) -> str:
     return f"""## Review Stage
 
 ### 目标
-三视角独立评审(Architect + QA + External 异质模型)· 收敛 verdict。
+按 roster(`state.stage_review_roles.review`)两路并行评审(v8.244 默认:Architect 主审〔实现↔设计一致性〕+ 覆盖方向制外审〔QA 测试真实性视角并入 + AI 自主方向 ≥1〕· ⚡ 同发互不喂)· 收敛 verdict。
 
-### 结果(完成判定)
+### 结果(完成判定 · roster-aware)
 - `REVIEW.md`(frontmatter:`reviewers + verdict: APPROVE|NEEDS_REVISION` + `findings` 机读台账)
-- `REVIEW-arch.md` + `REVIEW-qa.md`
-- `{{artifact_root}}/external-cross-review/*.md`(至少 1 份)
+- `REVIEW-<role>.md` 按 roster 各一份(v8.244 默认仅 `REVIEW-arch.md` · qa 加回时 + `REVIEW-qa.md` · 移出 roster 不查)
+- `{{artifact_root}}/external-cross-review/*.md`(roster 含 external 时 · 默认同模型 subagent 冷审 · 至少 1 份 · 🔴 含 `coverage: [...]` 申报——必覆盖 测试真实性与覆盖〔测试真跑/覆盖真行为/边界回归〕· 代码质量盲区〔错误处理/日志/并发〕+ AI 自主方向 ≥1〔候选:并发/资源泄漏/脱敏/兼容〕)
 
 ### 怎么做
 **必读** `stages/review-stage.md`(评审步骤 + 收敛协议:severity 门槛 / 验证轮 / 轮次预算)。
@@ -2256,8 +2324,9 @@ def _review_brief(state: dict) -> str:
 ### 完成方式
 ```
 state.py review-complete --feature <path> --auto-commit <hash> \
-  --artifacts REVIEW.md,REVIEW-arch.md,REVIEW-qa.md \
+  --artifacts REVIEW.md,REVIEW-arch.md \
   --verdict {{APPROVE|NEEDS_REVISION}}
+# --artifacts 按 roster:v8.244 默认仅 arch(qa 加回时 + REVIEW-qa.md)· 移出 roster 的角色产物不查
 ```
 """
 
@@ -2287,6 +2356,33 @@ def _evidence_review_verdict(state: dict, args) -> tuple[bool, str]:
     return True, ""
 
 
+_REVIEW_ROLE_ARTIFACTS = {"architect": "REVIEW-arch.md", "qa": "REVIEW-qa.md"}
+
+
+def _evidence_review_role_artifacts(state: dict, args) -> tuple[bool, str]:
+    """v8.241:REVIEW-arch/REVIEW-qa 按 roster(stage_review_roles.review)校验。
+
+    治本:v8.216 动态 roster 后 architect/qa 可被合法移出 review roster,
+    而两 artifact 原为静态必查 —— 「角色按 roster 可调」的承诺与门禁互斥。
+    roster 含该角色 → 对应 REVIEW-<role>.md 必须存在;移出则不查。
+    legacy state 无 stage_review_roles → 按旧行为全查(不放松存量)。
+    """
+    roles = (state.get("stage_review_roles") or {}).get("review")
+    if not isinstance(roles, list):
+        roles = list(_REVIEW_ROLE_ARTIFACTS)  # legacy 默认全查
+    feature_dir = Path(args.feature)
+    missing = [f"{r} → {fname}" for r, fname in _REVIEW_ROLE_ARTIFACTS.items()
+               if r in roles and not (feature_dir / fname).exists()]
+    if missing:
+        return False, (
+            "roster 内评审角色产物缺失:" + " · ".join(missing)
+            + " —— stage_review_roles.review 含该角色即必有对应 REVIEW-<role>.md"
+            "(roster 移出的角色不查 · change-review-roles --reason 留痕后生效 · v8.241)"
+        )
+    checked = [fname for r, fname in _REVIEW_ROLE_ARTIFACTS.items() if r in roles]
+    return True, ("roster-aware:" + (" + ".join(checked) if checked else "roster 无 architect/qa · 角色产物不查"))
+
+
 REVIEW_SPEC = StageSpec(
     name="review",
     prerequisites=[
@@ -2313,22 +2409,19 @@ REVIEW_SPEC = StageSpec(
             must_be_in_commit=False,
             description="评审总结",
         ),
-        StageArtifactSpec(
-            path="REVIEW-arch.md",
-            must_be_in_commit=False,
-            description="架构师评审",
-        ),
-        StageArtifactSpec(
-            path="REVIEW-qa.md",
-            must_be_in_commit=False,
-            description="QA 评审",
-        ),
+        # REVIEW-arch.md / REVIEW-qa.md:v8.241 起 roster-aware(见 review_role_artifacts
+        # evidence check)—— 静态必查与动态 roster(v8.216)互斥,角色移出 roster 则不查。
     ],
     evidence_checks=[
         StageEvidenceCheck(
             name="review_verdict",
             check_fn=_evidence_review_verdict,
             description="--verdict 必须是 APPROVE 或 NEEDS_REVISION",
+        ),
+        StageEvidenceCheck(
+            name="review_role_artifacts",
+            check_fn=_evidence_review_role_artifacts,
+            description="REVIEW-<role>.md 按 roster(stage_review_roles.review)各一份 · 移出不查(v8.241)",
         ),
         # review 收敛协议:severity 门槛(NEEDS_REVISION 须 open BLOCKER/MAJOR ·
         # APPROVE 不得有 open BLOCKER/MAJOR · findings 机读台账缺失不能打回)
@@ -2339,6 +2432,12 @@ REVIEW_SPEC = StageSpec(
                 "REVIEW.md frontmatter findings 机读台账 + severity 门槛:"
                 "NEEDS_REVISION 须 ≥1 open BLOCKER/MAJOR · APPROVE 不得有 open BLOCKER/MAJOR"
             ),
+        ),
+        # v8.244:外审覆盖方向制物化(QA 测试真实性视角并入 · review 从严清单 · roster 无 external 放行)
+        StageEvidenceCheck(
+            name="cross_review_coverage",
+            check_fn=_evidence_cross_review_coverage,
+            description="external-cross-review/*.md 含 coverage 申报(测试真实性/代码质量盲区 + AI 自主方向 · roster 含 external 时强制)",
         ),
         StageEvidenceCheck(
             name="external_review_artifact",

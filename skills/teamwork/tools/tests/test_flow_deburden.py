@@ -47,10 +47,12 @@ class TestAgileReviewRoles(unittest.TestCase):
         self.assertEqual(len(cold), 1, f"敏捷 goal 冷审角色应 1 个 · got {roles}")
 
     def test_feature_review_roles_unchanged(self):
+        # v8.244:review 3 冷审 → 2 路并行(Architect 主审 + 覆盖方向制外审 · qa 并入)
         self.assertEqual(E.DEFAULT_REVIEW_ROLES[("Feature", "review")],
-                         ["architect", "qa", "external"])
+                         ["architect", "external"])
+        # v8.243:goal 3 冷审 → 2 路并行(PL 对抗质疑 + 覆盖方向制外审)
         self.assertEqual(E.DEFAULT_REVIEW_ROLES[("Feature", "goal")],
-                         ["qa", "architect", "pl"])
+                         ["pl", "external"])
 
     def test_build_default_roles_snapshot(self):
         roles = E.build_default_stage_review_roles("敏捷需求")

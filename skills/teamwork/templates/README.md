@@ -4,6 +4,7 @@
 任何 teamwork 产出的格式 / 字段 / frontmatter schema / 表头结构，以本目录对应模板为准；禁止以 peer Feature 产物为格式基准。
 
 > 无手写模板的两类机读产物：`state.json`（`tools/state.py` 单源维护）与 Feature 内 `review-log.jsonl`（state.py 各 stage 完成时自动追加）——**工具单源 · 不在本目录**。
+> 另：TECH-REVIEW.md 与 REVIEW.md / REVIEW-arch / REVIEW-qa 的 schema 单源在 stages/（blueprint-stage.md / review-stage.md）· 无独立模板。
 
 ## 执行链产物（Feature 状态机内各 stage 产出）
 
