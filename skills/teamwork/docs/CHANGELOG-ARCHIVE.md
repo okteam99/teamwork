@@ -717,3 +717,14 @@
 
 ### 验证
 - 新测试 +6(risks 不计入 · 真缺失仍抓 · registry 判别胜扫描序 · f_id 前缀回退 · 无 target 保旧 · 单候选直通)· pytest **873 passed**。
+## v8.249 · 纠 v8.247:cargo target 按 feature 共享(不按 stage 切)· 恢复 stage 间增量编译
+
+> 台账年检(用户:AI 自主时间太久)顺出的根因之一:v8.247 scratch 约定写「按 stage 隔离 target 是正确设计 · 防多 worktree 并行争抢文件锁」—— **推理错**。并行争抢发生在**不同 feature 的不同 worktree** 之间,而 scratch 路径里的 `<feature_id>` 已把它们隔开;同一 feature 内 stage 严格串行(状态机一次一个)、从不并发构建 —— 再按 stage 把 target 切成 `<feature_id>/test-stage`、`<feature_id>/dev-target`,唯一效果是 **test 拿不到 dev 编好的 target,每 stage 冷编整棵依赖树**(Rust 冷编 5-20min vs 热增量 <1min)。这正是台账里 test 阶段占 AI 自主耗时 23% + blueprint/test 编译重极值的主浪费来源。
+
+### 改动(纯约定纠正 · 零代码逻辑 · GC 不受影响)
+- **standards/common.md §六**:build target 改**按 feature 共享**(`<feature_id>/target` · 串行 stage 全复用);显式标注 v8.247 推理错(锁隔离只需到 `<feature_id>` 粒度)+ 例外说明(单 stage 内派多并行 cargo 构建才临时 sub-split);`<用途>` 示例去掉误导的 `test-stage`/`main-target`(那是 target · 不该 per-stage)。
+- **stages/test-stage.md**:CARGO_TARGET_DIR 提示同步 —— target = `<feature_id>/target`(别切 `/test-stage`)· 测试日志等无缓存价值的才 per-用途。
+- 回收不变:GC(`_prune_feature_tmp` / `prune_teamwork_tmp`)作用在 `<feature_id>/` 整目录级,target 是其下一个子目录名 · 改名无影响。
+
+### 验证
+- 纯文档 · pytest 873 passed(无回归)· 退役词表回归网通过。
