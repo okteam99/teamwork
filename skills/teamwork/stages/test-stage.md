@@ -80,7 +80,7 @@ state.py test-complete --feature <path> --run-tests
   "test_log_tail_lines": 100
 }
 ```
-📎 **构建/测试临时产物落 scratch 根**(v8.247):`CARGO_TARGET_DIR` / 测试日志等 → `${TMPDIR:-/tmp}/teamwork/<feature_id>/<用途>`(🔴 完整 feature_id · 禁 `bl031` 类简称;按 stage 隔离 target 防并行文件锁争抢;回收 = ship2 tmp-cleanup + bootstrap TTL 7 天 —— 详 [standards/common.md §六](../standards/common.md))。
+📎 **构建/测试临时产物落 scratch 根**(v8.247 · 🔴 v8.249 纠正):`CARGO_TARGET_DIR` / 测试日志 → `${TMPDIR:-/tmp}/teamwork/<feature_id>/...`(🔴 完整 feature_id · 禁 `bl031` 类简称)。🔴 **build target 按 feature 共享 = `<feature_id>/target`**(串行 stage 复用增量编译 —— dev 编好 test 热增量不重编 · 别按 stage 切成 `/test-stage`〔冷编整棵 deps · test 阶段主浪费〕· 锁隔离只需到 feature 粒度)。测试日志等无缓存价值的可自由 `<用途>` 命名。回收 = ship2 tmp-cleanup + bootstrap TTL 7 天 —— 详 [standards/common.md §六](../standards/common.md)。
 
 🟡 **deprecated 旧路径(仅 debug / 工具不可用时 · 及红 base 差分场景〔§ base 即红 → 差分基线〕—— `--run-tests` 尚不支持差分口径时走本通道)**:
 ```
