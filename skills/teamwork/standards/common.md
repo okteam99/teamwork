@@ -749,13 +749,18 @@ Stage 执行期间的一切临时产物 —— 测试日志、构建输出(cargo
     ${TMPDIR:-/tmp}/teamwork/<feature_id>/<用途>
 
 - `<feature_id>` 必须是 state.json 中的**完整 feature_id**(如 `SVC-CORE-F029`)· 🔴 **禁止**简称/别名/分支缩写(如 `bl031` —— 实证:即兴命名使 ship2 按 feature_id 回收全部落空 · 42GB 孤儿)。
-- `<用途>` 自由命名(如 `main-target` / `test-stage` / `review-r2-test.log`)。
+- `<用途>` 自由命名(如 `review-r2-test.log` / `screenshots/`)。⚠️ 但**构建产物 target 是特例**:见下方「构建 target 按 feature 共享」。
 - 🔴 **禁止**在 scratch 根之外创建 teamwork 相关临时目录(如 `/tmp/<项目名>-*`)—— 根之外不在回收范围 · 会永久泄漏(实证 6GB)。
 - 与 [conventions.md §12.5](../docs/conventions.md) 浏览器截图约定**同根**(`${TMPDIR:-/tmp}/teamwork/<feature_id>/screenshots/` 是本约定的一个 `<用途>` 实例)。
 
-Rust 项目示例(按 stage 隔离 target 是**正确设计** —— 多 worktree 并行构建会争抢同一 `target/` 的 cargo 文件锁 · 本约定不改变这一点 · 只补回收):
+🔴 **构建 target 按 feature 共享 · 不按 stage 切**(v8.249 纠 v8.247):**一个 feature 一个 target 目录**(`<feature_id>/target`)· 该 feature 的**串行** stage(goal→…→dev→review→test→ship 一次一个)全部复用同一份 —— dev 编好 test 直接热增量,不重编依赖树(实证:按 stage 切 = 每 stage 冷编整棵 deps · Rust 冷编 5-20min vs 热增量 <1min · 是 test 阶段耗时的主浪费)。
 
-    CARGO_TARGET_DIR=${TMPDIR:-/tmp}/teamwork/SVC-CORE-F029/test-stage cargo test --test '*'
+> ⚠️ v8.247 曾写「按 stage 隔离 target 是正确设计 · 防多 worktree 并行争抢文件锁」—— **推理错**:并行争抢发生在**不同 feature 的不同 worktree** 之间,而路径里的 `<feature_id>` 已隔开;同一 feature 内 stage 严格串行、从不并发构建,再按 stage 切只会打掉增量缓存。锁隔离只需到 `<feature_id>` 粒度。(极少数「单 stage 内派多个并行 cargo 构建」才需在该 stage 内临时 sub-split · 属例外不是默认。)
+
+Rust 项目示例(target 按 feature 共享):
+
+    CARGO_TARGET_DIR=${TMPDIR:-/tmp}/teamwork/SVC-CORE-F029/target cargo test --test '*'
+    # 同 feature 的 dev / review / test 全用这一份 target · 增量复用
 
 **回收双通道**:ship2 `tmp-cleanup` 即时清理(verify-delivered 通过后整树删 · 内容已上岸零风险)+ bootstrap TTL 兜底(默认 7 天 · 按**目录**整体删 —— cargo target 靠 fingerprint 判增量 · 按文件删会打碎一致性 · 捞回放弃的 feature 与历史孤儿)。
 
