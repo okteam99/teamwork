@@ -606,8 +606,53 @@ _WS_PROG_START = "<!-- WS-PROGRESS:START"
 _WS_PROG_END = "<!-- WS-PROGRESS:END -->"
 _WS_DAG_START = "<!-- WS-DAG:START"
 _WS_DAG_END = "<!-- WS-DAG:END -->"
-# 渲染时给 ROADMAP 状态文案配图标(只认前缀 · 其余原样)· 与 roadmap.md §状态 词表对齐
+# ROADMAP「状态」列词表(单源 · templates/roadmap.md §表格维护规则 与此对齐):
+# 完成态收别名「已交付/已上线」—— 实战:项目 ROADMAP 混用「✅ 已交付」被判待开始 → 进度 0/N 假象 +
+# ready_to_start 失灵。匹配按「剥前导 emoji 后的起始词」· 防「基本已完成，待测试」子串误判完成。
+_WS_STATUS_DONE = ("已完成", "已交付", "已上线")
+_WS_STATUS_DOING = ("进行中",)
+_WS_STATUS_CANCELLED = ("已取消",)
+_WS_STATUS_PENDING_WORDS = ("待开始", "待启动", "已规划", "待前置", "待确认", "草稿", "待排期")
 _WS_STATUS_ICON = {"已完成": "✅", "进行中": "🔄", "已取消": "🗑️"}
+_WS_STATUS_LEAD_STRIP = re.compile(r"^[\s✅🔄⏳🔒📝🗑️*_`~•·>-]+")
+
+
+def _ws_status_bucket(st: str) -> tuple[str, bool]:
+    """状态格 → (规范桶, 是否词表可识别)。桶 ∈ 已完成/进行中/已取消/等待依赖/待开始/未匹配。
+
+    词表外写法归「待开始」且标不可识别 —— 上层 surface 警告 · 不静默吞(治词表漂移无人发现)。
+    """
+    s = (st or "").strip()
+    if not s:
+        return "待开始", True
+    if "未匹配" in s or "未写入" in s:
+        return "未匹配", True
+    core = _WS_STATUS_LEAD_STRIP.sub("", s)
+    for words, canon in ((_WS_STATUS_DONE, "已完成"), (_WS_STATUS_DOING, "进行中"),
+                         (_WS_STATUS_CANCELLED, "已取消")):
+        if any(core.startswith(w) for w in words):
+            return canon, True
+    if "等待" in s:
+        return "等待依赖", True
+    if any(w in s for w in _WS_STATUS_PENDING_WORDS):
+        return "待开始", True
+    return "待开始", False
+
+
+# WS/ROADMAP 全仓 rglob 的排除集(单源):显式目录名 + 任何隐藏目录段。
+# 🔴 .worktree 必须排除 —— 并行 feature worktree 内是旧基线副本 · 命中即「算旧写旧」+
+# 污染他人工作区(工具写进别的 worktree · verdict 却 OK)。隐藏段规则兜住自定义 worktree 根。
+_WS_SCAN_SKIP = {"node_modules", ".git", ".worktree", "_archive", "dist", "build",
+                 ".next", "vendor"}
+
+
+def _ws_scan_ok(p: Path, root: Path) -> bool:
+    """rglob 候选过滤:目录段命中排除集或以 . 开头 → 排除(只判 root 以内的段)。"""
+    try:
+        parts = p.relative_to(root).parts
+    except ValueError:
+        parts = p.parts
+    return not any(seg in _WS_SCAN_SKIP or seg.startswith(".") for seg in parts[:-1])
 
 
 def _ws_nums(text: str) -> set[int]:
@@ -722,21 +767,19 @@ def _parse_roadmap_rows(path: Path, id_allow: set[str] | None = None) -> list[di
 
 
 def _render_ws_progress(ws_label: str, items: list[dict], n_roadmaps: int,
-                        roster_driven: bool) -> str:
-    """汇总行 + 总览表(markdown)· items 含 subproject/short 字段。"""
-    def bucket(st: str) -> str:
-        if "未匹配" in st or "未写入" in st:
-            return "未匹配"
-        for k in _WS_STATUS_ICON:
-            if k in st:
-                return k
-        if "等待" in st:
-            return "等待依赖"
-        return "待开始"
+                        roster_driven: bool) -> tuple[str, list[dict]]:
+    """汇总行 + 总览表(markdown)· items 含 subproject/short 字段。
+
+    返回 (block, unrecognized):词表外状态写法列表(feature 短名 + 原文)· 上层 surface。
+    """
     counts: dict[str, int] = {}
+    unrecognized: list[dict] = []
     for it in items:
-        b = bucket(it["status"])
+        b, known = _ws_status_bucket(it["status"])
         counts[b] = counts.get(b, 0) + 1
+        if not known:
+            unrecognized.append({"feature": it.get("short") or it["bl"],
+                                 "status": it["status"]})
     total = sum(v for k, v in counts.items() if k != "已取消")
     done = counts.get("已完成", 0)
     seq = [("进行中", counts.get("进行中", 0)), ("待开始", counts.get("待开始", 0)),
@@ -750,16 +793,21 @@ def _render_ws_progress(ws_label: str, items: list[dict], n_roadmaps: int,
     else:
         head = f"进度 {done}/{total} 已完成" + (f" · {tail}" if tail else "")
     lines = [head, f"（{src} · {now_iso()}）", ""]
+    if unrecognized:
+        lines.insert(1, "⚠️ 状态词不在词表(按待开始计 · 词表见 templates/roadmap.md):" +
+                     " · ".join(f"{u['feature']}「{u['status'][:24]}」" for u in unrecognized))
     if items:
         lines += ["| feature | BL | 子项目 | 功能 | 状态 | 当前阶段 | F |",
                   "|---------|----|--------|------|------|----------|---|"]
         for it in sorted(items, key=lambda x: (x.get("subproject", ""), x["bl"])):
-            icon = next((v for k, v in _WS_STATUS_ICON.items() if k in it["status"]), "")
-            st = f"{icon} {it['status']}".strip()
+            raw = it["status"].strip()
+            b, _known = _ws_status_bucket(raw)
+            icon = _WS_STATUS_ICON.get(b, "")
+            st = raw if raw[:1] in "✅🔄🗑⏳🔒📝" else f"{icon} {raw}".strip()
             lines.append(
                 f"| {it.get('short') or '—'} | {it['bl']} | {it.get('subproject') or '—'} "
                 f"| {it['name'] or '—'} | {st} | {it['stage'] or '—'} | {it['f_id'] or '—'} |")
-    return "\n".join(lines)
+    return "\n".join(lines), unrecognized
 
 
 def _render_ws_dag(roster: list[dict], ws_label: str) -> str | None:
@@ -828,12 +876,19 @@ def _pick_bl_row(feat: dict, cands: list, reg: dict, root: Path):
     return cands[0]
 
 
-def _find_ws_file(root: Path, ws_label: str, skip: set[str]):
+def _find_ws_file(root: Path, ws_label: str):
+    """定位 WS 正本 → (最优候选, 全部候选)。
+
+    排序:product-overview/ 优先 → 路径段数少优先 → 字典序。多候选时上层 surface 清单
+    (曾因 rglob 无序取首 + .worktree 未排除 · 把进度写进并行 feature worktree 的旧副本)。
+    """
     cands = [p for p in root.rglob(f"{ws_label}*.md")
-             if not (set(p.parts) & skip) and "workstream" in str(p).lower()]
+             if _ws_scan_ok(p, root) and "workstream" in str(p).lower()]
     if not cands:
-        cands = [p for p in root.rglob(f"{ws_label}*.md") if not (set(p.parts) & skip)]
-    return cands[0] if cands else None
+        cands = [p for p in root.rglob(f"{ws_label}*.md") if _ws_scan_ok(p, root)]
+    cands.sort(key=lambda p: (0 if "product-overview" in str(p).lower() else 1,
+                              len(p.parts), str(p)))
+    return (cands[0] if cands else None), cands
 
 
 def _splice_block(text: str, start_tok: str, end_tok: str, body: str):
@@ -861,10 +916,9 @@ def _resolve_ws_from_feature(feature_dir: Path, root: Path) -> "Optional[str]":
             state_bl = _st.get("bl") or ""
         except (OSError, ValueError):
             pass
-    _SKIP0 = {"node_modules", ".git", "_archive", "dist", "build", ".next", "vendor"}
-    if state_bl:  # v8.196:state.bl 机读绑定优先 · 直接名册反查(不依赖 ROADMAP 手填「对应F编号」)
+    if state_bl:  # state.bl 机读绑定优先 · 直接名册反查(不依赖 ROADMAP 手填「对应F编号」)
         for wsf in root.rglob("WS-*.md"):
-            if "workstream" not in str(wsf).lower() or (set(wsf.parts) & _SKIP0):
+            if "workstream" not in str(wsf).lower() or not _ws_scan_ok(wsf, root):
                 continue
             if any(f.get("bl") == state_bl for f in _parse_ws_features(wsf)):
                 n = _ws_nums(wsf.name)
@@ -875,8 +929,7 @@ def _resolve_ws_from_feature(feature_dir: Path, root: Path) -> "Optional[str]":
     if not m:
         return None
     ftoken = m.group(0).replace("-", "").upper()
-    _SKIP = {"node_modules", ".git", "_archive", "dist", "build", ".next", "vendor"}
-    roadmaps = [p for p in root.rglob("ROADMAP.md") if not (set(p.parts) & _SKIP)]
+    roadmaps = [p for p in root.rglob("ROADMAP.md") if _ws_scan_ok(p, root)]
     bl_hit = None
     for rm in roadmaps:
         for r in _parse_roadmap_rows(rm):
@@ -887,7 +940,7 @@ def _resolve_ws_from_feature(feature_dir: Path, root: Path) -> "Optional[str]":
                 bl_hit = bl_hit or r.get("bl")    # 有 BL 无关联WS → 名册反查退路
     if bl_hit:
         for wsf in root.rglob("WS-*.md"):
-            if "workstream" not in str(wsf).lower() or (set(wsf.parts) & _SKIP):
+            if "workstream" not in str(wsf).lower() or not _ws_scan_ok(wsf, root):
                 continue
             if any(f.get("bl") == bl_hit for f in _parse_ws_features(wsf)):
                 n = _ws_nums(wsf.name)
@@ -921,14 +974,13 @@ def cmd_ws_progress(args: argparse.Namespace) -> None:
         emit({"verdict": "FAIL", "reason": "需 --ws <编号> 或 --feature <路径>(抽不出 WS 编号)"})
         return
     ws_label = "WS-%02d" % min(targets)
-    _SKIP = {"node_modules", ".git", "_archive", "dist", "build", ".next", "vendor"}
 
-    ws_file = _find_ws_file(root, ws_label, _SKIP)
+    ws_file, ws_cands = _find_ws_file(root, ws_label)
     roster = [f for f in (_parse_ws_features(ws_file) if ws_file else [])
               if f.get("status") != "废弃"]
     roster_bls = {f["bl"] for f in roster if f["bl"]}
 
-    roadmaps = [p for p in root.rglob("ROADMAP.md") if not (set(p.parts) & _SKIP)]
+    roadmaps = [p for p in root.rglob("ROADMAP.md") if _ws_scan_ok(p, root)]
     rm_rows: list[tuple[str, dict, Path]] = []
     for rm in roadmaps:
         sub = _ws_subproject(rm, root)
@@ -965,10 +1017,11 @@ def cmd_ws_progress(args: argparse.Namespace) -> None:
             if targets & _ws_nums(r["ws"]):
                 items.append({**r, "subproject": sub, "short": ""})
 
-    block = _render_ws_progress(ws_label, items, len(roadmaps), bool(roster))
+    block, unrecognized = _render_ws_progress(ws_label, items, len(roadmaps), bool(roster))
     dag = _render_ws_dag(roster, ws_label) if roster else None
 
-    # v8.196:可启动集 —— 名册里依赖全 ✅ 已完成、自身待开始的 feature(治「下一个做什么」人肉对照 DAG)
+    # 可启动集 —— 名册里依赖全部完成态、自身待开始的 feature(治「下一个做什么」人肉对照 DAG)。
+    # 判定走 _ws_status_bucket 词表(「已交付」等别名同义)· 不再裸子串匹配。
     ready = []
     if roster:
         stat = {}
@@ -977,8 +1030,9 @@ def cmd_ws_progress(args: argparse.Namespace) -> None:
             stat[f["id"]] = (hit[1]["status"] if hit else "")
         for f in roster:
             own = stat.get(f["id"], "")
-            deps_done = all("已完成" in stat.get(d, "") for d in f["deps"] if d in stat)
-            if "待开始" in own and deps_done:
+            deps_done = all(_ws_status_bucket(stat.get(d, ""))[0] == "已完成"
+                            for d in f["deps"] if d in stat)
+            if own and _ws_status_bucket(own)[0] == "待开始" and deps_done:
                 ready.append({"feature": _ws_short(f["id"], ws_label), "bl": f["bl"]})
         if ready:
             block += "\n▶ **可启动(依赖已齐)**:" + " · ".join(
@@ -1006,10 +1060,15 @@ def cmd_ws_progress(args: argparse.Namespace) -> None:
         ws_file.write_text(text, encoding="utf-8")
         wrote = str(ws_file.relative_to(root))
 
-    emit({"verdict": "OK", "action": "ws-progress", "ws": ws_label,
-          "roadmaps_scanned": len(roadmaps), "roster": len(roster), "rows": len(items),
-          "written_to": wrote, "dag_written": dag_written,
-          "ready_to_start": ready, "block": block, "dag": dag})
+    out = {"verdict": "OK", "action": "ws-progress", "ws": ws_label,
+           "roadmaps_scanned": len(roadmaps), "roster": len(roster), "rows": len(items),
+           "written_to": wrote, "dag_written": dag_written,
+           "ready_to_start": ready, "block": block, "dag": dag}
+    if unrecognized:
+        out["unrecognized_status"] = unrecognized
+    if len(ws_cands) > 1:   # 多候选 surface(正本判定见 _find_ws_file 排序规则)
+        out["ws_file_candidates"] = [str(p.relative_to(root)) for p in ws_cands]
+    emit(out)
 
 
 # ─── ws-lint:WS 文档最新模板符合性校验（v8.186）─────────────────────
@@ -1161,7 +1220,6 @@ def cmd_ledger_migrate(args: argparse.Namespace) -> None:
 def cmd_ws_lint(args: argparse.Namespace) -> None:
     """v8.186:校验 WS 文档符合最新模板形态(治 AI 抄项目旧 WS · 无符合性检查)。"""
     root = _git_toplevel(Path.cwd()) or Path.cwd()
-    _SKIP = {"node_modules", ".git", "_archive", "dist", "build", ".next", "vendor"}
     raw = (getattr(args, "ws", None) or "").strip()
     if not raw and getattr(args, "feature", None):
         resolved = _resolve_ws_from_feature(Path(args.feature), root)
@@ -1173,7 +1231,7 @@ def cmd_ws_lint(args: argparse.Namespace) -> None:
         emit({"verdict": "FAIL", "reason": "需 --ws <编号> 或 --feature <路径>(抽不出 WS 编号)"})
         return
     ws_label = "WS-%02d" % min(targets)
-    ws_file = _find_ws_file(root, ws_label, _SKIP)
+    ws_file, _ws_cands = _find_ws_file(root, ws_label)
     if not ws_file:
         emit({"verdict": "FAIL", "ws": ws_label, "reason": f"找不到 {ws_label} 文档"})
         return
