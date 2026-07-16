@@ -87,10 +87,11 @@ BUG_FLOW: dict[str, list[str]] = {
     "completed": [],
 }
 
-# Micro:最轻流程(改文案 / 改配置)· dev → pm_acceptance → ship
+# Micro:最轻流程(改文案 / 改配置)· v8.250 = execute → ship(去 dev 门禁 + pm_acceptance)
+# execute = 零门禁自由执行(自选 model/subagent/workflow/测试 · 无规范限制 · 只守 worktree 路径 + 准入白名单)
+# 用户验收从 pm_acceptance 挪到 ship1 MR diff review。
 MICRO_FLOW: dict[str, list[str]] = {
-    "dev": ["pm_acceptance"],
-    "pm_acceptance": ["ship", "dev"],
+    "execute": ["ship"],
     "ship": ["completed"],
     "completed": [],
 }
@@ -1272,7 +1273,7 @@ def cmd_test_baseline(args: argparse.Namespace) -> None:
 DEFAULT_INITIAL_STAGE = {
     "Feature": "goal",
     "Bug": "diagnose",   # v8.107:Bug 先 diagnose(根因细查+修复方案确认)再 dev
-    "Micro": "dev",
+    "Micro": "execute",   # v8.250:micro 首 stage = execute(零门禁自由执行)· 去 dev
     "敏捷需求": "goal",  # 敏捷需求 FLOW = goal → blueprint_lite → ... · blueprint_lite-start 前置要 goal 完成
 }
 

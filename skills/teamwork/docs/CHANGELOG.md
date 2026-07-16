@@ -4,6 +4,24 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.250 · micro 流程重构:execute 零门禁自由执行 → ship(去 dev 门禁 + pm_acceptance)
+
+> 用户拍板:micro 的病是「零逻辑改动却背全套 stage 门禁」。新 micro = **prepare → execute(自由执行 · 无规范限制)→ ship**。prepare 之后 AI 用它认为最合理的方式完成任务——自主决定用不用 subagent/teammate/workflow、自选模型、自决要不要跑测试,无任何框架规范限制,目标只有「完成任务」。然后 ship。
+
+### 新 micro 链 = `execute → ship`(原 `dev → pm_acceptance → ship`)
+- **新增 `execute` stage**(STAGE_SPECS 第 13 个 · allowed_flow_types=["Micro"]):零 prerequisites / 零 artifacts / 零 evidence 门 —— 唯一硬边界 2 条:① 代码写 worktree 内路径(并行隔离)② 不得超出 micro 准入白名单(超纲=误分诊·停·升 Feature)。brief 明写「自选 model/subagent/workflow/测试 · 无规范限制」。安全前置在准入白名单(prepare §2.2 卡死零逻辑),故执行阶段可无门禁。
+- **去 pm_acceptance**:用户验收从 pm_acceptance 挪到 **ship1 的 MR diff review**(user_card + await-merge · 合并前看 diff)。`_check_pm_approved_ship` 加 micro 豁免(否则 ship-start 撞 pm_approved 前置)。micro 授权暂停点 3→2(prepare + ship1)。
+- **去 dev**:micro 不再进 gated dev。`_dev_transition` 删死分支(Micro→pm_acceptance)· dev 一律 → review(去 micro 特例 · 防 v8.222 类死流程分支静默错误)。
+
+### 改动面(两套流程图 + 初始 stage + 消费点)
+- `_v8_stage_specs.py`:EXECUTE_SPEC + _execute_brief/_execute_transition + STAGE_SPECS 注册 + _check_pm_approved_ship micro 豁免 + _dev_transition 清死分支。
+- `_v8_engine.py`:FLOW_STAGE_CHAIN["Micro"]=[execute,ship] + DEFAULT_REVIEW_ROLES 去 Micro/pm_acceptance 条目。
+- `state.py`:MICRO_FLOW 转移图=execute→ship→completed + DEFAULT_INITIAL_STAGE["Micro"]=execute。
+- 文档:新 stages/execute-stage.md · FLOWS/SKILL 流程表+暂停点清单+命令清单 · prepare §5 first_stage 映射 · STAGES.md 索引(+execute · 12→13)· README 双语计数。
+
+### 验证
+- 新测试 +10(链/转移图/初始 stage/execute spec 零门禁/transition→ship/brief 硬边界/pm 豁免仅 micro)· 旧断言 3 处更新(micro initial · no-pause 集 · dev-transition)· pytest **883 passed**。
+
 ## v8.249 · 纠 v8.247:cargo target 按 feature 共享(不按 stage 切)· 恢复 stage 间增量编译
 
 > 台账年检(用户:AI 自主时间太久)顺出的根因之一:v8.247 scratch 约定写「按 stage 隔离 target 是正确设计 · 防多 worktree 并行争抢文件锁」—— **推理错**。并行争抢发生在**不同 feature 的不同 worktree** 之间,而 scratch 路径里的 `<feature_id>` 已把它们隔开;同一 feature 内 stage 严格串行(状态机一次一个)、从不并发构建 —— 再按 stage 把 target 切成 `<feature_id>/test-stage`、`<feature_id>/dev-target`,唯一效果是 **test 拿不到 dev 编好的 target,每 stage 冷编整棵依赖树**(Rust 冷编 5-20min vs 热增量 <1min)。这正是台账里 test 阶段占 AI 自主耗时 23% + blueprint/test 编译重极值的主浪费来源。
@@ -53,15 +71,3 @@
 
 ### 验证
 - 测试 +1(流转 emit 含 continue_reminder · 含下一 stage 名/非暂停点/回合边界关键词)· pytest **861 passed**。
-
-## v8.245 · 排查升级暂停点:多候选逐一编号 + 斜杠并列即自由文本(治 ok 无从解析)
-
-> 来源 case(问题排查 · codex 宿主):排查报告漂亮,收尾却 emit `⏸️ 请确认后续动作:Bugfix 流程 / 不处理代码(先修正 staging 配置)/ Feature 流程` —— 斜杠并列自由文本 · 无编号无 💡 推荐 → 用户回 `ok`(快捷词协议 = 选推荐项)无从解析 → AI 再问一轮 · 白耗两个来回。**模板其实早就存在**(SKILL Mode A/E 升级触发节 v8 早期就有 R5 格式),病根有二:①模板只有「进 X / 暂不升级」单流程形态 · case 是三候选动作 · 塞不进就退化成斜杠清单;②问题排查不进状态机 · 无机器 emit 可挂消费时刻提醒 · 长会话后凭记忆 emit 格式丢失。
-
-### 改动(文本载体钉死 · 三处)
-- **SKILL § Mode A/E 升级触发模板升级为多候选形态**:选项 1/2 = <按结论最可能的动作 · 具体化>💡 / <候选动作 B · 具体化>(不再绑死「进 X / 暂不升级」)· 新增三条规则:🔴 多候选动作**逐一编号**(斜杠并列 = 自由文本 · ok 无从解析 → 白问一轮)· 选项**具体化自排查结论**(「先修正 staging 配置(不改代码)」而非抽象流程名)· **💡 推荐必给**(排查者最有信息量 · 不给推荐 = 判断甩回用户 + ok 快捷词失灵)。
-- **R5(b) 判定红线(全局)**:补「斜杠并列候选清单『A / B / C』同属自由文本」—— 不止排查 · 任何暂停点适用。
-- **prepare.md 排查先行律**:升级暂停点行改为「候选动作逐一编号(R5 1/2/3 + 💡 推荐)」并显式点名反例(候选斜杠并列写进一行 = 自由文本)。
-
-### 验证
-- pytest 860 passed(纯文档 · 无行为变更)。

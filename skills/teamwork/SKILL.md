@@ -1,6 +1,6 @@
 ---
 name: teamwork
-version: v8.249.1
+version: v8.250
 description: AI 协作开发一体化框架 - 需求功能开发, bug 修复, 问题排查 · /teamwork 启动
 ---
 
@@ -135,7 +135,7 @@ A 类 · 状态机入口(用户确认 worktree 后 · 在 worktree 内运行)
 (triage 是 PMO 入口行为 · 不是 state.py 命令 · 见 SKILL.md § Triage 入口规范)
 (prepare 是 PMO 主对话子流程 · 不是 state.py 命令 · 见 docs/prepare.md)
 
-B 类 · Stage 流转(12 stage × 2 + 4 fix/retry + ship-phase/await-merge/ship-finalize/main-sync)
+B 类 · Stage 流转(13 stage × 2 + 4 fix/retry + ship-phase/await-merge/ship-finalize/main-sync)
 ├── goal-start / goal-complete
 ├── ui_design-start / ui_design-complete (optional · --needs-ui)
 ├── panorama_sync-start / panorama_sync-complete (conditional · ui_design --panorama-changed=true)
@@ -420,7 +420,7 @@ emit 格式:
 | 流程 | 适用场景 | 产出 |
 |------|---------|------|
 | **Feature · full** | 功能开发(兜底) | 代码 + 文档 + 测试 |
-| **Feature · micro** | 零逻辑改动(文案/样式/资源/配置常量/注释 白名单 · 超纲即 full) | 代码直改 + 用户验收 + ship |
+| **Feature · micro** | 零逻辑改动(文案/样式/资源/配置常量/注释 白名单 · 超纲即 full) | execute 零门禁自由执行 → ship(用户验收在 MR diff) |
 | **Bug** | 缺陷已指认(diagnose 先行 · 根因经用户确认) | 修复 + BUG 报告 + 回归测试 |
 | **Feature Planning** | 拆 ROADMAP(不出代码 · 不进状态机) | WS + ROADMAP + 全景 |
 | **问题排查** | 只定位根因(不进状态机 · 排查先行律) | 排查报告 + 后续 todo |
@@ -433,7 +433,7 @@ emit 格式:
 |---|---|
 | **Feature** | ① prepare 4 项配置 → ② goal PRD 最终确认 → ③ ui_design UI 预览确认(若 --needs-ui) → ③′ panorama_sync L2 结构变更跨团队确认(条件 · L1 不停) → ④ blueprint DB schema 变更确认(条件 · 见下) → ⑤ pm_acceptance 三选项 → ⑥ ship1 终点 等平台合并 feature MR |
 | **Bug** | ① prepare 4 项配置 → ② **diagnose 修复方案确认**(根因+方案 · 用户拍板才进 dev) → ③ pm_acceptance 三选项 → ④ ship1 终点 |
-| **Feature · micro** | ① prepare 4 项配置 → ② pm_acceptance 三选项 → ③ ship1 终点 |
+| **Feature · micro** | ① prepare 4 项配置 → ② ship1 终点 等 MR 合入(v8.250:execute 零门禁 · 无 pm_acceptance · 用户验收 = ship1 MR diff review)|
 
 📎 **blueprint DB schema 条件暂停点**:Feature 的 TECH 方案涉及**数据库数据结构变更**(新建/删除/修改 表、字段、索引、约束、migration)时 · blueprint-complete 前必 emit 用户确认暂停点(详 [stages/blueprint-stage.md § 7.5](./stages/blueprint-stage.md))· 不涉及则跳过。**Bug / Feature·micro** 不应涉及 DB 数据结构变更(属架构性 · 命中则升 full 完整链)。
 📎 **其余条件暂停**(命中才停 · 未命中自动过 · 不入上表主链):goal 早问门三闸(goal-stage ②3 · 如涉既有行为变更升级待决策)· review 轮次超预算升级(review-stage 硬规则)。
@@ -725,7 +725,7 @@ v8 把 9 红线的可枚举子条目物化进 state.py;R3(PMO 统一承接)+ 部
 | [docs/teamwork-space-guide.md](./docs/teamwork-space-guide.md) | teamwork-space.md 维护规范 |
 | [tools/state.py](./tools/state.py) | 唯一编排器入口 |
 | [tools/_v8_engine.py](./tools/_v8_engine.py) | 通用 stage start/complete + bypass 引擎 |
-| [tools/_v8_stage_specs.py](./tools/_v8_stage_specs.py) | 12 stage 完整契约(stage 数单源 `STAGE_SPECS`) |
+| [tools/_v8_stage_specs.py](./tools/_v8_stage_specs.py) | 13 stage 完整契约(stage 数单源 `STAGE_SPECS`) |
 | [tools/_v8_ship.py](./tools/_v8_ship.py) | ship-phase actions + ship-finalize + await-merge |
 | [tools/bootstrap.py](./tools/bootstrap.py) | session 启动维护(骨架 / codex agent toml 部署 / 历史注入段与 hooks 清理) |
 | [codex-agents/](./codex-agents/) · [claude-agents/](./claude-agents/) | external-review 宿主 profile(codex `*.toml` / claude `reviewer.md` · `state.py external-review` 按 host 自动选) |

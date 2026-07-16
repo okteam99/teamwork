@@ -295,7 +295,7 @@ flow=<Feature[·micro] / Bug> · clarity=<normal> · bl=<BL-NNN|无> · 链=<goa
 flow_type → first_stage 映射:
 - Feature(preset=full)→ `goal`
 - Bug → `diagnose`(根因细查 + 修复方案 · 用户确认后才进 dev · 防修偏)
-- Feature(preset=micro)→ `dev`
+- Feature(preset=micro)→ `execute`(v8.250:零门禁自由执行 → ship · 无 dev/pm_acceptance)
 - Feature Planning / 问题排查 → 不进状态机 · prepare 在这两个流程上不调用
 
 🔴 **必 1 次完整 emit · 不分多轮**(防 PMO 先建议 + 再"最终确认"的 2 轮交互浪费)。

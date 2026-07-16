@@ -8,7 +8,7 @@ _v8_stage_specs.py — Teamwork v8.0 各 stage 的具体契约定义。
 - brief_template_fn: next_action_brief 渲染
 - auto_transition_fn: 自动转移到下一 stage
 
-STAGE_SPECS dict 在文件末尾汇总(12 stage 全部实现)。
+STAGE_SPECS dict 在文件末尾汇总(13 stage 全部实现)。
 
 本文件即 stage 契约 schema 的现行权威(配合 state.py --help)。
 v8.0 命令 schema 快照已清理 · git 历史可溯。
@@ -877,11 +877,12 @@ state.py dev-complete --feature <path> --auto-commit <hash> \
 
 
 def _dev_transition(state: dict) -> Optional[str]:
-    """dev 完成后的下一 stage。"""
-    flow = _flow_key(state)
-    if flow == "Micro":
-        return "pm_acceptance"  # Micro 跳过 review/test · 仍走 pm_acceptance(用户验收)→ ship
-    return "review"  # Feature / Bug / 敏捷 都走 review
+    """dev 完成后的下一 stage。
+
+    v8.250:micro 不再走 dev(改走 execute → ship · 见 EXECUTE_SPEC)—— dev 只服务
+    Feature(full)/ Bug / 敏捷(legacy),全部 → review。旧 Micro→pm_acceptance 分支已删(死路)。
+    """
+    return "review"
 
 
 DEV_SPEC = StageSpec(
@@ -2791,6 +2792,9 @@ PM_ACCEPTANCE_SPEC = StageSpec(
 
 def _check_pm_approved_ship(state: dict, args) -> bool:
     """pm_acceptance decision == 'approved_and_ship' · 容错读 evidence/旧位(详 _pm_decision_value)"""
+    # v8.250:micro 链 = execute → ship(无 pm_acceptance)· 用户验收在 ship1 MR diff · 直接放行
+    if _flow_key(state) == "Micro":
+        return True
     pm_c = state.get("stage_contracts", {}).get("pm_acceptance", {})
     if pm_c.get("output_satisfied") is not True:
         return False
@@ -2870,6 +2874,47 @@ SHIP_SPEC = StageSpec(
 )
 
 
+# ─── execute:micro 唯一工作 stage(v8.250 · 零门禁自由执行)──────────────
+
+
+def _execute_brief(state: dict) -> str:
+    """micro 自由执行 brief · 无规范限制 · 目标=完成任务。"""
+    return """## Execute Stage(micro · 自由执行 · 无规范限制)
+
+### 目标
+**完成任务**。就这一个目标 —— prepare 已把意图/流程/worktree/ID 定好,准入白名单已卡死零逻辑改动(文案/样式/资源/配置常量/注释),所以这里**没有 stage 门禁、没有评审、没有强制测试、没有 DEV-RULES**。
+
+### 你自主决定(无框架限制)
+- **怎么做**:直接改 / 派 subagent / teammate / workflow —— AI 自选最合理的方式。
+- **用什么模型**:自选档位(micro 多是机械改 · 通常继承会话即可)。
+- **要不要测/验证**:自决 —— 零逻辑改动多数不需要,涉渲染/构建产物顺手验一眼也行。
+
+### 唯一硬边界(2 条 · 不可破)
+1. 🔴 **代码写 worktree 内路径**(`{worktree}/...`)—— 并行 feature 隔离不能破(详 SKILL § worktree 纪律)。
+2. 🔴 **改动不得超出 micro 准入白名单** —— 干着干着发现涉及逻辑/接口/结构变更(不再是零逻辑)→ 停,升级为 Feature(回 prepare · 别在 micro 里硬塞)。
+
+### 完成方式
+干完 → `git commit` → `state.py execute-complete --feature <path> --auto-commit <hash>` → **自动转 ship**(无 pm_acceptance · 用户验收在 ship1 的 MR diff review)。
+"""
+
+
+def _execute_transition(state: dict) -> Optional[str]:
+    """execute 完成 → 直接 ship(micro 无 review/test/pm_acceptance)。"""
+    return "ship"
+
+
+EXECUTE_SPEC = StageSpec(
+    name="execute",
+    prerequisites=[],          # 零前置(worktree 物理/cwd 校验由 execute_stage_start 通用兜底)
+    artifacts=[],              # 无强制产物(改代码直改 · 空 = 跳过 artifacts-in-commit 校验)
+    evidence_checks=[],        # 无 evidence 门(自由执行 · 唯一要求 = commit 存在,由通用 -complete 兜底)
+    allowed_flow_types=["Micro"],
+    brief_template_fn=_execute_brief,
+    auto_transition_fn=_execute_transition,
+    authorized_pause_point="无暂停 · 完成即自动转 ship(用户验收在 ship1 MR diff)",
+)
+
+
 # ─── STAGE_SPECS 汇总 ──────────────────────────────────────────────────
 
 
@@ -2881,6 +2926,7 @@ STAGE_SPECS: dict[str, StageSpec] = {
     "blueprint_lite": BLUEPRINT_LITE_SPEC,
     "diagnose": DIAGNOSE_SPEC,
     "dev": DEV_SPEC,
+    "execute": EXECUTE_SPEC,   # v8.250:micro 唯一工作 stage(零门禁自由执行)
     "review": REVIEW_SPEC,
     "test": TEST_SPEC,
     "browser_e2e": BROWSER_E2E_SPEC,

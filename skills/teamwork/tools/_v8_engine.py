@@ -1178,7 +1178,7 @@ DEFAULT_REVIEW_ROLES: dict[tuple[str, str], list[str]] = {
     ("Bug", "pm_acceptance"): ["pm"],
 
     # Micro 流程
-    ("Micro", "pm_acceptance"): ["pm"],
+    # v8.250:Micro 链 = execute → ship(execute 零门禁无评审 · ship 无评审)· 无 roster 条目
 
     # Feature Planning / 问题排查 不进状态机(init-feature 拒建 state.json)· 无默认矩阵
 }
@@ -1236,9 +1236,8 @@ FLOW_STAGE_CHAIN: dict[str, list[tuple[str, bool, str, str]]] = {
         ("ship", False, "", "无评审 · PMO 编排"),
     ],
     "Micro": [
-        ("dev", False, "", "无评审 · RD 直接改(文案/样式/资源/配置 · 零逻辑)"),
-        ("pm_acceptance", False, "", "PM 看效果即可(无 review/test 中间环节)"),
-        ("ship", False, "", "无评审 · PMO 编排"),
+        ("execute", False, "", "自由执行 · 无规范限制(自选 model/subagent/workflow/测试)· 目标=完成任务 · 只守 worktree 路径 + 准入白名单 · v8.250"),
+        ("ship", False, "", "无评审 · PMO 编排(用户验收在 ship1 MR diff)"),
     ],
 }
 
