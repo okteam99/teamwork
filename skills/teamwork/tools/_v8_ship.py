@@ -469,6 +469,17 @@ def _handle_ship_push(state: dict, args: argparse.Namespace) -> dict:
         _r = _git(["rev-parse", "--abbrev-ref", "HEAD"], cwd=str(Path(_feat_path)), timeout=10)
         if _r.returncode == 0 and _r.stdout.strip():
             _branch = _r.stdout.strip()
+    # v8.251:carry-forward release-gated 待补证据到 ship1 卡片(用户合并前必须知道「发版后欠什么」)
+    _rg_line = ""
+    if _feat_path:
+        try:
+            from _v8_stage_specs import release_gated_deferrals
+            _rg = release_gated_deferrals(Path(_feat_path))
+            if _rg:
+                _items = " · ".join(f"{d['id']}:{d['owed']}" for d in _rg)
+                _rg_line = f"- 🚚 **发版后待补证据({len(_rg)} 项 · release-gated)**:{_items}\n"
+        except Exception:
+            _rg_line = ""
     user_card = (
         f"⏸️ **ship1 完成 · 请合并 MR**\n"
         f"\n"
@@ -476,6 +487,7 @@ def _handle_ship_push(state: dict, args: argparse.Namespace) -> dict:
         f"\n"
         f"- 分支:`{_branch}` → `{state.get('merge_target') or '<merge_target>'}`\n"
         f"- 包含:代码 + 归档 + 规划翻牌(随本 MR 原子合入)\n"
+        + _rg_line +
         f"- 监控:我将跑 `await-merge` 30s 轮询 —— **你只需在平台点合并** · 合并后自动清场(删 worktree + 净化主工作区)\n"
         f"- 异常口令:平台报冲突 → 回「冲突」(我回 worktree 重跑 archive 解)· 不想合了 → 回「撤回」"
     )

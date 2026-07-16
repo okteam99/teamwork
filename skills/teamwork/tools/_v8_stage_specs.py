@@ -2098,6 +2098,8 @@ def parse_review_findings(feature_dir) -> tuple[Optional[list], str]:
             "status": status,
             "title": str(d.get("title", "")).strip(),
             "source": str(d.get("source", "")).strip(),
+            # v8.251:release-gated 裁决 —— status=deferred 时记「为何 defer + 欠什么证据」
+            "deferred_reason": str(d.get("deferred_reason", "")).strip(),
         })
     if errors:
         return None, " · ".join(errors[:6])
@@ -2106,6 +2108,25 @@ def parse_review_findings(feature_dir) -> tuple[Optional[list], str]:
     if dup:
         return None, f"findings id 重复:{dup}(台账按 id 合并 · id 必须唯一)"
     return findings, ""
+
+
+def release_gated_deferrals(feature_dir) -> list:
+    """v8.251:抽 REVIEW.md 里 release-gated 的 deferred finding(carry-forward 到 pm_acceptance/ship)。
+
+    返 [{id, severity, title, owed}] —— status=deferred 且 deferred_reason 含 'release-gated'。
+    owed = deferred_reason 去掉 release-gated 前缀后的欠证据描述。解析失败/无 → []。
+    """
+    findings, err = parse_review_findings(feature_dir)
+    if err or not findings:
+        return []
+    out = []
+    for f in findings:
+        reason = (f.get("deferred_reason") or "").strip()
+        if f.get("status") == "deferred" and "release-gated" in reason.lower():
+            owed = re.sub(r"(?i)^release-gated\s*[·:\-]?\s*", "", reason).strip() or reason
+            out.append({"id": f["id"], "severity": f["severity"],
+                        "title": f.get("title", ""), "owed": owed})
+    return out
 
 
 def merge_findings_ledger(contract: dict, findings: list, cur_round: dict) -> None:
@@ -2176,6 +2197,21 @@ def _evidence_review_findings_gate(state: dict, args) -> tuple[bool, str]:
         return False, (
             f"--verdict APPROVE 但存在 open 的 BLOCKER/MAJOR:{ids} · "
             "修复(status: fixed)或带依据裁决(rejected / deferred)后才可 APPROVE"
+        )
+    # v8.251 防滥用护栏:deferred 的 BLOCKER/MAJOR 必须写 deferred_reason(为何 defer + 欠什么证据)·
+    # 空 defer = 把真阻塞扫地毯下。release-gated(真部署/真墙钟/真生产平台)才可 defer ·
+    # 能 mock/fake/注入时钟复现的(如外部平台 WireMock、soak 缩时)= 本地可做 · 不是 release-gated · 必须做完。
+    bare_defer = [f for f in (findings or [])
+                  if f["status"] == "deferred" and f["severity"] in ("BLOCKER", "MAJOR")
+                  and not f.get("deferred_reason", "").strip()]
+    if bare_defer:
+        ids = " · ".join(f["id"] for f in bare_defer)
+        return False, (
+            f"deferred 的 BLOCKER/MAJOR 缺 deferred_reason:{ids} · "
+            "🔴 defer 必须举证「为何 + 欠什么证据」· 只有 release-gated(证据物理上必须 post-deploy:"
+            "真实 rollout/rollback · 墙钟 soak ≥ 小时/天 · 不可 mock 的真实生产平台)才可 defer;"
+            "能 mock/fake/注入时钟复现的(外部平台 WireMock · soak 注入 clock 缩时)= 本地可做 · "
+            "**必须做完再 APPROVE** · 不许 defer(详 stages/review-stage.md § release-gated)"
         )
     return True, ""
 
@@ -2686,10 +2722,21 @@ BROWSER_E2E_SPEC = StageSpec(
 
 def _pm_acceptance_brief(state: dict) -> str:
     """v8.0+P0-8 极简版:目标 + 结果 + 完成方式 · 怎么做归 stage.md。"""
+    # v8.251:carry-forward release-gated 待补证据 —— 用户验收时必须看到「发版后欠什么」
+    _rg = release_gated_deferrals(state.get("artifact_root") or ".")
+    _rg_block = ""
+    if _rg:
+        _lines = "\n".join(f"  - {d['id']}({d['severity']}):{d['owed']}" for d in _rg)
+        _rg_block = (
+            f"\n\n### 🚚 发版后待补证据(release-gated · {len(_rg)} 项 · review 已 deferred)\n"
+            "这些证据物理上必须发版后才能产(真实 rollout/soak/生产平台)· 不阻塞本次验收 · "
+            "但**发版后必须补**(ship 台账已留痕):\n" + _lines +
+            "\n🔴 验收时向用户点明这几项是「发版义务」· 用户知情后再拍板 decision。"
+        )
     return f"""## PM Acceptance Stage
 
 ### 目标
-PM 站在用户视角逐条 AC 对照实现 · 验收后 **emit 三选项暂停点 · 用户拍板 decision**。
+PM 站在用户视角逐条 AC 对照实现 · 验收后 **emit 三选项暂停点 · 用户拍板 decision**。{_rg_block}
 
 ### 🔴 decision 是用户决策点(R5)· AI 不可自决
 - PM 角色只做 AC 验收 + emit 三选项 markdown · 然后**停** · 等用户回 1/2/3
