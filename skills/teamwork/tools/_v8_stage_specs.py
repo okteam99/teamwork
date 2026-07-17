@@ -8,7 +8,7 @@ _v8_stage_specs.py — Teamwork v8.0 各 stage 的具体契约定义。
 - brief_template_fn: next_action_brief 渲染
 - auto_transition_fn: 自动转移到下一 stage
 
-STAGE_SPECS dict 在文件末尾汇总(12 stage 全部实现)。
+STAGE_SPECS dict 在文件末尾汇总(13 stage 全部实现)。
 
 本文件即 stage 契约 schema 的现行权威(配合 state.py --help)。
 v8.0 命令 schema 快照已清理 · git 历史可溯。
@@ -428,7 +428,7 @@ PM 调研(自答优先)· 起草 PRD · 🔴 **并行派 2 路隔离冷审**(v8.
 - `state.execution_hints.ui_design_needed` 已决策(由 `--needs-ui`)
 
 ### 怎么做
-🔴 **照 `{{SKILL_ROOT}}/templates/prd.md` 起草 · 别抄项目里旧 PRD**(实测 post-v8.164 十份仅一份用 canonical · 抄旧 = 机读块/扩展区等新机制到达不了)· goal-complete 校验三命门段(机读块/AC/『开工前必须想清的』)。\n**必读** `stages/goal-stage.md`(8 步:调研 → 起草 v0.1 → 🔴 **并行 2 路隔离冷审**(PL 质疑 + 覆盖方向制外审 · 不喂起草心路 · v8.243)→ 早问门(冷审后)→ PM 整合修订 → 冷审循环(Round 2+ 验证模式 · 全 APPROVE 收敛)→ needs-ui → 用户确认)。外审必覆盖:**可实现**(技术可行/架构影响/简洁性 counter-lens)· **可验证**(AC 可测/边界/异常)+ **AI 自主方向 ≥1**(安全/性能/数据一致性/兼容…按 feature 挑)· 每方向 finding 或「查过无发现」· 段记 `coverage: [...]`。
+🔴 **照 `{{SKILL_ROOT}}/templates/prd.md` 起草 · 别抄项目里旧 PRD**(实测 post-v8.164 十份仅一份用 canonical · 抄旧 = 机读块/扩展区等新机制到达不了)· goal-complete 校验三命门段(机读块/AC/『开工前必须想清的』)。\n**必读** `stages/goal-stage.md`(8 步:调研 → 起草 v0.1 → 🔴 **并行 2 路隔离冷审**(PL 质疑 + 覆盖方向制外审 · 不喂起草心路 · v8.243)→ 早问门(冷审后)→ PM 整合修订 → 冷审循环(Round 2+ 验证模式 · 🎚️ **验证轮派发用验证档模型** · 全 APPROVE 收敛)→ needs-ui → 用户确认 · 🔮 **emit 终确认暂停点后等待窗后台派 TECH 草稿 subagent**〔worktree 内草稿 · 不跑 state 命令 · 用户 ok 则 blueprint 直接接续 · 详 goal-stage ④ 投机窗〕)。外审必覆盖:**可实现**(技术可行/架构影响/简洁性 counter-lens)· **可验证**(AC 可测/边界/异常)+ **AI 自主方向 ≥1**(安全/性能/数据一致性/兼容…按 feature 挑)· 每方向 finding 或「查过无发现」· 段记 `coverage: [...]`。
 
 ### 完成方式
 ```
@@ -863,7 +863,7 @@ def _dev_brief(state: dict) -> str:
 - (Bug 流程额外)`bugfix/BUG-*.md` 报告
 
 ### 怎么做
-**必读** `stages/dev-stage.md`(四段结构:目标 / 硬规则 7 条 / 手段菜单 / dev-complete 契约)。\n🧩 **开工先问「哪些模块可并行」**(dev 是并行红利最大的 stage):多端/多模块/独立文件簇 → 各派 subagent/teammate 并行实现(**ultracode 开启 → workflow 优先** · schema 化产出)· 🔴 派发按 SKILL 🎚️ 全局规则**声明 model + 一句为什么** · 契约层/集成点留主对话 · 子 agent 只写 worktree 内路径。
+**必读** `stages/dev-stage.md`(四段结构:目标 / 硬规则 7 条 / 手段菜单 / dev-complete 契约)。\n🧩 **开工先问「哪些模块可并行」**(dev 是并行红利最大的 stage):多端/多模块/独立文件簇 → 各派 subagent/teammate 并行实现(**ultracode 开启 → workflow 优先** · schema 化产出)· 🔴 派发按 SKILL 🎚️ 全局规则**声明 model + 一句为什么** · 契约层/集成点留主对话 · 子 agent 只写 worktree 内路径。🔴 v8.254 两问补丁:「哪些可并行」**每进新子阶段重问**(实现→测试编写→修复 · 耦合度会变 · 开工一次不够);派发后**等待窗口主对话不闲置**(填 §完工自查既有证据行 / 中途自查依赖消费方 / 剩余工作再拆一刀)—— 实证:集成测试整包塞单 agent + 主对话裸等 · 用户点破才拆三线。
 🔴 **base 即红(共享套件预存在失败)→ 差分基线**:`--test-exit-code` 非 0 时,先 `state.py test-baseline --diff --current "<当前失败 id>"` 对照 `project-specs/test-baseline.md` · 0 新增 → dev-complete 传 `--current-failures` 即放行;有新增 = 回归(修)或新预存在(`test-baseline --add` 登记)· **别人肉 stash-baseline 反复甄别**。
 🔴 **UI feature(走过 ui_design)→ 设计↔实际一致性核对必做**(治「设计稿和实际不一致」):实现后起全景 dev server(preview.sh)+ 跑真实路由,**两边并排 browse 截图**,逐项核对意图四要素(布局/交互流/状态/字段映射)给「一致/背离」结论 · 背离 → 修实现 or 回 ui_design(不在 dev 顺手改设计 · 不静默放过)· 详 § dev-stage §3。
 🔴 **dev-complete 前 → 在 `TECH.md §完工自查` 文档内逐项打 ✅**(对着设计落地:现状基线/错误处理/依赖消费方/数据跨层/测试策略 + 通用门 · 每项指向证据 · 不适用 N-A)· **专防「设计了没实现」** · review 据此核(soft 完整性自证 · 非橡皮图章)。
@@ -877,11 +877,12 @@ state.py dev-complete --feature <path> --auto-commit <hash> \
 
 
 def _dev_transition(state: dict) -> Optional[str]:
-    """dev 完成后的下一 stage。"""
-    flow = _flow_key(state)
-    if flow == "Micro":
-        return "pm_acceptance"  # Micro 跳过 review/test · 仍走 pm_acceptance(用户验收)→ ship
-    return "review"  # Feature / Bug / 敏捷 都走 review
+    """dev 完成后的下一 stage。
+
+    v8.250:micro 不再走 dev(改走 execute → ship · 见 EXECUTE_SPEC)—— dev 只服务
+    Feature(full)/ Bug / 敏捷(legacy),全部 → review。旧 Micro→pm_acceptance 分支已删(死路)。
+    """
+    return "review"
 
 
 DEV_SPEC = StageSpec(
@@ -1488,11 +1489,11 @@ def _blueprint_brief(state: dict) -> str:
     return f"""## Blueprint Stage
 
 ### 目标
-QA 起草 TC(BDD) · RD 起草 TECH · 🔴 **两路并行评审**(v8.244 默认 roster:Architect 主审〔简洁性 counter-lens〕+ 覆盖方向制外审〔QA 可测试视角并入 + AI 自主方向 ≥1〕· ⚡ 同发互不喂)· 实现前方案收敛。
+QA 起草 TC(BDD)**∥** RD 起草 TECH(⚡ v8.256:两者相互独立 · **并行同发** · 完成后互查 covers_ac↔测试策略;goal 投机窗已产 TECH 草稿则接续)· 🔴 **两路并行评审**(v8.244 默认 roster:Architect 主审〔简洁性 counter-lens〕+ 覆盖方向制外审〔QA 可测试视角并入 + AI 自主方向 ≥1〕· ⚡ 同发互不喂)· 实现前方案收敛。
 
 ### 结果(完成判定)
 - `TC.md`(frontmatter:`tests` · verify-ac.py 通过)
-- `TECH.md`(照 `templates/tech.md` 全结构:现状基线 / 模块 / 数据 / 接口 / **错误处理+日志** / **依赖与影响**〔消费方清单〕/ **查询性能**〔涉 SQL 给理由〕/ 测试策略 / 风险 / **完工自查槽**)
+- `TECH.md`(照 `templates/tech.md` 全结构:现状基线 / 模块 / 数据〔🔴 v8.255 变更最小化四问:复用既有/应用层算/不入库/并入扩展列 · 全否才入变更表 · 每项带「解决什么问题 + 为何非更简方案不可」〕/ 接口 / **错误处理+日志** / **依赖与影响**〔消费方清单〕/ **查询性能**〔涉 SQL 给理由〕/ 测试策略 / 风险 / **完工自查槽**)
 - `TECH-REVIEW.md`(frontmatter:`reviewers + verdict`)
 - `{{artifact_root}}/external-cross-review/*.md`(roster 含 external 时至少 1 份 · 🔴 含 `coverage: [...]` 申报——必覆盖 可测试〔TC 质量/测试策略〕· 方案盲区〔依赖/影响面/迁移风险〕+ AI 自主方向 ≥1〔候选:数据一致性/迁移风险/性能/安全边界〕· 每方向 finding 或「查过无发现」)
 
@@ -1500,7 +1501,7 @@ QA 起草 TC(BDD) · RD 起草 TECH · 🔴 **两路并行评审**(v8.244 默认
 **必读** `stages/blueprint-stage.md`(详细步骤 + §7.5 DB schema 条件暂停点)。
 
 🔴 v8.217 持续分诊(降级触发):TECH 写完若复杂度评估=**简单**且零架构决策 · 而 roster 仍重 → 可提议降级(R5 一句确认 → `change-review-roles --reason`)—— 分诊不是一次性的 · 每个 gate 都可重校准(升级触发已有 · 本条补反向)。\n🔴 v8.216 评审配置动态化:external 跑不跑 = **按 `state.stage_review_roles.blueprint`**(prepare 按角色价值判定 · 去 external → gate 自动放行 · 审计留痕)· review 阶段 roster 独立判定(明确 ≠ 不会写错)。\n🔴 **TECH 方案涉及数据库数据结构变更**(新建/删除/修改 表、字段、索引、约束、migration)·
-blueprint-complete 前必 emit R5 用户确认暂停点(stage.md §7.5)· 🔴 暂停点**必自带变更点明细表**(对象|变更|用途 每对象一行 + 关键迁移策略 —— 分类概括/文件指针不算 · v8.242 实证:概括式 emit 逼用户追问「方案是什么」)· 不涉及则跳过。
+blueprint-complete 前必 emit R5 用户确认暂停点(stage.md §7.5)· 🔴 暂停点**必自带变更点明细表**(对象|变更|**解决什么问题**|**为何非更简方案不可**|破坏性 每对象一行 + 关键迁移策略 —— 分类概括/文件指针不算〔v8.242 实证:概括式 emit 逼用户追问〕· 只写「内容」不写「为什么」也不算〔v8.255 实证:三张新表无一句动机 · 用户点名要目的与更简方案质询〕)· 不涉及则跳过。
 
 ### 完成方式
 ```
@@ -2097,6 +2098,8 @@ def parse_review_findings(feature_dir) -> tuple[Optional[list], str]:
             "status": status,
             "title": str(d.get("title", "")).strip(),
             "source": str(d.get("source", "")).strip(),
+            # v8.251:release-gated 裁决 —— status=deferred 时记「为何 defer + 欠什么证据」
+            "deferred_reason": str(d.get("deferred_reason", "")).strip(),
         })
     if errors:
         return None, " · ".join(errors[:6])
@@ -2105,6 +2108,25 @@ def parse_review_findings(feature_dir) -> tuple[Optional[list], str]:
     if dup:
         return None, f"findings id 重复:{dup}(台账按 id 合并 · id 必须唯一)"
     return findings, ""
+
+
+def release_gated_deferrals(feature_dir) -> list:
+    """v8.251:抽 REVIEW.md 里 release-gated 的 deferred finding(carry-forward 到 pm_acceptance/ship)。
+
+    返 [{id, severity, title, owed}] —— status=deferred 且 deferred_reason 含 'release-gated'。
+    owed = deferred_reason 去掉 release-gated 前缀后的欠证据描述。解析失败/无 → []。
+    """
+    findings, err = parse_review_findings(feature_dir)
+    if err or not findings:
+        return []
+    out = []
+    for f in findings:
+        reason = (f.get("deferred_reason") or "").strip()
+        if f.get("status") == "deferred" and "release-gated" in reason.lower():
+            owed = re.sub(r"(?i)^release-gated\s*[·:\-]?\s*", "", reason).strip() or reason
+            out.append({"id": f["id"], "severity": f["severity"],
+                        "title": f.get("title", ""), "owed": owed})
+    return out
 
 
 def merge_findings_ledger(contract: dict, findings: list, cur_round: dict) -> None:
@@ -2175,6 +2197,21 @@ def _evidence_review_findings_gate(state: dict, args) -> tuple[bool, str]:
         return False, (
             f"--verdict APPROVE 但存在 open 的 BLOCKER/MAJOR:{ids} · "
             "修复(status: fixed)或带依据裁决(rejected / deferred)后才可 APPROVE"
+        )
+    # v8.251 防滥用护栏:deferred 的 BLOCKER/MAJOR 必须写 deferred_reason(为何 defer + 欠什么证据)·
+    # 空 defer = 把真阻塞扫地毯下。release-gated(真部署/真墙钟/真生产平台)才可 defer ·
+    # 能 mock/fake/注入时钟复现的(如外部平台 WireMock、soak 缩时)= 本地可做 · 不是 release-gated · 必须做完。
+    bare_defer = [f for f in (findings or [])
+                  if f["status"] == "deferred" and f["severity"] in ("BLOCKER", "MAJOR")
+                  and not f.get("deferred_reason", "").strip()]
+    if bare_defer:
+        ids = " · ".join(f["id"] for f in bare_defer)
+        return False, (
+            f"deferred 的 BLOCKER/MAJOR 缺 deferred_reason:{ids} · "
+            "🔴 defer 必须举证「为何 + 欠什么证据」· 只有 release-gated(证据物理上必须 post-deploy:"
+            "真实 rollout/rollback · 墙钟 soak ≥ 小时/天 · 不可 mock 的真实生产平台)才可 defer;"
+            "能 mock/fake/注入时钟复现的(外部平台 WireMock · soak 注入 clock 缩时)= 本地可做 · "
+            "**必须做完再 APPROVE** · 不许 defer(详 stages/review-stage.md § release-gated)"
         )
     return True, ""
 
@@ -2273,6 +2310,8 @@ def _review_verify_round_brief(state: dict, rounds: list) -> str:
 ### 本轮只做两件事
 1. **逐条裁决上轮 open finding**:fixed / not-fixed(REVIEW.md findings 更新 status · 带依据)
 2. **回归审查修复 diff**(`{diff_ref}`):只看修复本身引入的新问题
+
+🎚️ **验证轮 = 校验型任务 → 派发用验证档模型**(v8.256 · sonnet 级):核实 fix 落实 + 范围锁定内找新 = 对照清单干活 · 非开放式判断(首轮全量冷审仍不降档)—— goal/review 循环的 Round 2+ 是 AI 自主耗时大头 · 降档快 2-3 倍零质量风险。
 
 ### 🔴 范围锁定规则
 - **禁全量重扫**:新 finding 仅两种合法来源 ——(a)出自修复 diff;(b)BLOCKER 级且附「为何首轮未发现」
@@ -2685,10 +2724,21 @@ BROWSER_E2E_SPEC = StageSpec(
 
 def _pm_acceptance_brief(state: dict) -> str:
     """v8.0+P0-8 极简版:目标 + 结果 + 完成方式 · 怎么做归 stage.md。"""
+    # v8.251:carry-forward release-gated 待补证据 —— 用户验收时必须看到「发版后欠什么」
+    _rg = release_gated_deferrals(state.get("artifact_root") or ".")
+    _rg_block = ""
+    if _rg:
+        _lines = "\n".join(f"  - {d['id']}({d['severity']}):{d['owed']}" for d in _rg)
+        _rg_block = (
+            f"\n\n### 🚚 发版后待补证据(release-gated · {len(_rg)} 项 · review 已 deferred)\n"
+            "这些证据物理上必须发版后才能产(真实 rollout/soak/生产平台)· 不阻塞本次验收 · "
+            "但**发版后必须补**(ship 台账已留痕):\n" + _lines +
+            "\n🔴 验收时向用户点明这几项是「发版义务」· 用户知情后再拍板 decision。"
+        )
     return f"""## PM Acceptance Stage
 
 ### 目标
-PM 站在用户视角逐条 AC 对照实现 · 验收后 **emit 三选项暂停点 · 用户拍板 decision**。
+PM 站在用户视角逐条 AC 对照实现 · 验收后 **emit 三选项暂停点 · 用户拍板 decision**。{_rg_block}
 
 ### 🔴 decision 是用户决策点(R5)· AI 不可自决
 - PM 角色只做 AC 验收 + emit 三选项 markdown · 然后**停** · 等用户回 1/2/3
@@ -2791,6 +2841,9 @@ PM_ACCEPTANCE_SPEC = StageSpec(
 
 def _check_pm_approved_ship(state: dict, args) -> bool:
     """pm_acceptance decision == 'approved_and_ship' · 容错读 evidence/旧位(详 _pm_decision_value)"""
+    # v8.250:micro 链 = execute → ship(无 pm_acceptance)· 用户验收在 ship1 MR diff · 直接放行
+    if _flow_key(state) == "Micro":
+        return True
     pm_c = state.get("stage_contracts", {}).get("pm_acceptance", {})
     if pm_c.get("output_satisfied") is not True:
         return False
@@ -2870,6 +2923,47 @@ SHIP_SPEC = StageSpec(
 )
 
 
+# ─── execute:micro 唯一工作 stage(v8.250 · 零门禁自由执行)──────────────
+
+
+def _execute_brief(state: dict) -> str:
+    """micro 自由执行 brief · 无规范限制 · 目标=完成任务。"""
+    return """## Execute Stage(micro · 自由执行 · 无规范限制)
+
+### 目标
+**完成任务**。就这一个目标 —— prepare 已把意图/流程/worktree/ID 定好,准入白名单已卡死零逻辑改动(文案/样式/资源/配置常量/注释),所以这里**没有 stage 门禁、没有评审、没有强制测试、没有 DEV-RULES**。
+
+### 你自主决定(无框架限制)
+- **怎么做**:直接改 / 派 subagent / teammate / workflow —— AI 自选最合理的方式。
+- **用什么模型**:自选档位(micro 多是机械改 · 通常继承会话即可)。
+- **要不要测/验证**:自决 —— 零逻辑改动多数不需要,涉渲染/构建产物顺手验一眼也行。
+
+### 唯一硬边界(2 条 · 不可破)
+1. 🔴 **代码写 worktree 内路径**(`{worktree}/...`)—— 并行 feature 隔离不能破(详 SKILL § worktree 纪律)。
+2. 🔴 **改动不得超出 micro 准入白名单** —— 干着干着发现涉及逻辑/接口/结构变更(不再是零逻辑)→ 停,升级为 Feature(回 prepare · 别在 micro 里硬塞)。
+
+### 完成方式
+干完 → `git commit` → `state.py execute-complete --feature <path> --auto-commit <hash>` → **自动转 ship**(无 pm_acceptance · 用户验收在 ship1 的 MR diff review)。
+"""
+
+
+def _execute_transition(state: dict) -> Optional[str]:
+    """execute 完成 → 直接 ship(micro 无 review/test/pm_acceptance)。"""
+    return "ship"
+
+
+EXECUTE_SPEC = StageSpec(
+    name="execute",
+    prerequisites=[],          # 零前置(worktree 物理/cwd 校验由 execute_stage_start 通用兜底)
+    artifacts=[],              # 无强制产物(改代码直改 · 空 = 跳过 artifacts-in-commit 校验)
+    evidence_checks=[],        # 无 evidence 门(自由执行 · 唯一要求 = commit 存在,由通用 -complete 兜底)
+    allowed_flow_types=["Micro"],
+    brief_template_fn=_execute_brief,
+    auto_transition_fn=_execute_transition,
+    authorized_pause_point="无暂停 · 完成即自动转 ship(用户验收在 ship1 MR diff)",
+)
+
+
 # ─── STAGE_SPECS 汇总 ──────────────────────────────────────────────────
 
 
@@ -2881,6 +2975,7 @@ STAGE_SPECS: dict[str, StageSpec] = {
     "blueprint_lite": BLUEPRINT_LITE_SPEC,
     "diagnose": DIAGNOSE_SPEC,
     "dev": DEV_SPEC,
+    "execute": EXECUTE_SPEC,   # v8.250:micro 唯一工作 stage(零门禁自由执行)
     "review": REVIEW_SPEC,
     "test": TEST_SPEC,
     "browser_e2e": BROWSER_E2E_SPEC,

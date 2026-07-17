@@ -98,7 +98,7 @@ class TestParseReviewFindings(unittest.TestCase):
         self.assertEqual(err, "")
         self.assertEqual(findings, [{
             "id": "F1", "severity": "MAJOR", "status": "open",
-            "title": "缺 X, 校验", "source": "qa"}])
+            "title": "缺 X, 校验", "source": "qa", "deferred_reason": ""}])  # v8.251:+deferred_reason
 
     def test_block_style_parses(self):
         _write_findings_md(self.feat / "REVIEW.md", "NEEDS_REVISION",

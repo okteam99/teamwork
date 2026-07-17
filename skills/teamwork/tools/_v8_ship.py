@@ -469,6 +469,17 @@ def _handle_ship_push(state: dict, args: argparse.Namespace) -> dict:
         _r = _git(["rev-parse", "--abbrev-ref", "HEAD"], cwd=str(Path(_feat_path)), timeout=10)
         if _r.returncode == 0 and _r.stdout.strip():
             _branch = _r.stdout.strip()
+    # v8.251:carry-forward release-gated 待补证据到 ship1 卡片(用户合并前必须知道「发版后欠什么」)
+    _rg_line = ""
+    if _feat_path:
+        try:
+            from _v8_stage_specs import release_gated_deferrals
+            _rg = release_gated_deferrals(Path(_feat_path))
+            if _rg:
+                _items = " · ".join(f"{d['id']}:{d['owed']}" for d in _rg)
+                _rg_line = f"- 🚚 **发版后待补证据({len(_rg)} 项 · release-gated)**:{_items}\n"
+        except Exception:
+            _rg_line = ""
     user_card = (
         f"⏸️ **ship1 完成 · 请合并 MR**\n"
         f"\n"
@@ -476,6 +487,7 @@ def _handle_ship_push(state: dict, args: argparse.Namespace) -> dict:
         f"\n"
         f"- 分支:`{_branch}` → `{state.get('merge_target') or '<merge_target>'}`\n"
         f"- 包含:代码 + 归档 + 规划翻牌(随本 MR 原子合入)\n"
+        + _rg_line +
         f"- 监控:我将跑 `await-merge` 30s 轮询 —— **你只需在平台点合并** · 合并后自动清场(删 worktree + 净化主工作区)\n"
         f"- 异常口令:平台报冲突 → 回「冲突」(我回 worktree 重跑 archive 解)· 不想合了 → 回「撤回」"
     )
@@ -853,6 +865,30 @@ def _handle_ship_archive(state: dict, args: argparse.Namespace) -> dict:
             ),
         }, exit_code=0)
 
+    # v8.253 翻牌验收门:--planning-artifacts 是自由声明 · 本检查验「声明的翻牌真的翻了」——
+    # state.bl 已知时 · worktree 内 ROADMAP 对应 BL 行状态格必须已翻完成态(已完成/已交付/已上线)。
+    # 实证 case:S1 ship 漏翻状态格 → ws-progress 误报 0/4 · ready_to_start 失真 · 人工查账才发现。
+    # --no-planning-changes 也不豁免(有 BL 关联 = 必有 ROADMAP 行可翻 · 矛盾同拦)。
+    _blf_exc = (getattr(args, "bl_flip_exception", None) or "").strip()
+    if _blf_exc:
+        ship["bl_flip_exception"] = _blf_exc  # 例外走 audit 留痕 · 不静默
+    else:
+        _blf = _check_bl_flipped(wt_root, state)
+        if _blf["status"] == "not_flipped":
+            emit_json({
+                "verdict": "PENDING", "stage": "ship", "action": "archive",
+                "pending_step": "bl-status-flip",
+                "bl": _blf["bl"], "rows": _blf["rows"],
+                "next_action": (
+                    f"🔴 state.bl={_blf['bl']} 的 ROADMAP 行状态格**未翻完成态**(现状见 rows)· "
+                    "实证 case:漏翻 → 进度误报 0/N · ready_to_start 失真 · 直到人工查账。\n"
+                    "  ① 在 **worktree 内**把该行状态翻「已完成/已交付」+ 填「对应 F编号」(本 feature F-id)\n"
+                    f"  ② 该 ROADMAP 计入 --planning-artifacts 重跑 archive(翻牌随 feature MR 原子合入)\n"
+                    "  确属例外(部分交付 · 该行确不该翻)→ 重跑加 "
+                    "--bl-flip-exception '<为什么不翻 · 一句>'(记 state.ship 审计 · 不静默)"
+                ),
+            }, exit_code=0)
+
     # v8.113 描述门禁(≤200 字 · 写 INDEX.md)
     raw_desc = getattr(args, "archive_desc", None)
     archive_desc = _clean_archive_desc(raw_desc)
@@ -1120,6 +1156,48 @@ def _teamwork_tmp_root() -> Path:
     if override:
         return Path(override)
     return Path(os.environ.get("TMPDIR") or "/tmp") / "teamwork"
+
+
+def _check_bl_flipped(wt_root: str, state: dict) -> dict:
+    """v8.253:翻牌验收 —— state.bl 对应的 ROADMAP 行状态格是否已翻完成态。
+
+    --planning-artifacts 是自由声明 · 本函数验「声明的翻牌真的翻了」(实证 case:
+    S1 ship 漏翻状态格 → 进度误报 0/4 · ready_to_start 失真 · 人工查账才发现)。
+    返 {status: flipped|not_flipped|skip, ...}:
+      - state.bl 未设 → skip(ad-hoc · init-feature 未传 --bl · 无绑定不硬猜)
+      - worktree 内无该 BL 行 → skip(行可能在其他仓/legacy 表 · 不误拦)
+      - 任一 ROADMAP 行已翻完成态(v8.252 词表:已完成/已交付/已上线)→ flipped
+    复用 state.py 的行解析/状态桶/扫描排除(懒加载防循环 import)。
+    """
+    bl = (state.get("bl") or "").strip()
+    if not bl:
+        return {"status": "skip", "reason": "state.bl 未设(init-feature 未传 --bl)"}
+    from state import _parse_roadmap_rows, _ws_status_bucket, _ws_scan_ok
+    root = Path(wt_root)
+    rows_found: list = []
+    flipped: list = []
+    try:
+        roadmaps = sorted(root.rglob("ROADMAP.md"))
+    except OSError:
+        roadmaps = []
+    for rm in roadmaps:
+        if not _ws_scan_ok(rm, root):
+            continue
+        for r in _parse_roadmap_rows(rm):
+            if r.get("bl") == bl:
+                try:
+                    rel = str(rm.relative_to(root))
+                except ValueError:
+                    rel = str(rm)
+                rows_found.append({"roadmap": rel, "status": r.get("status", "")})
+                bucket, _known = _ws_status_bucket(r.get("status", ""))
+                if bucket == "已完成":
+                    flipped.append(rel)
+    if not rows_found:
+        return {"status": "skip", "reason": f"worktree 内无 ROADMAP 行含 {bl}"}
+    if flipped:
+        return {"status": "flipped", "bl": bl, "roadmaps": flipped}
+    return {"status": "not_flipped", "bl": bl, "rows": rows_found[:5]}
 
 
 def _prune_feature_tmp(feature_id: str) -> dict:
@@ -2643,6 +2721,9 @@ def register_v8_ship_subparser(sub) -> None:
                           "随 feature MR 原子合入 · AI 先在 worktree 内翻牌再传"))
     sp.add_argument("--no-planning-changes", action="store_true",
                     help="[archive] 显式声明无规划层可翻(ad-hoc Bug/Micro · 无关联 BL)")
+    sp.add_argument("--bl-flip-exception",
+                    help=("[archive · v8.253] BL 行确不该翻完成态时的例外理由(如部分交付)· "
+                          "跳过翻牌验收门 · 记 state.ship 审计留痕"))
     sp.add_argument("--archive-desc",
                     help="[archive] ≤200 字极简 feature 描述 · 写归档 INDEX.md · 超长 FAIL")
 

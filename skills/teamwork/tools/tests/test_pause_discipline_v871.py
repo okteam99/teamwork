@@ -93,7 +93,7 @@ class TestContinuousStagesRegression(unittest.TestCase):
     stage.md §7.5)· 字段与 brief 红线对齐后不再声明「无暂停」。
     """
 
-    EXPECTED_NO_PAUSE = {"dev", "blueprint_lite", "test"}
+    EXPECTED_NO_PAUSE = {"dev", "execute", "blueprint_lite", "test"}
 
     def test_expected_no_pause_set(self):
         actual = {n for n, s in STAGE_SPECS.items()

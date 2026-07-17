@@ -35,7 +35,7 @@
 | external(第三视角冷审 · 默认同模型 subagent · 异质 opt-in) | **覆盖方向制** | 🔴 **必覆盖**:**可实现**(技术可行 / 架构影响 / **简洁性 counter-lens**〔过度设计?职责焊错层?〕——唯一防过度设计 lens)· **可验证**(AC 可测试性 / 边界场景 / 空值异常分支)+ 🔴 **AI 自主方向 ≥1**(按 feature 特性自选:安全 / 性能 / 数据一致性 / 兼容 / 运维…)。每方向给 finding 或「查过无发现」· 段记 `coverage: [...]`(物化门 `external_coverage_present`) |
 | qa / architect(默认并入外审覆盖方向) | 独立冷审(roster 加回时) | 复杂 feature(schema 即交付物 / 测试面大 / 架构决策重)→ `change-review-roles` 加回独立跑 · mandate = 上面覆盖方向的对应拆分 |
 
-**修订与收敛**:PM 逐条响应(ADOPT/REJECT/DEFER)· `adversarial_self_check` 双向——ADOPT 前先质疑 finding 不成立、REJECT 前先 steelman,**两个方向都给实证**(「冷审说得对」「我觉得没事」都不是理由);Round 2+ 重新派**冷** Agent 走验证模式(喂修订 PRD + 上轮 finding + 处置,核实 fix + 找新,防重复提已解决)。
+**修订与收敛**:PM 逐条响应(ADOPT/REJECT/DEFER)· `adversarial_self_check` 双向——ADOPT 前先质疑 finding 不成立、REJECT 前先 steelman,**两个方向都给实证**(「冷审说得对」「我觉得没事」都不是理由);Round 2+ 重新派**冷** Agent 走验证模式(喂修订 PRD + 上轮 finding + 处置,核实 fix + 找新,防重复提已解决)· 🎚️ **验证轮派发用验证档模型**(v8.256 · 校验型任务 · 首轮全量冷审不降档)。
 
 **评审聚焦三问**:业务目标清晰?当前环境可实现?方案恰当简洁?
 
@@ -50,6 +50,8 @@ frontmatter `acceptance_criteria[] + revision_history[]`(均必);body 按 templa
 frontmatter `reviewers`(= stage_review_roles.goal · v8.243 默认 `[pl, external]`)+ `verdicts: {role: APPROVE|NEEDS_REVISION|SKIP}`;body 每冷审 Agent 单独段 · cite PRD 行号 · PL 段 = PL-CHALLENGE 段 · external 段 = 覆盖方向制(记 `coverage: [...]` · 按方向分小节)· 标 `execution: subagent`。schema 单源 = templates/prd.md § PRD-REVIEW schema。异质 opt-in(localconfig `false`)时外审改跑 `state.py external-review` 产 `external-cross-review/goal-<model>.md`(不手写)· PRD-REVIEW external 段引其结论。
 
 ### ⏸️ 用户最终确认(R5 · 「重点 review 指引」导读先行)
+
+🔮 **投机窗**(v8.256 · 等待窗不闲置的 goal 特化):emit 终确认暂停点后 · **后台派 TECH 草稿 subagent**(读 PRD 终稿候选 · 产物 = worktree 内 TECH.md 草稿 · 🔴 不跑任何 state 命令)——数据支撑:终确认「改:默」台账 ≈ 全默(PRD 此刻变动率≈0 · 冷审已收敛)· goal 等待中位 26m ≈ blueprint 起草中位 27m(等待窗恰好藏下)。用户 `ok` → blueprint-start 后草稿直接接续(TC 起草与冷审照跑);用户有改 → 草稿差量更新。auto/yolo 不适用(确认点 skip · 无等待窗)。🔴 时点纪律:**只在终确认暂停点后投机**(冷审收敛前 PRD 是活靶 · finding 采纳率 80-90% · v1 时点投机必返工)。
 确认前 emit 导读——**首节分两层**:🟡 **你要拍板的**(REJECT/DEFER/升级项 · **每条写成 A/B 选择题 + 我的倾向** · 说人话 · finding id 挪括号)/ ✅ **已处理**(ADOPT 压成主题保 substance · 不逐条 spell 码);余节 ≤2 行:核心取舍/范围收窄/影响面/修订轨迹/残留风险——**全部照实抄落盘产物 · 空节写「无」**(why:导读给没读过 PRD 的人;决策与 ADOPT 平铺等权 = 决策被淹)。然后 R5 标准 1/2/3(1=confirm+`goal-complete --needs-ui <bool>` 💡 / 2=按反馈修订重审 / 3=其他)· 剩余 §待决策项一次性 escalate(早问门问过的不重复)。
 
 **过场观测**:PL-CHALLENGE 采纳率 / 早问门「改:默」进 PROCESS-LEDGER——长期零采纳 = 过场信号,收紧判据。

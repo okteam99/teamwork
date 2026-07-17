@@ -25,7 +25,8 @@ class TestFlowKey(unittest.TestCase):
 
     def test_micro_initial_stage_dev(self):
         # 🔴 v8.222 修的真 bug:归一后直接查表 → micro 错拿 goal
-        self.assertEqual(DEFAULT_INITIAL_STAGE[internal_flow_key("Feature", "micro")], "dev")
+        # v8.250:micro 首 stage dev → execute(零门禁自由执行)
+        self.assertEqual(DEFAULT_INITIAL_STAGE[internal_flow_key("Feature", "micro")], "execute")
 
     def test_specs_flow_key(self):
         self.assertEqual(S._flow_key({"flow_type": "Feature", "preset": "micro"}), "Micro")
@@ -49,7 +50,10 @@ class TestRevivedGates(unittest.TestCase):
         self.assertTrue(S._check_test_done_or_micro({"flow_type": "Feature", "preset": "micro"}, None))
 
     def test_micro_dev_next_stage(self):
-        self.assertEqual(S._dev_transition({"flow_type": "Feature", "preset": "micro"}), "pm_acceptance")
+        # v8.250:micro 改走 execute → ship(不再进 dev)· dev 一律 → review(去 micro 特例)
+        # micro 真实链在 test_micro_execute_v8250.py 覆盖
+        self.assertEqual(S._dev_transition({"flow_type": "Feature", "preset": "full"}), "review")
+        self.assertEqual(S._dev_transition({"flow_type": "Bug"}), "review")
 
 if __name__ == "__main__":
     unittest.main()

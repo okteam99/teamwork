@@ -27,6 +27,7 @@ state.py ship-phase --action archive --feature <path> \
 
 state.py 一口气做完(单 commit 进 feature 分支):
 1. **规划翻牌 gate**:未传 `--planning-artifacts` 且未传 `--no-planning-changes` → emit `PENDING`(AI 先在 **worktree 内**翻规划层 back-ref · 详 §3.5)
+1.5 **翻牌验收门**(v8.253 · 声明→机器验收):`state.bl` 已知 → worktree 内 ROADMAP 对应 BL 行状态格**必须已翻完成态**(已完成/已交付/已上线 · v8.252 词表)· 未翻 → PENDING(`--no-planning-changes` 不豁免 —— 有 BL = 必有行可翻);确属例外(部分交付)→ `--bl-flip-exception '<理由>'` 审计留痕(实证 case:漏翻状态格 → 进度误报 0/4 · 人工查账才发现)
 2. **终态 state.json**:`current_stage=completed` + `ship.phase=archived`(终态进 zip = 墓碑 ·「completed 宣称」随 MR 合入与落地**原子可见**)
 3. **zip + INDEX**:整个 feature 目录(工作树快照 · 含未 commit 的 review-log.jsonl)打成 `features/_archive/<id>.zip` · `_archive/INDEX.md` 追加一行(描述列 = `--archive-desc` · 超 200 字 FAIL · §15)
 4. **`git rm --cached` 过程目录**(只删 index · **工作树保留** = ship2 接力卡)+ `git add` {zip + INDEX + 翻牌文件} + 单 commit
