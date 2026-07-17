@@ -31,6 +31,7 @@
 | [knowledge.md](./knowledge.md) | KNOWLEDGE（AI 沉淀：Gotchas / Flagged Ambiguities / Preferences / Out-of-Scope） | bootstrap 建骨架 · bug/review/验收硬时机追加 |
 | [dev-rules.md](./dev-rules.md) | DEV-RULES（人维护强制开发规范） | bootstrap 无则建空壳 · blueprint/dev 必读 |
 | [ui-rules.md](./ui-rules.md) | UI-RULES（人维护设计策略 · 装策略不装视觉值） | bootstrap 无则建空壳 · ui_design 必读 |
+| [release-guide.md](./release-guide.md) | RELEASE-GUIDE（人维护版本发布规范 · 自带默认流程） | bootstrap 无则建 · 用户说「发布/上线」PMO 必读照办 |
 | [glossary.md](./glossary.md) | GLOSSARY 业务术语表 | bootstrap 建空壳 · PRD/TECH 起草前 + triage 按需读 |
 | [troubleshooting.md](./troubleshooting.md) | TROUBLESHOOTING 排查工具集（环境 / log / DB / 敏感配置读法） | bootstrap 建空壳 · 排查与 AI 连环境时必读 |
 | [process-ledger.md](./process-ledger.md) | PROCESS-LEDGER 流程价值台账（一行一 feature · 年检数据源） | ship1 规划 gate append · 无则按模板建 |

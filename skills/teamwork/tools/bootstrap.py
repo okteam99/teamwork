@@ -168,6 +168,9 @@ def maintain_project_skeletons(skill_root: Path, project_root: Path) -> dict:
         # v8.117:workspace 级系统架构(子项目拓扑+依赖+目录布局)· 从 teamwork-space.md 外迁 ·
         # 区别于 per-subproject {子项目}/docs/architecture/(单子项目内部技术架构)。
         ("ARCHITECTURE.md", "architecture-workspace.md"),
+        # v8.258:版本发布规范(集成分支→生产)· 用户说「发布/上线」时 PMO 必读照办 ·
+        # 模板自带默认流程(staging→main MR + URL 置顶 + 提醒合入)· 人维护可改。
+        ("RELEASE-GUIDE.md", "release-guide.md"),
     ]
     specs_dir = project_root / PROJECT_SPECS_DIR
 
