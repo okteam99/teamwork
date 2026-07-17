@@ -4,6 +4,25 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.267 · fast 模式评审最多 2 轮 · 轮尽未收敛决策点抛用户
+
+> 用户指令:「fast 模式评审最多 2 轮,无法收敛的决策点抛用户」。fast 的提速语义补上收敛端:单路合并评审(v8.261)管宽度,本版管深度 —— 首轮全量 + 1 验证轮共 2 轮,轮尽不再循环,把未收敛的决策点直接交用户拍板。
+
+### 引擎(硬拦)
+- `FAST_MAX_REVIEW_ROUNDS = 2`:`review-retry` 处 `state.fast_mode` → 预算 = min(localconfig `max_review_rounds`, 2)(显式配更小则从小)。
+- 超预算 R5 暂停点:标题带「⚡ fast 模式封顶」标记 · 首行明示「以下即未收敛决策点 · 请你拍板」(open findings 按 severity 列全 + 1/2/3 · 逃生 `--user-confirmed --reason` 照旧)。
+
+### 消费时点提醒(brief)
+- goal 首轮 brief fast 串:冷审最多 2 轮 · 第 2 轮末未收敛 → 停止循环 · 决策点列进终确认导读 🟡「你要拍板的」(goal 无引擎轮门 · 复用既有终确认暂停点作为抛出通道)。
+- review 首轮 brief fast 串:评审预算封顶 2 轮(引擎硬拦)。
+- 验证轮 brief(fast 时):「⚡ 本轮即最后一轮」置顶提醒。
+
+### 文档
+- goal-stage 规则 7(收敛软上限 3 轮)补 fast 2 轮分支;review-stage 规则 6(轮次预算)补 fast 封顶;SKILL fast 节 + localconfig 模板注释 + config.md 同步。
+
+### 验证
+- 新增 3 测试(默认 3→封顶 2 拦 round 3 / localconfig=1 取更小 / 三处 brief 提醒 + 非 fast 无)· pytest 915 passed。
+
 ## v8.266 · 修正 v8.265:兜底不是「默认不做」· 是逐项算 ROI
 
 > 用户修正:「不是默认不做,需要考虑 ROI」。v8.265 把判据写成了先验偏向(默认不做 / 重点砍除对象)—— 正解是**中性算账**:每个兜底逐项算 保护场景的真实概率×后果 vs 实现维护成本,**ROI 立得住 → 做;立不住 → 砍**。两个方向都不许偷懒:AI 天然偏加兜底(别不算账就加),但高概率×高代价的兜底是正收益(别一刀全砍)。
@@ -53,19 +72,3 @@
 
 ### 验证
 - 纯模板/文档 · pytest 912 passed。
-
-## v8.262 · yolo 忽略 fast + PRD 送审前自检(评审关注点前置)
-
-> 用户两令:①yolo 模式忽略 fast(不再互斥报错);②优化 PM 写产品文档的约束 —— 把要评审的点提前考虑进去 · 不要等评审有问题再改。
-
-### ① yolo 忽略 fast(v8.261 互斥 → v8.262 静默覆盖)
-- `--yolo` + localconfig `fast_mode: true` → **不报错** · fast 静默不生效(无人值守回全量评审安全网)· kickoff concerns 记 INFO 留痕(用户知情)。修复顺带抓到的缩进 bug:原实现 yolo 分支后 roster 仍被改成 fast 伪角色 —— 已归位 else 内。
-- SKILL fast 节 / config.md / localconfig 注释 三处同步。
-
-### ② PRD 送审前自检(评审关注点前置 · 治 Round 2+ 修订循环)
-- 数据:goal 占 AI 自主 44% · 大头 = 修订循环;finding 采纳率 80-90% = **多数问题可预见** · 前置消掉最省。
-- **templates/prd.md 新增 §送审前自检**(起草完 · 送冷审前 · 逐项打钩):PL 六问自问(答不出先补 · 别指望冷审替你想)/ **可实现**自查(依赖的接口字段真实存在 · 读过真实代码非假设)/ **可验证**自查(AC 可测 · 无「尽量/合理/优化」含糊词 · 边界异常有归宿)/ 高频 finding 预检(术语已定义 · AC 无矛盾)。
-- goal-stage ③ 起草段 + goal brief 8 步链(起草 v0.1 → **送审前自检** → 冷审)消费点同步。
-
-### 验证
-- pytest 912 passed。

@@ -1,6 +1,6 @@
 ---
 name: teamwork
-version: v8.266.1
+version: v8.267
 description: AI 协作开发一体化框架 - 需求功能开发, bug 修复, 问题排查 · /teamwork 启动
 ---
 
@@ -465,6 +465,7 @@ emit 格式:
   - **PRD 评审(goal)**:一路隔离冷审兼 **PL + 外审**关注点(质疑六问 ≥1 实质 + 可实现/可验证 + AI 自主方向)· 产单份 PRD-REVIEW.md(`reviewers: [fast]`)· verdicts 全 APPROVE 门照拦;
   - **代码 review**:一路隔离评审兼 **Architect + QA** 关注点(实现↔设计一致性/简洁性 counter-lens + 测试真实性与覆盖/代码质量盲区)· 产 REVIEW.md 单份 · findings/severity/验证轮协议照跑。
 - **去掉**:blueprint 评审(不产 TECH-REVIEW.md · TC/TECH 写完直进 dev)· 两端的多路独立性(无第二路冷审 / 无 REVIEW-arch/-qa/external 独立产物)。
+- 🎯 **评审最多 2 轮**(v8.267):goal 冷审与代码 review 预算各封顶 2 轮(首轮全量 + 1 验证轮 · localconfig `max_review_rounds` 更小则从小)· 轮尽未收敛 → 不再循环,**未收敛决策点抛用户拍板**(goal → 列进 PRD 终确认导读「你要拍板的」;review → 引擎 review-retry 硬拦 · R5 暂停点列 open findings + 1/2/3)。
 - **保留**:测试证据硬门(exit 0/差分)· verify-ac · **全部用户暂停点**(prepare 4 项 / PRD 最终确认 / DB schema 确认 / pm_acceptance / ship1)· worktree 纪律 · ship 全链。
 - 🔴 **yolo 忽略 fast**(v8.262 · 不报错):yolo 无人值守靠全量评审安全网 —— `--yolo` 时 fast_mode **静默不生效**(kickoff 记 INFO 留痕)· fast 仅有人值守生效;与 auto_mode 正交可叠。
 - 适用:原型 / 个人项目提速;正式项目慎用(独立多路评审是拦真 bug 主力 · 台账实证)。

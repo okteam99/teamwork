@@ -18,7 +18,7 @@
 4. **物化门禁**(goal-complete 拦):`prd_verdicts_all_pass`(verdicts 全 APPROVE/SKIP)· `pl_challenge_present`(roster 含 pl 时 PRD-REVIEW 必有 PL-CHALLENGE 段)· `external_coverage_present`(roster 含 external 时外审段必有 coverage 申报 · v8.243)· PRD-REVIEW mtime > PRD · `--needs-ui` × flow_type 校验。
 5. **既有行为变更必升级**:PRD 改了用户可感知的既有默认行为(原 A → 现 B)→ 必入 §待决策项让用户拍板,**不可**写成「有意改变」叙述段蒙混(why:用户主权——没拍过板的不算拍板)。
 6. **规模反压**:AC > 10 → §待决策项必写「为什么不拆」或给拆分建议(why:超大 PRD 的业务目标必然稀释)。
-7. **收敛软上限**:连续 3 轮冷审不收敛 → 停止硬循环,升级用户「要不要回 planning 拆 BL / 收窄范围」(why:反复修不收敛 = 位置错了不是修得不够)。
+7. **收敛软上限**:连续 3 轮冷审不收敛 → 停止硬循环,升级用户「要不要回 planning 拆 BL / 收窄范围」(why:反复修不收敛 = 位置错了不是修得不够);⚡ **fast 上限 2 轮**(v8.267):第 2 轮末仍未收敛 → 不再循环 · 未收敛决策点直接列进终确认导读 🟡「你要拍板的」(A/B 选择题 + 倾向)抛用户拍板。
 8. **auto_mode**:早问门与最终确认不暂停,按推荐继续 + `add-concern WARN` 留痕(why:委托要留审计)。
 
 ---

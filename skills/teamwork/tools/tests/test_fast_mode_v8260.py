@@ -65,6 +65,16 @@ class TestFastModeGatesAndArtifacts(unittest.TestCase):
         self.assertFalse(prd_rev.review_artifact)   # v8.261:fast 亦必产
         self.assertTrue(tech_rev.review_artifact)   # blueprint 评审仍去 · fast 不产不查
 
+    def test_fast_briefs_carry_round_cap(self):
+        """v8.267:fast 时三处 brief 均带 2 轮上限提醒 · 非 fast 无。"""
+        self.assertIn("冷审最多 2 轮", S._goal_brief({"fast_mode": True}))
+        self.assertIn("评审预算封顶 2 轮", S._review_brief({"fast_mode": True}))
+        two_rounds = {"stage_contracts": {"review": {
+            "rounds": [{"round": 1}, {"round": 2}], "findings_ledger": []}}}
+        self.assertIn("本轮即最后一轮",
+                      S._review_brief({"fast_mode": True, **two_rounds}))
+        self.assertNotIn("本轮即最后一轮", S._review_brief(dict(two_rounds)))
+
     def test_fast_briefs_carry_merged_mandates(self):
         gb = S._goal_brief({"fast_mode": True})
         self.assertIn("单路合并冷审", gb); self.assertIn("质疑六问", gb); self.assertIn("可实现", gb)

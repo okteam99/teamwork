@@ -2134,6 +2134,7 @@ def run_tests_via_subprocess(cmd_str: str, cwd: str, timeout_sec: int,
 
 # review 轮次预算(review 收敛协议):开新轮 > 预算 → R5 升级暂停点(用户拍板)
 DEFAULT_MAX_REVIEW_ROUNDS = 3
+FAST_MAX_REVIEW_ROUNDS = 2  # v8.267 fast 模式评审预算封顶(localconfig 更小则从小)
 
 # finding severity 展示顺序(暂停点分组 · 与 specs FINDING_SEVERITIES 同序)
 _FINDING_SEVERITY_ORDER = ("BLOCKER", "MAJOR", "MINOR", "NIT")
@@ -2163,12 +2164,14 @@ def _localconfig_max_review_rounds(feature_dir: Path) -> int:
     return DEFAULT_MAX_REVIEW_ROUNDS
 
 
-def _build_review_budget_pause(rounds_done: int, max_rounds: int, ledger: list) -> str:
+def _build_review_budget_pause(rounds_done: int, max_rounds: int, ledger: list,
+                               fast: bool = False) -> str:
     """review 超预算 R5 升级暂停点 markdown(编号 1/2/3 · SKILL.md § R5(b) 格式)。"""
     open_items = [e for e in ledger if isinstance(e, dict) and e.get("status") == "open"]
     lines = [
-        f"⏸️ review 已 {rounds_done} 轮未收敛(超过 max_review_rounds={max_rounds})· "
-        f"剩余 open finding:{len(open_items)} 条"
+        f"⏸️ review 已 {rounds_done} 轮未收敛(超过 max_review_rounds={max_rounds}"
+        f"{' · ⚡ fast 模式封顶' if fast else ''})· "
+        f"剩余 open finding:{len(open_items)} 条 —— 以下即未收敛决策点 · 请你拍板"
     ]
     for sev in _FINDING_SEVERITY_ORDER:
         group = [e for e in open_items if e.get("severity") == sev]
@@ -2390,6 +2393,9 @@ def execute_stage_retry(stage_name: str, args: argparse.Namespace) -> None:
     max_review_rounds = None
     if stage_name == "review":
         max_review_rounds = _localconfig_max_review_rounds(Path(args.feature))
+        if state.get("fast_mode"):
+            # v8.267 fast:评审最多 2 轮 · 轮尽未收敛决策点抛用户(localconfig 更小则从小)
+            max_review_rounds = min(max_review_rounds, FAST_MAX_REVIEW_ROUNDS)
         if new_round_num > max_review_rounds:
             confirmed = getattr(args, "user_confirmed", False) or bool(state.get("yolo"))
             reason = (getattr(args, "reason", "") or "").strip()
@@ -2404,7 +2410,8 @@ def execute_stage_retry(stage_name: str, args: argparse.Namespace) -> None:
                     ),
                     "pause_options_markdown": _build_review_budget_pause(
                         len(rounds), max_review_rounds,
-                        contract.get("findings_ledger") or []),
+                        contract.get("findings_ledger") or [],
+                        fast=bool(state.get("fast_mode"))),
                     "hint": (
                         "⏸️ 把 pause_options_markdown 原样 emit 给用户拍板(R5)· "
                         "选 2 → review-retry --user-confirmed --reason '<用户拍板>' 放行;"

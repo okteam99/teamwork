@@ -183,7 +183,7 @@ local_env_auto_create: true
 "fast_mode": false
 ```
 
-<!-- fast_mode: 缺省 / false = 关【默认】;显式 true = 开 fast mode(v8.261 语义) -->
+<!-- fast_mode: 缺省 / false = 关【默认】;显式 true = 开 fast mode(v8.261 语义 · 评审最多 2 轮 v8.267) -->
 <!-- true:评审收敛为两端单路 —— goal 留一路合并冷审(PL+外审关注点合一 · PRD-REVIEW reviewers:[fast])· review 留一路合并评审(Architect+QA 关注点合一 · REVIEW.md 单份);blueprint 评审去掉(不产 TECH-REVIEW)· 无多路独立冷审/external。 -->
 <!-- 保留:测试硬门(exit 0/差分)· 用户暂停点(PRD 确认 / DB schema 确认 / pm_acceptance / ship1)· worktree 纪律 · verify-ac · findings/severity/验证轮协议。 -->
 <!-- 🔴 yolo 忽略 fast(v8.262 · 不报错):--yolo 时 fast_mode 静默不生效(kickoff INFO 留痕)· 无人值守回全量评审安全网 · fast 仅有人值守生效。 -->

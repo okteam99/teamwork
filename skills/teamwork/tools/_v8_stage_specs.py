@@ -420,7 +420,8 @@ def _goal_brief(state: dict) -> str:
     _fast = ("\n⚡ **fast_mode 生效**(localconfig · v8.261):**单路合并冷审** —— 派**一个**隔离 agent 兼 "
              "PL + 外审两帽 · 产**单份** PRD-REVIEW.md(frontmatter `reviewers: [fast]` · `verdicts: {fast: ...}`)· "
              "关注点两边都要:①PL 对抗质疑(质疑六问 · ≥1 实质或「无+理由」)②外审覆盖方向(可实现/可验证 + AI 自主方向 ≥1)· "
-             "verdicts 全 APPROVE 门照拦 · 无第二路独立冷审。\n"
+             "verdicts 全 APPROVE 门照拦 · 无第二路独立冷审 · 🎯 **冷审最多 2 轮**(v8.267:"
+             "第 2 轮末仍未收敛 → 停止循环 · 未收敛决策点列进终确认导读 🟡「你要拍板的」抛用户拍板)。\n"
              if state.get("fast_mode") else "")
     return f"""## Goal Stage{_fast}
 
@@ -2300,6 +2301,9 @@ def _review_findings_gate_lines() -> str:
 
 def _review_verify_round_brief(state: dict, rounds: list) -> str:
     """Round 2+ 验证轮 brief(范围锁定 · 治「每轮全量重审随机采样出新 nit」)。"""
+    _fast_cap = ("\n⚡ **fast:本轮即最后一轮**(评审预算封顶 2 轮 · v8.267):本轮末仍未收敛 → "
+                 "**不再开轮**(引擎 review-retry 硬拦)· 未收敛决策点(open findings)升 R5 暂停点抛用户拍板。\n"
+                 if state.get("fast_mode") else "")
     contract = state.get("stage_contracts", {}).get("review", {})
     ledger = contract.get("findings_ledger") or []
     round_num = rounds[-1].get("round", len(rounds))
@@ -2323,7 +2327,7 @@ def _review_verify_round_brief(state: dict, rounds: list) -> str:
 2. **回归审查修复 diff**(`{diff_ref}`):只看修复本身引入的新问题
 
 🎚️ **验证轮 = 校验型任务 → 派发用验证档模型**(v8.256 · sonnet 级):核实 fix 落实 + 范围锁定内找新 = 对照清单干活 · 非开放式判断(首轮全量冷审仍不降档)—— goal/review 循环的 Round 2+ 是 AI 自主耗时大头 · 降档快 2-3 倍零质量风险。
-
+{_fast_cap}
 ### 🔴 范围锁定规则
 - **禁全量重扫**:新 finding 仅两种合法来源 ——(a)出自修复 diff;(b)BLOCKER 级且附「为何首轮未发现」
 - **rejected 的 finding 不得复提**(除非新证据 · 台账 status=rejected 即已裁决)
@@ -2360,7 +2364,8 @@ def _review_brief(state: dict) -> str:
              "Architect + QA 两帽 · 产 **REVIEW.md 单份**(`reviewers: [fast]` · verdict · findings 机读台账)· "
              "关注点两边都要:①Architect(实现↔设计一致性核对 · 简洁性 counter-lens)②QA(测试真实性与覆盖 · "
              "代码质量盲区〔错误处理/日志/并发〕)· severity 门/验证轮/轮次预算协议照跑 · "
-             "无 REVIEW-arch/REVIEW-qa/external 独立产物。\n"
+             "无 REVIEW-arch/REVIEW-qa/external 独立产物 · 🎯 **评审预算封顶 2 轮**(v8.267 引擎硬拦:"
+             "超预算未收敛 → open findings 作为决策点升 R5 暂停点抛用户)。\n"
              if state.get("fast_mode") else "")
     return f"""## Review Stage{_fast}
 
