@@ -4,6 +4,21 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.261 · fast mode 语义修正:留两端单路合并评审(PRD:PL+外审合一 · 代码:Architect+QA 合一)
+
+> 用户改逻辑:fast 不再全拆 —— **留 PRD 评审**(把 external 和 PL 关注点合并)+ **留代码 review**(把架构师和 QA 关注点合并);blueprint 评审仍去。从「零评审」修正为「两端各一路合并评审」:质量关口保住需求侧与代码侧两个最值钱的位置 · 砍掉的是多路独立性与中段方案评审。
+
+### 语义(v8.261 覆盖 v8.260)
+- **roster = `{goal: [fast], review: [fast]}`**(「fast」= 合并伪角色 · 单隔离 agent 兼多帽):
+  - **goal 单路合并冷审**:兼 PL(质疑六问 ≥1 实质)+ 外审(可实现/可验证 + AI 自主方向)· 产单份 PRD-REVIEW.md(`reviewers: [fast]` · `verdicts: {fast: ...}`)· **verdicts 全 APPROVE 门照拦**(v8.260 的 skip 撤销 · PRD-REVIEW 恢复必产必查);
+  - **review 单路合并评审**:兼 Architect(实现↔设计一致性 · 简洁性 counter-lens)+ QA(测试真实性与覆盖 · 代码质量盲区)· REVIEW.md 单份 · **findings/severity/验证轮/轮次预算协议照跑** · 无 REVIEW-arch/-qa/external 独立产物(roster-aware 门自动放行);
+  - **dev → review 恢复正常转移**(v8.260 的跳 review 撤销 · 三链图 test 边还原)。
+- 不变:blueprint 评审去(TECH-REVIEW 不产不查 · `review_artifact` 标记保留)· 测试硬门/verify-ac/全部用户暂停点/worktree/ship 全链保留 · 与 yolo 互斥 · 默认关。
+- 消费点:goal/blueprint/review 三 brief 的 fast 条件行(合并关注点清单写死)· SKILL fast 节 · config.md/localconfig 注释。
+
+### 验证
+- 测试改写至 v8.261 语义(+1:三 brief 合并 mandate 断言)· pytest **912 passed**。
+
 ## v8.260 · fast mode:去掉所有评审环节(localconfig 配置 · 默认关 · 与 yolo 互斥)
 
 > 用户点单:增加 fast mode · 去掉所有评审环节 · 默认关 · `.teamwork_localconfig.json` 配置开启。
@@ -58,24 +73,3 @@
 
 ### 验证
 - 纯模板/文档 · pytest 903 passed(bootstrap 只建空壳 · 存量项目 DEV-RULES 不受影响——已存在绝不改动的原则不变)。
-
-## v8.256 · 效率三刀:验证轮降档 + TC∥TECH 起草并行 + goal 终确认投机窗
-
-> 台账年检第二批(用户令「整个流程还有什么办法提升效率」)· 提五刀 · 用户拍板:①④+投机 TECH 做;**②(ship1 等合并窗启动下一 BL)不做——是否启动下一个 prepare 不确定 · 用户主权**;**③(auto 推荐)不做——不启 auto 的目的就是人工确认 PRD 与 DB 变更 · 等待是有意设计不是浪费**;⑤(波次推广)不做。
-
-### ① 验证轮降档(goal/review Round 2+ → 验证档模型)
-- 数据:goal 占 AI 自主 44%(大头=冷审修订循环 · finding 采纳率 80-90% 必有 Round 2+)· review 33% 到 3 轮;验证轮任务性质 = 校验型(核实 fix + 范围锁定内找新 · 对照清单)· 按档位规则本该验证档 · 但文档从未点名 → AI 默认继承重档。
-- 落点:`_review_verify_round_brief`(Round 2+ 的消费时刻 emit)+ goal-stage ③ / review-stage 硬规则 5 / goal brief。首轮全量冷审不降档。预估砍 goal+review 循环成本 ~10-15% AI 自主时间。
-
-### ④ TC ∥ TECH 起草并行(blueprint)
-- TC 锚 PRD.AC · TECH 锚设计方案 · 相互独立 → **并行同发**(subagent 各一)· 完成后互查 `covers_ac` ↔ §测试策略。blueprint 中位 27m · 预估省近半。
-
-### 🔮 goal 终确认投机窗(上一轮提议 · 本版落地)
-- 时点纪律:**只在 emit 终确认暂停点后投机**(冷审收敛前 PRD 是活靶 · v1 时点必返工);数据:终确认「改:默」≈ 全默(变动率≈0)· goal 等待中位 26m ≈ blueprint 起草中位 27m(等待窗恰好藏下)。
-- 行为:等待窗后台派 TECH 草稿 subagent(worktree 内草稿 · 🔴 不跑 state 命令);用户 ok → blueprint 接续;有改 → 差量更新;auto/yolo 不适用(无等待窗)。落点:goal-stage ④ 投机窗 + goal/blueprint brief + SKILL 等待窗条目补例。
-
-### 拍板否决留档(防未来再被「优化」)
-- ship1 等待窗启动下一 BL:❌ —— 启动 BL = 用户拍板事项(feature-planning 坑 5 同源);auto 推荐判据:❌ —— 中间等待点是**有意设计的确认闸**(PRD/DB 变更)· 非浪费。
-
-### 验证
-- 纯文本/brief · pytest 903 passed。预估三刀合计:中位 feature AI 自主 182m → ~150m · 墙钟 -15% 左右。

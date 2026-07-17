@@ -1,6 +1,6 @@
 ---
 name: teamwork
-version: v8.260.1
+version: v8.261
 description: AI 协作开发一体化框架 - 需求功能开发, bug 修复, 问题排查 · /teamwork 启动
 ---
 
@@ -458,14 +458,16 @@ emit 格式:
 
 📎 `worktree_mode=auto` ≠ `auto_mode` —— 前者是 worktree 物理校验模式(prepare/init-feature)· 与暂停点自动流转**完全无关**。
 
-### fast 模式(v8.260 · 去掉所有评审环节 · 默认关 · localconfig 配置)
+### fast 模式(v8.261 · 评审收敛为两端单路 · 默认关 · localconfig 配置)
 
 🔴 `.teamwork_localconfig.json` 的 `fast_mode: true` 开启(**缺省/false = 关** · init-feature 时快照进 `state.fast_mode` · 中途改配置不影响 in-flight feature):
-- **去掉**:goal 冷审(PL 质疑/外审 · 不产 PRD-REVIEW.md)· blueprint 评审(Architect 主审/外审 · 不产 TECH-REVIEW.md)· **整个 review stage**(dev 直进 test)。
+- **留两端 · 各合并单路**(roster = `{goal: [fast], review: [fast]}` · 「fast」= 合并伪角色 · 单 agent 兼多帽):
+  - **PRD 评审(goal)**:一路隔离冷审兼 **PL + 外审**关注点(质疑六问 ≥1 实质 + 可实现/可验证 + AI 自主方向)· 产单份 PRD-REVIEW.md(`reviewers: [fast]`)· verdicts 全 APPROVE 门照拦;
+  - **代码 review**:一路隔离评审兼 **Architect + QA** 关注点(实现↔设计一致性/简洁性 counter-lens + 测试真实性与覆盖/代码质量盲区)· 产 REVIEW.md 单份 · findings/severity/验证轮协议照跑。
+- **去掉**:blueprint 评审(不产 TECH-REVIEW.md · TC/TECH 写完直进 dev)· 两端的多路独立性(无第二路冷审 / 无 REVIEW-arch/-qa/external 独立产物)。
 - **保留**:测试证据硬门(exit 0/差分)· verify-ac · **全部用户暂停点**(prepare 4 项 / PRD 最终确认 / DB schema 确认 / pm_acceptance / ship1)· worktree 纪律 · ship 全链。
-- 🔴 **与 yolo 互斥**(init-feature 硬拦):yolo 无人值守的唯一安全网 = 自动化评审 · fast 恰好拆掉它 —— **有人值守下 fast 才安全**(质量把关移交给用户暂停点上的你)。
-- 与 auto_mode 正交可叠:fast(拆评审)+ auto(跳中间确认)= 只剩 prepare/pm_acceptance/ship1 三停 · 质量全靠测试门与你的 MR review。
-- 适用:原型 / 个人项目快糙猛;正式项目慎用(评审是拦真 bug 主力 · 台账实证)。
+- 🔴 **与 yolo 互斥**(init-feature 硬拦):yolo 无人值守靠评审安全网 · fast 把它收敛到最薄 —— **有人值守下 fast 才安全**;与 auto_mode 正交可叠。
+- 适用:原型 / 个人项目提速;正式项目慎用(独立多路评审是拦真 bug 主力 · 台账实证)。
 
 ### yolo 模式(完全自动 · 无人值守 · 🔴 高风险)
 

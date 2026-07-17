@@ -68,7 +68,7 @@ FEATURE_FLOW: dict[str, list[str]] = {
     "ui_design": ["panorama_sync", "blueprint"],   # 条件:--panorama-changed=true → panorama_sync · false → blueprint
     "panorama_sync": ["blueprint"],
     "blueprint": ["dev"],
-    "dev": ["review", "test"],   # test 边仅 fast_mode 转移用(v8.260 跳 review)
+    "dev": ["review"],
     "review": ["test", "dev"],          # review 失败回 dev
     "test": ["browser_e2e", "pm_acceptance"],
     "browser_e2e": ["pm_acceptance"],
@@ -79,7 +79,7 @@ FEATURE_FLOW: dict[str, list[str]] = {
 
 BUG_FLOW: dict[str, list[str]] = {
     "diagnose": ["dev"],                 # v8.107:根因细查 + 修复方案 · 🔴 用户确认后才进 dev(防修偏)
-    "dev": ["review", "test"],   # test 边仅 fast_mode 转移用(v8.260 跳 review)
+    "dev": ["review"],
     "review": ["test", "dev"],
     "test": ["pm_acceptance"],
     "pm_acceptance": ["ship", "dev"],
@@ -100,7 +100,7 @@ MICRO_FLOW: dict[str, list[str]] = {
 AGILE_FLOW: dict[str, list[str]] = {
     "goal": ["blueprint_lite"],
     "blueprint_lite": ["dev"],
-    "dev": ["review", "test"],   # test 边仅 fast_mode 转移用(v8.260 跳 review)
+    "dev": ["review"],
     "review": ["test", "dev"],
     "test": ["pm_acceptance"],
     "pm_acceptance": ["ship", "dev"],
@@ -1877,9 +1877,12 @@ def cmd_init_feature(args: argparse.Namespace) -> None:
                   "error": "fast_mode 与 --yolo 互斥:yolo 无人值守的唯一安全网 = 自动化评审 · fast_mode 恰好拆掉它",
                   "hint": "二选一:localconfig 去掉 fast_mode · 或不带 --yolo(有人值守下 fast 才安全)"}, exit_code=1)
         state["fast_mode"] = True
-        state["stage_review_roles"] = {}
+        # v8.261:留两端 · 各合并单路 —— goal 单路合并冷审(PL+外审关注点合一)·
+        # review 单路合并评审(Architect+QA 关注点合一)· blueprint 评审仍去。
+        # 「fast」伪角色:收敛协议(verdicts/findings/severity/验证轮)全保留 · 单 agent 兼多帽。
+        state["stage_review_roles"] = {"goal": ["fast"], "review": ["fast"]}
         state["stage_review_roles_adjustments"] = [{
-            "stage": "*", "roles": [], "reason": "fast_mode(localconfig)· 评审环节全跳", "adjusted_via": "fast_mode"}]
+            "stage": "*", "roles": [], "reason": "fast_mode(localconfig)· goal/review 各留单路合并评审 · 其余评审跳", "adjusted_via": "fast_mode"}]
     # ── v8.0+P0-3:cwd 物化校验(治本 PTR-F033 主 tree 污染 case)──
     # 根因:即使 init-feature 自动建了 worktree · 若 PMO 在主 tree cwd 运行 ·
     # state.json 仍落主 tree · worktree 是空的 · 主 tree 污染依旧。
