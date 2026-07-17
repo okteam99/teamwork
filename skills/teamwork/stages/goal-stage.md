@@ -27,7 +27,7 @@
 
 **起草前调研**(自答优先 · 也是早问门入场券)——按需选查:代码现状(grep+Read 核心文件)/ KNOWLEDGE(`Flagged Ambiguities` 防重复问 · `Preferences` 防问已答 · 已否方向防复活)/ GLOSSARY(术语实体)/ 上游规划(BL/WS/愿景/PENDING)。发现内化进 PRD,不单独成文。
 
-**送审前自检**(v8.262 · 评审关注点前置):起草完 · 送冷审**前** · 先过 [templates/prd.md §送审前自检](../templates/prd.md)(PL 六问自问 / 可实现 / 可验证 / 高频 finding 预检)—— 冷审要查什么 · 起草时就按什么写 · **别等评审有问题再改**(finding 采纳率 80-90% = 多数问题可预见 · 前置消掉最省 · Round 2+ 是 goal 耗时大头)。
+**起草思考规范**(v8.262 · 写法非环节):写 PRD 时**就按冷审关注点思考**(不是写完再检查)—— 写背景/方案时 PL 六问过脑(价值前提/最小范围/既有行为);写每条 AC 时用可测判据(「尽量/合理/优化」落笔即换 · 边界/异常入 AC);涉依赖先读真实代码确认存在再写;术语当句定义。清单织在 [templates/prd.md 模板头「🧠 起草思考规范」](../templates/prd.md)。why:finding 采纳率 80-90% = 多数问题起草时可预见 · **按冷审标准写一遍比写完被打回改一遍省一整轮**(Round 2+ 是 goal 耗时大头)。
 
 **冷审两路并行(v8.243 默认 roster = `[pl, external]`)**——⚡ 同发两个隔离 subagent · 互不喂对方产出;组合按 roster(prepare 判定 · `change-review-roles --reason` 可调):
 

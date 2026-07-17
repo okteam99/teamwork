@@ -4,6 +4,17 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.263 · 修正 v8.262:起草思考规范是「写法」不是「环节」
+
+> 用户修正:「不是加自检环节,是写 PRD 的时候按这个规范去思考」。v8.262 把评审关注点做成了**写完后过的自检清单段**(§送审前自检 · 逐项打钩)—— 形态错了:那是又加一道仪式;用户要的是**起草时的思考方式**,关注点织进写的动作里。
+
+### 改动
+- **prd.md**:删 §送审前自检 整段;模板头新增 **🧠 起草思考规范**(写的时候就这样想 · 非写完检查):写背景/方案时 PL 六问过脑(写不顺的地方就是冷审会打的地方)· 写每条 AC 时用可测判据(「尽量/合理/优化」**落笔即换**)· 涉依赖先读真实代码确认存在再写 · 术语当句定义;AC 表注释就地强化(写时即用可测判据)。
+- **goal-stage ③**:「送审前自检」段改写为「起草思考规范(写法非环节)」;**goal brief**:撤独立自检步 · 思考规范并进「起草 v0.1」步内注。
+
+### 验证
+- 纯模板/文档 · pytest 912 passed。
+
 ## v8.262 · yolo 忽略 fast + PRD 送审前自检(评审关注点前置)
 
 > 用户两令:①yolo 模式忽略 fast(不再互斥报错);②优化 PM 写产品文档的约束 —— 把要评审的点提前考虑进去 · 不要等评审有问题再改。
@@ -64,16 +75,3 @@
 
 ### 验证
 - 纯模板 · pytest 903 passed。
-
-## v8.258 · RELEASE-GUIDE.md:版本发布规范(用户点单 · 默认 staging→main MR + URL 置顶 + 提醒合入)
-
-> 用户拍板新增:RELEASE-GUIDE.md 作为版本发布规范 · 默认内容 = 发布到线上流程:创建 staging → main 的 MR/PR 后给出 URL · 提醒用户合入。填补的空档:「发布/上线」此前无任何流程覆盖(ship 只管 feature → 集成分支;集成 → 生产无人管)。
-
-### 改动
-- **templates/release-guide.md**(新):默认五步流程 —— ①核对 staging(列本次上线清单给用户过目)②创建 staging→main MR/PR(CLI-first)③🔴 URL 置顶独立行原样贴(同 ship1 user_card 纪律)④🔴 提醒用户合入(AI 不代点 · 可轮询监控)⑤发布后义务(核对各 feature REVIEW 的 release-gated 待补证据〔v8.251〕逐项补跑)。+ 环境分支段 / 项目特有步骤段(人维护)。
-- **边界声明**:本文件管「集成分支 → 生产」;单 feature 交付(feature → 集成)归 ship stage · 别混。人维护原则同 DEV-RULES(bootstrap 无则建 · 已存在绝不改 —— 但模板自带可用默认 · 非空壳)。
-- **bootstrap 骨架**:skeletons 六件 → **七件**(+RELEASE-GUIDE.md)。
-- **消费点**:SKILL 信息架构表 + 路由表(「发布/上线/发版 → RELEASE-GUIDE.md · PMO 必读照办 · 合入归用户」)· conventions §13 · templates/README 索引。
-
-### 验证
-- 骨架测试 fixture +release-guide · pytest 903 passed。
