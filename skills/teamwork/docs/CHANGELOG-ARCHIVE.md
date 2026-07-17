@@ -745,3 +745,18 @@
 
 ### 验证
 - 新测试 +10(链/转移图/初始 stage/execute spec 零门禁/transition→ship/brief 硬边界/pm 豁免仅 micro)· 旧断言 3 处更新(micro initial · no-pause 集 · dev-transition)· pytest **883 passed**。
+## v8.251 · release-gated 裁决:拆开「代码门」vs「发版门」(治 review 磨不可闭合的 BLOCKER)
+
+> 来源 case(aon-core Canonical-Offer):review 卡在物理上不可能本地关闭的 BLOCKER 上反复磨轮(round 4→5),用户被迫手动介入 4 次才把「真需发版」的 F-002 和「本地可 mock」的 F-004 拆开。病根:review 收敛协议把两种完全不同的「未闭合」混为一谈——代码缺陷 vs 发版证据。**review 只该 gate 代码完整性(本地/CI 能修的);发版证据(soak/rollout/prod-smoke)是独立发版门,不卡 APPROVE 但必须追踪到发版。**
+
+### 改动(判据 + schema + carry-forward · 全做)
+- **① release-gated 裁决**(review-stage.md 硬规则 3.5):证据物理上必须 post-deploy 的 BLOCKER/MAJOR → `status: deferred` + `deferred_reason: "release-gated · 欠<证据>"`,别磨轮,它是发版义务不是 review 阻塞。
+- **② 双向护栏**(把 case 的分界线写成判据):**只有真部署/真墙钟/真生产平台能产的才算 release-gated**(真实 rollout/rollback · 24h/72h/7d soak · 不可 mock 的生产平台);**能 mock/fake/注入时钟复现的不算**(F-004 的 WireMock、soak 注入 clock 缩时)= 本地必须做完才 APPROVE,不许借 defer 逃。物化护栏:`deferred` 的 BLOCKER/MAJOR **必须写 deferred_reason**(空 defer → complete FAIL · 防扫地毯下 · hint 直接教 WireMock 反例)。
+- **③ carry-forward**(release_gated_deferrals 抽取器):`deferred(release-gated)` 带结构化「欠什么证据」→ **pm_acceptance brief** 列「🚚 发版后待补证据 N 项」(用户验收知情)+ **ship1 user_card** 列同款(合并前看到)· 真追踪不消失。
+- schema:findings 加 `deferred_reason` 字段(parse_review_findings 保留)。
+
+### 效果
+case 能自主收敛:F-002 识别 release-gated → deferred + 记义务(carry 到 pm/ship);F-004 识别本地可 mock → 空 defer 被物化门拦 → AI 自己写 WireMock → APPROVE。**零用户往返。**
+
+### 验证
+- 新测试 +7(空 defer 拦 · MINOR 不强制 · release-gated 放行 · open 仍拦 · 抽取剥前缀 · pm brief 含/不含)· 旧断言 1 处(findings +deferred_reason)· pytest 897 passed。

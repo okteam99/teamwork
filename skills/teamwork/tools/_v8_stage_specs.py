@@ -428,7 +428,7 @@ PM 调研(自答优先)· 起草 PRD · 🔴 **并行派 2 路隔离冷审**(v8.
 - `state.execution_hints.ui_design_needed` 已决策(由 `--needs-ui`)
 
 ### 怎么做
-🔴 **照 `{{SKILL_ROOT}}/templates/prd.md` 起草 · 别抄项目里旧 PRD**(实测 post-v8.164 十份仅一份用 canonical · 抄旧 = 机读块/扩展区等新机制到达不了)· goal-complete 校验三命门段(机读块/AC/『开工前必须想清的』)。\n**必读** `stages/goal-stage.md`(8 步:调研 → 起草 v0.1 → 🔴 **并行 2 路隔离冷审**(PL 质疑 + 覆盖方向制外审 · 不喂起草心路 · v8.243)→ 早问门(冷审后)→ PM 整合修订 → 冷审循环(Round 2+ 验证模式 · 全 APPROVE 收敛)→ needs-ui → 用户确认)。外审必覆盖:**可实现**(技术可行/架构影响/简洁性 counter-lens)· **可验证**(AC 可测/边界/异常)+ **AI 自主方向 ≥1**(安全/性能/数据一致性/兼容…按 feature 挑)· 每方向 finding 或「查过无发现」· 段记 `coverage: [...]`。
+🔴 **照 `{{SKILL_ROOT}}/templates/prd.md` 起草 · 别抄项目里旧 PRD**(实测 post-v8.164 十份仅一份用 canonical · 抄旧 = 机读块/扩展区等新机制到达不了)· goal-complete 校验三命门段(机读块/AC/『开工前必须想清的』)。\n**必读** `stages/goal-stage.md`(8 步:调研 → 起草 v0.1 → 🔴 **并行 2 路隔离冷审**(PL 质疑 + 覆盖方向制外审 · 不喂起草心路 · v8.243)→ 早问门(冷审后)→ PM 整合修订 → 冷审循环(Round 2+ 验证模式 · 🎚️ **验证轮派发用验证档模型** · 全 APPROVE 收敛)→ needs-ui → 用户确认 · 🔮 **emit 终确认暂停点后等待窗后台派 TECH 草稿 subagent**〔worktree 内草稿 · 不跑 state 命令 · 用户 ok 则 blueprint 直接接续 · 详 goal-stage ④ 投机窗〕)。外审必覆盖:**可实现**(技术可行/架构影响/简洁性 counter-lens)· **可验证**(AC 可测/边界/异常)+ **AI 自主方向 ≥1**(安全/性能/数据一致性/兼容…按 feature 挑)· 每方向 finding 或「查过无发现」· 段记 `coverage: [...]`。
 
 ### 完成方式
 ```
@@ -1489,7 +1489,7 @@ def _blueprint_brief(state: dict) -> str:
     return f"""## Blueprint Stage
 
 ### 目标
-QA 起草 TC(BDD) · RD 起草 TECH · 🔴 **两路并行评审**(v8.244 默认 roster:Architect 主审〔简洁性 counter-lens〕+ 覆盖方向制外审〔QA 可测试视角并入 + AI 自主方向 ≥1〕· ⚡ 同发互不喂)· 实现前方案收敛。
+QA 起草 TC(BDD)**∥** RD 起草 TECH(⚡ v8.256:两者相互独立 · **并行同发** · 完成后互查 covers_ac↔测试策略;goal 投机窗已产 TECH 草稿则接续)· 🔴 **两路并行评审**(v8.244 默认 roster:Architect 主审〔简洁性 counter-lens〕+ 覆盖方向制外审〔QA 可测试视角并入 + AI 自主方向 ≥1〕· ⚡ 同发互不喂)· 实现前方案收敛。
 
 ### 结果(完成判定)
 - `TC.md`(frontmatter:`tests` · verify-ac.py 通过)
@@ -2310,6 +2310,8 @@ def _review_verify_round_brief(state: dict, rounds: list) -> str:
 ### 本轮只做两件事
 1. **逐条裁决上轮 open finding**:fixed / not-fixed(REVIEW.md findings 更新 status · 带依据)
 2. **回归审查修复 diff**(`{diff_ref}`):只看修复本身引入的新问题
+
+🎚️ **验证轮 = 校验型任务 → 派发用验证档模型**(v8.256 · sonnet 级):核实 fix 落实 + 范围锁定内找新 = 对照清单干活 · 非开放式判断(首轮全量冷审仍不降档)—— goal/review 循环的 Round 2+ 是 AI 自主耗时大头 · 降档快 2-3 倍零质量风险。
 
 ### 🔴 范围锁定规则
 - **禁全量重扫**:新 finding 仅两种合法来源 ——(a)出自修复 diff;(b)BLOCKER 级且附「为何首轮未发现」

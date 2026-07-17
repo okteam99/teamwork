@@ -4,6 +4,27 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.256 · 效率三刀:验证轮降档 + TC∥TECH 起草并行 + goal 终确认投机窗
+
+> 台账年检第二批(用户令「整个流程还有什么办法提升效率」)· 提五刀 · 用户拍板:①④+投机 TECH 做;**②(ship1 等合并窗启动下一 BL)不做——是否启动下一个 prepare 不确定 · 用户主权**;**③(auto 推荐)不做——不启 auto 的目的就是人工确认 PRD 与 DB 变更 · 等待是有意设计不是浪费**;⑤(波次推广)不做。
+
+### ① 验证轮降档(goal/review Round 2+ → 验证档模型)
+- 数据:goal 占 AI 自主 44%(大头=冷审修订循环 · finding 采纳率 80-90% 必有 Round 2+)· review 33% 到 3 轮;验证轮任务性质 = 校验型(核实 fix + 范围锁定内找新 · 对照清单)· 按档位规则本该验证档 · 但文档从未点名 → AI 默认继承重档。
+- 落点:`_review_verify_round_brief`(Round 2+ 的消费时刻 emit)+ goal-stage ③ / review-stage 硬规则 5 / goal brief。首轮全量冷审不降档。预估砍 goal+review 循环成本 ~10-15% AI 自主时间。
+
+### ④ TC ∥ TECH 起草并行(blueprint)
+- TC 锚 PRD.AC · TECH 锚设计方案 · 相互独立 → **并行同发**(subagent 各一)· 完成后互查 `covers_ac` ↔ §测试策略。blueprint 中位 27m · 预估省近半。
+
+### 🔮 goal 终确认投机窗(上一轮提议 · 本版落地)
+- 时点纪律:**只在 emit 终确认暂停点后投机**(冷审收敛前 PRD 是活靶 · v1 时点必返工);数据:终确认「改:默」≈ 全默(变动率≈0)· goal 等待中位 26m ≈ blueprint 起草中位 27m(等待窗恰好藏下)。
+- 行为:等待窗后台派 TECH 草稿 subagent(worktree 内草稿 · 🔴 不跑 state 命令);用户 ok → blueprint 接续;有改 → 差量更新;auto/yolo 不适用(无等待窗)。落点:goal-stage ④ 投机窗 + goal/blueprint brief + SKILL 等待窗条目补例。
+
+### 拍板否决留档(防未来再被「优化」)
+- ship1 等待窗启动下一 BL:❌ —— 启动 BL = 用户拍板事项(feature-planning 坑 5 同源);auto 推荐判据:❌ —— 中间等待点是**有意设计的确认闸**(PRD/DB 变更)· 非浪费。
+
+### 验证
+- 纯文本/brief · pytest 903 passed。预估三刀合计:中位 feature AI 自主 182m → ~150m · 墙钟 -15% 左右。
+
 ## v8.255 · DB 变更带目的 + 变更最小化四问(治「只写内容不写为什么 · 三张新表无人质询」)
 
 > 用户看 DB 变更确认暂停点截图(表 = 表名|类型|内容|破坏性 · 三张新表)提两点:①每项变更要给**目的**——解决什么问题、为什么要这样变更;②设计方案时要**前移质询**——是否有更简单的、直接减少数据库变更的方案。溯源:截图表格正是 templates/tech.md「变更表清单」的列结构 —— 模板天生没有「为什么」列 · 项目照模板填自然就缺;v8.242 的暂停点明细虽有「用途」列 · 但项目直接抄 TECH 表 → 用途丢失。
@@ -57,19 +78,3 @@
 
 ### 验证
 - 新测试 `test_ws_scan_vocab.py`(worktree 污染 / scan_ok 排除 / find_ws_file 正本+候选 / 别名计完成 / 子串不误判 / bucket 单测)+ test_ws_progress_v8174 更新 · pytest 897 passed。
-
-## v8.251 · release-gated 裁决:拆开「代码门」vs「发版门」(治 review 磨不可闭合的 BLOCKER)
-
-> 来源 case(aon-core Canonical-Offer):review 卡在物理上不可能本地关闭的 BLOCKER 上反复磨轮(round 4→5),用户被迫手动介入 4 次才把「真需发版」的 F-002 和「本地可 mock」的 F-004 拆开。病根:review 收敛协议把两种完全不同的「未闭合」混为一谈——代码缺陷 vs 发版证据。**review 只该 gate 代码完整性(本地/CI 能修的);发版证据(soak/rollout/prod-smoke)是独立发版门,不卡 APPROVE 但必须追踪到发版。**
-
-### 改动(判据 + schema + carry-forward · 全做)
-- **① release-gated 裁决**(review-stage.md 硬规则 3.5):证据物理上必须 post-deploy 的 BLOCKER/MAJOR → `status: deferred` + `deferred_reason: "release-gated · 欠<证据>"`,别磨轮,它是发版义务不是 review 阻塞。
-- **② 双向护栏**(把 case 的分界线写成判据):**只有真部署/真墙钟/真生产平台能产的才算 release-gated**(真实 rollout/rollback · 24h/72h/7d soak · 不可 mock 的生产平台);**能 mock/fake/注入时钟复现的不算**(F-004 的 WireMock、soak 注入 clock 缩时)= 本地必须做完才 APPROVE,不许借 defer 逃。物化护栏:`deferred` 的 BLOCKER/MAJOR **必须写 deferred_reason**(空 defer → complete FAIL · 防扫地毯下 · hint 直接教 WireMock 反例)。
-- **③ carry-forward**(release_gated_deferrals 抽取器):`deferred(release-gated)` 带结构化「欠什么证据」→ **pm_acceptance brief** 列「🚚 发版后待补证据 N 项」(用户验收知情)+ **ship1 user_card** 列同款(合并前看到)· 真追踪不消失。
-- schema:findings 加 `deferred_reason` 字段(parse_review_findings 保留)。
-
-### 效果
-case 能自主收敛:F-002 识别 release-gated → deferred + 记义务(carry 到 pm/ship);F-004 识别本地可 mock → 空 defer 被物化门拦 → AI 自己写 WireMock → APPROVE。**零用户往返。**
-
-### 验证
-- 新测试 +7(空 defer 拦 · MINOR 不强制 · release-gated 放行 · open 仍拦 · 抽取剥前缀 · pm brief 含/不含)· 旧断言 1 处(findings +deferred_reason)· pytest 897 passed。

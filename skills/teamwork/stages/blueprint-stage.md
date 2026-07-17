@@ -8,6 +8,8 @@
 读 PRD.md(权威需求)· ARCHITECTURE.md(系统架构)· KNOWLEDGE.md(项目踩坑/事实)· standards/tdd.md。
 🔴 **`project-specs/DEV-RULES.md` 存在 → 必读**(本项目**强制开发规范** · 人维护:分层 / 命名 / 错误处理 / 依赖方向 / 测试策略 / 风格)· TECH 方案**须遵守**;冲突要么改方案、要么在 TECH 显式记原因。不存在 → skip(人维护 doc · 可能未建 · 不硬 FAIL)。
 
+⚡ **§2 与 §3 起草相互独立 → 并行同发**(v8.256 · TC 锚 PRD.AC · TECH 锚设计方案 · subagent 各一)· 完成后互查一致(`tests[].covers_ac` ↔ TECH §测试策略)。
+
 ### 2. QA 起草 TC.md
 BDD Given/When/Then · frontmatter `tests: [{id, covers_ac, description}]` · 每 AC 至少 1 test
 
