@@ -1,7 +1,7 @@
 """v8.260/261:fast mode —— 评审收敛为两端单路(localconfig `fast_mode: true` · 默认关)。
 
 v8.261 语义:goal 留单路合并冷审(PL+外审 · PRD-REVIEW 必产)· review 留单路合并评审
-(Architect+QA · REVIEW.md 单份 · 协议照跑)· blueprint 评审去(TECH-REVIEW 不产)。与 yolo 互斥。
+(Architect+QA · REVIEW.md 单份 · 协议照跑)· blueprint 评审去(TECH-REVIEW 不产)。yolo 忽略 fast(v8.262 · 静默不生效)。
 """
 import json
 import tempfile

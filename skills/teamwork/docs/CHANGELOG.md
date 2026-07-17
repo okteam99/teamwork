@@ -4,6 +4,22 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.262 · yolo 忽略 fast + PRD 送审前自检(评审关注点前置)
+
+> 用户两令:①yolo 模式忽略 fast(不再互斥报错);②优化 PM 写产品文档的约束 —— 把要评审的点提前考虑进去 · 不要等评审有问题再改。
+
+### ① yolo 忽略 fast(v8.261 互斥 → v8.262 静默覆盖)
+- `--yolo` + localconfig `fast_mode: true` → **不报错** · fast 静默不生效(无人值守回全量评审安全网)· kickoff concerns 记 INFO 留痕(用户知情)。修复顺带抓到的缩进 bug:原实现 yolo 分支后 roster 仍被改成 fast 伪角色 —— 已归位 else 内。
+- SKILL fast 节 / config.md / localconfig 注释 三处同步。
+
+### ② PRD 送审前自检(评审关注点前置 · 治 Round 2+ 修订循环)
+- 数据:goal 占 AI 自主 44% · 大头 = 修订循环;finding 采纳率 80-90% = **多数问题可预见** · 前置消掉最省。
+- **templates/prd.md 新增 §送审前自检**(起草完 · 送冷审前 · 逐项打钩):PL 六问自问(答不出先补 · 别指望冷审替你想)/ **可实现**自查(依赖的接口字段真实存在 · 读过真实代码非假设)/ **可验证**自查(AC 可测 · 无「尽量/合理/优化」含糊词 · 边界异常有归宿)/ 高频 finding 预检(术语已定义 · AC 无矛盾)。
+- goal-stage ③ 起草段 + goal brief 8 步链(起草 v0.1 → **送审前自检** → 冷审)消费点同步。
+
+### 验证
+- pytest 912 passed。
+
 ## v8.261 · fast mode 语义修正:留两端单路合并评审(PRD:PL+外审合一 · 代码:Architect+QA 合一)
 
 > 用户改逻辑:fast 不再全拆 —— **留 PRD 评审**(把 external 和 PL 关注点合并)+ **留代码 review**(把架构师和 QA 关注点合并);blueprint 评审仍去。从「零评审」修正为「两端各一路合并评审」:质量关口保住需求侧与代码侧两个最值钱的位置 · 砍掉的是多路独立性与中段方案评审。
@@ -61,15 +77,3 @@
 
 ### 验证
 - 骨架测试 fixture +release-guide · pytest 903 passed。
-
-## v8.257 · DEV-RULES 三项制:API 契约 / 错误处理 / 其他约定(架构归 ARCHITECTURE · 命名风格测试归 standards)
-
-> 用户拍板简化:架构已有 ARCHITECTURE.md · DEV-RULES 只留三项。原六段(架构分层/命名/错误处理/测试策略/代码风格/其他)与 ARCHITECTURE.md、standards/ 缺省存在职责重叠 —— 项目真正需要人来强制注册的就三类:**对外契约、失败语义、杂项强制特例**。
-
-### 改动
-- **templates/dev-rules.md**:骨架六段 → 三段。新增 **API 契约** 段(响应包络/错误码结构/分页/字段 casing/版本兼容 —— 存量风格 = 对外契约 · 沿用并在此注册 · standards 覆盖声明唯一注册处);**错误处理** 保留;**其他约定** 兜底(命名/风格/测试策略若有偏离 standards 缺省的强制特例注册在此)。
-- **去向声明**:架构/分层/依赖方向 → `ARCHITECTURE.md`(workspace/{子项目})+ ADR(边界表加行);命名/风格/测试策略 → standards/ 缺省。
-- **五处消费点词表同步**:SKILL 文档信息架构表 + 路由表 · blueprint-stage 必读行 · knowledge 边界表 · 模板自身定位句。
-
-### 验证
-- 纯模板/文档 · pytest 903 passed(bootstrap 只建空壳 · 存量项目 DEV-RULES 不受影响——已存在绝不改动的原则不变)。

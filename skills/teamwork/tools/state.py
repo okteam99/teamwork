@@ -1873,16 +1873,19 @@ def cmd_init_feature(args: argparse.Namespace) -> None:
     # 🔴 与 yolo 互斥:yolo 无人值守的唯一安全网就是评审 · fast 拆评审 · 不可同用。
     if _read_fast_mode(feature_dir):
         if getattr(args, "yolo", False):
-            emit({"verdict": "FAIL", "action": "init-feature",
-                  "error": "fast_mode 与 --yolo 互斥:yolo 无人值守的唯一安全网 = 自动化评审 · fast_mode 恰好拆掉它",
-                  "hint": "二选一:localconfig 去掉 fast_mode · 或不带 --yolo(有人值守下 fast 才安全)"}, exit_code=1)
-        state["fast_mode"] = True
-        # v8.261:留两端 · 各合并单路 —— goal 单路合并冷审(PL+外审关注点合一)·
-        # review 单路合并评审(Architect+QA 关注点合一)· blueprint 评审仍去。
-        # 「fast」伪角色:收敛协议(verdicts/findings/severity/验证轮)全保留 · 单 agent 兼多帽。
-        state["stage_review_roles"] = {"goal": ["fast"], "review": ["fast"]}
-        state["stage_review_roles_adjustments"] = [{
-            "stage": "*", "roles": [], "reason": "fast_mode(localconfig)· goal/review 各留单路合并评审 · 其余评审跳", "adjusted_via": "fast_mode"}]
+            # v8.262:yolo 忽略 fast(不再互斥报错)—— 无人值守的唯一安全网 = 全量评审 ·
+            # fast_mode 静默不生效 · kickoff 记 INFO(用户知情 · 不拦)。
+            state.setdefault("concerns", []).append(
+                f"{now_iso()} INFO yolo-ignores-fast: localconfig fast_mode=true 被 yolo 忽略"
+                "(无人值守安全网=全量评审 · fast 仅有人值守生效)")
+        else:
+            state["fast_mode"] = True
+            # v8.261:留两端 · 各合并单路 —— goal 单路合并冷审(PL+外审关注点合一)·
+            # review 单路合并评审(Architect+QA 关注点合一)· blueprint 评审仍去。
+            # 「fast」伪角色:收敛协议(verdicts/findings/severity/验证轮)全保留 · 单 agent 兼多帽。
+            state["stage_review_roles"] = {"goal": ["fast"], "review": ["fast"]}
+            state["stage_review_roles_adjustments"] = [{
+                "stage": "*", "roles": [], "reason": "fast_mode(localconfig)· goal/review 各留单路合并评审 · 其余评审跳", "adjusted_via": "fast_mode"}]
     # ── v8.0+P0-3:cwd 物化校验(治本 PTR-F033 主 tree 污染 case)──
     # 根因:即使 init-feature 自动建了 worktree · 若 PMO 在主 tree cwd 运行 ·
     # state.json 仍落主 tree · worktree 是空的 · 主 tree 污染依旧。
