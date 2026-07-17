@@ -1,6 +1,6 @@
 ---
 name: teamwork
-version: v8.264.1
+version: v8.265
 description: AI 协作开发一体化框架 - 需求功能开发, bug 修复, 问题排查 · /teamwork 启动
 ---
 
@@ -431,11 +431,11 @@ emit 格式:
 
 | 流程 | 授权暂停点(按顺序) |
 |---|---|
-| **Feature** | ① prepare 4 项配置 → ② goal PRD 最终确认 → ③ ui_design UI 预览确认(若 --needs-ui) → ③′ panorama_sync L2 结构变更跨团队确认(条件 · L1 不停) → ④ blueprint DB schema 变更确认(条件 · 见下) → ⑤ pm_acceptance 三选项 → ⑥ ship1 终点 等平台合并 feature MR |
+| **Feature** | ① prepare 4 项配置 → ② goal PRD 最终确认 → ③ ui_design UI 预览确认(若 --needs-ui) → ③′ panorama_sync L2 结构变更跨团队确认(条件 · L1 不停) → ④ blueprint 方案要素确认(条件:DB 变更 / 🛡️ 兜底清单非空 · v8.265 · 见下) → ⑤ pm_acceptance 三选项 → ⑥ ship1 终点 等平台合并 feature MR |
 | **Bug** | ① prepare 4 项配置 → ② **diagnose 修复方案确认**(根因+方案 · 用户拍板才进 dev) → ③ pm_acceptance 三选项 → ④ ship1 终点 |
 | **Feature · micro** | ① prepare 4 项配置 → ② ship1 终点 等 MR 合入(v8.250:execute 零门禁 · 无 pm_acceptance · 用户验收 = ship1 MR diff review)|
 
-📎 **blueprint DB schema 条件暂停点**:Feature 的 TECH 方案涉及**数据库数据结构变更**(新建/删除/修改 表、字段、索引、约束、migration)时 · blueprint-complete 前必 emit 用户确认暂停点(详 [stages/blueprint-stage.md § 7.5](./stages/blueprint-stage.md))· 不涉及则跳过。**Bug / Feature·micro** 不应涉及 DB 数据结构变更(属架构性 · 命中则升 full 完整链)。
+📎 **blueprint 方案要素条件暂停点**(v8.265 双触发):Feature 的 TECH 方案涉及**数据库数据结构变更**(新建/删除/修改 表、字段、索引、约束、migration)**或 🛡️ 含安全/降级兜底策略**(兜底不许默默做 · 复杂度×收益经用户拍板)时 · blueprint-complete 前必 emit 用户确认暂停点(详 [stages/blueprint-stage.md § 7.5](./stages/blueprint-stage.md))· 不涉及则跳过。**Bug / Feature·micro** 不应涉及 DB 数据结构变更(属架构性 · 命中则升 full 完整链)。
 📎 **其余条件暂停**(命中才停 · 未命中自动过 · 不入上表主链):goal 早问门三闸(goal-stage ②3 · 如涉既有行为变更升级待决策)· review 轮次超预算升级(review-stage 硬规则)。
 📎 stage 间(goal-complete→ui_design / dev→review 等)是 state.py **自动流转** · 非暂停点 · 不插确认。
 
@@ -450,7 +450,7 @@ emit 格式:
 | diagnose 修复方案确认(Bug) | **skip + WARN** | auto 已委托 · 按推荐方案继续 + `add-concern --severity WARN --message "auto skip: diagnose 方案 ..."` 留痕(diagnose 在状态机内 · 命令可用)· 修偏由 pm_acceptance 兜 |
 | ui_design UI 预览确认 | skip | 设计意图已落 UI.md / preview · auto 用户接受 |
 | panorama_sync 跨团队 reviewer(仅 L2 结构变更停 · L1 节点内增量任何模式都不暂停) | **skip + WARN** | `panorama-change-summary.md` 已文档化 · auto 用户接受跨 Feature 影响 · PMO 必 `state.py add-concern --severity WARN --message "auto skip: panorama change scope=..."` 留 audit |
-| blueprint DB schema 变更确认 | **skip + WARN** | 技术决策 auto 委托 AI · 但 DB 变更高风险 · PMO 必 `state.py add-concern --severity WARN --message "auto skip: DB schema change ··· tables/fields/migrations: ..."` 留 audit(便于 dev/review 复查) |
+| blueprint 方案要素确认(DB 变更/兜底) | **skip + WARN** | 技术决策 auto 委托 AI · 但 DB 变更与兜底高影响 · PMO 必 `state.py add-concern --severity WARN --message "auto skip: 方案要素确认 · DB: .../兜底: ..."` 留 audit(便于 dev/review 复查) |
 | **pm_acceptance 三选项** | **stop** | 产品决策权:approved_and_ship / approved_no_ship / rejected_with_feedback · AI 不能替用户拍板(违 R3) |
 | **ship1 终点 等平台 merge feature MR** | **stop + 监控** | 用户在 git host 平台操作 · AI 无法代办 · 🔴 v8.234:stop = 不替用户点合并 · **仍必须跑 `await-merge` 轮询**(所有模式 · MERGED → 自动 ship-finalize)—— 否则用户合了没人收尾(worktree 残留 · 实证 case) |
 

@@ -4,6 +4,20 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.265 · 兜底纪律:默认不做(复杂度×收益)· 确需的在暂停点透出拍板
+
+> 用户令:产品方案和技术方案要考虑复杂度和收益 · **不要做没必要的降级兜底和安全兜底**;确需的兜底策略必须**在暂停点明确提出来**(不许默默做)。AI 天然偏加兜底(重试/降级/防御层)—— 每层兜底都是复杂度,且历来藏在方案正文里从不被拍板。
+
+### 改动(写法 + 判据 + 暂停点透出 三层)
+- **写法**(v8.263 形态 · 起草时思考):prd.md 🧠 起草思考规范 +1 条 —— 涉降级/兜底体验默认不做 · 确需的是**产品决策** · 列 §待决策项或终确认导读;tech.md 简洁性自查 +1 条 —— 每个 fallback/degradation/重试熔断/防御层过「真实概率×后果 vs 实现维护成本」· 写不出必要性 → 删。
+- **判据落盘**:tech.md 新 **🛡️ 兜底清单**表(兜底|保护什么失败场景|概率×后果|为何值得)· 无则写「无兜底」—— 透出的单源。
+- **暂停点透出**:blueprint **§7.5 扩展为双触发**(v8.265):DB 数据结构变更 **或 兜底清单非空** → R5 方案要素确认暂停点(两类命中一次给全 · 兜底块照抄 TECH 清单);goal 终确认导读余节 + 🛡️ 兜底策略行(PRD 层降级体验 · 无则「无」)。auto 模式同款 skip+WARN(消息含 兜底 摘要)。
+- **评审侧**:blueprint §4 Architect 简洁性 counter-lens 点名「兜底是重点砍除对象」。
+- 消费点:specs blueprint brief(§7.5 双触发 + TECH 结构行含兜底清单)· SKILL 授权暂停点清单 ④ + auto 表 blueprint 行改「方案要素确认(DB 变更/兜底)」。
+
+### 验证
+- 纯模板/文档 · pytest 912 passed。
+
 ## v8.264 · localconfig 两修:fast_mode 入自愈默认表 + 「可提交」文档漂移纠正
 
 > 用户问「.teamwork_localconfig.json 什么时候创建」· 答题时撞出两个实质问题:①v8.260 加 fast_mode 时漏了 `LOCALCONFIG_CONFIG_DEFAULTS`(:708 明写「新增字段两处都加」)—— **存量项目的自愈永远不会补出这个新选项 · 用户看不到**;②conventions §13 说该文件「可提交」· 但 bootstrap 实际把它加 .gitignore(`_bootstrap` 段含 host/maintain 时间等机器态)—— 文档与机器行为相反。
@@ -56,22 +70,3 @@
 
 ### 验证
 - 测试改写至 v8.261 语义(+1:三 brief 合并 mandate 断言)· pytest **912 passed**。
-
-## v8.260 · fast mode:去掉所有评审环节(localconfig 配置 · 默认关 · 与 yolo 互斥)
-
-> 用户点单:增加 fast mode · 去掉所有评审环节 · 默认关 · `.teamwork_localconfig.json` 配置开启。
-
-### 语义
-- **开关**:`fast_mode: true`(缺省/false = 关)· init-feature 时**快照进 `state.fast_mode`**(中途改配置不影响 in-flight feature)。
-- **去掉**:goal 冷审(PL 质疑/外审 · 不产 PRD-REVIEW.md)· blueprint 评审(Architect 主审/外审 · 不产 TECH-REVIEW.md)· **整个 review stage**(dev 直进 test)。
-- **保留**:测试证据硬门(exit 0/差分)· verify-ac · 全部用户暂停点(prepare/PRD 确认/DB 确认/pm_acceptance/ship1)· worktree 纪律 · ship 全链。
-- 🔴 **与 yolo 互斥**(init-feature 硬拦):yolo 无人值守的唯一安全网 = 自动化评审 · fast 恰好拆掉它 —— 有人值守下 fast 才安全;与 auto_mode 正交可叠。
-
-### 实现
-- **state.py**:`_read_fast_mode`(默认 False · 显式 true 才开)· init-feature 快照 + roster 全清空(roster-aware 门自动放行 · adjustments 审计留痕)+ yolo 互斥拦;三链图 dev 边 +`test`(fast 转移合法)。
-- **engine**:`StageArtifactSpec.review_artifact` 标记 + complete 校验循环 fast 跳过(PRD-REVIEW/TECH-REVIEW 标记)。
-- **specs**:`_dev_transition` fast→test · `_check_review_approved`(test 前置)fast 放行 · `_evidence_prd_verdicts_all_pass` fast skip · goal/blueprint brief 条件提示行(⚡ fast_mode 生效 · 去了什么留了什么)。
-- **配置面**:localconfig 模板 + config.md 文档段(含警示:质量安全网自拆 · 原型/个人适用)· SKILL 模式区新 fast 节(auto/yolo 并列)。
-
-### 验证
-- 新测试 +8(读取三态 / dev 跳 review / 图边合法 / test 前置放行 / PRD verdicts skip / 产物标记正反)· pytest **911 passed**。
