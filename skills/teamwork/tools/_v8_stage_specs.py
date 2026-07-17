@@ -1493,7 +1493,7 @@ QA 起草 TC(BDD) · RD 起草 TECH · 🔴 **两路并行评审**(v8.244 默认
 
 ### 结果(完成判定)
 - `TC.md`(frontmatter:`tests` · verify-ac.py 通过)
-- `TECH.md`(照 `templates/tech.md` 全结构:现状基线 / 模块 / 数据 / 接口 / **错误处理+日志** / **依赖与影响**〔消费方清单〕/ **查询性能**〔涉 SQL 给理由〕/ 测试策略 / 风险 / **完工自查槽**)
+- `TECH.md`(照 `templates/tech.md` 全结构:现状基线 / 模块 / 数据〔🔴 v8.255 变更最小化四问:复用既有/应用层算/不入库/并入扩展列 · 全否才入变更表 · 每项带「解决什么问题 + 为何非更简方案不可」〕/ 接口 / **错误处理+日志** / **依赖与影响**〔消费方清单〕/ **查询性能**〔涉 SQL 给理由〕/ 测试策略 / 风险 / **完工自查槽**)
 - `TECH-REVIEW.md`(frontmatter:`reviewers + verdict`)
 - `{{artifact_root}}/external-cross-review/*.md`(roster 含 external 时至少 1 份 · 🔴 含 `coverage: [...]` 申报——必覆盖 可测试〔TC 质量/测试策略〕· 方案盲区〔依赖/影响面/迁移风险〕+ AI 自主方向 ≥1〔候选:数据一致性/迁移风险/性能/安全边界〕· 每方向 finding 或「查过无发现」)
 
@@ -1501,7 +1501,7 @@ QA 起草 TC(BDD) · RD 起草 TECH · 🔴 **两路并行评审**(v8.244 默认
 **必读** `stages/blueprint-stage.md`(详细步骤 + §7.5 DB schema 条件暂停点)。
 
 🔴 v8.217 持续分诊(降级触发):TECH 写完若复杂度评估=**简单**且零架构决策 · 而 roster 仍重 → 可提议降级(R5 一句确认 → `change-review-roles --reason`)—— 分诊不是一次性的 · 每个 gate 都可重校准(升级触发已有 · 本条补反向)。\n🔴 v8.216 评审配置动态化:external 跑不跑 = **按 `state.stage_review_roles.blueprint`**(prepare 按角色价值判定 · 去 external → gate 自动放行 · 审计留痕)· review 阶段 roster 独立判定(明确 ≠ 不会写错)。\n🔴 **TECH 方案涉及数据库数据结构变更**(新建/删除/修改 表、字段、索引、约束、migration)·
-blueprint-complete 前必 emit R5 用户确认暂停点(stage.md §7.5)· 🔴 暂停点**必自带变更点明细表**(对象|变更|用途 每对象一行 + 关键迁移策略 —— 分类概括/文件指针不算 · v8.242 实证:概括式 emit 逼用户追问「方案是什么」)· 不涉及则跳过。
+blueprint-complete 前必 emit R5 用户确认暂停点(stage.md §7.5)· 🔴 暂停点**必自带变更点明细表**(对象|变更|**解决什么问题**|**为何非更简方案不可**|破坏性 每对象一行 + 关键迁移策略 —— 分类概括/文件指针不算〔v8.242 实证:概括式 emit 逼用户追问〕· 只写「内容」不写「为什么」也不算〔v8.255 实证:三张新表无一句动机 · 用户点名要目的与更简方案质询〕)· 不涉及则跳过。
 
 ### 完成方式
 ```
