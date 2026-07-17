@@ -718,6 +718,9 @@ LOCALCONFIG_CONFIG_DEFAULTS = {
     # v8.204(用户拍板 · 全局一刀切):默认关异质 external 评审(降级为同模型 subagent 隔离冷审)·
     # external CLI 冷启动太耗时 · 多角色评审(架构师+QA)不受影响照跑 · 想要跨模型异质把关 → 设 false。
     "disable_external_review": True,
+    # v8.260/264:fast mode(默认关):true = 评审收敛为两端单路(goal 合并冷审 + review 合并评审 ·
+    # blueprint 评审去)· yolo 忽略 · 详 templates/config.md § fast mode。
+    "fast_mode": False,
 }
 LOCALCONFIG_BOOTSTRAP_DEFAULTS = {
     "skill_version": None,

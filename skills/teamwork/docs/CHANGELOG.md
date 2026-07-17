@@ -4,6 +4,17 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.264 · localconfig 两修:fast_mode 入自愈默认表 + 「可提交」文档漂移纠正
+
+> 用户问「.teamwork_localconfig.json 什么时候创建」· 答题时撞出两个实质问题:①v8.260 加 fast_mode 时漏了 `LOCALCONFIG_CONFIG_DEFAULTS`(:708 明写「新增字段两处都加」)—— **存量项目的自愈永远不会补出这个新选项 · 用户看不到**;②conventions §13 说该文件「可提交」· 但 bootstrap 实际把它加 .gitignore(`_bootstrap` 段含 host/maintain 时间等机器态)—— 文档与机器行为相反。
+
+### 改动
+- **bootstrap `LOCALCONFIG_CONFIG_DEFAULTS` + `fast_mode: False`**:存量项目下次 session 自愈即补出字段(带注释 · additive 不覆盖已有值)。
+- **conventions §13 纠正**:`.teamwork_localconfig.json` = **本机级 · bootstrap 自动 gitignore** · 团队共享档位靠各机自配(非 git 共享)。
+
+### 验证
+- pytest 912 passed。
+
 ## v8.263 · 修正 v8.262:起草思考规范是「写法」不是「环节」
 
 > 用户修正:「不是加自检环节,是写 PRD 的时候按这个规范去思考」。v8.262 把评审关注点做成了**写完后过的自检清单段**(§送审前自检 · 逐项打钩)—— 形态错了:那是又加一道仪式;用户要的是**起草时的思考方式**,关注点织进写的动作里。
@@ -64,14 +75,3 @@
 
 ### 验证
 - 新测试 +8(读取三态 / dev 跳 review / 图边合法 / test 前置放行 / PRD verdicts skip / 产物标记正反)· pytest **911 passed**。
-
-## v8.259 · RELEASE-GUIDE 入图:DEV-RULES 协作区互链 + teamwork-space 知识入口登记
-
-> 用户点单收尾:①DEV-RULES 关联发版规范 ②teamwork-space 目录加该文档。零死角律要求磁盘上的知识节点必在地图有指针 —— v8.258 建了文件 · 本版把它接进知识图谱。
-
-### 改动
-- **templates/dev-rules.md 协作区**:+`RELEASE-GUIDE.md` 互链(「本文件管怎么写码 · 它管怎么发版」)。
-- **templates/teamwork-space.md 知识入口**:project-specs 行「内含」列更新 —— +RELEASE-GUIDE(发版)· 顺带纠旧清单(去已废 RESOURCES · 补 UI-RULES/PROCESS-LEDGER · 标注清单单源 conventions §13)。
-
-### 验证
-- 纯模板 · pytest 903 passed。

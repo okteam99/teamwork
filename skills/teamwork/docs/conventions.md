@@ -241,7 +241,7 @@ teamwork 文档分 **workspace 级**(仓库根)和 **子项目级**两层。
 | `.teamwork-local-env/` | 🔐 本机敏感配置:`config.properties`(KEY=value:DB 密码 / API key)+ 整文件(kubeconfig / 证书)· **双重 gitignore · 绝不进仓库**。bootstrap 缺失时自动建(`local_env_auto_create` 默认 true)· 已存在不覆盖。读取约定见 `TROUBLESHOOTING.md §五`。 | 用户(secret 真值)/ bootstrap(骨架) |
 
 🔴 **`project-specs/` 与 `product-overview/` 同级** —— 产品视角 ↔ 工程视角成对。workspace 级工程文档**一律进 `project-specs/`** · 不散在仓库根。
-🔴 **`.teamwork-local-env/` ≠ `.teamwork_localconfig.json`**:前者是**你的** secret(kubeconfig/密码/key · gitignored)· 后者是 **teamwork 自己**的配置(worktree/scope/id_strategy 等 · 可提交)。
+🔴 **`.teamwork-local-env/` ≠ `.teamwork_localconfig.json`**:前者是**你的** secret(kubeconfig/密码/key · gitignored)· 后者是 **teamwork 自己**的配置(worktree/scope/id_strategy/fast_mode 等 · 🔴 **本机级 · bootstrap 自动 gitignore**——`_bootstrap` 段含机器态〔host/maintain 时间〕不宜入库 · 团队要共享档位靠口头约定各机自配)。
 
 ### 子项目级(`{子项目}/docs/`)
 
