@@ -177,6 +177,18 @@ id_strategy: utc-yymmddhhmmss
 <!-- false = 不主动创建（opt-out · 仍保留 gitignore 预留规则）。 -->
 local_env_auto_create: true
 
+### fast mode(v8.260 · 默认关 · 去掉所有评审环节)
+
+```json
+"fast_mode": false
+```
+
+<!-- fast_mode: 缺省 / false = 关【默认】;显式 true = 开 fast mode -->
+<!-- true:去掉所有评审环节 —— goal 无冷审(不产 PRD-REVIEW)· blueprint 无评审(不产 TECH-REVIEW)· dev 跳过整个 review stage 直进 test。 -->
+<!-- 保留:测试硬门(exit 0/差分)· 用户暂停点(PRD 确认 / DB schema 确认 / pm_acceptance / ship1)· worktree 纪律 · verify-ac。 -->
+<!-- 🔴 与 yolo 互斥(init-feature 硬拦):yolo 无人值守的唯一安全网 = 自动化评审 · fast 恰好拆掉它 · 有人值守下 fast 才安全。 -->
+<!-- 适用:原型 / 个人项目快糙猛。质量安全网自拆 · 后果自担 · init-feature 时快照进 state(中途改配置不影响 in-flight feature)。 -->
+
 ### 禁用异质模型审核（默认关 · 异质 opt-in）
 <!-- disable_external_review: 缺省 / true = 关【默认】；显式 false = opt-in 异质 -->
 <!-- 缺省 / true = 关（默认）：第三视角 = 同模型 subagent 隔离冷审（external-review 自动 emit subagent 配方 · PMO 起宿主自身模型 subagent 冷审 · 不 exec · 落 external-cross-review/ 满足 external 物化门禁 · frontmatter degraded_mode:config-disabled · 非异质 · 同盲点）。 -->

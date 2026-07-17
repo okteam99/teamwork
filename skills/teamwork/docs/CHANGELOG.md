@@ -4,6 +4,25 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.260 · fast mode:去掉所有评审环节(localconfig 配置 · 默认关 · 与 yolo 互斥)
+
+> 用户点单:增加 fast mode · 去掉所有评审环节 · 默认关 · `.teamwork_localconfig.json` 配置开启。
+
+### 语义
+- **开关**:`fast_mode: true`(缺省/false = 关)· init-feature 时**快照进 `state.fast_mode`**(中途改配置不影响 in-flight feature)。
+- **去掉**:goal 冷审(PL 质疑/外审 · 不产 PRD-REVIEW.md)· blueprint 评审(Architect 主审/外审 · 不产 TECH-REVIEW.md)· **整个 review stage**(dev 直进 test)。
+- **保留**:测试证据硬门(exit 0/差分)· verify-ac · 全部用户暂停点(prepare/PRD 确认/DB 确认/pm_acceptance/ship1)· worktree 纪律 · ship 全链。
+- 🔴 **与 yolo 互斥**(init-feature 硬拦):yolo 无人值守的唯一安全网 = 自动化评审 · fast 恰好拆掉它 —— 有人值守下 fast 才安全;与 auto_mode 正交可叠。
+
+### 实现
+- **state.py**:`_read_fast_mode`(默认 False · 显式 true 才开)· init-feature 快照 + roster 全清空(roster-aware 门自动放行 · adjustments 审计留痕)+ yolo 互斥拦;三链图 dev 边 +`test`(fast 转移合法)。
+- **engine**:`StageArtifactSpec.review_artifact` 标记 + complete 校验循环 fast 跳过(PRD-REVIEW/TECH-REVIEW 标记)。
+- **specs**:`_dev_transition` fast→test · `_check_review_approved`(test 前置)fast 放行 · `_evidence_prd_verdicts_all_pass` fast skip · goal/blueprint brief 条件提示行(⚡ fast_mode 生效 · 去了什么留了什么)。
+- **配置面**:localconfig 模板 + config.md 文档段(含警示:质量安全网自拆 · 原型/个人适用)· SKILL 模式区新 fast 节(auto/yolo 并列)。
+
+### 验证
+- 新测试 +8(读取三态 / dev 跳 review / 图边合法 / test 前置放行 / PRD verdicts skip / 产物标记正反)· pytest **911 passed**。
+
 ## v8.259 · RELEASE-GUIDE 入图:DEV-RULES 协作区互链 + teamwork-space 知识入口登记
 
 > 用户点单收尾:①DEV-RULES 关联发版规范 ②teamwork-space 目录加该文档。零死角律要求磁盘上的知识节点必在地图有指针 —— v8.258 建了文件 · 本版把它接进知识图谱。
@@ -60,15 +79,3 @@
 
 ### 验证
 - 纯文本/brief · pytest 903 passed。预估三刀合计:中位 feature AI 自主 182m → ~150m · 墙钟 -15% 左右。
-
-## v8.255 · DB 变更带目的 + 变更最小化四问(治「只写内容不写为什么 · 三张新表无人质询」)
-
-> 用户看 DB 变更确认暂停点截图(表 = 表名|类型|内容|破坏性 · 三张新表)提两点:①每项变更要给**目的**——解决什么问题、为什么要这样变更;②设计方案时要**前移质询**——是否有更简单的、直接减少数据库变更的方案。溯源:截图表格正是 templates/tech.md「变更表清单」的列结构 —— 模板天生没有「为什么」列 · 项目照模板填自然就缺;v8.242 的暂停点明细虽有「用途」列 · 但项目直接抄 TECH 表 → 用途丢失。
-
-### 改动(模板源头 + 设计前移 + 暂停点同构)
-- **templates/tech.md §变更表清单**(源头):列升级 `表名|变更类型|变更内容|解决什么问题|为何非更简方案不可|破坏性`;表前置 🔴 **变更最小化四问**(①复用既有表/列〔加约束/局部索引〕②应用层/查询时计算 ③不入库〔缓存/TTL/内存〕④并入既有表 JSONB/扩展列 —— **全否才有资格入表**);「为何非更简」列 = 写否掉的最近一个更简方案 + 否的理由(写不出 → 该变更大概率不需要)。
-- **blueprint-stage.md**:§数据模型标注行加「变更最小化先问 · 设计时前移不是确认时补 · DB 变更数是简洁性 counter-lens 重点审查对象」;§7.5 暂停点明细表列与 TECH 表**同构**(对象|变更|解决什么问题|为何非更简方案不可|破坏性)—— 用户拍板直接看动机。
-- **specs blueprint brief**(消费时刻):TECH 结构行 + §7.5 提醒行同步(「只写内容不写为什么也不算变更点明细」)。
-
-### 验证
-- 纯模板/文档 · pytest 903 passed。

@@ -1,6 +1,6 @@
 ---
 name: teamwork
-version: v8.259.1
+version: v8.260
 description: AI 协作开发一体化框架 - 需求功能开发, bug 修复, 问题排查 · /teamwork 启动
 ---
 
@@ -457,6 +457,15 @@ emit 格式:
 🔴 **skip + WARN 行为**:PMO 跳过暂停点 · 但 `state.py add-concern --severity WARN` 写一条 audit 锚定 AI 自决的范围(防 audit 看不到 / 后续复查无迹)。
 
 📎 `worktree_mode=auto` ≠ `auto_mode` —— 前者是 worktree 物理校验模式(prepare/init-feature)· 与暂停点自动流转**完全无关**。
+
+### fast 模式(v8.260 · 去掉所有评审环节 · 默认关 · localconfig 配置)
+
+🔴 `.teamwork_localconfig.json` 的 `fast_mode: true` 开启(**缺省/false = 关** · init-feature 时快照进 `state.fast_mode` · 中途改配置不影响 in-flight feature):
+- **去掉**:goal 冷审(PL 质疑/外审 · 不产 PRD-REVIEW.md)· blueprint 评审(Architect 主审/外审 · 不产 TECH-REVIEW.md)· **整个 review stage**(dev 直进 test)。
+- **保留**:测试证据硬门(exit 0/差分)· verify-ac · **全部用户暂停点**(prepare 4 项 / PRD 最终确认 / DB schema 确认 / pm_acceptance / ship1)· worktree 纪律 · ship 全链。
+- 🔴 **与 yolo 互斥**(init-feature 硬拦):yolo 无人值守的唯一安全网 = 自动化评审 · fast 恰好拆掉它 —— **有人值守下 fast 才安全**(质量把关移交给用户暂停点上的你)。
+- 与 auto_mode 正交可叠:fast(拆评审)+ auto(跳中间确认)= 只剩 prepare/pm_acceptance/ship1 三停 · 质量全靠测试门与你的 MR review。
+- 适用:原型 / 个人项目快糙猛;正式项目慎用(评审是拦真 bug 主力 · 台账实证)。
 
 ### yolo 模式(完全自动 · 无人值守 · 🔴 高风险)
 

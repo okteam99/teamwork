@@ -72,6 +72,9 @@ class StageArtifactSpec:
     must_be_in_commit: bool = True
     """是否必须在 --auto-commit changeset 内"""
 
+    review_artifact: bool = False
+    """v8.260:评审类产物标记 —— state.fast_mode=true 时跳过校验(fast mode 去掉所有评审环节)"""
+
     description: str = ""
 
 
@@ -1437,6 +1440,9 @@ def execute_stage_complete(
     ) if auto_commit else []
 
     for art_spec in stage_spec.artifacts:
+        # v8.260 fast mode:评审类产物(PRD-REVIEW/TECH-REVIEW)不产 · 跳过校验
+        if art_spec.review_artifact and state.get("fast_mode"):
+            continue
         if art_spec.path:
             target = feature_dir / art_spec.path
             if not target.exists():

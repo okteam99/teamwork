@@ -68,7 +68,7 @@ FEATURE_FLOW: dict[str, list[str]] = {
     "ui_design": ["panorama_sync", "blueprint"],   # 条件:--panorama-changed=true → panorama_sync · false → blueprint
     "panorama_sync": ["blueprint"],
     "blueprint": ["dev"],
-    "dev": ["review"],
+    "dev": ["review", "test"],   # test 边仅 fast_mode 转移用(v8.260 跳 review)
     "review": ["test", "dev"],          # review 失败回 dev
     "test": ["browser_e2e", "pm_acceptance"],
     "browser_e2e": ["pm_acceptance"],
@@ -79,7 +79,7 @@ FEATURE_FLOW: dict[str, list[str]] = {
 
 BUG_FLOW: dict[str, list[str]] = {
     "diagnose": ["dev"],                 # v8.107:根因细查 + 修复方案 · 🔴 用户确认后才进 dev(防修偏)
-    "dev": ["review"],
+    "dev": ["review", "test"],   # test 边仅 fast_mode 转移用(v8.260 跳 review)
     "review": ["test", "dev"],
     "test": ["pm_acceptance"],
     "pm_acceptance": ["ship", "dev"],
@@ -100,7 +100,7 @@ MICRO_FLOW: dict[str, list[str]] = {
 AGILE_FLOW: dict[str, list[str]] = {
     "goal": ["blueprint_lite"],
     "blueprint_lite": ["dev"],
-    "dev": ["review"],
+    "dev": ["review", "test"],   # test 边仅 fast_mode 转移用(v8.260 跳 review)
     "review": ["test", "dev"],
     "test": ["pm_acceptance"],
     "pm_acceptance": ["ship", "dev"],
@@ -1867,6 +1867,19 @@ def cmd_init_feature(args: argparse.Namespace) -> None:
         state["stage_review_roles_adjustments"] = []
     except ImportError:
         pass
+    # v8.260 fast mode:localconfig `fast_mode: true` → 去掉所有评审环节(默认关)。
+    # 快照进 state(mid-feature 改配置不漂移):roster 全清空(roster-aware 门自动放行)·
+    # dev 跳 review 直进 test(_dev_transition)· PRD-REVIEW/TECH-REVIEW 不产不查。
+    # 🔴 与 yolo 互斥:yolo 无人值守的唯一安全网就是评审 · fast 拆评审 · 不可同用。
+    if _read_fast_mode(feature_dir):
+        if getattr(args, "yolo", False):
+            emit({"verdict": "FAIL", "action": "init-feature",
+                  "error": "fast_mode 与 --yolo 互斥:yolo 无人值守的唯一安全网 = 自动化评审 · fast_mode 恰好拆掉它",
+                  "hint": "二选一:localconfig 去掉 fast_mode · 或不带 --yolo(有人值守下 fast 才安全)"}, exit_code=1)
+        state["fast_mode"] = True
+        state["stage_review_roles"] = {}
+        state["stage_review_roles_adjustments"] = [{
+            "stage": "*", "roles": [], "reason": "fast_mode(localconfig)· 评审环节全跳", "adjusted_via": "fast_mode"}]
     # ── v8.0+P0-3:cwd 物化校验(治本 PTR-F033 主 tree 污染 case)──
     # 根因:即使 init-feature 自动建了 worktree · 若 PMO 在主 tree cwd 运行 ·
     # state.json 仍落主 tree · worktree 是空的 · 主 tree 污染依旧。
@@ -2234,6 +2247,31 @@ def _read_id_strategy(start: Path) -> str:
         if (d / ".git").exists():
             break  # 到项目边界仍无配置 → 默认
     return DEFAULT
+
+
+def _read_fast_mode(start) -> bool:
+    """v8.260:读项目根 `.teamwork_localconfig.json` 的 `fast_mode`(默认 **False** · 显式 true 才开)。
+
+    fast mode = 去掉所有评审环节(goal 冷审 / blueprint 评审 / 整个 review stage)· 保留:
+    测试硬门 · 用户暂停点(PRD 确认 / DB 确认 / pm_acceptance / ship1)· worktree 纪律。
+    🔴 与 yolo 互斥(init-feature 拦)。向上找 config 到 .git 边界 · 读失败 → False(安全默认)。
+    """
+    try:
+        node = Path(start).resolve()
+    except OSError:
+        return False
+    for _ in range(24):
+        cfg = node / ".teamwork_localconfig.json"
+        if cfg.is_file():
+            try:
+                import json as _json
+                return _json.loads(cfg.read_text(encoding="utf-8")).get("fast_mode") is True
+            except (OSError, ValueError):
+                return False
+        if (node / ".git").exists() or node.parent == node:
+            return False
+        node = node.parent
+    return False
 
 
 def _read_disable_external_review(start) -> bool:

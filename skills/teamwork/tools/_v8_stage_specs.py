@@ -417,7 +417,10 @@ def _evidence_reviewers_match(review_artifact: str):
 
 def _goal_brief(state: dict) -> str:
     """v8.0+P0-8 极简版:目标 + 结果 + 完成方式 · 怎么做归 stage.md。"""
-    return f"""## Goal Stage
+    _fast = ("\n⚡ **fast_mode 生效**(localconfig · v8.260):冷审/评审环节全跳 —— PRD 写完**直接进用户最终确认**"
+             "(不产 PRD-REVIEW.md · 无 PL 质疑/外审)· 用户暂停点与三命门校验保留。\n"
+             if state.get("fast_mode") else "")
+    return f"""## Goal Stage{_fast}
 
 ### 目标
 PM 调研(自答优先)· 起草 PRD · 🔴 **并行派 2 路隔离冷审**(v8.243 默认:PL 对抗质疑 + 覆盖方向制外审〔必覆盖 可实现/可验证 + AI 自主方向 ≥1〕· 防鼓掌锚定 · ⚡ 同发互不喂对方产出)· (条件)早问门 · PM 整合修订 · 冷审循环收敛 · 用户确认 · 决策是否需要 UI。\n🔴 v8.216 评审配置动态化:冷审派谁 = **按 `state.stage_review_roles.goal`**(prepare 已按「角色价值判据」逐角色判定 · 非按 clarity 一刀切)—— roster 里没有的角色 gate 自动放行(如去 pl → PL 质疑免)· 调整用 `change-review-roles --reason`(审计留痕)· PRD 照写(术语/决策沉淀载体)。
@@ -492,6 +495,8 @@ def _evidence_prd_verdicts_all_pass(state: dict, args) -> tuple[bool, str]:
     在**原文**上取 verdicts 块(行内 {..} 或缩进 map 两种写法均兼容 · 简易解析器不支持嵌套 map)·
     扫描块内裁决词 · 任一非 APPROVE/SKIP → FAIL。
     """
+    if state.get("fast_mode"):
+        return True, "skipped(fast_mode · 评审环节全跳 · localconfig 配置)"
     f = Path(args.feature) / "PRD-REVIEW.md"
     if not f.exists():
         return False, "PRD-REVIEW.md 不存在 · 无法校验 verdicts"
@@ -654,6 +659,7 @@ GOAL_SPEC = StageSpec(
             frontmatter_required=["reviewers", "verdicts"],
             body_min_lines=15,
             must_be_in_commit=False,
+            review_artifact=True,  # v8.260:fast_mode 不产不查
             description="多角色 PRD 评审记录",
         ),
     ],
@@ -881,7 +887,10 @@ def _dev_transition(state: dict) -> Optional[str]:
 
     v8.250:micro 不再走 dev(改走 execute → ship · 见 EXECUTE_SPEC)—— dev 只服务
     Feature(full)/ Bug / 敏捷(legacy),全部 → review。旧 Micro→pm_acceptance 分支已删(死路)。
+    v8.260:fast_mode(localconfig · 去掉所有评审环节)→ 跳过 review stage 直进 test。
     """
+    if state.get("fast_mode"):
+        return "test"
     return "review"
 
 
@@ -1486,7 +1495,10 @@ PANORAMA_SYNC_SPEC = StageSpec(
 
 def _blueprint_brief(state: dict) -> str:
     """v8.0+P0-8 极简版:目标 + 结果 + 完成方式 · 怎么做归 stage.md。"""
-    return f"""## Blueprint Stage
+    _fast = ("\n⚡ **fast_mode 生效**(localconfig · v8.260):评审环节全跳 —— TC/TECH 写完**直进 dev**"
+             "(不产 TECH-REVIEW.md · 无 Architect 主审/外审)· DB schema 用户确认(§7.5)与 verify-ac 保留。\n"
+             if state.get("fast_mode") else "")
+    return f"""## Blueprint Stage{_fast}
 
 ### 目标
 QA 起草 TC(BDD)**∥** RD 起草 TECH(⚡ v8.256:两者相互独立 · **并行同发** · 完成后互查 covers_ac↔测试策略;goal 投机窗已产 TECH 草稿则接续)· 🔴 **两路并行评审**(v8.244 默认 roster:Architect 主审〔简洁性 counter-lens〕+ 覆盖方向制外审〔QA 可测试视角并入 + AI 自主方向 ≥1〕· ⚡ 同发互不喂)· 实现前方案收敛。
@@ -1851,6 +1863,7 @@ BLUEPRINT_SPEC = StageSpec(
             path="TECH-REVIEW.md",
             frontmatter_required=["reviewers", "verdict"],  # reviewers 复数 · 对齐 reviewers_match evidence
             must_be_in_commit=False,
+            review_artifact=True,  # v8.260:fast_mode 不产不查
             description="架构师 Tech Review verdict",
         ),
     ],
@@ -2514,7 +2527,9 @@ REVIEW_SPEC = StageSpec(
 
 
 def _check_review_approved(state: dict, args) -> bool:
-    """review 已完成且 verdict=APPROVE"""
+    """review 已完成且 verdict=APPROVE(fast_mode 跳 review stage → 直接放行 · v8.260)"""
+    if state.get("fast_mode"):
+        return True
     rc = state.get("stage_contracts", {}).get("review", {})
     if rc.get("output_satisfied") is not True:
         return False
