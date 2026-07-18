@@ -4,6 +4,20 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.269 · 单路评审与会话主模型错开 · 补全错开不变式
+
+> 用户指令:「单路评审要和主模型分开」。v8.268 只管了双路(外审路 ≠ 主审路),把 fast 单路标了「不适用」—— 但单路是仅有的独立采样,跑会话主模型 = 起草者自审(盲区全相关)。本版补全:**不变式 = 任何评审配置至少一路 ≠ 会话主模型** —— 双路 = 外审路错开;**单路(fast 合并 / roster 减到一路)= 该路必须错开**(如 fable5 会话 → 评审 opus)。
+
+### 改动
+- SKILL 🎚️ 单源:「fast 单路不适用」→ 单路同样错开 + 不变式表述(顺修 v8.268 括号瑕疵)。
+- `DISPATCH_TIER_REMINDER`:错开条改双路/单路两分支(消费时点)。
+- goal / review 两个 fast brief 串加 🎭 单路错开行(消费时点)。
+- SKILL fast 节「留两端」行 + localconfig 模板注释 + config.md 同步。
+- 边界不变:验证轮照 v8.256 降档(降档即错开)· 跨厂商异质 opt-in 天然错开 · degraded 诚实标注照旧。
+
+### 验证
+- test_model_stagger 新增 3(提醒单路分支 / fast 两 brief / 正常 brief 不受污染)· pytest 921 passed。
+
 ## v8.268 · 正常模式双路评审模型错开 · 外审路 ≠ 主审路
 
 > 用户指令:「正常模式双路评审时模型要错开,例如 PRD 一路是 fable5,另一路应该是 opus」。同模型双路 = 盲区相关(系统性偏差两路同瞎)—— 两路并行冷审(goal:PL+外审 / blueprint·review:Architect+外审)**模型必须不同**:主审路继承会话主模型 · 外审路错开一档(fable5 会话 → 外审 opus;opus 会话 → fable5/sonnet)。零 CLI 成本拿到近异质(上下文与权重双错开);跨厂商异质 opt-in(codex/gemini)时天然错开;fast 单路不适用;验证轮照 v8.256 降档(降档本身即错开)。
@@ -67,14 +81,3 @@
 
 ### 验证
 - 纯模板/文档 · pytest 912 passed。
-
-## v8.264 · localconfig 两修:fast_mode 入自愈默认表 + 「可提交」文档漂移纠正
-
-> 用户问「.teamwork_localconfig.json 什么时候创建」· 答题时撞出两个实质问题:①v8.260 加 fast_mode 时漏了 `LOCALCONFIG_CONFIG_DEFAULTS`(:708 明写「新增字段两处都加」)—— **存量项目的自愈永远不会补出这个新选项 · 用户看不到**;②conventions §13 说该文件「可提交」· 但 bootstrap 实际把它加 .gitignore(`_bootstrap` 段含 host/maintain 时间等机器态)—— 文档与机器行为相反。
-
-### 改动
-- **bootstrap `LOCALCONFIG_CONFIG_DEFAULTS` + `fast_mode: False`**:存量项目下次 session 自愈即补出字段(带注释 · additive 不覆盖已有值)。
-- **conventions §13 纠正**:`.teamwork_localconfig.json` = **本机级 · bootstrap 自动 gitignore** · 团队共享档位靠各机自配(非 git 共享)。
-
-### 验证
-- pytest 912 passed。

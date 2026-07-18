@@ -467,7 +467,7 @@ def close_open_pause(state: dict) -> None:
 DISPATCH_TIER_REMINDER = (
     "🎚️ 本 stage 若派 subagent/teammate/workflow:每个派发**声明 model + 一句为什么**"
     "(校验/枚举型〔QA 冷审/TC 对照/测试执行/机械外化〕→ 验证档 sonnet/haiku · "
-    "判断/创造型〔Architect/PL/方案/裁决〕→ 不降档)· 未声明 = 继承会话模型(台账计 unspecified)· 🎭 双路并行评审两路模型**必须错开**(外审路 ≠ 主审路 · 如 fable5 会话 → 外审 opus · v8.268)· "
+    "判断/创造型〔Architect/PL/方案/裁决〕→ 不降档)· 未声明 = 继承会话模型(台账计 unspecified)· 🎭 评审模型错开:双路 = 外审路 ≠ 主审路 · 单路(fast 合并等)= **该路 ≠ 会话主模型**(如 fable5 会话 → 评审 opus · v8.268/269)· "
     "单源详 SKILL 🎚️ / agents/README §一。"
 )
 

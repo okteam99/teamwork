@@ -27,3 +27,18 @@ class TestModelStagger(unittest.TestCase):
         """external-review subagent 配方指引含模型错开(措辞回归 · 源码级)。"""
         src = (Path(__file__).resolve().parent.parent / "state.py").read_text(encoding="utf-8")
         self.assertIn("模型错开", src)
+
+
+class TestSingleLaneStagger(unittest.TestCase):
+    """v8.269:单路评审(fast 合并单路 / roster 减到一路)与会话主模型错开。"""
+
+    def test_reminder_carries_single_lane_rule(self):
+        self.assertIn("该路 ≠ 会话主模型", E.DISPATCH_TIER_REMINDER)
+
+    def test_fast_briefs_carry_single_lane_stagger(self):
+        self.assertIn("单路模型错开", S._goal_brief({"fast_mode": True}))
+        self.assertIn("单路模型错开", S._review_brief({"fast_mode": True}))
+
+    def test_normal_briefs_not_polluted_by_fast_line(self):
+        self.assertNotIn("单路模型错开", S._goal_brief({}))
+        self.assertNotIn("单路模型错开", S._review_brief({}))
