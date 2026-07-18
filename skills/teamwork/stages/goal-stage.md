@@ -29,12 +29,12 @@
 
 **起草思考规范**(v8.262 · 写法非环节):写 PRD 时**就按冷审关注点思考**(不是写完再检查)—— 写背景/方案时 PL 六问过脑(价值前提/最小范围/既有行为);写每条 AC 时用可测判据(「尽量/合理/优化」落笔即换 · 边界/异常入 AC);涉依赖先读真实代码确认存在再写;术语当句定义。清单织在 [templates/prd.md 模板头「🧠 起草思考规范」](../templates/prd.md)。why:finding 采纳率 80-90% = 多数问题起草时可预见 · **按冷审标准写一遍比写完被打回改一遍省一整轮**(Round 2+ 是 goal 耗时大头)。
 
-**冷审两路并行(v8.243 默认 roster = `[pl, external]`)**——⚡ 同发两个隔离 subagent · 互不喂对方产出;组合按 roster(prepare 判定 · `change-review-roles --reason` 可调):
+**冷审两路并行(v8.243 默认 roster = `[pl, external]`)**——⚡ 同发两个隔离 subagent · 互不喂对方产出 · 🎭 **两路模型错开**(v8.268:外审路 ≠ 主审路(如 fable5 会话 → 外审 opus));组合按 roster(prepare 判定 · `change-review-roles --reason` 可调):
 
 | 路 | mandate | 找什么 |
 |---|---|---|
 | PL | 对抗质疑 | 质疑六问(价值前提 / 问题定义 / 范围最小化 / 上游对齐 / 复活检查 / 既有行为变更)· 产 `PL-CHALLENGE-{n}` · 至少 1 实质或「无+理由」· 详 [roles/product-lead.md](../roles/product-lead.md) |
-| external(第三视角冷审 · 默认同模型 subagent · 异质 opt-in) | **覆盖方向制** | 🔴 **必覆盖**:**可实现**(技术可行 / 架构影响 / **简洁性 counter-lens**〔过度设计?职责焊错层?〕——唯一防过度设计 lens)· **可验证**(AC 可测试性 / 边界场景 / 空值异常分支)+ 🔴 **AI 自主方向 ≥1**(按 feature 特性自选:安全 / 性能 / 数据一致性 / 兼容 / 运维…)。每方向给 finding 或「查过无发现」· 段记 `coverage: [...]`(物化门 `external_coverage_present`) |
+| external(第三视角冷审 · 默认**错开模型** subagent〔≠主会话模型 · v8.268〕· 跨厂商异质 opt-in) | **覆盖方向制** | 🔴 **必覆盖**:**可实现**(技术可行 / 架构影响 / **简洁性 counter-lens**〔过度设计?职责焊错层?〕——唯一防过度设计 lens)· **可验证**(AC 可测试性 / 边界场景 / 空值异常分支)+ 🔴 **AI 自主方向 ≥1**(按 feature 特性自选:安全 / 性能 / 数据一致性 / 兼容 / 运维…)。每方向给 finding 或「查过无发现」· 段记 `coverage: [...]`(物化门 `external_coverage_present`) |
 | qa / architect(默认并入外审覆盖方向) | 独立冷审(roster 加回时) | 复杂 feature(schema 即交付物 / 测试面大 / 架构决策重)→ `change-review-roles` 加回独立跑 · mandate = 上面覆盖方向的对应拆分 |
 
 **修订与收敛**:PM 逐条响应(ADOPT/REJECT/DEFER)· `adversarial_self_check` 双向——ADOPT 前先质疑 finding 不成立、REJECT 前先 steelman,**两个方向都给实证**(「冷审说得对」「我觉得没事」都不是理由);Round 2+ 重新派**冷** Agent 走验证模式(喂修订 PRD + 上轮 finding + 处置,核实 fix + 找新,防重复提已解决)· 🎚️ **验证轮派发用验证档模型**(v8.256 · 校验型任务 · 首轮全量冷审不降档)。

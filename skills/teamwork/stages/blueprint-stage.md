@@ -26,9 +26,9 @@ frontmatter `reviewers: <state.stage_review_roles.blueprint 全体角色>` + `ve
 v8.244 默认 QA 并入 §6 外审覆盖方向「可测试」· 复杂 Feature(测试面大)`change-review-roles` 加回时独立启用
 
 ### 6. 第三视角冷审(external cross-review · roster 条件式 · v8.244 默认 roster = `[architect, external]`)
-按 `state.stage_review_roles.blueprint` roster + localconfig 三层分支(与 §4 Architect 主审 ⚡ 并行同发 · 互不喂对方产出):
+按 `state.stage_review_roles.blueprint` roster + localconfig 三层分支(与 §4 Architect 主审 ⚡ 并行同发 · 互不喂对方产出 · 🎭 两路模型错开〔v8.268〕):
 - ① **roster 含 external 且 `.teamwork_localconfig.json` 的 `disable_external_review` 显式 `false`(opt-in 异质)** → 跑 `state.py external-review --feature <path> --stage blueprint`(host/model/profile 全自动)· 落 `external-cross-review/blueprint-<model>.md`
-- ② **默认(缺省 / `true`)** → 同模型 subagent 隔离冷审降级承担第三视角(产物仍落 `external-cross-review/*.md` · frontmatter 带 `review_via: subagent`)
+- ② **默认(缺省 / `true`)** → **错开模型** subagent 隔离冷审降级承担第三视角(≠主会话模型(如 fable5 会话 → 外审 opus) · v8.268)(产物仍落 `external-cross-review/*.md` · frontmatter 带 `review_via: subagent`)
 - ③ **roster 无 external** → 整段 skip(机器校验自动过)
 
 🔴 **外审内容契约(覆盖方向制 · v8.244)**:必覆盖 **可测试**(TC 质量 / 测试策略 —— QA 视角并入 · AC↔TC 机械绑定归 verify-ac)· **方案盲区**(依赖 / 影响面 / 迁移风险)+ 🔴 **AI 自主方向 ≥1**(候选:数据一致性 / 迁移风险 / 性能 / 安全边界 · 按 feature 挑或自造)· 每方向给 finding 或「查过无发现」· 产物 frontmatter 记 `coverage: [...]`(物化门 `cross_review_coverage`)。
@@ -109,7 +109,7 @@ frontmatter `tests: [...]` · AC↔Test 一一绑定 · BDD Given/When/Then
 frontmatter `reviewers`(复数列表 · 含 blueprint 全部评审角色)+ `verdict` · 三视角 finding 汇总
 
 ### `external-cross-review/*.md`
-第三视角冷审产物按 roster(含 external 时 · 默认同模型 subagent 冷审)
+第三视角冷审产物按 roster(含 external 时 · 默认错开模型 subagent 冷审 · v8.268)
 
 ---
 

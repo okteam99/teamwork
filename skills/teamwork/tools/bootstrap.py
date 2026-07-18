@@ -1488,7 +1488,7 @@ def cmd_session_bootstrap(args: argparse.Namespace) -> None:
     result["checks"]["heterogeneous_review"] = {
         "status": "cold-review (default)" if _ext_disabled else "heterogeneous (opt-in)",
         **({"note": (
-            "ℹ️ external 异质评审默认关(v8.204)· 第三视角 = 同模型 subagent 隔离冷审(fresh session)· "
+            "ℹ️ external 异质评审默认关(v8.204)· 第三视角 = 错开模型 subagent 隔离冷审(fresh session · ≠主会话模型 · v8.268)· "
             "架构师+QA 多角色评审不受影响照跑 · 想要跨模型异质把关(揭同模型盲区)→ "
             ".teamwork_localconfig.json 设 `disable_external_review: false`(需装第二个模型 CLI)")}
             if _ext_disabled else {}),

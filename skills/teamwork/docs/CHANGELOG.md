@@ -4,6 +4,23 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.268 · 正常模式双路评审模型错开 · 外审路 ≠ 主审路
+
+> 用户指令:「正常模式双路评审时模型要错开,例如 PRD 一路是 fable5,另一路应该是 opus」。同模型双路 = 盲区相关(系统性偏差两路同瞎)—— 两路并行冷审(goal:PL+外审 / blueprint·review:Architect+外审)**模型必须不同**:主审路继承会话主模型 · 外审路错开一档(fable5 会话 → 外审 opus;opus 会话 → fable5/sonnet)。零 CLI 成本拿到近异质(上下文与权重双错开);跨厂商异质 opt-in(codex/gemini)时天然错开;fast 单路不适用;验证轮照 v8.256 降档(降档本身即错开)。
+
+### 消费时点(规则到场)
+- `DISPATCH_TIER_REMINDER`(每 stage-start 附带)加错开条。
+- goal / blueprint / review 三 brief 的两路派发行加 🎭 标记。
+- `external-review` subagent 配方 next_action:起 subagent 时 model 参数用 ≠ 主会话的档(降级路同享)。
+- SKILL 🎚️ dispatch 档位节 = 单源全文(why + 配对示例 + 边界)。
+
+### 措辞升级(「同模型 subagent 冷审」→「错开模型」)
+- SKILL yolo 节 ×3 · goal-stage 外审行 + 两路并行行 · blueprint-stage §6②/§3 产物注 · review-stage §7 · roles/external-reviewer · standards/external-model-usage(默认语义块 + 代价自知句:非跨厂商异质 · 强于同模型 · 仍弱于 codex 级)· config.md · yolo-preflight · bootstrap/state.py 各 INFO。
+- 不变:异质性硬约束(同厂商仍非「异质」· degraded/heterogeneous:false 诚实标注照旧)· self-review exec 兜底(客观同模型 · 保持)。
+
+### 验证
+- 新增 test_model_stagger_v8268(3:提醒/三 brief/配方)· pytest 918 passed。
+
 ## v8.267 · fast 模式评审最多 2 轮 · 轮尽未收敛决策点抛用户
 
 > 用户指令:「fast 模式评审最多 2 轮,无法收敛的决策点抛用户」。fast 的提速语义补上收敛端:单路合并评审(v8.261)管宽度,本版管深度 —— 首轮全量 + 1 验证轮共 2 轮,轮尽不再循环,把未收敛的决策点直接交用户拍板。
@@ -61,14 +78,3 @@
 
 ### 验证
 - pytest 912 passed。
-
-## v8.263 · 修正 v8.262:起草思考规范是「写法」不是「环节」
-
-> 用户修正:「不是加自检环节,是写 PRD 的时候按这个规范去思考」。v8.262 把评审关注点做成了**写完后过的自检清单段**(§送审前自检 · 逐项打钩)—— 形态错了:那是又加一道仪式;用户要的是**起草时的思考方式**,关注点织进写的动作里。
-
-### 改动
-- **prd.md**:删 §送审前自检 整段;模板头新增 **🧠 起草思考规范**(写的时候就这样想 · 非写完检查):写背景/方案时 PL 六问过脑(写不顺的地方就是冷审会打的地方)· 写每条 AC 时用可测判据(「尽量/合理/优化」**落笔即换**)· 涉依赖先读真实代码确认存在再写 · 术语当句定义;AC 表注释就地强化(写时即用可测判据)。
-- **goal-stage ③**:「送审前自检」段改写为「起草思考规范(写法非环节)」;**goal brief**:撤独立自检步 · 思考规范并进「起草 v0.1」步内注。
-
-### 验证
-- 纯模板/文档 · pytest 912 passed。

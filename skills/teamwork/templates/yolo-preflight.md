@@ -29,7 +29,7 @@
 ## 3. 用户确认（init-feature --yolo 校验本段）
 
 - **确认范围**：用户已逐条拍板上方 §2 核心决策 + 知悉 §1 范围/风险 · **授权 yolo 自主执行**(零暂停点直到 ship)。
-- **评审安全网知悉**：{异质 external 正常 / 🔴 本项目 disable_external_review=true → 安全网降级为同模型 subagent 冷审 · 弱于异质 · 用户已知悉}
+- **评审安全网知悉**：{异质 external 正常 / 🔴 本项目 disable_external_review=true → 安全网降级为错开模型 subagent 冷审(≠主会话模型 · v8.268)· 弱于跨厂商异质 · 用户已知悉}
 - **确认记录**：{用户原话/答复摘要 · 不要 paraphrase 成"已确认"}
 
 ---
