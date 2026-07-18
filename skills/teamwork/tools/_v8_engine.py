@@ -1176,7 +1176,7 @@ DEFAULT_REVIEW_ROLES: dict[tuple[str, str], list[str]] = {
     ("敏捷需求", "pm_acceptance"): ["pm"],
 
     # Bug 流程
-    ("Bug", "review"): ["architect", "external"],  # v8.244:同 Feature review 两路制(代码 review 同刀)
+    ("Bug", "review"): ["external"],  # v8.270:单路 external(diagnose 已经用户确认方案 · review 聚焦 fix↔方案一致 + 不引入新问题 · Architect/QA 视角并入外审覆盖方向 · 错开模型冷审天然满足 v8.269 单路不变式 · change-review-roles 可加回)。史:v8.244 两路制
     ("Bug", "test"): ["qa"],
     ("Bug", "pm_acceptance"): ["pm"],
 
@@ -1233,7 +1233,7 @@ FLOW_STAGE_CHAIN: dict[str, list[tuple[str, bool, str, str]]] = {
     "Bug": [
         ("diagnose", False, "", "🔴 根因细查(深读代码)+ 修复方案 · 用户确认后才进 dev(防 fix 修偏)· 无评审角色"),
         ("dev", False, "", "无评审 · RD 按**已确认的修复方案**写 fix + commit(BUG 报告根因/方案 diagnose 已出)"),
-        ("review", False, "", "修复方案 Architect + QA + External 把关(防 fix 引入新问题)"),
+        ("review", False, "", "单路 external 评审(v8.270 · 错开模型冷审 · 覆盖 修复↔diagnose 方案一致 + 测试真实性 + 质量盲区 · 防 fix 引入新问题)"),
         ("test", False, "", "QA 验收回归测试(原 bug 不复发 + 周边无新错)"),
         ("pm_acceptance", False, "", "PM 验收(纯 infra/低风险 fix 可加快)"),
         ("ship", False, "", "无评审 · PMO 编排"),

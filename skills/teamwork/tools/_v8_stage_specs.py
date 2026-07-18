@@ -2346,7 +2346,7 @@ def _review_verify_round_brief(state: dict, rounds: list) -> str:
 state.py review-complete --feature <path> --auto-commit <hash> \\
   --artifacts REVIEW.md,REVIEW-arch.md \\
   --verdict {{APPROVE|NEEDS_REVISION}}
-# --artifacts 按 roster:v8.244 默认仅 arch(qa 加回时 + REVIEW-qa.md)· 移出 roster 的角色产物不查
+# --artifacts 按 roster:v8.244 Feature 默认仅 arch(qa 加回时 + REVIEW-qa.md)· Bug 单路 → REVIEW.md 即可(v8.270)· 移出 roster 的角色产物不查
 ```
 """
 
@@ -2367,10 +2367,12 @@ def _review_brief(state: dict) -> str:
              "无 REVIEW-arch/REVIEW-qa/external 独立产物 · 🎭 **单路模型错开**(v8.269:该路 ≠ 会话主模型 · 如 fable5 → opus)· 🎯 **评审预算封顶 2 轮**(v8.267 引擎硬拦:"
              "超预算未收敛 → open findings 作为决策点升 R5 暂停点抛用户)。\n"
              if state.get("fast_mode") else "")
-    return f"""## Review Stage{_fast}
+    _bug = ("\n🐛 **Bug 流单路评审**(v8.270):roster 默认仅 `[external]` —— 一路**错开模型**隔离冷审(≠会话主模型 · v8.269 单路不变式天然满足)· 覆盖必含 **修复↔diagnose 方案一致性**(Architect 视角并入)+ 外审必覆盖清单照旧 · REVIEW.md 台账/severity/验证轮/预算协议照跑 · REVIEW-arch 不产(roster 无 architect · `change-review-roles` 可加回)。\n"
+            if (state.get("flow_type") == "Bug" and not state.get("fast_mode")) else "")
+    return f"""## Review Stage{_fast}{_bug}
 
 ### 目标
-按 roster(`state.stage_review_roles.review`)两路并行评审(v8.244 默认:Architect 主审〔实现↔设计一致性〕+ 覆盖方向制外审〔QA 测试真实性视角并入 + AI 自主方向 ≥1〕· ⚡ 同发互不喂 · 🎭 两路模型错开〔v8.268 · 外审路 ≠ 主审路〕)· 收敛 verdict。
+按 roster(`state.stage_review_roles.review`)并行评审(v8.244 Feature 默认两路:Architect 主审〔实现↔设计一致性〕+ 覆盖方向制外审〔QA 测试真实性视角并入 + AI 自主方向 ≥1〕· ⚡ 同发互不喂 · 🎭 两路模型错开〔v8.268 · 外审路 ≠ 主审路〕;Bug 默认单路 [external] · v8.270)· 收敛 verdict。
 
 ### 结果(完成判定 · roster-aware)
 - `REVIEW.md`(frontmatter:`reviewers + verdict: APPROVE|NEEDS_REVISION` + `findings` 机读台账)
@@ -2387,7 +2389,7 @@ def _review_brief(state: dict) -> str:
 state.py review-complete --feature <path> --auto-commit <hash> \
   --artifacts REVIEW.md,REVIEW-arch.md \
   --verdict {{APPROVE|NEEDS_REVISION}}
-# --artifacts 按 roster:v8.244 默认仅 arch(qa 加回时 + REVIEW-qa.md)· 移出 roster 的角色产物不查
+# --artifacts 按 roster:v8.244 Feature 默认仅 arch(qa 加回时 + REVIEW-qa.md)· Bug 单路 → REVIEW.md 即可(v8.270)· 移出 roster 的角色产物不查
 ```
 """
 
