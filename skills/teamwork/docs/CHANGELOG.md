@@ -4,6 +4,19 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.271 · PRD 每条 AC 配大白话解释 · 机器校验逐条非空
+
+> 用户指令:「PRD 模板优化,每一个 AC 都需要大白话解释一下」。BDD(Given/When/Then)是给 QA 绑 TC 的机器友好写法,但用户终确认时读起来费劲 —— §验收标准表加 **💬 大白话列**:每条 AC 一句人话(这条在验证什么 · 用户能感知到什么变化),与终确认导读「说人话」哲学同源,拍板者逐条看得懂。
+
+### 改动
+- templates/prd.md:AC 表加 💬 大白话列(含示例:「登录成功后 3 秒内能看到自己的头像和昵称」)· 表注/🧠 起草思考规范 AC 条/自查清单同步(写时即配 · 非写完补)。
+- goal-complete 新 evidence `ac_plain_words`:解析 §验收标准表 —— 缺列 FAIL(提示照模板加列)· 逐行空/占位(`{...}`/`-`/`无`)FAIL 并列出 AC id;段缺失/无 AC 行不重复报(归 conformance/verify-ac)。
+- goal-stage 规则 1 + goal brief 起草思考行同步。
+- 机读块不动:大白话属人读单源(body 表)· 不进 TEAMWORK-MACHINE(id 一致原则照旧)。
+
+### 验证
+- 新增 test_ac_plain_v8271(5:填齐过 / 缺列 / 空+占位列 id / 无段放行 / 关键词不误判)· pytest 927 passed。
+
 ## v8.270 · Bug 流 review 改单路评审 · 只留 external
 
 > 用户指令:「bugfix 改为单路评审,只留 external」。Bug 流的质量重心在 diagnose(根因 + 修复方案经用户确认才许修)—— review 只需盯「fix 是否忠于已确认方案 + 是否引入新问题」,双路属重了。默认 roster `["architect","external"]` → `["external"]`:一路错开模型隔离冷审(≠会话主模型 · v8.269 单路不变式天然满足)。
@@ -67,17 +80,3 @@
 
 ### 验证
 - 新增 3 测试(默认 3→封顶 2 拦 round 3 / localconfig=1 取更小 / 三处 brief 提醒 + 非 fast 无)· pytest 915 passed。
-
-## v8.266 · 修正 v8.265:兜底不是「默认不做」· 是逐项算 ROI
-
-> 用户修正:「不是默认不做,需要考虑 ROI」。v8.265 把判据写成了先验偏向(默认不做 / 重点砍除对象)—— 正解是**中性算账**:每个兜底逐项算 保护场景的真实概率×后果 vs 实现维护成本,**ROI 立得住 → 做;立不住 → 砍**。两个方向都不许偷懒:AI 天然偏加兜底(别不算账就加),但高概率×高代价的兜底是正收益(别一刀全砍)。
-
-### 改动(纯措辞纠偏 · 透出机制不变)
-- prd.md 思考规范:「默认不做」→「按 ROI 取舍(立得住做 · 立不住砍)」。
-- tech.md:判据条改「兜底按 ROI 取舍 · 两个方向都别偷懒」;清单表列「为何值得」→「ROI 结论(vs 实现维护成本)」;清单引导「确需保留」→「ROI 立得住而保留」。
-- blueprint §4 lens:「兜底是重点砍除对象」→「兜底按 ROI 审 · 两个方向都要实证」(对齐既有裁决举证对称原则);§7.5 触发条与暂停点兜底块同步 ROI 措辞。
-- specs brief TECH 结构行同步。
-- 不变:兜底清单落盘单源 · §7.5 双触发透出 · 用户拍板 · auto skip+WARN。
-
-### 验证
-- 纯措辞 · pytest 912 passed。

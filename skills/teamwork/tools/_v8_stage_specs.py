@@ -434,7 +434,7 @@ PM 调研(自答优先)· 起草 PRD · 🔴 **并行派 2 路隔离冷审**(v8.
 - `state.execution_hints.ui_design_needed` 已决策(由 `--needs-ui`)
 
 ### 怎么做
-🔴 **照 `{{SKILL_ROOT}}/templates/prd.md` 起草 · 别抄项目里旧 PRD**(实测 post-v8.164 十份仅一份用 canonical · 抄旧 = 机读块/扩展区等新机制到达不了)· goal-complete 校验三命门段(机读块/AC/『开工前必须想清的』)。\n**必读** `stages/goal-stage.md`(8 步:调研 → 起草 v0.1(🧠 **按冷审关注点思考着写** · 非环节:PL六问过脑 · AC 用可测判据〔含糊词落笔即换〕· 依赖先读真实代码 —— 详 prd.md 模板头「起草思考规范」· v8.262)→ 🔴 **并行 2 路隔离冷审**(PL 质疑 + 覆盖方向制外审 · 不喂起草心路 · v8.243)→ 早问门(冷审后)→ PM 整合修订 → 冷审循环(Round 2+ 验证模式 · 🎚️ **验证轮派发用验证档模型** · 全 APPROVE 收敛)→ needs-ui → 用户确认 · 🔮 **emit 终确认暂停点后等待窗后台派 TECH 草稿 subagent**〔worktree 内草稿 · 不跑 state 命令 · 用户 ok 则 blueprint 直接接续 · 详 goal-stage ④ 投机窗〕)。外审必覆盖:**可实现**(技术可行/架构影响/简洁性 counter-lens)· **可验证**(AC 可测/边界/异常)+ **AI 自主方向 ≥1**(安全/性能/数据一致性/兼容…按 feature 挑)· 每方向 finding 或「查过无发现」· 段记 `coverage: [...]`。
+🔴 **照 `{{SKILL_ROOT}}/templates/prd.md` 起草 · 别抄项目里旧 PRD**(实测 post-v8.164 十份仅一份用 canonical · 抄旧 = 机读块/扩展区等新机制到达不了)· goal-complete 校验三命门段(机读块/AC/『开工前必须想清的』)。\n**必读** `stages/goal-stage.md`(8 步:调研 → 起草 v0.1(🧠 **按冷审关注点思考着写** · 非环节:PL六问过脑 · AC 用可测判据〔含糊词落笔即换〕+ 每条配 💬 大白话〔说人话给用户 · v8.271〕· 依赖先读真实代码 —— 详 prd.md 模板头「起草思考规范」· v8.262)→ 🔴 **并行 2 路隔离冷审**(PL 质疑 + 覆盖方向制外审 · 不喂起草心路 · v8.243)→ 早问门(冷审后)→ PM 整合修订 → 冷审循环(Round 2+ 验证模式 · 🎚️ **验证轮派发用验证档模型** · 全 APPROVE 收敛)→ needs-ui → 用户确认 · 🔮 **emit 终确认暂停点后等待窗后台派 TECH 草稿 subagent**〔worktree 内草稿 · 不跑 state 命令 · 用户 ok 则 blueprint 直接接续 · 详 goal-stage ④ 投机窗〕)。外审必覆盖:**可实现**(技术可行/架构影响/简洁性 counter-lens)· **可验证**(AC 可测/边界/异常)+ **AI 自主方向 ≥1**(安全/性能/数据一致性/兼容…按 feature 挑)· 每方向 finding 或「查过无发现」· 段记 `coverage: [...]`。
 
 ### 完成方式
 ```
@@ -630,6 +630,47 @@ def _evidence_prd_template_conformance(state: dict, args) -> tuple[bool, str]:
     return True, ""
 
 
+def _evidence_ac_plain_present(state: dict, args) -> tuple[bool, str]:
+    """v8.271:每条 AC 必配 💬 大白话(§验收标准表列 · 逐条非空非占位)。
+
+    BDD 给 QA/机器绑 TC · 大白话给用户终确认拍板(非技术也能逐条看懂在验证什么)。
+    只查列存在 + 逐行非空 · 不管文采;段缺失/无 AC 行由 conformance & verify-ac 拦 · 不重复报。"""
+    prd = Path(args.feature) / "PRD.md"
+    if not prd.is_file():
+        return False, "PRD.md 不存在"
+    txt = prd.read_text(encoding="utf-8", errors="replace")
+    m = re.search(r"(?ms)^##\s*验收标准.*?(?=^##\s|\Z)", txt)
+    if not m:
+        return True, ""
+    plain_idx = None
+    empty_ids = []
+    for line in m.group(0).splitlines():
+        s = line.strip()
+        if not s.startswith("|"):
+            continue
+        cells = [c.strip() for c in s.strip("|").split("|")]
+        if not cells or set("".join(cells)) <= set("-: "):
+            continue
+        if re.match(r"(?i)^AC-\d+", cells[0]):
+            if plain_idx is None:
+                return False, (
+                    "§验收标准 表缺 💬 大白话 列(v8.271):每条 AC 配一句人话"
+                    "(这条在验证什么 · 用户能感知什么)—— BDD 给 QA 绑 TC · "
+                    "大白话给用户终确认拍板 · 照 templates/prd.md 表头加列")
+            cell = cells[plain_idx] if plain_idx < len(cells) else ""
+            if (not cell or cell in {"-", "—", "无"}
+                    or (cell.startswith("{") and cell.endswith("}"))):
+                empty_ids.append(cells[0])
+            continue
+        if any("大白话" in c for c in cells):
+            plain_idx = next(i for i, c in enumerate(cells) if "大白话" in c)
+    if empty_ids:
+        return False, (
+            "以下 AC 的 💬 大白话为空/占位(v8.271 逐条必填 · 一句人话:这条在验证什么):"
+            + " · ".join(empty_ids))
+    return True, ""
+
+
 GOAL_SPEC = StageSpec(
     name="goal",
     prerequisites=[
@@ -669,6 +710,11 @@ GOAL_SPEC = StageSpec(
             name="prd_template_conformance",
             check_fn=_evidence_prd_template_conformance,
             description="PRD 含机读块/AC/扩展区三命门段(canonical 模板 · v8.201 治到达率)",
+        ),
+        StageEvidenceCheck(
+            name="ac_plain_words",
+            check_fn=_evidence_ac_plain_present,
+            description="每条 AC 配 💬 大白话(§验收标准表列 · 逐条非空非占位 · v8.271)",
         ),
         StageEvidenceCheck(
             name="prd_review_after_prd",
