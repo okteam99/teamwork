@@ -56,3 +56,11 @@ class TestAcPlain(unittest.TestCase):
             "| ID | 描述(BDD) | 💬 大白话 | 优先级 |\n|---|---|---|---|\n"
             "| AC-1 | Given/When/Then | 用大白话讲:能一键导出 | P0 |")
         self.assertTrue(ok, msg)
+
+
+class TestGoalFinalConfirmPrdPathEcho(unittest.TestCase):
+    """v8.272:PRD 终确认暂停点导读头行回显 PRD 绝对路径(brief 消费时点携带)。"""
+
+    def test_goal_brief_carries_prd_path_echo(self):
+        self.assertIn("PRD 绝对路径", S._goal_brief({}))
+        self.assertIn("PRD 绝对路径", S._goal_brief({"fast_mode": True}))
