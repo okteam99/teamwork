@@ -24,7 +24,7 @@
 
 4. 调用频率约束：受 stage_review_roles[] + disable_external_review 双闸控制 · 跨模型异质 = opt-in
  ├── roster（state.stage_review_roles[stage]）无 external → 整段 skip（机器校验自动过）
- └── roster 含 external 时：disable_external_review 缺省/true → 第三视角由同模型 subagent 冷审承担；显式 false 才跑跨模型 CLI
+ └── roster 含 external 时：disable_external_review 缺省/true → 第三视角由错开模型 subagent 冷审承担(≠主会话模型 · v8.268)；显式 false 才跑跨厂商 CLI
 ```
 
 ---
@@ -167,7 +167,7 @@ codex-agents/*.toml 必须满足：
 
 > **诚实降级自审(self-review-fallback)**:异质 CLI **客观不可用**(未装/未登录/配额满·已重试失败)时 · `external-review --self-review-fallback --reason '...'` → **emit subagent 降级配方**(🔴 v8.108:不再 exec CLI · PMO 起宿主自身模型 `Agent` subagent 自审 · 详 §11.5)· 写 `external-cross-review/`(frontmatter `heterogeneous:false degraded:true degraded_mode:subagent-fallback`)· **满足 P0-154**(降级 · 非异质 · 同盲点)。仍是降级不是异质:能修环境就重跑真异质 / 长期单模型回缺省(`disable_external_review` 缺省/true = 关)。**绝不偷偷**用 subagent 冒充异质(必显式标 degraded · 见 §11.5)。
 >
-> **默认值语义(`disable_external_review` · 🔴 v8.204 缺省即关)**(v8.153 改名自 `disable_heterogeneous_review` · v8.154 旧名已废弃):`.teamwork_localconfig.json` 的 `disable_external_review` **缺省 / `true` = 关** —— 默认第三视角 = **同模型 subagent 隔离冷审**:`external-review` 自动 emit subagent 降级配方(🔴 v8.108:PMO 起宿主自身模型 subagent 自审 · 不 exec · 详 §11.5)· 落 `external-cross-review/`(**满足 P0-154** · frontmatter 标 `heterogeneous:false degraded:true degraded_mode:config-disabled`)· **无 WARN**(默认姿态不是欠账 · bootstrap 不再持续提醒)。**显式 `false` = opt-in 跨模型异质**(装好第二个模型 CLI 的用户显式设 `false` 才跑真异质);🔴 **恢复异质 = 显式设 `false` · 删此项无效**(缺省仍是关)。代价自知:subagent 冷审**非异质 · 同盲点**(隔离的是上下文不是模型权重)。与 self-review-fallback 的区别:后者是 opt-in 异质后 CLI 客观不可用时的**临时 stopgap** · 本项是**项目级默认 / 长期策略**。
+> **默认值语义(`disable_external_review` · 🔴 v8.204 缺省即关)**(v8.153 改名自 `disable_heterogeneous_review` · v8.154 旧名已废弃):`.teamwork_localconfig.json` 的 `disable_external_review` **缺省 / `true` = 关** —— 默认第三视角 = **错开模型 subagent 隔离冷审**(≠主会话模型(如 fable5 会话 → 外审 opus) · v8.268):`external-review` 自动 emit subagent 降级配方(🔴 v8.108:PMO 起宿主自身模型 subagent 自审 · 不 exec · 详 §11.5)· 落 `external-cross-review/`(**满足 P0-154** · frontmatter 标 `heterogeneous:false degraded:true degraded_mode:config-disabled`)· **无 WARN**(默认姿态不是欠账 · bootstrap 不再持续提醒)。**显式 `false` = opt-in 跨模型异质**(装好第二个模型 CLI 的用户显式设 `false` 才跑真异质);🔴 **恢复异质 = 显式设 `false` · 删此项无效**(缺省仍是关)。代价自知:subagent 冷审**非跨厂商异质**(v8.268 错开的是同厂商权重档 · 上下文与权重双错开 · 强于同模型 · 仍弱于 codex/gemini 级异质)。与 self-review-fallback 的区别:后者是 opt-in 异质后 CLI 客观不可用时的**临时 stopgap** · 本项是**项目级默认 / 长期策略**。
 
 ### 11.2 文件命名硬规约(state.py 物化校验)
 

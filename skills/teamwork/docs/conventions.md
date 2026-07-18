@@ -235,13 +235,13 @@ teamwork 文档分 **workspace 级**(仓库根)和 **子项目级**两层。
 | 目录 / 文件 | 内容 | 维护方 |
 |---|---|---|
 | `product-overview/` | 产品愿景 / 业务架构 / 执行线列表 + `workstream/`(WS)+ `PENDING.md`(待规划需求池 · 从 teamwork-space 外置 · 详 [PRODUCT-OVERVIEW-INTEGRATION.md](../PRODUCT-OVERVIEW-INTEGRATION.md)) | Product Lead |
-| `project-specs/` | 工程层项目文档:`DEV-RULES.md`(人维护开发规范 · blueprint/dev 必读)· `UI-RULES.md`(人维护设计规范:控件/色板策略/交互约定 · 装策略不装视觉值)· `KNOWLEDGE.md`(AI 沉淀踩坑/事实)· `GLOSSARY.md` · `TROUBLESHOOTING.md` · `ARCHITECTURE.md`(workspace 级系统架构:子项目拓扑+依赖+目录 · 从 teamwork-space.md 外迁 · 区别 `{子项目}/docs/architecture/` 单子项目内部)· `PROCESS-LEDGER.md`(流程价值台账 · ship 采写 append · 年检数据源 · 详 ship-stage §16)· `test-baseline.md`(红 base 测试基线 · `state.py test-baseline --add` 生成) | bootstrap 建空骨架(KNOWLEDGE/GLOSSARY/TROUBLESHOOTING/DEV-RULES/UI-RULES/ARCHITECTURE 六件)· PROCESS-LEDGER/test-baseline 由工具生成 · 项目维护 |
+| `project-specs/` | 工程层项目文档:`DEV-RULES.md`(人维护开发规范 · blueprint/dev 必读)· `UI-RULES.md`(人维护设计规范:控件/色板策略/交互约定 · 装策略不装视觉值)· `KNOWLEDGE.md`(AI 沉淀踩坑/事实)· `GLOSSARY.md` · `TROUBLESHOOTING.md` · `ARCHITECTURE.md`(workspace 级系统架构:子项目拓扑+依赖+目录 · 从 teamwork-space.md 外迁 · 区别 `{子项目}/docs/architecture/` 单子项目内部)· `PROCESS-LEDGER.md`(流程价值台账 · ship 采写 append · 年检数据源 · 详 ship-stage §16)· `test-baseline.md`(红 base 测试基线 · `state.py test-baseline --add` 生成)· `RELEASE-GUIDE.md`(版本发布规范 · 人维护 · 用户说「发布/上线」PMO 必读照办 · v8.258) | bootstrap 建空骨架(KNOWLEDGE/GLOSSARY/TROUBLESHOOTING/DEV-RULES/UI-RULES/ARCHITECTURE/RELEASE-GUIDE 七件)· PROCESS-LEDGER/test-baseline 由工具生成 · 项目维护 |
 | `teamwork-space.md` | 知识地图根 / 路由(N≥1 统一模型 · **单项目也有** · bootstrap 自动建骨架 · 详 [teamwork-space-guide.md](./teamwork-space-guide.md)) | PM |
 | `CLAUDE.md` / `AGENTS.md` | host 指令入口 · 固定位置 · 不可移 | 项目自维护(v8.211 注入退役 · bootstrap 仅清理历史注入块) |
 | `.teamwork-local-env/` | 🔐 本机敏感配置:`config.properties`(KEY=value:DB 密码 / API key)+ 整文件(kubeconfig / 证书)· **双重 gitignore · 绝不进仓库**。bootstrap 缺失时自动建(`local_env_auto_create` 默认 true)· 已存在不覆盖。读取约定见 `TROUBLESHOOTING.md §五`。 | 用户(secret 真值)/ bootstrap(骨架) |
 
 🔴 **`project-specs/` 与 `product-overview/` 同级** —— 产品视角 ↔ 工程视角成对。workspace 级工程文档**一律进 `project-specs/`** · 不散在仓库根。
-🔴 **`.teamwork-local-env/` ≠ `.teamwork_localconfig.json`**:前者是**你的** secret(kubeconfig/密码/key · gitignored)· 后者是 **teamwork 自己**的配置(worktree/scope/id_strategy 等 · 可提交)。
+🔴 **`.teamwork-local-env/` ≠ `.teamwork_localconfig.json`**:前者是**你的** secret(kubeconfig/密码/key · gitignored)· 后者是 **teamwork 自己**的配置(worktree/scope/id_strategy/fast_mode 等 · 🔴 **本机级 · bootstrap 自动 gitignore**——`_bootstrap` 段含机器态〔host/maintain 时间〕不宜入库 · 团队要共享档位靠口头约定各机自配)。
 
 ### 子项目级(`{子项目}/docs/`)
 

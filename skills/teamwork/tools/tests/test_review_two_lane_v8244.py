@@ -26,8 +26,16 @@ class TestTwoLaneDefaults(unittest.TestCase):
         self.assertEqual(roles["review"], ["architect", "external"])
 
     def test_bug_review_default(self):
+        """v8.270:Bug 流 review 单路 external(diagnose 已确认方案 · 轻量)。"""
         roles = engine.build_default_stage_review_roles("Bug")
-        self.assertEqual(roles["review"], ["architect", "external"])
+        self.assertEqual(roles["review"], ["external"])
+
+    def test_bug_brief_carries_single_lane_note(self):
+        """v8.270:Bug 流 review brief 带单路说明 · fast 优先 · Feature 不受污染。"""
+        self.assertIn("Bug 流单路评审", specs._review_brief({"flow_type": "Bug"}))
+        self.assertNotIn("Bug 流单路评审",
+                         specs._review_brief({"flow_type": "Bug", "fast_mode": True}))
+        self.assertNotIn("Bug 流单路评审", specs._review_brief({}))
 
     def test_legacy_agile_review_untouched(self):
         roles = engine.build_default_stage_review_roles("敏捷需求")

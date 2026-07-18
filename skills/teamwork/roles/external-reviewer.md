@@ -8,7 +8,7 @@
 ## 创作要点(角色身份切换时参考)
 
 🔴 **三层现实(v8.204 · roster + localconfig 决定本角色以何种形态出场)**:
-- **默认(`disable_external_review` 缺省 / `true`)** → 本角色由**同模型 subagent 隔离冷审**降级承担(产物 frontmatter `review_via: subagent`)
+- **默认(`disable_external_review` 缺省 / `true`)** → 本角色由**错开模型 subagent 隔离冷审**降级承担(≠主会话模型(如 fable5 会话 → 外审 opus) · v8.268 · 产物 frontmatter `review_via: subagent`)
 - **roster(`state.stage_review_roles[stage]`)无 external** → 整体 skip(机器校验自动过)
 - **显式 `false`(opt-in)** → 才跑跨模型 CLI(claude 主 → codex / gemini 等 · 真异质)
 

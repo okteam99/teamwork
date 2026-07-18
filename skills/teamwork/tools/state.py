@@ -1867,6 +1867,25 @@ def cmd_init_feature(args: argparse.Namespace) -> None:
         state["stage_review_roles_adjustments"] = []
     except ImportError:
         pass
+    # v8.260 fast mode:localconfig `fast_mode: true` → 去掉所有评审环节(默认关)。
+    # 快照进 state(mid-feature 改配置不漂移):roster 全清空(roster-aware 门自动放行)·
+    # dev 跳 review 直进 test(_dev_transition)· PRD-REVIEW/TECH-REVIEW 不产不查。
+    # 🔴 与 yolo 互斥:yolo 无人值守的唯一安全网就是评审 · fast 拆评审 · 不可同用。
+    if _read_fast_mode(feature_dir):
+        if getattr(args, "yolo", False):
+            # v8.262:yolo 忽略 fast(不再互斥报错)—— 无人值守的唯一安全网 = 全量评审 ·
+            # fast_mode 静默不生效 · kickoff 记 INFO(用户知情 · 不拦)。
+            state.setdefault("concerns", []).append(
+                f"{now_iso()} INFO yolo-ignores-fast: localconfig fast_mode=true 被 yolo 忽略"
+                "(无人值守安全网=全量评审 · fast 仅有人值守生效)")
+        else:
+            state["fast_mode"] = True
+            # v8.261:留两端 · 各合并单路 —— goal 单路合并冷审(PL+外审关注点合一)·
+            # review 单路合并评审(Architect+QA 关注点合一)· blueprint 评审仍去。
+            # 「fast」伪角色:收敛协议(verdicts/findings/severity/验证轮)全保留 · 单 agent 兼多帽。
+            state["stage_review_roles"] = {"goal": ["fast"], "review": ["fast"]}
+            state["stage_review_roles_adjustments"] = [{
+                "stage": "*", "roles": [], "reason": "fast_mode(localconfig)· goal/review 各留单路合并评审 · 其余评审跳", "adjusted_via": "fast_mode"}]
     # ── v8.0+P0-3:cwd 物化校验(治本 PTR-F033 主 tree 污染 case)──
     # 根因:即使 init-feature 自动建了 worktree · 若 PMO 在主 tree cwd 运行 ·
     # state.json 仍落主 tree · worktree 是空的 · 主 tree 污染依旧。
@@ -2023,7 +2042,7 @@ def cmd_init_feature(args: argparse.Namespace) -> None:
     yolo_ext_warning = None
     if yolo_enabled and _read_disable_external_review(args.feature):
         yolo_ext_warning = (
-            "ℹ️ yolo 评审第三视角 = 同模型 subagent 隔离冷审(v8.204 默认 · external 异质默认关 · 省 CLI 冷启动)· "
+            "ℹ️ yolo 评审第三视角 = 错开模型 subagent 隔离冷审(≠主会话模型 · v8.268 · external 跨厂商异质默认关 · 省 CLI 冷启动)· "
             "架构师+QA 多角色评审照跑。想要 yolo 也上跨模型异质把关 → localconfig `disable_external_review: false`。"
         )
     emit({
@@ -2234,6 +2253,31 @@ def _read_id_strategy(start: Path) -> str:
         if (d / ".git").exists():
             break  # 到项目边界仍无配置 → 默认
     return DEFAULT
+
+
+def _read_fast_mode(start) -> bool:
+    """v8.260:读项目根 `.teamwork_localconfig.json` 的 `fast_mode`(默认 **False** · 显式 true 才开)。
+
+    fast mode = 去掉所有评审环节(goal 冷审 / blueprint 评审 / 整个 review stage)· 保留:
+    测试硬门 · 用户暂停点(PRD 确认 / DB 确认 / pm_acceptance / ship1)· worktree 纪律。
+    🔴 与 yolo 互斥(init-feature 拦)。向上找 config 到 .git 边界 · 读失败 → False(安全默认)。
+    """
+    try:
+        node = Path(start).resolve()
+    except OSError:
+        return False
+    for _ in range(24):
+        cfg = node / ".teamwork_localconfig.json"
+        if cfg.is_file():
+            try:
+                import json as _json
+                return _json.loads(cfg.read_text(encoding="utf-8")).get("fast_mode") is True
+            except (OSError, ValueError):
+                return False
+        if (node / ".git").exists() or node.parent == node:
+            return False
+        node = node.parent
+    return False
 
 
 def _read_disable_external_review(start) -> bool:
@@ -2505,7 +2549,7 @@ REVIEWER_THINKING_CHECKLIST = [
     },
     {
         "question": "本 Feature 跨 ≥3 个 module 触发点 / 调用方?(如跨多 stage / 多 service)",
-        "if_yes": "blueprint / review 强调 external(第三视角查漏 · 默认同模型冷审 · 异质 opt-in · F-Bv2-8 实证有效)",
+        "if_yes": "blueprint / review 强调 external(第三视角查漏 · 默认错开模型冷审〔v8.268〕· 异质 opt-in · F-Bv2-8 实证有效)",
         "if_no": "blueprint / review external 默认即可",
     },
     {
@@ -4026,7 +4070,7 @@ def cmd_external_review(args: argparse.Namespace) -> None:
                 f"异质 {cli_name} CLI 不在 · 三选一(🔴 v8.108 降级优先于移除):\n"
                 f"  ① 🟢 **降级(推荐)**:state.py external-review --feature {args.feature} "
                 f"--stage {args.stage} --self-review-fallback --reason '异质 {cli_name} 不在本机·已确认' "
-                f"→ emit subagent 配方(PMO 起 Agent subagent 同模型降级自审 · 满足门禁 · 诚实标 degraded · 非异质)\n"
+                f"→ emit subagent 配方(PMO 起 Agent subagent 错开模型降级冷审〔≠主会话 · v8.268〕· 满足门禁 · 诚实标 degraded · 非跨厂商异质)\n"
                 f"  ② 装 {cli_name} CLI(codex: https://github.com/openai/codex · "
                 f"claude: https://claude.com/claude-code)恢复**真异质**\n"
                 f"  ③ change-review-roles 移除 external(最后手段 · 留 audit)\n"
@@ -4206,7 +4250,8 @@ def cmd_external_review(args: argparse.Namespace) -> None:
             "target_file": str(feature_dir / target_file),
             "next_action": (
                 "🔴 降级评审(异质不可用)· 走 **subagent**(不 exec CLI · 也不移除 external):\n"
-                f"  1. 起 Agent subagent(isolated context · 宿主自身模型 {host_model} · 在 harness 内跑)· "
+                f"  1. 起 Agent subagent(isolated context · 🎭 **模型错开**:model 参数用 ≠ 主会话的档"
+                f"〔如 fable5 会话 → model: opus · v8.268〕· 在 harness 内跑)· "
                 f"prompt = 读 {prompt_doc} 的内容(评审指令 + 待评审文件已 inline)\n"
                 f"  2. 把 subagent 产出的评审写到 {feature_dir / target_file} · frontmatter 必含:\n"
                 f"       review_model: {host_model}-subagent-degraded\n"

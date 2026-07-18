@@ -177,9 +177,21 @@ id_strategy: utc-yymmddhhmmss
 <!-- false = 不主动创建（opt-out · 仍保留 gitignore 预留规则）。 -->
 local_env_auto_create: true
 
+### fast mode(v8.260 · 默认关 · 去掉所有评审环节)
+
+```json
+"fast_mode": false
+```
+
+<!-- fast_mode: 缺省 / false = 关【默认】;显式 true = 开 fast mode(v8.261 语义 · 评审最多 2 轮 v8.267 · 单路模型错开 v8.269) -->
+<!-- true:评审收敛为两端单路 —— goal 留一路合并冷审(PL+外审关注点合一 · PRD-REVIEW reviewers:[fast])· review 留一路合并评审(Architect+QA 关注点合一 · REVIEW.md 单份);blueprint 评审去掉(不产 TECH-REVIEW)· 无多路独立冷审/external。 -->
+<!-- 保留:测试硬门(exit 0/差分)· 用户暂停点(PRD 确认 / DB schema 确认 / pm_acceptance / ship1)· worktree 纪律 · verify-ac · findings/severity/验证轮协议。 -->
+<!-- 🔴 yolo 忽略 fast(v8.262 · 不报错):--yolo 时 fast_mode 静默不生效(kickoff INFO 留痕)· 无人值守回全量评审安全网 · fast 仅有人值守生效。 -->
+<!-- 适用:原型 / 个人项目快糙猛。质量安全网自拆 · 后果自担 · init-feature 时快照进 state(中途改配置不影响 in-flight feature)。 -->
+
 ### 禁用异质模型审核（默认关 · 异质 opt-in）
 <!-- disable_external_review: 缺省 / true = 关【默认】；显式 false = opt-in 异质 -->
-<!-- 缺省 / true = 关（默认）：第三视角 = 同模型 subagent 隔离冷审（external-review 自动 emit subagent 配方 · PMO 起宿主自身模型 subagent 冷审 · 不 exec · 落 external-cross-review/ 满足 external 物化门禁 · frontmatter degraded_mode:config-disabled · 非异质 · 同盲点）。 -->
+<!-- 缺省 / true = 关（默认）：第三视角 = 错开模型 subagent 隔离冷审（external-review 自动 emit subagent 配方 · PMO 起 **≠主会话模型** 的 subagent 冷审〔如 fable5 → opus · v8.268〕 · 不 exec · 落 external-cross-review/ 满足 external 物化门禁 · frontmatter degraded_mode:config-disabled · 非异质 · 同盲点）。 -->
 <!-- 显式 false = opt-in 跨模型异质：external 评审跑异质模型（claude↔codex 交叉 · 唯一跨模型安全网 · 需装好第二个模型 CLI）。详 standards/external-model-usage.md §11.5。 -->
 <!-- 区分 --self-review-fallback（异质临时不可用的 per-run 降级 · 同走 subagent · degraded_mode:subagent-fallback）：本项是项目级长期策略。 -->
 <!-- 🔴 恢复异质 = 显式设 false（**删除该项无效** · 缺省即关）。 -->

@@ -168,6 +168,9 @@ def maintain_project_skeletons(skill_root: Path, project_root: Path) -> dict:
         # v8.117:workspace 级系统架构(子项目拓扑+依赖+目录布局)· 从 teamwork-space.md 外迁 ·
         # 区别于 per-subproject {子项目}/docs/architecture/(单子项目内部技术架构)。
         ("ARCHITECTURE.md", "architecture-workspace.md"),
+        # v8.258:版本发布规范(集成分支→生产)· 用户说「发布/上线」时 PMO 必读照办 ·
+        # 模板自带默认流程(staging→main MR + URL 置顶 + 提醒合入)· 人维护可改。
+        ("RELEASE-GUIDE.md", "release-guide.md"),
     ]
     specs_dir = project_root / PROJECT_SPECS_DIR
 
@@ -715,6 +718,9 @@ LOCALCONFIG_CONFIG_DEFAULTS = {
     # v8.204(用户拍板 · 全局一刀切):默认关异质 external 评审(降级为同模型 subagent 隔离冷审)·
     # external CLI 冷启动太耗时 · 多角色评审(架构师+QA)不受影响照跑 · 想要跨模型异质把关 → 设 false。
     "disable_external_review": True,
+    # v8.260/264:fast mode(默认关):true = 评审收敛为两端单路(goal 合并冷审 + review 合并评审 ·
+    # blueprint 评审去)· yolo 忽略 · 详 templates/config.md § fast mode。
+    "fast_mode": False,
 }
 LOCALCONFIG_BOOTSTRAP_DEFAULTS = {
     "skill_version": None,
@@ -1482,7 +1488,7 @@ def cmd_session_bootstrap(args: argparse.Namespace) -> None:
     result["checks"]["heterogeneous_review"] = {
         "status": "cold-review (default)" if _ext_disabled else "heterogeneous (opt-in)",
         **({"note": (
-            "ℹ️ external 异质评审默认关(v8.204)· 第三视角 = 同模型 subagent 隔离冷审(fresh session)· "
+            "ℹ️ external 异质评审默认关(v8.204)· 第三视角 = 错开模型 subagent 隔离冷审(fresh session · ≠主会话模型 · v8.268)· "
             "架构师+QA 多角色评审不受影响照跑 · 想要跨模型异质把关(揭同模型盲区)→ "
             ".teamwork_localconfig.json 设 `disable_external_review: false`(需装第二个模型 CLI)")}
             if _ext_disabled else {}),

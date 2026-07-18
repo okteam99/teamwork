@@ -140,7 +140,7 @@ class TestMaintainProjectSkeletons(unittest.TestCase):
         self.templates_dir.mkdir(parents=True)
         # 模拟 templates
         for name in ["knowledge.md", "troubleshooting.md", "glossary.md", "dev-rules.md",
-                     "ui-rules.md", "architecture-workspace.md"]:
+                     "ui-rules.md", "architecture-workspace.md", "release-guide.md"]:
             (self.templates_dir / name).write_text(f"# {name}", encoding="utf-8")
 
         self.project_root = self.tmp / "project"
@@ -154,14 +154,14 @@ class TestMaintainProjectSkeletons(unittest.TestCase):
         result = maintain_project_skeletons(self.skill_root, self.project_root)
         self.assertEqual(
             sorted(result["created"]),
-            ["ARCHITECTURE.md", "DEV-RULES.md", "GLOSSARY.md", "KNOWLEDGE.md", "TROUBLESHOOTING.md", "UI-RULES.md"],
+            ["ARCHITECTURE.md", "DEV-RULES.md", "GLOSSARY.md", "KNOWLEDGE.md", "RELEASE-GUIDE.md", "TROUBLESHOOTING.md", "UI-RULES.md"],
         )
         self.assertEqual(result["existed"], [])
         self.assertEqual(result["migrated"], [])
         self.assertEqual(result["failed"], [])
         # 实际文件创建在 project-specs/ 下 · 不散在仓库根
         specs = self.project_root / "project-specs"
-        for name in ["KNOWLEDGE.md", "TROUBLESHOOTING.md", "GLOSSARY.md", "DEV-RULES.md", "ARCHITECTURE.md", "UI-RULES.md"]:
+        for name in ["KNOWLEDGE.md", "TROUBLESHOOTING.md", "GLOSSARY.md", "DEV-RULES.md", "ARCHITECTURE.md", "UI-RULES.md", "RELEASE-GUIDE.md"]:
             self.assertTrue((specs / name).exists(), f"project-specs/{name} 未创建")
             self.assertFalse((self.project_root / name).exists(), f"{name} 不应散在仓库根")
 
@@ -688,7 +688,7 @@ class TestCmdSessionBootstrapE2E(unittest.TestCase):
         self.assertEqual(data["checks"]["skeletons"]["created"], [])
         self.assertEqual(
             sorted(data["checks"]["skeletons"]["existed"]),
-            ["ARCHITECTURE.md", "DEV-RULES.md", "GLOSSARY.md", "KNOWLEDGE.md", "TROUBLESHOOTING.md", "UI-RULES.md"],
+            ["ARCHITECTURE.md", "DEV-RULES.md", "GLOSSARY.md", "KNOWLEDGE.md", "RELEASE-GUIDE.md", "TROUBLESHOOTING.md", "UI-RULES.md"],
         )
 
     def test_emits_flow_gates_forewarn(self):

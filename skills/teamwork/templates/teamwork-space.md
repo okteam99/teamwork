@@ -20,7 +20,7 @@
 |--------|------|------|
 | 子项目代码 + 文档 | ↓ § 子项目清单(`docs_root`) | 每个子项目 `docs/`:PROJECT / architecture / ROADMAP / KNOWLEDGE / sitemap / features/ |
 | 产品规划（有时） | [`product-overview/`](product-overview/) | 业务架构+执行线 · `workstream/` · `PENDING.md` |
-| 工程规范（workspace） | [`project-specs/`](project-specs/) | DEV-RULES · KNOWLEDGE · GLOSSARY · TROUBLESHOOTING · RESOURCES |
+| 工程规范（workspace） | [`project-specs/`](project-specs/) | DEV-RULES · UI-RULES · KNOWLEDGE · GLOSSARY · TROUBLESHOOTING · **RELEASE-GUIDE(发版)** · PROCESS-LEDGER(清单单源 conventions §13) |
 | 系统架构（workspace） | [`project-specs/ARCHITECTURE.md`](project-specs/ARCHITECTURE.md) | 子项目拓扑 + 依赖 + 目录布局(偶尔读 · 从本文件外迁) |
 | 三方 / 外部 | [`external/`](external/) | SDK · 协议 · 供应商文档 |
 | 归档冷库 | `{子项目}/docs/features/_archive/INDEX.md`（每子项目 docs_root 下） | 已交付 feature(id + 描述 + zip）· 先读描述 · 必要才解压 |

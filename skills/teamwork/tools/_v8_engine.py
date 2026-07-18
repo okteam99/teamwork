@@ -72,6 +72,9 @@ class StageArtifactSpec:
     must_be_in_commit: bool = True
     """是否必须在 --auto-commit changeset 内"""
 
+    review_artifact: bool = False
+    """v8.260:评审类产物标记 —— state.fast_mode=true 时跳过校验(fast mode 去掉所有评审环节)"""
+
     description: str = ""
 
 
@@ -464,7 +467,7 @@ def close_open_pause(state: dict) -> None:
 DISPATCH_TIER_REMINDER = (
     "🎚️ 本 stage 若派 subagent/teammate/workflow:每个派发**声明 model + 一句为什么**"
     "(校验/枚举型〔QA 冷审/TC 对照/测试执行/机械外化〕→ 验证档 sonnet/haiku · "
-    "判断/创造型〔Architect/PL/方案/裁决〕→ 不降档)· 未声明 = 继承会话模型(台账计 unspecified)· "
+    "判断/创造型〔Architect/PL/方案/裁决〕→ 不降档)· 未声明 = 继承会话模型(台账计 unspecified)· 🎭 评审模型错开:双路 = 外审路 ≠ 主审路 · 单路(fast 合并等)= **该路 ≠ 会话主模型**(如 fable5 会话 → 评审 opus · v8.268/269)· "
     "单源详 SKILL 🎚️ / agents/README §一。"
 )
 
@@ -1173,7 +1176,7 @@ DEFAULT_REVIEW_ROLES: dict[tuple[str, str], list[str]] = {
     ("敏捷需求", "pm_acceptance"): ["pm"],
 
     # Bug 流程
-    ("Bug", "review"): ["architect", "external"],  # v8.244:同 Feature review 两路制(代码 review 同刀)
+    ("Bug", "review"): ["external"],  # v8.270:单路 external(diagnose 已经用户确认方案 · review 聚焦 fix↔方案一致 + 不引入新问题 · Architect/QA 视角并入外审覆盖方向 · 错开模型冷审天然满足 v8.269 单路不变式 · change-review-roles 可加回)。史:v8.244 两路制
     ("Bug", "test"): ["qa"],
     ("Bug", "pm_acceptance"): ["pm"],
 
@@ -1230,7 +1233,7 @@ FLOW_STAGE_CHAIN: dict[str, list[tuple[str, bool, str, str]]] = {
     "Bug": [
         ("diagnose", False, "", "🔴 根因细查(深读代码)+ 修复方案 · 用户确认后才进 dev(防 fix 修偏)· 无评审角色"),
         ("dev", False, "", "无评审 · RD 按**已确认的修复方案**写 fix + commit(BUG 报告根因/方案 diagnose 已出)"),
-        ("review", False, "", "修复方案 Architect + QA + External 把关(防 fix 引入新问题)"),
+        ("review", False, "", "单路 external 评审(v8.270 · 错开模型冷审 · 覆盖 修复↔diagnose 方案一致 + 测试真实性 + 质量盲区 · 防 fix 引入新问题)"),
         ("test", False, "", "QA 验收回归测试(原 bug 不复发 + 周边无新错)"),
         ("pm_acceptance", False, "", "PM 验收(纯 infra/低风险 fix 可加快)"),
         ("ship", False, "", "无评审 · PMO 编排"),
@@ -1437,6 +1440,9 @@ def execute_stage_complete(
     ) if auto_commit else []
 
     for art_spec in stage_spec.artifacts:
+        # v8.260 fast mode:评审类产物(PRD-REVIEW/TECH-REVIEW)不产 · 跳过校验
+        if art_spec.review_artifact and state.get("fast_mode"):
+            continue
         if art_spec.path:
             target = feature_dir / art_spec.path
             if not target.exists():
@@ -2128,6 +2134,7 @@ def run_tests_via_subprocess(cmd_str: str, cwd: str, timeout_sec: int,
 
 # review 轮次预算(review 收敛协议):开新轮 > 预算 → R5 升级暂停点(用户拍板)
 DEFAULT_MAX_REVIEW_ROUNDS = 3
+FAST_MAX_REVIEW_ROUNDS = 2  # v8.267 fast 模式评审预算封顶(localconfig 更小则从小)
 
 # finding severity 展示顺序(暂停点分组 · 与 specs FINDING_SEVERITIES 同序)
 _FINDING_SEVERITY_ORDER = ("BLOCKER", "MAJOR", "MINOR", "NIT")
@@ -2157,12 +2164,14 @@ def _localconfig_max_review_rounds(feature_dir: Path) -> int:
     return DEFAULT_MAX_REVIEW_ROUNDS
 
 
-def _build_review_budget_pause(rounds_done: int, max_rounds: int, ledger: list) -> str:
+def _build_review_budget_pause(rounds_done: int, max_rounds: int, ledger: list,
+                               fast: bool = False) -> str:
     """review 超预算 R5 升级暂停点 markdown(编号 1/2/3 · SKILL.md § R5(b) 格式)。"""
     open_items = [e for e in ledger if isinstance(e, dict) and e.get("status") == "open"]
     lines = [
-        f"⏸️ review 已 {rounds_done} 轮未收敛(超过 max_review_rounds={max_rounds})· "
-        f"剩余 open finding:{len(open_items)} 条"
+        f"⏸️ review 已 {rounds_done} 轮未收敛(超过 max_review_rounds={max_rounds}"
+        f"{' · ⚡ fast 模式封顶' if fast else ''})· "
+        f"剩余 open finding:{len(open_items)} 条 —— 以下即未收敛决策点 · 请你拍板"
     ]
     for sev in _FINDING_SEVERITY_ORDER:
         group = [e for e in open_items if e.get("severity") == sev]
@@ -2384,6 +2393,9 @@ def execute_stage_retry(stage_name: str, args: argparse.Namespace) -> None:
     max_review_rounds = None
     if stage_name == "review":
         max_review_rounds = _localconfig_max_review_rounds(Path(args.feature))
+        if state.get("fast_mode"):
+            # v8.267 fast:评审最多 2 轮 · 轮尽未收敛决策点抛用户(localconfig 更小则从小)
+            max_review_rounds = min(max_review_rounds, FAST_MAX_REVIEW_ROUNDS)
         if new_round_num > max_review_rounds:
             confirmed = getattr(args, "user_confirmed", False) or bool(state.get("yolo"))
             reason = (getattr(args, "reason", "") or "").strip()
@@ -2398,7 +2410,8 @@ def execute_stage_retry(stage_name: str, args: argparse.Namespace) -> None:
                     ),
                     "pause_options_markdown": _build_review_budget_pause(
                         len(rounds), max_review_rounds,
-                        contract.get("findings_ledger") or []),
+                        contract.get("findings_ledger") or [],
+                        fast=bool(state.get("fast_mode"))),
                     "hint": (
                         "⏸️ 把 pause_options_markdown 原样 emit 给用户拍板(R5)· "
                         "选 2 → review-retry --user-confirmed --reason '<用户拍板>' 放行;"
