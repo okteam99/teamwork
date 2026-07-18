@@ -12,7 +12,7 @@
 
 ## ② 硬规则(白名单 · 每条一行 why)
 
-1. **PRD 结构单源 = [templates/prd.md](../templates/prd.md)**,三命门段机器校验(机读块 / AC / §开工前必须想清的 · v8.201)(why:canonical 到达率实测 2/11 · 抄旧 = 新机制失效)。AC 必 BDD、写行为/价值高度;`revision_history` 非空。
+1. **PRD 结构单源 = [templates/prd.md](../templates/prd.md)**,三命门段机器校验(机读块 / AC / §开工前必须想清的 · v8.201)(why:canonical 到达率实测 2/11 · 抄旧 = 新机制失效)。AC 必 BDD、写行为/价值高度 · **每条配 💬 大白话**(一句人话说清这条在验证什么 · 给用户终确认拍板用 · goal-complete 逐条校验非空 · v8.271);`revision_history` 非空。
 2. **冷审隔离**:评审派**隔离 subagent**,只喂 `PRD + cite 文件 + KNOWLEDGE/GLOSSARY 摘录 + 上游摘要`,**不喂主对话起草心路**(why:同一 AI 起草完审自己 = 带记忆脑补填缝,实证 in-context 只产鼓掌、冷审才抓到 high 契约 gap)。**派谁/派几个 = 按 `state.stage_review_roles.goal`**(prepare 按角色价值判据配 · `change-review-roles --reason` 审计;PM 永不自审——作者最锚定,退为整合者不给 verdict)。
 3. **早问门三闸**(条件暂停 · R5):闸 1 每问必附已调研证据(没查完没资格问);闸 2 只问**用户主权**问题(偏好/业务取舍/外部事实)——**答案在代码/文档/上游里的事实类上抛 = R5 违规**,退回自答;闸 3 格式四件套(证据/为何自答不能/选项+影响/推荐)· ≤3 问 · 无过闸问题不暂停(why:用户时间是最贵资源 · 问题质量是入场券)。
 4. **物化门禁**(goal-complete 拦):`prd_verdicts_all_pass`(verdicts 全 APPROVE/SKIP)· `pl_challenge_present`(roster 含 pl 时 PRD-REVIEW 必有 PL-CHALLENGE 段)· `external_coverage_present`(roster 含 external 时外审段必有 coverage 申报 · v8.243)· PRD-REVIEW mtime > PRD · `--needs-ui` × flow_type 校验。
@@ -54,7 +54,7 @@ frontmatter `reviewers`(= stage_review_roles.goal · v8.243 默认 `[pl, externa
 ### ⏸️ 用户最终确认(R5 · 「重点 review 指引」导读先行)
 
 🔮 **投机窗**(v8.256 · 等待窗不闲置的 goal 特化):emit 终确认暂停点后 · **后台派 TECH 草稿 subagent**(读 PRD 终稿候选 · 产物 = worktree 内 TECH.md 草稿 · 🔴 不跑任何 state 命令)——数据支撑:终确认「改:默」台账 ≈ 全默(PRD 此刻变动率≈0 · 冷审已收敛)· goal 等待中位 26m ≈ blueprint 起草中位 27m(等待窗恰好藏下)。用户 `ok` → blueprint-start 后草稿直接接续(TC 起草与冷审照跑);用户有改 → 草稿差量更新。auto/yolo 不适用(确认点 skip · 无等待窗)。🔴 时点纪律:**只在终确认暂停点后投机**(冷审收敛前 PRD 是活靶 · finding 采纳率 80-90% · v1 时点投机必返工)。
-确认前 emit 导读——**首节分两层**:🟡 **你要拍板的**(REJECT/DEFER/升级项 · **每条写成 A/B 选择题 + 我的倾向** · 说人话 · finding id 挪括号)/ ✅ **已处理**(ADOPT 压成主题保 substance · 不逐条 spell 码);余节 ≤2 行:核心取舍/范围收窄/影响面/🛡️ 兜底策略(PRD 层降级体验类 · 逐项一句「保护什么+成本」· v8.265 不许默默做 · 无则「无」)/修订轨迹/残留风险——**全部照实抄落盘产物 · 空节写「无」**(why:导读给没读过 PRD 的人;决策与 ADOPT 平铺等权 = 决策被淹)。然后 R5 标准 1/2/3(1=confirm+`goal-complete --needs-ui <bool>` 💡 / 2=按反馈修订重审 / 3=其他)· 剩余 §待决策项一次性 escalate(早问门问过的不重复)。
+确认前 emit 导读——📄 **头部第一行回显 PRD 绝对路径**(格式 `PRD: /abs/.../PRD.md` · 让用户直接点开全文核对 · 🔴 绝对路径非相对 · worktree 内产物给 worktree 绝对路径 · v8.272);**首节分两层**:🟡 **你要拍板的**(REJECT/DEFER/升级项 · **每条写成 A/B 选择题 + 我的倾向** · 说人话 · finding id 挪括号)/ ✅ **已处理**(ADOPT 压成主题保 substance · 不逐条 spell 码);余节 ≤2 行:核心取舍/范围收窄/影响面/🛡️ 兜底策略(PRD 层降级体验类 · 逐项一句「保护什么+成本」· v8.265 不许默默做 · 无则「无」)/修订轨迹/残留风险——**全部照实抄落盘产物 · 空节写「无」**(why:导读给没读过 PRD 的人;决策与 ADOPT 平铺等权 = 决策被淹)。然后 R5 标准 1/2/3(1=confirm+`goal-complete --needs-ui <bool>` 💡 / 2=按反馈修订重审 / 3=其他)· 剩余 §待决策项一次性 escalate(早问门问过的不重复)。
 
 **过场观测**:PL-CHALLENGE 采纳率 / 早问门「改:默」进 PROCESS-LEDGER——长期零采纳 = 过场信号,收紧判据。
 
