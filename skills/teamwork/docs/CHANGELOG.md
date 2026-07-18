@@ -4,6 +4,19 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.273 · 审核员只审内容 · 不重复跑测试脚本
+
+> 用户指令:「审核员只需要审核内容,不需要重复跑测试脚本」。测试执行已有归属:dev(TDD)与 test stage(硬门 exit 0/差分 · 证据落盘)—— 评审员再跑一遍 = 双倍时延零新增证据。评审 = **静态审读**(diff / 代码 / 测试代码 / 实跑证据日志);疑点开 finding 由流水线实跑验证。
+
+### 改动
+- 覆盖方向「测试真跑」措辞消歧 ×3(hint 表 / brief 产物注 / review-stage 外审契约):测试真跑 = **读实跑证据/日志** · 非评审自己重跑 —— 这是最容易诱导重跑的一处措辞。
+- review-stage 新规则 8:只审内容(Architect / QA / external / 验证轮全适用)。
+- review brief(round 1)+ 验证轮 brief 各加纪律行(消费时点):验证轮裁决 fixed/not-fixed 依据 = 读修复 diff + 引用流水线证据。
+- external prompt 模板本已拦(reviewer.md「跑测试 → out of scope」)· 本版补齐主审路与验证轮。
+
+### 验证
+- 新增 test_review_content_only_v8273(3)· pytest 931 passed。
+
 ## v8.272 · PRD 终确认暂停点回显 PRD 绝对路径
 
 > 用户指令:「prd 确认的暂停点,回显一下 PRD 文件的绝对地址」。终确认导读再好也是摘要 —— 用户想核对全文时得自己找文件。导读**头部第一行回显 PRD 绝对路径**(格式 `PRD: /abs/.../PRD.md` · 🔴 绝对路径非相对 · worktree 内产物给 worktree 绝对路径),点开即达。
@@ -54,20 +67,3 @@
 
 ### 验证
 - test_model_stagger 新增 3(提醒单路分支 / fast 两 brief / 正常 brief 不受污染)· pytest 921 passed。
-
-## v8.268 · 正常模式双路评审模型错开 · 外审路 ≠ 主审路
-
-> 用户指令:「正常模式双路评审时模型要错开,例如 PRD 一路是 fable5,另一路应该是 opus」。同模型双路 = 盲区相关(系统性偏差两路同瞎)—— 两路并行冷审(goal:PL+外审 / blueprint·review:Architect+外审)**模型必须不同**:主审路继承会话主模型 · 外审路错开一档(fable5 会话 → 外审 opus;opus 会话 → fable5/sonnet)。零 CLI 成本拿到近异质(上下文与权重双错开);跨厂商异质 opt-in(codex/gemini)时天然错开;fast 单路不适用;验证轮照 v8.256 降档(降档本身即错开)。
-
-### 消费时点(规则到场)
-- `DISPATCH_TIER_REMINDER`(每 stage-start 附带)加错开条。
-- goal / blueprint / review 三 brief 的两路派发行加 🎭 标记。
-- `external-review` subagent 配方 next_action:起 subagent 时 model 参数用 ≠ 主会话的档(降级路同享)。
-- SKILL 🎚️ dispatch 档位节 = 单源全文(why + 配对示例 + 边界)。
-
-### 措辞升级(「同模型 subagent 冷审」→「错开模型」)
-- SKILL yolo 节 ×3 · goal-stage 外审行 + 两路并行行 · blueprint-stage §6②/§3 产物注 · review-stage §7 · roles/external-reviewer · standards/external-model-usage(默认语义块 + 代价自知句:非跨厂商异质 · 强于同模型 · 仍弱于 codex 级)· config.md · yolo-preflight · bootstrap/state.py 各 INFO。
-- 不变:异质性硬约束(同厂商仍非「异质」· degraded/heterogeneous:false 诚实标注照旧)· self-review exec 兜底(客观同模型 · 保持)。
-
-### 验证
-- 新增 test_model_stagger_v8268(3:提醒/三 brief/配方)· pytest 918 passed。

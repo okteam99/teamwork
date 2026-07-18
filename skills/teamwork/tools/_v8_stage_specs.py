@@ -552,7 +552,7 @@ def _evidence_external_coverage_present(state: dict, args) -> tuple[bool, str]:
 _CROSS_REVIEW_COVERAGE_HINTS = {
     "blueprint": ("必覆盖:可测试(TC 质量/测试策略 · QA 视角并入 · AC↔TC 机械绑定归 verify-ac)· "
                   "方案盲区(依赖/影响面/迁移风险)+ AI 自主方向 ≥1(候选:数据一致性/迁移风险/性能/安全边界)"),
-    "review": ("必覆盖:测试真实性与覆盖(测试真跑/覆盖真行为/边界回归 · QA 视角并入)· "
+    "review": ("必覆盖:测试真实性与覆盖(测试真跑〔🔴 读实跑证据/日志 · 非评审自己重跑 · v8.273〕/覆盖真行为/边界回归 · QA 视角并入)· "
                "代码质量盲区(错误处理/日志/并发)+ AI 自主方向 ≥1(候选:并发/资源泄漏/脱敏/兼容)—— review 从严 · 清单比 blueprint 重一档"),
 }
 
@@ -2372,6 +2372,8 @@ def _review_verify_round_brief(state: dict, rounds: list) -> str:
 1. **逐条裁决上轮 open finding**:fixed / not-fixed(REVIEW.md findings 更新 status · 带依据)
 2. **回归审查修复 diff**(`{diff_ref}`):只看修复本身引入的新问题
 
+🔴 两件事都是**静态审读**(读 diff/代码/实跑证据)· 不重复跑测试脚本(v8.273 · 测试证据归流水线硬门 · 疑点开 finding)
+
 🎚️ **验证轮 = 校验型任务 → 派发用验证档模型**(v8.256 · sonnet 级):核实 fix 落实 + 范围锁定内找新 = 对照清单干活 · 非开放式判断(首轮全量冷审仍不降档)—— goal/review 循环的 Round 2+ 是 AI 自主耗时大头 · 降档快 2-3 倍零质量风险。
 {_fast_cap}
 ### 🔴 范围锁定规则
@@ -2419,11 +2421,12 @@ def _review_brief(state: dict) -> str:
 
 ### 目标
 按 roster(`state.stage_review_roles.review`)并行评审(v8.244 Feature 默认两路:Architect 主审〔实现↔设计一致性〕+ 覆盖方向制外审〔QA 测试真实性视角并入 + AI 自主方向 ≥1〕· ⚡ 同发互不喂 · 🎭 两路模型错开〔v8.268 · 外审路 ≠ 主审路〕;Bug 默认单路 [external] · v8.270)· 收敛 verdict。
+🔴 **审核员只审内容 · 不重复跑测试脚本**(v8.273):静态审读 diff/代码/测试代码 + 引用 dev·test 实跑证据 —— 测试执行归流水线硬门 · 疑点开 finding 验证 · 评审重跑 = 双倍时延零新增证据。
 
 ### 结果(完成判定 · roster-aware)
 - `REVIEW.md`(frontmatter:`reviewers + verdict: APPROVE|NEEDS_REVISION` + `findings` 机读台账)
 - `REVIEW-<role>.md` 按 roster 各一份(v8.244 默认仅 `REVIEW-arch.md` · qa 加回时 + `REVIEW-qa.md` · 移出 roster 不查)
-- `{{artifact_root}}/external-cross-review/*.md`(roster 含 external 时 · 默认错开模型 subagent 冷审〔≠主会话模型 · v8.268〕· 至少 1 份 · 🔴 含 `coverage: [...]` 申报——必覆盖 测试真实性与覆盖〔测试真跑/覆盖真行为/边界回归〕· 代码质量盲区〔错误处理/日志/并发〕+ AI 自主方向 ≥1〔候选:并发/资源泄漏/脱敏/兼容〕)
+- `{{artifact_root}}/external-cross-review/*.md`(roster 含 external 时 · 默认错开模型 subagent 冷审〔≠主会话模型 · v8.268〕· 至少 1 份 · 🔴 含 `coverage: [...]` 申报——必覆盖 测试真实性与覆盖〔测试真跑 = 读实跑证据 · 非自己重跑 · v8.273/覆盖真行为/边界回归〕· 代码质量盲区〔错误处理/日志/并发〕+ AI 自主方向 ≥1〔候选:并发/资源泄漏/脱敏/兼容〕)
 
 ### 怎么做
 **必读** `stages/review-stage.md`(评审步骤 + 收敛协议:severity 门槛 / 验证轮 / 轮次预算)。
