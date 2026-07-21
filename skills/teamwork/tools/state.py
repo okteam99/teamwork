@@ -4255,6 +4255,7 @@ def cmd_external_review(args: argparse.Namespace) -> None:
                 f"prompt = 读 {prompt_doc} 的内容(评审指令 + 待评审文件已 inline)\n"
                 f"  2. 把 subagent 产出的评审写到 {feature_dir / target_file} · frontmatter 必含:\n"
                 f"       review_model: {host_model}-subagent-degraded\n"
+                f"       target_commit: {commit}\n"
                 "       heterogeneous: false\n"
                 "       degraded: true\n"
                 f"       degraded_mode: {degraded_mode}\n"

@@ -65,9 +65,9 @@ state.py ship-phase --action push --feature <path> \
 ### 5. ⏸️ ship1 终点 · 提示用户合并 MR(R5 标准暂停点)
 
 🔴 **feature 的 ship 到此结束** —— 归档/翻牌/终态已全部在这个 MR 里。
-🔴 **`auto_mode=true` 也必停此暂停点** —— 用户需在 git host 平台手动 merge · AI 无法代办;🔴 v8.234:**停 ≠ 停监控** —— 所有模式(普通/auto/yolo)贴完输出后都必须跑 `await-merge`(合并后自动 ship-finalize · 治「auto 停在 pushed · 用户合了没人收尾」实证 case)(详 [SKILL.md § auto_mode=true 时各暂停点行为](../SKILL.md))。
+🔴 **`auto_mode=true` 也必停此暂停点** —— 用户需在 git host 平台手动 merge · AI 无法代办;🔴 v8.234:**停 ≠ 停监控** —— 所有模式(普通/auto/yolo)都必须跑 `await-merge`(🔴 v8.275 次序:**先后台启动**再贴输出)(合并后自动 ship-finalize · 治「auto 停在 pushed · 用户合了没人收尾」实证 case)(详 [SKILL.md § auto_mode=true 时各暂停点行为](../SKILL.md))。
 
-🔴 **输出格式规范(v8.232/233)**:ship1 暂停点输出 = **两段定序 · 都必含** —— ① MR 卡片(URL 置顶)② 交付总结。治实证 case:总结写在前、URL 埋进段落 · 用户被迫问「地址发出来啊」。**次序不可倒 · URL 必独立行**:
+🔴 **输出格式规范(v8.232/233)**:ship1 暂停点输出 = **两段定序 · 都必含** —— ① MR 卡片(URL 置顶)② 交付总结。治实证 case:总结写在前、URL 埋进段落 · 用户被迫问「地址发出来啊」。**次序不可倒 · URL 必独立行 · 🔴 必须是回合终文**(v8.275:先后台启动 await-merge 再贴 · 卡片后零工具调用):
 
 ```markdown
 ⏸️ **ship1 完成 · 请合并 MR**
@@ -76,7 +76,7 @@ state.py ship-phase --action push --feature <path> \
 
 - 分支:`<feature 分支>` → `<merge_target>`
 - 包含:代码 + 归档 + 规划翻牌(随本 MR 原子合入)
-- 监控:我将跑 `await-merge` 30s 轮询 —— **你只需在平台点合并** · 合并后自动清场
+- 监控:`await-merge` 已后台启动 30s 轮询 —— **你只需在平台点合并** · 合并后自动清场
 - 异常口令:平台报冲突 → 回「冲突」 · 不想合了 → 回「撤回」
 
 📦 **交付总结**(AI 写 · 三槽结构):
@@ -85,7 +85,7 @@ state.py ship-phase --action push --feature <path> \
 - 合并后解锁:<下游 BL/feature · 如 S5、S11 随本 MR 解锁 | 无>
 ```
 
-卡片段**原样用** push emit 的 `user_card`(工具生成 · URL/分支不抄错 · 🔴 v8.240:禁 key-filter/截断该 emit —— 卡片同步落盘 `<feature_dir>/SHIP-USER-CARD.md`,stdout 丢失时 `cat` 它原样贴,untracked 随 worktree 消亡;实证 case:AI 过滤 JSON 丢 user_card → 手写卡片 URL 被 markdown 包裹 → 用户看不见链接);总结段 AI 照实写(照抄落盘产物 · 不美化)。贴完 → **跑 `state.py await-merge --feature <path>`**(30s 轮询 · MERGED → 自动 ship-finalize)。用户无需回编号 —— **合并动作本身就是确认**;仅「冲突/撤回」两个异常口令需要回话。
+卡片段**原样用** push emit 的 `user_card`(工具生成 · URL/分支不抄错 · 🔴 v8.240:禁 key-filter/截断该 emit —— 卡片同步落盘 `<feature_dir>/SHIP-USER-CARD.md`,stdout 丢失时 `cat` 它原样贴,untracked 随 worktree 消亡;实证 case:AI 过滤 JSON 丢 user_card → 手写卡片 URL 被 markdown 包裹 → 用户看不见链接);总结段 AI 照实写(照抄落盘产物 · 不美化)。🔴 **v8.275 投递次序:先后台启动** `state.py await-merge --feature <path>`(30s 轮询 · 不阻塞主对话 · MERGED → 自动 ship-finalize)→ **再**把两段输出作为**回合终文**贴出 · 卡片之后本回合**零工具调用**(宿主可能不渲染回合中段文本 · 实证:卡片被吞 · 用户被迫问「url 发下」)。用户无需回编号 —— **合并动作本身就是确认**;仅「冲突/撤回」两个异常口令需要回话。
 
 ### 6. ship2:ship-finalize(一条命令 · 在主工作区跑 · 零内容修改)
 
