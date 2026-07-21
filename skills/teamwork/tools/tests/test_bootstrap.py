@@ -1455,3 +1455,24 @@ class TestKnowledgeGraphIntegrity(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+
+
+class TestSpaceSkeletonInstallInfo(unittest.TestCase):
+    """v8.274:space 骨架含 teamwork 安装地址(未装的协作者一键装)。"""
+
+    def test_generated_skeleton_carries_install_line(self):
+        import tempfile
+        import bootstrap as B
+        d = Path(tempfile.mkdtemp(prefix="tw-space-"))
+        skill_root = Path(__file__).resolve().parent.parent.parent
+        r = B.maintain_teamwork_space(skill_root, d)
+        self.assertEqual(r["status"], "created")
+        txt = (d / "teamwork-space.md").read_text(encoding="utf-8")
+        self.assertIn("npx skills add okteam99/teamwork", txt)
+        self.assertIn("https://github.com/okteam99/teamwork", txt)
+
+    def test_template_carries_install_line(self):
+        tpl = (Path(__file__).resolve().parent.parent.parent
+               / "templates" / "teamwork-space.md").read_text(encoding="utf-8")
+        self.assertIn("npx skills add okteam99/teamwork", tpl)
+

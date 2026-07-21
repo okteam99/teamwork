@@ -9,6 +9,7 @@
 # Teamwork Space
 
 > **本项目知识地图根 · 索引之索引** · 任何 session 先读本文件 → 它指向每个知识节点(子项目 / 规划 / 工程文档 / 三方 / 归档冷库)· 指向的领土(代码 / 大文档)按需读 · **代码是细节唯一真相**。任何变更需用户确认。
+> 🧰 本项目使用 [teamwork](https://github.com/okteam99/teamwork) AI 协作框架 —— 未安装的协作者:`npx skills add okteam99/teamwork`(装完 `/teamwork` 启动)。
 
 ---
 
