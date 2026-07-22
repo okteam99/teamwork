@@ -4,6 +4,17 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.277 · 兜底清单加 💬 大白话列
+
+> 用户指令(截图 §7.5 兜底暂停点):兜底清单加大白话解释列。同 v8.271 AC 大白话哲学 —— 兜底清单也是暂停点上给用户拍板用的,「refresh 换发校验 pwd_ver / ROTATE_LUA」这类技术名 + 「概率×后果」+「ROI 结论」拍板者读着费劲,加一句人话(这个兜底在防什么、不做会怎样 · 用户/运营视角)。
+
+### 改动
+- 兜底名后插 💬 大白话列(读:先看名 · 紧跟人话):`兜底 | 💬 大白话 | 保护什么失败场景 | 概率×后果 | ROI 结论`。
+- 两处兜底表同步保持同构(templates/tech.md §兜底清单 + stages/blueprint-stage.md §7.5 暂停块 · v8.255 教训:同类表不同构则抄写丢列)· 引导语标注大白话逐项必填。
+
+### 验证
+- 新增 test_fallback_plain_v8277(4:两表各有大白话列 / 列集同构 / 大白话紧跟兜底名)· pytest 954 passed。
+
 ## v8.276 · stage 耗时活动挖掘 · 扣跨 session 空闲 + 计时链路修 bug
 
 > 用户令:仔细审当前统计逻辑,没别的问题再落扣除。审计结论:`duration = completed_at − started_at` 纯墙钟,而 AI 干活期间 state.py 不被调用(dev 只 start/complete 两次打点)—— 干活中途合上电脑过夜不是 R5 暂停、pause-mark 抓不到、也没法 mark(AI 那时没在跑),整段被算成「AI 自主」(实证 aon-core `goal 1012m / await +3m`)。直接扣一个数做不到,需活动信号。
@@ -63,13 +74,3 @@
 
 ### 验证
 - 新增 test_review_content_only_v8273(3)· pytest 931 passed。
-
-## v8.272 · PRD 终确认暂停点回显 PRD 绝对路径
-
-> 用户指令:「prd 确认的暂停点,回显一下 PRD 文件的绝对地址」。终确认导读再好也是摘要 —— 用户想核对全文时得自己找文件。导读**头部第一行回显 PRD 绝对路径**(格式 `PRD: /abs/.../PRD.md` · 🔴 绝对路径非相对 · worktree 内产物给 worktree 绝对路径),点开即达。
-
-### 改动
-- goal-stage ④ 终确认导读 spec 加头行回显要求;goal brief 步链「用户确认」步同步(消费时点);SKILL 暂停点清单 ② 标注。
-
-### 验证
-- brief 断言 ×1(fast/正常两态均携带)· pytest 928 passed。
