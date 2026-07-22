@@ -723,6 +723,8 @@ LOCALCONFIG_CONFIG_DEFAULTS = {
     # v8.260/264:fast mode(默认关):true = 评审收敛为两端单路(goal 合并冷审 + review 合并评审 ·
     # blueprint 评审去)· yolo 忽略 · 详 templates/config.md § fast mode。
     "fast_mode": False,
+    # v8.276:活动挖掘空闲阈值(分钟 · 默认 30)—— stage 内相邻活动信号间隔 > 此值判跨 session 空闲扣除。
+    "idle_threshold_minutes": 30,
 }
 LOCALCONFIG_BOOTSTRAP_DEFAULTS = {
     "skill_version": None,

@@ -187,6 +187,11 @@ local_env_auto_create: true
 <!-- true:评审收敛为两端单路 —— goal 留一路合并冷审(PL+外审关注点合一 · PRD-REVIEW reviewers:[fast])· review 留一路合并评审(Architect+QA 关注点合一 · REVIEW.md 单份);blueprint 评审去掉(不产 TECH-REVIEW)· 无多路独立冷审/external。 -->
 <!-- 保留:测试硬门(exit 0/差分)· 用户暂停点(PRD 确认 / DB schema 确认 / pm_acceptance / ship1)· worktree 纪律 · verify-ac · findings/severity/验证轮协议。 -->
 <!-- 🔴 yolo 忽略 fast(v8.262 · 不报错):--yolo 时 fast_mode 静默不生效(kickoff INFO 留痕)· 无人值守回全量评审安全网 · fast 仅有人值守生效。 -->
+
+```json
+"idle_threshold_minutes": 30
+```
+<!-- v8.276 · 活动时间戳挖掘空闲阈值(分钟 · 默认 30):stage 耗时统计用「窗口内 git commit + 产物 mtime」作活动信号 · 相邻活动间隔 ≤ 此值 = AI 自主工作 · > 此值 = 跨 session 空闲扣除(治 duration 墙钟把过夜挂机算成 AI 工作 · 台账 active_minutes 单源)。调大更宽容 · 调小更严。 -->
 <!-- 适用:原型 / 个人项目快糙猛。质量安全网自拆 · 后果自担 · init-feature 时快照进 state(中途改配置不影响 in-flight feature)。 -->
 
 ### 禁用异质模型审核（默认关 · 异质 opt-in）

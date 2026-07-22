@@ -1596,10 +1596,15 @@ def _stage_durations(state: dict):
     """
     contracts = state.get("stage_contracts", {}) or {}
     order = state.get("completed_stages", []) or list(contracts.keys())
-    # v8.192:duration 扣 stage 内暂停等待(await_minutes · pause-mark 打点)→ 工作时长为真
+    # v8.276:优先 active_minutes(活动挖掘已排跨 session/未标记空闲 · 含 R5 暂停)·
+    # 回退 duration−await(v8.192:扣 pause-mark 打点的 stage 内暂停)→ 工作时长为真。
     def _wa(s):
         c = contracts.get(s, {})
-        d, a = c.get("duration_minutes"), int(c.get("await_minutes") or 0)
+        a = int(c.get("await_minutes") or 0)
+        act = c.get("active_minutes")
+        if isinstance(act, int):
+            return (act, a)                    # active 已排空闲 · await 仅作标签单列
+        d = c.get("duration_minutes")
         return (max(0, d - a), a) if isinstance(d, int) else (None, a)
     items = [(s, *_wa(s)) for s in order]
     items = [(s, m, a) for s, m, a in items if isinstance(m, int)]
@@ -1636,15 +1641,19 @@ def _timing_split(state: dict):
     for s in order:
         c = contracts.get(s, {})
         d = c.get("duration_minutes")
+        act = c.get("active_minutes")     # v8.276:活动挖掘扣空闲(已含跨 session)
         if not isinstance(d, int):
             continue
         any_dur = True
         a = int(c.get("await_minutes") or 0)
         if s in _AWAIT_USER_STAGES:
-            wait += d                 # 纯等待 stage → 整段算等待
+            wait += d                 # 纯等待 stage → 整段算等待(墙钟)
+        elif isinstance(act, int):
+            ai += act                 # AI 工作 = 活动挖掘值(已排空闲+R5暂停)
+            wait += a                 # 已标记的 R5 决策等待单列进 wait(active 之外)
         else:
-            ai += max(0, d - a)       # AI 工作 = 时长扣 stage 内暂停
-            wait += a                 # stage 内暂停(等用户拍板)算等待
+            ai += max(0, d - a)       # 回退:时长扣 stage 内暂停
+            wait += a
     return (ai, wait) if any_dur else (None, None)
 
 

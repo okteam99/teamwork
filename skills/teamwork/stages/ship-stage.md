@@ -205,7 +205,7 @@ ship1 交付本体(随 feature MR)· zip 内 state.json = 终态墓碑(current_s
 **两层输出**:
 
 1. **台账行**(持久 · 累积):一行一 feature。🔴 字段以**机器可抽**为主(state.json:实走 stages / stage 时间戳 / rounds / bypass / concerns;REVIEW.md:verdicts / external 逐条裁决)· AI 判断仅「过场候选 / 反思摘要」两格 · **照实抄不美化**。
-   - 🔴 **宿主 + 时长三分 + 用户邮箱(v8.208/209)**:`宿主` + `时长(总·AI自主·待用户)` + `各阶段耗时` + `用户邮箱` **照抄 ship1 archive emit 的 `ledger_timing`**(确定性 —— `host`〔claude-code/codex-cli/gemini-cli〕/ `total_wall` / `ai_autonomous_min`〔扣人工等待〕/ `await_user_min`〔stage 内 pause-mark 暂停 + pm_acceptance 纯等待〕/ `per_stage` / `user_email`=`git config user.email`)· **不肉眼算 state 时间戳**。
+   - 🔴 **宿主 + 时长三分 + 用户邮箱(v8.208/209)**:`宿主` + `时长(总·AI自主·待用户)` + `各阶段耗时` + `用户邮箱` **照抄 ship1 archive emit 的 `ledger_timing`**(确定性 —— `host`〔claude-code/codex-cli/gemini-cli〕/ `total_wall` / `ai_autonomous_min`〔🔴 v8.276:= 各 stage `active_minutes`〔**活动时间戳挖掘** · 窗口内 git commit+产物 mtime 作活动信号 · 相邻间隔 ≤ `idle_threshold_minutes`〔默 30〕累加 · > 阈值判**跨 session 空闲扣除**〕· 无活动信号的 stage 回退 duration−await〕/ `await_user_min`〔stage 内 pause-mark 暂停 + pm_acceptance 纯等待〕/ `per_stage`〔active 优先〕/ `user_email`=`git config user.email`)· **不肉眼算 state 时间戳**。🔴 `total_wall`(墙钟)− `ai_autonomous` − `await_user` = **未标记挂机空闲**(过夜/跨天 · 不再冒充 AI 工作 · 治 goal 1012m 类污染)。
 2. **digest**(emit ≤10 行 · 固定 4 问 · 不落 feature 目录):
 
 ```

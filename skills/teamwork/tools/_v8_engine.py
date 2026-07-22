@@ -462,6 +462,126 @@ def close_open_pause(state: dict) -> None:
     state.pop("open_pause", None)
 
 
+# ─── v8.276:活动时间戳挖掘 —— 从墙钟 span 里扣跨 session 空闲 ──────────────
+# 治本:duration = completed_at − started_at 是纯墙钟;AI 干活期间 state.py 不被调用
+# (dev 只有 start/complete 两次打点)· 中途合上电脑过夜 = 不是 R5 暂停 · pause-mark 抓不到
+# → 整段空闲被算成「AI 自主」(实证 aon-core goal 1012m / await +3m · 起草完过夜次日才 complete)。
+# 信号:干活其实留了时间戳痕迹 —— git commit(committer-date)+ 产物 mtime(PRD/TECH/REVIEW/
+# dispatch_log)。取 stage 窗口 [started, completed] 内所有活动时间戳排序 · 相邻间隔 ≤ 阈值
+# (默认 30m · localconfig idle_threshold_minutes 可调)累加为 active_minutes · 间隔 > 阈值判空闲扣除。
+# 🔴 best-effort:任何异常 / 窗口内无中间活动信号 → 返 None(回退 duration−await · 不硬伤)。
+DEFAULT_IDLE_THRESHOLD_MINUTES = 30
+
+
+def _parse_iso_flexible(s):
+    """宽松解析 ISO 时间戳 → aware datetime(UTC)· 失败返 None。
+
+    治 P3:duration 曾用严格 strptime("%Y-%m-%dT%H:%M:%SZ") + except pass · 格式变体
+    (小数秒 / 偏移量)静默丢 duration → 该 stage 从计时消失。与 close_open_pause 口径统一。
+    """
+    if not isinstance(s, str) or not s.strip():
+        return None
+    try:
+        dt = datetime.fromisoformat(s.strip().replace("Z", "+00:00"))
+        return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+    except (ValueError, TypeError):
+        return None
+
+
+def _idle_threshold_minutes(feature_dir) -> int:
+    """localconfig `idle_threshold_minutes`(默认 30 · 向上找 .git 边界)· 非法值→默认。"""
+    try:
+        node = Path(feature_dir).resolve()
+    except (TypeError, OSError):
+        return DEFAULT_IDLE_THRESHOLD_MINUTES
+    for d in [node, *node.parents]:
+        cfg = d / ".teamwork_localconfig.json"
+        if cfg.exists():
+            try:
+                v = json.loads(cfg.read_text(encoding="utf-8")).get("idle_threshold_minutes")
+            except (OSError, ValueError):
+                return DEFAULT_IDLE_THRESHOLD_MINUTES
+            if isinstance(v, (int, float)) and not isinstance(v, bool) and int(v) >= 1:
+                return int(v)
+            return DEFAULT_IDLE_THRESHOLD_MINUTES
+        if (d / ".git").exists():
+            break
+    return DEFAULT_IDLE_THRESHOLD_MINUTES
+
+
+def _git_commit_times(feature_dir, t0, t1) -> set:
+    """stage 窗口内 git commit 的 committer-date(活动信号 · dev/TDD 高密度打点)。"""
+    stamps = set()
+    try:
+        r = subprocess.run(
+            ["git", "-C", str(feature_dir), "log",
+             f"--since={t0.isoformat()}", f"--until={t1.isoformat()}",
+             "--format=%cI", "-n", "500"],
+            capture_output=True, text=True, timeout=15)
+        if r.returncode == 0:
+            for line in r.stdout.splitlines():
+                dt = _parse_iso_flexible(line.strip())
+                if dt and t0 <= dt <= t1:
+                    stamps.add(dt)
+    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+        pass
+    return stamps
+
+
+def _artifact_activity_mtimes(feature_dir, t0, t1) -> set:
+    """stage 窗口内 feature 产物 mtime(PRD/TECH/REVIEW/dispatch_log 等 · 无 commit 的起草也留痕)。"""
+    stamps = set()
+    try:
+        root = Path(feature_dir)
+        if not root.is_dir():
+            return stamps
+        for p in root.rglob("*"):
+            if not p.is_file():
+                continue
+            if p.suffix.lower() not in (".md", ".log", ".json", ".yaml", ".yml"):
+                continue
+            try:
+                dt = datetime.fromtimestamp(p.stat().st_mtime, tz=timezone.utc)
+            except (OSError, ValueError, OverflowError):
+                continue
+            if t0 <= dt <= t1:
+                stamps.add(dt)
+    except (OSError, ValueError):
+        pass
+    return stamps
+
+
+def _mine_active_minutes(feature_dir, started_iso, completed_iso, contract) -> "int | None":
+    """活动时间戳挖掘:窗口内 git commit + 产物 mtime + round 边界 · 相邻间隔 ≤ 阈值累加。
+
+    返 active_minutes(已排跨 session / 未标记空闲);无中间活动信号或异常 → None(回退墙钟)。
+    """
+    t0 = _parse_iso_flexible(started_iso)
+    t1 = _parse_iso_flexible(completed_iso)
+    if not t0 or not t1 or t1 <= t0:
+        return None
+    threshold = _idle_threshold_minutes(feature_dir)
+    intermediate = set()
+    for rnd in contract.get("rounds", []) or []:
+        if isinstance(rnd, dict):
+            for k in ("started_at", "completed_at"):
+                dt = _parse_iso_flexible(rnd.get(k))
+                if dt and t0 < dt < t1:
+                    intermediate.add(dt)
+    intermediate |= {d for d in _git_commit_times(feature_dir, t0, t1) if t0 < d < t1}
+    intermediate |= {d for d in _artifact_activity_mtimes(feature_dir, t0, t1) if t0 < d < t1}
+    if not intermediate:
+        return None  # 无活动信号可锚 → 不敢判空闲 · 回退墙钟(duration−await)
+    ordered = sorted({t0, t1} | intermediate)
+    active = 0.0
+    for a, b in zip(ordered, ordered[1:]):
+        gap = (b - a).total_seconds() / 60.0
+        if gap <= threshold:
+            active += gap
+    span = (t1 - t0).total_seconds() / 60.0
+    return max(0, min(int(active), int(span)))
+
+
 # v8.238:派发档位声明提醒(单源常量 · 每个 stage-start emit 附带 · 消费时点覆盖)——
 # 实证 case:goal 三路冷审全跑主对话模型(QA 本应验证档)且零声明 · SKILL 全局规则只在 session 早期被读。
 DISPATCH_TIER_REMINDER = (
@@ -1619,15 +1739,19 @@ def execute_stage_complete(
             snapshot, _findings_err = parse_review_findings(feature_dir)
             merge_findings_ledger(contract, snapshot or [], cur_round)
 
-    # duration
+    # duration(墙钟 span · 保留作审计基线)+ active_minutes(挖掘扣空闲 · v8.276)
     started = contract.get("started_at")
     if started:
-        try:
-            t0 = datetime.strptime(started, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
-            t1 = datetime.strptime(contract["completed_at"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+        t0 = _parse_iso_flexible(started)                     # v8.276 P3:宽松解析(格式变体不再静默丢)
+        t1 = _parse_iso_flexible(contract.get("completed_at"))
+        if t0 and t1 and t1 >= t0:
             contract["duration_minutes"] = max(0, int((t1 - t0).total_seconds() // 60))
-        except ValueError:
-            pass
+            try:
+                active = _mine_active_minutes(feature_dir, started, contract["completed_at"], contract)
+            except Exception:
+                active = None                                 # best-effort · 失败回退墙钟
+            if active is not None:
+                contract["active_minutes"] = active
 
     # 7. 写 review-log
     write_review_log_entry(state, feature_dir, stage_spec.name, "completed", contract)
@@ -2445,6 +2569,11 @@ def execute_stage_retry(stage_name: str, args: argparse.Namespace) -> None:
     contract["output_satisfied"] = False
     contract.pop("completed_at", None)
     contract.pop("duration_minutes", None)
+    contract.pop("active_minutes", None)     # v8.276:随 duration 一并失效 · 重算
+    # v8.276 ②:restart 重置计时锚 —— 新一轮从 now 起算(旧 started_at 会让 duration
+    # 跨越已废弃的首次尝试);await_minutes 归零(旧累计属上一轮 · 否则残留污染 duration−await)。
+    contract["started_at"] = now_iso()
+    contract["await_minutes"] = 0
     ev = contract.setdefault("evidence", {})
     for k in cfg["evidence_keys_to_clear"]:
         ev.pop(k, None)
