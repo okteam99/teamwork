@@ -124,6 +124,11 @@ def _require_ship_stage(state: dict, action: str) -> None:
 # ─── action 1:sanitize ────────────────────────────────────────────
 
 
+# v8.275:目录级匹配(migrations//migrate//alembic/)· 治子串 "migration" 误伤
+# OfflineOriginMigrationStore.swift / LegacyOriginMigrationCallout.tsx 类业务组件(实证 case)。
+_MIGRATION_PATH_RE = re.compile(r"(^|/)(migrations?|migrate|alembic)/")
+
+
 def _check_migration_schema(feature_dir: str, merge_target: str, distill: dict) -> None:
     """v8.81:迁移↔schema 文档一致性硬校验(R0)。
 
@@ -143,7 +148,7 @@ def _check_migration_schema(feature_dir: str, merge_target: str, distill: dict) 
     if dr.returncode != 0:
         return  # 无法判定 → 跳过(best-effort)
     files = [f for f in dr.stdout.splitlines() if f.strip()]
-    mig = [f for f in files if "migration" in f.lower()]
+    mig = [f for f in files if _MIGRATION_PATH_RE.search(f.lower())]
     touched_schema = any("database-schema.md" in f for f in files)
     if mig and not touched_schema:
         emit_json({
@@ -526,12 +531,12 @@ def _handle_ship_push(state: dict, args: argparse.Namespace) -> dict:
         "hint": _card_must_read,
         "next_action_brief": (
             "✅ Push + MR 记录完成 —— **feature 的 ship 到此结束**(v8.145 ship1 全交付)。\n\n"
-            "🔴 v8.233 输出格式(两段定序 · 都必含):① 先贴本 emit 的 **`user_card`**(URL 置顶独立行)"
-            "② 随后附 **📦 交付总结**(三槽:链路一行 / 关键决策与遗留 / 合并后解锁 · 照实写)。"
-            "🔴 次序不可倒 —— 总结在前会把 MR 地址埋进段落(实证 case)。\n\n"
-            "🔴 v8.234 贴完后**立即跑** `state.py await-merge --feature <本路径>`(30s 轮询)——"
-            "**所有模式(普通/auto/yolo)都跑**:「停」= 不能替用户点合并 · **不是停止监控**"
-            "(实证 case:auto 停在 pushed · 用户 5 分钟后合了没人收尾 · worktree 残留)。"
+            "🔴 v8.275 投递次序:**① 先后台启动** `state.py await-merge --feature <本路径>`"
+            "(30s 轮询 · 不阻塞 · **所有模式都跑**:「停」= 不能替用户点合并 · 不是停止监控"
+            "〔实证:auto 停在 pushed · 用户合了没人收尾〕)**② 再把两段作为回合终文贴出**:"
+            "**`user_card`**(URL 置顶独立行)+ **📦 交付总结**(三槽:链路一行 / 关键决策与遗留 / 合并后解锁 · 照实写)· **次序不可倒**。"
+            "🔴 卡片后本回合**零工具调用**(宿主可能不渲染回合中段文本 · 实证:贴完再跑 await-merge · "
+            "卡片被吞 · 用户被迫问「url 发下」)· 总结在前会把 MR 地址埋进段落(实证 case)。\n\n"
             "MERGED → 自动 ship-finalize;WAITING → 重跑续等;普通模式用户随时打断改人工。\n\n"
             "await-merge 不可用时的手动兜底(用户合并后):\n"
             "1. cd 到主工作区(非 linked worktree · 治本 P0-156)\n"
@@ -1591,10 +1596,15 @@ def _stage_durations(state: dict):
     """
     contracts = state.get("stage_contracts", {}) or {}
     order = state.get("completed_stages", []) or list(contracts.keys())
-    # v8.192:duration 扣 stage 内暂停等待(await_minutes · pause-mark 打点)→ 工作时长为真
+    # v8.276:优先 active_minutes(活动挖掘已排跨 session/未标记空闲 · 含 R5 暂停)·
+    # 回退 duration−await(v8.192:扣 pause-mark 打点的 stage 内暂停)→ 工作时长为真。
     def _wa(s):
         c = contracts.get(s, {})
-        d, a = c.get("duration_minutes"), int(c.get("await_minutes") or 0)
+        a = int(c.get("await_minutes") or 0)
+        act = c.get("active_minutes")
+        if isinstance(act, int):
+            return (act, a)                    # active 已排空闲 · await 仅作标签单列
+        d = c.get("duration_minutes")
         return (max(0, d - a), a) if isinstance(d, int) else (None, a)
     items = [(s, *_wa(s)) for s in order]
     items = [(s, m, a) for s, m, a in items if isinstance(m, int)]
@@ -1631,15 +1641,19 @@ def _timing_split(state: dict):
     for s in order:
         c = contracts.get(s, {})
         d = c.get("duration_minutes")
+        act = c.get("active_minutes")     # v8.276:活动挖掘扣空闲(已含跨 session)
         if not isinstance(d, int):
             continue
         any_dur = True
         a = int(c.get("await_minutes") or 0)
         if s in _AWAIT_USER_STAGES:
-            wait += d                 # 纯等待 stage → 整段算等待
+            wait += d                 # 纯等待 stage → 整段算等待(墙钟)
+        elif isinstance(act, int):
+            ai += act                 # AI 工作 = 活动挖掘值(已排空闲+R5暂停)
+            wait += a                 # 已标记的 R5 决策等待单列进 wait(active 之外)
         else:
-            ai += max(0, d - a)       # AI 工作 = 时长扣 stage 内暂停
-            wait += a                 # stage 内暂停(等用户拍板)算等待
+            ai += max(0, d - a)       # 回退:时长扣 stage 内暂停
+            wait += a
     return (ai, wait) if any_dur else (None, None)
 
 

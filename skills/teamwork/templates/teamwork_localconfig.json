@@ -20,6 +20,8 @@
   "disable_external_review": true,
   "_comment_fast_mode": "v8.261 · fast mode(默认 false = 关):true = 评审收敛为两端单路 —— goal 留一路合并冷审(PL+外审关注点合一 · PRD-REVIEW reviewers:[fast] · verdicts 门照拦)· review 留一路合并评审(Architect+QA 关注点合一 · REVIEW.md 单份 · findings/severity/验证轮照跑)· 两端评审均最多 2 轮(v8.267 · 轮尽未收敛决策点抛用户拍板)· 单路模型与会话主模型错开(v8.269 · 如 fable5 → opus);blueprint 评审去(不产 TECH-REVIEW)· 无多路独立冷审/external。保留:测试硬门 · 全部用户暂停点 · worktree 纪律。🔴 yolo 忽略 fast(v8.262:--yolo 时静默不生效 · 回全量评审 · INFO 留痕 · 不报错)。适合原型/个人提速。",
   "fast_mode": false,
+  "_comment_idle_threshold_minutes": "v8.276 · 活动时间戳挖掘空闲阈值(分钟 · 默认 30)。stage 耗时统计:窗口内 git commit + 产物 mtime 作活动信号 · 相邻活动间隔 ≤ 此值累加为 AI 自主工作 · 间隔 > 此值判跨 session 空闲扣除(治「起草完过夜次日 complete = 17h 全算 AI 工作」类台账污染)。调大 = 更宽容(长 test/冷审算工作)· 调小 = 更严(短暂离开也算空闲)。",
+  "idle_threshold_minutes": 30,
 
   "_bootstrap": {
     "_comment": "工具维护段 · 用户禁手改(由 tools/bootstrap.py 写入)。改动 = 触发 maintain 重跑。",
