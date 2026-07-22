@@ -16,6 +16,7 @@
 > | 通用代码规范 / 通用设计词汇 | 🔗 standards/ 或 rules/ | 跨项目通用 · 不属项目本地知识 |
 > | 单个 Feature 复盘(时间线 + 指标)| `docs/retros/` | 复盘是时间线 · 不是事实索引 |
 > | **项目特有的事实 / 踩坑 / 偏好** | **本文件** | 不是决策 · 是"发现"——没有备选项的客观事实 |
+> | **review 反复抓的自身失败类**(复发) | **本文件 § 复发防御清单** | dev 起草写时防 · shift-left 喂料(v8.278) |
 >
 > 🔴 **体量上限 300 行**,超出:(a) Gotcha 升 ADR(若本质是决策)/ (b) 分拆到子项目级 KNOWLEDGE.md / (c) 过期归档(加 archived 标记 · 放末尾)。
 
@@ -27,6 +28,17 @@
 > Teamwork 在 triage(用户输入承接阶段)会扫描本文件,注入「📚 相关项目事实」段。详见 [SKILL.md § Triage 入口规范](../SKILL.md)。
 
 > 📌 **术语 → `GLOSSARY.md`**;**开发规矩/约定 → `DEV-RULES.md`**。本文件不再收录这两类。
+
+## 🛡️ 复发防御清单(review 高频 finding · dev 起草**写时防** · v8.278)
+
+> 🔴 **这不是一次性外部坑(那些进 Gotchas)· 是「我们自己反复写出的失败类」** —— review 一遍遍重新发现同几类 bug(实证:某项目 stale closure×7 / timeout 边界×6)= 起草时没照着防。
+> **闭环**:① review 收敛后 · 确认 findings 里**可预防的复发类**沉淀到本清单(同一类第 2 次被抓即入 · 已在清单还复发 = 规避法不够硬 · 强化它);② dev **起草前必读本清单** · 照着这些已知失败类写(不是写完等 review 抓 —— 镜像 PRD 起草思考规范 v8.262)。
+> why:findings 82% 真实且集中在 code review · 砍轮数=漏 bug · 真杠杆是**预防掉的 finding 永不需要收敛**(goal 靠 shift-left 已 1 轮收敛 · dev 补上同一层)。
+
+| 类 | 失败模式(具体) | 🛡️ 写时怎么防 | 复发次数 | 触发 Feature |
+|----|----------------|--------------|---------|-------------|
+| {如 stale-closure} | {如 React 事件回调闭包捕获旧 state · 折叠态/筛选态读到过期值} | {如 用 ref / 函数式 setState · 依赖数组补全} | {2+} | {F0xx} |
+| {如 query-timeout} | {如 高基数 JOIN 未走索引 · 热表全扫 statement_timeout} | {如 覆盖索引 / 去规范化 / EXPLAIN 先验} | {2+} | {F0xx} |
 
 ## 🔀 Flagged Ambiguities(已澄清的歧义)
 

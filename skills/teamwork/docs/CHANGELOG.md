@@ -4,6 +4,18 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.278 · 给 dev 装 shift-left · 复发 finding 沉淀 + 起草写时防(治多轮收敛)
+
+> 用户课题:评审发现问题多、多轮收敛,如何优化。数据诊断(aon-core):665 条 external findings **82% 真实**(非挑刺 · 砍不得)· 多轮集中在 **code review** 且与 feature 大小强相关 · 🔴 **finding 类型反复撞**(stale×7 / timeout×6)· 沉淀防复发回路**断了**(DEV-RULES=0)。关键不对称:goal 靠 v8.262 shift-left 已 1 轮收敛,**dev 从没装这层** —— RD 只有 §完工自查(查实现全没全)· 没有「照评审会打的失败类写」。收敛成本一大块是**反复重新发现可预防的复发类**。
+
+### 闭环(镜像 PRD 起草思考规范 v8.262)
+- **沉淀端(喂料)**:KNOWLEDGE.md 新增 **§ 🛡️ 复发防御清单**(类|失败模式|写时怎么防|复发次数|触发 Feature);review 收敛(APPROVE)后确认 findings 里**可预防的复发类**沉淀进来(同类第 2 次即入 · 已在清单还复发 = 规避法不够硬,强化它)· review-stage 规则 8 + 验证轮 brief 消费点。
+- **消费端(预防)**:dev 起草**必读**该清单(上下文入口从「KNOWLEDGE 按需」升级)· dev-stage 加 🛡️ 起草思考规范(写法非环节:照失败类写、不写完等抓)· dev brief 消费点 surface。
+- 判断型非机械门:一次性/纯涌现 finding 不入清单;涌现的真问题仍照抓、轮数照留 —— 只打可预防的复发子集。
+
+### 验证
+- 新增 test_dev_shiftleft_v8278(6:模板有清单 / dev brief+stage surface / review harvest / 验证轮带 / round-1 不污染)· pytest 960 passed。
+
 ## v8.277 · 兜底清单加 💬 大白话列
 
 > 用户指令(截图 §7.5 兜底暂停点):兜底清单加大白话解释列。同 v8.271 AC 大白话哲学 —— 兜底清单也是暂停点上给用户拍板用的,「refresh 换发校验 pwd_ver / ROTATE_LUA」这类技术名 + 「概率×后果」+「ROI 结论」拍板者读着费劲,加一句人话(这个兜底在防什么、不做会怎样 · 用户/运营视角)。
@@ -61,16 +73,3 @@
 
 ### 验证
 - test_bootstrap +2(生成物含安装行 / 模板含安装行)· pytest 933 passed。
-
-## v8.273 · 审核员只审内容 · 不重复跑测试脚本
-
-> 用户指令:「审核员只需要审核内容,不需要重复跑测试脚本」。测试执行已有归属:dev(TDD)与 test stage(硬门 exit 0/差分 · 证据落盘)—— 评审员再跑一遍 = 双倍时延零新增证据。评审 = **静态审读**(diff / 代码 / 测试代码 / 实跑证据日志);疑点开 finding 由流水线实跑验证。
-
-### 改动
-- 覆盖方向「测试真跑」措辞消歧 ×3(hint 表 / brief 产物注 / review-stage 外审契约):测试真跑 = **读实跑证据/日志** · 非评审自己重跑 —— 这是最容易诱导重跑的一处措辞。
-- review-stage 新规则 8:只审内容(Architect / QA / external / 验证轮全适用)。
-- review brief(round 1)+ 验证轮 brief 各加纪律行(消费时点):验证轮裁决 fixed/not-fixed 依据 = 读修复 diff + 引用流水线证据。
-- external prompt 模板本已拦(reviewer.md「跑测试 → out of scope」)· 本版补齐主审路与验证轮。
-
-### 验证
-- 新增 test_review_content_only_v8273(3)· pytest 931 passed。
