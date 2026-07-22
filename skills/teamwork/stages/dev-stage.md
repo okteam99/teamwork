@@ -33,6 +33,8 @@
 | **verify-panorama.py / 视觉回归工具** | UI feature 的机器辅助(结构核对必做是硬规则 4 · 工具是加速项) |
 | **中途自查 TECH §依赖与影响** | 改契约类:每改一个 provider 顺手 grep 消费方 · 别攒到最后 |
 
+🛡️ **起草思考规范**(v8.278 · 写法非环节 · 镜像 PRD 起草思考规范):写代码时**就照 review 会打的失败类写** —— 起草前必读 `project-specs/KNOWLEDGE.md § 复发防御清单`(本项目 review 高频 finding 类 · 如 stale closure / timeout 边界 / fail-open / 币种崩页),逐条在实现里主动规避,不是写完等 review 抓。why:findings 82% 真实、集中 code review、且反复撞同几类 —— 起草时防掉的类永不需要多轮收敛(goal 靠 shift-left 已 1 轮收敛 · dev 补齐)。
+
 **并行姿态两问**(v8.254 · 实证:集成测试阶段整包塞单 agent · 主对话裸等 · 用户点破后当场拆出三线):
 - **阶段演进重问**:「哪些可并行」不是开工问一次 —— feature 内每进入新子阶段(实现 → 测试编写 → review 修复)**重问一次**(耦合度随阶段变 · 开工时的最优拆分会过期;实证:两个测试任务零文件重叠 · 可独立 `TEST_PG_DB_NAME` 隔离 · 完全可拆却被打包)。
 - **等待窗口不闲置**:派发后主对话**别裸等 agent** —— 填 TECH §完工自查的既有证据行 / 中途自查依赖消费方 / 把剩余工作再拆一刀(子任务独立判据:零文件重叠 + 可独立隔离 → 满足就再派)。
@@ -56,7 +58,7 @@ state.py dev-complete --feature <path> \
 - `bugfix/BUG-*.md`(diagnose 已建)**追加** §回归测试 + §修复记录 · 模板 [templates/bug-report.md](../templates/bug-report.md)。
 
 ### 上下文入口(读什么)
-PRD(AC)· TECH(方案+完工自查槽)· TC(测试用例)· UI.md+全景(若 ui_design 完成)· DEV-RULES(硬规则 1)· KNOWLEDGE/ARCHITECTURE 按需。Bug 流:`bugfix/BUG-*.md` 为权威输入。
+PRD(AC)· TECH(方案+完工自查槽)· TC(测试用例)· UI.md+全景(若 ui_design 完成)· DEV-RULES(硬规则 1)· 🛡️ **KNOWLEDGE § 复发防御清单必读**(写时防 · v8.278)· KNOWLEDGE 其余/ARCHITECTURE 按需。Bug 流:`bugfix/BUG-*.md` 为权威输入。
 
 ---
 
