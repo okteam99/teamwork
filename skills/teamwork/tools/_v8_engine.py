@@ -601,6 +601,40 @@ AUTO_TRANSITION_CONTINUE_REMINDER = (
 )
 
 
+# v8.280:preset-aware 流键/图解析 —— 治 micro 链走不通(实证 case:aifriends 4 行合规 bump 走
+# micro · execute-start 直接 FAIL)。根因:generic gate 用 **raw `state.flow_type="Feature"`** 比
+# `EXECUTE_SPEC.allowed_flow_types=["Micro"]`(legacy 内部键)→ 恒 FAIL;且图查 `flow_by_type.get("Feature")`
+# 拿到 **full 图**(即便过①·execute→ship 转移错路由)。resolve_flow_graph/internal_flow_key 在 state.py
+# 有 · 但 engine 通用 gate 从没用 · 现有 micro 测试只断言 spec 常量、从没真跑 gate → 漏网。
+# 本地实现(engine 不能 import state.py · 循环)· 与 state.py resolve_flow_graph / internal_flow_key、
+# specs _flow_key 严格同口径。
+_LEGACY_FLOW_ALIASES = {"敏捷需求": ("Feature", "lite"), "Micro": ("Feature", "micro")}
+
+
+def _internal_flow_key(state: dict) -> str:
+    """(state.flow_type, preset) → allowed_flow_types 比对用的内部键(Feature+preset → 敏捷需求/Micro)。"""
+    ft = state.get("flow_type") or ""
+    pre = state.get("preset") or "full"
+    if ft in _LEGACY_FLOW_ALIASES:          # 存量 legacy 值原样(兼容旧 state.json)
+        return ft
+    if ft == "Feature" and pre == "lite":
+        return "敏捷需求"
+    if ft == "Feature" and pre == "micro":
+        return "Micro"
+    return ft
+
+
+def _resolve_flow_graph(state: dict, flow_by_type: dict) -> dict:
+    """(state.flow_type, preset) → 转移图 · 复合键 Feature:micro/Feature:lite · 与 state.py 同口径。"""
+    ft = state.get("flow_type") or ""
+    pre = state.get("preset") or "full"
+    if ft in _LEGACY_FLOW_ALIASES:
+        ft, pre = _LEGACY_FLOW_ALIASES[ft]
+    if ft == "Feature" and pre in ("lite", "micro"):
+        return flow_by_type.get(f"Feature:{pre}", {})
+    return flow_by_type.get(ft, {})
+
+
 def execute_stage_start(
     stage_spec: StageSpec,
     args: argparse.Namespace,
@@ -611,33 +645,34 @@ def execute_stage_start(
     path, state = load_state(feature_path)
     close_open_pause(state)  # v8.192:闭合 stage 内暂停等待
 
-    # 1. flow_type 校验
+    # 1. flow_type 校验(v8.280:preset-aware · Feature·micro → 内部键 "Micro" 匹配 EXECUTE_SPEC)
     if stage_spec.allowed_flow_types:
-        flow = state.get("flow_type")
-        if flow not in stage_spec.allowed_flow_types:
+        flow_key = _internal_flow_key(state)
+        if flow_key not in stage_spec.allowed_flow_types:
             emit_json({
                 "verdict": "FAIL",
                 "stage": stage_spec.name,
                 "phase": "start",
-                "error": f"flow_type={flow!r} 不允许进入 {stage_spec.name}",
+                "error": (f"flow_type={state.get('flow_type')!r}(preset={state.get('preset')!r}"
+                          f" · 内部键 {flow_key!r})不允许进入 {stage_spec.name}"),
                 "allowed_flow_types": stage_spec.allowed_flow_types,
-                "hint": "检查 state.flow_type 是否正确",
+                "hint": "检查 state.flow_type / preset 是否正确",
             }, exit_code=1)
 
-    # 2. legal 转移校验
+    # 2. legal 转移校验(v8.280:按 (flow_type, preset) 解析图 · 非 raw flow_type.get)
     current = state.get("current_stage")
-    flow_type = state.get("flow_type")
-    if flow_type not in flow_by_type:
-        # 未知 flow_type 不静默回退空图(空图会伪装成"非法转移"误导排查)· 显式 FAIL
+    flow_graph = _resolve_flow_graph(state, flow_by_type)
+    if not flow_graph:
+        # 解析不到流程图(未知 flow_type/preset)· 显式 FAIL(不静默回退空图误导排查)
         emit_json({
             "verdict": "FAIL",
             "stage": stage_spec.name,
             "phase": "start",
-            "error": f"flow_type={flow_type!r} 不在已知流程表",
+            "error": (f"flow_type={state.get('flow_type')!r}/preset={state.get('preset')!r}"
+                      f" 解析不到转移图 · 不在已知流程表"),
             "known_flow_types": sorted(flow_by_type),
-            "hint": "state.flow_type 被外改或损坏 · 核对 state.json(不可枚举的流程不进状态机)",
+            "hint": "state.flow_type / preset 被外改或损坏 · 核对 state.json(不可枚举的流程不进状态机)",
         }, exit_code=1)
-    flow_graph = flow_by_type.get(flow_type, {})
     legal_next = flow_graph.get(current, [])
     is_initial_entry = current is None or current == stage_spec.name
     if not is_initial_entry and stage_spec.name not in legal_next:
@@ -1812,19 +1847,19 @@ def execute_stage_complete(
                     "reason": new_roles_reason,
                 }
 
-            # 自动进入下一 stage
-            flow_type = state.get("flow_type")
-            if flow_type not in flow_by_type:
-                # 未知 flow_type 不静默回退空图(会把 legal_next_stages 写成 [] 卡死后续)
+            # 自动进入下一 stage(v8.280:preset-aware 图解析 · micro Feature 拿 Micro 图非 full)
+            flow_graph = _resolve_flow_graph(state, flow_by_type)
+            if not flow_graph:
+                # 解析不到图(未知 flow_type/preset)· 显式 FAIL(不静默回退空图卡死后续)
                 emit_json({
                     "verdict": "FAIL",
                     "stage": stage_spec.name,
                     "phase": "complete",
-                    "error": f"flow_type={flow_type!r} 不在已知流程表 · 无法计算转移图",
+                    "error": (f"flow_type={state.get('flow_type')!r}/preset={state.get('preset')!r}"
+                              f" 解析不到转移图 · 不在已知流程表 · 无法计算下一 stage"),
                     "known_flow_types": sorted(flow_by_type),
-                    "hint": "state.flow_type 被外改或损坏 · 核对 state.json 后重试",
+                    "hint": "state.flow_type / preset 被外改或损坏 · 核对 state.json 后重试",
                 }, exit_code=1)
-            flow_graph = flow_by_type.get(flow_type, {})
             state["current_stage"] = next_stage
             state["legal_next_stages"] = flow_graph.get(next_stage, [])
 

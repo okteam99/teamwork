@@ -4,6 +4,20 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.280 · 修 micro 状态机 preset-blind 死门(execute 链走不通)
+
+> 实证 case(aifriends 4 行合规 bump 走 micro):init-feature preset=micro 建出 `flow_type="Feature" + preset="micro" + current_stage="execute"`,但 **execute-start 直接 FAIL** —— 用户被迫手动跳过状态机做完 micro 实质。根因:engine 通用 gate **用 raw `state.flow_type="Feature"`** 比 `EXECUTE_SPEC.allowed_flow_types=["Micro"]`(legacy 内部键)→ 恒 FAIL;且图查 `flow_by_type.get("Feature")` 拿 **full 图**(即便过①·execute→ship 转移错路由)。`resolve_flow_graph`/`internal_flow_key` 在 state.py 有,但 engine 的 `execute_stage_start/complete` 从没用 —— 现有 micro 测试只断言 spec 常量、**从没真跑 gate** → 漏网整整一版。
+
+### 修复(engine gate preset-aware)
+- 新增 `_internal_flow_key(state)` + `_resolve_flow_graph(state, flow_by_type)`(与 state.py resolve_flow_graph/internal_flow_key、specs _flow_key 严格同口径 · engine 不能 import state.py〔循环〕故本地实现)。
+- `execute_stage_start` 三处:① allowed_flow_types 门用 `_internal_flow_key`(Feature·micro → "Micro" 匹配)· ② 转移图用 `_resolve_flow_graph`(micro 拿 Micro 图非 full)· 未知 flow_type/preset 仍显式 FAIL(保「已知流程表」措辞)。
+- `execute_stage_complete` 转移同修(execute→ship 正确路由)。
+- 正常 Feature·full / Bug 行为不变(`_internal_flow_key` 对它们恒等映射)。
+
+### 测试补口
+- 新增 test_micro_gate_v8280(6:resolver 单测 micro/full/bug/legacy + `_resolve_flow_graph` micro 拿对图 + **真跑 init micro → execute-start 过门** e2e)—— 补上「只断言常量、从没跑 gate」的集成盲区。
+- pytest 970 passed。
+
 ## v8.279 · 安全加固/兜底降级 = external finding 过度设计高发区 · 采纳前必过 ROI
 
 > 用户点破:安全、兜底降级也要防过度设计。缺口:blueprint §4 Architect counter-lens 已有「兜底按 ROI 审(含安全兜底)」,但 external **裁决单源 §12** + goal/review 的 finding 处理姿态只泛说「过度设计」—— 没点名 **安全加固 / 兜底降级是 external finding 里最容易过度设计的两类**:external 天然偏加防御层/校验/重试/fallback,这两类听着最「负责任」故**最难驳、最易盲采**,恰恰最该过 ROI。
@@ -56,21 +70,3 @@
 ### 落地
 - localconfig 三点接线(json 模板 + config.md + 自愈默认表 `idle_threshold_minutes`)。
 - 新增 test_active_mining_v8276(12:过夜扣除/密集全算/无信号回退/坏戳/阈值可配/split 优先 active/回退/breakdown)· pytest 950 passed。
-
-## v8.275 · 暂停点投递位置红线 + migration 门目录级匹配 + 配方补 target_commit
-
-> 实证 case(IOS-F005 会话三连):① ship1 卡片按模板写了、但贴在回合中段(随后又调 await-merge)—— 宿主不渲染回合中段文本,卡片被吞,用户被迫问「url 发下」:内容防了 · **投递位置没防**;② `OfflineOriginMigrationStore.swift` 类业务组件被 migration **子串**误伤触发 schema 门;③ degraded 外审配方产物缺 `target_commit` → 下轮 `--verify-fixes` 找不到上轮 FAIL。
-
-### ① 投递位置(治整类 · 不只 ship1)
-- SKILL R5(b) 新红线:暂停点 markdown / user_card 必须是**回合最后一条输出 · 其后零工具调用**;伴随的监控/标记类命令(pause-mark / await-merge)一律**先执行(后台/静默)再贴**。
-- ship-stage §5 次序翻转:先后台启动 await-merge(30s 轮询不阻塞)→ 再把两段作为回合终文贴出;输出格式红线清单补第三条(必须是回合终文);卡片模板行改「已后台启动」。
-- push emit `next_action_brief` 同步翻转(消费时点):①先启动 ②再贴 · 卡片后零工具调用 ·「次序不可倒」保留(现覆盖两层次序:监控先于卡 · 卡先于总结)。
-
-### ② migration↔schema 门精确化
-- 子串 `"migration" in f` → `_MIGRATION_PATH_RE`(目录级:`migrations/` `migration/` `migrate/` `alembic/`)—— 业务组件文件名含 Migration 不再误伤。
-
-### ③ external-review degraded 配方
-- frontmatter 必含清单补 `target_commit: <commit>` —— `--verify-fixes` 增量重验能锚到上轮。
-
-### 验证
-- 新增 test_ship_pause_delivery_v8275(5:业务组件不匹配 / DB 路径匹配〔含 Rails·Flyway·alembic〕/ hint 三关键词 / SKILL 投递位置 / 配方 target_commit)· pytest 938 passed。
