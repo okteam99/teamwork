@@ -34,7 +34,7 @@
 | 路 | mandate | 找什么 |
 |---|---|---|
 | PL | 对抗质疑 | 质疑六问(价值前提 / 问题定义 / 范围最小化 / 上游对齐 / 复活检查 / 既有行为变更)· 产 `PL-CHALLENGE-{n}` · 至少 1 实质或「无+理由」· 详 [roles/product-lead.md](../roles/product-lead.md) |
-| external(第三视角冷审 · 默认**错开模型** subagent〔≠主会话模型 · v8.268〕· 跨厂商异质 opt-in) | **覆盖方向制** | 🔴 **必覆盖**:**可实现**(技术可行 / 架构影响 / **简洁性 counter-lens**〔过度设计?职责焊错层?〕——唯一防过度设计 lens)· **可验证**(AC 可测试性 / 边界场景 / 空值异常分支)+ 🔴 **AI 自主方向 ≥1**(按 feature 特性自选:安全 / 性能 / 数据一致性 / 兼容 / 运维…)。每方向给 finding 或「查过无发现」· 段记 `coverage: [...]`(物化门 `external_coverage_present`) |
+| external(第三视角冷审 · 默认**错开模型** subagent〔≠主会话模型 · v8.268〕· 跨厂商异质 opt-in) | **覆盖方向制** | 🔴 **必覆盖**:**可实现**(技术可行 / 架构影响 / **简洁性 counter-lens**〔过度设计?职责焊错层? · 🛡️ **安全加固/兜底降级 finding 尤其过 ROI**——最难驳的过度设计高发区 · v8.279〕——唯一防过度设计 lens)· **可验证**(AC 可测试性 / 边界场景 / 空值异常分支)+ 🔴 **AI 自主方向 ≥1**(按 feature 特性自选:安全 / 性能 / 数据一致性 / 兼容 / 运维…)。每方向给 finding 或「查过无发现」· 段记 `coverage: [...]`(物化门 `external_coverage_present`) |
 | qa / architect(默认并入外审覆盖方向) | 独立冷审(roster 加回时) | 复杂 feature(schema 即交付物 / 测试面大 / 架构决策重)→ `change-review-roles` 加回独立跑 · mandate = 上面覆盖方向的对应拆分 |
 
 **修订与收敛**:PM 逐条响应(ADOPT/REJECT/DEFER)· `adversarial_self_check` 双向——ADOPT 前先质疑 finding 不成立、REJECT 前先 steelman,**两个方向都给实证**(「冷审说得对」「我觉得没事」都不是理由);Round 2+ 重新派**冷** Agent 走验证模式(喂修订 PRD + 上轮 finding + 处置,核实 fix + 找新,防重复提已解决)· 🎚️ **验证轮派发用验证档模型**(v8.256 · 校验型任务 · 首轮全量冷审不降档)。
