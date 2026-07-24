@@ -1038,6 +1038,9 @@ def _handle_ship_archive(state: dict, args: argparse.Namespace) -> dict:
             "per_stage": _lt_bd,
             "user_email": _git_user_email(wt_root),
         },
+        # v8.281:起草可预防性(各评审 review-preventability 记录聚合)· 台账「🛡️ 起草可预防性」列
+        # · 年检据此判 PRD/TECH 起草考虑点缺不缺(反复缺同一条 = 真缺口 · 补框架考虑点)。
+        "ledger_authoring_preventability": _authoring_preventability_summary(state),
         # v8.180:WS 进度块确定性自刷结果(None = feature 不属 WS / 对应F编号 未填 → 未刷 · 见 §3.5)
         "ws_progress_refreshed": ws_refreshed,
         "warnings": [
@@ -1624,6 +1627,28 @@ def _stage_durations(state: dict):
         aw = " + ".join(f"{s} {m}m" for s, m in awaiting)
         analysis += f" · ⏸️ {aw}=用户决策等待(墙钟 · 非工作 · 不计入最耗时)"
     return breakdown, analysis
+
+
+def _authoring_preventability_summary(state: dict):
+    """v8.281:聚合各评审的起草可预防性 → 台账「🛡️ 起草可预防性」列(年检分析源)。
+
+    渲染 "可预防/总 · 缺:考虑点A;考虑点B"(缺项去重跨评审)· 无记录返 None(台账列留空 = 有效前缀)。
+    """
+    items = state.get("authoring_preventability") or []
+    items = [i for i in items if isinstance(i, dict)]
+    if not items:
+        return None
+    prev = sum(int(i.get("preventable") or 0) for i in items)
+    tot = sum(int(i.get("total") or 0) for i in items)
+    missing = []
+    for i in items:
+        for m in (i.get("missing") or []):
+            if m and m not in missing:
+                missing.append(m)
+    cell = f"{prev}/{tot} 可预防"
+    if missing:
+        cell += " · 缺:" + "；".join(missing)
+    return cell
 
 
 def _timing_split(state: dict):

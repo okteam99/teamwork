@@ -11,11 +11,12 @@
 
 > 查询示例(年检 / 流程审视时算):external confirmed 率 = Σ采 / Σ总;某角色真 finding 率 = 该角色 finding 数 / feature 数;暂停点 all-default 率 = Σ默 / Σ(改+默)。
 
-| Feature | flow | 实走 stages | 时长(总·AI自主·待用户) | review/test 轮 | external 总/采/驳 | 角色真 finding | 暂停点 改:默 | bypass/WARN | 反思摘要(≤1 行) | 各阶段耗时 | 用户邮箱 | 宿主 | 分诊校准(预测→实际) |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| Feature | flow | 实走 stages | 时长(总·AI自主·待用户) | review/test 轮 | external 总/采/驳 | 角色真 finding | 暂停点 改:默 | bypass/WARN | 反思摘要(≤1 行) | 各阶段耗时 | 用户邮箱 | 宿主 | 分诊校准(预测→实际) | 🛡️ 起草可预防性(可预防/总·缺考虑点) |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | <ID> | <Feature / Feature·micro / Bug> | <goal→blueprint→dev→…→ship> | <2.4h·AI 88m·待 32m> | <1/1> | <3/1/2> | <arch:1 qa:0 ext:1> | <1:2> | <0/0> | <external 拦 1 真问题 · ui_design 零 finding 过场> | <goal 20m(+等5m)·dev 40m·review 8m·pm_acceptance 30m> | <git user.email> | <claude-code/codex-cli/gemini-cli> | <explicit·goal→qa → diff 14 files·PRD 0 revision·review 1 轮> |
 
 > 🔴 **schema 演进纪律(v8.210)= 只在末尾加列** —— 新列一律追加到表**最右**(旧 feature 行天然是**有效前缀** · 新列它们为空 = 该 feature 早于该指标 · 诚实)· **永不在中间插列**(否则旧行错位、年检读错列)。**旧项目台账迁移 = 仅换表头一行**(旧数据行不动):append 前跑 `state.py ledger-migrate --feature <path>`(幂等 · header 已最新则 no-op)。
+> 🔴 **🛡️ 起草可预防性(v8.281)**:各评审收敛后跑 `state.py review-preventability --stage <goal|blueprint|review> --preventable N --total M --missing '缺的考虑点'` 记录 · ship 聚合成「可预防/总·缺考虑点」照抄本列(数据源 = ship1 archive emit 的 `ledger_authoring_preventability`)。**用途**:年检看「缺的考虑点」跨 feature 复发 → 补 PRD/TECH 起草考虑点(PL六问/TECH自查/复发清单);判据同 v8.278(findings 82% 真·砍轮=漏 bug·真杠杆=起草挡掉可预防子集)。非门禁 · 没记录留空(有效前缀)。
 > 🔴 **时长三分(v8.208)**:`总` = 墙钟(init→archive · 不含 MR 等待)· `AI自主` = 扣掉所有人工等待后 AI 真跑的时长(Σ 工作 stage〔duration − stage 内 pause-mark 暂停〕)· `待用户` = 全部人工等待(stage 内暂停 + pm_acceptance 等纯等待 stage 墙钟)。**数据源 = ship1 archive emit 的 `ledger_timing`**(确定性 · 照抄不肉眼算)· `各阶段耗时`同源(`per_stage`)。
 > 🔴 **用户邮箱** = `git config user.email`(archive emit `ledger_timing.user_email`)· 供年检按人/团队分析流程健康度。
 > 🔴 **分诊校准(v8.217/231)** = archive emit `triage_calibration` 照抄(预测:clarity+roster 调整;实际:diff 文件数/goal 修订轮/review 轮;**dispatch_models 分布** —— `unspecified` 占比高 = dispatch 没分档 · 年检验档位建议采纳率)· 年检算**分诊准确率**(explicit 判定却 PRD 常打回/review 高轮次 → 判据收紧)。

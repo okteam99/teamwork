@@ -4,6 +4,19 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.281 · 起草可预防性台账列 · 评审后记录 → ship 聚合 → 年检完善 teamwork
+
+> 用户:每次评审后记录「为什么审出这么多 + 起草考虑点该不该补」,同步到台账供后续分析完善 teamwork。这是 v8.278 dev shift-left 的诊断层 —— 把「起草考虑点缺不缺」从猜变成数据。活体验证(aon-core Postback 会话):PRD 两路冷审 11 findings,该 session 手动归因出 4 条起草考虑点缺口(在旧分支 grounding / 未 trace 真实运行时路径 / 结算路径下游未枚举 / 兜底 miss 分支未落 AC)—— 正是本列要系统化采集的。
+
+### 机制(非门禁 · 纯数据采集)
+- 新命令 `state.py review-preventability --stage <goal|blueprint|review> --preventable N --total M --missing '缺的考虑点(分号分隔)'`:评审收敛后记录 findings 可预防率 + 缺哪条起草考虑点 → 追加 `state.authoring_preventability`。
+- ship 聚合 `_authoring_preventability_summary`(跨评审求和 + 缺项去重)→ emit `ledger_authoring_preventability` → PROCESS-LEDGER 新列「🛡️ 起草可预防性(可预防/总·缺考虑点)」(rightmost · append-only schema · ledger-migrate 自动加列)。
+- review harvest(v8.278 rule 8)+ 验证轮 brief + ship §16 台账口径接线;判据同 v8.278/279(findings 82% 真·砍轮=漏 bug·真杠杆=起草挡掉可预防子集)。
+- **消费方 = 年检**:跨 feature 看「缺的考虑点」复发 → 补 PRD/TECH 起草考虑点(反复缺=真缺口补框架)· 全 emergent = 别动(避 v8.266 一刀切)。没记录列留空(有效前缀 · 非门禁)。
+
+### 验证
+- 新增 test_authoring_preventability_v8281(6:聚合去重/记录追加/非门禁/表头分隔一致)· pytest 976 passed。
+
 ## v8.280 · 修 micro 状态机 preset-blind 死门(execute 链走不通)
 
 > 实证 case(aifriends 4 行合规 bump 走 micro):init-feature preset=micro 建出 `flow_type="Feature" + preset="micro" + current_stage="execute"`,但 **execute-start 直接 FAIL** —— 用户被迫手动跳过状态机做完 micro 实质。根因:engine 通用 gate **用 raw `state.flow_type="Feature"`** 比 `EXECUTE_SPEC.allowed_flow_types=["Micro"]`(legacy 内部键)→ 恒 FAIL;且图查 `flow_by_type.get("Feature")` 拿 **full 图**(即便过①·execute→ship 转移错路由)。`resolve_flow_graph`/`internal_flow_key` 在 state.py 有,但 engine 的 `execute_stage_start/complete` 从没用 —— 现有 micro 测试只断言 spec 常量、**从没真跑 gate** → 漏网整整一版。
@@ -52,21 +65,3 @@
 
 ### 验证
 - 新增 test_fallback_plain_v8277(4:两表各有大白话列 / 列集同构 / 大白话紧跟兜底名)· pytest 954 passed。
-
-## v8.276 · stage 耗时活动挖掘 · 扣跨 session 空闲 + 计时链路修 bug
-
-> 用户令:仔细审当前统计逻辑,没别的问题再落扣除。审计结论:`duration = completed_at − started_at` 纯墙钟,而 AI 干活期间 state.py 不被调用(dev 只 start/complete 两次打点)—— 干活中途合上电脑过夜不是 R5 暂停、pause-mark 抓不到、也没法 mark(AI 那时没在跑),整段被算成「AI 自主」(实证 aon-core `goal 1012m / await +3m`)。直接扣一个数做不到,需活动信号。
-
-### 活动时间戳挖掘(治主问题)
-- `_mine_active_minutes`:stage 窗口 [started, completed] 内取 **git commit(committer-date)+ 产物 mtime(PRD/TECH/REVIEW/dispatch_log)+ round 边界** 作活动信号 · 排序后相邻间隔 ≤ `idle_threshold_minutes`(默 30 · localconfig 可调)累加为 `active_minutes` · 间隔 > 阈值判空闲扣除。
-- 🔴 best-effort:窗口内无中间活动信号 / 异常 → 返 None(回退 duration−await · 不硬伤);`active ≤ span` 封顶。
-- 消费:`_timing_split` / `_stage_durations` 优先 `active_minutes`(已排空闲含 R5 暂停 · await 仅作标签单列);ship §16 台账口径同步(`total_wall − ai − await = 未标记挂机空闲` · 不再冒充工作)。
-
-### 顺带修计时 bug
-- ② restart 重置计时锚:`started_at = now` + `await_minutes = 0`(旧逻辑保留原 started_at → duration 跨越已废弃首次尝试;await 残留污染 duration−await)。
-- ③ 解析健壮性:duration 改宽松 `_parse_iso_flexible`(旧严格 strptime + except pass → 格式变体静默丢 duration · 整 stage 从计时消失)· 与 close_open_pause 口径统一。
-- ④ 已知约束存档:pm_acceptance 整段算等待(PM 验收工作反向少算 · 保守可接受)。
-
-### 落地
-- localconfig 三点接线(json 模板 + config.md + 自愈默认表 `idle_threshold_minutes`)。
-- 新增 test_active_mining_v8276(12:过夜扣除/密集全算/无信号回退/坏戳/阈值可配/split 优先 active/回退/breakdown)· pytest 950 passed。
