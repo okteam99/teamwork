@@ -259,6 +259,7 @@ Step 3:跑命令 · 落 *-codex.md / *-gemini.md / 等真异质模型文件
 >
 > 🔴 **处理每条 finding 的固定思考顺序(默认姿态 = 质疑 · 不盲目认同)**:
 > **① 质疑** —— 先假设它**不成立**:false positive?误解 intentional 设计?与 DEV-RULES 冲突?过度设计 / 责任焊错层?reviewer 没看全上下文?
+> 🔴 **安全加固 / 兜底降级 = 过度设计高发区**(v8.279):external 天然偏加防御层/校验/重试/fallback · 这两类听着最「负责任」故**最难驳、最易盲采** —— 恰恰最该过 **ROI**(保护的失败场景 概率×后果 vs 实现维护成本 · 同 v8.265/266):立不住 → **REJECT**(「安全/兜底总没错」不是采纳理由);立得住 → ADOPT · 兜底类落 §兜底清单随 §7.5 透出。**「加安全/加兜底」不天然正确**,和别的 finding 同样过质疑门。
 > **② 确认** —— 带着质疑**回读真实代码 / AC / DEV-RULES / 业务目标**核实(不轻信 reviewer 转述)。
 > **③ 裁决 + 给理由** —— 经①②才落 ADOPT/REJECT/DEFER · **每个方向都写思考过程**(ADOPT 不是「改了什么」· 是「我质疑了 X · 回读 Y 确认它真成立 · 故采纳」)。
 > 🔴 **举证责任对称**:旧规范只逼 reject 给依据 → ADOPT 成了无摩擦默认 = 盲采的温床。**confirmed 与 rejected 举证责任相同** —— 采纳也要给「为何确为真 + 为何这样改对」的实证,不是一句「reviewer 说得对」。
@@ -267,7 +268,7 @@ Step 3:跑命令 · 落 *-codex.md / *-gemini.md / 等真异质模型文件
 
 | 裁决 | 判据 | 处置 |
 |---|---|---|
-| ✅ confirmed | **先质疑**(是否 false positive / 过度设计 / 错层 / 不适用本项目)→ 回读实际代码 / AC / DEV-RULES 核实**质疑不成立、确为真问题** | 修(进 fix-retry)· 🔴 REVIEW.md 记 finding + **采纳依据**(为何确为真 + 为何这样改对 · 与 rejected 举证责任对称) |
+| ✅ confirmed | **先质疑**(是否 false positive / 过度设计 / 错层 / 不适用本项目 · 🔴 **安全加固/兜底降级 finding 必过 ROI** 概率×后果 vs 成本 · v8.279)→ 回读实际代码 / AC / DEV-RULES 核实**质疑不成立、确为真问题** | 修(进 fix-retry)· 🔴 REVIEW.md 记 finding + **采纳依据**(为何确为真 + 为何这样改对 · 与 rejected 举证责任对称) |
 | ❌ rejected | false positive / 误解 intentional 设计 / 与 DEV-RULES 冲突 / reviewer 没看全上下文 | **不修** · 🔴 **必记驳回依据**(指真实代码 / 规约 / 业务目标)· 不静默忽略 |
 | ⏸️ deferred | 真问题但**本 Feature 范围外** | → `product-overview/PENDING.md` · 不本轮强塞 |
 
