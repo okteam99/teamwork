@@ -86,3 +86,28 @@ class TestLedgerHeader(unittest.TestCase):
         self.assertIsNotNone(h)
         self.assertEqual(h[0].count("|"), h[1].count("|"))
         self.assertIn("起草可预防性", h[0])
+
+
+class TestV8282AuthoringGaps(unittest.TestCase):
+    """v8.282:PRD 起草思考规范补 2 条普适缺口(aon-core Postback case 归因)。"""
+
+    def setUp(self):
+        root = Path(__file__).resolve().parent.parent.parent
+        self.prd = (root / "templates" / "prd.md").read_text(encoding="utf-8")
+        self.goal = (root / "stages" / "goal-stage.md").read_text(encoding="utf-8")
+        import _v8_stage_specs as S
+        self.brief = S._goal_brief({})
+
+    def test_gap1_ground_on_ship_branch(self):
+        # 依赖读真实代码 → 精确化到当前 worktree/ship 目标分支
+        self.assertIn("当前 worktree", self.prd)
+        self.assertIn("不吃跨分支/记忆的旧调研", self.prd)
+        self.assertIn("ship 目标分支", self.goal)
+
+    def test_gap4_miss_branch_in_ac(self):
+        self.assertIn("未命中/坏输入分支必须和命中分支一起落 AC", self.prd)
+        self.assertIn("miss", self.goal)
+
+    def test_brief_carries_both_gaps(self):
+        self.assertIn("ship 目标分支", self.brief)
+        self.assertIn("miss 分支必落 AC", self.brief)
