@@ -1,6 +1,6 @@
 # 工程硬规则白名单(🔴 必读 · v8.285)
 
-> **这是 standards/ 的唯一必读文件**(~50 行)。分册(`common` / `backend` / `frontend` / `tdd`)是**按需查的参考**,不要求通读。
+> **这是 standards/ 的唯一必读文件**(~50 行)。分册(`common` / `backend` / `frontend`)是**按需查的参考**,不要求通读。
 >
 > 🔴 **工程规范 = 本文件 + 项目 `project-specs/DEV-RULES.md` 的并集 · 冲突以项目为准**(项目主权高于框架缺省;项目要覆盖某条,在 DEV-RULES 显式声明即可)。
 >
@@ -26,7 +26,8 @@
 7. **测试必须真断言** · **禁止 mock 被测组件自身的内部方法**。
    *模型默认:为了让测试过,把正要验的那段 mock 掉 —— 恒绿空壳测试比没测试更危险(门禁/评审/验收同时失效)。*
 8. **每个 TC 用例必须有对应实现**(TC↔实现这一跳没有机器门 · AC↔TC 由 `verify-ac.py` 管)。
-   🟢 **怎么测由 AI 自觉**(v8.286):TDD 红绿 / 先骨架后补边界 / test-after 自选 —— 框架只管结果,不规定手段(详 [tdd.md](./tdd.md))。
+   🟢 **怎么测由 AI 自觉**(v8.286/287):TDD 红绿 / 先骨架后补边界 / test-after 自选 —— 框架**只管结果不规定手段**。
+   结果由机器门保证(不靠自觉):AC 覆盖 → `verify-ac.py` · 真跑真绿 → `dev-complete --test-exit-code 0` + `--test-stdout` 非空(红 base 走 `test-baseline` 差分「0 新增」)· 没作弊 → test-stage ②「不为凑 exit-code=0 走捷径」+ review 外审必覆盖「测试真实性与覆盖」。
 9. **≥3 次失败修复 → 停止并升级**,不允许无意识第 4/5/6 次尝试(症状性修复反模式)。
 
 ---
@@ -45,5 +46,5 @@
 
 ## 相关
 
-- 分册(按需查 · 不必通读):[common.md](./common.md) · [backend.md](./backend.md) · [frontend.md](./frontend.md) · [tdd.md](./tdd.md) · [external-model-usage.md](./external-model-usage.md) · [scripts-policy.md](./scripts-policy.md)
+- 分册(按需查 · 不必通读):[common.md](./common.md) · [backend.md](./backend.md) · [frontend.md](./frontend.md) · [external-model-usage.md](./external-model-usage.md) · [scripts-policy.md](./scripts-policy.md)
 - 项目侧规范(优先级更高):`project-specs/DEV-RULES.md`(人维护 · API 契约 / 错误处理 / 其他约定)

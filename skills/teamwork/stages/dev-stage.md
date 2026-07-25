@@ -65,5 +65,5 @@ PRD(AC)· TECH(方案+完工自查槽)· TC(测试用例)· UI.md+全景(若 ui_
 ## 相关
 
 - 引擎:[../tools/_v8_engine.py](../tools/_v8_engine.py) · spec:[../tools/_v8_stage_specs.py](../tools/_v8_stage_specs.py) `DEV_SPEC`
-- 测试结果规范:[../standards/tdd.md](../standards/tdd.md)(手段自定 · 三条结果规则)· UI 还原:[./ui-design-stage.md](./ui-design-stage.md) § 分层同构律
+- 测试结果规则:[../standards/HARD-RULES.md](../standards/HARD-RULES.md)(手段自定 · 只管结果)· UI 还原:[./ui-design-stage.md](./ui-design-stage.md) § 分层同构律
 - 工具:[../tools/verify-panorama.py](../tools/verify-panorama.py)

@@ -74,5 +74,33 @@ class TestNoDuplicateCopies(unittest.TestCase):
 class TestStandardsFurtherSlimmed(unittest.TestCase):
     def test_total(self):
         total = sum(len((STD / f).read_text(encoding="utf-8").splitlines())
-                    for f in ("common.md", "backend.md", "frontend.md", "tdd.md"))
+                    for f in ("common.md", "backend.md", "frontend.md"))
         self.assertLess(total, 1150, f"四件分册应已从 1773 降到 1150 内 · 现 {total}")
+
+
+class TestNoDanglingStandardsLinks(unittest.TestCase):
+    """v8.287:通用断链守护 —— 删/改 standards 文件后,不许有指向不存在文件的链接。
+
+    实证:v8.285 删 stage heading 导致 6 处 cite 失效(agent 报出才发现);v8.287 退役 tdd.md
+    需改 10 处入链。这类操作应被自动拦,不靠人肉 grep。
+    """
+
+    def test_all_standards_links_resolve(self):
+        import re
+        bad = []
+        for f in list(ROOT.rglob("*.md")) + list(ROOT.rglob("*.py")):
+            if "docs/audit" in str(f) or "CHANGELOG" in f.name or "RETRO" in f.name:
+                continue
+            if f.name.startswith("test_"):
+                continue
+            for m in re.finditer(r"standards/([a-zA-Z0-9_-]+\.md)", f.read_text(encoding="utf-8", errors="replace")):
+                if not (STD / m.group(1)).is_file():
+                    bad.append(f"{f.relative_to(ROOT)} → standards/{m.group(1)}")
+        self.assertEqual(bad, [], f"指向不存在的 standards 文件:{bad}")
+
+    def test_tdd_md_retired(self):
+        """v8.287:tdd.md 退役(三条结果规则已在白名单 · 留着就是第二份副本)。"""
+        self.assertFalse((STD / "tdd.md").exists())
+        h = (STD / "HARD-RULES.md").read_text(encoding="utf-8")
+        for k in ("每个 TC 用例必须有对应实现", "测试必须真断言", "≥3 次失败修复"):
+            self.assertIn(k, h, f"退役前必须确保规则已在白名单:{k}")

@@ -1,7 +1,7 @@
 # 后端开发规范
 
-> 后端 RD 必须遵守。通用规范见 📎 [common.md](./common.md) · TDD 流程唯一权威源 📎 [tdd.md](./tdd.md)。
-> Subagent 加载指引：后端子项目加载本文件 + tdd.md + common.md，无需加载 frontend.md。
+> 后端 RD 必须遵守。通用规范见 📎 [common.md](./common.md) · 🔴 必读白名单 📎 [HARD-RULES.md](./HARD-RULES.md)。
+> Subagent 加载指引：后端子项目加载 HARD-RULES.md(必读)+ 本文件 + common.md(按需)，无需加载 frontend.md。
 > 📎 **通用教程不入库**（同 frontend.md v8.123 裁定）：保留的 ✅/❌ 示例仅限**承载契约/门禁字段**的对照（如 §四 日志必须字段）· 通用技术用法由 AI 按需自生成 · 项目特异约定归各项目 `DEV-RULES.md`。
 
 ---
@@ -22,7 +22,7 @@
 
 ## 一、后端测试规范
 
-> TDD 红绿循环与测试命名等通用手艺 **单源 [tdd.md](./tdd.md)**(v8.284:本节原 24 行已并入 —— tdd.md 本就声明整段吸收)。本框架的证据硬门在 stage 层(`dev-complete --test-exit-code 0` + 差分基线)。
+> v8.287:TDD 手段规定已整体撤除(怎么测 AI 自觉)· 测试的三条**结果规则**见 [HARD-RULES.md](./HARD-RULES.md)。本框架的证据硬门在 stage 层(`dev-complete --test-exit-code 0` + 差分基线)。
 
 ## 二、集成测试规范（后端 API）
 

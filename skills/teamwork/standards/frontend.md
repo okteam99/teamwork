@@ -1,7 +1,7 @@
 # 前端开发规范
 
-> 前端 RD 必须遵守。通用规范见 📎 [common.md](./common.md) · TDD 流程唯一权威源 📎 [tdd.md](./tdd.md)。
-> Subagent 加载指引：前端子项目加载本文件 + tdd.md + common.md，无需加载 backend.md。
+> 前端 RD 必须遵守。通用规范见 📎 [common.md](./common.md) · 🔴 必读白名单 📎 [HARD-RULES.md](./HARD-RULES.md)。
+> Subagent 加载指引：前端子项目加载 HARD-RULES.md(必读)+ 本文件 + common.md(按需)，无需加载 backend.md。
 > 📎 **实施示例 / 选型教程不入库**（v8.123 裁定）：通用技术用法是模型自带知识 · AI 按需自生成（防教程腐烂反向误导 · 承 v8.114 三层律「不 own 知识内容」）· 项目特异约定归各项目 `DEV-RULES.md`（用户主权）。本文件只保留 must/must-not 硬规则。
 
 ---
@@ -14,7 +14,7 @@
 
 ## 一、前端测试规范
 
-> TDD 手艺单源 [tdd.md](./tdd.md)(v8.285:本节流程教程与示例已删)。本节只留**项目约定的阈值与清单**:
+> v8.287:TDD 手段规定已撤除(怎么测 AI 自觉 · 结果规则见 [HARD-RULES.md](./HARD-RULES.md))。本节只留**项目约定的阈值与清单**:
 
 - **覆盖率**:> 70%
 - **测试分层**:单元(纯函数/hook)· 组件(渲染 + 交互 + 状态)· 集成(跨组件/路由/数据流)· e2e(真实浏览器 · 归 browser_e2e stage)
@@ -81,7 +81,7 @@
 
 | 类别 | 关键规范 |
 |------|----------|
-| **测试** | TDD 先行（单源 tdd.md），覆盖率 > 70%，必须覆盖 P0 流程 |
+| **测试** | 节奏自定(结果规则见 HARD-RULES)，覆盖率 > 70%，必须覆盖 P0 流程 |
 | **组件测试** | Testing Library + MSW Mock，避免快照测试 |
 | **样式** | 统一 CSS 方案，使用 design tokens，响应式 mobile-first |
 | **状态管理** | 分层管理，仅当必要才全局化，数据获取用专门库 |

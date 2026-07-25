@@ -48,9 +48,10 @@ class TestBackendSlimming(unittest.TestCase):
     def setUp(self):
         self.t = (STD / "backend.md").read_text(encoding="utf-8")
 
-    def test_tdd_single_sourced(self):
-        """通用 TDD 手艺单源 tdd.md(tdd.md 本就声明整段吸收本节)。"""
-        self.assertIn("单源 [tdd.md](./tdd.md)", self.t)
+    def test_tdd_prescription_removed(self):
+        """v8.287:TDD 手段规定整体撤除 · tdd.md 已退役(三条结果规则并入 HARD-RULES · 不留第二份副本)。"""
+        self.assertIn("HARD-RULES.md", self.t)
+        self.assertNotIn("tdd.md", self.t)
 
     def test_counter_default_rules_retained(self):
         """🔴 逆模型默认的规则 = 最高价值 · 一条不能砍。
@@ -71,7 +72,7 @@ class TestBackendSlimming(unittest.TestCase):
 class TestStandardsTotal(unittest.TestCase):
     def test_total_reduced(self):
         total = sum(len((STD / f).read_text(encoding="utf-8").splitlines())
-                    for f in ("common.md", "backend.md", "frontend.md", "tdd.md"))
+                    for f in ("common.md", "backend.md", "frontend.md"))
         self.assertLess(total, 1450, f"四件 standards 应已从 1773 瘦下来 · 现 {total}")
 
 

@@ -7,7 +7,7 @@
 
 ## 一、测试核心原则
 
-> TDD 红绿循环等通用手艺见 [tdd.md](./tdd.md) · 本框架的**证据硬门**在 stage 层(`dev-complete --test-exit-code 0` + 差分基线)· 本节不复述通用原则。
+> v8.287:TDD 手段规定已撤除(怎么测 AI 自觉)· 测试的**结果规则 + 机器门**见 [HARD-RULES.md](./HARD-RULES.md) · 本节不复述通用原则。
 
 ## 二、代码架构规范(v8.284 压缩 · 分层/SOLID/Review 友好度等教科书内容已删)
 

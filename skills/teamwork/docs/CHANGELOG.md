@@ -4,6 +4,23 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.288 · tdd.md 退役(三条规则已在白名单 · 留着就是第二份副本)
+
+> 用户:「如果 TDD 只有三行,是否不用单独一个文件了」。核实后确认——**比预想的更该删**:v8.287 留下的三条结果规则里,**两条与 HARD-RULES 逐字重复**(每个 TC 有对应实现 / 测试必须真断言),第三条(≥3 次失败升级)也在。tdd.md 已经退化成我们一路在消灭的「指针 + 复制」第二份副本。
+
+### 退役
+- 删 `standards/tdd.md`(42 行)· 吸收其唯一独有内容:「结果由谁保证」表 → 压成 HARD-RULES #8 下的一行(AC 覆盖 → `verify-ac.py` · 真跑真绿 → `--test-exit-code 0` + `--test-stdout` 非空 + 差分基线 · 没作弊 → test-stage ②不走捷径 + 外审测试真实性)。
+- **10 处入链改指 HARD-RULES**:STANDARDS.md 路由表 + 三条子项目加载链 · backend/frontend 的「TDD 流程唯一权威源」头注与 Subagent 加载指引 · common.md · dev-stage §相关 · blueprint ③菜单 · tech.md · 2 处测试。
+- `standards/` 从 6 件 → 5 件:HARD-RULES(50 · 必读)+ common(354)+ backend(551)+ frontend(90)+ external-model-usage(286)+ scripts-policy(232)。
+
+### 顺带:通用断链守护(治本)
+- 新增 `test_all_standards_links_resolve`:全库扫 `standards/*.md` 引用,**指向不存在的文件即红**。
+- 实证驱动:v8.285 删 stage heading 造成 6 处 cite 失效(靠 agent 报出才发现)· v8.287 退役 tdd.md 需手改 10 处入链 —— 这类操作该被自动拦,不靠人肉 grep。
+- 另加 `test_tdd_md_retired`:退役前**必须确保三条规则已在白名单**(防「删了文件规则也跟着没了」)。
+
+### 验证
+- pytest **1026 passed**(+2)。
+
 ## v8.287 · TDD 手段规定整体撤除 · 只管结果(怎么测 AI 自觉)
 
 > 用户:「TDD 是否不用写到规范里了,加一句确保每个 TC 用例都有对应实现即可」+「至于怎么做 TDD AI 自觉」。TDD 是**手段**,正是判据⑤(衰减类)的典型 —— 模型早已内建。框架该管的是**结果**,而结果已有机器门与评审兜着,所以撤手段不开洞。
@@ -96,26 +113,3 @@
 
 ### 验证
 - 新增 test_stage_slimming_v8284(12:四段结构转正 / 旧条款已废 / 判据成文 / 前端细则已删但判据保留 / 环节化已改写法 / 物化闸与主权暂停点保留 / blueprint 矛盾已修 / ship 门禁全在)· pytest **1002 passed**。
-
-## v8.283 · 模板减法批次一 · 砍掉限制模型能力发挥的约束(prd/tech)
-
-> 用户课题:随着模型越来越聪明,这些规则是否反而有负向影响?讨论后确立**按规则类型分衰减速率**的判据 —— 不衰减必保留:① 证据/验证(信任架构:模型越强、主张越有说服力,越需要证明而非被相信)② 独立采样(相关盲区是统计属性非智力属性)③ 用户主权(谁决定 ≠ 谁能干)④ 纯机械操作;随模型变强而衰减可砍:⑤ 手段规定(HOW-to)⑥ 能力上限 ⑦ 教学示例 ⑧ 重复 ⑨ 环节化自检。本版按判据做 prd.md / tech.md 的减法,**门禁与暂停点一条未动**。
-
-### prd.md 393 → 325 行(-68)
-- 🔴 **砍能力封顶**(判据⑥ · 最锋利的一处):`❌ Read 5+ 个文件 / 1000+ 行`、`时间预算:5-10 min`、`不超过 10 min` —— 这是**直接给调研深度设天花板**,且与 v8.282 刚加的「在 ship 目标分支读真代码」**自相矛盾**(那个 aon-core Postback case 翻车根因恰恰是 grounding 不够深)。改为「读多深 / 怎么找 / 读几个文件由 AI 按本 feature 判断」。
-- 砍 Step1-4 调研流程(判据⑤ 43 行 → 12 行):目标(把真实代码现状内化)+ 边界(只读不输出 / 不写技术细节 / code_context_read 痕迹)保留,HOW 交还模型。
-- 砍三个完整 mermaid 示例(判据⑦ · 保留「什么时候必须画图」的触发判据 —— 那是判断)。
-- 砍通用 checklist 的 AC 块(判据⑧ · 与 §验收标准表 + goal-complete 机器校验 100% 重复)。
-- 「起草后必做自查」→「PM 自查字段(机读 · 非环节)」(判据⑨ · v8.263 已裁定「不是加自检环节,是写的时候就这样想」· 这是幸存的同类物;PRD-REVIEW 消费的机读字段保留)。
-- 压缩 adversarial_self_check 的两个 worked example(规则本身属判据① 原样保留)。
-
-### tech.md 277 → 238 行(-39)
-- 砍填充示例(判据⑦):字段表 4 行(RFC 5322 等)· 跨层映射示例 · 错误处理表 4 行(压成「至少想过这几类」)· 文件树 · mermaid 时序图。
-- 砍 TDD 粒度表 + ❌✅ 示例(判据⑤ · dev-stage v8.218 早把 TDD 从强制降为「强烈建议」,tech.md 没跟上)· 保留粒度原则一句。
-- 完工自查去掉与机器门 100% 重复的两项(判据⑧ · test exit-code / commit changeset 已由 dev-complete 物化校验)。
-
-### 一条未动(判据 ①②③④ 点名保留)
-兜底 ROI 清单 · 现状基线 + decisive 前提核验 · 变更最小化四问的产出要求 · Schema 影响分析 · FK 决策 · 不静默吞异常 · 完工自查(review 真读它 = 产物契约非自检仪式)· 机读块 / verify-ac / AC 大白话机器校验 · 既有行为变更必入待决策项 · 「模板是地板不是天花板」。
-
-### 验证
-- 新增 test_template_slimming_v8283(12:封顶不得回归 / HOW-to 不得回归 / grounding 目标仍在 / 证据契约仍在 / 用户主权仍在 / 教学示例已清 / 核心契约仍在)· pytest 991 passed。
