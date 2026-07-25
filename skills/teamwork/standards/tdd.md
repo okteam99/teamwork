@@ -20,43 +20,9 @@
 
 ---
 
-## 二、RED-GREEN-REFACTOR 5 步流程
+## 二、RED-GREEN-REFACTOR
 
-```
-Step 1: RED — 读 TC.md，根据测试用例编写测试代码
- ├── 后端：先写单元测试 / 集成测试
- ├── 前端：先写组件测试
- └── 单一行为 / 命名清晰 / 真实代码避免不必要 mock
-
-Step 2: VERIFY RED — 运行测试，确认全部失败（预期行为）
- ├── 命令模板：
- │ ├── 后端 Node：npm test path/to/test.test.ts
- │ ├── 后端 Python：pytest path/to/test_xxx.py -v
- │ ├── 后端 Go：go test ./path/to/...
- │ └── 前端：vitest path/to/component.test.tsx
- └── 校验：失败信息符合预期；失败原因是「功能未实现」（非 typo / 配置错）
-
-Step 3: GREEN — 写最简实现让测试通过
- ├── 遵循 TECH.md 技术方案
- ├── 遵循 standards/common.md + 对应技术栈规范（backend.md / frontend.md）
- ├── 遵循 DEV-RULES.md（项目强制规矩）+ KNOWLEDGE.md（项目事实/坑）
- └── 禁止：本 step 内追加无关功能 / 重构无关代码 / 过度工程
-
-Step 4: VERIFY GREEN — 运行测试，确认全部通过
- ├── 全部测试 PASS（不仅本次新增，整个测试套也不能 break）
- ├── 输出干净（无 warning）
- └── 失败 → 退回 Step 3 修实现，不是改测试
-
-Step 5: REFACTOR — 保持绿态前提下清理代码
- ├── 消除重复代码
- ├── 改进命名 / 抽提辅助函数
- ├── 重构后必须重跑 Step 4 确认仍绿
- └── 不允许改变行为（行为变更 = 新一轮 RED）
-```
-
-🔴 **每个 TC 用例都对应一轮 RED-GREEN-REFACTOR**，不允许批量写多个测试再批量实现。
-
----
+> v8.285:5 步流程教程已删(模型内建)。本框架只强调两点 —— **红要真红**(先看到失败,证明测试确实在测那个行为 · 直接绿的测试可能什么都没验)· **一个绿点一个 commit**(便于 bisect 与 review 读节奏)。
 
 ## 三、自检清单（提交前必查）
 

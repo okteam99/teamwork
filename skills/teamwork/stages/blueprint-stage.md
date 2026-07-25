@@ -12,7 +12,7 @@
 
 ## ② 硬规则(白名单 · 每条一行 why)
 
-1. **`project-specs/DEV-RULES.md` 存在 → 必读必遵**(冲突要么改方案、要么在 TECH 显式记原因;不存在则 skip)(why:人维护的项目强制规范 = 用户主权,不是 AI 可自行覆盖的缺省)。
+1. **工程规范 = `standards/HARD-RULES.md`(必读 · ~50 行白名单)+ 项目 `project-specs/DEV-RULES.md` 的并集 · 🔴 冲突以项目为准**(DEV-RULES 不存在则只读前者;方案与规范冲突 → 要么改方案、要么在 TECH 显式记原因)(why:项目主权高于框架缺省;白名单只收「逆模型默认」与「模型不可知」两类 —— 分册按需查不必通读)。
 2. **§现状基线 grounded 真实代码**(不靠假设)· **§依赖与影响改契约必 grep 消费方**(不凭记忆)· **§查询性能涉 SQL 必给理由**(够快也要说为什么)(why:三者都是「写得出但没核实」的高发区 —— 对着假设设计是扩已有页 / 改已有契约类事故的上游)。
 3. **每 AC 至少 1 test**(TC frontmatter `tests: [{id, covers_ac, description}]`)(why:`verify-ac.py` 物化校验 · 漏覆盖 = 需求→代码断链)。
 4. **评审走隔离 subagent 冷审 · 不喂主对话起草心路**(需要 ADR / KNOWLEDGE 背景 → 派发 prompt 附路径让其自读)(why:同一 AI 起草完审自己会脑补填缝,白板效应恰是要的独立性)。

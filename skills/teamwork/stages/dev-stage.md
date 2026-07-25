@@ -12,7 +12,7 @@
 
 ## ② 硬规则(白名单 · 每条一行 why)
 
-1. **`project-specs/DEV-RULES.md` 存在则必读必遵**(why:人维护的项目强制规范 = 用户主权 · 冲突要么改实现要么 TECH 记原因)。
+1. **工程规范 = `standards/HARD-RULES.md`(必读 · ~50 行白名单)+ 项目 `project-specs/DEV-RULES.md` 的并集 · 🔴 冲突以项目为准**(why:项目主权高于框架缺省 · 冲突要么改实现要么 TECH 记原因;白名单只收「逆模型默认 / 模型不可知」两类,分册按需查)。
 2. **worktree 内路径写文件**(推荐绝对路径 · 含派出的 subagent)(why:相对路径落主工作区 = 污染其他并行 Feature 的 baseline · 状态漂移)。
 3. **测试证据硬门**(dev-complete 物化):`--test-exit-code 0`(红 base 走 `test-baseline` 差分「0 新增」)+ `--test-stdout` 非空 + `--auto-commit` 在 git history + artifacts 在 changeset(why:R7 证据闭环 —— 宣称完成必须机器可验)。测试与实现**一并交付**,不许「先实现后补测试债」。
 4. **设计↔实际一致性核对**(UI feature · ui_design 完成时必做):起全景 dev server + 跑真实 app 目标路由 · **两边同开 browse 截图并排核对意图四要素**(布局结构/交互流/状态/字段映射)· 逐要素给「一致/背离」结论 · 背离不许静默放过(修掉 or 留 concerns);认为设计该改 → 回 ui_design / `--panorama-changed`,不在 dev 顺手改(why:治「设计稿≠实际效果」· 用户拍板的闸)。

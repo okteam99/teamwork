@@ -4,6 +4,30 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.286 · standards 硬规则白名单 + 读取路径接通(工程规范并集 · 项目优先)
+
+> 承 v8.285。用户设计:**AI 读「框架工程规范 + 项目 DEV-RULES」的并集,冲突以项目为准**。落地时**没有新建 `dev-rules-teamwork.md`** —— `standards/` 本就是框架级那层(DEV-RULES 模板早写明分工),再造一个会成**第三个家**(v8.284 刚实测过「指针+复制」的漂移)。真问题是**读取路径不对称**:项目 DEV-RULES 是必读、框架 standards 不是,所以框架自己的规范只能被复制进模板才到得了模型(实测同一条日志规则曾活在三处)。
+
+### ① `standards/HARD-RULES.md`(47 行 · 唯一必读)
+- **收录判据 = 与模型默认行为的距离**(只收两类):**逆默认**(模型会做反的 —— 它越强越笃定,越需要明确逆着写)· **不可知**(框架/项目约定 = 信息不是规范)。**模型默认就会的一律不收**(REST/SOLID/TDD 步骤/mermaid/WCAG 细则)—— 收了就是注意力税。
+- 逆默认 9 条:默认避免 FK(项目可覆盖)· 降级/fallback 必打 WARN(缺失阻塞 CR)· 三方异常必 ERROR · 不静默吞异常 · **两个 adapter 才抽象**(模型默认提前抽象)· 安全/兜底必过 ROI · NEVER refactor while RED / 禁 horizontal slicing / 禁 mock 自身内部方法 · TDD Iron Law(例外须用户同意)· ≥3 次失败即升级。
+- 不可知 7 条:scratch 根与 feature_id 纪律 · `[DEBUG-…]` 前缀 + ship 前 grep · 测试脚本两层结构 · 结构化日志必填字段 · 统一响应格式与状态码 · 迁移命名优先级链 · Build 硬门。
+- 分册(common/backend/frontend/tdd/external/scripts-policy)降为**按需查**,不要求通读。
+
+### ② 读取路径接通(这才是原来缺的)
+- blueprint ②1 + dev ②1 改为:**工程规范 = `standards/HARD-RULES.md`(必读)+ 项目 `DEV-RULES.md` 的并集 · 🔴 冲突以项目为准**。
+- `templates/dev-rules.md` 边界表同步(项目侧视角:冲突以本文件为准)。
+- **删最后一处同源副本**:tech.md 的日志规则正文 → 改指白名单(该规则原散在 standards + 模板两处)。
+
+### ③ standards 深度精简 1290 → 1135(累计 1773 → 1135 · **-36%**)
+- backend 655 → 551:日志级别表与 JSON 示例(模型默认就会)· API 响应示例 · FK 理由 10 行压成 2 行(**逆默认规则的 why 必须留** —— 否则模型会反驳或"修正"它,只是不必铺开)。
+- tdd 127 → 93:RED-GREEN-REFACTOR 5 步教程删,只留框架强调的两点(红要真红 / 一绿点一 commit)。
+- frontend 154 → 90:测试规范流程教程删,留项目约定的阈值与清单(覆盖率 / 分层 / 必测场景)。
+- WCAG 细则与 ui-design 刚砍的 rubric 同类,但 frontend 那份含「禁 div onClick / 禁 aria-hidden 键盘陷阱」等**逆默认**项,保留原样。
+
+### 验证
+- 新增 test_hard_rules_v8286(9:白名单够短可必读 / 并集与优先级成文 / 收录判据成文 / 逆默认 6 条在 / 框架约定 5 条在 / blueprint+dev 读取路径已接 / dev-rules 模板同步 / 模板副本已改指针 / 分册总量)· pytest **1024 passed**。
+
 ## v8.285 · 四段结构推广完成(11/13)+ standards 减法
 
 > 承 v8.284 解锁。**批次三**:除两个记录在案的例外,全部 stage 迁到四段结构。**standards 减法**:按「与模型默认行为的距离」判据砍 —— 模型默认就会的(零价值·纯税)砍、模型不可能知道的(信息)留、**模型默认会做反的(最高价值·模型越强越需要)** 一条不动。
@@ -86,16 +110,3 @@
 
 ### 验证
 - test_authoring_preventability +3(gap1 ship 分支 / gap4 miss AC / brief 双带)· pytest 979 passed。
-
-## v8.281 · 起草可预防性台账列 · 评审后记录 → ship 聚合 → 年检完善 teamwork
-
-> 用户:每次评审后记录「为什么审出这么多 + 起草考虑点该不该补」,同步到台账供后续分析完善 teamwork。这是 v8.278 dev shift-left 的诊断层 —— 把「起草考虑点缺不缺」从猜变成数据。活体验证(aon-core Postback 会话):PRD 两路冷审 11 findings,该 session 手动归因出 4 条起草考虑点缺口(在旧分支 grounding / 未 trace 真实运行时路径 / 结算路径下游未枚举 / 兜底 miss 分支未落 AC)—— 正是本列要系统化采集的。
-
-### 机制(非门禁 · 纯数据采集)
-- 新命令 `state.py review-preventability --stage <goal|blueprint|review> --preventable N --total M --missing '缺的考虑点(分号分隔)'`:评审收敛后记录 findings 可预防率 + 缺哪条起草考虑点 → 追加 `state.authoring_preventability`。
-- ship 聚合 `_authoring_preventability_summary`(跨评审求和 + 缺项去重)→ emit `ledger_authoring_preventability` → PROCESS-LEDGER 新列「🛡️ 起草可预防性(可预防/总·缺考虑点)」(rightmost · append-only schema · ledger-migrate 自动加列)。
-- review harvest(v8.278 rule 8)+ 验证轮 brief + ship §16 台账口径接线;判据同 v8.278/279(findings 82% 真·砍轮=漏 bug·真杠杆=起草挡掉可预防子集)。
-- **消费方 = 年检**:跨 feature 看「缺的考虑点」复发 → 补 PRD/TECH 起草考虑点(反复缺=真缺口补框架)· 全 emergent = 别动(避 v8.266 一刀切)。没记录列留空(有效前缀 · 非门禁)。
-
-### 验证
-- 新增 test_authoring_preventability_v8281(6:聚合去重/记录追加/非门禁/表头分隔一致)· pytest 976 passed。
