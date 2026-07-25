@@ -34,7 +34,7 @@ class TestHardRulesWhitelist(unittest.TestCase):
         """🔴 逆默认类 —— 模型越强越需要,一条不能漏。"""
         for k in ("默认避免 DB-level", "降级 / 兜底 / fallback 路径触发 → 必打 WARN",
                   "三方 / 外部服务调用异常", "两个 adapter 才抽象",
-                  "安全加固 / 兜底降级必过 ROI", "NEVER refactor while RED"):
+                  "安全加固 / 兜底降级必过 ROI", "测试必须真断言"):
             self.assertIn(k, self.t, f"逆默认规则缺失:{k}")
 
     def test_framework_specific_rules_present(self):

@@ -905,7 +905,7 @@ def _dev_brief(state: dict) -> str:
     return f"""## Dev Stage
 
 ### 目标
-按 TECH.md 实现代码 · TDD 红绿循环 · 测试全绿 · auto-commit 锚定证据。
+按 TECH.md 实现代码 · 测试全绿 · auto-commit 锚定证据(🟢 测试节奏 AI 自定 · v8.286:每个 TC 有对应实现 + 测试真断言 是硬结果)。
 
 ### 结果(完成判定)
 - 代码 + 测试一并 commit

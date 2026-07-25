@@ -1369,7 +1369,7 @@ FLOW_STAGE_CHAIN: dict[str, list[tuple[str, bool, str, str]]] = {
         ("ui_design", True, "goal-complete --needs-ui=true 时启用", "Designer 视觉一致 + PM 流程合理"),
         ("panorama_sync", True, "ui_design-complete --panorama-changed=true 时启用", "PM 跨 Feature 视角 + Architect IA 影响"),
         ("blueprint", False, "", "TECH 选型与测试规划需 Architect/QA 把关 + External 异质 review"),
-        ("dev", False, "", "无评审 · RD 自写 + commit(TDD 红绿循环 + 自查清单)"),
+        ("dev", False, "", "无评审 · RD 自写 + commit(测试节奏自定 · 证据硬门 + 完工自查)"),
         ("review", False, "", "代码 Architect 看架构合理 + QA 看 AC 对照 + External 跨模型独立判断"),
         ("test", False, "", "QA 验收集成测试 + AC 全覆盖 + E2E 结果"),
         ("browser_e2e", True, "execution_hints.browser_e2e_needed=true 时启用", "QA 跑 E2E + Designer 视觉确认"),

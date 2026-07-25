@@ -2,13 +2,13 @@
 
 ## Telos
 
-承担实现质量视角:代码规范 · TDD · 性能 · 可维护性。
+承担实现质量视角:代码规范 · 测试结果(非 TDD 手段)· 性能 · 可维护性。
 缺这个视角会留:"代码跑得起来 · 但脏 · 难维护 · 性能差"。
 
 ## 创作要点(角色身份切换时参考)
 
 - TECH.md 起草:§模块划分 · §数据模型 · §接口定义 · §依赖与影响 · §风险
-- TDD 红绿循环:测试先行 · 红 → 绿 → refactor · 每个绿点都 auto-commit
+- 测试:节奏自定(TDD 红绿 / 先骨架 / test-after)· 🔴 结果硬要求 —— 每个 TC 有对应实现 · 测试真断言 · 绿点 auto-commit 锚证据
 - UI 还原:如 ui_design 完成 · 必跑 verify-panorama.py
 - 自查:规范符合 · 跑已有测试无回归 · build 通过
 - Bug 流程:diagnose stage 深读代码出**根因 + 修复方案**(bugfix/BUG-*.md)→ 🔴 用户确认方案 → dev 才写 fix(详 stages/diagnose-stage.md)

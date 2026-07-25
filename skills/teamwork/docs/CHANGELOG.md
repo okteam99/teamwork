@@ -4,6 +4,27 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.287 · TDD 手段规定整体撤除 · 只管结果(怎么测 AI 自觉)
+
+> 用户:「TDD 是否不用写到规范里了,加一句确保每个 TC 用例都有对应实现即可」+「至于怎么做 TDD AI 自觉」。TDD 是**手段**,正是判据⑤(衰减类)的典型 —— 模型早已内建。框架该管的是**结果**,而结果已有机器门与评审兜着,所以撤手段不开洞。
+
+### 撤除(手段规定)
+- `standards/tdd.md` **93 → 42 行**:删 Iron Law(无失败测试不写实现)· RED-GREEN-REFACTOR · 自检清单 · 反模式 · **「跳过 TDD 须用户同意」的例外机制**(TDD 不再强制,例外机制自然失去意义)。
+- dev ③菜单:「TDD 红绿循环 = 强烈建议的默认」→「**测试节奏 AI 自定**」(TDD 红绿 / 先骨架后补边界 / test-after 自选)。
+- tech.md `## TDD 开发计划` → `## 测试与实现计划` · 节奏「AI 自定」;dev brief 目标行、`FLOW_STAGE_CHAIN` dev 描述、`roles/rd.md` telos、STANDARDS.md 路由表同步。
+
+### 保留(结果规则 · 三条)
+1. 🔴 **每个 TC 用例必须有对应实现** —— AC↔TC 由 `verify-ac.py` 管,**TC↔实现这一跳没有机器门**,靠本条(TC 写了没实现 = 需求链最后一米断掉,而「测试全绿」会盖住它)。
+2. 🔴 **测试必须真断言 · 禁 mock 被测组件自身内部方法**(防假绿)——*模型默认倾向:为了让测试过,把正要验的那段 mock 掉。恒绿空壳测试比没测试更危险(门禁/评审/验收同时失效)。*
+3. 🔴 **同一处失败修复 ≥3 次 → 停下升级**(这条**不是 TDD 规则**,是排障纪律 —— 模型默认会一直试)。
+- HARD-RULES §一 的两条 TDD 方法论换成上述①②(③本就在)· tdd.md 补「结果由谁保证」表(verify-ac / test-exit-code + 差分基线 / 不走捷径 + 外审测试真实性 / TECH §测试策略)。
+
+### 为什么撤手段不开洞(核实过)
+假绿是唯一真风险,而它有三道结果侧防线:test-stage ②「不为凑 exit-code=0 走捷径」(skip 必含 reason · 不标 xfail)· review 外审**必覆盖**「测试真实性与覆盖」· review ③菜单「测试质量抽查(是否真断言 · 假绿检测)」。本版再加白名单第 ⑦ 条兜底。
+
+### 验证
+- 两处旧断言(锁 TDD 措辞)更新为新状态:白名单断言改结果规则 · v8.283 的「强烈建议的默认」改为**断言其不存在** + 断言「AI 自定 / 每个 TC 有对应实现」。pytest **1024 passed**。
+
 ## v8.286 · standards 硬规则白名单 + 读取路径接通(工程规范并集 · 项目优先)
 
 > 承 v8.285。用户设计:**AI 读「框架工程规范 + 项目 DEV-RULES」的并集,冲突以项目为准**。落地时**没有新建 `dev-rules-teamwork.md`** —— `standards/` 本就是框架级那层(DEV-RULES 模板早写明分工),再造一个会成**第三个家**(v8.284 刚实测过「指针+复制」的漂移)。真问题是**读取路径不对称**:项目 DEV-RULES 是必读、框架 standards 不是,所以框架自己的规范只能被复制进模板才到得了模型(实测同一条日志规则曾活在三处)。
@@ -98,15 +119,3 @@
 
 ### 验证
 - 新增 test_template_slimming_v8283(12:封顶不得回归 / HOW-to 不得回归 / grounding 目标仍在 / 证据契约仍在 / 用户主权仍在 / 教学示例已清 / 核心契约仍在)· pytest 991 passed。
-
-## v8.282 · PRD 起草思考规范补 2 条普适缺口(Postback case 归因)
-
-> aon-core Postback 会话:PRD 两路冷审 11 findings,归因出 4 条起草考虑点缺口。按 v8.281 纪律筛(普适→补框架 · 情境/项目→进台账/KNOWLEDGE):① 在 ship 目标分支 grounding 和 ④ 兜底 miss 分支落 AC 是**普适 PRD 写作陷阱**(任何项目都会犯 · 单个锋利 case 足以过门),补进框架;② trace 运行时路径(情境)进台账观察、③ 结算下游枚举(项目特定)进 aon-core KNOWLEDGE,不动框架。
-
-### 补入 prd.md 🧠 起草思考规范(+ goal-stage 镜像 + goal brief 同步)
-- **① 依赖读真实代码 → 精确化**:「在**当前 worktree(ship 目标分支)**读,不吃跨分支/记忆的旧调研」—— 实证:PRD 基于 fix 分支旧调研写、staging 领先 233 commits → 状态码 404→422、rejected 桶去向全错(EXT-2/EXT-4)。
-- **④ 兜底 line 加**:「**未命中/坏输入分支必须和命中分支一起落 AC**」—— 只写 happy path、miss 是大概率真实分支却漏进 AC = 冷审必打(EXT-2/PL-4)· 接 v8.279 兜底高发区。
-- 不补:② trace 运行时(situational · 台账观察)· ③ 结算下游枚举(aon-core 项目 KNOWLEDGE)。
-
-### 验证
-- test_authoring_preventability +3(gap1 ship 分支 / gap4 miss AC / brief 双带)· pytest 979 passed。

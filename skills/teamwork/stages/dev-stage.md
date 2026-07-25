@@ -26,7 +26,7 @@
 
 | 手段 | 何时值得 |
 |---|---|
-| **TDD 红绿循环**(照 TC 逐 test:红→绿→重构 · 每绿点一 commit)| **强烈建议的默认**——TC 已备/逻辑类改动;绿点级 commit 便于 bisect 与 review 读节奏 |
+| **测试节奏**(TDD 红绿 / 先骨架后补边界 / test-after)| **AI 自定**(v8.286 框架不再规定)—— TC 已备 + 逻辑类改动时 TDD 通常最顺;绿点级 commit 便于 bisect 与 review 读节奏。🔴 结果不变:每个 TC 有对应实现 · 测试真断言 · 证据硬门照跑 |
 | **先集成骨架后单测填充** | 跨层契约风险大于单元逻辑时(先打通端到端再补边界) |
 | **subagent 并行拆分**(各写各的 · worktree 内路径)| 多端/多模块/相互独立且够大的子任务;小/耦合/强串行 → 自己串行做(协调开销反拖慢)。契约层/集成点留主对话 |
 | **TECH 模糊处 fallback 决策树** | 实现遇设计未覆盖:KNOWLEDGE → ARCHITECTURE → standards/common → 全无 → concerns + 找架构师;不自行拍板 |
@@ -65,5 +65,5 @@ PRD(AC)· TECH(方案+完工自查槽)· TC(测试用例)· UI.md+全景(若 ui_
 ## 相关
 
 - 引擎:[../tools/_v8_engine.py](../tools/_v8_engine.py) · spec:[../tools/_v8_stage_specs.py](../tools/_v8_stage_specs.py) `DEV_SPEC`
-- TDD 手艺:[../standards/tdd.md](../standards/tdd.md) · UI 还原:[./ui-design-stage.md](./ui-design-stage.md) § 分层同构律
+- 测试结果规范:[../standards/tdd.md](../standards/tdd.md)(手段自定 · 三条结果规则)· UI 还原:[./ui-design-stage.md](./ui-design-stage.md) § 分层同构律
 - 工具:[../tools/verify-panorama.py](../tools/verify-panorama.py)

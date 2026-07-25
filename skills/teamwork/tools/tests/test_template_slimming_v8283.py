@@ -65,11 +65,13 @@ class TestTechSlimming(unittest.TestCase):
                    "└── xxx.tsx # 新增/修改 xxx 组件", "participant D as 数据库"):
             self.assertNotIn(ex, self.t, f"教学示例回归:{ex}")
 
-    def test_tdd_granularity_not_prescribed_as_mandate(self):
-        """⑤ 手段规定:TDD 红绿粒度示例表砍掉(dev-stage 早已把 TDD 降为「强烈建议」)。"""
+    def test_tdd_not_prescribed(self):
+        """⑤ 手段规定:v8.283 砍粒度表 → **v8.286 TDD 手段规定整体撤除**(节奏 AI 自定 · 只管结果)。"""
         self.assertNotIn("写 XXX 失败测试", self.t)
         self.assertNotIn("实现用户登录模块", self.t)
-        self.assertIn("强烈建议的默认", self.t)          # 但节奏建议保留
+        self.assertNotIn("强烈建议的默认", self.t)       # v8.286:不再是「建议的默认」· 是自定
+        self.assertIn("AI 自定", self.t)
+        self.assertIn("每个 TC 有对应实现", self.t)      # 结果规则顶上
 
     def test_core_contracts_retained(self):
         """①②③ 必保留:兜底 ROI 清单 / 现状基线 / 变更四问 / Schema 影响 / 完工自查。"""

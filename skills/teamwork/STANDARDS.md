@@ -11,7 +11,7 @@
 
 | 文件 | 内容 | 适用角色 |
 |------|------|---------|
-| [tdd.md](./standards/tdd.md) | 🔴 TDD 唯一权威源:Iron Law + RED-GREEN-REFACTOR + 自检清单 + 反模式 | **所有 RD + QA Code Review** |
+| [tdd.md](./standards/tdd.md) | 🔴 **测试结果规范**(v8.286:手段自定 · 只三条结果规则 —— TC 有实现 / 测试真断言 / ≥3 次失败升级) | **所有 RD + QA Code Review** |
 | [common.md](./standards/common.md) | 测试核心原则、代码架构规范、RD 自查、QA 检查项、Mermaid 规范 | **所有 RD** |
 | [backend.md](./standards/backend.md) | 后端集成测试、API 接口、日志规范 | **后端 RD** |
 | [frontend.md](./standards/frontend.md) | 前端规范骨架:测试分层 / 组件测试 / 样式 / 状态管理 / 性能 / 无障碍 / 构建 硬规则 | **前端 RD** |
