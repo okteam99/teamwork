@@ -164,7 +164,7 @@ screenshots/
 📚 **参考**(v8.199 cite 仪式已废 · 按需读):
 - `stages/browser-e2e-stage.md § 选浏览器自动化` —— Playwright / Puppeteer / Selenium · 项目栈决定
 - `stages/browser-e2e-stage.md § 质量基线` —— 截图 SOP:每 AC 一组 · 含 viewport + URL
-- `stages/browser-e2e-stage.md § SOP` —— 截图含浏览器 chrome + URL bar · 不裁剪
+- `stages/browser-e2e-stage.md ②硬规则` —— 截图含浏览器 chrome + URL bar · 不裁剪
 
 ❌ **反模式**:
 - 截图裁掉 URL bar → 看不出测的什么 URL · 不可复核

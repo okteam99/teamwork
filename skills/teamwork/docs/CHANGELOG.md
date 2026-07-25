@@ -4,6 +4,34 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.285 · 四段结构推广完成(11/13)+ standards 减法
+
+> 承 v8.284 解锁。**批次三**:除两个记录在案的例外,全部 stage 迁到四段结构。**standards 减法**:按「与模型默认行为的距离」判据砍 —— 模型默认就会的(零价值·纯税)砍、模型不可能知道的(信息)留、**模型默认会做反的(最高价值·模型越强越需要)** 一条不动。
+
+### 批次三 · 四段结构推广(3/13 → 11/13)
+| stage | 行数 | ②硬规则 |
+|---|---|---|
+| test | 179 → **112**(-37%) | 9 条 |
+| panorama-sync | 112 → **73**(-35%) | 5 条 |
+| pm-acceptance | 107 → **77**(-28%) | 4 条 |
+| ui-design | 188 → **175** | 8 条(补回被漏的分层同构律领域模型) |
+| blueprint | 98 → **83** | 9 条 |
+| browser-e2e | 65 → **55** | 5 条 |
+| diagnose | 67 → **65** | 7 条(③整段省略 · 原文本就没水分) |
+| execute | 38 → **42** | ②③ 归位(原写反:②=自主/③=边界) |
+
+- **记录在案的例外**(STAGES.md §3 明写 · 测试守护「不许有沉默的例外」):`ship-stage.md`(主体是命令序列 + 物化门禁的**操作手册**,四段治的是 HOW-to 教程不是必要操作次序)· `blueprint-lite-stage.md`(v8.223 已废弃)。
+- **顺带修断链**:删 heading 导致 6 处 `§ 测试体系` / `§ SOP` / `§ 怎么做` cite 失效(test-report / browser-test-report / e2e-registry / specs brief)· 全部改指四段段名;`test-baseline --add` 的 `--test-id` + `--reason` 必填在旧文档漏写,补齐与 CLI 一致。
+
+### standards 减法 1773 → 1290(-27%)
+- **common.md 767 → 354**:🔴 砍 **RD 自查规范 + 报告模板 216 行** —— 全库**零机器消费者**(grep 无任何工具校验它)、零文档引用、与 `tech.md §完工自查`(review 真读)职能重复。**但抢救两条真规则**:Build 必跑通才进 Code Review(证据类硬门)+ worktree lazy-install 缺 build 工具链(真踩坑)。另压缩 §二代码架构规范(SOLID/分层教科书)· §四D QA 检查项(与 verify-ac + review 覆盖方向重叠)· §五 mermaid 语法。
+- **backend.md 725 → 655**:TDD 手艺单源 `tdd.md`(它本就声明整段吸收)· 集成测试报告模板压成字段清单。
+- **对照组保留**(判据:模型默认会做反的 = 最高价值):`默认避免 FK`(模型训练默认「加 FK 保证引用完整性」· 本框架明确逆着走)· 降级/兜底必打 WARN 日志 · 统一响应格式与状态码表 · 测试脚本两层结构 · scratch 路径约定 · **Designer 自查**(有 `verify-panorama.py` 物理校验 → 判据①保留,与被砍的 RD 自查形成对照)。
+- 全部入链锚点验过不断链(prd.md→§五 · verify-panorama→§四B · ship/conventions→§六)。
+
+### 验证
+- 新增 test_standards_slimming_v8285(13:RD 自查已删 / 抢救规则仍在 / Designer 自查保留 / 逆默认规则保留 / 锚点不断链 / **四段结构推广守护:全 stage 合规 + 例外必须写进标准**)· v8.284 两处**措辞脆断言**改实质导向。pytest **1015 passed**。
+
 ## v8.284 · 四段结构转正(解锁推广)+ 批次二 stage 减法
 
 > 承 v8.283。审计挖到**推广卡死的根因**:`STAGES.md §3` 至今**必含**「怎么做 + 质量基线」两段 —— 已迁移四段结构的 dev/review/goal **反而不符合书面规范**,未迁移的 test/panorama_sync/pm_acceptance/diagnose **是在忠实遵守旧条款**,不是偷懒。v8.218 试点时写下「四段结构进 STAGES.md 定为标准」这一步没做,推广就此卡在 3/13 达六十余版。
@@ -71,17 +99,3 @@
 
 ### 验证
 - 新增 test_authoring_preventability_v8281(6:聚合去重/记录追加/非门禁/表头分隔一致)· pytest 976 passed。
-
-## v8.280 · 修 micro 状态机 preset-blind 死门(execute 链走不通)
-
-> 实证 case(aifriends 4 行合规 bump 走 micro):init-feature preset=micro 建出 `flow_type="Feature" + preset="micro" + current_stage="execute"`,但 **execute-start 直接 FAIL** —— 用户被迫手动跳过状态机做完 micro 实质。根因:engine 通用 gate **用 raw `state.flow_type="Feature"`** 比 `EXECUTE_SPEC.allowed_flow_types=["Micro"]`(legacy 内部键)→ 恒 FAIL;且图查 `flow_by_type.get("Feature")` 拿 **full 图**(即便过①·execute→ship 转移错路由)。`resolve_flow_graph`/`internal_flow_key` 在 state.py 有,但 engine 的 `execute_stage_start/complete` 从没用 —— 现有 micro 测试只断言 spec 常量、**从没真跑 gate** → 漏网整整一版。
-
-### 修复(engine gate preset-aware)
-- 新增 `_internal_flow_key(state)` + `_resolve_flow_graph(state, flow_by_type)`(与 state.py resolve_flow_graph/internal_flow_key、specs _flow_key 严格同口径 · engine 不能 import state.py〔循环〕故本地实现)。
-- `execute_stage_start` 三处:① allowed_flow_types 门用 `_internal_flow_key`(Feature·micro → "Micro" 匹配)· ② 转移图用 `_resolve_flow_graph`(micro 拿 Micro 图非 full)· 未知 flow_type/preset 仍显式 FAIL(保「已知流程表」措辞)。
-- `execute_stage_complete` 转移同修(execute→ship 正确路由)。
-- 正常 Feature·full / Bug 行为不变(`_internal_flow_key` 对它们恒等映射)。
-
-### 测试补口
-- 新增 test_micro_gate_v8280(6:resolver 单测 micro/full/bug/legacy + `_resolve_flow_graph` micro 拿对图 + **真跑 init micro → execute-start 过门** e2e)—— 补上「只断言常量、从没跑 gate」的集成盲区。
-- pytest 970 passed。

@@ -1,5 +1,7 @@
 # UI Design Stage
 
+> 🧭 **四段结构**(v8.285 · 详 [STAGES.md §3](../STAGES.md)):目标 + 硬规则白名单 + 手段菜单 + 产物契约 · 手段 AI 自选。
+
 ---
 
 ## 🟢 全景为唯一权威(推荐新模式)
@@ -31,7 +33,37 @@ pages_changed:                              # 有此字段 → 进入新模式
 
 ---
 
-## Panorama 介质类型(🔴 ui_design 启动前必决)
+---
+
+## ① 目标(telos)
+
+**让用户在写代码之前就看见并拍板「它长什么样、怎么用」**:产出**可跑可点的全景增量**(不是概念图),意图四要素(布局结构 / 交互流 / 状态 / 字段映射)落进 UI.md 作为 dev 还原与 pm_acceptance 的对照物。拦的风险:概念页与真实页对不上(用户验收才发现)、设计=代码承诺退化成人肉对齐、跨 Feature IA 被单个 Feature 悄悄改。
+
+---
+
+## ② 硬规则(白名单 · 每条一行 why)
+
+1. **介质二选一且必显式声明**(`UI.md` frontmatter `panorama_medium`):项目 `PROJECT.md` 声明了前端栈 → **必须 `same-stack`**,用 `static-html` 即违规;「前端栈已定 + 仍 static-html」= dirty state,必开 Feature 迁移(why:介质差异不可调和 —— 实测 4 轮调像素仍有差,拿静态稿当 live 参考会一路错到验收)。
+2. 🔴 **same-stack 物化闸**:`{panorama_path}/preview-project/` + `preview.sh` + `package.json` **必存在**(`_check_same_stack_preview_project` 校验)· **不可只写 UI.md markdown 跳过可跑预览**(why:防拿「验证器只校验 UI.md」当借口零可视产出 —— 最低物化闸 ≠ 免做交付物许可)。
+3. 🔴 **IA 镜像律**:preview-project 路由结构 = 真实 app(与 `sitemap.md` 一致)· 本次设计页挂**真实 `route_path`** · `/` = 真实首页设计稿 · **router 必含**(why:全景的价值就在用户能沿真实导航走到新页;把新页渲染在 `/` 顶掉首页 = IA 违规)。
+4. 🔴 **复现门(扩已有真实页时)**:设计单位是**整张页** —— 读真实代码定形态 → 按真实形态复现整页 → 再集成新部分 · **绝不凭印象重画**(why:实证 AON Offer-Analysis —— 只画概念页、真实页的筛选区/KPI/Top card 没对齐 → 用户判「设计稿不完整」要求重做)。
+5. 🔴 **本 stage 不直接改 `sitemap.md`** —— 改 sitemap / overview 归 panorama_sync(why:跨 Feature IA 影响必须被单独一层看见〔隔离审计 + 暂停点 + 跨 Feature 评审〕)。
+6. 🔴 **截图落系统临时目录** `${TMPDIR:-/tmp}/teamwork/<feature_id>/screenshots/` · **绝不落 worktree / 主工作区根**(why:自检一次性产物非交付物 · 落仓库就污染 diff · 详 [conventions §12.5](../docs/conventions.md))。
+7. ⏸️ **用户预览确认(R5 暂停点)** · `auto_mode=true` 时跳过(设计意图已落 UI.md/preview · auto 用户接受)(why:「看着对不对」是 taste 层 · 用户主权 · AI 判不了)。
+8. **`--panorama-changed` 必传**(true → 自动转 panorama_sync · false → 直进 blueprint)(why:workspace 级 IA 影响的路由开关 —— 漏传 = 跨 Feature 影响无人评审)。
+
+---
+
+## ③ 建议手段菜单(AI 自选 · 不强制)
+
+| 手段 | 何时值得 |
+|---|---|
+| **same-stack:扩/搭 preview-project** | 规划期已 seed → 增量补本 Feature 页;不存在 → 首次搭。基建层走共享包/同版 · mock data · 页面层承载意图四要素 · 源即全景权威(committed · 不出静态 build)· 本 Feature 引入新库时 preview-project 独立装(解鸡蛋问题) |
+| **static-html:直接编辑全景 HTML** | 前端栈未定 / Designer-only —— 改 `panorama_path/preview/<page.id>.html`(唯一 source · Feature 内不存副本)· `pages_changed[].panorama_file` 链到权威路径 |
+| **复现手段排序**(扩已有页)| 优先导入真实页/组件源(同一份代码 · 一致性由结构保证);不可导入 → 按真实源 1:1 镜像 + UI.md 记豁免 |
+| **判定 panorama 是否被改动** | 判据是「panorama 文件要不要动」(含 sitemap 描述列)· 不必预判影响大小 —— panorama_sync 内部再判级(L1 不停 / L2 才停)· `true` ≠ 必暂停 |
+
+## 📐 全景模型(介质 / IA 镜像律 / 分层同构律 —— ②③④ 共同引用的领域定义)
 
 teamwork 支持两种 panorama 介质 · 项目应在 ui_design 启动前明确,写入 `UI.md` frontmatter `panorama_medium`:
 
@@ -69,6 +101,7 @@ teamwork 支持两种 panorama 介质 · 项目应在 ui_design 启动前明确,
 
 ---
 
+
 ## 预览(same-stack · preview.sh 即唯一预览)
 
 > 🔴 same-stack 预览是 ES-module bundle · `file://` 因 CORS 打不开 → **必须 dev server**。**不在 teamwork 层起 server**(用户拍板)· 改用 preview-project 自己的 dev server · **每次选一个动态空闲端口** → 并行 worktree / 多终端 **天然不冲突**。
@@ -94,63 +127,6 @@ bash {子项目}/docs/design/preview-project/preview.sh    # → PREVIEW_URL=htt
 
 ---
 
-## 怎么做
-
-### 1. 加载上下文
-读 PRD.md(用户场景)· sitemap.md(信息架构)· 🔴 **UI-RULES.md(设计规范:控件偏好/色板策略/交互约定/a11y · workspace `project-specs/` + 子项目 `{子项目}/docs/` 两层)**· KNOWLEDGE.md(项目级 UI 踩坑)· `PROJECT.md § 技术栈`(决定 panorama_medium)
-
-🔴 **扩已有真实页 vs 全新页**决定设计稿单位 —— 扩已有页 → 走 §3 复现门(设计单位是整张页);全新页 → 从 design system + UI-RULES 起草。
-
-### 2. Designer 起草 UI.md
-frontmatter `pages: [{id, title}]` + `panorama_medium: same-stack|static-html` 必 · body §页面列表 / §交互流 / §视觉规范 / §字段映射(对应 PRD.AC)· 🧠 §交互流/§视觉规范 **按下文 § 交互 & 视觉质量判据写**(写法非环节)
-
-### 3. 产出 panorama(按 `panorama_medium` 分支)
-
-🔴 **全景在规划期已出生 · ui_design 是增量扩**:涉 UI 的 WS 在 [feature-planning Step 5「UI 可视全景初步规划」](../docs/feature-planning.md) 时已 seed `preview-project`(design system + 关键页)。ui_design 默认在**已有全景上增量补**本 Feature 的页与细节(同一份活物 · 源即权威)· **不是从零搭**。仅当规划期没出全景(老项目 / 跳过规划路径)→ 此处**首次 seed**(回退 · 扩已有页则按下方「复现门」按真实代码补全这张页 · **不是画概念**)。
-
-🔴 **扩已有页 → 设计稿 = 真实页全貌复现 + 新部分集成(治「概念页 / 局部设计」)**:本 Feature 给已存在的真实页加东西时,设计稿的单位是**整张页**,不是孤立新控件:
-- ① **读真实代码定形态**(不是猜):打开该页真实组件/路由源,抓当前实际布局 —— 筛选区 / KPI·funnel·trend / 卡片位置 / 表格列 / Top card…(grounding 同 prepare/goal「核验真实文件」· 不轻信 Explore 摘要)。
-- ② **preview-project 按真实形态复现整页 → 再集成本 Feature 新部分**。🔴 **复现 ≠ 重写**:优先导入真实页/组件源(同一份代码 · 一致性由结构保证);不可导入则按真实源 1:1 镜像 + UI.md 记豁免。🔴 **绝不凭印象重画**(= 概念页变体 · drift 源头)。
-- 🔴 **禁出「概念页」**:只画新控件、不复现它所在真实页的结构 = 局部设计 = 评审/用户看不出真实落地效果。**实证 AON Offer-Analysis case**:预览只做概念页 · 真实 `/analytics/offers` 的筛选区 / KPI / Top card 位置没对齐 → 用户判「设计稿不完整、和实际不一致」要求重做。
-- 全景里**已有该页保真复现** → 直接走下方「增量补」;**没有**(brownfield / 规划期没 seed 这张)→ 先按 ①② 复现这张页(**不是从零画概念** · 是按真实代码补全 + 集成)。
-
-🟢 **推荐:全景为唯一权威**(详上 § 全景为唯一权威 · UI.md frontmatter 加 `pages_changed[]`):
-
-- **`same-stack`**:在 `{子项目}/docs/design/preview-project/` **扩/搭**同栈独立项目(规划期已 seed → 增量补本 Feature 页;不存在 → 首次搭)(基建层共享包/同版 · mock data · **路由结构镜像真实 app** · 本 Feature 页挂真实 `route_path` · `/` = 首页设计稿 · 页面层 = 意图权威〔四要素〕)· **源即全景权威**(committed · 不出静态 build)· 从 `{SKILL_ROOT}/templates/preview-project-preview.sh` 拷一份 `preview.sh` 进 preview-project 根(`chmod +x` · 按框架改 dev server 那一行)· 本 Feature **引入新库**时 preview-project 独立装该库(解鸡蛋问题)· 🔴 **验证渲染:后台跑 `bash {子项目}/docs/design/preview-project/preview.sh` → 读 `PREVIEW_URL=` → 等就绪 browse 截图**(详上 § 预览 · `file://` 因 CORS 打不开 · **不在 teamwork 层起 server** · 动态端口并行不冲突)· 🔴 **截图存系统临时目录 `${TMPDIR:-/tmp}/teamwork/<feature_id>/screenshots/`(自检一次性产物 · 非交付)· 绝不落 worktree / 主工作区根**(详 [docs/conventions.md §12.5](../docs/conventions.md))
-- **`static-html`**:**直接编辑** `panorama_path/preview/<page.id>.html`(全景权威 · 唯一 source · worktree 内改 · merge 后同步全景)· UI.md `pages_changed[].panorama_file` 链到权威路径 · **Feature 内不存 preview/ 副本**
-
-老模式(无 `pages_changed[]`)→ fallback 见上 §向后兼容。
-### 4. 判定 panorama 是否被本 Feature 改动(workspace 级 IA 影响?)
-本 Feature UI 若动了 workspace 级 panorama(sitemap 节点 / overview / 设计 token)→ 在 §6 `ui_design-complete --panorama-changed=true` 显式标记 → 自动转 **panorama_sync** stage(workspace 级单独 stage · 收敛 sitemap 更新 + 跨 Feature reviewer 协调评审 · 详 [panorama-sync-stage.md](./panorama-sync-stage.md))。
-不动 panorama → `--panorama-changed=false` · 直进 blueprint。
-
-🟢 判据是「panorama 文件要不要动」(含 sitemap 描述列更新)· 不必预判影响大小 —— panorama_sync 内部再判级:节点内增量(L1)不暂停自动过 · 结构变更(L2)才停。`true` ≠ 必暂停。
-
-🔴 **本 stage 不直接改 sitemap.md** —— 改 sitemap / overview 是 panorama_sync stage 的产物(隔离审计 / 暂停点 / 跨 Feature 评审)。
-
-### 5. ⏸️ 用户预览确认(R5 暂停点)
-🔴 **`auto_mode=true` 时跳过此暂停点** —— 设计意图已落 UI.md / preview · auto 用户接受(详 [SKILL.md § auto_mode=true 时各暂停点行为](../SKILL.md))。
-
-🔴 emit R5 标准 1/2/3(模板见 [SKILL.md § R5(b)](../SKILL.md)):
-1. **确认 UI · 进入 blueprint** 💡 推荐 — `ui_design-complete` → 自动转 blueprint
-2. **要改设计** — Designer 按你的反馈改 UI.md + preview
-3. **其他指示**
-
-📚 决策参考:
-- **`static-html`**:直接 browse `preview/<page>.html`(纯 HTML · `file://` 可开)
-- **`same-stack`**:后台跑 `bash {子项目}/docs/design/preview-project/preview.sh` → 把 `PREVIEW_URL` + 本次设计页 `route_path` 的**直达 URL** 给用户 browse(根 `/` = 首页设计稿 · 多页给直达清单 · dev server 实时 · 动态端口 · 详 § 预览)
-
-### 6. complete
-```
-state.py ui_design-complete --feature X --auto-commit Y \
-  --artifacts <UI.md[,preview/]> \
-  --panorama-changed {true|false}
-```
-- `--artifacts`:UI.md 必 · `static-html` 介质加 `preview/` · `same-stack` 介质仅 UI.md
-- `--panorama-changed`:**必传** · true → 自动转 `panorama_sync` stage(workspace IA 同步 + 跨 Feature 评审)· false → 直进 blueprint
-
----
-
 ## 交互 & 视觉质量判据(设计/还原/评审同一基准 · v8.284 由 21 行细则压成 5 条判据)
 
 > v8.284:原细则(hover/focus-visible 环/骨架屏/WCAG AA 4.5:1/触控 ≥44px/tabular-nums/4-8px scale…)已删 —— 那是模型内建的前端常识;原文写明理由是「模型对交互体验缺天生判断力」,该前提已随模型能力失效。留**判据**不留细则:
@@ -165,19 +141,30 @@ state.py ui_design-complete --feature X --auto-commit Y \
 
 ---
 
-## Output Contract(产物形态参考)
+## ④ Output Contract
 
-📎 **物化拦截**(均按 `panorama_medium` 适配):
-- **`static-html`**:preview HTML 文件名 = `<page.id>.html`(物化校验 `pages[].id` 对应 .html 存在 · 错位 → ui_design-complete FAIL);`verify-panorama.py` 走完整校验(self-check + host marker + preview count + panorama_path)
-- **`same-stack`**(物化):**要求** `{panorama_path}/preview-project/` + `preview.sh` + `package.json` 存在 —— ui_design-complete 校验(`_check_same_stack_preview_project`)· 全景权威 = preview-project **源**(不再要静态 build 产物)· 🔴 **不再「不要求产物 · return True」**(防 cut-corner)· 预览靠跑 preview.sh(动态端口)· UI.md 自查 + frontmatter 仍校验
-- `stage_contracts.ui_design.output_satisfied=true` → dev-start 自动触发 UI 还原校验段(dev-stage ②硬规则 4 · 设计↔实际一致性核对 · 按 medium 分支)
+- **`UI.md`**:frontmatter `pages: [{id, title}]` + `panorama_medium` 必 · body §页面列表 / §交互流 / §视觉规范 / §字段映射(对应 PRD.AC)· 模板 `{SKILL_ROOT}/templates/ui.md`
+- **panorama 产物**:`same-stack` → preview-project 源(+ `preview.sh` 从 `{SKILL_ROOT}/templates/preview-project-preview.sh` 拷入 · `chmod +x` · 按框架改 dev server 一行)· `static-html` → `preview/*.html`
 
-**sitemap 改动**:必显式列影响范围 · 主对话与相关 Feature owner 协调(防破坏现有路由)。🔴 分层同构反模式清单详见上文各律(IA 镜像 / Layer 1-2 / 复现门 / 权威时效 / 下游编译契约)。
+📎 **物化拦截**(按 `panorama_medium` 适配):
+- **`static-html`**:preview HTML 文件名 = `<page.id>.html`(`pages[].id` 对应 .html 存在 · 错位 → complete FAIL);`verify-panorama.py` 走完整校验(self-check + host marker + preview count + panorama_path)
+- **`same-stack`**:preview-project + preview.sh + package.json 三者存在(`_check_same_stack_preview_project`)· 全景权威 = **源**(不再要静态 build 产物)· 🔴 不再「不要求产物 · return True」(防 cut-corner)
+- `stage_contracts.ui_design.output_satisfied=true` → dev-start 自动触发 UI 还原校验(dev-stage ②硬规则 4)
 
-> 📋 **起草模板**(避免找历史 Feature 抄):
-> - UI.md → `{SKILL_ROOT}/templates/ui.md`(含 panorama_medium frontmatter 示例)
-> - preview/*.html(static-html 时)→ 无统一模板 · 按项目设计语言写
-> - preview.sh(same-stack 时)→ `{SKILL_ROOT}/templates/preview-project-preview.sh`(拷入 preview-project 根 · 按框架改 dev server 一行)
+⏸️ **暂停点选项**(R5 标准格式见 [SKILL.md § R5(b)](../SKILL.md)):
+1. **确认 UI · 进入 blueprint** 💡 推荐 — `ui_design-complete` → 自动转 blueprint
+2. **要改设计** — 按用户反馈改 UI.md + preview
+3. **其他指示**
+
+📚 决策参考:`static-html` → 直接 browse `preview/<page>.html`;`same-stack` → 后台跑 preview.sh,把 `PREVIEW_URL` + 本次设计页 `route_path` 的**直达 URL** 给用户(根 `/` = 首页设计稿 · 多页给直达清单)。
+
+```
+state.py ui_design-complete --feature X --auto-commit Y \
+  --artifacts <UI.md[,preview/]> --panorama-changed {true|false}
+# --artifacts:UI.md 必 · static-html 加 preview/ · same-stack 仅 UI.md
+```
+
+**sitemap 改动**:必显式列影响范围 · 与相关 Feature owner 协调(防破坏现有路由)。
 
 ---
 

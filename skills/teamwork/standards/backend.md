@@ -20,29 +20,9 @@
 
 ---
 
-## 一、后端测试规范（TDD 强制执行）
+## 一、后端测试规范
 
-**覆盖率要求**: > 80%
-
-### 开发流程（Red-Green-Refactor）
-
-🔴 **单源 = [standards/tdd.md](./tdd.md)**（Iron Law / RED-GREEN-REFACTOR 5 步 / 自检清单 / 反模式 / 例外）· 本文件不复制流程正文（防双源漂移 · 已注册 tdd.md §七 引用约定）。后端落地差异仅测试命令：`pytest path/to/test_xxx.py -v` / `npm test path/to/test.test.ts` / `go test ./path/to/...`（tdd.md §二 Step 2 已列）。
-
-### 测试命名规范
-
-```
-✅ 正确：
-├── test_login_with_valid_credentials_should_return_token
-├── test_login_with_wrong_password_should_return_401
-└── test_create_user_with_duplicate_email_should_fail
-
-❌ 错误：
-├── test_login
-├── test1
-└── testLoginFunction
-```
-
----
+> TDD 红绿循环与测试命名等通用手艺 **单源 [tdd.md](./tdd.md)**(v8.284:本节原 24 行已并入 —— tdd.md 本就声明整段吸收)。本框架的证据硬门在 stage 层(`dev-complete --test-exit-code 0` + 差分基线)。
 
 ## 二、集成测试规范（后端 API）
 
@@ -138,57 +118,7 @@
 📋 集成测试报告（F001-用户登录）
 =====================================
 
-## 环境信息
-- 环境: Docker Local / Dev Remote
-- 部署方式: docker-compose.test.yml / 远程连接
-- API Base: http://localhost:8080
-- 数据库: localhost:3306/test_db (Docker) / dev_db@10.0.0.1 (Remote)
-- 缓存: localhost:6379 (Docker) / N/A
-
-## API 测试结果
-| 接口 | 场景 | 预期 | 实际 | 结果 |
-|------|------|------|------|------|
-| POST /api/v1/login | 正常登录 | 200 + token | 200 + token | ✅ |
-| POST /api/v1/login | 密码错误 | 401 | 401 | ✅ |
-| POST /api/v1/login | 用户不存在 | 404 | 404 | ✅ |
-
-## 数据库验证结果
-| 操作 | 表 | 验证项 | 结果 |
-|------|-----|--------|------|
-| 登录成功 | user_sessions | session 创建 | ✅ |
-| 登录成功 | users | last_login_at 更新 | ✅ |
-
-## 测试数据使用
-| 数据 | ID | 操作 |
-|------|-----|------|
-| 测试用户 | test_user_001 | 复用 |
-| 登录会话 | session_xxx | 新建后清理 |
-
-## 结论
-✅ 全部通过 / ❌ 有失败项
-
-## 失败项（如有）
-| 接口 | 问题 | 建议 |
-|------|------|------|
-```
-
-### 失败处理流程
-
-```
-集成测试失败（Test Stage 返回后由 PMO 处理）：
- ↓
-判断失败类型（根据 Test Stage 报告）：
- ├── 代码 Bug (QUALITY_ISSUE) → PMO dispatch RD Fix → 重新 dispatch Test Stage
- ├── 环境问题 (BLOCKED) → ⏸️ 用户排查 → 修复后 PMO 重新预检 + dispatch
- ├── 需求理解偏差 → ⏸️ 用户确认 → 决定修复方案
- └── 测试用例问题 → ⏸️ 用户确认 → 调整用例或跳过
-
-测试完成后清理（可选）：
- ├── 执行根级 scripts/test-env-teardown.sh（如存在）
- └── 默认保留环境供后续测试复用
-```
-
----
+> **集成测试报告**(产物字段 · v8.284 压缩原 52 行模板):环境信息(服务/DB/配置来源)· API 测试结果(端点 × 状态 × 断言)· 数据库验证结果(落库真值核对)· 测试数据使用(fixture / seed 来源)· 结论 · 失败项(现象 + 定位 + 处理)。**格式不规定**,字段齐即可。
 
 ## 三、服务端 API 接口规范
 

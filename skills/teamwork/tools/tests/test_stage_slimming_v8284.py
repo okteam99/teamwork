@@ -57,7 +57,7 @@ class TestUiDesignSlimming(unittest.TestCase):
     def test_materialized_gates_retained(self):
         """①③ 物化闸 + 用户主权暂停点一条未动。"""
         for k in ("_check_same_stack_preview_project", "用户预览确认",
-                  "本 stage 不直接改 sitemap", "verify-panorama.py", "IA 镜像律"):
+                  "不直接改", "verify-panorama.py", "IA 镜像律", "分层同构律"):
             self.assertIn(k, self.t, f"必保留项丢失:{k}")
 
 
@@ -66,9 +66,13 @@ class TestBlueprintSlimming(unittest.TestCase):
         self.t = (ROOT / "stages" / "blueprint-stage.md").read_text(encoding="utf-8")
 
     def test_tech_section_contradiction_fixed(self):
-        """🐛 修真实缺陷:§3 与 Output Contract 曾给 9 段 vs 5 段两份矛盾的 TECH 清单。"""
+        """🐛 修真实缺陷:§3 与 Output Contract 曾给 9 段 vs 5 段两份矛盾的 TECH 清单。
+
+        断言实质(结构以模板为单源 · 无第二份段落清单)· 不锁措辞 —— v8.285 四段结构重排后措辞已变。
+        """
         self.assertNotIn("§模块 / §数据 / §接口 / §依赖 / §风险", self.t)
-        self.assertIn("照 `templates/tech.md` 起草", self.t)
+        self.assertIn("templates/tech.md", self.t)          # 指向模板单源
+        self.assertIn("单源", self.t)
 
     def test_evidence_requirements_retained(self):
         """① 证据要求保留(现状基线 grounded / 消费方 grep / SQL 给理由)。"""
@@ -77,7 +81,7 @@ class TestBlueprintSlimming(unittest.TestCase):
 
     def test_independence_and_sovereignty_retained(self):
         """②③ 独立采样 + 用户主权一条未动。"""
-        for k in ("不喂主对话起草心路", "互不喂对方产出", "两路模型错开",
+        for k in ("不喂主对话起草心路", "互不喂对方产出", "模型错开",
                   "变更点明细是本暂停点的正文", "cross_review_coverage"):
             self.assertIn(k, self.t, f"必保留项丢失:{k}")
 

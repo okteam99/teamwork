@@ -1019,7 +1019,7 @@ Designer 产出 UI.md + HTML 预览 · sitemap 同步(如涉及全景变更)。
 **必读** `stages/ui-design-stage.md`(详细步骤 6 步 + 注意事项 5 条)。
 🔴 **设计前读 UI-RULES**(`project-specs/UI-RULES.md` + `{{子项目}}/docs/UI-RULES.md`:控件偏好/色板策略/交互约定 · 缺则从 `templates/ui-rules.md` 建)+ **对照 § 交互&视觉质量 rubric**(治「对交互没判断力」)。
 🔴 **same-stack 设计=代码**:真实可达交互(按钮→Drawer/编辑/详情)**页面内做成真实可点**(同真实 app · 交互保真)· **dev 顶栏只放页面到不了的态**(Loading/Error/Empty/边缘态)· 禁的是**预览专属控件**(state-switcher 下拉等真实 app 没有的 · 非真实交互按钮)· 详 § preview dev 顶栏。
-🔴 **扩已有页 → 复现整页再加 feature(禁概念页)**:本 Feature 若给**已存在的真实页**加东西 → 先**读该页真实代码的当前形态**(布局/筛选区/KPI/卡片/表格列),在 preview-project 按真实形态复现整页(same-stack 直接复用真实共享组件)· 再集成新部分 · **不画孤立概念页**(实证 AON Offer-Analysis:概念页与真实页结构没对齐被打回)· 详 § 怎么做 §3 复现门。
+🔴 **扩已有页 → 复现整页再加 feature(禁概念页)**:本 Feature 若给**已存在的真实页**加东西 → 先**读该页真实代码的当前形态**(布局/筛选区/KPI/卡片/表格列),在 preview-project 按真实形态复现整页(same-stack 直接复用真实共享组件)· 再集成新部分 · **不画孤立概念页**(实证 AON Offer-Analysis:概念页与真实页结构没对齐被打回)· 详 ui-design-stage.md 复现门。
 
 ### 完成方式
 ```
@@ -2635,7 +2635,7 @@ QA 集成测试 + API E2E · AC 全覆盖最终验证。
 - verify-ac.py 通过
 
 ### 怎么做
-**必读** `stages/test-stage.md`(详细步骤 7 步 + 注意事项 5 条 · 含 skip 走捷径反模式)。
+**必读** `stages/test-stage.md`(四段结构:目标 / ②硬规则 9 条 / 手段菜单 / 产物契约 · 含 skip 走捷径反模式)。
 📋 产物模板:本 emit 的 `scaffold_hints.templates` 给**绝对路径** · 照它起草 · 别抄项目旧产物。
 🔴 **base 即红(brownfield 共享套件预存在失败)→ 走差分基线、别反复人肉 stash-baseline**:`state.py test-baseline --diff --current "<当前失败 id>"` 对照 `project-specs/test-baseline.md` · **0 新增**(当前失败 ⊆ 基线)→ test-complete 传 `--current-failures` 即转移;有新增 = 回归(修)或新预存在(核实后 `test-baseline --add` 登记原因)。
 
