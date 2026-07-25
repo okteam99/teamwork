@@ -4,6 +4,26 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.284 · 四段结构转正(解锁推广)+ 批次二 stage 减法
+
+> 承 v8.283。审计挖到**推广卡死的根因**:`STAGES.md §3` 至今**必含**「怎么做 + 质量基线」两段 —— 已迁移四段结构的 dev/review/goal **反而不符合书面规范**,未迁移的 test/panorama_sync/pm_acceptance/diagnose **是在忠实遵守旧条款**,不是偷懒。v8.218 试点时写下「四段结构进 STAGES.md 定为标准」这一步没做,推广就此卡在 3/13 达六十余版。
+
+### ① STAGES.md §3 四段结构转正
+- 必含段改为:`① 目标(telos)` / `② 硬规则(白名单 · 每条一行 why)` / `③ 建议手段菜单(AI 自选 · 不强制 · 可省)` / `④ Output Contract` / `相关`。
+- 明写 **②硬规则保留判据**(治结构风险不教干活):证据/验证 · 独立采样 · 用户主权 · 纯机械操作;**不该进②的**:怎么调研/怎么拆任务/怎么写代码(→③或交还模型)· 通用工程规范(→ `standards/` + 项目 `DEV-RULES.md`)。
+- 明写**删「怎么做」与「质量基线」的理由**:前者是 HOW-to 教程「把强模型的地板变天花板」(v8.218 原话);后者把②的规则再复述一遍(实测未迁移文件因此把同一规则讲 2-3 遍)。**叙事在②一次 · 机器语法在④一次 · 没有第三处**。
+
+### ② 批次二 stage 减法(门禁/暂停点一条未动)
+- **ui-design 244 → 188**:🔴 21 行交互/视觉细则(hover/focus-visible/WCAG 4.5:1/触控 ≥44px/tabular-nums…)压成 **5 条判据** —— 原文自陈理由是「模型对交互体验缺天生判断力」,该前提已随模型能力失效;**v8.263 裁定的最后一处漏网环节化自检**(Designer 自查报告 A 段逐项过)改写法注;删「与老模式对比」论证表 / preview.sh 内部实现 / 工具面板 12 行设计品味论证与版本纠错史 / 纯目录式反模式清单 / 框架维护者 TODO;`roles/designer.md` 指针同步。
+- **blueprint 120 → 98**:🐛 **修真实缺陷** —— §3 与 Output Contract 曾给 TECH.md **9 段 vs 5 段两份互相矛盾的清单**(「指针 + 复制被指向内容」的漂移实例);消除该模式(结构以模板为单源)· R5 三选项改引用式(与 ui-design 统一口径)· 删与 §4/SOP 重复的冷审与闭环条。
+- **ship 235 → 221**:只砍旁白 —— 版本考古(旧两-MR 十二版沿革)· archive/ship-finalize 内部实现清单 · 投递次序**三处各说一遍**收敛为单源 · active_minutes 算法(同行已明写「不肉眼算」)· 已废弃配置墓碑 · 框架维护者 TODO。**门禁、命令序列、R5 暂停点、git add 红线一条未动**。
+
+### ③ 兜底清单机制升级(v8.277 手段迭代)
+- 原手段「blueprint 与 tech.md 两表同构」→ **单源 + 指针**(blueprint 改「照抄 TECH §兜底清单原样贴出 · 含 💬 大白话列」)。目的不变(暂停点贴出的表别丢列),但**只有一处定义才不会漂** —— 同一文件里刚实测到该模式的漂移(上述 9 段 vs 5 段)。测试同步为新不变式。
+
+### 验证
+- 新增 test_stage_slimming_v8284(12:四段结构转正 / 旧条款已废 / 判据成文 / 前端细则已删但判据保留 / 环节化已改写法 / 物化闸与主权暂停点保留 / blueprint 矛盾已修 / ship 门禁全在)· pytest **1002 passed**。
+
 ## v8.283 · 模板减法批次一 · 砍掉限制模型能力发挥的约束(prd/tech)
 
 > 用户课题:随着模型越来越聪明,这些规则是否反而有负向影响?讨论后确立**按规则类型分衰减速率**的判据 —— 不衰减必保留:① 证据/验证(信任架构:模型越强、主张越有说服力,越需要证明而非被相信)② 独立采样(相关盲区是统计属性非智力属性)③ 用户主权(谁决定 ≠ 谁能干)④ 纯机械操作;随模型变强而衰减可砍:⑤ 手段规定(HOW-to)⑥ 能力上限 ⑦ 教学示例 ⑧ 重复 ⑨ 环节化自检。本版按判据做 prd.md / tech.md 的减法,**门禁与暂停点一条未动**。
@@ -65,15 +85,3 @@
 ### 测试补口
 - 新增 test_micro_gate_v8280(6:resolver 单测 micro/full/bug/legacy + `_resolve_flow_graph` micro 拿对图 + **真跑 init micro → execute-start 过门** e2e)—— 补上「只断言常量、从没跑 gate」的集成盲区。
 - pytest 970 passed。
-
-## v8.279 · 安全加固/兜底降级 = external finding 过度设计高发区 · 采纳前必过 ROI
-
-> 用户点破:安全、兜底降级也要防过度设计。缺口:blueprint §4 Architect counter-lens 已有「兜底按 ROI 审(含安全兜底)」,但 external **裁决单源 §12** + goal/review 的 finding 处理姿态只泛说「过度设计」—— 没点名 **安全加固 / 兜底降级是 external finding 里最容易过度设计的两类**:external 天然偏加防御层/校验/重试/fallback,这两类听着最「负责任」故**最难驳、最易盲采**,恰恰最该过 ROI。
-
-### 改动(把 v8.265/266 兜底 ROI 接到 external 裁决路径)
-- **裁决单源 §12**(external-model-usage.md · ① 质疑步 + 12.1 confirmed 判据):安全加固/兜底降级 finding 必过 ROI(保护场景 概率×后果 vs 实现维护成本)· 立不住 REJECT(「安全/兜底总没错」不是采纳理由)· 立得住 ADOPT + 兜底类落 §7.5 透出。
-- **消费点点名**:goal external 简洁性 counter-lens · review finding 处理姿态 brief · blueprint §4 「别盲采」行(加校验→加校验/加安全/加兜底)· Architect telos 简洁性独占视角。
-- 不变:「加安全/加兜底不天然正确」与别的 finding 同过质疑门;举证责任对称(ADOPT 也要实证)。
-
-### 验证
-- 新增 test_security_fallback_roi_v8279(4:裁决源/goal counter-lens/review brief/architect telos 各点名)· pytest 964 passed。
