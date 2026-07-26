@@ -4,6 +4,34 @@
 > 上次清空:**v8.193**(2026-07-06 · 清除 v8.128 → v8.187 共 60 版条目 · 约 1.0k 行)。
 
 ---
+## v8.290 · 流程文档整体精简 + PRD/TECH 设计文档档位规则
+
+> 用户原则:**保住底线规则,其余不限制模型发挥,精简没必要的 HOW**(示例:架构视角只需「架构要合理、防止未来维护成本过高」· 至于怎么设计 AI 自决)+ 新规则:**PRD、技术方案必须主模型或高级模型出设计或参与评审**,其余尽量主对话编排 subagent 并行。
+
+### ① 新规则:设计文档档位(5 处消费时点)
+- **PRD 与 TECH 必须主模型 / 高级模型出设计或参与评审** —— 与 v8.268/269 模型错开复合:**错开也只在高档之间错**(fable5↔opus)· **不许降到验证档**;其余环节(TC 对照 / 测试执行 / 机械外化)该降就降,**主对话编排 · subagent 并行**。
+- 落 `DISPATCH_TIER_REMINDER`(每 stage-start 自动附带)+ goal/blueprint 两 brief + 两 stage ②硬规则白名单。
+- why 写明:PRD 定义「做什么」错了整条链在做错的东西 · TECH 是全局质量上限方案错了下游全错 —— **两份设计文档定质量天花板**。
+
+### ② 文档精简(判据:证据/独立采样/主权/机械/逆默认 = 底线保留 · HOW-to/示例/重复/考古/铺陈 = 砍)
+| 文档 | 行数 | 🔴 |
+|---|---|---|
+| SKILL.md | 754 → **544**(-28%) | 74 → **43** |
+| docs/prepare.md | 412 → **365** | 33 → 26 |
+| docs/feature-planning.md | 294 → **287** | 43 → 39 |
+- **行 205 的 3173 字符怪物拆成 9 条**(最长 391)· v8.268 双路 + v8.269 单路合并成一条「**评审模型必错开(独立采样不变式)**」。
+- 砍:v7/v8 范式对比图 · 45 处版本沿革标注 · 错误处理协议 ASCII 流程图(与 bypass 节同一件事)· 文档清单与路由速查两表合并(零文档丢失)· 31 处重复标红降级 · prepare「怎么侦察」的具体清单(**要不要侦察是底线 · 怎么侦察留给模型**)· feature-planning 里 IA 镜像律/分层同构律的展开(改指 ui-design 权威处)。
+- `roles/architect.md` telos 改为用户示例形态:**底线「架构要合理——别让未来的维护成本过高」+ 显式「至于架构怎么设计 AI 自决」**;`roles/rd.md` 同款。其余 6 个 role telos 本就是「说视角 + 缺了会留什么问题」,未动。
+- `docs/conventions.md` **如实不砍**:288 行几乎全是 ID/命名约定与路径/状态机接口(判据④ 模型不可能知道)。
+
+### ③ 顺带抓到三个真问题
+- 🐛 **SKILL 指向 `blueprint § 7.5`** —— 该章节已随 v8.284 四段结构重构消失 → 改指 `§④`。
+- 🐛 **命令清单已漂**:自称「≈55 命令」,52 个真实子命令里 **11 个从未出现在 SKILL.md**(整个 micro 流程 `execute-start/complete` · `review-preventability` · `ws-lint` / `ws-progress` / `test-baseline` / `ledger-migrate` …)。文档自称「权威 = `state.py --help`」却抄了份过时副本 —— **又是「指针 + 复制」**。改分类概览(A 状态机入口 / B stage 流转 / C 维护与数据)+ 权威指针,保住 11 个 routing 级语义特殊命令。
+- 🐛 **`UI-RULES.md` 从未进 SKILL 路由表**(既有缺口 · 非本次砍掉):它是 ui_design 必读 + bootstrap 七件骨架之一,用户问「设计规范在哪」路由不到 → 补入(连同 `test-baseline.md`)。
+
+### 验证
+- 新增 test_flow_doc_slimming_v8290(9:无超长行 / 🔴 密度 / 命令清单是指针非副本 / routing 级命令仍在 / 底线全在 / 断链已修 / role telos 底线+自决 / **project-specs 清单跨文件同步守护**〔SKILL 路由表 ↔ conventions §13 · 把 v8.259 的人工七点清单换成机器检查〕)· pytest **1041 passed**。
+
 ## v8.289 · REVIEW-<role>.md 退役 · 改为 REVIEW.md 内每角色 coverage 申报
 
 > 用户:重新 review 流程,看哪些过程文档没必要写。用同一把尺子(**有没有真读者**)过完全部产物 —— 其余都有真消费方(PRD/TC/TECH 被 dev 照做 + verify-ac 机器读 · REVIEW.md findings 台账 70 处消费 · TEST-REPORT 是 pm_acceptance 逐条核对 AC 的实证来源 · verdicts 被门禁解析 · screenshots 是用户验收证据),**只有 `REVIEW-<role>.md` 是纯仪式**。(`docs/audit/<id>.md` 用户指示暂不动。)

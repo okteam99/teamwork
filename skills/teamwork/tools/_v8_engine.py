@@ -1988,6 +1988,8 @@ def execute_stage_complete(
     next_stage_scaffold_hints = (
         build_scaffold_hints(transitioned_to) if transitioned_to else None
     )
+    _sc_hint = _stage_cost_hint(stage_spec.name, getattr(args, "feature", "<path>"),
+                                contract.get("duration_minutes", 0))
     emit_json({
         "verdict": "PASS",
         "stage": stage_spec.name,
@@ -2008,6 +2010,7 @@ def execute_stage_complete(
         **({"next_stage_roles_adjusted": next_stage_roles_audit} if next_stage_roles_audit else {}),
         **({"pause_options_markdown": pause_options_markdown} if pause_options_markdown else {}),
         **({"fix_retry_hint": fix_retry_hint} if fix_retry_hint else {}),
+        **({"stage_cost_hint": _sc_hint} if _sc_hint else {}),
         **({"raw_write_audit": rw_audit} if rw_audit else {}),
         **({"main_tree_pollution": {
             "count": len(pollution),
@@ -2019,6 +2022,27 @@ def execute_stage_complete(
 
 
 # ─── review-log 写入 ───────────────────────────────────────────────────
+
+
+# v8.295:耗时归因采集提示 —— 只在**有多轮往返成本**的 stage 提(不是 13 个 stage 都来一遍,
+# 否则就退化成 v8.283 判定会衰减的「环节化自检」)。提示放在 complete emit 而非写进各 stage 文档:
+# 机器在**正确的时刻**提醒,不靠文档记忆;非门禁,不记也放行。
+_STAGE_COST_STAGES = ("goal", "ui_design", "blueprint", "dev", "review", "test", "browser_e2e")
+
+
+def _stage_cost_hint(stage: str, feature: str, duration_minutes) -> Optional[str]:
+    """本 stage 值得记耗时归因 → 返回一行提示 · 否则 None。"""
+    if stage not in _STAGE_COST_STAGES:
+        return None
+    return (
+        f"⏱️ **记一笔耗时归因**(非门禁 · 但年检与提效验证靠它):本 stage {duration_minutes}m —— "
+        f"其中多少轮是**纯协调开销**(文档对齐 / 跨档同步 / 格式修 / 门禁重试 / 返工重写)?\n"
+        f"   `state.py stage-cost --feature {feature} --stage {stage} "
+        f"--rounds <总轮次> --overhead-rounds <其中协调开销> "
+        f"--kinds '<开销类型;分号分隔>' --note '<最大的一笔是什么>'`\n"
+        f"   🔴 **趁现在记** —— 这类归因只有此刻记得住(ship 时回填要靠产物 mtime 反推);"
+        f"零开销就 `--overhead-rounds 0` 照记(那也是数据)。"
+    )
 
 
 def write_review_log_entry(

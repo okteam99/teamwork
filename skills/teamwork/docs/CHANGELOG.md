@@ -4,6 +4,62 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.295 · stage 耗时归因采集(补上「有数字没归因」那一环)
+
+> 用户:**是否需要增加一个耗时复盘机制,每个阶段结束后总结耗时复盘,记录到固定文件夹 · 放到项目里进 git。**
+
+### 结论:需要,但**不新建文件夹** —— 缺的是归因,不是载体
+
+先盘已有的三层:`state.json.stage_contracts[stage]`(机器采 duration / await / **active_minutes** v8.276)
+→ `project-specs/PROCESS-LEDGER.md`(一行一 feature · **已有「各阶段耗时」列** · 在项目里、进 git、
+随 feature MR 原子合入)→ `docs/retros/`(业务/工程复盘)。
+
+**缺的正是归因**:现有列只有**数字**(`blueprint 318m`),不回答「这 318 分钟花在哪」——
+而 SVC-PLATFORM-F260726 复盘最值钱的恰恰是归因:blueprint 6 波往返里**波 5、6 是纯文档对齐、无设计价值**,
+双档同步吃掉 ~35% 轮次 / ~25% token。
+
+**不新建文件夹**:`docs/audit/` 是前车之鉴 —— 累了 22 个文件,代码自陈「**审计只写不读**」。
+写了没人读的产物是纯成本。
+
+**时机上用户是对的**:这类归因**只有 stage 结束时当场记得住**;ship 时回填要靠产物 mtime 反推
+(那正是这次复盘干的苦活)。
+
+### 机制(复用 v8.281 已跑通的形状:收敛后记录 → ship 聚合 → 年检分析)
+
+```
+state.py stage-cost --feature <path> --stage <goal|ui_design|blueprint|dev|review|test|browser_e2e> \
+    --rounds <总轮次> --overhead-rounds <其中纯协调开销> \
+    --kinds '双档同步;门禁重试' --note '最大的一笔开销是什么'
+```
+
+- 存 `state.json.stage_cost[]` → ship1 archive emit `ledger_stage_cost` → PROCESS-LEDGER **末尾新列**
+  「⏱️ 耗时归因(协调开销轮/总轮·最大一笔)」(🔴 schema 演进纪律:只在末尾加列)
+- **非门禁 · 纯采集**(不记不拦 ship · 台账列留空 = 有效前缀)· 零开销也要记(`--overhead-rounds 0`)——
+  「这次没开销」和「没记录」是两回事,年检要分得开
+- 物化护栏:`--overhead-rounds > --rounds` → FAIL
+
+**提示放在 complete emit,不写进各 stage 文档** —— 机器在**正确的时刻**提醒(带本 stage 实际耗时 +
+可直接跑的命令 + 「趁现在记」的时效说明),不靠文档记忆。且**只在有多轮往返成本的 7 个 stage 提**
+(ship / pm_acceptance / panorama_sync / diagnose / execute 不提)。
+
+### 🔴 为什么这不是又一道「环节化自检」
+
+v8.283 的规则衰减分类学把「环节化自检」判为**会衰减、可砍**的那类。这条不同:
+- 它**不让 AI 自查做得好不好** —— 采的是 **AI 自己算不出、事后也复原不了的事实**
+- 它是**验证提效改动是否起效的唯一手段**:v8.294 的收敛期归一 / TC 职责边界 / 投机窗准入
+  **都声称能砍这块协调开销**,没有这列数据就无法证伪
+
+### 顺带修好一处既有不一致
+
+新加的 schema 门禁(表头 / 分隔行 / 示例行列数必须一致)当场抓到:**v8.281 加「🛡️ 起草可预防性」列时
+没补示例行的对应格** —— 示例行比表头少一格已经存在一版。已补齐。
+
+### 测试
+
+988 → **1001**。
+
+---
+
 ## v8.294 · 复盘驱动:localconfig 在 worktree 里读不到(真 bug)· rival 设计强制 · TC 职责边界
 
 > 来源:matrixpower SVC-PLATFORM-F260726(三级算力体系 + 锚定链定价 · 计费热路径 + 破坏性迁移)
@@ -199,31 +255,3 @@ why:「终确认改:默 ≈ 全默」的统计前提**只在单决策上成立**
 
 ### 验证
 - 新增 test_cross_vendor_retired_v8291(9:机械已删 / 配置退役 / codex-agents 删除 / 命令不 exec / 新契约成文 / **yolo 不内化律存活** / 裁决纪律存活 / 全库无残留活配置 / 唯一形态成文)· pytest **956 passed**。
-
-## v8.290 · 流程文档整体精简 + PRD/TECH 设计文档档位规则
-
-> 用户原则:**保住底线规则,其余不限制模型发挥,精简没必要的 HOW**(示例:架构视角只需「架构要合理、防止未来维护成本过高」· 至于怎么设计 AI 自决)+ 新规则:**PRD、技术方案必须主模型或高级模型出设计或参与评审**,其余尽量主对话编排 subagent 并行。
-
-### ① 新规则:设计文档档位(5 处消费时点)
-- **PRD 与 TECH 必须主模型 / 高级模型出设计或参与评审** —— 与 v8.268/269 模型错开复合:**错开也只在高档之间错**(fable5↔opus)· **不许降到验证档**;其余环节(TC 对照 / 测试执行 / 机械外化)该降就降,**主对话编排 · subagent 并行**。
-- 落 `DISPATCH_TIER_REMINDER`(每 stage-start 自动附带)+ goal/blueprint 两 brief + 两 stage ②硬规则白名单。
-- why 写明:PRD 定义「做什么」错了整条链在做错的东西 · TECH 是全局质量上限方案错了下游全错 —— **两份设计文档定质量天花板**。
-
-### ② 文档精简(判据:证据/独立采样/主权/机械/逆默认 = 底线保留 · HOW-to/示例/重复/考古/铺陈 = 砍)
-| 文档 | 行数 | 🔴 |
-|---|---|---|
-| SKILL.md | 754 → **544**(-28%) | 74 → **43** |
-| docs/prepare.md | 412 → **365** | 33 → 26 |
-| docs/feature-planning.md | 294 → **287** | 43 → 39 |
-- **行 205 的 3173 字符怪物拆成 9 条**(最长 391)· v8.268 双路 + v8.269 单路合并成一条「**评审模型必错开(独立采样不变式)**」。
-- 砍:v7/v8 范式对比图 · 45 处版本沿革标注 · 错误处理协议 ASCII 流程图(与 bypass 节同一件事)· 文档清单与路由速查两表合并(零文档丢失)· 31 处重复标红降级 · prepare「怎么侦察」的具体清单(**要不要侦察是底线 · 怎么侦察留给模型**)· feature-planning 里 IA 镜像律/分层同构律的展开(改指 ui-design 权威处)。
-- `roles/architect.md` telos 改为用户示例形态:**底线「架构要合理——别让未来的维护成本过高」+ 显式「至于架构怎么设计 AI 自决」**;`roles/rd.md` 同款。其余 6 个 role telos 本就是「说视角 + 缺了会留什么问题」,未动。
-- `docs/conventions.md` **如实不砍**:288 行几乎全是 ID/命名约定与路径/状态机接口(判据④ 模型不可能知道)。
-
-### ③ 顺带抓到三个真问题
-- 🐛 **SKILL 指向 `blueprint § 7.5`** —— 该章节已随 v8.284 四段结构重构消失 → 改指 `§④`。
-- 🐛 **命令清单已漂**:自称「≈55 命令」,52 个真实子命令里 **11 个从未出现在 SKILL.md**(整个 micro 流程 `execute-start/complete` · `review-preventability` · `ws-lint` / `ws-progress` / `test-baseline` / `ledger-migrate` …)。文档自称「权威 = `state.py --help`」却抄了份过时副本 —— **又是「指针 + 复制」**。改分类概览(A 状态机入口 / B stage 流转 / C 维护与数据)+ 权威指针,保住 11 个 routing 级语义特殊命令。
-- 🐛 **`UI-RULES.md` 从未进 SKILL 路由表**(既有缺口 · 非本次砍掉):它是 ui_design 必读 + bootstrap 七件骨架之一,用户问「设计规范在哪」路由不到 → 补入(连同 `test-baseline.md`)。
-
-### 验证
-- 新增 test_flow_doc_slimming_v8290(9:无超长行 / 🔴 密度 / 命令清单是指针非副本 / routing 级命令仍在 / 底线全在 / 断链已修 / role telos 底线+自决 / **project-specs 清单跨文件同步守护**〔SKILL 路由表 ↔ conventions §13 · 把 v8.259 的人工七点清单换成机器检查〕)· pytest **1041 passed**。

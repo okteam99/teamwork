@@ -14,7 +14,7 @@ state.py — Teamwork Feature state.json maintenance tool.
   reset-prev / jump-to-stage / change-review-roles / set-mode / test-baseline
 - 流程:各 stage 的 -start / -complete / -fix / -retry(_v8_engine 注册)+ ship-phase(_v8_ship)
 - 评审:external-review(出 subagent 冷审配方)
-- 汇总:audit-raw-writes / prepare-check / planning-check / ws-progress / ws-lint
+- 汇总:audit-raw-writes / prepare-check / planning-check / ws-progress / ws-lint / stage-cost
 """
 
 from __future__ import annotations
@@ -585,6 +585,47 @@ def cmd_review_preventability(args: argparse.Namespace) -> None:
     emit({"verdict": "OK", "action": "review-preventability", "stage": entry["stage"],
           "recorded": entry,
           "note": "已记录 · ship 聚合进台账「🛡️ 起草可预防性」列(年检据此分析起草考虑点缺不缺)"})
+
+
+def cmd_stage_cost(args: argparse.Namespace) -> None:
+    """v8.295:stage 收敛后记录**耗时归因** —— 这段时间里哪些轮次是协调开销、最大的一笔是什么。
+
+    为什么需要:机器已经采到 duration / await / active_minutes(v8.276),但那只有**数字**,
+    没有「时间花在哪」。实证 SVC-PLATFORM-F260726 复盘的最大发现恰恰是归因 ——
+    blueprint 6 波往返里波 5、6 是**纯文档对齐无设计价值**,双文档同步吃掉 ~35% 轮次 / ~25% token。
+    这类归因**只有 stage 结束时当场记得住**;ship 时回填要靠产物 mtime 反推(复盘干的就是这苦活)。
+
+    🔴 为什么这不是又一道「环节化自检」(v8.283 判定会衰减的那类):
+    它不是让 AI 自查做得好不好 —— 是采**一个 AI 自己算不出、后面也复原不了的事实**。
+    且它是**验证优化是否起效的唯一手段**:v8.294 的收敛期归一 / TC 边界 / 投机窗准入都声称能砍
+    协调开销,没有这列数据就无法证伪。
+
+    非门禁 · 纯采集(不记不拦 ship · 台账列留空 = 有效前缀 · 同 v8.281)。
+    """
+    path = state_path(args.feature)
+    state = load_state(args.feature)
+    rounds = max(0, int(getattr(args, "rounds", 0) or 0))
+    overhead = max(0, int(getattr(args, "overhead_rounds", 0) or 0))
+    if overhead > rounds:
+        emit({"verdict": "FAIL", "action": "stage-cost",
+              "error": f"--overhead-rounds({overhead}) 不能大于 --rounds({rounds})"})
+        sys.exit(1)
+    entry = {
+        "stage": args.stage,
+        "rounds": rounds,
+        "overhead_rounds": overhead,
+        "kinds": [k.strip() for k in (getattr(args, "kinds", "") or "").split(";") if k.strip()],
+        "note": (getattr(args, "note", "") or "").strip(),
+        "at": now_iso(),
+    }
+    state.setdefault("stage_cost", []).append(entry)
+    state["updated_at"] = now_iso()
+    state["updated_by"] = "stage-cost"
+    atomic_write(path, state)
+    emit({"verdict": "OK", "action": "stage-cost", "stage": entry["stage"],
+          "recorded": entry,
+          "note": "已记录 · ship 聚合进台账「⏱️ 耗时归因」列"
+                  "(年检据此判协调开销占比趋势 · 验证提效改动是否真起效)"})
 
 
 def cmd_pause_mark(args: argparse.Namespace) -> None:
@@ -3813,6 +3854,23 @@ def build_parser() -> argparse.ArgumentParser:
                      help="缺的起草考虑点(分号分隔 · 如 '并发时序;迁移前历史数据预检')· 全 emergent 留空")
     rpv.add_argument("--note", default="", help="一句话补充(可选)")
     rpv.set_defaults(func=cmd_review_preventability)
+
+    # v8.295:stage-cost 耗时归因(stage 收敛后记 · 非门禁 · ship 聚合进台账「⏱️ 耗时归因」)
+    scp = sub.add_parser(
+        "stage-cost",
+        help="[v8.295] 记录本 stage 耗时归因(总轮次 / 其中协调开销轮次 / 最大的一笔是什么)· 非门禁")
+    scp.add_argument("--feature", required=True, help="Feature artifact_root 路径")
+    scp.add_argument("--stage", required=True,
+                     choices=["goal", "ui_design", "blueprint", "dev", "review", "test", "browser_e2e"],
+                     help="哪个 stage(只在有多轮往返成本的 stage 记)")
+    scp.add_argument("--rounds", type=int, default=0,
+                     help="本 stage 的 agent/评审往返总轮次")
+    scp.add_argument("--overhead-rounds", type=int, default=0,
+                     help="其中**纯协调开销**的轮次(无设计/实现价值:文档对齐 / 跨档同步 / 格式修 / 门禁重试 / 返工重写)")
+    scp.add_argument("--kinds", default="",
+                     help="开销类型(分号分隔 · 如 '双档同步;门禁重试')· 无开销留空")
+    scp.add_argument("--note", default="", help="一句话:最大的一笔开销是什么(可选但强烈建议)")
+    scp.set_defaults(func=cmd_stage_cost)
 
     # v8.186:ws-lint WS 文档最新模板符合性校验(治 AI 抄项目旧 WS · 无检查)
     wlp = sub.add_parser(

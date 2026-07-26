@@ -1044,6 +1044,10 @@ def _handle_ship_archive(state: dict, args: argparse.Namespace) -> dict:
         # v8.281:起草可预防性(各评审 review-preventability 记录聚合)· 台账「🛡️ 起草可预防性」列
         # · 年检据此判 PRD/TECH 起草考虑点缺不缺(反复缺同一条 = 真缺口 · 补框架考虑点)。
         "ledger_authoring_preventability": _authoring_preventability_summary(state),
+        # v8.295:耗时归因(各 stage stage-cost 记录聚合)· 台账「⏱️ 耗时归因」列
+        # · 年检据此看协调开销占比趋势 —— 也是验证提效改动(v8.294 收敛期归一/TC 边界/
+        # 投机窗准入)是否真起效的唯一手段。
+        "ledger_stage_cost": _stage_cost_summary(state),
         # v8.180:WS 进度块确定性自刷结果(None = feature 不属 WS / 对应F编号 未填 → 未刷 · 见 §3.5)
         "ws_progress_refreshed": ws_refreshed,
         "warnings": [
@@ -1620,6 +1624,32 @@ def _stage_durations(state: dict):
         aw = " + ".join(f"{s} {m}m" for s, m in awaiting)
         analysis += f" · ⏸️ {aw}=用户决策等待(墙钟 · 非工作 · 不计入最耗时)"
     return breakdown, analysis
+
+
+def _stage_cost_summary(state: dict):
+    """v8.295:聚合各 stage 的耗时归因 → 台账「⏱️ 耗时归因」列(年检分析源)。
+
+    渲染 "协调开销 M/N 轮 · <stage>:<note> · 类型:双档同步;门禁重试"·无记录返 None
+    (台账列留空 = 有效前缀 · 该 feature 早于该指标 · 诚实)。
+    """
+    items = [i for i in (state.get("stage_cost") or []) if isinstance(i, dict)]
+    if not items:
+        return None
+    rounds = sum(int(i.get("rounds") or 0) for i in items)
+    overhead = sum(int(i.get("overhead_rounds") or 0) for i in items)
+    cell = f"协调开销 {overhead}/{rounds} 轮"
+    # 只透出开销最大的那个 stage 的 note(单元格 ≤1 行纪律)
+    worst = max(items, key=lambda i: int(i.get("overhead_rounds") or 0))
+    if int(worst.get("overhead_rounds") or 0) > 0 and worst.get("note"):
+        cell += f" · {worst.get('stage')}:{worst['note']}"
+    kinds = []
+    for i in items:
+        for k in (i.get("kinds") or []):
+            if k and k not in kinds:
+                kinds.append(k)
+    if kinds:
+        cell += " · 类型:" + "；".join(kinds)
+    return cell
 
 
 def _authoring_preventability_summary(state: dict):
