@@ -1890,7 +1890,8 @@ def cmd_init_feature(args: argparse.Namespace) -> None:
     # 快照进 state(mid-feature 改配置不漂移):roster 全清空(roster-aware 门自动放行)·
     # dev 跳 review 直进 test(_dev_transition)· PRD-REVIEW/TECH-REVIEW 不产不查。
     # 🔴 与 yolo 互斥:yolo 无人值守的唯一安全网就是评审 · fast 拆评审 · 不可同用。
-    if _read_fast_mode(feature_dir):
+    _fast_cfg = _read_fast_mode(feature_dir)
+    if _fast_cfg:
         if getattr(args, "yolo", False):
             # v8.262:yolo 忽略 fast(不再互斥报错)—— 无人值守的唯一安全网 = 全量评审 ·
             # fast_mode 静默不生效 · kickoff 记 INFO(用户知情 · 不拦)。
@@ -2074,7 +2075,8 @@ def cmd_init_feature(args: argparse.Namespace) -> None:
         "checksum_prefix": state[CHECKSUM_FIELD][:24],
         "created_at": state["created_at"],
         "routing_check": routing,
-        "next_action_brief": _init_feature_next_brief(args, initial_stage),
+        "next_action_brief": _init_feature_next_brief(
+            args, initial_stage, cfg_fast=_fast_cfg, effective_fast=bool(state.get("fast_mode"))),
         # v8.15:admission MISMATCH 时 emit 顶层显警告(AI 一定看到)+ state.concerns 已留痕
         **({"admission_warning": admission_warning} if admission_warning else {}),
         # prepare 门禁仅 prefix 命中(非本 feature 精确号段)· 顶层显警告 + concerns 已留痕
@@ -2084,7 +2086,8 @@ def cmd_init_feature(args: argparse.Namespace) -> None:
     })
 
 
-def _init_feature_next_brief(args, initial_stage: str) -> str:
+def _init_feature_next_brief(args, initial_stage: str,
+                             cfg_fast: bool = False, effective_fast: bool = False) -> str:
     """init-feature emit 后给 PMO 的 brief(v8.0+P0-5 简化)。
 
     triage 已确认 worktree · PMO 已显式建 + cd · init-feature 仅创建 state.json。
@@ -2093,6 +2096,15 @@ def _init_feature_next_brief(args, initial_stage: str) -> str:
     Bug 流程额外提示(v8.107):先 diagnose(根因细查 + 修复方案 · 用户确认)再 dev ·
     diagnose **产出** BUG 报告的 §根因/§修复方案(不是 dev 前置)· 防 fix 修偏。
     """
+    # v8.294(复盘 R3):fast_mode 生效与否**必须可见** —— 静默回退是双输:
+    # 用户既没拿到速度、也不知道为什么慢。三态各自说清来源。
+    if effective_fast:
+        fast_note = "⚡ fast_mode=**on**(来源 localconfig)· goal/review 各留单路合并评审 · blueprint 评审跳"
+    elif cfg_fast:
+        fast_note = "⚡ fast_mode=**off**(localconfig 为 true 但被 yolo 覆盖 · 无人值守的安全网 = 全量评审)"
+    else:
+        fast_note = "⚡ fast_mode=**off**(localconfig 未开 · 全量评审)"
+
     wt_note = ""
     if args.worktree_mode == "off":
         wt_note = "(worktree_mode=off · 在当前 tree 直接工作)"
@@ -2115,6 +2127,7 @@ def _init_feature_next_brief(args, initial_stage: str) -> str:
     return f"""## init-feature 完成 · 下一步
 
 {wt_note}
+{fast_note}
 
 state.json 已落在:`{Path(args.feature).resolve()}/state.json`
 {pre_stage_action}
@@ -2247,56 +2260,43 @@ def cmd_reset_prev(args: argparse.Namespace) -> None:
     })
 
 
-def _read_id_strategy(start: Path) -> str:
-    """读项目根 `.teamwork_localconfig.json` 的 `id_strategy`(v8.79)。
+def _load_localconfig(start):
+    """localconfig 解析(单源 = _v8_engine.load_localconfig · 跨 worktree 边界)· 失败返 None。"""
+    try:
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        from _v8_engine import load_localconfig  # type: ignore
+    except ImportError:
+        return None
+    return load_localconfig(start)
 
-    从 `start` 向上逐级找 `.teamwork_localconfig.json`(到 `.git` 项目边界为止)·
-    命中且值合法则用之 · 否则用默认。
-    - 默认 = `utc-yymmddhhmmss`(v8.79 起 · 治本分布式 `max+1` 撞号 · 详 docs/conventions.md §1)。
-    - opt-out = `sequential`(旧顺序号 `max+1` · 单 clone 项目可保留好念的短序号)。
+
+def _read_id_strategy(start: Path) -> str:
+    """读 localconfig `id_strategy`(v8.79)。
+
+    - 默认 = `utc-yymmddhhmmss`(v8.79 起 · 治本分布式 `max+1` 撞号 · 详 docs/conventions.md §1)
+    - opt-out = `sequential`(旧顺序号 `max+1` · 单 clone 项目可保留好念的短序号)
     """
     DEFAULT = "utc-yymmddhhmmss"
     VALID = {"sequential", "utc-yymmddhhmmss"}
-    try:
-        node = start.resolve()
-    except OSError:
+    cfg = _load_localconfig(start)
+    if not isinstance(cfg, dict):
         return DEFAULT
-    for d in [node, *node.parents]:
-        cfg = d / ".teamwork_localconfig.json"
-        if cfg.exists():
-            try:
-                strat = json.loads(cfg.read_text(encoding="utf-8")).get("id_strategy")
-            except (OSError, json.JSONDecodeError):
-                return DEFAULT
-            return strat if strat in VALID else DEFAULT
-        if (d / ".git").exists():
-            break  # 到项目边界仍无配置 → 默认
-    return DEFAULT
+    strat = cfg.get("id_strategy")
+    return strat if strat in VALID else DEFAULT
 
 
 def _read_fast_mode(start) -> bool:
-    """v8.260:读项目根 `.teamwork_localconfig.json` 的 `fast_mode`(默认 **False** · 显式 true 才开)。
+    """读 localconfig `fast_mode`(默认 **False** · 显式 true 才开)。
 
-    fast mode = 去掉所有评审环节(goal 冷审 / blueprint 评审 / 整个 review stage)· 保留:
-    测试硬门 · 用户暂停点(PRD 确认 / DB 确认 / pm_acceptance / ship1)· worktree 纪律。
-    🔴 与 yolo 互斥(init-feature 拦)。向上找 config 到 .git 边界 · 读失败 → False(安全默认)。
+    fast mode = 评审收敛为两端单路(goal 合并冷审 + review 合并评审 · blueprint 评审去)·
+    保留:测试硬门 · 用户暂停点 · worktree 纪律。🔴 yolo 忽略 fast(v8.262)。
+
+    🔴 v8.294:改走跨 worktree 边界的解析器 —— 原实现遇 worktree 的 `.git` 文件即停,
+    而 localconfig 不入 git 只在主工作树,导致 fast_mode 自 v8.260 起在默认 worktree
+    模式下**从未生效过**(case 实证:配置 true · state.json 无该键 · 按全量 roster 跑)。
     """
-    try:
-        node = Path(start).resolve()
-    except OSError:
-        return False
-    for _ in range(24):
-        cfg = node / ".teamwork_localconfig.json"
-        if cfg.is_file():
-            try:
-                import json as _json
-                return _json.loads(cfg.read_text(encoding="utf-8")).get("fast_mode") is True
-            except (OSError, ValueError):
-                return False
-        if (node / ".git").exists() or node.parent == node:
-            return False
-        node = node.parent
-    return False
+    cfg = _load_localconfig(start)
+    return isinstance(cfg, dict) and cfg.get("fast_mode") is True
 
 
 def _detect_id_collision(feature_dir: Path, feature_id: str) -> "dict | None":

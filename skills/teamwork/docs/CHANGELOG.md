@@ -4,6 +4,99 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.294 · 复盘驱动:localconfig 在 worktree 里读不到(真 bug)· rival 设计强制 · TC 职责边界
+
+> 来源:matrixpower SVC-PLATFORM-F260726(三级算力体系 + 锚定链定价 · 计费热路径 + 破坏性迁移)
+> 的评审耗时复盘。逐条对着现行代码核过 —— 其中 R4(external 门禁词汇表)**已由 v8.291+293 修掉**
+> (case 跑的是 v8.287.1),R5 是反面确认(5 条 high 全实锤 · 不因耗时降档)。
+
+### 一、🔴 R3 是真 bug,且比复盘诊断的宽 5 倍
+
+复盘报「fast_mode 静默失效,疑似 init-feature 快照链路问题」。实际根因更深:
+
+`.teamwork_localconfig.json` 是**本地配置、不入 git**(bootstrap 自动 gitignore),因此**只存在于主工作树**。
+而**五份独立实现**都是「从 feature_dir 向上找 · 遇 `.git` 停」—— linked worktree 的根有 `.git`
+(**文件**形式)却没有配置 → 全部静默回退默认值。**teamwork 默认 `worktree: auto`**,
+等于这五项配置在真实 feature 上**从来没生效过**:
+
+| 读取者 | 配置项 | 起于 |
+|---|---|---|
+| `state.py _read_fast_mode` | `fast_mode` | v8.260 |
+| `state.py _read_id_strategy` | `id_strategy` | v8.79 |
+| `_v8_engine._idle_threshold_minutes` | `idle_threshold_minutes` | v8.276 |
+| `_v8_engine._localconfig_max_review_rounds` | `max_review_rounds` | — |
+| `_v8_ship._read_archive_on_ship` | `archive_on_ship` | v8.82 |
+
+讽刺的是 `state.py` 里另有一段**正确**实现(`git worktree list --porcelain` 取主树再读 config)——
+代码自己知道该怎么做,那五处没用它。**不是漂移,是五份副本生下来就都是错的。**
+
+**修**:抽 `_v8_engine.load_localconfig()` 唯一解析器 —— 遇 `.git` **目录**才停(主仓根),
+遇 `.git` **文件**(linked worktree)就解析 gitdir **跳到主工作树继续找**。纯文本解析不起 subprocess
+(git 卡了不该让配置读取跟着不可用)。五处调用点全换,并加门禁锁「只准剩一份实现」。
+
+**可见性**(复盘第二诉求 —— 静默回退是双输:用户既没拿到速度、也不知道为什么慢):
+init-feature kickoff 回显三态且各自说明来源 —— `on(来源 localconfig)` /
+`off(localconfig 为 true 但被 yolo 覆盖)` / `off(localconfig 未开)`。
+
+### 二、rival 设计强制(复盘 §二 · 本轮最高价值的沉淀)
+
+复盘问「为什么没先想到把标记打在 accounts 上」——「内部运营账户」被设计成 singleton 指针表 +
+独立审计表(2 张新表),用户一句话 → 6 新表变 4 新表 + 2 列。
+
+它自己诊断到了根因:**简洁性 checklist 是验证式的**(作者给的理由成立吗),四问确实跑了,
+但**参照物由作者的叙事给定**(「能否并入 `monetization_config`」—— 一个冻结面,当然不能),
+**没人问「这个设定的自然归属实体是谁」**。盲区只有**生成式**才破。
+
+落 Architect 简洁性 lens + **blueprint 运行时 brief**(只改 stage doc 到不了 AI):
+评审**新增结构**(新表/新模块/新抽象/新服务)必须**自己先生成 ≥1 个替代形态**
+(并入宿主实体加列 / 现算不存 / 复用既有 / 根本不做)再裁决 ——
+🔴 **「赢了作者列举的被否方案」不构成通过条件**。附:「全局唯一 / singleton 语义」**不等于**需要单独一张表。
+
+### 三、TC 的职责边界(治 R1 的一半)· 不合并 TC/TECH
+
+复盘算出双文档同步吃掉 blueprint **~35% 轮次 / ~25% token**,提议合并两文档。核过之后不合并 ——
+拆开看同步的**内容**:表数 27→33→31、错误码命名回填、过期注、存储改选连锁,而
+**TC 模板里根本没有表数/表清单/存储断言这些槽位**,是起草时自己加进去的。
+即:**一半是 TC 越界**(划界直接**消除**),一半是真耦合(合并只是把跨 agent 往返变成同 agent 内往返)。
+合并会让越界变得「合法」,把消除降级成缓解;而 `verify-ac.py` 这道 AC→测试的唯一机器门锚在
+TC frontmatter,合并要重做 schema。
+
+**新增 `templates/tc.md § TC 的职责边界`**(格式单源 · blueprint ④ / qa.md / rd.md 指过来):
+- **telos**:把每条 AC 变成可执行、可判定的验收判据 —— 回答「怎么证明它满足了」,不回答「怎么做出来」
+- 🔴 **一句话判据:换实现就要改的内容,不属于 TC** —— 假设 TECH 换实现方式,这条用例还成立吗?
+  还成立 = 验行为归 TC;要跟着改 = 持实现形态归 TECH
+- **关注**:AC↔用例绑定 / 可观测行为 / **边界与异常路径**(QA 核心价值)/ 测试层级与优先级
+- **不关注**:表结构与表数 / 模块划分与选型 / 存储形态 / 性能实现手段(但性能**指标**若是 AC 则必须验)
+- 🔴 **契约值的分寸**:断言到的错误码/状态码/字段名**必须写具体**(不具体就不叫断言);
+  但**维护一份清单**(全部错误码、新表数量)= 复述 TECH,必删。**TC 从不需要知道有几张表。**
+
+### 四、角色的两种用法(ROLES.md 新增判据)· 治 R1 的另一半
+
+**同一个词在起草期和评审期不是一回事**:
+
+| | 起草期 | 评审期 |
+|---|---|---|
+| 角色是 | **分工标签**(同一个 AI 切帽子) | **独立采样点**(不同上下文 / 不同模型) |
+| 能否合并 | 🟢 能 —— 省跨 agent 冷启动往返 | 🔴 不能 —— 多视角退化成「一个视角 × N 份」 |
+| 依据 | 产物有机器门兜底(verify-ac / build / 测试硬门) | v8.155 实证:in-context architect 在 goal 只产鼓掌 · 被冷审的 external/PL 反超 |
+
+落地:blueprint/dev 的 **RD 与 QA 起草期合一**;blueprint ③ 改为
+**「起草期并行 · 收敛期归一」** —— 复核后的修订由**同一 agent 顺序改两档**,
+纯机械同步项**主编排直接 Edit 不派 agent**。评审席位照 roster 隔离冷审,不受影响。
+
+### 五、R2 投机窗准入
+
+投机窗原有**时点**纪律(只在终确认后)但无**开放决策数**条件。补:
+§待决策项里**影响表结构/模块形态**的开放项 **≤1** 才投机;>1 或含结构分叉 → 等终确认再起草。
+why:「终确认改:默 ≈ 全默」的统计前提**只在单决策上成立** —— 多个结构性开放项时草稿必须押某一组合,
+用户改选任意一项都触发差量重写(实证:两项结构性改选 → 一整轮重写 · 该轮 token ~1.3× 初稿 = **投机变净亏**)。
+
+### 测试
+
+970 → **988**。
+
+---
+
 ## v8.293 · 全库冗余清理:死岛 · 退役残留 · 敏捷需求 legacy 整条删除(净 −1600 行)
 
 > 用户:**逐个文件整体 review 下,看下哪些冗余需要清理或者删掉。**
@@ -134,25 +227,3 @@
 
 ### 验证
 - 新增 test_flow_doc_slimming_v8290(9:无超长行 / 🔴 密度 / 命令清单是指针非副本 / routing 级命令仍在 / 底线全在 / 断链已修 / role telos 底线+自决 / **project-specs 清单跨文件同步守护**〔SKILL 路由表 ↔ conventions §13 · 把 v8.259 的人工七点清单换成机器检查〕)· pytest **1041 passed**。
-
-## v8.289 · REVIEW-<role>.md 退役 · 改为 REVIEW.md 内每角色 coverage 申报
-
-> 用户:重新 review 流程,看哪些过程文档没必要写。用同一把尺子(**有没有真读者**)过完全部产物 —— 其余都有真消费方(PRD/TC/TECH 被 dev 照做 + verify-ac 机器读 · REVIEW.md findings 台账 70 处消费 · TEST-REPORT 是 pm_acceptance 逐条核对 AC 的实证来源 · verdicts 被门禁解析 · screenshots 是用户验收证据),**只有 `REVIEW-<role>.md` 是纯仪式**。(`docs/audit/<id>.md` 用户指示暂不动。)
-
-### 四条证据
-1. 门禁 `_evidence_review_role_artifacts` 只查**文件存在**(`.exists()`)· 不解析任何内容;
-2. 角色归属**早已在 REVIEW.md** —— findings 台账每条带 `source: arch|qa|external`;
-3. **实测就是写两遍**:aifriend `REVIEW-arch 37 行 / REVIEW.md 38 行` · aon-core `55 / 63`;
-4. 内容形态是**确认性叙述**(「实现对齐 TECH」「架构一致」「无回归风险」…),不是 finding。
-
-### 但保住了它的真价值
-光秃秃 `APPROVE` + 零 finding,与「根本没评审」在产物上**无法区分** —— 这个防橡皮图章的性质不能丢。改用 external 早在用的 **coverage 申报**形式:REVIEW.md 内每个 roster 主审角色**一行**申报查过的方向(有问题列 finding · 无则「查过无发现」)。成本从 40 行降到 1 行,性质不变。
-
-### 改动
-- 门禁换代:`review_role_artifacts`(文件存在)→ `review_role_coverage`(REVIEW.md 内申报)· **roster-aware 语义原样保留**(移出的角色不查)· legacy state 无 roster 时跳过(不对存量加严)。
-- REVIEW.md frontmatter schema 加 `coverage:` 段示例;review-stage ②规则 8 + Output Contract 改写。
-- 全链清理:review brief 结果段与 complete 命令 `--artifacts REVIEW.md`(去 REVIEW-arch)· engine 产物模板表 / 归档文件名表 / complete 命令模板 / roster 注释 · fast 与 Bug brief 措辞 · SKILL fast 节 · templates/README。
-- 常量正名 `_REVIEW_ROLE_ARTIFACTS`(role→文件名映射)→ `_REVIEW_MAIN_ROLES`(角色集)。
-
-### 验证
-- v8.241 的 4 条 roster-aware 测试改写为新机制 6 条(roster 移出不查 / 缺申报 FAIL / 申报形式宽松 / legacy 跳过 / 空 roster / **Bug 流 external-only 无需主审申报**)· pytest **1028 passed**。

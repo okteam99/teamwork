@@ -473,6 +473,77 @@ def close_open_pause(state: dict) -> None:
 DEFAULT_IDLE_THRESHOLD_MINUTES = 30
 
 
+# ─── localconfig 单一解析器(v8.294 · 治本「worktree 里读不到本地配置」)──────────
+#
+# 🔴 实测 bug:`.teamwork_localconfig.json` 是**本地配置、不入 git**(bootstrap 自动 gitignore),
+# 因此**只存在于主工作树**。而原先五份独立实现(state.py `_read_id_strategy` / `_read_fast_mode`,
+# 本文件 `_idle_threshold_minutes` / `_localconfig_max_review_rounds`,_v8_ship.py
+# `_read_archive_on_ship`)都是「从 feature_dir 向上找 · 遇 `.git` 停」——
+# linked worktree 的根有 `.git`(**文件**形式)却没有配置 → 全部静默回退默认值。
+# teamwork 默认 `worktree: auto`,等于这五项配置在真实 feature 上从来没生效过
+# (case 实证:localconfig `fast_mode: true` · init 后 state.json 无该键 · 按全量 roster 跑)。
+#
+# 终止规则(修正后):命中配置 → 用它;`.git` 是**目录** → 主仓根,确实没配置 → 停;
+# `.git` 是**文件** → linked worktree,解析 gitdir 拿到主工作树,**跳过去继续找**。
+_LOCALCONFIG_NAME = ".teamwork_localconfig.json"
+
+
+def _main_worktree_root(dotgit: Path):
+    """linked worktree 的 `.git` 文件 → 主工作树根 · 解析不出返 None。
+
+    内容形如 `gitdir: /abs/main/.git/worktrees/<name>` —— 主仓根 = 该路径里 `.git` 的父目录。
+    纯文本解析(不起 subprocess):git 失败/超时不该让配置读取跟着不可用。
+    """
+    try:
+        text = dotgit.read_text(encoding="utf-8", errors="replace").strip()
+    except OSError:
+        return None
+    if not text.startswith("gitdir:"):
+        return None
+    try:
+        gitdir = Path(text.split(":", 1)[1].strip())
+    except (IndexError, ValueError):
+        return None
+    for p in [gitdir, *gitdir.parents]:
+        if p.name == ".git":
+            return p.parent
+    return None
+
+
+def load_localconfig(start):
+    """从 `start` 向上解析 `.teamwork_localconfig.json` · 🔴 跨 worktree 边界续找主工作树。
+
+    返回 dict(命中且可解析)或 None。调用方各自做取值与合法性校验。
+    """
+    try:
+        node = Path(start).resolve()
+    except (TypeError, OSError):
+        return None
+    seen = set()
+    for _ in range(4):                      # 最多跨 4 层(实际 worktree 嵌套 ≤1)
+        if node in seen:
+            return None
+        seen.add(node)
+        hop = None
+        for d in [node, *node.parents]:
+            cfg = d / _LOCALCONFIG_NAME
+            if cfg.is_file():
+                try:
+                    return json.loads(cfg.read_text(encoding="utf-8"))
+                except (OSError, ValueError):
+                    return None
+            dotgit = d / ".git"
+            if dotgit.is_dir():
+                return None                 # 主仓根 · 本级已查过 → 确实没有
+            if dotgit.is_file():            # linked worktree → 跳主工作树继续
+                hop = _main_worktree_root(dotgit)
+                break
+        if hop is None:
+            return None
+        node = hop
+    return None
+
+
 def _parse_iso_flexible(s):
     """宽松解析 ISO 时间戳 → aware datetime(UTC)· 失败返 None。
 
@@ -489,23 +560,17 @@ def _parse_iso_flexible(s):
 
 
 def _idle_threshold_minutes(feature_dir) -> int:
-    """localconfig `idle_threshold_minutes`(默认 30 · 向上找 .git 边界)· 非法值→默认。"""
-    try:
-        node = Path(feature_dir).resolve()
-    except (TypeError, OSError):
+    """localconfig `idle_threshold_minutes`(默认 30)· 活动挖掘的空闲阈值。
+
+    v8.294:改走 `load_localconfig`(跨 worktree 边界)· 原实现遇 worktree 的 `.git` 文件即停,
+    在默认 worktree 模式下永远读不到主工作树的配置。非法值 → 默认。
+    """
+    cfg = load_localconfig(feature_dir)
+    if not isinstance(cfg, dict):
         return DEFAULT_IDLE_THRESHOLD_MINUTES
-    for d in [node, *node.parents]:
-        cfg = d / ".teamwork_localconfig.json"
-        if cfg.exists():
-            try:
-                v = json.loads(cfg.read_text(encoding="utf-8")).get("idle_threshold_minutes")
-            except (OSError, ValueError):
-                return DEFAULT_IDLE_THRESHOLD_MINUTES
-            if isinstance(v, (int, float)) and not isinstance(v, bool) and int(v) >= 1:
-                return int(v)
-            return DEFAULT_IDLE_THRESHOLD_MINUTES
-        if (d / ".git").exists():
-            break
+    v = cfg.get("idle_threshold_minutes")
+    if isinstance(v, (int, float)) and not isinstance(v, bool) and int(v) >= 1:
+        return int(v)
     return DEFAULT_IDLE_THRESHOLD_MINUTES
 
 
@@ -2267,27 +2332,18 @@ FAST_MAX_REVIEW_ROUNDS = 2  # v8.267 fast 模式评审预算封顶(localconfig �
 _FINDING_SEVERITY_ORDER = ("BLOCKER", "MAJOR", "MINOR", "NIT")
 
 
-def _localconfig_max_review_rounds(feature_dir: Path) -> int:
-    """读 localconfig `max_review_rounds`(默认 3)· 向上找到 .git 边界。
+def _localconfig_max_review_rounds(feature_dir) -> int:
+    """localconfig `max_review_rounds`(默认 3)· review 轮次预算。
 
-    非法值(非正整数)→ 默认。与 localconfig 读取同遍历口径(向上找到 .git 边界)。
+    v8.294:改走 `load_localconfig`(跨 worktree 边界)· 原实现遇 worktree 的 `.git` 文件即停,
+    在默认 worktree 模式下永远读不到主工作树的配置。非法值 → 默认。
     """
-    try:
-        node = Path(feature_dir).resolve()
-    except (TypeError, OSError):
+    cfg = load_localconfig(feature_dir)
+    if not isinstance(cfg, dict):
         return DEFAULT_MAX_REVIEW_ROUNDS
-    for d in [node, *node.parents]:
-        cfg = d / ".teamwork_localconfig.json"
-        if cfg.exists():
-            try:
-                v = json.loads(cfg.read_text(encoding="utf-8")).get("max_review_rounds")
-            except (OSError, ValueError):
-                return DEFAULT_MAX_REVIEW_ROUNDS
-            if isinstance(v, (int, float)) and not isinstance(v, bool) and int(v) >= 1:
-                return int(v)
-            return DEFAULT_MAX_REVIEW_ROUNDS
-        if (d / ".git").exists():
-            break
+    v = cfg.get("max_review_rounds")
+    if isinstance(v, (int, float)) and not isinstance(v, bool) and int(v) >= 1:
+        return int(v)
     return DEFAULT_MAX_REVIEW_ROUNDS
 
 

@@ -23,7 +23,7 @@
 9. 🎚️ **TECH 起草与评审必用主模型 / 高级模型**(错开时也只在高档之间错 · **不许降到验证档**)(why:TECH 是全局质量上限 —— 方案错了下游全错 · 改 TECH 比改代码便宜但前提是方案本身出自够强的判断;其余环节〔TC 对照 / 测试执行 / 机械外化〕该降档就降,主对话编排并行)。
 10. **TECH 写「方案」不写函数实现**(选型 / 接口 / 数据结构;代码细节归 dev)· **NEEDS_REVISION 主对话内闭环修订**(不打扰用户)(why:阶段职责边界 + R5/fix-retry 规范)。
 
-> 🔴 **拦过度设计的最佳时机在这里**(改 TECH 比改代码便宜):Architect 必过**简洁性 counter-lens** · external finding 别盲采(天然偏「加校验/加安全/加兜底」)· 🛡️ **安全加固/兜底降级 finding 必过 ROI**(v8.279 · 最难驳故最该审)—— **判据全文单源 [roles/architect.md](../roles/architect.md) Telos**(含实证 SDK-F038)。
+> 🔴 **拦过度设计的最佳时机在这里**(改 TECH 比改代码便宜):Architect 必过**简洁性 counter-lens** · external finding 别盲采(天然偏「加校验/加安全/加兜底」)· 🛡️ **安全加固/兜底降级 finding 必过 ROI**(v8.279 · 最难驳故最该审)—— **判据全文单源 [roles/architect.md](../roles/architect.md) Telos**(含实证 SDK-F038)· 🆕 **rival 设计强制**(v8.294):评审新增结构必须自己先生成 ≥1 个替代形态再裁决 —— 「赢了作者列举的被否方案」不算通过。
 > 🔴 **变更最小化**(v8.255 · 四问清单见 `templates/tech.md §变更表清单`):每项 DB 变更必带「**解决什么问题 + 为何非更简方案不可**」—— 写不出 = 该变更大概率不需要。
 
 ---
@@ -32,7 +32,7 @@
 
 | 手段 | 何时值得 |
 |---|---|
-| ⚡ **TC ∥ TECH 并行同发**(subagent 各一)| **推荐默认**(v8.256)—— 两者相互独立(TC 锚 PRD.AC · TECH 锚设计方案)· 完成后互查 `tests[].covers_ac` ↔ TECH §测试策略;goal 投机窗已产 TECH 草稿则接续 |
+| ⚡ **起草期并行 · 收敛期归一**(v8.294)| **推荐默认** —— **起草**:TC ∥ TECH 各派一 subagent(两者相互独立:TC 锚 PRD.AC · TECH 锚设计方案;goal 投机窗已产 TECH 草稿则接续)· 🔴 **收敛**:复核后的修订由**同一个 agent 顺序改两档**,不再跨 agent 往返;纯机械同步项(错误码回填 / 过期注删除)**主编排直接 Edit 落盘 · 不派 agent** |
 | 第三视角冷审(roster 含 external 时)| 跑 `state.py external-review --stage blueprint` 拿 subagent 配方 → 起**错开模型** subagent(≠会话主模型)· 产物落 `external-cross-review/*.md`(`review_via: subagent` + 照实申报 `review_model` + coverage)· roster 无 external → 整段 skip |
 | QA 独立 TC Review | 默认并入外审「可测试」方向;测试面大的复杂 Feature `change-review-roles` 加回独立跑 |
 | 读 ARCHITECTURE / KNOWLEDGE / standards 分册 | 涉架构影响、已知踩坑、测试分层决策时 |
@@ -43,7 +43,7 @@
 
 **产物 schema 以模板为单源**(v8.284:原压缩重述已删 —— 它曾与 §②给出**互相矛盾**的两份 TECH 段落清单,是「指针 + 复制被指向内容」的漂移实例):
 
-- `TC.md` → `{SKILL_ROOT}/templates/tc.md`
+- `TC.md` → `{SKILL_ROOT}/templates/tc.md`(🔴 含 **§TC 的职责边界** —— 判据「**换实现就要改的内容不属于 TC**」· 表数/表清单/存储形态归 TECH · TC 只验可观测行为)
 - `TECH.md` → `{SKILL_ROOT}/templates/tech.md`
 - `TECH-REVIEW.md` → 无独立模板 · frontmatter `reviewers`(复数 · 含 roster 全角色)+ `verdict` · 按角色 finding 分段
 - `external-cross-review/*.md` → 跑 `state.py external-review --feature ... --stage blueprint` 自动落(**不要手写** · 含 `coverage: [...]`)

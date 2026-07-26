@@ -34,6 +34,7 @@ from typing import Any, Optional
 from _v8_engine import (
     emit_json,
     git_head,
+    load_localconfig,
     load_state,
     now_iso,
     require_user_confirmed,
@@ -1347,28 +1348,18 @@ def _ship_finalize_fail(step: str, error: str, hint: str,
 
 
 def _read_archive_on_ship(start: str) -> bool:
-    """v8.82:读项目根 .teamwork_localconfig.json 的 archive_on_ship(默认 true)。
+    """localconfig `archive_on_ship`(默认 true)。
 
     true(默认):ship2 收尾 MR 把交付 feature 目录 zip 进 features/_archive/<id>.zip ·
                 原目录从 merge_target 删(防 AI 检索过时 feature 信息 · 代码是唯一真相)。
     false:退回 v8.80(收尾 MR 只同步终态 state.json · 不归档 · feature 目录留存)。
-    从 start 向上找 · 到 .git 边界止(同 state.py._read_id_strategy 模式)。
+    v8.294:改走 `load_localconfig`(跨 worktree 边界 · 原实现在 worktree 里读不到主树配置)。
     """
-    try:
-        node = Path(start).resolve()
-    except OSError:
+    cfg = load_localconfig(start)
+    if not isinstance(cfg, dict):
         return True
-    for d in [node, *node.parents]:
-        cfg = d / ".teamwork_localconfig.json"
-        if cfg.exists():
-            try:
-                val = json.loads(cfg.read_text(encoding="utf-8")).get("archive_on_ship")
-            except (OSError, json.JSONDecodeError):
-                return True
-            return bool(val) if isinstance(val, bool) else True
-        if (d / ".git").exists():
-            break
-    return True
+    val = cfg.get("archive_on_ship")
+    return bool(val) if isinstance(val, bool) else True
 
 
 def _archive_repo_paths(repo_cwd: str, artifact_root: Path,
