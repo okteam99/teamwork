@@ -977,8 +977,6 @@ STAGE_TEMPLATES: dict[str, dict] = {
     "review": {
         "templates": {
             "REVIEW.md": None,
-            "REVIEW-arch.md": None,
-            "REVIEW-qa.md": None,
         },
         "validators": {},
     },
@@ -1143,8 +1141,6 @@ def _render_required_paths(feature_dir: Path, stage_name: str) -> str:
         ("TECH-REVIEW.md", "Tech Review"),
         ("UI.md", "UI 设计"),
         ("REVIEW.md", "代码评审总结"),
-        ("REVIEW-arch.md", "架构师评审"),
-        ("REVIEW-qa.md", "QA 评审"),
         ("TEST-REPORT.md", "测试报告"),
         ("BROWSER-TEST-REPORT.md", "浏览器测试报告"),
     ]:
@@ -1318,7 +1314,7 @@ DEFAULT_REVIEW_ROLES: dict[tuple[str, str], list[str]] = {
     ("Feature", "ui_design"): ["designer", "pm"],
     ("Feature", "panorama_sync"): ["pm", "architect"],
     ("Feature", "blueprint"): ["architect", "external"],  # v8.244:3→2 —— Architect 主审(TECH-REVIEW · 简洁性 counter-lens)+ 覆盖方向制外审(QA 可测试视角并入 · 物化门 cross_review_coverage);复杂 feature 加回独立 qa
-    ("Feature", "review"): ["architect", "external"],  # v8.244:3→2 —— Architect 主审(REVIEW-arch · 实现↔设计一致性)+ 覆盖方向制外审(QA 测试真实性视角并入);review 从严:外审必覆盖清单比 blueprint 重一档
+    ("Feature", "review"): ["architect", "external"],  # v8.244:3→2 —— Architect 主审(实现↔设计一致性 · v8.289 判断落 REVIEW.md 不再独立文件)+ 覆盖方向制外审(QA 测试真实性视角并入);review 从严:外审必覆盖清单比 blueprint 重一档
     ("Feature", "test"): ["qa"],
     ("Feature", "browser_e2e"): ["qa", "designer"],
     ("Feature", "pm_acceptance"): ["pm"],
@@ -2356,7 +2352,7 @@ _STAGE_FIX_RETRY_CONFIG = {
         "round_init_fields": {"verdict": None},
         "complete_command_template": (
             "state.py review-complete --feature {feature} --auto-commit <REVIEW.md commit> "
-            "--artifacts REVIEW.md,REVIEW-arch.md,REVIEW-qa.md "
+            "--artifacts REVIEW.md "
             "--verdict {{APPROVE|NEEDS_REVISION}}"
         ),
         "retry_action_hint": (

@@ -27,7 +27,7 @@
 8. 🛡️ **复发防御沉淀(v8.278 · shift-left 喂料)**:review 收敛(APPROVE)后 · 确认 findings 里**可预防的复发类**(下个 feature RD 写时能避开的 · 如 stale/timeout/fail-open)→ 沉淀进 `project-specs/KNOWLEDGE.md § 复发防御清单`(同类第 2 次被抓即入 · **已在清单还复发 = 规避法不够硬 · 强化它**)。判据:findings 82% 真实且集中 code review · 砍轮数=漏 bug · 真杠杆=预防掉的 finding 永不需要收敛(dev 起草必读该清单)。**判断型 · 非机械门**(不是每条都提升 · 一次性/纯涌现的不入)。
    📊 **同步记录起草可预防性(v8.281)**:review 收敛后跑 `state.py review-preventability --stage review --preventable N --total M --missing '缺的起草考虑点(分号分隔·全 emergent 留空)'` —— 逐条判 findings 起草时本可预防否(本应被 TECH 简洁性自查/复发清单/PL六问挡掉)· 缺哪条考虑点。ship 聚合进台账「🛡️ 起草可预防性」列 · 年检据此判起草考虑点缺不缺(反复缺同一条 = 真缺口补框架 · 全 emergent = 别动)。非门禁 · 纯采集。goal/blueprint 冷审同理(`--stage goal|blueprint`)。
 9. 🔴 **审核员只审内容 · 不重复跑测试脚本**(v8.273):评审 = **静态审读**(diff / 代码 / 测试代码 / dev·test 实跑证据日志)—— 测试执行归 dev(TDD)与 test stage(硬门 exit 0/差分 · 证据已落盘);「测试真实性」= **读**测试代码与实跑证据判断(真测行为?mock 作弊?边界缺?)· 不是自己再跑一遍;疑点开 finding 由流水线实跑验证(评审重跑 = 双倍时延零新增证据 · Architect/QA/external/验证轮全适用)。
-8. **REVIEW.md 是汇总不是替代**:各视角产物独立留盘 —— `REVIEW-<role>.md` 按 roster(`stage_review_roles.review`)各一份 · 缺 roster 内角色的产物 → complete FAIL(roster 移出的角色不查 · 机器校验 roster-aware)。
+8. **每个 roster 主审角色在 REVIEW.md 内一行 coverage 申报**(查过哪些方向 · 有问题列 finding · 无则「查过无发现」)—— 缺申报 → complete FAIL(roster 移出的角色不查 · 机器校验 roster-aware)(why:防橡皮图章 —— 光秃秃 APPROVE + 零 finding 与「根本没评审」在产物上无法区分;v8.289 取代 `REVIEW-<role>.md` 独立文件:门禁只查它存在不查内容、角色归属早在 `findings[].source`、实测两文件体量几乎相同 = 同一批判断写两遍)。
 
 ---
 
@@ -57,6 +57,9 @@ frontmatter:
 ---
 reviewers: [architect, external]   # = state.stage_review_roles.review(Feature 默认两路 v8.244 · Bug 默认单路 [external] v8.270 · qa 加回时列入)
 verdict: NEEDS_REVISION | APPROVE
+coverage:                          # 🔴 v8.289 每个 roster 主审角色一行(external 的在 external-cross-review/*.md)
+  architect: "实现↔设计一致性 / 简洁性 counter-lens —— 见 F1,F3;分层与契约查过无发现"
+  qa: "测试真实性与覆盖 / 边界回归 —— 查过无发现"
 findings:
   - {id: F1, severity: MAJOR, status: open, title: "并发写入丢更新(store.py:88 无锁)", source: arch}
   - {id: F2, severity: MINOR, status: rejected, title: "…", source: qa}
@@ -68,8 +71,10 @@ findings:
 - body:§finding 汇总(逐条裁决依据)/ §修复建议 / §verdict。
 - review-complete 快照合并进 `state.stage_contracts.review.findings_ledger[]`(跨轮单源 · 验证轮 brief 自动注入)。
 
-### `REVIEW-arch.md` / `REVIEW-qa.md` / `external-cross-review/*.md`
-各视角独立产物(v8.244 默认产 REVIEW-arch + external 冷审〔含 coverage 申报〕· REVIEW-qa 为 roster 加回项;external 由 `state.py external-review` 自动落 · 不手写;验证轮增量 = `review-<model>-fixverify.md`)。
+### `external-cross-review/*.md`
+第三视角冷审产物(roster 含 external 时 · 由 `state.py external-review` **自动落 · 不手写** · 含 `coverage: [...]` 申报 · 验证轮增量 = `review-<model>-fixverify.md`)。
+
+> 🔴 **v8.289:`REVIEW-arch.md` / `REVIEW-qa.md` 不再产出** —— 主审路的判断全部落进 REVIEW.md(findings 台账带 `source` 角色归属 + 每角色一行 coverage 申报)。原独立文件门禁只查存在不查内容,与 REVIEW.md 是同一批判断写两遍(实测 37/38 · 55/63 行)。
 
 ### fix-retry 循环(stage 内 · 命令契约)
 ```

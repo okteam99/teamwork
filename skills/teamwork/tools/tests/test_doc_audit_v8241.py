@@ -16,35 +16,59 @@ def _args(feature_dir: str) -> argparse.Namespace:
     return argparse.Namespace(feature=feature_dir)
 
 
-class TestReviewRoleArtifactsRosterAware(unittest.TestCase):
-    def test_roster_without_arch_skips_arch_artifact(self):
+class TestReviewRoleCoverageRosterAware(unittest.TestCase):
+    """v8.241 roster-aware 语义 · v8.289 机制换代:REVIEW-<role>.md 文件存在 → REVIEW.md coverage 申报。
+
+    换代理由:旧门禁只查文件存在不解析内容,而角色归属早在 findings[].source;
+    实测 REVIEW-arch 与 REVIEW.md 体量几乎相同 = 同一批判断写两遍。
+    保住的性质不变 —— 「我确实看过、看了这些」的物证(防橡皮图章)+ roster 移出不查。
+    """
+
+    @staticmethod
+    def _review(d, body):
+        (Path(d) / "REVIEW.md").write_text(body, encoding="utf-8")
+
+    def test_roster_without_arch_skips_arch(self):
         with tempfile.TemporaryDirectory() as d:
-            (Path(d) / "REVIEW-qa.md").write_text("# qa", encoding="utf-8")
+            self._review(d, "coverage: [qa 测试真实性]")
             state = {"stage_review_roles": {"review": ["qa", "external"]}}
-            ok, msg = specs._evidence_review_role_artifacts(state, _args(d))
+            ok, msg = specs._evidence_review_role_coverage(state, _args(d))
             self.assertTrue(ok, msg)
-            self.assertIn("REVIEW-qa.md", msg)
+            self.assertIn("qa", msg)          # 只查 roster 内的主审角色
 
-    def test_roster_role_missing_artifact_fails(self):
+    def test_roster_role_missing_declaration_fails(self):
         with tempfile.TemporaryDirectory() as d:
-            (Path(d) / "REVIEW-qa.md").write_text("# qa", encoding="utf-8")
+            self._review(d, "coverage: [qa 测试真实性]")   # 缺 architect 申报
             state = {"stage_review_roles": {"review": ["architect", "qa"]}}
-            ok, msg = specs._evidence_review_role_artifacts(state, _args(d))
+            ok, msg = specs._evidence_review_role_coverage(state, _args(d))
             self.assertFalse(ok)
-            self.assertIn("REVIEW-arch.md", msg)
+            self.assertIn("architect", msg)
 
-    def test_legacy_state_without_roster_checks_both(self):
+    def test_declaration_accepted_in_line_form(self):
+        """申报形式宽松:`coverage: …architect…` 或 `architect 覆盖/查过/视角:` 都算。"""
         with tempfile.TemporaryDirectory() as d:
-            state = {}  # legacy:无 stage_review_roles → 按旧行为全查
-            ok, msg = specs._evidence_review_role_artifacts(state, _args(d))
-            self.assertFalse(ok)
-            self.assertIn("REVIEW-arch.md", msg)
-            self.assertIn("REVIEW-qa.md", msg)
+            self._review(d, "- architect 覆盖:实现↔设计一致性 · 查过无发现\n- qa 查过:测试真实性")
+            state = {"stage_review_roles": {"review": ["architect", "qa"]}}
+            ok, msg = specs._evidence_review_role_coverage(state, _args(d))
+            self.assertTrue(ok, msg)
+
+    def test_legacy_state_without_roster_skips(self):
+        """legacy state 无 roster → 跳过(不对存量加严 · v8.289 与旧行为的有意差异)。"""
+        with tempfile.TemporaryDirectory() as d:
+            ok, msg = specs._evidence_review_role_coverage({}, _args(d))
+            self.assertTrue(ok, msg)
 
     def test_empty_roster_checks_nothing(self):
         with tempfile.TemporaryDirectory() as d:
             state = {"stage_review_roles": {"review": []}}
-            ok, msg = specs._evidence_review_role_artifacts(state, _args(d))
+            ok, msg = specs._evidence_review_role_coverage(state, _args(d))
+            self.assertTrue(ok, msg)
+
+    def test_external_only_roster_needs_no_main_declaration(self):
+        """Bug 流默认 roster=[external] · 主审路为空 → 无需申报(external 走自己的 coverage 物化门)。"""
+        with tempfile.TemporaryDirectory() as d:
+            state = {"stage_review_roles": {"review": ["external"]}}
+            ok, msg = specs._evidence_review_role_coverage(state, _args(d))
             self.assertTrue(ok, msg)
 
 

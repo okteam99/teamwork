@@ -2392,9 +2392,9 @@ def _review_verify_round_brief(state: dict, rounds: list) -> str:
 ### 完成方式
 ```
 state.py review-complete --feature <path> --auto-commit <hash> \\
-  --artifacts REVIEW.md,REVIEW-arch.md \\
+  --artifacts REVIEW.md \\
   --verdict {{APPROVE|NEEDS_REVISION}}
-# --artifacts 按 roster:v8.244 Feature 默认仅 arch(qa 加回时 + REVIEW-qa.md)· Bug 单路 → REVIEW.md 即可(v8.270)· 移出 roster 的角色产物不查
+# v8.289:REVIEW.md 即可(REVIEW-<role>.md 已退役)· 主审角色的 coverage 申报写在 REVIEW.md 内 · external 产物由 external-review 自动落
 ```
 """
 
@@ -2412,10 +2412,10 @@ def _review_brief(state: dict) -> str:
              "Architect + QA 两帽 · 产 **REVIEW.md 单份**(`reviewers: [fast]` · verdict · findings 机读台账)· "
              "关注点两边都要:①Architect(实现↔设计一致性核对 · 简洁性 counter-lens)②QA(测试真实性与覆盖 · "
              "代码质量盲区〔错误处理/日志/并发〕)· severity 门/验证轮/轮次预算协议照跑 · "
-             "无 REVIEW-arch/REVIEW-qa/external 独立产物 · 🎭 **单路模型错开**(v8.269:该路 ≠ 会话主模型 · 如 fable5 → opus)· 🎯 **评审预算封顶 2 轮**(v8.267 引擎硬拦:"
+             "无第二路独立冷审(external 产物亦不产)· 🎭 **单路模型错开**(v8.269:该路 ≠ 会话主模型 · 如 fable5 → opus)· 🎯 **评审预算封顶 2 轮**(v8.267 引擎硬拦:"
              "超预算未收敛 → open findings 作为决策点升 R5 暂停点抛用户)。\n"
              if state.get("fast_mode") else "")
-    _bug = ("\n🐛 **Bug 流单路评审**(v8.270):roster 默认仅 `[external]` —— 一路**错开模型**隔离冷审(≠会话主模型 · v8.269 单路不变式天然满足)· 覆盖必含 **修复↔diagnose 方案一致性**(Architect 视角并入)+ 外审必覆盖清单照旧 · REVIEW.md 台账/severity/验证轮/预算协议照跑 · REVIEW-arch 不产(roster 无 architect · `change-review-roles` 可加回)。\n"
+    _bug = ("\n🐛 **Bug 流单路评审**(v8.270):roster 默认仅 `[external]` —— 一路**错开模型**隔离冷审(≠会话主模型 · v8.269 单路不变式天然满足)· 覆盖必含 **修复↔diagnose 方案一致性**(Architect 视角并入)+ 外审必覆盖清单照旧 · REVIEW.md 台账/severity/验证轮/预算协议照跑 · 主审路 coverage 申报免(roster 无 architect · `change-review-roles` 可加回)。\n"
             if (state.get("flow_type") == "Bug" and not state.get("fast_mode")) else "")
     return f"""## Review Stage{_fast}{_bug}
 
@@ -2425,7 +2425,7 @@ def _review_brief(state: dict) -> str:
 
 ### 结果(完成判定 · roster-aware)
 - `REVIEW.md`(frontmatter:`reviewers + verdict: APPROVE|NEEDS_REVISION` + `findings` 机读台账)
-- `REVIEW-<role>.md` 按 roster 各一份(v8.244 默认仅 `REVIEW-arch.md` · qa 加回时 + `REVIEW-qa.md` · 移出 roster 不查)
+- 🔴 REVIEW.md 内**每个 roster 主审角色一行 `coverage` 申报**(查过哪些方向 · 有问题列 finding · 无则「查过无发现」)—— v8.289 取代 `REVIEW-<role>.md` 独立文件(同一批判断写两遍)
 - `{{artifact_root}}/external-cross-review/*.md`(roster 含 external 时 · 默认错开模型 subagent 冷审〔≠主会话模型 · v8.268〕· 至少 1 份 · 🔴 含 `coverage: [...]` 申报——必覆盖 测试真实性与覆盖〔测试真跑 = 读实跑证据 · 非自己重跑 · v8.273/覆盖真行为/边界回归〕· 代码质量盲区〔错误处理/日志/并发〕+ AI 自主方向 ≥1〔候选:并发/资源泄漏/脱敏/兼容〕)
 
 ### 怎么做
@@ -2436,9 +2436,9 @@ def _review_brief(state: dict) -> str:
 ### 完成方式
 ```
 state.py review-complete --feature <path> --auto-commit <hash> \
-  --artifacts REVIEW.md,REVIEW-arch.md \
+  --artifacts REVIEW.md \
   --verdict {{APPROVE|NEEDS_REVISION}}
-# --artifacts 按 roster:v8.244 Feature 默认仅 arch(qa 加回时 + REVIEW-qa.md)· Bug 单路 → REVIEW.md 即可(v8.270)· 移出 roster 的角色产物不查
+# v8.289:REVIEW.md 即可(REVIEW-<role>.md 已退役)· 主审角色的 coverage 申报写在 REVIEW.md 内 · external 产物由 external-review 自动落
 ```
 """
 
@@ -2468,31 +2468,42 @@ def _evidence_review_verdict(state: dict, args) -> tuple[bool, str]:
     return True, ""
 
 
-_REVIEW_ROLE_ARTIFACTS = {"architect": "REVIEW-arch.md", "qa": "REVIEW-qa.md"}
+# v8.289:主审路角色集(原为 role→REVIEW-<role>.md 映射 · 独立文件已退役 · 判断落 REVIEW.md)
+_REVIEW_MAIN_ROLES = ("architect", "qa")
 
 
-def _evidence_review_role_artifacts(state: dict, args) -> tuple[bool, str]:
-    """v8.241:REVIEW-arch/REVIEW-qa 按 roster(stage_review_roles.review)校验。
+def _evidence_review_role_coverage(state: dict, args) -> tuple[bool, str]:
+    """v8.289:主审路 coverage 申报(取代 REVIEW-<role>.md 独立文件)。
 
-    治本:v8.216 动态 roster 后 architect/qa 可被合法移出 review roster,
-    而两 artifact 原为静态必查 —— 「角色按 roster 可调」的承诺与门禁互斥。
-    roster 含该角色 → 对应 REVIEW-<role>.md 必须存在;移出则不查。
-    legacy state 无 stage_review_roles → 按旧行为全查(不放松存量)。
+    治本:旧门禁只查 `REVIEW-<role>.md` **文件存在**、不解析内容;而角色归属早已在
+    REVIEW.md `findings[].source`,实测两文件体量几乎相同(37/38 · 55/63)= 同一批判断写两遍。
+    真正要保住的是「我确实看过、看了这些」的物证(防橡皮图章 —— 光秃秃 APPROVE + 零 finding
+    与「根本没评审」在产物上无法区分)· 改用 external 已在用的 **coverage 申报**形式:
+    REVIEW.md 内每个 roster 主审角色一行,申报查过的方向(有问题列 finding · 无则「查过无发现」)。
+    roster 移出的角色不查(v8.241 roster-aware 语义原样保留)。
     """
     roles = (state.get("stage_review_roles") or {}).get("review")
     if not isinstance(roles, list):
-        roles = list(_REVIEW_ROLE_ARTIFACTS)  # legacy 默认全查
-    feature_dir = Path(args.feature)
-    missing = [f"{r} → {fname}" for r, fname in _REVIEW_ROLE_ARTIFACTS.items()
-               if r in roles and not (feature_dir / fname).exists()]
+        return True, "legacy state 无 roster · 跳过(不对存量加严)"
+    checked = [r for r in roles if r in _REVIEW_MAIN_ROLES]
+    if not checked:
+        return True, "roster 无 architect/qa 主审路 · 无需申报"
+    f = Path(args.feature) / "REVIEW.md"
+    if not f.is_file():
+        return False, "REVIEW.md 不存在 · 无法校验 coverage 申报"
+    txt = f.read_text(encoding="utf-8", errors="replace")
+    missing = [r for r in checked
+               if not re.search(r"(?i)coverage[^\n]*\b" + re.escape(r) + r"\b", txt)
+               and not re.search(r"(?im)^[\s\-*|]*" + re.escape(r)
+                                 + r"\s*(coverage|覆盖|查过|视角)", txt)]
     if missing:
         return False, (
-            "roster 内评审角色产物缺失:" + " · ".join(missing)
-            + " —— stage_review_roles.review 含该角色即必有对应 REVIEW-<role>.md"
-            "(roster 移出的角色不查 · change-review-roles --reason 留痕后生效 · v8.241)"
+            "REVIEW.md 缺 roster 内主审角色的 coverage 申报:" + " · ".join(missing)
+            + " —— v8.289:不再要求 REVIEW-<role>.md 独立文件(与 REVIEW.md 是同一批判断写两遍)· "
+            "改为在 REVIEW.md 内**每角色一行申报查过的方向**(有问题列 finding · 无则写「查过无发现」)。"
+            "防橡皮图章:光秃秃 APPROVE + 零申报 = 与没评审无法区分。"
         )
-    checked = [fname for r, fname in _REVIEW_ROLE_ARTIFACTS.items() if r in roles]
-    return True, ("roster-aware:" + (" + ".join(checked) if checked else "roster 无 architect/qa · 角色产物不查"))
+    return True, "coverage 申报齐(roster-aware):" + " + ".join(checked)
 
 
 REVIEW_SPEC = StageSpec(
@@ -2521,7 +2532,7 @@ REVIEW_SPEC = StageSpec(
             must_be_in_commit=False,
             description="评审总结",
         ),
-        # REVIEW-arch.md / REVIEW-qa.md:v8.241 起 roster-aware(见 review_role_artifacts
+        # 主审角色 coverage 申报:v8.241 roster-aware 语义 · v8.289 换代(见 review_role_coverage
         # evidence check)—— 静态必查与动态 roster(v8.216)互斥,角色移出 roster 则不查。
     ],
     evidence_checks=[
@@ -2531,9 +2542,9 @@ REVIEW_SPEC = StageSpec(
             description="--verdict 必须是 APPROVE 或 NEEDS_REVISION",
         ),
         StageEvidenceCheck(
-            name="review_role_artifacts",
-            check_fn=_evidence_review_role_artifacts,
-            description="REVIEW-<role>.md 按 roster(stage_review_roles.review)各一份 · 移出不查(v8.241)",
+            name="review_role_coverage",
+            check_fn=_evidence_review_role_coverage,
+            description="REVIEW.md 内每个 roster 主审角色一行 coverage 申报(v8.289 取代 REVIEW-<role>.md 独立文件 · roster 移出不查)",
         ),
         # review 收敛协议:severity 门槛(NEEDS_REVISION 须 open BLOCKER/MAJOR ·
         # APPROVE 不得有 open BLOCKER/MAJOR · findings 机读台账缺失不能打回)

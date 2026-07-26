@@ -2,7 +2,7 @@
 
 AI 从团队协作视角出发，通过**流程编排 + 角色视角切换 + 契约化 Stage + 机读状态机**，驱动从产品规划到交付的完整软件研发流程。
 
-[English](./README-EN.md) · Version: **v8.288**（版本单源 = [SKILL.md](./skills/teamwork/SKILL.md) frontmatter）
+[English](./README-EN.md) · Version: **v8.289**（版本单源 = [SKILL.md](./skills/teamwork/SKILL.md) frontmatter）
 
 ---
 
@@ -350,7 +350,7 @@ teamwork 的 9 条核心红线，其中 8 条由 `state.py` 状态机物化校�
 
 ## 版本
 
-当前 **v8.288**（版本单源 = [SKILL.md](./skills/teamwork/SKILL.md) frontmatter）。变更记录见 [docs/CHANGELOG.md](./skills/teamwork/docs/CHANGELOG.md)（最近 5 版）· 更早历史走 git 提交历史（CHANGELOG-ARCHIVE **定期清空**）。
+当前 **v8.289**（版本单源 = [SKILL.md](./skills/teamwork/SKILL.md) frontmatter）。变更记录见 [docs/CHANGELOG.md](./skills/teamwork/docs/CHANGELOG.md)（最近 5 版）· 更早历史走 git 提交历史（CHANGELOG-ARCHIVE **定期清空**）。
 
 ---
 
