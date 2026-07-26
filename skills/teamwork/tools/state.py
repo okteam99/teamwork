@@ -1265,6 +1265,7 @@ def cmd_ws_lint(args: argparse.Namespace) -> None:
         return
     ws_text = ws_file.read_text(encoding="utf-8", errors="replace")
     missing = _lint_ws_doc(ws_text)
+    granularity_warnings: list[str] = []
     # v8.197:执行线存在性(愿景层→WS taxonomy 校验)—— WS 承接的 Line 必须在业务架构「执行线列表」
     # 存在 · 否则是幽灵 Line(反查「某线下有哪些 WS」会断)。无业务架构文档 → skip(非所有项目有)。
     # v8.239:调研深度信号 —— features[].current_state 缺失/仍是模板占位 = 拆解未 grounded 实际代码
@@ -1282,6 +1283,13 @@ def cmd_ws_lint(args: argparse.Namespace) -> None:
             missing.append(f"features[].current_state 缺失({len(_cs)}/{_n_feat})—— 拆解必须 grounded 实际代码调研(每 BL 记已有/真缺口+来源文件 · 详 feature-planning Step 1)")
         if _placeholder:
             missing.append(f"current_state 含模板占位 {len(_placeholder)} 处(『<...>』/『...』)—— 调研浅信号 · 必由实读代码填并附来源文件")
+        # v8.292:粒度反压物化(WARN 非 FAIL —— 拆得对不对是判断题 · 机器只负责把问题摆到台面)
+        if _n_feat > 6:
+            granularity_warnings.append(
+                f"{_n_feat} 个 BL(> 6)—— 🔴 **默认合并 · 拆分是例外**:逐个说得出「为什么这两件"
+                "不能一起交付」吗?**不按评审面拆**(代码在不同子项目 / 前后端分属 / 改动面大不好评审"
+                "都不是理由 —— 横切出来的件各自不能独立上线)。薄承接件并回宿主件 · 含金量悬殊 = 强合并信号。"
+                "详 docs/feature-planning.md Step 5.7 边界判据")
     ws_lines = {re.sub(r"\s+", "", x) for x in re.findall(r"(?m)^\s*-\s*(Line\s*\d+)", ws_text)}
     if ws_lines:
         arch = next(iter(root.glob("product-overview/*业务架构*.md")), None)
@@ -1297,6 +1305,7 @@ def cmd_ws_lint(args: argparse.Namespace) -> None:
         "action": "ws-lint", "ws": ws_label,
         "file": str(ws_file.relative_to(root)),
         "conformant": not missing, "missing": missing,
+        **({"granularity_warnings": granularity_warnings} if granularity_warnings else {}),
         "hint": ("✅ 符合最新 templates/workstream.md"
                  if not missing else
                  "🔴 不符合最新模板 —— **别抄项目里旧 WS** · 照 {SKILL_ROOT}/templates/workstream.md "
@@ -2640,7 +2649,7 @@ PLANNING_CHECKLIST = [
      "spec": "feature-planning.md §2 Step 2"},
     {"item": "🎨 全景UI初步规划(本轮涉 UI 时 · 🔴 拆 WS 之前出):在 {子项目}/docs/design/preview-project/ 出/扩 design system + 本轮关键页(初步 · 系统+代表页 · 非每页 · 防瀑布 · 跑 preview.sh 看)+ 同步 sitemap.md(IA 地图 · 只写层级/导航不写视觉)· 完成产生 git diff = 拆 WS 的输入 · 🔴 **出完必给用户可访问预览 URL(跑 preview.sh 抓 PREVIEW_URL)+ emit R5 等用户确认全景 · 用户没确认过 = 不算规划完成**(auto/yolo 自动确认 · 留痕=下游 WS frontmatter ui_panorama_confirmed 标 auto · 🔴 规划不进状态机 add-concern 不可用);非 UI 轮跳过(下游 WS 标 全景初规:N-A)",
      "spec": "feature-planning.md §2 Step 5"},
-    {"item": "核心产出 WS(product-overview/workstream/WS-NN.md · 1..N 个 · 输入=全景diff+业务目标 · 承接 1+ 执行线 · 拆一组 feature · 🔴 每 WS 记 全景初规状态(✅/N-A)+ 🔴 ui_panorama_confirmed(涉 UI 用户确认全景的 ISO · 必填才能规划完成)+ 覆盖的全景页清单 + 执行顺序与并行建议(波次:同波可并行/各自 worktree · 跨波串行 + 同改面/跨子项目方向额外串行))· 0-1 时含业务架构与产品规划.md(愿景+执行线列表)· 🔴 照 templates/workstream.md 起草**别抄项目旧 WS** · 写完跑 `state.py ws-lint --ws WS-NN` 校验最新模板(TEAMWORK-MACHINE 块+WS-PROGRESS/WS-DAG 标记)· 🔴 不出 feature 实现代码(R6 · 全景 preview-project 是设计代码例外)· 不进 stage 链 · 🔴 v8.239 **拆 WS 前两道深度门**:①调研深度契约(每候选 BL 的 current_state 必出自实读代码 · 附来源文件 · ws-lint 抓占位)②**拆解讨论暂停点(R5 必经)**:拆解草案(候选 BL+边界理由+粒度自检+波次)先给用户讨论收敛(合并/砍/改边界)才落 WS —— WS 必须是「代码现状 × 用户深度讨论」的产物 · 不是 AI 一把拆完;粒度反压:BL>8 或有无独立交付价值的 BL → 草案必须给「为什么不合并」;🔴 v8.240 边界判据:主判据=交付内聚 · feature 可跨子项目(target 只是 ROADMAP 归属 · 子项目边界不是拆分理由)· 薄承接件默认并入宿主(独立须硬理由:外部gate/交付节奏/blast radius/管辖边界 · 含金量悬殊=强合并信号)· 落盘后合并/砍件不重排 id(被并件留 `→ 已并入 Sx`)",
+    {"item": "核心产出 WS(product-overview/workstream/WS-NN.md · 1..N 个 · 输入=全景diff+业务目标 · 承接 1+ 执行线 · 拆一组 feature · 🔴 每 WS 记 全景初规状态(✅/N-A)+ 🔴 ui_panorama_confirmed(涉 UI 用户确认全景的 ISO · 必填才能规划完成)+ 覆盖的全景页清单 + 执行顺序与并行建议(波次:同波可并行/各自 worktree · 跨波串行 + 同改面/跨子项目方向额外串行))· 0-1 时含业务架构与产品规划.md(愿景+执行线列表)· 🔴 照 templates/workstream.md 起草**别抄项目旧 WS** · 写完跑 `state.py ws-lint --ws WS-NN` 校验最新模板(TEAMWORK-MACHINE 块+WS-PROGRESS/WS-DAG 标记)· 🔴 不出 feature 实现代码(R6 · 全景 preview-project 是设计代码例外)· 不进 stage 链 · 🔴 v8.239 **拆 WS 前两道深度门**:①调研深度契约(每候选 BL 的 current_state 必出自实读代码 · 附来源文件 · ws-lint 抓占位)②**拆解讨论暂停点(R5 必经)**:拆解草案(候选 BL+边界理由+粒度自检+波次)先给用户讨论收敛(合并/砍/改边界)才落 WS —— WS 必须是「代码现状 × 用户深度讨论」的产物 · 不是 AI 一把拆完;粒度反压:BL>6 或有「无独立交付价值 / 按评审面横切」的 BL → 草案必须给「为什么不合并」;🔴 v8.240 边界判据:主判据=交付内聚 · feature 可跨子项目(target 只是 ROADMAP 归属 · 子项目边界不是拆分理由)· 薄承接件默认并入宿主(独立须硬理由:外部gate/交付节奏/blast radius/管辖边界 · 含金量悬殊=强合并信号)· 落盘后合并/砍件不重排 id(被并件留 `→ 已并入 Sx`)",
      "spec": "feature-planning.md §2 Step 6 + templates/workstream.md"},
     {"item": "WS 拆出的 feature 写入 ROADMAP(BL-NNN · 关联 WS)· feature 全写入 = WS ✅ 规划完成 · 每个 BL 后续用户拍板走 prepare 启动 Feature",
      "spec": "conventions.md §4 + prepare.md §5"},
