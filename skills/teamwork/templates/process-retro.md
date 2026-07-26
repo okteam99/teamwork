@@ -56,6 +56,7 @@ host: <claude-code>
 - **拦住真问题**:<external confirmed N 条(列举)/ test 抓回归 / diagnose 改变修复方向 | 无>
 - **纯过场候选**:<零 finding + 零修订 + 全默认的环节 | 无>
 - **流程新判例**:<违规/摩擦 → 建议反馈 teamwork(consuming 项目不自改 spec)| 无>
+  🔴 **非「无」时**:台账「反思摘要」列必须以 `判例:` 前缀开头(年检数「连续数月无新判例」靠 grep 它 · 正文留在本节)。
 - **成本异常**:<rounds 过多 / bypass(理由)/ 重试 | 无>
 
 ## 四、起草可预防性(照抄 `ledger_authoring_preventability`)

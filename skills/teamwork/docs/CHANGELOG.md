@@ -4,6 +4,55 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.298 · 档位错配整体 review · 修「判据算不出来」两处 + 立类级门禁
+
+> 用户:**整体 review 一遍流程文档,看有没有类似的档位错配。**
+
+先把 v8.297 那个错配抽象成**可扫的四类形态**,否则又是印象派:
+
+| 形态 | 症状 | 状态 |
+|---|---|---|
+| ① 叙述塞单行槽 | 表格单元格要求写多维判断 | v8.297 已修;`teamwork-space` / `pending` 本就配了「详情外迁」纪律 ✅ |
+| ② **可算字段埋叙述** | 跨 feature 要算账的数字混在自由文本里 | 🔴 **本版找到两处** |
+| ③ 只 emit 不落盘 | 产物瞬时而消费方在事后 | v8.297 已修(digest 四问)✅ |
+| ④ 落盘但读不到 | 落机器本地 / 未跟踪路径 | v8.296 已退役 `docs/audit` ✅ |
+
+### ② 的两处:都是「声明了判据,却取不出分子分母」
+
+框架其他「率/占比」判据都把分子分母放在同一格 —— `external 总/采/驳`、`可预防/总`、`开销轮/总轮`。
+唯独这两条没有落点,等于**判据写着好看、年检根本算不出来**:
+
+- **PL-CHALLENGE 采纳率**:goal-stage 明写「进 PROCESS-LEDGER · 长期零采纳 = 过场信号,收紧判据」,
+  但台账「角色真 finding」列的示例只有 review 侧(`arch:1 qa:0 ext:1`)—— **goal 侧的 `pl` 从没出现**,
+  ship 也零 emit。
+- **新判例频次**:kill criteria 明写「**连续数月无新判例** → 流程仪式砍半」,
+  而「流程新判例」是叙述(v8.297 起落在复盘 §三),台账无字段 —— **数不出来**。
+
+### 修法:都不加列
+
+加列有成本(旧行留空 · 有效前缀语义变模糊),能用约定解决就不动 schema:
+
+- **「角色真 finding」列按 `<goal 侧> / <review 侧>` 两段写全**(示例改 `pl:2 ext:1 / arch:1 qa:0 ext:1`)·
+  🔴 **零也要写**(`qa:0`)—— 「零 finding」与「没这个角色」是两回事,而「某角色长期零真 finding →
+  评审矩阵收缩」正是靠它区分。
+- **有流程新判例时,「反思摘要」列以 `判例:` 前缀开头**(年检 grep 前缀即可计数 · 正文留在复盘 §三)。
+  三处同步:台账约定 + kill criteria 的数法 + 复盘模板要求回填(**不要求回填 = 前缀永远不会出现**)。
+
+### 类级门禁(本版真正的产出)
+
+只修两条不值一版。立 `test_tier_placement_v8298`,锁的是**整类**:
+- 每条「率/频次」判据必须映射到台账实有列(新增判据没落点 → 红)
+- PL-CHALLENGE 与新判例的可取性各自成门
+- 台账必须声明「什么不该写在这里 + 该写去哪」,复盘必须声明「不写业务内容」(两边都写明,下次才不会又塞错)
+- 扫全库:凡声明「年检 / kill criteria」要用的产物,**不得同时标「只 emit 不落盘」**
+- 🔴 锁台账列数 = 16:**修 ② 不许靠加列**
+
+### 测试
+
+1005 → **1013**。
+
+---
+
 ## v8.297 · 耗时归因与流程反思搬出台账 · 落独立流程复盘文档
 
 > 用户:**耗时归因和阶段流程反思不该写到 PROCESS-LEDGER,因为写不下 —— 应该单独一个文档放到项目的复盘目录下,台账做引用。**
@@ -240,60 +289,5 @@ why:「终确认改:默 ≈ 全默」的统计前提**只在单决策上成立**
 ### 测试
 
 970 → **988**。
-
----
-
-## v8.293 · 全库冗余清理:死岛 · 退役残留 · 敏捷需求 legacy 整条删除(净 −1600 行)
-
-> 用户:**逐个文件整体 review 下,看下哪些冗余需要清理或者删掉。**
-> 判据三条:**还有没有消费者** / **是否与现行规则矛盾** / **同一教义是否写了多遍**。
-
-### 一、死岛 —— v8.291 只砍了入口,没砍被调链(−680 行)
-
-| 位置 | 内容 |
-|---|---|
-| `state.py` | `_run_codex_review` / `_run_claude_review` / `_build_codex_prompt` / `_run_streamed_to_log` / `_build_claude_review_cmd` / `_detect_host` + `EXTERNAL_HOST_TO_MODEL` / `REVIEW-ACK` 协议 / `_prompt_doc_stale_reason`(`--prompt-doc` 参数早已删)/ `_FINDING_POSTURE_HINT` —— **586 行** |
-| `state.py` | `scaffold-review-prompt` **整命令**(零文档引用 · 用途已被 external-review 自写 prompt-doc 取代) |
-| `_v8_stage_specs.py` | `_check_external_hetero` + 4 个专属常量 —— **63 行** |
-
-🔴 其中一颗雷:`EXTERNAL_REVIEW_SAME_CONTEXT_BLOCKED` 把 `"subagent"` 列为**必 BLOCK** 的同源字面 —— 而 v8.291 后 subagent 恰是**唯一合法形态**。谁把这 checker 重新接上,拦的就是唯一支持的路径。
-
-`EXTERNAL_STAGE_TO_PROFILE` 三层嵌套 dict 折叠为两个常量:`codex-agents/` 已删,三个 stage 的 claude profile 本就全是同一个 `reviewer.md`。
-
-### 二、退役声明贴在头上、正文一字未改(3 处)
-
-- 🔴 **`review-stage.md` 硬规则 1** 仍要求「各自落 `REVIEW-{role}.md`」,而同一份白名单的**规则 8** 写着「v8.289 已取代该文件」—— **两条硬规则直接打架,漏在最高权重位置**。顺带修:编号出现两个 8。
-- `roles/external-reviewer.md` 头部有 v8.291 退役声明,正文四条照旧写着「claude 主时调 codex」「OpenAI ToS 合规」「文件名必含 codex/gemini 字面」→ 整篇重写。
-- `disable_external_review` 仍是 `teamwork_localconfig.json` 的活配置 + `config.md` 一整节 —— 能活一版是因为 v8.291 的退役扫描测试 **glob 只扫 `*.md`/`*.py`,漏了 `.json`**(已补)。
-
-### 三、「敏捷需求」/ `lite` / `blueprint_lite` 整条 legacy 删除(−400 行)
-
-删的理由**不是「没人用」**,是 audit 查出 **三份 flow-key 实现对同一输入解析出不同的转移图**:
-`state.py` → `Feature+full`(无 blueprint_lite 的图)· `_v8_engine.py` → `Feature+lite`(含 blueprint_lite),
-**而 engine 的注释还声称与 state.py「严格同口径」**。三份实现无一被测到该输入。
-
-用户拍板:不选边,整条删。lite 档 v8.223 已退役,其链本就是 Feature 链的 `needs-ui=false` 剖面(纯冗余)。
-删:`AGILE_FLOW` / `FLOW_BY_TYPE["Feature:lite"]` / `BLUEPRINT_LITE_SPEC` / `DEFAULT_REVIEW_ROLES` 5 条 / `STAGE_CHAIN_PREVIEW` 一支 / `stages/blueprint-lite-stage.md`。**stage 数 13 → 12**。
-新增门禁:三份实现对同一 state 必须给出一致的内部键与转移图。
-
-### 四、孤儿模板(用户逐个拍板)
-
-- **`templates/architecture.md` 351 → 192 行**:产物 `{子项目}/docs/architecture/ARCHITECTURE.md` 是活的(SKILL 路由 + engine 读 + ship 门),模板却零消费者 —— 是**路由缺口**不是死文件。补 SKILL/architect 指针;**藏在里面的 68 行迁移起号纪律上提到 `standards/backend.md §五`**(那里才是权威);删 86 行 api-design/deployment 示例子模板;去掉「超 50 行必拆」的能力上限规则。
-- **`templates/e2e-registry.md` 241 行整个退役**:全库零入口 —— 没有任何文档说 REG case 长什么样 / 放哪 / 怎么建,却只有 ship distill 在要求逐项申报。连 `DISTILL_KEYS` 的 `reg` 槽位一起删(6 项 → 5 项)。
-
-### 五、模板层去重与矛盾(−330 行)
-
-- 🔴 **`ui.md` 段落契约矛盾**(真 bug):模板明令「视觉描述一律归 HTML 预览产物 · **不在本文复述**」,而 `ui-design-stage.md` / `roles/designer.md` 要求 body 必含 §页面列表/§交互流/§视觉规范/§字段映射 —— **模板里没有这四段**。Designer 照哪边写都违反另一边。按「templates/ = 格式唯一真相源」改 stage 与 role。
-- **`config.md` §localconfig −116 行**:是 JSON 模板 `_comment_*` 的逐字第二副本,且用 ` ```markdown ` 围栏把它描述成带 `## 负责人` 标题的 **markdown 文件**(真实文件是 JSON)—— 副本必漂,这次漂到了介质。改指针;第三份(`bootstrap.py` 的 DEFAULT dict,原靠一句「🔴 两处都加」的自觉)换成**物化对齐门**。
-- 三份「起草要点」段自陈「v8.199 cite 仪式已废」却仍在逐条复述对应 stage 的硬规则 → 整删。
-- `tc.md`:三个孤儿段(标「代码审查时填写」但 review 的产物契约是 REVIEW.md · 从不读)+ Gherkin 语法速查(HARD-RULES 判据:模型默认就会的一律不收)+ 一个 `standards` 里根本不存在的「后端覆盖率 > 80%」阈值。
-- `adr-index.md` 66 行里「PMO 读本索引」写了 4 遍;`knowledge.md` 300 行上限与文档边界表各写两遍;`pm-note.md §3` 是 pm-acceptance-stage 暂停点脚本的逐字副本(PM-NOTE 是**已决策后的记录**)。
-- ADR 落点权威分裂(`SKILL.md` 指 Feature 目录 vs `adr.md`/`architect.md` 定「`{子项目}/docs/adr/` 唯一落点」)—— 同 v8.205 sitemap case 复发,已归一。
-- `preflight` 旧机制名 → `triage`(5 处);`tech.md` 实现步骤表的 TDD 红绿词表(与同节「节奏 AI 自定」自相矛盾)。
-
-### 测试
-
-962 → **970**(+8 类:死物不复活 / 退役声明与正文一致 / § 引用可解析 / 三份 flow-key 一致 / localconfig 单源 / ui 契约 / **markdown 围栏平衡**)。
-最后一条是自伤实证:按 `## 标题` 切段时切掉了 `adr-index.md` 的围栏闭合 —— 切文档一律回来验围栏。
 
 ---

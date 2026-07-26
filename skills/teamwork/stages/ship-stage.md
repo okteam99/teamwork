@@ -206,7 +206,7 @@ git add <feature_dir>/dev/*.md <feature_dir>/PRD.md
 
 **消费方**(🔴 指名 · 写而不读 = 白写):
 - **流程审视场景**(用户问「流程价值 / 哪些环节该砍」)→ PMO 读台账算:external confirmed 率 · 各角色真 finding 率 · 暂停点 all-default 率;
-- **年检 kill criteria 数据源**:连续数月无新判例 → 流程仪式砍半;第三视角冷审长期零 confirmed → 收缩第三视角 roster 判据(异质已默认关 · v8.204);某角色长期零真 finding → 评审矩阵收缩。
+- **年检 kill criteria 数据源**:连续数月无新判例(🔴 **数法 v8.298**:台账「反思摘要」列以 `判例:` 前缀开头的行 —— 完整判例正文在 `docs/retros/<id>-process.md` §三)→ 流程仪式砍半;第三视角冷审长期零 confirmed → 收缩第三视角 roster 判据(异质已默认关 · v8.204);某角色长期零真 finding → 评审矩阵收缩。
 
 ---
 
