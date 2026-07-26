@@ -2301,7 +2301,7 @@ _FINDING_SEVERITY_ORDER = ("BLOCKER", "MAJOR", "MINOR", "NIT")
 def _localconfig_max_review_rounds(feature_dir: Path) -> int:
     """读 localconfig `max_review_rounds`(默认 3)· 向上找到 .git 边界。
 
-    非法值(非正整数)→ 默认。与 specs._localconfig_disable_external 同遍历口径。
+    非法值(非正整数)→ 默认。与 localconfig 读取同遍历口径(向上找到 .git 边界)。
     """
     try:
         node = Path(feature_dir).resolve()

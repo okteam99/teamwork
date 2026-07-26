@@ -51,59 +51,49 @@ class TestPreflightGate(unittest.TestCase):
         self.assertTrue(ST._check_yolo_preflight(f)[0])
 
 
-def _ext_feature(ext_disabled, review_via, host="claude-code", stage="review"):
-    """造 feature dir + external-cross-review + (可选)localconfig disable_external_review。"""
+def _ext_feature(review_via, with_prompt_doc=True, stage="review"):
+    """造 feature dir + external-cross-review 产物(v8.291 新契约)+ (可选)prompt doc 实跑证据。"""
     root = Path(tempfile.mkdtemp(prefix="yx-"))
-    if ext_disabled:
-        (root / ".teamwork_localconfig.json").write_text(
-            json.dumps({"disable_external_review": True}), encoding="utf-8")
     feat = root / "feat"
     (feat / "external-cross-review").mkdir(parents=True)
-    fm = ("---\nreview_model: claude-subagent-degraded\nheterogeneous: false\n"
-          "degraded: true\ndegraded_mode: config-disabled\n")
+    fm = "---\nreview_model: opus-subagent\n"
     if review_via:
         fm += f"review_via: {review_via}\n"
     fm += "---\n评审正文"
-    (feat / "external-cross-review" / "review-claude-subagent-degraded.md").write_text(fm, encoding="utf-8")
-    state = {"yolo": True, "host": host, "current_stage": stage}
-    return state, NS(feature=str(feat))
+    (feat / "external-cross-review" / "review-opus.md").write_text(fm, encoding="utf-8")
+    if with_prompt_doc:                      # yolo 不内化律要的实跑证据
+        pd = feat / "external-review-prompts"
+        pd.mkdir(parents=True, exist_ok=True)
+        (pd / f"{stage}-subagent-review-20260531T000000Z.md").write_text("p", encoding="utf-8")
+    return {"yolo": True, "current_stage": stage}, NS(feature=str(feat))
 
 
 class TestYoloExternalGate(unittest.TestCase):
-    def test_single_model_cold_subagent_passes(self):
-        # yolo + disable_external_review + review_via:subagent → 放行(治本:旧闸误 BLOCK 单模型)
-        state, args = _ext_feature(ext_disabled=True, review_via="subagent")
-        ok, _ = S._evidence_external_review_artifact(state, args)
-        self.assertTrue(ok)
+    """v8.179 单模型放行 · v8.291 换代:跨厂商异质退役 —— 契约 = subagent + 申报模型 + yolo 实跑证据。"""
 
-    def test_single_model_without_subagent_blocks(self):
-        # yolo + 单模型 + 缺 review_via:subagent(疑热审/手写)→ BLOCK
-        state, args = _ext_feature(ext_disabled=True, review_via=None)
+    def test_subagent_cold_review_passes(self):
+        state, args = _ext_feature(review_via="subagent")
+        ok, msg = S._evidence_external_review_artifact(state, args)
+        self.assertTrue(ok, msg)
+
+    def test_without_subagent_blocks(self):
+        state, args = _ext_feature(review_via=None)
         ok, msg = S._evidence_external_review_artifact(state, args)
         self.assertFalse(ok)
-        self.assertIn("subagent 冷审", msg)
+        self.assertIn("必须 subagent", msg)
 
-    def test_heterogeneous_yolo_without_runlog_blocks(self):
-        # 非单模型 yolo · 异质评审缺实跑日志 → 原 BLOCK 文案(未被本次改动放松)
-        root = Path(tempfile.mkdtemp(prefix="yh-"))
-        (root / ".teamwork_localconfig.json").write_text(  # v8.204:opt-in 异质(默认已关)
-            json.dumps({"disable_external_review": False}), encoding="utf-8")
-        feat = root / "feat"
-        (feat / "external-cross-review").mkdir(parents=True)
-        (feat / "external-cross-review" / "review-codex.md").write_text(
-            "---\nreview_model: codex\n---\nx", encoding="utf-8")
-        ok, msg = S._evidence_external_review_artifact(
-            {"yolo": True, "host": "claude-code", "current_stage": "review"},
-            NS(feature=str(feat)))
+    def test_yolo_without_prompt_doc_blocks(self):
+        """yolo 不内化律:产物合规但没跑过命令 → BLOCK(防手写自盖章)。"""
+        state, args = _ext_feature(review_via="subagent", with_prompt_doc=False)
+        ok, msg = S._evidence_external_review_artifact(state, args)
         self.assertFalse(ok)
         self.assertIn("实跑证据", msg)
 
-    def test_non_yolo_single_model_passes(self):
-        # 非 yolo + 单模型降级:1644 闸只对 yolo 生效 · 普通模式不卡实跑日志
-        state, args = _ext_feature(ext_disabled=True, review_via=None)
+    def test_non_yolo_needs_no_prompt_doc(self):
+        state, args = _ext_feature(review_via="subagent", with_prompt_doc=False)
         state["yolo"] = False
-        ok, _ = S._evidence_external_review_artifact(state, args)
-        self.assertTrue(ok)
+        ok, msg = S._evidence_external_review_artifact(state, args)
+        self.assertTrue(ok, msg)
 
 
 if __name__ == "__main__":

@@ -33,7 +33,7 @@
 | 手段 | 何时值得 |
 |---|---|
 | ⚡ **TC ∥ TECH 并行同发**(subagent 各一)| **推荐默认**(v8.256)—— 两者相互独立(TC 锚 PRD.AC · TECH 锚设计方案)· 完成后互查 `tests[].covers_ac` ↔ TECH §测试策略;goal 投机窗已产 TECH 草稿则接续 |
-| 外审三层分支(按 roster + localconfig)| ① roster 含 external 且 `disable_external_review` 显式 `false` → 跑 `state.py external-review --stage blueprint`(真异质)· ② 默认(缺省/`true`)→ 错开模型 subagent 冷审(产物仍落 `external-cross-review/*.md` · `review_via: subagent`)· ③ roster 无 external → 整段 skip |
+| 第三视角冷审(roster 含 external 时)| 跑 `state.py external-review --stage blueprint` 拿 subagent 配方 → 起**错开模型** subagent(≠会话主模型)· 产物落 `external-cross-review/*.md`(`review_via: subagent` + 照实申报 `review_model` + coverage)· roster 无 external → 整段 skip |
 | QA 独立 TC Review | 默认并入外审「可测试」方向;测试面大的复杂 Feature `change-review-roles` 加回独立跑 |
 | 读 ARCHITECTURE / KNOWLEDGE / standards 分册 | 涉架构影响、已知踩坑、测试分层决策时 |
 

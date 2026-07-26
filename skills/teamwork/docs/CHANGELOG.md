@@ -4,6 +4,34 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.291 · 跨厂商异质模型评审彻底退役 · 第三视角唯一形态 = 错开模型 subagent 冷审
+
+> 用户拍板:**跨厂商异质评审太耗时,效率影响严重,彻底去掉,改为 subagent 不同模型冷审。**
+> 实证支撑(台账):`codex exec` 挂死 98m 后杀掉重试 · OpenAI「Additional safety checks」慢路径(代码评审 prompt 天然命中)· 反复踩未登录 / MCP spawn 卡死 / ARG_MAX。而**同厂商模型错开**(会话 fable5 → 外审 opus)已拿到独立采样的主要收益 —— 上下文隔离 + 权重错开,零 CLI 成本。
+
+### 拆除量(不是加开关 · 是整条路径连机械一起删)
+| 层 | 删除 |
+|---|---|
+| `state.py cmd_external_review` | **770 → 85 行**:host→model 映射 / `which <cli>` / `--preflight` 登录探测 / CLI exec 与超时 / stdout 质量检查 / `--self-review-fallback` 降级 / `degraded`·`heterogeneous` 语义 / dry-run |
+| 死 helper | `_preflight_external` · `_external_timeout_sec` · `_detect_cli_version` · `_check_external_review_quality` · `_read_disable_external_review` · `_localconfig_disable_external`(合计 ~140 行) |
+| 命令参数 | `--host` / `--model` / `--codex-model` / `--preflight` / `--self-review-fallback` / `--reason` / `--dry-run` / `--accept-quality-warnings` / `--prompt-doc` 全去(留 `--feature --stage --commit --base --verify-fixes`) |
+| 产物门禁 | `_evidence_external_review_artifact` **136 → 30 行**:异质性硬约束(文件名模型白名单 / review_model 字面比对 / degraded 语义 / host 比对)整套删 —— **没有可冒充的对象了** |
+| 配置 | `disable_external_review` 退役(自愈默认表 / 三处 helper / 五处文档 · 存量配置被忽略) |
+| 规范 | `standards/external-model-usage.md` **286 → 63 行**(跨厂商机械全删 · **裁决纪律 §12 原样存活** —— 它与模型无关且被 5 处引用) |
+| profile | `codex-agents/`(3 个 toml)整目录退役 · `claude-agents/reviewer.md` 去 codex 对照段 · `update.py` 白名单同步 |
+| 测试 | 退役 94 条测已删机械的用例(`TestExternalReviewCommand` 30 · `TestHostAutoDetect` 7 · `TestExternalReviewHeteroEnforcement` 14 · `test_external_mech_v8191` 整文件 …)· 换 20 条新契约用例 |
+
+### 新契约(收敛为两条 + 一条不变式)
+- ① **必须隔离 subagent**(`review_via: subagent`)—— 主对话热审 = 同上下文 = 零独立性;
+- ② **必须照实申报模型**(`review_model` 非空)—— 供台账核「错开」是否真发生;
+- 🔴 **yolo 不内化律存活**(v8.67):无人值守时额外要 **prompt doc**(实跑证据 · 由 `external-review` 落盘)—— 防 AI 直接手写产物自盖章。证据载体从「CLI 子进程日志」换代为「配方 doc」;`ultra-ingest` 产物豁免(provenance 是会话转录)。
+
+### 🔺 顺带的门禁增强(拆除的副产品)
+「fix 后 APPROVE 必须有 external 验证证据」原有 `disable_external_review=true` 豁免 —— 那个豁免**只因跨厂商 CLI 太贵才存在**。外审变成廉价 subagent 后**豁免取消**:这道门现在无条件生效。同理 legacy 全局日志路径 `~/.teamwork/external-review-logs` 一并退役(它还会污染测试隔离)。
+
+### 验证
+- 新增 test_cross_vendor_retired_v8291(9:机械已删 / 配置退役 / codex-agents 删除 / 命令不 exec / 新契约成文 / **yolo 不内化律存活** / 裁决纪律存活 / 全库无残留活配置 / 唯一形态成文)· pytest **956 passed**。
+
 ## v8.290 · 流程文档整体精简 + PRD/TECH 设计文档档位规则
 
 > 用户原则:**保住底线规则,其余不限制模型发挥,精简没必要的 HOW**(示例:架构视角只需「架构要合理、防止未来维护成本过高」· 至于怎么设计 AI 自决)+ 新规则:**PRD、技术方案必须主模型或高级模型出设计或参与评审**,其余尽量主对话编排 subagent 并行。
@@ -91,27 +119,3 @@
 
 ### 验证
 - 两处旧断言(锁 TDD 措辞)更新为新状态:白名单断言改结果规则 · v8.283 的「强烈建议的默认」改为**断言其不存在** + 断言「AI 自定 / 每个 TC 有对应实现」。pytest **1024 passed**。
-
-## v8.286 · standards 硬规则白名单 + 读取路径接通(工程规范并集 · 项目优先)
-
-> 承 v8.285。用户设计:**AI 读「框架工程规范 + 项目 DEV-RULES」的并集,冲突以项目为准**。落地时**没有新建 `dev-rules-teamwork.md`** —— `standards/` 本就是框架级那层(DEV-RULES 模板早写明分工),再造一个会成**第三个家**(v8.284 刚实测过「指针+复制」的漂移)。真问题是**读取路径不对称**:项目 DEV-RULES 是必读、框架 standards 不是,所以框架自己的规范只能被复制进模板才到得了模型(实测同一条日志规则曾活在三处)。
-
-### ① `standards/HARD-RULES.md`(47 行 · 唯一必读)
-- **收录判据 = 与模型默认行为的距离**(只收两类):**逆默认**(模型会做反的 —— 它越强越笃定,越需要明确逆着写)· **不可知**(框架/项目约定 = 信息不是规范)。**模型默认就会的一律不收**(REST/SOLID/TDD 步骤/mermaid/WCAG 细则)—— 收了就是注意力税。
-- 逆默认 9 条:默认避免 FK(项目可覆盖)· 降级/fallback 必打 WARN(缺失阻塞 CR)· 三方异常必 ERROR · 不静默吞异常 · **两个 adapter 才抽象**(模型默认提前抽象)· 安全/兜底必过 ROI · NEVER refactor while RED / 禁 horizontal slicing / 禁 mock 自身内部方法 · TDD Iron Law(例外须用户同意)· ≥3 次失败即升级。
-- 不可知 7 条:scratch 根与 feature_id 纪律 · `[DEBUG-…]` 前缀 + ship 前 grep · 测试脚本两层结构 · 结构化日志必填字段 · 统一响应格式与状态码 · 迁移命名优先级链 · Build 硬门。
-- 分册(common/backend/frontend/tdd/external/scripts-policy)降为**按需查**,不要求通读。
-
-### ② 读取路径接通(这才是原来缺的)
-- blueprint ②1 + dev ②1 改为:**工程规范 = `standards/HARD-RULES.md`(必读)+ 项目 `DEV-RULES.md` 的并集 · 🔴 冲突以项目为准**。
-- `templates/dev-rules.md` 边界表同步(项目侧视角:冲突以本文件为准)。
-- **删最后一处同源副本**:tech.md 的日志规则正文 → 改指白名单(该规则原散在 standards + 模板两处)。
-
-### ③ standards 深度精简 1290 → 1135(累计 1773 → 1135 · **-36%**)
-- backend 655 → 551:日志级别表与 JSON 示例(模型默认就会)· API 响应示例 · FK 理由 10 行压成 2 行(**逆默认规则的 why 必须留** —— 否则模型会反驳或"修正"它,只是不必铺开)。
-- tdd 127 → 93:RED-GREEN-REFACTOR 5 步教程删,只留框架强调的两点(红要真红 / 一绿点一 commit)。
-- frontend 154 → 90:测试规范流程教程删,留项目约定的阈值与清单(覆盖率 / 分层 / 必测场景)。
-- WCAG 细则与 ui-design 刚砍的 rubric 同类,但 frontend 那份含「禁 div onClick / 禁 aria-hidden 键盘陷阱」等**逆默认**项,保留原样。
-
-### 验证
-- 新增 test_hard_rules_v8286(9:白名单够短可必读 / 并集与优先级成文 / 收录判据成文 / 逆默认 6 条在 / 框架约定 5 条在 / blueprint+dev 读取路径已接 / dev-rules 模板同步 / 模板副本已改指针 / 分册总量)· pytest **1024 passed**。

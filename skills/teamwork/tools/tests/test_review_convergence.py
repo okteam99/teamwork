@@ -328,8 +328,8 @@ class _ReviewFlowCase(unittest.TestCase):
         (self.feat / "REVIEW-qa.md").write_text("# qa", encoding="utf-8")
         ext = self.feat / "external-cross-review"
         ext.mkdir()
-        (ext / "review-codex.md").write_text(
-            "---\nreview_model: codex\n---\n# ext", encoding="utf-8")
+        (ext / "review-opus.md").write_text(
+            "---\nreview_via: subagent\nreview_model: opus-subagent\n---\n# ext", encoding="utf-8")
 
     def tearDown(self):
         shutil.rmtree(self.tmp, ignore_errors=True)
@@ -354,7 +354,7 @@ class _ReviewFlowCase(unittest.TestCase):
             d = self.feat / "external-review-prompts"
             d.mkdir(exist_ok=True)
             time.sleep(0.05)
-            (d / "review-codex-20990101T000000Z.log").write_text("ran", encoding="utf-8")
+            (d / "review-subagent-20990101T000000Z.md").write_text("recipe", encoding="utf-8")
 
 
 class TestReviewCompleteGateFlow(_ReviewFlowCase):
@@ -443,13 +443,16 @@ class TestReviewCompleteGateFlow(_ReviewFlowCase):
         d = self._complete("APPROVE")
         self.assertEqual(d["verdict"], "PASS")
 
-    def test_disable_external_skips_verify_after_fix_gate(self):
-        """localconfig disable_external_review=true → fix 后无日志也可 APPROVE(单模型 opt-out)。"""
+    def test_verify_after_fix_gate_no_longer_has_optout(self):
+        """v8.291 门禁增强:fix 后 APPROVE **必须**有 external 验证证据 —— 单模型豁免已随跨厂商退役而取消。
+
+        旧行为:`disable_external_review=true` 跳过本门(因为跑跨厂商 CLI 太贵/常不可用)。
+        新行为:外审 = 廉价 subagent,**没有理由再豁免** —— 拆掉跨厂商反而让这道门更严。
+        """
         (self.tmp / ".teamwork_localconfig.json").write_text(
-            json.dumps({"disable_external_review": True}), encoding="utf-8")
-        # ext 产物换降级自审(config-disabled 模式門禁接受)
-        (self.feat / "external-cross-review" / "review-codex.md").write_text(
-            "---\nreview_model: claude-self\ndegraded: true\nheterogeneous: false\n---\n# self",
+            json.dumps({}), encoding="utf-8")   # v8.291:disable_external_review 已退役
+        (self.feat / "external-cross-review" / "review-opus.md").write_text(
+            "---\nreview_via: subagent\nreview_model: opus-subagent\n---\n# ext",
             encoding="utf-8")
         _write_findings_md(self.feat / "REVIEW.md", "NEEDS_REVISION",
                            [("F1", "MAJOR", "open", "bug")])
@@ -458,8 +461,16 @@ class TestReviewCompleteGateFlow(_ReviewFlowCase):
         _run_state(self.tmp, "review-retry", "--feature", self.feat_rel)
         _write_findings_md(self.feat / "REVIEW.md", "APPROVE",
                            [("F1", "MAJOR", "fixed", "bug")])
-        d = self._complete("APPROVE")
-        self.assertEqual(d["verdict"], "PASS")
+        d = self._complete("APPROVE", expect_exit=1)          # 无验证证据 → 拦
+        self.assertEqual(d["verdict"], "FAIL")
+        self.assertIn("修复后 external 验证", str(d))
+        # 补上 verify 配方 doc(晚于 fix)→ 放行
+        pd = self.feat / "external-review-prompts"
+        pd.mkdir(exist_ok=True)
+        time.sleep(0.05)
+        (pd / "review-subagent-fixverify-20990101T000000Z.md").write_text("r", encoding="utf-8")
+        d2 = self._complete("APPROVE")
+        self.assertEqual(d2["verdict"], "PASS")
 
 
 # ─── 6 · 轮次预算 + 升级暂停点 + --user-confirmed 逃生 ──────────────────

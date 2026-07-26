@@ -1688,190 +1688,68 @@ def _check_external_hetero(name: str, host=None) -> tuple[bool, str]:
 
 
 def _external_run_log_exists(feature_dir: Path, stage: str) -> bool:
-    """本 stage external 评审有「实跑证据」(过程日志)· yolo 门禁用。
+    """本 stage 第三视角冷审有「走过命令」的证据(yolo 门禁用)。
 
-    主路径:state.py external-review 执行时在
-    `<feature_dir>/external-review-prompts/<stage>-<model>-<ts>.log` 落的过程日志
-    (与 prompt-doc 同名 .log · 随 feature 归档)。
-    兼容:老全局路径 `~/.teamwork/external-review-logs/<feat>/<model>-<stage>-*.log`
-    (早期版本落此 · 老 feature 已有日志不误伤)。
-    用途:yolo 校验 external 真调了异质模型(不是 AI 手写/内化 external-cross-review)。
+    v8.291:跨厂商 CLI 退役后没有子进程日志了 —— 证据改为 **prompt doc 存在**
+    (`external-review-prompts/<stage>-*.md` · 由 `state.py external-review` 落盘)。
+    它证明「真跑过命令拿配方」而非 AI 直接手写 external-cross-review。
+    兼容存量 feature 的 .log 后缀;v8.291 顺带删 legacy 全局路径 `~/.teamwork/external-review-logs`
+    (早期版本落此 · 已无产出者 · 且读 $HOME 会污染测试隔离)。
     """
     prompts_dir = Path(feature_dir) / "external-review-prompts"
-    if prompts_dir.is_dir():
-        for model in ("codex", "claude"):
-            if list(prompts_dir.glob(f"{stage}-{model}-*.log")):
-                return True
-    feat_name = feature_dir.name or "unknown"
-    log_dir = Path.home() / ".teamwork" / "external-review-logs" / feat_name
-    if log_dir.is_dir():
-        for model in ("codex", "claude"):
-            if list(log_dir.glob(f"{model}-{stage}-*.log")):
-                return True
-    return False
-
-
-def _localconfig_disable_external(feature_dir: Path) -> bool:
-    """v8.90/v8.153:读 localconfig `disable_external_review`(原名 `disable_heterogeneous_review`)·
-    向上找到 .git 边界。🔴 v8.204(全局一刀切):**默认 true**(external 异质默认关 · CLI 冷启动太耗时)·
-    key 缺省 / 读失败 → true;显式 `false` = 主动 opt-in 异质。多角色评审(架构师+QA)不受影响。
-
-    内联实现(避免 _v8_stage_specs 循环 import state.py)· 与 state._read_disable_external_review 同义。
-    """
-    import json as _json
-    try:
-        node = Path(feature_dir).resolve()
-    except OSError:
-        return True
-    for d in [node, *node.parents]:
-        cfg = d / ".teamwork_localconfig.json"
-        if cfg.exists():
-            try:
-                data = _json.loads(cfg.read_text(encoding="utf-8"))
-            except (OSError, ValueError):
-                return True
-            return data.get("disable_external_review", True) is True  # 缺省→true(默认关)· 显式 false→开
-        if (d / ".git").exists():
-            break
-    return True
+    if not prompts_dir.is_dir():
+        return False
+    return (any(prompts_dir.glob(f"{stage}-*.md"))
+            or any(prompts_dir.glob(f"{stage}-*.log")))   # .log 兼容存量 feature
 
 
 def _evidence_external_review_artifact(state: dict, args) -> tuple[bool, str]:
-    """external-cross-review/ 至少 1 份 markdown · 且必须是真异质模型评审(v8.19 加强)。
+    """第三视角冷审产物校验(v8.291:跨厂商异质退役后大幅简化 · 136 行 → 30 行)。
 
-    v8.90/v8.153:`disable_external_review:true`(localconfig · 单模型用户)时 · 接受
-    external-review 写的**降级同模型自审**文件(frontmatter `degraded:true heterogeneous:false`)·
-    跳过异质违规(用户已 opt-out · bootstrap 每次启动 WARN 持续提醒)。详 standards §11。
-
-    联动 state.stage_review_roles:若当前 stage 的 reviewers 列表不含 'external'
-    (通过 change-review-roles 调整去除) → skip 校验(audit 已在 stage_review_roles_adjustments)。
-
-    v8.0+P0-14:external-cross-review/ 在 artifact_root 内(feature_dir 内 · 不是 parent)。
-    v8.19 治本 SVC-CORE-F034 case:加文件名 + frontmatter review_model 双重校验 ·
-    BLOCKED "AI 用 Agent subagent_type=general-purpose 起 Claude isolated context 自审 ·
-    再标 review_model: claude-opus-4-isolated-context 透明伪装合规" 的反模式。
-    硬约束源:standards/external-model-usage.md § 七 异质性硬约束。
+    旧版承载「异质性硬约束」(文件名模型白名单 / review_model 字面比对 / degraded 语义 /
+    host 比对 / 实跑日志物化)—— 那整套是为了拦「用同模型 subagent 冒充跨厂商异质」。
+    **跨厂商路径整体退役后该反模式不存在了**(没有可冒充的对象),要守的只剩两条:
+      ① **必须是隔离 subagent**(`review_via: subagent`)—— 主对话热审 = 同上下文 = 零独立性;
+      ② **必须照实申报模型**(`review_model` 非空)—— 供台账核「错开」是否真发生。
+    roster 不含 external → skip(change-review-roles 调整已留 audit)。
     """
-
     current_stage = state.get("current_stage", "")
     stage_roles = state.get("stage_review_roles", {}).get(current_stage, [])
     if stage_roles and "external" not in stage_roles:
-        return True, (
-            f"skipped(external 不在 state.stage_review_roles.{current_stage}={stage_roles} · "
-            f"已通过 change-review-roles 调整 · audit 详 state.stage_review_roles_adjustments)"
-        )
-
-    feature_dir = Path(args.feature)
-    external_dir = feature_dir / "external-cross-review"
-    if not external_dir.exists():
-        return False, f"external-cross-review/ 不存在 · 路径:{external_dir}"
-    md_files = list(external_dir.glob("*.md"))
+        return True, f"skipped(external 不在 stage_review_roles.{current_stage}={stage_roles})"
+    external_dir = Path(args.feature) / "external-cross-review"
+    md_files = list(external_dir.glob("*.md")) if external_dir.exists() else []
     if not md_files:
         return False, (
-            "external-cross-review/*.md 为空 · 跑 codex 外部评审或 change-review-roles 移除 external"
-        )
-
-    # v8.90:单模型用户 localconfig 禁异质 → 接受 external-review 写的降级同模型自审(跳过异质违规)
-    ext_disabled = _localconfig_disable_external(feature_dir)
-    # v8.36 host per-feature · v8.68 host-aware 异质判定(治本 codex-cli host 下 claude 误判)
-    state_host = state.get("host")
-    # v8.19:逐文件校验异质性(文件名 + frontmatter review_model 双重 · v8.68 host-aware)
-    violations: list = []
+            "external-cross-review/*.md 为空 —— 跑 `state.py external-review --feature <path> "
+            f"--stage {current_stage or '<stage>'}` 拿 subagent 配方(错开模型冷审)· "
+            "或 `change-review-roles` 移除 external")
+    bad, has_subagent_artifact = [], False
     for f in md_files:
         fm = parse_frontmatter(f) or {}
-        # v8.90:config-disabled 项目 + 文件是合规降级自审(external-review 写 degraded:true
-        # heterogeneous:false)→ 视作满足门禁(用户已 opt-out · startup WARN 持续提醒)· 跳过异质校验。
-        # 注:parse_frontmatter 是朴素解析 · 值为字符串("true"/"false")。
-        # v8.226:ultra-ingest(用户触发的产品化多智能体评审摄入)豁免模型名异质校验 ——
-        # 它不是某个模型的产物(文件名无模型族字面是正常的)· 独立性来自 out-of-session pipeline。
-        if str(fm.get("review_via", "")).lower() == "ultra-ingest":
-            continue
-        deg = (str(fm.get("degraded", "")).lower() == "true"
-               and str(fm.get("heterogeneous", "")).lower() == "false")
-        # v8.90:config-disabled 项目(ext_disabled=true)→ 接受任何 degraded 自审(用户已 opt-out)。
-        # v8.108:per-run subagent 降级(frontmatter degraded_mode=subagent-fallback)→ 接受(显式降级 ·
-        # 即便项目未 opt-out · 因为是 --self-review-fallback 带 reason 的诚实降级)· 非异质 · 满足 P0-154。
-        # 🔴 config-disabled marker 仍须 ext_disabled 为真(防未 opt-out 项目用 stale config-disabled 标绕过);
-        # 无 degraded marker / 非 subagent-fallback → 落下方黑名单(F034 伪装拦)。
-        if deg and (ext_disabled
-                    or str(fm.get("degraded_mode", "")).lower() == "subagent-fallback"):
-            continue
-        # host 优先级:state.host(per-feature)> 文件 frontmatter host(external-review 写)> None(默认 claude)
-        eff_host = state_host or (fm.get("host") or "").strip() or None
-        ok_name, name_reason = _check_external_hetero(f.stem, eff_host)
-        rm_value = (fm.get("review_model") or "").strip()
-        rm_ok, rm_reason = True, ""
-        if rm_value:
-            rm_ok, rm_reason = _check_external_hetero(rm_value, eff_host)
-        if not ok_name:
-            violations.append(f"{f.name}:文件名 {name_reason}")
-        if rm_value and not rm_ok:
-            violations.append(f"{f.name}:frontmatter review_model={rm_value!r} {rm_reason}")
-
-    if violations:
-        # v8.95:ext_disabled 项目的违规 = 文件缺降级标记(多半 AI 手写没打标)· 给**专属**修复指引
-        # (不要走通用「调异质模型」分支 —— 那对单模型 opt-out 用户误导 · 正与 v8.90 初衷相悖)。
-        if ext_disabled:
-            fix_section = (
-                "\n  🔴 修复(本项目 `disable_external_review=true` · 单模型 opt-out):"
-                "external-cross-review 文件**缺降级标记** → 被判同源。"
-                "\n  正解 = 跑 `state.py external-review --stage "
-                f"{current_stage} --feature {args.feature}` —— config-disabled 模式会**自动**产出 "
-                "`degraded:true heterogeneous:false` 的降级同模型自审(被门禁接受)· **别手写**"
-                "(手写没实跑标记 · 看起来像伪造 → 拦)。"
-                "\n  或给现有 external-cross-review/*.md 补 `degraded: true` + `heterogeneous: false` "
-                "两个 frontmatter 键(注:写在 external-cross-review 文件里 · 不是 REVIEW.md)。"
-                "\n  想恢复真异质把关 → 删 localconfig 的 `disable_external_review`。"
-            )
-        else:
-            fix_section = (
-                "\n  规约(v8.68 host-aware):同源 = ① isolated/subagent 等机制字面(全 host BLOCK)· "
-                "或 ② review model 与**宿主同族**(claude-code 宿主下 claude 同源 · "
-                "**codex-cli 宿主下 claude 是异质 · 合规**)。"
-                "\n  典型违规:AI 用 Agent subagent_type=general-purpose 起同模型 isolated context 自审 → 同模型自评有盲点。"
-                "\n  修复:跑 `state.py external-review --stage <X> --feature <path>`"
-                "(host 自动映射异质模型:claude-code→codex · codex-cli→claude · gemini-cli→codex)· "
-                "或 change-review-roles 显式移除 external(留 audit)。"
-                "\n  🔴 若本就是合规异质评审却被判违规 → 检查 state.json.host 是否 = 你的真实主对话宿主"
-                "(host 错 / 缺 默认 claude · 会把 codex-cli 的 claude 评审误判同源)。"
-            )
+        via = str(fm.get("review_via", "")).strip().lower()
+        if via == "ultra-ingest":
+            continue  # /code-review ultra 摄入 · 独立性由产品化多智能体保证 · provenance 是会话转录
+        has_subagent_artifact = True
+        model = str(fm.get("review_model", "")).strip()
+        if via != "subagent":
+            bad.append(f"{f.name}:review_via={via or '缺'}(必须 subagent —— 主对话热审无独立性)")
+        elif not model:
+            bad.append(f"{f.name}:review_model 缺(照实写 subagent 实际模型 · 供核对错开)")
+    if bad:
+        return False, ("第三视角产物不合规:" + " · ".join(bad)
+                       + " —— 🔴 隔离 subagent + 照实申报模型(v8.291 · 禁主对话自评 · 禁伪造)")
+    # 🔴 yolo 不内化律(v8.67 · v8.291 换代证据):无人值守时必须有「真跑过命令」的物证 ——
+    # 仅对 subagent 产物要求(ultra-ingest 的 provenance 是会话转录 · 不经 external-review)。
+    # prompt doc 由 external-review 落盘 · AI 直接手写 external-cross-review 时它不存在。
+    if (state.get("yolo") and has_subagent_artifact
+            and not _external_run_log_exists(Path(args.feature), current_stage)):
         return False, (
-            f"external 异质性违规({len(violations)} 文件)· R3 红线 + standards/"
-            f"external-model-usage.md § 七 异质性硬约束:\n  "
-            + "\n  ".join(violations)
-            + fix_section
-        )
-
-    # v8.67:yolo 严格按流程 · 不内化 —— external 必须真跑(state.py external-review 调异质模型)·
-    # 不得 AI 手写 external-cross-review/*.md(文件名/frontmatter 能伪装合规 · 但无实跑日志)。
-    # 治本 case(WS-002 yolo):AI 写 PRD-REVIEW "mode: yolo-internalized" 自盖章 APPROVE · 评审形同虚设。
-    if state.get("yolo") and not _external_run_log_exists(feature_dir, current_stage):
-        # v8.179:yolo + 单模型(disable_external_review)→ 异质实跑日志本就不存在(非异质是用户
-        # 显式 opt-out)· 改认 **subagent 冷审** 证据(review_via:subagent · 非主对话热审 / AI 手写)。
-        # 治本:旧 1644 闸无 ext_disabled 豁免 · 误 BLOCK 单模型 yolo 用户(异质日志永远拿不到)。
-        if ext_disabled:
-            # v8.226:ultra-ingest(用户触发的多智能体评审摄入)与 subagent 冷审同为合法第三视角
-            cold = any(str((parse_frontmatter(f) or {}).get("review_via", "")).lower() in ("subagent", "ultra-ingest")
-                       for f in md_files)
-            if not cold:
-                return False, (
-                    "yolo + 单模型(localconfig disable_external_review)· 降级评审**必须是 subagent 冷审** "
-                    "—— external-cross-review/*.md 缺 `review_via: subagent`(= 没走 isolated subagent 冷审 · "
-                    "疑主对话热审 / AI 手写)。跑 `state.py external-review --stage "
-                    f"{current_stage} --feature {args.feature}` → 按 SUBAGENT_FALLBACK 配方起 **isolated "
-                    "subagent 冷审**(宿主自身模型 · 隔离上下文 · 非主对话)· 产出带 `review_via: subagent` 的降级评审。"
-                )
-        else:
-            return False, (
-                f"yolo 模式 external 评审缺**实跑证据** —— {feature_dir}/external-review-prompts/ "
-                f"无本 stage 过程日志({current_stage}-codex-*.log / {current_stage}-claude-*.log ·"
-                f" 老 feature 兼容查 ~/.teamwork/external-review-logs/{feature_dir.name}/)。"
-                f"🔴 yolo 严格按流程 · **不得手写/内化** "
-                f"external-cross-review/*.md —— 必须真跑 `state.py external-review --stage "
-                f"{current_stage} --feature {args.feature}`(调异质模型 · 自动落实跑日志)。"
-                f"\n  (artifact 文件名/frontmatter 能伪装合规 · 但实跑日志伪造不了 · 这是物化防内化)"
-            )
-    return True, ""
+            "yolo 缺**实跑证据**:`external-review-prompts/" + (current_stage or "<stage>")
+            + "-*.md` 不存在 —— 无人值守时产物可被直接手写自盖章(治本 WS-002 「mode: yolo-internalized」)。"
+            "跑 `state.py external-review --feature <path> --stage " + (current_stage or "<stage>")
+            + "` 拿配方(它会落 prompt doc)· 再起错开模型 subagent 产出评审。")
+    return True, f"external-cross-review/ {len(md_files)} 份(subagent 冷审 · 已申报模型)"
 
 
 BLUEPRINT_SPEC = StageSpec(
@@ -2278,10 +2156,10 @@ def _evidence_external_verified_after_fix(state: dict, args) -> tuple[bool, str]
     """APPROVE 收口前的「修复后 external 验过」轻量物化(验证轮 external 频率规则):
 
     条件全满足才校验:verdict=APPROVE + rounds ≥ 2 + 期间有过 fix_commit。
-    证据 = external-review-prompts/review-*.log(external-review 实跑日志)mtime >
+    证据 = external-review-prompts/review-*.md(v8.291 配方 doc · 旧 .log 兼容)mtime >
     最后一次 fix_at;降级路径(subagent 无 .log)认 external-cross-review/ 内
     frontmatter `degraded: true` 的 review-*.md mtime。
-    跳过:localconfig `disable_external_review=true`(单模型 opt-out)· 或
+    跳过:
     stage_review_roles.review 已去 external(change-review-roles 留痕)。
     """
     if getattr(args, "verdict", None) != "APPROVE":
@@ -2294,8 +2172,6 @@ def _evidence_external_verified_after_fix(state: dict, args) -> tuple[bool, str]
     if not fix_ats:
         return True, ""
     feature_dir = Path(args.feature)
-    if _localconfig_disable_external(feature_dir):
-        return True, "skipped(disable_external_review=true · 单模型 opt-out)"
     stage_roles = state.get("stage_review_roles", {}).get("review", [])
     if stage_roles and "external" not in stage_roles:
         return True, f"skipped(external 不在 stage_review_roles.review={stage_roles})"
@@ -2309,7 +2185,8 @@ def _evidence_external_verified_after_fix(state: dict, args) -> tuple[bool, str]
     candidates: list = []
     prompts_dir = feature_dir / "external-review-prompts"
     if prompts_dir.is_dir():
-        candidates.extend(prompts_dir.glob("review-*.log"))
+        candidates.extend(prompts_dir.glob("review-*.md"))    # v8.291:配方 doc = 实跑证据
+        candidates.extend(prompts_dir.glob("review-*.log"))   # 存量兼容
     ext_dir = feature_dir / "external-cross-review"
     if ext_dir.is_dir():
         for md in ext_dir.glob("review-*.md"):
@@ -2322,7 +2199,7 @@ def _evidence_external_verified_after_fix(state: dict, args) -> tuple[bool, str]
     except OSError:
         pass
     return False, (
-        f"APPROVE 收口前缺「修复后 external 验证」证据:external-review-prompts/review-*.log "
+        f"APPROVE 收口前缺「修复后 external 验证」证据:external-review-prompts/review-*.md "
         f"无晚于最后一次 fix({last_fix_at})的实跑日志 · 跑 `state.py external-review "
         f"--feature {args.feature} --stage review --verify-fixes`(增量重验 · 只评上轮已评 "
         "commit..HEAD 修复 diff · 非全量重跑)后重试"
@@ -2386,7 +2263,7 @@ def _review_verify_round_brief(state: dict, rounds: list) -> str:
 
 ### external 频率(验证轮)
 - 本轮 external 用 `state.py external-review --feature <path> --stage review --verify-fixes`(增量 · 只评修复 diff)· 中间轮可不跑
-- **拟 APPROVE 前**:本 stage 有过 fix → 必有一次 fix 后 external 验证(review-complete 物化校验 · disable_external_review 项目跳过)
+- **拟 APPROVE 前**:本 stage 有过 fix → 必有一次 fix 后 external 验证(review-complete 物化校验 · 🔴 v8.291 起无豁免 —— 外审已是廉价 subagent)
 
 {_review_findings_gate_lines()}
 ### 完成方式
@@ -2572,8 +2449,8 @@ REVIEW_SPEC = StageSpec(
             name="external_verified_after_fix",
             check_fn=_evidence_external_verified_after_fix,
             description=(
-                "APPROVE + rounds≥2 + 有 fix_commit → external-review-prompts/review-*.log "
-                "mtime > 最后 fix_at(disable_external_review / 去 external 项目跳过)"
+                "APPROVE + rounds≥2 + 有 fix_commit → external-review-prompts/review-*.md "
+                "mtime > 最后 fix_at(roster 去 external 的项目跳过)"
             ),
         ),
         # v8.0+P0-9:REVIEW.md reviewers 必含 state.stage_review_roles[review]

@@ -495,11 +495,12 @@ class TestYoloExternalLogNewPath(unittest.TestCase):
         self.tmp = Path(tempfile.mkdtemp(prefix="tw-yolo-log-"))
         self.feat = self.tmp
         (self.feat / ".git").mkdir()  # v8.204:walk boundary
-        (self.feat / ".teamwork_localconfig.json").write_text(  # opt-in 异质(默认关)
-            json.dumps({"disable_external_review": False}), encoding="utf-8")
+        (self.feat / ".teamwork_localconfig.json").write_text(
+            json.dumps({}), encoding="utf-8")   # v8.291:disable_external_review 已退役
         (self.feat / "external-cross-review").mkdir(parents=True)
-        (self.feat / "external-cross-review" / "review-codex.md").write_text(
-            "---\nreview_model: codex\n---\n# review", encoding="utf-8")
+        (self.feat / "external-cross-review" / "review-opus.md").write_text(
+            "---\nreview_via: subagent\nreview_model: opus-subagent\n---\n# review",
+            encoding="utf-8")
 
     def tearDown(self):
         shutil.rmtree(self.tmp, ignore_errors=True)

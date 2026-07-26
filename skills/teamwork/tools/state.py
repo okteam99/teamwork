@@ -2064,14 +2064,14 @@ def cmd_init_feature(args: argparse.Namespace) -> None:
     # v8.0+P0-13:项目级系统维护已挪到 session-bootstrap(session 级 · 不是 Feature 级)
     # init-feature 只管 Feature 级状态机操作
 
-    # v8.204(用户拍板 · 全局一刀切 · yolo 也跟随):external 异质默认关 → 评审第三视角 = 同模型
-    # subagent 隔离冷审(默认常态)· 多角色评审照跑。yolo 无人值守 · 给一条 INFO 提示(非红线告警) ——
-    # 若要 yolo 也上跨模型异质把关,localconfig 显式 disable_external_review:false。
+    # v8.291:跨厂商异质彻底退役 —— 第三视角唯一形态 = 错开模型 subagent 冷审(无 opt-in 分支)。
+    # yolo 无人值守时给一条 INFO 说明当前形态 + 提醒实跑证据门(prompt doc)。
     yolo_ext_warning = None
-    if yolo_enabled and _read_disable_external_review(args.feature):
+    if yolo_enabled:
         yolo_ext_warning = (
-            "ℹ️ yolo 评审第三视角 = 错开模型 subagent 隔离冷审(≠主会话模型 · v8.268 · external 跨厂商异质默认关 · 省 CLI 冷启动)· "
-            "架构师+QA 多角色评审照跑。想要 yolo 也上跨模型异质把关 → localconfig `disable_external_review: false`。"
+            "ℹ️ yolo 第三视角 = **错开模型 subagent 隔离冷审**(≠会话主模型 · 如 fable5 → opus)· "
+            "架构师/QA 多角色评审照跑。🔴 不内化律:产物须经 `state.py external-review` 拿配方"
+            "(它落 prompt doc = 实跑证据)· 直接手写 external-cross-review 会被 complete 门拦。"
         )
     emit({
         "verdict": "OK",
@@ -2306,34 +2306,6 @@ def _read_fast_mode(start) -> bool:
             return False
         node = node.parent
     return False
-
-
-def _read_disable_external_review(start) -> bool:
-    """读项目根 `.teamwork_localconfig.json` 的 `disable_external_review`(v8.153 改名 · 原 `disable_heterogeneous_review`)。
-
-    从 `start` 向上找 `.teamwork_localconfig.json`(到 `.git` 边界止)。
-    🔴 v8.204(用户拍板 · 全局一刀切):**默认 true**(external 异质评审**默认关** · external CLI 冷启动太耗时)
-    —— key 缺省 / 无 config / 读失败 → **true**(禁用);显式 `false` = **主动 opt-in 跨模型异质把关**。
-    禁用 = external-review emit subagent 降级配方(宿主自身模型 subagent 隔离冷审 · 写 external-cross-review/
-    满足 P0-154 · frontmatter 标 degraded)· **架构师 + QA 多角色评审不受影响照跑**。与 v8.88
-    `--self-review-fallback`(异质暂时不可用的临时 stopgap · 落 self-review/ · 不满足门禁)区分:本项是项目级长期默认。
-    🔴 v8.154 hard rename:只读新名 `disable_external_review` · 旧名 `disable_heterogeneous_review` 已废弃。
-    """
-    try:
-        node = Path(start).resolve()
-    except OSError:
-        return True
-    for d in [node, *node.parents]:
-        cfg = d / ".teamwork_localconfig.json"
-        if cfg.exists():
-            try:
-                data = json.loads(cfg.read_text(encoding="utf-8"))
-            except (OSError, json.JSONDecodeError):
-                return True
-            return data.get("disable_external_review", True) is True  # 缺省→true(默认关)· 显式 false→开
-        if (d / ".git").exists():
-            break
-    return True
 
 
 def _detect_id_collision(feature_dir: Path, feature_id: str) -> "dict | None":
@@ -3135,52 +3107,6 @@ EXTERNAL_REVIEW_TIMEOUT_SEC = 600  # v8.55:5min→10min(用户 case codex 偶尔
 
 # ─── external 机械成本三连修(v8.191 · harvest:20× 超时/重试/未登录/全量重跑)────
 
-def _external_timeout_sec(start) -> int:
-    """localconfig `external_review_timeout_sec` 覆盖默认超时(长 review 项目调大 · 不硬编码)。"""
-    try:
-        d = Path(start).resolve()
-        for cand in [d, *d.parents]:
-            cfg = cand / ".teamwork_localconfig.json"
-            if cfg.is_file():
-                v = json.loads(cfg.read_text(encoding="utf-8")).get("external_review_timeout_sec")
-                return int(v) if isinstance(v, (int, float)) and v > 0 else EXTERNAL_REVIEW_TIMEOUT_SEC
-            if (cand / ".git").exists():
-                break
-    except (OSError, ValueError, TypeError):
-        pass
-    return EXTERNAL_REVIEW_TIMEOUT_SEC
-
-
-def _preflight_external(cli_name: str, timeout_sec: int = 120) -> dict:
-    """v8.191:CLI 登录/网络 preflight(治「到 review 才发现未登录 → 降级折腾」· harvest 实锤)。
-
-    which(存在)→ version → **微 probe**(一次极小调用 · 秒级 · 证 E2E 通:认证/网络/配额)。
-    在 review 干活**之前**跑 · 失败此刻修环境 · 不烧完整评审的墙钟。
-    """
-    import shutil as _sh
-    if not _sh.which(cli_name):
-        return {"ok": False, "step": "which", "reason": f"{cli_name} CLI 不在 PATH",
-                "fix": f"装 {cli_name} CLI · 或走 --self-review-fallback 降级"}
-    probe_cmd = (["codex", "exec", "Reply with exactly: PONG"] if cli_name == "codex"
-                 else ["claude", "-p", "Reply with exactly: PONG",
-                       "--output-format", "text", "--strict-mcp-config"])
-    try:
-        r = subprocess.run(probe_cmd, capture_output=True, text=True, timeout=timeout_sec)
-    except subprocess.TimeoutExpired:
-        return {"ok": False, "step": "probe", "reason": f"probe 超时({timeout_sec}s)· 网络/限流?",
-                "fix": "检查网络/配额 · 稍后重试 · 持续不通走 --self-review-fallback"}
-    except (FileNotFoundError, OSError) as e:
-        return {"ok": False, "step": "probe", "reason": f"probe 启动失败:{e}", "fix": "检查 CLI 安装"}
-    err = (r.stderr or "").lower()
-    if r.returncode != 0 or any(k in err for k in ("not logged in", "login", "unauthorized", "auth")):
-        return {"ok": False, "step": "probe", "rc": r.returncode,
-                "reason": f"probe 失败(rc={r.returncode})· 疑未登录/认证:{(r.stderr or '')[:150]}",
-                "fix": f"登录 {cli_name} CLI(此刻修 · 别等 review 跑完才发现)· 修不了走 --self-review-fallback"}
-    if not (r.stdout or "").strip():
-        return {"ok": False, "step": "probe", "reason": "probe 空输出", "fix": "重试一次 · 持续空输出查 CLI 配置"}
-    return {"ok": True, "step": "probe", "note": f"{cli_name} E2E 通(认证/网络 OK)"}
-
-
 def _find_prior_external_review(feature_dir: Path, stage: str):
     """v8.191:找上一轮 external 结果文件 + 它评过的 commit → (path, target_commit) · 无 → None。"""
     d = feature_dir / "external-cross-review"
@@ -3223,20 +3149,6 @@ _FINDING_POSTURE_HINT = (
 )
 
 
-def _detect_cli_version(cli_name: str) -> str:
-    """探测 CLI 版本字符串(用于 frontmatter review_model 字段)。"""
-    try:
-        r = subprocess.run([cli_name, "--version"],
-                           capture_output=True, text=True, timeout=10)
-        if r.returncode == 0:
-            return r.stdout.strip().splitlines()[0] if r.stdout.strip() else cli_name
-    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
-        pass
-    return cli_name  # fallback
-
-
-# v8.43:claude reviewer 需要 inline 文件内容(stateless one-shot · 无文件系统访问)
-# stage → 待评审文件清单(与 reviewer.md "你需要读取的文件" 段对齐)
 STAGE_REVIEW_FILES = {
     "goal":      ["PRD.md"],
     "blueprint": ["TC.md", "TECH.md"],
@@ -3960,819 +3872,119 @@ def _is_ancestor(ancestor: str, commit: str, cwd: str) -> bool:
         return False
 
 
+def _resolve_external_base(state: dict, stage: str, commit: str,
+                           feature_dir: Path) -> tuple[str, str]:
+    """第三视角冷审的 diff 基线(v8.291 保留 v8.161 不变式 · 从原内联逻辑抽出)。
+
+    - **仅 review stage** 用 `state.review_base_commit`(pre-dev HEAD · 增量评审锚)· goal/blueprint 忽略它;
+    - 且它必须是 `commit` 的**祖先** —— 否则(分支重开 / rebase / 锚过期)回退 `merge_target`,
+      避免给出一个算不出 diff 的假基线。
+    """
+    def _is_ancestor(a: str, b: str) -> bool:
+        if not (a and b):
+            return False
+        r = subprocess.run(["git", "-C", str(feature_dir), "merge-base", "--is-ancestor", a, b],
+                           capture_output=True, text=True, timeout=10)
+        return r.returncode == 0
+    anchor = state.get("review_base_commit") or ""
+    if stage == "review" and anchor and _is_ancestor(anchor, commit):
+        return anchor, "review_base_commit"
+    return (state.get("merge_target") or ""), "merge_target"
+
+
 def cmd_external_review(args: argparse.Namespace) -> None:
-    """v8.20:state.py external-review · 异质模型评审一条命令调起。
+    """v8.291:第三视角冷审 = **错开模型 subagent**(唯一形态 · 跨厂商 CLI 异质已彻底退役)。
 
-    治本 SVC-CORE-F034 case:case-AI 5 层根因第 1/2/3 层(没 which / 没 cite F033 范式 /
-    选 Agent subagent substitute)本质是「调用本身没物化」· PMO 要自己判断该不该跑 /
-    怎么跑 / 用什么 profile。物化后这 3 层全消除。
+    退役理由(用户拍板):跨厂商 CLI(codex / gemini)冷启动 + 安全审查慢路径 + 登录/网络故障面,
+    实测严重拖慢流程(台账见 codex 挂死 98m / "Additional safety checks" 慢路径);而**同厂商模型错开**
+    (会话 fable5 → 外审 opus)已能拿到独立采样的主要收益 —— 上下文隔离(冷审)+ 权重错开,零 CLI 成本。
 
-    流程:
-      Step 1 · 宿主→异质 model 自动映射(--host claude-code → model=codex)
-      Step 2 · which <cli> 验工具在(不在 BLOCK + hint · 绝不 substitute)
-      Step 3 · stage→profile 自动选(prd-reviewer / blueprint-reviewer / reviewer)
-      Step 4 · 算 commit / base(state.json fallback)
-      Step 5 · 跑 CLI(同步 · 5min timeout · capture stdout)
-      Step 6 · 落 external-cross-review/<stage>-<model>.md(自动 frontmatter + body)
-      Step 7 · emit JSON 含 file_path + model_version + 命令实际跑的内容
-
-    R3 异质硬约束(v8.19 文件名校验是兜底 · v8.20 是主路径):
-    - model 必 ≠ host 同源(claude-code 不能选 claude · codex-cli 不能选 codex)
-    - 文件命名 + frontmatter review_model 自动用合规字面(白名单)
+    本命令不再 exec 任何子进程,只做三件事:① 组装评审 prompt(含待评审文件 inline)② 落 prompt 文档
+    ③ emit subagent 配方(**model 必须 ≠ 会话主模型**)。产出由主对话写入 external-cross-review/。
     """
-    # ── Step 1 · host + model 校验 + 自动映射 ──
-    # host 单源 = state.json.host(per-feature)· 全局 host_audit.json 已退役(不再读)
-    host_source = "explicit"
-    host = args.host
-    if not host:
-        host, source = _detect_host(args.feature)
-        host_source = source  # state_json / none
-        if not host:
-            emit({
-                "verdict": "FAIL",
-                "command": "external-review",
-                "error": "--host 未传 + state.json 无 host · 无法确定主对话宿主",
-                "hint": (
-                    "二选一(推荐 ①):\n"
-                    "  ① 跑 <stage>-start 时加 --host 写入 state.json.host(此后免传):\n"
-                    "     state.py <stage>-start --feature ... --host <claude-code|codex-cli|gemini-cli>\n"
-                    "  ② 在本命令显式传 --host\n\n"
-                    "host 是 per-feature 属性(同一项目不同 feature 可不同宿主)· "
-                    "决定异质模型映射(claude-code→codex · codex-cli→claude · gemini-cli→codex)"
-                ),
-                "spec": "standards/external-model-usage.md § 7.5 per-feature host",
-            })
-            return
-    if host not in EXTERNAL_HOST_TO_MODEL:
-        emit({
-            "verdict": "FAIL",
-            "command": "external-review",
-            "error": f"host={host!r} 非法 · 合法值: {sorted(EXTERNAL_HOST_TO_MODEL)}",
-            "hint": f"host 即主对话宿主标识 · 与 bootstrap --host 一致 · 来源: {host_source}",
-        })
-        return
-
-    # v8.88:诚实降级自审兜底 —— 异质模型客观不可用(未装/未登录/配额满·已重试失败)时 ·
-    # 跑**同模型 fresh exec** 自审(非异质 · 只隔离对话历史不隔离权重 · 同盲点)· 作弱安全网。
-    # 🔴 落 self-review/(不进 external-cross-review/)· **不满足 P0-154 异质门禁** ·
-    # 仍需修环境重跑真异质 或 change-review-roles 显式移除 external(本产物作降级 evidence)。
-    self_fallback = getattr(args, "self_review_fallback", False)
-    sr_reason = (getattr(args, "reason", "") or "").strip()
-    # v8.90:localconfig 禁用异质评审(单模型用户)→ 自动用宿主自身模型 exec 自审(降级 · 满足门禁)
-    ext_disabled = _read_disable_external_review(args.feature)
-    degraded_self = False  # True → config-disabled 降级自审(落 external-cross-review/ · 满足 P0-154)
-    if self_fallback:
-        # v8.88 临时 stopgap:异质暂不可用 · 落 self-review/ · **不满足 P0-154**(异质仍是目标)
-        if not sr_reason:
-            emit({
-                "verdict": "FAIL",
-                "command": "external-review",
-                "error": "--self-review-fallback 必带 --reason(异质为何不可用 + 已重试证据)",
-                "hint": "示例 --reason '异质 claude 未登录·已 retry 失败·降级同模型自审兜底'",
-            })
-            return
-        model = host.split("-")[0]  # claude-code→claude · codex-cli→codex(故意同源 · 降级)
-        if model not in ("codex", "claude"):
-            emit({
-                "verdict": "FAIL",
-                "command": "external-review",
-                "error": f"--self-review-fallback 暂仅支持 claude/codex 宿主自审(host={host})",
-                "hint": "gemini 等宿主无 self-review runner · 改 change-review-roles 移除 external",
-            })
-            return
-    elif ext_disabled:
-        # v8.90 项目级长期策略:用户禁异质(单模型)→ 自动宿主自身模型 exec 自审 ·
-        # 落 external-cross-review/(满足 P0-154 · 让单模型用户能走完流程)· frontmatter 标 degraded ·
-        # 每次 bootstrap 启动 WARN 持续提醒「交叉 review 质量下降 · 建议恢复异质」。
-        model = host.split("-")[0]  # 宿主自身模型(故意同源)
-        if model not in ("codex", "claude"):
-            emit({
-                "verdict": "FAIL",
-                "command": "external-review",
-                "error": f"disable_external_review=true 但宿主 {host} 无 self-exec runner(仅 claude/codex)",
-                "hint": ("改回异质(删 localconfig disable_external_review)· "
-                         "或 change-review-roles 移除 external"),
-            })
-            return
-        degraded_self = True
-        sr_reason = (sr_reason or "localconfig disable_external_review=true"
-                     "(单模型 · 异质评审降级为同模型 exec 自审 · 已 startup WARN)")
-    elif args.model:
-        model = args.model
-        # 异质校验:model 不能与 host 同源
-        host_keyword = host.split("-")[0]  # claude-code → claude · codex-cli → codex
-        if host_keyword in model.lower():
-            emit({
-                "verdict": "FAIL",
-                "command": "external-review",
-                "error": f"--model={model!r} 与 --host={host!r} 同源 · 违 R3 异质约束",
-                "hint": (
-                    f"host={host} 主对话宿主 = {host_keyword} · external 必跑异质 · "
-                    f"推荐 --model {EXTERNAL_HOST_TO_MODEL[host]}(自动映射 · 留空即默认)· "
-                    f"或异质客观不可用时 --self-review-fallback --reason '...' 降级自审(不满足门禁)"
-                ),
-                "spec": "standards/external-model-usage.md § 7.1 异质性定义",
-            })
-            return
-    else:
-        model = EXTERNAL_HOST_TO_MODEL[host]
-
-    if model not in ("codex", "claude"):
-        emit({
-            "verdict": "FAIL",
-            "command": "external-review",
-            "error": f"--model={model!r} 暂不支持(v8.20 仅 codex/claude)",
-            "hint": "其他白名单 CLI(gemini/deepseek 等)未来 case 实证再扩",
-        })
-        return
-
-    # ── Step 2 · which <cli> 验工具在(治本 case-AI 第 3 层根因) ──
-    cli_name = model  # "codex" 或 "claude"
-    which_r = subprocess.run(["which", cli_name], capture_output=True, text=True)
-    if which_r.returncode != 0:
-        emit({
-            "verdict": "FAIL",
-            "command": "external-review",
-            "error": f"{cli_name} CLI 不在(`which {cli_name}` 失败)",
-            "hint": (
-                f"异质 {cli_name} CLI 不在 · 三选一(🔴 v8.108 降级优先于移除):\n"
-                f"  ① 🟢 **降级(推荐)**:state.py external-review --feature {args.feature} "
-                f"--stage {args.stage} --self-review-fallback --reason '异质 {cli_name} 不在本机·已确认' "
-                f"→ emit subagent 配方(PMO 起 Agent subagent 错开模型降级冷审〔≠主会话 · v8.268〕· 满足门禁 · 诚实标 degraded · 非跨厂商异质)\n"
-                f"  ② 装 {cli_name} CLI(codex: https://github.com/openai/codex · "
-                f"claude: https://claude.com/claude-code)恢复**真异质**\n"
-                f"  ③ change-review-roles 移除 external(最后手段 · 留 audit)\n"
-                f"  🔴 绝不**偷偷**用 subagent 冒充异质(必走 ① 显式降级 · frontmatter 标 degraded · 不伪装合规)"
-            ),
-            "rule": "standards/external-model-usage.md §十一.5(降级=subagent · 不 exec)· §7.3 R3 异质硬约束",
-        })
-        return
-
-    # ── v8.191 · --preflight:review 干活前验 CLI 登录/网络(微 probe · 秒级)──
-    # 治 harvest 20×:「Claude CLI 未登录 · 到 review 跑完才发现 → 降级折腾」· 失败此刻修环境。
-    if getattr(args, "preflight", False):
-        pf = _preflight_external(cli_name)
-        emit({
-            "verdict": "OK" if pf.get("ok") else "FAIL",
-            "command": "external-review",
-            "action": "preflight",
-            "cli": cli_name,
-            **pf,
-            "next_hint": ("preflight 通过 · external-review 可正常跑" if pf.get("ok")
-                          else "先按 fix 修环境再进 review 干活(别烧完整评审墙钟才发现)"),
-        })
-        return
-
-    # ── Step 3 · stage→profile 自动选 ──
-    if args.stage not in EXTERNAL_STAGE_TO_PROFILE:
-        emit({
-            "verdict": "FAIL",
-            "command": "external-review",
-            "error": f"--stage={args.stage!r} 不支持 external review",
-            "hint": f"仅 {sorted(EXTERNAL_STAGE_TO_PROFILE)} 支持 · "
-                    "其他 stage 走 change-review-roles 移除 external",
-        })
-        return
-
-    skill_root = Path(__file__).resolve().parent.parent
-    profile_filename = EXTERNAL_STAGE_TO_PROFILE[args.stage][model]
-    if model == "codex":
-        profile_path = skill_root / "codex-agents" / profile_filename
-    else:
-        profile_path = skill_root / "claude-agents" / profile_filename
-    if not profile_path.exists():
-        emit({
-            "verdict": "FAIL",
-            "command": "external-review",
-            "error": f"reviewer profile 不存在: {profile_path}",
-            "hint": f"检查 skill_root={skill_root} · 是否缺 {model}-agents/{profile_filename}",
-        })
-        return
-
-    # ── Step 4 · 算 commit / base(state.json fallback) ──
     feature_dir = Path(args.feature).resolve()
-    try:
-        state = load_state(args.feature)  # state.py.load_state 返 dict(非 tuple)
-    except SystemExit:
-        # load_state 自己 die 了 · 不重 emit
-        raise
-
-    commit = args.commit
-    if not commit:
-        # fallback:state.stage_contracts.<stage>.auto_commit / git HEAD
-        commit = (state.get("stage_contracts", {}).get(args.stage, {}).get("auto_commit")
-                  or state.get("stage_contracts", {}).get("dev", {}).get("auto_commit"))
-        if not commit:
-            try:
-                r = subprocess.run(["git", "rev-parse", "HEAD"],
-                                   capture_output=True, text=True, cwd=str(feature_dir))
-                if r.returncode == 0:
-                    commit = r.stdout.strip()
-            except (FileNotFoundError, OSError):
-                pass
-    if not commit:
-        emit({
-            "verdict": "FAIL",
-            "command": "external-review",
-            "error": "无法算 commit(--commit 未传 + state.stage_contracts 无 auto_commit + git HEAD 失败)",
-            "hint": "显式传 --commit <SHA>",
-        })
-        return
-
-    # v8.161:review stage 默认评本 feature 的增量 diff —— review_base_commit(进 dev 时
-    # 冻结的 pre-dev HEAD)而非 merge_target...HEAD(长 WS / stacked 分支累积 → 跨 feature
-    # 串味 + 超时;实证 aifriend yolo/ws02)。仅 review stage 用(goal/blueprint 评文档不评
-    # diff · base 不入 prompt)· 且锚点须是目标 commit 的祖先方采用(失效则透明兜底 merge_target)。
-    base = args.base
-    base_source = "--base" if base else None
-    if not base and args.stage == "review":
-        rbc = state.get("review_base_commit")
-        if rbc and _is_ancestor(rbc, commit, cwd=str(feature_dir)):
-            base, base_source = rbc, "review_base_commit"
-    if not base:
-        base, base_source = state.get("merge_target"), "merge_target"
-    if not base:
-        emit({
-            "verdict": "FAIL",
-            "command": "external-review",
-            "error": "无法算 base(--base 未传 + review_base_commit 无 + state.merge_target 缺)",
-            "hint": "显式传 --base <branch-or-commit>",
-        })
-        return
-
-    # ── v8.191 · --verify-fixes:增量重验(治「每采纳 finding 即全量重跑」· 微改动 80% 墙钟是重跑)──
-    verify_meta = None
-    if getattr(args, "verify_fixes", False):
-        if args.stage != "review":
-            emit({"verdict": "FAIL", "command": "external-review",
-                  "error": "--verify-fixes 仅支持 --stage review(fix-retry 循环的增量重验)"})
-            return
-        if getattr(args, "prompt_doc", None):
-            emit({"verdict": "FAIL", "command": "external-review",
-                  "error": "--verify-fixes 与 --prompt-doc 互斥(重验 prompt 自动生成 · 防审计输入分叉)"})
-            return
-        prior = _find_prior_external_review(feature_dir, args.stage)
-        if not prior:
-            emit({"verdict": "FAIL", "command": "external-review",
-                  "error": "--verify-fixes 找不到上一轮 external 结果(external-cross-review/review-*.md 含 target_commit)",
-                  "hint": "先跑一轮全量 external-review · 修复后再用 --verify-fixes 增量重验"})
-            return
-        prior_file, prior_commit = prior
-        if prior_commit == commit:
-            emit({"verdict": "FAIL", "command": "external-review",
-                  "error": f"--verify-fixes:目标 commit 与上一轮已评 commit 相同({commit[:12]})· 无修复增量",
-                  "hint": "先 review-fix 提交修复(推进 auto_commit)再重验 · 或去掉 --verify-fixes 全量重跑"})
-            return
-        if not _is_ancestor(prior_commit, commit, cwd=str(feature_dir)):
-            emit({"verdict": "FAIL", "command": "external-review",
-                  "error": f"--verify-fixes:上一轮已评 commit {prior_commit[:12]} 不是目标 {commit[:12]} 的祖先(rebase?)",
-                  "hint": "锚点失效 · 去掉 --verify-fixes 跑全量(锚回 review_base_commit)"})
-            return
-        base, base_source = prior_commit, "verify_fixes(上一轮已评 commit)"
-        verify_meta = {"prior_file": prior_file, "prior_commit": prior_commit}
-
+    state = load_state(args.feature)
     feature_id = state.get("feature_id") or feature_dir.name
-    title = args.title or f"{feature_id} · {args.stage} stage external review"
-    if verify_meta:
-        title = f"[FIX-VERIFY 增量重验] {title}"
+    skill_root = Path(__file__).resolve().parent.parent
 
-    # ── v8.108 · 降级自审走 subagent(不 exec)· 治本 exec CLI 反复出认证/--bare/卡死/登录问题 ──
-    # self_fallback(--self-review-fallback)或 ext_disabled(config disable_external_review)=
-    # 同模型降级 → 🔴 不 exec CLI · 改 emit 配方 · 由 PMO 起 Agent subagent(isolated context · 宿主
-    # 自身模型 · 在 harness 内跑 · 同 auth · 无 subprocess CLI 问题)产出降级评审 · 写
-    # external-cross-review/(honest-degrade frontmatter)· 门禁接受(降级 · 满足 P0-154 · 记 degraded)。
-    # 详 standards/external-model-usage.md §十一.5。
-    if self_fallback or degraded_self:
-        host_model = host.split("-")[0]  # codex / claude(宿主自身模型 · 同源降级)
-        # subagent 评审指令:用 claude reviewer 模板(host-agnostic prompt)+ inline 待评审文件
-        claude_profile = EXTERNAL_STAGE_TO_PROFILE[args.stage]["claude"]
-        try:
-            prompt_template = (skill_root / "claude-agents" / claude_profile).read_text(encoding="utf-8")
-        except OSError:
-            prompt_template = "You are a code reviewer. Review the following and output a markdown review."
-        file_list_block, _meta = _gather_review_files_for_claude(args.stage, feature_dir)
-        prompt_template = _extract_prompt_body(prompt_template)  # v8.136:防占位符说明表双嵌
-        sub_prompt = (
-            prompt_template
-            .replace("{stage}", args.stage)
-            .replace("{target}", STAGE_TO_REVIEW_TARGET.get(args.stage, args.stage))
-            .replace("{feature_name}", feature_id)
-            .replace("{file_list}", file_list_block)
-        )
-        prompt_doc = _new_prompt_doc_path(feature_dir, args.stage, f"{host_model}-subagent")
-        try:
-            prompt_doc.parent.mkdir(parents=True, exist_ok=True)
-            prompt_doc.write_text(sub_prompt, encoding="utf-8")
-        except OSError:
-            pass
-        target_file = f"external-cross-review/{args.stage}-{host_model}-subagent-degraded.md"
-        degraded_mode = "config-disabled" if degraded_self else "subagent-fallback"
-        emit({
-            "verdict": "SUBAGENT_FALLBACK",
-            "command": "external-review",
-            "degraded": True,
-            "host": host,
-            "model": f"{host_model}-subagent",
-            "degraded_reason": sr_reason,
-            "prompt_doc": str(prompt_doc),
-            "target_file": str(feature_dir / target_file),
-            "next_action": (
-                "🔴 降级评审(异质不可用)· 走 **subagent**(不 exec CLI · 也不移除 external):\n"
-                f"  1. 起 Agent subagent(isolated context · 🎭 **模型错开**:model 参数用 ≠ 主会话的档"
-                f"〔如 fable5 会话 → model: opus · v8.268〕· 在 harness 内跑)· "
-                f"prompt = 读 {prompt_doc} 的内容(评审指令 + 待评审文件已 inline)\n"
-                f"  2. 把 subagent 产出的评审写到 {feature_dir / target_file} · frontmatter 必含:\n"
-                f"       review_model: {host_model}-subagent-degraded\n"
-                f"       target_commit: {commit}\n"
-                "       heterogeneous: false\n"
-                "       degraded: true\n"
-                f"       degraded_mode: {degraded_mode}\n"
-                f"       degraded_reason: \"{sr_reason}\"\n"
-                "       review_via: subagent\n"
-                f"  3. {args.stage}-complete 门禁接受它(降级 · 满足 P0-154)· 但它**非异质 · 同盲点**\n"
-                "  ⚠️ 这是降级不是异质:能装/登录异质 CLI 就修环境重跑真异质;长期单模型用 disable_external_review。"
-            ),
-            "spec": "standards/external-model-usage.md §十一.5(降级=subagent · 不 exec)+ §十二(裁决)",
-        })
-        return
+    if args.stage not in EXTERNAL_STAGE_TO_PROFILE:
+        emit({"verdict": "FAIL", "command": "external-review",
+              "error": f"stage={args.stage!r} 无对应评审 profile",
+              "known_stages": sorted(EXTERNAL_STAGE_TO_PROFILE)})
+        sys.exit(1)
 
-    # v8.23:cwd = git root(让 codex 在仓库根跑 · 能读 prompt 内的相对路径)
-    git_root = _git_toplevel(feature_dir) or feature_dir
-    # v8.29:codex_model 优先级:--codex-model > config.external_review.codex_model > None(不传)
-    # 治本 ChatGPT 订阅 case:--config model=... 在 ChatGPT 订阅下 400 · 默认必须空让 codex 用账号允许的默认模型
-    codex_model = getattr(args, "codex_model", None)
-    if not codex_model:
-        # 从项目根 .teamwork_localconfig.json 读 fallback
-        try:
-            cfg_path = git_root / ".teamwork_localconfig.json"
-            if cfg_path.exists():
-                cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
-                codex_model = (cfg.get("external_review") or {}).get("codex_model")
-        except (OSError, json.JSONDecodeError):
-            pass
-    # codex_model 此时可能 None(ChatGPT 订阅默认行为)/ config 配字面 / 显式覆盖值
-
-    # ── dry-run · 仅输出将跑的命令 + 校验信息 ──
-    # v8.88:self-review 降级落 self-review/(不进 external-cross-review/ · 不满足 P0-154 门禁)
-    output_dir = feature_dir / ("self-review" if self_fallback else "external-cross-review")
-    # v8.191:verify-fixes 结果单独命名(不 clobber 全量轮 · 后续重验仍能找到最新已评 commit)
-    output_file = output_dir / (f"{args.stage}-{model}-fixverify.md" if verify_meta
-                                else f"{args.stage}-{model}.md")
-    preview_prompt_full = None
-    if args.dry_run:
-        if model == "codex":
-            # v8.59:全 stage 统一 codex exec [PROMPT](删 review→codex review 分支 · 它 headless 卡死)
-            # v8.29:codex_model 非空才显 --config(治本 ChatGPT 订阅死锁)
-            try:
-                fd_rel = str(feature_dir.relative_to(git_root))
-            except ValueError:
-                fd_rel = str(feature_dir)
-            model_part = f"--config 'model={codex_model}' " if codex_model else ""
-            preview_prompt_full = (
-                f"[Review title: {title}]\n\n"
-                + _build_codex_prompt(args.stage, fd_rel, commit, base, profile_path.name)
-            )
-            preview_cmd = (
-                f"codex exec {model_part}"
-                f"'{preview_prompt_full[:80]}...'"
-            )
-        else:
-            preview_cmd = (
-                # v8.106 只用 claude -p <full inline prompt>(删 v8.85 doc 模式 + v8.103 --bare · --bare 砸登录上下文)
-                # v8.136/139:doc 每轮唯一命名 · 同名 .log 实时过程日志
-                "claude -p '<self-contained review prompt · 见 external-review-prompts/"
-                f"{args.stage}-{model}-<ts>.md · 过程日志同名 .log>' --output-format text"
-            )
-        emit({
-            "verdict": "OK",
-            "command": "external-review",
-            "dry_run": True,
-            "host": host,
-            "host_source": host_source,  # v8.21
-            "model": model,
-            "stage": args.stage,
-            "profile": str(profile_path),
-            "commit": commit,
-            "base": base,
-            "base_source": base_source,  # v8.161:--base / review_base_commit(增量) / merge_target(兜底)
-            "title": title,
-            "codex_model": codex_model if model == "codex" else None,
-            "cwd": str(git_root),
-            "output_file": str(output_file),
-            "preview_command": preview_cmd,
-            # v8.23:完整 prompt 透明 emit(preview_command 截断到 80 · 此字段无截断)
-            "codex_prompt": preview_prompt_full,
-            "next": "去掉 --dry-run 实际跑 · 30s-3min 等",
-        })
-        return
-
-    # ── Step 5 · 跑 CLI ──
-    output_dir.mkdir(parents=True, exist_ok=True)
-    # v8.191:verify-fixes 增量重验块(上一轮 findings + 修复 diff · 只验修复不全量重评)
-    verify_block = ""
-    if verify_meta:
-        try:
-            prior_txt = Path(verify_meta["prior_file"]).read_text(encoding="utf-8", errors="replace")
-        except OSError:
-            prior_txt = "(读取上一轮 external 结果失败 · 按 diff 验)"
-        try:
-            dr = subprocess.run(["git", "diff", f"{base}..{commit}"],
-                                cwd=str(git_root), capture_output=True, text=True, timeout=30)
-            fix_diff = dr.stdout if dr.returncode == 0 else ""
-        except (subprocess.SubprocessError, OSError):
-            fix_diff = ""
-        verify_block = _build_verify_fixes_block(
-            prior_txt, verify_meta["prior_commit"], commit, fix_diff)
-    # v8.139:两引擎统一审计配对 —— prompt-doc(输入 .md)+ 同名过程日志(.log)+ 结果文件
-    prompt_doc: Optional[Path] = None
-    prompt_doc_used = None
-    prompt_doc_source = None
-    files_inline_meta: list[dict] = []
-    if model == "codex":
-        prompt_doc = _new_prompt_doc_path(feature_dir, args.stage, model)
-        prompt_doc_source = "generated"
-        runner = lambda _ts: _run_codex_review(  # noqa: E731
-            stage=args.stage, commit=commit, base=base, title=title,
-            profile_filename=profile_path.name,
-            feature_dir=feature_dir, cwd=str(git_root),
-            codex_model=codex_model,
-            prompt_doc=prompt_doc,
-            timeout_sec=_ts, extra_prompt=verify_block,
-        )
+    # commit / base:显式参数 > state 的 stage auto_commit > HEAD
+    commit = args.commit or (state.get("stage_contracts", {})
+                             .get(args.stage, {}).get("auto_commit"))
+    if not commit:
+        r = subprocess.run(["git", "-C", str(feature_dir), "rev-parse", "HEAD"],
+                           capture_output=True, text=True, timeout=10)
+        commit = r.stdout.strip() if r.returncode == 0 else ""
+    if args.base:
+        base, base_source = args.base, "explicit"
     else:
-        # claude 路径(v8.136 · 治 v8.44 固定名缓存中毒):
-        #   默认:每轮**现生成**唯一 prompt-doc(模板 Prompt 主体提取 + inline 当前文件 →
-        #         写 <stage>-<model>-<ts>.md → 用它执行)· 审计 = 输入 · 旧轮留档不复用。
-        #   显式 --prompt-doc:PMO 预写 compact summary 场景 · 优先用 · 过 staleness 门禁。
-        prompt_doc_override = getattr(args, "prompt_doc", None)
-        if prompt_doc_override:
-            prompt_doc = Path(prompt_doc_override).expanduser().resolve()
-            prompt_doc_source = "args"
-            if not prompt_doc.exists():
-                emit({
-                    "verdict": "FAIL",
-                    "command": "external-review",
-                    "error": f"--prompt-doc 不存在:{prompt_doc}",
-                    "hint": "去掉 --prompt-doc 走每轮自动生成 · 或先 scaffold-review-prompt 生成后填写",
-                })
-                return
-            stale = _prompt_doc_stale_reason(prompt_doc, feature_dir, args.stage)
-            if stale:
-                emit({
-                    "verdict": "FAIL",
-                    "command": "external-review",
-                    "error": f"prompt-doc 已 stale:{stale}",
-                    "hint": (
-                        f"待评审文件已更新 · 旧 doc 会让 reviewer 评旧内容(case PTR-F260611065743)。"
-                        f"二选一:① 重新生成/编辑 {prompt_doc.name} 使其新于待评审文件 "
-                        f"② 去掉 --prompt-doc 走每轮自动生成(推荐)"
-                    ),
-                })
-                return
-            try:
-                prompt_text = prompt_doc.read_text(encoding="utf-8")
-                prompt_doc_used = str(prompt_doc)
-            except OSError as e:
-                emit({
-                    "verdict": "FAIL",
-                    "command": "external-review",
-                    "error": f"读 prompt-doc 失败:{prompt_doc}: {e}",
-                })
-                return
-        else:
-            # v8.136 默认:每轮现生成唯一 doc(只取模板 Prompt 主体 · 防占位符说明表双嵌 PRD)
-            prompt_template = _extract_prompt_body(
-                profile_path.read_text(encoding="utf-8"))
-            file_list_block, files_inline_meta = _gather_review_files_for_claude(
-                args.stage, feature_dir
-            )
-            prompt_text = (
-                prompt_template
-                .replace("{stage}", args.stage)
-                .replace("{target}", STAGE_TO_REVIEW_TARGET.get(args.stage, args.stage))
-                .replace("{feature_name}", feature_id)
-                .replace("{file_list}", file_list_block)
-                .replace("{{stage}}", args.stage)
-                .replace("{{commit}}", commit)
-                .replace("{{base}}", base)
-                .replace("{{feature_id}}", feature_id)
-            )
-            if verify_block:
-                prompt_text += verify_block   # v8.191:增量重验块(claude prompt 自包含)
-            prompt_doc = _new_prompt_doc_path(feature_dir, args.stage, model)
-            # v8.140:首行 ACK 自证契约(仅 generated 注入 · --prompt-doc override 原样执行不动)
-            prompt_text = prompt_text + _ack_block(prompt_doc)
-            try:
-                prompt_doc.parent.mkdir(parents=True, exist_ok=True)
-                prompt_doc.write_text(prompt_text, encoding="utf-8")
-                prompt_doc_used = str(prompt_doc)
-            except OSError:
-                prompt_doc_used = None  # 写盘失败不阻塞执行(审计缺本轮 · prompt 照跑)
-            prompt_doc_source = "generated"
-        runner = lambda _ts: _run_claude_review(  # noqa: E731
-            prompt_text, feature_dir=feature_dir, stage=args.stage,
-            prompt_doc=prompt_doc, timeout_sec=_ts)
+        base, base_source = _resolve_external_base(state, args.stage, commit, feature_dir)
 
-    # v8.191:超时(rc=124)/空跑 自动重试一次(1.5x timeout)· 治「手动重跑吃墙钟」(harvest:
-    # 「2 超时 + 1 空跑」× 每次 600s)。localconfig external_review_timeout_sec 可调基础超时。
-    base_timeout = _external_timeout_sec(feature_dir)
-    rc, stdout, stderr = runner(base_timeout)
-    attempts, used_timeout = 1, base_timeout
-    if rc == 124 or (rc == 0 and not stdout.strip()):
-        used_timeout = int(base_timeout * 1.5)
-        rc, stdout, stderr = runner(used_timeout)
-        attempts = 2
-    if model == "codex":
-        prompt_doc_used = str(prompt_doc) if (prompt_doc and prompt_doc.exists()) else None
+    verify_fixes = bool(getattr(args, "verify_fixes", False))
+    prior = _find_prior_external_review(feature_dir, args.stage) if verify_fixes else None
+    if verify_fixes and not prior:
+        emit({"verdict": "FAIL", "command": "external-review",
+              "error": "--verify-fixes 找不到上一轮 external 结果"
+                       "(external-cross-review/*.md 含 target_commit)",
+              "hint": "先跑一次全量外审 · 或去掉 --verify-fixes"})
+        sys.exit(1)
 
-    # v8.139:过程日志(prompt-doc 同名 .log)· 失败/成功 emit 都透出 —— 失败时它就是验尸现场
-    process_log = prompt_doc.with_suffix(".log") if prompt_doc is not None else None
-    process_log_str = str(process_log) if (process_log is not None and process_log.exists()) else None
+    # 评审 prompt(host-agnostic 模板 + 待评审文件 inline)
+    profile = EXTERNAL_STAGE_TO_PROFILE[args.stage]["claude"]
+    try:
+        tpl = _extract_prompt_body((skill_root / "claude-agents" / profile).read_text(encoding="utf-8"))
+    except OSError:
+        tpl = "You are an independent reviewer. Review the following and output a markdown review."
+    file_list_block, _meta = _gather_review_files_for_claude(args.stage, feature_dir)
+    sub_prompt = (tpl.replace("{stage}", args.stage)
+                     .replace("{target}", STAGE_TO_REVIEW_TARGET.get(args.stage, args.stage))
+                     .replace("{feature_name}", feature_id)
+                     .replace("{file_list}", file_list_block))
+    if verify_fixes and prior:
+        sub_prompt += (f"\n\n---\n🔴 增量重验轮:上一轮评审见 {prior[0].name}(评的是 {prior[1]})· "
+                       f"本轮只做两件事:① 逐条裁决上轮 open finding(fixed/not-fixed · 带依据)"
+                       f"② 只回归审查 {prior[1]}..{commit} 的修复 diff 引入的新问题。禁全量重扫。\n")
 
-    if rc != 0:
-        # v8.106:纯 claude -p(无工具)/ codex read-only · 无 liveness 文件 · 失败即模型未跑通
-        live_hint = (
-            f"{cli_name} 执行失败 · 查 ① 过程日志(START/[stderr]/END 时间线 · 鉴权/限流/卡点一眼可见)· "
-            f"② 网络 / token(setup-token / OAuth)· ③ {cli_name} --version · "
-            f"④ 是否并发限流(串行重试)· 再重跑。"
-            f"🔴 切勿伪造 tool_error 文件或自列 external 通过门禁;"
-            f"异质客观不可用(已重试失败)→ --self-review-fallback(subagent 降级 · 详 standards §11.5)"
-        )
-        emit({
-            "verdict": "FAIL",
-            "command": "external-review",
-            "error": f"{cli_name} 执行失败(exit={rc}): {stderr[:300]}",
-            "hint": live_hint,
-            "host": host,
-            "model": model,
-            "attempts": attempts,          # v8.191:≥2 = 已自动重试(1.5x timeout)仍失败 → 环境性
-            "timeout_sec_used": used_timeout,
-            "cli_exit_code": rc,
-            "cli_stderr": stderr[:500],
-            **({"process_log": process_log_str} if process_log_str else {}),
-        })
-        return
+    suffix = "fixverify" if verify_fixes else "review"
+    prompt_doc = _new_prompt_doc_path(feature_dir, args.stage, f"subagent-{suffix}")
+    try:
+        prompt_doc.parent.mkdir(parents=True, exist_ok=True)
+        prompt_doc.write_text(sub_prompt, encoding="utf-8")
+    except OSError:
+        pass
 
-    if not stdout.strip():
-        emit({
-            "verdict": "FAIL",
-            "command": "external-review",
-            "error": f"{cli_name} 返回空 stdout · 视作 review 失败",
-            "hint": f"检查 {cli_name} 配置 · 或重跑(网络抖动可能)· 过程日志看卡点",
-            **({"process_log": process_log_str} if process_log_str else {}),
-        })
-        return
-
-    # ── Step 6 · 落产物(合规 frontmatter + body=stdout) ──
-    model_version = _detect_cli_version(cli_name)
-    frontmatter_lines = [
-        "---",
-        f"review_model: {model_version}",
-        f"review_role: {'self-degraded' if (self_fallback or degraded_self) else 'external'}",
-        f"review_stage: {args.stage}",
-        f"target_commit: {commit}",
-        f"target_base: {base}",
-        f"title: \"{title}\"",
-        f"generated_at: \"{now_iso()}\"",
-        f"invoked_by: state.py external-review (v8.20)",
-        f"host: {host}",
-    ]
-    if self_fallback or degraded_self:
-        # v8.88/v8.90:诚实标注 —— 同模型自审 · 非异质 · 同盲点
-        frontmatter_lines += [
-            "heterogeneous: false",
-            "degraded: true",
-            f"degraded_mode: {'self-review-fallback' if self_fallback else 'config-disabled'}",
-            f"degraded_reason: \"{sr_reason}\"",
-        ]
-    if verify_meta:
-        # v8.191:增量重验轮标注(target_commit = 本轮已验 commit · 供下一轮 verify 锚)
-        frontmatter_lines += [
-            "verify_fixes: true",
-            f"verified_prior_commit: {verify_meta['prior_commit']}",
-        ]
-    frontmatter_lines += ["---", ""]
-    body = stdout
-    if self_fallback:
-        # 正文顶 banner · 任何人打开都立刻知道这是降级自审(非异质 · 不可当 external 通过证据)
-        body = (
-            "> ⚠️ **同模型自审(self-review · 降级)· 非异质 external** —— 只隔离对话历史不隔离"
-            "模型权重 · 同盲点 · **不满足 P0-154 异质门禁** · 仅作异质不可用时的弱安全网。\n"
-            f"> 降级理由:{sr_reason}\n\n"
-        ) + stdout
-    elif degraded_self:
-        # v8.90 config-disabled:本项目禁异质 · 此自审是「该项目的 review of record」(满足门禁)·
-        # 但仍非异质 · 同盲点 · 交叉 review 质量下降 —— banner + startup WARN 持续提醒。
-        body = (
-            "> ⚠️ **同模型自审(config 禁用异质 · 降级)** —— `disable_external_review=true` ·"
-            "只隔离对话历史不隔离模型权重 · 同盲点 · 交叉 review 质量下降。删 localconfig 该项可恢复异质。\n"
-            f"> 降级理由:{sr_reason}\n\n"
-        ) + stdout
-    output_file.write_text("\n".join(frontmatter_lines) + body, encoding="utf-8")
-
-    # ── Step 6.5 · v8.36 内容质量轻校验 → v8.43 升级 template_echo 为 BLOCK ──
-    # v8.36 决策 WARN 不 BLOCK · 但 case SVC-PLATFORM-F054 blueprint round 3 实证:
-    # AI 看到产物存在就继续 · WARN 走过场 · 用户手动读 file 才发现无效
-    # v8.43 治本(用户拍板 A 全治):template_echo BLOCK(强信号 100% 无效)·
-    # empty_content 仍 WARN(可能合理精简)· 逃生口 --accept-quality-warnings
-    quality_warnings = _check_external_review_quality(stdout, args.stage, model)
-
-    # v8.140:首行 ACK 自证验证(仅 generated 路径注入过契约才验)· 缺失 WARN 不 BLOCK
-    review_ack = (_review_ack_status(stdout, prompt_doc)
-                  if prompt_doc_source == "generated" else None)
-    if review_ack == "missing":
-        quality_warnings.append({
-            "type": "ack_missing",
-            "hint": (f"输出未回显 REVIEW-ACK {prompt_doc.stem} —— 首行自证缺失 · "
-                     f"无法确认输出对应本轮 prompt(WARN 不 BLOCK · 人工核对结果文件与 prompt-doc 时间戳)"),
-        })
-
-    template_echo_hit = [w for w in quality_warnings if w.get("type") == "template_echo"]
-    if template_echo_hit and not getattr(args, "accept_quality_warnings", False):
-        # 写入 file(保留产物供审查)· 但 BLOCK 不让流程继续
-        # 文件已经在 Step 6 写了 · 这里只 emit FAIL with hint
-        emit({
-            "verdict": "FAIL",
-            "command": "external-review",
-            "error": (
-                f"reviewer 产物含 template echo 特征 · 视作无效评审(v8.43 BLOCK · "
-                f"治本 SVC-PLATFORM-F054 blueprint round 3 case)"
-            ),
-            "file_path": str(output_file),
-            "quality_warnings": quality_warnings,
-            "matched_signatures": template_echo_hit[0].get("matched_signatures", []),
-            "hint": (
-                "二选一:\n"
-                "  ① [推荐] 检查 prompt 与 reviewer 真实输出 · 修 prompt 或重跑 external-review:\n"
-                "       state.py external-review --feature <path> --stage <stage>(必要时换 --model)\n"
-                "  ② [慎用] 评估认为评审实质 OK(误报)· 加 --accept-quality-warnings 通过:\n"
-                "       state.py external-review --feature <path> --stage <stage> --accept-quality-warnings\n"
-                "       (走 bypass log + concerns WARN 留痕 · retro 复盘可见)"
-            ),
-            "spec": ("v8.43 治本 · template_echo 100% 是无效评审 · 不再 WARN 走过场。"
-                     " v8.36 留 WARN 兜底被 AI 钻空子 · v8.43 升级 BLOCK"),
-        })
-        return
-
-    # ── Step 7 · emit ──
-    # finding 数粗估(grep "^###" 或 "Finding" · 仅参考)
-    finding_count = max(
-        stdout.count("### Finding"),
-        stdout.count("#### Finding"),
-        stdout.lower().count("finding "),
-    )
-    # v8.43:若走 bypass(--accept-quality-warnings 通过 template_echo)· emit 标记 + audit
-    bypass_warning = None
-    if template_echo_hit and getattr(args, "accept_quality_warnings", False):
-        bypass_warning = (
-            f"{now_iso()} WARN external-review quality bypass: "
-            f"stage={args.stage} model={model} template_echo signatures="
-            f"{template_echo_hit[0].get('matched_signatures', [])[:3]} · "
-            f"--accept-quality-warnings 通过(v8.43 治本 case · 用户认知误报)· "
-            f"file={output_file}"
-        )
-
-    # v8.88/v8.90:self-review 降级 → 写 concern WARN(audit · retro 可见 · 降级必留痕)
-    if self_fallback or degraded_self:
-        try:
-            _mode = "self-review-fallback·不满足 P0-154" if self_fallback else \
-                    "config-disabled·满足门禁但同盲点"
-            state.setdefault("concerns", []).append(
-                f"{now_iso()} WARN self-review 降级@{args.stage}(同模型 {model} 自审 · "
-                f"非异质 · {_mode})· reason: {sr_reason} · file={output_file}"
-            )
-            atomic_write(state_path(args.feature), state)
-        except Exception:
-            pass
-
-    if self_fallback:
-        next_hint = (
-            f"⚠️ 降级自审已落 {output_file}(self-review/ · **非异质 · 不满足 P0-154 门禁**)。"
-            f"两条路继续:① [首选] 修环境(装/登录/等配额)→ 重跑真异质 external-review;"
-            f"② 异质确实修不了 → state.py change-review-roles --feature {args.feature} "
-            f"--stage {args.stage} --roles '<不含 external>' --reason '异质不可用·已自审降级' "
-            f"(本自审产物作 audit evidence)· yolo 下还需 --accept-external-removal。"
-            f"🔴 不得把本 self-review 当 external 通过证据。"
-        )
-    elif degraded_self:
-        next_hint = (
-            f"⚠️ external 评审已被 localconfig 禁用(disable_external_review=true)· 已用同模型 "
-            f"{model} exec 自审落 {output_file}(满足 P0-154 · 但**非异质 · 同盲点 · 交叉 review 质量下降**)。"
-            f"PMO 整合 finding 到 REVIEW.md → {args.stage}-complete。{_FINDING_POSTURE_HINT}"
-            f"🔴 想恢复异质评审质量:删 .teamwork_localconfig.json 的 disable_external_review。"
-        )
-    else:
-        next_hint = (f"file 已落盘 · PMO 整合 finding 到 REVIEW.md · "
-                     f"然后跑 state.py {args.stage}-complete --artifacts ...{_FINDING_POSTURE_HINT}")
-
+    target_file = f"external-cross-review/{args.stage}-<model>{'-fixverify' if verify_fixes else ''}.md"
     emit({
-        "verdict": "OK",
+        "verdict": "SUBAGENT_RECIPE",
         "command": "external-review",
-        "host": host,
-        "host_source": host_source,  # state_json(per-feature 单源)/ explicit(--host)
-        "model": model,
-        "model_version": model_version,
         "stage": args.stage,
-        "profile": str(profile_path),
-        "commit": commit,
-        "base": base,
-        "base_source": base_source,  # v8.161:--base / review_base_commit(增量) / merge_target(兜底)
-        "codex_model": codex_model if model == "codex" else None,  # v8.23
-        "cwd": str(git_root),  # v8.23:codex 实际跑的 cwd
-        "file_path": str(output_file),
-        "finding_count_estimate": finding_count,
-        "stdout_bytes": len(stdout),
-        # v8.88/v8.90:self-review 降级标记(诚实 · 调用方/审计一眼可辨 · 不冒充异质)
-        # self-review-fallback(临时):不满足 P0-154 · config-disabled(项目策略):满足门禁但同盲点
-        **({"degraded": True, "heterogeneous": False, "review_role": "self-degraded",
-            "degraded_mode": ("self-review-fallback" if self_fallback else "config-disabled"),
-            "satisfies_p0_154": (False if self_fallback else True)}
-            if (self_fallback or degraded_self) else {}),
-        "next_hint": next_hint,
-        # 内容质量轻校验 WARN(不 BLOCK · R0 兜底)
-        **({"quality_warnings": quality_warnings} if quality_warnings else {}),
-        # v8.43:claude 路径 inline 文件 meta(PMO 可验 reviewer 真拿到内容 · v8.44 fallback 时仍出)
-        **({"files_inlined": files_inline_meta}
-            if model == "claude" and files_inline_meta else {}),
-        # v8.43:bypass quality_warnings(template_echo)留痕
-        **({"quality_bypass_warning": bypass_warning} if bypass_warning else {}),
-        # v8.44/v8.139:doc-based prompt 路径(两引擎统一 · codex 也落审计 doc)
-        **({"prompt_doc": prompt_doc_used,
-            "prompt_doc_source": prompt_doc_source}
-            if prompt_doc_used else {}),
-        # v8.139:过程日志(prompt-doc 同名 .log · START/pid/[stderr]/END 实时时间线)
-        **({"process_log": process_log_str} if process_log_str else {}),
-        # v8.140:首行 ACK 自证(verified=输出绑定本轮 prompt · missing 已入 quality_warnings)
-        **({"review_ack": review_ack} if review_ack else {}),
+        "target_commit": commit,
+        "target_base": base,
+        "base": base,          # 兼容键(v8.161 测试与旧消费方)
+        "base_source": base_source,
+        "prompt_doc": str(prompt_doc),
+        "target_file_pattern": str(feature_dir / target_file),
+        "next_action": (
+            "🎭 **第三视角冷审 = 错开模型 subagent**(v8.291 · 跨厂商 CLI 异质已退役 · 本命令不 exec 子进程):\n"
+            f"  1. 起 Agent subagent(isolated context)· 🔴 **model 参数必须 ≠ 会话主模型**"
+            "(如 fable5 会话 → `model: opus`)· prompt = 读 " + str(prompt_doc) + " 的内容"
+            "(评审指令 + 待评审文件已 inline · **不喂主对话起草心路**)\n"
+            "  2. 把 subagent 产出写到 `external-cross-review/" + args.stage + "-<实际模型>"
+            + ("-fixverify" if verify_fixes else "") + ".md` · frontmatter 必含:\n"
+            "       review_model: <subagent 实际用的模型 · 照实写>\n"
+            "       review_via: subagent\n"
+            f"       target_commit: {commit}\n"
+            "       coverage: [<本次实际覆盖的方向>]\n"
+            "  3. `" + args.stage + "-complete` 门禁校验:产物非空 + `review_via: subagent` + coverage 申报。\n"
+            "  🔴 **禁主对话自评**(热审 = 同上下文 = 无独立性)· **禁伪造/冒充**(照实写实际模型)。"
+        ),
+        "spec": "standards/external-model-usage.md(裁决纪律 §12)· 模型错开不变式见 SKILL 🎚️",
     })
-
-
-# v8.36:external review 内容质量轻校验(治本 SVC-PLATFORM-F054 Bug 2)
-# 用户决策:不语义判 reviewer 质量 · 只校验明显空/模板回声(template echo)
-# 触发 WARN(不 BLOCK)· 决策权留用户
-EXTERNAL_REVIEW_MIN_BYTES = 200  # 小于此 → empty WARN
-EXTERNAL_REVIEW_TEMPLATE_ECHO_SIGNATURES = [
-    # reviewer 自述"我没真 review · 只是收到了 prompt"的特征字符串
-    "你给了我",
-    "你给了我 reviewer prompt",
-    "reviewer prompt template",
-    "I received the prompt",
-    "I received your prompt",
-    "你只是给我了 template",
-    "i only got a template",
-    "i was only given the prompt",
-    "只是模板",
-    "{{stage}}",  # 占位符未替换 = template echo
-    "{{commit}}",
-    "{{feature_id}}",
-]
-
-
-def _check_external_review_quality(stdout: str, stage: str, model: str) -> list[dict]:
-    """v8.36 治本 SVC-PLATFORM-F054 Bug 2:reviewer 只 echo template 不真 review case。
-
-    返回 warnings list · 每条 {type, message, severity}:
-      - empty_content:stdout < EXTERNAL_REVIEW_MIN_BYTES bytes
-      - template_echo:命中 EXTERNAL_REVIEW_TEMPLATE_ECHO_SIGNATURES
-
-    WARN 不 BLOCK(用户决策 · R0 兜底)· PMO 自行判是否重跑或接受。
-    """
-    warnings: list[dict] = []
-    body = stdout.strip()
-    body_bytes = len(body.encode("utf-8"))
-
-    # ① 空内容 WARN
-    if body_bytes < EXTERNAL_REVIEW_MIN_BYTES:
-        warnings.append({
-            "type": "empty_content",
-            "severity": "WARN",
-            "message": (
-                f"⚠️ reviewer 内容仅 {body_bytes} 字节(< {EXTERNAL_REVIEW_MIN_BYTES} "
-                f"阈值)· 可能 model={model!r} 没真评审 · 建议复查 file 内容 · "
-                f"必要时重跑 external-review(也可能是 reviewer 故意精简 · 用户判)"
-            ),
-            "actual_bytes": body_bytes,
-            "threshold_bytes": EXTERNAL_REVIEW_MIN_BYTES,
-        })
-
-    # ② template echo WARN(reviewer 自述"我没真评审"或占位符未替换)
-    body_lower = body.lower()
-    matched_sigs = [s for s in EXTERNAL_REVIEW_TEMPLATE_ECHO_SIGNATURES
-                    if s.lower() in body_lower]
-    if matched_sigs:
-        warnings.append({
-            "type": "template_echo",
-            "severity": "WARN",
-            "message": (
-                f"⚠️ reviewer 内容含 template echo 特征({len(matched_sigs)} 条命中)· "
-                f"model={model!r} 可能只复述了 prompt 而不是真评审 · "
-                f"治本 SVC-PLATFORM-F054 Bug 2 case · 建议复查 file 内容 · "
-                f"必要时调整 prompt 或重跑 external-review(用户判)"
-            ),
-            "matched_signatures": matched_sigs[:5],
-        })
-
-    return warnings
 
 
 # ─── v8.24-v8.41 · update-skill → v8.42 已抽到独立 tools/update.py ────────
@@ -5328,67 +4540,14 @@ def build_parser() -> argparse.ArgumentParser:
     # v8.20:external-review · 异质模型评审一条命令调起(治本 SVC-CORE-F034 case)
     er = sub.add_parser(
         "external-review",
-        help=(
-            "[v8.20] 调起异质模型(codex/claude)做外部 review · 按宿主自动选模型 · "
-            "落合规 external-cross-review/<stage>-<model>.md(治本 PMO 自己拼命令 / "
-            "用 Agent subagent 自审 case)"
-        ),
-    )
-    er.add_argument("--feature", required=True,
-                    help="Feature 目录(含 state.json)")
-    er.add_argument("--stage", required=True,
-                    choices=["goal", "blueprint", "review"],
-                    help=("review 阶段:goal=PRD / blueprint=TC+TECH / review=代码 · "
-                          "工具按 stage 自动选 reviewer profile"))
-    er.add_argument("--host", default=None,
-                    choices=["claude-code", "codex-cli", "gemini-cli"],
-                    help=("[v8.21 可选]主对话宿主 · 缺省自动从 ~/.teamwork/host_audit.json "
-                          "读取(bootstrap 跑过一次即可)· 决定异质 model:claude-code→codex · "
-                          "codex-cli→claude · gemini-cli→codex(默认)"))
-    er.add_argument("--model", default=None,
-                    choices=["codex", "claude"],
-                    help=("显式指定异质模型(覆盖按 host 自动映射)· "
-                          "校验:必 ≠ host 同源 · 违 R3 直接 BLOCK"))
-    er.add_argument("--commit", default=None,
-                    help=("review 目标 commit SHA · 缺省从 state.stage_contracts."
-                          "<stage>.auto_commit 取 · 再缺从 git HEAD"))
-    er.add_argument("--base", default=None,
-                    help=("diff base(分支或 commit)· 缺省:review stage 用 state."
-                          "review_base_commit(进 dev 冻结的增量基线)· 失效/其他 stage 兜底 "
-                          "state.merge_target。显式传可覆盖(如审跨 feature 全量)"))
-    er.add_argument("--title", default=None,
-                    help="review 标题 · 缺省 '<feature_id> · <stage> stage external review'")
-    er.add_argument("--codex-model", default=None,
-                    help=("[v8.30] codex CLI 用的具体模型(传给 codex --config 'model=<this>')· "
-                          "优先级:--codex-model > .teamwork_localconfig.json external_review.codex_model > "
-                          "**不传**(用 codex CLI 默认 · 兼容 ChatGPT 订阅 · 治本 ChatGPT 账号不允许显式模型 case)。"
-                          "🔴 模型字面 **不假设** —— codex CLI 版本迭代会换模型名 · 跑 `codex` 交互界面选 / "
-                          "或 `codex --help` 查 ChatGPT 订阅可能拒绝任何显式 model · 仅 API key 模式可显式。"))
-    er.add_argument("--dry-run", action="store_true",
-                    help="只输出将跑的命令 + 校验 · 不实际调 CLI(供 debug / preview)")
-    # v8.43:template_echo 升 BLOCK 后的逃生口(治本 SVC-PLATFORM-F054 blueprint round 3)
-    er.add_argument("--accept-quality-warnings", action="store_true",
-                    help=("[v8.43] template_echo BLOCK 时显式承认评审实质 OK(误报) · "
-                          "走 bypass log + concerns WARN 留痕 · retro 复盘可见。"
-                          "用户应先实际读 file 验证再加此 flag"))
-    # doc-based prompt(审计=输入 · 治长 prompt 卡 + 不可审计)
-    er.add_argument("--prompt-doc",
-                    help=("显式 prompt-doc 路径(PMO 预写 compact summary 场景 · 仅 claude 路径)· "
-                          "不传则每轮自动生成唯一 doc <feature>/external-review-prompts/"
-                          "<stage>-<model>-<ts>.md。显式传时:doc 不存在 → FAIL;"
-                          "doc 旧于待评审文件 → FAIL(staleness 门禁)"))
-    # v8.88:诚实降级自审兜底(异质客观不可用·已重试失败 时的弱安全网)
-    er.add_argument("--preflight", action="store_true",
-                    help="[v8.191] 只验 CLI 登录/网络(which+version+微 probe · 秒级)· review 干活前跑 · 不执行评审")
+        help="[v8.291] 第三视角冷审配方(错开模型 subagent · 不 exec 子进程 · 跨厂商 CLI 异质已退役)")
+    er.add_argument("--feature", required=True, help="Feature artifact_root 路径")
+    er.add_argument("--stage", required=True, choices=sorted(EXTERNAL_STAGE_TO_PROFILE),
+                    help="评审 stage(决定 prompt profile 与待评审文件集)")
+    er.add_argument("--commit", default=None, help="被评审 commit(缺省取 stage auto_commit → HEAD)")
+    er.add_argument("--base", default=None, help="diff 基线(缺省取 state.review_base_commit)")
     er.add_argument("--verify-fixes", action="store_true",
-                    help="[v8.191] 增量重验(仅 review):只验上一轮 findings 的修复 diff(上轮已评 commit..HEAD)· 不全量重跑")
-    er.add_argument("--self-review-fallback", action="store_true",
-                    help=("[v8.88] 异质模型客观不可用(未装/未登录/配额满·已重试失败)时 · "
-                          "跑**同模型 fresh exec** 自审 · 落 self-review/(非异质 · **不满足 "
-                          "P0-154 异质门禁** · 仅弱安全网)· 必带 --reason。仍需修环境重跑真异质 "
-                          "或 change-review-roles 移除 external(本产物作降级 evidence)"))
-    er.add_argument("--reason",
-                    help="[v8.88] --self-review-fallback 必带 · 异质为何不可用 + 已重试证据")
+                    help="增量重验(仅 review):只验上一轮 findings 的修复 diff · 不全量重扫")
     er.set_defaults(func=cmd_external_review)
 
     # v8.44:scaffold-review-prompt · 生成 prompt-doc skeleton(AI 主对话填 compact summary)

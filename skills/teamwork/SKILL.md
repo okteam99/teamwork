@@ -1,6 +1,6 @@
 ---
 name: teamwork
-version: v8.290.1
+version: v8.291
 description: AI 协作开发一体化框架 - 需求功能开发, bug 修复, 问题排查 · /teamwork 启动
 ---
 
@@ -366,7 +366,7 @@ mode B 识别后(**无论后续 flow_type = Feature〔full/micro〕还是 Bug ·
 
 - **roster 内评审全真跑 · 一个不少**(默认两路:Architect 主审 + 覆盖方向制第三视角〔QA 视角并入必覆盖方向〕)· **不得以「集中到 review stage」「效率」「价值低」为由去掉第三视角** —— `change-review-roles` 物化 BLOCK。
 - 🔴 **真跑的物化校验**(严格按流程流转 · 不得「内化」自盖章 APPROVE · 不得 AI 手写 `external-cross-review/*.md`):第三视角必走 `state.py external-review --stage <X>` —— **默认 subagent 隔离冷审** → 校验 frontmatter `review_via: subagent`(无 → FAIL);**opt-in 异质** → 真调异质模型 + `~/.teamwork/external-review-logs/<feat>/codex-<stage>-*.log` 实跑日志(无 → FAIL · 伪造不了)。
-- 🔴 **异质开关 = localconfig 单源**:`disable_external_review` **缺省/true = 关**(第三视角走🎭错开模型 subagent 隔离冷审〔≠会话主模型〕· CLI 冷启动太耗时 · kickoff 一行 INFO `yolo_external_warning` 告知)· **显式 false = opt-in 跨厂商异质**。—— **「非异质」也不许「不冷审」**(同模型但冷上下文仍是独立采样;主对话自评 = 无效)。
+- 🔴 **第三视角 = 🎭 错开模型 subagent 隔离冷审(唯一形态 · v8.291 跨厂商 CLI 异质已退役 —— 冷启动/慢路径/登录故障面实测严重拖慢)**:`state.py external-review` 只 emit subagent 配方(不 exec 子进程)· 产物须 `review_via: subagent` + 照实申报 `review_model` · 🔴 yolo 额外要 prompt doc(实跑证据 · 防手写自盖章)。—— **不许「不冷审」**(主对话自评 = 无独立性 · 门禁拦)。
 - **不得擅自合并 BL / 跳 stage / 减 review 轮次 / 简化流程**(BL 拆分是 Planning 已定的范围)· ✅ **可以加重**:多跑 external、加 review 轮次、提高测试覆盖。
 
 | 暂停点 | yolo 行为 |
@@ -536,7 +536,7 @@ v8 把 9 红线的可枚举子条目物化进 state.py;R3 + 部分行为约束(R
 | [tools/_v8_stage_specs.py](./tools/_v8_stage_specs.py) | 13 stage 完整契约(stage 数单源 `STAGE_SPECS`) |
 | [tools/_v8_ship.py](./tools/_v8_ship.py) | ship-phase actions + ship-finalize + await-merge |
 | [tools/bootstrap.py](./tools/bootstrap.py) | session 启动维护(骨架 / codex agent toml 部署 / 历史注入段与 hooks 清理) |
-| [codex-agents/](./codex-agents/) · [claude-agents/](./claude-agents/) | external-review 宿主 profile(`state.py external-review` 按 host 自动选) |
+| [claude-agents/](./claude-agents/) | 第三视角冷审 prompt 模板(`state.py external-review` 组装进配方 · v8.291 codex-agents 已随跨厂商退役删除) |
 | [docs/CHANGELOG.md](./docs/CHANGELOG.md) | 变更记录 · [RETRO-LEDGER.md](./docs/RETRO-LEDGER.md) 一行一版自省 |
 
 ---

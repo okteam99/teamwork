@@ -84,7 +84,9 @@ class TestExternalReviewArtifactPath(unittest.TestCase):
         # 模拟 F033 实际结构:external-cross-review 在 feature_dir 内
         ext_dir = self.feature_dir / "external-cross-review"
         ext_dir.mkdir()
-        (ext_dir / "codex.md").write_text("review", encoding="utf-8")
+        (ext_dir / "review-opus.md").write_text(
+            "---\nreview_via: subagent\nreview_model: opus-subagent\n---\n# review",
+            encoding="utf-8")
 
         args = make_args(feature=str(self.feature_dir))
         passed, err = _evidence_external_review_artifact({}, args)
@@ -133,265 +135,95 @@ class TestExternalReviewArtifactPath(unittest.TestCase):
 # ─── v8.19 · external review 异质性硬约束(治本 SVC-CORE-F034)──────────
 
 
-class TestExternalReviewHeteroEnforcement(unittest.TestCase):
-    """v8.19 治本 SVC-CORE-F034 case · external 必真异质(不能 claude-isolated)。
+class TestExternalReviewSubagentContract(unittest.TestCase):
+    """v8.291:第三视角产物契约 = 隔离 subagent + 照实申报模型(异质性强制已退役)。
 
-    case:PMO 用 Agent subagent_type=general-purpose 起 claude isolated context 自审 ·
-    标 frontmatter review_model: claude-opus-4-isolated-context 「透明」· 同模型自审违 R3。
-    治本:文件名 + frontmatter review_model 双重校验 · 黑名单字面 BLOCKED。
+    退役的 TestExternalReviewHeteroEnforcement(14 条)测的是「文件名模型白名单 / review_model 字面 /
+    degraded 语义 / host 比对」—— 那整套是为了拦「同模型 subagent 冒充跨厂商异质」;
+    **跨厂商路径整体退役后该反模式不存在**(没有可冒充的对象),契约收敛为两条。
     """
 
     def setUp(self):
-        self.tmp = tempfile.mkdtemp()
-        self.feat = Path(self.tmp) / "feat"
-        self.ext = self.feat / "external-cross-review"
-        self.ext.mkdir(parents=True)
+        self.tmp = Path(tempfile.mkdtemp(prefix="tw-extc-"))
+        self.feat = self.tmp / "features" / "F1"
+        (self.feat / "external-cross-review").mkdir(parents=True)
 
     def tearDown(self):
         shutil.rmtree(self.tmp, ignore_errors=True)
 
-    def _check(self):
-        from _v8_stage_specs import _evidence_external_review_artifact  # type: ignore
-        args = make_args(feature=str(self.feat))
-        return _evidence_external_review_artifact({}, args)
+    def _write(self, name, fm):
+        (self.feat / "external-cross-review" / name).write_text(
+            "---\n" + fm + "\n---\n# review", encoding="utf-8")
 
-    # ── v8.90/v8.153:单模型 disable_external_review · 接受降级同模型自审 ──
-    _DEGRADED_FM = ("---\nreview_role: self-degraded\nhost: claude-code\n"
-                    "heterogeneous: false\ndegraded: true\n"
-                    "degraded_mode: config-disabled\n---\nself-review body\n")
-
-    def _set_config(self, disabled: bool):
-        (Path(self.tmp) / ".git").mkdir(exist_ok=True)  # bound 向上 walk
-        (Path(self.tmp) / ".teamwork_localconfig.json").write_text(
-            json.dumps({"disable_external_review": disabled}), encoding="utf-8")
-
-    def _check_host(self):
-        from _v8_stage_specs import _evidence_external_review_artifact  # type: ignore
+    def _check(self, state=None):
+        from _v8_stage_specs import _evidence_external_review_artifact
         return _evidence_external_review_artifact(
-            {"host": "claude-code", "current_stage": "review"},
+            state if state is not None else {"current_stage": "review"},
             make_args(feature=str(self.feat)))
 
-    def test_v890_config_disabled_accepts_degraded_self_review(self):
-        """config 禁异质 + 降级同模型自审(degraded:true heterogeneous:false)→ 满足门禁。"""
-        self._set_config(True)
-        (self.ext / "review-claude.md").write_text(self._DEGRADED_FM, encoding="utf-8")
-        ok, err = self._check_host()
-        self.assertTrue(ok, f"config-disabled 应接受降级自审 · err={err!r}")
+    def test_subagent_with_model_passes(self):
+        self._write("review-opus.md", "review_via: subagent\nreview_model: opus-subagent")
+        ok, msg = self._check()
+        self.assertTrue(ok, msg)
 
-    def test_v890_config_enabled_still_blocks_same_model(self):
-        """config 未禁(默认)+ 同模型文件 → 异质门禁仍 BLOCK(不因 v8.90 放水)。"""
-        self._set_config(False)
-        (self.ext / "review-claude.md").write_text(self._DEGRADED_FM, encoding="utf-8")
-        ok, err = self._check_host()
+    def test_missing_review_via_blocked(self):
+        """无 review_via → 无法证明是隔离冷审(可能是主对话热审)。"""
+        self._write("review-x.md", "review_model: opus")
+        ok, msg = self._check()
         self.assertFalse(ok)
-        self.assertIn("异质", err)
-        # v8.95:默认(未禁)项目走通用 hint(host 自动映射异质模型)· 不混入 config-disabled 文案
-        self.assertIn("host 自动映射异质模型", err)
-        self.assertNotIn("别手写", err)
+        self.assertIn("必须 subagent", msg)
 
-    def test_v890_config_disabled_still_blocks_unmarked_same_model(self):
-        """config 禁异质 · 但同模型文件**无 degraded 标记**(手写伪装?)→ 仍 BLOCK。"""
-        self._set_config(True)
-        (self.ext / "review-claude.md").write_text(
-            "---\nreview_role: external\nhost: claude-code\n---\nbody\n", encoding="utf-8")
-        ok, err = self._check_host()
-        self.assertFalse(ok, "config-disabled 也不接受未标记 degraded 的同模型文件")
-        # v8.95:ext_disabled 项目给**专属**修复指引(治本 case:AI 手写自审被拦后被通用
-        # 「调异质模型」hint 误导 · 与 v8.90 单模型 opt-out 初衷相悖)。
-        self.assertIn("disable_external_review", err)  # v8.153 改名
-        self.assertIn("别手写", err)
-        self.assertIn("state.py external-review", err)
-        self.assertNotIn("host 自动映射异质模型", err,
-                         "ext_disabled 项目不应给通用「调异质模型」误导 hint")
-
-    # ── v8.108:per-run subagent 降级(degraded_mode=subagent-fallback · 显式 --self-review-fallback)──
-    _SUBAGENT_DEGRADED_FM = (
-        "---\nreview_model: claude-subagent-degraded\nhost: claude-code\n"
-        "heterogeneous: false\ndegraded: true\n"
-        "degraded_mode: subagent-fallback\n"
-        'degraded_reason: "异质 codex 未登录·已重试失败"\n'
-        "review_via: subagent\n---\ndegraded review body\n")
-
-    def test_v8108_subagent_fallback_accepted_without_opt_out(self):
-        """v8.108:per-run subagent 降级(degraded_mode=subagent-fallback)→ 满足门禁 ·
-        即便项目**未** opt-out + 文件名含 `claude`(否则黑名单)· honest-degrade marker 放行。"""
-        self._set_config(False)  # 项目未 opt-out
-        (self.ext / "review-claude-subagent-degraded.md").write_text(
-            self._SUBAGENT_DEGRADED_FM, encoding="utf-8")
-        ok, err = self._check_host()
-        self.assertTrue(ok, f"subagent-fallback 诚实降级应放行 · err={err!r}")
-
-    def test_v8108_bare_subagent_still_blocked(self):
-        """v8.108:无 degraded marker 的 subagent 文件(F034 伪装)→ 仍 BLOCK · 防偷偷用 subagent 冒充异质。"""
-        self._set_config(False)
-        (self.ext / "review-claude-subagent.md").write_text(
-            "---\nreview_model: claude-subagent\nhost: claude-code\n---\nbody\n", encoding="utf-8")
-        ok, err = self._check_host()
-        self.assertFalse(ok, "无 degraded marker 的 subagent 文件必须 BLOCK(防 F034 伪装)")
-
-    # ── 白名单字面 · PASS ──
-    def test_codex_filename_passes(self):
-        (self.ext / "code-codex.md").write_text("review", encoding="utf-8")
-        ok, err = self._check()
-        self.assertTrue(ok, err)
-
-    def test_gpt_filename_passes(self):
-        (self.ext / "prd-gpt-5.md").write_text("review", encoding="utf-8")
-        ok, err = self._check()
-        self.assertTrue(ok, err)
-
-    def test_gemini_filename_passes(self):
-        (self.ext / "tech-gemini.md").write_text("review", encoding="utf-8")
-        ok, err = self._check()
-        self.assertTrue(ok, err)
-
-    # ── 黑名单字面 · BLOCKED(F034 case 核心) ──
-    def test_claude_isolated_filename_blocked(self):
-        """F034 case 复刻:code-claude-isolated.md → BLOCKED。"""
-        (self.ext / "code-claude-isolated.md").write_text("review", encoding="utf-8")
-        ok, err = self._check()
+    def test_main_conversation_blocked(self):
+        self._write("review-x.md", "review_via: main-conversation\nreview_model: opus")
+        ok, msg = self._check()
         self.assertFalse(ok)
-        self.assertIn("claude", err.lower())
-        self.assertIn("异质", err)
+        self.assertIn("主对话热审无独立性", msg)
 
-    def test_subagent_filename_blocked(self):
-        (self.ext / "review-subagent.md").write_text("review", encoding="utf-8")
-        ok, err = self._check()
+    def test_missing_model_blocked(self):
+        """模型必须照实申报 —— 供台账核「错开」是否真发生。"""
+        self._write("review-x.md", "review_via: subagent")
+        ok, msg = self._check()
         self.assertFalse(ok)
-        self.assertIn("subagent", err.lower())
+        self.assertIn("review_model 缺", msg)
 
-    def test_anthropic_filename_blocked(self):
-        (self.ext / "code-anthropic.md").write_text("review", encoding="utf-8")
-        ok, err = self._check()
+    def test_ultra_ingest_exempt(self):
+        """/code-review ultra 摄入 · 独立性由产品化多智能体保证 · 免申报。"""
+        self._write("review-ultra.md", "review_via: ultra-ingest")
+        ok, msg = self._check()
+        self.assertTrue(ok, msg)
+
+    def test_roster_without_external_skips(self):
+        ok, msg = self._check({"current_stage": "review",
+                               "stage_review_roles": {"review": ["architect"]}})
+        self.assertTrue(ok, msg)
+
+    def test_empty_dir_blocked_with_actionable_hint(self):
+        ok, msg = self._check()
         self.assertFalse(ok)
-
-    def test_general_purpose_filename_blocked(self):
-        (self.ext / "code-general-purpose.md").write_text("review", encoding="utf-8")
-        ok, err = self._check()
-        self.assertFalse(ok)
-
-    # ── 模糊命名 · BLOCKED(必含白名单字面) ──
-    def test_ambiguous_filename_blocked(self):
-        (self.ext / "external-review.md").write_text("review", encoding="utf-8")
-        ok, err = self._check()
-        self.assertFalse(ok)
-        self.assertIn("模型族字面", err)  # v8.68:措辞改「已知模型族字面」
-
-    # ── v8.68:host-aware 同源判定(治本 codex-cli host claude 误判) ──
-    def test_v868_codex_host_claude_review_passes(self):
-        """v8.68 治本 SVC-PLATFORM-F060:host=codex-cli + claude external review → 异质 PASS。"""
-        from _v8_stage_specs import _evidence_external_review_artifact  # type: ignore
-        (self.ext / "review-claude.md").write_text(
-            "---\nreview_model: 2.1.158 (Claude Code)\nhost: codex-cli\n---\nbody",
-            encoding="utf-8")
-        state = {"current_stage": "review", "host": "codex-cli",
-                 "stage_review_roles": {"review": ["qa", "architect", "external"]}}
-        ok, err = _evidence_external_review_artifact(state, make_args(feature=str(self.feat)))
-        self.assertTrue(ok, err)
-
-    def test_v868_claude_host_claude_review_blocked(self):
-        """v8.68:host=claude-code + claude review → 同源 FAIL(保留原保护)。"""
-        from _v8_stage_specs import _evidence_external_review_artifact  # type: ignore
-        (self.ext / "review-claude.md").write_text(
-            "---\nreview_model: Claude Code\nhost: claude-code\n---\nbody", encoding="utf-8")
-        state = {"current_stage": "review", "host": "claude-code",
-                 "stage_review_roles": {"review": ["qa", "architect", "external"]}}
-        ok, err = _evidence_external_review_artifact(state, make_args(feature=str(self.feat)))
-        self.assertFalse(ok)
-        self.assertIn("同源", err)
-
-    def test_v868_codex_host_codex_review_blocked(self):
-        """v8.68:host=codex-cli + codex review → 同源 FAIL(codex 评 codex)。"""
-        from _v8_stage_specs import _evidence_external_review_artifact  # type: ignore
-        (self.ext / "review-codex.md").write_text(
-            "---\nreview_model: codex-1.0\nhost: codex-cli\n---\nbody", encoding="utf-8")
-        state = {"current_stage": "review", "host": "codex-cli",
-                 "stage_review_roles": {"review": ["qa", "architect", "external"]}}
-        ok, err = _evidence_external_review_artifact(state, make_args(feature=str(self.feat)))
-        self.assertFalse(ok)
-
-    def test_v868_isolated_blocked_regardless_of_host(self):
-        """v8.68:任意 host + isolated/subagent → 仍 FAIL(机制黑名单 · 无论 host)。"""
-        from _v8_stage_specs import _evidence_external_review_artifact  # type: ignore
-        (self.ext / "review-claude-isolated.md").write_text("x", encoding="utf-8")
-        state = {"current_stage": "review", "host": "codex-cli",
-                 "stage_review_roles": {"review": ["qa", "architect", "external"]}}
-        ok, err = _evidence_external_review_artifact(state, make_args(feature=str(self.feat)))
-        self.assertFalse(ok)
-        self.assertIn("机制", err)
-
-    # ── frontmatter review_model 校验 ──
-    def test_frontmatter_review_model_blocked_even_if_filename_ok(self):
-        """文件名 OK(codex)· 但 frontmatter review_model 同源 → BLOCKED。
-
-        防 PMO 用合规文件名包装实际是 isolated 的内容。
-        """
-        (self.ext / "code-codex.md").write_text(
-            "---\nreview_model: claude-opus-4-isolated\n---\nbody",
-            encoding="utf-8")
-        ok, err = self._check()
-        self.assertFalse(ok)
-        self.assertIn("review_model", err)
-        self.assertIn("claude", err.lower())
-
-    def test_frontmatter_review_model_codex_passes(self):
-        """文件名 + frontmatter 双白名单 · PASS。"""
-        (self.ext / "code-codex.md").write_text(
-            "---\nreview_model: codex-1.0.133\n---\nbody",
-            encoding="utf-8")
-        ok, err = self._check()
-        self.assertTrue(ok, err)
-
-    # ── stage_review_roles 移除 external → skip(向后兼容) ──
-    def test_skipped_when_external_not_in_stage_roles(self):
-        """若用户 change-review-roles 移除 external · 即使文件违规也 skip。"""
-        (self.ext / "code-claude-isolated.md").write_text("x", encoding="utf-8")
-        from _v8_stage_specs import _evidence_external_review_artifact  # type: ignore
-        state = {
-            "current_stage": "review",
-            "stage_review_roles": {"review": ["pm", "qa", "architect"]},  # 无 external
-        }
-        args = make_args(feature=str(self.feat))
-        ok, err = _evidence_external_review_artifact(state, args)
-        self.assertTrue(ok)
-        self.assertIn("skipped", err)
-
-    # ── 混合:多文件 · 一个违规即全部 BLOCKED + 列出所有违规 ──
-    def test_multi_file_lists_all_violations(self):
-        (self.ext / "code-codex.md").write_text("ok", encoding="utf-8")
-        (self.ext / "tech-claude-isolated.md").write_text("bad1", encoding="utf-8")
-        (self.ext / "prd-subagent.md").write_text("bad2", encoding="utf-8")
-        ok, err = self._check()
-        self.assertFalse(ok)
-        self.assertIn("tech-claude-isolated.md", err)
-        self.assertIn("prd-subagent.md", err)
-        # 合规的 code-codex.md 不在违规清单
-        self.assertNotIn("code-codex.md:", err)
-
-
-# ─── Bug 2 · _evidence_ac_test_binding 诊断 ─────────────────────
+        self.assertIn("external-review", msg)      # 给出该跑的命令
 
 
 class TestYoloExternalRealRun(unittest.TestCase):
-    """v8.67:yolo 严格按流程 · 不内化 —— external 必须真跑(有 v8.55 实跑日志)·
-    防 AI 手写 external-cross-review/*.md 自盖章(治本 WS-002 yolo "mode: yolo-internalized")。"""
+    """v8.67 不内化律 · v8.291 换代:实跑证据从「CLI 子进程日志」改为「prompt doc 存在」。
+
+    要守的性质不变 —— yolo 无人值守时,防 AI **直接手写** external-cross-review/*.md 自盖章
+    (治本 WS-002 "mode: yolo-internalized")。跨厂商 CLI 退役后没有子进程日志了,
+    证据改为 `external-review-prompts/<stage>-*.md`(由 `state.py external-review` 落盘 ——
+    它证明真跑过命令拿配方)。legacy 全局日志路径同版退役(读 $HOME 会污染测试隔离)。
+    """
 
     def setUp(self):
         self.tmp = tempfile.mkdtemp(prefix="tw-yolo-ext-")
-        self.feat = Path(self.tmp)  # feat_name = tmp basename(唯一 · 不撞真 ~/.teamwork)
+        self.feat = Path(self.tmp)
         (self.feat / "external-cross-review").mkdir(parents=True)
-        (self.feat / "external-cross-review" / "review-codex.md").write_text(
-            "---\nreview_model: codex\n---\n# review", encoding="utf-8")
-        # v8.204:external 默认关 → opt-in(本类测异质实跑日志路径)
+        (self.feat / "external-cross-review" / "review-opus.md").write_text(
+            "---\nreview_via: subagent\nreview_model: opus-subagent\n---\n# review",
+            encoding="utf-8")
         (self.feat / ".git").mkdir(exist_ok=True)
-        (self.feat / ".teamwork_localconfig.json").write_text(
-            json.dumps({"disable_external_review": False}), encoding="utf-8")
-        self.log_dir = (Path.home() / ".teamwork" / "external-review-logs"
-                        / self.feat.name)
+        self.prompts_dir = self.feat / "external-review-prompts"
 
     def tearDown(self):
         shutil.rmtree(self.tmp, ignore_errors=True)
-        shutil.rmtree(self.log_dir, ignore_errors=True)
 
     def _check(self, yolo):
         from _v8_stage_specs import _evidence_external_review_artifact  # type: ignore
@@ -405,10 +237,11 @@ class TestYoloExternalRealRun(unittest.TestCase):
         self.assertFalse(ok)
         self.assertIn("实跑证据", err)
 
-    def test_yolo_with_run_log_passes(self):
-        """yolo + external artifact + 实跑日志 → PASS。"""
-        self.log_dir.mkdir(parents=True, exist_ok=True)
-        (self.log_dir / "codex-review-20260531T000000Z.log").write_text("ran", encoding="utf-8")
+    def test_yolo_with_prompt_doc_passes(self):
+        """yolo + 产物 + prompt doc(真跑过 external-review)→ PASS。"""
+        self.prompts_dir.mkdir(parents=True, exist_ok=True)
+        (self.prompts_dir / "review-subagent-review-20260531T000000Z.md").write_text(
+            "prompt", encoding="utf-8")
         ok, err = self._check(yolo=True)
         self.assertTrue(ok, err)
 

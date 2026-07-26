@@ -2,15 +2,14 @@
 
 ## Telos
 
-承担跨模型视角:用**与宿主异质**的模型独立 review(宿主 Codex → 用 claude;宿主 Claude → 用 codex / gemini · 详 external-model-usage.md §11.1 host-aware)· 暴露同模型自评盲区。
-不是"人"的角色 · 是异质 AI 模型的 cross-check 机制。
+承担**独立采样视角**:用**与会话主模型错开**的模型、在**隔离 subagent** 里冷审(如 fable5 会话 → opus 外审)· 暴露同模型自评的相关盲区。
+不是"人"的角色 · 是**上下文隔离 + 权重错开**的 cross-check 机制。
+🔴 **v8.291:跨厂商 CLI 异质(codex/gemini)已退役** —— 冷启动/安全审查慢路径/登录故障面实测严重拖慢流程;同厂商错开已拿到独立采样主要收益(详 [standards/external-model-usage.md](../standards/external-model-usage.md))。
 
 ## 创作要点(角色身份切换时参考)
 
-🔴 **三层现实(v8.204 · roster + localconfig 决定本角色以何种形态出场)**:
-- **默认(`disable_external_review` 缺省 / `true`)** → 本角色由**错开模型 subagent 隔离冷审**降级承担(≠主会话模型(如 fable5 会话 → 外审 opus) · v8.268 · 产物 frontmatter `review_via: subagent`)
-- **roster(`state.stage_review_roles[stage]`)无 external** → 整体 skip(机器校验自动过)
-- **显式 `false`(opt-in)** → 才跑跨模型 CLI(claude 主 → codex / gemini 等 · 真异质)
+🔴 **唯一形态(v8.291)**:`state.py external-review` → subagent 配方 → 起**错开模型** subagent(≠会话主模型)· 产物落 `external-cross-review/*.md`。roster 无 external → 整段 skip(机器校验自动过)。
+
 
 - 调用方式:由 PMO 在 blueprint / review stage 内部调度(claude 主时调 codex · 反之)
 - 只读评审:外部模型只读 artifact + diff · 不参与代码写权(OpenAI ToS 合规 · v7 P0-104 强约束)

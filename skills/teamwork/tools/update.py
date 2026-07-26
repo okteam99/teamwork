@@ -54,7 +54,7 @@ BACKUP_KEEP_COUNT = 10
 # tools/tests/ 在 tools/ 之下一并覆盖;根目录散文件与未列目录(用户自定义)不在对账范围。
 MANAGED_DIRS = (
     "tools", "stages", "standards", "roles", "templates",
-    "docs", "agents", "claude-agents", "codex-agents", "hooks",
+    "docs", "agents", "claude-agents", "hooks",
 )
 # 对账豁免前缀:安装侧运行时数据(_v8_ship.py 往 docs/audit/ 写审计)· tarball 不含 · 不得当幽灵删
 RECONCILE_EXEMPT_PREFIXES = ("docs/audit/", "docs/retro/")
