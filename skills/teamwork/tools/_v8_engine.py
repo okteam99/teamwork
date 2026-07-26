@@ -587,7 +587,10 @@ def _mine_active_minutes(feature_dir, started_iso, completed_iso, contract) -> "
 DISPATCH_TIER_REMINDER = (
     "🎚️ 本 stage 若派 subagent/teammate/workflow:每个派发**声明 model + 一句为什么**"
     "(校验/枚举型〔QA 冷审/TC 对照/测试执行/机械外化〕→ 验证档 sonnet/haiku · "
-    "判断/创造型〔Architect/PL/方案/裁决〕→ 不降档)· 未声明 = 继承会话模型(台账计 unspecified)· 🎭 评审模型错开:双路 = 外审路 ≠ 主审路 · 单路(fast 合并等)= **该路 ≠ 会话主模型**(如 fable5 会话 → 评审 opus · v8.268/269)· "
+    "判断/创造型〔Architect/PL/方案/裁决〕→ 不降档)· 未声明 = 继承会话模型(台账计 unspecified)· "
+    "🔴 **PRD 与 TECH 必须主模型/高级模型出设计或参与评审**(v8.290 · 两份设计文档定全局质量上限 · "
+    "起草与评审至少各有一路高档 · 错开也只在高档间错〔fable5↔opus〕· **不许降到验证档**)· "
+    "其余环节尽量**主对话编排 · subagent 并行**(能并行的不串行)· 🎭 评审模型错开:双路 = 外审路 ≠ 主审路 · 单路(fast 合并等)= **该路 ≠ 会话主模型**(如 fable5 会话 → 评审 opus · v8.268/269)· "
     "单源详 SKILL 🎚️ / agents/README §一。"
 )
 

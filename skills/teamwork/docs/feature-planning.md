@@ -5,9 +5,7 @@
 > 不创建 state.json · 不分 stage · 不走 stage 链。
 >
 > 🔴 **进入本流程前先跑** `state.py planning-check --project-root <abs>`(物化入口)·
-> emit 规划 checklist + 必读规范 + (若有 product-overview/)规划状态机。
-> 治本「规划路径不进状态机 · 无 state.py 兜底 · 纯靠 AI 自觉读 spec」漏洞 —— planning-check
-> 让 AI 跑命令就拿到规范要点,不依赖记得读本文件 / PRODUCT-OVERVIEW-INTEGRATION.md。
+> emit 规划 checklist + 必读规范 + (若有 product-overview/)规划状态机 —— 不依赖记得读本文件 / PRODUCT-OVERVIEW-INTEGRATION.md。
 
 ---
 
@@ -18,20 +16,15 @@
 > ⚠️ **`teamwork-space.md` 地图骨架由 bootstrap 自动建**,但**子项目清单**由 product-overview「✅ 已确认」+ 本流程**回填**
 > (taxonomy genesis 在产品规划上游 · 详 [PRODUCT-OVERVIEW-INTEGRATION.md § product-overview 规划状态管理](../PRODUCT-OVERVIEW-INTEGRATION.md))。本流程 §2 Step 2「工作区级」改 teamwork-space.md
 > 指的是**回填子项目清单 / 迭代**,不是建文件本身(那是 bootstrap)。冷启动若无 `product-overview/` → bootstrap emit
-> `cold_start_product_planning_recommended` gate 引导先走产品规划上游(治本:已做 Feature Planning 却跳过 product-overview)。
+> `cold_start_product_planning_recommended` gate 引导先走产品规划上游。
 
 ---
 
 ## 0. 何时进入此流程(入口判据)
 
-**关键词触发**:用户说"规划 / 拆 roadmap / 路线图 / 全景 / 商业模式调整 / 做电商 / 做 SaaS"等(详 [prepare.md §2 关键词表](./prepare.md))。
+**关键词触发**:用户说"规划 / 拆 roadmap / 路线图 / 全景 / 商业模式调整"等(详 [prepare.md §2 关键词表](./prepare.md))。
 
-**复杂度触发**(关键词命中任何执行类流程时 PMO 必再扫 · 详 [prepare.md §2.1](./prepare.md)):
-- 跨仓库联动(≥2 个 · 如后端 + 前端 + 管理后台)
-- 数据模型重构(删/改老字段 / 表结构变动)
-- 老需求架构性废弃("X 不要了"/"统一为 Y"/"重构这套逻辑")
-- 影响 ≥2 BL(一次需求拆成多 Feature 协同)
-- 方向级业务变更(新增/删除业务能力)
+**复杂度触发**(关键词命中任何执行类流程时 PMO 必再扫 [prepare.md §2.1](./prepare.md) 的 5 项信号:跨仓库联动 / 数据模型重构 / 老需求架构性废弃 / 影响 ≥2 BL / 方向级业务变更):
 
 🔴 **命中任一 = 强制升级**(不论关键词初判)· 否则会 PMO 主对话散述伪 PRD(违 R5 暂停点协议)。
 
@@ -50,10 +43,10 @@ Feature Planning 的产出是**规划文档**(不是单 Feature 的 artifact)· 
 - 没有"Feature ID"(规划期分配 BL-NNN · WS 用 WS-NN · 见 [conventions.md § 4](./conventions.md))
 - 没有 PRD / TC / TECH(那是 Feature 流程的事)
 - 不出 **feature 实现代码**(R6 红线)· **但**产出含**全景 `preview-project`**(设计代码 · 会改文件)+ WS / ROADMAP / product-overview 文档
-- 🔴 **进流程先建临时 worktree**(隔离规划产物 · 同 feature worktree 策略)—— 规划产出 committed 文档 + 全景代码,落主工作区会**污染主分支**、撞**并行 feature 基线**(主工作区是它们的 baseline)。详 §2 Step 0 + `state.py planning-check` 的 `worktree_setup`(trivial 单文档微调 · 用户可决定免 worktree)
+- 🔴 **进流程先建临时 worktree**(隔离规划产物 · 详 §2 Step 0)
 - **不进状态机**(无 stage 链)· **但走 worktree + MR**(规划产物随 MR 原子合入 · 仅**不走 ship 状态机**)
 
-强行套**执行层状态机**会增加复杂度而无收益(stage 链只 1 步 · 校验都是文档存在性 · PMO 主对话能直接做)· 但 worktree 隔离与状态机无关 —— 它只是文件隔离,planning 仍是「PMO 主对话直接做」,只是在 worktree 内做。
+强行套**执行层状态机**会增加复杂度而无收益(stage 链只 1 步 · 校验都是文档存在性 · PMO 主对话能直接做)。
 
 ---
 
@@ -109,8 +102,8 @@ cd <worktree-path>   # 🔴 之后所有规划产物写 worktree 内路径(推�
 ### Step 5 · 🎨 UI 全景初步规划(条件:本轮涉 UI · 否则跳过)
 
 🔴 **在拆 WS 之前出** —— 先看清"产品长啥样",WS 才能把 feature 切对(边界跟 UI 结构对齐)。对**本轮 scope 做一次**(不是 per-WS 各画),在 `{子项目}/docs/design/preview-project/`:
-- **出 design system + 本轮关键页**(🔴 **初步**:系统 + 代表页 · **不是每页** · 细节随各 feature 的 ui_design 增量补 · 防瀑布)· 🔴 seed 即按**真实路由结构**组织(router 必含 · `/` = 首页设计稿 · 各页挂真实 path · 与 sitemap 一致 · 详 ui-design-stage § IA 镜像律)· 基建层优先依赖真实 app 的**共享包**(packages/ui · theme · shell · 详 ui-design-stage § 分层同构律)· 跑 `preview.sh` 实时看(同 ui_design 同栈机制)。
-- 同步 `sitemap.md`(IA 地图:本轮新增/调整的页节点 · 🔴 **只写层级/导航/路由,不写视觉** —— 视觉在 preview-project · 防双副本漂移)。
+- **出 design system + 本轮关键页**(🔴 **初步**:系统 + 代表页 · **不是每页** · 细节随各 feature 的 ui_design 增量补 · 防瀑布 · seed 按真实路由结构组织 + 基建层优先复用真实 app 共享包 · 详 [ui-design-stage § IA 镜像律 / 分层同构律](../stages/ui-design-stage.md))· 跑 `preview.sh` 实时看(同 ui_design 同栈机制)。
+- 同步 `sitemap.md`(记本轮新增/调整的页节点 · IA 地图与视觉的分工见 §3 坑 4)。
 - 🔴 全景是**一份活物**:不存在 → 首次 seed;已存在 → 扩本轮的页(源即权威)。完成即产生 git diff(= 本轮全景产出 · 下一步拆 WS 的输入)。
 - **非 UI 轮**(纯后端/基建)→ 跳过此步 · 下游 WS 标 `全景初规: N-A`。
 
@@ -126,13 +119,13 @@ cd <worktree-path>   # 🔴 之后所有规划产物写 worktree 内路径(推�
 - 🔴 **用户确认后**才在下游 WS frontmatter 记 `ui_panorama_confirmed: <ISO 用户确认时间>` · **未确认不得拆 WS、更不得转 `✅ 规划完成`**(见 Step 9 + 完成标准)。
 - 🔴 **`auto_mode=true` / yolo 跳过此暂停点**(用户已委托)· 留痕 = 下游 WS frontmatter 记 `ui_panorama_confirmed`(标 auto + preview URL)——**规划不进状态机 · `add-concern` 在此不可用**(它要 `--feature`+state.json)· 详 [SKILL.md § auto_mode 暂停点](../SKILL.md)。
 
-### Step 5.7 · ⏸️ 拆解讨论暂停点(R5 · 必经 · v8.239)
+### Step 5.7 · ⏸️ 拆解讨论暂停点(R5 · 必经)
 
-🔴 **WS 必须是「代码现状 × 用户深度讨论」的产物 · 不是 AI 一把拆完的成品**(实证:调研浅 + 拆得散 · 用户只在收尾见成品无法纠偏方向)。拆解**草案**成形后 · 落 WS 文档**之前**:
+🔴 **WS 必须是「代码现状 × 用户深度讨论」的产物 · 不是 AI 一把拆完的成品**(调研浅 + 拆得散 · 用户只在收尾见成品无法纠偏方向)。拆解**草案**成形后 · 落 WS 文档**之前**:
 
 - emit **拆解讨论稿**:候选 BL 清单(每条:一句边界理由 + `current_state` 摘要〔出自哪些实读文件〕+ **含金量标注**〔真新增工程量 vs 薄配套:承接/枚举/配置级〕)+ 波次草案 + **粒度自检**(🔴 反压:BL > 8 或存在「无独立交付价值/纯机械半天活」的 BL → 必须给「为什么不合并」;镜像 goal 的 AC>10)。
-- **边界判据(v8.240)**:主判据 = **交付内聚**;**feature 可跨子项目**(`target` 只是 ROADMAP 归属)——「代码在不同子项目」不是拆分理由(评审 blast radius 才是)。**薄承接件默认并入宿主件**(只承接另一件的产物 / 同 surface 严格串行 / 跨件协调点可内化为件内里程碑);保持独立须给硬理由之一:**外部依赖 gate**(不绑架宿主交付)/ **交付节奏不同**(如运营慢周期)/ **blast radius**(并入后单件跨过多子项目 · 评审不可收)/ **管辖边界**。**含金量悬殊 = 强合并信号**(几件薄件工程量加起来不如一件实体;实证:7 件中 4 薄 · 用户亲自出手才合成 5)。
-- **id 纪律**:草案期编号随便改;**落盘后合并/砍件不重排幸存 id** —— 被并件留一行遗迹(`S2 → 已并入 S1`)· 缺号不补(实证:三次重排 = 三次整卷重写防漏引用)。
+- **边界判据**:主判据 = **交付内聚**;**feature 可跨子项目**(`target` 只是 ROADMAP 归属)——「代码在不同子项目」不是拆分理由(评审 blast radius 才是)。**薄承接件默认并入宿主件**(只承接另一件的产物 / 同 surface 严格串行 / 跨件协调点可内化为件内里程碑);保持独立须给硬理由之一:**外部依赖 gate**(不绑架宿主交付)/ **交付节奏不同**(如运营慢周期)/ **blast radius**(并入后单件跨过多子项目 · 评审不可收)/ **管辖边界**。**含金量悬殊 = 强合并信号**(几件薄件工程量加起来不如一件实体)。
+- **id 纪律**:草案期编号随便改;**落盘后合并/砍件不重排幸存 id** —— 被并件留一行遗迹(`S2 → 已并入 S1`)· 缺号不补(重排 = 整卷重写、易漏引用)。
 - R5 标准选项:1. 按草案拆 💡 / 2. 讨论调整(合并 X+Y / 砍 Z / 改边界 —— 收敛后再落)/ 3. 其他。**用户有异议就地讨论收敛 · 不落成品后返工**。
 - `auto_mode/yolo`:按推荐继续 + 在 WS 文档「背景」节记一行「⚠️ auto skip:拆解讨论 · <草案要点>」留痕(**规划不进状态机 · `add-concern` 在此不可用** · 同全景确认的 frontmatter 留痕模式)。
 
@@ -140,7 +133,7 @@ cd <worktree-path>   # 🔴 之后所有规划产物写 worktree 内路径(推�
 
 **输入 = 本轮全景产出(Step 5 的 diff)+ 业务目标 + 承接执行线** · 把 scope 切成 **1..N 个 WS**:
 - 每个 WS:背景 / 承接 1+ 执行线 / 拆哪些 feature(`features[].current_state` 记复用点 vs 真缺口)/ 跨子项目依赖 / 风险。
-- 🔴 每个 WS 记 **全景初规状态**(`✅` 本 WS 的页已在全景 / `N-A` 非 UI)+ **覆盖的全景页清单**(本 WS owns 哪几页 · 替代模糊的"哪一轮")+ 🔴 **`ui_panorama_confirmed`**(Step 5 用户确认全景后填 ISO 时间 · 涉 UI 必有才能规划完成 · 非 UI 留 `N-A`)。
+- 🔴 每个 WS 记 **全景初规状态**(`✅` 本 WS 的页已在全景 / `N-A` 非 UI)+ **覆盖的全景页清单**(本 WS owns 哪几页 · 替代模糊的"哪一轮")+ **`ui_panorama_confirmed`**(Step 5 用户确认全景后填 ISO 时间 · 涉 UI 必有才能规划完成 · 非 UI 留 `N-A`)。
 - **WS 是原子单位**:scope 大(如冷启动 MVP)就按执行线/能力拆**多个** WS(各自独立状态/启动)· 别塞巨型 WS;稳态一个方向变更 = 一个 WS。
 - 🔴 **给执行顺序与并行建议**:拆完按 `features[].dependencies` 算**波次**(同波互不依赖 → 可并行 · 各自 worktree;跨波串行)写进 WS §执行顺序与并行建议 + frontmatter `execution_waves` · 并标 **同改面 / 跨子项目方向 / 带宽** 的额外串行约束 —— 让用户拿到 WS 就知道先起哪几个、能同时开几个。
 - 🔴 **照 [templates/workstream.md](../templates/workstream.md) 起草 · 别抄项目里现有 WS**(易抄到旧/混合格式):最新形态 = `<!-- TEAMWORK-MACHINE -->` 注释块(非裸 `---`)+ `WS-PROGRESS`/`WS-DAG` 标记区 + frontmatter 含 `ui_panorama_confirmed`。
@@ -167,7 +160,7 @@ PMO 主对话切换角色 · 讨论收敛 · 不需要单独 review artifact。
 
 ### Step 9 · 提交 + 收尾(规划收尾 · 🔴 R5 暂停点 · 必问)
 
-规划产出(WS + 各 ROADMAP 登记 + preview-project/sitemap if 涉 UI + 业务架构 if 改)是 **Step 0 worktree 内未提交的改动**。规划完成 → **必 emit R5 暂停点问用户如何收尾** —— 不擅自 commit / 合并,也不放任改动悬着。🔴 **头两项 = 一步到位**(治本 case:用户被迫手动「你直接合并然后规划收尾」· 收尾不该是「建 MR → 等你告知已合并 → 再收尾」的多段接力):
+规划产出(WS + 各 ROADMAP 登记 + preview-project/sitemap if 涉 UI + 业务架构 if 改)是 **Step 0 worktree 内未提交的改动**。规划完成 → **必 emit R5 暂停点问用户如何收尾** —— 不擅自 commit / 合并,也不放任改动悬着。🔴 **头两项 = 一步到位**(收尾不该是「建 MR → 等你告知已合并 → 再收尾」的多段接力):
 
 ```
 ⏸️ 规划完成 · 产出 <WS-NN + N 个 ROADMAP 登记 + 全景 if UI> · 合入 <merge_target> 收尾?
@@ -189,7 +182,7 @@ PMO 主对话切换角色 · 讨论收敛 · 不需要单独 review artifact。
 3. **finalize**(= ship2 / ship-finalize · 3 步镜像):① `cd <主工作区路径>`(非 planning worktree)② `git worktree remove <planning-worktree-path>`(删不掉 `--force` 兜底)③ `python3 {SKILL_ROOT}/tools/state.py main-sync --merge-target <merge_target> --strategy <commit-push|stash-pull|skip>`(🔴 `--strategy` 必传 · 主工作区干净常态用 `stash-pull`;不依赖 feature · fetch + 按策略 pull · 有用户改动会 surface 净化决策)。
 4. **选 2 追加 · 启动首个 BL**:finalize 完 → 首波 ready BL(`<BL-xxx>` · 取 WS `execution_waves` W1 / `ws-progress` 的 `ready_to_start`)→ prepare → init-feature 进 Feature 状态机。
 
-🔴 **启动首个 BL 的前提(选 2 · 守 v8.188 护栏)**:必须 **finalize 完成后**(集成分支基线**已含规划产物**)· 且是**用户显式选择**(非自动起)· 该 feature 的 `merge_target` = **集成分支**(dev/staging · **不是 planning 分支**)—— 「别叠 feature 在未合并 planning 分支」仍成立(规划已合入 · planning 分支已消亡)。选 1/3 收尾后拆出的 BL 同样由用户后续拍板再 prepare。
+🔴 **启动首个 BL 的前提(选 2)**:必须 **finalize 完成后**(集成分支基线**已含规划产物**)· 且是**用户显式选择**(非自动起)· 该 feature 的 `merge_target` = **集成分支**(dev/staging · **不是 planning 分支**)—— 「别叠 feature 在未合并 planning 分支」仍成立(规划已合入 · planning 分支已消亡)。选 1/3 收尾后拆出的 BL 同样由用户后续拍板再 prepare。
 
 ---
 
@@ -250,7 +243,7 @@ PL 在 ROADMAP 拆完后顺手起 Feature flow · 越权(用户没拍板)。
 design system + 本轮关键页(初步 · 系统+代表页 · 同栈可跑 · 源即视觉权威)· ui_design 后续增量扩
 
 ### `sitemap.md`(涉 UI 时 · IA 地图)
-页面层级 / 导航 / 路由(文字 · 🔴 不写视觉 · 视觉在 preview-project)
+页面层级 / 导航 / 路由(文字 · 不写视觉 · 视觉在 preview-project)
 
 ### `ROADMAP.md`(各子项目)
 Feature(BL)列表 + 优先级 + 「关联 WS」列 · 一 Feature 一行

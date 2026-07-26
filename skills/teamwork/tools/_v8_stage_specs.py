@@ -434,7 +434,7 @@ PM 调研(自答优先)· 起草 PRD · 🔴 **并行派 2 路隔离冷审**(v8.
 - `state.execution_hints.ui_design_needed` 已决策(由 `--needs-ui`)
 
 ### 怎么做
-🔴 **照 `{{SKILL_ROOT}}/templates/prd.md` 起草 · 别抄项目里旧 PRD**(实测 post-v8.164 十份仅一份用 canonical · 抄旧 = 机读块/扩展区等新机制到达不了)· goal-complete 校验三命门段(机读块/AC/『开工前必须想清的』)。\n**必读** `stages/goal-stage.md`(8 步:调研 → 起草 v0.1(🧠 **按冷审关注点思考着写** · 非环节:PL六问过脑 · AC 用可测判据〔含糊词落笔即换 · 兜底 miss 分支必落 AC v8.282〕+ 每条配 💬 大白话〔说人话给用户 · v8.271〕· 依赖先读真实代码〔🔴 当前 worktree/ship 目标分支 · 不吃旧分支调研 v8.282〕 —— 详 prd.md 模板头「起草思考规范」· v8.262)→ 🔴 **并行 2 路隔离冷审**(PL 质疑 + 覆盖方向制外审 · 不喂起草心路 · v8.243)→ 早问门(冷审后)→ PM 整合修订 → 冷审循环(Round 2+ 验证模式 · 🎚️ **验证轮派发用验证档模型** · 全 APPROVE 收敛)→ needs-ui → 用户确认(⏸️ 导读头行回显 **PRD 绝对路径** · 用户直接点开核对 · v8.272)· 🔮 **emit 终确认暂停点后等待窗后台派 TECH 草稿 subagent**〔worktree 内草稿 · 不跑 state 命令 · 用户 ok 则 blueprint 直接接续 · 详 goal-stage ④ 投机窗〕)。外审必覆盖:**可实现**(技术可行/架构影响/简洁性 counter-lens)· **可验证**(AC 可测/边界/异常)+ **AI 自主方向 ≥1**(安全/性能/数据一致性/兼容…按 feature 挑)· 每方向 finding 或「查过无发现」· 段记 `coverage: [...]`。
+🔴 **照 `{{SKILL_ROOT}}/templates/prd.md` 起草 · 别抄项目里旧 PRD**(实测 post-v8.164 十份仅一份用 canonical · 抄旧 = 机读块/扩展区等新机制到达不了)· goal-complete 校验三命门段(机读块/AC/『开工前必须想清的』)。\n**必读** `stages/goal-stage.md`(8 步:调研 → 起草 v0.1(🧠 **按冷审关注点思考着写** · 非环节:PL六问过脑 · AC 用可测判据〔含糊词落笔即换 · 兜底 miss 分支必落 AC v8.282〕+ 每条配 💬 大白话〔说人话给用户 · v8.271〕· 依赖先读真实代码〔🔴 当前 worktree/ship 目标分支 · 不吃旧分支调研 v8.282〕 —— 详 prd.md 模板头「起草思考规范」· v8.262)→ 🔴 **并行 2 路隔离冷审**(PL 质疑 + 覆盖方向制外审 · 不喂起草心路 · v8.243 · 🎚️ **PRD 起草与冷审必用主模型/高级模型**〔v8.290 · 错开也只在高档间 · 不降验证档〕)→ 早问门(冷审后)→ PM 整合修订 → 冷审循环(Round 2+ 验证模式 · 🎚️ **验证轮派发用验证档模型** · 全 APPROVE 收敛)→ needs-ui → 用户确认(⏸️ 导读头行回显 **PRD 绝对路径** · 用户直接点开核对 · v8.272)· 🔮 **emit 终确认暂停点后等待窗后台派 TECH 草稿 subagent**〔worktree 内草稿 · 不跑 state 命令 · 用户 ok 则 blueprint 直接接续 · 详 goal-stage ④ 投机窗〕)。外审必覆盖:**可实现**(技术可行/架构影响/简洁性 counter-lens)· **可验证**(AC 可测/边界/异常)+ **AI 自主方向 ≥1**(安全/性能/数据一致性/兼容…按 feature 挑)· 每方向 finding 或「查过无发现」· 段记 `coverage: [...]`。
 
 ### 完成方式
 ```
@@ -1546,7 +1546,7 @@ def _blueprint_brief(state: dict) -> str:
     return f"""## Blueprint Stage{_fast}
 
 ### 目标
-QA 起草 TC(BDD)**∥** RD 起草 TECH(⚡ v8.256:两者相互独立 · **并行同发** · 完成后互查 covers_ac↔测试策略;goal 投机窗已产 TECH 草稿则接续)· 🔴 **两路并行评审**(v8.244 默认 roster:Architect 主审〔简洁性 counter-lens〕+ 覆盖方向制外审〔QA 可测试视角并入 + AI 自主方向 ≥1〕· ⚡ 同发互不喂 · 🎭 两路模型错开〔v8.268 · 外审路 ≠ 主审路〕)· 实现前方案收敛。
+QA 起草 TC(BDD)**∥** RD 起草 TECH(🎚️ **TECH 起草与评审必用主模型/高级模型** · v8.290;⚡ v8.256:两者相互独立 · **并行同发** · 完成后互查 covers_ac↔测试策略;goal 投机窗已产 TECH 草稿则接续)· 🔴 **两路并行评审**(v8.244 默认 roster:Architect 主审〔简洁性 counter-lens〕+ 覆盖方向制外审〔QA 可测试视角并入 + AI 自主方向 ≥1〕· ⚡ 同发互不喂 · 🎭 两路模型错开〔v8.268 · 外审路 ≠ 主审路〕)· 实现前方案收敛。
 
 ### 结果(完成判定)
 - `TC.md`(frontmatter:`tests` · verify-ac.py 通过)

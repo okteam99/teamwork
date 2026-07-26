@@ -20,7 +20,8 @@
 6. **`reviewers` 字段(复数)必含 `state.stage_review_roles[blueprint]` 全部角色**(why:`reviewers_match` evidence 校验 · 少列 = 评审配置形同虚设)。
 7. **外审必覆盖方向 + `coverage: [...]` 申报**:可测试(TC 质量 / 测试策略 · QA 视角并入)· 方案盲区(依赖 / 影响面 / 迁移风险)+ **AI 自主方向 ≥1**(按 feature 自定)· 每方向给 finding 或「查过无发现」(why:物化门 `cross_review_coverage` —— 申报是外审没退化成泛谈的最低物证)。
 8. ⏸️ **方案要素确认(条件暂停点 · 见 ④)**:TECH 涉 **DB 数据结构变更** 或 **🛡️ 兜底清单非空** → blueprint-complete 前必 emit R5 暂停点等用户拍板(why:schema 与兜底是「高影响且不可轻易回退」的方案要素 · ROI 账与拍板权都归用户 · 不许默默做)。
-9. **TECH 写「方案」不写函数实现**(选型 / 接口 / 数据结构;代码细节归 dev)· **NEEDS_REVISION 主对话内闭环修订**(不打扰用户)(why:阶段职责边界 + R5/fix-retry 规范)。
+9. 🎚️ **TECH 起草与评审必用主模型 / 高级模型**(错开时也只在高档之间错 · **不许降到验证档**)(why:TECH 是全局质量上限 —— 方案错了下游全错 · 改 TECH 比改代码便宜但前提是方案本身出自够强的判断;其余环节〔TC 对照 / 测试执行 / 机械外化〕该降档就降,主对话编排并行)。
+10. **TECH 写「方案」不写函数实现**(选型 / 接口 / 数据结构;代码细节归 dev)· **NEEDS_REVISION 主对话内闭环修订**(不打扰用户)(why:阶段职责边界 + R5/fix-retry 规范)。
 
 > 🔴 **拦过度设计的最佳时机在这里**(改 TECH 比改代码便宜):Architect 必过**简洁性 counter-lens** · external finding 别盲采(天然偏「加校验/加安全/加兜底」)· 🛡️ **安全加固/兜底降级 finding 必过 ROI**(v8.279 · 最难驳故最该审)—— **判据全文单源 [roles/architect.md](../roles/architect.md) Telos**(含实证 SDK-F038)。
 > 🔴 **变更最小化**(v8.255 · 四问清单见 `templates/tech.md §变更表清单`):每项 DB 变更必带「**解决什么问题 + 为何非更简方案不可**」—— 写不出 = 该变更大概率不需要。

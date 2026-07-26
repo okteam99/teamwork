@@ -104,3 +104,35 @@ class TestNoDanglingStandardsLinks(unittest.TestCase):
         h = (STD / "HARD-RULES.md").read_text(encoding="utf-8")
         for k in ("每个 TC 用例必须有对应实现", "测试必须真断言", "≥3 次失败修复"):
             self.assertIn(k, h, f"退役前必须确保规则已在白名单:{k}")
+
+
+class TestDesignDocModelTier(unittest.TestCase):
+    """v8.290:PRD 与 TECH 必须主模型/高级模型出设计或参与评审(两份设计文档定全局质量上限)。
+
+    与 v8.268/269 模型错开的复合语义:PRD/TECH 错开时**只在高档之间错**(fable5↔opus),
+    不许降到验证档;其余环节(TC 对照/测试执行/机械外化)该降档就降 · 主对话编排 subagent 并行。
+    """
+
+    def test_dispatch_reminder_carries_rule(self):
+        import _v8_engine as E
+        self.assertIn("PRD 与 TECH 必须主模型/高级模型", E.DISPATCH_TIER_REMINDER)
+        self.assertIn("不许降到验证档", E.DISPATCH_TIER_REMINDER)
+        self.assertIn("主对话编排", E.DISPATCH_TIER_REMINDER)
+
+    def test_goal_and_blueprint_hard_rules(self):
+        for s, kw in (("goal", "PRD 起草与冷审必用主模型"),
+                      ("blueprint", "TECH 起草与评审必用主模型")):
+            t = (ROOT / "stages" / f"{s}-stage.md").read_text(encoding="utf-8")
+            self.assertIn(kw, t, f"{s} 缺设计文档档位硬规则")
+            self.assertIn("不许降到验证档", t)
+
+    def test_briefs_surface_rule(self):
+        import _v8_stage_specs as S
+        self.assertIn("主模型/高级模型", S._goal_brief({}))
+        self.assertIn("主模型/高级模型", S._blueprint_brief({}))
+
+    def test_architect_telos_states_bottom_line_and_autonomy(self):
+        """用户示例:底线=架构合理防维护成本失控 · 怎么设计 AI 自决(显式声明)。"""
+        t = (ROOT / "roles" / "architect.md").read_text(encoding="utf-8")
+        self.assertIn("别让未来的维护成本过高", t)
+        self.assertIn("架构怎么设计 —— AI 自决", t)
