@@ -160,5 +160,32 @@ class TestHintAtTheRightMoment(unittest.TestCase):
         self.assertIn('"stage_cost_hint": _sc_hint', src, "提示未接进 complete emit")
 
 
+
+
+class TestLedgerInstructionNamesEveryEmitField(unittest.TestCase):
+    """列建了没人填 = 白建 —— v8.295 加完列,写台账行的指令里漏点了它(本门禁就是为此立的)。
+
+    ship-stage §16 是 PMO 写台账行的唯一指令。每多一个 `ledger_*` emit 字段,
+    这里就必须点名,否则 PMO 不知道该抄它 → 新列永远空着,而空着与「该 feature 早于该指标」
+    在台账上无法区分(有效前缀语义被污染)。
+    """
+
+    LEDGER_EMIT_FIELDS = ("ledger_timing", "ledger_authoring_preventability", "ledger_stage_cost")
+
+    def test_ship_stage_instruction_names_all_ledger_fields(self):
+        doc = (ROOT / "stages" / "ship-stage.md").read_text(encoding="utf-8")
+        missing = [f for f in self.LEDGER_EMIT_FIELDS if f not in doc]
+        self.assertEqual(missing, [], f"ship-stage §16 未告诉 PMO 抄这些 emit 字段:{missing}")
+
+    def test_every_ledger_emit_field_is_covered_by_this_test(self):
+        """反向锁:_v8_ship.py 里新增 ledger_* emit 字段 → 必须同步进本清单与 ship-stage 指令。"""
+        import re
+        src = (ROOT / "tools" / "_v8_ship.py").read_text(encoding="utf-8")
+        emitted = set(re.findall(r'"(ledger_[a-z_]+)":', src))
+        unknown = emitted - set(self.LEDGER_EMIT_FIELDS)
+        self.assertEqual(unknown, set(),
+                         f"新增了 ledger emit 字段但没接进台账指令与本门禁:{sorted(unknown)}")
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
