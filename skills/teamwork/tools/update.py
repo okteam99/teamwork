@@ -11,7 +11,7 @@ tools/update.py — Teamwork skill 自更新独立脚本(v8.42 抽离 · v8.44.3
 
 行为要点:
 - **受管目录 manifest 对账**:MANAGED_DIRS 内 target 有而 tarball 无的文件 = 幽灵 · 更新时删除
-  (docs/audit/ 与 docs/retro/ 是安装侧运行时数据 · 豁免;根目录散文件只覆盖不删)
+  (docs/retro/ 是安装侧运行时数据 · 豁免;根目录散文件只覆盖不删)
 - **降级防护**:目标版本低于本地 → FAIL · 需 `--allow-downgrade` 显式放行
 - **backup 保留策略**:成功更新后只保留最近 BACKUP_KEEP_COUNT 份
 
@@ -56,8 +56,9 @@ MANAGED_DIRS = (
     "tools", "stages", "standards", "roles", "templates",
     "docs", "agents", "claude-agents", "hooks",
 )
-# 对账豁免前缀:安装侧运行时数据(_v8_ship.py 往 docs/audit/ 写审计)· tarball 不含 · 不得当幽灵删
-RECONCILE_EXEMPT_PREFIXES = ("docs/audit/", "docs/retro/")
+# 对账豁免前缀:安装侧运行时数据 · tarball 不含 · 不得当幽灵删
+# v8.296:docs/audit/ 已整条退役(落 ~/.teamwork/audit/ 机器本地 · 跨机器聚不起来 · 代码自陈只写不读)
+RECONCILE_EXEMPT_PREFIXES = ("docs/retro/",)
 # 受管目录内顺带清理的缓存/系统垃圾(不计入幽灵清单)
 JUNK_DIR_NAMES = frozenset({"__pycache__", ".pytest_cache"})
 JUNK_FILE_NAMES = frozenset({".DS_Store"})

@@ -32,5 +32,3 @@ review_start.log
 .teamwork-local-env/
 
 # v8.148 流程质量审计回收:运行时 <feature_id>.md 是 transient 本机回收料(仅 README 入库)
-skills/teamwork/docs/audit/*.md
-!skills/teamwork/docs/audit/README.md

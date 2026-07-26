@@ -88,7 +88,6 @@ state.py ship-phase --action push --feature <path> \
 ```bash
 cd <main-tree>                                        # 🔴 必在主工作区(P0-156)
 state.py ship-finalize --feature <worktree 内 feature 目录路径> \
-  --main-model "<你的模型 · 如 claude-opus-4-8 · 写入 audit 供按模型分析流程质量>"
 ```
 
 | 步 | 动作 | 内容 |
@@ -172,21 +171,20 @@ git add <feature_dir>/dev/*.md <feature_dir>/PRD.md
 > 🔴 **telos**:给流程仪式攒「该不该活着」的数据 —— 框架此前只有负反馈(出事 → 判例 → 加规则)· 没有正/零反馈 → 规则只增不减。本节把它变成台账 + 跨项目回收。
 > 🔴 **与 `docs/retros/`(§14 distill.retro)的分工**:retros = 业务/工程复盘(子项目级 · 知识层);本节 = 流程仪式价值度量(workspace 级)。**别混写**。
 
-**三处落点(各管一段链路 · 别混)**:
+**两处落点(各管一段链路 · 别混)**:
 | 落点 | 粒度 | 写时机 | 消费方 |
 |---|---|---|---|
-| `project-specs/PROCESS-LEDGER.md`(项目侧) | 一行一 feature · 机器字段 | §3 archive 规划 gate(worktree 内) | 项目自己流程审视 |
-| **`<skill 安装目录>/docs/audit/<id>.md`(框架回收侧 · v8.148)** | 一份一 feature · 机器数据 + 三段判断 | **ship2 PASS 后工具落草稿 → AI 静默补判断** | **框架跨项目 harvest 流程质量** |
+| `project-specs/PROCESS-LEDGER.md`(项目侧) | 一行一 feature · 机器字段 | §3 archive 规划 gate(worktree 内) | 项目流程审视 + 年检查表 |
 | `docs/RETRO-LEDGER.md`(框架仓) | 一行一版 · 永久 | 框架改进发版时 | 年检 / 存在性审视 |
+
+> 🔴 **v8.296:`docs/audit/<id>.md` 整条退役** —— 它落在 `~/.teamwork/audit/`(**机器本地 · git 不跟踪**),跨机器 / 跨人根本聚不起来,**数据没办法追踪**;代码里也自陈「审计只写不读」。
+> 它原本要办的事(框架跨项目搜集流程质量)由**这两处覆盖**:PROCESS-LEDGER 随 feature MR **原子合入 git**、一行一 feature 可查表算账;RETRO-LEDGER 是框架侧的永久蒸馏。**后续以 retro 为准。**
 
 **时机(v8.145/148 两段式)**:
 - **采集 + 写台账行 = §3 archive 的规划 gate 时**(worktree 内 · `state.json`/`REVIEW.md`/`external-cross-review/` 全在工作树 · 取数零成本):PMO 在 worktree append `project-specs/PROCESS-LEDGER.md` 行(无则按 [templates/process-ledger.md](../templates/process-ledger.md) 创建)· 路径加进 `--planning-artifacts`(随 feature MR 原子合入)。
   - 🔴 **append 前先跑 `state.py ledger-migrate --feature <path>`**(v8.210 · 幂等):旧项目台账可能是**旧 schema**(缺 各阶段耗时/用户邮箱/宿主 列)→ 该命令**只升级表头一行**(schema 演进纪律 = 只在末尾加列 · 旧数据行是**有效前缀不动**)· 已最新则 no-op · 无台账则 SKIP。**不迁移就直接 append 新行 → 新行 13 列 vs 旧表头 10 列错位**(年检读错列)。migrate 后再照 `ledger_timing` 采写新行。
-- **审计回收 + digest = ship2(ship-finalize)PASS 后**:
-  - 🔴 **工具自动落** `<安装目录>/docs/audit/<id>.md` 草稿(机器数据段确定性抽自 state.json · 喂 kill-criteria 不可幻觉)· emit `audit_record` 路径;
-  - 🔴 **源材料已预抽进草稿 §源材料摘录 段**(v8.207 · ship-finalize 在 worktree-remove 前自动做)—— **无需 unzip 归档**。
-  - 🔴 **AI 静默补完三段判断**(做的好的 / 发现的问题 / 待优化的 · 照实抄草稿内 **§源材料摘录 + 实际数据** · 🔴 **无需 unzip 归档** · 空写「无」· 改 frontmatter `audit_status: done`)—— **零新增暂停点 · 不等确认 · 写完即结束**(auto/yolo 照常)。「发现的问题」段 = 框架级 bug / 工具判例的**持久回收口**(取代旧易逝 digest 的「建议反馈 teamwork」行 · 详 [docs/audit/README.md](../docs/audit/README.md));
-  - digest 仍可 emit(≤10 行 · 纯情报)。时长口径 = init → archive(不含 MR 等待)。
+- **digest = ship2(ship-finalize)PASS 后**:emit ≤10 行流程价值反思(纯情报 · 不暂停)。时长口径 = init → archive(不含 MR 等待)。
+  🔴 **框架级 bug / 工具判例往哪反馈**:写进 PROCESS-LEDGER 行的「反思摘要」列(随 MR 进 git · 年检查得到);真值得改框架的,直接开 issue 或在框架仓落 RETRO-LEDGER 行 —— 别再指望本机的审计文件被谁读到。
 - **兜底**(漏写时):`unzip -p features/_archive/<id>.zip <id>/state.json` 取数 · 补行随下次任意 MR。
 
 **两层输出**:

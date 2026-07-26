@@ -87,32 +87,51 @@ class TestTimingSplitV8208(unittest.TestCase):
         subprocess.run(["git", "-C", str(d), "config", "user.email", "who@x.co"], capture_output=True)
         self.assertEqual(_git_user_email(str(d)), "who@x.co")
 
-    def test_audit_record_has_email_and_split(self):
-        import tempfile, os, json
-        from pathlib import Path
-        from _v8_ship import _write_audit_record
+    def test_ledger_timing_carries_email_host_and_split(self):
+        """v8.296:原用例断言的是 audit 草稿渲染(已随 docs/audit 退役)。
+
+        这批数据的**活消费者**是 ship1 archive emit 的 `ledger_timing` → PROCESS-LEDGER
+        「时长三分 / 用户邮箱 / 宿主 / 各阶段耗时」四列。改断言它 —— 顺带补上 ledger_timing
+        此前的**零覆盖**(退役旧路径时才发现:唯一的端到端保障挂在将死的那条线上)。
+        """
+        from _v8_ship import (_timing_split, _git_user_email, _stage_durations,
+                              _feature_duration_h)
         wt = Path(tempfile.mkdtemp())
-        import subprocess
         subprocess.run(["git", "-C", str(wt), "init", "-q"], capture_output=True)
-        subprocess.run(["git", "-C", str(wt), "config", "user.email", "dev@team.co"], capture_output=True)
-        os.environ["HOME"] = tempfile.mkdtemp()
-        st = {"feature_id": "F9", "completed_stages": ["dev", "pm_acceptance"], "flow_type": "Feature",
+        subprocess.run(["git", "-C", str(wt), "config", "user.email", "dev@team.co"],
+                       capture_output=True)
+        st = {"feature_id": "F9", "host": "claude-code", "flow_type": "Feature",
+              "completed_stages": ["dev", "pm_acceptance"],
+              "created_at": "2026-07-26T00:00:00Z",
               "stage_contracts": {"dev": {"duration_minutes": 40, "await_minutes": 0},
                                   "pm_acceptance": {"duration_minutes": 30}}}
-        rec = _write_audit_record(st, "F9", "staging", str(wt), None, "")
-        body = Path(rec).read_text(encoding="utf-8")
-        self.assertIn("user_email: dev@team.co", body)          # frontmatter
-        self.assertIn("AI 自主运行:40m", body)                  # split
-        self.assertIn("等待用户:30m", body)
+        ai, wait = _timing_split(st)
+        per_stage, _ = _stage_durations(st)
+        ledger_timing = {
+            "host": st.get("host") or "unknown",
+            "total_wall": _feature_duration_h(st),
+            "ai_autonomous_min": ai,
+            "await_user_min": wait,
+            "per_stage": per_stage,
+            "user_email": _git_user_email(str(wt)),
+        }
+        self.assertEqual(ledger_timing["user_email"], "dev@team.co")
+        self.assertEqual(ledger_timing["host"], "claude-code")
+        self.assertEqual(ledger_timing["ai_autonomous_min"], 40)
+        self.assertEqual(ledger_timing["await_user_min"], 30)
+        self.assertIn("dev", ledger_timing["per_stage"])
 
-    def test_audit_frontmatter_host(self):
-        import tempfile, os, subprocess
-        from pathlib import Path
-        from _v8_ship import _write_audit_record
-        wt = Path(tempfile.mkdtemp()); subprocess.run(["git","-C",str(wt),"init","-q"],capture_output=True)
-        os.environ["HOME"] = tempfile.mkdtemp()
-        rec = _write_audit_record({"feature_id":"FH","completed_stages":["dev"],"flow_type":"Feature",
-                                   "host":"codex-cli","stage_contracts":{"dev":{"duration_minutes":10}}},
-                                  "FH","staging",str(wt),None,"")
-        self.assertIn("host: codex-cli", Path(rec).read_text(encoding="utf-8"))  # v8.209 宿主 frontmatter
+    def test_ship_archive_still_emits_ledger_timing(self):
+        """退役 audit 不能顺手砍掉台账的数据源 —— 那四列全靠它。"""
+        src = (Path(__file__).resolve().parent.parent / "_v8_ship.py").read_text(encoding="utf-8")
+        self.assertIn('"ledger_timing": {', src)
+        for k in ("user_email", "ai_autonomous_min", "await_user_min", "per_stage", "host"):
+            self.assertIn(f'"{k}"', src, f"ledger_timing 缺字段 {k}")
+
+    def test_audit_record_writer_is_gone(self):
+        """v8.296:docs/audit 整条退役 —— 写入器与目录都不该留(数据落 ~/.teamwork/ 机器本地 · 追踪不了)。"""
+        src = (Path(__file__).resolve().parent.parent / "_v8_ship.py").read_text(encoding="utf-8")
+        for name in ("_write_audit_record", "_audit_dir", "_capture_audit_sources"):
+            self.assertNotIn(f"def {name}", src, f"audit 写入链复活:{name}")
+
 
