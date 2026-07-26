@@ -21,9 +21,9 @@ HERE = Path(__file__).resolve().parent
 TOOLS = HERE.parent
 STATE_PY = TOOLS / "state.py"
 
-DISTILL_KEYS = ("knowledge", "adr", "reg", "retro", "architecture", "db_schema")
+DISTILL_KEYS = ("knowledge", "adr", "retro", "architecture", "db_schema")
 DISTILL_OK = json.dumps({
-    "knowledge": "none", "adr": "none", "reg": "none",
+    "knowledge": "none", "adr": "none",
     "retro": "n/a", "architecture": "no-change", "db_schema": "no-change",
 })
 
@@ -84,7 +84,7 @@ class TestDistillGateV881(unittest.TestCase):
         self.assertIn("distilled_at", st["ship"]["distill"])
 
     def test_missing_key_blocks(self):
-        partial = json.dumps({"knowledge": "none", "adr": "none", "reg": "none",
+        partial = json.dumps({"knowledge": "none", "adr": "none",
                               "retro": "n/a", "architecture": "no-change"})  # 缺 db_schema
         d = _sanitize(self.feat, partial, 1)
         self.assertEqual(d["verdict"], "FAIL")
@@ -132,7 +132,7 @@ class TestMigrationSchemaCheckV881(unittest.TestCase):
             os.environ["TEAMWORK_BYPASS_CHECKSUM"] = self._prev
 
     def _run(self, db_schema, expect):
-        distill = json.dumps({"knowledge": "none", "adr": "none", "reg": "none",
+        distill = json.dumps({"knowledge": "none", "adr": "none",
                               "retro": "n/a", "architecture": "no-change",
                               "db_schema": db_schema})
         return _sanitize(self.feat, distill, expect)

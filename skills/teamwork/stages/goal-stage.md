@@ -64,4 +64,4 @@ frontmatter `reviewers`(= stage_review_roles.goal · v8.243 默认 `[pl, externa
 ## 相关
 
 - 引擎:[../tools/_v8_engine.py](../tools/_v8_engine.py) · spec:[../tools/_v8_stage_specs.py](../tools/_v8_stage_specs.py) `GOAL_SPEC`
-- 裁决纪律:[../standards/external-model-usage.md](../standards/external-model-usage.md) §12 · 角色 telos:[../roles/](../roles/)
+- 裁决纪律:[../standards/external-model-usage.md](../standards/external-model-usage.md) §二 · 角色 telos:[../roles/](../roles/)

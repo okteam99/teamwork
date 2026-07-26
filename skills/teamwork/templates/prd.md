@@ -197,7 +197,7 @@ reviews:
  # DEFER 严格收紧:仅 category=business-decision 可用
  category: business-decision # 仅 action=DEFER 时必填，其他类别 DEFER = 违规
  # 对抗性自查段（🔴 方向对称 · 每条 ADOPT/REJECT 前必填 · 默认姿态=质疑 · 不盲目认同）
- # 详 standards/external-model-usage.md §12（处理顺序 质疑→确认→裁决 + 对称举证）
+ # 详 standards/external-model-usage.md §二（处理顺序 质疑→确认→裁决 + 对称举证）
  adversarial_self_check: |
  ADOPT 方向（先质疑再采纳 · 防盲采=最常踩）：写「这条 finding 不成立的最强反方」(false positive / 过度设计 /
  责任焊错层 / 不适用本项目 / reviewer 没看全上下文？) + 「我回读 {真实代码/AC/DEV-RULES} 确认反方不成立」(≥2 句)。

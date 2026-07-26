@@ -116,23 +116,9 @@ overview.html DOM 变更：
 > 老模式(无 pages_changed[]):HTML 落 `Feature/preview/<page>.html` 副本(向后兼容)。
 > AC 追溯:HTML 区块加 `data-ac="AC-XX"` 锚定,便于 grep + 与 UI-AC-COVERAGE 表对账。
 
-```html
-<!-- 推荐:{panorama_path}/preview/<page>.html(全景权威 · 直接编辑) -->
-<!-- 老模式: docs/features/F{编号}-{功能名}/preview/<page>.html(Feature 副本) -->
-<!DOCTYPE html>
-<html>
-<head>
- <meta charset="UTF-8">
- <meta name="viewport" content="width=device-width, initial-scale=1.0">
- <title>UI-XXX 预览</title>
- <script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body>
- <!-- 视觉真相在此 · 布局 / 组件 / 配色 / 字号 / 间距 / 响应式 / 交互 / 状态全在 HTML -->
- <!-- AC 锚定示例：<section data-ac="AC-01">...</section> -->
-</body>
-</html>
-```
+> 🔴 **落点**:`{panorama_path}/preview/<page>.html`(全景权威 · 直接编辑)· 老模式无 `pages_changed[]` 时落 `docs/features/F{编号}-{功能名}/preview/<page>.html` 副本。
+> 🔴 **AC 锚定**(本框架特有契约 · 别省):区块加 `data-ac="AC-XX"`,如 `<section data-ac="AC-01">…</section>` —— UI-AC-COVERAGE 表与 `verify-panorama.py` 靠它对账。
+> 🟢 页面骨架 AI 自写(v8.293:原 DOCTYPE + viewport + tailwind CDN 样板已删 —— 模型默认就会)。
 
 ## 🧩 补充洞察（AI 自由发挥 · 可留空）
 

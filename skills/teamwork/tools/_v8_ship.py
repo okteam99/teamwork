@@ -60,7 +60,9 @@ SHIP_MR_METHODS = ("cli-gh", "cli-glab", "url-fallback", "unknown-platform")
 
 # v8.81:ship1 知识沉淀闸门 · 知识层 6 项(随 feature MR graduate · 详 stages/ship-stage.md §13)
 # 「描述代码的文档随代码进 MR」· 每项 sanitize 前必记一条决策(updated / none)· 强制走一遍。
-DISTILL_KEYS = ("knowledge", "adr", "reg", "retro", "architecture", "db_schema")
+# v8.293:去 "reg" —— e2e-registry 机制从未启用(全库零入口:没有任何文档说 REG case 长什么样/
+# 放哪/怎么建)· 只有本槽位在要求申报 → 申报一个不存在的机制 = 纯噪声。
+DISTILL_KEYS = ("knowledge", "adr", "retro", "architecture", "db_schema")
 
 # 流程减负:Micro(文案/样式/配置 · 零逻辑)distill 简表 —— 只强制 knowledge 一键
 # (gotcha 沉淀 · 最可能有信号的一项)· 其余 5 键缺省自动填 MICRO_DISTILL_AUTO。
@@ -208,7 +210,7 @@ def _validate_distill(args: argparse.Namespace, state: dict) -> dict:
             "error": f"--distill 缺项 / 空值:{missing}",
             "hint": ("Micro 只强制 knowledge 一键(gotcha 或 'none' · 其余自动填「无(Micro)」)"
                      if is_micro else
-                     "6 项全填(无则 'none'/'n/a' · 证明已逐项判断):" + " / ".join(DISTILL_KEYS)),
+                     "5 项全填(无则 'none'/'n/a' · 证明已逐项判断):" + " / ".join(DISTILL_KEYS)),
         }, exit_code=1)
     if is_micro:
         for k in DISTILL_KEYS:

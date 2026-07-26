@@ -609,32 +609,32 @@ AUTO_TRANSITION_CONTINUE_REMINDER = (
 # `EXECUTE_SPEC.allowed_flow_types=["Micro"]`(legacy 内部键)→ 恒 FAIL;且图查 `flow_by_type.get("Feature")`
 # 拿到 **full 图**(即便过①·execute→ship 转移错路由)。resolve_flow_graph/internal_flow_key 在 state.py
 # 有 · 但 engine 通用 gate 从没用 · 现有 micro 测试只断言 spec 常量、从没真跑 gate → 漏网。
-# 本地实现(engine 不能 import state.py · 循环)· 与 state.py resolve_flow_graph / internal_flow_key、
-# specs _flow_key 严格同口径。
-_LEGACY_FLOW_ALIASES = {"敏捷需求": ("Feature", "lite"), "Micro": ("Feature", "micro")}
+# 本地实现(engine 不能 import state.py · 循环)。
+# 🔴 v8.293:原注释声称与 state.py「严格同口径」但**并不成立** —— 同一个 legacy "敏捷需求"
+# 在 state.py 解析成 Feature+full、在这里解析成 Feature+lite,是两张不同的转移图。三份实现
+# 无一被测到该输入。根治办法不是选边,是把「敏捷需求」/lite 整条 legacy 删掉(v8.223 已退 lite 档)。
+_LEGACY_FLOW_ALIASES = {"Micro": ("Feature", "micro")}
 
 
 def _internal_flow_key(state: dict) -> str:
-    """(state.flow_type, preset) → allowed_flow_types 比对用的内部键(Feature+preset → 敏捷需求/Micro)。"""
+    """(state.flow_type, preset) → allowed_flow_types 比对用的内部键(Feature+preset → Micro)。"""
     ft = state.get("flow_type") or ""
     pre = state.get("preset") or "full"
     if ft in _LEGACY_FLOW_ALIASES:          # 存量 legacy 值原样(兼容旧 state.json)
         return ft
-    if ft == "Feature" and pre == "lite":
-        return "敏捷需求"
     if ft == "Feature" and pre == "micro":
         return "Micro"
     return ft
 
 
 def _resolve_flow_graph(state: dict, flow_by_type: dict) -> dict:
-    """(state.flow_type, preset) → 转移图 · 复合键 Feature:micro/Feature:lite · 与 state.py 同口径。"""
+    """(state.flow_type, preset) → 转移图 · 复合键 Feature:micro · 与 state.py 同口径。"""
     ft = state.get("flow_type") or ""
     pre = state.get("preset") or "full"
     if ft in _LEGACY_FLOW_ALIASES:
         ft, pre = _LEGACY_FLOW_ALIASES[ft]
-    if ft == "Feature" and pre in ("lite", "micro"):
-        return flow_by_type.get(f"Feature:{pre}", {})
+    if ft == "Feature" and pre == "micro":
+        return flow_by_type.get("Feature:micro", {})
     return flow_by_type.get(ft, {})
 
 
@@ -899,7 +899,6 @@ STAGE_SPEC_FILES = {
     "ui_design": "ui-design-stage.md",
     "panorama_sync": "panorama-sync-stage.md",
     "blueprint": "blueprint-stage.md",
-    "blueprint_lite": "blueprint-lite-stage.md",
     "diagnose": "diagnose-stage.md",
     "dev": "dev-stage.md",
     "review": "review-stage.md",
@@ -949,16 +948,6 @@ STAGE_TEMPLATES: dict[str, dict] = {
             "TC.md": "tc.md",
             "TECH.md": "tech.md",
             "TECH-REVIEW.md": None,
-        },
-        "validators": {
-            "TC.md": ("verify-ac.py",
-                      "校验 PRD 每条 AC 在 TC.md tests[].covers_ac ≥1 引用 · 漏覆盖 FAIL"),
-        },
-    },
-    "blueprint_lite": {
-        "templates": {
-            "TC.md": "tc.md",
-            "TECH.md": "tech.md",
         },
         "validators": {
             "TC.md": ("verify-ac.py",
@@ -1054,7 +1043,7 @@ def build_scaffold_hints(stage_name: str) -> dict | None:
 # - 排除 pm_acceptance(永远只有 pm 1 角色 · 无调整空间)/ ship / completed(无 reviewer · 无后续)
 # - test 之后即关掉(用户洞察 · 实证)
 STAGES_WITH_REVIEW_ROLES_HINT = {
-    "goal", "ui_design", "panorama_sync", "blueprint", "blueprint_lite",
+    "goal", "ui_design", "panorama_sync", "blueprint",
     "dev", "review", "test", "browser_e2e",
 }
 
@@ -1272,7 +1261,7 @@ def _render_pause_discipline(authorized_pause_point: str,
 
 唯一授权暂停:**{authorized_pause_point}**
 """
-    # v8.72:无暂停 stage(dev/blueprint/blueprint_lite/test)= 连续执行 · 加「任何暂停都违规」抬头
+    # v8.72:无暂停 stage(dev/blueprint/test)= 连续执行 · 加「任何暂停都违规」抬头
     if "无暂停" in authorized_pause_point:
         head += """
 🔴 **本 stage 无授权暂停点 = 连续执行到 stage 完成 · 自动转下一 stage · 任何暂停都是违规**
@@ -1322,13 +1311,6 @@ DEFAULT_REVIEW_ROLES: dict[tuple[str, str], list[str]] = {
     ("Feature", "browser_e2e"): ["qa", "designer"],
     ("Feature", "pm_acceptance"): ["pm"],
 
-    # 敏捷需求(流程减负:冷审 2→1 + pl 保对抗质疑门禁;review 去 external = opt-in 加回)
-    ("敏捷需求", "goal"): ["qa", "pl"],  # 1 冷审(QA)+ PL challenge(_evidence_pl_challenge_present 门禁)
-    ("敏捷需求", "blueprint_lite"): ["qa"],
-    ("敏捷需求", "review"): ["architect", "qa"],  # external 默认关 · change-review-roles 可加回
-    ("敏捷需求", "test"): ["qa"],
-    ("敏捷需求", "pm_acceptance"): ["pm"],
-
     # Bug 流程
     ("Bug", "review"): ["external"],  # v8.270:单路 external(diagnose 已经用户确认方案 · review 聚焦 fix↔方案一致 + 不引入新问题 · Architect/QA 视角并入外审覆盖方向 · 错开模型冷审天然满足 v8.269 单路不变式 · change-review-roles 可加回)。史:v8.244 两路制
     ("Bug", "test"): ["qa"],
@@ -1344,12 +1326,10 @@ DEFAULT_REVIEW_ROLES: dict[tuple[str, str], list[str]] = {
 def build_default_stage_review_roles(flow_type: str, preset: str = "full") -> dict[str, list[str]]:
     """按 (flow_type, preset) 抽取默认 stage_review_roles dict(v8.220 preset-aware)。
 
-    内部矩阵键沿用旧 flow 名(敏捷需求/Micro)—— 对外已收缩为 Feature+preset · 此处做映射。
+    内部矩阵键沿用旧 flow 名(Micro)—— 对外已收缩为 Feature+preset · 此处做映射。
     """
     _key = flow_type
-    if flow_type == "Feature" and preset == "lite":
-        _key = "敏捷需求"
-    elif flow_type == "Feature" and preset == "micro":
+    if flow_type == "Feature" and preset == "micro":
         _key = "Micro"
     return {
         stage: roles[:]  # copy 防共享引用
@@ -1375,15 +1355,6 @@ FLOW_STAGE_CHAIN: dict[str, list[tuple[str, bool, str, str]]] = {
         ("pm_acceptance", False, "", "PM 用户视角逐条 AC 验收 · 决定是否 ship"),
         ("ship", False, "", "无评审 · PMO 编排 push + MR + 合入 + cleanup"),
     ],
-    "敏捷需求": [
-        ("goal", False, "", "需求小:QA 隔离 subagent 冷审 + PL 对抗质疑(无 External · PM 整合)"),
-        ("blueprint_lite", False, "", "QA 测试规划(TC 精简版)· 不要 TECH-REVIEW"),
-        ("dev", False, "", "无评审 · RD 自写 + commit"),
-        ("review", False, "", "Architect/QA 双视角(external 默认关 · change-review-roles 可 opt-in 加回)"),
-        ("test", False, "", "QA 验收"),
-        ("pm_acceptance", False, "", "PM 用户视角验收"),
-        ("ship", False, "", "无评审 · PMO 编排"),
-    ],
     "Bug": [
         ("diagnose", False, "", "🔴 根因细查(深读代码)+ 修复方案 · 用户确认后才进 dev(防 fix 修偏)· 无评审角色"),
         ("dev", False, "", "无评审 · RD 按**已确认的修复方案**写 fix + commit(BUG 报告根因/方案 diagnose 已出)"),
@@ -1407,11 +1378,9 @@ def build_stage_chain_preview(flow_type: str) -> list[dict]:
     - reason 是评审建议理由(为什么选这些角色 · 给用户决策参考)
     - 顺序按 FLOW_STAGE_CHAIN 显式定义
     """
-    # v8.221:Feature+preset 归一到内部旧键(敏捷需求/Micro 图键保留 · 对外语言已收缩)
+    # v8.221:Feature+preset 归一到内部旧键(Micro 图键保留 · 对外语言已收缩)
     _key = flow_type
-    if flow_type == "Feature:lite":
-        _key = "敏捷需求"
-    elif flow_type == "Feature:micro":
+    if flow_type == "Feature:micro":
         _key = "Micro"
     chain = FLOW_STAGE_CHAIN.get(_key, [])
     return [
@@ -1489,7 +1458,7 @@ def maybe_freeze_review_base(state: dict, next_stage: str,
     review-stage external-review 用它作增量 diff base(评 base...HEAD = 本 feature 的 dev
     增量)· 而非 merge_target...HEAD —— 后者在长 WS / stacked 分支上随 deliverable 累积 →
     跨 feature 串味 + 600s 超时(实证 aifriend yolo/ws02)。pre_dev_commit = 完成 stage
-    (blueprint / diagnose / blueprint_lite)的 commit · 在 commit graph 上是 dev HEAD 的祖先
+    (blueprint / diagnose)的 commit · 在 commit graph 上是 dev HEAD 的祖先
     → base...HEAD 天然排除 prior features(拓扑无关)。
 
     仅 next_stage==dev 且尚未冻结且 commit 非空时设(review→dev 回退不覆盖 · 再审仍覆盖全部
@@ -2075,7 +2044,7 @@ def _add_stage_specific_args(parser: argparse.ArgumentParser, stage_name: str, p
             help=(
                 "是否需要独立 UI Design Stage · "
                 "true → 下一 stage=ui_design / false → blueprint。"
-                "敏捷需求/Planning 必传 false(若 true 应升级 Feature 流程)"
+                "Planning 必传 false(若 true 应升级 Feature 流程)"
             ),
         )
         parser.add_argument(

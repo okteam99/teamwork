@@ -9,22 +9,10 @@
 > 老模式(Feature 内存 `preview/*.html` 副本)与全景权威版本**必然脱节**(static-html 介质 dirty state · 4 轮调像素仍有差异)。
 > 新模式:**全景 `panorama_path/preview/<page>.html` 是唯一权威 · Feature 不存副本** · UI.md 改为「全景改动声明 + 局部决策记录」。
 
-### frontmatter 新字段(替代 Feature 内 preview/ 副本)
+### frontmatter(schema 单源 = `{SKILL_ROOT}/templates/ui.md`)
 
-```yaml
----
-pages:
-  - {id: offers, title: "Offers"}
-panorama_medium: static-html               # 介质类型(不变)
-panorama_path: apps/partner/docs/design    # 全景权威根
-pages_changed:                              # 有此字段 → 进入新模式
-  - page_id: offers                         # 必 · 对应 pages[].id
-    route_path: /offers                     # same-stack 必 · 真实 app 目标路由(预览直达 URL 用 · 与 sitemap 一致)
-    panorama_file: apps/partner/docs/design/preview/offers.html  # static-html 必 / same-stack 可选(渲染该页的源/路由)
-    change_range: "Tabs 与 Table 之间新增 filter 区"               # 可选 · 本 Feature 改动描述
-    acceptance_criteria_refs: [AC-1, AC-3] # 可选 · 关联 PRD AC
----
-```
+🔴 有 `pages_changed[]` → 进入新模式(全景是唯一权威 · Feature 不存 preview/ 副本)。字段清单与语义照模板,不在此复述。
+
 
 ### 向后兼容(老 Feature)
 
@@ -137,13 +125,13 @@ bash {子项目}/docs/design/preview-project/preview.sh    # → PREVIEW_URL=htt
 - 🔴 **一致 > 独特**:匹配现有组件与模式、**不重新发明** —— 策略对照 **UI-RULES**(控件偏好/色板策略)· 视觉值对照 preview-project tokens(独特品牌设计仅全景首版/greenfield)
 - **文案从用户视角**:「通知」非「webhook 配置」· 同一动作全流程同名 · error/empty 当指引不当情绪
 
-> 🧠 **写法非环节**(v8.263/v8.284):起草 §交互流/§视觉规范 时**就按这些判据写**,不是写完再逐项过。dev 还原(dev-stage ②硬规则 4)与 reviewer 审同用这份基准(防凭空 generic 评)。
+> 🧠 **写法非环节**(v8.263/v8.284):**画预览稿时就按这些判据画**,不是写完再逐项过。dev 还原(dev-stage ②硬规则 4)与 reviewer 审同用这份基准(防凭空 generic 评)。
 
 ---
 
 ## ④ Output Contract
 
-- **`UI.md`**:frontmatter `pages: [{id, title}]` + `panorama_medium` 必 · body §页面列表 / §交互流 / §视觉规范 / §字段映射(对应 PRD.AC)· 模板 `{SKILL_ROOT}/templates/ui.md`
+- **`UI.md`**:**schema 与章节以模板为单源** `{SKILL_ROOT}/templates/ui.md`(v8.293:原契约点名 §页面列表/§交互流/§视觉规范/§字段映射 —— 模板里**没有这四段**,且模板明令「视觉描述一律归 HTML 预览产物 · 不在本文复述」· Designer 照哪边写都违反另一边)。UI.md 只承载**意图 / 追溯 / 审计**:§全景权威索引 · §UI-AC-COVERAGE · §Designer 自查报告 · §变更记录。
 - **panorama 产物**:`same-stack` → preview-project 源(+ `preview.sh` 从 `{SKILL_ROOT}/templates/preview-project-preview.sh` 拷入 · `chmod +x` · 按框架改 dev server 一行)· `static-html` → `preview/*.html`
 
 📎 **物化拦截**(按 `panorama_medium` 适配):

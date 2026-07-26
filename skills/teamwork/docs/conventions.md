@@ -29,7 +29,6 @@
 | flow_type | 字母 | namespace | 说明 |
 |---|---|---|---|
 | Feature | `F` | 项目独立 | 完整 Feature |
-| (legacy)敏捷需求 | `F` | — | v8.223 并入 Feature·full · 与 F 同序列 |
 | Bug | `B` | 项目独立 | 标准 Bug 流程(独立修复请求 · ≠ Feature 内 bug · 见 §2) |
 | (legacy)Micro | `M` | — | v8.220 起新 init 产 `F`(preset=micro)· 存量 M-id 有效不迁 |
 
@@ -126,7 +125,7 @@ state.py 校验:basename(--feature) 必须包含 --feature-id(防 slug 错位)�
 
 | ID | namespace | 说明 |
 |---|---|---|
-| F-NNN | **项目独立** | Feature(含 legacy 敏捷需求 · 同序列)· PTR-F033 与 SVC-PLATFORM-F033 可并存 |
+| F-NNN | **项目独立** | Feature · PTR-F033 与 SVC-PLATFORM-F033 可并存 |
 | B-NNN | **项目独立** | 标准 Bug 流程 · 与 F 序列独立(PTR-B 自成一列) |
 | M-NNN | **项目独立** | (legacy)Micro 存量 · v8.220 起新 init 产 F(preset=micro)· 与 F / B 序列独立 |
 | BL-NNN | **项目独立** | 同 F-NNN · feature 原子(规划期)· 关联回 WS-NN |

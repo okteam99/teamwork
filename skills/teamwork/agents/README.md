@@ -2,7 +2,7 @@
 
 > Teamwork 以 **Stage 为权威**(角色任务规范在 `stages/*.md`)。本文件只保留 **Subagent 执行协议**(dispatch / 通用约束 / Progress Log / 主对话产物)。
 > PMO 用 Subagent 时让其先读本文件 + 对应 Stage 文件;主对话路径可跳过本文件。
-> 用不用 subagent 由 PMO 自决(判据 [STAGES.md §4](../STAGES.md):子任务**边界清晰且够大**才派)。external 异质评审**不走本协议** —— 权威 = [standards/external-model-usage.md §11](../standards/external-model-usage.md)(`state.py external-review` 一条命令)。
+> 用不用 subagent 由 PMO 自决(判据 [STAGES.md §4](../STAGES.md):子任务**边界清晰且够大**才派)。external 第三视角冷审**不走本协议** —— 权威 = [standards/external-model-usage.md §一](../standards/external-model-usage.md)(`state.py external-review` 出 subagent 配方)。
 
 ---
 

@@ -136,13 +136,12 @@ git add <feature_dir>/dev/*.md <feature_dir>/PRD.md
 
 > 🔴 **过程 / 知识两层**:`docs/features/{id}/`(PRD/TC/TECH/report/state)= **过程层**(交付即历史快照 · 会 drift)· 而 `KNOWLEDGE.md`/`ADR`/`REG`/`retro`/`ARCHITECTURE.md`/`database-schema.md` = **知识层**(持久 · 须保鲜)。ship1 把该 graduate 的知识提到知识层 · **随本次 feature MR 一起被 review + 合**(这是 §3 归档的前置:先把真相提到知识层 · 过程稿才能安心归档)。
 
-**硬闸门**:`ship-phase --action sanitize` **必带 `--distill`**(JSON · 知识层 6 项决策)· 缺 / 非法 / 缺项 → BLOCK。
+**硬闸门**:`ship-phase --action sanitize` **必带 `--distill`**(JSON · 知识层 5 项决策)· 缺 / 非法 / 缺项 → BLOCK。
 
 ```
 --distill '{
   "knowledge":     "promoted <gotcha/事实> / none",     # KNOWLEDGE.md(AI 沉淀 · 约定/规范→DEV-RULES.md 人维护 · AI 只提示用户加 · 不代写)
   "adr":           "ADR-NNNN <决策> / none",            # docs/adr/(决策有备选+后果)
-  "reg":           "REG-<case> / none",                 # e2e-registry(可复用测试场景)
   "retro":         "done / n/a",                        # docs/retros/(复盘)
   "architecture":  "updated <模块/接口> / no-change",   # docs/architecture/ARCHITECTURE.md
   "db_schema":     "updated <表> / no-change / data-only migration"  # docs/architecture/database-schema.md

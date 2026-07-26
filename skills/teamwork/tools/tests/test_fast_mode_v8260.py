@@ -41,7 +41,7 @@ class TestFastModeTransitions(unittest.TestCase):
         self.assertEqual(S._dev_transition({}), "review")
 
     def test_graph_has_no_fast_skip_edge(self):
-        for g in (ST.FEATURE_FLOW, ST.AGILE_FLOW, ST.BUG_FLOW):
+        for g in (ST.FEATURE_FLOW, ST.BUG_FLOW):
             self.assertEqual(g["dev"], ["review"])
 
     def test_review_approved_prereq_not_bypassed(self):

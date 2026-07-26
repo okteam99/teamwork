@@ -380,6 +380,18 @@ try {
  └── 🔴 **不靠读邻居 migration 推断**格式（邻居可能不一致 / 有坏样板）· 要么 DEV-RULES 要么秒级默认
 ```
 
+### 起号纪律(🔴 多 Feature 并行撞号 · v8.293 从 templates/architecture.md 上提到此权威处)
+
+teamwork 常态是**多 Feature 并行、各自 worktree 起 migration** —— 撞 timestamp 是反复出现的高频问题,
+而模型默认只会「照当前时间起个号」,不会想到去看别人已经合进去的号。故这条是**信息不是教程**:
+
+- 起号前先 `git fetch` merge_target,**取 merge_target tip 上的最大 timestamp**,新号必须**大于**它
+  (只看本地 = 落后就撞已合并的号)。
+- 用**真实当前时间精确到秒**;同秒手工 +1。🔴 **不要批量生成**(一次循环产多个 migration 同 timestamp = 自撞)。
+- **撞号后用 `git mv` 改名 + amend**(同步改文件内 `schema_migrations` version 引用),
+  🔴 **不要 revert + 新加** —— 会留两次 schema 变更历史、污染审计。
+- 物化校验(取前 14 位 `sort | uniq -d` 非空即撞号)由**项目自行实施** —— 各 ORM / migration 路径差异大,框架不强制。
+
 ### 强制要求
 
 ```

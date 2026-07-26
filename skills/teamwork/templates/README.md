@@ -61,5 +61,4 @@
 |------|------|------------------|
 | [adr.md](./adr.md) | ADR 单条决策（Context / Alternatives≥2 / Decision / Consequences） | Blueprint「3 问触发器」全 yes 时架构师创建 · 落 `{子项目}/docs/adr/` |
 | [adr-index.md](./adr-index.md) | ADR 索引（每子项目 `docs/adr/INDEX.md`） | 首条 ADR 时创建 · 每次 ADR 变更同步 · PMO triage 读 |
-| [e2e-registry.md](./e2e-registry.md) | E2E 回归中心（REG case 完全自包含） | QA 在 Feature 完成时晋升 / 同步 REG case |
 | [test-baseline.md](./test-baseline.md) | 测试基线失败集（brownfield 预存在失败登记 · test gate 差分判定） | test stage 差分判定 · `--add` 登记核实过的预存在失败 |

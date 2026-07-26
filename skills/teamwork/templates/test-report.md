@@ -162,15 +162,3 @@ PASS
 
 ---
 
-## 起草要点(QA cite · 写时删)
-
-📚 **参考**(v8.199 cite 仪式已废 · 按需读):
-- `stages/test-stage.md ②硬规则` —— integration = 进程内 · 跨模块/服务契约 · 不抹边界
-- `stages/test-stage.md ②硬规则` —— api-e2e = Python · live 跨进程 · 跑通即可
-- `stages/test-stage.md ②硬规则` —— stdout 必摘录 · exit-code 必数值 · 不口述
-
-❌ **反模式**(写 TEST-REPORT 时常见):
-- "测试通过" 口述无证据 → 必贴 stdout 摘录 + exit-code 数值
-- skip 不写 reason · 不挂 tracking issue → 必含原因(SOP)
-- xfail 走 exit-code=0 捷径 → 测试失败必修 · 不掩盖(SOP)
-- integration 冒名叫 e2e → 进程数判定(详 stages/test-stage.md ②硬规则)

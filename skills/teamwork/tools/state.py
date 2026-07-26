@@ -13,7 +13,7 @@ state.py — Teamwork Feature state.json maintenance tool.
 - 写:raw-write(逃生舱)/ init-feature / recover / add-concern / pause-mark /
   reset-prev / jump-to-stage / change-review-roles / set-mode / test-baseline
 - 流程:各 stage 的 -start / -complete / -fix / -retry(_v8_engine 注册)+ ship-phase(_v8_ship)
-- 评审:external-review / scaffold-review-prompt
+- 评审:external-review(出 subagent 冷审配方)
 - 汇总:audit-raw-writes / prepare-check / planning-check / ws-progress / ws-lint
 """
 
@@ -39,7 +39,6 @@ LEGAL_STAGES = {
     "ui_design",
     "panorama_sync",
     "blueprint",
-    "blueprint_lite",
     "diagnose",
     "dev",
     "review",
@@ -96,52 +95,36 @@ MICRO_FLOW: dict[str, list[str]] = {
     "completed": [],
 }
 
-# 敏捷需求:Feature 砍 blueprint 版 · goal → blueprint_lite → dev → review → test → pm_acceptance → ship
-AGILE_FLOW: dict[str, list[str]] = {
-    "goal": ["blueprint_lite"],
-    "blueprint_lite": ["dev"],
-    "dev": ["review"],
-    "review": ["test", "dev"],
-    "test": ["pm_acceptance"],
-    "pm_acceptance": ["ship", "dev"],
-    "ship": ["completed"],
-    "completed": [],
-}
-
 # Feature Planning / 问题排查 不进状态机:由 PMO 主对话执行(详 docs/feature-planning.md)
-# v8.220(用户拍板 · 直接到位):对外 flow_type 收缩为 {Feature, Bug} —— 敏捷需求/Micro 是
-# 「同一种工作的重量档」非独立工作形态(audit 实测合计仅 11%)· 降为 Feature 的 **preset**
-# (full/lite/micro · 链与角色由 preset 决定)。内部转移图保留三份(行为等价 · 存量零迁移)。
+# v8.220(用户拍板):对外 flow_type 收缩为 {Feature, Bug} —— Micro 是「同一种工作的重量档」
+# 非独立工作形态(audit 实测合计仅 11%)· 降为 Feature 的 **preset**(链与角色由 preset 决定)。
 FLOW_BY_TYPE = {
     "Feature": FEATURE_FLOW,          # = preset full
-    "Feature:lite": AGILE_FLOW,       # 原 敏捷需求
     "Feature:micro": MICRO_FLOW,      # 原 Micro
     "Bug": BUG_FLOW,
 }
 
 PUBLIC_FLOW_TYPES = ("Feature", "Bug")
-# v8.223:lite 退役 —— blueprint_lite 并入 blueprint 后 · lite 链 = Feature 链的 needs-ui=false 剖面
-# (冗余);轻量由动态 roster + clarity 承担。preset 只剩 full/micro(micro 有真结构差:跳 review/test)。
+# preset 只剩 full/micro(micro 有真结构差:跳 review/test)。
+# v8.223 退 lite 档 · v8.293 彻底删「敏捷需求」legacy —— 它的链是 Feature 链的 needs-ui=false
+# 剖面(纯冗余)· 轻量由动态 roster + clarity 承担;三份 flow-key 实现曾对它解析出不同的图
+# (state.py→full / _v8_engine.py→lite · 且后者注释谎称「严格同口径」)—— 删掉根治。
 FEATURE_PRESETS = ("full", "micro")
-# legacy 名映射:敏捷需求 → Feature·full(轻量走 roster/clarity)· Micro → Feature·micro。
-# 存量 state.json preset=lite 仍被 resolve_flow_graph/internal_flow_key 兼容(旧图走完 · 不断链)。
-LEGACY_FLOW_ALIASES = {"敏捷需求": ("Feature", "full"), "Micro": ("Feature", "micro")}
+LEGACY_FLOW_ALIASES = {"Micro": ("Feature", "micro")}
 
 
 def resolve_flow_graph(flow_type: str, preset: str = "full") -> dict:
     """按 (flow_type, preset) 解析转移图 · legacy flow_type 自动归一。"""
     if flow_type in LEGACY_FLOW_ALIASES:
         flow_type, preset = LEGACY_FLOW_ALIASES[flow_type]
-    if flow_type == "Feature" and preset in ("lite", "micro"):
-        return FLOW_BY_TYPE[f"Feature:{preset}"]
+    if flow_type == "Feature" and preset == "micro":
+        return FLOW_BY_TYPE["Feature:micro"]
     return FLOW_BY_TYPE.get(flow_type, {})
 
 
 def internal_flow_key(flow_type: str, preset: str = "full") -> str:
-    """(public 或 legacy)flow → 内部图/表键(敏捷需求/Micro 键保留 · v8.222 物化校验统一入口)。"""
+    """(public 或 legacy)flow → 内部图/表键(Micro 键保留 · v8.222 物化校验统一入口)。"""
     ft, pre = normalize_flow(flow_type, preset)
-    if ft == "Feature" and pre == "lite":
-        return "敏捷需求"
     if ft == "Feature" and pre == "micro":
         return "Micro"
     return ft
@@ -370,7 +353,7 @@ def validate_state(state: dict[str, Any]) -> list[str]:
     if flow_type not in PUBLIC_FLOW_TYPES and flow_type not in LEGACY_FLOW_ALIASES:
         errors.append(
             f"flow_type 非法值: {flow_type!r} ∉ {list(PUBLIC_FLOW_TYPES)}"
-            "(legacy 敏捷需求/Micro 自动归一 · 不进状态机的流程类型不应有 state.json)"
+            "(legacy Micro 自动归一 · 不进状态机的流程类型不应有 state.json)"
         )
 
     completed = state.get("completed_stages") or []
@@ -1369,7 +1352,6 @@ DEFAULT_INITIAL_STAGE = {
     "Feature": "goal",
     "Bug": "diagnose",   # v8.107:Bug 先 diagnose(根因细查+修复方案确认)再 dev
     "Micro": "execute",   # v8.250:micro 首 stage = execute(零门禁自由执行)· 去 dev
-    "敏捷需求": "goal",  # 敏捷需求 FLOW = goal → blueprint_lite → ... · blueprint_lite-start 前置要 goal 完成
 }
 
 
@@ -1837,7 +1819,7 @@ def cmd_init_feature(args: argparse.Namespace) -> None:
     # 防「先移走旧 state.json → 后续 cwd/worktree 校验 die → 旧状态已被毁」。
 
     feature_dir.mkdir(parents=True, exist_ok=True)
-    # v8.220/222:legacy flow_type 先归一(敏捷需求→Feature+lite · Micro→Feature+micro)·
+    # v8.220/222:legacy flow_type 先归一(Micro→Feature+micro)·
     # 查表用内部键(归一后直接查会让 micro 错拿 goal)
     _pub_flow, _preset = normalize_flow(args.flow_type, getattr(args, "preset", None))
     args.flow_type = _pub_flow  # 后续逻辑(角色矩阵/emit)统一走归一值
@@ -2345,7 +2327,7 @@ def _detect_id_collision(feature_dir: Path, feature_id: str) -> "dict | None":
 def cmd_prepare_check(args: argparse.Namespace) -> None:
     """v8.13:prepare 子流程 ID 冲突预检 · 推荐 next_available_id。
 
-    按 --flow-type 定 artifact ID 字母(Feature/敏捷需求=F · Bug=B · Micro=M ·
+    按 --flow-type 定 artifact ID 字母(Feature=F · Bug=B · Micro=M ·
     详 docs/conventions.md §1)· 扫 --features-root 下该字母的已有 artifact 目录 ·
     抓 --feature-id-prefix 匹配的 ID · 返回 existing_ids + next_available_id。
 
@@ -2374,7 +2356,7 @@ def cmd_prepare_check(args: argparse.Namespace) -> None:
         return
 
     # flow_type → artifact ID 字母(详 docs/conventions.md §1)
-    # Feature / 敏捷需求 共用 F · Bug=B · Micro=M · 缺省 F(--flow-type 漏传时向后兼容)
+    # Feature=F · Bug=B · Micro=M · 缺省 F(--flow-type 漏传时向后兼容)
     # v8.220:ID 字母收敛 F/B(Micro 的 M 退役 · legacy 归一后即 Feature)
     _pub_ft, _ = normalize_flow(args.flow_type or "Feature")
     id_letter = "B" if _pub_ft == "Bug" else "F"
@@ -2438,10 +2420,10 @@ def cmd_prepare_check(args: argparse.Namespace) -> None:
         try:
             sys.path.insert(0, str(Path(__file__).resolve().parent))
             from _v8_engine import build_stage_chain_preview, FLOW_STAGE_CHAIN
-            # v8.221:legacy 名归一 → 链键(敏捷需求/Micro 是 Feature 的 preset)
+            # v8.221:legacy 名归一 → 链键(Micro 是 Feature 的 preset)
             _pub, _pre = normalize_flow(args.flow_type)
             _chain_key = (args.flow_type if args.flow_type in FLOW_STAGE_CHAIN
-                          else {"lite": "敏捷需求", "micro": "Micro"}.get(_pre, "Feature"))
+                          else {"micro": "Micro"}.get(_pre, "Feature"))
         except ImportError as e:
             payload["stage_chain_preview_error"] = str(e)
         else:
@@ -2466,7 +2448,7 @@ def cmd_prepare_check(args: argparse.Namespace) -> None:
             "command": "prepare-check",
             "error": admission["error"],
             "hint": admission["hint"],
-            "spec": "docs/prepare.md § 2.1(复杂度升级判据)+ § 2.2(敏捷需求/Micro 准入)",
+            "spec": "docs/prepare.md § 2.1(复杂度升级判据)+ § 2.2(Micro 准入)",
         })
         return
     # 注入 payload(consistency / admission_judgment / user_intent / warning if MISMATCH)
@@ -2693,7 +2675,7 @@ def cmd_planning_check(args: argparse.Namespace) -> None:
         "entry_criteria": {
             "keyword": "规划 / 拆 roadmap / 路线图 / 全景 / 商业模式调整 / 做电商 / 做 SaaS",
             "complexity_force_upgrade": (
-                "关键词命中 Feature/敏捷需求/Micro 时 · 命中任一强制升 Feature Planning:"
+                "关键词命中 Feature/Micro 时 · 命中任一强制升 Feature Planning:"
                 "跨仓库联动(≥2)/ 数据模型重构 / 老需求架构性废弃 / 影响 ≥2 BL / 方向级业务变更"
             ),
         },
@@ -2791,7 +2773,7 @@ def _validate_admission_judgment(args) -> dict:
                 "--admission-judgment '{"
                 "\"sections_reviewed\":[\"§2.1\",\"§2.2\"],"
                 "\"matched_signals\":[{\"section\":\"§2.1\",\"signal\":\"...\",\"evidence\":\"...\"}],"
-                "\"recommended_flow_type\":\"Feature/Feature Planning/敏捷需求/Bug/Micro\","
+                "\"recommended_flow_type\":\"Feature/Feature Planning/Bug/Micro\","
                 "\"ai_rationale\":\"为什么这么判\"}'  "
                 "· AI 必读 prepare.md §2.1/§2.2 才能写出 matched_signals + ai_rationale "
                 "· 调试 bypass:TEAMWORK_BYPASS_PREPARE_CHECK=1"
@@ -2841,7 +2823,7 @@ def _validate_admission_judgment(args) -> dict:
     required_fields = [
         "sections_reviewed",       # list · ["§2.1", "§2.2"]
         "matched_signals",         # list · [{section, signal, evidence}]
-        "recommended_flow_type",   # str · Feature / Feature Planning / 敏捷需求 / Bug / Micro
+        "recommended_flow_type",   # str · Feature / Feature Planning / Bug / Micro
         "ai_rationale",            # str · 自由文本 · AI 解释为什么这么判
     ]
     missing_fields = [f for f in required_fields if f not in judgment]
@@ -2864,7 +2846,7 @@ def _validate_admission_judgment(args) -> dict:
 
     # 校验 recommended_flow_type 是合法值
     legal_recommended = {
-        "Feature", "Feature Planning", "敏捷需求", "Bug", "Micro", "问题排查",
+        "Feature", "Feature Planning", "Bug", "Micro", "问题排查",
     }
     rec = judgment.get("recommended_flow_type")
     if rec not in legal_recommended:
@@ -3067,54 +3049,12 @@ def cmd_change_review_roles(args: argparse.Namespace) -> None:
     })
 
 
-# ─── v8.20 · external-review(异质模型评审自动调起 · 治本 F034 PMO 自己拼命令 case)─
-# ─── v8.21:host 自动探测(PMO 心智 -1 参数 · 只需 --feature + --stage) ─────
+# ─── external 第三视角冷审(v8.291 起唯一形态 = 错开模型 subagent · 本模块只出配方不 exec)──
 
-# 宿主 → 异质模型自动映射(R3 + standards/external-model-usage.md §7.1)
-# claude-code 主对话 → 跑 codex(异质)
-# codex-cli 主对话 → 跑 claude(异质)
-# gemini-cli 主对话 → 默认 codex(异质 · 也可 --model claude)
-EXTERNAL_HOST_TO_MODEL = {
-    "claude-code": "codex",
-    "codex-cli": "claude",
-    "gemini-cli": "codex",  # 默认 · 可 --model 覆盖
-}
-
-
-def _detect_host(feature: Optional[str] = None) -> tuple[Optional[str], str]:
-    """探测主对话宿主 · 单源 = per-feature state.json.host。
-
-    (全局 ~/.teamwork/host_audit.json 已退役:bootstrap 停写 · 本函数不再读 ——
-    跨 session 共享文件会残留旧宿主 · 污染异质模型映射。)
-
-    返回 (host, source):
-      - host:claude-code / codex-cli / gemini-cli / None
-      - source:"state_json" / "none"
-    """
-    if feature:
-        try:
-            sp = Path(feature) / "state.json"
-            if sp.exists():
-                data = json.loads(sp.read_text(encoding="utf-8"))
-                host = data.get("host")
-                if host in EXTERNAL_HOST_TO_MODEL:
-                    return host, "state_json"
-        except (OSError, json.JSONDecodeError):
-            pass
-    return None, "none"
-
-# stage → reviewer profile 映射(codex profile / claude prompt template 文件名)
-# codex-agents/*.toml · claude-agents/*.md
-EXTERNAL_STAGE_TO_PROFILE = {
-    "goal": {"codex": "prd-reviewer.toml", "claude": "reviewer.md"},
-    "blueprint": {"codex": "blueprint-reviewer.toml", "claude": "reviewer.md"},
-    "review": {"codex": "reviewer.toml", "claude": "reviewer.md"},
-}
-
-EXTERNAL_REVIEW_TIMEOUT_SEC = 600  # v8.55:5min→10min(用户 case codex 偶尔卡 / 长 review · 给足 buffer)
-
-
-# ─── external 机械成本三连修(v8.191 · harvest:20× 超时/重试/未登录/全量重跑)────
+# 可跑外审的 stage(v8.293:原 EXTERNAL_STAGE_TO_PROFILE 三层 dict 折叠 —— codex-agents/
+# 已删、三个 stage 的 claude profile 本就全是同一个 reviewer.md · 嵌套只剩形式)
+EXTERNAL_REVIEW_STAGES = ("goal", "blueprint", "review")
+EXTERNAL_REVIEWER_PROFILE = "reviewer.md"  # claude-agents/ 下唯一模板
 
 def _find_prior_external_review(feature_dir: Path, stage: str):
     """v8.191:找上一轮 external 结果文件 + 它评过的 commit → (path, target_commit) · 无 → None。"""
@@ -3131,31 +3071,6 @@ def _find_prior_external_review(feature_dir: Path, stage: str):
         if m and (best is None or f.stat().st_mtime > best[0]):
             best = (f.stat().st_mtime, f, m.group(1))
     return (best[1], best[2]) if best else None
-
-
-def _build_verify_fixes_block(prior_txt: str, prior_commit: str, commit: str, fix_diff: str) -> str:
-    """v8.191:增量重验 prompt 块(替代「每采纳 finding 即全量重跑」· 微改动上尤其亏)。"""
-    prior_txt = prior_txt[:20000]
-    fix_diff = fix_diff[:30000]
-    return (
-        "\n\n---\n🔴 **本轮 = 增量重验(verify-fixes)· 不是全量 re-review**:"
-        f"上一轮你已评审 commit `{prior_commit}` · 本轮只看 `{prior_commit}..{commit}` 的**修复 diff**。\n"
-        "任务:① 对上一轮**每条 finding** 给 verdict:`fixed` / `not-fixed` / `n-a`(一句依据)"
-        "② 只检查修复 diff **本身引入的新问题** · 🔴 不重评整个 feature(全量上一轮已做)。\n"
-        f"\n## 上一轮 findings(原文)\n{prior_txt}\n"
-        + (f"\n## 修复 diff(`{prior_commit}..{commit}`)\n```diff\n{fix_diff}\n```\n" if fix_diff.strip() else "")
-    )
-
-
-# v8.151:finding 消费姿态提示(brief 主动推 · 防 spec 只被动躺 doc 里 · 盲采是默认倾向)
-# v8.152:两个方向都摆明实证(v8.151 hint 只写 ADOPT · REJECT 只剩抽象「对称」· 又写歪了)
-_FINDING_POSTURE_HINT = (
-    " 🔴 finding 处理默认姿态=**质疑**(不盲目认同):逐条 ① 先质疑(过度设计/错层/"
-    "false positive/没看全)→ ② 回读真实代码/AC/DEV-RULES 确认 → ③ 才 ADOPT/REJECT;"
-    "**两个方向都必给实证**:ADOPT 给「为何确为真+为何这样改对」· REJECT 给「为何不是"
-    "问题(指真实代码/规约/目标)」·「reviewer 说得对」与「我觉得没事」都不是理由 · "
-    "举证责任对称(详 standards/external-model-usage.md §12)。"
-)
 
 
 STAGE_REVIEW_FILES = {
@@ -3222,306 +3137,6 @@ def _gather_review_files_for_claude(stage: str, feature_dir: Path) -> tuple[str,
     return ("\n".join(blocks), meta)
 
 
-def _build_codex_prompt(stage: str, feature_dir_rel: str, commit: str,
-                         base: str, profile_filename: str) -> str:
-    """v8.25:按 stage 内置 codex exec PROMPT(治本 v8.23 codex review --base+[PROMPT] 互斥)。
-
-    各 stage review 对象不同 · 全用 codex exec 通用 agent 模式(不用 codex review 子命令):
-    - goal:review PRD.md(文档)
-    - blueprint:review TC.md + TECH.md(文档)
-    - review:review code diff at commit X vs base Y(diff · 由 PROMPT 描述)
-
-    PROMPT 自带完整 review 指令(stage / 文件 / commit / base / 输出格式)·
-    cite profile filename 让 codex 加载 reviewer prompt 模板。
-    """
-    if stage == "goal":
-        return (
-            f"You are an external PRD reviewer (codex / GPT) providing heterogeneous "
-            f"perspective. Read PRD.md in `{feature_dir_rel}/` and conduct PRD review "
-            f"per checklist (see templates/external-cross-review.md §3.1 PRD variant). "
-            f"Profile reference: codex-agents/{profile_filename}. "
-            f"Output: YAML frontmatter (perspective/target/files_read/findings) + body."
-        )
-    elif stage == "blueprint":
-        return (
-            f"You are an external blueprint reviewer (codex / GPT) providing "
-            f"heterogeneous perspective. Read TC.md and TECH.md in `{feature_dir_rel}/` "
-            f"and conduct blueprint review per checklist "
-            f"(templates/external-cross-review.md §3.2 TC+TECH variant). "
-            f"Profile reference: codex-agents/{profile_filename}. "
-            f"Output: YAML frontmatter + findings body."
-        )
-    elif stage == "review":
-        return (
-            f"You are an external code reviewer (codex / GPT) providing heterogeneous "
-            f"perspective. Review the FULL code changes this feature introduces vs base "
-            f"ref `{base}` (a branch or this feature's pre-dev commit). Run "
-            f"`git diff {base}...{commit}` (PR-style; fall back to "
-            f"`git show {commit}` if the base ref is unavailable) to inspect the complete "
-            f"diff across ALL changed files —— 🔴 the implementation lives OUTSIDE "
-            f"`{feature_dir_rel}/`(that folder is only Feature docs)· do NOT restrict the "
-            f"review to it. "
-            f"Focus: correctness, security, performance, edge cases, regressions. "
-            f"Profile reference: codex-agents/{profile_filename}. "
-            f"Output: YAML frontmatter (perspective/target/files_read/findings) + findings "
-            f"body with file:line cite. End with verdict APPROVE or NEEDS_REVISION."
-        )
-    # 兜底(其他 stage 走 prompt 模式)
-    return (
-        f"External review for stage={stage} in `{feature_dir_rel}/`. "
-        f"Profile reference: codex-agents/{profile_filename}."
-    )
-
-
-def _run_streamed_to_log(cmd: list, *, cwd: Optional[str] = None,
-                         log_path: Optional[Path] = None, label: str = "external",
-                         timeout_sec: Optional[int] = None,
-                         heartbeat_sec: float = 60) -> tuple[int, str, str]:
-    """v8.139:外部评审执行器 · Popen + 过程**实时**落盘(治「发起后完全黑盒」)。
-
-    取代 v8.55 `_log_external_run`(跑完才写 · 藏 ~/.teamwork · 与 prompt-doc 不配对):
-    - **发起即写 START 行**(UTC 时间戳 · harness 写 · 🔴 不靠评审模型自报 —— claude -p
-      print 模式输出整体到达 · 模型的「开始」行不可能先到;模型挂死/认证失败时恰恰
-      零输出 · harness 行才是诊断锚点)· spawn 后补 pid 行(可 kill / ps 对账)
-    - stdout 原样实时追加(评审输出主体)· stderr 逐行 `[stderr] ` 前缀 —— 鉴权失败/
-      codex 升级提示/网络卡 **秒级可见**(不再等超时后验尸)· log mtime = 心跳
-    - v8.140:**RUNNING 心跳行**(默认 60s · heartbeat_sec=0 关)—— claude -p print
-      模式 stdout 完成前零输出 · pid 行到 END 行之间原本仍是盲窗;心跳行报
-      已等待秒数 + 已收字节 · tail -f 一眼分清「在生成」vs「卡死」
-    - 结束写 END 行(rc/耗时/字节)· 超时写 TIMEOUT 行 + **保留已收部分输出**(rc=124 ·
-      旧实现超时返空 stdout 丢诊断料)
-    - **append 模式**:同 log 重跑(显式 --prompt-doc 重试)历史叠加 · 失败证据不被覆盖
-    - log_path 约定 = prompt-doc 同名 `.log`(审计三件套同目录成组:输入 .md ·
-      过程 .log · 结果 external-cross-review/<stage>-<model>.md)
-    日志任何 OSError 静默降级(绝不阻塞评审)。返 (rc, stdout, stderr)。
-    FileNotFoundError / OSError(E2BIG 等)照常上抛 · 由调用方按引擎语义处理。
-    """
-    import threading
-    timeout_sec = timeout_sec or EXTERNAL_REVIEW_TIMEOUT_SEC
-    lock = threading.Lock()
-
-    def _ts() -> str:
-        return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-
-    def _append(text: str) -> None:
-        nonlocal log_path
-        if log_path is None:
-            return
-        try:
-            with lock:
-                with open(log_path, "a", encoding="utf-8") as f:
-                    f.write(text)
-                    f.flush()
-        except OSError:
-            log_path = None  # 日志降级 · 不阻塞评审
-
-    t0 = datetime.now(timezone.utc)
-    sep = ""
-    if log_path is not None:
-        try:
-            log_path.parent.mkdir(parents=True, exist_ok=True)
-            if log_path.exists() and log_path.stat().st_size:
-                sep = "\n"  # 重跑叠加 · 空行分隔上一轮
-        except OSError:
-            log_path = None
-    cmd_disp = " ".join(
-        (str(a)[:160] + "…<truncated>") if len(str(a)) > 160 else str(a) for a in cmd)
-    _append(f"{sep}[{_ts()}] START {label} · timeout={timeout_sec}s · "
-            f"cwd={cwd or '(inherit)'} · cmd={cmd_disp}\n")
-    # 发起即告知观察点(stderr · 不污染 stdout JSON)· 后台跑时立即可见
-    print(f"[external-review] {label} 已发起 · 过程日志: "
-          f"{log_path or '(无 · 日志降级)'}(tail -f 可观察)",
-          file=sys.stderr, flush=True)
-
-    proc = subprocess.Popen(cmd, cwd=cwd, stdin=subprocess.DEVNULL,
-                            stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                            text=True, encoding="utf-8", errors="replace")
-    _append(f"[{_ts()}] pid={proc.pid}\n")
-    out_buf: list = []
-    err_buf: list = []
-
-    def _pump(stream, buf, tag):
-        try:
-            for line in iter(stream.readline, ""):
-                buf.append(line)
-                _append((tag + line) if tag else line)
-        finally:
-            try:
-                stream.close()
-            except OSError:
-                pass
-
-    t_out = threading.Thread(target=_pump, args=(proc.stdout, out_buf, ""), daemon=True)
-    t_err = threading.Thread(target=_pump, args=(proc.stderr, err_buf, "[stderr] "), daemon=True)
-    t_out.start()
-    t_err.start()
-
-    # v8.140:RUNNING 心跳(模型吐字前的盲窗活性信号 · claude -p 完成前 stdout 为 0 属正常)
-    stop_hb = threading.Event()
-
-    def _heartbeat():
-        while not stop_hb.wait(heartbeat_sec):
-            elapsed = int((datetime.now(timezone.utc) - t0).total_seconds())
-            got = sum(len(x) for x in out_buf)
-            _append(f"[{_ts()}] RUNNING · 已等待 {elapsed}s · 已收 stdout {got} chars\n")
-
-    t_hb = None
-    if log_path is not None and heartbeat_sec > 0:
-        t_hb = threading.Thread(target=_heartbeat, daemon=True)
-        t_hb.start()
-
-    timed_out = False
-    try:
-        proc.wait(timeout=timeout_sec)
-    except subprocess.TimeoutExpired:
-        timed_out = True
-        proc.kill()
-        proc.wait()
-    stop_hb.set()
-    if t_hb is not None:
-        t_hb.join(timeout=5)
-    t_out.join(timeout=15)
-    t_err.join(timeout=15)
-    dur = (datetime.now(timezone.utc) - t0).total_seconds()
-    stdout, stderr = "".join(out_buf), "".join(err_buf)
-    if timed_out:
-        _append(f"[{_ts()}] TIMEOUT · {timeout_sec}s 已杀进程(pid={proc.pid})· "
-                f"已收 stdout {len(stdout)} chars\n")
-        tail = f" · 过程日志: {log_path}" if log_path else ""
-        return 124, stdout, f"{label} 超时({timeout_sec}s){tail}"
-    _append(f"[{_ts()}] END · rc={proc.returncode} · {dur:.1f}s · "
-            f"stdout {len(stdout)} chars · stderr {len(stderr)} chars\n")
-    return proc.returncode, stdout, stderr
-
-
-def _run_codex_review(stage: str, commit: str, base: str, title: str,
-                      profile_filename: str, feature_dir: Path, cwd: str,
-                      codex_model: Optional[str] = None,
-                      prompt_doc: Optional[Path] = None,
-                      timeout_sec: Optional[int] = None,
-                      extra_prompt: str = "") -> tuple[int, str, str]:
-    """跑 codex CLI 评审 · 返 (returncode, stdout, stderr)。
-
-    v8.59(用户 case · 本地实测):**全 stage 统一 `codex exec [PROMPT]`**。
-    治本 review stage `codex review` 子命令 headless 卡死 —— 本地实测
-    `codex review --commit X --title Y`(stdin=DEVNULL)跑满 220s 产 **0 字节 stdout**
-    (超时 · exit 124)· 与用户 AON SVC-PLATFORM-F057 现象一致(goal/blueprint 走 exec
-    早成功 · 唯独 review 走 codex review 持续超时)。codex exec 是稳定 headless 路径
-    (goal/blueprint 已验证)· review 对象差异(代码 diff vs 文档)全由
-    `_build_codex_prompt` 内置 prompt 描述。
-    (codex review↔exec 反复横跳演进史见 git 历史 · v8.23-26)
-    v8.139:prompt 落唯一命名 doc(审计=输入 · 对齐 claude 路径 · codex 不读 doc ·
-    执行仍 argv inline)+ 同名 .log 过程实时落盘(_run_streamed_to_log)。
-    """
-    # 算 feature_dir 相对 cwd · 让 prompt 用相对路径(codex 在 cwd=git root 跑)
-    try:
-        feature_dir_rel = str(feature_dir.relative_to(Path(cwd)))
-    except ValueError:
-        feature_dir_rel = str(feature_dir)
-
-    # v8.29:codex_model 非空才传 --config model=...(治本 ChatGPT 订阅 case · 默认模型限制)
-    model_args = ["--config", f"model={codex_model}"] if codex_model else []
-
-    # v8.59:统一 codex exec [PROMPT] —— review 对象差异由 _build_codex_prompt 描述
-    # (删 stage==review 的 codex review 子命令分支 · 它 headless 卡死)
-    body_prompt = _build_codex_prompt(
-        stage, feature_dir_rel, commit, base, profile_filename)
-    if extra_prompt:
-        body_prompt += extra_prompt   # v8.191:verify-fixes 增量重验块
-    # title 信息嵌进 PROMPT 顶部(codex exec 没 --title flag)
-    prompt = f"[Review title: {title}]\n\n{body_prompt}"
-    if prompt_doc is not None:
-        # v8.140:首行 ACK 自证契约(先拼后落 doc · 审计=输入不分叉)
-        prompt = prompt + _ack_block(prompt_doc)
-    cmd = ["codex", "exec", *model_args, prompt]
-
-    log_path = None
-    if prompt_doc is not None:
-        try:
-            prompt_doc.parent.mkdir(parents=True, exist_ok=True)
-            prompt_doc.write_text(prompt, encoding="utf-8")
-        except OSError:
-            pass  # 审计缺本轮 doc · 不阻塞执行
-        log_path = prompt_doc.with_suffix(".log")
-    try:
-        return _run_streamed_to_log(cmd, cwd=cwd, log_path=log_path,
-                                    label=f"codex-{stage}", timeout_sec=timeout_sec)
-    except (FileNotFoundError, OSError) as e:
-        tail = f" · 过程日志 {log_path}" if log_path else ""
-        return 127, "", f"codex CLI 不可用:{e}{tail}"
-
-
-def _build_claude_review_cmd(prompt_text: str, feature_dir: Optional[Path],
-                             prompt_doc: Optional[Path]
-                             ) -> tuple[list, Optional[str]]:
-    """v8.106(用户拍板):**只用 `claude -p <full inline prompt> --output-format text`** · 返 (cmd, None)。
-
-    🔴 删 v8.85 doc 模式(短 argv + `--allowedTools` 让 reviewer 自己 Read)+ v8.103 `--bare`:
-    - `--bare` 跳了 claude 的**登录/认证上下文** → `claude --bare -p` 报 "Not logged in"(裸 `claude -p`
-      已登录)· 治本 case PTR-F260606(`--bare` 引入的认证回归)。
-    - prompt **自包含**(goal/blueprint 已 inline 待评审文件内容 · 见 _gather_review_files_for_claude)·
-      reviewer 无需任何工具 / 文件系统访问 · 一次性纯文本生成。
-    仍把 prompt 写进 prompt_doc(审计 + 可复跑 · 不存在才写 · 不 clobber PMO 预写)· 但执行走 argv inline。
-    prompt 过长(ARG_MAX)由 _run_claude_review 的 errno 7 兜底报错。单测可直接调本函数断言 cmd。
-
-    v8.141 **MCP 隔离**(`--strict-mcp-config` · 本地 CLI 2.1.173 四组对照实测):
-    - 🔴 v8.106 归因翻案:**裸 `claude -p` 也每轮 spawn 消费项目 .mcp.json 全部 server**
-      (marker 实测 C1=spawn True)· 与 --allowedTools 无关(C2 同 spawn)—— 卡不卡取决
-      server 行为 + CLI 版本(2.1.15x 连接阻塞 → 卡死;2.1.173 不阻塞 → 侥幸不卡)。
-    - `--strict-mcp-config` 不传 --mcp-config = **零 MCP spawn**(C3/C4 marker False)·
-      不碰登录上下文(rc=0 · 无 --bare 认证回归)。评审 prompt 自包含零工具 · 本就不该
-      碰项目 MCP —— 根治「偶发卡死/慢启动/stderr 噪音」整类 · 不赌 CLI 版本行为。
-    - 解锁备忘:strict 隔离下 `--allowedTools Read` 实测安全(C4)· 未来 ARG_MAX 卡长
-      prompt 可走「短 prompt + reviewer 自己 Read + strict」· 当前仍保持零工具 inline。
-    """
-    # 写 doc(审计 · 可复跑)· 不影响执行(执行用 argv inline)
-    if prompt_doc is not None and feature_dir is not None:
-        try:
-            prompt_doc.parent.mkdir(parents=True, exist_ok=True)
-            if not prompt_doc.exists():
-                prompt_doc.write_text(prompt_text, encoding="utf-8")
-        except OSError:
-            pass
-    return ["claude", "-p", prompt_text, "--output-format", "text",
-            "--strict-mcp-config"], None
-
-
-def _run_claude_review(prompt_text: str,
-                       feature_dir: Optional[Path] = None, stage: str = "review",
-                       prompt_doc: Optional[Path] = None,
-                       timeout_sec: Optional[int] = None) -> tuple[int, str, str]:
-    """跑 claude review · 返 (rc, stdout, stderr)。
-
-    v8.38(用户拍板 2026-05-27):用 `-p`(short)替代 `--print`(long)。
-    v8.43(case SVC-PLATFORM-F054 blueprint round 3):prompt 从 stdin 改 argv ·
-    治本 Claude CLI 2.1.153 在 stdin 模式触发 "Not logged in · Please run /login" bug。
-    v8.84(用户拍板):**不再 --model 指定模型 · 用 claude CLI 默认值**。
-    v8.106(用户拍板):**只用 `claude -p <full inline prompt> --output-format text`**(删 v8.85 doc 模式
-    + v8.103 --bare)· prompt 自包含 · 无工具 / 无 --bare(--bare 砸登录上下文 → "Not logged in")· 详 _build_claude_review_cmd。
-    v8.139:执行走 _run_streamed_to_log · 过程实时落 prompt_doc 同名 .log(治黑盒)。
-    """
-    cmd, cwd = _build_claude_review_cmd(prompt_text, feature_dir, prompt_doc)
-    label = f"claude-{stage}"
-    log_path = prompt_doc.with_suffix(".log") if prompt_doc is not None else None
-    try:
-        return _run_streamed_to_log(cmd, cwd=cwd, log_path=log_path, label=label,
-                                    timeout_sec=timeout_sec)
-    except OSError as e:
-        if getattr(e, "errno", None) == 7:  # E2BIG · argument list too long
-            return 127, "", (
-                f"claude -p prompt 过长(ARG_MAX 超限 · prompt_bytes={len(prompt_text)})· "
-                f"应已落 doc 模式 · 检查 prompt_doc 是否可写"
-            )
-        return 127, "", f"claude CLI 不可用:{e}"
-    except FileNotFoundError as e:
-        return 127, "", f"claude CLI 不可用:{e}"
-
-
-# ─── v8.44:scaffold-review-prompt(doc-based external review · 治本 case round 4)─
-# 用户拍板:把 prompt 写到 doc · AI 主对话填 compact summary · state.py 读 doc 作 prompt
-# 解决 v8.43 inline 全 PRD/TC/TECH 卡 claude -p 长 prompt 问题
-
-
 def _new_prompt_doc_path(feature_dir: Path, stage: str, model: str,
                          ts: Optional[str] = None) -> Path:
     """v8.136:每轮唯一 prompt-doc 路径(治 v8.44 固定名跨轮隐式复用 → stale review)。
@@ -3534,35 +3149,6 @@ def _new_prompt_doc_path(feature_dir: Path, stage: str, model: str,
     if ts is None:
         ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     return feature_dir / "external-review-prompts" / f"{stage}-{model}-{ts}.md"
-
-
-def _ack_block(prompt_doc: Path) -> str:
-    """v8.140:评审输出首行自证契约(注入 prompt 尾部 · 仅 generated 路径)。
-
-    用户诉求「模型开始时在 .log 声明开始+时间戳」的可行化:评审模型**写不了文件**
-    (claude -p 零工具 · v8.106 故意拔 · MCP 卡死真因详 v8.141 _build_claude_review_cmd ·
-    codex 沙箱不保证可写)→ 「开始声明」物化为**输出第一行回显本轮 prompt-doc 标识**
-    (stem 含 stage/model/UTC 时间戳)。print 模式输出整体到达 · 此行无 liveness 作用
-    (活性 = harness RUNNING 心跳)· 价值是**对应性自证**:输出 ↔ 本轮 prompt 绑定 ·
-    把 v8.136 防 stale-review 从输入侧门禁补到输出侧(回显进结果文件与 .log 留档)。
-    """
-    return (
-        "\n\n---\n🔴 输出契约(最高优先 · 先于一切评审内容):你的输出**第一行**必须原样是:\n"
-        f"REVIEW-ACK {prompt_doc.stem}\n"
-        "(向调用方确认你处理的是本轮 prompt · 之后空一行再写评审正文 · 不要解释此行)\n"
-    )
-
-
-def _review_ack_status(stdout: str, prompt_doc: Optional[Path]) -> Optional[str]:
-    """v8.140:验首行 ACK。返 'verified' / 'missing' / None(无 doc 不适用)。
-
-    宽松判:头 200 字符内同时出现 REVIEW-ACK 与 doc stem 即 verified
-    (容忍模型加空行/fence)· 缺失 → WARN 不 BLOCK(遵从是概率性的 · 不可枚举)。
-    """
-    if prompt_doc is None:
-        return None
-    head = (stdout or "")[:200]
-    return "verified" if ("REVIEW-ACK" in head and prompt_doc.stem in head) else "missing"
 
 
 def _extract_prompt_body(template_text: str) -> str:
@@ -3587,118 +3173,6 @@ def _extract_prompt_body(template_text: str) -> str:
         return template_text
     return template_text[start:end]
 
-
-def _prompt_doc_stale_reason(prompt_doc: Path, feature_dir: Path,
-                             stage: str) -> Optional[str]:
-    """v8.136:显式 --prompt-doc 的 staleness 门禁 —— doc 必须新于全部待评审文件。
-
-    返 stale 原因(str)或 None。review stage 无 inline 文件清单 → 不检查。
-    """
-    try:
-        doc_mtime = prompt_doc.stat().st_mtime
-    except OSError:
-        return None
-    for name in STAGE_REVIEW_FILES.get(stage, []):
-        f = feature_dir / name
-        try:
-            if f.exists() and f.stat().st_mtime > doc_mtime:
-                return f"{name} 修改时间晚于 prompt-doc(doc 已 stale · 评审输入会是旧内容)"
-        except OSError:
-            continue
-    return None
-
-
-SCAFFOLD_PROMPT_DOC_TEMPLATE = """# {model_cap} {stage_cap} External Review Prompt
-
-> v8.44 scaffold(治本 case round 4 长 prompt 卡):
-> AI 主对话填 PRD/TC/TECH 关键摘要到 "Summary" 段(不复制全文 · 提炼契约+边界+known facts)
-> state.py external-review 检测此 doc → 优先用它作 prompt(不再 inline 全文)
-> 文档可审计 / 可编辑 / 可复跑
-
-You are Teamwork `external-{model}` reviewer.
-
-## Strict Constraints
-
-- READ-ONLY reviewer.
-- Do not write files.
-- Do not execute commands.
-- Do not ask follow-up questions.
-- Review only the {stage} summarized in this document.
-- Output only legal YAML frontmatter plus Markdown body.
-
-## Target
-
-- Feature: `{feature_id}`
-- Target: `{target}`
-- Stage: `{stage}`
-- Reviewer perspective: `external-{model}`
-
-## Output Schema
-
-```yaml
----
-perspective: external-{model}
-target: {target}
-generated_at: "<ISO 8601 UTC>"
-model: "<actual model version>"
-findings:
-  - id: CR-1
-    checklist: C1
-    severity: blocker | high | low | info
-    location: "<artifact and section>"
-    issue: "<1-2 sentence issue>"
-    rationale: "<1-2 sentence evidence/risk>"
-    suggestion: "<actionable fix>"
-findings_summary:
-  blocker: 0
-  high: 0
-  low: 0
-  info: 0
-  total: 0
----
-```
-
-If there are no findings, output `findings: []` and `findings_summary.total: 0`.
-
-## Review Checklist
-
-{checklist_block}
-
-## TODO · AI 主对话填以下 Summary 段(compact · 不复制全文)
-
-### {primary_artifact} Summary
-
-<!-- AI 填:关键契约 / 边界 / 信号 / known facts(代码现状 vs spec 声明) -->
-<!-- 不复制全文 · 提炼到 reviewer 可独立判断的最小集 -->
-
-### Required Judgment
-
-<!-- AI 填:reviewer 应特别关注的盲区 · 让 reviewer 不浪费 token 在低优先级 -->
-"""
-
-STAGE_TO_REVIEW_CHECKLIST = {
-    "goal": (
-        "- C1 PRD scope clarity / acceptance criteria atomicity.\n"
-        "- C2 Edge cases / boundary completeness.\n"
-        "- C3 Existing contract / cross-module impact.\n"
-        "- C4 Stakeholder communication clarity (UI/ADMIN/SVC/DBA roles)."
-    ),
-    "blueprint": (
-        "- C1 TC to AC mapping completeness.\n"
-        "- C2 TC executability (function names / file paths actually exist).\n"
-        "- C3 Boundary and failure coverage.\n"
-        "- C4 TECH architecture consistency.\n"
-        "- C5 TECH feasibility and risk.\n"
-        "- C6 TC to TECH alignment."
-    ),
-    "review": (
-        "- C1 Code correctness / logic bugs.\n"
-        "- C2 Security / injection / boundary checks.\n"
-        "- C3 Performance / N+1 / scaling.\n"
-        "- C4 Edge cases / error handling.\n"
-        "- C5 Test coverage gaps."
-    ),
-}
 
 
 def cmd_set_mode(args: argparse.Namespace) -> None:
@@ -3805,66 +3279,6 @@ def cmd_set_mode(args: argparse.Namespace) -> None:
     })
 
 
-def cmd_scaffold_review_prompt(args: argparse.Namespace) -> None:
-    """生成 prompt-doc skeleton 到 feature_dir/external-review-prompts/<stage>-<model>-<ts>.md。
-
-    AI 主对话跑此命令拿到 skeleton · 填 PRD/TC/TECH compact summary · 再跑 external-review。
-    每轮唯一命名(时间戳)· 旧 doc 不被覆盖(用户编辑安全)。
-    """
-    feature_dir = Path(args.feature).resolve()
-    if not feature_dir.exists():
-        emit({
-            "verdict": "FAIL",
-            "command": "scaffold-review-prompt",
-            "error": f"feature 路径不存在:{feature_dir}",
-        })
-        return
-
-    stage = args.stage
-    model = args.model
-    doc_path = _new_prompt_doc_path(feature_dir, stage, model)
-
-    # 推 feature_id 从路径(basename 即 ID-Name)
-    feature_id = feature_dir.name
-    target = STAGE_TO_REVIEW_TARGET.get(stage, stage)
-    checklist_block = STAGE_TO_REVIEW_CHECKLIST.get(stage, "- C1 ...\n- C2 ...")
-    primary_artifact = {
-        "goal": "PRD",
-        "blueprint": "TC + TECH",
-        "review": "Code Diff",
-    }.get(stage, stage.title())
-
-    body = SCAFFOLD_PROMPT_DOC_TEMPLATE.format(
-        model_cap=model.title(),
-        stage_cap=stage.title(),
-        model=model,
-        stage=stage,
-        feature_id=feature_id,
-        target=target,
-        checklist_block=checklist_block,
-        primary_artifact=primary_artifact,
-    )
-
-    doc_path.parent.mkdir(parents=True, exist_ok=True)
-    doc_path.write_text(body, encoding="utf-8")
-
-    emit({
-        "verdict": "OK",
-        "command": "scaffold-review-prompt",
-        "feature_id": feature_id,
-        "stage": stage,
-        "model": model,
-        "prompt_doc": str(doc_path),
-        "bytes_written": len(body.encode("utf-8")),
-        "next_hint": (
-            f"✅ Skeleton 已写 · 接下来:\n"
-            f"  ① AI 主对话读 PRD/TC/TECH · 填 doc 内 'TODO · 填以下 Summary 段' "
-            f"(compact summary · 提炼契约+边界+known facts · 不复制全文)\n"
-            f"  ② 跑 state.py external-review --feature <path> --stage {stage} "
-            f"(--model {model})· state.py 自动读取此 doc 作 prompt"
-        ),
-    })
-
 
 def _is_ancestor(ancestor: str, commit: str, cwd: str) -> bool:
     """`git merge-base --is-ancestor`:ancestor 是 commit 的祖先(或相等)→ True。
@@ -3916,10 +3330,10 @@ def cmd_external_review(args: argparse.Namespace) -> None:
     feature_id = state.get("feature_id") or feature_dir.name
     skill_root = Path(__file__).resolve().parent.parent
 
-    if args.stage not in EXTERNAL_STAGE_TO_PROFILE:
+    if args.stage not in EXTERNAL_REVIEW_STAGES:
         emit({"verdict": "FAIL", "command": "external-review",
               "error": f"stage={args.stage!r} 无对应评审 profile",
-              "known_stages": sorted(EXTERNAL_STAGE_TO_PROFILE)})
+              "known_stages": sorted(EXTERNAL_REVIEW_STAGES)})
         sys.exit(1)
 
     # commit / base:显式参数 > state 的 stage auto_commit > HEAD
@@ -3944,9 +3358,8 @@ def cmd_external_review(args: argparse.Namespace) -> None:
         sys.exit(1)
 
     # 评审 prompt(host-agnostic 模板 + 待评审文件 inline)
-    profile = EXTERNAL_STAGE_TO_PROFILE[args.stage]["claude"]
     try:
-        tpl = _extract_prompt_body((skill_root / "claude-agents" / profile).read_text(encoding="utf-8"))
+        tpl = _extract_prompt_body((skill_root / "claude-agents" / EXTERNAL_REVIEWER_PROFILE).read_text(encoding="utf-8"))
     except OSError:
         tpl = "You are an independent reviewer. Review the following and output a markdown review."
     file_list_block, _meta = _gather_review_files_for_claude(args.stage, feature_dir)
@@ -3992,7 +3405,7 @@ def cmd_external_review(args: argparse.Namespace) -> None:
             "  3. `" + args.stage + "-complete` 门禁校验:产物非空 + `review_via: subagent` + coverage 申报。\n"
             "  🔴 **禁主对话自评**(热审 = 同上下文 = 无独立性)· **禁伪造/冒充**(照实写实际模型)。"
         ),
-        "spec": "standards/external-model-usage.md(裁决纪律 §12)· 模型错开不变式见 SKILL 🎚️",
+        "spec": "standards/external-model-usage.md(裁决纪律 §二)· 模型错开不变式见 SKILL 🎚️",
     })
 
 
@@ -4319,15 +3732,15 @@ def build_parser() -> argparse.ArgumentParser:
     ifp.add_argument("--feature-id", required=True,
                      help="如 ADMIN-F013-tax-billing · 应是 --feature basename")
     ifp.add_argument("--flow-type", required=True,
-                     choices=["Feature", "Bug", "Micro", "敏捷需求",
+                     choices=["Feature", "Bug", "Micro",
                               "Feature Planning", "问题排查"],
-                     help="[v8.220] 对外收缩为 Feature/Bug · 敏捷需求/Micro 为 legacy 别名(自动映射 Feature+preset)· Planning/排查照旧 reject")
-    ifp.add_argument("--preset", default=None, choices=["full", "micro"],  # v8.223:lite 退役(存量 state preset=lite 兼容 · 新 init 不再产)
-                     help="[v8.220] Feature 重量档(原 敏捷需求=lite · Micro=micro)· 链/角色由它决定 · 默认 full")
+                     help="[v8.220] 对外收缩为 Feature/Bug · Micro 为 legacy 别名(自动映射 Feature+preset)· Planning/排查照旧 reject")
+    ifp.add_argument("--preset", default=None, choices=["full", "micro"],  # v8.223 退 lite · v8.293 删净
+                     help="[v8.220] Feature 重量档(Micro=micro)· 链/角色由它决定 · 默认 full")
     ifp.add_argument("--sub-project", help="如 admin / api-server")
     # v7.3.10+P0-149: 删 --artifact-root 冗余参数 · --feature 单源（既是落盘目录又是 artifact_root 字段值）
     ifp.add_argument("--initial-stage",
-                     help="缺省按 flow_type 决定（Feature/敏捷需求→goal / Bug→diagnose / Micro→dev）")
+                     help="缺省按 flow_type 决定（Feature→goal / Bug→diagnose / Micro→dev）")
     ifp.add_argument("--merge-target", required=False,
                      help="如 staging / dev · yolo 可改用 --yolo <branch> 指定(二选一)")
     ifp.add_argument("--branch", required=True, help="如 feat/admin-f013-x")
@@ -4488,7 +3901,7 @@ def build_parser() -> argparse.ArgumentParser:
     pc.add_argument("--feature-id-prefix", required=True,
                     help="项目缩写(如 PTR / INFRA / SVC-PLATFORM)· 详 docs/conventions.md § 7")
     pc.add_argument("--flow-type", default=None,
-                    choices=["Feature", "Bug", "Micro", "敏捷需求"],
+                    choices=["Feature", "Bug", "Micro"],
                     help=("决定 artifact ID 字母(F/B/M · 详 conventions.md §1)+ "
                           "返回 stage_chain_preview · Bug/Micro 必传(漏传退回 F)"))
     # v8.15:admission(AI judgment 模式 · 不用 regex 关键词)
@@ -4551,26 +3964,13 @@ def build_parser() -> argparse.ArgumentParser:
         "external-review",
         help="[v8.291] 第三视角冷审配方(错开模型 subagent · 不 exec 子进程 · 跨厂商 CLI 异质已退役)")
     er.add_argument("--feature", required=True, help="Feature artifact_root 路径")
-    er.add_argument("--stage", required=True, choices=sorted(EXTERNAL_STAGE_TO_PROFILE),
+    er.add_argument("--stage", required=True, choices=sorted(EXTERNAL_REVIEW_STAGES),
                     help="评审 stage(决定 prompt profile 与待评审文件集)")
     er.add_argument("--commit", default=None, help="被评审 commit(缺省取 stage auto_commit → HEAD)")
     er.add_argument("--base", default=None, help="diff 基线(缺省取 state.review_base_commit)")
     er.add_argument("--verify-fixes", action="store_true",
                     help="增量重验(仅 review):只验上一轮 findings 的修复 diff · 不全量重扫")
     er.set_defaults(func=cmd_external_review)
-
-    # v8.44:scaffold-review-prompt · 生成 prompt-doc skeleton(AI 主对话填 compact summary)
-    sp = sub.add_parser(
-        "scaffold-review-prompt",
-        help=("[v8.44] 生成 external-review prompt-doc skeleton · 让 AI 主对话填 "
-              "compact summary · 治本 case round 4 长 prompt 卡 + 不可审计"),
-    )
-    sp.add_argument("--feature", required=True, help="Feature artifact_root 路径")
-    sp.add_argument("--stage", required=True, choices=["goal", "blueprint", "review"],
-                    help="评审 stage(goal/blueprint/review · 各自 checklist 不同)")
-    sp.add_argument("--model", required=True, choices=["claude", "codex"],
-                    help="reviewer 模型(影响 doc 文件名 + perspective)")
-    sp.set_defaults(func=cmd_scaffold_review_prompt)
 
     # v8.24-v8.41:update-skill · 自更新 → v8.42 抽到独立 tools/update.py
     # 用法:python3 SKILL_ROOT/tools/update.py [--channel <branch>] [--accept-overwrite]

@@ -131,7 +131,7 @@ PMO 把数据填进暂停点表格:`next_available_id_stem` → artifact ID 默�
 
 ## 2. Step 1 · 流程类型识别(闭集 · R2 红线)
 
-> 🔴 机器层闭集 = `flow_type ∈ {Feature, Bug}` + Feature 重量档 `--preset full|micro`(lite 已退役 · 「敏捷需求」→ Feature·full〔轻量走 roster/clarity〕· 「Micro」→ preset=micro)· 关键词命中「敏捷/micro」= 推荐对应 preset 而非独立类型 · 闭集权威视图 [FLOWS.md](../FLOWS.md)。
+> 🔴 机器层闭集 = `flow_type ∈ {Feature, Bug}` + Feature 重量档 `--preset full|micro`(legacy 别名「Micro」→ preset=micro)· 关键词命中「micro」= 推荐对应 preset 而非独立类型 · 闭集权威视图 [FLOWS.md](../FLOWS.md)。
 
 PMO 按以下关键词表判定 user input 落入哪类流程:
 
@@ -196,7 +196,7 @@ PMO 按以下关键词表判定 user input 落入哪类流程:
 | 零逻辑变更 | 改动含任何条件 / 分支 / 数据流逻辑 |
 | 改动类型在白名单 | 仅 文案 / 样式 / 资源 / 配置常量 / 注释 · 其它都不算(加组件 / 改页面结构 / 改交互 / 改接口契约 / 动数据结构 → 全部超纲) |
 
-📎 轻量但超 micro 白名单的需求**没有独立轻类型**(敏捷需求/lite 已退役)—— 一律 Feature·full · 轻量由动态 roster + clarity 承担(评审面自动收窄 · 骨架不减)。
+📎 轻量但超 micro 白名单的需求**没有独立轻类型** —— 一律 Feature·full · 轻量由动态 roster + clarity 承担(评审面自动收窄 · 骨架不减)。
 
 **为什么校验**:关键词只看字面 · 无法区分"改静态文案"与"改文案渲染逻辑"—— 命中关键词后仍须验准入。
 

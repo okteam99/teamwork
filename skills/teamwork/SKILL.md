@@ -1,6 +1,6 @@
 ---
 name: teamwork
-version: v8.292.1
+version: v8.293
 description: AI 协作开发一体化框架 - 需求功能开发, bug 修复, 问题排查 · /teamwork 启动
 ---
 
@@ -435,11 +435,12 @@ teamwork 承担**知识导航(索引/地图)**的责任 —— 让 AI 从一个�
 | `project-specs/TROUBLESHOOTING.md` | 排查 / 运维操作手册(log / DB / 监控 / 部署) | 报错 / 502 / 查 log / 异常 / 服务挂 / 查环境 / 查 DB / 查 Redis / 部署 / 回滚 |
 | `project-specs/RELEASE-GUIDE.md` | **版本发布规范(人维护)**:集成分支→生产(默认 staging→main MR · URL 置顶 · 提醒用户合入 · 发布后补 release-gated 证据) | 用户说「发布 / 上线 / 发版」时 **PMO 必读照办**(合入归用户) |
 | `project-specs/ARCHITECTURE.md` | **workspace 级**系统架构(子项目拓扑 + 依赖 + 目录布局) | 跨子项目架构 / 系统全貌 |
-| `{子项目}/docs/architecture/ARCHITECTURE.md` | **单子项目内部**技术架构(技术栈/分层/模块) | 某子项目内部架构决策 |
+| `{子项目}/docs/architecture/ARCHITECTURE.md` | **单子项目内部**技术架构(技术栈/分层/模块) | 某子项目内部架构决策(模板 `templates/architecture.md`)|
 | `docs/architecture/database-schema.md` | 数据库 schema | 讨论数据模型 / schema |
 | `project-specs/PROCESS-LEDGER.md` | **流程价值台账**(一行一 feature:external 采纳率 / 角色真 finding / 暂停点互动 / bypass) | ship2 随收尾 MR append(详 [stages/ship-stage.md §16](./stages/ship-stage.md))· 流程审视 |
 | `external/` | 三方/外部资源文档(SDK / 协议 / 供应商) | 对接外部系统 / 三方 API |
-| `docs/features/{F}/` · `docs/features/*/adrs/INDEX.md` | 具体 Feature 产物 / ADR | 提到 F\d+ / 历史决策 |
+| `docs/features/{F}/` | 具体 Feature 产物 | 提到 F\d+ |
+| `{子项目}/docs/adr/` + 其 `INDEX.md` | 架构决策记录(🔴 **唯一落点 · ADR 不落 Feature 目录** · 单源 `templates/adr.md`)| 历史决策 |
 | `{子项目}/docs/features/_archive/INDEX.md`(单项目=repo 根 `docs/features/_archive/`) | 🔵 **归档冷库目录**(已交付 feature 的 id+描述+时间+zip 路径) | 查已交付/历史 feature / 翻旧账 · 先读描述判相关 → 必要才解压 zip |
 | `teamwork-space.md` | **地图根**(索引之索引 · 结构 / 子项目清单 / 跨项目变更 ID) | 任何 session 必读 · 多子项目 / 知识全景入口 |
 | 代码 | **细节唯一真相** | 涉及具体代码 → grep + Read(不信文档转述) |
@@ -533,7 +534,7 @@ v8 把 9 红线的可枚举子条目物化进 state.py;R3 + 部分行为约束(R
 | [docs/teamwork-space-guide.md](./docs/teamwork-space-guide.md) | teamwork-space.md 维护规范 |
 | [tools/state.py](./tools/state.py) | 唯一编排器入口 |
 | [tools/_v8_engine.py](./tools/_v8_engine.py) | 通用 stage start/complete + bypass 引擎 |
-| [tools/_v8_stage_specs.py](./tools/_v8_stage_specs.py) | 13 stage 完整契约(stage 数单源 `STAGE_SPECS`) |
+| [tools/_v8_stage_specs.py](./tools/_v8_stage_specs.py) | 12 stage 完整契约(stage 数单源 `STAGE_SPECS`) |
 | [tools/_v8_ship.py](./tools/_v8_ship.py) | ship-phase actions + ship-finalize + await-merge |
 | [tools/bootstrap.py](./tools/bootstrap.py) | session 启动维护(骨架 / codex agent toml 部署 / 历史注入段与 hooks 清理) |
 | [claude-agents/](./claude-agents/) | 第三视角冷审 prompt 模板(`state.py external-review` 组装进配方 · v8.291 codex-agents 已随跨厂商退役删除) |

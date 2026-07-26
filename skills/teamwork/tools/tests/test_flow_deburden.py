@@ -31,20 +31,11 @@ import _v8_engine as E  # noqa: E402
 import _v8_stage_specs as S  # noqa: E402
 
 
-# ─── 1 · 敏捷需求 review 角色减负 ───────────────────────────────────────
+# ─── 1 · 默认评审角色矩阵 ─────────────────────────────────────────────
 
 
-class TestAgileReviewRoles(unittest.TestCase):
-    def test_agile_review_drops_external(self):
-        self.assertEqual(E.DEFAULT_REVIEW_ROLES[("敏捷需求", "review")],
-                         ["architect", "qa"])
+class TestDefaultReviewRoles(unittest.TestCase):
 
-    def test_agile_goal_one_cold_reviewer_plus_pl(self):
-        """冷审 2→1 + pl(保 PL challenge 门禁 · _evidence_pl_challenge_present 消费 pl)。"""
-        roles = E.DEFAULT_REVIEW_ROLES[("敏捷需求", "goal")]
-        self.assertIn("pl", roles)
-        cold = [r for r in roles if r not in ("pl",)]
-        self.assertEqual(len(cold), 1, f"敏捷 goal 冷审角色应 1 个 · got {roles}")
 
     def test_feature_review_roles_unchanged(self):
         # v8.244:review 3 冷审 → 2 路并行(Architect 主审 + 覆盖方向制外审 · qa 并入)
@@ -54,10 +45,6 @@ class TestAgileReviewRoles(unittest.TestCase):
         self.assertEqual(E.DEFAULT_REVIEW_ROLES[("Feature", "goal")],
                          ["pl", "external"])
 
-    def test_build_default_roles_snapshot(self):
-        roles = E.build_default_stage_review_roles("敏捷需求")
-        self.assertNotIn("external", roles["review"])
-        self.assertIn("pl", roles["goal"])
 
     def test_external_evidence_gate_skips_for_agile_snapshot(self):
         """新敏捷 feature(roles 无 external)→ external_review_artifact 自动 skip。"""
@@ -68,22 +55,7 @@ class TestAgileReviewRoles(unittest.TestCase):
         self.assertTrue(ok)
         self.assertIn("skipped", reason)
 
-    def test_chain_preview_reflects_new_roles(self):
-        preview = {p["stage"]: p for p in E.build_stage_chain_preview("敏捷需求")}
-        self.assertEqual(preview["review"]["reviewers"], ["architect", "qa"])
-        self.assertIn("opt-in", preview["review"]["reason"])
-        self.assertIn("pl", preview["goal"]["reviewers"])
 
-    def test_pl_challenge_gate_now_applies_to_agile_goal(self):
-        """敏捷 goal 含 pl → PRD-REVIEW 无 PL-CHALLENGE 段被拦(门禁随角色生效)。"""
-        feat = Path(tempfile.mkdtemp())
-        (feat / "PRD-REVIEW.md").write_text(
-            "---\nverdicts: {qa: APPROVE}\n---\n无质疑\n", encoding="utf-8")
-        state = {"stage_review_roles": E.build_default_stage_review_roles("敏捷需求")}
-        ok, err = S._evidence_pl_challenge_present(state, NS(feature=str(feat)))
-        self.assertFalse(ok)
-        self.assertIn("PL-CHALLENGE", err)
-        shutil.rmtree(feat, ignore_errors=True)
 
 
 # ─── 2 · Micro distill 简表 ────────────────────────────────────────────
@@ -126,7 +98,7 @@ class TestMicroDistillLite(unittest.TestCase):
     def test_micro_knowledge_only_passes_and_autofills(self):
         d = _sanitize(self.feat, json.dumps({"knowledge": "gotcha: preview 端口漂移"}), 0)
         self.assertEqual(d["verdict"], "PASS")
-        for k in ("adr", "reg", "retro", "architecture", "db_schema"):
+        for k in ("adr", "retro", "architecture", "db_schema"):
             self.assertEqual(d["distill"][k], "无(Micro)")
         self.assertEqual(d["distill"]["knowledge"], "gotcha: preview 端口漂移")
         st = json.loads((self.feat / "state.json").read_text(encoding="utf-8"))
@@ -149,7 +121,6 @@ class TestMicroDistillLite(unittest.TestCase):
         d = _sanitize(self.feat, json.dumps(
             {"knowledge": "none", "adr": "promoted ADR-9"}), 0)
         self.assertEqual(d["distill"]["adr"], "promoted ADR-9")
-        self.assertEqual(d["distill"]["reg"], "无(Micro)")
 
 
 class TestNonMicroDistillUnchanged(unittest.TestCase):
@@ -167,15 +138,15 @@ class TestNonMicroDistillUnchanged(unittest.TestCase):
         else:
             os.environ["TEAMWORK_BYPASS_CHECKSUM"] = self._prev
 
-    def test_feature_still_requires_all_six(self):
+    def test_feature_still_requires_all_five(self):
         d = _sanitize(self.feat, json.dumps({"knowledge": "none"}), 1)
         self.assertEqual(d["verdict"], "FAIL")
-        for k in ("adr", "reg", "retro", "architecture", "db_schema"):
+        for k in ("adr", "retro", "architecture", "db_schema"):
             self.assertIn(k, str(d))
 
     def test_feature_full_six_passes(self):
         d = _sanitize(self.feat, json.dumps({
-            "knowledge": "none", "adr": "none", "reg": "none",
+            "knowledge": "none", "adr": "none",
             "retro": "n/a", "architecture": "no-change", "db_schema": "no-change"}), 0)
         self.assertEqual(d["verdict"], "PASS")
         self.assertNotIn("无(Micro)", json.dumps(d["distill"], ensure_ascii=False))

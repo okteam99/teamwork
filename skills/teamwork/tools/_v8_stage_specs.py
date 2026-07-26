@@ -31,12 +31,10 @@ from _v8_engine import (
 )
 
 def _flow_key(state: dict) -> str:
-    """v8.222:state → 内部流键(Feature+preset 归一到 敏捷需求/Micro 旧键 · legacy 值原样)。
+    """v8.222:state → 内部流键(Feature+preset 归一到 Micro 旧键 · legacy 值原样)。
     物化校验统一走本函数 —— v8.220 后 state.flow_type 只会是 Feature/Bug · 直接比对 legacy 名 = 死门。"""
     ft = state.get("flow_type") or ""
     pre = state.get("preset") or "full"
-    if ft == "Feature" and pre == "lite":
-        return "敏捷需求"
     if ft == "Feature" and pre == "micro":
         return "Micro"
     return ft
@@ -207,12 +205,6 @@ def _evidence_needs_ui_decided(state: dict, args) -> tuple[bool, str]:
             f"  false → 下一 stage = blueprint(直接进技术方案)"
         )
 
-    # 流程类型校验:敏捷需求不应有 UI
-    if val == "true" and _flow_key(state) == "敏捷需求":
-        return False, (
-            "敏捷需求流程 + --needs-ui=true 矛盾 · "
-            "若有 UI 改动应升级 Feature 流程(reset-prev + 改 flow_type)"
-        )
     return True, ""
 
 
@@ -449,7 +441,7 @@ def _goal_transition(state: dict) -> Optional[str]:
     """goal 完成后的下一 stage 选择。
 
     严格读 state.execution_hints.ui_design_needed(goal-complete --needs-ui 必传 ·
-    persist_args_to_evidence 落库)。goal 仅 Feature / 敏捷需求 可进
+    persist_args_to_evidence 落库)。goal 仅 Feature 可进
     (allowed_flow_types 拦 · Bug/Micro 初始 stage 分别是 diagnose/dev · 到不了这里)。
     """
     flow = _flow_key(state)
@@ -459,9 +451,6 @@ def _goal_transition(state: dict) -> Optional[str]:
         if hints.get("ui_design_needed") is True:
             return "ui_design"
         return "blueprint"
-    elif flow == "敏捷需求":
-        # 敏捷需求必 --needs-ui false(evidence_check 校验)· 直接 blueprint_lite
-        return "blueprint_lite"
     return None
 
 
@@ -586,8 +575,7 @@ def _evidence_pl_challenge_present(state: dict, args) -> tuple[bool, str]:
     """v8.132:stage_review_roles[goal] 含 pl 时 · PRD-REVIEW.md 必含「PL-CHALLENGE」标记
     (PL 对抗质疑物化 · 防同上下文切帽子的鼓掌过场)。
 
-    角色集无 pl(change-review-roles 调整去除)→ 自动放行。默认矩阵 Feature 与
-    敏捷需求 goal 均含 pl(敏捷 = 1 冷审 + pl · 保 PL challenge 门禁)。
+    角色集无 pl(change-review-roles 调整去除)→ 自动放行。
     """
     # v8.216:不再按 clarity 硬编码跳过 —— 评审配置由 AI 动态决策(prepare 按「角色价值判据」
     # 配 stage_review_roles · change-review-roles 带 reason 审计)· 本 gate 只 respect roster:
@@ -684,7 +672,7 @@ GOAL_SPEC = StageSpec(
         # 已删除的 state.py prepare 命令)· prepare 准入由 init-feature 的 prepare-check
         # audit 门禁承担(prepare.md §0.5 已物化)· 此处重复校验无信息量。
     ],
-    # goal stage = 业务目标确认 · 产 PRD · Feature / 敏捷需求 流程专属
+    # goal stage = 业务目标确认 · 产 PRD · Feature 流程专属
     # Feature Planning 走单 stage planning · 不进 goal
     artifacts=[
         # 文档类 artifact 多角色多轮修订 = 多 commit 常态 · must_be_in_commit=False
@@ -763,7 +751,7 @@ GOAL_SPEC = StageSpec(
     ],
     brief_template_fn=_goal_brief,
     auto_transition_fn=_goal_transition,
-    allowed_flow_types=["Feature"],  # v8.220:敏捷已并入 Feature(preset=lite)· Planning 不进 goal
+    allowed_flow_types=["Feature"],  # Planning / 排查不进 goal
     authorized_pause_point=(
         "§8 用户最终确认(全员 review 通过后)"
         "+ 条件暂停:§4 goal-critical 早问门(三闸过审的用户主权问题 ≤3 · 一次性 · "
@@ -858,14 +846,12 @@ DIAGNOSE_SPEC = StageSpec(
 
 
 def _check_blueprint_or_alt_done(state: dict, args) -> bool:
-    """dev 准入:blueprint/blueprint_lite output_satisfied · 或 Bug 流程 diagnose 完成 · 或 Micro 直入。
+    """dev 准入:blueprint output_satisfied · 或 Bug 流程 diagnose 完成 · 或 Micro 直入。
 
     v8.107:Bug 不再直入 dev —— 必先 diagnose(根因细查 + 修复方案 · 用户确认)· 防 fix 修偏。
     """
     contracts = state.get("stage_contracts", {})
     if contracts.get("blueprint", {}).get("output_satisfied") is True:
-        return True
-    if contracts.get("blueprint_lite", {}).get("output_satisfied") is True:
         return True
     flow = _flow_key(state)
     if flow == "Bug":
@@ -881,7 +867,7 @@ def _check_prd_or_bug_report(state: dict, args) -> bool:
     - Micro:无 PRD / BUG-REPORT(改 1 行常量 · spec 在 init-feature 时记到 state.json)
               → 直接 PASS(R0:flow_type 可枚举 · 不要把 Micro 当 Feature/Bug 校验)
     - Bug:必有 bugfix/BUG-*.md(模板 templates/bug-report.md)
-    - Feature / 敏捷需求 / 其他:必有 PRD.md(goal stage 产物)
+    - Feature / 其他:必有 PRD.md(goal stage 产物)
     """
     flow = _flow_key(state)
     if flow == "Micro":
@@ -889,7 +875,7 @@ def _check_prd_or_bug_report(state: dict, args) -> bool:
     feature_dir = Path(args.feature)
     if flow == "Bug":
         return bool(list(feature_dir.glob("bugfix/BUG-*.md")))
-    # Feature / 敏捷需求:goal stage 必产 PRD.md
+    # Feature:goal stage 必产 PRD.md
     return (feature_dir / "PRD.md").exists()
 
 
@@ -932,7 +918,7 @@ def _dev_transition(state: dict) -> Optional[str]:
     """dev 完成后的下一 stage。
 
     v8.250:micro 不再走 dev(改走 execute → ship · 见 EXECUTE_SPEC)—— dev 只服务
-    Feature(full)/ Bug / 敏捷(legacy),全部 → review。旧 Micro→pm_acceptance 分支已删(死路)。
+    Feature(full)/ Bug 全部 → review。旧 Micro→pm_acceptance 分支已删(死路)。
     v8.261:fast_mode 不再跳 review(留单路合并代码评审 · Architect+QA 关注点合一)。
     """
     return "review"
@@ -945,25 +931,25 @@ DEV_SPEC = StageSpec(
             id="blueprint_or_alt_done",
             check_fn=_check_blueprint_or_alt_done,
             hint=(
-                "Feature/敏捷流程:先完成 blueprint(-complete) 或 blueprint_lite(-complete)。"
+                "Feature 流程:先完成 blueprint(-complete)。"
                 "Bug 流程:先完成 diagnose(-complete · 根因细查 + 修复方案确认)· 不再直入 dev。"
                 "Micro 流程:无需前置 · 可直入 dev。"
                 "当前 flow_type / stage_contracts 不满足任一条件。"
             ),
-            description="blueprint/blueprint_lite output_satisfied · 或 Bug diagnose 完成 · 或 Micro",
+            description="blueprint output_satisfied · 或 Bug diagnose 完成 · 或 Micro",
         ),
         StagePrerequisite(
             id="prd_or_bug_report_exists",
             check_fn=_check_prd_or_bug_report,
             hint=(
-                "Feature / 敏捷需求 流程必须有 PRD.md(回 goal-complete 起草)。"
+                "Feature 流程必须有 PRD.md(回 goal-complete 起草)。"
                 "Bug 流程必须有 bugfix/BUG-*.md(模板 templates/bug-report.md · "
                 "含 frontmatter bug_id/symptom/root_cause/fix_summary + "
                 "body §现象/§根因/§修复方案/§回归测试)。"
                 "Micro 流程 skip(改 1 行常量 · 无 spec 文档)。"
             ),
             description=(
-                "按 flow_type 分支:Feature/敏捷需求→PRD.md · Bug→bugfix/BUG-*.md · Micro→skip"
+                "按 flow_type 分支:Feature→PRD.md · Bug→bugfix/BUG-*.md · Micro→skip"
             ),
         ),
         StagePrerequisite(
@@ -1050,7 +1036,7 @@ def _evidence_panorama_changed_decided(state: dict, args) -> tuple[bool, str]:
 def _ui_design_transition(state: dict) -> Optional[str]:
     """ui_design 完成后 · 按 execution_hints.panorama_changed 分支:
     - true → panorama_sync(workspace 级 IA 同步 · 跨 Feature 评审)
-    - false → blueprint(ui_design 仅 Feature 流程可达 · 敏捷需求 goal 强制 needs-ui=false 直去 blueprint_lite)
+    - false → blueprint(ui_design 仅 Feature 流程可达)
     """
     hints = state.get("execution_hints", {})
     if hints.get("panorama_changed") is True:
@@ -1624,69 +1610,6 @@ def _evidence_ac_test_binding(state: dict, args) -> tuple[bool, str]:
         return False, f"verify-ac.py 执行失败: {e}"
 
 
-# v8.19:external review 异质性硬约束(治本 SVC-CORE-F034 case · AI 用同模型 subagent 自审)
-# 白名单:已知模型族字面(case-insensitive · host-aware 判定时 host 同族会被排除)
-EXTERNAL_REVIEW_HETERO_KEYWORDS = (
-    "claude", "anthropic", "codex", "gpt", "openai", "gemini", "google", "bard",
-    "deepseek", "qwen", "llama", "grok", "mistral",
-)
-# 同源「机制」字面:宿主自起 isolated/subagent 子进程 = 同模型自审 · 无论 host 全 BLOCK
-EXTERNAL_REVIEW_SAME_CONTEXT_BLOCKED = (
-    "isolated", "subagent", "general-purpose", "self",
-)
-# 各模型族字面(host-aware 同源判定:review model 与 host 同族 → 同源)
-_MODEL_FAMILY_KEYWORDS = {
-    "claude": ("claude", "anthropic"),
-    "codex": ("codex", "gpt", "openai"),
-    "gemini": ("gemini", "google", "bard"),
-}
-
-
-def _host_to_family(host) -> Optional[str]:
-    """host → 模型族:claude-code→claude / codex-cli→codex / gemini-cli→gemini · 未知→None。"""
-    h = (host or "").lower()
-    if "claude" in h:
-        return "claude"
-    if "codex" in h or "openai" in h:
-        return "codex"
-    if "gemini" in h or "google" in h:
-        return "gemini"
-    return None
-
-
-def _check_external_hetero(name: str, host=None) -> tuple[bool, str]:
-    """v8.68:host-aware 校验文件名 / review_model 是否真异质模型 · 返 (is_hetero, reason)。
-
-    治本 case(SVC-PLATFORM-F060 · host=codex-cli):external-review 已 host-aware
-    (`EXTERNAL_HOST_TO_MODEL` codex-cli→claude)· 但本 checker 旧版**静态**黑名单把 claude
-    一律判同源 → **误判** codex-cli 宿主下合规的 Claude external review = 同源自审。
-
-    同源 = ① 机制字面(isolated/subagent 宿主自起子进程 · 无论 host 全 BLOCK)· 或
-    ② review model 与 host **同族**(codex-cli host 下 claude 是异质 · 不再误判)。
-    host 缺失 → 保守默认 claude-code(历史默认 · 不放宽老 case 的同源保护)。
-    """
-    low = name.lower()
-    # 1. 同源机制黑名单(无论 host · subagent/isolated 是宿主自起子进程 · 非真异质进程)
-    for kw in EXTERNAL_REVIEW_SAME_CONTEXT_BLOCKED:
-        if kw in low:
-            return False, f"命中同源机制字面 {kw!r}(宿主自起 isolated/subagent 自审 · 非异质进程)"
-    # 2. host-aware 同源模型族(host 缺失 → 保守默认 claude)
-    host_family = _host_to_family(host) or "claude"
-    for kw in _MODEL_FAMILY_KEYWORDS.get(host_family, ()):
-        if kw in low:
-            return False, (
-                f"命中宿主同源模型族字面 {kw!r}(host={host or '默认 claude-code'}/"
-                f"{host_family} · 同模型评同模型 = 非异质)"
-            )
-    # 3. 必含某已知外部模型族字面 → 真异质
-    for kw in EXTERNAL_REVIEW_HETERO_KEYWORDS:
-        if kw in low:
-            return True, ""
-    return False, (
-        f"未含已知模型族字面(白名单:{', '.join(EXTERNAL_REVIEW_HETERO_KEYWORDS)})"
-    )
-
-
 def _external_run_log_exists(feature_dir: Path, stage: str) -> bool:
     """本 stage 第三视角冷审有「走过命令」的证据(yolo 门禁用)。
 
@@ -1820,78 +1743,6 @@ BLUEPRINT_SPEC = StageSpec(
         "条件暂停:TECH 涉数据库结构变更(表/字段/索引/约束/migration)时须用户确认"
         "(stage.md §7.5)· 不涉则不停 · 完成后自动转 dev(NEEDS_REVISION 主对话内 PM 回应循环)"
     ),
-)
-
-
-# ─── B5 · blueprint_lite(仅敏捷需求) ─────────────────────────────
-
-
-def _check_flow_is_agile(state: dict, args) -> bool:
-    return _flow_key(state) == "敏捷需求"
-
-
-def _blueprint_lite_brief(state: dict) -> str:
-    """v8.0+P0-8 极简版:目标 + 结果 + 完成方式 · 怎么做归 stage.md。"""
-    return f"""## Blueprint Lite Stage
-
-### 目标
-敏捷需求精简版 blueprint · 只产 TC.md(精简) · 砍 TECH/TECH-REVIEW/External。
-
-### 结果(完成判定)
-- `TC.md`(frontmatter:`tests` · 每 AC 至少 1 test)
-
-### 怎么做
-**必读** `stages/blueprint-lite-stage.md`(详细步骤 4 步 + 注意事项 5 条 · 含敏捷准入校验)。
-📋 产物模板:本 emit 的 `scaffold_hints.templates` 给**绝对路径** · 照它起草 · 别抄项目旧产物。
-
-### 完成方式
-```
-state.py blueprint_lite-complete --feature <path> --auto-commit <hash> \
-  --artifacts TC.md
-```
-"""
-
-
-def _blueprint_lite_transition(state: dict) -> Optional[str]:
-    return "dev"
-
-
-# v8.223 DEPRECATED:blueprint_lite 仅服务**存量 in-flight**(state.preset=lite / legacy 敏捷需求)·
-# 新 feature 一律走 blueprint(轻量由 roster/clarity)· 存量走完后本 spec 与 stage 文件删除。
-BLUEPRINT_LITE_SPEC = StageSpec(
-    name="blueprint_lite",
-    prerequisites=[
-        StagePrerequisite(
-            id="flow_type_is_agile",
-            check_fn=_check_flow_is_agile,
-            hint="blueprint_lite 仅敏捷需求流程触发 · 检查 state.flow_type",
-            description="flow_type == '敏捷需求'",
-        ),
-        StagePrerequisite(
-            id="goal_completed",
-            check_fn=_check_stage_output_satisfied("goal"),
-            hint="先完成 state.py goal-complete",
-            description="goal output_satisfied",
-        ),
-        StagePrerequisite(
-            id="prd_exists",
-            check_fn=_check_file_exists("PRD.md"),
-            hint="PRD.md 不存在 · 回 goal stage 起草",
-            description="{Feature}/PRD.md 必须存在",
-        ),
-    ],
-    artifacts=[
-        StageArtifactSpec(
-            path="TC.md",
-            frontmatter_required=["tests"],
-            description="精简版测试用例",
-        ),
-    ],
-    evidence_checks=[],  # 敏捷需求不强制 verify-ac.py
-    brief_template_fn=_blueprint_lite_brief,
-    auto_transition_fn=_blueprint_lite_transition,
-    allowed_flow_types=["Feature"],  # v8.220:blueprint_lite 属 Feature preset=lite 链(链图限定可达性)
-    authorized_pause_point="无暂停 · 完成后自动转 dev",
 )
 
 
@@ -2307,7 +2158,7 @@ def _review_brief(state: dict) -> str:
 
 ### 怎么做
 **必读** `stages/review-stage.md`(评审步骤 + 收敛协议:severity 门槛 / 验证轮 / 轮次预算)。
-🔴 **finding 处理默认姿态=质疑**(不盲目认同):逐条 先质疑(过度设计/错层/false positive · 🛡️ **安全加固/兜底降级最易盲采 · 必过 ROI** 概率×后果 vs 成本 · v8.279)→ 回读真实代码确认 → 才 confirmed/rejected · **两个方向都给实证**:采纳给「为何确为真+为何这样改对」· 驳回给「为何不是问题」·「reviewer 说得对」与「我觉得没事」都不是理由(详 standards/external-model-usage.md §12)。
+🔴 **finding 处理默认姿态=质疑**(不盲目认同):逐条 先质疑(过度设计/错层/false positive · 🛡️ **安全加固/兜底降级最易盲采 · 必过 ROI** 概率×后果 vs 成本 · v8.279)→ 回读真实代码确认 → 才 confirmed/rejected · **两个方向都给实证**:采纳给「为何确为真+为何这样改对」· 驳回给「为何不是问题」·「reviewer 说得对」与「我觉得没事」都不是理由(详 standards/external-model-usage.md §二)。
 
 {_review_findings_gate_lines()}
 ### 完成方式
@@ -2933,7 +2784,6 @@ STAGE_SPECS: dict[str, StageSpec] = {
     "ui_design": UI_DESIGN_SPEC,
     "panorama_sync": PANORAMA_SYNC_SPEC,
     "blueprint": BLUEPRINT_SPEC,
-    "blueprint_lite": BLUEPRINT_LITE_SPEC,
     "diagnose": DIAGNOSE_SPEC,
     "dev": DEV_SPEC,
     "execute": EXECUTE_SPEC,   # v8.250:micro 唯一工作 stage(零门禁自由执行)

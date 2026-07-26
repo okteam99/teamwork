@@ -60,7 +60,8 @@ class TestDocsConsistent(unittest.TestCase):
     def test_no_stale_optout_references(self):
         """全库不得再出现 disable_external_review 作为活配置(只允许退役说明)。"""
         bad = []
-        for f in list(ROOT.rglob("*.md")) + list(ROOT.rglob("*.py")):
+        for f in (list(ROOT.rglob("*.md")) + list(ROOT.rglob("*.py"))
+                  + list(ROOT.rglob("*.json"))):   # v8.293:漏 .json 让模板里的活配置躲过一版
             if "CHANGELOG" in f.name or "RETRO" in f.name or f.name.startswith("test_"):
                 continue
             for i, line in enumerate(f.read_text(encoding="utf-8", errors="replace").splitlines(), 1):

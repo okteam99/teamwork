@@ -404,15 +404,6 @@ class TestNeedsUiDecided(unittest.TestCase):
         self.assertFalse(passed)
         self.assertIn("--needs-ui 必传", err)
 
-    def test_agile_flow_needs_ui_true_rejected(self):
-        """敏捷需求 + needs_ui=true → FAIL · 应升级 Feature 流程。"""
-        from _v8_stage_specs import _evidence_needs_ui_decided
-
-        state = {"flow_type": "敏捷需求"}
-        args = SimpleNamespace(needs_ui="true")
-        passed, err = _evidence_needs_ui_decided(state, args)
-        self.assertFalse(passed)
-        self.assertIn("敏捷需求", err)
 
 # Feature Planning 不进状态机 · 不会到达 needs-ui check · 测试已删除
 
@@ -975,12 +966,6 @@ if __name__ == "__main__":
 class TestFindingPostureHintV8151(unittest.TestCase):
     """v8.151:finding 消费姿态进 brief(主动推 · 防 v8.150 spec 只被动躺 doc)。"""
 
-    def test_posture_hint_carries_skeptical_first(self):
-        from state import _FINDING_POSTURE_HINT  # type: ignore
-        # v8.152:两个方向都摆明实证(ADOPT 与 REJECT 都点名 · 不只抽象「对称」)
-        for tok in ("质疑", "回读", "两个方向都必给实证", "ADOPT 给", "REJECT 给",
-                    "举证责任对称", "§12"):
-            self.assertIn(tok, _FINDING_POSTURE_HINT, f"posture hint 缺 {tok}")
 
     def test_review_brief_carries_posture(self):
         from _v8_stage_specs import _review_brief  # type: ignore

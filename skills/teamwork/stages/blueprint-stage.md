@@ -81,4 +81,4 @@ state.py blueprint-complete ...     # verify-ac.py 自动跑 · external-review 
 
 - 引擎:[../tools/_v8_engine.py](../tools/_v8_engine.py)
 - spec:[../tools/_v8_stage_specs.py](../tools/_v8_stage_specs.py) `BLUEPRINT_SPEC`
-- external 协议:[../standards/external-model-usage.md §十一](../standards/external-model-usage.md) · 入口规范:[../SKILL.md](../SKILL.md)
+- external 协议:[../standards/external-model-usage.md §二](../standards/external-model-usage.md) · 入口规范:[../SKILL.md](../SKILL.md)

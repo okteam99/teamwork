@@ -4,7 +4,7 @@
 
 ---
 
-## 1. 13 stage 索引(与 [tools/_v8_stage_specs.py](./tools/_v8_stage_specs.py) `STAGE_SPECS` 对齐)
+## 1. 12 stage 索引(与 [tools/_v8_stage_specs.py](./tools/_v8_stage_specs.py) `STAGE_SPECS` 对齐)
 
 | Stage | 文件 | 适用 flow_type |
 |---|---|---|
@@ -12,7 +12,6 @@
 | ui_design | [stages/ui-design-stage.md](./stages/ui-design-stage.md) | Feature(--needs-ui=true) |
 | panorama_sync | [stages/panorama-sync-stage.md](./stages/panorama-sync-stage.md) | Feature(sitemap / 全景同步) |
 | blueprint | [stages/blueprint-stage.md](./stages/blueprint-stage.md) | Feature |
-| blueprint_lite | [stages/blueprint-lite-stage.md](./stages/blueprint-lite-stage.md) | 🔴 DEPRECATED(v8.223 · 仅存量 in-flight)|
 | diagnose | [stages/diagnose-stage.md](./stages/diagnose-stage.md) | Bug(流首 stage · 根因细查+修复方案 · 用户确认后进 dev) |
 | dev | [stages/dev-stage.md](./stages/dev-stage.md) | Feature(full)/ Bug |
 | execute | [stages/execute-stage.md](./stages/execute-stage.md) | Feature(preset=micro · 零门禁自由执行 → ship · v8.250) |

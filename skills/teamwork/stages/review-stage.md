@@ -12,7 +12,7 @@
 
 ## ② 硬规则(白名单 · 每条一行 why · 违者 gate 拦或 review 无效)
 
-1. **评审独立性**:每视角独立评、各自落 `REVIEW-{role}.md`、**不互喂 verdict / 不读他人报告**(why:防鼓掌效应——独立性没了,多视角 = 一个视角 × N 份)。评审角色按 `state.stage_review_roles.review`(prepare 按角色价值判据配 · 审计留痕);**做多少可调,做了就必须独立**。
+1. **评审独立性**:每视角**独立起草期**互不可见 —— **不互喂 verdict / 不读他人报告**,写完各自汇入 `REVIEW.md`(角色归属靠 `findings[].source` + 规则 10 的 coverage 申报)(why:防鼓掌效应——独立性没了,多视角 = 一个视角 × N 份)。评审角色按 `state.stage_review_roles.review`(prepare 按角色价值判据配 · 审计留痕);**做多少可调,做了就必须独立**。
 2. **severity 定级纪律**:「可能有问题」不是 MAJOR——MAJOR 须给确定性实证(哪个输入/哪行/什么错误行为),拿不出 → MINOR(why:不收敛的根因就是无实证的高定级)。分级表:`BLOCKER`=AC 失败/数据损坏/安全;`MAJOR`=可实证复现的确定性 bug;`MINOR`=改进建议;`NIT`=风格。
 3. **verdict 门槛**(review-complete 物化拦截):NEEDS_REVISION 须 ≥1 条 open BLOCKER/MAJOR 且 findings 机读台账非空;APPROVE 不得有 open BLOCKER/MAJOR(open MINOR/NIT = advisory 随行或转 deferred)。
 3.5 **release-gated 裁决**(v8.251 · 拆开「代码门」vs「发版门」):**review 只 gate 代码完整性**(本地/CI 能修的);证据**物理上必须 post-deploy** 的 BLOCKER/MAJOR 不该卡 review —— 标 `status: deferred` + `deferred_reason: "release-gated · 欠<什么证据>"`,别磨轮,它是**发版义务不是 review 阻塞**。
@@ -23,11 +23,11 @@
 4. **逐条裁决 · 举证对称**:每条 finding 走 **质疑 → 确认 → 裁决**(先假设不成立 · 回读真实代码核实 · 再定 confirmed/rejected/deferred);**confirmed 与 rejected 都必记实证**(why:盲采 = churn/误改,盲驳 = 白跑;「reviewer 说得对」不是采纳理由)。
 5. **验证轮范围锁定**(Round 2+):只裁决上轮 open finding + 回归审查修复 diff · **禁全量重扫**(新 finding 仅限出自修复 diff、或 BLOCKER 级附「为何首轮未发现」);rejected 不得复提(除非新证据);同一代码点相邻轮方向相反(加固↔简化)= 钟摆 → 不修 · 升暂停点(why:全量重扫每轮随机采样出新 nit = 不收敛根因)。🎚️ **验证轮派发用验证档模型**(v8.256 · 核实 fix = 校验型 · 首轮不降档)。
 6. **轮次预算**:超 `max_review_rounds`(默认 3 · ⚡ **fast 封顶 2** 〔v8.267 · localconfig 更小则从小 · 超预算暂停点 = 未收敛决策点抛用户:open findings 按 severity 列全〕)→ R5 升级暂停点用户裁决(1 仅修 BLOCKER/MAJOR 收口 💡 / 2 继续〔`review-retry --user-confirmed` 必须真有用户拍板 · yolo blanket 例外〕/ 3 按现状 APPROVE + deferred 留痕)。
-7. **external 按 roster + 独立性协议 + 覆盖方向制**:roster 含 external → 跑 `state.py external-review --stage review`(先 `--preflight` 秒级验环境;同步慢 · 常 30s–3min · **别提前 kill**;超时/空输出 = FAIL 非放行;客观不可用已重试 → `--self-review-fallback` 显式降级 subagent 冷审 · frontmatter 标 `degraded` · 🔴 **绝不伪造/冒充/静默跳过**)。🔴 **外审内容契约(v8.244 · QA 视角并入)**:必覆盖 **测试真实性与覆盖**(测试真跑〔= 读实跑证据/日志 · 非自己重跑 · v8.273〕/ 覆盖真行为 / 边界回归)· **代码质量盲区**(错误处理 / 日志 / 并发)+ **AI 自主方向 ≥1**(候选:并发 / 资源泄漏 / 脱敏 / 兼容)· 每方向 finding 或「查过无发现」· 产物记 `coverage: [...]`(物化门 `cross_review_coverage` · review 从严:清单比 blueprint 重一档)。拟 APPROVE 前有过 fix → `--verify-fixes` 增量重验(物化校验)。🎭 默认(跨厂商异质关)第三视角 = **错开模型** subagent 冷审(≠主会话模型(如 fable5 会话 → 外审 opus) · v8.268)。🐛 **Bug 流默认单路 `[external]`**(v8.270:diagnose 已经用户确认方案 · review 聚焦 fix↔方案一致 + 不引入新问题 · Architect/QA 视角并入外审覆盖方向〔+修复↔方案一致性〕· 单路错开模型天然满足 v8.269 不变式 · `change-review-roles` 可加回)。
+7. **external 按 roster + 独立性协议 + 覆盖方向制**:roster 含 external → 跑 `state.py external-review --stage review` 拿 subagent 配方 → 起**错开模型** subagent 冷审(v8.291:跨厂商 CLI 已退役 · 本命令不 exec 子进程)· 🔴 **绝不伪造/冒充/静默跳过**。🔴 **外审内容契约(v8.244 · QA 视角并入)**:必覆盖 **测试真实性与覆盖**(测试真跑〔= 读实跑证据/日志 · 非自己重跑 · v8.273〕/ 覆盖真行为 / 边界回归)· **代码质量盲区**(错误处理 / 日志 / 并发)+ **AI 自主方向 ≥1**(候选:并发 / 资源泄漏 / 脱敏 / 兼容)· 每方向 finding 或「查过无发现」· 产物记 `coverage: [...]`(物化门 `cross_review_coverage` · review 从严:清单比 blueprint 重一档)。拟 APPROVE 前有过 fix → `--verify-fixes` 增量重验(物化校验)。🐛 **Bug 流默认单路 `[external]`**(v8.270:diagnose 已经用户确认方案 · review 聚焦 fix↔方案一致 + 不引入新问题 · Architect/QA 视角并入外审覆盖方向〔+修复↔方案一致性〕· 单路错开模型天然满足 v8.269 不变式 · `change-review-roles` 可加回)。
 8. 🛡️ **复发防御沉淀(v8.278 · shift-left 喂料)**:review 收敛(APPROVE)后 · 确认 findings 里**可预防的复发类**(下个 feature RD 写时能避开的 · 如 stale/timeout/fail-open)→ 沉淀进 `project-specs/KNOWLEDGE.md § 复发防御清单`(同类第 2 次被抓即入 · **已在清单还复发 = 规避法不够硬 · 强化它**)。判据:findings 82% 真实且集中 code review · 砍轮数=漏 bug · 真杠杆=预防掉的 finding 永不需要收敛(dev 起草必读该清单)。**判断型 · 非机械门**(不是每条都提升 · 一次性/纯涌现的不入)。
    📊 **同步记录起草可预防性(v8.281)**:review 收敛后跑 `state.py review-preventability --stage review --preventable N --total M --missing '缺的起草考虑点(分号分隔·全 emergent 留空)'` —— 逐条判 findings 起草时本可预防否(本应被 TECH 简洁性自查/复发清单/PL六问挡掉)· 缺哪条考虑点。ship 聚合进台账「🛡️ 起草可预防性」列 · 年检据此判起草考虑点缺不缺(反复缺同一条 = 真缺口补框架 · 全 emergent = 别动)。非门禁 · 纯采集。goal/blueprint 冷审同理(`--stage goal|blueprint`)。
 9. 🔴 **审核员只审内容 · 不重复跑测试脚本**(v8.273):评审 = **静态审读**(diff / 代码 / 测试代码 / dev·test 实跑证据日志)—— 测试执行归 dev(TDD)与 test stage(硬门 exit 0/差分 · 证据已落盘);「测试真实性」= **读**测试代码与实跑证据判断(真测行为?mock 作弊?边界缺?)· 不是自己再跑一遍;疑点开 finding 由流水线实跑验证(评审重跑 = 双倍时延零新增证据 · Architect/QA/external/验证轮全适用)。
-8. **每个 roster 主审角色在 REVIEW.md 内一行 coverage 申报**(查过哪些方向 · 有问题列 finding · 无则「查过无发现」)—— 缺申报 → complete FAIL(roster 移出的角色不查 · 机器校验 roster-aware)(why:防橡皮图章 —— 光秃秃 APPROVE + 零 finding 与「根本没评审」在产物上无法区分;v8.289 取代 `REVIEW-<role>.md` 独立文件:门禁只查它存在不查内容、角色归属早在 `findings[].source`、实测两文件体量几乎相同 = 同一批判断写两遍)。
+10. **每个 roster 主审角色在 REVIEW.md 内一行 coverage 申报**(查过哪些方向 · 有问题列 finding · 无则「查过无发现」)—— 缺申报 → complete FAIL(roster 移出的角色不查 · 机器校验 roster-aware)(why:防橡皮图章 —— 光秃秃 APPROVE + 零 finding 与「根本没评审」在产物上无法区分;v8.289 取代 `REVIEW-<role>.md` 独立文件:门禁只查它存在不查内容、角色归属早在 `findings[].source`、实测两文件体量几乎相同 = 同一批判断写两遍)。
 
 ---
 
@@ -89,5 +89,5 @@ review-complete --verdict NEEDS_REVISION → RD 修+commit → review-fix --auto
 ## 相关
 
 - 引擎:[../tools/_v8_engine.py](../tools/_v8_engine.py) · spec:[../tools/_v8_stage_specs.py](../tools/_v8_stage_specs.py) `REVIEW_SPEC`
-- external 协议:[../standards/external-model-usage.md](../standards/external-model-usage.md)(§11 降级 · §12 裁决)
+- external 协议:[../standards/external-model-usage.md](../standards/external-model-usage.md)(§一 形态 · §二 裁决纪律)
 - 角色 telos:[../roles/architect.md](../roles/architect.md) / [../roles/qa.md](../roles/qa.md)

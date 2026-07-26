@@ -13,7 +13,7 @@ SKILL_ROOT = Path(__file__).resolve().parent.parent.parent
 
 # 退役词 → 编译后的模式(Micro 用英文边界防误伤 microservice 等)
 RETIRED_PATTERNS = {
-    "敏捷需求": re.compile("敏捷需求"),
+    "敏捷需求": re.compile("敏捷需求"),  # v8.293 起代码侧也已删净
     "Micro": re.compile(r"(?<![A-Za-z0-9_-])Micro(?![A-Za-z0-9_])"),
     "blueprint_lite": re.compile(r"blueprint[_-]lite"),
     "teamwork_version": re.compile(r"teamwork_version"),

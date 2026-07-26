@@ -772,10 +772,6 @@ class TestPrepareCheck(unittest.TestCase):
         self.assertEqual(d["id_letter"], "F")
         self.assertEqual(d["next_available_id_stem"], "PTR-F047")
 
-    def test_agile_shares_f_series(self) -> None:
-        d = self._check("敏捷需求")
-        self.assertEqual(d["id_letter"], "F")
-        self.assertEqual(d["next_available_id_stem"], "PTR-F047")
 
     def test_micro_recommends_m_series(self) -> None:
         # v8.220:Micro 并入 Feature(preset=micro)· M 系退役 · 与 F 系同号池
@@ -1733,11 +1729,6 @@ class TestPanoramaSyncStage(unittest.TestCase):
               "execution_hints": {"panorama_changed": False}}
         self.assertEqual(_ui_design_transition(st), "blueprint")
 
-    def test_agile_flow_has_no_ui_design_stage(self):
-        """敏捷需求流程图不含 ui_design(goal 强制 --needs-ui=false 直去 blueprint_lite)·
-        故 _ui_design_transition 无敏捷分支(不可达代码已删)。"""
-        from state import AGILE_FLOW
-        self.assertNotIn("ui_design", AGILE_FLOW)
 
     def test_transition_no_hint_defaults_to_blueprint(self):
         """无 panorama_changed hint · 回退非-panorama-sync 路径(向后兼容)。"""
@@ -2012,26 +2003,6 @@ class TestExternalReviewPromptV8136(unittest.TestCase):
         custom = "You are a reviewer. {file_list}"
         self.assertEqual(_extract_prompt_body(custom), custom)
 
-    def test_prompt_doc_stale_gate(self):
-        """显式 doc 旧于待评审文件 → 返 stale 原因;新于 → None;review stage 无清单 → None。"""
-        from state import _prompt_doc_stale_reason  # type: ignore
-        tmp = Path(tempfile.mkdtemp(prefix="tw-v8136-stale-"))
-        try:
-            doc = tmp / "p.md"
-            doc.write_text("old prompt", encoding="utf-8")
-            time.sleep(0.05)
-            (tmp / "PRD.md").write_text("newer prd", encoding="utf-8")
-            os.utime(tmp / "PRD.md", (time.time() + 5, time.time() + 5))
-            reason = _prompt_doc_stale_reason(doc, tmp, "goal")
-            self.assertIsNotNone(reason)
-            self.assertIn("PRD.md", reason)
-            # doc 新于 PRD → 通过
-            os.utime(doc, (time.time() + 10, time.time() + 10))
-            self.assertIsNone(_prompt_doc_stale_reason(doc, tmp, "goal"))
-            # review stage:无 inline 清单 → 不检查
-            self.assertIsNone(_prompt_doc_stale_reason(doc, tmp, "review"))
-        finally:
-            shutil.rmtree(tmp, ignore_errors=True)
 
 
 if __name__ == "__main__":

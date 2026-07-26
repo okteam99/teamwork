@@ -38,7 +38,7 @@
 
 ## 按主题索引
 
-> 每个 tag 对应的 ADR 列表。PMO preflight 时按当前 Feature 的主题扫描相关 ADR。
+> 每个 tag 对应的 ADR 列表。PMO triage 时按当前 Feature 的主题扫描相关 ADR。
 
 - **db** (数据库选型/schema/迁移): ADR-0001, ADR-0005
 - **api** (API 设计/契约/版本): ADR-0002
@@ -52,15 +52,8 @@
 
 ## 维护约定
 
-- 🔴 ID 连续编号（0001, 0002, ...），永不复用；superseded 的 ID 保留在「已废弃」段
-- 🔴 每条新增 / 状态变更必须同步更新本索引
-- 🔴 superseded 时双向链接：新 ADR 的 `supersedes` 字段 + 旧 ADR 的 `status=superseded-by-*`
-- 📎 新增主题 tag 时在「按主题索引」段追加一行
-- 📎 PMO preflight 读取此文件时只需读前 N 行即可（体量上限 200 行，超出说明需要分片）
+> 🔴 编号规则 / 每次变更同步本索引 / superseded 双向链接 —— 基准同 `templates/adr.md`,此处不复述。
 ```
 
-## 使用约定
-
-- **PMO preflight**：读取本索引，按当前 Feature 的主题/涉及模块扫描「活跃决策」段，列出可能影响当前 Feature 的 ADR-ID 清单，注入 PMO 初步分析摘要
-- **Blueprint Stage 架构师评审**：新增 / 变更 ADR 时同步更新此索引（不更新 = 流程偏离）
-- **首次创建**：项目首次产出 ADR 时自动创建本索引文件（Blueprint Stage 架构师职责）
+> v8.293:本文件原 66 行里,「PMO 读本索引」写了 4 遍、编号与同步规则与 `adr.md` 各写一份。
+> 现在只留**索引骨架** —— 规则单源在 [adr.md](./adr.md)。
