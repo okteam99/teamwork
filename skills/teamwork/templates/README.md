@@ -35,6 +35,7 @@
 | [glossary.md](./glossary.md) | GLOSSARY 业务术语表 | bootstrap 建空壳 · PRD/TECH 起草前 + triage 按需读 |
 | [troubleshooting.md](./troubleshooting.md) | TROUBLESHOOTING 排查工具集（环境 / log / DB / 敏感配置读法） | bootstrap 建空壳 · 排查与 AI 连环境时必读 |
 | [process-ledger.md](./process-ledger.md) | PROCESS-LEDGER 流程价值台账（一行一 feature · 年检数据源） | ship1 规划 gate append · 无则按模板建 |
+| [process-retro.md](./process-retro.md) | 流程复盘（耗时归因 + 流程反思四问 · 台账装不下的那部分） | ship1 规划 gate（与台账行同时 · 落 `{子项目}/docs/retros/<id>-process.md` · 进 --planning-artifacts） |
 
 ## 规划层（product-overview / 子项目 ROADMAP）
 

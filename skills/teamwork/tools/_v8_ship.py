@@ -1047,7 +1047,9 @@ def _handle_ship_archive(state: dict, args: argparse.Namespace) -> dict:
         # v8.295:耗时归因(各 stage stage-cost 记录聚合)· 台账「⏱️ 耗时归因」列
         # · 年检据此看协调开销占比趋势 —— 也是验证提效改动(v8.294 收敛期归一/TC 边界/
         # 投机窗准入)是否真起效的唯一手段。
-        "ledger_stage_cost": _stage_cost_summary(state),
+        "ledger_stage_cost": _stage_cost_summary(state, _process_retro_path(state, feature_id)),
+        # v8.297:流程复盘文档落点(耗时归因叙述 + 流程反思四问 —— 台账装不下的那部分)
+        "ledger_process_retro_path": _process_retro_path(state, feature_id),
         # v8.180:WS 进度块确定性自刷结果(None = feature 不属 WS / 对应F编号 未填 → 未刷 · 见 §3.5)
         "ws_progress_refreshed": ws_refreshed,
         "warnings": [
@@ -1615,30 +1617,36 @@ def _stage_durations(state: dict):
     return breakdown, analysis
 
 
-def _stage_cost_summary(state: dict):
-    """v8.295:聚合各 stage 的耗时归因 → 台账「⏱️ 耗时归因」列(年检分析源)。
+def _stage_cost_summary(state: dict, retro_path: str = ""):
+    """v8.295/297:聚合各 stage 耗时归因 → 台账「⏱️ 耗时归因」列。
 
-    渲染 "协调开销 M/N 轮 · <stage>:<note> · 类型:双档同步;门禁重试"·无记录返 None
-    (台账列留空 = 有效前缀 · 该 feature 早于该指标 · 诚实)。
+    🔴 v8.297 收窄:只渲染**可查表算账**的比值 + 复盘文档指针。
+    原版把 note 与 kinds 也塞进单元格 —— 台账一行一 feature、单元格 ≤1 行,
+    归因叙述压进去就废了(而归因恰恰是最值钱的部分)。叙述归
+    `{子项目}/docs/retros/<id>-process.md`(模板 templates/process-retro.md)。
+
+    渲染 "M/N 轮 · 详 <path>" · 无记录返 None(台账列留空 = 有效前缀 · 诚实)。
     """
     items = [i for i in (state.get("stage_cost") or []) if isinstance(i, dict)]
     if not items:
         return None
     rounds = sum(int(i.get("rounds") or 0) for i in items)
     overhead = sum(int(i.get("overhead_rounds") or 0) for i in items)
-    cell = f"协调开销 {overhead}/{rounds} 轮"
-    # 只透出开销最大的那个 stage 的 note(单元格 ≤1 行纪律)
-    worst = max(items, key=lambda i: int(i.get("overhead_rounds") or 0))
-    if int(worst.get("overhead_rounds") or 0) > 0 and worst.get("note"):
-        cell += f" · {worst.get('stage')}:{worst['note']}"
-    kinds = []
-    for i in items:
-        for k in (i.get("kinds") or []):
-            if k and k not in kinds:
-                kinds.append(k)
-    if kinds:
-        cell += " · 类型:" + "；".join(kinds)
+    cell = f"{overhead}/{rounds} 轮"
+    if retro_path:
+        cell += f" · 详 {retro_path}"
     return cell
+
+
+def _process_retro_path(state: dict, feature_id: str) -> str:
+    """v8.297:流程复盘文档的约定落点(相对子项目根)· 供台账指针与 ship brief 用。
+
+    `docs/retros/<feature-id>-process.md` —— 与业务复盘 `docs/retros/<feature-id>.md` 同目录、
+    分文件(前者复盘 teamwork 流程本身 · 后者复盘业务与工程)。
+    """
+    sub = (state.get("sub_project") or "").strip("/")
+    rel = f"docs/retros/{feature_id}-process.md"
+    return f"{sub}/{rel}" if sub else rel
 
 
 def _authoring_preventability_summary(state: dict):

@@ -84,16 +84,25 @@ class TestStageCostCommand(unittest.TestCase):
 
 class TestLedgerAggregation(unittest.TestCase):
 
-    def test_summary_renders_overhead_ratio_and_worst_note(self):
+    def test_summary_is_ratio_plus_pointer_only(self):
+        """v8.297:台账单元格 ≤1 行 —— 只放可查表算账的比值 + 指针,叙述归复盘文档。"""
         state = {"stage_cost": [
             {"stage": "goal", "rounds": 3, "overhead_rounds": 0, "kinds": [], "note": ""},
             {"stage": "blueprint", "rounds": 6, "overhead_rounds": 2,
-             "kinds": ["双档同步"], "note": "TECH↔TC 表数与错误码往返"},
+             "kinds": ["双档同步"], "note": "TECH↔TC 表数与错误码往返 —— 一段很长的归因叙述"},
         ]}
-        cell = _stage_cost_summary(state)
-        self.assertIn("2/9", cell, "开销占比要能一眼看出")
-        self.assertIn("blueprint", cell, "要点名开销最大的 stage")
-        self.assertIn("双档同步", cell)
+        cell = _stage_cost_summary(state, "docs/retros/F1-process.md")
+        self.assertIn("2/9", cell, "比值要留在台账(年检查表即得 · 不必开文档)")
+        self.assertIn("docs/retros/F1-process.md", cell, "缺指针 = 叙述找不到")
+        self.assertNotIn("TECH↔TC", cell, "归因叙述不该再挤进单元格")
+        self.assertNotIn("双档同步", cell)
+        self.assertLessEqual(len(cell.splitlines()), 1, "单元格必须单行")
+
+    def test_retro_path_convention(self):
+        from _v8_ship import _process_retro_path  # type: ignore
+        self.assertEqual(_process_retro_path({}, "F002"), "docs/retros/F002-process.md")
+        self.assertEqual(_process_retro_path({"sub_project": "apps/partner"}, "SVC-F1"),
+                         "apps/partner/docs/retros/SVC-F1-process.md")
 
     def test_summary_none_when_unrecorded(self):
         """无记录 → None(台账列留空 = 有效前缀 · 该 feature 早于该指标 · 诚实)。"""
@@ -103,8 +112,9 @@ class TestLedgerAggregation(unittest.TestCase):
     def test_ship_archive_emits_the_cell(self):
         import _v8_ship as S  # type: ignore
         src = (ROOT / "tools" / "_v8_ship.py").read_text(encoding="utf-8")
-        self.assertIn('"ledger_stage_cost": _stage_cost_summary(state)', src,
+        self.assertIn('"ledger_stage_cost": _stage_cost_summary(state,', src,
                       "ship1 archive 未 emit 台账数据源")
+        self.assertIn('"ledger_process_retro_path"', src, "未 emit 流程复盘落点")
         self.assertTrue(hasattr(S, "_stage_cost_summary"))
 
 
@@ -170,7 +180,8 @@ class TestLedgerInstructionNamesEveryEmitField(unittest.TestCase):
     在台账上无法区分(有效前缀语义被污染)。
     """
 
-    LEDGER_EMIT_FIELDS = ("ledger_timing", "ledger_authoring_preventability", "ledger_stage_cost")
+    LEDGER_EMIT_FIELDS = ("ledger_timing", "ledger_authoring_preventability",
+                          "ledger_stage_cost", "ledger_process_retro_path")
 
     def test_ship_stage_instruction_names_all_ledger_fields(self):
         doc = (ROOT / "stages" / "ship-stage.md").read_text(encoding="utf-8")
@@ -185,6 +196,50 @@ class TestLedgerInstructionNamesEveryEmitField(unittest.TestCase):
         unknown = emitted - set(self.LEDGER_EMIT_FIELDS)
         self.assertEqual(unknown, set(),
                          f"新增了 ledger emit 字段但没接进台账指令与本门禁:{sorted(unknown)}")
+
+
+
+
+class TestProcessRetroDoc(unittest.TestCase):
+    """v8.297:归因叙述与流程反思从台账单元格搬到独立复盘文档。
+
+    起因(用户):「耗时归因和阶段流程反思不该写到 PROCESS-LEDGER,因为写不下」——
+    台账一行一 feature、单元格 ≤1 行,而「这 318 分钟花在哪」恰恰是最值钱的那段。
+    顺带把原本**只 emit 不落盘**的 digest 四问也接了进来(说完就蒸发 · 年检读不到)。
+    """
+
+    def test_template_exists_and_states_its_boundary(self):
+        t = (ROOT / "templates" / "process-retro.md").read_text(encoding="utf-8")
+        self.assertIn("docs/retros/", t)
+        # 与同目录业务复盘的分工必须写死,否则两份会混成一锅
+        self.assertIn("业务复盘", t, "未划清与 docs/retros/<id>.md(业务/工程复盘)的边界")
+        self.assertIn("只复盘 teamwork 流程本身", t)
+
+    def test_template_carries_all_four_sections(self):
+        t = (ROOT / "templates" / "process-retro.md").read_text(encoding="utf-8")
+        for sec in ("各阶段耗时", "耗时归因", "流程反思", "起草可预防性"):
+            self.assertIn(sec, t, f"复盘模板缺 §{sec}")
+
+    def test_template_has_operational_criterion_for_overhead(self):
+        """「什么算协调开销」必须可判定,否则每人一把尺、跨 feature 不可比。"""
+        t = (ROOT / "templates" / "process-retro.md").read_text(encoding="utf-8")
+        self.assertIn("产生了新的设计判断或新的实现", t, "缺开销判据 = 数据不可比")
+
+    def test_ship_stage_wires_doc_into_planning_artifacts(self):
+        """复盘不进 --planning-artifacts = 不随 MR 合入 = 白写。"""
+        doc = (ROOT / "stages" / "ship-stage.md").read_text(encoding="utf-8")
+        self.assertIn("process-retro.md", doc, "§16 未指向复盘模板")
+        self.assertIn("planning-artifacts", doc)
+
+    def test_digest_four_questions_now_persisted(self):
+        doc = (ROOT / "stages" / "ship-stage.md").read_text(encoding="utf-8")
+        self.assertIn("四问同时写进流程复盘文档", doc,
+                      "digest 仍是「只 emit 不落盘」—— 说完即蒸发,年检读不到")
+
+    def test_ledger_note_points_at_the_doc(self):
+        t = (ROOT / "templates" / "process-ledger.md").read_text(encoding="utf-8")
+        self.assertIn("process-retro.md", t, "台账未指向复盘文档 = 指针断裂")
+        self.assertIn("归因叙述不写这里", t)
 
 
 if __name__ == "__main__":
