@@ -1709,11 +1709,20 @@ def _git_user_email(cwd: Optional[str]) -> str:
 
 
 def _dispatch_model_distribution(feature_dir) -> dict:
-    """v8.231:从 dispatch_log/*.md 汇总 per-agent model 分布(档位建议采纳率的观测原料)。
+    """v8.231/299:从 dispatch 痕迹汇总 per-agent 档位分布(档位建议采纳率的观测原料)。
 
-    dispatch 文件 Meta 段有 model 字段(agents/README)· 容错解析(AI 手写 markdown · 宽松匹配
-    首个 `model: xxx` 行)。覆盖面 = 文件化 dispatch(可审计路径);未记 model 的计 unspecified
-    (= 继承会话模型 · 正是要观测的「没分档」信号)。无 dispatch_log → {}。
+    🔴 **v8.299 修测量 bug**:旧版把「没记 model」一律计 `unspecified` 并在 docstring 里
+    直接等同于「没分档」。但那一格混了两种**干预手段完全相反**的状态:
+
+    - `inherited_declared` —— **思考了 · 判定该继承**(声明了 tier/理由,只是没传 model)。
+      这是**正确行为**(判断/创造型本就不该降档)· 干预 = 无(或降低声明成本)。
+    - `unspecified` —— **真没分档**(既无 model 也无 tier/理由)· 干预 = 加强档位判据。
+
+    合成一格会让年检得出「该加强档位教育」的**错误结论** —— 实证:某次 api-e2e 派发档位
+    判断是对的(首份 e2e = 探索+调试型 · 不该降),漏的只是声明,却被计成 unspecified。
+
+    解析:Meta 段的 `model:` 优先;无 model 但有 `tier:` / `model_reason:` / `理由:` →
+    inherited_declared;都无 → unspecified。容错(AI 手写 markdown · 宽松匹配)。
     """
     import re as _re
     d = Path(feature_dir) / "dispatch_log"
@@ -1728,7 +1737,12 @@ def _dispatch_model_distribution(feature_dir) -> dict:
         except OSError:
             continue
         m = _re.search(r"(?im)^\s*[-*]?\s*model\s*[::]\s*([^\s|,()]+)", head)
-        key = m.group(1).strip().lower() if m else "unspecified(继承会话)"
+        if m and m.group(1).strip().lower() not in ("", "继承", "inherit", "inherited"):
+            key = m.group(1).strip().lower()
+        elif _re.search(r"(?im)^\s*[-*]?\s*(tier|档位|model_reason|理由)\s*[::]\s*\S", head):
+            key = "inherited_declared(判定该继承)"
+        else:
+            key = "unspecified(未分档)"
         dist[key] = dist.get(key, 0) + 1
     return dist
 

@@ -216,5 +216,75 @@ class TestRunTestsSharding(unittest.TestCase):
         self.assertIn("只写规范不配机器门", t, "未声明这是会衰减的手段规定")
 
 
+
+
+class TestDispatchDeclarationIsParasitic(unittest.TestCase):
+    """v8.299(实证 + 用户拍板):派发声明制的三处修正。
+
+    起因:一个 agent **读过 v8.235 声明制仍然漏了**,并自我归因得很准 ——
+    「提醒在 test-start 的 emit 里,而我在 15 个工具调用之后才派 agent。
+    提醒和动作之间隔了太多 context —— **提醒的位置错了,不是措辞不够狠**。」
+
+    三处修正各治一个根因:
+      ① 位置 —— 声明**寄生到 prompt 首行**(prompt 是派发时必然要写的东西)
+      ② 强度 —— 验证类白名单**一律降验证档 · 例外需用户授权**(用户拍板 · 不许 AI 自决)
+      ③ 度量 —— 拆 `inherited_declared` / `unspecified`(两者干预手段相反)
+    """
+
+    def test_declaration_is_parasitic_on_prompt_not_a_separate_duty(self):
+        import sys as _s
+        _s.path.insert(0, str(ROOT / "tools"))
+        from _v8_engine import DISPATCH_TIER_REMINDER as D  # type: ignore
+        self.assertIn("prompt 首行", D)
+        self.assertIn("必然要写", D, "未说明「为什么寄生」→ 会被改回「另起一句声明」")
+        a = (ROOT / "agents" / "README.md").read_text(encoding="utf-8")
+        self.assertIn("必然要写", a, "单源侧未同步寄生规则")
+        self.assertIn("改触发位置,不是改措辞", a, "缺根因判断 → 下次还会去加重措辞")
+
+    def test_verification_whitelist_is_enumerated(self):
+        """用户拍板:写测试用例 / 执行测试 / 单测 / 集成测试 —— 理论上都该验证档。
+
+        枚举比抽象类目('校验/枚举型')更难自我合理化 —— 抽象类目留了「这次算探索型」的口子。
+        """
+        import sys as _s
+        _s.path.insert(0, str(ROOT / "tools"))
+        from _v8_engine import DISPATCH_TIER_REMINDER as D  # type: ignore
+        a = (ROOT / "agents" / "README.md").read_text(encoding="utf-8")
+        for task in ("写测试用例", "执行测试", "单测", "集成测试", "机械外化"):
+            self.assertIn(task, D, f"提醒侧白名单缺:{task}")
+            self.assertIn(task, a, f"档位表侧白名单缺:{task}")
+
+    def test_exception_requires_user_authorization_not_ai_judgment(self):
+        """🔴 这是**用户主权**条款(v8.283 分类学第③类 · 不衰减那格)。
+
+        「这次比较难、不该降」是最容易自我合理化的一步 —— 每次都成立就等于白名单不存在。
+        判断权归用户,不是因为 AI 判不准,是因为**这是花钱的决定**。
+        """
+        import sys as _s
+        _s.path.insert(0, str(ROOT / "tools"))
+        from _v8_engine import DISPATCH_TIER_REMINDER as D  # type: ignore
+        self.assertIn("用户授权", D)
+        self.assertIn("不许 AI 自决", D, "没堵住自决 → 白名单形同虚设")
+        a = (ROOT / "agents" / "README.md").read_text(encoding="utf-8")
+        self.assertIn("自我合理化", a, "未点名失败机制 → 规则会被当成官僚要求")
+
+    def test_metric_split_has_opposite_interventions_documented(self):
+        """③ 度量 bug:合成一格会让年检得出「该加强档位教育」的错误结论。"""
+        src = (ROOT / "tools" / "_v8_ship.py").read_text(encoding="utf-8")
+        self.assertIn("inherited_declared", src)
+        self.assertIn("干预手段完全相反", src, "未写明为什么必须拆 → 下次会被合并回去")
+        self.assertNotIn("正是要观测的「没分档」信号", src, "旧的错误等式仍在")
+
+    def test_hooks_stay_retired(self):
+        """agent 提到「唯一能在动作点触发的是宿主 PreToolUse hook」—— 但 v8.213 已全退役。
+
+        不捡回来:hooks 曾污染共享仓库,那是它被退役的原因;为一条声明规则复活它是坏交易。
+        本版的解法是**把声明寄生到必写物上**,不需要动作点 hook。
+        """
+        self.assertFalse((ROOT / "hooks").exists(), "hooks/ 目录复活")
+        a = (ROOT / "agents" / "README.md").read_text(encoding="utf-8")
+        self.assertNotIn("PreToolUse", a, "引入了宿主 hook 依赖")
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
