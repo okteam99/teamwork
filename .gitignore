@@ -32,3 +32,6 @@ review_start.log
 .teamwork-local-env/
 
 # v8.148 流程质量审计回收:运行时 <feature_id>.md 是 transient 本机回收料(仅 README 入库)
+
+# v8.299:run_tests.py 的自学耗时缓存(机器本地 · 每跑一变 · 首跑自动重建)
+skills/teamwork/tools/.test-durations.json

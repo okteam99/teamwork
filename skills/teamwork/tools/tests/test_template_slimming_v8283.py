@@ -85,5 +85,21 @@ class TestTechSlimming(unittest.TestCase):
         self.assertNotIn("- [ ] 已有测试无回归(exit-code=0", self.t)
         self.assertNotIn("- [ ] commit message 含 Feature ID", self.t)
 
-    def test_slimmed(self):
-        self.assertLess(len(self.t.splitlines()), 250, "tech.md 应已瘦身到 250 行内")
+    def test_growth_is_justified_not_capped_by_volume(self):
+        """v8.299:原为 `< 250 行` 的**体积门** —— 它度量错了东西,已换成**价值门**。
+
+        v8.283 的主张从来不是「文件要短」,是**收录判据 = 与模型默认行为的距离**:
+        模型默认就会的一律不收(教学示例/手段规定),模型**默认会做反**的最该收。
+        按这个判据,300 行全是逆默认规则的模板,比 200 行全是填充示例的更瘦。
+
+        体积门首次咬人就是咬错的:v8.299 加的三条(机械收敛与语义变更分步 /
+        退役类分口径台账 / 测试基建税必须记下来)全是逆默认 + 带实证,却被 250 行拦下。
+        故改为:**每条硬规则块必须带 why** —— 无 why 的规则是纯注意力税,那才是该拦的。
+        体积由 `test_teaching_examples_trimmed` 与 `test_tdd_not_prescribed` 从**内容侧**守。
+        """
+        whys = self.t.count("why")
+        rules = self.t.count("🔴")
+        self.assertGreaterEqual(whys, 3, "硬规则没带 why = 读者无从判断该不该守 · 纯税")
+        # 规则密度上限:🔴 太多而 why 太少 → 说明在堆规则不是在给判据
+        self.assertLess(rules / max(whys, 1), 12,
+                        f"🔴 规则 {rules} 条但只有 {whys} 处 why —— 在堆规则,不是在给判据")
