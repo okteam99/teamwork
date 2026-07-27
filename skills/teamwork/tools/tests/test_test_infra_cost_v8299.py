@@ -285,10 +285,6 @@ class TestDispatchDeclarationIsParasitic(unittest.TestCase):
         a = (ROOT / "agents" / "README.md").read_text(encoding="utf-8")
         self.assertNotIn("PreToolUse", a, "引入了宿主 hook 依赖")
 
-
-if __name__ == "__main__":
-    unittest.main(verbosity=2)
-
     def test_no_stale_pre_v8299_phrasing_survives(self):
         """v8.299 自伤:新规则加上去了、旧口径没改 —— 而旧的那份还在被声明为单源的 SKILL.md 里。
 
@@ -326,3 +322,59 @@ if __name__ == "__main__":
         for tier_model in ("Fable / Opus", "Opus / Sonnet", "Sonnet / Haiku",
                            "sol xhigh", "terra / luna"):
             self.assertIn(tier_model, a, f"档位映射缺:{tier_model}")
+
+
+class TestNoSilentlyDeadTests(unittest.TestCase):
+    """🔴 v8.300 自伤:`if __name__ == "__main__":` **之后**的 test 方法会被静默丢弃。
+
+    同缩进的 `def test_...` 会被 Python 解析成那个 `if` 的**块内定义** ——
+    只在 `python file.py` 直跑时存在,pytest 收集时根本看不到。
+    **不报错 · 不红 · 就是不跑**:本轮三个新门就这样静默失效了一整轮,
+    我还在 commit message 里报了没验证过的 1042/1044。
+
+    这与本 session 反复抓的是同一形态:**产物存在但没接上消费方**。
+    区别只在于这次的"消费方"是 pytest 的收集器。
+    """
+
+    def test_no_defs_inside_main_guard(self):
+        """用 AST 直判「`__main__` guard 的 body 里有没有 def/class」—— 不靠猜缩进。
+
+        中间版本按「__main__ 之后的行」判,连报 7 个误伤:那些是**列 0 的模块级 class**
+        (pytest 收得到),只是位置在 guard 之后。判据是**结构**不是位置。
+        """
+        import ast
+        bad = []
+        for f in sorted((ROOT / "tools" / "tests").glob("test_*.py")):
+            try:
+                tree = ast.parse(f.read_text(encoding="utf-8"))
+            except SyntaxError:
+                continue          # 语法错由下一条门管
+            for node in tree.body:
+                if not isinstance(node, ast.If):
+                    continue
+                if "__main__" not in ast.dump(node.test):
+                    continue
+                for stmt in node.body:
+                    if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                        bad.append(f"{f.name}:{stmt.lineno} {stmt.name}")
+        self.assertEqual(bad, [], f"定义在 __main__ guard 内 · pytest 永远收不到:{bad}")
+
+    def test_every_test_file_actually_contributes_cases(self):
+        """空壳测试文件(有文件、零用例)同属「看着有覆盖、实际没有」。"""
+        import ast
+        bad = []
+        for f in sorted((ROOT / "tools" / "tests").glob("test_*.py")):
+            try:
+                tree = ast.parse(f.read_text(encoding="utf-8"))
+            except SyntaxError as e:
+                bad.append(f"{f.name}: 语法错误 {e.lineno}")
+                continue
+            n = sum(1 for node in ast.walk(tree)
+                    if isinstance(node, ast.FunctionDef) and node.name.startswith("test_"))
+            if n == 0:
+                bad.append(f"{f.name}: 零 test 方法")
+        self.assertEqual(bad, [], f"空壳/坏掉的测试文件:{bad}")
+
+
+if __name__ == "__main__":
+    unittest.main(verbosity=2)
