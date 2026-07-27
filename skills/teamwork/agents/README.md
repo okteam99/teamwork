@@ -24,7 +24,7 @@
 🔴 **声明寄生在 prompt 首行**(v8.299 · 不是另起一句):`Meta: tier=<验证|执行|深度> · model=<留空则继承> · 理由=<一句>`。
 > why(实证):某次派发 agent **读过 v8.235 声明制仍然漏了** —— 提醒在 stage-start emit,派发发生在 15 个工具调用之后,**提醒与动作之间隔了太多 context**。「另外记得声明一下」是额外义务;prompt 是派发时**必然要写**的东西,寄生在它上面才不会被忘。**高频低显著性的义务必然衰减** —— 改触发位置,不是改措辞。
 
-📎 **并行姿态 + 声明制(PMO 派发方规则 · 单源 = [SKILL.md](../SKILL.md) § 全局规则「subagent / teammate」条目 · v8.241 去重)**:开工先问「哪些子任务可以并行」· 每次派发声明 **model + 一句为什么**(dispatch Meta 的 `model/model_reason` 字段)· ultracode 开启冷审/验证 fan-out 优先 Workflow —— 全文与护栏见 SKILL 单源(此处不复制 · 防双载体 drift);本表 + 三条硬边界是 SKILL 反向引用的**档位单源**(v8.230)。
+📎 **并行姿态 + 声明制(PMO 派发方规则 · 单源 = [SKILL.md](../SKILL.md) § 全局规则「subagent / teammate」条目 · v8.241 去重)**:开工先问「哪些子任务可以并行」· 声明格式与验证类白名单见上(v8.299 · 寄生 prompt 首行 · 例外需用户授权)· ultracode 开启冷审/验证 fan-out 优先 Workflow —— 全文与护栏见 SKILL 单源(此处不复制 · 防双载体 drift);本表 + 三条硬边界是 SKILL 反向引用的**档位单源**(v8.230)。
 
 ## 二、通用执行约束
 

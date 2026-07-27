@@ -288,3 +288,19 @@ class TestDispatchDeclarationIsParasitic(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+
+    def test_no_stale_pre_v8299_phrasing_survives(self):
+        """v8.299 自伤:新规则加上去了、旧口径没改 —— 而旧的那份还在被声明为单源的 SKILL.md 里。
+
+        本 session 反复抓的就是这个形态(「指针 + 复制被指向内容」),这次是我自己一轮前种的。
+        """
+        for rel in ("SKILL.md", "agents/README.md"):
+            t = (ROOT / rel).read_text(encoding="utf-8")
+            self.assertNotIn("派发语句 / dispatch 文件 Meta", t,
+                             f"{rel} 仍允许声明放「另起一句」的位置(v8.299 已取代)")
+            self.assertNotIn("每次派发声明 **model + 一句为什么**(dispatch Meta", t,
+                             f"{rel} 残留 v8.235 旧口径")
+        s = (ROOT / "SKILL.md").read_text(encoding="utf-8")
+        self.assertIn("prompt 首行", s, "单源侧未同步寄生规则")
+        self.assertIn("用户授权", s, "单源侧未同步验证类例外授权")
+        self.assertIn("inherited_declared", s, "单源侧未同步台账两桶口径")
