@@ -304,3 +304,25 @@ if __name__ == "__main__":
         self.assertIn("prompt 首行", s, "单源侧未同步寄生规则")
         self.assertIn("用户授权", s, "单源侧未同步验证类例外授权")
         self.assertIn("inherited_declared", s, "单源侧未同步台账两桶口径")
+
+    def test_boundary_count_matches_actual(self):
+        """加了第 ④ 条却还写「三条硬边界」—— 数字宣称与实际不符,本 session 抓过多次同型。"""
+        a = (ROOT / "agents" / "README.md").read_text(encoding="utf-8")
+        s = (ROOT / "SKILL.md").read_text(encoding="utf-8")
+        import re as _re
+        m = _re.search(r"\*\*([一二三四五六七])条硬边界\*\*", a)
+        self.assertIsNotNone(m, "硬边界宣称行不见了")
+        claimed = "一二三四五六七".index(m.group(1)) + 1
+        actual = len(_re.findall(r"[①②③④⑤⑥⑦]\s*\*?\*?", a.split("硬边界")[1].split("## ")[0]))
+        self.assertEqual(claimed, actual, f"宣称 {claimed} 条,实际 {actual} 条")
+        self.assertIn(f"{m.group(1)}条硬边界", s, "SKILL 反向引用的条数与 agents/README 不一致")
+
+    def test_tier_table_has_per_vendor_columns(self):
+        """映射按厂商分列 —— 挤在一格里读者要自己拆 'Claude: … · GPT: …'。"""
+        a = (ROOT / "agents" / "README.md").read_text(encoding="utf-8")
+        header = next(l for l in a.splitlines() if l.startswith("| 档位 |"))
+        self.assertIn("Claude", header)
+        self.assertIn("Codex", header)
+        for tier_model in ("Fable / Opus", "Opus / Sonnet", "Sonnet / Haiku",
+                           "sol xhigh", "terra / luna"):
+            self.assertIn(tier_model, a, f"档位映射缺:{tier_model}")

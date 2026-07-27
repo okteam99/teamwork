@@ -143,7 +143,7 @@ state.py 物化了 9 红线中 8 条 · R3 + 部分行为约束(R4 / R5(b) / byp
 
 ### R4-P · 并行与 dispatch(subagent / teammate / workflow)
 
-> 本节 = **并行姿态 + 声明制单源**;**档位表与三条硬边界单源 = [agents/README.md §一](./agents/README.md)**(全局规则 · 任何 subagent/teammate/workflow 适用)。
+> 本节 = **并行姿态 + 声明制单源**;**档位表与四条硬边界单源 = [agents/README.md §一](./agents/README.md)**(全局规则 · 任何 subagent/teammate/workflow 适用)。
 
 - **并行是默认考虑项**:每个 stage 开工先问「**哪些子任务可以并行?**」—— 冷审天然 N 路同发 · dev 多端/多模块各派一路 · 调研 fan-out 保主编排 context 干净 · 能并行的不串行(ultracode 开启时 workflow 优先)。
 - **每进新子阶段重问**(实现 → 测试编写 → 修复):耦合度随阶段变 · 开工问一次会过期。🆕 **重问时加第三问:这些子任务的「验证目标」有重叠吗?**(v8.299)—— 🔴 **按产物归属切分容易让验证目标跨线**:切分看着正交(A=文档+单测 / B=新测试文件),验证目标却不正交。重叠 → 合并,或指定唯一 owner、其余路**显式声明「不做该验证」**。why(实证):dev 期 A 路自建 harness 验 6 场景,B 路的新测试文件验同一批场景 —— 同一件事做了两遍,多耗 ~40min 与 ~150k tokens。
