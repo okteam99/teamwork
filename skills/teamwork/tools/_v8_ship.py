@@ -34,6 +34,7 @@ from typing import Any, Optional
 from _v8_engine import (
     emit_json,
     git_head,
+    load_localconfig,
     load_state,
     now_iso,
     require_user_confirmed,
@@ -60,7 +61,9 @@ SHIP_MR_METHODS = ("cli-gh", "cli-glab", "url-fallback", "unknown-platform")
 
 # v8.81:ship1 知识沉淀闸门 · 知识层 6 项(随 feature MR graduate · 详 stages/ship-stage.md §13)
 # 「描述代码的文档随代码进 MR」· 每项 sanitize 前必记一条决策(updated / none)· 强制走一遍。
-DISTILL_KEYS = ("knowledge", "adr", "reg", "retro", "architecture", "db_schema")
+# v8.293:去 "reg" —— e2e-registry 机制从未启用(全库零入口:没有任何文档说 REG case 长什么样/
+# 放哪/怎么建)· 只有本槽位在要求申报 → 申报一个不存在的机制 = 纯噪声。
+DISTILL_KEYS = ("knowledge", "adr", "retro", "architecture", "db_schema")
 
 # 流程减负:Micro(文案/样式/配置 · 零逻辑)distill 简表 —— 只强制 knowledge 一键
 # (gotcha 沉淀 · 最可能有信号的一项)· 其余 5 键缺省自动填 MICRO_DISTILL_AUTO。
@@ -208,7 +211,7 @@ def _validate_distill(args: argparse.Namespace, state: dict) -> dict:
             "error": f"--distill 缺项 / 空值:{missing}",
             "hint": ("Micro 只强制 knowledge 一键(gotcha 或 'none' · 其余自动填「无(Micro)」)"
                      if is_micro else
-                     "6 项全填(无则 'none'/'n/a' · 证明已逐项判断):" + " / ".join(DISTILL_KEYS)),
+                     "5 项全填(无则 'none'/'n/a' · 证明已逐项判断):" + " / ".join(DISTILL_KEYS)),
         }, exit_code=1)
     if is_micro:
         for k in DISTILL_KEYS:
@@ -1038,6 +1041,15 @@ def _handle_ship_archive(state: dict, args: argparse.Namespace) -> dict:
             "per_stage": _lt_bd,
             "user_email": _git_user_email(wt_root),
         },
+        # v8.281:起草可预防性(各评审 review-preventability 记录聚合)· 台账「🛡️ 起草可预防性」列
+        # · 年检据此判 PRD/TECH 起草考虑点缺不缺(反复缺同一条 = 真缺口 · 补框架考虑点)。
+        "ledger_authoring_preventability": _authoring_preventability_summary(state),
+        # v8.295:耗时归因(各 stage stage-cost 记录聚合)· 台账「⏱️ 耗时归因」列
+        # · 年检据此看协调开销占比趋势 —— 也是验证提效改动(v8.294 收敛期归一/TC 边界/
+        # 投机窗准入)是否真起效的唯一手段。
+        "ledger_stage_cost": _stage_cost_summary(state, _process_retro_path(state, feature_id)),
+        # v8.297:流程复盘文档落点(耗时归因叙述 + 流程反思四问 —— 台账装不下的那部分)
+        "ledger_process_retro_path": _process_retro_path(state, feature_id),
         # v8.180:WS 进度块确定性自刷结果(None = feature 不属 WS / 对应F编号 未填 → 未刷 · 见 §3.5)
         "ws_progress_refreshed": ws_refreshed,
         "warnings": [
@@ -1342,28 +1354,18 @@ def _ship_finalize_fail(step: str, error: str, hint: str,
 
 
 def _read_archive_on_ship(start: str) -> bool:
-    """v8.82:读项目根 .teamwork_localconfig.json 的 archive_on_ship(默认 true)。
+    """localconfig `archive_on_ship`(默认 true)。
 
     true(默认):ship2 收尾 MR 把交付 feature 目录 zip 进 features/_archive/<id>.zip ·
                 原目录从 merge_target 删(防 AI 检索过时 feature 信息 · 代码是唯一真相)。
     false:退回 v8.80(收尾 MR 只同步终态 state.json · 不归档 · feature 目录留存)。
-    从 start 向上找 · 到 .git 边界止(同 state.py._read_id_strategy 模式)。
+    v8.294:改走 `load_localconfig`(跨 worktree 边界 · 原实现在 worktree 里读不到主树配置)。
     """
-    try:
-        node = Path(start).resolve()
-    except OSError:
+    cfg = load_localconfig(start)
+    if not isinstance(cfg, dict):
         return True
-    for d in [node, *node.parents]:
-        cfg = d / ".teamwork_localconfig.json"
-        if cfg.exists():
-            try:
-                val = json.loads(cfg.read_text(encoding="utf-8")).get("archive_on_ship")
-            except (OSError, json.JSONDecodeError):
-                return True
-            return bool(val) if isinstance(val, bool) else True
-        if (d / ".git").exists():
-            break
-    return True
+    val = cfg.get("archive_on_ship")
+    return bool(val) if isinstance(val, bool) else True
 
 
 def _archive_repo_paths(repo_cwd: str, artifact_root: Path,
@@ -1549,17 +1551,6 @@ def _list_teamwork_stashes(main_wt: str) -> list:
     return [ln.strip() for ln in r.stdout.splitlines() if "teamwork" in ln.lower()]
 
 
-def _audit_dir() -> Path:
-    """流程质量审计回收目录 · 默认 `~/.teamwork/audit/` · env TEAMWORK_AUDIT_DIR 可 override(测试用)。
-
-    🔴 本机所有 consuming 项目共享的回收点 —— 框架层面跨项目搜集流程质量。
-    与 backups / prepare_check_audit 同域(~/.teamwork)· 运行时数据不落 skill 安装目录
-    (审计只写不读 · 无需从旧位置 docs/audit/ 迁移)。
-    """
-    env = os.environ.get("TEAMWORK_AUDIT_DIR")
-    if env:
-        return Path(env)
-    return Path.home() / ".teamwork" / "audit"
 
 
 def _feature_duration_h(state: dict) -> Optional[str]:
@@ -1626,6 +1617,60 @@ def _stage_durations(state: dict):
     return breakdown, analysis
 
 
+def _stage_cost_summary(state: dict, retro_path: str = ""):
+    """v8.295/297:聚合各 stage 耗时归因 → 台账「⏱️ 耗时归因」列。
+
+    🔴 v8.297 收窄:只渲染**可查表算账**的比值 + 复盘文档指针。
+    原版把 note 与 kinds 也塞进单元格 —— 台账一行一 feature、单元格 ≤1 行,
+    归因叙述压进去就废了(而归因恰恰是最值钱的部分)。叙述归
+    `{子项目}/docs/retros/<id>-process.md`(模板 templates/process-retro.md)。
+
+    渲染 "M/N 轮 · 详 <path>" · 无记录返 None(台账列留空 = 有效前缀 · 诚实)。
+    """
+    items = [i for i in (state.get("stage_cost") or []) if isinstance(i, dict)]
+    if not items:
+        return None
+    rounds = sum(int(i.get("rounds") or 0) for i in items)
+    overhead = sum(int(i.get("overhead_rounds") or 0) for i in items)
+    cell = f"{overhead}/{rounds} 轮"
+    if retro_path:
+        cell += f" · 详 {retro_path}"
+    return cell
+
+
+def _process_retro_path(state: dict, feature_id: str) -> str:
+    """v8.297:流程复盘文档的约定落点(相对子项目根)· 供台账指针与 ship brief 用。
+
+    `docs/retros/<feature-id>-process.md` —— 与业务复盘 `docs/retros/<feature-id>.md` 同目录、
+    分文件(前者复盘 teamwork 流程本身 · 后者复盘业务与工程)。
+    """
+    sub = (state.get("sub_project") or "").strip("/")
+    rel = f"docs/retros/{feature_id}-process.md"
+    return f"{sub}/{rel}" if sub else rel
+
+
+def _authoring_preventability_summary(state: dict):
+    """v8.281:聚合各评审的起草可预防性 → 台账「🛡️ 起草可预防性」列(年检分析源)。
+
+    渲染 "可预防/总 · 缺:考虑点A;考虑点B"(缺项去重跨评审)· 无记录返 None(台账列留空 = 有效前缀)。
+    """
+    items = state.get("authoring_preventability") or []
+    items = [i for i in items if isinstance(i, dict)]
+    if not items:
+        return None
+    prev = sum(int(i.get("preventable") or 0) for i in items)
+    tot = sum(int(i.get("total") or 0) for i in items)
+    missing = []
+    for i in items:
+        for m in (i.get("missing") or []):
+            if m and m not in missing:
+                missing.append(m)
+    cell = f"{prev}/{tot} 可预防"
+    if missing:
+        cell += " · 缺:" + "；".join(missing)
+    return cell
+
+
 def _timing_split(state: dict):
     """v8.208:把墙钟耗时拆成 **AI 自主运行** vs **等待用户** 两块(分离人工等待)。
 
@@ -1664,11 +1709,20 @@ def _git_user_email(cwd: Optional[str]) -> str:
 
 
 def _dispatch_model_distribution(feature_dir) -> dict:
-    """v8.231:从 dispatch_log/*.md 汇总 per-agent model 分布(档位建议采纳率的观测原料)。
+    """v8.231/299:从 dispatch 痕迹汇总 per-agent 档位分布(档位建议采纳率的观测原料)。
 
-    dispatch 文件 Meta 段有 model 字段(agents/README)· 容错解析(AI 手写 markdown · 宽松匹配
-    首个 `model: xxx` 行)。覆盖面 = 文件化 dispatch(可审计路径);未记 model 的计 unspecified
-    (= 继承会话模型 · 正是要观测的「没分档」信号)。无 dispatch_log → {}。
+    🔴 **v8.299 修测量 bug**:旧版把「没记 model」一律计 `unspecified` 并在 docstring 里
+    直接等同于「没分档」。但那一格混了两种**干预手段完全相反**的状态:
+
+    - `inherited_declared` —— **思考了 · 判定该继承**(声明了 tier/理由,只是没传 model)。
+      这是**正确行为**(判断/创造型本就不该降档)· 干预 = 无(或降低声明成本)。
+    - `unspecified` —— **真没分档**(既无 model 也无 tier/理由)· 干预 = 加强档位判据。
+
+    合成一格会让年检得出「该加强档位教育」的**错误结论** —— 实证:某次 api-e2e 派发档位
+    判断是对的(首份 e2e = 探索+调试型 · 不该降),漏的只是声明,却被计成 unspecified。
+
+    解析:Meta 段的 `model:` 优先;无 model 但有 `tier:` / `model_reason:` / `理由:` →
+    inherited_declared;都无 → unspecified。容错(AI 手写 markdown · 宽松匹配)。
     """
     import re as _re
     d = Path(feature_dir) / "dispatch_log"
@@ -1683,7 +1737,12 @@ def _dispatch_model_distribution(feature_dir) -> dict:
         except OSError:
             continue
         m = _re.search(r"(?im)^\s*[-*]?\s*model\s*[::]\s*([^\s|,()]+)", head)
-        key = m.group(1).strip().lower() if m else "unspecified(继承会话)"
+        if m and m.group(1).strip().lower() not in ("", "继承", "inherit", "inherited"):
+            key = m.group(1).strip().lower()
+        elif _re.search(r"(?im)^\s*[-*]?\s*(tier|档位|model_reason|理由)\s*[::]\s*\S", head):
+            key = "inherited_declared(判定该继承)"
+        else:
+            key = "unspecified(未分档)"
         dist[key] = dist.get(key, 0) + 1
     return dist
 
@@ -1715,121 +1774,8 @@ def _triage_calibration(state: dict, wt_root: str, merge_target: str) -> dict:
     }
 
 
-def _capture_audit_sources(feature_dir: Path, max_chars: int = 4000) -> str:
-    """v8.207:worktree-remove **前**抓 audit 三段判断的源材料(REVIEW*.md + TEST-REPORT.md)·
-    压成紧凑摘录 · 供 _write_audit_record 嵌进草稿(治 AI 事后 unzip 反读归档)。
-
-    只抽三段判断真正要看的:REVIEW verdict/findings + TEST 结论/AC 覆盖。读失败静默返 ""(绝不阻塞 ship2)。
-    """
-    try:
-        chunks: list = []
-        review_files = sorted(feature_dir.glob("REVIEW*.md"))
-        for rf in review_files:
-            try:
-                txt = rf.read_text(encoding="utf-8", errors="replace").strip()
-            except OSError:
-                continue
-            if txt:
-                chunks.append(f"### {rf.name}\n{txt[:max_chars]}")
-        tr = feature_dir / "TEST-REPORT.md"
-        if tr.is_file():
-            try:
-                txt = tr.read_text(encoding="utf-8", errors="replace").strip()
-                if txt:
-                    chunks.append(f"### TEST-REPORT.md\n{txt[:max_chars]}")
-            except OSError:
-                pass
-        return "\n\n".join(chunks)
-    except OSError:
-        return ""
 
 
-def _write_audit_record(state: dict, feature_id: str, merge_target: str,
-                        main_wt: str, main_model: Optional[str] = None,
-                        audit_sources: str = "") -> Optional[str]:
-    """ship2 后落「流程质量审计」到 ~/.teamwork/audit/<id>.md(_audit_dir)·
-    框架层面跨项目搜集流程质量。
-
-    机器数据(实走 stages / 时长 / concerns / bypass)工具确定性抽(喂 kill-criteria 决策
-    不可幻觉);三段判断(做的好的 / 发现的问题 / 待优化的)留占位 · 由 AI **静默**补完
-    (零暂停 · 不等确认)。写失败静默降级(绝不阻塞 ship2)· 返回文件路径或 None。
-    已存在(AI 已填)→ 不覆盖。
-    """
-    try:
-        audit_dir = _audit_dir()
-        audit_dir.mkdir(parents=True, exist_ok=True)
-        out = audit_dir / f"{feature_id}.md"
-        if out.exists():
-            return str(out)  # 已落(含 AI 已填判断)· 幂等不覆盖
-
-        # 来源项目(跨项目回收时区分哪个项目)
-        rr = _git(["remote", "get-url", "origin"], cwd=main_wt, timeout=10)
-        if rr.returncode == 0 and rr.stdout.strip():
-            source = rr.stdout.strip().rstrip("/").rsplit("/", 1)[-1]
-            source = source[:-4] if source.endswith(".git") else source
-        else:
-            source = Path(main_wt).name
-
-        stages = "→".join(state.get("completed_stages", [])) or "?"
-        dur = _feature_duration_h(state) or "?"
-        concerns = state.get("concerns", []) or []
-        warn_n = sum(1 for c in concerns if isinstance(c, str) and "WARN" in c)
-        bypass_n = len(state.get("ship", {}).get("bypass_log", []) or [])
-        flow = state.get("flow_type") or "?"
-        stage_dur, stage_analysis = _stage_durations(state)
-        ai_min, wait_min = _timing_split(state)   # v8.208:AI 自主 vs 等待用户
-        user_email = _git_user_email(main_wt)     # v8.208:git 用户邮箱
-        host = state.get("host") or "未记录"
-        model_suffix = (f" · 模型 {main_model}" if main_model
-                        else " · 模型(未声明 · ship-finalize 传 --main-model 记录)")
-        _dm = _dispatch_model_distribution(state.get("artifact_root") or "")  # v8.231
-
-        body = (
-            f"---\n"
-            f"feature_id: {feature_id}\n"
-            f"source_project: {source}\n"
-            f"flow_type: {flow}\n"
-            f"merge_target: {merge_target}\n"
-            f"host: {state.get('host') or 'unknown'}\n"  # v8.209:AI 宿主(harvest 按宿主分析 codex/claude)
-            f"user_email: {user_email or 'unknown'}\n"  # v8.208:git 用户邮箱(harvest 按人分析)
-            f"generated_at: \"{now_iso()}\"\n"
-            f"audit_status: pending\n"  # AI 填完判断 → 改 done(harvest 时筛)
-            f"---\n\n"
-            f"# 流程质量审计 · {feature_id}\n\n"
-            f"## 实际数据(工具自动抽 · 勿改)\n"
-            f"- 来源项目:{source}\n"
-            f"- flow:{flow}\n"
-            f"- 实走 stages:{stages}\n"
-            f"- 总时长(墙钟):{dur}(init → archive · 不含 MR 等待)\n"
-            f"- 🔴 AI 自主运行:{f'{ai_min}m' if ai_min is not None else '?'}"
-            f" · 等待用户:{f'{wait_min}m' if wait_min is not None else '?'}"
-            f"(v8.208 · 墙钟里的人工等待已分离 · stage 内 pause-mark 暂停 + 纯等待 stage)\n"
-            f"- 各阶段耗时:{stage_dur or '(无 duration 数据)'}\n"
-            f"- 耗时分析:{stage_analysis or '?'}(总时长含阶段间等待 · 阶段总和=纯在阶段内)\n"
-            f"- 用户邮箱:{user_email or '未取到'}\n"
-            + (f"- dispatch 模型分布:{_dm}(unspecified=未分档继承会话 · 档位采纳观测 · v8.231)\n"
-               if _dm else "")
-            + f"- 主对话:host={host}{model_suffix}\n"
-            f"- concerns:{len(concerns)}(WARN {warn_n})· bypass:{bypass_n}\n"
-            f"- 细数据源:本 feature `project-specs/PROCESS-LEDGER.md` 行"
-            f"(external 总/采/驳 · 角色真 finding · 暂停点 改:默)\n\n"
-            + (f"## 源材料摘录(v8.207 · worktree 删除前自动抽 · 供三段判断 · 勿改)\n"
-               f"> 🔴 三段判断照实抄本段 + 上方实际数据 · **无需 unzip 归档**(worktree 已删 · 源已在此)。\n\n"
-               f"{audit_sources}\n\n" if audit_sources else "")
-            + f"## 做的好的\n"
-            f"<!-- AI 静默填:本 feature 流程上真正有效的环节(external 拦真 bug / "
-            f"test 抓回归 / diagnose 改修复方向)· 照实抄**上方『源材料摘录』段** + 实际数据 · 无则写「无」 -->\n\n"
-            f"## 发现的问题\n"
-            f"<!-- AI 静默填:流程摩擦 / 工具判例 / 框架级 bug(= 该反馈 teamwork 的)· "
-            f"照实 · 无则写「无」 -->\n\n"
-            f"## 待优化的\n"
-            f"<!-- AI 静默填:本 feature 暴露的可优化点(纯过场环节 / 成本异常)· "
-            f"仅记录不自改 spec · 无则写「无」 -->\n"
-        )
-        out.write_text(body, encoding="utf-8")
-        return str(out)
-    except OSError:
-        return None
 
 
 def _archive_idempotent_zip(main_wt: str, feature_path: str) -> Optional[str]:
@@ -2323,10 +2269,6 @@ def cmd_ship_finalize(args: argparse.Namespace) -> None:
     if (feature_dir / "state.json").exists():
         _, state = load_state(args.feature)
     feature_id = state.get("feature_id") or feature_dir.name
-    # v8.207:🔴 worktree-remove **之前**抓 REVIEW/TEST 摘录 —— 治本(实证 case):audit 三段
-    # 判断需 REVIEW.md/TEST-REPORT.md,但它们随 worktree 删除只剩 zip 内 → AI 被迫 unzip 反读。
-    # 此刻 feature_dir 尚在 · 抓成摘录嵌进 audit 草稿 · AI 读草稿即可填三段(不再 unzip)。
-    audit_sources = _capture_audit_sources(feature_dir)
     merge_target = state.get("merge_target") or ""
     if not merge_target:
         # 接力卡消亡(worktree 已删 / 手清)→ 幂等:zip-on-origin 判已交付
@@ -2578,10 +2520,6 @@ def cmd_ship_finalize(args: argparse.Namespace) -> None:
     if fp:
         zip_hint = fp[1]
 
-    # ── 流程质量审计落 ~/.teamwork/audit/(框架跨项目搜集)· AI 静默补判断 ──
-    audit_record = _write_audit_record(state, feature_id, merge_target, main_wt,
-                                       getattr(args, "main_model", None), audit_sources)
-
     emit_json({
         "verdict": "PASS",
         "command": "ship-finalize",
@@ -2597,17 +2535,11 @@ def cmd_ship_finalize(args: argparse.Namespace) -> None:
         **({"byproduct_commit": byproduct_commit} if byproduct_commit else {}),
         **({"teamwork_stashes": tw_stashes} if tw_stashes else {}),
         **({"archive_zip": zip_hint} if zip_hint else {}),
-        **({"audit_record": audit_record} if audit_record else {}),
         **({"warnings": warnings} if warnings else {}),
         "next_action_brief": (
             f"✅ ship2 清场完成({feature_id})。"
             + (f"\n⏸️ 主工作区有用户改动待决策(见 main_sync_decision · PMO 转 R5(b) 暂停点)。"
                if main_sync_decision else "")
-            + (f"\n📊 流程质量审计草稿已落 {audit_record}(框架跨项目搜集用)· "
-               f"🔴 **静默补完三段判断**(做的好的 / 发现的问题 / 待优化的 · 照实抄草稿内"
-               f"**『源材料摘录』段 + 实际数据** · 🔴 **无需 unzip 归档**〔worktree 删除前已抽入草稿〕· "
-               f"空写「无」)· 改 frontmatter audit_status: done · **不暂停不等确认 · 写完即结束**。"
-               if audit_record else "")
             + (f"\n📋 收尾 digest(纯输出 · 不暂停):按 stages/ship-stage.md §16 读 "
                f"{zip_hint or '_archive/<id>.zip'} 出 ≤10 行流程价值反思。" )
         ),
@@ -2758,9 +2690,6 @@ def register_v8_ship_subparser(sub) -> None:
     )
     fp.add_argument("--feature", required=True,
                     help="worktree 内 feature 目录路径(接力卡 state.json 所在 · 已删则幂等判定)")
-    fp.add_argument("--main-model", default=None,
-                    help="主对话(PMO)模型 · PMO 声明(它知道自身 model · 如 claude-opus-4-8)· "
-                         "写入 audit 实际数据 · 缺省只记 host · 供 harvest 按模型分析流程质量")
     fp.set_defaults(func=cmd_ship_finalize)
 
     # ─── main-sync:主工作区净化(v8.70)─────────────────────────────

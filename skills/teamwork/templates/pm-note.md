@@ -48,34 +48,20 @@ revision_history:
 
 ---
 
-## §3 决策选项(三选一 · 用户拍板)
+## §3 决策(用户已拍板 · 记录结果 · 不是选项脚本)
 
-> 🔴 三选项都是**用户**决策 · AI 自决 = 越权 R3(详 stage spec § 4)。
+> 🔴 三个选项与各自的回退命令**单源在 [pm-acceptance-stage.md](../stages/pm-acceptance-stage.md)** ——
+> 本文件是**决策之后的记录**,不复述暂停点脚本(v8.293:原三分支槽位 + 四条回退命令与 stage 逐字重复)。
 
-### 3.1 若 approved_and_ship(推荐 · AC 全过且可发布)
+**决策**:{approved_and_ship / approved_no_ship / rejected_with_feedback}
+**理由**(一句):{如:核心 AC 全过 · 截图与 PRD UI 一致 · 无阻塞问题}
 
-**理由(PM 写一句)**:{如:核心 AC 全过 · 截图与 PRD UI 一致 · 无阻塞问题 · 可进 ship}
-**后续动作**:进 ship stage(push 分支 + 建 MR · Phase 1 仍有"等用户在平台合并"暂停点)
-
-### 3.2 若 approved_no_ship(完成但暂不发)
-
-**理由**:{如:等协同 Feature X 合并后再统一发版 / 等运营时机}
-**后续动作**:Feature 直接 completed · 不 ship
-
-### 3.3 若 rejected_with_feedback(发现需返工)
-
-**finding 列表**(必填):
+### rejected_with_feedback 时必填 finding 列表
 
 | ID | 描述 | 涉及 AC | 严重度 | 建议改 | 类型(代码/需求/UI) |
 |---|---|---|---|---|---|
 | F1 | {如:登录失败提示文案与 PRD AC-2 不符 · PRD 要"密码错误" · 实现是"凭证无效"} | AC-2 | high | 改 src/auth/login.ts:42 提示文案 | 代码 |
 | F2 | {如:AC-4 漏了空态截图 · QA 没测} | AC-4 | medium | 补 fe-e2e-005 空态场景 | QA 补测 |
-
-**后续动作**(由 finding 类型决定 · 详 stage spec § 回退选项):
-- 代码 bug → `state.py reset-prev` → dev-fix → review → test → pm_acceptance 重走
-- AC / 需求改 → `state.py jump-to-stage --to goal --reason "..."` → 改 PRD + 重 review
-- UI 设计改 → `state.py jump-to-stage --to ui_design --reason "..."` → 改 UI
-- 放弃 Feature → `state.py ship-phase --action close-unmerged --abandon=true`
 
 ---
 
@@ -98,15 +84,3 @@ revision_history:
 
 ---
 
-## 起草要点(PM cite · 写时删)
-
-📚 **参考**(v8.199 cite 仪式已废 · 按需读):
-- `stages/pm-acceptance-stage.md` —— 对照 TEST-REPORT 实际数据 · 不口述 OK
-- `stages/pm-acceptance-stage.md § 4 三选项暂停点` —— 三选项 R5 emit 模板 · 用户拍板
-
-❌ **反模式**(SOP 红线):
-- "看起来 OK" 口述 → 必逐条 AC 对照实测数据
-- AI 自决 decision(含"保守"的 approved_no_ship)→ 越权 R3
-- `approved_no_ship` 躲避决策 → 仅用于真"完成但等时机" · 不用作躲避
-- rejected 不写 finding → state.py 强校验 `--note` · 必明确改什么
-- finding 模糊「整体不太好」→ 必具体到 AC + 文件 + 建议

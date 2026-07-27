@@ -67,16 +67,27 @@ class TestTriageCalibrationV8217(unittest.TestCase):
 
 
 class TestDispatchModelsV8231(unittest.TestCase):
-    def test_distribution_and_unspecified(self):
+    def test_distribution_splits_declared_from_unspecified(self):
+        """v8.299:旧版把「没思考」与「思考了判定该继承」都计 unspecified —— 两者干预手段相反。
+
+        实证:某次 api-e2e 派发档位判断是对的(不该降),漏的只是声明,却被计成 unspecified →
+        年检会得出「该加强档位教育」的**错误结论**。故拆两桶。
+        """
         import tempfile
         from _v8_ship import _dispatch_model_distribution
         d = Path(tempfile.mkdtemp()); dl = d / "dispatch_log"; dl.mkdir()
         (dl / "001-qa.md").write_text("- model: sonnet\n", encoding="utf-8")
-        (dl / "002-pl.md").write_text("task only\n", encoding="utf-8")
+        (dl / "002-pl.md").write_text("- tier: 深度\n- 理由: 首份 e2e 探索型\n", encoding="utf-8")
+        (dl / "003-x.md").write_text("task only\n", encoding="utf-8")
         (dl / "INDEX.md").write_text("| i |\n", encoding="utf-8")
         dist = _dispatch_model_distribution(d)
-        self.assertEqual(dist.get("sonnet"), 1)
-        self.assertEqual(dist.get("unspecified(继承会话)"), 1)   # 未分档信号
+        self.assertEqual(dist.get("sonnet"), 1, "显式 model 应按值计")
+        declared = [k for k in dist if "inherited_declared" in k]
+        unspec = [k for k in dist if k.startswith("unspecified")]
+        self.assertEqual(len(declared), 1, f"「判定该继承」未单独成桶:{dist}")
+        self.assertEqual(dist[declared[0]], 1)
+        self.assertEqual(len(unspec), 1, f"「真没分档」桶缺失:{dist}")
+        self.assertEqual(dist[unspec[0]], 1)
         self.assertNotIn("INDEX", str(dist))
         self.assertEqual(_dispatch_model_distribution(Path(tempfile.mkdtemp())), {})
 
@@ -93,8 +104,13 @@ class TestDispatchModelsV8231(unittest.TestCase):
 
 class TestDispatchTierReminderV8238(unittest.TestCase):
     def test_constant_and_wiring(self):
+        """断言**实质**不锁措辞(RETRO 教训:锁字面的断言会在下次改写时假红)。"""
         import _v8_engine as E, inspect
-        self.assertIn("声明 model", E.DISPATCH_TIER_REMINDER)
-        self.assertIn("验证档", E.DISPATCH_TIER_REMINDER)
+        D = E.DISPATCH_TIER_REMINDER
+        self.assertIn("验证档", D)
+        self.assertIn("prompt 首行", D, "声明未寄生到 prompt(另起一句的义务会衰减)")
+        self.assertIn("用户授权", D, "验证类例外未要求用户授权 → AI 可自我合理化")
+        for task in ("单测", "集成测试", "执行测试"):
+            self.assertIn(task, D, f"验证类白名单缺:{task}")
         src = inspect.getsource(E.execute_stage_start)
         self.assertIn("dispatch_tier_reminder", src)   # 已接进 stage-start emit

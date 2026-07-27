@@ -717,9 +717,6 @@ LOCALCONFIG_CONFIG_DEFAULTS = {
     "mr_url_template": None,
     "id_strategy": "utc-yymmddhhmmss",
     "local_env_auto_create": True,
-    # v8.204(用户拍板 · 全局一刀切):默认关异质 external 评审(降级为同模型 subagent 隔离冷审)·
-    # external CLI 冷启动太耗时 · 多角色评审(架构师+QA)不受影响照跑 · 想要跨模型异质把关 → 设 false。
-    "disable_external_review": True,
     # v8.260/264:fast mode(默认关):true = 评审收敛为两端单路(goal 合并冷审 + review 合并评审 ·
     # blueprint 评审去)· yolo 忽略 · 详 templates/config.md § fast mode。
     "fast_mode": False,
@@ -738,7 +735,7 @@ def ensure_localconfig_complete(project_root: Path, skill_root: Path) -> dict:
     """v8.91:bootstrap 启动自愈 localconfig —— 缺的已知字段补默认值(尤其 `_bootstrap` 段)。
 
     治本:localconfig 由**老版 bootstrap / 手建 / 部分写入** 时 · `_bootstrap` 子键或新增
-    feature 开关(disable_external_review 等)缺失 · 且版本命中
+    feature 开关缺失 · 且版本命中
     skip_maintain 时这些缺口**永不补** · 用户也看不到新选项。
     - 仅 **additive**:只补缺的键 · **绝不覆盖**用户已有值(含显式 false/null)。
     - 仅当 localconfig **已存在**时跑(不存在 = 冷启动 · 由 maintain / prepare 创建 · 不在此凭空造)。
@@ -1486,17 +1483,8 @@ def cmd_session_bootstrap(args: argparse.Namespace) -> None:
             "rule": "🔴 PMO 首条响应按此序 · 不可把 ①/② 降成底部「维护提醒」脚注(治本优先级倒置)",
         }
 
-    # v8.204:external 异质评审**默认关**(disable_external_review 缺省→true · CLI 冷启动太耗时)·
-    # 降级为同模型 subagent 隔离冷审 · 多角色评审(架构师+QA)照跑 · 想跨模型异质把关 → 显式设 false。
-    _ext_disabled = read_localconfig(project_root).get("disable_external_review", True) is not False
-    result["checks"]["heterogeneous_review"] = {
-        "status": "cold-review (default)" if _ext_disabled else "heterogeneous (opt-in)",
-        **({"note": (
-            "ℹ️ external 异质评审默认关(v8.204)· 第三视角 = 错开模型 subagent 隔离冷审(fresh session · ≠主会话模型 · v8.268)· "
-            "架构师+QA 多角色评审不受影响照跑 · 想要跨模型异质把关(揭同模型盲区)→ "
-            ".teamwork_localconfig.json 设 `disable_external_review: false`(需装第二个模型 CLI)")}
-            if _ext_disabled else {}),
-    }
+    # v8.291:跨厂商异质评审已彻底退役 —— 第三视角唯一形态 = 错开模型 subagent 冷审
+    # (零 CLI 成本 · 无冷启动/登录/超时故障面)· 不再有 opt-in 分支,故不再提示。
 
     # v8.115:知识图谱结构可达性(零死角物化 · WARN-only · 不进 flow_gates/priority · 不劫持升级>规划>任务序)
     result["checks"]["knowledge_graph"] = check_knowledge_graph_integrity(project_root)

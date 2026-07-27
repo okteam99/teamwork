@@ -1,7 +1,7 @@
 # 前端开发规范
 
-> 前端 RD 必须遵守。通用规范见 📎 [common.md](./common.md) · TDD 流程唯一权威源 📎 [tdd.md](./tdd.md)。
-> Subagent 加载指引：前端子项目加载本文件 + tdd.md + common.md，无需加载 backend.md。
+> 前端 RD 必须遵守。通用规范见 📎 [common.md](./common.md) · 🔴 必读白名单 📎 [HARD-RULES.md](./HARD-RULES.md)。
+> Subagent 加载指引：前端子项目加载 HARD-RULES.md(必读)+ 本文件 + common.md(按需)，无需加载 backend.md。
 > 📎 **实施示例 / 选型教程不入库**（v8.123 裁定）：通用技术用法是模型自带知识 · AI 按需自生成（防教程腐烂反向误导 · 承 v8.114 三层律「不 own 知识内容」）· 项目特异约定归各项目 `DEV-RULES.md`（用户主权）。本文件只保留 must/must-not 硬规则。
 
 ---
@@ -12,77 +12,13 @@
 
 ---
 
-## 一、前端测试规范（测试先行，强制执行）
+## 一、前端测试规范
 
-**覆盖率要求**: > 70%
+> v8.287:TDD 手段规定已撤除(怎么测 AI 自觉 · 结果规则见 [HARD-RULES.md](./HARD-RULES.md))。本节只留**项目约定的阈值与清单**:
 
-### 测试分层
-
-| 层级 | 覆盖目标 | 工具示例 | 要求 |
-|------|----------|----------|------|
-| **单元测试** | 工具函数、Hooks、纯逻辑（非 UI） | Jest, Vitest | 必须覆盖，覆盖率 > 70% |
-| **E2E 测试** | 关键用户流程、页面交互 | Playwright, Cypress | P0 流程必须覆盖 |
-| **组件测试** | UI 组件渲染、交互 | Testing Library | 可选，按需补充 |
-
-### 必须测试的场景
-
-```
-✅ 必须覆盖：
-├── 表单验证逻辑（输入校验、错误提示）
-├── 状态管理（store/context 的状态变更）
-├── API 调用和错误处理（loading、error、success 状态）
-├── 路由守卫/权限控制
-├── 关键业务流程（登录、支付、提交订单等）
-├── 条件渲染逻辑（显示/隐藏、启用/禁用）
-└── 用户交互（点击、输入、拖拽等关键操作）
-```
-
-### 可选测试（非强制）
-
-```
-⚪ 可选：
-├── 纯展示组件（无逻辑，只接收 props 渲染）
-├── 第三方组件简单封装
-├── 样式/动画效果
-└── 静态页面
-```
-
-### 前端 TDD 流程
-
-🔴 **单源 = [standards/tdd.md](./tdd.md)**（Iron Law / RED-GREEN-REFACTOR 5 步 / 自检清单 / 反模式 / 例外）· 本文件不复制流程正文（防双源漂移 · 已注册 tdd.md §七 引用约定）。前端落地差异仅两点：测试命令 `vitest path/to/component.test.tsx`（tdd.md §二 Step 2 已列）· RED 阶段先写组件测试（组件还不存在 · 测试先行）。
-
-### 前端测试命名规范
-
-```
-✅ 正确：
-├── describe('LoginForm', () => { ... })
-├── it('should show error when email is empty', ...)
-├── it('should disable submit button while loading', ...)
-└── it('should redirect to home after successful login', ...)
-
-❌ 错误：
-├── test('test1', ...)
-├── it('works', ...)
-└── it('LoginForm', ...)
-```
-
-### E2E 测试要求
-
-```
-P0 流程必须有 E2E 测试：
-├── 用户注册流程
-├── 用户登录流程
-├── 核心业务流程（如下单、支付）
-└── 权限相关流程（如管理员操作）
-
-E2E 测试文件位置：
-└── e2e/
- ├── login.spec.ts
- ├── register.spec.ts
- └── checkout.spec.ts
-```
-
----
+- **覆盖率**:> 70%
+- **测试分层**:单元(纯函数/hook)· 组件(渲染 + 交互 + 状态)· 集成(跨组件/路由/数据流)· e2e(真实浏览器 · 归 browser_e2e stage)
+- **必须测试的场景**:交互回调真被调用 · 条件渲染各分支 · 异步态(loading/success/error)· 边界输入(空/超长/特殊字符)· 错误边界不白屏
 
 ## 二、组件测试规范
 
@@ -145,7 +81,7 @@ E2E 测试文件位置：
 
 | 类别 | 关键规范 |
 |------|----------|
-| **测试** | TDD 先行（单源 tdd.md），覆盖率 > 70%，必须覆盖 P0 流程 |
+| **测试** | 节奏自定(结果规则见 HARD-RULES)，覆盖率 > 70%，必须覆盖 P0 流程 |
 | **组件测试** | Testing Library + MSW Mock，避免快照测试 |
 | **样式** | 统一 CSS 方案，使用 design tokens，响应式 mobile-first |
 | **状态管理** | 分层管理，仅当必要才全局化，数据获取用专门库 |

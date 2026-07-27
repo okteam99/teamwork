@@ -1,7 +1,7 @@
 # 后端开发规范
 
-> 后端 RD 必须遵守。通用规范见 📎 [common.md](./common.md) · TDD 流程唯一权威源 📎 [tdd.md](./tdd.md)。
-> Subagent 加载指引：后端子项目加载本文件 + tdd.md + common.md，无需加载 frontend.md。
+> 后端 RD 必须遵守。通用规范见 📎 [common.md](./common.md) · 🔴 必读白名单 📎 [HARD-RULES.md](./HARD-RULES.md)。
+> Subagent 加载指引：后端子项目加载 HARD-RULES.md(必读)+ 本文件 + common.md(按需)，无需加载 frontend.md。
 > 📎 **通用教程不入库**（同 frontend.md v8.123 裁定）：保留的 ✅/❌ 示例仅限**承载契约/门禁字段**的对照（如 §四 日志必须字段）· 通用技术用法由 AI 按需自生成 · 项目特异约定归各项目 `DEV-RULES.md`。
 
 ---
@@ -20,29 +20,9 @@
 
 ---
 
-## 一、后端测试规范（TDD 强制执行）
+## 一、后端测试规范
 
-**覆盖率要求**: > 80%
-
-### 开发流程（Red-Green-Refactor）
-
-🔴 **单源 = [standards/tdd.md](./tdd.md)**（Iron Law / RED-GREEN-REFACTOR 5 步 / 自检清单 / 反模式 / 例外）· 本文件不复制流程正文（防双源漂移 · 已注册 tdd.md §七 引用约定）。后端落地差异仅测试命令：`pytest path/to/test_xxx.py -v` / `npm test path/to/test.test.ts` / `go test ./path/to/...`（tdd.md §二 Step 2 已列）。
-
-### 测试命名规范
-
-```
-✅ 正确：
-├── test_login_with_valid_credentials_should_return_token
-├── test_login_with_wrong_password_should_return_401
-└── test_create_user_with_duplicate_email_should_fail
-
-❌ 错误：
-├── test_login
-├── test1
-└── testLoginFunction
-```
-
----
+> v8.287:TDD 手段规定已整体撤除(怎么测 AI 自觉)· 测试的三条**结果规则**见 [HARD-RULES.md](./HARD-RULES.md)。本框架的证据硬门在 stage 层(`dev-complete --test-exit-code 0` + 差分基线)。
 
 ## 二、集成测试规范（后端 API）
 
@@ -138,57 +118,7 @@
 📋 集成测试报告（F001-用户登录）
 =====================================
 
-## 环境信息
-- 环境: Docker Local / Dev Remote
-- 部署方式: docker-compose.test.yml / 远程连接
-- API Base: http://localhost:8080
-- 数据库: localhost:3306/test_db (Docker) / dev_db@10.0.0.1 (Remote)
-- 缓存: localhost:6379 (Docker) / N/A
-
-## API 测试结果
-| 接口 | 场景 | 预期 | 实际 | 结果 |
-|------|------|------|------|------|
-| POST /api/v1/login | 正常登录 | 200 + token | 200 + token | ✅ |
-| POST /api/v1/login | 密码错误 | 401 | 401 | ✅ |
-| POST /api/v1/login | 用户不存在 | 404 | 404 | ✅ |
-
-## 数据库验证结果
-| 操作 | 表 | 验证项 | 结果 |
-|------|-----|--------|------|
-| 登录成功 | user_sessions | session 创建 | ✅ |
-| 登录成功 | users | last_login_at 更新 | ✅ |
-
-## 测试数据使用
-| 数据 | ID | 操作 |
-|------|-----|------|
-| 测试用户 | test_user_001 | 复用 |
-| 登录会话 | session_xxx | 新建后清理 |
-
-## 结论
-✅ 全部通过 / ❌ 有失败项
-
-## 失败项（如有）
-| 接口 | 问题 | 建议 |
-|------|------|------|
-```
-
-### 失败处理流程
-
-```
-集成测试失败（Test Stage 返回后由 PMO 处理）：
- ↓
-判断失败类型（根据 Test Stage 报告）：
- ├── 代码 Bug (QUALITY_ISSUE) → PMO dispatch RD Fix → 重新 dispatch Test Stage
- ├── 环境问题 (BLOCKED) → ⏸️ 用户排查 → 修复后 PMO 重新预检 + dispatch
- ├── 需求理解偏差 → ⏸️ 用户确认 → 决定修复方案
- └── 测试用例问题 → ⏸️ 用户确认 → 调整用例或跳过
-
-测试完成后清理（可选）：
- ├── 执行根级 scripts/test-env-teardown.sh（如存在）
- └── 默认保留环境供后续测试复用
-```
-
----
+> **集成测试报告**(产物字段 · v8.284 压缩原 52 行模板):环境信息(服务/DB/配置来源)· API 测试结果(端点 × 状态 × 断言)· 数据库验证结果(落库真值核对)· 测试数据使用(fixture / seed 来源)· 结论 · 失败项(现象 + 定位 + 处理)。**格式不规定**,字段齐即可。
 
 ## 三、服务端 API 接口规范
 
@@ -215,47 +145,6 @@
 | `msg` | string | ✅ | 人类可读的提示信息 |
 | `data` | object | ✅ | 业务数据，无数据时为空对象 `{}` |
 | `extra` | object | ❌ | 扩展字段，用于分页信息、调试信息等 |
-
-### 响应示例
-
-**成功响应**：
-```json
-{
- "code": "SUCCESS",
- "msg": "获取用户信息成功",
- "data": {
- "user_id": "12345",
- "user_name": "张三",
- "created_at": "2024-01-15T10:30:00Z"
- },
- "extra": {}
-}
-```
-
-**失败响应**：
-```json
-{
- "code": "USER_NOT_FOUND",
- "msg": "用户不存在",
- "data": {},
- "extra": { "request_id": "req-abc123" }
-}
-```
-
-**分页响应**：
-```json
-{
- "code": "SUCCESS",
- "msg": "查询成功",
- "data": { "list": [] },
- "extra": {
- "page": 1,
- "page_size": 20,
- "total": 100,
- "total_pages": 5
- }
-}
-```
 
 ### JSON 命名规范
 
@@ -297,67 +186,10 @@
 
 ## 四、日志规范
 
-### 日志级别
+### 日志级别与格式(v8.285 压缩 · 级别语义与 JSON 示例已删 —— 模型默认就会)
 
-| 级别 | 使用场景 | 示例 |
-|------|----------|------|
-| **DEBUG** | 开发调试信息，生产环境关闭 | 变量值、执行路径 |
-| **INFO** | 正常业务流程的关键节点 | 请求开始/结束、状态变更 |
-| **WARN** | 非预期但可处理的情况 | 参数为空用默认值、降级处理 |
-| **ERROR** | 业务异常，需要关注 | 业务校验失败、外部服务调用失败 |
-| **CRITICAL** | 严重错误，系统可能无法运行 | 数据库连接失败、配置缺失 |
-
-### 结构化日志格式（服务端必须遵守）
-
-> 默认推荐以下结构化日志格式（示例如下）。项目可在 `DEV-RULES.md` 声明自定义日志格式（如 ELK/Datadog/自建方案），声明后以其为准；未声明则按本节默认格式。
-
-```json
-{
- "severity": "ERROR",
- "message": "Failed to process payment",
- "time": "2024-01-15T10:30:00.000Z",
- "labels": {
- "service": "payment-service",
- "version": "1.0.0"
- },
- "trace": "trace-id-abc123",
- "context": {
- "userId": "user-123",
- "orderId": "order-456"
- },
- "error": {
- "message": "Connection timeout",
- "stack": "Error: Connection timeout\n at ..."
- }
-}
-```
-
-### 必填字段（无论使用哪种日志格式，以下字段必须包含）
-
-```
-├── severity # 日志级别
-├── message # 人类可读的日志描述
-├── time # ISO 8601 格式时间戳
-└── context # 业务上下文
-```
-
-### 日志规范要求
-
-```
-❌ 禁止：
-├── 日志信息不包含上下文（无法追溯问题）
-├── 异常不打日志直接吞掉
-├── 非预期分支逻辑不打日志
-└── 日志格式不符合结构化日志规范
-
-✅ 必须：
-├── 使用结构化 JSON 格式输出
-├── ERROR 级别必须包含 error.stack
-├── 请求入口和出口都打 INFO 日志
-├── 外部服务调用必须打日志（包含耗时）
-├── 关联 trace ID 便于分布式追踪
-└── 所有非预期的异常和分支逻辑必须打 WARN 或 ERROR 日志
-```
+- 级别按标准语义(DEBUG 开发 / INFO 关键节点 / WARN 非预期可处理 / ERROR 业务异常 / CRITICAL 系统级)。
+- **结构化日志必填字段**(项目约定 · 不是通用常识):`timestamp` · `level` · `service` · `trace_id`(链路追踪)· `message` · 业务上下文键(如 `feature_id` / 关键业务 id)· 异常时附 `stack`。格式 JSON,字段名以此为准。
 
 ### 非预期分支日志规则
 
@@ -548,6 +380,18 @@ try {
  └── 🔴 **不靠读邻居 migration 推断**格式（邻居可能不一致 / 有坏样板）· 要么 DEV-RULES 要么秒级默认
 ```
 
+### 起号纪律(🔴 多 Feature 并行撞号 · v8.293 从 templates/architecture.md 上提到此权威处)
+
+teamwork 常态是**多 Feature 并行、各自 worktree 起 migration** —— 撞 timestamp 是反复出现的高频问题,
+而模型默认只会「照当前时间起个号」,不会想到去看别人已经合进去的号。故这条是**信息不是教程**:
+
+- 起号前先 `git fetch` merge_target,**取 merge_target tip 上的最大 timestamp**,新号必须**大于**它
+  (只看本地 = 落后就撞已合并的号)。
+- 用**真实当前时间精确到秒**;同秒手工 +1。🔴 **不要批量生成**(一次循环产多个 migration 同 timestamp = 自撞)。
+- **撞号后用 `git mv` 改名 + amend**(同步改文件内 `schema_migrations` version 引用),
+  🔴 **不要 revert + 新加** —— 会留两次 schema 变更历史、污染审计。
+- 物化校验(取前 14 位 `sort | uniq -d` 非空即撞号)由**项目自行实施** —— 各 ORM / migration 路径差异大,框架不强制。
+
 ### 强制要求
 
 ```
@@ -582,15 +426,9 @@ try {
 >
 > 项目可在 `DEV-RULES.md` 声明覆盖此默认（如"本项目默认启用 FK"），声明后以其为准 + TECH.md 引用 DEV-RULES 行号；未声明则按本节默认（避免 FK）。
 
-#### 默认避免的理由（行业常见取向）
+#### 默认避免的理由(逆教科书默认 · 故必须给 why)
 
-```
-├── 分库 / 分表后 FK 失效 · 规则必须强制到应用层 · 双层维护反而不一致
-├── 大批量写入 / 数据迁移 / 灰度回放时 FK check 成本不可控（锁 / 校验 / 死锁）
-├── 跨服务边界（微服务 / 中台）引用关系不该由 DB 隐式承载
-├── 级联删除 / 级联更新在生产事故时回滚成本极高（一行 delete 删全库）
-└── ORM 层（GORM / SQLAlchemy / Prisma / Sequelize）通常已能维护引用语义
-```
+分库分表后 FK 失效(规则终须落应用层 · 双层维护反而不一致)· 大批量写入/迁移/灰度回放时 FK check 成本不可控(锁/校验/死锁)· 跨服务边界的引用关系不该由 DB 隐式承载 · 级联删除生产事故回滚成本极高(一行 delete 删全库)· ORM 通常已能维护引用语义。
 
 #### 引入 FK / CASCADE 的硬要求
 

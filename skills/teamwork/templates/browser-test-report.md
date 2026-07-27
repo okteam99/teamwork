@@ -159,15 +159,3 @@ screenshots/
 
 ---
 
-## 起草要点(QA + Designer cite · 写时删)
-
-📚 **参考**(v8.199 cite 仪式已废 · 按需读):
-- `stages/browser-e2e-stage.md § 选浏览器自动化` —— Playwright / Puppeteer / Selenium · 项目栈决定
-- `stages/browser-e2e-stage.md § 质量基线` —— 截图 SOP:每 AC 一组 · 含 viewport + URL
-- `stages/browser-e2e-stage.md § SOP` —— 截图含浏览器 chrome + URL bar · 不裁剪
-
-❌ **反模式**:
-- 截图裁掉 URL bar → 看不出测的什么 URL · 不可复核
-- 模式与 PRD 不符(PRD 是桌面 / 截图是移动)
-- flaky 静默 retry 成功 → 必留 log + 失败截图
-- 只 happy path · 漏边界 → 每 AC 至少 1 happy + 1 边界(若 PRD 有边界场景)

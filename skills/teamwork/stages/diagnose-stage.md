@@ -1,34 +1,44 @@
 # Diagnose Stage(Bug 流程 · 根因细查 + 修复方案确认)
 
-> 🔴 **仅 Bug 流程**。在 `dev` 之前 · 把「根因 + 修复方案」查清楚并**让用户确认**,再进 dev 写码。
-> **存在理由**:triage/prepare 时读的代码往往**不够细**(只够判流程类型 + 给个大致方向)· 直接进 dev 写 fix → **极易修偏**(改了症状不是根因 / 改错位置 / 漏了影响面)。diagnose 是 Bug 流程的「what + how 确认」闸 —— 对应 Feature 的 goal(PRD)+ blueprint(TECH)。
-> 🔴 **入口分两种**:① **Bug 直入**(缺陷已指认 · prepare 只有大致方向)→ 本 stage 从零细查;② **问题排查转入**(排查先行律 · 已有**已验证**根因 · 详 [docs/prepare.md §2](../docs/prepare.md))→ cite 排查结论**复核**(核验关键文件仍一致)· **不重查** · 重点落 BUG 报告 + §修复方案 + R5 确认。
+> 🧭 **四段结构**(v8.284 · 目标 / 硬规则 / 建议手段菜单 / Output Contract)· 🔴 **仅 Bug 流程** · 位置在 `dev` 之前。
 
 ---
 
-## 怎么做
+## ① 目标(telos)
 
-### 1. 复现 + 锁定现象
-- 明确 bug 的可复现路径(输入 → 期望 → 实际)· 写进 BUG 报告 §现象。
-- 不能复现 → 先收集证据(日志 / 数据 / 调用栈)· 不靠猜。
+**把 bug 从「症状」查成「可指到位置的真因 + 用户拍过板的修复方案」,再交给 dev 写码**。diagnose 是 Bug 流程的「what + how 确认」闸 —— 对应 Feature 的 goal(PRD)+ blueprint(TECH)。拦的风险:triage/prepare 时读的代码往往**不够细**(只够判流程类型 + 给个大致方向),照那个浅印象直接进 dev 写 fix → **极易修偏**(改了症状不是根因 / 改错位置 / 漏了影响面);以及修复方向被 AI 悄悄拍板 —— 用户在「报告 + fix + commit 一口气写完」的既成事实上补确认。**深度优先**:宁可在 diagnose 多读 20 分钟代码,也别在 dev 写错方向返工、到 review 才发现。
 
-### 2. 🔴 深读代码做根因细查(本 stage 的核心 · 不能省)
-- **深读相关代码**:从现象入口顺着调用链读到真因 —— 读**实际代码 / 数据流 / 配置 / schema**,不是凭 prepare 时的浅印象。
-- **挖到真因**:能指到「哪个文件 / 哪行 / 哪个调用 / 哪个字段 / 为什么」· 不是「大概是 X 模块的问题」。
-- **decisive 前提核验真实文件**:涉及「数据是否真入库 / 字段是否真存在 / 能力是否真生效」→ 读真实代码/数据确认 · 不轻信 Explore/sub-agent 摘要(摘要常漏细节,正是修偏来源)。
-- **区分症状 vs 根因**:症状(用户看到的错)往往离根因好几层 · 改症状 = 治标 = 复发。写 §根因 要写**根因**。
+---
 
-### 3. 起草修复方案(§修复方案 · 不写 fix 码)
-- **改哪**(文件/函数)· **怎么改**(具体逻辑)· **取舍**(为什么这样改 · 有没有更简单的)· **影响面**(动这块会不会波及别处 / 是否需要回归)。
-- 🔴 **本 stage 不写 fix 代码** —— 只查 + 规划。写码在 dev(按已确认的方案)。
-- 多个候选方案 → 列出 + 给推荐 + 理由,让用户选。
+## ② 硬规则(白名单 · 每条一行 why)
 
-### 4. 写 BUG 报告
-`bugfix/BUG-<bug-id>.md`(模板 [templates/bug-report.md](../templates/bug-report.md))· frontmatter `bug_id / symptom / root_cause / fix_summary`(`fix_summary` = 修复**方案**摘要)· body §现象 / §根因 / §修复方案。
+1. **深读真实代码挖到可指位置的真因**:从现象入口顺调用链读到底,读**实际代码 / 数据流 / 配置 / schema** —— §根因 要能指到「哪个文件 / 哪行 / 哪个调用 / 哪个字段 / 为什么」,不是「大概是 X 模块的问题」;现象**不能稳定复现**时先收证据(日志 / 数据 / 调用栈)再判,**不靠猜**(why:凭 prepare 的浅印象或表面猜测出的方案,dev 照着写就是修偏)。
+2. **decisive 前提必核验真实文件/数据**:方案依赖「数据是否真入库 / 字段是否真存在 / 能力是否真生效」时,读真实代码或数据确认 · **不轻信 Explore / sub-agent 摘要**(why:摘要常漏细节,正是修偏来源)。
+3. **§根因 写根因、不写症状**:症状(用户看到的错)往往离根因好几层,改症状 = 治标 = 复发(why:根因写成现象复述,dev 只能修表面,同一个 bug 换个入口再来一次)。
+4. 🔴 **本 stage 不写 fix 代码** —— 只查 + 规划,写码在 dev(按已确认的方案)(why:未确认的方案先落成代码 = 让用户在既成事实上拍板,确认沦为过场)。
+5. 🔴 **R5 用户确认修复方案暂停点(必停 · 本 stage 的存在理由)**:`diagnose-complete` **之前必停**,把 **§根因 + §修复方案**(尤其方案:改哪、怎么改、影响面)呈现给用户 · emit R5 编号选项(字面见 ④)· **用户选 1 才 `diagnose-complete` → dev**;选 2 = 重新调查、修订 §根因/§修复方案后再次确认;**不擅自进 dev**(why:修哪儿、怎么修是用户主权决策,不是 AI 的)。多个候选方案 → 全部列出 + 给推荐 + 理由,让用户选。小到极致的 bug(一眼根因 · 改 1 行 · 零影响面)§根因/§方案 可极简、确认走个过场,**但流程不省**(流程在 · 不啰嗦)。
+6. **auto_mode / yolo**:确认点不暂停,按推荐方案继续 + `add-concern --severity WARN` 留痕(diagnose 在状态机内 · 命令可用)(why:委托要留审计)。
+7. **入口分两种,「问题排查转入」不重查**:① **Bug 直入**(缺陷已指认 · prepare 只给了大致方向)→ 按规则 1 从零细查;② **问题排查转入**(排查先行律 · 已有**已验证**根因 · 详 [docs/prepare.md §2](../docs/prepare.md))→ cite 排查结论并**复核**(核验关键文件仍一致)· **不重查** · 重点落 BUG 报告 + §修复方案 + R5 确认(why:已验证结论重查一遍是纯重复;但不复核就直接用 = 拿可能过期的结论定方案)。
 
-### 5. 🔴 用户确认修复方案(R5 暂停点 · 必停)
-diagnose-complete **之前必停** · 把 **§根因 + §修复方案**(尤其方案:改哪、怎么改、影响面)呈现给用户 · emit R5 编号选项:
+---
 
+## ③ 建议手段菜单 —— 本 stage 省略
+
+> HOW 空间小:查因手段(顺调用链读 / 二分 / 收日志 / 核 schema)是模型自带的通用调试能力,写成菜单只会复述 ②。判断准则见 ① 的深度优先与 ② 各条。
+
+---
+
+## ④ Output Contract(产物契约 · 机读)
+
+### `bugfix/BUG-<bug-id>.md`(模板 [templates/bug-report.md](../templates/bug-report.md))
+- frontmatter:`bug_id` / `symptom` / `root_cause` / `fix_summary`(🔴 `fix_summary` = 修复**方案**摘要,不是「已修」—— diagnose 阶段还没写 fix 码)。
+- body:**§现象**(可复现路径:输入 → 期望 → 实际)/ **§根因**(真因 + 实证位置)/ **§修复方案**(改哪 / 怎么改 / 取舍 / 影响面 / 备选)。
+- §回归测试 + §修复记录由 **dev** 追加;dev **不重写** §根因/§修复方案(真发现根因判错 → `jump-to-stage --to diagnose` 复议 · 详 [dev-stage.md](./dev-stage.md) ②硬规则 6)。
+
+### 物化拦截(diagnose-complete 校验)
+`diagnose_doc`:`bugfix/BUG-*.md` 存在 **且** frontmatter `root_cause` + `fix_summary` 均非空(BUG-*.md 动态命名 → 走 evidence check,非固定路径 artifact)。
+
+### ⏸️ R5 用户确认(硬规则 5 的字面)
 ```
 ⏸️ 根因 + 修复方案(请确认):
 - 根因:<一句话真因 + 实证位置>
@@ -40,28 +50,16 @@ diagnose-complete **之前必停** · 把 **§根因 + §修复方案**(尤其�
 3. **其他**
 ```
 
-🔴 auto_mode/yolo:按推荐方案继续 + `add-concern --severity WARN` 留痕(diagnose 在状态机内 · 命令可用)。
-用户选 1 才 `diagnose-complete` → dev。选 2 → 重新调查 · 修订 §根因/§修复方案后再次确认。**不擅自进 dev**。
-
-### 6. complete
+### diagnose-complete(🔴 用户选 1 之后才跑)
 ```
 state.py diagnose-complete --feature <path> --auto-commit <hash> --artifacts bugfix/BUG-<id>.md
 ```
-→ 自动转 dev。dev 阶段按**已确认的方案**写 fix + §回归测试。
-
----
-
-## 质量基线
-
-- 🔴 **根因 ≠ 症状**:§根因 必须是真因(可指到代码位置)· 不是表面现象的复述。
-- 🔴 **方案先确认再写码**:diagnose 出方案 → 用户确认 → dev 写码。**不在 diagnose 写 fix**,**不跳过用户确认直冲 dev**(治本「prepare 浅确认 → dev 一口气写报告+fix+commit」的修偏 case)。
-- **深度优先**:宁可在 diagnose 多读 20 分钟代码,不要在 dev 写错方向返工 + review 才发现。
-- 小到极致的 bug(一眼根因 · 改 1 行 · 零影响面):仍走 diagnose,但 §根因/§方案 可极简 · 用户确认走个过场即可(流程在 · 不啰嗦)。
+→ 自动转 `dev`。dev 阶段按**已确认的方案**写 fix + §回归测试。
 
 ---
 
 ## 相关
-- 引擎:[../tools/_v8_engine.py](../tools/_v8_engine.py) `FLOW_STAGE_CHAIN["Bug"]`
-- spec:[../tools/_v8_stage_specs.py](../tools/_v8_stage_specs.py) `DIAGNOSE_SPEC`
-- 模板:[../templates/bug-report.md](../templates/bug-report.md)
-- 下游:[dev-stage.md](./dev-stage.md)(按确认方案写 fix)
+
+- 引擎:[../tools/_v8_engine.py](../tools/_v8_engine.py) `FLOW_STAGE_CHAIN["Bug"]` · spec:[../tools/_v8_stage_specs.py](../tools/_v8_stage_specs.py) `DIAGNOSE_SPEC`
+- 模板:[../templates/bug-report.md](../templates/bug-report.md) · 入口分流:[../docs/prepare.md §2](../docs/prepare.md)
+- 下游:[dev-stage.md](./dev-stage.md)(按确认方案写 fix)· 通用纪律:[../STAGES.md](../STAGES.md)

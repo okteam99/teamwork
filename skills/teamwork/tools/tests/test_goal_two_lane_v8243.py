@@ -21,9 +21,6 @@ class TestGoalDefaultRosterTwoLane(unittest.TestCase):
         roles = engine.build_default_stage_review_roles("Feature")
         self.assertEqual(roles["goal"], ["pl", "external"])
 
-    def test_legacy_agile_goal_untouched(self):
-        roles = engine.build_default_stage_review_roles("敏捷需求")
-        self.assertEqual(roles["goal"], ["qa", "pl"])
 
 
 class TestExternalCoveragePresent(unittest.TestCase):

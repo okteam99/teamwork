@@ -16,8 +16,6 @@
   "_comment_local_env_auto_create": "本地敏感配置目录 .teamwork-local-env/(kubeconfig/DB密码/API key)· true(默认):bootstrap 在缺失时自动建目录 + config.properties 模板 + 双重 gitignore(根 + 目录内)· 已存在不覆盖。false:不主动建(opt-out · 仍保留 gitignore 预留规则)。读取约定见 TROUBLESHOOTING.md。",
   "local_env_auto_create": true,
 
-  "_comment_disable_external_review": "external 异质评审开关(v8.204 · 🔴 默认 true = 关 · external CLI 冷启动太耗时)。true(默认 · 缺省亦然):第三视角评审 = 宿主自身模型 subagent 隔离冷审(fresh session · 落 external-cross-review/ 满足物化门禁 · frontmatter 标 degraded/review_via:subagent)· 架构师+QA 多角色评审不受影响照跑。false(opt-in 升级):external 跑跨模型异质(claude↔codex 交叉 · 揭同模型盲区 · 需装第二个模型 CLI)。旧名 disable_heterogeneous_review 已废弃不读。区分 --self-review-fallback(异质暂时不可用的临时 stopgap · 不满足门禁)。",
-  "disable_external_review": true,
   "_comment_fast_mode": "v8.261 · fast mode(默认 false = 关):true = 评审收敛为两端单路 —— goal 留一路合并冷审(PL+外审关注点合一 · PRD-REVIEW reviewers:[fast] · verdicts 门照拦)· review 留一路合并评审(Architect+QA 关注点合一 · REVIEW.md 单份 · findings/severity/验证轮照跑)· 两端评审均最多 2 轮(v8.267 · 轮尽未收敛决策点抛用户拍板)· 单路模型与会话主模型错开(v8.269 · 如 fable5 → opus);blueprint 评审去(不产 TECH-REVIEW)· 无多路独立冷审/external。保留:测试硬门 · 全部用户暂停点 · worktree 纪律。🔴 yolo 忽略 fast(v8.262:--yolo 时静默不生效 · 回全量评审 · INFO 留痕 · 不报错)。适合原型/个人提速。",
   "fast_mode": false,
   "_comment_idle_threshold_minutes": "v8.276 · 活动时间戳挖掘空闲阈值(分钟 · 默认 30)。stage 耗时统计:窗口内 git commit + 产物 mtime 作活动信号 · 相邻活动间隔 ≤ 此值累加为 AI 自主工作 · 间隔 > 此值判跨 session 空闲扣除(治「起草完过夜次日 complete = 17h 全算 AI 工作」类台账污染)。调大 = 更宽容(长 test/冷审算工作)· 调小 = 更严(短暂离开也算空闲)。",

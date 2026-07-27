@@ -473,6 +473,77 @@ def close_open_pause(state: dict) -> None:
 DEFAULT_IDLE_THRESHOLD_MINUTES = 30
 
 
+# ─── localconfig 单一解析器(v8.294 · 治本「worktree 里读不到本地配置」)──────────
+#
+# 🔴 实测 bug:`.teamwork_localconfig.json` 是**本地配置、不入 git**(bootstrap 自动 gitignore),
+# 因此**只存在于主工作树**。而原先五份独立实现(state.py `_read_id_strategy` / `_read_fast_mode`,
+# 本文件 `_idle_threshold_minutes` / `_localconfig_max_review_rounds`,_v8_ship.py
+# `_read_archive_on_ship`)都是「从 feature_dir 向上找 · 遇 `.git` 停」——
+# linked worktree 的根有 `.git`(**文件**形式)却没有配置 → 全部静默回退默认值。
+# teamwork 默认 `worktree: auto`,等于这五项配置在真实 feature 上从来没生效过
+# (case 实证:localconfig `fast_mode: true` · init 后 state.json 无该键 · 按全量 roster 跑)。
+#
+# 终止规则(修正后):命中配置 → 用它;`.git` 是**目录** → 主仓根,确实没配置 → 停;
+# `.git` 是**文件** → linked worktree,解析 gitdir 拿到主工作树,**跳过去继续找**。
+_LOCALCONFIG_NAME = ".teamwork_localconfig.json"
+
+
+def _main_worktree_root(dotgit: Path):
+    """linked worktree 的 `.git` 文件 → 主工作树根 · 解析不出返 None。
+
+    内容形如 `gitdir: /abs/main/.git/worktrees/<name>` —— 主仓根 = 该路径里 `.git` 的父目录。
+    纯文本解析(不起 subprocess):git 失败/超时不该让配置读取跟着不可用。
+    """
+    try:
+        text = dotgit.read_text(encoding="utf-8", errors="replace").strip()
+    except OSError:
+        return None
+    if not text.startswith("gitdir:"):
+        return None
+    try:
+        gitdir = Path(text.split(":", 1)[1].strip())
+    except (IndexError, ValueError):
+        return None
+    for p in [gitdir, *gitdir.parents]:
+        if p.name == ".git":
+            return p.parent
+    return None
+
+
+def load_localconfig(start):
+    """从 `start` 向上解析 `.teamwork_localconfig.json` · 🔴 跨 worktree 边界续找主工作树。
+
+    返回 dict(命中且可解析)或 None。调用方各自做取值与合法性校验。
+    """
+    try:
+        node = Path(start).resolve()
+    except (TypeError, OSError):
+        return None
+    seen = set()
+    for _ in range(4):                      # 最多跨 4 层(实际 worktree 嵌套 ≤1)
+        if node in seen:
+            return None
+        seen.add(node)
+        hop = None
+        for d in [node, *node.parents]:
+            cfg = d / _LOCALCONFIG_NAME
+            if cfg.is_file():
+                try:
+                    return json.loads(cfg.read_text(encoding="utf-8"))
+                except (OSError, ValueError):
+                    return None
+            dotgit = d / ".git"
+            if dotgit.is_dir():
+                return None                 # 主仓根 · 本级已查过 → 确实没有
+            if dotgit.is_file():            # linked worktree → 跳主工作树继续
+                hop = _main_worktree_root(dotgit)
+                break
+        if hop is None:
+            return None
+        node = hop
+    return None
+
+
 def _parse_iso_flexible(s):
     """宽松解析 ISO 时间戳 → aware datetime(UTC)· 失败返 None。
 
@@ -489,23 +560,17 @@ def _parse_iso_flexible(s):
 
 
 def _idle_threshold_minutes(feature_dir) -> int:
-    """localconfig `idle_threshold_minutes`(默认 30 · 向上找 .git 边界)· 非法值→默认。"""
-    try:
-        node = Path(feature_dir).resolve()
-    except (TypeError, OSError):
+    """localconfig `idle_threshold_minutes`(默认 30)· 活动挖掘的空闲阈值。
+
+    v8.294:改走 `load_localconfig`(跨 worktree 边界)· 原实现遇 worktree 的 `.git` 文件即停,
+    在默认 worktree 模式下永远读不到主工作树的配置。非法值 → 默认。
+    """
+    cfg = load_localconfig(feature_dir)
+    if not isinstance(cfg, dict):
         return DEFAULT_IDLE_THRESHOLD_MINUTES
-    for d in [node, *node.parents]:
-        cfg = d / ".teamwork_localconfig.json"
-        if cfg.exists():
-            try:
-                v = json.loads(cfg.read_text(encoding="utf-8")).get("idle_threshold_minutes")
-            except (OSError, ValueError):
-                return DEFAULT_IDLE_THRESHOLD_MINUTES
-            if isinstance(v, (int, float)) and not isinstance(v, bool) and int(v) >= 1:
-                return int(v)
-            return DEFAULT_IDLE_THRESHOLD_MINUTES
-        if (d / ".git").exists():
-            break
+    v = cfg.get("idle_threshold_minutes")
+    if isinstance(v, (int, float)) and not isinstance(v, bool) and int(v) >= 1:
+        return int(v)
     return DEFAULT_IDLE_THRESHOLD_MINUTES
 
 
@@ -585,9 +650,20 @@ def _mine_active_minutes(feature_dir, started_iso, completed_iso, contract) -> "
 # v8.238:派发档位声明提醒(单源常量 · 每个 stage-start emit 附带 · 消费时点覆盖)——
 # 实证 case:goal 三路冷审全跑主对话模型(QA 本应验证档)且零声明 · SKILL 全局规则只在 session 早期被读。
 DISPATCH_TIER_REMINDER = (
-    "🎚️ 本 stage 若派 subagent/teammate/workflow:每个派发**声明 model + 一句为什么**"
-    "(校验/枚举型〔QA 冷审/TC 对照/测试执行/机械外化〕→ 验证档 sonnet/haiku · "
-    "判断/创造型〔Architect/PL/方案/裁决〕→ 不降档)· 未声明 = 继承会话模型(台账计 unspecified)· 🎭 评审模型错开:双路 = 外审路 ≠ 主审路 · 单路(fast 合并等)= **该路 ≠ 会话主模型**(如 fable5 会话 → 评审 opus · v8.268/269)· "
+    "🎚️ 本 stage 若派 subagent/teammate/workflow —— 🔴 **声明写在 prompt 首行**"
+    "(`Meta: tier=<验证|执行|深度> · model=<留空则继承> · 理由=<一句>`)· **不要另起一句说** —— "
+    "prompt 是派发时必然要写的,寄生在它上面才不会被忘;「另外记得声明一下」是额外义务,"
+    "高频低显著性的义务必然衰减(v8.299 实证:agent 读过规则仍漏)。\n"
+    "🔴 **验证类一律验证档 · 例外需用户授权**(v8.299 用户拍板):"
+    "**写测试用例(TC 起草)· 执行测试 · 单测 · 集成测试 · e2e · TC 逐条对照 · 冷审执行 · 机械外化** "
+    "—— 这些**默认全部降到验证档**并**必须显式传 model**(降档是要动作的)。"
+    "认为本次是特殊情况(如首份 e2e 需逆向真进程配方 = 探索+调试占主体)→ 🔴 **不许 AI 自决**,"
+    "**开 R5 暂停点请用户授权**(一句:哪个任务 · 为何不适用验证档 · 建议用哪档)。\n"
+    "**判断/创造型**〔Architect/PL/方案/裁决/根因诊断〕→ **允许继承**(仍在首行声明 tier + 理由)· "
+    "义务只压在降档侧才活得下来。\n"
+    "🔴 **PRD 与 TECH 必须主模型/高级模型出设计或参与评审**(v8.290 · 两份设计文档定全局质量上限 · "
+    "起草与评审至少各有一路高档 · 错开也只在高档间错〔fable5↔opus〕· **不许降到验证档**)· "
+    "其余环节尽量**主对话编排 · subagent 并行**(能并行的不串行)· 🎭 评审模型错开:双路 = 外审路 ≠ 主审路 · 单路(fast 合并等)= **该路 ≠ 会话主模型**(如 fable5 会话 → 评审 opus · v8.268/269)· "
     "单源详 SKILL 🎚️ / agents/README §一。"
 )
 
@@ -601,6 +677,40 @@ AUTO_TRANSITION_CONTINUE_REMINDER = (
 )
 
 
+# v8.280:preset-aware 流键/图解析 —— 治 micro 链走不通(实证 case:aifriends 4 行合规 bump 走
+# micro · execute-start 直接 FAIL)。根因:generic gate 用 **raw `state.flow_type="Feature"`** 比
+# `EXECUTE_SPEC.allowed_flow_types=["Micro"]`(legacy 内部键)→ 恒 FAIL;且图查 `flow_by_type.get("Feature")`
+# 拿到 **full 图**(即便过①·execute→ship 转移错路由)。resolve_flow_graph/internal_flow_key 在 state.py
+# 有 · 但 engine 通用 gate 从没用 · 现有 micro 测试只断言 spec 常量、从没真跑 gate → 漏网。
+# 本地实现(engine 不能 import state.py · 循环)。
+# 🔴 v8.293:原注释声称与 state.py「严格同口径」但**并不成立** —— 同一个 legacy "敏捷需求"
+# 在 state.py 解析成 Feature+full、在这里解析成 Feature+lite,是两张不同的转移图。三份实现
+# 无一被测到该输入。根治办法不是选边,是把「敏捷需求」/lite 整条 legacy 删掉(v8.223 已退 lite 档)。
+_LEGACY_FLOW_ALIASES = {"Micro": ("Feature", "micro")}
+
+
+def _internal_flow_key(state: dict) -> str:
+    """(state.flow_type, preset) → allowed_flow_types 比对用的内部键(Feature+preset → Micro)。"""
+    ft = state.get("flow_type") or ""
+    pre = state.get("preset") or "full"
+    if ft in _LEGACY_FLOW_ALIASES:          # 存量 legacy 值原样(兼容旧 state.json)
+        return ft
+    if ft == "Feature" and pre == "micro":
+        return "Micro"
+    return ft
+
+
+def _resolve_flow_graph(state: dict, flow_by_type: dict) -> dict:
+    """(state.flow_type, preset) → 转移图 · 复合键 Feature:micro · 与 state.py 同口径。"""
+    ft = state.get("flow_type") or ""
+    pre = state.get("preset") or "full"
+    if ft in _LEGACY_FLOW_ALIASES:
+        ft, pre = _LEGACY_FLOW_ALIASES[ft]
+    if ft == "Feature" and pre == "micro":
+        return flow_by_type.get("Feature:micro", {})
+    return flow_by_type.get(ft, {})
+
+
 def execute_stage_start(
     stage_spec: StageSpec,
     args: argparse.Namespace,
@@ -611,33 +721,34 @@ def execute_stage_start(
     path, state = load_state(feature_path)
     close_open_pause(state)  # v8.192:闭合 stage 内暂停等待
 
-    # 1. flow_type 校验
+    # 1. flow_type 校验(v8.280:preset-aware · Feature·micro → 内部键 "Micro" 匹配 EXECUTE_SPEC)
     if stage_spec.allowed_flow_types:
-        flow = state.get("flow_type")
-        if flow not in stage_spec.allowed_flow_types:
+        flow_key = _internal_flow_key(state)
+        if flow_key not in stage_spec.allowed_flow_types:
             emit_json({
                 "verdict": "FAIL",
                 "stage": stage_spec.name,
                 "phase": "start",
-                "error": f"flow_type={flow!r} 不允许进入 {stage_spec.name}",
+                "error": (f"flow_type={state.get('flow_type')!r}(preset={state.get('preset')!r}"
+                          f" · 内部键 {flow_key!r})不允许进入 {stage_spec.name}"),
                 "allowed_flow_types": stage_spec.allowed_flow_types,
-                "hint": "检查 state.flow_type 是否正确",
+                "hint": "检查 state.flow_type / preset 是否正确",
             }, exit_code=1)
 
-    # 2. legal 转移校验
+    # 2. legal 转移校验(v8.280:按 (flow_type, preset) 解析图 · 非 raw flow_type.get)
     current = state.get("current_stage")
-    flow_type = state.get("flow_type")
-    if flow_type not in flow_by_type:
-        # 未知 flow_type 不静默回退空图(空图会伪装成"非法转移"误导排查)· 显式 FAIL
+    flow_graph = _resolve_flow_graph(state, flow_by_type)
+    if not flow_graph:
+        # 解析不到流程图(未知 flow_type/preset)· 显式 FAIL(不静默回退空图误导排查)
         emit_json({
             "verdict": "FAIL",
             "stage": stage_spec.name,
             "phase": "start",
-            "error": f"flow_type={flow_type!r} 不在已知流程表",
+            "error": (f"flow_type={state.get('flow_type')!r}/preset={state.get('preset')!r}"
+                      f" 解析不到转移图 · 不在已知流程表"),
             "known_flow_types": sorted(flow_by_type),
-            "hint": "state.flow_type 被外改或损坏 · 核对 state.json(不可枚举的流程不进状态机)",
+            "hint": "state.flow_type / preset 被外改或损坏 · 核对 state.json(不可枚举的流程不进状态机)",
         }, exit_code=1)
-    flow_graph = flow_by_type.get(flow_type, {})
     legal_next = flow_graph.get(current, [])
     is_initial_entry = current is None or current == stage_spec.name
     if not is_initial_entry and stage_spec.name not in legal_next:
@@ -861,7 +972,6 @@ STAGE_SPEC_FILES = {
     "ui_design": "ui-design-stage.md",
     "panorama_sync": "panorama-sync-stage.md",
     "blueprint": "blueprint-stage.md",
-    "blueprint_lite": "blueprint-lite-stage.md",
     "diagnose": "diagnose-stage.md",
     "dev": "dev-stage.md",
     "review": "review-stage.md",
@@ -917,16 +1027,6 @@ STAGE_TEMPLATES: dict[str, dict] = {
                       "校验 PRD 每条 AC 在 TC.md tests[].covers_ac ≥1 引用 · 漏覆盖 FAIL"),
         },
     },
-    "blueprint_lite": {
-        "templates": {
-            "TC.md": "tc.md",
-            "TECH.md": "tech.md",
-        },
-        "validators": {
-            "TC.md": ("verify-ac.py",
-                      "校验 PRD 每条 AC 在 TC.md tests[].covers_ac ≥1 引用 · 漏覆盖 FAIL"),
-        },
-    },
     "diagnose": {
         "templates": {
             "bugfix/BUG-XXX.md": "bug-report.md",  # v8.202:diagnose 产 §现象/根因/修复方案(原漏 · Bug 模板 start 时不给)
@@ -942,8 +1042,6 @@ STAGE_TEMPLATES: dict[str, dict] = {
     "review": {
         "templates": {
             "REVIEW.md": None,
-            "REVIEW-arch.md": None,
-            "REVIEW-qa.md": None,
         },
         "validators": {},
     },
@@ -1018,7 +1116,7 @@ def build_scaffold_hints(stage_name: str) -> dict | None:
 # - 排除 pm_acceptance(永远只有 pm 1 角色 · 无调整空间)/ ship / completed(无 reviewer · 无后续)
 # - test 之后即关掉(用户洞察 · 实证)
 STAGES_WITH_REVIEW_ROLES_HINT = {
-    "goal", "ui_design", "panorama_sync", "blueprint", "blueprint_lite",
+    "goal", "ui_design", "panorama_sync", "blueprint",
     "dev", "review", "test", "browser_e2e",
 }
 
@@ -1108,8 +1206,6 @@ def _render_required_paths(feature_dir: Path, stage_name: str) -> str:
         ("TECH-REVIEW.md", "Tech Review"),
         ("UI.md", "UI 设计"),
         ("REVIEW.md", "代码评审总结"),
-        ("REVIEW-arch.md", "架构师评审"),
-        ("REVIEW-qa.md", "QA 评审"),
         ("TEST-REPORT.md", "测试报告"),
         ("BROWSER-TEST-REPORT.md", "浏览器测试报告"),
     ]:
@@ -1238,7 +1334,7 @@ def _render_pause_discipline(authorized_pause_point: str,
 
 唯一授权暂停:**{authorized_pause_point}**
 """
-    # v8.72:无暂停 stage(dev/blueprint/blueprint_lite/test)= 连续执行 · 加「任何暂停都违规」抬头
+    # v8.72:无暂停 stage(dev/blueprint/test)= 连续执行 · 加「任何暂停都违规」抬头
     if "无暂停" in authorized_pause_point:
         head += """
 🔴 **本 stage 无授权暂停点 = 连续执行到 stage 完成 · 自动转下一 stage · 任何暂停都是违规**
@@ -1283,17 +1379,10 @@ DEFAULT_REVIEW_ROLES: dict[tuple[str, str], list[str]] = {
     ("Feature", "ui_design"): ["designer", "pm"],
     ("Feature", "panorama_sync"): ["pm", "architect"],
     ("Feature", "blueprint"): ["architect", "external"],  # v8.244:3→2 —— Architect 主审(TECH-REVIEW · 简洁性 counter-lens)+ 覆盖方向制外审(QA 可测试视角并入 · 物化门 cross_review_coverage);复杂 feature 加回独立 qa
-    ("Feature", "review"): ["architect", "external"],  # v8.244:3→2 —— Architect 主审(REVIEW-arch · 实现↔设计一致性)+ 覆盖方向制外审(QA 测试真实性视角并入);review 从严:外审必覆盖清单比 blueprint 重一档
+    ("Feature", "review"): ["architect", "external"],  # v8.244:3→2 —— Architect 主审(实现↔设计一致性 · v8.289 判断落 REVIEW.md 不再独立文件)+ 覆盖方向制外审(QA 测试真实性视角并入);review 从严:外审必覆盖清单比 blueprint 重一档
     ("Feature", "test"): ["qa"],
     ("Feature", "browser_e2e"): ["qa", "designer"],
     ("Feature", "pm_acceptance"): ["pm"],
-
-    # 敏捷需求(流程减负:冷审 2→1 + pl 保对抗质疑门禁;review 去 external = opt-in 加回)
-    ("敏捷需求", "goal"): ["qa", "pl"],  # 1 冷审(QA)+ PL challenge(_evidence_pl_challenge_present 门禁)
-    ("敏捷需求", "blueprint_lite"): ["qa"],
-    ("敏捷需求", "review"): ["architect", "qa"],  # external 默认关 · change-review-roles 可加回
-    ("敏捷需求", "test"): ["qa"],
-    ("敏捷需求", "pm_acceptance"): ["pm"],
 
     # Bug 流程
     ("Bug", "review"): ["external"],  # v8.270:单路 external(diagnose 已经用户确认方案 · review 聚焦 fix↔方案一致 + 不引入新问题 · Architect/QA 视角并入外审覆盖方向 · 错开模型冷审天然满足 v8.269 单路不变式 · change-review-roles 可加回)。史:v8.244 两路制
@@ -1310,12 +1399,10 @@ DEFAULT_REVIEW_ROLES: dict[tuple[str, str], list[str]] = {
 def build_default_stage_review_roles(flow_type: str, preset: str = "full") -> dict[str, list[str]]:
     """按 (flow_type, preset) 抽取默认 stage_review_roles dict(v8.220 preset-aware)。
 
-    内部矩阵键沿用旧 flow 名(敏捷需求/Micro)—— 对外已收缩为 Feature+preset · 此处做映射。
+    内部矩阵键沿用旧 flow 名(Micro)—— 对外已收缩为 Feature+preset · 此处做映射。
     """
     _key = flow_type
-    if flow_type == "Feature" and preset == "lite":
-        _key = "敏捷需求"
-    elif flow_type == "Feature" and preset == "micro":
+    if flow_type == "Feature" and preset == "micro":
         _key = "Micro"
     return {
         stage: roles[:]  # copy 防共享引用
@@ -1334,21 +1421,12 @@ FLOW_STAGE_CHAIN: dict[str, list[tuple[str, bool, str, str]]] = {
         ("ui_design", True, "goal-complete --needs-ui=true 时启用", "Designer 视觉一致 + PM 流程合理"),
         ("panorama_sync", True, "ui_design-complete --panorama-changed=true 时启用", "PM 跨 Feature 视角 + Architect IA 影响"),
         ("blueprint", False, "", "TECH 选型与测试规划需 Architect/QA 把关 + External 异质 review"),
-        ("dev", False, "", "无评审 · RD 自写 + commit(TDD 红绿循环 + 自查清单)"),
+        ("dev", False, "", "无评审 · RD 自写 + commit(测试节奏自定 · 证据硬门 + 完工自查)"),
         ("review", False, "", "代码 Architect 看架构合理 + QA 看 AC 对照 + External 跨模型独立判断"),
         ("test", False, "", "QA 验收集成测试 + AC 全覆盖 + E2E 结果"),
         ("browser_e2e", True, "execution_hints.browser_e2e_needed=true 时启用", "QA 跑 E2E + Designer 视觉确认"),
         ("pm_acceptance", False, "", "PM 用户视角逐条 AC 验收 · 决定是否 ship"),
         ("ship", False, "", "无评审 · PMO 编排 push + MR + 合入 + cleanup"),
-    ],
-    "敏捷需求": [
-        ("goal", False, "", "需求小:QA 隔离 subagent 冷审 + PL 对抗质疑(无 External · PM 整合)"),
-        ("blueprint_lite", False, "", "QA 测试规划(TC 精简版)· 不要 TECH-REVIEW"),
-        ("dev", False, "", "无评审 · RD 自写 + commit"),
-        ("review", False, "", "Architect/QA 双视角(external 默认关 · change-review-roles 可 opt-in 加回)"),
-        ("test", False, "", "QA 验收"),
-        ("pm_acceptance", False, "", "PM 用户视角验收"),
-        ("ship", False, "", "无评审 · PMO 编排"),
     ],
     "Bug": [
         ("diagnose", False, "", "🔴 根因细查(深读代码)+ 修复方案 · 用户确认后才进 dev(防 fix 修偏)· 无评审角色"),
@@ -1373,11 +1451,9 @@ def build_stage_chain_preview(flow_type: str) -> list[dict]:
     - reason 是评审建议理由(为什么选这些角色 · 给用户决策参考)
     - 顺序按 FLOW_STAGE_CHAIN 显式定义
     """
-    # v8.221:Feature+preset 归一到内部旧键(敏捷需求/Micro 图键保留 · 对外语言已收缩)
+    # v8.221:Feature+preset 归一到内部旧键(Micro 图键保留 · 对外语言已收缩)
     _key = flow_type
-    if flow_type == "Feature:lite":
-        _key = "敏捷需求"
-    elif flow_type == "Feature:micro":
+    if flow_type == "Feature:micro":
         _key = "Micro"
     chain = FLOW_STAGE_CHAIN.get(_key, [])
     return [
@@ -1455,7 +1531,7 @@ def maybe_freeze_review_base(state: dict, next_stage: str,
     review-stage external-review 用它作增量 diff base(评 base...HEAD = 本 feature 的 dev
     增量)· 而非 merge_target...HEAD —— 后者在长 WS / stacked 分支上随 deliverable 累积 →
     跨 feature 串味 + 600s 超时(实证 aifriend yolo/ws02)。pre_dev_commit = 完成 stage
-    (blueprint / diagnose / blueprint_lite)的 commit · 在 commit graph 上是 dev HEAD 的祖先
+    (blueprint / diagnose)的 commit · 在 commit graph 上是 dev HEAD 的祖先
     → base...HEAD 天然排除 prior features(拓扑无关)。
 
     仅 next_stage==dev 且尚未冻结且 commit 非空时设(review→dev 回退不覆盖 · 再审仍覆盖全部
@@ -1812,19 +1888,19 @@ def execute_stage_complete(
                     "reason": new_roles_reason,
                 }
 
-            # 自动进入下一 stage
-            flow_type = state.get("flow_type")
-            if flow_type not in flow_by_type:
-                # 未知 flow_type 不静默回退空图(会把 legal_next_stages 写成 [] 卡死后续)
+            # 自动进入下一 stage(v8.280:preset-aware 图解析 · micro Feature 拿 Micro 图非 full)
+            flow_graph = _resolve_flow_graph(state, flow_by_type)
+            if not flow_graph:
+                # 解析不到图(未知 flow_type/preset)· 显式 FAIL(不静默回退空图卡死后续)
                 emit_json({
                     "verdict": "FAIL",
                     "stage": stage_spec.name,
                     "phase": "complete",
-                    "error": f"flow_type={flow_type!r} 不在已知流程表 · 无法计算转移图",
+                    "error": (f"flow_type={state.get('flow_type')!r}/preset={state.get('preset')!r}"
+                              f" 解析不到转移图 · 不在已知流程表 · 无法计算下一 stage"),
                     "known_flow_types": sorted(flow_by_type),
-                    "hint": "state.flow_type 被外改或损坏 · 核对 state.json 后重试",
+                    "hint": "state.flow_type / preset 被外改或损坏 · 核对 state.json 后重试",
                 }, exit_code=1)
-            flow_graph = flow_by_type.get(flow_type, {})
             state["current_stage"] = next_stage
             state["legal_next_stages"] = flow_graph.get(next_stage, [])
 
@@ -1920,6 +1996,8 @@ def execute_stage_complete(
     next_stage_scaffold_hints = (
         build_scaffold_hints(transitioned_to) if transitioned_to else None
     )
+    _sc_hint = _stage_cost_hint(stage_spec.name, getattr(args, "feature", "<path>"),
+                                contract.get("duration_minutes", 0))
     emit_json({
         "verdict": "PASS",
         "stage": stage_spec.name,
@@ -1940,6 +2018,7 @@ def execute_stage_complete(
         **({"next_stage_roles_adjusted": next_stage_roles_audit} if next_stage_roles_audit else {}),
         **({"pause_options_markdown": pause_options_markdown} if pause_options_markdown else {}),
         **({"fix_retry_hint": fix_retry_hint} if fix_retry_hint else {}),
+        **({"stage_cost_hint": _sc_hint} if _sc_hint else {}),
         **({"raw_write_audit": rw_audit} if rw_audit else {}),
         **({"main_tree_pollution": {
             "count": len(pollution),
@@ -1951,6 +2030,27 @@ def execute_stage_complete(
 
 
 # ─── review-log 写入 ───────────────────────────────────────────────────
+
+
+# v8.295:耗时归因采集提示 —— 只在**有多轮往返成本**的 stage 提(不是 13 个 stage 都来一遍,
+# 否则就退化成 v8.283 判定会衰减的「环节化自检」)。提示放在 complete emit 而非写进各 stage 文档:
+# 机器在**正确的时刻**提醒,不靠文档记忆;非门禁,不记也放行。
+_STAGE_COST_STAGES = ("goal", "ui_design", "blueprint", "dev", "review", "test", "browser_e2e")
+
+
+def _stage_cost_hint(stage: str, feature: str, duration_minutes) -> Optional[str]:
+    """本 stage 值得记耗时归因 → 返回一行提示 · 否则 None。"""
+    if stage not in _STAGE_COST_STAGES:
+        return None
+    return (
+        f"⏱️ **记一笔耗时归因**(非门禁 · 但年检与提效验证靠它):本 stage {duration_minutes}m —— "
+        f"其中多少轮是**纯协调开销**(文档对齐 / 跨档同步 / 格式修 / 门禁重试 / 返工重写)?\n"
+        f"   `state.py stage-cost --feature {feature} --stage {stage} "
+        f"--rounds <总轮次> --overhead-rounds <其中协调开销> "
+        f"--kinds '<开销类型;分号分隔>' --note '<最大的一笔是什么>'`\n"
+        f"   🔴 **趁现在记** —— 这类归因只有此刻记得住(ship 时回填要靠产物 mtime 反推);"
+        f"零开销就 `--overhead-rounds 0` 照记(那也是数据)。"
+    )
 
 
 def write_review_log_entry(
@@ -2041,7 +2141,7 @@ def _add_stage_specific_args(parser: argparse.ArgumentParser, stage_name: str, p
             help=(
                 "是否需要独立 UI Design Stage · "
                 "true → 下一 stage=ui_design / false → blueprint。"
-                "敏捷需求/Planning 必传 false(若 true 应升级 Feature 流程)"
+                "Planning 必传 false(若 true 应升级 Feature 流程)"
             ),
         )
         parser.add_argument(
@@ -2264,27 +2364,18 @@ FAST_MAX_REVIEW_ROUNDS = 2  # v8.267 fast 模式评审预算封顶(localconfig �
 _FINDING_SEVERITY_ORDER = ("BLOCKER", "MAJOR", "MINOR", "NIT")
 
 
-def _localconfig_max_review_rounds(feature_dir: Path) -> int:
-    """读 localconfig `max_review_rounds`(默认 3)· 向上找到 .git 边界。
+def _localconfig_max_review_rounds(feature_dir) -> int:
+    """localconfig `max_review_rounds`(默认 3)· review 轮次预算。
 
-    非法值(非正整数)→ 默认。与 specs._localconfig_disable_external 同遍历口径。
+    v8.294:改走 `load_localconfig`(跨 worktree 边界)· 原实现遇 worktree 的 `.git` 文件即停,
+    在默认 worktree 模式下永远读不到主工作树的配置。非法值 → 默认。
     """
-    try:
-        node = Path(feature_dir).resolve()
-    except (TypeError, OSError):
+    cfg = load_localconfig(feature_dir)
+    if not isinstance(cfg, dict):
         return DEFAULT_MAX_REVIEW_ROUNDS
-    for d in [node, *node.parents]:
-        cfg = d / ".teamwork_localconfig.json"
-        if cfg.exists():
-            try:
-                v = json.loads(cfg.read_text(encoding="utf-8")).get("max_review_rounds")
-            except (OSError, ValueError):
-                return DEFAULT_MAX_REVIEW_ROUNDS
-            if isinstance(v, (int, float)) and not isinstance(v, bool) and int(v) >= 1:
-                return int(v)
-            return DEFAULT_MAX_REVIEW_ROUNDS
-        if (d / ".git").exists():
-            break
+    v = cfg.get("max_review_rounds")
+    if isinstance(v, (int, float)) and not isinstance(v, bool) and int(v) >= 1:
+        return int(v)
     return DEFAULT_MAX_REVIEW_ROUNDS
 
 
@@ -2321,7 +2412,7 @@ _STAGE_FIX_RETRY_CONFIG = {
         "round_init_fields": {"verdict": None},
         "complete_command_template": (
             "state.py review-complete --feature {feature} --auto-commit <REVIEW.md commit> "
-            "--artifacts REVIEW.md,REVIEW-arch.md,REVIEW-qa.md "
+            "--artifacts REVIEW.md "
             "--verdict {{APPROVE|NEEDS_REVISION}}"
         ),
         "retry_action_hint": (

@@ -306,11 +306,12 @@ class TestManifestReconcile(_TarballFixture):
         # 对账后空掉的受管子目录也被清掉(tarball 无 stages/)
         self.assertFalse((self.local_skill / "stages").exists())
 
-    def test_audit_retro_whitelist_preserved(self):
-        """docs/audit/ 与 docs/retro/ 是安装侧运行时数据 · tarball 没有也不删。"""
-        audit = self.local_skill / "docs" / "audit" / "PROJ-F001-runtime.md"
-        audit.parent.mkdir(parents=True)
-        audit.write_text("# 运行时审计数据\n", encoding="utf-8")
+    def test_retro_whitelist_preserved(self):
+        """docs/retro/ 是安装侧运行时数据 · tarball 没有也不删。
+
+        v8.296:原 docs/audit/ 一并豁免 —— 该机制已整条退役(落 ~/.teamwork/audit/
+        机器本地 · 跨机器聚不起来 · 代码自陈只写不读),故白名单也随之收窄。
+        """
         retro = self.local_skill / "docs" / "retro" / "notes.md"
         retro.parent.mkdir(parents=True)
         retro.write_text("# retro 数据\n", encoding="utf-8")
@@ -320,10 +321,8 @@ class TestManifestReconcile(_TarballFixture):
 
         d = self._run_update()
         self.assertEqual(d["verdict"], "OK")
-        self.assertTrue(audit.exists())
         self.assertTrue(retro.exists())
         self.assertFalse(ghost_doc.exists())
-        self.assertNotIn("docs/audit/PROJ-F001-runtime.md", d["stale_files_removed"])
         self.assertNotIn("docs/retro/notes.md", d["stale_files_removed"])
         self.assertIn("docs/stale-doc.md", d["stale_files_removed"])
 

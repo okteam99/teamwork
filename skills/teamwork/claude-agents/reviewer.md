@@ -125,11 +125,3 @@ PMO 在调用前必须替换占位符。
 
 ---
 
-## 与 codex-agents/reviewer.toml 的对照
-
-| 维度 | codex-agents/reviewer.toml | claude-agents/reviewer.md |
-|------|---------------------------|--------------------------|
-| 调用机制 | Codex CLI 原生 agent（toml） | shell 调用 `claude -p` |
-| 占位符替换 | `developer_instructions` 内静态文本 | 主对话调用前替换 `{...}` |
-| 输出格式 | 由 toml `tools` / 调用约束 | YAML frontmatter + body 文本输出 |
-| 独立性保证 | sandbox_mode = "read-only" | prompt 内显式禁读其他评审产物 |

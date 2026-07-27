@@ -238,11 +238,9 @@ class _ShipFlowBase(unittest.TestCase):
         _git(self.wt, "commit", "-m", "feature work")
         self.feature_arg = str(feat_dir)
         self._prev_env = {k: os.environ.get(k) for k in
-                          ("TEAMWORK_BYPASS_MAIN_WORKTREE", "TEAMWORK_BYPASS_CHECKSUM",
-                           "TEAMWORK_AUDIT_DIR")}
+                          ("TEAMWORK_BYPASS_MAIN_WORKTREE", "TEAMWORK_BYPASS_CHECKSUM")}
         os.environ["TEAMWORK_BYPASS_MAIN_WORKTREE"] = "1"
         os.environ["TEAMWORK_BYPASS_CHECKSUM"] = "1"
-        os.environ["TEAMWORK_AUDIT_DIR"] = str(self.tmp / "audit-inbox")
 
     def _write_state(self):
         (self.wt / self.feat_rel / "state.json").write_text(

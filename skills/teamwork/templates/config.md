@@ -74,139 +74,15 @@ cp .env.example .env
 
 ## .teamwork_localconfig.json（本地协作配置）
 
-> 此文件存放在项目根目录，记录当前用户负责的子项目范围。
-> 🔴 本地配置，不提交到 git（应加入 .gitignore）。每个开发者各自维护一份。
+> 项目根目录 · 记录当前用户负责的子项目范围与本地策略。
+> 🔴 本地配置,不提交 git(bootstrap 自动加 .gitignore)· 每个开发者各自维护一份。
 
-```markdown
-# Teamwork 本地配置
+🔴 **字段清单与语义的唯一真相源 = [`templates/teamwork_localconfig.json`](./teamwork_localconfig.json) 的 `_comment_*` 键**
+(bootstrap 按它生成 · 新增字段只改那一处)。
 
-## 负责人
-- 名称：[用户名 / 昵称]
-
-## Skill 版本标记（🔴 工具自动维护，禁止手改）
-
-<!-- 版本缓存字段 = `_bootstrap.skill_version`（JSON `_bootstrap` 工具维护段 · tools/bootstrap.py 启动时写入）。 -->
-<!-- 机制： -->
-<!-- - bootstrap 启动读取此字段 → 与 SKILL.md frontmatter version 比对 -->
-<!-- - 版本一致 → 跳过维护项（chmod / hooks / sync-drift / gitignore） -->
-<!-- - 不一致 / 缺失 → 跑 maintain + 写回新版本号（skill 升级 → 自动触发一次 → 下次跳过） -->
-<!-- - 升级检测（外呼 GitHub）走 8h TTL 缓存（缓存同存 `_bootstrap` 段 · 超时 / 版本变更才重查） -->
-<!-- 🔴 禁止手改：`_bootstrap` 段由 tools/bootstrap.py 维护 · 改动 = 触发 maintain 重跑。 -->
-_bootstrap.skill_version:
-
-## 负责子项目
-<!-- scope: all 表示负责所有子项目；否则列出具体子项目缩写 -->
-scope: all
-
-<!-- 如果只负责部分子项目，改为如下格式：
-scope:
- - AUTH
- - WEB
--->
-
-## Git Worktree 策略
-<!-- worktree: off / auto / manual -->
-<!-- auto = prepare（init-feature）时创建 worktree，Feature 完成后询问用户清理【默认】 -->
-<!-- manual = PMO 提醒用户自行管理 worktree，不自动创建/清理 -->
-<!-- off = 不使用 worktree，所有 Feature 在主分支开发（适合单 Feature 串行 / megarepo / IDE 跨 worktree 跳转受限场景） -->
-<!-- -->
-<!-- 改 off 的合理理由（保留 off 为可选）： -->
-<!-- - megarepo：每个 worktree 是全量 checkout，多 Feature 并行时磁盘/索引代价高 -->
-<!-- - IDE 跨 worktree 跳转受限：worktree 在 sibling 目录下，IDEA/VS Code 跨 worktree 搜索/跳转不便 -->
-<!-- - 工具链忽略复杂：每个工具需单独配排除（tsc/eslint/jest/docker...） -->
-<!-- -->
-<!-- 🔴 缺失硬默认（避免 AI 钻空子）： -->
-<!-- - localconfig 文件中本字段缺失 / 注释掉 → PMO 必须按 auto 处理（不是 off） -->
-<!-- - 禁止 AI 自降级到 off（如以"主工作区干净"等理由） -->
-<!-- - 仅当用户在 triage 暂停点显式选 off 才允许 off -->
-<!-- - 实战 case 反模式：localconfig 没配 worktree，AI 沿用主工作区写代码 = 流程违规 -->
-worktree: auto
-
-### Worktree 根目录
-
-<!-- worktree_root_path: worktree 的根目录。每个 Feature 自动在此目录下创建子目录(子目录名 = Feature ID 全名)。 -->
-<!-- 默认值: .worktree(项目根目录下) -->
-<!-- 完整规范(模板示例 / monorepo 多模块策略 / .gitignore 约束 / 解析优先级)见 docs/conventions.md § 9-11。 -->
-worktree_root_path: .worktree
-
-## Ship 策略
-
-<!-- Ship Stage = MR 模式：PMO 只负责净化 + push feature + 生成 MR/PR create URL，不做本地 merge / push merge_target / 冲突解决）。 -->
-
-### 合并目标分支
-<!-- merge_target: Feature 的目标分支，用于 MR/PR 的 base 分支。默认 staging。 -->
-<!-- 解析优先级：state.json.merge_target > 本文件 merge_target > 默认 staging -->
-<!-- 常见值：staging / develop / main（单分支模型） -->
-<!-- 作用：Ship Stage 生成 MR create URL 时作为 base 分支；worktree 创建时作为 base。 -->
-merge_target: staging
-
-### MR/PR 创建链接模板（可选）
-<!-- mr_url_template: Ship Stage 生成 MR/PR create URL 的模板。 -->
-<!-- 留空 = PMO 按 git remote 自动识别平台（github / gitlab / gitlab-self-hosted / gitee / bitbucket）生成。 -->
-<!-- 识别失败（unknown 平台）时，mr_create_url=null 并在完成报告 concerns 标注，需用户手动创建 MR。 -->
-<!-- 若使用自建 gitlab / 企业 git 需要自定义链接格式，可在此配置，支持以下占位符： -->
-<!-- {remote_url} = git remote 原始 URL（含 .git 后缀已去除） -->
-<!-- {remote_host} = git host 域名（如 git.internal.example.com） -->
-<!-- {repo_path} = owner/repo 路径（如 team/service） -->
-<!-- {feature_branch_enc} = URL-encoded feature 分支名（feature/F042-login → feature%2FF042-login） -->
-<!-- {merge_target} = 目标分支名 -->
-<!-- 示例（自建 GitLab）：{remote_url}/-/merge_requests/new?merge_request[source_branch]={feature_branch_enc}&merge_request[target_branch]={merge_target} -->
-mr_url_template:
-
-### Worktree 清理策略
-<!-- worktree_cleanup: ask / keep / remove（默认 ask） -->
-<!-- ask = Ship 完成后询问用户（推荐） -->
-<!-- keep = 默认保留 worktree 便于复查 -->
-<!-- remove = 默认清理 worktree（仅建议稳定流程用） -->
-worktree_cleanup: ask
-
-### Artifact ID 号段策略
-<!-- id_strategy: utc-yymmddhhmmss（默认）/ sequential -->
-<!-- utc-yymmddhhmmss = artifact ID 号段用 UTC0 秒级时间戳 YYMMDDHHMMSS（12 位）。跨机/多 agent 并行各自生成、免中心协调 → 根治分布式 max+1 撞号；字典序=时间序、肉眼可读创建时间。 -->
-<!-- sequential = 旧 3 位顺序号 max+1（单 clone 项目可 opt-out · 保留好念短序号）。 -->
-<!-- 改此项只影响新建 feature · 存量 ID 不重编号（新旧天然可区分：3-4 位 vs 12 位）。详 docs/conventions.md §1。 -->
-id_strategy: utc-yymmddhhmmss
-
-### ship 归档
-<!-- 归档属 ship1(archive action · 统一执行 · 无配置项)· 残留 archive_on_ship 配置被忽略 + WARN。详 stages/ship-stage.md §15。 -->
-
-### 本地敏感配置目录
-<!-- local_env_auto_create: true（默认）/ false -->
-<!-- true = bootstrap 在 .teamwork-local-env/ 缺失时自动创建（config.properties 模板 + 目录内 .gitignore），已存在不覆盖。 -->
-<!-- 用途：kubeconfig / DB 密码 / 个人 API key 等本机敏感配置统一放此目录 · 双重 gitignore（根 .gitignore + 目录内 .gitignore）绝不进仓库。读取约定见 TROUBLESHOOTING.md。 -->
-<!-- false = 不主动创建（opt-out · 仍保留 gitignore 预留规则）。 -->
-local_env_auto_create: true
-
-### fast mode(v8.260 · 默认关 · 去掉所有评审环节)
-
-```json
-"fast_mode": false
-```
-
-<!-- fast_mode: 缺省 / false = 关【默认】;显式 true = 开 fast mode(v8.261 语义 · 评审最多 2 轮 v8.267 · 单路模型错开 v8.269) -->
-<!-- true:评审收敛为两端单路 —— goal 留一路合并冷审(PL+外审关注点合一 · PRD-REVIEW reviewers:[fast])· review 留一路合并评审(Architect+QA 关注点合一 · REVIEW.md 单份);blueprint 评审去掉(不产 TECH-REVIEW)· 无多路独立冷审/external。 -->
-<!-- 保留:测试硬门(exit 0/差分)· 用户暂停点(PRD 确认 / DB schema 确认 / pm_acceptance / ship1)· worktree 纪律 · verify-ac · findings/severity/验证轮协议。 -->
-<!-- 🔴 yolo 忽略 fast(v8.262 · 不报错):--yolo 时 fast_mode 静默不生效(kickoff INFO 留痕)· 无人值守回全量评审安全网 · fast 仅有人值守生效。 -->
-
-```json
-"idle_threshold_minutes": 30
-```
-<!-- v8.276 · 活动时间戳挖掘空闲阈值(分钟 · 默认 30):stage 耗时统计用「窗口内 git commit + 产物 mtime」作活动信号 · 相邻活动间隔 ≤ 此值 = AI 自主工作 · > 此值 = 跨 session 空闲扣除(治 duration 墙钟把过夜挂机算成 AI 工作 · 台账 active_minutes 单源)。调大更宽容 · 调小更严。 -->
-<!-- 适用:原型 / 个人项目快糙猛。质量安全网自拆 · 后果自担 · init-feature 时快照进 state(中途改配置不影响 in-flight feature)。 -->
-
-### 禁用异质模型审核（默认关 · 异质 opt-in）
-<!-- disable_external_review: 缺省 / true = 关【默认】；显式 false = opt-in 异质 -->
-<!-- 缺省 / true = 关（默认）：第三视角 = 错开模型 subagent 隔离冷审（external-review 自动 emit subagent 配方 · PMO 起 **≠主会话模型** 的 subagent 冷审〔如 fable5 → opus · v8.268〕 · 不 exec · 落 external-cross-review/ 满足 external 物化门禁 · frontmatter degraded_mode:config-disabled · 非异质 · 同盲点）。 -->
-<!-- 显式 false = opt-in 跨模型异质：external 评审跑异质模型（claude↔codex 交叉 · 唯一跨模型安全网 · 需装好第二个模型 CLI）。详 standards/external-model-usage.md §11.5。 -->
-<!-- 区分 --self-review-fallback（异质临时不可用的 per-run 降级 · 同走 subagent · degraded_mode:subagent-fallback）：本项是项目级长期策略。 -->
-<!-- 🔴 恢复异质 = 显式设 false（**删除该项无效** · 缺省即关）。 -->
-disable_external_review: true
-
-## 备注
-<!-- 可选：记录当前阶段重点、临时分工调整等 -->
-\`\`\`
-
----
+> v8.293:本节原有 ~125 行字段文档已删 —— 它是 JSON 模板 `_comment_*` 的**逐字第二副本**,
+> 且正文用 ` ```markdown ` 围栏把这个文件描述成带 `## 负责人` 标题的 **markdown 文件**
+> (真实文件是 JSON)—— 描述的是一个已不存在的格式。副本必漂,这次漂到了介质。
 
 ## external/README.md（三方资源目录说明）
 

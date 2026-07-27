@@ -83,5 +83,5 @@ User --下单--> Offer
  - 评审过程中发现新术语 / 跨服务命名不一致 → 立即登记
  - 业务方向变更后新术语出现 → PL 在 product-overview/ 更新前同步更新本文档
 - **写入硬规则**：每条术语必须含中英文 + 一句话定义 + 出现位置（防止抽象孤立）
-- **PMO preflight 扫描**：triage 期 PMO 自动 read 业务术语段 · 命中关键词时引用到主对话
+- **PMO triage 扫描**：triage 期 PMO 自动 read 业务术语段 · 命中关键词时引用到主对话
 - **多子项目场景**：跨子项目共享术语 → `project-specs/GLOSSARY.md`；子项目内部实现层术语 → 各子项目 KNOWLEDGE.md § Glossary 子段（仅项目内部命名 · 大多数项目不需要）

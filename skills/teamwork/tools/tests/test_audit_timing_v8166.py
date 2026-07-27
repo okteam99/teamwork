@@ -3,7 +3,8 @@
 
 用户(看 TermPro audit 截图):实际数据该加 ① 各阶段耗时 ② 耗时分析 ③ 主对话模型。
 - 各阶段耗时/耗时分析:工具从 stage_contracts.duration_minutes 确定性抽。
-- 主对话:host(state.host · 确定性)+ 模型(PMO ship-finalize --main-model 声明)。
+- 主对话 host(state.host · 确定性)。
+v8.296:audit 记录本身已退役 —— 本套件测的 `_stage_durations` 仍是活的(喂 PROCESS-LEDGER「各阶段耗时」列),故保留;`--main-model` 随 audit 一起删(唯一消费者是它)。
 
 运行:python3 -m pytest skills/teamwork/tools/tests/test_audit_timing_v8166.py -v
 """

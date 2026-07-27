@@ -37,9 +37,6 @@ class TestTwoLaneDefaults(unittest.TestCase):
                          specs._review_brief({"flow_type": "Bug", "fast_mode": True}))
         self.assertNotIn("Bug 流单路评审", specs._review_brief({}))
 
-    def test_legacy_agile_review_untouched(self):
-        roles = engine.build_default_stage_review_roles("敏捷需求")
-        self.assertEqual(roles["review"], ["architect", "qa"])
 
 
 class TestCrossReviewCoverage(unittest.TestCase):

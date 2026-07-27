@@ -2,7 +2,7 @@
 
 > Teamwork 以 **Stage 为权威**(角色任务规范在 `stages/*.md`)。本文件只保留 **Subagent 执行协议**(dispatch / 通用约束 / Progress Log / 主对话产物)。
 > PMO 用 Subagent 时让其先读本文件 + 对应 Stage 文件;主对话路径可跳过本文件。
-> 用不用 subagent 由 PMO 自决(判据 [STAGES.md §4](../STAGES.md):子任务**边界清晰且够大**才派)。external 异质评审**不走本协议** —— 权威 = [standards/external-model-usage.md §11](../standards/external-model-usage.md)(`state.py external-review` 一条命令)。
+> 用不用 subagent 由 PMO 自决(判据 [STAGES.md §4](../STAGES.md):子任务**边界清晰且够大**才派)。external 第三视角冷审**不走本协议** —— 权威 = [standards/external-model-usage.md §一](../standards/external-model-usage.md)(`state.py external-review` 出 subagent 配方)。
 
 ---
 
@@ -10,15 +10,21 @@
 
 **档位按任务性质判(不绑型号 · 型号随代际漂移 · 映射列仅当前示例)**:
 
-| 档位 | 任务性质判据 | 当前映射(示例 · 会漂移) | 典型并行形态 |
-|---|---|---|---|
-| **深度档**(最强可用) | 创造性产出 + 深度判断:规划/拆解 · TECH 方案 · 架构 Code Review · PRD 起草 · 根因诊断 · **关键裁决**(finding 采驳) | Claude: Fable/Opus · GPT: 最高推理档 | 多方案并行探索 + 主对话裁决 |
-| **执行档**(默认) | 写代码实现 / 集成 / 修复 —— **主对话继承会话模型即是**(不主动降) | Claude: 会话模型 · GPT: 标准档 | 多模块 subagent 各写各的(worktree 内路径) |
-| **验证档**(轻) | 校验型/枚举型:TC 覆盖对照 · 测试执行 · 格式核对 · 机械外化 · 路由分诊 | Claude: Sonnet/Haiku · GPT: mini 档 | 冷审/验证 fan-out(隔离并行) |
+| 档位 | 任务性质判据 | Claude | GPT / Codex | 典型并行形态 |
+|---|---|---|---|---|
+| **深度档**(最强可用) | 创造性产出 + 深度判断:规划/拆解 · TECH 方案 · 架构 Code Review · PRD 起草 · 根因诊断 · **关键裁决**(finding 采驳) | **主对话** / Fable / Opus | **主对话** / sol xhigh | 多方案并行探索 + 主对话裁决 |
+| **执行档**(默认) | 写代码实现 / 集成 / 修复 —— **主对话继承会话模型即是**(不主动降) | Opus / Sonnet | sol xhigh / terra xhigh | 多模块 subagent 各写各的(worktree 内路径) |
+| **验证档**(轻) | 🔴 **白名单一律降到这档**(v8.299 用户拍板):**写测试用例(TC 起草)· 执行测试 · 单测 · 集成测试 · e2e · TC 逐条对照 · 冷审执行 · 格式核对 · 机械外化 · 路由分诊** | Sonnet / Haiku | terra / luna | 冷审/验证 fan-out(隔离并行) |
 
-🔴 **三条硬边界**:① 架构 CR 与关键裁决**不降档**(深度判断降档 = 质量盲区回归);② **评审独立性优先于档位**(冷审 fresh context 比模型强弱重要 —— 两个轻模型冷审 > 一个强模型热审);③ 主对话模型 = **用户主权**(AI 只建议不切换)。
+🔴 **四条硬边界**:① 架构 CR 与关键裁决**不降档**(深度判断降档 = 质量盲区回归);② **评审独立性优先于档位**(冷审 fresh context 比模型强弱重要 —— 两个轻模型冷审 > 一个强模型热审);③ 主对话模型 = **用户主权**(AI 只建议不切换)。
 
-📎 **并行姿态 + 声明制(PMO 派发方规则 · 单源 = [SKILL.md](../SKILL.md) § 全局规则「subagent / teammate」条目 · v8.241 去重)**:开工先问「哪些子任务可以并行」· 每次派发声明 **model + 一句为什么**(dispatch Meta 的 `model/model_reason` 字段)· ultracode 开启冷审/验证 fan-out 优先 Workflow —— 全文与护栏见 SKILL 单源(此处不复制 · 防双载体 drift);本表 + 三条硬边界是 SKILL 反向引用的**档位单源**(v8.230)。
+④ **验证类白名单的例外必须用户授权**(v8.299 · 用户拍板 · 同属用户主权):白名单任务默认**全部**降验证档;认为本次特殊(如首份 e2e 要逆向真进程启动配方 = 探索+调试占主体)→ **不许 AI 自决**,**开 R5 暂停点**请用户授权(哪个任务 / 为何不适用 / 建议用哪档)。
+> why:自评「这次比较难,不该降」是**最容易自我合理化**的一步 —— 每次都成立就等于白名单不存在。判断权归用户,不是因为 AI 判不准,是因为**这是花钱的决定**。
+
+🔴 **声明寄生在 prompt 首行**(v8.299 · 不是另起一句):`Meta: tier=<验证|执行|深度> · model=<留空则继承> · 理由=<一句>`。
+> why(实证):某次派发 agent **读过 v8.235 声明制仍然漏了** —— 提醒在 stage-start emit,派发发生在 15 个工具调用之后,**提醒与动作之间隔了太多 context**。「另外记得声明一下」是额外义务;prompt 是派发时**必然要写**的东西,寄生在它上面才不会被忘。**高频低显著性的义务必然衰减** —— 改触发位置,不是改措辞。
+
+📎 **并行姿态 + 声明制(PMO 派发方规则 · 单源 = [SKILL.md](../SKILL.md) § 全局规则「subagent / teammate」条目 · v8.241 去重)**:开工先问「哪些子任务可以并行」· 声明格式与验证类白名单见上(v8.299 · 寄生 prompt 首行 · 例外需用户授权)· ultracode 开启冷审/验证 fan-out 优先 Workflow —— 全文与护栏见 SKILL 单源(此处不复制 · 防双载体 drift);本表 + 三条硬边界是 SKILL 反向引用的**档位单源**(v8.230)。
 
 ## 二、通用执行约束
 
@@ -47,6 +53,33 @@
 - **字段责任**:PMO dispatch 前填 Meta(🔴 v8.235 含 **model + model_reason 一句** · 按档位表对档)/ Task / Input files / Additional inline context / **Key Context** / Edit scope / Expected deliverables / Return format;Subagent 执行中填 **Progress Log**、完成前填 **Result**。
 - **注入策略**:长文档(PRD/TC/TECH/standards)→ Input files 让其自读;短约束(仓库级指令文件/短配置)→ inline 复制原文;Result 必含 `Files read` 清单(可追溯)。
 - **Edit scope**(标准段):允许读写 {子项目} + {Feature 目录};只读 project-specs/ + {SKILL_ROOT}/standards/;🚫 其他子项目 · 敏感文件(.env/credentials/*secret*)· .git/ 直接操作。违反 → 停止 + Concerns + `DONE_WITH_CONCERNS`。
+
+### 🔀 同一编译单元的并行派发(v8.299 · Rust crate / npm package / 单 module 同改面)
+
+派发多个 agent 改**同一编译单元**时,派发语句必须包含三项声明 —— 缺任一项都会产出**无人认领的收尾项**:
+
+1. **构建隔离**:各自独立的构建目录(如 `CARGO_TARGET_DIR`)。
+   🔴 **但独立构建目录不足以消除争抢** —— 构建工具对**源目录**仍有 lock。
+2. **验证边界**:「**只跑你负责文件的 test target,不做跨范围交叉验证**;全量套件由主编排在所有路完成后统一跑」。
+3. **格式化 / lint 归属**:「**fmt 与 lint 由主编排最后统一跑一次**,各路只保证自己文件编译通过」。
+
+> why(实证):A 路尝试交叉验证 B 路的测试文件,被 build lock 卡 10 分钟后放弃;
+> A 路发现 `tests/` 有 4 处 fmt diff + 2 条 clippy 告警,**正确地选择不修**(避免与在途 agent 竞态)
+> → 但因为没人被指定收尾,形成**无人认领项**,多一次主编排往返。
+> 「不修」是对的,缺的是**事先说清谁来修**。
+
+### 🛟 中断安全 —— 三条硬约束的第二重职责(v8.299)
+
+subagent 的三条硬约束(**只写指定范围 / 不跑 git commit / 不跑 stage 流转命令**)除了权限收敛,
+还承担**中断安全**:任何 agent 在任意时点被中断(额度耗尽 / 超时 / 用户打断),
+worktree 应停在「**已落盘且可编译**」或「**未落盘**」两种状态之一,**不产生半提交的坏状态**。
+
+派发长任务时,prompt 内应要求 agent **按可编译的原子步推进**(每完成一组改动先 check 通过再继续)。
+
+> why(实证):核心实现 agent 因月度额度**中途终止**,恢复时实测 worktree 干净
+> (`cargo check --all-targets` 通过 · 冻结面零触碰 · 无半截改动),换模型续跑**零返工**。
+> 🔴 这不是运气 —— 是「不 commit + 只写指定范围」两条约束的**直接产物**。
+> 写成设计意图而非仅作权限规则,是为了防它哪天被当成官僚主义砍掉。
 
 ### 🎯 Key Context(6 类 · 硬规则)
 

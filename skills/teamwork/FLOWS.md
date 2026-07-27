@@ -1,7 +1,7 @@
 # FLOWS
 
 > 流程闭集(红线 R2)与各自 telos。**判定权威 = [docs/prepare.md](./docs/prepare.md)**(关键词 + 复杂度 + 明确度)· 本文件只是视图。
-> 🔴 v8.220-223:机器层 `flow_type ∈ {Feature, Bug}` + Feature 重量档 `preset ∈ {full, micro}`;「敏捷需求」「Micro」为 legacy 别名(→ Feature·full / Feature·micro)。
+> 🔴 v8.220-223:机器层 `flow_type ∈ {Feature, Bug}` + Feature 重量档 `preset ∈ {full, micro}`;「Micro」为 legacy 别名(→ Feature·micro)。v8.293 起「敏捷需求」/`lite`/`blueprint_lite` 已彻底删除(其链是 Feature 链的 needs-ui=false 剖面 · 纯冗余)。
 
 ## 闭集
 
@@ -17,7 +17,7 @@
 
 - 轻量不再靠独立类型:**动态 roster(role_value_criteria)+ clarity** 承担(v8.216/223)· preset=micro 是唯一结构性轻档(白名单准入 · 超出升 full)。
 - micro 涉代码仍必 ship(不停在本地未 push · P0-136)。
-- 存量 legacy(敏捷需求 / blueprint_lite / M-id)兼容走完 · 新 init 不再产。
+- 存量 legacy(M-id)兼容走完 · 新 init 不再产。
 
 ## 相关
 

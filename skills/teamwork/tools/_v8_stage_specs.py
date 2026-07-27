@@ -31,12 +31,10 @@ from _v8_engine import (
 )
 
 def _flow_key(state: dict) -> str:
-    """v8.222:state → 内部流键(Feature+preset 归一到 敏捷需求/Micro 旧键 · legacy 值原样)。
+    """v8.222:state → 内部流键(Feature+preset 归一到 Micro 旧键 · legacy 值原样)。
     物化校验统一走本函数 —— v8.220 后 state.flow_type 只会是 Feature/Bug · 直接比对 legacy 名 = 死门。"""
     ft = state.get("flow_type") or ""
     pre = state.get("preset") or "full"
-    if ft == "Feature" and pre == "lite":
-        return "敏捷需求"
     if ft == "Feature" and pre == "micro":
         return "Micro"
     return ft
@@ -207,12 +205,6 @@ def _evidence_needs_ui_decided(state: dict, args) -> tuple[bool, str]:
             f"  false → 下一 stage = blueprint(直接进技术方案)"
         )
 
-    # 流程类型校验:敏捷需求不应有 UI
-    if val == "true" and _flow_key(state) == "敏捷需求":
-        return False, (
-            "敏捷需求流程 + --needs-ui=true 矛盾 · "
-            "若有 UI 改动应升级 Feature 流程(reset-prev + 改 flow_type)"
-        )
     return True, ""
 
 
@@ -434,7 +426,7 @@ PM 调研(自答优先)· 起草 PRD · 🔴 **并行派 2 路隔离冷审**(v8.
 - `state.execution_hints.ui_design_needed` 已决策(由 `--needs-ui`)
 
 ### 怎么做
-🔴 **照 `{{SKILL_ROOT}}/templates/prd.md` 起草 · 别抄项目里旧 PRD**(实测 post-v8.164 十份仅一份用 canonical · 抄旧 = 机读块/扩展区等新机制到达不了)· goal-complete 校验三命门段(机读块/AC/『开工前必须想清的』)。\n**必读** `stages/goal-stage.md`(8 步:调研 → 起草 v0.1(🧠 **按冷审关注点思考着写** · 非环节:PL六问过脑 · AC 用可测判据〔含糊词落笔即换〕+ 每条配 💬 大白话〔说人话给用户 · v8.271〕· 依赖先读真实代码 —— 详 prd.md 模板头「起草思考规范」· v8.262)→ 🔴 **并行 2 路隔离冷审**(PL 质疑 + 覆盖方向制外审 · 不喂起草心路 · v8.243)→ 早问门(冷审后)→ PM 整合修订 → 冷审循环(Round 2+ 验证模式 · 🎚️ **验证轮派发用验证档模型** · 全 APPROVE 收敛)→ needs-ui → 用户确认(⏸️ 导读头行回显 **PRD 绝对路径** · 用户直接点开核对 · v8.272)· 🔮 **emit 终确认暂停点后等待窗后台派 TECH 草稿 subagent**〔worktree 内草稿 · 不跑 state 命令 · 用户 ok 则 blueprint 直接接续 · 详 goal-stage ④ 投机窗〕)。外审必覆盖:**可实现**(技术可行/架构影响/简洁性 counter-lens)· **可验证**(AC 可测/边界/异常)+ **AI 自主方向 ≥1**(安全/性能/数据一致性/兼容…按 feature 挑)· 每方向 finding 或「查过无发现」· 段记 `coverage: [...]`。
+🔴 **照 `{{SKILL_ROOT}}/templates/prd.md` 起草 · 别抄项目里旧 PRD**(实测 post-v8.164 十份仅一份用 canonical · 抄旧 = 机读块/扩展区等新机制到达不了)· goal-complete 校验三命门段(机读块/AC/『开工前必须想清的』)。\n**必读** `stages/goal-stage.md`(8 步:调研 → 起草 v0.1(🧠 **按冷审关注点思考着写** · 非环节:PL六问过脑 · AC 用可测判据〔含糊词落笔即换 · 兜底 miss 分支必落 AC v8.282〕+ 每条配 💬 大白话〔说人话给用户 · v8.271〕· 依赖先读真实代码〔🔴 当前 worktree/ship 目标分支 · 不吃旧分支调研 v8.282〕 —— 详 prd.md 模板头「起草思考规范」· v8.262)→ 🔴 **并行 2 路隔离冷审**(PL 质疑 + 覆盖方向制外审 · 不喂起草心路 · v8.243 · 🎚️ **PRD 起草与冷审必用主模型/高级模型**〔v8.290 · 错开也只在高档间 · 不降验证档〕)→ 早问门(冷审后)→ PM 整合修订 → 冷审循环(Round 2+ 验证模式 · 🎚️ **验证轮派发用验证档模型** · 全 APPROVE 收敛)→ needs-ui → 用户确认(⏸️ 导读头行回显 **PRD 绝对路径** · 用户直接点开核对 · v8.272)· 🔮 **emit 终确认暂停点后等待窗后台派 TECH 草稿 subagent**〔worktree 内草稿 · 不跑 state 命令 · 用户 ok 则 blueprint 直接接续 · 🔴 **准入 v8.294:§待决策项里影响表结构/模块形态的开放项 ≤1 才投机**(>1 或含结构分叉 → 不投机 · 多开放项时用户改选必触发差量重写 = 净亏)· 详 goal-stage ④ 投机窗〕)。外审必覆盖:**可实现**(技术可行/架构影响/简洁性 counter-lens)· **可验证**(AC 可测/边界/异常)+ **AI 自主方向 ≥1**(安全/性能/数据一致性/兼容…按 feature 挑)· 每方向 finding 或「查过无发现」· 段记 `coverage: [...]`。
 
 ### 完成方式
 ```
@@ -449,7 +441,7 @@ def _goal_transition(state: dict) -> Optional[str]:
     """goal 完成后的下一 stage 选择。
 
     严格读 state.execution_hints.ui_design_needed(goal-complete --needs-ui 必传 ·
-    persist_args_to_evidence 落库)。goal 仅 Feature / 敏捷需求 可进
+    persist_args_to_evidence 落库)。goal 仅 Feature 可进
     (allowed_flow_types 拦 · Bug/Micro 初始 stage 分别是 diagnose/dev · 到不了这里)。
     """
     flow = _flow_key(state)
@@ -459,9 +451,6 @@ def _goal_transition(state: dict) -> Optional[str]:
         if hints.get("ui_design_needed") is True:
             return "ui_design"
         return "blueprint"
-    elif flow == "敏捷需求":
-        # 敏捷需求必 --needs-ui false(evidence_check 校验)· 直接 blueprint_lite
-        return "blueprint_lite"
     return None
 
 
@@ -586,8 +575,7 @@ def _evidence_pl_challenge_present(state: dict, args) -> tuple[bool, str]:
     """v8.132:stage_review_roles[goal] 含 pl 时 · PRD-REVIEW.md 必含「PL-CHALLENGE」标记
     (PL 对抗质疑物化 · 防同上下文切帽子的鼓掌过场)。
 
-    角色集无 pl(change-review-roles 调整去除)→ 自动放行。默认矩阵 Feature 与
-    敏捷需求 goal 均含 pl(敏捷 = 1 冷审 + pl · 保 PL challenge 门禁)。
+    角色集无 pl(change-review-roles 调整去除)→ 自动放行。
     """
     # v8.216:不再按 clarity 硬编码跳过 —— 评审配置由 AI 动态决策(prepare 按「角色价值判据」
     # 配 stage_review_roles · change-review-roles 带 reason 审计)· 本 gate 只 respect roster:
@@ -684,7 +672,7 @@ GOAL_SPEC = StageSpec(
         # 已删除的 state.py prepare 命令)· prepare 准入由 init-feature 的 prepare-check
         # audit 门禁承担(prepare.md §0.5 已物化)· 此处重复校验无信息量。
     ],
-    # goal stage = 业务目标确认 · 产 PRD · Feature / 敏捷需求 流程专属
+    # goal stage = 业务目标确认 · 产 PRD · Feature 流程专属
     # Feature Planning 走单 stage planning · 不进 goal
     artifacts=[
         # 文档类 artifact 多角色多轮修订 = 多 commit 常态 · must_be_in_commit=False
@@ -763,7 +751,7 @@ GOAL_SPEC = StageSpec(
     ],
     brief_template_fn=_goal_brief,
     auto_transition_fn=_goal_transition,
-    allowed_flow_types=["Feature"],  # v8.220:敏捷已并入 Feature(preset=lite)· Planning 不进 goal
+    allowed_flow_types=["Feature"],  # Planning / 排查不进 goal
     authorized_pause_point=(
         "§8 用户最终确认(全员 review 通过后)"
         "+ 条件暂停:§4 goal-critical 早问门(三闸过审的用户主权问题 ≤3 · 一次性 · "
@@ -858,14 +846,12 @@ DIAGNOSE_SPEC = StageSpec(
 
 
 def _check_blueprint_or_alt_done(state: dict, args) -> bool:
-    """dev 准入:blueprint/blueprint_lite output_satisfied · 或 Bug 流程 diagnose 完成 · 或 Micro 直入。
+    """dev 准入:blueprint output_satisfied · 或 Bug 流程 diagnose 完成 · 或 Micro 直入。
 
     v8.107:Bug 不再直入 dev —— 必先 diagnose(根因细查 + 修复方案 · 用户确认)· 防 fix 修偏。
     """
     contracts = state.get("stage_contracts", {})
     if contracts.get("blueprint", {}).get("output_satisfied") is True:
-        return True
-    if contracts.get("blueprint_lite", {}).get("output_satisfied") is True:
         return True
     flow = _flow_key(state)
     if flow == "Bug":
@@ -881,7 +867,7 @@ def _check_prd_or_bug_report(state: dict, args) -> bool:
     - Micro:无 PRD / BUG-REPORT(改 1 行常量 · spec 在 init-feature 时记到 state.json)
               → 直接 PASS(R0:flow_type 可枚举 · 不要把 Micro 当 Feature/Bug 校验)
     - Bug:必有 bugfix/BUG-*.md(模板 templates/bug-report.md)
-    - Feature / 敏捷需求 / 其他:必有 PRD.md(goal stage 产物)
+    - Feature / 其他:必有 PRD.md(goal stage 产物)
     """
     flow = _flow_key(state)
     if flow == "Micro":
@@ -889,7 +875,7 @@ def _check_prd_or_bug_report(state: dict, args) -> bool:
     feature_dir = Path(args.feature)
     if flow == "Bug":
         return bool(list(feature_dir.glob("bugfix/BUG-*.md")))
-    # Feature / 敏捷需求:goal stage 必产 PRD.md
+    # Feature:goal stage 必产 PRD.md
     return (feature_dir / "PRD.md").exists()
 
 
@@ -905,7 +891,7 @@ def _dev_brief(state: dict) -> str:
     return f"""## Dev Stage
 
 ### 目标
-按 TECH.md 实现代码 · TDD 红绿循环 · 测试全绿 · auto-commit 锚定证据。
+按 TECH.md 实现代码 · 测试全绿 · auto-commit 锚定证据(🟢 测试节奏 AI 自定 · v8.286:每个 TC 有对应实现 + 测试真断言 是硬结果)。
 
 ### 结果(完成判定)
 - 代码 + 测试一并 commit
@@ -932,7 +918,7 @@ def _dev_transition(state: dict) -> Optional[str]:
     """dev 完成后的下一 stage。
 
     v8.250:micro 不再走 dev(改走 execute → ship · 见 EXECUTE_SPEC)—— dev 只服务
-    Feature(full)/ Bug / 敏捷(legacy),全部 → review。旧 Micro→pm_acceptance 分支已删(死路)。
+    Feature(full)/ Bug 全部 → review。旧 Micro→pm_acceptance 分支已删(死路)。
     v8.261:fast_mode 不再跳 review(留单路合并代码评审 · Architect+QA 关注点合一)。
     """
     return "review"
@@ -945,25 +931,25 @@ DEV_SPEC = StageSpec(
             id="blueprint_or_alt_done",
             check_fn=_check_blueprint_or_alt_done,
             hint=(
-                "Feature/敏捷流程:先完成 blueprint(-complete) 或 blueprint_lite(-complete)。"
+                "Feature 流程:先完成 blueprint(-complete)。"
                 "Bug 流程:先完成 diagnose(-complete · 根因细查 + 修复方案确认)· 不再直入 dev。"
                 "Micro 流程:无需前置 · 可直入 dev。"
                 "当前 flow_type / stage_contracts 不满足任一条件。"
             ),
-            description="blueprint/blueprint_lite output_satisfied · 或 Bug diagnose 完成 · 或 Micro",
+            description="blueprint output_satisfied · 或 Bug diagnose 完成 · 或 Micro",
         ),
         StagePrerequisite(
             id="prd_or_bug_report_exists",
             check_fn=_check_prd_or_bug_report,
             hint=(
-                "Feature / 敏捷需求 流程必须有 PRD.md(回 goal-complete 起草)。"
+                "Feature 流程必须有 PRD.md(回 goal-complete 起草)。"
                 "Bug 流程必须有 bugfix/BUG-*.md(模板 templates/bug-report.md · "
                 "含 frontmatter bug_id/symptom/root_cause/fix_summary + "
                 "body §现象/§根因/§修复方案/§回归测试)。"
                 "Micro 流程 skip(改 1 行常量 · 无 spec 文档)。"
             ),
             description=(
-                "按 flow_type 分支:Feature/敏捷需求→PRD.md · Bug→bugfix/BUG-*.md · Micro→skip"
+                "按 flow_type 分支:Feature→PRD.md · Bug→bugfix/BUG-*.md · Micro→skip"
             ),
         ),
         StagePrerequisite(
@@ -1019,7 +1005,7 @@ Designer 产出 UI.md + HTML 预览 · sitemap 同步(如涉及全景变更)。
 **必读** `stages/ui-design-stage.md`(详细步骤 6 步 + 注意事项 5 条)。
 🔴 **设计前读 UI-RULES**(`project-specs/UI-RULES.md` + `{{子项目}}/docs/UI-RULES.md`:控件偏好/色板策略/交互约定 · 缺则从 `templates/ui-rules.md` 建)+ **对照 § 交互&视觉质量 rubric**(治「对交互没判断力」)。
 🔴 **same-stack 设计=代码**:真实可达交互(按钮→Drawer/编辑/详情)**页面内做成真实可点**(同真实 app · 交互保真)· **dev 顶栏只放页面到不了的态**(Loading/Error/Empty/边缘态)· 禁的是**预览专属控件**(state-switcher 下拉等真实 app 没有的 · 非真实交互按钮)· 详 § preview dev 顶栏。
-🔴 **扩已有页 → 复现整页再加 feature(禁概念页)**:本 Feature 若给**已存在的真实页**加东西 → 先**读该页真实代码的当前形态**(布局/筛选区/KPI/卡片/表格列),在 preview-project 按真实形态复现整页(same-stack 直接复用真实共享组件)· 再集成新部分 · **不画孤立概念页**(实证 AON Offer-Analysis:概念页与真实页结构没对齐被打回)· 详 § 怎么做 §3 复现门。
+🔴 **扩已有页 → 复现整页再加 feature(禁概念页)**:本 Feature 若给**已存在的真实页**加东西 → 先**读该页真实代码的当前形态**(布局/筛选区/KPI/卡片/表格列),在 preview-project 按真实形态复现整页(same-stack 直接复用真实共享组件)· 再集成新部分 · **不画孤立概念页**(实证 AON Offer-Analysis:概念页与真实页结构没对齐被打回)· 详 ui-design-stage.md 复现门。
 
 ### 完成方式
 ```
@@ -1050,7 +1036,7 @@ def _evidence_panorama_changed_decided(state: dict, args) -> tuple[bool, str]:
 def _ui_design_transition(state: dict) -> Optional[str]:
     """ui_design 完成后 · 按 execution_hints.panorama_changed 分支:
     - true → panorama_sync(workspace 级 IA 同步 · 跨 Feature 评审)
-    - false → blueprint(ui_design 仅 Feature 流程可达 · 敏捷需求 goal 强制 needs-ui=false 直去 blueprint_lite)
+    - false → blueprint(ui_design 仅 Feature 流程可达)
     """
     hints = state.get("execution_hints", {})
     if hints.get("panorama_changed") is True:
@@ -1546,7 +1532,7 @@ def _blueprint_brief(state: dict) -> str:
     return f"""## Blueprint Stage{_fast}
 
 ### 目标
-QA 起草 TC(BDD)**∥** RD 起草 TECH(⚡ v8.256:两者相互独立 · **并行同发** · 完成后互查 covers_ac↔测试策略;goal 投机窗已产 TECH 草稿则接续)· 🔴 **两路并行评审**(v8.244 默认 roster:Architect 主审〔简洁性 counter-lens〕+ 覆盖方向制外审〔QA 可测试视角并入 + AI 自主方向 ≥1〕· ⚡ 同发互不喂 · 🎭 两路模型错开〔v8.268 · 外审路 ≠ 主审路〕)· 实现前方案收敛。
+QA 起草 TC(BDD)**∥** RD 起草 TECH(🎚️ **TECH 起草与评审必用主模型/高级模型** · v8.290;⚡ v8.256:两者相互独立 · **并行同发** · 完成后互查 covers_ac↔测试策略;goal 投机窗已产 TECH 草稿则接续)· 🔴 **两路并行评审**(v8.244 默认 roster:Architect 主审〔简洁性 counter-lens · 🔴 **rival 设计强制 v8.294**:评审新增结构(表/模块/抽象)必须**自己先生成 ≥1 个替代形态**〔并入宿主实体加列 / 现算不存 / 复用既有 / 不做〕再裁决 ——「赢了作者列举的被否方案」不算通过〕+ 覆盖方向制外审〔QA 可测试视角并入 + AI 自主方向 ≥1〕· ⚡ 同发互不喂 · 🎭 两路模型错开〔v8.268 · 外审路 ≠ 主审路〕)· 实现前方案收敛。
 
 ### 结果(完成判定)
 - `TC.md`(frontmatter:`tests` · verify-ac.py 通过)
@@ -1624,254 +1610,69 @@ def _evidence_ac_test_binding(state: dict, args) -> tuple[bool, str]:
         return False, f"verify-ac.py 执行失败: {e}"
 
 
-# v8.19:external review 异质性硬约束(治本 SVC-CORE-F034 case · AI 用同模型 subagent 自审)
-# 白名单:已知模型族字面(case-insensitive · host-aware 判定时 host 同族会被排除)
-EXTERNAL_REVIEW_HETERO_KEYWORDS = (
-    "claude", "anthropic", "codex", "gpt", "openai", "gemini", "google", "bard",
-    "deepseek", "qwen", "llama", "grok", "mistral",
-)
-# 同源「机制」字面:宿主自起 isolated/subagent 子进程 = 同模型自审 · 无论 host 全 BLOCK
-EXTERNAL_REVIEW_SAME_CONTEXT_BLOCKED = (
-    "isolated", "subagent", "general-purpose", "self",
-)
-# 各模型族字面(host-aware 同源判定:review model 与 host 同族 → 同源)
-_MODEL_FAMILY_KEYWORDS = {
-    "claude": ("claude", "anthropic"),
-    "codex": ("codex", "gpt", "openai"),
-    "gemini": ("gemini", "google", "bard"),
-}
-
-
-def _host_to_family(host) -> Optional[str]:
-    """host → 模型族:claude-code→claude / codex-cli→codex / gemini-cli→gemini · 未知→None。"""
-    h = (host or "").lower()
-    if "claude" in h:
-        return "claude"
-    if "codex" in h or "openai" in h:
-        return "codex"
-    if "gemini" in h or "google" in h:
-        return "gemini"
-    return None
-
-
-def _check_external_hetero(name: str, host=None) -> tuple[bool, str]:
-    """v8.68:host-aware 校验文件名 / review_model 是否真异质模型 · 返 (is_hetero, reason)。
-
-    治本 case(SVC-PLATFORM-F060 · host=codex-cli):external-review 已 host-aware
-    (`EXTERNAL_HOST_TO_MODEL` codex-cli→claude)· 但本 checker 旧版**静态**黑名单把 claude
-    一律判同源 → **误判** codex-cli 宿主下合规的 Claude external review = 同源自审。
-
-    同源 = ① 机制字面(isolated/subagent 宿主自起子进程 · 无论 host 全 BLOCK)· 或
-    ② review model 与 host **同族**(codex-cli host 下 claude 是异质 · 不再误判)。
-    host 缺失 → 保守默认 claude-code(历史默认 · 不放宽老 case 的同源保护)。
-    """
-    low = name.lower()
-    # 1. 同源机制黑名单(无论 host · subagent/isolated 是宿主自起子进程 · 非真异质进程)
-    for kw in EXTERNAL_REVIEW_SAME_CONTEXT_BLOCKED:
-        if kw in low:
-            return False, f"命中同源机制字面 {kw!r}(宿主自起 isolated/subagent 自审 · 非异质进程)"
-    # 2. host-aware 同源模型族(host 缺失 → 保守默认 claude)
-    host_family = _host_to_family(host) or "claude"
-    for kw in _MODEL_FAMILY_KEYWORDS.get(host_family, ()):
-        if kw in low:
-            return False, (
-                f"命中宿主同源模型族字面 {kw!r}(host={host or '默认 claude-code'}/"
-                f"{host_family} · 同模型评同模型 = 非异质)"
-            )
-    # 3. 必含某已知外部模型族字面 → 真异质
-    for kw in EXTERNAL_REVIEW_HETERO_KEYWORDS:
-        if kw in low:
-            return True, ""
-    return False, (
-        f"未含已知模型族字面(白名单:{', '.join(EXTERNAL_REVIEW_HETERO_KEYWORDS)})"
-    )
-
-
 def _external_run_log_exists(feature_dir: Path, stage: str) -> bool:
-    """本 stage external 评审有「实跑证据」(过程日志)· yolo 门禁用。
+    """本 stage 第三视角冷审有「走过命令」的证据(yolo 门禁用)。
 
-    主路径:state.py external-review 执行时在
-    `<feature_dir>/external-review-prompts/<stage>-<model>-<ts>.log` 落的过程日志
-    (与 prompt-doc 同名 .log · 随 feature 归档)。
-    兼容:老全局路径 `~/.teamwork/external-review-logs/<feat>/<model>-<stage>-*.log`
-    (早期版本落此 · 老 feature 已有日志不误伤)。
-    用途:yolo 校验 external 真调了异质模型(不是 AI 手写/内化 external-cross-review)。
+    v8.291:跨厂商 CLI 退役后没有子进程日志了 —— 证据改为 **prompt doc 存在**
+    (`external-review-prompts/<stage>-*.md` · 由 `state.py external-review` 落盘)。
+    它证明「真跑过命令拿配方」而非 AI 直接手写 external-cross-review。
+    兼容存量 feature 的 .log 后缀;v8.291 顺带删 legacy 全局路径 `~/.teamwork/external-review-logs`
+    (早期版本落此 · 已无产出者 · 且读 $HOME 会污染测试隔离)。
     """
     prompts_dir = Path(feature_dir) / "external-review-prompts"
-    if prompts_dir.is_dir():
-        for model in ("codex", "claude"):
-            if list(prompts_dir.glob(f"{stage}-{model}-*.log")):
-                return True
-    feat_name = feature_dir.name or "unknown"
-    log_dir = Path.home() / ".teamwork" / "external-review-logs" / feat_name
-    if log_dir.is_dir():
-        for model in ("codex", "claude"):
-            if list(log_dir.glob(f"{model}-{stage}-*.log")):
-                return True
-    return False
-
-
-def _localconfig_disable_external(feature_dir: Path) -> bool:
-    """v8.90/v8.153:读 localconfig `disable_external_review`(原名 `disable_heterogeneous_review`)·
-    向上找到 .git 边界。🔴 v8.204(全局一刀切):**默认 true**(external 异质默认关 · CLI 冷启动太耗时)·
-    key 缺省 / 读失败 → true;显式 `false` = 主动 opt-in 异质。多角色评审(架构师+QA)不受影响。
-
-    内联实现(避免 _v8_stage_specs 循环 import state.py)· 与 state._read_disable_external_review 同义。
-    """
-    import json as _json
-    try:
-        node = Path(feature_dir).resolve()
-    except OSError:
-        return True
-    for d in [node, *node.parents]:
-        cfg = d / ".teamwork_localconfig.json"
-        if cfg.exists():
-            try:
-                data = _json.loads(cfg.read_text(encoding="utf-8"))
-            except (OSError, ValueError):
-                return True
-            return data.get("disable_external_review", True) is True  # 缺省→true(默认关)· 显式 false→开
-        if (d / ".git").exists():
-            break
-    return True
+    if not prompts_dir.is_dir():
+        return False
+    return (any(prompts_dir.glob(f"{stage}-*.md"))
+            or any(prompts_dir.glob(f"{stage}-*.log")))   # .log 兼容存量 feature
 
 
 def _evidence_external_review_artifact(state: dict, args) -> tuple[bool, str]:
-    """external-cross-review/ 至少 1 份 markdown · 且必须是真异质模型评审(v8.19 加强)。
+    """第三视角冷审产物校验(v8.291:跨厂商异质退役后大幅简化 · 136 行 → 30 行)。
 
-    v8.90/v8.153:`disable_external_review:true`(localconfig · 单模型用户)时 · 接受
-    external-review 写的**降级同模型自审**文件(frontmatter `degraded:true heterogeneous:false`)·
-    跳过异质违规(用户已 opt-out · bootstrap 每次启动 WARN 持续提醒)。详 standards §11。
-
-    联动 state.stage_review_roles:若当前 stage 的 reviewers 列表不含 'external'
-    (通过 change-review-roles 调整去除) → skip 校验(audit 已在 stage_review_roles_adjustments)。
-
-    v8.0+P0-14:external-cross-review/ 在 artifact_root 内(feature_dir 内 · 不是 parent)。
-    v8.19 治本 SVC-CORE-F034 case:加文件名 + frontmatter review_model 双重校验 ·
-    BLOCKED "AI 用 Agent subagent_type=general-purpose 起 Claude isolated context 自审 ·
-    再标 review_model: claude-opus-4-isolated-context 透明伪装合规" 的反模式。
-    硬约束源:standards/external-model-usage.md § 七 异质性硬约束。
+    旧版承载「异质性硬约束」(文件名模型白名单 / review_model 字面比对 / degraded 语义 /
+    host 比对 / 实跑日志物化)—— 那整套是为了拦「用同模型 subagent 冒充跨厂商异质」。
+    **跨厂商路径整体退役后该反模式不存在了**(没有可冒充的对象),要守的只剩两条:
+      ① **必须是隔离 subagent**(`review_via: subagent`)—— 主对话热审 = 同上下文 = 零独立性;
+      ② **必须照实申报模型**(`review_model` 非空)—— 供台账核「错开」是否真发生。
+    roster 不含 external → skip(change-review-roles 调整已留 audit)。
     """
-
     current_stage = state.get("current_stage", "")
     stage_roles = state.get("stage_review_roles", {}).get(current_stage, [])
     if stage_roles and "external" not in stage_roles:
-        return True, (
-            f"skipped(external 不在 state.stage_review_roles.{current_stage}={stage_roles} · "
-            f"已通过 change-review-roles 调整 · audit 详 state.stage_review_roles_adjustments)"
-        )
-
-    feature_dir = Path(args.feature)
-    external_dir = feature_dir / "external-cross-review"
-    if not external_dir.exists():
-        return False, f"external-cross-review/ 不存在 · 路径:{external_dir}"
-    md_files = list(external_dir.glob("*.md"))
+        return True, f"skipped(external 不在 stage_review_roles.{current_stage}={stage_roles})"
+    external_dir = Path(args.feature) / "external-cross-review"
+    md_files = list(external_dir.glob("*.md")) if external_dir.exists() else []
     if not md_files:
         return False, (
-            "external-cross-review/*.md 为空 · 跑 codex 外部评审或 change-review-roles 移除 external"
-        )
-
-    # v8.90:单模型用户 localconfig 禁异质 → 接受 external-review 写的降级同模型自审(跳过异质违规)
-    ext_disabled = _localconfig_disable_external(feature_dir)
-    # v8.36 host per-feature · v8.68 host-aware 异质判定(治本 codex-cli host 下 claude 误判)
-    state_host = state.get("host")
-    # v8.19:逐文件校验异质性(文件名 + frontmatter review_model 双重 · v8.68 host-aware)
-    violations: list = []
+            "external-cross-review/*.md 为空 —— 跑 `state.py external-review --feature <path> "
+            f"--stage {current_stage or '<stage>'}` 拿 subagent 配方(错开模型冷审)· "
+            "或 `change-review-roles` 移除 external")
+    bad, has_subagent_artifact = [], False
     for f in md_files:
         fm = parse_frontmatter(f) or {}
-        # v8.90:config-disabled 项目 + 文件是合规降级自审(external-review 写 degraded:true
-        # heterogeneous:false)→ 视作满足门禁(用户已 opt-out · startup WARN 持续提醒)· 跳过异质校验。
-        # 注:parse_frontmatter 是朴素解析 · 值为字符串("true"/"false")。
-        # v8.226:ultra-ingest(用户触发的产品化多智能体评审摄入)豁免模型名异质校验 ——
-        # 它不是某个模型的产物(文件名无模型族字面是正常的)· 独立性来自 out-of-session pipeline。
-        if str(fm.get("review_via", "")).lower() == "ultra-ingest":
-            continue
-        deg = (str(fm.get("degraded", "")).lower() == "true"
-               and str(fm.get("heterogeneous", "")).lower() == "false")
-        # v8.90:config-disabled 项目(ext_disabled=true)→ 接受任何 degraded 自审(用户已 opt-out)。
-        # v8.108:per-run subagent 降级(frontmatter degraded_mode=subagent-fallback)→ 接受(显式降级 ·
-        # 即便项目未 opt-out · 因为是 --self-review-fallback 带 reason 的诚实降级)· 非异质 · 满足 P0-154。
-        # 🔴 config-disabled marker 仍须 ext_disabled 为真(防未 opt-out 项目用 stale config-disabled 标绕过);
-        # 无 degraded marker / 非 subagent-fallback → 落下方黑名单(F034 伪装拦)。
-        if deg and (ext_disabled
-                    or str(fm.get("degraded_mode", "")).lower() == "subagent-fallback"):
-            continue
-        # host 优先级:state.host(per-feature)> 文件 frontmatter host(external-review 写)> None(默认 claude)
-        eff_host = state_host or (fm.get("host") or "").strip() or None
-        ok_name, name_reason = _check_external_hetero(f.stem, eff_host)
-        rm_value = (fm.get("review_model") or "").strip()
-        rm_ok, rm_reason = True, ""
-        if rm_value:
-            rm_ok, rm_reason = _check_external_hetero(rm_value, eff_host)
-        if not ok_name:
-            violations.append(f"{f.name}:文件名 {name_reason}")
-        if rm_value and not rm_ok:
-            violations.append(f"{f.name}:frontmatter review_model={rm_value!r} {rm_reason}")
-
-    if violations:
-        # v8.95:ext_disabled 项目的违规 = 文件缺降级标记(多半 AI 手写没打标)· 给**专属**修复指引
-        # (不要走通用「调异质模型」分支 —— 那对单模型 opt-out 用户误导 · 正与 v8.90 初衷相悖)。
-        if ext_disabled:
-            fix_section = (
-                "\n  🔴 修复(本项目 `disable_external_review=true` · 单模型 opt-out):"
-                "external-cross-review 文件**缺降级标记** → 被判同源。"
-                "\n  正解 = 跑 `state.py external-review --stage "
-                f"{current_stage} --feature {args.feature}` —— config-disabled 模式会**自动**产出 "
-                "`degraded:true heterogeneous:false` 的降级同模型自审(被门禁接受)· **别手写**"
-                "(手写没实跑标记 · 看起来像伪造 → 拦)。"
-                "\n  或给现有 external-cross-review/*.md 补 `degraded: true` + `heterogeneous: false` "
-                "两个 frontmatter 键(注:写在 external-cross-review 文件里 · 不是 REVIEW.md)。"
-                "\n  想恢复真异质把关 → 删 localconfig 的 `disable_external_review`。"
-            )
-        else:
-            fix_section = (
-                "\n  规约(v8.68 host-aware):同源 = ① isolated/subagent 等机制字面(全 host BLOCK)· "
-                "或 ② review model 与**宿主同族**(claude-code 宿主下 claude 同源 · "
-                "**codex-cli 宿主下 claude 是异质 · 合规**)。"
-                "\n  典型违规:AI 用 Agent subagent_type=general-purpose 起同模型 isolated context 自审 → 同模型自评有盲点。"
-                "\n  修复:跑 `state.py external-review --stage <X> --feature <path>`"
-                "(host 自动映射异质模型:claude-code→codex · codex-cli→claude · gemini-cli→codex)· "
-                "或 change-review-roles 显式移除 external(留 audit)。"
-                "\n  🔴 若本就是合规异质评审却被判违规 → 检查 state.json.host 是否 = 你的真实主对话宿主"
-                "(host 错 / 缺 默认 claude · 会把 codex-cli 的 claude 评审误判同源)。"
-            )
+        via = str(fm.get("review_via", "")).strip().lower()
+        if via == "ultra-ingest":
+            continue  # /code-review ultra 摄入 · 独立性由产品化多智能体保证 · provenance 是会话转录
+        has_subagent_artifact = True
+        model = str(fm.get("review_model", "")).strip()
+        if via != "subagent":
+            bad.append(f"{f.name}:review_via={via or '缺'}(必须 subagent —— 主对话热审无独立性)")
+        elif not model:
+            bad.append(f"{f.name}:review_model 缺(照实写 subagent 实际模型 · 供核对错开)")
+    if bad:
+        return False, ("第三视角产物不合规:" + " · ".join(bad)
+                       + " —— 🔴 隔离 subagent + 照实申报模型(v8.291 · 禁主对话自评 · 禁伪造)")
+    # 🔴 yolo 不内化律(v8.67 · v8.291 换代证据):无人值守时必须有「真跑过命令」的物证 ——
+    # 仅对 subagent 产物要求(ultra-ingest 的 provenance 是会话转录 · 不经 external-review)。
+    # prompt doc 由 external-review 落盘 · AI 直接手写 external-cross-review 时它不存在。
+    if (state.get("yolo") and has_subagent_artifact
+            and not _external_run_log_exists(Path(args.feature), current_stage)):
         return False, (
-            f"external 异质性违规({len(violations)} 文件)· R3 红线 + standards/"
-            f"external-model-usage.md § 七 异质性硬约束:\n  "
-            + "\n  ".join(violations)
-            + fix_section
-        )
-
-    # v8.67:yolo 严格按流程 · 不内化 —— external 必须真跑(state.py external-review 调异质模型)·
-    # 不得 AI 手写 external-cross-review/*.md(文件名/frontmatter 能伪装合规 · 但无实跑日志)。
-    # 治本 case(WS-002 yolo):AI 写 PRD-REVIEW "mode: yolo-internalized" 自盖章 APPROVE · 评审形同虚设。
-    if state.get("yolo") and not _external_run_log_exists(feature_dir, current_stage):
-        # v8.179:yolo + 单模型(disable_external_review)→ 异质实跑日志本就不存在(非异质是用户
-        # 显式 opt-out)· 改认 **subagent 冷审** 证据(review_via:subagent · 非主对话热审 / AI 手写)。
-        # 治本:旧 1644 闸无 ext_disabled 豁免 · 误 BLOCK 单模型 yolo 用户(异质日志永远拿不到)。
-        if ext_disabled:
-            # v8.226:ultra-ingest(用户触发的多智能体评审摄入)与 subagent 冷审同为合法第三视角
-            cold = any(str((parse_frontmatter(f) or {}).get("review_via", "")).lower() in ("subagent", "ultra-ingest")
-                       for f in md_files)
-            if not cold:
-                return False, (
-                    "yolo + 单模型(localconfig disable_external_review)· 降级评审**必须是 subagent 冷审** "
-                    "—— external-cross-review/*.md 缺 `review_via: subagent`(= 没走 isolated subagent 冷审 · "
-                    "疑主对话热审 / AI 手写)。跑 `state.py external-review --stage "
-                    f"{current_stage} --feature {args.feature}` → 按 SUBAGENT_FALLBACK 配方起 **isolated "
-                    "subagent 冷审**(宿主自身模型 · 隔离上下文 · 非主对话)· 产出带 `review_via: subagent` 的降级评审。"
-                )
-        else:
-            return False, (
-                f"yolo 模式 external 评审缺**实跑证据** —— {feature_dir}/external-review-prompts/ "
-                f"无本 stage 过程日志({current_stage}-codex-*.log / {current_stage}-claude-*.log ·"
-                f" 老 feature 兼容查 ~/.teamwork/external-review-logs/{feature_dir.name}/)。"
-                f"🔴 yolo 严格按流程 · **不得手写/内化** "
-                f"external-cross-review/*.md —— 必须真跑 `state.py external-review --stage "
-                f"{current_stage} --feature {args.feature}`(调异质模型 · 自动落实跑日志)。"
-                f"\n  (artifact 文件名/frontmatter 能伪装合规 · 但实跑日志伪造不了 · 这是物化防内化)"
-            )
-    return True, ""
+            "yolo 缺**实跑证据**:`external-review-prompts/" + (current_stage or "<stage>")
+            + "-*.md` 不存在 —— 无人值守时产物可被直接手写自盖章(治本 WS-002 「mode: yolo-internalized」)。"
+            "跑 `state.py external-review --feature <path> --stage " + (current_stage or "<stage>")
+            + "` 拿配方(它会落 prompt doc)· 再起错开模型 subagent 产出评审。")
+    return True, f"external-cross-review/ {len(md_files)} 份(subagent 冷审 · 已申报模型)"
 
 
 BLUEPRINT_SPEC = StageSpec(
@@ -1942,78 +1743,6 @@ BLUEPRINT_SPEC = StageSpec(
         "条件暂停:TECH 涉数据库结构变更(表/字段/索引/约束/migration)时须用户确认"
         "(stage.md §7.5)· 不涉则不停 · 完成后自动转 dev(NEEDS_REVISION 主对话内 PM 回应循环)"
     ),
-)
-
-
-# ─── B5 · blueprint_lite(仅敏捷需求) ─────────────────────────────
-
-
-def _check_flow_is_agile(state: dict, args) -> bool:
-    return _flow_key(state) == "敏捷需求"
-
-
-def _blueprint_lite_brief(state: dict) -> str:
-    """v8.0+P0-8 极简版:目标 + 结果 + 完成方式 · 怎么做归 stage.md。"""
-    return f"""## Blueprint Lite Stage
-
-### 目标
-敏捷需求精简版 blueprint · 只产 TC.md(精简) · 砍 TECH/TECH-REVIEW/External。
-
-### 结果(完成判定)
-- `TC.md`(frontmatter:`tests` · 每 AC 至少 1 test)
-
-### 怎么做
-**必读** `stages/blueprint-lite-stage.md`(详细步骤 4 步 + 注意事项 5 条 · 含敏捷准入校验)。
-📋 产物模板:本 emit 的 `scaffold_hints.templates` 给**绝对路径** · 照它起草 · 别抄项目旧产物。
-
-### 完成方式
-```
-state.py blueprint_lite-complete --feature <path> --auto-commit <hash> \
-  --artifacts TC.md
-```
-"""
-
-
-def _blueprint_lite_transition(state: dict) -> Optional[str]:
-    return "dev"
-
-
-# v8.223 DEPRECATED:blueprint_lite 仅服务**存量 in-flight**(state.preset=lite / legacy 敏捷需求)·
-# 新 feature 一律走 blueprint(轻量由 roster/clarity)· 存量走完后本 spec 与 stage 文件删除。
-BLUEPRINT_LITE_SPEC = StageSpec(
-    name="blueprint_lite",
-    prerequisites=[
-        StagePrerequisite(
-            id="flow_type_is_agile",
-            check_fn=_check_flow_is_agile,
-            hint="blueprint_lite 仅敏捷需求流程触发 · 检查 state.flow_type",
-            description="flow_type == '敏捷需求'",
-        ),
-        StagePrerequisite(
-            id="goal_completed",
-            check_fn=_check_stage_output_satisfied("goal"),
-            hint="先完成 state.py goal-complete",
-            description="goal output_satisfied",
-        ),
-        StagePrerequisite(
-            id="prd_exists",
-            check_fn=_check_file_exists("PRD.md"),
-            hint="PRD.md 不存在 · 回 goal stage 起草",
-            description="{Feature}/PRD.md 必须存在",
-        ),
-    ],
-    artifacts=[
-        StageArtifactSpec(
-            path="TC.md",
-            frontmatter_required=["tests"],
-            description="精简版测试用例",
-        ),
-    ],
-    evidence_checks=[],  # 敏捷需求不强制 verify-ac.py
-    brief_template_fn=_blueprint_lite_brief,
-    auto_transition_fn=_blueprint_lite_transition,
-    allowed_flow_types=["Feature"],  # v8.220:blueprint_lite 属 Feature preset=lite 链(链图限定可达性)
-    authorized_pause_point="无暂停 · 完成后自动转 dev",
 )
 
 
@@ -2278,10 +2007,10 @@ def _evidence_external_verified_after_fix(state: dict, args) -> tuple[bool, str]
     """APPROVE 收口前的「修复后 external 验过」轻量物化(验证轮 external 频率规则):
 
     条件全满足才校验:verdict=APPROVE + rounds ≥ 2 + 期间有过 fix_commit。
-    证据 = external-review-prompts/review-*.log(external-review 实跑日志)mtime >
+    证据 = external-review-prompts/review-*.md(v8.291 配方 doc · 旧 .log 兼容)mtime >
     最后一次 fix_at;降级路径(subagent 无 .log)认 external-cross-review/ 内
     frontmatter `degraded: true` 的 review-*.md mtime。
-    跳过:localconfig `disable_external_review=true`(单模型 opt-out)· 或
+    跳过:
     stage_review_roles.review 已去 external(change-review-roles 留痕)。
     """
     if getattr(args, "verdict", None) != "APPROVE":
@@ -2294,8 +2023,6 @@ def _evidence_external_verified_after_fix(state: dict, args) -> tuple[bool, str]
     if not fix_ats:
         return True, ""
     feature_dir = Path(args.feature)
-    if _localconfig_disable_external(feature_dir):
-        return True, "skipped(disable_external_review=true · 单模型 opt-out)"
     stage_roles = state.get("stage_review_roles", {}).get("review", [])
     if stage_roles and "external" not in stage_roles:
         return True, f"skipped(external 不在 stage_review_roles.review={stage_roles})"
@@ -2309,7 +2036,8 @@ def _evidence_external_verified_after_fix(state: dict, args) -> tuple[bool, str]
     candidates: list = []
     prompts_dir = feature_dir / "external-review-prompts"
     if prompts_dir.is_dir():
-        candidates.extend(prompts_dir.glob("review-*.log"))
+        candidates.extend(prompts_dir.glob("review-*.md"))    # v8.291:配方 doc = 实跑证据
+        candidates.extend(prompts_dir.glob("review-*.log"))   # 存量兼容
     ext_dir = feature_dir / "external-cross-review"
     if ext_dir.is_dir():
         for md in ext_dir.glob("review-*.md"):
@@ -2322,7 +2050,7 @@ def _evidence_external_verified_after_fix(state: dict, args) -> tuple[bool, str]
     except OSError:
         pass
     return False, (
-        f"APPROVE 收口前缺「修复后 external 验证」证据:external-review-prompts/review-*.log "
+        f"APPROVE 收口前缺「修复后 external 验证」证据:external-review-prompts/review-*.md "
         f"无晚于最后一次 fix({last_fix_at})的实跑日志 · 跑 `state.py external-review "
         f"--feature {args.feature} --stage review --verify-fixes`(增量重验 · 只评上轮已评 "
         "commit..HEAD 修复 diff · 非全量重跑)后重试"
@@ -2386,15 +2114,15 @@ def _review_verify_round_brief(state: dict, rounds: list) -> str:
 
 ### external 频率(验证轮)
 - 本轮 external 用 `state.py external-review --feature <path> --stage review --verify-fixes`(增量 · 只评修复 diff)· 中间轮可不跑
-- **拟 APPROVE 前**:本 stage 有过 fix → 必有一次 fix 后 external 验证(review-complete 物化校验 · disable_external_review 项目跳过)
+- **拟 APPROVE 前**:本 stage 有过 fix → 必有一次 fix 后 external 验证(review-complete 物化校验 · 🔴 v8.291 起无豁免 —— 外审已是廉价 subagent)
 
 {_review_findings_gate_lines()}
 ### 完成方式
 ```
 state.py review-complete --feature <path> --auto-commit <hash> \\
-  --artifacts REVIEW.md,REVIEW-arch.md \\
+  --artifacts REVIEW.md \\
   --verdict {{APPROVE|NEEDS_REVISION}}
-# --artifacts 按 roster:v8.244 Feature 默认仅 arch(qa 加回时 + REVIEW-qa.md)· Bug 单路 → REVIEW.md 即可(v8.270)· 移出 roster 的角色产物不查
+# v8.289:REVIEW.md 即可(REVIEW-<role>.md 已退役)· 主审角色的 coverage 申报写在 REVIEW.md 内 · external 产物由 external-review 自动落
 ```
 """
 
@@ -2412,10 +2140,10 @@ def _review_brief(state: dict) -> str:
              "Architect + QA 两帽 · 产 **REVIEW.md 单份**(`reviewers: [fast]` · verdict · findings 机读台账)· "
              "关注点两边都要:①Architect(实现↔设计一致性核对 · 简洁性 counter-lens)②QA(测试真实性与覆盖 · "
              "代码质量盲区〔错误处理/日志/并发〕)· severity 门/验证轮/轮次预算协议照跑 · "
-             "无 REVIEW-arch/REVIEW-qa/external 独立产物 · 🎭 **单路模型错开**(v8.269:该路 ≠ 会话主模型 · 如 fable5 → opus)· 🎯 **评审预算封顶 2 轮**(v8.267 引擎硬拦:"
+             "无第二路独立冷审(external 产物亦不产)· 🎭 **单路模型错开**(v8.269:该路 ≠ 会话主模型 · 如 fable5 → opus)· 🎯 **评审预算封顶 2 轮**(v8.267 引擎硬拦:"
              "超预算未收敛 → open findings 作为决策点升 R5 暂停点抛用户)。\n"
              if state.get("fast_mode") else "")
-    _bug = ("\n🐛 **Bug 流单路评审**(v8.270):roster 默认仅 `[external]` —— 一路**错开模型**隔离冷审(≠会话主模型 · v8.269 单路不变式天然满足)· 覆盖必含 **修复↔diagnose 方案一致性**(Architect 视角并入)+ 外审必覆盖清单照旧 · REVIEW.md 台账/severity/验证轮/预算协议照跑 · REVIEW-arch 不产(roster 无 architect · `change-review-roles` 可加回)。\n"
+    _bug = ("\n🐛 **Bug 流单路评审**(v8.270):roster 默认仅 `[external]` —— 一路**错开模型**隔离冷审(≠会话主模型 · v8.269 单路不变式天然满足)· 覆盖必含 **修复↔diagnose 方案一致性**(Architect 视角并入)+ 外审必覆盖清单照旧 · REVIEW.md 台账/severity/验证轮/预算协议照跑 · 主审路 coverage 申报免(roster 无 architect · `change-review-roles` 可加回)。\n"
             if (state.get("flow_type") == "Bug" and not state.get("fast_mode")) else "")
     return f"""## Review Stage{_fast}{_bug}
 
@@ -2425,20 +2153,20 @@ def _review_brief(state: dict) -> str:
 
 ### 结果(完成判定 · roster-aware)
 - `REVIEW.md`(frontmatter:`reviewers + verdict: APPROVE|NEEDS_REVISION` + `findings` 机读台账)
-- `REVIEW-<role>.md` 按 roster 各一份(v8.244 默认仅 `REVIEW-arch.md` · qa 加回时 + `REVIEW-qa.md` · 移出 roster 不查)
+- 🔴 REVIEW.md 内**每个 roster 主审角色一行 `coverage` 申报**(查过哪些方向 · 有问题列 finding · 无则「查过无发现」)—— v8.289 取代 `REVIEW-<role>.md` 独立文件(同一批判断写两遍)
 - `{{artifact_root}}/external-cross-review/*.md`(roster 含 external 时 · 默认错开模型 subagent 冷审〔≠主会话模型 · v8.268〕· 至少 1 份 · 🔴 含 `coverage: [...]` 申报——必覆盖 测试真实性与覆盖〔测试真跑 = 读实跑证据 · 非自己重跑 · v8.273/覆盖真行为/边界回归〕· 代码质量盲区〔错误处理/日志/并发〕+ AI 自主方向 ≥1〔候选:并发/资源泄漏/脱敏/兼容〕)
 
 ### 怎么做
 **必读** `stages/review-stage.md`(评审步骤 + 收敛协议:severity 门槛 / 验证轮 / 轮次预算)。
-🔴 **finding 处理默认姿态=质疑**(不盲目认同):逐条 先质疑(过度设计/错层/false positive)→ 回读真实代码确认 → 才 confirmed/rejected · **两个方向都给实证**:采纳给「为何确为真+为何这样改对」· 驳回给「为何不是问题」·「reviewer 说得对」与「我觉得没事」都不是理由(详 standards/external-model-usage.md §12)。
+🔴 **finding 处理默认姿态=质疑**(不盲目认同):逐条 先质疑(过度设计/错层/false positive · 🛡️ **安全加固/兜底降级最易盲采 · 必过 ROI** 概率×后果 vs 成本 · v8.279)→ 回读真实代码确认 → 才 confirmed/rejected · **两个方向都给实证**:采纳给「为何确为真+为何这样改对」· 驳回给「为何不是问题」·「reviewer 说得对」与「我觉得没事」都不是理由(详 standards/external-model-usage.md §二)。
 
 {_review_findings_gate_lines()}
 ### 完成方式
 ```
 state.py review-complete --feature <path> --auto-commit <hash> \
-  --artifacts REVIEW.md,REVIEW-arch.md \
+  --artifacts REVIEW.md \
   --verdict {{APPROVE|NEEDS_REVISION}}
-# --artifacts 按 roster:v8.244 Feature 默认仅 arch(qa 加回时 + REVIEW-qa.md)· Bug 单路 → REVIEW.md 即可(v8.270)· 移出 roster 的角色产物不查
+# v8.289:REVIEW.md 即可(REVIEW-<role>.md 已退役)· 主审角色的 coverage 申报写在 REVIEW.md 内 · external 产物由 external-review 自动落
 ```
 """
 
@@ -2468,31 +2196,42 @@ def _evidence_review_verdict(state: dict, args) -> tuple[bool, str]:
     return True, ""
 
 
-_REVIEW_ROLE_ARTIFACTS = {"architect": "REVIEW-arch.md", "qa": "REVIEW-qa.md"}
+# v8.289:主审路角色集(原为 role→REVIEW-<role>.md 映射 · 独立文件已退役 · 判断落 REVIEW.md)
+_REVIEW_MAIN_ROLES = ("architect", "qa")
 
 
-def _evidence_review_role_artifacts(state: dict, args) -> tuple[bool, str]:
-    """v8.241:REVIEW-arch/REVIEW-qa 按 roster(stage_review_roles.review)校验。
+def _evidence_review_role_coverage(state: dict, args) -> tuple[bool, str]:
+    """v8.289:主审路 coverage 申报(取代 REVIEW-<role>.md 独立文件)。
 
-    治本:v8.216 动态 roster 后 architect/qa 可被合法移出 review roster,
-    而两 artifact 原为静态必查 —— 「角色按 roster 可调」的承诺与门禁互斥。
-    roster 含该角色 → 对应 REVIEW-<role>.md 必须存在;移出则不查。
-    legacy state 无 stage_review_roles → 按旧行为全查(不放松存量)。
+    治本:旧门禁只查 `REVIEW-<role>.md` **文件存在**、不解析内容;而角色归属早已在
+    REVIEW.md `findings[].source`,实测两文件体量几乎相同(37/38 · 55/63)= 同一批判断写两遍。
+    真正要保住的是「我确实看过、看了这些」的物证(防橡皮图章 —— 光秃秃 APPROVE + 零 finding
+    与「根本没评审」在产物上无法区分)· 改用 external 已在用的 **coverage 申报**形式:
+    REVIEW.md 内每个 roster 主审角色一行,申报查过的方向(有问题列 finding · 无则「查过无发现」)。
+    roster 移出的角色不查(v8.241 roster-aware 语义原样保留)。
     """
     roles = (state.get("stage_review_roles") or {}).get("review")
     if not isinstance(roles, list):
-        roles = list(_REVIEW_ROLE_ARTIFACTS)  # legacy 默认全查
-    feature_dir = Path(args.feature)
-    missing = [f"{r} → {fname}" for r, fname in _REVIEW_ROLE_ARTIFACTS.items()
-               if r in roles and not (feature_dir / fname).exists()]
+        return True, "legacy state 无 roster · 跳过(不对存量加严)"
+    checked = [r for r in roles if r in _REVIEW_MAIN_ROLES]
+    if not checked:
+        return True, "roster 无 architect/qa 主审路 · 无需申报"
+    f = Path(args.feature) / "REVIEW.md"
+    if not f.is_file():
+        return False, "REVIEW.md 不存在 · 无法校验 coverage 申报"
+    txt = f.read_text(encoding="utf-8", errors="replace")
+    missing = [r for r in checked
+               if not re.search(r"(?i)coverage[^\n]*\b" + re.escape(r) + r"\b", txt)
+               and not re.search(r"(?im)^[\s\-*|]*" + re.escape(r)
+                                 + r"\s*(coverage|覆盖|查过|视角)", txt)]
     if missing:
         return False, (
-            "roster 内评审角色产物缺失:" + " · ".join(missing)
-            + " —— stage_review_roles.review 含该角色即必有对应 REVIEW-<role>.md"
-            "(roster 移出的角色不查 · change-review-roles --reason 留痕后生效 · v8.241)"
+            "REVIEW.md 缺 roster 内主审角色的 coverage 申报:" + " · ".join(missing)
+            + " —— v8.289:不再要求 REVIEW-<role>.md 独立文件(与 REVIEW.md 是同一批判断写两遍)· "
+            "改为在 REVIEW.md 内**每角色一行申报查过的方向**(有问题列 finding · 无则写「查过无发现」)。"
+            "防橡皮图章:光秃秃 APPROVE + 零申报 = 与没评审无法区分。"
         )
-    checked = [fname for r, fname in _REVIEW_ROLE_ARTIFACTS.items() if r in roles]
-    return True, ("roster-aware:" + (" + ".join(checked) if checked else "roster 无 architect/qa · 角色产物不查"))
+    return True, "coverage 申报齐(roster-aware):" + " + ".join(checked)
 
 
 REVIEW_SPEC = StageSpec(
@@ -2521,7 +2260,7 @@ REVIEW_SPEC = StageSpec(
             must_be_in_commit=False,
             description="评审总结",
         ),
-        # REVIEW-arch.md / REVIEW-qa.md:v8.241 起 roster-aware(见 review_role_artifacts
+        # 主审角色 coverage 申报:v8.241 roster-aware 语义 · v8.289 换代(见 review_role_coverage
         # evidence check)—— 静态必查与动态 roster(v8.216)互斥,角色移出 roster 则不查。
     ],
     evidence_checks=[
@@ -2531,9 +2270,9 @@ REVIEW_SPEC = StageSpec(
             description="--verdict 必须是 APPROVE 或 NEEDS_REVISION",
         ),
         StageEvidenceCheck(
-            name="review_role_artifacts",
-            check_fn=_evidence_review_role_artifacts,
-            description="REVIEW-<role>.md 按 roster(stage_review_roles.review)各一份 · 移出不查(v8.241)",
+            name="review_role_coverage",
+            check_fn=_evidence_review_role_coverage,
+            description="REVIEW.md 内每个 roster 主审角色一行 coverage 申报(v8.289 取代 REVIEW-<role>.md 独立文件 · roster 移出不查)",
         ),
         # review 收敛协议:severity 门槛(NEEDS_REVISION 须 open BLOCKER/MAJOR ·
         # APPROVE 不得有 open BLOCKER/MAJOR · findings 机读台账缺失不能打回)
@@ -2561,8 +2300,8 @@ REVIEW_SPEC = StageSpec(
             name="external_verified_after_fix",
             check_fn=_evidence_external_verified_after_fix,
             description=(
-                "APPROVE + rounds≥2 + 有 fix_commit → external-review-prompts/review-*.log "
-                "mtime > 最后 fix_at(disable_external_review / 去 external 项目跳过)"
+                "APPROVE + rounds≥2 + 有 fix_commit → external-review-prompts/review-*.md "
+                "mtime > 最后 fix_at(roster 去 external 的项目跳过)"
             ),
         ),
         # v8.0+P0-9:REVIEW.md reviewers 必含 state.stage_review_roles[review]
@@ -2635,7 +2374,7 @@ QA 集成测试 + API E2E · AC 全覆盖最终验证。
 - verify-ac.py 通过
 
 ### 怎么做
-**必读** `stages/test-stage.md`(详细步骤 7 步 + 注意事项 5 条 · 含 skip 走捷径反模式)。
+**必读** `stages/test-stage.md`(四段结构:目标 / ②硬规则 9 条 / 手段菜单 / 产物契约 · 含 skip 走捷径反模式)。
 📋 产物模板:本 emit 的 `scaffold_hints.templates` 给**绝对路径** · 照它起草 · 别抄项目旧产物。
 🔴 **base 即红(brownfield 共享套件预存在失败)→ 走差分基线、别反复人肉 stash-baseline**:`state.py test-baseline --diff --current "<当前失败 id>"` 对照 `project-specs/test-baseline.md` · **0 新增**(当前失败 ⊆ 基线)→ test-complete 传 `--current-failures` 即转移;有新增 = 回归(修)或新预存在(核实后 `test-baseline --add` 登记原因)。
 
@@ -3045,7 +2784,6 @@ STAGE_SPECS: dict[str, StageSpec] = {
     "ui_design": UI_DESIGN_SPEC,
     "panorama_sync": PANORAMA_SYNC_SPEC,
     "blueprint": BLUEPRINT_SPEC,
-    "blueprint_lite": BLUEPRINT_LITE_SPEC,
     "diagnose": DIAGNOSE_SPEC,
     "dev": DEV_SPEC,
     "execute": EXECUTE_SPEC,   # v8.250:micro 唯一工作 stage(零门禁自由执行)

@@ -4,7 +4,7 @@
 治本:AI 在 blueprint→dev(无授权暂停点的连续执行 stage)自造「如何推进 dev /
 落地节奏由你定」伪决策暂停点 · 把改动大/破坏式/不可逆/用户参与设计当暂停理由。
 
-v8.71:无暂停 stage(dev/blueprint/blueprint_lite/test)追加强化 + 自动流转 emit 带纪律。
+v8.71:无暂停 stage(dev/blueprint/test)追加强化 + 自动流转 emit 带纪律。
 v8.72:执行节奏伪决策 + subagent 自决改为**通用红线**(所有 stage)—— 有授权暂停点的
 stage(goal/ui_design/review/...)也可能在「那一个」授权暂停**之外**自造执行节奏伪暂停;
 「无授权暂停点 · 任何暂停都违规」抬头仍仅无暂停 stage。
@@ -85,7 +85,7 @@ class TestBaseDisciplineAlwaysPresent(unittest.TestCase):
 
 
 class TestContinuousStagesRegression(unittest.TestCase):
-    """防回归:dev/blueprint_lite/test 仍是无暂停 · 触发抬头 + subagent。
+    """防回归:dev/test 仍是无暂停 · 触发抬头 + subagent。
 
     有人改 dev 的 pause point 字面 · 若不再含「无暂停」· 此 test 红 ·
     提醒同步强化逻辑(治本 SDK-F038 = dev 无暂停 · AI 自造暂停)。
@@ -93,7 +93,7 @@ class TestContinuousStagesRegression(unittest.TestCase):
     stage.md §7.5)· 字段与 brief 红线对齐后不再声明「无暂停」。
     """
 
-    EXPECTED_NO_PAUSE = {"dev", "execute", "blueprint_lite", "test"}
+    EXPECTED_NO_PAUSE = {"dev", "execute", "test"}
 
     def test_expected_no_pause_set(self):
         actual = {n for n, s in STAGE_SPECS.items()

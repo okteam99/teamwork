@@ -4,7 +4,7 @@
 任何 teamwork 产出的格式 / 字段 / frontmatter schema / 表头结构，以本目录对应模板为准；禁止以 peer Feature 产物为格式基准。
 
 > 无手写模板的两类机读产物：`state.json`（`tools/state.py` 单源维护）与 Feature 内 `review-log.jsonl`（state.py 各 stage 完成时自动追加）——**工具单源 · 不在本目录**。
-> 另：TECH-REVIEW.md 与 REVIEW.md / REVIEW-arch / REVIEW-qa 的 schema 单源在 stages/（blueprint-stage.md / review-stage.md）· 无独立模板。
+> 另：TECH-REVIEW.md 与 REVIEW.md 的 schema 单源在 stages/（blueprint-stage.md / review-stage.md）· 无独立模板（v8.289:REVIEW-arch/-qa 已退役 · 主审判断落 REVIEW.md）。
 
 ## 执行链产物（Feature 状态机内各 stage 产出）
 
@@ -35,6 +35,7 @@
 | [glossary.md](./glossary.md) | GLOSSARY 业务术语表 | bootstrap 建空壳 · PRD/TECH 起草前 + triage 按需读 |
 | [troubleshooting.md](./troubleshooting.md) | TROUBLESHOOTING 排查工具集（环境 / log / DB / 敏感配置读法） | bootstrap 建空壳 · 排查与 AI 连环境时必读 |
 | [process-ledger.md](./process-ledger.md) | PROCESS-LEDGER 流程价值台账（一行一 feature · 年检数据源） | ship1 规划 gate append · 无则按模板建 |
+| [process-retro.md](./process-retro.md) | 流程复盘（耗时归因 + 流程反思四问 · 台账装不下的那部分） | ship1 规划 gate（与台账行同时 · 落 `{子项目}/docs/retros/<id>-process.md` · 进 --planning-artifacts） |
 
 ## 规划层（product-overview / 子项目 ROADMAP）
 
@@ -61,5 +62,4 @@
 |------|------|------------------|
 | [adr.md](./adr.md) | ADR 单条决策（Context / Alternatives≥2 / Decision / Consequences） | Blueprint「3 问触发器」全 yes 时架构师创建 · 落 `{子项目}/docs/adr/` |
 | [adr-index.md](./adr-index.md) | ADR 索引（每子项目 `docs/adr/INDEX.md`） | 首条 ADR 时创建 · 每次 ADR 变更同步 · PMO triage 读 |
-| [e2e-registry.md](./e2e-registry.md) | E2E 回归中心（REG case 完全自包含） | QA 在 Feature 完成时晋升 / 同步 REG case |
 | [test-baseline.md](./test-baseline.md) | 测试基线失败集（brownfield 预存在失败登记 · test gate 差分判定） | test stage 差分判定 · `--add` 登记核实过的预存在失败 |

@@ -12,7 +12,7 @@
 
 ## ② 硬规则(白名单 · 每条一行 why)
 
-1. **`project-specs/DEV-RULES.md` 存在则必读必遵**(why:人维护的项目强制规范 = 用户主权 · 冲突要么改实现要么 TECH 记原因)。
+1. **工程规范 = `standards/HARD-RULES.md`(必读 · ~50 行白名单)+ 项目 `project-specs/DEV-RULES.md` 的并集 · 🔴 冲突以项目为准**(why:项目主权高于框架缺省 · 冲突要么改实现要么 TECH 记原因;白名单只收「逆模型默认 / 模型不可知」两类,分册按需查)。
 2. **worktree 内路径写文件**(推荐绝对路径 · 含派出的 subagent)(why:相对路径落主工作区 = 污染其他并行 Feature 的 baseline · 状态漂移)。
 3. **测试证据硬门**(dev-complete 物化):`--test-exit-code 0`(红 base 走 `test-baseline` 差分「0 新增」)+ `--test-stdout` 非空 + `--auto-commit` 在 git history + artifacts 在 changeset(why:R7 证据闭环 —— 宣称完成必须机器可验)。测试与实现**一并交付**,不许「先实现后补测试债」。
 4. **设计↔实际一致性核对**(UI feature · ui_design 完成时必做):起全景 dev server + 跑真实 app 目标路由 · **两边同开 browse 截图并排核对意图四要素**(布局结构/交互流/状态/字段映射)· 逐要素给「一致/背离」结论 · 背离不许静默放过(修掉 or 留 concerns);认为设计该改 → 回 ui_design / `--panorama-changed`,不在 dev 顺手改(why:治「设计稿≠实际效果」· 用户拍板的闸)。
@@ -26,7 +26,7 @@
 
 | 手段 | 何时值得 |
 |---|---|
-| **TDD 红绿循环**(照 TC 逐 test:红→绿→重构 · 每绿点一 commit)| **强烈建议的默认**——TC 已备/逻辑类改动;绿点级 commit 便于 bisect 与 review 读节奏 |
+| **测试节奏**(TDD 红绿 / 先骨架后补边界 / test-after)| **AI 自定**(v8.286 框架不再规定)—— TC 已备 + 逻辑类改动时 TDD 通常最顺;绿点级 commit 便于 bisect 与 review 读节奏。🔴 结果不变:每个 TC 有对应实现 · 测试真断言 · 证据硬门照跑 |
 | **先集成骨架后单测填充** | 跨层契约风险大于单元逻辑时(先打通端到端再补边界) |
 | **subagent 并行拆分**(各写各的 · worktree 内路径)| 多端/多模块/相互独立且够大的子任务;小/耦合/强串行 → 自己串行做(协调开销反拖慢)。契约层/集成点留主对话 |
 | **TECH 模糊处 fallback 决策树** | 实现遇设计未覆盖:KNOWLEDGE → ARCHITECTURE → standards/common → 全无 → concerns + 找架构师;不自行拍板 |
@@ -65,5 +65,5 @@ PRD(AC)· TECH(方案+完工自查槽)· TC(测试用例)· UI.md+全景(若 ui_
 ## 相关
 
 - 引擎:[../tools/_v8_engine.py](../tools/_v8_engine.py) · spec:[../tools/_v8_stage_specs.py](../tools/_v8_stage_specs.py) `DEV_SPEC`
-- TDD 手艺:[../standards/tdd.md](../standards/tdd.md) · UI 还原:[./ui-design-stage.md](./ui-design-stage.md) § 分层同构律
+- 测试结果规则:[../standards/HARD-RULES.md](../standards/HARD-RULES.md)(手段自定 · 只管结果)· UI 还原:[./ui-design-stage.md](./ui-design-stage.md) § 分层同构律
 - 工具:[../tools/verify-panorama.py](../tools/verify-panorama.py)

@@ -83,7 +83,7 @@
 
 ## 按主题索引
 
-> PMO preflight 时可按主题快速 grep。
+> PMO triage 时可按主题快速 grep。
 
 - **db**: GO-001
 - **api**: GO-002
@@ -94,7 +94,7 @@
 
 ## 归档(archived)
 
-> 已不适用的 Gotcha / Preference,保留备查。Feature 新启动时 PMO preflight 可忽略本段。
+> 已不适用的 Gotcha / Preference,保留备查。Feature 新启动时 PMO triage 可忽略本段。
 
 | ID | 原内容 | 归档原因 | 归档时间 |
 |----|--------|---------|---------|
@@ -116,7 +116,7 @@
   - UI Design Stage 用户在多方案中选 A 并陈述理由 → Designer 必记 PR-NNN
 - 🔴 **开发规矩/约定 不写这里 → 见 `DEV-RULES.md`**(人维护):AI 在 review/dev 发现值得固化的新约定 → **提示用户**加进 DEV-RULES.md · **不代写**(那是人定的规矩)。
 
-### PMO preflight 扫描
+### PMO triage 扫描
 
 🔴 PMO 初步分析任何 Feature / Bug / Feature Planning 时,必须扫描 KNOWLEDGE.md:
 - 读 `{目标子项目}/docs/KNOWLEDGE.md`(不存在 → 「本项目暂无 KNOWLEDGE 记录」)
@@ -124,22 +124,11 @@
 - 注入 PMO 初步分析输出的「📚 相关项目事实」行
 - 只读 KNOWLEDGE.md 前 300 行(体量上限 = 扫描上限)
 
-### 体量与归档
-
-- 🔴 单个 KNOWLEDGE.md ≤ 300 行。超出时必选一种处理:
-  - (a) 判定条目本质是决策 → 升格为 ADR,本文件删除
-  - (b) 多子项目模式下条目只适用某子项目 → 迁到 `{子项目}/docs/KNOWLEDGE.md`
-  - (c) 条目已过期 → 移到「归档」段加 archived 标记
-- 🟢 每个条目 ≤ 2 行,超出说明不够"事实",可能是决策伪装
+- 🟢 每个条目 ≤ 2 行,超出说明不够"事实",可能是决策伪装(体量上限与超出处理见本文件头部)
 
 ### ID 编号规则
 
 - Gotcha:GO-NNN(三位数字,从 001 起)· Preference:PR-NNN · Out of Scope:OS-NNN · Flagged Ambiguities:FA-NNN
 - 🔴 编号连续不复用,归档条目保留原 ID
 
-## 与其他文档的协作
-
-- 🔗 `DEV-RULES.md` — 本项目强制开发规矩(人维护 · blueprint/dev 必读);本文件只记"被动发现的事实/踩坑"
-- 🔗 `GLOSSARY.md` — 业务术语 / 命名词典
-- 🔗 [ADR 模板](./adr.md) — 决策归 ADR,本文件不重复
-- 🔗 [standards/common.md](../standards/common.md) — 通用规范归 standards,本文件只记项目特有
+> 🔴 与 DEV-RULES / GLOSSARY / ADR / standards 的边界见本文件头部的边界表(v8.293:原此处重述一遍)。

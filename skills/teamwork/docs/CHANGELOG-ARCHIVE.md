@@ -4,6 +4,325 @@
 > 上次清空:**v8.193**(2026-07-06 · 清除 v8.128 → v8.187 共 60 版条目 · 约 1.0k 行)。
 
 ---
+## v8.295 · stage 耗时归因采集(补上「有数字没归因」那一环)
+
+> 用户:**是否需要增加一个耗时复盘机制,每个阶段结束后总结耗时复盘,记录到固定文件夹 · 放到项目里进 git。**
+
+### 结论:需要,但**不新建文件夹** —— 缺的是归因,不是载体
+
+先盘已有的三层:`state.json.stage_contracts[stage]`(机器采 duration / await / **active_minutes** v8.276)
+→ `project-specs/PROCESS-LEDGER.md`(一行一 feature · **已有「各阶段耗时」列** · 在项目里、进 git、
+随 feature MR 原子合入)→ `docs/retros/`(业务/工程复盘)。
+
+**缺的正是归因**:现有列只有**数字**(`blueprint 318m`),不回答「这 318 分钟花在哪」——
+而 SVC-PLATFORM-F260726 复盘最值钱的恰恰是归因:blueprint 6 波往返里**波 5、6 是纯文档对齐、无设计价值**,
+双档同步吃掉 ~35% 轮次 / ~25% token。
+
+**不新建文件夹**:`docs/audit/` 是前车之鉴 —— 累了 22 个文件,代码自陈「**审计只写不读**」。
+写了没人读的产物是纯成本。
+
+**时机上用户是对的**:这类归因**只有 stage 结束时当场记得住**;ship 时回填要靠产物 mtime 反推
+(那正是这次复盘干的苦活)。
+
+### 机制(复用 v8.281 已跑通的形状:收敛后记录 → ship 聚合 → 年检分析)
+
+```
+state.py stage-cost --feature <path> --stage <goal|ui_design|blueprint|dev|review|test|browser_e2e> \
+    --rounds <总轮次> --overhead-rounds <其中纯协调开销> \
+    --kinds '双档同步;门禁重试' --note '最大的一笔开销是什么'
+```
+
+- 存 `state.json.stage_cost[]` → ship1 archive emit `ledger_stage_cost` → PROCESS-LEDGER **末尾新列**
+  「⏱️ 耗时归因(协调开销轮/总轮·最大一笔)」(🔴 schema 演进纪律:只在末尾加列)
+- **非门禁 · 纯采集**(不记不拦 ship · 台账列留空 = 有效前缀)· 零开销也要记(`--overhead-rounds 0`)——
+  「这次没开销」和「没记录」是两回事,年检要分得开
+- 物化护栏:`--overhead-rounds > --rounds` → FAIL
+
+**提示放在 complete emit,不写进各 stage 文档** —— 机器在**正确的时刻**提醒(带本 stage 实际耗时 +
+可直接跑的命令 + 「趁现在记」的时效说明),不靠文档记忆。且**只在有多轮往返成本的 7 个 stage 提**
+(ship / pm_acceptance / panorama_sync / diagnose / execute 不提)。
+
+### 🔴 为什么这不是又一道「环节化自检」
+
+v8.283 的规则衰减分类学把「环节化自检」判为**会衰减、可砍**的那类。这条不同:
+- 它**不让 AI 自查做得好不好** —— 采的是 **AI 自己算不出、事后也复原不了的事实**
+- 它是**验证提效改动是否起效的唯一手段**:v8.294 的收敛期归一 / TC 职责边界 / 投机窗准入
+  **都声称能砍这块协调开销**,没有这列数据就无法证伪
+
+### 顺带修好一处既有不一致
+
+新加的 schema 门禁(表头 / 分隔行 / 示例行列数必须一致)当场抓到:**v8.281 加「🛡️ 起草可预防性」列时
+没补示例行的对应格** —— 示例行比表头少一格已经存在一版。已补齐。
+
+### 测试
+
+988 → **1001**。
+
+---
+
+## v8.294 · 复盘驱动:localconfig 在 worktree 里读不到(真 bug)· rival 设计强制 · TC 职责边界
+
+> 来源:matrixpower SVC-PLATFORM-F260726(三级算力体系 + 锚定链定价 · 计费热路径 + 破坏性迁移)
+> 的评审耗时复盘。逐条对着现行代码核过 —— 其中 R4(external 门禁词汇表)**已由 v8.291+293 修掉**
+> (case 跑的是 v8.287.1),R5 是反面确认(5 条 high 全实锤 · 不因耗时降档)。
+
+### 一、🔴 R3 是真 bug,且比复盘诊断的宽 5 倍
+
+复盘报「fast_mode 静默失效,疑似 init-feature 快照链路问题」。实际根因更深:
+
+`.teamwork_localconfig.json` 是**本地配置、不入 git**(bootstrap 自动 gitignore),因此**只存在于主工作树**。
+而**五份独立实现**都是「从 feature_dir 向上找 · 遇 `.git` 停」—— linked worktree 的根有 `.git`
+(**文件**形式)却没有配置 → 全部静默回退默认值。**teamwork 默认 `worktree: auto`**,
+等于这五项配置在真实 feature 上**从来没生效过**:
+
+| 读取者 | 配置项 | 起于 |
+|---|---|---|
+| `state.py _read_fast_mode` | `fast_mode` | v8.260 |
+| `state.py _read_id_strategy` | `id_strategy` | v8.79 |
+| `_v8_engine._idle_threshold_minutes` | `idle_threshold_minutes` | v8.276 |
+| `_v8_engine._localconfig_max_review_rounds` | `max_review_rounds` | — |
+| `_v8_ship._read_archive_on_ship` | `archive_on_ship` | v8.82 |
+
+讽刺的是 `state.py` 里另有一段**正确**实现(`git worktree list --porcelain` 取主树再读 config)——
+代码自己知道该怎么做,那五处没用它。**不是漂移,是五份副本生下来就都是错的。**
+
+**修**:抽 `_v8_engine.load_localconfig()` 唯一解析器 —— 遇 `.git` **目录**才停(主仓根),
+遇 `.git` **文件**(linked worktree)就解析 gitdir **跳到主工作树继续找**。纯文本解析不起 subprocess
+(git 卡了不该让配置读取跟着不可用)。五处调用点全换,并加门禁锁「只准剩一份实现」。
+
+**可见性**(复盘第二诉求 —— 静默回退是双输:用户既没拿到速度、也不知道为什么慢):
+init-feature kickoff 回显三态且各自说明来源 —— `on(来源 localconfig)` /
+`off(localconfig 为 true 但被 yolo 覆盖)` / `off(localconfig 未开)`。
+
+### 二、rival 设计强制(复盘 §二 · 本轮最高价值的沉淀)
+
+复盘问「为什么没先想到把标记打在 accounts 上」——「内部运营账户」被设计成 singleton 指针表 +
+独立审计表(2 张新表),用户一句话 → 6 新表变 4 新表 + 2 列。
+
+它自己诊断到了根因:**简洁性 checklist 是验证式的**(作者给的理由成立吗),四问确实跑了,
+但**参照物由作者的叙事给定**(「能否并入 `monetization_config`」—— 一个冻结面,当然不能),
+**没人问「这个设定的自然归属实体是谁」**。盲区只有**生成式**才破。
+
+落 Architect 简洁性 lens + **blueprint 运行时 brief**(只改 stage doc 到不了 AI):
+评审**新增结构**(新表/新模块/新抽象/新服务)必须**自己先生成 ≥1 个替代形态**
+(并入宿主实体加列 / 现算不存 / 复用既有 / 根本不做)再裁决 ——
+🔴 **「赢了作者列举的被否方案」不构成通过条件**。附:「全局唯一 / singleton 语义」**不等于**需要单独一张表。
+
+### 三、TC 的职责边界(治 R1 的一半)· 不合并 TC/TECH
+
+复盘算出双文档同步吃掉 blueprint **~35% 轮次 / ~25% token**,提议合并两文档。核过之后不合并 ——
+拆开看同步的**内容**:表数 27→33→31、错误码命名回填、过期注、存储改选连锁,而
+**TC 模板里根本没有表数/表清单/存储断言这些槽位**,是起草时自己加进去的。
+即:**一半是 TC 越界**(划界直接**消除**),一半是真耦合(合并只是把跨 agent 往返变成同 agent 内往返)。
+合并会让越界变得「合法」,把消除降级成缓解;而 `verify-ac.py` 这道 AC→测试的唯一机器门锚在
+TC frontmatter,合并要重做 schema。
+
+**新增 `templates/tc.md § TC 的职责边界`**(格式单源 · blueprint ④ / qa.md / rd.md 指过来):
+- **telos**:把每条 AC 变成可执行、可判定的验收判据 —— 回答「怎么证明它满足了」,不回答「怎么做出来」
+- 🔴 **一句话判据:换实现就要改的内容,不属于 TC** —— 假设 TECH 换实现方式,这条用例还成立吗?
+  还成立 = 验行为归 TC;要跟着改 = 持实现形态归 TECH
+- **关注**:AC↔用例绑定 / 可观测行为 / **边界与异常路径**(QA 核心价值)/ 测试层级与优先级
+- **不关注**:表结构与表数 / 模块划分与选型 / 存储形态 / 性能实现手段(但性能**指标**若是 AC 则必须验)
+- 🔴 **契约值的分寸**:断言到的错误码/状态码/字段名**必须写具体**(不具体就不叫断言);
+  但**维护一份清单**(全部错误码、新表数量)= 复述 TECH,必删。**TC 从不需要知道有几张表。**
+
+### 四、角色的两种用法(ROLES.md 新增判据)· 治 R1 的另一半
+
+**同一个词在起草期和评审期不是一回事**:
+
+| | 起草期 | 评审期 |
+|---|---|---|
+| 角色是 | **分工标签**(同一个 AI 切帽子) | **独立采样点**(不同上下文 / 不同模型) |
+| 能否合并 | 🟢 能 —— 省跨 agent 冷启动往返 | 🔴 不能 —— 多视角退化成「一个视角 × N 份」 |
+| 依据 | 产物有机器门兜底(verify-ac / build / 测试硬门) | v8.155 实证:in-context architect 在 goal 只产鼓掌 · 被冷审的 external/PL 反超 |
+
+落地:blueprint/dev 的 **RD 与 QA 起草期合一**;blueprint ③ 改为
+**「起草期并行 · 收敛期归一」** —— 复核后的修订由**同一 agent 顺序改两档**,
+纯机械同步项**主编排直接 Edit 不派 agent**。评审席位照 roster 隔离冷审,不受影响。
+
+### 五、R2 投机窗准入
+
+投机窗原有**时点**纪律(只在终确认后)但无**开放决策数**条件。补:
+§待决策项里**影响表结构/模块形态**的开放项 **≤1** 才投机;>1 或含结构分叉 → 等终确认再起草。
+why:「终确认改:默 ≈ 全默」的统计前提**只在单决策上成立** —— 多个结构性开放项时草稿必须押某一组合,
+用户改选任意一项都触发差量重写(实证:两项结构性改选 → 一整轮重写 · 该轮 token ~1.3× 初稿 = **投机变净亏**)。
+
+### 测试
+
+970 → **988**。
+
+---
+
+## v8.293 · 全库冗余清理:死岛 · 退役残留 · 敏捷需求 legacy 整条删除(净 −1600 行)
+
+> 用户:**逐个文件整体 review 下,看下哪些冗余需要清理或者删掉。**
+> 判据三条:**还有没有消费者** / **是否与现行规则矛盾** / **同一教义是否写了多遍**。
+
+### 一、死岛 —— v8.291 只砍了入口,没砍被调链(−680 行)
+
+| 位置 | 内容 |
+|---|---|
+| `state.py` | `_run_codex_review` / `_run_claude_review` / `_build_codex_prompt` / `_run_streamed_to_log` / `_build_claude_review_cmd` / `_detect_host` + `EXTERNAL_HOST_TO_MODEL` / `REVIEW-ACK` 协议 / `_prompt_doc_stale_reason`(`--prompt-doc` 参数早已删)/ `_FINDING_POSTURE_HINT` —— **586 行** |
+| `state.py` | `scaffold-review-prompt` **整命令**(零文档引用 · 用途已被 external-review 自写 prompt-doc 取代) |
+| `_v8_stage_specs.py` | `_check_external_hetero` + 4 个专属常量 —— **63 行** |
+
+🔴 其中一颗雷:`EXTERNAL_REVIEW_SAME_CONTEXT_BLOCKED` 把 `"subagent"` 列为**必 BLOCK** 的同源字面 —— 而 v8.291 后 subagent 恰是**唯一合法形态**。谁把这 checker 重新接上,拦的就是唯一支持的路径。
+
+`EXTERNAL_STAGE_TO_PROFILE` 三层嵌套 dict 折叠为两个常量:`codex-agents/` 已删,三个 stage 的 claude profile 本就全是同一个 `reviewer.md`。
+
+### 二、退役声明贴在头上、正文一字未改(3 处)
+
+- 🔴 **`review-stage.md` 硬规则 1** 仍要求「各自落 `REVIEW-{role}.md`」,而同一份白名单的**规则 8** 写着「v8.289 已取代该文件」—— **两条硬规则直接打架,漏在最高权重位置**。顺带修:编号出现两个 8。
+- `roles/external-reviewer.md` 头部有 v8.291 退役声明,正文四条照旧写着「claude 主时调 codex」「OpenAI ToS 合规」「文件名必含 codex/gemini 字面」→ 整篇重写。
+- `disable_external_review` 仍是 `teamwork_localconfig.json` 的活配置 + `config.md` 一整节 —— 能活一版是因为 v8.291 的退役扫描测试 **glob 只扫 `*.md`/`*.py`,漏了 `.json`**(已补)。
+
+### 三、「敏捷需求」/ `lite` / `blueprint_lite` 整条 legacy 删除(−400 行)
+
+删的理由**不是「没人用」**,是 audit 查出 **三份 flow-key 实现对同一输入解析出不同的转移图**:
+`state.py` → `Feature+full`(无 blueprint_lite 的图)· `_v8_engine.py` → `Feature+lite`(含 blueprint_lite),
+**而 engine 的注释还声称与 state.py「严格同口径」**。三份实现无一被测到该输入。
+
+用户拍板:不选边,整条删。lite 档 v8.223 已退役,其链本就是 Feature 链的 `needs-ui=false` 剖面(纯冗余)。
+删:`AGILE_FLOW` / `FLOW_BY_TYPE["Feature:lite"]` / `BLUEPRINT_LITE_SPEC` / `DEFAULT_REVIEW_ROLES` 5 条 / `STAGE_CHAIN_PREVIEW` 一支 / `stages/blueprint-lite-stage.md`。**stage 数 13 → 12**。
+新增门禁:三份实现对同一 state 必须给出一致的内部键与转移图。
+
+### 四、孤儿模板(用户逐个拍板)
+
+- **`templates/architecture.md` 351 → 192 行**:产物 `{子项目}/docs/architecture/ARCHITECTURE.md` 是活的(SKILL 路由 + engine 读 + ship 门),模板却零消费者 —— 是**路由缺口**不是死文件。补 SKILL/architect 指针;**藏在里面的 68 行迁移起号纪律上提到 `standards/backend.md §五`**(那里才是权威);删 86 行 api-design/deployment 示例子模板;去掉「超 50 行必拆」的能力上限规则。
+- **`templates/e2e-registry.md` 241 行整个退役**:全库零入口 —— 没有任何文档说 REG case 长什么样 / 放哪 / 怎么建,却只有 ship distill 在要求逐项申报。连 `DISTILL_KEYS` 的 `reg` 槽位一起删(6 项 → 5 项)。
+
+### 五、模板层去重与矛盾(−330 行)
+
+- 🔴 **`ui.md` 段落契约矛盾**(真 bug):模板明令「视觉描述一律归 HTML 预览产物 · **不在本文复述**」,而 `ui-design-stage.md` / `roles/designer.md` 要求 body 必含 §页面列表/§交互流/§视觉规范/§字段映射 —— **模板里没有这四段**。Designer 照哪边写都违反另一边。按「templates/ = 格式唯一真相源」改 stage 与 role。
+- **`config.md` §localconfig −116 行**:是 JSON 模板 `_comment_*` 的逐字第二副本,且用 ` ```markdown ` 围栏把它描述成带 `## 负责人` 标题的 **markdown 文件**(真实文件是 JSON)—— 副本必漂,这次漂到了介质。改指针;第三份(`bootstrap.py` 的 DEFAULT dict,原靠一句「🔴 两处都加」的自觉)换成**物化对齐门**。
+- 三份「起草要点」段自陈「v8.199 cite 仪式已废」却仍在逐条复述对应 stage 的硬规则 → 整删。
+- `tc.md`:三个孤儿段(标「代码审查时填写」但 review 的产物契约是 REVIEW.md · 从不读)+ Gherkin 语法速查(HARD-RULES 判据:模型默认就会的一律不收)+ 一个 `standards` 里根本不存在的「后端覆盖率 > 80%」阈值。
+- `adr-index.md` 66 行里「PMO 读本索引」写了 4 遍;`knowledge.md` 300 行上限与文档边界表各写两遍;`pm-note.md §3` 是 pm-acceptance-stage 暂停点脚本的逐字副本(PM-NOTE 是**已决策后的记录**)。
+- ADR 落点权威分裂(`SKILL.md` 指 Feature 目录 vs `adr.md`/`architect.md` 定「`{子项目}/docs/adr/` 唯一落点」)—— 同 v8.205 sitemap case 复发,已归一。
+- `preflight` 旧机制名 → `triage`(5 处);`tech.md` 实现步骤表的 TDD 红绿词表(与同节「节奏 AI 自定」自相矛盾)。
+
+### 测试
+
+962 → **970**(+8 类:死物不复活 / 退役声明与正文一致 / § 引用可解析 / 三份 flow-key 一致 / localconfig 单源 / ui 契约 / **markdown 围栏平衡**)。
+最后一条是自伤实证:按 `## 标题` 切段时切掉了 `adr-index.md` 的围栏闭合 —— 切文档一律回来验围栏。
+
+---
+
+## v8.292 · WS 拆解按交付内聚 · 不按评审面 · 默认合并
+
+> 用户拍板:**WS 拆解都按交付内聚方向拆,不要按评审面拆,尽量不要拆太多 feature。**
+> 审出的问题:原判据虽已写「主判据 = 交付内聚」,却在**同一行**把「评审 blast radius」列为合法拆分理由,并把它放进「保持独立的硬理由」清单 —— 那恰恰就是按评审面拆。
+
+### 为什么按评审面拆是错的(写进判据)
+横切出来的件**各自不能独立上线**(前端等后端 / 后端没人用),feature 数与跨件协调成本上升,**而评审总量并没变少**。内聚单元确实大到评审吃不消时,正解是:① 找**更小的内聚切片**(仍是端到端可交付的**纵切**),或 ② 接受多轮评审(review 收敛协议管这个:severity 门 / 验证轮 / 轮次预算)—— **不要**为了好评审把不能独立交付的东西拆开。
+
+### 改动
+- `docs/feature-planning.md` Step 5.7 边界判据重写:**交付内聚 = 唯一主判据** · 🔴 **默认合并 · 拆分是例外**(每一刀都要说得出「为什么这两件不能一起交付」,说不出就并回去)· 显式列反模式(代码在不同子项目 / 前后端分属 / 改动面大不好评审 **都不是理由**)。
+- **保持独立的硬理由从四类收到三类**:外部依赖 gate(不绑架宿主交付)/ 交付节奏不同(上线时点本就分开)/ 管辖边界(不同团队拍板)—— **删掉 blast radius**。薄承接件默认并入宿主件 · 含金量悬殊 = 强合并信号(保留)。
+- **粒度反压加严**:BL > 8 → **> 6**;触发条件加「按评审面横切」;默认姿态明写为合并。
+- 同步 `templates/workstream.md`(拆分按交付内聚 · 不按子项目切、**不按评审面切**)+ `state.py` planning-check 清单。
+
+### 机器守护(反压从文本变物化)
+`ws-lint` 新增 `granularity_warnings`:features > 6 → WARN(**不 FAIL** —— 拆得对不对是判断题,机器只负责把问题摆到台面,不代用户拍板),warning 正文直接给出复核清单(逐件问「为什么不能一起交付」+ 反模式提醒 + 薄件合并信号)。
+
+### 验证
+- 新增 test_ws_granularity_v8292(8:交付内聚唯一主判据 / 评审面显式禁止 / blast radius 已移除 / 超大内聚单元有正解指引 / 模板与清单同步 / 7 件 WARN / 6 件不 WARN / **WARN 不是 FAIL**)· pytest **964 passed**。
+
+## v8.291 · 跨厂商异质模型评审彻底退役 · 第三视角唯一形态 = 错开模型 subagent 冷审
+
+> 用户拍板:**跨厂商异质评审太耗时,效率影响严重,彻底去掉,改为 subagent 不同模型冷审。**
+> 实证支撑(台账):`codex exec` 挂死 98m 后杀掉重试 · OpenAI「Additional safety checks」慢路径(代码评审 prompt 天然命中)· 反复踩未登录 / MCP spawn 卡死 / ARG_MAX。而**同厂商模型错开**(会话 fable5 → 外审 opus)已拿到独立采样的主要收益 —— 上下文隔离 + 权重错开,零 CLI 成本。
+
+### 拆除量(不是加开关 · 是整条路径连机械一起删)
+| 层 | 删除 |
+|---|---|
+| `state.py cmd_external_review` | **770 → 85 行**:host→model 映射 / `which <cli>` / `--preflight` 登录探测 / CLI exec 与超时 / stdout 质量检查 / `--self-review-fallback` 降级 / `degraded`·`heterogeneous` 语义 / dry-run |
+| 死 helper | `_preflight_external` · `_external_timeout_sec` · `_detect_cli_version` · `_check_external_review_quality` · `_read_disable_external_review` · `_localconfig_disable_external`(合计 ~140 行) |
+| 命令参数 | `--host` / `--model` / `--codex-model` / `--preflight` / `--self-review-fallback` / `--reason` / `--dry-run` / `--accept-quality-warnings` / `--prompt-doc` 全去(留 `--feature --stage --commit --base --verify-fixes`) |
+| 产物门禁 | `_evidence_external_review_artifact` **136 → 30 行**:异质性硬约束(文件名模型白名单 / review_model 字面比对 / degraded 语义 / host 比对)整套删 —— **没有可冒充的对象了** |
+| 配置 | `disable_external_review` 退役(自愈默认表 / 三处 helper / 五处文档 · 存量配置被忽略) |
+| 规范 | `standards/external-model-usage.md` **286 → 63 行**(跨厂商机械全删 · **裁决纪律 §12 原样存活** —— 它与模型无关且被 5 处引用) |
+| profile | `codex-agents/`(3 个 toml)整目录退役 · `claude-agents/reviewer.md` 去 codex 对照段 · `update.py` 白名单同步 |
+| 测试 | 退役 94 条测已删机械的用例(`TestExternalReviewCommand` 30 · `TestHostAutoDetect` 7 · `TestExternalReviewHeteroEnforcement` 14 · `test_external_mech_v8191` 整文件 …)· 换 20 条新契约用例 |
+
+### 新契约(收敛为两条 + 一条不变式)
+- ① **必须隔离 subagent**(`review_via: subagent`)—— 主对话热审 = 同上下文 = 零独立性;
+- ② **必须照实申报模型**(`review_model` 非空)—— 供台账核「错开」是否真发生;
+- 🔴 **yolo 不内化律存活**(v8.67):无人值守时额外要 **prompt doc**(实跑证据 · 由 `external-review` 落盘)—— 防 AI 直接手写产物自盖章。证据载体从「CLI 子进程日志」换代为「配方 doc」;`ultra-ingest` 产物豁免(provenance 是会话转录)。
+
+### 🔺 顺带的门禁增强(拆除的副产品)
+「fix 后 APPROVE 必须有 external 验证证据」原有 `disable_external_review=true` 豁免 —— 那个豁免**只因跨厂商 CLI 太贵才存在**。外审变成廉价 subagent 后**豁免取消**:这道门现在无条件生效。同理 legacy 全局日志路径 `~/.teamwork/external-review-logs` 一并退役(它还会污染测试隔离)。
+
+### 验证
+- 新增 test_cross_vendor_retired_v8291(9:机械已删 / 配置退役 / codex-agents 删除 / 命令不 exec / 新契约成文 / **yolo 不内化律存活** / 裁决纪律存活 / 全库无残留活配置 / 唯一形态成文)· pytest **956 passed**。
+
+## v8.290 · 流程文档整体精简 + PRD/TECH 设计文档档位规则
+
+> 用户原则:**保住底线规则,其余不限制模型发挥,精简没必要的 HOW**(示例:架构视角只需「架构要合理、防止未来维护成本过高」· 至于怎么设计 AI 自决)+ 新规则:**PRD、技术方案必须主模型或高级模型出设计或参与评审**,其余尽量主对话编排 subagent 并行。
+
+### ① 新规则:设计文档档位(5 处消费时点)
+- **PRD 与 TECH 必须主模型 / 高级模型出设计或参与评审** —— 与 v8.268/269 模型错开复合:**错开也只在高档之间错**(fable5↔opus)· **不许降到验证档**;其余环节(TC 对照 / 测试执行 / 机械外化)该降就降,**主对话编排 · subagent 并行**。
+- 落 `DISPATCH_TIER_REMINDER`(每 stage-start 自动附带)+ goal/blueprint 两 brief + 两 stage ②硬规则白名单。
+- why 写明:PRD 定义「做什么」错了整条链在做错的东西 · TECH 是全局质量上限方案错了下游全错 —— **两份设计文档定质量天花板**。
+
+### ② 文档精简(判据:证据/独立采样/主权/机械/逆默认 = 底线保留 · HOW-to/示例/重复/考古/铺陈 = 砍)
+| 文档 | 行数 | 🔴 |
+|---|---|---|
+| SKILL.md | 754 → **544**(-28%) | 74 → **43** |
+| docs/prepare.md | 412 → **365** | 33 → 26 |
+| docs/feature-planning.md | 294 → **287** | 43 → 39 |
+- **行 205 的 3173 字符怪物拆成 9 条**(最长 391)· v8.268 双路 + v8.269 单路合并成一条「**评审模型必错开(独立采样不变式)**」。
+- 砍:v7/v8 范式对比图 · 45 处版本沿革标注 · 错误处理协议 ASCII 流程图(与 bypass 节同一件事)· 文档清单与路由速查两表合并(零文档丢失)· 31 处重复标红降级 · prepare「怎么侦察」的具体清单(**要不要侦察是底线 · 怎么侦察留给模型**)· feature-planning 里 IA 镜像律/分层同构律的展开(改指 ui-design 权威处)。
+- `roles/architect.md` telos 改为用户示例形态:**底线「架构要合理——别让未来的维护成本过高」+ 显式「至于架构怎么设计 AI 自决」**;`roles/rd.md` 同款。其余 6 个 role telos 本就是「说视角 + 缺了会留什么问题」,未动。
+- `docs/conventions.md` **如实不砍**:288 行几乎全是 ID/命名约定与路径/状态机接口(判据④ 模型不可能知道)。
+
+### ③ 顺带抓到三个真问题
+- 🐛 **SKILL 指向 `blueprint § 7.5`** —— 该章节已随 v8.284 四段结构重构消失 → 改指 `§④`。
+- 🐛 **命令清单已漂**:自称「≈55 命令」,52 个真实子命令里 **11 个从未出现在 SKILL.md**(整个 micro 流程 `execute-start/complete` · `review-preventability` · `ws-lint` / `ws-progress` / `test-baseline` / `ledger-migrate` …)。文档自称「权威 = `state.py --help`」却抄了份过时副本 —— **又是「指针 + 复制」**。改分类概览(A 状态机入口 / B stage 流转 / C 维护与数据)+ 权威指针,保住 11 个 routing 级语义特殊命令。
+- 🐛 **`UI-RULES.md` 从未进 SKILL 路由表**(既有缺口 · 非本次砍掉):它是 ui_design 必读 + bootstrap 七件骨架之一,用户问「设计规范在哪」路由不到 → 补入(连同 `test-baseline.md`)。
+
+### 验证
+- 新增 test_flow_doc_slimming_v8290(9:无超长行 / 🔴 密度 / 命令清单是指针非副本 / routing 级命令仍在 / 底线全在 / 断链已修 / role telos 底线+自决 / **project-specs 清单跨文件同步守护**〔SKILL 路由表 ↔ conventions §13 · 把 v8.259 的人工七点清单换成机器检查〕)· pytest **1041 passed**。
+
+## v8.289 · REVIEW-<role>.md 退役 · 改为 REVIEW.md 内每角色 coverage 申报
+
+> 用户:重新 review 流程,看哪些过程文档没必要写。用同一把尺子(**有没有真读者**)过完全部产物 —— 其余都有真消费方(PRD/TC/TECH 被 dev 照做 + verify-ac 机器读 · REVIEW.md findings 台账 70 处消费 · TEST-REPORT 是 pm_acceptance 逐条核对 AC 的实证来源 · verdicts 被门禁解析 · screenshots 是用户验收证据),**只有 `REVIEW-<role>.md` 是纯仪式**。(`docs/audit/<id>.md` 用户指示暂不动。)
+
+### 四条证据
+1. 门禁 `_evidence_review_role_artifacts` 只查**文件存在**(`.exists()`)· 不解析任何内容;
+2. 角色归属**早已在 REVIEW.md** —— findings 台账每条带 `source: arch|qa|external`;
+3. **实测就是写两遍**:aifriend `REVIEW-arch 37 行 / REVIEW.md 38 行` · aon-core `55 / 63`;
+4. 内容形态是**确认性叙述**(「实现对齐 TECH」「架构一致」「无回归风险」…),不是 finding。
+
+### 但保住了它的真价值
+光秃秃 `APPROVE` + 零 finding,与「根本没评审」在产物上**无法区分** —— 这个防橡皮图章的性质不能丢。改用 external 早在用的 **coverage 申报**形式:REVIEW.md 内每个 roster 主审角色**一行**申报查过的方向(有问题列 finding · 无则「查过无发现」)。成本从 40 行降到 1 行,性质不变。
+
+### 改动
+- 门禁换代:`review_role_artifacts`(文件存在)→ `review_role_coverage`(REVIEW.md 内申报)· **roster-aware 语义原样保留**(移出的角色不查)· legacy state 无 roster 时跳过(不对存量加严)。
+- REVIEW.md frontmatter schema 加 `coverage:` 段示例;review-stage ②规则 8 + Output Contract 改写。
+- 全链清理:review brief 结果段与 complete 命令 `--artifacts REVIEW.md`(去 REVIEW-arch)· engine 产物模板表 / 归档文件名表 / complete 命令模板 / roster 注释 · fast 与 Bug brief 措辞 · SKILL fast 节 · templates/README。
+- 常量正名 `_REVIEW_ROLE_ARTIFACTS`(role→文件名映射)→ `_REVIEW_MAIN_ROLES`(角色集)。
+
+### 验证
+- v8.241 的 4 条 roster-aware 测试改写为新机制 6 条(roster 移出不查 / 缺申报 FAIL / 申报形式宽松 / legacy 跳过 / 空 roster / **Bug 流 external-only 无需主审申报**)· pytest **1028 passed**。
+
+## v8.288 · tdd.md 退役(三条规则已在白名单 · 留着就是第二份副本)
+
+> 用户:「如果 TDD 只有三行,是否不用单独一个文件了」。核实后确认——**比预想的更该删**:v8.287 留下的三条结果规则里,**两条与 HARD-RULES 逐字重复**(每个 TC 有对应实现 / 测试必须真断言),第三条(≥3 次失败升级)也在。tdd.md 已经退化成我们一路在消灭的「指针 + 复制」第二份副本。
+
+### 退役
+- 删 `standards/tdd.md`(42 行)· 吸收其唯一独有内容:「结果由谁保证」表 → 压成 HARD-RULES #8 下的一行(AC 覆盖 → `verify-ac.py` · 真跑真绿 → `--test-exit-code 0` + `--test-stdout` 非空 + 差分基线 · 没作弊 → test-stage ②不走捷径 + 外审测试真实性)。
+- **10 处入链改指 HARD-RULES**:STANDARDS.md 路由表 + 三条子项目加载链 · backend/frontend 的「TDD 流程唯一权威源」头注与 Subagent 加载指引 · common.md · dev-stage §相关 · blueprint ③菜单 · tech.md · 2 处测试。
+- `standards/` 从 6 件 → 5 件:HARD-RULES(50 · 必读)+ common(354)+ backend(551)+ frontend(90)+ external-model-usage(286)+ scripts-policy(232)。
+
+### 顺带:通用断链守护(治本)
+- 新增 `test_all_standards_links_resolve`:全库扫 `standards/*.md` 引用,**指向不存在的文件即红**。
+- 实证驱动:v8.285 删 stage heading 造成 6 处 cite 失效(靠 agent 报出才发现)· v8.287 退役 tdd.md 需手改 10 处入链 —— 这类操作该被自动拦,不靠人肉 grep。
+- 另加 `test_tdd_md_retired`:退役前**必须确保三条规则已在白名单**(防「删了文件规则也跟着没了」)。
+
+### 验证
+- pytest **1026 passed**(+2)。
+
 ## v8.188 · 规划收尾:暂停问合入 merge_target → 建 MR → 提示用户合并 → 停(不自动起下一 feature)
 
 > 实证 AON KA-PAGES:AI 规划完成后**自己** commit→push→建 draft MR,然后**立刻**跳进下一个 feature 的 prepare(还把新 feature 的 `merge_target` 设成**未合并的** `planning/ka-pages` 分支)—— 没有「是否合入 merge_target」确认暂停点,也没有「MR 建好 → 提示用户合并 → 停」。
@@ -1049,3 +1368,226 @@ case 能自主收敛:F-002 识别 release-gated → deferred + 记义务(carry �
 
 ### 验证
 - 新增 test_review_content_only_v8273(3)· pytest 931 passed。
+## v8.274 · teamwork-space.md 骨架带 teamwork 安装地址
+
+> 用户指令:space 文件要包含 teamwork 安装地址 —— 没装 teamwork 的协作者拿到项目、打开知识地图根,第一眼就能看到怎么装。头部引言加一行:🧰 本项目使用 [teamwork](https://github.com/okteam99/teamwork) AI 协作框架 —— 未安装的协作者:`npx skills add okteam99/teamwork`(装完 `/teamwork` 启动)。
+
+### 改动
+- bootstrap `maintain_teamwork_space` 精简骨架 + templates/teamwork-space.md 完整模板骨架块(两处生成源都带 · 新项目自动携带)。
+- 存量项目:AI 维护 space 时按模板对齐即可补上(不加自动迁移 · space 变更需用户确认 R5)。
+
+### 验证
+- test_bootstrap +2(生成物含安装行 / 模板含安装行)· pytest 933 passed。
+## v8.275 · 暂停点投递位置红线 + migration 门目录级匹配 + 配方补 target_commit
+
+> 实证 case(IOS-F005 会话三连):① ship1 卡片按模板写了、但贴在回合中段(随后又调 await-merge)—— 宿主不渲染回合中段文本,卡片被吞,用户被迫问「url 发下」:内容防了 · **投递位置没防**;② `OfflineOriginMigrationStore.swift` 类业务组件被 migration **子串**误伤触发 schema 门;③ degraded 外审配方产物缺 `target_commit` → 下轮 `--verify-fixes` 找不到上轮 FAIL。
+
+### ① 投递位置(治整类 · 不只 ship1)
+- SKILL R5(b) 新红线:暂停点 markdown / user_card 必须是**回合最后一条输出 · 其后零工具调用**;伴随的监控/标记类命令(pause-mark / await-merge)一律**先执行(后台/静默)再贴**。
+- ship-stage §5 次序翻转:先后台启动 await-merge(30s 轮询不阻塞)→ 再把两段作为回合终文贴出;输出格式红线清单补第三条(必须是回合终文);卡片模板行改「已后台启动」。
+- push emit `next_action_brief` 同步翻转(消费时点):①先启动 ②再贴 · 卡片后零工具调用 ·「次序不可倒」保留(现覆盖两层次序:监控先于卡 · 卡先于总结)。
+
+### ② migration↔schema 门精确化
+- 子串 `"migration" in f` → `_MIGRATION_PATH_RE`(目录级:`migrations/` `migration/` `migrate/` `alembic/`)—— 业务组件文件名含 Migration 不再误伤。
+
+### ③ external-review degraded 配方
+- frontmatter 必含清单补 `target_commit: <commit>` —— `--verify-fixes` 增量重验能锚到上轮。
+
+### 验证
+- 新增 test_ship_pause_delivery_v8275(5:业务组件不匹配 / DB 路径匹配〔含 Rails·Flyway·alembic〕/ hint 三关键词 / SKILL 投递位置 / 配方 target_commit)· pytest 938 passed。
+## v8.276 · stage 耗时活动挖掘 · 扣跨 session 空闲 + 计时链路修 bug
+
+> 用户令:仔细审当前统计逻辑,没别的问题再落扣除。审计结论:`duration = completed_at − started_at` 纯墙钟,而 AI 干活期间 state.py 不被调用(dev 只 start/complete 两次打点)—— 干活中途合上电脑过夜不是 R5 暂停、pause-mark 抓不到、也没法 mark(AI 那时没在跑),整段被算成「AI 自主」(实证 aon-core `goal 1012m / await +3m`)。直接扣一个数做不到,需活动信号。
+
+### 活动时间戳挖掘(治主问题)
+- `_mine_active_minutes`:stage 窗口 [started, completed] 内取 **git commit(committer-date)+ 产物 mtime(PRD/TECH/REVIEW/dispatch_log)+ round 边界** 作活动信号 · 排序后相邻间隔 ≤ `idle_threshold_minutes`(默 30 · localconfig 可调)累加为 `active_minutes` · 间隔 > 阈值判空闲扣除。
+- 🔴 best-effort:窗口内无中间活动信号 / 异常 → 返 None(回退 duration−await · 不硬伤);`active ≤ span` 封顶。
+- 消费:`_timing_split` / `_stage_durations` 优先 `active_minutes`(已排空闲含 R5 暂停 · await 仅作标签单列);ship §16 台账口径同步(`total_wall − ai − await = 未标记挂机空闲` · 不再冒充工作)。
+
+### 顺带修计时 bug
+- ② restart 重置计时锚:`started_at = now` + `await_minutes = 0`(旧逻辑保留原 started_at → duration 跨越已废弃首次尝试;await 残留污染 duration−await)。
+- ③ 解析健壮性:duration 改宽松 `_parse_iso_flexible`(旧严格 strptime + except pass → 格式变体静默丢 duration · 整 stage 从计时消失)· 与 close_open_pause 口径统一。
+- ④ 已知约束存档:pm_acceptance 整段算等待(PM 验收工作反向少算 · 保守可接受)。
+
+### 落地
+- localconfig 三点接线(json 模板 + config.md + 自愈默认表 `idle_threshold_minutes`)。
+- 新增 test_active_mining_v8276(12:过夜扣除/密集全算/无信号回退/坏戳/阈值可配/split 优先 active/回退/breakdown)· pytest 950 passed。
+## v8.277 · 兜底清单加 💬 大白话列
+
+> 用户指令(截图 §7.5 兜底暂停点):兜底清单加大白话解释列。同 v8.271 AC 大白话哲学 —— 兜底清单也是暂停点上给用户拍板用的,「refresh 换发校验 pwd_ver / ROTATE_LUA」这类技术名 + 「概率×后果」+「ROI 结论」拍板者读着费劲,加一句人话(这个兜底在防什么、不做会怎样 · 用户/运营视角)。
+
+### 改动
+- 兜底名后插 💬 大白话列(读:先看名 · 紧跟人话):`兜底 | 💬 大白话 | 保护什么失败场景 | 概率×后果 | ROI 结论`。
+- 两处兜底表同步保持同构(templates/tech.md §兜底清单 + stages/blueprint-stage.md §7.5 暂停块 · v8.255 教训:同类表不同构则抄写丢列)· 引导语标注大白话逐项必填。
+
+### 验证
+- 新增 test_fallback_plain_v8277(4:两表各有大白话列 / 列集同构 / 大白话紧跟兜底名)· pytest 954 passed。
+## v8.278 · 给 dev 装 shift-left · 复发 finding 沉淀 + 起草写时防(治多轮收敛)
+
+> 用户课题:评审发现问题多、多轮收敛,如何优化。数据诊断(aon-core):665 条 external findings **82% 真实**(非挑刺 · 砍不得)· 多轮集中在 **code review** 且与 feature 大小强相关 · 🔴 **finding 类型反复撞**(stale×7 / timeout×6)· 沉淀防复发回路**断了**(DEV-RULES=0)。关键不对称:goal 靠 v8.262 shift-left 已 1 轮收敛,**dev 从没装这层** —— RD 只有 §完工自查(查实现全没全)· 没有「照评审会打的失败类写」。收敛成本一大块是**反复重新发现可预防的复发类**。
+
+### 闭环(镜像 PRD 起草思考规范 v8.262)
+- **沉淀端(喂料)**:KNOWLEDGE.md 新增 **§ 🛡️ 复发防御清单**(类|失败模式|写时怎么防|复发次数|触发 Feature);review 收敛(APPROVE)后确认 findings 里**可预防的复发类**沉淀进来(同类第 2 次即入 · 已在清单还复发 = 规避法不够硬,强化它)· review-stage 规则 8 + 验证轮 brief 消费点。
+- **消费端(预防)**:dev 起草**必读**该清单(上下文入口从「KNOWLEDGE 按需」升级)· dev-stage 加 🛡️ 起草思考规范(写法非环节:照失败类写、不写完等抓)· dev brief 消费点 surface。
+- 判断型非机械门:一次性/纯涌现 finding 不入清单;涌现的真问题仍照抓、轮数照留 —— 只打可预防的复发子集。
+
+### 验证
+- 新增 test_dev_shiftleft_v8278(6:模板有清单 / dev brief+stage surface / review harvest / 验证轮带 / round-1 不污染)· pytest 960 passed。
+## v8.279 · 安全加固/兜底降级 = external finding 过度设计高发区 · 采纳前必过 ROI
+
+> 用户点破:安全、兜底降级也要防过度设计。缺口:blueprint §4 Architect counter-lens 已有「兜底按 ROI 审(含安全兜底)」,但 external **裁决单源 §12** + goal/review 的 finding 处理姿态只泛说「过度设计」—— 没点名 **安全加固 / 兜底降级是 external finding 里最容易过度设计的两类**:external 天然偏加防御层/校验/重试/fallback,这两类听着最「负责任」故**最难驳、最易盲采**,恰恰最该过 ROI。
+
+### 改动(把 v8.265/266 兜底 ROI 接到 external 裁决路径)
+- **裁决单源 §12**(external-model-usage.md · ① 质疑步 + 12.1 confirmed 判据):安全加固/兜底降级 finding 必过 ROI(保护场景 概率×后果 vs 实现维护成本)· 立不住 REJECT(「安全/兜底总没错」不是采纳理由)· 立得住 ADOPT + 兜底类落 §7.5 透出。
+- **消费点点名**:goal external 简洁性 counter-lens · review finding 处理姿态 brief · blueprint §4 「别盲采」行(加校验→加校验/加安全/加兜底)· Architect telos 简洁性独占视角。
+- 不变:「加安全/加兜底不天然正确」与别的 finding 同过质疑门;举证责任对称(ADOPT 也要实证)。
+
+### 验证
+- 新增 test_security_fallback_roi_v8279(4:裁决源/goal counter-lens/review brief/architect telos 各点名)· pytest 964 passed。
+## v8.280 · 修 micro 状态机 preset-blind 死门(execute 链走不通)
+
+> 实证 case(aifriends 4 行合规 bump 走 micro):init-feature preset=micro 建出 `flow_type="Feature" + preset="micro" + current_stage="execute"`,但 **execute-start 直接 FAIL** —— 用户被迫手动跳过状态机做完 micro 实质。根因:engine 通用 gate **用 raw `state.flow_type="Feature"`** 比 `EXECUTE_SPEC.allowed_flow_types=["Micro"]`(legacy 内部键)→ 恒 FAIL;且图查 `flow_by_type.get("Feature")` 拿 **full 图**(即便过①·execute→ship 转移错路由)。`resolve_flow_graph`/`internal_flow_key` 在 state.py 有,但 engine 的 `execute_stage_start/complete` 从没用 —— 现有 micro 测试只断言 spec 常量、**从没真跑 gate** → 漏网整整一版。
+
+### 修复(engine gate preset-aware)
+- 新增 `_internal_flow_key(state)` + `_resolve_flow_graph(state, flow_by_type)`(与 state.py resolve_flow_graph/internal_flow_key、specs _flow_key 严格同口径 · engine 不能 import state.py〔循环〕故本地实现)。
+- `execute_stage_start` 三处:① allowed_flow_types 门用 `_internal_flow_key`(Feature·micro → "Micro" 匹配)· ② 转移图用 `_resolve_flow_graph`(micro 拿 Micro 图非 full)· 未知 flow_type/preset 仍显式 FAIL(保「已知流程表」措辞)。
+- `execute_stage_complete` 转移同修(execute→ship 正确路由)。
+- 正常 Feature·full / Bug 行为不变(`_internal_flow_key` 对它们恒等映射)。
+
+### 测试补口
+- 新增 test_micro_gate_v8280(6:resolver 单测 micro/full/bug/legacy + `_resolve_flow_graph` micro 拿对图 + **真跑 init micro → execute-start 过门** e2e)—— 补上「只断言常量、从没跑 gate」的集成盲区。
+- pytest 970 passed。
+## v8.281 · 起草可预防性台账列 · 评审后记录 → ship 聚合 → 年检完善 teamwork
+
+> 用户:每次评审后记录「为什么审出这么多 + 起草考虑点该不该补」,同步到台账供后续分析完善 teamwork。这是 v8.278 dev shift-left 的诊断层 —— 把「起草考虑点缺不缺」从猜变成数据。活体验证(aon-core Postback 会话):PRD 两路冷审 11 findings,该 session 手动归因出 4 条起草考虑点缺口(在旧分支 grounding / 未 trace 真实运行时路径 / 结算路径下游未枚举 / 兜底 miss 分支未落 AC)—— 正是本列要系统化采集的。
+
+### 机制(非门禁 · 纯数据采集)
+- 新命令 `state.py review-preventability --stage <goal|blueprint|review> --preventable N --total M --missing '缺的考虑点(分号分隔)'`:评审收敛后记录 findings 可预防率 + 缺哪条起草考虑点 → 追加 `state.authoring_preventability`。
+- ship 聚合 `_authoring_preventability_summary`(跨评审求和 + 缺项去重)→ emit `ledger_authoring_preventability` → PROCESS-LEDGER 新列「🛡️ 起草可预防性(可预防/总·缺考虑点)」(rightmost · append-only schema · ledger-migrate 自动加列)。
+- review harvest(v8.278 rule 8)+ 验证轮 brief + ship §16 台账口径接线;判据同 v8.278/279(findings 82% 真·砍轮=漏 bug·真杠杆=起草挡掉可预防子集)。
+- **消费方 = 年检**:跨 feature 看「缺的考虑点」复发 → 补 PRD/TECH 起草考虑点(反复缺=真缺口补框架)· 全 emergent = 别动(避 v8.266 一刀切)。没记录列留空(有效前缀 · 非门禁)。
+
+### 验证
+- 新增 test_authoring_preventability_v8281(6:聚合去重/记录追加/非门禁/表头分隔一致)· pytest 976 passed。
+## v8.282 · PRD 起草思考规范补 2 条普适缺口(Postback case 归因)
+
+> aon-core Postback 会话:PRD 两路冷审 11 findings,归因出 4 条起草考虑点缺口。按 v8.281 纪律筛(普适→补框架 · 情境/项目→进台账/KNOWLEDGE):① 在 ship 目标分支 grounding 和 ④ 兜底 miss 分支落 AC 是**普适 PRD 写作陷阱**(任何项目都会犯 · 单个锋利 case 足以过门),补进框架;② trace 运行时路径(情境)进台账观察、③ 结算下游枚举(项目特定)进 aon-core KNOWLEDGE,不动框架。
+
+### 补入 prd.md 🧠 起草思考规范(+ goal-stage 镜像 + goal brief 同步)
+- **① 依赖读真实代码 → 精确化**:「在**当前 worktree(ship 目标分支)**读,不吃跨分支/记忆的旧调研」—— 实证:PRD 基于 fix 分支旧调研写、staging 领先 233 commits → 状态码 404→422、rejected 桶去向全错(EXT-2/EXT-4)。
+- **④ 兜底 line 加**:「**未命中/坏输入分支必须和命中分支一起落 AC**」—— 只写 happy path、miss 是大概率真实分支却漏进 AC = 冷审必打(EXT-2/PL-4)· 接 v8.279 兜底高发区。
+- 不补:② trace 运行时(situational · 台账观察)· ③ 结算下游枚举(aon-core 项目 KNOWLEDGE)。
+
+### 验证
+- test_authoring_preventability +3(gap1 ship 分支 / gap4 miss AC / brief 双带)· pytest 979 passed。
+## v8.283 · 模板减法批次一 · 砍掉限制模型能力发挥的约束(prd/tech)
+
+> 用户课题:随着模型越来越聪明,这些规则是否反而有负向影响?讨论后确立**按规则类型分衰减速率**的判据 —— 不衰减必保留:① 证据/验证(信任架构:模型越强、主张越有说服力,越需要证明而非被相信)② 独立采样(相关盲区是统计属性非智力属性)③ 用户主权(谁决定 ≠ 谁能干)④ 纯机械操作;随模型变强而衰减可砍:⑤ 手段规定(HOW-to)⑥ 能力上限 ⑦ 教学示例 ⑧ 重复 ⑨ 环节化自检。本版按判据做 prd.md / tech.md 的减法,**门禁与暂停点一条未动**。
+
+### prd.md 393 → 325 行(-68)
+- 🔴 **砍能力封顶**(判据⑥ · 最锋利的一处):`❌ Read 5+ 个文件 / 1000+ 行`、`时间预算:5-10 min`、`不超过 10 min` —— 这是**直接给调研深度设天花板**,且与 v8.282 刚加的「在 ship 目标分支读真代码」**自相矛盾**(那个 aon-core Postback case 翻车根因恰恰是 grounding 不够深)。改为「读多深 / 怎么找 / 读几个文件由 AI 按本 feature 判断」。
+- 砍 Step1-4 调研流程(判据⑤ 43 行 → 12 行):目标(把真实代码现状内化)+ 边界(只读不输出 / 不写技术细节 / code_context_read 痕迹)保留,HOW 交还模型。
+- 砍三个完整 mermaid 示例(判据⑦ · 保留「什么时候必须画图」的触发判据 —— 那是判断)。
+- 砍通用 checklist 的 AC 块(判据⑧ · 与 §验收标准表 + goal-complete 机器校验 100% 重复)。
+- 「起草后必做自查」→「PM 自查字段(机读 · 非环节)」(判据⑨ · v8.263 已裁定「不是加自检环节,是写的时候就这样想」· 这是幸存的同类物;PRD-REVIEW 消费的机读字段保留)。
+- 压缩 adversarial_self_check 的两个 worked example(规则本身属判据① 原样保留)。
+
+### tech.md 277 → 238 行(-39)
+- 砍填充示例(判据⑦):字段表 4 行(RFC 5322 等)· 跨层映射示例 · 错误处理表 4 行(压成「至少想过这几类」)· 文件树 · mermaid 时序图。
+- 砍 TDD 粒度表 + ❌✅ 示例(判据⑤ · dev-stage v8.218 早把 TDD 从强制降为「强烈建议」,tech.md 没跟上)· 保留粒度原则一句。
+- 完工自查去掉与机器门 100% 重复的两项(判据⑧ · test exit-code / commit changeset 已由 dev-complete 物化校验)。
+
+### 一条未动(判据 ①②③④ 点名保留)
+兜底 ROI 清单 · 现状基线 + decisive 前提核验 · 变更最小化四问的产出要求 · Schema 影响分析 · FK 决策 · 不静默吞异常 · 完工自查(review 真读它 = 产物契约非自检仪式)· 机读块 / verify-ac / AC 大白话机器校验 · 既有行为变更必入待决策项 · 「模板是地板不是天花板」。
+
+### 验证
+- 新增 test_template_slimming_v8283(12:封顶不得回归 / HOW-to 不得回归 / grounding 目标仍在 / 证据契约仍在 / 用户主权仍在 / 教学示例已清 / 核心契约仍在)· pytest 991 passed。
+## v8.284 · 四段结构转正(解锁推广)+ 批次二 stage 减法
+
+> 承 v8.283。审计挖到**推广卡死的根因**:`STAGES.md §3` 至今**必含**「怎么做 + 质量基线」两段 —— 已迁移四段结构的 dev/review/goal **反而不符合书面规范**,未迁移的 test/panorama_sync/pm_acceptance/diagnose **是在忠实遵守旧条款**,不是偷懒。v8.218 试点时写下「四段结构进 STAGES.md 定为标准」这一步没做,推广就此卡在 3/13 达六十余版。
+
+### ① STAGES.md §3 四段结构转正
+- 必含段改为:`① 目标(telos)` / `② 硬规则(白名单 · 每条一行 why)` / `③ 建议手段菜单(AI 自选 · 不强制 · 可省)` / `④ Output Contract` / `相关`。
+- 明写 **②硬规则保留判据**(治结构风险不教干活):证据/验证 · 独立采样 · 用户主权 · 纯机械操作;**不该进②的**:怎么调研/怎么拆任务/怎么写代码(→③或交还模型)· 通用工程规范(→ `standards/` + 项目 `DEV-RULES.md`)。
+- 明写**删「怎么做」与「质量基线」的理由**:前者是 HOW-to 教程「把强模型的地板变天花板」(v8.218 原话);后者把②的规则再复述一遍(实测未迁移文件因此把同一规则讲 2-3 遍)。**叙事在②一次 · 机器语法在④一次 · 没有第三处**。
+
+### ② 批次二 stage 减法(门禁/暂停点一条未动)
+- **ui-design 244 → 188**:🔴 21 行交互/视觉细则(hover/focus-visible/WCAG 4.5:1/触控 ≥44px/tabular-nums…)压成 **5 条判据** —— 原文自陈理由是「模型对交互体验缺天生判断力」,该前提已随模型能力失效;**v8.263 裁定的最后一处漏网环节化自检**(Designer 自查报告 A 段逐项过)改写法注;删「与老模式对比」论证表 / preview.sh 内部实现 / 工具面板 12 行设计品味论证与版本纠错史 / 纯目录式反模式清单 / 框架维护者 TODO;`roles/designer.md` 指针同步。
+- **blueprint 120 → 98**:🐛 **修真实缺陷** —— §3 与 Output Contract 曾给 TECH.md **9 段 vs 5 段两份互相矛盾的清单**(「指针 + 复制被指向内容」的漂移实例);消除该模式(结构以模板为单源)· R5 三选项改引用式(与 ui-design 统一口径)· 删与 §4/SOP 重复的冷审与闭环条。
+- **ship 235 → 221**:只砍旁白 —— 版本考古(旧两-MR 十二版沿革)· archive/ship-finalize 内部实现清单 · 投递次序**三处各说一遍**收敛为单源 · active_minutes 算法(同行已明写「不肉眼算」)· 已废弃配置墓碑 · 框架维护者 TODO。**门禁、命令序列、R5 暂停点、git add 红线一条未动**。
+
+### ③ 兜底清单机制升级(v8.277 手段迭代)
+- 原手段「blueprint 与 tech.md 两表同构」→ **单源 + 指针**(blueprint 改「照抄 TECH §兜底清单原样贴出 · 含 💬 大白话列」)。目的不变(暂停点贴出的表别丢列),但**只有一处定义才不会漂** —— 同一文件里刚实测到该模式的漂移(上述 9 段 vs 5 段)。测试同步为新不变式。
+
+### 验证
+- 新增 test_stage_slimming_v8284(12:四段结构转正 / 旧条款已废 / 判据成文 / 前端细则已删但判据保留 / 环节化已改写法 / 物化闸与主权暂停点保留 / blueprint 矛盾已修 / ship 门禁全在)· pytest **1002 passed**。
+## v8.285 · 四段结构推广完成(11/13)+ standards 减法
+
+> 承 v8.284 解锁。**批次三**:除两个记录在案的例外,全部 stage 迁到四段结构。**standards 减法**:按「与模型默认行为的距离」判据砍 —— 模型默认就会的(零价值·纯税)砍、模型不可能知道的(信息)留、**模型默认会做反的(最高价值·模型越强越需要)** 一条不动。
+
+### 批次三 · 四段结构推广(3/13 → 11/13)
+| stage | 行数 | ②硬规则 |
+|---|---|---|
+| test | 179 → **112**(-37%) | 9 条 |
+| panorama-sync | 112 → **73**(-35%) | 5 条 |
+| pm-acceptance | 107 → **77**(-28%) | 4 条 |
+| ui-design | 188 → **175** | 8 条(补回被漏的分层同构律领域模型) |
+| blueprint | 98 → **83** | 9 条 |
+| browser-e2e | 65 → **55** | 5 条 |
+| diagnose | 67 → **65** | 7 条(③整段省略 · 原文本就没水分) |
+| execute | 38 → **42** | ②③ 归位(原写反:②=自主/③=边界) |
+
+- **记录在案的例外**(STAGES.md §3 明写 · 测试守护「不许有沉默的例外」):`ship-stage.md`(主体是命令序列 + 物化门禁的**操作手册**,四段治的是 HOW-to 教程不是必要操作次序)· `blueprint-lite-stage.md`(v8.223 已废弃)。
+- **顺带修断链**:删 heading 导致 6 处 `§ 测试体系` / `§ SOP` / `§ 怎么做` cite 失效(test-report / browser-test-report / e2e-registry / specs brief)· 全部改指四段段名;`test-baseline --add` 的 `--test-id` + `--reason` 必填在旧文档漏写,补齐与 CLI 一致。
+
+### standards 减法 1773 → 1290(-27%)
+- **common.md 767 → 354**:🔴 砍 **RD 自查规范 + 报告模板 216 行** —— 全库**零机器消费者**(grep 无任何工具校验它)、零文档引用、与 `tech.md §完工自查`(review 真读)职能重复。**但抢救两条真规则**:Build 必跑通才进 Code Review(证据类硬门)+ worktree lazy-install 缺 build 工具链(真踩坑)。另压缩 §二代码架构规范(SOLID/分层教科书)· §四D QA 检查项(与 verify-ac + review 覆盖方向重叠)· §五 mermaid 语法。
+- **backend.md 725 → 655**:TDD 手艺单源 `tdd.md`(它本就声明整段吸收)· 集成测试报告模板压成字段清单。
+- **对照组保留**(判据:模型默认会做反的 = 最高价值):`默认避免 FK`(模型训练默认「加 FK 保证引用完整性」· 本框架明确逆着走)· 降级/兜底必打 WARN 日志 · 统一响应格式与状态码表 · 测试脚本两层结构 · scratch 路径约定 · **Designer 自查**(有 `verify-panorama.py` 物理校验 → 判据①保留,与被砍的 RD 自查形成对照)。
+- 全部入链锚点验过不断链(prd.md→§五 · verify-panorama→§四B · ship/conventions→§六)。
+
+### 验证
+- 新增 test_standards_slimming_v8285(13:RD 自查已删 / 抢救规则仍在 / Designer 自查保留 / 逆默认规则保留 / 锚点不断链 / **四段结构推广守护:全 stage 合规 + 例外必须写进标准**)· v8.284 两处**措辞脆断言**改实质导向。pytest **1015 passed**。
+## v8.286 · standards 硬规则白名单 + 读取路径接通(工程规范并集 · 项目优先)
+
+> 承 v8.285。用户设计:**AI 读「框架工程规范 + 项目 DEV-RULES」的并集,冲突以项目为准**。落地时**没有新建 `dev-rules-teamwork.md`** —— `standards/` 本就是框架级那层(DEV-RULES 模板早写明分工),再造一个会成**第三个家**(v8.284 刚实测过「指针+复制」的漂移)。真问题是**读取路径不对称**:项目 DEV-RULES 是必读、框架 standards 不是,所以框架自己的规范只能被复制进模板才到得了模型(实测同一条日志规则曾活在三处)。
+
+### ① `standards/HARD-RULES.md`(47 行 · 唯一必读)
+- **收录判据 = 与模型默认行为的距离**(只收两类):**逆默认**(模型会做反的 —— 它越强越笃定,越需要明确逆着写)· **不可知**(框架/项目约定 = 信息不是规范)。**模型默认就会的一律不收**(REST/SOLID/TDD 步骤/mermaid/WCAG 细则)—— 收了就是注意力税。
+- 逆默认 9 条:默认避免 FK(项目可覆盖)· 降级/fallback 必打 WARN(缺失阻塞 CR)· 三方异常必 ERROR · 不静默吞异常 · **两个 adapter 才抽象**(模型默认提前抽象)· 安全/兜底必过 ROI · NEVER refactor while RED / 禁 horizontal slicing / 禁 mock 自身内部方法 · TDD Iron Law(例外须用户同意)· ≥3 次失败即升级。
+- 不可知 7 条:scratch 根与 feature_id 纪律 · `[DEBUG-…]` 前缀 + ship 前 grep · 测试脚本两层结构 · 结构化日志必填字段 · 统一响应格式与状态码 · 迁移命名优先级链 · Build 硬门。
+- 分册(common/backend/frontend/tdd/external/scripts-policy)降为**按需查**,不要求通读。
+
+### ② 读取路径接通(这才是原来缺的)
+- blueprint ②1 + dev ②1 改为:**工程规范 = `standards/HARD-RULES.md`(必读)+ 项目 `DEV-RULES.md` 的并集 · 🔴 冲突以项目为准**。
+- `templates/dev-rules.md` 边界表同步(项目侧视角:冲突以本文件为准)。
+- **删最后一处同源副本**:tech.md 的日志规则正文 → 改指白名单(该规则原散在 standards + 模板两处)。
+
+### ③ standards 深度精简 1290 → 1135(累计 1773 → 1135 · **-36%**)
+- backend 655 → 551:日志级别表与 JSON 示例(模型默认就会)· API 响应示例 · FK 理由 10 行压成 2 行(**逆默认规则的 why 必须留** —— 否则模型会反驳或"修正"它,只是不必铺开)。
+- tdd 127 → 93:RED-GREEN-REFACTOR 5 步教程删,只留框架强调的两点(红要真红 / 一绿点一 commit)。
+- frontend 154 → 90:测试规范流程教程删,留项目约定的阈值与清单(覆盖率 / 分层 / 必测场景)。
+- WCAG 细则与 ui-design 刚砍的 rubric 同类,但 frontend 那份含「禁 div onClick / 禁 aria-hidden 键盘陷阱」等**逆默认**项,保留原样。
+
+### 验证
+- 新增 test_hard_rules_v8286(9:白名单够短可必读 / 并集与优先级成文 / 收录判据成文 / 逆默认 6 条在 / 框架约定 5 条在 / blueprint+dev 读取路径已接 / dev-rules 模板同步 / 模板副本已改指针 / 分册总量)· pytest **1024 passed**。
+## v8.287 · TDD 手段规定整体撤除 · 只管结果(怎么测 AI 自觉)
+
+> 用户:「TDD 是否不用写到规范里了,加一句确保每个 TC 用例都有对应实现即可」+「至于怎么做 TDD AI 自觉」。TDD 是**手段**,正是判据⑤(衰减类)的典型 —— 模型早已内建。框架该管的是**结果**,而结果已有机器门与评审兜着,所以撤手段不开洞。
+
+### 撤除(手段规定)
+- `standards/tdd.md` **93 → 42 行**:删 Iron Law(无失败测试不写实现)· RED-GREEN-REFACTOR · 自检清单 · 反模式 · **「跳过 TDD 须用户同意」的例外机制**(TDD 不再强制,例外机制自然失去意义)。
+- dev ③菜单:「TDD 红绿循环 = 强烈建议的默认」→「**测试节奏 AI 自定**」(TDD 红绿 / 先骨架后补边界 / test-after 自选)。
+- tech.md `## TDD 开发计划` → `## 测试与实现计划` · 节奏「AI 自定」;dev brief 目标行、`FLOW_STAGE_CHAIN` dev 描述、`roles/rd.md` telos、STANDARDS.md 路由表同步。
+
+### 保留(结果规则 · 三条)
+1. 🔴 **每个 TC 用例必须有对应实现** —— AC↔TC 由 `verify-ac.py` 管,**TC↔实现这一跳没有机器门**,靠本条(TC 写了没实现 = 需求链最后一米断掉,而「测试全绿」会盖住它)。
+2. 🔴 **测试必须真断言 · 禁 mock 被测组件自身内部方法**(防假绿)——*模型默认倾向:为了让测试过,把正要验的那段 mock 掉。恒绿空壳测试比没测试更危险(门禁/评审/验收同时失效)。*
+3. 🔴 **同一处失败修复 ≥3 次 → 停下升级**(这条**不是 TDD 规则**,是排障纪律 —— 模型默认会一直试)。
+- HARD-RULES §一 的两条 TDD 方法论换成上述①②(③本就在)· tdd.md 补「结果由谁保证」表(verify-ac / test-exit-code + 差分基线 / 不走捷径 + 外审测试真实性 / TECH §测试策略)。
+
+### 为什么撤手段不开洞(核实过)
+假绿是唯一真风险,而它有三道结果侧防线:test-stage ②「不为凑 exit-code=0 走捷径」(skip 必含 reason · 不标 xfail)· review 外审**必覆盖**「测试真实性与覆盖」· review ③菜单「测试质量抽查(是否真断言 · 假绿检测)」。本版再加白名单第 ⑦ 条兜底。
+
+### 验证
+- 两处旧断言(锁 TDD 措辞)更新为新状态:白名单断言改结果规则 · v8.283 的「强烈建议的默认」改为**断言其不存在** + 断言「AI 自定 / 每个 TC 有对应实现」。pytest **1024 passed**。

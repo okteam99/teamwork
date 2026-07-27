@@ -120,6 +120,7 @@ class TestIsAncestor(unittest.TestCase):
 
 
 class TestExternalReviewBaseResolution(unittest.TestCase):
+    """v8.161 base 不变式 · v8.291 换代:命令不再 exec(去 --dry-run)· 不变式由 _resolve_external_base 保持。"""
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp(prefix="rbc-ext-"))
         _git(self.tmp, "init", "-b", "main")
@@ -166,7 +167,7 @@ class TestExternalReviewBaseResolution(unittest.TestCase):
         r = subprocess.run(
             [sys.executable, str(STATE_PY), "external-review",
              "--feature", "docs/features/F1", "--stage", stage,
-             "--commit", commit, "--dry-run"],
+             "--commit", commit],
             cwd=str(self.tmp), capture_output=True, text=True, timeout=60)
         # stdout 是 JSON(末尾可能带其它行 · 取第一段 { ... })
         out = r.stdout

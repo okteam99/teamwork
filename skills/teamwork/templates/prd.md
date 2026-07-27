@@ -13,9 +13,9 @@
 > 🧠 **起草思考规范**(v8.262 · 冷审关注点即起草写法 · **不是写完再检查 · 是写的时候就这样想**):
 > - 写**背景/方案**时:PL 六问过脑(这个价值前提站得住吗?是不是最小范围?动了既有行为吗?)—— 写不顺的地方就是冷审会打的地方;
 > - 写**每条 AC** 时:用可测判据写(明确动作 + 预期 · 边界/异常入 AC)· 「尽量/合理/优化/提升」这类词**落笔即换**成可判定表述 · 配一句 💬 **大白话**(说人话:这条在验证什么 · 非技术用户读得懂 · v8.271);
-> - 写**涉依赖/接口**时:先读真实代码确认存在再写(假设的字段 = 冷审必打的「可实现」finding);
+> - 写**涉依赖/接口**时:先读真实代码确认存在再写 —— 🔴 **在当前 worktree(ship 目标分支)读**,不吃跨分支/记忆的旧调研(v8.282:旧分支/stash 原型的行为可能已变 · 假设的字段或已死的分支 = 冷审读真代码必打的「可实现」finding · 实证 aon-core:PRD 基于 fix 分支旧调研写、staging 领先 233 commits · 状态码 404→422、rejected 桶去向全错);
 > - 用**术语**时:GLOSSARY 没有的 · 当句给定义。
-> - 涉**降级/兜底体验**时:按 **ROI** 取舍(保护的场景概率×后果 vs 复杂度成本 · 立得住做 · 立不住砍)—— 要做的降级体验是**产品决策** · 列进 §待决策项或终确认导读让用户拍板 · 不默默写进方案。
+> - 涉**降级/兜底体验**时:按 **ROI** 取舍(保护的场景概率×后果 vs 复杂度成本 · 立得住做 · 立不住砍)—— 要做的降级体验是**产品决策** · 列进 §待决策项或终确认导读让用户拍板 · 不默默写进方案;🔴 **未命中/坏输入分支必须和命中分支一起落 AC**(v8.282:只写 happy path〔命中〕· miss 是大概率真实分支却漏进 AC = 冷审必打 · 实证 aon-core:降级后 tracking_id 未命中的行为没进 AC · 被 EXT-2/PL-4 抓)。
 > why:finding 采纳率 80-90% = 多数问题起草时可预见 · 按冷审标准写一遍 比 写完被打回改一遍 省一整轮。
 
 ```markdown
@@ -91,31 +91,7 @@ revision_history:   # 🔴 goal-complete 校验 ≥1 条(证明经 review 收敛
 > 不满足以上条件的简单功能可省略本节。
 > 📎 图表规范见 standards/common.md「五、文档流程图规范」，统一使用 Mermaid。
 
-### 业务流程（flowchart，多步骤/有分支时必填）
-\`\`\`mermaid
-flowchart TD
- A[起始] --> B{判断}
- B -->|条件1| C[步骤]
- B -->|条件2| D[步骤]
-\`\`\`
-
-### 系统交互时序（sequenceDiagram，多系统交互时必填）
-\`\`\`mermaid
-sequenceDiagram
- participant U as 用户
- participant C as 客户端
- participant S as 服务端
- U->>C: 操作
- C->>S: 请求
- S-->>C: 响应
-\`\`\`
-
-### 状态流转（stateDiagram，有状态机时必填）
-\`\`\`mermaid
-stateDiagram-v2
- [*] --> 状态A
- 状态A --> 状态B: 触发条件
-\`\`\`
+> 图类型:多步骤/分支 → flowchart · 多系统交互 → sequenceDiagram · 状态机 → stateDiagram-v2。
 
 ## 埋点需求（🟡 前端/客户端业务功能必填；纯技术 refactor / 后端 / 内部功能标"不适用"）
 > ⚠️ 纯后端功能 / 纯技术 refactor 标注「不适用」
@@ -221,16 +197,11 @@ reviews:
  # DEFER 严格收紧:仅 category=business-decision 可用
  category: business-decision # 仅 action=DEFER 时必填，其他类别 DEFER = 违规
  # 对抗性自查段（🔴 方向对称 · 每条 ADOPT/REJECT 前必填 · 默认姿态=质疑 · 不盲目认同）
- # 详 standards/external-model-usage.md §12（处理顺序 质疑→确认→裁决 + 对称举证）
+ # 详 standards/external-model-usage.md §二（处理顺序 质疑→确认→裁决 + 对称举证）
  adversarial_self_check: |
- ADOPT 方向（先质疑 finding 再采纳 · 防盲采=最常踩）：写「这条 finding 不成立的最强反方」
- ——是否 false positive / 过度设计 / 责任焊错层 / 不适用本项目 / reviewer 没看全上下文？
- 然后说明「我回读 {真实代码/AC/DEV-RULES} 确认这些反方都不成立，所以确为真问题」（≥2 句）。
- REJECT 方向（先 steelman finding 再驳）：站在 finding 提出方视角写最强反驳论据（≥2 句）。
- 示例（REJECT）："RD 反方最强论据：PRD 接口缺 token 刷新策略 → 鉴权失败回退登录页 + 跨租户幽灵会话；
- 我的 REJECT 理由必须证明这两点不成立或代价可接受。"
- 示例（ADOPT）："质疑：这条『加幂等键』可能是过度设计——本接口是只读查询，无副作用。
- 回读 dev/handler.go:42 确认它确有写库分支（缓存回填），并发下确会重复写 → 质疑不成立 → 采纳。"
+ ADOPT 方向（先质疑再采纳 · 防盲采=最常踩）：写「这条 finding 不成立的最强反方」(false positive / 过度设计 /
+ 责任焊错层 / 不适用本项目 / reviewer 没看全上下文？) + 「我回读 {真实代码/AC/DEV-RULES} 确认反方不成立」(≥2 句)。
+ REJECT 方向（先 steelman 再驳）：站在 finding 提出方视角写最强反驳论据（≥2 句）。
  rationale: "🔴 ADOPT 必含『质疑→确认链』：① 我质疑了什么 ② 回读 {文件/AC} 确认质疑不成立 ③ 故采纳 + 改了什么 + PRD 段落引用（不接受『reviewer 说得对』式无核实采纳）；REJECT 填'反方论据为何不成立 + 替代方案'；DEFER 填'延后理由 + 追踪位置 + 上升给用户决策的具体问题'"
  responded_at: "<ISO 8601 UTC>"
 overall_verdict: APPROVE | NEEDS_REVISION
@@ -283,47 +254,17 @@ verdict: {APPROVE|NEEDS_REVISION}
 
 > PRD 仅回答「做什么 + 为什么」· 技术/测试细节归 Blueprint(RD/QA 起草)。本 checklist 是 PM 产品视角必填项 · goal-stage.md/roles/pm.md 仅 cite 不复述(单源)。
 
-### 🔴 起草前必读：代码现状 Read
+### 🔴 起草前必读：代码现状
 
 > 为什么硬规则:PM 不读代码 → PRD 假设功能不存在但实际有 / AC 与现有约束冲突 → 冷审才发现 → 多 1 轮评审。
 
-🔴 **PM 起草 PRD 前必须 Read 相关代码模块**（只读不输出 brief，靠 PM 内化）：
+🔴 **起草前把真实代码现状内化** —— 🔴 **在当前 worktree(ship 目标分支)读**,不吃跨分支/记忆的旧调研(v8.282 实证:读旧分支写 PRD · 状态码与行为分支全错)。**读多深 / 怎么找 / 读几个文件由 AI 按本 feature 判断**(v8.283 删原 Step1-4 流程与「≤5 文件 / 1000 行 / 5-10 min」封顶 —— 那是给调研深度设天花板 · 与 grounding 要求自相矛盾)。
 
-```
-Step 1: 从用户原始消息 / triage 意图段提取关键词
- ├── 业务关键词（如"登录" / "推送" / "结算"）
- ├── 模块名（如"shortcut sync" / "package check"）
- └── 触发关键词（如"实测预下载无效果"→ 关键词"预下载"）
-
-Step 2: grep 关键词 → 找入口文件 / 主要模块
- ├── grep 命令：rg "关键词" --type-add ... 或 Glob 找相关文件
- ├── 优先入口：API/route handler / Service 类 / Manager / Controller
- └── 不要发散：3-5 个核心文件 / ~500 行内 / 不超过 10 min
-
-Step 3: Read 这些文件了解
- ├── 现有功能边界（已有什么 / 还没什么）
- ├── 已知约束（接口签名 / 数据流 / 状态机分支 / 性能基线）
- ├── 边界场景（错误码 / 降级路径 / 历史 Hack 注释 TODO/FIXME）
- └── 与本 Feature 改动的关系（新增 / 修改 / 重构 / 替换）
-
-Step 4: PM 起草时把发现内化到 PRD
- ├── AC 描述与代码现状契合（不假设代码不存在 / 不与现有约束冲突）
- ├── 影响范围段提及高层模块（不需要文件清单 · 模块名级即可）
- ├── 发现关键约束 / 不确定点 → 写入 PRD「待决策项」段（PRD 已有位置）
- └── 不输出独立 brief 文档，不在主对话复述 Read 过的文件清单
-```
-
-🔴 **不要做的事**：
-- ❌ 跳过 Read 直接起草（"我从用户消息能推出来"）—— Read 是硬规则，不是建议
-- ❌ Read 5+ 个文件 / 1000+ 行（PM 不是 RD，不做完整代码调研）
-- ❌ 在 PRD 里写代码细节（接口签名 / 数据模型）—— 这些仍归 TECH.md，PRD 只描述用户感知
-- ❌ 在主对话复述 Read 文件清单 / 列文件 brief（污染主对话 · 浪费 token）
-
-🟢 **执行边界**：
-- 时间预算：5-10 min（不是完整代码调研）
-- 输出形式：**只读不输出**（不产 brief 文件 · 不在主对话列读过的文件）
-- 唯一痕迹：PM 起草后 self_check 勾选 `code_context_read: true`（一个 boolean 承诺）
-- 兜底：substep 5 多角色评审(architect/qa)仍会做最后一道核对，PM Read 是前置补强不是替代
+**边界**(约束 · 非方法):
+- **只读不输出**:不产 brief 文件 · 不在主对话复述读过的文件清单(污染主对话 · 浪费 token)
+- **发现内化进 PRD**:AC 与代码现状契合(不假设代码不存在 / 不与现有约束冲突)· 影响范围到模块名级 · 关键约束或不确定点 → §待决策项
+- ❌ **不在 PRD 写代码细节**(接口签名 / 数据模型 → TECH.md · PRD 只描述用户感知)
+- 唯一痕迹:`code_context_read: true`(PRD-REVIEW schema 字段)
 
 🔴 **调研四类**(§4 早问门入场券 · 单源 stages/goal-stage.md ③手段菜单〔调研四类〕):代码现状(本段)+ KNOWLEDGE(Flagged Ambiguities / Preferences / Out-of-Scope)+ GLOSSARY + 上游规划(BL / WS / 愿景 / PENDING + prepare 流程目标)—— 全部 AI 可自答 · 没查完没资格问用户。
 
@@ -334,14 +275,6 @@ Step 4: PM 起草时把发现内化到 PRD
 ## 产品目标（Why）
 - [ ] 解决什么用户问题 / 业务问题
 - [ ] 关联的产品策略 / KNOWLEDGE 历史决策
-
-## 验收标准（AC，可验证的业务行为）
-- [ ] 每条 AC 有唯一 id（AC-1 / AC-2 / ...）
-- [ ] 每条 AC 量化可验证（避免"用户体验好"等模糊描述）
-- [ ] 每条 AC 标注优先级（P0 / P1 / P2）
-- [ ] 每条 AC 配 💬 大白话（表列非空非占位 · 非技术用户读得懂这条在验证什么 · v8.271 机器校验）
-- [ ] 边界场景的业务行为（用户感知的异常 / 错误提示 / 极端输入处理）
-- [ ] AC 可测试性（QA 能从中转化为测试用例 = AC 描述清晰即可，不需要 PM 写测试用例）
 
 ## 影响范围
 - [ ] 明确 in_scope / out_of_scope（避免 scope 蔓延）
@@ -375,13 +308,12 @@ Step 4: PM 起草时把发现内化到 PRD
 ❌ 视觉风格约束 / token / 全景同步细节（→ UI Design Stage / Designer）
 ```
 
-### 🔴 PM 起草后必做自查
+### PM 自查字段(机读 · 非环节)
 
-通用 + UI 用户故事（如适用）勾选完整；如发现自己在写技术细节或测试用例 → 立即停止 + 移到 TECH/TC 起草阶段。
+> v8.263 裁定:规范是**写法**(写的时候就这样想)· 不是写完再逐项过。本节只留 PRD-REVIEW 消费的机读字段。
 
-写入 `PRD-REVIEW.md.reviews[role=pm].pm_self_check`（schema：`{checklist_passed: true|false, code_context_read: true|false, failed_items: ["..."], notes: "..."}`），不复述 checklist 全文（避免主对话重复述 3 遍）。
-
-🔴 **`code_context_read` 字段**：标记 PM 起草前是否完成"代码现状 Read"硬规则（grep 关键词 + Read 3-5 个核心文件 / 5-10 min 内化）。`code_context_read: false` = 跳过 Read 起草 → substep 5 多角色评审若发现 AC 与代码现状冲突，PMO 自动 NEEDS_REVISION 打回 PM 重读重起；不接受"PM 自报已读"以外的省略。
+写入 `PRD-REVIEW.md.reviews[role=pm].pm_self_check`:`{checklist_passed, code_context_read, failed_items[], notes}`(不复述全文)。
+🔴 `code_context_read: false` = 起草前没读真实代码 → 冷审若发现 AC 与代码现状冲突 · PMO 自动 NEEDS_REVISION 打回重起。
 
 ---
 

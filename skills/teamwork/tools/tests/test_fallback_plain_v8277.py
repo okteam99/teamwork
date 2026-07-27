@@ -27,20 +27,18 @@ class TestFallbackPlainColumn(unittest.TestCase):
         h = _fallback_header(self.tech)
         self.assertIn("💬 大白话", h, f"tech.md 兜底表缺大白话列:{h}")
 
-    def test_blueprint_table_has_plain_column(self):
-        h = _fallback_header(self.bp)
-        self.assertIn("💬 大白话", h, f"blueprint §7.5 兜底表缺大白话列:{h}")
+    def test_blueprint_points_to_single_source(self):
+        """v8.284 手段升级:blueprint 不再自带同构副本 · 改「照抄 TECH §兜底清单」+ 点名大白话列。
 
-    def test_two_tables_isomorphic(self):
-        """两表列集一致(同构 · 防抄写丢列)。"""
-        def _cols(h):
-            return [c.strip() for c in h.strip().strip("|").split("|")]
-        self.assertEqual(_cols(_fallback_header(self.tech)),
-                         _cols(_fallback_header(self.bp)),
-                         "tech / blueprint 兜底表列集不一致(v8.255:同类表必须同构)")
+        v8.277 目的 = 暂停点贴出的表别丢列;原手段 = 两表同构。但同一文件里实测到该模式的漂移
+        (§3 与 Output Contract 对 TECH 段落给出 9 段 vs 5 段两份矛盾清单)—— 只有一处定义才不会漂。
+        """
+        self.assertIn("照抄 TECH §兜底清单", self.bp)
+        self.assertIn("💬 大白话列", self.bp)          # 列要求仍在暂停点可见
+        self.assertNotIn("| 兜底 | 💬 大白话 | 保护什么失败场景", self.bp)  # 不再有第二份定义
 
-    def test_plain_column_right_after_name(self):
-        """💬 大白话 紧跟兜底名(读:先看名·紧跟人话)。"""
-        cols = [c.strip() for c in _fallback_header(self.tech).strip("|").split("|")]
+    def test_tech_is_single_source(self):
+        """tech.md 是兜底清单的唯一定义处 · 列顺序:兜底 → 💬 大白话 → …"""
+        cols = [c.strip() for c in _fallback_header(self.tech).strip().strip("|").split("|")]
         self.assertEqual(cols[0], "兜底")
         self.assertEqual(cols[1], "💬 大白话")
