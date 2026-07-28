@@ -165,6 +165,90 @@ def _test_new_failures(args) -> tuple:
     return new, excluded
 
 
+def _worktree_fingerprint(feature_dir) -> str:
+    """v8.306:worktree 当前代码状态指纹 = `HEAD tree` + **未提交 diff** 的 sha256。
+
+    🔴 **零信任**:complete 时由本函数**自己重算**,不读任何 AI 申报的字段 ——
+    这是本版唯一完全可机验的一条(runner/tier/model 都是自我申报,拦忘不拦骗)。
+    取不到 git(非仓库 / git 缺失)→ 返 ""(降级放行 · 绝不因环境问题 BLOCK)。
+    """
+    import hashlib
+    import subprocess as _sp
+    try:
+        cwd = str(Path(feature_dir))
+        tree = _sp.run(["git", "-C", cwd, "rev-parse", "HEAD^{tree}"],
+                       capture_output=True, text=True, timeout=15)
+        if tree.returncode != 0:
+            return ""
+        diff = _sp.run(["git", "-C", cwd, "diff", "HEAD"],
+                       capture_output=True, text=True, timeout=30)
+        payload = tree.stdout.strip() + (diff.stdout if diff.returncode == 0 else "")
+        return hashlib.sha256(payload.encode("utf-8", "replace")).hexdigest()
+    except (OSError, ValueError, _sp.SubprocessError):
+        return ""
+
+
+def _evidence_test_evidence_fresh(state: dict, args) -> tuple[bool, str]:
+    """v8.306:测试证据必须对应**当前**代码状态 —— 挡「先绿、后改、仍拿旧日志过门」。
+
+    AI 跑完测试时传 `--test-tree-hash <指纹>`(配方会给命令),complete 时**自己重算**并比对。
+    不一致 = 测试跑完之后代码又改了,那份 stdout 证明不了现在这份代码。
+
+    🔴 **降级放行的两种情形**(绝不因环境问题 BLOCK):① 算不出指纹(非 git / git 缺失);
+    ② 未传 `--test-tree-hash`(存量 in-flight feature 兼容 · 但会在 hint 里点名)。
+    """
+    declared = (getattr(args, "test_tree_hash", None) or "").strip()
+    current = _worktree_fingerprint(getattr(args, "feature", "."))
+    if not current:
+        return True, "skipped(算不出 worktree 指纹 · 非 git 或 git 不可用 —— 降级放行)"
+    if not declared:
+        return True, ("skipped(未传 --test-tree-hash · 存量兼容)—— "
+                      "🔴 新 feature 请传:跑测试**当时**的 "
+                      "`git rev-parse HEAD^{tree}` + `git diff HEAD` 指纹(配方会给命令)· "
+                      "否则「先绿后改」拦不住")
+    if declared == current:
+        return True, "测试证据对应当前代码状态(指纹一致)"
+    return False, (
+        "🔴 **测试证据已过期**:跑测试时的代码指纹 != 现在的 —— "
+        f"申报 {declared[:12]}… · 现在 {current[:12]}…\n"
+        "   说明测试跑完之后代码**又改过**,那份 stdout 证明不了现在这份代码(「先绿、后改、仍拿旧日志过门」)。\n"
+        "   处置:**重跑测试**(验证档 subagent)并用新指纹重新 complete —— 不要 bypass。")
+
+
+def _evidence_test_runner_declared(state: dict, args) -> tuple[bool, str]:
+    """v8.306:必须申报**谁跑的测试** —— 验证类白名单(v8.299 用户拍板)的物化面。
+
+    🔴 **能力边界(必须说清)**:`--test-runner` 是**自我申报** —— 它拦得住「**忘了**切验证档」,
+    拦不住「**故意**写假」。而实证那次(aon-core · 主窗口直接跑)恰恰是**忘了**:
+    AI 沿用了「主编排收口测试」的旧习惯,提醒早在 stage-start 读过、动作点隔了太远。
+    强制在 complete 时填这个字段 = 逼它在**那个时点**想起这件事(同 v8.299「声明寄生到必写物」)。
+
+    `main-window` 是**允许的值**,但走 v8.299 的例外协议:必须 `--user-authorized`,
+    否则 BLOCK —— 失误变得**可见**而非被静默吞掉。
+    """
+    runner = (getattr(args, "test_runner", None) or "").strip().lower()
+    if not runner:
+        return False, (
+            "缺 `--test-runner` —— 必须申报谁跑的测试(v8.299 验证类白名单的物化面):\n"
+            "   · `subagent`(正解:验证档 subagent 独立跑 · 建议同时传 `--test-runner-model`)\n"
+            "   · `main-window`(主窗口直接跑 = 白名单例外 · 🔴 需 `--user-confirmed` 并说明理由)\n"
+            "   · `ci`(流水线跑)")
+    if runner in ("subagent", "ci"):
+        model = (getattr(args, "test_runner_model", None) or "").strip()
+        return True, (f"runner={runner}" + (f" · model={model}" if model else
+                                            " · ⚠️ 未申报 model(台账计 unspecified)"))
+    if runner == "main-window":
+        if getattr(args, "user_confirmed", False):
+            return True, ("runner=main-window(白名单例外 · 已获用户授权)· "
+                          "⚠️ 台账记 WARN —— 年检看这类例外的频次")
+        return False, (
+            "🔴 `--test-runner main-window`:**测试执行属 v8.299 验证类白名单**,默认必须降到验证档 subagent。\n"
+            "   认为本次特殊 → **不许 AI 自决**:开 R5 暂停点请用户授权(哪个任务 / 为何不适用 / 建议用哪档),\n"
+            "   拿到授权后加 `--user-confirmed` 重跑本命令。\n"
+            "   why:「这次比较难、不该降」是最容易自我合理化的一步 —— 每次都成立就等于白名单不存在。")
+    return False, f"`--test-runner {runner}` 非法 —— 只接受 subagent / main-window / ci"
+
+
 def _evidence_test_exit_code_zero(state: dict, args) -> tuple[bool, str]:
     """校验 --test-exit-code == 0 · 红 base 走差分(当前失败 ⊆ 基线 → 放行)。
 
@@ -973,6 +1057,16 @@ DEV_SPEC = StageSpec(
             name="test_exit_code_zero",
             check_fn=_evidence_test_exit_code_zero,
             description="单测必须全绿 · --test-exit-code = 0",
+        ),
+        StageEvidenceCheck(
+            name="test_evidence_fresh",
+            check_fn=_evidence_test_evidence_fresh,
+            description="测试证据对应当前代码状态(v8.306 · 零信任重算 · 挡「先绿后改」)",
+        ),
+        StageEvidenceCheck(
+            name="test_runner_declared",
+            check_fn=_evidence_test_runner_declared,
+            description="申报谁跑的测试(v8.306 · main-window 属白名单例外 · 需用户授权)",
         ),
         StageEvidenceCheck(
             name="test_stdout_non_empty",

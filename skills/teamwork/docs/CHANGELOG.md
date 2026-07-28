@@ -4,6 +4,41 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.306 · 测试证据的两个维度:谁跑的(申报)+ 对应哪份代码(零信任)
+
+> 实证(aon-core):AI **在主窗口直接跑了测试**,用户问「为什么没切验证档」它才发现。
+> 自陈:「沿用了『主编排收口测试』的做法,**漏掉了 v8.299 的硬规则**」——
+> 🔴 **规则它读过**(自己引用了版本号),漏的是**时点**:提醒在 stage-start,动作在几十个工具调用之后。
+> 与 v8.299 派发声明、v8.301 命令时点是**同一个失效机理**。
+
+### 提案按「可验证性」分三级裁决,不整包收下
+
+| 提案 | 裁决 | 理由 |
+|---|---|---|
+| **tree-hash 绑定** | 🟢 收 | complete 时**自己重算**,不读任何申报字段 = **零信任**;挡的是今天完全没挡的洞:**先绿、后改、仍拿旧日志过门** |
+| **runner/tier/model 申报** | 🟡 收(标清边界) | AI 自己写 → **拦得住「忘了」,拦不住「故意」**;而这次恰恰是忘了,故有效 |
+| **`agent_task_id` 作硬门** | 🔴 不做 | **跨宿主不可得**(Codex 与 Claude Code 的 subagent 标识不同)· 会变成某些宿主上**注定失败的门**(v8.301 判据) |
+
+🔴 提案原文称「这一个门禁就能直接防住我刚才的错误」—— **过誉**。
+不标清「自我申报」这条边界,读者会高估这道门、进而放松其他把关。条文里已写明。
+
+### 三处改动
+
+- **`test_evidence_fresh`**(dev complete 硬门):指纹 = `HEAD tree` + **未提交 diff** 的 sha256。
+  只绑 HEAD 不够 —— 「改了但没提交」同样让旧日志失效。
+  三种降级放行:非 git / 算不出指纹 / 未传参数(存量 in-flight 兼容)——
+  🔴 **绝不因环境问题 BLOCK**(注定失败的门比没有门更糟)。
+- **`test_runner_declared`**(dev complete 硬门):`subagent | main-window | ci`,**不传 = BLOCK**。
+  `main-window` 是**允许的值**,但走 v8.299 例外协议:需 `--user-confirmed`,否则 BLOCK ——
+  **失误变得可见,而不是被静默吞掉**;拿到授权也留 WARN(年检要数得出这类例外的频次)。
+- **`verification_recipe`**(dev/test 的 stage-start emit):派发声明 + **采指纹的可跑命令** + complete 三参数,
+  一次给全。规则读过仍然漏 → 配方必须在**动作点之前**就是完整的,不能让 AI 现拼。
+
+### 九种情形实测
+
+指纹一致 pass · 测完改代码 BLOCK · 未传兼容 pass · 非 git 降级 pass ·
+subagent(带/不带 model)pass · main-window 无授权 BLOCK / 有授权 pass+WARN · 未申报 BLOCK。
+
 ## v8.305 · 🐞 fast_mode 的 blueprint 被门禁强制跑 external(四个面的同一族 bug)
 
 > 用户:**看下 fast 模式是否有 bug。**
@@ -208,60 +243,5 @@ v8.298(判据算不出分子分母)是同一类:**规则写在哪不重要,结�
 ### 测试
 
 1061 → **1069**。
-
----
-
-## v8.301 · 不在门禁的适用阶段之前跑它 + 命令按「AI 要不要记」重分类
-
-> 用户:①「为什么在 goal 阶段调用 verify-ac」②「是否有必要降低脚本数量,AI 只需记流转脚本」
-
-### 一、case:一个注定失败的调用
-
-AI 在 **goal 阶段**手跑 `verify-ac.py`,必然 FAIL(TC.md 是 blueprint 产物),只能自辩「预期的失败」。
-查下来三件事同时成立:
-
-- **纯冗余** —— 它想验的「AC 机读块本身」**早已由 goal-complete 的 `prd_template_conformance` 校验**;
-- **有诱导源** —— `templates/prd.md` 机读块头写着「**verify-ac + goal-complete 解析此块**」。
-  陈述属实,但摆在 goal 阶段的 PRD 里就读成「去跑 verify-ac 验一下」· **属实的话摆错位置也会误导**;
-- **工具给的是裸失败** —— 只说「TC.md 不存在」,没告诉调用方「你不该在这个时点调我」。
-
-🔴 **危害不在浪费这一次**:注定失败的调用逼调用方把 FAIL 解释成「预期的」,
-而**「预期的 FAIL」一旦被正常化,真 FAIL 就会被同样对待** —— 门禁的全部价值在于「红了就是有事」。
-
-**修**:① 去诱导源(prd.md / templates/README 改成说清谁在什么时候跑)·
-② 工具侧**保持 exit=1**(blueprint/test 的门依赖它)但把裸失败换成**路由信息**
-(「TC 是 blueprint 产物」+「AC 块归 goal-complete 的 `prd_template_conformance`」+「覆盖校验在 blueprint/test-complete 自动跑」)·
-③ 立 `standards/scripts-policy.md § R-SP-1c`:跑之前先问「这个门管的产物现在存在吗」+
-「想验的东西是不是已经有门在管」;**工具侧的义务 = 给路由信息而不是裸失败**。
-
-### 二、命令按「AI 要不要记」重分类 —— 该减的不是脚本数量
-
-先测再答:**56 子命令 = 30 流转 + 26 辅助**;辅助里**只有 6 个**出现在流程 brief,20 个靠 AI 自己记。
-但那 20 个要分开看 —— **10 个是逃生口**(`recover`/`raw-write`/`reset-prev`… · AI 主动跑才是问题,不记正确)·
-**10 个是「该在时点推却没推」的真缺口**。
-
-🔴 **删有用的命令 = 丢功能;让命令在正确时点被 emit = 零记忆负担 + 功能全留。**
-而 verify-ac 那个 case 正是证明:**问题不是脚本多,是 AI 记住了一个它不该在那个时点跑的脚本** ——
-减少总数解决不了它。
-
-`SKILL.md` 命令段按**记忆义务**重分三类(不是按功能):
-**A 必记**(30 流转)· **B 不必记**(流程在动作点推 · 带可直接跑的完整命令行)· **C 不必记也别主动跑**(逃生口)。
-判据:**「这个命令有没有一个确定的动作时点?」** 有 → 归 B 并**接进那个时点的 emit(不许只写进文档)**;没有 → 归 C。
-
-**补齐两个动作点推送**(照 v8.295 `stage_cost_hint` 形态):
-- `review-preventability` → **评审收敛时**(goal/blueprint/review 的 complete 且 verdict 非 NEEDS_REVISION)·
-  带真实路径 + 说明「零可预防也要记」(`--preventable 0` —— 「全 emergent」与「没记录」是两回事);
-- `ledger-migrate` → **ship1 archive brief**,并写明「**写台账行之前**先跑,漏了新行会按旧表头错位」。
-
-> **为什么「写进 stage 文档」不够**:文档在 stage-start 读,动作点常在几十个工具调用之后 ——
-> **提醒与动作之间隔了太多 context**(v8.299 实证:agent 读过派发声明制仍然漏了)。
-> `review-preventability` 本来就写在 `review-stage.md` 硬规则 8 里,照样没到达。
-
-> 📌 反面用例:`add-concern`(auto skip 留痕)**故意不推** —— 它的动作点是「AI 自己决定跳暂停点那一刻」,
-> 机器观测不到。按本版判据「没有确定动作时点 → 不进提醒」,留在文档里是**自洽的**,不是遗漏。已加门锁住这个判断。
-
-### 测试
-
-1046 → **1061**。
 
 ---
