@@ -205,7 +205,18 @@ def main():
         print(f"❌ PRD.md 不存在：{prd}", file=sys.stderr)
         return 1
     if not tc.exists():
+        # v8.301:TC.md 是 blueprint 阶段产物 —— 在 goal 阶段跑本脚本必然到这里。
+        # 保持 exit=1(blueprint-complete / test-complete 的门依赖它),但把裸失败
+        # 换成**路由信息**:告诉调用方「你不该在这个时点调我」以及「你想验的东西谁在管」。
+        # why:注定失败的调用会逼调用方自我解释成「预期的 FAIL」——
+        # 而「预期的 FAIL」一旦被正常化,真 FAIL 就会被同样对待。
         print(f"❌ TC.md 不存在：{tc}", file=sys.stderr)
+        print("   ℹ️ TC.md 是 blueprint 阶段产物。若当前在 goal 阶段,本校验尚不适用:",
+              file=sys.stderr)
+        print("      · AC 机读块本身 → goal-complete 的 prd_template_conformance 已校验(无需手跑本脚本)",
+              file=sys.stderr)
+        print("      · AC↔TC 覆盖    → blueprint-complete / test-complete 自动跑本脚本",
+              file=sys.stderr)
         return 1
 
     # 1. 解析 PRD frontmatter

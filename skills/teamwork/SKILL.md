@@ -1,6 +1,6 @@
 ---
 name: teamwork
-version: v8.300.1
+version: v8.303.1
 description: AI 协作开发一体化框架 - 需求功能开发, bug 修复, 问题排查 · /teamwork 启动
 ---
 
@@ -101,9 +101,29 @@ worktree 路径规范见 [docs/conventions.md §9-12](./docs/conventions.md)。
 
 > v8.290:原 30 行逐条枚举已删 —— **实测已漂**(52 个真实子命令里 11 个从未出现在本文件:`execute-start/complete`〔整个 micro 流程〕· `review-preventability` · `ws-lint` / `ws-progress` · `test-baseline` · `ledger-migrate` · `reset-prev` · `external-ingest` 等)。**指针 + 复制被指向内容 = 副本必漂**,这里只留 `--help` 给不出的**分类心智**:
 
-- **A 类 · 状态机入口**:`init-feature`(在 worktree 内跑)。⚠️ `triage` 与 `prepare` **不是命令** —— 前者是 PMO 入口行为(见本文件 § Triage 入口规范)· 后者是主对话子流程(见 [docs/prepare.md](./docs/prepare.md))。
-- **B 类 · Stage 流转**:每个 stage 一对 `<stage>-start` / `<stage>-complete`(链与可选性见 [FLOWS.md](./FLOWS.md))+ `review/test` 的 `-fix` / `-retry` 循环 + ship 专属(`ship-phase --action {sanitize|archive|push|close-unmerged}` · `await-merge` · `ship-finalize` · `main-sync`)。
-- **C 类 · 维护与数据**:`snapshot`(别名 `status`)/ `validate` / `raw-read` / `raw-write` / `recover`(state 被外改后重认证)· 台账与工具类(`test-baseline` / `ledger-migrate` / `ws-lint` / `ws-progress` / `review-preventability` / `external-review` / `change-review-roles` / `pause-mark` / `add-concern` …)。
+> 🔴 **v8.301 按「AI 要不要记」分类**(不是按功能分)—— 56 个子命令里,**AI 只需记住 A 类**。
+> 实测触发:某次 AI 在 goal 阶段手跑 `verify-ac.py`(它记住了这个脚本),而该脚本在 goal **必然 FAIL**
+> —— 减少命令总数解决不了这个,只有**把对的命令在对的时点推给它**才解决。
+
+- **A 类 · 必记(状态机流转 · 30 个)**:`init-feature` + 每 stage 一对 `<stage>-start` / `<stage>-complete`
+  + `review/test` 的 `-fix` / `-retry` + ship 专属(`ship-phase --action {sanitize|archive|push|close-unmerged}` /
+  `await-merge` / `ship-finalize`)。链与可选性见 [FLOWS.md](./FLOWS.md)。
+  ⚠️ `triage` 与 `prepare` **不是命令** —— 前者是 PMO 入口行为(见本文件 § Triage 入口规范)·
+  后者是主对话子流程(见 [docs/prepare.md](./docs/prepare.md))。
+
+- **B 类 · 不必记(流程在动作点推给你)**:`review-preventability` · `stage-cost` · `ledger-migrate` ·
+  `external-review` · `add-concern`(auto skip 时)· `pause-mark` · `test-baseline` · `change-review-roles` …
+  🔴 **它们会带着可直接跑的完整命令行出现在对应 emit / brief 里** —— 不必背,**照着跑**。
+  > why:写进 stage 文档 ≠ 到达。文档在 stage-start 读,而动作点常在几十个工具调用之后 ——
+  > **提醒与动作之间隔了太多 context**(v8.299 实证:agent 读过派发声明制仍然漏了)。
+
+- **C 类 · 不必记也别主动跑(逃生口 · 出事或用户要求时才用)**:`snapshot`(别名 `status`)/ `validate` /
+  `raw-read` / `raw-write` / `recover` / `reset-prev` / `jump-to-stage` / `set-mode` / `audit-raw-writes` /
+  `main-sync`。**查 `--help` 即可** —— AI 主动跑这些通常意味着它在绕流程。
+
+🔴 **判据**:**「这个命令有没有一个确定的动作时点?」** 有 → 归 B 类并接进那个时点的 emit(不许只写进文档);
+没有(靠人判断何时用)→ 归 C 类,不进任何提醒。**A 类之外都不该出现在 AI 的记忆负担里。**
+
 
 命令现行权威 = `state.py --help` + [`tools/_v8_stage_specs.py`](./tools/_v8_stage_specs.py)(各 stage 契约)。
 
@@ -132,6 +152,30 @@ state.py 物化了 9 红线中 8 条 · R3 + 部分行为约束(R4 / R5(b) / byp
 ### R3 · PMO 统一承接
 
 所有用户输入 PMO 先承接 · 禁止 RD/Designer/PM 等角色直接响应(用户输入直接打 RD = 跳过 PM 的 PRD)。
+
+### R3-E · 断言必须标注证据边界(v8.303)
+
+🔴 **说某段代码/系统有某属性时,要么本次会话读过那一行,要么显式写「推断」——不许中间态。**
+
+**高发形态 = 「读了旁边」**:grep 命中了 / 看到类型签名了 / 量了一个维度 —— 然后据此一般化到
+**没亲眼看过的属性**(serde 标注 · DB 约束 · 默认值 · 那个分支是不是死代码)。
+**证据是真的,推论是自己加的,而两者用同一语气一起给了出去。**
+
+**给用户与下游的结论按证据分层写**:
+
+> 「BFF 是类型化反序列化(**已验证** · 读了 `xxx.rs:1255`);因此我推断可增量扩展(**未验证** —— 没看 serde 是否 `deny_unknown_fields`)」
+
+用户据此一眼知道**哪句该打问号**。这不减少出错,但让错误**在到达用户之前就带着标签**。
+
+> *模型默认:把事实与推论连成一段流畅叙述 —— 那正是流畅写作的本质,所以必须逆着写。
+> **且模型越强、叙述越流畅,推论就越像事实** —— 这条**不随模型变强而衰减,反而更需要**。*
+>
+> why(实证 SVC-CORE-F260728):AI 自省 9 个错误后归纳出**唯一共同点** ——
+> 「我读了旁边的代码,然后把结论说成读过那一行」。其中一条把 external 给的行号直接写进 TECH
+> (该函数根本不存在)· 一条据类型签名推出「新字段会被丢弃」(实为 `deny_unknown_fields` 会 502)。
+> **不是验证不够** —— 那个 session 跑了几十次 grep 与 staging 实测;**是不标注验证止于何处**。
+> 框架已有的 7+ 条规则(grounded 真实代码 / 不轻信摘要 / decisive 前提核验)**全在输入端**,
+> 没有一条管输出端怎么标。
 
 ### R4 · 流程边界
 
@@ -188,6 +232,8 @@ state.py 物化了 9 红线中 8 条 · R3 + 部分行为约束(R4 / R5(b) / byp
 - 不可省略**编号** / **💡 推荐** / **理由**(缺任一 = 把判断甩回用户 + `ok` 快捷词失灵)。
 - 🔴 **方案/变更确认类必自带变更点明细**:让用户拍板「改 X」时 · 选项之前必给**变更点清单**(对象级 · 每条一行:对象|变更|用途)—— 情境一句 + 分类概括 + 文件指针**不算**(用户被迫追问「方案是什么」= 暂停点白跑一轮)· 指针只作深读补充。
 - 单选 → 1/2/3 · 多决策 → 1A/2B · 用户回 `ok` = **选 💡 推荐项**。
+- 🔴 **「必带建议 + 理由」不止于三选项格式**(v8.302):**任何抛给用户的决策项都算** —— PRD §待决策项逐条 · 多项一次性 escalate · 方案分叉 · 「要不要现在做 X」。**列了选项不给倾向 = 把判断甩回用户**,而 AI 有全部上下文、用户没有。
+  🔴 **真推荐不了也要写明是哪一种**:① 缺信息(缺什么 · 谁能给)· ② 纯偏好(无技术优劣)· ③ 等上游决策。**空着不算** —— 用户只会被迫追问「你的建议和理由是什么」(实证 SVC-CORE-F260728:四条待决策项裸列,被逐条追问)。
 
 ### bypass 协议(R8 写操作硬门禁链 · 逃生通道)
 
