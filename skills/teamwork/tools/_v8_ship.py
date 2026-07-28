@@ -1061,10 +1061,19 @@ def _handle_ship_archive(state: dict, args: argparse.Namespace) -> dict:
 
 
 def _ship1_push_brief(feature_id: str, feature_path: str) -> str:
-    """archive 后的 push + MR 指引(P0-113 CLI-first)。"""
+    """archive 后的 push + MR 指引(P0-113 CLI-first)。
+
+    v8.301:台账相关命令在**动作点**推(原来只写在 ship-stage 文档里)——
+    `ledger-migrate` 必须在 append **之前**跑,漏了会让新行按旧表头错位、年检读错列。
+    """
     return (
         "✅ 归档已进 feature 分支(MR diff 干净:过程文件加了又删 = 净零 · 只剩 "
-        "代码 + zip + INDEX + 翻牌行)。接下来:\n"
+        "代码 + zip + INDEX + 翻牌行)。\n"
+        "📒 **写台账行之前先跑**(幂等 · 已最新则 no-op):\n"
+        f"     `state.py ledger-migrate --feature {feature_path}`\n"
+        "     🔴 不迁移就直接 append → **新行按旧表头错位**(年检读错列)· 台账列语义见 "
+        "templates/process-ledger.md;归因叙述与流程反思归 `docs/retros/<id>-process.md`(模板 process-retro.md)。\n"
+        "接下来:\n"
         "  ① git push origin <feature 分支>\n"
         "  ② CLI-first 创建 feature MR(P0-113):gh pr create / glab mr create "
         "(拿真实 MR URL · 不退化用 push hint 表单链接)\n"

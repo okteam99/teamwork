@@ -1998,6 +1998,8 @@ def execute_stage_complete(
     )
     _sc_hint = _stage_cost_hint(stage_spec.name, getattr(args, "feature", "<path>"),
                                 contract.get("duration_minutes", 0))
+    _pv_hint = _preventability_hint(stage_spec.name, getattr(args, "feature", "<path>"),
+                                    getattr(args, "verdict", None))
     emit_json({
         "verdict": "PASS",
         "stage": stage_spec.name,
@@ -2019,6 +2021,7 @@ def execute_stage_complete(
         **({"pause_options_markdown": pause_options_markdown} if pause_options_markdown else {}),
         **({"fix_retry_hint": fix_retry_hint} if fix_retry_hint else {}),
         **({"stage_cost_hint": _sc_hint} if _sc_hint else {}),
+        **({"preventability_hint": _pv_hint} if _pv_hint else {}),
         **({"raw_write_audit": rw_audit} if rw_audit else {}),
         **({"main_tree_pollution": {
             "count": len(pollution),
@@ -2036,6 +2039,26 @@ def execute_stage_complete(
 # 否则就退化成 v8.283 判定会衰减的「环节化自检」)。提示放在 complete emit 而非写进各 stage 文档:
 # 机器在**正确的时刻**提醒,不靠文档记忆;非门禁,不记也放行。
 _STAGE_COST_STAGES = ("goal", "ui_design", "blueprint", "dev", "review", "test", "browser_e2e")
+
+
+def _preventability_hint(stage: str, feature: str, verdict) -> Optional[str]:
+    """v8.301:评审收敛的**动作点**推 review-preventability —— 不再只写在 stage 文档里。
+
+    why:文档在 stage-start 读,收敛发生在几十个工具调用之后 —— 提醒与动作之间隔了太多 context
+    (v8.299 实证:agent 读过派发声明制仍然漏)。stage 文档写了 ≠ 到达。
+    """
+    if stage not in ("goal", "blueprint", "review"):
+        return None
+    if str(verdict or "").upper() not in ("APPROVE", "PASS", ""):
+        return None
+    return (
+        f"📊 **本轮评审已收敛 —— 记一笔起草可预防性**(非门禁 · 年检据此判起草考虑点缺不缺):\n"
+        f"   `state.py review-preventability --feature {feature} --stage {stage} "
+        f"--preventable <本可预防条数> --total <确认 findings 总数> "
+        f"--missing '<缺的起草考虑点;分号分隔 · 全 emergent 留空>'`\n"
+        f"   判据:这条 finding **起草时本可预防吗**(本应被 PL六问 / TECH 简洁性自查 / 复发清单挡掉)· "
+        f"零可预防也照记(`--preventable 0`)—— 「全 emergent」与「没记录」是两回事。"
+    )
 
 
 def _stage_cost_hint(stage: str, feature: str, duration_minutes) -> Optional[str]:

@@ -1,6 +1,6 @@
 ---
 name: teamwork
-version: v8.300.1
+version: v8.301
 description: AI 协作开发一体化框架 - 需求功能开发, bug 修复, 问题排查 · /teamwork 启动
 ---
 
@@ -101,9 +101,29 @@ worktree 路径规范见 [docs/conventions.md §9-12](./docs/conventions.md)。
 
 > v8.290:原 30 行逐条枚举已删 —— **实测已漂**(52 个真实子命令里 11 个从未出现在本文件:`execute-start/complete`〔整个 micro 流程〕· `review-preventability` · `ws-lint` / `ws-progress` · `test-baseline` · `ledger-migrate` · `reset-prev` · `external-ingest` 等)。**指针 + 复制被指向内容 = 副本必漂**,这里只留 `--help` 给不出的**分类心智**:
 
-- **A 类 · 状态机入口**:`init-feature`(在 worktree 内跑)。⚠️ `triage` 与 `prepare` **不是命令** —— 前者是 PMO 入口行为(见本文件 § Triage 入口规范)· 后者是主对话子流程(见 [docs/prepare.md](./docs/prepare.md))。
-- **B 类 · Stage 流转**:每个 stage 一对 `<stage>-start` / `<stage>-complete`(链与可选性见 [FLOWS.md](./FLOWS.md))+ `review/test` 的 `-fix` / `-retry` 循环 + ship 专属(`ship-phase --action {sanitize|archive|push|close-unmerged}` · `await-merge` · `ship-finalize` · `main-sync`)。
-- **C 类 · 维护与数据**:`snapshot`(别名 `status`)/ `validate` / `raw-read` / `raw-write` / `recover`(state 被外改后重认证)· 台账与工具类(`test-baseline` / `ledger-migrate` / `ws-lint` / `ws-progress` / `review-preventability` / `external-review` / `change-review-roles` / `pause-mark` / `add-concern` …)。
+> 🔴 **v8.301 按「AI 要不要记」分类**(不是按功能分)—— 56 个子命令里,**AI 只需记住 A 类**。
+> 实测触发:某次 AI 在 goal 阶段手跑 `verify-ac.py`(它记住了这个脚本),而该脚本在 goal **必然 FAIL**
+> —— 减少命令总数解决不了这个,只有**把对的命令在对的时点推给它**才解决。
+
+- **A 类 · 必记(状态机流转 · 30 个)**:`init-feature` + 每 stage 一对 `<stage>-start` / `<stage>-complete`
+  + `review/test` 的 `-fix` / `-retry` + ship 专属(`ship-phase --action {sanitize|archive|push|close-unmerged}` /
+  `await-merge` / `ship-finalize`)。链与可选性见 [FLOWS.md](./FLOWS.md)。
+  ⚠️ `triage` 与 `prepare` **不是命令** —— 前者是 PMO 入口行为(见本文件 § Triage 入口规范)·
+  后者是主对话子流程(见 [docs/prepare.md](./docs/prepare.md))。
+
+- **B 类 · 不必记(流程在动作点推给你)**:`review-preventability` · `stage-cost` · `ledger-migrate` ·
+  `external-review` · `add-concern`(auto skip 时)· `pause-mark` · `test-baseline` · `change-review-roles` …
+  🔴 **它们会带着可直接跑的完整命令行出现在对应 emit / brief 里** —— 不必背,**照着跑**。
+  > why:写进 stage 文档 ≠ 到达。文档在 stage-start 读,而动作点常在几十个工具调用之后 ——
+  > **提醒与动作之间隔了太多 context**(v8.299 实证:agent 读过派发声明制仍然漏了)。
+
+- **C 类 · 不必记也别主动跑(逃生口 · 出事或用户要求时才用)**:`snapshot`(别名 `status`)/ `validate` /
+  `raw-read` / `raw-write` / `recover` / `reset-prev` / `jump-to-stage` / `set-mode` / `audit-raw-writes` /
+  `main-sync`。**查 `--help` 即可** —— AI 主动跑这些通常意味着它在绕流程。
+
+🔴 **判据**:**「这个命令有没有一个确定的动作时点?」** 有 → 归 B 类并接进那个时点的 emit(不许只写进文档);
+没有(靠人判断何时用)→ 归 C 类,不进任何提醒。**A 类之外都不该出现在 AI 的记忆负担里。**
+
 
 命令现行权威 = `state.py --help` + [`tools/_v8_stage_specs.py`](./tools/_v8_stage_specs.py)(各 stage 契约)。
 

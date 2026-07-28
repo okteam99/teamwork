@@ -10,7 +10,7 @@
 
 | 文件 | 用途 | 主要消费方 / 时机 |
 |------|------|------------------|
-| [prd.md](./prd.md) | PRD（`TEAMWORK-MACHINE` 机读块含 `acceptance_criteria[]`） | goal stage PM 起草 · verify-ac / 评审 / dev 消费 |
+| [prd.md](./prd.md) | PRD（`TEAMWORK-MACHINE` 机读块含 `acceptance_criteria[]`） | goal stage PM 起草(goal-complete 校验机读块)· blueprint 起被 verify-ac / 评审 / dev 消费 |
 | [tc.md](./tc.md) | 测试用例（frontmatter `tests[].covers_ac` 反查 AC） | blueprint stage QA 起草 · verify-ac 校验覆盖 |
 | [tech.md](./tech.md) | 技术方案设计 | blueprint stage RD 起草 · 架构师 Tech Review |
 | [ui.md](./ui.md) | UI 意图 / 追溯 / 审计（视觉真相在 preview 产物） | ui_design stage Designer 产出 |
@@ -54,7 +54,7 @@
 | [teamwork_localconfig.json](./teamwork_localconfig.json) | `.teamwork_localconfig.json` 实例模板（worktree / scope / id_strategy 等 + bootstrap state） | bootstrap 创建与维护 |
 | [local-env-config.properties](./local-env-config.properties) | `.teamwork-local-env/config.properties` 模板（本机 secret · 双重 gitignore） | bootstrap 缺失时自动建 · 用户填真值 |
 | [preview-project-preview.sh](./preview-project-preview.sh) | same-stack 预览脚本（动态端口 dev server · 输出 PREVIEW_URL） | ui_design / 规划层全景 seed 时拷入 `preview-project/` |
-| [verify-ac.py](./verify-ac.py) | AC↔test 覆盖机器校验脚本（直接调 · 无需复制） | blueprint / dev Output Contract 调用 |
+| [verify-ac.py](./verify-ac.py) | AC↔test 覆盖机器校验脚本（直接调 · 无需复制） | 🔴 **blueprint-complete / test-complete 自动跑** · goal 阶段不适用(TC 尚未产出) |
 
 ## 机制文件（决策 / 测试资产）
 

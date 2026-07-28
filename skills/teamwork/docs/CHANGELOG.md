@@ -4,6 +4,61 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.301 · 不在门禁的适用阶段之前跑它 + 命令按「AI 要不要记」重分类
+
+> 用户:①「为什么在 goal 阶段调用 verify-ac」②「是否有必要降低脚本数量,AI 只需记流转脚本」
+
+### 一、case:一个注定失败的调用
+
+AI 在 **goal 阶段**手跑 `verify-ac.py`,必然 FAIL(TC.md 是 blueprint 产物),只能自辩「预期的失败」。
+查下来三件事同时成立:
+
+- **纯冗余** —— 它想验的「AC 机读块本身」**早已由 goal-complete 的 `prd_template_conformance` 校验**;
+- **有诱导源** —— `templates/prd.md` 机读块头写着「**verify-ac + goal-complete 解析此块**」。
+  陈述属实,但摆在 goal 阶段的 PRD 里就读成「去跑 verify-ac 验一下」· **属实的话摆错位置也会误导**;
+- **工具给的是裸失败** —— 只说「TC.md 不存在」,没告诉调用方「你不该在这个时点调我」。
+
+🔴 **危害不在浪费这一次**:注定失败的调用逼调用方把 FAIL 解释成「预期的」,
+而**「预期的 FAIL」一旦被正常化,真 FAIL 就会被同样对待** —— 门禁的全部价值在于「红了就是有事」。
+
+**修**:① 去诱导源(prd.md / templates/README 改成说清谁在什么时候跑)·
+② 工具侧**保持 exit=1**(blueprint/test 的门依赖它)但把裸失败换成**路由信息**
+(「TC 是 blueprint 产物」+「AC 块归 goal-complete 的 `prd_template_conformance`」+「覆盖校验在 blueprint/test-complete 自动跑」)·
+③ 立 `standards/scripts-policy.md § R-SP-1c`:跑之前先问「这个门管的产物现在存在吗」+
+「想验的东西是不是已经有门在管」;**工具侧的义务 = 给路由信息而不是裸失败**。
+
+### 二、命令按「AI 要不要记」重分类 —— 该减的不是脚本数量
+
+先测再答:**56 子命令 = 30 流转 + 26 辅助**;辅助里**只有 6 个**出现在流程 brief,20 个靠 AI 自己记。
+但那 20 个要分开看 —— **10 个是逃生口**(`recover`/`raw-write`/`reset-prev`… · AI 主动跑才是问题,不记正确)·
+**10 个是「该在时点推却没推」的真缺口**。
+
+🔴 **删有用的命令 = 丢功能;让命令在正确时点被 emit = 零记忆负担 + 功能全留。**
+而 verify-ac 那个 case 正是证明:**问题不是脚本多,是 AI 记住了一个它不该在那个时点跑的脚本** ——
+减少总数解决不了它。
+
+`SKILL.md` 命令段按**记忆义务**重分三类(不是按功能):
+**A 必记**(30 流转)· **B 不必记**(流程在动作点推 · 带可直接跑的完整命令行)· **C 不必记也别主动跑**(逃生口)。
+判据:**「这个命令有没有一个确定的动作时点?」** 有 → 归 B 并**接进那个时点的 emit(不许只写进文档)**;没有 → 归 C。
+
+**补齐两个动作点推送**(照 v8.295 `stage_cost_hint` 形态):
+- `review-preventability` → **评审收敛时**(goal/blueprint/review 的 complete 且 verdict 非 NEEDS_REVISION)·
+  带真实路径 + 说明「零可预防也要记」(`--preventable 0` —— 「全 emergent」与「没记录」是两回事);
+- `ledger-migrate` → **ship1 archive brief**,并写明「**写台账行之前**先跑,漏了新行会按旧表头错位」。
+
+> **为什么「写进 stage 文档」不够**:文档在 stage-start 读,动作点常在几十个工具调用之后 ——
+> **提醒与动作之间隔了太多 context**(v8.299 实证:agent 读过派发声明制仍然漏了)。
+> `review-preventability` 本来就写在 `review-stage.md` 硬规则 8 里,照样没到达。
+
+> 📌 反面用例:`add-concern`(auto skip 留痕)**故意不推** —— 它的动作点是「AI 自己决定跳暂停点那一刻」,
+> 机器观测不到。按本版判据「没有确定动作时点 → 不进提醒」,留在文档里是**自洽的**,不是遗漏。已加门锁住这个判断。
+
+### 测试
+
+1046 → **1061**。
+
+---
+
 ## v8.300 · 档位映射按厂商分列 + 清 v8.299 的三处自伤
 
 > 用户:档位表的「当前映射」写清晰一点 + 发版。
@@ -261,53 +316,5 @@ v8.296 收尾时我补了一条**反向锁**:「`_v8_ship.py` 里新增 `ledger_
 ### 测试
 
 998 → **1005**。
-
----
-
-## v8.296 · `docs/audit/` 整条退役 —— 数据追踪不了 · 后续以 retro 为准
-
-> 用户:**docs/audit/ 这个逻辑可以去掉了,数据没办法追踪,后续以 retro 为准。**
-
-### 为什么它追踪不了
-
-运行时文件落 **`~/.teamwork/audit/`(机器本地 · git 不跟踪)** —— 跨机器 / 跨人**根本聚不起来**,
-而它的 telos 恰恰是「框架层面**跨项目**搜集流程质量」。代码里也早就自陈「**审计只写不读**」
-(`_v8_ship.py`)。框架仓 `docs/audit/` 目录里 22 个文件中**只有 README 进过 git**,
-其余 21 个是 gitignore 的残留。
-
-**它原本要办的事,已经被两处覆盖**(且两处都真的在 git 里):
-- `project-specs/PROCESS-LEDGER.md` —— 一行一 feature · 机器字段 · **随 feature MR 原子合入** · 可查表算账
-- `docs/RETRO-LEDGER.md` —— 框架侧一行一版 · 永久 · 年检直接读
-
-### 删了什么
-
-| 位置 | 内容 |
-|---|---|
-| `_v8_ship.py` | `_write_audit_record`(86 行)+ `_capture_audit_sources`(27)+ `_audit_dir`(11)+ 调用点与 emit |
-| `_v8_ship.py` | 🔴 **`--main-model` 死参数** —— 唯一消费者就是 audit record,help 还写着「写入 audit」= 在说谎 |
-| `docs/audit/` | 整个目录(README + 21 个 gitignore 残留)· `.gitignore` 对应规则 |
-| `update.py` | 对账豁免前缀收窄为 `("docs/retro/",)` |
-| `ship-stage.md` | 「三处落点」→「两处落点」· ship2 的审计回收段删掉 |
-| 测试 | `test_audit_sources_v8207.py` 整文件 + `test_ship_v8145_flow` 两例 + 残留 `TEAMWORK_AUDIT_DIR` env |
-
-**保留**(同名不同物,别误伤):`_prepare_audit_path`(prepare-check 的 jsonl)是**活门禁** ——
-主工作区 prepare → worktree init-feature 靠它对通,有真读者。
-
-### 退役时发现的覆盖缺口(顺手补上)
-
-`test_pause_mark_v8192` 里两个用例断言的是 audit 草稿渲染(user_email / AI-wait 三分 / host frontmatter),
-删之前查了一下:这批数据的**活消费者** `ledger_timing`(→ PROCESS-LEDGER 四列)**零测试覆盖** ——
-唯一的端到端保障挂在将死的那条线上。故不是删,是**改断言活路径**,并补一条「退役 audit 不能顺手砍掉台账数据源」。
-
-> 教训进 RETRO:**退役一条链路前,先看它是不是别人唯一的测试宿主。**
-
-### 反馈往哪走(替代口径)
-
-框架级 bug / 工具判例 → 写进 PROCESS-LEDGER 行的「反思摘要」列(随 MR 进 git · 年检查得到);
-真值得改框架的 → 开 issue 或在框架仓落 RETRO-LEDGER 行。**别再指望本机的审计文件被谁读到。**
-
-### 测试
-
-1001 → **996**(净减 5:删掉 7 条测已删机制的,补回 2 条测活路径的)。
 
 ---

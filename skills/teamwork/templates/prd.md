@@ -19,7 +19,7 @@
 > why:finding 采纳率 80-90% = 多数问题起草时可预见 · 按冷审标准写一遍 比 写完被打回改一遍 省一整轮。
 
 ```markdown
-<!-- TEAMWORK-MACHINE · 机读契约 · MD 预览隐藏(所有渲染器都不显)· verify-ac + goal-complete 解析此块 · 勿删外层注释包裹 · 标准 2 空格缩进
+<!-- TEAMWORK-MACHINE · 机读契约 · MD 预览隐藏(所有渲染器都不显)· goal-complete 解析此块做 conformance 校验(blueprint 起 verify-ac 也读它)· 🔴 **goal 阶段不必手跑 verify-ac** —— 它校验 AC↔TC,而 TC 是 blueprint 产物 · 勿删外层注释包裹 · 标准 2 空格缩进
 feature_id: "{缩写}-F{编号}-{功能名}"
 status: draft # draft | pending_review | confirmed
 requires_ui: false  # 是否触发 Designer 评审（双保险之一；PMO 也按 UI 关键词识别）

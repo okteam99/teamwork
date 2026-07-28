@@ -4,6 +4,54 @@
 > 上次清空:**v8.193**(2026-07-06 · 清除 v8.128 → v8.187 共 60 版条目 · 约 1.0k 行)。
 
 ---
+## v8.296 · `docs/audit/` 整条退役 —— 数据追踪不了 · 后续以 retro 为准
+
+> 用户:**docs/audit/ 这个逻辑可以去掉了,数据没办法追踪,后续以 retro 为准。**
+
+### 为什么它追踪不了
+
+运行时文件落 **`~/.teamwork/audit/`(机器本地 · git 不跟踪)** —— 跨机器 / 跨人**根本聚不起来**,
+而它的 telos 恰恰是「框架层面**跨项目**搜集流程质量」。代码里也早就自陈「**审计只写不读**」
+(`_v8_ship.py`)。框架仓 `docs/audit/` 目录里 22 个文件中**只有 README 进过 git**,
+其余 21 个是 gitignore 的残留。
+
+**它原本要办的事,已经被两处覆盖**(且两处都真的在 git 里):
+- `project-specs/PROCESS-LEDGER.md` —— 一行一 feature · 机器字段 · **随 feature MR 原子合入** · 可查表算账
+- `docs/RETRO-LEDGER.md` —— 框架侧一行一版 · 永久 · 年检直接读
+
+### 删了什么
+
+| 位置 | 内容 |
+|---|---|
+| `_v8_ship.py` | `_write_audit_record`(86 行)+ `_capture_audit_sources`(27)+ `_audit_dir`(11)+ 调用点与 emit |
+| `_v8_ship.py` | 🔴 **`--main-model` 死参数** —— 唯一消费者就是 audit record,help 还写着「写入 audit」= 在说谎 |
+| `docs/audit/` | 整个目录(README + 21 个 gitignore 残留)· `.gitignore` 对应规则 |
+| `update.py` | 对账豁免前缀收窄为 `("docs/retro/",)` |
+| `ship-stage.md` | 「三处落点」→「两处落点」· ship2 的审计回收段删掉 |
+| 测试 | `test_audit_sources_v8207.py` 整文件 + `test_ship_v8145_flow` 两例 + 残留 `TEAMWORK_AUDIT_DIR` env |
+
+**保留**(同名不同物,别误伤):`_prepare_audit_path`(prepare-check 的 jsonl)是**活门禁** ——
+主工作区 prepare → worktree init-feature 靠它对通,有真读者。
+
+### 退役时发现的覆盖缺口(顺手补上)
+
+`test_pause_mark_v8192` 里两个用例断言的是 audit 草稿渲染(user_email / AI-wait 三分 / host frontmatter),
+删之前查了一下:这批数据的**活消费者** `ledger_timing`(→ PROCESS-LEDGER 四列)**零测试覆盖** ——
+唯一的端到端保障挂在将死的那条线上。故不是删,是**改断言活路径**,并补一条「退役 audit 不能顺手砍掉台账数据源」。
+
+> 教训进 RETRO:**退役一条链路前,先看它是不是别人唯一的测试宿主。**
+
+### 反馈往哪走(替代口径)
+
+框架级 bug / 工具判例 → 写进 PROCESS-LEDGER 行的「反思摘要」列(随 MR 进 git · 年检查得到);
+真值得改框架的 → 开 issue 或在框架仓落 RETRO-LEDGER 行。**别再指望本机的审计文件被谁读到。**
+
+### 测试
+
+1001 → **996**(净减 5:删掉 7 条测已删机制的,补回 2 条测活路径的)。
+
+---
+
 ## v8.295 · stage 耗时归因采集(补上「有数字没归因」那一环)
 
 > 用户:**是否需要增加一个耗时复盘机制,每个阶段结束后总结耗时复盘,记录到固定文件夹 · 放到项目里进 git。**
