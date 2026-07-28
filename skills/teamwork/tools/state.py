@@ -1944,7 +1944,9 @@ def cmd_init_feature(args: argparse.Namespace) -> None:
             # v8.261:留两端 · 各合并单路 —— goal 单路合并冷审(PL+外审关注点合一)·
             # review 单路合并评审(Architect+QA 关注点合一)· blueprint 评审仍去。
             # 「fast」伪角色:收敛协议(verdicts/findings/severity/验证轮)全保留 · 单 agent 兼多帽。
-            state["stage_review_roles"] = {"goal": ["fast"], "review": ["fast"]}
+            # v8.305:blueprint 显式写 [] —— 原来靠**键缺失**表达「评审整段去掉」,
+            # 而门禁把「缺失」读成「未配置 → 按默认要 external」· 意图必须显式化。
+            state["stage_review_roles"] = {"goal": ["fast"], "blueprint": [], "review": ["fast"]}
             state["stage_review_roles_adjustments"] = [{
                 "stage": "*", "roles": [], "reason": "fast_mode(localconfig)· goal/review 各留单路合并评审 · 其余评审跳", "adjusted_via": "fast_mode"}]
     # ── v8.0+P0-3:cwd 物化校验(治本 PTR-F033 主 tree 污染 case)──
@@ -2993,24 +2995,30 @@ def cmd_change_review_roles(args: argparse.Namespace) -> None:
         }, ensure_ascii=False, indent=2))
 
     review_roles = state.setdefault("stage_review_roles", {})
-    if args.stage not in review_roles:
+    # v8.305:不再要求「stage 已在 dict 里」—— 那条让 fast_mode 下的用户**无法自救**
+    # (fast 把 blueprint 从 dict 去掉 · 而门禁要 external · 想显式设空都被拒 → 只剩 bypass)。
+    # 现在只校验 stage 是否**有评审语义**(engine 的 STAGES_WITH_REVIEW_ROLES_HINT 单源)。
+    try:
+        from _v8_engine import STAGES_WITH_REVIEW_ROLES_HINT as _REVIEWABLE
+    except ImportError:
+        _REVIEWABLE = set(review_roles.keys())
+    if args.stage not in _REVIEWABLE:
         die(2, json.dumps({
             "verdict": "FAIL",
             "command": "change-review-roles",
-            "error": (
-                f"stage '{args.stage}' 不在 state.stage_review_roles · "
-                f"该 stage 默认无 review 配置(无意义)"
-            ),
-            "hint": f"已配置 stages: {sorted(review_roles.keys())}",
+            "error": f"stage '{args.stage}' 没有评审语义(无 reviewer 席位可调)",
+            "hint": f"可调 stages: {sorted(_REVIEWABLE)}",
         }, ensure_ascii=False, indent=2))
 
-    roles_list = [r.strip() for r in args.roles.split(",") if r.strip()]
-    if not roles_list:
-        die(2, json.dumps({
-            "verdict": "FAIL",
-            "command": "change-review-roles",
-            "error": "--roles 不能为空 · 至少 1 个角色",
-        }, ensure_ascii=False, indent=2))
+    # v8.305:**允许显式清空**(`--roles ''` / `--roles none`)—— 「本 stage 不评审」是合法配置,
+    # 原来把它当参数错误拒掉,等于只能加不能减。
+    _raw = (args.roles or "").strip().lower()
+    if _raw in ("", "none", "[]", "-"):
+        roles_list = []
+    else:
+        roles_list = [r.strip() for r in args.roles.split(",") if r.strip()]
+        if not roles_list:
+            roles_list = []
 
     invalid = [r for r in roles_list if r not in REVIEW_ROLE_ENUM]
     if invalid:
@@ -3021,7 +3029,8 @@ def cmd_change_review_roles(args: argparse.Namespace) -> None:
             "hint": f"REVIEW_ROLE_ENUM = {sorted(REVIEW_ROLE_ENUM)}",
         }, ensure_ascii=False, indent=2))
 
-    before = review_roles[args.stage][:]
+    # v8.305:允许 stage 尚未在 dict 里(放宽守卫后必须跟着改)—— 缺失视作空 roster
+    before = list(review_roles.get(args.stage, []))
 
     # v8.66:yolo 去 external 评审 = 拆无人值守唯一安全网 → 默认禁止(非必要不得去)
     # 治本 case(WS-002 yolo):AI 把 yolo 当"简化/提速" · change-review-roles 去 goal/blueprint
@@ -3046,7 +3055,10 @@ def cmd_change_review_roles(args: argparse.Namespace) -> None:
             "rule": "v8.66 yolo 加重审核 · 非必要不得去 external(SKILL.md § yolo)",
         }, ensure_ascii=False, indent=2))
 
-    if before == roles_list:
+    # v8.305:stage 键**本就不存在** + 目标为空 → 不是 NOOP,是**把「不评审」显式物化**
+    # (原来靠键缺失表达意图 · 而缺失读不出「有意」还是「忘了」· 同本版 fast_mode 的修法)
+    _materialize_empty = (args.stage not in review_roles and not roles_list)
+    if before == roles_list and not _materialize_empty:
         emit({
             "verdict": "NOOP",
             "command": "change-review-roles",

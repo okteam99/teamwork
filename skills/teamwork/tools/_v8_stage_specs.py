@@ -1672,9 +1672,24 @@ def _evidence_external_review_artifact(state: dict, args) -> tuple[bool, str]:
     roster 不含 external → skip(change-review-roles 调整已留 audit)。
     """
     current_stage = state.get("current_stage", "")
-    stage_roles = state.get("stage_review_roles", {}).get(current_stage, [])
-    if stage_roles and "external" not in stage_roles:
-        return True, f"skipped(external 不在 stage_review_roles.{current_stage}={stage_roles})"
+    roles_map = state.get("stage_review_roles", {}) or {}
+    stage_roles = roles_map.get(current_stage, [])
+    # 🔴 v8.305:**空 roster = 本 stage 不要求评审**(与 `reviewers_match` 的 `if not required: return True`
+    # 对齐)。原守卫写 `if stage_roles and ...` —— 把「**有意配空**」当成「**未配置 → 按默认要 external**」,
+    # 两个 evidence check 对同一状态给出**相反语义**。
+    # 实证(aon-core · fast_mode=true):v8.261 的 fast 只写 `{"goal":[...], "review":[...]}`,
+    # blueprint **键缺失** → 这里不 skip → blueprint-complete 要 external,
+    # 而同一 stage 的 brief 明写「**blueprint 评审跳过**」—— **brief 与门禁直接对立**;
+    # 且 `change-review-roles` 拒绝未配置的 stage → 用户**无法自救**,只剩 bypass。
+    # 实际后果:AI(正确地)不篡改 state 也不 bypass,于是真跑了一轮冷审 ——
+    # **fast_mode 承诺的提速被静默取消,用户白付一轮。**
+    # 🔴 两种「缺失」含义相反,必须分开(首版修法过宽 · 被既有测试当场抓出):
+    #   · roster dict **非空**但不含本 stage → **有意去掉**(fast_mode 就这么表达)→ skip
+    #   · roster dict **整个空/缺失**       → **未初始化**(legacy state)→ 仍按默认要求 external
+    if roles_map:
+        if "external" not in stage_roles:
+            return True, (f"skipped(external 不在 stage_review_roles.{current_stage}={stage_roles}"
+                          + (" —— 该 stage 未列入 roster · 有意不评审)" if current_stage not in roles_map else ")"))
     external_dir = Path(args.feature) / "external-cross-review"
     md_files = list(external_dir.glob("*.md")) if external_dir.exists() else []
     if not md_files:
@@ -2073,8 +2088,10 @@ def _evidence_external_verified_after_fix(state: dict, args) -> tuple[bool, str]
     if not fix_ats:
         return True, ""
     feature_dir = Path(args.feature)
-    stage_roles = state.get("stage_review_roles", {}).get("review", [])
-    if stage_roles and "external" not in stage_roles:
+    _roles_map = state.get("stage_review_roles", {}) or {}
+    stage_roles = _roles_map.get("review", [])
+    # v8.305:同上 —— 空/缺失 roster 都算「不要求 external」(原 `if stage_roles and ...` 同款 bug)
+    if _roles_map and "external" not in stage_roles:
         return True, f"skipped(external 不在 stage_review_roles.review={stage_roles})"
     from datetime import datetime, timezone
     last_fix_at = max(fix_ats)

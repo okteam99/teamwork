@@ -4,6 +4,57 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.305 · 🐞 fast_mode 的 blueprint 被门禁强制跑 external(四个面的同一族 bug)
+
+> 用户:**看下 fast 模式是否有 bug。**
+> 实证(aon-core · `fast_mode=true`):`blueprint-complete` FAIL 要 external,
+> 而**同一 stage 的 brief 明写「blueprint 评审跳过」** —— brief 与门禁直接对立。
+
+### 后果:AI 做对了每一步,却仍然白付一轮
+
+AI 没有篡改 state、没有 bypass(**两个判断都对**),先试 `change-review-roles` 想显式清空 ——
+**被拒**;于是它按配方**真跑了一轮隔离冷审**。
+🔴 **fast_mode 承诺的「blueprint 评审跳过」被静默取消,用户白付一轮。**
+框架没给它任何一条正确的出路。
+
+### 四个面
+
+| # | 面 | 事实 |
+|---|---|---|
+| ① | **两个 evidence check 语义相反** | `external_review_artifact` 的 `if stage_roles and "external" not in stage_roles` 把「**有意配空**」当「**未配置 → 按默认要 external**」;而同文件 `reviewers_match` 对同一状态判 `if not required: return True`(skip) |
+| ② | **靠键缺失表达意图** | v8.261 的 fast 只写 `{"goal":[…], "review":[…]}` —— blueprint **键缺失**。而缺失读不出「有意」还是「忘了」 |
+| ③ | **用户无法自救** | `change-review-roles` 要求 stage **已在** dict 里,而 fast 恰恰把它去掉了 → 想显式设空都被拒 |
+| ④ | **框架自产自拒** | `fast` 是 fast_mode 自己写进 roster 的**伪角色**,却**不在 `REVIEW_ROLE_ENUM`** → fast 模式下连把当前值传回去都判非法角色 = **该模式下这条命令整个不可用** |
+
+### 修
+
+- ① 守卫对齐「**空 roster = 本 stage 不要求评审**」(两处:external artifact + 验证轮日志);
+- ② fast_mode **显式写 `blueprint: []`** —— 意图物化,不靠缺失暗示;
+- ③ `change-review-roles` 改为只校验「stage 有无评审语义」(单源 `STAGES_WITH_REVIEW_ROLES_HINT`),
+  **允许对未配置的 stage 设置**,且**允许显式清空**(`--roles ''`)——
+  🔴 清空一个本就不存在的键**算 OK 不算 NOOP**(要把意图写进 state 与 audit);
+- ④ `fast` 收进 `REVIEW_ROLE_ENUM`。
+
+### 🔴 修 ① 时首版过宽,被既有测试当场抓出
+
+首版把「roster **整个**缺失」也判 skip —— 那会让 **legacy state 静默跳过外审**。
+两种「缺失」含义相反,必须分开:
+**非空 roster 缺本 stage = 有意去掉(skip)· roster 整个空 = 未初始化(仍按默认要求)。**
+
+> 这次是**测试拦住了我**,不是我自己想到的。它也印证了 v8.303 那条:
+> 我据「fast_mode 场景」推出了守卫该怎么改,**但没验证「roster 整个缺失」这个我没亲眼看过的分支**。
+
+### 顺带:放宽守卫要跟着改下游
+
+放开「stage 必须已存在」后,`before = review_roles[args.stage][:]` 立刻 KeyError ——
+**放宽一处约束时,依赖该约束的下游全部要复核**。
+
+### 测试
+
+1092 → **1104**。
+
+---
+
 ## v8.304 · 回收零工具 reviewer profile + 区分「执行失败」与「评审失败」
 
 > 用户提案:隔离 Reviewer 无文件读取能力 · 冷审返 `files_read: []` + `no authorized read-only file access`,
@@ -212,64 +263,5 @@ AI 在 **goal 阶段**手跑 `verify-ac.py`,必然 FAIL(TC.md 是 blueprint 产�
 ### 测试
 
 1046 → **1061**。
-
----
-
-## v8.300 · 档位映射按厂商分列 + 清 v8.299 的三处自伤
-
-> 用户:档位表的「当前映射」写清晰一点 + 发版。
-> **这一版全是自伤修复** —— v8.299 引入新规则时留下三处不一致,而且**三处都是本 session 反复抓的形态**,
-> 这次是自己种的。记下来不是自责,是因为「加新规则时忘了改旧的」有稳定的复发率,值得单独立门。
-
-### 一、档位映射按厂商分列(用户给定型号)
-
-原来两家挤在一格(`Claude: Fable/Opus · GPT: 最高推理档`),读者要自己拆;GPT 侧还是抽象说法。改成两列:
-
-| 档位 | Claude | GPT / Codex |
-|---|---|---|
-| **深度档** | **主对话** / Fable / Opus | **主对话** / sol xhigh |
-| **执行档**(默认) | Opus / Sonnet | sol xhigh / terra xhigh |
-| **验证档**(轻) | Sonnet / Haiku | terra / luna |
-
-🟢 判据仍是**任务性质,不绑型号** —— 型号随代际漂移,这两列只是当前落地示例。
-下次代际一换改这两列即可,判据不动。
-
-### 二、三处自伤(v8.299 引入 · 本版清理)
-
-**① 单源侧还写着被取代的旧口径。** v8.299 把声明制改成「寄生 prompt 首行」,
-但 `SKILL.md`(**被声明为单源的那份**)仍写「(派发语句 / dispatch 文件 Meta / workflow `agent()` 旁注释)」,
-`agents/README` 📎 段同样。两处都还允许把声明放在**「另起一句」的位置** —— 正是新规则要取代的形态。
-→ 已重写,并把单源侧补齐三件(寄生规则 / 白名单例外需授权 / 台账两桶口径)。
-
-**② 数字宣称与实际不符。** v8.299 加了第 ④ 条硬边界(验证类白名单例外需用户授权),
-标题却还写「**三条**硬边界」,`SKILL.md` 的反向引用跟着错。
-→ 改四条 + 立门:**宣称条数必须等于实际圈号数**,且 SKILL 反向引用与 agents/README 一致。
-
-**③ 断言锁死旧措辞。** 改 `DISPATCH_TIER_REMINDER` 措辞后两个测试假红
-(`assertIn("声明 model", …)`)—— RETRO 里这类已记过三次。
-→ 改为断言实质(白名单枚举在不在 / 有没有要求用户授权 / 声明是否寄生),不锁字面。
-
-> 🔴 三处的共性:**加新规则时只写了新的,没回头改被它取代的旧的**。
-> 本 session 前面抓的「指针 + 复制被指向内容」「退役声明贴头上正文没改」「stage 数 13→12 但 README 还写 13」
-> 全是同一形态。它的复发率高到值得当成一类来防,而不是每次事后修。
-
-### 测试
-
-1041 → **1046**(新增:硬边界条数一致性 · 档位表按厂商分列 · 旧口径不得残留 · **静默死测试检测**)。
-
-### 三、第四处自伤:新加的三个门**根本没在跑**
-
-本版三个新门写完后落在了 `if __name__ == "__main__":` **之后且同缩进** —— Python 把它们解析成
-那个 `if` 的**块内定义**,只在 `python file.py` 直跑时存在,**pytest 收集时看不到**。
-**不报错 · 不红 · 就是不跑**,静默失效了一整轮;我还在两条 commit message 里报了**没验证过的**测试数。
-
-这与本 session 反复抓的仍是同一形态 —— **产物存在但没接上消费方**,只是这次的"消费方"是 pytest 的收集器。
-
-→ 立门 `TestNoSilentlyDeadTests`(用 **AST** 判 `__main__` guard 的 body 里有无 def/class ·
-不靠猜缩进)+ 空壳测试文件检测(有文件、零用例)。
-🔴 **门自身也做了注入自验**:往 guard 里塞一个方法确认它会红 —— 否则「立了个不会响的门」是同一个坑套娃。
-
-> 中间版本按「`__main__` 之后的行」判,连报 7 个误伤(那些是**列 0 的模块级 class**,pytest 收得到)——
-> **判据是结构不是位置**。
 
 ---

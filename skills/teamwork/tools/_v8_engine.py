@@ -1362,7 +1362,12 @@ def _render_pause_discipline(authorized_pause_point: str,
 # ─── v8.0+P0-9:review 角色 enum + 默认矩阵 ──────────────────────────
 
 
-REVIEW_ROLE_ENUM = {"pm", "qa", "architect", "rd", "designer", "pl", "external"}
+REVIEW_ROLE_ENUM = {"pm", "qa", "architect", "rd", "designer", "pl", "external",
+    # v8.305:`fast` 是 fast_mode 自己写进 roster 的**伪角色**(单 agent 兼多帽 · v8.261),
+    # 却不在枚举里 → `change-review-roles` 判它非法 · fast 模式下用户连把当前值传回去都会被拒,
+    # 等于该模式下这条命令整个不可用。它是框架自产的合法 roster 值,必须收进枚举。
+    "fast",
+}
 """review 角色 7 闭集。
 
 设计:
