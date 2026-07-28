@@ -2,9 +2,15 @@
 
 > **用途**：作为外部模型 (Claude CLI) 进行 PRD / Blueprint / 代码评审时的 prompt 模板。
 >
-> **使用者**：主对话（Codex CLI）通过 `state.py external-review` 调起 `claude -p`，自动把本模板内容（占位符已替换）作为输入 prompt（详 tools/state.py `_run_claude_review`）。
+> **使用者**：`state.py external-review` 读本模板的「## Prompt 主体」段（占位符已替换）落成 prompt doc，
+> 主对话据此起**错开模型 subagent** 冷审(v8.291:跨厂商 CLI 已退役 · 本命令不 exec 任何子进程)。
 >
-> **不适用**：Claude Code 主对话宿主下（同源约束），外部模型不能选 claude。
+> 🔴 **v8.304**:起的 subagent **必须有文件读取能力** —— 本模板只 inline 一部分待评审文件
+> (goal→PRD · blueprint→TC/TECH · **review→无**),而**上游 WS 与真实代码从不 inline**;
+> 零工具 reviewer profile 读不了它们,会返 `files_read: []` 并被门禁判 **CAPABILITY_BLOCKED**。
+>
+> 📌 原头部写的「主对话(Codex CLI)调起 `claude -p`(详 `_run_claude_review`)」已失效 ——
+> 跨厂商 v8.291 退役、`_run_claude_review` v8.293 删除。
 
 ---
 

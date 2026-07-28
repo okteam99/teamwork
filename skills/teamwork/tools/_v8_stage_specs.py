@@ -1626,6 +1626,41 @@ def _external_run_log_exists(feature_dir: Path, stage: str) -> bool:
             or any(prompts_dir.glob(f"{stage}-*.log")))   # .log 兼容存量 feature
 
 
+def _capability_blocked_reason(fm: dict, path) -> str:
+    """v8.304:判「reviewer 根本没跑起来」(执行失败)而非「评审说有问题」(评审失败)。
+
+    信号三类,任一命中即算能力缺失:
+      ① frontmatter `files_read` **存在但为空** —— 声明了却什么都没读;
+      ② frontmatter `status` 明写 FAILED / CAPABILITY_BLOCKED;
+      ③ 正文出现「无授权读取」类字面(宿主拒绝工具时的典型回执)。
+
+    🔴 `files_read` **缺失不算**(向后兼容:存量产物没有这个字段)——
+    只在它**显式为空**时才判定。宁可漏判,不可把正常评审误判成能力缺失。
+    """
+    # 🔴 parse_frontmatter 是**行式解析**(不是真 YAML)—— `files_read: []` 会解析成**字符串** `'[]'`。
+    # 首版按 list 判空,实测静默漏判;判定必须对两种形态都成立。
+    fr = fm.get("files_read", None)
+    if isinstance(fr, (list, tuple)):
+        if len(fr) == 0:
+            return "frontmatter `files_read: []` —— 声明了读取清单却是空的"
+    elif fr is not None:
+        _fr = str(fr).strip().strip("[]").strip()
+        if _fr in ("", "none", "null", "无", "-"):
+            return f"frontmatter `files_read: {str(fr).strip()}` —— 声明了读取清单却是空的"
+    status = str(fm.get("status", "")).strip().upper()
+    if status in ("FAILED", "CAPABILITY_BLOCKED"):
+        return f"frontmatter `status: {status}`"
+    try:
+        body = path.read_text(encoding="utf-8", errors="replace")[:4000].lower()
+    except OSError:
+        return ""
+    for sig in ("no authorized read-only file access", "no authorized file access",
+                "cannot read files", "无授权读取", "无文件读取能力"):
+        if sig in body:
+            return f"正文出现能力缺失回执:「{sig}」"
+    return ""
+
+
 def _evidence_external_review_artifact(state: dict, args) -> tuple[bool, str]:
     """第三视角冷审产物校验(v8.291:跨厂商异质退役后大幅简化 · 136 行 → 30 行)。
 
@@ -1655,6 +1690,21 @@ def _evidence_external_review_artifact(state: dict, args) -> tuple[bool, str]:
             continue  # /code-review ultra 摄入 · 独立性由产品化多智能体保证 · provenance 是会话转录
         has_subagent_artifact = True
         model = str(fm.get("review_model", "")).strip()
+        # 🔴 v8.304:先分辨**执行失败** vs **评审失败** —— 两者的处置完全相反。
+        # 实证(aon-core · 宿主 codex):被选中的 reviewer profile 是 v8.293 之前部署的**零工具**
+        # 版本(旧架构靠 state.py 把文件 inline 进 prompt · 故意声明 READ-ONLY 无 shell/命令),
+        # 而 v8.291 起改 subagent 冷审、v8.303 又把「读真实代码」立成硬要求 → 它读不了任何文件,
+        # 返回 `files_read: []` + `no authorized read-only file access`。
+        # 旧门禁只会报「产物不合规」,把**能力缺失**说成**评审问题** —— 用户被迫自己排查一轮。
+        _blocked = _capability_blocked_reason(fm, f)
+        if _blocked:
+            return False, (
+                f"🔴 CAPABILITY_BLOCKED(**执行失败 · 非评审结论**):{f.name} —— {_blocked}\n"
+                "   这不是 NEEDS_REVISION,是 reviewer **没有文件读取能力**,产出的 finding 不可信。\n"
+                "   处置:① 换用**有文件读取能力**的隔离 agent 重跑(仍须 model ≠ 会话主模型);\n"
+                "        ② 若 `.codex/agents/*.toml` 里是 v8.293 前的零工具 profile —— 跑 bootstrap 回收它\n"
+                "           (v8.304 起自动清理 · 带 teamwork 签名的才删);\n"
+                "        ③ 🔴 **不要把这一轮当评审轮**:evidence 未过 → rounds 未计数,预算没被消耗。")
         if via != "subagent":
             bad.append(f"{f.name}:review_via={via or '缺'}(必须 subagent —— 主对话热审无独立性)")
         elif not model:

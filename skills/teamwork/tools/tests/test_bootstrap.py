@@ -1357,11 +1357,43 @@ class TestHooksRetirement(unittest.TestCase):
         self.assertTrue(r["status"].startswith("hooks_retired"))
         self.assertFalse((self.proj / ".claude" / "hooks").exists())
 
-    def test_codex_tomls_still_deployed(self):
+    def test_legacy_codex_tomls_are_reclaimed_not_deployed(self):
+        """v8.304:`.codex/agents/*.toml` 由「部署」改为「回收」。
+
+        那三个 profile 是旧架构产物 —— 当时 state.py 把待评审文件 inline 进 prompt,
+        所以 profile 故意声明「READ-ONLY · 无 shell · 无命令」,零工具是**设计**。
+        v8.291 改 subagent 冷审、v8.303 立「读真实代码」硬要求后,它们**架构性不兼容**;
+        v8.293 删了源却没回收已部署副本 → 留在用户项目里继续被宿主选中,
+        表现为 `files_read: []` 并阻塞整个 goal 冷审(实证 aon-core · 宿主 codex)。
+        """
+        agents = self.proj / ".codex" / "agents"
+        agents.mkdir(parents=True, exist_ok=True)
+        (agents / "reviewer.toml").write_text(
+            'name="reviewer"\n# Teamwork External Reviewer\n', encoding="utf-8")
+        (agents / "prd-reviewer.toml").write_text(
+            'name="prd-reviewer"\n# Teamwork PRD Cross-Reviewer\n', encoding="utf-8")
+
         r = self._run(host="codex-cli")
-        self.assertIn("reviewer.toml", r.get("codex_agents_deployed", []))
-        self.assertTrue((self.proj / ".codex" / "agents" / "reviewer.toml").exists())
+
+        self.assertIn("reviewer.toml", r.get("legacy_codex_agents_removed", []))
+        self.assertIn("prd-reviewer.toml", r.get("legacy_codex_agents_removed", []))
+        self.assertFalse((agents / "reviewer.toml").exists(), "旧 profile 未被回收")
+        self.assertFalse((agents / "prd-reviewer.toml").exists())
+        self.assertEqual(r.get("codex_agents_deployed", []), [], "不该再部署任何 toml")
         self.assertFalse((self.proj / ".codex" / "hooks.json").exists())
+
+    def test_user_authored_profile_with_same_name_is_kept(self):
+        """🔴 签名守卫(同 hook 回收):只删带 teamwork 签名的 —— 用户自建的同名 profile 不碰。"""
+        agents = self.proj / ".codex" / "agents"
+        agents.mkdir(parents=True, exist_ok=True)
+        mine = agents / "blueprint-reviewer.toml"
+        mine.write_text('name="mine"\n# 我自己写的评审 profile\n', encoding="utf-8")
+
+        r = self._run(host="codex-cli")
+
+        self.assertTrue(mine.exists(), "误删了用户自建的同名 profile")
+        self.assertIn("blueprint-reviewer.toml", r.get("kept_foreign_codex_agents", []))
+        self.assertNotIn("blueprint-reviewer.toml", r.get("legacy_codex_agents_removed", []))
 
 
 
