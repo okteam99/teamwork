@@ -1,6 +1,6 @@
 # Panorama Sync Stage
 
-> 🧭 四段结构(v8.284)· 条件 stage:`ui_design-complete --panorama-changed=true` 时自动进入;`false` 时跳过(直进 blueprint)。
+> 🧭 四段结构· 条件 stage:`ui_design-complete --panorama-changed=true` 时自动进入;`false` 时跳过(直进 blueprint)。
 
 ---
 

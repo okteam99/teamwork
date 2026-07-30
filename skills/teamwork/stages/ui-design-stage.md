@@ -1,6 +1,6 @@
 # UI Design Stage
 
-> 🧭 **四段结构**(v8.285 · 详 [STAGES.md §3](../STAGES.md)):目标 + 硬规则白名单 + 手段菜单 + 产物契约 · 手段 AI 自选。
+> 🧭 **四段结构**(详 [STAGES.md §3](../STAGES.md)):目标 + 硬规则白名单 + 手段菜单 + 产物契约 · 手段 AI 自选。
 
 ---
 
@@ -68,8 +68,8 @@ teamwork 支持两种 panorama 介质 · 项目应在 ui_design 启动前明确,
 >        └─ node_modules/ gitignore
 > ```
 > `panorama_path = {子项目}/docs/design`。
-> 🔴 **IA 镜像律**(v8.133):preview-project 的**路由结构 = 真实 app**(与 `sitemap.md` 一致)—— 本次设计页挂**真实目标 path**(`pages_changed[].route_path` · 如 `/settings/ingest`)· **`/` = 真实首页设计稿**(已有则复用 · 全景首版即建)· **router 必含**(「单页预览不需要路由 · 有意省略」= 漂移反模式 —— 全景的价值就在用户能沿真实导航走到新页)。
-> 🔴 **分层同构律**(v8.134 · 替代 v8.133「数据层唯一差异律」· 同构承诺按「能否由结构保证」分层):
+> 🔴 **IA 镜像律**:preview-project 的**路由结构 = 真实 app**(与 `sitemap.md` 一致)—— 本次设计页挂**真实目标 path**(`pages_changed[].route_path` · 如 `/settings/ingest`)· **`/` = 真实首页设计稿**(已有则复用 · 全景首版即建)· **router 必含**(「单页预览不需要路由 · 有意省略」= 漂移反模式 —— 全景的价值就在用户能沿真实导航走到新页)。
+> 🔴 **分层同构律**(替代 「数据层唯一差异律」· 同构承诺按「能否由结构保证」分层):
 > - **Layer 1 基建层(业务无关 · 完全一致)**:页面框架(shell/layout)· 前端架构(构建链/路由机制/栈版本)· UI 组件库 · 主题 tokens。优先共享包(preview-project 与真实 app 依赖同一份代码 · 一致性由结构保证);不可抽包 → 版本锁定镜像 + UI.md 记豁免与回收计划。
 > - **Layer 2 业务页面层**:全景页承载**意图四要素** —— 布局结构 / 交互流 / 状态(normal·empty·loading·error)/ 字段映射(UI.md 既有段落即契约载体)。🔴 **一致性按介质定**:
 >   - **same-stack → 完全一致**:页面内容从**同一份共享组件 / 真实页面源**渲染 · **零预览痕迹** · 设计=代码是「**构造保证**」非人肉对齐 · **不留「像素自由」口子**。🔴 机制详 § preview dev 工具面板(真实交互页面内做 · 面板只放页面到不了的态)。
@@ -94,7 +94,7 @@ teamwork 支持两种 panorama 介质 · 项目应在 ui_design 启动前明确,
 bash {子项目}/docs/design/preview-project/preview.sh    # → PREVIEW_URL=http://localhost:<动态端口>/
 ```
 
-🔴 **预览地址约定(IA 镜像 · v8.133)**:preview.sh 打印的是**根 URL**;PMO 给用户 / browse 的预览地址 = `PREVIEW_URL` + **本次设计页 `route_path`**(直达 · 取自 UI.md `pages_changed[].route_path`)· 并注明 `/` = 真实首页设计稿;多页改动 → 每页一条直达 URL 清单。🔴 把新设计页渲染在 `/`(顶掉首页)= IA 镜像违规。
+🔴 **预览地址约定(IA 镜像)**:preview.sh 打印的是**根 URL**;PMO 给用户 / browse 的预览地址 = `PREVIEW_URL` + **本次设计页 `route_path`**(直达 · 取自 UI.md `pages_changed[].route_path`)· 并注明 `/` = 真实首页设计稿;多页改动 → 每页一条直达 URL 清单。🔴 把新设计页渲染在 `/`(顶掉首页)= IA 镜像违规。
 
 🔴 **注意**:dev server 前台阻塞 → PMO 用 `run_in_background` 跑 · 读 `PREVIEW_URL=` 行 · 等就绪(~2s)再 browse · 用完 kill 进程。
 
@@ -102,16 +102,16 @@ bash {子项目}/docs/design/preview-project/preview.sh    # → PREVIEW_URL=htt
 
 ## preview dev 工具面板(🔴 右下角悬浮 · 只放页面到不了的态)
 
-> 约束只有两条(v8.284 · 原 12 行「为什么右下角不是顶栏」的设计品味论证与 v8.169 版本纠错史已删):
+> 约束只有两条(原 12 行「为什么右下角不是顶栏」的设计品味论证与 版本纠错史已删):
 > - 🔴 **真实 app 里点得到的交互 → 页面内做成真实可点**(新建/编辑 Drawer · Modal · 行→详情 · 页内导航/Tab)—— 这是 same-stack「交互保真」的核心;
 > - 🔴 **工具面板只放页面入口覆盖不到的**:状态区(Loading / Error / Empty / 边缘态 · 真实交互无法自然触发的)+ 页面区(Prototype Nav 兜底无页内入口的页)。禁的是**预览专属控件**(真实 app 没有的 state-switcher 下拉/场景 toggle 嵌进页面)· **不禁真实交互按钮**。
 > 悬浮 overlay 不占布局流 → 不违 IA 镜像(`/` 仍是真实首页)· 可折叠。
 
 ---
 
-## 交互 & 视觉质量判据(设计/还原/评审同一基准 · v8.284 由 21 行细则压成 5 条判据)
+## 交互 & 视觉质量判据(设计/还原/评审同一基准 · 由 21 行细则压成 5 条判据)
 
-> v8.284:原细则(hover/focus-visible 环/骨架屏/WCAG AA 4.5:1/触控 ≥44px/tabular-nums/4-8px scale…)已删 —— 那是模型内建的前端常识;原文写明理由是「模型对交互体验缺天生判断力」,该前提已随模型能力失效。留**判据**不留细则:
+> 原细则(hover/focus-visible 环/骨架屏/WCAG AA 4.5:1/触控 ≥44px/tabular-nums/4-8px scale…)已删 —— 那是模型内建的前端常识;原文写明理由是「模型对交互体验缺天生判断力」,该前提已随模型能力失效。留**判据**不留细则:
 
 - **完备四态必设计**:normal / empty(消息 + 主操作)/ loading / error(具体原因 + 下一步)· 首次 vs 回访(如适用)
 - **可恢复**:破坏性操作有确认 · 误操作能撤销退回(接 PL 质疑六问⑥ 既有行为变更)
@@ -119,13 +119,13 @@ bash {子项目}/docs/design/preview-project/preview.sh    # → PREVIEW_URL=htt
 - 🔴 **一致 > 独特**:匹配现有组件与模式、**不重新发明** —— 策略对照 **UI-RULES**(控件偏好/色板策略)· 视觉值对照 preview-project tokens(独特品牌设计仅全景首版/greenfield)
 - **文案从用户视角**:「通知」非「webhook 配置」· 同一动作全流程同名 · error/empty 当指引不当情绪
 
-> 🧠 **写法非环节**(v8.263/v8.284):**画预览稿时就按这些判据画**,不是写完再逐项过。dev 还原(dev-stage ②硬规则 4)与 reviewer 审同用这份基准(防凭空 generic 评)。
+> 🧠 **写法非环节**:**画预览稿时就按这些判据画**,不是写完再逐项过。dev 还原(dev-stage ②硬规则 4)与 reviewer 审同用这份基准(防凭空 generic 评)。
 
 ---
 
 ## ④ Output Contract
 
-- **`UI.md`**:**schema 与章节以模板为单源** `{SKILL_ROOT}/templates/ui.md`(v8.293:原契约点名 §页面列表/§交互流/§视觉规范/§字段映射 —— 模板里**没有这四段**,且模板明令「视觉描述一律归 HTML 预览产物 · 不在本文复述」· Designer 照哪边写都违反另一边)。UI.md 只承载**意图 / 追溯 / 审计**:§全景权威索引 · §UI-AC-COVERAGE · §Designer 自查报告 · §变更记录。
+- **`UI.md`**:**schema 与章节以模板为单源** `{SKILL_ROOT}/templates/ui.md`(实证:原契约曾点名模板里不存在的四个段,且模板明令「视觉描述一律归 HTML 预览产物 · 不在本文复述」—— Designer 照哪边写都违反另一边;**指针 + 复制被指向内容 = 副本必漂**)。UI.md 只承载**意图 / 追溯 / 审计**:§全景权威索引 · §UI-AC-COVERAGE · §Designer 自查报告 · §变更记录。
 - **panorama 产物**:`same-stack` → preview-project 源(+ `preview.sh` 从 `{SKILL_ROOT}/templates/preview-project-preview.sh` 拷入 · `chmod +x` · 按框架改 dev server 一行)· `static-html` → `preview/*.html`
 
 📎 **物化拦截**(按 `panorama_medium` 适配):

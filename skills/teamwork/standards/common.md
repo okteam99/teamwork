@@ -7,9 +7,9 @@
 
 ## 一、测试核心原则
 
-> v8.287:TDD 手段规定已撤除(怎么测 AI 自觉)· 测试的**结果规则 + 机器门**见 [HARD-RULES.md](./HARD-RULES.md) · 本节不复述通用原则。
+> TDD 手段规定已撤除(怎么测 AI 自觉)· 测试的**结果规则 + 机器门**见 [HARD-RULES.md](./HARD-RULES.md) · 本节不复述通用原则。
 
-## 二、代码架构规范(v8.284 压缩 · 分层/SOLID/Review 友好度等教科书内容已删)
+## 二、代码架构规范(压缩 · 分层/SOLID/Review 友好度等教科书内容已删)
 
 > 通用架构原则(分层、单一职责、模块边界、Review 友好度)模型已内建 —— 本节只留**本框架的偏离与约定**:
 
@@ -42,7 +42,7 @@ v7 三级 dispatch 预检已废 · 由物化路径替代,不依赖记忆顺序:*
 
 ---
 
-## 四、实现完成的硬门(v8.284 · 原「RD 自查规范 + 报告模板」216 行已删)
+## 四、实现完成的硬门(原「RD 自查规范 + 报告模板」216 行已删)
 
 > 删除理由:那是**环节化自检 + 报告仪式**,零机器消费者(全库无工具校验 RD 自查报告)、零文档引用,且与 `templates/tech.md §完工自查`(review 真读它)职能重复。**证据要求本身由机器门承担**:`dev-complete --test-exit-code 0` + `--test-stdout` 非空 + artifacts 在 changeset。以下两条是从中抢救的真规则:
 
@@ -156,7 +156,7 @@ v7 三级 dispatch 预检已废 · 由物化路径替代,不依赖记忆顺序:*
 
 ---
 
-## 四D、QA 代码审查视角(v8.284 压缩 · 原 70 行报告模板已删)
+## 四D、QA 代码审查视角(压缩 · 原 70 行报告模板已删)
 
 > 🔴 QA 代码审查的核心是**读代码验证 TC**(TDD 规范检查是辅助)。AC↔TC 的机械绑定由 `verify-ac.py` 物化校验;**逐条覆盖判断**归 review stage 的外审必覆盖方向「测试真实性与覆盖」(测试真跑 = 读实跑证据 · 覆盖真行为 · 边界回归)—— 不在本文件再列一份报告模板。
 
@@ -170,11 +170,11 @@ v7 三级 dispatch 预检已废 · 由物化路径替代,不依赖记忆顺序:*
 
 ---
 
-## 五、文档流程图规范(v8.284 压缩)
+## 五、文档流程图规范(压缩)
 
 🔴 所有文档中的流程图 / 时序图 / 架构图**统一用 Mermaid**(` ```mermaid ` 代码块)· **禁** ASCII 流程图 / 图片截图 / 第三方绘图工具链接 —— 必须能在 GitHub 与 Markdown 预览器直接渲染。图类型按需选(flowchart / sequenceDiagram / stateDiagram-v2),语法不在此复述。
 
-## 六、临时产物目录(scratch · v8.247)
+## 六、临时产物目录(scratch)
 
 Stage 执行期间的一切临时产物 —— 测试日志、构建输出(cargo target / 前端构建缓存等)—— **必须**落在统一 scratch 根下:
 
@@ -185,9 +185,9 @@ Stage 执行期间的一切临时产物 —— 测试日志、构建输出(cargo
 - 🔴 **禁止**在 scratch 根之外创建 teamwork 相关临时目录(如 `/tmp/<项目名>-*`)—— 根之外不在回收范围 · 会永久泄漏(实证 6GB)。
 - 与 [conventions.md §12.5](../docs/conventions.md) 浏览器截图约定**同根**(`${TMPDIR:-/tmp}/teamwork/<feature_id>/screenshots/` 是本约定的一个 `<用途>` 实例)。
 
-🔴 **构建 target 按 feature 共享 · 不按 stage 切**(v8.249 纠 v8.247):**一个 feature 一个 target 目录**(`<feature_id>/target`)· 该 feature 的**串行** stage(goal→…→dev→review→test→ship 一次一个)全部复用同一份 —— dev 编好 test 直接热增量,不重编依赖树(实证:按 stage 切 = 每 stage 冷编整棵 deps · Rust 冷编 5-20min vs 热增量 <1min · 是 test 阶段耗时的主浪费)。
+🔴 **构建 target 按 feature 共享 · 不按 stage 切**(纠早期误判):**一个 feature 一个 target 目录**(`<feature_id>/target`)· 该 feature 的**串行** stage(goal→…→dev→review→test→ship 一次一个)全部复用同一份 —— dev 编好 test 直接热增量,不重编依赖树(实证:按 stage 切 = 每 stage 冷编整棵 deps · Rust 冷编 5-20min vs 热增量 <1min · 是 test 阶段耗时的主浪费)。
 
-> ⚠️ v8.247 曾写「按 stage 隔离 target 是正确设计 · 防多 worktree 并行争抢文件锁」—— **推理错**:并行争抢发生在**不同 feature 的不同 worktree** 之间,而路径里的 `<feature_id>` 已隔开;同一 feature 内 stage 严格串行、从不并发构建,再按 stage 切只会打掉增量缓存。锁隔离只需到 `<feature_id>` 粒度。(极少数「单 stage 内派多个并行 cargo 构建」才需在该 stage 内临时 sub-split · 属例外不是默认。)
+> ⚠️ 曾写「按 stage 隔离 target 是正确设计 · 防多 worktree 并行争抢文件锁」—— **推理错**:并行争抢发生在**不同 feature 的不同 worktree** 之间,而路径里的 `<feature_id>` 已隔开;同一 feature 内 stage 严格串行、从不并发构建,再按 stage 切只会打掉增量缓存。锁隔离只需到 `<feature_id>` 粒度。(极少数「单 stage 内派多个并行 cargo 构建」才需在该 stage 内临时 sub-split · 属例外不是默认。)
 
 Rust 项目示例(target 按 feature 共享):
 

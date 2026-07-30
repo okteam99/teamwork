@@ -1,6 +1,6 @@
 # Diagnose Stage(Bug 流程 · 根因细查 + 修复方案确认)
 
-> 🧭 **四段结构**(v8.284 · 目标 / 硬规则 / 建议手段菜单 / Output Contract)· 🔴 **仅 Bug 流程** · 位置在 `dev` 之前。
+> 🧭 **四段结构**(目标 / 硬规则 / 建议手段菜单 / Output Contract)· 🔴 **仅 Bug 流程** · 位置在 `dev` 之前。
 
 ---
 

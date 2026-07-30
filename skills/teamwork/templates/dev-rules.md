@@ -2,7 +2,7 @@
 
 > 位置:`project-specs/DEV-RULES.md`(workspace 级 · 与 product-overview/ 同级)+ `{子项目}/docs/DEV-RULES.md`(子项目级)· 详 [docs/conventions.md §13](../docs/conventions.md)
 >
-> **本文件 = 本项目「怎么写代码」的强制开发规范**(API 契约 / 错误处理 / 其他约定 · v8.257 三项制)· blueprint(TECH 设计)+ dev(实现)**必读遵守**。
+> **本文件 = 本项目「怎么写代码」的强制开发规范**(API 契约 / 错误处理 / 其他约定 · 三项制)· blueprint(TECH 设计)+ dev(实现)**必读遵守**。
 > 架构/分层/依赖方向**不在本文件**(归 `ARCHITECTURE.md` + ADR);命名/风格/测试策略走 [standards/](../standards/) 缺省 · 本项目真有强制特例才塞「其他约定」。
 >
 > 🔴 **人/团队维护 · teamwork 永不自动改**:这是团队事前定的规矩(不是 AI 事后沉淀)。bootstrap 只在文件**不存在**时从模板创建空壳;**已存在则绝不改动**。AI 在 review/dev 发现值得固化的新约定 → **提示用户**加,不代写。

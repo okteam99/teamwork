@@ -4,6 +4,62 @@
 > 上次清空:**v8.193**(2026-07-06 · 清除 v8.128 → v8.187 共 60 版条目 · 约 1.0k 行)。
 
 ---
+## v8.304 · 回收零工具 reviewer profile + 区分「执行失败」与「评审失败」
+
+> 用户提案:隔离 Reviewer 无文件读取能力 · 冷审返 `files_read: []` + `no authorized read-only file access`,
+> goal 流程被阻断。**宿主 = codex。**
+
+### 根因链(逐环读文件核实)
+
+| 环 | 事实 |
+|---|---|
+| ① | 被删的 `codex-agents/prd-reviewer.toml` **故意零工具** ——「READ-ONLY · Cannot write files via shell · Cannot execute commands」。因为**旧架构把待评审文件 inline 进 prompt**,reviewer 不需要自己读。**零工具是设计,不是缺陷。** |
+| ② | 现配方**只 inline 一部分**:`goal→[PRD]` · `blueprint→[TC,TECH]` · **`review→[]`**;**上游 WS 与真实代码从不 inline**。v8.291 改 subagent 冷审 + v8.303 立「读真实代码」硬要求 → 零工具 profile **架构性不兼容**,不是配置没调好。 |
+| ③ 🔴 | **v8.293 删了 skill 侧的源,却没写回收逻辑** —— bootstrap 只有 hook 的清理,没有 `.codex/agents/*.toml` 的。已部署副本留在用户项目里继续被宿主选中。 |
+
+③ 是本 session 反复抓的形态(**退役了源,没清理已部署的副本**)的又一例 ——
+但这次的后果比前几例重:**它在用户项目里活着并阻塞真实流程**。
+
+### 修两侧
+
+**bootstrap:由「部署」改为「回收」**(签名守卫同 hook —— 仅列名文件 + 内容含 teamwork 签名才删,
+**用户自建的同名 profile 不碰**)。原部署分支在 v8.293 后已是死代码(`is_dir()` 守卫下静默 no-op),
+连同那句「codex-cli 仍部署 …(**活功能**)」的错注释一并更正。
+
+**门禁:区分 CAPABILITY_BLOCKED(执行失败)与 NEEDS_REVISION(评审失败)** —— 三类信号任一命中:
+① `files_read` 显式为空 · ② `status: FAILED|CAPABILITY_BLOCKED` · ③ 正文出现「no authorized…」类回执。
+报错直接说清 **「这不是 NEEDS_REVISION,是 reviewer 没有文件读取能力,产出的 finding 不可信」**
++ 三条处置 + **「预算没被消耗」**。旧门禁只报「产物不合规」,**把能力缺失说成评审问题**,用户被迫自排一轮。
+
+🔴 `files_read` **缺失不算**(存量产物没这个字段)—— 只在**显式为空**时判定。宁可漏判,不可误判。
+
+**配方 + 模板**:`external-review` 配方明确要求起的 subagent **必须有文件读取能力**,产物记 `files_read`;
+`claude-agents/reviewer.md` 头部那段过时描述(还在写 `claude -p` 与 `_run_claude_review` ——
+前者 v8.291 退役、后者 v8.293 删除)一并更正。
+
+### 提案里我没照做的三条,以及为什么
+
+- **建议 1/2/5(给专用 Reviewer 配最小只读工具集 / 修 teamwork 的 Reviewer 源模板并重新 bootstrap)**:
+  teamwork **不 ship 任何 agent 定义**(`claude-agents/reviewer.md` 是 **prompt 模板**,无工具授权字段)——
+  **建议 5 已无处可修**;agent 能力属**宿主侧配置**,框架不该也不能替用户配。
+- **建议 3(派发前能力检查)** → 换成**产物侧要证据**:preflight 过了不代表正式跑时能读,
+  而 `files_read` 是**已发生的事实**,还省一轮往返。
+- **建议 4(CAPABILITY_BLOCKED 不占评审预算)** → **已天然成立** ——
+  evidence check 在 `rounds.append` **之前**(`_v8_engine.py` 1720 vs 1791),
+  失败根本走不到计数。本版只是把这个事实**写进报错**,让用户不必猜。
+
+### 一处自伤(判定首版静默漏判)
+
+`parse_frontmatter` 是**行式解析不是真 YAML** —— `files_read: []` 会解析成**字符串** `'[]'`。
+首版按 list 判空,实测**该红的绿了**。已改为两种形态都判,并加门锁住解析器行为
+(解析器一变,判定逻辑必须跟着复核)。
+
+### 测试
+
+1079 → **1092**。
+
+---
+
 ## v8.303 · 断言必须标注证据边界 + 测试输入必须来自真实链路
 
 > 来源:SVC-CORE-F260728 的 AI 自省 —— 用户问「你为什么总出错」,它把本 session 犯的 **9 个错**

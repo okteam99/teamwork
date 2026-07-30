@@ -1,6 +1,6 @@
 # Dev Stage
 
-> 🧪 **四段结构试点**(v8.218 · 目标 / 硬规则 / 建议手段菜单 / Output Contract):目标 + 契约给足,**手段 AI 自选** · 降低强制规则比例(如 TDD 节奏从强制降为强烈建议——**测试证据仍是硬门**)。
+> 🧪 **四段结构试点**(目标 / 硬规则 / 建议手段菜单 / Output Contract):目标 + 契约给足,**手段 AI 自选** · 降低强制规则比例(如 TDD 节奏从强制降为强烈建议——**测试证据仍是硬门**)。
 
 ---
 
@@ -26,16 +26,16 @@
 
 | 手段 | 何时值得 |
 |---|---|
-| **测试节奏**(TDD 红绿 / 先骨架后补边界 / test-after)| **AI 自定**(v8.286 框架不再规定)—— TC 已备 + 逻辑类改动时 TDD 通常最顺;绿点级 commit 便于 bisect 与 review 读节奏。🔴 结果不变:每个 TC 有对应实现 · 测试真断言 · 证据硬门照跑 |
+| **测试节奏**(TDD 红绿 / 先骨架后补边界 / test-after)| **AI 自定**(框架不再规定)—— TC 已备 + 逻辑类改动时 TDD 通常最顺;绿点级 commit 便于 bisect 与 review 读节奏。🔴 结果不变:每个 TC 有对应实现 · 测试真断言 · 证据硬门照跑 |
 | **先集成骨架后单测填充** | 跨层契约风险大于单元逻辑时(先打通端到端再补边界) |
 | **subagent 并行拆分**(各写各的 · worktree 内路径)| 多端/多模块/相互独立且够大的子任务;小/耦合/强串行 → 自己串行做(协调开销反拖慢)。契约层/集成点留主对话 |
 | **TECH 模糊处 fallback 决策树** | 实现遇设计未覆盖:KNOWLEDGE → ARCHITECTURE → standards/common → 全无 → concerns + 找架构师;不自行拍板 |
 | **verify-panorama.py / 视觉回归工具** | UI feature 的机器辅助(结构核对必做是硬规则 4 · 工具是加速项) |
 | **中途自查 TECH §依赖与影响** | 改契约类:每改一个 provider 顺手 grep 消费方 · 别攒到最后 |
 
-🛡️ **起草思考规范**(v8.278 · 写法非环节 · 镜像 PRD 起草思考规范):写代码时**就照 review 会打的失败类写** —— 起草前必读 `project-specs/KNOWLEDGE.md § 复发防御清单`(本项目 review 高频 finding 类 · 如 stale closure / timeout 边界 / fail-open / 币种崩页),逐条在实现里主动规避,不是写完等 review 抓。why:findings 82% 真实、集中 code review、且反复撞同几类 —— 起草时防掉的类永不需要多轮收敛(goal 靠 shift-left 已 1 轮收敛 · dev 补齐)。
+🛡️ **起草思考规范**(写法非环节 · 镜像 PRD 起草思考规范):写代码时**就照 review 会打的失败类写** —— 起草前必读 `project-specs/KNOWLEDGE.md § 复发防御清单`(本项目 review 高频 finding 类 · 如 stale closure / timeout 边界 / fail-open / 币种崩页),逐条在实现里主动规避,不是写完等 review 抓。why:findings 82% 真实、集中 code review、且反复撞同几类 —— 起草时防掉的类永不需要多轮收敛(goal 靠 shift-left 已 1 轮收敛 · dev 补齐)。
 
-**并行姿态两问**(v8.254 · 实证:集成测试阶段整包塞单 agent · 主对话裸等 · 用户点破后当场拆出三线):
+**并行姿态两问**(实证:集成测试阶段整包塞单 agent · 主对话裸等 · 用户点破后当场拆出三线):
 - **阶段演进重问**:「哪些可并行」不是开工问一次 —— feature 内每进入新子阶段(实现 → 测试编写 → review 修复)**重问一次**(耦合度随阶段变 · 开工时的最优拆分会过期;实证:两个测试任务零文件重叠 · 可独立 `TEST_PG_DB_NAME` 隔离 · 完全可拆却被打包)。
 - **等待窗口不闲置**:派发后主对话**别裸等 agent** —— 填 TECH §完工自查的既有证据行 / 中途自查依赖消费方 / 把剩余工作再拆一刀(子任务独立判据:零文件重叠 + 可独立隔离 → 满足就再派)。
 
@@ -58,7 +58,7 @@ state.py dev-complete --feature <path> \
 - `bugfix/BUG-*.md`(diagnose 已建)**追加** §回归测试 + §修复记录 · 模板 [templates/bug-report.md](../templates/bug-report.md)。
 
 ### 上下文入口(读什么)
-PRD(AC)· TECH(方案+完工自查槽)· TC(测试用例)· UI.md+全景(若 ui_design 完成)· DEV-RULES(硬规则 1)· 🛡️ **KNOWLEDGE § 复发防御清单必读**(写时防 · v8.278)· KNOWLEDGE 其余/ARCHITECTURE 按需。Bug 流:`bugfix/BUG-*.md` 为权威输入。
+PRD(AC)· TECH(方案+完工自查槽)· TC(测试用例)· UI.md+全景(若 ui_design 完成)· DEV-RULES(硬规则 1)· 🛡️ **KNOWLEDGE § 复发防御清单必读**(写时防)· KNOWLEDGE 其余/ARCHITECTURE 按需。Bug 流:`bugfix/BUG-*.md` 为权威输入。
 
 ---
 

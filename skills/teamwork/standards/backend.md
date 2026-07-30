@@ -2,13 +2,13 @@
 
 > 后端 RD 必须遵守。通用规范见 📎 [common.md](./common.md) · 🔴 必读白名单 📎 [HARD-RULES.md](./HARD-RULES.md)。
 > Subagent 加载指引：后端子项目加载 HARD-RULES.md(必读)+ 本文件 + common.md(按需)，无需加载 frontend.md。
-> 📎 **通用教程不入库**（同 frontend.md v8.123 裁定）：保留的 ✅/❌ 示例仅限**承载契约/门禁字段**的对照（如 §四 日志必须字段）· 通用技术用法由 AI 按需自生成 · 项目特异约定归各项目 `DEV-RULES.md`。
+> 📎 **通用教程不入库**（同 frontend.md 裁定）：保留的 ✅/❌ 示例仅限**承载契约/门禁字段**的对照（如 §四 日志必须字段）· 通用技术用法由 AI 按需自生成 · 项目特异约定归各项目 `DEV-RULES.md`。
 
 ---
 
 ## 一、后端测试规范
 
-> v8.287:TDD 手段规定已整体撤除(怎么测 AI 自觉)· 测试的三条**结果规则**见 [HARD-RULES.md](./HARD-RULES.md)。本框架的证据硬门在 stage 层(`dev-complete --test-exit-code 0` + 差分基线)。
+> TDD 手段规定已整体撤除(怎么测 AI 自觉)· 测试的三条**结果规则**见 [HARD-RULES.md](./HARD-RULES.md)。本框架的证据硬门在 stage 层(`dev-complete --test-exit-code 0` + 差分基线)。
 
 ## 二、集成测试规范（后端 API）
 
@@ -21,7 +21,7 @@
 
 ## 三、服务端 API 接口规范
 
-> 🔴 **优先级链**(同 §五 迁移命名 v8.119 模式 · 本节全部小节适用:响应结构 / JSON 命名 / 状态码 / 分页):
+> 🔴 **优先级链**(同 §五 迁移命名模式 · 本节全部小节适用:响应结构 / JSON 命名 / 状态码 / 分页):
 > ① 优先按项目/子项目 `DEV-RULES.md` 的 API 约定 —— 有则严格照办 · 本节默认不适用。
 > ② DEV-RULES 未规定 · 但**存量服务已有明确一致的接口风格**(envelope / 命名 / 错误码)→ **沿用存量**(对外契约 · 同服务内一致性 = 正确性 · 新接口不得自创风格)· 🔴 并**提示用户**把该约定固化进 DEV-RULES.md(AI 不代写 · dev-rules 模板约定)。
 > ③ 全新服务 / 无任何既有约定 → 用本节 teamwork 默认。
@@ -72,7 +72,7 @@
 
 ## 四、日志规范
 
-### 日志级别与格式(v8.285 压缩 · 级别语义与 JSON 示例已删 —— 模型默认就会)
+### 日志级别与格式(压缩 · 级别语义与 JSON 示例已删 —— 模型默认就会)
 
 - 级别按标准语义(DEBUG 开发 / INFO 关键节点 / WARN 非预期可处理 / ERROR 业务异常 / CRITICAL 系统级)。
 - **结构化日志必填字段**(项目约定 · 不是通用常识):`timestamp` · `level` · `service` · `trace_id`(链路追踪)· `message` · 业务上下文键(如 `feature_id` / 关键业务 id)· 异常时附 `stack`。格式 JSON,字段名以此为准。
@@ -115,7 +115,7 @@
  └── 🔴 **不靠读邻居 migration 推断**格式（邻居可能不一致 / 有坏样板）· 要么 DEV-RULES 要么秒级默认
 ```
 
-### 起号纪律(🔴 多 Feature 并行撞号 · v8.293 从 templates/architecture.md 上提到此权威处)
+### 起号纪律(🔴 多 Feature 并行撞号 · 本节为权威单源)
 
 teamwork 常态是**多 Feature 并行、各自 worktree 起 migration** —— 撞 timestamp 是反复出现的高频问题,
 而模型默认只会「照当前时间起个号」,不会想到去看别人已经合进去的号。故这条是**信息不是教程**:

@@ -219,11 +219,10 @@ class TestUiContractMatchesTemplate(unittest.TestCase):
     §页面列表/§交互流/§视觉规范/§字段映射 —— 模板里没有这四段。Designer 照哪边写都违反另一边。"""
 
     def test_no_phantom_sections_named(self):
+        # v8.309 收紧:原以「v8.293」版本标豁免注解行;spec 清版本标后注解已改写成不点名 · 豁免删除
         for f in ("stages/ui-design-stage.md", "roles/designer.md"):
             t = (ROOT / f).read_text(encoding="utf-8")
             for line in t.splitlines():
-                if "v8.293" in line:
-                    continue
                 self.assertNotIn("§页面列表", line, f"{f} 点名模板里不存在的段")
                 self.assertNotIn("§字段映射", line, f"{f} 点名模板里不存在的段")
 

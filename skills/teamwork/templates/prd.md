@@ -10,12 +10,12 @@
 > - **按需**(按 Feature 类型):业务流程图(多步/分支)/ 埋点(前端业务)/ 消费方分析(中台子项目)· 不适用标「N-A」。
 > - **开放区**(结构没问到的):§开工前必须想清的 —— 逼判断的尖问题 · 人读不机读。
 > 🔴 **PRD 的脊 = prepare 已确认的意图**(🎯理解 / 📦范围 / 🔁既有行为)· 起草不得偏离 · 冷审据此核对(防 goal 起草 re-drift)。
-> 🧠 **起草思考规范**(v8.262 · 冷审关注点即起草写法 · **不是写完再检查 · 是写的时候就这样想**):
+> 🧠 **起草思考规范**(冷审关注点即起草写法 · **不是写完再检查 · 是写的时候就这样想**):
 > - 写**背景/方案**时:PL 六问过脑(这个价值前提站得住吗?是不是最小范围?动了既有行为吗?)—— 写不顺的地方就是冷审会打的地方;
-> - 写**每条 AC** 时:用可测判据写(明确动作 + 预期 · 边界/异常入 AC)· 「尽量/合理/优化/提升」这类词**落笔即换**成可判定表述 · 配一句 💬 **大白话**(说人话:这条在验证什么 · 非技术用户读得懂 · v8.271);
-> - 写**涉依赖/接口**时:先读真实代码确认存在再写 —— 🔴 **在当前 worktree(ship 目标分支)读**,不吃跨分支/记忆的旧调研(v8.282:旧分支/stash 原型的行为可能已变 · 假设的字段或已死的分支 = 冷审读真代码必打的「可实现」finding · 实证 aon-core:PRD 基于 fix 分支旧调研写、staging 领先 233 commits · 状态码 404→422、rejected 桶去向全错);
+> - 写**每条 AC** 时:用可测判据写(明确动作 + 预期 · 边界/异常入 AC)· 「尽量/合理/优化/提升」这类词**落笔即换**成可判定表述 · 配一句 💬 **大白话**(说人话:这条在验证什么 · 非技术用户读得懂);
+> - 写**涉依赖/接口**时:先读真实代码确认存在再写 —— 🔴 **在当前 worktree(ship 目标分支)读**,不吃跨分支/记忆的旧调研(旧分支/stash 原型的行为可能已变 · 假设的字段或已死的分支 = 冷审读真代码必打的「可实现」finding · 实证 aon-core:PRD 基于 fix 分支旧调研写、staging 领先 233 commits · 状态码 404→422、rejected 桶去向全错);
 > - 用**术语**时:GLOSSARY 没有的 · 当句给定义。
-> - 涉**降级/兜底体验**时:按 **ROI** 取舍(保护的场景概率×后果 vs 复杂度成本 · 立得住做 · 立不住砍)—— 要做的降级体验是**产品决策** · 列进 §待决策项或终确认导读让用户拍板 · 不默默写进方案;🔴 **未命中/坏输入分支必须和命中分支一起落 AC**(v8.282:只写 happy path〔命中〕· miss 是大概率真实分支却漏进 AC = 冷审必打 · 实证 aon-core:降级后 tracking_id 未命中的行为没进 AC · 被 EXT-2/PL-4 抓)。
+> - 涉**降级/兜底体验**时:按 **ROI** 取舍(保护的场景概率×后果 vs 复杂度成本 · 立得住做 · 立不住砍)—— 要做的降级体验是**产品决策** · 列进 §待决策项或终确认导读让用户拍板 · 不默默写进方案;🔴 **未命中/坏输入分支必须和命中分支一起落 AC**(只写 happy path〔命中〕· miss 是大概率真实分支却漏进 AC = 冷审必打 · 实证 aon-core:降级后 tracking_id 未命中的行为没进 AC · 被 EXT-2/PL-4 抓)。
 > why:finding 采纳率 80-90% = 多数问题起草时可预见 · 按冷审标准写一遍 比 写完被打回改一遍 省一整轮。
 
 ```markdown
@@ -71,7 +71,7 @@ revision_history:   # 🔴 goal-complete 校验 ≥1 条(证明经 review 收敛
 |----|------|------|--------|------------|------|
 | D-1 | {一句话问题} | A. {…} / B. {…} | **B** | {为什么倾向 B · 指向实证/约束/成本} | {用户填} |
 
-<!-- 🔴 **每条待决策项必带「💡 建议 + 理由」**(v8.302 · 结构性要求 · 不是可选)——
+<!-- 🔴 **每条待决策项必带「💡 建议 + 理由」**(结构性要求 · 不是可选)——
      AI 有全部上下文、用户没有;不给建议 = 把判断成本转嫁回去,且 `ok` 快捷词失灵(它=选推荐项)。
      🔴 **真的推荐不了 → 在「💡 建议」列写明「无法建议」+ 理由写清是哪一种**:
        ① 缺信息(缺什么 · 谁能给)· ② 纯偏好(无技术优劣 · 是产品/审美取舍)· ③ 等上游决策。
@@ -81,7 +81,7 @@ revision_history:   # 🔴 goal-complete 校验 ≥1 条(证明经 review 收敛
 
 ## 验收标准
 
-<!-- 🔴 本表 = AC **人读单源**(BDD 全文在此)· TEAMWORK-MACHINE 块 acceptance_criteria 只存机读字段(id/category/priority/test_refs/grep)· 两处 **id 一致** 即可(描述不再同步两份 · verify-ac.py 按 id↔TC.covers_ac 校验)· AC 写 BDD(Given/When/Then)· 行为/价值高度 · 🧠 写时即用可测判据(含糊词落笔即换 · 边界/异常入 AC —— 详模板头「起草思考规范」)· 💬 **大白话列逐条必填**(v8.271:一句人话——这条在验证什么/用户能感知什么 · BDD 给 QA 绑 TC · 大白话给用户终确认拍板 · goal-complete 机器校验非空/非占位)。 -->
+<!-- 🔴 本表 = AC **人读单源**(BDD 全文在此)· TEAMWORK-MACHINE 块 acceptance_criteria 只存机读字段(id/category/priority/test_refs/grep)· 两处 **id 一致** 即可(描述不再同步两份 · verify-ac.py 按 id↔TC.covers_ac 校验)· AC 写 BDD(Given/When/Then)· 行为/价值高度 · 🧠 写时即用可测判据(含糊词落笔即换 · 边界/异常入 AC —— 详模板头「起草思考规范」)· 💬 **大白话列逐条必填**(一句人话——这条在验证什么/用户能感知什么 · BDD 给 QA 绑 TC · 大白话给用户终确认拍板 · goal-complete 机器校验非空/非占位)。 -->
 
 | ID | 描述(BDD) | 💬 大白话 | 优先级 | 覆盖测试 |
 |----|-----------|-----------|--------|----------|
@@ -169,16 +169,16 @@ prd_feature_id: F025
 review_round: 1
 review_started_at: "<ISO 8601 UTC>"
 review_completed_at: "<ISO 8601 UTC>"
-reviewers: [pl, external]  # 机读汇总 · = state.stage_review_roles[goal](v8.243 默认 2 路:PL 对抗质疑 + 覆盖方向制外审 · 无 pm:PM 是整合者非 reviewer)· 校验 reviewers_match
+reviewers: [pl, external]  # 机读汇总 · = state.stage_review_roles[goal](默认 2 路:PL 对抗质疑 + 覆盖方向制外审 · 无 pm:PM 是整合者非 reviewer)· 校验 reviewers_match
 verdicts: {pl: APPROVE, external: APPROVE}  # 🔴 全 APPROVE/SKIP 才可 goal-complete(prd_verdicts_all_pass · 词表 APPROVE|NEEDS_REVISION|SKIP · 无 pm verdict)
 reviews:
- # goal 评审角色 = state.stage_review_roles[goal](v8.243 默认 pl/external 两路并行隔离冷审 · QA 可验证/ARCH 可实现并入外审覆盖方向 · 复杂 feature change-review-roles 加回独立 qa/architect · PM 整合非 reviewer)
+ # goal 评审角色 = state.stage_review_roles[goal](默认 pl/external 两路并行隔离冷审 · QA 可验证/ARCH 可实现并入外审覆盖方向 · 复杂 feature change-review-roles 加回独立 qa/architect · PM 整合非 reviewer)
  # PMO 不独立评审(折叠到调度责任 · 整合 finding)
  - role: pm | qa | architect | pl | external  # schema 通用 · rd/designer 值用于 TECH-REVIEW / REVIEW.md 复用场景
  review_scope: prd # 值 prd | blueprint | code-review
  # PRD 评审审产品视角(业务可行性 / AC 可测试性 / 用户故事完整性)· 技术/测试细节归 Blueprint Stage(review_scope=blueprint)
  # 🔴 pl 段 = 对抗质疑段:finding id 用 PL-CHALLENGE-{n} · category=premise-challenge(质疑六问〔含 ⑥ 既有行为变更〕· 至少 1 条实质质疑或显式「无实质质疑+理由」· 详 stages/goal-stage.md §3)
- # 🔴 external 段 = 覆盖方向制(v8.243):必覆盖 可实现(技术可行/架构影响/简洁性 counter-lens)· 可验证(AC 可测/边界/空值异常)+ AI 自主方向 ≥1(安全/性能/数据一致性/兼容…按 feature 挑)· 每方向 finding 或「查过无发现」· 下方 coverage 必填(物化门 external_coverage_present)
+ # 🔴 external 段 = 覆盖方向制:必覆盖 可实现(技术可行/架构影响/简洁性 counter-lens)· 可验证(AC 可测/边界/空值异常)+ AI 自主方向 ≥1(安全/性能/数据一致性/兼容…按 feature 挑)· 每方向 finding 或「查过无发现」· 下方 coverage 必填(物化门 external_coverage_present)
  coverage: [可实现, 可验证, <AI 自主方向>]  # 仅 role=external 必填 · 申报本次实际覆盖的方向
  execution: subagent | main-conversation
  verdict: APPROVE | NEEDS_REVISION  # 词表:APPROVE(含 advisory finding 留痕)| NEEDS_REVISION
@@ -266,7 +266,7 @@ verdict: {APPROVE|NEEDS_REVISION}
 
 > 为什么硬规则:PM 不读代码 → PRD 假设功能不存在但实际有 / AC 与现有约束冲突 → 冷审才发现 → 多 1 轮评审。
 
-🔴 **起草前把真实代码现状内化** —— 🔴 **在当前 worktree(ship 目标分支)读**,不吃跨分支/记忆的旧调研(v8.282 实证:读旧分支写 PRD · 状态码与行为分支全错)。**读多深 / 怎么找 / 读几个文件由 AI 按本 feature 判断**(v8.283 删原 Step1-4 流程与「≤5 文件 / 1000 行 / 5-10 min」封顶 —— 那是给调研深度设天花板 · 与 grounding 要求自相矛盾)。
+🔴 **起草前把真实代码现状内化** —— 🔴 **在当前 worktree(ship 目标分支)读**,不吃跨分支/记忆的旧调研(实证:读旧分支写 PRD · 状态码与行为分支全错)。**读多深 / 怎么找 / 读几个文件由 AI 按本 feature 判断**(删原 Step1-4 流程与「≤5 文件 / 1000 行 / 5-10 min」封顶 —— 那是给调研深度设天花板 · 与 grounding 要求自相矛盾)。
 
 **边界**(约束 · 非方法):
 - **只读不输出**:不产 brief 文件 · 不在主对话复述读过的文件清单(污染主对话 · 浪费 token)
@@ -311,7 +311,7 @@ verdict: {APPROVE|NEEDS_REVISION}
 
 ### PM 自查字段(机读 · 非环节)
 
-> v8.263 裁定:规范是**写法**(写的时候就这样想)· 不是写完再逐项过。本节只留 PRD-REVIEW 消费的机读字段。
+> 裁定:规范是**写法**(写的时候就这样想)· 不是写完再逐项过。本节只留 PRD-REVIEW 消费的机读字段。
 
 写入 `PRD-REVIEW.md.reviews[role=pm].pm_self_check`:`{checklist_passed, code_context_read, failed_items[], notes}`(不复述全文)。
 🔴 `code_context_read: false` = 起草前没读真实代码 → 冷审若发现 AC 与代码现状冲突 · PMO 自动 NEEDS_REVISION 打回重起。

@@ -1,6 +1,6 @@
 ---
 name: teamwork
-version: v8.308.1
+version: v8.309
 description: AI 协作开发一体化框架 - 需求功能开发, bug 修复, 问题排查 · /teamwork 启动
 ---
 
@@ -99,9 +99,9 @@ worktree 路径规范见 [docs/conventions.md §9-12](./docs/conventions.md)。
 
 ## 命令清单(分类概览 · 🔴 权威 = `state.py --help`)
 
-> v8.290:原 30 行逐条枚举已删 —— **实测已漂**(52 个真实子命令里 11 个从未出现在本文件:`execute-start/complete`〔整个 micro 流程〕· `review-preventability` · `ws-lint` / `ws-progress` · `test-baseline` · `ledger-migrate` · `reset-prev` · `external-ingest` 等)。**指针 + 复制被指向内容 = 副本必漂**,这里只留 `--help` 给不出的**分类心智**:
+> 原 30 行逐条枚举已删 —— **实测已漂**(52 个真实子命令里 11 个从未出现在本文件:`execute-start/complete`〔整个 micro 流程〕· `review-preventability` · `ws-lint` / `ws-progress` · `test-baseline` · `ledger-migrate` · `reset-prev` · `external-ingest` 等)。**指针 + 复制被指向内容 = 副本必漂**,这里只留 `--help` 给不出的**分类心智**:
 
-> 🔴 **v8.301 按「AI 要不要记」分类**(不是按功能分)—— 56 个子命令里,**AI 只需记住 A 类**。
+> 🔴 **按「AI 要不要记」分类**(不是按功能分)—— 56 个子命令里,**AI 只需记住 A 类**。
 > 实测触发:某次 AI 在 goal 阶段手跑 `verify-ac.py`(它记住了这个脚本),而该脚本在 goal **必然 FAIL**
 > —— 减少命令总数解决不了这个,只有**把对的命令在对的时点推给它**才解决。
 
@@ -115,7 +115,7 @@ worktree 路径规范见 [docs/conventions.md §9-12](./docs/conventions.md)。
   `external-review` · `add-concern`(auto skip 时)· `pause-mark` · `test-baseline` · `change-review-roles` …
   🔴 **它们会带着可直接跑的完整命令行出现在对应 emit / brief 里** —— 不必背,**照着跑**。
   > why:写进 stage 文档 ≠ 到达。文档在 stage-start 读,而动作点常在几十个工具调用之后 ——
-  > **提醒与动作之间隔了太多 context**(v8.299 实证:agent 读过派发声明制仍然漏了)。
+  > **提醒与动作之间隔了太多 context**(实证:agent 读过派发声明制仍然漏了)。
 
 - **C 类 · 不必记也别主动跑(逃生口 · 出事或用户要求时才用)**:`snapshot`(别名 `status`)/ `validate` /
   `raw-read` / `raw-write` / `recover` / `reset-prev` / `jump-to-stage` / `set-mode` / `audit-raw-writes` /
@@ -153,7 +153,7 @@ state.py 物化了 9 红线中 8 条 · R3 + 部分行为约束(R4 / R5(b) / byp
 
 所有用户输入 PMO 先承接 · 禁止 RD/Designer/PM 等角色直接响应(用户输入直接打 RD = 跳过 PM 的 PRD)。
 
-### R3-E · 断言必须标注证据边界(v8.303)
+### R3-E · 断言必须标注证据边界
 
 🔴 **说某段代码/系统有某属性时,要么本次会话读过那一行,要么显式写「推断」——不许中间态。**
 
@@ -190,12 +190,12 @@ state.py 物化了 9 红线中 8 条 · R3 + 部分行为约束(R4 / R5(b) / byp
 > 本节 = **并行姿态 + 声明制单源**;**档位表与四条硬边界单源 = [agents/README.md §一](./agents/README.md)**(全局规则 · 任何 subagent/teammate/workflow 适用)。
 
 - **并行是默认考虑项**:每个 stage 开工先问「**哪些子任务可以并行?**」—— 冷审天然 N 路同发 · dev 多端/多模块各派一路 · 调研 fan-out 保主编排 context 干净 · 能并行的不串行(ultracode 开启时 workflow 优先)。
-- **每进新子阶段重问**(实现 → 测试编写 → 修复):耦合度随阶段变 · 开工问一次会过期。🆕 **重问时加第三问:这些子任务的「验证目标」有重叠吗?**(v8.299)—— 🔴 **按产物归属切分容易让验证目标跨线**:切分看着正交(A=文档+单测 / B=新测试文件),验证目标却不正交。重叠 → 合并,或指定唯一 owner、其余路**显式声明「不做该验证」**。why(实证):dev 期 A 路自建 harness 验 6 场景,B 路的新测试文件验同一批场景 —— 同一件事做了两遍,多耗 ~40min 与 ~150k tokens。
+- **每进新子阶段重问**(实现 → 测试编写 → 修复):耦合度随阶段变 · 开工问一次会过期。🆕 **重问时加第三问:这些子任务的「验证目标」有重叠吗?**—— 🔴 **按产物归属切分容易让验证目标跨线**:切分看着正交(A=文档+单测 / B=新测试文件),验证目标却不正交。重叠 → 合并,或指定唯一 owner、其余路**显式声明「不做该验证」**。why(实证):dev 期 A 路自建 harness 验 6 场景,B 路的新测试文件验同一批场景 —— 同一件事做了两遍,多耗 ~40min 与 ~150k tokens。
 - **派发后等待窗主对话不闲置**:干自己能干的(自查证据 / 再拆剩余工作)· 🔮 goal 终确认等待窗的投机窗见 [stages/goal-stage.md ④](./stages/goal-stage.md)。
 - **拆分边界**:子任务**边界清晰且够大**才派(小 / 强耦合 / 强串行自己做 · 协调开销反拖慢)。
 - 🔴 **编排权不外包**:stage 流转 / commit / `xx-complete` / 最终整合**永远归主对话**(并行的是执行 · 不是编排)· 代码类 subagent 只写 worktree 内路径。
 - 🎚️ **派前定档**:不传 model = 继承会话模型 · **常费而不自知** —— 校验/枚举型(冷审对照 · TC 对照 · 测试执行 · 机械外化)→ 验证档;判断/创造型(Architect/PL 冷审 · 方案 · 裁决)→ **不降档**。
-- 📣 **声明制(v8.299 重写)**:声明**寄生在 prompt 首行**,不另起一句 —— `Meta: tier=<验证|执行|深度> · model=<留空则继承> · 理由=<一句>`。prompt 是派发时必然要写的,寄生其上才不会被忘(**高频低显著性的义务必然衰减** · 实证:agent 读过规则仍漏)。
+- 📣 **声明制(重写)**:声明**寄生在 prompt 首行**,不另起一句 —— `Meta: tier=<验证|执行|深度> · model=<留空则继承> · 理由=<一句>`。prompt 是派发时必然要写的,寄生其上才不会被忘(**高频低显著性的义务必然衰减** · 实证:agent 读过规则仍漏)。
 - 🎚️ **验证类白名单一律降验证档 · 例外需用户授权**:写测试用例(TC 起草)· 执行测试 · 单测 · 集成测试 · e2e · TC 逐条对照 · 冷审执行 · 机械外化 —— 默认**全部**降档且**必须显式传 model**;认为本次特殊 → 🔴 **不许 AI 自决**,开 R5 请用户授权。判断/创造型允许继承(仍在首行声明 tier + 理由)。档位表与硬边界单源 [agents/README §一](./agents/README.md)。
 - 📊 台账 `dispatch_models` 分两桶:`inherited_declared`(判定该继承 = **正确行为**)vs `unspecified`(真没分档)—— 两者干预手段相反,不可合并计数。
 - 🔴 **评审模型必错开**(独立采样不变式):双路冷审(goal PL+外审 / blueprint·review Architect+外审)**两路模型必须不同**(主审路继承会话主模型 · 外审路错开一档);单路配置(fast 合并 / roster 减到一路)时**该路 ≠ 会话主模型**。**任何评审配置至少一路 ≠ 会话主模型** —— 同模型 = 盲区相关(两路同瞎)· 主对话热审 = 自审无效。验证轮降档本身即错开。
@@ -232,7 +232,7 @@ state.py 物化了 9 红线中 8 条 · R3 + 部分行为约束(R4 / R5(b) / byp
 - 不可省略**编号** / **💡 推荐** / **理由**(缺任一 = 把判断甩回用户 + `ok` 快捷词失灵)。
 - 🔴 **方案/变更确认类必自带变更点明细**:让用户拍板「改 X」时 · 选项之前必给**变更点清单**(对象级 · 每条一行:对象|变更|用途)—— 情境一句 + 分类概括 + 文件指针**不算**(用户被迫追问「方案是什么」= 暂停点白跑一轮)· 指针只作深读补充。
 - 单选 → 1/2/3 · 多决策 → 1A/2B · 用户回 `ok` = **选 💡 推荐项**。
-- 🔴 **「必带建议 + 理由」不止于三选项格式**(v8.302):**任何抛给用户的决策项都算** —— PRD §待决策项逐条 · 多项一次性 escalate · 方案分叉 · 「要不要现在做 X」。**列了选项不给倾向 = 把判断甩回用户**,而 AI 有全部上下文、用户没有。
+- 🔴 **「必带建议 + 理由」不止于三选项格式**:**任何抛给用户的决策项都算** —— PRD §待决策项逐条 · 多项一次性 escalate · 方案分叉 · 「要不要现在做 X」。**列了选项不给倾向 = 把判断甩回用户**,而 AI 有全部上下文、用户没有。
   🔴 **真推荐不了也要写明是哪一种**:① 缺信息(缺什么 · 谁能给)· ② 纯偏好(无技术优劣)· ③ 等上游决策。**空着不算** —— 用户只会被迫追问「你的建议和理由是什么」(实证 SVC-CORE-F260728:四条待决策项裸列,被逐条追问)。
 
 ### bypass 协议(R8 写操作硬门禁链 · 逃生通道)
@@ -414,7 +414,7 @@ mode B 识别后(**无论后续 flow_type = Feature〔full/micro〕还是 Bug ·
 
 - **roster 内评审全真跑 · 一个不少**(默认两路:Architect 主审 + 覆盖方向制第三视角〔QA 视角并入必覆盖方向〕)· **不得以「集中到 review stage」「效率」「价值低」为由去掉第三视角** —— `change-review-roles` 物化 BLOCK。
 - 🔴 **真跑的物化校验**(严格按流程流转 · 不得「内化」自盖章 APPROVE · 不得 AI 手写 `external-cross-review/*.md`):第三视角必走 `state.py external-review --stage <X>` —— **默认 subagent 隔离冷审** → 校验 frontmatter `review_via: subagent`(无 → FAIL);**opt-in 异质** → 真调异质模型 + `~/.teamwork/external-review-logs/<feat>/codex-<stage>-*.log` 实跑日志(无 → FAIL · 伪造不了)。
-- 🔴 **第三视角 = 🎭 错开模型 subagent 隔离冷审(唯一形态 · v8.291 跨厂商 CLI 异质已退役 —— 冷启动/慢路径/登录故障面实测严重拖慢)**:`state.py external-review` 只 emit subagent 配方(不 exec 子进程)· 产物须 `review_via: subagent` + 照实申报 `review_model` · 🔴 yolo 额外要 prompt doc(实跑证据 · 防手写自盖章)。—— **不许「不冷审」**(主对话自评 = 无独立性 · 门禁拦)。
+- 🔴 **第三视角 = 🎭 错开模型 subagent 隔离冷审(唯一形态 · 跨厂商 CLI 异质已退役 —— 冷启动/慢路径/登录故障面实测严重拖慢)**:`state.py external-review` 只 emit subagent 配方(不 exec 子进程)· 产物须 `review_via: subagent` + 照实申报 `review_model` · 🔴 yolo 额外要 prompt doc(实跑证据 · 防手写自盖章)。—— **不许「不冷审」**(主对话自评 = 无独立性 · 门禁拦)。
 - **不得擅自合并 BL / 跳 stage / 减 review 轮次 / 简化流程**(BL 拆分是 Planning 已定的范围)· ✅ **可以加重**:多跑 external、加 review 轮次、提高测试覆盖。
 
 | 暂停点 | yolo 行为 |
@@ -585,7 +585,7 @@ v8 把 9 红线的可枚举子条目物化进 state.py;R3 + 部分行为约束(R
 | [tools/_v8_stage_specs.py](./tools/_v8_stage_specs.py) | 12 stage 完整契约(stage 数单源 `STAGE_SPECS`) |
 | [tools/_v8_ship.py](./tools/_v8_ship.py) | ship-phase actions + ship-finalize + await-merge |
 | [tools/bootstrap.py](./tools/bootstrap.py) | session 启动维护(骨架 / 历史注入段与 hooks 清理 / legacy codex agent toml 回收) |
-| [claude-agents/](./claude-agents/) | 第三视角冷审 prompt 模板(`state.py external-review` 组装进配方 · v8.291 codex-agents 已随跨厂商退役删除) |
+| [claude-agents/](./claude-agents/) | 第三视角冷审 prompt 模板(`state.py external-review` 组装进配方 · codex-agents 已随跨厂商退役删除) |
 | [docs/CHANGELOG.md](./docs/CHANGELOG.md) | 变更记录 · [RETRO-LEDGER.md](./docs/RETRO-LEDGER.md) 一行一版自省 |
 
 ---

@@ -1,6 +1,6 @@
 # PM Acceptance Stage
 
-> 🧭 四段结构(v8.284)
+> 🧭 四段结构
 
 ---
 

@@ -1,6 +1,6 @@
 # Ship Stage
 
-> **v8.145 架构(用户拍板)**:**ship1 全交付 · ship2 零内容只清场**。
+> **两段架构(用户拍板)**:**ship1 全交付 · ship2 零内容只清场**。
 > **ship1**(§1-§5):全在 **worktree 内**跑 —— sanitize → **archive(归档+翻牌进 feature 分支)** → push + 创 MR · **终点 = MR 提交** · 提示用户合并后 feature 的 ship 即结束。
 > **ship2**(§6):用户合并 MR 后 · 在**主工作区**跑一条 `state.py ship-finalize` —— 验已交付 → 删 worktree → 净化主工作区。**不修改任何内容**。
 >
@@ -16,7 +16,7 @@
 ### 2. ship-phase sanitize(在 worktree 内)
 `--action sanitize` · 净化 commit 记录(检查 residual / suspicious 文件)· 必带 `--distill`(§14)
 
-### 3. ship-phase archive(在 worktree 内 · v8.145 ship1 终幕 · tool-executed)
+### 3. ship-phase archive(在 worktree 内 · ship1 终幕 · tool-executed)
 
 ```bash
 state.py ship-phase --action archive --feature <path> \
@@ -27,7 +27,7 @@ state.py ship-phase --action archive --feature <path> \
 
 state.py 一口气做完(单 commit 进 feature 分支):
 1. **规划翻牌 gate**:未传 `--planning-artifacts` 且未传 `--no-planning-changes` → emit `PENDING`(AI 先在 **worktree 内**翻规划层 back-ref · 详 §3.5)
-1.5 **翻牌验收门**(v8.253 · 声明→机器验收):`state.bl` 已知 → worktree 内 ROADMAP 对应 BL 行状态格**必须已翻完成态**(已完成/已交付/已上线 · v8.252 词表)· 未翻 → PENDING(`--no-planning-changes` 不豁免 —— 有 BL = 必有行可翻);确属例外(部分交付)→ `--bl-flip-exception '<理由>'` 审计留痕(实证 case:漏翻状态格 → 进度误报 0/4 · 人工查账才发现)
+1.5 **翻牌验收门**(声明→机器验收):`state.bl` 已知 → worktree 内 ROADMAP 对应 BL 行状态格**必须已翻完成态**(已完成/已交付/已上线 · 词表)· 未翻 → PENDING(`--no-planning-changes` 不豁免 —— 有 BL = 必有行可翻);确属例外(部分交付)→ `--bl-flip-exception '<理由>'` 审计留痕(实证 case:漏翻状态格 → 进度误报 0/4 · 人工查账才发现)
 2. **终态 state.json**:`current_stage=completed` + `ship.phase=archived`(终态进 zip = 墓碑 ·「completed 宣称」随 MR 合入与落地**原子可见**)
 3. **zip + INDEX**:整个 feature 目录(工作树快照 · 含未 commit 的 review-log.jsonl)打成 `features/_archive/<id>.zip` · `_archive/INDEX.md` 追加一行(描述列 = `--archive-desc` · 超 200 字 FAIL · §15)
 4. **`git rm --cached` 过程目录**(只删 index · **工作树保留** = ship2 接力卡)+ `git add` {zip + INDEX + 翻牌文件} + 单 commit
@@ -35,7 +35,7 @@ state.py 一口气做完(单 commit 进 feature 分支):
 🔴 archive 之后**勿在 worktree 跑 `git add -A`**(会把 untracked 接力卡目录加回分支)。
 幂等:重跑检测「HEAD 含 zip + 不含目录」→ 同步后直接给 push 指引。
 
-**冲突防线(v8.146 · 内置于 archive · 治本「共享追加文件进 feature 分支 → 并行 MR 大概率冲突」)**:
+**冲突防线(内置于 archive · 治本「共享追加文件进 feature 分支 → 并行 MR 大概率冲突」)**:
 - archive 内置前置 sync + 追加型台账(INDEX / PROCESS-LEDGER)机械自动解(脚本内部行为 · AI 不干预);
 - **代码/其余文件冲突留 AI**(不可枚举):emit `PENDING merge-conflict` + 文件清单 · AI 在 **worktree 内**评估处理 → `git add` → `git commit` → 重跑 archive;
 - **MR 窗口期别人先合 → 平台报冲突**:回 worktree **重跑 archive**(= 冲突修复入口 · 自动 sync + 机械解)→ `git push` → MR 自动更新 → 用户再合。
@@ -61,9 +61,9 @@ state.py ship-phase --action push --feature <path> \
 ### 5. ⏸️ ship1 终点 · 提示用户合并 MR(R5 标准暂停点)
 
 🔴 **feature 的 ship 到此结束** —— 归档/翻牌/终态已全部在这个 MR 里。
-🔴 **`auto_mode=true` 也必停此暂停点** —— 用户需在 git host 平台手动 merge · AI 无法代办;🔴 v8.234:**停 ≠ 停监控** —— 所有模式(普通/auto/yolo)都必须跑 `await-merge`(合并后自动 ship-finalize · 治「auto 停在 pushed · 用户合了没人收尾」实证 case)(详 [SKILL.md § auto_mode=true 时各暂停点行为](../SKILL.md))。
+🔴 **`auto_mode=true` 也必停此暂停点** —— 用户需在 git host 平台手动 merge · AI 无法代办;🔴 **停 ≠ 停监控** —— 所有模式(普通/auto/yolo)都必须跑 `await-merge`(合并后自动 ship-finalize · 治「auto 停在 pushed · 用户合了没人收尾」实证 case)(详 [SKILL.md § auto_mode=true 时各暂停点行为](../SKILL.md))。
 
-🔴 **输出格式规范(v8.232/233)**:ship1 暂停点输出 = **两段定序 · 都必含** —— ① MR 卡片(URL 置顶)② 交付总结。治实证 case:总结写在前、URL 埋进段落 · 用户被迫问「地址发出来啊」。**次序不可倒 · URL 必独立行**:
+🔴 **输出格式规范**:ship1 暂停点输出 = **两段定序 · 都必含** —— ① MR 卡片(URL 置顶)② 交付总结。治实证 case:总结写在前、URL 埋进段落 · 用户被迫问「地址发出来啊」。**次序不可倒 · URL 必独立行**:
 
 ```markdown
 ⏸️ **ship1 完成 · 请合并 MR**
@@ -81,7 +81,7 @@ state.py ship-phase --action push --feature <path> \
 - 合并后解锁:<下游 BL/feature · 如 S5、S11 随本 MR 解锁 | 无>
 ```
 
-卡片段**原样用** push emit 的 `user_card`(工具生成 · URL/分支不抄错 · 🔴 v8.240:禁 key-filter/截断该 emit —— 卡片同步落盘 `<feature_dir>/SHIP-USER-CARD.md`,stdout 丢失时 `cat` 它原样贴,untracked 随 worktree 消亡;实证 case:AI 过滤 JSON 丢 user_card → 手写卡片 URL 被 markdown 包裹 → 用户看不见链接);总结段 AI 照实写(照抄落盘产物 · 不美化)。🔴 **投递次序(v8.275 · 单源)**:**① 先后台启动** `state.py await-merge --feature <path>`(30s 轮询 · 不阻塞 · 所有模式都跑 · MERGED → 自动 ship-finalize)→ **② 再把两段作为回合终文贴出** · 卡片之后本回合**零工具调用**(宿主可能不渲染回合中段文本 · 实证:卡片被吞 · 用户被迫问「url 发下」)。用户无需回编号 —— **合并动作本身就是确认**;仅「冲突/撤回」两个异常口令需要回话。
+卡片段**原样用** push emit 的 `user_card`(工具生成 · URL/分支不抄错 · 🔴 禁 key-filter/截断该 emit —— 卡片同步落盘 `<feature_dir>/SHIP-USER-CARD.md`,stdout 丢失时 `cat` 它原样贴,untracked 随 worktree 消亡;实证 case:AI 过滤 JSON 丢 user_card → 手写卡片 URL 被 markdown 包裹 → 用户看不见链接);总结段 AI 照实写(照抄落盘产物 · 不美化)。🔴 **投递次序(单源)**:**① 先后台启动** `state.py await-merge --feature <path>`(30s 轮询 · 不阻塞 · 所有模式都跑 · MERGED → 自动 ship-finalize)→ **② 再把两段作为回合终文贴出** · 卡片之后本回合**零工具调用**(宿主可能不渲染回合中段文本 · 实证:卡片被吞 · 用户被迫问「url 发下」)。用户无需回编号 —— **合并动作本身就是确认**;仅「冲突/撤回」两个异常口令需要回话。
 
 ### 6. ship2:ship-finalize(一条命令 · 在主工作区跑 · 零内容修改)
 
@@ -96,10 +96,10 @@ state.py ship-finalize --feature <worktree 内 feature 目录路径> \
 | 2 | worktree-remove | 删 feature worktree + 本地分支 + prune(工具内部) |
 | 3 | main-sync | 净化主工作区:副产物自动 commit · **用户真改动 → R5(b) 决策面板**(commit-push / stash-pull / skip)· pull/push · 顺带回收 auto-stash |
 
-尾随:teamwork stash 盘点(v8.144 · 防自动 stash 堆积埋改动)+ digest 指引(§16)。
+尾随:teamwork stash 盘点(防自动 stash 堆积埋改动)+ digest 指引(§16)。
 
 **幂等**:可重入(已交付则 noop)。`--feature` 指向 **worktree 内**路径(archive 留下的 untracked state.json = ship2 接力卡)。
-**AI 只在两处干预**:① PENDING(MR 未合 → 等用户);② main_sync_decision(用户改动 → 转 R5(b) 暂停点 · 用户选项后跑 `state.py main-sync --merge-target <mt> --strategy <选项>` —— v8.145 起不依赖 --feature)。
+**AI 只在两处干预**:① PENDING(MR 未合 → 等用户);② main_sync_decision(用户改动 → 转 R5(b) 暂停点 · 用户选项后跑 `state.py main-sync --merge-target <mt> --strategy <选项>` —— 不依赖 --feature)。
 
 ### 异常 · close-unmerged
 放弃合入 → `--action close-unmerged --abandon=true` · 暂时关闭(后续重开)→ `--abandon=false`。重开走 §3 archive(幂等)→ §4 push 重 MR。
@@ -119,7 +119,7 @@ git add <feature_dir>/dev/*.md <feature_dir>/PRD.md
 ```
 
 **理由**:`state.json` + `review-log.jsonl` 由 state.py 持续写 · PMO 列文件易漏 → MR 不含状态档 → 下游评审看不到历史。`-A {feature_dir}/` 范围严格限定。
-🔴 **v8.145 时序界**:§3 archive **之后**目录已转 untracked 接力卡 —— 此后**禁止**再 `git add -A <feature_dir>/`(会把已归档目录加回分支)。
+🔴 **时序界**:§3 archive **之后**目录已转 untracked 接力卡 —— 此后**禁止**再 `git add -A <feature_dir>/`(会把已归档目录加回分支)。
 
 ---
 
@@ -153,7 +153,7 @@ git add <feature_dir>/dev/*.md <feature_dir>/PRD.md
 
 ---
 
-## 15. 过程层归档(v8.145 起属 ship1 · §3 archive 执行)
+## 15. 过程层归档(起属 ship1 · §3 archive 执行)
 
 > 🔴 distill(§14)已把「描述代码」的知识 graduate 到知识层 · 过程层 `docs/features/{id}/` 的使命已尽。§3 archive 把它 zip 进 `features/_archive/<id>.zip` · 并从 **feature 分支**删原目录 —— 随 feature MR 合入后 · merge_target 上**从未出现过**过程目录(主工作区也从未物化)。
 >
@@ -177,12 +177,12 @@ git add <feature_dir>/dev/*.md <feature_dir>/PRD.md
 | `project-specs/PROCESS-LEDGER.md`(项目侧) | 一行一 feature · 机器字段 | §3 archive 规划 gate(worktree 内) | 项目流程审视 + 年检查表 |
 | `docs/RETRO-LEDGER.md`(框架仓) | 一行一版 · 永久 | 框架改进发版时 | 年检 / 存在性审视 |
 
-> 🔴 **v8.296:`docs/audit/<id>.md` 整条退役** —— 它落在 `~/.teamwork/audit/`(**机器本地 · git 不跟踪**),跨机器 / 跨人根本聚不起来,**数据没办法追踪**;代码里也自陈「审计只写不读」。
+> 🔴 **`docs/audit/<id>.md` 整条退役** —— 它落在 `~/.teamwork/audit/`(**机器本地 · git 不跟踪**),跨机器 / 跨人根本聚不起来,**数据没办法追踪**;代码里也自陈「审计只写不读」。
 > 它原本要办的事(框架跨项目搜集流程质量)由**这两处覆盖**:PROCESS-LEDGER 随 feature MR **原子合入 git**、一行一 feature 可查表算账;RETRO-LEDGER 是框架侧的永久蒸馏。**后续以 retro 为准。**
 
-**时机(v8.145/148 两段式)**:
+**时机(两段式)**:
 - **采集 + 写台账行 = §3 archive 的规划 gate 时**(worktree 内 · `state.json`/`REVIEW.md`/`external-cross-review/` 全在工作树 · 取数零成本):PMO 在 worktree append `project-specs/PROCESS-LEDGER.md` 行(无则按 [templates/process-ledger.md](../templates/process-ledger.md) 创建)· 路径加进 `--planning-artifacts`(随 feature MR 原子合入)。
-  - 🔴 **append 前先跑 `state.py ledger-migrate --feature <path>`**(v8.210 · 幂等):旧项目台账可能是**旧 schema**(缺 各阶段耗时/用户邮箱/宿主 列)→ 该命令**只升级表头一行**(schema 演进纪律 = 只在末尾加列 · 旧数据行是**有效前缀不动**)· 已最新则 no-op · 无台账则 SKIP。**不迁移就直接 append 新行 → 新行 13 列 vs 旧表头 10 列错位**(年检读错列)。migrate 后再照 `ledger_timing` 采写新行。
+  - 🔴 **append 前先跑 `state.py ledger-migrate --feature <path>`**(幂等):旧项目台账可能是**旧 schema**(缺 各阶段耗时/用户邮箱/宿主 列)→ 该命令**只升级表头一行**(schema 演进纪律 = 只在末尾加列 · 旧数据行是**有效前缀不动**)· 已最新则 no-op · 无台账则 SKIP。**不迁移就直接 append 新行 → 新行 13 列 vs 旧表头 10 列错位**(年检读错列)。migrate 后再照 `ledger_timing` 采写新行。
 - **digest = ship2(ship-finalize)PASS 后**:emit ≤10 行流程价值反思(纯情报 · 不暂停)。时长口径 = init → archive(不含 MR 等待)。
   🔴 **框架级 bug / 工具判例往哪反馈**:写进 PROCESS-LEDGER 行的「反思摘要」列(随 MR 进 git · 年检查得到);真值得改框架的,直接开 issue 或在框架仓落 RETRO-LEDGER 行 —— 别再指望本机的审计文件被谁读到。
 - **兜底**(漏写时):`unzip -p features/_archive/<id>.zip <id>/state.json` 取数 · 补行随下次任意 MR。
@@ -190,8 +190,8 @@ git add <feature_dir>/dev/*.md <feature_dir>/PRD.md
 **两层输出**:
 
 1. **台账行**(持久 · 累积):一行一 feature。🔴 字段以**机器可抽**为主(state.json:实走 stages / stage 时间戳 / rounds / bypass / concerns;REVIEW.md:verdicts / external 逐条裁决)· AI 判断仅「过场候选 / 反思摘要」两格 · **照实抄不美化**。
-   - 🔴 **宿主 + 时长三分 + 用户邮箱(v8.208/209)**:`宿主` + `时长(总·AI自主·待用户)` + `各阶段耗时` + `用户邮箱` **照抄 ship1 archive emit 的 `ledger_timing`**(确定性 —— `host`〔claude-code/codex-cli/gemini-cli〕/ `total_wall` / `ai_autonomous_min`〔v8.276 已扣跨 session 空闲 · 算法在工具内〕/ `await_user_min`〔stage 内 pause-mark 暂停 + pm_acceptance 纯等待〕/ `per_stage`〔active 优先〕/ `user_email`=`git config user.email`)· **不肉眼算 state 时间戳**。🛡️ **起草可预防性列(v8.281)** 照抄 emit 的 `ledger_authoring_preventability`(各评审 `review-preventability` 记录聚合成「可预防/总·缺考虑点」· 没记录留空)· 年检据此分析起草考虑点缺不缺。⏱️ **耗时归因列(v8.295/297)** 照抄 emit 的 `ledger_stage_cost`(= `<开销轮>/<总轮> 轮 · 详 <复盘路径>` · 没记录留空)· 🔴 **归因叙述与流程反思不写台账**(单元格 ≤1 行压不下)—— 与台账行**同时**在本 gate 写 **`ledger_process_retro_path`** 指的那份**流程复盘文档**(模板 [templates/process-retro.md](../templates/process-retro.md):各阶段耗时表 + 逐 stage 耗时归因 + 流程反思四问 + 起草可预防性)· 🔴 **路径一并加进 `--planning-artifacts`**(随 feature MR 原子合入 · 否则复盘不进 git = 白写)。年检:查表得协调开销占比趋势 · 展开复盘定位复发的开销类型。🔴 `total_wall`(墙钟)− `ai_autonomous` − `await_user` = **未标记挂机空闲**(过夜/跨天 · 不再冒充 AI 工作 · 治 goal 1012m 类污染)。
-2. **digest**(emit ≤10 行 · 固定 4 问 · 不落 feature 目录 —— 🔴 **v8.297:四问同时写进流程复盘文档 §三**,emit 只是当场给人看的回显;原来「只 emit 不落盘」= 说完就蒸发,年检什么也读不到):
+ - 🔴 **宿主 + 时长三分 + 用户邮箱**:`宿主` + `时长(总·AI自主·待用户)` + `各阶段耗时` + `用户邮箱` **照抄 ship1 archive emit 的 `ledger_timing`**(确定性 —— `host`〔claude-code/codex-cli/gemini-cli〕/ `total_wall` / `ai_autonomous_min`〔已扣跨 session 空闲 · 算法在工具内〕/ `await_user_min`〔stage 内 pause-mark 暂停 + pm_acceptance 纯等待〕/ `per_stage`〔active 优先〕/ `user_email`=`git config user.email`)· **不肉眼算 state 时间戳**。🛡️ **起草可预防性列** 照抄 emit 的 `ledger_authoring_preventability`(各评审 `review-preventability` 记录聚合成「可预防/总·缺考虑点」· 没记录留空)· 年检据此分析起草考虑点缺不缺。⏱️ **耗时归因列** 照抄 emit 的 `ledger_stage_cost`(= `<开销轮>/<总轮> 轮 · 详 <复盘路径>` · 没记录留空)· 🔴 **归因叙述与流程反思不写台账**(单元格 ≤1 行压不下)—— 与台账行**同时**在本 gate 写 **`ledger_process_retro_path`** 指的那份**流程复盘文档**(模板 [templates/process-retro.md](../templates/process-retro.md):各阶段耗时表 + 逐 stage 耗时归因 + 流程反思四问 + 起草可预防性)· 🔴 **路径一并加进 `--planning-artifacts`**(随 feature MR 原子合入 · 否则复盘不进 git = 白写)。年检:查表得协调开销占比趋势 · 展开复盘定位复发的开销类型。🔴 `total_wall`(墙钟)− `ai_autonomous` − `await_user` = **未标记挂机空闲**(过夜/跨天 · 不再冒充 AI 工作 · 治 goal 1012m 类污染)。
+2. **digest**(emit ≤10 行 · 固定 4 问 · 不落 feature 目录 —— 🔴 **四问同时写进流程复盘文档 §三**,emit 只是当场给人看的回显;原来「只 emit 不落盘」= 说完就蒸发,年检什么也读不到):
 
 ```
 📊 流程价值反思(<ID> · <flow> · 总时长 <X>)
@@ -206,7 +206,7 @@ git add <feature_dir>/dev/*.md <feature_dir>/PRD.md
 
 **消费方**(🔴 指名 · 写而不读 = 白写):
 - **流程审视场景**(用户问「流程价值 / 哪些环节该砍」)→ PMO 读台账算:external confirmed 率 · 各角色真 finding 率 · 暂停点 all-default 率;
-- **年检 kill criteria 数据源**:连续数月无新判例(🔴 **数法 v8.298**:台账「反思摘要」列以 `判例:` 前缀开头的行 —— 完整判例正文在 `docs/retros/<id>-process.md` §三)→ 流程仪式砍半;第三视角冷审长期零 confirmed → 收缩第三视角 roster 判据(异质已默认关 · v8.204);某角色长期零真 finding → 评审矩阵收缩。
+- **年检 kill criteria 数据源**:连续数月无新判例(🔴 **数法 **:台账「反思摘要」列以 `判例:` 前缀开头的行 —— 完整判例正文在 `docs/retros/<id>-process.md` §三)→ 流程仪式砍半;第三视角冷审长期零 confirmed → 收缩第三视角 roster 判据(异质已默认关);某角色长期零真 finding → 评审矩阵收缩。
 
 ---
 

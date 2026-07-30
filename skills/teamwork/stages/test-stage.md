@@ -1,6 +1,6 @@
 # Test Stage
 
-> 🧭 **四段结构**(v8.284 · 目标 / 硬规则 / 建议手段菜单 / Output Contract):目标 + 契约给足,**手段 AI 自选**。
+> 🧭 **四段结构**(目标 / 硬规则 / 建议手段菜单 / Output Contract):目标 + 契约给足,**手段 AI 自选**。
 
 ---
 
@@ -17,10 +17,10 @@
 3. **api-e2e 用 Python 写**,落 `{Feature}/e2e/*.py` 或 `services/<svc>/tests/e2e/<feature-id>/`(按子项目结构 · RD/QA 决定)· 起 live 服务 + 真实 HTTP 调用 · **脚本退出码 = api-e2e 真实结果**(exit-code=0 = 通过)(why:语言统一减项目间割裂 · 退出码是唯一机器可验信号)。🔴 **跑通即可**:**不强求 CI 可复用** · **不统一 DB/seed/env SOP**(各项目环境差异大 · 起服务方式由项目自维护)—— test stage 只管 exit-code,证据真实性由 pm_acceptance / ship 按 `state.json` evidence 审计。
 4. **不为凑 exit-code=0 走捷径**:测试失败必修 · skip 必含 reason + tracking issue · 不标 xfail 蒙混(why:假绿 = 门禁形同虚设,下游 pm_acceptance 拿到的是空证据)。
 5. **TEST-REPORT 摘录具体测试 stdout + exit-code 数值**,不口述「通过」(why:口述不可 audit —— 复盘时无从判断当时到底跑没跑、跑了什么)。
-6. 🔴 **base 即红 → 走差分基线,不人肉 stash**(v8.178):brownfield 共享套件常有**预存在失败**(历史重构遗留 / 他人欠债)→ 登记进 `project-specs/test-baseline.md`(项目级单源 · 含原因 + 清账计划)· 跑**全量** integration(不许缩成 targeted 子集)拿当前失败 id 集,与基线差分:**0 新增**(当前 ⊆ 基线)= 红 base 非回归 · 照常转 pm_acceptance 不留 fix-retry;**有新增** = 回归(修)**或** 新出现的预存在(在 base 上核实即红 → 登记原因后重跑)。🔴 **本 feature 新引入的失败绝不登记进基线**(那是回归必修)· e2e 仍严格 0(feature-scoped · 不走差分)(why:实证 audit —— 同一批 5-6 个预存在失败被跨 3+ feature 反复「stash → 跑 base → diff → 写 REVIEW 论证非本 feature」,纯重复成本)。
+6. 🔴 **base 即红 → 走差分基线,不人肉 stash**:brownfield 共享套件常有**预存在失败**(历史重构遗留 / 他人欠债)→ 登记进 `project-specs/test-baseline.md`(项目级单源 · 含原因 + 清账计划)· 跑**全量** integration(不许缩成 targeted 子集)拿当前失败 id 集,与基线差分:**0 新增**(当前 ⊆ 基线)= 红 base 非回归 · 照常转 pm_acceptance 不留 fix-retry;**有新增** = 回归(修)**或** 新出现的预存在(在 base 上核实即红 → 登记原因后重跑)。🔴 **本 feature 新引入的失败绝不登记进基线**(那是回归必修)· e2e 仍严格 0(feature-scoped · 不走差分)(why:实证 audit —— 同一批 5-6 个预存在失败被跨 3+ feature 反复「stash → 跑 base → diff → 写 REVIEW 论证非本 feature」,纯重复成本)。
 7. **每条 AC 必有测试绑定**(`verify-ac.py` 物化拦截 · 漏覆盖 FAIL · 语法见 ④)(why:blueprint 已校验过一次,此处再校验一次防 dev 阶段改了实现却漏改 TC)。🐛 **Bug 流 carve-out**:无 PRD/TC → 门禁 `ac_test_binding` 对 Bug 自动 N/A(机器判 `_flow_key(state) in (Bug, Micro)` 直接 return skip · Feature·preset=micro 亦归一为内部键 Micro)· **别去跑 `verify-ac.py`** —— 它要 PRD.md,必报「PRD 不存在」,那是**假信号不是错**。
 8. **Bug 流规格依据 = `bugfix/BUG-*.md`(非 PRD/TC)· 焦点 = 回归**:复现 bug 的用例修复后转绿(对齐 `BUG-*.md §回归测试`)+ 既有 integration/api-e2e 套件保持绿 + `e2e/*` 复跑**触发 bug 的关键路径**;AC 覆盖类校验 N/A,但 `TEST-REPORT.md` 仍必产(why:Bug 没有 AC 台账,唯一能证明「修对了且没修坏」的就是回归证据)。
-9. **构建/测试临时产物落 scratch 根**(v8.249):`CARGO_TARGET_DIR` / 测试日志 → `${TMPDIR:-/tmp}/teamwork/<feature_id>/...`(🔴 **完整 feature_id** · 禁 `bl031` 类简称)· 🔴 **build target 按 feature 共享 = `<feature_id>/target`**,不许按 stage 切成 `/test-stage`(why:串行 stage 复用增量编译 —— dev 编好、test 热增量不重编;按 stage 切 = 冷编整棵 deps,是 test 阶段的主浪费。锁隔离只需到 feature 粒度)。测试日志等无缓存价值的可自由 `<用途>` 命名 · 回收 = ship2 tmp-cleanup + bootstrap TTL 7 天(详 [standards/common.md §六](../standards/common.md))。
+9. **构建/测试临时产物落 scratch 根**:`CARGO_TARGET_DIR` / 测试日志 → `${TMPDIR:-/tmp}/teamwork/<feature_id>/...`(🔴 **完整 feature_id** · 禁 `bl031` 类简称)· 🔴 **build target 按 feature 共享 = `<feature_id>/target`**,不许按 stage 切成 `/test-stage`(why:串行 stage 复用增量编译 —— dev 编好、test 热增量不重编;按 stage 切 = 冷编整棵 deps,是 test 阶段的主浪费。锁隔离只需到 feature 粒度)。测试日志等无缓存价值的可自由 `<用途>` 命名 · 回收 = ship2 tmp-cleanup + bootstrap TTL 7 天(详 [standards/common.md §六](../standards/common.md))。
 
 ---
 

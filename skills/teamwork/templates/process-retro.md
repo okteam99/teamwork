@@ -21,7 +21,7 @@
 feature_id: <ID>
 flow: <Feature / Feature·micro / Bug>
 total_wall: <2.4h>            # 照抄 ship1 emit 的 ledger_timing.total_wall
-ai_autonomous_min: <88>       # 同上(已扣跨 session 空闲 · v8.276)
+ai_autonomous_min: <88>       # 同上(已扣跨 session 空闲)
 await_user_min: <32>          # 同上
 host: <claude-code>
 ---

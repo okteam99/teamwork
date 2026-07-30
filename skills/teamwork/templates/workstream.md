@@ -51,13 +51,13 @@ affected_subprojects:  # 跨 0+ 子项目(单项目可空/填项目本身)
   - SVC-PLATFORM
   - PTR
 
-features:              # 拆出的 feature · 写入各子项目 ROADMAP 后回填 bl · 🔴 落盘后合并/砍件不重排 id(被并件留 `→ 已并入 Sx` · 缺号不补 · v8.240)
+features:              # 拆出的 feature · 写入各子项目 ROADMAP 后回填 bl · 🔴 落盘后合并/砍件不重排 id(被并件留 `→ 已并入 Sx` · 缺号不补)
   - id: WS-01-S1
-    target: SVC-PLATFORM         # ROADMAP 归属(单选);实现可跨子项目 —— 🔴 拆分按**交付内聚**(唯一主判据)—— 不按子项目切、**不按评审面切**(v8.240/292:默认合并 · 每一刀须说得出「为什么不能一起交付」)
+ target: SVC-PLATFORM # ROADMAP 归属(单选);实现可跨子项目 —— 🔴 拆分按**交付内聚**(唯一主判据)—— 不按子项目切、**不按评审面切**(默认合并 · 每一刀须说得出「为什么不能一起交付」)
     bl: null                     # 写入 ROADMAP 后回填 BL-NNN
     scope: "<这个 feature 做什么>"
-    current_state: "<🔴 由实际代码调研得:已有什么脚手架/复用点 · 真缺口在哪 · **附来源文件路径** · 全新填 greenfield(v8.239 ws-lint 抓占位=调研浅)· 🔴 **退役/替换类必加「测试痕迹:N 文件 / M 调用点」**(v8.299 · 成本主体常在测试改写)>"
-    flow_type: Feature           # Feature / Bug(v8.222 闭集 · 轻量走 preset: micro 不是独立类型)
+    current_state: "<🔴 由实际代码调研得:已有什么脚手架/复用点 · 真缺口在哪 · **附来源文件路径** · 全新填 greenfield(ws-lint 抓占位=调研浅)· 🔴 **退役/替换类必加「测试痕迹:N 文件 / M 调用点」**(成本主体常在测试改写)>"
+    flow_type: Feature           # Feature / Bug(闭集 · 轻量走 preset: micro 不是独立类型)
     dependencies: []             # 依赖的其他 WS-01-Sx
     status: pending              # pending / planned(已写入 ROADMAP) / 废弃
   - id: WS-01-S2
