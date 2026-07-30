@@ -277,19 +277,12 @@ verdict: {APPROVE|NEEDS_REVISION}
 🔴 **调研四类**(§4 早问门入场券 · 单源 stages/goal-stage.md ③手段菜单〔调研四类〕):代码现状(本段)+ KNOWLEDGE(Flagged Ambiguities / Preferences / Out-of-Scope)+ GLOSSARY + 上游规划(BL / WS / 愿景 / PENDING + prepare 流程目标)—— 全部 AI 可自答 · 没查完没资格问用户。
 
 
-### 通用 checklist（所有 Feature 必填）
+### 通用必含项(写进对应 body 段 · 不另出 checklist 报告)
 
-```markdown
-## 产品目标（Why）
-- [ ] 解决什么用户问题 / 业务问题
-- [ ] 关联的产品策略 / KNOWLEDGE 历史决策
-
-## 影响范围
-- [ ] 明确 in_scope / out_of_scope（避免 scope 蔓延）
-- [ ] 列出 KNOWLEDGE.md / ADR 关联条目（复用既有产品/业务模式）
-- [ ] 跨子项目依赖（DEP 编号 + 上游子项目，业务依赖层面）
-- [ ] 业务风险表（业务风险 + 已知技术风险方向 + ROLLBACK 业务侧）
-```
+> §背景/§Out of Scope 已由模板结构承载 · 不重复列。**结构没问到、但所有 Feature 必须写进对应段落的**只有三件:
+> - **KNOWLEDGE / ADR 关联条目**(复用既有产品/业务模式 · 写进 §背景)
+> - **跨子项目依赖**(上游子项目 + 业务依赖层面 · 写进 §背景或 §待决策项)
+> - **业务风险与 ROLLBACK 业务侧**(高风险 Feature 写进 §背景;无则不硬凑)
 
 ### UI 用户故事维度（仅 requires_ui=true 时填）
 
@@ -325,9 +318,4 @@ verdict: {APPROVE|NEEDS_REVISION}
 
 ---
 
-🟢 **设计意图**：
-- PRD 回答"做什么 + 为什么"（产品/业务视角）
-- TECH.md 回答"怎么做"（Blueprint Stage RD 写）
-- TC.md 回答"怎么测"（Blueprint Stage QA 写）
-- 三阶段职责正交，PRD 不再被技术/测试细节淹没
-- 本 checklist 单源此文件 · goal-stage.md / roles/pm.md 仅 cite 不复述
+> 🟢 三文档分工(PRD=做什么/为什么 · TECH=怎么做 · TC=怎么验)已由头部「三层结构」与 §PRD 不写什么承载 · 不再第三次复述。本 checklist 单源此文件 · goal-stage.md / roles/pm.md 仅 cite 不复述。

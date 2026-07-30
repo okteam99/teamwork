@@ -104,7 +104,7 @@ cd <worktree-path>   # 🔴 之后所有规划产物写 worktree 内路径(推�
 
 🔴 **在拆 WS 之前出** —— 先看清"产品长啥样",WS 才能把 feature 切对(边界跟 UI 结构对齐)。对**本轮 scope 做一次**(不是 per-WS 各画),在 `{子项目}/docs/design/preview-project/`:
 - **出 design system + 本轮关键页**(🔴 **初步**:系统 + 代表页 · **不是每页** · 细节随各 feature 的 ui_design 增量补 · 防瀑布 · seed 按真实路由结构组织 + 基建层优先复用真实 app 共享包 · 详 [ui-design-stage § IA 镜像律 / 分层同构律](../stages/ui-design-stage.md))· 跑 `preview.sh` 实时看(同 ui_design 同栈机制)。
-- 同步 `sitemap.md`(记本轮新增/调整的页节点 · IA 地图与视觉的分工见 §3 坑 4)。
+- 同步 `sitemap.md`(记本轮新增/调整的页节点 · IA 地图与视觉的分工见 §3 注意事项「三者分工」)。
 - 🔴 全景是**一份活物**:不存在 → 首次 seed;已存在 → 扩本轮的页(源即权威)。完成即产生 git diff(= 本轮全景产出 · 下一步拆 WS 的输入)。
 - **非 UI 轮**(纯后端/基建)→ 跳过此步 · 下游 WS 标 `全景初规: N-A`。
 
@@ -199,43 +199,11 @@ PMO 主对话切换角色 · 讨论收敛 · 不需要单独 review artifact。
 - **砍 feature / 改方向 / 动拆解边界**:影响拆解结构 → **回 feature-planning**(Step 1 调研起 · WS 状态回 `🔄 讨论中` · 重走确认)。
 - 🔴 **已启动(F 已 init)的 feature 不在此列** —— 那是执行层变更(jump-to-stage / close-unmerged / 新 Bug 流),别用规划变更掩盖执行返工。
 
-## 3. 注意事项
+## 3. 注意事项(只留上文没讲过的 —— R6 不出代码 / ROADMAP 不细到 task / 不自动启 Feature 已分别在 §1 / Step 7 / Step 9 成文 · 不重复)
 
-### 坑 1 · R6 红线 · Planning 出代码
-
-Planning 流程中起草 PRD / 写代码 = 违 R6。
-
-**对策**:Planning 产规划文档(WS-NN + ROADMAP + 涉 UI 时 preview-project/sitemap + 业务架构 if 改)· 🔴 不出代码(R6)· 想做某个 Feature → 走 Feature 流程(`init-feature --flow-type Feature` 启动新 session)。
-
-### 坑 2 · PROJECT.md 业务架构 vs 技术架构混淆
-
-把"用什么数据库"写进业务架构 · 应在 ARCHITECTURE.md。
-
-**对策**:业务架构 = 业务能力 / 服务边界 · 技术架构 = 系统设计 · 各归各处。
-
-### 坑 3 · ROADMAP 细化到 task 级
-
-task 是 Feature 内 PRD 的事 · ROADMAP 只到 Feature 名 + 简述。
-
-**对策**:ROADMAP 一 Feature 一行 · 标题 + 优先级 + 状态。
-
-### 坑 4 · sitemap / 可视全景 / 单 Feature UI.md 三者分工
-
-**对策**:三者各司其职 · 不重叠:
-- `sitemap.md` = **IA 地图**(页面层级 / 导航 / 路由 · 文字 · 🔴 不写视觉 —— 防与全景漂移)
-- `preview-project/` = **视觉权威**(design system + 页面 · 可跑)
-- 单 Feature `UI.md` = 本 Feature 涉及的页(不重复全局)
-
-### 坑 5 · Planning 完成自动启 Feature
-
-PL 在 ROADMAP 拆完后顺手起 Feature flow · 越权(用户没拍板)。
-
-**对策**:Planning 完成 = 规划产物合入集成分支 · Feature 启动需**用户显式拍板**(收尾暂停点选 2 同 session 启动亦可 · 详 Step 9 —— 防的是 AI 自动起,不是同 session)。
-
-### 坑 6 · 想跑 state.py planning-start
-
-会 BLOCKED · `planning` stage 已删除(规划层不进状态机)。
-若用户/AI 不知道还跑 `init-feature --flow-type "Feature Planning"`,会被 state.py reject + emit hint 指向本文件。
+- **坑 · 业务架构 vs 技术架构混淆**:「用什么数据库」不进 PROJECT.md 业务架构(那是 ARCHITECTURE.md 的事)—— 业务架构 = 业务能力 / 服务边界 · 技术架构 = 系统设计 · 各归各处。
+- **坑 · sitemap / 可视全景 / 单 Feature UI.md 三者分工**(不重叠):`sitemap.md` = **IA 地图**(页面层级/导航/路由 · 文字 · 🔴 不写视觉 —— 防与全景漂移)· `preview-project/` = **视觉权威**(design system + 页面 · 可跑)· 单 Feature `UI.md` = 本 Feature 涉及的页(不重复全局)。
+- **坑 · 想跑 `state.py planning-start`**:会 BLOCKED —— `planning` stage 已删除(规划层不进状态机);跑 `init-feature --flow-type "Feature Planning"` 同样被 reject + emit hint 指回本文件。
 
 ---
 

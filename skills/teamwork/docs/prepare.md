@@ -329,11 +329,7 @@ PMO 识别不准 → 在暂停点列出"我猜是 X · 你确认是 Y/Z?"让用�
 
 ### 7.3 · git worktree add 失败
 
-- branch 已存在 → `git worktree remove <path>` + `git branch -D <branch>`
-- origin/base 不存在 → `git fetch origin`
-- path 已存在但非 worktree → 删 path 或换 path
-
-错误处理由 PMO 主导 · 不在 state.py 状态机里。
+按报错自行处置(branch 已存在 / origin 未 fetch / path 被占 —— git 排障是模型自带知识 · 不列修法)。错误处理由 PMO 主导 · 不在 state.py 状态机里。
 
 ---
 

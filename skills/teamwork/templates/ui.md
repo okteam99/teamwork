@@ -64,7 +64,7 @@ pages_changed:
 
 ## Designer 自查报告（🔴 出口必填 物化 · verify-panorama.py 校验）
 
-> 详细规范 cite [standards/common.md § 四B Designer 自查规范](../standards/common.md)。Designer 完成设计后必填本段 · 5 维度全 ✅ 才进 ⏸️ 用户确认。
+> 详细规范 cite [standards/common.md § 四B Designer 自查规范](../standards/common.md)。Designer 完成设计后必填本段 · 6 维度全 ✅ 才进 ⏸️ 用户确认(维度 1-5 由 verify-panorama.py 硬校验 · 维度 6 模板承载)。
 
 ### 检查结果汇总
 | 维度 | 检查项 | 通过 | 备注 |

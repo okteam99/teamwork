@@ -21,8 +21,6 @@
 
 ---
 
----
-
 ## ① 目标(telos)
 
 **让用户在写代码之前就看见并拍板「它长什么样、怎么用」**:产出**可跑可点的全景增量**(不是概念图),意图四要素(布局结构 / 交互流 / 状态 / 字段映射)落进 UI.md 作为 dev 还原与 pm_acceptance 的对照物。拦的风险:概念页与真实页对不上(用户验收才发现)、设计=代码承诺退化成人肉对齐、跨 Feature IA 被单个 Feature 悄悄改。
@@ -81,11 +79,7 @@ teamwork 支持两种 panorama 介质 · 项目应在 ui_design 启动前明确,
 > 🟢 **same-stack 去静态 build 产物**(用户拍板):**去掉静态 build 产物**(`docs/design/preview/*.html` 不再必产)· 全景权威 = preview-project **源**(committed · 要看跑 preview.sh)· 预览 = dev server 实时(动态端口 · 不在 teamwork 层起 server)。`pages_changed[].panorama_file` 对 same-stack 可选(指向 preview-project 内渲染该页的源/路由 · 非文件存在性校验)。
 > 老 Feature(in-app /design 路由 / 静态 preview)向后兼容不强迁 · 新 Feature 用本模型。
 
-🔴 **硬规则**:
-- 项目 `PROJECT.md` 声明了前端栈(`frontend_stack` 非空)→ panorama **必须 `same-stack`** · 用 `static-html` 即规范违规
-- 「前端栈已定 + panorama 仍 `static-html`」= **dirty state** · 必须开 Feature 把 panorama 迁到 `same-stack` · 不可永久 hack(4 轮调像素仍有差异 = 介质差异不可调和)
-- 🔴 **same-stack 物化**:`{子项目}/docs/design/preview-project/` + `preview.sh` + `package.json` 必存在 · ui_design-complete **校验**(`_check_same_stack_preview_project`)· **不可只写 UI.md markdown 跳过可跑预览**(防 AI 拿"验证器只校验 UI.md""same-stack 不要求产物"当借口零可视产出 —— 最低物化闸 ≠ 免做交付物许可)
-- `UI.md` frontmatter 缺 `panorama_medium` → verify-panorama / UI_DESIGN_SPEC 视作 `static-html`(向后兼容 · 但新建 Feature 必显式声明)
+🔴 介质声明 / same-stack 物化闸 / dirty state 三条硬规则见 **② 硬规则 1-2**(单源 · 此处不复写);补充一条向后兼容:`UI.md` frontmatter 缺 `panorama_medium` → verify-panorama / UI_DESIGN_SPEC 视作 `static-html`(老 Feature 兼容 · 新建必显式声明)。
 
 ---
 

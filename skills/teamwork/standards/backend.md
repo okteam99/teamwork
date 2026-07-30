@@ -47,20 +47,7 @@
 
 ### JSON 命名规范
 
-```
-✅ 正确（snake_case）：
-├── user_id
-├── user_name
-├── created_at
-├── order_status
-└── page_size
-
-❌ 错误：
-├── userId（驼峰）
-├── UserName（帕斯卡）
-├── user-id（中划线）
-└── USERNAME（全大写）
-```
+**默认 snake_case**(`user_id` / `created_at`)—— 禁驼峰/帕斯卡/中划线/全大写混入(同服务不一致即破坏 · 存量风格按本节头部优先级链 ② 沿用)。
 
 ### 常用业务状态码
 
@@ -90,93 +77,23 @@
 - 级别按标准语义(DEBUG 开发 / INFO 关键节点 / WARN 非预期可处理 / ERROR 业务异常 / CRITICAL 系统级)。
 - **结构化日志必填字段**(项目约定 · 不是通用常识):`timestamp` · `level` · `service` · `trace_id`(链路追踪)· `message` · 业务上下文键(如 `feature_id` / 关键业务 id)· 异常时附 `stack`。格式 JSON,字段名以此为准。
 
-### 非预期分支日志规则
+### 非预期分支日志规则(两条逆默认硬规则 · 原双段合并 · 各带 CR 门)
 
-```
-⚠️ 必须打 WARN 日志（硬规则，无例外）：
-├── 🔴 降级/兜底逻辑触发（任何 fallback 路径）
-│ ├── 主服务失败降级到备用服务
-│ ├── 新实现失败降级到旧实现
-│ ├── 远程调用失败使用本地缓存/默认值
-│ ├── Subagent/Agent dispatch 失败降级到主对话执行
-│ ├── 首选配置不可用降级到次选配置
-│ └── 任何「A 方案失败 → B 方案继续」的兜底路径
-├── 进入 else/default 等兜底分支
-├── 参数为空或无效，使用默认值
-├── 重试逻辑触发
-├── 缓存未命中走数据库
-└── 任何「理论上不应该走到」的代码路径
+**🔴 降级/兜底必打 WARN(不得降为 INFO/DEBUG · 不得静默)**
 
-❌ 必须打 ERROR 日志：
-├── 捕获到异常（即使已处理）
-├── 🔴 调用三方 / 外部服务返回异常（任何非预期响应，含 HTTP 非 2xx、业务错误码、超时、连接失败、协议错误、反序列化失败）
-├── 数据校验失败
-├── 业务规则冲突
-└── 任何需要开发人员关注的异常情况
-```
+- **触发**:任何「A 失败 → B 兜底继续」的分支 —— 含 else/default 兜底、参数无效用默认值、重试触发、缓存未命中走库、以及一切「理论上不应该走到」的路径(Subagent dispatch 失败降级主对话同规 · 见 [agents/README](../agents/README.md) 降级必 WARN)。
+- **必须字段**:降级原因(原始异常/不可用信号)· 降级前方案 · 降级后方案 · 业务上下文(trace_id / 业务 id)。
+- why:降级是「正确但不正常」的路径,必须可观测、可告警、可追溯 —— **静默降级 = 掩盖问题** = 生产事故来源;兜得住业务可用性,不能兜可观测性。
 
-**🔴 三方 / 外部服务调用异常 ERROR 日志规则（硬规则）**
+**🔴 三方/外部服务调用异常必打 ERROR(不得降为 WARN/INFO · 不得静默)**
 
-```
-范围定义（"调用三方 / 其他服务"）：
-├── 外部第三方 API（支付、短信、OAuth、地图、IM、推送等）
-├── 公司内部其他服务（gRPC / HTTP / MQ / RPC 跨服务调用）
-├── 云厂商 SDK 调用（OSS / S3 / Redis 云版 / 云数据库等托管服务）
-├── 外部中间件调用（Kafka / RabbitMQ / Elasticsearch / 消息队列等）
-└── 任何"跨进程边界"的网络调用（本进程内函数调用不在此范围）
+- **范围**:任何跨进程边界的网络调用(三方 API / 内部服务 RPC·MQ / 云 SDK / 中间件)。
+- **触发**:HTTP 非 2xx · 业务码失败 · 网络层异常 · 反序列化失败 / 字段不符约定 —— 🔴 含**限流/熔断/降级信号**(下游返回 200 但业务语义是失败也算)。捕获到的异常(即使已处理)、数据校验失败、业务规则冲突同级 ERROR。
+- **必须字段(缺一不可)**:调用目标(服务/接口)· 请求标识:traceId / spanId · 请求摘要(敏感脱敏)· 响应摘要(状态码 + body 或 error)· 耗时:duration_ms · 重试信息(如有)· 业务上下文(user_id / order_id)。
+- 🔴 **APM / sidecar 自动上报 ≠ 免除打日志义务**(业务上下文 APM 采不到);外部调用被降级兜底时**先 ERROR(异常本身)再 WARN(降级动作)· 两条缺一不可**。
+- why:跨服务边界是故障定位的关键切面 —— 静默失败的外部调用 = 排查毫无头绪 = MTTR 飙升。
 
-触发 ERROR 日志的"返回异常"定义（满足任一即触发）：
-├── HTTP 状态码非 2xx（含 3xx 非预期跳转、4xx、5xx）
-├── 业务响应码表示失败（如 code != 0 / success == false / 约定失败码）
-├── 网络层异常（超时 / 连接拒绝 / DNS 失败 / TLS 错误）
-├── 响应体反序列化失败（JSON 解析错误 / schema 不匹配）
-├── 响应字段缺失或类型不符合约定
-├── 限流 / 熔断 / 降级信号（即便下游返回 200 但业务语义是失败）
-└── 任何"调用方认为不符合预期"的响应
-
-日志级别：ERROR（不得降为 WARN/INFO，不得静默）
-
-必须字段（缺一不可）：
-├── 调用目标：服务名 / 接口名 / 方法（如 payment-service / POST /v1/pay）
-├── 请求标识：traceId / spanId（分布式追踪必备）
-├── 请求摘要：请求参数（敏感字段脱敏）
-├── 响应摘要：HTTP 状态码 + 响应体（或错误对象的 message/code/stack）
-├── 耗时：duration_ms
-├── 重试信息（如有）：当前重试次数 / 最大次数
-└── 业务上下文：user_id / order_id 等业务标识
-
-评审门禁：
-├── Code Review 时，所有跨进程调用点必须验证是否有 ERROR 日志
-├── try/catch 包住外部调用但 catch 里没打 ERROR → 阻塞 CR
-├── 仅依靠 APM / sidecar 自动上报 ≠ 免除打日志义务
-│ （业务上下文无法被 APM 采集，必须在代码里显式写 ERROR 日志）
-└── 外部调用被降级兜底时：
- ├── 先打 ERROR 日志（记录异常本身）
- └── 再打 WARN 日志（记录降级动作）—— 两条都必须，缺一不可
-
-🎯 目的：跨服务边界是故障定位的关键切面。
- 静默失败的外部调用 = 排查时毫无头绪 = MTTR 飙升。
- 降级可以兜业务可用性，但不能兜可观测性。
-```
-
-**🔴 降级兜底逻辑 WARN 日志规则（硬规则）**
-
-```
-任何降级/兜底逻辑（fallback）必须打 WARN 日志，缺一不可：
-
-├── 触发条件：代码进入「A 失败 → 走 B 兜底」的任何分支
-├── 日志级别：WARN（不得降为 INFO/DEBUG，不得静默）
-├── 必须字段：
-│ ├── 降级原因（为什么触发降级：原始异常/不可用信号）
-│ ├── 降级前方案（原本期望走的路径）
-│ ├── 降级后方案（实际执行的兜底路径）
-│ └── 业务上下文（trace_id / 用户 ID / 业务标识）
-└── 评审门禁：Code Review 时，所有 fallback/catch-and-continue
- 代码路径必须验证是否有 WARN 日志，缺失即阻塞
-
-🎯 目的：降级是「正确但不正常」的路径，必须可观测、可告警、可追溯。
- 静默降级 = 掩盖问题 = 生产事故来源。
-```
+**评审门禁**:CR 时所有跨进程调用点必须验证有 ERROR(try/catch 包住外部调用但 catch 里没打 → 阻塞 CR);所有 fallback/catch-and-continue 路径必须验证有 WARN,缺失即阻塞。
 
 ---
 
@@ -212,31 +129,15 @@ teamwork 常态是**多 Feature 并行、各自 worktree 起 migration** —— 
 
 ### 强制要求
 
-```
-🔴 必须遵守：
-├── 每次 schema 变更必须有迁移文件，禁止手动改库
-├── 🔴 加 migration 前先查 DEV-RULES 的 migration 约定 / 守卫（version-ceiling / 高水位线 / sequence guard 等）· 同 PR 满足守卫要求（如 bump ceiling）· 撞到未声明的项目守卫(CI 失败) → 修复后记进 DEV-RULES/KNOWLEDGE（下次不再撞）
-├── 迁移必须可逆：提供 up（执行）和 down（回滚）
-├── 迁移文件提交前必须在本地/Docker 环境验证通过
-├── TECH.md 中必须声明是否涉及 schema 变更
-│ └── 涉及 → 列出变更内容（新增表/字段/索引/约束）
-├── 迁移完成后同步更新 ARCHITECTURE.md → database-schema.md
-├── 破坏性变更（删列/改类型/删表）必须在 TECH.md 中标注风险
-└── 🔴 跨子项目 Schema 同步（新增/修改/删除列时必查）：
- ├── TECH.md 必须包含「数据库变更 → Schema 影响分析」章节（模板见 templates/tech.md）
- ├── 影响分析来源：database-schema.md「Model/Struct 映射」表 + grep 全项目代码
- ├── 核对 Struct 字段列表与数据库列完全一致（字段名 + 类型 + 可空性）
- ├── 核对所有引用该 Struct 的 SQL 查询列列表与字段匹配（缺列 → ORM 报错 → 500）
- ├── 架构师技术 Review 独立验证影响分析完整性（不依赖 RD 自查）
- ├── 架构师 Code Review 对照影响分析表逐项验证代码变更
- └── 变更完成后同步更新 database-schema.md（Model 映射表 + SQL 引用点 + 变更记录）
+> 迁移基本卫生(可逆 up/down / 提交前本地验证 / 已执行不可改 / 禁手动改库 / DML-DDL 分离)= 模型自带知识 · 不复述。本节只留项目约定与门:
 
-❌ 禁止：
-├── 手动连线上数据库执行 DDL
-├── 在迁移文件中包含业务数据操作（DML 和 DDL 分离）
-├── 迁移文件提交后再修改（已执行的迁移不可变）
-└── 不写 down 回滚脚本
-```
+- 🔴 **加 migration 前先查 DEV-RULES 的 migration 约定 / 守卫**(version-ceiling / 高水位线 / sequence guard 等)· 同 PR 满足守卫要求(如 bump ceiling)· 撞到未声明的项目守卫(CI 失败)→ 修复后记进 DEV-RULES/KNOWLEDGE(下次不再撞)。
+- **TECH.md 必声明是否涉 schema 变更**(涉及 → 列变更内容;破坏性变更〔删列/改类型/删表〕必标风险)· 迁移完成后同步 ARCHITECTURE.md → database-schema.md。
+- 🔴 **跨子项目 Schema 同步(增/改/删列时必查 · 缺列 → ORM 反序列化报错 → 500)**:
+  - TECH.md 必含「数据库变更 → Schema 影响分析」章节(模板 templates/tech.md)· 来源 = database-schema.md「Model/Struct 映射」表 + grep 全项目代码;
+  - 核对 Struct 字段与数据库列完全一致(字段名/类型/可空性)+ 所有引用该 Struct 的 SQL 查询列列表匹配;
+  - 架构师 Tech Review **独立验证**影响分析完整性(不依赖 RD 自查)· Code Review 对照影响分析表逐项验证;
+  - 变更完成后同步 database-schema.md(Model 映射表 + SQL 引用点 + 变更记录)。
 
 ### FK（外键）策略
 
@@ -294,28 +195,7 @@ teamwork 常态是**多 Feature 并行、各自 worktree 起 migration** —— 
 
 > 📎 各阶段术语不同是因为验证角度不同，但校验基准统一为 TECH.md「Schema 影响分析」表。
 > 📎 database-schema.md 两阶段更新：设计层（Tech Review 后写入）→ 实现层（Code Review 后补充）。
-
-### 迁移与开发流程的衔接
-
-```
-TECH.md 声明 schema 变更 + 填写「Schema 影响分析」表
- ↓
-架构师技术评审 → 检查迁移方案合理性 + 🔴 独立验证影响分析完整性
- ↓
-🔴 架构师更新 database-schema.md 设计层（表结构 + ER 图 + 设计原则）
- ↓
-RD 编写迁移文件 + 同步所有受影响 Model/Struct/SQL + 单元测试
- ↓
-RD 自查 → 对照影响分析表逐项确认 + 验证 up/down 可执行
- ↓
-Code Review → 🔴 对照影响分析表逐项验证代码变更 + 确认迁移文件
- ↓
-🔴 架构师补充 database-schema.md 实现层（Model 映射表 + SQL 引用点）
- ↓
-集成测试 → 🔴 迁移验证（ORM 映射正确性 + 跨子项目 Model 可查询）
- ↓
-PMO 完成报告 → 确认 database-schema.md 已完整同步（设计层 + 实现层）
-```
+> 📎 衔接顺序即状态机 stage 链本身(TECH 声明 → 架构师评审 → RD 实现 → CR → 集成测试)· 各阶段动作与两阶段更新时点以上表为准 · 不再另画流程图。
 
 ---
 
