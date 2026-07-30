@@ -233,7 +233,8 @@ class TestMarkdownFencesBalanced(unittest.TestCase):
     整个包在 ```markdown 里)。加这道门 —— 切文档一律回来验围栏。"""
 
     # HEAD 起就是奇数的(用 \\`\\`\\` 转义写法 / 单开围栏)· 不在本门范围
-    KNOWN_ODD = {"bug-report.md", "project.md", "roadmap.md", "backend.md", "common.md", "frontend.md"}
+    # v8.307:backend.md(§二 遗留断栏已修)与 frontend.md(重写后零围栏)已配平 · 移出豁免收紧门
+    KNOWN_ODD = {"bug-report.md", "project.md", "roadmap.md", "common.md"}
 
     def test_edited_docs_have_balanced_fences(self):
         bad = []

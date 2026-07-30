@@ -81,10 +81,10 @@
 所有 python 工具调用必须在对应 stage spec 里 **显式 cite**，不依赖宿主 hook 自动触发：
 
 ```markdown
-📌 **post-feature 调用**（脚本物理拦截 · 不靠 PMO 自觉）：
+📌 **AC 覆盖校验**（脚本物理拦截 · 不靠 PMO 自觉）：
 
 ```bash
-python3 {SKILL_ROOT}/tools/post-feature.py --project-dir {...} --feature {...}
+python3 {SKILL_ROOT}/templates/verify-ac.py {Feature 目录}
 ```
 ```
 
@@ -92,23 +92,9 @@ python3 {SKILL_ROOT}/tools/post-feature.py --project-dir {...} --feature {...}
 - spec cite + state.json evidence-binding = 跨宿主一致的物理拦截
 - 宿主 hook 自动触发 = CC-only · Codex/Gemini 永远漂移
 
-### R-SP-3 hook 仅承载宿主 lifecycle 转发
+### R-SP-3（已废）hook 薄壳规范
 
-~~`hooks/*.sh` 仅允许做两类事~~(🔴 v8.213 起 hooks 全退役 · 本段仅存历史判据)：
-
-1. CC `settings.json` 的 SessionStart / PreCompact / PostCompact / Stop 等**宿主独有事件的薄壳**——这些事件没有 python 等价物，必须 bash
-2. 薄壳内容仅做"调 python"或"读 prompt 文件"，**禁止业务逻辑**
-
-```bash
-# ✅ 允许（薄壳）
-#!/bin/bash
-python3 "${CLAUDE_PLUGIN_ROOT}/skills/teamwork/tools/session-restore.py"
-
-# ❌ 禁止（业务逻辑）
-#!/bin/bash
-if [ -f "$STATUS" ]; then
- if grep -q "✅" "$STATUS"; then ...
-```
+hooks 已全退役 · `hooks/` 目录已删 · bootstrap 只做存量项目的历史清理。若未来重新引入宿主 hook:薄壳只做「调 python」转发 · 禁业务逻辑(历史判据 · 详 git 历史)。
 
 ### R-SP-4 输出 JSON
 
@@ -187,49 +173,7 @@ if [ -f "$STATUS" ]; then
 
 #### 物化扫描
 
-`tools/scan-spec-consumer.py` 扫描所有 spec 文件 · 输出：
-- Total 🔴/必须 规则数
-- With consumer 数（已合规）
-- Missing consumer 数（修复候选）
-- 候选清单（按 file:line 排序 · 含 section context）
-
-```bash
-# 看摘要
-python3 tools/scan-spec-consumer.py --limit 30
-
-# Markdown 人类可读
-python3 tools/scan-spec-consumer.py --output-format markdown --limit 30
-
-# 全量
-python3 tools/scan-spec-consumer.py --limit 0
-```
-
-#### 渐进切换
-
-```
-第一阶段（P0-146 · 当前）：
- - 加 R-SP-8 原则
- - 修复 top 30 writer-only 规则（4.6 case 直接命中的 + 高影响）
- - 加 scan 工具（非强制 · 列清单）
-
-第二阶段（待定）：
- - 修复 missing consumer 比例从 62.8% → ≤30%
- - 新 spec 规则 PR review 时 scan 工具 fail → reject merge
-
-第三阶段（待定）：
- - 全量修复 · ratio_missing → ≤10%
- - scan 工具 exit 2 if missing > N · CI 强制
-```
-
-#### 当前阶段实测数据（初始扫描）
-
-```
-Total 🔴/必须 rules: 411
-With consumer: 153 (37.2%)
-Missing consumer: 258 (62.8%) ← 修复方向
-```
-
-P0-146 处理 top 30 (~12% of missing) · 后续 patch 渐进推进。
+`python3 tools/scan-spec-consumer.py --limit 30`(`--output-format markdown` / `--limit 0` 全量)—— 输出缺「下游消费者」标注的 🔴 规则候选清单(按 file:line)· 非强制门 · 修复按候选清单渐进推进。
 
 ---
 
@@ -240,21 +184,13 @@ P0-146 处理 top 30 (~12% of missing) · 后续 patch 渐进推进。
 | `tools/state.py` | state.json schema/状态机/evidence-binding 单源 | 子命令 + JSON 输出 |
 | `tools/bootstrap.py` | session bootstrap · 骨架维护 + 历史 hooks/注入段清理 | 一次性 boot · JSON 输出 |
 | `tools/verify-panorama.py` | 全景设计物化校验 | 校验 + JSON 输出 |
-| `tools/post-feature.py` | Feature 收尾 · KNOWLEDGE check + ROADMAP render | 多职责聚合|
+| `tools/run_tests.py` | 框架自身测试套件分片并行 runner | 自学装箱 · 耗时写回 |
 
 ---
 
-## 4. 迁移路径
+## 4. 迁移路径（已完结）
 
-| 旧 bash 脚本 | 状态 | 备注 |
-|---|---|---|
-| `hooks/post-feature.sh` | **退役** | → `tools/post-feature.py`（本 patch） |
-| `hooks/session-restore.sh` | 保留 | CC SessionStart 薄壳 · 待评估是否 python 化 |
-| `hooks/post-compact.sh` | 保留 | CC PostCompact 薄壳 · 待评估是否 python 化 |
-| `hooks/post-stop.sh` | 保留 | CC Stop 薄壳 · 待评估是否 python 化 |
-| `hooks/post-subagent.sh` | 保留 | 薄壳 · 待评估是否 python 化 |
-
-🟢 **渐进迁移**：后续 patch 评估剩余 bash 脚本是否还有"宿主薄壳之外"的业务逻辑。如有 → 拆出到 `tools/*.py` + bash 仅留转发。
+bash → python 迁移已完结:`hooks/` 目录整体退役删除(职责由 state.py 各命令 emit + bootstrap 历史清理取代)· 无遗留存量。
 
 ---
 

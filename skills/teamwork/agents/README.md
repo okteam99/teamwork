@@ -39,7 +39,7 @@
 ### 宿主方式速查
 
 - **Claude Code** → `Task` 工具(model 参数指定)
-- **Codex CLI** → prompt 指示 spawn 自定义 agent(`.codex/agents/*.toml` · bootstrap 部署)
+- **Codex CLI** → prompt 指示 spawn subagent(历史 `.codex/agents/*.toml` reviewer profile 已退役 —— 零工具 profile 与 subagent 冷审架构不兼容 · bootstrap 自动回收存量)
 - **Gemini CLI / 不支持宿主** → 主对话内串行执行(降级 · 丧失并行不丧失功能)
 
 🔴 **降级必输出 WARN**(硬规则 · 静默降级 = 隐藏问题):任何「首选方案不可用 → 走兜底」路径,PMO 在主对话输出 `⚠️ WARN [degradation-fallback]`(reason / from / to / stage / impact)。

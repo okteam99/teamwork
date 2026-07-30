@@ -6,119 +6,18 @@
 
 ---
 
-## 模块设计判定（借鉴 mattpocock/skills improve-codebase-architecture）
-
-🔴 **统一架构词汇**：使用 [templates/knowledge.md § Glossary 通用架构词汇](../templates/knowledge.md) 的 8 词（Module / Interface / Depth / Seam / Adapter / Leverage / Locality / Boundary）。**禁止**在主对话 / TECH.md 自创"组件 / 服务 / 层"等同义异形词。
-
-🔴 **"删除测试" 启发式**：判断模块是否 shallow（浅层 · 该删）—— 删掉它后复杂度消失？还是分散到 N 个调用点？
-- 复杂度消失 → 模块设计好（深模块 · 高 leverage · 保留）
-- 复杂度分散到 N 个调用点 → shallow module · 应删除并 inline 到调用方
-
-🔴 **"两个 adapter 才抽象"**：第一次出现适配需求 = 写 inline 一次性代码；第二次重复 = 抽象成 Seam（独立 Interface · 加到 KNOWLEDGE Glossary）。**禁止 1 次就抽象**（过度设计警报）。
-
-📎 详见 [templates/knowledge.md § "删除测试"启发式](../templates/knowledge.md)（单源）。
-
----
-
 ## 一、后端测试规范
 
 > v8.287:TDD 手段规定已整体撤除(怎么测 AI 自觉)· 测试的三条**结果规则**见 [HARD-RULES.md](./HARD-RULES.md)。本框架的证据硬门在 stage 层(`dev-complete --test-exit-code 0` + 差分基线)。
 
 ## 二、集成测试规范（后端 API）
 
-### 触发条件
+> 检查什么(响应格式/边界/落库真值)= 模型自带知识 · 不复述。本节只留项目约定:
 
-```
-✅ 默认需要集成测试：
-├── 所有后端 API 接口
-├── 涉及数据库操作的功能
-└── 涉及第三方服务调用的功能
-
-⏸️ 可跳过（需用户确认）：
-├── 无法 mock 或测试成本过高
-├── 纯前端功能，无后端 API
-└── 用户明确要求跳过
-```
-
-### 测试内容
-
-#### 1. API 接口验证
-
-```
-📋 API 验证检查项：
-├── 响应格式符合规范（code/msg/data/extra）
-├── 状态码正确（成功/失败场景）
-├── 必填字段完整
-├── 数据类型正确
-├── 边界条件处理（空值、超长、特殊字符）
-└── 异常场景返回正确错误码
-```
-
-#### 2. 数据库验证
-
-```
-📋 数据库验证检查项：
-├── 数据正确写入目标表
-├── 字段值与请求参数一致
-├── 关联数据正确创建/更新
-├── 状态变更符合预期
-├── 时间戳正确记录
-└── 软删除/硬删除正确执行
-```
-
-#### 3. 测试数据管理
-
-```
-📋 测试数据规则：
-├── 测试前：
-│ ├── 检查 docs/TEST-DATA.md 中的测试数据
-│ ├── 数据不存在 → 自动创建并记录
-│ └── 数据存在 → 直接复用
-├── 测试中：
-│ ├── 使用独立的测试数据，避免污染
-│ └── 记录新创建的数据 ID
-└── 测试后：
- ├── 保留可复用的基础数据
- ├── 清理本次测试产生的临时数据
- └── 重置被修改的数据状态
-```
-
-#### 4. 环境依赖部署（通过测试脚本）
-
-> 📎 测试脚本接口约定详见 [common.md](./common.md)「三、测试脚本约定」。
-> RD 在开发阶段创建根级 `scripts/test-env-setup.sh`，封装全局环境准备逻辑（Docker/本地/远程均可）。
-
-```
-📋 RD 创建 test-env-setup.sh 时的实现指南（后端项目）：
-
-典型实现（Docker 优先）：
-├── 检测 Docker 环境
-│ ├── ✅ 可用 → 使用 docker-compose
-│ └── ❌ 不可用 → 检查 docs/RESOURCES.md 是否有远程环境
-│ ├── 有 → 使用远程环境
-│ └── 无 → 退出码非 0 + stderr 输出「需要 Docker 或远程环境配置」
-├── 启动依赖服务（DB/Redis/MQ）
-│ ├── docker-compose.test.yml（放在 docs/integration_test/ 下）
-│ ├── 等待健康检查（最多 60 秒）
-│ └── 加载前置数据（init.sql / seed.redis 等）
-├── 验证连通性
-│ ├── 数据库连接 ✅
-│ ├── Redis 连接 ✅（如有）
-│ └── API 服务可达 ✅
-└── 成功时 stdout 最后一行输出环境信息 JSON：
- {"db_url": "...", "redis_url": "...", "api_base": "http://localhost:8080"}
-
-🔴 脚本必须满足接口约定：退出码 0/非 0、幂等、无交互、JSON 输出。
- 具体实现自由（Docker/K8s/本地进程/远程连接均可）。
-```
-
-### 集成测试报告
-
-```
-📋 集成测试报告（F001-用户登录）
-=====================================
-
-> **集成测试报告**(产物字段 · v8.284 压缩原 52 行模板):环境信息(服务/DB/配置来源)· API 测试结果(端点 × 状态 × 断言)· 数据库验证结果(落库真值核对)· 测试数据使用(fixture / seed 来源)· 结论 · 失败项(现象 + 定位 + 处理)。**格式不规定**,字段齐即可。
+- **触发**:后端 API / 数据库操作 / 三方调用 → 默认需要;可跳过(无法 mock / 成本过高 / 纯前端)**需用户确认**。
+- **测试数据走 `docs/TEST-DATA.md`**:测试前先查它复用 · 新建的数据登记进去 · 测试后清临时数据、保基础数据(不登记 = 下个 Feature 重复造数据)。
+- **环境依赖走根级 `scripts/test-env-setup.sh`**(RD 开发阶段创建维护 · 实现自由:Docker/本地/远程):接口契约(退出码 0/非0 · 幂等 · 无交互 · stdout JSON)**单源 [common.md §三](./common.md)**。
+- **集成测试报告**(产物字段):环境信息(服务/DB/配置来源)· API 测试结果(端点 × 状态 × 断言)· 数据库验证结果(落库真值核对)· 测试数据使用(fixture / seed 来源)· 结论 · 失败项(现象 + 定位 + 处理)。**格式不规定**,字段齐即可。
 
 ## 三、服务端 API 接口规范
 
@@ -260,49 +159,6 @@
  降级可以兜业务可用性，但不能兜可观测性。
 ```
 
-**示例**：
-```javascript
-// ✅ 正确：外部调用异常 ERROR 日志（+ 降级时叠加 WARN）
-const start = Date.now();
-try {
- const resp = await paymentClient.pay({ orderId, amount });
- if (resp.code !== 0) {
- logger.error("Payment service returned business error", {
- target: "payment-service",
- endpoint: "POST /v1/pay",
- traceId: ctx.traceId,
- request: { orderId, amount },
- response: { code: resp.code, msg: resp.msg },
- durationMs: Date.now() - start,
- orderId,
- userId: ctx.userId,
- });
- throw new BusinessError(resp.code, resp.msg);
- }
- return resp.data;
-} catch (e) {
- logger.error("Payment service call failed", {
- target: "payment-service",
- endpoint: "POST /v1/pay",
- traceId: ctx.traceId,
- request: { orderId, amount },
- error: { message: e.message, stack: e.stack },
- durationMs: Date.now() - start,
- orderId,
- userId: ctx.userId,
- });
- throw e;
-}
-
-// ❌ 错误：吞掉异常 / 只打 WARN / 无业务上下文
-try {
- return await paymentClient.pay({ orderId, amount });
-} catch (e) {
- logger.warn("payment failed"); // 级别错 + 无上下文 + 无 traceId + 无耗时
- return null; // 静默兜底，排查时毫无线索
-}
-```
-
 **🔴 降级兜底逻辑 WARN 日志规则（硬规则）**
 
 ```
@@ -320,44 +176,6 @@ try {
 
 🎯 目的：降级是「正确但不正常」的路径，必须可观测、可告警、可追溯。
  静默降级 = 掩盖问题 = 生产事故来源。
-```
-
-**示例**：
-```javascript
-// ✅ 正确：降级逻辑 + WARN 日志
-try {
- result = await primaryService.call(req);
-} catch (e) {
- logger.warn("Primary service failed, falling back to secondary", {
- reason: e.message,
- from: "primary-service",
- to: "secondary-service",
- traceId: ctx.traceId,
- userId: ctx.userId,
- });
- result = await secondaryService.call(req);
-}
-
-// ❌ 错误：静默降级
-try {
- result = await primaryService.call(req);
-} catch (e) {
- result = await secondaryService.call(req); // 无日志，问题无法追溯
-}
-
-// WARN - 非预期但可处理
-if (user == null) {
- logger.warn("User not found, using default", { userId, default: "guest" });
- user = defaultUser;
-}
-
-// ERROR - 异常情况
-try {
- await paymentService.charge(amount);
-} catch (e) {
- logger.error("Payment failed", { error: e, userId, amount });
- throw e;
-}
 ```
 
 ---
@@ -504,60 +322,8 @@ PMO 完成报告 → 确认 database-schema.md 已完整同步（设计层 + 实
 ## 六、API 版本管理规范
 
 > API 的当前接口清单记录在 ARCHITECTURE.md 的 📎 api-design.md 中。
-> 本章定义的是 **API 版本变更的操作规范**。
+> 什么算 Breaking Change、deprecation 怎么走 = 模型自带知识 · 不复述。本章只留项目约定:
 
-### 版本策略
-
-```
-📌 URL Path 版本（默认策略）：
-└── /api/v{N}/...
- ├── v1: /api/v1/users
- ├── v2: /api/v2/users
- └── 项目可在 DEV-RULES.md 声明使用其他策略（如 Header 版本），声明后以其为准；未声明默认 URL Path 版本
-```
-
-### 何时需要升版本
-
-```
-🔴 必须升版本号（Breaking Change）：
-├── 删除已有字段或接口
-├── 修改字段类型或含义
-├── 修改响应结构
-├── 修改认证/鉴权方式
-└── 变更业务语义（同一接口返回不同含义的数据）
-
-✅ 不需要升版本（Non-Breaking Change）：
-├── 新增可选字段
-├── 新增接口
-├── 修复 Bug（不改变接口契约）
-└── 性能优化（不改变接口行为）
-```
-
-### 旧版本废弃流程
-
-```
-Step 1: 标记 Deprecated
-├── 在旧版本接口响应 Header 中添加 Deprecation 标记
-├── 在 api-design.md 中标注版本状态为「⚠️ 废弃中」
-└── TECH.md 中说明废弃原因和新版本迁移指引
-
-Step 2: 通知期
-├── 保持旧版本可用，设定废弃截止日期
-└── 截止日期记录在 api-design.md 版本清单中
-
-Step 3: 下线
-├── 确认无调用方使用旧版本
-├── 在 api-design.md 中标注版本状态为「❌ 已下线」
-└── 移除旧版本代码（可选，保留也可）
-```
-
-### TECH.md 声明要求
-
-```
-📋 涉及 API 变更的 TECH.md 必须包含：
-├── 是否为 Breaking Change → 是/否
-├── Breaking Change → 新版本号是什么（如 v1 → v2）
-├── 影响的接口清单
-├── 旧版本迁移方案（如有调用方）
-└── 完成后同步更新 api-design.md
-```
+- **版本策略默认 URL Path**(`/api/v{N}/...`)· 项目可在 DEV-RULES.md 声明其他策略(如 Header 版本 · 声明后以其为准)。
+- **Breaking Change 必升版本号**;版本状态(⚠️ 废弃中 / ❌ 已下线)与**废弃截止日期登记在 api-design.md 版本清单**(下线判定依据 —— 不登记 = 没人知道何时能下线)。
+- **涉 API 变更的 TECH.md 必声明**:是否 Breaking → 新版本号 · 影响接口清单 · 旧版本迁移方案(如有调用方)· 完成后同步 api-design.md。

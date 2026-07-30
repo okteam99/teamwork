@@ -1,6 +1,6 @@
 ---
 name: teamwork
-version: v8.306.1
+version: v8.307
 description: AI 协作开发一体化框架 - 需求功能开发, bug 修复, 问题排查 · /teamwork 启动
 ---
 
@@ -584,7 +584,7 @@ v8 把 9 红线的可枚举子条目物化进 state.py;R3 + 部分行为约束(R
 | [tools/_v8_engine.py](./tools/_v8_engine.py) | 通用 stage start/complete + bypass 引擎 |
 | [tools/_v8_stage_specs.py](./tools/_v8_stage_specs.py) | 12 stage 完整契约(stage 数单源 `STAGE_SPECS`) |
 | [tools/_v8_ship.py](./tools/_v8_ship.py) | ship-phase actions + ship-finalize + await-merge |
-| [tools/bootstrap.py](./tools/bootstrap.py) | session 启动维护(骨架 / codex agent toml 部署 / 历史注入段与 hooks 清理) |
+| [tools/bootstrap.py](./tools/bootstrap.py) | session 启动维护(骨架 / 历史注入段与 hooks 清理 / legacy codex agent toml 回收) |
 | [claude-agents/](./claude-agents/) | 第三视角冷审 prompt 模板(`state.py external-review` 组装进配方 · v8.291 codex-agents 已随跨厂商退役删除) |
 | [docs/CHANGELOG.md](./docs/CHANGELOG.md) | 变更记录 · [RETRO-LEDGER.md](./docs/RETRO-LEDGER.md) 一行一版自省 |
 
