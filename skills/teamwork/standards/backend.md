@@ -1,8 +1,8 @@
 # 后端开发规范
 
 > 后端 RD 必须遵守。通用规范见 📎 [common.md](./common.md) · 🔴 必读白名单 📎 [HARD-RULES.md](./HARD-RULES.md)。
-> Subagent 加载指引：后端子项目加载 HARD-RULES.md(必读)+ 本文件 + common.md(按需)，无需加载 frontend.md。
-> 📎 **通用教程不入库**（同 frontend.md 裁定）：保留的 ✅/❌ 示例仅限**承载契约/门禁字段**的对照（如 §四 日志必须字段）· 通用技术用法由 AI 按需自生成 · 项目特异约定归各项目 `DEV-RULES.md`。
+> Subagent 加载指引：后端子项目加载 HARD-RULES.md(必读)+ 本文件 + common.md(按需 · 其 §七前端专项后端无需读)。
+> 📎 **通用教程不入库**(裁定):保留的 ✅/❌ 示例仅限**承载契约/门禁字段**的对照（如 §四 日志必须字段）· 通用技术用法由 AI 按需自生成 · 项目特异约定归各项目 `DEV-RULES.md`。
 
 ---
 

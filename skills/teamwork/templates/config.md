@@ -80,9 +80,7 @@ cp .env.example .env
 🔴 **字段清单与语义的唯一真相源 = [`templates/teamwork_localconfig.json`](./teamwork_localconfig.json) 的 `_comment_*` 键**
 (bootstrap 按它生成 · 新增字段只改那一处)。
 
-> 本节原有 ~125 行字段文档已删 —— 它是 JSON 模板 `_comment_*` 的**逐字第二副本**,
-> 且正文用 ` ```markdown ` 围栏把这个文件描述成带 `## 负责人` 标题的 **markdown 文件**
-> (真实文件是 JSON)—— 描述的是一个已不存在的格式。副本必漂,这次漂到了介质。
+> 字段文档不在此复述 —— 与 `_comment_*` 双写必漂(历史上副本曾漂到把 JSON 描述成 markdown 文件)。
 
 ## external/README.md（三方资源目录说明）
 

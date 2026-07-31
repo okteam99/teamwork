@@ -1,6 +1,6 @@
 ---
 name: teamwork
-version: v8.309.1
+version: v8.310
 description: AI 协作开发一体化框架 - 需求功能开发, bug 修复, 问题排查 · /teamwork 启动
 ---
 
@@ -99,7 +99,7 @@ worktree 路径规范见 [docs/conventions.md §9-12](./docs/conventions.md)。
 
 ## 命令清单(分类概览 · 🔴 权威 = `state.py --help`)
 
-> 原 30 行逐条枚举已删 —— **实测已漂**(52 个真实子命令里 11 个从未出现在本文件:`execute-start/complete`〔整个 micro 流程〕· `review-preventability` · `ws-lint` / `ws-progress` · `test-baseline` · `ledger-migrate` · `reset-prev` · `external-ingest` 等)。**指针 + 复制被指向内容 = 副本必漂**,这里只留 `--help` 给不出的**分类心智**:
+> 不留逐条命令枚举 —— **实测必漂**(曾有 11/52 个真实子命令从未出现在枚举里)。**指针 + 复制被指向内容 = 副本必漂**,这里只留 `--help` 给不出的**分类心智**:
 
 > 🔴 **按「AI 要不要记」分类**(不是按功能分)—— 56 个子命令里,**AI 只需记住 A 类**。
 > 实测触发:某次 AI 在 goal 阶段手跑 `verify-ac.py`(它记住了这个脚本),而该脚本在 goal **必然 FAIL**
@@ -570,8 +570,8 @@ v8 把 9 红线的可枚举子条目物化进 state.py;R3 + 部分行为约束(R
 | [FLOWS.md](./FLOWS.md) | 流程闭集 telos(Feature/Bug × preset + 2 个不进状态机) |
 | [STAGES.md](./STAGES.md) | **stage 编排单源**(定义 / 链 / 通用纪律 / 执行方式 §4 / spec 四段结构) |
 | [ROLES.md](./ROLES.md) | 角色索引(→ roles/*.md) |
-| [standards/HARD-RULES.md](./standards/HARD-RULES.md) | **工程硬规则白名单**(standards/ 唯一必读 · 逆模型默认 + 框架约定)· 索引 [STANDARDS.md](./STANDARDS.md) |
-| [TEMPLATES.md](./TEMPLATES.md) | 文档模板索引(全清单 → [templates/README.md](./templates/README.md)) |
+| [standards/HARD-RULES.md](./standards/HARD-RULES.md) | **工程硬规则白名单**(standards/ 唯一必读 · 逆模型默认 + 框架约定 · 分册索引在其尾部「相关」) |
+| [templates/README.md](./templates/README.md) | 文档模板索引(格式唯一真相源 · 全清单 + 消费方) |
 | [PRODUCT-OVERVIEW-INTEGRATION.md](./PRODUCT-OVERVIEW-INTEGRATION.md) | 产品规划上游(product-overview 引导 / 规划状态管理) |
 | [stages/*.md](./stages/) | 各 stage Telos + 硬规则 + Output Contract(校验进 state.py) |
 | [roles/*.md](./roles/) | 角色 telos + 创作要点(协作进 state.py) |

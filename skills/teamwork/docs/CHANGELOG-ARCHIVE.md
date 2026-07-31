@@ -4,6 +4,57 @@
 > 上次清空:**v8.193**(2026-07-06 · 清除 v8.128 → v8.187 共 60 版条目 · 约 1.0k 行)。
 
 ---
+## v8.305 · 🐞 fast_mode 的 blueprint 被门禁强制跑 external(四个面的同一族 bug)
+
+> 用户:**看下 fast 模式是否有 bug。**
+> 实证(aon-core · `fast_mode=true`):`blueprint-complete` FAIL 要 external,
+> 而**同一 stage 的 brief 明写「blueprint 评审跳过」** —— brief 与门禁直接对立。
+
+### 后果:AI 做对了每一步,却仍然白付一轮
+
+AI 没有篡改 state、没有 bypass(**两个判断都对**),先试 `change-review-roles` 想显式清空 ——
+**被拒**;于是它按配方**真跑了一轮隔离冷审**。
+🔴 **fast_mode 承诺的「blueprint 评审跳过」被静默取消,用户白付一轮。**
+框架没给它任何一条正确的出路。
+
+### 四个面
+
+| # | 面 | 事实 |
+|---|---|---|
+| ① | **两个 evidence check 语义相反** | `external_review_artifact` 的 `if stage_roles and "external" not in stage_roles` 把「**有意配空**」当「**未配置 → 按默认要 external**」;而同文件 `reviewers_match` 对同一状态判 `if not required: return True`(skip) |
+| ② | **靠键缺失表达意图** | v8.261 的 fast 只写 `{"goal":[…], "review":[…]}` —— blueprint **键缺失**。而缺失读不出「有意」还是「忘了」 |
+| ③ | **用户无法自救** | `change-review-roles` 要求 stage **已在** dict 里,而 fast 恰恰把它去掉了 → 想显式设空都被拒 |
+| ④ | **框架自产自拒** | `fast` 是 fast_mode 自己写进 roster 的**伪角色**,却**不在 `REVIEW_ROLE_ENUM`** → fast 模式下连把当前值传回去都判非法角色 = **该模式下这条命令整个不可用** |
+
+### 修
+
+- ① 守卫对齐「**空 roster = 本 stage 不要求评审**」(两处:external artifact + 验证轮日志);
+- ② fast_mode **显式写 `blueprint: []`** —— 意图物化,不靠缺失暗示;
+- ③ `change-review-roles` 改为只校验「stage 有无评审语义」(单源 `STAGES_WITH_REVIEW_ROLES_HINT`),
+  **允许对未配置的 stage 设置**,且**允许显式清空**(`--roles ''`)——
+  🔴 清空一个本就不存在的键**算 OK 不算 NOOP**(要把意图写进 state 与 audit);
+- ④ `fast` 收进 `REVIEW_ROLE_ENUM`。
+
+### 🔴 修 ① 时首版过宽,被既有测试当场抓出
+
+首版把「roster **整个**缺失」也判 skip —— 那会让 **legacy state 静默跳过外审**。
+两种「缺失」含义相反,必须分开:
+**非空 roster 缺本 stage = 有意去掉(skip)· roster 整个空 = 未初始化(仍按默认要求)。**
+
+> 这次是**测试拦住了我**,不是我自己想到的。它也印证了 v8.303 那条:
+> 我据「fast_mode 场景」推出了守卫该怎么改,**但没验证「roster 整个缺失」这个我没亲眼看过的分支**。
+
+### 顺带:放宽守卫要跟着改下游
+
+放开「stage 必须已存在」后,`before = review_roles[args.stage][:]` 立刻 KeyError ——
+**放宽一处约束时,依赖该约束的下游全部要复核**。
+
+### 测试
+
+1092 → **1104**。
+
+---
+
 ## v8.304 · 回收零工具 reviewer profile + 区分「执行失败」与「评审失败」
 
 > 用户提案:隔离 Reviewer 无文件读取能力 · 冷审返 `files_read: []` + `no authorized read-only file access`,

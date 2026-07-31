@@ -81,7 +81,7 @@ CONSUMER_RE = re.compile("|".join(CONSUMER_PATTERNS), re.IGNORECASE)
 # v8.x:清掉已删 spec(STATUS-LINE.md / REVIEWS.md / CONTEXT-RECOVERY.md / RULES.md / rules/)
 DEFAULT_SPEC_PATHS = [
     "SKILL.md", "FLOWS.md",
-    "ROLES.md", "TEMPLATES.md", "STANDARDS.md",
+    "ROLES.md",
     "PRODUCT-OVERVIEW-INTEGRATION.md",
 ]
 DEFAULT_SPEC_DIRS = ["stages", "standards", "roles", "docs"]

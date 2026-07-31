@@ -4,6 +4,33 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.310 · 文档合并(-3 文件)+ 考古注释清零 + 机器门
+
+> 用户:看下各 md 是否需要合并 · 去掉没必要的注释。
+> 合并判据:**要么减少重复,要么减少读取量 —— 两者都不减的不合**(文件数不是成本,读取行数才是)。
+
+### 合并三件(65 → 62 个 md)
+
+| 退役 | 为什么 | 独有内容去哪 |
+|---|---|---|
+| `STANDARDS.md` | 独有内容仅一句;其余是**已经漂移的分册简介**(还在描述 v8.307 已删的「组件测试/状态管理/无障碍」)+ 与各分册头部重复的加载指引 —— **索引描述是内容的副本,索引也会漂** | 「覆盖声明唯一注册处 = DEV-RULES · KNOWLEDGE 不作注册处 · 存量对外契约沿用」→ HARD-RULES.md 头部(必读文件) |
+| `TEMPLATES.md` | 格式权威红线与 templates/README 头部 + common §四C **三重复写**;页脚声称 roles/{pmo,pm,rd} 有「格式权威」条目 —— **三个文件都没有**(幽灵引用) | 红线要点并入 templates/README 头部 · meta 规则 cite §四C 单源 |
+| `standards/frontend.md` | v8.307 砍完教学后仅 13 行正文,**头部比正文长** —— 不值一个独立加载单元 | 整体并入 common.md **§七 前端专项**(阈值与禁令 · 标明仅前端子项目适用) |
+
+### 评估后不合的(记录判断 · 防下轮重新讨论)
+
+- **roles/ 9→1**:引用横跨 15 个 md · stage spec 逐点 cite 具体角色文件的具体节;合并不减重复也不减读取量,只减文件数。不合。
+- **PRODUCT-OVERVIEW-INTEGRATION → feature-planning**:tools 层 3 处真实咬死路径(bootstrap flow_gates + state.py planning-check 的 must_read emit);两文件分工清楚(文档体系与状态管理 vs 流程步骤),合成 450 行巨文件反而变差。不合。
+- **teamwork-space 模板 ↔ guide**:bootstrap 拷模板做项目骨架,guide 的规则内容不能进模板(会被拷进用户项目)。不合。
+
+### 考古注释清零 + 机器门
+
+按 v8.309 判据(「删掉这句,现行规则的说服力掉不掉?」)清掉一类**删除记账**:
+「原 N 行已删 / 压缩原 X / 借鉴 mattpocock/skills」共 14 处(SKILL 命令节 · STAGES 试点转正叙事 ·
+common 三处节名后缀 · ui-design 三处 · ui/config/prd/adr-index/external-model-usage 各一)——
+**why 原则保留**(「模型内建常识不入库」支撑现行形状 · 防回潮),删的只是记账与署名。
+新门:`原 N 行` / `压缩原` / `借鉴 mattpocock` 出现在 spec 即红 —— 门首跑就抓到人工扫描漏掉的 2 处。
+
 ## v8.309 · 口径冲突收口(用户裁定):实证留 · 版本标清零 + 机器门
 
 > 用户拍板:**以 R-SP-8 为主 —— 实证 case 允许写,清扫版本标。**
@@ -150,54 +177,3 @@ stages/ 十二件(四段结构后全是判据形态)· agents/README 档位与�
 
 指纹一致 pass · 测完改代码 BLOCK · 未传兼容 pass · 非 git 降级 pass ·
 subagent(带/不带 model)pass · main-window 无授权 BLOCK / 有授权 pass+WARN · 未申报 BLOCK。
-
-## v8.305 · 🐞 fast_mode 的 blueprint 被门禁强制跑 external(四个面的同一族 bug)
-
-> 用户:**看下 fast 模式是否有 bug。**
-> 实证(aon-core · `fast_mode=true`):`blueprint-complete` FAIL 要 external,
-> 而**同一 stage 的 brief 明写「blueprint 评审跳过」** —— brief 与门禁直接对立。
-
-### 后果:AI 做对了每一步,却仍然白付一轮
-
-AI 没有篡改 state、没有 bypass(**两个判断都对**),先试 `change-review-roles` 想显式清空 ——
-**被拒**;于是它按配方**真跑了一轮隔离冷审**。
-🔴 **fast_mode 承诺的「blueprint 评审跳过」被静默取消,用户白付一轮。**
-框架没给它任何一条正确的出路。
-
-### 四个面
-
-| # | 面 | 事实 |
-|---|---|---|
-| ① | **两个 evidence check 语义相反** | `external_review_artifact` 的 `if stage_roles and "external" not in stage_roles` 把「**有意配空**」当「**未配置 → 按默认要 external**」;而同文件 `reviewers_match` 对同一状态判 `if not required: return True`(skip) |
-| ② | **靠键缺失表达意图** | v8.261 的 fast 只写 `{"goal":[…], "review":[…]}` —— blueprint **键缺失**。而缺失读不出「有意」还是「忘了」 |
-| ③ | **用户无法自救** | `change-review-roles` 要求 stage **已在** dict 里,而 fast 恰恰把它去掉了 → 想显式设空都被拒 |
-| ④ | **框架自产自拒** | `fast` 是 fast_mode 自己写进 roster 的**伪角色**,却**不在 `REVIEW_ROLE_ENUM`** → fast 模式下连把当前值传回去都判非法角色 = **该模式下这条命令整个不可用** |
-
-### 修
-
-- ① 守卫对齐「**空 roster = 本 stage 不要求评审**」(两处:external artifact + 验证轮日志);
-- ② fast_mode **显式写 `blueprint: []`** —— 意图物化,不靠缺失暗示;
-- ③ `change-review-roles` 改为只校验「stage 有无评审语义」(单源 `STAGES_WITH_REVIEW_ROLES_HINT`),
-  **允许对未配置的 stage 设置**,且**允许显式清空**(`--roles ''`)——
-  🔴 清空一个本就不存在的键**算 OK 不算 NOOP**(要把意图写进 state 与 audit);
-- ④ `fast` 收进 `REVIEW_ROLE_ENUM`。
-
-### 🔴 修 ① 时首版过宽,被既有测试当场抓出
-
-首版把「roster **整个**缺失」也判 skip —— 那会让 **legacy state 静默跳过外审**。
-两种「缺失」含义相反,必须分开:
-**非空 roster 缺本 stage = 有意去掉(skip)· roster 整个空 = 未初始化(仍按默认要求)。**
-
-> 这次是**测试拦住了我**,不是我自己想到的。它也印证了 v8.303 那条:
-> 我据「fast_mode 场景」推出了守卫该怎么改,**但没验证「roster 整个缺失」这个我没亲眼看过的分支**。
-
-### 顺带:放宽守卫要跟着改下游
-
-放开「stage 必须已存在」后,`before = review_roles[args.stage][:]` 立刻 KeyError ——
-**放宽一处约束时,依赖该约束的下游全部要复核**。
-
-### 测试
-
-1092 → **1104**。
-
----

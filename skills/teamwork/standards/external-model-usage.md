@@ -2,10 +2,7 @@
 
 > 🔴 **重大变更(用户拍板):跨厂商异质模型评审彻底退役。**
 > 退役理由:codex / gemini CLI 的冷启动 + 安全审查慢路径 + 登录/网络/MCP 故障面,**实测严重拖慢流程**
-> (台账实证:codex exec 挂死 98m 后杀掉重试 · "Additional safety checks" 慢路径 · 反复踩未登录)。
-> 原 286 行里的跨厂商机械(核心硬约束 / 合规架构 / profile 分类 / prompt 注入 / 配置约束 / 违规处置 /
-> 异质性硬约束 137 行 / MCP 隔离 / .log 可观测性)**已整体删除**,连同代码侧 ~700 行
-> (CLI exec / preflight / 超时 / 降级 / host 映射)、`disable_external_review` 配置项(已退役)与 94 条测试。
+> (台账实证:codex exec 挂死 98m 后杀掉重试 · 反复踩未登录)。跨厂商机械与 `disable_external_review` 配置项已整体退役 —— **勿复活**(细节归 CHANGELOG / git 历史)。
 
 ---
 

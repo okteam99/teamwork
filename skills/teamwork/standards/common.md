@@ -1,7 +1,7 @@
 # 通用开发规范
 
 > 前后端共用的规范，所有 RD 必须遵守。
-> 📎 后端专项规范见 [backend.md](./backend.md)，前端专项规范见 [frontend.md](./frontend.md)
+> 📎 后端专项规范见 [backend.md](./backend.md) · 前端专项见本文件 §七
 
 ---
 
@@ -9,7 +9,7 @@
 
 > TDD 手段规定已撤除(怎么测 AI 自觉)· 测试的**结果规则 + 机器门**见 [HARD-RULES.md](./HARD-RULES.md) · 本节不复述通用原则。
 
-## 二、代码架构规范(压缩 · 分层/SOLID/Review 友好度等教科书内容已删)
+## 二、代码架构规范
 
 > 通用架构原则(分层、单一职责、模块边界、Review 友好度)模型已内建 —— 本节只留**本框架的偏离与约定**:
 
@@ -42,9 +42,9 @@ v7 三级 dispatch 预检已废 · 由物化路径替代,不依赖记忆顺序:*
 
 ---
 
-## 四、实现完成的硬门(原「RD 自查规范 + 报告模板」216 行已删)
+## 四、实现完成的硬门
 
-> 删除理由:那是**环节化自检 + 报告仪式**,零机器消费者(全库无工具校验 RD 自查报告)、零文档引用,且与 `templates/tech.md §完工自查`(review 真读它)职能重复。**证据要求本身由机器门承担**:`dev-complete --test-exit-code 0` + `--test-stdout` 非空 + artifacts 在 changeset。以下两条是从中抢救的真规则:
+> 不设 RD 自查/报告仪式(环节化自检 · 零机器消费者 · 与 `templates/tech.md §完工自查` 职能重复)—— **证据要求由机器门承担**:`dev-complete --test-exit-code 0` + `--test-stdout` 非空 + artifacts 在 changeset。仅两条真规则:
 
 - 🔴 **Build 必须跑通才能进 Code Review**(硬门禁)。CI 是最后一道安全网,不是第一道发现机制。无 build 步骤的项目(纯库 / 纯脚本 / Python 应用)必须**显式标注「无 build 步骤」**,不能省略。
 - 🟡 **worktree lazy-install 踩坑**:单测能跑但 `npm run build` / `next build` 失败(找不到 webpack / postcss / next 本身)= worktree 只装了单测所需 deps,build 工具链未装。处理:① worktree 内补装(`npm install --include=dev`,最稳,30s-2min)② 软链主 worktree 的 `node_modules`(秒级,但 monorepo workspace / 不同 lockfile 易出怪问题)③ 记进项目 `KNOWLEDGE.md` Gotcha。
@@ -156,11 +156,11 @@ v7 三级 dispatch 预检已废 · 由物化路径替代,不依赖记忆顺序:*
 
 ---
 
-## 四D、QA 代码审查视角(压缩 · 原 70 行报告模板已删)
+## 四D、QA 代码审查视角
 
 > 🔴 QA 代码审查的核心是**读代码验证 TC**(TDD 规范检查是辅助)。AC↔TC 的机械绑定由 `verify-ac.py` 物化校验;**逐条覆盖判断**归 review stage 的外审必覆盖方向「测试真实性与覆盖」(测试真跑 = 读实跑证据 · 覆盖真行为 · 边界回归)—— 不在本文件再列一份报告模板。
 
-## 四点五、调试日志规范（借鉴 mattpocock/skills diagnose）
+## 四点五、调试日志规范
 
 🔴 **`[DEBUG-{Feature}-{NNNN}]` 唯一前缀规则**：临时调试日志（println / console.log / log.debug 等）必须用统一前缀，如 `console.log("[DEBUG-F062-0001] payload:", payload)` —— 格式即规则 · 不另给 ✅/❌ 对照。
 
@@ -170,7 +170,7 @@ v7 三级 dispatch 预检已废 · 由物化路径替代,不依赖记忆顺序:*
 
 ---
 
-## 五、文档流程图规范(压缩)
+## 五、文档流程图规范
 
 🔴 所有文档中的流程图 / 时序图 / 架构图**统一用 Mermaid**(` ```mermaid ` 代码块)· **禁** ASCII 流程图 / 图片截图 / 第三方绘图工具链接 —— 必须能在 GitHub 与 Markdown 预览器直接渲染。图类型按需选(flowchart / sequenceDiagram / stateDiagram-v2),语法不在此复述。
 
@@ -197,3 +197,20 @@ Rust 项目示例(target 按 feature 共享):
 **回收双通道**:ship2 `tmp-cleanup` 即时清理(verify-delivered 通过后整树删 · 内容已上岸零风险)+ bootstrap TTL 兜底(默认 7 天 · 按**目录**整体删 —— cargo target 靠 fingerprint 判增量 · 按文件删会打碎一致性 · 捞回放弃的 feature 与历史孤儿)。
 
 > 背景:CI 机磁盘 100% 打满实证 —— `/tmp/teamwork` 48GB 全是可无损重建的 cargo target(单 feature 26GB · 躺了数月)· 「有人写没人收」的无主命名空间。同类先例 = external-review-logs 无保留策略膨胀 300MB(v8.x 已治)· 本节是同一模式在 160 倍量级上的复用。
+
+---
+
+## 七、前端专项(阈值与禁令 · 仅前端子项目适用)
+
+> 组件测试写法 / 状态管理选型 / 性能手法 / 无障碍细则 / 构建实践 = 模型自带知识 · 不入库(防教程腐烂反向误导);项目特异约定归 `DEV-RULES.md` / `UI-RULES.md`(用户主权)。本节只留**模型猜不到的项目缺省**。
+
+### 测试阈值(项目缺省 · DEV-RULES 可覆盖)
+
+- **覆盖率 > 70%**(CI 门禁值)· P0 流程必须覆盖。
+- **测试分层归属**(框架约定 · 怎么写 AI 自觉):单元(纯函数/hook)· 组件(渲染+交互+状态)· 集成(跨组件/路由/数据流)· e2e(真实浏览器 · 归 browser_e2e stage)。
+
+### 样式禁令(跨 Feature 一致性 · 单人判断守不住的)
+
+- 🔴 **项目内统一 CSS 方案 · 禁混用**(CSS Modules / Tailwind / CSS-in-JS / Sass+BEM 选其一)—— 单 Feature 各选各的 = 样式体系碎裂,没有哪个 Feature 单独负责。
+- 🔴 **组件引用 design token · 禁硬编码颜色值 / 魔法数字**;暗色模式在 token 层切换(组件层不感知主题)· token 定期与设计稿对账。
+- 🔴 **全局样式仅限 reset / base / typography** · 禁在全局样式中定义业务组件样式。

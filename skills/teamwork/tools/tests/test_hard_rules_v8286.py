@@ -73,9 +73,10 @@ class TestNoDuplicateCopies(unittest.TestCase):
 
 class TestStandardsFurtherSlimmed(unittest.TestCase):
     def test_total(self):
+        # v8.310:frontend.md 已并入 common.md §七 · 文件退役
         total = sum(len((STD / f).read_text(encoding="utf-8").splitlines())
-                    for f in ("common.md", "backend.md", "frontend.md"))
-        self.assertLess(total, 1150, f"四件分册应已从 1773 降到 1150 内 · 现 {total}")
+                    for f in ("common.md", "backend.md"))
+        self.assertLess(total, 1150, f"分册应已从 1773 降到 1150 内 · 现 {total}")
 
 
 class TestNoDanglingStandardsLinks(unittest.TestCase):

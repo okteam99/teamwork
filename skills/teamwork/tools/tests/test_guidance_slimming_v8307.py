@@ -27,10 +27,10 @@ def _read(p: Path) -> str:
 
 
 class TestFrontendTeachingGone(unittest.TestCase):
-    """frontend.md:执行它自己头部的裁定 —— 教程走 · 阈值与禁令留。"""
+    """前端规范:教程走 · 阈值与禁令留(v8.310 起并入 common.md §七 · 文件退役)。"""
 
     def setUp(self):
-        self.t = _read(STD / "frontend.md")
+        self.t = _read(STD / "common.md")
 
     def test_tutorials_removed(self):
         """选型/手法教学 = 模型自带知识 · 命中任何一个都说明教程回潮。"""
@@ -46,9 +46,8 @@ class TestFrontendTeachingGone(unittest.TestCase):
         self.assertIn("design token", self.t)
         self.assertIn("browser_e2e stage", self.t, "测试分层归属(框架约定)丢失")
 
-    def test_actually_slim(self):
-        self.assertLess(len(self.t.splitlines()), 40,
-                        "frontend.md 应只剩阈值与禁令(~20 行)· 超 40 = 教学在回潮")
+    def test_lives_in_common_section_seven(self):
+        self.assertIn("## 七、前端专项", self.t, "前端专项段丢失(v8.310 并入 common)")
 
 
 class TestBackendExamplesGone(unittest.TestCase):
@@ -96,7 +95,7 @@ class TestModuleDesignSectionRetired(unittest.TestCase):
     """「模块设计判定」退役:单源死了 ~200 版无人发现 = 零消费者;活规则在 HARD-RULES。"""
 
     def test_dead_sections_gone_from_standards(self):
-        for f in ("backend.md", "frontend.md"):
+        for f in ("backend.md", "common.md"):
             t = _read(STD / f)
             self.assertNotIn("模块设计判定", t, f"{f} 仍留退役节")
             self.assertNotIn("通用架构词汇", t, f"{f} 仍引用 v8.96 已删的 knowledge.md 节")

@@ -1,8 +1,8 @@
 # 工程硬规则白名单(🔴 必读)
 
-> **这是 standards/ 的唯一必读文件**(~50 行)。分册(`common` / `backend` / `frontend`)是**按需查的参考**,不要求通读。
+> **这是 standards/ 的唯一必读文件**(~50 行)。分册(`common` / `backend`)是**按需查的参考**,不要求通读。
 >
-> 🔴 **工程规范 = 本文件 + 项目 `project-specs/DEV-RULES.md` 的并集 · 冲突以项目为准**(项目主权高于框架缺省;项目要覆盖某条,在 DEV-RULES 显式声明即可)。
+> 🔴 **工程规范 = 本文件 + 项目 `project-specs/DEV-RULES.md` 的并集 · 冲突以项目为准**(项目主权高于框架缺省)。**覆盖声明唯一注册处 = DEV-RULES.md**(未声明 → 按 standards 缺省;`KNOWLEDGE.md` 只归事实/踩坑 · 不作规范覆盖注册处);存量服务的**对外契约**(如 API 响应结构)一致性优先:沿用存量 + 提示用户固化进 DEV-RULES(AI 不代写)。
 >
 > 🔴 **收录判据 = 与模型默认行为的距离**(只收两类):
 > - **逆默认**:模型默认会做**反**的 —— 它越强越笃定,越需要这条明确逆着写;
@@ -51,5 +51,5 @@
 
 ## 相关
 
-- 分册(按需查 · 不必通读):[common.md](./common.md) · [backend.md](./backend.md) · [frontend.md](./frontend.md) · [external-model-usage.md](./external-model-usage.md) · [scripts-policy.md](./scripts-policy.md)
+- 分册(按需查 · 不必通读):[common.md](./common.md)(通用 + §七前端专项)· [backend.md](./backend.md) · [external-model-usage.md](./external-model-usage.md) · [scripts-policy.md](./scripts-policy.md)
 - 项目侧规范(优先级更高):`project-specs/DEV-RULES.md`(人维护 · API 契约 / 错误处理 / 其他约定)
