@@ -4,6 +4,30 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.311 · TROUBLESHOOTING 收归用户主权(AI 只读 + 提示 · 不代写)
+
+> 用户裁定:**TROUBLESHOOTING 是用户主权文件,AI 不要在流程中修改它;AI 可以自动改 KNOWLEDGE。**
+
+### 实况:确实存在 AI 写入路径,且归类本身就是漏的
+
+- 两处条文明确指示 AI 写它:SKILL「连法缺失 → **补进它**(知识沉淀)」· feature-planning Step 1 同款;
+- conventions §13 清单里它**没标维护方** —— 旁边 DEV-RULES/UI-RULES 都标着「人维护」,
+  它和 GLOSSARY 裸着。**没归类的文件,写入权会默认漂向 AI**;
+- 工具层干净:state.py / engine 只**读**它拿连法;bootstrap 只建空骨架(DEV-RULES 同款 · 骨架≠内容 · 保留)。
+
+### 修(镜像 DEV-RULES 模式 · 五处)
+
+- **转记流**(SKILL + feature-planning 两处原违例):连法缺失/AI 摸索出来的 →
+  记 `KNOWLEDGE.md`(AI 沉淀 · 用户明确保留 AI 写权)+ **提示用户**固化进 TROUBLESHOOTING · 不代写;
+- **归类补标**:conventions §13 + SKILL 文档清单行 + 模板头部 → 「人维护 · AI 不代写」;
+- **KNOWLEDGE 边界表补行**:「运维操作步骤 / 环境连接方式 → TROUBLESHOOTING(人维护)」——
+  这张表是「什么写哪」的单源,此前缺这行。
+
+### 机器门
+
+任何 spec 行「TROUBLESHOOTING + 写动词(补进/写入/追加…)」而无「提示用户/不代写」豁免 → 红。
+另:新增条文撞上 SKILL 🔴 密度门(55 = 上限)—— 按既有判例**服从门、裁自己的红点**(主权语义靠加粗承载)。
+
 ## v8.310 · 文档合并(-3 文件)+ 考古注释清零 + 机器门
 
 > 用户:看下各 md 是否需要合并 · 去掉没必要的注释。
@@ -142,38 +166,3 @@ stages/ 十二件(四段结构后全是判据形态)· agents/README 档位与�
 
 留给用户的裁定(未动):conventions「spec 不写版本标/case 叙事」与 R-SP-8「实证 case 是合法
 消费者标注」互相冲突 —— 哪条为主需要拍板,本版不单方面扫。
-
-## v8.306 · 测试证据的两个维度:谁跑的(申报)+ 对应哪份代码(零信任)
-
-> 实证(aon-core):AI **在主窗口直接跑了测试**,用户问「为什么没切验证档」它才发现。
-> 自陈:「沿用了『主编排收口测试』的做法,**漏掉了 v8.299 的硬规则**」——
-> 🔴 **规则它读过**(自己引用了版本号),漏的是**时点**:提醒在 stage-start,动作在几十个工具调用之后。
-> 与 v8.299 派发声明、v8.301 命令时点是**同一个失效机理**。
-
-### 提案按「可验证性」分三级裁决,不整包收下
-
-| 提案 | 裁决 | 理由 |
-|---|---|---|
-| **tree-hash 绑定** | 🟢 收 | complete 时**自己重算**,不读任何申报字段 = **零信任**;挡的是今天完全没挡的洞:**先绿、后改、仍拿旧日志过门** |
-| **runner/tier/model 申报** | 🟡 收(标清边界) | AI 自己写 → **拦得住「忘了」,拦不住「故意」**;而这次恰恰是忘了,故有效 |
-| **`agent_task_id` 作硬门** | 🔴 不做 | **跨宿主不可得**(Codex 与 Claude Code 的 subagent 标识不同)· 会变成某些宿主上**注定失败的门**(v8.301 判据) |
-
-🔴 提案原文称「这一个门禁就能直接防住我刚才的错误」—— **过誉**。
-不标清「自我申报」这条边界,读者会高估这道门、进而放松其他把关。条文里已写明。
-
-### 三处改动
-
-- **`test_evidence_fresh`**(dev complete 硬门):指纹 = `HEAD tree` + **未提交 diff** 的 sha256。
-  只绑 HEAD 不够 —— 「改了但没提交」同样让旧日志失效。
-  三种降级放行:非 git / 算不出指纹 / 未传参数(存量 in-flight 兼容)——
-  🔴 **绝不因环境问题 BLOCK**(注定失败的门比没有门更糟)。
-- **`test_runner_declared`**(dev complete 硬门):`subagent | main-window | ci`,**不传 = BLOCK**。
-  `main-window` 是**允许的值**,但走 v8.299 例外协议:需 `--user-confirmed`,否则 BLOCK ——
-  **失误变得可见,而不是被静默吞掉**;拿到授权也留 WARN(年检要数得出这类例外的频次)。
-- **`verification_recipe`**(dev/test 的 stage-start emit):派发声明 + **采指纹的可跑命令** + complete 三参数,
-  一次给全。规则读过仍然漏 → 配方必须在**动作点之前**就是完整的,不能让 AI 现拼。
-
-### 九种情形实测
-
-指纹一致 pass · 测完改代码 BLOCK · 未传兼容 pass · 非 git 降级 pass ·
-subagent(带/不带 model)pass · main-window 无授权 BLOCK / 有授权 pass+WARN · 未申报 BLOCK。

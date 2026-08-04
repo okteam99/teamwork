@@ -1,6 +1,6 @@
 ---
 name: teamwork
-version: v8.310.1
+version: v8.311
 description: AI 协作开发一体化框架 - 需求功能开发, bug 修复, 问题排查 · /teamwork 启动
 ---
 
@@ -480,7 +480,7 @@ teamwork 承担**知识导航(索引/地图)**的责任 —— 让 AI 从一个�
 | `project-specs/test-baseline.md` | 红 base 测试基线(brownfield 预存在失败清单 · `state.py test-baseline --add` 生成) | 测试非全绿但非本次引入时(差分「0 新增」判定) |
 | `project-specs/KNOWLEDGE.md` | Gotcha(踩坑)/ Preference / 已澄清歧义 / 已否方向(AI 沉淀) | triage 期 + 涉项目踩坑/历史坑/用户偏好 |
 | `project-specs/GLOSSARY.md` | 业务术语 + 实体关系 + 命名约定 + 别名歧义 | PRD / TECH 起草前 · 问术语/实体/别名 |
-| `project-specs/TROUBLESHOOTING.md` | 排查 / 运维操作手册(log / DB / 监控 / 部署) | 报错 / 502 / 查 log / 异常 / 服务挂 / 查环境 / 查 DB / 查 Redis / 部署 / 回滚 |
+| `project-specs/TROUBLESHOOTING.md` | 排查 / 运维操作手册(log / DB / 监控 / 部署 · **人维护 · AI 不代写**) | 报错 / 502 / 查 log / 异常 / 服务挂 / 查环境 / 查 DB / 查 Redis / 部署 / 回滚 |
 | `project-specs/RELEASE-GUIDE.md` | **版本发布规范(人维护)**:集成分支→生产(默认 staging→main MR · URL 置顶 · 提醒用户合入 · 发布后补 release-gated 证据) | 用户说「发布 / 上线 / 发版」时 **PMO 必读照办**(合入归用户) |
 | `project-specs/ARCHITECTURE.md` | **workspace 级**系统架构(子项目拓扑 + 依赖 + 目录布局) | 跨子项目架构 / 系统全貌 |
 | `{子项目}/docs/architecture/ARCHITECTURE.md` | **单子项目内部**技术架构(技术栈/分层/模块) | 某子项目内部架构决策(模板 `templates/architecture.md`)|
@@ -493,7 +493,7 @@ teamwork 承担**知识导航(索引/地图)**的责任 —— 让 AI 从一个�
 | `teamwork-space.md` | **地图根**(索引之索引 · 结构 / 子项目清单 / 跨项目变更 ID) | 任何 session 必读 · 多子项目 / 知识全景入口 |
 | 代码 | **细节唯一真相** | 涉及具体代码 → grep + Read(不信文档转述) |
 
-🔴 **AI 自己需连环境(查 DB / log / 服务 / 跑运维命令)时也走 `TROUBLESHOOTING.md`** —— 不只"用户提到",含规划期代码调研需 live 数据、stage 内联调/排错。**先读它拿连接 + 操作方式,别凭 `.env` / 启动脚本瞎试**;连法缺失 → 补进它(知识沉淀)。
+🔴 **AI 自己需连环境(查 DB / log / 服务 / 跑运维命令)时也走 `TROUBLESHOOTING.md`** —— 不只"用户提到",含规划期代码调研需 live 数据、stage 内联调/排错。**先读它拿连接 + 操作方式,别凭 `.env` / 启动脚本瞎试**。它是**人维护**文件(同 DEV-RULES 模式)· **AI 不在流程中改它**:连法缺失/自己摸索出来的 → 记 `KNOWLEDGE.md`(AI 沉淀)+ **提示用户**固化进 TROUBLESHOOTING · 不代写。
 
 ### 项目级系统维护(`tools/bootstrap.py` 独立脚本)
 

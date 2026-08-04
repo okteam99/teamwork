@@ -75,7 +75,7 @@ cd <worktree-path>   # 🔴 之后所有规划产物写 worktree 内路径(推�
 - 🔴 **调研深度契约**:调研产出必须能回答「每个候选 BL 的 `current_state` 出自哪些文件」—— current_state **必附来源文件路径**(ws-lint 抓占位/缺失 = 调研浅硬信号)· 浅调研拆出的 WS 必散。
 - 🔴 **退役/替换类 BL:current_state 必增记「测试痕迹规模」**(一次 grep 即得:引用该机制的**测试文件数 + 调用点数**)—— why:**退役一个机制的真实成本主体常常是测试改写**,规划期只按「新增能力」估工作量会**系统性低估 3~5 倍**(实证:某次退役的注册机器由三个历史 feature 建成,测试痕迹散在 13 个文件 114 个点,规划期无人估过这部分)。
 - 🔴 **decisive 前提必 Read 实际文件核验 · 不轻信 Explore/sub-agent 摘要** —— 摘要可能把"schema-only 空表"误报成"已有 seed 数据",让 WS 拆解基于错误前提(把已有骨架当 greenfield / 把真缺口漏掉)。"数据是否真入库 / 某能力是否真生效"这类命门事实,必看真实代码,不靠摘要。
-- 🔴 **调研需 live 环境数据**(查 staging DB / log 真实状态)→ **先读 `project-specs/TROUBLESHOOTING.md` 拿连接 + 操作方式**(运维权威 · 用户主权)· 别凭 `.env` / 启动脚本瞎试。连法缺失 → 补进 TROUBLESHOOTING.md。
+- 🔴 **调研需 live 环境数据**(查 staging DB / log 真实状态)→ **先读 `project-specs/TROUBLESHOOTING.md` 拿连接 + 操作方式**(运维权威 · 用户主权 · **人维护 · AI 不代写**)· 别凭 `.env` / 启动脚本瞎试。连法缺失/摸索出来的 → 记 `KNOWLEDGE.md`(AI 沉淀)+ 提示用户固化进 TROUBLESHOOTING。
 
 ### Step 2 · 范围判定
 
