@@ -181,7 +181,7 @@ Stage 执行期间的一切临时产物 —— 测试日志、构建输出(cargo
     ${TMPDIR:-/tmp}/teamwork/<feature_id>/<用途>
 
 - `<feature_id>` 必须是 state.json 中的**完整 feature_id**(如 `SVC-CORE-F029`)· 🔴 **禁止**简称/别名/分支缩写(如 `bl031` —— 实证:即兴命名使 ship2 按 feature_id 回收全部落空 · 42GB 孤儿)。
-- `<用途>` 自由命名(如 `review-r2-test.log` / `screenshots/`)。⚠️ 但**构建产物 target 是特例**:见下方「构建 target 按 feature 共享」。
+- `<用途>` 自由命名(如 `review-r2-test.log` / `screenshots/` / `scaffold-tests/`〔脚手架测试 · 一次性验证脚本 · 交付即弃 —— 详 [HARD-RULES 规则 17](./HARD-RULES.md)〕)。⚠️ 但**构建产物 target 是特例**:见下方「构建 target 按 feature 共享」。
 - 🔴 **禁止**在 scratch 根之外创建 teamwork 相关临时目录(如 `/tmp/<项目名>-*`)—— 根之外不在回收范围 · 会永久泄漏(实证 6GB)。
 - 与 [conventions.md §12.5](../docs/conventions.md) 浏览器截图约定**同根**(`${TMPDIR:-/tmp}/teamwork/<feature_id>/screenshots/` 是本约定的一个 `<用途>` 实例)。
 

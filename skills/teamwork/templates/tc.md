@@ -28,6 +28,20 @@
 🔴 **契约值的分寸**:用例**断言到的**错误码 / 状态码 / 字段名**必须写具体**(断言不具体就不叫断言);
 但**维护一份清单**(全部错误码表、新表数量、存储形态断言)= 复述 TECH,**必删**。
 
+## 🕐 生命周期三层(本节是单源 · HARD-RULES 规则 17 / dev-stage 皆 cite 此处)
+
+判据一句话:**「交付后还有谁需要它失败的信号?」** —— 执行便宜 ≠ 维护便宜:AI 维护成本按语料线性、CI 墙钟逐 feature 累加,临时 case 入库 = 永久税。
+
+| 层 | 定义 | 归宿 | 谁跑 |
+|---|---|---|---|
+| **L1 · CI 契约层** | 🔴 **默认不进 · 进必须带 `ci_reason`**:这条失败拦住什么级别的事故(对外契约破坏 / 数据损坏 / 资损 / 核心链路不可用)——「顺手写的 / 覆盖率好看」**不算充足理由** | TC 注册(`ci: true`) | CI 每次跑 |
+| **L2 · 回归层** | TC 其余(AC 绑定 / bug 回归 · 无 `ci` 标记即默认此层) | TC 注册 | test stage 全量 + 发版前;CI 不跑 |
+| **L3 · 脚手架** | TDD 中间步 / 探索 probe / 一次性验证 / 复现脚本 —— **交付即过期** | 🔴 **scratch `<feature_id>/scaffold-tests/` · 不入仓库不进 TC**(随 ship2 回收) | 仅本 feature dev 循环 |
+
+- 🔴 **交付后不需要再跑的,不属于 TC**(那是脚手架 → scratch)—— 与「换实现就要改的不属于 TC」并列的第二条边界。
+- **CI 对接归项目主权**:项目 CI 按 `tests[].ci` 挑子集(映射成自家 marker / 路径 / tag 均可)· 框架只提供注册与判据,不替项目定 CI 策略。
+- 分层解决「留不留 / 在哪跑」;**不为省时间合并断言**(失败定位是测试最贵的信息 · 单源 [scripts-policy R-SP-1b](../standards/scripts-policy.md))。
+
 > why(实证 SVC-PLATFORM-F260726):TC 越界持有了表数(27→33→31)与错误码清单,
 > TECH 每动一次两档就要跨 agent 往返同步 —— 双文档同步吃掉 blueprint **~35% 轮次 / ~25% token**,
 > 而其中一半根本不是「两个文档」造成的,是 TC 装了不该装的东西。**TC 从不需要知道有几张表。**
@@ -45,6 +59,8 @@ tests:
  covers_ac: ["AC-1"]
  level: unit # unit | integration | api-e2e | fe-e2e
  priority: P0
+ ci: true            # L1 · 🔴 默认不进 CI 层 · 进必带 ci_reason(生命周期详 § 生命周期三层)
+ ci_reason: "登录是核心链路 · 此条失败 = 全站不可登录"
  - id: T-002
  file: tests/unit/auth/login.test.ts
  function: test_AC2_password_wrong_shows_red
