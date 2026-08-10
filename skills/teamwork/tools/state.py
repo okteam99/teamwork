@@ -2670,6 +2670,8 @@ def _build_output_style_hint(host: Optional[str]) -> dict:
 PLANNING_CHECKLIST = [
     {"item": "🔴 拆 BL/WS 前调研实际代码现状:每个候选 BL 核验「已做什么 / 真缺口在哪」· 反映真实完成度(不把已完成列 todo · 不把有脚手架的当 greenfield)· decisive 前提(数据是否真入库 / 能力是否真生效)核验实际代码 · 不轻信 Explore/sub-agent 摘要 · 🔴 需 live 数据(查 DB/log)先读 project-specs/TROUBLESHOOTING.md 拿连法,别凭 .env/启动脚本瞎试",
      "spec": "feature-planning.md §2 Step 1"},
+    {"item": "🔴 拆分视角 = 业务交付,不是子项目:**代码跨多个子项目 ≠ 拆多个 feature**(target 只是 ROADMAP 归属 · 实现可跨 · 前缀取业务交付宿主〔详 prepare.md §1.5.3〕)· 拆解讨论稿每条候选 BL 必答**业务交付物**(这条单独上线后谁得到什么 —— 写不出可感知交付 = 横切件并回宿主)",
+     "spec": "feature-planning.md §2 Step 5.7 + templates/workstream.md"},
     {"item": "范围判定:工作区级(改 teamwork-space.md + 多 PROJECT.md)vs 子项目级(单 PROJECT.md + ROADMAP.md + sitemap.md)",
      "spec": "feature-planning.md §2 Step 2"},
     {"item": "🎨 全景UI初步规划(本轮涉 UI 时 · 🔴 拆 WS 之前出):在 {子项目}/docs/design/preview-project/ 出/扩 design system + 本轮关键页(初步 · 系统+代表页 · 非每页 · 防瀑布 · 跑 preview.sh 看)+ 同步 sitemap.md(IA 地图 · 只写层级/导航不写视觉)· 完成产生 git diff = 拆 WS 的输入 · 🔴 **出完必给用户可访问预览 URL(跑 preview.sh 抓 PREVIEW_URL)+ emit R5 等用户确认全景 · 用户没确认过 = 不算规划完成**(auto/yolo 自动确认 · 留痕=下游 WS frontmatter ui_panorama_confirmed 标 auto · 🔴 规划不进状态机 add-concern 不可用);非 UI 轮跳过(下游 WS 标 全景初规:N-A)",

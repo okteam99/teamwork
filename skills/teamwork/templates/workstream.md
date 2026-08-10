@@ -118,6 +118,7 @@ risks:
 ## 拆出的 feature（拆解明细 · 规划态 · 人维护）
 > 每个 feature 的范围/依赖/高层 AC（详细 AC 在各 Feature PRD）· 写入 ROADMAP 后**执行进度看上方 §feature 总览**，此处不复制状态（防双源 stale）。
 ### {feature_id}（→ {子项目} ROADMAP · BL 待回填）
+- **交付物**：{🔴 用户/调用方视角一句:这条单独上线后谁得到什么 —— 写不出 = 不该独立成件(并回宿主)}
 - **范围**：{做什么}
 - **flow_type**：{Feature / Bug}（轻量走 preset: micro · 非独立类型）
 - **依赖**：{其他 WS-01-Sx}

@@ -85,7 +85,7 @@ PMO 移交 prepare 后 · **必走以下 4 项准备**(emit 暂停点之前):
 
 🔴 **「代码现状」只写已验证事实**:根因类判断必须来自排查先行 / 实证(读过真实代码与日志)· **未验证假设不得写入**(写进总览 = 误导用户 review · §2 排查先行律的反面教材)。
 
-🔴 **路由前缀必判**(即便跳过上面的可选深挖):据**改动代码所在的子项目目录**定 artifact 前缀 + docs_root —— 查 `teamwork-space.md` 子项目清单(代码在 `apps/partner/` → 用 PTR 注册前缀 + docs_root · 在 `services/` → SVC-* · …)。**不可沿用上一个 Feature 的前缀**。错前缀 / 错路径 → `init-feature` 路由物化校验 FAIL(错前缀会落错位置)。
+🔴 **路由前缀必判**(即便跳过上面的可选深挖):据**改动代码所在的子项目目录**定 artifact 前缀 + docs_root —— 查 `teamwork-space.md` 子项目清单(代码在 `apps/partner/` → 用 PTR 注册前缀 + docs_root · 在 `services/` → SVC-* · …)。**不可沿用上一个 Feature 的前缀**。错前缀 / 错路径 → `init-feature` 路由物化校验 FAIL(错前缀会落错位置)。🔴 **改动跨多个子项目(monorepo 内)= 照样一个 feature**:前缀/docs_root 取**业务交付宿主**(交付物主要落地 / 用户感知所在的子项目)· 其余子项目的改动在同一 worktree 同一 feature 里做 —— 「代码跨子项目」**不是拆 feature 的理由**(交付内聚单源 [feature-planning Step 5.7](./feature-planning.md) · 前缀选择的别扭不构成拆分压力)。
 
 ### 1.5.4 · ID 冲突预检 + stage 评审角色预览(强制)
 

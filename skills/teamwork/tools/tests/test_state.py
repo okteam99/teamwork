@@ -1873,7 +1873,7 @@ class TestPlanningCheck(unittest.TestCase):
     def test_v846_planning_check_checklist_and_constraints(self):
         """checklist 6 条 + key_constraints 含「不进状态机」+「不出 feature 实现代码 R6」+ v8.184 worktree。"""
         d = run(["planning-check", "--project-root", str(self.tmp)])
-        self.assertEqual(len(d["planning_checklist"]), 6)  # v8.52:+ 实际代码调研项;v8.100:+ 全景UI初步规划
+        self.assertEqual(len(d["planning_checklist"]), 7)  # + 实际代码调研 · 全景UI初规 · v8.314 业务交付视角拆分(独立条目)
         constraints = " ".join(d["key_constraints"])
         self.assertIn("不进状态机", constraints)
         self.assertIn("不出 feature 实现代码", constraints)  # v8.184:精确化(全景 preview-project 是设计代码)
