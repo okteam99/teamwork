@@ -2708,6 +2708,33 @@ def _pm_acceptance_brief(state: dict) -> str:
             "但**发版后必须补**(ship 台账已留痕):\n" + _lines +
             "\n🔴 验收时向用户点明这几项是「发版义务」· 用户知情后再拍板 decision。"
         )
+    # yolo:自动验收路径(SKILL § yolo 表「pm_acceptance = 自动 approved_and_ship + WARN」的物化)。
+    # 实证 SDK-F260809171303:本 brief 原先无 yolo 分支 · 无条件写「停等 1/2/3」——
+    # AI 忠实执行了到达动作点的这份 brief,与 SKILL 承诺直接对立(fast_mode 同族第二例:
+    # spec 承诺的模式行为未物化 · 工具在动作点反向覆盖)。
+    if state.get("yolo"):
+        return f"""## PM Acceptance Stage(yolo · 自动验收)
+
+### 目标
+PM 照常**逐条 AC 对照实现**(验收工作不跳过 · 跳过的只是用户确认暂停点)。{_rg_block}
+
+### 🔴 yolo 自动路径(单源 SKILL § yolo 表 · 本 brief 即物化 · 不停等用户)
+1. AC 对照完成且无阻塞级问题 → **不 emit 三选项 · 不停**:
+   先 `state.py add-concern --feature <path> --severity WARN --message "auto: yolo pm_acceptance 自动 approved_and_ship"`(审计留痕)
+2. 产 PM-NOTE(照 `scaffold_hints.templates` · decision 段写明 yolo 自动)→ 直接跑 complete(见下)→ 自动进 ship(自动合入 merge_target〔非主分支硬门〕)
+3. AC 对照发现真问题 → **不硬过**:`--decision rejected_with_feedback --note "<具体 finding>"` 回修(yolo 自主解决 · 不向用户升级)
+
+### 🔴 外部世界动作边界(用户拍板 · 任何模式)
+交付含**公网 registry 发布 / 创建公开仓 / 生产部署**等不经过分支门、不可逆的动作 →
+**不在自动范围**:先自动完成验收 + ship 合入 + 清场(不阻断),**外部发布单独停给用户**
+(release 域 · 详 SKILL § yolo 外部世界动作边界)。🔴 不得以「有外部发布」为由把验收/合入也停下。
+
+### 完成方式
+```
+state.py pm_acceptance-complete --feature <path> --auto-commit <hash> --decision approved_and_ship
+```
+"""
+
     return f"""## PM Acceptance Stage
 
 ### 目标

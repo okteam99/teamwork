@@ -13,7 +13,7 @@
 ## ② 硬规则(白名单 · 每条一行 why)
 
 1. **AC 核对必须以实证为准**:PM 逐条对照 `TEST-REPORT.md` 的实际数据(通过 / 失败 / 截图)判断,不得凭"看起来 OK"口述(why:验收是发布前最后一道质量闸,凭印象过 = 闸形同虚设)。
-2. **验收决策(`approved_and_ship` / `approved_no_ship` / `rejected_with_feedback`)只能用户拍板,AI 不可自决**:emit 三选项 R5 暂停点后必须停等用户回 1/2/3——哪怕选看起来"保守"的 `approved_no_ship` 也是越权(它让 Feature 跳过 ship 直接 completed,和继续推进一样是重大决策);"避免未授权 push"不构成自选 `approved_no_ship` 的理由,`approved_and_ship` 进 ship 后 Phase 1 仍有"等用户在平台合并"暂停点,push/merge 不会自动发生;`approved_no_ship` 仅用于真"完成但等时机"(协同其他 Feature),不得用作躲避决策的挡箭牌。🔴 **`auto_mode=true` 也必停此暂停点**——auto 只跳过技术 / 设计 / 评审类暂停点,产品决策权是用户专属(why:AI 自决 decision = 同时违 R5〔用户决策点〕与 R3〔用户决策被 AI 代替〕)。
+2. **验收决策(`approved_and_ship` / `approved_no_ship` / `rejected_with_feedback`)只能用户拍板,AI 不可自决**:emit 三选项 R5 暂停点后必须停等用户回 1/2/3——哪怕选看起来"保守"的 `approved_no_ship` 也是越权(它让 Feature 跳过 ship 直接 completed,和继续推进一样是重大决策);"避免未授权 push"不构成自选 `approved_no_ship` 的理由,`approved_and_ship` 进 ship 后 Phase 1 仍有"等用户在平台合并"暂停点,push/merge 不会自动发生;`approved_no_ship` 仅用于真"完成但等时机"(协同其他 Feature),不得用作躲避决策的挡箭牌。🔴 **`auto_mode=true` 也必停此暂停点**——auto 只跳过技术 / 设计 / 评审类暂停点,产品决策权是用户专属(why:AI 自决 decision = 同时违 R5〔用户决策点〕与 R3〔用户决策被 AI 代替〕)。🔴 **唯一例外 = `yolo`**(用户启动时的 blanket 委托):自动 `approved_and_ship` + `add-concern WARN` 留痕 · **AC 对照照做不跳**(单源 SKILL § yolo 表 · stage-start brief 已按 `state.yolo` 物化);但**外部世界动作**(公网发布 / 建公开仓 / 生产部署)不在自动范围——合入清场后**单独停给用户**(详 [SKILL § yolo 外部世界动作边界](../SKILL.md))。
 3. **`rejected_with_feedback` 必传 `--note`**(state.py 强校验,缺失报错):note 须含具体改什么(finding 明确)(why:拒绝没有具体意见 = 下一轮不知道改哪,反馈类暂停点存在的意义就是留下可执行的意见)。
 4. **`decision=approved_and_ship` 是 ship-start 前置门禁**(ship-start 校验 `pm_acceptance.evidence.decision` 必为此值,否则 FAIL)(why:防止绕过 PM 验收直接 ship——验收决策是进 ship 的唯一合法入场券)。
 
