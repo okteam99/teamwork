@@ -91,7 +91,7 @@ class TestRender(unittest.TestCase):
         self.assertIn("✅ 已完成", out)
         self.assertIn("🔄 进行中", out)
         # v8.177:表头加 feature 列(短 id)
-        self.assertIn("| feature | BL | 子项目 | 功能 | 状态 | 当前阶段 | F |", out)
+        self.assertIn("| feature | BL | 涉及子项目 | 功能 | 大白话目标 | 状态 | 当前阶段 | F |", out)  # v8.316:改名+加列
 
     def test_empty_items_friendly_message(self):
         out, _unrec = _render_ws_progress("WS-01", [], 3, False)
@@ -150,7 +150,7 @@ class TestCli(unittest.TestCase):
         self.assertTrue(out["written_to"].endswith("WS-01-infra-auth.md"))
         body = self.ws.read_text(encoding="utf-8")
         self.assertIn("进度 1/3 已完成", body)
-        self.assertIn("| BL-001 | infra | 脚手架 | ✅ 已完成", body)
+        self.assertIn("| BL-001 | infra | 脚手架 | — | ✅ 已完成", body)  # v8.316:大白话目标列(夹具无 goal_plain → —)
         self.assertNotIn("（待刷新）", body)            # 占位被替换
         self.assertIn("## 背景", body)                  # 标记区外内容不动
 

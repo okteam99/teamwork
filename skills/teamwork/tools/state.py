@@ -746,11 +746,11 @@ def _parse_ws_features(ws_file: Path) -> list[dict]:
             if cur:
                 feats.append(cur)
             cur = {"id": m_id.group(1).strip().strip("\"'"), "target": "", "bl": "",
-                   "deps": [], "status": "", "scope": ""}
+                   "deps": [], "status": "", "scope": "", "goal_plain": ""}
             continue
         if cur is None:
             continue
-        m_kv = re.match(r"^\s*(target|bl|status|scope|dependencies):\s*(.*?)\s*$", ln)
+        m_kv = re.match(r"^\s*(target|bl|status|scope|dependencies|goal_plain):\s*(.*?)\s*$", ln)
         if m_kv:
             k, v = m_kv.group(1), m_kv.group(2).strip().strip("\"'")
             if k == "dependencies":
@@ -849,8 +849,8 @@ def _render_ws_progress(ws_label: str, items: list[dict], n_roadmaps: int,
         lines.insert(1, "⚠️ 状态词不在词表(按待开始计 · 词表见 templates/roadmap.md):" +
                      " · ".join(f"{u['feature']}「{u['status'][:24]}」" for u in unrecognized))
     if items:
-        lines += ["| feature | BL | 子项目 | 功能 | 状态 | 当前阶段 | F |",
-                  "|---------|----|--------|------|------|----------|---|"]
+        lines += ["| feature | BL | 涉及子项目 | 功能 | 大白话目标 | 状态 | 当前阶段 | F |",
+                  "|---------|----|-----------|------|-----------|------|----------|---|"]
         for it in sorted(items, key=lambda x: (x.get("subproject", ""), x["bl"])):
             raw = it["status"].strip()
             b, _known = _ws_status_bucket(raw)
@@ -858,7 +858,7 @@ def _render_ws_progress(ws_label: str, items: list[dict], n_roadmaps: int,
             st = raw if raw[:1] in "✅🔄🗑⏳🔒📝" else f"{icon} {raw}".strip()
             lines.append(
                 f"| {it.get('short') or '—'} | {it['bl']} | {it.get('subproject') or '—'} "
-                f"| {it['name'] or '—'} | {st} | {it['stage'] or '—'} | {it['f_id'] or '—'} |")
+                f"| {it['name'] or '—'} | {it.get('goal_plain') or '—'} | {st} | {it['stage'] or '—'} | {it['f_id'] or '—'} |")
     return "\n".join(lines), unrecognized
 
 
@@ -1051,13 +1051,15 @@ def cmd_ws_progress(args: argparse.Namespace) -> None:
             hit = _pick_bl_row(f, by_bl.get(f["bl"], []), _reg, root) if f["bl"] else None
             if hit:
                 sub, r, _rm = hit
-                items.append({**r, "subproject": f["target"] or sub, "short": short})
+                items.append({**r, "subproject": f["target"] or sub, "short": short,
+                              "goal_plain": f.get("goal_plain", "")})
             else:
                 items.append({
                     "bl": f["bl"] or "—", "name": f.get("scope", "")[:24],
                     "status": "未匹配 ROADMAP" if f["bl"] else "未写入 ROADMAP",
                     "stage": "", "f_id": "", "ws": ws_label,
-                    "subproject": f["target"] or "—", "short": short})
+                    "subproject": f["target"] or "—", "short": short,
+                    "goal_plain": f.get("goal_plain", "")})
         seen = roster_bls
         for sub, r, _rm in rm_rows:                # 名册外但「关联 WS」命中 → 孤儿(surfacing)
             if (targets & _ws_nums(r["ws"])) and r["bl"] not in seen:
@@ -2670,7 +2672,7 @@ def _build_output_style_hint(host: Optional[str]) -> dict:
 PLANNING_CHECKLIST = [
     {"item": "🔴 拆 BL/WS 前调研实际代码现状:每个候选 BL 核验「已做什么 / 真缺口在哪」· 反映真实完成度(不把已完成列 todo · 不把有脚手架的当 greenfield)· decisive 前提(数据是否真入库 / 能力是否真生效)核验实际代码 · 不轻信 Explore/sub-agent 摘要 · 🔴 需 live 数据(查 DB/log)先读 project-specs/TROUBLESHOOTING.md 拿连法,别凭 .env/启动脚本瞎试",
      "spec": "feature-planning.md §2 Step 1"},
-    {"item": "🔴 拆分视角 = 业务交付,不是子项目:**代码跨多个子项目 ≠ 拆多个 feature**(target 只是 ROADMAP 归属 · 实现可跨 · 前缀取业务交付宿主〔详 prepare.md §1.5.3〕)· 拆解讨论稿每条候选 BL 必答**业务交付物**(这条单独上线后谁得到什么 —— 写不出可感知交付 = 横切件并回宿主)",
+    {"item": "🔴 拆分视角 = 业务交付,不是子项目:**代码跨多个子项目 ≠ 拆多个 feature**(target 只是 ROADMAP 归属 · 实现可跨 · 前缀取业务交付宿主〔详 prepare.md §1.5.3〕)· 拆解讨论稿每条候选 BL 必答**大白话目标**(`goal_plain` · 这条单独上线后谁能干什么/得到什么 —— 写不出 = 横切件并回宿主 · ws-progress 总览表直出此列)",
      "spec": "feature-planning.md §2 Step 5.7 + templates/workstream.md"},
     {"item": "范围判定:工作区级(改 teamwork-space.md + 多 PROJECT.md)vs 子项目级(单 PROJECT.md + ROADMAP.md + sitemap.md)",
      "spec": "feature-planning.md §2 Step 2"},

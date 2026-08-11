@@ -4,6 +4,30 @@
 > 上次清空:**v8.193**(2026-07-06 · 清除 v8.128 → v8.187 共 60 版条目 · 约 1.0k 行)。
 
 ---
+## v8.311 · TROUBLESHOOTING 收归用户主权(AI 只读 + 提示 · 不代写)
+
+> 用户裁定:**TROUBLESHOOTING 是用户主权文件,AI 不要在流程中修改它;AI 可以自动改 KNOWLEDGE。**
+
+### 实况:确实存在 AI 写入路径,且归类本身就是漏的
+
+- 两处条文明确指示 AI 写它:SKILL「连法缺失 → **补进它**(知识沉淀)」· feature-planning Step 1 同款;
+- conventions §13 清单里它**没标维护方** —— 旁边 DEV-RULES/UI-RULES 都标着「人维护」,
+  它和 GLOSSARY 裸着。**没归类的文件,写入权会默认漂向 AI**;
+- 工具层干净:state.py / engine 只**读**它拿连法;bootstrap 只建空骨架(DEV-RULES 同款 · 骨架≠内容 · 保留)。
+
+### 修(镜像 DEV-RULES 模式 · 五处)
+
+- **转记流**(SKILL + feature-planning 两处原违例):连法缺失/AI 摸索出来的 →
+  记 `KNOWLEDGE.md`(AI 沉淀 · 用户明确保留 AI 写权)+ **提示用户**固化进 TROUBLESHOOTING · 不代写;
+- **归类补标**:conventions §13 + SKILL 文档清单行 + 模板头部 → 「人维护 · AI 不代写」;
+- **KNOWLEDGE 边界表补行**:「运维操作步骤 / 环境连接方式 → TROUBLESHOOTING(人维护)」——
+  这张表是「什么写哪」的单源,此前缺这行。
+
+### 机器门
+
+任何 spec 行「TROUBLESHOOTING + 写动词(补进/写入/追加…)」而无「提示用户/不代写」豁免 → 红。
+另:新增条文撞上 SKILL 🔴 密度门(55 = 上限)—— 按既有判例**服从门、裁自己的红点**(主权语义靠加粗承载)。
+
 ## v8.310 · 文档合并(-3 文件)+ 考古注释清零 + 机器门
 
 > 用户:看下各 md 是否需要合并 · 去掉没必要的注释。

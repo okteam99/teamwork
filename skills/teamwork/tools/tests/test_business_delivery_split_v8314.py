@@ -52,15 +52,16 @@ class TestDraftCarriesDeliverableSlot(unittest.TestCase):
         self.t = _read("docs/feature-planning.md")
 
     def test_slot_exists_with_criterion(self):
-        self.assertIn("业务交付物", self.t)
-        self.assertIn("这条单独上线后,谁得到什么", self.t)
+        # v8.316:术语统一为「大白话目标」(与 WS goal_plain 字段/总览表列同名 · 单名防漂)
+        self.assertIn("大白话目标", self.t)
+        self.assertIn("这条单独上线后,谁能干什么/得到什么", self.t)
 
     def test_slot_rejects_technical_pseudo_deliverables(self):
         """「后端接口就绪」这类技术黑话是横切件糊边界理由的惯用形态 —— 必须点名排除。"""
-        self.assertIn("「后端接口就绪」「partner 侧改动」不是交付物", self.t)
+        self.assertIn("「后端接口就绪」「partner 侧改动」不算", self.t)
 
     def test_merge_back_consequence_stated(self):
-        self.assertIn("写不出可感知交付 = 横切件,并回宿主", self.t)
+        self.assertIn("写不出可感知目标 = 横切件,并回宿主", self.t)
 
 
 class TestChecklistItemStandsAlone(unittest.TestCase):
@@ -68,7 +69,7 @@ class TestChecklistItemStandsAlone(unittest.TestCase):
 
     def test_dedicated_item_exists_and_is_short(self):
         import state
-        hits = [i for i in state.PLANNING_CHECKLIST if "业务交付物" in i["item"]]
+        hits = [i for i in state.PLANNING_CHECKLIST if "大白话目标" in i["item"]]
         self.assertEqual(len(hits), 1, "跨子项目判据应有且只有一个独立条目")
         self.assertLess(len(hits[0]["item"]), 400,
                         "独立条目又长回巨条目 = 到达质量退化(一条一事)")
@@ -88,7 +89,7 @@ class TestWorkstreamTemplateCarrier(unittest.TestCase):
         self.t = _read("templates/workstream.md")
 
     def test_per_feature_deliverable_line(self):
-        self.assertIn("**交付物**：{🔴 用户/调用方视角一句", self.t)
+        self.assertIn("**大白话目标**：{同 frontmatter `goal_plain`", self.t)
         self.assertIn("写不出 = 不该独立成件", self.t)
 
     def test_existing_cohesion_rule_untouched(self):

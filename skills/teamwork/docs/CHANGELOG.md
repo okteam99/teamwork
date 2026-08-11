@@ -4,6 +4,35 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.316 · WS 总览加「大白话目标」列 · 「子项目」改「涉及子项目」
+
+> 用户(附 WS-11 截图):ws 文档模版改下,拆出的 feature 加一个大白话目标列;子项目改为涉及子项目。
+> 截图实证:总览表「功能」列是技术短语(「SuperRun 数据库连接注入」)—— 扫一眼看不出
+> 每条 feature 做完后**谁能干什么**;「子项目」单数列名与 v8.314「可跨子项目」语义已不符。
+
+### 先做了一次概念合并(单名防漂)
+
+v8.314 昨天刚立的「交付物」槽(这条单独上线后谁得到什么)与本次要的「大白话目标」是
+**同一个概念** —— 一个概念两个名字必漂(五维/六维双副本是现行判例)。全链统一为**大白话目标**:
+
+```
+拆解讨论稿必答槽 ──→ WS frontmatter features[].goal_plain ──→ ws-progress 总览表「大白话目标」列
+     (Step 5.7)              (机读 · 模板注释带判据)              (名册驱动直出 · 空显「—」)
+```
+
+四处同名 · 判据不变(写不出可感知目标 = 横切件并回宿主 ·「后端接口就绪」不算)· 旧名清零(测试锁)。
+
+### 改动
+
+- `_parse_ws_features` 认 `goal_plain` 键(存量 WS 无该字段 → 缺省空 · 不炸);
+- ws-progress 总览表:表头 `| feature | BL | 涉及子项目 | 功能 | 大白话目标 | 状态 | 当前阶段 | F |` ·
+  名册命中与未匹配两路都透传 · 孤儿/回退路容缺显「—」;
+- workstream 模板:frontmatter 加 `goal_plain` 字段(注释带判据)· body 每-feature 节行改同名;
+- feature-planning Step 5.7 讨论稿槽 + PLANNING_CHECKLIST 条目同步单名,并点名落点
+  `features[].goal_plain`(讨论产出与落盘字段有名字链路 · 不靠意会)。
+
+空着显「—」即可见 —— 载体承载,不配门(同 v8.312/315 姿态)。
+
 ## v8.315 · 拍板项固定四槽:治「建议理由都在 · 用户仍被迫追问上下文」
 
 > 实证(CA-F260810 镜像仓治理):goal 终确认导读四条 D 项写成
@@ -143,27 +172,3 @@ common §六 scratch 用途补 `scaffold-tests/`。守卫测试反向锁「没�
 
 「~50 行白名单」写死三处、实际已 60 行 —— 数字宣称必漂,三处全部去数(HARD-RULES 头部改为
 「行数不写死」+ blueprint/dev 引用同步)。
-
-## v8.311 · TROUBLESHOOTING 收归用户主权(AI 只读 + 提示 · 不代写)
-
-> 用户裁定:**TROUBLESHOOTING 是用户主权文件,AI 不要在流程中修改它;AI 可以自动改 KNOWLEDGE。**
-
-### 实况:确实存在 AI 写入路径,且归类本身就是漏的
-
-- 两处条文明确指示 AI 写它:SKILL「连法缺失 → **补进它**(知识沉淀)」· feature-planning Step 1 同款;
-- conventions §13 清单里它**没标维护方** —— 旁边 DEV-RULES/UI-RULES 都标着「人维护」,
-  它和 GLOSSARY 裸着。**没归类的文件,写入权会默认漂向 AI**;
-- 工具层干净:state.py / engine 只**读**它拿连法;bootstrap 只建空骨架(DEV-RULES 同款 · 骨架≠内容 · 保留)。
-
-### 修(镜像 DEV-RULES 模式 · 五处)
-
-- **转记流**(SKILL + feature-planning 两处原违例):连法缺失/AI 摸索出来的 →
-  记 `KNOWLEDGE.md`(AI 沉淀 · 用户明确保留 AI 写权)+ **提示用户**固化进 TROUBLESHOOTING · 不代写;
-- **归类补标**:conventions §13 + SKILL 文档清单行 + 模板头部 → 「人维护 · AI 不代写」;
-- **KNOWLEDGE 边界表补行**:「运维操作步骤 / 环境连接方式 → TROUBLESHOOTING(人维护)」——
-  这张表是「什么写哪」的单源,此前缺这行。
-
-### 机器门
-
-任何 spec 行「TROUBLESHOOTING + 写动词(补进/写入/追加…)」而无「提示用户/不代写」豁免 → 红。
-另:新增条文撞上 SKILL 🔴 密度门(55 = 上限)—— 按既有判例**服从门、裁自己的红点**(主权语义靠加粗承载)。

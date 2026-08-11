@@ -55,6 +55,7 @@ features:              # 拆出的 feature · 写入各子项目 ROADMAP 后回�
   - id: WS-01-S1
  target: SVC-PLATFORM # ROADMAP 归属(单选);实现可跨子项目 —— 🔴 拆分按**交付内聚**(唯一主判据)—— 不按子项目切、**不按评审面切**(默认合并 · 每一刀须说得出「为什么不能一起交付」)
     bl: null                     # 写入 ROADMAP 后回填 BL-NNN
+    goal_plain: "<🔴 大白话目标 · 一句人话:这条单独上线后,谁能干什么/得到什么 —— 写不出可感知目标 = 横切件并回宿主;ws-progress 总览表直出此列>"
     scope: "<这个 feature 做什么>"
     current_state: "<🔴 由实际代码调研得:已有什么脚手架/复用点 · 真缺口在哪 · **附来源文件路径** · 全新填 greenfield(ws-lint 抓占位=调研浅)· 🔴 **退役/替换类必加「测试痕迹:N 文件 / M 调用点」**(成本主体常在测试改写)>"
     flow_type: Feature           # Feature / Bug(闭集 · 轻量走 preset: micro 不是独立类型)
@@ -63,6 +64,7 @@ features:              # 拆出的 feature · 写入各子项目 ROADMAP 后回�
   - id: WS-01-S2
     target: PTR
     bl: null
+    goal_plain: "..."
     scope: "..."
     current_state: "..."
     flow_type: feature
@@ -118,7 +120,7 @@ risks:
 ## 拆出的 feature（拆解明细 · 规划态 · 人维护）
 > 每个 feature 的范围/依赖/高层 AC（详细 AC 在各 Feature PRD）· 写入 ROADMAP 后**执行进度看上方 §feature 总览**，此处不复制状态（防双源 stale）。
 ### {feature_id}（→ {子项目} ROADMAP · BL 待回填）
-- **交付物**：{🔴 用户/调用方视角一句:这条单独上线后谁得到什么 —— 写不出 = 不该独立成件(并回宿主)}
+- **大白话目标**：{同 frontmatter `goal_plain` · 一句人话:这条单独上线后谁能干什么/得到什么 —— 写不出 = 不该独立成件(并回宿主)}
 - **范围**：{做什么}
 - **flow_type**：{Feature / Bug}（轻量走 preset: micro · 非独立类型）
 - **依赖**：{其他 WS-01-Sx}
