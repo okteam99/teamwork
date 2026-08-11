@@ -1794,7 +1794,7 @@ def cmd_init_feature(args: argparse.Namespace) -> None:
             f"[WARN] admission MISMATCH:prepare-check 时 AI judgment 推荐 "
             f"flow_type={audit_recommended!r} · 但 init-feature --flow-type={args.flow_type!r} · "
             f"audit at {rec.get('timestamp')} · 若 admission_judgment.ai_rationale "
-            f"信号强(如「方向级业务变更」「跨独立部署服务」)· 建议取消本次 init · "
+            f"信号强(如「方向级业务变更」「跨独立 git 仓库」)· 建议取消本次 init · "
             f"用 --flow-type={audit_recommended!r} 重走 prepare-check + Feature Planning 或对应流程"
         )
 
@@ -2723,7 +2723,7 @@ def cmd_planning_check(args: argparse.Namespace) -> None:
             "keyword": "规划 / 拆 roadmap / 路线图 / 全景 / 商业模式调整 / 做电商 / 做 SaaS",
             "complexity_force_upgrade": (
                 "关键词命中 Feature/Micro 时 · 命中任一强制升 Feature Planning:"
-                "跨仓库联动(≥2)/ 数据模型重构 / 老需求架构性废弃 / 影响 ≥2 BL / 方向级业务变更"
+                "跨独立 git 仓库(≥2 · 同 repo 多部署单元不计入)/ 数据模型重构 / 老需求架构性废弃 / 影响 ≥2 BL / 方向级业务变更"
             ),
         },
         "planning_checklist": PLANNING_CHECKLIST,

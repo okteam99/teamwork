@@ -1,6 +1,6 @@
 ---
 name: teamwork
-version: v8.316.1
+version: v8.317
 description: AI 协作开发一体化框架 - 需求功能开发, bug 修复, 问题排查 · /teamwork 启动
 ---
 
@@ -314,7 +314,7 @@ mode A 排查 / mode E 讨论收尾时命中以下场景必须建议升 mode B:
 
 mode B 识别后(**无论后续 flow_type = Feature〔full/micro〕还是 Bug · 都走 prepare**)· PMO **必走** [docs/prepare.md](./docs/prepare.md) · 不可在主对话散述准备步骤。
 
-🔴 **mode B emit 任何 prepare 内容前 · 必先用 Read 工具打开 [docs/prepare.md](./docs/prepare.md)**(命令式 · 不是"参考")· 不读直接 emit 5 段 = R5 违规 + **必漏 §2.1 复杂度升级判据**(跨独立部署服务 / 数据模型重构 / 老需求架构性废弃 / 影响 ≥2 BL / 方向级业务变更 → 强制升 Feature Planning)**与 §2.2 preset=micro 准入校验**(零逻辑变更 + 仅 文案/样式/资源/配置常量/注释 · 超纲一律 full)—— 二者判定权威在 prepare.md · 此处只作警觉锚点。
+🔴 **mode B emit 任何 prepare 内容前 · 必先用 Read 工具打开 [docs/prepare.md](./docs/prepare.md)**(命令式 · 不是"参考")· 不读直接 emit 5 段 = R5 违规 + **必漏 §2.1 复杂度升级判据**(跨独立 git 仓库 / 数据模型重构 / 老需求架构性废弃 / 影响 ≥2 BL / 方向级业务变更 → 强制升 Feature Planning)**与 §2.2 preset=micro 准入校验**(零逻辑变更 + 仅 文案/样式/资源/配置常量/注释 · 超纲一律 full)—— 二者判定权威在 prepare.md · 此处只作警觉锚点。
 
 判据:**进状态机 = 走 prepare**(Feature〔full/micro〕+ Bug 三条链都需 worktree + branch + merge_target + artifact ID 4 项配置 · ID 统一 **F/B**〔M 为 legacy 存量〕· 详 conventions.md §1)。即便最轻的 Feature·micro(改文案 1 行)也要 prepare。不进状态机的 Feature Planning / 问题排查 → 不走 prepare。
 
