@@ -60,7 +60,9 @@ def read_panorama_medium(ui_md_text: str) -> str:
                 return v
     return "static-html"
 
-# 5 维度自查清单的 marker
+# 硬校验维度 1-5 的 marker。维度 6(框架基线唯一性)由 templates/ui.md 模板承载,
+# 暂不进硬校验 —— 存量 in-flight Feature 的报告是 5 维格式,硬拦会造出「注定失败的门」;
+# 收紧时机看台账里维度 6 缺失率(观测项)。
 DIMENSION_MARKERS = {
     "1. 全景对齐": "全景对齐",
     "2. 状态覆盖": "状态覆盖",

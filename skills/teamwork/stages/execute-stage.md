@@ -1,6 +1,6 @@
-# Execute Stage(micro 唯一工作 stage · v8.250)
+# Execute Stage(micro 唯一工作 stage)
 
-> 🧭 **四段结构**(v8.285 · 详 [STAGES.md §3](../STAGES.md))· 本 stage 的特色是 ②只有 2 条、③全自主。
+> 🧭 **四段结构**(详 [STAGES.md §3](../STAGES.md))· 本 stage 的特色是 ②只有 2 条、③全自主。
 
 > **位置**:仅 `Feature preset=micro` 用 · 链 = `execute → ship`(去 dev 门禁 + pm_acceptance)。
 > **定位**:prepare 之后的**零门禁自由执行** —— 无 stage 约束、无评审、无强制测试、无 DEV-RULES。目标只有一个:**完成任务**,然后 ship。

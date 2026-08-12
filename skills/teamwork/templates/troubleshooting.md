@@ -7,7 +7,7 @@
 > 与 [KNOWLEDGE.md](./knowledge.md) 互补：KNOWLEDGE = 踩坑注意点 · 本文 = 操作步骤。
 >
 > **路径硬规则**：`project-specs/TROUBLESHOOTING.md`（teamwork 固定路径 · 与 product-overview/ 同级 · 详 docs/conventions.md §13）。
-> **内容由项目维护**：teamwork 不规范具体命令（每个项目栈完全不同 · 用户按实际填）。
+> **内容由项目维护(🔴 人维护 · 同 DEV-RULES/UI-RULES 一类 · AI 不在流程中代写)**：teamwork 不规范具体命令（每个项目栈完全不同 · 用户按实际填）。AI 实操中发现/摸索出的连法或运维坑 → 记 `KNOWLEDGE.md`（AI 沉淀）+ **提示用户**固化进本文 · 不直接改本文。
 > **空骨架提示**：未填时本段顶部保留 🟢 空骨架提示行 · 用户填完后建议删除该行（AI 读到提示行即知内容尚未按项目实际补充）。
 
 ---

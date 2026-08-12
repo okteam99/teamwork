@@ -85,7 +85,7 @@ PMO 移交 prepare 后 · **必走以下 4 项准备**(emit 暂停点之前):
 
 🔴 **「代码现状」只写已验证事实**:根因类判断必须来自排查先行 / 实证(读过真实代码与日志)· **未验证假设不得写入**(写进总览 = 误导用户 review · §2 排查先行律的反面教材)。
 
-🔴 **路由前缀必判**(即便跳过上面的可选深挖):据**改动代码所在的子项目目录**定 artifact 前缀 + docs_root —— 查 `teamwork-space.md` 子项目清单(代码在 `apps/partner/` → 用 PTR 注册前缀 + docs_root · 在 `services/` → SVC-* · …)。**不可沿用上一个 Feature 的前缀**。错前缀 / 错路径 → `init-feature` 路由物化校验 FAIL(错前缀会落错位置)。
+🔴 **路由前缀必判**(即便跳过上面的可选深挖):据**改动代码所在的子项目目录**定 artifact 前缀 + docs_root —— 查 `teamwork-space.md` 子项目清单(代码在 `apps/partner/` → 用 PTR 注册前缀 + docs_root · 在 `services/` → SVC-* · …)。**不可沿用上一个 Feature 的前缀**。错前缀 / 错路径 → `init-feature` 路由物化校验 FAIL(错前缀会落错位置)。🔴 **改动跨多个子项目(monorepo 内)= 照样一个 feature**:前缀/docs_root 取**业务交付宿主**(交付物主要落地 / 用户感知所在的子项目)· 其余子项目的改动在同一 worktree 同一 feature 里做 —— 「代码跨子项目」**不是拆 feature 的理由**(交付内聚单源 [feature-planning Step 5.7](./feature-planning.md) · 前缀选择的别扭不构成拆分压力)。
 
 ### 1.5.4 · ID 冲突预检 + stage 评审角色预览(强制)
 
@@ -160,7 +160,7 @@ PMO 按以下关键词表判定 user input 落入哪类流程:
 
 | 信号 | 例 | 不计入 |
 |---|---|---|
-| **跨独立部署服务**(≥2 个) | 独立 git repo / 独立 origin / 独立部署单元(后端服务 + 前端 + 管理后台) | mono-repo 内跨 apps(同 origin · 单部署单元) → 用"影响 ≥2 BL"判 |
+| **跨独立 git 仓库**(≥2 repo/origin) | 改动落在不同 git 仓库 —— **一个 worktree / 一个 MR 装不下**,单 Feature 状态机真承载不了 | 🔴 **同 repo 内跨子项目 / 多独立部署单元(后端 + Console + 管理后台)不计入** —— 一个 worktree 原子交付 · 照样一个 feature(交付宿主定前缀 · 详 §1.5.3);规模用「影响 ≥2 BL」判 · 部署协调由 WS「跨子项目方向」串行约束管 |
 | **数据模型重构** | 删/改老字段(影响存量) / 表结构变动 / 字段语义重定义 | 新增字段(无存量影响) |
 | **老需求架构性废弃** | "X 不要了"/"统一为 Y"/"重构这套逻辑" / 整套机制语义替换 | 仅扩展(向后兼容) |
 | **影响 ≥2 BL** | 一次需求拆成多个 Feature 协同(admin / backend / partner 各 1 BL) | 单 Feature 内多 commit |
@@ -329,11 +329,7 @@ PMO 识别不准 → 在暂停点列出"我猜是 X · 你确认是 Y/Z?"让用�
 
 ### 7.3 · git worktree add 失败
 
-- branch 已存在 → `git worktree remove <path>` + `git branch -D <branch>`
-- origin/base 不存在 → `git fetch origin`
-- path 已存在但非 worktree → 删 path 或换 path
-
-错误处理由 PMO 主导 · 不在 state.py 状态机里。
+按报错自行处置(branch 已存在 / origin 未 fetch / path 被占 —— git 排障是模型自带知识 · 不列修法)。错误处理由 PMO 主导 · 不在 state.py 状态机里。
 
 ---
 

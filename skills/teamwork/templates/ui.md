@@ -64,7 +64,7 @@ pages_changed:
 
 ## Designer 自查报告（🔴 出口必填 物化 · verify-panorama.py 校验）
 
-> 详细规范 cite [standards/common.md § 四B Designer 自查规范](../standards/common.md)。Designer 完成设计后必填本段 · 5 维度全 ✅ 才进 ⏸️ 用户确认。
+> 详细规范 cite [standards/common.md § 四B Designer 自查规范](../standards/common.md)。Designer 完成设计后必填本段 · 6 维度全 ✅ 才进 ⏸️ 用户确认(维度 1-5 由 verify-panorama.py 硬校验 · 维度 6 模板承载)。
 
 ### 检查结果汇总
 | 维度 | 检查项 | 通过 | 备注 |
@@ -118,7 +118,7 @@ overview.html DOM 变更：
 
 > 🔴 **落点**:`{panorama_path}/preview/<page>.html`(全景权威 · 直接编辑)· 老模式无 `pages_changed[]` 时落 `docs/features/F{编号}-{功能名}/preview/<page>.html` 副本。
 > 🔴 **AC 锚定**(本框架特有契约 · 别省):区块加 `data-ac="AC-XX"`,如 `<section data-ac="AC-01">…</section>` —— UI-AC-COVERAGE 表与 `verify-panorama.py` 靠它对账。
-> 🟢 页面骨架 AI 自写(v8.293:原 DOCTYPE + viewport + tailwind CDN 样板已删 —— 模型默认就会)。
+> 🟢 页面骨架 AI 自写(模型默认就会 · 不给样板)。
 
 ## 🧩 补充洞察（AI 自由发挥 · 可留空）
 

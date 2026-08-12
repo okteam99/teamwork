@@ -165,6 +165,90 @@ def _test_new_failures(args) -> tuple:
     return new, excluded
 
 
+def _worktree_fingerprint(feature_dir) -> str:
+    """v8.306:worktree 当前代码状态指纹 = `HEAD tree` + **未提交 diff** 的 sha256。
+
+    🔴 **零信任**:complete 时由本函数**自己重算**,不读任何 AI 申报的字段 ——
+    这是本版唯一完全可机验的一条(runner/tier/model 都是自我申报,拦忘不拦骗)。
+    取不到 git(非仓库 / git 缺失)→ 返 ""(降级放行 · 绝不因环境问题 BLOCK)。
+    """
+    import hashlib
+    import subprocess as _sp
+    try:
+        cwd = str(Path(feature_dir))
+        tree = _sp.run(["git", "-C", cwd, "rev-parse", "HEAD^{tree}"],
+                       capture_output=True, text=True, timeout=15)
+        if tree.returncode != 0:
+            return ""
+        diff = _sp.run(["git", "-C", cwd, "diff", "HEAD"],
+                       capture_output=True, text=True, timeout=30)
+        payload = tree.stdout.strip() + (diff.stdout if diff.returncode == 0 else "")
+        return hashlib.sha256(payload.encode("utf-8", "replace")).hexdigest()
+    except (OSError, ValueError, _sp.SubprocessError):
+        return ""
+
+
+def _evidence_test_evidence_fresh(state: dict, args) -> tuple[bool, str]:
+    """v8.306:测试证据必须对应**当前**代码状态 —— 挡「先绿、后改、仍拿旧日志过门」。
+
+    AI 跑完测试时传 `--test-tree-hash <指纹>`(配方会给命令),complete 时**自己重算**并比对。
+    不一致 = 测试跑完之后代码又改了,那份 stdout 证明不了现在这份代码。
+
+    🔴 **降级放行的两种情形**(绝不因环境问题 BLOCK):① 算不出指纹(非 git / git 缺失);
+    ② 未传 `--test-tree-hash`(存量 in-flight feature 兼容 · 但会在 hint 里点名)。
+    """
+    declared = (getattr(args, "test_tree_hash", None) or "").strip()
+    current = _worktree_fingerprint(getattr(args, "feature", "."))
+    if not current:
+        return True, "skipped(算不出 worktree 指纹 · 非 git 或 git 不可用 —— 降级放行)"
+    if not declared:
+        return True, ("skipped(未传 --test-tree-hash · 存量兼容)—— "
+                      "🔴 新 feature 请传:跑测试**当时**的 "
+                      "`git rev-parse HEAD^{tree}` + `git diff HEAD` 指纹(配方会给命令)· "
+                      "否则「先绿后改」拦不住")
+    if declared == current:
+        return True, "测试证据对应当前代码状态(指纹一致)"
+    return False, (
+        "🔴 **测试证据已过期**:跑测试时的代码指纹 != 现在的 —— "
+        f"申报 {declared[:12]}… · 现在 {current[:12]}…\n"
+        "   说明测试跑完之后代码**又改过**,那份 stdout 证明不了现在这份代码(「先绿、后改、仍拿旧日志过门」)。\n"
+        "   处置:**重跑测试**(验证档 subagent)并用新指纹重新 complete —— 不要 bypass。")
+
+
+def _evidence_test_runner_declared(state: dict, args) -> tuple[bool, str]:
+    """v8.306:必须申报**谁跑的测试** —— 验证类白名单(v8.299 用户拍板)的物化面。
+
+    🔴 **能力边界(必须说清)**:`--test-runner` 是**自我申报** —— 它拦得住「**忘了**切验证档」,
+    拦不住「**故意**写假」。而实证那次(aon-core · 主窗口直接跑)恰恰是**忘了**:
+    AI 沿用了「主编排收口测试」的旧习惯,提醒早在 stage-start 读过、动作点隔了太远。
+    强制在 complete 时填这个字段 = 逼它在**那个时点**想起这件事(同 v8.299「声明寄生到必写物」)。
+
+    `main-window` 是**允许的值**,但走 v8.299 的例外协议:必须 `--user-authorized`,
+    否则 BLOCK —— 失误变得**可见**而非被静默吞掉。
+    """
+    runner = (getattr(args, "test_runner", None) or "").strip().lower()
+    if not runner:
+        return False, (
+            "缺 `--test-runner` —— 必须申报谁跑的测试(v8.299 验证类白名单的物化面):\n"
+            "   · `subagent`(正解:验证档 subagent 独立跑 · 建议同时传 `--test-runner-model`)\n"
+            "   · `main-window`(主窗口直接跑 = 白名单例外 · 🔴 需 `--user-confirmed` 并说明理由)\n"
+            "   · `ci`(流水线跑)")
+    if runner in ("subagent", "ci"):
+        model = (getattr(args, "test_runner_model", None) or "").strip()
+        return True, (f"runner={runner}" + (f" · model={model}" if model else
+                                            " · ⚠️ 未申报 model(台账计 unspecified)"))
+    if runner == "main-window":
+        if getattr(args, "user_confirmed", False):
+            return True, ("runner=main-window(白名单例外 · 已获用户授权)· "
+                          "⚠️ 台账记 WARN —— 年检看这类例外的频次")
+        return False, (
+            "🔴 `--test-runner main-window`:**测试执行属 v8.299 验证类白名单**,默认必须降到验证档 subagent。\n"
+            "   认为本次特殊 → **不许 AI 自决**:开 R5 暂停点请用户授权(哪个任务 / 为何不适用 / 建议用哪档),\n"
+            "   拿到授权后加 `--user-confirmed` 重跑本命令。\n"
+            "   why:「这次比较难、不该降」是最容易自我合理化的一步 —— 每次都成立就等于白名单不存在。")
+    return False, f"`--test-runner {runner}` 非法 —— 只接受 subagent / main-window / ci"
+
+
 def _evidence_test_exit_code_zero(state: dict, args) -> tuple[bool, str]:
     """校验 --test-exit-code == 0 · 红 base 走差分(当前失败 ⊆ 基线 → 放行)。
 
@@ -975,6 +1059,16 @@ DEV_SPEC = StageSpec(
             description="单测必须全绿 · --test-exit-code = 0",
         ),
         StageEvidenceCheck(
+            name="test_evidence_fresh",
+            check_fn=_evidence_test_evidence_fresh,
+            description="测试证据对应当前代码状态(v8.306 · 零信任重算 · 挡「先绿后改」)",
+        ),
+        StageEvidenceCheck(
+            name="test_runner_declared",
+            check_fn=_evidence_test_runner_declared,
+            description="申报谁跑的测试(v8.306 · main-window 属白名单例外 · 需用户授权)",
+        ),
+        StageEvidenceCheck(
             name="test_stdout_non_empty",
             check_fn=_evidence_test_stdout_non_empty,
             description="--test-stdout 非空 · 证明真跑过测试",
@@ -1626,6 +1720,41 @@ def _external_run_log_exists(feature_dir: Path, stage: str) -> bool:
             or any(prompts_dir.glob(f"{stage}-*.log")))   # .log 兼容存量 feature
 
 
+def _capability_blocked_reason(fm: dict, path) -> str:
+    """v8.304:判「reviewer 根本没跑起来」(执行失败)而非「评审说有问题」(评审失败)。
+
+    信号三类,任一命中即算能力缺失:
+      ① frontmatter `files_read` **存在但为空** —— 声明了却什么都没读;
+      ② frontmatter `status` 明写 FAILED / CAPABILITY_BLOCKED;
+      ③ 正文出现「无授权读取」类字面(宿主拒绝工具时的典型回执)。
+
+    🔴 `files_read` **缺失不算**(向后兼容:存量产物没有这个字段)——
+    只在它**显式为空**时才判定。宁可漏判,不可把正常评审误判成能力缺失。
+    """
+    # 🔴 parse_frontmatter 是**行式解析**(不是真 YAML)—— `files_read: []` 会解析成**字符串** `'[]'`。
+    # 首版按 list 判空,实测静默漏判;判定必须对两种形态都成立。
+    fr = fm.get("files_read", None)
+    if isinstance(fr, (list, tuple)):
+        if len(fr) == 0:
+            return "frontmatter `files_read: []` —— 声明了读取清单却是空的"
+    elif fr is not None:
+        _fr = str(fr).strip().strip("[]").strip()
+        if _fr in ("", "none", "null", "无", "-"):
+            return f"frontmatter `files_read: {str(fr).strip()}` —— 声明了读取清单却是空的"
+    status = str(fm.get("status", "")).strip().upper()
+    if status in ("FAILED", "CAPABILITY_BLOCKED"):
+        return f"frontmatter `status: {status}`"
+    try:
+        body = path.read_text(encoding="utf-8", errors="replace")[:4000].lower()
+    except OSError:
+        return ""
+    for sig in ("no authorized read-only file access", "no authorized file access",
+                "cannot read files", "无授权读取", "无文件读取能力"):
+        if sig in body:
+            return f"正文出现能力缺失回执:「{sig}」"
+    return ""
+
+
 def _evidence_external_review_artifact(state: dict, args) -> tuple[bool, str]:
     """第三视角冷审产物校验(v8.291:跨厂商异质退役后大幅简化 · 136 行 → 30 行)。
 
@@ -1637,9 +1766,24 @@ def _evidence_external_review_artifact(state: dict, args) -> tuple[bool, str]:
     roster 不含 external → skip(change-review-roles 调整已留 audit)。
     """
     current_stage = state.get("current_stage", "")
-    stage_roles = state.get("stage_review_roles", {}).get(current_stage, [])
-    if stage_roles and "external" not in stage_roles:
-        return True, f"skipped(external 不在 stage_review_roles.{current_stage}={stage_roles})"
+    roles_map = state.get("stage_review_roles", {}) or {}
+    stage_roles = roles_map.get(current_stage, [])
+    # 🔴 v8.305:**空 roster = 本 stage 不要求评审**(与 `reviewers_match` 的 `if not required: return True`
+    # 对齐)。原守卫写 `if stage_roles and ...` —— 把「**有意配空**」当成「**未配置 → 按默认要 external**」,
+    # 两个 evidence check 对同一状态给出**相反语义**。
+    # 实证(aon-core · fast_mode=true):v8.261 的 fast 只写 `{"goal":[...], "review":[...]}`,
+    # blueprint **键缺失** → 这里不 skip → blueprint-complete 要 external,
+    # 而同一 stage 的 brief 明写「**blueprint 评审跳过**」—— **brief 与门禁直接对立**;
+    # 且 `change-review-roles` 拒绝未配置的 stage → 用户**无法自救**,只剩 bypass。
+    # 实际后果:AI(正确地)不篡改 state 也不 bypass,于是真跑了一轮冷审 ——
+    # **fast_mode 承诺的提速被静默取消,用户白付一轮。**
+    # 🔴 两种「缺失」含义相反,必须分开(首版修法过宽 · 被既有测试当场抓出):
+    #   · roster dict **非空**但不含本 stage → **有意去掉**(fast_mode 就这么表达)→ skip
+    #   · roster dict **整个空/缺失**       → **未初始化**(legacy state)→ 仍按默认要求 external
+    if roles_map:
+        if "external" not in stage_roles:
+            return True, (f"skipped(external 不在 stage_review_roles.{current_stage}={stage_roles}"
+                          + (" —— 该 stage 未列入 roster · 有意不评审)" if current_stage not in roles_map else ")"))
     external_dir = Path(args.feature) / "external-cross-review"
     md_files = list(external_dir.glob("*.md")) if external_dir.exists() else []
     if not md_files:
@@ -1655,6 +1799,21 @@ def _evidence_external_review_artifact(state: dict, args) -> tuple[bool, str]:
             continue  # /code-review ultra 摄入 · 独立性由产品化多智能体保证 · provenance 是会话转录
         has_subagent_artifact = True
         model = str(fm.get("review_model", "")).strip()
+        # 🔴 v8.304:先分辨**执行失败** vs **评审失败** —— 两者的处置完全相反。
+        # 实证(aon-core · 宿主 codex):被选中的 reviewer profile 是 v8.293 之前部署的**零工具**
+        # 版本(旧架构靠 state.py 把文件 inline 进 prompt · 故意声明 READ-ONLY 无 shell/命令),
+        # 而 v8.291 起改 subagent 冷审、v8.303 又把「读真实代码」立成硬要求 → 它读不了任何文件,
+        # 返回 `files_read: []` + `no authorized read-only file access`。
+        # 旧门禁只会报「产物不合规」,把**能力缺失**说成**评审问题** —— 用户被迫自己排查一轮。
+        _blocked = _capability_blocked_reason(fm, f)
+        if _blocked:
+            return False, (
+                f"🔴 CAPABILITY_BLOCKED(**执行失败 · 非评审结论**):{f.name} —— {_blocked}\n"
+                "   这不是 NEEDS_REVISION,是 reviewer **没有文件读取能力**,产出的 finding 不可信。\n"
+                "   处置:① 换用**有文件读取能力**的隔离 agent 重跑(仍须 model ≠ 会话主模型);\n"
+                "        ② 若 `.codex/agents/*.toml` 里是 v8.293 前的零工具 profile —— 跑 bootstrap 回收它\n"
+                "           (v8.304 起自动清理 · 带 teamwork 签名的才删);\n"
+                "        ③ 🔴 **不要把这一轮当评审轮**:evidence 未过 → rounds 未计数,预算没被消耗。")
         if via != "subagent":
             bad.append(f"{f.name}:review_via={via or '缺'}(必须 subagent —— 主对话热审无独立性)")
         elif not model:
@@ -2023,8 +2182,10 @@ def _evidence_external_verified_after_fix(state: dict, args) -> tuple[bool, str]
     if not fix_ats:
         return True, ""
     feature_dir = Path(args.feature)
-    stage_roles = state.get("stage_review_roles", {}).get("review", [])
-    if stage_roles and "external" not in stage_roles:
+    _roles_map = state.get("stage_review_roles", {}) or {}
+    stage_roles = _roles_map.get("review", [])
+    # v8.305:同上 —— 空/缺失 roster 都算「不要求 external」(原 `if stage_roles and ...` 同款 bug)
+    if _roles_map and "external" not in stage_roles:
         return True, f"skipped(external 不在 stage_review_roles.review={stage_roles})"
     from datetime import datetime, timezone
     last_fix_at = max(fix_ats)
@@ -2547,6 +2708,33 @@ def _pm_acceptance_brief(state: dict) -> str:
             "但**发版后必须补**(ship 台账已留痕):\n" + _lines +
             "\n🔴 验收时向用户点明这几项是「发版义务」· 用户知情后再拍板 decision。"
         )
+    # yolo:自动验收路径(SKILL § yolo 表「pm_acceptance = 自动 approved_and_ship + WARN」的物化)。
+    # 实证 SDK-F260809171303:本 brief 原先无 yolo 分支 · 无条件写「停等 1/2/3」——
+    # AI 忠实执行了到达动作点的这份 brief,与 SKILL 承诺直接对立(fast_mode 同族第二例:
+    # spec 承诺的模式行为未物化 · 工具在动作点反向覆盖)。
+    if state.get("yolo"):
+        return f"""## PM Acceptance Stage(yolo · 自动验收)
+
+### 目标
+PM 照常**逐条 AC 对照实现**(验收工作不跳过 · 跳过的只是用户确认暂停点)。{_rg_block}
+
+### 🔴 yolo 自动路径(单源 SKILL § yolo 表 · 本 brief 即物化 · 不停等用户)
+1. AC 对照完成且无阻塞级问题 → **不 emit 三选项 · 不停**:
+   先 `state.py add-concern --feature <path> --severity WARN --message "auto: yolo pm_acceptance 自动 approved_and_ship"`(审计留痕)
+2. 产 PM-NOTE(照 `scaffold_hints.templates` · decision 段写明 yolo 自动)→ 直接跑 complete(见下)→ 自动进 ship(自动合入 merge_target〔非主分支硬门〕)
+3. AC 对照发现真问题 → **不硬过**:`--decision rejected_with_feedback --note "<具体 finding>"` 回修(yolo 自主解决 · 不向用户升级)
+
+### 🔴 外部世界动作边界(用户拍板 · 任何模式)
+交付含**公网 registry 发布 / 创建公开仓 / 生产部署**等不经过分支门、不可逆的动作 →
+**不在自动范围**:先自动完成验收 + ship 合入 + 清场(不阻断),**外部发布单独停给用户**
+(release 域 · 详 SKILL § yolo 外部世界动作边界)。🔴 不得以「有外部发布」为由把验收/合入也停下。
+
+### 完成方式
+```
+state.py pm_acceptance-complete --feature <path> --auto-commit <hash> --decision approved_and_ship
+```
+"""
+
     return f"""## PM Acceptance Stage
 
 ### 目标

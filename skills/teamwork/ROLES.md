@@ -3,7 +3,7 @@
 > 8 角色 · 每个 ~30 行(只留 telos + 创作要点 + 协作 + rationale)。
 > 角色协作流程已物化到 `tools/state.py` 各 stage `brief_template_fn` · AI 不再读 spec 凭记忆调度。
 
-## 🔴 角色的两种用法(v8.294 · 判据)
+## 🔴 角色的两种用法(判据)
 
 **同一个词在起草期和评审期不是一回事** —— 用错会白付协调成本,或白丢独立性:
 
@@ -11,7 +11,7 @@
 |---|---|---|
 | 角色是什么 | **分工标签**(同一个 AI 切帽子) | **独立采样点**(不同上下文 / 不同模型) |
 | 能不能合并 | 🟢 **能** —— 合并省掉跨 agent 冷启动往返;拆开只在「两件事真能并行且互不依赖」时才划算 | 🔴 **不能** —— 合并 = 多视角退化成「一个视角 × N 份」 |
-| 依据 | 起草的产物有机器门兜底(`verify-ac.py` / build / 测试硬门) | v8.155 实证:in-context 的 architect 在 goal 只产鼓掌 · 漏细微契约 gap · 被冷审的 external/PL 反超 |
+| 依据 | 起草的产物有机器门兜底(`verify-ac.py` / build / 测试硬门) | 实证:in-context 的 architect 在 goal 只产鼓掌 · 漏细微契约 gap · 被冷审的 external/PL 反超 |
 
 **落地**:blueprint / dev 的 **RD 与 QA 起草期合一**(一个 agent 兼两帽 · TC 与 TECH 的收敛也归它);
 评审席位照 `state.stage_review_roles` 隔离冷审,**不受此合并影响**。

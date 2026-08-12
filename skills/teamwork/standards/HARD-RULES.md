@@ -1,10 +1,10 @@
-# 工程硬规则白名单(🔴 必读 · v8.285)
+# 工程硬规则白名单(🔴 必读)
 
-> **这是 standards/ 的唯一必读文件**(~50 行)。分册(`common` / `backend` / `frontend`)是**按需查的参考**,不要求通读。
+> **这是 standards/ 的唯一必读文件**(短白名单 · 行数不写死 —— 数字宣称必漂)。分册(`common` / `backend`)是**按需查的参考**,不要求通读。
 >
-> 🔴 **工程规范 = 本文件 + 项目 `project-specs/DEV-RULES.md` 的并集 · 冲突以项目为准**(项目主权高于框架缺省;项目要覆盖某条,在 DEV-RULES 显式声明即可)。
+> 🔴 **工程规范 = 本文件 + 项目 `project-specs/DEV-RULES.md` 的并集 · 冲突以项目为准**(项目主权高于框架缺省)。**覆盖声明唯一注册处 = DEV-RULES.md**(未声明 → 按 standards 缺省;`KNOWLEDGE.md` 只归事实/踩坑 · 不作规范覆盖注册处);存量服务的**对外契约**(如 API 响应结构)一致性优先:沿用存量 + 提示用户固化进 DEV-RULES(AI 不代写)。
 >
-> 🔴 **收录判据 = 与模型默认行为的距离**(v8.285 · 只收两类):
+> 🔴 **收录判据 = 与模型默认行为的距离**(只收两类):
 > - **逆默认**:模型默认会做**反**的 —— 它越强越笃定,越需要这条明确逆着写;
 > - **不可知**:模型不可能猜到的框架/项目约定(这是**信息**不是规范)。
 > **模型默认就会的一律不收**(REST 命名 / SOLID / TDD 红绿步骤 / mermaid 语法 / WCAG 细则…)—— 收了就是注意力税。
@@ -31,7 +31,7 @@
    冷审 / 变异验证 / CI **全在自己画的那个圈里**,最后靠生产数据才发现。
    🔴 判据一句话:**验的是「我伪造的输入能被正确处理」,还是「真实链路会产生这样的输入」?**
 8. **每个 TC 用例必须有对应实现**(TC↔实现这一跳没有机器门 · AC↔TC 由 `verify-ac.py` 管)。
-   🟢 **怎么测由 AI 自觉**(v8.286/287):TDD 红绿 / 先骨架后补边界 / test-after 自选 —— 框架**只管结果不规定手段**。
+ 🟢 **怎么测由 AI 自觉**:TDD 红绿 / 先骨架后补边界 / test-after 自选 —— 框架**只管结果不规定手段**。
    结果由机器门保证(不靠自觉):AC 覆盖 → `verify-ac.py` · 真跑真绿 → `dev-complete --test-exit-code 0` + `--test-stdout` 非空(红 base 走 `test-baseline` 差分「0 新增」)· 没作弊 → test-stage ②「不为凑 exit-code=0 走捷径」+ review 外审必覆盖「测试真实性与覆盖」。
 9. **≥3 次失败修复 → 停止并升级**,不允许无意识第 4/5/6 次尝试(症状性修复反模式)。
 
@@ -46,10 +46,15 @@
 14. **统一响应格式与业务状态码**:以 [backend.md §三](./backend.md) 的格式与码表为准(不自造)。
 15. **迁移文件命名不靠读邻居推断**(邻居可能不一致/有坏样板)· 按 [backend.md §五](./backend.md) 优先级链取。
 16. **Build 必须跑通才能进 Code Review**(硬门禁)· 无 build 步骤的项目须**显式标注「无 build 步骤」**,不能省略。
+17. **测试按生命周期三层分层** · 判据一句话:**「交付后还有谁需要它失败的信号?」**
+    - **L1 CI 契约层:🔴 默认不进 · 进必须带 `ci_reason`**(这条失败拦住什么级别的事故:对外契约破坏 / 数据损坏 / 资损 / 核心链路不可用;「顺手写的 / 覆盖率好看」不算充足理由);
+    - **L2 回归层** = TC 其余(AC 绑定 · test stage 全量跑 · CI 不跑);
+    - **L3 脚手架**(TDD 中间步 / 探索 probe / 一次性验证)= 🔴 **只落 scratch `<feature_id>/scaffold-tests/` · 不入仓库**(交付即弃 · 随 ship2 回收)。
+    *模型默认:写过的测试全部入库全部进 CI —— 执行便宜 ≠ 维护便宜:AI 维护成本按语料线性 · CI 墙钟逐 feature 累加,临时 case 入库 = 永久税。* 详 [templates/tc.md § 生命周期](../templates/tc.md)。
 
 ---
 
 ## 相关
 
-- 分册(按需查 · 不必通读):[common.md](./common.md) · [backend.md](./backend.md) · [frontend.md](./frontend.md) · [external-model-usage.md](./external-model-usage.md) · [scripts-policy.md](./scripts-policy.md)
+- 分册(按需查 · 不必通读):[common.md](./common.md)(通用 + §七前端专项)· [backend.md](./backend.md) · [external-model-usage.md](./external-model-usage.md) · [scripts-policy.md](./scripts-policy.md)
 - 项目侧规范(优先级更高):`project-specs/DEV-RULES.md`(人维护 · API 契约 / 错误处理 / 其他约定)

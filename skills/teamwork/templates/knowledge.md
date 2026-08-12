@@ -13,10 +13,11 @@
 > | **本项目强制开发规矩**(API 契约/错误处理/其他约定 · 团队约定)| 🔗 `DEV-RULES.md` | 人事前定的规矩 · 人维护;不是 AI 沉淀 |
 > | 架构决策(为什么选 A 不选 B · 有备选 + 后果)| 🔗 [ADR](./adr.md) | 决策有备选 + 后果结构 |
 > | 业务术语 / 实体关系 / 命名词典 | 🔗 `GLOSSARY.md` | 术语主权威 |
+> | 运维操作步骤 / 环境连接方式(怎么连 DB / 查 log / 部署回滚) | 🔗 `TROUBLESHOOTING.md` | **人维护** · AI 不代写 —— AI 摸出的连法先记**本文件**(事实/Gotcha)+ 提示用户固化 |
 > | 通用代码规范 / 通用设计词汇 | 🔗 standards/ 或 rules/ | 跨项目通用 · 不属项目本地知识 |
 > | 单个 Feature 复盘(时间线 + 指标)| `docs/retros/` | 复盘是时间线 · 不是事实索引 |
 > | **项目特有的事实 / 踩坑 / 偏好** | **本文件** | 不是决策 · 是"发现"——没有备选项的客观事实 |
-> | **review 反复抓的自身失败类**(复发) | **本文件 § 复发防御清单** | dev 起草写时防 · shift-left 喂料(v8.278) |
+> | **review 反复抓的自身失败类**(复发) | **本文件 § 复发防御清单** | dev 起草写时防 · shift-left 喂料 |
 >
 > 🔴 **体量上限 300 行**,超出:(a) Gotcha 升 ADR(若本质是决策)/ (b) 分拆到子项目级 KNOWLEDGE.md / (c) 过期归档(加 archived 标记 · 放末尾)。
 
@@ -29,10 +30,10 @@
 
 > 📌 **术语 → `GLOSSARY.md`**;**开发规矩/约定 → `DEV-RULES.md`**。本文件不再收录这两类。
 
-## 🛡️ 复发防御清单(review 高频 finding · dev 起草**写时防** · v8.278)
+## 🛡️ 复发防御清单(review 高频 finding · dev 起草**写时防**)
 
 > 🔴 **这不是一次性外部坑(那些进 Gotchas)· 是「我们自己反复写出的失败类」** —— review 一遍遍重新发现同几类 bug(实证:某项目 stale closure×7 / timeout 边界×6)= 起草时没照着防。
-> **闭环**:① review 收敛后 · 确认 findings 里**可预防的复发类**沉淀到本清单(同一类第 2 次被抓即入 · 已在清单还复发 = 规避法不够硬 · 强化它);② dev **起草前必读本清单** · 照着这些已知失败类写(不是写完等 review 抓 —— 镜像 PRD 起草思考规范 v8.262)。
+> **闭环**:① review 收敛后 · 确认 findings 里**可预防的复发类**沉淀到本清单(同一类第 2 次被抓即入 · 已在清单还复发 = 规避法不够硬 · 强化它);② dev **起草前必读本清单** · 照着这些已知失败类写(不是写完等 review 抓 —— 镜像 PRD 起草思考规范)。
 > why:findings 82% 真实且集中在 code review · 砍轮数=漏 bug · 真杠杆是**预防掉的 finding 永不需要收敛**(goal 靠 shift-left 已 1 轮收敛 · dev 补上同一层)。
 
 | 类 | 失败模式(具体) | 🛡️ 写时怎么防 | 复发次数 | 触发 Feature |
@@ -131,4 +132,4 @@
 - Gotcha:GO-NNN(三位数字,从 001 起)· Preference:PR-NNN · Out of Scope:OS-NNN · Flagged Ambiguities:FA-NNN
 - 🔴 编号连续不复用,归档条目保留原 ID
 
-> 🔴 与 DEV-RULES / GLOSSARY / ADR / standards 的边界见本文件头部的边界表(v8.293:原此处重述一遍)。
+> 🔴 与 DEV-RULES / GLOSSARY / ADR / standards 的边界见本文件头部的边界表(原此处重述一遍)。

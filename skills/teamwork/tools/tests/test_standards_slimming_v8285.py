@@ -71,9 +71,10 @@ class TestBackendSlimming(unittest.TestCase):
 
 class TestStandardsTotal(unittest.TestCase):
     def test_total_reduced(self):
+        # v8.310:frontend.md 已并入 common.md §七 · 文件退役
         total = sum(len((STD / f).read_text(encoding="utf-8").splitlines())
-                    for f in ("common.md", "backend.md", "frontend.md"))
-        self.assertLess(total, 1450, f"四件 standards 应已从 1773 瘦下来 · 现 {total}")
+                    for f in ("common.md", "backend.md"))
+        self.assertLess(total, 1450, f"standards 分册应已从 1773 瘦下来 · 现 {total}")
 
 
 class TestFourSectionRollout(unittest.TestCase):

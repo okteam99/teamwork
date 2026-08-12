@@ -1,6 +1,6 @@
 ---
 name: teamwork
-version: v8.303.1
+version: v8.317.1
 description: AI 协作开发一体化框架 - 需求功能开发, bug 修复, 问题排查 · /teamwork 启动
 ---
 
@@ -99,9 +99,9 @@ worktree 路径规范见 [docs/conventions.md §9-12](./docs/conventions.md)。
 
 ## 命令清单(分类概览 · 🔴 权威 = `state.py --help`)
 
-> v8.290:原 30 行逐条枚举已删 —— **实测已漂**(52 个真实子命令里 11 个从未出现在本文件:`execute-start/complete`〔整个 micro 流程〕· `review-preventability` · `ws-lint` / `ws-progress` · `test-baseline` · `ledger-migrate` · `reset-prev` · `external-ingest` 等)。**指针 + 复制被指向内容 = 副本必漂**,这里只留 `--help` 给不出的**分类心智**:
+> 不留逐条命令枚举 —— **实测必漂**(曾有 11/52 个真实子命令从未出现在枚举里)。**指针 + 复制被指向内容 = 副本必漂**,这里只留 `--help` 给不出的**分类心智**:
 
-> 🔴 **v8.301 按「AI 要不要记」分类**(不是按功能分)—— 56 个子命令里,**AI 只需记住 A 类**。
+> 🔴 **按「AI 要不要记」分类**(不是按功能分)—— 56 个子命令里,**AI 只需记住 A 类**。
 > 实测触发:某次 AI 在 goal 阶段手跑 `verify-ac.py`(它记住了这个脚本),而该脚本在 goal **必然 FAIL**
 > —— 减少命令总数解决不了这个,只有**把对的命令在对的时点推给它**才解决。
 
@@ -115,7 +115,7 @@ worktree 路径规范见 [docs/conventions.md §9-12](./docs/conventions.md)。
   `external-review` · `add-concern`(auto skip 时)· `pause-mark` · `test-baseline` · `change-review-roles` …
   🔴 **它们会带着可直接跑的完整命令行出现在对应 emit / brief 里** —— 不必背,**照着跑**。
   > why:写进 stage 文档 ≠ 到达。文档在 stage-start 读,而动作点常在几十个工具调用之后 ——
-  > **提醒与动作之间隔了太多 context**(v8.299 实证:agent 读过派发声明制仍然漏了)。
+  > **提醒与动作之间隔了太多 context**(实证:agent 读过派发声明制仍然漏了)。
 
 - **C 类 · 不必记也别主动跑(逃生口 · 出事或用户要求时才用)**:`snapshot`(别名 `status`)/ `validate` /
   `raw-read` / `raw-write` / `recover` / `reset-prev` / `jump-to-stage` / `set-mode` / `audit-raw-writes` /
@@ -153,7 +153,7 @@ state.py 物化了 9 红线中 8 条 · R3 + 部分行为约束(R4 / R5(b) / byp
 
 所有用户输入 PMO 先承接 · 禁止 RD/Designer/PM 等角色直接响应(用户输入直接打 RD = 跳过 PM 的 PRD)。
 
-### R3-E · 断言必须标注证据边界(v8.303)
+### R3-E · 断言必须标注证据边界
 
 🔴 **说某段代码/系统有某属性时,要么本次会话读过那一行,要么显式写「推断」——不许中间态。**
 
@@ -190,12 +190,12 @@ state.py 物化了 9 红线中 8 条 · R3 + 部分行为约束(R4 / R5(b) / byp
 > 本节 = **并行姿态 + 声明制单源**;**档位表与四条硬边界单源 = [agents/README.md §一](./agents/README.md)**(全局规则 · 任何 subagent/teammate/workflow 适用)。
 
 - **并行是默认考虑项**:每个 stage 开工先问「**哪些子任务可以并行?**」—— 冷审天然 N 路同发 · dev 多端/多模块各派一路 · 调研 fan-out 保主编排 context 干净 · 能并行的不串行(ultracode 开启时 workflow 优先)。
-- **每进新子阶段重问**(实现 → 测试编写 → 修复):耦合度随阶段变 · 开工问一次会过期。🆕 **重问时加第三问:这些子任务的「验证目标」有重叠吗?**(v8.299)—— 🔴 **按产物归属切分容易让验证目标跨线**:切分看着正交(A=文档+单测 / B=新测试文件),验证目标却不正交。重叠 → 合并,或指定唯一 owner、其余路**显式声明「不做该验证」**。why(实证):dev 期 A 路自建 harness 验 6 场景,B 路的新测试文件验同一批场景 —— 同一件事做了两遍,多耗 ~40min 与 ~150k tokens。
+- **每进新子阶段重问**(实现 → 测试编写 → 修复):耦合度随阶段变 · 开工问一次会过期。🆕 **重问时加第三问:这些子任务的「验证目标」有重叠吗?**—— 🔴 **按产物归属切分容易让验证目标跨线**:切分看着正交(A=文档+单测 / B=新测试文件),验证目标却不正交。重叠 → 合并,或指定唯一 owner、其余路**显式声明「不做该验证」**。why(实证):dev 期 A 路自建 harness 验 6 场景,B 路的新测试文件验同一批场景 —— 同一件事做了两遍,多耗 ~40min 与 ~150k tokens。
 - **派发后等待窗主对话不闲置**:干自己能干的(自查证据 / 再拆剩余工作)· 🔮 goal 终确认等待窗的投机窗见 [stages/goal-stage.md ④](./stages/goal-stage.md)。
 - **拆分边界**:子任务**边界清晰且够大**才派(小 / 强耦合 / 强串行自己做 · 协调开销反拖慢)。
 - 🔴 **编排权不外包**:stage 流转 / commit / `xx-complete` / 最终整合**永远归主对话**(并行的是执行 · 不是编排)· 代码类 subagent 只写 worktree 内路径。
 - 🎚️ **派前定档**:不传 model = 继承会话模型 · **常费而不自知** —— 校验/枚举型(冷审对照 · TC 对照 · 测试执行 · 机械外化)→ 验证档;判断/创造型(Architect/PL 冷审 · 方案 · 裁决)→ **不降档**。
-- 📣 **声明制(v8.299 重写)**:声明**寄生在 prompt 首行**,不另起一句 —— `Meta: tier=<验证|执行|深度> · model=<留空则继承> · 理由=<一句>`。prompt 是派发时必然要写的,寄生其上才不会被忘(**高频低显著性的义务必然衰减** · 实证:agent 读过规则仍漏)。
+- 📣 **声明制(重写)**:声明**寄生在 prompt 首行**,不另起一句 —— `Meta: tier=<验证|执行|深度> · model=<留空则继承> · 理由=<一句>`。prompt 是派发时必然要写的,寄生其上才不会被忘(**高频低显著性的义务必然衰减** · 实证:agent 读过规则仍漏)。
 - 🎚️ **验证类白名单一律降验证档 · 例外需用户授权**:写测试用例(TC 起草)· 执行测试 · 单测 · 集成测试 · e2e · TC 逐条对照 · 冷审执行 · 机械外化 —— 默认**全部**降档且**必须显式传 model**;认为本次特殊 → 🔴 **不许 AI 自决**,开 R5 请用户授权。判断/创造型允许继承(仍在首行声明 tier + 理由)。档位表与硬边界单源 [agents/README §一](./agents/README.md)。
 - 📊 台账 `dispatch_models` 分两桶:`inherited_declared`(判定该继承 = **正确行为**)vs `unspecified`(真没分档)—— 两者干预手段相反,不可合并计数。
 - 🔴 **评审模型必错开**(独立采样不变式):双路冷审(goal PL+外审 / blueprint·review Architect+外审)**两路模型必须不同**(主审路继承会话主模型 · 外审路错开一档);单路配置(fast 合并 / roster 减到一路)时**该路 ≠ 会话主模型**。**任何评审配置至少一路 ≠ 会话主模型** —— 同模型 = 盲区相关(两路同瞎)· 主对话热审 = 自审无效。验证轮降档本身即错开。
@@ -232,8 +232,9 @@ state.py 物化了 9 红线中 8 条 · R3 + 部分行为约束(R4 / R5(b) / byp
 - 不可省略**编号** / **💡 推荐** / **理由**(缺任一 = 把判断甩回用户 + `ok` 快捷词失灵)。
 - 🔴 **方案/变更确认类必自带变更点明细**:让用户拍板「改 X」时 · 选项之前必给**变更点清单**(对象级 · 每条一行:对象|变更|用途)—— 情境一句 + 分类概括 + 文件指针**不算**(用户被迫追问「方案是什么」= 暂停点白跑一轮)· 指针只作深读补充。
 - 单选 → 1/2/3 · 多决策 → 1A/2B · 用户回 `ok` = **选 💡 推荐项**。
-- 🔴 **「必带建议 + 理由」不止于三选项格式**(v8.302):**任何抛给用户的决策项都算** —— PRD §待决策项逐条 · 多项一次性 escalate · 方案分叉 · 「要不要现在做 X」。**列了选项不给倾向 = 把判断甩回用户**,而 AI 有全部上下文、用户没有。
+- 🔴 **「必带建议 + 理由」不止于三选项格式**:**任何抛给用户的决策项都算** —— PRD §待决策项逐条 · 多项一次性 escalate · 方案分叉 · 「要不要现在做 X」。**列了选项不给倾向 = 把判断甩回用户**,而 AI 有全部上下文、用户没有。
   🔴 **真推荐不了也要写明是哪一种**:① 缺信息(缺什么 · 谁能给)· ② 纯偏好(无技术优劣)· ③ 等上游决策。**空着不算** —— 用户只会被迫追问「你的建议和理由是什么」(实证 SVC-CORE-F260728:四条待决策项裸列,被逐条追问)。
+  ❌ **选项集必须完整摊开 · 面向没读过产物的人写**:每个选项的内容与后果都写出(只写推荐项、让用户「可回 B」而 B 从没定义 = **假选择题**);每条带场景上下文与大白话(实证 CA-F260810:建议/理由都在,但全是术语压缩 + B 选项缺席,用户仍被迫追问 —— 拍板项四槽详 [goal-stage ④](./stages/goal-stage.md))。
 
 ### bypass 协议(R8 写操作硬门禁链 · 逃生通道)
 
@@ -313,7 +314,7 @@ mode A 排查 / mode E 讨论收尾时命中以下场景必须建议升 mode B:
 
 mode B 识别后(**无论后续 flow_type = Feature〔full/micro〕还是 Bug · 都走 prepare**)· PMO **必走** [docs/prepare.md](./docs/prepare.md) · 不可在主对话散述准备步骤。
 
-🔴 **mode B emit 任何 prepare 内容前 · 必先用 Read 工具打开 [docs/prepare.md](./docs/prepare.md)**(命令式 · 不是"参考")· 不读直接 emit 5 段 = R5 违规 + **必漏 §2.1 复杂度升级判据**(跨独立部署服务 / 数据模型重构 / 老需求架构性废弃 / 影响 ≥2 BL / 方向级业务变更 → 强制升 Feature Planning)**与 §2.2 preset=micro 准入校验**(零逻辑变更 + 仅 文案/样式/资源/配置常量/注释 · 超纲一律 full)—— 二者判定权威在 prepare.md · 此处只作警觉锚点。
+🔴 **mode B emit 任何 prepare 内容前 · 必先用 Read 工具打开 [docs/prepare.md](./docs/prepare.md)**(命令式 · 不是"参考")· 不读直接 emit 5 段 = R5 违规 + **必漏 §2.1 复杂度升级判据**(跨独立 git 仓库 / 数据模型重构 / 老需求架构性废弃 / 影响 ≥2 BL / 方向级业务变更 → 强制升 Feature Planning)**与 §2.2 preset=micro 准入校验**(零逻辑变更 + 仅 文案/样式/资源/配置常量/注释 · 超纲一律 full)—— 二者判定权威在 prepare.md · 此处只作警觉锚点。
 
 判据:**进状态机 = 走 prepare**(Feature〔full/micro〕+ Bug 三条链都需 worktree + branch + merge_target + artifact ID 4 项配置 · ID 统一 **F/B**〔M 为 legacy 存量〕· 详 conventions.md §1)。即便最轻的 Feature·micro(改文案 1 行)也要 prepare。不进状态机的 Feature Planning / 问题排查 → 不走 prepare。
 
@@ -414,7 +415,7 @@ mode B 识别后(**无论后续 flow_type = Feature〔full/micro〕还是 Bug ·
 
 - **roster 内评审全真跑 · 一个不少**(默认两路:Architect 主审 + 覆盖方向制第三视角〔QA 视角并入必覆盖方向〕)· **不得以「集中到 review stage」「效率」「价值低」为由去掉第三视角** —— `change-review-roles` 物化 BLOCK。
 - 🔴 **真跑的物化校验**(严格按流程流转 · 不得「内化」自盖章 APPROVE · 不得 AI 手写 `external-cross-review/*.md`):第三视角必走 `state.py external-review --stage <X>` —— **默认 subagent 隔离冷审** → 校验 frontmatter `review_via: subagent`(无 → FAIL);**opt-in 异质** → 真调异质模型 + `~/.teamwork/external-review-logs/<feat>/codex-<stage>-*.log` 实跑日志(无 → FAIL · 伪造不了)。
-- 🔴 **第三视角 = 🎭 错开模型 subagent 隔离冷审(唯一形态 · v8.291 跨厂商 CLI 异质已退役 —— 冷启动/慢路径/登录故障面实测严重拖慢)**:`state.py external-review` 只 emit subagent 配方(不 exec 子进程)· 产物须 `review_via: subagent` + 照实申报 `review_model` · 🔴 yolo 额外要 prompt doc(实跑证据 · 防手写自盖章)。—— **不许「不冷审」**(主对话自评 = 无独立性 · 门禁拦)。
+- 🔴 **第三视角 = 🎭 错开模型 subagent 隔离冷审(唯一形态 · 跨厂商 CLI 异质已退役 —— 冷启动/慢路径/登录故障面实测严重拖慢)**:`state.py external-review` 只 emit subagent 配方(不 exec 子进程)· 产物须 `review_via: subagent` + 照实申报 `review_model` · 🔴 yolo 额外要 prompt doc(实跑证据 · 防手写自盖章)。—— **不许「不冷审」**(主对话自评 = 无独立性 · 门禁拦)。
 - **不得擅自合并 BL / 跳 stage / 减 review 轮次 / 简化流程**(BL 拆分是 Planning 已定的范围)· ✅ **可以加重**:多跑 external、加 review 轮次、提高测试覆盖。
 
 | 暂停点 | yolo 行为 |
@@ -425,6 +426,8 @@ mode B 识别后(**无论后续 flow_type = Feature〔full/micro〕还是 Bug ·
 | ship-finalize(Phase 2 主工作区收尾) | **自动跑**(merge 确认后 · 见 main-sync) |
 
 🔴 **硬约束**(init-feature 物化 gate · `_is_main_branch`):`merge_target` **必须非主分支**(`main`/`master`/远端默认)· 否则 `init-feature --yolo` 直接 FAIL。理由:无人 review 自动 merge · 不得让 AI 错误/幻觉直接进 main —— 只能合到 `dev`/`staging`/`integration` 等集成分支 · 主分支的提升仍由**人工 gate**。
+
+⛔ **外部世界动作边界(用户拍板 · 同一风险模型的延伸)**:公网 registry 发布(npm/PyPI/crates 等)/ **创建公开仓** / 生产部署等**不经过分支门且不可逆**的动作,**不在「零 stop」范围** —— yolo 的自动只覆盖**分支门以内**(验收 / 合入集成分支 / 清场)。此类动作 = release 域(`RELEASE-GUIDE.md` · 发布归用户):**先自动验收 + 合入 + 清场(不阻断),外部发布单独停给用户拍板** · ❌ 不得以「有外部发布」为由把验收/合入也停下(实证 SDK-F260809171303:AI 把「外部发布该问用户」的正确直觉挂错到 pm_acceptance,停掉了本该自动的验收与合入)。why:上一条硬约束的安全网 = 主分支人工提升,而外部动作**绕过一切分支门** —— 一次幻觉级错误(泄密 / 白名单漏洞)直接入公网且不可撤。
 
 **安全栏**:
 - **尊重分支保护**:目标分支受保护 / 必需 check 没过 → `gh`/`glab` merge 失败 → 自动退回「手动 merge」stop + WARN(**绝不** force / 绕保护)
@@ -480,7 +483,7 @@ teamwork 承担**知识导航(索引/地图)**的责任 —— 让 AI 从一个�
 | `project-specs/test-baseline.md` | 红 base 测试基线(brownfield 预存在失败清单 · `state.py test-baseline --add` 生成) | 测试非全绿但非本次引入时(差分「0 新增」判定) |
 | `project-specs/KNOWLEDGE.md` | Gotcha(踩坑)/ Preference / 已澄清歧义 / 已否方向(AI 沉淀) | triage 期 + 涉项目踩坑/历史坑/用户偏好 |
 | `project-specs/GLOSSARY.md` | 业务术语 + 实体关系 + 命名约定 + 别名歧义 | PRD / TECH 起草前 · 问术语/实体/别名 |
-| `project-specs/TROUBLESHOOTING.md` | 排查 / 运维操作手册(log / DB / 监控 / 部署) | 报错 / 502 / 查 log / 异常 / 服务挂 / 查环境 / 查 DB / 查 Redis / 部署 / 回滚 |
+| `project-specs/TROUBLESHOOTING.md` | 排查 / 运维操作手册(log / DB / 监控 / 部署 · **人维护 · AI 不代写**) | 报错 / 502 / 查 log / 异常 / 服务挂 / 查环境 / 查 DB / 查 Redis / 部署 / 回滚 |
 | `project-specs/RELEASE-GUIDE.md` | **版本发布规范(人维护)**:集成分支→生产(默认 staging→main MR · URL 置顶 · 提醒用户合入 · 发布后补 release-gated 证据) | 用户说「发布 / 上线 / 发版」时 **PMO 必读照办**(合入归用户) |
 | `project-specs/ARCHITECTURE.md` | **workspace 级**系统架构(子项目拓扑 + 依赖 + 目录布局) | 跨子项目架构 / 系统全貌 |
 | `{子项目}/docs/architecture/ARCHITECTURE.md` | **单子项目内部**技术架构(技术栈/分层/模块) | 某子项目内部架构决策(模板 `templates/architecture.md`)|
@@ -493,7 +496,7 @@ teamwork 承担**知识导航(索引/地图)**的责任 —— 让 AI 从一个�
 | `teamwork-space.md` | **地图根**(索引之索引 · 结构 / 子项目清单 / 跨项目变更 ID) | 任何 session 必读 · 多子项目 / 知识全景入口 |
 | 代码 | **细节唯一真相** | 涉及具体代码 → grep + Read(不信文档转述) |
 
-🔴 **AI 自己需连环境(查 DB / log / 服务 / 跑运维命令)时也走 `TROUBLESHOOTING.md`** —— 不只"用户提到",含规划期代码调研需 live 数据、stage 内联调/排错。**先读它拿连接 + 操作方式,别凭 `.env` / 启动脚本瞎试**;连法缺失 → 补进它(知识沉淀)。
+🔴 **AI 自己需连环境(查 DB / log / 服务 / 跑运维命令)时也走 `TROUBLESHOOTING.md`** —— 不只"用户提到",含规划期代码调研需 live 数据、stage 内联调/排错。**先读它拿连接 + 操作方式,别凭 `.env` / 启动脚本瞎试**。它是**人维护**文件(同 DEV-RULES 模式)· **AI 不在流程中改它**:连法缺失/自己摸索出来的 → 记 `KNOWLEDGE.md`(AI 沉淀)+ **提示用户**固化进 TROUBLESHOOTING · 不代写。
 
 ### 项目级系统维护(`tools/bootstrap.py` 独立脚本)
 
@@ -570,8 +573,8 @@ v8 把 9 红线的可枚举子条目物化进 state.py;R3 + 部分行为约束(R
 | [FLOWS.md](./FLOWS.md) | 流程闭集 telos(Feature/Bug × preset + 2 个不进状态机) |
 | [STAGES.md](./STAGES.md) | **stage 编排单源**(定义 / 链 / 通用纪律 / 执行方式 §4 / spec 四段结构) |
 | [ROLES.md](./ROLES.md) | 角色索引(→ roles/*.md) |
-| [standards/HARD-RULES.md](./standards/HARD-RULES.md) | **工程硬规则白名单**(standards/ 唯一必读 · 逆模型默认 + 框架约定)· 索引 [STANDARDS.md](./STANDARDS.md) |
-| [TEMPLATES.md](./TEMPLATES.md) | 文档模板索引(全清单 → [templates/README.md](./templates/README.md)) |
+| [standards/HARD-RULES.md](./standards/HARD-RULES.md) | **工程硬规则白名单**(standards/ 唯一必读 · 逆模型默认 + 框架约定 · 分册索引在其尾部「相关」) |
+| [templates/README.md](./templates/README.md) | 文档模板索引(格式唯一真相源 · 全清单 + 消费方) |
 | [PRODUCT-OVERVIEW-INTEGRATION.md](./PRODUCT-OVERVIEW-INTEGRATION.md) | 产品规划上游(product-overview 引导 / 规划状态管理) |
 | [stages/*.md](./stages/) | 各 stage Telos + 硬规则 + Output Contract(校验进 state.py) |
 | [roles/*.md](./roles/) | 角色 telos + 创作要点(协作进 state.py) |
@@ -584,8 +587,8 @@ v8 把 9 红线的可枚举子条目物化进 state.py;R3 + 部分行为约束(R
 | [tools/_v8_engine.py](./tools/_v8_engine.py) | 通用 stage start/complete + bypass 引擎 |
 | [tools/_v8_stage_specs.py](./tools/_v8_stage_specs.py) | 12 stage 完整契约(stage 数单源 `STAGE_SPECS`) |
 | [tools/_v8_ship.py](./tools/_v8_ship.py) | ship-phase actions + ship-finalize + await-merge |
-| [tools/bootstrap.py](./tools/bootstrap.py) | session 启动维护(骨架 / codex agent toml 部署 / 历史注入段与 hooks 清理) |
-| [claude-agents/](./claude-agents/) | 第三视角冷审 prompt 模板(`state.py external-review` 组装进配方 · v8.291 codex-agents 已随跨厂商退役删除) |
+| [tools/bootstrap.py](./tools/bootstrap.py) | session 启动维护(骨架 / 历史注入段与 hooks 清理 / legacy codex agent toml 回收) |
+| [claude-agents/](./claude-agents/) | 第三视角冷审 prompt 模板(`state.py external-review` 组装进配方 · codex-agents 已随跨厂商退役删除) |
 | [docs/CHANGELOG.md](./docs/CHANGELOG.md) | 变更记录 · [RETRO-LEDGER.md](./docs/RETRO-LEDGER.md) 一行一版自省 |
 
 ---

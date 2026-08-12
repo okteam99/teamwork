@@ -14,7 +14,7 @@
 | blueprint | [stages/blueprint-stage.md](./stages/blueprint-stage.md) | Feature |
 | diagnose | [stages/diagnose-stage.md](./stages/diagnose-stage.md) | Bug(流首 stage · 根因细查+修复方案 · 用户确认后进 dev) |
 | dev | [stages/dev-stage.md](./stages/dev-stage.md) | Feature(full)/ Bug |
-| execute | [stages/execute-stage.md](./stages/execute-stage.md) | Feature(preset=micro · 零门禁自由执行 → ship · v8.250) |
+| execute | [stages/execute-stage.md](./stages/execute-stage.md) | Feature(preset=micro · 零门禁自由执行 → ship) |
 | review | [stages/review-stage.md](./stages/review-stage.md) | Feature / Bug |
 | test | [stages/test-stage.md](./stages/test-stage.md) | Feature / Bug |
 | browser_e2e | [stages/browser-e2e-stage.md](./stages/browser-e2e-stage.md) | Feature(execution_hints.browser_e2e_needed) |
@@ -25,10 +25,8 @@
 
 ---
 
-## 3. 各 stage spec 结构约定(🧭 四段结构 · v8.284 定为标准)
+## 3. 各 stage spec 结构约定(🧭 四段结构 · 现行标准)
 
-> **v8.218 试点 → v8.284 转正**:review(235→77)· dev(149→63)· goal 三个试点文件已按四段结构重写并跑了 60+ 版无事故。
-> 🔴 **本节曾是推广的实际阻塞**:旧条款要求「怎么做 + 质量基线」两段,已迁移的三个试点文件**反而不符合书面规范**,其余是在**忠实遵守旧条款**——不是偷懒。v8.284 改标准解锁,**v8.285 完成推广**(仅 `ship-stage.md` 保留操作手册形态 · 见下)。
 > 📌 **例外**:`ship-stage.md` 主体是**命令序列 + 物化门禁**(非「怎么思考」),保留 §1-§6 操作顺序叙事 —— 四段结构治的是 HOW-to 教程,不是必要的操作次序。
 
 每个 `stages/*-stage.md` **必含**:
@@ -41,12 +39,12 @@
 | `## ④ Output Contract` | 产物字段形态 + complete 命令字面 | 机器语法只出现在这里 |
 | `## 相关` | 引擎/spec/入口规范 + stage 专属链 | 3-5 行 |
 
-🔴 **② 硬规则的保留判据**(v8.218 原则 · v8.283 细化):**治结构风险,不教干活**——
+🔴 **② 硬规则的保留判据**(原则):**治结构风险,不教干活**——
 ① **证据/验证**(机器可验的证据要求:test exit-code / artifact 在 commit / coverage 申报)· ② **独立采样**(冷审隔离 / 不喂起草心路 / 模型错开)· ③ **用户主权**(暂停点 / 必须用户拍板的决策)· ④ **纯机械操作**(worktree 路径 / 命令参数 / 文件约定)。
 **不该进②的**:怎么调研 / 怎么拆任务 / 怎么写代码(→ ③菜单或交还模型)· 通用工程规范(→ `standards/` + 项目 `DEV-RULES.md`)· 教模型它本来就会的。
 
-🔴 **不设「怎么做」步骤清单,也不设末尾「质量基线」复检段**(v8.284 删):
-- 「怎么做」= HOW-to 教程 —— **把强模型的地板变天花板**(v8.218 原话)· 目标 + 契约给足,步骤模型自推;
+🔴 **不设「怎么做」步骤清单,也不设末尾「质量基线」复检段**(删):
+- 「怎么做」= HOW-to 教程 —— **把强模型的地板变天花板**(原话)· 目标 + 契约给足,步骤模型自推;
 - 「质量基线」= 把②的规则再复述一遍 —— 实测未迁移文件因此把同一条规则讲 2-3 遍(test/panorama_sync/pm_acceptance/diagnose 均命中)。**同一件事:叙事在②只写一次 · 机器语法在④只写一次 · 没有第三处**;
 - 物化拦截清单归 ④ Output Contract(它本就是产物/门禁形态)。
 

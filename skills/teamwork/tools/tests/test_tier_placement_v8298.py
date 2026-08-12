@@ -99,8 +99,9 @@ class TestNoEmitOnlyDeliverables(unittest.TestCase):
                 if "CHANGELOG" in f.name or "RETRO" in f.name:
                     continue
                 for i, line in enumerate(f.read_text(encoding="utf-8").splitlines(), 1):
+                    # 豁免按实质不按版本标(spec 已清版本标):引用旧反模式同时声明「同时写进」落盘的行不算
                     if ("年检" in line or "kill criteria" in line) and \
-                       re.search(r"只 ?emit|仅 ?emit|不落盘", line) and "v8.29" not in line:
+                       re.search(r"只 ?emit|仅 ?emit|不落盘", line) and "同时写进" not in line:
                         bad.append(f"{d}/{f.name}:{i}")
         self.assertEqual(bad, [], f"年检数据源被声明为只 emit 不落盘:{bad}")
 

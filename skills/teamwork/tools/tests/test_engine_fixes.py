@@ -126,7 +126,9 @@ class TestRedBaseDevToReview(_RepoCase):
         d = _run_state(self.tmp, "dev-complete", "--feature", self.feat_rel,
                        "--test-stdout", "1 failed: suite::legacy",
                        "--test-exit-code", "1",
-                       "--current-failures", "suite::legacy")
+                       "--current-failures", "suite::legacy",
+                       # v8.306:测试执行属验证类白名单 —— 必须申报谁跑的
+                       "--test-runner", "subagent", "--test-runner-model", "sonnet")
         self.assertEqual(d["verdict"], "PASS")
         self.assertEqual(d["transitioned_to"], "review")
         # 转移后引导指向 review-start(不引导直接 -complete)
@@ -146,7 +148,9 @@ class TestRedBaseDevToReview(_RepoCase):
         d = _run_state(self.tmp, "dev-complete", "--feature", self.feat_rel,
                        "--test-stdout", "1 failed: suite::legacy",
                        "--test-exit-code", "1",
-                       "--current-failures", "suite::legacy")
+                       "--current-failures", "suite::legacy",
+                       # v8.306:测试执行属验证类白名单 —— 必须申报谁跑的
+                       "--test-runner", "subagent", "--test-runner-model", "sonnet")
         self.assertEqual(d["transitioned_to"], "review")
         self.assertIn("continue_reminder", d)
         self.assertIn("review", d["continue_reminder"])

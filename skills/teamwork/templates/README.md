@@ -1,10 +1,9 @@
 # 文档模板索引
 
-本目录是 Teamwork 所有产出文档的**格式唯一真相源**（红线详 [TEMPLATES.md](../TEMPLATES.md)）。
-任何 teamwork 产出的格式 / 字段 / frontmatter schema / 表头结构，以本目录对应模板为准；禁止以 peer Feature 产物为格式基准。
+本目录是 Teamwork 所有产出文档的**格式唯一真相源**:任何 teamwork 产出的格式 / 字段 / frontmatter schema / 表头结构,以本目录对应模板为准。🔴 **禁止以 peer Feature 产物为格式基准**(可能是老 schema / 被手改过 · 抄过去 = 漂移放大);与模板不一致时**以模板为准** + 在 concerns 记录漂移。peer Feature 仅可作**内容参考**(AC 写法 / 用例套路 / 决策背景)—— meta 规则单源 [standards/common.md §四C 权威源单源规则](../standards/common.md)。
 
 > 无手写模板的两类机读产物：`state.json`（`tools/state.py` 单源维护）与 Feature 内 `review-log.jsonl`（state.py 各 stage 完成时自动追加）——**工具单源 · 不在本目录**。
-> 另：TECH-REVIEW.md 与 REVIEW.md 的 schema 单源在 stages/（blueprint-stage.md / review-stage.md）· 无独立模板（v8.289:REVIEW-arch/-qa 已退役 · 主审判断落 REVIEW.md）。
+> 另：TECH-REVIEW.md 与 REVIEW.md 的 schema 单源在 stages/（blueprint-stage.md / review-stage.md）· 无独立模板（REVIEW-arch/-qa 已退役 · 主审判断落 REVIEW.md）。
 
 ## 执行链产物（Feature 状态机内各 stage 产出）
 

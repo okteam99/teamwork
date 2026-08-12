@@ -218,7 +218,9 @@ class TestDraftPhaseRoleMerge(unittest.TestCase):
         self.assertIn("起草期", t)
         self.assertIn("评审期", t)
         self.assertIn("独立采样点", t)
-        self.assertIn("v8.155", t, "缺「评审期不能合」的实证依据 = 规则会被当成可商量的")
+        # v8.309:断言实证实质而非版本字面量(spec 已清版本标 · 实证叙事保留)
+        self.assertIn("实证", t, "缺「评审期不能合」的实证依据 = 规则会被当成可商量的")
+        self.assertIn("只产鼓掌", t, "实证内容(in-context 热审只产鼓掌)被清丢")
 
     def test_convergence_unified_not_parallel(self):
         """起草期并行拿加速,收敛期归一砍往返 —— 两句都要在。"""

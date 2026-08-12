@@ -5,7 +5,7 @@
 承担**独立采样视角**:用**与会话主模型错开**的模型、在**隔离 subagent** 里冷审(如 fable5 会话 → opus 外审)· 暴露同模型自评的相关盲区。
 不是"人"的角色 · 是**上下文隔离 + 权重错开**的 cross-check 机制。
 
-🔴 **v8.291:跨厂商 CLI 异质(codex/gemini)已退役** —— 冷启动 / 安全审查慢路径 / 登录故障面实测严重拖慢流程;同厂商错开已拿到独立采样的主要收益(形态与门禁单源 [standards/external-model-usage.md §一](../standards/external-model-usage.md))。
+🔴 **跨厂商 CLI 异质(codex/gemini)已退役** —— 冷启动 / 安全审查慢路径 / 登录故障面实测严重拖慢流程;同厂商错开已拿到独立采样的主要收益(形态与门禁单源 [standards/external-model-usage.md §一](../standards/external-model-usage.md))。
 
 ## 创作要点(角色身份切换时参考)
 

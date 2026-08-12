@@ -469,8 +469,9 @@ def maintain_chmod_tools(skill_root: Path) -> dict:
 # post-compact 恢复已由 state.json 断点续跑覆盖 · codex hooks.json 更是当年
 # "cyber abuse" 警告的诱因之一(external-model-usage §抽出来源)。
 # 新行为:① 清理项目里历史部署的 teamwork hook 文件(仅列名文件 · 内容含
-# teamwork 签名才删 · 防误删用户同名 hook)② codex-cli 仍部署 .codex/agents/*.toml
-# (subagent profile · 活功能 · 与 hooks 无关)。
+# teamwork 签名才删 · 防误删用户同名 hook)② 🔴 v8.304:`.codex/agents/*.toml` 由「部署」
+# 改为「**回收**」—— 源已随 v8.293 跨厂商退役删除,已部署副本是零工具 profile,
+# 与现行 subagent 冷审架构不兼容(详 maintain_host_hooks 内注释)。
 _LEGACY_HOOK_FILES = ("post-compact.sh", "post-stop.sh", "post-subagent.sh",
                       "session-restore.sh", "hooks.json")
 
@@ -506,18 +507,41 @@ def maintain_host_hooks(skill_root: Path, project_root: Path, host: str) -> dict
     except OSError:
         pass
 
+    # 🔴 v8.304:清理 v8.293 之前部署的 `.codex/agents/*.toml`(不再部署 · 改为回收)。
+    #
+    # 那三个 profile 是**旧架构**的产物:当时 state.py 把待评审文件 **inline 进 prompt** 喂给
+    # reviewer,所以 profile 里故意声明「READ-ONLY · Cannot write files via shell ·
+    # Cannot execute commands」—— 零工具是**设计**,不是缺陷。
+    #
+    # v8.291 起第三视角改为**错开模型 subagent 冷审**,v8.303 又把「读真实代码」立成硬要求;
+    # 而现配方只 inline 一部分(goal→PRD · blueprint→TC/TECH · **review→无**),
+    # **上游 WS 与真实代码从不 inline** → 零工具 profile 与现行架构**架构性不兼容**。
+    # v8.293 删了 skill 侧的源却没回收已部署副本 —— 它们留在用户项目里继续被宿主选中,
+    # 表现为 `files_read: []` + `no authorized read-only file access`,**阻塞整个 goal 冷审**。
+    #
+    # 守卫同 hook:仅列名文件 + 内容含 teamwork 签名才删(用户自建的同名 profile 不动)。
+    _LEGACY_CODEX_AGENTS = ("prd-reviewer.toml", "blueprint-reviewer.toml", "reviewer.toml")
     deployed_tomls, failed = [], []
+    legacy_agents_removed, kept_foreign_agents = [], []
     if host == "codex-cli":
         agents_target = project_root / ".codex" / "agents"
-        codex_agents_dir = skill_root / "codex-agents"
-        if codex_agents_dir.is_dir():
-            agents_target.mkdir(parents=True, exist_ok=True)
-            for toml in codex_agents_dir.glob("*.toml"):
-                try:
-                    shutil.copy(toml, agents_target / toml.name)
-                    deployed_tomls.append(toml.name)
-                except OSError as e:
-                    failed.append({"file": toml.name, "reason": str(e)})
+        for _name in _LEGACY_CODEX_AGENTS:
+            _f = agents_target / _name
+            if not _f.is_file():
+                continue
+            try:
+                _body = _f.read_text(encoding="utf-8", errors="replace")
+            except OSError as e:
+                failed.append({"file": _name, "reason": str(e)})
+                continue
+            if "eamwork" not in _body:          # Teamwork / teamwork 任一签名
+                kept_foreign_agents.append(_name)   # 用户自建同名 · 不碰
+                continue
+            try:
+                _f.unlink()
+                legacy_agents_removed.append(_name)
+            except OSError as e:
+                failed.append({"file": _name, "reason": str(e)})
 
     return {
         "status": "hooks_retired" + ("_cleanup_removed" if removed else ""),
@@ -526,6 +550,12 @@ def maintain_host_hooks(skill_root: Path, project_root: Path, host: str) -> dict
            if removed else {}),
         **({"kept_foreign": kept_foreign} if kept_foreign else {}),
         **({"codex_agents_deployed": deployed_tomls} if deployed_tomls else {}),
+        **({"legacy_codex_agents_removed": legacy_agents_removed,
+            "note_codex_agents": "已回收 v8.293 前部署的零工具 reviewer profile"
+                                 "(与 v8.291 起的 subagent 冷审架构不兼容 —— 它读不了真实代码)· "
+                                 "第三视角改用**有文件读取能力**的隔离 agent + 错开模型"}
+           if legacy_agents_removed else {}),
+        **({"kept_foreign_codex_agents": kept_foreign_agents} if kept_foreign_agents else {}),
         **({"failed": failed} if failed else {}),
     }
 

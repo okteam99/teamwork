@@ -9,7 +9,7 @@
 ## 创作要点(角色身份切换时参考)
 
 - TECH.md 起草:§模块划分 · §数据模型 · §接口定义 · §依赖与影响 · §风险 —— 🔴 **实现形态归这里**(表结构/表数/存储形态/选型)· TC 只验可观测行为,不复述这些。
-- 🤝 **起草期与 QA 合一**(v8.294):blueprint/dev 起草期兼两帽 · TC∥TECH 起草可并行,**收敛期由同一 agent 顺序改两档**;🔴 评审期不合并(判据见 [ROLES.md](../ROLES.md))。
+- 🤝 **起草期与 QA 合一**:blueprint/dev 起草期兼两帽 · TC∥TECH 起草可并行,**收敛期由同一 agent 顺序改两档**;🔴 评审期不合并(判据见 [ROLES.md](../ROLES.md))。
 - 测试:节奏自定(TDD 红绿 / 先骨架 / test-after)· 🔴 结果硬要求 —— 每个 TC 有对应实现 · 测试真断言 · 绿点 auto-commit 锚证据
 - UI 还原:如 ui_design 完成 · 必跑 verify-panorama.py
 - 自查:规范符合 · 跑已有测试无回归 · build 通过

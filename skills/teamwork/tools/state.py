@@ -746,11 +746,11 @@ def _parse_ws_features(ws_file: Path) -> list[dict]:
             if cur:
                 feats.append(cur)
             cur = {"id": m_id.group(1).strip().strip("\"'"), "target": "", "bl": "",
-                   "deps": [], "status": "", "scope": ""}
+                   "deps": [], "status": "", "scope": "", "goal_plain": ""}
             continue
         if cur is None:
             continue
-        m_kv = re.match(r"^\s*(target|bl|status|scope|dependencies):\s*(.*?)\s*$", ln)
+        m_kv = re.match(r"^\s*(target|bl|status|scope|dependencies|goal_plain):\s*(.*?)\s*$", ln)
         if m_kv:
             k, v = m_kv.group(1), m_kv.group(2).strip().strip("\"'")
             if k == "dependencies":
@@ -849,8 +849,8 @@ def _render_ws_progress(ws_label: str, items: list[dict], n_roadmaps: int,
         lines.insert(1, "⚠️ 状态词不在词表(按待开始计 · 词表见 templates/roadmap.md):" +
                      " · ".join(f"{u['feature']}「{u['status'][:24]}」" for u in unrecognized))
     if items:
-        lines += ["| feature | BL | 子项目 | 功能 | 状态 | 当前阶段 | F |",
-                  "|---------|----|--------|------|------|----------|---|"]
+        lines += ["| feature | BL | 涉及子项目 | 功能 | 大白话目标 | 状态 | 当前阶段 | F |",
+                  "|---------|----|-----------|------|-----------|------|----------|---|"]
         for it in sorted(items, key=lambda x: (x.get("subproject", ""), x["bl"])):
             raw = it["status"].strip()
             b, _known = _ws_status_bucket(raw)
@@ -858,7 +858,7 @@ def _render_ws_progress(ws_label: str, items: list[dict], n_roadmaps: int,
             st = raw if raw[:1] in "✅🔄🗑⏳🔒📝" else f"{icon} {raw}".strip()
             lines.append(
                 f"| {it.get('short') or '—'} | {it['bl']} | {it.get('subproject') or '—'} "
-                f"| {it['name'] or '—'} | {st} | {it['stage'] or '—'} | {it['f_id'] or '—'} |")
+                f"| {it['name'] or '—'} | {it.get('goal_plain') or '—'} | {st} | {it['stage'] or '—'} | {it['f_id'] or '—'} |")
     return "\n".join(lines), unrecognized
 
 
@@ -1051,13 +1051,15 @@ def cmd_ws_progress(args: argparse.Namespace) -> None:
             hit = _pick_bl_row(f, by_bl.get(f["bl"], []), _reg, root) if f["bl"] else None
             if hit:
                 sub, r, _rm = hit
-                items.append({**r, "subproject": f["target"] or sub, "short": short})
+                items.append({**r, "subproject": f["target"] or sub, "short": short,
+                              "goal_plain": f.get("goal_plain", "")})
             else:
                 items.append({
                     "bl": f["bl"] or "—", "name": f.get("scope", "")[:24],
                     "status": "未匹配 ROADMAP" if f["bl"] else "未写入 ROADMAP",
                     "stage": "", "f_id": "", "ws": ws_label,
-                    "subproject": f["target"] or "—", "short": short})
+                    "subproject": f["target"] or "—", "short": short,
+                    "goal_plain": f.get("goal_plain", "")})
         seen = roster_bls
         for sub, r, _rm in rm_rows:                # 名册外但「关联 WS」命中 → 孤儿(surfacing)
             if (targets & _ws_nums(r["ws"])) and r["bl"] not in seen:
@@ -1792,7 +1794,7 @@ def cmd_init_feature(args: argparse.Namespace) -> None:
             f"[WARN] admission MISMATCH:prepare-check 时 AI judgment 推荐 "
             f"flow_type={audit_recommended!r} · 但 init-feature --flow-type={args.flow_type!r} · "
             f"audit at {rec.get('timestamp')} · 若 admission_judgment.ai_rationale "
-            f"信号强(如「方向级业务变更」「跨独立部署服务」)· 建议取消本次 init · "
+            f"信号强(如「方向级业务变更」「跨独立 git 仓库」)· 建议取消本次 init · "
             f"用 --flow-type={audit_recommended!r} 重走 prepare-check + Feature Planning 或对应流程"
         )
 
@@ -1944,7 +1946,9 @@ def cmd_init_feature(args: argparse.Namespace) -> None:
             # v8.261:留两端 · 各合并单路 —— goal 单路合并冷审(PL+外审关注点合一)·
             # review 单路合并评审(Architect+QA 关注点合一)· blueprint 评审仍去。
             # 「fast」伪角色:收敛协议(verdicts/findings/severity/验证轮)全保留 · 单 agent 兼多帽。
-            state["stage_review_roles"] = {"goal": ["fast"], "review": ["fast"]}
+            # v8.305:blueprint 显式写 [] —— 原来靠**键缺失**表达「评审整段去掉」,
+            # 而门禁把「缺失」读成「未配置 → 按默认要 external」· 意图必须显式化。
+            state["stage_review_roles"] = {"goal": ["fast"], "blueprint": [], "review": ["fast"]}
             state["stage_review_roles_adjustments"] = [{
                 "stage": "*", "roles": [], "reason": "fast_mode(localconfig)· goal/review 各留单路合并评审 · 其余评审跳", "adjusted_via": "fast_mode"}]
     # ── v8.0+P0-3:cwd 物化校验(治本 PTR-F033 主 tree 污染 case)──
@@ -2668,6 +2672,8 @@ def _build_output_style_hint(host: Optional[str]) -> dict:
 PLANNING_CHECKLIST = [
     {"item": "🔴 拆 BL/WS 前调研实际代码现状:每个候选 BL 核验「已做什么 / 真缺口在哪」· 反映真实完成度(不把已完成列 todo · 不把有脚手架的当 greenfield)· decisive 前提(数据是否真入库 / 能力是否真生效)核验实际代码 · 不轻信 Explore/sub-agent 摘要 · 🔴 需 live 数据(查 DB/log)先读 project-specs/TROUBLESHOOTING.md 拿连法,别凭 .env/启动脚本瞎试",
      "spec": "feature-planning.md §2 Step 1"},
+    {"item": "🔴 拆分视角 = 业务交付,不是子项目:**代码跨多个子项目 ≠ 拆多个 feature**(target 只是 ROADMAP 归属 · 实现可跨 · 前缀取业务交付宿主〔详 prepare.md §1.5.3〕)· 拆解讨论稿每条候选 BL 必答**大白话目标**(`goal_plain` · 这条单独上线后谁能干什么/得到什么 —— 写不出 = 横切件并回宿主 · ws-progress 总览表直出此列)",
+     "spec": "feature-planning.md §2 Step 5.7 + templates/workstream.md"},
     {"item": "范围判定:工作区级(改 teamwork-space.md + 多 PROJECT.md)vs 子项目级(单 PROJECT.md + ROADMAP.md + sitemap.md)",
      "spec": "feature-planning.md §2 Step 2"},
     {"item": "🎨 全景UI初步规划(本轮涉 UI 时 · 🔴 拆 WS 之前出):在 {子项目}/docs/design/preview-project/ 出/扩 design system + 本轮关键页(初步 · 系统+代表页 · 非每页 · 防瀑布 · 跑 preview.sh 看)+ 同步 sitemap.md(IA 地图 · 只写层级/导航不写视觉)· 完成产生 git diff = 拆 WS 的输入 · 🔴 **出完必给用户可访问预览 URL(跑 preview.sh 抓 PREVIEW_URL)+ emit R5 等用户确认全景 · 用户没确认过 = 不算规划完成**(auto/yolo 自动确认 · 留痕=下游 WS frontmatter ui_panorama_confirmed 标 auto · 🔴 规划不进状态机 add-concern 不可用);非 UI 轮跳过(下游 WS 标 全景初规:N-A)",
@@ -2717,7 +2723,7 @@ def cmd_planning_check(args: argparse.Namespace) -> None:
             "keyword": "规划 / 拆 roadmap / 路线图 / 全景 / 商业模式调整 / 做电商 / 做 SaaS",
             "complexity_force_upgrade": (
                 "关键词命中 Feature/Micro 时 · 命中任一强制升 Feature Planning:"
-                "跨仓库联动(≥2)/ 数据模型重构 / 老需求架构性废弃 / 影响 ≥2 BL / 方向级业务变更"
+                "跨独立 git 仓库(≥2 · 同 repo 多部署单元不计入)/ 数据模型重构 / 老需求架构性废弃 / 影响 ≥2 BL / 方向级业务变更"
             ),
         },
         "planning_checklist": PLANNING_CHECKLIST,
@@ -2993,24 +2999,30 @@ def cmd_change_review_roles(args: argparse.Namespace) -> None:
         }, ensure_ascii=False, indent=2))
 
     review_roles = state.setdefault("stage_review_roles", {})
-    if args.stage not in review_roles:
+    # v8.305:不再要求「stage 已在 dict 里」—— 那条让 fast_mode 下的用户**无法自救**
+    # (fast 把 blueprint 从 dict 去掉 · 而门禁要 external · 想显式设空都被拒 → 只剩 bypass)。
+    # 现在只校验 stage 是否**有评审语义**(engine 的 STAGES_WITH_REVIEW_ROLES_HINT 单源)。
+    try:
+        from _v8_engine import STAGES_WITH_REVIEW_ROLES_HINT as _REVIEWABLE
+    except ImportError:
+        _REVIEWABLE = set(review_roles.keys())
+    if args.stage not in _REVIEWABLE:
         die(2, json.dumps({
             "verdict": "FAIL",
             "command": "change-review-roles",
-            "error": (
-                f"stage '{args.stage}' 不在 state.stage_review_roles · "
-                f"该 stage 默认无 review 配置(无意义)"
-            ),
-            "hint": f"已配置 stages: {sorted(review_roles.keys())}",
+            "error": f"stage '{args.stage}' 没有评审语义(无 reviewer 席位可调)",
+            "hint": f"可调 stages: {sorted(_REVIEWABLE)}",
         }, ensure_ascii=False, indent=2))
 
-    roles_list = [r.strip() for r in args.roles.split(",") if r.strip()]
-    if not roles_list:
-        die(2, json.dumps({
-            "verdict": "FAIL",
-            "command": "change-review-roles",
-            "error": "--roles 不能为空 · 至少 1 个角色",
-        }, ensure_ascii=False, indent=2))
+    # v8.305:**允许显式清空**(`--roles ''` / `--roles none`)—— 「本 stage 不评审」是合法配置,
+    # 原来把它当参数错误拒掉,等于只能加不能减。
+    _raw = (args.roles or "").strip().lower()
+    if _raw in ("", "none", "[]", "-"):
+        roles_list = []
+    else:
+        roles_list = [r.strip() for r in args.roles.split(",") if r.strip()]
+        if not roles_list:
+            roles_list = []
 
     invalid = [r for r in roles_list if r not in REVIEW_ROLE_ENUM]
     if invalid:
@@ -3021,7 +3033,8 @@ def cmd_change_review_roles(args: argparse.Namespace) -> None:
             "hint": f"REVIEW_ROLE_ENUM = {sorted(REVIEW_ROLE_ENUM)}",
         }, ensure_ascii=False, indent=2))
 
-    before = review_roles[args.stage][:]
+    # v8.305:允许 stage 尚未在 dict 里(放宽守卫后必须跟着改)—— 缺失视作空 roster
+    before = list(review_roles.get(args.stage, []))
 
     # v8.66:yolo 去 external 评审 = 拆无人值守唯一安全网 → 默认禁止(非必要不得去)
     # 治本 case(WS-002 yolo):AI 把 yolo 当"简化/提速" · change-review-roles 去 goal/blueprint
@@ -3046,7 +3059,10 @@ def cmd_change_review_roles(args: argparse.Namespace) -> None:
             "rule": "v8.66 yolo 加重审核 · 非必要不得去 external(SKILL.md § yolo)",
         }, ensure_ascii=False, indent=2))
 
-    if before == roles_list:
+    # v8.305:stage 键**本就不存在** + 目标为空 → 不是 NOOP,是**把「不评审」显式物化**
+    # (原来靠键缺失表达意图 · 而缺失读不出「有意」还是「忘了」· 同本版 fast_mode 的修法)
+    _materialize_empty = (args.stage not in review_roles and not roles_list)
+    if before == roles_list and not _materialize_empty:
         emit({
             "verdict": "NOOP",
             "command": "change-review-roles",
@@ -3435,12 +3451,16 @@ def cmd_external_review(args: argparse.Namespace) -> None:
         "next_action": (
             "🎭 **第三视角冷审 = 错开模型 subagent**(v8.291 · 跨厂商 CLI 异质已退役 · 本命令不 exec 子进程):\n"
             f"  1. 起 Agent subagent(isolated context)· 🔴 **model 参数必须 ≠ 会话主模型**"
+            "· 🔴 **必须有文件读取能力**(要读真实代码/上游 WS —— 本配方只 inline 部分文件:"
+            "goal→PRD · blueprint→TC/TECH · review→无)· "
+            "零工具 reviewer profile 会返 `files_read: []` 并阻塞整个 stage(v8.304)"
             "(如 fable5 会话 → `model: opus`)· prompt = 读 " + str(prompt_doc) + " 的内容"
             "(评审指令 + 待评审文件已 inline · **不喂主对话起草心路**)\n"
             "  2. 把 subagent 产出写到 `external-cross-review/" + args.stage + "-<实际模型>"
             + ("-fixverify" if verify_fixes else "") + ".md` · frontmatter 必含:\n"
             "       review_model: <subagent 实际用的模型 · 照实写>\n"
             "       review_via: subagent\n"
+            "       files_read: [<实际读过的文件 · 空 = 能力缺失 · 门禁判 CAPABILITY_BLOCKED>]\n"
             f"       target_commit: {commit}\n"
             "       coverage: [<本次实际覆盖的方向>]\n"
             "  3. `" + args.stage + "-complete` 门禁校验:产物非空 + `review_via: subagent` + coverage 申报。\n"

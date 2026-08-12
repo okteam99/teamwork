@@ -941,6 +941,9 @@ def execute_stage_start(
         "status_line": render_status_line(state, f"按 brief 完成 → {stage_spec.name}-complete"),
         **({"scaffold_hints": scaffold_hints} if scaffold_hints else {}),
         "dispatch_tier_reminder": DISPATCH_TIER_REMINDER,  # v8.238:派发声明制 · 消费时点提醒
+        # v8.306:验证档派发配方 —— 只在 dev/test-start 出(测试执行的动作点)
+        **({"verification_recipe": _vr} if (_vr := _verification_recipe(
+            stage_spec.name, getattr(args, "feature", "<path>"))) else {}),
         **({"brief_overflow_path": brief_overflow_path} if brief_overflow_path else {}),
         **({"raw_write_audit": rw_audit} if rw_audit else {}),
         # v8.36:host 切换 / 校准信息暴露
@@ -1362,7 +1365,12 @@ def _render_pause_discipline(authorized_pause_point: str,
 # ─── v8.0+P0-9:review 角色 enum + 默认矩阵 ──────────────────────────
 
 
-REVIEW_ROLE_ENUM = {"pm", "qa", "architect", "rd", "designer", "pl", "external"}
+REVIEW_ROLE_ENUM = {"pm", "qa", "architect", "rd", "designer", "pl", "external",
+    # v8.305:`fast` 是 fast_mode 自己写进 roster 的**伪角色**(单 agent 兼多帽 · v8.261),
+    # 却不在枚举里 → `change-review-roles` 判它非法 · fast 模式下用户连把当前值传回去都会被拒,
+    # 等于该模式下这条命令整个不可用。它是框架自产的合法 roster 值,必须收进枚举。
+    "fast",
+}
 """review 角色 7 闭集。
 
 设计:
@@ -2061,6 +2069,32 @@ def _preventability_hint(stage: str, feature: str, verdict) -> Optional[str]:
     )
 
 
+def _verification_recipe(stage: str, feature: str) -> Optional[str]:
+    """v8.306:在 **dev/test-start 的动作点**给出验证档派发配方 —— 不靠 stage 文档记忆。
+
+    实证(aon-core):AI 在主窗口直接跑了测试,自陈「沿用了『主编排收口测试』的旧习惯,
+    漏掉了 v8.299 的硬规则」。规则**读过**(它自己引用了版本号),但**提醒在 stage-start、
+    动作在几十个工具调用之后** —— 与 v8.299 派发声明、v8.301 命令时点是同一个失效机理。
+
+    故配方在 start 就给全:派发语句 + 跑完要采的指纹命令 + complete 的完整参数。
+    """
+    if stage not in ("dev", "test"):
+        return None
+    return (
+        f"🧪 **测试执行属 v8.299 验证类白名单 —— 默认派验证档 subagent,不要主窗口直接跑**:\n"
+        f"  ① 派发(prompt 首行声明):`Meta: tier=验证 · model=<验证档型号> · 理由=测试执行属白名单`\n"
+        f"     🔴 subagent 需**文件读取 + 命令执行**能力(要真跑测试)· model ≠ 会话主模型\n"
+        f"  ② 跑完**当场**采代码指纹(测完再改代码,这份日志就作废):\n"
+        f"     `python3 -c \"import subprocess,hashlib;"
+        f"t=subprocess.run(['git','-C','{feature}','rev-parse','HEAD^{{tree}}'],capture_output=True,text=True).stdout.strip();"
+        f"d=subprocess.run(['git','-C','{feature}','diff','HEAD'],capture_output=True,text=True).stdout;"
+        f"print(hashlib.sha256((t+d).encode()).hexdigest())\"`\n"
+        f"  ③ complete 带齐三项:`--test-runner subagent --test-runner-model <型号> --test-tree-hash <②的输出>`\n"
+        f"  ⚠️ 主窗口跑 = 白名单例外 → **不许 AI 自决**:开 R5 请用户授权,再 "
+        f"`--test-runner main-window --user-confirmed`。"
+    )
+
+
 def _stage_cost_hint(stage: str, feature: str, duration_minutes) -> Optional[str]:
     """本 stage 值得记耗时归因 → 返回一行提示 · 否则 None。"""
     if stage not in _STAGE_COST_STAGES:
@@ -2203,6 +2237,16 @@ def _add_stage_specific_args(parser: argparse.ArgumentParser, stage_name: str, p
                             help="测试 stdout(文件路径或字符串)· 必须非空")
         parser.add_argument("--test-exit-code", type=int, default=None,
                             help="测试 exit code · 必须 = 0")
+        # v8.306:证据的**两个维度** —— 谁跑的(自我申报 · 拦忘不拦骗)+ 对应哪份代码(零信任重算)
+        parser.add_argument("--test-runner", default="",
+                            choices=["", "subagent", "main-window", "ci"],
+                            help="[v8.306] 🔴 必传 · 谁跑的测试:subagent(验证档 · 正解)/ "
+                                 "main-window(白名单例外 · 需 --user-confirmed)/ ci")
+        parser.add_argument("--test-runner-model", default="",
+                            help="[v8.306] 跑测试的 subagent 实际模型(照实写 · 供台账核「是否真降档」)")
+        parser.add_argument("--test-tree-hash", default="",
+                            help="[v8.306] 跑测试**当时**的 worktree 指纹 —— complete 自己重算并比对 · "
+                                 "不一致 = 测完又改了代码(旧日志不算数)· 命令见 dev-start 配方")
         parser.add_argument("--current-failures", default="",
                             help="[v8.178] 红 base 差分基线:逗号/换行分隔的当前失败用例 id · "
                                  "工具对照 project-specs/test-baseline.md 算新增(0 新增 → 红 base 也放行)")

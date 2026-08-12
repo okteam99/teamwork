@@ -51,7 +51,7 @@ revision_history:
 ## §3 决策(用户已拍板 · 记录结果 · 不是选项脚本)
 
 > 🔴 三个选项与各自的回退命令**单源在 [pm-acceptance-stage.md](../stages/pm-acceptance-stage.md)** ——
-> 本文件是**决策之后的记录**,不复述暂停点脚本(v8.293:原三分支槽位 + 四条回退命令与 stage 逐字重复)。
+> 本文件是**决策之后的记录**,不复述暂停点脚本(原三分支槽位 + 四条回退命令与 stage 逐字重复)。
 
 **决策**:{approved_and_ship / approved_no_ship / rejected_with_feedback}
 **理由**(一句):{如:核心 AC 全过 · 截图与 PRD UI 一致 · 无阻塞问题}

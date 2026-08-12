@@ -11,7 +11,7 @@
 
 ---
 
-## 1. 流程 artifact ID(Feature / Bug · v8.220 后 ID 统一 F/B)
+## 1. 流程 artifact ID(Feature / Bug · ID 统一 F/B)
 
 进状态机的顶层 artifact —— 每个有独立目录 + `state.json`。**按 flow_type 分字母**:
 
@@ -30,7 +30,7 @@
 |---|---|---|---|
 | Feature | `F` | 项目独立 | 完整 Feature |
 | Bug | `B` | 项目独立 | 标准 Bug 流程(独立修复请求 · ≠ Feature 内 bug · 见 §2) |
-| (legacy)Micro | `M` | — | v8.220 起新 init 产 `F`(preset=micro)· 存量 M-id 有效不迁 |
+| (legacy)Micro | `M` | — | 新 init 产 `F`(preset=micro)· 存量 M-id 有效不迁 |
 
 - **项目缩写**:来自 `teamwork-space.md` § 子项目清单「缩写」列(任何 teamwork 项目都有 teamwork-space.md · N≥1 统一模型 · 单项目 = 清单里 1 行 · 详 §7)
 - **{号段}**:默认 **UTC 秒级时间戳**(`YYMMDDHHMMSS` · 12 位定宽 · 字典序=时间序 · 跨机/多 agent 并行各自生成、免中心协调 → 根治分布式 `max+1` 撞号);项目可 `id_strategy: sequential` opt-out 回 **3 位顺序号**(`各项目 × 各字母独立递增` · `PTR-F` 与 `PTR-B` 各一条序列)。两策略均**不跨项目共享**(`PTR-F033` 与 `SVC-PLATFORM-F033` 可并存)· **存量 ID 不重编号**(新旧天然可区分:3-4 位 vs 12 位)。
@@ -127,7 +127,7 @@ state.py 校验:basename(--feature) 必须包含 --feature-id(防 slug 错位)�
 |---|---|---|
 | F-NNN | **项目独立** | Feature · PTR-F033 与 SVC-PLATFORM-F033 可并存 |
 | B-NNN | **项目独立** | 标准 Bug 流程 · 与 F 序列独立(PTR-B 自成一列) |
-| M-NNN | **项目独立** | (legacy)Micro 存量 · v8.220 起新 init 产 F(preset=micro)· 与 F / B 序列独立 |
+| M-NNN | **项目独立** | (legacy)Micro 存量 · 新 init 产 F(preset=micro)· 与 F / B 序列独立 |
 | BL-NNN | **项目独立** | 同 F-NNN · feature 原子(规划期)· 关联回 WS-NN |
 | WS-NN | **项目独立** | Workstream(规划单元 · `product-overview/workstream/`)· 拆一组 feature · 承接 1+ 执行线 |
 | BUG-...-NNN | **宿主 artifact 内独立** | seq 在单 artifact(Feature / Bug)范围递增 |
@@ -212,7 +212,7 @@ git branch -d <branch>
 
 各 stage 常需 browse 预览/页面**截图自检渲染**(ui_design 预览验证 · dev/review/pm 顺手核对 UI)。这类截图是**一次性验证产物**(AI 自己看 · 非交付 · 不 commit)· **必须写到系统临时目录** · 否则会散落污染主工作区根目录。
 
-- **统一位置**:`${TMPDIR:-/tmp}/teamwork/<feature_id>/screenshots/`(按 feature 命名 · session 内可复寻 · 回收 = ship2 tmp-cleanup + bootstrap TTL —— scratch 根通则详 [standards/common.md §六](../standards/common.md) · v8.247)。
+- **统一位置**:`${TMPDIR:-/tmp}/teamwork/<feature_id>/screenshots/`(按 feature 命名 · session 内可复寻 · 回收 = ship2 tmp-cleanup + bootstrap TTL —— scratch 根通则详 [standards/common.md §六](../standards/common.md))。
   ```bash
   SHOT_DIR="${TMPDIR:-/tmp}/teamwork/<feature_id>/screenshots"; mkdir -p "$SHOT_DIR"
   # 浏览器截图存 "$SHOT_DIR/<name>.png" · 再按绝对路径 Read 查看
@@ -234,9 +234,9 @@ teamwork 文档分 **workspace 级**(仓库根)和 **子项目级**两层。
 | 目录 / 文件 | 内容 | 维护方 |
 |---|---|---|
 | `product-overview/` | 产品愿景 / 业务架构 / 执行线列表 + `workstream/`(WS)+ `PENDING.md`(待规划需求池 · 从 teamwork-space 外置 · 详 [PRODUCT-OVERVIEW-INTEGRATION.md](../PRODUCT-OVERVIEW-INTEGRATION.md)) | Product Lead |
-| `project-specs/` | 工程层项目文档:`DEV-RULES.md`(人维护开发规范 · blueprint/dev 必读)· `UI-RULES.md`(人维护设计规范:控件/色板策略/交互约定 · 装策略不装视觉值)· `KNOWLEDGE.md`(AI 沉淀踩坑/事实)· `GLOSSARY.md` · `TROUBLESHOOTING.md` · `ARCHITECTURE.md`(workspace 级系统架构:子项目拓扑+依赖+目录 · 从 teamwork-space.md 外迁 · 区别 `{子项目}/docs/architecture/` 单子项目内部)· `PROCESS-LEDGER.md`(流程价值台账 · ship 采写 append · 年检数据源 · 详 ship-stage §16)· `test-baseline.md`(红 base 测试基线 · `state.py test-baseline --add` 生成)· `RELEASE-GUIDE.md`(版本发布规范 · 人维护 · 用户说「发布/上线」PMO 必读照办 · v8.258) | bootstrap 建空骨架(KNOWLEDGE/GLOSSARY/TROUBLESHOOTING/DEV-RULES/UI-RULES/ARCHITECTURE/RELEASE-GUIDE 七件)· PROCESS-LEDGER/test-baseline 由工具生成 · 项目维护 |
+| `project-specs/` | 工程层项目文档:`DEV-RULES.md`(人维护开发规范 · blueprint/dev 必读)· `UI-RULES.md`(人维护设计规范:控件/色板策略/交互约定 · 装策略不装视觉值)· `KNOWLEDGE.md`(AI 沉淀踩坑/事实)· `GLOSSARY.md` · `TROUBLESHOOTING.md`(**人维护**运维手册 · AI 不代写 · 只读取 + 提示补充)· `ARCHITECTURE.md`(workspace 级系统架构:子项目拓扑+依赖+目录 · 从 teamwork-space.md 外迁 · 区别 `{子项目}/docs/architecture/` 单子项目内部)· `PROCESS-LEDGER.md`(流程价值台账 · ship 采写 append · 年检数据源 · 详 ship-stage §16)· `test-baseline.md`(红 base 测试基线 · `state.py test-baseline --add` 生成)· `RELEASE-GUIDE.md`(版本发布规范 · 人维护 · 用户说「发布/上线」PMO 必读照办) | bootstrap 建空骨架(KNOWLEDGE/GLOSSARY/TROUBLESHOOTING/DEV-RULES/UI-RULES/ARCHITECTURE/RELEASE-GUIDE 七件)· PROCESS-LEDGER/test-baseline 由工具生成 · 项目维护 |
 | `teamwork-space.md` | 知识地图根 / 路由(N≥1 统一模型 · **单项目也有** · bootstrap 自动建骨架 · 详 [teamwork-space-guide.md](./teamwork-space-guide.md)) | PM |
-| `CLAUDE.md` / `AGENTS.md` | host 指令入口 · 固定位置 · 不可移 | 项目自维护(v8.211 注入退役 · bootstrap 仅清理历史注入块) |
+| `CLAUDE.md` / `AGENTS.md` | host 指令入口 · 固定位置 · 不可移 | 项目自维护(注入退役 · bootstrap 仅清理历史注入块) |
 | `.teamwork-local-env/` | 🔐 本机敏感配置:`config.properties`(KEY=value:DB 密码 / API key)+ 整文件(kubeconfig / 证书)· **双重 gitignore · 绝不进仓库**。bootstrap 缺失时自动建(`local_env_auto_create` 默认 true)· 已存在不覆盖。读取约定见 `TROUBLESHOOTING.md §五`。 | 用户(secret 真值)/ bootstrap(骨架) |
 
 🔴 **`project-specs/` 与 `product-overview/` 同级** —— 产品视角 ↔ 工程视角成对。workspace 级工程文档**一律进 `project-specs/`** · 不散在仓库根。
@@ -265,11 +265,12 @@ teamwork 文档分 **workspace 级**(仓库根)和 **子项目级**两层。
 
 > 🔴 **spec = 现行真相手册**:`SKILL.md` / `stages/*.md` / `standards/*.md` / `roles/*.md` 等给 AI 运行时读的文档,只写**当前该怎么做**,**当它一直如此**地写。
 
-- 🔴 **不写版本标**:`(v8.xx)` / `[v8.xx]` / `v8.xx:` / `v8.xx 变更/增量/已物化` 一律不进 spec —— AI 运行时不需要知道某规则哪版加的。(例外:`v8.0` 范式切换在 SKILL.md 顶部留一处即可。)
-- 🔴 **不写 case-id / 实证叙事**:`治本 SVC-CORE-Bxxx case` / `实证 PTR-Fxxx` / `旧实现…改成…` / `曾把 X 写坏` 等都是调试考古 —— 留**规则 + 不做的后果 + 反模式**就够,具体哪个 feature 触发的不写。
-- ✅ **保留**:怎么做(步骤/命令/决策树)· 不做的后果(驱动遵守)· 反模式(防具体失败)· 设计 rationale(帮 AI 判断,但不带版本/case)。
-- 📦 **历史只进 CHANGELOG**:版本演进、治本的 case、"为什么从 X 改成 Y" 全写 `docs/CHANGELOG.md`(发布时记录)· 不复制进 spec。
-- 🔴 **发版纪律**:改 spec 加新规则时,**别在 spec 里写 `(v8.xx 新增)`** —— 直接当现行规则写;版本信息落 CHANGELOG。
+- 🔴 **不写版本标**(机器门:`tools/tests/` 版本标扫描 · 命中即红):`(v8.xx)` / `v8.xx:` / `v8.xx 用户拍板` 一律不进 spec —— AI 运行时不需要知道某规则哪版加的;且版本标随发版**必然持续渗入**(实测清扫前全库 244 处 · 靠自觉挡不住,故配机器门)。例外仅两处:SKILL.md frontmatter `version:`(版本单源)与其顶部 `v8.0` 范式标。
+- ✅ **实证 case 允许写**(用户拍板 · 与 [scripts-policy R-SP-8](../standards/scripts-policy.md) 对齐):`实证 PTR-Fxxx` / 匿名实证叙事可作为规则的 **why / 下游消费者标注**留在 spec —— 它回答「跳了会发生什么」,是规则抗「被当仪式跳过」的锚(R-SP-8 实证:没有消费者标注的 🔴 规则被 AI 自评为「只是仪式」而跳掉)。
+- ❌ 仍不写**纯考古**:「旧实现…改成…」「曾把 X 写坏后来修了」这类只描述演进、不支撑任何现行规则的叙事 → 归 CHANGELOG。判据:**删掉这句,现行规则的说服力 / 可执行性掉不掉?不掉 = 考古。**
+- ✅ **保留**:怎么做(步骤/命令/决策树)· 不做的后果(驱动遵守)· 反模式(防具体失败)· 设计 rationale。
+- 📦 **历史只进 CHANGELOG**:版本演进、"为什么从 X 改成 Y" 写 `docs/CHANGELOG.md`(发布时记录)· 不复制进 spec。
+- 🔴 **发版纪律**:改 spec 加新规则时**直接当现行规则写**(不写「新增」标记);版本信息落 CHANGELOG。
 
 ---
 
