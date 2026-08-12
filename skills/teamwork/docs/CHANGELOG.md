@@ -4,6 +4,36 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.318 · scratch 清理前移 ship1:治 worknode 141GB 堆积
+
+> 实证(worknode · Docker-in-Docker):`/tmp/teamwork` 独占 **141GB**,单 feature
+> SRUN-F260810160028 达 **78GB**。用户:feature 结束时是否有清理临时文件?
+> 追加拍板:**按理 ship1 阶段就应该清。**
+
+### 回答:设计上有,但两条通道在 worknode 形态下都够不着
+
+| 既有通道 | 为什么没救到这个 case |
+|---|---|
+| ship2 `tmp-cleanup`(verify-delivered 后整树删) | **session 常在 ship1 交 MR 后结束/换机** —— ship2 根本不在积灰的那台机器上跑 |
+| bootstrap TTL 7 天兜底 | **时间判据救不了空间问题** —— 7 天窗 × 78GB/feature,窗内即可打满磁盘 |
+
+### 修(用户拍板:ship1 即清)
+
+- **push 成功即清**(主时点):`ship-phase --action push` 记录成功后,工具顺手删
+  `${TMPDIR:-/tmp}/teamwork/<feature_id>/` 整树 · emit `scratch_cleanup`(含 pruned_bytes)。
+  依据:此刻测试/构建证据已入 state.json,scratch 无对账价值;**MR 窗口期撞冲突回炉需
+  冷编 = 接受的代价**(磁盘占用 > 增量缓存)。
+- **放弃即清**:`close-unmerged --abandon` 同步清(不会再回炉);暂时关闭(可重开)**保留**
+  增量缓存(重跑 archive→push 免冷编 · TTL 兜底)。
+- **ship2 `tmp-cleanup` 转幂等兜底**(ship1 漏清 / legacy in-flight)· bootstrap TTL 继续扫历史孤儿。
+- 回收口径从「双通道」改「三通道」(common §六 · ship-stage §4 同步)。
+
+### case 里另一个值得留意的点(不动 · 记录)
+
+141GB 含多个 feature 目录 —— 除主时点缺失外,单 feature 78GB 说明该项目构建产物本身巨大;
+in-flight feature 的 scratch 是**有意保留**的(串行 stage 复用增量编译),本版不加大小门 ——
+若后续 in-flight 单体也失控,再议按体量 WARN(观察项)。
+
 ## v8.317 · 复杂度信号 1 收窄:部署单元 → git 仓库(三载体统一)
 
 > 实证(matrixpower · Published-Model-Discovery):前后端联动小改(platform-api 目录规则 +
@@ -134,38 +164,3 @@ feature-planning Step 5.7 / workstream target 注释 / PLANNING_CHECKLIST ——
 
 不做的:ws-lint 机器识别「按子项目横切」—— 合法的跨子项目独立交付对与横切件在结构上同形
 (分属两子项目 + 有依赖),启发式误报率高;「交付物写不出来」这个人读信号比结构启发式准。
-
-## v8.313 · yolo 自动验收物化 + 外部世界动作边界
-
-> 实证(SDK-F260809171303 · 公共 JSSDK 发布):yolo 跑到 pm_acceptance,AI 停下等 1/2/3,
-> 说「发布决策是 Teamwork 强制用户确认点,YOLO 也不能跳过」。用户:**yolo 应该自动合入 yolo 分支。**
-
-### 判定:AI 没编规则 —— 它忠实执行了到达动作点的 brief
-
-`_pm_acceptance_brief` **无条件**写着「decision 是用户决策点 · emit 三选项然后停 · AI 不可自决」,
-整个函数没有 yolo 分支;而 SKILL yolo 表明写「pm_acceptance = **自动 approved_and_ship** + WARN」。
-SKILL 在几百个工具调用之前、brief 在动作点 —— **动作点的载体赢了**。
-🔴 **fast_mode 同族第二例**:spec 承诺的模式行为从未物化,工具在动作点反向覆盖。
-
-### 修 ①:yolo 自动验收物化(brief 按 `state.yolo` 分支)
-
-- yolo → brief 直接给自动路径:**AC 对照照做不跳**(自动 ≠ 免验收)→ `add-concern WARN` 留痕 →
-  `pm_acceptance-complete --decision approved_and_ship` → 自动进 ship 合入 merge_target(非主分支硬门);
-  AC 真有问题走 `rejected_with_feedback` 回修(**不硬过** · yolo 自主解决);release-gated 待补证据照常随行。
-- 非 yolo(含 auto_mode)照旧停 —— 产品决策权是用户专属。
-- 三载体收同口径:SKILL 表(自动)· brief(自动 · 新物化)· pm-acceptance-stage.md(补「唯一例外 = yolo」)。
-
-### 修 ②:外部世界动作边界(用户拍板:合入后单独停给用户)
-
-case 里的「发布」= **npm 公网发包 + 建公开仓**。yolo 的安全模型是**分支门**(merge_target 非 main ·
-主分支人工提升),但外部动作**不经过分支** —— 「零 stop」字面执行会让幻觉级错误(泄密/白名单漏洞)
-直接入公网且不可撤。**AI 停下的直觉方向对、挂点错**:该挡的是外部发布,不是验收与合入。
-
-新边界(SKILL yolo 节 + brief + stage doc 三处同口径):公网 registry 发布 / 创建公开仓 / 生产部署等
-**不经过分支门且不可逆**的动作不在「零 stop」范围 = release 域(RELEASE-GUIDE · 发布归用户)——
-**先自动验收 + 合入 + 清场(不阻断),外部发布单独停给用户**;❌ 不得以「有外部发布」为由把验收/合入也停下。
-
-### 🔴 密度门当场管了一次注意力经济
-
-新边界初版带 2 个 🔴 → SKILL 总数 56 超 55 门 —— 按既有判例**服从门、裁自己的红**
-(动作点载体 brief 里的 🔴 才是到达关键 · SKILL 处降级为 ⛔ 靠语境)。

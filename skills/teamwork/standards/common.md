@@ -194,7 +194,7 @@ Rust 项目示例(target 按 feature 共享):
     CARGO_TARGET_DIR=${TMPDIR:-/tmp}/teamwork/SVC-CORE-F029/target cargo test --test '*'
     # 同 feature 的 dev / review / test 全用这一份 target · 增量复用
 
-**回收双通道**:ship2 `tmp-cleanup` 即时清理(verify-delivered 通过后整树删 · 内容已上岸零风险)+ bootstrap TTL 兜底(默认 7 天 · 按**目录**整体删 —— cargo target 靠 fingerprint 判增量 · 按文件删会打碎一致性 · 捞回放弃的 feature 与历史孤儿)。
+**回收三通道**(用户拍板:磁盘占用 > MR 窗口期增量缓存):① **ship1 push 成功即清**(主时点 · emit `scratch_cleanup` —— 测试/构建证据已入 state.json,scratch 无对账价值;窗口期撞 MR 冲突回炉需冷编 = 接受的代价)② `close-unmerged --abandon` 放弃即清;ship2 `tmp-cleanup` 转**幂等兜底**(ship1 漏清 / legacy in-flight)③ bootstrap TTL 兜底(默认 7 天 · 按**目录**整体删 —— cargo target 靠 fingerprint 判增量 · 按文件删会打碎一致性 · 捞历史孤儿)。why(实证):清理原只挂 ship2 —— worknode 上 session 常在 ship1 后结束/换机,ship2 不在本机跑,TTL 窗内 `/tmp/teamwork` 打到 141GB(单 feature 78GB)。
 
 > 背景:CI 机磁盘 100% 打满实证 —— `/tmp/teamwork` 48GB 全是可无损重建的 cargo target(单 feature 26GB · 躺了数月)· 「有人写没人收」的无主命名空间。同类先例 = external-review-logs 无保留策略膨胀 300MB(v8.x 已治)· 本节是同一模式在 160 倍量级上的复用。
 

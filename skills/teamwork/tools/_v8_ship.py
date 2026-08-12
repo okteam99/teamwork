@@ -468,6 +468,13 @@ def _handle_ship_push(state: dict, args: argparse.Namespace) -> dict:
     ship["mr_create_url"] = args.mr_create_url
     ship["feature_pushed_at"] = args.feature_pushed_at or now_iso()
 
+    # scratch 随 ship1 push 即清(用户拍板:磁盘占用 > MR 窗口期增量缓存)——
+    # 实证 worknode /tmp/teamwork 141GB · 单 feature 78GB:清理原来只挂 ship2,
+    # 而 session 常在 ship1 后结束/换机,ship2 不在本机跑 · TTL 7 天窗内即可打满磁盘。
+    # 测试/构建证据此刻已入 state.json,scratch 无对账价值;MR 窗口期撞冲突回炉
+    # 需冷编 = 已接受的代价。ship2 同名步骤保留为幂等兜底。
+    scratch_cleanup = _prune_feature_tmp(state.get("feature_id") or "")
+
     # v8.232:ship1 终点用户卡片(工具确定性生成 · AI 🔴 原样贴给用户 · 不自由发挥总结)——
     # 治实证 case:AI 写「本轮总结」长段 · MR URL 埋在段落里 · 用户被迫问「地址发出来啊」。
     _mr_link = ship["mr_url"] or ship["mr_create_url"] or "<MR URL 缺失 · 检查 push 记录>"
@@ -526,6 +533,7 @@ def _handle_ship_push(state: dict, args: argparse.Namespace) -> dict:
         "user_card_file": _card_file,
         "stage": "ship",
         "action": "push",
+        "scratch_cleanup": scratch_cleanup,
         "transition": f"{cur_phase} → pushed",
         "phase": "pushed",
         **({"rerecorded": True} if cur_phase == "pushed" else {}),
@@ -1101,9 +1109,13 @@ def _handle_ship_close_unmerged(state: dict, args: argparse.Namespace) -> dict:
     if args.abandon:
         ship["phase"] = "closed_unmerged"
         ship["shipped"] = "abandoned"
+        # 放弃即清(不会再回炉 · 增量缓存无保留价值)
+        scratch_cleanup = _prune_feature_tmp(state.get("feature_id") or "")
     else:
         ship["phase"] = "closed_unmerged"
         ship["shipped"] = "closed_unmerged"
+        # 暂时关闭可重开(重跑 archive→push)· 保留增量缓存 · TTL 兜底
+        scratch_cleanup = {"status": "kept", "reason": "closed_unmerged 可重开 · 保留增量缓存(TTL 兜底)"}
 
     ship["closed_at"] = now_iso()
 
@@ -1116,6 +1128,7 @@ def _handle_ship_close_unmerged(state: dict, args: argparse.Namespace) -> dict:
         "verdict": "PASS",
         "stage": "ship",
         "action": "close-unmerged",
+        "scratch_cleanup": scratch_cleanup,
         "transition": f"{cur_phase} → closed_unmerged",
         "phase": "closed_unmerged",
         "shipped": ship["shipped"],
@@ -1227,11 +1240,13 @@ def _check_bl_flipped(wt_root: str, state: dict) -> dict:
 
 
 def _prune_feature_tmp(feature_id: str) -> dict:
-    """删 scratch 根下 <feature_id>/ 整树(ship2 · verify-delivered 通过后)。
+    """删 scratch 根下 <feature_id>/ 整树。
 
-    🔴 时序:必须在 verify-delivered PASS 之后 —— 归档 zip 已确认在 origin ·
-    日志/构建产物无对账价值 · 删除零风险。整目录删除(cargo target 是原子单元 ·
-    按文件删会打碎 fingerprint 一致性)。失败不阻塞(warnings 记录)。
+    调用时点(用户拍板 ship1 即清):① **ship1 push 成功后**(主时点 —— 证据已入
+    state.json · scratch 无对账价值;MR 窗口期撞冲突回炉需冷编 = 接受的代价)
+    ② close-unmerged --abandon(放弃即清)③ ship2 tmp-cleanup(**幂等兜底** ·
+    ship1 漏清/legacy in-flight)。整目录删除(cargo target 是原子单元 · 按文件删
+    会打碎 fingerprint 一致性)。失败不阻塞(warnings 记录)。
     """
     if not feature_id:
         return {"status": "n_a", "reason": "no_feature_id"}

@@ -58,6 +58,8 @@ state.py ship-phase --action push --feature <path> \
 
 门禁:`phase` 必须已是 `archived`(先 §3)· url-fallback 在 CLI 可用时 BLOCKED(P0-113 物化)。
 
+🔴 push 记录成功 → 工具**顺手清本 feature scratch**(`${TMPDIR:-/tmp}/teamwork/<id>` 整树 · emit `scratch_cleanup` · 用户拍板:磁盘占用 > MR 窗口期增量缓存 —— 撞冲突回炉需冷编为接受代价;ship2 同名步骤转幂等兜底 · 详 [common.md §六](../standards/common.md))。
+
 ### 5. ⏸️ ship1 终点 · 提示用户合并 MR(R5 标准暂停点)
 
 🔴 **feature 的 ship 到此结束** —— 归档/翻牌/终态已全部在这个 MR 里。

@@ -4,6 +4,41 @@
 > 上次清空:**v8.193**(2026-07-06 · 清除 v8.128 → v8.187 共 60 版条目 · 约 1.0k 行)。
 
 ---
+## v8.313 · yolo 自动验收物化 + 外部世界动作边界
+
+> 实证(SDK-F260809171303 · 公共 JSSDK 发布):yolo 跑到 pm_acceptance,AI 停下等 1/2/3,
+> 说「发布决策是 Teamwork 强制用户确认点,YOLO 也不能跳过」。用户:**yolo 应该自动合入 yolo 分支。**
+
+### 判定:AI 没编规则 —— 它忠实执行了到达动作点的 brief
+
+`_pm_acceptance_brief` **无条件**写着「decision 是用户决策点 · emit 三选项然后停 · AI 不可自决」,
+整个函数没有 yolo 分支;而 SKILL yolo 表明写「pm_acceptance = **自动 approved_and_ship** + WARN」。
+SKILL 在几百个工具调用之前、brief 在动作点 —— **动作点的载体赢了**。
+🔴 **fast_mode 同族第二例**:spec 承诺的模式行为从未物化,工具在动作点反向覆盖。
+
+### 修 ①:yolo 自动验收物化(brief 按 `state.yolo` 分支)
+
+- yolo → brief 直接给自动路径:**AC 对照照做不跳**(自动 ≠ 免验收)→ `add-concern WARN` 留痕 →
+  `pm_acceptance-complete --decision approved_and_ship` → 自动进 ship 合入 merge_target(非主分支硬门);
+  AC 真有问题走 `rejected_with_feedback` 回修(**不硬过** · yolo 自主解决);release-gated 待补证据照常随行。
+- 非 yolo(含 auto_mode)照旧停 —— 产品决策权是用户专属。
+- 三载体收同口径:SKILL 表(自动)· brief(自动 · 新物化)· pm-acceptance-stage.md(补「唯一例外 = yolo」)。
+
+### 修 ②:外部世界动作边界(用户拍板:合入后单独停给用户)
+
+case 里的「发布」= **npm 公网发包 + 建公开仓**。yolo 的安全模型是**分支门**(merge_target 非 main ·
+主分支人工提升),但外部动作**不经过分支** —— 「零 stop」字面执行会让幻觉级错误(泄密/白名单漏洞)
+直接入公网且不可撤。**AI 停下的直觉方向对、挂点错**:该挡的是外部发布,不是验收与合入。
+
+新边界(SKILL yolo 节 + brief + stage doc 三处同口径):公网 registry 发布 / 创建公开仓 / 生产部署等
+**不经过分支门且不可逆**的动作不在「零 stop」范围 = release 域(RELEASE-GUIDE · 发布归用户)——
+**先自动验收 + 合入 + 清场(不阻断),外部发布单独停给用户**;❌ 不得以「有外部发布」为由把验收/合入也停下。
+
+### 🔴 密度门当场管了一次注意力经济
+
+新边界初版带 2 个 🔴 → SKILL 总数 56 超 55 门 —— 按既有判例**服从门、裁自己的红**
+(动作点载体 brief 里的 🔴 才是到达关键 · SKILL 处降级为 ⛔ 靠语境)。
+
 ## v8.312 · 测试生命周期三层:临时的从不入库 · 进 CI 是例外要理由
 
 > 用户:测试写太多、有用没用都写、卡 CI · AI 处理 case 消耗太大 —— 是否按生命周期分层?
