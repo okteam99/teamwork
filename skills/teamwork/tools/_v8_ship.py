@@ -473,7 +473,9 @@ def _handle_ship_push(state: dict, args: argparse.Namespace) -> dict:
     # 而 session 常在 ship1 后结束/换机,ship2 不在本机跑 · TTL 7 天窗内即可打满磁盘。
     # 测试/构建证据此刻已入 state.json,scratch 无对账价值;MR 窗口期撞冲突回炉
     # 需冷编 = 已接受的代价。ship2 同名步骤保留为幂等兜底。
-    scratch_cleanup = _prune_feature_tmp(state.get("feature_id") or "")
+    scratch_cleanup = _prune_feature_tmp(
+        state.get("feature_id") or "",
+        worktree_path=(state.get("worktree") or {}).get("path"))
 
     # v8.232:ship1 终点用户卡片(工具确定性生成 · AI 🔴 原样贴给用户 · 不自由发挥总结)——
     # 治实证 case:AI 写「本轮总结」长段 · MR URL 埋在段落里 · 用户被迫问「地址发出来啊」。
@@ -1110,7 +1112,9 @@ def _handle_ship_close_unmerged(state: dict, args: argparse.Namespace) -> dict:
         ship["phase"] = "closed_unmerged"
         ship["shipped"] = "abandoned"
         # 放弃即清(不会再回炉 · 增量缓存无保留价值)
-        scratch_cleanup = _prune_feature_tmp(state.get("feature_id") or "")
+        scratch_cleanup = _prune_feature_tmp(
+            state.get("feature_id") or "",
+            worktree_path=(state.get("worktree") or {}).get("path"))
     else:
         ship["phase"] = "closed_unmerged"
         ship["shipped"] = "closed_unmerged"
@@ -1239,29 +1243,61 @@ def _check_bl_flipped(wt_root: str, state: dict) -> dict:
     return {"status": "not_flipped", "bl": bl, "rows": rows_found[:5]}
 
 
-def _prune_feature_tmp(feature_id: str) -> dict:
-    """删 scratch 根下 <feature_id>/ 整树。
+def _prune_feature_tmp(feature_id: str, worktree_path: str | None = None) -> dict:
+    """回收 feature scratch(双根 · rename 即返 + 后台真删)。
 
-    调用时点(用户拍板 ship1 即清):① **ship1 push 成功后**(主时点 —— 证据已入
-    state.json · scratch 无对账价值;MR 窗口期撞冲突回炉需冷编 = 接受的代价)
-    ② close-unmerged --abandon(放弃即清)③ ship2 tmp-cleanup(**幂等兜底** ·
-    ship1 漏清/legacy in-flight)。整目录删除(cargo target 是原子单元 · 按文件删
-    会打碎 fingerprint 一致性)。失败不阻塞(warnings 记录)。
+    根:worktree 模式(缺省)= `<worktree>/.teamwork-scratch*`(随 worktree 消亡)·
+    off / legacy = `<tmp根>/<feature_id>`。调用时点:① ship1 push 成功(主时点 ——
+    证据已入 state.json · MR 窗口期撞冲突回炉需冷编 = 接受的代价)② close-unmerged
+    --abandon ③ ship2 tmp-cleanup(存量旧根幂等兜底 · worktree 侧已随 worktree-remove 消亡)。
+
+    🔴 耗时设计:大树同步 rmtree + 全树统计 = 双遍历分钟级,会拖住 push 命令 ——
+    改「同盘 rename(O(1) · 原路径立即消失)→ detached `rm -rf` 后台真删」;
+    体量 `du -sk` 限时 3s(大树跳过统计);后台删夭折的 `*-trash-*` 由 TTL 兜底扫。
+    整目录处理(cargo target 是原子单元 · 按文件删会打碎 fingerprint 一致性)。
     """
-    if not feature_id:
-        return {"status": "n_a", "reason": "no_feature_id"}
-    d = _teamwork_tmp_root() / feature_id
-    if not d.is_dir():
+    targets: list[Path] = []
+    if worktree_path:
+        wt = Path(worktree_path)
+        if wt.is_dir():
+            targets += sorted(wt.glob(".teamwork-scratch*"))
+    if feature_id:
+        legacy = _teamwork_tmp_root() / feature_id
+        if legacy.exists():
+            targets.append(legacy)
+    if not targets:
         return {"status": "n_a", "pruned_bytes": 0}
-    try:
-        size = sum(f.stat().st_size for f in d.rglob("*") if f.is_file())
-    except OSError:
-        size = 0
-    try:
-        shutil.rmtree(d)
-        return {"status": "ok", "pruned_bytes": size, "path": str(d)}
-    except OSError as e:
-        return {"status": "failed", "error": str(e)[:120], "path": str(d)}
+    pruned_bytes = 0
+    cleaned: list[str] = []
+    failed: list[dict] = []
+    for d in targets:
+        trash = d.parent / f"{d.name}-trash-{os.getpid()}"
+        try:
+            os.rename(d, trash)
+        except OSError as e:
+            failed.append({"path": str(d), "error": str(e)[:80]})
+            continue
+        try:
+            r = subprocess.run(["du", "-sk", str(trash)], capture_output=True,
+                               text=True, timeout=3)
+            if r.returncode == 0:
+                pruned_bytes += int(r.stdout.split()[0]) * 1024
+        except Exception:
+            pass  # 统计失败/超时不影响清理
+        try:
+            subprocess.Popen(["rm", "-rf", str(trash)],
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                             start_new_session=True)
+        except OSError:
+            shutil.rmtree(trash, ignore_errors=True)
+        cleaned.append(str(d))
+    if failed and not cleaned:
+        return {"status": "failed", "error": failed[0]["error"], "errors": failed}
+    out = {"status": "ok", "mode": "rename+async-rm",
+           "pruned_bytes": pruned_bytes, "paths": cleaned}
+    if failed:
+        out["partial_failures"] = failed
+    return out
 
 
 class _GitResult:

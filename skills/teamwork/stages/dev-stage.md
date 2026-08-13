@@ -19,7 +19,7 @@
 5. **共享基建变更 → 全景编译契约**(diff 触及 preview-project 依赖的共享包时):dev 结束前 `preview-project` build/typecheck 须过;机械适配顺手修 · 视觉/交互变化走 panorama_sync · 不想适配就收回破坏性改动(why:改 API 者负责迁移所有消费者 · 全景是消费者之一)。
 6. **flow_type=Bug:不重写 §根因/§修复方案**(那是 diagnose 经用户确认的产物 · 按方案写 fix + 追加 §回归测试/§修复记录;真发现根因判错 → `jump-to-stage --to diagnose` 复议)(why:用户拍过板的诊断不可被实现悄悄推翻)。
 7. **完工自查在 TECH.md §完工自查 文档内逐项打 ✅**(每项指向证据 · 不适用写 N-A+原因)(why:产物契约 · review 据此核 · 防「设计了没实现」)。
-8. **写测试时就定生命周期层**(单源 [HARD-RULES 规则 17](../standards/HARD-RULES.md) + [tc.md § 生命周期](../templates/tc.md)):一次性验证 / TDD 中间步 → **scratch `scaffold-tests/` 不入仓库**;入库必绑 AC 或 bug 回归;**CI 层默认不进 · 进必带 `ci_reason`**(why:临时 case 入库 = CI 与 AI 维护语料的永久税 —— 写时定层零成本 · 事后清退每次都要人裁决)。
+8. **写测试时就定生命周期层**(单源 [HARD-RULES 规则 17](../standards/HARD-RULES.md) + [tc.md § 生命周期](../templates/tc.md)):一次性验证 / TDD 中间步 → **scratch `.teamwork-scratch/scaffold-tests/`(ignored)不入仓库内容**;入库必绑 AC 或 bug 回归;**CI 层默认不进 · 进必带 `ci_reason`**(why:临时 case 入库 = CI 与 AI 维护语料的永久税 —— 写时定层零成本 · 事后清退每次都要人裁决)。
 
 ---
 

@@ -34,7 +34,7 @@
 3. 🔴 **IA 镜像律**:preview-project 路由结构 = 真实 app(与 `sitemap.md` 一致)· 本次设计页挂**真实 `route_path`** · `/` = 真实首页设计稿 · **router 必含**(why:全景的价值就在用户能沿真实导航走到新页;把新页渲染在 `/` 顶掉首页 = IA 违规)。
 4. 🔴 **复现门(扩已有真实页时)**:设计单位是**整张页** —— 读真实代码定形态 → 按真实形态复现整页 → 再集成新部分 · **绝不凭印象重画**(why:实证 AON Offer-Analysis —— 只画概念页、真实页的筛选区/KPI/Top card 没对齐 → 用户判「设计稿不完整」要求重做)。
 5. 🔴 **本 stage 不直接改 `sitemap.md`** —— 改 sitemap / overview 归 panorama_sync(why:跨 Feature IA 影响必须被单独一层看见〔隔离审计 + 暂停点 + 跨 Feature 评审〕)。
-6. 🔴 **截图落系统临时目录** `${TMPDIR:-/tmp}/teamwork/<feature_id>/screenshots/` · **绝不落 worktree / 主工作区根**(why:自检一次性产物非交付物 · 落仓库就污染 diff · 详 [conventions §12.5](../docs/conventions.md))。
+6. 🔴 **截图只落 scratch 目录**(worktree 模式 `<worktree>/.teamwork-scratch/screenshots/`〔ignored · 不进 diff〕· off 模式旧根)· **绝不散落 worktree 其他位置 / 主工作区根**(why:自检一次性产物非交付物 · 详 [conventions §12.5](../docs/conventions.md))。
 7. ⏸️ **用户预览确认(R5 暂停点)** · `auto_mode=true` 时跳过(设计意图已落 UI.md/preview · auto 用户接受)(why:「看着对不对」是 taste 层 · 用户主权 · AI 判不了)。
 8. **`--panorama-changed` 必传**(true → 自动转 panorama_sync · false → 直进 blueprint)(why:workspace 级 IA 影响的路由开关 —— 漏传 = 跨 Feature 影响无人评审)。
 

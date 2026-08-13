@@ -208,16 +208,16 @@ git branch -d <branch>
 
 ## 12.5 浏览器验证截图(transient)
 
-🔴 **「看一眼」的浏览器截图 → 系统临时目录 · 绝不落 worktree / 主工作区根**。
+🔴 **「看一眼」的浏览器截图 → 只进 scratch 目录 · 绝不散落 worktree 其他位置 / 主工作区根**。
 
-各 stage 常需 browse 预览/页面**截图自检渲染**(ui_design 预览验证 · dev/review/pm 顺手核对 UI)。这类截图是**一次性验证产物**(AI 自己看 · 非交付 · 不 commit)· **必须写到系统临时目录** · 否则会散落污染主工作区根目录。
+各 stage 常需 browse 预览/页面**截图自检渲染**(ui_design 预览验证 · dev/review/pm 顺手核对 UI)。这类截图是**一次性验证产物**(AI 自己看 · 非交付 · 不 commit)· **只写 scratch 目录** · 否则会散落污染工作区。
 
-- **统一位置**:`${TMPDIR:-/tmp}/teamwork/<feature_id>/screenshots/`(按 feature 命名 · session 内可复寻 · 回收 = ship2 tmp-cleanup + bootstrap TTL —— scratch 根通则详 [standards/common.md §六](../standards/common.md))。
+- **统一位置**:worktree 模式(缺省)= `<worktree>/.teamwork-scratch/screenshots/`(ignored · 不进 commit/diff · 随 worktree 消亡);off 模式 = `${TMPDIR:-/tmp}/teamwork/<feature_id>/screenshots/` —— scratch 根通则与回收三通道详 [standards/common.md §六](../standards/common.md)。
   ```bash
-  SHOT_DIR="${TMPDIR:-/tmp}/teamwork/<feature_id>/screenshots"; mkdir -p "$SHOT_DIR"
-  # 浏览器截图存 "$SHOT_DIR/<name>.png" · 再按绝对路径 Read 查看
+  SHOT_DIR="<worktree>/.teamwork-scratch/screenshots"; mkdir -p "$SHOT_DIR"
+  # 浏览器截图存 "$SHOT_DIR/<name>.png" · 再按绝对路径 Read 查看(off 模式换旧根)
   ```
-- **零工作区脚印**:在系统 temp · 不需 gitignore · 不进任何 commit · 不污染并行 Feature 基线(worktree 红线)。
+- **零仓库内容脚印**:目录被 `.teamwork-scratch*` gitignore 覆盖(bootstrap 自动加)· 不进任何 commit · 不污染并行 Feature 基线(worktree 红线)。
 - **🔴 playwright MCP 兼容**:playwright MCP 的 allowed-root 只能写 `<主仓根>/.playwright-mcp/`,**写不了上面的 temp 目录**。用 MCP 截图时 → **`.playwright-mcp/` 即可接受的自检截图目录**(同属一次性非交付)· 🔴 项目根 `.gitignore` 加 `.playwright-mcp/`(ship2 不必手动清)· 别跟 MCP 沙箱较劲。非 MCP 的 browse 仍优先上面的 temp 目录。
 - **⚠️ 与 browser_e2e 证据区分**:`browser_e2e` stage 的**证据截图**是交付物 · 仍落 **`<feature_dir>/screenshots/*.png`**(committed · pm_acceptance 复核 · 详 browser-e2e-stage.md SOP)· **不**走临时目录。临时目录只放「自检看一眼」的非证据截图。
 

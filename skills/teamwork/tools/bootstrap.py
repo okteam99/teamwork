@@ -611,6 +611,9 @@ def maintain_gitignore_worktree(project_root: Path,
     gitignore = project_root / ".gitignore"
     entries = [
         (".worktree/", ".worktree", "# Teamwork worktree root (default)"),
+        # v8.319:per-feature scratch 迁入 worktree(含 rename 后的 *-trash-* 残骸 · 通配覆盖)
+        (".teamwork-scratch*", ".teamwork-scratch*",
+         "# Teamwork per-feature scratch (worktree 内 · ignored · 随 worktree 消亡)"),
         (LOCALCONFIG_FILE, LOCALCONFIG_FILE, "# Teamwork local config + bootstrap state"),
         # v8.31:harness 锁文件(session pid · 历史 commit 误入)· 治本 INFRA-F025 G2
         (".claude/scheduled_tasks.lock", ".claude/scheduled_tasks.lock",
@@ -1153,7 +1156,8 @@ def _tree_recent_mtime(d: Path, max_depth: int = 2) -> float:
 
 
 def prune_teamwork_tmp(
-        retention_days: int = TEAMWORK_TMP_RETENTION_DAYS) -> dict:
+        retention_days: int = TEAMWORK_TMP_RETENTION_DAYS,
+        project_root: Optional[Path] = None) -> dict:
     """清理 ${TMPDIR:-/tmp}/teamwork/ 下 mtime 超 retention 的 feature scratch 目录。
 
     Stage 临时产物(cargo target / 测试日志)无保留策略会无限膨胀
@@ -1195,6 +1199,42 @@ def prune_teamwork_tmp(
            "retention_days": retention_days}
     if failed:
         out["failed"] = failed
+    # v8.319:第二根 —— 各 worktree 下 .teamwork-scratch*(scratch 迁入 worktree 后的 TTL 兜底)。
+    # 🔴 只删 scratch 子目录 · 绝不动 worktree 本体(可能藏未提交工作);子目录永远可安全删。
+    if project_root is not None:
+        wt_root_name = ".worktree"
+        try:
+            import json as _json
+            cfg = project_root / ".teamwork_localconfig.json"
+            if cfg.is_file():
+                wt_root_name = (_json.loads(cfg.read_text(encoding="utf-8"))
+                                .get("worktree_root_path") or ".worktree")
+        except Exception:
+            pass
+        wt_root = project_root / wt_root_name
+        ws_pruned, ws_freed = 0, 0
+        if wt_root.is_dir():
+            try:
+                for wt in wt_root.iterdir():
+                    if not wt.is_dir():
+                        continue
+                    for s in wt.glob(".teamwork-scratch*"):
+                        try:
+                            if _tree_recent_mtime(s) >= cutoff:
+                                continue
+                            try:
+                                ws_freed += sum(f.stat().st_size
+                                                for f in s.rglob("*") if f.is_file())
+                            except OSError:
+                                pass
+                            shutil.rmtree(s)
+                            ws_pruned += 1
+                        except OSError:
+                            out["failed"] = out.get("failed", 0) + 1
+            except OSError:
+                pass
+        out["worktree_scratch_pruned"] = ws_pruned
+        out["worktree_scratch_freed_bytes"] = ws_freed
     return out
 
 
@@ -1306,7 +1346,7 @@ def cmd_session_bootstrap(args: argparse.Namespace) -> None:
 
     # 全局 housekeeping(~/.teamwork + scratch 根 · 与项目无关 · 失败不阻塞)
     logs_prune = prune_external_review_logs()
-    tmp_prune = prune_teamwork_tmp()  # v8.247:/tmp/teamwork TTL 兜底(实证 48GB 打满磁盘)
+    tmp_prune = prune_teamwork_tmp(project_root=project_root)  # 旧根 TTL + 各 worktree .teamwork-scratch* 兜底
 
     # 非 git 目录守卫:骨架/space/local-env 维护都以「项目仓库」为前提 ——
     # 在家目录等任意 cwd 跑会铺一堆 teamwork 文件。跳过一切项目写盘动作
