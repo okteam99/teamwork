@@ -43,7 +43,7 @@ state.py 一口气做完(单 commit 进 feature 分支):
 ### 3.5 规划层 back-reference 翻牌(随 feature MR 原子合入 · 🔴 必做)
 
 - **为什么翻牌**:落地完不翻「📋 → ✅ 已交付」→ 规划层与执行层脱节 · 进度失真。翻牌随 feature MR **原子生效**(MR 不合则 ROADMAP 不显示已交付)。
-- **做什么**:① AI 判断哪些要翻(只改相关的 · AI 自决):**ROADMAP 对应 BL**(翻「📋 → ✅ 已交付」+ 🔴 **填「对应 F编号」= 本 feature 的 F-id**〔archive 靠它自解析所属 WS〕· 若是 WS 最后一个 BL → WS 标完成)· `teamwork-space.md`(按需)· 项目变更单(按需);② **PROCESS-LEDGER 行由 archive 自动落**(§16 · 机器格工具自算 · 你只传判断格参数 `--ledger-reflection` 等 · 不手工 append 不进 --planning-artifacts);③ 其余文件在 **worktree 内**改好(不 commit)→ 路径传 `--planning-artifacts` → archive 随归档 commit 带走。
+- **做什么**:① AI 判断哪些要翻(只改相关的 · AI 自决):**ROADMAP 对应 BL**(翻「📋 → ✅ 已交付」+ 🔴 **填「对应 F编号」= 本 feature 的 F-id**〔archive 靠它自解析所属 WS〕· 若是 WS 最后一个 BL → WS 标完成)· `teamwork-space.md`(按需)· 项目变更单(按需);①.5 🔴 **反向引用 preflight**(archive 自动跑):repo 里还有 tracked 文件引用 `features/<id>` → PENDING 列清单(实证:include_str! 引用 feature 内 fixture · 归档删目录后编译红 11 天)—— 搬出被引用文件或改引用;确属可接受 → `--archive-ref-exception` 留痕;② **PROCESS-LEDGER 行由 archive 自动落**(§16 · 机器格工具自算 · 你只传判断格参数 `--ledger-reflection` 等 · 不手工 append 不进 --planning-artifacts);③ 其余文件在 **worktree 内**改好(不 commit)→ 路径传 `--planning-artifacts` → archive 随归档 commit 带走。
 - 🔴 **WS 进度块勿手改、勿手动跑 ws-progress**:那是工具生成区 · archive 自刷。你只负责把 **ROADMAP BL + 对应F编号** 翻对。
 - 找不到 BL 别急着跳:先读 `product-overview/workstream/` + `ROADMAP.md` 定位本 Feature 条目;确无 → `--no-planning-changes` 显式声明。
 

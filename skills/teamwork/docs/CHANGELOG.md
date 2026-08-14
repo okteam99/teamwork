@@ -4,6 +4,18 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.327 · archive preflight:反向引用扫描 + retro path 物理校验(P1-6)
+
+> aon-core G-TEST-003:测试 `include_str!` 引用 feature 目录下 fixture · archive 按设计删目录 → 整个测试二进制编不出来 · cargo check **红 11 天**(交付完成之日 = 编译失败之日)。
+> supersdk:根级模块 sub_project="SDK" 被拼成不存在的 `SDK/docs/retros` · path mapper 在同一仓造出三种矛盾落点 + 幽灵 `CA/` 目录进 git。
+
+### 变更
+- **反向引用 preflight**(archive gate 链新增 · bl-flip 之后):`git grep -F "features/<id>"`(排除 feature 目录自身与 `*_archive*`)扫 tracked 引用 —— 命中 → `PENDING archive-backref` 列文件清单 + 处置(代码引用搬出 fixture / 文档死链改指 zip 或 F-id);确属可接受 → `--archive-ref-exception '<一句>'`(记 `state.ship` 审计 · 不静默)。`_archive/<id>.zip` 形态字符串不误伤(归档后引用本就该指 zip)。
+- **retro path 物理校验**:`_process_retro_path` 拼 sub_project 前核目录存在(给了 repo_root 时)—— 不存在回退根级 `docs/retros/`(不造幽灵目录);archive emit 与台账拼行两处调用点带 repo_root。
+
+### 测试
+`test_archive_preflight_v8327.py` 9 条:tracked 引用拦 + 清单 / 例外放行 + 审计留痕 / 无引用干净过 / zip 字符串不误伤 / retro path 四态(存在前缀 · 缺失回退 · 无 root 旧行为 · 无 sub 根级)/ spec 载体。v8.323 拼行测试按物理校验新行为更新。全库全绿。
+
 ## v8.326 · 评审模型错开机器门(P1-5)
 
 > supersdk CA case:双路冷审实测同为 opus-5(主审路未继承会话模型)= 盲区相关 —— 补派错开模型盲审**当场查出 2 条 BLOCKER**(无重新部署入口 / 拉取凭据链整条缺失,两条前两路都在核「按 TECH 实现没有」故均错过)。SKILL「评审模型必错开」是纯规则:外审 `review_model` 只申报不比对,主审路根本不申报 —— 规则存在 ≠ 规则执行(又一格)。
@@ -54,19 +66,3 @@
 
 ### 测试
 `test_ledger_autorow_v8323.py` 9 条(列宽单源 / 机器格 / 净化 / 幂等 / 建表 / 旧 schema 先迁 / gate / 行入 HEAD / 重跑不重复);既有 ship 测试 48 条经 `_archive` helper 注入默认反思全绿。
-
-## v8.322 · 升级传导:版本漂移入口自愈(P0-1)
-
-> aon-core × supersdk 实证分析拍板「按建议」的第一件。
-> supersdk 画像:skill 全局副本静默升 37 版 · per-project bootstrap 20 天没跑 ·
-> `last_update_check_result` 还在说 up_to_date · 台账 61% 旧列宽(aon-core 50%)·
-> gitignore 注入水位停在三十版前 ——「提示用户去跑 bootstrap」被实证不发生。
-
-### 治法(与 scratch 清理同构:挂在积灰机器自己天天跑的命令上)
-- **state.py 入口自愈**(`main()` 前 best-effort · 绝不拦正事 · 输出走 stderr 不污染 stdout JSON 契约):marker 版本 ≠ 当前 skill 版本 → 就地跑零风险幂等迁移集 —— ①台账 schema 迁移 ②gitignore 条目重放 ③marker 记录(`_bootstrap.state_migrate{at,from,to,actions}` · 不冒充 full bootstrap 的 `skill_version`)。chmod / hooks / host 注入 / 升级 R5 检测仍归 session bootstrap(重量级或需用户决策 · 不越权)。不接管:无 localconfig / 无 `_bootstrap` marker(首铺归 bootstrap)/ skill 在项目仓内(框架仓自身守卫)。
-- **台账迁移升级为「表头 + 旧行补列宽」**(`_v8_engine.migrate_process_ledger` 单源 · state.py `ledger-migrate` 与 bootstrap maintain 双通道共用):立制时「旧行是有效前缀不动」被两项目实证打破(按列索引解析静默错位 · 年检读错列)—— 改为**内容前缀逐字不动 · 末尾补 `—` 到表头宽**(`—` = 早于该指标)· 只补不裁(超宽/断行不动)。
-- **state.json schema 版本**:`_schema_version`(int · schema 真变才 +1)写路径盖戳(engine `save_state` + state.py `atomic_write` 双写点)· 读路径只拦「来自未来」(混合宿主/多机下新 skill 写的 state 不被旧逻辑静默丢字段)· 缺失/更低 = 旧数据兼容读。
-- `locate_localconfig`(返回路径)从 `load_localconfig` 拆出单源共用。
-
-### 测试
-`test_version_drift_heal_v8322.py` 16 条(自愈全路径 / 不接管三场景 / 只补不裁 / 入口 stderr + stdout 纯 JSON / schema 戳与未来拦截);`test_ledger_migrate_v8210.py` 按新设计更新(旧行「逐字不动」→「前缀不动 + 补宽」);`test_authoring_preventability_v8281.py` 指向 engine 单源。全库全绿。

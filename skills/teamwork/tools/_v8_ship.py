@@ -907,6 +907,34 @@ def _handle_ship_archive(state: dict, args: argparse.Namespace) -> dict:
                 ),
             }, exit_code=0)
 
+    # v8.327 反向引用 preflight:归档会把 feature 目录从分支删掉 —— repo 里还有谁引用它?
+    # 实证(aon-core G-TEST-003):测试 include_str! 引用 feature 目录下 fixture · ship 后
+    # 整个测试二进制编不出来 · cargo check 红了 11 天(交付完成之日 = 编译失败之日)。
+    _ref_exc = (getattr(args, "archive_ref_exception", None) or "").strip()
+    if _ref_exc:
+        ship["archive_ref_exception"] = _ref_exc  # 例外 audit 留痕 · 不静默
+    else:
+        gg = _git(["grep", "-I", "-l", "-F", f"features/{feature_id}",
+                   "--", f":(exclude){feature_rel}", ":(exclude)*_archive*"],
+                  cwd=wt_root, timeout=30)
+        if gg.returncode == 0 and gg.stdout.strip():
+            refs = [l.strip() for l in gg.stdout.splitlines() if l.strip()][:20]
+            emit_json({
+                "verdict": "PENDING", "stage": "ship", "action": "archive",
+                "pending_step": "archive-backref",
+                "referencing_files": refs,
+                "next_action": (
+                    f"🔴 归档会把 `{feature_rel}/` 从分支删除,但仓库里还有 "
+                    f"{len(refs)} 个 tracked 文件引用它(见 referencing_files)—— "
+                    "删了它们就断(实证:include_str! 引用 fixture · 归档后编译红 11 天):\n"
+                    "  ① 代码/测试引用 → 把被引用文件搬出 feature 目录(fixture 归测试目录)· "
+                    "或改引用路径,commit 后重跑 archive\n"
+                    "  ② 文档死链 → 改成引用归档 zip 或 F-id,别指向即将删除的目录\n"
+                    f"  确属误报/可接受 → 重跑加 --archive-ref-exception '<为什么可以 · 一句>'"
+                    "(记 state.ship 审计 · 不静默)"
+                ),
+            }, exit_code=0)
+
     # v8.113 描述门禁(≤200 字 · 写 INDEX.md)
     raw_desc = getattr(args, "archive_desc", None)
     archive_desc = _clean_archive_desc(raw_desc)
@@ -1093,9 +1121,9 @@ def _handle_ship_archive(state: dict, args: argparse.Namespace) -> dict:
         # v8.295:耗时归因(各 stage stage-cost 记录聚合)· 台账「⏱️ 耗时归因」列
         # · 年检据此看协调开销占比趋势 —— 也是验证提效改动(v8.294 收敛期归一/TC 边界/
         # 投机窗准入)是否真起效的唯一手段。
-        "ledger_stage_cost": _stage_cost_summary(state, _process_retro_path(state, feature_id)),
+        "ledger_stage_cost": _stage_cost_summary(state, _process_retro_path(state, feature_id, wt_root)),
         # v8.297:流程复盘文档落点(耗时归因叙述 + 流程反思四问 —— 台账装不下的那部分)
-        "ledger_process_retro_path": _process_retro_path(state, feature_id),
+        "ledger_process_retro_path": _process_retro_path(state, feature_id, wt_root),
         # v8.180:WS 进度块确定性自刷结果(None = feature 不属 WS / 对应F编号 未填 → 未刷 · 见 §3.5)
         "ws_progress_refreshed": ws_refreshed,
         "warnings": [
@@ -1706,7 +1734,7 @@ def _compose_ledger_row(state: dict, args: argparse.Namespace, wt_root: str,
         state.get("host") or "unknown",
         tc_cell,
         _authoring_preventability_summary(state) or "—",
-        _stage_cost_summary(state, _process_retro_path(state, feature_id)) or "—",
+        _stage_cost_summary(state, _process_retro_path(state, feature_id, wt_root)) or "—",
     ]
     row = "| " + " | ".join(_ledger_cell(c) for c in cells) + " |"
     from _v8_engine import canonical_ledger_header
@@ -1839,14 +1867,24 @@ def _stage_cost_summary(state: dict, retro_path: str = ""):
     return cell
 
 
-def _process_retro_path(state: dict, feature_id: str) -> str:
+def _process_retro_path(state: dict, feature_id: str,
+                        repo_root: Optional[str] = None) -> str:
     """v8.297:流程复盘文档的约定落点(相对子项目根)· 供台账指针与 ship brief 用。
 
     `docs/retros/<feature-id>-process.md` —— 与业务复盘 `docs/retros/<feature-id>.md` 同目录、
     分文件(前者复盘 teamwork 流程本身 · 后者复盘业务与工程)。
+    v8.327:sub_project 拼路径前做**物理校验**(给了 repo_root 时)—— 目录不存在则回退
+    根级 `docs/retros/`。实证(supersdk):根级模块 sub_project="SDK" 被拼成不存在的
+    `SDK/docs/retros` · path mapper 在同一仓里造出三种互相矛盾的落点 + 幽灵目录。
     """
     sub = (state.get("sub_project") or "").strip("/")
     rel = f"docs/retros/{feature_id}-process.md"
+    if sub and repo_root:
+        try:
+            if not (Path(repo_root) / sub).is_dir():
+                return rel  # 子项目目录不存在 → 根级(别造幽灵目录)
+        except OSError:
+            pass
     return f"{sub}/{rel}" if sub else rel
 
 
@@ -2871,6 +2909,8 @@ def register_v8_ship_subparser(sub) -> None:
     sp.add_argument("--bl-flip-exception",
                     help=("[archive · v8.253] BL 行确不该翻完成态时的例外理由(如部分交付)· "
                           "跳过翻牌验收门 · 记 state.ship 审计留痕"))
+    sp.add_argument("--archive-ref-exception",
+                    help="反向引用 preflight 例外(为什么引用可接受 · 一句 · 记 state.ship 审计)")
     sp.add_argument("--ledger-reflection",
                     help="archive 必填:台账「反思摘要」(≤1 行 · 流程新判例以「判例:」开头 · 不美化)")
     sp.add_argument("--ledger-rounds", help="台账「review/test 轮」(如 1/1 · 缺省 —)")

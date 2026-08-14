@@ -79,7 +79,9 @@ class TestComposeRow(unittest.TestCase):
         self.assertEqual(cells[12], "codex-cli")               # 宿主
         self.assertIn("3/12 可预防", cells[14])
         self.assertIn("2/9 轮", cells[15])
-        self.assertIn("apps/demo/docs/retros/X-F900-demo-process.md", cells[15])
+        # sub_project 目录在 fixture repo 里不存在 → retro path 物理校验回退根级(不造幽灵目录)
+        self.assertIn("docs/retros/X-F900-demo-process.md", cells[15])
+        self.assertNotIn("apps/demo/docs", cells[15])
         self.assertEqual(defaulted,
                          ["review/test 轮", "external 总/采/驳", "角色真 finding", "暂停点 改:默"])
 
