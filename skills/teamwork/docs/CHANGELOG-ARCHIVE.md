@@ -4,6 +4,44 @@
 > 上次清空:**v8.193**(2026-07-06 · 清除 v8.128 → v8.187 共 60 版条目 · 约 1.0k 行)。
 
 ---
+## v8.319 · scratch 根迁入 worktree:随 worktree 生一起死
+
+> 用户:`/tmp/teamwork` 的内容能放到 worktree 下面么,随着 worktree 就一起清理了?
+> 追问 ①「push 清理走脚本么」②「清理耗时么」→ 三问都在本版物化。
+
+### 拍板前实测清掉的最大未知
+
+`git worktree remove` **不被 ignored 构建产物拦**(实测:ignored 文件在场 remove 直接整树删);
+tree-hash 指纹用 `git diff HEAD`,ignored 不进 diff → 不受影响;
+worknode 额外收益:worktree 在**绑定卷**,scratch 不再堆容器**可写层**(141GB 实证环境的元凶)。
+
+### 新形态
+
+```
+worktree 模式(缺省): <worktree>/.teamwork-scratch/<用途>   ← bootstrap 自动 gitignore「.teamwork-scratch*」
+worktree=off / legacy: ${TMPDIR:-/tmp}/teamwork/<feature_id>/<用途>
+```
+
+**回收三通道重排**:① ship1 push 成功即清(双根)② **worktree 生命周期主兜底** ——
+finalize / close 删 worktree = scratch 必然随之消亡(不存在「清了 worktree 忘了 scratch」的错位);
+ship2 tmp-cleanup 转存量旧根幂等兜底 ③ TTL:旧根整目录 + 各 worktree 的 `.teamwork-scratch*`
+子目录(🔴 只删 scratch 子目录**绝不动 worktree 本体**〔可能藏未提交工作〕—— 子目录永远可安全删)。
+
+### 三个插问的物化
+
+- **走脚本**:清理在 `ship-phase --action push` 处理器内(与 push 记录同一条命令 · emit `scratch_cleanup`);
+- **耗时**:原实现同步 rmtree + 全树统计 = **双遍历分钟级会拖住 push** → 改**同盘 rename(O(1) ·
+  原路径立即消失)+ detached `rm -rf` 后台真删**,push 毫秒级返回;体量 `du` 限时 3s 大树跳过;
+  后台删夭折的 `*-trash-*` 残骸由下次清理 glob + TTL 双兜底;
+- **通配 `.teamwork-scratch*`** 让 gitignore / 清理 / TTL 三方天然覆盖 rename 残骸。
+
+### 落点
+
+工具:`_prune_feature_tmp` 双根重写 + push/close 传 worktree 路径 · bootstrap gitignore 新 entry +
+TTL 第二根扫描。spec 九处同口径(common §六 / HARD-RULES 10+17 / conventions §12.5 / SKILL /
+ui-design 6 / test-stage 9 / ship-stage §4 / dev-stage 8 / tc.md L3)。
+自己的版本标门当场抓了新文里手滑的一处「v8.306」—— 门在工作。
+
 ## v8.318 · scratch 清理前移 ship1:治 worknode 141GB 堆积
 
 > 实证(worknode · Docker-in-Docker):`/tmp/teamwork` 独占 **141GB**,单 feature

@@ -356,15 +356,20 @@ def parse_frontmatter(file_path: Path) -> Optional[dict]:
             if end == -1:
                 return None
             fm_text = text[4:end]
-        # 简易 YAML 解析(只支持 key: value 和 key:\n  - list)
+        # 简易 YAML 解析(只支持 key: value 和 key:\n  - list)。
+        # v8.324:列表项缩进兼容 1-4 空格 —— 原只认两空格,单空格列表整行被静默丢弃 →
+        # `files_read` 解析为空 → CAPABILITY_BLOCKED 误报(消费项目实证:一个缩进空格
+        # 换一轮返工)。格式门禁的解析器必须比它拦的格式宽一档。
         result = {}
         current_key = None
         for line in fm_text.splitlines():
             if not line.strip() or line.strip().startswith("#"):
                 continue
-            if line.startswith("  - "):
+            _ls = line.lstrip(" ")
+            _indent = len(line) - len(_ls)
+            if 1 <= _indent <= 4 and _ls.startswith("- "):
                 if current_key and isinstance(result.get(current_key), list):
-                    result[current_key].append(line[4:].strip())
+                    result[current_key].append(_ls[2:].strip())
                 continue
             if ":" in line:
                 key, _, val = line.partition(":")
@@ -932,6 +937,7 @@ def execute_stage_start(
 
     # 7. 渲染 next_action_brief + 自动 append 建议评审角色 + 暂停点纪律 + 必读路径速查 + 状态行模板
     brief = stage_spec.brief_template_fn(state)
+    brief += _render_complete_contract(stage_spec)  # v8.324:complete 门禁 spec 同源预告
     brief += _render_review_roles_suggestion(state, stage_spec.name)
     if stage_spec.authorized_pause_point:
         brief += _render_pause_discipline(
@@ -1330,6 +1336,41 @@ def render_status_line(state: dict, next_action: str = "") -> str:
         line3 = f"🌿 {branch}"
 
     return f"{line1}\n{line2}\n{line3}"
+
+
+def _render_complete_contract(stage_spec: "StageSpec") -> str:
+    """v8.324:complete 时会被机器校验的契约 · 从 spec **同一份对象**自动渲染进 start brief。
+
+    实证(消费项目复盘):「dev-complete 的 test-runner 门禁在 dev-start 的 brief 里没有
+    预告 · complete 时才拒」;耗时归因里 26-28% 纯协调开销的归因高度同质 ——「格式门禁
+    重试 · spec 字段名未预读」。手写 brief 必然与门禁漂移;本段与门禁读同一 spec 对象,
+    门禁改了预告自动跟(载体防漂移 · 不靠人同步两处)。
+    """
+    arts = stage_spec.artifacts or []
+    evs = stage_spec.evidence_checks or []
+    if not arts and not evs:
+        return ""
+    lines = ["", "### ⛔ complete 时机器校验(spec 同源自动生成 · 缺任一被拒 · 现在就按此起草,别等撞门)"]
+    for a in arts:
+        tgt = a.path or a.glob or "?"
+        req = []
+        if a.glob and a.min_files:
+            req.append(f"≥{a.min_files} 个")
+        if a.frontmatter_required:
+            req.append("frontmatter 必含 " + "/".join(a.frontmatter_required))
+        if a.body_min_lines:
+            req.append(f"body ≥{a.body_min_lines} 行")
+        if a.must_be_in_commit:
+            req.append("须在 --auto-commit changeset 内")
+        if a.review_artifact:
+            req.append("fast_mode 免")
+        seg = f"- 产物 `{tgt}`" + (f"({' · '.join(req)})" if req else "")
+        if a.description:
+            seg += f" —— {a.description}"
+        lines.append(seg)
+    for e in evs:
+        lines.append(f"- 证据 `{e.name}`" + (f" —— {e.description}" if e.description else ""))
+    return "\n".join(lines) + "\n"
 
 
 def _has_review_convergence_evidence(stage_spec: "StageSpec") -> bool:

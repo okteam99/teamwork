@@ -4,6 +4,17 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.324 · 格式门禁前置化:complete 契约 spec 同源预告 + 解析器放宽一档(P0-3)
+
+> 两项目耗时归因 26-28% 轮次 = 纯协调开销,归因高度同质:「格式门禁重试 · spec 字段名未预读」「dev-complete 的 test-runner 门在 dev-start 没预告 · complete 时才拒」;aon-core 复盘:外审产物 YAML **单空格缩进**列表被解析为空 `files_read` → CAPABILITY_BLOCKED 误报 —— 一个缩进空格换一轮返工。
+
+### 变更(两刀)
+- **start brief 自动附「⛔ complete 时机器校验」块**(`_render_complete_contract`):从 artifacts / evidence_checks 的**同一份 spec 对象**渲染(产物路径 · glob 最少数 · frontmatter 必含字段 · body 行数 · 须在 changeset · fast 豁免标记 · 每条 evidence 点名+描述)—— 门禁改了预告自动跟,手写 brief 漂移不再可能漏预告(11/12 个 stage 有契约块 · 无门禁 stage 渲染为空)。
+- **`parse_frontmatter` 列表缩进兼容 1-4 空格**(原只认两空格):格式门禁的解析器必须比它拦的格式宽一档;5+ 空格 = 嵌套结构,行式解析不装懂,保持忽略。
+
+### 测试
+`test_gate_preannounce_v8324.py` 10 条:单空格伤亡原型 / 2-4 空格 / 深缩进仍忽略 / key:value 不受扰 / GOAL·BROWSER_E2E 契约块 / 反向锁「有门禁必有预告块」/ 源码顺序锁 / dev test-runner 门 start 可见。全库全绿。
+
 ## v8.323 · 台账自动落行:archive 直接写行(P0-2)
 
 > aon-core 复盘原话:「emit 提供了已算好的 `ledger_timing`/`ledger_stage_cost`,台账行仍需人工 append —— 若 archive 能直接落行,可再省一轮。」
@@ -69,41 +80,3 @@
 
 ### 测试
 `test_browser_e2e_replay_v8320.py` 14 条:判据措辞 / L2+ci_reason 衔接 / 手点反例入 why / 探索性出口 / 菜单默认+复用 / replay_entry 槽位含 n/a / tc 二分 / brief 同步 / artifacts 仍 2 项 evidence_checks 空(锁「不设机器门」设计边界)/ 触改文件零版本标。全库 1271 collected 全绿。
-
-## v8.319 · scratch 根迁入 worktree:随 worktree 生一起死
-
-> 用户:`/tmp/teamwork` 的内容能放到 worktree 下面么,随着 worktree 就一起清理了?
-> 追问 ①「push 清理走脚本么」②「清理耗时么」→ 三问都在本版物化。
-
-### 拍板前实测清掉的最大未知
-
-`git worktree remove` **不被 ignored 构建产物拦**(实测:ignored 文件在场 remove 直接整树删);
-tree-hash 指纹用 `git diff HEAD`,ignored 不进 diff → 不受影响;
-worknode 额外收益:worktree 在**绑定卷**,scratch 不再堆容器**可写层**(141GB 实证环境的元凶)。
-
-### 新形态
-
-```
-worktree 模式(缺省): <worktree>/.teamwork-scratch/<用途>   ← bootstrap 自动 gitignore「.teamwork-scratch*」
-worktree=off / legacy: ${TMPDIR:-/tmp}/teamwork/<feature_id>/<用途>
-```
-
-**回收三通道重排**:① ship1 push 成功即清(双根)② **worktree 生命周期主兜底** ——
-finalize / close 删 worktree = scratch 必然随之消亡(不存在「清了 worktree 忘了 scratch」的错位);
-ship2 tmp-cleanup 转存量旧根幂等兜底 ③ TTL:旧根整目录 + 各 worktree 的 `.teamwork-scratch*`
-子目录(🔴 只删 scratch 子目录**绝不动 worktree 本体**〔可能藏未提交工作〕—— 子目录永远可安全删)。
-
-### 三个插问的物化
-
-- **走脚本**:清理在 `ship-phase --action push` 处理器内(与 push 记录同一条命令 · emit `scratch_cleanup`);
-- **耗时**:原实现同步 rmtree + 全树统计 = **双遍历分钟级会拖住 push** → 改**同盘 rename(O(1) ·
-  原路径立即消失)+ detached `rm -rf` 后台真删**,push 毫秒级返回;体量 `du` 限时 3s 大树跳过;
-  后台删夭折的 `*-trash-*` 残骸由下次清理 glob + TTL 双兜底;
-- **通配 `.teamwork-scratch*`** 让 gitignore / 清理 / TTL 三方天然覆盖 rename 残骸。
-
-### 落点
-
-工具:`_prune_feature_tmp` 双根重写 + push/close 传 worktree 路径 · bootstrap gitignore 新 entry +
-TTL 第二根扫描。spec 九处同口径(common §六 / HARD-RULES 10+17 / conventions §12.5 / SKILL /
-ui-design 6 / test-stage 9 / ship-stage §4 / dev-stage 8 / tc.md L3)。
-自己的版本标门当场抓了新文里手滑的一处「v8.306」—— 门在工作。
