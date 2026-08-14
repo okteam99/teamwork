@@ -4,6 +4,18 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.326 · 评审模型错开机器门(P1-5)
+
+> supersdk CA case:双路冷审实测同为 opus-5(主审路未继承会话模型)= 盲区相关 —— 补派错开模型盲审**当场查出 2 条 BLOCKER**(无重新部署入口 / 拉取凭据链整条缺失,两条前两路都在核「按 TECH 实现没有」故均错过)。SKILL「评审模型必错开」是纯规则:外审 `review_model` 只申报不比对,主审路根本不申报 —— 规则存在 ≠ 规则执行(又一格)。
+
+### 变更
+- **主审产物申报**:PRD-REVIEW / TECH-REVIEW / REVIEW frontmatter 新增 `review_models`(列表形态 `- <role>: <实际模型>` —— 适配行式解析 · v8.324 缩进放宽后申报不构成新格式税)。
+- **`review_models_staggered` evidence check**(goal / blueprint / review 三处注册):主审 `review_models` × 外审 `review_model` 合并比对(ultra-ingest 不参与 —— 模型不由框架派发)—— **≥2 路申报且全同 → complete 拒**(hint 给处置:任选一路换模型重跑;确属例外走既有 bypass 协议留痕,不发明新旗);<2 可比对(存量未申报 / 单路)→ skip,hint 教新产物申报格式。大小写不敏感比对。
+- start 预告零成本:v8.324 契约块从 spec 同源渲染,本门自动出现在三个 stage 的 start brief。
+
+### 测试
+`test_review_model_stagger_v8326.py` 11 条:同模型拒(原案复刻)/ 错开过 / 大小写 / 存量 skip+教学 hint / 单路 skip / ultra-ingest 除外 / 双外审同模型拒 / 单空格申报可解析 / 三处注册 / start 预告自动带 / 三 stage 文档契约。全库全绿。
+
 ## v8.325 · merged worktree 巡检 + 构建世界纪律(P1-4)
 
 > aon-core `.worktree/` 23G:14 个注册 worktree 里 13 个分支已 merge(18G 纯垃圾 · 最老 31 天)+ 1 孤儿目录;supersdk 5 个僵尸壳被 `ws-progress` 递归扫成双份(9→18)。
@@ -58,18 +70,3 @@
 
 ### 测试
 `test_version_drift_heal_v8322.py` 16 条(自愈全路径 / 不接管三场景 / 只补不裁 / 入口 stderr + stdout 纯 JSON / schema 戳与未来拦截);`test_ledger_migrate_v8210.py` 按新设计更新(旧行「逐字不动」→「前缀不动 + 补宽」);`test_authoring_preventability_v8281.py` 指向 engine 单源。全库全绿。
-
-## v8.321 · browser_e2e 档位承载:验证档 subagent 写进动作点
-
-> 用户:是 subagent 验证档模型执行这个阶段么?
-> 答案在全局白名单里是「是」—— 但 browser_e2e 自己的 stage 硬规则与运行时 brief **零承载**。
-
-### 问题
-档位约束(e2e ∈ 验证类白名单 → 一律降验证档 · 例外须用户授权)只活在 SKILL 全局规则与 agents/README 档位表;对照 goal/blueprint(🎚️ 不许降档)、review(🎚️ 验证轮用验证档)、test(subagent 并行判据),唯独 browser_e2e 这个白名单成员在自己的执行入口一行没写 —— 执行到该 stage 的 AI 若 context 没带全局白名单,默认继承会话主模型自己手点(常费而不自知)。「模式承诺 × 动作点载体」对账表第三格(fast/yolo 之后)。
-
-### 变更(两载体)
-- **stage ② 硬规则 7**(🎚️):默认派验证档 subagent 执行 —— 主对话模型是用户主权不可切,**降档只有派 subagent 显式传 model 一条路**(prompt 首行 `Meta: tier=验证 · model=… · 理由=…`);例外 🔴 不许 AI 自决 · 开 R5 请用户授权(典型:首份可重放脚本要逆向真进程启动配方 = 探索+调试占主体 —— 与硬规则 6 的可重放契约衔接);宿主不支持 subagent → 主对话串行 + `⚠️ WARN [degradation-fallback]`。判据单源仍在 agents/README §一,本行是指针复述。
-- **运行时 brief 同步**:+🎚️ 档位行(Meta 申报格式 + R5 例外)·「注意事项 6 条」→ 7 条。
-
-### 测试
-`test_browser_e2e_tier_v8321.py` 9 条:降档唯一路径 / Meta 申报格式 / R5 例外含首份脚本典型 / 降级 WARN / 指针指单源 / agents/README 白名单仍含 e2e(单源锚 · 漂了先在这响)/ brief 三断言。全库全绿。

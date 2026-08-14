@@ -4,6 +4,21 @@
 > 上次清空:**v8.193**(2026-07-06 · 清除 v8.128 → v8.187 共 60 版条目 · 约 1.0k 行)。
 
 ---
+## v8.321 · browser_e2e 档位承载:验证档 subagent 写进动作点
+
+> 用户:是 subagent 验证档模型执行这个阶段么?
+> 答案在全局白名单里是「是」—— 但 browser_e2e 自己的 stage 硬规则与运行时 brief **零承载**。
+
+### 问题
+档位约束(e2e ∈ 验证类白名单 → 一律降验证档 · 例外须用户授权)只活在 SKILL 全局规则与 agents/README 档位表;对照 goal/blueprint(🎚️ 不许降档)、review(🎚️ 验证轮用验证档)、test(subagent 并行判据),唯独 browser_e2e 这个白名单成员在自己的执行入口一行没写 —— 执行到该 stage 的 AI 若 context 没带全局白名单,默认继承会话主模型自己手点(常费而不自知)。「模式承诺 × 动作点载体」对账表第三格(fast/yolo 之后)。
+
+### 变更(两载体)
+- **stage ② 硬规则 7**(🎚️):默认派验证档 subagent 执行 —— 主对话模型是用户主权不可切,**降档只有派 subagent 显式传 model 一条路**(prompt 首行 `Meta: tier=验证 · model=… · 理由=…`);例外 🔴 不许 AI 自决 · 开 R5 请用户授权(典型:首份可重放脚本要逆向真进程启动配方 = 探索+调试占主体 —— 与硬规则 6 的可重放契约衔接);宿主不支持 subagent → 主对话串行 + `⚠️ WARN [degradation-fallback]`。判据单源仍在 agents/README §一,本行是指针复述。
+- **运行时 brief 同步**:+🎚️ 档位行(Meta 申报格式 + R5 例外)·「注意事项 6 条」→ 7 条。
+
+### 测试
+`test_browser_e2e_tier_v8321.py` 9 条:降档唯一路径 / Meta 申报格式 / R5 例外含首份脚本典型 / 降级 WARN / 指针指单源 / agents/README 白名单仍含 e2e(单源锚 · 漂了先在这响)/ brief 三断言。全库全绿。
+
 ## v8.320 · browser-e2e 可重放契约:关键路径必留脚本 · Playwright 默认首选
 
 > 用户(7-29):Browser E2E 是否可以约定优先使用 playwright?→ 拍板「约定产物:关键路径必须留可重放脚本」。

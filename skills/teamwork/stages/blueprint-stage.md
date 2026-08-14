@@ -46,7 +46,7 @@
 
 - `TC.md` → `{SKILL_ROOT}/templates/tc.md`(🔴 含 **§TC 的职责边界** —— 判据「**换实现就要改的内容不属于 TC**」· 表数/表清单/存储形态归 TECH · TC 只验可观测行为)
 - `TECH.md` → `{SKILL_ROOT}/templates/tech.md`
-- `TECH-REVIEW.md` → 无独立模板 · frontmatter `reviewers`(复数 · 含 roster 全角色)+ `verdict` · 按角色 finding 分段
+- `TECH-REVIEW.md` → 无独立模板 · frontmatter `reviewers`(复数 · 含 roster 全角色)+ `verdict` + 🔴 `review_models`(列表 `- <role>: <实际模型>` · 照实申报 —— 与外审 `review_model` 机器比对错开,各路全同模型 = 盲区相关 → complete 拒)· 按角色 finding 分段
 - `external-cross-review/*.md` → 跑 `state.py external-review --feature ... --stage blueprint` 自动落(**不要手写** · 含 `coverage: [...]`)
 
 📎 **物化拦截**:`verify-ac.py`(每 AC ↔ TC.md `tests[].covers_ac` · blueprint-complete 自动跑 · 漏覆盖 FAIL)· P0-154(`external-cross-review/*.md` 非空 · roster-gated)· `reviewers_match` · `cross_review_coverage`。
