@@ -2646,7 +2646,8 @@ def _browser_e2e_brief(state: dict) -> str:
 - 🔴 交付后还需重跑的关键路径 → **可重放脚本**(Playwright 优先 · 进 repo + TC 注册 · 判据详 stage.md 硬规则 6)
 
 ### 怎么做
-**必读** `stages/browser-e2e-stage.md`(详细步骤 6 步 + 注意事项 6 条)。
+**必读** `stages/browser-e2e-stage.md`(详细步骤 6 步 + 注意事项 7 条)。
+🎚️ **档位**:本 stage 属验证类白名单 —— 默认**派验证档 subagent**(prompt 首行 `Meta: tier=验证 · model=… · 理由=…` · 显式传 model);例外(如首份可重放脚本探索占主体)🔴 开 R5 请用户授权 · 不许自决。
 📋 产物模板:本 emit 的 `scaffold_hints.templates` 给**绝对路径** · 照它起草 · 别抄项目旧产物。
 🔴 **无独立用户暂停**:截图是硬产物 evidence(不是给用户当场确认用)· 完成后自动转 pm_acceptance · 用户在 pm_acceptance 三选项暂停点连同截图一并验收。
 

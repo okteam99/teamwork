@@ -4,6 +4,21 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.321 · browser_e2e 档位承载:验证档 subagent 写进动作点
+
+> 用户:是 subagent 验证档模型执行这个阶段么?
+> 答案在全局白名单里是「是」—— 但 browser_e2e 自己的 stage 硬规则与运行时 brief **零承载**。
+
+### 问题
+档位约束(e2e ∈ 验证类白名单 → 一律降验证档 · 例外须用户授权)只活在 SKILL 全局规则与 agents/README 档位表;对照 goal/blueprint(🎚️ 不许降档)、review(🎚️ 验证轮用验证档)、test(subagent 并行判据),唯独 browser_e2e 这个白名单成员在自己的执行入口一行没写 —— 执行到该 stage 的 AI 若 context 没带全局白名单,默认继承会话主模型自己手点(常费而不自知)。「模式承诺 × 动作点载体」对账表第三格(fast/yolo 之后)。
+
+### 变更(两载体)
+- **stage ② 硬规则 7**(🎚️):默认派验证档 subagent 执行 —— 主对话模型是用户主权不可切,**降档只有派 subagent 显式传 model 一条路**(prompt 首行 `Meta: tier=验证 · model=… · 理由=…`);例外 🔴 不许 AI 自决 · 开 R5 请用户授权(典型:首份可重放脚本要逆向真进程启动配方 = 探索+调试占主体 —— 与硬规则 6 的可重放契约衔接);宿主不支持 subagent → 主对话串行 + `⚠️ WARN [degradation-fallback]`。判据单源仍在 agents/README §一,本行是指针复述。
+- **运行时 brief 同步**:+🎚️ 档位行(Meta 申报格式 + R5 例外)·「注意事项 6 条」→ 7 条。
+
+### 测试
+`test_browser_e2e_tier_v8321.py` 9 条:降档唯一路径 / Meta 申报格式 / R5 例外含首份脚本典型 / 降级 WARN / 指针指单源 / agents/README 白名单仍含 e2e(单源锚 · 漂了先在这响)/ brief 三断言。全库全绿。
+
 ## v8.320 · browser-e2e 可重放契约:关键路径必留脚本 · Playwright 默认首选
 
 > 用户(7-29):Browser E2E 是否可以约定优先使用 playwright?→ 拍板「约定产物:关键路径必须留可重放脚本」。
@@ -126,32 +141,3 @@ MR 是仓库级,同 repo 全栈改动一个 worktree 一个 MR 原子交付(本 
 `triage_evidence` 槽(**空着不给判** · 机器校验);§1.5.3 可选深挖。本 case 里 AI 真做了
 (读了表单组件、grep 校验逻辑,暂停点里「已核实的变更点」甚至发现「可选」只是 AntD 必填标记
 未声明的视觉问题)—— 调研质量没问题,问题只在信号口径。
-
-## v8.316 · WS 总览加「大白话目标」列 · 「子项目」改「涉及子项目」
-
-> 用户(附 WS-11 截图):ws 文档模版改下,拆出的 feature 加一个大白话目标列;子项目改为涉及子项目。
-> 截图实证:总览表「功能」列是技术短语(「SuperRun 数据库连接注入」)—— 扫一眼看不出
-> 每条 feature 做完后**谁能干什么**;「子项目」单数列名与 v8.314「可跨子项目」语义已不符。
-
-### 先做了一次概念合并(单名防漂)
-
-v8.314 昨天刚立的「交付物」槽(这条单独上线后谁得到什么)与本次要的「大白话目标」是
-**同一个概念** —— 一个概念两个名字必漂(五维/六维双副本是现行判例)。全链统一为**大白话目标**:
-
-```
-拆解讨论稿必答槽 ──→ WS frontmatter features[].goal_plain ──→ ws-progress 总览表「大白话目标」列
-     (Step 5.7)              (机读 · 模板注释带判据)              (名册驱动直出 · 空显「—」)
-```
-
-四处同名 · 判据不变(写不出可感知目标 = 横切件并回宿主 ·「后端接口就绪」不算)· 旧名清零(测试锁)。
-
-### 改动
-
-- `_parse_ws_features` 认 `goal_plain` 键(存量 WS 无该字段 → 缺省空 · 不炸);
-- ws-progress 总览表:表头 `| feature | BL | 涉及子项目 | 功能 | 大白话目标 | 状态 | 当前阶段 | F |` ·
-  名册命中与未匹配两路都透传 · 孤儿/回退路容缺显「—」;
-- workstream 模板:frontmatter 加 `goal_plain` 字段(注释带判据)· body 每-feature 节行改同名;
-- feature-planning Step 5.7 讨论稿槽 + PLANNING_CHECKLIST 条目同步单名,并点名落点
-  `features[].goal_plain`(讨论产出与落盘字段有名字链路 · 不靠意会)。
-
-空着显「—」即可见 —— 载体承载,不配门(同 v8.312/315 姿态)。
