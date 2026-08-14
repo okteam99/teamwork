@@ -4,6 +4,19 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.325 · merged worktree 巡检 + 构建世界纪律(P1-4)
+
+> aon-core `.worktree/` 23G:14 个注册 worktree 里 13 个分支已 merge(18G 纯垃圾 · 最老 31 天)+ 1 孤儿目录;supersdk 5 个僵尸壳被 `ws-progress` 递归扫成双份(9→18)。
+> 根因与 141GB scratch 同款:回收挂在 ship2,session 常死在 ship1 push 后 → ship2 永不跑;且 `worktree_cleanup` 配置键**没有任何代码消费者**(安慰剂配置 —— 「ask」从没人被问过)。
+
+### 变更
+- **`bootstrap.prune_merged_worktrees`**(挂 session bootstrap · 每 session 会跑到的地方):worktree 根下逐目录巡检 —— 僵尸壳(不在 `git worktree list` · 树里只有 .DS_Store)任何模式都删;注册 worktree 已 merge 进 merge_target 且干净(untracked 仅接力卡 `docs/features/**` · `-uall` 逐文件豁免)→ 按 `worktree_cleanup` 处置;未 merge / 有真实未提交内容**永不动**(报告);孤儿有内容只报告;收尾 `git worktree prune`。体量 `du -sk` 限时 3s(同 scratch 的耗时纪律)。
+- **`worktree_cleanup` 转正为真开关**:`auto`(**新默认** · merged+干净即删 + branch -d)/ `ask`(不删 · 每 session bootstrap 逐个报告 —— ask 终于真的在问)/ `keep`(只计数)。存量项目显式写的 `ask` 不被覆盖(backfill 只补缺失键 · 用户主权)。
+- **构建世界纪律收编**(conventions §12.45):worktree 只隔离 git 树不隔离构建世界 —— 依赖目录 / `.pth` editable / 构建缓存与 TMPDIR / 测试数据库 / dev server 端口五面纪律表(消费项目六条独立 KNOWLEDGE 同根教训收编为框架职责)。
+
+### 测试
+`test_worktree_prune_v8325.py` 13 条:auto 删+删分支 / 接力卡 untracked 不挡(-uall 修折叠)/ 真残留只报 / 未 merge 不动 / ask·keep 语义 / 僵尸壳任何模式清 / 孤儿只报 / 默认翻转+模板同步 / 非法值回退 ask / wiring / 构建世界表。全库全绿。
+
 ## v8.324 · 格式门禁前置化:complete 契约 spec 同源预告 + 解析器放宽一档(P0-3)
 
 > 两项目耗时归因 26-28% 轮次 = 纯协调开销,归因高度同质:「格式门禁重试 · spec 字段名未预读」「dev-complete 的 test-runner 门在 dev-start 没预告 · complete 时才拒」;aon-core 复盘:外审产物 YAML **单空格缩进**列表被解析为空 `files_read` → CAPABILITY_BLOCKED 误报 —— 一个缩进空格换一轮返工。
@@ -60,23 +73,3 @@
 
 ### 测试
 `test_browser_e2e_tier_v8321.py` 9 条:降档唯一路径 / Meta 申报格式 / R5 例外含首份脚本典型 / 降级 WARN / 指针指单源 / agents/README 白名单仍含 e2e(单源锚 · 漂了先在这响)/ brief 三断言。全库全绿。
-
-## v8.320 · browser-e2e 可重放契约:关键路径必留脚本 · Playwright 默认首选
-
-> 用户(7-29):Browser E2E 是否可以约定优先使用 playwright?→ 拍板「约定产物:关键路径必须留可重放脚本」。
-> **该拍板当时未落地**(对话随后转向,无任何载体接住)。今日用户重提:目前 browser-e2e 测试用什么有规范么,预期优先使用 playwright —— 两条一起补。
-
-### 问题(改前现状)
-- 工具菜单写「Playwright / Puppeteer / Selenium · 按项目栈选」—— 无默认,临场自选。
-- 产物契约只收 `screenshots/*.png` + 报告 —— **截图是一次性证据**:代码一改,旧截图证明不了新代码;AI 用 playwright MCP 手点也算「用了 Playwright」,工具名约束不了可重放性。
-
-### 变更(三载体 + 运行时 brief)
-- **stage ② 硬规则 6**:关键路径必留可重放脚本 —— 判据「**这条 browser 验证在交付后还需要重跑吗(回归 / CI)?**」需要 → 脚本进 repo + TC 注册(生命周期 **L2** · 进 L1 仍走 `ci_reason` 门);只看一眼 → 截图即可(探索落 scratch)。
-- **stage ③ 菜单**:Playwright(默认首选 · 用户拍板)· 已有 Puppeteer / Selenium / Cypress 基建则**复用**(一致性优先,不逼迁移)。
-- **stage ④ 产物契约**:+可重放脚本行(落项目 e2e 目录 · TC `tests[]` level: fe-e2e)。**不设机器门** ——「关键与否」是判断题,载体承载。
-- **报告模板**:frontmatter 新增 `replay_entry` 必填槽(关键路径写一条可直接跑的重放命令 / 探索性一次性填 `n/a` —— 空着 = 没想过要不要重放);`browser_automation` 注释改为默认首选口径。
-- **tc.md 执行方式二分**:`browser-script`(可重放 · Playwright 优先)/ `browser`(AI 手点 · 仅探索性/一次性,降级理由写在选项旁)。
-- **运行时 brief 同步**(`_browser_e2e_brief`):结果区 +replay_entry 与可重放脚本行 ·「注意事项 5 条」→ 6 条(动作点载体不同步 = 模式承诺未物化,已两例的老病)。
-
-### 测试
-`test_browser_e2e_replay_v8320.py` 14 条:判据措辞 / L2+ci_reason 衔接 / 手点反例入 why / 探索性出口 / 菜单默认+复用 / replay_entry 槽位含 n/a / tc 二分 / brief 同步 / artifacts 仍 2 项 evidence_checks 空(锁「不设机器门」设计边界)/ 触改文件零版本标。全库 1271 collected 全绿。

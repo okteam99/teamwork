@@ -199,12 +199,24 @@ state.py init-feature \
 # 物化校验:cwd 必须在 worktree-path 内
 ```
 
-完成 Feature 后清理:**正常路径 = ship2 `ship-phase --action ship-finalize` 自动做**(verify-delivered → worktree-remove → main-sync · 详 [ship-stage.md §6](../stages/ship-stage.md))。以下手动命令仅兜底(在主工作区跑 · 不在 worktree 跑):
+完成 Feature 后清理:**正常路径 = ship2 `ship-phase --action ship-finalize` 自动做**(verify-delivered → worktree-remove → main-sync · 详 [ship-stage.md §6](../stages/ship-stage.md));**兜底 = bootstrap 每 session 巡检 merged worktree**(session 常死在 ship1 push 后 · ship2 永不跑 —— 实证 23G 垃圾:13/14 已 merge 未清)· 按 localconfig `worktree_cleanup` 处置:`auto`(默认)merged+干净即删;`ask` 逐个报告;`keep` 只计数;僵尸壳任何模式都清。以下手动命令仅兜底(在主工作区跑 · 不在 worktree 跑):
 ```bash
 cd <主工作区>  # ⚠️ 必须先 cd 出 worktree(物化拦截)
 git worktree remove <worktree-path>
 git branch -d <branch>
 ```
+
+## 12.45 worktree 构建世界(依赖 · 缓存 · 测试库 —— git 之外的三件事)
+
+🔴 worktree 只隔离 git 树,**不隔离构建世界** —— 依赖目录 / 构建缓存 / 测试数据库要么缺失、要么与主树共享。消费项目六条独立 KNOWLEDGE 条目同根,开工前先过这张表,别边跑边踩:
+
+| 面 | 症状 | 纪律 |
+|---|---|---|
+| 依赖目录(node_modules / venv) | worktree 内无依赖 · 首次必装 | 装进 worktree 内;或软链主树**只读用 · 用完即删** —— 别指望自动共享 |
+| Python editable install(`.pth`) | import 解析回**主树** · 跑的是旧代码 | worktree 内重新 `pip install -e`;或 `PYTHONPATH=<worktree>/src` 显式前置 |
+| 构建缓存(cargo target / .next) | 首建全量慢;共享则脏缓存 | 缓存留 worktree 内(隔离正确性 > 首建速度);🔴 **TMPDIR 绝不指 worktree 内**(实证:589 个编译缓存文件被带进 commit) |
+| 测试数据库 | 并发分支迁移漂移 · setup 即 panic 全挂(与被测代码无关) | 每 worktree 独立库名(如 `TEST_PG_DB_NAME` 带分支名)· **共享测试库 = 并发毒** |
+| dev server 端口 | 多 worktree 撞端口 · 探测被环境变量污染 | 显式传 `PORT` · 动态端口优先 |
 
 ## 12.5 浏览器验证截图(transient)
 

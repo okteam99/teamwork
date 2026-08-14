@@ -746,7 +746,9 @@ LOCALCONFIG_CONFIG_DEFAULTS = {
     "worktree_root_path": ".worktree",
     "scope": "all",
     "merge_target": "staging",
-    "worktree_cleanup": "ask",
+    # v8.325:默认 auto —— 「ask」曾是无消费者的安慰剂且实证从没人确认(23G 垃圾);
+    # merged+干净才删 · 存量项目显式写的 ask 不被覆盖(改为每 session 报告)。
+    "worktree_cleanup": "auto",
     "mr_url_template": None,
     "id_strategy": "utc-yymmddhhmmss",
     "local_env_auto_create": True,
@@ -1155,6 +1157,139 @@ def _tree_recent_mtime(d: Path, max_depth: int = 2) -> float:
     return newest
 
 
+def _worktree_du_kb(path: Path) -> Optional[int]:
+    """worktree 体量(KB · du 限时 3s · 大树跳过统计 —— 同 scratch 清理的耗时纪律)。"""
+    try:
+        r = subprocess.run(["du", "-sk", str(path)],
+                           capture_output=True, text=True, timeout=3)
+        if r.returncode == 0:
+            return int(r.stdout.split()[0])
+    except (subprocess.SubprocessError, OSError, ValueError, IndexError):
+        pass
+    return None
+
+
+def _tree_only_trivial(d: Path, limit: int = 200) -> bool:
+    """僵尸壳判据:树里只有 .DS_Store(实证形态)· 条目超 limit 直接 False(不遍历大树)。"""
+    n = 0
+    try:
+        for p in d.rglob("*"):
+            n += 1
+            if n > limit:
+                return False
+            if p.is_dir() or p.name == ".DS_Store":
+                continue
+            return False
+    except OSError:
+        return False
+    return True
+
+
+def prune_merged_worktrees(project_root: Path) -> dict:
+    """v8.325:merged worktree 巡检(挂 bootstrap)。
+
+    根因与 141GB scratch 同款:worktree 回收挂在 ship2(ship-finalize),而 session
+    常死在 ship1 push 后 → ship2 永不跑。实证:aon-core `.worktree/` 23G · 14 个注册
+    worktree 里 13 个分支已 merge(18G 纯垃圾 · 最老 31 天)+ 1 个孤儿目录;supersdk
+    5 个僵尸壳(git worktree 已 remove · 目录壳残留)还会被递归工具扫成双份。
+    `worktree_cleanup` 此前是**无消费者的安慰剂配置** —— 本函数让它成真开关:
+      - auto(新默认):merged 且干净(untracked 仅接力卡 docs/features/**)→ 删 worktree + branch -d
+      - ask(存量项目多为此值):不删 · 逐个报告(每 session bootstrap 可见 —— ask 终于真的在问)
+      - keep:只计数
+    僵尸壳(不在 `git worktree list` · 树里只有 .DS_Store)任何模式都删;
+    未 merge / 有真实未提交内容的永不动(报告)。收尾跑 `git worktree prune` 清管理项。
+    """
+    cfg = read_localconfig(project_root)
+    mode = cfg.get("worktree_cleanup")
+    if mode not in ("auto", "ask", "keep"):
+        mode = "ask"
+    wt_root = project_root / (cfg.get("worktree_root_path") or ".worktree")
+    mt = cfg.get("merge_target") or "staging"
+    if not wt_root.is_dir():
+        return {"status": "no_worktree_root", "mode": mode}
+
+    def _git(args, cwd=project_root, timeout=30):
+        return subprocess.run(["git", "-C", str(cwd), *args],
+                              capture_output=True, text=True, timeout=timeout)
+
+    lr = _git(["worktree", "list", "--porcelain"], timeout=15)
+    if lr.returncode != 0:
+        return {"status": "error", "mode": mode, "error": lr.stderr.strip()[:150]}
+    registered = []
+    for line in lr.stdout.splitlines():
+        if line.startswith("worktree "):
+            try:
+                registered.append(Path(line.split(" ", 1)[1]).resolve())
+            except OSError:
+                pass
+    main_wt = registered[0] if registered else None
+    ref = None
+    for cand in (f"origin/{mt}", mt):
+        if _git(["rev-parse", "--verify", "--quiet", cand]).returncode == 0:
+            ref = cand
+            break
+    removed, reported, zombies = [], [], []
+    freed_kb = 0
+    try:
+        children = sorted(c for c in wt_root.iterdir() if c.is_dir())
+    except OSError:
+        return {"status": "error", "mode": mode, "error": "worktree 根不可读"}
+    for child in children:
+        try:
+            cr = child.resolve()
+        except OSError:
+            continue
+        rel = child.name
+        if cr not in registered:
+            if _tree_only_trivial(child):
+                shutil.rmtree(child, ignore_errors=True)
+                zombies.append(rel)
+            else:
+                reported.append({"path": rel,
+                                 "reason": "孤儿目录(不在 git worktree list · 有内容 · 手工核)"})
+            continue
+        if cr == main_wt or ref is None:
+            continue
+        head = _git(["rev-parse", "HEAD"], cwd=child)
+        if head.returncode != 0:
+            continue
+        if _git(["merge-base", "--is-ancestor", head.stdout.strip(), ref]).returncode != 0:
+            continue  # 未 merge · 不动
+        # -uall:untracked 逐文件列出(默认折叠成顶层目录 `?? docs/` · 接力卡豁免匹配不到)
+        st = _git(["status", "--porcelain", "--no-renames", "--untracked-files=all"], cwd=child)
+        if st.returncode != 0:
+            reported.append({"path": rel, "reason": "merged 但 status 失败 · 手工核"})
+            continue
+        leftover = []
+        for line in st.stdout.splitlines():
+            p = line[3:].strip().strip('"')
+            if "docs/features/" in p:
+                continue  # 接力卡(archive 后转 untracked)属预期
+            leftover.append(p)
+        branch = _git(["rev-parse", "--abbrev-ref", "HEAD"], cwd=child).stdout.strip()
+        item = {"path": rel, "branch": branch, "size_kb": _worktree_du_kb(child)}
+        if leftover:
+            reported.append({**item,
+                             "reason": f"merged 但有非接力卡未提交内容 ×{len(leftover)} · 手工核"})
+            continue
+        if mode == "auto":
+            rm = _git(["worktree", "remove", "--force", str(child)], timeout=60)
+            if rm.returncode == 0:
+                removed.append(item)
+                freed_kb += item["size_kb"] or 0
+                if branch and branch != "HEAD":
+                    _git(["branch", "-d", branch])
+            else:
+                reported.append({**item, "reason": f"remove 失败:{rm.stderr.strip()[:100]}"})
+        elif mode == "ask":
+            reported.append({**item,
+                             "reason": "已 merge 未清(worktree_cleanup=ask)· 确认后手删或配 auto"})
+        # keep:静默
+    _git(["worktree", "prune"])
+    return {"status": "ok", "mode": mode, "merge_ref": ref, "removed": removed,
+            "freed_kb": freed_kb, "zombie_removed": zombies, "reported": reported}
+
+
 def prune_teamwork_tmp(
         retention_days: int = TEAMWORK_TMP_RETENTION_DAYS,
         project_root: Optional[Path] = None) -> dict:
@@ -1347,6 +1482,10 @@ def cmd_session_bootstrap(args: argparse.Namespace) -> None:
     # 全局 housekeeping(~/.teamwork + scratch 根 · 与项目无关 · 失败不阻塞)
     logs_prune = prune_external_review_logs()
     tmp_prune = prune_teamwork_tmp(project_root=project_root)  # 旧根 TTL + 各 worktree .teamwork-scratch* 兜底
+    try:
+        worktree_prune = prune_merged_worktrees(project_root)  # v8.325:merged worktree 巡检
+    except Exception as e:  # noqa: BLE001 — 巡检失败不拦 bootstrap
+        worktree_prune = {"status": f"error:{e}"}
 
     # 非 git 目录守卫:骨架/space/local-env 维护都以「项目仓库」为前提 ——
     # 在家目录等任意 cwd 跑会铺一堆 teamwork 文件。跳过一切项目写盘动作
@@ -1380,6 +1519,7 @@ def cmd_session_bootstrap(args: argparse.Namespace) -> None:
                 "gitignore_worktree": _skip,
                 "external_review_logs_prune": logs_prune,
                 "teamwork_tmp_prune": tmp_prune,
+            "merged_worktree_prune": worktree_prune,
                 "skill_update_check": {
                     "status": "skipped",
                     "reason": "not_a_git_repo(无项目 localconfig 可写缓存 · 不外呼)",

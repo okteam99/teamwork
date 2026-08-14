@@ -4,6 +4,26 @@
 > 上次清空:**v8.193**(2026-07-06 · 清除 v8.128 → v8.187 共 60 版条目 · 约 1.0k 行)。
 
 ---
+## v8.320 · browser-e2e 可重放契约:关键路径必留脚本 · Playwright 默认首选
+
+> 用户(7-29):Browser E2E 是否可以约定优先使用 playwright?→ 拍板「约定产物:关键路径必须留可重放脚本」。
+> **该拍板当时未落地**(对话随后转向,无任何载体接住)。今日用户重提:目前 browser-e2e 测试用什么有规范么,预期优先使用 playwright —— 两条一起补。
+
+### 问题(改前现状)
+- 工具菜单写「Playwright / Puppeteer / Selenium · 按项目栈选」—— 无默认,临场自选。
+- 产物契约只收 `screenshots/*.png` + 报告 —— **截图是一次性证据**:代码一改,旧截图证明不了新代码;AI 用 playwright MCP 手点也算「用了 Playwright」,工具名约束不了可重放性。
+
+### 变更(三载体 + 运行时 brief)
+- **stage ② 硬规则 6**:关键路径必留可重放脚本 —— 判据「**这条 browser 验证在交付后还需要重跑吗(回归 / CI)?**」需要 → 脚本进 repo + TC 注册(生命周期 **L2** · 进 L1 仍走 `ci_reason` 门);只看一眼 → 截图即可(探索落 scratch)。
+- **stage ③ 菜单**:Playwright(默认首选 · 用户拍板)· 已有 Puppeteer / Selenium / Cypress 基建则**复用**(一致性优先,不逼迁移)。
+- **stage ④ 产物契约**:+可重放脚本行(落项目 e2e 目录 · TC `tests[]` level: fe-e2e)。**不设机器门** ——「关键与否」是判断题,载体承载。
+- **报告模板**:frontmatter 新增 `replay_entry` 必填槽(关键路径写一条可直接跑的重放命令 / 探索性一次性填 `n/a` —— 空着 = 没想过要不要重放);`browser_automation` 注释改为默认首选口径。
+- **tc.md 执行方式二分**:`browser-script`(可重放 · Playwright 优先)/ `browser`(AI 手点 · 仅探索性/一次性,降级理由写在选项旁)。
+- **运行时 brief 同步**(`_browser_e2e_brief`):结果区 +replay_entry 与可重放脚本行 ·「注意事项 5 条」→ 6 条(动作点载体不同步 = 模式承诺未物化,已两例的老病)。
+
+### 测试
+`test_browser_e2e_replay_v8320.py` 14 条:判据措辞 / L2+ci_reason 衔接 / 手点反例入 why / 探索性出口 / 菜单默认+复用 / replay_entry 槽位含 n/a / tc 二分 / brief 同步 / artifacts 仍 2 项 evidence_checks 空(锁「不设机器门」设计边界)/ 触改文件零版本标。全库 1271 collected 全绿。
+
 ## v8.319 · scratch 根迁入 worktree:随 worktree 生一起死
 
 > 用户:`/tmp/teamwork` 的内容能放到 worktree 下面么,随着 worktree 就一起清理了?

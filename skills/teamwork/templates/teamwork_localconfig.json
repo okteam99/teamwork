@@ -6,7 +6,8 @@
   "worktree_root_path": ".worktree",
   "scope": "all",
   "merge_target": "staging",
-  "worktree_cleanup": "ask",
+  "_comment_worktree_cleanup": "merged worktree 回收:auto(默认 · bootstrap 巡检到已 merge 且干净〔untracked 仅接力卡〕即删 + branch -d)| ask(不删 · 每 session bootstrap 逐个报告)| keep(只计数)。僵尸壳(git worktree list 之外的空壳)任何模式都清;未 merge / 有真实未提交内容永不动。",
+  "worktree_cleanup": "auto",
   "mr_url_template": null,
 
   "_comment_id_strategy": "artifact ID 号段策略 · utc-yymmddhhmmss(默认 · UTC0 秒级时间戳 · 跨机/多 agent 并行免协调防撞号)| sequential(顺序号 max+1 · 单 clone 项目可 opt-out 保留好念短序号)。改此项只影响新建 feature · 存量 ID 不重编号。",
