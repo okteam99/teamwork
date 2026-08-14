@@ -4,6 +4,22 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.322 · 升级传导:版本漂移入口自愈(P0-1)
+
+> aon-core × supersdk 实证分析拍板「按建议」的第一件。
+> supersdk 画像:skill 全局副本静默升 37 版 · per-project bootstrap 20 天没跑 ·
+> `last_update_check_result` 还在说 up_to_date · 台账 61% 旧列宽(aon-core 50%)·
+> gitignore 注入水位停在三十版前 ——「提示用户去跑 bootstrap」被实证不发生。
+
+### 治法(与 scratch 清理同构:挂在积灰机器自己天天跑的命令上)
+- **state.py 入口自愈**(`main()` 前 best-effort · 绝不拦正事 · 输出走 stderr 不污染 stdout JSON 契约):marker 版本 ≠ 当前 skill 版本 → 就地跑零风险幂等迁移集 —— ①台账 schema 迁移 ②gitignore 条目重放 ③marker 记录(`_bootstrap.state_migrate{at,from,to,actions}` · 不冒充 full bootstrap 的 `skill_version`)。chmod / hooks / host 注入 / 升级 R5 检测仍归 session bootstrap(重量级或需用户决策 · 不越权)。不接管:无 localconfig / 无 `_bootstrap` marker(首铺归 bootstrap)/ skill 在项目仓内(框架仓自身守卫)。
+- **台账迁移升级为「表头 + 旧行补列宽」**(`_v8_engine.migrate_process_ledger` 单源 · state.py `ledger-migrate` 与 bootstrap maintain 双通道共用):立制时「旧行是有效前缀不动」被两项目实证打破(按列索引解析静默错位 · 年检读错列)—— 改为**内容前缀逐字不动 · 末尾补 `—` 到表头宽**(`—` = 早于该指标)· 只补不裁(超宽/断行不动)。
+- **state.json schema 版本**:`_schema_version`(int · schema 真变才 +1)写路径盖戳(engine `save_state` + state.py `atomic_write` 双写点)· 读路径只拦「来自未来」(混合宿主/多机下新 skill 写的 state 不被旧逻辑静默丢字段)· 缺失/更低 = 旧数据兼容读。
+- `locate_localconfig`(返回路径)从 `load_localconfig` 拆出单源共用。
+
+### 测试
+`test_version_drift_heal_v8322.py` 16 条(自愈全路径 / 不接管三场景 / 只补不裁 / 入口 stderr + stdout 纯 JSON / schema 戳与未来拦截);`test_ledger_migrate_v8210.py` 按新设计更新(旧行「逐字不动」→「前缀不动 + 补宽」);`test_authoring_preventability_v8281.py` 指向 engine 单源。全库全绿。
+
 ## v8.321 · browser_e2e 档位承载:验证档 subagent 写进动作点
 
 > 用户:是 subagent 验证档模型执行这个阶段么?
@@ -106,38 +122,3 @@ ui-design 6 / test-stage 9 / ship-stage §4 / dev-stage 8 / tc.md L3)。
 141GB 含多个 feature 目录 —— 除主时点缺失外,单 feature 78GB 说明该项目构建产物本身巨大;
 in-flight feature 的 scratch 是**有意保留**的(串行 stage 复用增量编译),本版不加大小门 ——
 若后续 in-flight 单体也失控,再议按体量 WARN(观察项)。
-
-## v8.317 · 复杂度信号 1 收窄:部署单元 → git 仓库(三载体统一)
-
-> 实证(matrixpower · Published-Model-Discovery):前后端联动小改(platform-api 目录规则 +
-> Console 表单必填)触发复杂度门,推荐先做 Feature Planning —— 用户选 2 纠正后问:
-> **复杂门禁是怎么判断的?**
-
-### 机制回答 + 门自己的问题
-
-判定链:关键词初判 → §2.1 五信号扫描 → 命中任一强制 emit 升级暂停点(模板固定推荐 Planning)
-→ 用户可选 2 收敛单 feature(门是「必须问」不是「必须拆」)。本 case 命中信号 1。
-
-但查下来是**三载体两口径,权威那份恰好过宽**:判定权威 prepare §2.1 写「跨独立**部署服务**」
-(例子含「独立部署单元:后端 + 前端 + 管理后台」),而 planning-check emit 与 feature-planning §0
-写的是「跨**仓库**联动」。AI 跟了权威载体 → monorepo 里两个独立部署的服务也命中。
-
-**部署拓扑不影响一个 feature 装不装得下** —— 真正的承载边界是 git 仓库:worktree 是仓库级、
-MR 是仓库级,同 repo 全栈改动一个 worktree 一个 MR 原子交付(本 case 用户选 2 后实际发生的事,
-且 AI 正确按「业务交付宿主」定了 CONSOLE 前缀)。旧口径下 monorepo **每次前后端联动都多付一轮 1/2 选择**。
-
-### 修(用户拍板:收窄为跨 git 仓库 · 三处统一)
-
-- 信号 1 = **跨独立 git 仓库(≥2 repo/origin)** —— 一个 worktree / 一个 MR 装不下,单 Feature
-  状态机**真**承载不了;🔴 **同 repo 内跨子项目 / 多独立部署单元不计入**(一个 worktree 原子交付 ·
-  照样一个 feature · 交付宿主定前缀)。
-- 两个接盘点名:规模由「影响 ≥2 BL」信号兜 · 部署协调由 WS「跨子项目方向(provider 先于 consumer)」串行约束管。
-- 五处统一口径(prepare §2.1 / SKILL 警觉锚点 / feature-planning §0 / state.py 两处 emit)· 旧口径清零(测试锁)。
-- 暂停点模板推荐写死 Planning **保留**(用户选):收窄后真命中的基本是跨仓库大变更,写死反而合理。
-
-### 顺带回答:判信号时有调研现状吗?
-
-**有,强制**:§1.7「看过再判」—— 流程类型判定前必做 30 秒侦察,证据填 `prepare-check` 的
-`triage_evidence` 槽(**空着不给判** · 机器校验);§1.5.3 可选深挖。本 case 里 AI 真做了
-(读了表单组件、grep 校验逻辑,暂停点里「已核实的变更点」甚至发现「可选」只是 AntD 必填标记
-未声明的视觉问题)—— 调研质量没问题,问题只在信号口径。

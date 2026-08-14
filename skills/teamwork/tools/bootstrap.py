@@ -1425,16 +1425,26 @@ def cmd_session_bootstrap(args: argparse.Namespace) -> None:
         maintain_status = "skipped_version_unchanged"
         chmod_result = {"status": "skipped"}
         gitignore = {"status": "skipped"}
+        ledger_mig = {"status": "skipped"}
     else:
         maintain_status = "ran" if not args.force else "ran_forced"
         chmod_result = maintain_chmod_tools(skill_root)
         gitignore = maintain_gitignore_worktree(project_root, skill_root)  # v8.35:传 skill_root · skip 跨仓污染
+        # v8.322:台账 schema 迁移随 maintain(表头 + 旧行补列宽 · 幂等)——
+        # 与 state.py 入口自愈同核心(migrate_process_ledger)· 双通道谁先到谁迁。
+        try:
+            from _v8_engine import migrate_process_ledger
+            ledger_mig = migrate_process_ledger(
+                project_root / PROJECT_SPECS_DIR / "PROCESS-LEDGER.md", skill_root)
+        except Exception as e:  # noqa: BLE001 — 迁移失败不拦 bootstrap
+            ledger_mig = {"status": f"error:{e}"}
         # 跑完 maintain 写 marker 锁版本(下次同版本会 skip)
         marker_results = {
             "chmod": chmod_result.get("status", "unknown"),
             "hooks": hooks_result.get("status", "unknown"),
             "host_injection": injection.get("status", "unknown"),
             "gitignore_worktree": gitignore.get("status", "unknown"),
+            "ledger_migrate": ledger_mig.get("status", "unknown"),
         }
         write_bootstrap_marker(project_root, skill_version,
                                 args.host, marker_results)
@@ -1465,6 +1475,7 @@ def cmd_session_bootstrap(args: argparse.Namespace) -> None:
             "hooks": hooks_result,
             "host_injection": injection,
             "gitignore_worktree": gitignore,
+            "ledger_migrate": ledger_mig,
             "external_review_logs_prune": logs_prune,
             "teamwork_tmp_prune": tmp_prune,
         },

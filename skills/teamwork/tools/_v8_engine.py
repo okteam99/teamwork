@@ -143,6 +143,13 @@ def emit_json(payload: dict, exit_code: int = 0) -> None:
     sys.exit(exit_code)
 
 
+# v8.322:state.json schema 版本(整数 · schema 真变才 +1)。
+# 实证(supersdk):23 个 state 无任何 schema 标识 · 迁移只能嗅探键名。
+# 纪律:写路径盖戳(save_state / state.py atomic_write)· 读路径只拦「来自未来」
+# (缺失/更低 = 旧数据 · 兼容读 · 下次写自然补戳)。
+STATE_SCHEMA_VERSION = 1
+
+
 def load_state(feature_path: str) -> tuple[Path, dict]:
     """加载 state.json · 返回 (path, state dict)"""
     p = Path(feature_path) / "state.json"
@@ -152,7 +159,16 @@ def load_state(feature_path: str) -> tuple[Path, dict]:
             "error": f"state.json not found: {p}",
             "hint": "先跑 state.py init-feature 创建",
         }, exit_code=2)
-    return p, json.loads(p.read_text(encoding="utf-8"))
+    state = json.loads(p.read_text(encoding="utf-8"))
+    sv = state.get("_schema_version")
+    if isinstance(sv, int) and sv > STATE_SCHEMA_VERSION:
+        emit_json({
+            "verdict": "FAIL",
+            "error": f"state.json _schema_version={sv} 高于本 skill 支持的 {STATE_SCHEMA_VERSION}",
+            "hint": ("该 state 由更新版 skill 写出(混合宿主/多机常见)—— 升级本机 skill 后再操作 · "
+                     "不要手动改低 _schema_version(会让新 schema 字段被旧逻辑静默丢弃)"),
+        }, exit_code=2)
+    return p, state
 
 
 def compute_raw_write_audit(state: dict) -> Optional[dict]:
@@ -225,6 +241,7 @@ def save_state(path: Path, state: dict) -> None:
 
     state["updated_at"] = now_iso()
     state["updated_by"] = state.get("updated_by") or "pmo"
+    state["_schema_version"] = STATE_SCHEMA_VERSION
 
     # checksum 同 state.py CHECKSUM_FIELD 算法 · canonical sha256 (排除 _state_checksum 字段)
     cleaned = {k: v for k, v in state.items() if k != "_state_checksum"}
@@ -510,10 +527,10 @@ def _main_worktree_root(dotgit: Path):
     return None
 
 
-def load_localconfig(start):
-    """从 `start` 向上解析 `.teamwork_localconfig.json` · 🔴 跨 worktree 边界续找主工作树。
+def locate_localconfig(start):
+    """向上找 `.teamwork_localconfig.json` 的**路径** · 🔴 跨 worktree 边界续找主工作树。
 
-    返回 dict(命中且可解析)或 None。调用方各自做取值与合法性校验。
+    返回 Path(命中)或 None。load_localconfig / heal_version_drift 共用这条 walk。
     """
     try:
         node = Path(start).resolve()
@@ -528,10 +545,7 @@ def load_localconfig(start):
         for d in [node, *node.parents]:
             cfg = d / _LOCALCONFIG_NAME
             if cfg.is_file():
-                try:
-                    return json.loads(cfg.read_text(encoding="utf-8"))
-                except (OSError, ValueError):
-                    return None
+                return cfg
             dotgit = d / ".git"
             if dotgit.is_dir():
                 return None                 # 主仓根 · 本级已查过 → 确实没有
@@ -542,6 +556,20 @@ def load_localconfig(start):
             return None
         node = hop
     return None
+
+
+def load_localconfig(start):
+    """从 `start` 向上解析 `.teamwork_localconfig.json`(walk 单源 = locate_localconfig)。
+
+    返回 dict(命中且可解析)或 None。调用方各自做取值与合法性校验。
+    """
+    cfg = locate_localconfig(start)
+    if cfg is None:
+        return None
+    try:
+        return json.loads(cfg.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
 
 
 def _parse_iso_flexible(s):
@@ -2855,3 +2883,158 @@ def register_v8_subparsers(
             help="[review] --user-confirmed 超预算放行必填 · 用户拍板内容 · 写 concerns WARN(audit)",
         )
         retry_parser.set_defaults(func=make_retry_handler(stage_name))
+
+
+# ─── v8.322 · 升级传导:入口自愈 ──────────────────────────────────────
+
+
+def read_skill_frontmatter_version(skill_root):
+    """SKILL.md frontmatter `version:`(版本号单源 · bootstrap.read_skill_version 同源简版)。"""
+    try:
+        text = (Path(skill_root) / "SKILL.md").read_text(encoding="utf-8")
+    except OSError:
+        return None
+    if not text.startswith("---\n"):
+        return None
+    end = text.find("\n---\n", 4)
+    if end == -1:
+        return None
+    for line in text[4:end].splitlines():
+        if line.startswith("version:"):
+            return line.split(":", 1)[1].strip() or None
+    return None
+
+
+def canonical_ledger_header(skill_root):
+    """从 templates/process-ledger.md 抽 canonical 表头行 + 分隔行(单源 · 不硬编码 schema)。"""
+    tmpl = Path(skill_root) / "templates" / "process-ledger.md"
+    try:
+        lines = tmpl.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return None
+    for i, ln in enumerate(lines):
+        s = ln.strip()
+        if s.startswith("| Feature |") and i + 1 < len(lines) and set(lines[i + 1].strip()) <= set("|-: "):
+            return s, lines[i + 1].strip()
+    return None
+
+
+def migrate_process_ledger(ledger_path, skill_root) -> dict:
+    """PROCESS-LEDGER schema 迁移(幂等):表头/分隔行升级 + 🔴 旧数据行补列宽。
+
+    「旧行是新 schema 有效前缀 · 不动」的设计被消费项目实证打破:
+    aon-core 68/135 行、supersdk 28/46 行停在 10 列 —— 按列索引解析静默错位、年检读错列。
+    改为:**内容前缀逐字不动 · 末尾补 `—` 到表头宽**(`—` = 早于该指标)。
+    只补不裁:列数超宽的行不动(可能含转义竖线 · 宁可留给人看)。
+    """
+    led = Path(ledger_path)
+    if not led.is_file():
+        return {"status": "skip", "reason": "no_ledger"}
+    canon = canonical_ledger_header(skill_root)
+    if not canon:
+        return {"status": "skip", "reason": "no_canonical_header"}
+    canon_hdr, canon_sep = canon
+    try:
+        lines = led.read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError as e:
+        return {"status": "error", "reason": str(e)}
+    hi = next((i for i, ln in enumerate(lines) if ln.strip().startswith("| Feature |")), None)
+    if hi is None:
+        return {"status": "skip", "reason": "no_header_row"}
+    width = canon_hdr.count("|") - 1
+    old_cols = lines[hi].strip().count("|") - 1
+    changed = migrated_header = False
+    if lines[hi].strip() != canon_hdr:
+        lines[hi] = canon_hdr
+        changed = migrated_header = True
+    if hi + 1 < len(lines) and lines[hi + 1].strip() and set(lines[hi + 1].strip()) <= set("|-: "):
+        if lines[hi + 1].strip() != canon_sep:
+            lines[hi + 1] = canon_sep
+            changed = True
+    padded = 0
+    i = hi + 2
+    while i < len(lines):
+        s = lines[i].strip()
+        if not s.startswith("|"):
+            break                            # 表结束(空行/正文)
+        if set(s) <= set("|-: "):
+            i += 1
+            continue                         # 游离分隔行不算数据
+        if s.endswith("|"):
+            cells = s.count("|") - 1
+            if 0 < cells < width:
+                lines[i] = lines[i].rstrip() + " — |" * (width - cells)
+                padded += 1
+                changed = True
+        i += 1
+    if changed:
+        led.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return {"status": "ok", "file": str(led), "migrated_header": migrated_header,
+            "old_cols": old_cols, "new_cols": width, "padded_rows": padded, "changed": changed}
+
+
+def heal_version_drift(start, skill_root):
+    """版本漂移入口自愈(state.py 每次调用前 best-effort · 绝不拦正事)。
+
+    实证(supersdk):skill 全局副本静默升 37 版 · per-project bootstrap 20 天没跑 ·
+    台账 61% 旧列宽 · gitignore 水位停在三十版前 ——「提示用户去跑 bootstrap」被证明不发生。
+    治法同 scratch 清理(挂在积灰机器自己会跑到的命令上):把**零风险幂等迁移集**挂在
+    消费项目天天在跑的 state.py 入口 —— 台账 schema(表头+旧行补宽)· gitignore 条目重放 ·
+    marker 记录(_bootstrap.state_migrate)。chmod / hooks / host 注入 / 升级 R5 检测
+    仍归 session bootstrap(重量级或需用户决策 · 本函数不越权)。
+
+    不接管的场景:无 localconfig(非消费项目)· 无 `_bootstrap` marker(从未 bootstrap ·
+    首铺归 bootstrap)· skill 在项目仓内(框架仓自身 · 同 bootstrap v8.35 跨仓污染守卫)。
+    返回 summary dict(发生了自愈)或 None(无事)。
+    """
+    cfg_path = locate_localconfig(start)
+    if cfg_path is None:
+        return None
+    main_root = cfg_path.parent
+    try:
+        data = json.loads(cfg_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    bs = data.get("_bootstrap")
+    if not isinstance(bs, dict):
+        return None
+    recorded = ((bs.get("state_migrate") or {}).get("to")) or bs.get("skill_version")
+    if not recorded:
+        return None
+    current = read_skill_frontmatter_version(skill_root)
+    if not current or current == recorded:
+        return None
+    try:
+        sr = Path(skill_root).resolve()
+        mr = main_root.resolve()
+        if sr == mr or mr in sr.parents:
+            return None                      # skill 仓自身/内嵌开发 → 不自愈
+    except OSError:
+        return None
+    actions = {}
+    try:
+        actions["ledger"] = migrate_process_ledger(
+            main_root / "project-specs" / "PROCESS-LEDGER.md", skill_root)
+    except Exception as e:  # noqa: BLE001 — 自愈不许炸正事
+        actions["ledger"] = {"status": "error", "reason": str(e)}
+    try:
+        import bootstrap as _bootstrap_mod
+        g = _bootstrap_mod.maintain_gitignore_worktree(main_root, Path(skill_root))
+        actions["gitignore"] = g.get("status", "unknown")
+    except Exception as e:  # noqa: BLE001
+        actions["gitignore"] = f"error:{e}"
+    led = actions["ledger"] if isinstance(actions["ledger"], dict) else {}
+    bs["state_migrate"] = {
+        "at": now_iso(), "from": recorded, "to": current,
+        "actions": {"ledger": led.get("status", "error"),
+                    "ledger_padded_rows": led.get("padded_rows"),
+                    "gitignore": actions["gitignore"]},
+    }
+    data["_bootstrap"] = bs
+    try:
+        cfg_path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n",
+                            encoding="utf-8")
+    except OSError:
+        return None
+    return {"from": recorded, "to": current, "root": str(main_root), "actions": actions}
+

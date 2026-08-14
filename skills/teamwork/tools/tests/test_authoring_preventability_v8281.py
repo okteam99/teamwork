@@ -81,8 +81,8 @@ class TestRecordCommand(unittest.TestCase):
 
 class TestLedgerHeader(unittest.TestCase):
     def test_template_and_separator_column_count_match(self):
-        import state as ST
-        h = ST._canonical_ledger_header()
+        from _v8_engine import canonical_ledger_header
+        h = canonical_ledger_header(Path(__file__).resolve().parent.parent.parent)
         self.assertIsNotNone(h)
         self.assertEqual(h[0].count("|"), h[1].count("|"))
         self.assertIn("起草可预防性", h[0])
