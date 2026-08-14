@@ -2642,10 +2642,11 @@ def _browser_e2e_brief(state: dict) -> str:
 
 ### 结果(完成判定)
 - `screenshots/*.png`(至少 1 张 · 每 AC 一组关键路径截图)
-- `BROWSER-TEST-REPORT.md`
+- `BROWSER-TEST-REPORT.md`(frontmatter `replay_entry` 必填 —— 关键路径写重放命令 / 探索性一次性填 n/a)
+- 🔴 交付后还需重跑的关键路径 → **可重放脚本**(Playwright 优先 · 进 repo + TC 注册 · 判据详 stage.md 硬规则 6)
 
 ### 怎么做
-**必读** `stages/browser-e2e-stage.md`(详细步骤 6 步 + 注意事项 5 条)。
+**必读** `stages/browser-e2e-stage.md`(详细步骤 6 步 + 注意事项 6 条)。
 📋 产物模板:本 emit 的 `scaffold_hints.templates` 给**绝对路径** · 照它起草 · 别抄项目旧产物。
 🔴 **无独立用户暂停**:截图是硬产物 evidence(不是给用户当场确认用)· 完成后自动转 pm_acceptance · 用户在 pm_acceptance 三选项暂停点连同截图一并验收。
 

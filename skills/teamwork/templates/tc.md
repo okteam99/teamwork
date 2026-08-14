@@ -202,7 +202,7 @@ Then {端到端预期结果}
 ### Browser E2E Scenarios
 
 #### FE-E2E-001: {完整前端业务场景描述}
-**执行方式**: browser（AI 浏览器操作）
+**执行方式**: browser-script（🔴 可重放脚本 · Playwright 优先 —— 交付后需重跑的关键路径必用此形态 · 脚本进 repo + 本表 tests[] 注册）/ browser（AI 浏览器手点 · 仅探索性 / 一次性验收 —— 手点不可重放,代码一改截图即失效）
 
 \`\`\`gherkin
 Given {真实页面前置状态}
