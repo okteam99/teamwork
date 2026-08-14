@@ -4,6 +4,36 @@
 > 上次清空:**v8.193**(2026-07-06 · 清除 v8.128 → v8.187 共 60 版条目 · 约 1.0k 行)。
 
 ---
+## v8.318 · scratch 清理前移 ship1:治 worknode 141GB 堆积
+
+> 实证(worknode · Docker-in-Docker):`/tmp/teamwork` 独占 **141GB**,单 feature
+> SRUN-F260810160028 达 **78GB**。用户:feature 结束时是否有清理临时文件?
+> 追加拍板:**按理 ship1 阶段就应该清。**
+
+### 回答:设计上有,但两条通道在 worknode 形态下都够不着
+
+| 既有通道 | 为什么没救到这个 case |
+|---|---|
+| ship2 `tmp-cleanup`(verify-delivered 后整树删) | **session 常在 ship1 交 MR 后结束/换机** —— ship2 根本不在积灰的那台机器上跑 |
+| bootstrap TTL 7 天兜底 | **时间判据救不了空间问题** —— 7 天窗 × 78GB/feature,窗内即可打满磁盘 |
+
+### 修(用户拍板:ship1 即清)
+
+- **push 成功即清**(主时点):`ship-phase --action push` 记录成功后,工具顺手删
+  `${TMPDIR:-/tmp}/teamwork/<feature_id>/` 整树 · emit `scratch_cleanup`(含 pruned_bytes)。
+  依据:此刻测试/构建证据已入 state.json,scratch 无对账价值;**MR 窗口期撞冲突回炉需
+  冷编 = 接受的代价**(磁盘占用 > 增量缓存)。
+- **放弃即清**:`close-unmerged --abandon` 同步清(不会再回炉);暂时关闭(可重开)**保留**
+  增量缓存(重跑 archive→push 免冷编 · TTL 兜底)。
+- **ship2 `tmp-cleanup` 转幂等兜底**(ship1 漏清 / legacy in-flight)· bootstrap TTL 继续扫历史孤儿。
+- 回收口径从「双通道」改「三通道」(common §六 · ship-stage §4 同步)。
+
+### case 里另一个值得留意的点(不动 · 记录)
+
+141GB 含多个 feature 目录 —— 除主时点缺失外,单 feature 78GB 说明该项目构建产物本身巨大;
+in-flight feature 的 scratch 是**有意保留**的(串行 stage 复用增量编译),本版不加大小门 ——
+若后续 in-flight 单体也失控,再议按体量 WARN(观察项)。
+
 ## v8.317 · 复杂度信号 1 收窄:部署单元 → git 仓库(三载体统一)
 
 > 实证(matrixpower · Published-Model-Discovery):前后端联动小改(platform-api 目录规则 +

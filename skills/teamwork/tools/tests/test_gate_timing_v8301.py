@@ -145,12 +145,19 @@ class TestActionPointPushes(unittest.TestCase):
         src = (ROOT / "tools" / "_v8_engine.py").read_text(encoding="utf-8")
         self.assertIn('"preventability_hint": _pv_hint', src)
 
-    def test_ledger_migrate_pushed_before_append(self):
-        """`ledger-migrate` 必须在 append **之前**跑 —— 漏了会让新行按旧表头错位。"""
+    def test_ledger_migrate_runs_before_append(self):
+        """migrate 必须在 append 之前 —— 时序从「brief 教 AI 手跑」升级为「工具内建」。
+
+        原锁锁的是 brief 文案「写台账行之前先跑」;台账改自动落行后,同一不变式
+        由 _append_ledger_row 源码顺序承载:migrate_process_ledger 先于 lines.insert。
+        """
         src = (ROOT / "tools" / "_v8_ship.py").read_text(encoding="utf-8")
-        self.assertIn("ledger-migrate", src, "ship1 brief 未推 ledger-migrate")
-        self.assertIn("写台账行之前先跑", src, "未说明时序 → 会在 append 之后才跑(等于没跑)")
-        self.assertIn("按旧表头错位", src, "未点名后果 → 会被当成可选步骤")
+        fn = src.split("def _append_ledger_row", 1)[1].split("\ndef ", 1)[0]
+        self.assertIn("migrate_process_ledger(led", fn, "append 前未内建 migrate")
+        self.assertLess(fn.index("migrate_process_ledger(led"), fn.index("lines.insert"),
+                        "migrate 必须先于 insert · 否则新行按旧表头错位")
+        self.assertIn("台账行已自动落", src, "brief 应告知自动落行(不再教手工 append)")
+        self.assertNotIn("写台账行之前先跑", src, "手工时序指引应随自动化退役")
 
     def test_add_concern_intentionally_not_pushed(self):
         """反面用例:`add-concern`(auto skip 留痕)的动作点是 **AI 自己决定跳暂停点那一刻** ——

@@ -43,7 +43,7 @@ state.py 一口气做完(单 commit 进 feature 分支):
 ### 3.5 规划层 back-reference 翻牌(随 feature MR 原子合入 · 🔴 必做)
 
 - **为什么翻牌**:落地完不翻「📋 → ✅ 已交付」→ 规划层与执行层脱节 · 进度失真。翻牌随 feature MR **原子生效**(MR 不合则 ROADMAP 不显示已交付)。
-- **做什么**:① AI 判断哪些要翻(只改相关的 · AI 自决):**ROADMAP 对应 BL**(翻「📋 → ✅ 已交付」+ 🔴 **填「对应 F编号」= 本 feature 的 F-id**〔archive 靠它自解析所属 WS〕· 若是 WS 最后一个 BL → WS 标完成)· `teamwork-space.md`(按需)· 项目变更单(按需);② **PROCESS-LEDGER 行**(§16 采写 · 数据源 state.json/REVIEW.md 此刻就在 worktree);③ 在 **worktree 内**改好(不 commit)→ 全部路径传 `--planning-artifacts` → archive 随归档 commit 带走。
+- **做什么**:① AI 判断哪些要翻(只改相关的 · AI 自决):**ROADMAP 对应 BL**(翻「📋 → ✅ 已交付」+ 🔴 **填「对应 F编号」= 本 feature 的 F-id**〔archive 靠它自解析所属 WS〕· 若是 WS 最后一个 BL → WS 标完成)· `teamwork-space.md`(按需)· 项目变更单(按需);② **PROCESS-LEDGER 行由 archive 自动落**(§16 · 机器格工具自算 · 你只传判断格参数 `--ledger-reflection` 等 · 不手工 append 不进 --planning-artifacts);③ 其余文件在 **worktree 内**改好(不 commit)→ 路径传 `--planning-artifacts` → archive 随归档 commit 带走。
 - 🔴 **WS 进度块勿手改、勿手动跑 ws-progress**:那是工具生成区 · archive 自刷。你只负责把 **ROADMAP BL + 对应F编号** 翻对。
 - 找不到 BL 别急着跳:先读 `product-overview/workstream/` + `ROADMAP.md` 定位本 Feature 条目;确无 → `--no-planning-changes` 显式声明。
 
@@ -183,16 +183,15 @@ git add <feature_dir>/dev/*.md <feature_dir>/PRD.md
 > 它原本要办的事(框架跨项目搜集流程质量)由**这两处覆盖**:PROCESS-LEDGER 随 feature MR **原子合入 git**、一行一 feature 可查表算账;RETRO-LEDGER 是框架侧的永久蒸馏。**后续以 retro 为准。**
 
 **时机(两段式)**:
-- **采集 + 写台账行 = §3 archive 的规划 gate 时**(worktree 内 · `state.json`/`REVIEW.md`/`external-cross-review/` 全在工作树 · 取数零成本):PMO 在 worktree append `project-specs/PROCESS-LEDGER.md` 行(无则按 [templates/process-ledger.md](../templates/process-ledger.md) 创建)· 路径加进 `--planning-artifacts`(随 feature MR 原子合入)。
-  - 🔴 **append 前先跑 `state.py ledger-migrate --feature <path>`**(幂等):旧项目台账可能是**旧 schema**(缺 各阶段耗时/用户邮箱/宿主 列)→ 该命令**只升级表头一行**(schema 演进纪律 = 只在末尾加列 · 旧数据行是**有效前缀不动**)· 已最新则 no-op · 无台账则 SKIP。**不迁移就直接 append 新行 → 新行 13 列 vs 旧表头 10 列错位**(年检读错列)。migrate 后再照 `ledger_timing` 采写新行。
+- **台账行 = §3 archive 自动落**(worktree 内 · 工具拼装 + append + 纳入归档 commit · 随 feature MR 原子合入 · emit `ledger_row` 回显整行与缺省格):机器格确定性自算;判断格走 archive 参数 —— `--ledger-reflection`(反思摘要 · 必填 gate)+ `--ledger-rounds / --ledger-external / --ledger-findings / --ledger-pauses`(缺省 —)。无台账自动按 [templates/process-ledger.md](../templates/process-ledger.md) 建表 · 旧 schema 自动迁移(表头 + 旧行补宽)· 已有本 feature 行则幂等跳过。
 - **digest = ship2(ship-finalize)PASS 后**:emit ≤10 行流程价值反思(纯情报 · 不暂停)。时长口径 = init → archive(不含 MR 等待)。
   🔴 **框架级 bug / 工具判例往哪反馈**:写进 PROCESS-LEDGER 行的「反思摘要」列(随 MR 进 git · 年检查得到);真值得改框架的,直接开 issue 或在框架仓落 RETRO-LEDGER 行 —— 别再指望本机的审计文件被谁读到。
 - **兜底**(漏写时):`unzip -p features/_archive/<id>.zip <id>/state.json` 取数 · 补行随下次任意 MR。
 
 **两层输出**:
 
-1. **台账行**(持久 · 累积):一行一 feature。🔴 字段以**机器可抽**为主(state.json:实走 stages / stage 时间戳 / rounds / bypass / concerns;REVIEW.md:verdicts / external 逐条裁决)· AI 判断仅「过场候选 / 反思摘要」两格 · **照实抄不美化**。
- - 🔴 **宿主 + 时长三分 + 用户邮箱**:`宿主` + `时长(总·AI自主·待用户)` + `各阶段耗时` + `用户邮箱` **照抄 ship1 archive emit 的 `ledger_timing`**(确定性 —— `host`〔claude-code/codex-cli/gemini-cli〕/ `total_wall` / `ai_autonomous_min`〔已扣跨 session 空闲 · 算法在工具内〕/ `await_user_min`〔stage 内 pause-mark 暂停 + pm_acceptance 纯等待〕/ `per_stage`〔active 优先〕/ `user_email`=`git config user.email`)· **不肉眼算 state 时间戳**。🛡️ **起草可预防性列** 照抄 emit 的 `ledger_authoring_preventability`(各评审 `review-preventability` 记录聚合成「可预防/总·缺考虑点」· 没记录留空)· 年检据此分析起草考虑点缺不缺。⏱️ **耗时归因列** 照抄 emit 的 `ledger_stage_cost`(= `<开销轮>/<总轮> 轮 · 详 <复盘路径>` · 没记录留空)· 🔴 **归因叙述与流程反思不写台账**(单元格 ≤1 行压不下)—— 与台账行**同时**在本 gate 写 **`ledger_process_retro_path`** 指的那份**流程复盘文档**(模板 [templates/process-retro.md](../templates/process-retro.md):各阶段耗时表 + 逐 stage 耗时归因 + 流程反思四问 + 起草可预防性)· 🔴 **路径一并加进 `--planning-artifacts`**(随 feature MR 原子合入 · 否则复盘不进 git = 白写)。年检:查表得协调开销占比趋势 · 展开复盘定位复发的开销类型。🔴 `total_wall`(墙钟)− `ai_autonomous` − `await_user` = **未标记挂机空闲**(过夜/跨天 · 不再冒充 AI 工作 · 治 goal 1012m 类污染)。
+1. **台账行**(持久 · 累积):一行一 feature。🔴 机器格**工具自算自落**(state.json:实走 stages / 时长三分 / bypass·WARN / 分诊校准 / 可预防性 / 耗时归因)· AI 判断格 = archive 的 `--ledger-*` 参数(反思摘要必填 · rounds/external/findings/pauses 缺省 —)· **照实填不美化**。
+ - 🔴 **宿主 + 时长三分 + 用户邮箱**:`宿主` + `时长(总·AI自主·待用户)` + `各阶段耗时` + `用户邮箱` **由 archive 自动落行**(emit `ledger_timing` 保留作校验 · 确定性 —— `host`〔claude-code/codex-cli/gemini-cli〕/ `total_wall` / `ai_autonomous_min`〔已扣跨 session 空闲 · 算法在工具内〕/ `await_user_min`〔stage 内 pause-mark 暂停 + pm_acceptance 纯等待〕/ `per_stage`〔active 优先〕/ `user_email`=`git config user.email`)· **不肉眼算 state 时间戳**。🛡️ **起草可预防性列** 自动落(emit `ledger_authoring_preventability` 同源)(各评审 `review-preventability` 记录聚合成「可预防/总·缺考虑点」· 没记录留空)· 年检据此分析起草考虑点缺不缺。⏱️ **耗时归因列** 自动落(emit `ledger_stage_cost` 同源)(= `<开销轮>/<总轮> 轮 · 详 <复盘路径>` · 没记录留空)· 🔴 **归因叙述与流程反思不写台账**(单元格 ≤1 行压不下)—— 与台账行**同时**在本 gate 写 **`ledger_process_retro_path`** 指的那份**流程复盘文档**(模板 [templates/process-retro.md](../templates/process-retro.md):各阶段耗时表 + 逐 stage 耗时归因 + 流程反思四问 + 起草可预防性)· 🔴 **路径一并加进 `--planning-artifacts`**(随 feature MR 原子合入 · 否则复盘不进 git = 白写)。年检:查表得协调开销占比趋势 · 展开复盘定位复发的开销类型。🔴 `total_wall`(墙钟)− `ai_autonomous` − `await_user` = **未标记挂机空闲**(过夜/跨天 · 不再冒充 AI 工作 · 治 goal 1012m 类污染)。
 2. **digest**(emit ≤10 行 · 固定 4 问 · 不落 feature 目录 —— 🔴 **四问同时写进流程复盘文档 §三**,emit 只是当场给人看的回显;原来「只 emit 不落盘」= 说完就蒸发,年检什么也读不到):
 
 ```

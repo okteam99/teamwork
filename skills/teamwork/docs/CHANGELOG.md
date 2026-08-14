@@ -4,6 +4,21 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.323 · 台账自动落行:archive 直接写行(P0-2)
+
+> aon-core 复盘原话:「emit 提供了已算好的 `ledger_timing`/`ledger_stage_cost`,台账行仍需人工 append —— 若 archive 能直接落行,可再省一轮。」
+> supersdk 实证:47% 归档 feature 台账无行(最近 8 次 ship 漏 3 次)· 判例「精确 timing 仅在 archive 后 emit · 需归档后补提交」(时序矛盾)。
+
+### 变更
+- **archive 自动落行**:`_compose_ledger_row`(机器格确定性取数 = 此前让 AI「照抄」的同源字段:实走 stages / 时长三分 / 各阶段耗时 / bypass·WARN 计数 / 宿主 / 邮箱 / 分诊校准 / 可预防性 / 耗时归因)+ `_append_ledger_row`(无台账按模板建表 · 有则先跑 v8.322 迁移〔表头+旧行补宽〕· 按 feature_id 幂等 · 插表尾)· 行随归档 commit **原子合入**(timing 此刻已在手 —— 时序矛盾一并治)。
+- **判断格走参数**:`--ledger-reflection`(反思摘要 · **必填 gate** `pending_step: ledger-row`)+ `--ledger-rounds / --ledger-external / --ledger-findings / --ledger-pauses`(缺省 `—` = 诚实留空 · emit `defaulted_cells` 点名)。单元格净化(竖线→全角 · 换行压平)· 列宽对齐模板单源(模板加列自动补 —)。
+- **emit**:+`ledger_row`(status/row/defaulted_cells);`ledger_*` 旧字段保留(透明校验 + 旧消费方兼容)。台账失败不拦归档(status:error 可手补)。
+- **brief/spec 改口**:push brief 不再教「先 ledger-migrate 再手工 append」;ship-stage §3.5/§16、process-ledger 模板同步(顺带修正模板残留的「旧数据行不动」旧语义 → v8.322 补宽语义)。
+- 两条设计锁按新设计更新:v8295 emit 字段注册表 +ledger_row;v8301 migrate-before-append 时序锁从「brief 文案」改锁「_append_ledger_row 源码顺序」。
+
+### 测试
+`test_ledger_autorow_v8323.py` 9 条(列宽单源 / 机器格 / 净化 / 幂等 / 建表 / 旧 schema 先迁 / gate / 行入 HEAD / 重跑不重复);既有 ship 测试 48 条经 `_archive` helper 注入默认反思全绿。
+
 ## v8.322 · 升级传导:版本漂移入口自愈(P0-1)
 
 > aon-core × supersdk 实证分析拍板「按建议」的第一件。
@@ -92,33 +107,3 @@ ship2 tmp-cleanup 转存量旧根幂等兜底 ③ TTL:旧根整目录 + 各 work
 TTL 第二根扫描。spec 九处同口径(common §六 / HARD-RULES 10+17 / conventions §12.5 / SKILL /
 ui-design 6 / test-stage 9 / ship-stage §4 / dev-stage 8 / tc.md L3)。
 自己的版本标门当场抓了新文里手滑的一处「v8.306」—— 门在工作。
-
-## v8.318 · scratch 清理前移 ship1:治 worknode 141GB 堆积
-
-> 实证(worknode · Docker-in-Docker):`/tmp/teamwork` 独占 **141GB**,单 feature
-> SRUN-F260810160028 达 **78GB**。用户:feature 结束时是否有清理临时文件?
-> 追加拍板:**按理 ship1 阶段就应该清。**
-
-### 回答:设计上有,但两条通道在 worknode 形态下都够不着
-
-| 既有通道 | 为什么没救到这个 case |
-|---|---|
-| ship2 `tmp-cleanup`(verify-delivered 后整树删) | **session 常在 ship1 交 MR 后结束/换机** —— ship2 根本不在积灰的那台机器上跑 |
-| bootstrap TTL 7 天兜底 | **时间判据救不了空间问题** —— 7 天窗 × 78GB/feature,窗内即可打满磁盘 |
-
-### 修(用户拍板:ship1 即清)
-
-- **push 成功即清**(主时点):`ship-phase --action push` 记录成功后,工具顺手删
-  `${TMPDIR:-/tmp}/teamwork/<feature_id>/` 整树 · emit `scratch_cleanup`(含 pruned_bytes)。
-  依据:此刻测试/构建证据已入 state.json,scratch 无对账价值;**MR 窗口期撞冲突回炉需
-  冷编 = 接受的代价**(磁盘占用 > 增量缓存)。
-- **放弃即清**:`close-unmerged --abandon` 同步清(不会再回炉);暂时关闭(可重开)**保留**
-  增量缓存(重跑 archive→push 免冷编 · TTL 兜底)。
-- **ship2 `tmp-cleanup` 转幂等兜底**(ship1 漏清 / legacy in-flight)· bootstrap TTL 继续扫历史孤儿。
-- 回收口径从「双通道」改「三通道」(common §六 · ship-stage §4 同步)。
-
-### case 里另一个值得留意的点(不动 · 记录)
-
-141GB 含多个 feature 目录 —— 除主时点缺失外,单 feature 78GB 说明该项目构建产物本身巨大;
-in-flight feature 的 scratch 是**有意保留**的(串行 stage 复用增量编译),本版不加大小门 ——
-若后续 in-flight 单体也失控,再议按体量 WARN(观察项)。

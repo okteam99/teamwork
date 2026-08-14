@@ -256,6 +256,10 @@ class _ShipFlowBase(unittest.TestCase):
 
     # helpers
     def _archive(self, *extra):
+        # v8.323:反思摘要成为 archive gate —— 调用方没显式传时注入测试默认值,
+        # 免得每个既有用例都撞 ledger-row PENDING(gate 自身的用例显式不传)。
+        if "--ledger-reflection" not in extra:
+            extra = (*extra, "--ledger-reflection", "测试反思")
         return _run_state(self.wt, "ship-phase", "--action", "archive",
                           "--feature", self.feature_arg, *extra)
 

@@ -3,7 +3,7 @@
 > 位置:`project-specs/PROCESS-LEDGER.md`(workspace 级 · 与 DEV-RULES / KNOWLEDGE 同级)。
 > **telos**:一行一 feature 的流程仪式价值数据 · 给「该不该砍某环节」提供查表依据。消费方:流程审视场景 + 年检 kill criteria(详 [stages/ship-stage.md §16](../stages/ship-stage.md))。
 > 🔴 区别 `docs/retros/`(业务/工程复盘 · 子项目级 · 知识层):本表只度量 **teamwork 流程本身**的环节价值 · 别混写。
-> 写入时机:🔴 **ship1 archive 的规划 gate**(worktree 内 append · state.json / REVIEW.md 就在工作树 · 路径加进 `--planning-artifacts` 随 feature MR 原子合入;digest 在 ship2(ship-finalize)完成后 emit)。漏写兜底:`unzip -p features/_archive/<id>.zip <id>/state.json` 取数补行。🔴 单元格 ≤1 行 · 机器字段照实抄 · **不美化**(过场就写过场)。
+> 写入时机:🔴 **ship1 archive 自动落行**(工具在 worktree 内拼装 + append + 纳入归档 commit · 随 feature MR 原子合入)—— 机器格(实走 stages / 时长三分 / 各阶段耗时 / bypass·WARN / 宿主 / 邮箱 / 分诊校准 / 可预防性 / 耗时归因)工具确定性自算;判断格走 archive 参数:`--ledger-reflection`(反思摘要 · 必填)+ `--ledger-rounds / --ledger-external / --ledger-findings / --ledger-pauses`(缺省 —)。无台账自动按本模板建表 · 旧 schema 自动迁移。漏写兜底:`unzip -p features/_archive/<id>.zip <id>/state.json` 取数补行。🔴 单元格 ≤1 行 · **不美化**(过场就写过场)。
 
 ---
 
@@ -22,7 +22,7 @@
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | <ID> | <Feature / Feature·micro / Bug> | <goal→blueprint→dev→…→ship> | <2.4h·AI 88m·待 32m> | <1/1> | <3/1/2> | <pl:2 ext:1 / arch:1 qa:0 ext:1> | <1:2> | <0/0> | <external 拦 1 真问题 · ui_design 零 finding 过场> | <goal 20m(+等5m)·dev 40m·review 8m·pm_acceptance 30m> | <git user.email> | <claude-code/codex-cli/gemini-cli> | <explicit·goal→qa → diff 14 files·PRD 0 revision·review 1 轮> | <3/12 可预防·缺:并发时序> | <2/9 轮 · 详 apps/partner/docs/retros/SVC-F001-process.md> |
 
-> 🔴 **schema 演进纪律= 只在末尾加列** —— 新列一律追加到表**最右**(旧 feature 行天然是**有效前缀** · 新列它们为空 = 该 feature 早于该指标 · 诚实)· **永不在中间插列**(否则旧行错位、年检读错列)。**旧项目台账迁移 = 仅换表头一行**(旧数据行不动):append 前跑 `state.py ledger-migrate --feature <path>`(幂等 · header 已最新则 no-op)。
+> 🔴 **schema 演进纪律= 只在末尾加列** —— 新列一律追加到表**最右** · **永不在中间插列**(否则旧行错位、年检读错列)。**旧项目台账迁移 = 表头升级 + 旧数据行末尾补 `—` 到表头宽**(`—` = 早于该指标 · 内容前缀逐字不动 · 只补不裁 ——「短行是有效前缀不动」的旧设计被消费项目实证打破:按列索引解析静默错位):`state.py ledger-migrate` 幂等可手跑,archive 落行与版本漂移入口自愈也会自动跑。
 > 🔴 **🛡️ 起草可预防性**:各评审收敛后跑 `state.py review-preventability --stage <goal|blueprint|review> --preventable N --total M --missing '缺的考虑点'` 记录 · ship 聚合成「可预防/总·缺考虑点」照抄本列(数据源 = ship1 archive emit 的 `ledger_authoring_preventability`)。**用途**:年检看「缺的考虑点」跨 feature 复发 → 补 PRD/TECH 起草考虑点(PL六问/TECH自查/复发清单);判据同 (findings 82% 真·砍轮=漏 bug·真杠杆=起草挡掉可预防子集)。非门禁 · 没记录留空(有效前缀)。
 > 🔴 **⏱️ 耗时归因(收窄)**:本列**只放可查表算账的比值 + 指针** ——
 > `<开销轮>/<总轮> 轮 · 详 <流程复盘文档相对路径>`(数据源 = ship1 archive emit 的 `ledger_stage_cost`)。
