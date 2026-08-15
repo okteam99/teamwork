@@ -502,12 +502,12 @@ def _goal_brief(state: dict) -> str:
     return f"""## Goal Stage{_fast}
 
 ### 目标
-PM 调研(自答优先)· 起草 PRD · 🔴 **并行派 2 路隔离冷审**(v8.243 默认:PL 对抗质疑 + 覆盖方向制外审〔必覆盖 可实现/可验证 + AI 自主方向 ≥1〕· 防鼓掌锚定 · ⚡ 同发互不喂对方产出 · 🎭 **两路模型错开**〔v8.268:外审路 ≠ 主审路模型 · 如 fable5 会话 → 外审 opus〕)· (条件)早问门 · PM 整合修订 · 冷审循环收敛 · 用户确认 · 决策是否需要 UI。\n🔴 v8.216 评审配置动态化:冷审派谁 = **按 `state.stage_review_roles.goal`**(prepare 已按「角色价值判据」逐角色判定 · 非按 clarity 一刀切)—— roster 里没有的角色 gate 自动放行(如去 pl → PL 质疑免)· 调整用 `change-review-roles --reason`(审计留痕)· PRD 照写(术语/决策沉淀载体)。
+PM 调研(自答优先)· 起草 PRD · 🔴 **并行派 2 路隔离冷审**(v8.243 默认:PL 对抗质疑 + 覆盖方向制外审〔必覆盖 可实现/可验证 + AI 自主方向 ≥1〕· 防鼓掌锚定 · ⚡ 同发互不喂对方产出 · 🎭 **两路模型错开**〔v8.268:外审路 ≠ 主审路模型 · 如 fable5 会话 → 外审 opus〕)· (条件)早问门 · PM 整合修订 · 冷审循环收敛 · 用户确认 · 决策是否需要 UI。\n🔴 v8.216 评审配置动态化:冷审派谁 = **按 `state.stage_review_roles.goal`**(🔗 装配两拍之一:**调研后 AI 按角色价值判据自定** · prepare 不预设 · 审计留痕不问用户)—— roster 里没有的角色 gate 自动放行(如去 pl → PL 质疑免)· 调整用 `change-review-roles --reason`(审计留痕)· PRD 照写(术语/决策沉淀载体)。
 
 ### 结果(完成判定)
 - `PRD.md`(frontmatter:`acceptance_criteria` + `revision_history`)
 - `PRD-REVIEW.md`(frontmatter:`reviewers` = roster〔v8.243 默认 `[pl, external]`〕+ `verdicts` **全 APPROVE/SKIP** · 含 `PL-CHALLENGE` 段〔roster 含 pl〕· external 段带 `coverage` 申报〔roster 含 external〕· mtime > PRD.md)
-- `state.execution_hints.ui_design_needed` 已决策(由 `--needs-ui`)
+- `state.execution_hints` 已决策:`ui_design_needed`(--needs-ui)+ `browser_e2e_needed`(--needs-browser-e2e · 🔗 装配环节维度)
 
 ### 怎么做
 🔴 **照 `{{SKILL_ROOT}}/templates/prd.md` 起草 · 别抄项目里旧 PRD**(实测 post-v8.164 十份仅一份用 canonical · 抄旧 = 机读块/扩展区等新机制到达不了)· goal-complete 校验三命门段(机读块/AC/『开工前必须想清的』)。\n**必读** `stages/goal-stage.md`(8 步:调研 → 起草 v0.1(🧠 **按冷审关注点思考着写** · 非环节:PL六问过脑 · AC 用可测判据〔含糊词落笔即换 · 兜底 miss 分支必落 AC v8.282〕+ 每条配 💬 大白话〔说人话给用户 · v8.271〕· 依赖先读真实代码〔🔴 当前 worktree/ship 目标分支 · 不吃旧分支调研 v8.282〕 —— 详 prd.md 模板头「起草思考规范」· v8.262)→ 🔴 **并行 2 路隔离冷审**(PL 质疑 + 覆盖方向制外审 · 不喂起草心路 · v8.243 · 🎚️ **PRD 起草与冷审必用主模型/高级模型**〔v8.290 · 错开也只在高档间 · 不降验证档〕)→ 早问门(冷审后)→ PM 整合修订 → 冷审循环(Round 2+ 验证模式 · 🎚️ **验证轮派发用验证档模型** · 全 APPROVE 收敛)→ needs-ui → 用户确认(⏸️ 导读头行回显 **PRD 绝对路径** · 用户直接点开核对 · v8.272)· 🔮 **emit 终确认暂停点后等待窗后台派 TECH 草稿 subagent**〔worktree 内草稿 · 不跑 state 命令 · 用户 ok 则 blueprint 直接接续 · 🔴 **准入 v8.294:§待决策项里影响表结构/模块形态的开放项 ≤1 才投机**(>1 或含结构分叉 → 不投机 · 多开放项时用户改选必触发差量重写 = 净亏)· 详 goal-stage ④ 投机窗〕)。外审必覆盖:**可实现**(技术可行/架构影响/简洁性 counter-lens)· **可验证**(AC 可测/边界/异常)+ **AI 自主方向 ≥1**(安全/性能/数据一致性/兼容…按 feature 挑)· 每方向 finding 或「查过无发现」· 段记 `coverage: [...]`。
@@ -516,8 +516,9 @@ PM 调研(自答优先)· 起草 PRD · 🔴 **并行派 2 路隔离冷审**(v8.
 ```
 state.py goal-complete --feature <path> \
   --auto-commit <hash> --artifacts PRD.md,PRD-REVIEW.md \
-  --needs-ui {{true|false}}
+  --needs-ui {{true|false}} --needs-browser-e2e {{true|false}}
 ```
+🔗 **链装配**(调研后 · 详 stage.md 规则 3.7):goal 自身评审面 AI 自定(留痕不问);下游装配(环节双旋钮 + 各 stage 评审面)写进终确认导读「🔗 链装配」节 + 一句四轴证据(方向/契约面/影响面/验证成本)—— **默认按此执行 · 用户不要求改就生效**。
 """
 
 

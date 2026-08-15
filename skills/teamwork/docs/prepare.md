@@ -95,22 +95,13 @@ state.py prepare-check --feature-id-prefix <PROJ> --flow-type <Feature|Bug>
 
 输出含:
 - `next_available_id_stem` + `existing_ids` + `id_letter`(ID 冲突预检 · 字母 **F/B**〔M 为 legacy 存量〕· 详 conventions.md §1)
-- `stage_chain_preview`(stage × 评审角色预览)+ `reviewer_thinking_checklist`(4 问 · 见下)
+- `stage_chain_preview`(canonical 链回显 · 仅供暂停点「链=」行)—— 🔴 评审面与环节**不在 prepare 装配**(后移 · 见 §1.5.4)
 
 🔴 `--flow-type` 必传:Bug → `PREFIX-B{NNN}` · Feature(含 preset=micro)→ `PREFIX-F{NNN}`。漏传退回字母 F · **Bug 会错号**。
 
-PMO 把数据填进暂停点表格:`next_available_id_stem` → artifact ID 默认值;`stage_chain_preview` → §4 emit 模板的评审一行。
+PMO 把数据填进暂停点表格:`next_available_id_stem` → artifact ID 默认值;`stage_chain_preview` → §4 emit 模板的「链=」行(canonical 回显)。
 
-🔴 **评审角色必基于 4 问实际判断 · 不直接抄 `stage_chain_preview` 默认**(结果进默认 · 暂停点「⚙️ 配置」段一行带过 · 不铺表):
-
-| # | 问题 | 命中调整 |
-|---|---|---|
-| Q1 | 有产品方向影响?(业务目标 / 用户可见 / 商业模式 / 跨项目一致 / 变更级联 Level≥2) | **是**(常态)→ goal **留 pl** + goal §3 PL 质疑走 **subagent 隔离版**(详 goal-stage §3);仅纯内部技术重构 · 零产品面才去 pl · ⚠️『无 ROADMAP』**不是**去 pl 理由(几乎所有执行层 Feature 都『无 ROADMAP』· 那是规划层的事 · 与 PRD 产品方向评审无关) |
-| Q2 | 含 UI 改动? | 否 → ui_design 跳过 + browser_e2e 跳过 |
-| Q3 | 跨 ≥3 module 触发点 / 调用方? | 是 → blueprint / review 外审升异质(已默认在 roster)或加回独立 qa 冷审 |
-| Q4 | 数据模型重构(删/改老字段 · 表结构变)? | 是 → blueprint 强 architect + 加 dba 评审 |
-
-🔴 **Q1-Q4 思考的结果进默认 · 不在 prepare 暂停点铺成表**(信噪比):据 4 问设定实际 `stage_review_roles` + stage 链(如留 pl / 跳 ui_design / blueprint 加 external)· 暂停点「⚙️ 配置」段只用**一行**带过(`评审:各 stage 按 flow 默认 · 已据 Q1-Q4 设 · stage-start 再确认`)· 各 stage-start 时 state.py 会再 emit 本 stage 建议角色(prepare 重列 = 噪音)。用户想**全局**调评审强度 → 暂停点回一句即可。
+🔴 **prepare 不做装配**(用户拍板 · 装配后移):**环节**(`ui_design` / `browser_e2e` 进不进)与**评审面**(各 stage roster / 外审方向 / 轮次)两个维度的装配,**全部移到 goal 调研之后**按实测复杂度定 —— prepare 手里只有需求文本、没有代码现状,在信息最少的时刻做信息最密的决策 = 结构性错判(实证:删 3 个按钮被字面定价成九段全链)。单源 = [goal-stage § 链装配](../stages/goal-stage.md)。prepare 仅剩四件:**意图对齐**(§4 理解卡)· **flow 大类**(Feature/Bug)· **preset=micro 白名单速通**(§2.2 · 类型判断非复杂度装配)· **clarity + 4 项机械配置**。
 
 ---
 
@@ -253,8 +244,8 @@ PMO 复制给用户 · 🔴 **意图确认在最前** —— 它是用户 review
 🔁 既有行为:<改「原 A → 现 B」· goal 将升级为待决策项 | 否 · 不动既有默认行为>
 
 # ⚙️ 配置(均默认 · 改某项才说 · 回 `ok` 即全默认)
-flow=<Feature[·micro] / Bug> · clarity=<normal> · bl=<BL-NNN|无> · 链=<goal→…→ship · 已反映 ui_design 跳过等> · ID=<PTR-F033> · merge_target=<staging> · wt=<.worktree/PTR-F033> · branch=<feature/ptr-f033>
-评审:各 stage 按 flow 默认(已据 §1.5.4 Q1-Q4 设:如留 pl / 跳 ui_design / 加 external)· stage-start 再确认 · 高风险想**全局**加 external 现在说
+flow=<Feature[·micro] / Bug> · clarity=<normal> · bl=<BL-NNN|无> · 链=<canonical:goal→…→ship> · ID=<PTR-F033> · merge_target=<staging> · wt=<.worktree/PTR-F033> · branch=<feature/ptr-f033>
+装配:环节 + 评审面在 **goal 调研后**按实测复杂度定(§1.5.4 后移律)· PRD 确认时展示(默认执行 · 可调)· 高风险想**全局**加 external 现在说
 
 ⚠️ <上游依赖未就绪:… | ID 撞号:… | Planning 未 ship:…> ← 仅有问题才出此行 · 全绿删除
 ```
