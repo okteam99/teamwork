@@ -2501,9 +2501,9 @@ def cmd_prepare_check(args: argparse.Namespace) -> None:
         "mechanical": "<true/false · 机械映射类(外化/重命名/迁移/升级)且无新业务行为>",
         "clarity": "<explicit/normal/ambiguous · 判定标准:用户给出明确方案 或 mechanical=true → explicit;"
                    "一句话含方向词/多方案可选 → ambiguous;其余 normal>",
-        "consumption": "🔴 v8.216 动态决策:凭上述证据 · 按 role_value_criteria **逐 stage 逐角色**判「对本 feature 有没有值」"
-                       "→ 配 stage_review_roles(init 后 `change-review-roles --stage X --roles ... --reason ...` · 审计留痕 · "
-                       "gate 按 roster 自动放行/校验)· 可去 pl 也可去 qa/architect/external(带理由)· "
+        "consumption": "🔴 本证据在 prepare 只消费一件事:判 clarity(意图明确度)—— "
+                       "**评审面与环节装配不在 prepare 做**(装配后移:goal 调研后按实测复杂度定 · "
+                       "role_value_criteria 届时用 · 单源 goal-stage § 链装配)· "
                        "clarity 传 `init-feature --clarity` 仅记录进 state(台账/年检校准 · 不触发硬编码行为)",
     }
     # v8.216:角色价值判据(给 AI 的判断框架 · 非规则)—— 逐角色问「这个视角对本 feature 能拦住什么」
@@ -2515,9 +2515,10 @@ def cmd_prepare_check(args: argparse.Namespace) -> None:
         "🔴": "每角色给一行理由(有值留 · 无值去)· review stage 从严(拦真主力 · 建议 ≥2 视角 · <2 需强理由)",
     }
     payload["reviewer_thinking_hint"] = (
-        "🔴 PMO 必基于此 checklist 4 问思考 · 设定实际评审角色 + stage 链"
-        "(结果进默认 · prepare 暂停点「⚙️ 配置」段**一行**带过 · 不铺表 · v8.162)· "
-        "不要直接抄 stage_chain_preview 默认值。"
+        "🔴 装配后移(用户拍板):此 4 问与 role_value_criteria 的**消费时点在 goal 调研后**"
+        "(单源 goal-stage § 链装配)—— prepare 不设评审角色 · 不装链;"
+        "goal 自身评审面调研后 AI 自定(change-review-roles 留痕不问用户)· "
+        "下游装配随 PRD 终确认导读展示(默认执行 · 用户不要求改就生效)。"
         "⚠️ 加减须有**本 Feature 特定理由** · 不是套路化删角色 —— 尤其 **pl 默认保留**"
         "(产品方向视角)·『无 ROADMAP』**不是**去 pl 的理由(ROADMAP=规划层 · 与 PRD 产品方向"
         "评审无关)· 仅纯内部/技术重构无产品面才去 pl。"

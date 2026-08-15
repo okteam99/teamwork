@@ -888,11 +888,16 @@ class TestPrepareCheck(unittest.TestCase):
         hint = d["reviewer_thinking_hint"]
         self.assertIn("pl 默认保留", hint)
 
-    def test_v827_hint_cite_f_bv2_8_case(self):
-        """hint 提示 PMO 不直接抄默认 · cite F-Bv2-8 case 实证。"""
+    def test_hint_defers_assembly_to_goal(self):
+        """装配后移:hint 不再教 prepare 设 roster —— 4 问消费时点在 goal 调研后。
+
+        原锁「不要直接抄默认」(F-Bv2-8 case):该关切在 prepare 不设 roster 后自然消解,
+        「不抄默认」的义务随装配一起搬进 goal-stage § 链装配(case 实证仍在 hint cite)。
+        """
         d = self._check("Feature")
         hint = d["reviewer_thinking_hint"]
-        self.assertIn("不要直接抄", hint)
+        self.assertIn("消费时点在 goal 调研后", hint)
+        self.assertIn("不设评审角色", hint)
         self.assertIn("F-Bv2-8", hint)
 
     # ── v8.44.4:output_style_hint(治本 case 2026-05-28 codex-cli markdown 表格失败)──

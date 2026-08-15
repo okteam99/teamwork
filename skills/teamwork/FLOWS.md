@@ -16,6 +16,7 @@
 ## 关键约束
 
 - 轻量不再靠独立类型:**动态 roster(role_value_criteria)+ clarity** 承担 · preset=micro 是唯一结构性轻档(白名单准入 · 超出升 full)。
+- 🔗 **装配决策点 = goal 调研后**(prepare 只对齐意图 · 不装配):环节(ui_design / browser_e2e)+ 评审面(roster / 方向 / 轮次)按调研实测四轴(方向 / 契约面 / 影响面 / 验证成本)定 · goal 自身评审面 AI 自定留痕 · 下游随 PRD 终确认导读「🔗 链装配」展示 —— **默认执行 · 用户不要求改就生效** · 单源 [goal-stage § 链装配](stages/goal-stage.md)。
 - micro 涉代码仍必 ship(不停在本地未 push · P0-136)。
 - 存量 legacy(M-id)兼容走完 · 新 init 不再产。
 

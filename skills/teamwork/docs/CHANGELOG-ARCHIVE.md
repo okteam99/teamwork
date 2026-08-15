@@ -4,6 +4,17 @@
 > 上次清空:**v8.193**(2026-07-06 · 清除 v8.128 → v8.187 共 60 版条目 · 约 1.0k 行)。
 
 ---
+## v8.324 · 格式门禁前置化:complete 契约 spec 同源预告 + 解析器放宽一档(P0-3)
+
+> 两项目耗时归因 26-28% 轮次 = 纯协调开销,归因高度同质:「格式门禁重试 · spec 字段名未预读」「dev-complete 的 test-runner 门在 dev-start 没预告 · complete 时才拒」;aon-core 复盘:外审产物 YAML **单空格缩进**列表被解析为空 `files_read` → CAPABILITY_BLOCKED 误报 —— 一个缩进空格换一轮返工。
+
+### 变更(两刀)
+- **start brief 自动附「⛔ complete 时机器校验」块**(`_render_complete_contract`):从 artifacts / evidence_checks 的**同一份 spec 对象**渲染(产物路径 · glob 最少数 · frontmatter 必含字段 · body 行数 · 须在 changeset · fast 豁免标记 · 每条 evidence 点名+描述)—— 门禁改了预告自动跟,手写 brief 漂移不再可能漏预告(11/12 个 stage 有契约块 · 无门禁 stage 渲染为空)。
+- **`parse_frontmatter` 列表缩进兼容 1-4 空格**(原只认两空格):格式门禁的解析器必须比它拦的格式宽一档;5+ 空格 = 嵌套结构,行式解析不装懂,保持忽略。
+
+### 测试
+`test_gate_preannounce_v8324.py` 10 条:单空格伤亡原型 / 2-4 空格 / 深缩进仍忽略 / key:value 不受扰 / GOAL·BROWSER_E2E 契约块 / 反向锁「有门禁必有预告块」/ 源码顺序锁 / dev test-runner 门 start 可见。全库全绿。
+
 ## v8.323 · 台账自动落行:archive 直接写行(P0-2)
 
 > aon-core 复盘原话:「emit 提供了已算好的 `ledger_timing`/`ledger_stage_cost`,台账行仍需人工 append —— 若 archive 能直接落行,可再省一轮。」

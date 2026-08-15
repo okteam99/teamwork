@@ -4,6 +4,20 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.329 · 装配后移:prepare 只对齐意图 · 链装配在 goal 调研后按实测复杂度定
+
+> 起因 case(supersdk):删 3 个按钮被定价成九段全链,用户问「这个小需求为什么还走 feature」→ 诊断:复杂度判断不准确 —— prepare 手里只有需求文本没有代码现状,在**信息最少的时刻做信息最密的决策**是结构性错判。
+> 用户拍板四连:①prepare 只对齐意图不做装配,装配移到 goal 深入调研后按实际复杂度给出;②feature 执行流程不变,装配 = 环节 + 评审面两维度;③写 PRD 时提示装配链,默认执行不阻塞,提示可调;④goal 自身评审面调研后 AI 自定,其余随 PRD 确认提示、不要求改就默认。
+
+### 变更(决策时点搬迁 · 机器层零新参数)
+- **prepare 收缩为四件**:意图对齐(理解卡)· flow 大类(Feature/Bug)· preset=micro 白名单速通(类型判断非装配 · 保留最快车道)· clarity + 4 项机械配置。Q1-Q4 装配思考整体迁出;暂停点「⚙️ 配置」从「评审:已据 Q1-Q4 设」改为「装配:goal 调研后定 · PRD 确认时展示(默认执行 · 可调)」。
+- **goal-stage 规则 3.7「🔗 链装配」(单源)**:调研后按四轴实测定价 —— 改动方向(加/改/删)× 契约面 × 影响面(grep 实测)× 验证成本,**装配证据必填**(与 Bug 排查先行同律)。**两拍生效**:goal 自身评审面 AI 自定(change-review-roles 留痕不问用户);下游装配(环节双旋钮 --needs-ui/--needs-browser-e2e + 各 stage 评审面)写进 PRD 终确认导读「🔗 链装配」节 —— 默认按此执行 · 不单独停等。Q1-Q4 判断表迁入并升级为证据版。
+- **机器层对齐而非改造**:needs-ui / needs-browser-e2e 本就是 goal-complete 参数、roster 本就随时可调 —— 机器作者的形状一直是「装配点在 goal 出口」,是 prepare spec 在提前抢答;本版让 spec 对齐机器。prepare-check emit 的 4 问 hint 改为后移指针;goal brief 带装配提醒(动作点载体)。
+- 诚实边界(已向用户交代):环节可装配面 = ui_design/browser_e2e 两旋钮,文档重量(PRD 20 行门 / TC 结构 / TECH)不随装配塌缩(用户拍板不做第三维)—— 删按钮类从九段降到约六段、评审面可收零。
+
+### 测试
+`test_assembly_at_goal_v8329.py` 15 条(prepare 四件与 Q1-Q4 清除 / goal 四轴+两拍+判断表迁入 / 导读装配节 / brief·emit·FLOWS 载体 / 机器不变式);test_state v8.27 旧锁按新不变式更新(「不抄默认」义务随装配迁 goal)。全库全绿。
+
 ## v8.328 · finding 准入:功能优先 · 复杂度守恒(用户拍板)
 
 > 用户:review 的时候注意,优先功能实现,不要做过多的兜底、测试门之类的;不要为了不重要的 bug 增加整体复杂度;真功能缺陷要报;PRD 和 TECH review 等都需要考虑。
@@ -52,14 +66,3 @@
 
 ### 测试
 `test_worktree_prune_v8325.py` 13 条:auto 删+删分支 / 接力卡 untracked 不挡(-uall 修折叠)/ 真残留只报 / 未 merge 不动 / ask·keep 语义 / 僵尸壳任何模式清 / 孤儿只报 / 默认翻转+模板同步 / 非法值回退 ask / wiring / 构建世界表。全库全绿。
-
-## v8.324 · 格式门禁前置化:complete 契约 spec 同源预告 + 解析器放宽一档(P0-3)
-
-> 两项目耗时归因 26-28% 轮次 = 纯协调开销,归因高度同质:「格式门禁重试 · spec 字段名未预读」「dev-complete 的 test-runner 门在 dev-start 没预告 · complete 时才拒」;aon-core 复盘:外审产物 YAML **单空格缩进**列表被解析为空 `files_read` → CAPABILITY_BLOCKED 误报 —— 一个缩进空格换一轮返工。
-
-### 变更(两刀)
-- **start brief 自动附「⛔ complete 时机器校验」块**(`_render_complete_contract`):从 artifacts / evidence_checks 的**同一份 spec 对象**渲染(产物路径 · glob 最少数 · frontmatter 必含字段 · body 行数 · 须在 changeset · fast 豁免标记 · 每条 evidence 点名+描述)—— 门禁改了预告自动跟,手写 brief 漂移不再可能漏预告(11/12 个 stage 有契约块 · 无门禁 stage 渲染为空)。
-- **`parse_frontmatter` 列表缩进兼容 1-4 空格**(原只认两空格):格式门禁的解析器必须比它拦的格式宽一档;5+ 空格 = 嵌套结构,行式解析不装懂,保持忽略。
-
-### 测试
-`test_gate_preannounce_v8324.py` 10 条:单空格伤亡原型 / 2-4 空格 / 深缩进仍忽略 / key:value 不受扰 / GOAL·BROWSER_E2E 契约块 / 反向锁「有门禁必有预告块」/ 源码顺序锁 / dev test-runner 门 start 可见。全库全绿。
