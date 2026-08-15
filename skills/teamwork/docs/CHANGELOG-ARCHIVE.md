@@ -4,6 +4,21 @@
 > 上次清空:**v8.193**(2026-07-06 · 清除 v8.128 → v8.187 共 60 版条目 · 约 1.0k 行)。
 
 ---
+## v8.323 · 台账自动落行:archive 直接写行(P0-2)
+
+> aon-core 复盘原话:「emit 提供了已算好的 `ledger_timing`/`ledger_stage_cost`,台账行仍需人工 append —— 若 archive 能直接落行,可再省一轮。」
+> supersdk 实证:47% 归档 feature 台账无行(最近 8 次 ship 漏 3 次)· 判例「精确 timing 仅在 archive 后 emit · 需归档后补提交」(时序矛盾)。
+
+### 变更
+- **archive 自动落行**:`_compose_ledger_row`(机器格确定性取数 = 此前让 AI「照抄」的同源字段:实走 stages / 时长三分 / 各阶段耗时 / bypass·WARN 计数 / 宿主 / 邮箱 / 分诊校准 / 可预防性 / 耗时归因)+ `_append_ledger_row`(无台账按模板建表 · 有则先跑 v8.322 迁移〔表头+旧行补宽〕· 按 feature_id 幂等 · 插表尾)· 行随归档 commit **原子合入**(timing 此刻已在手 —— 时序矛盾一并治)。
+- **判断格走参数**:`--ledger-reflection`(反思摘要 · **必填 gate** `pending_step: ledger-row`)+ `--ledger-rounds / --ledger-external / --ledger-findings / --ledger-pauses`(缺省 `—` = 诚实留空 · emit `defaulted_cells` 点名)。单元格净化(竖线→全角 · 换行压平)· 列宽对齐模板单源(模板加列自动补 —)。
+- **emit**:+`ledger_row`(status/row/defaulted_cells);`ledger_*` 旧字段保留(透明校验 + 旧消费方兼容)。台账失败不拦归档(status:error 可手补)。
+- **brief/spec 改口**:push brief 不再教「先 ledger-migrate 再手工 append」;ship-stage §3.5/§16、process-ledger 模板同步(顺带修正模板残留的「旧数据行不动」旧语义 → v8.322 补宽语义)。
+- 两条设计锁按新设计更新:v8295 emit 字段注册表 +ledger_row;v8301 migrate-before-append 时序锁从「brief 文案」改锁「_append_ledger_row 源码顺序」。
+
+### 测试
+`test_ledger_autorow_v8323.py` 9 条(列宽单源 / 机器格 / 净化 / 幂等 / 建表 / 旧 schema 先迁 / gate / 行入 HEAD / 重跑不重复);既有 ship 测试 48 条经 `_archive` helper 注入默认反思全绿。
+
 ## v8.322 · 升级传导:版本漂移入口自愈(P0-1)
 
 > aon-core × supersdk 实证分析拍板「按建议」的第一件。
