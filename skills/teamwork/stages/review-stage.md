@@ -14,6 +14,13 @@
 
 1. **评审独立性**:每视角**独立起草期**互不可见 —— **不互喂 verdict / 不读他人报告**,写完各自汇入 `REVIEW.md`(角色归属靠 `findings[].source` + 规则 10 的 coverage 申报)(why:防鼓掌效应——独立性没了,多视角 = 一个视角 × N 份)。评审角色按 `state.stage_review_roles.review`(prepare 按角色价值判据配 · 审计留痕);**做多少可调,做了就必须独立**。
 2. **severity 定级纪律**:「可能有问题」不是 MAJOR——MAJOR 须给确定性实证(哪个输入/哪行/什么错误行为),拿不出 → MINOR(why:不收敛的根因就是无实证的高定级)。分级表:`BLOCKER`=AC 失败/数据损坏/安全;`MAJOR`=可实证复现的确定性 bug;`MINOR`=改进建议;`NIT`=风格。
+2.5 🔴 **功能优先 · 复杂度守恒**(finding 准入与裁决价值观 · 用户拍板 · goal/blueprint 冷审同判据 · 本条是单源):
+   - **真功能缺陷必报 · 零门槛**(行为错 / AC 不满足 / 契约破坏 / 数据损坏 / 安全)—— 这是 review 存在的理由;
+   - **兜底 / 防御 / 边界加固类建议 · 高门槛**:必须给出**真实触发路径 + 后果等级**,给不出 → 不成 finding(至多 NIT 随行不进 verdict);
+   - **修复代价 > 缺陷危害 → REJECT 是合法且推荐的裁决**(为不重要的 bug 增加整体复杂度 = 负资产 · rejected 实证写「危害不及修复复杂度」即成立 · 与规则 4 举证对称不冲突);
+   - **不借 review 加流程 / 测试门**:「建议进 CI / 加门禁 / 泛化补测试提覆盖」不是 finding —— 测试门归生命周期分层(L1 必带 `ci_reason` · 单源 templates/tc.md)· 流程门归用户拍板;confirmed bug 的**回归测试锁不在此列**(那是修复的一部分);
+   - **更简方案达成同等功能价值 = 永远合法的 finding**(简化方向不设门槛 —— 高门槛只拦「往上加」的方向)。
+   (why:评审的静默失败模式不是漏报,是**用低价值加固建议吃掉轮次预算、把简单实现推肥** —— 实证消费项目 26-28% 轮次纯协调开销、钟摆〔加固↔简化〕已成判例;「功能对不对」是唯一主轴,复杂度是要守恒的预算不是免费资源。)
 3. **verdict 门槛**(review-complete 物化拦截):NEEDS_REVISION 须 ≥1 条 open BLOCKER/MAJOR 且 findings 机读台账非空;APPROVE 不得有 open BLOCKER/MAJOR(open MINOR/NIT = advisory 随行或转 deferred)。
 3.5 **release-gated 裁决**(拆开「代码门」vs「发版门」):**review 只 gate 代码完整性**(本地/CI 能修的);证据**物理上必须 post-deploy** 的 BLOCKER/MAJOR 不该卡 review —— 标 `status: deferred` + `deferred_reason: "release-gated · 欠<什么证据>"`,别磨轮,它是**发版义务不是 review 阻塞**。
    🔴 **双向护栏(分界线 = 能不能在本地/CI 造出证据)**:

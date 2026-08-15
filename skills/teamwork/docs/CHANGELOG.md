@@ -4,6 +4,18 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.328 · finding 准入:功能优先 · 复杂度守恒(用户拍板)
+
+> 用户:review 的时候注意,优先功能实现,不要做过多的兜底、测试门之类的;不要为了不重要的 bug 增加整体复杂度;真功能缺陷要报;PRD 和 TECH review 等都需要考虑。
+
+### 变更(四载体 · 单源 + 指针 + prompt 自含)
+- **review-stage 规则 2.5(单源全文)**:①真功能缺陷必报零门槛(行为错/AC 不满足/契约破坏/数据损坏/安全);②兜底/防御/加固类建议高门槛 —— 必须给**真实触发路径 + 后果等级**,给不出不成 finding(至多 NIT);③**修复代价 > 缺陷危害 → REJECT 是合法且推荐裁决**(rejected 实证写「危害不及修复复杂度」即成立);④不借 review 加流程/测试门(测试门归生命周期 `ci_reason` · 流程门归用户拍板;confirmed bug 回归锁不在此列);⑤**简化方向不设门槛**(高门槛只拦「往上加」)。why:评审的静默失败模式不是漏报,是低价值加固吃掉轮次预算、把简单实现推肥(实证 26-28% 协调开销 · 钟摆判例)。
+- **goal-stage 6.5 / blueprint-stage 9.5**:冷审各一行指针(PRD 评「要做的东西对不对」/ TECH 不推防御式设计与预防性抽象)· 真缺陷必报语义随行。
+- **claude-agents/reviewer.md prompt 主体**:自含压缩版(subagent 只读 prompt —— 动作点载体);显式声明 Checklist 的错误处理/边界方向按准入过滤,「理论上可能」不是触发路径。
+
+### 测试
+`test_review_functionality_first_v8328.py` 13 条:单源五要素 / REJECT 合法性 / ci_reason 指向 / 回归锁例外 / 简化方向豁免 / 既有 severity·钟摆纪律不动 / 两指针 / prompt 段位置在正文内 + 过滤声明。全库全绿。
+
 ## v8.327 · archive preflight:反向引用扫描 + retro path 物理校验(P1-6)
 
 > aon-core G-TEST-003:测试 `include_str!` 引用 feature 目录下 fixture · archive 按设计删目录 → 整个测试二进制编不出来 · cargo check **红 11 天**(交付完成之日 = 编译失败之日)。
@@ -51,18 +63,3 @@
 
 ### 测试
 `test_gate_preannounce_v8324.py` 10 条:单空格伤亡原型 / 2-4 空格 / 深缩进仍忽略 / key:value 不受扰 / GOAL·BROWSER_E2E 契约块 / 反向锁「有门禁必有预告块」/ 源码顺序锁 / dev test-runner 门 start 可见。全库全绿。
-
-## v8.323 · 台账自动落行:archive 直接写行(P0-2)
-
-> aon-core 复盘原话:「emit 提供了已算好的 `ledger_timing`/`ledger_stage_cost`,台账行仍需人工 append —— 若 archive 能直接落行,可再省一轮。」
-> supersdk 实证:47% 归档 feature 台账无行(最近 8 次 ship 漏 3 次)· 判例「精确 timing 仅在 archive 后 emit · 需归档后补提交」(时序矛盾)。
-
-### 变更
-- **archive 自动落行**:`_compose_ledger_row`(机器格确定性取数 = 此前让 AI「照抄」的同源字段:实走 stages / 时长三分 / 各阶段耗时 / bypass·WARN 计数 / 宿主 / 邮箱 / 分诊校准 / 可预防性 / 耗时归因)+ `_append_ledger_row`(无台账按模板建表 · 有则先跑 v8.322 迁移〔表头+旧行补宽〕· 按 feature_id 幂等 · 插表尾)· 行随归档 commit **原子合入**(timing 此刻已在手 —— 时序矛盾一并治)。
-- **判断格走参数**:`--ledger-reflection`(反思摘要 · **必填 gate** `pending_step: ledger-row`)+ `--ledger-rounds / --ledger-external / --ledger-findings / --ledger-pauses`(缺省 `—` = 诚实留空 · emit `defaulted_cells` 点名)。单元格净化(竖线→全角 · 换行压平)· 列宽对齐模板单源(模板加列自动补 —)。
-- **emit**:+`ledger_row`(status/row/defaulted_cells);`ledger_*` 旧字段保留(透明校验 + 旧消费方兼容)。台账失败不拦归档(status:error 可手补)。
-- **brief/spec 改口**:push brief 不再教「先 ledger-migrate 再手工 append」;ship-stage §3.5/§16、process-ledger 模板同步(顺带修正模板残留的「旧数据行不动」旧语义 → v8.322 补宽语义)。
-- 两条设计锁按新设计更新:v8295 emit 字段注册表 +ledger_row;v8301 migrate-before-append 时序锁从「brief 文案」改锁「_append_ledger_row 源码顺序」。
-
-### 测试
-`test_ledger_autorow_v8323.py` 9 条(列宽单源 / 机器格 / 净化 / 幂等 / 建表 / 旧 schema 先迁 / gate / 行入 HEAD / 重跑不重复);既有 ship 测试 48 条经 `_archive` helper 注入默认反思全绿。
