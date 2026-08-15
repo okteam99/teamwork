@@ -348,7 +348,7 @@ class TestMaintainGitignoreWorktree(unittest.TestCase):
         from bootstrap import maintain_gitignore_worktree
         # teamwork 维护 entries 全预填 → already_present(v8.85 review_start.log · v8.89 local_env)
         (self.tmp / ".gitignore").write_text(
-            "node_modules/\n.worktree/\n.teamwork_localconfig.json\n"
+            "node_modules/\n.worktree/\n.teamwork-scratch*\n.teamwork_localconfig.json\n"
             ".claude/scheduled_tasks.lock\n.claude/agents.lock\n"
             "review_start.log\n.teamwork-local-env/\n"
         )

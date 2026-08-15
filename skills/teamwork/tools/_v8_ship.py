@@ -468,6 +468,15 @@ def _handle_ship_push(state: dict, args: argparse.Namespace) -> dict:
     ship["mr_create_url"] = args.mr_create_url
     ship["feature_pushed_at"] = args.feature_pushed_at or now_iso()
 
+    # scratch 随 ship1 push 即清(用户拍板:磁盘占用 > MR 窗口期增量缓存)——
+    # 实证 worknode /tmp/teamwork 141GB · 单 feature 78GB:清理原来只挂 ship2,
+    # 而 session 常在 ship1 后结束/换机,ship2 不在本机跑 · TTL 7 天窗内即可打满磁盘。
+    # 测试/构建证据此刻已入 state.json,scratch 无对账价值;MR 窗口期撞冲突回炉
+    # 需冷编 = 已接受的代价。ship2 同名步骤保留为幂等兜底。
+    scratch_cleanup = _prune_feature_tmp(
+        state.get("feature_id") or "",
+        worktree_path=(state.get("worktree") or {}).get("path"))
+
     # v8.232:ship1 终点用户卡片(工具确定性生成 · AI 🔴 原样贴给用户 · 不自由发挥总结)——
     # 治实证 case:AI 写「本轮总结」长段 · MR URL 埋在段落里 · 用户被迫问「地址发出来啊」。
     _mr_link = ship["mr_url"] or ship["mr_create_url"] or "<MR URL 缺失 · 检查 push 记录>"
@@ -526,6 +535,7 @@ def _handle_ship_push(state: dict, args: argparse.Namespace) -> dict:
         "user_card_file": _card_file,
         "stage": "ship",
         "action": "push",
+        "scratch_cleanup": scratch_cleanup,
         "transition": f"{cur_phase} → pushed",
         "phase": "pushed",
         **({"rerecorded": True} if cur_phase == "pushed" else {}),
@@ -897,6 +907,34 @@ def _handle_ship_archive(state: dict, args: argparse.Namespace) -> dict:
                 ),
             }, exit_code=0)
 
+    # v8.327 反向引用 preflight:归档会把 feature 目录从分支删掉 —— repo 里还有谁引用它?
+    # 实证(aon-core G-TEST-003):测试 include_str! 引用 feature 目录下 fixture · ship 后
+    # 整个测试二进制编不出来 · cargo check 红了 11 天(交付完成之日 = 编译失败之日)。
+    _ref_exc = (getattr(args, "archive_ref_exception", None) or "").strip()
+    if _ref_exc:
+        ship["archive_ref_exception"] = _ref_exc  # 例外 audit 留痕 · 不静默
+    else:
+        gg = _git(["grep", "-I", "-l", "-F", f"features/{feature_id}",
+                   "--", f":(exclude){feature_rel}", ":(exclude)*_archive*"],
+                  cwd=wt_root, timeout=30)
+        if gg.returncode == 0 and gg.stdout.strip():
+            refs = [l.strip() for l in gg.stdout.splitlines() if l.strip()][:20]
+            emit_json({
+                "verdict": "PENDING", "stage": "ship", "action": "archive",
+                "pending_step": "archive-backref",
+                "referencing_files": refs,
+                "next_action": (
+                    f"🔴 归档会把 `{feature_rel}/` 从分支删除,但仓库里还有 "
+                    f"{len(refs)} 个 tracked 文件引用它(见 referencing_files)—— "
+                    "删了它们就断(实证:include_str! 引用 fixture · 归档后编译红 11 天):\n"
+                    "  ① 代码/测试引用 → 把被引用文件搬出 feature 目录(fixture 归测试目录)· "
+                    "或改引用路径,commit 后重跑 archive\n"
+                    "  ② 文档死链 → 改成引用归档 zip 或 F-id,别指向即将删除的目录\n"
+                    f"  确属误报/可接受 → 重跑加 --archive-ref-exception '<为什么可以 · 一句>'"
+                    "(记 state.ship 审计 · 不静默)"
+                ),
+            }, exit_code=0)
+
     # v8.113 描述门禁(≤200 字 · 写 INDEX.md)
     raw_desc = getattr(args, "archive_desc", None)
     archive_desc = _clean_archive_desc(raw_desc)
@@ -908,6 +946,27 @@ def _handle_ship_archive(state: dict, args: argparse.Namespace) -> dict:
         }, exit_code=1)
     # v8.156:过程信息嗅探(INDEX 是业务索引 · 不该灌评审/测试过程数据)· WARN 不 BLOCK
     desc_warn = _archive_desc_process_smell(archive_desc)
+
+    # v8.323 台账自动落行 gate:机器格工具自算 · 判断格走参数 · 反思摘要必填。
+    # 实证:supersdk 47% 归档 feature 台账无行(人工 append 必漏);aon-core 复盘原话
+    # 「emit 提供了已算好的字段 · 台账行仍需人工 append · 若 archive 能直接落行可再省一轮」。
+    if not (getattr(args, "ledger_reflection", None) or "").strip():
+        emit_json({
+            "verdict": "PENDING", "stage": "ship", "action": "archive",
+            "pending_step": "ledger-row",
+            "next_action": (
+                "🔴 归档即自动写台账行(机器格工具确定性取数 · 你只补判断格)—— 重跑 archive 附:\n"
+                "  --ledger-reflection '<反思摘要 ≤1 行 · 必填 · 有流程新判例以「判例:」开头 · "
+                "不美化(过场就写过场)>'\n"
+                "  可选判断格(缺省填 —):--ledger-rounds '<review/test 轮 · 如 1/1>' "
+                "--ledger-external '<external 总/采/驳 · 如 3/1/2>'\n"
+                "  --ledger-findings '<goal 侧 / review 侧 · 如 pl:2 ext:1 / arch:1 qa:0 ext:1 · "
+                "零也要写>' --ledger-pauses '<暂停点 改:默 · 如 1:2>'\n"
+                "  机器格(实走 stages / 时长三分 / 各阶段耗时 / bypass·WARN / 宿主 / 邮箱 / "
+                "分诊校准 / 可预防性 / 耗时归因)工具自算自落 · 行随归档 commit 原子合入 —— "
+                "不再手工 append · 不再需要先跑 ledger-migrate。"
+            ),
+        }, exit_code=0)
 
     # 终态 state.json(zip 快照 = 墓碑 · 宣称随 MR 合入与落地原子可见)。
     # 🔴 终态只为 zip 打包临时落盘 · 打包完即恢复原文件:终态的持久化推迟到归档 commit
@@ -993,6 +1052,18 @@ def _handle_ship_archive(state: dict, args: argparse.Namespace) -> dict:
     except (subprocess.SubprocessError, OSError, ValueError):
         pass
 
+    # v8.323:台账行自动落(worktree 内 · 幂等)· 随归档 commit 原子合入 ——
+    # 精确 timing 此刻已在手(终态契约刚封)· 治「timing 归档后才 emit · 需归档后补提交」时序矛盾。
+    try:
+        _lrow, _ldef = _compose_ledger_row(state, args, wt_root, merge_target, feature_id)
+        ledger_row_res = _append_ledger_row(wt_root, _lrow, feature_id)
+        if ledger_row_res.get("status") == "appended":
+            ledger_row_res["row"] = _lrow
+            if _ldef:
+                ledger_row_res["defaulted_cells"] = _ldef
+    except Exception as e:  # noqa: BLE001 — 台账失败不该拦归档(可查 emit 手补)
+        ledger_row_res = {"status": "error", "reason": str(e)[:200]}
+
     # git rm --cached(index only · 工作树保留 = ship2 接力卡)→ add → 单 commit
     rm = _git(["rm", "-r", "-q", "--cached", "--ignore-unmatch", feature_rel], cwd=wt_root)
     if rm.returncode != 0:
@@ -1000,6 +1071,9 @@ def _handle_ship_archive(state: dict, args: argparse.Namespace) -> dict:
             "verdict": "FAIL", "action": "archive",
             "error": f"git rm --cached {feature_rel} 失败:{rm.stderr.strip()[:150]}"})
     adds = [zip_rel, index_rel] + [rel for rel, _ in planning_files]
+    if ledger_row_res.get("status") in ("appended", "exists"):
+        if ledger_row_res["file"] not in adds:
+            adds.append(ledger_row_res["file"])  # v8.323:台账行随归档 commit
     if ws_refreshed and ws_refreshed not in adds:
         adds.append(ws_refreshed)        # v8.180:自刷的 WS 进度块文档纳进归档 commit
     ad = _git(["add", "--", *adds], cwd=wt_root)
@@ -1029,9 +1103,9 @@ def _handle_ship_archive(state: dict, args: argparse.Namespace) -> dict:
         "archive_commit": head,
         "zip": zip_rel,
         "planning_bundled": [rel for rel, _ in planning_files],
-        # v8.208/v8.209:PROCESS-LEDGER 行采写数据(台账在 ship1 archive 采写 · 见 §3.5/§16)——
-        # AI 照抄进台账「宿主」+「时长(总·AI自主·待)」+「各阶段耗时」+「用户邮箱」列 · 确定性 · 不肉眼算 state。
-        # v8.217:分诊校准束(预测 clarity/roster vs 实际 diff/轮次)· 台账「分诊校准」列照抄 · 年检算准确率
+        # v8.323:台账行由工具直接落(ledger_row · 机器格确定性 · 判断格来自 --ledger-*)——
+        # 下列 ledger_* 字段保留:透明可校验 + 旧消费方兼容(不再要求 AI 照抄)。
+        "ledger_row": ledger_row_res,
         "triage_calibration": _triage_calibration(state, wt_root, merge_target),
         "ledger_timing": {
             "host": state.get("host") or "unknown",  # v8.209:AI 宿主(claude-code/codex-cli/gemini-cli)
@@ -1047,9 +1121,9 @@ def _handle_ship_archive(state: dict, args: argparse.Namespace) -> dict:
         # v8.295:耗时归因(各 stage stage-cost 记录聚合)· 台账「⏱️ 耗时归因」列
         # · 年检据此看协调开销占比趋势 —— 也是验证提效改动(v8.294 收敛期归一/TC 边界/
         # 投机窗准入)是否真起效的唯一手段。
-        "ledger_stage_cost": _stage_cost_summary(state, _process_retro_path(state, feature_id)),
+        "ledger_stage_cost": _stage_cost_summary(state, _process_retro_path(state, feature_id, wt_root)),
         # v8.297:流程复盘文档落点(耗时归因叙述 + 流程反思四问 —— 台账装不下的那部分)
-        "ledger_process_retro_path": _process_retro_path(state, feature_id),
+        "ledger_process_retro_path": _process_retro_path(state, feature_id, wt_root),
         # v8.180:WS 进度块确定性自刷结果(None = feature 不属 WS / 对应F编号 未填 → 未刷 · 见 §3.5)
         "ws_progress_refreshed": ws_refreshed,
         "warnings": [
@@ -1068,11 +1142,10 @@ def _ship1_push_brief(feature_id: str, feature_path: str) -> str:
     """
     return (
         "✅ 归档已进 feature 分支(MR diff 干净:过程文件加了又删 = 净零 · 只剩 "
-        "代码 + zip + INDEX + 翻牌行)。\n"
-        "📒 **写台账行之前先跑**(幂等 · 已最新则 no-op):\n"
-        f"     `state.py ledger-migrate --feature {feature_path}`\n"
-        "     🔴 不迁移就直接 append → **新行按旧表头错位**(年检读错列)· 台账列语义见 "
-        "templates/process-ledger.md;归因叙述与流程反思归 `docs/retros/<id>-process.md`(模板 process-retro.md)。\n"
+        "代码 + zip + INDEX + 台账行 + 翻牌行)。\n"
+        "📒 台账行已自动落(emit `ledger_row` · 机器格工具自算 · 判断格来自 --ledger-*);"
+        "归因叙述与流程反思归 `docs/retros/<id>-process.md`(模板 process-retro.md · "
+        "记得随 --planning-artifacts 进了归档 commit)。\n"
         "接下来:\n"
         "  ① git push origin <feature 分支>\n"
         "  ② CLI-first 创建 feature MR(P0-113):gh pr create / glab mr create "
@@ -1101,9 +1174,15 @@ def _handle_ship_close_unmerged(state: dict, args: argparse.Namespace) -> dict:
     if args.abandon:
         ship["phase"] = "closed_unmerged"
         ship["shipped"] = "abandoned"
+        # 放弃即清(不会再回炉 · 增量缓存无保留价值)
+        scratch_cleanup = _prune_feature_tmp(
+            state.get("feature_id") or "",
+            worktree_path=(state.get("worktree") or {}).get("path"))
     else:
         ship["phase"] = "closed_unmerged"
         ship["shipped"] = "closed_unmerged"
+        # 暂时关闭可重开(重跑 archive→push)· 保留增量缓存 · TTL 兜底
+        scratch_cleanup = {"status": "kept", "reason": "closed_unmerged 可重开 · 保留增量缓存(TTL 兜底)"}
 
     ship["closed_at"] = now_iso()
 
@@ -1116,6 +1195,7 @@ def _handle_ship_close_unmerged(state: dict, args: argparse.Namespace) -> dict:
         "verdict": "PASS",
         "stage": "ship",
         "action": "close-unmerged",
+        "scratch_cleanup": scratch_cleanup,
         "transition": f"{cur_phase} → closed_unmerged",
         "phase": "closed_unmerged",
         "shipped": ship["shipped"],
@@ -1226,27 +1306,61 @@ def _check_bl_flipped(wt_root: str, state: dict) -> dict:
     return {"status": "not_flipped", "bl": bl, "rows": rows_found[:5]}
 
 
-def _prune_feature_tmp(feature_id: str) -> dict:
-    """删 scratch 根下 <feature_id>/ 整树(ship2 · verify-delivered 通过后)。
+def _prune_feature_tmp(feature_id: str, worktree_path: str | None = None) -> dict:
+    """回收 feature scratch(双根 · rename 即返 + 后台真删)。
 
-    🔴 时序:必须在 verify-delivered PASS 之后 —— 归档 zip 已确认在 origin ·
-    日志/构建产物无对账价值 · 删除零风险。整目录删除(cargo target 是原子单元 ·
-    按文件删会打碎 fingerprint 一致性)。失败不阻塞(warnings 记录)。
+    根:worktree 模式(缺省)= `<worktree>/.teamwork-scratch*`(随 worktree 消亡)·
+    off / legacy = `<tmp根>/<feature_id>`。调用时点:① ship1 push 成功(主时点 ——
+    证据已入 state.json · MR 窗口期撞冲突回炉需冷编 = 接受的代价)② close-unmerged
+    --abandon ③ ship2 tmp-cleanup(存量旧根幂等兜底 · worktree 侧已随 worktree-remove 消亡)。
+
+    🔴 耗时设计:大树同步 rmtree + 全树统计 = 双遍历分钟级,会拖住 push 命令 ——
+    改「同盘 rename(O(1) · 原路径立即消失)→ detached `rm -rf` 后台真删」;
+    体量 `du -sk` 限时 3s(大树跳过统计);后台删夭折的 `*-trash-*` 由 TTL 兜底扫。
+    整目录处理(cargo target 是原子单元 · 按文件删会打碎 fingerprint 一致性)。
     """
-    if not feature_id:
-        return {"status": "n_a", "reason": "no_feature_id"}
-    d = _teamwork_tmp_root() / feature_id
-    if not d.is_dir():
+    targets: list[Path] = []
+    if worktree_path:
+        wt = Path(worktree_path)
+        if wt.is_dir():
+            targets += sorted(wt.glob(".teamwork-scratch*"))
+    if feature_id:
+        legacy = _teamwork_tmp_root() / feature_id
+        if legacy.exists():
+            targets.append(legacy)
+    if not targets:
         return {"status": "n_a", "pruned_bytes": 0}
-    try:
-        size = sum(f.stat().st_size for f in d.rglob("*") if f.is_file())
-    except OSError:
-        size = 0
-    try:
-        shutil.rmtree(d)
-        return {"status": "ok", "pruned_bytes": size, "path": str(d)}
-    except OSError as e:
-        return {"status": "failed", "error": str(e)[:120], "path": str(d)}
+    pruned_bytes = 0
+    cleaned: list[str] = []
+    failed: list[dict] = []
+    for d in targets:
+        trash = d.parent / f"{d.name}-trash-{os.getpid()}"
+        try:
+            os.rename(d, trash)
+        except OSError as e:
+            failed.append({"path": str(d), "error": str(e)[:80]})
+            continue
+        try:
+            r = subprocess.run(["du", "-sk", str(trash)], capture_output=True,
+                               text=True, timeout=3)
+            if r.returncode == 0:
+                pruned_bytes += int(r.stdout.split()[0]) * 1024
+        except Exception:
+            pass  # 统计失败/超时不影响清理
+        try:
+            subprocess.Popen(["rm", "-rf", str(trash)],
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                             start_new_session=True)
+        except OSError:
+            shutil.rmtree(trash, ignore_errors=True)
+        cleaned.append(str(d))
+    if failed and not cleaned:
+        return {"status": "failed", "error": failed[0]["error"], "errors": failed}
+    out = {"status": "ok", "mode": "rename+async-rm",
+           "pruned_bytes": pruned_bytes, "paths": cleaned}
+    if failed:
+        out["partial_failures"] = failed
+    return out
 
 
 class _GitResult:
@@ -1562,6 +1676,112 @@ def _list_teamwork_stashes(main_wt: str) -> list:
 
 
 
+def _ledger_cell(v) -> str:
+    """台账单元格净化:竖线/换行会破 markdown 表 → 压单行 · 竖线换全角。空 → —。"""
+    s = str(v if v is not None else "").strip()
+    s = s.replace("\r", " ").replace("\n", " ").replace("|", "∣")
+    return s or "—"
+
+
+def _compose_ledger_row(state: dict, args: argparse.Namespace, wt_root: str,
+                        merge_target: str, feature_id: str):
+    """v8.323:PROCESS-LEDGER 行自动拼装(列序单源 templates/process-ledger.md)。
+
+    机器格确定性取数(= 此前 emit 给 AI「照抄」的同源字段 —— 实证两项目照抄常漏:
+    supersdk 47% 归档 feature 无台账行);判断格来自 --ledger-* 参数(缺省 — = 诚实留空)。
+    返回 (row, defaulted_labels)。
+    """
+    ai_min, wait_min = _timing_split(state)
+    breakdown, _ = _stage_durations(state)
+    total = _feature_duration_h(state)
+    dur = "—"
+    if total:
+        dur = total
+        if ai_min is not None:
+            dur += f"·AI {ai_min}m"
+        if wait_min is not None:
+            dur += f"·待 {wait_min}m"
+    tc = _triage_calibration(state, wt_root, merge_target)
+    diffn = tc.get("actual_diff_files")
+    tc_cell = (f"{tc.get('clarity', 'normal')}·{tc.get('roster', '默认矩阵')} → "
+               f"diff {diffn if diffn is not None else '?'} files·"
+               f"PRD {tc.get('goal_rounds', 0)} revision·review {tc.get('review_rounds', 0)} 轮")
+    bypasses = len(state.get("bypass_log") or [])
+    warns = sum(1 for c in (state.get("concerns") or [])
+                if isinstance(c, str) and "WARN" in c)
+    defaulted = []
+
+    def _arg(name: str, label: str) -> str:
+        v = (getattr(args, name, None) or "").strip()
+        if not v:
+            defaulted.append(label)
+            return "—"
+        return v
+
+    cells = [
+        feature_id,
+        state.get("flow_type") or "—",
+        "→".join(state.get("completed_stages") or []) or "—",
+        dur,
+        _arg("ledger_rounds", "review/test 轮"),
+        _arg("ledger_external", "external 总/采/驳"),
+        _arg("ledger_findings", "角色真 finding"),
+        _arg("ledger_pauses", "暂停点 改:默"),
+        f"{bypasses}/{warns}",
+        (getattr(args, "ledger_reflection", None) or "").strip(),
+        breakdown or "—",
+        _git_user_email(wt_root) or "—",
+        state.get("host") or "unknown",
+        tc_cell,
+        _authoring_preventability_summary(state) or "—",
+        _stage_cost_summary(state, _process_retro_path(state, feature_id, wt_root)) or "—",
+    ]
+    row = "| " + " | ".join(_ledger_cell(c) for c in cells) + " |"
+    from _v8_engine import canonical_ledger_header
+    canon = canonical_ledger_header(Path(__file__).resolve().parent.parent)
+    if canon:                                    # 模板未来加列 → 本行自动补 —(与 migrate 同语义)
+        width = canon[0].count("|") - 1
+        have = row.count("|") - 1
+        if have < width:
+            row += " — |" * (width - have)
+    return row, defaulted
+
+
+def _append_ledger_row(wt_root: str, row: str, feature_id: str) -> dict:
+    """v8.323:台账行幂等落盘(worktree 内 · 随归档 commit 原子合入)。
+
+    无台账 → 按 canonical 表头建表;有 → 先 migrate(表头+旧行补宽 · 幂等)再插;
+    已有本 feature 行 → 跳过(archive 可重入)。插在最后一个表格行之后。
+    """
+    from _v8_engine import canonical_ledger_header, migrate_process_ledger
+    skill_root = Path(__file__).resolve().parent.parent
+    led = Path(wt_root) / "project-specs" / "PROCESS-LEDGER.md"
+    rel = "project-specs/PROCESS-LEDGER.md"
+    canon = canonical_ledger_header(skill_root)
+    if canon is None:
+        return {"status": "error", "reason": "读不到 templates/process-ledger.md canonical 表头"}
+    created = False
+    if not led.is_file():
+        led.parent.mkdir(parents=True, exist_ok=True)
+        led.write_text("# 流程价值台账\n\n" + canon[0] + "\n" + canon[1] + "\n",
+                       encoding="utf-8")
+        created = True
+    else:
+        migrate_process_ledger(led, skill_root)
+    lines = led.read_text(encoding="utf-8").splitlines()
+    if any(l.strip().startswith(f"| {feature_id} |") for l in lines):
+        return {"status": "exists", "file": rel, "created": created}
+    last = None
+    for i, l in enumerate(lines):
+        if l.strip().startswith("|"):
+            last = i
+    if last is None:
+        return {"status": "error", "reason": "台账文件存在但无表格行", "file": rel}
+    lines.insert(last + 1, row)
+    led.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return {"status": "appended", "file": rel, "created": created}
+
+
 def _feature_duration_h(state: dict) -> Optional[str]:
     """从 stage_contracts 时间戳算总时长(最早 started_at → 最晚 completed_at)· 小时 1 位。"""
     contracts = state.get("stage_contracts", {})
@@ -1647,14 +1867,24 @@ def _stage_cost_summary(state: dict, retro_path: str = ""):
     return cell
 
 
-def _process_retro_path(state: dict, feature_id: str) -> str:
+def _process_retro_path(state: dict, feature_id: str,
+                        repo_root: Optional[str] = None) -> str:
     """v8.297:流程复盘文档的约定落点(相对子项目根)· 供台账指针与 ship brief 用。
 
     `docs/retros/<feature-id>-process.md` —— 与业务复盘 `docs/retros/<feature-id>.md` 同目录、
     分文件(前者复盘 teamwork 流程本身 · 后者复盘业务与工程)。
+    v8.327:sub_project 拼路径前做**物理校验**(给了 repo_root 时)—— 目录不存在则回退
+    根级 `docs/retros/`。实证(supersdk):根级模块 sub_project="SDK" 被拼成不存在的
+    `SDK/docs/retros` · path mapper 在同一仓里造出三种互相矛盾的落点 + 幽灵目录。
     """
     sub = (state.get("sub_project") or "").strip("/")
     rel = f"docs/retros/{feature_id}-process.md"
+    if sub and repo_root:
+        try:
+            if not (Path(repo_root) / sub).is_dir():
+                return rel  # 子项目目录不存在 → 根级(别造幽灵目录)
+        except OSError:
+            pass
     return f"{sub}/{rel}" if sub else rel
 
 
@@ -2679,6 +2909,15 @@ def register_v8_ship_subparser(sub) -> None:
     sp.add_argument("--bl-flip-exception",
                     help=("[archive · v8.253] BL 行确不该翻完成态时的例外理由(如部分交付)· "
                           "跳过翻牌验收门 · 记 state.ship 审计留痕"))
+    sp.add_argument("--archive-ref-exception",
+                    help="反向引用 preflight 例外(为什么引用可接受 · 一句 · 记 state.ship 审计)")
+    sp.add_argument("--ledger-reflection",
+                    help="archive 必填:台账「反思摘要」(≤1 行 · 流程新判例以「判例:」开头 · 不美化)")
+    sp.add_argument("--ledger-rounds", help="台账「review/test 轮」(如 1/1 · 缺省 —)")
+    sp.add_argument("--ledger-external", help="台账「external 总/采/驳」(如 3/1/2 · 缺省 —)")
+    sp.add_argument("--ledger-findings",
+                    help="台账「角色真 finding」(goal 侧 / review 侧 · 零也写 · 缺省 —)")
+    sp.add_argument("--ledger-pauses", help="台账「暂停点 改:默」(如 1:2 · 缺省 —)")
     sp.add_argument("--archive-desc",
                     help="[archive] ≤200 字极简 feature 描述 · 写归档 INDEX.md · 超长 FAIL")
 

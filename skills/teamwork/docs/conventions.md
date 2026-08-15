@@ -199,25 +199,37 @@ state.py init-feature \
 # 物化校验:cwd 必须在 worktree-path 内
 ```
 
-完成 Feature 后清理:**正常路径 = ship2 `ship-phase --action ship-finalize` 自动做**(verify-delivered → worktree-remove → main-sync · 详 [ship-stage.md §6](../stages/ship-stage.md))。以下手动命令仅兜底(在主工作区跑 · 不在 worktree 跑):
+完成 Feature 后清理:**正常路径 = ship2 `ship-phase --action ship-finalize` 自动做**(verify-delivered → worktree-remove → main-sync · 详 [ship-stage.md §6](../stages/ship-stage.md));**兜底 = bootstrap 每 session 巡检 merged worktree**(session 常死在 ship1 push 后 · ship2 永不跑 —— 实证 23G 垃圾:13/14 已 merge 未清)· 按 localconfig `worktree_cleanup` 处置:`auto`(默认)merged+干净即删;`ask` 逐个报告;`keep` 只计数;僵尸壳任何模式都清。以下手动命令仅兜底(在主工作区跑 · 不在 worktree 跑):
 ```bash
 cd <主工作区>  # ⚠️ 必须先 cd 出 worktree(物化拦截)
 git worktree remove <worktree-path>
 git branch -d <branch>
 ```
 
+## 12.45 worktree 构建世界(依赖 · 缓存 · 测试库 —— git 之外的三件事)
+
+🔴 worktree 只隔离 git 树,**不隔离构建世界** —— 依赖目录 / 构建缓存 / 测试数据库要么缺失、要么与主树共享。消费项目六条独立 KNOWLEDGE 条目同根,开工前先过这张表,别边跑边踩:
+
+| 面 | 症状 | 纪律 |
+|---|---|---|
+| 依赖目录(node_modules / venv) | worktree 内无依赖 · 首次必装 | 装进 worktree 内;或软链主树**只读用 · 用完即删** —— 别指望自动共享 |
+| Python editable install(`.pth`) | import 解析回**主树** · 跑的是旧代码 | worktree 内重新 `pip install -e`;或 `PYTHONPATH=<worktree>/src` 显式前置 |
+| 构建缓存(cargo target / .next) | 首建全量慢;共享则脏缓存 | 缓存留 worktree 内(隔离正确性 > 首建速度);🔴 **TMPDIR 绝不指 worktree 内**(实证:589 个编译缓存文件被带进 commit) |
+| 测试数据库 | 并发分支迁移漂移 · setup 即 panic 全挂(与被测代码无关) | 每 worktree 独立库名(如 `TEST_PG_DB_NAME` 带分支名)· **共享测试库 = 并发毒** |
+| dev server 端口 | 多 worktree 撞端口 · 探测被环境变量污染 | 显式传 `PORT` · 动态端口优先 |
+
 ## 12.5 浏览器验证截图(transient)
 
-🔴 **「看一眼」的浏览器截图 → 系统临时目录 · 绝不落 worktree / 主工作区根**。
+🔴 **「看一眼」的浏览器截图 → 只进 scratch 目录 · 绝不散落 worktree 其他位置 / 主工作区根**。
 
-各 stage 常需 browse 预览/页面**截图自检渲染**(ui_design 预览验证 · dev/review/pm 顺手核对 UI)。这类截图是**一次性验证产物**(AI 自己看 · 非交付 · 不 commit)· **必须写到系统临时目录** · 否则会散落污染主工作区根目录。
+各 stage 常需 browse 预览/页面**截图自检渲染**(ui_design 预览验证 · dev/review/pm 顺手核对 UI)。这类截图是**一次性验证产物**(AI 自己看 · 非交付 · 不 commit)· **只写 scratch 目录** · 否则会散落污染工作区。
 
-- **统一位置**:`${TMPDIR:-/tmp}/teamwork/<feature_id>/screenshots/`(按 feature 命名 · session 内可复寻 · 回收 = ship2 tmp-cleanup + bootstrap TTL —— scratch 根通则详 [standards/common.md §六](../standards/common.md))。
+- **统一位置**:worktree 模式(缺省)= `<worktree>/.teamwork-scratch/screenshots/`(ignored · 不进 commit/diff · 随 worktree 消亡);off 模式 = `${TMPDIR:-/tmp}/teamwork/<feature_id>/screenshots/` —— scratch 根通则与回收三通道详 [standards/common.md §六](../standards/common.md)。
   ```bash
-  SHOT_DIR="${TMPDIR:-/tmp}/teamwork/<feature_id>/screenshots"; mkdir -p "$SHOT_DIR"
-  # 浏览器截图存 "$SHOT_DIR/<name>.png" · 再按绝对路径 Read 查看
+  SHOT_DIR="<worktree>/.teamwork-scratch/screenshots"; mkdir -p "$SHOT_DIR"
+  # 浏览器截图存 "$SHOT_DIR/<name>.png" · 再按绝对路径 Read 查看(off 模式换旧根)
   ```
-- **零工作区脚印**:在系统 temp · 不需 gitignore · 不进任何 commit · 不污染并行 Feature 基线(worktree 红线)。
+- **零仓库内容脚印**:目录被 `.teamwork-scratch*` gitignore 覆盖(bootstrap 自动加)· 不进任何 commit · 不污染并行 Feature 基线(worktree 红线)。
 - **🔴 playwright MCP 兼容**:playwright MCP 的 allowed-root 只能写 `<主仓根>/.playwright-mcp/`,**写不了上面的 temp 目录**。用 MCP 截图时 → **`.playwright-mcp/` 即可接受的自检截图目录**(同属一次性非交付)· 🔴 项目根 `.gitignore` 加 `.playwright-mcp/`(ship2 不必手动清)· 别跟 MCP 沙箱较劲。非 MCP 的 browse 仍优先上面的 temp 目录。
 - **⚠️ 与 browser_e2e 证据区分**:`browser_e2e` stage 的**证据截图**是交付物 · 仍落 **`<feature_dir>/screenshots/*.png`**(committed · pm_acceptance 复核 · 详 browser-e2e-stage.md SOP)· **不**走临时目录。临时目录只放「自检看一眼」的非证据截图。
 

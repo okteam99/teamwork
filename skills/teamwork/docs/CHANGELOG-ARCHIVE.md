@@ -4,6 +4,291 @@
 > 上次清空:**v8.193**(2026-07-06 · 清除 v8.128 → v8.187 共 60 版条目 · 约 1.0k 行)。
 
 ---
+## v8.322 · 升级传导:版本漂移入口自愈(P0-1)
+
+> aon-core × supersdk 实证分析拍板「按建议」的第一件。
+> supersdk 画像:skill 全局副本静默升 37 版 · per-project bootstrap 20 天没跑 ·
+> `last_update_check_result` 还在说 up_to_date · 台账 61% 旧列宽(aon-core 50%)·
+> gitignore 注入水位停在三十版前 ——「提示用户去跑 bootstrap」被实证不发生。
+
+### 治法(与 scratch 清理同构:挂在积灰机器自己天天跑的命令上)
+- **state.py 入口自愈**(`main()` 前 best-effort · 绝不拦正事 · 输出走 stderr 不污染 stdout JSON 契约):marker 版本 ≠ 当前 skill 版本 → 就地跑零风险幂等迁移集 —— ①台账 schema 迁移 ②gitignore 条目重放 ③marker 记录(`_bootstrap.state_migrate{at,from,to,actions}` · 不冒充 full bootstrap 的 `skill_version`)。chmod / hooks / host 注入 / 升级 R5 检测仍归 session bootstrap(重量级或需用户决策 · 不越权)。不接管:无 localconfig / 无 `_bootstrap` marker(首铺归 bootstrap)/ skill 在项目仓内(框架仓自身守卫)。
+- **台账迁移升级为「表头 + 旧行补列宽」**(`_v8_engine.migrate_process_ledger` 单源 · state.py `ledger-migrate` 与 bootstrap maintain 双通道共用):立制时「旧行是有效前缀不动」被两项目实证打破(按列索引解析静默错位 · 年检读错列)—— 改为**内容前缀逐字不动 · 末尾补 `—` 到表头宽**(`—` = 早于该指标)· 只补不裁(超宽/断行不动)。
+- **state.json schema 版本**:`_schema_version`(int · schema 真变才 +1)写路径盖戳(engine `save_state` + state.py `atomic_write` 双写点)· 读路径只拦「来自未来」(混合宿主/多机下新 skill 写的 state 不被旧逻辑静默丢字段)· 缺失/更低 = 旧数据兼容读。
+- `locate_localconfig`(返回路径)从 `load_localconfig` 拆出单源共用。
+
+### 测试
+`test_version_drift_heal_v8322.py` 16 条(自愈全路径 / 不接管三场景 / 只补不裁 / 入口 stderr + stdout 纯 JSON / schema 戳与未来拦截);`test_ledger_migrate_v8210.py` 按新设计更新(旧行「逐字不动」→「前缀不动 + 补宽」);`test_authoring_preventability_v8281.py` 指向 engine 单源。全库全绿。
+
+## v8.321 · browser_e2e 档位承载:验证档 subagent 写进动作点
+
+> 用户:是 subagent 验证档模型执行这个阶段么?
+> 答案在全局白名单里是「是」—— 但 browser_e2e 自己的 stage 硬规则与运行时 brief **零承载**。
+
+### 问题
+档位约束(e2e ∈ 验证类白名单 → 一律降验证档 · 例外须用户授权)只活在 SKILL 全局规则与 agents/README 档位表;对照 goal/blueprint(🎚️ 不许降档)、review(🎚️ 验证轮用验证档)、test(subagent 并行判据),唯独 browser_e2e 这个白名单成员在自己的执行入口一行没写 —— 执行到该 stage 的 AI 若 context 没带全局白名单,默认继承会话主模型自己手点(常费而不自知)。「模式承诺 × 动作点载体」对账表第三格(fast/yolo 之后)。
+
+### 变更(两载体)
+- **stage ② 硬规则 7**(🎚️):默认派验证档 subagent 执行 —— 主对话模型是用户主权不可切,**降档只有派 subagent 显式传 model 一条路**(prompt 首行 `Meta: tier=验证 · model=… · 理由=…`);例外 🔴 不许 AI 自决 · 开 R5 请用户授权(典型:首份可重放脚本要逆向真进程启动配方 = 探索+调试占主体 —— 与硬规则 6 的可重放契约衔接);宿主不支持 subagent → 主对话串行 + `⚠️ WARN [degradation-fallback]`。判据单源仍在 agents/README §一,本行是指针复述。
+- **运行时 brief 同步**:+🎚️ 档位行(Meta 申报格式 + R5 例外)·「注意事项 6 条」→ 7 条。
+
+### 测试
+`test_browser_e2e_tier_v8321.py` 9 条:降档唯一路径 / Meta 申报格式 / R5 例外含首份脚本典型 / 降级 WARN / 指针指单源 / agents/README 白名单仍含 e2e(单源锚 · 漂了先在这响)/ brief 三断言。全库全绿。
+
+## v8.320 · browser-e2e 可重放契约:关键路径必留脚本 · Playwright 默认首选
+
+> 用户(7-29):Browser E2E 是否可以约定优先使用 playwright?→ 拍板「约定产物:关键路径必须留可重放脚本」。
+> **该拍板当时未落地**(对话随后转向,无任何载体接住)。今日用户重提:目前 browser-e2e 测试用什么有规范么,预期优先使用 playwright —— 两条一起补。
+
+### 问题(改前现状)
+- 工具菜单写「Playwright / Puppeteer / Selenium · 按项目栈选」—— 无默认,临场自选。
+- 产物契约只收 `screenshots/*.png` + 报告 —— **截图是一次性证据**:代码一改,旧截图证明不了新代码;AI 用 playwright MCP 手点也算「用了 Playwright」,工具名约束不了可重放性。
+
+### 变更(三载体 + 运行时 brief)
+- **stage ② 硬规则 6**:关键路径必留可重放脚本 —— 判据「**这条 browser 验证在交付后还需要重跑吗(回归 / CI)?**」需要 → 脚本进 repo + TC 注册(生命周期 **L2** · 进 L1 仍走 `ci_reason` 门);只看一眼 → 截图即可(探索落 scratch)。
+- **stage ③ 菜单**:Playwright(默认首选 · 用户拍板)· 已有 Puppeteer / Selenium / Cypress 基建则**复用**(一致性优先,不逼迁移)。
+- **stage ④ 产物契约**:+可重放脚本行(落项目 e2e 目录 · TC `tests[]` level: fe-e2e)。**不设机器门** ——「关键与否」是判断题,载体承载。
+- **报告模板**:frontmatter 新增 `replay_entry` 必填槽(关键路径写一条可直接跑的重放命令 / 探索性一次性填 `n/a` —— 空着 = 没想过要不要重放);`browser_automation` 注释改为默认首选口径。
+- **tc.md 执行方式二分**:`browser-script`(可重放 · Playwright 优先)/ `browser`(AI 手点 · 仅探索性/一次性,降级理由写在选项旁)。
+- **运行时 brief 同步**(`_browser_e2e_brief`):结果区 +replay_entry 与可重放脚本行 ·「注意事项 5 条」→ 6 条(动作点载体不同步 = 模式承诺未物化,已两例的老病)。
+
+### 测试
+`test_browser_e2e_replay_v8320.py` 14 条:判据措辞 / L2+ci_reason 衔接 / 手点反例入 why / 探索性出口 / 菜单默认+复用 / replay_entry 槽位含 n/a / tc 二分 / brief 同步 / artifacts 仍 2 项 evidence_checks 空(锁「不设机器门」设计边界)/ 触改文件零版本标。全库 1271 collected 全绿。
+
+## v8.319 · scratch 根迁入 worktree:随 worktree 生一起死
+
+> 用户:`/tmp/teamwork` 的内容能放到 worktree 下面么,随着 worktree 就一起清理了?
+> 追问 ①「push 清理走脚本么」②「清理耗时么」→ 三问都在本版物化。
+
+### 拍板前实测清掉的最大未知
+
+`git worktree remove` **不被 ignored 构建产物拦**(实测:ignored 文件在场 remove 直接整树删);
+tree-hash 指纹用 `git diff HEAD`,ignored 不进 diff → 不受影响;
+worknode 额外收益:worktree 在**绑定卷**,scratch 不再堆容器**可写层**(141GB 实证环境的元凶)。
+
+### 新形态
+
+```
+worktree 模式(缺省): <worktree>/.teamwork-scratch/<用途>   ← bootstrap 自动 gitignore「.teamwork-scratch*」
+worktree=off / legacy: ${TMPDIR:-/tmp}/teamwork/<feature_id>/<用途>
+```
+
+**回收三通道重排**:① ship1 push 成功即清(双根)② **worktree 生命周期主兜底** ——
+finalize / close 删 worktree = scratch 必然随之消亡(不存在「清了 worktree 忘了 scratch」的错位);
+ship2 tmp-cleanup 转存量旧根幂等兜底 ③ TTL:旧根整目录 + 各 worktree 的 `.teamwork-scratch*`
+子目录(🔴 只删 scratch 子目录**绝不动 worktree 本体**〔可能藏未提交工作〕—— 子目录永远可安全删)。
+
+### 三个插问的物化
+
+- **走脚本**:清理在 `ship-phase --action push` 处理器内(与 push 记录同一条命令 · emit `scratch_cleanup`);
+- **耗时**:原实现同步 rmtree + 全树统计 = **双遍历分钟级会拖住 push** → 改**同盘 rename(O(1) ·
+  原路径立即消失)+ detached `rm -rf` 后台真删**,push 毫秒级返回;体量 `du` 限时 3s 大树跳过;
+  后台删夭折的 `*-trash-*` 残骸由下次清理 glob + TTL 双兜底;
+- **通配 `.teamwork-scratch*`** 让 gitignore / 清理 / TTL 三方天然覆盖 rename 残骸。
+
+### 落点
+
+工具:`_prune_feature_tmp` 双根重写 + push/close 传 worktree 路径 · bootstrap gitignore 新 entry +
+TTL 第二根扫描。spec 九处同口径(common §六 / HARD-RULES 10+17 / conventions §12.5 / SKILL /
+ui-design 6 / test-stage 9 / ship-stage §4 / dev-stage 8 / tc.md L3)。
+自己的版本标门当场抓了新文里手滑的一处「v8.306」—— 门在工作。
+
+## v8.318 · scratch 清理前移 ship1:治 worknode 141GB 堆积
+
+> 实证(worknode · Docker-in-Docker):`/tmp/teamwork` 独占 **141GB**,单 feature
+> SRUN-F260810160028 达 **78GB**。用户:feature 结束时是否有清理临时文件?
+> 追加拍板:**按理 ship1 阶段就应该清。**
+
+### 回答:设计上有,但两条通道在 worknode 形态下都够不着
+
+| 既有通道 | 为什么没救到这个 case |
+|---|---|
+| ship2 `tmp-cleanup`(verify-delivered 后整树删) | **session 常在 ship1 交 MR 后结束/换机** —— ship2 根本不在积灰的那台机器上跑 |
+| bootstrap TTL 7 天兜底 | **时间判据救不了空间问题** —— 7 天窗 × 78GB/feature,窗内即可打满磁盘 |
+
+### 修(用户拍板:ship1 即清)
+
+- **push 成功即清**(主时点):`ship-phase --action push` 记录成功后,工具顺手删
+  `${TMPDIR:-/tmp}/teamwork/<feature_id>/` 整树 · emit `scratch_cleanup`(含 pruned_bytes)。
+  依据:此刻测试/构建证据已入 state.json,scratch 无对账价值;**MR 窗口期撞冲突回炉需
+  冷编 = 接受的代价**(磁盘占用 > 增量缓存)。
+- **放弃即清**:`close-unmerged --abandon` 同步清(不会再回炉);暂时关闭(可重开)**保留**
+  增量缓存(重跑 archive→push 免冷编 · TTL 兜底)。
+- **ship2 `tmp-cleanup` 转幂等兜底**(ship1 漏清 / legacy in-flight)· bootstrap TTL 继续扫历史孤儿。
+- 回收口径从「双通道」改「三通道」(common §六 · ship-stage §4 同步)。
+
+### case 里另一个值得留意的点(不动 · 记录)
+
+141GB 含多个 feature 目录 —— 除主时点缺失外,单 feature 78GB 说明该项目构建产物本身巨大;
+in-flight feature 的 scratch 是**有意保留**的(串行 stage 复用增量编译),本版不加大小门 ——
+若后续 in-flight 单体也失控,再议按体量 WARN(观察项)。
+
+## v8.317 · 复杂度信号 1 收窄:部署单元 → git 仓库(三载体统一)
+
+> 实证(matrixpower · Published-Model-Discovery):前后端联动小改(platform-api 目录规则 +
+> Console 表单必填)触发复杂度门,推荐先做 Feature Planning —— 用户选 2 纠正后问:
+> **复杂门禁是怎么判断的?**
+
+### 机制回答 + 门自己的问题
+
+判定链:关键词初判 → §2.1 五信号扫描 → 命中任一强制 emit 升级暂停点(模板固定推荐 Planning)
+→ 用户可选 2 收敛单 feature(门是「必须问」不是「必须拆」)。本 case 命中信号 1。
+
+但查下来是**三载体两口径,权威那份恰好过宽**:判定权威 prepare §2.1 写「跨独立**部署服务**」
+(例子含「独立部署单元:后端 + 前端 + 管理后台」),而 planning-check emit 与 feature-planning §0
+写的是「跨**仓库**联动」。AI 跟了权威载体 → monorepo 里两个独立部署的服务也命中。
+
+**部署拓扑不影响一个 feature 装不装得下** —— 真正的承载边界是 git 仓库:worktree 是仓库级、
+MR 是仓库级,同 repo 全栈改动一个 worktree 一个 MR 原子交付(本 case 用户选 2 后实际发生的事,
+且 AI 正确按「业务交付宿主」定了 CONSOLE 前缀)。旧口径下 monorepo **每次前后端联动都多付一轮 1/2 选择**。
+
+### 修(用户拍板:收窄为跨 git 仓库 · 三处统一)
+
+- 信号 1 = **跨独立 git 仓库(≥2 repo/origin)** —— 一个 worktree / 一个 MR 装不下,单 Feature
+  状态机**真**承载不了;🔴 **同 repo 内跨子项目 / 多独立部署单元不计入**(一个 worktree 原子交付 ·
+  照样一个 feature · 交付宿主定前缀)。
+- 两个接盘点名:规模由「影响 ≥2 BL」信号兜 · 部署协调由 WS「跨子项目方向(provider 先于 consumer)」串行约束管。
+- 五处统一口径(prepare §2.1 / SKILL 警觉锚点 / feature-planning §0 / state.py 两处 emit)· 旧口径清零(测试锁)。
+- 暂停点模板推荐写死 Planning **保留**(用户选):收窄后真命中的基本是跨仓库大变更,写死反而合理。
+
+### 顺带回答:判信号时有调研现状吗?
+
+**有,强制**:§1.7「看过再判」—— 流程类型判定前必做 30 秒侦察,证据填 `prepare-check` 的
+`triage_evidence` 槽(**空着不给判** · 机器校验);§1.5.3 可选深挖。本 case 里 AI 真做了
+(读了表单组件、grep 校验逻辑,暂停点里「已核实的变更点」甚至发现「可选」只是 AntD 必填标记
+未声明的视觉问题)—— 调研质量没问题,问题只在信号口径。
+
+## v8.316 · WS 总览加「大白话目标」列 · 「子项目」改「涉及子项目」
+
+> 用户(附 WS-11 截图):ws 文档模版改下,拆出的 feature 加一个大白话目标列;子项目改为涉及子项目。
+> 截图实证:总览表「功能」列是技术短语(「SuperRun 数据库连接注入」)—— 扫一眼看不出
+> 每条 feature 做完后**谁能干什么**;「子项目」单数列名与 v8.314「可跨子项目」语义已不符。
+
+### 先做了一次概念合并(单名防漂)
+
+v8.314 昨天刚立的「交付物」槽(这条单独上线后谁得到什么)与本次要的「大白话目标」是
+**同一个概念** —— 一个概念两个名字必漂(五维/六维双副本是现行判例)。全链统一为**大白话目标**:
+
+```
+拆解讨论稿必答槽 ──→ WS frontmatter features[].goal_plain ──→ ws-progress 总览表「大白话目标」列
+     (Step 5.7)              (机读 · 模板注释带判据)              (名册驱动直出 · 空显「—」)
+```
+
+四处同名 · 判据不变(写不出可感知目标 = 横切件并回宿主 ·「后端接口就绪」不算)· 旧名清零(测试锁)。
+
+### 改动
+
+- `_parse_ws_features` 认 `goal_plain` 键(存量 WS 无该字段 → 缺省空 · 不炸);
+- ws-progress 总览表:表头 `| feature | BL | 涉及子项目 | 功能 | 大白话目标 | 状态 | 当前阶段 | F |` ·
+  名册命中与未匹配两路都透传 · 孤儿/回退路容缺显「—」;
+- workstream 模板:frontmatter 加 `goal_plain` 字段(注释带判据)· body 每-feature 节行改同名;
+- feature-planning Step 5.7 讨论稿槽 + PLANNING_CHECKLIST 条目同步单名,并点名落点
+  `features[].goal_plain`(讨论产出与落盘字段有名字链路 · 不靠意会)。
+
+空着显「—」即可见 —— 载体承载,不配门(同 v8.312/315 姿态)。
+
+## v8.315 · 拍板项固定四槽:治「建议理由都在 · 用户仍被迫追问上下文」
+
+> 实证(CA-F260810 镜像仓治理):goal 终确认导读四条 D 项写成
+> 「D-1:建议 A——跳到独立创建流程;不隐式复制配置,也不扩建跨环境服务模型」。
+> 用户被迫追问:**大白话解释下 · 问题上下文是什么 · 用在什么场景 · 建议的业务逻辑是什么。**
+
+### 判定:v8.302 族的下一层 · 且有一个更硬的缺陷
+
+v8.302 修的「建议 + 理由」这次**都在** —— 但仍追问,因为:
+① **全是术语压缩**(「跨环境服务模型」「独立创建流程」—— 没读过 PRD 的人拍不了板);
+② **没有场景上下文**(什么时候会遇到这个问题?影响谁?);
+③ 🔴 **B 选项从头到尾没出现**:「例如回复 D1=B」而 B 是什么从没写过 —— **假选择题**
+  (选项集没到达,用户只能追问或盲从推荐)。
+
+既有 spec 其实已写「每条写成 A/B 选择题 + 说人话」「导读给没读过 PRD 的人」——
+但那是形容词串在一个巨型段落里;**「A/B 选择题」没有明说「每个选项的内容都要写出来」**,
+AI 理解成「给出推荐的 A + 允许你回 B」。
+
+### 修(载体不是措辞 · 三处同口径)
+
+**拍板项每条固定四槽**(goal 导读独立短块 + PRD 待决策项表注释 + SKILL R5):
+
+| 槽 | 内容 | 挡什么 |
+|---|---|---|
+| 🎬 场景 | 什么时候会遇到 · 影响谁(一句大白话) | 没上下文没法判 |
+| ❓ 要定什么 | 说人话 · 不用术语缩写 | 术语压缩 |
+| 选项 A/B/… | **每个选项的内容与后果各一句都必须写出** | 假选择题 |
+| 💡 建议+理由 | 既有要求(v8.302) | 判断甩回用户 |
+
+- PRD 待决策项表(四槽数据源):「问题」列自含场景 ·「选项」列每项写完整内容 · ❌ 禁「B. 其他/另议」占位。
+- SKILL R5 补一行(❌ 级 · 不动 🔴 预算):选项集必须完整摊开 · 面向没读过产物的人写。
+
+### 反思
+
+**同一判据换个提问方向,可糊性完全不同**(与 v8.314「边界理由 vs 交付物」同构):
+「A/B 选择题 + 说人话」是形容词,糊得过;「每个选项的内容与后果都写出来」是槽位,糊不过。
+
+## v8.314 · 业务交付视角拆分:治「跨子项目 → 顺手拆多个 feature」
+
+> 用户:跨多个子项目时容易拆多个 feature;应从业务交付视角拆,允许一个 feature 跨多个子项目。
+
+### 判定:规则早已存在(用户拍板过 · 三处)· 这次查的是顶着规则的结构性推力
+
+「主判据 = 交付内聚 · feature 可跨子项目 · 子项目边界不是拆分理由」自拍板起就在
+feature-planning Step 5.7 / workstream target 注释 / PLANNING_CHECKLIST —— 又一例
+**规则存在 ≠ 规则执行**。三个推力:
+
+| # | 推力 | 形态 |
+|---|---|---|
+| ① | **prepare 路由单数假设** | 「据改动代码**所在的子项目目录**定前缀」对跨子项目零指引 —— 「一个 feature 没法有两个前缀」的别扭感隐性推向拆开 |
+| ② | **判据到达质量差** | 判据埋在 PLANNING_CHECKLIST 一个 500 字巨条目中段 + `target` 字段注释里 —— 一条 item 装十件事 |
+| ③ | **草案载体没逼出交付视角** | 讨论稿只要求「边界理由」—— 这个槽能用技术话术糊(「partner 侧改动独立」);没有槽逼 AI 写「单独上线后谁得到什么」,而**横切件恰恰写不出这个** |
+
+### 修(全部是结构 · 不是措辞)
+
+- **① prepare 路由补跨子项目走法**:monorepo 内改动跨多个子项目 = **照样一个 feature** ——
+  前缀/docs_root 取**业务交付宿主**(交付物主要落地 / 用户感知所在的子项目)· 其余子项目改动在
+  同一 worktree 同一 feature 里做;并点名「前缀选择的别扭不构成拆分压力」(推力不点名就还在暗处起作用)。
+- **③ 拆解讨论稿加「业务交付物」必答槽**(载体的形状决定内容会不会出现):每条候选 BL 必答
+  「**这条单独上线后,谁得到什么**」—— 写不出可感知交付 = 横切件并回宿主;
+  明文排除技术伪交付(「后端接口就绪」「partner 侧改动」不是交付物)。WS 模板每-feature 节同步加交付物行(长期载体)。
+- **② checklist 判据拆独立条目**(一条一事):`planning-check` emit 的 checklist 新增第 7 条
+  「拆分视角 = 业务交付,不是子项目」· 170 字 · 测试锁上限防它长回巨条目。
+
+不做的:ws-lint 机器识别「按子项目横切」—— 合法的跨子项目独立交付对与横切件在结构上同形
+(分属两子项目 + 有依赖),启发式误报率高;「交付物写不出来」这个人读信号比结构启发式准。
+
+## v8.313 · yolo 自动验收物化 + 外部世界动作边界
+
+> 实证(SDK-F260809171303 · 公共 JSSDK 发布):yolo 跑到 pm_acceptance,AI 停下等 1/2/3,
+> 说「发布决策是 Teamwork 强制用户确认点,YOLO 也不能跳过」。用户:**yolo 应该自动合入 yolo 分支。**
+
+### 判定:AI 没编规则 —— 它忠实执行了到达动作点的 brief
+
+`_pm_acceptance_brief` **无条件**写着「decision 是用户决策点 · emit 三选项然后停 · AI 不可自决」,
+整个函数没有 yolo 分支;而 SKILL yolo 表明写「pm_acceptance = **自动 approved_and_ship** + WARN」。
+SKILL 在几百个工具调用之前、brief 在动作点 —— **动作点的载体赢了**。
+🔴 **fast_mode 同族第二例**:spec 承诺的模式行为从未物化,工具在动作点反向覆盖。
+
+### 修 ①:yolo 自动验收物化(brief 按 `state.yolo` 分支)
+
+- yolo → brief 直接给自动路径:**AC 对照照做不跳**(自动 ≠ 免验收)→ `add-concern WARN` 留痕 →
+  `pm_acceptance-complete --decision approved_and_ship` → 自动进 ship 合入 merge_target(非主分支硬门);
+  AC 真有问题走 `rejected_with_feedback` 回修(**不硬过** · yolo 自主解决);release-gated 待补证据照常随行。
+- 非 yolo(含 auto_mode)照旧停 —— 产品决策权是用户专属。
+- 三载体收同口径:SKILL 表(自动)· brief(自动 · 新物化)· pm-acceptance-stage.md(补「唯一例外 = yolo」)。
+
+### 修 ②:外部世界动作边界(用户拍板:合入后单独停给用户)
+
+case 里的「发布」= **npm 公网发包 + 建公开仓**。yolo 的安全模型是**分支门**(merge_target 非 main ·
+主分支人工提升),但外部动作**不经过分支** —— 「零 stop」字面执行会让幻觉级错误(泄密/白名单漏洞)
+直接入公网且不可撤。**AI 停下的直觉方向对、挂点错**:该挡的是外部发布,不是验收与合入。
+
+新边界(SKILL yolo 节 + brief + stage doc 三处同口径):公网 registry 发布 / 创建公开仓 / 生产部署等
+**不经过分支门且不可逆**的动作不在「零 stop」范围 = release 域(RELEASE-GUIDE · 发布归用户)——
+**先自动验收 + 合入 + 清场(不阻断),外部发布单独停给用户**;❌ 不得以「有外部发布」为由把验收/合入也停下。
+
+### 🔴 密度门当场管了一次注意力经济
+
+新边界初版带 2 个 🔴 → SKILL 总数 56 超 55 门 —— 按既有判例**服从门、裁自己的红**
+(动作点载体 brief 里的 🔴 才是到达关键 · SKILL 处降级为 ⛔ 靠语境)。
+
 ## v8.312 · 测试生命周期三层:临时的从不入库 · 进 CI 是例外要理由
 
 > 用户:测试写太多、有用没用都写、卡 CI · AI 处理 case 消耗太大 —— 是否按生命周期分层?

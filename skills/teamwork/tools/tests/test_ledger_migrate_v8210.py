@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""v8.210 · PROCESS-LEDGER 旧 schema 表头升级(幂等 · 只在末尾加列 · 旧数据行是有效前缀)。"""
+"""PROCESS-LEDGER 旧 schema 迁移(幂等 · 只在末尾加列)。
+
+设计变更史:立制时旧数据行「有效前缀 · 逐字不动」;后被消费项目实证打破
+(aon-core 68/135 行 · supersdk 28/46 行停在 10 列 → 按列索引解析静默错位)——
+现行为:内容前缀逐字不动 · 末尾补 `—` 到表头宽 · 只补不裁。
+"""
 from __future__ import annotations
 import json, subprocess, sys, tempfile, unittest
 from pathlib import Path
@@ -28,17 +33,21 @@ def _run(cwd):
 
 
 class TestLedgerMigrate(unittest.TestCase):
-    def test_old_schema_header_upgraded_rows_untouched(self):
+    def test_old_schema_header_upgraded_rows_padded(self):
         d = _proj(f"# 台账\n\n{_OLD_HDR}\n|---|---|---|---|---|---|---|---|---|---|\n{_OLD_ROW}\n")
         out = _run(d)
         self.assertEqual(out["verdict"], "OK")
         self.assertTrue(out["migrated"])
         self.assertEqual(out["old_cols"], 10)
         self.assertGreater(out["new_cols"], out["old_cols"])   # canonical 单源自模板 · 不写死列数(末尾加列纪律)
+        self.assertEqual(out["padded_rows"], 1)
         body = (d / "project-specs" / "PROCESS-LEDGER.md").read_text(encoding="utf-8")
         for c in ("各阶段耗时", "用户邮箱", "宿主", "分诊校准"):
             self.assertIn(c, body.splitlines()[2])          # 表头升级
-        self.assertIn(_OLD_ROW, body)                       # 旧数据行逐字未动
+        row = next(l for l in body.splitlines() if l.startswith("| OLD-F1 |"))
+        self.assertTrue(row.startswith(_OLD_ROW))           # 内容前缀逐字不动
+        self.assertEqual(row.count("|") - 1, out["new_cols"])  # 补 — 到表头宽 · 按列索引解析不再错位
+        self.assertIn("| — |", row.replace("| —", "| —"))
 
     def test_idempotent(self):
         d = _proj(f"# 台账\n\n{_OLD_HDR}\n|---|---|---|---|---|---|---|---|---|---|\n{_OLD_ROW}\n")

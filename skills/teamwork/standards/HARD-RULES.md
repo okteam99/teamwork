@@ -39,7 +39,7 @@
 
 ## 二、框架/项目约定(🔴 模型不可能知道 · 这是信息不是规范)
 
-10. **临时产物只落 scratch 根** `${TMPDIR:-/tmp}/teamwork/<feature_id>/...` —— 🔴 **禁**根之外另建 teamwork 临时目录 · 🔴 **禁**简称/别名(`bl031` 类 —— 实证:即兴命名让 ship2 按 feature_id 回收失败)· **build target 按 feature 共享** `<feature_id>/target`(串行 stage 复用增量编译)。
+10. **临时产物只落 scratch 根**:worktree 模式(缺省)= `<worktree>/.teamwork-scratch/<用途>`(bootstrap 自动 gitignore · 随 worktree 消亡);worktree=off / legacy = `${TMPDIR:-/tmp}/teamwork/<feature_id>/`(🔴 完整 feature_id · 禁简称/别名 —— 实证:即兴命名让按 id 回收失败)。🔴 **禁**两根之外另建 teamwork 临时目录 · **build target 按 feature 共享** `.teamwork-scratch/target`(串行 stage 复用增量编译)。
 11. **临时调试日志唯一前缀** `[DEBUG-{Feature}-{NNNN}]` · **ship 净化阶段必 grep 确认清空**。
 12. **测试脚本两层结构**:脚本**不负责启动环境** —— 环境由根级 `test-env-setup.sh` 完成;脚本本身纯代码级、不依赖全局环境。
 13. **结构化日志必填字段**:`timestamp` · `level` · `service` · `trace_id` · `message` · 业务上下文键 · 异常附 `stack`。
@@ -49,7 +49,7 @@
 17. **测试按生命周期三层分层** · 判据一句话:**「交付后还有谁需要它失败的信号?」**
     - **L1 CI 契约层:🔴 默认不进 · 进必须带 `ci_reason`**(这条失败拦住什么级别的事故:对外契约破坏 / 数据损坏 / 资损 / 核心链路不可用;「顺手写的 / 覆盖率好看」不算充足理由);
     - **L2 回归层** = TC 其余(AC 绑定 · test stage 全量跑 · CI 不跑);
-    - **L3 脚手架**(TDD 中间步 / 探索 probe / 一次性验证)= 🔴 **只落 scratch `<feature_id>/scaffold-tests/` · 不入仓库**(交付即弃 · 随 ship2 回收)。
+    - **L3 脚手架**(TDD 中间步 / 探索 probe / 一次性验证)= 🔴 **只落 scratch `.teamwork-scratch/scaffold-tests/`(ignored)· 不入仓库内容**(交付即弃 · 随 worktree 消亡)。
     *模型默认:写过的测试全部入库全部进 CI —— 执行便宜 ≠ 维护便宜:AI 维护成本按语料线性 · CI 墙钟逐 feature 累加,临时 case 入库 = 永久税。* 详 [templates/tc.md § 生命周期](../templates/tc.md)。
 
 ---

@@ -1,6 +1,6 @@
 ---
 name: teamwork
-version: v8.317.1
+version: v8.327.1
 description: AI 协作开发一体化框架 - 需求功能开发, bug 修复, 问题排查 · /teamwork 启动
 ---
 
@@ -91,7 +91,7 @@ state.py await-merge --feature <path>   # 30s 轮询 · 检测 MERGED → 自动
 - 🔴 **确需写入主工作区的** · **须先经用户确认**(R5 暂停点)· 不可 AI 自决(注:ship2 零内容 · 不写主工作区任何文件 —— 副产物自动 commit 属清理非内容 · 无需此例外)
 - **物化兜底**:`xx-complete` 时 state.py 检测主工作区是否冒出本 Feature 文件 → 命中写 `concerns WARN` + emit `main_tree_pollution`(**事后**兜底 · AI 应**事前**写对路径)
 - 改完文件在 worktree 内 `git add -A {feature_dir}/` + commit(详 [stages/ship-stage.md R-S7](./stages/ship-stage.md))
-- 🔴 **浏览器「看一眼」验证截图 → 系统临时目录**(`${TMPDIR:-/tmp}/teamwork/<feature_id>/screenshots/`)· **绝不落 worktree / 主工作区根**(一次性截图 · 非交付 · 不 commit · 详 [conventions §12.5](./docs/conventions.md))· browser_e2e **证据**截图例外(交付物 · 落 `<feature_dir>/screenshots/`)
+- 🔴 **浏览器「看一眼」验证截图 → scratch 目录**(worktree 模式 `<worktree>/.teamwork-scratch/screenshots/`〔ignored〕· off 模式旧根)· **绝不散落 worktree 其他位置 / 主工作区根**(一次性截图 · 非交付 · 不 commit · 详 [conventions §12.5](./docs/conventions.md))· browser_e2e **证据**截图例外(交付物 · 落 `<feature_dir>/screenshots/`)
 
 worktree 路径规范见 [docs/conventions.md §9-12](./docs/conventions.md)。
 

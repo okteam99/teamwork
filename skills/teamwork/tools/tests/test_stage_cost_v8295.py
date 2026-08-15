@@ -181,7 +181,8 @@ class TestLedgerInstructionNamesEveryEmitField(unittest.TestCase):
     """
 
     LEDGER_EMIT_FIELDS = ("ledger_timing", "ledger_authoring_preventability",
-                          "ledger_stage_cost", "ledger_process_retro_path")
+                          "ledger_stage_cost", "ledger_process_retro_path",
+                          "ledger_row")  # 自动落行结果(status/row/defaulted_cells)
 
     def test_ship_stage_instruction_names_all_ledger_fields(self):
         doc = (ROOT / "stages" / "ship-stage.md").read_text(encoding="utf-8")

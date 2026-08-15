@@ -262,6 +262,11 @@ def atomic_write(path: Path, state: dict[str, Any]) -> None:
     """同目录 temp file + os.replace · 同分区原子。"""
     state["updated_at"] = now_iso()
     state["updated_by"] = state.get("updated_by") or "pmo"
+    try:
+        from _v8_engine import STATE_SCHEMA_VERSION as _ssv  # 单源 · 模块缓存后零开销
+        state["_schema_version"] = _ssv
+    except ImportError:
+        pass
     # v7.3.10+P0-148 checksum guard：每次写后 stamp 新 checksum（基于 _state_checksum 外字段）
     state[CHECKSUM_FIELD] = _compute_checksum(state)
     fd, tmp = tempfile.mkstemp(prefix=".state.", suffix=".tmp", dir=str(path.parent))
@@ -1150,19 +1155,6 @@ def _lint_ws_doc(text: str) -> list:
     return missing
 
 
-def _canonical_ledger_header():
-    """从 templates/process-ledger.md 抽 canonical 表头行 + 分隔行(单源 · 不硬编码 schema)。"""
-    tmpl = Path(__file__).resolve().parent.parent / "templates" / "process-ledger.md"
-    try:
-        lines = tmpl.read_text(encoding="utf-8").splitlines()
-    except OSError:
-        return None
-    for i, ln in enumerate(lines):
-        s = ln.strip()
-        if s.startswith("| Feature |") and i + 1 < len(lines) and set(lines[i + 1].strip()) <= set("|-: "):
-            return s, lines[i + 1].strip()
-    return None
-
 
 def cmd_external_ingest(args: argparse.Namespace) -> None:
     """v8.226:把「外部评审结果」摄入为标准第三视角产物(external-cross-review/review-<label>.md)。
@@ -1219,11 +1211,11 @@ def cmd_external_ingest(args: argparse.Namespace) -> None:
 
 
 def cmd_ledger_migrate(args: argparse.Namespace) -> None:
-    """v8.210:PROCESS-LEDGER 旧 schema → 升级表头(幂等)。
+    """PROCESS-LEDGER 旧 schema 迁移(幂等)· 核心单源 _v8_engine.migrate_process_ledger。
 
-    schema 演进纪律 = **只在末尾加列**(templates/process-ledger.md)→ 旧数据行天然是新 schema 的
-    **有效前缀**(新列它们为空 = 早于该指标)· 迁移 = **仅换表头 + 分隔行**(旧数据行不动)。
-    header 已最新 → no-op。找不到台账/表头 → SKIP(非错误)。
+    表头/分隔行升级 + 旧数据行末尾补 `—` 到表头宽 ——「旧行是有效前缀不动」的旧设计
+    被消费项目实证打破(aon-core 68/135 行 · supersdk 28/46 行停在 10 列 · 按列索引
+    解析静默错位)。内容前缀逐字不动 · 只补不裁。
     """
     root = _git_toplevel(Path.cwd()) or Path.cwd()
     led = None
@@ -1244,31 +1236,26 @@ def cmd_ledger_migrate(args: argparse.Namespace) -> None:
         emit({"verdict": "SKIP", "action": "ledger-migrate",
               "reason": "未找到 project-specs/PROCESS-LEDGER.md(尚未建台账 → 首行按模板创建即最新)"})
         return
-    canon = _canonical_ledger_header()
-    if not canon:
-        emit({"verdict": "SKIP", "action": "ledger-migrate", "reason": "读不到 templates/process-ledger.md canonical 表头"})
+    from _v8_engine import migrate_process_ledger
+    res = migrate_process_ledger(led, Path(__file__).resolve().parent.parent)
+    try:
+        rel = str(led.relative_to(root))
+    except ValueError:
+        rel = str(led)
+    if res["status"] == "skip":
+        reason = {"no_canonical_header": "读不到 templates/process-ledger.md canonical 表头",
+                  "no_header_row": "台账无 `| Feature |` 表头行(空表 / 非标准)· 首次采写按模板即最新",
+                  }.get(res["reason"], res["reason"])
+        emit({"verdict": "SKIP", "action": "ledger-migrate", "file": rel, "reason": reason})
         return
-    canon_hdr, canon_sep = canon
-    lines = led.read_text(encoding="utf-8", errors="replace").splitlines()
-    hi = next((i for i, ln in enumerate(lines) if ln.strip().startswith("| Feature |")), None)
-    if hi is None:
-        emit({"verdict": "SKIP", "action": "ledger-migrate", "file": str(led.relative_to(root)),
-              "reason": "台账无 `| Feature |` 表头行(空表 / 非标准)· 首次采写按模板即最新"})
+    if res["status"] == "error":
+        emit({"verdict": "FAIL", "action": "ledger-migrate", "file": rel, "error": res["reason"]})
         return
-    if lines[hi].strip() == canon_hdr:
-        emit({"verdict": "OK", "action": "ledger-migrate", "file": str(led.relative_to(root)),
-              "migrated": False, "hint": "表头已是最新 schema · no-op"})
-        return
-    old_cols = lines[hi].strip().count("|") - 1
-    new_cols = canon_hdr.count("|") - 1
-    lines[hi] = canon_hdr
-    if hi + 1 < len(lines) and lines[hi + 1].strip() and set(lines[hi + 1].strip()) <= set("|-: "):
-        lines[hi + 1] = canon_sep
-    led.write_text("\n".join(lines) + "\n", encoding="utf-8")
-    emit({"verdict": "OK", "action": "ledger-migrate", "file": str(led.relative_to(root)),
-          "migrated": True, "old_cols": old_cols, "new_cols": new_cols,
-          "hint": (f"表头升级 {old_cols}→{new_cols} 列(只在末尾加列 · 旧数据行是有效前缀未动 · "
-                   "新列它们天然为空=早于该指标)")})
+    emit({"verdict": "OK", "action": "ledger-migrate", "file": rel,
+          "migrated": res["changed"], "old_cols": res["old_cols"], "new_cols": res["new_cols"],
+          "padded_rows": res["padded_rows"],
+          "hint": ("表头/旧行已对齐最新 schema(旧行末尾补 — = 早于该指标 · 内容前缀未动)"
+                   if res["changed"] else "表头与全部行已是最新 schema · no-op")})
 
 
 def cmd_ws_lint(args: argparse.Namespace) -> None:
@@ -4081,8 +4068,33 @@ def build_parser() -> argparse.ArgumentParser:
     return p
 
 
+def _maybe_heal_version_drift() -> None:
+    """v8.322:版本漂移入口自愈(best-effort · 绝不拦正事)· 详 _v8_engine.heal_version_drift。
+
+    输出走 stderr(stdout 是命令 JSON 契约 · 不许混入)。
+    """
+    try:
+        from _v8_engine import heal_version_drift
+        res = heal_version_drift(Path.cwd(), Path(__file__).resolve().parent.parent)
+        if res:
+            a = res.get("actions", {})
+            led = a.get("ledger") if isinstance(a.get("ledger"), dict) else {}
+            pad = led.get("padded_rows")
+            print(
+                f"⚠️ version-drift-healed {res['from']} → {res['to']}"
+                f"(root={res['root']} · ledger={led.get('status', a.get('ledger'))}"
+                + (f" padded_rows={pad}" if pad else "")
+                + f" · gitignore={a.get('gitignore')})"
+                " —— 幂等轻迁移已就地完成 · chmod/hooks/升级检测仍归 session bootstrap",
+                file=sys.stderr,
+            )
+    except Exception:  # noqa: BLE001 — 自愈绝不拦正事
+        pass
+
+
 def main() -> None:
     args = build_parser().parse_args()
+    _maybe_heal_version_drift()
     args.func(args)
 
 

@@ -50,7 +50,7 @@
 frontmatter `acceptance_criteria[] + revision_history[]`(均必);body 按 templates/prd.md(§背景/§用户故事/§交付预期/§验收标准/§Out of Scope/§待决策项〔只收用户主权问题〕/§开工前必须想清的)。
 
 ### `PRD-REVIEW.md`
-frontmatter `reviewers`(= stage_review_roles.goal · 默认 `[pl, external]`)+ `verdicts: {role: APPROVE|NEEDS_REVISION|SKIP}`;body 每冷审 Agent 单独段 · cite PRD 行号 · PL 段 = PL-CHALLENGE 段 · external 段 = 覆盖方向制(记 `coverage: [...]` · 按方向分小节)· 标 `execution: subagent`。schema 单源 = templates/prd.md § PRD-REVIEW schema。异质 opt-in(localconfig `false`)时外审改跑 `state.py external-review` 产 `external-cross-review/goal-<model>.md`(不手写)· PRD-REVIEW external 段引其结论。
+frontmatter `reviewers`(= stage_review_roles.goal · 默认 `[pl, external]`)+ `verdicts: {role: APPROVE|NEEDS_REVISION|SKIP}` + 🔴 `review_models`(列表 `- <role>: <实际模型>` · 照实申报 —— 与外审 `review_model` 机器比对错开〔`review_models_staggered`〕· 各路全同模型 = 盲区相关 → complete 拒 · <2 申报存量 skip);body 每冷审 Agent 单独段 · cite PRD 行号 · PL 段 = PL-CHALLENGE 段 · external 段 = 覆盖方向制(记 `coverage: [...]` · 按方向分小节)· 标 `execution: subagent`。schema 单源 = templates/prd.md § PRD-REVIEW schema。异质 opt-in(localconfig `false`)时外审改跑 `state.py external-review` 产 `external-cross-review/goal-<model>.md`(不手写)· PRD-REVIEW external 段引其结论。
 
 ### ⏸️ 用户最终确认(R5 · 「重点 review 指引」导读先行)
 

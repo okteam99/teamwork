@@ -743,6 +743,56 @@ def _evidence_ac_plain_present(state: dict, args) -> tuple[bool, str]:
     return True, ""
 
 
+def _evidence_review_models_staggered(primary_filename: str):
+    """v8.326:「评审模型必错开」从纯规则升级为机器比对(独立采样不变式的载体)。
+
+    实证(supersdk CA case):双路冷审实测同为 opus-5(主审路未继承会话模型)= 盲区相关,
+    补派错开模型盲审**当场查出 2 条 BLOCKER**(无重新部署入口 / 拉取凭据链整条缺失)——
+    两路同一个脑子 = 冗余度 1,而此前没有任何机制检测「这两路其实是同一个模型」。
+
+    数据源:主审产物 frontmatter `review_models`(列表形态 `- <role>: <model>` ·
+    适配行式解析)+ external-cross-review/*.md 的 `review_model`(v8.291 已必填)。
+    可比对申报 <2 → skip(主审未申报 = 存量兼容 · hint 点名新产物要申报);
+    ≥2 且全同 → FAIL(任选一路换模型重跑 · 确属例外走 bypass 协议留痕)。
+    """
+    def check(state: dict, args) -> tuple[bool, str]:
+        feature = Path(args.feature)
+        models: dict[str, str] = {}
+        pfm = parse_frontmatter(feature / primary_filename) or {}
+        rm = pfm.get("review_models")
+        legacy_primary = not isinstance(rm, list)
+        if isinstance(rm, list):
+            for item in rm:
+                role, _, m = str(item).partition(":")
+                if m.strip():
+                    models[f"主审:{role.strip()}"] = m.strip().lower()
+        ext_dir = feature / "external-cross-review"
+        for f in sorted(ext_dir.glob("*.md")) if ext_dir.exists() else []:
+            efm = parse_frontmatter(f) or {}
+            if str(efm.get("review_via", "")).strip().lower() == "ultra-ingest":
+                continue  # 产品化多智能体 · 模型不由本框架派发
+            m = str(efm.get("review_model", "")).strip()
+            if m:
+                models[f"外审:{f.name}"] = m.lower()
+        if len(models) < 2:
+            note = ("(主审产物未申报 review_models —— 存量兼容;新产物请在 frontmatter 申报:\n"
+                    "   review_models:\n     - <role>: <实际模型>  · 申报了错开才可被核)"
+                    if legacy_primary else "")
+            return True, f"skipped(可比对的模型申报 <2{note})"
+        distinct = set(models.values())
+        if len(distinct) == 1:
+            only = next(iter(distinct))
+            routes = " · ".join(sorted(models))
+            return False, (
+                f"🔴 评审各路同模型 = 盲区相关(冗余度 1):{routes} 全为 `{only}` —— "
+                "独立采样不变式要求至少一路错开(实证:双路同模型均漏 2 条 BLOCKER · "
+                "补错开模型盲审当场查出)。处置:任选一路换模型重跑(subagent 显式传 model)"
+                "· 产物 frontmatter 照实更新;确属例外(仅一档可用等)→ 走 complete bypass 协议"
+                "(--reason + 用户确认 · 留痕)")
+        return True, f"评审模型已错开:{sorted(distinct)}"
+    return check
+
+
 GOAL_SPEC = StageSpec(
     name="goal",
     prerequisites=[
@@ -778,6 +828,11 @@ GOAL_SPEC = StageSpec(
     ],
     evidence_checks=[
         # v8.0+P0-1:L2 substep 链纪律物化兜底
+        StageEvidenceCheck(
+            name="review_models_staggered",
+            check_fn=_evidence_review_models_staggered("PRD-REVIEW.md"),
+            description="评审各路模型错开(主审 review_models × 外审 review_model 机器比对 · <2 申报 skip)",
+        ),
         StageEvidenceCheck(
             name="prd_template_conformance",
             check_fn=_evidence_prd_template_conformance,
@@ -1874,6 +1929,11 @@ BLUEPRINT_SPEC = StageSpec(
     ],
     evidence_checks=[
         StageEvidenceCheck(
+            name="review_models_staggered",
+            check_fn=_evidence_review_models_staggered("TECH-REVIEW.md"),
+            description="评审各路模型错开(主审 review_models × 外审 review_model 机器比对 · <2 申报 skip)",
+        ),
+        StageEvidenceCheck(
             name="ac_test_binding",
             check_fn=_evidence_ac_test_binding,
             description="AC↔Test 全覆盖(verify-ac.py 通过)",
@@ -2426,6 +2486,11 @@ REVIEW_SPEC = StageSpec(
     ],
     evidence_checks=[
         StageEvidenceCheck(
+            name="review_models_staggered",
+            check_fn=_evidence_review_models_staggered("REVIEW.md"),
+            description="评审各路模型错开(主审 review_models × 外审 review_model 机器比对 · <2 申报 skip)",
+        ),
+        StageEvidenceCheck(
             name="review_verdict",
             check_fn=_evidence_review_verdict,
             description="--verdict 必须是 APPROVE 或 NEEDS_REVISION",
@@ -2642,10 +2707,12 @@ def _browser_e2e_brief(state: dict) -> str:
 
 ### 结果(完成判定)
 - `screenshots/*.png`(至少 1 张 · 每 AC 一组关键路径截图)
-- `BROWSER-TEST-REPORT.md`
+- `BROWSER-TEST-REPORT.md`(frontmatter `replay_entry` 必填 —— 关键路径写重放命令 / 探索性一次性填 n/a)
+- 🔴 交付后还需重跑的关键路径 → **可重放脚本**(Playwright 优先 · 进 repo + TC 注册 · 判据详 stage.md 硬规则 6)
 
 ### 怎么做
-**必读** `stages/browser-e2e-stage.md`(详细步骤 6 步 + 注意事项 5 条)。
+**必读** `stages/browser-e2e-stage.md`(详细步骤 6 步 + 注意事项 7 条)。
+🎚️ **档位**:本 stage 属验证类白名单 —— 默认**派验证档 subagent**(prompt 首行 `Meta: tier=验证 · model=… · 理由=…` · 显式传 model);例外(如首份可重放脚本探索占主体)🔴 开 R5 请用户授权 · 不许自决。
 📋 产物模板:本 emit 的 `scaffold_hints.templates` 给**绝对路径** · 照它起草 · 别抄项目旧产物。
 🔴 **无独立用户暂停**:截图是硬产物 evidence(不是给用户当场确认用)· 完成后自动转 pm_acceptance · 用户在 pm_acceptance 三选项暂停点连同截图一并验收。
 

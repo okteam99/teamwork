@@ -56,6 +56,8 @@ frontmatter:
 ```yaml
 ---
 reviewers: [architect, external] # = state.stage_review_roles.review(Feature 默认两路 · Bug 默认单路 [external] · qa 加回时列入)
+review_models: # 🔴 每路照实申报实际模型(错开机器比对 review_models_staggered:各路全同模型 = 盲区相关 → complete 拒 · 实证双同模型漏 2 BLOCKER)
+  - architect: <实际模型>
 verdict: NEEDS_REVISION | APPROVE
 coverage: # 🔴 每个 roster 主审角色一行(external 的在 external-cross-review/*.md)
   architect: "实现↔设计一致性 / 简洁性 counter-lens —— 见 F1,F3;分层与契约查过无发现"

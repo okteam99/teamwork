@@ -143,6 +143,13 @@ def emit_json(payload: dict, exit_code: int = 0) -> None:
     sys.exit(exit_code)
 
 
+# v8.322:state.json schema 版本(整数 · schema 真变才 +1)。
+# 实证(supersdk):23 个 state 无任何 schema 标识 · 迁移只能嗅探键名。
+# 纪律:写路径盖戳(save_state / state.py atomic_write)· 读路径只拦「来自未来」
+# (缺失/更低 = 旧数据 · 兼容读 · 下次写自然补戳)。
+STATE_SCHEMA_VERSION = 1
+
+
 def load_state(feature_path: str) -> tuple[Path, dict]:
     """加载 state.json · 返回 (path, state dict)"""
     p = Path(feature_path) / "state.json"
@@ -152,7 +159,16 @@ def load_state(feature_path: str) -> tuple[Path, dict]:
             "error": f"state.json not found: {p}",
             "hint": "先跑 state.py init-feature 创建",
         }, exit_code=2)
-    return p, json.loads(p.read_text(encoding="utf-8"))
+    state = json.loads(p.read_text(encoding="utf-8"))
+    sv = state.get("_schema_version")
+    if isinstance(sv, int) and sv > STATE_SCHEMA_VERSION:
+        emit_json({
+            "verdict": "FAIL",
+            "error": f"state.json _schema_version={sv} 高于本 skill 支持的 {STATE_SCHEMA_VERSION}",
+            "hint": ("该 state 由更新版 skill 写出(混合宿主/多机常见)—— 升级本机 skill 后再操作 · "
+                     "不要手动改低 _schema_version(会让新 schema 字段被旧逻辑静默丢弃)"),
+        }, exit_code=2)
+    return p, state
 
 
 def compute_raw_write_audit(state: dict) -> Optional[dict]:
@@ -225,6 +241,7 @@ def save_state(path: Path, state: dict) -> None:
 
     state["updated_at"] = now_iso()
     state["updated_by"] = state.get("updated_by") or "pmo"
+    state["_schema_version"] = STATE_SCHEMA_VERSION
 
     # checksum 同 state.py CHECKSUM_FIELD 算法 · canonical sha256 (排除 _state_checksum 字段)
     cleaned = {k: v for k, v in state.items() if k != "_state_checksum"}
@@ -339,15 +356,20 @@ def parse_frontmatter(file_path: Path) -> Optional[dict]:
             if end == -1:
                 return None
             fm_text = text[4:end]
-        # 简易 YAML 解析(只支持 key: value 和 key:\n  - list)
+        # 简易 YAML 解析(只支持 key: value 和 key:\n  - list)。
+        # v8.324:列表项缩进兼容 1-4 空格 —— 原只认两空格,单空格列表整行被静默丢弃 →
+        # `files_read` 解析为空 → CAPABILITY_BLOCKED 误报(消费项目实证:一个缩进空格
+        # 换一轮返工)。格式门禁的解析器必须比它拦的格式宽一档。
         result = {}
         current_key = None
         for line in fm_text.splitlines():
             if not line.strip() or line.strip().startswith("#"):
                 continue
-            if line.startswith("  - "):
+            _ls = line.lstrip(" ")
+            _indent = len(line) - len(_ls)
+            if 1 <= _indent <= 4 and _ls.startswith("- "):
                 if current_key and isinstance(result.get(current_key), list):
-                    result[current_key].append(line[4:].strip())
+                    result[current_key].append(_ls[2:].strip())
                 continue
             if ":" in line:
                 key, _, val = line.partition(":")
@@ -510,10 +532,10 @@ def _main_worktree_root(dotgit: Path):
     return None
 
 
-def load_localconfig(start):
-    """从 `start` 向上解析 `.teamwork_localconfig.json` · 🔴 跨 worktree 边界续找主工作树。
+def locate_localconfig(start):
+    """向上找 `.teamwork_localconfig.json` 的**路径** · 🔴 跨 worktree 边界续找主工作树。
 
-    返回 dict(命中且可解析)或 None。调用方各自做取值与合法性校验。
+    返回 Path(命中)或 None。load_localconfig / heal_version_drift 共用这条 walk。
     """
     try:
         node = Path(start).resolve()
@@ -528,10 +550,7 @@ def load_localconfig(start):
         for d in [node, *node.parents]:
             cfg = d / _LOCALCONFIG_NAME
             if cfg.is_file():
-                try:
-                    return json.loads(cfg.read_text(encoding="utf-8"))
-                except (OSError, ValueError):
-                    return None
+                return cfg
             dotgit = d / ".git"
             if dotgit.is_dir():
                 return None                 # 主仓根 · 本级已查过 → 确实没有
@@ -542,6 +561,20 @@ def load_localconfig(start):
             return None
         node = hop
     return None
+
+
+def load_localconfig(start):
+    """从 `start` 向上解析 `.teamwork_localconfig.json`(walk 单源 = locate_localconfig)。
+
+    返回 dict(命中且可解析)或 None。调用方各自做取值与合法性校验。
+    """
+    cfg = locate_localconfig(start)
+    if cfg is None:
+        return None
+    try:
+        return json.loads(cfg.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
 
 
 def _parse_iso_flexible(s):
@@ -904,6 +937,7 @@ def execute_stage_start(
 
     # 7. 渲染 next_action_brief + 自动 append 建议评审角色 + 暂停点纪律 + 必读路径速查 + 状态行模板
     brief = stage_spec.brief_template_fn(state)
+    brief += _render_complete_contract(stage_spec)  # v8.324:complete 门禁 spec 同源预告
     brief += _render_review_roles_suggestion(state, stage_spec.name)
     if stage_spec.authorized_pause_point:
         brief += _render_pause_discipline(
@@ -1302,6 +1336,41 @@ def render_status_line(state: dict, next_action: str = "") -> str:
         line3 = f"🌿 {branch}"
 
     return f"{line1}\n{line2}\n{line3}"
+
+
+def _render_complete_contract(stage_spec: "StageSpec") -> str:
+    """v8.324:complete 时会被机器校验的契约 · 从 spec **同一份对象**自动渲染进 start brief。
+
+    实证(消费项目复盘):「dev-complete 的 test-runner 门禁在 dev-start 的 brief 里没有
+    预告 · complete 时才拒」;耗时归因里 26-28% 纯协调开销的归因高度同质 ——「格式门禁
+    重试 · spec 字段名未预读」。手写 brief 必然与门禁漂移;本段与门禁读同一 spec 对象,
+    门禁改了预告自动跟(载体防漂移 · 不靠人同步两处)。
+    """
+    arts = stage_spec.artifacts or []
+    evs = stage_spec.evidence_checks or []
+    if not arts and not evs:
+        return ""
+    lines = ["", "### ⛔ complete 时机器校验(spec 同源自动生成 · 缺任一被拒 · 现在就按此起草,别等撞门)"]
+    for a in arts:
+        tgt = a.path or a.glob or "?"
+        req = []
+        if a.glob and a.min_files:
+            req.append(f"≥{a.min_files} 个")
+        if a.frontmatter_required:
+            req.append("frontmatter 必含 " + "/".join(a.frontmatter_required))
+        if a.body_min_lines:
+            req.append(f"body ≥{a.body_min_lines} 行")
+        if a.must_be_in_commit:
+            req.append("须在 --auto-commit changeset 内")
+        if a.review_artifact:
+            req.append("fast_mode 免")
+        seg = f"- 产物 `{tgt}`" + (f"({' · '.join(req)})" if req else "")
+        if a.description:
+            seg += f" —— {a.description}"
+        lines.append(seg)
+    for e in evs:
+        lines.append(f"- 证据 `{e.name}`" + (f" —— {e.description}" if e.description else ""))
+    return "\n".join(lines) + "\n"
 
 
 def _has_review_convergence_evidence(stage_spec: "StageSpec") -> bool:
@@ -2855,3 +2924,158 @@ def register_v8_subparsers(
             help="[review] --user-confirmed 超预算放行必填 · 用户拍板内容 · 写 concerns WARN(audit)",
         )
         retry_parser.set_defaults(func=make_retry_handler(stage_name))
+
+
+# ─── v8.322 · 升级传导:入口自愈 ──────────────────────────────────────
+
+
+def read_skill_frontmatter_version(skill_root):
+    """SKILL.md frontmatter `version:`(版本号单源 · bootstrap.read_skill_version 同源简版)。"""
+    try:
+        text = (Path(skill_root) / "SKILL.md").read_text(encoding="utf-8")
+    except OSError:
+        return None
+    if not text.startswith("---\n"):
+        return None
+    end = text.find("\n---\n", 4)
+    if end == -1:
+        return None
+    for line in text[4:end].splitlines():
+        if line.startswith("version:"):
+            return line.split(":", 1)[1].strip() or None
+    return None
+
+
+def canonical_ledger_header(skill_root):
+    """从 templates/process-ledger.md 抽 canonical 表头行 + 分隔行(单源 · 不硬编码 schema)。"""
+    tmpl = Path(skill_root) / "templates" / "process-ledger.md"
+    try:
+        lines = tmpl.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return None
+    for i, ln in enumerate(lines):
+        s = ln.strip()
+        if s.startswith("| Feature |") and i + 1 < len(lines) and set(lines[i + 1].strip()) <= set("|-: "):
+            return s, lines[i + 1].strip()
+    return None
+
+
+def migrate_process_ledger(ledger_path, skill_root) -> dict:
+    """PROCESS-LEDGER schema 迁移(幂等):表头/分隔行升级 + 🔴 旧数据行补列宽。
+
+    「旧行是新 schema 有效前缀 · 不动」的设计被消费项目实证打破:
+    aon-core 68/135 行、supersdk 28/46 行停在 10 列 —— 按列索引解析静默错位、年检读错列。
+    改为:**内容前缀逐字不动 · 末尾补 `—` 到表头宽**(`—` = 早于该指标)。
+    只补不裁:列数超宽的行不动(可能含转义竖线 · 宁可留给人看)。
+    """
+    led = Path(ledger_path)
+    if not led.is_file():
+        return {"status": "skip", "reason": "no_ledger"}
+    canon = canonical_ledger_header(skill_root)
+    if not canon:
+        return {"status": "skip", "reason": "no_canonical_header"}
+    canon_hdr, canon_sep = canon
+    try:
+        lines = led.read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError as e:
+        return {"status": "error", "reason": str(e)}
+    hi = next((i for i, ln in enumerate(lines) if ln.strip().startswith("| Feature |")), None)
+    if hi is None:
+        return {"status": "skip", "reason": "no_header_row"}
+    width = canon_hdr.count("|") - 1
+    old_cols = lines[hi].strip().count("|") - 1
+    changed = migrated_header = False
+    if lines[hi].strip() != canon_hdr:
+        lines[hi] = canon_hdr
+        changed = migrated_header = True
+    if hi + 1 < len(lines) and lines[hi + 1].strip() and set(lines[hi + 1].strip()) <= set("|-: "):
+        if lines[hi + 1].strip() != canon_sep:
+            lines[hi + 1] = canon_sep
+            changed = True
+    padded = 0
+    i = hi + 2
+    while i < len(lines):
+        s = lines[i].strip()
+        if not s.startswith("|"):
+            break                            # 表结束(空行/正文)
+        if set(s) <= set("|-: "):
+            i += 1
+            continue                         # 游离分隔行不算数据
+        if s.endswith("|"):
+            cells = s.count("|") - 1
+            if 0 < cells < width:
+                lines[i] = lines[i].rstrip() + " — |" * (width - cells)
+                padded += 1
+                changed = True
+        i += 1
+    if changed:
+        led.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return {"status": "ok", "file": str(led), "migrated_header": migrated_header,
+            "old_cols": old_cols, "new_cols": width, "padded_rows": padded, "changed": changed}
+
+
+def heal_version_drift(start, skill_root):
+    """版本漂移入口自愈(state.py 每次调用前 best-effort · 绝不拦正事)。
+
+    实证(supersdk):skill 全局副本静默升 37 版 · per-project bootstrap 20 天没跑 ·
+    台账 61% 旧列宽 · gitignore 水位停在三十版前 ——「提示用户去跑 bootstrap」被证明不发生。
+    治法同 scratch 清理(挂在积灰机器自己会跑到的命令上):把**零风险幂等迁移集**挂在
+    消费项目天天在跑的 state.py 入口 —— 台账 schema(表头+旧行补宽)· gitignore 条目重放 ·
+    marker 记录(_bootstrap.state_migrate)。chmod / hooks / host 注入 / 升级 R5 检测
+    仍归 session bootstrap(重量级或需用户决策 · 本函数不越权)。
+
+    不接管的场景:无 localconfig(非消费项目)· 无 `_bootstrap` marker(从未 bootstrap ·
+    首铺归 bootstrap)· skill 在项目仓内(框架仓自身 · 同 bootstrap v8.35 跨仓污染守卫)。
+    返回 summary dict(发生了自愈)或 None(无事)。
+    """
+    cfg_path = locate_localconfig(start)
+    if cfg_path is None:
+        return None
+    main_root = cfg_path.parent
+    try:
+        data = json.loads(cfg_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    bs = data.get("_bootstrap")
+    if not isinstance(bs, dict):
+        return None
+    recorded = ((bs.get("state_migrate") or {}).get("to")) or bs.get("skill_version")
+    if not recorded:
+        return None
+    current = read_skill_frontmatter_version(skill_root)
+    if not current or current == recorded:
+        return None
+    try:
+        sr = Path(skill_root).resolve()
+        mr = main_root.resolve()
+        if sr == mr or mr in sr.parents:
+            return None                      # skill 仓自身/内嵌开发 → 不自愈
+    except OSError:
+        return None
+    actions = {}
+    try:
+        actions["ledger"] = migrate_process_ledger(
+            main_root / "project-specs" / "PROCESS-LEDGER.md", skill_root)
+    except Exception as e:  # noqa: BLE001 — 自愈不许炸正事
+        actions["ledger"] = {"status": "error", "reason": str(e)}
+    try:
+        import bootstrap as _bootstrap_mod
+        g = _bootstrap_mod.maintain_gitignore_worktree(main_root, Path(skill_root))
+        actions["gitignore"] = g.get("status", "unknown")
+    except Exception as e:  # noqa: BLE001
+        actions["gitignore"] = f"error:{e}"
+    led = actions["ledger"] if isinstance(actions["ledger"], dict) else {}
+    bs["state_migrate"] = {
+        "at": now_iso(), "from": recorded, "to": current,
+        "actions": {"ledger": led.get("status", "error"),
+                    "ledger_padded_rows": led.get("padded_rows"),
+                    "gitignore": actions["gitignore"]},
+    }
+    data["_bootstrap"] = bs
+    try:
+        cfg_path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n",
+                            encoding="utf-8")
+    except OSError:
+        return None
+    return {"from": recorded, "to": current, "root": str(main_root), "actions": actions}
+

@@ -36,7 +36,7 @@
 |---|---|---|---|
 | **L1 · CI 契约层** | 🔴 **默认不进 · 进必须带 `ci_reason`**:这条失败拦住什么级别的事故(对外契约破坏 / 数据损坏 / 资损 / 核心链路不可用)——「顺手写的 / 覆盖率好看」**不算充足理由** | TC 注册(`ci: true`) | CI 每次跑 |
 | **L2 · 回归层** | TC 其余(AC 绑定 / bug 回归 · 无 `ci` 标记即默认此层) | TC 注册 | test stage 全量 + 发版前;CI 不跑 |
-| **L3 · 脚手架** | TDD 中间步 / 探索 probe / 一次性验证 / 复现脚本 —— **交付即过期** | 🔴 **scratch `<feature_id>/scaffold-tests/` · 不入仓库不进 TC**(随 ship2 回收) | 仅本 feature dev 循环 |
+| **L3 · 脚手架** | TDD 中间步 / 探索 probe / 一次性验证 / 复现脚本 —— **交付即过期** | 🔴 **scratch `.teamwork-scratch/scaffold-tests/`(ignored)· 不入仓库内容不进 TC**(随 worktree 消亡) | 仅本 feature dev 循环 |
 
 - 🔴 **交付后不需要再跑的,不属于 TC**(那是脚手架 → scratch)—— 与「换实现就要改的不属于 TC」并列的第二条边界。
 - **CI 对接归项目主权**:项目 CI 按 `tests[].ci` 挑子集(映射成自家 marker / 路径 / tag 均可)· 框架只提供注册与判据,不替项目定 CI 策略。
@@ -202,7 +202,7 @@ Then {端到端预期结果}
 ### Browser E2E Scenarios
 
 #### FE-E2E-001: {完整前端业务场景描述}
-**执行方式**: browser（AI 浏览器操作）
+**执行方式**: browser-script（🔴 可重放脚本 · Playwright 优先 —— 交付后需重跑的关键路径必用此形态 · 脚本进 repo + 本表 tests[] 注册）/ browser（AI 浏览器手点 · 仅探索性 / 一次性验收 —— 手点不可重放,代码一改截图即失效）
 
 \`\`\`gherkin
 Given {真实页面前置状态}

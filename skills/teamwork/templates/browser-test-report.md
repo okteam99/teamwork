@@ -5,7 +5,8 @@ status: draft  # draft | confirmed
 ui_ref: UI.md (vX.Y)
 prd_ref: PRD.md (vX.Y)
 test_run_at: "{ISO 8601 UTC}"
-browser_automation: playwright  # playwright | puppeteer | selenium
+browser_automation: playwright  # 🔴 默认首选 playwright(用户拍板)· puppeteer | selenium 仅当项目已有该基建(复用 · 一致性优先)
+replay_entry: "npx playwright test tests/e2e/browser/"  # 🔴 可重放入口(关键路径必填 · 一条可直接跑的命令);探索性/一次性验收填 n/a —— 空着 = 没想过要不要重放
 viewport:
   width: 1440
   height: 900
@@ -33,7 +34,7 @@ revision_history:
 
 | 项 | 内容 |
 |---|---|
-| 浏览器自动化 | {Playwright / Puppeteer / Selenium} |
+| 浏览器自动化 | {Playwright(默认首选)/ 复用既有 Puppeteer / Selenium 基建} |
 | 浏览器版本 | {Chromium 120.x / WebKit 17.x} |
 | viewport | 1440 × 900(桌面)/ 375 × 812(移动) |
 | URL base | {http://localhost:3000} |
