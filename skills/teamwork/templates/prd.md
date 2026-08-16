@@ -85,12 +85,12 @@ revision_history:   # 🔴 goal-complete 校验 ≥1 条(证明经 review 收敛
 
 ## 验收标准
 
-<!-- 🔴 本表 = AC **人读单源**(BDD 全文在此)· TEAMWORK-MACHINE 块 acceptance_criteria 只存机读字段(id/category/priority/test_refs/grep)· 两处 **id 一致** 即可(描述不再同步两份 · verify-ac.py 按 id↔TC.covers_ac 校验)· AC 写 BDD(Given/When/Then)· 行为/价值高度 · 🧠 写时即用可测判据(含糊词落笔即换 · 边界/异常入 AC —— 详模板头「起草思考规范」)· 💬 **大白话列逐条必填**(一句人话——这条在验证什么/用户能感知什么 · BDD 给 QA 绑 TC · 大白话给用户终确认拍板 · goal-complete 机器校验非空/非占位)。 -->
+<!-- 🔴 本表 = AC **人读单源**(BDD 全文在此)· TEAMWORK-MACHINE 块 acceptance_criteria 只存机读字段(id/category/priority/test_refs/grep)· 两处 **id 一致** 即可(描述不再同步两份 · verify-ac.py 按 id↔TC.covers_ac 校验)· AC 写 BDD(Given/When/Then)· 行为/价值高度 · 🧠 写时即用可测判据(含糊词落笔即换 · 边界/异常入 AC —— 详模板头「起草思考规范」)· 💬 **大白话列逐条必填 · 固定第二列**(用户拍板:先读人话再读 BDD · 渲染时紧跟 ID 拿到可读列宽 —— 写**一句完整的话**别写三五个字,BDD 再长也别把大白话挤成竖条;机器校验按表头名定位 · 不吃列序)· BDD 给 QA 绑 TC · 大白话给用户终确认拍板 · goal-complete 机器校验非空/非占位。 -->
 
-| ID | 描述(BDD) | 💬 大白话 | 优先级 | 覆盖测试 |
-|----|-----------|-----------|--------|----------|
-| AC-1 | Given {前置} / When {操作} / Then {结果} | {一句人话:这条在验证什么 · 用户能感知到什么变化} | P0 | {测试 ID · Blueprint 填} |
-| AC-2 | Given … / When … / Then … | {例:登录成功后 3 秒内能看到自己的头像和昵称} | P0 | |
+| ID | 💬 大白话 | 描述(BDD) | 优先级 | 覆盖测试 |
+|----|------------------------------|-----------|--------|----------|
+| AC-1 | {一句**完整的**人话:这条在验证什么 · 用户能感知到什么变化} | Given {前置} / When {操作} / Then {结果} | P0 | {测试 ID · Blueprint 填} |
+| AC-2 | {例:登录成功后 3 秒内能看到自己的头像和昵称} | Given … / When … / Then … | P0 | |
 
 ## 业务流程图 / 交互时序图（按需必填）
 

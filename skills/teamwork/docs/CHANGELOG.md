@@ -4,6 +4,17 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.333 · PRD 验收标准表:大白话固定第二列(用户拍板)
+
+> 截图实证:消费项目 PRD 的 BDD 列巨长,💬 大白话被挤成右侧竖条(一行一字)—— 给用户终确认读的那列反而最不可读。用户:大白话放第二列,宽一点。
+
+### 变更
+- **templates/prd.md 列序**:`ID → 💬 大白话 → 描述(BDD) → 优先级 → 覆盖测试`(大白话紧跟 ID · 渲染时拿到可读列宽);示例行同步。
+- **宽度指引入注释**:大白话写**一句完整的话**别写三五个字(markdown 列宽由内容驱动 —— 位置 + 内容长度是仅有的两个旋钮);机器校验按表头名定位 · **不吃列序**(存量新旧两种列序都过 · 零迁移)。
+
+### 测试
+`test_ac_plain_column_v8333.py` 6 条:模板列序 / 指引锚 / 示例行 / 机器门新旧列序皆过 / 新列序下空值仍拦。全库全绿。
+
 ## v8.332 · 主对话 = Orchestrator:dev/test 默认姿态(用户拍板)
 
 > 用户:dev stage 和 test stage 加上不建议在主对话(主循环)进行开发和测试 —— 主对话优先用做 Orchestrator:任务拆解、阶段规划、子代理调度、集成接线、提交/推送、验证门禁、小型精准修改等。
@@ -62,15 +73,3 @@
 
 ### 测试
 `test_assembly_at_goal_v8329.py` 15 条(prepare 四件与 Q1-Q4 清除 / goal 四轴+两拍+判断表迁入 / 导读装配节 / brief·emit·FLOWS 载体 / 机器不变式);test_state v8.27 旧锁按新不变式更新(「不抄默认」义务随装配迁 goal)。全库全绿。
-
-## v8.328 · finding 准入:功能优先 · 复杂度守恒(用户拍板)
-
-> 用户:review 的时候注意,优先功能实现,不要做过多的兜底、测试门之类的;不要为了不重要的 bug 增加整体复杂度;真功能缺陷要报;PRD 和 TECH review 等都需要考虑。
-
-### 变更(四载体 · 单源 + 指针 + prompt 自含)
-- **review-stage 规则 2.5(单源全文)**:①真功能缺陷必报零门槛(行为错/AC 不满足/契约破坏/数据损坏/安全);②兜底/防御/加固类建议高门槛 —— 必须给**真实触发路径 + 后果等级**,给不出不成 finding(至多 NIT);③**修复代价 > 缺陷危害 → REJECT 是合法且推荐裁决**(rejected 实证写「危害不及修复复杂度」即成立);④不借 review 加流程/测试门(测试门归生命周期 `ci_reason` · 流程门归用户拍板;confirmed bug 回归锁不在此列);⑤**简化方向不设门槛**(高门槛只拦「往上加」)。why:评审的静默失败模式不是漏报,是低价值加固吃掉轮次预算、把简单实现推肥(实证 26-28% 协调开销 · 钟摆判例)。
-- **goal-stage 6.5 / blueprint-stage 9.5**:冷审各一行指针(PRD 评「要做的东西对不对」/ TECH 不推防御式设计与预防性抽象)· 真缺陷必报语义随行。
-- **claude-agents/reviewer.md prompt 主体**:自含压缩版(subagent 只读 prompt —— 动作点载体);显式声明 Checklist 的错误处理/边界方向按准入过滤,「理论上可能」不是触发路径。
-
-### 测试
-`test_review_functionality_first_v8328.py` 13 条:单源五要素 / REJECT 合法性 / ci_reason 指向 / 回归锁例外 / 简化方向豁免 / 既有 severity·钟摆纪律不动 / 两指针 / prompt 段位置在正文内 + 过滤声明。全库全绿。
