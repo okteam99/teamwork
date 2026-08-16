@@ -1692,6 +1692,7 @@ QA 起草 TC(BDD)**∥** RD 起草 TECH(🎚️ **TECH 起草与评审必用主�
 
 ### 怎么做
 **必读** `stages/blueprint-stage.md`(详细步骤 + §7.5 DB schema 条件暂停点)。
+🔴 **起草对照 `standards/tech-rules.md`**(三时点必读之一 · 起草重点 §三 方案与架构门:FK 决策 / Schema 影响分析 / API 契约链 —— **起草时带着门想 · 起草读的就是 review 会查的**)+ 项目 `project-specs/DEV-RULES.md` / `ARCHITECTURE.md` 同读(冲突以项目为准)。
 
 🔴 v8.217 持续分诊(降级触发):TECH 写完若复杂度评估=**简单**且零架构决策 · 而 roster 仍重 → 可提议降级(R5 一句确认 → `change-review-roles --reason`)—— 分诊不是一次性的 · 每个 gate 都可重校准(升级触发已有 · 本条补反向)。\n🔴 v8.216 评审配置动态化:external 跑不跑 = **按 `state.stage_review_roles.blueprint`**(prepare 按角色价值判定 · 去 external → gate 自动放行 · 审计留痕)· review 阶段 roster 独立判定(明确 ≠ 不会写错)。\n🔴 **TECH 方案涉及数据库数据结构变更**(新建/删除/修改 表、字段、索引、约束、migration)·
 blueprint-complete 前必 emit R5 用户确认暂停点(stage.md §7.5 · v8.265 双触发:DB 变更 **或 🛡️ TECH 兜底清单非空**〔安全/降级兜底不许默默做 · 必用户拍板〕)· 🔴 暂停点**必自带变更点明细表**(对象|变更|**解决什么问题**|**为何非更简方案不可**|破坏性 每对象一行 + 关键迁移策略 —— 分类概括/文件指针不算〔v8.242 实证:概括式 emit 逼用户追问〕· 只写「内容」不写「为什么」也不算〔v8.255 实证:三张新表无一句动机 · 用户点名要目的与更简方案质询〕)· 不涉及则跳过。
@@ -2380,6 +2381,7 @@ def _review_brief(state: dict) -> str:
 
 ### 怎么做
 **必读** `stages/review-stage.md`(评审步骤 + 收敛协议:severity 门槛 / 验证轮 / 轮次预算)。
+🔴 **评审对照基线 `standards/tech-rules.md`**(三时点必读之一):§三 方案与架构门逐条验(FK 决策行 / 日志 CR 门 / Schema 影响分析)· §五 收口自查表抽核 · 项目 `DEV-RULES.md` 优先(冲突以项目为准)。
 🔴 **finding 处理默认姿态=质疑**(不盲目认同):逐条 先质疑(过度设计/错层/false positive · 🛡️ **安全加固/兜底降级最易盲采 · 必过 ROI** 概率×后果 vs 成本 · v8.279)→ 回读真实代码确认 → 才 confirmed/rejected · **两个方向都给实证**:采纳给「为何确为真+为何这样改对」· 驳回给「为何不是问题」·「reviewer 说得对」与「我觉得没事」都不是理由(详 standards/external-model-usage.md §二)。
 
 {_review_findings_gate_lines()}

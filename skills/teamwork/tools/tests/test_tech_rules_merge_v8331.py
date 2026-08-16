@@ -127,6 +127,16 @@ class TestThreeMomentWiring(unittest.TestCase):
         self.assertIn("tech-rules", brief)
         self.assertNotIn("HARD-RULES", brief)
 
+    def test_blueprint_and_review_briefs_wired(self):
+        """三时点的动作点载体:stage 文档有 ≠ brief 有(规则要在执行入口)。"""
+        from _v8_stage_specs import BLUEPRINT_SPEC, REVIEW_SPEC
+        bb = BLUEPRINT_SPEC.brief_template_fn({})
+        self.assertIn("起草对照 `standards/tech-rules.md`", bb)
+        self.assertIn("起草读的就是 review 会查的", bb)
+        rb = REVIEW_SPEC.brief_template_fn({})
+        self.assertIn("评审对照基线 `standards/tech-rules.md`", rb)
+        self.assertIn("冲突以项目为准", rb)
+
     def test_no_version_tags_in_new_file(self):
         hits = re.findall(r"v8\.\d+", TR.read_text(encoding="utf-8"))
         self.assertEqual(hits, [], hits)
