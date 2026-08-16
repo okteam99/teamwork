@@ -1031,7 +1031,7 @@ def _dev_brief(state: dict) -> str:
     return f"""## Dev Stage
 
 ### 目标
-按 TECH.md 实现代码 · 测试全绿 · auto-commit 锚定证据(🟢 测试节奏 AI 自定 · v8.286:每个 TC 有对应实现 + 测试真断言 是硬结果)。
+按 TECH.md 实现代码 · 测试全绿 · auto-commit 锚定证据。🟢 **方法论不设限**:怎么开发(TDD/test-after/骨架先行/重构节奏)全由 AI 自定 —— 框架只收:读取契约(项目 DEV-RULES+ARCHITECTURE+复发防御清单 & teamwork HARD-RULES 兜底 · 冲突以项目为准)+ 收口自查表 + 结果证据门(每个 TC 有对应实现 · 测试真断言)。
 
 ### 结果(完成判定)
 - 代码 + 测试一并 commit
@@ -1041,10 +1041,10 @@ def _dev_brief(state: dict) -> str:
 - (Bug 流程额外)`bugfix/BUG-*.md` 报告
 
 ### 怎么做
-**必读** `stages/dev-stage.md`(四段结构:目标 / 硬规则 7 条 / 手段菜单 / dev-complete 契约)。\n🧩 **开工先问「哪些模块可并行」**(dev 是并行红利最大的 stage):多端/多模块/独立文件簇 → 各派 subagent/teammate 并行实现(**ultracode 开启 → workflow 优先** · schema 化产出)· 🔴 派发按 SKILL 🎚️ 全局规则**声明 model + 一句为什么** · 契约层/集成点留主对话 · 子 agent 只写 worktree 内路径。🔴 v8.254 两问补丁:「哪些可并行」**每进新子阶段重问**(实现→测试编写→修复 · 耦合度会变 · 开工一次不够);派发后**等待窗口主对话不闲置**(填 §完工自查既有证据行 / 中途自查依赖消费方 / 剩余工作再拆一刀)—— 实证:集成测试整包塞单 agent + 主对话裸等 · 用户点破才拆三线。
+**必读** `stages/dev-stage.md`(四段结构 · 硬规则里最重的是读取契约与证据门 · 手段全自选)。\n🧩 **开工先问「哪些模块可并行」**(dev 是并行红利最大的 stage):多端/多模块/独立文件簇 → 各派 subagent/teammate 并行实现(**ultracode 开启 → workflow 优先** · schema 化产出)· 🔴 派发按 SKILL 🎚️ 全局规则**声明 model + 一句为什么** · 契约层/集成点留主对话 · 子 agent 只写 worktree 内路径。🔴 v8.254 两问补丁:「哪些可并行」**每进新子阶段重问**(实现→测试编写→修复 · 耦合度会变 · 开工一次不够);派发后**等待窗口主对话不闲置**(填 §完工自查既有证据行 / 中途自查依赖消费方 / 剩余工作再拆一刀)—— 实证:集成测试整包塞单 agent + 主对话裸等 · 用户点破才拆三线。
 🔴 **base 即红(共享套件预存在失败)→ 差分基线**:`--test-exit-code` 非 0 时,先 `state.py test-baseline --diff --current "<当前失败 id>"` 对照 `project-specs/test-baseline.md` · 0 新增 → dev-complete 传 `--current-failures` 即放行;有新增 = 回归(修)或新预存在(`test-baseline --add` 登记)· **别人肉 stash-baseline 反复甄别**。
 🔴 **UI feature(走过 ui_design)→ 设计↔实际一致性核对必做**(治「设计稿和实际不一致」):实现后起全景 dev server(preview.sh)+ 跑真实路由,**两边并排 browse 截图**,逐项核对意图四要素(布局/交互流/状态/字段映射)给「一致/背离」结论 · 背离 → 修实现 or 回 ui_design(不在 dev 顺手改设计 · 不静默放过)· 详 § dev-stage §3。
-🛡️ **起草前先读** `project-specs/KNOWLEDGE.md § 复发防御清单`(本项目 review 高频 finding 类 · 照着**写时防** · 非写完等 review 抓 · v8.278 shift-left · 清单空则跳)。\n🔴 **dev-complete 前 → 在 `TECH.md §完工自查` 文档内逐项打 ✅**(对着设计落地:现状基线/错误处理/依赖消费方/数据跨层/测试策略 + 通用门 · 每项指向证据 · 不适用 N-A)· **专防「设计了没实现」** · review 据此核(soft 完整性自证 · 非橡皮图章)。
+🛡️ **起草前先读** `project-specs/KNOWLEDGE.md § 复发防御清单`(本项目 review 高频 finding 类 · 照着**写时防** · 非写完等 review 抓 · v8.278 shift-left · 清单空则跳)。\n🔴 **dev-complete 前完工自查双源打 ✅**:`TECH.md §完工自查`(设计对照 · 每项指向证据)+ `standards/HARD-RULES.md § 收口自查表`(兜底:异常日志/DB 论证/测试真实性/scratch/build/契约消费方 · 不适用 N-A)· 防「设计了没实现」与「实现了但兜底裸奔」· review 据此核。
 
 ### 完成方式
 ```

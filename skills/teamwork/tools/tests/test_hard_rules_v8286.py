@@ -16,8 +16,12 @@ class TestHardRulesWhitelist(unittest.TestCase):
         self.t = (STD / "HARD-RULES.md").read_text(encoding="utf-8")
 
     def test_compact_enough_to_be_required_reading(self):
-        """必读文件必须短 —— 1773 行没法要求必读,~50 行可以。"""
-        self.assertLess(len(self.t.splitlines()), 70)
+        """必读文件必须短 —— 1773 行没法要求必读,~50 行可以。
+
+        上限 70→85:收口自查表(用户拍板的兜底自查载体)入驻 —— 自查表本身
+        就是「短清单」形态,与本锁「防膨胀回 1773 行」的初衷同向不冲突。
+        """
+        self.assertLess(len(self.t.splitlines()), 85)
 
     def test_states_union_and_project_precedence(self):
         self.assertIn("并集", self.t)

@@ -4,6 +4,19 @@
 > 上次清空:**v8.193**(2026-07-06 · 清除 v8.128 → v8.187 共 60 版条目 · 约 1.0k 行)。
 
 ---
+## v8.325 · merged worktree 巡检 + 构建世界纪律(P1-4)
+
+> aon-core `.worktree/` 23G:14 个注册 worktree 里 13 个分支已 merge(18G 纯垃圾 · 最老 31 天)+ 1 孤儿目录;supersdk 5 个僵尸壳被 `ws-progress` 递归扫成双份(9→18)。
+> 根因与 141GB scratch 同款:回收挂在 ship2,session 常死在 ship1 push 后 → ship2 永不跑;且 `worktree_cleanup` 配置键**没有任何代码消费者**(安慰剂配置 —— 「ask」从没人被问过)。
+
+### 变更
+- **`bootstrap.prune_merged_worktrees`**(挂 session bootstrap · 每 session 会跑到的地方):worktree 根下逐目录巡检 —— 僵尸壳(不在 `git worktree list` · 树里只有 .DS_Store)任何模式都删;注册 worktree 已 merge 进 merge_target 且干净(untracked 仅接力卡 `docs/features/**` · `-uall` 逐文件豁免)→ 按 `worktree_cleanup` 处置;未 merge / 有真实未提交内容**永不动**(报告);孤儿有内容只报告;收尾 `git worktree prune`。体量 `du -sk` 限时 3s(同 scratch 的耗时纪律)。
+- **`worktree_cleanup` 转正为真开关**:`auto`(**新默认** · merged+干净即删 + branch -d)/ `ask`(不删 · 每 session bootstrap 逐个报告 —— ask 终于真的在问)/ `keep`(只计数)。存量项目显式写的 `ask` 不被覆盖(backfill 只补缺失键 · 用户主权)。
+- **构建世界纪律收编**(conventions §12.45):worktree 只隔离 git 树不隔离构建世界 —— 依赖目录 / `.pth` editable / 构建缓存与 TMPDIR / 测试数据库 / dev server 端口五面纪律表(消费项目六条独立 KNOWLEDGE 同根教训收编为框架职责)。
+
+### 测试
+`test_worktree_prune_v8325.py` 13 条:auto 删+删分支 / 接力卡 untracked 不挡(-uall 修折叠)/ 真残留只报 / 未 merge 不动 / ask·keep 语义 / 僵尸壳任何模式清 / 孤儿只报 / 默认翻转+模板同步 / 非法值回退 ask / wiring / 构建世界表。全库全绿。
+
 ## v8.324 · 格式门禁前置化:complete 契约 spec 同源预告 + 解析器放宽一档(P0-3)
 
 > 两项目耗时归因 26-28% 轮次 = 纯协调开销,归因高度同质:「格式门禁重试 · spec 字段名未预读」「dev-complete 的 test-runner 门在 dev-start 没预告 · complete 时才拒」;aon-core 复盘:外审产物 YAML **单空格缩进**列表被解析为空 `files_read` → CAPABILITY_BLOCKED 误报 —— 一个缩进空格换一轮返工。
