@@ -23,7 +23,7 @@ def _read(rel: str) -> str:
 
 
 class TestLifecycleSingleSourceInTc(unittest.TestCase):
-    """tc.md 是三层定义的单源 —— HARD-RULES 与 dev-stage 只 cite 不复述细节。"""
+    """tc.md 是三层定义的单源 —— tech-rules 与 dev-stage 只 cite 不复述细节。"""
 
     def setUp(self):
         self.t = _read("templates/tc.md")
@@ -66,14 +66,14 @@ class TestScaffoldTestsLandInScratch(unittest.TestCase):
     """L3 复用 scratch 机制 —— 不入仓库 · 随 ship2 回收 · 与截图同规。"""
 
     def test_hard_rules_carries_the_rule(self):
-        t = _read("standards/HARD-RULES.md")
+        t = _read("standards/tech-rules.md")
         self.assertIn("scaffold-tests/", t)
         self.assertIn("不入仓库", t)
         self.assertIn("交付后还有谁需要它失败的信号", t, "判据未进必读白名单")
         self.assertIn("执行便宜 ≠ 维护便宜", t, "缺成本模型 why → 会被当成任意规定")
 
     def test_scratch_usage_lists_scaffold_dir(self):
-        t = _read("standards/common.md")
+        t = _read("docs/conventions.md")
         self.assertIn("scaffold-tests/", t)
 
     def test_dev_stage_has_action_point_rule(self):
@@ -99,9 +99,9 @@ class TestLineCountClaimsRemoved(unittest.TestCase):
     """顺手清的一类数字宣称:「~50 行白名单」写死在三处 · 本版已 60 行 —— 数字宣称必漂,全部去数。"""
 
     def test_no_hardcoded_line_claims(self):
-        for rel in ("standards/HARD-RULES.md", "stages/dev-stage.md", "stages/blueprint-stage.md"):
+        for rel in ("standards/tech-rules.md", "stages/dev-stage.md", "stages/blueprint-stage.md"):
             self.assertNotIn("~50 行", _read(rel), f"{rel} 仍写死行数宣称")
-        self.assertIn("行数不写死", _read("standards/HARD-RULES.md"))
+        self.assertIn("行数不写死", _read("standards/tech-rules.md"))
 
 
 if __name__ == "__main__":

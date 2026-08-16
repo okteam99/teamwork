@@ -1251,7 +1251,7 @@ def cmd_ship_phase(args: argparse.Namespace) -> None:
 SHIP_FINALIZE_STEPS = ("verify-delivered", "worktree-remove", "tmp-cleanup", "main-sync")
 
 
-# ─── feature scratch 回收(standards/common.md § 临时产物目录 · v8.247)──────
+# ─── feature scratch 回收(conventions.md §12.48 临时产物目录)──────
 
 TEAMWORK_TMP_ROOT_ENV = "TEAMWORK_TMP_ROOT"  # 测试覆盖用
 

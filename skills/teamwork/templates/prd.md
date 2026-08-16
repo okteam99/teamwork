@@ -101,7 +101,7 @@ revision_history:   # 🔴 goal-complete 校验 ≥1 条(证明经 review 收敛
 > - 有异步流程或回调
 >
 > 不满足以上条件的简单功能可省略本节。
-> 📎 图表规范见 standards/common.md「五、文档流程图规范」，统一使用 Mermaid。
+> 📎 图表规范见 standards/tech-rules.md 规则 20(文档图统一 Mermaid)，统一使用 Mermaid。
 
 > 图类型:多步骤/分支 → flowchart · 多系统交互 → sequenceDiagram · 状态机 → stateDiagram-v2。
 

@@ -1,6 +1,6 @@
 ---
 name: teamwork
-version: v8.329.1
+version: v8.331.2
 description: AI 协作开发一体化框架 - 需求功能开发, bug 修复, 问题排查 · /teamwork 启动
 ---
 
@@ -573,7 +573,7 @@ v8 把 9 红线的可枚举子条目物化进 state.py;R3 + 部分行为约束(R
 | [FLOWS.md](./FLOWS.md) | 流程闭集 telos(Feature/Bug × preset + 2 个不进状态机) |
 | [STAGES.md](./STAGES.md) | **stage 编排单源**(定义 / 链 / 通用纪律 / 执行方式 §4 / spec 四段结构) |
 | [ROLES.md](./ROLES.md) | 角色索引(→ roles/*.md) |
-| [standards/HARD-RULES.md](./standards/HARD-RULES.md) | **工程硬规则白名单**(standards/ 唯一必读 · 逆模型默认 + 框架约定 · 分册索引在其尾部「相关」) |
+| [standards/tech-rules.md](./standards/tech-rules.md) | **技术规则**(方案起草 · dev · review 三时点唯一必读 · 逆默认 + 框架约定 + 方案与架构门 + 收口自查表 · 须与项目 DEV-RULES/ARCHITECTURE 同时满足 · 冲突以项目为准) |
 | [templates/README.md](./templates/README.md) | 文档模板索引(格式唯一真相源 · 全清单 + 消费方) |
 | [PRODUCT-OVERVIEW-INTEGRATION.md](./PRODUCT-OVERVIEW-INTEGRATION.md) | 产品规划上游(product-overview 引导 / 规划状态管理) |
 | [stages/*.md](./stages/) | 各 stage Telos + 硬规则 + Output Contract(校验进 state.py) |

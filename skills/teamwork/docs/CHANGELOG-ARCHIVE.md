@@ -4,6 +4,31 @@
 > 上次清空:**v8.193**(2026-07-06 · 清除 v8.128 → v8.187 共 60 版条目 · 约 1.0k 行)。
 
 ---
+## v8.326 · 评审模型错开机器门(P1-5)
+
+> supersdk CA case:双路冷审实测同为 opus-5(主审路未继承会话模型)= 盲区相关 —— 补派错开模型盲审**当场查出 2 条 BLOCKER**(无重新部署入口 / 拉取凭据链整条缺失,两条前两路都在核「按 TECH 实现没有」故均错过)。SKILL「评审模型必错开」是纯规则:外审 `review_model` 只申报不比对,主审路根本不申报 —— 规则存在 ≠ 规则执行(又一格)。
+
+### 变更
+- **主审产物申报**:PRD-REVIEW / TECH-REVIEW / REVIEW frontmatter 新增 `review_models`(列表形态 `- <role>: <实际模型>` —— 适配行式解析 · v8.324 缩进放宽后申报不构成新格式税)。
+- **`review_models_staggered` evidence check**(goal / blueprint / review 三处注册):主审 `review_models` × 外审 `review_model` 合并比对(ultra-ingest 不参与 —— 模型不由框架派发)—— **≥2 路申报且全同 → complete 拒**(hint 给处置:任选一路换模型重跑;确属例外走既有 bypass 协议留痕,不发明新旗);<2 可比对(存量未申报 / 单路)→ skip,hint 教新产物申报格式。大小写不敏感比对。
+- start 预告零成本:v8.324 契约块从 spec 同源渲染,本门自动出现在三个 stage 的 start brief。
+
+### 测试
+`test_review_model_stagger_v8326.py` 11 条:同模型拒(原案复刻)/ 错开过 / 大小写 / 存量 skip+教学 hint / 单路 skip / ultra-ingest 除外 / 双外审同模型拒 / 单空格申报可解析 / 三处注册 / start 预告自动带 / 三 stage 文档契约。全库全绿。
+
+## v8.325 · merged worktree 巡检 + 构建世界纪律(P1-4)
+
+> aon-core `.worktree/` 23G:14 个注册 worktree 里 13 个分支已 merge(18G 纯垃圾 · 最老 31 天)+ 1 孤儿目录;supersdk 5 个僵尸壳被 `ws-progress` 递归扫成双份(9→18)。
+> 根因与 141GB scratch 同款:回收挂在 ship2,session 常死在 ship1 push 后 → ship2 永不跑;且 `worktree_cleanup` 配置键**没有任何代码消费者**(安慰剂配置 —— 「ask」从没人被问过)。
+
+### 变更
+- **`bootstrap.prune_merged_worktrees`**(挂 session bootstrap · 每 session 会跑到的地方):worktree 根下逐目录巡检 —— 僵尸壳(不在 `git worktree list` · 树里只有 .DS_Store)任何模式都删;注册 worktree 已 merge 进 merge_target 且干净(untracked 仅接力卡 `docs/features/**` · `-uall` 逐文件豁免)→ 按 `worktree_cleanup` 处置;未 merge / 有真实未提交内容**永不动**(报告);孤儿有内容只报告;收尾 `git worktree prune`。体量 `du -sk` 限时 3s(同 scratch 的耗时纪律)。
+- **`worktree_cleanup` 转正为真开关**:`auto`(**新默认** · merged+干净即删 + branch -d)/ `ask`(不删 · 每 session bootstrap 逐个报告 —— ask 终于真的在问)/ `keep`(只计数)。存量项目显式写的 `ask` 不被覆盖(backfill 只补缺失键 · 用户主权)。
+- **构建世界纪律收编**(conventions §12.45):worktree 只隔离 git 树不隔离构建世界 —— 依赖目录 / `.pth` editable / 构建缓存与 TMPDIR / 测试数据库 / dev server 端口五面纪律表(消费项目六条独立 KNOWLEDGE 同根教训收编为框架职责)。
+
+### 测试
+`test_worktree_prune_v8325.py` 13 条:auto 删+删分支 / 接力卡 untracked 不挡(-uall 修折叠)/ 真残留只报 / 未 merge 不动 / ask·keep 语义 / 僵尸壳任何模式清 / 孤儿只报 / 默认翻转+模板同步 / 非法值回退 ask / wiring / 构建世界表。全库全绿。
+
 ## v8.324 · 格式门禁前置化:complete 契约 spec 同源预告 + 解析器放宽一档(P0-3)
 
 > 两项目耗时归因 26-28% 轮次 = 纯协调开销,归因高度同质:「格式门禁重试 · spec 字段名未预读」「dev-complete 的 test-runner 门在 dev-start 没预告 · complete 时才拒」;aon-core 复盘:外审产物 YAML **单空格缩进**列表被解析为空 `files_read` → CAPABILITY_BLOCKED 误报 —— 一个缩进空格换一轮返工。

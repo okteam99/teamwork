@@ -79,7 +79,7 @@
 
 > 至少想过这几类:上游失败(超时/5xx)· 输入非法 · 并发冲突 · 部分失败(多步中途挂)。
 
-> 🔴 **不静默吞异常 / 降级必打 WARN / 三方异常必打 ERROR** —— 规则单源 [standards/HARD-RULES.md §一](../standards/HARD-RULES.md)(本处副本已删 —— 同一规则原散在 standards + 本模板两处)。
+> 🔴 **不静默吞异常 / 降级必打 WARN / 三方异常必打 ERROR** —— 规则单源 [standards/tech-rules.md §一](../standards/tech-rules.md)(本处副本已删 —— 同一规则原散在 standards + 本模板两处)。
 
 ### 依赖与影响面（🔴 规范必填 · 改契约必列消费方）
 
@@ -131,13 +131,13 @@
 
 #### FK 决策（🔴 涉及 FOREIGN KEY / CASCADE 时必填）
 
-> 📎 策略权威源：[standards/backend.md § FK 策略](../standards/backend.md)。默认避免 · 引入须给项目语境理由。
+> 📎 策略权威源：[standards/tech-rules.md §三 FK 决策门](../standards/tech-rules.md)。默认避免 · 引入须给项目语境理由。
 
-| 表 / 关系 | 决策 | 理由（满足 backend.md § FK 策略 ✅ 任一条件 · 否则 BLOCKER） | CASCADE 行为 |
+| 表 / 关系 | 决策 | 理由（满足 tech-rules §三 FK 决策门 ✅ 任一条件 · 否则 BLOCKER） | CASCADE 行为 |
 |----------|------|---------------------------------------------------------|-------------|
 | | 不引入 / 引入 FK / 引入 FK+CASCADE | （强一致小规模 OLTP / 法务合规 / 内部管理后台 / DEV-RULES.md L{行号} 已覆盖默认） | 无 / ON DELETE {RESTRICT\|CASCADE\|SET NULL} · 列出连带删除清单 |
 
-> ❌ **反模式**（命中即 Tech Review BLOCKER）：理由写"通用最佳实践 / ORM 自动生成 / 防止脏数据 / 开发期方便" · 详见 [backend.md § FK 策略 反模式黑名单](../standards/backend.md)。
+> ❌ **反模式**（命中即 Tech Review BLOCKER）：理由写"通用最佳实践 / ORM 自动生成 / 防止脏数据 / 开发期方便" · 详见 [tech-rules.md §三 FK 反模式黑名单](../standards/tech-rules.md)。
 
 #### 迁移策略
 
@@ -217,7 +217,7 @@
 ### 实现步骤
 
 > 粒度:**每步单一动作、可独立验证**(而非「实现 XXX 模块」这种无法验证中间态的大块)—— 进度可衡量 · subagent 不迷失 · commit 更原子。
-> 节奏 **AI 自定**(框架不规定 TDD/test-after · 结果规则见 [standards/HARD-RULES.md](../standards/HARD-RULES.md));🔴 结果不变:每个 TC 有对应实现 · 测试真断言 · 证据硬门照跑。
+> 节奏 **AI 自定**(框架不规定 TDD/test-after · 结果规则见 [standards/tech-rules.md](../standards/tech-rules.md));🔴 结果不变:每个 TC 有对应实现 · 测试真断言 · 证据硬门照跑。
 >
 > 🔴 **机械收敛与语义变更必须拆成两步**(存量调用点多时尤其):
 > **步骤 0 = helper 单点化**(把散落调用点收敛到 1~N 个共享 helper · **纯机械 · 语义零变更** · 收敛后全绿再动语义)。

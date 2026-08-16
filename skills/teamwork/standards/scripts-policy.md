@@ -177,23 +177,6 @@ hooks 已全退役 · `hooks/` 目录已删 · bootstrap 只做存量项目的�
 
 ---
 
-## 3. 已存在的 python 工具（参考样板）
-
-| 工具 | 职责 | 模式 |
-|---|---|---|
-| `tools/state.py` | state.json schema/状态机/evidence-binding 单源 | 子命令 + JSON 输出 |
-| `tools/bootstrap.py` | session bootstrap · 骨架维护 + 历史 hooks/注入段清理 | 一次性 boot · JSON 输出 |
-| `tools/verify-panorama.py` | 全景设计物化校验 | 校验 + JSON 输出 |
-| `tools/run_tests.py` | 框架自身测试套件分片并行 runner | 自学装箱 · 耗时写回 |
-
----
-
-## 4. 迁移路径（已完结）
-
-bash → python 迁移已完结:`hooks/` 目录整体退役删除(职责由 state.py 各命令 emit + bootstrap 历史清理取代)· 无遗留存量。
-
----
-
 ## 5. 反模式黑名单
 
 ❌ 新增 `hooks/post-X.sh` 写业务（绕过本 policy 的隐蔽路径）
@@ -210,3 +193,28 @@ bash → python 迁移已完结:`hooks/` 目录整体退役删除(职责由 stat
 - L1 红线不新增条目（路径 B · 不走路径 C）
 - L3 物化层 = `tools/*.py` + `tools/tests/test_*.py`
 - 触发：新增脚本时必读 · PMO 起 P0 patch 涉及 hooks/ 或 tools/ 时必读
+
+
+## 7. 测试脚本两层契约(迁自 standards · tech-rules 规则 12 指此)
+
+> RD 在开发阶段负责创建/维护测试脚本。规范只约定脚本接口（名称 + 行为），不约定实现细节（Docker/K8s/本地均可）。
+> PMO 和 Test Stage 通过脚本与测试环境交互，不直接执行 docker-compose 等底层命令。
+
+### 两层脚本结构(Monorepo · 名称 + 职责即契约 · 逐脚本的实现叙述不复述)
+
+- **根级 `scripts/`(全局环境 · 跨子项目共享 · 首次有集成测试需求时创建 · 新增子项目依赖时更新)**:
+  - `test-env-setup.sh` —— 启动全部依赖服务 + 各子项目服务(按依赖顺序)+ 加载全局前置数据 + 等健康检查;🔴 成功时 stdout **最后一行输出环境信息 JSON**(如 `{"db_url": "...", "services": {"api": "http://localhost:8080"}}`)· 可选 `--skip-if-running`(已在运行则跳过)· 实现自由(Docker / 本地进程 / 远程均可);
+  - `test-env-check.sh` —— 轻量连通性检查(只 ping 不启动 · Test Stage 内部复核用 · 与 setup 同步创建);
+  - `test-env-teardown.sh` —— 可选 · 默认保留环境供复用。
+- **子项目级 `{subproject}/scripts/`(测试执行 · 只管自己 · 🔴 假定全局环境已就绪 · 不负责启动)**:`test-unit.sh`(🔴 不依赖全局环境 · 纯代码级)· `test-integration.sh` · `test-api-e2e.sh`(可选传 TC.md 路径 · 输出完整 request/response)· `test-browser-e2e.sh`(可选)—— 底层命令由项目定(cargo / npm / pytest)· 编写对应测试时同步创建。
+- **PMO 调用顺序**:根级 setup → 子项目 test-*。
+
+### 脚本接口规范(🔴 所有脚本必须满足)
+
+**退出码 0=成功 / 非0=失败 · 幂等(重复执行不出错)· 无交互(不 read stdin / 不弹确认 —— 自动化场景无 TTY)· 失败时 stdout/stderr 给足诊断信息。**
+
+🔴 Dev Stage 自查:根级 + 子项目脚本存在且至少本地跑通一次;架构师 CR 确认接口符合约定(退出码/幂等/无交互)。
+
+### PMO 预检(v8 物化路径)
+
+v7 三级 dispatch 预检已废 · 由物化路径替代,不依赖记忆顺序:**Feature ID 冲突** → `state.py prepare-check`(返回 next_available_id)· **测试环境检查** → 本节脚本(PMO/RD 按 stage brief 触发)· **stage 入口校验** → `state.py xxx-start` 物化拦截 · **保护标记/仓库约束** → 项目根 CLAUDE.md/AGENTS.md。

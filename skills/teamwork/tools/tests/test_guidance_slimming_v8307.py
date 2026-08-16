@@ -30,7 +30,10 @@ class TestFrontendTeachingGone(unittest.TestCase):
     """前端规范:教程走 · 阈值与禁令留(v8.310 起并入 common.md §七 · 文件退役)。"""
 
     def setUp(self):
-        self.t = _read(STD / "common.md")
+        self.full = _read(STD / "tech-rules.md")
+        # v8.331:前端专项迁 tech-rules §四 —— 教程回潮检测限定在该节
+        # (文件头「收录判据」合法引用 WCAG 作反例 · 不算回潮)
+        self.t = self.full.split("## 四、前端专项", 1)[1]
 
     def test_tutorials_removed(self):
         """选型/手法教学 = 模型自带知识 · 命中任何一个都说明教程回潮。"""
@@ -47,14 +50,15 @@ class TestFrontendTeachingGone(unittest.TestCase):
         self.assertIn("browser_e2e stage", self.t, "测试分层归属(框架约定)丢失")
 
     def test_lives_in_common_section_seven(self):
-        self.assertIn("## 七、前端专项", self.t, "前端专项段丢失(v8.310 并入 common)")
+        # v8.331:common 退役 · 前端专项迁 tech-rules §四(测试名保留作迁移史)
+        self.assertIn("## 四、前端专项", self.full, "前端专项段丢失")
 
 
 class TestBackendExamplesGone(unittest.TestCase):
     """backend.md §四:砍示例**必须**留规则 —— 规则是逆默认最高价值格,示例只是它的实例化。"""
 
     def setUp(self):
-        self.t = _read(STD / "backend.md")
+        self.t = _read(STD / "tech-rules.md")
 
     def test_js_examples_removed(self):
         for marker in ("paymentClient", "primaryService", "BusinessError", "```javascript"):
@@ -73,7 +77,7 @@ class TestBackendExamplesGone(unittest.TestCase):
         self.assertNotIn("docker-compose.test.yml", self.t, "实现指南树应已删")
         self.assertIn("TEST-DATA.md", self.t, "测试数据载体约定丢失")
         self.assertIn("test-env-setup.sh", self.t, "脚本名约定丢失")
-        self.assertIn("common.md §三", self.t, "接口契约单源指针丢失")
+        self.assertIn("scripts-policy.md §7", self.t, "接口契约单源指针丢失(v8.331 迁 scripts-policy)")
 
     def test_api_versioning_compressed_registry_kept(self):
         """§六:breaking 枚举/deprecation 三步 = 教科书 · 走;api-design.md 登记义务留。"""
@@ -95,7 +99,7 @@ class TestModuleDesignSectionRetired(unittest.TestCase):
     """「模块设计判定」退役:单源死了 ~200 版无人发现 = 零消费者;活规则在 HARD-RULES。"""
 
     def test_dead_sections_gone_from_standards(self):
-        for f in ("backend.md", "common.md"):
+        for f in ("tech-rules.md",):  # v8.331 载体合并
             t = _read(STD / f)
             self.assertNotIn("模块设计判定", t, f"{f} 仍留退役节")
             self.assertNotIn("通用架构词汇", t, f"{f} 仍引用 v8.96 已删的 knowledge.md 节")
@@ -103,7 +107,7 @@ class TestModuleDesignSectionRetired(unittest.TestCase):
 
     def test_surviving_rule_still_in_hard_rules(self):
         """🔴 退役副本的前提是活规则还在必读白名单 —— 这条断了退役就成了误删。"""
-        t = _read(STD / "HARD-RULES.md")
+        t = _read(STD / "tech-rules.md")
         self.assertIn("两个 adapter 才抽象", t)
 
     def test_knowledge_md_really_lacks_the_cited_sections(self):

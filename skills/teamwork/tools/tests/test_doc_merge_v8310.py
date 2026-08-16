@@ -57,7 +57,7 @@ class TestUniqueContentSurvived(unittest.TestCase):
 
     def test_standards_unique_sentence_moved_to_hard_rules(self):
         """STANDARDS 唯一独有句:覆盖注册处 = DEV-RULES · KNOWLEDGE 不作注册处。"""
-        t = _read("standards/HARD-RULES.md")
+        t = _read("standards/tech-rules.md")
         self.assertIn("覆盖声明唯一注册处 = DEV-RULES.md", t)
         self.assertIn("不作规范覆盖注册处", t)
         self.assertIn("对外契约", t, "存量契约沿用规则丢失")
@@ -67,19 +67,21 @@ class TestUniqueContentSurvived(unittest.TestCase):
         t = _read("templates/README.md")
         self.assertIn("格式唯一真相源", t)
         self.assertIn("禁止以 peer Feature 产物为格式基准", t)
-        self.assertIn("四C", t, "未 cite meta 规则单源 → 红线成孤立复述")
+        self.assertIn("权威源单源", t, "未 cite meta 规则单源 → 红线成孤立复述")
+        self.assertIn("tech-rules", t)  # v8.331:四C 压缩为 tech-rules 规则 18
 
     def test_frontend_body_lives_in_common_section_seven(self):
-        t = _read("standards/common.md")
-        self.assertIn("## 七、前端专项", t)
+        t = _read("standards/tech-rules.md")   # v8.331:common 退役 · 迁 §四
+        self.assertIn("## 四、前端专项", t)
         self.assertIn("覆盖率 > 70%", t)
         self.assertIn("禁混用", t)
         self.assertIn("仅前端子项目适用", t, "适用范围声明丢失(后端会误读)")
 
     def test_loading_hints_updated(self):
-        self.assertIn("§七前端专项", _read("standards/backend.md"))
-        hr = _read("standards/HARD-RULES.md")
-        self.assertIn("§七前端专项", hr)
+        # v8.331:分册加载指引退役(三时点唯一必读)· 适用范围声明随节迁移
+        t = _read("standards/tech-rules.md")
+        self.assertIn("仅前端子项目适用", t)
+        self.assertIn("三时点唯一必读", t)
 
 
 class TestSkillNavCurrent(unittest.TestCase):

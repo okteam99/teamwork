@@ -12,14 +12,15 @@
 
 ## ② 硬规则(白名单 · 每条一行 why)
 
-1. **工程规范 = `standards/HARD-RULES.md`(必读白名单)+ 项目 `project-specs/DEV-RULES.md` 的并集 · 🔴 冲突以项目为准**(why:项目主权高于框架缺省 · 冲突要么改实现要么 TECH 记原因;白名单只收「逆模型默认 / 模型不可知」两类,分册按需查)。
+1. **读取契约 = 项目自己的规范 + teamwork 兜底的并集 · 🔴 冲突以项目为准**:项目侧必读 `project-specs/DEV-RULES.md`(开发规范)+ `project-specs/ARCHITECTURE.md`(架构规范 · 用户拍板升必读)+ `KNOWLEDGE.md § 复发防御清单`(涉 UI 加 `UI-RULES.md`);teamwork 兜底 = `standards/tech-rules.md`(三时点唯一必读 · 只收「逆模型默认 / 模型不可知」两类 · 分册按需查)(why:项目主权高于框架缺省 · 冲突要么改实现要么 TECH 记原因)。
+1.5 🟢 **方法论不设限(总纲)**:怎么开发 —— TDD 或 test-after、骨架先行或逐层实现、重构节奏、拆不拆 subagent —— **全由 AI 自定,框架不规定手段**;框架只收三样:读取契约(规则 1)+ 兜底白名单与收口自查表(tech-rules)+ 结果证据门(规则 3)(why:手段规定是对强模型的注意力税 · 结果与兜底才是不可让渡的)。
 2. **worktree 内路径写文件**(推荐绝对路径 · 含派出的 subagent)(why:相对路径落主工作区 = 污染其他并行 Feature 的 baseline · 状态漂移)。
 3. **测试证据硬门**(dev-complete 物化):`--test-exit-code 0`(红 base 走 `test-baseline` 差分「0 新增」)+ `--test-stdout` 非空 + `--auto-commit` 在 git history + artifacts 在 changeset(why:R7 证据闭环 —— 宣称完成必须机器可验)。测试与实现**一并交付**,不许「先实现后补测试债」。
 4. **设计↔实际一致性核对**(UI feature · ui_design 完成时必做):起全景 dev server + 跑真实 app 目标路由 · **两边同开 browse 截图并排核对意图四要素**(布局结构/交互流/状态/字段映射)· 逐要素给「一致/背离」结论 · 背离不许静默放过(修掉 or 留 concerns);认为设计该改 → 回 ui_design / `--panorama-changed`,不在 dev 顺手改(why:治「设计稿≠实际效果」· 用户拍板的闸)。
 5. **共享基建变更 → 全景编译契约**(diff 触及 preview-project 依赖的共享包时):dev 结束前 `preview-project` build/typecheck 须过;机械适配顺手修 · 视觉/交互变化走 panorama_sync · 不想适配就收回破坏性改动(why:改 API 者负责迁移所有消费者 · 全景是消费者之一)。
 6. **flow_type=Bug:不重写 §根因/§修复方案**(那是 diagnose 经用户确认的产物 · 按方案写 fix + 追加 §回归测试/§修复记录;真发现根因判错 → `jump-to-stage --to diagnose` 复议)(why:用户拍过板的诊断不可被实现悄悄推翻)。
-7. **完工自查在 TECH.md §完工自查 文档内逐项打 ✅**(每项指向证据 · 不适用写 N-A+原因)(why:产物契约 · review 据此核 · 防「设计了没实现」)。
-8. **写测试时就定生命周期层**(单源 [HARD-RULES 规则 17](../standards/HARD-RULES.md) + [tc.md § 生命周期](../templates/tc.md)):一次性验证 / TDD 中间步 → **scratch `.teamwork-scratch/scaffold-tests/`(ignored)不入仓库内容**;入库必绑 AC 或 bug 回归;**CI 层默认不进 · 进必带 `ci_reason`**(why:临时 case 入库 = CI 与 AI 维护语料的永久税 —— 写时定层零成本 · 事后清退每次都要人裁决)。
+7. **完工自查双源逐项打 ✅**:TECH.md §完工自查(**设计对照** · 每项指向证据)+ [tech-rules § 收口自查表](../standards/tech-rules.md)(**兜底自查** · 异常日志 / DB 论证 / 测试真实性 / scratch / build / 契约消费方)· 不适用写 N-A+原因(why:产物契约 · review 据此核 · 防「设计了没实现」与「实现了但兜底裸奔」)。
+8. **写测试时就定生命周期层**(单源 [tech-rules 规则 17](../standards/tech-rules.md) + [tc.md § 生命周期](../templates/tc.md)):一次性验证 / TDD 中间步 → **scratch `.teamwork-scratch/scaffold-tests/`(ignored)不入仓库内容**;入库必绑 AC 或 bug 回归;**CI 层默认不进 · 进必带 `ci_reason`**(why:临时 case 入库 = CI 与 AI 维护语料的永久税 —— 写时定层零成本 · 事后清退每次都要人裁决)。
 
 ---
 
@@ -30,7 +31,7 @@
 | **测试节奏**(TDD 红绿 / 先骨架后补边界 / test-after)| **AI 自定**(框架不再规定)—— TC 已备 + 逻辑类改动时 TDD 通常最顺;绿点级 commit 便于 bisect 与 review 读节奏。🔴 结果不变:每个 TC 有对应实现 · 测试真断言 · 证据硬门照跑 |
 | **先集成骨架后单测填充** | 跨层契约风险大于单元逻辑时(先打通端到端再补边界) |
 | **subagent 并行拆分**(各写各的 · worktree 内路径)| 多端/多模块/相互独立且够大的子任务;小/耦合/强串行 → 自己串行做(协调开销反拖慢)。契约层/集成点留主对话 |
-| **TECH 模糊处 fallback 决策树** | 实现遇设计未覆盖:KNOWLEDGE → ARCHITECTURE → standards/common → 全无 → concerns + 找架构师;不自行拍板 |
+| **TECH 模糊处 fallback 决策树** | 实现遇设计未覆盖:KNOWLEDGE → ARCHITECTURE → standards/tech-rules → 全无 → concerns + 找架构师;不自行拍板 |
 | **verify-panorama.py / 视觉回归工具** | UI feature 的机器辅助(结构核对必做是硬规则 4 · 工具是加速项) |
 | **中途自查 TECH §依赖与影响** | 改契约类:每改一个 provider 顺手 grep 消费方 · 别攒到最后 |
 
@@ -59,12 +60,12 @@ state.py dev-complete --feature <path> \
 - `bugfix/BUG-*.md`(diagnose 已建)**追加** §回归测试 + §修复记录 · 模板 [templates/bug-report.md](../templates/bug-report.md)。
 
 ### 上下文入口(读什么)
-PRD(AC)· TECH(方案+完工自查槽)· TC(测试用例)· UI.md+全景(若 ui_design 完成)· DEV-RULES(硬规则 1)· 🛡️ **KNOWLEDGE § 复发防御清单必读**(写时防)· KNOWLEDGE 其余/ARCHITECTURE 按需。Bug 流:`bugfix/BUG-*.md` 为权威输入。
+PRD(AC)· TECH(方案+完工自查槽)· TC(测试用例)· UI.md+全景(若 ui_design 完成)· **DEV-RULES + ARCHITECTURE 必读**(规则 1 读取契约 · 冲突以项目为准)· 🛡️ **KNOWLEDGE § 复发防御清单必读**(写时防)· KNOWLEDGE 其余按需。Bug 流:`bugfix/BUG-*.md` 为权威输入。
 
 ---
 
 ## 相关
 
 - 引擎:[../tools/_v8_engine.py](../tools/_v8_engine.py) · spec:[../tools/_v8_stage_specs.py](../tools/_v8_stage_specs.py) `DEV_SPEC`
-- 测试结果规则:[../standards/HARD-RULES.md](../standards/HARD-RULES.md)(手段自定 · 只管结果)· UI 还原:[./ui-design-stage.md](./ui-design-stage.md) § 分层同构律
+- 测试结果规则:[../standards/tech-rules.md](../standards/tech-rules.md)(手段自定 · 只管结果)· UI 还原:[./ui-design-stage.md](./ui-design-stage.md) § 分层同构律
 - 工具:[../tools/verify-panorama.py](../tools/verify-panorama.py)

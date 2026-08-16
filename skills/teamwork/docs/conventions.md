@@ -212,11 +212,66 @@ git branch -d <branch>
 
 | 面 | 症状 | 纪律 |
 |---|---|---|
-| 依赖目录(node_modules / venv) | worktree 内无依赖 · 首次必装 | 装进 worktree 内;或软链主树**只读用 · 用完即删** —— 别指望自动共享 |
+| 依赖目录(node_modules / venv) | worktree 内无依赖 · 首次必装 | 装进 worktree 内;或软链主树**只读用 · 用完即删** —— 别指望自动共享;worktree lazy-install 踩坑:单测能跑但 build 找不到工具链 = 只装了部分 deps → `npm install --include=dev` 补装 |
 | Python editable install(`.pth`) | import 解析回**主树** · 跑的是旧代码 | worktree 内重新 `pip install -e`;或 `PYTHONPATH=<worktree>/src` 显式前置 |
 | 构建缓存(cargo target / .next) | 首建全量慢;共享则脏缓存 | 缓存留 worktree 内(隔离正确性 > 首建速度);🔴 **TMPDIR 绝不指 worktree 内**(实证:589 个编译缓存文件被带进 commit) |
 | 测试数据库 | 并发分支迁移漂移 · setup 即 panic 全挂(与被测代码无关) | 每 worktree 独立库名(如 `TEST_PG_DB_NAME` 带分支名)· **共享测试库 = 并发毒** |
 | dev server 端口 | 多 worktree 撞端口 · 探测被环境变量污染 | 显式传 `PORT` · 动态端口优先 |
+
+## 12.48 临时产物目录(scratch)(单源 · 迁自 standards)
+
+Stage 执行期间的一切临时产物 —— 测试日志、构建输出(cargo target / 前端构建缓存等)—— **必须**落在统一 scratch 根下(用户拍板迁入 worktree · 随 worktree 生命周期消亡):
+
+    worktree 模式(缺省): <worktree>/.teamwork-scratch/<用途>
+    worktree=off / legacy: ${TMPDIR:-/tmp}/teamwork/<feature_id>/<用途>
+
+- **worktree 根天然 per-feature**(worktree 即 feature 级)· bootstrap 自动给项目 `.gitignore` 加 `.teamwork-scratch*`(ignored · 不进 commit 不进 diff —— 测试证据的 tree-hash 指纹用 `git diff HEAD`,同样不受影响);**在容器/worknode 上落绑定卷而非可写层**(实证:旧根在容器可写层堆 141GB)。
+- legacy 根的 `<feature_id>` 必须是 state.json 中的**完整 feature_id** · 🔴 **禁止**简称/别名/分支缩写(实证:即兴命名使按 feature_id 回收全部落空 · 42GB 孤儿)。
+- `<用途>` 自由命名(如 `review-r2-test.log` / `screenshots/` / `scaffold-tests/`〔脚手架测试 · 交付即弃 —— 详 [HARD-RULES 规则 17](./HARD-RULES.md)〕)。⚠️ **构建产物 target 是特例**:见下方「构建 target 按 feature 共享」。
+- 🔴 **禁止**在两根之外创建 teamwork 相关临时目录(如 `/tmp/<项目名>-*` / worktree 里散落别处)—— 根之外不在回收范围 · 会永久泄漏(实证 6GB)。
+- 与 [conventions.md §12.5](../docs/conventions.md) 浏览器截图约定**同根**(`screenshots/` 是本约定的一个 `<用途>` 实例)。
+
+🔴 **构建 target 按 feature 共享 · 不按 stage 切**(纠早期误判):**一个 feature 一个 target 目录**(`<feature_id>/target`)· 该 feature 的**串行** stage(goal→…→dev→review→test→ship 一次一个)全部复用同一份 —— dev 编好 test 直接热增量,不重编依赖树(实证:按 stage 切 = 每 stage 冷编整棵 deps · Rust 冷编 5-20min vs 热增量 <1min · 是 test 阶段耗时的主浪费)。
+
+> ⚠️ 曾写「按 stage 隔离 target 是正确设计 · 防多 worktree 并行争抢文件锁」—— **推理错**:并行争抢发生在**不同 feature 的不同 worktree** 之间,而路径里的 `<feature_id>` 已隔开;同一 feature 内 stage 严格串行、从不并发构建,再按 stage 切只会打掉增量缓存。锁隔离只需到 `<feature_id>` 粒度。(极少数「单 stage 内派多个并行 cargo 构建」才需在该 stage 内临时 sub-split · 属例外不是默认。)
+
+Rust 项目示例(target 按 feature 共享):
+
+    CARGO_TARGET_DIR=<worktree>/.teamwork-scratch/target cargo test --test '*'   # off 模式:${TMPDIR:-/tmp}/teamwork/<feature_id>/target
+    # 同 feature 的 dev / review / test 全用这一份 target · 增量复用
+
+**回收三通道**(用户拍板:磁盘占用 > MR 窗口期增量缓存):① **ship1 push 成功即清**(主时点 · 双根都清 · emit `scratch_cleanup` —— 🔴 耗时设计:同盘 rename〔O(1) · 原路径立即消失〕→ 后台 detached `rm -rf`,push 命令毫秒级返回 · 体量 `du` 限时统计大树跳过)② **worktree 生命周期主兜底**:finalize / close 删 worktree = scratch 必然随之消亡(不存在「清了 worktree 忘了 scratch」的错位);`close-unmerged --abandon` 放弃即清 · 暂时关闭(可重开)保留缓存;ship2 `tmp-cleanup` 转**存量旧根幂等兜底** ③ bootstrap TTL 兜底(默认 7 天 · 旧根按目录整删 + 各 worktree 的 `.teamwork-scratch*` 子目录 —— 🔴 只删 scratch 子目录**绝不动 worktree 本体**〔可能藏未提交工作〕· 子目录永远可安全删 · 也捞后台删夭折的 `*-trash-*` 残骸)。why(实证):清理原只挂 ship2 —— worknode 上 session 常在 ship1 后结束/换机,ship2 不在本机跑,TTL 窗内 `/tmp/teamwork` 打到 141GB(单 feature 78GB · 且堆在容器可写层)。
+
+> 背景:CI 机磁盘 100% 打满实证 —— `/tmp/teamwork` 48GB 全是可无损重建的 cargo target(单 feature 26GB · 躺了数月)· 「有人写没人收」的无主命名空间。同类先例 = external-review-logs 无保留策略膨胀 300MB(v8.x 已治)· 本节是同一模式在 160 倍量级上的复用。
+
+---
+
+## 12.49 迁移文件命名与起号纪律(多 worktree 并行形态约定 · 单源)
+
+> Schema 变更的**方案门**(影响分析 / FK 决策)在 [standards/tech-rules.md §三](../standards/tech-rules.md);本节只管**写迁移文件那一刻**的命名与起号。
+
+```
+📁 迁移文件位置：
+└── {项目路径}/migrations/ （或项目约定的迁移目录）
+
+📄 命名规范（🔴 优先级链）：
+└── {时间戳}_{操作描述}.{扩展名} · 例 20260312143022_add_user_email_index.sql
+ ├── ① 优先按 DEV-RULES.md（项目/子项目级）的 migration 命名 / 守卫约定 —— 有则严格照办
+ ├── ② DEV-RULES 未规定 → 默认 YYYYMMDDHHmmss **秒级真实时间戳**（🔴 不用 000000 填充 · 防同日撞号 + 乱序）
+ └── 🔴 **不靠读邻居 migration 推断**格式（邻居可能不一致 / 有坏样板）· 要么 DEV-RULES 要么秒级默认
+```
+
+### 起号纪律(🔴 多 Feature 并行撞号 · 本节为权威单源)
+
+teamwork 常态是**多 Feature 并行、各自 worktree 起 migration** —— 撞 timestamp 是反复出现的高频问题,
+而模型默认只会「照当前时间起个号」,不会想到去看别人已经合进去的号。故这条是**信息不是教程**:
+
+- 起号前先 `git fetch` merge_target,**取 merge_target tip 上的最大 timestamp**,新号必须**大于**它
+  (只看本地 = 落后就撞已合并的号)。
+- 用**真实当前时间精确到秒**;同秒手工 +1。🔴 **不要批量生成**(一次循环产多个 migration 同 timestamp = 自撞)。
+- **撞号后用 `git mv` 改名 + amend**(同步改文件内 `schema_migrations` version 引用),
+  🔴 **不要 revert + 新加** —— 会留两次 schema 变更历史、污染审计。
+- 物化校验(取前 14 位 `sort | uniq -d` 非空即撞号)由**项目自行实施** —— 各 ORM / migration 路径差异大,框架不强制。
 
 ## 12.5 浏览器验证截图(transient)
 
@@ -224,7 +279,7 @@ git branch -d <branch>
 
 各 stage 常需 browse 预览/页面**截图自检渲染**(ui_design 预览验证 · dev/review/pm 顺手核对 UI)。这类截图是**一次性验证产物**(AI 自己看 · 非交付 · 不 commit)· **只写 scratch 目录** · 否则会散落污染工作区。
 
-- **统一位置**:worktree 模式(缺省)= `<worktree>/.teamwork-scratch/screenshots/`(ignored · 不进 commit/diff · 随 worktree 消亡);off 模式 = `${TMPDIR:-/tmp}/teamwork/<feature_id>/screenshots/` —— scratch 根通则与回收三通道详 [standards/common.md §六](../standards/common.md)。
+- **统一位置**:worktree 模式(缺省)= `<worktree>/.teamwork-scratch/screenshots/`(ignored · 不进 commit/diff · 随 worktree 消亡);off 模式 = `${TMPDIR:-/tmp}/teamwork/<feature_id>/screenshots/` —— scratch 根通则与回收三通道详 [§12.48](#1248-临时产物目录scratch单源--迁自-standards)。
   ```bash
   SHOT_DIR="<worktree>/.teamwork-scratch/screenshots"; mkdir -p "$SHOT_DIR"
   # 浏览器截图存 "$SHOT_DIR/<name>.png" · 再按绝对路径 Read 查看(off 模式换旧根)

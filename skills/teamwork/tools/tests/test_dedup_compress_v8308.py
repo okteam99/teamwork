@@ -22,7 +22,7 @@ class TestBackendLogRulesMerged(unittest.TestCase):
     """WARN 规则原本写两遍(非预期分支树里一遍 + 独立硬规则块一遍)—— 合一后实质零丢失。"""
 
     def setUp(self):
-        self.t = _read("standards/backend.md")
+        self.t = _read("standards/tech-rules.md")
 
     def test_duplicate_block_gone(self):
         self.assertNotIn("降级兜底逻辑 WARN 日志规则", self.t, "旧独立块标题仍在 = 没合并")
@@ -49,7 +49,8 @@ class TestBackendLogRulesMerged(unittest.TestCase):
     def test_flow_chart_gone_terminology_table_kept(self):
         """衔接流程图 = 状态机 stage 链复述 · 走;术语对照表(唯一映射信息)· 留。"""
         self.assertNotIn("PMO 完成报告 → 确认 database-schema.md", self.t)
-        self.assertIn("Schema 变更链条术语对照", self.t)
+        self.assertIn("验证链", self.t)  # v8.331:表压缩为验证链 prose · 阶段×基准映射保留
+        self.assertIn("校验基准统一为 TECH「Schema 影响分析」表", self.t)
 
     def test_json_naming_one_liner(self):
         self.assertNotIn("userId（驼峰）", self.t)
@@ -60,30 +61,32 @@ class TestDesignerSelfCheckSingleSourced(unittest.TestCase):
     """自查报告模板此前两份且已漂移(common.md 5 维 · ui.md 6 维)—— 双副本必漂的现行实证。"""
 
     def test_report_template_only_in_ui_md(self):
-        common = _read("standards/common.md")
+        common = _read("stages/ui-design-stage.md")  # v8.331:§四B 迁 ui-design-stage 附录
         ui = _read("templates/ui.md")
-        self.assertNotIn("检查结果汇总", common, "common.md 仍存报告模板副本")
+        self.assertNotIn("检查结果汇总", common, "自查规范载体仍存报告模板副本(单源在 templates/ui.md)")
         self.assertIn("检查结果汇总", ui)
         self.assertIn("框架基线唯一性", ui, "ui.md 6 维表是幸存单源 · 第 6 维必须在")
 
     def test_dimension_count_synced_to_six(self):
-        common = _read("standards/common.md")
+        common = _read("stages/ui-design-stage.md")  # v8.331:§四B 迁 ui-design-stage 附录
         self.assertIn("6 维度", common)
         self.assertNotIn("5 维度", common, "维度数仍是漂移前的 5")
         self.assertIn("框架基线唯一性", common, "第 6 维缺清单定义(此前只在 ui.md 表里有一行)")
 
     def test_dead_anchors_in_4c_fixed(self):
         """四C 表指过 designer.md § 6 维自查 / ui-design-stage § 框架基线唯一性 —— 两个锚点都不存在。"""
-        common = _read("standards/common.md")
+        common = _read("stages/ui-design-stage.md")  # v8.331:§四B 迁 ui-design-stage 附录
         self.assertNotIn("6 维自查", common)
-        self.assertNotIn("格式权威守门", common, "pmo.md 无此节 · 死锚点应已改为裸文件链接")
+        self.assertNotIn("格式权威守门", common)
+        tech = _read("standards/tech-rules.md")
+        self.assertIn("权威源单源", tech)  # v8.331:四C 压缩为 tech-rules 规则 18
 
     def test_verify_panorama_anchor_still_alive(self):
         """verify-panorama.py 的 hint 指向 common.md §四B —— 压缩不许弄断工具的指路牌。"""
-        common = _read("standards/common.md")
-        self.assertIn("四B、Designer 自查规范", common)
+        common = _read("stages/ui-design-stage.md")  # v8.331:§四B 迁 ui-design-stage 附录
+        self.assertIn("Designer 自查规范", common)
         tool = _read("tools/verify-panorama.py")
-        self.assertIn("四B", tool)
+        self.assertIn("附录", tool)  # v8.331:工具指路牌随迁移改指 ui-design-stage 附录
 
     def test_dimension_six_gap_documented_in_tool(self):
         """维度 6 未进硬校验是已知缺口 —— 必须在工具里写明是存量兼容 · 不许静默。"""
@@ -155,7 +158,7 @@ class TestCommonScriptsCompressed(unittest.TestCase):
     """§三 逐脚本职责树压缩 —— 名称清单与接口契约是信息 · 必须一个不丢。"""
 
     def setUp(self):
-        self.t = _read("standards/common.md")
+        self.t = _read("standards/scripts-policy.md")  # v8.331:§三 迁 scripts-policy §7
 
     def test_all_script_names_survive(self):
         for s in ("test-env-setup.sh", "test-env-check.sh", "test-env-teardown.sh",
