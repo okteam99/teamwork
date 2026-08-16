@@ -61,6 +61,26 @@ class TestTestPosture(unittest.TestCase):
         self.assertIn("context 污染源", rule)
 
 
+class TestGlobalCharter(unittest.TestCase):
+    """全局单源在 SKILL(用户追拍:其他阶段也需要)· dev/test 1.7 是 stage 实例。"""
+
+    def test_skill_carries_global_posture(self):
+        t = (SKILL_ROOT / "SKILL.md").read_text(encoding="utf-8")
+        seg = t.split("主对话 = Orchestrator(全 stage 默认姿态", 1)[1].split("\n- ")[0]
+        for d in ORCH_DUTIES:
+            self.assertIn(d, seg, d)
+        self.assertIn("成块产出", seg)
+        self.assertIn("位置与档位正交", seg)
+        self.assertIn("dev-stage 1.7", seg)          # stage 实例指针
+
+    def test_stage_rules_cite_skill_as_source(self):
+        for rel in ("stages/dev-stage.md", "stages/test-stage.md"):
+            doc = (SKILL_ROOT / rel).read_text(encoding="utf-8")
+            rule = doc.split("主对话 = Orchestrator", 1)[1].split("\n2. ")[0]
+            self.assertIn("全局单源", rule, rel)
+            self.assertIn("stage 实例", rule, rel)
+
+
 class TestTierTableReconciled(unittest.TestCase):
 
     def test_execution_tier_row_decouples_position(self):
