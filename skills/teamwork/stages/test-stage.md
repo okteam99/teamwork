@@ -13,6 +13,7 @@
 ## ② 硬规则(白名单 · 每条一行 why)
 
 1. **测试证据由工具自采**:主路径 `test-complete --run-tests`(工具 subprocess 跑 localconfig 配的 cmd · 真实 exit_code 直接写进 evidence)· AI 自报 exit-code/stdout 是 deprecated 通道,只在 debug / 工具不可用 / 差分口径下用(why:实证 case —— AI 自报「67 个 test 全跑了」实际只跑 3 个 framework test,或借「context 不够」不跑;自报通道可伪造、可跳测)。
+1.7 🎛️ **主对话 = Orchestrator(默认姿态 · 全局单源 [SKILL § subagent/teammate](../SKILL.md) · 本条 stage 实例)**:**不建议在主对话(主循环)直接编写与执行测试** —— 测试执行本就是验证类白名单(一律降验证档 subagent · 主窗口跑 = 例外须 R5 用户授权);测试**编写**(TC 对应实现 / 集成用例)同白名单默认派。主对话优先做:环境预检调度 · 子代理派发 · **差分基线裁决** · 门禁命令(test-complete 证据)· 失败分诊与小型精准修复(why:同 dev 1.7 —— 主对话 context 留给编排;测试日志是最大的 context 污染源之一)。
 2. **测试体系 4 层不冒名**(层名 = 证据语义):**unit** 单类/单函数 → dev stage 内 TDD 红绿循环(RD)· **integration** = **单进程内**跨模块/跨服务契约(如 axum router + `tower::ServiceExt` 打 router · 抹掉跨进程边界 · 适合契约/数据流校验)→ 本 stage(QA)· **api-e2e** = **真跨进程**(独立 gateway binary + 真 HTTP + 真 DB/Redis 等依赖 · 验全链路)→ 本 stage(QA)· **browser-e2e** UI 交互流 + 截图 → browser_e2e stage(QA + Designer)。🔴 进程内「模拟跨服务」= integration,**不是** api-e2e(why:冒名 = 声称验了全链路其实没验,TEST-REPORT 与后续 audit 全部失真)。
 3. **api-e2e 用 Python 写**,落 `{Feature}/e2e/*.py` 或 `services/<svc>/tests/e2e/<feature-id>/`(按子项目结构 · RD/QA 决定)· 起 live 服务 + 真实 HTTP 调用 · **脚本退出码 = api-e2e 真实结果**(exit-code=0 = 通过)(why:语言统一减项目间割裂 · 退出码是唯一机器可验信号)。🔴 **跑通即可**:**不强求 CI 可复用** · **不统一 DB/seed/env SOP**(各项目环境差异大 · 起服务方式由项目自维护)—— test stage 只管 exit-code,证据真实性由 pm_acceptance / ship 按 `state.json` evidence 审计。
 4. **不为凑 exit-code=0 走捷径**:测试失败必修 · skip 必含 reason + tracking issue · 不标 xfail 蒙混(why:假绿 = 门禁形同虚设,下游 pm_acceptance 拿到的是空证据)。

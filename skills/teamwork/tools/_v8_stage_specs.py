@@ -1041,7 +1041,7 @@ def _dev_brief(state: dict) -> str:
 - (Bug 流程额外)`bugfix/BUG-*.md` 报告
 
 ### 怎么做
-**必读** `stages/dev-stage.md`(四段结构 · 硬规则里最重的是读取契约与证据门 · 手段全自选)。\n🧩 **开工先问「哪些模块可并行」**(dev 是并行红利最大的 stage):多端/多模块/独立文件簇 → 各派 subagent/teammate 并行实现(**ultracode 开启 → workflow 优先** · schema 化产出)· 🔴 派发按 SKILL 🎚️ 全局规则**声明 model + 一句为什么** · 契约层/集成点留主对话 · 子 agent 只写 worktree 内路径。🔴 v8.254 两问补丁:「哪些可并行」**每进新子阶段重问**(实现→测试编写→修复 · 耦合度会变 · 开工一次不够);派发后**等待窗口主对话不闲置**(填 §完工自查既有证据行 / 中途自查依赖消费方 / 剩余工作再拆一刀)—— 实证:集成测试整包塞单 agent + 主对话裸等 · 用户点破才拆三线。
+**必读** `stages/dev-stage.md`(四段结构 · 硬规则里最重的是读取契约与证据门 · 手段全自选)。\n🎛️ **主对话 = Orchestrator(默认姿态 · 用户拍板 · 详 stage.md 1.7)**:成块实现**派 subagent** · 主对话留 任务拆解 / 阶段规划 / 子代理调度 / 集成接线 / 提交推送 / 验证门禁 / **小型精准修改**(小/耦合/强串行改动直接做 · 不硬派)。\n🧩 **开工先问「哪些模块可并行」**(dev 是并行红利最大的 stage):多端/多模块/独立文件簇 → 各派 subagent/teammate 并行实现(**ultracode 开启 → workflow 优先** · schema 化产出)· 🔴 派发按 SKILL 🎚️ 全局规则**声明 model + 一句为什么** · 契约层/集成点留主对话 · 子 agent 只写 worktree 内路径。🔴 v8.254 两问补丁:「哪些可并行」**每进新子阶段重问**(实现→测试编写→修复 · 耦合度会变 · 开工一次不够);派发后**等待窗口主对话不闲置**(填 §完工自查既有证据行 / 中途自查依赖消费方 / 剩余工作再拆一刀)—— 实证:集成测试整包塞单 agent + 主对话裸等 · 用户点破才拆三线。
 🔴 **base 即红(共享套件预存在失败)→ 差分基线**:`--test-exit-code` 非 0 时,先 `state.py test-baseline --diff --current "<当前失败 id>"` 对照 `project-specs/test-baseline.md` · 0 新增 → dev-complete 传 `--current-failures` 即放行;有新增 = 回归(修)或新预存在(`test-baseline --add` 登记)· **别人肉 stash-baseline 反复甄别**。
 🔴 **UI feature(走过 ui_design)→ 设计↔实际一致性核对必做**(治「设计稿和实际不一致」):实现后起全景 dev server(preview.sh)+ 跑真实路由,**两边并排 browse 截图**,逐项核对意图四要素(布局/交互流/状态/字段映射)给「一致/背离」结论 · 背离 → 修实现 or 回 ui_design(不在 dev 顺手改设计 · 不静默放过)· 详 § dev-stage §3。
 🛡️ **起草前先读** `project-specs/KNOWLEDGE.md § 复发防御清单`(本项目 review 高频 finding 类 · 照着**写时防** · 非写完等 review 抓 · v8.278 shift-left · 清单空则跳)。\n🔴 **dev-complete 前完工自查双源打 ✅**:`TECH.md §完工自查`(设计对照 · 每项指向证据)+ `standards/tech-rules.md § 收口自查表`(兜底:异常日志/DB 论证/测试真实性/scratch/build/契约消费方 · 不适用 N-A)· 防「设计了没实现」与「实现了但兜底裸奔」· review 据此核。
@@ -2583,6 +2583,7 @@ QA 回归验证 —— **复现 bug 的用例修复后转绿** + 既有套件保
 
 ### 怎么做
 **必读** `stages/test-stage.md`(详细步骤 + 注意事项 · 含 Bug 无 PRD/TC 分支)。
+🎛️ **主对话 = Orchestrator**:回归用例编写与执行默认派 subagent(执行 = 验证档白名单)· 主对话留 调度 / 差分裁决 / 门禁命令 / 失败分诊(详 stage.md 1.7)。
 
 ### 完成方式
 ```
@@ -2603,7 +2604,8 @@ QA 集成测试 + API E2E · AC 全覆盖最终验证。
 - verify-ac.py 通过
 
 ### 怎么做
-**必读** `stages/test-stage.md`(四段结构:目标 / ②硬规则 9 条 / 手段菜单 / 产物契约 · 含 skip 走捷径反模式)。
+**必读** `stages/test-stage.md`(四段结构 · 含 skip 走捷径反模式)。
+🎛️ **主对话 = Orchestrator(默认姿态 · 用户拍板 · 详 stage.md 1.7)**:测试**编写与执行默认派 subagent**(执行本就是验证档白名单 · 主窗口跑须 R5 授权);主对话留 环境预检调度 / **差分基线裁决** / 门禁命令 / 失败分诊与小型精准修复(测试日志是最大的 context 污染源之一)。
 📋 产物模板:本 emit 的 `scaffold_hints.templates` 给**绝对路径** · 照它起草 · 别抄项目旧产物。
 🔴 **base 即红(brownfield 共享套件预存在失败)→ 走差分基线、别反复人肉 stash-baseline**:`state.py test-baseline --diff --current "<当前失败 id>"` 对照 `project-specs/test-baseline.md` · **0 新增**(当前失败 ⊆ 基线)→ test-complete 传 `--current-failures` 即转移;有新增 = 回归(修)或新预存在(核实后 `test-baseline --add` 登记原因)。
 

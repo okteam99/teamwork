@@ -4,6 +4,21 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.332 · 主对话 = Orchestrator:dev/test 默认姿态(用户拍板)
+
+> 用户:dev stage 和 test stage 加上不建议在主对话(主循环)进行开发和测试 —— 主对话优先用做 Orchestrator:任务拆解、阶段规划、子代理调度、集成接线、提交/推送、验证门禁、小型精准修改等。
+> 设计要点:**位置(谁持有 context)与档位(用什么模型)正交** —— 验证档白名单早已把测试执行推出主对话,但档位表执行档行还写着「主对话继承会话模型即是」,等于默认背书主对话写码;本版把位置姿态独立立规。
+
+### 变更
+- **dev-stage 1.7(🎛️)**:不建议主对话直接成块开发 —— 拍板职责清单逐项入规(任务拆解 / 阶段规划 / 子代理调度 / 集成接线 / 提交推送 / 验证门禁 / **小型精准修改**);成块实现派 subagent(worktree 内路径 · **执行档继承会话模型不降档** · Meta 申报);出口显式:小 / 耦合 / 强串行 → 主对话直接做(派发协调开销反拖慢)。why:主对话 context 是最稀缺资源(跨 stage 编排状态 / 用户拍板记忆 / 集成全景全活在这里)· Orchestrator 姿态让并行成为默认而非事后补问。
+- **test-stage 1.7**:不建议主对话直接编写与执行测试(执行本就是验证档白名单硬约束 · 编写同白名单默认派);主对话留 环境预检调度 / **差分基线裁决** / 门禁命令 / 失败分诊 —— 测试日志是最大的 context 污染源之一。
+- **档位表执行档行调和**(agents/README):模型继承会话档不降 + **位置默认 subagent**(单源指 dev-stage 1.7)——「主对话继承会话模型即是」旧背书措辞退役。
+- **brief 三处动作点同步**(dev · test Feature 流 · test Bug 流)。建议姿态 · 不设机器门。
+- **全局化(用户追拍:其他阶段也需要)**:总纲上提 SKILL § subagent/teammate 条目(全 stage 默认姿态 · 单源 · 🔴 密度不变)—— 成块产出(实现/测试/调研 fan-out/冷审/设计稿)默认派;dev/test 1.7 降为 stage 实例并标单源关系。
+
+### 测试
+`test_orchestrator_posture_v8332.py` 10 条:拍板职责逐项 / 出口保留 / 位置×档位正交 / 白名单衔接 / 档位表旧措辞退役 / 三 brief / 无新门。全库全绿。
+
 ## v8.331 · standards 载体合并:tech-rules 三时点唯一必读(用户拍板)
 
 > 拍板链:①整理为「技术架构及方案的 review 要点」一个文件 · 没必要拆太多文档(前后端约束已很少);②就叫 tech-rules.md,把 HARD-RULES 也整合进来 —— 方案起草、review、dev 开发三时点必读;③明确必须读项目 `project-specs/DEV-RULES.md`(标准路径)· **需同时满足项目规范和本规范 · 冲突部分以项目规范为准**。
@@ -59,15 +74,3 @@
 
 ### 测试
 `test_review_functionality_first_v8328.py` 13 条:单源五要素 / REJECT 合法性 / ci_reason 指向 / 回归锁例外 / 简化方向豁免 / 既有 severity·钟摆纪律不动 / 两指针 / prompt 段位置在正文内 + 过滤声明。全库全绿。
-
-## v8.327 · archive preflight:反向引用扫描 + retro path 物理校验(P1-6)
-
-> aon-core G-TEST-003:测试 `include_str!` 引用 feature 目录下 fixture · archive 按设计删目录 → 整个测试二进制编不出来 · cargo check **红 11 天**(交付完成之日 = 编译失败之日)。
-> supersdk:根级模块 sub_project="SDK" 被拼成不存在的 `SDK/docs/retros` · path mapper 在同一仓造出三种矛盾落点 + 幽灵 `CA/` 目录进 git。
-
-### 变更
-- **反向引用 preflight**(archive gate 链新增 · bl-flip 之后):`git grep -F "features/<id>"`(排除 feature 目录自身与 `*_archive*`)扫 tracked 引用 —— 命中 → `PENDING archive-backref` 列文件清单 + 处置(代码引用搬出 fixture / 文档死链改指 zip 或 F-id);确属可接受 → `--archive-ref-exception '<一句>'`(记 `state.ship` 审计 · 不静默)。`_archive/<id>.zip` 形态字符串不误伤(归档后引用本就该指 zip)。
-- **retro path 物理校验**:`_process_retro_path` 拼 sub_project 前核目录存在(给了 repo_root 时)—— 不存在回退根级 `docs/retros/`(不造幽灵目录);archive emit 与台账拼行两处调用点带 repo_root。
-
-### 测试
-`test_archive_preflight_v8327.py` 9 条:tracked 引用拦 + 清单 / 例外放行 + 审计留痕 / 无引用干净过 / zip 字符串不误伤 / retro path 四态(存在前缀 · 缺失回退 · 无 root 旧行为 · 无 sub 根级)/ spec 载体。v8.323 拼行测试按物理校验新行为更新。全库全绿。
