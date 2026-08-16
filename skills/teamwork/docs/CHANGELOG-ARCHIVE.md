@@ -4,6 +4,18 @@
 > 上次清空:**v8.193**(2026-07-06 · 清除 v8.128 → v8.187 共 60 版条目 · 约 1.0k 行)。
 
 ---
+## v8.327 · archive preflight:反向引用扫描 + retro path 物理校验(P1-6)
+
+> aon-core G-TEST-003:测试 `include_str!` 引用 feature 目录下 fixture · archive 按设计删目录 → 整个测试二进制编不出来 · cargo check **红 11 天**(交付完成之日 = 编译失败之日)。
+> supersdk:根级模块 sub_project="SDK" 被拼成不存在的 `SDK/docs/retros` · path mapper 在同一仓造出三种矛盾落点 + 幽灵 `CA/` 目录进 git。
+
+### 变更
+- **反向引用 preflight**(archive gate 链新增 · bl-flip 之后):`git grep -F "features/<id>"`(排除 feature 目录自身与 `*_archive*`)扫 tracked 引用 —— 命中 → `PENDING archive-backref` 列文件清单 + 处置(代码引用搬出 fixture / 文档死链改指 zip 或 F-id);确属可接受 → `--archive-ref-exception '<一句>'`(记 `state.ship` 审计 · 不静默)。`_archive/<id>.zip` 形态字符串不误伤(归档后引用本就该指 zip)。
+- **retro path 物理校验**:`_process_retro_path` 拼 sub_project 前核目录存在(给了 repo_root 时)—— 不存在回退根级 `docs/retros/`(不造幽灵目录);archive emit 与台账拼行两处调用点带 repo_root。
+
+### 测试
+`test_archive_preflight_v8327.py` 9 条:tracked 引用拦 + 清单 / 例外放行 + 审计留痕 / 无引用干净过 / zip 字符串不误伤 / retro path 四态(存在前缀 · 缺失回退 · 无 root 旧行为 · 无 sub 根级)/ spec 载体。v8.323 拼行测试按物理校验新行为更新。全库全绿。
+
 ## v8.326 · 评审模型错开机器门(P1-5)
 
 > supersdk CA case:双路冷审实测同为 opus-5(主审路未继承会话模型)= 盲区相关 —— 补派错开模型盲审**当场查出 2 条 BLOCKER**(无重新部署入口 / 拉取凭据链整条缺失,两条前两路都在核「按 TECH 实现没有」故均错过)。SKILL「评审模型必错开」是纯规则:外审 `review_model` 只申报不比对,主审路根本不申报 —— 规则存在 ≠ 规则执行(又一格)。
