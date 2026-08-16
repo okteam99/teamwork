@@ -43,6 +43,7 @@
 | 手段 | 何时值得 |
 |---|---|
 | **AC 逐条对照实现**(QA 经典) | 有结构化 AC 的 feature 默认首选 |
+| **tech-rules 对照**([standards/tech-rules.md](../standards/tech-rules.md) · 三时点必读之三) | §三 方案与架构门逐条验(FK 决策行 / 日志 CR 门 / Schema 影响分析)· §五 自查表抽核 |
 | **diff 走查 + 数据流追踪** | 改动集中/契约变更(顺 provider→consumer 追一遍) |
 | **边界与异常路径审查**(空值/并发/超时/回滚) | 有状态/多步操作/外部依赖时 |
 | **对抗复现**(按 finding 写最小复现或反例测试) | MAJOR 定级存疑时——复现即实证 · 复现不出降 MINOR |

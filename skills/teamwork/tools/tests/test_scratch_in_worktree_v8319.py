@@ -150,7 +150,7 @@ class TestGitignoreEntry(unittest.TestCase):
 class TestSpecsCarryNewRoot(unittest.TestCase):
     """七个载体同口径 —— 判据类内容多载体分叉的教训(部署单元 case)刚吃过。"""
 
-    CARRIERS = ("standards/common.md", "standards/HARD-RULES.md", "docs/conventions.md",
+    CARRIERS = ("standards/tech-rules.md", "docs/conventions.md",
                 "SKILL.md", "stages/ui-design-stage.md", "stages/test-stage.md",
                 "stages/ship-stage.md", "stages/dev-stage.md", "templates/tc.md")
 
@@ -159,12 +159,12 @@ class TestSpecsCarryNewRoot(unittest.TestCase):
             self.assertIn(".teamwork-scratch", _read(rel), f"{rel} 未更新新根")
 
     def test_common_keeps_off_mode_fallback(self):
-        t = _read("standards/common.md")
+        t = _read("docs/conventions.md")
         self.assertIn("worktree=off / legacy", t)
         self.assertIn("${TMPDIR:-/tmp}/teamwork/<feature_id>", t, "off 模式回退路径丢失")
 
     def test_lifecycle_channel_documented(self):
-        t = _read("standards/common.md")
+        t = _read("docs/conventions.md")
         self.assertIn("worktree 生命周期主兜底", t)
         self.assertIn("绝不动 worktree 本体", t)
         self.assertIn("rename", t, "耗时设计(rename+后台删)未成文")

@@ -20,7 +20,7 @@ PMO 调用：
 红线：
 1. 不依赖 Designer 自觉 · 物理校验自查报告 + 文件系统状态
 2. cite-only output：JSON 含 checks_passed / checks_failed / hint
-3. 配合 standards/common.md § 四B Designer 自查规范使用
+3. 配合 stages/ui-design-stage.md § 附录 Designer 自查规范使用
 """
 
 from __future__ import annotations
@@ -96,7 +96,7 @@ def check_self_check_section(ui_md_text: str) -> tuple[bool, list[str]]:
     """grep 5 维度 checklist · 全部存在 + 通过率 = 1.0 才 PASS。"""
     failures: list[str] = []
     if SELF_CHECK_HEADER not in ui_md_text:
-        return False, [f"UI.md 缺「{SELF_CHECK_HEADER}」段（cite standards/common.md § 四B）"]
+        return False, [f"UI.md 缺「{SELF_CHECK_HEADER}」段（cite ui-design-stage.md § 附录）"]
 
     # 提取自查段后的内容
     idx = ui_md_text.find(SELF_CHECK_HEADER)
@@ -225,7 +225,7 @@ def main() -> None:
             "checks_skipped": checks_skipped,
             "checks_failed": all_failures,
             "error_count": len(all_failures),
-            "hint": ("按 standards/common.md § 四B Designer 自查规范补完 UI.md 自查报告 · "
+            "hint": ("按 ui-design-stage.md § 附录 Designer 自查规范补完 UI.md 自查报告 · "
                      "重跑 verify-panorama · 通过后才能进 ⏸️ 用户确认设计稿"),
         })
         sys.exit(1)

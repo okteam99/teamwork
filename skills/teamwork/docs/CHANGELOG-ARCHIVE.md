@@ -4,6 +4,18 @@
 > 上次清空:**v8.193**(2026-07-06 · 清除 v8.128 → v8.187 共 60 版条目 · 约 1.0k 行)。
 
 ---
+## v8.326 · 评审模型错开机器门(P1-5)
+
+> supersdk CA case:双路冷审实测同为 opus-5(主审路未继承会话模型)= 盲区相关 —— 补派错开模型盲审**当场查出 2 条 BLOCKER**(无重新部署入口 / 拉取凭据链整条缺失,两条前两路都在核「按 TECH 实现没有」故均错过)。SKILL「评审模型必错开」是纯规则:外审 `review_model` 只申报不比对,主审路根本不申报 —— 规则存在 ≠ 规则执行(又一格)。
+
+### 变更
+- **主审产物申报**:PRD-REVIEW / TECH-REVIEW / REVIEW frontmatter 新增 `review_models`(列表形态 `- <role>: <实际模型>` —— 适配行式解析 · v8.324 缩进放宽后申报不构成新格式税)。
+- **`review_models_staggered` evidence check**(goal / blueprint / review 三处注册):主审 `review_models` × 外审 `review_model` 合并比对(ultra-ingest 不参与 —— 模型不由框架派发)—— **≥2 路申报且全同 → complete 拒**(hint 给处置:任选一路换模型重跑;确属例外走既有 bypass 协议留痕,不发明新旗);<2 可比对(存量未申报 / 单路)→ skip,hint 教新产物申报格式。大小写不敏感比对。
+- start 预告零成本:v8.324 契约块从 spec 同源渲染,本门自动出现在三个 stage 的 start brief。
+
+### 测试
+`test_review_model_stagger_v8326.py` 11 条:同模型拒(原案复刻)/ 错开过 / 大小写 / 存量 skip+教学 hint / 单路 skip / ultra-ingest 除外 / 双外审同模型拒 / 单空格申报可解析 / 三处注册 / start 预告自动带 / 三 stage 文档契约。全库全绿。
+
 ## v8.325 · merged worktree 巡检 + 构建世界纪律(P1-4)
 
 > aon-core `.worktree/` 23G:14 个注册 worktree 里 13 个分支已 merge(18G 纯垃圾 · 最老 31 天)+ 1 孤儿目录;supersdk 5 个僵尸壳被 `ws-progress` 递归扫成双份(9→18)。

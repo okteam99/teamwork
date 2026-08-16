@@ -15,7 +15,7 @@ from pathlib import Path
 SKILL_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(SKILL_ROOT / "tools"))
 
-HARD = SKILL_ROOT / "standards" / "HARD-RULES.md"
+HARD = SKILL_ROOT / "standards" / "tech-rules.md"  # v8.331:HARD-RULES 并入 tech-rules
 DEV = SKILL_ROOT / "stages" / "dev-stage.md"
 
 

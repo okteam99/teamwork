@@ -101,7 +101,7 @@ class TestShip2StaysIdempotentBackstop(unittest.TestCase):
 class TestSpecsUpdated(unittest.TestCase):
 
     def test_common_states_three_channels(self):
-        t = (ROOT / "standards" / "common.md").read_text(encoding="utf-8")
+        t = (ROOT / "docs" / "conventions.md").read_text(encoding="utf-8")
         self.assertIn("回收三通道", t)
         self.assertIn("ship1 push 成功即清", t)
         self.assertIn("幂等兜底", t)

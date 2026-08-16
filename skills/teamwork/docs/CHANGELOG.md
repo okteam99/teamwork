@@ -4,6 +4,21 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.331 · standards 载体合并:tech-rules 三时点唯一必读(用户拍板)
+
+> 拍板链:①整理为「技术架构及方案的 review 要点」一个文件 · 没必要拆太多文档(前后端约束已很少);②就叫 tech-rules.md,把 HARD-RULES 也整合进来 —— 方案起草、review、dev 开发三时点必读;③明确必须读项目 `project-specs/DEV-RULES.md`(标准路径)· **需同时满足项目规范和本规范 · 冲突部分以项目规范为准**。
+> 讨论中确认的关键事实:backend.md 现存内容的主要动词已是「评审必查 / CR 阻塞」—— 重命名是纠名实;整合消灭「详见分册」二跳,**起草时读的就是 review 会查的**(门与预告同源)。
+
+### 变更
+- **新 `standards/tech-rules.md`(~160 行 · 五节)**:§一 逆模型默认(原 HARD-RULES)· §二 框架/项目约定(+权威源单源 / 架构文档落点 / Mermaid / TEST-DATA 登记四条薄段收编)· §三 方案与架构门(原 backend 评审门整体入驻:API 契约优先级链与缺省码表 · 日志 CR 门详版 · Schema 变更门与验证链 · FK 决策门〔唯一权威〕· API 版本)· §四 前端专项 · §五 收口自查表。头部即用户三句契约(标准路径 / 同时满足 / 冲突以项目为准 · DEV-RULES 缺失回退 + 提示固化)。
+- **内容按消费时点归位(搬家不是删除)**:scratch 全文 + 迁移命名与起号纪律 → conventions §12.48/12.49(执行环境约定 · 与构建世界同族 · lazy-install 踩坑并入 §12.45);测试脚本两层契约 → scripts-policy §7(顺手删 §3 样板 + §4 已完结历史段);Designer 自查 6 维 → ui-design-stage 附录(verify-panorama 指路牌同步)。
+- **三文件退役**:HARD-RULES.md · common.md · backend.md。standards/ 终态 3 文件 411 行(764→411)。
+- **三时点接线**:blueprint 规则 1(起草重点 §三)· dev 读取契约 · review 手段菜单 tech-rules 对照行 + reviewer prompt 评审对照基线;SKILL 目录表 · templates(tech/tc/prd/README/ui/dev-rules)· roles/architect · 工具注释全量改指;全库悬空引用清零(机器锁)。
+- 压缩措辞按原文回补(降级前/后方案 · 限流/熔断/降级信号 · APM/sidecar · 先 ERROR 再 WARN · MTTR why)—— 合并零实质丢失(v8308 逐条款锁复核)。
+
+### 测试
+`test_tech_rules_merge_v8331.py` 15 条(三句契约逐句 / 五节 / 评审门吸收 / 退役 / **全库零悬空引用** / 归位三处 / 三时点接线 / brief / 零版本标);6 个历史锁文件(v8285/86/03/07/08/10)按新载体重锁,实质条款逐条复核。全库全绿。
+
 ## v8.330 · 开发规范收形:方法论不设限 · 兜底白名单 + 收口自查表(用户拍板)
 
 > 用户:进一步降低对模型的限制 —— 告诉他需要开发,不需要强制 TDD 等;有一个兜底的规范和自查项列表即可(例:异常分支必须打 log、DB 字段改动需充分论证);需要读各项目自己的开发和架构规范 + teamwork 兜底规范。
@@ -56,15 +71,3 @@
 
 ### 测试
 `test_archive_preflight_v8327.py` 9 条:tracked 引用拦 + 清单 / 例外放行 + 审计留痕 / 无引用干净过 / zip 字符串不误伤 / retro path 四态(存在前缀 · 缺失回退 · 无 root 旧行为 · 无 sub 根级)/ spec 载体。v8.323 拼行测试按物理校验新行为更新。全库全绿。
-
-## v8.326 · 评审模型错开机器门(P1-5)
-
-> supersdk CA case:双路冷审实测同为 opus-5(主审路未继承会话模型)= 盲区相关 —— 补派错开模型盲审**当场查出 2 条 BLOCKER**(无重新部署入口 / 拉取凭据链整条缺失,两条前两路都在核「按 TECH 实现没有」故均错过)。SKILL「评审模型必错开」是纯规则:外审 `review_model` 只申报不比对,主审路根本不申报 —— 规则存在 ≠ 规则执行(又一格)。
-
-### 变更
-- **主审产物申报**:PRD-REVIEW / TECH-REVIEW / REVIEW frontmatter 新增 `review_models`(列表形态 `- <role>: <实际模型>` —— 适配行式解析 · v8.324 缩进放宽后申报不构成新格式税)。
-- **`review_models_staggered` evidence check**(goal / blueprint / review 三处注册):主审 `review_models` × 外审 `review_model` 合并比对(ultra-ingest 不参与 —— 模型不由框架派发)—— **≥2 路申报且全同 → complete 拒**(hint 给处置:任选一路换模型重跑;确属例外走既有 bypass 协议留痕,不发明新旗);<2 可比对(存量未申报 / 单路)→ skip,hint 教新产物申报格式。大小写不敏感比对。
-- start 预告零成本:v8.324 契约块从 spec 同源渲染,本门自动出现在三个 stage 的 start brief。
-
-### 测试
-`test_review_model_stagger_v8326.py` 11 条:同模型拒(原案复刻)/ 错开过 / 大小写 / 存量 skip+教学 hint / 单路 skip / ultra-ingest 除外 / 双外审同模型拒 / 单空格申报可解析 / 三处注册 / start 预告自动带 / 三 stage 文档契约。全库全绿。

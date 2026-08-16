@@ -78,6 +78,8 @@
 
 ## Finding 准入(功能优先 · 复杂度守恒 —— 所有 target 通用 · 单源 stages/review-stage.md 规则 2.5)
 
+评审对照基线:`standards/tech-rules.md`(§三 方案与架构门:FK 决策行 / 日志 CR 门 / Schema 影响分析 —— target=blueprint/code 时逐条验;§一 逆默认规则同为 finding 判据来源)+ 项目 `project-specs/DEV-RULES.md`(冲突以项目为准)。
+
 - **真功能缺陷必报**(行为错 / AC 不满足 / 契约破坏 / 数据损坏 / 安全)—— 这是你存在的理由。
 - **兜底 / 防御 / 边界加固类建议**:必须给出**真实触发路径 + 后果**;给不出就不要产出该 finding(至多 info)。上面 Checklist 的错误处理/边界方向按此过滤 ——「理论上可能」不是触发路径。
 - 修复会显著增加整体复杂度而缺陷危害低 → rationale 写明「后果有限」· severity 至多 low;**不要推动为不重要的 bug 复杂化实现**。

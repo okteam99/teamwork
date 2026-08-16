@@ -9,72 +9,73 @@ import unittest
 from pathlib import Path
 
 STD = Path(__file__).resolve().parent.parent.parent / "standards"
+ROOT = Path(__file__).resolve().parent.parent.parent
+
+
+def _r(rel):
+    return (ROOT / rel).read_text(encoding="utf-8")
 
 
 class TestCommonSlimming(unittest.TestCase):
-    def setUp(self):
-        self.t = (STD / "common.md").read_text(encoding="utf-8")
+    """v8.285 立的清剿成果 · v8.331 载体合并后按新家逐条核(内容不许复活/丢失)。"""
 
     def test_rd_self_check_ceremony_removed(self):
-        """216 行 RD 自查规范 + 报告模板已删:零机器消费者 · 零文档引用 · 与 tech.md 完工自查重复。"""
-        self.assertNotIn("## 四、RD 自查规范", self.t)
-        self.assertNotIn("## RD 自查报告", self.t)
+        t = _r("standards/tech-rules.md")
+        self.assertNotIn("## 四、RD 自查规范", t)
+        self.assertNotIn("## RD 自查报告", t)
 
     def test_rescued_real_rules_retained(self):
-        """但从中抢救的两条真规则必须还在(证据类硬门 + 真踩坑)。"""
-        self.assertIn("Build 必须跑通", self.t)
-        self.assertIn("worktree lazy-install", self.t)
+        self.assertIn("Build 必须跑通", _r("standards/tech-rules.md"))
+        self.assertIn("worktree lazy-install", _r("docs/conventions.md"))
 
     def test_designer_self_check_retained(self):
-        """Designer 自查**有机器校验**(verify-panorama.py SELF_CHECK_HEADER)→ 判据① 保留。"""
-        self.assertIn("四B、Designer 自查规范", self.t)
-        self.assertIn("Designer 自查报告", self.t)
+        t = _r("stages/ui-design-stage.md")          # v8.331:§四B 迁附录
+        self.assertIn("Designer 自查规范", t)
+        self.assertIn("Designer 自查报告", t)
 
     def test_framework_specific_retained(self):
-        """模型不可能知道的框架约定 → 保留。"""
-        for k in ("测试脚本约定", "临时产物目录", "权威源单源规则"):
-            self.assertIn(k, self.t, f"框架特有约定丢失:{k}")
+        self.assertIn("两层脚本结构", _r("standards/scripts-policy.md"))
+        self.assertIn("临时产物目录", _r("docs/conventions.md"))
+        self.assertIn("权威源单源", _r("standards/tech-rules.md"))
 
     def test_inbound_anchors_survive(self):
-        """外部引用的锚点不得断链(prd.md→§五 · verify-panorama→§四B · ship/conventions→§六)。"""
-        for anchor in ("五、文档流程图规范", "四B、Designer 自查规范", "六、临时产物目录"):
-            self.assertIn(anchor, self.t, f"锚点断链:{anchor}")
+        """外部引用的锚点不得断链(载体合并后的新锚)。"""
+        self.assertIn("12.48 临时产物目录", _r("docs/conventions.md"))
+        self.assertIn("Mermaid", _r("standards/tech-rules.md"))
+        self.assertIn("附录 · Designer 自查规范", _r("stages/ui-design-stage.md"))
 
     def test_slimmed(self):
-        self.assertLess(len(self.t.splitlines()), 400, "common.md 应已从 767 瘦到 400 行内")
+        files = sorted(f.name for f in STD.glob("*.md"))
+        self.assertEqual(files, ["external-model-usage.md", "scripts-policy.md", "tech-rules.md"])
 
 
 class TestBackendSlimming(unittest.TestCase):
     def setUp(self):
-        self.t = (STD / "backend.md").read_text(encoding="utf-8")
+        self.t = _r("standards/tech-rules.md")
 
     def test_tdd_prescription_removed(self):
-        """v8.287:TDD 手段规定整体撤除 · tdd.md 已退役(三条结果规则并入 HARD-RULES · 不留第二份副本)。"""
-        self.assertIn("HARD-RULES.md", self.t)
         self.assertNotIn("tdd.md", self.t)
+        self.assertIn("只管结果不规定手段", self.t)
 
     def test_counter_default_rules_retained(self):
-        """🔴 逆模型默认的规则 = 最高价值 · 一条不能砍。
-
-        FK:模型训练默认「加 FK 保证引用完整性」(教科书)· 本框架明确逆着走 —— 模型越强越自信,
-        越需要这条。降级必打 WARN 同理(模型默认静默 fallback)。
-        """
+        """🔴 逆模型默认的规则 = 最高价值 · 一条不能砍(FK / 降级 WARN)。"""
         self.assertIn("默认避免", self.t)
         self.assertIn("FOREIGN KEY", self.t)
         self.assertIn("降级/兜底", self.t)
 
     def test_project_specific_conventions_retained(self):
-        """模型猜不到的项目约定 → 保留。"""
-        for k in ("统一响应格式", "业务状态码", "迁移文件规则", "非预期分支日志"):
-            self.assertIn(k, self.t, f"约定丢失:{k}")
+        self.assertIn("统一响应格式", self.t)
+        self.assertIn("业务状态码", self.t)
+        self.assertIn("日志 CR 门", self.t)
+        self.assertIn("迁移文件命名与起号纪律", _r("docs/conventions.md"))
 
 
 class TestStandardsTotal(unittest.TestCase):
     def test_total_reduced(self):
-        # v8.310:frontend.md 已并入 common.md §七 · 文件退役
-        total = sum(len((STD / f).read_text(encoding="utf-8").splitlines())
-                    for f in ("common.md", "backend.md"))
-        self.assertLess(total, 1450, f"standards 分册应已从 1773 瘦下来 · 现 {total}")
+        # v8.331:三文件合一 · standards 总量守恒锁在 test_hard_rules_v8286(<560)
+        total = sum(len((STD / f.name).read_text(encoding="utf-8").splitlines())
+                    for f in STD.glob("*.md"))
+        self.assertLess(total, 560, f"standards 总量应 <560 行 · 现 {total}")
 
 
 class TestFourSectionRollout(unittest.TestCase):

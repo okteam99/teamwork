@@ -78,11 +78,11 @@ class TestEvidenceBoundaryRule(unittest.TestCase):
 class TestTestInputProvenance(unittest.TestCase):
     """恒绿假绿有两条路:① mock 掉被测组件自身 ② 用自造 fixture 绕开真实链路。
 
-    HARD-RULES 7 原本只堵了 ①。
+    tech-rules 规则 7(原 HARD-RULES · v8.331 载体合并)原本只堵了 ①。
     """
 
     def _hr(self):
-        return (ROOT / "standards" / "HARD-RULES.md").read_text(encoding="utf-8")
+        return (ROOT / "standards" / "tech-rules.md").read_text(encoding="utf-8")
 
     def test_input_provenance_required(self):
         t = self._hr()

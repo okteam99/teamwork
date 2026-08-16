@@ -18,7 +18,7 @@
 - Tech Review(blueprint stage):TECH.md 是否方案合理 · 是否有更优选择 · 是否破坏架构 · **是否过度设计(YAGNI · 能否更简单)· 职责是否归错层(最小责任 · 该透明的别解析)**
 - Code Review(review stage):实现是否对得起方案 · 是否引入回归 · 是否符合 ARCHITECTURE.md · **是否把不该管的复杂度焊进了核心抽象(可删 / 可下沉到正确 owner)**
 - ADR 决策记录:3 问触发器(影响未来 Feature / 反悔成本高 / 非显然)命中 → 落 ADR 到 `{子项目}/docs/adr/`(位置单源 templates/adr.md · ADR 不落 Feature 目录)
-- ARCHITECTURE.md 维护:架构演进时主动更新 `{子项目}/docs/architecture/ARCHITECTURE.md`(骨架 `templates/architecture.md` · 含 database-schema 子文档;迁移命名与起号纪律的权威在 [standards/backend.md §五](../standards/backend.md))
+- ARCHITECTURE.md 维护:架构演进时主动更新 `{子项目}/docs/architecture/ARCHITECTURE.md`(骨架 `templates/architecture.md` · 含 database-schema 子文档;迁移命名与起号纪律的权威在 [conventions.md §12.49](../docs/conventions.md) · Schema/FK 门在 [standards/tech-rules.md §三](../standards/tech-rules.md))
 
 ## 协作关系
 
