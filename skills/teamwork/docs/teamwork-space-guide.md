@@ -4,6 +4,8 @@
 > 🔴 模板 [templates/teamwork-space.md](../templates/teamwork-space.md) 只放**实例化骨架**(项目里那份);本文件放"AI 怎么维护它"(不进用户项目)。
 > 模板↔规则解耦:模板瘦身,规则外迁本文件,避免实例化的 teamwork-space.md 臃肿、违背它自己的"≤1 行一眼看懂"原则。
 
+> 📍 **入口注入**:bootstrap 自动把本文件指针写进项目 `CLAUDE.md` + `AGENTS.md`(managed 块 · 幂等 · 块外不动)—— 不用 teamwork 的 agent 也能从宿主标准文件发现知识地图(块内零流程指令 · 与「注入退役」不冲突:当年退的是流程指令,这里只有知识入口)。
+
 ---
 
 ## 0. 核心定位 + 变更协议
