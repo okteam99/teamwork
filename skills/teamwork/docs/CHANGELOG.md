@@ -4,6 +4,19 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.335 · teamwork-space 入口注入 CLAUDE.md / AGENTS.md(用户拍板)
+
+> 用户:初始化时把 teamwork-space.md 引入到 AGENTS.md 和 CLAUDE.md —— 目标是**不用 teamwork agent 也能充分了解项目**。
+> 与 v8.211「注入退役」的边界(不构成推翻):当年退役的是**流程指令注入**(共享仓库里非 teamwork 用户被迫吃 PMO/worktree 规则 · 实证 case);本块**受众相反**(正是为非 teamwork 用户服务)· **内容零流程指令**(只有知识地图指针)。
+
+### 变更
+- **`bootstrap.maintain_space_pointer`**(随 session bootstrap · space 骨架之后):把 managed 块注入 `CLAUDE.md` + `AGENTS.md` ——「📍 项目知识地图:先读 teamwork-space.md(知识入口 · 无论是否使用 teamwork 流程,了解本项目从它开始;代码是细节唯一真相)」。
+- **行为**(幂等):`teamwork-space.md` 不存在 → skip;目标文件不存在 → 创建(仅块);存在无块 → **顶部插入**(发现性 · 块外一字不动);存在有块 → 原位重写块内(带版本 marker · 升版可换文案不重复)。marker(`TEAMWORK-SPACE-POINTER`)与 legacy 清理正则(`TEAMWORK_BEGIN:`)不同族 —— `maintain_host_injection` 清历史注入时不会误删新块。
+- guide 文档(teamwork-space-guide)注明注入机制与 v8.211 边界。
+
+### 测试
+`test_space_pointer_v8335.py` 7 条:双文件创建 / 顶部插入保用户内容 / 幂等 + 旧版块原位升级不重复 / 无 space 跳过 / **块内零流程指令**(PMO/worktree/Subagent/state.py/R5 全禁)/ legacy 清理不误删 / bootstrap wiring。全库全绿。
+
 ## v8.334 · 起草前深入调研 + 评审深度判断卡(回显不阻塞)(用户拍板)
 
 > case(supersdk Analytics-Dashboard):起草前调研 = KNOWLEDGE/GLOSSARY + **读 1 个文件 + 2 条命令** → 直接写 174 行 PRD;派冷审用默认双路、零判断输出。旧 spec「按需选查」下这**完全合规** —— 判据缺失,不是执行失误。
@@ -58,18 +71,3 @@
 
 ### 测试
 `test_tech_rules_merge_v8331.py` 15 条(三句契约逐句 / 五节 / 评审门吸收 / 退役 / **全库零悬空引用** / 归位三处 / 三时点接线 / brief / 零版本标);6 个历史锁文件(v8285/86/03/07/08/10)按新载体重锁,实质条款逐条复核。全库全绿。
-
-## v8.330 · 开发规范收形:方法论不设限 · 兜底白名单 + 收口自查表(用户拍板)
-
-> 用户:进一步降低对模型的限制 —— 告诉他需要开发,不需要强制 TDD 等;有一个兜底的规范和自查项列表即可(例:异常分支必须打 log、DB 字段改动需充分论证);需要读各项目自己的开发和架构规范 + teamwork 兜底规范。
-> 盘点结论:TDD 强制早已撤除(「怎么测由 AI 自觉」)、HARD-RULES 已是唯一必读兜底白名单(收录判据 = 与模型默认的距离)、分册按需查、项目规范优先已立 —— 缺的只有三块,本版补齐。
-
-### 变更
-- **HARD-RULES §三 收口自查表**(新增 · 槽位式 checkbox · 判断题不设机器门):异常/降级分支都有日志 · **DB 字段/表结构改动已充分论证**(TECH 论证 + blueprint R5 + ship 迁移门)· 测试真断言/输入真实链路/TC 有实现 · 生命周期定层 · scratch 与调试日志 · 交付卫生(build + 无 TODO/占位符)· 契约面改动核消费方。表头即声明:这是兜底不是方法论 —— 怎么开发全由 AI 自定。
-- **dev-stage 规则 1 读取契约升级**:项目侧必读 `DEV-RULES.md` + **`ARCHITECTURE.md`(架构规范 · 升必读)** + `KNOWLEDGE §复发防御`(涉 UI 加 UI-RULES);teamwork 兜底 = HARD-RULES;并集 · 冲突以项目为准。
-- **dev-stage 规则 1.5「方法论不设限」总纲**:框架只收三样 —— 读取契约 + 兜底白名单与收口自查表 + 结果证据门;其余(TDD/test-after/骨架先行/重构节奏/拆分方式)全由 AI 自定(手段规定是对强模型的注意力税)。
-- **完工自查双源**:TECH §完工自查(设计对照)+ HARD-RULES §收口自查表(兜底)—— 防「设计了没实现」与「实现了但兜底裸奔」;dev brief 动作点同步总纲与双源。
-- v8286 行数锁 70→85(自查表 = 用户拍板的短清单载体 · 与「防膨胀」初衷同向)。
-
-### 测试
-`test_dev_baseline_charter_v8330.py` 11 条:自查表槽位 ≥6 项 / 用户点名两例在表 / 不设机器门 / 白名单本体未动 / ARCHITECTURE 必读 / 总纲三样点名 / 双源 / brief 载体 / 无新 evidence 门。全库全绿。

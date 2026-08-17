@@ -386,6 +386,55 @@ HOST_INJECTION_FILES = {
 }
 
 
+SPACE_POINTER_BEGIN = "<!-- TEAMWORK-SPACE-POINTER v1"
+SPACE_POINTER_BLOCK = (
+    "<!-- TEAMWORK-SPACE-POINTER v1 · bootstrap 维护(块内会被覆盖 · 块外内容一字不动) -->\n"
+    "📍 **项目知识地图:先读 [teamwork-space.md](./teamwork-space.md)** —— 本项目知识入口"
+    "(子项目清单 / 规划 / 工程文档 / 术语与踩坑索引)· **无论是否使用 teamwork 流程,"
+    "了解本项目从它开始**;代码是细节唯一真相。\n"
+    "<!-- /TEAMWORK-SPACE-POINTER -->\n"
+)
+
+
+def maintain_space_pointer(project_root: Path) -> dict:
+    """v8.335(用户拍板):把 teamwork-space.md 入口注入 CLAUDE.md + AGENTS.md。
+
+    目标:**不用 teamwork 的 agent 也能充分了解项目** —— 任何宿主 session 读标准指令文件
+    即发现知识地图。与 v8.211「注入退役」不冲突(受众相反 · 内容边界严守):当年退役的是
+    **流程指令注入**(非 teamwork 用户被迫吃 PMO/worktree 规则 · 实证 case);本块**只有
+    知识入口指针 · 零流程指令**,服务对象恰是非 teamwork 用户。marker 与 legacy 清理正则
+    (TEAMWORK_BEGIN:)不同族 · 不会被 maintain_host_injection 误删。
+
+    行为(幂等):teamwork-space.md 不存在 → skip;目标文件不存在 → 创建(仅块);
+    存在无块 → **顶部插入**(发现性 · 一行知识指针);存在有块 → 原位重写块内(升版可换文案)。
+    """
+    if not (project_root / "teamwork-space.md").exists():
+        return {"status": "skipped_no_space_file"}
+    results = {}
+    block_re = re.compile(r"[ \t]*<!-- TEAMWORK-SPACE-POINTER v\d+.*?<!-- /TEAMWORK-SPACE-POINTER -->\n?", re.S)
+    for fname in ("CLAUDE.md", "AGENTS.md"):
+        target = project_root / fname
+        try:
+            if not target.exists():
+                target.write_text(SPACE_POINTER_BLOCK, encoding="utf-8")
+                results[fname] = "created"
+                continue
+            body = target.read_text(encoding="utf-8")
+            if "TEAMWORK-SPACE-POINTER" in body:
+                new_body = block_re.sub(SPACE_POINTER_BLOCK, body, count=1)
+                if new_body != body:
+                    target.write_text(new_body, encoding="utf-8")
+                    results[fname] = "block_updated"
+                else:
+                    results[fname] = "up_to_date"
+            else:
+                target.write_text(SPACE_POINTER_BLOCK + "\n" + body, encoding="utf-8")
+                results[fname] = "prepended"
+        except OSError as e:
+            results[fname] = f"error:{str(e)[:80]}"
+    return {"status": "ok", "results": results}
+
+
 def maintain_host_injection(skill_root: Path, project_root: Path, host: str,
                              skill_version: str) -> dict:
     """v8.211(用户拍板 · 注入退役):**清理**宿主指令文件里的历史 teamwork 注入段。
@@ -1540,6 +1589,7 @@ def cmd_session_bootstrap(args: argparse.Namespace) -> None:
     skeletons = maintain_project_skeletons(skill_root, project_root)
     workspace_file = maintain_workspace_filename(project_root)  # legacy 下划线名迁移(先)
     space_skeleton = maintain_teamwork_space(skill_root, project_root)  # 地图根自动建(后)
+    space_pointer = maintain_space_pointer(project_root)  # v8.335:入口注入 CLAUDE/AGENTS(知识指针 · 零流程指令)
     local_env = maintain_local_env(skill_root, project_root)  # 本地敏感配置目录
 
     # 版本门禁:marker 记录的版本 == 当前版本 → 跳过 maintain 4 项
@@ -1610,6 +1660,7 @@ def cmd_session_bootstrap(args: argparse.Namespace) -> None:
             "skeletons": skeletons,
             "workspace_filename": workspace_file,
             "teamwork_space": space_skeleton,  # v8.116:知识地图根自动建骨架
+            "space_pointer": space_pointer,  # v8.335:CLAUDE/AGENTS 知识入口注入
             "local_env": local_env,  # v8.89:本地敏感配置目录 .teamwork-local-env/
             "chmod": chmod_result,
             "hooks": hooks_result,
