@@ -45,6 +45,29 @@ class TestDeepResearch(unittest.TestCase):
         self.assertIn("评审深度判断卡", self.seg)
 
 
+class TestParallelResearchTier(unittest.TestCase):
+    """调研并行姿态(用户追拍):采集/判断二分落既有档 · 不新立调研档。"""
+
+    def test_goal_declares_parallel_collection(self):
+        doc = GOAL.read_text(encoding="utf-8")
+        seg = doc.split("起草前深入调研", 1)[1].split("**起草思考规范**")[0]
+        self.assertIn("多 subagent 并行采集", seg)
+        self.assertIn("整合与判断留主对话", seg)
+        self.assertIn("不新立「调研档」", seg)
+
+    def test_whitelist_names_research_collection(self):
+        readme = (SKILL_ROOT / "agents" / "README.md").read_text(encoding="utf-8")
+        self.assertIn("调研采集", readme)
+        skill = (SKILL_ROOT / "SKILL.md").read_text(encoding="utf-8")
+        wl = next(l for l in skill.splitlines() if "验证类白名单一律降验证档" in l)
+        self.assertIn("调研采集", wl)
+
+    def test_brief_carries_parallel_recipe(self):
+        from _v8_stage_specs import GOAL_SPEC
+        b = GOAL_SPEC.brief_template_fn({})
+        self.assertIn("多 subagent 并行采集", b)
+
+
 class TestReviewDepthCard(unittest.TestCase):
 
     @classmethod
