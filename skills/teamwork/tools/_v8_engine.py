@@ -1007,7 +1007,6 @@ def _find_skill_root() -> Path:
 STAGE_SPEC_FILES = {
     "goal": "goal-stage.md",
     "ui_design": "ui-design-stage.md",
-    "panorama_sync": "panorama-sync-stage.md",
     "blueprint": "blueprint-stage.md",
     "diagnose": "diagnose-stage.md",
     "dev": "dev-stage.md",
@@ -1042,14 +1041,6 @@ STAGE_TEMPLATES: dict[str, dict] = {
             "preview/*.html": None,  # static-html 介质 · 项目设计语言决定
             # same-stack 介质(v8.58):拷入 {panorama_path}/preview-project/ 根 · 按框架改 dev server 行
             "preview-project/preview.sh": "preview-project-preview.sh",
-        },
-        "validators": {},
-    },
-    "panorama_sync": {
-        "templates": {
-            "panorama-change-summary.md": None,
-            "panorama_path/sitemap.md": None,
-            "panorama_path/preview/overview.html": None,
         },
         "validators": {},
     },
@@ -1153,7 +1144,7 @@ def build_scaffold_hints(stage_name: str) -> dict | None:
 # - 排除 pm_acceptance(永远只有 pm 1 角色 · 无调整空间)/ ship / completed(无 reviewer · 无后续)
 # - test 之后即关掉(用户洞察 · 实证)
 STAGES_WITH_REVIEW_ROLES_HINT = {
-    "goal", "ui_design", "panorama_sync", "blueprint",
+    "goal", "ui_design", "blueprint",
     "dev", "review", "test", "browser_e2e",
 }
 
@@ -1454,7 +1445,6 @@ DEFAULT_REVIEW_ROLES: dict[tuple[str, str], list[str]] = {
     # Feature 流程
     ("Feature", "goal"): ["pl", "external"],  # v8.243:3 冷审→2 路并行 —— PL 对抗质疑 + 覆盖方向制外审(QA 可验证/ARCH 可实现并入外审必覆盖方向 + AI 自主方向 ≥1 · 物化门 external_coverage_present);复杂 feature change-review-roles 加回独立 qa/architect。史:v8.155 三角色隔离冷审防鼓掌 · v8.149 去 external opt-in
     ("Feature", "ui_design"): ["designer", "pm"],
-    ("Feature", "panorama_sync"): ["pm", "architect"],
     ("Feature", "blueprint"): ["architect", "external"],  # v8.244:3→2 —— Architect 主审(TECH-REVIEW · 简洁性 counter-lens)+ 覆盖方向制外审(QA 可测试视角并入 · 物化门 cross_review_coverage);复杂 feature 加回独立 qa
     ("Feature", "review"): ["architect", "external"],  # v8.244:3→2 —— Architect 主审(实现↔设计一致性 · v8.289 判断落 REVIEW.md 不再独立文件)+ 覆盖方向制外审(QA 测试真实性视角并入);review 从严:外审必覆盖清单比 blueprint 重一档
     ("Feature", "test"): ["qa"],
@@ -1496,7 +1486,6 @@ FLOW_STAGE_CHAIN: dict[str, list[tuple[str, bool, str, str]]] = {
     "Feature": [
         ("goal", False, "", "PRD 业务目标对齐(用户审):草稿后并行派 QA/Architect/PL 三个隔离 subagent 冷审(防鼓掌锚定)· PM 整合 · 无 External(细节归 blueprint · opt-in 保留)"),
         ("ui_design", True, "goal-complete --needs-ui=true 时启用", "Designer 视觉一致 + PM 流程合理"),
-        ("panorama_sync", True, "ui_design-complete --panorama-changed=true 时启用", "PM 跨 Feature 视角 + Architect IA 影响"),
         ("blueprint", False, "", "TECH 选型与测试规划需 Architect/QA 把关 + External 异质 review"),
         ("dev", False, "", "无评审 · RD 自写 + commit(测试节奏自定 · 证据硬门 + 完工自查)"),
         ("review", False, "", "代码 Architect 看架构合理 + QA 看 AC 对照 + External 跨模型独立判断"),
@@ -1852,7 +1841,6 @@ def execute_stage_complete(
         "external_review_files",     # review
         "decision",                  # pm_acceptance
         "note",                      # pm_acceptance
-        "panorama_changed",          # ui_design(决定 panorama_sync 条件 stage 是否进入)
         "needs_browser_e2e",         # goal/ui_design(可选 · 决定 test 后是否进 browser_e2e)
         "current_failures",          # test/dev:红 base 差分基线的当前失败集
     )
@@ -2280,18 +2268,6 @@ def _add_stage_specific_args(parser: argparse.ArgumentParser, stage_name: str, p
             ),
         )
     elif stage_name == "ui_design" and phase == "complete":
-        # v8.x:--panorama-changed 必传 · 决定下一 stage 是否 panorama_sync(条件 stage)
-        # 治本:panorama 同步原埋在 ui_design step 4 隐式动作 · 拆出后由本字段决策
-        parser.add_argument(
-            "--panorama-changed",
-            choices=["true", "false"],
-            required=True,
-            help=(
-                "本 Feature UI 改动是否影响 workspace 级 panorama(sitemap/overview/IA):"
-                "true → 下一 stage=panorama_sync(更新 panorama 单源 + 跨 Feature 评审)/ "
-                "false → 下一 stage=blueprint"
-            ),
-        )
         parser.add_argument(
             "--needs-browser-e2e",
             choices=["true", "false"],

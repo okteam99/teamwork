@@ -4,13 +4,12 @@
 
 ---
 
-## 1. 12 stage 索引(与 [tools/_v8_stage_specs.py](./tools/_v8_stage_specs.py) `STAGE_SPECS` 对齐)
+## 1. Stage 索引(数量单源 `STAGE_SPECS` · 不写死数字 —— 与 [tools/_v8_stage_specs.py](./tools/_v8_stage_specs.py) 对齐)
 
 | Stage | 文件 | 适用 flow_type |
 |---|---|---|
 | goal | [stages/goal-stage.md](./stages/goal-stage.md) | Feature |
 | ui_design | [stages/ui-design-stage.md](./stages/ui-design-stage.md) | Feature(--needs-ui=true) |
-| panorama_sync | [stages/panorama-sync-stage.md](./stages/panorama-sync-stage.md) | Feature(sitemap / 全景同步) |
 | blueprint | [stages/blueprint-stage.md](./stages/blueprint-stage.md) | Feature |
 | diagnose | [stages/diagnose-stage.md](./stages/diagnose-stage.md) | Bug(流首 stage · 根因细查+修复方案 · 用户确认后进 dev) |
 | dev | [stages/dev-stage.md](./stages/dev-stage.md) | Feature(full)/ Bug |

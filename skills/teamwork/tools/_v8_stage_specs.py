@@ -302,7 +302,7 @@ def persist_args_to_evidence(stage_name: str, state: dict, args) -> None:
 
     字段清单(按 stage):
     - goal:      --needs-ui → hints.ui_design_needed · --needs-browser-e2e → hints.browser_e2e_needed
-    - ui_design: --panorama-changed → hints.panorama_changed · --needs-browser-e2e 同上
+    - ui_design: --needs-browser-e2e 同上
     - dev:       红 base 差分 clean → evidence.dev_diff_clean=true + hints.test_baseline_excluded
     - test:      红 base 差分 → evidence.integration_diff_clean + hints.integration_new_failures/…
     - review:    --verdict → evidence.verdict
@@ -323,10 +323,6 @@ def persist_args_to_evidence(stage_name: str, state: dict, args) -> None:
         val = getattr(args, "needs_ui", None)
         if val in ("true", "false"):
             hints["ui_design_needed"] = (val == "true")
-    elif stage_name == "ui_design":
-        val = getattr(args, "panorama_changed", None)
-        if val in ("true", "false"):
-            hints["panorama_changed"] = (val == "true")
     elif stage_name == "dev":
         code = getattr(args, "test_exit_code", None)
         if code is not None and int(code) != 0 and getattr(args, "current_failures", None):
@@ -518,7 +514,7 @@ state.py goal-complete --feature <path> \
   --auto-commit <hash> --artifacts PRD.md,PRD-REVIEW.md \
   --needs-ui {{true|false}} --needs-browser-e2e {{true|false}}
 ```
-🔗 **链装配**(调研后 · 详 stage.md 规则 3.7):goal 自身评审面 AI 自定(留痕不问);下游装配(环节双旋钮 + 各 stage 评审面)写进终确认导读「🔗 链装配」节 + 一句四轴证据(方向/契约面/影响面/验证成本)—— **默认按此执行 · 用户不要求改就生效**。
+🔗 **链装配**(调研后 · 详 stage.md 规则 3.7):goal 自身评审面 AI 自定(留痕不问);下游装配写进终确认导读「🔗 链装配」节 · 🔴 **固定三槽缺一即漏 · 整卡 ≤6 行**(流程阶段全链标进/跳 · **评审力度逐 stage「是否需要×几路×谁×理由」〔收到零也显式写 0 路+理由 —— 减税要减在明处〕** · 四轴证据各半句)—— **默认按此执行 · 用户不要求改就生效**。
 """
 
 
@@ -1165,32 +1161,8 @@ state.py ui_design-complete --feature <path> --auto-commit <hash> \
 """
 
 
-def _evidence_panorama_changed_decided(state: dict, args) -> tuple[bool, str]:
-    """校验 ui_design-complete --panorama-changed 已传(true/false)· 决定下一 stage 是否 panorama_sync。
-
-    治本:历史 panorama 同步埋在 ui_design step 4 隐式动作 · 跨 Feature 影响无显式
-    暂停点。拆出 panorama_sync 条件 stage 后由本字段决定是否进入。
-    纯谓词:字段写入(state.execution_hints.panorama_changed)由 persist_args_to_evidence 统一执行。
-    """
-    val = getattr(args, "panorama_changed", None)
-    if val not in ("true", "false"):
-        return False, (
-            f"--panorama-changed 必传(true/false)· got {val!r}。"
-            f"决策本 Feature UI 改动是否影响 workspace 级 panorama(sitemap/overview/IA):\n"
-            f"  true  → 下一 stage = panorama_sync(更新 panorama 单源 + 跨 Feature 协调评审)\n"
-            f"  false → 下一 stage = blueprint(本 Feature UI 不动 panorama)"
-        )
-    return True, ""
-
-
 def _ui_design_transition(state: dict) -> Optional[str]:
-    """ui_design 完成后 · 按 execution_hints.panorama_changed 分支:
-    - true → panorama_sync(workspace 级 IA 同步 · 跨 Feature 评审)
-    - false → blueprint(ui_design 仅 Feature 流程可达)
-    """
-    hints = state.get("execution_hints", {})
-    if hints.get("panorama_changed") is True:
-        return "panorama_sync"
+    """ui_design 完成后恒 → blueprint(全景变更判级并入 ui_design 出口 · panorama_sync 退役)。"""
     return "blueprint"
 
 
@@ -1534,136 +1506,10 @@ UI_DESIGN_SPEC = StageSpec(
             check_fn=_evidence_panorama_artifact,
             description="按 panorama_medium 校验:same-stack 要 preview-project+preview.sh · static-html 要 preview/*.html ≥ 1",
         ),
-        StageEvidenceCheck(
-            name="panorama_changed_decided",
-            check_fn=_evidence_panorama_changed_decided,
-            description="--panorama-changed 必传(true/false)· 决定下一 stage 是否 panorama_sync",
-        ),
     ],
     brief_template_fn=_ui_design_brief,
     auto_transition_fn=_ui_design_transition,
     authorized_pause_point="完成后给用户预览 URL · 等确认",
-)
-
-
-# ─── B2.5 · panorama_sync(conditional · ui_design --panorama-changed=true 时进)─
-
-
-def _check_panorama_changed_flag(state: dict, args) -> bool:
-    """panorama_sync 前置:state.execution_hints.panorama_changed=true。"""
-    return state.get("execution_hints", {}).get("panorama_changed") is True
-
-
-def _evidence_sitemap_updated(state: dict, args) -> tuple[bool, str]:
-    """sitemap.md mtime 晚于本 stage started_at(panorama 真被更新 · 治本「声称同步实际没动」)。
-
-    panorama_path 从 UI.md body 的 `> 🔴 panorama_path: <路径>` 行抓(grep-based · 不强 yaml)。
-    """
-    import re as _re
-    from datetime import datetime, timezone
-    feature_dir = Path(args.feature)
-    ui_md = feature_dir / "UI.md"
-    if not ui_md.exists():
-        return False, f"UI.md 不存在 · 找不到 panorama_path{_template_hint('UI.md')}"
-    text = ui_md.read_text(encoding="utf-8", errors="replace")
-    # 行级匹配:行前缀只允许 引用/列表/强调/空白/🔴 等标记字符 · 带不带 🔴 都认 ·
-    # 仍拒绝 prose 中"不动 panorama_path"类句中引用(前缀含普通文字则不命中)
-    m = _re.search(r"(?:^|\n)[\s>*\-•]*(?:🔴\s*)?\**panorama_path\**[:\s]+(\S+)", text)
-    if not m:
-        return False, "UI.md 未声明 panorama_path · 无法定位 sitemap.md(在 UI.md 顶部加 `> 🔴 panorama_path: <绝对路径>` · 带不带 🔴 均可)"
-    pp = m.group(1).strip().rstrip("/")
-    if pp in ("null", "None", "{绝对路径", "(项目无全景)"):
-        return False, f"panorama_path={pp!r} · 无效 · panorama_sync stage 不该被进入(应该 panorama_changed=false → blueprint)"
-    sitemap = Path(pp) / "sitemap.md"
-    if not sitemap.exists():
-        return False, f"sitemap.md 不存在: {sitemap}"
-    started = state.get("stage_contracts", {}).get("panorama_sync", {}).get("started_at")
-    if not started:
-        return True, ""  # 无 started_at · skip(不阻塞 · 罕见)
-    try:
-        started_dt = datetime.strptime(started, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
-    except (ValueError, TypeError):
-        return True, ""
-    mtime = datetime.fromtimestamp(sitemap.stat().st_mtime, tz=timezone.utc)
-    if mtime < started_dt:
-        return False, (
-            f"sitemap.md mtime ({mtime.strftime('%Y-%m-%dT%H:%M:%SZ')}) "
-            f"早于 panorama_sync stage 开始 ({started}) · 未实际更新(panorama 没动就 complete)"
-        )
-    return True, ""
-
-
-def _panorama_sync_brief(state: dict) -> str:
-    return f"""## Panorama Sync Stage
-
-### 目标
-workspace 级 panorama(sitemap.md / overview.html / 设计 token)同步 ·
-反映本 Feature 的 IA 变更 · 跨 Feature reviewer 协调评审。
-
-### 触发
-`ui_design-complete --panorama-changed=true` 时自动进入。
-
-### 结果(完成判定)
-- `panorama_path/sitemap.md` mtime > 本 stage started_at(panorama 真被更新)
-- `panorama-change-summary.md` 存在 · frontmatter 含 reviewers + conclusion + change_level(L1|L2)
-
-### 怎么做
-**必读** `stages/panorama-sync-stage.md`(5 substep:加载上下文 / 更新 panorama 单源 /
-起草 change-summary + 变更判级 / ⏸️ L2 才暂停(L1 不暂停 · WARN 留痕)/ complete)。
-
-### 完成方式
-```
-state.py panorama_sync-complete --feature <path> --auto-commit <hash> \\
-  --artifacts panorama-change-summary.md
-```
-"""
-
-
-def _panorama_sync_transition(state: dict) -> Optional[str]:
-    """panorama_sync 完成后 → blueprint(本 stage 仅 Feature 流程可达 · 经 ui_design 分支进入)。"""
-    return "blueprint"
-
-
-PANORAMA_SYNC_SPEC = StageSpec(
-    name="panorama_sync",
-    prerequisites=[
-        StagePrerequisite(
-            id="ui_design_completed",
-            check_fn=_check_stage_output_satisfied("ui_design"),
-            hint="先完成 state.py ui_design-complete --panorama-changed=true",
-            description="ui_design output_satisfied",
-        ),
-        StagePrerequisite(
-            id="panorama_changed_flag_true",
-            check_fn=_check_panorama_changed_flag,
-            hint=(
-                "state.execution_hints.panorama_changed != true · 不该进 panorama_sync(应 → blueprint)· "
-                "ui_design-complete 时漏传或传错 --panorama-changed?"
-            ),
-            description="execution_hints.panorama_changed=true",
-        ),
-    ],
-    artifacts=[
-        StageArtifactSpec(
-            path="panorama-change-summary.md",
-            frontmatter_required=["reviewers", "conclusion", "change_level"],
-            body_min_lines=8,
-            description="panorama 变更摘要 · 列变更/受影响 Features/协调结论 · change_level: L1|L2 判级留痕",
-        ),
-    ],
-    evidence_checks=[
-        StageEvidenceCheck(
-            name="sitemap_updated",
-            check_fn=_evidence_sitemap_updated,
-            description="sitemap.md mtime > stage started_at(panorama 真被更新)",
-        ),
-    ],
-    brief_template_fn=_panorama_sync_brief,
-    auto_transition_fn=_panorama_sync_transition,
-    authorized_pause_point=(
-        "条件暂停:L2(节点增删移/路由/token/共享视觉基线变更 或 跨 Feature 冲突命中)"
-        "需 reviewer 评审 + owner 协调确认;L1(节点内增量 · 三判据全过)不暂停 · WARN 留痕自动继续"
-    ),
 )
 
 
@@ -3042,7 +2888,6 @@ EXECUTE_SPEC = StageSpec(
 STAGE_SPECS: dict[str, StageSpec] = {
     "goal": GOAL_SPEC,
     "ui_design": UI_DESIGN_SPEC,
-    "panorama_sync": PANORAMA_SYNC_SPEC,
     "blueprint": BLUEPRINT_SPEC,
     "diagnose": DIAGNOSE_SPEC,
     "dev": DEV_SPEC,

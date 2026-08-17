@@ -1,6 +1,6 @@
 ---
 name: teamwork
-version: v8.335.2
+version: v8.337.1
 description: AI 协作开发一体化框架 - 需求功能开发, bug 修复, 问题排查 · /teamwork 启动
 ---
 
@@ -363,7 +363,7 @@ mode B 识别后(**无论后续 flow_type = Feature〔full/micro〕还是 Bug ·
 
 | 流程 | 授权暂停点(按顺序) |
 |---|---|
-| **Feature** | ① prepare 4 项配置 → ② goal PRD 最终确认(📄 回显 PRD 绝对路径)→ ③ ui_design UI 预览确认(若 --needs-ui) → ③′ panorama_sync L2 结构变更跨团队确认(条件 · L1 不停) → ④ blueprint 方案要素确认(条件:DB 变更 / 🛡️ 兜底清单非空 · 见下) → ⑤ pm_acceptance 三选项 → ⑥ ship1 终点 等平台合并 feature MR |
+| **Feature** | ① prepare 4 项配置 → ② goal PRD 最终确认(📄 回显 PRD 绝对路径)→ ③ ui_design UI 预览确认(若 --needs-ui · 🔗 全景变更 L2 判级并入本停等 · L1 不停) → ④ blueprint 方案要素确认(条件:DB 变更 / 🛡️ 兜底清单非空 · 见下) → ⑤ pm_acceptance 三选项 → ⑥ ship1 终点 等平台合并 feature MR |
 | **Bug** | ① prepare 4 项配置 → ② **diagnose 修复方案确认**(根因+方案 · 用户拍板才进 dev) → ③ pm_acceptance 三选项 → ④ ship1 终点 |
 | **Feature · micro** | ① prepare 4 项配置 → ② ship1 终点 等 MR 合入(execute 零门禁 · 无 pm_acceptance · 用户验收 = ship1 MR diff review)|
 
@@ -381,7 +381,7 @@ mode B 识别后(**无论后续 flow_type = Feature〔full/micro〕还是 Bug ·
 | goal PRD 最终确认 | skip | PRD 已多角色 review(**真跑**)· 跳的是**用户确认** · 非评审本身 |
 | diagnose 修复方案确认(Bug) | **skip + WARN** | 按推荐方案继续 + `add-concern --severity WARN --message "auto skip: diagnose 方案 ..."` 留痕 · 修偏由 pm_acceptance 兜 |
 | ui_design UI 预览确认 | skip | 设计意图已落 UI.md / preview · auto 用户接受 |
-| panorama_sync 跨团队 reviewer(仅 L2 结构变更停 · L1 任何模式都不停) | **skip + WARN** | `panorama-change-summary.md` 已文档化 · 必 `state.py add-concern --severity WARN --message "auto skip: panorama change scope=..."` |
+| ui_design 出口全景 L2 判级(仅结构变更停 · L1 任何模式都不停) | **skip + WARN** | UI.md §全景变更判级 已文档化 · 必 `state.py add-concern --severity WARN --message "auto skip: panorama change scope=..."` |
 | blueprint 方案要素确认(DB 变更/兜底) | **skip + WARN** | 高影响 · 必 `state.py add-concern --severity WARN --message "auto skip: 方案要素确认 · DB: .../兜底: ..."`(便于 dev/review 复查) |
 | **pm_acceptance 三选项** | **stop** | 产品决策权:approved_and_ship / approved_no_ship / rejected_with_feedback · AI 不能替用户拍板(违 R3) |
 | **ship1 终点 等平台 merge feature MR** | **stop + 监控** | 用户在 git host 平台操作 · AI 无法代办 · 🔴 stop = 不替用户点合并 · **仍必须跑 `await-merge` 轮询**(所有模式 · MERGED → 自动 ship-finalize)—— 否则用户合了没人收尾 |
@@ -586,7 +586,7 @@ v8 把 9 红线的可枚举子条目物化进 state.py;R3 + 部分行为约束(R
 | [docs/teamwork-space-guide.md](./docs/teamwork-space-guide.md) | teamwork-space.md 维护规范 |
 | [tools/state.py](./tools/state.py) | 唯一编排器入口 |
 | [tools/_v8_engine.py](./tools/_v8_engine.py) | 通用 stage start/complete + bypass 引擎 |
-| [tools/_v8_stage_specs.py](./tools/_v8_stage_specs.py) | 12 stage 完整契约(stage 数单源 `STAGE_SPECS`) |
+| [tools/_v8_stage_specs.py](./tools/_v8_stage_specs.py) | 全部 stage 完整契约(stage 数单源 `STAGE_SPECS` · 不写死数字) |
 | [tools/_v8_ship.py](./tools/_v8_ship.py) | ship-phase actions + ship-finalize + await-merge |
 | [tools/bootstrap.py](./tools/bootstrap.py) | session 启动维护(骨架 / 历史注入段与 hooks 清理 / legacy codex agent toml 回收) |
 | [claude-agents/](./claude-agents/) | 第三视角冷审 prompt 模板(`state.py external-review` 组装进配方 · codex-agents 已随跨厂商退役删除) |

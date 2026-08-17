@@ -4,6 +4,32 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.337 · 链装配卡固定三槽:评审力度不许再丢(用户纠偏)
+
+> case(supersdk 实证):PRD 终确认导读的「链装配」实际输出 =「进 UI 设计、也进浏览器验收 / 不改数据库 / 动到的面…」—— 只剩环节与影响面,**评审力度整维丢失**(是否需要评审、几路、谁审、为什么,一个字没有),流程阶段也没按链展示。用户预期:根据复杂度配置**流程阶段(有哪些)+ 评审力度(是否需要 · 需要几个评审)**。
+> 根因 = v8.302 老病:导读要求是形容词式(「环节取舍 + 下游评审面」)—— 形容词糊得过,槽位糊不过。
+> 用户同步锚定目的:**尽量降低流程税** —— 槽位不是加税:评审减没减、减到几路,必须让用户一眼可核(减税要减在明处);整卡 ≤6 行、每槽一行、理由一句,防槽位自己变新税。
+
+### 变更
+- **goal-stage 3.7 ② 固定三槽(缺槽即漏 · 整卡 ≤6 行)**:①**流程阶段** —— 完整链逐段展示、可选段标 进/跳 + 一句理由;②**评审力度** —— 逐评审 stage 一行「**是否需要 × 几路 × 谁 × 理由**」,**收到零也显式写 `0 路 + 理由`**;③**四轴证据**各半句。默认执行/不阻塞语义不变。
+- PRD 终确认导读「🔗 链装配」项与 goal brief 同步指槽位。
+
+### 测试
+`test_assembly_card_slots_v8337.py` 8 条:全链形态 / 四问逐项 / 零路显式 / 证据槽 / 减税可见 + ≤6 行防新税 / 导读指槽 / brief 载体。全库全绿。
+
+## v8.336 · panorama_sync stage 退役:全景变更判级并入 ui_design 出口(用户拍板)
+
+> 用户:design 流程是基于现有项目全景改造么?如果是,应该去掉全景同步的流程,没有必要了。
+> 前提验证成立且比预期更实:①ui_design 新模式 = 全景唯一权威 · Designer **直接改全景**(panorama-sync 自己承认「不重复同步」);②机器自相矛盾实锤 —— 附录维度 4 要求 ui_design 期改 sitemap,退役前的 mtime 门(> 本 stage started_at)逼人**二次 touch**;③同文件双载体互撞(旧规则 5「不直接改 sitemap 归 panorama_sync」vs 附录维度 4「modify-in-place」);④消费数据 11 次全是 L1 分钟级过场 · 零 L2 真协调。
+
+### 变更
+- **stage 退役**:`PANORAMA_SYNC_SPEC` / 转移分支 / `--panorama-changed` 参数与 evidence / stage 文件 / SKILL·FLOWS·STAGES 各表行全清;`ui_design → blueprint` 恒定转移。canonical 链 12 → **11 stage**(README 双语数字同步 —— spec_claims 数字门当场抓到三处,又一实证「数字宣称必漂」)。存量兼容:状态枚举保留 `panorama_sync`(历史 completed_stages 合法);in-flight 停在该 stage 的用 `jump-to-stage` 出(WARN 留痕)。
+- **真价值并入 ui_design 出口(规则 8 重写)**:改动涉全景 → 判级 —— **L1**(节点内增量 · 三判据全过:无节点增删移/无 token 变更/受影响 Features 零命中)→ `add-concern WARN` 留痕直进;**L2**(任一不满足或拿不准)→ 判级结论 + 受影响 Features **并入既有的用户确认设计稿暂停点**(零新增停等 · 与 blueprint DB 变更 R5 同形态 · auto_mode 跳过 WARN 留痕);判级依据写 **UI.md §全景变更判级**(替代 panorama-change-summary.md 独立产物)。
+- **双载体互撞消解**:规则 5 改为「sitemap / overview 随设计一并改」(与附录维度 4 同轴);dev-stage 两处改口(回 ui_design 走出口判级);verify-panorama 注释同步。
+
+### 测试
+`test_panorama_retire_v8336.py` 10 条:注册表/磁盘/转移/flag 持久化四路退役 · 存量枚举兼容 · L1 三判据 · L2 搭既有停等 · UI.md 节替代 · sitemap 互撞消解 · 活引用锁(符号/注册键/链边/表行 —— 迁移史标注合法)· 数字宣称清零;既有 4 个锁文件(state/engine_fixes/v8284/spec_claims 触发面)按新设计更新。全库全绿。
+
 ## v8.335 · teamwork-space 入口注入 CLAUDE.md / AGENTS.md(用户拍板)
 
 > 用户:初始化时把 teamwork-space.md 引入到 AGENTS.md 和 CLAUDE.md —— 目标是**不用 teamwork agent 也能充分了解项目**。
@@ -41,33 +67,3 @@
 
 ### 测试
 `test_ac_plain_column_v8333.py` 6 条:模板列序 / 指引锚 / 示例行 / 机器门新旧列序皆过 / 新列序下空值仍拦。全库全绿。
-
-## v8.332 · 主对话 = Orchestrator:dev/test 默认姿态(用户拍板)
-
-> 用户:dev stage 和 test stage 加上不建议在主对话(主循环)进行开发和测试 —— 主对话优先用做 Orchestrator:任务拆解、阶段规划、子代理调度、集成接线、提交/推送、验证门禁、小型精准修改等。
-> 设计要点:**位置(谁持有 context)与档位(用什么模型)正交** —— 验证档白名单早已把测试执行推出主对话,但档位表执行档行还写着「主对话继承会话模型即是」,等于默认背书主对话写码;本版把位置姿态独立立规。
-
-### 变更
-- **dev-stage 1.7(🎛️)**:不建议主对话直接成块开发 —— 拍板职责清单逐项入规(任务拆解 / 阶段规划 / 子代理调度 / 集成接线 / 提交推送 / 验证门禁 / **小型精准修改**);成块实现派 subagent(worktree 内路径 · **执行档继承会话模型不降档** · Meta 申报);出口显式:小 / 耦合 / 强串行 → 主对话直接做(派发协调开销反拖慢)。why:主对话 context 是最稀缺资源(跨 stage 编排状态 / 用户拍板记忆 / 集成全景全活在这里)· Orchestrator 姿态让并行成为默认而非事后补问。
-- **test-stage 1.7**:不建议主对话直接编写与执行测试(执行本就是验证档白名单硬约束 · 编写同白名单默认派);主对话留 环境预检调度 / **差分基线裁决** / 门禁命令 / 失败分诊 —— 测试日志是最大的 context 污染源之一。
-- **档位表执行档行调和**(agents/README):模型继承会话档不降 + **位置默认 subagent**(单源指 dev-stage 1.7)——「主对话继承会话模型即是」旧背书措辞退役。
-- **brief 三处动作点同步**(dev · test Feature 流 · test Bug 流)。建议姿态 · 不设机器门。
-- **全局化(用户追拍:其他阶段也需要)**:总纲上提 SKILL § subagent/teammate 条目(全 stage 默认姿态 · 单源 · 🔴 密度不变)—— 成块产出(实现/测试/调研 fan-out/冷审/设计稿)默认派;dev/test 1.7 降为 stage 实例并标单源关系。
-
-### 测试
-`test_orchestrator_posture_v8332.py` 10 条:拍板职责逐项 / 出口保留 / 位置×档位正交 / 白名单衔接 / 档位表旧措辞退役 / 三 brief / 无新门。全库全绿。
-
-## v8.331 · standards 载体合并:tech-rules 三时点唯一必读(用户拍板)
-
-> 拍板链:①整理为「技术架构及方案的 review 要点」一个文件 · 没必要拆太多文档(前后端约束已很少);②就叫 tech-rules.md,把 HARD-RULES 也整合进来 —— 方案起草、review、dev 开发三时点必读;③明确必须读项目 `project-specs/DEV-RULES.md`(标准路径)· **需同时满足项目规范和本规范 · 冲突部分以项目规范为准**。
-> 讨论中确认的关键事实:backend.md 现存内容的主要动词已是「评审必查 / CR 阻塞」—— 重命名是纠名实;整合消灭「详见分册」二跳,**起草时读的就是 review 会查的**(门与预告同源)。
-
-### 变更
-- **新 `standards/tech-rules.md`(~160 行 · 五节)**:§一 逆模型默认(原 HARD-RULES)· §二 框架/项目约定(+权威源单源 / 架构文档落点 / Mermaid / TEST-DATA 登记四条薄段收编)· §三 方案与架构门(原 backend 评审门整体入驻:API 契约优先级链与缺省码表 · 日志 CR 门详版 · Schema 变更门与验证链 · FK 决策门〔唯一权威〕· API 版本)· §四 前端专项 · §五 收口自查表。头部即用户三句契约(标准路径 / 同时满足 / 冲突以项目为准 · DEV-RULES 缺失回退 + 提示固化)。
-- **内容按消费时点归位(搬家不是删除)**:scratch 全文 + 迁移命名与起号纪律 → conventions §12.48/12.49(执行环境约定 · 与构建世界同族 · lazy-install 踩坑并入 §12.45);测试脚本两层契约 → scripts-policy §7(顺手删 §3 样板 + §4 已完结历史段);Designer 自查 6 维 → ui-design-stage 附录(verify-panorama 指路牌同步)。
-- **三文件退役**:HARD-RULES.md · common.md · backend.md。standards/ 终态 3 文件 411 行(764→411)。
-- **三时点接线**:blueprint 规则 1(起草重点 §三)· dev 读取契约 · review 手段菜单 tech-rules 对照行 + reviewer prompt 评审对照基线;**运行时 brief 三处全接**(dev 读取契约 · blueprint「起草对照 · 起草读的就是 review 会查的」· review「评审对照基线」—— stage 文档有 ≠ brief 有,动作点载体单独核);SKILL 目录表 · templates(tech/tc/prd/README/ui/dev-rules)· roles/architect · 工具注释全量改指;全库悬空引用清零(机器锁)。
-- 压缩措辞按原文回补(降级前/后方案 · 限流/熔断/降级信号 · APM/sidecar · 先 ERROR 再 WARN · MTTR why)—— 合并零实质丢失(v8308 逐条款锁复核)。
-
-### 测试
-`test_tech_rules_merge_v8331.py` 15 条(三句契约逐句 / 五节 / 评审门吸收 / 退役 / **全库零悬空引用** / 归位三处 / 三时点接线 / brief / 零版本标);6 个历史锁文件(v8285/86/03/07/08/10)按新载体重锁,实质条款逐条复核。全库全绿。

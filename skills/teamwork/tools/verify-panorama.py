@@ -147,7 +147,7 @@ def check_panorama_path_valid(panorama_path: str | None) -> tuple[bool, list[str
     return True, []
 
 
-# check_sitemap_mtime 已迁移到 panorama_sync stage 的 _evidence_sitemap_updated
+# check_sitemap_mtime 已随 panorama_sync stage 退役(全景变更判级并入 ui_design 出口 · 规则 8)
 # (workspace IA 同步是独立 stage · 治本「panorama 同步埋在 ui_design step 4 隐式动作」)
 
 
@@ -191,7 +191,7 @@ def main() -> None:
     medium = read_panorama_medium(text)
     # same-stack 介质 · panorama 在项目前端栈内(/design/* 路由)· HTML 文件相关
     # 检查整体跳过(治本 PTR-F052 case)。仍校验 UI.md 自查报告完整性 + 宿主标注。
-    # 注:sitemap.md mtime 检查已迁到 panorama_sync stage 的 _evidence_sitemap_updated
+    # 注:sitemap.md 改动随 ui_design 本体(附录维度 4)· 判级在 ui_design 出口规则 8
     #     (workspace IA 同步是独立 stage · 治本「panorama 同步埋在 ui_design step 4 隐式动作」)
     HTML_SPECIFIC = {
         "panorama_path valid",

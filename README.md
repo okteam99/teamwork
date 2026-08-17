@@ -2,7 +2,7 @@
 
 AI 从团队协作视角出发，通过**流程编排 + 角色视角切换 + 契约化 Stage + 机读状态机**，驱动从产品规划到交付的完整软件研发流程。
 
-[English](./README-EN.md) · Version: **v8.335**（版本单源 = [SKILL.md](./skills/teamwork/SKILL.md) frontmatter）
+[English](./README-EN.md) · Version: **v8.337**（版本单源 = [SKILL.md](./skills/teamwork/SKILL.md) frontmatter）
 
 ---
 
@@ -331,7 +331,7 @@ teamwork 的 9 条核心红线，其中 8 条由 `state.py` 状态机物化校�
 |------|------|
 | [SKILL.md](./skills/teamwork/SKILL.md) | 主入口：设计哲学 + 命令清单 + Triage 入口规范 + 9 红线 + 项目级文档架构 |
 | [FLOWS.md](./skills/teamwork/FLOWS.md) | 流程闭集 telos（Feature/Bug × preset + 2 个不进状态机）与适用场景 |
-| [STAGES.md](./skills/teamwork/STAGES.md) | 12 stage 索引 + 通用 cite 纪律 |
+| [STAGES.md](./skills/teamwork/STAGES.md) | 11 stage 索引 + 通用 cite 纪律 |
 | [ROLES.md](./skills/teamwork/ROLES.md) | 角色索引（→ roles/*.md） |
 | [STANDARDS.md](./skills/teamwork/STANDARDS.md) | 技术规范索引（→ standards/*.md） |
 | [TEMPLATES.md](./skills/teamwork/TEMPLATES.md) | 文档模板索引 |
@@ -350,7 +350,7 @@ teamwork 的 9 条核心红线，其中 8 条由 `state.py` 状态机物化校�
 
 ## 版本
 
-当前 **v8.335**（版本单源 = [SKILL.md](./skills/teamwork/SKILL.md) frontmatter）。变更记录见 [docs/CHANGELOG.md](./skills/teamwork/docs/CHANGELOG.md)（最近 5 版）· 更早历史走 git 提交历史（CHANGELOG-ARCHIVE **定期清空**）。
+当前 **v8.337**（版本单源 = [SKILL.md](./skills/teamwork/SKILL.md) frontmatter）。变更记录见 [docs/CHANGELOG.md](./skills/teamwork/docs/CHANGELOG.md)（最近 5 版）· 更早历史走 git 提交历史（CHANGELOG-ARCHIVE **定期清空**）。
 
 ---
 

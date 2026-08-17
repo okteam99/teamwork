@@ -37,7 +37,7 @@ from typing import Any, Optional
 LEGAL_STAGES = {
     "goal",
     "ui_design",
-    "panorama_sync",
+    "panorama_sync",   # 退役 stage · 仅为历史 state(completed_stages)兼容保留枚举
     "blueprint",
     "diagnose",
     "dev",
@@ -64,8 +64,7 @@ CONCERN_SEVERITY = {"INFO", "WARN", "ERROR"}
 # 注：ui_design / browser_e2e 是可选 Stage（PMO 在 enter-stage 时按 spec 决策跳过 vs 启用）
 FEATURE_FLOW: dict[str, list[str]] = {
     "goal": ["ui_design", "blueprint"],
-    "ui_design": ["panorama_sync", "blueprint"],   # 条件:--panorama-changed=true → panorama_sync · false → blueprint
-    "panorama_sync": ["blueprint"],
+    "ui_design": ["blueprint"],   # 全景变更判级并入 ui_design 出口(panorama_sync stage 退役 · 用户拍板)
     "blueprint": ["dev"],
     "dev": ["review"],
     "review": ["test", "dev"],          # review 失败回 dev
