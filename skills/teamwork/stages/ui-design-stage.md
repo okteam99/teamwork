@@ -33,10 +33,10 @@
 2. 🔴 **same-stack 物化闸**:`{panorama_path}/preview-project/` + `preview.sh` + `package.json` **必存在**(`_check_same_stack_preview_project` 校验)· **不可只写 UI.md markdown 跳过可跑预览**(why:防拿「验证器只校验 UI.md」当借口零可视产出 —— 最低物化闸 ≠ 免做交付物许可)。
 3. 🔴 **IA 镜像律**:preview-project 路由结构 = 真实 app(与 `sitemap.md` 一致)· 本次设计页挂**真实 `route_path`** · `/` = 真实首页设计稿 · **router 必含**(why:全景的价值就在用户能沿真实导航走到新页;把新页渲染在 `/` 顶掉首页 = IA 违规)。
 4. 🔴 **复现门(扩已有真实页时)**:设计单位是**整张页** —— 读真实代码定形态 → 按真实形态复现整页 → 再集成新部分 · **绝不凭印象重画**(why:实证 AON Offer-Analysis —— 只画概念页、真实页的筛选区/KPI/Top card 没对齐 → 用户判「设计稿不完整」要求重做)。
-5. 🔴 **本 stage 不直接改 `sitemap.md`** —— 改 sitemap / overview 归 panorama_sync(why:跨 Feature IA 影响必须被单独一层看见〔隔离审计 + 暂停点 + 跨 Feature 评审〕)。
+5. **sitemap / overview 随设计一并改**(设计 = 基于现有全景的改造 —— 新页节点 / 描述列在本 stage modify-in-place · 与附录维度 4 同轴):跨 Feature IA 影响由规则 8 的**出口判级**承接审计与暂停(why:改动与登记分两个 stage = 二次 touch 纯重复 · 实证 mtime 门逼人补碰文件)。
 6. 🔴 **截图只落 scratch 目录**(worktree 模式 `<worktree>/.teamwork-scratch/screenshots/`〔ignored · 不进 diff〕· off 模式旧根)· **绝不散落 worktree 其他位置 / 主工作区根**(why:自检一次性产物非交付物 · 详 [conventions §12.5](../docs/conventions.md))。
 7. ⏸️ **用户预览确认(R5 暂停点)** · `auto_mode=true` 时跳过(设计意图已落 UI.md/preview · auto 用户接受)(why:「看着对不对」是 taste 层 · 用户主权 · AI 判不了)。
-8. **`--panorama-changed` 必传**(true → 自动转 panorama_sync · false → 直进 blueprint)(why:workspace 级 IA 影响的路由开关 —— 漏传 = 跨 Feature 影响无人评审)。
+8. 🔗 **全景变更判级(出口 · 原 panorama_sync stage 并入 · 用户拍板退役)**:改动涉全景 → 判级 —— **L1**(节点内增量 · 三判据**全**满足:① sitemap 无节点增删移 / 无路由变化 ② 无设计 token / 共享视觉基线变更 ③ 受影响 Features 扫描零命中)→ `add-concern --severity WARN` 记三判据依据 · 直进 blueprint;**L2**(任一不满足或拿不准)→ 判级结论 + 受影响 Features **并入本 stage 既有的用户确认设计稿暂停点**一并拍板(零新增停等 · auto_mode 跳过时 WARN 留痕);判级依据写 **UI.md §全景变更判级**(替代原 panorama-change-summary.md)(why:设计本就是改全景 —— 同步不需要第二个 stage,需要的只是结构性变更的判级与协调,条件暂停搭既有停等即可)。
 
 ---
 
@@ -47,7 +47,7 @@
 | **same-stack:扩/搭 preview-project** | 规划期已 seed → 增量补本 Feature 页;不存在 → 首次搭。基建层走共享包/同版 · mock data · 页面层承载意图四要素 · 源即全景权威(committed · 不出静态 build)· 本 Feature 引入新库时 preview-project 独立装(解鸡蛋问题) |
 | **static-html:直接编辑全景 HTML** | 前端栈未定 / Designer-only —— 改 `panorama_path/preview/<page.id>.html`(唯一 source · Feature 内不存副本)· `pages_changed[].panorama_file` 链到权威路径 |
 | **复现手段排序**(扩已有页)| 优先导入真实页/组件源(同一份代码 · 一致性由结构保证);不可导入 → 按真实源 1:1 镜像 + UI.md 记豁免 |
-| **判定 panorama 是否被改动** | 判据是「panorama 文件要不要动」(含 sitemap 描述列)· 不必预判影响大小 —— panorama_sync 内部再判级(L1 不停 / L2 才停)· `true` ≠ 必暂停 |
+| **全景变更判级**(规则 8) | 改动涉全景时出口必判 —— L1 三判据留痕直进 · L2 随用户确认一并拍板(不必预判影响大小 · 判级三判据是机械问句) |
 
 ## 📐 全景模型(介质 / IA 镜像律 / 分层同构律 —— ②③④ 共同引用的领域定义)
 
@@ -142,7 +142,7 @@ bash {子项目}/docs/design/preview-project/preview.sh    # → PREVIEW_URL=htt
 
 ```
 state.py ui_design-complete --feature X --auto-commit Y \
-  --artifacts <UI.md[,preview/]> --panorama-changed {true|false}
+  --artifacts <UI.md[,preview/]>
 # --artifacts:UI.md 必 · static-html 加 preview/ · same-stack 仅 UI.md
 ```
 

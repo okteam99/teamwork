@@ -266,9 +266,10 @@ class TestBrowserE2EWiring(_RepoCase):
         """单元:ui_design-complete 侧的 --needs-browser-e2e 同样由 persist 落 hints。"""
         st: dict = {}
         S.persist_args_to_evidence(
-            "ui_design", st, NS(panorama_changed="false", needs_browser_e2e="true"))
+            "ui_design", st, NS(needs_browser_e2e="true"))
         self.assertIs(st["execution_hints"]["browser_e2e_needed"], True)
-        self.assertIs(st["execution_hints"]["panorama_changed"], False)
+        # v8.336:panorama_changed 随 panorama_sync 退役 · 不再持久化
+        self.assertNotIn("panorama_changed", st["execution_hints"])
         # test 转移消费该 hint
         st["stage_contracts"] = {"test": {"evidence": {
             "integration_test_exit_code": 0, "e2e_test_exit_code": 0}}}
@@ -581,41 +582,12 @@ class TestPauseDisciplineClaims(unittest.TestCase):
 
 
 class TestSitemapPanoramaPathMatch(unittest.TestCase):
-    def setUp(self):
-        self.tmp = Path(tempfile.mkdtemp(prefix="tw-sitemap-"))
+    """v8.336:_evidence_sitemap_updated 随 panorama_sync stage 退役 —— sitemap 改动归
+    ui_design 本体(附录维度 4)· 判级在 ui_design 出口规则 8 · mtime 二次 touch 门消亡。"""
 
-    def tearDown(self):
-        shutil.rmtree(self.tmp, ignore_errors=True)
-
-    def _check(self, ui_md_text: str):
-        (self.tmp / "UI.md").write_text(ui_md_text, encoding="utf-8")
-        return S._evidence_sitemap_updated({}, NS(feature=str(self.tmp)))
-
-    def test_plain_line_without_emoji_matched(self):
-        ok, err = self._check("panorama_path: /nonexistent/pano\n")
-        self.assertFalse(ok)
-        self.assertIn("sitemap.md 不存在", err)  # 已匹配到路径 · 走到 sitemap 校验
-
-    def test_quote_line_with_emoji_matched(self):
-        ok, err = self._check("> 🔴 panorama_path: /nonexistent/pano\n")
-        self.assertFalse(ok)
-        self.assertIn("sitemap.md 不存在", err)
-
-    def test_bullet_line_matched(self):
-        ok, err = self._check("- panorama_path: /nonexistent/pano\n")
-        self.assertFalse(ok)
-        self.assertIn("sitemap.md 不存在", err)
-
-    def test_placeholder_blacklist_kept(self):
-        ok, err = self._check("> panorama_path: null\n")
-        self.assertFalse(ok)
-        self.assertIn("无效", err)
-
-    def test_prose_mention_not_matched(self):
-        ok, err = self._check("本次不动 panorama_path 相关内容\n")
-        self.assertFalse(ok)
-        self.assertIn("未声明", err)
-
+    def test_helper_retired(self):
+        import _v8_stage_specs as S
+        self.assertFalse(hasattr(S, "_evidence_sitemap_updated"))
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

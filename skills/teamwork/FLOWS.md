@@ -7,7 +7,7 @@
 
 | 流程 | telos(解决什么) | 链 | 产出 |
 |------|----------------|-----|------|
-| **Feature**(preset=full) | 从需求到上线的完整闭环 + 多视角质量门禁 | goal → (ui_design) → (panorama_sync) → blueprint → dev → review → test → (browser_e2e) → pm_acceptance → ship | 代码 + 文档 + 测试 |
+| **Feature**(preset=full) | 从需求到上线的完整闭环 + 多视角质量门禁 | goal → (ui_design) → blueprint → dev → review → test → (browser_e2e) → pm_acceptance → ship | 代码 + 文档 + 测试 |
 | **Feature**(preset=micro) | 零逻辑改动最轻通道(文案/样式/资源/配置常量/注释 白名单 · 超纲即 full · 准入单源 prepare.md §2.2)· **execute 零门禁自由执行**(自选 model/subagent/workflow/测试 · 无规范限制)· 用户验收在 ship1 MR diff(R7)· | execute → ship | 代码直改 |
 | **Bug** | 缺陷已指认 · **diagnose 先行**(根因 + 修复方案经用户确认才许修 · 防修偏)· review 单路 external | diagnose → dev → review → test → pm_acceptance → ship | 修复 + BUG 报告 + 回归测试 |
 | **Feature Planning** | 产品方向 → 拆 ROADMAP · 不出代码(R6)· **不进状态机**(init reject · PMO 主对话执行 · 详 [docs/feature-planning.md](./docs/feature-planning.md)) | — | WS + ROADMAP + 全景 |

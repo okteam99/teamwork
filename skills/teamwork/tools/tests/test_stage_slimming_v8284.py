@@ -57,7 +57,7 @@ class TestUiDesignSlimming(unittest.TestCase):
     def test_materialized_gates_retained(self):
         """①③ 物化闸 + 用户主权暂停点一条未动。"""
         for k in ("_check_same_stack_preview_project", "用户预览确认",
-                  "不直接改", "verify-panorama.py", "IA 镜像律", "分层同构律"):
+                  "随设计一并改", "verify-panorama.py", "IA 镜像律", "分层同构律"):  # v8.336:sitemap 改动归 ui_design 本体
             self.assertIn(k, self.t, f"必保留项丢失:{k}")
 
 
