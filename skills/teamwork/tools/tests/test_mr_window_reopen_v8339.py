@@ -93,8 +93,8 @@ class TestSpecCarriers(unittest.TestCase):
 
     def test_ship_stage_section(self):
         t = (SKILL_ROOT / "stages" / "ship-stage.md").read_text(encoding="utf-8")
-        seg = t.split("MR 窗口期修复", 1)[1].split("## ")[0]
-        self.assertIn("不开 Bug 流", t.split("MR 窗口期修复", 1)[1][:60])
+        seg = t.split("## MR 窗口期修复", 1)[1].split("\n## ")[0]
+        self.assertIn("不开 Bug 流", seg[:80])
         self.assertIn("rerecord", seg)                             # push 重跑更新同一 MR
         self.assertIn("不重开", seg)                                # zip 初版墓碑
         self.assertIn("平台已合并**后的问题 → Bug 流", seg)          # 边界

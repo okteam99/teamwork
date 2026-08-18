@@ -4,6 +4,19 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.340 · ship1 后 CI pipeline 自动检查(用户拍板)
+
+> 用户:另外 ship1 之后需要自动检查 CI 的 pipeline。
+> 呼应点:await-merge 的 docstring 里写着原始痛点「CI 红无人接」(实证 132h 长尾)—— 但它只轮询合并态,CI 一直没人看。本版给这句话配上机器动作,并与 v8.339 的 MR 窗口期修复口闭环。
+
+### 变更
+- **push 记录成功即自动查一次 CI**(工具内建 · `_mr_ci_status` best-effort):emit `ci_status`(passing / failing / pending / none / unknown)—— 刚 push 常为 pending = 确认 pipeline 已起;failing → emit 直接带 `ci_fix_hint`(jump 回 dev 修复口);unknown(gh/glab 缺失或未登录)不拦流程。
+- **await-merge 每轮轮询带 CI**:MR 未合并且 CI 红 → **不再傻等合并**,立即以 `CI_FAILING` 退出 + 修复口指引(红灯检查置于 MERGED 判定之前 · 测试锁顺序);MERGED / WAITING emit 均回显最后一次 `ci_status`。修复循环:jump 回 dev → push 重跑 → await-merge 续走(同一 MR)。
+- 解析层纯函数化:GitHub `gh pr checks`(退出码 0/8/其他 × 行状态 · `_parse_gh_checks` 单测锁五态);GitLab `glab mr view -F json` 读 pipeline 字段。ship-stage 新节「MR 窗口期 CI 自动检查」。
+
+### 测试
+`test_ci_watch_v8340.py` 9 条:解析五态 / push emit 字段 / await-merge 轮询接线 + 红灯先于 MERGED / 修复口闭环 v8.339 / spec 节。v8339 spec 锚随新节重定位。全库全绿。
+
 ## v8.339 · MR 窗口期修复:同 feature 回 dev · 不开 Bug 流(用户拍板)
 
 > case(supersdk SCLI):ship1 已 push,PR 上 3 个已知代码 blocker —— 消费 AI 按「Ship 后不可回」判成「必须开 Bug 流再合回」。用户纠偏:直接在当前 feature 回 dev 修,不要新开 bug。
@@ -53,16 +66,3 @@
 
 ### 测试
 `test_panorama_retire_v8336.py` 10 条:注册表/磁盘/转移/flag 持久化四路退役 · 存量枚举兼容 · L1 三判据 · L2 搭既有停等 · UI.md 节替代 · sitemap 互撞消解 · 活引用锁(符号/注册键/链边/表行 —— 迁移史标注合法)· 数字宣称清零;既有 4 个锁文件(state/engine_fixes/v8284/spec_claims 触发面)按新设计更新。全库全绿。
-
-## v8.335 · teamwork-space 入口注入 CLAUDE.md / AGENTS.md(用户拍板)
-
-> 用户:初始化时把 teamwork-space.md 引入到 AGENTS.md 和 CLAUDE.md —— 目标是**不用 teamwork agent 也能充分了解项目**。
-> 与 v8.211「注入退役」的边界(不构成推翻):当年退役的是**流程指令注入**(共享仓库里非 teamwork 用户被迫吃 PMO/worktree 规则 · 实证 case);本块**受众相反**(正是为非 teamwork 用户服务)· **内容零流程指令**(只有知识地图指针)。
-
-### 变更
-- **`bootstrap.maintain_space_pointer`**(随 session bootstrap · space 骨架之后):把 managed 块注入 `CLAUDE.md` + `AGENTS.md` ——「📍 项目知识地图:先读 teamwork-space.md(知识入口 · 无论是否使用 teamwork 流程,了解本项目从它开始;代码是细节唯一真相)」。
-- **行为**(幂等):`teamwork-space.md` 不存在 → skip;目标文件不存在 → 创建(仅块);存在无块 → **顶部插入**(发现性 · 块外一字不动);存在有块 → 原位重写块内(带版本 marker · 升版可换文案不重复)。marker(`TEAMWORK-SPACE-POINTER`)与 legacy 清理正则(`TEAMWORK_BEGIN:`)不同族 —— `maintain_host_injection` 清历史注入时不会误删新块。
-- guide 文档(teamwork-space-guide)注明注入机制与 v8.211 边界。
-
-### 测试
-`test_space_pointer_v8335.py` 7 条:双文件创建 / 顶部插入保用户内容 / 幂等 + 旧版块原位升级不重复 / 无 space 跳过 / **块内零流程指令**(PMO/worktree/Subagent/state.py/R5 全禁)/ legacy 清理不误删 / bootstrap wiring。全库全绿。

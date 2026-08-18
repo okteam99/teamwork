@@ -4,6 +4,19 @@
 > 上次清空:**v8.193**(2026-07-06 · 清除 v8.128 → v8.187 共 60 版条目 · 约 1.0k 行)。
 
 ---
+## v8.335 · teamwork-space 入口注入 CLAUDE.md / AGENTS.md(用户拍板)
+
+> 用户:初始化时把 teamwork-space.md 引入到 AGENTS.md 和 CLAUDE.md —— 目标是**不用 teamwork agent 也能充分了解项目**。
+> 与 v8.211「注入退役」的边界(不构成推翻):当年退役的是**流程指令注入**(共享仓库里非 teamwork 用户被迫吃 PMO/worktree 规则 · 实证 case);本块**受众相反**(正是为非 teamwork 用户服务)· **内容零流程指令**(只有知识地图指针)。
+
+### 变更
+- **`bootstrap.maintain_space_pointer`**(随 session bootstrap · space 骨架之后):把 managed 块注入 `CLAUDE.md` + `AGENTS.md` ——「📍 项目知识地图:先读 teamwork-space.md(知识入口 · 无论是否使用 teamwork 流程,了解本项目从它开始;代码是细节唯一真相)」。
+- **行为**(幂等):`teamwork-space.md` 不存在 → skip;目标文件不存在 → 创建(仅块);存在无块 → **顶部插入**(发现性 · 块外一字不动);存在有块 → 原位重写块内(带版本 marker · 升版可换文案不重复)。marker(`TEAMWORK-SPACE-POINTER`)与 legacy 清理正则(`TEAMWORK_BEGIN:`)不同族 —— `maintain_host_injection` 清历史注入时不会误删新块。
+- guide 文档(teamwork-space-guide)注明注入机制与 v8.211 边界。
+
+### 测试
+`test_space_pointer_v8335.py` 7 条:双文件创建 / 顶部插入保用户内容 / 幂等 + 旧版块原位升级不重复 / 无 space 跳过 / **块内零流程指令**(PMO/worktree/Subagent/state.py/R5 全禁)/ legacy 清理不误删 / bootstrap wiring。全库全绿。
+
 ## v8.334 · 起草前深入调研 + 评审深度判断卡(回显不阻塞)(用户拍板)
 
 > case(supersdk Analytics-Dashboard):起草前调研 = KNOWLEDGE/GLOSSARY + **读 1 个文件 + 2 条命令** → 直接写 174 行 PRD;派冷审用默认双路、零判断输出。旧 spec「按需选查」下这**完全合规** —— 判据缺失,不是执行失误。

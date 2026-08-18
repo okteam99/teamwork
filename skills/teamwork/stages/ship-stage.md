@@ -211,6 +211,12 @@ git add <feature_dir>/dev/*.md <feature_dir>/PRD.md
 
 ---
 
+## MR 窗口期 CI 自动检查(用户拍板:ship1 之后自动查 pipeline)
+
+- **push 记录成功即自动查一次 CI**(工具内建 · emit `ci_status`:passing/failing/pending/none/unknown · 刚 push 常为 pending = 确认 pipeline 已起;`unknown` = gh/glab 缺失或未登录 · 不拦流程);
+- **`await-merge` 每轮轮询同时带 CI**:MR 未合并且 CI 红 → **不再傻等合并**,立即以 `CI_FAILING` 退出并给 MR 窗口期修复口(下节)—— 治「CI 红无人接」的原始痛点;
+- CI 修复循环:jump 回 dev 修 → push 重跑 → await-merge 续走(同一 MR)。
+
 ## MR 窗口期修复(pushed 后 · 平台未合并 · 用户拍板:不开 Bug 流)
 
 发现问题(平台 review blocker / CI 红 / 自查)且根因已知 → **同 feature 回 dev 修,更新同一 MR**:
