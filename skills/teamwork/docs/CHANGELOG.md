@@ -4,6 +4,19 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.339 · MR 窗口期修复:同 feature 回 dev · 不开 Bug 流(用户拍板)
+
+> case(supersdk SCLI):ship1 已 push,PR 上 3 个已知代码 blocker —— 消费 AI 按「Ship 后不可回」判成「必须开 Bug 流再合回」。用户纠偏:直接在当前 feature 回 dev 修,不要新开 bug。
+> 判断:MR 反馈循环是交付的一部分 —— 逼开 Bug 流 = 把「改 PR」变成新立项(新 worktree / 新链 / 新文档全套税)。
+
+### 变更
+- **jump-to-stage 在 pushed 态开唯一放行口**:`--to dev` + `--reason`(必填)→ 放行,`ship.reopened_fixes[]` + concerns WARN(`mr-window-reopen`)双留痕 · **ship.phase 保持 pushed**(MR 还开着 · 事实不变)· completed_stages 不动;`--to` 其他 stage 照旧拒(hint 三分:未合并修代码 → 本口;已合并 → Bug 流;放弃 → close-unmerged)。reset-prev 的 pushed hint 同步指向本口。
+- **ship-stage 新节「MR 窗口期修复」**:五步(jump 回 dev → dev 证据门照跑 · review/test 按修复规模与装配 → `push` 重跑 rerecord 更新同一 MR → zip 不重开〔初版墓碑 · 修复轮文档随接力卡〕→ 边界:平台已合并才走 Bug 流);SKILL Feature 停等链 ⑥ 带指针。
+- push 重跑(rerecord + WARN)与 archive 幂等重入为既有机制 —— 本版零新命令,只开一个受控口。
+
+### 测试
+`test_mr_window_reopen_v8339.py` 6 条:放行 + 双留痕 + phase/历史不变 / 其他 stage 照拒 / reset-prev hint / 非 pushed 态不记 reopened / ship-stage 五要素 / SKILL 指针。全库全绿。
+
 ## v8.338 · 方向类停等第 2 项恒为「继续讨论」(用户拍板)
 
 > 用户:PRD 和 Feature Planning 给出 1/2/3 选项时,第 2 项永远都是继续讨论 —— 目的是方便 AI 和用户讨论清楚目标和方向。
@@ -53,17 +66,3 @@
 
 ### 测试
 `test_space_pointer_v8335.py` 7 条:双文件创建 / 顶部插入保用户内容 / 幂等 + 旧版块原位升级不重复 / 无 space 跳过 / **块内零流程指令**(PMO/worktree/Subagent/state.py/R5 全禁)/ legacy 清理不误删 / bootstrap wiring。全库全绿。
-
-## v8.334 · 起草前深入调研 + 评审深度判断卡(回显不阻塞)(用户拍板)
-
-> case(supersdk Analytics-Dashboard):起草前调研 = KNOWLEDGE/GLOSSARY + **读 1 个文件 + 2 条命令** → 直接写 174 行 PRD;派冷审用默认双路、零判断输出。旧 spec「按需选查」下这**完全合规** —— 判据缺失,不是执行失误。
-> 用户拍板:做深入的调研 → 给出 PRD 评审深度判断(是否需要额外评审 · 需要谁 · 判断理由)→ 回显给用户但不阻塞,自动进行评审调度。
-
-### 变更
-- **「起草前调研」升级为「起草前深入调研」**(goal-stage):四面**必过**(代码现状 **grep 实测**〔只读一个文件不算调研〕· 数据面〔涉数据/统计/报表必查 schema 与查询路径〕· 既有相似实现 · 上游与规范)—— 查过的面各给一句发现,确不相关写「不涉」,**不许静默跳**;🔴 深度判据可判定:**查到能回答装配四轴 + 能写出「这个 PRD 最可能错在哪」,答不出不许起草**。调研同时喂两张卡(3.7 装配证据 + 评审深度判断卡)。
-- **评审深度判断卡**(3.7 第①拍修订「不问用户」→「不问用户、但必回显」):派冷审**前** emit —— 调研纪要(关键发现 · 影响面/数据面实测)· goal 冷审 roster 与模型错开 · **是否需要额外评审**(+qa/+dba/升异质/默认两路)· **逐项判断理由**(引四轴证据)· 下游装配预告一行;**回显后直接派发不停等**(想调回一句 · 与第②拍「默认执行」同律)。
-- goal brief 动作点同步(8 步开头改为 深入调研 → emit 判断卡 → 起草)。不设机器门(卡是回显行为 · 载体倒逼:调研不深写不出卡)。
-- **并行姿态(用户追拍)**:四面默认多 subagent 并行采集(验证档 · 每面一路 ·「查什么+返回结构化发现」)· **整合与判断留主对话**(深度档)——「调研采集」入验证类白名单(agents/README + SKILL 同步);**不新立调研档**:档位是任务性质三分类,采集/判断二分正好落既有档,第四档只会让错开/例外/申报全部多一维。
-
-### 测试
-`test_research_depth_card_v8334.py` 9 条:四面必过+显式不涉 / grep 非单文件 / 深度判据可判定 / 双卡喂料 / 卡在派发前 / 拍板三要素 / 回显不阻塞 / v8.329 两拍结构不受扰 / brief 载体。全库全绿。

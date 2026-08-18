@@ -2202,8 +2202,9 @@ def cmd_reset_prev(args: argparse.Namespace) -> None:
             "action": "reset-prev",
             "error": f"Ship 后不可回退 · ship.phase={ship_phase!r} · 远程已动 · 状态不可逆",
             "hint": (
-                "若需要修复:reset-prev 不可用 · 走 ship-phase --action close-unmerged "
-                "或新开 Feature 修复 · 或用 raw-write(留 concerns WARN)"
+                "若需要修复:reset-prev 不可用 —— MR 未合并 → "
+                "`jump-to-stage --to dev --reason '...'`(MR 窗口期修复口 · 留痕);"
+                "已合并 → 开 Bug 流(diagnose 起);整件放弃 → ship-phase --action close-unmerged"
             ),
         }, ensure_ascii=False, indent=2))
 
@@ -3596,17 +3597,36 @@ def cmd_jump_to_stage(args: argparse.Namespace) -> None:
             "valid_stages_for_flow": sorted(flow_graph.keys()),
         }, ensure_ascii=False, indent=2))
 
-    # 3. ship 后不可跳
+    # 3. ship 后不可跳 —— 唯一例外(用户拍板):MR 窗口期(pushed · 平台未合并)
+    # 发现问题 → 同 feature 回 dev 修复(不开 Bug 流)· 修完 push 重跑更新同一 MR。
     ship_phase = (state.get("ship") or {}).get("phase")
     if ship_phase == "pushed":
-        die(1, json.dumps({
-            "verdict": "FAIL",
-            "action": "jump-to-stage",
-            "error": f"Ship 后不可跳 · ship.phase={ship_phase!r} · 状态不可逆",
-            "hint": (
-                "若需修复 · 走 ship-phase --action close-unmerged 或开新 Feature"
-            ),
-        }, ensure_ascii=False, indent=2))
+        reason = (getattr(args, "reason", None) or "").strip()
+        if target == "dev" and reason:
+            ship = state.setdefault("ship", {})
+            ship.setdefault("reopened_fixes", []).append(
+                {"at": now_iso(), "reason": reason})
+            state.setdefault("concerns", []).append(
+                f"{now_iso()} WARN mr-window-reopen: pushed → dev · reason: {reason} · "
+                "修完 dev/test 证据门照跑 → ship-phase --action push 重跑(rerecord)更新同一 MR")
+        elif target == "dev":
+            die(1, json.dumps({
+                "verdict": "FAIL",
+                "action": "jump-to-stage",
+                "error": "MR 窗口期回 dev 修复必须带 --reason(一句:修什么 · audit 留痕)",
+                "hint": "state.py jump-to-stage --to dev --reason 'MR 修复:<blocker 一句>'",
+            }, ensure_ascii=False, indent=2))
+        else:
+            die(1, json.dumps({
+                "verdict": "FAIL",
+                "action": "jump-to-stage",
+                "error": f"Ship 后不可跳到 {target!r} · ship.phase={ship_phase!r}",
+                "hint": (
+                    "MR 未合并要修代码 → `jump-to-stage --to dev --reason '...'`(唯一放行口 · "
+                    "留痕 · 修完 push 重跑更新同一 MR);已合并后的问题 → 开 Bug 流(diagnose 起);"
+                    "整件放弃 → ship-phase --action close-unmerged"
+                ),
+            }, ensure_ascii=False, indent=2))
 
     # 4. target == current(no-op)
     if target == current:
