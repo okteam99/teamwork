@@ -55,10 +55,14 @@ class TestGoalAssemblyRule(unittest.TestCase):
         cls.doc = doc
         cls.rule = doc.split("链装配(调研后", 1)[1].split("\n4. ")[0]
 
-    def test_two_dimensions_and_only_two_stage_knobs(self):
+    def test_two_dimensions_and_bounded_stage_knobs(self):
         self.assertIn("环节", self.rule)
         self.assertIn("评审面", self.rule)
-        self.assertIn("唯二可选段", self.rule)               # 执行流程不变 · 只有 2 个环节旋钮
+        # 维度仍是两个;环节旋钮从 2 个扩到 3 个(加 blueprint 进/跳 = lite 档 · 用户拍板)。
+        # 锁的是「可选段是**封闭枚举**」—— 不锁个数,锁「不许再冒出第四个没登记的可选段」。
+        self.assertIn("仅此三段可选", self.rule)
+        for knob in ("ui_design", "blueprint", "browser_e2e"):
+            self.assertIn(knob, self.rule, knob)
 
     def test_four_axis_evidence_required(self):
         for axis in ("改动方向", "契约面", "影响面", "验证成本"):
@@ -74,7 +78,7 @@ class TestGoalAssemblyRule(unittest.TestCase):
         self.assertIn("不单独停等", self.rule)
 
     def test_activation_uses_existing_machinery(self):
-        self.assertIn("--needs-ui / --needs-browser-e2e", self.rule)
+        self.assertIn("--needs-ui / --needs-blueprint / --needs-browser-e2e", self.rule)
         self.assertIn("change-review-roles", self.rule)
 
     def test_judgment_table_migrated_from_prepare(self):

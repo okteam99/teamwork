@@ -1,6 +1,6 @@
 ---
 name: teamwork
-version: v8.341.1
+version: v8.342
 description: AI 协作开发一体化框架 - 需求功能开发, bug 修复, 问题排查 · /teamwork 启动
 ---
 
@@ -356,7 +356,7 @@ mode B 识别后(**无论后续 flow_type = Feature〔full/micro〕还是 Bug ·
 
 ## 流程类型(R2 闭集)
 
-`flow_type ∈ {Feature, Bug}` + Feature 重量档 `preset ∈ {full, micro}` · Planning / 排查不进状态机 · 轻量由**动态 roster + clarity** 承担(legacy 别名自动映射)。**telos 与链条单源 = [FLOWS.md](./FLOWS.md)** · **判定权威 = [docs/prepare.md](./docs/prepare.md)**。
+`flow_type ∈ {Feature, Bug}` + Feature 重量档 `preset ∈ {full, tiny, micro}` · Planning / 排查不进状态机(legacy 别名自动映射)。**四档但只有三个 preset** —— **lite = full 的装配形态**(跳 blueprint · 有 PRD 无 TC/TECH · goal 调研后拧旋钮 · **零 re-init**),不是 preset。**telos 与链条单源 = [FLOWS.md](./FLOWS.md)** · **判定权威 = [docs/prepare.md](./docs/prepare.md)** · **定档判据单源 = [goal-stage 3.7 减法侧分级表](./stages/goal-stage.md)**。
 
 ### 授权暂停点清单(非 auto 模式 · 每个独立 emit + 等用户)
 
@@ -366,6 +366,8 @@ mode B 识别后(**无论后续 flow_type = Feature〔full/micro〕还是 Bug ·
 |---|---|
 | **Feature** | ① prepare 4 项配置 → ② goal PRD 最终确认(📄 回显 PRD 绝对路径)→ ③ ui_design UI 预览确认(若 --needs-ui · 🔗 全景变更 L2 判级并入本停等 · L1 不停) → ④ blueprint 方案要素确认(条件:DB 变更 / 🛡️ 兜底清单非空 · 见下) → ⑤ pm_acceptance 三选项 → ⑥ ship1 终点 等平台合并 feature MR(窗口期发现问题 → 同 feature `jump-to-stage --to dev` 修 · 不开 Bug 流 · 详 ship-stage § MR 窗口期修复) |
 | **Bug** | ① prepare 4 项配置 → ② **diagnose 修复方案确认**(根因+方案 · 用户拍板才进 dev) → ③ pm_acceptance 三选项 → ④ ship1 终点 |
+| **Feature · lite**(full 的装配形态) | 同 Feature · **少 ④**(跳 blueprint)—— ② PRD 最终确认**照停**(降的是文档与路数,不是拍板权)|
+| **Feature · tiny** | ① prepare 4 项配置 → ② pm_acceptance 三选项 → ③ ship1 终点(零文档 · 无 goal/blueprint · review 单路 architect 不停等)|
 | **Feature · micro** | ① prepare 4 项配置 → ② ship1 终点 等 MR 合入(execute 零门禁 · 无 pm_acceptance · 用户验收 = ship1 MR diff review)|
 
 📎 **blueprint 方案要素条件暂停点**(双触发):TECH 涉**数据库数据结构变更**(表/字段/索引/约束/migration)**或 🛡️ 含安全/降级兜底策略**(兜底不许默默做 · 复杂度×收益经用户拍板)时 · blueprint-complete 前必 emit 确认暂停点(详 [stages/blueprint-stage.md ④](./stages/blueprint-stage.md))· 不涉及则跳过。**Bug / Feature·micro** 不应涉及 DB 数据结构变更(命中则升 full 完整链)。

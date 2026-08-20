@@ -4,6 +4,24 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.342 · 四档流程回归:tiny 立档 · lite 由 full 装配出来(用户拍板)
+
+> 拍板链:①「我们是否考虑加回多档流程」→ 加;②「tiny dev → review(单路 architect)→ pm_acceptance → ship / lite dev(TC 并行)→ 单路 architect → test → pm_acceptance → ship 这样合理么」;③「lite 是否也要有 PRD,不要 TC,要 verify-ac」;④「lite 是不是可以被 full 装配出来」→ **是**。
+> 上一版把「直接做」形态拼成「micro + 手工附加轻门」——「附加」是形容词式承诺,没有载体就不会发生。本版给它正式档位。
+
+### 变更
+- **四档、三 preset**:`preset ∈ {full, tiny, micro}`。判据 = **preset 只给「不立就走不通链」的档**(micro 跳 review/test · tiny 无 goal/blueprint 入口);lite 与 full 只差「跳 blueprint」一条边 → FEATURE_FLOW 加 `goal→dev` / `ui_design→dev` 直边 + 装配旋钮,**不加图**。多一张转移图 = 多一处要同步的口径(legacy `lite`/`blueprint_lite` 正是这么烂掉的:三份 flow-key 实现对同一输入解析出两张不同的图)。
+- **tiny(新 preset)**:`dev → review〔architect 单路〕 → pm_acceptance → ship` · 零文档(规格 = dev brief **理解卡**,brief 要求开工前回显一遍)· 无 test stage(判据 = 四轴的**验证成本**轴:diff 可验)。与 micro 的分界 = 有没有独立验收口(micro 在 MR diff 上验)。
+- **lite(装配形态 · 零 re-init)**:`goal-complete --needs-blueprint false` → 跳 blueprint,不产 TC/TECH/TECH-REVIEW。**PRD 照要、终确认停等照停**(降的是文档与路数,不是拍板权)。dev 前置从「blueprint 完成」回落到「goal 完成」,不是无条件放行。
+- **绑定载体换而不撤**:lite 无 TC → AC↔测试绑定改走 PRD 机读块 `acceptance_criteria[].test_refs`,`verify-ac.py --mode test-refs` 校验**非空 + 引用真实存在**(文件存在 · 带 `::用例名` 的名字要在文件里出现)。顺带堵住 TC 模式老坑:TC 点名的函数全仓不存在,覆盖率照样 21/21 全绿。
+- **降档不降独立性**:tiny/lite 的单路 architect 仍须错开模型(单路不变式)—— 减的是路数,不是「换个人看」这件事本身。
+- **装配环节第三旋钮**:装配卡流程阶段槽从「ui_design / browser_e2e」扩到三段可选,`blueprint 进/跳` 入槽;goal 3.7 减法侧分级表改四档(超低→micro · 低→tiny · 中低→lite · 中/高→full)。
+- **prepare 接线**:§2.2 超 micro 白名单 → 推荐 tiny(选项 2 = 继续讨论,守 v8.338);`prepare-check --preset` 让链预览按档出 —— 原实现 `flow_type in FLOW_STAGE_CHAIN` 短路,preset 永远读不到,定了轻档也预览全链(用户看到的链才是他感知到的重量)。
+- 顺手修:`build_stage_chain_preview` 用 raw flow_type 查 roster 矩阵恒 miss(键是内部名)· Micro 无 roster 条目才一直没暴露,Tiny 有条目会直接把 architect/pm 吃掉。
+
+### 测试
+`test_flow_tiers_v8342.py` 34 条:三 preset/四档不变式 · lite 不许有自己的图 · tiny 四道会死锁的门 · 三实现 flow-key 一致 · lite 旋钮只认显式 false · PRD/test 门不因降档松开 · test-refs 五种情形(含「点名不存在的用例」)· 门不休眠(lite 下换口径而非 skip)· prepare-check 按档预览 · spec 载体。既有锁按新载体重锁:v8329(三旋钮)· v8336(锁退役不锁出边条数)· v8341(四档 + 降档不降独立性)· engine_fixes(goal→dev 已合法 · 非法样本改用 test→dev)。全库 1504 绿。
+
 ## v8.341 · 评审力度减法侧分级 +「直接做」形态正名(用户拍板)
 
 > case(jolichatbox 域名配置):v8.334-337 链条全部正常工作(深调研/判断卡/跳 ui·browser),但四轴全低的配置改动仍默认吃满六路评审 —— 用户当场问「这么简单的需求为什么还要那么多 review」,消费 AI 中途 re-init 切 micro 落地开 MR(自评:「按全链启动了 —— 这是错配」)。
@@ -53,16 +71,3 @@
 
 ### 测试
 `test_option2_discuss_v8338.py` 5 条:R5(b) 恒定规则 / 四载体逐处(含收尾重排与硬门改号)。全库全绿。
-
-## v8.337 · 链装配卡固定三槽:评审力度不许再丢(用户纠偏)
-
-> case(supersdk 实证):PRD 终确认导读的「链装配」实际输出 =「进 UI 设计、也进浏览器验收 / 不改数据库 / 动到的面…」—— 只剩环节与影响面,**评审力度整维丢失**(是否需要评审、几路、谁审、为什么,一个字没有),流程阶段也没按链展示。用户预期:根据复杂度配置**流程阶段(有哪些)+ 评审力度(是否需要 · 需要几个评审)**。
-> 根因 = v8.302 老病:导读要求是形容词式(「环节取舍 + 下游评审面」)—— 形容词糊得过,槽位糊不过。
-> 用户同步锚定目的:**尽量降低流程税** —— 槽位不是加税:评审减没减、减到几路,必须让用户一眼可核(减税要减在明处);整卡 ≤6 行、每槽一行、理由一句,防槽位自己变新税。
-
-### 变更
-- **goal-stage 3.7 ② 固定三槽(缺槽即漏 · 整卡 ≤6 行)**:①**流程阶段** —— 完整链逐段展示、可选段标 进/跳 + 一句理由;②**评审力度** —— 逐评审 stage 一行「**是否需要 × 几路 × 谁 × 理由**」,**收到零也显式写 `0 路 + 理由`**;③**四轴证据**各半句。默认执行/不阻塞语义不变。
-- PRD 终确认导读「🔗 链装配」项与 goal brief 同步指槽位。
-
-### 测试
-`test_assembly_card_slots_v8337.py` 8 条:全链形态 / 四问逐项 / 零路显式 / 证据槽 / 减税可见 + ≤6 行防新税 / 导读指槽 / brief 载体。全库全绿。

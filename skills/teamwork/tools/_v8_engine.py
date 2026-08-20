@@ -720,27 +720,30 @@ AUTO_TRANSITION_CONTINUE_REMINDER = (
 # 在 state.py 解析成 Feature+full、在这里解析成 Feature+lite,是两张不同的转移图。三份实现
 # 无一被测到该输入。根治办法不是选边,是把「敏捷需求」/lite 整条 legacy 删掉(v8.223 已退 lite 档)。
 _LEGACY_FLOW_ALIASES = {"Micro": ("Feature", "micro")}
+# 有独立转移图的 preset(与 state.py._STRUCTURAL_PRESETS 同口径)· lite 不在此列:
+# lite = full 图 + 跳 blueprint 旋钮,不额外立图 —— 少一张图就少一处三实现分叉的机会(v8.293 教训)。
+_STRUCTURAL_PRESETS = ("micro", "tiny")
 
 
 def _internal_flow_key(state: dict) -> str:
-    """(state.flow_type, preset) → allowed_flow_types 比对用的内部键(Feature+preset → Micro)。"""
+    """(state.flow_type, preset) → allowed_flow_types 比对用的内部键(Feature+preset → Micro/Tiny)。"""
     ft = state.get("flow_type") or ""
     pre = state.get("preset") or "full"
     if ft in _LEGACY_FLOW_ALIASES:          # 存量 legacy 值原样(兼容旧 state.json)
         return ft
-    if ft == "Feature" and pre == "micro":
-        return "Micro"
+    if ft == "Feature" and pre in _STRUCTURAL_PRESETS:
+        return pre.capitalize()
     return ft
 
 
 def _resolve_flow_graph(state: dict, flow_by_type: dict) -> dict:
-    """(state.flow_type, preset) → 转移图 · 复合键 Feature:micro · 与 state.py 同口径。"""
+    """(state.flow_type, preset) → 转移图 · 复合键 Feature:<preset> · 与 state.py 同口径。"""
     ft = state.get("flow_type") or ""
     pre = state.get("preset") or "full"
     if ft in _LEGACY_FLOW_ALIASES:
         ft, pre = _LEGACY_FLOW_ALIASES[ft]
-    if ft == "Feature" and pre == "micro":
-        return flow_by_type.get("Feature:micro", {})
+    if ft == "Feature" and pre in _STRUCTURAL_PRESETS:
+        return flow_by_type.get(f"Feature:{pre}", {})
     return flow_by_type.get(ft, {})
 
 
@@ -1456,21 +1459,36 @@ DEFAULT_REVIEW_ROLES: dict[tuple[str, str], list[str]] = {
     ("Bug", "test"): ["qa"],
     ("Bug", "pm_acceptance"): ["pm"],
 
+    # Tiny 流程(v8.342 · 用户拍板「dev → review(单路 architect)→ pm_acceptance → ship」)
+    ("Tiny", "review"): ["architect"],   # 单路 · 无 external:tiny 的判据是 diff 可验,异质冷审的边际收益压不过一轮协调开销
+    ("Tiny", "pm_acceptance"): ["pm"],   # 唯一保留的人判 —— 与 micro 的分界就在这条
+
     # Micro 流程
     # v8.250:Micro 链 = execute → ship(execute 零门禁无评审 · ship 无评审)· 无 roster 条目
 
     # Feature Planning / 问题排查 不进状态机(init-feature 拒建 state.json)· 无默认矩阵
 }
 
+# lite 档的 roster **不进本表** —— 它用 Feature 键的默认值,由装配在 goal 阶段
+# change-review-roles 调成单路 [architect](goal 0 冷审 / review 单路)。
+# why:表是「preset → 默认」的映射,lite 不是 preset;把装配结果写死成默认 = 又一处需要同步的口径。
+LITE_REVIEW_ROLES: dict[str, list[str]] = {
+    "goal": [],                  # 缺省 0 冷审(PRD 终确认停等照停 · 判断卡认为该审可 change-review-roles 加回单路合并)
+    "review": ["architect"],     # 单路
+    "test": ["qa"],
+    "pm_acceptance": ["pm"],
+}
+"""lite 装配形态的建议 roster(goal-stage 3.7 装配卡照此配 · 非机器默认值)。"""
+
 
 def build_default_stage_review_roles(flow_type: str, preset: str = "full") -> dict[str, list[str]]:
     """按 (flow_type, preset) 抽取默认 stage_review_roles dict(v8.220 preset-aware)。
 
-    内部矩阵键沿用旧 flow 名(Micro)—— 对外已收缩为 Feature+preset · 此处做映射。
+    内部矩阵键沿用旧 flow 名(Micro/Tiny)—— 对外已收缩为 Feature+preset · 此处做映射。
     """
     _key = flow_type
-    if flow_type == "Feature" and preset == "micro":
-        _key = "Micro"
+    if flow_type == "Feature" and preset in _STRUCTURAL_PRESETS:
+        _key = preset.capitalize()
     return {
         stage: roles[:]  # copy 防共享引用
         for (ft, stage), roles in DEFAULT_REVIEW_ROLES.items()
@@ -1506,6 +1524,12 @@ FLOW_STAGE_CHAIN: dict[str, list[tuple[str, bool, str, str]]] = {
         ("execute", False, "", "自由执行 · 无规范限制(自选 model/subagent/workflow/测试)· 目标=完成任务 · 只守 worktree 路径 + 准入白名单 · v8.250"),
         ("ship", False, "", "无评审 · PMO 编排(用户验收在 ship1 MR diff)"),
     ],
+    "Tiny": [
+        ("dev", False, "", "无评审 · 规格 = brief 理解卡(无 PRD/TC)· RD 直接改 + commit(测试节奏自定 · 证据硬门 + 完工自查)"),
+        ("review", False, "", "Architect 单路(改动↔理解卡一致 + tech-rules 对照)· 无 external:diff 可验 · 异质冷审边际收益压不过协调开销"),
+        ("pm_acceptance", False, "", "PM 用户视角验收 · 决定是否 ship(与 micro 的分界:micro 在 MR diff 上验、tiny 有独立验收口)"),
+        ("ship", False, "", "无评审 · PMO 编排 push + MR + 合入 + cleanup"),
+    ],
 }
 
 
@@ -1517,17 +1541,20 @@ def build_stage_chain_preview(flow_type: str) -> list[dict]:
     - reason 是评审建议理由(为什么选这些角色 · 给用户决策参考)
     - 顺序按 FLOW_STAGE_CHAIN 显式定义
     """
-    # v8.221:Feature+preset 归一到内部旧键(Micro 图键保留 · 对外语言已收缩)
+    # v8.221:Feature+preset 归一到内部旧键(Micro/Tiny 图键保留 · 对外语言已收缩)
     _key = flow_type
-    if flow_type == "Feature:micro":
-        _key = "Micro"
+    if flow_type.startswith("Feature:"):
+        _key = flow_type.split(":", 1)[1].capitalize()
     chain = FLOW_STAGE_CHAIN.get(_key, [])
     return [
         {
             "stage": stage,
             "optional": optional,
             "trigger": trigger,
-            "reviewers": DEFAULT_REVIEW_ROLES.get((flow_type, stage), []),
+            # 🔴 按 _key 查(非 raw flow_type)—— 原实现用 flow_type 查 ("Feature:micro", stage),
+            # 矩阵里键是 ("Micro", stage) 恒 miss。Micro 无 roster 条目所以「恰好」不显;
+            # Tiny 有条目,同一个 bug 会直接把 architect/pm 吃掉。
+            "reviewers": DEFAULT_REVIEW_ROLES.get((_key, stage), []),
             "reason": reason,
         }
         for stage, optional, trigger, reason in chain
@@ -2265,6 +2292,19 @@ def _add_stage_specific_args(parser: argparse.ArgumentParser, stage_name: str, p
             help=(
                 "可选 · 是否启用 browser_e2e stage(test 通过后转 browser_e2e 而非 pm_acceptance)· "
                 "写 state.execution_hints.browser_e2e_needed · 不传则不改(默认不启用)"
+            ),
+        )
+        parser.add_argument(
+            "--needs-blueprint",
+            choices=["true", "false"],
+            default=None,
+            help=(
+                "[v8.342 · 装配环节第三旋钮] 是否进 blueprint stage · 不传 = true(默认 full)。"
+                "false → **lite 档**:跳 blueprint(不产 TC/TECH/TECH-REVIEW)· goal(或 ui_design)"
+                "直接转 dev · AC↔测试绑定改由 PRD 机读块 acceptance_criteria[].test_refs 承载"
+                "(dev 写完测试回填 · test-complete 校验非空且引用真实存在)。"
+                "🔴 判据是四轴的**验证成本**轴:方案空间小到不值得先写一份 TECH 再照着写 —— "
+                "而不是「工期紧」。写 state.execution_hints.blueprint_needed。"
             ),
         )
     elif stage_name == "ui_design" and phase == "complete":

@@ -31,13 +31,24 @@ from _v8_engine import (
 )
 
 def _flow_key(state: dict) -> str:
-    """v8.222:state → 内部流键(Feature+preset 归一到 Micro 旧键 · legacy 值原样)。
-    物化校验统一走本函数 —— v8.220 后 state.flow_type 只会是 Feature/Bug · 直接比对 legacy 名 = 死门。"""
+    """v8.222:state → 内部流键(Feature+preset 归一到 Micro/Tiny 旧键 · legacy 值原样)。
+    物化校验统一走本函数 —— v8.220 后 state.flow_type 只会是 Feature/Bug · 直接比对 legacy 名 = 死门。
+
+    🔴 lite 拿到的是 "Feature"(它不是 preset · 是 full 的装配形态)—— 判 lite 用
+    _blueprint_skipped(state),别往这个函数里加第四个返回值。"""
     ft = state.get("flow_type") or ""
     pre = state.get("preset") or "full"
-    if ft == "Feature" and pre == "micro":
-        return "Micro"
+    if ft == "Feature" and pre in ("micro", "tiny"):
+        return pre.capitalize()
     return ft
+
+
+def _blueprint_skipped(state: dict) -> bool:
+    """lite 判定单源:装配把 blueprint 旋钮拧成 false(goal-complete --needs-blueprint false)。
+
+    只认显式 false —— 不传 / true 都按 full 走(缺省保守偏置:没给判断就别替用户降档)。
+    """
+    return state.get("execution_hints", {}).get("blueprint_needed") is False
 
 
 
@@ -323,6 +334,10 @@ def persist_args_to_evidence(stage_name: str, state: dict, args) -> None:
         val = getattr(args, "needs_ui", None)
         if val in ("true", "false"):
             hints["ui_design_needed"] = (val == "true")
+        # v8.342 装配环节第三旋钮:--needs-blueprint false = lite 档(跳 blueprint)
+        nb = getattr(args, "needs_blueprint", None)
+        if nb in ("true", "false"):
+            hints["blueprint_needed"] = (nb == "true")
     elif stage_name == "dev":
         code = getattr(args, "test_exit_code", None)
         if code is not None and int(code) != 0 and getattr(args, "current_failures", None):
@@ -514,7 +529,7 @@ state.py goal-complete --feature <path> \
   --auto-commit <hash> --artifacts PRD.md,PRD-REVIEW.md \
   --needs-ui {{true|false}} --needs-browser-e2e {{true|false}}
 ```
-🔗 **链装配**(调研后 · 详 stage.md 规则 3.7 · 🔴 评审力度**加减两侧都判**:超低〔纯配置/删除〕→ 建议改走 micro+轻门〔architect diff 冷审 + PM 盯 staging〕· 低〔行为性但小〕→ goal 单路合并 · blueprint 0 路 · review [architect] 单路 · 路数与四轴对不上必须写「为什么不降」):goal 自身评审面 AI 自定(留痕不问);下游装配写进终确认导读「🔗 链装配」节 · 🔴 **固定三槽缺一即漏 · 整卡 ≤6 行**(流程阶段全链标进/跳 · **评审力度逐 stage「是否需要×几路×谁×理由」〔收到零也显式写 0 路+理由 —— 减税要减在明处〕** · 四轴证据各半句)—— **默认按此执行 · 用户不要求改就生效**。
+🔗 **链装配**(调研后 · 详 stage.md 规则 3.7 · 🔴 评审力度**加减两侧都判** · **四档**:超低〔纯文案/单行常量〕→ micro · 低〔行为性但小 · **diff 可验**〕→ tiny〔dev → review architect 单路 → pm → ship · 零文档〕· 中低〔**需跑链路**但方案空间小〕→ **lite = 本卡把 blueprint 标「跳」**〔`--needs-blueprint false` · PRD 照要 · goal 冷审 0 路 · review architect 单路 · AC 绑定走 PRD `test_refs`〕· 中/高 → full · 🔴 单路**模型照错开**(降档不降独立性)· 路数与四轴对不上必须写「为什么不降」):goal 自身评审面 AI 自定(留痕不问);下游装配写进终确认导读「🔗 链装配」节 · 🔴 **固定三槽缺一即漏 · 整卡 ≤6 行**(流程阶段全链标进/跳 · **评审力度逐 stage「是否需要×几路×谁×理由」〔收到零也显式写 0 路+理由 —— 减税要减在明处〕** · 四轴证据各半句)—— **默认按此执行 · 用户不要求改就生效**。
 """
 
 
@@ -531,7 +546,8 @@ def _goal_transition(state: dict) -> Optional[str]:
     if flow == "Feature":
         if hints.get("ui_design_needed") is True:
             return "ui_design"
-        return "blueprint"
+        # v8.342 lite:装配跳 blueprint → goal 直转 dev(PRD 就是 dev 的规格 · TC 不产)
+        return "dev" if _blueprint_skipped(state) else "blueprint"
     return None
 
 
@@ -992,22 +1008,25 @@ def _check_blueprint_or_alt_done(state: dict, args) -> bool:
     flow = _flow_key(state)
     if flow == "Bug":
         return contracts.get("diagnose", {}).get("output_satisfied") is True
-    if flow == "Micro":
-        return True
+    if flow in ("Micro", "Tiny"):
+        return True                 # 两档都无 blueprint stage(tiny 连 goal 都没有 · dev 是入口)
+    # v8.342 lite:blueprint 被装配跳过 —— 前置换成 goal 完成(PRD 仍是 dev 的规格来源)
+    if _blueprint_skipped(state):
+        return contracts.get("goal", {}).get("output_satisfied") is True
     return False
 
 
 def _check_prd_or_bug_report(state: dict, args) -> bool:
     """v8.16 治本 INFRA-M001 case:按 flow_type 分支判 spec 文档存在性。
 
-    - Micro:无 PRD / BUG-REPORT(改 1 行常量 · spec 在 init-feature 时记到 state.json)
+    - Micro / Tiny:无 PRD / BUG-REPORT(改 1 行常量 / 零文档档 · 规格 = dev brief 理解卡)
               → 直接 PASS(R0:flow_type 可枚举 · 不要把 Micro 当 Feature/Bug 校验)
     - Bug:必有 bugfix/BUG-*.md(模板 templates/bug-report.md)
-    - Feature / 其他:必有 PRD.md(goal stage 产物)
+    - Feature / 其他:必有 PRD.md(goal stage 产物 · **lite 照要** —— 用户拍板「lite 也要有 PRD」)
     """
     flow = _flow_key(state)
-    if flow == "Micro":
-        return True  # Micro 无 spec 文档 · skip(改 1 行常量 · 不需要长形式 PRD/BUG)
+    if flow in ("Micro", "Tiny"):
+        return True  # 无 spec 文档 · skip(改 1 行常量 / 零文档档 · 不需要长形式 PRD/BUG)
     feature_dir = Path(args.feature)
     if flow == "Bug":
         return bool(list(feature_dir.glob("bugfix/BUG-*.md")))
@@ -1023,11 +1042,34 @@ def _check_ui_consistent(state: dict, args) -> bool:
 
 
 def _dev_brief(state: dict) -> str:
-    """v8.0+P0-8 极简版:目标 + 结果 + 完成方式 · 怎么做归 stage.md。"""
+    """v8.0+P0-8 极简版:目标 + 结果 + 完成方式 · 怎么做归 stage.md。
+
+    v8.342:按档换**规格来源**一行(tiny 无 PRD/TECH · lite 有 PRD 无 TECH)——
+    只换这一行不分叉整个 brief:其余纪律(读取契约/自查/证据门)四档同律,
+    复制一份 = 下次改规则时漏掉一份。
+    """
+    flow = _flow_key(state)
+    if flow == "Tiny":
+        spec_line = (
+            "🎚️ **tiny 档 · 零文档**:规格 = **本 brief 的理解卡**(下方「本次要做什么」)—— 无 PRD / TECH / TC。"
+            "🔴 开工前先把理解卡**回显一遍**(要做什么 / 碰哪些文件 / 完成长什么样)· 与用户原话对不上就先问,"
+            "别拿「档轻」当省对齐的理由(**降的是文档,不是理解**)。测试照写、照跑、照进 commit —— "
+            "review 是单路 architect 看 diff,测试是它唯一能核对的行为证据。"
+        )
+    elif _blueprint_skipped(state):
+        spec_line = (
+            "🎚️ **lite 档 · 有 PRD 无 TECH/TC**:规格 = `PRD.md`(§验收标准 + 机读块 `acceptance_criteria`)。"
+            "🔴 **写完测试必须回填 `test_refs`** —— 每条 AC 在 PRD 机读块填真实引用 "
+            "(`<相对代码根的测试文件>` 或 `<文件>::<用例名>`,如 `tests/test_login.py::test_reject_expired_token`);"
+            "这是 lite 档 AC↔测试绑定的**唯一载体**(没有 TC 中转),test-complete 校验非空**且引用真实存在**。"
+            "怎么实现自定 —— 跳 blueprint 的判据就是「方案空间小到不值得先写一份 TECH 再照着写」。"
+        )
+    else:
+        spec_line = "按 TECH.md 实现代码 · "
     return f"""## Dev Stage
 
 ### 目标
-按 TECH.md 实现代码 · 测试全绿 · auto-commit 锚定证据。🟢 **方法论不设限**:怎么开发(TDD/test-after/骨架先行/重构节奏)全由 AI 自定 —— 框架只收:读取契约(项目 DEV-RULES+ARCHITECTURE+复发防御清单 & teamwork tech-rules 兜底 · 冲突以项目为准)+ 收口自查表 + 结果证据门(每个 TC 有对应实现 · 测试真断言)。
+{spec_line}测试全绿 · auto-commit 锚定证据。🟢 **方法论不设限**:怎么开发(TDD/test-after/骨架先行/重构节奏)全由 AI 自定 —— 框架只收:读取契约(项目 DEV-RULES+ARCHITECTURE+复发防御清单 & teamwork tech-rules 兜底 · 冲突以项目为准)+ 收口自查表 + 结果证据门(每个 TC 有对应实现 · 测试真断言)。
 
 ### 结果(完成判定)
 - 代码 + 测试一并 commit
@@ -1162,8 +1204,11 @@ state.py ui_design-complete --feature <path> --auto-commit <hash> \
 
 
 def _ui_design_transition(state: dict) -> Optional[str]:
-    """ui_design 完成后恒 → blueprint(全景变更判级并入 ui_design 出口 · panorama_sync 退役)。"""
-    return "blueprint"
+    """ui_design 完成后 → blueprint · lite(装配跳 blueprint)→ dev。
+
+    全景变更判级并入 ui_design 出口(panorama_sync 退役)· v8.342 加 lite 分支。
+    """
+    return "dev" if _blueprint_skipped(state) else "blueprint"
 
 
 def _evidence_panorama_artifact(state: dict, args) -> tuple[bool, str]:
@@ -1555,21 +1600,47 @@ def _blueprint_transition(state: dict) -> Optional[str]:
     return "dev"
 
 
+def _code_root_for(state: dict, feature_dir: Path) -> Path:
+    """test_refs 的解析根 = **代码所在处**(worktree),不是 feature 文档目录。
+
+    v8.342:lite 的 AC↔测试绑定要校验「引用的测试文件真实存在」· 那就得在跑测试的那份
+    工作副本上解析。优先 state.worktree.path(dev 就在那儿改)· 缺失时从 feature_dir 上溯找 .git
+    (docs 与 code 同仓的常见布局)· 都拿不到就退回 feature_dir(校验退化成路径不存在 FAIL,
+    不会静默放行 —— 宁可报错让人看见,别把门锁进休眠)。
+    """
+    wt = (state.get("worktree") or {}).get("path")
+    if wt and Path(wt).is_dir():
+        return Path(wt)
+    for parent in [feature_dir, *feature_dir.parents]:
+        if (parent / ".git").exists():
+            return parent
+    return feature_dir
+
+
 def _evidence_ac_test_binding(state: dict, args) -> tuple[bool, str]:
     """跑 verify-ac.py 校验 AC↔Test 绑定。
 
     v8.0+P0-14:verify-ac.py 不存在时 silent skip(install/dev sync 不影响校验)。
-    v8.x:Bug / Micro 流程不产 PRD/TC(规格 = bugfix/BUG-*.md / 直改)· skip 校验。
+    v8.x:Bug / Micro / Tiny 流程不产 PRD/TC(规格 = bugfix/BUG-*.md / 理解卡 / 直改)· skip 校验。
         治本 case INFRA-B002:Bug 流程撞 ac_test_binding 门禁 = Feature 门禁泄漏。
+    v8.342 lite:有 PRD、无 TC —— 绑定载体从 `TC.tests[].covers_ac` 换成
+        `PRD.acceptance_criteria[].test_refs`,门不休眠、改口径(--mode test-refs)。
+        🔴 顺带堵住 TC 模式的老坑:TC 点名的测试函数全仓不存在,covers_ac 照样 21/21 ✅
+        (实证 supersdk)—— test-refs 模式**校验引用真实存在**,不只校验非空。
     """
     flow_type = _flow_key(state)
-    if flow_type in ("Bug", "Micro"):
-        return True, f"skipped({flow_type} 流程无 PRD/TC · 规格 = bugfix/BUG-*.md 或直改)"
+    if flow_type in ("Bug", "Micro", "Tiny"):
+        return True, f"skipped({flow_type} 流程无 PRD/TC · 规格 = bugfix/BUG-*.md / 理解卡 / 直改)"
 
     feature_dir = Path(args.feature)
     prd = feature_dir / "PRD.md"
     tc = feature_dir / "TC.md"
-    if not prd.exists() or not tc.exists():
+    lite = _blueprint_skipped(state)
+
+    if lite:
+        if not prd.exists():
+            return False, f"PRD.md 不存在 · 路径 prd={prd}{_template_hint('PRD.md')}"
+    elif not prd.exists() or not tc.exists():
         return False, (
             f"PRD.md 或 TC.md 不存在 · 路径 prd={prd} tc={tc}"
             f"{_template_hint('PRD.md')}{_template_hint('TC.md')}"
@@ -1584,12 +1655,18 @@ def _evidence_ac_test_binding(state: dict, args) -> tuple[bool, str]:
         # silent skip(install 位置可能未同步 dev · 不阻塞)
         return True, ""
 
+    if lite:
+        cmd = [sys.executable, str(verify_script), "--prd", str(prd),
+               "--mode", "test-refs", "--repo-root", str(_code_root_for(state, feature_dir))]
+    else:
+        cmd = [sys.executable, str(verify_script), "--prd", str(prd), "--tc", str(tc)]
+
     try:
         # verify-ac.py 支持 --prd/--tc(兼容旧位置参数 <feature_dir>)· 此前脚本只收位置参数
         # → --prd 被当目录名 → 恒「PRD.md 不存在」→ 下方兼容分支 silent skip = 门禁休眠。
         # 脚本已加 argparse 对齐本调用 · gate 真咬合(绑定缺失会真 FAIL)。
         result = subprocess.run(
-            [sys.executable, str(verify_script), "--prd", str(prd), "--tc", str(tc)],
+            cmd,
             capture_output=True,
             text=True,
             timeout=10,
@@ -2214,7 +2291,22 @@ def _review_brief(state: dict) -> str:
              if state.get("fast_mode") else "")
     _bug = ("\n🐛 **Bug 流单路评审**(v8.270):roster 默认仅 `[external]` —— 一路**错开模型**隔离冷审(≠会话主模型 · v8.269 单路不变式天然满足)· 覆盖必含 **修复↔diagnose 方案一致性**(Architect 视角并入)+ 外审必覆盖清单照旧 · REVIEW.md 台账/severity/验证轮/预算协议照跑 · 主审路 coverage 申报免(roster 无 architect · `change-review-roles` 可加回)。\n"
             if (state.get("flow_type") == "Bug" and not state.get("fast_mode")) else "")
-    return f"""## Review Stage{_fast}{_bug}
+    # v8.342:tiny/lite 单路 architect —— 说清「对照什么审」(两档的规格载体不同),
+    # 免得单路 agent 去找一份不存在的 TECH.md。
+    _light = ""
+    if _flow_key(state) == "Tiny":
+        _light = ("\n🎚️ **tiny 档单路评审**:roster 默认仅 `[architect]` —— 一路**错开模型**隔离冷审 · "
+                  "**对照物 = dev brief 的理解卡 + diff 本身**(无 PRD/TECH/TC)· 必覆盖:改动↔理解卡一致 · "
+                  "`standards/tech-rules.md` 对照(异常日志/DB 论证/契约消费方)· 测试真实性(有没有真断言)· "
+                  "🔴 **只拦 BLOCKER**(功能缺陷 / 契约破坏 / 兜底裸奔)—— tiny 的判据就是 diff 可验,"
+                  "把它审成 full 等于白降档;质量偏好类写 INFO 不卡门。\n")
+    elif _blueprint_skipped(state) and not state.get("fast_mode"):
+        _light = ("\n🎚️ **lite 档单路评审**:roster 默认仅 `[architect]` —— 一路**错开模型**隔离冷审 · "
+                  "**对照物 = `PRD.md`(§验收标准 + 机读块)+ diff**(无 TECH.md —— 别去找,跳 blueprint 是装配决定的)· "
+                  "必覆盖:实现↔AC 一致 · `standards/tech-rules.md` 对照 · 测试真实性 · "
+                  "🔴 **顺带核 `test_refs` 是否指向真做了那件事的测试**(机器只校验「文件/用例名存在」· "
+                  "「这个测试是否真验了这条 AC」只有人/模型读得出来 —— 这是 lite 唯一的绑定载体,别放过)。\n")
+    return f"""## Review Stage{_fast}{_bug}{_light}
 
 ### 目标
 按 roster(`state.stage_review_roles.review`)并行评审(v8.244 Feature 默认两路:Architect 主审〔实现↔设计一致性〕+ 覆盖方向制外审〔QA 测试真实性视角并入 + AI 自主方向 ≥1〕· ⚡ 同发互不喂 · 🎭 两路模型错开〔v8.268 · 外审路 ≠ 主审路〕;Bug 默认单路 [external] · v8.270)· 收敛 verdict。
@@ -2251,7 +2343,8 @@ def _review_transition(state: dict) -> Optional[str]:
     review_contract = state.get("stage_contracts", {}).get("review", {})
     verdict = review_contract.get("evidence", {}).get("verdict")
     if verdict == "APPROVE":
-        return "test"
+        # v8.342:Tiny 无 test stage · APPROVE 直转 pm_acceptance(转移图同口径)
+        return "pm_acceptance" if _flow_key(state) == "Tiny" else "test"
     return None  # NEEDS_REVISION · 留 review-stage 走 fix-retry 循环
 
 
@@ -2438,6 +2531,11 @@ state.py test-complete --feature <path> --auto-commit <hash> \
   --integration-test-exit-code 0 --e2e-test-exit-code 0
 ```
 """
+    # v8.342 lite:无 TC → AC↔测试绑定看 PRD.acceptance_criteria[].test_refs(verify-ac 换口径)
+    _binding = ("- verify-ac.py 通过(**lite 档 · `--mode test-refs`**:每条 AC 的 "
+                "`PRD.acceptance_criteria[].test_refs` **非空且引用真实存在** —— 无 TC.md,"
+                "别去找;dev 应已回填,**没填/填错就是这里 FAIL**,回 dev 补真实引用)"
+                if _blueprint_skipped(state) else "- verify-ac.py 通过")
     return f"""## Test Stage
 
 ### 目标
@@ -2447,7 +2545,7 @@ QA 集成测试 + API E2E · AC 全覆盖最终验证。
 - `TEST-REPORT.md`
 - `e2e/*`(至少 1 文件 · 语言无关)
 - integration + e2e exit-code = 0
-- verify-ac.py 通过
+{_binding}
 
 ### 怎么做
 **必读** `stages/test-stage.md`(四段结构 · 含 skip 走捷径反模式)。
@@ -2724,8 +2822,12 @@ def _evidence_pm_decision(state: dict, args) -> tuple[bool, str]:
 
 
 def _check_test_done_or_micro(state: dict, args) -> bool:
-    """test output_satisfied · Micro 流程无 test stage(dev → pm_acceptance)· 直接放行。"""
-    if _flow_key(state) == "Micro":
+    """test output_satisfied · Micro/Tiny 无 test stage · 直接放行。
+
+    v8.342:Tiny 链 = dev → review → pm_acceptance · 没有 test stage(判据是 diff 可验)。
+    lite **不在此列** —— 它保留 test(用户拍板链里 test 在 architect 之后),照常卡这道门。
+    """
+    if _flow_key(state) in ("Micro", "Tiny"):
         return True
     return state.get("stage_contracts", {}).get("test", {}).get("output_satisfied") is True
 

@@ -42,7 +42,12 @@ class TestStageRetired(unittest.TestCase):
         """存量 state 的 completed_stages 含 panorama_sync → 枚举仍认(兼容读)。"""
         src = (SKILL_ROOT / "tools" / "state.py").read_text(encoding="utf-8")
         self.assertIn('"panorama_sync",   # 退役 stage', src)
-        self.assertIn('"ui_design": ["blueprint"]', src)
+        # ui_design 的出边里没有 panorama_sync(锁「退役」· 不锁出边条数 ——
+        # v8.342 加了 ui_design → dev 的 lite 直边,锁死字面会把无关的装配改动判红)
+        from state import FEATURE_FLOW
+        self.assertIn("blueprint", FEATURE_FLOW["ui_design"])
+        self.assertNotIn("panorama_sync", FEATURE_FLOW["ui_design"])
+        self.assertTrue(all("panorama_sync" not in nxt for nxt in FEATURE_FLOW.values()))
 
 
 class TestValueAbsorbedByUiDesign(unittest.TestCase):

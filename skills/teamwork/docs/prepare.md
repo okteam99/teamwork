@@ -90,12 +90,14 @@ PMO 移交 prepare 后 · **必走以下 4 项准备**(emit 暂停点之前):
 ### 1.5.4 · ID 冲突预检 + stage 评审角色预览(强制)
 
 ```bash
-state.py prepare-check --feature-id-prefix <PROJ> --flow-type <Feature|Bug>
+state.py prepare-check --feature-id-prefix <PROJ> --flow-type <Feature|Bug> [--preset <full|tiny|micro>]
 ```
 
 输出含:
 - `next_available_id_stem` + `existing_ids` + `id_letter`(ID 冲突预检 · 字母 **F/B**〔M 为 legacy 存量〕· 详 conventions.md §1)
 - `stage_chain_preview`(canonical 链回显 · 仅供暂停点「链=」行)—— 🔴 评审面与环节**不在 prepare 装配**(后移 · 见 §1.5.4)
+
+🔴 **定了轻档就把 `--preset` 一起传**(§2.2 判出 tiny/micro 时):预览按该档的链出。漏传 → 暂停点把 11-stage 全链摆给用户看,**刚减掉的流程税又长回去了**(用户看到的链才是他感知到的重量)。`lite` 不传 —— 它是 goal 调研后的装配形态,prepare 预览按 full 出、装配卡再收窄。
 
 🔴 `--flow-type` 必传:Bug → `PREFIX-B{NNN}` · Feature(含 preset=micro)→ `PREFIX-F{NNN}`。漏传退回字母 F · **Bug 会错号**。
 
@@ -187,7 +189,7 @@ PMO 按以下关键词表判定 user input 落入哪类流程:
 | 零逻辑变更 | 改动含任何条件 / 分支 / 数据流逻辑 |
 | 改动类型在白名单 | 仅 文案 / 样式 / 资源 / 配置常量 / 注释 · 其它都不算(加组件 / 改页面结构 / 改交互 / 改接口契约 / 动数据结构 → 全部超纲) |
 
-📎 轻量但超 micro 白名单的需求**没有独立轻类型** —— 一律 Feature·full · 轻量由动态 roster + clarity 承担(评审面自动收窄 · 骨架不减)。
+📎 **轻量但超 micro 白名单 → `preset=tiny`**(用户拍板「直接做」形态):行为性但小(纯配置 / 删除 / 少量逻辑)· 无契约面 · **diff 可验(不需跑链路)** → `dev → review〔architect 单路〕 → pm_acceptance → ship` · 零文档(规格 = dev brief 理解卡)。**再超一档**(要跑链路才敢说对)→ `preset=full`,进 goal 调研后由装配定是走 **lite**(跳 blueprint · 有 PRD 无 TC)还是 full —— 那一档**不在 prepare 定**(装配后移 · 决策点放在证据出现之后)。
 
 **为什么校验**:关键词只看字面 · 无法区分"改静态文案"与"改文案渲染逻辑"—— 命中关键词后仍须验准入。
 
@@ -198,13 +200,17 @@ PMO 按以下关键词表判定 user input 落入哪类流程:
 
 请选择:
 
-1. **preset=full** 💡 推荐
-   理由:<准入项> 不满足 · micro 链(dev→review→ship)承载不下
-   动作:按 Feature·full 走;有 UI 变更在 goal-complete 标 `--needs-ui=true` 进 ui_design
-2. **坚持 preset=micro**(行为性小改动亦合法 · 用户拍板「直接做」形态)
-   理由:你确认这就是「直接开发」级的小改动(风险自担 · 记流程例外留痕)
-   动作:按 micro 继续 · 🔴 **建议附轻门**:execute 完成后派单路 architect diff 冷审(subagent 错开模型 · 只拦 BLOCKER)+ PM 验收 = MR diff + 合并后盯 staging 部署(await-merge 自动带 CI)
-3. **其他指示**
+1. **preset=tiny** 💡 推荐(「直接做」形态 —— 有 review 有验收 · 零文档)
+   理由:<准入项> 不满足 micro 零逻辑白名单 · 但改动 diff 可验、无契约面 —— 不值得为它起一份 PRD
+   动作:`dev → review〔architect 单路〕 → pm_acceptance → ship` · PM 验收盯 staging 部署(await-merge 自动带 CI)
+2. **继续讨论**(说说你的想法/疑虑 —— 聊清楚再定档)
+   理由:定档看的是四轴(改动方向 / 契约面 / 影响面 / 验证成本)· 你更清楚这个改动会碰到什么
+   动作:聊完再回到本选择题
+3. **preset=full**(要跑链路才敢说对 / 有契约面 / 影响面广)
+   理由:<准入项> 不满足且验证成本高 —— 需要 PRD 把「做什么」定下来
+   动作:按 Feature·full 走;有 UI 变更在 goal-complete 标 `--needs-ui=true` 进 ui_design · **是否跳 blueprint(lite)留给 goal 调研后装配定**
+4. **坚持 preset=micro**(风险自担 · 记流程例外留痕)
+5. **其他指示**
 ```
 
 ---

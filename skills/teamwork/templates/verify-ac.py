@@ -169,16 +169,110 @@ def parse_frontmatter(fm_text: str) -> dict:
     return result
 
 
+def verify_test_refs(prd: Path, repo_root: Path) -> int:
+    """lite 档校验:AC 直接绑真实测试(PRD.acceptance_criteria[].test_refs)· 无 TC.md。
+
+    格式:`<相对测试文件路径>` 或 `<相对测试文件路径>::<用例名>`。
+    两道判据(缺一不可):
+      ① 每条 AC 的 test_refs 非空          —— 拦「写了 AC 没写测试」
+      ② 每个 ref 指向的文件真实存在;带 `::用例名` 的,用例名要在文件里出现
+                                           —— 拦「点名一个不存在的测试」
+    ② 是本模式存在的理由:TC 模式只核对 covers_ac 的 id 对得上,
+    TC 里点名的测试函数全仓不存在也能 21/21 全绿(实证)。用例名匹配跨语言故意做宽松
+    (纯子串):python `def test_x` / js `it('test_x')` / go `func TestX` 都能命中,
+    不为了严格把多数语言挡在门外。
+    """
+    prd_fm = parse_frontmatter(extract_frontmatter(prd))
+    ac_list = prd_fm.get("acceptance_criteria", []) or []
+    if not ac_list:
+        print(f"❌ {prd} frontmatter 无 acceptance_criteria 或解析失败", file=sys.stderr)
+        return 2
+
+    print(f"📋 AC↔测试引用校验(lite 档 · 无 TC)：{prd.parent}")
+    print(f"├── PRD AC 数：{len(ac_list)}")
+    print(f"├── 代码根：{repo_root}")
+    print(f"└── 逐条：")
+
+    empty, broken = [], []
+    for ac in ac_list:
+        ac_id = ac.get("id") or "<no-id>"
+        refs = ac.get("test_refs") or []
+        if isinstance(refs, str):
+            refs = [refs] if refs.strip() else []
+        refs = [r for r in refs if str(r).strip()]
+
+        if not refs:
+            empty.append(ac_id)
+            print(f"    ❌ {ac_id}: test_refs 为空")
+            continue
+
+        bad = []
+        for ref in refs:
+            rel, _, case = str(ref).partition("::")
+            target = repo_root / rel.strip()
+            if not target.is_file():
+                bad.append(f"{ref}(文件不存在)")
+                continue
+            if case.strip():
+                body = target.read_text(encoding="utf-8", errors="replace")
+                if case.strip() not in body:
+                    bad.append(f"{ref}(文件在 · 用例名未出现)")
+        if bad:
+            broken.append((ac_id, bad))
+            print(f"    ❌ {ac_id}: {len(bad)}/{len(refs)} 个引用不成立 —— {'; '.join(bad)}")
+        else:
+            print(f"    ✅ {ac_id}: {len(refs)} 个测试引用均存在 ({', '.join(refs)})")
+
+    if empty or broken:
+        print()
+        if empty:
+            print(f"❌ {len(empty)} 条 AC 的 test_refs 为空：{', '.join(empty)}")
+            print("   修复方法：在 PRD 机读块对应 AC 填 test_refs "
+                  "（如 tests/test_login.py::test_reject_expired_token）· dev 写完测试即回填")
+        if broken:
+            print(f"❌ {len(broken)} 条 AC 的 test_refs 指向不存在的测试："
+                  f"{', '.join(a for a, _ in broken)}")
+            print("   修复方法：核对路径相对代码根、用例名与实际测试一致"
+                  "（点名一个不存在的测试 = 这条 AC 实际没被验证）")
+        return 3
+
+    print()
+    print(f"✅ AC↔测试引用校验通过（{len(ac_list)} 条 AC 均绑定到真实存在的测试）")
+    return 0
+
+
 def main():
     import argparse
 
     ap = argparse.ArgumentParser(
-        description="AC↔test 覆盖校验(PRD.acceptance_criteria ↔ TC.tests[].covers_ac)")
+        description="AC↔test 覆盖校验(PRD.acceptance_criteria ↔ TC.tests[].covers_ac · "
+                    "lite 档改核 PRD.acceptance_criteria[].test_refs)")
     ap.add_argument("feature_dir", nargs="?", default=None,
                     help="Feature 目录(含 PRD.md + TC.md)· 与 --prd/--tc 二选一")
     ap.add_argument("--prd", default=None, help="PRD.md 路径(与 --tc 成对传)")
     ap.add_argument("--tc", default=None, help="TC.md 路径(与 --prd 成对传)")
+    ap.add_argument("--mode", choices=["tc", "test-refs"], default="tc",
+                    help="tc(默认)= AC↔TC.covers_ac 覆盖校验 · "
+                         "test-refs = lite 档 AC↔真实测试引用校验(不需要 TC.md)")
+    ap.add_argument("--repo-root", default=None,
+                    help="test-refs 模式下解析测试路径的根(缺省 = PRD 所在目录上溯的 git 根)")
     ns = ap.parse_args()
+
+    # v8.342:lite 档分支 —— 只需要 PRD(TC 是 blueprint 产物 · lite 跳过 blueprint)
+    if ns.mode == "test-refs":
+        if not ns.prd and not ns.feature_dir:
+            print("usage: --mode test-refs 需要 --prd <PRD.md> 或 <Feature 目录>", file=sys.stderr)
+            return 1
+        prd = Path(ns.prd) if ns.prd else Path(ns.feature_dir) / "PRD.md"
+        if not prd.exists():
+            print(f"❌ PRD.md 不存在：{prd}", file=sys.stderr)
+            return 1
+        if ns.repo_root:
+            repo_root = Path(ns.repo_root)
+        else:
+            repo_root = next((p for p in [prd.parent, *prd.parent.parents]
+                              if (p / ".git").exists()), prd.parent)
+        return verify_test_refs(prd, repo_root)
 
     if ns.prd or ns.tc:
         if not (ns.prd and ns.tc):
