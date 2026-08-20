@@ -722,7 +722,7 @@ AUTO_TRANSITION_CONTINUE_REMINDER = (
 _LEGACY_FLOW_ALIASES = {"Micro": ("Feature", "micro")}
 # 有独立转移图的 preset(与 state.py._STRUCTURAL_PRESETS 同口径)· lite 不在此列:
 # lite = full 图 + 跳 blueprint 旋钮,不额外立图 —— 少一张图就少一处三实现分叉的机会(v8.293 教训)。
-_STRUCTURAL_PRESETS = ("micro", "tiny")
+_STRUCTURAL_PRESETS = ("micro", "tiny", "floor")
 
 
 def _internal_flow_key(state: dict) -> str:
@@ -736,12 +736,66 @@ def _internal_flow_key(state: dict) -> str:
     return ft
 
 
+def derive_chain(dims: dict) -> list[str]:
+    """维度 → 线性 stage 链。🔴 与 state.py.derive_chain **必须同口径**(测试逐档比对)。
+
+    engine 不能 import state.py(循环)· 故本地实现 —— v8.293 的教训是「三份实现无一被测」,
+    不是「不许有第二份」:这里的第二份被 test_flow_dims 逐档锁死相等。
+    """
+    chain: list[str] = []
+    sd = dims.get("spec_depth", "prd_tech")
+    if sd in ("prd", "prd_tech"):
+        chain.append("goal")
+    if dims.get("ui"):
+        chain.append("ui_design")
+    if sd == "prd_tech":
+        chain.append("blueprint")
+    chain.append("dev" if dims.get("evidence_gate", True) else "execute")
+    rv = dims.get("review") or {}
+    if rv.get("review"):
+        chain.append("review")
+    vd = dims.get("verify_depth", "test")
+    if vd in ("test", "test_e2e"):
+        chain.append("test")
+    if vd == "test_e2e":
+        chain.append("browser_e2e")
+    if rv.get("pm_acceptance"):
+        chain.append("pm_acceptance")
+    chain.append("ship")
+    return chain
+
+
+def derive_flow_graph(dims: dict) -> dict[str, list[str]]:
+    """维度 → 转移图(与 state.py.derive_flow_graph 同口径)。"""
+    chain = derive_chain(dims)
+    graph: dict[str, list[str]] = {a: [b] for a, b in zip(chain, chain[1:])}
+    graph["ship"] = ["completed"]
+    graph["completed"] = []
+    for point in ("review", "pm_acceptance"):
+        if point in graph and "dev" in chain:
+            graph[point].append("dev")
+    return graph
+
+
+def plan_dims(state: dict) -> Optional[dict]:
+    """state → 装配计划维度(无 plan 返 None · 调用方回退静态图)。"""
+    dims = (state.get("assembly_plan") or {}).get("dims")
+    return dims if isinstance(dims, dict) else None
+
+
 def _resolve_flow_graph(state: dict, flow_by_type: dict) -> dict:
-    """(state.flow_type, preset) → 转移图 · 复合键 Feature:<preset> · 与 state.py 同口径。"""
+    """(state.flow_type, preset[, assembly_plan]) → 转移图 · 与 state.py 同口径。
+
+    v8.343:有 assembly_plan 就**推导**(计划是链的单源)· 无则回退静态图(存量 / Bug 流)。
+    """
     ft = state.get("flow_type") or ""
     pre = state.get("preset") or "full"
     if ft in _LEGACY_FLOW_ALIASES:
         ft, pre = _LEGACY_FLOW_ALIASES[ft]
+    if ft == "Feature":
+        dims = plan_dims(state)
+        if dims:
+            return derive_flow_graph(dims)
     if ft == "Feature" and pre in _STRUCTURAL_PRESETS:
         return flow_by_type.get(f"Feature:{pre}", {})
     return flow_by_type.get(ft, {})
@@ -1463,6 +1517,9 @@ DEFAULT_REVIEW_ROLES: dict[tuple[str, str], list[str]] = {
     ("Tiny", "review"): ["architect"],   # 单路 · 无 external:tiny 的判据是 diff 可验,异质冷审的边际收益压不过一轮协调开销
     ("Tiny", "pm_acceptance"): ["pm"],   # 唯一保留的人判 —— 与 micro 的分界就在这条
 
+    # Floor 流程(v8.343 · 用户:「理论上拆出的力度最小可以直接 dev + ship」)
+    # 评审点全 0 → 无 roster 条目(链上就没有 review / pm_acceptance)· 验收在 ship1 MR diff
+
     # Micro 流程
     # v8.250:Micro 链 = execute → ship(execute 零门禁无评审 · ship 无评审)· 无 roster 条目
 
@@ -1530,7 +1587,75 @@ FLOW_STAGE_CHAIN: dict[str, list[tuple[str, bool, str, str]]] = {
         ("pm_acceptance", False, "", "PM 用户视角验收 · 决定是否 ship(与 micro 的分界:micro 在 MR diff 上验、tiny 有独立验收口)"),
         ("ship", False, "", "无评审 · PMO 编排 push + MR + 合入 + cleanup"),
     ],
+    "Floor": [
+        ("dev", False, "", "无评审 · 规格 = brief 理解卡 · 🔴 **测试证据门照开**(与 micro 的分界就在这里:micro 拿掉证据门靠白名单兜,floor 保留证据门所以能接真逻辑改动)"),
+        ("ship", False, "", "无评审 · 用户验收 = ship1 MR diff(评审点全 0 时验收位置回到 MR)"),
+    ],
 }
+
+# 计划驱动的链预览:stage → 一句「为什么它在链上」(推导链用 · 静态 chain 表只服务存量)
+CHAIN_STAGE_REASON: dict[str, str] = {
+    "goal": "有规格风险(会不会在做错的东西)→ 产 PRD + 用户终确认",
+    "ui_design": "有 UI 改动(事实判断 · 与轻重正交)→ Designer 视觉 + PM 流程",
+    "blueprint": "方案空间值得先写 TECH 再照着写 → 产 TECH/TC",
+    "dev": "证据门开 —— 有行为面,测试是唯一的行为证据",
+    "execute": "证据门关 —— 无行为面(文案/样式/资源/配置常量/注释),测试无从写起",
+    "review": "值得一双眼看 diff(路数与角色见评审力度槽)",
+    "test": "dev 自证不够 —— 需要独立跑一遍链路才敢说对",
+    "browser_e2e": "需要浏览器端真实交互证据",
+    "pm_acceptance": "需要独立验收口(0 路时验收挪到 ship1 MR diff)",
+    "ship": "🔴 任何组合都减不掉 —— 用户看见改动的最后一处",
+}
+
+
+def build_plan_checkpoint(state: dict, stage: str, feature: str) -> Optional[dict]:
+    """stage 边界的**显式修订点**(v8.343 · 用户拍板「至少可以修改」)。
+
+    形态取「计划 + 显式修订点」而非纯渐进式:计划仍一次给全(用户看得见整体形状 · 抗棘轮),
+    但每个边界都问一句**可判**的 —— 出现装配时不知道的事实就改,没出现就照计划走。
+    🔴 回显不停等(与装配「默认执行不阻塞」同律)· 主权只在三类硬边界上。
+    ⚖️ 加与减同价:两个方向都是一行证据,轻的偏置留在档默认里、不留在举证难度里。
+    """
+    dims = plan_dims(state)
+    if not dims:
+        return None
+    plan = state.get("assembly_plan") or {}
+    chain = derive_chain(dims)
+    done = set(state.get("completed_stages") or []) | {stage}
+    remaining = [s for s in chain if s not in done]
+    roles = state.get("stage_review_roles") or {}
+    revs = plan.get("revisions") or []
+    return {
+        "tier": plan.get("tier"),
+        "chain": chain,
+        "remaining": remaining,
+        "next_reviewers": (roles.get(remaining[0]) if remaining else None),
+        "revisions_so_far": len(revs),
+        "question": ("有没有出现**装配时不知道的事实**?"
+                     "(改动比预期大/小 · 碰到契约面 · review 零 finding · 测试覆盖不到某分支)"
+                     " —— 有就改计划,没有就照计划走。"),
+        "revise_cmd": (f"python3 {{SKILL_ROOT}}/tools/state.py revise-plan --feature {feature} "
+                       "--dim <spec_depth|evidence_gate|verify_depth|ui|review.<点>> "
+                       "--to <新值> --evidence '<装配时不知道的那个事实>'"),
+        "note": "不停等 —— 没有新事实就直接继续;加与减同价,都只要一行证据。",
+    }
+
+
+def build_plan_chain_preview(dims: dict, roles: Optional[dict] = None) -> list[dict]:
+    """assembly_plan.dims → 链预览(装配卡「流程阶段」槽的渲染源)。
+
+    v8.343:装配卡此前是 AI **手写**的,与机器计划是两份载体 —— 必漂(v8.324)。
+    改为从计划渲染:卡上写的就是机器会走的。
+    """
+    roles = roles or (dims.get("review") or {})
+    return [
+        {
+            "stage": s,
+            "reviewers": list(roles.get(s, [])),
+            "reason": CHAIN_STAGE_REASON.get(s, ""),
+        }
+        for s in derive_chain(dims)
+    ]
 
 
 def build_stage_chain_preview(flow_type: str) -> list[dict]:
@@ -2092,10 +2217,14 @@ def execute_stage_complete(
                                 contract.get("duration_minutes", 0))
     _pv_hint = _preventability_hint(stage_spec.name, getattr(args, "feature", "<path>"),
                                     getattr(args, "verdict", None))
+    _plan_ck = build_plan_checkpoint(state, stage_spec.name,
+                                     getattr(args, "feature", "<path>"))
     emit_json({
         "verdict": "PASS",
         "stage": stage_spec.name,
         "phase": "complete",
+        # v8.343 显式修订点:每个 stage 边界回显计划 + 一句可判问句(**不停等**)
+        **({"plan_checkpoint": _plan_ck} if _plan_ck else {}),
         "completed_at": contract["completed_at"],
         "duration_minutes": contract.get("duration_minutes", 0),
         "satisfied_gates": ["input_satisfied", "process_satisfied", "output_satisfied"],

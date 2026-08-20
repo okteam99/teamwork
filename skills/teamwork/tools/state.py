@@ -109,6 +109,16 @@ TINY_FLOW: dict[str, list[str]] = {
     "completed": [],
 }
 
+# Floor:最轻的**有证据门**档(v8.343 · 用户:「理论上拆出的力度最小可以直接 dev + ship」)。
+# 与 micro 的分界不是「更轻/更重」而是**拿什么换轻**:micro 拿掉证据门、准入靠白名单兜着;
+# floor 保留全部测试证据门(所以能接真逻辑改动)、拿掉的是评审与独立验收口。
+# 用户主权没丢 —— 验收在 ship1 的 MR diff(micro 原设计),ship 在任何组合里都减不掉。
+FLOOR_FLOW: dict[str, list[str]] = {
+    "dev": ["ship"],
+    "ship": ["completed"],
+    "completed": [],
+}
+
 # Feature Planning / 问题排查 不进状态机:由 PMO 主对话执行(详 docs/feature-planning.md)
 # v8.220(用户拍板):对外 flow_type 收缩为 {Feature, Bug} —— Micro 是「同一种工作的重量档」
 # 非独立工作形态(audit 实测合计仅 11%)· 降为 Feature 的 **preset**(链与角色由 preset 决定)。
@@ -116,6 +126,7 @@ FLOW_BY_TYPE = {
     "Feature": FEATURE_FLOW,          # = preset full · **也是 lite**(lite = 跳 blueprint 的装配形态)
     "Feature:micro": MICRO_FLOW,      # 原 Micro
     "Feature:tiny": TINY_FLOW,        # v8.342:零文档 + 单路 architect + PM 验收
+    "Feature:floor": FLOOR_FLOW,      # v8.343:最轻有证据门档 · dev → ship
     "Bug": BUG_FLOW,
 }
 
@@ -129,15 +140,206 @@ PUBLIC_FLOW_TYPES = ("Feature", "Bug")
 # 剖面(纯冗余)· 轻量由动态 roster + clarity 承担;三份 flow-key 实现曾对它解析出不同的图
 # (state.py→full / _v8_engine.py→lite · 且后者注释谎称「严格同口径」)—— 删掉根治。
 # 🔴 本版把 lite 做成装配形态而非 preset,正是不重蹈「多一张图 = 多一处口径分叉」。
-FEATURE_PRESETS = ("full", "tiny", "micro")
-_STRUCTURAL_PRESETS = ("micro", "tiny")   # 有独立转移图的 preset · 复合键 Feature:<preset>
+FEATURE_PRESETS = ("full", "medium", "lite", "tiny", "floor", "micro")
+# 有独立**静态**图的档(仅作无 plan 存量 state 的回退 · 新 feature 一律由 plan 推导)。
+# lite/medium 不在此列:它们的链是 FEATURE_FLOW 的子路径,回退到 FEATURE_FLOW 即可。
+_STRUCTURAL_PRESETS = ("micro", "tiny", "floor")
 LEGACY_FLOW_ALIASES = {"Micro": ("Feature", "micro")}
 
 
-def resolve_flow_graph(flow_type: str, preset: str = "full") -> dict:
-    """按 (flow_type, preset) 解析转移图 · legacy flow_type 自动归一。"""
+# ─── 装配维度矩阵(v8.343 · 链的单源)────────────────────────────────────
+#
+# 用户拍板:「把流程、环节、评审力度三个维度拆开,交给 AI 组装」。
+# 澄清后的四维 + 一开关(「流程」与「环节」是同一维的两种粒度 · 合成一维):
+#
+#   D1 spec_depth    ∈ none / prd / prd_tech   —— 有规格风险吗?方案空间值得先写再做吗?
+#   D2 evidence_gate ∈ False / True            —— 有行为面吗?有 → 必开(测试是唯一行为证据)
+#   D3 verify_depth  ∈ self / test / test_e2e  —— dev 自证够吗?要独立跑链路吗?
+#   D4 review        —— 逐评审点:路数 × 角色(× 模型)· 「这一路不派最可能漏什么」
+#   (开关) ui        —— **事实判断不是力度**:有 UI 改动就进,与轻重无关
+#
+# 验收位置并进 D4:pm_acceptance 0 路 = 验收挪到 ship1 MR diff(micro 原设计)。
+SPEC_DEPTHS = ("none", "prd", "prd_tech")
+VERIFY_DEPTHS = ("self", "test", "test_e2e")
+REVIEW_POINTS = ("goal", "blueprint", "review", "pm_acceptance")
+
+# 档 = **命名的默认元组 + 一句入场问句**。矩阵能推导链之后,「档」不再有结构特权 ——
+# 加一档就是加一行(medium 就是用户在本版实现中途提的,一行落地)。
+# 🔴 档是**起手点不是终点**:装配的正常产物是**维度元组**,AI 有权拧任意一维
+#    (`--dims` / `revise-plan`)· 只选个档名不拧 = 退化情形,不是默认姿态。
+TIER_DIMS: dict[str, dict] = {
+    # 无行为面(测试无从写起)· 准入白名单兜底 —— v8.343 起 micro 的定义就是这一句,
+    # 不再是「最轻的档」(最轻是 floor)。
+    "micro": {"spec_depth": "none", "evidence_gate": False, "verify_depth": "self",
+              "ui": False, "review": {"review": [], "pm_acceptance": []}},
+    # 有行为面 · 测试能完全证明它对 · 无契约面 → 证据门开、评审全 0(验收在 MR diff)。
+    "floor": {"spec_depth": "none", "evidence_gate": True, "verify_depth": "self",
+              "ui": False, "review": {"review": [], "pm_acceptance": []}},
+    # 测试证得了实现,但值得一双眼看 diff。
+    "tiny": {"spec_depth": "none", "evidence_gate": True, "verify_depth": "self",
+             "ui": False, "review": {"review": ["architect"], "pm_acceptance": ["pm"]}},
+    # 有规格风险(要 PRD)但方案空间小到不值得先写一份 TECH 再照着写。
+    "lite": {"spec_depth": "prd", "evidence_gate": True, "verify_depth": "test",
+             "ui": False, "review": {"goal": [], "review": ["architect"],
+                                     "pm_acceptance": ["pm"]}},
+    # 方案空间值得先写 TECH,但风险还不到要两路并行冷审 —— goal/blueprint 各**单路**
+    # (goal 用 fast 合并帽:PL 质疑 + 覆盖方向制并作一路 · 模型照错开)。
+    "medium": {"spec_depth": "prd_tech", "evidence_gate": True, "verify_depth": "test",
+               "ui": False, "review": {"goal": ["fast"], "blueprint": ["architect"],
+                                       "review": ["architect"], "pm_acceptance": ["pm"]}},
+    "full": {"spec_depth": "prd_tech", "evidence_gate": True, "verify_depth": "test",
+             "ui": False, "review": {"goal": ["pl", "external"],
+                                     "blueprint": ["architect", "external"],
+                                     "review": ["architect", "external"],
+                                     "pm_acceptance": ["pm"]}},
+}
+
+# 每档一句**可判入场问句**(判据不是「改动大小」· 是风险的种类)
+TIER_ADMISSION: dict[str, str] = {
+    "micro": "这改动有行为面吗?没有(文案/样式/资源/配置常量/注释)—— 测试无从写起",
+    "floor": "有行为面,但测试能完全证明它对吗?能,且不动契约面 —— 验收在 ship1 MR diff",
+    "tiny": "测试证得了实现,但值得一双眼看 diff 吗?值得",
+    "lite": "有规格风险(会不会在做错的东西)吗?有 → 要 PRD;但方案空间小到只有一种写法 → 不写 TECH",
+    "medium": "方案空间值得先写 TECH,但风险到了要两路并行冷审吗?没到 → goal/blueprint 各单路",
+    "full": "契约面宽 / 影响面广 / 方案分叉多 —— 两路并行冷审的边际收益压得过开销",
+}
+
+
+def tier_dims(tier: str) -> dict:
+    """档名 → 默认维度元组(深拷贝 · 防调用方改到常量)。"""
+    import copy
+    return copy.deepcopy(TIER_DIMS.get(tier or "full", TIER_DIMS["full"]))
+
+
+def merge_dims(base: dict, override: Optional[dict]) -> dict:
+    """档默认 + AI 自定覆盖 → 最终维度(review 逐评审点浅合并 · 其余整值覆盖)。
+
+    custom 装配走这里:起手选档 · 拧哪维就传哪维 · 不传的沿用档默认。
+    """
+    import copy
+    out = copy.deepcopy(base)
+    for k, v in (override or {}).items():
+        if k == "review" and isinstance(v, dict):
+            out.setdefault("review", {}).update(v)
+        else:
+            out[k] = v
+    return out
+
+
+def derive_chain(dims: dict) -> list[str]:
+    """维度 → 线性 stage 链(不含 completed)· 装配卡「流程阶段」槽照此渲染。"""
+    chain: list[str] = []
+    sd = dims.get("spec_depth", "prd_tech")
+    if sd in ("prd", "prd_tech"):
+        chain.append("goal")
+    if dims.get("ui"):                       # 事实判断(有没有 UI 改动)· 与轻重正交
+        chain.append("ui_design")
+    if sd == "prd_tech":
+        chain.append("blueprint")
+    # D2:证据门关 = execute(零门禁自由执行)· 开 = dev(测试证据四门)
+    chain.append("dev" if dims.get("evidence_gate", True) else "execute")
+
+    rv = dims.get("review") or {}
+    if rv.get("review"):            # 评审点 0 路 = 该 stage 不进(review stage 就是这个评审点)
+        chain.append("review")
+    vd = dims.get("verify_depth", "test")
+    if vd in ("test", "test_e2e"):
+        chain.append("test")
+    if vd == "test_e2e":
+        chain.append("browser_e2e")
+    if rv.get("pm_acceptance"):
+        chain.append("pm_acceptance")
+    chain.append("ship")             # 🔴 ship 在任何组合里都减不掉(用户看见改动的最后一处)
+    return chain
+
+
+def derive_flow_graph(dims: dict) -> dict[str, list[str]]:
+    """🔴 维度 → 转移图(**链的单源**)。
+
+    v8.343:链不再由「每档一张静态图」维护 —— 那样计划(assembly_plan)与图是两份
+    手写载体,必漂(v8.324 教训)。矩阵推出链,图就是计划本身。
+    静态 FLOW_BY_TYPE 保留为**无 plan 的存量 state 回退**;两者对五个 preset 必须逐一相等
+    (机器锁 · 一旦漂移测试当场红)。
+    """
+    chain = derive_chain(dims)
+    graph: dict[str, list[str]] = {a: [b] for a, b in zip(chain, chain[1:])}
+    graph["ship"] = ["completed"]
+    graph["completed"] = []
+    # 🔴 回退边不因降档消失:评审/验收打回照样回 dev(减的是路数,不是返工路径)
+    for point in ("review", "pm_acceptance"):
+        if point in graph and "dev" in chain:
+            graph[point].append("dev")
+    return graph
+
+
+def build_assembly_plan(tier: str, override: Optional[dict] = None,
+                        set_at: str = "prepare", axes: Optional[dict] = None) -> dict:
+    """档 + 自定覆盖 → assembly_plan(计划的**独立的家**)。
+
+    v8.343:计划此前散在 `execution_hints` 的三个 boolean 里,而同一个 dict 还装着执行度量
+    (test_baseline_excluded / integration_new_failures …)—— 计划与度量混住,导致计划无法被
+    整体渲染/比对/校准,装配卡只能手写。手写载体与机器载体必漂(v8.324)。
+    立独立结构后:装配卡从 plan 渲染 · 修订记 delta · ship 台账记方向 → 校准闭环才有数据源。
+    """
+    return {
+        "tier": tier,                      # 起手档名(记录用 · 维度才是权威)
+        "set_at": set_at,                  # prepare(无 goal 的档)/ goal(调研后装配)
+        "dims": merge_dims(tier_dims(tier), override),
+        "axes": axes or {},                # 四轴证据:方向 / 契约面 / 影响面 / 验证成本
+        "revisions": [],                   # 显式修订点的 delta 台账(加减同价 · 各记一行证据)
+    }
+
+
+def plan_dims(state: dict) -> Optional[dict]:
+    """state → 装配计划的维度(无 plan 返 None · 调用方回退静态图)。"""
+    plan = state.get("assembly_plan") or {}
+    dims = plan.get("dims")
+    return dims if isinstance(dims, dict) else None
+
+
+def validate_dims(dims: dict) -> list[str]:
+    """§1.3 一致性约束 —— 拆维度必然产生不连贯组合 · 这里挡掉(返回违规描述列表)。
+
+    只查**组合连贯性**;模型错开 / PRD·TECH 高档是硬不变式,不进矩阵(既有机器门守)。
+    """
+    bad: list[str] = []
+    sd = dims.get("spec_depth")
+    vd = dims.get("verify_depth")
+    gate = dims.get("evidence_gate", True)
+    rv = dims.get("review") or {}
+
+    if sd not in SPEC_DEPTHS:
+        bad.append(f"spec_depth={sd!r} 非法 · 应属 {SPEC_DEPTHS}")
+    if vd not in VERIFY_DEPTHS:
+        bad.append(f"verify_depth={vd!r} 非法 · 应属 {VERIFY_DEPTHS}")
+    for k in rv:
+        if k not in REVIEW_POINTS:
+            bad.append(f"评审点 {k!r} 非法 · 应属 {REVIEW_POINTS}")
+
+    # ①② 规格深度决定哪些冷审点**存在**(N/A ≠ 0 路:0 路是在链上不派 · N/A 是不在链上)
+    if sd == "none" and (rv.get("goal") or rv.get("blueprint")):
+        bad.append("spec_depth=none 时无 goal/blueprint stage · 其冷审点不适用(不能配路数)")
+    if sd == "prd" and rv.get("blueprint"):
+        bad.append("spec_depth=prd 时不进 blueprint · 其冷审点不适用(TECH 不产 · 无对象可审)")
+    # ③④ 证据门与验证深度联动:没有测试证据,test stage 无从接
+    if not gate and vd != "self":
+        bad.append("evidence_gate=关 时无测试证据 · verify_depth 只能是 self(test stage 无从接)")
+    if gate is False and sd != "none":
+        bad.append("evidence_gate=关 仅适用于无行为面的改动 · 不应同时要求规格文档")
+    return bad
+
+
+def resolve_flow_graph(flow_type: str, preset: str = "full", dims: Optional[dict] = None) -> dict:
+    """按 (flow_type, preset[, dims]) 解析转移图 · legacy flow_type 自动归一。
+
+    v8.343:**有 dims 就推导**(assembly_plan 是链的单源)· 无 dims 回退静态图
+    (存量 state / Bug 流)。两条路径不是并行口径 —— 静态图是回退,且被机器锁住
+    「推导边 ⊆ 静态边」,漂了当场红。
+    """
     if flow_type in LEGACY_FLOW_ALIASES:
         flow_type, preset = LEGACY_FLOW_ALIASES[flow_type]
+    if flow_type == "Feature" and dims:
+        return derive_flow_graph(dims)
     if flow_type == "Feature" and preset in _STRUCTURAL_PRESETS:
         return FLOW_BY_TYPE[f"Feature:{preset}"]
     return FLOW_BY_TYPE.get(flow_type, {})
@@ -1404,6 +1606,7 @@ DEFAULT_INITIAL_STAGE = {
     "Bug": "diagnose",   # v8.107:Bug 先 diagnose(根因细查+修复方案确认)再 dev
     "Micro": "execute",   # v8.250:micro 首 stage = execute(零门禁自由执行)· 去 dev
     "Tiny": "dev",        # v8.342:tiny 无 goal/blueprint · 规格 = dev brief 理解卡
+    "Floor": "dev",       # v8.343:floor 同 tiny 入口 · 差别在评审点全 0(dev → ship)
 }
 
 
@@ -1875,8 +2078,44 @@ def cmd_init_feature(args: argparse.Namespace) -> None:
     # 查表用内部键(归一后直接查会让 micro 错拿 goal)
     _pub_flow, _preset = normalize_flow(args.flow_type, getattr(args, "preset", None))
     args.flow_type = _pub_flow  # 后续逻辑(角色矩阵/emit)统一走归一值
-    initial_stage = args.initial_stage or DEFAULT_INITIAL_STAGE.get(
-        internal_flow_key(args.flow_type, _preset), "goal"
+
+    # v8.343:Feature 一律建 assembly_plan(链的单源)· --dims 是 custom 装配入口
+    _plan = None
+    if args.flow_type == "Feature":
+        _override = None
+        raw = getattr(args, "dims", None)
+        if raw:
+            try:
+                _override = json.loads(raw)
+            except json.JSONDecodeError as e:
+                die(2, json.dumps({
+                    "verdict": "FAIL", "action": "init-feature",
+                    "error": f"--dims 不是合法 JSON:{e}",
+                    "hint": ('例:--dims \'{"verify_depth":"test",'
+                             '"review":{"review":["architect","external"]}}\' · '
+                             "只传要拧的维度 · 其余沿用档默认"),
+                }, ensure_ascii=False, indent=2))
+            if not isinstance(_override, dict):
+                die(2, json.dumps({
+                    "verdict": "FAIL", "action": "init-feature",
+                    "error": f"--dims 必须是 JSON object · got {type(_override).__name__}",
+                }, ensure_ascii=False, indent=2))
+        _plan = build_assembly_plan(_preset, _override,
+                                    set_at=("goal" if _preset in ("lite", "medium", "full")
+                                            else "prepare"))
+        _bad = validate_dims(_plan["dims"])
+        if _bad:
+            die(2, json.dumps({
+                "verdict": "FAIL", "action": "init-feature",
+                "error": "装配维度组合不连贯 · 拒绝创建",
+                "violations": _bad,
+                "hint": ("维度矩阵与一致性约束见 stages/goal-stage.md § 链装配。"
+                         "N/A ≠ 0 路:0 路是在链上不派 · N/A 是该 stage 不在链上。"),
+            }, ensure_ascii=False, indent=2))
+
+    initial_stage = args.initial_stage or (
+        derive_chain(_plan["dims"])[0] if _plan
+        else DEFAULT_INITIAL_STAGE.get(internal_flow_key(args.flow_type, _preset), "goal")
     )
 
     # 启发式校验：basename 应含 feature_id（防 --feature 传了 slug 而不是完整路径）
@@ -1931,10 +2170,31 @@ def cmd_init_feature(args: argparse.Namespace) -> None:
         "completed_stages": [],
         "created_at": now_iso(),
     }
+    # v8.343:计划落库(Feature)· roster 由 plan.dims.review 渲染 —— 单源
+    if _plan:
+        state["assembly_plan"] = _plan
     # v8.0+P0-9:按 flow_type 填默认 stage_review_roles + adjustments audit list
     try:
         from _v8_engine import build_default_stage_review_roles
-        state["stage_review_roles"] = build_default_stage_review_roles(args.flow_type, _preset)
+        if _plan:
+            _chain = set(derive_chain(_plan["dims"]))
+            # 流默认 → 计划覆盖 → 链上过滤。计划的 review 只管**随档变化的四个评审点**;
+            # test/ui_design/browser_e2e 的 roster 不随档变,沿用流默认(直接整体赋值会抹掉)。
+            _roles = {s: list(r) for s, r in
+                      build_default_stage_review_roles(args.flow_type, "full").items()
+                      if s in _chain}
+            for _p, _r in (_plan["dims"].get("review") or {}).items():
+                if _p in _chain:
+                    _roles[_p] = list(_r)
+            # 🔴 链上的评审点即使 0 路也**写键、写空列表**(v8.337「零也显式」的机器版):
+            # 不写键 = 修订时想加回来没有落点 · 减税要减在明处、且可逆。
+            for _p in REVIEW_POINTS:
+                if _p in _chain:
+                    _roles.setdefault(_p, [])
+            state["stage_review_roles"] = _roles
+        else:
+            state["stage_review_roles"] = build_default_stage_review_roles(
+                args.flow_type, _preset)
         state["stage_review_roles_adjustments"] = []
     except ImportError:
         pass
@@ -2981,6 +3241,142 @@ def _validate_admission_judgment(args) -> dict:
     }
 
 
+def cmd_revise_plan(args: argparse.Namespace) -> None:
+    """v8.343 显式修订点:按新证据改装配计划(**加减同价 · 各记一行证据**)。
+
+    用户拍板:「渐进式的流程更合理 …… 或者至少可以修改」。取的是「计划 + 显式修订点」形态 ——
+    计划仍在装配时一次给全(用户看得见整体形状 · 抗棘轮),但每个 stage 边界都是修订口:
+    出现装配时不知道的事实 → 改;没出现 → 照计划走。
+
+    三类不可修订(硬边界 · 见 goal-stage § 修订点):
+      ① 用户主权点:已停等确认过的(PRD 终确认)· ship 本身 · 用户点名要过的评审点
+      ② 硬不变式:模型错开 / PRD·TECH 高档(不进矩阵 · 既有机器门守)
+      ③ 不可回溯放松:已产生的证据不能事后放松(dev 交了测试证据 → 不许改 evidence_gate=关)
+    修订只影响**未走的部分**;已走的 stage 不重判。
+    """
+    state = load_state(args.feature)
+    state_file = state_path(args.feature)
+
+    plan = state.get("assembly_plan")
+    if not plan:
+        die(2, json.dumps({
+            "verdict": "FAIL", "command": "revise-plan",
+            "error": "本 feature 无 assembly_plan(存量 state 或 Bug 流)",
+            "hint": ("Bug 流不走维度装配;存量 Feature 可用 change-review-roles 调评审面 · "
+                     "环节偏离走 jump-to-stage --reason。"),
+        }, ensure_ascii=False, indent=2))
+
+    try:
+        new_val = json.loads(args.to)
+    except json.JSONDecodeError:
+        new_val = args.to          # 标量维度允许裸传(spec_depth=prd / verify_depth=test)
+
+    dims = plan.get("dims") or {}
+    dim = args.dim
+    # D4 的点式寻址:review.blueprint / review.pm_acceptance
+    if dim.startswith("review."):
+        point = dim.split(".", 1)[1]
+        if point not in REVIEW_POINTS:
+            die(2, json.dumps({
+                "verdict": "FAIL", "command": "revise-plan",
+                "error": f"评审点 {point!r} 非法", "legal": list(REVIEW_POINTS),
+            }, ensure_ascii=False, indent=2))
+        if isinstance(new_val, str):
+            new_val = [r.strip() for r in new_val.split(",") if r.strip()]
+        before = list((dims.get("review") or {}).get(point, []))
+        candidate = merge_dims(dims, {"review": {point: new_val}})
+    else:
+        if dim not in ("spec_depth", "evidence_gate", "verify_depth", "ui"):
+            die(2, json.dumps({
+                "verdict": "FAIL", "command": "revise-plan",
+                "error": f"维度 {dim!r} 非法",
+                "legal": ["spec_depth", "evidence_gate", "verify_depth", "ui",
+                          "review.<goal|blueprint|review|pm_acceptance>"],
+            }, ensure_ascii=False, indent=2))
+        before = dims.get(dim)
+        candidate = merge_dims(dims, {dim: new_val})
+
+    if before == new_val:
+        emit({"verdict": "NOOP", "command": "revise-plan", "dim": dim,
+              "current": before, "hint": "新值 == 现值 · 不写不 audit"})
+        return
+
+    # 🔴 顺序要紧:**不可回溯守卫先判**。放在一致性校验之后的话,降维天然带出的不连贯
+    # 会先报「组合不连贯」——把人支去修 roster,而真正的答案是「这段你已经走过了」。
+    # (守卫写了却走不到 = 本框架反复复发的「规则立了没接线」)
+    done = set(state.get("completed_stages") or [])
+    if dim == "evidence_gate" and new_val is False and "dev" in done:
+        die(2, json.dumps({
+            "verdict": "FAIL", "command": "revise-plan",
+            "error": "dev 已完成并交付测试证据 · 不许回溯把 evidence_gate 改成关",
+            "rule": "修订只影响未走的部分 · 已产生的证据不可回溯放松",
+        }, ensure_ascii=False, indent=2))
+    walked = [s for s in derive_chain(dims) if s in done]
+    dropped = [s for s in walked if s not in derive_chain(candidate)]
+    if dropped:
+        die(2, json.dumps({
+            "verdict": "FAIL", "command": "revise-plan",
+            "error": f"该修订会把**已走过**的 stage 移出链:{dropped}",
+            "hint": "修订只影响未走的部分 · 想重走某 stage 用 jump-to-stage --reason",
+            "rule": "计划可改 · 历史不可改",
+        }, ensure_ascii=False, indent=2))
+
+    # 降维会让某些评审点**不再在链上**(如 spec_depth prd_tech→prd 之后 blueprint 冷审)。
+    # 在**修订**处这是改维度的后果、不是误判 → 自动剪枝并在 emit 里报出来;
+    # 在 **init** 处同样的配置是「AI 以为这个 stage 会跑」的误判 → validate_dims 照旧拒。
+    _on = set(derive_chain(candidate))
+    pruned = [p for p in (candidate.get("review") or {})
+              if p in REVIEW_POINTS and p not in _on and (candidate["review"][p])]
+    for p in pruned:
+        candidate["review"].pop(p, None)
+
+    bad = validate_dims(candidate)
+    if bad:
+        die(2, json.dumps({
+            "verdict": "FAIL", "command": "revise-plan",
+            "error": "修订后维度组合不连贯 · 拒绝", "violations": bad,
+        }, ensure_ascii=False, indent=2))
+
+    before_chain = derive_chain(dims)
+    plan["dims"] = candidate
+    after_chain = derive_chain(candidate)
+    plan.setdefault("revisions", []).append({
+        "at_stage": state.get("current_stage"),
+        "dim": dim,
+        "from": before,
+        "to": new_val,
+        # 🔴 evidence 是「装配时不知道的**事实**」· 不是「我觉得该加/该减」——
+        # 加与减同价:两个方向都要这一行,轻的偏置留在档默认里,不留在举证难度里。
+        "evidence": args.evidence,
+        "at": now_iso(),
+    })
+
+    # roster 跟着计划走(链上评审点零也显式)
+    roles = state.setdefault("stage_review_roles", {})
+    on_chain = set(after_chain)
+    for p, r in (candidate.get("review") or {}).items():
+        if p in on_chain:
+            roles[p] = list(r)
+    for p in REVIEW_POINTS:
+        if p in on_chain:
+            roles.setdefault(p, [])
+
+    atomic_write(state_file, state)
+    emit({
+        "verdict": "OK",
+        "command": "revise-plan",
+        "dim": dim, "before": before, "after": new_val,
+        "evidence": args.evidence,
+        "chain_before": before_chain,
+        "chain_after": after_chain,
+        "revisions_total": len(plan["revisions"]),
+        "direction": ("加" if len(after_chain) > len(before_chain)
+                      else "减" if len(after_chain) < len(before_chain) else "平"),
+        "pruned_review_points": pruned,     # 降维带出的孤儿评审点(剪了要说 · 不静默)
+        "hint": "修订已回显 · 不停等 · 按新计划继续(用户想调回一句即可)",
+    })
+
+
 def cmd_change_review_roles(args: argparse.Namespace) -> None:
     """v8.x:调整 stage_review_roles · 治本 raw-write 滥用(可枚举进脚本 · R0 哲学)。
 
@@ -3829,12 +4225,20 @@ def build_parser() -> argparse.ArgumentParser:
                      choices=["Feature", "Bug", "Micro",
                               "Feature Planning", "问题排查"],
                      help="[v8.220] 对外收缩为 Feature/Bug · Micro 为 legacy 别名(自动映射 Feature+preset)· Planning/排查照旧 reject")
-    ifp.add_argument("--preset", default=None, choices=["full", "tiny", "micro"],  # v8.342 加 tiny
-                     help="[v8.220/v8.342] Feature 重量档 · 链/角色由它决定 · 默认 full。"
-                          "micro=execute→ship 零门 · tiny=dev→review(architect 单路)→pm→ship 零文档 · "
-                          "full=11-stage 全链。🔴 **lite 不是 preset** —— 它是 full 的装配形态"
-                          "(goal 极简 + goal-complete --needs-blueprint false 跳 blueprint + review 单路),"
-                          "故 prepare 阶段无需为 lite 定档:进 goal 深调研后装配旋钮直接配、零 re-init。")
+    ifp.add_argument("--preset", default=None,
+                     choices=["full", "medium", "lite", "tiny", "floor", "micro"],
+                     help="[v8.343] 起手**档名**(= 命名的默认维度元组)· 默认 full。"
+                          "档只是起手点,权威是维度 —— 要拧用 --dims。入场问句(判风险的**种类**,"
+                          "不判改动大小):micro=无行为面(测试无从写起)· floor=有行为面但测试能完全证明"
+                          "(dev→ship · 验收在 MR diff)· tiny=值得一双眼看 diff · lite=有规格风险要 PRD、"
+                          "但方案空间小不写 TECH · medium=值得写 TECH、但没到要两路并行冷审"
+                          "(goal/blueprint 各单路)· full=两路并行冷审的边际收益压得过开销。")
+    ifp.add_argument("--dims", default=None,
+                     help="[v8.343] 🎛️ **custom 装配**(JSON · 只传要拧的维度 · 其余沿用档默认)。"
+                          "四维:spec_depth(none|prd|prd_tech)· evidence_gate(bool)· "
+                          "verify_depth(self|test|test_e2e)· review({评审点: [角色…]})· 另有开关 ui(bool)。"
+                          "例:--preset medium --dims '{\"review\":{\"blueprint\":[\"architect\",\"dba\"]}}'。"
+                          "🔴 组合连贯性机器校验(不连贯直接拒)· 模型错开与 PRD/TECH 高档是硬不变式、不进矩阵。")
     ifp.add_argument("--sub-project", help="如 admin / api-server")
     # v7.3.10+P0-149: 删 --artifact-root 冗余参数 · --feature 单源（既是落盘目录又是 artifact_root 字段值）
     ifp.add_argument("--initial-stage",
@@ -4064,6 +4468,23 @@ def build_parser() -> argparse.ArgumentParser:
                           "客观不可用(未装/网络死·已重试失败)· 不得为效率/集中到 review stage 用 · "
                           "用了写 concern WARN 留痕")
     crr.set_defaults(func=cmd_change_review_roles)
+
+    # v8.343:revise-plan · 显式修订点(计划 + 修订留痕 · 用户拍板「至少可以修改」)
+    rvp = sub.add_parser(
+        "revise-plan",
+        help="[v8.343] 按新证据改装配计划(维度)· 加减同价各记一行证据 · 回显不停等",
+    )
+    rvp.add_argument("--feature", required=True, help="Feature 目录(含 state.json)")
+    rvp.add_argument("--dim", required=True,
+                     help="要拧的维度:spec_depth / evidence_gate / verify_depth / ui / "
+                          "review.<goal|blueprint|review|pm_acceptance>")
+    rvp.add_argument("--to", required=True,
+                     help="新值(标量裸传或 JSON)· 评审点可传逗号分隔角色('architect,external' · "
+                          "空串 = 减到 0 路)")
+    rvp.add_argument("--evidence", required=True,
+                     help="🔴 **装配时不知道的那个事实**(不是「我觉得该加/该减」)· "
+                          "加与减同价 —— 两个方向都要这一行,轻的偏置留在档默认里、不留在举证难度里")
+    rvp.set_defaults(func=cmd_revise_plan)
 
     # v8.69:set-mode · 语义化设 auto_mode / yolo(替代 raw-write · 物化 + audit)
     sm = sub.add_parser(

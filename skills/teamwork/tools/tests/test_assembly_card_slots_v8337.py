@@ -22,7 +22,7 @@ class TestCardSlots(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         doc = GOAL.read_text(encoding="utf-8")
-        cls.beat2 = doc.split("固定三槽 · 缺槽即漏", 1)[1].split("装配判断表")[0]
+        cls.beat2 = doc.split("固定四槽 · 缺槽即漏", 1)[1].split("🎛️ **装配 = 拧维度")[0]
         cls.doc = doc
 
     def test_stage_chain_slot_shows_full_chain(self):
@@ -47,11 +47,16 @@ class TestCardSlots(unittest.TestCase):
         """卡的存在理由 = 减税可见(评审减没减一眼可核)· 整卡 ≤6 行防槽位变新税。"""
         self.assertIn("评审力度整维丢失", self.doc)
         self.assertIn("减税可见", self.doc)
-        self.assertIn("整卡 ≤6 行", self.doc)
+        self.assertIn("静默的减税与静默的漏配在产物上无法区分", self.doc)
+        # v8.343:三槽→四槽(加「维度元组」)· 上限 ≤6→≤7 行。锁的是「槽位自带体积上限」这件事,
+        # 不锁具体数字 —— 治糊的药不许自己长成新的税。
+        self.assertRegex(self.doc, r"整卡 ≤\d+ 行")
+        self.assertIn("**维度元组**", self.beat2)          # v8.343 新槽:AI 填的四维
+        self.assertIn("从计划渲染,不是手写", self.doc)     # 卡与机器计划同源 · 双手写载体必漂
 
     def test_digest_item_points_to_slots(self):
         seg = self.doc.split("余节 ≤2 行", 1)[1].split("\n", 1)[0]
-        self.assertIn("固定三槽", seg)
+        self.assertIn("四槽", seg)
         self.assertIn("是否×几路×谁×理由", seg)
 
 
@@ -60,7 +65,7 @@ class TestBriefCarrier(unittest.TestCase):
     def test_goal_brief_carries_slots(self):
         from _v8_stage_specs import GOAL_SPEC
         b = GOAL_SPEC.brief_template_fn({})
-        self.assertIn("固定三槽缺一即漏", b)
+        self.assertIn("四槽缺一即漏", b)
         self.assertIn("是否需要×几路×谁×理由", b)
         self.assertIn("0 路+理由", b)
 

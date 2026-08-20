@@ -31,7 +31,7 @@ class TestReductionSide(unittest.TestCase):
         没有载体就不会发生。现在它是 preset=tiny,链和 roster 都由机器给。
         """
         self.assertIn("直接开发,完成后架构师 review 一下,PM 验收盯 staging", self.table)
-        self.assertIn("`preset=tiny`", self.table)
+        self.assertIn("**`tiny`", self.table)
         self.assertIn("architect 单路", self.table)
         self.assertIn("盯 staging 部署", self.table)
 
@@ -39,7 +39,7 @@ class TestReductionSide(unittest.TestCase):
         """各档缺省逐 stage 点名 —— 让「减」有判据可引(不是形容词式「轻一点」)。"""
         self.assertIn("dev → review〔architect 单路〕 → pm_acceptance → ship", self.table)   # tiny 链
         self.assertIn("冷审 0 路缺省", self.table)                                            # lite goal
-        self.assertIn("跳 blueprint", self.table)                                            # lite 环节
+        self.assertIn("不写 TECH", self.table)                                               # lite 环节
 
     def test_lite_keeps_prd_and_user_sovereignty(self):
         """降档不动用户主权:lite 仍有 PRD + 终确认停等(用户拍板「lite 也要有 PRD」)。"""
@@ -51,7 +51,7 @@ class TestReductionSide(unittest.TestCase):
     def test_tiny_tier_available_in_prepare(self):
         """定档要在能定的时点可选:tiny 是 preset · prepare 就得给得出。"""
         prep = (SKILL_ROOT / "docs" / "prepare.md").read_text(encoding="utf-8")
-        self.assertIn("`preset=tiny`", prep)
+        self.assertIn("preset=tiny", prep)
         self.assertIn("盯 staging 部署", prep)
         self.assertIn("继续讨论", prep)                 # v8.338:方向类停等第 2 项恒定
 

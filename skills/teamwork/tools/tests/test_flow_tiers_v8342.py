@@ -44,9 +44,17 @@ def _feature(preset="full", **hints):
 
 class TestPresetsAreStructuralOnly(unittest.TestCase):
 
-    def test_three_presets_four_tiers(self):
-        self.assertEqual(S.FEATURE_PRESETS, ("full", "tiny", "micro"))
-        self.assertNotIn("lite", S.FEATURE_PRESETS)   # lite = 装配形态 · 不是 preset
+    def test_tiers_named_but_only_structural_ones_get_graphs(self):
+        """v8.343 supersede:档名全部可选(六档)· 但只有结构档有自己的静态图。
+
+        本条 v8.342 初版断言「lite 不是 preset」—— 那是当时的实现手段(避免多一张图),
+        不是原则。v8.343 让链从维度推导之后,档名不再意味着一张图,于是 lite/medium
+        可以当档名给出。原则(不许多一张图)由下一条 test_lite_adds_no_graph 继续守。
+        """
+        for t in ("full", "medium", "lite", "tiny", "floor", "micro"):
+            self.assertIn(t, S.FEATURE_PRESETS, t)
+            self.assertIn(t, S.TIER_DIMS, t)
+            self.assertIn(t, S.TIER_ADMISSION, t)      # 每档必须有一句可判入场问句
 
     def test_lite_adds_no_graph(self):
         """最强锁:lite 不许有自己的转移图 —— 它就是 Feature 图。"""
@@ -55,15 +63,15 @@ class TestPresetsAreStructuralOnly(unittest.TestCase):
         self.assertIs(E._resolve_flow_graph(lite, S.FLOW_BY_TYPE), S.FEATURE_FLOW)
         self.assertEqual(SP._flow_key(lite), "Feature")   # 不是第四个流键
 
-    def test_cli_exposes_three_presets(self):
+    def test_cli_exposes_all_tiers_and_custom(self):
         out = subprocess.run(
             [sys.executable, str(SKILL_ROOT / "tools" / "state.py"), "init-feature", "--help"],
             capture_output=True, text=True, timeout=30).stdout
-        self.assertIn("{full,tiny,micro}", out)
-        # lite 不是 choices · 但必须在 help 里说清它是装配出来的(否则 AI 会去找 --preset lite)
         flat = " ".join(out.split())          # argparse 按宽度折行 · 断言不吃换行位置
-        self.assertIn("lite 不是 preset", flat)
-        self.assertIn("--needs-blueprint false", flat)
+        self.assertIn("{full,medium,lite,tiny,floor,micro}", flat)
+        # 🔴 档只是起手点 —— custom 入口必须在同一处可见,否则 AI 只会在六个名字里挑
+        self.assertIn("--dims", flat)
+        self.assertIn("档只是起手点", flat)
 
 
 # ─── 2 · tiny:独立 preset · 零文档 · 无 test ────────────────────────────
@@ -310,17 +318,22 @@ class TestGateRoutesToTestRefs(unittest.TestCase):
 
 class TestSpecCarriers(unittest.TestCase):
 
-    def test_flows_lists_four_tiers(self):
+    def test_flows_lists_every_tier_with_admission(self):
+        """v8.343:FLOWS 从「档表」升级成「维度 + 档表」· 每档一行 telos。"""
         t = (SKILL_ROOT / "FLOWS.md").read_text(encoding="utf-8")
-        self.assertIn("preset=tiny", t)
-        self.assertIn("lite 装配形态", t)
-        self.assertIn("四档但只有三个 preset", t)
-        self.assertIn("零 re-init", t)          # lite 相对 preset 的实际收益
+        for tier in ("full", "medium", "lite", "tiny", "floor", "micro"):
+            self.assertIn(f"Feature · `{tier}`", t, tier)
+        self.assertIn("链由维度推导", t)
+        self.assertIn("起手点不是终点", t)      # 档可拧 · 不是六选一
+        self.assertIn("零独立图", t)            # v8.293 真正要防的东西
 
-    def test_goal_stage_has_third_knob(self):
+    def test_goal_stage_carries_dimension_matrix(self):
         t = (SKILL_ROOT / "stages" / "goal-stage.md").read_text(encoding="utf-8")
         self.assertIn("[blueprint 进/跳]", t)
-        self.assertIn("--needs-ui / --needs-blueprint / --needs-browser-e2e", t)
+        for d in ("D1 规格深度", "D2 证据门", "D3 验证深度", "D4 评审力度"):
+            self.assertIn(d, t, d)
+        self.assertIn("--needs-blueprint", t)
+        self.assertIn("显式修订点", t)          # v8.343 计划 + 修订点
 
     def test_prd_template_documents_lite_carrier(self):
         t = (SKILL_ROOT / "templates" / "prd.md").read_text(encoding="utf-8")

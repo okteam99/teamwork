@@ -153,13 +153,26 @@ class TestAgileLegacyGone(unittest.TestCase):
                 self.assertNotIn("敏捷需求", line, f"{f} 仍有敏捷需求逻辑:{line.strip()[:70]}")
                 self.assertNotIn("blueprint_lite", line, f"{f} 仍有 blueprint_lite:{line.strip()[:70]}")
 
-    def test_lite_preset_fully_gone(self):
+    def test_lite_has_no_graph_of_its_own(self):
+        """v8.343:锁的是**危险本身**,不是名字。
+
+        v8.293 杀掉的 legacy lite 之所以有害,不在于叫 lite,而在于它是**一张独立转移图**,
+        三份 flow-key 实现对同一输入解析出两张不同的图。v8.343 的 lite 是命名维度元组:
+        零独立图 · 链由 derive_flow_graph 统一推导。所以名字回来了,危险没回来 ——
+        这条锁跟着改成守「不许有自己的图」,继续拦住真正会复发的东西。
+        """
         import sys
         sys.path.insert(0, str(ROOT / "tools"))
-        from state import FEATURE_PRESETS, LEGACY_FLOW_ALIASES, FLOW_BY_TYPE  # type: ignore
-        self.assertNotIn("lite", FEATURE_PRESETS)
+        from state import (FLOW_BY_TYPE, LEGACY_FLOW_ALIASES,          # type: ignore
+                           _STRUCTURAL_PRESETS, TIER_DIMS, derive_flow_graph)
         self.assertNotIn("敏捷需求", LEGACY_FLOW_ALIASES)
-        self.assertNotIn("Feature:lite", FLOW_BY_TYPE)
+        self.assertNotIn("Feature:lite", FLOW_BY_TYPE)      # 无独立静态图
+        self.assertNotIn("lite", _STRUCTURAL_PRESETS)       # 不算结构档
+        self.assertNotIn("medium", _STRUCTURAL_PRESETS)
+        # 且必须能被统一推导出来(不是靠别处特判)
+        self.assertEqual(
+            [s for s in derive_flow_graph(TIER_DIMS["lite"])],
+            ["goal", "dev", "review", "test", "pm_acceptance", "ship", "completed"])
 
     def test_three_flow_key_impls_agree(self):
         """三份实现必须对同一 state 给一致结论 —— 这正是 v8.293 之前失守的地方。"""

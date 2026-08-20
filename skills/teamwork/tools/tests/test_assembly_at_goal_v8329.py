@@ -60,7 +60,9 @@ class TestGoalAssemblyRule(unittest.TestCase):
         self.assertIn("评审面", self.rule)
         # 维度仍是两个;环节旋钮从 2 个扩到 3 个(加 blueprint 进/跳 = lite 档 · 用户拍板)。
         # 锁的是「可选段是**封闭枚举**」—— 不锁个数,锁「不许再冒出第四个没登记的可选段」。
-        self.assertIn("仅此三段可选", self.rule)
+        # v8.343:环节旋钮升级成**四维矩阵**(链由维度推导)· 锁「维度是封闭枚举」
+        for dim in ("spec_depth", "evidence_gate", "verify_depth", "review"):
+            self.assertIn(dim, self.rule, dim)
         for knob in ("ui_design", "blueprint", "browser_e2e"):
             self.assertIn(knob, self.rule, knob)
 
@@ -78,7 +80,7 @@ class TestGoalAssemblyRule(unittest.TestCase):
         self.assertIn("不单独停等", self.rule)
 
     def test_activation_uses_existing_machinery(self):
-        self.assertIn("--needs-ui / --needs-blueprint / --needs-browser-e2e", self.rule)
+        self.assertIn("`--needs-*`", self.rule)      # 三个开关 = 维度写入口
         self.assertIn("change-review-roles", self.rule)
 
     def test_judgment_table_migrated_from_prepare(self):
