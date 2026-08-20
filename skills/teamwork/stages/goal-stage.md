@@ -19,7 +19,13 @@
    - **流程阶段**:`goal → [ui_design 进/跳] → blueprint → dev → review → test → [browser_e2e 进/跳] → pm_acceptance → ship`(可选段标进/跳 + 一句理由);
    - **评审力度**(逐评审 stage 一行 · **是否需要 × 几路 × 谁 × 理由**〔为什么这个力度〕):`blueprint:<N 路 · 角色 · 理由>` `review:<N 路 · 角色 · 理由>` · 收到零也显式写 `0 路 + 理由`(减税要减在明处);
    - **四轴证据**:方向 / 契约面 / 影响面实测 / 验证成本 各半句。
-   **默认按此执行 · 用户不要求改就生效 · 不单独停等**(环节经 `goal-complete --needs-ui / --needs-browser-e2e` 落 `execution_hints` · 下游 roster 经 change-review-roles 留痕)。装配判断表:有产品方向影响 → goal 留 pl(仅纯内部技术重构去);无 UI 改动 → ui_design + browser_e2e 双跳;跨 ≥3 模块触发点 → blueprint/review 外审升异质或加独立 qa;数据模型重构(删改老字段 / 表结构变)→ blueprint 强 architect + 加 dba(why:prepare 只有需求文本没有代码现状 —— 在信息最少的时刻做信息最密的决策 = 结构性错判,实证「删 3 个按钮」被字面定价成九段全链;调研后定价 = Feature 与 Bug 统一成「先调研 · 再定价」)。
+   **默认按此执行 · 用户不要求改就生效 · 不单独停等**(环节经 `goal-complete --needs-ui / --needs-browser-e2e` 落 `execution_hints` · 下游 roster 经 change-review-roles 留痕)。装配判断表 —— 🔴 **加减两侧都要判**(实证:只有加法判据时,四轴全低的域名配置仍默认吃满 goal 双路 + blueprint 2 路 + review 2 路 = 六路评审 · 用户当场问「这么简单为什么那么多 review」):
+   - **减法侧(评审力度分级缺省 · 四轴越低档越轻)**:
+     · **超低 =「直接做」形态(用户拍板:按理说直接开发,完成后架构师 review 一下,PM 验收盯 staging 部署就可以了)**—— 改动 = 纯配置 / 删除 / 文案级 · 无契约面 · diff/断言可验 → **建议改走 `preset=micro`**(同 feature `init-feature --force` 重定档合法 · 实证消费 AI 已走通)+ **micro 附加轻门**:execute 完成后派**单路 architect diff 冷审**(subagent · 模型错开 · 只拦 BLOCKER)· **PM 验收 = MR diff + 合并后盯 staging 部署**(await-merge 已自动带 CI);
+     · **低**(行为性但小 · 超 micro 白名单:含少量逻辑/断言改动)→ `goal:[fast] 单路合并冷审(模型照错开)· blueprint:0 路(评审跳 · verify-ac 照跑)· review:[architect] 单路(用户形态:完成后架构师 review 一下)`;
+     · **中**(缺省)→ flow 默认 roster;**高**(命中任一加法触发)→ 加面。
+     🔴 **一致性倒逼**:判断卡/装配卡的评审力度行,路数与四轴必须对得上 —— 四轴全低而某 stage ≥2 路 → 必须写一句「为什么不降」(写不出就降 · 实证:域名配置吃满六路评审 · 用户当场问「这么简单为什么那么多 review」);
+   - **加法侧**:有产品方向影响 → goal 留 pl(仅纯内部技术重构去);无 UI 改动 → ui_design + browser_e2e 双跳;跨 ≥3 模块触发点 → blueprint/review 外审升异质或加独立 qa;数据模型重构(删改老字段 / 表结构变)→ blueprint 强 architect + 加 dba(why:prepare 只有需求文本没有代码现状 —— 在信息最少的时刻做信息最密的决策 = 结构性错判,实证「删 3 个按钮」被字面定价成九段全链;调研后定价 = Feature 与 Bug 统一成「先调研 · 再定价」)。
 4. **物化门禁**(goal-complete 拦):`prd_verdicts_all_pass`(verdicts 全 APPROVE/SKIP)· `pl_challenge_present`(roster 含 pl 时 PRD-REVIEW 必有 PL-CHALLENGE 段)· `external_coverage_present`(roster 含 external 时外审段必有 coverage 申报)· PRD-REVIEW mtime > PRD · `--needs-ui` × flow_type 校验。
 5. **既有行为变更必升级**:PRD 改了用户可感知的既有默认行为(原 A → 现 B)→ 必入 §待决策项让用户拍板,**不可**写成「有意改变」叙述段蒙混(why:用户主权——没拍过板的不算拍板)。
 6. **规模反压**:AC > 10 → §待决策项必写「为什么不拆」或给拆分建议(why:超大 PRD 的业务目标必然稀释)。

@@ -201,9 +201,9 @@ PMO 按以下关键词表判定 user input 落入哪类流程:
 1. **preset=full** 💡 推荐
    理由:<准入项> 不满足 · micro 链(dev→review→ship)承载不下
    动作:按 Feature·full 走;有 UI 变更在 goal-complete 标 `--needs-ui=true` 进 ui_design
-2. **坚持 preset=micro**
-   理由:你确认准入信号是误判
-   动作:按 micro 继续(⚠️ 无 goal/blueprint/test 环节 · 记流程例外)
+2. **坚持 preset=micro**(行为性小改动亦合法 · 用户拍板「直接做」形态)
+   理由:你确认这就是「直接开发」级的小改动(风险自担 · 记流程例外留痕)
+   动作:按 micro 继续 · 🔴 **建议附轻门**:execute 完成后派单路 architect diff 冷审(subagent 错开模型 · 只拦 BLOCKER)+ PM 验收 = MR diff + 合并后盯 staging 部署(await-merge 自动带 CI)
 3. **其他指示**
 ```
 

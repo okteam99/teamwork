@@ -4,6 +4,19 @@
 > 上次清空:**v8.193**(2026-07-06 · 清除 v8.128 → v8.187 共 60 版条目 · 约 1.0k 行)。
 
 ---
+## v8.336 · panorama_sync stage 退役:全景变更判级并入 ui_design 出口(用户拍板)
+
+> 用户:design 流程是基于现有项目全景改造么?如果是,应该去掉全景同步的流程,没有必要了。
+> 前提验证成立且比预期更实:①ui_design 新模式 = 全景唯一权威 · Designer **直接改全景**(panorama-sync 自己承认「不重复同步」);②机器自相矛盾实锤 —— 附录维度 4 要求 ui_design 期改 sitemap,退役前的 mtime 门(> 本 stage started_at)逼人**二次 touch**;③同文件双载体互撞(旧规则 5「不直接改 sitemap 归 panorama_sync」vs 附录维度 4「modify-in-place」);④消费数据 11 次全是 L1 分钟级过场 · 零 L2 真协调。
+
+### 变更
+- **stage 退役**:`PANORAMA_SYNC_SPEC` / 转移分支 / `--panorama-changed` 参数与 evidence / stage 文件 / SKILL·FLOWS·STAGES 各表行全清;`ui_design → blueprint` 恒定转移。canonical 链 12 → **11 stage**(README 双语数字同步 —— spec_claims 数字门当场抓到三处,又一实证「数字宣称必漂」)。存量兼容:状态枚举保留 `panorama_sync`(历史 completed_stages 合法);in-flight 停在该 stage 的用 `jump-to-stage` 出(WARN 留痕)。
+- **真价值并入 ui_design 出口(规则 8 重写)**:改动涉全景 → 判级 —— **L1**(节点内增量 · 三判据全过:无节点增删移/无 token 变更/受影响 Features 零命中)→ `add-concern WARN` 留痕直进;**L2**(任一不满足或拿不准)→ 判级结论 + 受影响 Features **并入既有的用户确认设计稿暂停点**(零新增停等 · 与 blueprint DB 变更 R5 同形态 · auto_mode 跳过 WARN 留痕);判级依据写 **UI.md §全景变更判级**(替代 panorama-change-summary.md 独立产物)。
+- **双载体互撞消解**:规则 5 改为「sitemap / overview 随设计一并改」(与附录维度 4 同轴);dev-stage 两处改口(回 ui_design 走出口判级);verify-panorama 注释同步。
+
+### 测试
+`test_panorama_retire_v8336.py` 10 条:注册表/磁盘/转移/flag 持久化四路退役 · 存量枚举兼容 · L1 三判据 · L2 搭既有停等 · UI.md 节替代 · sitemap 互撞消解 · 活引用锁(符号/注册键/链边/表行 —— 迁移史标注合法)· 数字宣称清零;既有 4 个锁文件(state/engine_fixes/v8284/spec_claims 触发面)按新设计更新。全库全绿。
+
 ## v8.335 · teamwork-space 入口注入 CLAUDE.md / AGENTS.md(用户拍板)
 
 > 用户:初始化时把 teamwork-space.md 引入到 AGENTS.md 和 CLAUDE.md —— 目标是**不用 teamwork agent 也能充分了解项目**。

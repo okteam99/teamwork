@@ -4,6 +4,19 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.341 · 评审力度减法侧分级 +「直接做」形态正名(用户拍板)
+
+> case(jolichatbox 域名配置):v8.334-337 链条全部正常工作(深调研/判断卡/跳 ui·browser),但四轴全低的配置改动仍默认吃满六路评审 —— 用户当场问「这么简单的需求为什么还要那么多 review」,消费 AI 中途 re-init 切 micro 落地开 MR(自评:「按全链启动了 —— 这是错配」)。
+> 用户拍板目标形态:**按理说直接开发,完成后架构师 review 一下,PM 验收盯 staging 部署就可以了。**
+
+### 变更
+- **3.7 装配判断表补减法侧(加减两侧都要判)**:**超低**(纯配置/删除/文案级 · 无契约面 · diff/断言可验)→ 建议改走 `preset=micro`(同 feature re-init 合法 · 消费实证)+ **micro 附加轻门**(execute 完成后单路 architect diff 冷审〔subagent 错开 · 只拦 BLOCKER〕· PM 验收 = MR diff + 合并后盯 staging〔await-merge 自动带 CI〕);**低**(行为性但小)→ goal `[fast]` 单路合并 · blueprint 0 路 · **review `[architect]` 单路(用户形态)**;中 = 缺省;高 = 加法触发。
+- **一致性倒逼**:判断卡/装配卡评审力度行,路数与四轴对不上必须写「为什么不降」(写不出就降)。
+- **prepare §2.2「坚持 micro」正名**:行为性小改动亦合法(留痕)+ 附轻门建议 —— 消费 AI 的逃生路径转正。goal brief 同步。
+
+### 测试
+`test_review_intensity_tiers_v8341.py` 9 条:超低档 = 用户拍板句 / 低档逐 stage 缺省 / 判据机械 / 一致性倒逼 / 单路仍错开 / prepare 正名 / brief。全库全绿。
+
 ## v8.340 · ship1 后 CI pipeline 自动检查(用户拍板)
 
 > 用户:另外 ship1 之后需要自动检查 CI 的 pipeline。
@@ -53,16 +66,3 @@
 
 ### 测试
 `test_assembly_card_slots_v8337.py` 8 条:全链形态 / 四问逐项 / 零路显式 / 证据槽 / 减税可见 + ≤6 行防新税 / 导读指槽 / brief 载体。全库全绿。
-
-## v8.336 · panorama_sync stage 退役:全景变更判级并入 ui_design 出口(用户拍板)
-
-> 用户:design 流程是基于现有项目全景改造么?如果是,应该去掉全景同步的流程,没有必要了。
-> 前提验证成立且比预期更实:①ui_design 新模式 = 全景唯一权威 · Designer **直接改全景**(panorama-sync 自己承认「不重复同步」);②机器自相矛盾实锤 —— 附录维度 4 要求 ui_design 期改 sitemap,退役前的 mtime 门(> 本 stage started_at)逼人**二次 touch**;③同文件双载体互撞(旧规则 5「不直接改 sitemap 归 panorama_sync」vs 附录维度 4「modify-in-place」);④消费数据 11 次全是 L1 分钟级过场 · 零 L2 真协调。
-
-### 变更
-- **stage 退役**:`PANORAMA_SYNC_SPEC` / 转移分支 / `--panorama-changed` 参数与 evidence / stage 文件 / SKILL·FLOWS·STAGES 各表行全清;`ui_design → blueprint` 恒定转移。canonical 链 12 → **11 stage**(README 双语数字同步 —— spec_claims 数字门当场抓到三处,又一实证「数字宣称必漂」)。存量兼容:状态枚举保留 `panorama_sync`(历史 completed_stages 合法);in-flight 停在该 stage 的用 `jump-to-stage` 出(WARN 留痕)。
-- **真价值并入 ui_design 出口(规则 8 重写)**:改动涉全景 → 判级 —— **L1**(节点内增量 · 三判据全过:无节点增删移/无 token 变更/受影响 Features 零命中)→ `add-concern WARN` 留痕直进;**L2**(任一不满足或拿不准)→ 判级结论 + 受影响 Features **并入既有的用户确认设计稿暂停点**(零新增停等 · 与 blueprint DB 变更 R5 同形态 · auto_mode 跳过 WARN 留痕);判级依据写 **UI.md §全景变更判级**(替代 panorama-change-summary.md 独立产物)。
-- **双载体互撞消解**:规则 5 改为「sitemap / overview 随设计一并改」(与附录维度 4 同轴);dev-stage 两处改口(回 ui_design 走出口判级);verify-panorama 注释同步。
-
-### 测试
-`test_panorama_retire_v8336.py` 10 条:注册表/磁盘/转移/flag 持久化四路退役 · 存量枚举兼容 · L1 三判据 · L2 搭既有停等 · UI.md 节替代 · sitemap 互撞消解 · 活引用锁(符号/注册键/链边/表行 —— 迁移史标注合法)· 数字宣称清零;既有 4 个锁文件(state/engine_fixes/v8284/spec_claims 触发面)按新设计更新。全库全绿。
