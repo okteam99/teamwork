@@ -43,11 +43,53 @@ def _flow_key(state: dict) -> str:
     return ft
 
 
-def _blueprint_skipped(state: dict) -> bool:
-    """lite 判定单源:装配把 blueprint 旋钮拧成 false(goal-complete --needs-blueprint false)。
+def _next_on_chain(state: dict, current: str) -> Optional[str]:
+    """按装配链取下一跳(无计划返 None · 调用方回退旧分支逻辑)。
 
-    只认显式 false —— 不传 / true 都按 full 走(缺省保守偏置:没给判断就别替用户降档)。
+    v8.343:转移不再逐档写 if/else —— 链由维度推导,下一跳就是链上的后继。
+    加一档(medium 就是本版实现中途加的)因此不需要碰任何转移函数。
     """
+    dims = _dims(state)
+    if not dims:
+        return None
+    try:
+        from state import derive_chain
+    except ImportError:
+        return None
+    chain = derive_chain(dims)
+    if current not in chain:
+        return None
+    i = chain.index(current)
+    return chain[i + 1] if i + 1 < len(chain) else "completed"
+
+
+def _dims(state: dict) -> dict:
+    """state → 装配维度(v8.343 计划单源)· 无计划返 {}(存量 state 走既有 hints 口径)。"""
+    d = (state.get("assembly_plan") or {}).get("dims")
+    return d if isinstance(d, dict) else {}
+
+
+def _on_chain(state: dict, stage: str) -> Optional[bool]:
+    """stage 在不在本 feature 的链上(无计划返 None = 不知道 · 调用方回退旧判据)。"""
+    dims = _dims(state)
+    if not dims:
+        return None
+    try:
+        from state import derive_chain
+    except ImportError:
+        return None
+    return stage in derive_chain(dims)
+
+
+def _blueprint_skipped(state: dict) -> bool:
+    """lite 判定:blueprint 不在链上。
+
+    v8.343 起以 assembly_plan 为准(spec_depth != prd_tech);存量 state 回退 v8.342 的
+    `execution_hints.blueprint_needed is False`。只认显式否定 —— 没给判断就别替用户降档。
+    """
+    on = _on_chain(state, "blueprint")
+    if on is not None:
+        return not on
     return state.get("execution_hints", {}).get("blueprint_needed") is False
 
 
@@ -324,20 +366,36 @@ def persist_args_to_evidence(stage_name: str, state: dict, args) -> None:
                 .setdefault(stage_name, {})
                 .setdefault("evidence", {}))
 
+    # 🔴 v8.343:goal/ui_design 的三个 --needs-* 是**装配时刻的维度写入口**。有 assembly_plan 时
+    # 必须同步进 plan.dims —— 否则链由 dims 推导、开关落在 hints,两份载体各说各话
+    # (「配置立了没接线」的镜像:配置接了线,但接到了一份没人读的载体上)。
+    _plan = state.get("assembly_plan") or {}
+    _pd = _plan.get("dims") if isinstance(_plan.get("dims"), dict) else None
+
     # goal / ui_design 共用:可选 --needs-browser-e2e(browser_e2e 条件 stage 的唯一写入方)
     if stage_name in ("goal", "ui_design"):
         nb = getattr(args, "needs_browser_e2e", None)
         if nb in ("true", "false"):
             hints["browser_e2e_needed"] = (nb == "true")
+            if _pd is not None:
+                _pd["verify_depth"] = ("test_e2e" if nb == "true"
+                                       else ("test" if _pd.get("verify_depth") == "test_e2e"
+                                             else _pd.get("verify_depth", "test")))
 
     if stage_name == "goal":
         val = getattr(args, "needs_ui", None)
         if val in ("true", "false"):
             hints["ui_design_needed"] = (val == "true")
-        # v8.342 装配环节第三旋钮:--needs-blueprint false = lite 档(跳 blueprint)
+            if _pd is not None:
+                _pd["ui"] = (val == "true")
+        # v8.342 装配环节第三旋钮:--needs-blueprint false = 不进 blueprint(lite 形态)
         nb = getattr(args, "needs_blueprint", None)
         if nb in ("true", "false"):
             hints["blueprint_needed"] = (nb == "true")
+            if _pd is not None:
+                _pd["spec_depth"] = "prd_tech" if nb == "true" else "prd"
+                if nb != "true":
+                    (_pd.get("review") or {}).pop("blueprint", None)  # 孤儿评审点随之剪掉
     elif stage_name == "dev":
         code = getattr(args, "test_exit_code", None)
         if code is not None and int(code) != 0 and getattr(args, "current_failures", None):
@@ -529,7 +587,8 @@ state.py goal-complete --feature <path> \
   --auto-commit <hash> --artifacts PRD.md,PRD-REVIEW.md \
   --needs-ui {{true|false}} --needs-browser-e2e {{true|false}}
 ```
-🔗 **链装配**(调研后 · 详 stage.md 规则 3.7 · 🔴 评审力度**加减两侧都判** · **四档**:超低〔纯文案/单行常量〕→ micro · 低〔行为性但小 · **diff 可验**〕→ tiny〔dev → review architect 单路 → pm → ship · 零文档〕· 中低〔**需跑链路**但方案空间小〕→ **lite = 本卡把 blueprint 标「跳」**〔`--needs-blueprint false` · PRD 照要 · goal 冷审 0 路 · review architect 单路 · AC 绑定走 PRD `test_refs`〕· 中/高 → full · 🔴 单路**模型照错开**(降档不降独立性)· 路数与四轴对不上必须写「为什么不降」):goal 自身评审面 AI 自定(留痕不问);下游装配写进终确认导读「🔗 链装配」节 · 🔴 **固定三槽缺一即漏 · 整卡 ≤6 行**(流程阶段全链标进/跳 · **评审力度逐 stage「是否需要×几路×谁×理由」〔收到零也显式写 0 路+理由 —— 减税要减在明处〕** · 四轴证据各半句)—— **默认按此执行 · 用户不要求改就生效**。
+🔗 **链装配**(调研后 · 详 stage.md 规则 3.7)· 🎛️ **装配 = 拧四维不是挑档名**:`D1 规格深度`〔none/prd/prd_tech〕· `D2 证据门`〔开/关〕· `D3 验证深度`〔self/test/test_e2e〕· `D4 评审力度`〔逐评审点 路数×角色×模型〕· 开关 `UI`。🔴 评审力度**加减两侧都判** · **六档起手**(判**风险的种类**不判改动大小):micro〔无行为面 · 测试无从写起〕· floor〔测试能完全证明 · dev→ship〕· tiny〔值得一双眼看 diff · 零文档〕· lite〔有规格风险要 PRD · 方案空间小不写 TECH · `--needs-blueprint false`〕· medium〔值得写 TECH · goal/blueprint 各单路〕· full〔两路并行冷审划算〕—— 🔴 **档只是起手点:选完必须再过一遍四维,该拧就拧**(只报档名不拧 = 退化情形)· 🔴 单路**模型照错开**(降档不降独立性)· 路数与四轴对不上必须写「为什么不降」):goal 自身评审面 AI 自定(留痕不问);下游装配写进终确认导读「🔗 链装配」节 · 🔴 **四槽缺一即漏 · 整卡 ≤7 行**(流程阶段〔机器按 `derive_chain` 渲染〕· 维度元组 · **评审力度逐评审点「是否需要×几路×谁×理由」〔收到零也显式写 0 路+理由 —— 减税要减在明处〕** · 四轴证据各半句)—— **默认按此执行 · 用户不要求改就生效**。
+🔁 **每个 stage 边界都是显式修订点**:complete emit 带 `plan_checkpoint` · 问「有没有出现**装配时不知道的事实**」—— 有就 `revise-plan --dim <维度> --to <值> --evidence '<事实>'`,没有就照计划走 · **回显不停等** · ⚖️ **加与减同价**(都只要一行证据)· 🔴 **计划可改 · 历史不可改**。
 """
 
 
@@ -544,6 +603,9 @@ def _goal_transition(state: dict) -> Optional[str]:
     hints = state.get("execution_hints", {})
 
     if flow == "Feature":
+        nxt = _next_on_chain(state, "goal")      # v8.343:计划推导的链说了算
+        if nxt:
+            return nxt
         if hints.get("ui_design_needed") is True:
             return "ui_design"
         # v8.342 lite:装配跳 blueprint → goal 直转 dev(PRD 就是 dev 的规格 · TC 不产)
@@ -1008,6 +1070,12 @@ def _check_blueprint_or_alt_done(state: dict, args) -> bool:
     flow = _flow_key(state)
     if flow == "Bug":
         return contracts.get("diagnose", {}).get("output_satisfied") is True
+    if _dims(state):
+        # v8.343:blueprint 不在链上 → 前置回落到 goal(有 PRD 时)· goal 也不在链上 → 零前置
+        if _on_chain(state, "blueprint") is False:
+            return (True if _on_chain(state, "goal") is False
+                    else contracts.get("goal", {}).get("output_satisfied") is True)
+        return False
     if flow in ("Micro", "Tiny"):
         return True                 # 两档都无 blueprint stage(tiny 连 goal 都没有 · dev 是入口)
     # v8.342 lite:blueprint 被装配跳过 —— 前置换成 goal 完成(PRD 仍是 dev 的规格来源)
@@ -1025,7 +1093,10 @@ def _check_prd_or_bug_report(state: dict, args) -> bool:
     - Feature / 其他:必有 PRD.md(goal stage 产物 · **lite 照要** —— 用户拍板「lite 也要有 PRD」)
     """
     flow = _flow_key(state)
-    if flow in ("Micro", "Tiny"):
+    if _dims(state):                          # v8.343:spec_depth=none → 无 PRD(规格 = 理解卡)
+        if _on_chain(state, "goal") is False:
+            return True
+    elif flow in ("Micro", "Tiny"):
         return True  # 无 spec 文档 · skip(改 1 行常量 / 零文档档 · 不需要长形式 PRD/BUG)
     feature_dir = Path(args.feature)
     if flow == "Bug":
@@ -1098,8 +1169,9 @@ def _dev_transition(state: dict) -> Optional[str]:
     v8.250:micro 不再走 dev(改走 execute → ship · 见 EXECUTE_SPEC)—— dev 只服务
     Feature(full)/ Bug 全部 → review。旧 Micro→pm_acceptance 分支已删(死路)。
     v8.261:fast_mode 不再跳 review(留单路合并代码评审 · Architect+QA 关注点合一)。
+    v8.343:有装配计划时按链走 —— floor(评审点全 0)从 dev 直接到 ship。
     """
-    return "review"
+    return _next_on_chain(state, "dev") or "review"
 
 
 DEV_SPEC = StageSpec(
@@ -1208,7 +1280,8 @@ def _ui_design_transition(state: dict) -> Optional[str]:
 
     全景变更判级并入 ui_design 出口(panorama_sync 退役)· v8.342 加 lite 分支。
     """
-    return "dev" if _blueprint_skipped(state) else "blueprint"
+    return (_next_on_chain(state, "ui_design")
+            or ("dev" if _blueprint_skipped(state) else "blueprint"))
 
 
 def _evidence_panorama_artifact(state: dict, args) -> tuple[bool, str]:
@@ -2343,6 +2416,9 @@ def _review_transition(state: dict) -> Optional[str]:
     review_contract = state.get("stage_contracts", {}).get("review", {})
     verdict = review_contract.get("evidence", {}).get("verdict")
     if verdict == "APPROVE":
+        nxt = _next_on_chain(state, "review")
+        if nxt:
+            return nxt
         # v8.342:Tiny 无 test stage · APPROVE 直转 pm_acceptance(转移图同口径)
         return "pm_acceptance" if _flow_key(state) == "Tiny" else "test"
     return None  # NEEDS_REVISION · 留 review-stage 走 fix-retry 循环
@@ -2573,6 +2649,9 @@ def _test_transition(state: dict) -> Optional[str]:
     int_ok = (int_code == 0) or (ev.get("integration_diff_clean") is True)
     if not int_ok or e2e_code != 0:
         return None  # 失败 · 留 test stage · 走 test-fix → test-retry
+    nxt = _next_on_chain(state, "test")          # v8.343:verify_depth / pm 路数都在链里
+    if nxt:
+        return nxt
     hints = state.get("execution_hints", {})
     if hints.get("browser_e2e_needed") is True:
         return "browser_e2e"
@@ -2827,7 +2906,11 @@ def _check_test_done_or_micro(state: dict, args) -> bool:
     v8.342:Tiny 链 = dev → review → pm_acceptance · 没有 test stage(判据是 diff 可验)。
     lite **不在此列** —— 它保留 test(用户拍板链里 test 在 architect 之后),照常卡这道门。
     """
-    if _flow_key(state) in ("Micro", "Tiny"):
+    on = _on_chain(state, "test")
+    if on is not None:                       # v8.343:计划说了算(verify_depth=self → 无 test)
+        if not on:
+            return True
+    elif _flow_key(state) in ("Micro", "Tiny"):
         return True
     return state.get("stage_contracts", {}).get("test", {}).get("output_satisfied") is True
 
@@ -2861,8 +2944,14 @@ PM_ACCEPTANCE_SPEC = StageSpec(
 
 def _check_pm_approved_ship(state: dict, args) -> bool:
     """pm_acceptance decision == 'approved_and_ship' · 容错读 evidence/旧位(详 _pm_decision_value)"""
+    # v8.343:pm_acceptance 不在链上(评审点 0 路)→ 验收位置回到 ship1 MR diff · 放行。
+    # 这是 micro 原设计的推广:验收从来没被取消,只是换了发生的地方。
+    on = _on_chain(state, "pm_acceptance")
+    if on is not None:
+        if not on:
+            return True
     # v8.250:micro 链 = execute → ship(无 pm_acceptance)· 用户验收在 ship1 MR diff · 直接放行
-    if _flow_key(state) == "Micro":
+    elif _flow_key(state) == "Micro":
         return True
     pm_c = state.get("stage_contracts", {}).get("pm_acceptance", {})
     if pm_c.get("output_satisfied") is not True:
