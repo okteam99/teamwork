@@ -28,7 +28,7 @@ acceptance_criteria:   # 🔴 机读单源(verify-ac.py 读 id↔TC.covers_ac)·
   - id: AC-1
     category: functional   # functional / telemetry / logging / config / performance / security / monitoring
     priority: P0
-    test_refs: []          # Blueprint 产 TC 时填测试 ID
+    test_refs: []          # full 档:Blueprint 产 TC 时填测试 ID · 🔴 **lite 档(跳 blueprint · 无 TC)= AC↔测试绑定的唯一载体**:dev 写完测试回填**真实引用** `<相对代码根的测试文件>` 或 `<文件>::<用例名>`(如 tests/test_login.py::test_reject_expired_token)· test-complete 校验非空**且引用真实存在**(点名一个不存在的测试 = 这条 AC 实际没被验证)
     ui_refs: []            # UI Design 产出时填页面/状态
   # 非功能 AC(埋点/日志/配置/性能/安全/监控)必标 category · Review QA Step 4.5 按 category grep 对账(不过 TC 中转)
   - id: AC-7

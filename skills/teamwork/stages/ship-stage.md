@@ -211,6 +211,24 @@ git add <feature_dir>/dev/*.md <feature_dir>/PRD.md
 
 ---
 
+## MR 窗口期 CI 自动检查(用户拍板:ship1 之后自动查 pipeline)
+
+- **push 记录成功即自动查一次 CI**(工具内建 · emit `ci_status`:passing/failing/pending/none/unknown · 刚 push 常为 pending = 确认 pipeline 已起;`unknown` = gh/glab 缺失或未登录 · 不拦流程);
+- **`await-merge` 每轮轮询同时带 CI**:MR 未合并且 CI 红 → **不再傻等合并**,立即以 `CI_FAILING` 退出并给 MR 窗口期修复口(下节)—— 治「CI 红无人接」的原始痛点;
+- CI 修复循环:jump 回 dev 修 → push 重跑 → await-merge 续走(同一 MR)。
+
+## MR 窗口期修复(pushed 后 · 平台未合并 · 用户拍板:不开 Bug 流)
+
+发现问题(平台 review blocker / CI 红 / 自查)且根因已知 → **同 feature 回 dev 修,更新同一 MR**:
+
+1. `state.py jump-to-stage --to dev --reason "MR 修复:<blocker 一句>"` —— pushed 态唯一放行口(`ship.reopened_fixes[]` + concerns WARN 双留痕);
+2. 修复:dev 证据门照跑(测试绿/差分 · auto-commit);review/test 按修复规模与装配走(小修可 dev→test 直达 · 评审面调整 `change-review-roles --reason` 留痕);
+3. `ship-phase --action push` 重跑(rerecord 语义 · WARN 留痕)—— push 分支即更新同一 MR · 不新开;
+4. 归档 zip **不重开**(初版墓碑 + git 历史可溯 · 修复轮过程文档随接力卡留 worktree);
+5. 边界:**平台已合并**后的问题 → Bug 流(diagnose 起);整件放弃 → `close-unmerged --abandon`。
+
+why:MR 反馈循环是交付的一部分 —— 逼开 Bug 流 = 把「改 PR」变成新立项(新 worktree/新链/新文档全套税);实证 case:三个已知 blocker 被判成「必须开 Bug 流再合回」。
+
 ## 相关
 
 - 引擎:[../tools/_v8_engine.py](../tools/_v8_engine.py)

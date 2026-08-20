@@ -1,6 +1,6 @@
 ---
 name: teamwork
-version: v8.337.1
+version: v8.342.1
 description: AI 协作开发一体化框架 - 需求功能开发, bug 修复, 问题排查 · /teamwork 启动
 ---
 
@@ -233,6 +233,7 @@ state.py 物化了 9 红线中 8 条 · R3 + 部分行为约束(R4 / R5(b) / byp
 - 不可省略**编号** / **💡 推荐** / **理由**(缺任一 = 把判断甩回用户 + `ok` 快捷词失灵)。
 - 🔴 **方案/变更确认类必自带变更点明细**:让用户拍板「改 X」时 · 选项之前必给**变更点清单**(对象级 · 每条一行:对象|变更|用途)—— 情境一句 + 分类概括 + 文件指针**不算**(用户被迫追问「方案是什么」= 暂停点白跑一轮)· 指针只作深读补充。
 - 单选 → 1/2/3 · 多决策 → 1A/2B · 用户回 `ok` = **选 💡 推荐项**。
+- ⏸️ **方向类停等第 2 项恒为「继续讨论」**(用户拍板 · 适用:PRD 终确认 + Feature Planning 全部 R5):目的是方便 AI 与用户**把目标和方向聊清楚** —— 修订/落地是讨论收敛后的事,不逼用户在「确认」与「给修改点」之间二选一。
 - 🔴 **「必带建议 + 理由」不止于三选项格式**:**任何抛给用户的决策项都算** —— PRD §待决策项逐条 · 多项一次性 escalate · 方案分叉 · 「要不要现在做 X」。**列了选项不给倾向 = 把判断甩回用户**,而 AI 有全部上下文、用户没有。
   🔴 **真推荐不了也要写明是哪一种**:① 缺信息(缺什么 · 谁能给)· ② 纯偏好(无技术优劣)· ③ 等上游决策。**空着不算** —— 用户只会被迫追问「你的建议和理由是什么」(实证 SVC-CORE-F260728:四条待决策项裸列,被逐条追问)。
   ❌ **选项集必须完整摊开 · 面向没读过产物的人写**:每个选项的内容与后果都写出(只写推荐项、让用户「可回 B」而 B 从没定义 = **假选择题**);每条带场景上下文与大白话(实证 CA-F260810:建议/理由都在,但全是术语压缩 + B 选项缺席,用户仍被迫追问 —— 拍板项四槽详 [goal-stage ④](./stages/goal-stage.md))。
@@ -355,7 +356,7 @@ mode B 识别后(**无论后续 flow_type = Feature〔full/micro〕还是 Bug ·
 
 ## 流程类型(R2 闭集)
 
-`flow_type ∈ {Feature, Bug}` + Feature 重量档 `preset ∈ {full, micro}` · Planning / 排查不进状态机 · 轻量由**动态 roster + clarity** 承担(legacy 别名自动映射)。**telos 与链条单源 = [FLOWS.md](./FLOWS.md)** · **判定权威 = [docs/prepare.md](./docs/prepare.md)**。
+`flow_type ∈ {Feature, Bug}` + Feature 重量档 `preset ∈ {full, tiny, micro}` · Planning / 排查不进状态机(legacy 别名自动映射)。**四档但只有三个 preset** —— **lite = full 的装配形态**(跳 blueprint · 有 PRD 无 TC/TECH · goal 调研后拧旋钮 · **零 re-init**),不是 preset。**telos 与链条单源 = [FLOWS.md](./FLOWS.md)** · **判定权威 = [docs/prepare.md](./docs/prepare.md)** · **定档判据单源 = [goal-stage 3.7 减法侧分级表](./stages/goal-stage.md)**。
 
 ### 授权暂停点清单(非 auto 模式 · 每个独立 emit + 等用户)
 
@@ -363,8 +364,10 @@ mode B 识别后(**无论后续 flow_type = Feature〔full/micro〕还是 Bug ·
 
 | 流程 | 授权暂停点(按顺序) |
 |---|---|
-| **Feature** | ① prepare 4 项配置 → ② goal PRD 最终确认(📄 回显 PRD 绝对路径)→ ③ ui_design UI 预览确认(若 --needs-ui · 🔗 全景变更 L2 判级并入本停等 · L1 不停) → ④ blueprint 方案要素确认(条件:DB 变更 / 🛡️ 兜底清单非空 · 见下) → ⑤ pm_acceptance 三选项 → ⑥ ship1 终点 等平台合并 feature MR |
+| **Feature** | ① prepare 4 项配置 → ② goal PRD 最终确认(📄 回显 PRD 绝对路径)→ ③ ui_design UI 预览确认(若 --needs-ui · 🔗 全景变更 L2 判级并入本停等 · L1 不停) → ④ blueprint 方案要素确认(条件:DB 变更 / 🛡️ 兜底清单非空 · 见下) → ⑤ pm_acceptance 三选项 → ⑥ ship1 终点 等平台合并 feature MR(窗口期发现问题 → 同 feature `jump-to-stage --to dev` 修 · 不开 Bug 流 · 详 ship-stage § MR 窗口期修复) |
 | **Bug** | ① prepare 4 项配置 → ② **diagnose 修复方案确认**(根因+方案 · 用户拍板才进 dev) → ③ pm_acceptance 三选项 → ④ ship1 终点 |
+| **Feature · lite**(full 的装配形态) | 同 Feature · **少 ④**(跳 blueprint)—— ② PRD 最终确认**照停**(降的是文档与路数,不是拍板权)|
+| **Feature · tiny** | ① prepare 4 项配置 → ② pm_acceptance 三选项 → ③ ship1 终点(零文档 · 无 goal/blueprint · review 单路 architect 不停等)|
 | **Feature · micro** | ① prepare 4 项配置 → ② ship1 终点 等 MR 合入(execute 零门禁 · 无 pm_acceptance · 用户验收 = ship1 MR diff review)|
 
 📎 **blueprint 方案要素条件暂停点**(双触发):TECH 涉**数据库数据结构变更**(表/字段/索引/约束/migration)**或 🛡️ 含安全/降级兜底策略**(兜底不许默默做 · 复杂度×收益经用户拍板)时 · blueprint-complete 前必 emit 确认暂停点(详 [stages/blueprint-stage.md ④](./stages/blueprint-stage.md))· 不涉及则跳过。**Bug / Feature·micro** 不应涉及 DB 数据结构变更(命中则升 full 完整链)。

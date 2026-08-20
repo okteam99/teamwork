@@ -536,6 +536,10 @@ def _handle_ship_push(state: dict, args: argparse.Namespace) -> dict:
         "stage": "ship",
         "action": "push",
         "scratch_cleanup": scratch_cleanup,
+        # v8.340:push 后自动查一次 CI(用户拍板 · best-effort · 刚 push 常为 pending —— 
+        # 确认 pipeline 存在;红了直接给修复口;持续监控由 await-merge 每轮带 CI)
+        "ci_status": (_ci := _mr_ci_status(ship.get("mr_url") or "")),
+        **({"ci_fix_hint": CI_FIX_HINT} if _ci["status"] == "failing" else {}),
         "transition": f"{cur_phase} → pushed",
         "phase": "pushed",
         **({"rerecorded": True} if cur_phase == "pushed" else {}),
@@ -2789,6 +2793,56 @@ def cmd_ship_finalize(args: argparse.Namespace) -> None:
 
 
 
+def _parse_gh_checks(returncode: int, stdout: str) -> dict:
+    """解析 `gh pr checks` 输出(纯函数 · 可单测)。
+
+    gh 退出码:0=全过 · 8=有 pending · 其他非零=有失败(输出每行 `name\tstatus\t...`)。
+    """
+    lines = [l for l in stdout.splitlines() if l.strip()]
+    failing = [l.split("\t")[0].strip() for l in lines
+               if "\tfail" in l.lower() or "\terror" in l.lower()]
+    pending = any("\tpending" in l.lower() or "\tqueued" in l.lower()
+                  or "\tin_progress" in l.lower() for l in lines)
+    if returncode == 0:
+        return {"status": "passing" if lines else "none", "failing": []}
+    if failing:
+        return {"status": "failing", "failing": failing[:8]}
+    if returncode == 8 or pending:
+        return {"status": "pending", "failing": []}
+    if not lines:
+        return {"status": "none", "failing": []}
+    return {"status": "unknown", "failing": []}
+
+
+def _mr_ci_status(mr_url: str) -> dict:
+    """v8.340(用户拍板:ship1 之后自动检查 CI pipeline)· best-effort 不阻塞。
+
+    GitHub:`gh pr checks`(解析单测锁);GitLab:`glab mr view -F json` 读 pipeline 字段。
+    查不到 → {"status": "unknown"}(环境缺 CLI / 未登录 · 不拦流程)。
+    """
+    try:
+        if "github.com" in mr_url:
+            r = _git_run(["gh", "pr", "checks", mr_url], timeout=25)
+            return _parse_gh_checks(r.returncode, r.stdout or "")
+        r = _git_run(["glab", "mr", "view", mr_url, "-F", "json"], timeout=25)
+        if r.returncode == 0:
+            pl = (json.loads(r.stdout).get("pipeline") or {})
+            st = str(pl.get("status") or "").lower()
+            return {"status": {"success": "passing", "failed": "failing",
+                               "running": "pending", "pending": "pending",
+                               "": "none"}.get(st, "unknown"),
+                    "failing": []}
+    except (OSError, ValueError, subprocess.SubprocessError):
+        pass
+    return {"status": "unknown", "failing": []}
+
+
+CI_FIX_HINT = ("CI 红 → MR 窗口期修复口(用户拍板 · 不开 Bug 流):"
+               "`state.py jump-to-stage --to dev --reason \"MR 修复:CI 红 <失败项>\"` → "
+               "修完 dev/test 证据门照跑 → `ship-phase --action push` 重跑更新同一 MR"
+               "(详 ship-stage § MR 窗口期修复)")
+
+
 def _mr_state(mr_url: str) -> str:
     """查 MR/PR 状态 → 'MERGED' / 'OPEN' / 'CLOSED' / 'UNKNOWN'(命令失败)。GitHub gh / GitLab glab。"""
     try:
@@ -2831,15 +2885,23 @@ def cmd_await_merge(args: argparse.Namespace) -> None:
     interval = max(5, int(getattr(args, "interval", 30) or 30))
     max_checks = max(1, int(getattr(args, "max_checks", 18) or 18))
     unknown_streak = 0
+    ci = {"status": "unknown", "failing": []}
     for i in range(max_checks):
         stt = _mr_state(mr_url)
+        # v8.340:每轮带 CI(治 docstring 里的原始痛点「CI 红无人接」)——
+        # 红了不再傻等合并,立刻退出切 MR 窗口期修复口
+        ci = _mr_ci_status(mr_url)
+        if stt == "OPEN" and ci["status"] == "failing":
+            emit_json({"verdict": "CI_FAILING", "command": "await-merge", "mr_url": mr_url,
+                       "checks": i + 1, "ci_status": ci,
+                       "next_action": f"🔴 MR 未合并且 CI 红({', '.join(ci['failing']) or 'pipeline failed'})· {CI_FIX_HINT}"})
         if stt == "MERGED":
             nxt = ("state.py ship-finalize --feature <worktree 内 feature 路径>(ship2 清场)"
                    if feature else
                    "规划 finalize:cd 主工作区 → git worktree remove <planning-worktree> → "
                    "state.py main-sync --merge-target <mt>")
             emit_json({"verdict": "MERGED", "command": "await-merge", "mr_url": mr_url,
-                       "checks": i + 1,
+                       "checks": i + 1, "ci_status": ci,
                        "next_action": f"🔴 已合并 · 自动进下一步:{nxt}"})
         if stt == "CLOSED":
             emit_json({"verdict": "CLOSED", "command": "await-merge", "mr_url": mr_url,
@@ -2852,7 +2914,7 @@ def cmd_await_merge(args: argparse.Namespace) -> None:
         if i < max_checks - 1:
             time.sleep(interval)
     emit_json({"verdict": "WAITING", "command": "await-merge", "mr_url": mr_url,
-               "checks": max_checks, "interval_sec": interval,
+               "checks": max_checks, "interval_sec": interval, "ci_status": ci,
                "next_action": "仍未合并 · 重跑本命令续等(AI 应自动重跑 · 用户随时可打断改人工)"})
 
 

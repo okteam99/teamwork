@@ -63,8 +63,11 @@ CONCERN_SEVERITY = {"INFO", "WARN", "ERROR"}
 # 各 flow_type 的 canonical 转移图（current_stage → legal_next_stages）
 # 注：ui_design / browser_e2e 是可选 Stage（PMO 在 enter-stage 时按 spec 决策跳过 vs 启用）
 FEATURE_FLOW: dict[str, list[str]] = {
-    "goal": ["ui_design", "blueprint"],
-    "ui_design": ["blueprint"],   # 全景变更判级并入 ui_design 出口(panorama_sync stage 退役 · 用户拍板)
+    # goal/ui_design → dev 直边 = **lite 档**(装配形态 · 非独立 preset):blueprint 被跳过时走这条。
+    # 用户拍板「lite 是不是可以被 full 装配出来」→ 是:lite 有 PRD(长在 goal 入口上)· 与 full
+    # 的唯一结构差是「跳 blueprint」· 立成 preset 会多一张图 + 一次 re-init,装配旋钮零成本。
+    "goal": ["ui_design", "blueprint", "dev"],
+    "ui_design": ["blueprint", "dev"],   # 全景变更判级并入 ui_design 出口(panorama_sync stage 退役 · 用户拍板)
     "blueprint": ["dev"],
     "dev": ["review"],
     "review": ["test", "dev"],          # review 失败回 dev
@@ -94,21 +97,40 @@ MICRO_FLOW: dict[str, list[str]] = {
     "completed": [],
 }
 
+# Tiny:零文档但要 review/验收的档(用户拍板「tiny dev → review(单路 architect)→ pm_acceptance → ship」)
+# 与 micro 的分界 = 要不要人看代码:micro 用户在 ship1 MR diff 上验收 · tiny 有独立 architect 单路 + PM 验收。
+# 与 lite 的分界 = 四轴的「验证成本」轴:diff 可验(tiny · 无 test stage)vs 需跑链路(lite · 保留 test)。
+# 规格载体 = dev brief 里的理解卡(无 PRD/TC)· 故 tiny 无 goal/blueprint —— 只能独立成 preset。
+TINY_FLOW: dict[str, list[str]] = {
+    "dev": ["review"],
+    "review": ["pm_acceptance", "dev"],   # review 失败回 dev(与 full 同口径 · 只是下一跳跳过 test)
+    "pm_acceptance": ["ship", "dev"],
+    "ship": ["completed"],
+    "completed": [],
+}
+
 # Feature Planning / 问题排查 不进状态机:由 PMO 主对话执行(详 docs/feature-planning.md)
 # v8.220(用户拍板):对外 flow_type 收缩为 {Feature, Bug} —— Micro 是「同一种工作的重量档」
 # 非独立工作形态(audit 实测合计仅 11%)· 降为 Feature 的 **preset**(链与角色由 preset 决定)。
 FLOW_BY_TYPE = {
-    "Feature": FEATURE_FLOW,          # = preset full
+    "Feature": FEATURE_FLOW,          # = preset full · **也是 lite**(lite = 跳 blueprint 的装配形态)
     "Feature:micro": MICRO_FLOW,      # 原 Micro
+    "Feature:tiny": TINY_FLOW,        # v8.342:零文档 + 单路 architect + PM 验收
     "Bug": BUG_FLOW,
 }
 
 PUBLIC_FLOW_TYPES = ("Feature", "Bug")
-# preset 只剩 full/micro(micro 有真结构差:跳 review/test)。
-# v8.223 退 lite 档 · v8.293 彻底删「敏捷需求」legacy —— 它的链是 Feature 链的 needs-ui=false
+# preset = **有真结构差**的档才立(判据:不立 preset 就走不通的链边)。
+# - micro:跳 review/test/pm_acceptance(execute → ship)
+# - tiny :无 goal/blueprint 入口(dev 起 · 跳 test)
+# - lite :**不在这里** —— 它与 full 的差是「跳 blueprint」一条边,FEATURE_FLOW 加直边即可,
+#         由 execution_hints.blueprint_needed 装配旋钮驱动(用户拍板「lite 是不是可以被 full 装配出来」)。
+# v8.223 退旧 lite 档 · v8.293 彻底删「敏捷需求」legacy —— 它的链是 Feature 链的 needs-ui=false
 # 剖面(纯冗余)· 轻量由动态 roster + clarity 承担;三份 flow-key 实现曾对它解析出不同的图
 # (state.py→full / _v8_engine.py→lite · 且后者注释谎称「严格同口径」)—— 删掉根治。
-FEATURE_PRESETS = ("full", "micro")
+# 🔴 本版把 lite 做成装配形态而非 preset,正是不重蹈「多一张图 = 多一处口径分叉」。
+FEATURE_PRESETS = ("full", "tiny", "micro")
+_STRUCTURAL_PRESETS = ("micro", "tiny")   # 有独立转移图的 preset · 复合键 Feature:<preset>
 LEGACY_FLOW_ALIASES = {"Micro": ("Feature", "micro")}
 
 
@@ -116,16 +138,16 @@ def resolve_flow_graph(flow_type: str, preset: str = "full") -> dict:
     """按 (flow_type, preset) 解析转移图 · legacy flow_type 自动归一。"""
     if flow_type in LEGACY_FLOW_ALIASES:
         flow_type, preset = LEGACY_FLOW_ALIASES[flow_type]
-    if flow_type == "Feature" and preset == "micro":
-        return FLOW_BY_TYPE["Feature:micro"]
+    if flow_type == "Feature" and preset in _STRUCTURAL_PRESETS:
+        return FLOW_BY_TYPE[f"Feature:{preset}"]
     return FLOW_BY_TYPE.get(flow_type, {})
 
 
 def internal_flow_key(flow_type: str, preset: str = "full") -> str:
     """(public 或 legacy)flow → 内部图/表键(Micro 键保留 · v8.222 物化校验统一入口)。"""
     ft, pre = normalize_flow(flow_type, preset)
-    if ft == "Feature" and pre == "micro":
-        return "Micro"
+    if ft == "Feature" and pre in _STRUCTURAL_PRESETS:
+        return pre.capitalize()          # micro → Micro · tiny → Tiny
     return ft
 
 
@@ -1381,6 +1403,7 @@ DEFAULT_INITIAL_STAGE = {
     "Feature": "goal",
     "Bug": "diagnose",   # v8.107:Bug 先 diagnose(根因细查+修复方案确认)再 dev
     "Micro": "execute",   # v8.250:micro 首 stage = execute(零门禁自由执行)· 去 dev
+    "Tiny": "dev",        # v8.342:tiny 无 goal/blueprint · 规格 = dev brief 理解卡
 }
 
 
@@ -2202,8 +2225,9 @@ def cmd_reset_prev(args: argparse.Namespace) -> None:
             "action": "reset-prev",
             "error": f"Ship 后不可回退 · ship.phase={ship_phase!r} · 远程已动 · 状态不可逆",
             "hint": (
-                "若需要修复:reset-prev 不可用 · 走 ship-phase --action close-unmerged "
-                "或新开 Feature 修复 · 或用 raw-write(留 concerns WARN)"
+                "若需要修复:reset-prev 不可用 —— MR 未合并 → "
+                "`jump-to-stage --to dev --reason '...'`(MR 窗口期修复口 · 留痕);"
+                "已合并 → 开 Bug 流(diagnose 起);整件放弃 → ship-phase --action close-unmerged"
             ),
         }, ensure_ascii=False, indent=2))
 
@@ -2452,9 +2476,12 @@ def cmd_prepare_check(args: argparse.Namespace) -> None:
             sys.path.insert(0, str(Path(__file__).resolve().parent))
             from _v8_engine import build_stage_chain_preview, FLOW_STAGE_CHAIN
             # v8.221:legacy 名归一 → 链键(Micro 是 Feature 的 preset)
-            _pub, _pre = normalize_flow(args.flow_type)
-            _chain_key = (args.flow_type if args.flow_type in FLOW_STAGE_CHAIN
-                          else {"micro": "Micro"}.get(_pre, "Feature"))
+            # v8.342:--preset 参与解析 —— 定了 tiny 却预览出 11-stage 全链,
+            # 等于把「已经减掉的税」又摆回用户面前(配置立了没接线的老毛病)。
+            # 🔴 先归一再查表:原实现 `flow_type if flow_type in FLOW_STAGE_CHAIN` 会在
+            # flow_type="Feature" 时直接短路,preset 永远读不到 —— 定了 tiny 也预览出全链。
+            _pub, _pre = normalize_flow(args.flow_type, getattr(args, "preset", None))
+            _chain_key = internal_flow_key(_pub, _pre)
         except ImportError as e:
             payload["stage_chain_preview_error"] = str(e)
         else:
@@ -3596,17 +3623,36 @@ def cmd_jump_to_stage(args: argparse.Namespace) -> None:
             "valid_stages_for_flow": sorted(flow_graph.keys()),
         }, ensure_ascii=False, indent=2))
 
-    # 3. ship 后不可跳
+    # 3. ship 后不可跳 —— 唯一例外(用户拍板):MR 窗口期(pushed · 平台未合并)
+    # 发现问题 → 同 feature 回 dev 修复(不开 Bug 流)· 修完 push 重跑更新同一 MR。
     ship_phase = (state.get("ship") or {}).get("phase")
     if ship_phase == "pushed":
-        die(1, json.dumps({
-            "verdict": "FAIL",
-            "action": "jump-to-stage",
-            "error": f"Ship 后不可跳 · ship.phase={ship_phase!r} · 状态不可逆",
-            "hint": (
-                "若需修复 · 走 ship-phase --action close-unmerged 或开新 Feature"
-            ),
-        }, ensure_ascii=False, indent=2))
+        reason = (getattr(args, "reason", None) or "").strip()
+        if target == "dev" and reason:
+            ship = state.setdefault("ship", {})
+            ship.setdefault("reopened_fixes", []).append(
+                {"at": now_iso(), "reason": reason})
+            state.setdefault("concerns", []).append(
+                f"{now_iso()} WARN mr-window-reopen: pushed → dev · reason: {reason} · "
+                "修完 dev/test 证据门照跑 → ship-phase --action push 重跑(rerecord)更新同一 MR")
+        elif target == "dev":
+            die(1, json.dumps({
+                "verdict": "FAIL",
+                "action": "jump-to-stage",
+                "error": "MR 窗口期回 dev 修复必须带 --reason(一句:修什么 · audit 留痕)",
+                "hint": "state.py jump-to-stage --to dev --reason 'MR 修复:<blocker 一句>'",
+            }, ensure_ascii=False, indent=2))
+        else:
+            die(1, json.dumps({
+                "verdict": "FAIL",
+                "action": "jump-to-stage",
+                "error": f"Ship 后不可跳到 {target!r} · ship.phase={ship_phase!r}",
+                "hint": (
+                    "MR 未合并要修代码 → `jump-to-stage --to dev --reason '...'`(唯一放行口 · "
+                    "留痕 · 修完 push 重跑更新同一 MR);已合并后的问题 → 开 Bug 流(diagnose 起);"
+                    "整件放弃 → ship-phase --action close-unmerged"
+                ),
+            }, ensure_ascii=False, indent=2))
 
     # 4. target == current(no-op)
     if target == current:
@@ -3783,12 +3829,17 @@ def build_parser() -> argparse.ArgumentParser:
                      choices=["Feature", "Bug", "Micro",
                               "Feature Planning", "问题排查"],
                      help="[v8.220] 对外收缩为 Feature/Bug · Micro 为 legacy 别名(自动映射 Feature+preset)· Planning/排查照旧 reject")
-    ifp.add_argument("--preset", default=None, choices=["full", "micro"],  # v8.223 退 lite · v8.293 删净
-                     help="[v8.220] Feature 重量档(Micro=micro)· 链/角色由它决定 · 默认 full")
+    ifp.add_argument("--preset", default=None, choices=["full", "tiny", "micro"],  # v8.342 加 tiny
+                     help="[v8.220/v8.342] Feature 重量档 · 链/角色由它决定 · 默认 full。"
+                          "micro=execute→ship 零门 · tiny=dev→review(architect 单路)→pm→ship 零文档 · "
+                          "full=11-stage 全链。🔴 **lite 不是 preset** —— 它是 full 的装配形态"
+                          "(goal 极简 + goal-complete --needs-blueprint false 跳 blueprint + review 单路),"
+                          "故 prepare 阶段无需为 lite 定档:进 goal 深调研后装配旋钮直接配、零 re-init。")
     ifp.add_argument("--sub-project", help="如 admin / api-server")
     # v7.3.10+P0-149: 删 --artifact-root 冗余参数 · --feature 单源（既是落盘目录又是 artifact_root 字段值）
     ifp.add_argument("--initial-stage",
-                     help="缺省按 flow_type 决定（Feature→goal / Bug→diagnose / Micro→dev）")
+                     help="缺省按 (flow_type, preset) 决定（Feature→goal / Bug→diagnose / "
+                          "micro→execute / tiny→dev）")
     ifp.add_argument("--merge-target", required=False,
                      help="如 staging / dev · yolo 可改用 --yolo <branch> 指定(二选一)")
     ifp.add_argument("--branch", required=True, help="如 feat/admin-f013-x")
@@ -3969,6 +4020,11 @@ def build_parser() -> argparse.ArgumentParser:
                     choices=["Feature", "Bug", "Micro"],
                     help=("决定 artifact ID 字母(F/B/M · 详 conventions.md §1)+ "
                           "返回 stage_chain_preview · Bug/Micro 必传(漏传退回 F)"))
+    pc.add_argument("--preset", default=None, choices=["full", "tiny", "micro"],
+                    help=("[v8.342] Feature 重量档 · 决定 stage_chain_preview 预览哪条链 · "
+                          "默认 full。定了 tiny 就传 tiny —— 否则暂停点会把 11-stage 全链"
+                          "摆给用户看,已经减掉的流程税又长回去了。"
+                          "🔴 lite 不在此列(它是 goal 调研后的装配形态 · prepare 预览按 full 出)"))
     # v8.15:admission(AI judgment 模式 · 不用 regex 关键词)
     pc.add_argument("--user-intent", default=None,
                     help=("[v8.15] 用户原话(原文 · 不要 paraphrase)· "

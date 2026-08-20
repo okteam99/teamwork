@@ -281,7 +281,9 @@ class TestBrowserE2EWiring(_RepoCase):
 
 class TestIllegalTransitionNoBypassExit(_RepoCase):
     def test_bypass_flag_still_exit_1_and_hints_jump(self):
-        _write_state(self.feat, current_stage="goal")
+        # 起点用 test:dev 不在 FEATURE_FLOW["test"] 的出边里 = 真非法(**回退**要走 pm_acceptance
+        # 拒绝或 jump-to-stage)。v8.342 起 goal→dev 是合法的 lite 直边,不能再拿它当非法样本。
+        _write_state(self.feat, current_stage="test")
         d = _run_state(self.tmp, "dev-start", "--feature", self.feat_rel,
                        "--bypass", "--reason", "试图硬跳", "--user-confirmed",
                        "--missing", "legal_transition",
@@ -290,9 +292,9 @@ class TestIllegalTransitionNoBypassExit(_RepoCase):
         self.assertIn("非法转移", d["error"])
         self.assertIn("jump-to-stage", d["hint"])
         self.assertNotIn("--bypass", d["hint"])
-        # 未迁移:current_stage 保持 goal
+        # 未迁移:current_stage 保持原样
         st = json.loads((self.feat / "state.json").read_text(encoding="utf-8"))
-        self.assertEqual(st["current_stage"], "goal")
+        self.assertEqual(st["current_stage"], "test")
 
 
 # ─── 6 · bypass 必带非空 --reason ──────────────────────────────────────
