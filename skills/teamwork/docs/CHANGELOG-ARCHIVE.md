@@ -5,6 +5,19 @@
 
 ---
 
+## v8.339 · MR 窗口期修复:同 feature 回 dev · 不开 Bug 流(用户拍板)
+
+> case(supersdk SCLI):ship1 已 push,PR 上 3 个已知代码 blocker —— 消费 AI 按「Ship 后不可回」判成「必须开 Bug 流再合回」。用户纠偏:直接在当前 feature 回 dev 修,不要新开 bug。
+> 判断:MR 反馈循环是交付的一部分 —— 逼开 Bug 流 = 把「改 PR」变成新立项(新 worktree / 新链 / 新文档全套税)。
+
+### 变更
+- **jump-to-stage 在 pushed 态开唯一放行口**:`--to dev` + `--reason`(必填)→ 放行,`ship.reopened_fixes[]` + concerns WARN(`mr-window-reopen`)双留痕 · **ship.phase 保持 pushed**(MR 还开着 · 事实不变)· completed_stages 不动;`--to` 其他 stage 照旧拒(hint 三分:未合并修代码 → 本口;已合并 → Bug 流;放弃 → close-unmerged)。reset-prev 的 pushed hint 同步指向本口。
+- **ship-stage 新节「MR 窗口期修复」**:五步(jump 回 dev → dev 证据门照跑 · review/test 按修复规模与装配 → `push` 重跑 rerecord 更新同一 MR → zip 不重开〔初版墓碑 · 修复轮文档随接力卡〕→ 边界:平台已合并才走 Bug 流);SKILL Feature 停等链 ⑥ 带指针。
+- push 重跑(rerecord + WARN)与 archive 幂等重入为既有机制 —— 本版零新命令,只开一个受控口。
+
+### 测试
+`test_mr_window_reopen_v8339.py` 6 条:放行 + 双留痕 + phase/历史不变 / 其他 stage 照拒 / reset-prev hint / 非 pushed 态不记 reopened / ship-stage 五要素 / SKILL 指针。全库全绿。
+
 ## v8.338 · 方向类停等第 2 项恒为「继续讨论」(用户拍板)
 
 > 用户:PRD 和 Feature Planning 给出 1/2/3 选项时,第 2 项永远都是继续讨论 —— 目的是方便 AI 和用户讨论清楚目标和方向。

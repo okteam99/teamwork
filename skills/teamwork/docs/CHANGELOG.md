@@ -4,6 +4,20 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.344 · 子代理禁问用户:问题回路收口主对话(用户拍板)
+
+> case(Grok 宿主消费现场):写测试用例的子代理调宿主的 ask_user_question,把「登录回跳测试写在哪个文件」直接弹到用户屏幕 —— 纯实现细节,设计上永远不该到用户面前。用户拍板:「子代理/subagent 的问题由主对话自行处理,无需找用户确认,只有主对话判断需要用户确认的才交给用户确认」。
+> 盘点:回路早就有(NEEDS_CONTEXT → 补上下文重派;stage brief「Substep 中间禁 AskUserQuestion」),但两个口没封:①暂停点纪律管的是**主对话**,子代理侧没有**对着工具名**的红线 —— 对没带全量 context 的执行路径,别处的规则等于不存在(「模式承诺 × 动作点载体」又一格);②派发 prompt 没要求带禁问句 —— 读过规则仍会漏,义务要寄生在必写载体上。
+
+### 变更
+- **agents/README §二 新红线(单源 · 对着工具名)**:子代理禁止调用任何「向用户提问/确认」类工具(`AskUserQuestion` / `ask_user_question` / 各宿主变体)—— 缺信息/拿不准 → 写进返回结果(`NEEDS_CONTEXT` + 缺什么)。**主对话二分**:实现细节(测试放哪 · 命名 · 用哪个函数)→ 自答后补上下文重派;真用户主权(偏好/业务取舍/外部事实 · 判据沿用早问门闸 2)→ 按 R5 编号选项 escalate。
+- **派发载体寄生**:引擎 `DISPATCH_TIER_REMINDER` 加一行 —— 派发 prompt 必带禁问句,**与 Meta 首行声明同寄生一处**(不另立「记得写」的孤立义务)。
+- **SKILL 一行 cite**(❌ 非 🔴 —— 密度门 count < 55 恰好顶满,按判例新增用 ❌)。
+- 主对话侧既有纪律不动(两条规则互补不重叠:那条管主对话 substep,本条管子代理)。
+
+### 测试
+`test_subagent_no_user_question_v8344.py` 14 条:红线对着工具名锁(行为式表述糊得过、工具名糊不过)· NEEDS_CONTEXT 路由 · 拍板原文入规 · 主对话二分显式(否则红线只堵子代理,主对话原样转抛 = 问题换出口)· 派发载体寄生 + case 实证 · SKILL cite + 密度门 · 既有回路不动。全库 1553 绿。
+
 ## v8.343 · 装配维度矩阵 + 计划与显式修订点(用户拍板)
 
 > 拍板链:①「把流程、环节、评审力度 3 个维度拆开,交给 AI 组装,给 AI 强烈的提示有权利精简流程、降低评审力度、决定评审模型,必须做合理的权衡,不能过度保守」②「理论上拆出的力度最小可以直接 dev + ship」③「是否渐进式的流程更合理…或者至少可以修改」④「lite 之后是否需要一个 medium 档,goal 和 blueprint 只有一路冷审」⑤「然后给 AI custom 装配权限」。
@@ -65,16 +79,3 @@
 
 ### 测试
 `test_ci_watch_v8340.py` 9 条:解析五态 / push emit 字段 / await-merge 轮询接线 + 红灯先于 MERGED / 修复口闭环 v8.339 / spec 节。v8339 spec 锚随新节重定位。全库全绿。
-
-## v8.339 · MR 窗口期修复:同 feature 回 dev · 不开 Bug 流(用户拍板)
-
-> case(supersdk SCLI):ship1 已 push,PR 上 3 个已知代码 blocker —— 消费 AI 按「Ship 后不可回」判成「必须开 Bug 流再合回」。用户纠偏:直接在当前 feature 回 dev 修,不要新开 bug。
-> 判断:MR 反馈循环是交付的一部分 —— 逼开 Bug 流 = 把「改 PR」变成新立项(新 worktree / 新链 / 新文档全套税)。
-
-### 变更
-- **jump-to-stage 在 pushed 态开唯一放行口**:`--to dev` + `--reason`(必填)→ 放行,`ship.reopened_fixes[]` + concerns WARN(`mr-window-reopen`)双留痕 · **ship.phase 保持 pushed**(MR 还开着 · 事实不变)· completed_stages 不动;`--to` 其他 stage 照旧拒(hint 三分:未合并修代码 → 本口;已合并 → Bug 流;放弃 → close-unmerged)。reset-prev 的 pushed hint 同步指向本口。
-- **ship-stage 新节「MR 窗口期修复」**:五步(jump 回 dev → dev 证据门照跑 · review/test 按修复规模与装配 → `push` 重跑 rerecord 更新同一 MR → zip 不重开〔初版墓碑 · 修复轮文档随接力卡〕→ 边界:平台已合并才走 Bug 流);SKILL Feature 停等链 ⑥ 带指针。
-- push 重跑(rerecord + WARN)与 archive 幂等重入为既有机制 —— 本版零新命令,只开一个受控口。
-
-### 测试
-`test_mr_window_reopen_v8339.py` 6 条:放行 + 双留痕 + phase/历史不变 / 其他 stage 照拒 / reset-prev hint / 非 pushed 态不记 reopened / ship-stage 五要素 / SKILL 指针。全库全绿。
