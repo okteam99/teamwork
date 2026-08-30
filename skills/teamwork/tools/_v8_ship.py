@@ -538,8 +538,11 @@ def _handle_ship_push(state: dict, args: argparse.Namespace) -> dict:
         "scratch_cleanup": scratch_cleanup,
         # v8.340:push 后自动查一次 CI(用户拍板 · best-effort · 刚 push 常为 pending —— 
         # 确认 pipeline 存在;红了直接给修复口;持续监控由 await-merge 每轮带 CI)
-        "ci_status": (_ci := _mr_ci_status(ship.get("mr_url") or "")),
-        **({"ci_fix_hint": CI_FIX_HINT} if _ci["status"] == "failing" else {}),
+        "ci_status": (_ci := _ci_with_attribution(ship.get("mr_url") or "",
+                                                   state.get("merge_target") or "")),
+        # v8.345:红且归因到本 feature → 直接给修复口(别人的红不催修 · 只回显)
+        **({"ci_fix_hint": CI_FIX_HINT}
+           if (_ci.get("attribution") or {}).get("self_introduced") else {}),
         "transition": f"{cur_phase} → pushed",
         "phase": "pushed",
         **({"rerecorded": True} if cur_phase == "pushed" else {}),
@@ -2814,6 +2817,68 @@ def _parse_gh_checks(returncode: int, stdout: str) -> dict:
     return {"status": "unknown", "failing": []}
 
 
+def _base_branch_failing(base_branch: str, repo_hint: str = "") -> tuple:
+    """查 **base 分支**近期 CI 的失败项 → (failing_names:set, known:bool)。
+
+    v8.345 归因用:base 上同名 check 也在红 = 不是本 feature 引入的。
+    known=False 表示查不到(CLI 缺失/未登录/无历史)—— 调用方按「未知」处理,不当作绿。
+    """
+    if not base_branch:
+        return set(), False
+    try:
+        if "github" in (repo_hint or "github"):
+            r = _git_run(["gh", "run", "list", "--branch", base_branch, "--limit", "12",
+                          "--json", "name,conclusion"], timeout=25)
+            if r.returncode == 0:
+                runs = json.loads(r.stdout or "[]")
+                latest = {}
+                for run in runs:                      # list 已按新→旧 · 每个 name 取首次出现
+                    latest.setdefault(str(run.get("name") or ""), str(run.get("conclusion") or ""))
+                return ({n for n, c in latest.items() if c.lower() == "failure"},
+                        bool(latest))
+        else:
+            r = _git_run(["glab", "ci", "list", "--branch", base_branch], timeout=25)
+            if r.returncode == 0 and r.stdout.strip():
+                bad = "failed" in r.stdout.lower()
+                return ({"pipeline"} if bad else set()), True
+    except (OSError, ValueError, subprocess.SubprocessError):
+        pass
+    return set(), False
+
+
+def attribute_ci_failures(failing: list, base_failing: set, base_known: bool) -> dict:
+    """CI 失败归因(纯函数 · 可单测):哪些是**本 feature 引入的**。
+
+    v8.345(用户拍板:「如果是自己引入的,直接修下」)。语义与 dev/test 的
+    **差分基线**(test-baseline --diff)完全同构 —— 同一个问题的 CI 版:
+      - base 上同名 check 也红 → `pre_existing`(不是我们弄坏的 · 别去追别人的账)
+      - base 上该 check 绿 → `self_introduced`(**直接修**)
+      - base 查不到(CLI 缺失/未登录/无历史)→ `self_introduced`
+    🔴 **未知归到「自己引入」是刻意的保守偏置**:代价不对称 —— 把别人的红当成自己的
+    = 白看一眼;把自己的红当成别人的 = 把坏的合进去。与 test-baseline「不在基线里
+    就算新增回归」同口径(不是「查不到就放行」)。
+    """
+    failing = [f for f in (failing or []) if str(f).strip()]
+    if not failing:
+        return {"self_introduced": [], "pre_existing": [], "base_known": base_known}
+    if not base_known:
+        return {"self_introduced": list(failing), "pre_existing": [],
+                "base_known": False}
+    pre = [f for f in failing if f in base_failing]
+    return {"self_introduced": [f for f in failing if f not in base_failing],
+            "pre_existing": pre, "base_known": True}
+
+
+def _ci_with_attribution(mr_url: str, base_branch: str) -> dict:
+    """_mr_ci_status + 归因(红时才查 base · 绿/pending 不浪费一次网络往返)。"""
+    ci = _mr_ci_status(mr_url)
+    if ci.get("status") != "failing":
+        return ci
+    base_failing, known = _base_branch_failing(base_branch, mr_url)
+    ci["attribution"] = attribute_ci_failures(ci.get("failing") or [], base_failing, known)
+    return ci
+
+
 def _mr_ci_status(mr_url: str) -> dict:
     """v8.340(用户拍板:ship1 之后自动检查 CI pipeline)· best-effort 不阻塞。
 
@@ -2837,10 +2902,12 @@ def _mr_ci_status(mr_url: str) -> dict:
     return {"status": "unknown", "failing": []}
 
 
-CI_FIX_HINT = ("CI 红 → MR 窗口期修复口(用户拍板 · 不开 Bug 流):"
+CI_FIX_HINT = ("🔴 **归因到本 feature 的 CI 红 = 直接修**(用户拍板:「如果是自己引入的,直接修下」)"
+               "—— 不开 Bug 流、**不问用户是否要修**(修自己弄坏的东西不是用户主权,是收尾的一部分):"
                "`state.py jump-to-stage --to dev --reason \"MR 修复:CI 红 <失败项>\"` → "
-               "修完 dev/test 证据门照跑 → `ship-phase --action push` 重跑更新同一 MR"
-               "(详 ship-stage § MR 窗口期修复)")
+               "修完 dev/test 证据门照跑 → `ship-phase --action push` 重跑更新同一 MR → "
+               "`await-merge` 续等(详 ship-stage § MR 窗口期修复)。"
+               "🔴 修不动 / 根因在别处(base 也红但没归到 pre_existing · 或需外部改动)才升级用户。")
 
 
 def _mr_state(mr_url: str) -> str:
@@ -2873,10 +2940,13 @@ def cmd_await_merge(args: argparse.Namespace) -> None:
     """
     mr_url = (getattr(args, "mr_url", None) or "").strip()
     feature = getattr(args, "feature", None)
-    if not mr_url and feature:
+    # v8.345:base 分支 = CI 归因的对照面(自己引入 vs base 预存在)· --base 可覆盖
+    base_branch = (getattr(args, "base", None) or "").strip()
+    if (not mr_url or not base_branch) and feature:
         try:
             _, st = load_state(feature)
-            mr_url = (st.get("ship", {}) or {}).get("mr_url") or ""
+            mr_url = mr_url or ((st.get("ship", {}) or {}).get("mr_url") or "")
+            base_branch = base_branch or (st.get("merge_target") or "")
         except Exception:
             pass
     if not mr_url:
@@ -2890,11 +2960,23 @@ def cmd_await_merge(args: argparse.Namespace) -> None:
         stt = _mr_state(mr_url)
         # v8.340:每轮带 CI(治 docstring 里的原始痛点「CI 红无人接」)——
         # 红了不再傻等合并,立刻退出切 MR 窗口期修复口
-        ci = _mr_ci_status(mr_url)
+        ci = _ci_with_attribution(mr_url, base_branch)
         if stt == "OPEN" and ci["status"] == "failing":
-            emit_json({"verdict": "CI_FAILING", "command": "await-merge", "mr_url": mr_url,
-                       "checks": i + 1, "ci_status": ci,
-                       "next_action": f"🔴 MR 未合并且 CI 红({', '.join(ci['failing']) or 'pipeline failed'})· {CI_FIX_HINT}"})
+            attr = ci.get("attribution") or {}
+            mine, theirs = attr.get("self_introduced") or [], attr.get("pre_existing") or []
+            if mine:
+                # v8.345(用户拍板:「如果是自己引入的,直接修下」)—— 归因到本 feature
+                # 才中断等待去修;默认动作是**修**,不是问用户要不要修。
+                emit_json({"verdict": "CI_FAILING", "command": "await-merge", "mr_url": mr_url,
+                           "checks": i + 1, "ci_status": ci,
+                           "next_action": (f"🔴 CI 红且**归因到本 feature**({', '.join(mine)})"
+                                           f"· 直接修,不要问用户是否修 · {CI_FIX_HINT}")})
+            else:
+                # base 上同名 check 也红 = 别人的账 —— 🔴 **不中断等待**(合并仍可能发生)。
+                # v8.340 初版任何红都退出,会把 AI 支去修它没弄坏的东西(与 dev/test
+                # 「base 即红」同一个坑 · 那边早已用差分基线解掉)。
+                print(f"ℹ️ CI 红但归因为 base 预存在({', '.join(theirs) or 'pipeline'})· "
+                      f"非本 feature 引入 · 继续等待合并(不去追别人的账)", file=sys.stderr)
         if stt == "MERGED":
             nxt = ("state.py ship-finalize --feature <worktree 内 feature 路径>(ship2 清场)"
                    if feature else
@@ -3030,4 +3112,7 @@ def register_v8_ship_subparser(sub) -> None:
     am.add_argument("--mr-url", help="MR/PR URL 直传(规划收尾等无 state 场景)")
     am.add_argument("--interval", type=int, default=30, help="轮询间隔秒(默认 30)")
     am.add_argument("--max-checks", type=int, default=18, help="单次命令最多查几轮(默认 18≈9min · 用尽 emit WAITING 重跑)")
+    am.add_argument("--base", default=None,
+                    help="[v8.345] CI 归因的对照分支(默认读 state.merge_target)· "
+                         "base 上同名 check 也红 = 非本 feature 引入 → 不中断等待")
     am.set_defaults(func=cmd_await_merge)

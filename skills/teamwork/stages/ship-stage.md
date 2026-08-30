@@ -211,10 +211,15 @@ git add <feature_dir>/dev/*.md <feature_dir>/PRD.md
 
 ---
 
-## MR 窗口期 CI 自动检查(用户拍板:ship1 之后自动查 pipeline)
+## MR 窗口期 CI 自动检查 + 归因(用户拍板:ship1 之后自动查 pipeline · 自己引入的直接修)
 
 - **push 记录成功即自动查一次 CI**(工具内建 · emit `ci_status`:passing/failing/pending/none/unknown · 刚 push 常为 pending = 确认 pipeline 已起;`unknown` = gh/glab 缺失或未登录 · 不拦流程);
-- **`await-merge` 每轮轮询同时带 CI**:MR 未合并且 CI 红 → **不再傻等合并**,立即以 `CI_FAILING` 退出并给 MR 窗口期修复口(下节)—— 治「CI 红无人接」的原始痛点;
+- **`await-merge` 每轮轮询同时带 CI**(监控合并与查 pipeline 并行,不是二选一);
+- 🔴 **红了先归因,再决定动作**(与 dev/test 的「base 即红 → 差分基线」**同一个形状**:CI 版):
+  - **归因到本 feature**(base 上同名 check 是绿的 / base 查不到)→ **中断等待,直接修** —— 走下节 MR 窗口期修复口,**不问用户是否要修**(修自己弄坏的东西不是用户主权,是收尾的一部分);
+  - **base 预存在**(base 上同名 check 也红)→ **不中断**,回显一行继续等合并 —— 别去追别人的账;
+  - 🔴 **查不到 base 归到「自己引入」是刻意的保守偏置**:代价不对称 —— 把别人的红当自己的 = 白看一眼;把自己的红当别人的 = 把坏的合进去。与 `test-baseline`「不在基线里就算新增回归」同口径,**不是**「查不到就放行」。
+- **对照分支**默认取 `state.merge_target`,`await-merge --base <branch>` 可覆盖;
 - CI 修复循环:jump 回 dev 修 → push 重跑 → await-merge 续走(同一 MR)。
 
 ## MR 窗口期修复(pushed 后 · 平台未合并 · 用户拍板:不开 Bug 流)

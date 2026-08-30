@@ -4,6 +4,20 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.345 · CI 失败归因:自己引入的直接修(用户拍板)
+
+> 用户:「ship1 产出 MR 后监控合并的同时检查是否有 pipeline 失败,如果是自己引入的,直接修下。」
+> v8.340 已经在查 CI,但停在**任何红都退出**去找修复口 —— base 本来就红时,这会把 AI 支去修它没弄坏的东西。这正是 dev/test 早已解掉的「base 即红」坑,那边用**差分基线**区分「新增回归」与「预存在失败」;本版把同一个形状搬到 CI 上。
+
+### 变更
+- **归因层**(`attribute_ci_failures` 纯函数 + `_base_branch_failing` 查 base 分支近期 CI):MR 失败项逐个对照 base —— base 同名 check 也红 → `pre_existing`;base 绿 → `self_introduced`。
+- **归因决定动作**(本版实质):**自己引入 → 中断等待、直接修**(走 v8.339 的 MR 窗口期修复口 · **不问用户是否要修** —— 修自己弄坏的东西不是用户主权,是收尾的一部分);**base 预存在 → 不中断**,回显一行继续等合并(别去追别人的账)。
+- 🔴 **查不到 base 归到「自己引入」是刻意的保守偏置**:代价不对称 —— 把别人的红当自己的 = 白看一眼;把自己的红当别人的 = 把坏的合进去。与 `test-baseline`「不在基线里就算新增回归」同口径,**不是**「查不到就放行」。
+- 对照分支默认取 `state.merge_target`,`await-merge --base <branch>` 可覆盖;push emit 同步带归因(只有归因到自己才给修复口)。绿/pending 不查 base(不为没发生的事付一次网络往返)。
+
+### 测试
+`test_ci_attribution_v8345.py` 16 条:归因四象限 · 保守偏置有理由不是断言 · 默认动作是修且不问用户 · 升级边界(修不动才升级)· await-merge 只对自己的红中断 · push emit 归因 · 红时才查 base · spec 双分支 + 点名复用的形状。v8.340 三处锁按收窄后的语义重锚(「任何红退出」→「自己引入的才退出」· 实质「不傻等 CI 红」不变)。全库 1569 绿。
+
 ## v8.344 · 子代理禁问用户:问题回路收口主对话(用户拍板)
 
 > case(Grok 宿主消费现场):写测试用例的子代理调宿主的 ask_user_question,把「登录回跳测试写在哪个文件」直接弹到用户屏幕 —— 纯实现细节,设计上永远不该到用户面前。用户拍板:「子代理/subagent 的问题由主对话自行处理,无需找用户确认,只有主对话判断需要用户确认的才交给用户确认」。
@@ -66,16 +80,3 @@
 
 ### 测试
 `test_review_intensity_tiers_v8341.py` 9 条:超低档 = 用户拍板句 / 低档逐 stage 缺省 / 判据机械 / 一致性倒逼 / 单路仍错开 / prepare 正名 / brief。全库全绿。
-
-## v8.340 · ship1 后 CI pipeline 自动检查(用户拍板)
-
-> 用户:另外 ship1 之后需要自动检查 CI 的 pipeline。
-> 呼应点:await-merge 的 docstring 里写着原始痛点「CI 红无人接」(实证 132h 长尾)—— 但它只轮询合并态,CI 一直没人看。本版给这句话配上机器动作,并与 v8.339 的 MR 窗口期修复口闭环。
-
-### 变更
-- **push 记录成功即自动查一次 CI**(工具内建 · `_mr_ci_status` best-effort):emit `ci_status`(passing / failing / pending / none / unknown)—— 刚 push 常为 pending = 确认 pipeline 已起;failing → emit 直接带 `ci_fix_hint`(jump 回 dev 修复口);unknown(gh/glab 缺失或未登录)不拦流程。
-- **await-merge 每轮轮询带 CI**:MR 未合并且 CI 红 → **不再傻等合并**,立即以 `CI_FAILING` 退出 + 修复口指引(红灯检查置于 MERGED 判定之前 · 测试锁顺序);MERGED / WAITING emit 均回显最后一次 `ci_status`。修复循环:jump 回 dev → push 重跑 → await-merge 续走(同一 MR)。
-- 解析层纯函数化:GitHub `gh pr checks`(退出码 0/8/其他 × 行状态 · `_parse_gh_checks` 单测锁五态);GitLab `glab mr view -F json` 读 pipeline 字段。ship-stage 新节「MR 窗口期 CI 自动检查」。
-
-### 测试
-`test_ci_watch_v8340.py` 9 条:解析五态 / push emit 字段 / await-merge 轮询接线 + 红灯先于 MERGED / 修复口闭环 v8.339 / spec 节。v8339 spec 锚随新节重定位。全库全绿。
