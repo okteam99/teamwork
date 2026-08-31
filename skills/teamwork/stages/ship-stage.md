@@ -74,7 +74,7 @@ state.py ship-phase --action push --feature <path> \
 
 - 分支:`<feature 分支>` → `<merge_target>`
 - 包含:代码 + 归档 + 规划翻牌(随本 MR 原子合入)
-- 监控:`await-merge` 已后台启动 30s 轮询 —— **你只需在平台点合并** · 合并后自动清场
+- 监控:`await-merge --until-final` 已后台启动 30s 轮询 —— **你只需在平台点合并** · 合并后自动清场
 - 异常口令:平台报冲突 → 回「冲突」 · 不想合了 → 回「撤回」
 
 📦 **交付总结**(AI 写 · 三槽结构):
@@ -83,7 +83,7 @@ state.py ship-phase --action push --feature <path> \
 - 合并后解锁:<下游 BL/feature · 如 S5、S11 随本 MR 解锁 | 无>
 ```
 
-卡片段**原样用** push emit 的 `user_card`(工具生成 · URL/分支不抄错 · 🔴 禁 key-filter/截断该 emit —— 卡片同步落盘 `<feature_dir>/SHIP-USER-CARD.md`,stdout 丢失时 `cat` 它原样贴,untracked 随 worktree 消亡;实证 case:AI 过滤 JSON 丢 user_card → 手写卡片 URL 被 markdown 包裹 → 用户看不见链接);总结段 AI 照实写(照抄落盘产物 · 不美化)。🔴 **投递次序(单源)**:**① 先后台启动** `state.py await-merge --feature <path>`(30s 轮询 · 不阻塞 · 所有模式都跑 · MERGED → 自动 ship-finalize)→ **② 再把两段作为回合终文贴出** · 卡片之后本回合**零工具调用**(宿主可能不渲染回合中段文本 · 实证:卡片被吞 · 用户被迫问「url 发下」)。用户无需回编号 —— **合并动作本身就是确认**;仅「冲突/撤回」两个异常口令需要回话。
+卡片段**原样用** push emit 的 `user_card`(工具生成 · URL/分支不抄错 · 🔴 禁 key-filter/截断该 emit —— 卡片同步落盘 `<feature_dir>/SHIP-USER-CARD.md`,stdout 丢失时 `cat` 它原样贴,untracked 随 worktree 消亡;实证 case:AI 过滤 JSON 丢 user_card → 手写卡片 URL 被 markdown 包裹 → 用户看不见链接);总结段 AI 照实写(照抄落盘产物 · 不美化)。🔴 **投递次序(单源)**:**① 先后台启动** `state.py await-merge --feature <path> --until-final`(30s 轮询 · 不阻塞 · 所有模式都跑 · MERGED → 自动 ship-finalize)· 🔴 **后台跑必须带 `--until-final`** —— 不带它,窗口用尽就 emit WAITING 退出,而那句「AI 应自动重跑」在后台没有任何东西接得住(实证 case:监控 9 分钟到点退出、人几分钟后才点合并 → ship2 只能手动补)→ **② 再把两段作为回合终文贴出** · 卡片之后本回合**零工具调用**(宿主可能不渲染回合中段文本 · 实证:卡片被吞 · 用户被迫问「url 发下」)。用户无需回编号 —— **合并动作本身就是确认**;仅「冲突/撤回」两个异常口令需要回话。
 
 ### 6. ship2:ship-finalize(一条命令 · 在主工作区跑 · 零内容修改)
 
@@ -221,6 +221,7 @@ git add <feature_dir>/dev/*.md <feature_dir>/PRD.md
   - 🔴 **查不到 base 归到「自己引入」是刻意的保守偏置**:代价不对称 —— 把别人的红当自己的 = 白看一眼;把自己的红当别人的 = 把坏的合进去。与 `test-baseline`「不在基线里就算新增回归」同口径,**不是**「查不到就放行」。
 - **对照分支**默认取 `state.merge_target`,`await-merge --base <branch>` 可覆盖;
 - CI 修复循环:jump 回 dev 修 → push 重跑 → await-merge 续走(同一 MR)。
+- ⏳ **等待窗按「等的是什么」定**(实证):等人点合并是**小时级**(原始痛点 132h 长尾),默认 `--max-checks` 已从 18(9min)改为 **120(≈1h)**;🔴 **后台跑一律加 `--until-final`**(循环到 MERGED / CLOSED / CI 归因到自己为止,不受轮次上限约束)。不加时若检测到 stdout 非 tty,WAITING 会显式警告「你把我后台化了但我不会自己续等」—— **载体缺口可以是运行姿态造成的**:命令从没说过自己必须在前台跑,spec 却让它后台启动。
 
 ## MR 窗口期修复(pushed 后 · 平台未合并 · 用户拍板:不开 Bug 流)
 

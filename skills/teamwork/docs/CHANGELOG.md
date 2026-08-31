@@ -4,6 +4,23 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.347 · await-merge 后台化会自己退出(实证 case)
+
+> 用户看 case 问「监控为什么自动退出了」。答案不是崩溃也不是超时,是**设计上的单轮上限**:默认 `18 轮 × 30s = 9 分钟`,用尽 emit `WAITING` 后 `sys.exit`(`emit_json` 每条都自带退出)。
+> case(aon-core SVC-CORE-B260831064524):消费 AI **按 spec** 用 `nohup ... >> /tmp/` 后台启动 —— WAITING 里那句「AI 应自动重跑」进了没人读的文件,监控就此永久结束;人几分钟后才点合并,ship2 只能手动补跑。
+
+### 变更
+- **默认窗口按「等的是什么」定**:等人去平台点合并是**小时级**(框架自己的原始痛点数据是 132h 长尾),9 分钟差三个数量级 → `--max-checks` 默认 18 → **120(≈1h)**。
+- **`--until-final`**:自己循环到**终态**才退(MERGED / CLOSED / CI 归因到自己),不受轮次上限约束 —— 后台跑正是这个模式该覆盖的用法,不再把续等义务甩给调用方。
+- **后台化警告**:未开 `--until-final` 且 `stdout` 非 tty → WAITING 显式点出「你把我 nohup 了,但我不会自己续等」并给出口。前台跑不噪。
+- **三处载体同步**(漏一处就复发):ship-stage spec 的投递次序、push emit 里给用户抄的命令行、用户卡片的「监控」行 —— 全部带上 `--until-final`。🔴 **根因其实在 spec**:它明确写着「先后台启动」,而命令从没说过自己必须在前台跑。
+
+### 这条教训的形状
+**载体缺口可以是运行姿态造成的** —— 不是措辞糊(v8.302 那族),而是同一句话在前台成立、在后台不成立;spec 让它后台跑,承诺就失去了接住它的东西。
+
+### 测试
+`test_await_until_final_v8347.py` 10 条:默认窗口小时级 + CLI 同步 · 非 tty 真跑一次拿 WAITING 并断言警告点出机制与出口 · 前台不噪 · until-final 忽略轮次上限且末轮照 sleep · **自续等不许变成永不退出**(三个终态仍在)· 三处载体同步 · why 记成「运行姿态」不是「措辞」。全库 1594 绿。
+
 ## v8.346 · 年检 P0 三修:数据推翻直觉(aon-core / supersdk / aib · 289 行台账)
 
 > 用户:「结合 aon-core / supersdk / aib 做一次年检」。三项目全在 v8.344.1 · 台账 16 列 canonical · 样本 210/71/8。
@@ -65,21 +82,3 @@ P0-2 初诊断是「框架默认改了、存量配置没迁」,据此写了 loca
 
 ### 测试
 `test_plan_dims_v8343.py` 35 条:六档链逐条 · ship 在任何组合都在 · 返工边不因降档消失 · 推导边 ⊆ 静态边 · state.py↔engine 两份实现逐档相等 · 七条连贯性 · 零路 vs N/A 可区分 · CLI 真跑六档 init + custom dims + 拒不连贯 · 修订双向同价 / roster 同步 / 孤儿剪枝报出 / 三类硬边界**各报各的理由** · 门与转移读计划 · `--needs-*` 写穿到 dims · 存量无 plan 回退。既有锁按新载体重锁(v8293 改锁「不许有自己的图」而非锁名字 · v8329/v8337/v8341/v8342)。全库 1539 绿。
-
-## v8.342 · 四档流程回归:tiny 立档 · lite 由 full 装配出来(用户拍板)
-
-> 拍板链:①「我们是否考虑加回多档流程」→ 加;②「tiny dev → review(单路 architect)→ pm_acceptance → ship / lite dev(TC 并行)→ 单路 architect → test → pm_acceptance → ship 这样合理么」;③「lite 是否也要有 PRD,不要 TC,要 verify-ac」;④「lite 是不是可以被 full 装配出来」→ **是**。
-> 上一版把「直接做」形态拼成「micro + 手工附加轻门」——「附加」是形容词式承诺,没有载体就不会发生。本版给它正式档位。
-
-### 变更
-- **四档、三 preset**:`preset ∈ {full, tiny, micro}`。判据 = **preset 只给「不立就走不通链」的档**(micro 跳 review/test · tiny 无 goal/blueprint 入口);lite 与 full 只差「跳 blueprint」一条边 → FEATURE_FLOW 加 `goal→dev` / `ui_design→dev` 直边 + 装配旋钮,**不加图**。多一张转移图 = 多一处要同步的口径(legacy `lite`/`blueprint_lite` 正是这么烂掉的:三份 flow-key 实现对同一输入解析出两张不同的图)。
-- **tiny(新 preset)**:`dev → review〔architect 单路〕 → pm_acceptance → ship` · 零文档(规格 = dev brief **理解卡**,brief 要求开工前回显一遍)· 无 test stage(判据 = 四轴的**验证成本**轴:diff 可验)。与 micro 的分界 = 有没有独立验收口(micro 在 MR diff 上验)。
-- **lite(装配形态 · 零 re-init)**:`goal-complete --needs-blueprint false` → 跳 blueprint,不产 TC/TECH/TECH-REVIEW。**PRD 照要、终确认停等照停**(降的是文档与路数,不是拍板权)。dev 前置从「blueprint 完成」回落到「goal 完成」,不是无条件放行。
-- **绑定载体换而不撤**:lite 无 TC → AC↔测试绑定改走 PRD 机读块 `acceptance_criteria[].test_refs`,`verify-ac.py --mode test-refs` 校验**非空 + 引用真实存在**(文件存在 · 带 `::用例名` 的名字要在文件里出现)。顺带堵住 TC 模式老坑:TC 点名的函数全仓不存在,覆盖率照样 21/21 全绿。
-- **降档不降独立性**:tiny/lite 的单路 architect 仍须错开模型(单路不变式)—— 减的是路数,不是「换个人看」这件事本身。
-- **装配环节第三旋钮**:装配卡流程阶段槽从「ui_design / browser_e2e」扩到三段可选,`blueprint 进/跳` 入槽;goal 3.7 减法侧分级表改四档(超低→micro · 低→tiny · 中低→lite · 中/高→full)。
-- **prepare 接线**:§2.2 超 micro 白名单 → 推荐 tiny(选项 2 = 继续讨论,守 v8.338);`prepare-check --preset` 让链预览按档出 —— 原实现 `flow_type in FLOW_STAGE_CHAIN` 短路,preset 永远读不到,定了轻档也预览全链(用户看到的链才是他感知到的重量)。
-- 顺手修:`build_stage_chain_preview` 用 raw flow_type 查 roster 矩阵恒 miss(键是内部名)· Micro 无 roster 条目才一直没暴露,Tiny 有条目会直接把 architect/pm 吃掉。
-
-### 测试
-`test_flow_tiers_v8342.py` 34 条:三 preset/四档不变式 · lite 不许有自己的图 · tiny 四道会死锁的门 · 三实现 flow-key 一致 · lite 旋钮只认显式 false · PRD/test 门不因降档松开 · test-refs 五种情形(含「点名不存在的用例」)· 门不休眠(lite 下换口径而非 skip)· prepare-check 按档预览 · spec 载体。既有锁按新载体重锁:v8329(三旋钮)· v8336(锁退役不锁出边条数)· v8341(四档 + 降档不降独立性)· engine_fixes(goal→dev 已合法 · 非法样本改用 test→dev)。全库 1504 绿。

@@ -505,7 +505,7 @@ def _handle_ship_push(state: dict, args: argparse.Namespace) -> dict:
         f"- 分支:`{_branch}` → `{state.get('merge_target') or '<merge_target>'}`\n"
         f"- 包含:代码 + 归档 + 规划翻牌(随本 MR 原子合入)\n"
         + _rg_line +
-        f"- 监控:我将跑 `await-merge` 30s 轮询 —— **你只需在平台点合并** · 合并后自动清场(删 worktree + 净化主工作区)\n"
+        f"- 监控:我将跑 `await-merge --until-final` 30s 轮询 —— **你只需在平台点合并** · 合并后自动清场(删 worktree + 净化主工作区)\n"
         f"- 异常口令:平台报冲突 → 回「冲突」(我回 worktree 重跑 archive 解)· 不想合了 → 回「撤回」"
     )
     # v8.240:user_card 防截断三重物化 —— 治实证 case(KA-PAGES-F260714041628):主对话用
@@ -551,7 +551,7 @@ def _handle_ship_push(state: dict, args: argparse.Namespace) -> dict:
         "hint": _card_must_read,
         "next_action_brief": (
             "✅ Push + MR 记录完成 —— **feature 的 ship 到此结束**(v8.145 ship1 全交付)。\n\n"
-            "🔴 v8.275 投递次序:**① 先后台启动** `state.py await-merge --feature <本路径>`"
+            "🔴 v8.275 投递次序:**① 先后台启动** `state.py await-merge --feature <本路径> --until-final`(🔴 后台跑必须带 --until-final:不带它窗口用尽就退,而后台没人读 WAITING 去重跑)"
             "(30s 轮询 · 不阻塞 · **所有模式都跑**:「停」= 不能替用户点合并 · 不是停止监控"
             "〔实证:auto 停在 pushed · 用户合了没人收尾〕)**② 再把两段作为回合终文贴出**:"
             "**`user_card`**(URL 置顶独立行)+ **📦 交付总结**(三槽:链路一行 / 关键决策与遗留 / 合并后解锁 · 照实写)· **次序不可倒**。"
@@ -2948,6 +2948,10 @@ def _mr_ci_status(mr_url: str) -> dict:
     return {"status": "unknown", "failing": []}
 
 
+# v8.347:默认等待窗按「等的是什么」定 —— 等人点合并是**小时级**(原始痛点 132h 长尾),
+# 原默认 18×30s=9min 差三个数量级,实证会在人点合并前就退出。
+AWAIT_MERGE_DEFAULT_CHECKS = 120        # ×30s ≈ 1h
+
 CI_FIX_HINT = ("🔴 **归因到本 feature 的 CI 红 = 直接修**(用户拍板:「如果是自己引入的,直接修下」)"
                "—— 不开 Bug 流、**不问用户是否要修**(修自己弄坏的东西不是用户主权,是收尾的一部分):"
                "`state.py jump-to-stage --to dev --reason \"MR 修复:CI 红 <失败项>\"` → "
@@ -2983,6 +2987,17 @@ def cmd_await_merge(args: argparse.Namespace) -> None:
     治本(loops 对照):ship1/规划收尾停在「等用户合并」是无人看的结构性等待窗(实证 132h 长尾 ·
     CI 红无人接)。本命令把等待窗变成 time-based loop:每 --interval 查一次 · MERGED → emit 下一步;
     一轮 --max-checks 用尽仍 OPEN → emit WAITING(AI 重跑本命令续等 · 用户随时可打断)。
+
+    v8.347(实证 case:aon-core SVC-CORE-B260831064524):消费 AI 用 `nohup ... >> /tmp/`
+    把本命令丢到后台,9 分钟窗口用尽 emit WAITING 后 sys.exit —— 而 WAITING 里那句
+    「AI 应自动重跑」进了没人读的文件,监控就此永久结束;人几分钟后才点合并,ship2 只能手动补。
+    两处修:
+    - **默认窗口按「等的是什么」定**:等人点合并是**小时级**(原始痛点 132h 长尾),
+      9 分钟差三个数量级 → 默认 max_checks 18→120(≈1h)。
+    - **`--until-final`**:自己循环到终态(MERGED/CLOSED/CI 归因到自己)才退,
+      不把续等义务甩给调用方 —— 后台跑正是这个模式该覆盖的用法。
+    🔴 非 tty 且未开 --until-final 时,WAITING 显式点出「你把我后台化了但我不会自己续等」
+    (载体缺口是**运行姿态**造成的:命令从没说过自己必须在前台跑)。
     """
     mr_url = (getattr(args, "mr_url", None) or "").strip()
     feature = getattr(args, "feature", None)
@@ -2999,10 +3014,18 @@ def cmd_await_merge(args: argparse.Namespace) -> None:
         emit_json({"verdict": "FAIL", "command": "await-merge",
                    "error": "无 MR URL(--mr-url 直传 · 或 --feature 的 state.ship.mr_url)"}, exit_code=1)
     interval = max(5, int(getattr(args, "interval", 30) or 30))
-    max_checks = max(1, int(getattr(args, "max_checks", 18) or 18))
+    max_checks = max(1, int(getattr(args, "max_checks", AWAIT_MERGE_DEFAULT_CHECKS)
+                            or AWAIT_MERGE_DEFAULT_CHECKS))
+    until_final = bool(getattr(args, "until_final", False))
+    # 🔴 后台化检测:stdout 不是 tty = 输出多半进了文件/管道,没人会读 WAITING 去重跑
+    backgrounded = not sys.stdout.isatty()
     unknown_streak = 0
     ci = {"status": "unknown", "failing": []}
-    for i in range(max_checks):
+    i = -1
+    while True:
+        i += 1
+        if not until_final and i >= max_checks:
+            break
         stt = _mr_state(mr_url)
         # v8.340:每轮带 CI(治 docstring 里的原始痛点「CI 红无人接」)——
         # 红了不再傻等合并,立刻退出切 MR 窗口期修复口
@@ -3039,11 +3062,19 @@ def cmd_await_merge(args: argparse.Namespace) -> None:
             emit_json({"verdict": "FAIL", "command": "await-merge", "mr_url": mr_url,
                        "error": "连续 3 次查询失败(gh/glab 未装或未登录?)",
                        "hint": "修环境后重跑 · 或退回人工「合并后告诉我」"}, exit_code=1)
-        if i < max_checks - 1:
+        if until_final or i < max_checks - 1:
             time.sleep(interval)
     emit_json({"verdict": "WAITING", "command": "await-merge", "mr_url": mr_url,
                "checks": max_checks, "interval_sec": interval, "ci_status": ci,
-               "next_action": "仍未合并 · 重跑本命令续等(AI 应自动重跑 · 用户随时可打断改人工)"})
+               "waited_minutes": round(max_checks * interval / 60, 1),
+               "next_action": "仍未合并 · 重跑本命令续等(AI 应自动重跑 · 用户随时可打断改人工)",
+               # v8.347:后台化时「AI 应自动重跑」没有载体接住 —— 说破它
+               **({"backgrounded_warning": (
+                   "🔴 检测到 **stdout 不是 tty**(多半被 nohup / 重定向到后台)—— "
+                   "本命令**不会自己续等**,上面那句「重跑续等」在后台没有任何东西接得住,"
+                   "监控到此结束(实证:人几分钟后才点合并 · ship2 只能手动补)。"
+                   "后台跑请加 **`--until-final`**(自己循环到 MERGED/CLOSED/CI 红为止)。")}
+                  if backgrounded else {})})
 
 
 def register_v8_ship_subparser(sub) -> None:
@@ -3160,7 +3191,13 @@ def register_v8_ship_subparser(sub) -> None:
     am.add_argument("--feature", help="feature 路径(读 state.ship.mr_url)· 与 --mr-url 二选一")
     am.add_argument("--mr-url", help="MR/PR URL 直传(规划收尾等无 state 场景)")
     am.add_argument("--interval", type=int, default=30, help="轮询间隔秒(默认 30)")
-    am.add_argument("--max-checks", type=int, default=18, help="单次命令最多查几轮(默认 18≈9min · 用尽 emit WAITING 重跑)")
+    am.add_argument("--max-checks", type=int, default=AWAIT_MERGE_DEFAULT_CHECKS,
+                    help=f"单次命令最多查几轮(默认 {AWAIT_MERGE_DEFAULT_CHECKS}≈1h · 用尽 emit WAITING 重跑)· "
+                         "v8.347:原默认 18(9min)会在人点合并前就退出")
+    am.add_argument("--until-final", action="store_true",
+                    help="[v8.347] 自己循环到**终态**才退(MERGED / CLOSED / CI 归因到自己)· "
+                         "不受 --max-checks 限制 · 🔴 **后台跑(nohup)必须加这个** —— "
+                         "否则窗口用尽 emit WAITING 就退,而后台没人读它去重跑")
     am.add_argument("--base", default=None,
                     help="[v8.345] CI 归因的对照分支(默认读 state.merge_target)· "
                          "base 上同名 check 也红 = 非本 feature 引入 → 不中断等待")
