@@ -954,6 +954,36 @@ def _handle_ship_archive(state: dict, args: argparse.Namespace) -> dict:
     # v8.156:过程信息嗅探(INDEX 是业务索引 · 不该灌评审/测试过程数据)· WARN 不 BLOCK
     desc_warn = _archive_desc_process_smell(archive_desc)
 
+    # v8.346 复发防御沉淀 gate(年检实证:可预防率 70.5% · 而清单 aon-core 0 条 / aib 0 条)。
+    # v8.278 把清单接到了**读取端**(dev brief 每次让 AI 先读),写入端却从来没有动作 ——
+    # 于是「读的时候永远是空的」。本门沿用 v8.253「自由声明类都该有验收门」:
+    # 声明了「本次有 N 条可预防」,就得真的在 KNOWLEDGE 留下一条,否则 archive 不放行。
+    _prev = [e for e in (state.get("authoring_preventability") or [])
+             if int(e.get("preventable") or 0) > 0]
+    if _prev and not getattr(args, "no_defense_entry", False):
+        _fid = state.get("feature_id") or ""
+        _kn = Path(wt_root) / "project-specs" / "KNOWLEDGE.md"
+        _txt = _kn.read_text(encoding="utf-8") if _kn.exists() else ""
+        if _fid and _fid not in _txt.split("复发防御清单", 1)[-1]:
+            _n = sum(int(e.get("preventable") or 0) for e in _prev)
+            emit_json({
+                "verdict": "PENDING", "stage": "ship", "action": "archive",
+                "pending_step": "defense-list",
+                "preventable_total": _n,
+                "next_action": (
+                    f"🔴 本 feature 有 **{_n} 条起草时本可预防**的 finding,但 "
+                    f"`project-specs/KNOWLEDGE.md § 复发防御清单` 里没有本 feature 的条目。\n"
+                    f"  先在 **worktree 内**追加一节(随本次 MR 原子合入),再重跑 archive:\n\n"
+                    f"  ## 复发防御清单 · <一句主题>({_fid} · <YYYY-MM-DD>)\n\n"
+                    f"  - 🔴 **<写成「写时防」的祈使句>**。<判据 + 回归要覆盖什么>\n\n"
+                    f"  🔴 写**下次起草时能照着做**的话,不写事故复述 —— 这份清单是给 dev/goal "
+                    f"起草前读的(v8.278 shift-left),不是给复盘读的。\n"
+                    f"  确无可沉淀(如纯环境抖动)→ `--no-defense-entry`(留痕 · 年检看频次)。"),
+                "why": ("可预防率常年 70%,而清单是空的 —— 读取端接线、写入端没接 = "
+                        "每个 feature 都在重犯上一个 feature 已经付过学费的错"),
+                "rule": "v8.346 年检:声明了可预防就得沉淀(v8.253「自由声明必有验收门」同形)",
+            })
+
     # v8.323 台账自动落行 gate:机器格工具自算 · 判断格走参数 · 反思摘要必填。
     # 实证:supersdk 47% 归档 feature 台账无行(人工 append 必漏);aon-core 复盘原话
     # 「emit 提供了已算好的字段 · 台账行仍需人工 append · 若 archive 能直接落行可再省一轮」。
@@ -2474,6 +2504,20 @@ def cmd_main_sync(args: argparse.Namespace) -> None:
     reclaim = _reclaim_stashes(main_wt, drop_all=getattr(args, "drop_stashes", False),
                                preexisting=pre_stashes)
 
+    # v8.346(年检实证):merged worktree 巡检**改挂在这里**,不再只在 bootstrap。
+    # v8.325 立巡检时把「不覆盖存量 worktree_cleanup=ask」的补偿设计成「每 session 报告」,
+    # 但那个报告只在 bootstrap 里调 —— 而 v8.322 **刚刚**证明过 bootstrap 在积灰项目上
+    # 二十天不跑(同一条教训、写在它前面一版,却又踩了一遍)。实测后果:aon-core 14 个
+    # worktree / 18G,supersdk/aib 各 0(它们本来就没积压)。
+    # 🔴 载体判据:巡检要挂在**积压发生的那个时点**自己会跑的命令上 —— merged worktree 正是
+    # 「feature 合并完成」时产生的,而 main-sync 就是那一刻、且在主工作区(能看见全部 worktree)。
+    wt_sweep = {}
+    try:
+        import bootstrap as _bs
+        wt_sweep = _bs.prune_merged_worktrees(main_wt) or {}
+    except Exception as e:  # noqa: BLE001 — 巡检不许炸收尾
+        wt_sweep = {"status": f"error:{e}"}
+
     emit_json({
         "verdict": "PASS",
         "command": "main-sync",
@@ -2487,6 +2531,8 @@ def cmd_main_sync(args: argparse.Namespace) -> None:
         **({"warnings": res["warnings"]} if res["warnings"] else {}),
         # v8.190:teamwork stash 回收结果(盘点 · drop 冗余 · surface 未合)
         **({"stash_reclaim": reclaim} if reclaim.get("teamwork_stashes") else {}),
+        # v8.346:merged worktree 巡检(auto→已清 · ask→列出待确认 · keep→只报数)
+        **({"worktree_sweep": wt_sweep} if wt_sweep else {}),
         "next_action_brief": _main_sync_brief(state, args.strategy, res),
     })
 
@@ -3055,6 +3101,9 @@ def register_v8_ship_subparser(sub) -> None:
                           "跳过翻牌验收门 · 记 state.ship 审计留痕"))
     sp.add_argument("--archive-ref-exception",
                     help="反向引用 preflight 例外(为什么引用可接受 · 一句 · 记 state.ship 审计)")
+    sp.add_argument("--no-defense-entry", action="store_true",
+                    help=("[archive · v8.346] 确无可沉淀的复发防御条目时的例外(如纯环境抖动/"
+                          "外部依赖抖动)· 跳过复发防御沉淀门 · 年检看这个例外的频次"))
     sp.add_argument("--ledger-reflection",
                     help="archive 必填:台账「反思摘要」(≤1 行 · 流程新判例以「判例:」开头 · 不美化)")
     sp.add_argument("--ledger-rounds", help="台账「review/test 轮」(如 1/1 · 缺省 —)")

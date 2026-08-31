@@ -125,9 +125,14 @@ class TestTinyPreset(unittest.TestCase):
         self.assertTrue(ok)
         self.assertIn("skipped", msg)
 
-    def test_roster_is_single_architect_plus_pm(self):
+    def test_roster_is_single_route_plus_pm(self):
+        """v8.346 年检反转:单路从 architect 改 external(逐 stage 产出 ext>arch · 总量 2.1×)。
+
+        本条初版锁死 architect —— 那是 v8.342 推的,没有数据支撑;289 行台账说被砍掉的
+        恰是产出最高的一路。锁的实质(**单路 + PM**)不变,换的是留哪一路。"""
         r = E.build_default_stage_review_roles("Feature", "tiny")
-        self.assertEqual(r.get("review"), ["architect"])
+        self.assertEqual(r.get("review"), ["external"])
+        self.assertEqual(len(r.get("review")), 1)          # 仍是单路
         self.assertEqual(r.get("pm_acceptance"), ["pm"])
 
     def test_prepare_check_previews_tiny_chain(self):
@@ -156,7 +161,7 @@ class TestTinyPreset(unittest.TestCase):
     def test_chain_preview_shows_reviewers(self):
         """preview 按内部键查 roster —— 原实现用 raw flow_type 查恒 miss(Micro 无条目才没暴露)。"""
         preview = {c["stage"]: c["reviewers"] for c in E.build_stage_chain_preview("Feature:tiny")}
-        self.assertEqual(preview["review"], ["architect"])
+        self.assertEqual(preview["review"], ["external"])
         self.assertEqual(preview["pm_acceptance"], ["pm"])
 
     def test_dev_brief_gives_spec_carrier(self):

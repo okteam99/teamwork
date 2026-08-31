@@ -5,6 +5,19 @@
 
 ---
 
+## v8.341 · 评审力度减法侧分级 +「直接做」形态正名(用户拍板)
+
+> case(jolichatbox 域名配置):v8.334-337 链条全部正常工作(深调研/判断卡/跳 ui·browser),但四轴全低的配置改动仍默认吃满六路评审 —— 用户当场问「这么简单的需求为什么还要那么多 review」,消费 AI 中途 re-init 切 micro 落地开 MR(自评:「按全链启动了 —— 这是错配」)。
+> 用户拍板目标形态:**按理说直接开发,完成后架构师 review 一下,PM 验收盯 staging 部署就可以了。**
+
+### 变更
+- **3.7 装配判断表补减法侧(加减两侧都要判)**:**超低**(纯配置/删除/文案级 · 无契约面 · diff/断言可验)→ 建议改走 `preset=micro`(同 feature re-init 合法 · 消费实证)+ **micro 附加轻门**(execute 完成后单路 architect diff 冷审〔subagent 错开 · 只拦 BLOCKER〕· PM 验收 = MR diff + 合并后盯 staging〔await-merge 自动带 CI〕);**低**(行为性但小)→ goal `[fast]` 单路合并 · blueprint 0 路 · **review `[architect]` 单路(用户形态)**;中 = 缺省;高 = 加法触发。
+- **一致性倒逼**:判断卡/装配卡评审力度行,路数与四轴对不上必须写「为什么不降」(写不出就降)。
+- **prepare §2.2「坚持 micro」正名**:行为性小改动亦合法(留痕)+ 附轻门建议 —— 消费 AI 的逃生路径转正。goal brief 同步。
+
+### 测试
+`test_review_intensity_tiers_v8341.py` 9 条:超低档 = 用户拍板句 / 低档逐 stage 缺省 / 判据机械 / 一致性倒逼 / 单路仍错开 / prepare 正名 / brief。全库全绿。
+
 ## v8.340 · ship1 后 CI pipeline 自动检查(用户拍板)
 
 > 用户:另外 ship1 之后需要自动检查 CI 的 pipeline。

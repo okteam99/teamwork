@@ -163,6 +163,13 @@ SPEC_DEPTHS = ("none", "prd", "prd_tech")
 VERIFY_DEPTHS = ("self", "test", "test_e2e")
 REVIEW_POINTS = ("goal", "blueprint", "review", "pm_acceptance")
 
+# 🔴 **降档时留哪一路 = 看实测产出,不看直觉**(v8.346 年检实证 · 289 行台账 / 3 项目):
+#   逐 stage 的真 finding 产出 external > architect —— goal 275:178 · blueprint 76:57 · review 87:53
+#   (总量 1546:735 = 2.1× · external 采纳率 82.3%)。v8.341-343 初版把轻档单路配成 architect,
+#   理由「异质冷审边际收益压不过协调开销」是**推的、没有数据支撑**,砍掉的恰是产出最高的一路。
+#   现在单路默认 = external:它还天然满足「单路必错开模型」不变式(architect 单路得额外保证)。
+#   architect 不是没价值 —— 它在**有 TECH 可对照**时最强,所以 medium/full 的 blueprint 仍可加回;
+#   但「只留一路」时,留 external。
 # 档 = **命名的默认元组 + 一句入场问句**。矩阵能推导链之后,「档」不再有结构特权 ——
 # 加一档就是加一行(medium 就是用户在本版实现中途提的,一行落地)。
 # 🔴 档是**起手点不是终点**:装配的正常产物是**维度元组**,AI 有权拧任意一维
@@ -177,16 +184,16 @@ TIER_DIMS: dict[str, dict] = {
               "ui": False, "review": {"review": [], "pm_acceptance": []}},
     # 测试证得了实现,但值得一双眼看 diff。
     "tiny": {"spec_depth": "none", "evidence_gate": True, "verify_depth": "self",
-             "ui": False, "review": {"review": ["architect"], "pm_acceptance": ["pm"]}},
+             "ui": False, "review": {"review": ["external"], "pm_acceptance": ["pm"]}},
     # 有规格风险(要 PRD)但方案空间小到不值得先写一份 TECH 再照着写。
     "lite": {"spec_depth": "prd", "evidence_gate": True, "verify_depth": "test",
-             "ui": False, "review": {"goal": [], "review": ["architect"],
+             "ui": False, "review": {"goal": [], "review": ["external"],
                                      "pm_acceptance": ["pm"]}},
     # 方案空间值得先写 TECH,但风险还不到要两路并行冷审 —— goal/blueprint 各**单路**
     # (goal 用 fast 合并帽:PL 质疑 + 覆盖方向制并作一路 · 模型照错开)。
     "medium": {"spec_depth": "prd_tech", "evidence_gate": True, "verify_depth": "test",
-               "ui": False, "review": {"goal": ["fast"], "blueprint": ["architect"],
-                                       "review": ["architect"], "pm_acceptance": ["pm"]}},
+               "ui": False, "review": {"goal": ["fast"], "blueprint": ["external"],
+                                       "review": ["external"], "pm_acceptance": ["pm"]}},
     "full": {"spec_depth": "prd_tech", "evidence_gate": True, "verify_depth": "test",
              "ui": False, "review": {"goal": ["pl", "external"],
                                      "blueprint": ["architect", "external"],
@@ -810,7 +817,25 @@ def cmd_review_preventability(args: argparse.Namespace) -> None:
     state["updated_at"] = now_iso()
     state["updated_by"] = "review-preventability"
     atomic_write(path, state)
+    # v8.346(年检实证):可预防率 70.5%(1461/2072),而 KNOWLEDGE 复发防御清单
+    # aon-core 0 条 / aib 0 条 / supersdk 3 条 —— **读取端接线了、写入端从来没有**
+    # (dev brief 每次让 AI 读它,却没有任何动作把 finding 沉淀回去)。
+    # 这里把骨架现成给出:数据算好了不让人誊抄(v8.323 形状)· 判断留人/AI(教训文本要判断)。
+    _defense = None
+    if entry["preventable"] > 0:
+        _fid = state.get("feature_id") or "<FEATURE-ID>"
+        _defense = {
+            "why": (f"本次 {entry['preventable']}/{entry['total']} 条 finding 起草时本可预防 —— "
+                    "不沉淀 = 下个 feature 原样再犯一次(可预防率常年 70% 的根因)"),
+            "target": "project-specs/KNOWLEDGE.md § 复发防御清单",
+            "skeleton": (f"## 复发防御清单 · <一句主题>({_fid} · {now_iso()[:10]})\n\n"
+                         f"- 🔴 **<写成「写时防」的祈使句,不是「本次发现了什么」>**。"
+                         f"<判据 + 回归要覆盖什么>\n"),
+            "rule": "🔴 写**下次起草时能照着做**的话 · 不写事故复述(清单是给起草读的,不是给复盘读的)",
+        }
+
     emit({"verdict": "OK", "action": "review-preventability", "stage": entry["stage"],
+          **({"defense_list_entry": _defense} if _defense else {}),
           "recorded": entry,
           "note": "已记录 · ship 聚合进台账「🛡️ 起草可预防性」列(年检据此分析起草考虑点缺不缺)"})
 

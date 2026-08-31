@@ -32,12 +32,12 @@ class TestReductionSide(unittest.TestCase):
         """
         self.assertIn("直接开发,完成后架构师 review 一下,PM 验收盯 staging", self.table)
         self.assertIn("**`tiny`", self.table)
-        self.assertIn("architect 单路", self.table)
+        self.assertIn("external 单路", self.table)      # v8.346 年检:单路留高产的那一路
         self.assertIn("盯 staging 部署", self.table)
 
     def test_tiers_named_per_stage(self):
         """各档缺省逐 stage 点名 —— 让「减」有判据可引(不是形容词式「轻一点」)。"""
-        self.assertIn("dev → review〔architect 单路〕 → pm_acceptance → ship", self.table)   # tiny 链
+        self.assertIn("dev → review〔external 单路〕 → pm_acceptance → ship", self.table)   # tiny 链
         self.assertIn("冷审 0 路缺省", self.table)                                            # lite goal
         self.assertIn("不写 TECH", self.table)                                               # lite 环节
 

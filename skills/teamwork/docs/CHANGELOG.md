@@ -4,6 +4,22 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.346 · 年检 P0 三修:数据推翻直觉(aon-core / supersdk / aib · 289 行台账)
+
+> 用户:「结合 aon-core / supersdk / aib 做一次年检」。三项目全在 v8.344.1 · 台账 16 列 canonical · 样本 210/71/8。
+> 面上数据:待用户占 wall-clock **61%**(AI 自主 18.6%)· 协调开销轮 **30%**(712/2373)· review/test >1 轮 **55%** · 起草可预防 **70.5%** · external 采纳率 **82.3%** · 暂停点「改」**20.6%**(不是橡皮图章)。
+
+### 变更(三条 P0 全是用数据改框架自己的设计)
+- **P0-1 降档砍错了路 → 单路默认 architect 改 external**:逐 stage 真 finding 产出 **ext > arch**(goal 275:178 · blueprint 76:57 · review 87:53 · 总量 1546:735 = **2.1×** · 采纳率 82.3%)。v8.341-343 把 tiny/lite/medium 的单路全配成 architect,理由「异质冷审边际收益压不过协调开销」是**推的、没有数据支撑** —— 砍掉的恰是产出最高的一路。改后 external 还天然满足「单路必错开模型」不变式。**路数不变**(仍单路),换的是留哪一路;full 双路不动。
+- **P0-2 worktree 巡检挂到会跑的命令上**:v8.325 把「不覆盖存量 `worktree_cleanup=ask`」的补偿设计成「每 session 报告」,但 `prune_merged_worktrees` **只在 bootstrap 调** —— 而 v8.322 **刚刚**证明 bootstrap 在积灰项目上二十天不跑(同一条教训写在它前面一版,又踩了一遍)。实测:aon-core 14 个 worktree / **18G**;supersdk/aib 各 0。现挂到 `main-sync`(= feature 刚合并完、且在主工作区能看见全部 worktree 的那一刻),bootstrap 那条保留。
+- **P0-3 复发防御清单接上写入端**:v8.278 把清单接到了**读取端**(dev brief 每次让 AI 先读),写入端从来没有动作 —— 可预防率常年 70.5%,而清单 aon-core **0 条** / aib **0 条** / supersdk 3 条。现在:`review-preventability` 在 preventable>0 时**出现成骨架**(v8.323「别让人誊抄」形状);`archive` 加 `defense-list` 验收门(v8.253「自由声明必有验收门」形状)· 例外走 `--no-defense-entry` 留痕。
+
+### 一条自我修正
+P0-2 初诊断是「框架默认改了、存量配置没迁」,据此写了 localconfig 缺省补齐 —— **查 git 后发现是错的**:v8.325 有意不覆盖存量 `ask`(代码注释写着)。已回滚该改动,按真根因(报告挂在不跑的命令上)重做。
+
+### 测试
+`test_annual_audit_v8346.py` 15 条:单路留高产那路 + **路数没被偷偷加回去** + full 不动 + 静态表与维度表同口径 + **判据带实测数字**(否则下一版又凭直觉改回去)· 巡检不炸收尾 + why 记住重复的错 + bootstrap 入口保留 · 骨架只在真有可预防时出 + 门只在 preventable>0 时响 + 例外留痕。既有 5 处 architect 锁按年检结论重锚。全库 1584 绿。
+
 ## v8.345 · CI 失败归因:自己引入的直接修(用户拍板)
 
 > 用户:「ship1 产出 MR 后监控合并的同时检查是否有 pipeline 失败,如果是自己引入的,直接修下。」
@@ -67,16 +83,3 @@
 
 ### 测试
 `test_flow_tiers_v8342.py` 34 条:三 preset/四档不变式 · lite 不许有自己的图 · tiny 四道会死锁的门 · 三实现 flow-key 一致 · lite 旋钮只认显式 false · PRD/test 门不因降档松开 · test-refs 五种情形(含「点名不存在的用例」)· 门不休眠(lite 下换口径而非 skip)· prepare-check 按档预览 · spec 载体。既有锁按新载体重锁:v8329(三旋钮)· v8336(锁退役不锁出边条数)· v8341(四档 + 降档不降独立性)· engine_fixes(goal→dev 已合法 · 非法样本改用 test→dev)。全库 1504 绿。
-
-## v8.341 · 评审力度减法侧分级 +「直接做」形态正名(用户拍板)
-
-> case(jolichatbox 域名配置):v8.334-337 链条全部正常工作(深调研/判断卡/跳 ui·browser),但四轴全低的配置改动仍默认吃满六路评审 —— 用户当场问「这么简单的需求为什么还要那么多 review」,消费 AI 中途 re-init 切 micro 落地开 MR(自评:「按全链启动了 —— 这是错配」)。
-> 用户拍板目标形态:**按理说直接开发,完成后架构师 review 一下,PM 验收盯 staging 部署就可以了。**
-
-### 变更
-- **3.7 装配判断表补减法侧(加减两侧都要判)**:**超低**(纯配置/删除/文案级 · 无契约面 · diff/断言可验)→ 建议改走 `preset=micro`(同 feature re-init 合法 · 消费实证)+ **micro 附加轻门**(execute 完成后单路 architect diff 冷审〔subagent 错开 · 只拦 BLOCKER〕· PM 验收 = MR diff + 合并后盯 staging〔await-merge 自动带 CI〕);**低**(行为性但小)→ goal `[fast]` 单路合并 · blueprint 0 路 · **review `[architect]` 单路(用户形态)**;中 = 缺省;高 = 加法触发。
-- **一致性倒逼**:判断卡/装配卡评审力度行,路数与四轴对不上必须写「为什么不降」(写不出就降)。
-- **prepare §2.2「坚持 micro」正名**:行为性小改动亦合法(留痕)+ 附轻门建议 —— 消费 AI 的逃生路径转正。goal brief 同步。
-
-### 测试
-`test_review_intensity_tiers_v8341.py` 9 条:超低档 = 用户拍板句 / 低档逐 stage 缺省 / 判据机械 / 一致性倒逼 / 单路仍错开 / prepare 正名 / brief。全库全绿。

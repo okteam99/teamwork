@@ -587,7 +587,7 @@ state.py goal-complete --feature <path> \
   --auto-commit <hash> --artifacts PRD.md,PRD-REVIEW.md \
   --needs-ui {{true|false}} --needs-browser-e2e {{true|false}}
 ```
-🔗 **链装配**(调研后 · 详 stage.md 规则 3.7)· 🎛️ **装配 = 拧四维不是挑档名**:`D1 规格深度`〔none/prd/prd_tech〕· `D2 证据门`〔开/关〕· `D3 验证深度`〔self/test/test_e2e〕· `D4 评审力度`〔逐评审点 路数×角色×模型〕· 开关 `UI`。🔴 评审力度**加减两侧都判** · **六档起手**(判**风险的种类**不判改动大小):micro〔无行为面 · 测试无从写起〕· floor〔测试能完全证明 · dev→ship〕· tiny〔值得一双眼看 diff · 零文档〕· lite〔有规格风险要 PRD · 方案空间小不写 TECH · `--needs-blueprint false`〕· medium〔值得写 TECH · goal/blueprint 各单路〕· full〔两路并行冷审划算〕—— 🔴 **档只是起手点:选完必须再过一遍四维,该拧就拧**(只报档名不拧 = 退化情形)· 🔴 单路**模型照错开**(降档不降独立性)· 路数与四轴对不上必须写「为什么不降」):goal 自身评审面 AI 自定(留痕不问);下游装配写进终确认导读「🔗 链装配」节 · 🔴 **四槽缺一即漏 · 整卡 ≤7 行**(流程阶段〔机器按 `derive_chain` 渲染〕· 维度元组 · **评审力度逐评审点「是否需要×几路×谁×理由」〔收到零也显式写 0 路+理由 —— 减税要减在明处〕** · 四轴证据各半句)—— **默认按此执行 · 用户不要求改就生效**。
+🔗 **链装配**(调研后 · 详 stage.md 规则 3.7)· 🎛️ **装配 = 拧四维不是挑档名**:`D1 规格深度`〔none/prd/prd_tech〕· `D2 证据门`〔开/关〕· `D3 验证深度`〔self/test/test_e2e〕· `D4 评审力度`〔逐评审点 路数×角色×模型〕· 开关 `UI`。🔴 评审力度**加减两侧都判** · **六档起手**(判**风险的种类**不判改动大小):micro〔无行为面 · 测试无从写起〕· floor〔测试能完全证明 · dev→ship〕· tiny〔值得一双眼看 diff · 零文档 · review external 单路〕· lite〔有规格风险要 PRD · 方案空间小不写 TECH · `--needs-blueprint false`〕· medium〔值得写 TECH · goal/blueprint 各单路〕· full〔两路并行冷审划算〕—— 🔴 **档只是起手点:选完必须再过一遍四维,该拧就拧**(只报档名不拧 = 退化情形)· 🔴 **只留一路时留 external 不留 architect**(年检实证:逐 stage 产出 ext>arch · 总量 2.1× · 采纳 82%)· 单路**模型照错开**(降档不降独立性)· 路数与四轴对不上必须写「为什么不降」):goal 自身评审面 AI 自定(留痕不问);下游装配写进终确认导读「🔗 链装配」节 · 🔴 **四槽缺一即漏 · 整卡 ≤7 行**(流程阶段〔机器按 `derive_chain` 渲染〕· 维度元组 · **评审力度逐评审点「是否需要×几路×谁×理由」〔收到零也显式写 0 路+理由 —— 减税要减在明处〕** · 四轴证据各半句)—— **默认按此执行 · 用户不要求改就生效**。
 🔁 **每个 stage 边界都是显式修订点**:complete emit 带 `plan_checkpoint` · 问「有没有出现**装配时不知道的事实**」—— 有就 `revise-plan --dim <维度> --to <值> --evidence '<事实>'`,没有就照计划走 · **回显不停等** · ⚖️ **加与减同价**(都只要一行证据)· 🔴 **计划可改 · 历史不可改**。
 """
 
@@ -2368,13 +2368,13 @@ def _review_brief(state: dict) -> str:
     # 免得单路 agent 去找一份不存在的 TECH.md。
     _light = ""
     if _flow_key(state) == "Tiny":
-        _light = ("\n🎚️ **tiny 档单路评审**:roster 默认仅 `[architect]` —— 一路**错开模型**隔离冷审 · "
+        _light = ("\n🎚️ **tiny 档单路评审**:roster 默认仅 `[external]` —— 一路**错开模型**隔离冷审 · "
                   "**对照物 = dev brief 的理解卡 + diff 本身**(无 PRD/TECH/TC)· 必覆盖:改动↔理解卡一致 · "
                   "`standards/tech-rules.md` 对照(异常日志/DB 论证/契约消费方)· 测试真实性(有没有真断言)· "
                   "🔴 **只拦 BLOCKER**(功能缺陷 / 契约破坏 / 兜底裸奔)—— tiny 的判据就是 diff 可验,"
                   "把它审成 full 等于白降档;质量偏好类写 INFO 不卡门。\n")
     elif _blueprint_skipped(state) and not state.get("fast_mode"):
-        _light = ("\n🎚️ **lite 档单路评审**:roster 默认仅 `[architect]` —— 一路**错开模型**隔离冷审 · "
+        _light = ("\n🎚️ **lite 档单路评审**:roster 默认仅 `[external]` —— 一路**错开模型**隔离冷审 · "
                   "**对照物 = `PRD.md`(§验收标准 + 机读块)+ diff**(无 TECH.md —— 别去找,跳 blueprint 是装配决定的)· "
                   "必覆盖:实现↔AC 一致 · `standards/tech-rules.md` 对照 · 测试真实性 · "
                   "🔴 **顺带核 `test_refs` 是否指向真做了那件事的测试**(机器只校验「文件/用例名存在」· "

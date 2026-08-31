@@ -1519,7 +1519,7 @@ DEFAULT_REVIEW_ROLES: dict[tuple[str, str], list[str]] = {
     ("Bug", "pm_acceptance"): ["pm"],
 
     # Tiny 流程(v8.342 · 用户拍板「dev → review(单路 architect)→ pm_acceptance → ship」)
-    ("Tiny", "review"): ["architect"],   # 单路 · 无 external:tiny 的判据是 diff 可验,异质冷审的边际收益压不过一轮协调开销
+    ("Tiny", "review"): ["external"],    # v8.346 年检实证反转:单路留 external(逐 stage 产出 ext>arch · 总量 2.1× · 采纳 82%)· 且天然满足单路错开不变式
     ("Tiny", "pm_acceptance"): ["pm"],   # 唯一保留的人判 —— 与 micro 的分界就在这条
 
     # Floor 流程(v8.343 · 用户:「理论上拆出的力度最小可以直接 dev + ship」)
@@ -1588,7 +1588,7 @@ FLOW_STAGE_CHAIN: dict[str, list[tuple[str, bool, str, str]]] = {
     ],
     "Tiny": [
         ("dev", False, "", "无评审 · 规格 = brief 理解卡(无 PRD/TC)· RD 直接改 + commit(测试节奏自定 · 证据硬门 + 完工自查)"),
-        ("review", False, "", "Architect 单路(改动↔理解卡一致 + tech-rules 对照)· 无 external:diff 可验 · 异质冷审边际收益压不过协调开销"),
+        ("review", False, "", "External 单路(改动↔理解卡一致 + tech-rules 对照 · 覆盖方向制)· v8.346 年检:只留一路时留 external(产出 2.1× architect)"),
         ("pm_acceptance", False, "", "PM 用户视角验收 · 决定是否 ship(与 micro 的分界:micro 在 MR diff 上验、tiny 有独立验收口)"),
         ("ship", False, "", "无评审 · PMO 编排 push + MR + 合入 + cleanup"),
     ],

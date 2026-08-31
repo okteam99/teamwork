@@ -37,13 +37,14 @@
    - **减法侧(六档 · 判**风险的种类**不判改动大小 · 用户拍板)**:
      · **`micro`** —— 这改动**有行为面吗**?没有(文案/样式/资源/配置常量/注释)—— 测试无从写起 → `execute → ship` 零门(证据门关 · 准入靠白名单兜);
      · **`floor`** —— 有行为面,但**测试能完全证明它对吗**?能,且不动契约面 → `dev → ship`。🔴 与 micro 的分界不是「更轻」而是**拿什么换轻**:micro 拿掉证据门、floor 保留全部测试证据门(所以能接真逻辑改动),拿掉的是评审与独立验收口 —— 验收在 ship1 MR diff,`ship` 在任何组合里都减不掉;
-     · **`tiny` =「直接做」形态(用户拍板原句:按理说直接开发,完成后架构师 review 一下,PM 验收盯 staging 部署就可以了)** —— 测试证得了实现,但**值得一双眼看 diff 吗**?值得 → `dev → review〔architect 单路〕 → pm_acceptance → ship` · **零文档**(规格 = dev brief 理解卡)· PM 验收盯 staging 部署(await-merge 已自动带 CI);
-     · **`lite`** —— **有规格风险**(会不会在做错的东西)吗?有 → 要 PRD;但方案空间小到只有一种写法 → 不写 TECH → `goal → dev → review〔architect 单路〕 → test → pm_acceptance → ship`:goal 冷审 0 路缺省 · **PRD 照要、终确认停等照停**(用户主权不因降档让渡)· AC↔测试绑定改由 PRD 机读块 `acceptance_criteria[].test_refs` 承载(dev 写完测试**回填真实引用** · test-complete 校验非空**且引用真实存在**);
-     · **`medium`** —— 方案空间值得先写 TECH,但**到了要两路并行冷审吗**?没到 → goal `[fast]`(PL 质疑 + 覆盖方向制并作一路 · 模型照错开)· blueprint `[architect]` 单路 · 链同 full;
+     · **`tiny` =「直接做」形态(用户拍板原句:按理说直接开发,完成后架构师 review 一下,PM 验收盯 staging 部署就可以了)** —— 测试证得了实现,但**值得一双眼看 diff 吗**?值得 → `dev → review〔external 单路〕 → pm_acceptance → ship` · **零文档**(规格 = dev brief 理解卡)· PM 验收盯 staging 部署(await-merge 已自动带 CI);
+     · **`lite`** —— **有规格风险**(会不会在做错的东西)吗?有 → 要 PRD;但方案空间小到只有一种写法 → 不写 TECH → `goal → dev → review〔external 单路〕 → test → pm_acceptance → ship`:goal 冷审 0 路缺省 · **PRD 照要、终确认停等照停**(用户主权不因降档让渡)· AC↔测试绑定改由 PRD 机读块 `acceptance_criteria[].test_refs` 承载(dev 写完测试**回填真实引用** · test-complete 校验非空**且引用真实存在**);
+     · **`medium`** —— 方案空间值得先写 TECH,但**到了要两路并行冷审吗**?没到 → goal `[fast]`(PL 质疑 + 覆盖方向制并作一路 · 模型照错开)· blueprint `[external]` 单路 · 链同 full;
      · **`full`** —— 契约面宽 / 影响面广 / 方案分叉多 —— **两路并行冷审的边际收益压得过开销**;**高**(命中任一加法触发)→ 在 full 之上加面(`--dims` 加 dba / 升异质)。
+     🔴 **只留一路时留 `external`,不留 `architect`**(年检实证 · 289 行台账:逐 stage 产出 ext>arch —— goal 275:178 · blueprint 76:57 · review 87:53 · 总量 2.1× · 采纳率 82.3%)。architect 在**有 TECH 可对照**时最强 → medium/full 的 blueprint 可加回;但砍到只剩一路时,砍掉高产的那路 = 白降档。
      🔴 **档的分界是「风险的种类」,不是改动大小**:实现风险(测试能覆盖)→ 往轻走 · 规格风险(做没做对东西)→ 要 PRD · 契约风险(会不会崩到消费方)→ 要 TECH 与冷审。**代码行数从来不是判据**。
      🔴 **档只是起手点**:选完档**必须再过一遍四维**,该拧就拧(`--dims`)—— 只报个档名不拧 = 退化情形,不是默认姿态。
-     🔴 **降档不降独立性**:tiny/lite 的单路 architect **模型照错开**(≠会话主模型 · 单路不变式)—— 减的是路数,不是「换个人看」这件事本身;同模型自审 = 盲区相关,那一路等于没有。
+     🔴 **降档不降独立性**:tiny/lite 的单路 external **模型照错开**(≠会话主模型 · 单路不变式)—— 减的是路数,不是「换个人看」这件事本身;同模型自审 = 盲区相关,那一路等于没有。
      🔴 **一致性倒逼**:判断卡/装配卡的评审力度行,路数与四轴必须对得上 —— 四轴全低而某 stage ≥2 路 → 必须写一句「为什么不降」(写不出就降 · 实证:域名配置吃满六路评审 · 用户当场问「这么简单为什么那么多 review」);
    - **加法侧**:有产品方向影响 → goal 留 pl(仅纯内部技术重构去);无 UI 改动 → ui_design + browser_e2e 双跳;跨 ≥3 模块触发点 → blueprint/review 外审升异质或加独立 qa;数据模型重构(删改老字段 / 表结构变)→ blueprint 强 architect + 加 dba(why:prepare 只有需求文本没有代码现状 —— 在信息最少的时刻做信息最密的决策 = 结构性错判,实证「删 3 个按钮」被字面定价成九段全链;调研后定价 = Feature 与 Bug 统一成「先调研 · 再定价」)。
 3.8 🔁 **显式修订点(每个 stage 边界 · 用户拍板「至少可以修改」)**:装配一次给全整条链(用户看得见**整体形状** · 抗棘轮),但**每个 stage-complete 都是修订口** —— `stage-complete` 的 emit 自动带 `plan_checkpoint`(计划 · 剩余链 · 已修订次数 · 一句可判问句)。
