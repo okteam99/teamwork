@@ -3266,6 +3266,33 @@ def _validate_admission_judgment(args) -> dict:
     }
 
 
+def cmd_ci_commands(args: argparse.Namespace) -> None:
+    """v8.348:扫出本仓 CI **真正会跑的门禁命令**,供 test stage 逐条对照。
+
+    治的是「本地测试与 MR CI 不同构」——实证 case(aon-main DEV-F260830125314):
+    TEST-REPORT 只记 `cargo check`(验编译),CI 跑 `cargo clippy -- -D warnings`,
+    一条 lint 漏到 CI 才炸。而那个 AI **试过** grep,只是猜错了路径
+    (真配置在 include 进来的 `infra/ci/api-gateway.yml`)→ 空结果被当成「没有 CI」。
+    🔴 本命令**不要求本地跑全集**(有些 job 要 infra / 太慢)· 它只保证「你看见过」。
+    """
+    root = Path(getattr(args, "root", None) or ".").resolve()
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from _v8_engine import scan_ci_commands
+    found = scan_ci_commands(root)
+    total = sum(len(v) for v in found.values())
+    emit({
+        "verdict": "OK", "command": "ci-commands", "root": str(root),
+        "config_files": len(found), "gate_commands": total,
+        "commands": {f: [{"line": ln, "cmd": c} for ln, c in cs] for f, cs in found.items()},
+        "next_action": (
+            "逐条标注 **本地已跑 / 跑不了(为什么)/ 本次不适用**,写进 TEST-REPORT §CI 对照。"
+            "🔴 跑不了的也要写 —— 那就是「已知会在 CI 才发现」的清单(零也显式)。"
+            if found else
+            "未扫到 CI 配置(仓库可能没有 CI · 或布局非常规)—— TEST-REPORT §CI 对照写「无 CI 配置」。"),
+        "note": "文本扫描 script/run 块里的门禁类命令(编译/测试/静态检查)· 不解析 job 图 · 部署类不收",
+    })
+
+
 def cmd_revise_plan(args: argparse.Namespace) -> None:
     """v8.343 显式修订点:按新证据改装配计划(**加减同价 · 各记一行证据**)。
 
@@ -4510,6 +4537,12 @@ def build_parser() -> argparse.ArgumentParser:
                      help="🔴 **装配时不知道的那个事实**(不是「我觉得该加/该减」)· "
                           "加与减同价 —— 两个方向都要这一行,轻的偏置留在档默认里、不留在举证难度里")
     rvp.set_defaults(func=cmd_revise_plan)
+
+    # v8.348:CI 门禁对照(test stage 用 · 治本地测试与 MR CI 不同构)
+    cic = sub.add_parser("ci-commands",
+                         help="[v8.348] 扫本仓 CI 真正会跑的门禁命令 · 供 test 逐条对照(不要求本地跑全集)")
+    cic.add_argument("--root", default=".", help="仓库根(默认当前目录 · worktree 内传 worktree 根)")
+    cic.set_defaults(func=cmd_ci_commands)
 
     # v8.69:set-mode · 语义化设 auto_mode / yolo(替代 raw-write · 物化 + audit)
     sm = sub.add_parser(

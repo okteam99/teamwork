@@ -4,6 +4,22 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.348 · 本地测试与 MR CI 同构性对照(实证 case)
+
+> 用户看 case 问「测试流程是否需要约束、覆盖 CI 要检查的项目,避免问题遗漏到 CI 阶段」。
+> case(aon-main DEV-F260830125314):TEST-REPORT 只记录 `cargo check -p aon-api-gateway`(只验编译),而 MR CI 跑 `cd services && cargo clippy --locked -- -D warnings` —— 一条 clippy 漏到 CI 才炸,MR 窗口期多烧一整轮。
+> 🔴 **决定修法的关键细节**:那个 AI **试过** grep CI 配置,猜的是 `.gitlab-ci.yml .gitlab/ci/*.yml` → 返回空;真配置在 GitLab include 进来的 `infra/ci/api-gateway.yml`,于是空结果被当成「没有 CI」。**这不是偷懒,是不知道去哪儿找** —— 该由机器端清单(v8.323「数据算好别让人誊抄」),不是让每个 AI 自己猜路径。
+
+### 变更
+- **`state.py ci-commands --root <worktree>`**:扫本仓 CI 配置(GitLab 根 + `.gitlab/**` + include 常见位 `infra/ci/*` · GitHub `.github/workflows/*` · CircleCI / Azure),只取 `script`/`run` 块里的**门禁类**命令(编译/测试/静态检查),给 `文件:行 + 命令`。部署/发布类不收(不是本地该复现的);vendor/worktree 跳过。
+- **test-stage 规则 2.9 + TEST-REPORT §2.5**:逐条标注 **本地已跑 / ⚠️ 跑不了(为什么)/ — 不适用**。
+- 🔴 **刻意的边界:不要求本地跑 CI 全集**(有些 job 要 infra 凭据、有些太慢,强行复现是纯税)—— 要求的是**看过、并对每条给出处置**;🔴 **「跑不了」必须显式列出**,那就是「已知会在 CI 才发现」的清单,写出来风险才可见(零也显式)。
+- **载体在消费时点**:test-start brief 自动带这条 + 「别自己猜 CI 配置路径」的 case 教训(v8.324「complete 会拒的必须 start 可见」同律)。
+- **与 ship 侧分工写明**:本条是**防**(进 CI 前先对照),v8.345 的 CI 归因是**治**(真红了归因 · 自己引入的直接修)。
+
+### 测试
+`test_ci_parity_v8348.py` 13 条:GitLab include 布局(= 本 case 的形状)· GitHub `- run:` 列表项(初版正则漏了整段)· YAML 键不许当命令 · 部署类不收 · 给出文件:行 · 无 CI 配置给可写处置而非报错 · vendor/worktree 跳过 · CLI 双路径 · 三处载体 · **ship 侧归因不受影响**(防与治不重叠)。真仓库复验:aon-core 14 文件 / supersdk 15 文件,残留 YAML 前缀 0。全库 1607 绿。
+
 ## v8.347 · await-merge 后台化会自己退出(实证 case)
 
 > 用户看 case 问「监控为什么自动退出了」。答案不是崩溃也不是超时,是**设计上的单轮上限**:默认 `18 轮 × 30s = 9 分钟`,用尽 emit `WAITING` 后 `sys.exit`(`emit_json` 每条都自带退出)。
@@ -64,21 +80,3 @@ P0-2 初诊断是「框架默认改了、存量配置没迁」,据此写了 loca
 
 ### 测试
 `test_subagent_no_user_question_v8344.py` 14 条:红线对着工具名锁(行为式表述糊得过、工具名糊不过)· NEEDS_CONTEXT 路由 · 拍板原文入规 · 主对话二分显式(否则红线只堵子代理,主对话原样转抛 = 问题换出口)· 派发载体寄生 + case 实证 · SKILL cite + 密度门 · 既有回路不动。全库 1553 绿。
-
-## v8.343 · 装配维度矩阵 + 计划与显式修订点(用户拍板)
-
-> 拍板链:①「把流程、环节、评审力度 3 个维度拆开,交给 AI 组装,给 AI 强烈的提示有权利精简流程、降低评审力度、决定评审模型,必须做合理的权衡,不能过度保守」②「理论上拆出的力度最小可以直接 dev + ship」③「是否渐进式的流程更合理…或者至少可以修改」④「lite 之后是否需要一个 medium 档,goal 和 blueprint 只有一路冷审」⑤「然后给 AI custom 装配权限」。
-> 关于「强提示防保守」:上一版的台账已经写死了结论 —— **权限不等于行为**,0 路评审在 v8.341 之前就合法,AI 照样吃满六路。所以本版把偏置写进**缺省值与可判问句**,不写进措辞强度。
-
-### 变更
-- **四维矩阵 + 一开关**:`D1 规格深度`(none/prd/prd_tech)· `D2 证据门`(开/关)· `D3 验证深度`(self/test/test_e2e)· `D4 评审力度`(逐评审点 路数×角色×模型)· 开关 `UI`(**事实判断不是力度**)。验收位置并进 D4:`pm_acceptance` 0 路 = 验收挪到 ship1 MR diff(不是取消,是换地方)。
-- 🔴 **链由维度推导**(`derive_chain` / `derive_flow_graph`)—— 不再每档一张静态图。静态图降为**存量 state 回退**,且被「推导边 ⊆ 静态边」机器锁住。收益立刻兑现:medium 是本版实现**中途**加的,只加了一行。
-- **六档 = 命名的默认元组 + 一句可判入场问句**(判**风险的种类**,不判改动大小):micro〔无行为面·测试无从写起〕· **floor(新)**〔测试能完全证明 · `dev → ship`〕· tiny〔值得一双眼看 diff〕· lite〔有规格风险要 PRD·方案空间小不写 TECH〕· **medium(新)**〔值得写 TECH·goal/blueprint 各单路〕· full。**档是起手点不是终点**。
-- **floor 与 micro 的分界不是「更轻」而是「拿什么换轻」**:micro 拿掉证据门、准入靠白名单兜;floor 保留全部测试证据门(所以能接真逻辑改动),拿掉的是评审与独立验收口。
-- 🎛️ **custom 装配**:`init-feature --dims '<JSON>'` 拧任意一维 · 组合连贯性机器校验(N/A ≠ 0 路等七条,不连贯直接拒)。
-- 🔁 **计划 + 显式修订点**(取代纯渐进式):计划一次给全(用户看得见整体形状 · 抗棘轮),每个 `stage-complete` emit 带 `plan_checkpoint`(计划 · 剩余链 · **一句可判问句**「有没有出现装配时不知道的事实」)· `revise-plan --dim --to --evidence` 改 · **回显不停等** · ⚖️ **加与减同价**(只让「减」举证 = 保守偏置原样搬回来)· 🔴 **计划可改 · 历史不可改**(已走过的 stage 不许移出链 · dev 交了证据不许回溯关证据门)。修订记 delta + 方向 → **校准闭环的数据源**。
-- **计划有了独立的家**:`state.assembly_plan`(此前散在 `execution_hints` 三个 boolean 里,与执行度量混住 → 无法整体渲染/比对/校准)。装配卡改为**从计划渲染**,不再手写(双手写载体必漂);goal 的三个 `--needs-*` 直接写 `dims`。
-- 顺手修:守卫顺序 —— 「不可回溯」判定原在一致性校验之后,降维天然带出的不连贯会先报「组合不连贯」,把人支去修 roster 而真答案是「这段你已经走过了」(守卫写了却走不到 = 本框架反复复发的「规则立了没接线」)。
-
-### 测试
-`test_plan_dims_v8343.py` 35 条:六档链逐条 · ship 在任何组合都在 · 返工边不因降档消失 · 推导边 ⊆ 静态边 · state.py↔engine 两份实现逐档相等 · 七条连贯性 · 零路 vs N/A 可区分 · CLI 真跑六档 init + custom dims + 拒不连贯 · 修订双向同价 / roster 同步 / 孤儿剪枝报出 / 三类硬边界**各报各的理由** · 门与转移读计划 · `--needs-*` 写穿到 dims · 存量无 plan 回退。既有锁按新载体重锁(v8293 改锁「不许有自己的图」而非锁名字 · v8329/v8337/v8341/v8342)。全库 1539 绿。

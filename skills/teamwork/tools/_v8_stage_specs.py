@@ -2622,11 +2622,13 @@ QA 集成测试 + API E2E · AC 全覆盖最终验证。
 - `e2e/*`(至少 1 文件 · 语言无关)
 - integration + e2e exit-code = 0
 {_binding}
+- 🔁 **CI 门禁对照**(v8.348 · TEST-REPORT §CI 对照):`state.py ci-commands --root <worktree>` 拿到**本仓 CI 真正会跑的命令**,逐条标注 `本地已跑 / 跑不了(为什么)/ 本次不适用` —— 🔴 **跑不了的也要写出来**(那就是「已知会在 CI 才发现」的清单,零也显式)
 
 ### 怎么做
 **必读** `stages/test-stage.md`(四段结构 · 含 skip 走捷径反模式)。
 🎛️ **主对话 = Orchestrator(默认姿态 · 用户拍板 · 详 stage.md 1.7)**:测试**编写与执行默认派 subagent**(执行本就是验证档白名单 · 主窗口跑须 R5 授权);主对话留 环境预检调度 / **差分基线裁决** / 门禁命令 / 失败分诊与小型精准修复(测试日志是最大的 context 污染源之一)。
 📋 产物模板:本 emit 的 `scaffold_hints.templates` 给**绝对路径** · 照它起草 · 别抄项目旧产物。
+🔁 **先看 CI 会跑什么,再决定本地跑什么**(v8.348 实证:TEST-REPORT 只记了 `cargo check`〔只验编译〕,而 CI 跑 `cargo clippy -- -D warnings` → 一条 lint 漏到 CI 才炸,MR 窗口期多烧一整轮)。🔴 **别自己猜 CI 配置路径** —— 那个 case 里 AI 试过 grep,猜的是 `.gitlab-ci.yml`,真配置在 `infra/ci/api-gateway.yml`(include 进来的),grep 返回空就以为没有;`ci-commands` 会把各处配置一并扫出来。**不要求本地跑全集**(有些 job 要 infra/太慢)—— 要求的是**看过、并对每条给出处置**。
 🔴 **base 即红(brownfield 共享套件预存在失败)→ 走差分基线、别反复人肉 stash-baseline**:`state.py test-baseline --diff --current "<当前失败 id>"` 对照 `project-specs/test-baseline.md` · **0 新增**(当前失败 ⊆ 基线)→ test-complete 传 `--current-failures` 即转移;有新增 = 回归(修)或新预存在(核实后 `test-baseline --add` 登记原因)。
 
 ### 完成方式
