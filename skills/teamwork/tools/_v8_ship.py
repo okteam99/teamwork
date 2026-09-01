@@ -954,6 +954,29 @@ def _handle_ship_archive(state: dict, args: argparse.Namespace) -> dict:
     # v8.156:过程信息嗅探(INDEX 是业务索引 · 不该灌评审/测试过程数据)· WARN 不 BLOCK
     desc_warn = _archive_desc_process_smell(archive_desc)
 
+    # v8.349 yolo 待确认台账(用户拍板:「每个 feature 合入时在 yolo 目标分支记一下待确认信息,
+    # 留到 yolo 分支合入 target 分支时确认」)· 只对 yolo + yolo/* 目标生效。
+    _yolo_pending = {}
+    if state.get("yolo") and str(state.get("merge_target") or "").lower().startswith("yolo/"):
+        _risk = (getattr(args, "yolo_risk", None) or "").strip()
+        if not _risk:
+            emit_json({
+                "verdict": "PENDING", "stage": "ship", "action": "archive",
+                "pending_step": "yolo-risk-summary",
+                "next_action": (
+                    "🔴 yolo 模式合入 `yolo/*` 隔离分支 —— 必须留下**风险总结 / 待确认项**,"
+                    "否则无人值守期间识别到的风险会随会话消失(实证事故:AI 写进文档、文档是终点,"
+                    "线上请求归零)。重跑 archive 附:\n"
+                    "  --yolo-risk '<这次改动有什么需要人确认的 · 无则写「无 · <一句为什么无>」>'\n"
+                    "  [--yolo-breaking '<今天能成功的请求/调用,明天会失败吗?会 → 写清哪类;不会 → 否>']\n"
+                    "🔴 **可判问句**:今天能成功的请求,明天会失败吗?"
+                    "「不知道有没有这类调用方」= **当作会**(代价不对称)。"),
+                "why": "yolo 期间没人在看 —— 待确认项攒到 yolo/* → target 时由人一次性拍板",
+                "rule": "v8.349 yolo 两段式(用户拍板)",
+            })
+        _yolo_pending = _append_yolo_pending(
+            wt_root, state, _risk, getattr(args, "yolo_breaking", None) or "否")
+
     # v8.346 复发防御沉淀 gate(年检实证:可预防率 70.5% · 而清单 aon-core 0 条 / aib 0 条)。
     # v8.278 把清单接到了**读取端**(dev brief 每次让 AI 先读),写入端却从来没有动作 ——
     # 于是「读的时候永远是空的」。本门沿用 v8.253「自由声明类都该有验收门」:
@@ -1113,6 +1136,11 @@ def _handle_ship_archive(state: dict, args: argparse.Namespace) -> dict:
             adds.append(ledger_row_res["file"])  # v8.323:台账行随归档 commit
     if ws_refreshed and ws_refreshed not in adds:
         adds.append(ws_refreshed)        # v8.180:自刷的 WS 进度块文档纳进归档 commit
+    if _yolo_pending.get("status") in ("appended", "already_present"):
+        if _yolo_pending["file"] not in adds:
+            # v8.349:待确认台账**随归档 commit 原子合入 yolo/***
+            # —— 否则台账留在本地 worktree,合过去的分支上根本没有它(等于没记)
+            adds.append(_yolo_pending["file"])
     ad = _git(["add", "--", *adds], cwd=wt_root)
     if ad.returncode != 0:
         _rollback_archive_fail({
@@ -1143,6 +1171,8 @@ def _handle_ship_archive(state: dict, args: argparse.Namespace) -> dict:
         # v8.323:台账行由工具直接落(ledger_row · 机器格确定性 · 判断格来自 --ledger-*)——
         # 下列 ledger_* 字段保留:透明可校验 + 旧消费方兼容(不再要求 AI 照抄)。
         "ledger_row": ledger_row_res,
+        # v8.349:待确认项已记进 yolo/* 台账(等 yolo-promote 一次性确认)
+        **({"yolo_pending": _yolo_pending} if _yolo_pending else {}),
         "triage_calibration": _triage_calibration(state, wt_root, merge_target),
         "ledger_timing": {
             "host": state.get("host") or "unknown",  # v8.209:AI 宿主(claude-code/codex-cli/gemini-cli)
@@ -1299,6 +1329,43 @@ def _teamwork_tmp_root() -> Path:
     if override:
         return Path(override)
     return Path(os.environ.get("TMPDIR") or "/tmp") / "teamwork"
+
+
+YOLO_PENDING_FILE = "YOLO-PENDING.md"
+YOLO_PENDING_HEADER = """# YOLO 待确认台账
+
+> 🔴 **本文件只存在于 `yolo/*` 隔离分支上**(用户拍板:yolo 必须先合入 `yolo/` 开头的目标分支)。
+> yolo = 无人值守自动 merge —— **期间没有人在看**。每个 feature 自动合进本分支时,
+> 把它的**风险总结 / 待确认项**记一行到这里;等 `yolo/*` → 真 target 时,人**一次性确认全部**。
+> 治的是实证事故:AI 识别到了风险(旧调用方会 400)、写进了文档,但**文档是终点** ——
+> 没有任何通道能把「写下来的风险」变成「必须停的等待」,于是线上请求归零。
+> 🔴 **确认前不得把 `yolo/*` 合进真 target**(`state.py yolo-promote` 出确认卡)。
+
+| Feature | 合入时间 | 🔴 待确认项(风险总结) | 破坏既有行为? | 确认 |
+|---|---|---|---|---|
+"""
+
+
+def _append_yolo_pending(wt_root: str, state: dict, summary: str, breaking: str) -> dict:
+    """feature 合入 yolo/* 时往待确认台账追加一行(随本次 archive commit 原子合入)。
+
+    🔴 只在 yolo 模式 + merge_target 是 yolo/* 时写 —— 普通模式有真人停等,不需要这本账。
+    """
+    from pathlib import Path as _P
+    f = _P(wt_root) / YOLO_PENDING_FILE
+    try:
+        txt = f.read_text(encoding="utf-8") if f.exists() else YOLO_PENDING_HEADER
+        if "| Feature |" not in txt:                 # 存量文件缺表头 → 补
+            txt = YOLO_PENDING_HEADER + txt
+        fid = (state.get("feature_id") or "?").strip()
+        if f"| {fid} |" in txt:                      # 幂等:archive 可重入
+            return {"status": "already_present", "file": YOLO_PENDING_FILE}
+        row = (f"| {fid} | {now_iso()} | {summary.strip() or '—'} | "
+               f"{breaking.strip() or '否'} | ⬜ 待确认 |\n")
+        f.write_text(txt.rstrip("\n") + "\n" + row, encoding="utf-8")
+        return {"status": "appended", "file": YOLO_PENDING_FILE, "feature_id": fid}
+    except OSError as e:
+        return {"status": f"error:{e}", "file": YOLO_PENDING_FILE}
 
 
 def _check_bl_flipped(wt_root: str, state: dict) -> dict:
@@ -2981,6 +3048,63 @@ def _git_run(cmd, timeout=30):
     return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
 
 
+def cmd_yolo_promote(args: argparse.Namespace) -> None:
+    """v8.349:`yolo/*` → 真 target 的**确认口**(用户拍板的两段式第二段)。
+
+    yolo 期间没人在看,识别到的风险只能写进文档 —— 而文档是终点(实证事故:协议强制 header,
+    存量调用方全 400、线上请求归零;AI 写了风险、没有升级通道)。两段式给它一个出口:
+      ① feature → `yolo/*`(自动 · 每次 archive 往 YOLO-PENDING.md 记一行待确认项)
+      ② `yolo/*` → 真 target(**人工** · 本命令把攒下的全部待确认项一次性摆出来)
+    🔴 本命令**不代替用户点合并** —— 它只保证「合之前这些东西被摆到台面上过」。
+    """
+    root = Path(getattr(args, "root", None) or ".").resolve()
+    f = root / YOLO_PENDING_FILE
+    if not f.exists():
+        emit_json({"verdict": "FAIL", "command": "yolo-promote", "root": str(root),
+                   "error": f"{YOLO_PENDING_FILE} 不存在 —— 当前分支不是 yolo/* 隔离分支?",
+                   "hint": "在 checkout 了 yolo/* 的工作区跑本命令(--root 指向该工作区)"}, exit_code=1)
+
+    rows, pending, breaking = [], [], []
+    for line in f.read_text(encoding="utf-8").splitlines():
+        if not line.startswith("| ") or line.startswith("| Feature |") or set(line) <= set("|- "):
+            continue
+        c = [x.strip() for x in line.strip().strip("|").split("|")]
+        if len(c) < 5:
+            continue
+        rows.append(c)
+        if "待确认" in c[4]:
+            pending.append(c)
+        if c[3] and c[3] not in ("否", "—", "-", ""):
+            breaking.append(c)
+
+    if getattr(args, "confirm_all", False):
+        txt = f.read_text(encoding="utf-8").replace("⬜ 待确认", "✅ 已确认")
+        f.write_text(txt, encoding="utf-8")
+        emit_json({"verdict": "OK", "command": "yolo-promote", "action": "confirm-all",
+                   "confirmed": len(pending), "breaking_confirmed": len(breaking),
+                   "next_action": (f"已把 {len(pending)} 条标记为已确认 · commit 本文件后再合 "
+                                   f"`yolo/*` → 真 target(确认痕迹随合并进主线)")})
+
+    emit_json({
+        "verdict": "PENDING" if pending else "OK",
+        "command": "yolo-promote", "root": str(root),
+        "total": len(rows), "pending": len(pending), "breaking": len(breaking),
+        "pending_items": [{"feature": c[0], "at": c[1], "risk": c[2], "breaking": c[3]}
+                          for c in pending],
+        "next_action": ((
+            f"🔴 **{len(pending)} 条待确认项**(其中 **{len(breaking)} 条声明会破坏既有行为**)"
+            f"—— 这些是 yolo 无人值守期间攒下的,合进真 target **之前**必须由用户逐条过目。\n"
+            "把上面 `pending_items` 原样摆给用户(R5 编号选项:1=全部确认并合入 · "
+            "2=继续讨论〔逐条聊〕· 3=其他)· 用户确认后跑 "
+            "`state.py yolo-promote --root <path> --confirm-all` 落痕,再合 MR。\n"
+            "🔴 **破坏既有行为的那几条要单独念出来**:今天能成功的请求明天会失败 —— "
+            "问用户「现存调用方盘点过了吗 / 要不要兼容期或灰度 / 回滚条件是什么」。")
+            if pending else
+            "无待确认项(全部已确认)· 可以合 `yolo/*` → 真 target"),
+        "rule": "v8.349 yolo 两段式(用户拍板)· 确认口不代替用户点合并",
+    })
+
+
 def cmd_await_merge(args: argparse.Namespace) -> None:
     """v8.198:MR 等待窗轮询(30s)· 合并即自动进下一步(ship-finalize / 规划 finalize)。
 
@@ -3132,6 +3256,13 @@ def register_v8_ship_subparser(sub) -> None:
                           "跳过翻牌验收门 · 记 state.ship 审计留痕"))
     sp.add_argument("--archive-ref-exception",
                     help="反向引用 preflight 例外(为什么引用可接受 · 一句 · 记 state.ship 审计)")
+    sp.add_argument("--yolo-risk",
+                    help=("[archive · v8.349] yolo 合入 `yolo/*` 时必填:本 feature 的**风险总结 / "
+                          "待确认项**(无则写「无 · <一句为什么无>」)· 记进 YOLO-PENDING.md,"
+                          "等 yolo/* → 真 target 时由人一次性确认"))
+    sp.add_argument("--yolo-breaking",
+                    help=("[archive · v8.349] 可判问句:**今天能成功的请求/调用,明天会失败吗?** "
+                          "会 → 写清哪类调用方;不会 → 「否」。🔴「不知道有没有这类调用方」= 当作会"))
     sp.add_argument("--no-defense-entry", action="store_true",
                     help=("[archive · v8.346] 确无可沉淀的复发防御条目时的例外(如纯环境抖动/"
                           "外部依赖抖动)· 跳过复发防御沉淀门 · 年检看这个例外的频次"))
@@ -3186,6 +3317,13 @@ def register_v8_ship_subparser(sub) -> None:
     ms.set_defaults(func=cmd_main_sync)
 
     # v8.198:await-merge MR 等待窗轮询(30s · 合并自动下一步 · time-based loop)
+    yp = sub.add_parser("yolo-promote",
+                        help="[v8.349] yolo/* → 真 target 前的确认口 · 摆出无人值守期攒下的全部待确认项")
+    yp.add_argument("--root", default=".", help="checkout 了 yolo/* 的工作区(默认当前目录)")
+    yp.add_argument("--confirm-all", action="store_true",
+                    help="用户已逐条过目 → 全部标记已确认(commit 后再合 MR)")
+    yp.set_defaults(func=cmd_yolo_promote)
+
     am = sub.add_parser("await-merge",
                         help="[v8.198] 轮询 MR 状态(默认 30s×18)· MERGED→emit 下一步(ship-finalize/规划 finalize)· WAITING→重跑续等")
     am.add_argument("--feature", help="feature 路径(读 state.ship.mr_url)· 与 --mr-url 二选一")

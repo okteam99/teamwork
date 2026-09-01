@@ -1882,6 +1882,19 @@ def _check_prepare_audit(feature_id: str) -> dict:
     }
 
 
+YOLO_BRANCH_PREFIX = "yolo/"
+
+
+def _is_yolo_branch(branch: str) -> bool:
+    """是否是 yolo 隔离分支(v8.349 用户拍板:yolo 必须先合入 `yolo/` 开头的目标分支)。
+
+    🔴 隔离分支不是「多一道墙」—— 它是**待确认项的落脚处**:yolo 期间没人看,
+    识别到的风险只能写进文档(实证事故里就是这么丢的);有了 yolo/* 这一段,
+    每次自动合入都往 YOLO-PENDING 记一笔,等它合进真 target 时人一次性拍板。
+    """
+    return bool(branch) and branch.strip().lower().startswith(YOLO_BRANCH_PREFIX)
+
+
 def _is_main_branch(branch: str, repo_cwd: Optional[str] = None) -> bool:
     """branch 是否是主分支(yolo 硬约束:自动 merge 不得直接进 main)。
     判定:名字 ∈ {main, master} · 或 == 远端默认分支(origin/HEAD 指向)。"""
@@ -1981,8 +1994,6 @@ def cmd_init_feature(args: argparse.Namespace) -> None:
             "spec": "docs/prepare.md § 0",
         }, ensure_ascii=False, indent=2))
 
-    # v8.63:yolo 模式硬约束 —— merge_target 必须非主分支(自动 merge 不得直接进 main)
-    # v8.65:merge_target 可来自 --yolo <branch>(已 resolve 进 merge_target)
     if yolo_enabled and _is_main_branch(merge_target):
         die(2, json.dumps({
             "verdict": "FAIL",
@@ -1998,6 +2009,29 @@ def cmd_init_feature(args: argparse.Namespace) -> None:
             ),
             "rule": "v8.63 yolo 硬约束 · 自动 merge 不进 main(防 AI 错误/幻觉特性直接进 main)",
         }, ensure_ascii=False, indent=2))
+    # v8.349(用户拍板:「yolo 必须先合入目标 yolo 分支 · yolo/ 开头的」)——
+    # 把 v8.63 的「不得是主分支」收紧成**必须是 yolo/ 前缀的隔离分支**。
+    # why:v8.63 只挡了 main,但 yolo 照样能直接自动合进 staging —— 而 staging 通常就是
+    # 生产前的最后一站(实证事故:协议 v1.0 强制 header,存量调用方全 400、线上请求归零;
+    # 那条 Bug 走的正是 yolo/auto,diagnose 方案确认被自动跳过)。
+    # 隔离分支的作用不是多一道墙,是**给「无人值守期间攒下的待确认项」一个落脚处**:
+    # 每个 feature 合进 yolo/* 时记一笔,等 yolo/* → 真 target 时一次性拍板(见 YOLO-PENDING)。
+    if yolo_enabled and not _is_yolo_branch(merge_target):
+        die(2, json.dumps({
+            "verdict": "FAIL",
+            "action": "init-feature",
+            "error": (f"yolo 的 merge_target 必须是 `yolo/` 前缀的隔离分支 · got {merge_target!r}"),
+            "hint": (
+                "yolo = 无人值守自动 merge · **不得直接合进任何常规集成分支**(staging 也不行 —— "
+                "它常是生产前最后一站)。改成:\n"
+                f"  --yolo yolo/{(merge_target or 'integration').strip().lstrip('/') or 'integration'}"
+                "  (该分支即本需求 merge_target)\n"
+                "🔴 两段式:① feature → `yolo/*`(自动 · 每次合入把**待确认项**记进 YOLO-PENDING)"
+                "② `yolo/*` → 真 target(**人工** · 一次性确认攒下的全部待确认项)。\n"
+                "不想要隔离分支 → 别用 --yolo(改 --auto-mode · 保留 MR merge 人工 stop)。"),
+            "rule": "v8.349 yolo 两段式(用户拍板)· 隔离分支承载「无人值守期的待确认项」",
+        }, ensure_ascii=False, indent=2))
+
 
     # v8.179:yolo 预研门(硬门)—— 正式自主前必产 YOLO-PREFLIGHT.md(深入调研 + 核心决策用户确认)。
     # yolo 零暂停点 → 意图保真膜必 front-load · 防裸启动直接闷头跑偏(无人值守 · 错了没机会中途纠)。
@@ -3746,6 +3780,16 @@ def cmd_set_mode(args: argparse.Namespace) -> None:
                          f"yolo 无人 review 自动 merge · 不得直接进 main/master/默认分支",
                 "hint": "用 --yolo <非主分支>(如 dev/staging)· 或先改 merge_target",
                 "rule": "v8.63/69 yolo 硬约束 · 自动 merge 不进 main",
+            }, ensure_ascii=False, indent=2))
+        # v8.349:中途切 yolo 与 init-feature 同约束 —— 否则「先普通启动、再 set-mode 切 yolo」
+        # 就是绕过两段式的现成口子(同一个门必须守住所有入口)
+        if not _is_yolo_branch(new_mt):
+            die(2, json.dumps({
+                "verdict": "FAIL", "command": "set-mode",
+                "error": f"yolo 的 merge_target 必须是 `yolo/` 前缀的隔离分支 · got {new_mt!r}",
+                "hint": (f"--yolo yolo/{(new_mt or 'integration').strip().lstrip('/') or 'integration'}"
+                         " · 两段式:feature → yolo/*(自动 · 记待确认项)→ 真 target(人工确认)"),
+                "rule": "v8.349 yolo 两段式(用户拍板)· 所有入口同约束",
             }, ensure_ascii=False, indent=2))
     elif args.no_yolo:
         new_yolo = False

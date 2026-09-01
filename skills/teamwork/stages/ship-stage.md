@@ -211,6 +211,15 @@ git add <feature_dir>/dev/*.md <feature_dir>/PRD.md
 
 ---
 
+## YOLO 两段式:待确认项攒在隔离分支(用户拍板)
+
+yolo = **无人值守自动 merge**,期间没有人在看 —— AI 识别到的风险只能写进文档,而**文档是终点**(实证事故:协议强制 header 后存量调用方全 400、线上请求归零;AI 当时确实写了风险,也确实没人被停下来问过)。两段式给「识别到的风险」一个出口:
+
+- **① feature → `yolo/*`**(自动):`merge_target` 必须是 `yolo/` 前缀的隔离分支(`init-feature` / `set-mode` 双入口物化 gate)。`archive` 必填 `--yolo-risk '<风险总结/待确认项>'`(无则写「无 · 一句为什么无」)· 可选 `--yolo-breaking` —— 记一行进该分支的 `YOLO-PENDING.md`,**随归档 commit 原子合入**;
+- **② `yolo/*` → 真 target**(**人工**):`state.py yolo-promote --root <checkout 了 yolo/* 的工作区>` 把攒下的**全部**待确认项摆出来(R5 编号选项 · 第 2 项恒「继续讨论」)· 用户逐条过目后 `--confirm-all` 落痕,再合 MR;
+- ❗ **填 `--yolo-breaking` 时的可判问句**:**今天能成功的请求 / 调用,明天会失败吗?** 会 → 写清哪类调用方;不会 → 「否」。🔴 **「不知道有没有这类调用方」= 当作会**(代价不对称:把没事当有事 = 多看一眼;把有事当没事 = 线上归零);
+- 📎 **隔离分支不是多一道墙,是待确认项的落脚处** —— 零 stop 不等于零确认,只是**把确认延后并批量化**。`yolo-promote` 也**不代替用户点合并**,它只保证「合之前这些东西被摆到台面上过」。
+
 ## MR 窗口期 CI 自动检查 + 归因(用户拍板:ship1 之后自动查 pipeline · 自己引入的直接修)
 
 - **push 记录成功即自动查一次 CI**(工具内建 · emit `ci_status`:passing/failing/pending/none/unknown · 刚 push 常为 pending = 确认 pipeline 已起;`unknown` = gh/glab 缺失或未登录 · 不拦流程);
