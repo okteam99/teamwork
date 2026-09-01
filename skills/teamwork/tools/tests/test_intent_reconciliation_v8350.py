@@ -43,6 +43,9 @@ def _filled():
             .replace("{词}", "AON Link")
             .replace("{我的解释}", "含 /static/{code} 在内的全部投放入口")
             .replace("{🔴 我推的 · 用户没说过是否含 …}", "用户说过(原话:「投放链接的点击」)")
+            .replace("{具体后果：如「投放链接的点击全部不回传,广告优化拿不到转化数据」"
+                     "→ 生产/不可逆 → 已进 D-N}",
+                     "投放点击全部不回传 · 广告拿不到转化数据 → 生产/不可逆 → 已进 D-1")
             .replace("{反例 + 处置} / {无反例 · 因为 AC 覆盖了：…}",
                      "无反例 · AC 覆盖 /{code} 与 /static/{code} 两条真实入口")
             .replace("{X}", "历史点击补发").replace("{Y}", "无")
@@ -91,6 +94,60 @@ class TestGate(_Case):
 
     def test_gate_registered_on_goal(self):
         self.assertIn("intent_reconciliation", [e.name for e in GOAL_SPEC.evidence_checks])
+
+
+class TestCostIsComputedNotToldV8351(unittest.TestCase):
+    """v8.351(用户拍板:「PM 要知道一旦理解错了,代价非常高」)。
+
+    🔴 「要知道代价高」**本身是形容词** —— 本仓连着多版实证过它不产生行为
+    (v8.334 按需/酌情 · v8.337 形容词式装配卡 · v8.341 权限休眠 · v8.342 附加轻门)。
+    所以代价不是被告知的,是**逐行算出来的**:①表末列写「若这条错了最坏会怎样」的
+    **具体后果**;写不出具体后果 = 其实没想过代价。
+
+    而「代价高」这件事本身有一个**结构性**的说法(不是劝导):意图错误是唯一一类
+    下游全部质量门都拦不住的错 —— 评审/测试/CI/验收全都以「意图正确」为前提,
+    只能答「做得对不对」、答不了「做的是不是对的东西」。**越认真做,错得越彻底**。
+    """
+
+    def _chk(self, body):
+        d = Path(tempfile.mkdtemp())
+        (d / "PRD.md").write_text(body, encoding="utf-8")
+
+        class A:
+            feature = str(d)
+        return CHK({}, A())
+
+    def test_cost_column_is_required(self):
+        """砍掉代价列必须挂 —— 否则这一列只是文档里的建议,不是必答项。"""
+        body = (_filled().replace(" | 🔴 若这条理解错了 → 最坏会怎样", "")
+                         .replace("|---|---|---|---|", "|---|---|---|"))
+        ok, msg = self._chk("# X\n" + body)
+        self.assertFalse(ok)
+        self.assertIn("最坏会怎样", msg)
+
+    def test_template_demands_concrete_not_adjective(self):
+        seg = _section()
+        self.assertIn("不写「影响较大」", seg)
+        self.assertIn("生产/外部/不可逆", seg)
+        self.assertIn("必进 §待决策项", seg)      # 后果严重 → 强制升级 · 与信心无关
+
+    def test_structural_why_not_exhortation(self):
+        """why 给的是**结构性事实**,不是「要重视」——「唯一一类全部质量门拦不住的错」。"""
+        rule = GOAL_MD.split("为什么这一关的代价与众不同", 1)[1].split("\n   - 📎", 1)[0]
+        self.assertIn("唯一一类下游全部质量门都拦不住的错", rule)
+        self.assertIn("以「意图正确」为前提", rule)
+        self.assertIn("越认真做,错得越彻底", rule)
+        self.assertIn("代价 ≈ 一轮返工", rule)     # 与实现错误的量级对比
+        self.assertIn("两次实证", rule)            # 协议归零 + click 不回传
+
+    def test_cost_must_be_computed_clause(self):
+        rule = GOAL_MD.split("代价要算,不要被告知", 1)[1].split("\n   - 📎", 1)[0]
+        self.assertIn("写不出具体后果 = 其实没想过代价", rule)
+
+    def test_brief_carries_the_stakes(self):
+        b = GOAL_SPEC.brief_template_fn({})
+        self.assertIn("越认真做,错得越彻底", b)
+        self.assertIn("最坏会怎样", b)
 
 
 class TestTemplate(unittest.TestCase):

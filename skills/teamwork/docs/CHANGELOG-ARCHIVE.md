@@ -5,6 +5,22 @@
 
 ---
 
+## v8.346 · 年检 P0 三修:数据推翻直觉(aon-core / supersdk / aib · 289 行台账)
+
+> 用户:「结合 aon-core / supersdk / aib 做一次年检」。三项目全在 v8.344.1 · 台账 16 列 canonical · 样本 210/71/8。
+> 面上数据:待用户占 wall-clock **61%**(AI 自主 18.6%)· 协调开销轮 **30%**(712/2373)· review/test >1 轮 **55%** · 起草可预防 **70.5%** · external 采纳率 **82.3%** · 暂停点「改」**20.6%**(不是橡皮图章)。
+
+### 变更(三条 P0 全是用数据改框架自己的设计)
+- **P0-1 降档砍错了路 → 单路默认 architect 改 external**:逐 stage 真 finding 产出 **ext > arch**(goal 275:178 · blueprint 76:57 · review 87:53 · 总量 1546:735 = **2.1×** · 采纳率 82.3%)。v8.341-343 把 tiny/lite/medium 的单路全配成 architect,理由「异质冷审边际收益压不过协调开销」是**推的、没有数据支撑** —— 砍掉的恰是产出最高的一路。改后 external 还天然满足「单路必错开模型」不变式。**路数不变**(仍单路),换的是留哪一路;full 双路不动。
+- **P0-2 worktree 巡检挂到会跑的命令上**:v8.325 把「不覆盖存量 `worktree_cleanup=ask`」的补偿设计成「每 session 报告」,但 `prune_merged_worktrees` **只在 bootstrap 调** —— 而 v8.322 **刚刚**证明 bootstrap 在积灰项目上二十天不跑(同一条教训写在它前面一版,又踩了一遍)。实测:aon-core 14 个 worktree / **18G**;supersdk/aib 各 0。现挂到 `main-sync`(= feature 刚合并完、且在主工作区能看见全部 worktree 的那一刻),bootstrap 那条保留。
+- **P0-3 复发防御清单接上写入端**:v8.278 把清单接到了**读取端**(dev brief 每次让 AI 先读),写入端从来没有动作 —— 可预防率常年 70.5%,而清单 aon-core **0 条** / aib **0 条** / supersdk 3 条。现在:`review-preventability` 在 preventable>0 时**出现成骨架**(v8.323「别让人誊抄」形状);`archive` 加 `defense-list` 验收门(v8.253「自由声明必有验收门」形状)· 例外走 `--no-defense-entry` 留痕。
+
+### 一条自我修正
+P0-2 初诊断是「框架默认改了、存量配置没迁」,据此写了 localconfig 缺省补齐 —— **查 git 后发现是错的**:v8.325 有意不覆盖存量 `ask`(代码注释写着)。已回滚该改动,按真根因(报告挂在不跑的命令上)重做。
+
+### 测试
+`test_annual_audit_v8346.py` 15 条:单路留高产那路 + **路数没被偷偷加回去** + full 不动 + 静态表与维度表同口径 + **判据带实测数字**(否则下一版又凭直觉改回去)· 巡检不炸收尾 + why 记住重复的错 + bootstrap 入口保留 · 骨架只在真有可预防时出 + 门只在 preventable>0 时响 + 例外留痕。既有 5 处 architect 锁按年检结论重锚。全库 1584 绿。
+
 ## v8.345 · CI 失败归因:自己引入的直接修(用户拍板)
 
 > 用户:「ship1 产出 MR 后监控合并的同时检查是否有 pipeline 失败,如果是自己引入的,直接修下。」
