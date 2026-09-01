@@ -161,7 +161,7 @@ class TestInitFeature(unittest.TestCase):
         d = run([
             "init-feature", "--feature", str(target),
             "--feature-id", "YOLO-F003", "--flow-type", "Feature",
-            "--merge-target", "dev", "--branch", "feat/yolo3", "--yolo",
+            "--merge-target", "yolo/dev", "--branch", "feat/yolo3", "--yolo",
         ])
         self.assertEqual(d["verdict"], "OK")
         state = json.loads((target / "state.json").read_text(encoding="utf-8"))
@@ -174,7 +174,7 @@ class TestInitFeature(unittest.TestCase):
         d = run([
             "init-feature", "--feature", str(target),
             "--feature-id", "YOLO-F179", "--flow-type", "Feature",
-            "--branch", "feat/y179", "--yolo", "dev-int",
+            "--branch", "feat/y179", "--yolo", "yolo/dev-int",
         ], expect_exit=2)
         self.assertEqual(d["verdict"], "FAIL")
         self.assertIn("预研门", d["error"])
@@ -188,7 +188,7 @@ class TestInitFeature(unittest.TestCase):
         d = run([
             "init-feature", "--feature", str(target),
             "--feature-id", "YOLO-F180", "--flow-type", "Feature",
-            "--branch", "feat/y180", "--yolo", "dev-int",
+            "--branch", "feat/y180", "--yolo", "yolo/dev-int",
         ], expect_exit=2)
         self.assertEqual(d["verdict"], "FAIL")
         self.assertIn("哨兵", d["error"])
@@ -214,11 +214,11 @@ class TestInitFeature(unittest.TestCase):
         d = run([
             "init-feature", "--feature", str(target),
             "--feature-id", "YOLO-F005", "--flow-type", "Feature",
-            "--branch", "feat/yolo5", "--yolo", "dev-integration",
+            "--branch", "feat/yolo5", "--yolo", "yolo/dev-integration",
         ])
         self.assertEqual(d["verdict"], "OK")
         state = json.loads((target / "state.json").read_text(encoding="utf-8"))
-        self.assertEqual(state["merge_target"], "dev-integration")
+        self.assertEqual(state["merge_target"], "yolo/dev-integration")
         self.assertTrue(state["yolo"])
         self.assertTrue(state["auto_mode"])
 
@@ -229,11 +229,11 @@ class TestInitFeature(unittest.TestCase):
         d = run([
             "init-feature", "--feature", str(target),
             "--feature-id", "YOLO-F006", "--flow-type", "Feature",
-            "--branch", "feat/yolo6", "--merge-target", "staging", "--yolo", "dedicated-int",
+            "--branch", "feat/yolo6", "--merge-target", "staging", "--yolo", "yolo/dedicated-int",
         ])
         self.assertEqual(d["verdict"], "OK")
         state = json.loads((target / "state.json").read_text(encoding="utf-8"))
-        self.assertEqual(state["merge_target"], "dedicated-int")  # yolo branch 覆盖 --merge-target
+        self.assertEqual(state["merge_target"], "yolo/dedicated-int")  # yolo branch 覆盖 --merge-target
 
     def test_v865_yolo_branch_main_rejected(self) -> None:
         """v8.65:--yolo main(branch=主分支)→ FAIL(gate 同样拦)。"""
@@ -266,7 +266,7 @@ class TestInitFeature(unittest.TestCase):
         run([
             "init-feature", "--feature", str(target),
             "--feature-id", "YOLO-F009", "--flow-type", "Feature",
-            "--branch", "feat/yolo9", "--yolo", "dev-int",
+            "--branch", "feat/yolo9", "--yolo", "yolo/dev-int",
         ])
         d = run([
             "change-review-roles", "--feature", str(target),
@@ -282,7 +282,7 @@ class TestInitFeature(unittest.TestCase):
         run([
             "init-feature", "--feature", str(target),
             "--feature-id", "YOLO-F010", "--flow-type", "Feature",
-            "--branch", "feat/yolo10", "--yolo", "dev-int",
+            "--branch", "feat/yolo10", "--yolo", "yolo/dev-int",
         ])
         d = run([
             "change-review-roles", "--feature", str(target),
@@ -492,12 +492,12 @@ class TestSetMode(unittest.TestCase):
         self.assertEqual(len(st["mode_changes"]), 1)
 
     def test_enable_yolo_with_branch_implies_auto(self):
-        d = self._sm("--yolo", "dev-int", "--reason", "go yolo")
+        d = self._sm("--yolo", "yolo/dev-int", "--reason", "go yolo")
         self.assertEqual(d["verdict"], "OK")
         st = self._state()
         self.assertTrue(st["yolo"])
         self.assertTrue(st["auto_mode"])           # implies
-        self.assertEqual(st["merge_target"], "dev-int")
+        self.assertEqual(st["merge_target"], "yolo/dev-int")
         self.assertTrue(any("yolo 开启" in c for c in st.get("concerns", [])))
 
     def test_yolo_main_rejected(self):
@@ -506,7 +506,7 @@ class TestSetMode(unittest.TestCase):
         self.assertIn("主分支", d["error"])
 
     def test_disable_yolo_keeps_auto(self):
-        self._sm("--yolo", "dev-int", "--reason", "on")
+        self._sm("--yolo", "yolo/dev-int", "--reason", "on")
         d = self._sm("--no-yolo", "--reason", "off")
         self.assertEqual(d["verdict"], "OK")
         st = self._state()
@@ -514,7 +514,7 @@ class TestSetMode(unittest.TestCase):
         self.assertTrue(st["auto_mode"])
 
     def test_no_auto_while_yolo_fails(self):
-        self._sm("--yolo", "dev-int", "--reason", "on")
+        self._sm("--yolo", "yolo/dev-int", "--reason", "on")
         d = self._sm("--no-auto-mode", "--reason", "x", expect_exit=2)
         self.assertEqual(d["verdict"], "FAIL")
 

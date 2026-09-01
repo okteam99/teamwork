@@ -65,6 +65,18 @@ Time:        X.Y s
 
 ---
 
+## §2.5 CI 门禁对照(🔴 必填 · 零也显式)
+
+> 先跑 `python3 {SKILL_ROOT}/tools/state.py ci-commands --root <worktree 根>` 拿到本仓 CI **真正会跑**的门禁命令,再逐条给处置。
+> 🔴 **不要求本地跑全集**(有些 job 要 infra / 太慢)—— 要求的是**看过、并对每条给出处置**;
+> 🔴 **「跑不了」的也要写出来** —— 那就是「已知会在 CI 才发现」的清单,写出来风险才可见(静默省略与静默漏配在产物上无法区分)。
+
+| CI 命令(文件:行) | 处置 | 说明 |
+|---|---|---|
+| `<cd services && cargo clippy --locked -- -D warnings>`(infra/ci/api-gateway.yml:160) | ✅ 本地已跑 | exit 0 |
+| `<需要 GCP 凭据的 job>`(infra/ci/bigquery.yml:NN) | ⚠️ 跑不了 | 需 infra 凭据 · **已知会在 CI 才发现** |
+| `<与本次改动无关的 job>` | — 不适用 | 未触及该子项目 |
+
 ## §3 api-e2e 结果
 
 ### 3.1 前置环境

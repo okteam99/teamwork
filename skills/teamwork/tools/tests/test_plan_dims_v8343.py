@@ -68,7 +68,8 @@ class TestMatrixDerivesChain(unittest.TestCase):
         self.assertEqual(S.derive_chain(S.tier_dims("medium")),
                          S.derive_chain(S.tier_dims("full")))
         self.assertEqual(S.TIER_DIMS["medium"]["review"]["goal"], ["fast"])
-        self.assertEqual(S.TIER_DIMS["medium"]["review"]["blueprint"], ["architect"])
+        # v8.346:单路留 external(年检:逐 stage ext>arch · goal 用 fast 合并帽不受影响)
+        self.assertEqual(S.TIER_DIMS["medium"]["review"]["blueprint"], ["external"])
 
     def test_switches_are_orthogonal_to_tier(self):
         """UI 是事实判断、e2e 是验证深度 —— 与轻重正交,任何档都能开。"""

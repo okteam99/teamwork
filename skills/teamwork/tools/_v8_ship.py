@@ -505,7 +505,7 @@ def _handle_ship_push(state: dict, args: argparse.Namespace) -> dict:
         f"- 分支:`{_branch}` → `{state.get('merge_target') or '<merge_target>'}`\n"
         f"- 包含:代码 + 归档 + 规划翻牌(随本 MR 原子合入)\n"
         + _rg_line +
-        f"- 监控:我将跑 `await-merge` 30s 轮询 —— **你只需在平台点合并** · 合并后自动清场(删 worktree + 净化主工作区)\n"
+        f"- 监控:我将跑 `await-merge --until-final` 30s 轮询 —— **你只需在平台点合并** · 合并后自动清场(删 worktree + 净化主工作区)\n"
         f"- 异常口令:平台报冲突 → 回「冲突」(我回 worktree 重跑 archive 解)· 不想合了 → 回「撤回」"
     )
     # v8.240:user_card 防截断三重物化 —— 治实证 case(KA-PAGES-F260714041628):主对话用
@@ -538,8 +538,11 @@ def _handle_ship_push(state: dict, args: argparse.Namespace) -> dict:
         "scratch_cleanup": scratch_cleanup,
         # v8.340:push 后自动查一次 CI(用户拍板 · best-effort · 刚 push 常为 pending —— 
         # 确认 pipeline 存在;红了直接给修复口;持续监控由 await-merge 每轮带 CI)
-        "ci_status": (_ci := _mr_ci_status(ship.get("mr_url") or "")),
-        **({"ci_fix_hint": CI_FIX_HINT} if _ci["status"] == "failing" else {}),
+        "ci_status": (_ci := _ci_with_attribution(ship.get("mr_url") or "",
+                                                   state.get("merge_target") or "")),
+        # v8.345:红且归因到本 feature → 直接给修复口(别人的红不催修 · 只回显)
+        **({"ci_fix_hint": CI_FIX_HINT}
+           if (_ci.get("attribution") or {}).get("self_introduced") else {}),
         "transition": f"{cur_phase} → pushed",
         "phase": "pushed",
         **({"rerecorded": True} if cur_phase == "pushed" else {}),
@@ -548,7 +551,7 @@ def _handle_ship_push(state: dict, args: argparse.Namespace) -> dict:
         "hint": _card_must_read,
         "next_action_brief": (
             "✅ Push + MR 记录完成 —— **feature 的 ship 到此结束**(v8.145 ship1 全交付)。\n\n"
-            "🔴 v8.275 投递次序:**① 先后台启动** `state.py await-merge --feature <本路径>`"
+            "🔴 v8.275 投递次序:**① 先后台启动** `state.py await-merge --feature <本路径> --until-final`(🔴 后台跑必须带 --until-final:不带它窗口用尽就退,而后台没人读 WAITING 去重跑)"
             "(30s 轮询 · 不阻塞 · **所有模式都跑**:「停」= 不能替用户点合并 · 不是停止监控"
             "〔实证:auto 停在 pushed · 用户合了没人收尾〕)**② 再把两段作为回合终文贴出**:"
             "**`user_card`**(URL 置顶独立行)+ **📦 交付总结**(三槽:链路一行 / 关键决策与遗留 / 合并后解锁 · 照实写)· **次序不可倒**。"
@@ -951,6 +954,59 @@ def _handle_ship_archive(state: dict, args: argparse.Namespace) -> dict:
     # v8.156:过程信息嗅探(INDEX 是业务索引 · 不该灌评审/测试过程数据)· WARN 不 BLOCK
     desc_warn = _archive_desc_process_smell(archive_desc)
 
+    # v8.349 yolo 待确认台账(用户拍板:「每个 feature 合入时在 yolo 目标分支记一下待确认信息,
+    # 留到 yolo 分支合入 target 分支时确认」)· 只对 yolo + yolo/* 目标生效。
+    _yolo_pending = {}
+    if state.get("yolo") and str(state.get("merge_target") or "").lower().startswith("yolo/"):
+        _risk = (getattr(args, "yolo_risk", None) or "").strip()
+        if not _risk:
+            emit_json({
+                "verdict": "PENDING", "stage": "ship", "action": "archive",
+                "pending_step": "yolo-risk-summary",
+                "next_action": (
+                    "🔴 yolo 模式合入 `yolo/*` 隔离分支 —— 必须留下**风险总结 / 待确认项**,"
+                    "否则无人值守期间识别到的风险会随会话消失(实证事故:AI 写进文档、文档是终点,"
+                    "线上请求归零)。重跑 archive 附:\n"
+                    "  --yolo-risk '<这次改动有什么需要人确认的 · 无则写「无 · <一句为什么无>」>'\n"
+                    "  [--yolo-breaking '<今天能成功的请求/调用,明天会失败吗?会 → 写清哪类;不会 → 否>']\n"
+                    "🔴 **可判问句**:今天能成功的请求,明天会失败吗?"
+                    "「不知道有没有这类调用方」= **当作会**(代价不对称)。"),
+                "why": "yolo 期间没人在看 —— 待确认项攒到 yolo/* → target 时由人一次性拍板",
+                "rule": "v8.349 yolo 两段式(用户拍板)",
+            })
+        _yolo_pending = _append_yolo_pending(
+            wt_root, state, _risk, getattr(args, "yolo_breaking", None) or "否")
+
+    # v8.346 复发防御沉淀 gate(年检实证:可预防率 70.5% · 而清单 aon-core 0 条 / aib 0 条)。
+    # v8.278 把清单接到了**读取端**(dev brief 每次让 AI 先读),写入端却从来没有动作 ——
+    # 于是「读的时候永远是空的」。本门沿用 v8.253「自由声明类都该有验收门」:
+    # 声明了「本次有 N 条可预防」,就得真的在 KNOWLEDGE 留下一条,否则 archive 不放行。
+    _prev = [e for e in (state.get("authoring_preventability") or [])
+             if int(e.get("preventable") or 0) > 0]
+    if _prev and not getattr(args, "no_defense_entry", False):
+        _fid = state.get("feature_id") or ""
+        _kn = Path(wt_root) / "project-specs" / "KNOWLEDGE.md"
+        _txt = _kn.read_text(encoding="utf-8") if _kn.exists() else ""
+        if _fid and _fid not in _txt.split("复发防御清单", 1)[-1]:
+            _n = sum(int(e.get("preventable") or 0) for e in _prev)
+            emit_json({
+                "verdict": "PENDING", "stage": "ship", "action": "archive",
+                "pending_step": "defense-list",
+                "preventable_total": _n,
+                "next_action": (
+                    f"🔴 本 feature 有 **{_n} 条起草时本可预防**的 finding,但 "
+                    f"`project-specs/KNOWLEDGE.md § 复发防御清单` 里没有本 feature 的条目。\n"
+                    f"  先在 **worktree 内**追加一节(随本次 MR 原子合入),再重跑 archive:\n\n"
+                    f"  ## 复发防御清单 · <一句主题>({_fid} · <YYYY-MM-DD>)\n\n"
+                    f"  - 🔴 **<写成「写时防」的祈使句>**。<判据 + 回归要覆盖什么>\n\n"
+                    f"  🔴 写**下次起草时能照着做**的话,不写事故复述 —— 这份清单是给 dev/goal "
+                    f"起草前读的(v8.278 shift-left),不是给复盘读的。\n"
+                    f"  确无可沉淀(如纯环境抖动)→ `--no-defense-entry`(留痕 · 年检看频次)。"),
+                "why": ("可预防率常年 70%,而清单是空的 —— 读取端接线、写入端没接 = "
+                        "每个 feature 都在重犯上一个 feature 已经付过学费的错"),
+                "rule": "v8.346 年检:声明了可预防就得沉淀(v8.253「自由声明必有验收门」同形)",
+            })
+
     # v8.323 台账自动落行 gate:机器格工具自算 · 判断格走参数 · 反思摘要必填。
     # 实证:supersdk 47% 归档 feature 台账无行(人工 append 必漏);aon-core 复盘原话
     # 「emit 提供了已算好的字段 · 台账行仍需人工 append · 若 archive 能直接落行可再省一轮」。
@@ -1080,6 +1136,11 @@ def _handle_ship_archive(state: dict, args: argparse.Namespace) -> dict:
             adds.append(ledger_row_res["file"])  # v8.323:台账行随归档 commit
     if ws_refreshed and ws_refreshed not in adds:
         adds.append(ws_refreshed)        # v8.180:自刷的 WS 进度块文档纳进归档 commit
+    if _yolo_pending.get("status") in ("appended", "already_present"):
+        if _yolo_pending["file"] not in adds:
+            # v8.349:待确认台账**随归档 commit 原子合入 yolo/***
+            # —— 否则台账留在本地 worktree,合过去的分支上根本没有它(等于没记)
+            adds.append(_yolo_pending["file"])
     ad = _git(["add", "--", *adds], cwd=wt_root)
     if ad.returncode != 0:
         _rollback_archive_fail({
@@ -1110,6 +1171,8 @@ def _handle_ship_archive(state: dict, args: argparse.Namespace) -> dict:
         # v8.323:台账行由工具直接落(ledger_row · 机器格确定性 · 判断格来自 --ledger-*)——
         # 下列 ledger_* 字段保留:透明可校验 + 旧消费方兼容(不再要求 AI 照抄)。
         "ledger_row": ledger_row_res,
+        # v8.349:待确认项已记进 yolo/* 台账(等 yolo-promote 一次性确认)
+        **({"yolo_pending": _yolo_pending} if _yolo_pending else {}),
         "triage_calibration": _triage_calibration(state, wt_root, merge_target),
         "ledger_timing": {
             "host": state.get("host") or "unknown",  # v8.209:AI 宿主(claude-code/codex-cli/gemini-cli)
@@ -1266,6 +1329,43 @@ def _teamwork_tmp_root() -> Path:
     if override:
         return Path(override)
     return Path(os.environ.get("TMPDIR") or "/tmp") / "teamwork"
+
+
+YOLO_PENDING_FILE = "YOLO-PENDING.md"
+YOLO_PENDING_HEADER = """# YOLO 待确认台账
+
+> 🔴 **本文件只存在于 `yolo/*` 隔离分支上**(用户拍板:yolo 必须先合入 `yolo/` 开头的目标分支)。
+> yolo = 无人值守自动 merge —— **期间没有人在看**。每个 feature 自动合进本分支时,
+> 把它的**风险总结 / 待确认项**记一行到这里;等 `yolo/*` → 真 target 时,人**一次性确认全部**。
+> 治的是实证事故:AI 识别到了风险(旧调用方会 400)、写进了文档,但**文档是终点** ——
+> 没有任何通道能把「写下来的风险」变成「必须停的等待」,于是线上请求归零。
+> 🔴 **确认前不得把 `yolo/*` 合进真 target**(`state.py yolo-promote` 出确认卡)。
+
+| Feature | 合入时间 | 🔴 待确认项(风险总结) | 破坏既有行为? | 确认 |
+|---|---|---|---|---|
+"""
+
+
+def _append_yolo_pending(wt_root: str, state: dict, summary: str, breaking: str) -> dict:
+    """feature 合入 yolo/* 时往待确认台账追加一行(随本次 archive commit 原子合入)。
+
+    🔴 只在 yolo 模式 + merge_target 是 yolo/* 时写 —— 普通模式有真人停等,不需要这本账。
+    """
+    from pathlib import Path as _P
+    f = _P(wt_root) / YOLO_PENDING_FILE
+    try:
+        txt = f.read_text(encoding="utf-8") if f.exists() else YOLO_PENDING_HEADER
+        if "| Feature |" not in txt:                 # 存量文件缺表头 → 补
+            txt = YOLO_PENDING_HEADER + txt
+        fid = (state.get("feature_id") or "?").strip()
+        if f"| {fid} |" in txt:                      # 幂等:archive 可重入
+            return {"status": "already_present", "file": YOLO_PENDING_FILE}
+        row = (f"| {fid} | {now_iso()} | {summary.strip() or '—'} | "
+               f"{breaking.strip() or '否'} | ⬜ 待确认 |\n")
+        f.write_text(txt.rstrip("\n") + "\n" + row, encoding="utf-8")
+        return {"status": "appended", "file": YOLO_PENDING_FILE, "feature_id": fid}
+    except OSError as e:
+        return {"status": f"error:{e}", "file": YOLO_PENDING_FILE}
 
 
 def _check_bl_flipped(wt_root: str, state: dict) -> dict:
@@ -2471,6 +2571,20 @@ def cmd_main_sync(args: argparse.Namespace) -> None:
     reclaim = _reclaim_stashes(main_wt, drop_all=getattr(args, "drop_stashes", False),
                                preexisting=pre_stashes)
 
+    # v8.346(年检实证):merged worktree 巡检**改挂在这里**,不再只在 bootstrap。
+    # v8.325 立巡检时把「不覆盖存量 worktree_cleanup=ask」的补偿设计成「每 session 报告」,
+    # 但那个报告只在 bootstrap 里调 —— 而 v8.322 **刚刚**证明过 bootstrap 在积灰项目上
+    # 二十天不跑(同一条教训、写在它前面一版,却又踩了一遍)。实测后果:aon-core 14 个
+    # worktree / 18G,supersdk/aib 各 0(它们本来就没积压)。
+    # 🔴 载体判据:巡检要挂在**积压发生的那个时点**自己会跑的命令上 —— merged worktree 正是
+    # 「feature 合并完成」时产生的,而 main-sync 就是那一刻、且在主工作区(能看见全部 worktree)。
+    wt_sweep = {}
+    try:
+        import bootstrap as _bs
+        wt_sweep = _bs.prune_merged_worktrees(main_wt) or {}
+    except Exception as e:  # noqa: BLE001 — 巡检不许炸收尾
+        wt_sweep = {"status": f"error:{e}"}
+
     emit_json({
         "verdict": "PASS",
         "command": "main-sync",
@@ -2484,6 +2598,8 @@ def cmd_main_sync(args: argparse.Namespace) -> None:
         **({"warnings": res["warnings"]} if res["warnings"] else {}),
         # v8.190:teamwork stash 回收结果(盘点 · drop 冗余 · surface 未合)
         **({"stash_reclaim": reclaim} if reclaim.get("teamwork_stashes") else {}),
+        # v8.346:merged worktree 巡检(auto→已清 · ask→列出待确认 · keep→只报数)
+        **({"worktree_sweep": wt_sweep} if wt_sweep else {}),
         "next_action_brief": _main_sync_brief(state, args.strategy, res),
     })
 
@@ -2814,6 +2930,68 @@ def _parse_gh_checks(returncode: int, stdout: str) -> dict:
     return {"status": "unknown", "failing": []}
 
 
+def _base_branch_failing(base_branch: str, repo_hint: str = "") -> tuple:
+    """查 **base 分支**近期 CI 的失败项 → (failing_names:set, known:bool)。
+
+    v8.345 归因用:base 上同名 check 也在红 = 不是本 feature 引入的。
+    known=False 表示查不到(CLI 缺失/未登录/无历史)—— 调用方按「未知」处理,不当作绿。
+    """
+    if not base_branch:
+        return set(), False
+    try:
+        if "github" in (repo_hint or "github"):
+            r = _git_run(["gh", "run", "list", "--branch", base_branch, "--limit", "12",
+                          "--json", "name,conclusion"], timeout=25)
+            if r.returncode == 0:
+                runs = json.loads(r.stdout or "[]")
+                latest = {}
+                for run in runs:                      # list 已按新→旧 · 每个 name 取首次出现
+                    latest.setdefault(str(run.get("name") or ""), str(run.get("conclusion") or ""))
+                return ({n for n, c in latest.items() if c.lower() == "failure"},
+                        bool(latest))
+        else:
+            r = _git_run(["glab", "ci", "list", "--branch", base_branch], timeout=25)
+            if r.returncode == 0 and r.stdout.strip():
+                bad = "failed" in r.stdout.lower()
+                return ({"pipeline"} if bad else set()), True
+    except (OSError, ValueError, subprocess.SubprocessError):
+        pass
+    return set(), False
+
+
+def attribute_ci_failures(failing: list, base_failing: set, base_known: bool) -> dict:
+    """CI 失败归因(纯函数 · 可单测):哪些是**本 feature 引入的**。
+
+    v8.345(用户拍板:「如果是自己引入的,直接修下」)。语义与 dev/test 的
+    **差分基线**(test-baseline --diff)完全同构 —— 同一个问题的 CI 版:
+      - base 上同名 check 也红 → `pre_existing`(不是我们弄坏的 · 别去追别人的账)
+      - base 上该 check 绿 → `self_introduced`(**直接修**)
+      - base 查不到(CLI 缺失/未登录/无历史)→ `self_introduced`
+    🔴 **未知归到「自己引入」是刻意的保守偏置**:代价不对称 —— 把别人的红当成自己的
+    = 白看一眼;把自己的红当成别人的 = 把坏的合进去。与 test-baseline「不在基线里
+    就算新增回归」同口径(不是「查不到就放行」)。
+    """
+    failing = [f for f in (failing or []) if str(f).strip()]
+    if not failing:
+        return {"self_introduced": [], "pre_existing": [], "base_known": base_known}
+    if not base_known:
+        return {"self_introduced": list(failing), "pre_existing": [],
+                "base_known": False}
+    pre = [f for f in failing if f in base_failing]
+    return {"self_introduced": [f for f in failing if f not in base_failing],
+            "pre_existing": pre, "base_known": True}
+
+
+def _ci_with_attribution(mr_url: str, base_branch: str) -> dict:
+    """_mr_ci_status + 归因(红时才查 base · 绿/pending 不浪费一次网络往返)。"""
+    ci = _mr_ci_status(mr_url)
+    if ci.get("status") != "failing":
+        return ci
+    base_failing, known = _base_branch_failing(base_branch, mr_url)
+    ci["attribution"] = attribute_ci_failures(ci.get("failing") or [], base_failing, known)
+    return ci
+
+
 def _mr_ci_status(mr_url: str) -> dict:
     """v8.340(用户拍板:ship1 之后自动检查 CI pipeline)· best-effort 不阻塞。
 
@@ -2837,10 +3015,16 @@ def _mr_ci_status(mr_url: str) -> dict:
     return {"status": "unknown", "failing": []}
 
 
-CI_FIX_HINT = ("CI 红 → MR 窗口期修复口(用户拍板 · 不开 Bug 流):"
+# v8.347:默认等待窗按「等的是什么」定 —— 等人点合并是**小时级**(原始痛点 132h 长尾),
+# 原默认 18×30s=9min 差三个数量级,实证会在人点合并前就退出。
+AWAIT_MERGE_DEFAULT_CHECKS = 120        # ×30s ≈ 1h
+
+CI_FIX_HINT = ("🔴 **归因到本 feature 的 CI 红 = 直接修**(用户拍板:「如果是自己引入的,直接修下」)"
+               "—— 不开 Bug 流、**不问用户是否要修**(修自己弄坏的东西不是用户主权,是收尾的一部分):"
                "`state.py jump-to-stage --to dev --reason \"MR 修复:CI 红 <失败项>\"` → "
-               "修完 dev/test 证据门照跑 → `ship-phase --action push` 重跑更新同一 MR"
-               "(详 ship-stage § MR 窗口期修复)")
+               "修完 dev/test 证据门照跑 → `ship-phase --action push` 重跑更新同一 MR → "
+               "`await-merge` 续等(详 ship-stage § MR 窗口期修复)。"
+               "🔴 修不动 / 根因在别处(base 也红但没归到 pre_existing · 或需外部改动)才升级用户。")
 
 
 def _mr_state(mr_url: str) -> str:
@@ -2864,37 +3048,128 @@ def _git_run(cmd, timeout=30):
     return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
 
 
+def cmd_yolo_promote(args: argparse.Namespace) -> None:
+    """v8.349:`yolo/*` → 真 target 的**确认口**(用户拍板的两段式第二段)。
+
+    yolo 期间没人在看,识别到的风险只能写进文档 —— 而文档是终点(实证事故:协议强制 header,
+    存量调用方全 400、线上请求归零;AI 写了风险、没有升级通道)。两段式给它一个出口:
+      ① feature → `yolo/*`(自动 · 每次 archive 往 YOLO-PENDING.md 记一行待确认项)
+      ② `yolo/*` → 真 target(**人工** · 本命令把攒下的全部待确认项一次性摆出来)
+    🔴 本命令**不代替用户点合并** —— 它只保证「合之前这些东西被摆到台面上过」。
+    """
+    root = Path(getattr(args, "root", None) or ".").resolve()
+    f = root / YOLO_PENDING_FILE
+    if not f.exists():
+        emit_json({"verdict": "FAIL", "command": "yolo-promote", "root": str(root),
+                   "error": f"{YOLO_PENDING_FILE} 不存在 —— 当前分支不是 yolo/* 隔离分支?",
+                   "hint": "在 checkout 了 yolo/* 的工作区跑本命令(--root 指向该工作区)"}, exit_code=1)
+
+    rows, pending, breaking = [], [], []
+    for line in f.read_text(encoding="utf-8").splitlines():
+        if not line.startswith("| ") or line.startswith("| Feature |") or set(line) <= set("|- "):
+            continue
+        c = [x.strip() for x in line.strip().strip("|").split("|")]
+        if len(c) < 5:
+            continue
+        rows.append(c)
+        if "待确认" in c[4]:
+            pending.append(c)
+        if c[3] and c[3] not in ("否", "—", "-", ""):
+            breaking.append(c)
+
+    if getattr(args, "confirm_all", False):
+        txt = f.read_text(encoding="utf-8").replace("⬜ 待确认", "✅ 已确认")
+        f.write_text(txt, encoding="utf-8")
+        emit_json({"verdict": "OK", "command": "yolo-promote", "action": "confirm-all",
+                   "confirmed": len(pending), "breaking_confirmed": len(breaking),
+                   "next_action": (f"已把 {len(pending)} 条标记为已确认 · commit 本文件后再合 "
+                                   f"`yolo/*` → 真 target(确认痕迹随合并进主线)")})
+
+    emit_json({
+        "verdict": "PENDING" if pending else "OK",
+        "command": "yolo-promote", "root": str(root),
+        "total": len(rows), "pending": len(pending), "breaking": len(breaking),
+        "pending_items": [{"feature": c[0], "at": c[1], "risk": c[2], "breaking": c[3]}
+                          for c in pending],
+        "next_action": ((
+            f"🔴 **{len(pending)} 条待确认项**(其中 **{len(breaking)} 条声明会破坏既有行为**)"
+            f"—— 这些是 yolo 无人值守期间攒下的,合进真 target **之前**必须由用户逐条过目。\n"
+            "把上面 `pending_items` 原样摆给用户(R5 编号选项:1=全部确认并合入 · "
+            "2=继续讨论〔逐条聊〕· 3=其他)· 用户确认后跑 "
+            "`state.py yolo-promote --root <path> --confirm-all` 落痕,再合 MR。\n"
+            "🔴 **破坏既有行为的那几条要单独念出来**:今天能成功的请求明天会失败 —— "
+            "问用户「现存调用方盘点过了吗 / 要不要兼容期或灰度 / 回滚条件是什么」。")
+            if pending else
+            "无待确认项(全部已确认)· 可以合 `yolo/*` → 真 target"),
+        "rule": "v8.349 yolo 两段式(用户拍板)· 确认口不代替用户点合并",
+    })
+
+
 def cmd_await_merge(args: argparse.Namespace) -> None:
     """v8.198:MR 等待窗轮询(30s)· 合并即自动进下一步(ship-finalize / 规划 finalize)。
 
     治本(loops 对照):ship1/规划收尾停在「等用户合并」是无人看的结构性等待窗(实证 132h 长尾 ·
     CI 红无人接)。本命令把等待窗变成 time-based loop:每 --interval 查一次 · MERGED → emit 下一步;
     一轮 --max-checks 用尽仍 OPEN → emit WAITING(AI 重跑本命令续等 · 用户随时可打断)。
+
+    v8.347(实证 case:aon-core SVC-CORE-B260831064524):消费 AI 用 `nohup ... >> /tmp/`
+    把本命令丢到后台,9 分钟窗口用尽 emit WAITING 后 sys.exit —— 而 WAITING 里那句
+    「AI 应自动重跑」进了没人读的文件,监控就此永久结束;人几分钟后才点合并,ship2 只能手动补。
+    两处修:
+    - **默认窗口按「等的是什么」定**:等人点合并是**小时级**(原始痛点 132h 长尾),
+      9 分钟差三个数量级 → 默认 max_checks 18→120(≈1h)。
+    - **`--until-final`**:自己循环到终态(MERGED/CLOSED/CI 归因到自己)才退,
+      不把续等义务甩给调用方 —— 后台跑正是这个模式该覆盖的用法。
+    🔴 非 tty 且未开 --until-final 时,WAITING 显式点出「你把我后台化了但我不会自己续等」
+    (载体缺口是**运行姿态**造成的:命令从没说过自己必须在前台跑)。
     """
     mr_url = (getattr(args, "mr_url", None) or "").strip()
     feature = getattr(args, "feature", None)
-    if not mr_url and feature:
+    # v8.345:base 分支 = CI 归因的对照面(自己引入 vs base 预存在)· --base 可覆盖
+    base_branch = (getattr(args, "base", None) or "").strip()
+    if (not mr_url or not base_branch) and feature:
         try:
             _, st = load_state(feature)
-            mr_url = (st.get("ship", {}) or {}).get("mr_url") or ""
+            mr_url = mr_url or ((st.get("ship", {}) or {}).get("mr_url") or "")
+            base_branch = base_branch or (st.get("merge_target") or "")
         except Exception:
             pass
     if not mr_url:
         emit_json({"verdict": "FAIL", "command": "await-merge",
                    "error": "无 MR URL(--mr-url 直传 · 或 --feature 的 state.ship.mr_url)"}, exit_code=1)
     interval = max(5, int(getattr(args, "interval", 30) or 30))
-    max_checks = max(1, int(getattr(args, "max_checks", 18) or 18))
+    max_checks = max(1, int(getattr(args, "max_checks", AWAIT_MERGE_DEFAULT_CHECKS)
+                            or AWAIT_MERGE_DEFAULT_CHECKS))
+    until_final = bool(getattr(args, "until_final", False))
+    # 🔴 后台化检测:stdout 不是 tty = 输出多半进了文件/管道,没人会读 WAITING 去重跑
+    backgrounded = not sys.stdout.isatty()
     unknown_streak = 0
     ci = {"status": "unknown", "failing": []}
-    for i in range(max_checks):
+    i = -1
+    while True:
+        i += 1
+        if not until_final and i >= max_checks:
+            break
         stt = _mr_state(mr_url)
         # v8.340:每轮带 CI(治 docstring 里的原始痛点「CI 红无人接」)——
         # 红了不再傻等合并,立刻退出切 MR 窗口期修复口
-        ci = _mr_ci_status(mr_url)
+        ci = _ci_with_attribution(mr_url, base_branch)
         if stt == "OPEN" and ci["status"] == "failing":
-            emit_json({"verdict": "CI_FAILING", "command": "await-merge", "mr_url": mr_url,
-                       "checks": i + 1, "ci_status": ci,
-                       "next_action": f"🔴 MR 未合并且 CI 红({', '.join(ci['failing']) or 'pipeline failed'})· {CI_FIX_HINT}"})
+            attr = ci.get("attribution") or {}
+            mine, theirs = attr.get("self_introduced") or [], attr.get("pre_existing") or []
+            if mine:
+                # v8.345(用户拍板:「如果是自己引入的,直接修下」)—— 归因到本 feature
+                # 才中断等待去修;默认动作是**修**,不是问用户要不要修。
+                emit_json({"verdict": "CI_FAILING", "command": "await-merge", "mr_url": mr_url,
+                           "checks": i + 1, "ci_status": ci,
+                           "next_action": (f"🔴 CI 红且**归因到本 feature**({', '.join(mine)})"
+                                           f"· 直接修,不要问用户是否修 · {CI_FIX_HINT}")})
+            else:
+                # base 上同名 check 也红 = 别人的账 —— 🔴 **不中断等待**(合并仍可能发生)。
+                # v8.340 初版任何红都退出,会把 AI 支去修它没弄坏的东西(与 dev/test
+                # 「base 即红」同一个坑 · 那边早已用差分基线解掉)。
+                print(f"ℹ️ CI 红但归因为 base 预存在({', '.join(theirs) or 'pipeline'})· "
+                      f"非本 feature 引入 · 继续等待合并(不去追别人的账)", file=sys.stderr)
         if stt == "MERGED":
             nxt = ("state.py ship-finalize --feature <worktree 内 feature 路径>(ship2 清场)"
                    if feature else
@@ -2911,11 +3186,19 @@ def cmd_await_merge(args: argparse.Namespace) -> None:
             emit_json({"verdict": "FAIL", "command": "await-merge", "mr_url": mr_url,
                        "error": "连续 3 次查询失败(gh/glab 未装或未登录?)",
                        "hint": "修环境后重跑 · 或退回人工「合并后告诉我」"}, exit_code=1)
-        if i < max_checks - 1:
+        if until_final or i < max_checks - 1:
             time.sleep(interval)
     emit_json({"verdict": "WAITING", "command": "await-merge", "mr_url": mr_url,
                "checks": max_checks, "interval_sec": interval, "ci_status": ci,
-               "next_action": "仍未合并 · 重跑本命令续等(AI 应自动重跑 · 用户随时可打断改人工)"})
+               "waited_minutes": round(max_checks * interval / 60, 1),
+               "next_action": "仍未合并 · 重跑本命令续等(AI 应自动重跑 · 用户随时可打断改人工)",
+               # v8.347:后台化时「AI 应自动重跑」没有载体接住 —— 说破它
+               **({"backgrounded_warning": (
+                   "🔴 检测到 **stdout 不是 tty**(多半被 nohup / 重定向到后台)—— "
+                   "本命令**不会自己续等**,上面那句「重跑续等」在后台没有任何东西接得住,"
+                   "监控到此结束(实证:人几分钟后才点合并 · ship2 只能手动补)。"
+                   "后台跑请加 **`--until-final`**(自己循环到 MERGED/CLOSED/CI 红为止)。")}
+                  if backgrounded else {})})
 
 
 def register_v8_ship_subparser(sub) -> None:
@@ -2973,6 +3256,16 @@ def register_v8_ship_subparser(sub) -> None:
                           "跳过翻牌验收门 · 记 state.ship 审计留痕"))
     sp.add_argument("--archive-ref-exception",
                     help="反向引用 preflight 例外(为什么引用可接受 · 一句 · 记 state.ship 审计)")
+    sp.add_argument("--yolo-risk",
+                    help=("[archive · v8.349] yolo 合入 `yolo/*` 时必填:本 feature 的**风险总结 / "
+                          "待确认项**(无则写「无 · <一句为什么无>」)· 记进 YOLO-PENDING.md,"
+                          "等 yolo/* → 真 target 时由人一次性确认"))
+    sp.add_argument("--yolo-breaking",
+                    help=("[archive · v8.349] 可判问句:**今天能成功的请求/调用,明天会失败吗?** "
+                          "会 → 写清哪类调用方;不会 → 「否」。🔴「不知道有没有这类调用方」= 当作会"))
+    sp.add_argument("--no-defense-entry", action="store_true",
+                    help=("[archive · v8.346] 确无可沉淀的复发防御条目时的例外(如纯环境抖动/"
+                          "外部依赖抖动)· 跳过复发防御沉淀门 · 年检看这个例外的频次"))
     sp.add_argument("--ledger-reflection",
                     help="archive 必填:台账「反思摘要」(≤1 行 · 流程新判例以「判例:」开头 · 不美化)")
     sp.add_argument("--ledger-rounds", help="台账「review/test 轮」(如 1/1 · 缺省 —)")
@@ -3024,10 +3317,26 @@ def register_v8_ship_subparser(sub) -> None:
     ms.set_defaults(func=cmd_main_sync)
 
     # v8.198:await-merge MR 等待窗轮询(30s · 合并自动下一步 · time-based loop)
+    yp = sub.add_parser("yolo-promote",
+                        help="[v8.349] yolo/* → 真 target 前的确认口 · 摆出无人值守期攒下的全部待确认项")
+    yp.add_argument("--root", default=".", help="checkout 了 yolo/* 的工作区(默认当前目录)")
+    yp.add_argument("--confirm-all", action="store_true",
+                    help="用户已逐条过目 → 全部标记已确认(commit 后再合 MR)")
+    yp.set_defaults(func=cmd_yolo_promote)
+
     am = sub.add_parser("await-merge",
                         help="[v8.198] 轮询 MR 状态(默认 30s×18)· MERGED→emit 下一步(ship-finalize/规划 finalize)· WAITING→重跑续等")
     am.add_argument("--feature", help="feature 路径(读 state.ship.mr_url)· 与 --mr-url 二选一")
     am.add_argument("--mr-url", help="MR/PR URL 直传(规划收尾等无 state 场景)")
     am.add_argument("--interval", type=int, default=30, help="轮询间隔秒(默认 30)")
-    am.add_argument("--max-checks", type=int, default=18, help="单次命令最多查几轮(默认 18≈9min · 用尽 emit WAITING 重跑)")
+    am.add_argument("--max-checks", type=int, default=AWAIT_MERGE_DEFAULT_CHECKS,
+                    help=f"单次命令最多查几轮(默认 {AWAIT_MERGE_DEFAULT_CHECKS}≈1h · 用尽 emit WAITING 重跑)· "
+                         "v8.347:原默认 18(9min)会在人点合并前就退出")
+    am.add_argument("--until-final", action="store_true",
+                    help="[v8.347] 自己循环到**终态**才退(MERGED / CLOSED / CI 归因到自己)· "
+                         "不受 --max-checks 限制 · 🔴 **后台跑(nohup)必须加这个** —— "
+                         "否则窗口用尽 emit WAITING 就退,而后台没人读它去重跑")
+    am.add_argument("--base", default=None,
+                    help="[v8.345] CI 归因的对照分支(默认读 state.merge_target)· "
+                         "base 上同名 check 也红 = 非本 feature 引入 → 不中断等待")
     am.set_defaults(func=cmd_await_merge)

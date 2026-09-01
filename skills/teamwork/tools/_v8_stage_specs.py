@@ -587,7 +587,9 @@ state.py goal-complete --feature <path> \
   --auto-commit <hash> --artifacts PRD.md,PRD-REVIEW.md \
   --needs-ui {{true|false}} --needs-browser-e2e {{true|false}}
 ```
-🔗 **链装配**(调研后 · 详 stage.md 规则 3.7)· 🎛️ **装配 = 拧四维不是挑档名**:`D1 规格深度`〔none/prd/prd_tech〕· `D2 证据门`〔开/关〕· `D3 验证深度`〔self/test/test_e2e〕· `D4 评审力度`〔逐评审点 路数×角色×模型〕· 开关 `UI`。🔴 评审力度**加减两侧都判** · **六档起手**(判**风险的种类**不判改动大小):micro〔无行为面 · 测试无从写起〕· floor〔测试能完全证明 · dev→ship〕· tiny〔值得一双眼看 diff · 零文档〕· lite〔有规格风险要 PRD · 方案空间小不写 TECH · `--needs-blueprint false`〕· medium〔值得写 TECH · goal/blueprint 各单路〕· full〔两路并行冷审划算〕—— 🔴 **档只是起手点:选完必须再过一遍四维,该拧就拧**(只报档名不拧 = 退化情形)· 🔴 单路**模型照错开**(降档不降独立性)· 路数与四轴对不上必须写「为什么不降」):goal 自身评审面 AI 自定(留痕不问);下游装配写进终确认导读「🔗 链装配」节 · 🔴 **四槽缺一即漏 · 整卡 ≤7 行**(流程阶段〔机器按 `derive_chain` 渲染〕· 维度元组 · **评审力度逐评审点「是否需要×几路×谁×理由」〔收到零也显式写 0 路+理由 —— 减税要减在明处〕** · 四轴证据各半句)—— **默认按此执行 · 用户不要求改就生效**。
+🎯 **意图对照**(终确认前必做 · 详 stage.md 规则 4.5):PRD §意图对照 三槽 —— ①用户原话里的名词**我理解成了什么**(标「用户说过 / 我推的」)· ②§Out of Scope 每条是「技术限制」还是「**我的解释**」(🔴 我的解释 = 范围决策 · 必须进 §待决策项)· ③**AC 全绿时用户要的事一定发生了吗**(想得出反例就写)。🔴 ①的末列**逐行写「若这条错了最坏会怎样」的具体后果**(不写「影响较大」)· 后果落生产/外部/不可逆 → 该行必进 §待决策项。
+🔴 **意图错误是唯一一类下游全部质量门都拦不住的错** —— 评审/测试/CI/验收全都以「意图正确」为前提,只能答「做得对不对」、答不了「做的是不是对的东西」:实现错了代价 ≈ 一轮返工,**意图错了代价 = 整条链的质量投入全变成「认真地做错事」+ 线上事故**(两次实证都是流程走完、测试全绿、事故照样发生)· **越认真做,错得越彻底**。🔴 **只能主对话做,不可委托冷审** —— 冷审拿不到用户原话,而范围被悄悄收窄时 PRD 是完全自洽的(实证事故:「AON Link」被狭义解释成 `/{{code}}`、排除 `/static/{{code}}`,dev 与 review 都在认真验证一个错误的范围定义,线上投放点击全部没回传)。`goal-complete` 机器校验三槽非占位。
+🔗 **链装配**(调研后 · 详 stage.md 规则 3.7)· 🎛️ **装配 = 拧四维不是挑档名**:`D1 规格深度`〔none/prd/prd_tech〕· `D2 证据门`〔开/关〕· `D3 验证深度`〔self/test/test_e2e〕· `D4 评审力度`〔逐评审点 路数×角色×模型〕· 开关 `UI`。🔴 评审力度**加减两侧都判** · **六档起手**(判**风险的种类**不判改动大小):micro〔无行为面 · 测试无从写起〕· floor〔测试能完全证明 · dev→ship〕· tiny〔值得一双眼看 diff · 零文档 · review external 单路〕· lite〔有规格风险要 PRD · 方案空间小不写 TECH · `--needs-blueprint false`〕· medium〔值得写 TECH · goal/blueprint 各单路〕· full〔两路并行冷审划算〕—— 🔴 **档只是起手点:选完必须再过一遍四维,该拧就拧**(只报档名不拧 = 退化情形)· 🔴 **只留一路时留 external 不留 architect**(年检实证:逐 stage 产出 ext>arch · 总量 2.1× · 采纳 82%)· 单路**模型照错开**(降档不降独立性)· 路数与四轴对不上必须写「为什么不降」):goal 自身评审面 AI 自定(留痕不问);下游装配写进终确认导读「🔗 链装配」节 · 🔴 **四槽缺一即漏 · 整卡 ≤7 行**(流程阶段〔机器按 `derive_chain` 渲染〕· 维度元组 · **评审力度逐评审点「是否需要×几路×谁×理由」〔收到零也显式写 0 路+理由 —— 减税要减在明处〕** · 四轴证据各半句)—— **默认按此执行 · 用户不要求改就生效**。
 🔁 **每个 stage 边界都是显式修订点**:complete emit 带 `plan_checkpoint` · 问「有没有出现**装配时不知道的事实**」—— 有就 `revise-plan --dim <维度> --to <值> --evidence '<事实>'`,没有就照计划走 · **回显不停等** · ⚖️ **加与减同价**(都只要一行证据)· 🔴 **计划可改 · 历史不可改**。
 """
 
@@ -777,6 +779,53 @@ def _evidence_prd_template_conformance(state: dict, args) -> tuple[bool, str]:
     return True, ""
 
 
+def _evidence_intent_reconciliation(state: dict, args) -> tuple[bool, str]:
+    """v8.350:PRD §意图对照 三槽非空(用户拍板:AC 要确认有无「对原始用户意图理解偏差」的风险)。
+
+    实证事故(aon-main click 导出):Feature 把「AON Link」狭义解释成 `/{code}` 短链、
+    明确排除 `/static/{code}` —— TECH 写「static 不登记」,测试甚至断言 static
+    "must remain unwired"。**dev 和 review 都在认真验证一个错误的范围定义**,
+    线上投放点击因此全部没有回传。
+
+    🔴 为什么冷审拦不住:**范围被悄悄收窄时,PRD 是完全自洽的** —— 冷审只能核对
+    「PRD 内部一致 / 技术可实现」,它拿不到用户原话。所以这一节的责任人只能是**主对话 PM**。
+    只查三槽存在 + 非占位(判断题不代做)· 语义对不对由人看。
+    """
+    prd = Path(args.feature) / "PRD.md"
+    if not prd.is_file():
+        return False, "PRD.md 不存在"
+    txt = prd.read_text(encoding="utf-8", errors="replace")
+    m = re.search(r"(?ms)^##\s*意图对照.*?(?=^##\s|\Z)", txt)
+    if not m:
+        return False, ("§意图对照 缺失(v8.350)—— 主对话 PM 必填三槽:"
+                       "①术语解释对照(用户说的词 → 我理解成了什么 → 用户说过/我推的)"
+                       "②排除项定性(每条 Out of Scope 标「技术限制」还是「我的解释」· "
+                       "**我的解释 = 范围决策,必须进 §待决策项**)"
+                       "③反向验证(AC 全绿时用户要的事一定发生了吗)· 照 templates/prd.md 补")
+    seg = m.group(0)
+    missing = [name for key, name in (("①", "①术语解释对照"), ("③", "③反向验证"))
+               if key not in seg]
+    # v8.351(用户拍板「PM 要知道一旦理解错了代价非常高」):代价要**算**,不能只被告知 ——
+    # ①表末列逐行写「若这条错了最坏会怎样」的具体后果。列缺失 = 这一遍根本没算过代价。
+    if "①" in seg and "最坏会怎样" not in seg:
+        missing.append("①的「🔴 若这条理解错了 → 最坏会怎样」列(代价要逐行算 · 不写「影响较大」)")
+    # ②排除项定性并进 §Out of Scope 的「性质」列 —— 排除项已在那儿列过,不两处写(双载体必漂)
+    oos = re.search(r"(?ms)^##\s*Out of Scope.*?(?=^##\s|\Z)", txt)
+    if not oos or "性质" not in oos.group(0):
+        missing.append("②排除项定性(§Out of Scope 缺「性质」列)")
+    if missing:
+        return False, f"§意图对照 缺槽:{', '.join(missing)}(三槽缺一即漏 · 照模板补齐)"
+    # 占位符未替换 = 没真做(与 current_state 占位嗅探同法)。
+    # 🔴 只剔 `>` 引导语 —— **表格行不能剔**:三槽的内容主体就在表格里,
+    # 占位符也在那儿(初版把 `|` 行一起剔了,模板原样也能过门 = 门形同虚设)。
+    body = re.sub(r"(?m)^\s*>.*$", "", seg)
+    holders = re.findall(r"\{[^}\n]{2,60}\}", body)
+    if len(holders) >= 4:
+        return False, (f"§意图对照 仍是模板占位({len(holders)} 处 `{{…}}` 未替换)—— "
+                       "这一节是**主对话 PM 对着用户原话**逐项核,不是抄模板")
+    return True, ""
+
+
 def _evidence_ac_plain_present(state: dict, args) -> tuple[bool, str]:
     """v8.271:每条 AC 必配 💬 大白话(§验收标准表列 · 逐条非空非占位)。
 
@@ -912,6 +961,11 @@ GOAL_SPEC = StageSpec(
             name="prd_template_conformance",
             check_fn=_evidence_prd_template_conformance,
             description="PRD 含机读块/AC/扩展区三命门段(canonical 模板 · v8.201 治到达率)",
+        ),
+        StageEvidenceCheck(
+            name="intent_reconciliation",
+            check_fn=_evidence_intent_reconciliation,
+            description="PRD §意图对照 三槽非空(术语解释 / 排除项定性 / 反向验证 · 主对话 PM 自查)",
         ),
         StageEvidenceCheck(
             name="ac_plain_words",
@@ -2368,13 +2422,13 @@ def _review_brief(state: dict) -> str:
     # 免得单路 agent 去找一份不存在的 TECH.md。
     _light = ""
     if _flow_key(state) == "Tiny":
-        _light = ("\n🎚️ **tiny 档单路评审**:roster 默认仅 `[architect]` —— 一路**错开模型**隔离冷审 · "
+        _light = ("\n🎚️ **tiny 档单路评审**:roster 默认仅 `[external]` —— 一路**错开模型**隔离冷审 · "
                   "**对照物 = dev brief 的理解卡 + diff 本身**(无 PRD/TECH/TC)· 必覆盖:改动↔理解卡一致 · "
                   "`standards/tech-rules.md` 对照(异常日志/DB 论证/契约消费方)· 测试真实性(有没有真断言)· "
                   "🔴 **只拦 BLOCKER**(功能缺陷 / 契约破坏 / 兜底裸奔)—— tiny 的判据就是 diff 可验,"
                   "把它审成 full 等于白降档;质量偏好类写 INFO 不卡门。\n")
     elif _blueprint_skipped(state) and not state.get("fast_mode"):
-        _light = ("\n🎚️ **lite 档单路评审**:roster 默认仅 `[architect]` —— 一路**错开模型**隔离冷审 · "
+        _light = ("\n🎚️ **lite 档单路评审**:roster 默认仅 `[external]` —— 一路**错开模型**隔离冷审 · "
                   "**对照物 = `PRD.md`(§验收标准 + 机读块)+ diff**(无 TECH.md —— 别去找,跳 blueprint 是装配决定的)· "
                   "必覆盖:实现↔AC 一致 · `standards/tech-rules.md` 对照 · 测试真实性 · "
                   "🔴 **顺带核 `test_refs` 是否指向真做了那件事的测试**(机器只校验「文件/用例名存在」· "
@@ -2622,11 +2676,13 @@ QA 集成测试 + API E2E · AC 全覆盖最终验证。
 - `e2e/*`(至少 1 文件 · 语言无关)
 - integration + e2e exit-code = 0
 {_binding}
+- 🔁 **CI 门禁对照**(v8.348 · TEST-REPORT §CI 对照):`state.py ci-commands --root <worktree>` 拿到**本仓 CI 真正会跑的命令**,逐条标注 `本地已跑 / 跑不了(为什么)/ 本次不适用` —— 🔴 **跑不了的也要写出来**(那就是「已知会在 CI 才发现」的清单,零也显式)
 
 ### 怎么做
 **必读** `stages/test-stage.md`(四段结构 · 含 skip 走捷径反模式)。
 🎛️ **主对话 = Orchestrator(默认姿态 · 用户拍板 · 详 stage.md 1.7)**:测试**编写与执行默认派 subagent**(执行本就是验证档白名单 · 主窗口跑须 R5 授权);主对话留 环境预检调度 / **差分基线裁决** / 门禁命令 / 失败分诊与小型精准修复(测试日志是最大的 context 污染源之一)。
 📋 产物模板:本 emit 的 `scaffold_hints.templates` 给**绝对路径** · 照它起草 · 别抄项目旧产物。
+🔁 **先看 CI 会跑什么,再决定本地跑什么**(v8.348 实证:TEST-REPORT 只记了 `cargo check`〔只验编译〕,而 CI 跑 `cargo clippy -- -D warnings` → 一条 lint 漏到 CI 才炸,MR 窗口期多烧一整轮)。🔴 **别自己猜 CI 配置路径** —— 那个 case 里 AI 试过 grep,猜的是 `.gitlab-ci.yml`,真配置在 `infra/ci/api-gateway.yml`(include 进来的),grep 返回空就以为没有;`ci-commands` 会把各处配置一并扫出来。**不要求本地跑全集**(有些 job 要 infra/太慢)—— 要求的是**看过、并对每条给出处置**。
 🔴 **base 即红(brownfield 共享套件预存在失败)→ 走差分基线、别反复人肉 stash-baseline**:`state.py test-baseline --diff --current "<当前失败 id>"` 对照 `project-specs/test-baseline.md` · **0 新增**(当前失败 ⊆ 基线)→ test-complete 传 `--current-failures` 即转移;有新增 = 回归(修)或新预存在(核实后 `test-baseline --add` 登记原因)。
 
 ### 完成方式

@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import subprocess
 import sys
 from dataclasses import dataclass, field
@@ -1519,7 +1520,7 @@ DEFAULT_REVIEW_ROLES: dict[tuple[str, str], list[str]] = {
     ("Bug", "pm_acceptance"): ["pm"],
 
     # Tiny 流程(v8.342 · 用户拍板「dev → review(单路 architect)→ pm_acceptance → ship」)
-    ("Tiny", "review"): ["architect"],   # 单路 · 无 external:tiny 的判据是 diff 可验,异质冷审的边际收益压不过一轮协调开销
+    ("Tiny", "review"): ["external"],    # v8.346 年检实证反转:单路留 external(逐 stage 产出 ext>arch · 总量 2.1× · 采纳 82%)· 且天然满足单路错开不变式
     ("Tiny", "pm_acceptance"): ["pm"],   # 唯一保留的人判 —— 与 micro 的分界就在这条
 
     # Floor 流程(v8.343 · 用户:「理论上拆出的力度最小可以直接 dev + ship」)
@@ -1588,7 +1589,7 @@ FLOW_STAGE_CHAIN: dict[str, list[tuple[str, bool, str, str]]] = {
     ],
     "Tiny": [
         ("dev", False, "", "无评审 · 规格 = brief 理解卡(无 PRD/TC)· RD 直接改 + commit(测试节奏自定 · 证据硬门 + 完工自查)"),
-        ("review", False, "", "Architect 单路(改动↔理解卡一致 + tech-rules 对照)· 无 external:diff 可验 · 异质冷审边际收益压不过协调开销"),
+        ("review", False, "", "External 单路(改动↔理解卡一致 + tech-rules 对照 · 覆盖方向制)· v8.346 年检:只留一路时留 external(产出 2.1× architect)"),
         ("pm_acceptance", False, "", "PM 用户视角验收 · 决定是否 ship(与 micro 的分界:micro 在 MR diff 上验、tiny 有独立验收口)"),
         ("ship", False, "", "无评审 · PMO 编排 push + MR + 合入 + cleanup"),
     ],
@@ -1611,6 +1612,83 @@ CHAIN_STAGE_REASON: dict[str, str] = {
     "pm_acceptance": "需要独立验收口(0 路时验收挪到 ship1 MR diff)",
     "ship": "🔴 任何组合都减不掉 —— 用户看见改动的最后一处",
 }
+
+
+# ─── CI 门禁对照(v8.348)──────────────────────────────────────────────
+# 实证 case(aon-main DEV-F260830125314):TEST-REPORT 只记了 `cargo check -p aon-api-gateway`
+# (只验编译),而 MR CI 跑的是 `cd services && cargo clippy --locked -- -D warnings`
+# → 一条 clippy 漏到 CI 才炸,MR 窗口期多烧一整轮。
+# 🔴 关键细节:那个 AI **试过** grep CI 配置,但猜的是 `.gitlab-ci.yml .gitlab/ci/*.yml`,
+#    真配置在 `infra/ci/api-gateway.yml`(GitLab include 进来的)—— 于是 grep 返回空,
+#    它就此认为「没找到」。所以这不是「AI 偷懒」,是**它不知道去哪儿找**;
+#    该由机器把清单端出来,而不是让每个 AI 自己猜路径(v8.323「数据算好别让人誊抄」)。
+CI_CONFIG_GLOBS = ("**/.gitlab-ci.yml", ".gitlab/**/*.yml", ".gitlab/**/*.yaml",
+                   ".github/workflows/*.yml", ".github/workflows/*.yaml",
+                   "infra/ci/*.yml", "infra/ci/*.yaml", "ci/*.yml", "ci/*.yaml",
+                   ".circleci/config.yml", "azure-pipelines.yml")
+_CI_SKIP = ("node_modules", ".worktree", "/target/", "/dist/", "/.git/")
+# 只留**门禁类**命令(编译/测试/静态检查)· 部署/发布类不是本地该复现的
+_CI_GATE_RE = re.compile(r"\b(clippy|fmt|lint|test|check|build|tsc|eslint|ruff|mypy|"
+                         r"pytest|vitest|jest|gradle|mvn|golangci|go vet)\b", re.I)
+_CI_YAML_KEY = re.compile(r"^(stage|name|image|needs|when|only|except|tags|variables|"
+                          r"extends|rules|environment|artifacts|cache|uses|with|if|id|"
+                          r"strategy|matrix|runs-on|on|jobs|steps|env|shell|working-directory)\s*:")
+# 允许列表项前缀:GitHub Actions 的步骤写作 `- run: <cmd>`(不带 `- ` 会整段漏掉)
+_CI_BLOCK = re.compile(r"^\s*-?\s*(script|before_script|after_script|run)\s*:\s*(.*)$")
+
+
+def scan_ci_commands(root, limit_per_file: int = 12) -> dict:
+    """扫仓库 CI 配置 → {相对路径: [(行号, 命令)]}(只取 script/run 块里的门禁类命令)。
+
+    best-effort 文本扫描,不解析 YAML 语义 —— 目的是**让 AI 看见 CI 到底跑什么**,
+    不是精确复现 job 图。解析不了/找不到 → 返回空 dict(调用方按「没有 CI 配置」处理)。
+    """
+    root = Path(root)
+    out: dict = {}
+    seen = set()
+    for g in CI_CONFIG_GLOBS:
+        try:
+            files = sorted(root.glob(g))
+        except (OSError, ValueError):
+            continue
+        for f in files:
+            if not f.is_file() or any(x in str(f) for x in _CI_SKIP):
+                continue
+            try:
+                rel = str(f.relative_to(root))
+            except ValueError:
+                continue
+            if rel in seen:
+                continue
+            seen.add(rel)
+            try:
+                lines = f.read_text(encoding="utf-8", errors="replace").splitlines()
+            except OSError:
+                continue
+            cmds, in_block, indent = [], False, 0
+            for i, raw in enumerate(lines, 1):
+                if not raw.strip():
+                    continue
+                cur = len(raw) - len(raw.lstrip())
+                m = _CI_BLOCK.match(raw)
+                if m:
+                    in_block, indent = True, cur
+                    inline = m.group(2).strip().strip('"\'')
+                    if inline and not inline.startswith(("|", ">")) and _CI_GATE_RE.search(inline):
+                        cmds.append((i, inline[:160]))
+                    continue
+                if in_block and cur <= indent and not raw.lstrip().startswith("-"):
+                    in_block = False
+                if not in_block:
+                    continue
+                t = raw.strip().lstrip("-").strip().strip('"\'')
+                if not t or t.startswith("#") or _CI_YAML_KEY.match(t):
+                    continue
+                if _CI_GATE_RE.search(t) and re.match(r"^[a-zA-Z./$(]", t):
+                    cmds.append((i, t[:160]))
+            if cmds:
+                out[rel] = cmds[:limit_per_file]
+    return out
 
 
 def build_plan_checkpoint(state: dict, stage: str, feature: str) -> Optional[dict]:

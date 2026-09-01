@@ -1,6 +1,6 @@
 ---
 name: teamwork
-version: v8.344.1
+version: v8.351.1
 description: AI 协作开发一体化框架 - 需求功能开发, bug 修复, 问题排查 · /teamwork 启动
 ---
 
@@ -431,7 +431,12 @@ mode B 识别后(**无论后续 flow_type = Feature〔full/micro〕还是 Bug ·
 | ship Phase 1 等平台 merge MR | **自动 merge**:`gh pr merge --auto --merge`(GitHub · check 全过才合)/ `glab mr merge`(GitLab) |
 | ship-finalize(Phase 2 主工作区收尾) | **自动跑**(merge 确认后 · 见 main-sync) |
 
-🔴 **硬约束**(init-feature 物化 gate · `_is_main_branch`):`merge_target` **必须非主分支**(`main`/`master`/远端默认)· 否则 `init-feature --yolo` 直接 FAIL。理由:无人 review 自动 merge · 不得让 AI 错误/幻觉直接进 main —— 只能合到 `dev`/`staging`/`integration` 等集成分支 · 主分支的提升仍由**人工 gate**。
+🔴 **两段式(用户拍板 · init-feature 物化 gate)**:yolo 的 `merge_target` **必须是 `yolo/` 前缀的隔离分支** —— 不许直接自动合进任何常规集成分支(**staging 也不行**,它常是生产前最后一站)。
+  - **① feature → `yolo/*`**(自动):每次 `archive` 必填 `--yolo-risk`(风险总结/待确认项)+ 可选 `--yolo-breaking`,记一行进该分支的 `YOLO-PENDING.md`(随归档 commit 原子合入);
+  - **② `yolo/*` → 真 target**(**人工**):`state.py yolo-promote --root <checkout 了 yolo/* 的工作区>` 把攒下的**全部**待确认项摆出来 · 用户逐条过目后 `--confirm-all` 落痕再合;
+  - ❗ **可判问句**(填 `--yolo-breaking` 时问自己):**今天能成功的请求 / 调用,明天会失败吗?**「不知道有没有这类调用方」= **当作会**(代价不对称);
+  - 📎 **why**:yolo 期间**没有人在看** —— AI 识别到的风险只能写进文档,而**文档是终点**,没有任何通道能把「写下来的风险」变成「必须停的等待」(实证事故:协议强制 header,存量调用方全 400、线上请求归零;AI 当时确实写了风险,也确实没人被停下来问过)。隔离分支不是多一道墙,是**给待确认项一个落脚处**:零 stop 不等于零确认,只是**把确认延后并批量化**。
+📎 **原硬约束保留**(`_is_main_branch`):`merge_target` **必须非主分支**(`main`/`master`/远端默认)· 否则 `init-feature --yolo` 直接 FAIL。理由:无人 review 自动 merge · 不得让 AI 错误/幻觉直接进 main —— 只能合到 `dev`/`staging`/`integration` 等集成分支 · 主分支的提升仍由**人工 gate**。
 
 ⛔ **外部世界动作边界(用户拍板 · 同一风险模型的延伸)**:公网 registry 发布(npm/PyPI/crates 等)/ **创建公开仓** / 生产部署等**不经过分支门且不可逆**的动作,**不在「零 stop」范围** —— yolo 的自动只覆盖**分支门以内**(验收 / 合入集成分支 / 清场)。此类动作 = release 域(`RELEASE-GUIDE.md` · 发布归用户):**先自动验收 + 合入 + 清场(不阻断),外部发布单独停给用户拍板** · ❌ 不得以「有外部发布」为由把验收/合入也停下(实证 SDK-F260809171303:AI 把「外部发布该问用户」的正确直觉挂错到 pm_acceptance,停掉了本该自动的验收与合入)。why:上一条硬约束的安全网 = 主分支人工提升,而外部动作**绕过一切分支门** —— 一次幻觉级错误(泄密 / 白名单漏洞)直接入公网且不可撤。
 

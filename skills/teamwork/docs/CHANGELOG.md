@@ -4,78 +4,95 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
-## v8.344 · 子代理禁问用户:问题回路收口主对话(用户拍板)
+## v8.351 · 意图偏差的代价:要算,不要被告知(用户拍板)
 
-> case(Grok 宿主消费现场):写测试用例的子代理调宿主的 ask_user_question,把「登录回跳测试写在哪个文件」直接弹到用户屏幕 —— 纯实现细节,设计上永远不该到用户面前。用户拍板:「子代理/subagent 的问题由主对话自行处理,无需找用户确认,只有主对话判断需要用户确认的才交给用户确认」。
-> 盘点:回路早就有(NEEDS_CONTEXT → 补上下文重派;stage brief「Substep 中间禁 AskUserQuestion」),但两个口没封:①暂停点纪律管的是**主对话**,子代理侧没有**对着工具名**的红线 —— 对没带全量 context 的执行路径,别处的规则等于不存在(「模式承诺 × 动作点载体」又一格);②派发 prompt 没要求带禁问句 —— 读过规则仍会漏,义务要寄生在必写载体上。
-
-### 变更
-- **agents/README §二 新红线(单源 · 对着工具名)**:子代理禁止调用任何「向用户提问/确认」类工具(`AskUserQuestion` / `ask_user_question` / 各宿主变体)—— 缺信息/拿不准 → 写进返回结果(`NEEDS_CONTEXT` + 缺什么)。**主对话二分**:实现细节(测试放哪 · 命名 · 用哪个函数)→ 自答后补上下文重派;真用户主权(偏好/业务取舍/外部事实 · 判据沿用早问门闸 2)→ 按 R5 编号选项 escalate。
-- **派发载体寄生**:引擎 `DISPATCH_TIER_REMINDER` 加一行 —— 派发 prompt 必带禁问句,**与 Meta 首行声明同寄生一处**(不另立「记得写」的孤立义务)。
-- **SKILL 一行 cite**(❌ 非 🔴 —— 密度门 count < 55 恰好顶满,按判例新增用 ❌)。
-- 主对话侧既有纪律不动(两条规则互补不重叠:那条管主对话 substep,本条管子代理)。
-
-### 测试
-`test_subagent_no_user_question_v8344.py` 14 条:红线对着工具名锁(行为式表述糊得过、工具名糊不过)· NEEDS_CONTEXT 路由 · 拍板原文入规 · 主对话二分显式(否则红线只堵子代理,主对话原样转抛 = 问题换出口)· 派发载体寄生 + case 实证 · SKILL cite + 密度门 · 既有回路不动。全库 1553 绿。
-
-## v8.343 · 装配维度矩阵 + 计划与显式修订点(用户拍板)
-
-> 拍板链:①「把流程、环节、评审力度 3 个维度拆开,交给 AI 组装,给 AI 强烈的提示有权利精简流程、降低评审力度、决定评审模型,必须做合理的权衡,不能过度保守」②「理论上拆出的力度最小可以直接 dev + ship」③「是否渐进式的流程更合理…或者至少可以修改」④「lite 之后是否需要一个 medium 档,goal 和 blueprint 只有一路冷审」⑤「然后给 AI custom 装配权限」。
-> 关于「强提示防保守」:上一版的台账已经写死了结论 —— **权限不等于行为**,0 路评审在 v8.341 之前就合法,AI 照样吃满六路。所以本版把偏置写进**缺省值与可判问句**,不写进措辞强度。
+> 用户:「PM 要知道一旦理解错了,代价非常高。」
+> 🔴 但「要知道代价高」**本身是形容词** —— 本仓连着多版实证过它不产生行为(v8.334「按需/酌情」· v8.337 形容词式装配卡 · v8.341 权限休眠 · v8.342「附加轻门」)。所以本版不加一句「请重视」,而是让 PM **逐行把代价算出来**。
 
 ### 变更
-- **四维矩阵 + 一开关**:`D1 规格深度`(none/prd/prd_tech)· `D2 证据门`(开/关)· `D3 验证深度`(self/test/test_e2e)· `D4 评审力度`(逐评审点 路数×角色×模型)· 开关 `UI`(**事实判断不是力度**)。验收位置并进 D4:`pm_acceptance` 0 路 = 验收挪到 ship1 MR diff(不是取消,是换地方)。
-- 🔴 **链由维度推导**(`derive_chain` / `derive_flow_graph`)—— 不再每档一张静态图。静态图降为**存量 state 回退**,且被「推导边 ⊆ 静态边」机器锁住。收益立刻兑现:medium 是本版实现**中途**加的,只加了一行。
-- **六档 = 命名的默认元组 + 一句可判入场问句**(判**风险的种类**,不判改动大小):micro〔无行为面·测试无从写起〕· **floor(新)**〔测试能完全证明 · `dev → ship`〕· tiny〔值得一双眼看 diff〕· lite〔有规格风险要 PRD·方案空间小不写 TECH〕· **medium(新)**〔值得写 TECH·goal/blueprint 各单路〕· full。**档是起手点不是终点**。
-- **floor 与 micro 的分界不是「更轻」而是「拿什么换轻」**:micro 拿掉证据门、准入靠白名单兜;floor 保留全部测试证据门(所以能接真逻辑改动),拿掉的是评审与独立验收口。
-- 🎛️ **custom 装配**:`init-feature --dims '<JSON>'` 拧任意一维 · 组合连贯性机器校验(N/A ≠ 0 路等七条,不连贯直接拒)。
-- 🔁 **计划 + 显式修订点**(取代纯渐进式):计划一次给全(用户看得见整体形状 · 抗棘轮),每个 `stage-complete` emit 带 `plan_checkpoint`(计划 · 剩余链 · **一句可判问句**「有没有出现装配时不知道的事实」)· `revise-plan --dim --to --evidence` 改 · **回显不停等** · ⚖️ **加与减同价**(只让「减」举证 = 保守偏置原样搬回来)· 🔴 **计划可改 · 历史不可改**(已走过的 stage 不许移出链 · dev 交了证据不许回溯关证据门)。修订记 delta + 方向 → **校准闭环的数据源**。
-- **计划有了独立的家**:`state.assembly_plan`(此前散在 `execution_hints` 三个 boolean 里,与执行度量混住 → 无法整体渲染/比对/校准)。装配卡改为**从计划渲染**,不再手写(双手写载体必漂);goal 的三个 `--needs-*` 直接写 `dims`。
-- 顺手修:守卫顺序 —— 「不可回溯」判定原在一致性校验之后,降维天然带出的不连贯会先报「组合不连贯」,把人支去修 roster 而真答案是「这段你已经走过了」(守卫写了却走不到 = 本框架反复复发的「规则立了没接线」)。
+- **①术语解释对照加末列「🔴 若这条理解错了 → 最坏会怎样」**:逐行写**具体后果**(「投放点击全部不回传、广告拿不到转化数据」,**不写「影响较大」**)· 后果落在**生产 / 外部 / 不可逆** → 该行**必进 §待决策项**,**不管 AI 多有信心**。机器门认这一列(缺列即挂)。
+- **why 给结构性事实,不给劝导**(goal-stage 4.5 + goal brief):**意图错误是唯一一类下游全部质量门都拦不住的错** —— 评审 / 测试 / CI / 验收**全都以「意图正确」为前提**,它们只能回答「做得对不对」,回答不了「做的是不是对的东西」。于是:
+  - **实现错了** → review/test 会抓 → 代价 ≈ **一轮返工**;
+  - **意图错了** → 所有门全绿 → 代价 = **整条链的质量投入全部变成「认真地做错事」+ 线上事故**。
+  - 两次实证都是**流程走完、测试全绿、事故照样发生**(协议强制 header → 线上请求归零 · AON Link 狭义解释 → 投放点击全不回传)。
+  - 🔴 **越认真做,错得越彻底** —— 这是它与其它错误在**性质**上的区别,不是「大一点小一点」。
+- **判据一句话**:「写不出具体后果 = 其实没想过代价」。
+
+### 零行预算下的落法
+`templates/prd.md` 只剩 1 行余量(339/340,v8.283 瘦身门)。代价因此做成 **①表的一列**而不是第四槽 —— 表格加列不加行,且语义更准:**代价是针对某条「我推的」解释算的**,不是泛泛一节。
 
 ### 测试
-`test_plan_dims_v8343.py` 35 条:六档链逐条 · ship 在任何组合都在 · 返工边不因降档消失 · 推导边 ⊆ 静态边 · state.py↔engine 两份实现逐档相等 · 七条连贯性 · 零路 vs N/A 可区分 · CLI 真跑六档 init + custom dims + 拒不连贯 · 修订双向同价 / roster 同步 / 孤儿剪枝报出 / 三类硬边界**各报各的理由** · 门与转移读计划 · `--needs-*` 写穿到 dims · 存量无 plan 回退。既有锁按新载体重锁(v8293 改锁「不许有自己的图」而非锁名字 · v8329/v8337/v8341/v8342)。全库 1539 绿。
+`test_intent_reconciliation_v8350.py` 增至 19 条(新增 `TestCostIsComputedNotToldV8351` 5 条):砍掉代价列必挂 · 模板要求具体不要形容词 · 后果严重强制升级(与信心无关)· why 是结构性事实(「唯一一类全部质量门拦不住」「越认真做错得越彻底」「代价 ≈ 一轮返工」的量级对比)· brief 带 stakes。全库 1645 绿 · 模板 339 行仍在门内。
 
-## v8.342 · 四档流程回归:tiny 立档 · lite 由 full 装配出来(用户拍板)
+## v8.350 · AC 意图对照:主对话 PM 确认有无理解偏差(用户拍板)
 
-> 拍板链:①「我们是否考虑加回多档流程」→ 加;②「tiny dev → review(单路 architect)→ pm_acceptance → ship / lite dev(TC 并行)→ 单路 architect → test → pm_acceptance → ship 这样合理么」;③「lite 是否也要有 PRD,不要 TC,要 verify-ac」;④「lite 是不是可以被 full 装配出来」→ **是**。
-> 上一版把「直接做」形态拼成「micro + 手工附加轻门」——「附加」是形容词式承诺,没有载体就不会发生。本版给它正式档位。
+> 用户拍板:「对用户意图可能有偏差的改动,一定要在 PRD 阶段确认好。尤其是 AC,主对话 PM 要确认下 AC 是否有对原始用户意图理解偏差的风险。」
+> 实证事故(aon-main click 导出):Feature 把「AON Link」狭义解释成 `/{code}` 短链、明确排除 `/static/{code}` —— TECH 写「static 不登记」,测试甚至断言 static "must remain unwired"。**dev 和 review 都在认真验证一个错误的范围定义**,线上投放点击因此全部没有回传。
+
+### 为什么冷审拦不住
+🔴 **范围被悄悄收窄时,PRD 是完全自洽的** —— 冷审只能核对「PRD 内部一致 / 技术可实现」,**它拿不到用户原话**。所以这一节的责任人只能是**主对话 PM**,这是它与既有所有评审机制的本质区别。
+
+### 变更(三槽 · 全是可判问句,不是形容词)
+- **① 术语解释对照**:用户原话里的名词 → 我理解成了什么 → **用户说过(引原话)/ 🔴 我推的**。标「我推的」的行 = 偏差风险最高处,逐行问「用户如果知道我这么理解,会同意吗」,不确定 → 进 §待决策项。
+- **② 排除项定性**(并进 §Out of Scope 的「性质」列 —— 排除项已在那儿列过,**不两处写**):🔴 判据一句话 **这个排除是「做不到」还是「我选的边界」?** 做不到 → 写 Out of Scope 就够;**「我选的边界」= 范围决策,必须进 §待决策项让用户拍板**(那次事故里排除 Static **并非技术限制**,却从没作为决策呈现过)。
+- **③ 反向验证**:**AC 全绿时,用户真正要的那件事一定发生了吗?** 想得出反例就写下来 + 处置 —— 与协议事故的「测试验证了错误的前提」**同形**。
+- **机器门** `intent_reconciliation`(goal-complete):三槽存在 + 非占位;判断题不代做,语义对不对由人看。
+- **终确认导读**新增一节:照抄「我推的」行 + 「我的解释」类排除 —— 这两类是最可能理解偏的地方,必须让用户一眼看到。
+- 与规则 5 分工写明:规则 5 管**改了既有行为**(原 A → 现 B),本条管**理解偏了原始意图**(用户说的 X 我做成了 X′)。
+
+### 过程中的两处自我修正
+- **占位检测初版失效**:剔引导语时把表格行(`|` 开头)一起剔了,而三槽内容主体全在表格里 → 模板原样也能过门。已修,并**专门锁了这个失效方式**。
+- **服从瘦身门**:新增内容让 `templates/prd.md` 顶破 v8.283 的 340 行门。没有改门限,而是压缩措辞 + 把 ②并进 Out of Scope(顺带修掉一处双载体)—— v8.303 判例:服从门裁自己的红。
+
+### 测试
+`test_intent_reconciliation_v8350.py` 14 条:缺节报全三槽 · **模板原样必须挂** · 真填放行 · ②读 Out of Scope 而非第二张表 · 判据是可判问句不是形容词 · 「我的解释」类排除必升级 · 责任人只能主对话 + 为什么冷审无能为力 · 与规则 5 分工 · 导读摆出风险行 · 瘦身门仍守。全库 1640 绿。
+
+## v8.349 · YOLO 两段式:待确认项攒在隔离分支(用户拍板)
+
+> 用户拍板:「yolo 合入 staging 前需要有风险总结文档,每个 feature 合入时在 yolo 目标分支记一下待确认信息,留到 yolo 分支合入 target 分支时确认。yolo 必须先合入目标 yolo 分支,`yolo/` 开头的。」
+> 事故背景(协议 v1.0 强制 header → 存量调用方全 400 → **线上请求归零**):AI **识别到了**风险(旧调用方会 400)、**写进了文档**(Bug 影响评估 + MR 风险清单),但**文档是终点** —— 没有任何通道能把「写下来的风险」变成「必须停的等待」;那条 Bug 走的正是 yolo,`diagnose` 方案确认被自动跳过。
 
 ### 变更
-- **四档、三 preset**:`preset ∈ {full, tiny, micro}`。判据 = **preset 只给「不立就走不通链」的档**(micro 跳 review/test · tiny 无 goal/blueprint 入口);lite 与 full 只差「跳 blueprint」一条边 → FEATURE_FLOW 加 `goal→dev` / `ui_design→dev` 直边 + 装配旋钮,**不加图**。多一张转移图 = 多一处要同步的口径(legacy `lite`/`blueprint_lite` 正是这么烂掉的:三份 flow-key 实现对同一输入解析出两张不同的图)。
-- **tiny(新 preset)**:`dev → review〔architect 单路〕 → pm_acceptance → ship` · 零文档(规格 = dev brief **理解卡**,brief 要求开工前回显一遍)· 无 test stage(判据 = 四轴的**验证成本**轴:diff 可验)。与 micro 的分界 = 有没有独立验收口(micro 在 MR diff 上验)。
-- **lite(装配形态 · 零 re-init)**:`goal-complete --needs-blueprint false` → 跳 blueprint,不产 TC/TECH/TECH-REVIEW。**PRD 照要、终确认停等照停**(降的是文档与路数,不是拍板权)。dev 前置从「blueprint 完成」回落到「goal 完成」,不是无条件放行。
-- **绑定载体换而不撤**:lite 无 TC → AC↔测试绑定改走 PRD 机读块 `acceptance_criteria[].test_refs`,`verify-ac.py --mode test-refs` 校验**非空 + 引用真实存在**(文件存在 · 带 `::用例名` 的名字要在文件里出现)。顺带堵住 TC 模式老坑:TC 点名的函数全仓不存在,覆盖率照样 21/21 全绿。
-- **降档不降独立性**:tiny/lite 的单路 architect 仍须错开模型(单路不变式)—— 减的是路数,不是「换个人看」这件事本身。
-- **装配环节第三旋钮**:装配卡流程阶段槽从「ui_design / browser_e2e」扩到三段可选,`blueprint 进/跳` 入槽;goal 3.7 减法侧分级表改四档(超低→micro · 低→tiny · 中低→lite · 中/高→full)。
-- **prepare 接线**:§2.2 超 micro 白名单 → 推荐 tiny(选项 2 = 继续讨论,守 v8.338);`prepare-check --preset` 让链预览按档出 —— 原实现 `flow_type in FLOW_STAGE_CHAIN` 短路,preset 永远读不到,定了轻档也预览全链(用户看到的链才是他感知到的重量)。
-- 顺手修:`build_stage_chain_preview` 用 raw flow_type 查 roster 矩阵恒 miss(键是内部名)· Micro 无 roster 条目才一直没暴露,Tiny 有条目会直接把 architect/pm 吃掉。
+- **准入收紧**:yolo 的 `merge_target` 必须是 **`yolo/` 前缀的隔离分支**。v8.63 只挡了 main —— 但 **staging 也不行**(它常是生产前最后一站,事故正是从那儿出去的)。`init-feature` 与 `set-mode` **双入口同守**(否则「先普通启动再切 yolo」是现成的绕过口)。
+- **① feature → `yolo/*`**(自动):`archive` 必填 `--yolo-risk`(风险总结/待确认项 · 无则写「无 · 一句为什么无」)+ 可选 `--yolo-breaking`,记一行进该分支的 `YOLO-PENDING.md`,**随归档 commit 原子合入**(留在本地 = 合过去的分支上没有它 = 等于没记)。
+- **② `yolo/*` → 真 target**(**人工**):新命令 `state.py yolo-promote --root <checkout 了 yolo/* 的工作区>` 把攒下的**全部**待确认项摆出来(破坏性的**单独计数**、不淹在总数里)· 用户逐条过目后 `--confirm-all` 落痕再合。🔴 它**不代替用户点合并**,只保证「合之前摆到台面上过」。
+- ❗ **可判问句**(填 `--yolo-breaking`):**今天能成功的请求 / 调用,明天会失败吗?**「不知道有没有这类调用方」= **当作会**(代价不对称:把没事当有事 = 多看一眼;把有事当没事 = 线上归零)。
+
+### 设计要点
+**隔离分支不是多一道墙,是待确认项的落脚处** —— 零 stop 不等于零确认,只是**把确认延后并批量化**。这保住了 yolo 的价值(无人值守跑完),又给「识别到的风险」补上了此前完全缺失的**升级通道**。
 
 ### 测试
-`test_flow_tiers_v8342.py` 34 条:三 preset/四档不变式 · lite 不许有自己的图 · tiny 四道会死锁的门 · 三实现 flow-key 一致 · lite 旋钮只认显式 false · PRD/test 门不因降档松开 · test-refs 五种情形(含「点名不存在的用例」)· 门不休眠(lite 下换口径而非 skip)· prepare-check 按档预览 · spec 载体。既有锁按新载体重锁:v8329(三旋钮)· v8336(锁退役不锁出边条数)· v8341(四档 + 降档不降独立性)· engine_fixes(goal→dev 已合法 · 非法样本改用 test→dev)。全库 1504 绿。
+`test_yolo_two_stage_v8349.py` 19 条:前缀判定(staging 被拒 · 不只是 main)· 双入口同守 · 主分支门仍在前(报错更具体)· 台账追加/幂等/表头回填/why 写在台账上 · promote 列出待确认且破坏性单独计数 · next_action 问三槽(现存调用方/灰度/回滚条件)+ 第 2 项恒「继续讨论」· confirm-all 可验 · **promote 不含 merge** · 台账随 archive commit · 门文案含可判问句与保守偏置 · spec 三载体 + 🔴 密度门。既有 9 条 yolo 用例按新约束更新(目标分支改 `yolo/*`)。全库 1626 绿。
 
-## v8.341 · 评审力度减法侧分级 +「直接做」形态正名(用户拍板)
+## v8.348 · 本地测试与 MR CI 同构性对照(实证 case)
 
-> case(jolichatbox 域名配置):v8.334-337 链条全部正常工作(深调研/判断卡/跳 ui·browser),但四轴全低的配置改动仍默认吃满六路评审 —— 用户当场问「这么简单的需求为什么还要那么多 review」,消费 AI 中途 re-init 切 micro 落地开 MR(自评:「按全链启动了 —— 这是错配」)。
-> 用户拍板目标形态:**按理说直接开发,完成后架构师 review 一下,PM 验收盯 staging 部署就可以了。**
+> 用户看 case 问「测试流程是否需要约束、覆盖 CI 要检查的项目,避免问题遗漏到 CI 阶段」。
+> case(aon-main DEV-F260830125314):TEST-REPORT 只记录 `cargo check -p aon-api-gateway`(只验编译),而 MR CI 跑 `cd services && cargo clippy --locked -- -D warnings` —— 一条 clippy 漏到 CI 才炸,MR 窗口期多烧一整轮。
+> 🔴 **决定修法的关键细节**:那个 AI **试过** grep CI 配置,猜的是 `.gitlab-ci.yml .gitlab/ci/*.yml` → 返回空;真配置在 GitLab include 进来的 `infra/ci/api-gateway.yml`,于是空结果被当成「没有 CI」。**这不是偷懒,是不知道去哪儿找** —— 该由机器端清单(v8.323「数据算好别让人誊抄」),不是让每个 AI 自己猜路径。
 
 ### 变更
-- **3.7 装配判断表补减法侧(加减两侧都要判)**:**超低**(纯配置/删除/文案级 · 无契约面 · diff/断言可验)→ 建议改走 `preset=micro`(同 feature re-init 合法 · 消费实证)+ **micro 附加轻门**(execute 完成后单路 architect diff 冷审〔subagent 错开 · 只拦 BLOCKER〕· PM 验收 = MR diff + 合并后盯 staging〔await-merge 自动带 CI〕);**低**(行为性但小)→ goal `[fast]` 单路合并 · blueprint 0 路 · **review `[architect]` 单路(用户形态)**;中 = 缺省;高 = 加法触发。
-- **一致性倒逼**:判断卡/装配卡评审力度行,路数与四轴对不上必须写「为什么不降」(写不出就降)。
-- **prepare §2.2「坚持 micro」正名**:行为性小改动亦合法(留痕)+ 附轻门建议 —— 消费 AI 的逃生路径转正。goal brief 同步。
+- **`state.py ci-commands --root <worktree>`**:扫本仓 CI 配置(GitLab 根 + `.gitlab/**` + include 常见位 `infra/ci/*` · GitHub `.github/workflows/*` · CircleCI / Azure),只取 `script`/`run` 块里的**门禁类**命令(编译/测试/静态检查),给 `文件:行 + 命令`。部署/发布类不收(不是本地该复现的);vendor/worktree 跳过。
+- **test-stage 规则 2.9 + TEST-REPORT §2.5**:逐条标注 **本地已跑 / ⚠️ 跑不了(为什么)/ — 不适用**。
+- 🔴 **刻意的边界:不要求本地跑 CI 全集**(有些 job 要 infra 凭据、有些太慢,强行复现是纯税)—— 要求的是**看过、并对每条给出处置**;🔴 **「跑不了」必须显式列出**,那就是「已知会在 CI 才发现」的清单,写出来风险才可见(零也显式)。
+- **载体在消费时点**:test-start brief 自动带这条 + 「别自己猜 CI 配置路径」的 case 教训(v8.324「complete 会拒的必须 start 可见」同律)。
+- **与 ship 侧分工写明**:本条是**防**(进 CI 前先对照),v8.345 的 CI 归因是**治**(真红了归因 · 自己引入的直接修)。
 
 ### 测试
-`test_review_intensity_tiers_v8341.py` 9 条:超低档 = 用户拍板句 / 低档逐 stage 缺省 / 判据机械 / 一致性倒逼 / 单路仍错开 / prepare 正名 / brief。全库全绿。
+`test_ci_parity_v8348.py` 13 条:GitLab include 布局(= 本 case 的形状)· GitHub `- run:` 列表项(初版正则漏了整段)· YAML 键不许当命令 · 部署类不收 · 给出文件:行 · 无 CI 配置给可写处置而非报错 · vendor/worktree 跳过 · CLI 双路径 · 三处载体 · **ship 侧归因不受影响**(防与治不重叠)。真仓库复验:aon-core 14 文件 / supersdk 15 文件,残留 YAML 前缀 0。全库 1607 绿。
 
-## v8.340 · ship1 后 CI pipeline 自动检查(用户拍板)
+## v8.347 · await-merge 后台化会自己退出(实证 case)
 
-> 用户:另外 ship1 之后需要自动检查 CI 的 pipeline。
-> 呼应点:await-merge 的 docstring 里写着原始痛点「CI 红无人接」(实证 132h 长尾)—— 但它只轮询合并态,CI 一直没人看。本版给这句话配上机器动作,并与 v8.339 的 MR 窗口期修复口闭环。
+> 用户看 case 问「监控为什么自动退出了」。答案不是崩溃也不是超时,是**设计上的单轮上限**:默认 `18 轮 × 30s = 9 分钟`,用尽 emit `WAITING` 后 `sys.exit`(`emit_json` 每条都自带退出)。
+> case(aon-core SVC-CORE-B260831064524):消费 AI **按 spec** 用 `nohup ... >> /tmp/` 后台启动 —— WAITING 里那句「AI 应自动重跑」进了没人读的文件,监控就此永久结束;人几分钟后才点合并,ship2 只能手动补跑。
 
 ### 变更
-- **push 记录成功即自动查一次 CI**(工具内建 · `_mr_ci_status` best-effort):emit `ci_status`(passing / failing / pending / none / unknown)—— 刚 push 常为 pending = 确认 pipeline 已起;failing → emit 直接带 `ci_fix_hint`(jump 回 dev 修复口);unknown(gh/glab 缺失或未登录)不拦流程。
-- **await-merge 每轮轮询带 CI**:MR 未合并且 CI 红 → **不再傻等合并**,立即以 `CI_FAILING` 退出 + 修复口指引(红灯检查置于 MERGED 判定之前 · 测试锁顺序);MERGED / WAITING emit 均回显最后一次 `ci_status`。修复循环:jump 回 dev → push 重跑 → await-merge 续走(同一 MR)。
-- 解析层纯函数化:GitHub `gh pr checks`(退出码 0/8/其他 × 行状态 · `_parse_gh_checks` 单测锁五态);GitLab `glab mr view -F json` 读 pipeline 字段。ship-stage 新节「MR 窗口期 CI 自动检查」。
+- **默认窗口按「等的是什么」定**:等人去平台点合并是**小时级**(框架自己的原始痛点数据是 132h 长尾),9 分钟差三个数量级 → `--max-checks` 默认 18 → **120(≈1h)**。
+- **`--until-final`**:自己循环到**终态**才退(MERGED / CLOSED / CI 归因到自己),不受轮次上限约束 —— 后台跑正是这个模式该覆盖的用法,不再把续等义务甩给调用方。
+- **后台化警告**:未开 `--until-final` 且 `stdout` 非 tty → WAITING 显式点出「你把我 nohup 了,但我不会自己续等」并给出口。前台跑不噪。
+- **三处载体同步**(漏一处就复发):ship-stage spec 的投递次序、push emit 里给用户抄的命令行、用户卡片的「监控」行 —— 全部带上 `--until-final`。🔴 **根因其实在 spec**:它明确写着「先后台启动」,而命令从没说过自己必须在前台跑。
+
+### 这条教训的形状
+**载体缺口可以是运行姿态造成的** —— 不是措辞糊(v8.302 那族),而是同一句话在前台成立、在后台不成立;spec 让它后台跑,承诺就失去了接住它的东西。
 
 ### 测试
-`test_ci_watch_v8340.py` 9 条:解析五态 / push emit 字段 / await-merge 轮询接线 + 红灯先于 MERGED / 修复口闭环 v8.339 / spec 节。v8339 spec 锚随新节重定位。全库全绿。
+`test_await_until_final_v8347.py` 10 条:默认窗口小时级 + CLI 同步 · 非 tty 真跑一次拿 WAITING 并断言警告点出机制与出口 · 前台不噪 · until-final 忽略轮次上限且末轮照 sleep · **自续等不许变成永不退出**(三个终态仍在)· 三处载体同步 · why 记成「运行姿态」不是「措辞」。全库 1594 绿。

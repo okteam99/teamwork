@@ -74,7 +74,7 @@ state.py ship-phase --action push --feature <path> \
 
 - 分支:`<feature 分支>` → `<merge_target>`
 - 包含:代码 + 归档 + 规划翻牌(随本 MR 原子合入)
-- 监控:`await-merge` 已后台启动 30s 轮询 —— **你只需在平台点合并** · 合并后自动清场
+- 监控:`await-merge --until-final` 已后台启动 30s 轮询 —— **你只需在平台点合并** · 合并后自动清场
 - 异常口令:平台报冲突 → 回「冲突」 · 不想合了 → 回「撤回」
 
 📦 **交付总结**(AI 写 · 三槽结构):
@@ -83,7 +83,7 @@ state.py ship-phase --action push --feature <path> \
 - 合并后解锁:<下游 BL/feature · 如 S5、S11 随本 MR 解锁 | 无>
 ```
 
-卡片段**原样用** push emit 的 `user_card`(工具生成 · URL/分支不抄错 · 🔴 禁 key-filter/截断该 emit —— 卡片同步落盘 `<feature_dir>/SHIP-USER-CARD.md`,stdout 丢失时 `cat` 它原样贴,untracked 随 worktree 消亡;实证 case:AI 过滤 JSON 丢 user_card → 手写卡片 URL 被 markdown 包裹 → 用户看不见链接);总结段 AI 照实写(照抄落盘产物 · 不美化)。🔴 **投递次序(单源)**:**① 先后台启动** `state.py await-merge --feature <path>`(30s 轮询 · 不阻塞 · 所有模式都跑 · MERGED → 自动 ship-finalize)→ **② 再把两段作为回合终文贴出** · 卡片之后本回合**零工具调用**(宿主可能不渲染回合中段文本 · 实证:卡片被吞 · 用户被迫问「url 发下」)。用户无需回编号 —— **合并动作本身就是确认**;仅「冲突/撤回」两个异常口令需要回话。
+卡片段**原样用** push emit 的 `user_card`(工具生成 · URL/分支不抄错 · 🔴 禁 key-filter/截断该 emit —— 卡片同步落盘 `<feature_dir>/SHIP-USER-CARD.md`,stdout 丢失时 `cat` 它原样贴,untracked 随 worktree 消亡;实证 case:AI 过滤 JSON 丢 user_card → 手写卡片 URL 被 markdown 包裹 → 用户看不见链接);总结段 AI 照实写(照抄落盘产物 · 不美化)。🔴 **投递次序(单源)**:**① 先后台启动** `state.py await-merge --feature <path> --until-final`(30s 轮询 · 不阻塞 · 所有模式都跑 · MERGED → 自动 ship-finalize)· 🔴 **后台跑必须带 `--until-final`** —— 不带它,窗口用尽就 emit WAITING 退出,而那句「AI 应自动重跑」在后台没有任何东西接得住(实证 case:监控 9 分钟到点退出、人几分钟后才点合并 → ship2 只能手动补)→ **② 再把两段作为回合终文贴出** · 卡片之后本回合**零工具调用**(宿主可能不渲染回合中段文本 · 实证:卡片被吞 · 用户被迫问「url 发下」)。用户无需回编号 —— **合并动作本身就是确认**;仅「冲突/撤回」两个异常口令需要回话。
 
 ### 6. ship2:ship-finalize(一条命令 · 在主工作区跑 · 零内容修改)
 
@@ -211,11 +211,26 @@ git add <feature_dir>/dev/*.md <feature_dir>/PRD.md
 
 ---
 
-## MR 窗口期 CI 自动检查(用户拍板:ship1 之后自动查 pipeline)
+## YOLO 两段式:待确认项攒在隔离分支(用户拍板)
+
+yolo = **无人值守自动 merge**,期间没有人在看 —— AI 识别到的风险只能写进文档,而**文档是终点**(实证事故:协议强制 header 后存量调用方全 400、线上请求归零;AI 当时确实写了风险,也确实没人被停下来问过)。两段式给「识别到的风险」一个出口:
+
+- **① feature → `yolo/*`**(自动):`merge_target` 必须是 `yolo/` 前缀的隔离分支(`init-feature` / `set-mode` 双入口物化 gate)。`archive` 必填 `--yolo-risk '<风险总结/待确认项>'`(无则写「无 · 一句为什么无」)· 可选 `--yolo-breaking` —— 记一行进该分支的 `YOLO-PENDING.md`,**随归档 commit 原子合入**;
+- **② `yolo/*` → 真 target**(**人工**):`state.py yolo-promote --root <checkout 了 yolo/* 的工作区>` 把攒下的**全部**待确认项摆出来(R5 编号选项 · 第 2 项恒「继续讨论」)· 用户逐条过目后 `--confirm-all` 落痕,再合 MR;
+- ❗ **填 `--yolo-breaking` 时的可判问句**:**今天能成功的请求 / 调用,明天会失败吗?** 会 → 写清哪类调用方;不会 → 「否」。🔴 **「不知道有没有这类调用方」= 当作会**(代价不对称:把没事当有事 = 多看一眼;把有事当没事 = 线上归零);
+- 📎 **隔离分支不是多一道墙,是待确认项的落脚处** —— 零 stop 不等于零确认,只是**把确认延后并批量化**。`yolo-promote` 也**不代替用户点合并**,它只保证「合之前这些东西被摆到台面上过」。
+
+## MR 窗口期 CI 自动检查 + 归因(用户拍板:ship1 之后自动查 pipeline · 自己引入的直接修)
 
 - **push 记录成功即自动查一次 CI**(工具内建 · emit `ci_status`:passing/failing/pending/none/unknown · 刚 push 常为 pending = 确认 pipeline 已起;`unknown` = gh/glab 缺失或未登录 · 不拦流程);
-- **`await-merge` 每轮轮询同时带 CI**:MR 未合并且 CI 红 → **不再傻等合并**,立即以 `CI_FAILING` 退出并给 MR 窗口期修复口(下节)—— 治「CI 红无人接」的原始痛点;
+- **`await-merge` 每轮轮询同时带 CI**(监控合并与查 pipeline 并行,不是二选一);
+- 🔴 **红了先归因,再决定动作**(与 dev/test 的「base 即红 → 差分基线」**同一个形状**:CI 版):
+  - **归因到本 feature**(base 上同名 check 是绿的 / base 查不到)→ **中断等待,直接修** —— 走下节 MR 窗口期修复口,**不问用户是否要修**(修自己弄坏的东西不是用户主权,是收尾的一部分);
+  - **base 预存在**(base 上同名 check 也红)→ **不中断**,回显一行继续等合并 —— 别去追别人的账;
+  - 🔴 **查不到 base 归到「自己引入」是刻意的保守偏置**:代价不对称 —— 把别人的红当自己的 = 白看一眼;把自己的红当别人的 = 把坏的合进去。与 `test-baseline`「不在基线里就算新增回归」同口径,**不是**「查不到就放行」。
+- **对照分支**默认取 `state.merge_target`,`await-merge --base <branch>` 可覆盖;
 - CI 修复循环:jump 回 dev 修 → push 重跑 → await-merge 续走(同一 MR)。
+- ⏳ **等待窗按「等的是什么」定**(实证):等人点合并是**小时级**(原始痛点 132h 长尾),默认 `--max-checks` 已从 18(9min)改为 **120(≈1h)**;🔴 **后台跑一律加 `--until-final`**(循环到 MERGED / CLOSED / CI 归因到自己为止,不受轮次上限约束)。不加时若检测到 stdout 非 tty,WAITING 会显式警告「你把我后台化了但我不会自己续等」—— **载体缺口可以是运行姿态造成的**:命令从没说过自己必须在前台跑,spec 却让它后台启动。
 
 ## MR 窗口期修复(pushed 后 · 平台未合并 · 用户拍板:不开 Bug 流)
 

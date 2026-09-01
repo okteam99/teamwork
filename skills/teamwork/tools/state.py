@@ -163,6 +163,13 @@ SPEC_DEPTHS = ("none", "prd", "prd_tech")
 VERIFY_DEPTHS = ("self", "test", "test_e2e")
 REVIEW_POINTS = ("goal", "blueprint", "review", "pm_acceptance")
 
+# 🔴 **降档时留哪一路 = 看实测产出,不看直觉**(v8.346 年检实证 · 289 行台账 / 3 项目):
+#   逐 stage 的真 finding 产出 external > architect —— goal 275:178 · blueprint 76:57 · review 87:53
+#   (总量 1546:735 = 2.1× · external 采纳率 82.3%)。v8.341-343 初版把轻档单路配成 architect,
+#   理由「异质冷审边际收益压不过协调开销」是**推的、没有数据支撑**,砍掉的恰是产出最高的一路。
+#   现在单路默认 = external:它还天然满足「单路必错开模型」不变式(architect 单路得额外保证)。
+#   architect 不是没价值 —— 它在**有 TECH 可对照**时最强,所以 medium/full 的 blueprint 仍可加回;
+#   但「只留一路」时,留 external。
 # 档 = **命名的默认元组 + 一句入场问句**。矩阵能推导链之后,「档」不再有结构特权 ——
 # 加一档就是加一行(medium 就是用户在本版实现中途提的,一行落地)。
 # 🔴 档是**起手点不是终点**:装配的正常产物是**维度元组**,AI 有权拧任意一维
@@ -177,16 +184,16 @@ TIER_DIMS: dict[str, dict] = {
               "ui": False, "review": {"review": [], "pm_acceptance": []}},
     # 测试证得了实现,但值得一双眼看 diff。
     "tiny": {"spec_depth": "none", "evidence_gate": True, "verify_depth": "self",
-             "ui": False, "review": {"review": ["architect"], "pm_acceptance": ["pm"]}},
+             "ui": False, "review": {"review": ["external"], "pm_acceptance": ["pm"]}},
     # 有规格风险(要 PRD)但方案空间小到不值得先写一份 TECH 再照着写。
     "lite": {"spec_depth": "prd", "evidence_gate": True, "verify_depth": "test",
-             "ui": False, "review": {"goal": [], "review": ["architect"],
+             "ui": False, "review": {"goal": [], "review": ["external"],
                                      "pm_acceptance": ["pm"]}},
     # 方案空间值得先写 TECH,但风险还不到要两路并行冷审 —— goal/blueprint 各**单路**
     # (goal 用 fast 合并帽:PL 质疑 + 覆盖方向制并作一路 · 模型照错开)。
     "medium": {"spec_depth": "prd_tech", "evidence_gate": True, "verify_depth": "test",
-               "ui": False, "review": {"goal": ["fast"], "blueprint": ["architect"],
-                                       "review": ["architect"], "pm_acceptance": ["pm"]}},
+               "ui": False, "review": {"goal": ["fast"], "blueprint": ["external"],
+                                       "review": ["external"], "pm_acceptance": ["pm"]}},
     "full": {"spec_depth": "prd_tech", "evidence_gate": True, "verify_depth": "test",
              "ui": False, "review": {"goal": ["pl", "external"],
                                      "blueprint": ["architect", "external"],
@@ -810,7 +817,25 @@ def cmd_review_preventability(args: argparse.Namespace) -> None:
     state["updated_at"] = now_iso()
     state["updated_by"] = "review-preventability"
     atomic_write(path, state)
+    # v8.346(年检实证):可预防率 70.5%(1461/2072),而 KNOWLEDGE 复发防御清单
+    # aon-core 0 条 / aib 0 条 / supersdk 3 条 —— **读取端接线了、写入端从来没有**
+    # (dev brief 每次让 AI 读它,却没有任何动作把 finding 沉淀回去)。
+    # 这里把骨架现成给出:数据算好了不让人誊抄(v8.323 形状)· 判断留人/AI(教训文本要判断)。
+    _defense = None
+    if entry["preventable"] > 0:
+        _fid = state.get("feature_id") or "<FEATURE-ID>"
+        _defense = {
+            "why": (f"本次 {entry['preventable']}/{entry['total']} 条 finding 起草时本可预防 —— "
+                    "不沉淀 = 下个 feature 原样再犯一次(可预防率常年 70% 的根因)"),
+            "target": "project-specs/KNOWLEDGE.md § 复发防御清单",
+            "skeleton": (f"## 复发防御清单 · <一句主题>({_fid} · {now_iso()[:10]})\n\n"
+                         f"- 🔴 **<写成「写时防」的祈使句,不是「本次发现了什么」>**。"
+                         f"<判据 + 回归要覆盖什么>\n"),
+            "rule": "🔴 写**下次起草时能照着做**的话 · 不写事故复述(清单是给起草读的,不是给复盘读的)",
+        }
+
     emit({"verdict": "OK", "action": "review-preventability", "stage": entry["stage"],
+          **({"defense_list_entry": _defense} if _defense else {}),
           "recorded": entry,
           "note": "已记录 · ship 聚合进台账「🛡️ 起草可预防性」列(年检据此分析起草考虑点缺不缺)"})
 
@@ -1857,6 +1882,19 @@ def _check_prepare_audit(feature_id: str) -> dict:
     }
 
 
+YOLO_BRANCH_PREFIX = "yolo/"
+
+
+def _is_yolo_branch(branch: str) -> bool:
+    """是否是 yolo 隔离分支(v8.349 用户拍板:yolo 必须先合入 `yolo/` 开头的目标分支)。
+
+    🔴 隔离分支不是「多一道墙」—— 它是**待确认项的落脚处**:yolo 期间没人看,
+    识别到的风险只能写进文档(实证事故里就是这么丢的);有了 yolo/* 这一段,
+    每次自动合入都往 YOLO-PENDING 记一笔,等它合进真 target 时人一次性拍板。
+    """
+    return bool(branch) and branch.strip().lower().startswith(YOLO_BRANCH_PREFIX)
+
+
 def _is_main_branch(branch: str, repo_cwd: Optional[str] = None) -> bool:
     """branch 是否是主分支(yolo 硬约束:自动 merge 不得直接进 main)。
     判定:名字 ∈ {main, master} · 或 == 远端默认分支(origin/HEAD 指向)。"""
@@ -1956,8 +1994,6 @@ def cmd_init_feature(args: argparse.Namespace) -> None:
             "spec": "docs/prepare.md § 0",
         }, ensure_ascii=False, indent=2))
 
-    # v8.63:yolo 模式硬约束 —— merge_target 必须非主分支(自动 merge 不得直接进 main)
-    # v8.65:merge_target 可来自 --yolo <branch>(已 resolve 进 merge_target)
     if yolo_enabled and _is_main_branch(merge_target):
         die(2, json.dumps({
             "verdict": "FAIL",
@@ -1973,6 +2009,29 @@ def cmd_init_feature(args: argparse.Namespace) -> None:
             ),
             "rule": "v8.63 yolo 硬约束 · 自动 merge 不进 main(防 AI 错误/幻觉特性直接进 main)",
         }, ensure_ascii=False, indent=2))
+    # v8.349(用户拍板:「yolo 必须先合入目标 yolo 分支 · yolo/ 开头的」)——
+    # 把 v8.63 的「不得是主分支」收紧成**必须是 yolo/ 前缀的隔离分支**。
+    # why:v8.63 只挡了 main,但 yolo 照样能直接自动合进 staging —— 而 staging 通常就是
+    # 生产前的最后一站(实证事故:协议 v1.0 强制 header,存量调用方全 400、线上请求归零;
+    # 那条 Bug 走的正是 yolo/auto,diagnose 方案确认被自动跳过)。
+    # 隔离分支的作用不是多一道墙,是**给「无人值守期间攒下的待确认项」一个落脚处**:
+    # 每个 feature 合进 yolo/* 时记一笔,等 yolo/* → 真 target 时一次性拍板(见 YOLO-PENDING)。
+    if yolo_enabled and not _is_yolo_branch(merge_target):
+        die(2, json.dumps({
+            "verdict": "FAIL",
+            "action": "init-feature",
+            "error": (f"yolo 的 merge_target 必须是 `yolo/` 前缀的隔离分支 · got {merge_target!r}"),
+            "hint": (
+                "yolo = 无人值守自动 merge · **不得直接合进任何常规集成分支**(staging 也不行 —— "
+                "它常是生产前最后一站)。改成:\n"
+                f"  --yolo yolo/{(merge_target or 'integration').strip().lstrip('/') or 'integration'}"
+                "  (该分支即本需求 merge_target)\n"
+                "🔴 两段式:① feature → `yolo/*`(自动 · 每次合入把**待确认项**记进 YOLO-PENDING)"
+                "② `yolo/*` → 真 target(**人工** · 一次性确认攒下的全部待确认项)。\n"
+                "不想要隔离分支 → 别用 --yolo(改 --auto-mode · 保留 MR merge 人工 stop)。"),
+            "rule": "v8.349 yolo 两段式(用户拍板)· 隔离分支承载「无人值守期的待确认项」",
+        }, ensure_ascii=False, indent=2))
+
 
     # v8.179:yolo 预研门(硬门)—— 正式自主前必产 YOLO-PREFLIGHT.md(深入调研 + 核心决策用户确认)。
     # yolo 零暂停点 → 意图保真膜必 front-load · 防裸启动直接闷头跑偏(无人值守 · 错了没机会中途纠)。
@@ -3241,6 +3300,33 @@ def _validate_admission_judgment(args) -> dict:
     }
 
 
+def cmd_ci_commands(args: argparse.Namespace) -> None:
+    """v8.348:扫出本仓 CI **真正会跑的门禁命令**,供 test stage 逐条对照。
+
+    治的是「本地测试与 MR CI 不同构」——实证 case(aon-main DEV-F260830125314):
+    TEST-REPORT 只记 `cargo check`(验编译),CI 跑 `cargo clippy -- -D warnings`,
+    一条 lint 漏到 CI 才炸。而那个 AI **试过** grep,只是猜错了路径
+    (真配置在 include 进来的 `infra/ci/api-gateway.yml`)→ 空结果被当成「没有 CI」。
+    🔴 本命令**不要求本地跑全集**(有些 job 要 infra / 太慢)· 它只保证「你看见过」。
+    """
+    root = Path(getattr(args, "root", None) or ".").resolve()
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from _v8_engine import scan_ci_commands
+    found = scan_ci_commands(root)
+    total = sum(len(v) for v in found.values())
+    emit({
+        "verdict": "OK", "command": "ci-commands", "root": str(root),
+        "config_files": len(found), "gate_commands": total,
+        "commands": {f: [{"line": ln, "cmd": c} for ln, c in cs] for f, cs in found.items()},
+        "next_action": (
+            "逐条标注 **本地已跑 / 跑不了(为什么)/ 本次不适用**,写进 TEST-REPORT §CI 对照。"
+            "🔴 跑不了的也要写 —— 那就是「已知会在 CI 才发现」的清单(零也显式)。"
+            if found else
+            "未扫到 CI 配置(仓库可能没有 CI · 或布局非常规)—— TEST-REPORT §CI 对照写「无 CI 配置」。"),
+        "note": "文本扫描 script/run 块里的门禁类命令(编译/测试/静态检查)· 不解析 job 图 · 部署类不收",
+    })
+
+
 def cmd_revise_plan(args: argparse.Namespace) -> None:
     """v8.343 显式修订点:按新证据改装配计划(**加减同价 · 各记一行证据**)。
 
@@ -3694,6 +3780,16 @@ def cmd_set_mode(args: argparse.Namespace) -> None:
                          f"yolo 无人 review 自动 merge · 不得直接进 main/master/默认分支",
                 "hint": "用 --yolo <非主分支>(如 dev/staging)· 或先改 merge_target",
                 "rule": "v8.63/69 yolo 硬约束 · 自动 merge 不进 main",
+            }, ensure_ascii=False, indent=2))
+        # v8.349:中途切 yolo 与 init-feature 同约束 —— 否则「先普通启动、再 set-mode 切 yolo」
+        # 就是绕过两段式的现成口子(同一个门必须守住所有入口)
+        if not _is_yolo_branch(new_mt):
+            die(2, json.dumps({
+                "verdict": "FAIL", "command": "set-mode",
+                "error": f"yolo 的 merge_target 必须是 `yolo/` 前缀的隔离分支 · got {new_mt!r}",
+                "hint": (f"--yolo yolo/{(new_mt or 'integration').strip().lstrip('/') or 'integration'}"
+                         " · 两段式:feature → yolo/*(自动 · 记待确认项)→ 真 target(人工确认)"),
+                "rule": "v8.349 yolo 两段式(用户拍板)· 所有入口同约束",
             }, ensure_ascii=False, indent=2))
     elif args.no_yolo:
         new_yolo = False
@@ -4485,6 +4581,12 @@ def build_parser() -> argparse.ArgumentParser:
                      help="🔴 **装配时不知道的那个事实**(不是「我觉得该加/该减」)· "
                           "加与减同价 —— 两个方向都要这一行,轻的偏置留在档默认里、不留在举证难度里")
     rvp.set_defaults(func=cmd_revise_plan)
+
+    # v8.348:CI 门禁对照(test stage 用 · 治本地测试与 MR CI 不同构)
+    cic = sub.add_parser("ci-commands",
+                         help="[v8.348] 扫本仓 CI 真正会跑的门禁命令 · 供 test 逐条对照(不要求本地跑全集)")
+    cic.add_argument("--root", default=".", help="仓库根(默认当前目录 · worktree 内传 worktree 根)")
+    cic.set_defaults(func=cmd_ci_commands)
 
     # v8.69:set-mode · 语义化设 auto_mode / yolo(替代 raw-write · 物化 + audit)
     sm = sub.add_parser(
