@@ -38,7 +38,10 @@ def _flow_key(state: dict) -> str:
     _blueprint_skipped(state),别往这个函数里加第四个返回值。"""
     ft = state.get("flow_type") or ""
     pre = state.get("preset") or "full"
-    if ft == "Feature" and pre in ("micro", "tiny"):
+    if ft == "Feature" and pre in ("micro", "tiny", "floor"):
+        # 🔴 三实现必须同口径(state.py._STRUCTURAL_PRESETS / engine._STRUCTURAL_PRESETS)——
+        # v8.343 加 floor 档时漏了这一处,state.py/engine 给 "Floor" 而这里给 "Feature"
+        # (v8.293 的老病:同一输入被三份实现解析成不同的键)。
         return pre.capitalize()
     return ft
 
@@ -560,6 +563,33 @@ def _evidence_reviewers_match(review_artifact: str):
 # ─── B1 · goal ─────────────────────────────────────────────────
 
 
+def _render_confirmed_intent(state: dict) -> str:
+    """把 state.confirmed_intent 原样渲染进 goal brief(v8.353)。
+
+    🔴 机器搬运 —— 起草者与冷审都从 brief 直接拿到用户原话,不依赖谁记得抄。
+    治的是:prepare 确认过的意图此前只活在对话里,会话一压缩/换 session/派 subagent 就没了;
+    于是「PRD 的脊 = prepare 已确认的意图 · 冷审据此核对」没有可核对的对象。
+    """
+    ci = state.get("confirmed_intent") or {}
+    words = (ci.get("user_words") or "").strip()
+    if not words and not (ci.get("understanding") or "").strip():
+        return ("\n🗣️ **已确认意图:state 里没有**(存量 feature / init 未传 `--user-intent`)—— "
+                "🔴 起草前**先把 prepare 确认卡的五项补回 PRD §已确认意图**(原话逐字 · 不许润色),"
+                "否则冷审无从核对「有没有偏离用户要的」,后续全链都在验证一个没有锚点的东西。\n")
+    rows = [("🗣️ 用户原话(逐字 · 不许改写)", words),
+            ("🎯 理解", ci.get("understanding")),
+            ("🧩 我补的假设", ci.get("assumptions")),
+            ("📦 范围", ci.get("scope")),
+            ("🔁 既有行为", ci.get("existing_behavior"))]
+    body = "\n".join(f"  - {k}:{(v or '—').strip()}" for k, v in rows)
+    amend = ci.get("amendments") or []
+    tail = (f"\n  - ✏️ 中途修订 {len(amend)} 条(append 保留 · 不覆盖):"
+            + " · ".join(str(a.get("note", ""))[:60] for a in amend)) if amend else ""
+    return (f"\n🗣️ **已确认意图(prepare 原样搬运 · PRD §已确认意图 照抄这块)**:\n{body}{tail}\n"
+            "🔴 **PRD 的脊 = 这段** —— 起草不得偏离;冷审据此核对「有没有偏离用户要的」"
+            "(这是冷审唯一能拿到的用户原话)。改写/润色 = 二次解释,偏差正是这么进来的。\n")
+
+
 def _goal_brief(state: dict) -> str:
     """v8.0+P0-8 极简版:目标 + 结果 + 完成方式 · 怎么做归 stage.md。"""
     _fast = ("\n⚡ **fast_mode 生效**(localconfig · v8.261):**单路合并冷审** —— 派**一个**隔离 agent 兼 "
@@ -587,7 +617,7 @@ state.py goal-complete --feature <path> \
   --auto-commit <hash> --artifacts PRD.md,PRD-REVIEW.md \
   --needs-ui {{true|false}} --needs-browser-e2e {{true|false}}
 ```
-🎯 **意图对照**(终确认前必做 · 详 stage.md 规则 4.5):PRD §意图对照 三槽 —— ①用户原话里的名词**我理解成了什么**(标「用户说过 / 我推的」)· ②§Out of Scope 每条是「技术限制」还是「**我的解释**」(🔴 我的解释 = 范围决策 · 必须进 §待决策项)· ③**AC 全绿时用户要的事一定发生了吗**(想得出反例就写)。🔴 ①的末列**逐行写「若这条错了最坏会怎样」的具体后果**(不写「影响较大」)· 后果落生产/外部/不可逆 → 该行必进 §待决策项。
+{_render_confirmed_intent(state)}🎯 **意图对照**(终确认前必做 · 详 stage.md 规则 4.5):PRD §意图对照 三槽 —— ①用户原话里的名词**我理解成了什么**(标「用户说过 / 我推的」)· ②§Out of Scope 每条是「技术限制」还是「**我的解释**」(🔴 我的解释 = 范围决策 · 必须进 §待决策项)· ③**AC 全绿时用户要的事一定发生了吗**(想得出反例就写)。🔴 ①的末列**逐行写「若这条错了最坏会怎样」的具体后果**(不写「影响较大」)· 后果落生产/外部/不可逆 → 该行必进 §待决策项。
 🔴 **意图错误是唯一一类下游全部质量门都拦不住的错** —— 评审/测试/CI/验收全都以「意图正确」为前提,只能答「做得对不对」、答不了「做的是不是对的东西」:实现错了代价 ≈ 一轮返工,**意图错了代价 = 整条链的质量投入全变成「认真地做错事」+ 线上事故**(两次实证都是流程走完、测试全绿、事故照样发生)· **越认真做,错得越彻底**。🔴 **只能主对话做,不可委托冷审** —— 冷审拿不到用户原话,而范围被悄悄收窄时 PRD 是完全自洽的(实证事故:「AON Link」被狭义解释成 `/{{code}}`、排除 `/static/{{code}}`,dev 与 review 都在认真验证一个错误的范围定义,线上投放点击全部没回传)。`goal-complete` 机器校验三槽非占位。
 🔗 **链装配**(调研后 · 详 stage.md 规则 3.7)· 🎛️ **装配 = 拧四维不是挑档名**:`D1 规格深度`〔none/prd/prd_tech〕· `D2 证据门`〔开/关〕· `D3 验证深度`〔self/test/test_e2e〕· `D4 评审力度`〔逐评审点 路数×角色×模型〕· 开关 `UI`。🔴 评审力度**加减两侧都判** · **六档起手**(判**风险的种类**不判改动大小):micro〔无行为面 · 测试无从写起〕· floor〔测试能完全证明 · dev→ship〕· tiny〔值得一双眼看 diff · 零文档 · review external 单路〕· lite〔有规格风险要 PRD · 方案空间小不写 TECH · `--needs-blueprint false`〕· medium〔值得写 TECH · goal/blueprint 各单路〕· full〔两路并行冷审划算〕—— 🔴 **档只是起手点:选完必须再过一遍四维,该拧就拧**(只报档名不拧 = 退化情形)· 🔴 **只留一路时留 external 不留 architect**(年检实证:逐 stage 产出 ext>arch · 总量 2.1× · 采纳 82%)· 单路**模型照错开**(降档不降独立性)· 路数与四轴对不上必须写「为什么不降」):goal 自身评审面 AI 自定(留痕不问);下游装配写进终确认导读「🔗 链装配」节 · 🔴 **四槽缺一即漏 · 整卡 ≤7 行**(流程阶段〔机器按 `derive_chain` 渲染〕· 维度元组 · **评审力度逐评审点「是否需要×几路×谁×理由」〔收到零也显式写 0 路+理由 —— 减税要减在明处〕** · 四轴证据各半句)—— **默认按此执行 · 用户不要求改就生效**。
 🔁 **每个 stage 边界都是显式修订点**:complete emit 带 `plan_checkpoint` · 问「有没有出现**装配时不知道的事实**」—— 有就 `revise-plan --dim <维度> --to <值> --evidence '<事实>'`,没有就照计划走 · **回显不停等** · ⚖️ **加与减同价**(都只要一行证据)· 🔴 **计划可改 · 历史不可改**。
@@ -779,6 +809,38 @@ def _evidence_prd_template_conformance(state: dict, args) -> tuple[bool, str]:
     return True, ""
 
 
+def _evidence_confirmed_intent(state: dict, args) -> tuple[bool, str]:
+    """v8.353:PRD §已确认意图 必有且原话非空(用户拍板:把确认过的意图写进 PRD)。
+
+    治的是链条上最后一个「只活在对话里」的关键信息:prepare 确认过的意图此前只在对话与
+    用户级 audit jsonl 里 —— 不在 feature 内、不进 git、init-feature 也不收。于是模板头那句
+    「PRD 的脊 = prepare 已确认的意图 · **冷审据此核对**」是空头承诺:**冷审没有可核对的对象**。
+    两起事故(协议 header / AON Link)的共同上游都是「用户原话只在 PM 的 context 里」——
+    会话一压缩、换 session、派 subagent 就没了。
+
+    🔴 只查可判的:①节存在 ②🗣️ 用户原话非空且非占位。原话对不对由人看(机器不判语义)。
+    """
+    prd = Path(args.feature) / "PRD.md"
+    if not prd.is_file():
+        return False, "PRD.md 不存在"
+    txt = prd.read_text(encoding="utf-8", errors="replace")
+    m = re.search(r"(?ms)^##\s*已确认意图.*?(?=^##\s|\Z)", txt)
+    if not m:
+        return False, ("PRD 缺 §已确认意图(v8.353)—— **PRD 的脊,也是冷审唯一能拿到的用户原话**。"
+                       "照 templates/prd.md 补:🗣️ 用户原话(逐字)/ 🎯 理解 / 🧩 假设 / 📦 范围 / 🔁 既有行为。"
+                       "goal brief 已把 `state.confirmed_intent` 渲染好,**照抄即可**(原样搬 · 不润色)")
+    seg = m.group(0)
+    mw = re.search(r"(?m)^\s*[-*]?\s*🗣️[^:：]*[:：](.*)$", seg)
+    words = (mw.group(1) if mw else "").strip()
+    words = words.strip("「」\"' ")
+    if not words or words in {"…", "...", "—", "-"} or re.fullmatch(r"\{.*\}", words):
+        return False, ("§已确认意图 的 🗣️ **用户原话为空或仍是占位** —— 这是全链唯一的锚点,"
+                       "缺了它下游只能核对「PRD 内部自洽」(而范围被收窄时 PRD 恰恰完全自洽)。"
+                       "🔴 **逐字引用,不许 paraphrase**;确实没有原话(如上游 BL 派生)→ "
+                       "写明来源与依据,别留空")
+    return True, ""
+
+
 def _evidence_intent_reconciliation(state: dict, args) -> tuple[bool, str]:
     """v8.350:PRD §意图对照 三槽非空(用户拍板:AC 要确认有无「对原始用户意图理解偏差」的风险)。
 
@@ -961,6 +1023,11 @@ GOAL_SPEC = StageSpec(
             name="prd_template_conformance",
             check_fn=_evidence_prd_template_conformance,
             description="PRD 含机读块/AC/扩展区三命门段(canonical 模板 · v8.201 治到达率)",
+        ),
+        StageEvidenceCheck(
+            name="confirmed_intent",
+            check_fn=_evidence_confirmed_intent,
+            description="PRD §已确认意图 存在且 🗣️ 用户原话非空(PRD 的脊 · 冷审的核对对象)",
         ),
         StageEvidenceCheck(
             name="intent_reconciliation",
@@ -1710,7 +1777,8 @@ QA 起草 TC(BDD)**∥** RD 起草 TECH(🎚️ **TECH 起草与评审必用主�
 
 ### 怎么做
 **必读** `stages/blueprint-stage.md`(详细步骤 + §7.5 DB schema 条件暂停点)。
-🔴 **起草对照 `standards/tech-rules.md`**(三时点必读之一 · 起草重点 §三 方案与架构门:FK 决策 / Schema 影响分析 / API 契约链 —— **起草时带着门想 · 起草读的就是 review 会查的**)+ 项目 `project-specs/DEV-RULES.md` / `ARCHITECTURE.md` 同读(冲突以项目为准)。
+🔴 **🚦 **功能生效闸必答**(TECH §功能生效闸 · v8.352 用户拍板):生效闸 = 让**已上线功能运行时不生效**的东西(env flag / 配置必填 / 水位切点 / cap / fail-closed 短路)· **无闸也要显式写「无」**。🔴 每条必答**「不满足时用户看到什么」**并与 PRD 承诺对照 —— 不一致 = **产品决策伪装成技术细节**,随方案要素确认一起交用户拍板(与 DB 变更同级)。🔴 **设闸要有理由:写不出「不设会出什么事」就不设** —— 实证事故:PRD 要「诚实展示(可以 partial)」,TECH 落成「没配齐就整页 503」· **功能上线了但用户根本看不到**。
+起草对照 `standards/tech-rules.md`**(三时点必读之一 · 起草重点 §三 方案与架构门:FK 决策 / Schema 影响分析 / API 契约链 —— **起草时带着门想 · 起草读的就是 review 会查的**)+ 项目 `project-specs/DEV-RULES.md` / `ARCHITECTURE.md` 同读(冲突以项目为准)。
 
 🔴 v8.217 持续分诊(降级触发):TECH 写完若复杂度评估=**简单**且零架构决策 · 而 roster 仍重 → 可提议降级(R5 一句确认 → `change-review-roles --reason`)—— 分诊不是一次性的 · 每个 gate 都可重校准(升级触发已有 · 本条补反向)。\n🔴 v8.216 评审配置动态化:external 跑不跑 = **按 `state.stage_review_roles.blueprint`**(prepare 按角色价值判定 · 去 external → gate 自动放行 · 审计留痕)· review 阶段 roster 独立判定(明确 ≠ 不会写错)。\n🔴 **TECH 方案涉及数据库数据结构变更**(新建/删除/修改 表、字段、索引、约束、migration)·
 blueprint-complete 前必 emit R5 用户确认暂停点(stage.md §7.5 · v8.265 双触发:DB 变更 **或 🛡️ TECH 兜底清单非空**〔安全/降级兜底不许默默做 · 必用户拍板〕)· 🔴 暂停点**必自带变更点明细表**(对象|变更|**解决什么问题**|**为何非更简方案不可**|破坏性 每对象一行 + 关键迁移策略 —— 分类概括/文件指针不算〔v8.242 实证:概括式 emit 逼用户追问〕· 只写「内容」不写「为什么」也不算〔v8.255 实证:三张新表无一句动机 · 用户点名要目的与更简方案质询〕)· 不涉及则跳过。
@@ -1742,6 +1810,50 @@ def _code_root_for(state: dict, feature_dir: Path) -> Path:
         if (parent / ".git").exists():
             return parent
     return feature_dir
+
+
+def _evidence_feature_gates(state: dict, args) -> tuple[bool, str]:
+    """v8.352:TECH §功能生效闸 必答(用户拍板:生效闸要在 TECH 明确指出 · 与 DB 变更同级需确认)。
+
+    生效闸 = 让「已上线的功能」在运行时不生效的任何东西(env flag / 配置必填 / 水位切点 /
+    cap / fail-closed 短路 / 灰度开关)。实证事故:PRD 要的是「诚实展示 —— 可以 partial /
+    unavailable、不补零」,TECH 把它翻译成「**没配齐就不要开读**」→ 整页 503,
+    **功能上线了但用户根本看不到**。「别报假数」≠「宁可什么都不给」。
+
+    🔴 只查两件可判的事:①该节存在(无闸也要显式写「无」)②有闸时每条答了
+    「不满足时用户看到什么」。判断题(该不该设这个闸)留人 —— 机器不代做。
+    """
+    # 不产 TECH 的形态直接 skip:blueprint 不在链上(lite / floor / tiny / micro)· 或 Bug 流。
+    # 优先读计划(v8.343 单源)· 无计划回退 flow_key(存量 state)。
+    if _on_chain(state, "blueprint") is False or _flow_key(state) in ("Bug", "Micro", "Tiny", "Floor"):
+        return True, "skipped(本形态不产 TECH · blueprint 不在链上)"
+    tech = Path(args.feature) / "TECH.md"
+    if not tech.is_file():
+        return True, ""                      # TECH 缺失由 artifacts 门报 · 不重复
+    txt = tech.read_text(encoding="utf-8", errors="replace")
+    m = re.search(r"(?ms)^##\s*功能生效闸.*?(?=^##\s|\Z)", txt)
+    if not m:
+        return False, ("TECH 缺 §功能生效闸(v8.352)—— 生效闸 = 让已上线功能**运行时不生效**的东西"
+                       "(env flag / 配置必填 / 水位切点 / cap / fail-closed 短路)。"
+                       "🔴 **无闸也要显式写「无」**(静默没有 与 忘了写 在产物上分不开)· "
+                       "有闸则每条必答「不满足时用户看到什么」+ 与 PRD 承诺对照 · 照 templates/tech.md 补")
+    seg = m.group(0)
+    rows = [l for l in seg.splitlines()
+            if l.strip().startswith("|") and not set(l.strip()) <= set("|-: ")
+            and not l.strip().startswith("| 闸")]
+    # 显式声明无闸 → 放行(不逼人编一个闸出来)
+    if re.search(r"(?m)^\s*(无|None|N-A|N/A)\s*$", seg) or (not rows and "无" in seg):
+        return True, ""
+    if not rows:
+        return False, "§功能生效闸 既没有闸行、也没有显式写「无」—— 二者必居其一"
+    bad = [r for r in rows if "{" in r or len([c for c in r.strip().strip("|").split("|")
+                                               if c.strip()]) < 5]
+    if bad:
+        return False, (f"§功能生效闸 有 {len(bad)} 行未答齐(仍含模板占位 或 少于 5 列)—— "
+                       "每条必须给全:闸 / 默认值 / **不满足时用户看到什么** / PRD 承诺的是什么 / "
+                       "为什么要这个闸。🔴 写不出「不设会出什么事」→ **不设这个闸**"
+                       "(别让功能上了线却不生效)")
+    return True, ""
 
 
 def _evidence_ac_test_binding(state: dict, args) -> tuple[bool, str]:
@@ -1984,6 +2096,11 @@ BLUEPRINT_SPEC = StageSpec(
             name="review_models_staggered",
             check_fn=_evidence_review_models_staggered("TECH-REVIEW.md"),
             description="评审各路模型错开(主审 review_models × 外审 review_model 机器比对 · <2 申报 skip)",
+        ),
+        StageEvidenceCheck(
+            name="feature_gates",
+            check_fn=_evidence_feature_gates,
+            description="TECH §功能生效闸 必答(无闸显式写「无」· 有闸逐条答「不满足时用户看到什么」)",
         ),
         StageEvidenceCheck(
             name="ac_test_binding",

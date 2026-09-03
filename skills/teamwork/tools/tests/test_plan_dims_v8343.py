@@ -110,6 +110,18 @@ class TestMatrixDerivesChain(unittest.TestCase):
             self.assertEqual(S.derive_chain(d), E.derive_chain(d), t)
             self.assertEqual(S.derive_flow_graph(d), E.derive_flow_graph(d), t)
 
+    def test_flow_key_agrees_across_all_three_impls(self):
+        """🔴 v8.352 补锁:本条初版只比了 derive_*,**没比 flow_key** ——
+        于是 v8.343 加 floor 档时漏改 specs._flow_key(state.py/engine 给 "Floor"、
+        它给 "Feature"),整整九版没人发现,直到 v8.352 写新门用到它才撞出来。
+        「第二份实现允许存在的前提是被锁死相等」要锁**全部**归一函数,不是其中一个。
+        """
+        for t in TIERS:
+            st = {"flow_type": "Feature", "preset": t}
+            keys = {S.internal_flow_key("Feature", t), E._internal_flow_key(st),
+                    SP._flow_key(st)}
+            self.assertEqual(len(keys), 1, f"{t}: 三实现解析不一致 → {keys}")
+
 
 # ─── 2 · 一致性:拆维度必然产生不连贯组合 ───────────────────────────────
 

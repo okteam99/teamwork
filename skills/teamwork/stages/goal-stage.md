@@ -54,6 +54,12 @@
    - 🔴 **三类不可修订**:① **用户主权点**(已停等确认过的 PRD 终确认 · `ship` 本身 · 用户点名要过的评审点)② **硬不变式**(模型错开 / PRD·TECH 高档)③ **不可回溯放松**(dev 已交测试证据 → 不许改 `evidence_gate=关`;已走过的 stage 不许被移出链)。**计划可改 · 历史不可改**。
    - 📊 **修订记 delta 进 `assembly_plan.revisions`**(方向 + 证据),ship 台账带出 —— 这是**校准闭环的数据源**:跑一段时间就能用真数据回答「初始定档是不是系统性偏保守」(减多于加 → 是),而不是靠推演。
 4. **物化门禁**(goal-complete 拦):`prd_verdicts_all_pass`(verdicts 全 APPROVE/SKIP)· `pl_challenge_present`(roster 含 pl 时 PRD-REVIEW 必有 PL-CHALLENGE 段)· `external_coverage_present`(roster 含 external 时外审段必有 coverage 申报)· PRD-REVIEW mtime > PRD · `--needs-ui` × flow_type 校验。
+4.4 🗣️ **已确认意图入 PRD(原样搬运 · 用户拍板)**:`goal-start` 的 brief 会把 `state.confirmed_intent`(prepare 确认卡五项 · `init-feature --user-intent` 等参数搬进来的)**渲染好**,起草时**照抄进 PRD §已确认意图**。`goal-complete` 机器校验该节存在且 🗣️ 原话非空(`confirmed_intent`)。
+   - 🔴 **原样搬,不润色** —— 润色 = 二次解释,偏差正是这么进来的;用户中途改口 → **append「✏️ 修订」不覆盖**(保留「原本要什么 → 后来改成什么」)。
+   - 🔴 **why(治的是链条上最后一个「只活在对话里」的关键信息)**:此前 prepare 确认过的意图只在对话与用户级 `~/.teamwork/prepare_check_audit.jsonl` 里 —— 不在 feature 内、不进 git、`init-feature` 也不收。于是「PRD 的脊 = prepare 已确认的意图 · **冷审据此核对**」是**空头承诺:冷审没有可核对的对象**。会话一压缩 / 换 session / 派 subagent,原话就没了 —— 两起事故(协议 header 归零 · AON Link 投放点击不回传)的共同上游都是这个。
+   - 📎 与 4.5 的分工:**本条是把锚点搬进来**(让下游拿得到用户原话),4.5 是**拿锚点核对**(PM 逐项查有没有偏)。锚点不在,4.5 只能凭 PM 的记忆做 —— 那正是会丢的东西。
+   - 📎 副作用(好的):冷审从此**也拿得到**用户原话 —— 4.5 的责任人仍是主对话 PM,但术语解释那一槽冷审可以多看一眼。
+
 4.5 🎯 **意图对照(主对话 PM 自查 · 终确认前必做 · 用户拍板)**:PRD §意图对照 三槽 —— **①术语解释对照**(用户原话里的名词 → 我理解成了什么 → **用户说过 / 我推的** → **🔴 若这条错了最坏会怎样**)· **②排除项定性**(§Out of Scope 每条标「技术限制」还是「我的解释」)· **③反向验证**(AC 全绿时用户要的事一定发生了吗)。`goal-complete` 机器校验三槽存在且非占位(`intent_reconciliation`)。
    - 🔴 **只能主对话 PM 做,不可委托冷审** —— 冷审拿不到用户原话,它只能核对「PRD 内部是否自洽」;而**范围被悄悄收窄时,PRD 是完全自洽的**(实证事故:把「AON Link」狭义解释成 `/{code}` 短链、明确排除 `/static/{code}` → TECH 写「static 不登记」、测试断言 static "must remain unwired" —— **dev 和 review 都在认真验证一个错误的范围定义**,线上投放点击全部没回传);
    - 🔴 **排除项判据一句话:这个排除是「做不到」还是「我选的边界」?** —— 做不到 → 写 Out of Scope 就够;**「我选的边界」= 范围决策,必须进 §待决策项让用户拍板**(那次事故里排除 Static **并非技术限制**,却从没作为决策呈现过);

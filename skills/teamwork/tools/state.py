@@ -1932,6 +1932,25 @@ def _check_yolo_preflight(pf: Path) -> tuple[bool, str]:
     return True, ""
 
 
+def _build_confirmed_intent(args: argparse.Namespace) -> dict:
+    """prepare 确认过的意图 → state.confirmed_intent(全链唯一锚点)。
+
+    五字段与 prepare §4 确认卡逐一对应(🗣️/🎯/🧩/📦/🔁)· 缺的留空不编。
+    🔴 **原话逐字**:不许 paraphrase —— 润色就是二次解释,偏差正是这么进来的。
+    """
+    return {
+        "user_words": (getattr(args, "user_intent", None) or "").strip(),   # 🗣️ 逐字
+        "understanding": (getattr(args, "intent_understanding", None) or "").strip(),  # 🎯
+        "assumptions": (getattr(args, "intent_assumptions", None) or "").strip(),      # 🧩
+        "scope": (getattr(args, "intent_scope", None) or "").strip(),                  # 📦
+        "existing_behavior": (getattr(args, "intent_existing", None) or "").strip(),   # 🔁
+        "confirmed_at": now_iso(),
+        "source": "prepare",
+        # 用户中途改口 → append 一条(不覆盖 · 保留「原本要什么 → 后来改成什么」)
+        "amendments": [],
+    }
+
+
 def cmd_init_feature(args: argparse.Namespace) -> None:
     """Create initial state.json · 替代手工 Write。"""
     # Feature Planning / 问题排查 不进状态机 · 拒绝
@@ -2191,6 +2210,12 @@ def cmd_init_feature(args: argparse.Namespace) -> None:
         "feature_id": args.feature_id,
         "bl": getattr(args, "bl", None) or None,  # v8.196:承接的 BL(F↔BL 机读绑定 · 链路最脆一环治本)
         "clarity": getattr(args, "clarity", "normal") or "normal",  # v8.215:明确度 → 评审强度比例化
+        # v8.353(用户拍板:把已确认的意图写进 PRD · 防关键信息丢失、后续按错误方向走):
+        # prepare 确认过的意图此前**只活在对话里** —— `--user-intent` 只进用户级
+        # `~/.teamwork/prepare_check_audit.jsonl`(不在 feature 内、不进 git、init 也不收),
+        # 于是「PRD 的脊 = prepare 已确认的意图 · 冷审据此核对」是句空头承诺:冷审没有可核对的东西。
+        # 🔴 机器搬运,不靠 AI 记得抄(实证:两起事故的上游都是「用户原话只在 PM 的 context 里」)。
+        "confirmed_intent": _build_confirmed_intent(args),
         "preset": _preset,  # v8.220:Feature 重量档(full/lite/micro)· 链与角色由它决定
         "sub_project": args.sub_project or "",
         "flow_type": args.flow_type,
@@ -4335,6 +4360,15 @@ def build_parser() -> argparse.ArgumentParser:
                           "verify_depth(self|test|test_e2e)· review({评审点: [角色…]})· 另有开关 ui(bool)。"
                           "例:--preset medium --dims '{\"review\":{\"blueprint\":[\"architect\",\"dba\"]}}'。"
                           "🔴 组合连贯性机器校验(不连贯直接拒)· 模型错开与 PRD/TECH 高档是硬不变式、不进矩阵。")
+    # v8.353:把 prepare 确认过的意图搬进 feature(此前只活在对话里 · 冷审拿不到)
+    ifp.add_argument("--user-intent",
+                     help="[v8.353] 🗣️ **用户原话逐字**(与 prepare-check --user-intent 同一份)· "
+                          "🔴 不许 paraphrase —— 润色 = 二次解释,偏差正是这么进来的。"
+                          "落 state.confirmed_intent · goal brief 喂给起草与冷审 · PRD §已确认意图 原样搬")
+    ifp.add_argument("--intent-understanding", help="[v8.353] 🎯 我的理解(要达成什么 · prepare 确认卡原文)")
+    ifp.add_argument("--intent-assumptions", help="[v8.353] 🧩 我补的假设(无则「请求明确 · 无补」)")
+    ifp.add_argument("--intent-scope", help="[v8.353] 📦 范围:做什么 · 不做什么")
+    ifp.add_argument("--intent-existing", help="[v8.353] 🔁 既有行为:改「原 A → 现 B」/ 否")
     ifp.add_argument("--sub-project", help="如 admin / api-server")
     # v7.3.10+P0-149: 删 --artifact-root 冗余参数 · --feature 单源（既是落盘目录又是 artifact_root 字段值）
     ifp.add_argument("--initial-stage",

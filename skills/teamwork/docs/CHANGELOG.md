@@ -4,6 +4,47 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.353 · 已确认意图入 PRD:机器搬运全链锚点(用户拍板)
+
+> 用户:「是否需要把确认的意图写到 PRD,在 PRD 背景信息下增加一个已确认用户意图,防止关键信息丢失,后续流程按错误的方向走。」
+> 查证后确认是**真缺口**:prepare 确认过的意图此前**只活在对话里** —— `prepare-check --user-intent` 只写进**用户级** `~/.teamwork/prepare_check_audit.jsonl`(不在 feature 内 · 不进 git · `init-feature` 根本不收这个参数),PRD 模板里也没有槽位。
+> 🔴 于是模板头那句「PRD 的脊 = prepare 已确认的意图 · **冷审据此核对**」是**空头承诺** —— 冷审没有可核对的对象,只能核对「PRD 内部自洽」,而**范围被收窄时 PRD 恰恰完全自洽**(v8.350 的发现)。两起事故(协议 header → 线上归零 · AON Link → 投放点击不回传)的共同上游都是「用户原话只在 PM 的 context 里」,会话一压缩 / 换 session / 派 subagent 就没了。
+
+### 变更(🔴 机器搬运,不靠 AI 记得抄)
+- **`init-feature` 收意图五项** → `state.confirmed_intent`:`--user-intent`(🗣️ 逐字原话)· `--intent-understanding`(🎯)· `--intent-assumptions`(🧩)· `--intent-scope`(📦)· `--intent-existing`(🔁),与 prepare §4 确认卡逐一对应;`amendments[]` 位留好(改口 **append 不覆盖**)。
+- **goal brief 渲染出来**:起草者与冷审**直接从 brief 拿到用户原话**,不依赖谁记得抄;state 里没有时 brief **显式喊出来**(存量 feature / 没传 → 要求补回,不静默)。
+- **PRD 新增 §已确认意图**(必填核 · 排在 §背景 之后):🗣️/🎯/🧩/📦/🔁 + ✏️ 修订。🔴 **原样搬不润色** —— 润色 = 二次解释,偏差正是这么进来的。
+- **机器门** `confirmed_intent`(goal-complete):该节存在 + 🗣️ 原话非空非占位。原话对不对由人看。
+- **goal-stage 规则 4.4** + 与 4.5 的分工写明:**4.4 把锚点搬进来**(让下游拿得到),**4.5 拿锚点核对**(PM 逐项查有没有偏)—— 锚点不在,4.5 只能凭 PM 的记忆做,而那正是会丢的东西。
+- 📎 好的副作用:**冷审从此也拿得到用户原话** —— 4.5 的责任人仍是主对话 PM,但术语解释那一槽冷审可以多看一眼。
+
+### 服从瘦身门
+新增节让 `templates/prd.md` 顶破 v8.283 的 340 行门(350)。没改门限:模板头那句有了真载体 → **删重复**(改为本节承载)· §消费方 API 契约的「✅写/❌不写」教学注释压缩(v8.283 明确要砍的那类)· §业务流程图五条触发 bullet 压成一行(判据不变)。**336 行过门**。
+
+### 测试
+`test_confirmed_intent_v8353.py` 13 条:CLI 真跑 init 落 state(字段恒在 · 空值与没传分得开)· brief 有原话时渲染 / 没有时**显式喊**/ 修订浮出 · 门三态(缺节/占位/真话)· 模板列进必填核 + 六字段 + 原样搬 + append · **模板头指针不重复** · stage 规则点名旧落点与 4.4/4.5 分工 · 瘦身门仍守。全库绿。
+
+## v8.352 · 功能生效闸:TECH 必明示 · 与 DB 变更同级需确认(用户拍板)
+
+> 用户拍板:「功能生效闸需要在 TECH 文档明确指出,如果有,需要和数据库变更等一起由用户确认。设闸需要理由,避免无意义的闸导致上线功能不生效。」
+> 实证事故(DEV-F260828054357 Performance Analytics):**PRD 只锁产品诚实性** ——「覆盖范围之外不补零、不把不完整说成完整」,明确写着「Today 可以 partial / unavailable」;**TECH 却把它翻译成了硬闸** —— 独立 query 水位、writer 开关、snapshot cap、未配置整页 503。结果:功能上线了,Account `/api/performance` fail-closed 503,**用户根本看不到**。
+
+### 要治的形状
+🔴 **默认失败方向(fail-closed vs fail-open)是产品决策,不是技术细节** —— 它决定「没配齐时用户看到降级内容,还是什么都看不到」。**「别报假数」≠「宁可什么都不给」**,这一步翻译必须用户拍板。
+
+### 变更
+- **TECH 新增 §功能生效闸(必填 · 无闸显式写「无」)**:生效闸 = 让**已上线功能在运行时不生效**的任何东西(env flag / 配置项必填 / 水位切点 / 上限 cap / fail-closed 短路 / 灰度开关)。逐条六列:闸 / 默认值 / **不满足时用户看到什么** / **PRD 承诺的是什么** / **为什么要这个闸(不设会出什么事)** / 谁能解开。
+- **可判问句**:**这个闸不满足时,用户看到什么?PRD 承诺的是什么?** —— 不一致 = 产品决策伪装成技术细节,交用户。
+- **反向压力(用户拍板第三条)**:🔴 **写不出「不设这个闸会出什么事」→ 不设** —— 别让功能上了线却不生效。
+- **停等第三触发**:blueprint 方案要素确认从「DB 变更 / 兜底」**双触发**扩成**三触发**(+🚦 生效闸)· 确认卡照抄闸表并**重点念出与 PRD 承诺不一致的那几条** · 「调整方案」选项涵盖生效闸。**挂在既有停等上,不另立暂停点**。
+- **机器门** `feature_gates`(blueprint-complete):该节存在(无闸显式写「无」)+ 有闸时逐条答齐;不产 TECH 的形态(lite / floor / tiny / micro / Bug)按**计划**自动 skip。
+
+### 顺手修一个真 bug(九版没被发现)
+`_flow_key` 在 v8.343 加 `floor` 档时**漏改** —— `state.py` 与 `engine` 都给 `"Floor"`,而 `_v8_stage_specs._flow_key` 给 `"Feature"`(v8.293 的老病:同一输入被三份实现解析成不同的键)。根因是 v8.343 的一致性锁**只比了 `derive_chain`/`derive_flow_graph`,没比 `flow_key`** —— 于是漏了九版,直到本版写新门用到它才撞出来。已修 + **补锁**:三实现的 flow_key 逐档比对。
+
+### 测试
+`test_feature_gates_v8352.py` 17 条:缺节/模板占位/少列必挂 · 显式「无」放行(不逼人编闸)· 答齐放行 · 不产 TECH 的形态 skip · 模板定义了什么算闸 + 三个可判列 + 反向压力 + fail-closed/open 是产品决策 · 三触发接线(stage/卡片/SKILL)· brief 带 case 代价。v8.343 补 `test_flow_key_agrees_across_all_three_impls`。全库绿。
+
 ## v8.351 · 意图偏差的代价:要算,不要被告知(用户拍板)
 
 > 用户:「PM 要知道一旦理解错了,代价非常高。」
@@ -63,36 +104,3 @@
 
 ### 测试
 `test_yolo_two_stage_v8349.py` 19 条:前缀判定(staging 被拒 · 不只是 main)· 双入口同守 · 主分支门仍在前(报错更具体)· 台账追加/幂等/表头回填/why 写在台账上 · promote 列出待确认且破坏性单独计数 · next_action 问三槽(现存调用方/灰度/回滚条件)+ 第 2 项恒「继续讨论」· confirm-all 可验 · **promote 不含 merge** · 台账随 archive commit · 门文案含可判问句与保守偏置 · spec 三载体 + 🔴 密度门。既有 9 条 yolo 用例按新约束更新(目标分支改 `yolo/*`)。全库 1626 绿。
-
-## v8.348 · 本地测试与 MR CI 同构性对照(实证 case)
-
-> 用户看 case 问「测试流程是否需要约束、覆盖 CI 要检查的项目,避免问题遗漏到 CI 阶段」。
-> case(aon-main DEV-F260830125314):TEST-REPORT 只记录 `cargo check -p aon-api-gateway`(只验编译),而 MR CI 跑 `cd services && cargo clippy --locked -- -D warnings` —— 一条 clippy 漏到 CI 才炸,MR 窗口期多烧一整轮。
-> 🔴 **决定修法的关键细节**:那个 AI **试过** grep CI 配置,猜的是 `.gitlab-ci.yml .gitlab/ci/*.yml` → 返回空;真配置在 GitLab include 进来的 `infra/ci/api-gateway.yml`,于是空结果被当成「没有 CI」。**这不是偷懒,是不知道去哪儿找** —— 该由机器端清单(v8.323「数据算好别让人誊抄」),不是让每个 AI 自己猜路径。
-
-### 变更
-- **`state.py ci-commands --root <worktree>`**:扫本仓 CI 配置(GitLab 根 + `.gitlab/**` + include 常见位 `infra/ci/*` · GitHub `.github/workflows/*` · CircleCI / Azure),只取 `script`/`run` 块里的**门禁类**命令(编译/测试/静态检查),给 `文件:行 + 命令`。部署/发布类不收(不是本地该复现的);vendor/worktree 跳过。
-- **test-stage 规则 2.9 + TEST-REPORT §2.5**:逐条标注 **本地已跑 / ⚠️ 跑不了(为什么)/ — 不适用**。
-- 🔴 **刻意的边界:不要求本地跑 CI 全集**(有些 job 要 infra 凭据、有些太慢,强行复现是纯税)—— 要求的是**看过、并对每条给出处置**;🔴 **「跑不了」必须显式列出**,那就是「已知会在 CI 才发现」的清单,写出来风险才可见(零也显式)。
-- **载体在消费时点**:test-start brief 自动带这条 + 「别自己猜 CI 配置路径」的 case 教训(v8.324「complete 会拒的必须 start 可见」同律)。
-- **与 ship 侧分工写明**:本条是**防**(进 CI 前先对照),v8.345 的 CI 归因是**治**(真红了归因 · 自己引入的直接修)。
-
-### 测试
-`test_ci_parity_v8348.py` 13 条:GitLab include 布局(= 本 case 的形状)· GitHub `- run:` 列表项(初版正则漏了整段)· YAML 键不许当命令 · 部署类不收 · 给出文件:行 · 无 CI 配置给可写处置而非报错 · vendor/worktree 跳过 · CLI 双路径 · 三处载体 · **ship 侧归因不受影响**(防与治不重叠)。真仓库复验:aon-core 14 文件 / supersdk 15 文件,残留 YAML 前缀 0。全库 1607 绿。
-
-## v8.347 · await-merge 后台化会自己退出(实证 case)
-
-> 用户看 case 问「监控为什么自动退出了」。答案不是崩溃也不是超时,是**设计上的单轮上限**:默认 `18 轮 × 30s = 9 分钟`,用尽 emit `WAITING` 后 `sys.exit`(`emit_json` 每条都自带退出)。
-> case(aon-core SVC-CORE-B260831064524):消费 AI **按 spec** 用 `nohup ... >> /tmp/` 后台启动 —— WAITING 里那句「AI 应自动重跑」进了没人读的文件,监控就此永久结束;人几分钟后才点合并,ship2 只能手动补跑。
-
-### 变更
-- **默认窗口按「等的是什么」定**:等人去平台点合并是**小时级**(框架自己的原始痛点数据是 132h 长尾),9 分钟差三个数量级 → `--max-checks` 默认 18 → **120(≈1h)**。
-- **`--until-final`**:自己循环到**终态**才退(MERGED / CLOSED / CI 归因到自己),不受轮次上限约束 —— 后台跑正是这个模式该覆盖的用法,不再把续等义务甩给调用方。
-- **后台化警告**:未开 `--until-final` 且 `stdout` 非 tty → WAITING 显式点出「你把我 nohup 了,但我不会自己续等」并给出口。前台跑不噪。
-- **三处载体同步**(漏一处就复发):ship-stage spec 的投递次序、push emit 里给用户抄的命令行、用户卡片的「监控」行 —— 全部带上 `--until-final`。🔴 **根因其实在 spec**:它明确写着「先后台启动」,而命令从没说过自己必须在前台跑。
-
-### 这条教训的形状
-**载体缺口可以是运行姿态造成的** —— 不是措辞糊(v8.302 那族),而是同一句话在前台成立、在后台不成立;spec 让它后台跑,承诺就失去了接住它的东西。
-
-### 测试
-`test_await_until_final_v8347.py` 10 条:默认窗口小时级 + CLI 同步 · 非 tty 真跑一次拿 WAITING 并断言警告点出机制与出口 · 前台不噪 · until-final 忽略轮次上限且末轮照 sleep · **自续等不许变成永不退出**(三个终态仍在)· 三处载体同步 · why 记成「运行姿态」不是「措辞」。全库 1594 绿。

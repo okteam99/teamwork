@@ -5,6 +5,39 @@
 
 ---
 
+## v8.348 · 本地测试与 MR CI 同构性对照(实证 case)
+
+> 用户看 case 问「测试流程是否需要约束、覆盖 CI 要检查的项目,避免问题遗漏到 CI 阶段」。
+> case(aon-main DEV-F260830125314):TEST-REPORT 只记录 `cargo check -p aon-api-gateway`(只验编译),而 MR CI 跑 `cd services && cargo clippy --locked -- -D warnings` —— 一条 clippy 漏到 CI 才炸,MR 窗口期多烧一整轮。
+> 🔴 **决定修法的关键细节**:那个 AI **试过** grep CI 配置,猜的是 `.gitlab-ci.yml .gitlab/ci/*.yml` → 返回空;真配置在 GitLab include 进来的 `infra/ci/api-gateway.yml`,于是空结果被当成「没有 CI」。**这不是偷懒,是不知道去哪儿找** —— 该由机器端清单(v8.323「数据算好别让人誊抄」),不是让每个 AI 自己猜路径。
+
+### 变更
+- **`state.py ci-commands --root <worktree>`**:扫本仓 CI 配置(GitLab 根 + `.gitlab/**` + include 常见位 `infra/ci/*` · GitHub `.github/workflows/*` · CircleCI / Azure),只取 `script`/`run` 块里的**门禁类**命令(编译/测试/静态检查),给 `文件:行 + 命令`。部署/发布类不收(不是本地该复现的);vendor/worktree 跳过。
+- **test-stage 规则 2.9 + TEST-REPORT §2.5**:逐条标注 **本地已跑 / ⚠️ 跑不了(为什么)/ — 不适用**。
+- 🔴 **刻意的边界:不要求本地跑 CI 全集**(有些 job 要 infra 凭据、有些太慢,强行复现是纯税)—— 要求的是**看过、并对每条给出处置**;🔴 **「跑不了」必须显式列出**,那就是「已知会在 CI 才发现」的清单,写出来风险才可见(零也显式)。
+- **载体在消费时点**:test-start brief 自动带这条 + 「别自己猜 CI 配置路径」的 case 教训(v8.324「complete 会拒的必须 start 可见」同律)。
+- **与 ship 侧分工写明**:本条是**防**(进 CI 前先对照),v8.345 的 CI 归因是**治**(真红了归因 · 自己引入的直接修)。
+
+### 测试
+`test_ci_parity_v8348.py` 13 条:GitLab include 布局(= 本 case 的形状)· GitHub `- run:` 列表项(初版正则漏了整段)· YAML 键不许当命令 · 部署类不收 · 给出文件:行 · 无 CI 配置给可写处置而非报错 · vendor/worktree 跳过 · CLI 双路径 · 三处载体 · **ship 侧归因不受影响**(防与治不重叠)。真仓库复验:aon-core 14 文件 / supersdk 15 文件,残留 YAML 前缀 0。全库 1607 绿。
+
+## v8.347 · await-merge 后台化会自己退出(实证 case)
+
+> 用户看 case 问「监控为什么自动退出了」。答案不是崩溃也不是超时,是**设计上的单轮上限**:默认 `18 轮 × 30s = 9 分钟`,用尽 emit `WAITING` 后 `sys.exit`(`emit_json` 每条都自带退出)。
+> case(aon-core SVC-CORE-B260831064524):消费 AI **按 spec** 用 `nohup ... >> /tmp/` 后台启动 —— WAITING 里那句「AI 应自动重跑」进了没人读的文件,监控就此永久结束;人几分钟后才点合并,ship2 只能手动补跑。
+
+### 变更
+- **默认窗口按「等的是什么」定**:等人去平台点合并是**小时级**(框架自己的原始痛点数据是 132h 长尾),9 分钟差三个数量级 → `--max-checks` 默认 18 → **120(≈1h)**。
+- **`--until-final`**:自己循环到**终态**才退(MERGED / CLOSED / CI 归因到自己),不受轮次上限约束 —— 后台跑正是这个模式该覆盖的用法,不再把续等义务甩给调用方。
+- **后台化警告**:未开 `--until-final` 且 `stdout` 非 tty → WAITING 显式点出「你把我 nohup 了,但我不会自己续等」并给出口。前台跑不噪。
+- **三处载体同步**(漏一处就复发):ship-stage spec 的投递次序、push emit 里给用户抄的命令行、用户卡片的「监控」行 —— 全部带上 `--until-final`。🔴 **根因其实在 spec**:它明确写着「先后台启动」,而命令从没说过自己必须在前台跑。
+
+### 这条教训的形状
+**载体缺口可以是运行姿态造成的** —— 不是措辞糊(v8.302 那族),而是同一句话在前台成立、在后台不成立;spec 让它后台跑,承诺就失去了接住它的东西。
+
+### 测试
+`test_await_until_final_v8347.py` 10 条:默认窗口小时级 + CLI 同步 · 非 tty 真跑一次拿 WAITING 并断言警告点出机制与出口 · 前台不噪 · until-final 忽略轮次上限且末轮照 sleep · **自续等不许变成永不退出**(三个终态仍在)· 三处载体同步 · why 记成「运行姿态」不是「措辞」。全库 1594 绿。
+
 ## v8.346 · 年检 P0 三修:数据推翻直觉(aon-core / supersdk / aib · 289 行台账)
 
 > 用户:「结合 aon-core / supersdk / aib 做一次年检」。三项目全在 v8.344.1 · 台账 16 列 canonical · 样本 210/71/8。

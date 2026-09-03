@@ -1,6 +1,6 @@
 ---
 name: teamwork
-version: v8.351.1
+version: v8.353.1
 description: AI 协作开发一体化框架 - 需求功能开发, bug 修复, 问题排查 · /teamwork 启动
 ---
 
@@ -372,7 +372,7 @@ mode B 识别后(**无论后续 flow_type = Feature〔full/micro〕还是 Bug ·
 | **Feature · floor** | ① prepare 4 项配置 → ② ship1 终点 等 MR 合入(评审点全 0 · 验收 = ship1 MR diff · 但**测试证据门照开**)|
 | **Feature · micro** | ① prepare 4 项配置 → ② ship1 终点 等 MR 合入(execute 零门禁 · 无 pm_acceptance · 用户验收 = ship1 MR diff review)|
 
-📎 **blueprint 方案要素条件暂停点**(双触发):TECH 涉**数据库数据结构变更**(表/字段/索引/约束/migration)**或 🛡️ 含安全/降级兜底策略**(兜底不许默默做 · 复杂度×收益经用户拍板)时 · blueprint-complete 前必 emit 确认暂停点(详 [stages/blueprint-stage.md ④](./stages/blueprint-stage.md))· 不涉及则跳过。**Bug / Feature·micro** 不应涉及 DB 数据结构变更(命中则升 full 完整链)。
+📎 **blueprint 方案要素条件暂停点**(**三触发**):TECH 涉**数据库数据结构变更**(表/字段/索引/约束/migration)**或 🛡️ 含安全/降级兜底策略****或 🚦 有功能生效闸**(env flag / 配置必填 / 水位切点 / cap / fail-closed 短路 —— 用户拍板:**生效闸与 DB 变更同级需确认**;判据「不满足时用户看到什么」与 PRD 承诺不一致 = 产品决策伪装成技术细节)(兜底不许默默做 · 复杂度×收益经用户拍板)时 · blueprint-complete 前必 emit 确认暂停点(详 [stages/blueprint-stage.md ④](./stages/blueprint-stage.md))· 不涉及则跳过。**Bug / Feature·micro** 不应涉及 DB 数据结构变更(命中则升 full 完整链)。
 📎 **其余条件暂停**(命中才停 · 不入上表主链):goal 早问门三闸(如涉既有行为变更升级待决策)· review 轮次超预算升级。
 📎 stage 间(goal-complete→ui_design / dev→review 等)是 state.py **自动流转** · 非暂停点 · 不插确认。
 
@@ -387,7 +387,7 @@ mode B 识别后(**无论后续 flow_type = Feature〔full/micro〕还是 Bug ·
 | diagnose 修复方案确认(Bug) | **skip + WARN** | 按推荐方案继续 + `add-concern --severity WARN --message "auto skip: diagnose 方案 ..."` 留痕 · 修偏由 pm_acceptance 兜 |
 | ui_design UI 预览确认 | skip | 设计意图已落 UI.md / preview · auto 用户接受 |
 | ui_design 出口全景 L2 判级(仅结构变更停 · L1 任何模式都不停) | **skip + WARN** | UI.md §全景变更判级 已文档化 · 必 `state.py add-concern --severity WARN --message "auto skip: panorama change scope=..."` |
-| blueprint 方案要素确认(DB 变更/兜底) | **skip + WARN** | 高影响 · 必 `state.py add-concern --severity WARN --message "auto skip: 方案要素确认 · DB: .../兜底: ..."`(便于 dev/review 复查) |
+| blueprint 方案要素确认(DB 变更/兜底/🚦 生效闸) | **skip + WARN** | 高影响 · 必 `state.py add-concern --severity WARN --message "auto skip: 方案要素确认 · DB: .../兜底: ..."`(便于 dev/review 复查) |
 | **pm_acceptance 三选项** | **stop** | 产品决策权:approved_and_ship / approved_no_ship / rejected_with_feedback · AI 不能替用户拍板(违 R3) |
 | **ship1 终点 等平台 merge feature MR** | **stop + 监控** | 用户在 git host 平台操作 · AI 无法代办 · 🔴 stop = 不替用户点合并 · **仍必须跑 `await-merge` 轮询**(所有模式 · MERGED → 自动 ship-finalize)—— 否则用户合了没人收尾 |
 
