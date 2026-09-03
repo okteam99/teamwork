@@ -38,7 +38,10 @@ def _flow_key(state: dict) -> str:
     _blueprint_skipped(state),别往这个函数里加第四个返回值。"""
     ft = state.get("flow_type") or ""
     pre = state.get("preset") or "full"
-    if ft == "Feature" and pre in ("micro", "tiny"):
+    if ft == "Feature" and pre in ("micro", "tiny", "floor"):
+        # 🔴 三实现必须同口径(state.py._STRUCTURAL_PRESETS / engine._STRUCTURAL_PRESETS)——
+        # v8.343 加 floor 档时漏了这一处,state.py/engine 给 "Floor" 而这里给 "Feature"
+        # (v8.293 的老病:同一输入被三份实现解析成不同的键)。
         return pre.capitalize()
     return ft
 
@@ -1710,7 +1713,8 @@ QA 起草 TC(BDD)**∥** RD 起草 TECH(🎚️ **TECH 起草与评审必用主�
 
 ### 怎么做
 **必读** `stages/blueprint-stage.md`(详细步骤 + §7.5 DB schema 条件暂停点)。
-🔴 **起草对照 `standards/tech-rules.md`**(三时点必读之一 · 起草重点 §三 方案与架构门:FK 决策 / Schema 影响分析 / API 契约链 —— **起草时带着门想 · 起草读的就是 review 会查的**)+ 项目 `project-specs/DEV-RULES.md` / `ARCHITECTURE.md` 同读(冲突以项目为准)。
+🔴 **🚦 **功能生效闸必答**(TECH §功能生效闸 · v8.352 用户拍板):生效闸 = 让**已上线功能运行时不生效**的东西(env flag / 配置必填 / 水位切点 / cap / fail-closed 短路)· **无闸也要显式写「无」**。🔴 每条必答**「不满足时用户看到什么」**并与 PRD 承诺对照 —— 不一致 = **产品决策伪装成技术细节**,随方案要素确认一起交用户拍板(与 DB 变更同级)。🔴 **设闸要有理由:写不出「不设会出什么事」就不设** —— 实证事故:PRD 要「诚实展示(可以 partial)」,TECH 落成「没配齐就整页 503」· **功能上线了但用户根本看不到**。
+起草对照 `standards/tech-rules.md`**(三时点必读之一 · 起草重点 §三 方案与架构门:FK 决策 / Schema 影响分析 / API 契约链 —— **起草时带着门想 · 起草读的就是 review 会查的**)+ 项目 `project-specs/DEV-RULES.md` / `ARCHITECTURE.md` 同读(冲突以项目为准)。
 
 🔴 v8.217 持续分诊(降级触发):TECH 写完若复杂度评估=**简单**且零架构决策 · 而 roster 仍重 → 可提议降级(R5 一句确认 → `change-review-roles --reason`)—— 分诊不是一次性的 · 每个 gate 都可重校准(升级触发已有 · 本条补反向)。\n🔴 v8.216 评审配置动态化:external 跑不跑 = **按 `state.stage_review_roles.blueprint`**(prepare 按角色价值判定 · 去 external → gate 自动放行 · 审计留痕)· review 阶段 roster 独立判定(明确 ≠ 不会写错)。\n🔴 **TECH 方案涉及数据库数据结构变更**(新建/删除/修改 表、字段、索引、约束、migration)·
 blueprint-complete 前必 emit R5 用户确认暂停点(stage.md §7.5 · v8.265 双触发:DB 变更 **或 🛡️ TECH 兜底清单非空**〔安全/降级兜底不许默默做 · 必用户拍板〕)· 🔴 暂停点**必自带变更点明细表**(对象|变更|**解决什么问题**|**为何非更简方案不可**|破坏性 每对象一行 + 关键迁移策略 —— 分类概括/文件指针不算〔v8.242 实证:概括式 emit 逼用户追问〕· 只写「内容」不写「为什么」也不算〔v8.255 实证:三张新表无一句动机 · 用户点名要目的与更简方案质询〕)· 不涉及则跳过。
@@ -1742,6 +1746,50 @@ def _code_root_for(state: dict, feature_dir: Path) -> Path:
         if (parent / ".git").exists():
             return parent
     return feature_dir
+
+
+def _evidence_feature_gates(state: dict, args) -> tuple[bool, str]:
+    """v8.352:TECH §功能生效闸 必答(用户拍板:生效闸要在 TECH 明确指出 · 与 DB 变更同级需确认)。
+
+    生效闸 = 让「已上线的功能」在运行时不生效的任何东西(env flag / 配置必填 / 水位切点 /
+    cap / fail-closed 短路 / 灰度开关)。实证事故:PRD 要的是「诚实展示 —— 可以 partial /
+    unavailable、不补零」,TECH 把它翻译成「**没配齐就不要开读**」→ 整页 503,
+    **功能上线了但用户根本看不到**。「别报假数」≠「宁可什么都不给」。
+
+    🔴 只查两件可判的事:①该节存在(无闸也要显式写「无」)②有闸时每条答了
+    「不满足时用户看到什么」。判断题(该不该设这个闸)留人 —— 机器不代做。
+    """
+    # 不产 TECH 的形态直接 skip:blueprint 不在链上(lite / floor / tiny / micro)· 或 Bug 流。
+    # 优先读计划(v8.343 单源)· 无计划回退 flow_key(存量 state)。
+    if _on_chain(state, "blueprint") is False or _flow_key(state) in ("Bug", "Micro", "Tiny", "Floor"):
+        return True, "skipped(本形态不产 TECH · blueprint 不在链上)"
+    tech = Path(args.feature) / "TECH.md"
+    if not tech.is_file():
+        return True, ""                      # TECH 缺失由 artifacts 门报 · 不重复
+    txt = tech.read_text(encoding="utf-8", errors="replace")
+    m = re.search(r"(?ms)^##\s*功能生效闸.*?(?=^##\s|\Z)", txt)
+    if not m:
+        return False, ("TECH 缺 §功能生效闸(v8.352)—— 生效闸 = 让已上线功能**运行时不生效**的东西"
+                       "(env flag / 配置必填 / 水位切点 / cap / fail-closed 短路)。"
+                       "🔴 **无闸也要显式写「无」**(静默没有 与 忘了写 在产物上分不开)· "
+                       "有闸则每条必答「不满足时用户看到什么」+ 与 PRD 承诺对照 · 照 templates/tech.md 补")
+    seg = m.group(0)
+    rows = [l for l in seg.splitlines()
+            if l.strip().startswith("|") and not set(l.strip()) <= set("|-: ")
+            and not l.strip().startswith("| 闸")]
+    # 显式声明无闸 → 放行(不逼人编一个闸出来)
+    if re.search(r"(?m)^\s*(无|None|N-A|N/A)\s*$", seg) or (not rows and "无" in seg):
+        return True, ""
+    if not rows:
+        return False, "§功能生效闸 既没有闸行、也没有显式写「无」—— 二者必居其一"
+    bad = [r for r in rows if "{" in r or len([c for c in r.strip().strip("|").split("|")
+                                               if c.strip()]) < 5]
+    if bad:
+        return False, (f"§功能生效闸 有 {len(bad)} 行未答齐(仍含模板占位 或 少于 5 列)—— "
+                       "每条必须给全:闸 / 默认值 / **不满足时用户看到什么** / PRD 承诺的是什么 / "
+                       "为什么要这个闸。🔴 写不出「不设会出什么事」→ **不设这个闸**"
+                       "(别让功能上了线却不生效)")
+    return True, ""
 
 
 def _evidence_ac_test_binding(state: dict, args) -> tuple[bool, str]:
@@ -1984,6 +2032,11 @@ BLUEPRINT_SPEC = StageSpec(
             name="review_models_staggered",
             check_fn=_evidence_review_models_staggered("TECH-REVIEW.md"),
             description="评审各路模型错开(主审 review_models × 外审 review_model 机器比对 · <2 申报 skip)",
+        ),
+        StageEvidenceCheck(
+            name="feature_gates",
+            check_fn=_evidence_feature_gates,
+            description="TECH §功能生效闸 必答(无闸显式写「无」· 有闸逐条答「不满足时用户看到什么」)",
         ),
         StageEvidenceCheck(
             name="ac_test_binding",
