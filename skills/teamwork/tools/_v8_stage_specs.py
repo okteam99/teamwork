@@ -563,6 +563,33 @@ def _evidence_reviewers_match(review_artifact: str):
 # ─── B1 · goal ─────────────────────────────────────────────────
 
 
+def _render_confirmed_intent(state: dict) -> str:
+    """把 state.confirmed_intent 原样渲染进 goal brief(v8.353)。
+
+    🔴 机器搬运 —— 起草者与冷审都从 brief 直接拿到用户原话,不依赖谁记得抄。
+    治的是:prepare 确认过的意图此前只活在对话里,会话一压缩/换 session/派 subagent 就没了;
+    于是「PRD 的脊 = prepare 已确认的意图 · 冷审据此核对」没有可核对的对象。
+    """
+    ci = state.get("confirmed_intent") or {}
+    words = (ci.get("user_words") or "").strip()
+    if not words and not (ci.get("understanding") or "").strip():
+        return ("\n🗣️ **已确认意图:state 里没有**(存量 feature / init 未传 `--user-intent`)—— "
+                "🔴 起草前**先把 prepare 确认卡的五项补回 PRD §已确认意图**(原话逐字 · 不许润色),"
+                "否则冷审无从核对「有没有偏离用户要的」,后续全链都在验证一个没有锚点的东西。\n")
+    rows = [("🗣️ 用户原话(逐字 · 不许改写)", words),
+            ("🎯 理解", ci.get("understanding")),
+            ("🧩 我补的假设", ci.get("assumptions")),
+            ("📦 范围", ci.get("scope")),
+            ("🔁 既有行为", ci.get("existing_behavior"))]
+    body = "\n".join(f"  - {k}:{(v or '—').strip()}" for k, v in rows)
+    amend = ci.get("amendments") or []
+    tail = (f"\n  - ✏️ 中途修订 {len(amend)} 条(append 保留 · 不覆盖):"
+            + " · ".join(str(a.get("note", ""))[:60] for a in amend)) if amend else ""
+    return (f"\n🗣️ **已确认意图(prepare 原样搬运 · PRD §已确认意图 照抄这块)**:\n{body}{tail}\n"
+            "🔴 **PRD 的脊 = 这段** —— 起草不得偏离;冷审据此核对「有没有偏离用户要的」"
+            "(这是冷审唯一能拿到的用户原话)。改写/润色 = 二次解释,偏差正是这么进来的。\n")
+
+
 def _goal_brief(state: dict) -> str:
     """v8.0+P0-8 极简版:目标 + 结果 + 完成方式 · 怎么做归 stage.md。"""
     _fast = ("\n⚡ **fast_mode 生效**(localconfig · v8.261):**单路合并冷审** —— 派**一个**隔离 agent 兼 "
@@ -590,7 +617,7 @@ state.py goal-complete --feature <path> \
   --auto-commit <hash> --artifacts PRD.md,PRD-REVIEW.md \
   --needs-ui {{true|false}} --needs-browser-e2e {{true|false}}
 ```
-🎯 **意图对照**(终确认前必做 · 详 stage.md 规则 4.5):PRD §意图对照 三槽 —— ①用户原话里的名词**我理解成了什么**(标「用户说过 / 我推的」)· ②§Out of Scope 每条是「技术限制」还是「**我的解释**」(🔴 我的解释 = 范围决策 · 必须进 §待决策项)· ③**AC 全绿时用户要的事一定发生了吗**(想得出反例就写)。🔴 ①的末列**逐行写「若这条错了最坏会怎样」的具体后果**(不写「影响较大」)· 后果落生产/外部/不可逆 → 该行必进 §待决策项。
+{_render_confirmed_intent(state)}🎯 **意图对照**(终确认前必做 · 详 stage.md 规则 4.5):PRD §意图对照 三槽 —— ①用户原话里的名词**我理解成了什么**(标「用户说过 / 我推的」)· ②§Out of Scope 每条是「技术限制」还是「**我的解释**」(🔴 我的解释 = 范围决策 · 必须进 §待决策项)· ③**AC 全绿时用户要的事一定发生了吗**(想得出反例就写)。🔴 ①的末列**逐行写「若这条错了最坏会怎样」的具体后果**(不写「影响较大」)· 后果落生产/外部/不可逆 → 该行必进 §待决策项。
 🔴 **意图错误是唯一一类下游全部质量门都拦不住的错** —— 评审/测试/CI/验收全都以「意图正确」为前提,只能答「做得对不对」、答不了「做的是不是对的东西」:实现错了代价 ≈ 一轮返工,**意图错了代价 = 整条链的质量投入全变成「认真地做错事」+ 线上事故**(两次实证都是流程走完、测试全绿、事故照样发生)· **越认真做,错得越彻底**。🔴 **只能主对话做,不可委托冷审** —— 冷审拿不到用户原话,而范围被悄悄收窄时 PRD 是完全自洽的(实证事故:「AON Link」被狭义解释成 `/{{code}}`、排除 `/static/{{code}}`,dev 与 review 都在认真验证一个错误的范围定义,线上投放点击全部没回传)。`goal-complete` 机器校验三槽非占位。
 🔗 **链装配**(调研后 · 详 stage.md 规则 3.7)· 🎛️ **装配 = 拧四维不是挑档名**:`D1 规格深度`〔none/prd/prd_tech〕· `D2 证据门`〔开/关〕· `D3 验证深度`〔self/test/test_e2e〕· `D4 评审力度`〔逐评审点 路数×角色×模型〕· 开关 `UI`。🔴 评审力度**加减两侧都判** · **六档起手**(判**风险的种类**不判改动大小):micro〔无行为面 · 测试无从写起〕· floor〔测试能完全证明 · dev→ship〕· tiny〔值得一双眼看 diff · 零文档 · review external 单路〕· lite〔有规格风险要 PRD · 方案空间小不写 TECH · `--needs-blueprint false`〕· medium〔值得写 TECH · goal/blueprint 各单路〕· full〔两路并行冷审划算〕—— 🔴 **档只是起手点:选完必须再过一遍四维,该拧就拧**(只报档名不拧 = 退化情形)· 🔴 **只留一路时留 external 不留 architect**(年检实证:逐 stage 产出 ext>arch · 总量 2.1× · 采纳 82%)· 单路**模型照错开**(降档不降独立性)· 路数与四轴对不上必须写「为什么不降」):goal 自身评审面 AI 自定(留痕不问);下游装配写进终确认导读「🔗 链装配」节 · 🔴 **四槽缺一即漏 · 整卡 ≤7 行**(流程阶段〔机器按 `derive_chain` 渲染〕· 维度元组 · **评审力度逐评审点「是否需要×几路×谁×理由」〔收到零也显式写 0 路+理由 —— 减税要减在明处〕** · 四轴证据各半句)—— **默认按此执行 · 用户不要求改就生效**。
 🔁 **每个 stage 边界都是显式修订点**:complete emit 带 `plan_checkpoint` · 问「有没有出现**装配时不知道的事实**」—— 有就 `revise-plan --dim <维度> --to <值> --evidence '<事实>'`,没有就照计划走 · **回显不停等** · ⚖️ **加与减同价**(都只要一行证据)· 🔴 **计划可改 · 历史不可改**。
@@ -782,6 +809,38 @@ def _evidence_prd_template_conformance(state: dict, args) -> tuple[bool, str]:
     return True, ""
 
 
+def _evidence_confirmed_intent(state: dict, args) -> tuple[bool, str]:
+    """v8.353:PRD §已确认意图 必有且原话非空(用户拍板:把确认过的意图写进 PRD)。
+
+    治的是链条上最后一个「只活在对话里」的关键信息:prepare 确认过的意图此前只在对话与
+    用户级 audit jsonl 里 —— 不在 feature 内、不进 git、init-feature 也不收。于是模板头那句
+    「PRD 的脊 = prepare 已确认的意图 · **冷审据此核对**」是空头承诺:**冷审没有可核对的对象**。
+    两起事故(协议 header / AON Link)的共同上游都是「用户原话只在 PM 的 context 里」——
+    会话一压缩、换 session、派 subagent 就没了。
+
+    🔴 只查可判的:①节存在 ②🗣️ 用户原话非空且非占位。原话对不对由人看(机器不判语义)。
+    """
+    prd = Path(args.feature) / "PRD.md"
+    if not prd.is_file():
+        return False, "PRD.md 不存在"
+    txt = prd.read_text(encoding="utf-8", errors="replace")
+    m = re.search(r"(?ms)^##\s*已确认意图.*?(?=^##\s|\Z)", txt)
+    if not m:
+        return False, ("PRD 缺 §已确认意图(v8.353)—— **PRD 的脊,也是冷审唯一能拿到的用户原话**。"
+                       "照 templates/prd.md 补:🗣️ 用户原话(逐字)/ 🎯 理解 / 🧩 假设 / 📦 范围 / 🔁 既有行为。"
+                       "goal brief 已把 `state.confirmed_intent` 渲染好,**照抄即可**(原样搬 · 不润色)")
+    seg = m.group(0)
+    mw = re.search(r"(?m)^\s*[-*]?\s*🗣️[^:：]*[:：](.*)$", seg)
+    words = (mw.group(1) if mw else "").strip()
+    words = words.strip("「」\"' ")
+    if not words or words in {"…", "...", "—", "-"} or re.fullmatch(r"\{.*\}", words):
+        return False, ("§已确认意图 的 🗣️ **用户原话为空或仍是占位** —— 这是全链唯一的锚点,"
+                       "缺了它下游只能核对「PRD 内部自洽」(而范围被收窄时 PRD 恰恰完全自洽)。"
+                       "🔴 **逐字引用,不许 paraphrase**;确实没有原话(如上游 BL 派生)→ "
+                       "写明来源与依据,别留空")
+    return True, ""
+
+
 def _evidence_intent_reconciliation(state: dict, args) -> tuple[bool, str]:
     """v8.350:PRD §意图对照 三槽非空(用户拍板:AC 要确认有无「对原始用户意图理解偏差」的风险)。
 
@@ -964,6 +1023,11 @@ GOAL_SPEC = StageSpec(
             name="prd_template_conformance",
             check_fn=_evidence_prd_template_conformance,
             description="PRD 含机读块/AC/扩展区三命门段(canonical 模板 · v8.201 治到达率)",
+        ),
+        StageEvidenceCheck(
+            name="confirmed_intent",
+            check_fn=_evidence_confirmed_intent,
+            description="PRD §已确认意图 存在且 🗣️ 用户原话非空(PRD 的脊 · 冷审的核对对象)",
         ),
         StageEvidenceCheck(
             name="intent_reconciliation",
