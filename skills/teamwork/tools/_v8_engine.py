@@ -2360,7 +2360,7 @@ def _preventability_hint(stage: str, feature: str, verdict) -> Optional[str]:
         f"   `state.py review-preventability --feature {feature} --stage {stage} "
         f"--preventable <本可预防条数> --total <确认 findings 总数> "
         f"--missing '<缺的起草考虑点;分号分隔 · 全 emergent 留空>'`\n"
-        f"   判据:这条 finding **起草时本可预防吗**(本应被 PL六问 / TECH 简洁性自查 / 复发清单挡掉)· "
+        f"   判据:这条 finding **起草时本可预防吗**(本应被 PL七问 / TECH 简洁性自查 / 复发清单挡掉)· "
         f"零可预防也照记(`--preventable 0`)—— 「全 emergent」与「没记录」是两回事。"
     )
 

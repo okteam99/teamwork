@@ -23,7 +23,7 @@
 | <ID> | <Feature / Feature·micro / Bug> | <goal→blueprint→dev→…→ship> | <2.4h·AI 88m·待 32m> | <1/1> | <3/1/2> | <pl:2 ext:1 / arch:1 qa:0 ext:1> | <1:2> | <0/0> | <external 拦 1 真问题 · ui_design 零 finding 过场> | <goal 20m(+等5m)·dev 40m·review 8m·pm_acceptance 30m> | <git user.email> | <claude-code/codex-cli/gemini-cli> | <explicit·goal→qa → diff 14 files·PRD 0 revision·review 1 轮> | <3/12 可预防·缺:并发时序> | <2/9 轮 · 详 apps/partner/docs/retros/SVC-F001-process.md> |
 
 > 🔴 **schema 演进纪律= 只在末尾加列** —— 新列一律追加到表**最右** · **永不在中间插列**(否则旧行错位、年检读错列)。**旧项目台账迁移 = 表头升级 + 旧数据行末尾补 `—` 到表头宽**(`—` = 早于该指标 · 内容前缀逐字不动 · 只补不裁 ——「短行是有效前缀不动」的旧设计被消费项目实证打破:按列索引解析静默错位):`state.py ledger-migrate` 幂等可手跑,archive 落行与版本漂移入口自愈也会自动跑。
-> 🔴 **🛡️ 起草可预防性**:各评审收敛后跑 `state.py review-preventability --stage <goal|blueprint|review> --preventable N --total M --missing '缺的考虑点'` 记录 · ship 聚合成「可预防/总·缺考虑点」照抄本列(数据源 = ship1 archive emit 的 `ledger_authoring_preventability`)。**用途**:年检看「缺的考虑点」跨 feature 复发 → 补 PRD/TECH 起草考虑点(PL六问/TECH自查/复发清单);判据同 (findings 82% 真·砍轮=漏 bug·真杠杆=起草挡掉可预防子集)。非门禁 · 没记录留空(有效前缀)。
+> 🔴 **🛡️ 起草可预防性**:各评审收敛后跑 `state.py review-preventability --stage <goal|blueprint|review> --preventable N --total M --missing '缺的考虑点'` 记录 · ship 聚合成「可预防/总·缺考虑点」照抄本列(数据源 = ship1 archive emit 的 `ledger_authoring_preventability`)。**用途**:年检看「缺的考虑点」跨 feature 复发 → 补 PRD/TECH 起草考虑点(PL七问/TECH自查/复发清单);判据同 (findings 82% 真·砍轮=漏 bug·真杠杆=起草挡掉可预防子集)。非门禁 · 没记录留空(有效前缀)。
 > 🔴 **⏱️ 耗时归因(收窄)**:本列**只放可查表算账的比值 + 指针** ——
 > `<开销轮>/<总轮> 轮 · 详 <流程复盘文档相对路径>`(数据源 = ship1 archive emit 的 `ledger_stage_cost`)。
 > 🔴 **归因叙述不写这里**:一行一 feature、单元格 ≤1 行,压不下「这 318 分钟花在哪」——

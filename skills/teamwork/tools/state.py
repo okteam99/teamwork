@@ -798,7 +798,7 @@ def cmd_review_preventability(args: argparse.Namespace) -> None:
     """v8.281:评审收敛后记录「起草可预防性」—— 本次 findings 里多少起草时本可预防 + 缺哪条起草考虑点。
 
     非门禁 · 纯数据采集(不记不拦 ship · 台账列留空是有效前缀)· ship 聚合进「🛡️ 起草可预防性」列。
-    用途:年检据此判 PRD/TECH **起草考虑点**(PL六问 / TECH 简洁性自查 / 起草思考规范)到底缺不缺 ——
+    用途:年检据此判 PRD/TECH **起草考虑点**(PL七问 / TECH 简洁性自查 / 起草思考规范)到底缺不缺 ——
     同一条「缺的考虑点」跨 feature 反复出现 = 真缺口 · 补进框架考虑点或项目复发清单;
     全是 emergent(涌现真问题)= 考虑点没问题别动。判据同 v8.278:findings 82% 真 · 砍轮=漏 bug ·
     真杠杆是把**可预防子集**在起草时挡掉(不是砍评审)。
@@ -4440,7 +4440,7 @@ def build_parser() -> argparse.ArgumentParser:
     rpv.add_argument("--feature", required=True, help="Feature artifact_root 路径")
     rpv.add_argument("--stage", required=True, choices=["goal", "blueprint", "review"],
                      help="哪次评审(goal PRD 冷审 / blueprint TECH 评审 / review 代码评审)")
-    rpv.add_argument("--preventable", type=int, default=0, help="findings 里起草时本可预防的条数(本应被 PL六问/TECH自查/复发清单覆盖)")
+    rpv.add_argument("--preventable", type=int, default=0, help="findings 里起草时本可预防的条数(本应被 PL七问/TECH自查/复发清单覆盖)")
     rpv.add_argument("--total", type=int, default=0, help="本次确认 findings 总数")
     rpv.add_argument("--missing", default="",
                      help="缺的起草考虑点(分号分隔 · 如 '并发时序;迁移前历史数据预检')· 全 emergent 留空")

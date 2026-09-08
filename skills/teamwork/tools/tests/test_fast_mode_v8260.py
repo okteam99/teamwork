@@ -77,7 +77,7 @@ class TestFastModeGatesAndArtifacts(unittest.TestCase):
 
     def test_fast_briefs_carry_merged_mandates(self):
         gb = S._goal_brief({"fast_mode": True})
-        self.assertIn("单路合并冷审", gb); self.assertIn("质疑六问", gb); self.assertIn("可实现", gb)
+        self.assertIn("单路合并冷审", gb); self.assertIn("质疑七问", gb); self.assertIn("可实现", gb)
         rb = S._review_brief({"fast_mode": True})
         self.assertIn("单路合并评审", rb); self.assertIn("一致性", rb); self.assertIn("测试真实性", rb)
 

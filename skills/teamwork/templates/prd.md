@@ -10,7 +10,7 @@
 > - **按需**(按 Feature 类型):业务流程图(多步/分支)/ 埋点(前端业务)/ 消费方分析(中台子项目)· 不适用标「N-A」。
 > - **开放区**(结构没问到的):§开工前必须想清的 —— 逼判断的尖问题 · 人读不机读。
 > 🧠 **起草思考规范**(冷审关注点即起草写法 · **不是写完再检查 · 是写的时候就这样想**):
-> - 写**背景/方案**时:PL 六问过脑(这个价值前提站得住吗?是不是最小范围?动了既有行为吗?)—— 写不顺的地方就是冷审会打的地方;
+> - 写**背景/方案**时:PL 七问过脑(价值前提站得住吗?是不是最小范围?**这条限制是业务真要求的、还是我加的?**动了既有行为吗?)—— 写不顺的地方就是冷审会打的地方;
 > - 写**每条 AC** 时:用可测判据写(明确动作 + 预期 · 边界/异常入 AC)· 「尽量/合理/优化/提升」这类词**落笔即换**成可判定表述 · 配一句 💬 **大白话**(说人话:这条在验证什么 · 非技术用户读得懂);
 > - 写**涉依赖/接口**时:先读真实代码确认存在再写 —— 🔴 **在当前 worktree(ship 目标分支)读**,不吃跨分支/记忆的旧调研(旧分支/stash 原型的行为可能已变 · 假设的字段或已死的分支 = 冷审读真代码必打的「可实现」finding · 实证 aon-core:PRD 基于 fix 分支旧调研写、staging 领先 233 commits · 状态码 404→422、rejected 桶去向全错);
 > - 用**术语**时:GLOSSARY 没有的 · 当句给定义。
@@ -72,7 +72,7 @@ revision_history:   # 🔴 goal-complete 校验 ≥1 条(证明经 review 收敛
 
 ## 待决策项
 
-<!-- 🔴 既有行为变更 → 必入此段(**刚性后果**):本 Feature 若改了某既有用户可感知默认行为(原 A → 现 B · 如「文件点击 原打开→现只定位」)· **必须**列为显式待决策项让用户拍板(原行为/新行为/为什么改/推荐)· **不可**在背景/「取舍」叙述段当既定事实蒙混。**侦测**在 §开工前必须想清的(🔁 主动挑衅)· 命中 → 后果落此段 · PL 质疑六问⑥ 复查。本表收待裁决(决策列空)+ 已裁决(决策列填)。 -->
+<!-- 🔴 既有行为变更 → 必入此段(**刚性后果**):本 Feature 若改了某既有用户可感知默认行为(原 A → 现 B · 如「文件点击 原打开→现只定位」)· **必须**列为显式待决策项让用户拍板(原行为/新行为/为什么改/推荐)· **不可**在背景/「取舍」叙述段当既定事实蒙混。**侦测**在 §开工前必须想清的(🔁 主动挑衅)· 命中 → 后果落此段 · PL 质疑七问⑦ 复查。本表收待裁决(决策列空)+ 已裁决(决策列填)。 -->
 
 | ID | 问题 | 选项 | 💡 建议 | 理由(一句) | 决策 |
 |----|------|------|--------|------------|------|
@@ -136,7 +136,7 @@ revision_history:   # 🔴 goal-complete 校验 ≥1 条(证明经 review 收敛
 ## 意图对照（🔴 必填 · 主对话 PM 自查 · 终确认前）
 
 > 🔴 **只能主对话 PM 做,不可委托冷审**：冷审拿不到用户原话,只能核对「PRD 内部自洽」——而**范围被悄悄收窄时,PRD 是完全自洽的**。🔴 **意图错了是唯一一类下游全部质量门都拦不住的错**（评审/测试/CI 全都以「意图正确」为前提）——**越认真做,错得越彻底**。why 与实证单源 [goal-stage 规则 4.5](../stages/goal-stage.md)。
-> ②排除项定性并进下方 §Out of Scope 的「性质」列（排除项已在那儿列过,不两处写）。
+> ②排除项定性 + 限制必要性,并进下方 §Out of Scope 与限制 的「性质」列（已在那儿列过,不两处写）。
 
 **① 术语解释对照** · 🔴 标「我推的」的行 = 偏差风险最高处 · **末列必须写具体后果,不写「影响较大」** —— 后果落在生产/外部/不可逆 → 该行**必进 §待决策项**（不管你多有信心）
 
@@ -147,15 +147,17 @@ revision_history:   # 🔴 goal-complete 校验 ≥1 条(证明经 review 收敛
 **③ 反向验证**：**AC 全绿时,用户真正要的那件事一定发生了吗？** 想得出反例 → 写下来 + 处置；无反例 → 写清「AC 覆盖了用户会真实走的哪些入口」。
 - {反例 + 处置} / {无反例 · 因为 AC 覆盖了：…}
 
-## Out of Scope（🔴 必填）
+## Out of Scope 与限制（🔴 必填）
 
-> 🔴 **必填**：写出"本 Feature **不做**什么"（业务类列功能/场景；refactor 列模块/路径）——降低后期"为什么没做 X"的拉扯。与 KNOWLEDGE.md `## Out of Scope`（项目级长期拒绝记忆）联动。
-> 🔴 **每条标性质**（§意图对照 ②）：这个排除是「**做不到**」还是「**我选的边界**」？——「技术限制 / 成本明确不值」写在这里就够；**「🔴 我的解释」= 范围决策,必须进 §待决策项让用户拍板**。
+> 🔴 **必填**：写出"本 Feature **不做**什么"（业务类列功能/场景；refactor 列模块/路径）+ "**做了但加了什么限制**"（只允许 X / 上限 N / 仅 Y 场景可用）。与 KNOWLEDGE.md `## Out of Scope`（项目级长期拒绝记忆）联动。
+> 🔴 **每条标性质**（§意图对照 ②）：**排除**——「**做不到**」还是「**我选的边界**」？技术限制/成本明确不值写这儿就够；**「🔴 我的解释」= 范围决策,必须进 §待决策项让用户拍板**。**限制**——「**业务真要求的**」还是「**我加的**」？🔴 **「我加的」→ 末列必须写「不加会出什么事」；写不出 = 这条限制去掉**（限制读起来永远像"最小范围",没人会替你质疑它；多做功能只浪费工时,多加限制会让用户真想做的事做不了、且要到上线才发现）。
 
-| 不做的事 | 性质 | 理由 |
+| 不做的事 / 加的限制 | 性质 | 理由（🔴「我加的」写"不加会出什么事"） |
 |---|---|---|
-| {X} | 技术限制 | {一句} |
-| {Y} | 🔴 我的解释 | {一句 · 已进 §待决策项 D-N} |
+| {不做 X} | 技术限制 | {一句} |
+| {不做 Y} | 🔴 我的解释 | {一句 · 已进 §待决策项 D-N} |
+| {限制:{Z} 只允许 …} | 业务真要求 | {用户/规范原话依据} |
+| {限制:{W} 上限 N} | 🔴 我加的 | {不加会出什么事：… · 答不出 → 删掉这条限制} |
 
 ## 开工前必须想清的（结构没问到的）
 
@@ -192,7 +194,7 @@ reviews:
  - role: pm | qa | architect | pl | external  # schema 通用 · rd/designer 值用于 TECH-REVIEW / REVIEW.md 复用场景
  review_scope: prd # 值 prd | blueprint | code-review
  # PRD 评审审产品视角(业务可行性 / AC 可测试性 / 用户故事完整性)· 技术/测试细节归 Blueprint Stage(review_scope=blueprint)
- # 🔴 pl 段 = 对抗质疑段:finding id 用 PL-CHALLENGE-{n} · category=premise-challenge(质疑六问〔含 ⑥ 既有行为变更〕· 至少 1 条实质质疑或显式「无实质质疑+理由」· 详 stages/goal-stage.md §3)
+ # 🔴 pl 段 = 对抗质疑段:finding id 用 PL-CHALLENGE-{n} · category=premise-challenge(质疑七问〔含 ⑦ 既有行为变更〕· 至少 1 条实质质疑或显式「无实质质疑+理由」· 详 stages/goal-stage.md §3)
  # 🔴 external 段 = 覆盖方向制:必覆盖 可实现(技术可行/架构影响/简洁性 counter-lens)· 可验证(AC 可测/边界/空值异常)+ AI 自主方向 ≥1(安全/性能/数据一致性/兼容…按 feature 挑)· 每方向 finding 或「查过无发现」· 下方 coverage 必填(物化门 external_coverage_present)
  coverage: [可实现, 可验证, <AI 自主方向>]  # 仅 role=external 必填 · 申报本次实际覆盖的方向
  execution: subagent | main-conversation
@@ -207,7 +209,7 @@ reviews:
  severity: high | medium | low | info
  description: "1-2 句问题描述"
  suggestion: "建议改法（可执行的具体方向）"
- category: technical-consistency | business-alignment | ux | quality | business-decision | terminology-ambiguity | premise-challenge # terminology-ambiguity 触发 Flagged Ambiguities 写入 · premise-challenge = PL 质疑六问(含 ⑥ 既有行为变更)
+ category: technical-consistency | business-alignment | ux | quality | business-decision | terminology-ambiguity | premise-challenge # terminology-ambiguity 触发 Flagged Ambiguities 写入 · premise-challenge = PL 质疑七问(含 ⑦ 既有行为变更)
  cross_role: []  # （可选）· 一个 finding 同时关联多视角时（如 [qa, rd]）· 仍归入主要视角段 · 不复制到多段
  # 涉及代码现状的 finding 必填 code_evidence(category=technical-consistency 时强制)
  code_evidence: # 可选 · category=technical-consistency 时必填

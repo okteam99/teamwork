@@ -1,6 +1,6 @@
 ---
 name: teamwork
-version: v8.353.1
+version: v8.354
 description: AI 协作开发一体化框架 - 需求功能开发, bug 修复, 问题排查 · /teamwork 启动
 ---
 
@@ -399,7 +399,7 @@ mode B 识别后(**无论后续 flow_type = Feature〔full/micro〕还是 Bug ·
 🔴 `.teamwork_localconfig.json` 的 `fast_mode: true` 开启(**缺省/false = 关** · init-feature 时快照进 `state.fast_mode` · 中途改配置不影响 in-flight feature):
 
 - **留两端 · 各合并单路**(roster = `{goal: [fast], review: [fast]}` ·「fast」= 合并伪角色 · 单 agent 兼多帽 · 🎭 该单路模型 **≠ 会话主模型**):
-  - **PRD 评审(goal)**:一路隔离冷审兼 **PL + 外审**关注点(质疑六问 ≥1 实质 + 可实现/可验证 + AI 自主方向)· 产单份 PRD-REVIEW.md(`reviewers: [fast]`)· verdicts 全 APPROVE 门照拦;
+  - **PRD 评审(goal)**:一路隔离冷审兼 **PL + 外审**关注点(质疑七问 ≥1 实质 + 可实现/可验证 + AI 自主方向)· 产单份 PRD-REVIEW.md(`reviewers: [fast]`)· verdicts 全 APPROVE 门照拦;
   - **代码 review**:一路隔离评审兼 **Architect + QA** 关注点(实现↔设计一致性/简洁性 counter-lens + 测试真实性与覆盖/代码质量盲区)· 产 REVIEW.md 单份 · findings/severity/验证轮协议照跑。
 - **去掉**:blueprint 评审(不产 TECH-REVIEW.md · TC/TECH 写完直进 dev)· 两端的多路独立性。
 - 🎯 **评审最多 2 轮**:goal 冷审与代码 review 预算各封顶 2 轮(首轮全量 + 1 验证轮 · localconfig `max_review_rounds` 更小则从小)· 轮尽未收敛 → **未收敛决策点抛用户拍板**(goal → 列进 PRD 终确认导读;review → 引擎 review-retry 硬拦 · R5 暂停点列 open findings + 1/2/3)。
