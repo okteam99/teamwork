@@ -102,12 +102,25 @@ class TestChecklistIsUnified(unittest.TestCase):
         for rel in STAGES.values():
             self.assertIn("只决定产物落点", _read(rel), f"{rel} 没声明 lane 语义")
 
-    def test_challenge_section_forbids_ticking(self):
-        """⚔️ 对抗项混进中性核对就会退化成打勾 —— 必须写成证否句式。"""
+    def test_challenge_form_is_single_sourced_in_skill(self):
+        """⚔️ 对抗项混进中性核对就会退化成打勾 —— 必须写成证否句式。
+
+        v8.356:形式与数量要求**单源在 SKILL**,三份 stage doc 只写本 stage 查什么 +
+        指向单源。原先四处各写一遍,当场就漂了三处(七问错位 / 禁写口径不一 /
+        数量要求只有 goal 有)—— 这正是「双载体必漂」的现场。
+        """
+        sk = _read("SKILL.md")
+        self.assertIn("证否句式", sk)
+        self.assertIn("不许写 ✅ 或「查过无发现」", sk)
+        self.assertIn("≥1 条实质,或显式「无实质质疑 + 理由」", sk)
+        self.assertIn("本条是三段通用要求的单源", sk)
+
+    def test_stage_docs_point_at_the_single_source_not_restate_it(self):
+        """各 stage 引用单源即可 —— 重述一遍就是在制造下一次漂移。"""
         for rel in STAGES.values():
             txt = _read(rel)
-            self.assertIn("证否句式", txt, f"{rel} 对抗段没要求证否形式")
-            self.assertIn("不许写 ✅", txt, f"{rel} 没禁打勾")
+            self.assertIn("单源", txt, f"{rel} 的对抗段没指向单源")
+            self.assertRegex(txt, r"SKILL[^)]*冷审清单三段", f"{rel} 缺指向 SKILL 的锚")
 
     def test_skill_carries_the_bottom_line(self):
         sk = _read("SKILL.md")

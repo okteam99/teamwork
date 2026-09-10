@@ -20,7 +20,7 @@
 6. **两路并行同发 · 互不喂对方产出 · 🎭 模型错开**(外审路 ≠ 主审路)(why:同模型双路 = 盲区相关 · 错开是零成本的近异质)。
 7. **`reviewers` 字段(复数)必含 `state.stage_review_roles[blueprint]` 全部角色**(why:`reviewers_match` evidence 校验 · 少列 = 评审配置形同虚设)。
 8. 🧾 **冷审清单统一 · N 路都过全清单**(lane 标识只决定产物落点,不决定查什么)· 三段缺一即漏 · 段记 `coverage: [...]`:
-   - ⚔️ **对抗**(证否句式「我试图证明 X 不成立,结果是…」· **不许写 ✅**):这个方案是不是最简形态?有没有为不会发生的场景加结构?TECH 里哪条约束是「我加的」而非需求要求的?
+   - ⚔️ **对抗**(形式与数量**单源** [SKILL § 冷审清单三段](../SKILL.md)):这个方案是不是最简形态?有没有为不会发生的场景加结构?TECH 里哪条约束是「我加的」而非需求要求的?
      🔴 **rival 设计强制**(对抗新增结构的执行方式):评审**新增结构**(新表 / 新模块 / 新抽象 / 新服务)时**必须自己先生成 ≥1 个替代形态再裁决** —— 「作者列举的被否方案都输了」**不构成通过条件**。why:checklist 是**验证式**的(作者给的理由成立吗),盲区只有**生成式**才破 —— 实证:「内部运营账户」标记被设计成 singleton 指针表 + 独立审计表(2 张新表),简洁性四问确实跑了,但**参照物由作者的叙事给定**(「能否并入 `monetization_config`」是个冻结面,当然不能),没人问「这个设定的自然归属实体是谁」;用户一句「能不能直接打到 account 表上」→ 6 新表变 4 表 + 2 列。**作者的 rationale 成立 ≠ 方案最简。**
      着力点:**并入宿主实体(加列)/ 现算不存 / 复用既有结构 / 根本不做**。🔴 「全局唯一 / singleton 语义」**不等于**需要单独一张表(部分唯一索引就能表达)。🛡️ **安全加固 / 兜底降级是过度设计最高发区**(听着最负责任故最难驳)—— 这两类 finding 采纳前必过 ROI(概率×后果 vs 成本)。
    - 🔍 **核对**(可写「查过无发现」):**可测试**(TC 质量 / 测试策略 · QA 视角并入)· **方案盲区**(依赖 / 影响面 / 迁移风险);
@@ -31,7 +31,7 @@
 10. 🎚️ **TECH 起草与评审必用主模型 / 高级模型**(错开时也只在高档之间错 · **不许降到验证档**)(why:TECH 是全局质量上限 —— 方案错了下游全错 · 改 TECH 比改代码便宜但前提是方案本身出自够强的判断;其余环节〔TC 对照 / 测试执行 / 机械外化〕该降档就降,主对话编排并行)。
 11. **TECH 写「方案」不写函数实现**(选型 / 接口 / 数据结构;代码细节归 dev)· **NEEDS_REVISION 主对话内闭环修订**(不打扰用户)(why:阶段职责边界 + R5/fix-retry 规范)。
 
-> 🔴 **拦过度设计的最佳时机在这里**(改 TECH 比改代码便宜):Architect 必过**简洁性 counter-lens** · external finding 别盲采(天然偏「加校验/加安全/加兜底」)· 🛡️ **安全加固/兜底降级 finding 必过 ROI**(最难驳故最该审)—— **判据全文单源 [roles/architect.md](../roles/architect.md) Telos**(含实证 SDK-F038)· 🆕 **rival 设计强制**:评审新增结构必须自己先生成 ≥1 个替代形态再裁决 —— 「赢了作者列举的被否方案」不算通过。
+> 🔴 **拦过度设计的最佳时机在这里**(改 TECH 比改代码便宜):🔴 **每一路都必过简洁性 counter-lens**(⚔️ 对抗段) · finding 别盲采(天然偏「加校验/加安全/加兜底」)· 🛡️ **安全加固/兜底降级 finding 必过 ROI**(最难驳故最该审)—— **判据全文单源 [roles/architect.md](../roles/architect.md) Telos**(含实证 SDK-F038)· 🆕 **rival 设计强制**:评审新增结构必须自己先生成 ≥1 个替代形态再裁决 —— 「赢了作者列举的被否方案」不算通过。
 > 🔴 **变更最小化**(四问清单见 `templates/tech.md §变更表清单`):每项 DB 变更必带「**解决什么问题 + 为何非更简方案不可**」—— 写不出 = 该变更大概率不需要。
 
 ---
@@ -42,7 +42,7 @@
 |---|---|
 | ⚡ **起草期并行 · 收敛期归一**| **推荐默认** —— **起草**:TC ∥ TECH 各派一 subagent(两者相互独立:TC 锚 PRD.AC · TECH 锚设计方案;goal 投机窗已产 TECH 草稿则接续)· 🔴 **收敛**:复核后的修订由**同一个 agent 顺序改两档**,不再跨 agent 往返;纯机械同步项(错误码回填 / 过期注删除)**主编排直接 Edit 落盘 · 不派 agent** |
 | 第三视角冷审(roster 含 external 时)| 跑 `state.py external-review --stage blueprint` 拿 subagent 配方 → 起**错开模型** subagent(≠会话主模型)· 产物落 `external-cross-review/*.md`(`review_via: subagent` + 照实申报 `review_model` + coverage)· roster 无 external → 整段 skip |
-| QA 独立 TC Review | 默认并入外审「可测试」方向;测试面大的复杂 Feature `change-review-roles` 加回独立跑 |
+| TC 质量深查 | 清单 🔍 核对段的「可测试」方向,每路都查;测试面大的复杂 Feature `change-review-roles` **加路数** |
 | 读 ARCHITECTURE / KNOWLEDGE / standards 分册 | 涉架构影响、已知踩坑、测试分层决策时 |
 
 ---
@@ -53,7 +53,7 @@
 
 - `TC.md` → `{SKILL_ROOT}/templates/tc.md`(🔴 含 **§TC 的职责边界** —— 判据「**换实现就要改的内容不属于 TC**」· 表数/表清单/存储形态归 TECH · TC 只验可观测行为)
 - `TECH.md` → `{SKILL_ROOT}/templates/tech.md`
-- `TECH-REVIEW.md` → 无独立模板 · frontmatter `reviewers`(复数 · 逐路列)+ `verdict` + 🔴 `review_models`(列表 `- <lane>: <实际模型>` · 照实申报 —— 与外审 `review_model` 机器比对错开,各路全同模型 = 盲区相关 → complete 拒)+ 🔴 `outside_checklist_insight`(💡 清单外洞察 · ≥1 条或显式「无 + 为什么没有」· 门 `outside_checklist_insight`)· 按 lane 分段(每段都是全清单三段)
+- `TECH-REVIEW.md` → 无独立模板 · frontmatter `reviewers`(复数 · 逐路列)+ `verdict` + 🔴 `review_models`(列表 `- <lane>: <实际模型>` · 照实申报 —— 与外审 `review_model` 机器比对错开,各路全同模型 = 盲区相关 → complete 拒)+ 🔴 `outside_checklist_insight`(💡 清单外洞察 · **逐路一条** · ≥1 条或显式「无 + 为什么没有」· 门 `outside_checklist_insight`)· 按 lane 分段(每段都是全清单三段)
 - `external-cross-review/*.md` → 跑 `state.py external-review --feature ... --stage blueprint` 自动落(**不要手写** · 含 `coverage: [...]`)
 
 📎 **物化拦截**:`verify-ac.py`(每 AC ↔ TC.md `tests[].covers_ac` · blueprint-complete 自动跑 · 漏覆盖 FAIL)· P0-154(`external-cross-review/*.md` 非空 · roster-gated)· `reviewers_match` · `cross_review_coverage`。

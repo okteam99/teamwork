@@ -17,11 +17,15 @@ class TestModelStagger(unittest.TestCase):
         self.assertIn("外审路 ≠ 主审路", E.DISPATCH_TIER_REMINDER)
 
     def test_normal_mode_briefs_carry_stagger(self):
-        """goal/blueprint/review 三 brief 的两路派发行均带错开标记。"""
+        """goal/blueprint/review 三 brief 的多路派发行均带错开标记。
+
+        v8.356:措辞从「两路模型错开」改为「逐路模型错开」—— 去角色后路数由 D4 定,
+        不再固定两路;不变式本身没变(任何配置至少一路 ≠ 会话主模型)。
+        """
         for name, brief in (("goal", S._goal_brief({})),
                             ("blueprint", S._blueprint_brief({})),
                             ("review", S._review_brief({}))):
-            self.assertIn("两路模型错开", brief, f"{name} brief 缺错开标记")
+            self.assertIn("逐路模型错开", brief, f"{name} brief 缺错开标记")
 
     def test_external_recipe_carries_stagger(self):
         """external-review subagent 配方指引含模型错开(措辞回归 · 源码级)。"""

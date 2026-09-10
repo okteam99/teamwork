@@ -65,7 +65,8 @@ class TestCardSlots(unittest.TestCase):
     def test_digest_item_points_to_slots(self):
         seg = self.doc.split("余节 ≤2 行", 1)[1].split("\n", 1)[0]
         self.assertIn("四槽", seg)
-        self.assertIn("是否×几路×谁×理由", seg)
+        # v8.356:「谁」随去角色退役 —— 卡上只问路数与模型
+        self.assertIn("是否×几路×**什么模型**×理由", seg)
 
 
 class TestBriefCarrier(unittest.TestCase):
@@ -74,7 +75,9 @@ class TestBriefCarrier(unittest.TestCase):
         from _v8_stage_specs import GOAL_SPEC
         b = GOAL_SPEC.brief_template_fn({})
         self.assertIn("四槽缺一即漏", b)
-        self.assertIn("是否需要×几路×谁×理由", b)
+        # v8.356:「谁」随去角色退役 —— 装配只拧路数×模型
+        self.assertIn("是否需要×几路×**什么模型**×理由", b)
+        self.assertNotIn("×谁×", b)
         self.assertIn("0 路+理由", b)
 
 

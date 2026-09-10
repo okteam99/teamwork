@@ -443,6 +443,22 @@ def _evidence_test_stdout_non_empty(state: dict, args) -> tuple[bool, str]:
 # ─── L2 substep 链纪律 evidence(治本 PTR-F033 case) ───────────────
 
 
+def _stage_lanes_deliberately_zero(state: dict, stage: str) -> bool:
+    """本 stage **有意**配了 0 路冷审(≠ roster 未初始化)。
+
+    🔴 两种「缺失」含义相反,必须分开 —— 这是 v8.305 的判例,而它的首版修法就是
+    栽在把两者混为一谈(被既有测试当场抓出),v8.355 修 0 路死锁时**又栽了同一次**。
+    故抽成单函数,不再让每个门自己写一遍谓词:
+      · roster dict **非空**但本 stage 为 `[]` / 不含该键 → **有意 0 路** → True
+      · roster dict **整个空或缺失** → **未初始化**(legacy state)→ False
+        (按默认要求走 · 不对存量 feature 加严 —— 同「legacy state 无 roster · 不加严」判例)
+    """
+    roles_map = state.get("stage_review_roles") or {}
+    if not roles_map:
+        return False
+    return not (roles_map.get(stage) or [])
+
+
 def _evidence_review_after_primary(primary_artifact: str, review_artifact: str):
     """通用 check:review_artifact mtime 必须 > primary_artifact mtime。
 
@@ -450,6 +466,11 @@ def _evidence_review_after_primary(primary_artifact: str, review_artifact: str):
     """
 
     def _check(state: dict, args) -> tuple[bool, str]:
+        # 🔴 有意 0 路 = 本 stage 不评审 → 没有评审产物,也就没有「评审是否发生在
+        # 起草之后」可言。不放行的话与 review_artifact 的「0 路不产」直接对立
+        # (实证:lite 档 goal roster=[] 时,AI 只能编造一条不存在的裁决才能过门)。
+        if _stage_lanes_deliberately_zero(state, state.get("current_stage") or ""):
+            return True, "skipped(本 stage 有意 0 路冷审)"
         feature_dir = Path(args.feature)
         primary = feature_dir / primary_artifact
         review = feature_dir / review_artifact
@@ -613,11 +634,11 @@ def _goal_brief(state: dict) -> str:
     return f"""## Goal Stage{_single_lane_note(state, "goal")}
 
 ### 目标
-PM 调研(自答优先)· 起草 PRD · 🔴 **并行派 2 路隔离冷审**(v8.243 默认:PL 对抗质疑 + 覆盖方向制外审〔必覆盖 可实现/可验证 + AI 自主方向 ≥1〕· 防鼓掌锚定 · ⚡ 同发互不喂对方产出 · 🎭 **两路模型错开**〔v8.268:外审路 ≠ 主审路模型 · 如 fable5 会话 → 外审 opus〕)· (条件)早问门 · PM 整合修订 · 冷审循环收敛 · 用户确认 · 决策是否需要 UI。\n🔴 v8.216 评审配置动态化:冷审派谁 = **按 `state.stage_review_roles.goal`**(🔗 装配两拍之一:**调研后 AI 按角色价值判据自定** · prepare 不预设 · 审计留痕不问用户)—— roster 里没有的角色 gate 自动放行(如去 pl → PL 质疑免)· 调整用 `change-review-roles --reason`(审计留痕)· PRD 照写(术语/决策沉淀载体)。
+PM 调研(自答优先)· 起草 PRD · 🔴 **并行派 N 路隔离冷审**(路数 = 装配 D4 · 默认 2)—— 🔴 **N 路做同一份清单**(lane 标识只决定产物落点,**不决定查什么**):⚔️ 对抗〔质疑七问 · **证否句式**「我试图证明 X 不成立,结果是…」· **不许写 ✅**〕· 🔍 核对〔可实现 / 可验证 · 记 `coverage`〕· 💡 清单外洞察〔清单没问但你认为该关注的 ≥1 条,或显式「无 + 为什么」〕· 防鼓掌锚定 · ⚡ 同发互不喂对方产出 · 🎭 **逐路模型错开**〔外审路 ≠ 主审路模型 · 如 fable5 会话 → 外审 opus〕· (条件)早问门 · PM 整合修订 · 冷审循环收敛 · 用户确认 · 决策是否需要 UI。\n🔴 v8.216 评审配置动态化:冷审派谁 = **按 `state.stage_review_roles.goal`**(🔗 装配两拍之一:**调研后 AI 按角色价值判据自定** · prepare 不预设 · 审计留痕不问用户)—— 🔴 **roster 是路数不是角色清单**:少配一个 lane **不减清单**(三段照交),只有**整个 stage 配 0 路**才免评审门;调整用 `change-review-roles --reason` **加减路数**(审计留痕)· PRD 照写(术语/决策沉淀载体)。
 
 ### 结果(完成判定)
 - `PRD.md`(frontmatter:`acceptance_criteria` + `revision_history`)
-- `PRD-REVIEW.md`(frontmatter:`reviewers` = roster〔v8.243 默认 `[pl, external]`〕+ `verdicts` **全 APPROVE/SKIP** · 含 `PL-CHALLENGE` 段〔roster 含 pl〕· external 段带 `coverage` 申报〔roster 含 external〕· mtime > PRD.md)
+- `PRD-REVIEW.md`(frontmatter:`reviewers` = roster 逐路列 + `verdicts` **全 APPROVE/SKIP** · 🔴 **每一路都交全清单三段**:`PL-CHALLENGE-{{n}}` 对抗段 + `coverage` 申报 + `outside_checklist_insight` 💡 清单外洞察 · mtime > PRD.md · **本 stage 0 路时整份免产**)
 - `state.execution_hints` 已决策:`ui_design_needed`(--needs-ui)+ `browser_e2e_needed`(--needs-browser-e2e · 🔗 装配环节维度)
 
 ### 怎么做
@@ -631,7 +652,7 @@ state.py goal-complete --feature <path> \
 ```
 {_render_confirmed_intent(state)}🎯 **意图对照**(终确认前必做 · 详 stage.md 规则 4.5):PRD §意图对照 三槽 —— ①用户原话里的名词**我理解成了什么**(标「用户说过 / 我推的」)· ②§Out of Scope 与限制 每条定性:**排除**是「技术限制」还是「**我的解释**」(🔴 我的解释 = 范围决策 · 必须进 §待决策项)、**限制**是「业务真要求的」还是「**我加的**」(🔴 我加的 → 末列写「不加会出什么事」· 写不出就删掉这条限制)· ③**AC 全绿时用户要的事一定发生了吗**(想得出反例就写)。🔴 ①的末列**逐行写「若这条错了最坏会怎样」的具体后果**(不写「影响较大」)· 后果落生产/外部/不可逆 → 该行必进 §待决策项。
 🔴 **意图错误是唯一一类下游全部质量门都拦不住的错** —— 评审/测试/CI/验收全都以「意图正确」为前提,只能答「做得对不对」、答不了「做的是不是对的东西」:实现错了代价 ≈ 一轮返工,**意图错了代价 = 整条链的质量投入全变成「认真地做错事」+ 线上事故**(两次实证都是流程走完、测试全绿、事故照样发生)· **越认真做,错得越彻底**。🔴 **只能主对话做,不可委托冷审** —— 冷审拿不到用户原话,而范围被悄悄收窄时 PRD 是完全自洽的(实证事故:「AON Link」被狭义解释成 `/{{code}}`、排除 `/static/{{code}}`,dev 与 review 都在认真验证一个错误的范围定义,线上投放点击全部没回传)。`goal-complete` 机器校验三槽非占位。
-🔗 **链装配**(调研后 · 详 stage.md 规则 3.7)· 🎛️ **装配 = 拧四维不是挑档名**:`D1 规格深度`〔none/prd/prd_tech〕· `D2 证据门`〔开/关〕· `D3 验证深度`〔self/test/test_e2e〕· `D4 评审力度`〔逐评审点 路数×角色×模型〕· 开关 `UI`。🔴 评审力度**加减两侧都判** · **六档起手**(判**风险的种类**不判改动大小):micro〔无行为面 · 测试无从写起〕· floor〔测试能完全证明 · dev→ship〕· tiny〔值得一双眼看 diff · 零文档 · review external 单路〕· lite〔有规格风险要 PRD · 方案空间小不写 TECH · `--needs-blueprint false`〕· medium〔值得写 TECH · goal/blueprint 各单路〕· full〔两路并行冷审划算〕—— 🔴 **档只是起手点:选完必须再过一遍四维,该拧就拧**(只报档名不拧 = 退化情形)· 🔴 **只留一路时留 external 不留 architect**(年检实证:逐 stage 产出 ext>arch · 总量 2.1× · 采纳 82%)· 单路**模型照错开**(降档不降独立性)· 路数与四轴对不上必须写「为什么不降」):goal 自身评审面 AI 自定(留痕不问);下游装配写进终确认导读「🔗 链装配」节 · 🔴 **四槽缺一即漏 · 整卡 ≤7 行**(流程阶段〔机器按 `derive_chain` 渲染〕· 维度元组 · **评审力度逐评审点「是否需要×几路×谁×理由」〔收到零也显式写 0 路+理由 —— 减税要减在明处〕** · 四轴证据各半句)—— **默认按此执行 · 用户不要求改就生效**。
+🔗 **链装配**(调研后 · 详 stage.md 规则 3.7)· 🎛️ **装配 = 拧四维不是挑档名**:`D1 规格深度`〔none/prd/prd_tech〕· `D2 证据门`〔开/关〕· `D3 验证深度`〔self/test/test_e2e〕· `D4 评审力度`〔逐评审点 **路数×模型** · 去角色:清单统一,每路都过全清单〕· 开关 `UI`。🔴 评审力度**加减两侧都判** · **六档起手**(判**风险的种类**不判改动大小):micro〔无行为面 · 测试无从写起〕· floor〔测试能完全证明 · dev→ship〕· tiny〔值得一双眼看 diff · 零文档 · review external 单路〕· lite〔有规格风险要 PRD · 方案空间小不写 TECH · `--needs-blueprint false`〕· medium〔值得写 TECH · goal/blueprint 各单路〕· full〔两路并行冷审划算〕—— 🔴 **档只是起手点:选完必须再过一遍四维,该拧就拧**(只报档名不拧 = 退化情形)· 🔴 **只留一路时留 external 不留 architect**(年检实证:逐 stage 产出 ext>arch · 总量 2.1× · 采纳 82%)· 单路**模型照错开**(降档不降独立性)· 路数与四轴对不上必须写「为什么不降」):goal 自身评审面 AI 自定(留痕不问);下游装配写进终确认导读「🔗 链装配」节 · 🔴 **四槽缺一即漏 · 整卡 ≤7 行**(流程阶段〔机器按 `derive_chain` 渲染〕· 维度元组 · **评审力度逐评审点「是否需要×几路×**什么模型**×理由」(**不选角色**)〔收到零也显式写 0 路+理由 —— 减税要减在明处〕** · 四轴证据各半句)—— **默认按此执行 · 用户不要求改就生效**。
 🔁 **每个 stage 边界都是显式修订点**:complete emit 带 `plan_checkpoint` · 问「有没有出现**装配时不知道的事实**」—— 有就 `revise-plan --dim <维度> --to <值> --evidence '<事实>'`,没有就照计划走 · **回显不停等** · ⚖️ **加与减同价**(都只要一行证据)· 🔴 **计划可改 · 历史不可改**。
 """
 
@@ -690,6 +711,10 @@ def _evidence_prd_verdicts_all_pass(state: dict, args) -> tuple[bool, str]:
     在**原文**上取 verdicts 块(行内 {..} 或缩进 map 两种写法均兼容 · 简易解析器不支持嵌套 map)·
     扫描块内裁决词 · 任一非 APPROVE/SKIP → FAIL。
     """
+    # 🔴 同 review_after_primary:有意 0 路时没有裁决可校验。原先此门不看 roster,
+    # 于是 lite 档(goal 0 路 · PRD 照写)只有伪造一条 verdict 才能过 —— 门在逼 AI 造假。
+    if _stage_lanes_deliberately_zero(state, "goal"):
+        return True, "skipped(goal 有意 0 路冷审)"
     f = Path(args.feature) / "PRD-REVIEW.md"
     if not f.exists():
         return False, "PRD-REVIEW.md 不存在 · 无法校验 verdicts"
@@ -776,8 +801,9 @@ def _evidence_cross_review_coverage(state: dict, args) -> tuple[bool, str]:
 
 
 def _evidence_pl_challenge_present(state: dict, args) -> tuple[bool, str]:
-    """v8.132:stage_review_roles[goal] 含 pl 时 · PRD-REVIEW.md 必含「PL-CHALLENGE」标记
-    (PL 对抗质疑物化 · 防同上下文切帽子的鼓掌过场)。
+    """v8.132/v8.355:goal **有冷审路时** · PRD-REVIEW.md 必含 ⚔️ 对抗段(标记沿用
+    `PL-CHALLENGE`)· 防同上下文切帽子的鼓掌过场。触发条件与 lane 标签无关 ——
+    清单统一后对抗段是**每一路**的必交项。
 
     角色集无 pl(change-review-roles 调整去除)→ 自动放行。
     """
@@ -838,8 +864,16 @@ def _evidence_outside_checklist_insight(review_artifact: str, stage_key: str):
         tail = txt[mark.end():]
         parts = tail.split("\n")
         seg_lines = [parts[0]]
-        for ln in parts[1:7]:
-            if re.match(r"^#{1,6}\s", ln) or re.match(r"^[A-Za-z_][\w-]*\s*:", ln):
+        # 🔴 标记若是 markdown 标题,窗口应延伸到**同级或更高级**标题为止 ——
+        # 「## 💡 清单外洞察 / ### <lane> / - 内容」这种 lane-first 布局(与 REVIEW.md
+        # frontmatter 里挂 per-lane 子键的结构同构 · AI 会平移过去)原先被判空。
+        _own = re.search(r"(?m)^(#{1,6})\s[^\n]*$", txt[:mark.end()].rsplit("\n", 1)[-1] or "")
+        _lvl = len(_own.group(1)) if _own else 0
+        for ln in parts[1:12]:
+            m_h = re.match(r"^(#{1,6})\s", ln)
+            if m_h and (not _lvl or len(m_h.group(1)) <= _lvl):
+                break
+            if re.match(r"^[A-Za-z_][\w-]*\s*:", ln):
                 break
             seg_lines.append(ln)
         seg = "\n".join(seg_lines)
@@ -1088,6 +1122,7 @@ GOAL_SPEC = StageSpec(
             frontmatter_required=["reviewers", "verdicts"],
             body_min_lines=15,
             must_be_in_commit=False,
+            review_artifact=True,  # 0 路冷审(lite 档 goal)时不产不查
             description="PRD 冷审记录(N 路同一份清单 · reviewers 逐路列 · 0 路时免)",
         ),
     ],
@@ -1847,12 +1882,12 @@ def _blueprint_brief(state: dict) -> str:
     return f"""## Blueprint Stage
 
 ### 目标
-QA 起草 TC(BDD)**∥** RD 起草 TECH(🎚️ **TECH 起草与评审必用主模型/高级模型** · v8.290;⚡ v8.256:两者相互独立 · **并行同发** · 完成后互查 covers_ac↔测试策略;goal 投机窗已产 TECH 草稿则接续)· 🔴 **两路并行评审**(v8.244 默认 roster:Architect 主审〔简洁性 counter-lens · 🔴 **rival 设计强制 v8.294**:评审新增结构(表/模块/抽象)必须**自己先生成 ≥1 个替代形态**〔并入宿主实体加列 / 现算不存 / 复用既有 / 不做〕再裁决 ——「赢了作者列举的被否方案」不算通过〕+ 覆盖方向制外审〔QA 可测试视角并入 + AI 自主方向 ≥1〕· ⚡ 同发互不喂 · 🎭 两路模型错开〔v8.268 · 外审路 ≠ 主审路〕)· 实现前方案收敛。
+QA 起草 TC(BDD)**∥** RD 起草 TECH(🎚️ **TECH 起草与评审必用主模型/高级模型** · v8.290;⚡ v8.256:两者相互独立 · **并行同发** · 完成后互查 covers_ac↔测试策略;goal 投机窗已产 TECH 草稿则接续)· 🔴 **N 路并行评审**(路数 = 装配 D4 · 默认 2)—— 🔴 **N 路做同一份清单**(lane 标识只决定产物落点,**不决定查什么**):⚔️ **对抗**〔**证否句式**「我试图证明 X 不成立,结果是…」· **不许写 ✅** · 🔴 **rival 设计强制**:评审新增结构(表/模块/抽象)必须**自己先生成 ≥1 个替代形态**〔并入宿主实体加列 / 现算不存 / 复用既有 / 不做〕再裁决 ——「赢了作者列举的被否方案」不算通过 · 🛡️ 安全加固/兜底降级必过 ROI〕· 🔍 **核对**〔可测试 / 方案盲区 · 记 `coverage`〕· 💡 **清单外洞察**〔≥1 条或显式「无 + 为什么」〕· ⚡ 同发互不喂 · 🎭 **逐路模型错开**〔各路模型互不相同〕)· 实现前方案收敛。
 
 ### 结果(完成判定)
 - `TC.md`(frontmatter:`tests` · verify-ac.py 通过)
-- `TECH.md`(照 `templates/tech.md` 全结构:现状基线 / 模块 / 数据〔🔴 v8.255 变更最小化四问:复用既有/应用层算/不入库/并入扩展列 · 全否才入变更表 · 每项带「解决什么问题 + 为何非更简方案不可」〕/ 接口 / **错误处理+日志** / **依赖与影响**〔消费方清单〕/ **查询性能**〔涉 SQL 给理由〕/ 测试策略 / 风险 / **完工自查槽** / 🛡️ **兜底清单**〔v8.266 按 ROI 取舍:概率×后果 vs 成本 · 立得住做立不住砍 · 保留的列清单随 §7.5 透出〕)
-- `TECH-REVIEW.md`(frontmatter:`reviewers + verdict`)
+- `TECH.md`(照 `templates/tech.md` 全结构:现状基线 / 模块 / 数据〔🔴 v8.255 变更最小化四问:复用既有/应用层算/不入库/并入扩展列 · 全否才入变更表 · 每项带「解决什么问题 + 为何非更简方案不可」〕/ 接口 / **错误处理+日志** / **依赖与影响**〔消费方清单〕/ **查询性能与数据量**〔涉批量读取 · 🔴 查询+搬运两段都算 · 兜底≠够快 · 够快带规格〕/ 测试策略 / 风险 / **完工自查槽** / 🛡️ **兜底清单**〔v8.266 按 ROI 取舍:概率×后果 vs 成本 · 立得住做立不住砍 · 保留的列清单随 §7.5 透出〕)
+- `TECH-REVIEW.md`(frontmatter:`reviewers` 逐路 + `verdict` + `review_models` + 🔴 `outside_checklist_insight` 💡 清单外洞察 · 🔴 **每路都交全清单三段**)
 - `{{artifact_root}}/external-cross-review/*.md`(roster 含 external 时至少 1 份 · 🔴 含 `coverage: [...]` 申报——必覆盖 可测试〔TC 质量/测试策略〕· 方案盲区〔依赖/影响面/迁移风险〕+ AI 自主方向 ≥1〔候选:数据一致性/迁移风险/性能/安全边界〕· 每方向 finding 或「查过无发现」)
 
 ### 怎么做
@@ -2550,7 +2585,6 @@ def _review_findings_gate_lines() -> str:
 
 def _review_verify_round_brief(state: dict, rounds: list) -> str:
     """Round 2+ 验证轮 brief(范围锁定 · 治「每轮全量重审随机采样出新 nit」)。"""
-    _fast_cap = ""
     contract = state.get("stage_contracts", {}).get("review", {})
     ledger = contract.get("findings_ledger") or []
     round_num = rounds[-1].get("round", len(rounds))
@@ -2576,7 +2610,7 @@ def _review_verify_round_brief(state: dict, rounds: list) -> str:
 🔴 两件事都是**静态审读**(读 diff/代码/实跑证据)· 不重复跑测试脚本(v8.273 · 测试证据归流水线硬门 · 疑点开 finding)\n🛡️ **拟 APPROVE 前**:确认 findings 里可预防的**复发类**沉淀进 KNOWLEDGE § 复发防御清单(v8.278 · 同类第 2 次即入 · dev 起草照它写时防 · shift-left 闭环)
 
 🎚️ **验证轮 = 校验型任务 → 派发用验证档模型**(v8.256 · sonnet 级):核实 fix 落实 + 范围锁定内找新 = 对照清单干活 · 非开放式判断(首轮全量冷审仍不降档)—— goal/review 循环的 Round 2+ 是 AI 自主耗时大头 · 降档快 2-3 倍零质量风险。
-{_fast_cap}
+
 ### 🔴 范围锁定规则
 - **禁全量重扫**:新 finding 仅两种合法来源 ——(a)出自修复 diff;(b)BLOCKER 级且附「为何首轮未发现」
 - **rejected 的 finding 不得复提**(除非新证据 · 台账 status=rejected 即已裁决)
@@ -2629,11 +2663,11 @@ def _review_brief(state: dict) -> str:
     return f"""## Review Stage{_single_lane_note(state, "review")}{_bug}{_light}
 
 ### 目标
-按 roster(`state.stage_review_roles.review`)并行评审(v8.244 Feature 默认两路:Architect 主审〔实现↔设计一致性〕+ 覆盖方向制外审〔QA 测试真实性视角并入 + AI 自主方向 ≥1〕· ⚡ 同发互不喂 · 🎭 两路模型错开〔v8.268 · 外审路 ≠ 主审路〕;Bug 默认单路 [external] · v8.270)· 收敛 verdict。
+按 roster(`state.stage_review_roles.review`)并行评审(路数 = 装配 D4 · Feature 默认 2)—— 🔴 **N 路做同一份清单**(lane 标识只决定产物落点,**不决定查什么**):⚔️ **对抗**〔证否句式 · **不许写 ✅** · 有没有为不会发生的场景加防御?这条校验/限制是需求要的还是实现者加的?〕· 🔍 **核对**〔实现↔设计一致性 / 测试真实性与覆盖 / 代码质量盲区 · 记 `coverage`〕· 💡 **清单外洞察**〔≥1 条或显式「无 + 为什么」〕· ⚡ 同发互不喂 · 🎭 **逐路模型错开**〔各路模型互不相同〕;Bug 默认单路 [external] · v8.270)· 收敛 verdict。
 🔴 **审核员只审内容 · 不重复跑测试脚本**(v8.273):静态审读 diff/代码/测试代码 + 引用 dev·test 实跑证据 —— 测试执行归流水线硬门 · 疑点开 finding 验证 · 评审重跑 = 双倍时延零新增证据。
 
 ### 结果(完成判定 · roster-aware)
-- `REVIEW.md`(frontmatter:`reviewers + verdict: APPROVE|NEEDS_REVISION` + `findings` 机读台账)
+- `REVIEW.md`(frontmatter:`reviewers` 逐路 + `verdict: APPROVE|NEEDS_REVISION` + `findings` 机读台账 + 逐路 `coverage` + 🔴 `outside_checklist_insight` 💡 清单外洞察 · 🔴 **每路都交全清单三段**)
 - 🔴 REVIEW.md 内**每个 roster 主审角色一行 `coverage` 申报**(查过哪些方向 · 有问题列 finding · 无则「查过无发现」)—— v8.289 取代 `REVIEW-<role>.md` 独立文件(同一批判断写两遍)
 - `{{artifact_root}}/external-cross-review/*.md`(roster 含 external 时 · 默认错开模型 subagent 冷审〔≠主会话模型 · v8.268〕· 至少 1 份 · 🔴 含 `coverage: [...]` 申报——必覆盖 测试真实性与覆盖〔测试真跑 = 读实跑证据 · 非自己重跑 · v8.273/覆盖真行为/边界回归〕· 代码质量盲区〔错误处理/日志/并发〕+ AI 自主方向 ≥1〔候选:并发/资源泄漏/脱敏/兼容〕)
 
@@ -2683,7 +2717,9 @@ def _evidence_review_verdict(state: dict, args) -> tuple[bool, str]:
 
 
 # v8.289:主审路角色集(原为 role→REVIEW-<role>.md 映射 · 独立文件已退役 · 判断落 REVIEW.md)
-_REVIEW_MAIN_ROLES = ("architect", "qa")
+# external lane 的 coverage 落在 external-cross-review/(归 cross_review_coverage 管),
+# 其余每条 lane 的申报都写在 REVIEW.md 内 —— v8.356 起按**路数**判,不再是角色白名单。
+_REVIEW_EXTERNAL_LANE = "external"
 
 
 def _evidence_review_role_coverage(state: dict, args) -> tuple[bool, str]:
@@ -2699,9 +2735,12 @@ def _evidence_review_role_coverage(state: dict, args) -> tuple[bool, str]:
     roles = (state.get("stage_review_roles") or {}).get("review")
     if not isinstance(roles, list):
         return True, "legacy state 无 roster · 跳过(不对存量加严)"
-    checked = [r for r in roles if r in _REVIEW_MAIN_ROLES]
+    # 🔴 v8.356:原判据是 `r in ("architect","qa")` —— 仍在用 lane 标识决定「要不要交」,
+    # 与「清单统一 · 每一路都过全清单」矛盾:roster=[pl] 或 [fast] 时此门与
+    # cross_review_coverage 双双放行 = 零 coverage 强制。改为「除 external 外每路都要」。
+    checked = [r for r in roles if str(r).lower() != _REVIEW_EXTERNAL_LANE]
     if not checked:
-        return True, "roster 无 architect/qa 主审路 · 无需申报"
+        return True, "本 stage 仅 external lane(coverage 申报在 external-cross-review/)"
     f = Path(args.feature) / "REVIEW.md"
     if not f.is_file():
         return False, "REVIEW.md 不存在 · 无法校验 coverage 申报"
@@ -2712,7 +2751,7 @@ def _evidence_review_role_coverage(state: dict, args) -> tuple[bool, str]:
                                  + r"\s*(coverage|覆盖|查过|视角)", txt)]
     if missing:
         return False, (
-            "REVIEW.md 缺 roster 内主审角色的 coverage 申报:" + " · ".join(missing)
+            "REVIEW.md 缺以下 lane 的 coverage 申报:" + " · ".join(missing)
             + " —— v8.289:不再要求 REVIEW-<role>.md 独立文件(与 REVIEW.md 是同一批判断写两遍)· "
             "改为在 REVIEW.md 内**每角色一行申报查过的方向**(有问题列 finding · 无则写「查过无发现」)。"
             "防橡皮图章:光秃秃 APPROVE + 零申报 = 与没评审无法区分。"

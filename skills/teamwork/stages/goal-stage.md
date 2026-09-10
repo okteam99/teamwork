@@ -39,7 +39,7 @@
      · **`floor`** —— 有行为面,但**测试能完全证明它对吗**?能,且不动契约面 → `dev → ship`。🔴 与 micro 的分界不是「更轻」而是**拿什么换轻**:micro 拿掉证据门、floor 保留全部测试证据门(所以能接真逻辑改动),拿掉的是评审与独立验收口 —— 验收在 ship1 MR diff,`ship` 在任何组合里都减不掉;
      · **`tiny` =「直接做」形态(用户拍板原句:按理说直接开发,完成后架构师 review 一下,PM 验收盯 staging 部署就可以了)** —— 测试证得了实现,但**值得一双眼看 diff 吗**?值得 → `dev → review〔external 单路〕 → pm_acceptance → ship` · **零文档**(规格 = dev brief 理解卡)· PM 验收盯 staging 部署(await-merge 已自动带 CI);
      · **`lite`** —— **有规格风险**(会不会在做错的东西)吗?有 → 要 PRD;但方案空间小到只有一种写法 → 不写 TECH → `goal → dev → review〔external 单路〕 → test → pm_acceptance → ship`:goal 冷审 0 路缺省 · **PRD 照要、终确认停等照停**(用户主权不因降档让渡)· AC↔测试绑定改由 PRD 机读块 `acceptance_criteria[].test_refs` 承载(dev 写完测试**回填真实引用** · test-complete 校验非空**且引用真实存在**);
-     · **`medium`** —— 方案空间值得先写 TECH,但**到了要两路并行冷审吗**?没到 → goal `[fast]`(PL 质疑 + 覆盖方向制并作一路 · 模型照错开)· blueprint `[external]` 单路 · 链同 full;
+     · **`medium`** —— 方案空间值得先写 TECH,但**到了要两路并行冷审吗**?没到 → goal / blueprint 各 `[external]` **单路**(清单本就统一 · 单路不减清单 · 模型照错开) · 链同 full;
      · **`full`** —— 契约面宽 / 影响面广 / 方案分叉多 —— **两路并行冷审的边际收益压得过开销**;**高**(命中任一加法触发)→ 在 full 之上加面(`--dims` 加 dba / 升异质)。
      🔴 **只留一路时留 `external`,不留 `architect`**(年检实证 · 289 行台账:逐 stage 产出 ext>arch —— goal 275:178 · blueprint 76:57 · review 87:53 · 总量 2.1× · 采纳率 82.3%)。architect 在**有 TECH 可对照**时最强 → medium/full 的 blueprint 可加回;但砍到只剩一路时,砍掉高产的那路 = 白降档。
      🔴 **档的分界是「风险的种类」,不是改动大小**:实现风险(测试能覆盖)→ 往轻走 · 规格风险(做没做对东西)→ 要 PRD · 契约风险(会不会崩到消费方)→ 要 TECH 与冷审。**代码行数从来不是判据**。
@@ -53,7 +53,7 @@
    - ⚖️ **加与减同价**:两个方向都只要一行证据 —— 轻的偏置留在**档默认**里,不留在举证难度里(只让「减」举证 = 保守偏置原样搬回来)。
    - 🔴 **三类不可修订**:① **用户主权点**(已停等确认过的 PRD 终确认 · `ship` 本身 · 用户点名要过的评审点)② **硬不变式**(模型错开 / PRD·TECH 高档)③ **不可回溯放松**(dev 已交测试证据 → 不许改 `evidence_gate=关`;已走过的 stage 不许被移出链)。**计划可改 · 历史不可改**。
    - 📊 **修订记 delta 进 `assembly_plan.revisions`**(方向 + 证据),ship 台账带出 —— 这是**校准闭环的数据源**:跑一段时间就能用真数据回答「初始定档是不是系统性偏保守」(减多于加 → 是),而不是靠推演。
-4. **物化门禁**(goal-complete 拦):`prd_verdicts_all_pass`(verdicts 全 APPROVE/SKIP)· `pl_challenge_present`(roster 含 pl 时 PRD-REVIEW 必有 PL-CHALLENGE 段)· `external_coverage_present`(roster 含 external 时外审段必有 coverage 申报)· PRD-REVIEW mtime > PRD · `--needs-ui` × flow_type 校验。
+4. **物化门禁**(goal-complete 拦):`prd_verdicts_all_pass`(verdicts 全 APPROVE/SKIP)· `pl_challenge_present`(**有冷审路时** PRD-REVIEW 必有 ⚔️ 对抗段)· `external_coverage_present`(**有冷审路时**必有 `coverage` 申报)· `outside_checklist_insight`(**有冷审路时**必有 💡 清单外洞察段)· PRD-REVIEW mtime > PRD · 🔴 **本 stage 0 路(如 lite)时上述评审门与 PRD-REVIEW 产物一并免** · `--needs-ui` × flow_type 校验。
 4.4 🗣️ **已确认意图入 PRD(原样搬运 · 用户拍板)**:`goal-start` 的 brief 会把 `state.confirmed_intent`(prepare 确认卡五项 · `init-feature --user-intent` 等参数搬进来的)**渲染好**,起草时**照抄进 PRD §已确认意图**。`goal-complete` 机器校验该节存在且 🗣️ 原话非空(`confirmed_intent`)。
    - 🔴 **原样搬,不润色** —— 润色 = 二次解释,偏差正是这么进来的;用户中途改口 → **append「✏️ 修订」不覆盖**(保留「原本要什么 → 后来改成什么」)。
    - 🔴 **why(治的是链条上最后一个「只活在对话里」的关键信息)**:此前 prepare 确认过的意图只在对话与用户级 `~/.teamwork/prepare_check_audit.jsonl` 里 —— 不在 feature 内、不进 git、`init-feature` 也不收。于是「PRD 的脊 = prepare 已确认的意图 · **冷审据此核对**」是**空头承诺:冷审没有可核对的对象**。会话一压缩 / 换 session / 派 subagent,原话就没了 —— 两起事故(协议 header 归零 · AON Link 投放点击不回传)的共同上游都是这个。
@@ -98,7 +98,7 @@
 
 | 段 | 查什么 | 🔴 怎么交 |
 |---|---|---|
-| ⚔️ **对抗** | 质疑**七问**:价值前提 / 问题定义 / 范围最小化 / **限制必要性** / 上游对齐 cite / 复活检查 / 既有行为变更 | 🔴 **证否句式**:「我试图证明〈这条限制多余 / 这个范围还能再小 / 这个价值前提不成立〉,结果是…」· **不许写 ✅ 或「查过无发现」** —— 中性核对会把对抗项磨平(实证:PL 角色一直在,限制必要性照样是盲区,**因为它从没被写成题目**)· 产 `PL-CHALLENGE-{n}` · ≥1 条实质或显式「无实质质疑 + 理由」 |
+| ⚔️ **对抗** | 质疑**七问**:价值前提 / 问题定义 / 范围最小化 / **限制必要性** / 上游对齐 cite / 复活检查 / 既有行为变更 | 形式与数量要求**单源** [SKILL § 冷审清单三段](../SKILL.md)(证否句式 · 不许打勾 · ≥1 条或显式「无+理由」)· 本 stage 产 `PL-CHALLENGE-{n}` · 例:「我试图证明〈这条限制多余 / 这个范围还能再小〉,结果是…」—— 实证:PL 角色一直在,限制必要性照样是盲区,**因为它从没被写成题目** |
 | 🔍 **核对** | **可实现**(技术可行 / 架构影响 / **简洁性 counter-lens**〔过度设计?职责焊错层?可删? · 🛡️ 安全加固/兜底降级 finding 尤其过 ROI —— 最难驳的过度设计高发区〕)· **可验证**(AC 可测试性 / 边界场景 / 空值异常分支) | 每方向给 finding 或「查过无发现」· 段记 `coverage: [...]`(物化门 `external_coverage_present`) |
 | 💡 **清单外洞察** | **清单没问、但你认为这个 feature 该关注的**(安全 / 性能 / 数据一致性 / 兼容 / 运维 / 任何维度) | ≥1 条,或显式「无 + 为什么没有」· 🔴 **不为凑内容而写**(硬凑 = 新仪式)· why:CI 门禁对照 / 功能生效闸 / 限制必要性 **三个缺口都不在当时的清单里**,全靠线上事故回流才发现 —— 这一格是框架的**自发现通道**,不是装饰 |
 
@@ -114,13 +114,13 @@
 frontmatter `acceptance_criteria[] + revision_history[]`(均必);body 按 templates/prd.md(§背景/§用户故事/§交付预期/§验收标准/§Out of Scope/§待决策项〔只收用户主权问题〕/§开工前必须想清的)。
 
 ### `PRD-REVIEW.md`
-frontmatter `reviewers`(= stage_review_roles.goal · 默认 `[pl, external]`)+ `verdicts: {role: APPROVE|NEEDS_REVISION|SKIP}` + 🔴 `review_models`(列表 `- <role>: <实际模型>` · 照实申报 —— 与外审 `review_model` 机器比对错开〔`review_models_staggered`〕· 各路全同模型 = 盲区相关 → complete 拒 · <2 申报存量 skip);body 每冷审 Agent 单独段 · cite PRD 行号 · PL 段 = PL-CHALLENGE 段 · external 段 = 覆盖方向制(记 `coverage: [...]` · 按方向分小节)· 标 `execution: subagent`。schema 单源 = templates/prd.md § PRD-REVIEW schema。异质 opt-in(localconfig `false`)时外审改跑 `state.py external-review` 产 `external-cross-review/goal-<model>.md`(不手写)· PRD-REVIEW external 段引其结论。
+frontmatter `reviewers`(= stage_review_roles.goal · 默认 `[pl, external]`)+ `verdicts: {role: APPROVE|NEEDS_REVISION|SKIP}` + 🔴 `review_models`(列表 `- <role>: <实际模型>` · 照实申报 —— 与外审 `review_model` 机器比对错开〔`review_models_staggered`〕· 各路全同模型 = 盲区相关 → complete 拒 · <2 申报存量 skip);body **每条 lane 一段** · cite PRD 行号 · 🔴 **每段都是全清单三段**:⚔️ 对抗(`PL-CHALLENGE-{n}` · 证否句式)+ 🔍 核对(记 `coverage: [...]` · 按方向分小节)+ 💡 清单外洞察· 标 `execution: subagent`。schema 单源 = templates/prd.md § PRD-REVIEW schema。异质 opt-in(localconfig `false`)时外审改跑 `state.py external-review` 产 `external-cross-review/goal-<model>.md`(不手写)· PRD-REVIEW external 段引其结论。
 
 ### ⏸️ 用户最终确认(R5 · 「重点 review 指引」导读先行)
 
 🔮 **投机窗**(等待窗不闲置的 goal 特化):emit 终确认暂停点后 · **后台派 TECH 草稿 subagent**(读 PRD 终稿候选 · 产物 = worktree 内 TECH.md 草稿 · 🔴 不跑任何 state 命令)——数据支撑:终确认「改:默」台账 ≈ 全默(PRD 此刻变动率≈0 · 冷审已收敛)· goal 等待中位 26m ≈ blueprint 起草中位 27m(等待窗恰好藏下)。用户 `ok` → blueprint-start 后草稿直接接续(TC 起草与冷审照跑);用户有改 → 草稿差量更新。auto/yolo 不适用(确认点 skip · 无等待窗)。🔴 时点纪律:**只在终确认暂停点后投机**(冷审收敛前 PRD 是活靶 · finding 采纳率 80-90% · v1 时点投机必返工)。
 🔴 **准入纪律**:PRD §待决策项里**影响表结构 / 模块形态**的开放项 **≤1** 才投机;**>1 或含结构分叉 → 不投机**,等终确认再起草。why:「终确认改:默 ≈ 全默」这个统计前提**只在单决策上成立** —— 多个结构性开放项时,投机草稿必须押某一组合(D1-A/D2-A/…),用户改选任意一项都触发差量重写。实证 SVC-PLATFORM-F260726:两项结构性改选(D1-B/D2-C)→ 一整轮重写 · 该轮 agent token 是初稿的 ~1.3 倍 —— **投机反而变成净亏**。
-确认前 emit 导读——📄 **头部第一行回显 PRD 绝对路径**(格式 `PRD: /abs/.../PRD.md` · 让用户直接点开全文核对 · 🔴 绝对路径非相对 · worktree 内产物给 worktree 绝对路径);**首节分两层**:🟡 **你要拍板的**(REJECT/DEFER/升级项 · **每条写成 A/B 选择题 + 我的倾向** · 说人话 · finding id 挪括号)/ ✅ **已处理**(ADOPT 压成主题保 substance · 不逐条 spell 码);余节 ≤2 行:🎯 **意图对照**(照抄 PRD §意图对照 的「我推的」行 + 「我的解释」类排除 —— **这两类是最可能理解偏的地方,必须让用户一眼看到**;都没有则写「无 · 术语均有用户原话依据、排除均属技术限制」)/核心取舍/范围收窄/影响面/🔗 **链装配**(🔴 按 3.7 **四槽 ≤7 行**:流程阶段〔机器渲染〕/ 维度元组 / 评审力度逐评审点「是否×几路×谁×理由」〔零也显式〕/ 四轴证据 · **默认按此执行 · 不要求改就生效** · 想调回一句即可)/🛡️ 兜底策略(PRD 层降级体验类 · 逐项一句「保护什么+成本」· 不许默默做 · 无则「无」)/修订轨迹/残留风险——**全部照实抄落盘产物 · 空节写「无」**(why:导读给没读过 PRD 的人;决策与 ADOPT 平铺等权 = 决策被淹)。然后 R5 标准 1/2/3(1=confirm+`goal-complete --needs-ui <bool> [--needs-blueprint <bool>] [--needs-browser-e2e <bool>]` 💡〔三个 --needs-* 就是装配卡三个维度的写入口 · 直接改 `assembly_plan.dims`〕 / **2=继续讨论**〔恒定第 2 项 · 目标与方向 · 想法/疑虑直接说 —— 聊清楚再修订或确认〕/ 3=其他)· 剩余 §待决策项一次性 escalate(早问门问过的不重复)· 🔴 **逐条带「💡 建议 + 一句理由」**(同 §你要拍板的 —— 推荐不了就写明是缺信息/纯偏好/等上游 · **不许只列选项**)。
+确认前 emit 导读——📄 **头部第一行回显 PRD 绝对路径**(格式 `PRD: /abs/.../PRD.md` · 让用户直接点开全文核对 · 🔴 绝对路径非相对 · worktree 内产物给 worktree 绝对路径);**首节分两层**:🟡 **你要拍板的**(REJECT/DEFER/升级项 · **每条写成 A/B 选择题 + 我的倾向** · 说人话 · finding id 挪括号)/ ✅ **已处理**(ADOPT 压成主题保 substance · 不逐条 spell 码);余节 ≤2 行:🎯 **意图对照**(照抄 PRD §意图对照 的「我推的」行 + 「我的解释」类排除 —— **这两类是最可能理解偏的地方,必须让用户一眼看到**;都没有则写「无 · 术语均有用户原话依据、排除均属技术限制」)/核心取舍/范围收窄/影响面/🔗 **链装配**(🔴 按 3.7 **四槽 ≤7 行**:流程阶段〔机器渲染〕/ 维度元组 / 评审力度逐评审点「是否×几路×**什么模型**×理由」〔**不选角色** · 零也显式〕/ 四轴证据 · **默认按此执行 · 不要求改就生效** · 想调回一句即可)/🛡️ 兜底策略(PRD 层降级体验类 · 逐项一句「保护什么+成本」· 不许默默做 · 无则「无」)/修订轨迹/残留风险——**全部照实抄落盘产物 · 空节写「无」**(why:导读给没读过 PRD 的人;决策与 ADOPT 平铺等权 = 决策被淹)。然后 R5 标准 1/2/3(1=confirm+`goal-complete --needs-ui <bool> [--needs-blueprint <bool>] [--needs-browser-e2e <bool>]` 💡〔三个 --needs-* 就是装配卡三个维度的写入口 · 直接改 `assembly_plan.dims`〕 / **2=继续讨论**〔恒定第 2 项 · 目标与方向 · 想法/疑虑直接说 —— 聊清楚再修订或确认〕/ 3=其他)· 剩余 §待决策项一次性 escalate(早问门问过的不重复)· 🔴 **逐条带「💡 建议 + 一句理由」**(同 §你要拍板的 —— 推荐不了就写明是缺信息/纯偏好/等上游 · **不许只列选项**)。
 
 🔴 **拍板项每条固定四槽**(「你要拍板的」与 §待决策项 escalate 同用 · 实证 CA-F260810:四条 D 项只写「建议 A——<术语压缩>」,B 选项从头到尾没出现,用户被迫追问「大白话解释下 · 上下文是什么」):
 - 🎬 **场景**:什么时候会遇到 · 影响谁(一句大白话 —— 导读给没读过 PRD 的人,术语自由的读者拍不了板);

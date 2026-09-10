@@ -31,7 +31,7 @@
 5. **验证轮范围锁定**(Round 2+):只裁决上轮 open finding + 回归审查修复 diff · **禁全量重扫**(新 finding 仅限出自修复 diff、或 BLOCKER 级附「为何首轮未发现」);rejected 不得复提(除非新证据);同一代码点相邻轮方向相反(加固↔简化)= 钟摆 → 不修 · 升暂停点(why:全量重扫每轮随机采样出新 nit = 不收敛根因)。🎚️ **验证轮派发用验证档模型**(核实 fix = 校验型 · 首轮不降档)。
 6. **轮次预算**:超 `max_review_rounds`(默认 3 · localconfig 可调小 · 超预算暂停点 = 未收敛决策点抛用户:open findings 按 severity 列全)→ R5 升级暂停点用户裁决(1 仅修 BLOCKER/MAJOR 收口 💡 / 2 继续〔`review-retry --user-confirmed` 必须真有用户拍板 · yolo blanket 例外〕/ 3 按现状 APPROVE + deferred 留痕)。
 7. 🧾 **冷审清单统一 · N 路都过全清单**(lane 标识只决定产物落点,不决定查什么)· 三段缺一即漏 · 记 `coverage: [...]`(物化门 `cross_review_coverage` · review 从严:清单比 blueprint 重一档):
-   - ⚔️ **对抗**(证否句式「我试图证明 X 不成立,结果是…」· **不许写 ✅**):这段代码有没有为不会发生的场景加防御?这条校验/限制是需求要的还是实现者自己加的?能不能更简单/职责归错层/可删?
+   - ⚔️ **对抗**(形式与数量**单源** [SKILL § 冷审清单三段](../SKILL.md)):这段代码有没有为不会发生的场景加防御?这条校验/限制是需求要的还是实现者自己加的?能不能更简单/职责归错层/可删?
    - 🔍 **核对**(可写「查过无发现」):**实现↔设计一致性**(AC 逐条对照)· **测试真实性与覆盖**(测试真跑〔= 读实跑证据/日志 · **非自己重跑**〕/ 覆盖真行为 / 边界回归)· **代码质量盲区**(错误处理 / 日志 / 并发);
    - 💡 **清单外洞察**:清单没问、但你认为该关注的 ≥1 条(候选:并发 / 资源泄漏 / 脱敏 / 兼容 / 性能 / 数据量),或显式「无 + 为什么没有」· **不为凑内容而写**。
 8. **external lane 的独立性协议**:roster 含 `external` → 跑 `state.py external-review --stage review` 拿 subagent 配方 → 起**错开模型** subagent 冷审(跨厂商 CLI 已退役 · 本命令不 exec 子进程)· 🔴 **绝不伪造/冒充/静默跳过**。拟 APPROVE 前有过 fix → `--verify-fixes` 增量重验(物化校验)。🐛 **Bug 流默认单路 `[external]`**(diagnose 已经用户确认方案 · review 聚焦 fix↔方案一致 + 不引入新问题 —— 该条并入上面⚔️对抗段 · `change-review-roles` 可加路数)。
@@ -72,8 +72,9 @@ review_models: # 🔴 每路照实申报实际模型(错开机器比对 review_m
   - architect: <实际模型>
 verdict: NEEDS_REVISION | APPROVE
 coverage: # 🔴 每一路一行(external lane 的在 external-cross-review/*.md)· 🔍 核对段申报
-  architect: "实现↔设计一致性 / 简洁性 counter-lens —— 见 F1,F3;分层与契约查过无发现"
-  qa: "测试真实性与覆盖 / 边界回归 —— 查过无发现"
+  # 🔴 每路都申报**全部**核对方向 —— 不是一路领一半(那是角色制的残影)
+  architect: "实现↔设计一致性 见 F1,F3 / 测试真实性与覆盖 查过无发现 / 代码质量盲区 见 F5"
+  r2: "实现↔设计一致性 查过无发现 / 测试真实性与覆盖 见 F2 / 代码质量盲区 查过无发现"
 outside_checklist_insight: # 💡 清单外洞察 —— 清单没问、但你认为该关注的(≥1 条 · 想不出写「无 · 因为…」· 不为凑内容而写)
   architect: "报表类接口的**结果集搬运量**没在清单里 —— 本 feature 单次拉回 4 万行做服务端聚合,建议下一版进 TECH 清单"
 findings:

@@ -4,6 +4,38 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.356 · v8.355 的接线补全(四路 subagent 审计 · 用户要求)
+
+> 用户:「现在你派几个 subagent 整体 review 一下,看下是否有描述冲突、冗余等问题。」
+> 三路审计共报 **33 条**,逐条回读核实**全部成立**,其中 **2 条 P0 + 1 条 P1 是真 bug**。
+> 🔴 **根因是方法错误**:v8.355 按「**我想到的载体**」逐个改,而不是**先 grep 出全部消费方再改** —— 框架自己就有这条规则(「改契约必 grep 消费方 · 不凭记忆」),**没对自己用**。整批漏掉的文件:`claude-agents/` · `FLOWS.md` · `ROLES.md` · `docs/prepare.md` · `docs/conventions.md`。
+
+### 🔴 P0-1 · 0 路冷审是个死锁(门在逼 AI 造假)
+`PRD-REVIEW.md` 的产物 spec **没挂 `review_artifact=True`** —— v8.355 新加的「按路数跳过评审产物」对它**永不生效**;而全仓唯一挂了标记的 TECH-REVIEW 只在 blueprint 出现,blueprint 只在 medium/full 上链且 roster 恒非空 → **那条改动在任何默认档上都是 no-op**,CHANGELOG 里「lite/tiny 同受益」当时是**一句空话**。
+实测复现:lite 档(goal 有意 0 路)只交 PRD.md → FAIL;如实写 0 路记录 → 仍 FAIL;**只有编造一条不存在的裁决才能过**。
+- 修:`PRD-REVIEW.md` 挂 `review_artifact=True`;`review_after_primary` / `prd_verdicts_all_pass` 补 0 路放行。
+- 🔴 修的过程里**又栽了一次 v8.305 的坑**(把「roster 未初始化」当成「有意 0 路」,对存量放松,被既有测试当场抓出)→ 谓词抽成 `_stage_lanes_deliberately_zero` 单函数,并加锁禁止就地重写。
+
+### 🔴 P0-2 · brief 与门直接对立(默认档就踩)
+goal brief 写着「roster 里没有的角色 gate 自动放行(**如去 pl → PL 质疑免**)」,而门 v8.355 起按路数判。medium 档(`goal: ["external"]`)照 brief 写完整单路冷审 → `goal-complete` FAIL,且是唯一拦截项。
+- 修:三份 brief 的派发段与「结果(完成判定)」段全部改为**N 路同一份清单**、逐路交三段;装配卡去掉角色轴(`路数×角色×模型` → `路数×模型`、`几路×谁` → `几路×什么模型`)。
+
+### 🟠 P1-3 · external lane 的 prompt 里根本没有统一清单(写入端没接)
+`claude-agents/reviewer.md` 是 external 冷审 subagent 拿到的**唯一**指令,仍是 pre-v8.355 的 C1–C6 角色式 checklist。实测渲染出的 prompt 关键词计数:`清单外洞察 0 · 对抗 0 · 证否 0 · coverage 0`。而 tiny/lite/medium/Bug 四条默认路径上,review 的**唯一**冷审路就是 external —— 等于 v8.355 的统一清单**在真正干活的那一路上从未生效**,coverage 只能由主对话代笔,而主对话代笔正是该 stage 明令禁止的热审。
+- 修:prompt 模板换成统一三段(⚔️ 按 target 给对抗内容:prd=质疑七问 / blueprint=rival 设计强制 / code=防御与限制必要性)+ 输出 schema 补 `coverage` / `challenge` / `outside_checklist_insight`;测试**验渲染出来的那份**,不只验模板。
+
+### 其余修复
+- **coverage 门仍是角色白名单**(`_REVIEW_MAIN_ROLES = ("architect","qa")`):roster 为 `["pl"]` / `["fast"]` 时与 `cross_review_coverage` 双双放行 = **零 coverage 强制** → 改为「除 external lane 外每路都要」。
+- **💡 洞察门对 lane-first 布局判空**(`## 💡 清单外洞察` + `### <lane>`,与 REVIEW.md 的 per-lane 子键同构):窗口遇任何标题即断 → 改为只在**同级或更高级**标题处断;占位符原样与单字「无」仍被正确拒绝(放宽窗口 ≠ 放松门)。
+- **文档面 28 处**:`goal-stage` 门清单旧触发条件 + 漏列新门 · 产物契约按角色分段 · 清单错置在「不强制全用」的手段菜单里 · medium 仍写 `[fast]`;`ROLES.md` / `FLOWS.md` / `docs/prepare.md` / `docs/conventions.md` 整批补齐;`roles/` 与 `templates/prd.md` 的角色席位残留。
+
+### 🔴 三段规则改为单源(「双载体必漂」的现场教训)
+v8.355 把三段的完整表述**在 SKILL 和三份 stage doc 各写了一遍且没标单源** —— 当场就漂了三处:goal 专属的「质疑七问」被写成通用底线(review 的对抗点与七问无关)· ⚔️ 段禁写口径三处不同(goal 禁「✅ 或查过无发现」、另两处只禁 ✅)· ⚔️ 段的「≥1 条或显式无」只有 goal 写(blueprint/review 的空对抗段不违反任何成文要求)。
+- 修:**SKILL 成为三段通用要求的单源**(证否句式 / 禁写项 / 数量),三份 stage doc 只写**本 stage 查什么** + 指向单源;测试改为「验单源 + 验引用」,不再要求各处重述。
+
+- test_derole_wiring_v8356(19)· 8 份既有测试按新语义重锚 · 全量 **1737 passed**
+- 发版三件套 · 🔴 54(门 <55)· prd.md 339 行(门 <340)
+
 ## v8.355 · 去角色:冷审清单统一 · fast 退役(用户拍板)
 
 > 用户:「我想进一步弱化角色,甚至去掉角色,在每一个阶段把审核需要的注意事项合并到一起,流程只是保障冷审的力度,几个冷审,冷审的模型是什么,冷审结论要有模版文档,结束要填好,除了必要的检查项之外,还需要写 AI 认为需要关注的」+「fast 模式彻底删除吧」。
@@ -87,23 +119,3 @@
 
 ### 测试
 `test_feature_gates_v8352.py` 17 条:缺节/模板占位/少列必挂 · 显式「无」放行(不逼人编闸)· 答齐放行 · 不产 TECH 的形态 skip · 模板定义了什么算闸 + 三个可判列 + 反向压力 + fail-closed/open 是产品决策 · 三触发接线(stage/卡片/SKILL)· brief 带 case 代价。v8.343 补 `test_flow_key_agrees_across_all_three_impls`。全库绿。
-
-## v8.351 · 意图偏差的代价:要算,不要被告知(用户拍板)
-
-> 用户:「PM 要知道一旦理解错了,代价非常高。」
-> 🔴 但「要知道代价高」**本身是形容词** —— 本仓连着多版实证过它不产生行为(v8.334「按需/酌情」· v8.337 形容词式装配卡 · v8.341 权限休眠 · v8.342「附加轻门」)。所以本版不加一句「请重视」,而是让 PM **逐行把代价算出来**。
-
-### 变更
-- **①术语解释对照加末列「🔴 若这条理解错了 → 最坏会怎样」**:逐行写**具体后果**(「投放点击全部不回传、广告拿不到转化数据」,**不写「影响较大」**)· 后果落在**生产 / 外部 / 不可逆** → 该行**必进 §待决策项**,**不管 AI 多有信心**。机器门认这一列(缺列即挂)。
-- **why 给结构性事实,不给劝导**(goal-stage 4.5 + goal brief):**意图错误是唯一一类下游全部质量门都拦不住的错** —— 评审 / 测试 / CI / 验收**全都以「意图正确」为前提**,它们只能回答「做得对不对」,回答不了「做的是不是对的东西」。于是:
-  - **实现错了** → review/test 会抓 → 代价 ≈ **一轮返工**;
-  - **意图错了** → 所有门全绿 → 代价 = **整条链的质量投入全部变成「认真地做错事」+ 线上事故**。
-  - 两次实证都是**流程走完、测试全绿、事故照样发生**(协议强制 header → 线上请求归零 · AON Link 狭义解释 → 投放点击全不回传)。
-  - 🔴 **越认真做,错得越彻底** —— 这是它与其它错误在**性质**上的区别,不是「大一点小一点」。
-- **判据一句话**:「写不出具体后果 = 其实没想过代价」。
-
-### 零行预算下的落法
-`templates/prd.md` 只剩 1 行余量(339/340,v8.283 瘦身门)。代价因此做成 **①表的一列**而不是第四槽 —— 表格加列不加行,且语义更准:**代价是针对某条「我推的」解释算的**,不是泛泛一节。
-
-### 测试
-`test_intent_reconciliation_v8350.py` 增至 19 条(新增 `TestCostIsComputedNotToldV8351` 5 条):砍掉代价列必挂 · 模板要求具体不要形容词 · 后果严重强制升级(与信心无关)· why 是结构性事实(「唯一一类全部质量门拦不住」「越认真做错得越彻底」「代价 ≈ 一轮返工」的量级对比)· brief 带 stakes。全库 1645 绿 · 模板 339 行仍在门内。

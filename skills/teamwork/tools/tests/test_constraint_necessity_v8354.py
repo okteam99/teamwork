@@ -32,6 +32,10 @@ def _read(rel: str) -> str:
 class TestSevenChallengesRenamed(unittest.TestCase):
     """六问 → 七问 必须跨全部载体一起改(单点改 = 下次读到旧数目的人按旧的做)。"""
 
+    # v8.356:SKILL.md 移出载体清单 —— 去角色后 SKILL 只承载**三段的通用要求**
+    # (证否句式 / 禁写项 / 数量),而「质疑七问」是 **goal 专属**的对抗内容。
+    # 把 goal 的内容写进通用底线,正是 v8.355 造成的分层错位(七问与 review 的
+    # 「有没有为不会发生的场景加防御」无关)。其余 6 个载体照锁。
     CARRIERS = [
         "roles/product-lead.md",
         "stages/goal-stage.md",
@@ -39,7 +43,6 @@ class TestSevenChallengesRenamed(unittest.TestCase):
         "tools/_v8_stage_specs.py",
         "tools/_v8_engine.py",
         "tools/state.py",
-        "SKILL.md",
     ]
 
     def test_no_six_challenge_reference_left(self):

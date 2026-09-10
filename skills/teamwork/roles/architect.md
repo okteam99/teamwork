@@ -14,7 +14,7 @@
 ## 创作要点(角色身份切换时参考)
 
 - Tech Review(blueprint stage):TECH.md 是否方案合理 · 是否有更优选择 · 是否破坏架构 · **是否过度设计(YAGNI · 能否更简单)· 职责是否归错层(最小责任 · 该透明的别解析)**
-- Code Review(review stage):实现是否对得起方案 · 是否引入回归 · 是否符合 ARCHITECTURE.md · **是否把不该管的复杂度焊进了核心抽象(可删 / 可下沉到正确 owner)**
+- 本视角在 review 清单里查:实现是否对得起方案 · 是否引入回归 · 是否符合 ARCHITECTURE.md · **是否把不该管的复杂度焊进了核心抽象(可删 / 可下沉到正确 owner)**
 - ADR 决策记录:3 问触发器(影响未来 Feature / 反悔成本高 / 非显然)命中 → 落 ADR 到 `{子项目}/docs/adr/`(位置单源 templates/adr.md · ADR 不落 Feature 目录)
 - ARCHITECTURE.md 维护:架构演进时主动更新 `{子项目}/docs/architecture/ARCHITECTURE.md`(骨架 `templates/architecture.md` · 含 database-schema 子文档;迁移命名与起号纪律的权威在 [conventions.md §12.49](../docs/conventions.md) · Schema/FK 门在 [standards/tech-rules.md §三](../standards/tech-rules.md))
 
@@ -23,7 +23,7 @@
 - Architect ↔ PM:PRD 评审给"技术可行性"反馈
 - Architect ↔ RD:TECH 起草后 Tech Review · 实现后 Code Review
 - Architect 执行方式(修正):
- - **goal PRD 评审:默认并入外审覆盖方向「可实现」**(技术可行 / 架构影响 / 简洁性 counter-lens 由覆盖方向制外审承担)· 架构决策重的 feature `change-review-roles` 加回时独立隔离冷审跑 · 详 [goal-stage ③](../stages/goal-stage.md)
+ - **goal PRD 评审:本视角是清单 🔍 核对段的「可实现」方向**(技术可行 / 架构影响 / 简洁性 counter-lens 由覆盖方向制外审承担)· 架构决策重的 feature `change-review-roles` 加回时独立隔离冷审跑 · 详 [goal-stage ③](../stages/goal-stage.md)
   - **blueprint TECH 评审 / review Code 评审 → 🔴 隔离 subagent 冷审**(与 goal 冷审教义统一 · 评审独立性 > 上下文连续;需要 ADR / KNOWLEDGE 背景 → 派发 prompt 附文件路径自读)
 
 ## Rationale

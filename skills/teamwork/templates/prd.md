@@ -189,7 +189,7 @@ review_completed_at: "<ISO 8601 UTC>"
 reviewers: [pl, external]  # 机读汇总 · = state.stage_review_roles[goal](默认 2 路:PL 对抗质疑 + 覆盖方向制外审 · 无 pm:PM 是整合者非 reviewer)· 校验 reviewers_match
 verdicts: {pl: APPROVE, external: APPROVE}  # 🔴 全 APPROVE/SKIP 才可 goal-complete(prd_verdicts_all_pass · 词表 APPROVE|NEEDS_REVISION|SKIP · 无 pm verdict)
 reviews:
- # goal 评审角色 = state.stage_review_roles[goal](默认 pl/external 两路并行隔离冷审 · QA 可验证/ARCH 可实现并入外审覆盖方向 · 复杂 feature change-review-roles 加回独立 qa/architect · PM 整合非 reviewer)
+ # goal 冷审 lane = state.stage_review_roles[goal](路数 = 装配 D4 · 默认 2 · lane 标识只决定产物落点 · 每路都过全清单三段 · 要加就加路数不是加角色 · PM 整合非 reviewer)
  # PMO 不独立评审(折叠到调度责任 · 整合 finding)
  - role: pm | qa | architect | pl | external  # schema 通用 · rd/designer 值用于 TECH-REVIEW / REVIEW.md 复用场景
  review_scope: prd # 值 prd | blueprint | code-review
