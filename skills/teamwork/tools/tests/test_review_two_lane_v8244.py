@@ -31,10 +31,11 @@ class TestTwoLaneDefaults(unittest.TestCase):
         self.assertEqual(roles["review"], ["external"])
 
     def test_bug_brief_carries_single_lane_note(self):
-        """v8.270:Bug 流 review brief 带单路说明 · fast 优先 · Feature 不受污染。"""
+        """v8.270:Bug 流 review brief 带单路说明 · Feature 不受污染。
+
+        v8.355:原来还有一条「fast 时不显示」—— fast 退役后该分支不复存在。
+        """
         self.assertIn("Bug 流单路评审", specs._review_brief({"flow_type": "Bug"}))
-        self.assertNotIn("Bug 流单路评审",
-                         specs._review_brief({"flow_type": "Bug", "fast_mode": True}))
         self.assertNotIn("Bug 流单路评审", specs._review_brief({}))
 
 

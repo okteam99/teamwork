@@ -24,10 +24,16 @@ class TestGoalDefaultRosterTwoLane(unittest.TestCase):
 
 
 class TestExternalCoveragePresent(unittest.TestCase):
-    def test_roster_without_external_auto_pass(self):
-        state = {"stage_review_roles": {"goal": ["pl"]}}
-        ok, _ = specs._evidence_external_coverage_present(state, _args("/nonexistent"))
+    def test_zero_lane_auto_pass(self):
+        """v8.355:coverage 申报是每一路的必交项 —— 只有 0 路才免(原来是不含 external 即免)。"""
+        ok, _ = specs._evidence_external_coverage_present(
+            {"stage_review_roles": {"goal": []}}, _args("/nonexistent"))
         self.assertTrue(ok)
+
+    def test_any_lane_owes_coverage(self):
+        ok, _ = specs._evidence_external_coverage_present(
+            {"stage_review_roles": {"goal": ["pl"]}}, _args("/nonexistent"))
+        self.assertFalse(ok, "配了路却不用申报 coverage = 又一条缝")
 
     def test_missing_review_file_fails(self):
         with tempfile.TemporaryDirectory() as d:

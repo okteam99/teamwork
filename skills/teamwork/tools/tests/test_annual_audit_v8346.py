@@ -37,7 +37,7 @@ class TestSingleRouteKeepsHighestYield(unittest.TestCase):
         m = S.TIER_DIMS["medium"]["review"]
         self.assertEqual(m["blueprint"], ["external"])
         self.assertEqual(m["review"], ["external"])
-        self.assertEqual(m["goal"], ["fast"])        # goal 用合并帽 · 不受本条影响
+        self.assertEqual(m["goal"], ["external"])    # 单路 · 清单本就统一(不再有 fast 合并帽)
 
     def test_still_single_route_not_widened(self):
         """反转的是**留哪一路**,不是把路数加回去 —— 别把修 bug 修成撤销降档。"""

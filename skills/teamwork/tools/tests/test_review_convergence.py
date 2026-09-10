@@ -533,34 +533,11 @@ class TestReviewRoundBudget(_ReviewFlowCase):
         self.assertEqual(d["round"], 2)
         self.assertEqual(d["max_review_rounds"], 3)
 
-    def _enable_fast(self):
-        st = self._state()
-        st["fast_mode"] = True
-        (self.feat / "state.json").write_text(
-            json.dumps(st, ensure_ascii=False, indent=2), encoding="utf-8")
-
-    def test_fast_mode_caps_budget_at_two(self):
-        """v8.267 fast:localconfig 未配(默认 3)→ 预算封顶 2 · round 3 被拦 + 暂停点带 fast 标记。"""
-        self._enable_fast()
-        self._one_failed_round()
-        d = _run_state(self.tmp, "review-retry", "--feature", self.feat_rel)
-        self.assertEqual(d["round"], 2)                      # round 2 在预算内正常开
-        self.assertEqual(d["max_review_rounds"], 2)
-        self._one_failed_round()
-        d = _run_state(self.tmp, "review-retry", "--feature", self.feat_rel,
-                       expect_exit=1)
-        self.assertEqual(d["verdict"], "FAIL")
-        md = d["pause_options_markdown"]
-        self.assertIn("max_review_rounds=2", md)
-        self.assertIn("⚡ fast 模式封顶", md)
-        self.assertIn("未收敛决策点", md)
-        self.assertIn("- MAJOR:F1(确定性 bug)", md)      # 决策点 = open findings 列全
-
-    def test_fast_mode_respects_smaller_localconfig(self):
-        """localconfig max_review_rounds=1 < fast 封顶 2 → 取更小值 1。"""
+    def test_localconfig_can_shrink_the_budget(self):
+        """localconfig max_review_rounds=1 → 第 2 轮即超预算(v8.355:fast 封顶退役后,
+        预算的唯一来源就是 localconfig · 不再有第二个收紧点)。"""
         (self.tmp / ".teamwork_localconfig.json").write_text(
             json.dumps({"max_review_rounds": 1}), encoding="utf-8")
-        self._enable_fast()
         self._one_failed_round()
         d = _run_state(self.tmp, "review-retry", "--feature", self.feat_rel,
                        expect_exit=1)

@@ -67,7 +67,7 @@ class TestMatrixDerivesChain(unittest.TestCase):
         """加一档不该多一条链 —— medium 与 full 同链、只差 D4(所以它不是结构档)。"""
         self.assertEqual(S.derive_chain(S.tier_dims("medium")),
                          S.derive_chain(S.tier_dims("full")))
-        self.assertEqual(S.TIER_DIMS["medium"]["review"]["goal"], ["fast"])
+        self.assertEqual(S.TIER_DIMS["medium"]["review"]["goal"], ["external"])
         # v8.346:单路留 external(年检:逐 stage ext>arch · goal 用 fast 合并帽不受影响)
         self.assertEqual(S.TIER_DIMS["medium"]["review"]["blueprint"], ["external"])
 
@@ -220,7 +220,7 @@ class TestInitWritesPlan(_CliCase):
         st = self.load(d)
         self.assertIn("browser_e2e", S.derive_chain(st["assembly_plan"]["dims"]))
         self.assertEqual(st["stage_review_roles"]["blueprint"], ["architect", "dba"])
-        self.assertEqual(st["stage_review_roles"]["goal"], ["fast"])   # 没拧的沿用档默认
+        self.assertEqual(st["stage_review_roles"]["goal"], ["external"])  # 没拧的沿用档默认
 
     def test_incoherent_custom_dims_rejected_at_init(self):
         _, r = self.init("lite", {"review": {"blueprint": ["architect"]}})

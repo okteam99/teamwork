@@ -1,6 +1,6 @@
 ---
 name: teamwork
-version: v8.354.1
+version: v8.355
 description: AI 协作开发一体化框架 - 需求功能开发, bug 修复, 问题排查 · /teamwork 启动
 ---
 
@@ -200,7 +200,9 @@ state.py 物化了 9 红线中 8 条 · R3 + 部分行为约束(R4 / R5(b) / byp
 - 📣 **声明制(重写)**:声明**寄生在 prompt 首行**,不另起一句 —— `Meta: tier=<验证|执行|深度> · model=<留空则继承> · 理由=<一句>`。prompt 是派发时必然要写的,寄生其上才不会被忘(**高频低显著性的义务必然衰减** · 实证:agent 读过规则仍漏)。
 - 🎚️ **验证类白名单一律降验证档 · 例外需用户授权**:写测试用例(TC 起草)· 执行测试 · 单测 · 集成测试 · e2e · TC 逐条对照 · 冷审执行 · 机械外化 · 调研采集(整合判断留深度档) —— 默认**全部**降档且**必须显式传 model**;认为本次特殊 → 🔴 **不许 AI 自决**,开 R5 请用户授权。判断/创造型允许继承(仍在首行声明 tier + 理由)。档位表与硬边界单源 [agents/README §一](./agents/README.md)。
 - 📊 台账 `dispatch_models` 分两桶:`inherited_declared`(判定该继承 = **正确行为**)vs `unspecified`(真没分档)—— 两者干预手段相反,不可合并计数。
-- 🔴 **评审模型必错开**(独立采样不变式):双路冷审(goal PL+外审 / blueprint·review Architect+外审)**两路模型必须不同**(主审路继承会话主模型 · 外审路错开一档);单路配置(fast 合并 / roster 减到一路)时**该路 ≠ 会话主模型**。**任何评审配置至少一路 ≠ 会话主模型** —— 同模型 = 盲区相关(两路同瞎)· 主对话热审 = 自审无效。验证轮降档本身即错开。
+- 🔴 **评审模型必错开**(独立采样不变式):多路冷审**逐路模型不同**(一路继承会话主模型 · 其余错开一档);单路配置(roster 减到一路)时**该路 ≠ 会话主模型**。**任何评审配置至少一路 ≠ 会话主模型** —— 同模型 = 盲区相关(两路同瞎)· 主对话热审 = 自审无效。验证轮降档本身即错开。
+- 🧾 **冷审清单统一 · 不按角色切分**(去角色):每个 stage **一份清单**,配几路就几路**都过全清单** —— roster 里的 `pl`/`external`/`architect` 是 **lane 标识**(决定产物落点与是否跨会话隔离),**不决定查什么**。装配只拧 **路数 × 模型**。why:年检实证方向清单产出 2.1× 角色关注点;而按角色切分留下的缝没人接(「限制必要性」当初就卡在缝里)。
+- 🔴 **清单三段缺一即漏**:⚔️ **对抗**(质疑七问 · **证否句式**「我试图证明 X 不成立,结果是…」· **不许写 ✅** —— 中性核对会把对抗项磨平)· 🔍 **核对**(可写「查过无发现」· 记 `coverage`)· 💡 **清单外洞察**(清单没问但你认为该关注的 ≥1 条,或显式「无 + 理由」· **不为凑内容而写**)。💡 那段是框架的**自发现通道** —— 历史上多个缺口都不在当时的清单里,全靠线上事故回流才发现。
 - **授权**见 § Subagent 默认授权(管「能不能用」)· 本节管「该不该用」。
 
 ### R5(b) 暂停点标准格式
@@ -393,19 +395,6 @@ mode B 识别后(**无论后续 flow_type = Feature〔full/micro〕还是 Bug ·
 
 🔴 **skip + WARN 行为**:跳过暂停点但必 `state.py add-concern --severity WARN` 写一条 audit 锚定 AI 自决的范围。
 📎 `worktree_mode=auto` ≠ `auto_mode` —— 前者是 worktree 物理校验模式 · 与暂停点自动流转**完全无关**。
-
-### fast 模式(评审收敛为两端单路 · 默认关 · localconfig 配置)
-
-🔴 `.teamwork_localconfig.json` 的 `fast_mode: true` 开启(**缺省/false = 关** · init-feature 时快照进 `state.fast_mode` · 中途改配置不影响 in-flight feature):
-
-- **留两端 · 各合并单路**(roster = `{goal: [fast], review: [fast]}` ·「fast」= 合并伪角色 · 单 agent 兼多帽 · 🎭 该单路模型 **≠ 会话主模型**):
-  - **PRD 评审(goal)**:一路隔离冷审兼 **PL + 外审**关注点(质疑七问 ≥1 实质 + 可实现/可验证 + AI 自主方向)· 产单份 PRD-REVIEW.md(`reviewers: [fast]`)· verdicts 全 APPROVE 门照拦;
-  - **代码 review**:一路隔离评审兼 **Architect + QA** 关注点(实现↔设计一致性/简洁性 counter-lens + 测试真实性与覆盖/代码质量盲区)· 产 REVIEW.md 单份 · findings/severity/验证轮协议照跑。
-- **去掉**:blueprint 评审(不产 TECH-REVIEW.md · TC/TECH 写完直进 dev)· 两端的多路独立性。
-- 🎯 **评审最多 2 轮**:goal 冷审与代码 review 预算各封顶 2 轮(首轮全量 + 1 验证轮 · localconfig `max_review_rounds` 更小则从小)· 轮尽未收敛 → **未收敛决策点抛用户拍板**(goal → 列进 PRD 终确认导读;review → 引擎 review-retry 硬拦 · R5 暂停点列 open findings + 1/2/3)。
-- **保留**:测试证据硬门(exit 0/差分)· verify-ac · **全部用户暂停点**(prepare 4 项 / PRD 最终确认 / DB schema 确认 / pm_acceptance / ship1)· worktree 纪律 · ship 全链。
-- 🔴 **yolo 忽略 fast**(不报错):yolo 无人值守靠全量评审安全网 —— `--yolo` 时 fast_mode **静默不生效**(kickoff 记 INFO 留痕)· fast 仅有人值守生效;与 auto_mode 正交可叠。
-- 适用:原型 / 个人项目提速;正式项目慎用(独立多路评审是拦真 bug 主力)。
 
 ### yolo 模式(完全自动 · 无人值守 · 高风险)
 

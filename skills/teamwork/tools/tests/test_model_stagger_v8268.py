@@ -35,10 +35,17 @@ class TestSingleLaneStagger(unittest.TestCase):
     def test_reminder_carries_single_lane_rule(self):
         self.assertIn("该路 ≠ 会话主模型", E.DISPATCH_TIER_REMINDER)
 
-    def test_fast_briefs_carry_single_lane_stagger(self):
-        self.assertIn("单路模型错开", S._goal_brief({"fast_mode": True}))
-        self.assertIn("单路模型错开", S._review_brief({"fast_mode": True}))
+    def test_single_lane_briefs_carry_stagger(self):
+        """v8.355:提示改按**路数**判(原先只挂 fast_mode · 那是搭便车的通用条款)。"""
+        one = {"stage_review_roles": {"goal": ["external"], "review": ["external"]}}
+        self.assertIn("单路模型错开", S._goal_brief(one))
+        self.assertIn("单路模型错开", S._review_brief({**one, "flow_type": "Bug"}))
 
-    def test_normal_briefs_not_polluted_by_fast_line(self):
+    def test_single_lane_does_not_mean_shorter_checklist(self):
+        """🔴 降档降路数 · 不降清单 —— 否则「单路」会被读成「少查几项」。"""
+        gb = S._goal_brief({"stage_review_roles": {"goal": ["external"]}})
+        self.assertIn("单路不减清单", gb)
+
+    def test_two_lane_briefs_not_polluted_by_single_lane_line(self):
+        self.assertNotIn("单路模型错开", S._goal_brief({"stage_review_roles": {"goal": ["pl", "external"]}}))
         self.assertNotIn("单路模型错开", S._goal_brief({}))
-        self.assertNotIn("单路模型错开", S._review_brief({}))

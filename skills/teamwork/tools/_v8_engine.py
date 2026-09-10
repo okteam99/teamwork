@@ -74,7 +74,7 @@ class StageArtifactSpec:
     """是否必须在 --auto-commit changeset 内"""
 
     review_artifact: bool = False
-    """v8.260:评审类产物标记 —— state.fast_mode=true 时跳过校验(fast mode 去掉所有评审环节)"""
+    """评审类产物标记 —— 本 stage 冷审路数为 0 时跳过校验(v8.355 起按路数判 · 原挂 fast_mode)"""
 
     description: str = ""
 
@@ -504,7 +504,8 @@ DEFAULT_IDLE_THRESHOLD_MINUTES = 30
 # `_read_archive_on_ship`)都是「从 feature_dir 向上找 · 遇 `.git` 停」——
 # linked worktree 的根有 `.git`(**文件**形式)却没有配置 → 全部静默回退默认值。
 # teamwork 默认 `worktree: auto`,等于这五项配置在真实 feature 上从来没生效过
-# (case 实证:localconfig `fast_mode: true` · init 后 state.json 无该键 · 按全量 roster 跑)。
+# (case 实证:localconfig `fast_mode: true` · init 后 state.json 无该键 · 按全量 roster 跑 ——
+# 该键本身已于 v8.355 退役,此处仅存归一化的实证由来)。
 #
 # 终止规则(修正后):命中配置 → 用它;`.git` 是**目录** → 主仓根,确实没配置 → 停;
 # `.git` 是**文件** → linked worktree,解析 gitdir 拿到主工作树,**跳过去继续找**。
@@ -1417,7 +1418,7 @@ def _render_complete_contract(stage_spec: "StageSpec") -> str:
         if a.must_be_in_commit:
             req.append("须在 --auto-commit changeset 内")
         if a.review_artifact:
-            req.append("fast_mode 免")
+            req.append("本 stage 0 路冷审时免")
         seg = f"- 产物 `{tgt}`" + (f"({' · '.join(req)})" if req else "")
         if a.description:
             seg += f" —— {a.description}"
@@ -1489,9 +1490,9 @@ def _render_pause_discipline(authorized_pause_point: str,
 
 
 REVIEW_ROLE_ENUM = {"pm", "qa", "architect", "rd", "designer", "pl", "external",
-    # v8.305:`fast` 是 fast_mode 自己写进 roster 的**伪角色**(单 agent 兼多帽 · v8.261),
-    # 却不在枚举里 → `change-review-roles` 判它非法 · fast 模式下用户连把当前值传回去都会被拒,
-    # 等于该模式下这条命令整个不可用。它是框架自产的合法 roster 值,必须收进枚举。
+    # v8.355:`fast` 已随 fast_mode 退役 —— **但枚举里必须留着**:存量 feature 的 state
+    # roster 里还写着它,摘掉会让那些 feature 连把当前值传回 `change-review-roles` 都被拒
+    # (v8.305 踩过一次同样的坑)。新装配不再产生它;它现在只是个历史 lane 标识。
     "fast",
 }
 """review 角色 7 闭集。
@@ -1936,9 +1937,12 @@ def execute_stage_complete(
         auto_commit, cwd=git_cwd
     ) if auto_commit else []
 
+    _stage_lanes = (state.get("stage_review_roles") or {}).get(stage_spec.name) or []
     for art_spec in stage_spec.artifacts:
-        # v8.260 fast mode:评审类产物(PRD-REVIEW/TECH-REVIEW)不产 · 跳过校验
-        if art_spec.review_artifact and state.get("fast_mode"):
+        # v8.355(接替 v8.260 的 fast_mode 分支):评审类产物按**本 stage 有没有冷审路**跳 ——
+        # 0 路 = 没有评审,自然没有评审产物。原条件挂在 fast_mode 上,而 fast 只是「0/1 路」的
+        # 一种旧写法;挂路数才是它一直想表达的东西(且 lite/tiny 的 roster=[] 同样受益)。
+        if art_spec.review_artifact and not _stage_lanes:
             continue
         if art_spec.path:
             target = feature_dir / art_spec.path
@@ -2721,8 +2725,7 @@ def run_tests_via_subprocess(cmd_str: str, cwd: str, timeout_sec: int,
 
 
 # review 轮次预算(review 收敛协议):开新轮 > 预算 → R5 升级暂停点(用户拍板)
-DEFAULT_MAX_REVIEW_ROUNDS = 3
-FAST_MAX_REVIEW_ROUNDS = 2  # v8.267 fast 模式评审预算封顶(localconfig 更小则从小)
+DEFAULT_MAX_REVIEW_ROUNDS = 3  # localconfig `max_review_rounds` 更小则从小
 
 # finding severity 展示顺序(暂停点分组 · 与 specs FINDING_SEVERITIES 同序)
 _FINDING_SEVERITY_ORDER = ("BLOCKER", "MAJOR", "MINOR", "NIT")
@@ -2743,13 +2746,11 @@ def _localconfig_max_review_rounds(feature_dir) -> int:
     return DEFAULT_MAX_REVIEW_ROUNDS
 
 
-def _build_review_budget_pause(rounds_done: int, max_rounds: int, ledger: list,
-                               fast: bool = False) -> str:
+def _build_review_budget_pause(rounds_done: int, max_rounds: int, ledger: list) -> str:
     """review 超预算 R5 升级暂停点 markdown(编号 1/2/3 · SKILL.md § R5(b) 格式)。"""
     open_items = [e for e in ledger if isinstance(e, dict) and e.get("status") == "open"]
     lines = [
-        f"⏸️ review 已 {rounds_done} 轮未收敛(超过 max_review_rounds={max_rounds}"
-        f"{' · ⚡ fast 模式封顶' if fast else ''})· "
+        f"⏸️ review 已 {rounds_done} 轮未收敛(超过 max_review_rounds={max_rounds})· "
         f"剩余 open finding:{len(open_items)} 条 —— 以下即未收敛决策点 · 请你拍板"
     ]
     for sev in _FINDING_SEVERITY_ORDER:
@@ -2972,9 +2973,6 @@ def execute_stage_retry(stage_name: str, args: argparse.Namespace) -> None:
     max_review_rounds = None
     if stage_name == "review":
         max_review_rounds = _localconfig_max_review_rounds(Path(args.feature))
-        if state.get("fast_mode"):
-            # v8.267 fast:评审最多 2 轮 · 轮尽未收敛决策点抛用户(localconfig 更小则从小)
-            max_review_rounds = min(max_review_rounds, FAST_MAX_REVIEW_ROUNDS)
         if new_round_num > max_review_rounds:
             confirmed = getattr(args, "user_confirmed", False) or bool(state.get("yolo"))
             reason = (getattr(args, "reason", "") or "").strip()
@@ -2989,8 +2987,7 @@ def execute_stage_retry(stage_name: str, args: argparse.Namespace) -> None:
                     ),
                     "pause_options_markdown": _build_review_budget_pause(
                         len(rounds), max_review_rounds,
-                        contract.get("findings_ledger") or [],
-                        fast=bool(state.get("fast_mode"))),
+                        contract.get("findings_ledger") or []),
                     "hint": (
                         "⏸️ 把 pause_options_markdown 原样 emit 给用户拍板(R5)· "
                         "选 2 → review-retry --user-confirmed --reason '<用户拍板>' 放行;"

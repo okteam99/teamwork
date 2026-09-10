@@ -953,10 +953,12 @@ class TestGoalQualityGatesV8132(unittest.TestCase):
         ok, msg = self._challenge(["pl"])
         self.assertTrue(ok, msg)
 
-    def test_no_pl_role_auto_passes(self):
-        """角色集无 pl(如敏捷 goal = qa/architect)→ pl_challenge 自动放行(连 PRD-REVIEW 缺失也不拦)。"""
-        ok, _ = self._challenge(["pm", "qa", "architect"])
+    def test_zero_lane_auto_passes(self):
+        """v8.355:0 路(该 stage 不评审)→ 对抗段门自动放行;有路就欠一段(去角色)。"""
+        ok, _ = self._challenge([])
         self.assertTrue(ok)
+        ok2, _ = self._challenge(["pm", "qa", "architect"])
+        self.assertFalse(ok2, "配了路却免对抗段 = 旧的角色缝")
 
 
 if __name__ == "__main__":

@@ -71,8 +71,8 @@ class TestSevenChallengesRenamed(unittest.TestCase):
     def test_pl_challenge_gate_lists_seven(self):
         """PL-CHALLENGE 缺段提示要把七个名字都念出来(念漏 = AI 只做六个)。"""
         specs = _read("tools/_v8_stage_specs.py")
-        m = re.search(r"PL 须按质疑七问\(([^)]*)\)", specs)
-        self.assertIsNotNone(m, "缺 PL-CHALLENGE 提示")
+        m = re.search(r"按质疑七问\(([^)]*)\)", specs)
+        self.assertIsNotNone(m, "缺对抗段提示")
         names = m.group(1).replace('"', "").replace("\n", "").replace(" ", "").strip("/").split("/")
         self.assertEqual(len(names), 7, f"提示里只有 {len(names)} 问:{names}")
         self.assertIn("限制必要性", names)

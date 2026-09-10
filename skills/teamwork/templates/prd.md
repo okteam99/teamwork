@@ -194,9 +194,10 @@ reviews:
  - role: pm | qa | architect | pl | external  # schema 通用 · rd/designer 值用于 TECH-REVIEW / REVIEW.md 复用场景
  review_scope: prd # 值 prd | blueprint | code-review
  # PRD 评审审产品视角(业务可行性 / AC 可测试性 / 用户故事完整性)· 技术/测试细节归 Blueprint Stage(review_scope=blueprint)
- # 🔴 pl 段 = 对抗质疑段:finding id 用 PL-CHALLENGE-{n} · category=premise-challenge(质疑七问〔含 ⑦ 既有行为变更〕· 至少 1 条实质质疑或显式「无实质质疑+理由」· 详 stages/goal-stage.md §3)
- # 🔴 external 段 = 覆盖方向制:必覆盖 可实现(技术可行/架构影响/简洁性 counter-lens)· 可验证(AC 可测/边界/空值异常)+ AI 自主方向 ≥1(安全/性能/数据一致性/兼容…按 feature 挑)· 每方向 finding 或「查过无发现」· 下方 coverage 必填(物化门 external_coverage_present)
- coverage: [可实现, 可验证, <AI 自主方向>]  # 仅 role=external 必填 · 申报本次实际覆盖的方向
+ # 🔴 **每一路都过全清单三段**(lane 标识只决定产物落点 · 不决定查什么 · 详 goal-stage §3)· ⚔️ **对抗段**:finding id 用 PL-CHALLENGE-{n} · category=premise-challenge(质疑七问〔含 ⑦ 既有行为变更〕· **证否句式**「我试图证明 X 不成立,结果是…」· 不许写 ✅ · ≥1 条实质或显式「无+理由」)
+ # 🔍 **核对段**:可实现(技术可行/架构影响/简洁性 counter-lens)· 可验证(AC 可测/边界/空值异常)· 每方向 finding 或「查过无发现」· 下方 coverage 必填(门 external_coverage_present)
+ coverage: [可实现, 可验证]  # 逐路申报实际覆盖的方向
+ outside_checklist_insight: "{清单外洞察:清单没问、但我认为该关注的 —— ≥1 条;想不出写「无 · 因为…」}"  # 💡 门同名 · 不为凑内容而写
  execution: subagent | main-conversation
  verdict: APPROVE | NEEDS_REVISION  # 词表:APPROVE(含 advisory finding 留痕)| NEEDS_REVISION
  started_at: "<ISO 8601 UTC>"

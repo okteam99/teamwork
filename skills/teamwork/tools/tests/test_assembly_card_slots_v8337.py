@@ -30,11 +30,19 @@ class TestCardSlots(unittest.TestCase):
         self.assertIn("pm_acceptance → ship", self.beat2)      # 完整链形态
         self.assertIn("进/跳", self.beat2)
 
-    def test_review_intensity_slot_four_questions(self):
-        """用户预期逐项:是否需要评审 × 需要几个 × 谁 × 理由。"""
+    def test_review_intensity_slot_questions(self):
+        """用户预期逐项:是否需要评审 × 需要几个 × 理由。
+
+        v8.355:原第三问「谁」随去角色退役 —— 清单统一后每路都过全清单,
+        装配只拧**路数 × 模型**;留着「谁」会让 AI 以为还要挑角色。
+        """
         self.assertIn("**评审力度**", self.beat2)
-        self.assertIn("是否需要 × 几路 × 谁 × 理由", self.beat2)
+        self.assertIn("是否需要 × 几路 × 什么模型 × 理由", self.beat2)
         self.assertIn("为什么这个力度", self.beat2)
+
+    def test_slot_does_not_ask_for_a_role(self):
+        """🔴 装配不再选角色 —— 卡上留「谁」这一问就是在暗示角色制还在。"""
+        self.assertIn("不选角色", self.beat2)
 
     def test_zero_review_must_be_explicit(self):
         """评审收到零也要显式 0 路 + 理由 —— 与「静默跳」区分。"""
