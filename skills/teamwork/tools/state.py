@@ -155,7 +155,7 @@ LEGACY_FLOW_ALIASES = {"Micro": ("Feature", "micro")}
 #   D1 spec_depth    ∈ none / prd / prd_tech   —— 有规格风险吗?方案空间值得先写再做吗?
 #   D2 evidence_gate ∈ False / True            —— 有行为面吗?有 → 必开(测试是唯一行为证据)
 #   D3 verify_depth  ∈ self / test / test_e2e  —— dev 自证够吗?要独立跑链路吗?
-#   D4 review        —— 逐评审点:路数 × 角色(× 模型)· 「这一路不派最可能漏什么」
+#   D4 review        —— 逐评审点:路数 × 模型(v8.355 去角色:清单统一 · 每路都过全清单)
 #   (开关) ui        —— **事实判断不是力度**:有 UI 改动就进,与轻重无关
 #
 # 验收位置并进 D4:pm_acceptance 0 路 = 验收挪到 ship1 MR diff(micro 原设计)。
@@ -190,9 +190,9 @@ TIER_DIMS: dict[str, dict] = {
              "ui": False, "review": {"goal": [], "review": ["external"],
                                      "pm_acceptance": ["pm"]}},
     # 方案空间值得先写 TECH,但风险还不到要两路并行冷审 —— goal/blueprint 各**单路**
-    # (goal 用 fast 合并帽:PL 质疑 + 覆盖方向制并作一路 · 模型照错开)。
+    # (v8.355 起清单本就统一:一路就是过那份全清单 · 模型照错开)。
     "medium": {"spec_depth": "prd_tech", "evidence_gate": True, "verify_depth": "test",
-               "ui": False, "review": {"goal": ["fast"], "blueprint": ["external"],
+               "ui": False, "review": {"goal": ["external"], "blueprint": ["external"],
                                        "review": ["external"], "pm_acceptance": ["pm"]}},
     "full": {"spec_depth": "prd_tech", "evidence_gate": True, "verify_depth": "test",
              "ui": False, "review": {"goal": ["pl", "external"],
@@ -798,7 +798,7 @@ def cmd_review_preventability(args: argparse.Namespace) -> None:
     """v8.281:评审收敛后记录「起草可预防性」—— 本次 findings 里多少起草时本可预防 + 缺哪条起草考虑点。
 
     非门禁 · 纯数据采集(不记不拦 ship · 台账列留空是有效前缀)· ship 聚合进「🛡️ 起草可预防性」列。
-    用途:年检据此判 PRD/TECH **起草考虑点**(PL六问 / TECH 简洁性自查 / 起草思考规范)到底缺不缺 ——
+    用途:年检据此判 PRD/TECH **起草考虑点**(PL七问 / TECH 简洁性自查 / 起草思考规范)到底缺不缺 ——
     同一条「缺的考虑点」跨 feature 反复出现 = 真缺口 · 补进框架考虑点或项目复发清单;
     全是 emergent(涌现真问题)= 考虑点没问题别动。判据同 v8.278:findings 82% 真 · 砍轮=漏 bug ·
     真杠杆是把**可预防子集**在起草时挡掉(不是砍评审)。
@@ -1932,6 +1932,25 @@ def _check_yolo_preflight(pf: Path) -> tuple[bool, str]:
     return True, ""
 
 
+def _build_confirmed_intent(args: argparse.Namespace) -> dict:
+    """prepare 确认过的意图 → state.confirmed_intent(全链唯一锚点)。
+
+    五字段与 prepare §4 确认卡逐一对应(🗣️/🎯/🧩/📦/🔁)· 缺的留空不编。
+    🔴 **原话逐字**:不许 paraphrase —— 润色就是二次解释,偏差正是这么进来的。
+    """
+    return {
+        "user_words": (getattr(args, "user_intent", None) or "").strip(),   # 🗣️ 逐字
+        "understanding": (getattr(args, "intent_understanding", None) or "").strip(),  # 🎯
+        "assumptions": (getattr(args, "intent_assumptions", None) or "").strip(),      # 🧩
+        "scope": (getattr(args, "intent_scope", None) or "").strip(),                  # 📦
+        "existing_behavior": (getattr(args, "intent_existing", None) or "").strip(),   # 🔁
+        "confirmed_at": now_iso(),
+        "source": "prepare",
+        # 用户中途改口 → append 一条(不覆盖 · 保留「原本要什么 → 后来改成什么」)
+        "amendments": [],
+    }
+
+
 def cmd_init_feature(args: argparse.Namespace) -> None:
     """Create initial state.json · 替代手工 Write。"""
     # Feature Planning / 问题排查 不进状态机 · 拒绝
@@ -2191,6 +2210,12 @@ def cmd_init_feature(args: argparse.Namespace) -> None:
         "feature_id": args.feature_id,
         "bl": getattr(args, "bl", None) or None,  # v8.196:承接的 BL(F↔BL 机读绑定 · 链路最脆一环治本)
         "clarity": getattr(args, "clarity", "normal") or "normal",  # v8.215:明确度 → 评审强度比例化
+        # v8.353(用户拍板:把已确认的意图写进 PRD · 防关键信息丢失、后续按错误方向走):
+        # prepare 确认过的意图此前**只活在对话里** —— `--user-intent` 只进用户级
+        # `~/.teamwork/prepare_check_audit.jsonl`(不在 feature 内、不进 git、init 也不收),
+        # 于是「PRD 的脊 = prepare 已确认的意图 · 冷审据此核对」是句空头承诺:冷审没有可核对的东西。
+        # 🔴 机器搬运,不靠 AI 记得抄(实证:两起事故的上游都是「用户原话只在 PM 的 context 里」)。
+        "confirmed_intent": _build_confirmed_intent(args),
         "preset": _preset,  # v8.220:Feature 重量档(full/lite/micro)· 链与角色由它决定
         "sub_project": args.sub_project or "",
         "flow_type": args.flow_type,
@@ -2257,28 +2282,17 @@ def cmd_init_feature(args: argparse.Namespace) -> None:
         state["stage_review_roles_adjustments"] = []
     except ImportError:
         pass
-    # v8.260 fast mode:localconfig `fast_mode: true` → 去掉所有评审环节(默认关)。
-    # 快照进 state(mid-feature 改配置不漂移):roster 全清空(roster-aware 门自动放行)·
-    # dev 跳 review 直进 test(_dev_transition)· PRD-REVIEW/TECH-REVIEW 不产不查。
-    # 🔴 与 yolo 互斥:yolo 无人值守的唯一安全网就是评审 · fast 拆评审 · 不可同用。
-    _fast_cfg = _read_fast_mode(feature_dir)
-    if _fast_cfg:
-        if getattr(args, "yolo", False):
-            # v8.262:yolo 忽略 fast(不再互斥报错)—— 无人值守的唯一安全网 = 全量评审 ·
-            # fast_mode 静默不生效 · kickoff 记 INFO(用户知情 · 不拦)。
-            state.setdefault("concerns", []).append(
-                f"{now_iso()} INFO yolo-ignores-fast: localconfig fast_mode=true 被 yolo 忽略"
-                "(无人值守安全网=全量评审 · fast 仅有人值守生效)")
-        else:
-            state["fast_mode"] = True
-            # v8.261:留两端 · 各合并单路 —— goal 单路合并冷审(PL+外审关注点合一)·
-            # review 单路合并评审(Architect+QA 关注点合一)· blueprint 评审仍去。
-            # 「fast」伪角色:收敛协议(verdicts/findings/severity/验证轮)全保留 · 单 agent 兼多帽。
-            # v8.305:blueprint 显式写 [] —— 原来靠**键缺失**表达「评审整段去掉」,
-            # 而门禁把「缺失」读成「未配置 → 按默认要 external」· 意图必须显式化。
-            state["stage_review_roles"] = {"goal": ["fast"], "blueprint": [], "review": ["fast"]}
-            state["stage_review_roles_adjustments"] = [{
-                "stage": "*", "roles": [], "reason": "fast_mode(localconfig)· goal/review 各留单路合并评审 · 其余评审跳", "adjusted_via": "fast_mode"}]
+    # v8.355:fast_mode **已退役** —— 它做的三件事(goal 单路 / blueprint 0 路 / review 单路)
+    # 在 v8.343 四维里就是 D4 路数,是**同一个旋钮的第二套表达**;而合并清单自 v8.355 起是
+    # 默认结构(不再是降档手段)。双载体必漂(v8.352 `_flow_key` 漏 floor 即实证)→ 删旋钮留维度。
+    # 🔴 静默变严是双输(v8.294 教训的对称面):存量项目 localconfig 还写着 true,
+    # 不提示就会莫名其妙变慢且不知道为什么 —— 检测到就报退役路径,不静默。
+    _retired_fast = _read_retired_fast_flag(feature_dir)
+    if _retired_fast:
+        state.setdefault("concerns", []).append(
+            f"{now_iso()} INFO fast-mode-retired: localconfig `fast_mode: true` 已于 v8.355 退役 —— "
+            "改用 `--preset medium`(goal/blueprint/review 各单路)或 `--dims` 显式拧 D4 路数 · "
+            "本次按装配计划跑 · 该键可从 localconfig 删除")
     # ── v8.0+P0-3:cwd 物化校验(治本 PTR-F033 主 tree 污染 case)──
     # 根因:即使 init-feature 自动建了 worktree · 若 PMO 在主 tree cwd 运行 ·
     # state.json 仍落主 tree · worktree 是空的 · 主 tree 污染依旧。
@@ -2449,7 +2463,7 @@ def cmd_init_feature(args: argparse.Namespace) -> None:
         "created_at": state["created_at"],
         "routing_check": routing,
         "next_action_brief": _init_feature_next_brief(
-            args, initial_stage, cfg_fast=_fast_cfg, effective_fast=bool(state.get("fast_mode"))),
+            args, initial_stage, retired_fast=_retired_fast),
         # v8.15:admission MISMATCH 时 emit 顶层显警告(AI 一定看到)+ state.concerns 已留痕
         **({"admission_warning": admission_warning} if admission_warning else {}),
         # prepare 门禁仅 prefix 命中(非本 feature 精确号段)· 顶层显警告 + concerns 已留痕
@@ -2460,7 +2474,7 @@ def cmd_init_feature(args: argparse.Namespace) -> None:
 
 
 def _init_feature_next_brief(args, initial_stage: str,
-                             cfg_fast: bool = False, effective_fast: bool = False) -> str:
+                             retired_fast: bool = False) -> str:
     """init-feature emit 后给 PMO 的 brief(v8.0+P0-5 简化)。
 
     triage 已确认 worktree · PMO 已显式建 + cd · init-feature 仅创建 state.json。
@@ -2469,14 +2483,11 @@ def _init_feature_next_brief(args, initial_stage: str,
     Bug 流程额外提示(v8.107):先 diagnose(根因细查 + 修复方案 · 用户确认)再 dev ·
     diagnose **产出** BUG 报告的 §根因/§修复方案(不是 dev 前置)· 防 fix 修偏。
     """
-    # v8.294(复盘 R3):fast_mode 生效与否**必须可见** —— 静默回退是双输:
-    # 用户既没拿到速度、也不知道为什么慢。三态各自说清来源。
-    if effective_fast:
-        fast_note = "⚡ fast_mode=**on**(来源 localconfig)· goal/review 各留单路合并评审 · blueprint 评审跳"
-    elif cfg_fast:
-        fast_note = "⚡ fast_mode=**off**(localconfig 为 true 但被 yolo 覆盖 · 无人值守的安全网 = 全量评审)"
-    else:
-        fast_note = "⚡ fast_mode=**off**(localconfig 未开 · 全量评审)"
+    # v8.355:fast_mode 退役。保留「必须可见」的教训(v8.294 复盘 R3)—— 只是现在要可见的
+    # 不再是「开没开」,而是「你配的那个键已经没用了,该换成什么」。没配过就一个字都不说。
+    fast_note = ("\n⚠️ localconfig `fast_mode` **已退役**(v8.355)—— 它与 D4 评审力度是同一个旋钮的"
+                 "两套表达 · 本次按装配计划跑 · 想要单路评审改 `--preset medium` 或 `--dims`"
+                 if retired_fast else "")
 
     wt_note = ""
     if args.worktree_mode == "off":
@@ -2499,8 +2510,7 @@ def _init_feature_next_brief(args, initial_stage: str,
 
     return f"""## init-feature 完成 · 下一步
 
-{wt_note}
-{fast_note}
+{wt_note}{fast_note}
 
 state.json 已落在:`{Path(args.feature).resolve()}/state.json`
 {pre_stage_action}
@@ -2659,8 +2669,8 @@ def _read_id_strategy(start: Path) -> str:
     return strat if strat in VALID else DEFAULT
 
 
-def _read_fast_mode(start) -> bool:
-    """读 localconfig `fast_mode`(默认 **False** · 显式 true 才开)。
+def _read_retired_fast_flag(start) -> bool:
+    """v8.355:`fast_mode` 已退役 —— 本函数只用于**检测存量配置并提示迁移**,不再改行为。
 
     fast mode = 评审收敛为两端单路(goal 合并冷审 + review 合并评审 · blueprint 评审去)·
     保留:测试硬门 · 用户暂停点 · worktree 纪律。🔴 yolo 忽略 fast(v8.262)。
@@ -4335,6 +4345,15 @@ def build_parser() -> argparse.ArgumentParser:
                           "verify_depth(self|test|test_e2e)· review({评审点: [角色…]})· 另有开关 ui(bool)。"
                           "例:--preset medium --dims '{\"review\":{\"blueprint\":[\"architect\",\"dba\"]}}'。"
                           "🔴 组合连贯性机器校验(不连贯直接拒)· 模型错开与 PRD/TECH 高档是硬不变式、不进矩阵。")
+    # v8.353:把 prepare 确认过的意图搬进 feature(此前只活在对话里 · 冷审拿不到)
+    ifp.add_argument("--user-intent",
+                     help="[v8.353] 🗣️ **用户原话逐字**(与 prepare-check --user-intent 同一份)· "
+                          "🔴 不许 paraphrase —— 润色 = 二次解释,偏差正是这么进来的。"
+                          "落 state.confirmed_intent · goal brief 喂给起草与冷审 · PRD §已确认意图 原样搬")
+    ifp.add_argument("--intent-understanding", help="[v8.353] 🎯 我的理解(要达成什么 · prepare 确认卡原文)")
+    ifp.add_argument("--intent-assumptions", help="[v8.353] 🧩 我补的假设(无则「请求明确 · 无补」)")
+    ifp.add_argument("--intent-scope", help="[v8.353] 📦 范围:做什么 · 不做什么")
+    ifp.add_argument("--intent-existing", help="[v8.353] 🔁 既有行为:改「原 A → 现 B」/ 否")
     ifp.add_argument("--sub-project", help="如 admin / api-server")
     # v7.3.10+P0-149: 删 --artifact-root 冗余参数 · --feature 单源（既是落盘目录又是 artifact_root 字段值）
     ifp.add_argument("--initial-stage",
@@ -4406,7 +4425,7 @@ def build_parser() -> argparse.ArgumentParser:
     rpv.add_argument("--feature", required=True, help="Feature artifact_root 路径")
     rpv.add_argument("--stage", required=True, choices=["goal", "blueprint", "review"],
                      help="哪次评审(goal PRD 冷审 / blueprint TECH 评审 / review 代码评审)")
-    rpv.add_argument("--preventable", type=int, default=0, help="findings 里起草时本可预防的条数(本应被 PL六问/TECH自查/复发清单覆盖)")
+    rpv.add_argument("--preventable", type=int, default=0, help="findings 里起草时本可预防的条数(本应被 PL七问/TECH自查/复发清单覆盖)")
     rpv.add_argument("--total", type=int, default=0, help="本次确认 findings 总数")
     rpv.add_argument("--missing", default="",
                      help="缺的起草考虑点(分号分隔 · 如 '并发时序;迁移前历史数据预检')· 全 emergent 留空")

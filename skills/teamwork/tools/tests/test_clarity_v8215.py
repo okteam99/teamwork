@@ -21,11 +21,18 @@ class TestDynamicRoster(unittest.TestCase):
         ok, _ = S._evidence_pl_challenge_present(st, NS(feature="/nonexistent"))
         self.assertFalse(ok)
 
-    def test_roster_without_pl_skips(self):
-        # 动态路由:AI 判 pl 无值 → roster 去 pl → gate 放行(clarity 无关)
-        st = {"clarity": "normal", "stage_review_roles": {"goal": ["qa", "architect"]}}
+    def test_zero_lane_skips_challenge_gate(self):
+        """v8.355:门从「roster 含 pl」改按**路数** —— 对抗段是每一路的必交项,
+        不再是某角色专属;只有 0 路(该 stage 整个不评审)才放行。"""
+        st = {"clarity": "normal", "stage_review_roles": {"goal": []}}
         ok, _ = S._evidence_pl_challenge_present(st, NS(feature="/nonexistent"))
         self.assertTrue(ok)
+
+    def test_any_lane_now_owes_a_challenge_section(self):
+        """去角色后:配了路就要交对抗段(旧行为是 roster 不含 pl 即免 = 缝)。"""
+        st = {"clarity": "normal", "stage_review_roles": {"goal": ["qa", "architect"]}}
+        ok, _ = S._evidence_pl_challenge_present(st, NS(feature="/nonexistent"))
+        self.assertFalse(ok)
 
     def test_clarity_alone_does_not_skip_external(self):
         st = {"clarity": "explicit", "current_stage": "blueprint",

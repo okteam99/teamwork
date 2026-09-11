@@ -1,5 +1,8 @@
 """v8.305:fast_mode 的 blueprint 被门禁强制跑 external —— 四个面的同一族 bug。
 
+(`fast_mode` 已于 v8.355 退役 · 表达「本 stage 0 路」的载体换成档位/`--dims`;
+本文件锁的四条语义与载体无关,已就地重锚。)
+
 实证(aon-core · fast_mode=true):`blueprint-complete` FAIL 要 external,而**同一 stage 的 brief
 明写「blueprint 评审跳过」** —— brief 与门禁直接对立。AI(正确地)不篡改 state、不 bypass,
 于是**真跑了一轮冷审** → **fast_mode 承诺的提速被静默取消,用户白付一轮**。
@@ -77,12 +80,21 @@ class TestEmptyRosterSemantics(unittest.TestCase):
             self.assertTrue(ok_rm, "reviewers_match 与 external 门对空 roster 判断不一致")
 
 
-class TestFastModeMaterializesIntent(unittest.TestCase):
-    """③ 靠「键缺失」表达意图读不出「有意」还是「忘了」—— fast 必须显式写 blueprint: []。"""
+class TestZeroLaneIsMaterializedNotMissing(unittest.TestCase):
+    """③ 靠「键缺失」表达意图读不出「有意」还是「忘了」—— 0 路必须**显式写 []**。
 
-    def test_fast_mode_writes_explicit_empty_blueprint(self):
-        src = (ROOT / "tools" / "state.py").read_text(encoding="utf-8")
-        self.assertIn('"blueprint": []', src, "fast_mode 未显式物化 blueprint 空 roster")
+    fast_mode 退役后,表达「本 stage 不评审」的是档位/`--dims` 的 0 路(lite 的 blueprint、
+    micro/floor 的全部)。载体换了,这条不变式没换:0 路要写成 `[]`,不能靠键不存在。
+    """
+
+    def test_zero_lane_tiers_write_explicit_empty_roster(self):
+        from state import TIER_DIMS
+        # lite:有 PRD 无 TECH → goal 有路、blueprint 显式 0 路
+        self.assertEqual(TIER_DIMS["lite"]["review"]["goal"], [],
+                         "lite 的 goal 0 路必须显式写 [] · 不能靠键缺失")
+        for tier in ("micro", "floor"):
+            self.assertEqual(TIER_DIMS[tier]["review"]["review"], [],
+                             f"{tier} 的 0 路必须显式写 []")
 
 
 class TestChangeReviewRolesIsUsableUnderFast(unittest.TestCase):
@@ -147,12 +159,11 @@ class TestChangeReviewRolesIsUsableUnderFast(unittest.TestCase):
 class TestBriefAndGateAgree(unittest.TestCase):
     """brief 说「跳过」而门禁要 external —— 同一 stage 两套口径,是本 bug 最直观的表征。"""
 
-    def test_fast_blueprint_brief_says_skip_and_gate_agrees(self):
-        brief = S.BLUEPRINT_SPEC.brief_template_fn({"fast_mode": True})
-        self.assertIn("评审跳过", brief)
+    def test_zero_lane_blueprint_gate_agrees_with_empty_roster(self):
+        """0 路 roster 下门禁必须放行 —— 否则又是「brief 说不评审 · 门禁要产物」。"""
         ok, _ = _gate({"current_stage": "blueprint", "stage_review_roles": {
-            "goal": ["fast"], "blueprint": [], "review": ["fast"]}})
-        self.assertTrue(ok, "brief 说跳过 · 门禁却拦 —— 两套口径")
+            "goal": ["external"], "blueprint": [], "review": ["external"]}})
+        self.assertTrue(ok, "显式 0 路仍被门禁拦 —— 两套口径")
 
 
 if __name__ == "__main__":

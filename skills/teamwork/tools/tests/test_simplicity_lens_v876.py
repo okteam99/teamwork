@@ -52,8 +52,9 @@ class TestStageDocsCarrySimplicityLens(unittest.TestCase):
         self.assertIn("行为/价值", t)  # v8.219 去空格
         # Architect 简洁性 counter-lens
         self.assertIn("简洁性 counter-lens", t)
-        # v8.243:external 默认在(覆盖方向制)· 简洁性 counter-lens 归外审「可实现」方向 · 异质仍 opt-in
-        self.assertIn("覆盖方向制", t)
+        # v8.356:去角色后 lens 归统一清单的 🔍 核对段「可实现」方向(原「覆盖方向制外审」措辞退役)
+        self.assertIn("可实现", t)
+        self.assertIn("清单", t)
         self.assertIn("异质 opt-in", t)
 
     def test_blueprint_tech_review_simplicity(self):

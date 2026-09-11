@@ -7,6 +7,7 @@
 
 case 实证(SVC-PLATFORM-F260726):localconfig `fast_mode: true` · init-feature 后
 state.json 无该键 · goal/blueprint 按全量 roster 跑。用户既没拿到速度、也不知道为什么慢。
+(`fast_mode` 本身已于 v8.355 退役 —— 本测试锁的是**解析器行为 + 单一实现**,与哪个键无关。)
 
 不是漂移 —— 五份副本**生下来就都是错的**。故门禁锁两件事:解析器行为 + 只有一份实现。
 """
@@ -24,7 +25,7 @@ from _v8_engine import (  # noqa: E402
     load_localconfig, _idle_threshold_minutes, _localconfig_max_review_rounds,
 )
 from _v8_ship import _read_archive_on_ship  # noqa: E402
-from state import _read_fast_mode, _read_id_strategy  # noqa: E402
+from state import _read_retired_fast_flag, _read_id_strategy  # noqa: E402
 
 
 CONFIG = {
@@ -77,7 +78,7 @@ class TestResolverCrossesWorktreeBoundary(unittest.TestCase):
         """五个读取者在主树与 worktree 里必须给出同一结果。"""
         for label, d in (("main", self.L.main_feature), ("worktree", self.L.wt_feature)):
             with self.subTest(tree=label):
-                self.assertIs(_read_fast_mode(d), True)
+                self.assertIs(_read_retired_fast_flag(d), True)
                 self.assertEqual(_read_id_strategy(d), "sequential")
                 self.assertEqual(_idle_threshold_minutes(d), 45)
                 self.assertEqual(_localconfig_max_review_rounds(d), 5)
@@ -88,7 +89,7 @@ class TestResolverCrossesWorktreeBoundary(unittest.TestCase):
         L = _Layout(with_config=False)
         self.addCleanup(L.cleanup)
         self.assertIsNone(load_localconfig(L.wt_feature))
-        self.assertIs(_read_fast_mode(L.wt_feature), False)
+        self.assertIs(_read_retired_fast_flag(L.wt_feature), False)
         self.assertEqual(_idle_threshold_minutes(L.wt_feature), 30)
         self.assertEqual(_localconfig_max_review_rounds(L.wt_feature), 3)
         self.assertIs(_read_archive_on_ship(str(L.wt_feature)), True)
@@ -105,7 +106,7 @@ class TestResolverCrossesWorktreeBoundary(unittest.TestCase):
         self.addCleanup(L.cleanup)
         (L.main / ".teamwork_localconfig.json").write_text("{ broken", encoding="utf-8")
         self.assertIsNone(load_localconfig(L.wt_feature))
-        self.assertIs(_read_fast_mode(L.wt_feature), False)
+        self.assertIs(_read_retired_fast_flag(L.wt_feature), False)
 
 
 class TestSingleImplementation(unittest.TestCase):
@@ -129,8 +130,13 @@ class TestSingleImplementation(unittest.TestCase):
         self.assertEqual(bad, [], f"又出现手写 localconfig 向上遍历(应走 load_localconfig):{bad}")
 
 
-class TestFastModeVisible(unittest.TestCase):
-    """复盘 R3 的第二诉求:静默回退是双输 —— 用户既没拿到速度、也不知道为什么慢。"""
+class TestRetiredFastFlagVisible(unittest.TestCase):
+    """复盘 R3 的诉求在 v8.355 后仍成立,只是要可见的东西变了。
+
+    原来要可见的是「fast 开没开」;fast_mode 退役后要可见的是**「你配的那个键已经没用了,
+    该换成什么」** —— 静默变严和静默回退是同一种双输:用户莫名其妙变慢,且不知道为什么。
+    没配过 fast_mode 的项目则一个字都不该说(不制造噪音)。
+    """
 
     def _brief(self, **kw):
         import argparse
@@ -138,18 +144,17 @@ class TestFastModeVisible(unittest.TestCase):
         args = argparse.Namespace(worktree_mode="off", feature="/tmp/f", flow_type="Feature")
         return _init_feature_next_brief(args, "goal", **kw)
 
-    def test_three_states_each_name_their_source(self):
-        on = self._brief(cfg_fast=True, effective_fast=True)
-        self.assertIn("fast_mode", on)
+    def test_retired_flag_names_the_migration_path(self):
+        on = self._brief(retired_fast=True)
+        self.assertIn("退役", on)
         self.assertIn("localconfig", on)
+        # 🔴 光说「没用了」不够 —— 必须给出换成什么(否则用户只能来问)
+        self.assertTrue("preset" in on or "dims" in on,
+                        f"退役提示没给迁移路径:{on!r}")
 
-        overridden = self._brief(cfg_fast=True, effective_fast=False)
-        self.assertIn("yolo", overridden, "配置开了但被 yolo 覆盖 —— 必须说明白为什么没生效")
-
-        off = self._brief(cfg_fast=False, effective_fast=False)
-        self.assertIn("fast_mode", off)
-        # 三态互不相同(否则等于没回显)
-        self.assertEqual(len({on, overridden, off}), 3)
+    def test_silent_when_never_configured(self):
+        off = self._brief(retired_fast=False)
+        self.assertNotIn("fast", off.lower(), "没配过的项目不该看到 fast 相关噪音")
 
 
 class TestRivalDesignRequired(unittest.TestCase):
@@ -160,10 +165,21 @@ class TestRivalDesignRequired(unittest.TestCase):
     没人问「这个设定的自然归属实体是谁」。用户一句「打到 account 表上」→ 6 新表变 4 新表 + 2 列。
     """
 
-    def test_architect_role_carries_rival_rule(self):
-        t = (ROOT / "roles" / "architect.md").read_text(encoding="utf-8")
+    def test_checklist_challenge_section_carries_rival_rule(self):
+        """v8.355:载体从 roles/architect.md 迁到 blueprint 冷审清单的 ⚔️ 对抗段。
+
+        🔴 锁必须跟着载体走 —— 只改锚点不验内容,等于把这道门悄悄删了。
+        """
+        t = (ROOT / "stages" / "blueprint-stage.md").read_text(encoding="utf-8")
         self.assertIn("替代形态", t)
         self.assertIn("不构成通过条件", t, "缺「赢了被否方案不算通过」这半句 = 规则可被绕开")
+        self.assertIn("rival 设计强制", t)
+
+    def test_retired_role_file_points_at_the_new_home(self):
+        """退役的角色文件不能只是被掏空 —— 要指向内容现在住哪(否则读者断链)。"""
+        a = (ROOT / "roles" / "architect.md").read_text(encoding="utf-8")
+        self.assertIn("不再是独立评审席位", a)
+        self.assertIn("blueprint-stage.md", a)
 
     def test_blueprint_runtime_brief_carries_rival_rule(self):
         """只改 stage doc 到不了 AI —— brief 才是运行时真正被读到的。"""

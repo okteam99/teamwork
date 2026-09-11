@@ -30,11 +30,19 @@ class TestCardSlots(unittest.TestCase):
         self.assertIn("pm_acceptance → ship", self.beat2)      # 完整链形态
         self.assertIn("进/跳", self.beat2)
 
-    def test_review_intensity_slot_four_questions(self):
-        """用户预期逐项:是否需要评审 × 需要几个 × 谁 × 理由。"""
+    def test_review_intensity_slot_questions(self):
+        """用户预期逐项:是否需要评审 × 需要几个 × 理由。
+
+        v8.355:原第三问「谁」随去角色退役 —— 清单统一后每路都过全清单,
+        装配只拧**路数 × 模型**;留着「谁」会让 AI 以为还要挑角色。
+        """
         self.assertIn("**评审力度**", self.beat2)
-        self.assertIn("是否需要 × 几路 × 谁 × 理由", self.beat2)
+        self.assertIn("是否需要 × 几路 × 什么模型 × 理由", self.beat2)
         self.assertIn("为什么这个力度", self.beat2)
+
+    def test_slot_does_not_ask_for_a_role(self):
+        """🔴 装配不再选角色 —— 卡上留「谁」这一问就是在暗示角色制还在。"""
+        self.assertIn("不选角色", self.beat2)
 
     def test_zero_review_must_be_explicit(self):
         """评审收到零也要显式 0 路 + 理由 —— 与「静默跳」区分。"""
@@ -57,7 +65,8 @@ class TestCardSlots(unittest.TestCase):
     def test_digest_item_points_to_slots(self):
         seg = self.doc.split("余节 ≤2 行", 1)[1].split("\n", 1)[0]
         self.assertIn("四槽", seg)
-        self.assertIn("是否×几路×谁×理由", seg)
+        # v8.356:「谁」随去角色退役 —— 卡上只问路数与模型
+        self.assertIn("是否×几路×**什么模型**×理由", seg)
 
 
 class TestBriefCarrier(unittest.TestCase):
@@ -66,7 +75,9 @@ class TestBriefCarrier(unittest.TestCase):
         from _v8_stage_specs import GOAL_SPEC
         b = GOAL_SPEC.brief_template_fn({})
         self.assertIn("四槽缺一即漏", b)
-        self.assertIn("是否需要×几路×谁×理由", b)
+        # v8.356:「谁」随去角色退役 —— 装配只拧路数×模型
+        self.assertIn("是否需要×几路×**什么模型**×理由", b)
+        self.assertNotIn("×谁×", b)
         self.assertIn("0 路+理由", b)
 
 

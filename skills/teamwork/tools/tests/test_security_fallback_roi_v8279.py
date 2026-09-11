@@ -26,6 +26,8 @@ class TestSecurityFallbackROI(unittest.TestCase):
         self.assertIn("安全加固/兜底降级最易盲采", b)
         self.assertIn("必过 ROI", b)
 
-    def test_architect_telos_names_them(self):
-        a = (ROOT / "roles" / "architect.md").read_text(encoding="utf-8")
-        self.assertIn("安全加固/兜底降级是过度设计最高发区", a)
+    def test_blueprint_challenge_section_names_them(self):
+        """v8.355:载体迁到 blueprint 冷审清单 ⚔️ 对抗段(原 roles/architect.md)。"""
+        b = (ROOT / "stages" / "blueprint-stage.md").read_text(encoding="utf-8")
+        self.assertIn("安全加固 / 兜底降级是过度设计最高发区", b)
+        self.assertIn("必过 ROI", b)

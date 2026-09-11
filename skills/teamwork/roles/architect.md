@@ -7,16 +7,14 @@
 
 🟢 **至于架构怎么设计 —— AI 自决**:框架不规定分层方式、不规定模式选型、不给设计教程。只要**说得出「为什么这样不会让维护成本失控」**即可。
 
-🔴 **rival 设计强制(简洁性 lens 的执行方式)**:评审**新增结构**(新表 / 新模块 / 新抽象 / 新服务)时,**必须自己先生成 ≥1 个替代形态再裁决** —— 「作者列举的被否方案都赢了」**不构成通过条件**。
-> why:checklist 是**验证式**的(作者给的理由成立吗),盲区只有**生成式**才破。实证 SVC-PLATFORM-F260726:「内部运营账户」标记被设计成 singleton 指针表 + 独立审计表(2 张新表),简洁性四问确实跑了,但参照物由作者的叙事给定(「能否并入 `monetization_config`」—— 一个冻结面,当然不能),**没人问「这个设定的自然归属实体是谁」**。用户一句「能不能直接打到 account 表上」→ 6 新表变 4 新表 + 2 列。作者的 rationale 成立 ≠ 方案最简。
-> 生成替代形态的着力点:**并入宿主实体(加列)/ 现算不存 / 复用既有结构 / 根本不做**。🔴 「全局唯一 / singleton 语义」**不等于**需要单独一张表(部分唯一索引就能表达)。
+🔴 **不再是独立评审席位**(去角色):冷审清单已统一,**每一路都过全清单**;本视角的执行方式(rival 设计强制 / 简洁性 counter-lens)是清单 ⚔️ **对抗段**的内容,单源 [stages/blueprint-stage.md ②](../stages/blueprint-stage.md) 与 [stages/review-stage.md ②](../stages/review-stage.md)。本文件只留**视角说明**与起草期职责。
 
-🔴 **简洁性 = Architect 的独占视角(其余角色都偏「加 rigor」)**:PM 看 AC 完整 · QA 看边界覆盖 · external 找缺口 —— 全在**加复杂度**。Architect 是唯一的**简洁性 counter-lens**:必反问「能否更简单达成业务目标 · 每处复杂是否被业务目标(而非边界 rigor)证成 · 职责是否归错层(这个组件**需不需要**知道这个)」。否则评审越严 · 方案越臃肿(实证 SDK-F038:每条 external finding 单看合理 · 合起来把本该对 SDK 透明的参数语义焊进传输层 · SDK 从哑管道变复杂)。🛡️ **安全加固/兜底降级是过度设计最高发区**(听着最负责任故最难驳)—— 这两类 finding 采纳前必过 ROI(概率×后果 vs 成本)· 「加安全/加兜底」不天然正确。
+🔴 **简洁性是最容易缺的那个方向**(其余关注点都偏「加 rigor」):PM 看 AC 完整 · QA 看边界覆盖 · 冷审找缺口 —— 全在**加复杂度**。所以清单里必须有一条**简洁性 counter-lens**:「能否更简单达成业务目标 · 每处复杂是否被业务目标(而非边界 rigor)证成 · 职责是否归错层(这个组件**需不需要**知道这个)」。否则评审越严 · 方案越臃肿(实证 SDK-F038:每条 finding 单看合理 · 合起来把本该对 SDK 透明的参数语义焊进传输层 · SDK 从哑管道变复杂)。
 
 ## 创作要点(角色身份切换时参考)
 
 - Tech Review(blueprint stage):TECH.md 是否方案合理 · 是否有更优选择 · 是否破坏架构 · **是否过度设计(YAGNI · 能否更简单)· 职责是否归错层(最小责任 · 该透明的别解析)**
-- Code Review(review stage):实现是否对得起方案 · 是否引入回归 · 是否符合 ARCHITECTURE.md · **是否把不该管的复杂度焊进了核心抽象(可删 / 可下沉到正确 owner)**
+- 本视角在 review 清单里查:实现是否对得起方案 · 是否引入回归 · 是否符合 ARCHITECTURE.md · **是否把不该管的复杂度焊进了核心抽象(可删 / 可下沉到正确 owner)**
 - ADR 决策记录:3 问触发器(影响未来 Feature / 反悔成本高 / 非显然)命中 → 落 ADR 到 `{子项目}/docs/adr/`(位置单源 templates/adr.md · ADR 不落 Feature 目录)
 - ARCHITECTURE.md 维护:架构演进时主动更新 `{子项目}/docs/architecture/ARCHITECTURE.md`(骨架 `templates/architecture.md` · 含 database-schema 子文档;迁移命名与起号纪律的权威在 [conventions.md §12.49](../docs/conventions.md) · Schema/FK 门在 [standards/tech-rules.md §三](../standards/tech-rules.md))
 
@@ -25,7 +23,7 @@
 - Architect ↔ PM:PRD 评审给"技术可行性"反馈
 - Architect ↔ RD:TECH 起草后 Tech Review · 实现后 Code Review
 - Architect 执行方式(修正):
- - **goal PRD 评审:默认并入外审覆盖方向「可实现」**(技术可行 / 架构影响 / 简洁性 counter-lens 由覆盖方向制外审承担)· 架构决策重的 feature `change-review-roles` 加回时独立隔离冷审跑 · 详 [goal-stage ③](../stages/goal-stage.md)
+ - **goal PRD 评审:本视角是清单 🔍 核对段的「可实现」方向**(技术可行 / 架构影响 / 简洁性 counter-lens 由覆盖方向制外审承担)· 架构决策重的 feature `change-review-roles` 加回时独立隔离冷审跑 · 详 [goal-stage ③](../stages/goal-stage.md)
   - **blueprint TECH 评审 / review Code 评审 → 🔴 隔离 subagent 冷审**(与 goal 冷审教义统一 · 评审独立性 > 上下文连续;需要 ADR / KNOWLEDGE 背景 → 派发 prompt 附文件路径自读)
 
 ## Rationale

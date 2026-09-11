@@ -116,7 +116,7 @@ PMO 把数据填进暂停点表格:`next_available_id_stem` → artifact ID 默�
 
 🔴 **「看过再判」**:流程类型判定前先做 30 秒侦察(**具体查什么由 AI 自行判断**)· 填 `prepare-check` emit 的 `triage_evidence` 槽(**空着不给判**)· 据证据判 `clarity`:
 
-- **explicit**(明确):用户给出明确方案 **或** 机械映射类(外化/重命名/迁移/升级)且无新业务行为。🔴 clarity **仅记录**(`init-feature --clarity` → state · 台账/年检校准)· **评审配置由 AI 动态决策** —— 按 emit 的 `role_value_criteria` **逐 stage 逐角色**判「对本 feature 有没有值」(可去 pl 也可去 qa/architect/external · 每角色一行理由)→ `change-review-roles --reason` 配 roster(审计留痕 · gate 按 roster 自动放行)· review stage 从严(建议 ≥2 视角 · <2 需强理由)。
+- **explicit**(明确):用户给出明确方案 **或** 机械映射类(外化/重命名/迁移/升级)且无新业务行为。🔴 clarity **仅记录**(`init-feature --clarity` → state · 台账/年检校准)· **评审配置由 AI 动态决策** —— 按 emit 的 `role_value_criteria` **逐 stage 判**路数**「这一路不派最可能漏什么」(说不出具体的 → 不派 · 🔴 **不选角色**:清单统一,每路都过全清单 · 每个评审点一行理由)→ `change-review-roles --reason` 配 roster(审计留痕 · gate 按 roster 自动放行)· review stage 从严(建议 ≥2 视角 · <2 需强理由)。
 - **ambiguous**(模糊):一句话含方向词 / 多方案可选 → goal 深门(既有)。
 - **normal**(默认):其余。
 
@@ -203,7 +203,7 @@ PMO 按以下关键词表判定 user input 落入哪类流程:
 
 1. **preset=tiny** 💡 推荐(「直接做」形态 —— 有 review 有验收 · 零文档)
    理由:<准入项> 不满足 micro 零逻辑白名单 · 但测试证得了实现、无契约面 —— 不值得为它起一份 PRD;**值得一双眼看 diff**
-   动作:`dev → review〔architect 单路〕 → pm_acceptance → ship` · PM 验收盯 staging 部署(await-merge 自动带 CI)
+   动作:`dev → review〔external 单路〕 → pm_acceptance → ship` · PM 验收盯 staging 部署(await-merge 自动带 CI)
    📎 连一双眼都不值得(测试完全覆盖 · 不动契约面)→ 说一声改走 **`floor`**(`dev → ship` · 验收在 MR diff)
 2. **继续讨论**(说说你的想法/疑虑 —— 聊清楚再定档)
    理由:定档看的是四轴(改动方向 / 契约面 / 影响面 / 验证成本)· 你更清楚这个改动会碰到什么

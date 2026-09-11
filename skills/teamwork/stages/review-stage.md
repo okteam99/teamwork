@@ -29,12 +29,16 @@
    - 物化护栏:`deferred` 的 BLOCKER/MAJOR **必须写 deferred_reason**(空 defer → complete FAIL · 防扫地毯下)。release-gated 项 carry-forward 到 pm_acceptance(用户验收看到「N 项发版后待补」)+ ship 台账留痕。
 4. **逐条裁决 · 举证对称**:每条 finding 走 **质疑 → 确认 → 裁决**(先假设不成立 · 回读真实代码核实 · 再定 confirmed/rejected/deferred);**confirmed 与 rejected 都必记实证**(why:盲采 = churn/误改,盲驳 = 白跑;「reviewer 说得对」不是采纳理由)。
 5. **验证轮范围锁定**(Round 2+):只裁决上轮 open finding + 回归审查修复 diff · **禁全量重扫**(新 finding 仅限出自修复 diff、或 BLOCKER 级附「为何首轮未发现」);rejected 不得复提(除非新证据);同一代码点相邻轮方向相反(加固↔简化)= 钟摆 → 不修 · 升暂停点(why:全量重扫每轮随机采样出新 nit = 不收敛根因)。🎚️ **验证轮派发用验证档模型**(核实 fix = 校验型 · 首轮不降档)。
-6. **轮次预算**:超 `max_review_rounds`(默认 3 · ⚡ **fast 封顶 2** 〔localconfig 更小则从小 · 超预算暂停点 = 未收敛决策点抛用户:open findings 按 severity 列全〕)→ R5 升级暂停点用户裁决(1 仅修 BLOCKER/MAJOR 收口 💡 / 2 继续〔`review-retry --user-confirmed` 必须真有用户拍板 · yolo blanket 例外〕/ 3 按现状 APPROVE + deferred 留痕)。
-7. **external 按 roster + 独立性协议 + 覆盖方向制**:roster 含 external → 跑 `state.py external-review --stage review` 拿 subagent 配方 → 起**错开模型** subagent 冷审(跨厂商 CLI 已退役 · 本命令不 exec 子进程)· 🔴 **绝不伪造/冒充/静默跳过**。🔴 **外审内容契约(QA 视角并入)**:必覆盖 **测试真实性与覆盖**(测试真跑〔= 读实跑证据/日志 · 非自己重跑〕/ 覆盖真行为 / 边界回归)· **代码质量盲区**(错误处理 / 日志 / 并发)+ **AI 自主方向 ≥1**(候选:并发 / 资源泄漏 / 脱敏 / 兼容)· 每方向 finding 或「查过无发现」· 产物记 `coverage: [...]`(物化门 `cross_review_coverage` · review 从严:清单比 blueprint 重一档)。拟 APPROVE 前有过 fix → `--verify-fixes` 增量重验(物化校验)。🐛 **Bug 流默认单路 `[external]`**(diagnose 已经用户确认方案 · review 聚焦 fix↔方案一致 + 不引入新问题 · Architect/QA 视角并入外审覆盖方向〔+修复↔方案一致性〕· 单路错开模型天然满足 不变式 · `change-review-roles` 可加回)。
-8. 🛡️ **复发防御沉淀(shift-left 喂料)**:review 收敛(APPROVE)后 · 确认 findings 里**可预防的复发类**(下个 feature RD 写时能避开的 · 如 stale/timeout/fail-open)→ 沉淀进 `project-specs/KNOWLEDGE.md § 复发防御清单`(同类第 2 次被抓即入 · **已在清单还复发 = 规避法不够硬 · 强化它**)。判据:findings 82% 真实且集中 code review · 砍轮数=漏 bug · 真杠杆=预防掉的 finding 永不需要收敛(dev 起草必读该清单)。**判断型 · 非机械门**(不是每条都提升 · 一次性/纯涌现的不入)。
-   📊 **同步记录起草可预防性**:review 收敛后跑 `state.py review-preventability --stage review --preventable N --total M --missing '缺的起草考虑点(分号分隔·全 emergent 留空)'` —— 逐条判 findings 起草时本可预防否(本应被 TECH 简洁性自查/复发清单/PL六问挡掉)· 缺哪条考虑点。ship 聚合进台账「🛡️ 起草可预防性」列 · 年检据此判起草考虑点缺不缺(反复缺同一条 = 真缺口补框架 · 全 emergent = 别动)。非门禁 · 纯采集。goal/blueprint 冷审同理(`--stage goal|blueprint`)。
+6. **轮次预算**:超 `max_review_rounds`(默认 3 · localconfig 可调小 · 超预算暂停点 = 未收敛决策点抛用户:open findings 按 severity 列全)→ R5 升级暂停点用户裁决(1 仅修 BLOCKER/MAJOR 收口 💡 / 2 继续〔`review-retry --user-confirmed` 必须真有用户拍板 · yolo blanket 例外〕/ 3 按现状 APPROVE + deferred 留痕)。
+7. 🧾 **冷审清单统一 · N 路都过全清单**(lane 标识只决定产物落点,不决定查什么)· 三段缺一即漏 · 记 `coverage: [...]`(物化门 `cross_review_coverage` · review 从严:清单比 blueprint 重一档):
+   - ⚔️ **对抗**(形式与数量**单源** [SKILL § 冷审清单三段](../SKILL.md)):这段代码有没有为不会发生的场景加防御?这条校验/限制是需求要的还是实现者自己加的?能不能更简单/职责归错层/可删?
+   - 🔍 **核对**(可写「查过无发现」):**实现↔设计一致性**(AC 逐条对照)· **测试真实性与覆盖**(测试真跑〔= 读实跑证据/日志 · **非自己重跑**〕/ 覆盖真行为 / 边界回归)· **代码质量盲区**(错误处理 / 日志 / 并发);
+   - 💡 **清单外洞察**:清单没问、但你认为该关注的 ≥1 条(候选:并发 / 资源泄漏 / 脱敏 / 兼容 / 性能 / 数据量),或显式「无 + 为什么没有」· **不为凑内容而写**。
+8. **external lane 的独立性协议**:roster 含 `external` → 跑 `state.py external-review --stage review` 拿 subagent 配方 → 起**错开模型** subagent 冷审(跨厂商 CLI 已退役 · 本命令不 exec 子进程)· 🔴 **绝不伪造/冒充/静默跳过**。拟 APPROVE 前有过 fix → `--verify-fixes` 增量重验(物化校验)。🐛 **Bug 流默认单路 `[external]`**(diagnose 已经用户确认方案 · review 聚焦 fix↔方案一致 + 不引入新问题 —— 该条并入上面⚔️对抗段 · `change-review-roles` 可加路数)。
+8.5 🛡️ **复发防御沉淀(shift-left 喂料)**:review 收敛(APPROVE)后 · 确认 findings 里**可预防的复发类**(下个 feature RD 写时能避开的 · 如 stale/timeout/fail-open)→ 沉淀进 `project-specs/KNOWLEDGE.md § 复发防御清单`(同类第 2 次被抓即入 · **已在清单还复发 = 规避法不够硬 · 强化它**)。判据:findings 82% 真实且集中 code review · 砍轮数=漏 bug · 真杠杆=预防掉的 finding 永不需要收敛(dev 起草必读该清单)。**判断型 · 非机械门**(不是每条都提升 · 一次性/纯涌现的不入)。
+   📊 **同步记录起草可预防性**:review 收敛后跑 `state.py review-preventability --stage review --preventable N --total M --missing '缺的起草考虑点(分号分隔·全 emergent 留空)'` —— 逐条判 findings 起草时本可预防否(本应被 TECH 简洁性自查/复发清单/PL七问挡掉)· 缺哪条考虑点。ship 聚合进台账「🛡️ 起草可预防性」列 · 年检据此判起草考虑点缺不缺(反复缺同一条 = 真缺口补框架 · 全 emergent = 别动)。非门禁 · 纯采集。goal/blueprint 冷审同理(`--stage goal|blueprint`)。
 9. 🔴 **审核员只审内容 · 不重复跑测试脚本**:评审 = **静态审读**(diff / 代码 / 测试代码 / dev·test 实跑证据日志)—— 测试执行归 dev(TDD)与 test stage(硬门 exit 0/差分 · 证据已落盘);「测试真实性」= **读**测试代码与实跑证据判断(真测行为?mock 作弊?边界缺?)· 不是自己再跑一遍;疑点开 finding 由流水线实跑验证(评审重跑 = 双倍时延零新增证据 · Architect/QA/external/验证轮全适用)。
-10. **每个 roster 主审角色在 REVIEW.md 内一行 coverage 申报**(查过哪些方向 · 有问题列 finding · 无则「查过无发现」)—— 缺申报 → complete FAIL(roster 移出的角色不查 · 机器校验 roster-aware)(why:防橡皮图章 —— 光秃秃 APPROVE + 零 finding 与「根本没评审」在产物上无法区分;取代 `REVIEW-<role>.md` 独立文件:门禁只查它存在不查内容、角色归属早在 `findings[].source`、实测两文件体量几乎相同 = 同一批判断写两遍)。
+10. **每一路在 REVIEW.md 内一行 coverage 申报**(查过哪些方向 · 有问题列 finding · 无则「查过无发现」)—— 缺申报 → complete FAIL(roster 移出的角色不查 · 机器校验 roster-aware)(why:防橡皮图章 —— 光秃秃 APPROVE + 零 finding 与「根本没评审」在产物上无法区分;取代 `REVIEW-<role>.md` 独立文件:门禁只查它存在不查内容、角色归属早在 `findings[].source`、实测两文件体量几乎相同 = 同一批判断写两遍)。
 
 ---
 
@@ -47,7 +51,7 @@
 | **diff 走查 + 数据流追踪** | 改动集中/契约变更(顺 provider→consumer 追一遍) |
 | **边界与异常路径审查**(空值/并发/超时/回滚) | 有状态/多步操作/外部依赖时 |
 | **对抗复现**(按 finding 写最小复现或反例测试) | MAJOR 定级存疑时——复现即实证 · 复现不出降 MINOR |
-| **简洁性 counter-lens**(Architect 独有:能否更简单/职责归错层/可删) | 方案偏重、external findings 偏「加校验」时(external 天然加 rigor · 需反向制衡) |
+| **简洁性 counter-lens**(能否更简单/职责归错层/可删 · 清单⚔️对抗段的手段) | 方案偏重、external findings 偏「加校验」时(external 天然加 rigor · 需反向制衡) |
 | **测试质量抽查**(测试是否真断言 · 假绿检测) | 测试全绿但 diff 大时 |
 | **真机/预览截图核对** | UI feature(配合 dev §设计↔实际核对的产物) |
 | **KNOWLEDGE/历史 bug 对照** | 项目有同类踩坑记录时 |
@@ -63,13 +67,16 @@
 frontmatter:
 ```yaml
 ---
-reviewers: [architect, external] # = state.stage_review_roles.review(Feature 默认两路 · Bug 默认单路 [external] · qa 加回时列入)
+reviewers: [architect, external] # = state.stage_review_roles.review(Feature 默认两路 · Bug 默认单路 · lane 标识 ≠ 角色:每路都过全清单)
 review_models: # 🔴 每路照实申报实际模型(错开机器比对 review_models_staggered:各路全同模型 = 盲区相关 → complete 拒 · 实证双同模型漏 2 BLOCKER)
   - architect: <实际模型>
 verdict: NEEDS_REVISION | APPROVE
-coverage: # 🔴 每个 roster 主审角色一行(external 的在 external-cross-review/*.md)
-  architect: "实现↔设计一致性 / 简洁性 counter-lens —— 见 F1,F3;分层与契约查过无发现"
-  qa: "测试真实性与覆盖 / 边界回归 —— 查过无发现"
+coverage: # 🔴 每一路一行(external lane 的在 external-cross-review/*.md)· 🔍 核对段申报
+  # 🔴 每路都申报**全部**核对方向 —— 不是一路领一半(那是角色制的残影)
+  architect: "实现↔设计一致性 见 F1,F3 / 测试真实性与覆盖 查过无发现 / 代码质量盲区 见 F5"
+  r2: "实现↔设计一致性 查过无发现 / 测试真实性与覆盖 见 F2 / 代码质量盲区 查过无发现"
+outside_checklist_insight: # 💡 清单外洞察 —— 清单没问、但你认为该关注的(≥1 条 · 想不出写「无 · 因为…」· 不为凑内容而写)
+  architect: "报表类接口的**结果集搬运量**没在清单里 —— 本 feature 单次拉回 4 万行做服务端聚合,建议下一版进 TECH 清单"
 findings:
   - {id: F1, severity: MAJOR, status: open, title: "并发写入丢更新(store.py:88 无锁)", source: arch}
   - {id: F2, severity: MINOR, status: rejected, title: "…", source: qa}

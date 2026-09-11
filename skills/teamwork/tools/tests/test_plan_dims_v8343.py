@@ -67,7 +67,7 @@ class TestMatrixDerivesChain(unittest.TestCase):
         """加一档不该多一条链 —— medium 与 full 同链、只差 D4(所以它不是结构档)。"""
         self.assertEqual(S.derive_chain(S.tier_dims("medium")),
                          S.derive_chain(S.tier_dims("full")))
-        self.assertEqual(S.TIER_DIMS["medium"]["review"]["goal"], ["fast"])
+        self.assertEqual(S.TIER_DIMS["medium"]["review"]["goal"], ["external"])
         # v8.346:单路留 external(年检:逐 stage ext>arch · goal 用 fast 合并帽不受影响)
         self.assertEqual(S.TIER_DIMS["medium"]["review"]["blueprint"], ["external"])
 
@@ -109,6 +109,18 @@ class TestMatrixDerivesChain(unittest.TestCase):
             d = S.tier_dims(t)
             self.assertEqual(S.derive_chain(d), E.derive_chain(d), t)
             self.assertEqual(S.derive_flow_graph(d), E.derive_flow_graph(d), t)
+
+    def test_flow_key_agrees_across_all_three_impls(self):
+        """🔴 v8.352 补锁:本条初版只比了 derive_*,**没比 flow_key** ——
+        于是 v8.343 加 floor 档时漏改 specs._flow_key(state.py/engine 给 "Floor"、
+        它给 "Feature"),整整九版没人发现,直到 v8.352 写新门用到它才撞出来。
+        「第二份实现允许存在的前提是被锁死相等」要锁**全部**归一函数,不是其中一个。
+        """
+        for t in TIERS:
+            st = {"flow_type": "Feature", "preset": t}
+            keys = {S.internal_flow_key("Feature", t), E._internal_flow_key(st),
+                    SP._flow_key(st)}
+            self.assertEqual(len(keys), 1, f"{t}: 三实现解析不一致 → {keys}")
 
 
 # ─── 2 · 一致性:拆维度必然产生不连贯组合 ───────────────────────────────
@@ -208,7 +220,7 @@ class TestInitWritesPlan(_CliCase):
         st = self.load(d)
         self.assertIn("browser_e2e", S.derive_chain(st["assembly_plan"]["dims"]))
         self.assertEqual(st["stage_review_roles"]["blueprint"], ["architect", "dba"])
-        self.assertEqual(st["stage_review_roles"]["goal"], ["fast"])   # 没拧的沿用档默认
+        self.assertEqual(st["stage_review_roles"]["goal"], ["external"])  # 没拧的沿用档默认
 
     def test_incoherent_custom_dims_rejected_at_init(self):
         _, r = self.init("lite", {"review": {"blueprint": ["architect"]}})

@@ -1,6 +1,6 @@
 ---
 name: teamwork
-version: v8.351.1
+version: v8.357.1
 description: AI 协作开发一体化框架 - 需求功能开发, bug 修复, 问题排查 · /teamwork 启动
 ---
 
@@ -195,12 +195,15 @@ state.py 物化了 9 红线中 8 条 · R3 + 部分行为约束(R4 / R5(b) / byp
 - **派发后等待窗主对话不闲置**:干自己能干的(自查证据 / 再拆剩余工作)· 🔮 goal 终确认等待窗的投机窗见 [stages/goal-stage.md ④](./stages/goal-stage.md)。
 - **拆分边界**:子任务**边界清晰且够大**才派(小 / 强耦合 / 强串行自己做 · 协调开销反拖慢)。
 - 🔴 **编排权不外包**:stage 流转 / commit / `xx-complete` / 最终整合**永远归主对话**(并行的是执行 · 不是编排)· 代码类 subagent 只写 worktree 内路径。
-- 🎚️ **派前定档**:不传 model = 继承会话模型 · **常费而不自知** —— 校验/枚举型(冷审对照 · TC 对照 · 测试执行 · 机械外化)→ 验证档;判断/创造型(Architect/PL 冷审 · 方案 · 裁决)→ **不降档**。
+- 🎚️ **派前定档**:不传 model = 继承会话模型 · **常费而不自知**。❗ **定档判据(三档各一句)**:① **照着已有清单核对** → `验证`(冷审对照 · TC 对照 · 测试执行 · 机械外化 · ship 编排);② **按既定方案把东西写出来** → `执行`(dev 实现路 · micro 改文案);③ **要想出清单上没有的东西** → `深度`(PRD/TECH 起草 · 首轮全量冷审 · 方案 · 裁决 · **不许降**)。❗ **换个便宜模型产出不会更差的,就没有理由用贵的** —— 会话主模型是为了跟你对话选的,不是为了跑测试和改文案选的。
 - ❌ **子代理禁问用户 · 问题回路收口主对话**:派发 prompt 必带「禁止调用向用户提问/确认类工具 —— 缺信息写 NEEDS_CONTEXT 返回」;主对话拿到后二分:实现细节**自答重派** · 真用户主权才走 R5(用户拍板:子代理的问题由主对话自行处理,只有主对话判断需要用户确认的才交给用户)。单源 [agents/README §二](./agents/README.md)。
 - 📣 **声明制(重写)**:声明**寄生在 prompt 首行**,不另起一句 —— `Meta: tier=<验证|执行|深度> · model=<留空则继承> · 理由=<一句>`。prompt 是派发时必然要写的,寄生其上才不会被忘(**高频低显著性的义务必然衰减** · 实证:agent 读过规则仍漏)。
-- 🎚️ **验证类白名单一律降验证档 · 例外需用户授权**:写测试用例(TC 起草)· 执行测试 · 单测 · 集成测试 · e2e · TC 逐条对照 · 冷审执行 · 机械外化 · 调研采集(整合判断留深度档) —— 默认**全部**降档且**必须显式传 model**;认为本次特殊 → 🔴 **不许 AI 自决**,开 R5 请用户授权。判断/创造型允许继承(仍在首行声明 tier + 理由)。档位表与硬边界单源 [agents/README §一](./agents/README.md)。
+- 🎚️ **测试与验证类白名单一律降验证档 · 例外需用户授权**(用户拍板:「测试和验证类任务都要降档」):写测试用例(TC 起草)· 执行测试 · 单测 · 集成测试 · e2e · **变异验证** · **全量套件跑批** · **基线/指纹采集** · **覆盖率统计** · TC 逐条对照 · **冷审验证轮**(Round 2+ 核实上轮 finding 修没修 —— ❗ **首轮全量冷审属判断型,不降**:它要找的是没人想到的东西)· 机械外化 · 调研采集(整合判断留深度档) —— 默认**全部**降档且**必须显式传 model**;认为本次特殊 → 🔴 **不许 AI 自决**,开 R5 请用户授权。判断/创造型允许继承(仍在首行声明 tier + 理由)。档位表与硬边界单源 [agents/README §一](./agents/README.md)。
+- 🎚️ **执行型 subagent 的内联测试有边界**(白名单只管**派发时**定档 · 管不到已派出的 agent 内部做什么 —— 实证:实现路继承主模型,却在里面跑全量 vitest + 变异验证 = 拿深度档干机械活):实现路只许跑**与本路改动直接相关的最小自测**(编译 / 本模块用例 —— 保住 TDD 红绿循环不跨 agent 往返);**全量套件 · 变异验证 · 基线指纹采集 · `xx-complete` 的正式测试证据** → ❗ **一律另派验证档**,不在实现路内跑。
 - 📊 台账 `dispatch_models` 分两桶:`inherited_declared`(判定该继承 = **正确行为**)vs `unspecified`(真没分档)—— 两者干预手段相反,不可合并计数。
-- 🔴 **评审模型必错开**(独立采样不变式):双路冷审(goal PL+外审 / blueprint·review Architect+外审)**两路模型必须不同**(主审路继承会话主模型 · 外审路错开一档);单路配置(fast 合并 / roster 减到一路)时**该路 ≠ 会话主模型**。**任何评审配置至少一路 ≠ 会话主模型** —— 同模型 = 盲区相关(两路同瞎)· 主对话热审 = 自审无效。验证轮降档本身即错开。
+- 🔴 **评审模型必错开**(独立采样不变式):多路冷审**逐路模型不同**(一路继承会话主模型 · 其余错开一档);单路配置(roster 减到一路)时**该路 ≠ 会话主模型**。**任何评审配置至少一路 ≠ 会话主模型** —— 同模型 = 盲区相关(两路同瞎)· 主对话热审 = 自审无效。验证轮降档本身即错开。
+- 🧾 **冷审清单统一 · 不按角色切分**(去角色):每个 stage **一份清单**,配几路就几路**都过全清单** —— roster 里的 `pl`/`external`/`architect` 是 **lane 标识**(决定产物落点与是否跨会话隔离),**不决定查什么**。装配只拧 **路数 × 模型**。why:年检实证方向清单产出 2.1× 角色关注点;而按角色切分留下的缝没人接(「限制必要性」当初就卡在缝里)。
+- 🔴 **清单三段缺一即漏**(🔴 **本条是三段通用要求的单源** —— 各 stage 只补**本 stage 查什么**,不重复这里的「怎么交」):⚔️ **对抗**(❗ **证否句式**「我试图证明 X 不成立,结果是…」· ❌ **不许写 ✅ 或「查过无发现」** —— 中性核对会把对抗项磨平 · **≥1 条实质,或显式「无实质质疑 + 理由」**)· 🔍 **核对**(可写「查过无发现」· 逐路记 `coverage`)· 💡 **清单外洞察**(清单没问但你认为该关注的 **≥1 条,或显式「无 + 为什么没有」** · **不为凑内容而写** · 硬凑 = 新仪式)。💡 那段是框架的**自发现通道** —— 历史上多个真缺口都不在当时的清单里,全靠线上事故回流才发现。
 - **授权**见 § Subagent 默认授权(管「能不能用」)· 本节管「该不该用」。
 
 ### R5(b) 暂停点标准格式
@@ -372,7 +375,7 @@ mode B 识别后(**无论后续 flow_type = Feature〔full/micro〕还是 Bug ·
 | **Feature · floor** | ① prepare 4 项配置 → ② ship1 终点 等 MR 合入(评审点全 0 · 验收 = ship1 MR diff · 但**测试证据门照开**)|
 | **Feature · micro** | ① prepare 4 项配置 → ② ship1 终点 等 MR 合入(execute 零门禁 · 无 pm_acceptance · 用户验收 = ship1 MR diff review)|
 
-📎 **blueprint 方案要素条件暂停点**(双触发):TECH 涉**数据库数据结构变更**(表/字段/索引/约束/migration)**或 🛡️ 含安全/降级兜底策略**(兜底不许默默做 · 复杂度×收益经用户拍板)时 · blueprint-complete 前必 emit 确认暂停点(详 [stages/blueprint-stage.md ④](./stages/blueprint-stage.md))· 不涉及则跳过。**Bug / Feature·micro** 不应涉及 DB 数据结构变更(命中则升 full 完整链)。
+📎 **blueprint 方案要素条件暂停点**(**三触发**):TECH 涉**数据库数据结构变更**(表/字段/索引/约束/migration)**或 🛡️ 含安全/降级兜底策略****或 🚦 有功能生效闸**(env flag / 配置必填 / 水位切点 / cap / fail-closed 短路 —— 用户拍板:**生效闸与 DB 变更同级需确认**;判据「不满足时用户看到什么」与 PRD 承诺不一致 = 产品决策伪装成技术细节)(兜底不许默默做 · 复杂度×收益经用户拍板)时 · blueprint-complete 前必 emit 确认暂停点(详 [stages/blueprint-stage.md ④](./stages/blueprint-stage.md))· 不涉及则跳过。**Bug / Feature·micro** 不应涉及 DB 数据结构变更(命中则升 full 完整链)。
 📎 **其余条件暂停**(命中才停 · 不入上表主链):goal 早问门三闸(如涉既有行为变更升级待决策)· review 轮次超预算升级。
 📎 stage 间(goal-complete→ui_design / dev→review 等)是 state.py **自动流转** · 非暂停点 · 不插确认。
 
@@ -387,25 +390,12 @@ mode B 识别后(**无论后续 flow_type = Feature〔full/micro〕还是 Bug ·
 | diagnose 修复方案确认(Bug) | **skip + WARN** | 按推荐方案继续 + `add-concern --severity WARN --message "auto skip: diagnose 方案 ..."` 留痕 · 修偏由 pm_acceptance 兜 |
 | ui_design UI 预览确认 | skip | 设计意图已落 UI.md / preview · auto 用户接受 |
 | ui_design 出口全景 L2 判级(仅结构变更停 · L1 任何模式都不停) | **skip + WARN** | UI.md §全景变更判级 已文档化 · 必 `state.py add-concern --severity WARN --message "auto skip: panorama change scope=..."` |
-| blueprint 方案要素确认(DB 变更/兜底) | **skip + WARN** | 高影响 · 必 `state.py add-concern --severity WARN --message "auto skip: 方案要素确认 · DB: .../兜底: ..."`(便于 dev/review 复查) |
+| blueprint 方案要素确认(DB 变更/兜底/🚦 生效闸) | **skip + WARN** | 高影响 · 必 `state.py add-concern --severity WARN --message "auto skip: 方案要素确认 · DB: .../兜底: ..."`(便于 dev/review 复查) |
 | **pm_acceptance 三选项** | **stop** | 产品决策权:approved_and_ship / approved_no_ship / rejected_with_feedback · AI 不能替用户拍板(违 R3) |
 | **ship1 终点 等平台 merge feature MR** | **stop + 监控** | 用户在 git host 平台操作 · AI 无法代办 · 🔴 stop = 不替用户点合并 · **仍必须跑 `await-merge` 轮询**(所有模式 · MERGED → 自动 ship-finalize)—— 否则用户合了没人收尾 |
 
 🔴 **skip + WARN 行为**:跳过暂停点但必 `state.py add-concern --severity WARN` 写一条 audit 锚定 AI 自决的范围。
 📎 `worktree_mode=auto` ≠ `auto_mode` —— 前者是 worktree 物理校验模式 · 与暂停点自动流转**完全无关**。
-
-### fast 模式(评审收敛为两端单路 · 默认关 · localconfig 配置)
-
-🔴 `.teamwork_localconfig.json` 的 `fast_mode: true` 开启(**缺省/false = 关** · init-feature 时快照进 `state.fast_mode` · 中途改配置不影响 in-flight feature):
-
-- **留两端 · 各合并单路**(roster = `{goal: [fast], review: [fast]}` ·「fast」= 合并伪角色 · 单 agent 兼多帽 · 🎭 该单路模型 **≠ 会话主模型**):
-  - **PRD 评审(goal)**:一路隔离冷审兼 **PL + 外审**关注点(质疑六问 ≥1 实质 + 可实现/可验证 + AI 自主方向)· 产单份 PRD-REVIEW.md(`reviewers: [fast]`)· verdicts 全 APPROVE 门照拦;
-  - **代码 review**:一路隔离评审兼 **Architect + QA** 关注点(实现↔设计一致性/简洁性 counter-lens + 测试真实性与覆盖/代码质量盲区)· 产 REVIEW.md 单份 · findings/severity/验证轮协议照跑。
-- **去掉**:blueprint 评审(不产 TECH-REVIEW.md · TC/TECH 写完直进 dev)· 两端的多路独立性。
-- 🎯 **评审最多 2 轮**:goal 冷审与代码 review 预算各封顶 2 轮(首轮全量 + 1 验证轮 · localconfig `max_review_rounds` 更小则从小)· 轮尽未收敛 → **未收敛决策点抛用户拍板**(goal → 列进 PRD 终确认导读;review → 引擎 review-retry 硬拦 · R5 暂停点列 open findings + 1/2/3)。
-- **保留**:测试证据硬门(exit 0/差分)· verify-ac · **全部用户暂停点**(prepare 4 项 / PRD 最终确认 / DB schema 确认 / pm_acceptance / ship1)· worktree 纪律 · ship 全链。
-- 🔴 **yolo 忽略 fast**(不报错):yolo 无人值守靠全量评审安全网 —— `--yolo` 时 fast_mode **静默不生效**(kickoff 记 INFO 留痕)· fast 仅有人值守生效;与 auto_mode 正交可叠。
-- 适用:原型 / 个人项目提速;正式项目慎用(独立多路评审是拦真 bug 主力)。
 
 ### yolo 模式(完全自动 · 无人值守 · 高风险)
 
@@ -419,7 +409,7 @@ mode B 识别后(**无论后续 flow_type = Feature〔full/micro〕还是 Bug ·
 
 🔴 **yolo ≠ 简化/提速 · 是「加重审核」**:无人值守 = 没人在看 → 自动化评审是**唯一安全网** · 必须保留/加重 · **绝不削弱**。yolo 的「零 stop」**只**针对**人工决策暂停点**(prepare / pm_acceptance / MR merge)。
 
-- **roster 内评审全真跑 · 一个不少**(默认两路:Architect 主审 + 覆盖方向制第三视角〔QA 视角并入必覆盖方向〕)· **不得以「集中到 review stage」「效率」「价值低」为由去掉第三视角** —— `change-review-roles` 物化 BLOCK。
+- **roster 内评审全真跑 · 一个不少**(路数 = 装配 D4 · 默认 2 · **每路都过全清单三段**)· **不得以「集中到 review stage」「效率」「价值低」为由去掉第三视角** —— `change-review-roles` 物化 BLOCK。
 - 🔴 **真跑的物化校验**(严格按流程流转 · 不得「内化」自盖章 APPROVE · 不得 AI 手写 `external-cross-review/*.md`):第三视角必走 `state.py external-review --stage <X>` —— **默认 subagent 隔离冷审** → 校验 frontmatter `review_via: subagent`(无 → FAIL);**opt-in 异质** → 真调异质模型 + `~/.teamwork/external-review-logs/<feat>/codex-<stage>-*.log` 实跑日志(无 → FAIL · 伪造不了)。
 - 🔴 **第三视角 = 🎭 错开模型 subagent 隔离冷审(唯一形态 · 跨厂商 CLI 异质已退役 —— 冷启动/慢路径/登录故障面实测严重拖慢)**:`state.py external-review` 只 emit subagent 配方(不 exec 子进程)· 产物须 `review_via: subagent` + 照实申报 `review_model` · 🔴 yolo 额外要 prompt doc(实跑证据 · 防手写自盖章)。—— **不许「不冷审」**(主对话自评 = 无独立性 · 门禁拦)。
 - **不得擅自合并 BL / 跳 stage / 减 review 轮次 / 简化流程**(BL 拆分是 Planning 已定的范围)· ✅ **可以加重**:多跑 external、加 review 轮次、提高测试覆盖。

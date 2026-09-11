@@ -26,7 +26,7 @@
 | **PM** | [roles/pm.md](./roles/pm.md) | 需求完整性 · PRD 起草 · 验收 |
 | **QA** | [roles/qa.md](./roles/qa.md) | 测试覆盖 · TC 起草 · 边界场景 |
 | **RD** | [roles/rd.md](./roles/rd.md) | 实现质量 · TDD · 唯一代码写权 |
-| **Architect** | [roles/architect.md](./roles/architect.md) | 技术合理性 · Tech Review · Code Review |
+| **Architect** | [roles/architect.md](./roles/architect.md) | 技术合理性视角(**非独立评审席位** —— 冷审清单已统一 · 每路都过全清单) |
 | **Designer** | [roles/designer.md](./roles/designer.md) | UX 视角 · UI.md + HTML 预览 |
 | **PL** | [roles/product-lead.md](./roles/product-lead.md) | 产品方向 · ROADMAP · 变更级联 |
 | **External Reviewer** | [roles/external-reviewer.md](./roles/external-reviewer.md) | 异质模型 cross-review |
