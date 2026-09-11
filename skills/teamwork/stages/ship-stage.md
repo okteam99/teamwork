@@ -26,7 +26,8 @@ state.py ship-phase --action archive --feature <path> \
 ```
 
 state.py 一口气做完(单 commit 进 feature 分支):
-1. **规划翻牌 gate**:未传 `--planning-artifacts` 且未传 `--no-planning-changes` → emit `PENDING`(AI 先在 **worktree 内**翻规划层 back-ref · 详 §3.5)
+1. 0.5 🎚️ **本 stage 派出去的活一律验证档**(用户拍板:「ship 也用验证档模型」· 档位单源 [SKILL § subagent](../SKILL.md)):push / MR 创建与描述 / 合入监控 / CI 日志拉取与归因 / worktree 清理 / 归档与台账誊抄 —— 全是**照着清单核对与搬运**,换便宜模型产出不会更差,**必须显式传 model**。🔴 **一个例外**:CI 红**归因到本 feature 后要改代码**,那一段是实现活 —— 按实现路的档走(改完的验证再回验证档)。
+**规划翻牌 gate**:未传 `--planning-artifacts` 且未传 `--no-planning-changes` → emit `PENDING`(AI 先在 **worktree 内**翻规划层 back-ref · 详 §3.5)
 1.5 **翻牌验收门**(声明→机器验收):`state.bl` 已知 → worktree 内 ROADMAP 对应 BL 行状态格**必须已翻完成态**(已完成/已交付/已上线 · 词表)· 未翻 → PENDING(`--no-planning-changes` 不豁免 —— 有 BL = 必有行可翻);确属例外(部分交付)→ `--bl-flip-exception '<理由>'` 审计留痕(实证 case:漏翻状态格 → 进度误报 0/4 · 人工查账才发现)
 2. **终态 state.json**:`current_stage=completed` + `ship.phase=archived`(终态进 zip = 墓碑 ·「completed 宣称」随 MR 合入与落地**原子可见**)
 3. **zip + INDEX**:整个 feature 目录(工作树快照 · 含未 commit 的 review-log.jsonl)打成 `features/_archive/<id>.zip` · `_archive/INDEX.md` 追加一行(描述列 = `--archive-desc` · 超 200 字 FAIL · §15)
