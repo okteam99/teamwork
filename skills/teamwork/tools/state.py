@@ -981,6 +981,12 @@ def _parse_ws_features(ws_file: Path) -> list[dict]:
         text = ws_file.read_text(encoding="utf-8", errors="replace")
     except OSError:
         return []
+    return _parse_ws_features_text(text)
+
+
+def _parse_ws_features_text(text: str) -> list[dict]:
+    """同 `_parse_ws_features`,但接**文本** —— ws-lint 拿到的就是文本,
+    不该为此再写第二份扫描器(双实现必漂:v8.352 `_flow_key` 漏 floor 即实证)。"""
     mc = re.search(r"<!--\s*TEAMWORK-MACHINE.*?\n(.*?)\n-->", text, re.S)
     head = mc.group(1) if mc else text.split("\n# ", 1)[0]   # 退路:首个 body H1 之前
     feats: list[dict] = []
@@ -999,14 +1005,19 @@ def _parse_ws_features(ws_file: Path) -> list[dict]:
             if cur:
                 feats.append(cur)
             cur = {"id": m_id.group(1).strip().strip("\"'"), "target": "", "bl": "",
-                   "deps": [], "status": "", "scope": "", "goal_plain": ""}
+                   "deps": [], "status": "", "scope": "", "goal_plain": "",
+                   "user_decisions": None}
             continue
         if cur is None:
             continue
-        m_kv = re.match(r"^\s*(target|bl|status|scope|dependencies|goal_plain):\s*(.*?)\s*$", ln)
+        m_kv = re.match(r"^\s*(target|bl|status|scope|dependencies|goal_plain|user_decisions):\s*(.*?)\s*$", ln)
         if m_kv:
             k, v = m_kv.group(1), m_kv.group(2).strip().strip("\"'")
-            if k == "dependencies":
+            if k == "user_decisions":
+                # 🔒 规划期用户拍过的板 —— 存在即算(`[]` 是合法值:该件未经用户单独拍板)。
+                # 门只查「字段在不在」,不查非空:强制非空会逼出编造的「决策」(v8.358 同理)。
+                cur["user_decisions"] = v
+            elif k == "dependencies":
                 inner = v.strip().lstrip("[").rstrip("]").strip()
                 cur["deps"] = [d.strip().strip("\"'") for d in inner.split(",") if d.strip()]
             elif k == "bl":
@@ -1400,6 +1411,21 @@ def _lint_ws_doc(text: str) -> list:
         missing.append("缺 `WS-PROGRESS:START/END` 标记区(v8.174 · ws-progress 自刷进度块)")
     if _WS_DAG_START not in text or _WS_DAG_END not in text:
         missing.append("缺 `WS-DAG:START/END` 标记区(v8.177 · ws-progress 派生依赖图)")
+    # 🔒 规划期用户拍过的板必须有落点 —— 否则它只活在规划当时的对话里,换 session /
+    # 派 subagent 就没了,下游 PM 只能凭「范围」一句去猜用户当初要什么(v8.353 的上游断点)。
+    # 只查**字段存在**:`[]` 是合法值(该件未经用户单独拍板);强制非空会逼出编造的「决策」。
+    _feats = _parse_ws_features_text(text) if "features" in text else []
+    _no_slot = [f["id"] for f in _feats if f.get("user_decisions") is None]
+    if _no_slot:
+        missing.append(
+            f"features[] 缺 `user_decisions` 槽:{', '.join(_no_slot[:6])}"
+            + (f" 等 {len(_no_slot)} 件" if len(_no_slot) > 6 else "")
+            + " —— 🔒 规划期用户拍的板(选了什么/排除了什么/定了什么口径)要能被下游机读,"
+              "起 feature 时作 `--user-intent` 输入落进 PRD §已确认意图;未经用户单独拍板填 `[]`")
+    # 正文侧的「人维护」标注已退役(该节由 feature-planning 流程产出 · 标人维护会让 AI 以为不归它管)
+    if "规划态 · 人维护" in text:
+        missing.append("§拆出的 feature 标题仍写「人维护」—— 该节由 feature-planning 流程产出,"
+                       "标注会让 AI 以为不归它写 · 去掉该标注")
     return missing
 
 

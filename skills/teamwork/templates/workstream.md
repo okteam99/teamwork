@@ -59,6 +59,9 @@ features:              # 拆出的 feature · 写入各子项目 ROADMAP 后回�
     scope: "<这个 feature 做什么>"
     current_state: "<🔴 由实际代码调研得:已有什么脚手架/复用点 · 真缺口在哪 · **附来源文件路径** · 全新填 greenfield(ws-lint 抓占位=调研浅)· 🔴 **退役/替换类必加「测试痕迹:N 文件 / M 调用点」**(成本主体常在测试改写)>"
     flow_type: Feature           # Feature / Bug(闭集 · 轻量走 preset: micro 不是独立类型)
+    user_decisions: []           # 🔒 规划期用户拍过的板(原样搬不润色)· 每条一句「选了/排除了/定了什么口径」·
+                                 #    起 feature 时作 `init-feature --user-intent` 的输入 → 落进 PRD §已确认意图
+                                 #    未经用户单独拍板填 [] · 🔴 别用「见正文」占位(机读端拿不到 = 链条照断)
     dependencies: []             # 依赖的其他 WS-01-Sx
     status: pending              # pending / planned(已写入 ROADMAP) / 废弃
   - id: WS-01-S2
@@ -117,14 +120,22 @@ risks:
 （规划完成后 ws-progress --write 刷新即出）
 <!-- WS-DAG:END -->
 
-## 拆出的 feature（拆解明细 · 规划态 · 人维护）
-> 每个 feature 的范围/依赖/高层 AC（详细 AC 在各 Feature PRD）· 写入 ROADMAP 后**执行进度看上方 §feature 总览**，此处不复制状态（防双源 stale）。
+## 拆出的 feature（拆解明细 · 规划态）
+> 每个 feature 的范围/依赖/AC + 🔒 **用户已拍板的事实** · 写入 ROADMAP 后**执行进度看上方 §feature 总览**，此处不复制状态（防双源 stale）。
+> 🔴 **宁详勿略**：这一节是下游起 PRD 时**唯一**能拿到 WS 规划期上下文的地方 —— 写薄了,那些上下文只活在规划当时的对话里,换 session / 派 subagent 就没了。AC 可以写到具体字段、路由、状态值(不必留到 PRD 才写细)。
 ### {feature_id}（→ {子项目} ROADMAP · BL 待回填）
 - **大白话目标**：{同 frontmatter `goal_plain` · 一句人话:这条单独上线后谁能干什么/得到什么 —— 写不出 = 不该独立成件(并回宿主)}
 - **范围**：{做什么}
 - **flow_type**：{Feature / Bug}（轻量走 preset: micro · 非独立类型）
 - **依赖**：{其他 WS-01-Sx}
-- **核心 AC**（高层 · 详细 AC 在 Feature PRD）：① ... ② ...
+- 🔒 **用户已拍板的**（🔴 **原样搬不润色** · 润色 = 二次解释,偏差正是这么进来的）：
+  - {选了什么:如「税务方案 A(不是 B)」「打款 failed 分两态」· 附用户原话}
+  - {排除了什么 + 是「做不到」还是「我们选的边界」}
+  - {定了什么口径:如「billable 以 X 为准」}
+  - {没有则写「无 · 本件范围由架构文档直接推出,未经用户单独拍板」}
+- **核心 AC**（可写到具体字段/路由/状态值 · 更细的验收展开留 Feature PRD）：① ... ② ...
+
+> 🔗 **这些事实要往下游传**:起 feature 时把 🔒 那几条作为 `init-feature --user-intent` 等参数的输入,落进 PRD §已确认意图 —— 否则链条在这里断,PM 只能凭「范围」一句去猜用户当初要什么。
 
 ## 跨子项目依赖
 （Mermaid 或表 · 无跨项目可省）
