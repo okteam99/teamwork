@@ -36,6 +36,7 @@ features:
   - id: WS-01-S1
     bl: null
     current_state: "已有 router 骨架(apps/x/src/router.ts)· 真缺口=查询页"
+    user_decisions: []
 -->
 # WS-01
 <!-- WS-PROGRESS:START x -->
