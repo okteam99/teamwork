@@ -13,7 +13,7 @@ An AI works from a team-collaboration perspective — through **flow orchestrati
 | Fundamental risk | Why it's unavoidable | Teamwork's answer |
 |-----------------|---------------------|-------------------|
 | **Intent drift** (building the wrong thing) | Information asymmetry: no model, however smart, knows what the user didn't say | Pause points / intent gates (prepare intent check · goal deep gate · panorama user confirmation) |
-| **Quality blind spots** (building it badly) | Self-review blindness is mathematical: a model can't see its own gaps | Multi-role perspective switching + **isolated cold review** (independent third-perspective sampling · cross-model heterogeneous as opt-in upgrade) |
+| **Quality blind spots** (building it badly) | Self-review blindness is mathematical: a model can't see its own gaps | **Isolated cold review · one shared checklist across lanes · a different model per lane** (independent sampling — not a persona swap inside the same context) |
 | **State drift** (losing / corrupting things) | Finite context is physical: long flows drift when they rely on memory | Machine-readable state machine + materialized artifact gates + worktree isolation |
 | **Knowledge loss** (repeating mistakes) | Every session starts from zero | KNOWLEDGE distillation + cross-project audit harvest feedback loop |
 
@@ -25,16 +25,20 @@ Teamwork matches along two dimensions:
 
 **Match the flow to the need**: looking up code, fixing a bug, and building a feature require entirely different collaboration depth. Entry triage (5 modes: query / execute / resume / status / discuss) matches intent to the right flow — simple tasks get a simple flow, complex needs get the full flow.
 
-**Assign roles by specialty**: when a single role covers multiple perspectives, they mask each other — PM's "what the user wants" buries QA's "edge cases"; the architect's "elegance" buries RD's "delivery deadline". Teamwork assigns by specialty: PM / Architect / QA / RD / Designer each own one dimension (requirements / architecture / testing / implementation / UX), with PMO orchestrating. Each artifact is examined from its corresponding professional angle, exposing blind spots to another perspective.
+**Assemble rigor from risk**: the flow is not a fixed ritual — four dimensions get dialed per feature: spec depth (PRD? TECH?) · evidence gate (is there observable behavior?) · verification depth (is dev's own testing enough?) · review rigor (how many lanes × which models). The six named tiers (micro / floor / tiny / lite / medium / full) are only a starting point; after picking one you still re-check every dimension. Every stage boundary is an **explicit revision point** — a fact you didn't have at assembly time changes the plan, and adding rigor costs the same as removing it.
+
+**Independence comes from isolation, not from identity**: drafting and reviewing happen in **separate contexts** (isolated subagents · never fed the drafter's reasoning), and lanes **stagger models**. Each stage has one **shared cold-review checklist** — however many lanes you configure, they all run the full checklist, not a per-role slice (slicing leaves seams nobody owns). Annual audit evidence: direction-checklist review produced **2.1×** the findings of role-focus review, at an 82.3% adoption rate.
 
 You only provide requirements and make decisions at key checkpoints.
 
-### How Multi-Role Switching Works
+### Why Cold Review Works
 
-- **Create-critique loop**: PM writes PRD → PL critiques from business direction → PM revises. A single role's single-pass output skips blind spots masked by its own perspective.
-- **Attention reallocation**: switching roles = switching checklists = activating different evaluation dimensions
-- **Forced re-read**: a role switch forces the AI to re-read the same document with new questions, surfacing far more than "think again"
-- **Independent third-perspective review**: review brings in an independent third perspective (default: same-model subagent **isolated cold review** in a fresh session — independent sampling exposes self-review blind spots) · opt-in upgrade to **cross-model heterogeneous** (`disable_external_review: false` · when claude is the main window, external = codex, and vice versa)
+- **Isolation produces independence**: an AI reviewing what it just drafted fills its own gaps from memory. Review runs in an **independent subagent**, never fed the drafter's reasoning — the blank-slate effect is exactly the point, and it beats "switch persona in the same conversation".
+- **Model stagger decorrelates**: lanes use **different models** (at least one ≠ the session's main model). Same model twice = correlated blind spots — both lanes go blind together.
+- **The checklist covers; the phrasing confronts**: one checklist per stage, three sections, all mandatory — ⚔️ **Challenge** (must be written as "I tried to prove X false, and the result was…" — ticking a box is not allowed) · 🔍 **Verify** ("checked, nothing found" is a valid answer) · 💡 **Off-checklist insight** (what the checklist didn't ask but you think matters). That last one is the framework's self-discovery channel: historically most real gaps were not on the checklist at the time.
+- **Model tier follows the work**: checking against an existing checklist → verification tier; writing out an agreed plan → execution tier; having to come up with what isn't on the checklist → depth tier (PRD / TECH drafting and first-round cold review — never downgraded). If a cheaper model's output wouldn't be worse, there is no reason to pay for the expensive one.
+
+> 📎 Earlier versions produced multiple perspectives by having the main conversation switch personas. **Drafting is still split by specialty** (PM writes the PRD · RD the TECH · QA the TC · Designer the visuals), but **review is no longer sliced by role** — independence comes from isolation and model difference, coverage comes from the checklist.
 
 ---
 
@@ -59,7 +63,7 @@ npx skills update okteam99/teamwork
 # Feature (full requirement → design → dev → test → acceptance → delivery)
 /teamwork implement user login
 
-# Small change (lightweight Feature — roster/clarity scale the ceremony down)
+# Small change (lightweight Feature — assembly scales down to the tiny/lite tier)
 /teamwork add an export-CSV button to the user list
 
 # Micro preset (zero-logic change — copy / style / asset replacement)
@@ -81,7 +85,7 @@ npx skills update okteam99/teamwork
 |-------|-----|-----|
 | Start | Give a one-line requirement | PMO initial analysis + flow-type identification + full step description |
 | Confirm flow | Reply ok / feedback | Read the necessary knowledge-base docs · start the flow |
-| PRD | Wait / correct | PM drafts PRD + multi-role parallel review + converge |
+| PRD | Wait / correct | PM drafts PRD + N isolated cold-review lanes (one shared checklist) + converge |
 | Confirm PRD | Reply ok | — |
 | Design | Wait | Designer produces UI + syncs the panorama |
 | Tech plan | Wait | RD drafts TECH + QA drafts TC + architect + third-perspective review |
@@ -128,9 +132,9 @@ The teamwork entry is PMO's main-conversation **5-mode triage** — it looks onl
 
 **Principle**: start on demand · pick the right flow for the goal.
 
-## Flow Types — Which One (closed set · contracted in v8.220-223)
+## Flow Types — Which One (closed set)
 
-Machine layer: `flow_type ∈ {Feature, Bug}` plus a Feature weight preset `preset ∈ {full, micro}`. Lightweight work is carried by the **dynamic reviewer roster + clarity** dimensions (no separate "Agile" type anymore); legacy names ("Agile requirement", "Micro") are aliases that auto-map.
+Machine layer: `flow_type ∈ {Feature, Bug}` plus a Feature weight preset `preset ∈ {micro, floor, tiny, lite, medium, full}` (**six tiers — named combinations of the four dimensions**, not six separate flows). Weight is carried by **four-dimension assembly**; a tier is only the starting point — you still re-check each dimension after picking one.
 
 | Flow | Use case | Output | Default pause points |
 |------|----------|--------|----------------------|
@@ -162,25 +166,29 @@ Pause-point options are numbered (💡 recommended item first, the last option i
 
 By default teamwork **stops at every user-decision pause point** for your confirmation. Two opt-in levels raise the automation:
 
-- **`auto_mode`**: the AI handles **stage-to-stage flow** for you — it only auto-accepts + documents "user-decision" pause points (e.g. PRD / UI confirmation, with a `concerns WARN` left for audit); **review work (multi-role + third-perspective isolated cold review) still runs for real**.
+- **`auto_mode`**: the AI handles **stage-to-stage flow** for you — it only auto-accepts + documents "user-decision" pause points (e.g. PRD / UI confirmation, with a `concerns WARN` left for audit); **review work (N isolated cold-review lanes with staggered models) still runs for real**.
 - **`yolo` (v8.63 · fully unattended · 🔴 high-risk)**: a superset of `auto_mode` with **zero stops** (even PM acceptance + MR merge are automatic). Enable with `init-feature --yolo [<integration-branch>]` (implies `auto_mode`); switch mid-flow via `state.py set-mode --feature <F> --yolo [<branch>] --reason '...'` (audited — don't raw-write `state.json`).
 
-🔴 **yolo is NOT "simplify / speed up" — it's "heavier review"**: unattended = nobody watching → automated review is the only safety net and must be kept / strengthened, **never weakened**. All three review perspectives (architect + QA + independent third) run in full, none dropped; 🔴 v8.204: the third perspective **defaults to same-model subagent isolated cold review** (external heterogeneous is off by default · saves CLI cold-start) · cross-model heterogeneous is an opt-in upgrade. Zero-stop applies **only** to human-decision points (prepare / pm_acceptance / MR merge); review roles, the third-perspective cold review (default) / real heterogeneous call (opt-in · verified via real run logs), and test rounds all run in full. Failures / blockers / exhausted retries / bypass are **resolved autonomously by the AI** (priority: resolve > bypass; bypass is a last resort after exhausting fixes, always WARN-logged — `bypass_log` frequency = yolo health).
+🔴 **yolo is NOT "simplify / speed up" — it's "heavier review"**: unattended = nobody watching → automated review is the only safety net and must be kept / strengthened, **never weakened**. Every configured review lane **runs for real, none dropped** (lane count comes from assembly · each lane runs the full three-section checklist) · the third perspective is a **model-staggered isolated subagent cold review** (the only form). 🔴 **Merges must land on a `yolo/` isolation branch first**: each feature records its open questions on that branch, confirmed in one pass when the yolo branch merges to its target.
 
 🔴 **Hard gate**: a yolo `merge_target` **must be a non-main branch** (main / master) — auto-merges only land on integration branches like `dev` / `staging` / `integration`; promotion to the main branch stays **human-gated**. Give yolo a dedicated integration branch (e.g. `--yolo yolo/feat-x`) to isolate auto-merged code. Per-feature opt-in (not sticky · passed explicitly each time).
 
-### Role System
+### Specialties and Review
 
-- **PMO** (flow orchestration): accept user input → identify flow → schedule roles → maintain the state machine → pre-checks and pause points
-- **Product Lead (PL)**: product direction. Onboarding mode (build product-overview from scratch) / discussion mode (business topics) / execution mode (change cascade + Change Request lifecycle)
-- **PM**: PRD + structured AC + final acceptance
-- **Designer**: UI restoration + panorama (sitemap + preview)
-- **Architect**: Tech Review (Blueprint) + Code Review (Review Stage) + ARCHITECTURE.md maintenance + ADR decisions
-- **QA**: TC (AC↔test binding) + TC tech review (Blueprint) + Code Review + integration tests / API E2E
-- **RD**: TDD implementation + unit tests + self-check + bug investigation report
-- **Third-perspective Reviewer**: independent third-perspective code review (default same-model isolated cold review · opt-in cross-model heterogeneous codex / claude · independent-stance hard constraint)
+**Process specialties** (drafting side — still split by discipline):
 
-Role collaboration **defaults to main-conversation identity switching** — switching roles = switching checklists + forced re-read; PMO may dispatch a subagent on demand to execute tasks within a stage (context isolation · especially useful on small-context-window hosts), while stage orchestration and state.py commands always stay with the PMO main conversation.
+- **PMO** (orchestration): take user input → identify the flow → maintain the state machine → pre-checks and pause points
+- **Product Lead (PL)**: product direction. Guided mode (build product-overview from zero) / discussion mode / execution mode (change cascade + Change Request lifecycle)
+- **PM**: PRD + structured ACs + final acceptance
+- **Designer**: UI fidelity + panorama (sitemap + preview)
+- **RD**: TECH drafting + implementation + self-check
+- **QA**: TC drafting (AC↔test binding) + integration / API E2E tests
+
+**Review is not sliced by role**: each stage has one shared cold-review checklist, and however many lanes are configured, **all of them run the full checklist**. The `pl` / `external` / `architect` entries in the roster are **lane labels** — they decide where the artifact lands and whether the lane is cross-session isolated, **not what gets checked**. Assembly only dials **lane count × model**.
+
+> Why it changed: slicing by role leaves seams — "is this item PL's or external's?" — and whatever nobody owns gets missed. Annual audit evidence: direction-checklist review produced 2.1× the findings of role-focus review. The **perspectives** (technical soundness, test coverage, …) are still there — as checklist items, not as separate seats.
+
+Orchestration and `state.py` commands always stay with the PMO main conversation; in-stage work is dispatched to subagents as needed (context isolation · review lanes must be isolated).
 
 ### Cross-Host Compatibility
 
@@ -239,13 +247,17 @@ The YAML frontmatter of PRD.md and TC.md is machine-readable; `acceptance_criter
 
 When tasks are executed directly in the main conversation (PRD discussion, architect review, env setup), artifacts **must be written to disk per the YAML frontmatter spec**. Whichever role perspective produced it, the artifact is treated equally at audit time — nothing gets lost just because it was "discussed in the main conversation".
 
-### Multi-Perspective Review
+### The Cold-Review Checklist (one per stage · every lane runs it)
 
-- **Architect**: technical soundness / performance / security / architecture consistency
-- **QA**: AC item-by-item check against the implementation / test coverage / edge cases
-- **Independent third perspective (External)**: independent review (default: same-model isolated cold review via subagent · cross-model heterogeneous = opt-in via `disable_external_review: false` · when claude is the main window, external = codex), the third perspective always runs once
+Three sections, all mandatory, each gated by machine checks:
 
-The three artifacts are **structurally independent** (each written to its own REVIEW-{role}.md / no cross-reference), machine-verifiable, avoiding the "the last review already said it's fine, so don't look closely" applause effect.
+- ⚔️ **Challenge**: must be phrased as "I tried to prove ⟨X⟩ false, and the result was…" — **ticking a box is not allowed**. Neutral verification flattens challenge items into checkmarks (evidence: the role was always there, yet "is this constraint actually required?" stayed a blind spot — because it was never written as a question).
+- 🔍 **Verify**: feasibility / testability / test authenticity / code-quality blind spots — each lane declares its `coverage`, and "checked, nothing found" is a valid answer.
+- 💡 **Off-checklist insight**: what the checklist didn't ask but you think matters (≥1, or an explicit "none + why"). **Never padding**.
+
+The artifact is a **single REVIEW.md** (frontmatter lists `reviewers` / `review_models` / `coverage` / `outside_checklist_insight` per lane, plus a machine-readable findings ledger); the external lane's cold-review output lands separately under `external-cross-review/*.md`.
+
+🔁 **Verification rounds are scope-locked** (Round 2+): only re-adjudicate last round's open findings plus knock-on effects at the revision sites — **no full re-scan**. New findings must originate from the revision sites, or be BLOCKER-level with an explicit "why round 1 missed this". This is what keeps multi-round review from mining edge cases into "problems".
 
 ### fix-retry Loop
 
@@ -253,7 +265,7 @@ When review / test fails, it retries within the stage (RD fixes the code → re-
 
 ### ADR Decision Records
 
-When a discussion triggers one of the three questions (Why / Options / Tradeoff) and a non-trivial decision is made, an ADR is automatically written to `{Feature}/adrs/`. PMO scans relevant ADRs at the goal/blueprint entry and injects the context, preventing old decisions from being forgotten and re-debated.
+When a discussion triggers one of the three questions (Why / Options / Tradeoff) and a non-trivial decision is made, an ADR is automatically written to `{subproject}/docs/adr/` (**the only location** — never inside the Feature directory). PMO scans relevant ADRs at the goal/blueprint entry and injects the context, preventing old decisions from being forgotten and re-debated.
 
 ### KNOWLEDGE 4-Category Convergence
 
@@ -278,12 +290,13 @@ When teamwork mode A query / E · discuss touches "diagnose / error / check logs
 - **Content distilled by user and AI together**: teamwork doesn't assume a tech stack (K8s vs Docker vs Serverless) · doesn't prescribe specific commands
 - Complementary to [KNOWLEDGE.md](./skills/teamwork/templates/knowledge.md): KNOWLEDGE = pitfalls to watch · TROUBLESHOOTING = operational steps
 
-### External Models — Review-Only
+### Third-Perspective Review — Read-Only
 
-External models codex / claude / gemini are used in teamwork **for read-only review only** · they have no code-write authority (red line R1):
+Cold-review lanes in teamwork are **read-only** · they have no code-write authority (red line R1):
 
-- Review brings in an independent third perspective (default same-model isolated cold review · optional cross-model heterogeneous); independent sampling exposes same-model self-review blind spots
-- External models run read-only · produce only markdown review artifacts · do not modify code
+- Every review lane is an **isolated subagent**, with **models staggered across lanes** (at least one ≠ the session's main model); independent sampling exposes same-model self-review blind spots
+- Review lanes produce markdown artifacts only · they do not modify code
+- 📎 **Cross-vendor CLI heterogeneity (codex / gemini) has been retired**: cold starts, slow security-review paths and login failure modes slowed the flow badly, while same-vendor model stagger already delivers the independence benefit
 
 ### Evidence-Binding Materialized Interception
 
@@ -312,7 +325,7 @@ Teamwork's 9 core red lines — 8 of them materially enforced by the `state.py` 
 | Red line | Content (one-liner) |
 |----------|---------------------|
 | **R1** Code-write authority to RD | Code / tests / build config executed by the RD role; external models review-only |
-| **R2** Flow-type closed-set | `{Feature, Bug}` + preset `{full, micro}` (v8.220-223) + non-state-machine Planning / Investigation · no self-invented variants |
+| **R2** Flow-type closed-set | `{Feature, Bug}` + preset `{micro, floor, tiny, lite, medium, full}` + non-state-machine Planning / Investigation · no self-invented variants |
 | **R3** PMO unified intake | All user input is taken by PMO first · no other role responds directly |
 | **R4** Flow boundary | No simplification (no skipping stages) / no inflation (no inserting pauses at auto-advance nodes) / must give step description |
 | **R5** Pause-point protocol | Must await user confirmation + give 💡 recommendation + numbered (single decision 1/2/3 · multi-decision 1A 2B) |
