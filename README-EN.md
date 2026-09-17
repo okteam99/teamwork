@@ -1,6 +1,6 @@
 # Teamwork
 
-An AI works from a team-collaboration perspective — through **flow orchestration + role-perspective switching + contractualized stages + a machine-readable state machine** — to drive the complete software lifecycle from product planning to delivery.
+An AI works from a team-collaboration perspective — through **flow orchestration + perspective switching + contractualized stages + a machine-readable state machine** — to drive the complete software lifecycle from product planning to delivery.
 
 [中文](./README.md) · Version: **v8.360** (version source of truth = [SKILL.md](./skills/teamwork/SKILL.md) frontmatter)
 
@@ -245,7 +245,7 @@ The YAML frontmatter of PRD.md and TC.md is machine-readable; `acceptance_criter
 
 ### Main-Conversation Artifact Protocol
 
-When tasks are executed directly in the main conversation (PRD discussion, architect review, env setup), artifacts **must be written to disk per the YAML frontmatter spec**. Whichever role perspective produced it, the artifact is treated equally at audit time — nothing gets lost just because it was "discussed in the main conversation".
+When tasks are executed directly in the main conversation (PRD discussion, integrating and revising the plan, environment setup), artifacts **must be written to disk with the standard YAML frontmatter** — audited on the same footing as subagent output. 🔴 **Review is not one of them** — cold review always runs in an isolated subagent: self-review in the main conversation means the same context and therefore no independence (a framework red line, enforced by a machine gate).
 
 ### The Cold-Review Checklist (one per stage · every lane runs it)
 

@@ -1,6 +1,6 @@
 # Teamwork
 
-AI 从团队协作视角出发，通过**流程编排 + 角色视角切换 + 契约化 Stage + 机读状态机**，驱动从产品规划到交付的完整软件研发流程。
+AI 从团队协作视角出发，通过**流程编排 + 视角切换 + 契约化 Stage + 机读状态机**，驱动从产品规划到交付的完整软件研发流程。
 
 [English](./README-EN.md) · Version: **v8.360**（版本单源 = [SKILL.md](./skills/teamwork/SKILL.md) frontmatter）
 
@@ -249,7 +249,7 @@ PRD.md 和 TC.md 头部 YAML frontmatter 机读化，`acceptance_criteria[].id` 
 
 ### 主对话产物协议
 
-主对话直接执行任务（PRD 讨论、架构师 review、环境启动）时，产物**必须按 YAML frontmatter 规范落盘**。无论在哪个角色视角下产出，审计时一视同仁，不会因为"在主对话讨论的"就找不回去。
+主对话直接执行任务（PRD 讨论、方案整合与修订、环境启动）时，产物**必须按 YAML frontmatter 规范落盘**，审计时与 subagent 产出一视同仁。🔴 **评审不在此列** —— 冷审一律走隔离 subagent：主对话自评 = 同上下文 = 没有独立性（框架红线，机器门拦）。
 
 ### 冷审清单（每 stage 一份 · N 路都过）
 
