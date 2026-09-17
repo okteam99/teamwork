@@ -33,12 +33,12 @@ class TestFallbackPlainColumn(unittest.TestCase):
         v8.277 目的 = 暂停点贴出的表别丢列;原手段 = 两表同构。但同一文件里实测到该模式的漂移
         (§3 与 Output Contract 对 TECH 段落给出 9 段 vs 5 段两份矛盾清单)—— 只有一处定义才不会漂。
         """
-        self.assertIn("照抄 TECH §兜底清单", self.bp)
+        self.assertIn("照抄 TECH §兜底与守卫清单", self.bp)  # v8.360 正名:guard 类原先漏网
         self.assertIn("💬 大白话列", self.bp)          # 列要求仍在暂停点可见
         self.assertNotIn("| 兜底 | 💬 大白话 | 保护什么失败场景", self.bp)  # 不再有第二份定义
 
     def test_tech_is_single_source(self):
         """tech.md 是兜底清单的唯一定义处 · 列顺序:兜底 → 💬 大白话 → …"""
         cols = [c.strip() for c in _fallback_header(self.tech).strip().strip("|").split("|")]
-        self.assertEqual(cols[0], "兜底")
+        self.assertEqual(cols[0], "兜底/守卫")  # v8.360:DB CHECK/trigger/断言同表算账
         self.assertEqual(cols[1], "💬 大白话")
