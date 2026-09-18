@@ -3105,6 +3105,25 @@ def cmd_yolo_promote(args: argparse.Namespace) -> None:
     })
 
 
+def _finalize_merged_feature(feature: str) -> dict:
+    """在主工作区调用既有 ship2，保留其交付校验、脏文件保护与决策结果。"""
+    feature_path = str(Path(feature).resolve())
+    worktrees = _list_worktrees(feature_path)
+    if not worktrees:
+        return {"verdict": "FAIL", "error": "无法定位主工作区，未执行 ship-finalize"}
+    try:
+        result = subprocess.run(
+            [sys.executable, str(Path(__file__).with_name("state.py")),
+             "ship-finalize", "--feature", feature_path],
+            cwd=worktrees[0]["path"], capture_output=True, text=True)
+        payload = json.loads(result.stdout)
+        if result.returncode and payload.get("verdict") == "PASS":
+            payload["verdict"] = "FAIL"
+        return payload
+    except (OSError, ValueError) as exc:
+        return {"verdict": "FAIL", "error": f"ship-finalize 执行失败: {exc}"}
+
+
 def cmd_await_merge(args: argparse.Namespace) -> None:
     """v8.198:MR 等待窗轮询(30s)· 合并即自动进下一步(ship-finalize / 规划 finalize)。
 
@@ -3171,9 +3190,17 @@ def cmd_await_merge(args: argparse.Namespace) -> None:
                 print(f"ℹ️ CI 红但归因为 base 预存在({', '.join(theirs) or 'pipeline'})· "
                       f"非本 feature 引入 · 继续等待合并(不去追别人的账)", file=sys.stderr)
         if stt == "MERGED":
-            nxt = ("state.py ship-finalize --feature <worktree 内 feature 路径>(ship2 清场)"
-                   if feature else
-                   "规划 finalize:cd 主工作区 → git worktree remove <planning-worktree> → "
+            if feature:
+                finalized = _finalize_merged_feature(feature)
+                complete = (finalized.get("verdict") == "PASS"
+                            and not finalized.get("main_sync_decision")
+                            and not finalized.get("warnings"))
+                emit_json({"verdict": "MERGED", "command": "await-merge", "mr_url": mr_url,
+                           "checks": i + 1, "ci_status": ci, "finalize": finalized,
+                           "next_action": ("ship-finalize 已执行，清场完成" if complete else
+                                           "MR 已合并；收尾仍需处理，见 finalize 的错误/决策与下一步")},
+                          exit_code=0 if complete else 1)
+            nxt = ("规划 finalize:cd 主工作区 → git worktree remove <planning-worktree> → "
                    "state.py main-sync --merge-target <mt>")
             emit_json({"verdict": "MERGED", "command": "await-merge", "mr_url": mr_url,
                        "checks": i + 1, "ci_status": ci,
@@ -3325,7 +3352,7 @@ def register_v8_ship_subparser(sub) -> None:
     yp.set_defaults(func=cmd_yolo_promote)
 
     am = sub.add_parser("await-merge",
-                        help="[v8.198] 轮询 MR 状态(默认 30s×18)· MERGED→emit 下一步(ship-finalize/规划 finalize)· WAITING→重跑续等")
+                        help="轮询 MR 状态 · MERGED+feature→执行 ship-finalize；仅 URL→返回规划收尾指引 · WAITING→续等")
     am.add_argument("--feature", help="feature 路径(读 state.ship.mr_url)· 与 --mr-url 二选一")
     am.add_argument("--mr-url", help="MR/PR URL 直传(规划收尾等无 state 场景)")
     am.add_argument("--interval", type=int, default=30, help="轮询间隔秒(默认 30)")

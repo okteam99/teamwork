@@ -420,5 +420,33 @@ class TestMainSyncFeatureless(unittest.TestCase):
             shutil.rmtree(tmp, ignore_errors=True)
 
 
+class TestAwaitMergeFinalizes(_ShipFlowBase):
+    def test_merged_monitor_removes_real_worktree_and_syncs_main(self):
+        """只 mock 平台状态；归档、远程合入、ship2 与 worktree 删除全部真实执行。"""
+        from argparse import Namespace
+        from contextlib import chdir, redirect_stdout
+        from unittest.mock import patch
+        import _v8_ship as SH
+
+        _, archived = self._archive("--no-planning-changes", "--archive-desc", "Monitor fixture")
+        self.assertEqual(archived["verdict"], "PASS", archived)
+        self._push_branch()
+        _git(self.wt, "branch", f"--set-upstream-to=origin/{self.branch}")
+        self._merge_mr()
+        output = io.StringIO()
+        with patch.dict(os.environ), chdir(self.wt), redirect_stdout(output), \
+             patch.object(SH, "_mr_state", return_value="MERGED"), \
+             patch.object(SH, "_ci_with_attribution", return_value={"status": "passing"}):
+            os.environ.pop("TEAMWORK_BYPASS_MAIN_WORKTREE", None)
+            with self.assertRaises(SystemExit) as exited:
+                SH.cmd_await_merge(Namespace(feature=self.feature_arg, mr_url="https://example.invalid/1",
+                                   base="main", interval=5, max_checks=1, until_final=True))
+        result = json.loads(output.getvalue())
+        self.assertEqual(exited.exception.code, 0, result)
+        self.assertEqual(result["finalize"]["verdict"], "PASS", result)
+        self.assertFalse(self.wt.exists(), "监控结束后必须真正删掉 worktree")
+        self.assertTrue((self.main / self.zip_rel).exists(), "主工作区必须同步到已合入归档")
+
+
 if __name__ == "__main__":
     unittest.main()

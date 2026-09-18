@@ -38,6 +38,8 @@ def _flow_key(state: dict) -> str:
     _blueprint_skipped(state),别往这个函数里加第四个返回值。"""
     ft = state.get("flow_type") or ""
     pre = state.get("preset") or "full"
+    if ft == "Feature" and _dims(state):
+        return "Feature"  # 有计划时按实际链判文档/证据要求，preset 仅记录起手档。
     if ft == "Feature" and pre in ("micro", "tiny", "floor"):
         # 🔴 三实现必须同口径(state.py._STRUCTURAL_PRESETS / engine._STRUCTURAL_PRESETS)——
         # v8.343 加 floor 档时漏了这一处,state.py/engine 给 "Floor" 而这里给 "Feature"
@@ -775,6 +777,27 @@ _CROSS_REVIEW_COVERAGE_HINTS = {
 }
 
 
+def _external_results(state: dict, feature: Path, stage: str) -> list:
+    """当前阶段的实际结果；新派发还必须匹配请求 ID 和被审 commit。
+
+    存量未记录请求的 feature 仍按阶段文件名读取；prompt 永远不是结果。
+    三个外审门共用这个选择器，避免各自扫描整个 feature 的历史报告。
+    """
+    request = (state.get("stage_contracts") or {}).get(stage, {}).get("external_review_request") or {}
+    results = {}
+    for path in sorted((feature / "external-cross-review").glob(f"{stage}-*.md")):
+        fm = parse_frontmatter(path) or {}
+        if request and (str(fm.get("review_request_id", "")) != request["request_id"]
+                        or str(fm.get("target_commit", "")) != request["target_commit"]):
+            continue
+        # 固定文件名的验证轮替代同一路旧结果，不能把同一路两轮算作两个模型席位。
+        lane = path.stem.removesuffix("-fixverify")
+        old = results.get(lane)
+        if old is None or path.stat().st_mtime_ns >= old[0].stat().st_mtime_ns:
+            results[lane] = (path, fm)
+    return list(results.values())
+
+
 def _evidence_cross_review_coverage(state: dict, args) -> tuple[bool, str]:
     """v8.244:blueprint/review 外审覆盖方向制物化 —— roster 含 external 时,
     external-cross-review/*.md 至少一份含 coverage 申报(对称 goal 的 external_coverage_present)。
@@ -786,8 +809,7 @@ def _evidence_cross_review_coverage(state: dict, args) -> tuple[bool, str]:
     roles = [str(r).lower() for r in (state.get("stage_review_roles") or {}).get(stage, [])]
     if "external" not in roles:
         return True, ""
-    d = Path(args.feature) / "external-cross-review"
-    files = sorted(d.glob("*.md")) if d.is_dir() else []
+    files = [p for p, _ in _external_results(state, Path(args.feature), stage)]
     if not files:
         return False, "external-cross-review/ 无产物 · 无法校验 coverage 申报(第三视角产物门同拦)"
     for f in files:
@@ -1065,9 +1087,9 @@ def _evidence_review_models_staggered(primary_filename: str):
                 role, _, m = str(item).partition(":")
                 if m.strip():
                     models[f"主审:{role.strip()}"] = m.strip().lower()
-        ext_dir = feature / "external-cross-review"
-        for f in sorted(ext_dir.glob("*.md")) if ext_dir.exists() else []:
-            efm = parse_frontmatter(f) or {}
+        stage = {"PRD-REVIEW.md": "goal", "TECH-REVIEW.md": "blueprint",
+                 "REVIEW.md": "review"}[primary_filename]
+        for f, efm in _external_results(state, feature, stage):
             if str(efm.get("review_via", "")).strip().lower() == "ultra-ingest":
                 continue  # 产品化多智能体 · 模型不由本框架派发
             m = str(efm.get("review_model", "")).strip()
@@ -1360,7 +1382,7 @@ def _dev_brief(state: dict) -> str:
     复制一份 = 下次改规则时漏掉一份。
     """
     flow = _flow_key(state)
-    if flow == "Tiny":
+    if _on_chain(state, "goal") is False or (not _dims(state) and flow == "Tiny"):
         spec_line = (
             "🎚️ **tiny 档 · 零文档**:规格 = **本 brief 的理解卡**(下方「本次要做什么」)—— 无 PRD / TECH / TC。"
             "🔴 开工前先把理解卡**回显一遍**(要做什么 / 碰哪些文件 / 完成长什么样)· 与用户原话对不上就先问,"
@@ -1886,7 +1908,7 @@ QA 起草 TC(BDD)**∥** RD 起草 TECH(🎚️ **TECH 起草与评审必用主�
 
 ### 结果(完成判定)
 - `TC.md`(frontmatter:`tests` · verify-ac.py 通过)
-- `TECH.md`(照 `templates/tech.md` 全结构:现状基线 / 模块 / 数据〔🔴 v8.255 变更最小化四问:复用既有/应用层算/不入库/并入扩展列 · 全否才入变更表 · 每项带「解决什么问题 + 为何非更简方案不可」〕/ 接口 / **错误处理+日志** / **依赖与影响**〔消费方清单〕/ **查询性能与数据量**〔涉批量读取 · 🔴 查询+搬运两段都算 · 兜底≠够快 · 够快带规格〕/ 测试策略 / 风险 / **完工自查槽** / 🛡️ **兜底清单**〔v8.266 按 ROI 取舍:概率×后果 vs 成本 · 立得住做立不住砍 · 保留的列清单随 §7.5 透出〕)
+- `TECH.md`(照 `templates/tech.md` 全结构:现状基线 / 模块 / 数据〔🔴 v8.255 变更最小化四问:复用既有/应用层算/不入库/并入扩展列 · 全否才入变更表 · 每项带「解决什么问题 + 为何非更简方案不可」〕/ 接口 / **错误处理+日志** / **依赖与影响**〔消费方清单〕/ **查询性能与数据量**〔涉批量读取 · 🔴 查询+搬运两段都算 · 兜底≠够快 · 够快带规格〕/ 测试策略 / 风险 / **完工自查槽** / 🛡️ **兜底与守卫清单**〔含 DB CHECK/约束/trigger/前置断言/常驻门禁 · ❗ **先问「删了行为会变吗」**(不变 = 纯冗余直接删)**再**按 ROI 取舍:概率×后果 vs 成本 · 保留的列清单随 §7.5 透出〕)
 - `TECH-REVIEW.md`(frontmatter:`reviewers` 逐路 + `verdict` + `review_models` + 🔴 `outside_checklist_insight` 💡 清单外洞察 · 🔴 **每路都交全清单三段**)
 - `{{artifact_root}}/external-cross-review/*.md`(roster 含 external 时至少 1 份 · 🔴 含 `coverage: [...]` 申报——必覆盖 可测试〔TC 质量/测试策略〕· 方案盲区〔依赖/影响面/迁移风险〕+ AI 自主方向 ≥1〔候选:数据一致性/迁移风险/性能/安全边界〕· 每方向 finding 或「查过无发现」)
 
@@ -1896,7 +1918,7 @@ QA 起草 TC(BDD)**∥** RD 起草 TECH(🎚️ **TECH 起草与评审必用主�
 起草对照 `standards/tech-rules.md`**(三时点必读之一 · 起草重点 §三 方案与架构门:FK 决策 / Schema 影响分析 / API 契约链 —— **起草时带着门想 · 起草读的就是 review 会查的**)+ 项目 `project-specs/DEV-RULES.md` / `ARCHITECTURE.md` 同读(冲突以项目为准)。
 
 🔴 v8.217 持续分诊(降级触发):TECH 写完若复杂度评估=**简单**且零架构决策 · 而 roster 仍重 → 可提议降级(R5 一句确认 → `change-review-roles --reason`)—— 分诊不是一次性的 · 每个 gate 都可重校准(升级触发已有 · 本条补反向)。\n🔴 v8.216 评审配置动态化:external 跑不跑 = **按 `state.stage_review_roles.blueprint`**(prepare 按角色价值判定 · 去 external → gate 自动放行 · 审计留痕)· review 阶段 roster 独立判定(明确 ≠ 不会写错)。\n🔴 **TECH 方案涉及数据库数据结构变更**(新建/删除/修改 表、字段、索引、约束、migration)·
-blueprint-complete 前必 emit R5 用户确认暂停点(stage.md §7.5 · v8.265 双触发:DB 变更 **或 🛡️ TECH 兜底清单非空**〔安全/降级兜底不许默默做 · 必用户拍板〕)· 🔴 暂停点**必自带变更点明细表**(对象|变更|**解决什么问题**|**为何非更简方案不可**|破坏性 每对象一行 + 关键迁移策略 —— 分类概括/文件指针不算〔v8.242 实证:概括式 emit 逼用户追问〕· 只写「内容」不写「为什么」也不算〔v8.255 实证:三张新表无一句动机 · 用户点名要目的与更简方案质询〕)· 不涉及则跳过。
+blueprint-complete 前必 emit R5 用户确认暂停点(stage.md §7.5 · 双触发:DB 变更 **或 🛡️ TECH 兜底与守卫清单非空**〔兜底**与守卫**(DB CHECK/约束/trigger/前置断言/常驻门禁)都不许默默做 · 必用户拍板〕)· 🔴 暂停点**必自带变更点明细表**(对象|变更|**解决什么问题**|**为何非更简方案不可**|破坏性 每对象一行 + 关键迁移策略 —— 分类概括/文件指针不算〔v8.242 实证:概括式 emit 逼用户追问〕· 只写「内容」不写「为什么」也不算〔v8.255 实证:三张新表无一句动机 · 用户点名要目的与更简方案质询〕)· 不涉及则跳过。
 
 ### 完成方式
 ```
@@ -1983,7 +2005,7 @@ def _evidence_ac_test_binding(state: dict, args) -> tuple[bool, str]:
         (实证 supersdk)—— test-refs 模式**校验引用真实存在**,不只校验非空。
     """
     flow_type = _flow_key(state)
-    if flow_type in ("Bug", "Micro", "Tiny"):
+    if _on_chain(state, "goal") is False or flow_type in ("Bug", "Micro", "Tiny"):
         return True, f"skipped({flow_type} 流程无 PRD/TC · 规格 = bugfix/BUG-*.md / 理解卡 / 直改)"
 
     feature_dir = Path(args.feature)
@@ -2099,7 +2121,7 @@ def _evidence_external_review_artifact(state: dict, args) -> tuple[bool, str]:
       ② **必须照实申报模型**(`review_model` 非空)—— 供台账核「错开」是否真发生。
     roster 不含 external → skip(change-review-roles 调整已留 audit)。
     """
-    current_stage = state.get("current_stage", "")
+    current_stage = state.get("current_stage") or "review"
     roles_map = state.get("stage_review_roles", {}) or {}
     stage_roles = roles_map.get(current_stage, [])
     # 🔴 v8.305:**空 roster = 本 stage 不要求评审**(与 `reviewers_match` 的 `if not required: return True`
@@ -2118,16 +2140,14 @@ def _evidence_external_review_artifact(state: dict, args) -> tuple[bool, str]:
         if "external" not in stage_roles:
             return True, (f"skipped(external 不在 stage_review_roles.{current_stage}={stage_roles}"
                           + (" —— 该 stage 未列入 roster · 有意不评审)" if current_stage not in roles_map else ")"))
-    external_dir = Path(args.feature) / "external-cross-review"
-    md_files = list(external_dir.glob("*.md")) if external_dir.exists() else []
-    if not md_files:
+    results = _external_results(state, Path(args.feature), current_stage)
+    if not results:
         return False, (
-            "external-cross-review/*.md 为空 —— 跑 `state.py external-review --feature <path> "
+            f"external-cross-review/{current_stage}-*.md 为空或不匹配本轮请求/target_commit —— 跑 `state.py external-review --feature <path> "
             f"--stage {current_stage or '<stage>'}` 拿 subagent 配方(错开模型冷审)· "
             "或 `change-review-roles` 移除 external")
     bad, has_subagent_artifact = [], False
-    for f in md_files:
-        fm = parse_frontmatter(f) or {}
+    for f, fm in results:
         via = str(fm.get("review_via", "")).strip().lower()
         if via == "ultra-ingest":
             continue  # /code-review ultra 摄入 · 独立性由产品化多智能体保证 · provenance 是会话转录
@@ -2165,7 +2185,7 @@ def _evidence_external_review_artifact(state: dict, args) -> tuple[bool, str]:
             + "-*.md` 不存在 —— 无人值守时产物可被直接手写自盖章(治本 WS-002 「mode: yolo-internalized」)。"
             "跑 `state.py external-review --feature <path> --stage " + (current_stage or "<stage>")
             + "` 拿配方(它会落 prompt doc)· 再起错开模型 subagent 产出评审。")
-    return True, f"external-cross-review/ {len(md_files)} 份(subagent 冷审 · 已申报模型)"
+    return True, f"external-cross-review/ {len(results)} 份(本阶段冷审 · 已申报模型)"
 
 
 BLUEPRINT_SPEC = StageSpec(
@@ -2512,15 +2532,7 @@ def _evidence_review_findings_gate(state: dict, args) -> tuple[bool, str]:
 
 
 def _evidence_external_verified_after_fix(state: dict, args) -> tuple[bool, str]:
-    """APPROVE 收口前的「修复后 external 验过」轻量物化(验证轮 external 频率规则):
-
-    条件全满足才校验:verdict=APPROVE + rounds ≥ 2 + 期间有过 fix_commit。
-    证据 = external-review-prompts/review-*.md(v8.291 配方 doc · 旧 .log 兼容)mtime >
-    最后一次 fix_at;降级路径(subagent 无 .log)认 external-cross-review/ 内
-    frontmatter `degraded: true` 的 review-*.md mtime。
-    跳过:
-    stage_review_roles.review 已去 external(change-review-roles 留痕)。
-    """
+    """修复后的实际评审结果必须覆盖最后一个 fix commit；派发 prompt 不算结果。"""
     if getattr(args, "verdict", None) != "APPROVE":
         return True, ""
     rounds = (state.get("stage_contracts", {}).get("review", {}).get("rounds")) or []
@@ -2537,33 +2549,33 @@ def _evidence_external_verified_after_fix(state: dict, args) -> tuple[bool, str]
     if _roles_map and "external" not in stage_roles:
         return True, f"skipped(external 不在 stage_review_roles.review={stage_roles})"
     from datetime import datetime, timezone
-    last_fix_at = max(fix_ats)
+    import subprocess
+    latest_fix = next(r for r in reversed(rounds)
+                      if isinstance(r, dict) and r.get("fix_commit") and r.get("fix_at"))
     try:
-        fix_epoch = (datetime.strptime(last_fix_at, "%Y-%m-%dT%H:%M:%SZ")
-                     .replace(tzinfo=timezone.utc).timestamp())
+        fix_epoch = datetime.strptime(latest_fix["fix_at"], "%Y-%m-%dT%H:%M:%SZ").replace(
+            tzinfo=timezone.utc).timestamp()
     except (ValueError, TypeError):
-        return True, ""  # fix_at 异常 · 不阻塞(审计另查)
-    candidates: list = []
-    prompts_dir = feature_dir / "external-review-prompts"
-    if prompts_dir.is_dir():
-        candidates.extend(prompts_dir.glob("review-*.md"))    # v8.291:配方 doc = 实跑证据
-        candidates.extend(prompts_dir.glob("review-*.log"))   # 存量兼容
-    ext_dir = feature_dir / "external-cross-review"
-    if ext_dir.is_dir():
-        for md in ext_dir.glob("review-*.md"):
-            fm = parse_frontmatter(md) or {}
-            if str(fm.get("degraded", "")).lower() == "true":
-                candidates.append(md)
-    try:
-        if any(c.stat().st_mtime > fix_epoch for c in candidates):
+        return False, "最后一次 fix_at 无效，无法确认修复后 external 验证的时序"
+    for path, fm in _external_results(state, feature_dir, "review"):
+        target = str(fm.get("target_commit", "")).strip()
+        if (not target or path.stat().st_mtime < fix_epoch
+                or _capability_blocked_reason(fm, path)
+                or fm.get("review_via") not in ("subagent", "ultra-ingest")):
+            continue
+        if target == latest_fix["fix_commit"]:
             return True, ""
-    except OSError:
-        pass
+        # 结果可以审 fix 之后的提交，但不能是祖先或另一条分支。
+        ancestry = subprocess.run(
+            ["git", "merge-base", "--is-ancestor", latest_fix["fix_commit"], target],
+            cwd=feature_dir, capture_output=True, text=True, timeout=15)
+        if ancestry.returncode == 0:
+            return True, ""
     return False, (
-        f"APPROVE 收口前缺「修复后 external 验证」证据:external-review-prompts/review-*.md "
-        f"无晚于最后一次 fix({last_fix_at})的实跑日志 · 跑 `state.py external-review "
-        f"--feature {args.feature} --stage review --verify-fixes`(增量重验 · 只评上轮已评 "
-        "commit..HEAD 修复 diff · 非全量重跑)后重试"
+        f"APPROVE 收口前缺「修复后 external 验证」结果:须在 external-cross-review/review-*.md "
+        f"记录覆盖 fix {latest_fix['fix_commit']} 的 target_commit，并匹配本轮请求。"
+        f"跑 `state.py external-review --feature {args.feature} --stage review --verify-fixes` "
+        "后必须实际完成 subagent 评审并落结果；prompt/日志本身不能证明评审完成。"
     )
 
 
@@ -2648,7 +2660,7 @@ def _review_brief(state: dict) -> str:
     # v8.342:tiny/lite 单路 architect —— 说清「对照什么审」(两档的规格载体不同),
     # 免得单路 agent 去找一份不存在的 TECH.md。
     _light = ""
-    if _flow_key(state) == "Tiny":
+    if _on_chain(state, "goal") is False or _flow_key(state) == "Tiny":
         _light = ("\n🎚️ **tiny 档单路评审**:roster 默认仅 `[external]` —— 一路**错开模型**隔离冷审 · "
                   "**对照物 = dev brief 的理解卡 + diff 本身**(无 PRD/TECH/TC)· 必覆盖:改动↔理解卡一致 · "
                   "`standards/tech-rules.md` 对照(异常日志/DB 论证/契约消费方)· 测试真实性(有没有真断言)· "
@@ -2835,8 +2847,8 @@ REVIEW_SPEC = StageSpec(
             name="external_verified_after_fix",
             check_fn=_evidence_external_verified_after_fix,
             description=(
-                "APPROVE + rounds≥2 + 有 fix_commit → external-review-prompts/review-*.md "
-                "mtime > 最后 fix_at(roster 去 external 的项目跳过)"
+                "APPROVE + rounds≥2 + 有 fix_commit → 本轮实际外审结果覆盖最后 fix commit "
+                "(prompt 不算完成证据；roster 去 external 的项目跳过)"
             ),
         ),
         # v8.0+P0-9:REVIEW.md reviewers 必含 state.stage_review_roles[review]

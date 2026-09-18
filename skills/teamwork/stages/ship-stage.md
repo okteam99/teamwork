@@ -102,6 +102,7 @@ state.py ship-finalize --feature <worktree 内 feature 目录路径> \
 尾随:teamwork stash 盘点(防自动 stash 堆积埋改动)+ digest 指引(§16)。
 
 **幂等**:可重入(已交付则 noop)。`--feature` 指向 **worktree 内**路径(archive 留下的 untracked state.json = ship2 接力卡)。
+监控带 `--feature` 时会定位主工作区并实际调用此命令，结果放在 `finalize` 字段；失败、PENDING 或仍需人工处理时非零退出，保留原有保护与决策信息。仅 `--mr-url` 的规划监控只返回下一步指引。
 **AI 只在两处干预**:① PENDING(MR 未合 → 等用户);② main_sync_decision(用户改动 → 转 R5(b) 暂停点 · 用户选项后跑 `state.py main-sync --merge-target <mt> --strategy <选项>` —— 不依赖 --feature)。
 
 ### 异常 · close-unmerged

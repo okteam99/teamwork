@@ -346,15 +346,19 @@ class _ReviewFlowCase(unittest.TestCase):
                           "--verdict", verdict, expect_exit=expect_exit)
 
     def _fix_and_touch_log(self, log: bool = True) -> None:
-        """review-fix + (可选)写 fix 后 external 实跑日志(--verify-fixes 证据)。"""
+        """review-fix + (可选)写覆盖 fix commit 的实际外审结果。"""
         rc, head = _git(self.tmp, "rev-parse", "HEAD")
         _run_state(self.tmp, "review-fix", "--feature", self.feat_rel,
                    "--auto-commit", head)
         if log:
-            d = self.feat / "external-review-prompts"
-            d.mkdir(exist_ok=True)
-            time.sleep(0.05)
-            (d / "review-subagent-20990101T000000Z.md").write_text("recipe", encoding="utf-8")
+            self._write_fix_review_result()
+
+    def _write_fix_review_result(self):
+        fix = next(r["fix_commit"] for r in reversed(self._state()["stage_contracts"]["review"]["rounds"])
+                   if r.get("fix_commit"))
+        (self.feat / "external-cross-review" / "review-opus-fixverify.md").write_text(
+            f"---\nreview_via: subagent\nreview_model: opus-subagent\ntarget_commit: {fix}\n"
+            "files_read: [seed.txt]\ncoverage: [fix-verification]\n---\nFix verified.\n", encoding="utf-8")
 
 
 class TestReviewCompleteGateFlow(_ReviewFlowCase):
@@ -422,8 +426,8 @@ class TestReviewCompleteGateFlow(_ReviewFlowCase):
         self.assertEqual(rc["rounds"][1]["new_findings_count"], 0)
         self.assertEqual(rc["rounds"][1]["carried_open_count"], 1)  # F2 仍 open
 
-    def test_approve_after_fix_requires_external_verify_log(self):
-        """rounds≥2 + 有 fix + 无 fix 后 external 日志 → APPROVE FAIL(hint 指 --verify-fixes)。"""
+    def test_approve_after_fix_requires_external_verify_result(self):
+        """日志不是结果；只有实际审过修复 commit 才能 APPROVE。"""
         _write_findings_md(self.feat / "REVIEW.md", "NEEDS_REVISION",
                            [("F1", "MAJOR", "open", "bug")])
         self._complete("NEEDS_REVISION")
@@ -435,11 +439,13 @@ class TestReviewCompleteGateFlow(_ReviewFlowCase):
         failed = {e["name"]: e for e in d["failed_evidence"]}
         self.assertIn("external_verified_after_fix", failed)
         self.assertIn("--verify-fixes", failed["external_verified_after_fix"]["error"])
-        # 补日志后 → PASS
+        # 只补日志仍然 FAIL；补实际结果才 PASS。
         pd = self.feat / "external-review-prompts"
         pd.mkdir(exist_ok=True)
         time.sleep(0.05)
         (pd / "review-codex-20990101T000001Z.log").write_text("ran", encoding="utf-8")
+        self._complete("APPROVE", expect_exit=1)
+        self._write_fix_review_result()
         d = self._complete("APPROVE")
         self.assertEqual(d["verdict"], "PASS")
 
@@ -464,11 +470,13 @@ class TestReviewCompleteGateFlow(_ReviewFlowCase):
         d = self._complete("APPROVE", expect_exit=1)          # 无验证证据 → 拦
         self.assertEqual(d["verdict"], "FAIL")
         self.assertIn("修复后 external 验证", str(d))
-        # 补上 verify 配方 doc(晚于 fix)→ 放行
+        # 补上 verify 配方仍不能放行，须落实际结果。
         pd = self.feat / "external-review-prompts"
         pd.mkdir(exist_ok=True)
         time.sleep(0.05)
         (pd / "review-subagent-fixverify-20990101T000000Z.md").write_text("r", encoding="utf-8")
+        self._complete("APPROVE", expect_exit=1)
+        self._write_fix_review_result()
         d2 = self._complete("APPROVE")
         self.assertEqual(d2["verdict"], "PASS")
 

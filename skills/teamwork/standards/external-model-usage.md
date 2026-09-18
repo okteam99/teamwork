@@ -13,8 +13,8 @@
 | **怎么起** | `state.py external-review --feature <path> --stage <goal\|blueprint\|review>` → emit **subagent 配方**(本命令**不 exec 任何子进程**)· 落 prompt doc(评审指令 + 待评审文件已 inline) |
 | **谁来审** | `Agent` subagent(isolated context)· 🔴 **model 必须 ≠ 会话主模型**(如 fable5 会话 → `model: opus`)—— 独立采样不变式详 [SKILL 🎚️](../SKILL.md) |
 | **不喂什么** | 🔴 **不喂主对话起草心路** —— 白板效应恰是要的独立性(同一 AI 起草完审自己会脑补填缝) |
-| **产物** | `external-cross-review/<stage>-<model>.md` · frontmatter 必含 `review_via: subagent` + `review_model`(照实写)+ `target_commit` + `coverage: [...]` |
-| **门禁** | complete 校验:产物非空 · `review_via: subagent`(**禁主对话热审**)· `review_model` 非空(**禁伪造**)· coverage 申报;🔴 **yolo 额外要 prompt doc**(实跑证据 · 防手写自盖章) |
+| **产物** | `external-cross-review/<stage>-<model>.md` · frontmatter 必含 `review_via: subagent` + `review_model`(照实写)+ `review_request_id` / `target_commit`(从配方原样带回)+ `coverage: [...]` |
+| **门禁** | complete 只读本阶段结果，新派发须匹配请求 ID 与 commit；校验隔离/模型/coverage。修复后须有覆盖 fix commit 的实际结果，prompt 不代表完成；yolo 还须有 prompt doc 证明走过派发命令。 |
 | **增量重验** | `--verify-fixes`(仅 review):只裁决上轮 open finding + 只回归审查修复 diff · 禁全量重扫 |
 
 **为什么 subagent 够用**:独立采样有三层 —— 上下文隔离(冷审)< 同厂商权重错开(**本形态** · 零成本)< 跨厂商异质(已退役 · 成本不成比例)。**前两层已拿到主要收益**;第三层的边际增益不值它的时延。
@@ -37,7 +37,7 @@
 
 🔴 **举证责任对称**:旧规范只逼 reject 给依据 → ADOPT 成了无摩擦默认 = 盲采的温床。**两个方向要求相同** —— 采纳也要写「我质疑了 X · 回读 Y 确认它真成立 · 故这样改对」,不是一句「reviewer 说得对」。
 
-🔴 **安全加固 / 兜底降级 = 过度设计高发区**:external 天然偏加防御层 / 校验 / 重试 / fallback,这两类听着最「负责任」故**最难驳、最易盲采** —— 恰恰最该过 **ROI**(保护的失败场景 概率×后果 vs 实现维护成本)。立不住 → REJECT(「加安全总没错」不是采纳理由);立得住 → ADOPT · 兜底类落 §兜底清单透出。
+🔴 **安全加固 / 兜底降级 = 过度设计高发区**:external 天然偏加防御层 / 校验 / 重试 / fallback,这两类听着最「负责任」故**最难驳、最易盲采** —— 恰恰最该过 **ROI**(保护的失败场景 概率×后果 vs 实现维护成本)。立不住 → REJECT(「加安全总没错」不是采纳理由);立得住 → ADOPT · 落 §兜底与守卫清单透出。❗ **算 ROI 之前先问「删了行为会变吗」** —— 答「不变」(后面必然有另一道拦同一件事)= 纯冗余,直接 REJECT,不进 ROI(ROI 对纯冗余也会算出「保留」)。
 
 ### 2.1 裁决三态(每条落其一 · 带依据)
 
