@@ -1473,6 +1473,16 @@ def cmd_external_ingest(args: argparse.Namespace) -> None:
         emit({"verdict": "FAIL", "action": "external-ingest",
               "error": "内容过短(<40 字)· 不像有效评审结果"}); return
     out = out_dir / f"review-{label}.md"
+    # 摄入也记录实际被审代码；若用于替代本轮 subagent，沿用请求关联而非绕过证据归属。
+    head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=feature_dir,
+                          capture_output=True, text=True, timeout=10)
+    if head.returncode == 0:
+        extra["target_commit"] = head.stdout.strip()
+    if (feature_dir / "state.json").is_file():
+        request = (load_state(args.feature).get("stage_contracts") or {}).get(
+            "review", {}).get("external_review_request") or {}
+        if request:
+            extra["review_request_id"] = request["request_id"]
     fm = (f"---\nreview_via: ultra-ingest\norigin: {origin}\nlabel: {label}\n"
           f"heterogeneous: multi-agent-pipeline\ningested_at: \"{now_iso()}\"\n"
           + "".join(f"{k}: {v}\n" for k, v in extra.items()) + "---\n\n")
@@ -3460,8 +3470,24 @@ def cmd_revise_plan(args: argparse.Namespace) -> None:
         }, ensure_ascii=False, indent=2))
 
     before_chain = derive_chain(dims)
-    plan["dims"] = candidate
     after_chain = derive_chain(candidate)
+    # complete 已把指针推进到下一阶段；修订必须一起调整这个尚未开工的指针。
+    # 不允许把新前置插到已完成的工作之前，否则计划声称会跑、执行却永远跳过。
+    last_done = max((i for i, s in enumerate(after_chain) if s in done), default=-1)
+    inserted_before_done = [s for s in after_chain[:last_done + 1] if s not in done]
+    current = state.get("current_stage")
+    next_current = current
+    if current not in done and current != "completed":
+        next_current = next((s for s in after_chain if s not in done), "completed")
+    active = (state.get("stage_contracts") or {}).get(current, {}).get("input_satisfied")
+    if inserted_before_done or (next_current != current and active):
+        die(2, json.dumps({
+            "verdict": "FAIL", "command": "revise-plan",
+            "error": (f"新前置 {inserted_before_done} 位于已完成工作之前"
+                      if inserted_before_done else f"{current} 已开工，不能作为未开始的阶段移除或改道"),
+            "hint": "阶段边界只修订未执行的部分；需要回炉用 jump-to-stage --reason",
+        }, ensure_ascii=False, indent=2))
+    plan["dims"] = candidate
     plan.setdefault("revisions", []).append({
         "at_stage": state.get("current_stage"),
         "dim": dim,
@@ -3482,6 +3508,15 @@ def cmd_revise_plan(args: argparse.Namespace) -> None:
     for p in REVIEW_POINTS:
         if p in on_chain:
             roles.setdefault(p, [])
+        else:
+            roles.pop(p, None)
+
+    state["current_stage"] = next_current
+    state["legal_next_stages"] = derive_flow_graph(candidate).get(next_current, [])
+    if next_current != current and next_current != "completed":
+        state.setdefault("stage_contracts", {}).setdefault(next_current, {
+            "input_satisfied": False, "process_satisfied": False, "output_satisfied": False,
+        })
 
     atomic_write(state_file, state)
     emit({
@@ -3491,6 +3526,8 @@ def cmd_revise_plan(args: argparse.Namespace) -> None:
         "evidence": args.evidence,
         "chain_before": before_chain,
         "chain_after": after_chain,
+        "current_stage": next_current,
+        "legal_next_stages": state["legal_next_stages"],
         "revisions_total": len(plan["revisions"]),
         "direction": ("加" if len(after_chain) > len(before_chain)
                       else "减" if len(after_chain) < len(before_chain) else "平"),
@@ -3935,9 +3972,8 @@ def cmd_external_review(args: argparse.Namespace) -> None:
               "known_stages": sorted(EXTERNAL_REVIEW_STAGES)})
         sys.exit(1)
 
-    # commit / base:显式参数 > state 的 stage auto_commit > HEAD
-    commit = args.commit or (state.get("stage_contracts", {})
-                             .get(args.stage, {}).get("auto_commit"))
+    # 新一轮默认审当前 HEAD，不复用上一轮 complete 的 auto_commit。
+    commit = args.commit
     if not commit:
         r = subprocess.run(["git", "-C", str(feature_dir), "rev-parse", "HEAD"],
                            capture_output=True, text=True, timeout=10)
@@ -3972,12 +4008,20 @@ def cmd_external_review(args: argparse.Namespace) -> None:
                        f"② 只回归审查 {prior[1]}..{commit} 的修复 diff 引入的新问题。禁全量重扫。\n")
 
     suffix = "fixverify" if verify_fixes else "review"
-    prompt_doc = _new_prompt_doc_path(feature_dir, args.stage, f"subagent-{suffix}")
+    prompt_doc = _new_prompt_doc_path(feature_dir, args.stage, f"subagent-{suffix}",
+                                    ts=datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ"))
+    request = {"request_id": prompt_doc.stem, "target_commit": commit}
+    sub_prompt += (f"\n\n本轮结果 frontmatter 必须原样带上:\n"
+                   f"review_request_id: {request['request_id']}\ntarget_commit: {commit}\n"
+                   f"代码评审基线: {base}\n")
     try:
         prompt_doc.parent.mkdir(parents=True, exist_ok=True)
         prompt_doc.write_text(sub_prompt, encoding="utf-8")
-    except OSError:
-        pass
+    except OSError as exc:
+        emit({"verdict": "FAIL", "command": "external-review", "error": str(exc)})
+        sys.exit(1)
+    state.setdefault("stage_contracts", {}).setdefault(args.stage, {})["external_review_request"] = request
+    atomic_write(state_path(args.feature), state)
 
     target_file = f"external-cross-review/{args.stage}-<model>{'-fixverify' if verify_fixes else ''}.md"
     emit({
@@ -3985,6 +4029,7 @@ def cmd_external_review(args: argparse.Namespace) -> None:
         "command": "external-review",
         "stage": args.stage,
         "target_commit": commit,
+        "review_request_id": request["request_id"],
         "target_base": base,
         "base": base,          # 兼容键(v8.161 测试与旧消费方)
         "base_source": base_source,
@@ -4002,10 +4047,11 @@ def cmd_external_review(args: argparse.Namespace) -> None:
             + ("-fixverify" if verify_fixes else "") + ".md` · frontmatter 必含:\n"
             "       review_model: <subagent 实际用的模型 · 照实写>\n"
             "       review_via: subagent\n"
+            f"       review_request_id: {request['request_id']}\n"
             "       files_read: [<实际读过的文件 · 空 = 能力缺失 · 门禁判 CAPABILITY_BLOCKED>]\n"
             f"       target_commit: {commit}\n"
             "       coverage: [<本次实际覆盖的方向>]\n"
-            "  3. `" + args.stage + "-complete` 门禁校验:产物非空 + `review_via: subagent` + coverage 申报。\n"
+            "  3. `" + args.stage + "-complete` 门禁校验:本阶段、本轮请求与 commit 匹配的实际结果 + 隔离/模型/coverage。\n"
             "  🔴 **禁主对话自评**(热审 = 同上下文 = 无独立性)· **禁伪造/冒充**(照实写实际模型)。"
         ),
         "spec": "standards/external-model-usage.md(裁决纪律 §二)· 模型错开不变式见 SKILL 🎚️",

@@ -180,18 +180,20 @@ PMO 主对话切换角色 · 讨论收敛 · 不需要单独 review artifact。
 6. 其他指示
 ```
 
-🔴 **自动合并硬门(选 1 / 3)**:仅当 `merge_target` **非主分支**(main / master)—— 规划 MR 走**集成分支**(dev/staging)· 纯文档/全景 · 低风险 · 同 yolo「自动合入只进非主分支」风险模型。主分支 / 平台要求审批或 CI 门 / 合并命令被拒 → **自动回退选项 3**(surface + 转人工合)· 绝不 force。
+🔴 **自动合并硬门(选 1 / 3)**:仅当 `merge_target` **非主分支**(main / master)—— 规划 MR 走**集成分支**(dev/staging)· 纯文档/全景 · 低风险 · 同 yolo「自动合入只进非主分支」风险模型。主分支 / 平台要求审批或 CI 门 / 合并命令被拒 → **自动回退选项 4**(surface + 转人工合)· 绝不 force。
 
-**【收尾执行 · commit → 开 MR →(选 1/2)自动合 /(选 3)等合 → finalize】**(= feature ship1+ship2 合流):
+**【收尾执行 · commit → 开 MR →(选 1/3)自动合 /(选 4)等合 → finalize】**(= feature ship1+ship2 合流):
+
+选 2 只继续讨论，不提交/合并/启动 BL；选 5 保留未提交产物；选 6 按用户具体指示处理。
 
 1. **建 MR**(= ship1):**Step 0 worktree 内** `git add` 规划产物 + commit + push planning 分支 + 开 MR(`gh`/`glab` CLI-first · 🔴 **target = `merge_target`**〔集成分支〕· 不走 ship 状态机 · 纯文档/全景 MR)。
 2. **合并**:
-   - **选 1/2** → `gh pr merge` / `glab mr merge`(🔴 非主分支硬门)· 成功即进 finalize;被平台拒(审批/CI/保护)→ 回退选项 3 并 surface 原因。
-   - **选 3** → ⏸️ 给 `<MR URL>` · 用户平台合(或 `state.py await-merge --mr-url <URL>` 30s 轮询 · 合并自动续)→ 合后进 finalize。
+   - **选 1/3** → `gh pr merge` / `glab mr merge`(🔴 非主分支硬门)· 成功即进 finalize;被平台拒(审批/CI/保护)→ 回退选项 4 并 surface 原因。
+   - **选 4** → ⏸️ 给 `<MR URL>` · 用户平台合；`state.py await-merge --mr-url <URL>` 可轮询，但无 feature 接力卡时只返回 MERGED，主对话须接收结果再执行下方 finalize(不能宣称后台会自动清场)。
 3. **finalize**(= ship2 / ship-finalize · 3 步镜像):① `cd <主工作区路径>`(非 planning worktree)② `git worktree remove <planning-worktree-path>`(删不掉 `--force` 兜底)③ `python3 {SKILL_ROOT}/tools/state.py main-sync --merge-target <merge_target> --strategy <commit-push|stash-pull|skip>`(🔴 `--strategy` 必传 · 主工作区干净常态用 `stash-pull`;不依赖 feature · fetch + 按策略 pull · 有用户改动会 surface 净化决策)。
-4. **选 2 追加 · 启动首个 BL**:finalize 完 → 首波 ready BL(`<BL-xxx>` · 取 WS `execution_waves` W1 / `ws-progress` 的 `ready_to_start`)→ prepare → init-feature 进 Feature 状态机。
+4. **选 3 追加 · 启动首个 BL**:finalize 完 → 首波 ready BL(`<BL-xxx>` · 取 WS `execution_waves` W1 / `ws-progress` 的 `ready_to_start`)→ prepare → init-feature 进 Feature 状态机。
 
-🔴 **启动首个 BL 的前提(选 2)**:必须 **finalize 完成后**(集成分支基线**已含规划产物**)· 且是**用户显式选择**(非自动起)· 该 feature 的 `merge_target` = **集成分支**(dev/staging · **不是 planning 分支**)—— 「别叠 feature 在未合并 planning 分支」仍成立(规划已合入 · planning 分支已消亡)。选 1/3 收尾后拆出的 BL 同样由用户后续拍板再 prepare。
+🔴 **启动首个 BL 的前提(选 3)**:必须 **finalize 完成后**(集成分支基线**已含规划产物**)· 且是**用户显式选择**(非自动起)· 该 feature 的 `merge_target` = **集成分支**(dev/staging · **不是 planning 分支**)—— 「别叠 feature 在未合并 planning 分支」仍成立(规划已合入 · planning 分支已消亡)。选 1/4 收尾后拆出的 BL 由用户后续拍板再 prepare。
 
 ---
 

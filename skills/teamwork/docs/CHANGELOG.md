@@ -4,6 +4,14 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.360.4 · 修复评审证据归属、流程修订与合并后清场
+
+- 修正规划收尾的选项编号与执行分支，选 2 仅继续讨论；统一独立冷审的执行规范。
+- 外审结果按阶段筛选，新派发绑定请求 ID 与被审 commit；修复后必须有覆盖最后 fix commit 的实际结果，prompt 不再充当完成证据。
+- `revise-plan` 同步执行位置、合法下一阶段与评审配置；自定义维度的阶段准入与文档要求按实际计划判定。
+- `await-merge --feature` 检测合并后在主工作区实际调用 `ship-finalize`，保留失败、脏文件保护和待决策结果。
+- 验证：新增 20 个回归用例；全量 **1812 passed, 2 subtests passed**；真实临时 Git 仓库验证 worktree 删除与主工作区同步。
+
 ## v8.360 · 防过度防护:先问冗余,再算 ROI(用户拍板)
 
 > 起因 case(SVC-CORE payout 两态 · 财务账本):TECH 列了 7 项 DB 守卫。用户「有必要做这个 check 么,是不是代码保障就好了」→「**你看下还有哪些不必要的 check,减少过渡保护**」→ AI 第二轮自己分出三组,**第一组「纯冗余,建议全删」**:up 前置断言「无 `status='failed'` 行」(紧接着重建的列 CHECK 对存量行本来就会 23514)· 三条常驻 grep 门「零引用」(删掉的表和函数编译期就报错)——「它们只是把后面必然发生的失败提前说清楚,**删了行为不变**」。
@@ -95,35 +103,3 @@
 
 - test_model_tier_coverage_v8357(14)· 全量 **1751 passed**
 - 发版三件套 · 🔴 54(门 <55)
-
-## v8.356 · v8.355 的接线补全(四路 subagent 审计 · 用户要求)
-
-> 用户:「现在你派几个 subagent 整体 review 一下,看下是否有描述冲突、冗余等问题。」
-> 三路审计共报 **33 条**,逐条回读核实**全部成立**,其中 **2 条 P0 + 1 条 P1 是真 bug**。
-> 🔴 **根因是方法错误**:v8.355 按「**我想到的载体**」逐个改,而不是**先 grep 出全部消费方再改** —— 框架自己就有这条规则(「改契约必 grep 消费方 · 不凭记忆」),**没对自己用**。整批漏掉的文件:`claude-agents/` · `FLOWS.md` · `ROLES.md` · `docs/prepare.md` · `docs/conventions.md`。
-
-### 🔴 P0-1 · 0 路冷审是个死锁(门在逼 AI 造假)
-`PRD-REVIEW.md` 的产物 spec **没挂 `review_artifact=True`** —— v8.355 新加的「按路数跳过评审产物」对它**永不生效**;而全仓唯一挂了标记的 TECH-REVIEW 只在 blueprint 出现,blueprint 只在 medium/full 上链且 roster 恒非空 → **那条改动在任何默认档上都是 no-op**,CHANGELOG 里「lite/tiny 同受益」当时是**一句空话**。
-实测复现:lite 档(goal 有意 0 路)只交 PRD.md → FAIL;如实写 0 路记录 → 仍 FAIL;**只有编造一条不存在的裁决才能过**。
-- 修:`PRD-REVIEW.md` 挂 `review_artifact=True`;`review_after_primary` / `prd_verdicts_all_pass` 补 0 路放行。
-- 🔴 修的过程里**又栽了一次 v8.305 的坑**(把「roster 未初始化」当成「有意 0 路」,对存量放松,被既有测试当场抓出)→ 谓词抽成 `_stage_lanes_deliberately_zero` 单函数,并加锁禁止就地重写。
-
-### 🔴 P0-2 · brief 与门直接对立(默认档就踩)
-goal brief 写着「roster 里没有的角色 gate 自动放行(**如去 pl → PL 质疑免**)」,而门 v8.355 起按路数判。medium 档(`goal: ["external"]`)照 brief 写完整单路冷审 → `goal-complete` FAIL,且是唯一拦截项。
-- 修:三份 brief 的派发段与「结果(完成判定)」段全部改为**N 路同一份清单**、逐路交三段;装配卡去掉角色轴(`路数×角色×模型` → `路数×模型`、`几路×谁` → `几路×什么模型`)。
-
-### 🟠 P1-3 · external lane 的 prompt 里根本没有统一清单(写入端没接)
-`claude-agents/reviewer.md` 是 external 冷审 subagent 拿到的**唯一**指令,仍是 pre-v8.355 的 C1–C6 角色式 checklist。实测渲染出的 prompt 关键词计数:`清单外洞察 0 · 对抗 0 · 证否 0 · coverage 0`。而 tiny/lite/medium/Bug 四条默认路径上,review 的**唯一**冷审路就是 external —— 等于 v8.355 的统一清单**在真正干活的那一路上从未生效**,coverage 只能由主对话代笔,而主对话代笔正是该 stage 明令禁止的热审。
-- 修:prompt 模板换成统一三段(⚔️ 按 target 给对抗内容:prd=质疑七问 / blueprint=rival 设计强制 / code=防御与限制必要性)+ 输出 schema 补 `coverage` / `challenge` / `outside_checklist_insight`;测试**验渲染出来的那份**,不只验模板。
-
-### 其余修复
-- **coverage 门仍是角色白名单**(`_REVIEW_MAIN_ROLES = ("architect","qa")`):roster 为 `["pl"]` / `["fast"]` 时与 `cross_review_coverage` 双双放行 = **零 coverage 强制** → 改为「除 external lane 外每路都要」。
-- **💡 洞察门对 lane-first 布局判空**(`## 💡 清单外洞察` + `### <lane>`,与 REVIEW.md 的 per-lane 子键同构):窗口遇任何标题即断 → 改为只在**同级或更高级**标题处断;占位符原样与单字「无」仍被正确拒绝(放宽窗口 ≠ 放松门)。
-- **文档面 28 处**:`goal-stage` 门清单旧触发条件 + 漏列新门 · 产物契约按角色分段 · 清单错置在「不强制全用」的手段菜单里 · medium 仍写 `[fast]`;`ROLES.md` / `FLOWS.md` / `docs/prepare.md` / `docs/conventions.md` 整批补齐;`roles/` 与 `templates/prd.md` 的角色席位残留。
-
-### 🔴 三段规则改为单源(「双载体必漂」的现场教训)
-v8.355 把三段的完整表述**在 SKILL 和三份 stage doc 各写了一遍且没标单源** —— 当场就漂了三处:goal 专属的「质疑七问」被写成通用底线(review 的对抗点与七问无关)· ⚔️ 段禁写口径三处不同(goal 禁「✅ 或查过无发现」、另两处只禁 ✅)· ⚔️ 段的「≥1 条或显式无」只有 goal 写(blueprint/review 的空对抗段不违反任何成文要求)。
-- 修:**SKILL 成为三段通用要求的单源**(证否句式 / 禁写项 / 数量),三份 stage doc 只写**本 stage 查什么** + 指向单源;测试改为「验单源 + 验引用」,不再要求各处重述。
-
-- test_derole_wiring_v8356(19)· 8 份既有测试按新语义重锚 · 全量 **1737 passed**
-- 发版三件套 · 🔴 54(门 <55)· prd.md 339 行(门 <340)

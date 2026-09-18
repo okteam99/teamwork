@@ -44,6 +44,14 @@ class TestCarriers(unittest.TestCase):
         self.assertIn("选项 1 / 3 = 一步到位", t)
         self.assertIn("自动合并硬门(选 1 / 3)", t)
         self.assertNotIn("自动合并硬门(选 1 / 2)", t)
+        # 不只验菜单：执行分支与异常回退同样必须按新编号消费选择。
+        closeout = t.split("### Step 9", 1)[1].split("### Step 10", 1)[0]
+        self.assertIn("选 2 只继续讨论，不提交/合并/启动 BL", closeout)
+        self.assertIn("**选 1/3** → `gh pr merge`", closeout)
+        self.assertIn("**选 4** →", closeout)
+        self.assertIn("**选 3 追加 · 启动首个 BL**", closeout)
+        for stale in ("选 1/2", "回退选项 3", "启动首个 BL 的前提(选 2)"):
+            self.assertNotIn(stale, closeout)
 
 
 if __name__ == "__main__":

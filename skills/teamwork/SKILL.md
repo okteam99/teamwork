@@ -1,6 +1,6 @@
 ---
 name: teamwork
-version: v8.360.3
+version: v8.360.4
 description: AI 协作开发一体化框架 - 需求功能开发, bug 修复, 问题排查 · /teamwork 启动
 ---
 
@@ -69,7 +69,7 @@ state.py ship-phase --action archive --feature <path> --planning-artifacts <翻�
 # → git push + gh/glab 创 feature MR(CLI-first)→ 记录:
 state.py ship-phase --action push --feature <path> --mr-url <真实 URL> ...
 # ⏸️ 贴 emit 的 user_card(MR URL 置顶)+ 📦 交付总结 → 立即跑监控(全模式必跑 · 停 ≠ 停监控):
-state.py await-merge --feature <path>   # 30s 轮询 · 检测 MERGED → 自动 ship-finalize(ship2:验已交付→删 worktree→净化)
+state.py await-merge --feature <path> --until-final   # 30s 轮询 · MERGED → 在主工作区调用 ship-finalize
 # (兜底:轮询不可用时用户合并后手动 cd 回主工作区跑 state.py ship-finalize)
 ```
 

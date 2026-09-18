@@ -819,7 +819,13 @@ def execute_stage_start(
     close_open_pause(state)  # v8.192:闭合 stage 内暂停等待
 
     # 1. flow_type 校验(v8.280:preset-aware · Feature·micro → 内部键 "Micro" 匹配 EXECUTE_SPEC)
-    if stage_spec.allowed_flow_types:
+    dims = plan_dims(state) if state.get("flow_type") == "Feature" else None
+    if dims:
+        if stage_spec.name not in derive_chain(dims):
+            emit_json({"verdict": "FAIL", "stage": stage_spec.name, "phase": "start",
+                       "error": f"{stage_spec.name} 不在 assembly_plan 的阶段链上",
+                       "hint": "先用 revise-plan 修改未执行的计划，再进入该阶段"}, exit_code=1)
+    elif stage_spec.allowed_flow_types:
         flow_key = _internal_flow_key(state)
         if flow_key not in stage_spec.allowed_flow_types:
             emit_json({

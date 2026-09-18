@@ -51,14 +51,13 @@
 
 ## 4. 执行方式 · 主对话身份切换 vs subagent
 
-- **默认**:主对话身份切换 —— PMO 切到 RD / QA / Architect 等角色(切角色 = 切 checklist + 强制重读 · 保留累积上下文)。
-- **可选**:PMO 自行判断 · 可把 stage 内的**任务**(如 dev 的代码实现、test 的测试编写)dispatch 给 subagent 执行 —— 用于上下文隔离。
+- **主对话负责编排，成块产出默认派 subagent**；小型精准修改、边界不清或强耦合任务可在主对话执行。派发判据与档位单源：[SKILL.md § R4-P](./SKILL.md)。
+- **起草期**可切角色复用上下文；**评审期**每一路独立隔离冷审，包括 architect lane。所需 ADR / KNOWLEDGE 用文件路径提供，不能用作者的主对话热审替代。
 
 **边界**:
 - stage 编排(`xx-start` / `xx-complete` / state.py 命令 / 暂停点)始终归 PMO 主对话 · subagent 只接「任务执行」· 不碰状态机。
 - subagent 产物仍走 `state.py xx-complete` 校验 · `state.json` 单源不变 · R1 / R7 不豁免。
-- 用不用 subagent 是 PMO 判断(不可枚举 · 留 AI 自决)· 不强制 · 无 dispatch 预检协议。
-- architect review 默认主对话(保留架构演进的累积上下文 · 详 [roles/architect.md](./roles/architect.md))。
+- 非评审任务的派发方式由 PMO 判断；评审独立性和模型错开遵守 SKILL.md，不能用身份切换豁免。
 
 ---
 

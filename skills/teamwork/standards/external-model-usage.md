@@ -13,8 +13,8 @@
 | **怎么起** | `state.py external-review --feature <path> --stage <goal\|blueprint\|review>` → emit **subagent 配方**(本命令**不 exec 任何子进程**)· 落 prompt doc(评审指令 + 待评审文件已 inline) |
 | **谁来审** | `Agent` subagent(isolated context)· 🔴 **model 必须 ≠ 会话主模型**(如 fable5 会话 → `model: opus`)—— 独立采样不变式详 [SKILL 🎚️](../SKILL.md) |
 | **不喂什么** | 🔴 **不喂主对话起草心路** —— 白板效应恰是要的独立性(同一 AI 起草完审自己会脑补填缝) |
-| **产物** | `external-cross-review/<stage>-<model>.md` · frontmatter 必含 `review_via: subagent` + `review_model`(照实写)+ `target_commit` + `coverage: [...]` |
-| **门禁** | complete 校验:产物非空 · `review_via: subagent`(**禁主对话热审**)· `review_model` 非空(**禁伪造**)· coverage 申报;🔴 **yolo 额外要 prompt doc**(实跑证据 · 防手写自盖章) |
+| **产物** | `external-cross-review/<stage>-<model>.md` · frontmatter 必含 `review_via: subagent` + `review_model`(照实写)+ `review_request_id` / `target_commit`(从配方原样带回)+ `coverage: [...]` |
+| **门禁** | complete 只读本阶段结果，新派发须匹配请求 ID 与 commit；校验隔离/模型/coverage。修复后须有覆盖 fix commit 的实际结果，prompt 不代表完成；yolo 还须有 prompt doc 证明走过派发命令。 |
 | **增量重验** | `--verify-fixes`(仅 review):只裁决上轮 open finding + 只回归审查修复 diff · 禁全量重扫 |
 
 **为什么 subagent 够用**:独立采样有三层 —— 上下文隔离(冷审)< 同厂商权重错开(**本形态** · 零成本)< 跨厂商异质(已退役 · 成本不成比例)。**前两层已拿到主要收益**;第三层的边际增益不值它的时延。

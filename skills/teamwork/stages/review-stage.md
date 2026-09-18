@@ -89,7 +89,7 @@ findings:
 - review-complete 快照合并进 `state.stage_contracts.review.findings_ledger[]`(跨轮单源 · 验证轮 brief 自动注入)。
 
 ### `external-cross-review/*.md`
-第三视角冷审产物(roster 含 external 时 · 由 `state.py external-review` **自动落 · 不手写** · 含 `coverage: [...]` 申报 · 验证轮增量 = `review-<model>-fixverify.md`)。
+第三视角冷审产物(roster 含 external 时)：`state.py external-review` 生成派发配方，subagent 完成后落实际结果；frontmatter 原样带回 `review_request_id` / `target_commit`，含 `coverage: [...]`。验证轮 = `review-<model>-fixverify.md`；只有覆盖最后 fix commit 的结果可过门，生成 prompt 不算复审完成。
 
 > 🔴 **`REVIEW-arch.md` / `REVIEW-qa.md` 不再产出** —— 主审路的判断全部落进 REVIEW.md(findings 台账带 `source` 角色归属 + 每角色一行 coverage 申报)。原独立文件门禁只查存在不查内容,与 REVIEW.md 是同一批判断写两遍(实测 37/38 · 55/63 行)。
 
