@@ -78,7 +78,7 @@ class TestGoalStageEscalationRequiresIt(unittest.TestCase):
 
     def test_escalate_clause_requires_recommendation(self):
         t = (ROOT / "stages" / "goal-stage.md").read_text(encoding="utf-8")
-        i = t.index("剩余 §待决策项一次性 escalate")
+        i = t.index("剩余 §待决策项一次性列出")
         clause = t[i:i + 260]
         self.assertIn("建议", clause, "escalate 子句未要求带建议")
         self.assertIn("不许只列选项", clause, "缺禁止句 → 又会退回裸列表")
