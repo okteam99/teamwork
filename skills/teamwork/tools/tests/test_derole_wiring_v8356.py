@@ -56,7 +56,6 @@ class TestZeroLaneIsNotADeadlock(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             Path(d, "PRD.md").write_text("# PRD\n", encoding="utf-8")
             for name, fn in (
-                ("prd_review_after_prd", S._evidence_review_after_primary("PRD.md", "PRD-REVIEW.md")),
                 ("prd_verdicts_all_pass", S._evidence_prd_verdicts_all_pass),
                 ("pl_challenge_present", S._evidence_pl_challenge_present),
                 ("external_coverage_present", S._evidence_external_coverage_present),
@@ -75,7 +74,6 @@ class TestZeroLaneIsNotADeadlock(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             Path(d, "PRD.md").write_text("# PRD\n", encoding="utf-8")
             for name, fn in (
-                ("prd_review_after_prd", S._evidence_review_after_primary("PRD.md", "PRD-REVIEW.md")),
                 ("prd_verdicts_all_pass", S._evidence_prd_verdicts_all_pass),
             ):
                 ok, _ = fn(legacy, _NS(d))

@@ -2,7 +2,7 @@
 
 AI 从团队协作视角出发，通过**流程编排 + 视角切换 + 契约化 Stage + 机读状态机**，驱动从产品规划到交付的完整软件研发流程。
 
-[English](./README-EN.md) · Version: **v8.360**（版本单源 = [SKILL.md](./skills/teamwork/SKILL.md) frontmatter）
+[English](./README-EN.md) · Version: **v8.361**（版本单源 = [SKILL.md](./skills/teamwork/SKILL.md) frontmatter）
 
 ---
 
@@ -92,8 +92,8 @@ npx skills update okteam99/teamwork
 | 开发 | 等 | RD 按 TDD 实现 + 单测 + 机器校验 |
 | 审查 | 等 | 架构师 + QA + **第三独立视角**（默认同模型隔离冷审 · 异质可选）三视角独立 Review |
 | 测试 | 等（启应用如需）| QA 集成测试 + API E2E 脚本化 |
-| 验收 | 回 ok / 反馈 | PM 角度验收 + PMO 整理交付报告 + 自动 commit |
-| **Ship Phase 1** | 点击 merge 按钮 | 净化 + 知识沉淀（distill）+ 归档（随 feature MR 原子合入）+ 创建 MR/PR · user_card 置顶 MR 链接 + 📦 交付总结 → **await-merge 30s 轮询**（检测已合并自动进 Phase 2）|
+| 验收 | 等（AC 全过不停） | PM 角度逐条 AC 验收 · 结论并入 Ship Phase 1 的 MR 卡片；AC 没过才单独停下请你拍板 |
+| **Ship Phase 1** | 点击 merge 按钮（= 验收通过并发布 · 要改回「要改 <问题>」） | 净化 + 知识沉淀（distill）+ 归档（随 feature MR 原子合入）+ 创建 MR/PR · user_card 置顶 MR 链接 + 📦 交付总结 → **await-merge 30s 轮询**（检测已合并自动进 Phase 2）|
 | **Ship Phase 2** | 等 | 零内容清场：验证交付 + 清理 worktree + 主分支同步 → ✅ |
 
 典型 Feature 暂停点数量：**3-5 个**。
@@ -142,7 +142,7 @@ teamwork 入口是 PMO 主对话的 **5 mode 分诊** · 仅看用户输入决�
 | **Feature · floor** | 有行为面但测试能完全证明它对 · 不动契约面 — 评审全 0，验收在 MR diff | 代码 + 测试 | 1-2 |
 | **Feature · tiny** | 测试证得了实现，但值得一双眼看 diff — 零文档 · review 单路 | 代码 + 测试 | 1-2 |
 | **Feature · lite** | 有规格风险要 PRD，但方案空间小到不值得先写 TECH | 代码 + PRD + 测试 | 2-3 |
-| **Feature · medium** | 方案空间值得先写 TECH，但没到要两路并行冷审 — goal/blueprint 各单路 | 代码 + PRD/TECH/TC + 测试 | 3-4 |
+| **Feature · medium** | 方案空间值得先写 TECH，但没到要两路并行冷审 — goal/blueprint 各单路 | 代码 + PRD/TECH + 测试（无 TC · AC↔测试绑定走 PRD `test_refs`） | 3-4 |
 | **Feature · micro** | 零逻辑变更（文案/样式/资源/配置常量白名单 · ≤5 文件）— 跳过评审/测试，保留用户验收 + ship | 代码（直改） | 2（确认 + 验收） |
 | **Bug** | 已识别的缺陷 — **先诊断**（根因 + 修复方案经用户确认后才动手修） | 修复 + BUG 报告 + 回归测试 | 3-4 |
 | **Feature Planning** | 从产品目标拆 ROADMAP（不出代码 · R6 · 不进状态机） | WS + ROADMAP + 全景 | **1**（仅最终摘要确认）|
@@ -283,7 +283,7 @@ review / test 失败时在 stage 内 fix-retry（RD 修代码 → 重新评审/�
 
 MR/PR 由 PMO 用 `gh` / `glab` CLI 实际创建并给出真实链接 · CLI 不可用时按平台模板生成 URL 兜底 + 提示用户手动点击。
 
-PM 验收暂停点 3 选 1：① 通过 + Ship（自动进 Ship Stage）② 通过但暂不 Ship ③ 不通过 + 修复派发。
+PM 验收：AC 全过不单独停，验收结论随 Ship Phase 1 的 MR 卡片给你，**点合并 = 验收通过并发布**；AC 没过 / 有阻塞 / 有产品取舍时才停下 3 选 1：① 通过 + Ship ② 通过但暂不 Ship ③ 不通过 + 修复派发。
 
 ### 项目排查工具集 TROUBLESHOOTING.md
 
@@ -367,7 +367,7 @@ teamwork 的 9 条核心红线，其中 8 条由 `state.py` 状态机物化校�
 
 ## 版本
 
-当前 **v8.360**（版本单源 = [SKILL.md](./skills/teamwork/SKILL.md) frontmatter）。变更记录见 [docs/CHANGELOG.md](./skills/teamwork/docs/CHANGELOG.md)（最近 5 版）· 更早历史走 git 提交历史（CHANGELOG-ARCHIVE **定期清空**）。
+当前 **v8.361**（版本单源 = [SKILL.md](./skills/teamwork/SKILL.md) frontmatter）。变更记录见 [docs/CHANGELOG.md](./skills/teamwork/docs/CHANGELOG.md)（最近 5 版）· 更早历史走 git 提交历史（CHANGELOG-ARCHIVE **定期清空**）。
 
 ---
 

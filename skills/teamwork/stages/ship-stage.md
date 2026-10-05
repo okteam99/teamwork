@@ -76,7 +76,10 @@ state.py ship-phase --action push --feature <path> \
 - 分支:`<feature 分支>` → `<merge_target>`
 - 包含:代码 + 归档 + 规划翻牌(随本 MR 原子合入)
 - 监控:`await-merge --until-final` 已后台启动 30s 轮询 —— **你只需在平台点合并** · 合并后自动清场
-- 异常口令:平台报冲突 → 回「冲突」 · 不想合了 → 回「撤回」
+- 异常口令:平台报冲突 → 回「冲突」 · 验收不通过 → 回「要改 <问题>」 · 不想合了 → 回「撤回」
+
+✅ **验收**(pm_acceptance 结论 · 验收拍板并入此处):AC <N/N> 通过 · 截图 <路径 | 无> · 发版后待补证据 <列项 | 无>
+- **点合并 = 验收通过并发布** · 要改:回「要改 <问题>」(→ `jump-to-stage --to dev`〔代码〕/ `goal`〔需求〕/ `ui_design`〔设计〕· 修完重推同一 MR)· 不发:回「撤回」
 
 📦 **交付总结**(AI 写 · 三槽结构):
 - 链路:<一行走过的流程>
@@ -84,7 +87,7 @@ state.py ship-phase --action push --feature <path> \
 - 合并后解锁:<下游 BL/feature · 如 S5、S11 随本 MR 解锁 | 无>
 ```
 
-卡片段**原样用** push emit 的 `user_card`(工具生成 · URL/分支不抄错 · 🔴 禁 key-filter/截断该 emit —— 卡片同步落盘 `<feature_dir>/SHIP-USER-CARD.md`,stdout 丢失时 `cat` 它原样贴,untracked 随 worktree 消亡;实证 case:AI 过滤 JSON 丢 user_card → 手写卡片 URL 被 markdown 包裹 → 用户看不见链接);总结段 AI 照实写(照抄落盘产物 · 不美化)。🔴 **投递次序(单源)**:**① 先后台启动** `state.py await-merge --feature <path> --until-final`(30s 轮询 · 不阻塞 · 所有模式都跑 · MERGED → 自动 ship-finalize)· 🔴 **后台跑必须带 `--until-final`** —— 不带它,窗口用尽就 emit WAITING 退出,而那句「AI 应自动重跑」在后台没有任何东西接得住(实证 case:监控 9 分钟到点退出、人几分钟后才点合并 → ship2 只能手动补)→ **② 再把两段作为回合终文贴出** · 卡片之后本回合**零工具调用**(宿主可能不渲染回合中段文本 · 实证:卡片被吞 · 用户被迫问「url 发下」)。用户无需回编号 —— **合并动作本身就是确认**;仅「冲突/撤回」两个异常口令需要回话。
+卡片段**原样用** push emit 的 `user_card`(工具生成 · URL/分支不抄错 · 🔴 禁 key-filter/截断该 emit —— 卡片同步落盘 `<feature_dir>/SHIP-USER-CARD.md`,stdout 丢失时 `cat` 它原样贴,untracked 随 worktree 消亡;实证 case:AI 过滤 JSON 丢 user_card → 手写卡片 URL 被 markdown 包裹 → 用户看不见链接);总结段 AI 照实写(照抄落盘产物 · 不美化)。🔴 **投递次序(单源)**:**① 先后台启动** `state.py await-merge --feature <path> --until-final`(30s 轮询 · 不阻塞 · 所有模式都跑 · MERGED → 自动 ship-finalize)· 🔴 **后台跑必须带 `--until-final`** —— 不带它,窗口用尽就 emit WAITING 退出,而那句「AI 应自动重跑」在后台没有任何东西接得住(实证 case:监控 9 分钟到点退出、人几分钟后才点合并 → ship2 只能手动补)→ **② 再把两段作为回合终文贴出** · 卡片之后本回合**零工具调用**(宿主可能不渲染回合中段文本 · 实证:卡片被吞 · 用户被迫问「url 发下」)。用户无需回编号 —— **合并动作本身就是确认**(含验收确认);仅「冲突 / 撤回 / 要改 <问题>」三个异常口令需要回话。
 
 ### 6. ship2:ship-finalize(一条命令 · 在主工作区跑 · 零内容修改)
 
@@ -193,8 +196,8 @@ git add <feature_dir>/dev/*.md <feature_dir>/PRD.md
 **两层输出**:
 
 1. **台账行**(持久 · 累积):一行一 feature。🔴 机器格**工具自算自落**(state.json:实走 stages / 时长三分 / bypass·WARN / 分诊校准 / 可预防性 / 耗时归因)· AI 判断格 = archive 的 `--ledger-*` 参数(反思摘要必填 · rounds/external/findings/pauses 缺省 —)· **照实填不美化**。
- - 🔴 **宿主 + 时长三分 + 用户邮箱**:`宿主` + `时长(总·AI自主·待用户)` + `各阶段耗时` + `用户邮箱` **由 archive 自动落行**(emit `ledger_timing` 保留作校验 · 确定性 —— `host`〔claude-code/codex-cli/gemini-cli〕/ `total_wall` / `ai_autonomous_min`〔已扣跨 session 空闲 · 算法在工具内〕/ `await_user_min`〔stage 内 pause-mark 暂停 + pm_acceptance 纯等待〕/ `per_stage`〔active 优先〕/ `user_email`=`git config user.email`)· **不肉眼算 state 时间戳**。🛡️ **起草可预防性列** 自动落(emit `ledger_authoring_preventability` 同源)(各评审 `review-preventability` 记录聚合成「可预防/总·缺考虑点」· 没记录留空)· 年检据此分析起草考虑点缺不缺。⏱️ **耗时归因列** 自动落(emit `ledger_stage_cost` 同源)(= `<开销轮>/<总轮> 轮 · 详 <复盘路径>` · 没记录留空)· 🔴 **归因叙述与流程反思不写台账**(单元格 ≤1 行压不下)—— 与台账行**同时**在本 gate 写 **`ledger_process_retro_path`** 指的那份**流程复盘文档**(模板 [templates/process-retro.md](../templates/process-retro.md):各阶段耗时表 + 逐 stage 耗时归因 + 流程反思四问 + 起草可预防性)· 🔴 **路径一并加进 `--planning-artifacts`**(随 feature MR 原子合入 · 否则复盘不进 git = 白写)。年检:查表得协调开销占比趋势 · 展开复盘定位复发的开销类型。🔴 `total_wall`(墙钟)− `ai_autonomous` − `await_user` = **未标记挂机空闲**(过夜/跨天 · 不再冒充 AI 工作 · 治 goal 1012m 类污染)。
-2. **digest**(emit ≤10 行 · 固定 4 问 · 不落 feature 目录 —— 🔴 **四问同时写进流程复盘文档 §三**,emit 只是当场给人看的回显;原来「只 emit 不落盘」= 说完就蒸发,年检什么也读不到):
+ - 🔴 **宿主 + 时长三分 + 用户邮箱**:`宿主` + `时长(总·AI自主·待用户)` + `各阶段耗时` + `用户邮箱` **由 archive 自动落行**(emit `ledger_timing` 保留作校验 · 确定性 —— `host`〔claude-code/codex-cli/gemini-cli〕/ `total_wall` / `ai_autonomous_min`〔已扣跨 session 空闲 · 算法在工具内〕/ `await_user_min`〔stage 内 pause-mark 暂停 + pm_acceptance 纯等待〕/ `per_stage`〔active 优先〕/ `user_email`=`git config user.email`)· **不肉眼算 state 时间戳**。🛡️ **起草可预防性列** 自动落(emit `ledger_authoring_preventability` 同源)(各评审 `review-preventability` 记录聚合成「可预防/总·缺考虑点」· 没记录留空)· 年检据此分析起草考虑点缺不缺。⏱️ **耗时归因列** 自动落(emit `ledger_stage_cost` 同源)(= `<开销轮>/<总轮> 轮 · 详 <复盘路径>` · 没记录留空)· 🔴 **归因叙述与流程反思不写台账**(单元格 ≤1 行压不下)—— 与台账行**同时**在本 gate 写 **`ledger_process_retro_path`** 指的那份**流程复盘文档**(🔴 **按需写**:仅当协调开销 ≥30% / 有 bypass / review ≥3 轮 / MR 窗口期回炉 / 反思摘要是「判例:」新判例 —— ship brief 会直接告诉你本单写不写;why:174 份复盘的「纯过场候选」绝大多数答「无」,每单必写的自评几乎不产信号)(模板 [templates/process-retro.md](../templates/process-retro.md):各阶段耗时表 + 逐 stage 耗时归因 + 流程反思四问 + 起草可预防性)· 🔴 **路径一并加进 `--planning-artifacts`**(随 feature MR 原子合入 · 否则复盘不进 git = 白写)。年检:查表得协调开销占比趋势 · 展开复盘定位复发的开销类型。🔴 `total_wall`(墙钟)− `ai_autonomous` − `await_user` = **未标记挂机空闲**(过夜/跨天 · 不再冒充 AI 工作 · 治 goal 1012m 类污染)。
+2. **digest**(emit ≤10 行 · 固定 4 问 · 不落 feature 目录 —— 需写复盘时**四问同时写进流程复盘文档** §三;按需不写时只 emit 回显 —— 年检数据源是台账行的「反思摘要」列(随 MR 进 git · 不蒸发)):
 
 ```
 📊 流程价值反思(<ID> · <flow> · 总时长 <X>)
@@ -238,7 +241,7 @@ yolo = **无人值守自动 merge**,期间没有人在看 —— AI 识别到的
 
 发现问题(平台 review blocker / CI 红 / 自查)且根因已知 → **同 feature 回 dev 修,更新同一 MR**:
 
-1. `state.py jump-to-stage --to dev --reason "MR 修复:<blocker 一句>"` —— pushed 态唯一放行口(`ship.reopened_fixes[]` + concerns WARN 双留痕);
+1. `state.py jump-to-stage --to dev --reason "MR 修复:<blocker 一句>"` —— pushed 态放行口(`ship.reopened_fixes[]` + concerns WARN 双留痕)· 验收拍板并入 ship1 后,用户「要改」属需求/设计时可 `--to goal` / `--to ui_design`(同样必带 `--reason`);
 2. 修复:dev 证据门照跑(测试绿/差分 · auto-commit);review/test 按修复规模与装配走(小修可 dev→test 直达 · 评审面调整 `change-review-roles --reason` 留痕);
 3. `ship-phase --action push` 重跑(rerecord 语义 · WARN 留痕)—— push 分支即更新同一 MR · 不新开;
 4. 归档 zip **不重开**(初版墓碑 + git 历史可溯 · 修复轮过程文档随接力卡留 worktree);

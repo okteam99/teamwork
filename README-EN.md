@@ -2,7 +2,7 @@
 
 An AI works from a team-collaboration perspective — through **flow orchestration + perspective switching + contractualized stages + a machine-readable state machine** — to drive the complete software lifecycle from product planning to delivery.
 
-[中文](./README.md) · Version: **v8.360** (version source of truth = [SKILL.md](./skills/teamwork/SKILL.md) frontmatter)
+[中文](./README.md) · Version: **v8.361** (version source of truth = [SKILL.md](./skills/teamwork/SKILL.md) frontmatter)
 
 ---
 
@@ -92,8 +92,8 @@ npx skills update okteam99/teamwork
 | Dev | Wait | RD implements via TDD + unit tests + machine checks |
 | Review | Wait | Architect + QA + **independent third perspective** (default same-model cold review · heterogeneous optional) — three independent reviews |
 | Test | Wait (start the app if needed) | QA integration tests + scripted API E2E |
-| Acceptance | Reply ok / feedback | PM-perspective acceptance + PMO compiles delivery report + auto-commit |
-| **Ship Phase 1** | Click the merge button | Sanitize + knowledge distill + archive (merged atomically with the feature MR) + MR/PR created · user_card with the MR link on top + 📦 delivery summary → **await-merge 30s polling** (auto-advances to Phase 2 once the merge is detected) |
+| Acceptance | Wait (no stop when all ACs pass) | PM-perspective per-AC acceptance · the verdict goes into the Ship Phase 1 MR card; it only stops for your call when an AC fails |
+| **Ship Phase 1** | Click the merge button (= accept and release · reply "change <issue>" to send it back) | Sanitize + knowledge distill + archive (merged atomically with the feature MR) + MR/PR created · user_card with the MR link on top + 📦 delivery summary → **await-merge 30s polling** (auto-advances to Phase 2 once the merge is detected) |
 | **Ship Phase 2** | Wait | Zero-content cleanup: verify delivery + worktree cleanup + main-branch sync → ✅ |
 
 Typical Feature pause points: **3-5**.
@@ -279,7 +279,7 @@ The project-level `project-specs/KNOWLEDGE.md` (AI-distilled) has four categorie
 
 MR/PR is actually created by PMO via the `gh` / `glab` CLI with a real link · when the CLI is unavailable, a URL is generated from the platform template as a fallback + the user is prompted to click manually.
 
-The PM acceptance pause point is 3-way: ① pass + Ship (auto-enter Ship Stage) ② pass but don't Ship ③ fail + dispatch a fix.
+PM acceptance: when all ACs pass it does not stop on its own — the verdict comes with the Ship Phase 1 MR card, and **merging = accepting and releasing**. Only when an AC fails / something blocks / a product trade-off needs your call does it stop with 3 options: ① pass + Ship ② pass but don't Ship ③ fail + dispatch a fix.
 
 ### Project Diagnostic Toolkit — TROUBLESHOOTING.md
 
@@ -363,7 +363,7 @@ For the detailed directory structure see [skills/teamwork/](./skills/teamwork/).
 
 ## Version
 
-Currently **v8.360** (version source of truth = [SKILL.md](./skills/teamwork/SKILL.md) frontmatter). Changelog in [docs/CHANGELOG.md](./skills/teamwork/docs/CHANGELOG.md) (latest 5 versions) · older history via git log (CHANGELOG-ARCHIVE is **periodically wiped**).
+Currently **v8.361** (version source of truth = [SKILL.md](./skills/teamwork/SKILL.md) frontmatter). Changelog in [docs/CHANGELOG.md](./skills/teamwork/docs/CHANGELOG.md) (latest 5 versions) · older history via git log (CHANGELOG-ARCHIVE is **periodically wiped**).
 
 ---
 

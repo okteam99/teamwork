@@ -9,7 +9,7 @@
 | 流程 | telos(解决什么) | 链 | 产出 |
 |------|----------------|-----|------|
 | **Feature · `full`** | 契约面宽 / 影响面广 / 方案分叉多 —— 两路并行冷审的边际收益压得过开销 | goal → (ui_design) → blueprint → dev → review → test → (browser_e2e) → pm_acceptance → ship | 代码 + PRD/TECH/TC + 测试 |
-| **Feature · `medium`** | 方案空间值得先写 TECH,但**没到要两路并行冷审** → goal / blueprint 各 `[external]` **单路**(清单本就统一 · 单路不减清单)· 链同 full | 同 full | 代码 + PRD/TECH/TC + 测试 |
+| **Feature · `medium`** | 方案空间值得先写 TECH,但**没到要两路并行冷审** → goal / blueprint 各 `[external]` **单路**(清单本就统一 · 单路不减清单)· 链同 full | 同 full | 代码 + PRD/TECH + 测试(🔴 **无 TC** · 测试设计归 TECH §测试策略 · AC↔测试绑定走 PRD `test_refs`) |
 | **Feature · `lite`** | **有规格风险要 PRD,但方案空间小到只有一种写法** → 不写 TECH。goal 冷审 0 路缺省(**终确认停等照停** · 用户主权不因降档让渡)· AC↔测试绑定走 PRD 机读块 `acceptance_criteria[].test_refs`(dev 回填真实引用 · test-complete 校验非空**且引用真实存在**) | goal → dev → review → test → pm_acceptance → ship | 代码 + PRD + 测试 |
 | **Feature · `tiny`** | 测试证得了实现,但**值得一双眼看 diff** —— 用户拍板形态:直接开发、完成后架构师 review 一下、PM 验收盯 staging 部署 · **零文档**(规格 = dev brief 理解卡) | dev → review〔external 单路〕 → pm_acceptance → ship | 代码直改 |
 | **Feature · `floor`** | 有行为面,但**测试能完全证明它对**、不动契约面 → 最轻的**有证据门**档。与 micro 的分界不是更轻,是**拿什么换轻**:floor 保留全部测试证据门(所以能接真逻辑改动),拿掉的是评审与独立验收口 · 验收在 ship1 MR diff | dev → ship | 代码 + 测试 |

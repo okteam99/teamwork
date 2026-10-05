@@ -1188,9 +1188,10 @@ def _handle_ship_archive(state: dict, args: argparse.Namespace) -> dict:
         # v8.295:耗时归因(各 stage stage-cost 记录聚合)· 台账「⏱️ 耗时归因」列
         # · 年检据此看协调开销占比趋势 —— 也是验证提效改动(v8.294 收敛期归一/TC 边界/
         # 投机窗准入)是否真起效的唯一手段。
-        "ledger_stage_cost": _stage_cost_summary(state, _process_retro_path(state, feature_id, wt_root)),
+        "ledger_stage_cost": _stage_cost_summary(state, _retro_path_if_needed(state, feature_id, wt_root, args)),
         # v8.297:流程复盘文档落点(耗时归因叙述 + 流程反思四问 —— 台账装不下的那部分)
-        "ledger_process_retro_path": _process_retro_path(state, feature_id, wt_root),
+        # v8.361:按需写 —— 无异常触发时为 None(台账行照落)
+        "ledger_process_retro_path": _retro_path_if_needed(state, feature_id, wt_root, args),
         # v8.180:WS 进度块确定性自刷结果(None = feature 不属 WS / 对应F编号 未填 → 未刷 · 见 §3.5)
         "ws_progress_refreshed": ws_refreshed,
         "warnings": [
@@ -1211,8 +1212,8 @@ def _ship1_push_brief(feature_id: str, feature_path: str) -> str:
         "✅ 归档已进 feature 分支(MR diff 干净:过程文件加了又删 = 净零 · 只剩 "
         "代码 + zip + INDEX + 台账行 + 翻牌行)。\n"
         "📒 台账行已自动落(emit `ledger_row` · 机器格工具自算 · 判断格来自 --ledger-*);"
-        "归因叙述与流程反思归 `docs/retros/<id>-process.md`(模板 process-retro.md · "
-        "记得随 --planning-artifacts 进了归档 commit)。\n"
+        "流程复盘文档**按需写**(v8.361 · emit `ledger_process_retro_path` 非空才需要 · "
+        "模板 process-retro.md · 随 --planning-artifacts 进归档 commit)。\n"
         "接下来:\n"
         "  ① git push origin <feature 分支>\n"
         "  ② CLI-first 创建 feature MR(P0-113):gh pr create / glab mr create "
@@ -1838,7 +1839,7 @@ def _compose_ledger_row(state: dict, args: argparse.Namespace, wt_root: str,
         state.get("host") or "unknown",
         tc_cell,
         _authoring_preventability_summary(state) or "—",
-        _stage_cost_summary(state, _process_retro_path(state, feature_id, wt_root)) or "—",
+        _stage_cost_summary(state, _retro_path_if_needed(state, feature_id, wt_root, args)) or "—",
     ]
     row = "| " + " | ".join(_ledger_cell(c) for c in cells) + " |"
     from _v8_engine import canonical_ledger_header
@@ -1969,6 +1970,15 @@ def _stage_cost_summary(state: dict, retro_path: str = ""):
     if retro_path:
         cell += f" · 详 {retro_path}"
     return cell
+
+
+def _retro_path_if_needed(state: dict, feature_id: str, repo_root, args) -> Optional[str]:
+    """v8.361:流程复盘按需写 —— 有触发(工具判据 或 反思摘要是「判例:」)才返回落点,否则 None。"""
+    from _v8_stage_specs import process_retro_reasons
+    refl = (getattr(args, "ledger_reflection", None) or "").strip()
+    if process_retro_reasons(state) or refl.startswith(("判例:", "判例：")):
+        return _process_retro_path(state, feature_id, repo_root)
+    return None
 
 
 def _process_retro_path(state: dict, feature_id: str,
