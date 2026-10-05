@@ -13,7 +13,8 @@
 ## ② 硬规则(白名单 · 每条一行 why)
 
 1. **AC 核对必须以实证为准**:PM 逐条对照 `TEST-REPORT.md` 的实际数据(通过 / 失败 / 截图)判断,不得凭"看起来 OK"口述(why:验收是发布前最后一道质量闸,凭印象过 = 闸形同虚设)。
-2. **验收决策(`approved_and_ship` / `approved_no_ship` / `rejected_with_feedback`)只能用户拍板,AI 不可自决**:emit 三选项 R5 暂停点后必须停等用户回 1/2/3——哪怕选看起来"保守"的 `approved_no_ship` 也是越权(它让 Feature 跳过 ship 直接 completed,和继续推进一样是重大决策);"避免未授权 push"不构成自选 `approved_no_ship` 的理由,`approved_and_ship` 进 ship 后 Phase 1 仍有"等用户在平台合并"暂停点,push/merge 不会自动发生;`approved_no_ship` 仅用于真"完成但等时机"(协同其他 Feature),不得用作躲避决策的挡箭牌。🔴 **`auto_mode=true` 也必停此暂停点**——auto 只跳过技术 / 设计 / 评审类暂停点,产品决策权是用户专属(why:AI 自决 decision = 同时违 R5〔用户决策点〕与 R3〔用户决策被 AI 代替〕)。🔴 **唯一例外 = `yolo`**(用户启动时的 blanket 委托):自动 `approved_and_ship` + `add-concern WARN` 留痕 · **AC 对照照做不跳**(单源 SKILL § yolo 表 · stage-start brief 已按 `state.yolo` 物化);但**外部世界动作**(公网发布 / 建公开仓 / 生产部署)不在自动范围——合入清场后**单独停给用户**(详 [SKILL § yolo 外部世界动作边界](../SKILL.md))。
+2. **AC 全过 → 不在此停 · 验收拍板并入 ship1 MR**(年检):AI 以 `--decision approved_and_ship --note "AC N/N 通过 · 用户拍板并入 ship1 MR"` complete,验收结论写进 ship1 MR 卡片的「✅ 验收」段;用户**点合并 = 验收通过并发布**,要改回「要改 <问题>」、不发回「撤回」(详 [ship-stage §5](./ship-stage.md))(why:台账 325 行 `rejected_with_feedback` 0 次,而每个 Feature 都在这里停一次、累计等待 ~10k 分钟 —— 用户在 ship1 本来就要看 MR 再合并,两次停是同一个发布决定拍两遍;**拍板权没变,只是合成一次**)。
+   **AC 没过 / 有阻塞问题 / 有需要用户拍板的产品取舍** → **照旧停三选项**,只能用户拍板,AI 不可自决:不许自选 `approved_*` 硬过,也不许自选 `approved_no_ship` 躲决策(它让 Feature 跳过 ship 直接 completed);`approved_no_ship` 仅用于真「完成但等时机」。🔴 **`auto_mode=true` 也照停**(产品决策权是用户专属 · 违 R5/R3)。🔴 **唯一例外 = `yolo`**:AC 全过自动 `approved_and_ship` + `add-concern WARN` · AC 没过自动 `rejected_with_feedback` 回修(单源 SKILL § yolo 表);**外部世界动作**(公网发布 / 建公开仓 / 生产部署)合入清场后**单独停给用户**(详 [SKILL § yolo 外部世界动作边界](../SKILL.md))。
 3. **`rejected_with_feedback` 必传 `--note`**(state.py 强校验,缺失报错):note 须含具体改什么(finding 明确)(why:拒绝没有具体意见 = 下一轮不知道改哪,反馈类暂停点存在的意义就是留下可执行的意见)。
 4. **`decision=approved_and_ship` 是 ship-start 前置门禁**(ship-start 校验 `pm_acceptance.evidence.decision` 必为此值,否则 FAIL)(why:防止绕过 PM 验收直接 ship——验收决策是进 ship 的唯一合法入场券)。
 
@@ -43,7 +44,8 @@ state.py pm_acceptance-complete --feature <path> \
 - `approved_no_ship` → 自动转 `completed`(不 ship)
 - `rejected_with_feedback` → 留 `pm_acceptance` · state.py emit `pause_options_markdown` 4 选项(见下)
 
-### ⏸️ R5 暂停点(验收决策 · 三选项 · 必用户拍板)
+### ⏸️ R5 暂停点(条件 · 仅 AC 没过 / 有阻塞 / 有产品取舍时 · 三选项 · 必用户拍板)
+AC 全过 → 不 emit 本暂停点 · 直接 `--decision approved_and_ship` complete · 验收结论随 ship1 MR 卡片给用户(见规则 2)。
 ```markdown
 ⏸️ PM 验收完成 · AC <N/N> 通过 · 请你拍板:
 

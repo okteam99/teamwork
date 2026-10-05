@@ -99,6 +99,18 @@ def _blueprint_skipped(state: dict) -> bool:
 
 
 
+def _tc_skipped(state: dict) -> bool:
+    """v8.361 年检:本 feature 不产 TC.md —— lite(无 blueprint)或 **medium**(有 TECH · 单路评审)。
+
+    why:TC 单独成档服务于「两路并行冷审测试设计」;medium 只有单路,TECH §测试策略已承载测试设计,
+    再维护一份 TC 只剩跨档同步(复盘「文档对齐 / 跨档同步」类开销)。AC↔测试绑定改走
+    `PRD.acceptance_criteria[].test_refs`(与 lite 同一载体 · test 阶段 verify-ac `--mode test-refs` 校验真实存在)。
+    """
+    if _blueprint_skipped(state):
+        return True
+    return ((state.get("assembly_plan") or {}).get("tier") or "").lower() == "medium"
+
+
 # ─── 通用前置 check 函数(共享) ──────────────────────────────────────
 
 
@@ -223,13 +235,66 @@ def _test_new_failures(args) -> tuple:
     return new, excluded
 
 
-def _worktree_fingerprint(feature_dir) -> str:
-    """v8.306:worktree 当前代码状态指纹 = `HEAD tree` + **未提交 diff** 的 sha256。
+_PROCESS_DOC_SUFFIXES = (".md", ".json", ".jsonl", ".log", ".png", ".zip")
 
-    🔴 **零信任**:complete 时由本函数**自己重算**,不读任何 AI 申报的字段 ——
-    这是本版唯一完全可机验的一条(runner/tier/model 都是自我申报,拦忘不拦骗)。
+
+def _is_process_doc(path: str, feature_prefix: str) -> bool:
+    """v8.361 年检:流程文档(PRD/TECH/TEST-REPORT/state.json/截图/台账/复盘)不影响测试结果 → 不进指纹。
+
+    🔴 只排**流程目录里的文档类文件**:feature 目录 / `docs/features/` / `docs/retros/` / `project-specs/`
+    下且后缀属文档类。feature 目录里的 `e2e/*.py` 等脚本**照算**(它们改了,测试结果就可能变)。
+    """
+    p = "/" + path
+    in_process_dir = ((feature_prefix and path.startswith(feature_prefix))
+                      or "/docs/features/" in p or "/docs/retros/" in p
+                      or path.startswith("project-specs/"))
+    return in_process_dir and path.endswith(_PROCESS_DOC_SUFFIXES)
+
+
+def _worktree_fingerprint(feature_dir) -> str:
+    """v8.306 / v8.361:worktree **代码**状态指纹 = HEAD 树(去流程文档)+ 未提交 diff(去流程文档)的 sha256。
+
+    🔴 **零信任**:complete 时由本函数**自己重算**,不读任何 AI 申报的字段。
+    v8.361 年检:原指纹含全部文件 → 测完提交 TEST-REPORT / 改 PRD / state.json 刷新都让指纹变 →
+    「docs commit 后树指纹变化,测试证据重跑一次」(76 份复盘提到重跑)。证据要绑的是**代码**,不是文档。
+    AI 侧取指纹统一走 `state.py tree-hash --feature <path>`(与本函数同源 · 不再手抄 python 片段)。
     取不到 git(非仓库 / git 缺失)→ 返 ""(降级放行 · 绝不因环境问题 BLOCK)。
     """
+    import hashlib
+    import os
+    import subprocess as _sp
+    try:
+        cwd = str(Path(feature_dir))
+        top = _sp.run(["git", "-C", cwd, "rev-parse", "--show-toplevel"],
+                      capture_output=True, text=True, timeout=15)
+        if top.returncode != 0:
+            return ""
+        root = top.stdout.strip()
+        rel = os.path.relpath(os.path.realpath(cwd), os.path.realpath(root)).replace(os.sep, "/")
+        prefix = "" if rel in (".", "") else rel.rstrip("/") + "/"
+        tree = _sp.run(["git", "-C", root, "ls-tree", "-r", "HEAD"],
+                       capture_output=True, text=True, timeout=30)
+        if tree.returncode != 0:
+            return ""
+        kept = [ln for ln in tree.stdout.splitlines()
+                if not _is_process_doc(ln.split("\t", 1)[-1], prefix)]
+        changed = _sp.run(["git", "-C", root, "diff", "HEAD", "--name-only"],
+                          capture_output=True, text=True, timeout=30)
+        files = [f for f in changed.stdout.splitlines()
+                 if f and not _is_process_doc(f, prefix)] if changed.returncode == 0 else []
+        diff = ""
+        if files:
+            d = _sp.run(["git", "-C", root, "diff", "HEAD", "--", *files],
+                        capture_output=True, text=True, timeout=30)
+            diff = d.stdout if d.returncode == 0 else ""
+        payload = "\n".join(kept) + "\n" + diff
+        return hashlib.sha256(payload.encode("utf-8", "replace")).hexdigest()
+    except (OSError, ValueError, _sp.SubprocessError):
+        return ""
+
+
+def _worktree_fingerprint_legacy(feature_dir) -> str:
+    """v8.306 原口径(HEAD tree + 全量 diff)· 仅供升级前已按旧配方采指纹的在途 feature 比对。"""
     import hashlib
     import subprocess as _sp
     try:
@@ -262,10 +327,12 @@ def _evidence_test_evidence_fresh(state: dict, args) -> tuple[bool, str]:
     if not declared:
         return True, ("skipped(未传 --test-tree-hash · 存量兼容)—— "
                       "🔴 新 feature 请传:跑测试**当时**的 "
-                      "`git rev-parse HEAD^{tree}` + `git diff HEAD` 指纹(配方会给命令)· "
+                      "`state.py tree-hash --feature <path>` 指纹 · "
                       "否则「先绿后改」拦不住")
     if declared == current:
         return True, "测试证据对应当前代码状态(指纹一致)"
+    if declared == _worktree_fingerprint_legacy(getattr(args, "feature", ".")):
+        return True, "测试证据对应当前代码状态(旧口径指纹一致 · 升级前采的)"
     return False, (
         "🔴 **测试证据已过期**:跑测试时的代码指纹 != 现在的 —— "
         f"申报 {declared[:12]}… · 现在 {current[:12]}…\n"
@@ -461,36 +528,6 @@ def _stage_lanes_deliberately_zero(state: dict, stage: str) -> bool:
     return not (roles_map.get(stage) or [])
 
 
-def _evidence_review_after_primary(primary_artifact: str, review_artifact: str):
-    """通用 check:review_artifact mtime 必须 > primary_artifact mtime。
-
-    证明 review 发生在 primary 落盘 *之后* · 不是同时产出(压缩 substep 链)。
-    """
-
-    def _check(state: dict, args) -> tuple[bool, str]:
-        # 🔴 有意 0 路 = 本 stage 不评审 → 没有评审产物,也就没有「评审是否发生在
-        # 起草之后」可言。不放行的话与 review_artifact 的「0 路不产」直接对立
-        # (实证:lite 档 goal roster=[] 时,AI 只能编造一条不存在的裁决才能过门)。
-        if _stage_lanes_deliberately_zero(state, state.get("current_stage") or ""):
-            return True, "skipped(本 stage 有意 0 路冷审)"
-        feature_dir = Path(args.feature)
-        primary = feature_dir / primary_artifact
-        review = feature_dir / review_artifact
-        if not primary.exists():
-            return False, f"{primary_artifact} 不存在{_template_hint(primary_artifact)}"
-        if not review.exists():
-            return False, f"{review_artifact} 不存在 · review 未发生{_template_hint(review_artifact)}"
-        if review.stat().st_mtime <= primary.stat().st_mtime:
-            return False, (
-                f"{review_artifact} mtime <= {primary_artifact} mtime · "
-                f"review 未在 {primary_artifact} 落盘后发生 · "
-                f"substep 链可能被压缩 · 重做 review"
-            )
-        return True, ""
-
-    return _check
-
-
 def _evidence_revision_history_present(artifact: str, min_revisions: int = 1):
     """通用 check:artifact frontmatter 含 revision_history(至少 N 条)。
 
@@ -640,7 +677,7 @@ PM 调研(自答优先)· 起草 PRD · 🔴 **并行派 N 路隔离冷审**(路
 
 ### 结果(完成判定)
 - `PRD.md`(frontmatter:`acceptance_criteria` + `revision_history`)
-- `PRD-REVIEW.md`(frontmatter:`reviewers` = roster 逐路列 + `verdicts` **全 APPROVE/SKIP** · 🔴 **每一路都交全清单三段**:`PL-CHALLENGE-{{n}}` 对抗段 + `coverage` 申报 + `outside_checklist_insight` 💡 清单外洞察 · mtime > PRD.md · **本 stage 0 路时整份免产**)
+- `PRD-REVIEW.md`(frontmatter:`reviewers` = roster 逐路列 + `verdicts` **全 APPROVE/SKIP** · 🔴 **每一路都交全清单三段**:`PL-CHALLENGE-{{n}}` 对抗段 + `coverage` 申报 + `outside_checklist_insight` 💡 清单外洞察 · **本 stage 0 路时整份免产**)
 - `state.execution_hints` 已决策:`ui_design_needed`(--needs-ui)+ `browser_e2e_needed`(--needs-browser-e2e · 🔗 装配环节维度)
 
 ### 怎么做
@@ -713,7 +750,7 @@ def _evidence_prd_verdicts_all_pass(state: dict, args) -> tuple[bool, str]:
     在**原文**上取 verdicts 块(行内 {..} 或缩进 map 两种写法均兼容 · 简易解析器不支持嵌套 map)·
     扫描块内裁决词 · 任一非 APPROVE/SKIP → FAIL。
     """
-    # 🔴 同 review_after_primary:有意 0 路时没有裁决可校验。原先此门不看 roster,
+    # 🔴 有意 0 路时没有裁决可校验。原先此门不看 roster,
     # 于是 lite 档(goal 0 路 · PRD 照写)只有伪造一条 verdict 才能过 —— 门在逼 AI 造假。
     if _stage_lanes_deliberately_zero(state, "goal"):
         return True, "skipped(goal 有意 0 路冷审)"
@@ -1175,11 +1212,8 @@ GOAL_SPEC = StageSpec(
             check_fn=_evidence_ac_plain_present,
             description="每条 AC 配 💬 大白话(§验收标准表列 · 逐条非空非占位 · v8.271)",
         ),
-        StageEvidenceCheck(
-            name="prd_review_after_prd",
-            check_fn=_evidence_review_after_primary("PRD.md", "PRD-REVIEW.md"),
-            description="PRD-REVIEW.md mtime > PRD.md mtime · 证明 review 在 PRD 之后",
-        ),
+        # v8.361 年检:删 prd_review_after_prd(mtime 顺序门)—— 每次改 PRD 都得连带碰 PRD-REVIEW
+        # 才能过门(10 份复盘记过这笔纯开销)· 「评审真发生了」由 verdicts / 对抗段 / coverage 证明。
         StageEvidenceCheck(
             name="prd_revision_history",
             check_fn=_evidence_revision_history_present("PRD.md", min_revisions=1),
@@ -1396,6 +1430,13 @@ def _dev_brief(state: dict) -> str:
             "(`<相对代码根的测试文件>` 或 `<文件>::<用例名>`,如 `tests/test_login.py::test_reject_expired_token`);"
             "这是 lite 档 AC↔测试绑定的**唯一载体**(没有 TC 中转),test-complete 校验非空**且引用真实存在**。"
             "怎么实现自定 —— 跳 blueprint 的判据就是「方案空间小到不值得先写一份 TECH 再照着写」。"
+        )
+    elif _tc_skipped(state):
+        spec_line = (
+            "🎚️ **medium 档 · 有 PRD/TECH 无 TC**(v8.361):按 TECH.md 实现(测试设计见 TECH §测试策略)· "
+            "🔴 **写完测试必须回填 `test_refs`** —— 每条 AC 在 PRD 机读块填真实引用"
+            "(`<相对代码根的测试文件>` 或 `<文件>::<用例名>`)· 这是 AC↔测试绑定的唯一载体,"
+            "test-complete 校验非空**且引用真实存在**。"
         )
     else:
         spec_line = "按 TECH.md 实现代码 · "
@@ -1899,6 +1940,14 @@ UI_DESIGN_SPEC = StageSpec(
 # ─── B4 · blueprint ─────────────────────────────────────────────────
 
 
+def _tc_result_line(state: dict) -> str:
+    if _tc_skipped(state):
+        return ("- 🎚️ **medium 档不产 `TC.md`**(v8.361):测试设计写进 TECH §测试策略(逐 AC 怎么验)· "
+                "AC↔测试绑定由 dev 回填 `PRD.acceptance_criteria[].test_refs`,test 阶段校验 —— "
+                "下文「QA 起草 TC ∥ RD 起草 TECH」对本档只剩 TECH")
+    return "- `TC.md`(frontmatter:`tests` · verify-ac.py 通过)"
+
+
 def _blueprint_brief(state: dict) -> str:
     """v8.0+P0-8 极简版:目标 + 结果 + 完成方式 · 怎么做归 stage.md。"""
     return f"""## Blueprint Stage
@@ -1907,7 +1956,7 @@ def _blueprint_brief(state: dict) -> str:
 QA 起草 TC(BDD)**∥** RD 起草 TECH(🎚️ **TECH 起草与评审必用主模型/高级模型** · v8.290;⚡ v8.256:两者相互独立 · **并行同发** · 完成后互查 covers_ac↔测试策略;goal 投机窗已产 TECH 草稿则接续)· 🔴 **N 路并行评审**(路数 = 装配 D4 · 默认 2)—— 🔴 **N 路做同一份清单**(lane 标识只决定产物落点,**不决定查什么**):⚔️ **对抗**〔**证否句式**「我试图证明 X 不成立,结果是…」· **不许写 ✅** · 🔴 **rival 设计强制**:评审新增结构(表/模块/抽象)必须**自己先生成 ≥1 个替代形态**〔并入宿主实体加列 / 现算不存 / 复用既有 / 不做〕再裁决 ——「赢了作者列举的被否方案」不算通过 · 🛡️ 安全加固/兜底降级必过 ROI〕· 🔍 **核对**〔可测试 / 方案盲区 · 记 `coverage`〕· 💡 **清单外洞察**〔≥1 条或显式「无 + 为什么」〕· ⚡ 同发互不喂 · 🎭 **逐路模型错开**〔各路模型互不相同〕)· 实现前方案收敛。
 
 ### 结果(完成判定)
-- `TC.md`(frontmatter:`tests` · verify-ac.py 通过)
+{_tc_result_line(state)}
 - `TECH.md`(照 `templates/tech.md` 全结构:现状基线 / 模块 / 数据〔🔴 v8.255 变更最小化四问:复用既有/应用层算/不入库/并入扩展列 · 全否才入变更表 · 每项带「解决什么问题 + 为何非更简方案不可」〕/ 接口 / **错误处理+日志** / **依赖与影响**〔消费方清单〕/ **查询性能与数据量**〔涉批量读取 · 🔴 查询+搬运两段都算 · 兜底≠够快 · 够快带规格〕/ 测试策略 / 风险 / **完工自查槽** / 🛡️ **兜底与守卫清单**〔含 DB CHECK/约束/trigger/前置断言/常驻门禁 · ❗ **先问「删了行为会变吗」**(不变 = 纯冗余直接删)**再**按 ROI 取舍:概率×后果 vs 成本 · 保留的列清单随 §7.5 透出〕)
 - `TECH-REVIEW.md`(frontmatter:`reviewers` 逐路 + `verdict` + `review_models` + 🔴 `outside_checklist_insight` 💡 清单外洞察 · 🔴 **每路都交全清单三段**)
 - `{{artifact_root}}/external-cross-review/*.md`(roster 含 external 时至少 1 份 · 🔴 含 `coverage: [...]` 申报——必覆盖 可测试〔TC 质量/测试策略〕· 方案盲区〔依赖/影响面/迁移风险〕+ AI 自主方向 ≥1〔候选:数据一致性/迁移风险/性能/安全边界〕· 每方向 finding 或「查过无发现」)
@@ -2011,7 +2060,10 @@ def _evidence_ac_test_binding(state: dict, args) -> tuple[bool, str]:
     feature_dir = Path(args.feature)
     prd = feature_dir / "PRD.md"
     tc = feature_dir / "TC.md"
-    lite = _blueprint_skipped(state)
+    lite = _tc_skipped(state)          # v8.361:lite + medium 都无 TC · 走 test_refs
+    if lite and not _blueprint_skipped(state) and state.get("current_stage") == "blueprint":
+        return True, ("skipped(medium 档无 TC.md · AC↔测试绑定在 test 阶段按 "
+                      "PRD test_refs 校验 —— blueprint 时测试还没写)")
 
     if lite:
         if not prd.exists():
@@ -2211,6 +2263,7 @@ BLUEPRINT_SPEC = StageSpec(
             path="TC.md",
             frontmatter_required=["tests"],
             must_be_in_commit=False,
+            skip_if=_tc_skipped,            # v8.361:medium 档不产 TC(测试设计归 TECH §测试策略)
             description="测试用例 · AC↔Test 绑定",
         ),
         StageArtifactSpec(
@@ -2914,7 +2967,7 @@ state.py test-complete --feature <path> --auto-commit <hash> \
     _binding = ("- verify-ac.py 通过(**lite 档 · `--mode test-refs`**:每条 AC 的 "
                 "`PRD.acceptance_criteria[].test_refs` **非空且引用真实存在** —— 无 TC.md,"
                 "别去找;dev 应已回填,**没填/填错就是这里 FAIL**,回 dev 补真实引用)"
-                if _blueprint_skipped(state) else "- verify-ac.py 通过")
+                if _tc_skipped(state) else "- verify-ac.py 通过")
     return f"""## Test Stage
 
 ### 目标
@@ -3047,7 +3100,7 @@ def _browser_e2e_brief(state: dict) -> str:
 **必读** `stages/browser-e2e-stage.md`(详细步骤 6 步 + 注意事项 7 条)。
 🎚️ **档位**:本 stage 属验证类白名单 —— 默认**派验证档 subagent**(prompt 首行 `Meta: tier=验证 · model=… · 理由=…` · 显式传 model);例外(如首份可重放脚本探索占主体)🔴 开 R5 请用户授权 · 不许自决。
 📋 产物模板:本 emit 的 `scaffold_hints.templates` 给**绝对路径** · 照它起草 · 别抄项目旧产物。
-🔴 **无独立用户暂停**:截图是硬产物 evidence(不是给用户当场确认用)· 完成后自动转 pm_acceptance · 用户在 pm_acceptance 三选项暂停点连同截图一并验收。
+🔴 **无独立用户暂停**:截图是硬产物 evidence(不是给用户当场确认用)· 完成后自动转 pm_acceptance · 截图列进验收结论,随 ship1 MR 卡片给用户一并看(v8.361)。
 
 ### 完成方式
 ```
@@ -3087,7 +3140,7 @@ BROWSER_E2E_SPEC = StageSpec(
     brief_template_fn=_browser_e2e_brief,
     auto_transition_fn=_browser_e2e_transition,
     # 流程减负:去独立用户暂停 —— 截图仍是硬产物(artifacts glob 校验)· 不再单独停等确认 ·
-    # 作为 pm_acceptance 决策参考材料随行(用户在 pm_acceptance 三选项暂停点一并看)。
+    # 作为验收结论的一部分随 ship1 MR 卡片给用户看(v8.361 验收拍板并入 ship1)。
     authorized_pause_point="无用户暂停 · 截图为 evidence · 供 pm_acceptance 决策参考",
 )
 
@@ -3138,28 +3191,34 @@ state.py pm_acceptance-complete --feature <path> --auto-commit <hash> --decision
     return f"""## PM Acceptance Stage
 
 ### 目标
-PM 站在用户视角逐条 AC 对照实现 · 验收后 **emit 三选项暂停点 · 用户拍板 decision**。{_rg_block}
+PM 站在用户视角逐条 AC 对照实现(以 TEST-REPORT 实际数据为准)。{_rg_block}
 
-### 🔴 decision 是用户决策点(R5)· AI 不可自决
-- PM 角色只做 AC 验收 + emit 三选项 markdown · 然后**停** · 等用户回 1/2/3
-- 三选项(approved_and_ship / approved_no_ship / rejected_with_feedback)都是决策 ·
-  哪怕选"保守"的 `approved_no_ship` 也是越权(它让 Feature 跳过 ship 直接 completed)
-- "避免未授权 push" 不构成自选 `approved_no_ship` 的理由 ——
-  `approved_and_ship` 进 ship 后 · Phase 1 仍有"等用户平台合并"暂停点 · push 不会自动发生
+### 🔴 v8.361 年检:验收拍板并入 ship1 MR —— AC 全过**不在此停**
+台账 325 行 `rejected_with_feedback` 0 次,而每个 Feature 都在这里停一次、累计等待 ~10k 分钟;
+用户在 ship1 本来就要看 MR 再点合并 —— 两次停是同一个发布决定拍两遍。**拍板权不变,只是合成一次**:
+1. **AC 全过 · 无阻塞问题** → 不 emit 三选项 · 直接 complete(见下)· 自动进 ship;
+   验收结论(AC N/N · 截图 · release-gated 待补项若有)写进 **ship1 MR 卡片的「✅ 验收」段** —— 用户在那里一并看,
+   **点合并 = 验收通过并发布**;要改 / 不发 → 在 ship1 回「要改 <问题>」/「撤回」(详 ship-stage §5)。
+2. **AC 没过 / 有阻塞问题 / 有需要用户拍板的产品取舍**(如 release-gated 待补项的风险是否可接受)→ **照旧停**:
+   emit 三选项 R5 暂停点(approved_and_ship / approved_no_ship / rejected_with_feedback)· 等用户回 1/2/3 · AI 不可自决。
+   🔴 AC 没过时 AI **不许**自选 `approved_*` 硬过;也不许自选 `approved_no_ship` 躲决策。
 
 ### 结果(完成判定)
-- `state.stage_contracts.pm_acceptance.evidence.decision` 已落库(= 用户所选)
-- (rejected_with_feedback 时)`--note` 含具体 finding
+- `state.stage_contracts.pm_acceptance.evidence.decision` 已落库
+- 情形 1:`approved_and_ship` + `--note "AC N/N 通过 · 用户拍板并入 ship1 MR"`
+- 情形 2:= 用户所选(rejected_with_feedback 时 `--note` 含具体 finding)
 
 ### 怎么做
 **必读** `stages/pm-acceptance-stage.md`。
 📋 产物模板:本 emit 的 `scaffold_hints.templates` 给**绝对路径** · 照它起草 · 别抄项目旧产物。
-若有 browser_e2e 截图(`screenshots/*.png`)→ 作为验收决策参考材料列出(browser_e2e 不单独停 · 截图在此一并给用户看)。
+若有 browser_e2e 截图(`screenshots/*.png`)→ 作为验收决策参考列进验收结论(随 ship1 卡片给用户看 · 情形 2 则在三选项里给)。
 
-### 完成方式(用户拍板后才跑)
+### 完成方式
 ```
 state.py pm_acceptance-complete --feature <path> --auto-commit <hash> \
-  --decision {{用户所选}} --note "<rejected 时必填>"
+  --decision approved_and_ship --note "AC N/N 通过 · 用户拍板并入 ship1 MR"     # 情形 1
+state.py pm_acceptance-complete --feature <path> --auto-commit <hash> \
+  --decision {{用户所选}} --note "<rejected 时必填>"                              # 情形 2
 ```
 """
 
@@ -3240,7 +3299,9 @@ PM_ACCEPTANCE_SPEC = StageSpec(
     ],
     brief_template_fn=_pm_acceptance_brief,
     auto_transition_fn=_pm_acceptance_transition,
-    authorized_pause_point="三选项(approved_and_ship / approved_no_ship / rejected_with_feedback)",
+    authorized_pause_point=("条件:AC 没过 / 有阻塞问题 / 有产品取舍时 emit 三选项"
+                            "(approved_and_ship / approved_no_ship / rejected_with_feedback)· "
+                            "AC 全过不停 —— 验收拍板并入 ship1 MR(v8.361)"),
 )
 
 
@@ -3269,6 +3330,37 @@ def _check_ship_phase_terminal(state: dict, args) -> bool:
     return state.get("ship", {}).get("phase") in ("archived", "pushed")
 
 
+PROCESS_RETRO_OVERHEAD_RATIO = 0.3   # 协调开销轮占比 ≥ 此值 → 写流程复盘
+PROCESS_RETRO_REVIEW_ROUNDS = 3      # review 轮次 ≥ 此值 → 写流程复盘
+
+
+def process_retro_reasons(state: dict) -> list:
+    """v8.361 年检:流程复盘文档(`docs/retros/<id>-process.md`)**按需写** —— 返回触发原因,空 = 不写。
+
+    why:174 份复盘的「纯过场候选」绝大多数答「无」—— 每单必写的自评几乎不产信号,
+    却是每个 Feature 收尾的固定成本。台账行照写(机器格自算 · 年检查表算账靠它),
+    复盘文档只在**有东西可复盘**时写。触发(任一):
+    ① 协调开销轮占比 ≥ 30%(stage-cost 记录 · 总轮 ≥3 才算)② 有 bypass
+    ③ review ≥3 轮 ④ MR 窗口期回炉过(ship.reopened_fixes)。
+    另:反思摘要以「判例:」开头 = 有新判例 → AI 自己知道,也要写(判例正文的落点)。
+    """
+    reasons = []
+    items = [i for i in (state.get("stage_cost") or []) if isinstance(i, dict)]
+    rounds = sum(int(i.get("rounds") or 0) for i in items)
+    overhead = sum(int(i.get("overhead_rounds") or 0) for i in items)
+    if rounds >= 3 and overhead / rounds >= PROCESS_RETRO_OVERHEAD_RATIO:
+        reasons.append(f"协调开销 {overhead}/{rounds} 轮 ≥ {int(PROCESS_RETRO_OVERHEAD_RATIO * 100)}%")
+    bypasses = len(state.get("bypass_log") or []) + len((state.get("ship") or {}).get("bypass_log") or [])
+    if bypasses:
+        reasons.append(f"bypass {bypasses} 次")
+    rr = len(((state.get("stage_contracts") or {}).get("review") or {}).get("rounds") or [])
+    if rr >= PROCESS_RETRO_REVIEW_ROUNDS:
+        reasons.append(f"review {rr} 轮")
+    if (state.get("ship") or {}).get("reopened_fixes"):
+        reasons.append("MR 窗口期回炉")
+    return reasons
+
+
 def _ship_brief(state: dict) -> str:
     """v8.0+P0-8 极简版:目标 + 结果 + 完成方式 · 怎么做归 stage.md。"""
     return f"""## Ship Stage(v8.145 · ship1 全交付 / ship2 零内容清场)
@@ -3284,6 +3376,7 @@ ship2(主工作区 · MR 合并后):验已交付 → 删 worktree → 净化主�
 
 ### 怎么做
 **必读** `stages/ship-stage.md`(ship1 三 action + ⏸️ 等 MR 合并 + ship2 一条命令)。
+{_retro_line(state)}
 
 ### 完成方式
 ```
@@ -3298,6 +3391,15 @@ state.py ship-phase --action push --mr-url <真实 URL> ...
 state.py ship-finalize --feature <worktree 内 feature 路径>
 ```
 """
+
+
+def _retro_line(state: dict) -> str:
+    reasons = process_retro_reasons(state)
+    if reasons:
+        return ("📝 **本单要写流程复盘**(触发:" + " · ".join(reasons) + ")—— 模板 `templates/process-retro.md` · "
+                "落 `docs/retros/<id>-process.md` · 路径加进 archive 的 `--planning-artifacts`。")
+    return ("📝 **本单不写流程复盘文档**(无异常触发 · v8.361)—— 台账行照落;"
+            "若反思摘要要写「判例:」开头的新判例,则仍写复盘文档承载判例正文。")
 
 
 def _ship_transition(state: dict) -> Optional[str]:

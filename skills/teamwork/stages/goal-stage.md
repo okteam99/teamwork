@@ -53,7 +53,7 @@
    - ⚖️ **加与减同价**:两个方向都只要一行证据 —— 轻的偏置留在**档默认**里,不留在举证难度里(只让「减」举证 = 保守偏置原样搬回来)。
    - 🔴 **三类不可修订**:① **用户主权点**(已停等确认过的 PRD 终确认 · `ship` 本身 · 用户点名要过的评审点)② **硬不变式**(模型错开 / PRD·TECH 高档)③ **不可回溯放松**(dev 已交测试证据 → 不许改 `evidence_gate=关`;已走过的 stage 不许被移出链)。**计划可改 · 历史不可改**。
    - 📊 **修订记 delta 进 `assembly_plan.revisions`**(方向 + 证据),ship 台账带出 —— 这是**校准闭环的数据源**:跑一段时间就能用真数据回答「初始定档是不是系统性偏保守」(减多于加 → 是),而不是靠推演。
-4. **物化门禁**(goal-complete 拦):`prd_verdicts_all_pass`(verdicts 全 APPROVE/SKIP)· `pl_challenge_present`(**有冷审路时** PRD-REVIEW 必有 ⚔️ 对抗段)· `external_coverage_present`(**有冷审路时**必有 `coverage` 申报)· `outside_checklist_insight`(**有冷审路时**必有 💡 清单外洞察段)· PRD-REVIEW mtime > PRD · 🔴 **本 stage 0 路(如 lite)时上述评审门与 PRD-REVIEW 产物一并免** · `--needs-ui` × flow_type 校验。
+4. **物化门禁**(goal-complete 拦):`prd_verdicts_all_pass`(verdicts 全 APPROVE/SKIP)· `pl_challenge_present`(**有冷审路时** PRD-REVIEW 必有 ⚔️ 对抗段)· `external_coverage_present`(**有冷审路时**必有 `coverage` 申报)· `outside_checklist_insight`(**有冷审路时**必有 💡 清单外洞察段)· 🔴 **本 stage 0 路(如 lite)时上述评审门与 PRD-REVIEW 产物一并免** · `--needs-ui` × flow_type 校验。
 4.4 🗣️ **已确认意图入 PRD(原样搬运 · 用户拍板)**:`goal-start` 的 brief 会把 `state.confirmed_intent`(prepare 确认卡五项 · `init-feature --user-intent` 等参数搬进来的)**渲染好**,起草时**照抄进 PRD §已确认意图**。`goal-complete` 机器校验该节存在且 🗣️ 原话非空(`confirmed_intent`)。
    - 🔴 **原样搬,不润色** —— 润色 = 二次解释,偏差正是这么进来的;用户中途改口 → **append「✏️ 修订」不覆盖**(保留「原本要什么 → 后来改成什么」)。
    - 🔴 **why(治的是链条上最后一个「只活在对话里」的关键信息)**:此前 prepare 确认过的意图只在对话与用户级 `~/.teamwork/prepare_check_audit.jsonl` 里 —— 不在 feature 内、不进 git、`init-feature` 也不收。于是「PRD 的脊 = prepare 已确认的意图 · **冷审据此核对**」是**空头承诺:冷审没有可核对的对象**。会话一压缩 / 换 session / 派 subagent,原话就没了 —— 两起事故(协议 header 归零 · AON Link 投放点击不回传)的共同上游都是这个。

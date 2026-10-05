@@ -138,7 +138,7 @@ class TestRecipeAtTheActionPoint(unittest.TestCase):
         """派发 + 采指纹 + complete 参数 —— 三步都要给,缺一步 AI 就得自己拼。"""
         r = E._verification_recipe("dev", "/abs/feat")
         self.assertIn("tier=验证", r, "缺派发声明格式")
-        self.assertIn("sha256", r, "缺采指纹的可跑命令")
+        self.assertIn("state.py tree-hash", r, "缺采指纹的可跑命令")
         self.assertIn("--test-tree-hash", r)
         self.assertIn("--test-runner subagent", r)
         self.assertIn("/abs/feat", r, "命令未带真实路径")

@@ -840,6 +840,17 @@ def cmd_review_preventability(args: argparse.Namespace) -> None:
           "note": "已记录 · ship 聚合进台账「🛡️ 起草可预防性」列(年检据此分析起草考虑点缺不缺)"})
 
 
+def cmd_tree_hash(args: argparse.Namespace) -> None:
+    """v8.361:打印测试证据代码指纹 —— 与 complete 时 `_evidence_test_evidence_fresh` 重算同源。"""
+    from _v8_stage_specs import _worktree_fingerprint
+    fp = _worktree_fingerprint(args.feature)
+    if not fp:
+        emit({"verdict": "SKIP", "action": "tree-hash",
+              "note": "算不出指纹(非 git 或 git 不可用)· complete 时同样降级放行"})
+        return
+    print(fp)
+
+
 def cmd_stage_cost(args: argparse.Namespace) -> None:
     """v8.295:stage 收敛后记录**耗时归因** —— 这段时间里哪些轮次是协调开销、最大的一笔是什么。
 
@@ -4199,21 +4210,23 @@ def cmd_jump_to_stage(args: argparse.Namespace) -> None:
 
     # 3. ship 后不可跳 —— 唯一例外(用户拍板):MR 窗口期(pushed · 平台未合并)
     # 发现问题 → 同 feature 回 dev 修复(不开 Bug 流)· 修完 push 重跑更新同一 MR。
+    # v8.361:验收拍板并入 ship1 → 用户在 MR 卡片回「要改」可能是需求/设计问题 → 放行口加 goal / ui_design。
     ship_phase = (state.get("ship") or {}).get("phase")
+    _mr_window_targets = ("dev", "goal", "ui_design")
     if ship_phase == "pushed":
         reason = (getattr(args, "reason", None) or "").strip()
-        if target == "dev" and reason:
+        if target in _mr_window_targets and reason:
             ship = state.setdefault("ship", {})
             ship.setdefault("reopened_fixes", []).append(
                 {"at": now_iso(), "reason": reason})
             state.setdefault("concerns", []).append(
-                f"{now_iso()} WARN mr-window-reopen: pushed → dev · reason: {reason} · "
+                f"{now_iso()} WARN mr-window-reopen: pushed → {target} · reason: {reason} · "
                 "修完 dev/test 证据门照跑 → ship-phase --action push 重跑(rerecord)更新同一 MR")
-        elif target == "dev":
+        elif target in _mr_window_targets:
             die(1, json.dumps({
                 "verdict": "FAIL",
                 "action": "jump-to-stage",
-                "error": "MR 窗口期回 dev 修复必须带 --reason(一句:修什么 · audit 留痕)",
+                "error": f"MR 窗口期回 {target} 修复必须带 --reason(一句:修什么 · audit 留痕)",
                 "hint": "state.py jump-to-stage --to dev --reason 'MR 修复:<blocker 一句>'",
             }, ensure_ascii=False, indent=2))
         else:
@@ -4222,7 +4235,7 @@ def cmd_jump_to_stage(args: argparse.Namespace) -> None:
                 "action": "jump-to-stage",
                 "error": f"Ship 后不可跳到 {target!r} · ship.phase={ship_phase!r}",
                 "hint": (
-                    "MR 未合并要修代码 → `jump-to-stage --to dev --reason '...'`(唯一放行口 · "
+                    "MR 未合并要修 → `jump-to-stage --to dev|goal|ui_design --reason '...'`(放行口 · "
                     "留痕 · 修完 push 重跑更新同一 MR);已合并后的问题 → 开 Bug 流(diagnose 起);"
                     "整件放弃 → ship-phase --action close-unmerged"
                 ),
@@ -4520,6 +4533,13 @@ def build_parser() -> argparse.ArgumentParser:
                      help="开销类型(分号分隔 · 如 '双档同步;门禁重试')· 无开销留空")
     scp.add_argument("--note", default="", help="一句话:最大的一笔开销是什么(可选但强烈建议)")
     scp.set_defaults(func=cmd_stage_cost)
+
+    # v8.361:tree-hash 测试证据代码指纹(与 complete 时重算同源 · 流程文档不计入)
+    thp = sub.add_parser(
+        "tree-hash",
+        help="[v8.361] 打印当前代码指纹(跑完测试当场采 · 传给 --test-tree-hash)· 流程文档不计入")
+    thp.add_argument("--feature", required=True, help="Feature artifact_root 路径")
+    thp.set_defaults(func=cmd_tree_hash)
 
     # v8.186:ws-lint WS 文档最新模板符合性校验(治 AI 抄项目旧 WS · 无检查)
     wlp = sub.add_parser(

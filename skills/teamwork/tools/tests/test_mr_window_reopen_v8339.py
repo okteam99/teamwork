@@ -71,8 +71,18 @@ class TestReopenPath(unittest.TestCase):
         out = _run("jump-to-stage", "--feature", str(d), "--to", "review",
                    "--reason", "x")
         self.assertEqual(out.get("verdict"), "FAIL", out)
-        self.assertIn("唯一放行口", out.get("hint", ""))
+        self.assertIn("放行口", out.get("hint", ""))
         self.assertIn("Bug 流", out.get("hint", ""))
+
+    def test_pushed_to_goal_with_reason_allowed(self):
+        """验收拍板并入 ship1:用户「要改」可能是需求问题 → 放行口含 goal / ui_design。"""
+        d = _feature()
+        out = _run("jump-to-stage", "--feature", str(d), "--to", "goal",
+                   "--reason", "验收:AC-2 口径要改")
+        self.assertEqual(out.get("verdict"), "OK", out)
+        st = json.loads((d / "state.json").read_text(encoding="utf-8"))
+        self.assertEqual(st["current_stage"], "goal")
+        self.assertTrue(any("pushed → goal" in c for c in st["concerns"]))
 
     def test_reset_prev_hint_points_to_reopen(self):
         d = _feature()

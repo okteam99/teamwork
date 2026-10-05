@@ -76,6 +76,9 @@ class StageArtifactSpec:
     review_artifact: bool = False
     """评审类产物标记 —— 本 stage 冷审路数为 0 时跳过校验(v8.355 起按路数判 · 原挂 fast_mode)"""
 
+    skip_if: Optional[Callable[[dict], bool]] = None
+    """按 state 判定本产物不需要(如 medium 档无 TC · v8.361)· None = 恒需要"""
+
     description: str = ""
 
 
@@ -274,6 +277,39 @@ def get_git_commit_changeset(commit_hash: str, cwd: Optional[str] = None) -> lis
         return [line.strip() for line in result.stdout.splitlines() if line.strip()]
     except (subprocess.TimeoutExpired, FileNotFoundError):
         return []
+
+
+def _artifact_committed_in_stage(feature_dir, rel_path: str, auto_commit: str,
+                                 stage_started_at: Optional[str]) -> bool:
+    """v8.361 年检:产物不在 auto-commit 的 changeset 里,但**本 stage 内已提交、且与 auto-commit 一致** → 也算入账。
+
+    原判据「必须在这一个 commit 里改过」逼出纯开销轮:先提交 TEST-REPORT、再提交代码,
+    或报告与代码分两次提交 → 门禁 FAIL → 为了过门再碰一次报告重提(复盘实证「TEST-REPORT
+    未在 auto-commit 内 × 2」)。门禁要证明的是「产物已入库且就是现在这份」,不是「同一个 commit」。
+
+    三条全满足才放行:① auto-commit 的树里有这个文件 ② 工作区内容与 auto-commit 一致
+    ③ 最后一次改它的提交(截至 auto-commit)不早于本 stage 开始 —— 防上一轮的旧报告冒充。
+    任一 git 调用失败 → False(维持原判,不因环境问题放松)。
+    """
+    if not stage_started_at:
+        return False
+    cwd = str(feature_dir)
+    try:
+        exists = subprocess.run(["git", "-C", cwd, "cat-file", "-e", f"{auto_commit}:./{rel_path}"],
+                                capture_output=True, timeout=10)
+        if exists.returncode != 0:
+            return False
+        same = subprocess.run(["git", "-C", cwd, "diff", "--quiet", auto_commit, "--", rel_path],
+                              capture_output=True, timeout=10)
+        if same.returncode != 0:
+            return False
+        last = subprocess.run(["git", "-C", cwd, "log", "-1", "--format=%cI", auto_commit, "--", rel_path],
+                              capture_output=True, text=True, timeout=10)
+        t_last = _parse_iso_flexible(last.stdout.strip()) if last.returncode == 0 else None
+        t_start = _parse_iso_flexible(stage_started_at)
+        return bool(t_last and t_start and t_last >= t_start)
+    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+        return False
 
 
 def commit_exists(commit_hash: str, cwd: Optional[str] = None) -> bool:
@@ -1950,6 +1986,8 @@ def execute_stage_complete(
         # 一种旧写法;挂路数才是它一直想表达的东西(且 lite/tiny 的 roster=[] 同样受益)。
         if art_spec.review_artifact and not _stage_lanes:
             continue
+        if art_spec.skip_if is not None and art_spec.skip_if(state):
+            continue
         if art_spec.path:
             target = feature_dir / art_spec.path
             if not target.exists():
@@ -2004,7 +2042,9 @@ def execute_stage_complete(
                 in_commit = any(
                     c == art_spec.path or c.endswith("/" + art_spec.path)
                     for c in commit_changeset
-                )
+                ) or _artifact_committed_in_stage(
+                    feature_dir, art_spec.path, auto_commit,
+                    (state.get("stage_contracts") or {}).get(stage_spec.name, {}).get("started_at"))
                 if not in_commit:
                     missing_artifacts.append({
                         "spec": art_spec.path,
@@ -2391,10 +2431,8 @@ def _verification_recipe(stage: str, feature: str) -> Optional[str]:
         f"  ① 派发(prompt 首行声明):`Meta: tier=验证 · model=<验证档型号> · 理由=测试执行属白名单`\n"
         f"     🔴 subagent 需**文件读取 + 命令执行**能力(要真跑测试)· model ≠ 会话主模型\n"
         f"  ② 跑完**当场**采代码指纹(测完再改代码,这份日志就作废):\n"
-        f"     `python3 -c \"import subprocess,hashlib;"
-        f"t=subprocess.run(['git','-C','{feature}','rev-parse','HEAD^{{tree}}'],capture_output=True,text=True).stdout.strip();"
-        f"d=subprocess.run(['git','-C','{feature}','diff','HEAD'],capture_output=True,text=True).stdout;"
-        f"print(hashlib.sha256((t+d).encode()).hexdigest())\"`\n"
+        f"     `python3 {{SKILL_ROOT}}/tools/state.py tree-hash --feature {feature}`"
+        f"(只算代码 · 之后提交 TEST-REPORT / 改 PRD 等文档**不会**让证据作废)\n"
         f"  ③ complete 带齐三项:`--test-runner subagent --test-runner-model <型号> --test-tree-hash <②的输出>`\n"
         f"  ⚠️ 主窗口跑 = 白名单例外 → **不许 AI 自决**:开 R5 请用户授权,再 "
         f"`--test-runner main-window --user-confirmed`。"

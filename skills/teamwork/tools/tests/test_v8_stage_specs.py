@@ -4,7 +4,6 @@
 覆盖:
 - _evidence_external_review_artifact 路径正确性(P0-14 bug 1)
 - _evidence_ac_test_binding verify-ac.py 失败诊断(P0-14 bug 2)
-- _evidence_review_after_primary mtime 关系(P0-1)
 - _evidence_revision_history_present(P0-1)
 - _evidence_needs_ui_decided(P0-6)
 - _evidence_reviewers_match(P0-9)
@@ -282,51 +281,6 @@ class TestAcTestBindingDiagnosis(unittest.TestCase):
         # 此 case 实际环境下 verify-ac.py 是存在的(dev 仓库)· 跳过此 unit test
         # 仅作为文档说明 · 真正模拟 install sync 问题需 mock skill_root
         pass
-
-
-# ─── P0-1 · _evidence_review_after_primary mtime ──────────────────
-
-
-class TestReviewAfterPrimary(unittest.TestCase):
-    """v8.0+P0-1:review_artifact mtime 必须 > primary_artifact mtime。"""
-
-    def setUp(self):
-        self.tmp = tempfile.mkdtemp()
-        self.feature_dir = Path(self.tmp) / "F001"
-        self.feature_dir.mkdir()
-
-    def tearDown(self):
-        shutil.rmtree(self.tmp, ignore_errors=True)
-
-    def test_review_after_primary_passes(self):
-        from _v8_stage_specs import _evidence_review_after_primary
-
-        prd = self.feature_dir / "PRD.md"
-        review = self.feature_dir / "PRD-REVIEW.md"
-        prd.write_text("prd", encoding="utf-8")
-        time.sleep(0.05)
-        review.write_text("review", encoding="utf-8")
-
-        check = _evidence_review_after_primary("PRD.md", "PRD-REVIEW.md")
-        args = make_args(feature=str(self.feature_dir))
-        passed, err = check({}, args)
-        self.assertTrue(passed, f"PRD-REVIEW > PRD 应 PASS · err={err!r}")
-
-    def test_review_before_primary_fails(self):
-        """review mtime <= primary mtime → FAIL(治本 substep 链压缩)。"""
-        from _v8_stage_specs import _evidence_review_after_primary
-
-        prd = self.feature_dir / "PRD.md"
-        review = self.feature_dir / "PRD-REVIEW.md"
-        review.write_text("review", encoding="utf-8")
-        time.sleep(0.05)
-        prd.write_text("prd", encoding="utf-8")  # PRD 后写
-
-        check = _evidence_review_after_primary("PRD.md", "PRD-REVIEW.md")
-        args = make_args(feature=str(self.feature_dir))
-        passed, err = check({}, args)
-        self.assertFalse(passed)
-        self.assertIn("review 未在", err)
 
 
 # ─── P0-1 · _evidence_revision_history_present ───────────────────
@@ -610,17 +564,6 @@ class TestTemplateHintSuffix(unittest.TestCase):
         from _v8_stage_specs import _template_hint
         suffix = _template_hint("some/dir/PRD.md")
         self.assertIn("templates/prd.md", suffix)
-
-    def test_evidence_review_after_primary_fail_includes_template(self):
-        """_evidence_review_after_primary primary 不存在 → reason 含模板路径。"""
-        from _v8_stage_specs import _evidence_review_after_primary
-        check = _evidence_review_after_primary("PRD.md", "PRD-REVIEW.md")
-        # PRD.md 不存在
-        args = make_args(feature=str(self.feature_dir))
-        passed, reason = check({}, args)
-        self.assertFalse(passed)
-        self.assertIn("PRD.md 不存在", reason)
-        self.assertIn("templates/prd.md", reason)  # template hint
 
     def test_evidence_revision_history_fail_includes_template(self):
         """artifact 不存在 → reason 含 template hint。"""
