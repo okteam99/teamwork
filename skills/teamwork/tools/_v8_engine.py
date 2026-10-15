@@ -1083,7 +1083,8 @@ def execute_stage_start(
         "dispatch_tier_reminder": DISPATCH_TIER_REMINDER,  # v8.238:派发声明制 · 消费时点提醒
         # v8.306:验证档派发配方 —— 只在 dev/test-start 出(测试执行的动作点)
         **({"verification_recipe": _vr} if (_vr := _verification_recipe(
-            stage_spec.name, getattr(args, "feature", "<path>"))) else {}),
+            stage_spec.name, getattr(args, "feature", "<path>"),
+            state.get("feature_id") or "")) else {}),
         **({"brief_overflow_path": brief_overflow_path} if brief_overflow_path else {}),
         **({"raw_write_audit": rw_audit} if rw_audit else {}),
         # v8.36:host 切换 / 校准信息暴露
@@ -2415,7 +2416,20 @@ def _preventability_hint(stage: str, feature: str, verdict) -> Optional[str]:
     )
 
 
-def _verification_recipe(stage: str, feature: str) -> Optional[str]:
+def test_env_namespace(feature_id: str) -> str:
+    """测试环境隔离键(库名 / 容器名前缀)· 由 feature id 派生 —— 并行 worktree / subagent 互不踩。
+
+    取 id 里的时间戳段(如 `SVC-CORE-F260924034827-Finance` → `tw_f260924034827`):短、唯一、
+    合法的 Postgres/MySQL 库名与 docker 名字符。并行 lane 由调用方再加后缀(`_it` / `_e2e` / `_a1`)。
+    取不到时间戳段 → 用 id 本身清洗后截断(仍按 feature 唯一)。
+    """
+    import re as _re
+    m = _re.search(r"[FBM]\d{12}", feature_id or "")
+    core = m.group(0) if m else _re.sub(r"[^0-9a-zA-Z]+", "_", feature_id or "local")[:40]
+    return "tw_" + core.lower().strip("_")
+
+
+def _verification_recipe(stage: str, feature: str, feature_id: str = "") -> Optional[str]:
     """v8.306:在 **dev/test-start 的动作点**给出验证档派发配方 —— 不靠 stage 文档记忆。
 
     实证(aon-core):AI 在主窗口直接跑了测试,自陈「沿用了『主编排收口测试』的旧习惯,
@@ -2435,7 +2449,12 @@ def _verification_recipe(stage: str, feature: str) -> Optional[str]:
         f"(只算代码 · 之后提交 TEST-REPORT / 改 PRD 等文档**不会**让证据作废)\n"
         f"  ③ complete 带齐三项:`--test-runner subagent --test-runner-model <型号> --test-tree-hash <②的输出>`\n"
         f"  ⚠️ 主窗口跑 = 白名单例外 → **不许 AI 自决**:开 R5 请用户授权,再 "
-        f"`--test-runner main-window --user-confirmed`。"
+        f"`--test-runner main-window --user-confirmed`。\n"
+        f"🗄️ **测试数据库隔离**(涉 DB/缓存等有状态依赖时):先按项目规范与既有护栏(DEV-RULES / 测试 safety guard)走;"
+        f"项目没规定 → **本 feature 用独立库 `{test_env_namespace(feature_id)}`**,并行 lane 各加后缀"
+        f"(`_it` / `_e2e` / `_a1`…)· 🔴 **不写、不 reset 共享测试库** · 库级隔离不够(Redis/MQ 无命名空间、"
+        f"服务端级配置、版本不同)才起独立容器(TECH §测试策略写一句理由)· "
+        f"环境脚本支持时 `scripts/test-env-setup.sh --ns {test_env_namespace(feature_id)}`(详 standards/scripts-policy.md §7)。"
     )
 
 

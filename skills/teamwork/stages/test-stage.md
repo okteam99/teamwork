@@ -29,6 +29,7 @@
 7. **每条 AC 必有测试绑定**(`verify-ac.py` 物化拦截 · 漏覆盖 FAIL · 语法见 ④)(why:blueprint 已校验过一次,此处再校验一次防 dev 阶段改了实现却漏改 TC)。🐛 **Bug 流 carve-out**:无 PRD/TC → 门禁 `ac_test_binding` 对 Bug 自动 N/A(机器判 `_flow_key(state) in (Bug, Micro)` 直接 return skip · Feature·preset=micro 亦归一为内部键 Micro)· **别去跑 `verify-ac.py`** —— 它要 PRD.md,必报「PRD 不存在」,那是**假信号不是错**。
 8. **Bug 流规格依据 = `bugfix/BUG-*.md`(非 PRD/TC)· 焦点 = 回归**:复现 bug 的用例修复后转绿(对齐 `BUG-*.md §回归测试`)+ 既有 integration/api-e2e 套件保持绿 + `e2e/*` 复跑**触发 bug 的关键路径**;AC 覆盖类校验 N/A,但 `TEST-REPORT.md` 仍必产(why:Bug 没有 AC 台账,唯一能证明「修对了且没修坏」的就是回归证据)。
 9. **构建/测试临时产物落 scratch 根**:`CARGO_TARGET_DIR` / 测试日志 → worktree 模式 `<worktree>/.teamwork-scratch/...`(ignored · 随 worktree 消亡)· off 模式旧根 `${TMPDIR:-/tmp}/teamwork/<feature_id>/...`(🔴 完整 feature_id · 禁简称)· 🔴 **build target 按 feature 共享 = `.teamwork-scratch/target`**,不许按 stage 切(why:串行 stage 复用增量编译 —— dev 编好、test 热增量不重编;按 stage 切 = 冷编整棵 deps,是 test 阶段的主浪费。锁隔离只需到 feature 粒度)。回收 = ship1 push 即清 + worktree 生命周期 + TTL 兜底(详 [conventions.md §12.48](../docs/conventions.md))。
+10. 🔴 **测试数据库按 feature 隔离 · 不共用**(单源 [scripts-policy §7 测试环境隔离](../standards/scripts-policy.md)):项目规范 / 既有护栏有规定按项目;否则本 feature 用独立库(名字见 test-start 配方 · 并行 lane 各加后缀)· **不写、不 reset 共享测试库** · 库级隔离不够才起独立容器(why:aon-core 178 份复盘 14 份记共享测试库事故 —— 并发同库多出 ~53 个伪失败、别的 worktree 的 migration 污染基线 16 条全红、被别的套件 TRUNCATE 清表 —— 全是零价值的协调开销,且并行派发下必然复发)。
 
 ---
 

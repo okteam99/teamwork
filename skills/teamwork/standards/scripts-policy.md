@@ -205,9 +205,18 @@ hooks 已全退役 · `hooks/` 目录已删 · bootstrap 只做存量项目的�
 - **根级 `scripts/`(全局环境 · 跨子项目共享 · 首次有集成测试需求时创建 · 新增子项目依赖时更新)**:
   - `test-env-setup.sh` —— 启动全部依赖服务 + 各子项目服务(按依赖顺序)+ 加载全局前置数据 + 等健康检查;🔴 成功时 stdout **最后一行输出环境信息 JSON**(如 `{"db_url": "...", "services": {"api": "http://localhost:8080"}}`)· 可选 `--skip-if-running`(已在运行则跳过)· 实现自由(Docker / 本地进程 / 远程均可);
   - `test-env-check.sh` —— 轻量连通性检查(只 ping 不启动 · Test Stage 内部复核用 · 与 setup 同步创建);
-  - `test-env-teardown.sh` —— 可选 · 默认保留环境供复用。
+  - `test-env-teardown.sh` —— 可选 · 默认保留环境供复用;🔴 带 `--ns <key>` 时**只清该隔离键建的库/容器**(不动共享环境)。
 - **子项目级 `{subproject}/scripts/`(测试执行 · 只管自己 · 🔴 假定全局环境已就绪 · 不负责启动)**:`test-unit.sh`(🔴 不依赖全局环境 · 纯代码级)· `test-integration.sh` · `test-api-e2e.sh`(可选传 TC.md 路径 · 输出完整 request/response)· `test-browser-e2e.sh`(可选)—— 底层命令由项目定(cargo / npm / pytest)· 编写对应测试时同步创建。
 - **PMO 调用顺序**:根级 setup → 子项目 test-*。
+
+### 测试环境隔离(🔴 并行默认 · 项目规范优先)
+
+- **优先级**:项目 `DEV-RULES.md` / 既有测试护栏(如专用库前缀守卫)有规定 → **按项目**;开工前先读护栏,别撞上才发现。
+- **项目没规定 → 隔离单位 = 独立数据库**:同一个 DB 容器里按 feature 建独立库,隔离键由 feature id 派生(`tw_<id 时间戳段>` · dev/test-start 配方给出)· 并行 lane(多个测试 subagent / integration 与 e2e 并发)各加后缀 · 🔴 **不写、不 reset 共享测试库**。
+- **独立容器只在库级隔离不够时用**:无可靠命名空间的服务(Redis / MQ)· 要改服务端级配置或扩展 · 要不同版本 —— 写进 TECH §测试策略一句理由(why:每个 agent 一个容器 = 启动时间 + 内存 + 端口全线放大,与并行提效反向)。
+- **脚本接口**:`test-env-setup.sh --ns <key>`(或环境变量 `TEAMWORK_TEST_NS`)→ 建/复用该键的库(必要时容器)+ 跑 migration · stdout 末行 JSON 的 `db_url` 指向**该键的库**;`test-env-teardown.sh --ns <key>` 只清该键。不支持 `--ns` 的存量脚本 → 先补,或按项目护栏手建专用库。
+- **回收**:ship1 push 后清本 feature 的隔离库/容器(push emit `test_env_teardown_hint` 提示命令)· worktree 删除前未清的,TTL 兜底由项目脚本自定。
+- why:aon-core 178 份复盘 14 份记共享测试库事故(并发同库 ~53 个伪失败 · 跨 worktree migration 污染基线 · TRUNCATE 清表 · 撞专用库护栏才发现规则)—— 全是零价值协调开销。
 
 ### 脚本接口规范(🔴 所有脚本必须满足)
 
