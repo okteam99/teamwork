@@ -22,6 +22,7 @@
 6. **flow_type=Bug:不重写 §根因/§修复方案**(那是 diagnose 经用户确认的产物 · 按方案写 fix + 追加 §回归测试/§修复记录;真发现根因判错 → `jump-to-stage --to diagnose` 复议)(why:用户拍过板的诊断不可被实现悄悄推翻)。
 7. **完工自查双源逐项打 ✅**:TECH.md §完工自查(**设计对照** · 每项指向证据)+ [tech-rules § 收口自查表](../standards/tech-rules.md)(**兜底自查** · 异常日志 / DB 论证 / 测试真实性 / scratch / build / 契约消费方)· 不适用写 N-A+原因(why:产物契约 · review 据此核 · 防「设计了没实现」与「实现了但兜底裸奔」)。
 8. **写测试时就定生命周期层**(单源 [tech-rules 规则 17](../standards/tech-rules.md) + [tc.md § 生命周期](../templates/tc.md)):一次性验证 / TDD 中间步 → **scratch `.teamwork-scratch/scaffold-tests/`(ignored)不入仓库内容**;入库必绑 AC 或 bug 回归;**CI 层默认不进 · 进必带 `ci_reason`**(why:临时 case 入库 = CI 与 AI 维护语料的永久税 —— 写时定层零成本 · 事后清退每次都要人裁决)。
+9. 🔴 **跑集成测试同样按 feature 隔离数据库**(规则同 [test-stage 规则 10](./test-stage.md) · 单源 [scripts-policy §7](../standards/scripts-policy.md)):独立库名见 dev-start 配方 · 不写、不 reset 共享测试库(why:dev 与 test、并行 subagent、并行 worktree 共用一个库 = 伪失败与基线污染)。
 
 ---
 

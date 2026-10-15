@@ -536,6 +536,8 @@ def _handle_ship_push(state: dict, args: argparse.Namespace) -> dict:
         "stage": "ship",
         "action": "push",
         "scratch_cleanup": scratch_cleanup,
+        # 测试环境隔离库/容器回收提示(项目脚本才知道怎么清 · 工具不代跑:不支持 --ns 的 teardown 可能清掉共享环境)
+        "test_env_teardown_hint": _test_env_teardown_hint(state),
         # v8.340:push 后自动查一次 CI(用户拍板 · best-effort · 刚 push 常为 pending —— 
         # 确认 pipeline 存在;红了直接给修复口;持续监控由 await-merge 每轮带 CI)
         "ci_status": (_ci := _ci_with_attribution(ship.get("mr_url") or "",
@@ -1970,6 +1972,14 @@ def _stage_cost_summary(state: dict, retro_path: str = ""):
     if retro_path:
         cell += f" · 详 {retro_path}"
     return cell
+
+
+def _test_env_teardown_hint(state: dict) -> str:
+    from _v8_engine import test_env_namespace
+    ns = test_env_namespace(state.get("feature_id") or "")
+    return (f"本 feature 若建过隔离测试库/容器(键 `{ns}*`)→ 现在清:"
+            f"`scripts/test-env-teardown.sh --ns {ns}`(脚本支持 --ns 时)或按项目护栏手动 drop · "
+            "🔴 不支持 --ns 的 teardown 别跑(可能清掉共享环境)")
 
 
 def _retro_path_if_needed(state: dict, feature_id: str, repo_root, args) -> Optional[str]:
