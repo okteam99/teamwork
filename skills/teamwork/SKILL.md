@@ -1,6 +1,6 @@
 ---
 name: teamwork
-version: v8.361.2
+version: v8.362.0
 description: AI 协作开发一体化框架 - 需求功能开发, bug 修复, 问题排查 · /teamwork 启动
 ---
 
@@ -369,7 +369,7 @@ mode B 识别后(**无论后续 flow_type = Feature〔full/micro〕还是 Bug ·
 
 | 流程 | 授权暂停点(按顺序) |
 |---|---|
-| **Feature** | ① prepare 4 项配置 → ② goal PRD 最终确认(📄 回显 PRD 绝对路径)→ ③ ui_design UI 预览确认(若 --needs-ui · 🔗 全景变更 L2 判级并入本停等 · L1 不停) → ④ blueprint 方案要素确认(条件:DB 变更 / 🛡️ 兜底与守卫清单非空〔含 DB CHECK/trigger/断言/常驻门禁〕· 见下) → ⑤ ship1 终点 等平台合并 feature MR(**含验收**:MR 卡片带「✅ 验收」段 · 点合并 = 验收通过并发布 · pm_acceptance 仅在 AC 没过/有阻塞/有产品取舍时单独停三选项)(窗口期发现问题 → 同 feature `jump-to-stage --to dev` 修 · 不开 Bug 流 · 详 ship-stage § MR 窗口期修复) |
+| **Feature** | ① prepare 4 项配置 → ② goal PRD 最终确认(📄 回显 PRD 绝对路径)→ ③ ui_design UI 预览确认(若 --needs-ui · 🔗 全景变更 L2 判级并入本停等 · L1 不停) → ④ blueprint 方案要素确认(条件:DB 变更 / 🛡️ 兜底与守卫清单非空〔含 DB CHECK/trigger/断言/常驻门禁〕· 见下) → ⑤ ship1 终点 等平台合并 feature MR(**含验收**:MR 卡片带「✅ 验收」段 · 点合并 = 验收通过并发布 · pm_acceptance 仅在 AC 没过/有阻塞/有产品取舍时单独停三选项)(窗口期发现问题 → 同 feature `jump-to-stage --to dev` 修 · 不开 Bug 流 · 小修〔≤3 文件 ≤30 行〕dev-complete 直达 ship 重录 push · 详 ship-stage § MR 窗口期修复) |
 | **Bug** | ① prepare 4 项配置 → ② **diagnose 修复方案确认**(根因+方案 · 用户拍板才进 dev) → ③ ship1 终点(含验收 · pm_acceptance 仅 AC 没过时单独停)|
 | **Feature · lite / medium** | 同 Feature · lite **少 ④**(不进 blueprint)—— ② PRD 最终确认**照停**(降的是文档与路数,不是拍板权)|
 | **Feature · tiny** | ① prepare 4 项配置 → ② ship1 终点(含验收 · pm_acceptance 仅 AC 没过时单独停 · 零文档 · 无 goal/blueprint · review 单路 architect 不停等)|
