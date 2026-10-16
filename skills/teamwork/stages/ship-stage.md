@@ -230,7 +230,8 @@ yolo = **无人值守自动 merge**,期间没有人在看 —— AI 识别到的
 - **push 记录成功即自动查一次 CI**(工具内建 · emit `ci_status`:passing/failing/pending/none/unknown · 刚 push 常为 pending = 确认 pipeline 已起;`unknown` = gh/glab 缺失或未登录 · 不拦流程);
 - **`await-merge` 每轮轮询同时带 CI**(监控合并与查 pipeline 并行,不是二选一);
 - 🔴 **红了先归因,再决定动作**(与 dev/test 的「base 即红 → 差分基线」**同一个形状**:CI 版):
-  - **归因到本 feature**(base 上同名 check 是绿的 / base 查不到)→ **中断等待,直接修** —— 走下节 MR 窗口期修复口,**不问用户是否要修**(修自己弄坏的东西不是用户主权,是收尾的一部分);
+  - 🔴 **先比对本分支改动**:失败 job 名含 `git diff origin/<merge_target>...HEAD` 改动过的目录(如 `fe-site-build` ↔ `fe-site/...`)→ 直接判本 feature 引入,**不再看 base**;归因依据逐条打进日志(`🔎 CI 归因 · <job>:<依据>`);
+  - **归因到本 feature**(base 最新 pipeline 上同名 check 是绿的 / base 查不到 / 失败项名字取不到)→ **中断等待,直接修** —— 走下节 MR 窗口期修复口,**不问用户是否要修**(修自己弄坏的东西不是用户主权,是收尾的一部分);
   - **base 预存在**(base 上同名 check 也红)→ **不中断**,回显一行继续等合并 —— 别去追别人的账;
   - 🔴 **查不到 base 归到「自己引入」是刻意的保守偏置**:代价不对称 —— 把别人的红当自己的 = 白看一眼;把自己的红当别人的 = 把坏的合进去。与 `test-baseline`「不在基线里就算新增回归」同口径,**不是**「查不到就放行」。
 - **对照分支**默认取 `state.merge_target`,`await-merge --base <branch>` 可覆盖;
@@ -242,8 +243,8 @@ yolo = **无人值守自动 merge**,期间没有人在看 —— AI 识别到的
 发现问题(平台 review blocker / CI 红 / 自查)且根因已知 → **同 feature 回 dev 修,更新同一 MR**:
 
 1. `state.py jump-to-stage --to dev --reason "MR 修复:<blocker 一句>"` —— pushed 态放行口(`ship.reopened_fixes[]` + concerns WARN 双留痕)· 验收拍板并入 ship1 后,用户「要改」属需求/设计时可 `--to goal` / `--to ui_design`(同样必带 `--reason`);
-2. 修复:dev 证据门照跑(测试绿/差分 · auto-commit);review/test 按修复规模与装配走(小修可 dev→test 直达 · 评审面调整 `change-review-roles --reason` 留痕);
-3. `ship-phase --action push` 重跑(rerecord 语义 · WARN 留痕)—— push 分支即更新同一 MR · 不新开;
+2. 修复:dev 证据门照跑(验证档 subagent 跑 **CI 失败的那条命令** · 指纹 · auto-commit);🔴 **轻量通道(机器判定)**:回炉目标是 dev、相对上次 push 的代码改动 **≤3 文件且 ≤30 行** → dev-complete **直达 ship**(不重走 review/test/browser_e2e/pm_acceptance —— 验收早已发生);超出 → 照走完整链。需求目录已归档出分支,TEST-REPORT / BROWSER-TEST-REPORT 的「在 commit 内」检查自动跳过(concerns 记 INFO · 设计内豁免 · 不需要 bypass);
+3. `ship-phase --action push` 重跑(rerecord 语义 · WARN 留痕)—— push 分支即更新同一 MR · 不新开;重录即关闭本轮轻量通道,`current_stage` 回到 completed;
 4. 归档 zip **不重开**(初版墓碑 + git 历史可溯 · 修复轮过程文档随接力卡留 worktree);
 5. 边界:**平台已合并**后的问题 → Bug 流(diagnose 起);整件放弃 → `close-unmerged --abandon`。
 

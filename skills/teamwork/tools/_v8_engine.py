@@ -1681,6 +1681,47 @@ _CI_YAML_KEY = re.compile(r"^(stage|name|image|needs|when|only|except|tags|varia
 _CI_BLOCK = re.compile(r"^\s*-?\s*(script|before_script|after_script|run)\s*:\s*(.*)$")
 
 
+_CI_INCLUDE_LOCAL = re.compile(r"^\s*(?:-\s*)?(?:local\s*:\s*)?['\"]?([^'\"\s#]+\.ya?ml)['\"]?\s*$")
+
+
+def _gitlab_local_includes(root: Path, lines: list) -> list:
+    """解析 `.gitlab-ci.yml` 的 `include:` 块里的本地文件(`- local: x.yml` / `local: x` / `- 'x.yml'`)。
+
+    路径相对仓库根(GitLab 语义 · 前导 `/` 可选)· 支持 glob(`ci/*.yml`)。
+    `project:` / `remote:` / `template:` 不是本仓文件 → 忽略。best-effort 文本解析。
+    """
+    found, in_inc, indent = [], False, 0
+    for raw in lines:
+        if not raw.strip() or raw.lstrip().startswith("#"):
+            continue
+        cur = len(raw) - len(raw.lstrip())
+        s = raw.strip()
+        if re.match(r"^include\s*:", s) and cur == 0:
+            in_inc, indent = True, cur
+            rest = s.split(":", 1)[1].strip()
+            if rest:                                   # include: 'ci/a.yml'(单行)
+                m = _CI_INCLUDE_LOCAL.match(rest)
+                if m:
+                    found.append(m.group(1))
+                in_inc = False
+            continue
+        if in_inc and cur <= indent:
+            in_inc = False
+        if not in_inc or re.match(r"^-?\s*(project|remote|template|file|ref|rules|inputs)\s*:", s):
+            continue
+        m = _CI_INCLUDE_LOCAL.match(s)
+        if m:
+            found.append(m.group(1))
+    out = []
+    for rel in found:
+        rel = rel.lstrip("/")
+        try:
+            out.extend(sorted(root.glob(rel)) if any(c in rel for c in "*?[") else [root / rel])
+        except (OSError, ValueError):
+            continue
+    return out
+
+
 def scan_ci_commands(root, limit_per_file: int = 12) -> dict:
     """扫仓库 CI 配置 → {相对路径: [(行号, 命令)]}(只取 script/run 块里的门禁类命令)。
 
@@ -1690,48 +1731,53 @@ def scan_ci_commands(root, limit_per_file: int = 12) -> dict:
     root = Path(root)
     out: dict = {}
     seen = set()
+    queue = []
     for g in CI_CONFIG_GLOBS:
         try:
-            files = sorted(root.glob(g))
+            queue.extend(sorted(root.glob(g)))
         except (OSError, ValueError):
             continue
-        for f in files:
-            if not f.is_file() or any(x in str(f) for x in _CI_SKIP):
+    while queue:
+        f = queue.pop(0)
+        if not f.is_file() or any(x in str(f) for x in _CI_SKIP):
+            continue
+        try:
+            rel = str(f.relative_to(root))
+        except ValueError:
+            continue
+        if rel in seen:
+            continue
+        seen.add(rel)
+        try:
+            lines = f.read_text(encoding="utf-8", errors="replace").splitlines()
+        except OSError:
+            continue
+        # GitLab `include: local` → 递归纳入(实证 GPT-F261014120919:真配置在 include 进来的
+        # 子目录 yml 里 · 固定 glob 扫不到 → ci-commands 返回 0 条,CI 对照只能人工做)
+        queue.extend(_gitlab_local_includes(root, lines))
+        cmds, in_block, indent = [], False, 0
+        for i, raw in enumerate(lines, 1):
+            if not raw.strip():
                 continue
-            try:
-                rel = str(f.relative_to(root))
-            except ValueError:
+            cur = len(raw) - len(raw.lstrip())
+            m = _CI_BLOCK.match(raw)
+            if m:
+                in_block, indent = True, cur
+                inline = m.group(2).strip().strip('"\'')
+                if inline and not inline.startswith(("|", ">")) and _CI_GATE_RE.search(inline):
+                    cmds.append((i, inline[:160]))
                 continue
-            if rel in seen:
+            if in_block and cur <= indent and not raw.lstrip().startswith("-"):
+                in_block = False
+            if not in_block:
                 continue
-            seen.add(rel)
-            try:
-                lines = f.read_text(encoding="utf-8", errors="replace").splitlines()
-            except OSError:
+            t = raw.strip().lstrip("-").strip().strip('"\'')
+            if not t or t.startswith("#") or _CI_YAML_KEY.match(t):
                 continue
-            cmds, in_block, indent = [], False, 0
-            for i, raw in enumerate(lines, 1):
-                if not raw.strip():
-                    continue
-                cur = len(raw) - len(raw.lstrip())
-                m = _CI_BLOCK.match(raw)
-                if m:
-                    in_block, indent = True, cur
-                    inline = m.group(2).strip().strip('"\'')
-                    if inline and not inline.startswith(("|", ">")) and _CI_GATE_RE.search(inline):
-                        cmds.append((i, inline[:160]))
-                    continue
-                if in_block and cur <= indent and not raw.lstrip().startswith("-"):
-                    in_block = False
-                if not in_block:
-                    continue
-                t = raw.strip().lstrip("-").strip().strip('"\'')
-                if not t or t.startswith("#") or _CI_YAML_KEY.match(t):
-                    continue
-                if _CI_GATE_RE.search(t) and re.match(r"^[a-zA-Z./$(]", t):
-                    cmds.append((i, t[:160]))
-            if cmds:
-                out[rel] = cmds[:limit_per_file]
+            if _CI_GATE_RE.search(t) and re.match(r"^[a-zA-Z./$(]", t):
+                cmds.append((i, t[:160]))
+        if cmds:
+            out[rel] = cmds[:limit_per_file]
     return out
 
 
@@ -2032,6 +2078,15 @@ def execute_stage_complete(
 
             # commit 校验(精确路径匹配 · changeset 是相对仓库根路径 · artifact 路径相对 feature 目录
             # → 全等或以 "/<artifact 路径>" 结尾才算命中 · 防子串误判如 "a/PRD.md" 命中 "PRD.md.bak")
+            # 归档后(ship.phase ∈ archived/pushed)需求目录已 `git rm --cached` 出分支 ——
+            # 报告**永远**进不了 commit,原样检查只能逼 bypass(实证 GPT-F261014120919:MR 期修一行
+            # tsconfig,test/browser_e2e 各 bypass 一次)。文件存在照查(上面已过),commit 检查跳过 + INFO 留痕。
+            if art_spec.must_be_in_commit and (state.get("ship") or {}).get("phase") in ("archived", "pushed"):
+                state.setdefault("concerns", []).append(
+                    f"{now_iso()} INFO post-archive: {art_spec.path} 跳过 commit 检查"
+                    "(需求目录已归档出分支 · 文件存在即可 · 设计内豁免)")
+                artifacts_passed.append(art_spec.path)
+                continue
             if art_spec.must_be_in_commit:
                 if not commit_changeset:
                     missing_artifacts.append({

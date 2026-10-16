@@ -4,6 +4,19 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.362 · 归档后 MR 修复通道 + CI 归因修正(实证 GPT-F261014120919-Offer-Plugin)
+
+> 起因:ship1 归档后 MR CI 红,修一行 tsconfig —— 被迫重走 dev→review→test→browser_e2e→pm_acceptance→ship,test / browser_e2e 各 bypass 一次;同时 await-merge 把本分支新增 `proxy.ts` 导致的 TS2307 连判 8 次「base 预存在」,监控不报警。
+
+- **P0 · 归档后报告门不再逼 bypass**:`ship.phase ∈ {archived, pushed}` 时 TEST-REPORT / BROWSER-TEST-REPORT 跳过「在 commit 内」检查(需求目录已 `git rm --cached` 出分支 · 永远满足不了)· 文件存在照查 · concerns 记 INFO(设计内豁免)。实证:本单 bypass 2 次。
+- **P0 · MR 修复轻量通道**:回炉目标 dev、相对上次 push 代码改动 ≤3 文件且 ≤30 行 → dev-complete 直达 ship 重录 push(验收早已发生);超出照走完整链 · 重录即关闭通道并回到 completed · dev brief 要求测试证据跑 CI 失败的那条命令。原「bypass_log 区分豁免/逃生」不再需要(这类 bypass 不再发生)。实证:一行修复走完 7 个 stage。
+- **P0 · CI 归因**:GitLab `_mr_ci_status` 原来 `failing` 恒为空 → 归因无 job 名 → 每次落进「预存在」分支(与「未知按自己引入」的设计相反)。改为 API 取失败 job 名(取不到记 `pipeline`)· base 只看 merge_target **最新一条** pipeline · 失败 job 名命中本分支 `git diff origin/<base>...HEAD` 改动目录 → 直接判本 feature 引入 · 依据逐条打日志 · 两边都空时不判预存在。实证:`fe-ember-official-site-build` 连判 8 次。
+- **P1 · ci-commands 跟 GitLab `include: local`**(递归 · 支持 glob)。实证:返回 0 条,CI 对照只能人工。
+- **P1 · test-baseline 不越界写主工作区**:worktree 里没有 project-specs 时 `--add` 返回 PENDING,`--target worktree` 写副本 / `--target main --user-confirmed` 写主工作区 · 读取取各份并集。实证:写到了主工作区未跟踪文件。
+- **P1 · 复发防御清单门禁**:project-specs 在主工作区未跟踪时给两个落点的绝对路径,主工作区那份有条目也算通过。实证:只能 `--no-defense-entry` 跳过。
+- **P1 · 文档**:dev 中途追加范围 → `jump-to-stage --to blueprint`(reason 记停掉 / 待重派的 lane)· 未新增命令(已有能力);blueprint 确认卡对类型/枚举/provider 类字段问「取值集合固定还是会增长」(只问取值集合,不问「将来要不要做 X」)。实证:登录 provider 可扩展性在 dev 中途才追加。
+- 验证:新增 `test_post_archive_mr_fix_v8362.py` 16 例(真实临时 Git 仓库跑「归档后修 1 行 → 不 bypass 重录 push」全流程)· 全量通过。
+
 ## v8.361 · 年检提效:砍掉价值不高的环节(用户拍板「都做」)
 
 > 数据源:aon-core `PROCESS-LEDGER.md`(2026-08-16 后 128 个 Feature)+ 174 份流程复盘。AI 自主中位 115m、等用户中位 136m(等待占墙钟 ~70%)· **~30% 轮次是协调开销**(781/2564)· 暂停点 71% 按默认放行 · 台账 `rejected_with_feedback` 0 次。外审采纳率 goal 7/7、blueprint 24/24 —— **评审环节保留**,砍的是框架自己制造的开销与重复停等。
@@ -67,29 +80,3 @@
 - 📎 ws-lint 拿到的是**文本**而既有 `_parse_ws_features` 收 `Path` → 拆出 `_parse_ws_features_text` 两边共用,**没写第二份扫描器**(双实现必漂 · v8.352 `_flow_key` 漏 floor 即实证)。
 
 - test_ws_user_decisions_v8359(13)· 全量 **1776 passed**
-
-## v8.358 · 多轮审查的幻觉风险:范围锁定 + 落点举证(用户提问 → 拍板)
-
-> 用户:「多轮审查是否容易幻觉出来一些不存在的场景」→「落」→「**这个场景在本 feature 的真实输入下会发生吗,这个反问会应用在 goal 和 tech 阶段么**」。
-
-### 查证:防御很完整,但**装反了**
-现有机制相当强:`code_evidence` 明写「防止**猜测式 finding**(reviewer 没读代码就提问题)」· 逐条裁决**质疑 → 确认 → 回读真实代码** · `adversarial_self_check`(ADOPT 前先写这条不成立的最强反方)· 对抗复现「**复现不出降 MINOR**」· rejected 词表含 false positive。年检数据也佐证它在起作用:external 采纳率 **82.3%** —— 每 6 条就有 1 条被判不成立驳回。
-🔴 但 `grep -c "禁全量重扫|范围锁定"` → **review=1 · goal=0 · blueprint=0**,而 goal-stage 原文要求 Round 2+「核实 fix + **找新**」:
-- **review 有代码可 grounding**,finding 能被回读当场证伪 —— 却锁得最严;
-- **goal/blueprint 是纯文档评审**,「这个需求可能有问题」既证实不了也证伪不了 —— 却允许并鼓励找新。Round 1 把真问题找完后仍被要求找新,**剩下能找的只有边角**。
-
-### 📎 v8.355 加剧了这件事(自陈)
-新增的 ⚔️ 对抗段(「不许写 ✅」)与 💡 清单外洞察(「≥1 条」)恰恰是**必填产出 + 零证据要求**的组合 —— `code_evidence` 只管 `technical-consistency`,**够不着 `premise-challenge` 和清单外洞察**;而 💡 那段本就是让人「想出清单上没有的东西」,是幻觉最高发的形态。两条都留了「无 + 理由」出口(这点是对的),但**出口存在 ≠ 压力不存在**:模型面对必填格,倾向填满而不是填「无」。
-
-### 变更
-- **验证轮范围锁定推广到 goal / blueprint**(协议单源 review-stage 规则 5):只核实上轮 finding 处置 + **修订处的连带影响** · ❗ **禁全量重扫**(新 finding 仅限出自修订处、或 BLOCKER 级并附「**为何首轮未发现**」)· rejected 不得复提。goal 原文的「核实 fix + **找新**」删除。
-- **⚔️ 与 💡 必须落地**:① **指认落点** —— 这条质疑/洞察对着 PRD/TECH/代码的**哪一句**?说不出具体落点 = 不成立,撤回;② **可判问句:这个场景在本 feature 的真实输入下会发生吗?** 说不出具体触发条件 → 降级或撤回(与「复现不出降 MINOR」同构)。并明写「**填满不是目的 —— 编一个出来比空着更贵**」。
-
-### 🔴 用户追问逼出的关键分流:goal 是例外
-「真实输入下会发生吗」在 `blueprint`/`review` 成立(有确定的方案/实现作参照),**在 `goal` 不成立**:
-- PRD 阶段**正在定义「什么是真实输入」** → 拿它驳回质疑是**循环论证**;
-- 更危险的是它会给「**悄悄收窄范围**」一个正当理由 —— v8.350 的实证事故正是这个形状(狭义解释某能力并排除另一半,PRD 完全自洽,dev 与 review 都在认真验证一个错误的范围定义)。
-→ **goal 阶段说不出触发条件 = 范围未定 → 进 §待决策项让用户拍板,不许撤回**,与规则 4.5「这个排除是**做不到**还是**我选的边界**」同一判据。**两条规则方向相反,必须显式分流,否则防幻觉会吃掉防范围收窄。**
-
-- test_multi_round_hallucination_v8358(12 · 含「两条规则互不吃掉」的回归锁)· 全量 **1763 passed**
-- 发版三件套 · 🔴 54(门 <55)

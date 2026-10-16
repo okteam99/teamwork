@@ -1655,7 +1655,27 @@ def cmd_test_baseline(args: argparse.Namespace) -> None:
     if not args.test_id or not args.reason:
         emit({"verdict": "FAIL", "reason": "--add 需 --test-id + --reason(预存在失败必须写原因/清账计划)"})
         return
-    root = (_find_specs_root(feature) if feature else None) or _git_toplevel(Path.cwd()) or Path.cwd()
+    wt = _git_toplevel(Path(feature)) if feature else None
+    found = _find_specs_root(feature) if feature else None
+    target = getattr(args, "target", None)
+    outside = bool(wt and found and not Path(found).resolve().is_relative_to(Path(wt).resolve()))
+    if outside:
+        # 实证 GPT-F261014120919:worktree 里没有 project-specs(主工作区那份未跟踪)→ 上溯落到
+        # 主工作区直接写 = 违「写主工作区须先经用户确认」的 worktree 纪律。
+        if target == "worktree":
+            root = Path(wt)
+        elif target == "main" and getattr(args, "user_confirmed", False):
+            root = Path(found)
+        else:
+            emit({"verdict": "PENDING", "action": "add",
+                  "reason": (f"project-specs/ 只在 worktree 之外找到({found})—— 写它 = 写主工作区"),
+                  "options": [
+                      f"--target worktree:写 worktree 内副本 {Path(wt) / 'project-specs' / 'test-baseline.md'}"
+                      "(随 feature 分支走 · 读取时与主工作区那份取并集)",
+                      "--target main --user-confirmed:写主工作区那份(🔴 先开 R5 问用户)"]})
+            return
+    else:
+        root = found or wt or _git_toplevel(Path.cwd()) or Path.cwd()
     f = root / "project-specs" / "test-baseline.md"
     if not f.is_file():
         f.parent.mkdir(parents=True, exist_ok=True)
@@ -4218,7 +4238,7 @@ def cmd_jump_to_stage(args: argparse.Namespace) -> None:
         if target in _mr_window_targets and reason:
             ship = state.setdefault("ship", {})
             ship.setdefault("reopened_fixes", []).append(
-                {"at": now_iso(), "reason": reason})
+                {"at": now_iso(), "reason": reason, "target": target})
             state.setdefault("concerns", []).append(
                 f"{now_iso()} WARN mr-window-reopen: pushed → {target} · reason: {reason} · "
                 "修完 dev/test 证据门照跑 → ship-phase --action push 重跑(rerecord)更新同一 MR")
@@ -4584,6 +4604,10 @@ def build_parser() -> argparse.ArgumentParser:
     tbp.add_argument("--reason", help="--add:为何红 · 谁的债 · 何时清(必填)")
     tbp.add_argument("--base-commit", help="--add:基线 commit(可选)")
     tbp.add_argument("--current", help="--diff:逗号/换行分隔的当前失败用例 id")
+    tbp.add_argument("--target", choices=["worktree", "main"], default=None,
+                     help="--add:project-specs 只在 worktree 之外时选写哪份(worktree 副本 / 主工作区 · 后者需 --user-confirmed)")
+    tbp.add_argument("--user-confirmed", action="store_true",
+                     help="--add --target main:用户已确认写主工作区")
     tbp.set_defaults(func=cmd_test_baseline)
 
     # v8.0+P0-6:reset-prev 状态机回退一步(替代 raw-write 滥用)

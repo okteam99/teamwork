@@ -454,6 +454,11 @@ def _handle_ship_push(state: dict, args: argparse.Namespace) -> dict:
 
     # pushed → pushed:幂等重录(MR 重开 / URL·head 修正)· 允许覆盖登记 · concerns 留痕
     if cur_phase == "pushed":
+        _fixes = ship.get("reopened_fixes") or []
+        if _fixes and not _fixes[-1].get("pushed_at"):
+            _fixes[-1]["pushed_at"] = now_iso()          # 本轮回炉已重新 push · 轻量通道关闭
+        if state.get("current_stage") == "ship":
+            state["current_stage"] = "completed"        # 回炉轮收口 = 回到 archive 写下的终态
         state.setdefault("concerns", []).append(
             f"{now_iso()} WARN ship-push 重录:phase 已是 pushed · "
             f"覆盖 feature_head_commit/mr_url 登记(旧 mr_url={ship.get('mr_url')!r})")
@@ -541,7 +546,8 @@ def _handle_ship_push(state: dict, args: argparse.Namespace) -> dict:
         # v8.340:push 后自动查一次 CI(用户拍板 · best-effort · 刚 push 常为 pending —— 
         # 确认 pipeline 存在;红了直接给修复口;持续监控由 await-merge 每轮带 CI)
         "ci_status": (_ci := _ci_with_attribution(ship.get("mr_url") or "",
-                                                   state.get("merge_target") or "")),
+                                                   state.get("merge_target") or "",
+                                                   (state.get("worktree") or {}).get("path"))),
         # v8.345:红且归因到本 feature → 直接给修复口(别人的红不催修 · 只回显)
         **({"ci_fix_hint": CI_FIX_HINT}
            if (_ci.get("attribution") or {}).get("self_introduced") else {}),
@@ -987,10 +993,12 @@ def _handle_ship_archive(state: dict, args: argparse.Namespace) -> dict:
              if int(e.get("preventable") or 0) > 0]
     if _prev and not getattr(args, "no_defense_entry", False):
         _fid = state.get("feature_id") or ""
-        _kn = Path(wt_root) / "project-specs" / "KNOWLEDGE.md"
-        _txt = _kn.read_text(encoding="utf-8") if _kn.exists() else ""
+        _kn, _main_kn = _defense_knowledge_paths(wt_root)
+        _txt = "".join(k.read_text(encoding="utf-8") for k in (_kn, _main_kn)
+                       if k is not None and k.exists())
         if _fid and _fid not in _txt.split("复发防御清单", 1)[-1]:
             _n = sum(int(e.get("preventable") or 0) for e in _prev)
+            _where = _defense_where(_kn, _main_kn)
             emit_json({
                 "verdict": "PENDING", "stage": "ship", "action": "archive",
                 "pending_step": "defense-list",
@@ -998,7 +1006,7 @@ def _handle_ship_archive(state: dict, args: argparse.Namespace) -> dict:
                 "next_action": (
                     f"🔴 本 feature 有 **{_n} 条起草时本可预防**的 finding,但 "
                     f"`project-specs/KNOWLEDGE.md § 复发防御清单` 里没有本 feature 的条目。\n"
-                    f"  先在 **worktree 内**追加一节(随本次 MR 原子合入),再重跑 archive:\n\n"
+                    + _where +
                     f"  ## 复发防御清单 · <一句主题>({_fid} · <YYYY-MM-DD>)\n\n"
                     f"  - 🔴 **<写成「写时防」的祈使句>**。<判据 + 回归要覆盖什么>\n\n"
                     f"  🔴 写**下次起草时能照着做**的话,不写事故复述 —— 这份清单是给 dev/goal "
@@ -1982,6 +1990,29 @@ def _test_env_teardown_hint(state: dict) -> str:
             "🔴 不支持 --ns 的 teardown 别跑(可能清掉共享环境)")
 
 
+def _defense_knowledge_paths(wt_root):
+    """复发防御清单落点 → (worktree 内 KNOWLEDGE.md, 主工作区 KNOWLEDGE.md | None)。
+
+    project-specs 在主工作区未跟踪时 worktree 里根本没有这个目录(实证 GPT-F261014120919:
+    门禁只能 --no-defense-entry 跳过)→ 主工作区那份也算落点。
+    """
+    kn = Path(wt_root) / "project-specs" / "KNOWLEDGE.md"
+    if (Path(wt_root) / "project-specs").is_dir():
+        return kn, None
+    from _v8_stage_specs import _find_specs_root
+    root = _find_specs_root(Path(wt_root).parent)
+    return kn, ((root / "project-specs" / "KNOWLEDGE.md") if root else None)
+
+
+def _defense_where(kn, main_kn) -> str:
+    if main_kn is None:
+        return "  先在 **worktree 内**追加一节(随本次 MR 原子合入),再重跑 archive:\n\n"
+    return ("  本仓 `project-specs/` 在主工作区**未被 git 跟踪**(worktree 里没有)—— 二选一后重跑 archive:\n"
+            f"    ① 写主工作区那份(本仓 project-specs 的实际落点 · 不进 MR):`{main_kn}`\n"
+            f"    ② 写进 worktree 新建 `{kn}`(会把 project-specs 带进 MR · 先确认这是想要的)\n"
+            "  追加内容:\n\n")
+
+
 def _retro_path_if_needed(state: dict, feature_id: str, repo_root, args) -> Optional[str]:
     """v8.361:流程复盘按需写 —— 有触发(工具判据 或 反思摘要是「判例:」)才返回落点,否则 None。"""
     from _v8_stage_specs import process_retro_reasons
@@ -2950,11 +2981,28 @@ def _parse_gh_checks(returncode: int, stdout: str) -> dict:
     return {"status": "unknown", "failing": []}
 
 
-def _base_branch_failing(base_branch: str, repo_hint: str = "") -> tuple:
-    """查 **base 分支**近期 CI 的失败项 → (failing_names:set, known:bool)。
+def _gitlab_failed_jobs(project_id, pipeline_id) -> list:
+    """GitLab:某条 pipeline 的失败 job 名(API)· 取不到返 []。"""
+    if not project_id or not pipeline_id:
+        return []
+    r = _git_run(["glab", "api",
+                  f"projects/{project_id}/pipelines/{pipeline_id}/jobs?scope[]=failed&per_page=50"],
+                 timeout=25)
+    if r.returncode != 0:
+        return []
+    try:
+        return sorted({str(j.get("name") or "") for j in json.loads(r.stdout or "[]") if j.get("name")})
+    except (ValueError, AttributeError):
+        return []
+
+
+def _base_branch_failing(base_branch: str, repo_hint: str = "", project_id=None) -> tuple:
+    """查 **base 分支最新一条** CI 的失败项 → (failing_names:set, known:bool)。
 
     v8.345 归因用:base 上同名 check 也在红 = 不是本 feature 引入的。
     known=False 表示查不到(CLI 缺失/未登录/无历史)—— 调用方按「未知」处理,不当作绿。
+    GitLab 只看 merge_target **最新一条** pipeline 的失败 job(实证 GPT-F261014120919:原实现在
+    `glab ci list` 整段输出里搜 "failed",近期任何一条失败都算 base 红 —— 太粗)。
     """
     if not base_branch:
         return set(), False
@@ -2969,46 +3017,93 @@ def _base_branch_failing(base_branch: str, repo_hint: str = "") -> tuple:
                     latest.setdefault(str(run.get("name") or ""), str(run.get("conclusion") or ""))
                 return ({n for n, c in latest.items() if c.lower() == "failure"},
                         bool(latest))
-        else:
-            r = _git_run(["glab", "ci", "list", "--branch", base_branch], timeout=25)
-            if r.returncode == 0 and r.stdout.strip():
-                bad = "failed" in r.stdout.lower()
-                return ({"pipeline"} if bad else set()), True
+        elif project_id:
+            from urllib.parse import quote
+            r = _git_run(["glab", "api",
+                          f"projects/{project_id}/pipelines?ref={quote(base_branch, safe='')}&per_page=1"],
+                         timeout=25)
+            if r.returncode == 0:
+                pls = json.loads(r.stdout or "[]")
+                if pls:
+                    pl = pls[0]
+                    if str(pl.get("status") or "").lower() == "failed":
+                        names = _gitlab_failed_jobs(project_id, pl.get("id"))
+                        return (set(names) if names else {"pipeline"}), True
+                    return set(), True
     except (OSError, ValueError, subprocess.SubprocessError):
         pass
     return set(), False
 
 
-def attribute_ci_failures(failing: list, base_failing: set, base_known: bool) -> dict:
+def _touched_segments(changed_paths) -> set:
+    """本分支改动涉及的目录段(小写 · 长度 ≥3)—— 用来与失败 job 名对照。"""
+    segs = set()
+    for p in changed_paths or []:
+        for part in str(p).split("/")[:-1]:
+            part = part.strip().lower()
+            if len(part) >= 3 and not part.startswith("."):
+                segs.add(part)
+    return segs
+
+
+def attribute_ci_failures(failing: list, base_failing: set, base_known: bool,
+                          changed_paths=None) -> dict:
     """CI 失败归因(纯函数 · 可单测):哪些是**本 feature 引入的**。
 
     v8.345(用户拍板:「如果是自己引入的,直接修下」)。语义与 dev/test 的
     **差分基线**(test-baseline --diff)完全同构 —— 同一个问题的 CI 版:
+      - 失败 job 名含本分支改动过的目录(如 `fe-site-build` ↔ `fe-site/...`)→ `self_introduced`
+        (**先于 base 判定** · 实证 GPT-F261014120919:本分支新增 proxy.ts 致 TS2307,被连判 8 次
+        「base 预存在」,监控不报警)
       - base 上同名 check 也红 → `pre_existing`(不是我们弄坏的 · 别去追别人的账)
       - base 上该 check 绿 → `self_introduced`(**直接修**)
       - base 查不到(CLI 缺失/未登录/无历史)→ `self_introduced`
     🔴 **未知归到「自己引入」是刻意的保守偏置**:代价不对称 —— 把别人的红当成自己的
     = 白看一眼;把自己的红当成别人的 = 把坏的合进去。与 test-baseline「不在基线里
     就算新增回归」同口径(不是「查不到就放行」)。
+    `evidence` 逐项写归因依据(进日志 · 人能复核)。
     """
     failing = [f for f in (failing or []) if str(f).strip()]
     if not failing:
-        return {"self_introduced": [], "pre_existing": [], "base_known": base_known}
-    if not base_known:
-        return {"self_introduced": list(failing), "pre_existing": [],
-                "base_known": False}
-    pre = [f for f in failing if f in base_failing]
-    return {"self_introduced": [f for f in failing if f not in base_failing],
-            "pre_existing": pre, "base_known": True}
+        return {"self_introduced": [], "pre_existing": [], "base_known": base_known, "evidence": {}}
+    segs = _touched_segments(changed_paths)
+    mine, pre, ev = [], [], {}
+    for f in failing:
+        hit = sorted(s for s in segs if s in str(f).lower())
+        if hit:
+            mine.append(f)
+            ev[f] = f"job 名命中本分支改动目录 {hit[:3]}"
+        elif not base_known:
+            mine.append(f)
+            ev[f] = "base 状态查不到 → 按本 feature 引入(保守偏置)"
+        elif f in base_failing:
+            pre.append(f)
+            ev[f] = "base 最新 pipeline 同名 job 也失败 · 且未命中本分支改动目录"
+        else:
+            mine.append(f)
+            ev[f] = "base 最新 pipeline 该 job 未失败"
+    return {"self_introduced": mine, "pre_existing": pre, "base_known": base_known, "evidence": ev}
 
 
-def _ci_with_attribution(mr_url: str, base_branch: str) -> dict:
+def _branch_changed_paths(repo_dir, base_branch: str) -> list:
+    """本分支相对 merge_target 的改动文件(`git diff origin/<base>...HEAD`)· 取不到返 []。"""
+    if not repo_dir or not base_branch:
+        return []
+    for ref in (f"origin/{base_branch}", base_branch):
+        r = _git(["diff", "--name-only", f"{ref}...HEAD"], cwd=str(repo_dir), timeout=30)
+        if r.returncode == 0:
+            return [x for x in r.stdout.splitlines() if x.strip()]
+    return []
+
+
+def _ci_with_attribution(mr_url: str, base_branch: str, repo_dir=None) -> dict:
     """_mr_ci_status + 归因(红时才查 base · 绿/pending 不浪费一次网络往返)。"""
     ci = _mr_ci_status(mr_url)
     if ci.get("status") != "failing":
         return ci
-    base_failing, known = _base_branch_failing(base_branch, mr_url)
-    ci["attribution"] = attribute_ci_failures(ci.get("failing") or [], base_failing, known)
+    base_failing, known = _base_branch_failing(base_branch, mr_url, ci.get("project_id"))
+    ci["attribution"] = attribute_ci_failures(ci.get("failing") or [], base_failing, known,
+                                              _branch_changed_paths(repo_dir, base_branch))
     return ci
 
 
@@ -3024,12 +3119,19 @@ def _mr_ci_status(mr_url: str) -> dict:
             return _parse_gh_checks(r.returncode, r.stdout or "")
         r = _git_run(["glab", "mr", "view", mr_url, "-F", "json"], timeout=25)
         if r.returncode == 0:
-            pl = (json.loads(r.stdout).get("pipeline") or {})
+            mr = json.loads(r.stdout)
+            pl = (mr.get("head_pipeline") or mr.get("pipeline") or {})
             st = str(pl.get("status") or "").lower()
-            return {"status": {"success": "passing", "failed": "failing",
-                               "running": "pending", "pending": "pending",
-                               "": "none"}.get(st, "unknown"),
-                    "failing": []}
+            status = {"success": "passing", "failed": "failing",
+                      "running": "pending", "pending": "pending",
+                      "": "none"}.get(st, "unknown")
+            pid = pl.get("project_id") or mr.get("project_id")
+            failing = []
+            if status == "failing":
+                # 原实现 failing 恒为 [] → 归因拿不到 job 名 → 每次落进「base 预存在」分支
+                # (实证 GPT-F261014120919 连判 8 次)。取不到名字 → 记 "pipeline"(仍按未知保守归因)。
+                failing = _gitlab_failed_jobs(pid, pl.get("id")) or ["pipeline"]
+            return {"status": status, "failing": failing, "project_id": pid}
     except (OSError, ValueError, subprocess.SubprocessError):
         pass
     return {"status": "unknown", "failing": []}
@@ -3176,6 +3278,8 @@ def cmd_await_merge(args: argparse.Namespace) -> None:
     if not mr_url:
         emit_json({"verdict": "FAIL", "command": "await-merge",
                    "error": "无 MR URL(--mr-url 直传 · 或 --feature 的 state.ship.mr_url)"}, exit_code=1)
+    # 归因要比对本分支改动(git diff origin/<base>...HEAD)· 有 feature 就在它所在仓库里算,否则用 cwd
+    _repo_dir = str(Path(feature).resolve()) if feature else os.getcwd()
     interval = max(5, int(getattr(args, "interval", 30) or 30))
     max_checks = max(1, int(getattr(args, "max_checks", AWAIT_MERGE_DEFAULT_CHECKS)
                             or AWAIT_MERGE_DEFAULT_CHECKS))
@@ -3192,10 +3296,14 @@ def cmd_await_merge(args: argparse.Namespace) -> None:
         stt = _mr_state(mr_url)
         # v8.340:每轮带 CI(治 docstring 里的原始痛点「CI 红无人接」)——
         # 红了不再傻等合并,立刻退出切 MR 窗口期修复口
-        ci = _ci_with_attribution(mr_url, base_branch)
+        ci = _ci_with_attribution(mr_url, base_branch, _repo_dir)
         if stt == "OPEN" and ci["status"] == "failing":
             attr = ci.get("attribution") or {}
             mine, theirs = attr.get("self_introduced") or [], attr.get("pre_existing") or []
+            if not mine and not theirs:
+                mine = ["pipeline(失败项未知)"]           # 无依据不判预存在(保守偏置)
+            for _job, _why in (attr.get("evidence") or {}).items():
+                print(f"🔎 CI 归因 · {_job}:{_why}", file=sys.stderr)
             if mine:
                 # v8.345(用户拍板:「如果是自己引入的,直接修下」)—— 归因到本 feature
                 # 才中断等待去修;默认动作是**修**,不是问用户要不要修。

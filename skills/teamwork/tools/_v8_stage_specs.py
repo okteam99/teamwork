@@ -200,18 +200,29 @@ def _find_specs_root(start) -> Optional[Path]:
     return None
 
 
+def _baseline_files(feature_path) -> list:
+    """沿 feature 路径上溯的**所有** `project-specs/test-baseline.md`(近 → 远)。
+
+    worktree 内副本与主工作区那份可能并存(主工作区 project-specs 未跟踪时,登记写在 worktree 内)
+    → 读取取并集,别只认最近一份而漏掉另一边登记过的预存在失败。
+    """
+    try:
+        p = Path(feature_path).resolve()
+    except (TypeError, OSError):
+        return []
+    return [c / "project-specs" / "test-baseline.md" for c in [p, *p.parents]
+            if (c / "project-specs" / "test-baseline.md").is_file()]
+
+
 def _read_test_baseline(feature_path) -> set:
-    """读 project-specs/test-baseline.md 登记的预存在失败 id(表第一列)。不存在 → 空集。"""
+    """读 project-specs/test-baseline.md 登记的预存在失败 id(表第一列 · 上溯各份取并集)。不存在 → 空集。"""
     if not feature_path:
         return set()
-    root = _find_specs_root(feature_path)
-    if not root:
-        return set()
-    f = root / "project-specs" / "test-baseline.md"
-    if not f.is_file():
-        return set()
+    lines = []
+    for f in _baseline_files(feature_path):
+        lines.extend(f.read_text(encoding="utf-8", errors="replace").splitlines())
     ids = set()
-    for ln in f.read_text(encoding="utf-8", errors="replace").splitlines():
+    for ln in lines:
         s = ln.strip()
         if not s.startswith("|"):
             continue
@@ -1443,7 +1454,7 @@ def _dev_brief(state: dict) -> str:
     return f"""## Dev Stage
 
 ### 目标
-{spec_line}测试全绿 · auto-commit 锚定证据。🟢 **方法论不设限**:怎么开发(TDD/test-after/骨架先行/重构节奏)全由 AI 自定 —— 框架只收:读取契约(项目 DEV-RULES+ARCHITECTURE+复发防御清单 & teamwork tech-rules 兜底 · 冲突以项目为准)+ 收口自查表 + 结果证据门(每个 TC 有对应实现 · 测试真断言)。
+{_mr_fix_line(state)}{spec_line}测试全绿 · auto-commit 锚定证据。🟢 **方法论不设限**:怎么开发(TDD/test-after/骨架先行/重构节奏)全由 AI 自定 —— 框架只收:读取契约(项目 DEV-RULES+ARCHITECTURE+复发防御清单 & teamwork tech-rules 兜底 · 冲突以项目为准)+ 收口自查表 + 结果证据门(每个 TC 有对应实现 · 测试真断言)。
 
 ### 结果(完成判定)
 - 代码 + 测试一并 commit
@@ -1474,7 +1485,67 @@ def _dev_transition(state: dict) -> Optional[str]:
     v8.355:review 永远保留(路数由 D4 定 · 0 路仅 micro/floor)· 清单统一,不按角色切分。
     v8.343:有装配计划时按链走 —— floor(评审点全 0)从 dev 直接到 ship。
     """
+    if mr_fix_light(state):
+        return "ship"
     return _next_on_chain(state, "dev") or "review"
+
+
+MR_FIX_LIGHT_MAX_FILES = 3
+MR_FIX_LIGHT_MAX_LINES = 30
+
+
+def _mr_fix_diff(state: dict):
+    """MR 窗口期修复相对上次 push 的代码改动 → (files, lines) · 流程文档不计 · 取不到返 None。"""
+    import subprocess as _sp
+    base = (state.get("ship") or {}).get("feature_head_commit")
+    if not base:
+        return None
+    root = _code_root_for(state, Path(state.get("artifact_root") or "."))
+    try:
+        r = _sp.run(["git", "-C", str(root), "diff", "--numstat", base, "HEAD"],
+                    capture_output=True, text=True, timeout=20)
+    except (OSError, _sp.SubprocessError):
+        return None
+    if r.returncode != 0:
+        return None
+    files = lines = 0
+    for ln in r.stdout.splitlines():
+        parts = ln.split("\t")
+        if len(parts) < 3 or _is_process_doc(parts[2], ""):
+            continue
+        files += 1
+        lines += sum(int(x) if x.isdigit() else 0 for x in parts[:2])
+    return files, lines
+
+
+def mr_fix_light(state: dict) -> bool:
+    """归档后 MR 修复的**轻量通道**:回 dev 修小改动 → dev-complete 直达 ship 重新记录 push。
+
+    实证 GPT-F261014120919:MR CI 红修一行 tsconfig,被迫重走 dev→review→test→browser_e2e→
+    pm_acceptance→ship(且报告门逼 bypass 两次)。验收早已发生、改动只有一行 —— 整条链是空转。
+    条件(全满足):ship 已 pushed · 最近一次回炉目标是 dev 且尚未重新 push ·
+    相对上次 push 的代码改动 ≤3 文件且 ≤30 行。超出 → 照走完整链(大改该被重审)。
+    dev-complete 的测试证据本身仍是硬门(验证档 subagent 跑 + 指纹),配方要求跑 CI 失败的那条命令。
+    """
+    ship = state.get("ship") or {}
+    fixes = ship.get("reopened_fixes") or []
+    if ship.get("phase") != "pushed" or not fixes:
+        return False
+    last = fixes[-1]
+    if last.get("pushed_at") or (last.get("target") or "dev") != "dev":
+        return False
+    d = _mr_fix_diff(state)
+    return bool(d) and d[0] <= MR_FIX_LIGHT_MAX_FILES and d[1] <= MR_FIX_LIGHT_MAX_LINES
+
+
+def _mr_fix_line(state: dict) -> str:
+    ship = state.get("ship") or {}
+    if ship.get("phase") != "pushed" or not ship.get("reopened_fixes"):
+        return ""
+    return ("🩹 **MR 窗口期修复轮**:测试证据跑 **CI 失败的那条命令**(`state.py ci-commands` 查 · 与 CI 同命令本地过)· "
+            f"相对上次 push 的代码改动 ≤{MR_FIX_LIGHT_MAX_FILES} 文件且 ≤{MR_FIX_LIGHT_MAX_LINES} 行 → "
+            "dev-complete **直达 ship**(`ship-phase --action push` 重新记录 · 不重走 review/test/验收);"
+            "超出则照走完整链。\n")
 
 
 DEV_SPEC = StageSpec(
