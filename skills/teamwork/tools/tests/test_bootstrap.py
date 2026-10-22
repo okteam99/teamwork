@@ -376,6 +376,28 @@ class TestMaintainGitignoreWorktree(unittest.TestCase):
         self.assertEqual(r["status"], "existed")
         self.assertIn("keepme", (env / "config.properties").read_text())
 
+    def test_local_env_existing_directory_gets_missing_config(self):
+        from bootstrap import maintain_local_env
+        env = self.tmp / ".teamwork-local-env"
+        env.mkdir()
+        for has_gitignore in (False, True):
+            with self.subTest(has_gitignore=has_gitignore):
+                if has_gitignore:
+                    (env / ".gitignore").write_text("# keep custom rules\n*\n")
+                result = maintain_local_env(SKILL, self.tmp)
+                config = env / "config.properties"
+                self.assertIn("config.properties", result["created"])
+                self.assertEqual(config.read_text(encoding="utf-8"),
+                                 (SKILL / "templates" / "local-env-config.properties")
+                                 .read_text(encoding="utf-8"))
+                if has_gitignore:
+                    self.assertEqual((env / ".gitignore").read_text(),
+                                     "# keep custom rules\n*\n")
+                else:
+                    self.assertIn(".gitignore", result["created"])
+                self.assertEqual(maintain_local_env(SKILL, self.tmp)["created"], [])
+                config.unlink()
+
     def test_local_env_opt_out_disabled(self):
         from bootstrap import maintain_local_env
         skill = Path(__file__).resolve().parents[1]

@@ -512,7 +512,7 @@ python3 <SKILL_ROOT>/tools/bootstrap.py --host <claude-code|codex-cli|gemini-cli
 
 **host 是 per-feature**(非全局 · 否则全局 audit 跨 session 污染):`init-feature --host` / `<stage>-start --host` 写 `state.json.host` · `external-review` 读 state.json.host;跨 session 切宿主用 `<stage>-start --host <new>` 显式覆盖(自动 emit `host_change_warning` + concerns);`~/.teamwork/host_audit.json`(全局)仅 fallback · 读到会 emit `deprecation_warning`。
 
-bootstrap 做什么:版本号自读 frontmatter · 项目骨架检查/创建(project-specs/ 下 KNOWLEDGE/TROUBLESHOOTING/GLOSSARY · 旧散放自动迁移)· 宿主指令文件历史注入段清理 · state.json v7→v8 迁移扫描 · **知识图谱结构可达性校验**(归档 `INDEX.md`↔`*.zip` 双向对账 + workspace 节点登记 · 命中 emit `checks.knowledge_graph` WARN · 🔴 只查**可达性**不查内容新鲜度)。
+bootstrap 做什么:版本号自读 frontmatter · 项目骨架检查/创建(project-specs/ 下 KNOWLEDGE/TROUBLESHOOTING/GLOSSARY · 旧散放自动迁移)· 本地环境配置补缺(`.teamwork-local-env/config.properties` 缺失即从模板创建,目录已存在也补建;已有文件不覆盖,尊重 `local_env_auto_create: false`)· 宿主指令文件历史注入段清理 · state.json v7→v8 迁移扫描 · **知识图谱结构可达性校验**(归档 `INDEX.md`↔`*.zip` 双向对账 + workspace 节点登记 · 命中 emit `checks.knowledge_graph` WARN · 🔴 只查**可达性**不查内容新鲜度)。
 特性:全 silent(不 emit 用户可见报告)· 失败不阻塞 · 幂等 · AI 跑后不必 cite。
 
 ### session 入口必读 · 项目结构索引(silent · bootstrap.py 后 / mode 分诊前)
