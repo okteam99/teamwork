@@ -4,6 +4,17 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.366 · 读取分层 · 文档单一权威 · 评审不凑数(提效方案第 3 批)
+
+> 起因:开工前要读的规则太多(prepare 前要先读三份规范);同一份测试设计在 TECH 与 TC 各写一遍;冷审「没发现」也必须写理由,单字「无」过不了门。
+
+- **读取分层**:SKILL 新增「读取分层」表 —— 入口(每次)/ 当前阶段(进阶段时读 brief 点名的 stage doc)/ 参考(出问题时查)· 不需要读完整套流程才开工。
+- **prepare 按需读**:§0 由「动手前必读三份」改为「最小路径 + 按需读」(conventions 仅偏离默认路径时读 · feature-planning §0 仅命中 §2.1 时读 · 反模式 / 错误处理 / 红线作参考)。
+- **测试设计单一权威**:TECH §测试清单 不再复制 TC 用例表 · full 档权威 = TC.md · medium/lite 绑定在 PRD `test_refs`。
+- **评审不凑数**:⚔️ 对抗 / 💡 清单外洞察「没有就写『无』」· 不再要求「无 + 理由」;💡 门禁接受显式「无」(占位符与留白仍拒)。SKILL 新增「评审先核验关键前提」。评审路数与模型错开**不变**(按方案:有对照数据前不放宽)。
+- 测试口径同步:`test_derole_wiring_v8356` / `test_derole_unified_review_v8355` 原先锁定旧规则(单字「无」必拒 / 必须带理由),按本批决定改写。
+- 验证:新增 `test_slim_reading_v8366.py` 6 例 · 全量通过。
+
 ## v8.365 · Bug 按风险分三档 · 复现证据机器核对(提效方案第 2 批)
 
 > 起因:Bug 不论大小都固定走 diagnose → dev → review → test → pm_acceptance → ship,且 diagnose 必停等用户确认 —— 根因已经验证过的局部修复也要补一份完整 BUG 报告、再确认一次。
@@ -53,15 +64,3 @@
 - **P1 · 复发防御清单门禁**:project-specs 在主工作区未跟踪时给两个落点的绝对路径,主工作区那份有条目也算通过。实证:只能 `--no-defense-entry` 跳过。
 - **P1 · 文档**:dev 中途追加范围 → `jump-to-stage --to blueprint`(reason 记停掉 / 待重派的 lane)· 未新增命令(已有能力);blueprint 确认卡对类型/枚举/provider 类字段问「取值集合固定还是会增长」(只问取值集合,不问「将来要不要做 X」)。实证:登录 provider 可扩展性在 dev 中途才追加。
 - 验证:新增 `test_post_archive_mr_fix_v8362.py` 16 例(真实临时 Git 仓库跑「归档后修 1 行 → 不 bypass 重录 push」全流程)· 全量通过。
-
-## v8.361 · 年检提效:砍掉价值不高的环节(用户拍板「都做」)
-
-> 数据源:aon-core `PROCESS-LEDGER.md`(2026-08-16 后 128 个 Feature)+ 174 份流程复盘。AI 自主中位 115m、等用户中位 136m(等待占墙钟 ~70%)· **~30% 轮次是协调开销**(781/2564)· 暂停点 71% 按默认放行 · 台账 `rejected_with_feedback` 0 次。外审采纳率 goal 7/7、blueprint 24/24 —— **评审环节保留**,砍的是框架自己制造的开销与重复停等。
-
-- **门禁纯开销**:删 goal `prd_review_after_prd`(mtime 顺序门 · 每改 PRD 都得连带碰 PRD-REVIEW · 10 份复盘记过);`must_be_in_commit` 放宽为「本 stage 内已提交且与 auto-commit 一致」也算入账(TEST-REPORT 与代码分两次提交不再被逼重提 · 未提交改动 / 上一轮旧报告仍拦)。
-- **测试证据指纹只算代码**:流程目录(feature 目录 / `docs/features` / `docs/retros` / `project-specs`)下的文档类文件不进指纹 → 提交 TEST-REPORT / 改 PRD 不再让证据作废重跑(76 份复盘提到重跑);feature 目录里的 `e2e/*.py` 照算。新增 `state.py tree-hash` 单源取指纹(配方不再手抄 python 片段);旧口径指纹兼容放行。
-- **验收拍板并入 ship1**:AC 全过 → pm_acceptance 不停,验收结论进 ship1 MR 卡片「✅ 验收」段,**点合并 = 验收通过并发布**;要改回「要改 <问题>」(MR 窗口期放行口加 `goal` / `ui_design`)。AC 没过 / 有阻塞 / 有产品取舍 → 照旧停三选项。
-- **流程复盘文档按需写**:仅协调开销 ≥30% / 有 bypass / review ≥3 轮 / MR 窗口期回炉 / 反思摘要是「判例:」时写;ship brief 直接告诉本单写不写 · 台账行照落。
-- **medium 档不产 TC.md**:测试设计归 TECH §测试策略 · AC↔测试绑定走 `PRD.acceptance_criteria[].test_refs`(与 lite 同载体 · test 阶段校验);引擎 `StageArtifactSpec.skip_if`。
-- 同期已推 dev 的小改(v8.360.5–.8):功能生效闸先问触发条件能否从源头消除 · PRD 终确认待决策项逐项讨论 · 守卫清单「只在绕过时变」必给触发路径证据。
-- 验证:新增 `test_annual_cut_v8361.py` 20 例(真实临时 Git 仓库验指纹与入账判定);全量 **1840 passed, 2 subtests passed**。

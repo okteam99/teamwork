@@ -6,12 +6,14 @@
 
 ---
 
-## 0. Must-read(PMO 进 prepare 前必读)
+## 0. 读什么(按需 · 不是开工前通读)
 
-🔴 **必读 spec**(prepare 动手前读):
-- **[conventions.md §9-12](./conventions.md)** — worktree path 规范(`{worktree_root_path}/{Feature-ID}` · 默认 `.worktree/`)
-- **`.teamwork_localconfig.json`** — 项目级 worktree_root_path 配置(读 `worktree_root_path` 字段 · 不存在用 `.worktree`)
-- **[feature-planning.md §0](./feature-planning.md)** — 何时改走 Feature Planning(关键词 + 复杂度双触发)
+**最小路径**(明确的小任务只需要这些):§2 定流程与起手档 → `prepare-check` → §4 卡片(满足 §4.0 免停条件就不停)→ §5 执行。
+
+**按需读**(触发了才读):
+- `.teamwork_localconfig.json` 的 `worktree_root_path`(不存在用 `.worktree`)—— 规范细节在 [conventions.md §9-12](./conventions.md),路径要偏离默认时才读
+- [feature-planning.md §0](./feature-planning.md) —— 命中 §2.1 复杂度信号时才读
+- §0.5 反模式 / §7 错误处理 / §8 红线 —— 参考资料,出问题时查
 
 🔴 **PMO 必先 Read 本 prepare.md(工具调用)再 emit 任何 prepare 内容** —— SKILL.md 只给"移交 prepare 子流程"指针 · 具体 emit 模板(🎯 意图确认 + ⚙️ 配置)/ 准入校验 / prepare-check 用法都在本文件。不读直接 emit = R5 违规(详 §0.5 #1)。
 
