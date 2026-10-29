@@ -209,11 +209,16 @@ class TestInsightGateAcceptsLaneFirstLayout(unittest.TestCase):
             self.assertTrue(ok, f"{body[:28]!r} → {msg}")
 
     def test_placeholder_and_bare_none_still_rejected(self):
-        """🔴 放宽窗口不等于放松门 —— 占位符原样和单字「无」必须仍被拒。"""
+        """🔴 放宽窗口不等于放松门 —— 占位符原样 / 留白必须仍被拒。
+
+        v8.366:显式「无」改为合法(提效方案:没发现就如实结束 · 不要求凑理由)。
+        """
         for body in ('outside_checklist_insight: "{清单外洞察:清单没问、但我认为该关注的 —— ≥1 条}"\n',
-                     'outside_checklist_insight: "无"\n'):
+                     'outside_checklist_insight: ""\n'):
             ok, _ = self._gate(body)
             self.assertFalse(ok, f"{body[:34]!r} 竟然过门")
+        ok, _ = self._gate('outside_checklist_insight: "无"\n')
+        self.assertTrue(ok, "显式「无」应放行(v8.366)")
 
 
 class TestOuterDocsWereNotForgottenAgain(unittest.TestCase):

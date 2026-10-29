@@ -33,7 +33,7 @@
 7. 🧾 **冷审清单统一 · N 路都过全清单**(lane 标识只决定产物落点,不决定查什么)· 三段缺一即漏 · 记 `coverage: [...]`(物化门 `cross_review_coverage` · review 从严:清单比 blueprint 重一档):
    - ⚔️ **对抗**(形式与数量**单源** [SKILL § 冷审清单三段](../SKILL.md)):这段代码有没有为不会发生的场景加防御?这条校验/限制是需求要的还是实现者自己加的?能不能更简单/职责归错层/可删?
    - 🔍 **核对**(可写「查过无发现」):**实现↔设计一致性**(AC 逐条对照)· **测试真实性与覆盖**(测试真跑〔= 读实跑证据/日志 · **非自己重跑**〕/ 覆盖真行为 / 边界回归)· **代码质量盲区**(错误处理 / 日志 / 并发);
-   - 💡 **清单外洞察**:清单没问、但你认为该关注的 ≥1 条(候选:并发 / 资源泄漏 / 脱敏 / 兼容 / 性能 / 数据量),或显式「无 + 为什么没有」· **不为凑内容而写**。
+   - 💡 **清单外洞察**:清单没问、但你认为该关注的 有就写(候选:并发 / 资源泄漏 / 脱敏 / 兼容 / 性能 / 数据量),没有写「无」· **不为凑内容而写**。
 8. **external lane 的独立性协议**:roster 含 `external` → 跑 `state.py external-review --stage review` 拿 subagent 配方 → 起**错开模型** subagent 冷审(跨厂商 CLI 已退役 · 本命令不 exec 子进程)· 🔴 **绝不伪造/冒充/静默跳过**。拟 APPROVE 前有过 fix → `--verify-fixes` 增量重验(物化校验)。🐛 **Bug 流默认单路 `[external]`**(diagnose 已经用户确认方案 · review 聚焦 fix↔方案一致 + 不引入新问题 —— 该条并入上面⚔️对抗段 · `change-review-roles` 可加路数)。
 8.5 🛡️ **复发防御沉淀(shift-left 喂料)**:review 收敛(APPROVE)后 · 确认 findings 里**可预防的复发类**(下个 feature RD 写时能避开的 · 如 stale/timeout/fail-open)→ 沉淀进 `project-specs/KNOWLEDGE.md § 复发防御清单`(同类第 2 次被抓即入 · **已在清单还复发 = 规避法不够硬 · 强化它**)。判据:findings 82% 真实且集中 code review · 砍轮数=漏 bug · 真杠杆=预防掉的 finding 永不需要收敛(dev 起草必读该清单)。**判断型 · 非机械门**(不是每条都提升 · 一次性/纯涌现的不入)。
    📊 **同步记录起草可预防性**:review 收敛后跑 `state.py review-preventability --stage review --preventable N --total M --missing '缺的起草考虑点(分号分隔·全 emergent 留空)'` —— 逐条判 findings 起草时本可预防否(本应被 TECH 简洁性自查/复发清单/PL七问挡掉)· 缺哪条考虑点。ship 聚合进台账「🛡️ 起草可预防性」列 · 年检据此判起草考虑点缺不缺(反复缺同一条 = 真缺口补框架 · 全 emergent = 别动)。非门禁 · 纯采集。goal/blueprint 冷审同理(`--stage goal|blueprint`)。
@@ -75,7 +75,7 @@ coverage: # 🔴 每一路一行(external lane 的在 external-cross-review/*.md
   # 🔴 每路都申报**全部**核对方向 —— 不是一路领一半(那是角色制的残影)
   architect: "实现↔设计一致性 见 F1,F3 / 测试真实性与覆盖 查过无发现 / 代码质量盲区 见 F5"
   r2: "实现↔设计一致性 查过无发现 / 测试真实性与覆盖 见 F2 / 代码质量盲区 查过无发现"
-outside_checklist_insight: # 💡 清单外洞察 —— 清单没问、但你认为该关注的(≥1 条 · 想不出写「无 · 因为…」· 不为凑内容而写)
+outside_checklist_insight: # 💡 清单外洞察 —— 清单没问、但你认为该关注的(有就写 · 想不出写「无」· 不为凑内容而写)
   architect: "报表类接口的**结果集搬运量**没在清单里 —— 本 feature 单次拉回 4 万行做服务端聚合,建议下一版进 TECH 清单"
 findings:
   - {id: F1, severity: MAJOR, status: open, title: "并发写入丢更新(store.py:88 无锁)", source: arch}

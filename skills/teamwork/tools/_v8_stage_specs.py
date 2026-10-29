@@ -893,7 +893,7 @@ def _evidence_pl_challenge_present(state: dict, args) -> tuple[bool, str]:
         return False, (
             "PRD-REVIEW.md 缺 ⚔️ 对抗段:每一路冷审都要按质疑七问(价值前提/问题定义/范围最小化/"
             "限制必要性/上游对齐/复活检查/既有行为变更)发起对抗质疑 · 🔴 **证否句式**「我试图证明 X "
-            "不成立,结果是…」· 不许写 ✅ · 至少 1 条实质质疑或显式「无实质质疑 + 理由」· "
+            "不成立,结果是…」· 不许写 ✅ · 有就写 · 没有写「无实质质疑」· "
             "finding id 沿用 `PL-CHALLENGE-{n}`(历史标记名 · 与角色无关)· 详 stages/goal-stage.md §3"
         )
     return True, ""
@@ -927,7 +927,7 @@ def _evidence_outside_checklist_insight(review_artifact: str, stage_key: str):
         if not mark:
             return False, (
                 f"{review_artifact} 缺 💡 **清单外洞察** 段 —— 每一路冷审都要回答"
-                "「清单没问、但你认为这个 feature 该关注的」:≥1 条,或显式「无 + 为什么没有」· "
+                "「清单没问、但你认为这个 feature 该关注的」:有就写,没有写「无」· "
                 "🔴 不为凑内容而写(硬凑 = 新仪式)· why:清单查的是已知风险,这一格捞的是"
                 "清单还不知道的 —— 历史缺口多数都不在当时的清单里"
             )
@@ -955,10 +955,13 @@ def _evidence_outside_checklist_insight(review_artifact: str, stage_key: str):
         # 否则「只留注释不填值」也能过门(与占位符同一类失效方式)。
         seg = re.sub(r"(?m)\s#[^\n]*$", "", seg)
         body = re.sub(r"[\s\-*·|>:#`\[\]()（）,,。、\"']+", "", seg)
+        # v8.366:显式「无」即合法答案 —— 不要求凑理由(凑出来的理由同样是新仪式)
+        if body in ("无", "None", "none", "N/A", "n/a"):
+            return True, ""
         if len(body) < 4:
             return False, (
                 f"{review_artifact} 的 💡 清单外洞察段没内容(还是模板占位符 / 留白)—— "
-                "想不出就**显式写「无 + 为什么没有」**(证明想过,不是跳过)"
+                "想不出就写「无」(不要求凑理由)"
             )
         return True, ""
     return _check
@@ -1263,7 +1266,7 @@ GOAL_SPEC = StageSpec(
         StageEvidenceCheck(
             name="outside_checklist_insight",
             check_fn=_evidence_outside_checklist_insight("PRD-REVIEW.md", "goal"),
-            description="PRD-REVIEW.md 含 💡 清单外洞察段(≥1 条或显式「无+理由」· goal 有冷审路时强制)",
+            description="PRD-REVIEW.md 含 💡 清单外洞察段(有就写 · 没有写「无实质质疑」· goal 有冷审路时强制)",
         ),
         StageEvidenceCheck(
             name="external_coverage_present",
@@ -2431,7 +2434,7 @@ BLUEPRINT_SPEC = StageSpec(
         StageEvidenceCheck(
             name="outside_checklist_insight",
             check_fn=_evidence_outside_checklist_insight("TECH-REVIEW.md", "blueprint"),
-            description="TECH-REVIEW.md 含 💡 清单外洞察段(≥1 条或显式「无+理由」· blueprint 有冷审路时强制)",
+            description="TECH-REVIEW.md 含 💡 清单外洞察段(有就写 · 没有写「无实质质疑」· blueprint 有冷审路时强制)",
         ),
         # v8.0+P0-9:TECH-REVIEW.md reviewers 必含 state.stage_review_roles[blueprint]
         StageEvidenceCheck(
@@ -3010,7 +3013,7 @@ REVIEW_SPEC = StageSpec(
         StageEvidenceCheck(
             name="outside_checklist_insight",
             check_fn=_evidence_outside_checklist_insight("REVIEW.md", "review"),
-            description="REVIEW.md 含 💡 清单外洞察段(≥1 条或显式「无+理由」· review 有冷审路时强制)",
+            description="REVIEW.md 含 💡 清单外洞察段(有就写 · 没有写「无实质质疑」· review 有冷审路时强制)",
         ),
         StageEvidenceCheck(
             name="external_review_artifact",

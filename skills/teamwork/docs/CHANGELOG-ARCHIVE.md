@@ -5,6 +5,18 @@
 
 ---
 
+## v8.361 · 年检提效:砍掉价值不高的环节(用户拍板「都做」)
+
+> 数据源:aon-core `PROCESS-LEDGER.md`(2026-08-16 后 128 个 Feature)+ 174 份流程复盘。AI 自主中位 115m、等用户中位 136m(等待占墙钟 ~70%)· **~30% 轮次是协调开销**(781/2564)· 暂停点 71% 按默认放行 · 台账 `rejected_with_feedback` 0 次。外审采纳率 goal 7/7、blueprint 24/24 —— **评审环节保留**,砍的是框架自己制造的开销与重复停等。
+
+- **门禁纯开销**:删 goal `prd_review_after_prd`(mtime 顺序门 · 每改 PRD 都得连带碰 PRD-REVIEW · 10 份复盘记过);`must_be_in_commit` 放宽为「本 stage 内已提交且与 auto-commit 一致」也算入账(TEST-REPORT 与代码分两次提交不再被逼重提 · 未提交改动 / 上一轮旧报告仍拦)。
+- **测试证据指纹只算代码**:流程目录(feature 目录 / `docs/features` / `docs/retros` / `project-specs`)下的文档类文件不进指纹 → 提交 TEST-REPORT / 改 PRD 不再让证据作废重跑(76 份复盘提到重跑);feature 目录里的 `e2e/*.py` 照算。新增 `state.py tree-hash` 单源取指纹(配方不再手抄 python 片段);旧口径指纹兼容放行。
+- **验收拍板并入 ship1**:AC 全过 → pm_acceptance 不停,验收结论进 ship1 MR 卡片「✅ 验收」段,**点合并 = 验收通过并发布**;要改回「要改 <问题>」(MR 窗口期放行口加 `goal` / `ui_design`)。AC 没过 / 有阻塞 / 有产品取舍 → 照旧停三选项。
+- **流程复盘文档按需写**:仅协调开销 ≥30% / 有 bypass / review ≥3 轮 / MR 窗口期回炉 / 反思摘要是「判例:」时写;ship brief 直接告诉本单写不写 · 台账行照落。
+- **medium 档不产 TC.md**:测试设计归 TECH §测试策略 · AC↔测试绑定走 `PRD.acceptance_criteria[].test_refs`(与 lite 同载体 · test 阶段校验);引擎 `StageArtifactSpec.skip_if`。
+- 同期已推 dev 的小改(v8.360.5–.8):功能生效闸先问触发条件能否从源头消除 · PRD 终确认待决策项逐项讨论 · 守卫清单「只在绕过时变」必给触发路径证据。
+- 验证:新增 `test_annual_cut_v8361.py` 20 例(真实临时 Git 仓库验指纹与入账判定);全量 **1840 passed, 2 subtests passed**。
+
 ## v8.360.4 · 修复评审证据归属、流程修订与合并后清场
 
 - 修正规划收尾的选项编号与执行分支，选 2 仅继续讨论；统一独立冷审的执行规范。
