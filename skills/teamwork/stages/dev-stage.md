@@ -59,8 +59,14 @@ state.py dev-complete --feature <path> \
  [--current-failures "<id,id>"]   # 红 base 差分(test-baseline 登记集)
 ```
 
-### Bug fix 报告(flow_type=Bug)
+### Bug fix 报告(flow_type=Bug · full 档)
 - `bugfix/BUG-*.md`(diagnose 已建)**追加** §回归测试 + §修复记录 · 模板 [templates/bug-report.md](../templates/bug-report.md)。
+
+### Bug 轻档(floor / tiny)复现证据
+- **改代码前**:写一条在当前代码上会失败的测试 → `state.py repro-record --feature <path> --cmd '<测试命令>'`(通过了 = 没复现 · 工具拒绝记录)
+- **修复 + commit 后** `dev-complete`:工具重跑同一条命令,必须通过;没有红记录 / 红之后没有新 commit / 仍失败 → 拒绝
+- 根因 / 修复意图 / 验证方式写进理解卡与 PR 描述 · 无 BUG 报告
+- 复现不出 / 根因不对 / 修复要改变预期行为 → `state.py bug-escalate --feature <path> --evidence '<新事实>'` 升 full(回 diagnose · 记录保留)
 
 ### 上下文入口(读什么)
 PRD(AC)· TECH(方案+完工自查槽)· TC(测试用例)· UI.md+全景(若 ui_design 完成)· **DEV-RULES + ARCHITECTURE 必读**(规则 1 读取契约 · 冲突以项目为准)· 🛡️ **KNOWLEDGE § 复发防御清单必读**(写时防)· KNOWLEDGE 其余按需。Bug 流:`bugfix/BUG-*.md` 为权威输入。

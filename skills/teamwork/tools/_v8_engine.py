@@ -839,7 +839,7 @@ def _resolve_flow_graph(state: dict, flow_by_type: dict) -> dict:
     pre = state.get("preset") or "full"
     if ft in _LEGACY_FLOW_ALIASES:
         ft, pre = _LEGACY_FLOW_ALIASES[ft]
-    if ft == "Feature":
+    if ft in ("Feature", "Bug"):            # v8.365:Bug 轻档同走计划推导
         dims = plan_dims(state)
         if dims:
             return derive_flow_graph(dims)
@@ -859,7 +859,7 @@ def execute_stage_start(
     close_open_pause(state)  # v8.192:闭合 stage 内暂停等待
 
     # 1. flow_type 校验(v8.280:preset-aware · Feature·micro → 内部键 "Micro" 匹配 EXECUTE_SPEC)
-    dims = plan_dims(state) if state.get("flow_type") == "Feature" else None
+    dims = plan_dims(state) if state.get("flow_type") in ("Feature", "Bug") else None
     if dims:
         if stage_spec.name not in derive_chain(dims):
             emit_json({"verdict": "FAIL", "stage": stage_spec.name, "phase": "start",
