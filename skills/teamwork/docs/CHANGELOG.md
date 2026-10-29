@@ -4,6 +4,18 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.363 · 计时口径 v2:先把统计做对,再改流程(提效方案第 0 批)
+
+> 起因:Teamwork 提效方案评审 —— 要验证「明确任务少走手续」是否真提效,得先有可比基线;而现有统计有三处失真,流程改动与口径修正同批上会让效果无法归因。本版**只改统计,流程规则一律不动**。
+
+- **总时长起点**:`_feature_duration_h` 原来只从最早 stage 起算,漏掉 bootstrap/分诊/prepare。v2 起点取 `prepare_check_at`(init-feature 从 prepare-check audit 记录取)/ `created_at` 中最早者。
+- **启动准备耗时单列**:`ledger_timing.startup_min` = 可观测起点 → 首个 stage 开始(prepare-check 之前不可观测 · 是下界)。
+- **pm_acceptance 不再整段算等待**:v8.361 起 AC 全过不停,原口径把验收工作算成「等用户」;v2 下按普通 stage 计,真停时 pause-mark 打点进 `await_minutes`。
+- **暂停次数机器计数**:`close_open_pause` 每次闭合落一条 `pause_log`(stage/label/minutes)· `ledger_timing.pause_count`。
+- **新旧不混比**:init-feature 写 `timing_basis: "v2"`;存量 state 无此字段 → 全部按旧口径算(结果不变)· 台账「时长」格 v2 行追加 `·启 Nm·停 N` 段即口径标记 · `ledger_timing.timing_basis` 显式标注。
+- 未做(留待后续批次按需补):首次有效产出时间、合并后 14 天遗漏缺陷追踪、未归档任务统计。
+- 验证:新增 `test_timing_basis_v8363.py` 14 例(含真跑 prepare-check → init-feature)· 全量通过。
+
 ## v8.362 · 归档后 MR 修复通道 + CI 归因修正(实证 GPT-F261014120919-Offer-Plugin)
 
 > 起因:ship1 归档后 MR CI 红,修一行 tsconfig —— 被迫重走 dev→review→test→browser_e2e→pm_acceptance→ship,test / browser_e2e 各 bypass 一次;同时 await-merge 把本分支新增 `proxy.ts` 导致的 TS2307 连判 8 次「base 预存在」,监控不报警。
@@ -60,23 +72,3 @@
 - 📎 撞 v8.283 价值门(🔴 规则 39 条 vs 3 处 why = 13.0 > 12)→ **服从门裁**:把新增规则的实证理由显式标成 `why:`(而不是削 🔴),比值回到 7.8。
 
 - test_guard_redundancy_v8360(16 · 含「新判据不吃掉既有 ROI/透出」的回归锁)· 全量 **1792 passed**
-
-## v8.359 · WS 拆解明细:去「人维护」+ 用户决策事实入槽(用户拍板)
-
-> 用户(WS-48 财务链路截图):「这个**人维护**去掉,ws 这里 feature 补充一点可以详细一些,**不能丢用户决策的事实**」。
-
-### 两个问题都真
-- ① §拆出的 feature 标着「规划态 · **人维护**」,但这节恰恰是 **feature-planning 流程产出的** —— 标注会让 AI 以为不归它写,于是写薄或不写。
-- ② 槽位只有 范围 / 依赖 / **高层 AC**,**规划期用户拍的板没有落点**:选了哪个方案(税务方案 A 不是 B)、打款 failed 分几态、定了什么口径 —— 全留在规划当时的对话里。
-
-> 🔴 **这是 v8.353「已确认意图入 PRD」的上游断点**:v8.353 把 prepare 确认的意图搬进了 PRD,但更早一层(WS 规划期的决策)仍然只活在对话里。换 session / 派 subagent 就没了,下游 PM 只能凭「范围」一句去猜用户当初要什么 —— 而**意图错了是唯一一类下游全部质量门都拦不住的错**。
-
-### 变更
-- **去掉「人维护」标注**;`ws-lint` 新增一条:存量 WS 仍写该标注 → 报出(否则它会一直被抄下去)。
-- **新增 `features[].user_decisions`(机读)+ 正文 🔒「用户已拍板的」段**:选了什么 / 排除了什么(并标「做不到」还是「我们选的边界」)/ 定了什么口径 · 🔴 **原样搬不润色**(润色 = 二次解释,偏差正是这么进来的)。
-- **`ws-lint` 查槽位存在**(逐件点名缺的那些)· 🔴 **不查非空** —— `[]` 是合法值(该件未经用户单独拍板);强制非空会**逼出编造的「决策」**(与 v8.358 同一判断:必填 + 无出口 = 幻觉配方)。
-- **链条写明**:这些事实是起 feature 时 `init-feature --user-intent` 的**输入**,再落进 PRD §已确认意图 —— 载体到位还不够,不说清往哪传,填了也没人用。
-- **拆解明细改为「宁详勿略」**:原措辞「核心 AC(**高层** · 详细 AC 在 Feature PRD)」会诱导写薄,而这节是下游**唯一**能拿到规划期上下文的地方;AC 可写到具体字段 / 路由 / 状态值。
-- 📎 ws-lint 拿到的是**文本**而既有 `_parse_ws_features` 收 `Path` → 拆出 `_parse_ws_features_text` 两边共用,**没写第二份扫描器**(双实现必漂 · v8.352 `_flow_key` 漏 floor 即实证)。
-
-- test_ws_user_decisions_v8359(13)· 全量 **1776 passed**

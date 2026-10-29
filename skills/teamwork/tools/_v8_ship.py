@@ -1191,6 +1191,10 @@ def _handle_ship_archive(state: dict, args: argparse.Namespace) -> dict:
             "await_user_min": _lt_wait,
             "per_stage": _lt_bd,
             "user_email": _git_user_email(wt_root),
+            # v8.363:口径 v2 新增(旧口径 state = None · 新旧不混比)
+            "timing_basis": "v2" if _timing_v2(state) else "legacy",
+            "startup_min": _startup_minutes(state),
+            "pause_count": _pause_count(state),
         },
         # v8.281:起草可预防性(各评审 review-preventability 记录聚合)· 台账「🛡️ 起草可预防性」列
         # · 年检据此判 PRD/TECH 起草考虑点缺不缺(反复缺同一条 = 真缺口 · 补框架考虑点)。
@@ -1816,6 +1820,11 @@ def _compose_ledger_row(state: dict, args: argparse.Namespace, wt_root: str,
             dur += f"·AI {ai_min}m"
         if wait_min is not None:
             dur += f"·待 {wait_min}m"
+        startup, pauses = _startup_minutes(state), _pause_count(state)
+        if startup is not None:          # v8.363:仅 v2 口径行带 → 「启/停」段即新口径标记
+            dur += f"·启 {startup}m"
+        if pauses is not None:
+            dur += f"·停 {pauses}"
     tc = _triage_calibration(state, wt_root, merge_target)
     diffn = tc.get("actual_diff_files")
     tc_cell = (f"{tc.get('clarity', 'normal')}·{tc.get('roster', '默认矩阵')} → "
@@ -1897,28 +1906,71 @@ def _append_ledger_row(wt_root: str, row: str, feature_id: str) -> dict:
     return {"status": "appended", "file": rel, "created": created}
 
 
+def _parse_utc(v) -> Optional[datetime]:
+    try:
+        return datetime.strptime(v, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+    except (ValueError, TypeError):
+        return None
+
+
+def _timing_v2(state: dict) -> bool:
+    """v8.363:计时口径 v2(init-feature 写 timing_basis)· 存量 state 走旧口径 · 新旧不混比。"""
+    return state.get("timing_basis") == "v2"
+
+
 def _feature_duration_h(state: dict) -> Optional[str]:
-    """从 stage_contracts 时间戳算总时长(最早 started_at → 最晚 completed_at)· 小时 1 位。"""
+    """总时长 · 小时 1 位。
+
+    旧口径:最早 stage started_at → 最晚 completed_at(漏掉 bootstrap/分诊/prepare)。
+    v2(v8.363):起点再取 prepare_check_at / created_at 中最早者 —— 启动准备成本计入。
+    """
     contracts = state.get("stage_contracts", {})
     starts, ends = [], []
     for c in contracts.values():
         for key, bucket in (("started_at", starts), ("completed_at", ends)):
-            v = c.get(key)
-            if not v:
-                continue
-            try:
-                bucket.append(datetime.strptime(v, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc))
-            except (ValueError, TypeError):
-                pass
+            t = _parse_utc(c.get(key))
+            if t:
+                bucket.append(t)
+    if _timing_v2(state):
+        starts += [t for t in (_parse_utc(state.get("prepare_check_at")),
+                               _parse_utc(state.get("created_at"))) if t]
     if not starts or not ends:
         return None
     secs = (max(ends) - min(starts)).total_seconds()
     return f"{secs / 3600:.1f}h" if secs >= 0 else None
 
 
+def _startup_minutes(state: dict) -> Optional[int]:
+    """v8.363:启动准备耗时 = 可观测起点(prepare_check_at · 缺则 created_at)→ 首个 stage started_at。
+
+    prepare-check 之前的 bootstrap/分诊工具不可观测 · 是下界。旧口径 state 返 None(不补算)。
+    """
+    if not _timing_v2(state):
+        return None
+    t0 = _parse_utc(state.get("prepare_check_at")) or _parse_utc(state.get("created_at"))
+    firsts = [t for t in (_parse_utc(c.get("started_at"))
+                          for c in (state.get("stage_contracts") or {}).values()) if t]
+    if not t0 or not firsts:
+        return None
+    return max(0, int((min(firsts) - t0).total_seconds() // 60))
+
+
+def _pause_count(state: dict) -> Optional[int]:
+    """v8.363:实际发生的暂停次数(close_open_pause 落 pause_log)· 旧口径返 None。"""
+    if not _timing_v2(state):
+        return None
+    return len(state.get("pause_log") or [])
+
+
 # v8.172:纯用户决策等待 stage —— 其 duration = 等用户拍板的墙钟 · 非阶段内工作 ·
 # 不能计入「最耗时(工作)」(实证 audit ×5:pm_acceptance 占 84%/87%/73% 全是等用户)。
+# v8.363:仅旧口径适用 —— v8.361 起 AC 全过不停 · 整段算等待会把验收工作算成等待;
+# v2 下 pm_acceptance 当普通 stage(真停时 pause-mark 打点进 await_minutes)。
 _AWAIT_USER_STAGES = {"pm_acceptance"}
+
+
+def _await_user_stages(state: dict) -> set:
+    return set() if _timing_v2(state) else _AWAIT_USER_STAGES
 
 
 def _stage_durations(state: dict):
@@ -1946,8 +1998,9 @@ def _stage_durations(state: dict):
     if not items:
         return None, None
     breakdown = " · ".join(f"{s} {m}m" + (f"(+等待{a}m)" if a else "") for s, m, a in items)
-    work = [(s, m) for s, m, a in items if s not in _AWAIT_USER_STAGES]
-    awaiting = [(s, m + a) for s, m, a in items if s in _AWAIT_USER_STAGES]
+    await_stages = _await_user_stages(state)
+    work = [(s, m) for s, m, a in items if s not in await_stages]
+    awaiting = [(s, m + a) for s, m, a in items if s in await_stages]
     if work:
         wtotal = sum(m for _, m in work)
         ls, lm = max(work, key=lambda x: x[1])
@@ -2069,7 +2122,7 @@ def _timing_split(state: dict):
     """v8.208:把墙钟耗时拆成 **AI 自主运行** vs **等待用户** 两块(分离人工等待)。
 
     - ai_min   = Σ 工作 stage 的(duration − await_minutes)—— AI 真正在跑的时长(扣 stage 内暂停)
-    - wait_min = Σ 工作 stage 的 await_minutes + Σ 纯等待 stage(_AWAIT_USER_STAGES · 如 pm_acceptance)的 duration
+    - wait_min = Σ 工作 stage 的 await_minutes + Σ 纯等待 stage(旧口径 _AWAIT_USER_STAGES · v2 为空)的 duration
                  —— 全部人工等待(stage 内暂停 pause-mark 打点 + 纯等用户 stage 的墙钟)
     返 (ai_min, wait_min);无 duration 数据 → (None, None)。
     """
@@ -2077,6 +2130,7 @@ def _timing_split(state: dict):
     order = state.get("completed_stages", []) or list(contracts.keys())
     ai = wait = 0
     any_dur = False
+    await_stages = _await_user_stages(state)
     for s in order:
         c = contracts.get(s, {})
         d = c.get("duration_minutes")
@@ -2085,7 +2139,7 @@ def _timing_split(state: dict):
             continue
         any_dur = True
         a = int(c.get("await_minutes") or 0)
-        if s in _AWAIT_USER_STAGES:
+        if s in await_stages:
             wait += d                 # 纯等待 stage → 整段算等待(墙钟)
         elif isinstance(act, int):
             ai += act                 # AI 工作 = 活动挖掘值(已排空闲+R5暂停)

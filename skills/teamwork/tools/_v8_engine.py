@@ -518,6 +518,9 @@ def close_open_pause(state: dict) -> None:
     if stage and mins:
         c = state.setdefault("stage_contracts", {}).setdefault(stage, {})
         c["await_minutes"] = int(c.get("await_minutes") or 0) + mins
+    # v8.363:每次暂停留一条(确认次数的机器计数 · 台账 ledger_timing.pause_count 读这里)
+    state.setdefault("pause_log", []).append(
+        {"stage": stage, "label": op.get("label") or "", "minutes": mins})
     state.pop("open_pause", None)
 
 
