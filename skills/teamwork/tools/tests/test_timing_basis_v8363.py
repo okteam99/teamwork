@@ -79,7 +79,8 @@ class TestPauseLog(unittest.TestCase):
               "open_pause": {"stage": "goal", "label": "PRD 确认",
                              "started_at": datetime.now(timezone.utc).isoformat()}}
         close_open_pause(st)
-        self.assertEqual(st["pause_log"], [{"stage": "goal", "label": "PRD 确认", "minutes": 0}])
+        self.assertEqual(st["pause_log"], [{"stage": "goal", "label": "PRD 确认", "decision": "",
+                                           "minutes": 0}])
 
     def test_close_accumulates(self):
         t0 = (datetime.now(timezone.utc) - timedelta(minutes=5)).isoformat()

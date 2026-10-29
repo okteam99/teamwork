@@ -179,7 +179,7 @@ TIER_DIMS: dict[str, dict] = {
     # 不再是「最轻的档」(最轻是 floor)。
     "micro": {"spec_depth": "none", "evidence_gate": False, "verify_depth": "self",
               "ui": False, "review": {"review": [], "pm_acceptance": []}},
-    # 有行为面 · 测试能完全证明它对 · 无契约面 → 证据门开、评审全 0(验收在 MR diff)。
+    # 有行为面 · 测试覆盖本次行为变化和已识别的关键风险 · 无契约面 → 证据门开、评审全 0(验收在 MR diff)。
     "floor": {"spec_depth": "none", "evidence_gate": True, "verify_depth": "self",
               "ui": False, "review": {"review": [], "pm_acceptance": []}},
     # 测试证得了实现,但值得一双眼看 diff。
@@ -204,7 +204,7 @@ TIER_DIMS: dict[str, dict] = {
 # 每档一句**可判入场问句**(判据不是「改动大小」· 是风险的种类)
 TIER_ADMISSION: dict[str, str] = {
     "micro": "这改动有行为面吗?没有(文案/样式/资源/配置常量/注释)—— 测试无从写起",
-    "floor": "有行为面,但测试能完全证明它对吗?能,且不动契约面 —— 验收在 ship1 MR diff",
+    "floor": "有行为面,但测试覆盖得了本次行为变化和已识别的关键风险吗?能,且不动契约面 —— 验收在 ship1 MR diff",
     "tiny": "测试证得了实现,但值得一双眼看 diff 吗?值得",
     "lite": "有规格风险(会不会在做错的东西)吗?有 → 要 PRD;但方案空间小到只有一种写法 → 不写 TECH",
     "medium": "方案空间值得先写 TECH,但风险到了要两路并行冷审吗?没到 → goal/blueprint 各单路",
@@ -898,18 +898,28 @@ def cmd_pause_mark(args: argparse.Namespace) -> None:
     下一个流程命令(xx-start/complete/fix/retry)自动闭合 · 等待墙钟累计进该 stage 的
     await_minutes · 耗时分析工作/等待分离(resume 侧零纪律)。重复 mark = 覆盖(取最新)。
     """
+    # v8.364:暂停必须说清「用户的回答会定下哪个决定」—— 说不出 = 不该停(确认围绕决策)
+    decision = (getattr(args, "decision", None) or "").strip()
+    if not decision:
+        die(2, json.dumps({
+            "verdict": "FAIL", "action": "pause-mark",
+            "error": "--decision 为空:说不出用户的回答会定下哪个决定 → 这里不该停",
+            "hint": ("有真决策(产品语义 / 兼容性 / 数据处置 / 配置冲突)→ 写明再停;"
+                     "只是告知进展 → 不停,直接继续并在下一条输出里说明"),
+        }, ensure_ascii=False, indent=2))
     path = state_path(args.feature)
     state = load_state(args.feature)
     state["open_pause"] = {
         "stage": state.get("current_stage") or "",
         "label": (getattr(args, "label", None) or "").strip() or "R5 pause",
+        "decision": decision,
         "started_at": now_iso(),
     }
     state["updated_at"] = now_iso()
     state["updated_by"] = "pause-mark"
     atomic_write(path, state)
     emit({"verdict": "OK", "action": "pause-mark", "stage": state["open_pause"]["stage"],
-          "label": state["open_pause"]["label"],
+          "label": state["open_pause"]["label"], "decision": decision,
           "note": "下一个流程命令自动闭合 · 等待墙钟计入该 stage await_minutes(不算工作)"})
 
 
@@ -4444,7 +4454,7 @@ def build_parser() -> argparse.ArgumentParser:
                      choices=["full", "medium", "lite", "tiny", "floor", "micro"],
                      help="[v8.343] 起手**档名**(= 命名的默认维度元组)· 默认 full。"
                           "档只是起手点,权威是维度 —— 要拧用 --dims。入场问句(判风险的**种类**,"
-                          "不判改动大小):micro=无行为面(测试无从写起)· floor=有行为面但测试能完全证明"
+                          "不判改动大小):micro=无行为面(测试无从写起)· floor=有行为面但测试覆盖行为变化与关键风险"
                           "(dev→ship · 验收在 MR diff)· tiny=值得一双眼看 diff · lite=有规格风险要 PRD、"
                           "但方案空间小不写 TECH · medium=值得写 TECH、但没到要两路并行冷审"
                           "(goal/blueprint 各单路)· full=两路并行冷审的边际收益压得过开销。")
@@ -4525,6 +4535,9 @@ def build_parser() -> argparse.ArgumentParser:
                          help="[v8.192] 标记 stage 内暂停开始(emit R5 暂停点时跑)· 下一流程命令自动闭合 · 等待计入 await_minutes")
     pmk.add_argument("--feature", required=True, help="Feature artifact_root 路径")
     pmk.add_argument("--label", help="暂停点标签(如 'PRD 确认')")
+    pmk.add_argument("--decision",
+                     help="[v8.364] 用户的回答会定下哪一个尚未确定的决定(如 '修复是否改变退款超时的行为')"
+                          " · 说不出 = 不该停 · 必填")
     pmk.set_defaults(func=cmd_pause_mark)
 
     # v8.281:评审后记录「起草可预防性」(非门禁 · ship 聚合进台账 · 年检分析起草考虑点缺不缺)
@@ -4659,7 +4672,7 @@ def build_parser() -> argparse.ArgumentParser:
                     choices=["Feature", "Bug", "Micro"],
                     help=("决定 artifact ID 字母(F/B/M · 详 conventions.md §1)+ "
                           "返回 stage_chain_preview · Bug/Micro 必传(漏传退回 F)"))
-    pc.add_argument("--preset", default=None, choices=["full", "tiny", "micro"],
+    pc.add_argument("--preset", default=None, choices=list(FEATURE_PRESETS),
                     help=("[v8.342] Feature 重量档 · 决定 stage_chain_preview 预览哪条链 · "
                           "默认 full。定了 tiny 就传 tiny —— 否则暂停点会把 11-stage 全链"
                           "摆给用户看,已经减掉的流程税又长回去了。"

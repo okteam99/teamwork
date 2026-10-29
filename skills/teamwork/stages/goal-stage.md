@@ -36,7 +36,7 @@
    装配判断表 —— 🔴 **加减两侧都要判**(实证:只有加法判据时,四轴全低的域名配置仍默认吃满 goal 双路 + blueprint 2 路 + review 2 路 = 六路评审 · 用户当场问「这么简单为什么那么多 review」):
    - **减法侧(六档 · 判**风险的种类**不判改动大小 · 用户拍板)**:
      · **`micro`** —— 这改动**有行为面吗**?没有(文案/样式/资源/配置常量/注释)—— 测试无从写起 → `execute → ship` 零门(证据门关 · 准入靠白名单兜);
-     · **`floor`** —— 有行为面,但**测试能完全证明它对吗**?能,且不动契约面 → `dev → ship`。🔴 与 micro 的分界不是「更轻」而是**拿什么换轻**:micro 拿掉证据门、floor 保留全部测试证据门(所以能接真逻辑改动),拿掉的是评审与独立验收口 —— 验收在 ship1 MR diff,`ship` 在任何组合里都减不掉;
+     · **`floor`** —— 有行为面,但**测试覆盖得了本次行为变化和已识别的关键风险吗**?能,且不动契约面 → `dev → ship`。🔴 与 micro 的分界不是「更轻」而是**拿什么换轻**:micro 拿掉证据门、floor 保留全部测试证据门(所以能接真逻辑改动),拿掉的是评审与独立验收口 —— 验收在 ship1 MR diff,`ship` 在任何组合里都减不掉;
      · **`tiny` =「直接做」形态(用户拍板原句:按理说直接开发,完成后架构师 review 一下,PM 验收盯 staging 部署就可以了)** —— 测试证得了实现,但**值得一双眼看 diff 吗**?值得 → `dev → review〔external 单路〕 → pm_acceptance → ship` · **零文档**(规格 = dev brief 理解卡)· PM 验收盯 staging 部署(await-merge 已自动带 CI);
      · **`lite`** —— **有规格风险**(会不会在做错的东西)吗?有 → 要 PRD;但方案空间小到只有一种写法 → 不写 TECH → `goal → dev → review〔external 单路〕 → test → pm_acceptance → ship`:goal 冷审 0 路缺省 · **PRD 照要、终确认停等照停**(用户主权不因降档让渡)· AC↔测试绑定改由 PRD 机读块 `acceptance_criteria[].test_refs` 承载(dev 写完测试**回填真实引用** · test-complete 校验非空**且引用真实存在**);
      · **`medium`** —— 方案空间值得先写 TECH,但**到了要两路并行冷审吗**?没到 → goal / blueprint 各 `[external]` **单路**(清单本就统一 · 单路不减清单 · 模型照错开) · 链同 full;

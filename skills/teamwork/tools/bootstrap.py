@@ -1693,10 +1693,12 @@ def cmd_session_bootstrap(args: argparse.Namespace) -> None:
             "trigger": ("session 启动 · 本项目无 product-overview/(产品规划上游缺失 · "
                         "地图根 teamwork-space.md 已 bootstrap 自动维护)"),
             "action": (
-                "🔴 PMO 本 session 首次响应前 emit R5 暂停点(即使已有 PROJECT/ROADMAP 仍 surface):"
+                "bare /teamwork · mode D · 规划类任务 → 首次响应 emit R5 暂停点:"
                 "1 进产品规划冷启动(PL 引导建 product-overview → ✅确认 → 回填 "
                 "teamwork-space.md 子项目清单)💡 / 2 跳过直接做任务(后续可补 · "
-                "子项目清单留空时路由校验 SKIP)/ 3 其他"
+                "子项目清单留空时路由校验 SKIP)/ 3 其他。"
+                "🟢 明确的 Feature/Bug 执行任务(mode B)→ **不停** · 一句话提示可补规划 · 直接走 prepare"
+                "(缺规划不改变本次修复的任何决定 · v8.364)"
             ),
             "spec": "PRODUCT-OVERVIEW-INTEGRATION.md + docs/feature-planning.md",
         })
@@ -1744,7 +1746,7 @@ def cmd_session_bootstrap(args: argparse.Namespace) -> None:
             )
         if _has_cold_start:
             _priority.append(
-                "② 补规划:缺产品规划上游 product-overview(见 flow_gates.cold_start_product_planning_recommended)· 升级处理完(或用户忽略)再做"
+                "② 补规划:缺产品规划上游 product-overview(见 flow_gates.cold_start_product_planning_recommended)· 升级处理完(或用户忽略)再做 · 明确的 Feature/Bug 执行任务只提一句不停"
             )
         _priority.append("③ 任务:triage / 启动 Feature / 看板 · 前面处理完或用户明确跳过才轮到")
         result["session_entry_priority"] = {
