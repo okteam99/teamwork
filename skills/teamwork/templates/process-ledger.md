@@ -33,7 +33,7 @@
 > (stage-complete emit 会带提示 · 非门禁 · 零开销也要记 —— 「这次没开销」与「没记录」是两回事)。
 > **用途**:年检看**协调开销占比**跨 feature 趋势(查表即得 · 不必开文档)+ 展开读归因定位复发的开销类型;
 > 🔴 也是**验证提效改动是否真起效的唯一手段**(的收敛期归一 / TC 边界 / 投机窗准入都声称能砍这块)。
-> 🔴 **时长三分**:`总` = 墙钟(init→archive · 不含 MR 等待)· `AI自主` = 扣掉所有人工等待后 AI 真跑的时长(Σ 工作 stage〔duration − stage 内 pause-mark 暂停〕)· `待用户` = 全部人工等待(stage 内暂停 + pm_acceptance 等纯等待 stage 墙钟)。**数据源 = ship1 archive emit 的 `ledger_timing`**(确定性 · 照抄不肉眼算)· `各阶段耗时`同源(`per_stage`)。
+> 🔴 **时长三分**:`总` = 墙钟(init→archive · 不含 MR 等待)· `AI自主` = 扣掉所有人工等待后 AI 真跑的时长(Σ 工作 stage〔duration − stage 内 pause-mark 暂停〕)· `待用户` = 全部人工等待(stage 内暂停 · 旧口径行另含 pm_acceptance 整段)· 新口径行带 `·启 Nm·停 N`(启动准备耗时 / 实际暂停次数)。**数据源 = ship1 archive emit 的 `ledger_timing`**(确定性 · 照抄不肉眼算)· `各阶段耗时`同源(`per_stage`)。
 > 🔴 **角色真 finding**:按 `<goal 侧> / <review 侧>` 两段写全 —— goal 侧含 `pl`(PL-CHALLENGE 采纳)与 `ext`,review 侧含 `arch`/`qa`/`ext`。🔴 **零也要写**(`qa:0`)—— 「零 finding」与「没这个角色」是两回事,而「某角色长期零真 finding → 评审矩阵收缩」正是靠它。
 > 🔴 **反思摘要**:一行。**有流程新判例时以 `判例:` 前缀开头**(年检数「连续数月无新判例」靠 grep 这个前缀)· 完整反思归 `docs/retros/<id>-process.md` §三。
 > 🔴 **用户邮箱** = `git config user.email`(archive emit `ledger_timing.user_email`)· 供年检按人/团队分析流程健康度。

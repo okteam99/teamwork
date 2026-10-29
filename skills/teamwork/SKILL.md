@@ -1,6 +1,6 @@
 ---
 name: teamwork
-version: v8.363.0
+version: v8.364.0
 description: AI 协作开发一体化框架 - 需求功能开发, bug 修复, 问题排查 · /teamwork 启动
 ---
 
@@ -209,7 +209,18 @@ state.py 物化了 9 红线中 8 条 · R3 + 部分行为约束(R4 / R5(b) / byp
 
 ### R5(b) 暂停点标准格式
 
-🔴 **emit 任何 R5 暂停点前先跑** `state.py pause-mark --feature <path> --label '<暂停点名>'`:等待用户的墙钟计入该 stage `await_minutes`(下一个流程命令自动闭合)· 否则等待混入工作时长 · 耗时数据失真。
+🔴 **emit 任何 R5 暂停点前先跑** `state.py pause-mark --feature <path> --label '<暂停点名>' --decision '<用户的回答会定下哪个决定>'`:等待用户的墙钟计入该 stage `await_minutes`(下一个流程命令自动闭合)· 否则等待混入工作时长 · 耗时数据失真。
+
+**停之前先答:用户的回答会定下哪一个还没定的决定?**(`--decision` 必填 · 空 → 工具拒绝)答不出 = 不该停,继续做并在下一条输出里告知。默认行为:
+
+| 场景 | 默认 |
+|---|---|
+| 已明确授权修复 · 修法不改变预期行为 | 直接推进(不再问「是否开始修」) |
+| 分支目标 / 工作区规则已有明确配置 | 自动检查并按配置走 |
+| 分支陈旧 · 能从既定目标安全建隔离工作区 | 自动处理 · 事后告知 |
+| 配置冲突 / 目标分支不明 / 可能影响用户已有工作 | 列出具体冲突 · 问 |
+| 产品语义 / 兼容性 / 数据处置的选择 | 给选项 + 影响 + 建议 · 等决定 |
+| 用户明确要求每步确认 | 照做 |
 
 🔴 **投递位置**:暂停点 markdown / user_card 必须是**回合最后一条输出 · 其后零工具调用** —— 宿主可能不渲染回合中段文本(实证:卡片被吞 · 用户被迫问「url 发下」)。伴随暂停点的监控/标记类命令(pause-mark / await-merge 等)一律**先执行(后台/静默)再贴暂停点**。
 
@@ -302,7 +313,7 @@ session 启动 `bootstrap.py` emit `checks.skill_update_check` + `flow_gates[]`(
 - `cold_start_product_planning_recommended`(项目无 `product-overview/`)→ **产品规划上游引导**:
   - **地图 vs 规划解耦**:`teamwork-space.md`(知识地图根)由 **bootstrap 自动建骨架**(非规划内容 · 无需 R5)· `product-overview`(愿景/业务架构/执行线)**要人建** —— gate fire 于**它**缺失。
   - **权威顺序**:`product-overview`(PL 引导)→ ✅确认 → 回填 `teamwork-space.md` 子项目清单 → Feature Planning(涉 UI 先出全景初步规划 → 拆 WS / ROADMAP)→ Feature 状态机。
-  - 按 mode:bare `/teamwork` 与 **mode D** → 首条响应 emit 下方 R5 暂停点(不当静默看板 · 即便已有 PROJECT/ROADMAP 仍 surface · 不降级成脚注)· **mode B** → 同一暂停点(执行前先问要不要补上游)· **mode A/E** → 轻提一句(不强暂停)· **mode C** → silent skip。
+  - 按 mode:bare `/teamwork` 与 **mode D** 与**规划类任务** → 首条响应 emit 下方 R5 暂停点(不当静默看板 · 即便已有 PROJECT/ROADMAP 仍 surface · 不降级成脚注)· **mode B 明确的 Feature/Bug 执行任务** → 轻提一句、直接走 prepare(缺规划不改变本次任务的任何决定 · 停了也只是多一次确认)· **mode A/E** → 轻提一句(不强暂停)· **mode C** → silent skip。
   - **R5 暂停点动作**:① 进产品规划冷启动(PL 引导建 product-overview → ✅确认 → 回填 teamwork-space.md)💡 / ② 跳过直接做任务(后续可补)/ ③ 其他 · 🔴 **用户拍板前不擅自建 `product-overview/`**(R5)。
 
 Feature Planning / 冷启动 / 产品规划上游**不进状态机 · 无 state.py 兜底**(物化盲区 · 用 forewarn gate 补)—— 漏扫 flow_gates = 退回 v7「凭记忆读 spec」。
@@ -361,7 +372,7 @@ mode B 识别后(**无论后续 flow_type = Feature〔full/micro〕还是 Bug ·
 
 ## 流程类型(R2 闭集)
 
-`flow_type ∈ {Feature, Bug}` · Planning / 排查不进状态机(legacy 别名自动映射)。Feature 的重量由**四个维度**决定、不由档名决定:**D1 规格深度** / **D2 证据门** / **D3 验证深度** / **D4 评审力度**(+ 事实开关 UI)。**链由维度推导**,档名(micro/floor/tiny/lite/medium/full)只是命名的默认元组 + 一句可判入场问句 —— **起手点不是终点**(`--dims` 拧任意一维 · `revise-plan` 每个 stage 边界可改)。**telos 与链条单源 = [FLOWS.md](./FLOWS.md)** · **判定权威 = [docs/prepare.md](./docs/prepare.md)** · **定档判据单源 = [goal-stage 3.7 减法侧分级表](./stages/goal-stage.md)**。
+`flow_type ∈ {Feature, Bug}` · Planning / 排查不进状态机(legacy 别名自动映射)。Feature 的重量由**四个维度**决定、不由档名决定:**D1 规格深度** / **D2 证据门** / **D3 验证深度** / **D4 评审力度**(+ 事实开关 UI)。**链由维度推导**,档名(micro/floor/tiny/lite/medium/full)只是命名的默认元组 + 一句可判入场问句 —— **起手点不是终点**(`--dims` 拧任意一维 · `revise-plan` 每个 stage 边界可改)。**定档只有两个时刻 · 各一个单源**:prepare 起手(flow 大类 + micro/floor/tiny/full 起手)= [docs/prepare.md §2](./docs/prepare.md);goal 调研后装配(lite/medium/full 与四维)= [goal-stage 3.7](./stages/goal-stage.md)。[FLOWS.md](./FLOWS.md) 只是视图(telos + 链条速览 · 不定判据)。
 
 ### 授权暂停点清单(非 auto 模式 · 每个独立 emit + 等用户)
 

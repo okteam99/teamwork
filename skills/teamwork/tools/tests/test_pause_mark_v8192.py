@@ -48,7 +48,8 @@ class TestCli(unittest.TestCase):
         (d / "state.json").write_text(json.dumps(
             {"feature_id": "X-F1", "current_stage": "goal", "concerns": []}), encoding="utf-8")
         r = subprocess.run([sys.executable, str(STATE_PY), "pause-mark",
-                            "--feature", str(d), "--label", "PRD 确认"],
+                            "--feature", str(d), "--label", "PRD 确认",
+                            "--decision", "PRD 范围是否含退款"],
                            capture_output=True, text=True, timeout=30)
         out = json.loads(r.stdout)
         self.assertEqual(out["verdict"], "OK")
