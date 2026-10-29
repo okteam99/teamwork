@@ -215,6 +215,21 @@ PMO 按以下关键词表判定 user input 落入哪类流程:
 5. **其他指示**
 ```
 
+### 2.3 · Bug 定档(full / tiny / floor)
+
+Bug 只开三档。判的是**风险的种类**:代码改得少,不等于风险低。
+
+| 档 | 准入(全满足) | 链 |
+|---|---|---|
+| **floor** | ① 有复现证据:修复前会失败的测试(或可复现的命令)· ② 修复不改变预期行为与公开契约 · ③ 影响范围已查清 | dev → ship |
+| **tiny** | 满足 floor 准入 · 但碰**权限 / 支付 / 数据写入**等敏感路径,或改动值得一双眼看 diff | dev → review〔external 单路〕→ ship |
+| **full** | 拿不出复现证据 / 根因不明 / 修复改变行为或契约 / 有需要用户决定的取舍 | diagnose → dev → review → test → pm_acceptance → ship |
+
+- 🔴 **复现证据由机器核对,不靠自述「根因已验证」**:轻档 dev 开工后、改代码前跑 `state.py repro-record --cmd '<测试>'`(必须失败才记录);修复 commit 后 `dev-complete` 重跑同一条命令,必须通过。没有红记录、红之后没有新 commit、修复后仍红 → dev-complete 拒绝。
+- **升级**:实现中发现未知调用方 / 新的兼容影响 / 原判断不成立 / 复现不出 → `state.py bug-escalate --evidence '<新事实>'` 升 full(回 diagnose · 已有记录保留)。只有新事实带来用户决策时才停下问;单纯工作量增加由 agent 自行处理。
+- 轻档的根因 / 修复意图 / 验证方式写进理解卡与 PR 描述 · 不复制成 BUG 报告。
+- `prepare-check --flow-type Bug --preset <floor|tiny>` 预览对应链;`init-feature --flow-type Bug --preset <floor|tiny>`(不传 = full)。
+
 ---
 
 ## 3. Step 2 · worktree 决策模板
@@ -264,7 +279,8 @@ flow=<Feature[·micro] / Bug> · clarity=<normal> · bl=<BL-NNN|无> · 链=<can
 
 flow_type → first_stage 映射:
 - Feature(preset=full)→ `goal`
-- Bug → `diagnose`(根因细查 + 修复方案 · 用户确认后才进 dev · 防修偏)
+- Bug(preset=full)→ `diagnose`(根因细查 + 修复方案 · 改变预期行为时用户确认后才进 dev · 防修偏)
+- Bug(preset=floor / tiny)→ `dev`(先 `repro-record` 记红 · 详 §2.3)
 - Feature(preset=micro)→ `execute`(零门禁自由执行 → ship · 无 dev/pm_acceptance)
 - Feature(preset=tiny / floor)→ `dev`
 - Feature Planning / 问题排查 → 不进状态机 · prepare 在这两个流程上不调用
@@ -318,7 +334,7 @@ state.py init-feature \
  # --bl BL-NNN                           # 从 ROADMAP BL 启动时必带 · ship 翻牌/台账用
 ```
 
-🔴 **Bug 流程先 diagnose**(不是 dev):根因细查 + 修复方案须经用户 R5 确认后才进 dev 写 fix —— 详见 [stages/diagnose-stage.md](../stages/diagnose-stage.md)。
+🔴 **Bug full 档先 diagnose**(不是 dev):根因细查 + 修复方案 · 改变预期行为 / 契约 / 有取舍时须经用户 R5 确认才进 dev —— 详见 [stages/diagnose-stage.md](../stages/diagnose-stage.md)。Bug 轻档(floor/tiny)直接 dev,见 §2.3。
 
 ---
 

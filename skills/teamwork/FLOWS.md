@@ -14,7 +14,9 @@
 | **Feature · `tiny`** | 测试证得了实现,但**值得一双眼看 diff** —— 用户拍板形态:直接开发、完成后架构师 review 一下、PM 验收盯 staging 部署 · **零文档**(规格 = dev brief 理解卡) | dev → review〔external 单路〕 → pm_acceptance → ship | 代码直改 |
 | **Feature · `floor`** | 有行为面,但**测试覆盖本次行为变化和已识别的关键风险**、不动契约面 → 最轻的**有证据门**档。与 micro 的分界不是更轻,是**拿什么换轻**:floor 保留全部测试证据门(所以能接真逻辑改动),拿掉的是评审与独立验收口 · 验收在 ship1 MR diff | dev → ship | 代码 + 测试 |
 | **Feature · `micro`** | **无行为面**(文案/样式/资源/配置常量/注释)—— 测试无从写起 · 证据门关、准入靠白名单兜 · 用户验收在 ship1 MR diff(R7) | execute → ship | 代码直改 |
-| **Bug** | 缺陷已指认 · **diagnose 先行**(根因 + 修复方案经用户确认才许修 · 防修偏)· review 单路 external | diagnose → dev → review → test → pm_acceptance → ship | 修复 + BUG 报告 + 回归测试 |
+| **Bug · `floor`** | 有**复现证据**(修复前会失败的测试 · `repro-record` 机器记红)· 不改预期行为与公开契约 · 影响面已查清 → 不进 diagnose · dev-complete 重跑同命令必须绿 · 验收在 ship1 MR diff | dev → ship | 修复 + 复现测试(根因写理解卡 / PR · 无 BUG 报告) |
+| **Bug · `tiny`** | 同 floor 准入 · 但碰**敏感路径**(权限 / 支付 / 数据写入)或值得一双眼看 diff | dev → review〔external 单路〕→ ship | 同 floor |
+| **Bug · `full`** | 拿不出复现 / 根因不明 / 修复改变行为或契约 / 有取舍 · **diagnose 先行**(修复改变预期行为时方案经用户确认 · 恢复本该有的行为则告知不停)· review 单路 external · 轻档中途发现新事实 → `bug-escalate` 升到这里 | diagnose → dev → review → test → pm_acceptance → ship | 修复 + BUG 报告 + 回归测试 |
 | **Feature Planning** | 产品方向 → 拆 ROADMAP · 不出代码(R6)· **不进状态机**(init reject · PMO 主对话执行 · 详 [docs/feature-planning.md](./docs/feature-planning.md)) | — | WS + ROADMAP + 全景 |
 | **问题排查** | 理解现象 · 只定位根因 · **不进状态机**(mode A 深度版)· 🔴 排查先行律:根因未定的现象类输入一律先到这里 · 闭合再定流程(转 Bug 时结论直供 diagnose 复核不重查) | — | 排查报告 + 后续 todo |
 

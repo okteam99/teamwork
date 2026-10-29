@@ -144,6 +144,15 @@ FEATURE_PRESETS = ("full", "medium", "lite", "tiny", "floor", "micro")
 # 有独立**静态**图的档(仅作无 plan 存量 state 的回退 · 新 feature 一律由 plan 推导)。
 # lite/medium 不在此列:它们的链是 FEATURE_FLOW 的子路径,回退到 FEATURE_FLOW 即可。
 _STRUCTURAL_PRESETS = ("micro", "tiny", "floor")
+# v8.365:Bug 也走装配计划(轻档)· 只开 3 档 —— 不把 Feature 的 6 档全开放(组合数不涨)。
+#   floor:dev → ship(有复现证据 · 不改预期行为 · 影响面已查清)
+#   tiny :dev → review〔external 单路〕→ ship(同上 · 但碰敏感路径或值得一双眼看 diff)
+#   full :diagnose → dev → review → test → pm_acceptance → ship(静态 BUG_FLOW · 无计划)
+# 轻档的准入不靠 agent 自述「根因已验证」:dev-complete 机器核对 repro-record(修复前红 → 修复后绿)。
+BUG_PRESETS = ("full", "tiny", "floor")
+BUG_LIGHT_PRESETS = ("tiny", "floor")
+# Bug 无 PRD/AC · 验收在 ship1 MR diff → tiny 不进 pm_acceptance
+BUG_TIER_OVERRIDE = {"tiny": {"review": {"pm_acceptance": []}}}
 LEGACY_FLOW_ALIASES = {"Micro": ("Feature", "micro")}
 
 
@@ -345,7 +354,7 @@ def resolve_flow_graph(flow_type: str, preset: str = "full", dims: Optional[dict
     """
     if flow_type in LEGACY_FLOW_ALIASES:
         flow_type, preset = LEGACY_FLOW_ALIASES[flow_type]
-    if flow_type == "Feature" and dims:
+    if flow_type in ("Feature", "Bug") and dims:   # v8.365:Bug 轻档同走计划推导
         return derive_flow_graph(dims)
     if flow_type == "Feature" and preset in _STRUCTURAL_PRESETS:
         return FLOW_BY_TYPE[f"Feature:{preset}"]
@@ -921,6 +930,101 @@ def cmd_pause_mark(args: argparse.Namespace) -> None:
     emit({"verdict": "OK", "action": "pause-mark", "stage": state["open_pause"]["stage"],
           "label": state["open_pause"]["label"], "decision": decision,
           "note": "下一个流程命令自动闭合 · 等待墙钟计入该 stage await_minutes(不算工作)"})
+
+
+# ─── v8.365:Bug 轻档复现证据 + 升级 ───────────────────────────────────
+# 轻档(floor/tiny)跳过 diagnose 的前提是「根因已验证」—— 不让 agent 自述,改为机器可核对的
+# 证据:修复前这条命令失败(红)· 修复后同一条命令通过(绿 · dev-complete 重跑)。
+
+REPRO_TIMEOUT_SEC = 900
+
+
+def _run_repro(cmd: str, cwd: str) -> dict:
+    try:
+        r = subprocess.run(cmd, shell=True, cwd=cwd, capture_output=True, text=True,
+                           timeout=REPRO_TIMEOUT_SEC)
+        out = (r.stdout or "") + (r.stderr or "")
+        return {"exit_code": r.returncode, "output_tail": out[-2000:]}
+    except subprocess.TimeoutExpired:
+        return {"exit_code": None, "output_tail": f"超时 {REPRO_TIMEOUT_SEC}s"}
+
+
+def _git_head_at(cwd: str) -> str:
+    r = subprocess.run(["git", "rev-parse", "HEAD"], cwd=cwd, capture_output=True, text=True)
+    return r.stdout.strip() if r.returncode == 0 else ""
+
+
+def cmd_repro_record(args: argparse.Namespace) -> None:
+    """跑复现命令 · 必须失败才记录(红)· 改代码之前跑。"""
+    path = state_path(args.feature)
+    state = load_state(args.feature)
+    if state.get("flow_type") != "Bug" or not plan_dims(state):
+        die(2, json.dumps({
+            "verdict": "FAIL", "action": "repro-record",
+            "error": "repro-record 只用于 Bug 轻档(floor/tiny)· full 档的复现写在 diagnose 的 BUG 报告里",
+        }, ensure_ascii=False, indent=2))
+    cmd = (args.cmd or "").strip()
+    if not cmd:
+        die(2, json.dumps({"verdict": "FAIL", "action": "repro-record",
+                           "error": "--cmd 为空"}, ensure_ascii=False, indent=2))
+    cwd = str(Path.cwd())
+    res = _run_repro(cmd, cwd)
+    if res["exit_code"] == 0:
+        die(2, json.dumps({
+            "verdict": "FAIL", "action": "repro-record",
+            "error": "命令通过了(exit 0)· 没有复现问题 · 不能作为复现证据",
+            "hint": ("写一条在当前代码上会失败、修复后会通过的测试;"
+                     "复现不出来 → 根因还没验证 → `state.py bug-escalate` 升 full 先 diagnose"),
+            "output_tail": res["output_tail"],
+        }, ensure_ascii=False, indent=2))
+    state["repro"] = {
+        "cmd": cmd, "cwd": cwd, "red_exit": res["exit_code"], "red_at": now_iso(),
+        "red_head": _git_head_at(cwd), "red_output_tail": res["output_tail"],
+    }
+    state["updated_at"] = now_iso()
+    state["updated_by"] = "repro-record"
+    atomic_write(path, state)
+    emit({"verdict": "OK", "action": "repro-record", "red_exit": res["exit_code"],
+          "note": "已记录红 · 修复并 commit 后 dev-complete 会重跑同一条命令,必须通过"})
+
+
+def cmd_bug_escalate(args: argparse.Namespace) -> None:
+    """Bug 轻档 → full:回 diagnose · 已有记录(repro / stage_contracts / concerns)保留。"""
+    path = state_path(args.feature)
+    state = load_state(args.feature)
+    if state.get("flow_type") != "Bug" or not plan_dims(state):
+        die(2, json.dumps({"verdict": "FAIL", "action": "bug-escalate",
+                           "error": "只有 Bug 轻档(floor/tiny)可升级 · 当前不是"},
+                          ensure_ascii=False, indent=2))
+    if (state.get("ship") or {}).get("phase") in ("archived", "pushed", "merged"):
+        die(2, json.dumps({"verdict": "FAIL", "action": "bug-escalate",
+                           "error": "已进 ship 后段 · 不可升级(改走 MR 窗口期修复)"},
+                          ensure_ascii=False, indent=2))
+    evidence = (args.evidence or "").strip()
+    if not evidence:
+        die(2, json.dumps({"verdict": "FAIL", "action": "bug-escalate",
+                           "error": "--evidence 必填:哪条新事实让轻档不再成立"},
+                          ensure_ascii=False, indent=2))
+    old_pre = state.get("preset")
+    state.setdefault("plan_history", []).append(
+        {"at": now_iso(), "from": old_pre, "to": "full", "evidence": evidence,
+         "plan": state.pop("assembly_plan", None)})
+    state["preset"] = "full"
+    state["current_stage"] = "diagnose"
+    state["legal_next_stages"] = BUG_FLOW["diagnose"]
+    try:
+        from _v8_engine import build_default_stage_review_roles
+        state["stage_review_roles"] = build_default_stage_review_roles("Bug", "full")
+    except ImportError:
+        pass
+    state.setdefault("concerns", []).append(
+        f"{now_iso()} WARN bug-escalate: {old_pre} → full · {evidence}")
+    state["updated_at"] = now_iso()
+    state["updated_by"] = "bug-escalate"
+    atomic_write(path, state)
+    emit({"verdict": "OK", "action": "bug-escalate", "from": old_pre, "to": "full",
+          "next": f"state.py diagnose-start --feature {args.feature}",
+          "note": "已记录(repro / 阶段合同 / concerns)保留 · diagnose 可直接引用"})
 
 
 # ─── ws-progress:WS 进度 rollup（v8.174）──────────────────────────────
@@ -2236,7 +2340,23 @@ def cmd_init_feature(args: argparse.Namespace) -> None:
 
     # v8.343:Feature 一律建 assembly_plan(链的单源)· --dims 是 custom 装配入口
     _plan = None
-    if args.flow_type == "Feature":
+    if args.flow_type == "Bug":
+        # v8.365:Bug 只开 full / tiny / floor · full 维持静态 diagnose 链(无计划)
+        if _preset not in BUG_PRESETS:
+            die(2, json.dumps({
+                "verdict": "FAIL", "action": "init-feature",
+                "error": f"Bug 不支持 --preset {_preset!r} · 只有 {list(BUG_PRESETS)}",
+                "hint": ("floor = dev → ship · tiny = dev → review → ship(两者都要先有复现证据)· "
+                         "拿不出复现 / 根因不明 / 修复改变行为 → full(先 diagnose)"),
+            }, ensure_ascii=False, indent=2))
+        if getattr(args, "dims", None):
+            die(2, json.dumps({
+                "verdict": "FAIL", "action": "init-feature",
+                "error": "Bug 不支持 --dims(只开三档 · 不做 custom 装配)",
+            }, ensure_ascii=False, indent=2))
+        if _preset in BUG_LIGHT_PRESETS:
+            _plan = build_assembly_plan(_preset, BUG_TIER_OVERRIDE.get(_preset), set_at="prepare")
+    elif args.flow_type == "Feature":
         _override = None
         raw = getattr(args, "dims", None)
         if raw:
@@ -2578,14 +2698,27 @@ def _init_feature_next_brief(args, initial_stage: str,
 
     # v8.107:Bug 流程先 diagnose(根因细查 + 修复方案确认)· diagnose 产出 BUG 报告 · 用户确认后才进 dev
     pre_stage_action = ""
-    if args.flow_type == "Bug":
+    _bug_pre = (getattr(args, "preset", None) or "full")
+    if args.flow_type == "Bug" and _bug_pre in BUG_LIGHT_PRESETS:
+        # v8.365:Bug 轻档 —— 复现证据代替 diagnose 报告 · 机器核对红 → 绿
+        pre_stage_action = f"""
+🐛 **Bug 轻档({_bug_pre}):先拿复现证据,再修**(无 diagnose 阶段 · 无 BUG 报告):
+   1. `dev-start` 后、**改代码之前**:写一条能复现问题的测试(或命令)·
+      `state.py repro-record --feature {args.feature} --cmd '<测试命令>'` —— 必须**失败**才记录(红)
+   2. 修复 + commit · `dev-complete` 时工具**重跑同一条命令**,必须通过(绿)· 红绿都落 state
+   3. 根因 / 修复意图 / 验证方式写进理解卡与 PR 描述 · 不复制成 BUG 报告
+   4. 🔴 拿不出复现 / 发现根因不对 / 修复要改变预期行为 → `state.py bug-escalate --feature {args.feature} --evidence '<新事实>'`
+      升到 full(回 diagnose · 已做的记录保留)
+"""
+    elif args.flow_type == "Bug":
         pre_stage_action = f"""
 🔴 **Bug 流程:先 diagnose(根因细查 + 修复方案)· 用户确认后才进 dev**(治本 fix 修偏):
    1. `diagnose-start` → 🔴 **深读相关代码做根因细查**(triage/prepare 时读的代码往往不够细 · 必须深挖到真因)
    2. 写 `{Path(args.feature)}/bugfix/BUG-<bug-id>.md`(模板 `templates/bug-report.md`)·
       §现象 + §根因(深查实证:哪行/哪个调用/为什么)+ §修复方案(怎么改 · 改哪 · 取舍 · 影响面)·
       frontmatter `bug_id/symptom/root_cause/fix_summary`
-   3. 🔴 **把 §修复方案 给用户确认**(R5 暂停点)· 用户 ok 后才 `diagnose-complete` → dev
+   3. **修复方案改变预期行为 / 公开契约 / 有取舍** → 🔴 给用户确认(R5 暂停点)· 用户 ok 后才 `diagnose-complete`;
+      **不改变预期行为**(恢复本该有的行为)→ 方案写进 BUG 报告并告知用户 · 不停 · 直接 `diagnose-complete` → dev
    4. dev 阶段才按**已确认的方案**写 fix 代码 + §回归测试(不在 diagnose 写 fix 码)
 """
 
@@ -2694,7 +2827,8 @@ def cmd_reset_prev(args: argparse.Namespace) -> None:
     # started_at 保留(stage 开始时间不变)
 
     # 5. legal_next_stages 重算
-    flow_graph = resolve_flow_graph(state.get("flow_type") or "", state.get("preset") or "full")
+    flow_graph = resolve_flow_graph(state.get("flow_type") or "", state.get("preset") or "full",
+                                    plan_dims(state))
     state["legal_next_stages"] = flow_graph.get(last_completed, [])
 
     # 6. 自动 concerns WARN(audit 透明)
@@ -2900,6 +3034,14 @@ def cmd_prepare_check(args: argparse.Namespace) -> None:
                     f"flow_type '{args.flow_type}' 不支持 stage chain 预览 · "
                     f"支持: {sorted(FLOW_STAGE_CHAIN)}(Feature Planning / 问题排查 不进状态机 · 无 chain)"
                 )
+            elif _pub == "Bug" and _pre in BUG_LIGHT_PRESETS:
+                # v8.365:Bug 轻档 —— 链由计划推导 · 行说明借同名 Feature 档(dev/review/ship 同义)
+                _bchain = derive_chain(build_assembly_plan(
+                    _pre, BUG_TIER_OVERRIDE.get(_pre))["dims"])
+                payload["flow_type"] = args.flow_type
+                payload["stage_chain_preview"] = [
+                    c for c in build_stage_chain_preview(_pre.capitalize())
+                    if c.get("stage") in _bchain]
             else:
                 payload["flow_type"] = args.flow_type
                 payload["stage_chain_preview"] = build_stage_chain_preview(_chain_key)
@@ -4227,7 +4369,7 @@ def cmd_jump_to_stage(args: argparse.Namespace) -> None:
 
     # 2. 当前 flow_type 必须含 target stage
     flow_type = state.get("flow_type")
-    flow_graph = resolve_flow_graph(flow_type, getattr(args, "preset", None) or "full")
+    flow_graph = resolve_flow_graph(flow_type, state.get("preset") or "full", plan_dims(state))
     if not flow_graph:
         die(1, json.dumps({
             "verdict": "FAIL",
@@ -4539,6 +4681,18 @@ def build_parser() -> argparse.ArgumentParser:
                      help="[v8.364] 用户的回答会定下哪一个尚未确定的决定(如 '修复是否改变退款超时的行为')"
                           " · 说不出 = 不该停 · 必填")
     pmk.set_defaults(func=cmd_pause_mark)
+
+    # v8.365:Bug 轻档复现证据 + 升级
+    rpr = sub.add_parser("repro-record",
+                         help="[v8.365] Bug 轻档:跑复现命令 · 必须失败才记录(改代码之前跑)")
+    rpr.add_argument("--feature", required=True)
+    rpr.add_argument("--cmd", required=True, help="复现命令(通常是一条测试)")
+    rpr.set_defaults(func=cmd_repro_record)
+    bes = sub.add_parser("bug-escalate",
+                         help="[v8.365] Bug 轻档 → full(回 diagnose · 已有记录保留)")
+    bes.add_argument("--feature", required=True)
+    bes.add_argument("--evidence", required=True, help="哪条新事实让轻档不再成立")
+    bes.set_defaults(func=cmd_bug_escalate)
 
     # v8.281:评审后记录「起草可预防性」(非门禁 · ship 聚合进台账 · 年检分析起草考虑点缺不缺)
     rpv = sub.add_parser(

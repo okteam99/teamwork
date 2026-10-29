@@ -26,6 +26,7 @@ from _v8_engine import (
     StagePrerequisite,
     StageSpec,
     commit_exists,
+    now_iso,
     get_git_commit_changeset,
     parse_frontmatter,
 )
@@ -1327,7 +1328,7 @@ def _diagnose_brief(state: dict) -> str:
 ### 怎么做
 **必读** `stages/diagnose-stage.md`(深读代码方法 + 根因实证 + 修复方案要素 + 用户确认协议)。
 
-### 完成方式(🔴 R5 暂停点:先把 §修复方案 给用户确认 · 用户 ok 才跑)
+### 完成方式(修复改变预期行为 / 契约 / 有取舍 → 🔴 R5 暂停点:先把 §修复方案 给用户确认 · 用户 ok 才跑;只是恢复本该有的行为 → 告知用户 · 不停 · 直接跑)
 ```
 state.py diagnose-complete --feature <path> --auto-commit <hash> --artifacts bugfix/BUG-<id>.md
 ```
@@ -1359,7 +1360,7 @@ DIAGNOSE_SPEC = StageSpec(
     brief_template_fn=_diagnose_brief,
     auto_transition_fn=_diagnose_transition,
     allowed_flow_types=["Bug"],
-    authorized_pause_point="diagnose-complete 前 · 🔴 把 §修复方案 给用户确认(R5)· 用户 ok 才 complete → dev",
+    authorized_pause_point="diagnose-complete 前 · 修复改变预期行为 / 契约 / 有取舍 → 🔴 把 §修复方案 给用户确认(R5)· 恢复本该有的行为 → 告知不停",
 )
 
 
@@ -1375,7 +1376,7 @@ def _check_blueprint_or_alt_done(state: dict, args) -> bool:
     if contracts.get("blueprint", {}).get("output_satisfied") is True:
         return True
     flow = _flow_key(state)
-    if flow == "Bug":
+    if flow == "Bug" and not _dims(state):   # v8.365:Bug 轻档(有计划)无 diagnose · 走下方计划判据
         return contracts.get("diagnose", {}).get("output_satisfied") is True
     if _dims(state):
         # v8.343:blueprint 不在链上 → 前置回落到 goal(有 PRD 时)· goal 也不在链上 → 零前置
@@ -1461,8 +1462,7 @@ def _dev_brief(state: dict) -> str:
 - test exit-code = 0 · test stdout 非空
 - artifacts 在 commit changeset 内
 - 自查通过(规范 / 无回归 / build / linter)
-- (Bug 流程额外)`bugfix/BUG-*.md` 报告
-
+{_bug_dev_line(state)}
 ### 怎么做
 **必读** `stages/dev-stage.md`(四段结构 · 硬规则里最重的是读取契约与证据门 · 手段全自选)。\n🎛️ **主对话 = Orchestrator(默认姿态 · 用户拍板 · 详 stage.md 1.7)**:成块实现**派 subagent** · 主对话留 任务拆解 / 阶段规划 / 子代理调度 / 集成接线 / 提交推送 / 验证门禁 / **小型精准修改**(小/耦合/强串行改动直接做 · 不硬派)。\n🧩 **开工先问「哪些模块可并行」**(dev 是并行红利最大的 stage):多端/多模块/独立文件簇 → 各派 subagent/teammate 并行实现(**ultracode 开启 → workflow 优先** · schema 化产出)· 🔴 派发按 SKILL 🎚️ 全局规则**声明 model + 一句为什么** · 契约层/集成点留主对话 · 子 agent 只写 worktree 内路径。🔴 v8.254 两问补丁:「哪些可并行」**每进新子阶段重问**(实现→测试编写→修复 · 耦合度会变 · 开工一次不够);派发后**等待窗口主对话不闲置**(填 §完工自查既有证据行 / 中途自查依赖消费方 / 剩余工作再拆一刀)—— 实证:集成测试整包塞单 agent + 主对话裸等 · 用户点破才拆三线。
 🔴 **base 即红(共享套件预存在失败)→ 差分基线**:`--test-exit-code` 非 0 时,先 `state.py test-baseline --diff --current "<当前失败 id>"` 对照 `project-specs/test-baseline.md` · 0 新增 → dev-complete 传 `--current-failures` 即放行;有新增 = 回归(修)或新预存在(`test-baseline --add` 登记)· **别人肉 stash-baseline 反复甄别**。
@@ -1548,6 +1548,52 @@ def _mr_fix_line(state: dict) -> str:
             "超出则照走完整链。\n")
 
 
+def _is_light_bug(state: dict) -> bool:
+    return state.get("flow_type") == "Bug" and bool(_dims(state))
+
+
+def _bug_dev_line(state: dict) -> str:
+    if _is_light_bug(state):
+        return ("- 🐛 **Bug 轻档**:改代码前 `state.py repro-record --cmd '<复现测试>'` 记红(必须失败)· "
+                "修复 commit 后 dev-complete 重跑同一命令必须通过 · 根因 / 修复意图 / 验证方式写进理解卡与 PR 描述"
+                "(不写 BUG 报告)· 复现不出 / 根因不对 / 要改预期行为 → `state.py bug-escalate --evidence '<事实>'`\n")
+    if state.get("flow_type") == "Bug":
+        return "- (Bug 流程额外)`bugfix/BUG-*.md` 报告\n"
+    return ""
+
+
+def _evidence_bug_repro(state: dict, args) -> tuple[bool, str]:
+    """v8.365:Bug 轻档准入的机器证据 —— 修复前红(repro-record)· 修复后同命令绿(此处重跑)。
+
+    非轻档 Bug 直接放行。红必须记在修复 commit 之前(red_head ≠ auto-commit)。
+    """
+    if not _is_light_bug(state):
+        return True, ""
+    rp = state.get("repro") or {}
+    if not rp.get("cmd"):
+        return False, ("Bug 轻档没有复现证据:改代码前跑 `state.py repro-record --feature <path> --cmd '<复现测试>'`"
+                       "(必须失败)· 复现不出 → `state.py bug-escalate --evidence '<事实>'` 升 full 先 diagnose")
+    import subprocess as _sp
+    red_head = rp.get("red_head") or ""
+    _h = _sp.run(["git", "rev-parse", "HEAD"], cwd=rp.get("cwd") or None,
+                 capture_output=True, text=True)
+    now_head = _h.stdout.strip() if _h.returncode == 0 else ""
+    if red_head and now_head and red_head == now_head:
+        return False, ("记红之后没有新 commit —— 红必须在修复 commit **之前**记录 · "
+                       "先 commit 修复再 dev-complete")
+    try:
+        r = _sp.run(rp["cmd"], shell=True, cwd=rp.get("cwd") or None, capture_output=True,
+                    text=True, timeout=900)
+        code = r.returncode
+        tail = ((r.stdout or "") + (r.stderr or ""))[-800:]
+    except _sp.TimeoutExpired:
+        code, tail = None, "超时"
+    rp["green_exit"], rp["green_at"] = code, now_iso()
+    if code != 0:
+        return False, (f"复现命令修复后仍失败(exit {code})· `{rp['cmd']}` 必须通过 · 输出尾:{tail}")
+    return True, ""
+
+
 DEV_SPEC = StageSpec(
     name="dev",
     prerequisites=[
@@ -1612,6 +1658,11 @@ DEV_SPEC = StageSpec(
             name="test_stdout_non_empty",
             check_fn=_evidence_test_stdout_non_empty,
             description="--test-stdout 非空 · 证明真跑过测试",
+        ),
+        StageEvidenceCheck(
+            name="bug_repro_red_then_green",
+            check_fn=_evidence_bug_repro,
+            description="Bug 轻档:修复前复现命令失败(repro-record)· 修复后同命令通过(v8.365)",
         ),
     ],
     brief_template_fn=_dev_brief,
@@ -2780,7 +2831,7 @@ def _review_brief(state: dict) -> str:
     if len(rounds) >= 2:
         return _review_verify_round_brief(state, rounds)
     _bug = ("\n🐛 **Bug 流单路评审**(v8.270):roster 默认仅 `[external]` · 覆盖必含 **修复↔diagnose 方案一致性**(Architect 视角并入)+ 外审必覆盖清单照旧 · REVIEW.md 台账/severity/验证轮/预算协议照跑 · 主审路 coverage 申报免(roster 无 architect · `change-review-roles` 可加回)。\n"
-            if state.get("flow_type") == "Bug" else "")
+            if state.get("flow_type") == "Bug" and not _dims(state) else "")
     # v8.342:tiny/lite 单路 architect —— 说清「对照什么审」(两档的规格载体不同),
     # 免得单路 agent 去找一份不存在的 TECH.md。
     _light = ""

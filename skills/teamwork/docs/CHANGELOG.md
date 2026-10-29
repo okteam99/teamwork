@@ -4,6 +4,18 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.365 · Bug 按风险分三档 · 复现证据机器核对(提效方案第 2 批)
+
+> 起因:Bug 不论大小都固定走 diagnose → dev → review → test → pm_acceptance → ship,且 diagnose 必停等用户确认 —— 根因已经验证过的局部修复也要补一份完整 BUG 报告、再确认一次。
+
+- **Bug 接入装配计划 · 只开三档**:`floor`(dev → ship)· `tiny`(dev → review〔external 单路〕→ ship)· `full`(原 diagnose 链 · 不变)。轻档链由 assembly_plan 推导(与 Feature 同一套 `derive_chain` · 不另立 Bug 专用图);其余 preset / `--dims` 对 Bug 拒绝。
+- **轻档准入 = 机器证据**:新增 `state.py repro-record --cmd`(改代码前跑 · 命令必须失败才记录红);dev-complete 新增证据门 `bug_repro_red_then_green` —— 无红记录 / 红之后没有新 commit / 重跑仍失败 → 拒绝。不靠 agent 自述「根因已验证」。
+- **升级**:新增 `state.py bug-escalate --evidence` —— 轻档 → full · 回 diagnose · repro / 阶段合同 / concerns 保留 · 原计划进 `plan_history`。
+- **diagnose 确认改为按决策停**:修复改变预期行为 / 公开契约 / 有取舍 → 照旧停;只是恢复本该有的行为 → 写进 BUG 报告并告知 · 不停。
+- 接线:引擎 `_resolve_flow_graph` / stage-start 链校验 / `reset-prev` / `jump-to-stage` 对 Bug 计划同口径推导;dev 准入对 Bug 轻档走计划判据;`prepare-check --flow-type Bug --preset floor|tiny` 预览对应链;ship 准入沿用「pm_acceptance 不在链上 → 验收在 ship1 MR」。
+- 文档:prepare §2.3 Bug 定档 · FLOWS 三行 · dev-stage 复现证据节 · diagnose-stage 规则 5。
+- 验证:新增 `test_bug_tiers_v8365.py` 12 例(真实临时 Git 仓库跑 init → dev-start → repro-record → 修复 commit → dev-complete → ship-start;升级回 diagnose;三档预览)· 全量通过。
+
 ## v8.364 · 清规则冲突 + 确认围绕决策(提效方案第 1 批)
 
 > 起因:Teamwork 提效方案 —— 明确的任务被规则冲突与重复确认拖慢。本批只动「要不要停」与规则文字,不动流程链。
@@ -53,11 +65,3 @@
 - **medium 档不产 TC.md**:测试设计归 TECH §测试策略 · AC↔测试绑定走 `PRD.acceptance_criteria[].test_refs`(与 lite 同载体 · test 阶段校验);引擎 `StageArtifactSpec.skip_if`。
 - 同期已推 dev 的小改(v8.360.5–.8):功能生效闸先问触发条件能否从源头消除 · PRD 终确认待决策项逐项讨论 · 守卫清单「只在绕过时变」必给触发路径证据。
 - 验证:新增 `test_annual_cut_v8361.py` 20 例(真实临时 Git 仓库验指纹与入账判定);全量 **1840 passed, 2 subtests passed**。
-
-## v8.360.4 · 修复评审证据归属、流程修订与合并后清场
-
-- 修正规划收尾的选项编号与执行分支，选 2 仅继续讨论；统一独立冷审的执行规范。
-- 外审结果按阶段筛选，新派发绑定请求 ID 与被审 commit；修复后必须有覆盖最后 fix commit 的实际结果，prompt 不再充当完成证据。
-- `revise-plan` 同步执行位置、合法下一阶段与评审配置；自定义维度的阶段准入与文档要求按实际计划判定。
-- `await-merge --feature` 检测合并后在主工作区实际调用 `ship-finalize`，保留失败、脏文件保护和待决策结果。
-- 验证：新增 20 个回归用例；全量 **1812 passed, 2 subtests passed**；真实临时 Git 仓库验证 worktree 删除与主工作区同步。
