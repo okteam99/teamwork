@@ -2320,6 +2320,10 @@ def cmd_init_feature(args: argparse.Namespace) -> None:
         "stage_contracts": {},
         "completed_stages": [],
         "created_at": now_iso(),
+        # v8.363:计时口径 v2 —— 总时长从 prepare-check(取不到则 init)起算 · 启动准备耗时单列 ·
+        # pm_acceptance 不再整段算等待(v8.361 起 AC 全过不停)。存量 state 无此字段 = 旧口径 · 不混比。
+        "timing_basis": "v2",
+        "prepare_check_at": audit.get("match_timestamp"),
     }
     # v8.343:计划落库(Feature)· roster 由 plan.dims.review 渲染 —— 单源
     if _plan:
