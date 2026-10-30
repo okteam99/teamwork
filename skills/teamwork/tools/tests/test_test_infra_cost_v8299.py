@@ -44,6 +44,9 @@ class TestRetirementLedgerByPopulation(unittest.TestCase):
     def test_blueprint_rule_numbers_still_unique(self):
         """插规则要顺延编号 —— 编号重复会让「见规则 N」的互指失效(v8.293 踩过)。"""
         t = (ROOT / "stages" / "blueprint-stage.md").read_text(encoding="utf-8")
+        # 只数 ② 硬规则节 —— ④ 暂停卡的 R5 选项「1. 2. 3.」不是规则编号
+        # (原先全文扫描,选项被迫写成「12.」绕开,用户看到的卡片编号是错的)
+        t = t.split("## ② 硬规则", 1)[1].split("\n## ", 1)[0]
         nums = re.findall(r"^(\d+)\. ", t, re.M)
         self.assertEqual(len(nums), len(set(nums)), f"硬规则编号重复:{nums}")
 
