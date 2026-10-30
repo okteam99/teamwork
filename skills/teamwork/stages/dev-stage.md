@@ -23,6 +23,7 @@
 7. **完工自查双源逐项打 ✅**:TECH.md §完工自查(**设计对照** · 每项指向证据)+ [tech-rules § 收口自查表](../standards/tech-rules.md)(**兜底自查** · 异常日志 / DB 论证 / 测试真实性 / scratch / build / 契约消费方)· 不适用写 N-A+原因(why:产物契约 · review 据此核 · 防「设计了没实现」与「实现了但兜底裸奔」)。
 8. **写测试时就定生命周期层**(单源 [tech-rules 规则 17](../standards/tech-rules.md) + [tc.md § 生命周期](../templates/tc.md)):一次性验证 / TDD 中间步 → **scratch `.teamwork-scratch/scaffold-tests/`(ignored)不入仓库内容**;入库必绑 AC 或 bug 回归;**CI 层默认不进 · 进必带 `ci_reason`**(why:临时 case 入库 = CI 与 AI 维护语料的永久税 —— 写时定层零成本 · 事后清退每次都要人裁决)。
 9. 🔴 **跑集成测试同样按 feature 隔离数据库**(规则同 [test-stage 规则 10](./test-stage.md) · 单源 [scripts-policy §7](../standards/scripts-policy.md)):独立库名见 dev-start 配方 · 不写、不 reset 共享测试库(why:dev 与 test、并行 subagent、并行 worktree 共用一个库 = 伪失败与基线污染)。
+10. **dev 中途追加需求 / 方案要素变了(如新增 DB 维度)→ 回 blueprint,不在 dev 里硬改**:`state.py jump-to-stage --to blueprint --reason "范围追加:<一句> · 停 lane:<已派且受影响的 lane> · 待重派:<…>"` —— 回到 blueprint 改 TECH 后照常触发方案要素确认(DB 变更 / 兜底 / 生效闸)· 受影响的在途 lane 先停,写进 reason 便于回来重派(why:在 dev 里边改 TECH 边改代码 = 用户没确认过的方案直接落地)。
 
 ---
 
@@ -58,8 +59,14 @@ state.py dev-complete --feature <path> \
  [--current-failures "<id,id>"]   # 红 base 差分(test-baseline 登记集)
 ```
 
-### Bug fix 报告(flow_type=Bug)
+### Bug fix 报告(flow_type=Bug · full 档)
 - `bugfix/BUG-*.md`(diagnose 已建)**追加** §回归测试 + §修复记录 · 模板 [templates/bug-report.md](../templates/bug-report.md)。
+
+### Bug 轻档(floor / tiny)复现证据
+- **改代码前**:写一条在当前代码上会失败的测试 → `state.py repro-record --feature <path> --cmd '<测试命令>'`(通过了 = 没复现 · 工具拒绝记录)
+- **修复 + commit 后** `dev-complete`:工具重跑同一条命令,必须通过;没有红记录 / 红之后没有新 commit / 仍失败 → 拒绝
+- 根因 / 修复意图 / 验证方式写进理解卡与 PR 描述 · 无 BUG 报告
+- 复现不出 / 根因不对 / 修复要改变预期行为 → `state.py bug-escalate --feature <path> --evidence '<新事实>'` 升 full(回 diagnose · 记录保留)
 
 ### 上下文入口(读什么)
 PRD(AC)· TECH(方案+完工自查槽)· TC(测试用例)· UI.md+全景(若 ui_design 完成)· **DEV-RULES + ARCHITECTURE 必读**(规则 1 读取契约 · 冲突以项目为准)· 🛡️ **KNOWLEDGE § 复发防御清单必读**(写时防)· KNOWLEDGE 其余按需。Bug 流:`bugfix/BUG-*.md` 为权威输入。

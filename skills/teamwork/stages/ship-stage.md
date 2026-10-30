@@ -196,7 +196,7 @@ git add <feature_dir>/dev/*.md <feature_dir>/PRD.md
 **两层输出**:
 
 1. **台账行**(持久 · 累积):一行一 feature。🔴 机器格**工具自算自落**(state.json:实走 stages / 时长三分 / bypass·WARN / 分诊校准 / 可预防性 / 耗时归因)· AI 判断格 = archive 的 `--ledger-*` 参数(反思摘要必填 · rounds/external/findings/pauses 缺省 —)· **照实填不美化**。
- - 🔴 **宿主 + 时长三分 + 用户邮箱**:`宿主` + `时长(总·AI自主·待用户)` + `各阶段耗时` + `用户邮箱` **由 archive 自动落行**(emit `ledger_timing` 保留作校验 · 确定性 —— `host`〔claude-code/codex-cli/gemini-cli〕/ `total_wall` / `ai_autonomous_min`〔已扣跨 session 空闲 · 算法在工具内〕/ `await_user_min`〔stage 内 pause-mark 暂停 + pm_acceptance 纯等待〕/ `per_stage`〔active 优先〕/ `user_email`=`git config user.email`)· **不肉眼算 state 时间戳**。🛡️ **起草可预防性列** 自动落(emit `ledger_authoring_preventability` 同源)(各评审 `review-preventability` 记录聚合成「可预防/总·缺考虑点」· 没记录留空)· 年检据此分析起草考虑点缺不缺。⏱️ **耗时归因列** 自动落(emit `ledger_stage_cost` 同源)(= `<开销轮>/<总轮> 轮 · 详 <复盘路径>` · 没记录留空)· 🔴 **归因叙述与流程反思不写台账**(单元格 ≤1 行压不下)—— 与台账行**同时**在本 gate 写 **`ledger_process_retro_path`** 指的那份**流程复盘文档**(🔴 **按需写**:仅当协调开销 ≥30% / 有 bypass / review ≥3 轮 / MR 窗口期回炉 / 反思摘要是「判例:」新判例 —— ship brief 会直接告诉你本单写不写;why:174 份复盘的「纯过场候选」绝大多数答「无」,每单必写的自评几乎不产信号)(模板 [templates/process-retro.md](../templates/process-retro.md):各阶段耗时表 + 逐 stage 耗时归因 + 流程反思四问 + 起草可预防性)· 🔴 **路径一并加进 `--planning-artifacts`**(随 feature MR 原子合入 · 否则复盘不进 git = 白写)。年检:查表得协调开销占比趋势 · 展开复盘定位复发的开销类型。🔴 `total_wall`(墙钟)− `ai_autonomous` − `await_user` = **未标记挂机空闲**(过夜/跨天 · 不再冒充 AI 工作 · 治 goal 1012m 类污染)。
+ - 🔴 **宿主 + 时长三分 + 用户邮箱**:`宿主` + `时长(总·AI自主·待用户)` + `各阶段耗时` + `用户邮箱` **由 archive 自动落行**(emit `ledger_timing` 保留作校验 · 确定性 —— `host`〔claude-code/codex-cli/gemini-cli〕/ `total_wall` / `ai_autonomous_min`〔已扣跨 session 空闲 · 算法在工具内〕/ `await_user_min`〔stage 内 pause-mark 暂停 · 旧口径另加 pm_acceptance 整段〕/ `startup_min`〔prepare-check→首 stage 启动准备耗时〕/ `pause_count`〔实际暂停次数〕/ `timing_basis`〔v2 / legacy · 新旧不混比〕/ `per_stage`〔active 优先〕/ `user_email`=`git config user.email`)· **不肉眼算 state 时间戳**。🛡️ **起草可预防性列** 自动落(emit `ledger_authoring_preventability` 同源)(各评审 `review-preventability` 记录聚合成「可预防/总·缺考虑点」· 没记录留空)· 年检据此分析起草考虑点缺不缺。⏱️ **耗时归因列** 自动落(emit `ledger_stage_cost` 同源)(= `<开销轮>/<总轮> 轮 · 详 <复盘路径>` · 没记录留空)· 🔴 **归因叙述与流程反思不写台账**(单元格 ≤1 行压不下)—— 与台账行**同时**在本 gate 写 **`ledger_process_retro_path`** 指的那份**流程复盘文档**(🔴 **按需写**:仅当协调开销 ≥30% / 有 bypass / review ≥3 轮 / MR 窗口期回炉 / 反思摘要是「判例:」新判例 —— ship brief 会直接告诉你本单写不写;why:174 份复盘的「纯过场候选」绝大多数答「无」,每单必写的自评几乎不产信号)(模板 [templates/process-retro.md](../templates/process-retro.md):各阶段耗时表 + 逐 stage 耗时归因 + 流程反思四问 + 起草可预防性)· 🔴 **路径一并加进 `--planning-artifacts`**(随 feature MR 原子合入 · 否则复盘不进 git = 白写)。年检:查表得协调开销占比趋势 · 展开复盘定位复发的开销类型。🔴 `total_wall`(墙钟)− `ai_autonomous` − `await_user` = **未标记挂机空闲**(过夜/跨天 · 不再冒充 AI 工作 · 治 goal 1012m 类污染)。
 2. **digest**(emit ≤10 行 · 固定 4 问 · 不落 feature 目录 —— 需写复盘时**四问同时写进流程复盘文档** §三;按需不写时只 emit 回显 —— 年检数据源是台账行的「反思摘要」列(随 MR 进 git · 不蒸发)):
 
 ```
@@ -230,7 +230,8 @@ yolo = **无人值守自动 merge**,期间没有人在看 —— AI 识别到的
 - **push 记录成功即自动查一次 CI**(工具内建 · emit `ci_status`:passing/failing/pending/none/unknown · 刚 push 常为 pending = 确认 pipeline 已起;`unknown` = gh/glab 缺失或未登录 · 不拦流程);
 - **`await-merge` 每轮轮询同时带 CI**(监控合并与查 pipeline 并行,不是二选一);
 - 🔴 **红了先归因,再决定动作**(与 dev/test 的「base 即红 → 差分基线」**同一个形状**:CI 版):
-  - **归因到本 feature**(base 上同名 check 是绿的 / base 查不到)→ **中断等待,直接修** —— 走下节 MR 窗口期修复口,**不问用户是否要修**(修自己弄坏的东西不是用户主权,是收尾的一部分);
+  - 🔴 **先比对本分支改动**:失败 job 名含 `git diff origin/<merge_target>...HEAD` 改动过的目录(如 `fe-site-build` ↔ `fe-site/...`)→ 直接判本 feature 引入,**不再看 base**;归因依据逐条打进日志(`🔎 CI 归因 · <job>:<依据>`);
+  - **归因到本 feature**(base 最新 pipeline 上同名 check 是绿的 / base 查不到 / 失败项名字取不到)→ **中断等待,直接修** —— 走下节 MR 窗口期修复口,**不问用户是否要修**(修自己弄坏的东西不是用户主权,是收尾的一部分);
   - **base 预存在**(base 上同名 check 也红)→ **不中断**,回显一行继续等合并 —— 别去追别人的账;
   - 🔴 **查不到 base 归到「自己引入」是刻意的保守偏置**:代价不对称 —— 把别人的红当自己的 = 白看一眼;把自己的红当别人的 = 把坏的合进去。与 `test-baseline`「不在基线里就算新增回归」同口径,**不是**「查不到就放行」。
 - **对照分支**默认取 `state.merge_target`,`await-merge --base <branch>` 可覆盖;
@@ -242,8 +243,8 @@ yolo = **无人值守自动 merge**,期间没有人在看 —— AI 识别到的
 发现问题(平台 review blocker / CI 红 / 自查)且根因已知 → **同 feature 回 dev 修,更新同一 MR**:
 
 1. `state.py jump-to-stage --to dev --reason "MR 修复:<blocker 一句>"` —— pushed 态放行口(`ship.reopened_fixes[]` + concerns WARN 双留痕)· 验收拍板并入 ship1 后,用户「要改」属需求/设计时可 `--to goal` / `--to ui_design`(同样必带 `--reason`);
-2. 修复:dev 证据门照跑(测试绿/差分 · auto-commit);review/test 按修复规模与装配走(小修可 dev→test 直达 · 评审面调整 `change-review-roles --reason` 留痕);
-3. `ship-phase --action push` 重跑(rerecord 语义 · WARN 留痕)—— push 分支即更新同一 MR · 不新开;
+2. 修复:dev 证据门照跑(验证档 subagent 跑 **CI 失败的那条命令** · 指纹 · auto-commit);🔴 **轻量通道(机器判定)**:回炉目标是 dev、相对上次 push 的代码改动 **≤3 文件且 ≤30 行** → dev-complete **直达 ship**(不重走 review/test/browser_e2e/pm_acceptance —— 验收早已发生);超出 → 照走完整链。需求目录已归档出分支,TEST-REPORT / BROWSER-TEST-REPORT 的「在 commit 内」检查自动跳过(concerns 记 INFO · 设计内豁免 · 不需要 bypass);
+3. `ship-phase --action push` 重跑(rerecord 语义 · WARN 留痕)—— push 分支即更新同一 MR · 不新开;重录即关闭本轮轻量通道,`current_stage` 回到 completed;
 4. 归档 zip **不重开**(初版墓碑 + git 历史可溯 · 修复轮过程文档随接力卡留 worktree);
 5. 边界:**平台已合并**后的问题 → Bug 流(diagnose 起);整件放弃 → `close-unmerged --abandon`。
 

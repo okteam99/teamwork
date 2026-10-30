@@ -1,6 +1,6 @@
 ---
 name: teamwork
-version: v8.361.2
+version: v8.366.0
 description: AI 协作开发一体化框架 - 需求功能开发, bug 修复, 问题排查 · /teamwork 启动
 ---
 
@@ -203,13 +203,25 @@ state.py 物化了 9 红线中 8 条 · R3 + 部分行为约束(R4 / R5(b) / byp
 - 📊 台账 `dispatch_models` 分两桶:`inherited_declared`(判定该继承 = **正确行为**)vs `unspecified`(真没分档)—— 两者干预手段相反,不可合并计数。
 - 🔴 **评审模型必错开**(独立采样不变式):多路冷审**逐路模型不同**(一路继承会话主模型 · 其余错开一档);单路配置(roster 减到一路)时**该路 ≠ 会话主模型**。**任何评审配置至少一路 ≠ 会话主模型** —— 同模型 = 盲区相关(两路同瞎)· 主对话热审 = 自审无效。验证轮降档本身即错开。
 - 🧾 **冷审清单统一 · 不按角色切分**(去角色):每个 stage **一份清单**,配几路就几路**都过全清单** —— roster 里的 `pl`/`external`/`architect` 是 **lane 标识**(决定产物落点与是否跨会话隔离),**不决定查什么**。装配只拧 **路数 × 模型**。why:年检实证方向清单产出 2.1× 角色关注点;而按角色切分留下的缝没人接(「限制必要性」当初就卡在缝里)。
-- 🔴 **清单三段缺一即漏**(🔴 **本条是三段通用要求的单源** —— 各 stage 只补**本 stage 查什么**,不重复这里的「怎么交」):⚔️ **对抗**(❗ **证否句式**「我试图证明 X 不成立,结果是…」· ❌ **不许写 ✅ 或「查过无发现」** —— 中性核对会把对抗项磨平 · **≥1 条实质,或显式「无实质质疑 + 理由」**)· 🔍 **核对**(可写「查过无发现」· 逐路记 `coverage`)· 💡 **清单外洞察**(清单没问但你认为该关注的 **≥1 条,或显式「无 + 为什么没有」** · **不为凑内容而写** · 硬凑 = 新仪式)。💡 那段是框架的**自发现通道** —— 历史上多个真缺口都不在当时的清单里,全靠线上事故回流才发现。
-- ❗ **⚔️ 与 💡 必须落地,不许悬空**(❗ 这两段是**必填产出 + 零证据要求**的组合 —— 幻觉最高发处;`code_evidence` 只管 `technical-consistency`,够不着 `premise-challenge` 和清单外洞察):① **指认落点** —— 这条质疑/洞察对着 PRD/TECH/代码的**哪一句**?说不出具体落点 = 不成立,撤回;② ❗ **可判问句:这个场景在本 feature 的真实输入下会发生吗?** 说不出**具体触发条件** → `blueprint`/`review` **降级或撤回**(与 review「对抗复现 · 复现不出降 MINOR」同构 —— 方案阶段没代码可复现,用触发条件代替)· ❗ **`goal` 是例外,必须转交不许撤回**:PRD 阶段**正在定义「什么是真实输入」**,拿它驳回质疑是**循环论证**,而且正好给「悄悄收窄范围」一个正当理由(实证事故:把某能力狭义解释后明确排除另一半,PRD 完全自洽、dev 与 review 都在认真验证一个错误的范围定义)→ goal 阶段说不出触发条件 = **范围未定** → **进 §待决策项让用户拍板**。**填满不是目的**:想不出真的就写「无 + 理由」,编一个出来比空着更贵。
+- **评审先核验关键前提**:先查决定方案成不成立的前提(数据真入库 / 字段真存在 / 调用方真这么用)和真实的行为风险,再过其余清单 —— 前提错了,其余发现都白做。
+- 🔴 **清单三段缺一即漏**(🔴 **本条是三段通用要求的单源** —— 各 stage 只补**本 stage 查什么**,不重复这里的「怎么交」):⚔️ **对抗**(❗ **证否句式**「我试图证明 X 不成立,结果是…」· ❌ **不许写 ✅ 或「查过无发现」** —— 中性核对会把对抗项磨平 · **有就写;没有就写「无实质质疑」**(不要求凑理由))· 🔍 **核对**(可写「查过无发现」· 逐路记 `coverage`)· 💡 **清单外洞察**(清单没问但你认为该关注的 **有就写;没有写「无」** · **不为凑内容而写** · 硬凑 = 新仪式)。💡 那段是框架的**自发现通道** —— 历史上多个真缺口都不在当时的清单里,全靠线上事故回流才发现。
+- ❗ **⚔️ 与 💡 必须落地,不许悬空**(❗ 这两段是**必填产出 + 零证据要求**的组合 —— 幻觉最高发处;`code_evidence` 只管 `technical-consistency`,够不着 `premise-challenge` 和清单外洞察):① **指认落点** —— 这条质疑/洞察对着 PRD/TECH/代码的**哪一句**?说不出具体落点 = 不成立,撤回;② ❗ **可判问句:这个场景在本 feature 的真实输入下会发生吗?** 说不出**具体触发条件** → `blueprint`/`review` **降级或撤回**(与 review「对抗复现 · 复现不出降 MINOR」同构 —— 方案阶段没代码可复现,用触发条件代替)· ❗ **`goal` 是例外,必须转交不许撤回**:PRD 阶段**正在定义「什么是真实输入」**,拿它驳回质疑是**循环论证**,而且正好给「悄悄收窄范围」一个正当理由(实证事故:把某能力狭义解释后明确排除另一半,PRD 完全自洽、dev 与 review 都在认真验证一个错误的范围定义)→ goal 阶段说不出触发条件 = **范围未定** → **进 §待决策项让用户拍板**。**填满不是目的**:想不出真的就写「无」,编一个出来比空着更贵。
 - **授权**见 § Subagent 默认授权(管「能不能用」)· 本节管「该不该用」。
 
 ### R5(b) 暂停点标准格式
 
-🔴 **emit 任何 R5 暂停点前先跑** `state.py pause-mark --feature <path> --label '<暂停点名>'`:等待用户的墙钟计入该 stage `await_minutes`(下一个流程命令自动闭合)· 否则等待混入工作时长 · 耗时数据失真。
+🔴 **emit 任何 R5 暂停点前先跑** `state.py pause-mark --feature <path> --label '<暂停点名>' --decision '<用户的回答会定下哪个决定>'`:等待用户的墙钟计入该 stage `await_minutes`(下一个流程命令自动闭合)· 否则等待混入工作时长 · 耗时数据失真。
+
+**停之前先答:用户的回答会定下哪一个还没定的决定?**(`--decision` 必填 · 空 → 工具拒绝)答不出 = 不该停,继续做并在下一条输出里告知。默认行为:
+
+| 场景 | 默认 |
+|---|---|
+| 已明确授权修复 · 修法不改变预期行为 | 直接推进(不再问「是否开始修」) |
+| 分支目标 / 工作区规则已有明确配置 | 自动检查并按配置走 |
+| 分支陈旧 · 能从既定目标安全建隔离工作区 | 自动处理 · 事后告知 |
+| 配置冲突 / 目标分支不明 / 可能影响用户已有工作 | 列出具体冲突 · 问 |
+| 产品语义 / 兼容性 / 数据处置的选择 | 给选项 + 影响 + 建议 · 等决定 |
+| 用户明确要求每步确认 | 照做 |
 
 🔴 **投递位置**:暂停点 markdown / user_card 必须是**回合最后一条输出 · 其后零工具调用** —— 宿主可能不渲染回合中段文本(实证:卡片被吞 · 用户被迫问「url 发下」)。伴随暂停点的监控/标记类命令(pause-mark / await-merge 等)一律**先执行(后台/静默)再贴暂停点**。
 
@@ -302,7 +314,7 @@ session 启动 `bootstrap.py` emit `checks.skill_update_check` + `flow_gates[]`(
 - `cold_start_product_planning_recommended`(项目无 `product-overview/`)→ **产品规划上游引导**:
   - **地图 vs 规划解耦**:`teamwork-space.md`(知识地图根)由 **bootstrap 自动建骨架**(非规划内容 · 无需 R5)· `product-overview`(愿景/业务架构/执行线)**要人建** —— gate fire 于**它**缺失。
   - **权威顺序**:`product-overview`(PL 引导)→ ✅确认 → 回填 `teamwork-space.md` 子项目清单 → Feature Planning(涉 UI 先出全景初步规划 → 拆 WS / ROADMAP)→ Feature 状态机。
-  - 按 mode:bare `/teamwork` 与 **mode D** → 首条响应 emit 下方 R5 暂停点(不当静默看板 · 即便已有 PROJECT/ROADMAP 仍 surface · 不降级成脚注)· **mode B** → 同一暂停点(执行前先问要不要补上游)· **mode A/E** → 轻提一句(不强暂停)· **mode C** → silent skip。
+  - 按 mode:bare `/teamwork` 与 **mode D** 与**规划类任务** → 首条响应 emit 下方 R5 暂停点(不当静默看板 · 即便已有 PROJECT/ROADMAP 仍 surface · 不降级成脚注)· **mode B 明确的 Feature/Bug 执行任务** → 轻提一句、直接走 prepare(缺规划不改变本次任务的任何决定 · 停了也只是多一次确认)· **mode A/E** → 轻提一句(不强暂停)· **mode C** → silent skip。
   - **R5 暂停点动作**:① 进产品规划冷启动(PL 引导建 product-overview → ✅确认 → 回填 teamwork-space.md)💡 / ② 跳过直接做任务(后续可补)/ ③ 其他 · 🔴 **用户拍板前不擅自建 `product-overview/`**(R5)。
 
 Feature Planning / 冷启动 / 产品规划上游**不进状态机 · 无 state.py 兜底**(物化盲区 · 用 forewarn gate 补)—— 漏扫 flow_gates = 退回 v7「凭记忆读 spec」。
@@ -359,9 +371,19 @@ mode B 识别后(**无论后续 flow_type = Feature〔full/micro〕还是 Bug ·
 
 ---
 
+## 读取分层
+
+| 层 | 内容 | 什么时候读 |
+|---|---|---|
+| 入口 | 本文件:职责边界 · 红线 · 暂停格式 · 下一步去哪 | 每次使用 |
+| 当前阶段 | `xx-start` emit 的 brief + 它点名「必读」的 `stages/<stage>.md` | 进入该阶段时 |
+| 参考 | FLOWS / ROLES / standards / CHANGELOG / RETRO-LEDGER / 各文档里的历史案例与设计理由 | 用到相关规则、或出问题时 |
+
+不需要读完整套流程才开工 —— 工具会在动作发生时给出该看的指针。
+
 ## 流程类型(R2 闭集)
 
-`flow_type ∈ {Feature, Bug}` · Planning / 排查不进状态机(legacy 别名自动映射)。Feature 的重量由**四个维度**决定、不由档名决定:**D1 规格深度** / **D2 证据门** / **D3 验证深度** / **D4 评审力度**(+ 事实开关 UI)。**链由维度推导**,档名(micro/floor/tiny/lite/medium/full)只是命名的默认元组 + 一句可判入场问句 —— **起手点不是终点**(`--dims` 拧任意一维 · `revise-plan` 每个 stage 边界可改)。**telos 与链条单源 = [FLOWS.md](./FLOWS.md)** · **判定权威 = [docs/prepare.md](./docs/prepare.md)** · **定档判据单源 = [goal-stage 3.7 减法侧分级表](./stages/goal-stage.md)**。
+`flow_type ∈ {Feature, Bug}` · Planning / 排查不进状态机(legacy 别名自动映射)。Feature 的重量由**四个维度**决定、不由档名决定:**D1 规格深度** / **D2 证据门** / **D3 验证深度** / **D4 评审力度**(+ 事实开关 UI)。**链由维度推导**,档名(micro/floor/tiny/lite/medium/full)只是命名的默认元组 + 一句可判入场问句 —— **起手点不是终点**(`--dims` 拧任意一维 · `revise-plan` 每个 stage 边界可改)。**定档只有两个时刻 · 各一个单源**:prepare 起手(flow 大类 + micro/floor/tiny/full 起手)= [docs/prepare.md §2](./docs/prepare.md);goal 调研后装配(lite/medium/full 与四维)= [goal-stage 3.7](./stages/goal-stage.md)。[FLOWS.md](./FLOWS.md) 只是视图(telos + 链条速览 · 不定判据)。
 
 ### 授权暂停点清单(非 auto 模式 · 每个独立 emit + 等用户)
 
@@ -369,8 +391,8 @@ mode B 识别后(**无论后续 flow_type = Feature〔full/micro〕还是 Bug ·
 
 | 流程 | 授权暂停点(按顺序) |
 |---|---|
-| **Feature** | ① prepare 4 项配置 → ② goal PRD 最终确认(📄 回显 PRD 绝对路径)→ ③ ui_design UI 预览确认(若 --needs-ui · 🔗 全景变更 L2 判级并入本停等 · L1 不停) → ④ blueprint 方案要素确认(条件:DB 变更 / 🛡️ 兜底与守卫清单非空〔含 DB CHECK/trigger/断言/常驻门禁〕· 见下) → ⑤ ship1 终点 等平台合并 feature MR(**含验收**:MR 卡片带「✅ 验收」段 · 点合并 = 验收通过并发布 · pm_acceptance 仅在 AC 没过/有阻塞/有产品取舍时单独停三选项)(窗口期发现问题 → 同 feature `jump-to-stage --to dev` 修 · 不开 Bug 流 · 详 ship-stage § MR 窗口期修复) |
-| **Bug** | ① prepare 4 项配置 → ② **diagnose 修复方案确认**(根因+方案 · 用户拍板才进 dev) → ③ ship1 终点(含验收 · pm_acceptance 仅 AC 没过时单独停)|
+| **Feature** | ① prepare 4 项配置 → ② goal PRD 最终确认(📄 回显 PRD 绝对路径)→ ③ ui_design UI 预览确认(若 --needs-ui · 🔗 全景变更 L2 判级并入本停等 · L1 不停) → ④ blueprint 方案要素确认(条件:DB 变更 / 🛡️ 兜底与守卫清单非空〔含 DB CHECK/trigger/断言/常驻门禁〕· 见下) → ⑤ ship1 终点 等平台合并 feature MR(**含验收**:MR 卡片带「✅ 验收」段 · 点合并 = 验收通过并发布 · pm_acceptance 仅在 AC 没过/有阻塞/有产品取舍时单独停三选项)(窗口期发现问题 → 同 feature `jump-to-stage --to dev` 修 · 不开 Bug 流 · 小修〔≤3 文件 ≤30 行〕dev-complete 直达 ship 重录 push · 详 ship-stage § MR 窗口期修复) |
+| **Bug** | ① prepare 4 项配置 → ② **diagnose 修复方案确认**(full 档 · 修复改变预期行为 / 契约 / 有取舍时才停 · 恢复本该有的行为则告知不停)→ ③ ship1 终点(含验收 · pm_acceptance 仅 AC 没过时单独停)· 轻档 floor/tiny 无 ②(复现证据机器核对 · 详 [prepare §2.3](./docs/prepare.md)) |
 | **Feature · lite / medium** | 同 Feature · lite **少 ④**(不进 blueprint)—— ② PRD 最终确认**照停**(降的是文档与路数,不是拍板权)|
 | **Feature · tiny** | ① prepare 4 项配置 → ② ship1 终点(含验收 · pm_acceptance 仅 AC 没过时单独停 · 零文档 · 无 goal/blueprint · review 单路 architect 不停等)|
 | **Feature · floor** | ① prepare 4 项配置 → ② ship1 终点 等 MR 合入(评审点全 0 · 验收 = ship1 MR diff · 但**测试证据门照开**)|

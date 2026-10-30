@@ -26,6 +26,7 @@ from _v8_engine import (
     StagePrerequisite,
     StageSpec,
     commit_exists,
+    now_iso,
     get_git_commit_changeset,
     parse_frontmatter,
 )
@@ -200,18 +201,29 @@ def _find_specs_root(start) -> Optional[Path]:
     return None
 
 
+def _baseline_files(feature_path) -> list:
+    """沿 feature 路径上溯的**所有** `project-specs/test-baseline.md`(近 → 远)。
+
+    worktree 内副本与主工作区那份可能并存(主工作区 project-specs 未跟踪时,登记写在 worktree 内)
+    → 读取取并集,别只认最近一份而漏掉另一边登记过的预存在失败。
+    """
+    try:
+        p = Path(feature_path).resolve()
+    except (TypeError, OSError):
+        return []
+    return [c / "project-specs" / "test-baseline.md" for c in [p, *p.parents]
+            if (c / "project-specs" / "test-baseline.md").is_file()]
+
+
 def _read_test_baseline(feature_path) -> set:
-    """读 project-specs/test-baseline.md 登记的预存在失败 id(表第一列)。不存在 → 空集。"""
+    """读 project-specs/test-baseline.md 登记的预存在失败 id(表第一列 · 上溯各份取并集)。不存在 → 空集。"""
     if not feature_path:
         return set()
-    root = _find_specs_root(feature_path)
-    if not root:
-        return set()
-    f = root / "project-specs" / "test-baseline.md"
-    if not f.is_file():
-        return set()
+    lines = []
+    for f in _baseline_files(feature_path):
+        lines.extend(f.read_text(encoding="utf-8", errors="replace").splitlines())
     ids = set()
-    for ln in f.read_text(encoding="utf-8", errors="replace").splitlines():
+    for ln in lines:
         s = ln.strip()
         if not s.startswith("|"):
             continue
@@ -691,7 +703,7 @@ state.py goal-complete --feature <path> \
 ```
 {_render_confirmed_intent(state)}🎯 **意图对照**(终确认前必做 · 详 stage.md 规则 4.5):PRD §意图对照 三槽 —— ①用户原话里的名词**我理解成了什么**(标「用户说过 / 我推的」)· ②§Out of Scope 与限制 每条定性:**排除**是「技术限制」还是「**我的解释**」(🔴 我的解释 = 范围决策 · 必须进 §待决策项)、**限制**是「业务真要求的」还是「**我加的**」(🔴 我加的 → 末列写「不加会出什么事」· 写不出就删掉这条限制)· ③**AC 全绿时用户要的事一定发生了吗**(想得出反例就写)。🔴 ①的末列**逐行写「若这条错了最坏会怎样」的具体后果**(不写「影响较大」)· 后果落生产/外部/不可逆 → 该行必进 §待决策项。
 🔴 **意图错误是唯一一类下游全部质量门都拦不住的错** —— 评审/测试/CI/验收全都以「意图正确」为前提,只能答「做得对不对」、答不了「做的是不是对的东西」:实现错了代价 ≈ 一轮返工,**意图错了代价 = 整条链的质量投入全变成「认真地做错事」+ 线上事故**(两次实证都是流程走完、测试全绿、事故照样发生)· **越认真做,错得越彻底**。🔴 **只能主对话做,不可委托冷审** —— 冷审拿不到用户原话,而范围被悄悄收窄时 PRD 是完全自洽的(实证事故:「AON Link」被狭义解释成 `/{{code}}`、排除 `/static/{{code}}`,dev 与 review 都在认真验证一个错误的范围定义,线上投放点击全部没回传)。`goal-complete` 机器校验三槽非占位。
-🔗 **链装配**(调研后 · 详 stage.md 规则 3.7)· 🎛️ **装配 = 拧四维不是挑档名**:`D1 规格深度`〔none/prd/prd_tech〕· `D2 证据门`〔开/关〕· `D3 验证深度`〔self/test/test_e2e〕· `D4 评审力度`〔逐评审点 **路数×模型** · 去角色:清单统一,每路都过全清单〕· 开关 `UI`。🔴 评审力度**加减两侧都判** · **六档起手**(判**风险的种类**不判改动大小):micro〔无行为面 · 测试无从写起〕· floor〔测试能完全证明 · dev→ship〕· tiny〔值得一双眼看 diff · 零文档 · review external 单路〕· lite〔有规格风险要 PRD · 方案空间小不写 TECH · `--needs-blueprint false`〕· medium〔值得写 TECH · goal/blueprint 各单路〕· full〔两路并行冷审划算〕—— 🔴 **档只是起手点:选完必须再过一遍四维,该拧就拧**(只报档名不拧 = 退化情形)· 🔴 **只留一路时留 external 不留 architect**(年检实证:逐 stage 产出 ext>arch · 总量 2.1× · 采纳 82%)· 单路**模型照错开**(降档不降独立性)· 路数与四轴对不上必须写「为什么不降」):goal 自身评审面 AI 自定(留痕不问);下游装配写进终确认导读「🔗 链装配」节 · 🔴 **四槽缺一即漏 · 整卡 ≤7 行**(流程阶段〔机器按 `derive_chain` 渲染〕· 维度元组 · **评审力度逐评审点「是否需要×几路×**什么模型**×理由」(**不选角色**)〔收到零也显式写 0 路+理由 —— 减税要减在明处〕** · 四轴证据各半句)—— **默认按此执行 · 用户不要求改就生效**。
+🔗 **链装配**(调研后 · 详 stage.md 规则 3.7)· 🎛️ **装配 = 拧四维不是挑档名**:`D1 规格深度`〔none/prd/prd_tech〕· `D2 证据门`〔开/关〕· `D3 验证深度`〔self/test/test_e2e〕· `D4 评审力度`〔逐评审点 **路数×模型** · 去角色:清单统一,每路都过全清单〕· 开关 `UI`。🔴 评审力度**加减两侧都判** · **六档起手**(判**风险的种类**不判改动大小):micro〔无行为面 · 测试无从写起〕· floor〔测试覆盖行为变化与关键风险 · dev→ship〕· tiny〔值得一双眼看 diff · 零文档 · review external 单路〕· lite〔有规格风险要 PRD · 方案空间小不写 TECH · `--needs-blueprint false`〕· medium〔值得写 TECH · goal/blueprint 各单路〕· full〔两路并行冷审划算〕—— 🔴 **档只是起手点:选完必须再过一遍四维,该拧就拧**(只报档名不拧 = 退化情形)· 🔴 **只留一路时留 external 不留 architect**(年检实证:逐 stage 产出 ext>arch · 总量 2.1× · 采纳 82%)· 单路**模型照错开**(降档不降独立性)· 路数与四轴对不上必须写「为什么不降」):goal 自身评审面 AI 自定(留痕不问);下游装配写进终确认导读「🔗 链装配」节 · 🔴 **四槽缺一即漏 · 整卡 ≤7 行**(流程阶段〔机器按 `derive_chain` 渲染〕· 维度元组 · **评审力度逐评审点「是否需要×几路×**什么模型**×理由」(**不选角色**)〔收到零也显式写 0 路+理由 —— 减税要减在明处〕** · 四轴证据各半句)—— **默认按此执行 · 用户不要求改就生效**。
 🔁 **每个 stage 边界都是显式修订点**:complete emit 带 `plan_checkpoint` · 问「有没有出现**装配时不知道的事实**」—— 有就 `revise-plan --dim <维度> --to <值> --evidence '<事实>'`,没有就照计划走 · **回显不停等** · ⚖️ **加与减同价**(都只要一行证据)· 🔴 **计划可改 · 历史不可改**。
 """
 
@@ -881,7 +893,7 @@ def _evidence_pl_challenge_present(state: dict, args) -> tuple[bool, str]:
         return False, (
             "PRD-REVIEW.md 缺 ⚔️ 对抗段:每一路冷审都要按质疑七问(价值前提/问题定义/范围最小化/"
             "限制必要性/上游对齐/复活检查/既有行为变更)发起对抗质疑 · 🔴 **证否句式**「我试图证明 X "
-            "不成立,结果是…」· 不许写 ✅ · 至少 1 条实质质疑或显式「无实质质疑 + 理由」· "
+            "不成立,结果是…」· 不许写 ✅ · 有就写 · 没有写「无实质质疑」· "
             "finding id 沿用 `PL-CHALLENGE-{n}`(历史标记名 · 与角色无关)· 详 stages/goal-stage.md §3"
         )
     return True, ""
@@ -915,7 +927,7 @@ def _evidence_outside_checklist_insight(review_artifact: str, stage_key: str):
         if not mark:
             return False, (
                 f"{review_artifact} 缺 💡 **清单外洞察** 段 —— 每一路冷审都要回答"
-                "「清单没问、但你认为这个 feature 该关注的」:≥1 条,或显式「无 + 为什么没有」· "
+                "「清单没问、但你认为这个 feature 该关注的」:有就写,没有写「无」· "
                 "🔴 不为凑内容而写(硬凑 = 新仪式)· why:清单查的是已知风险,这一格捞的是"
                 "清单还不知道的 —— 历史缺口多数都不在当时的清单里"
             )
@@ -943,10 +955,13 @@ def _evidence_outside_checklist_insight(review_artifact: str, stage_key: str):
         # 否则「只留注释不填值」也能过门(与占位符同一类失效方式)。
         seg = re.sub(r"(?m)\s#[^\n]*$", "", seg)
         body = re.sub(r"[\s\-*·|>:#`\[\]()（）,,。、\"']+", "", seg)
+        # v8.366:显式「无」即合法答案 —— 不要求凑理由(凑出来的理由同样是新仪式)
+        if body in ("无", "None", "none", "N/A", "n/a"):
+            return True, ""
         if len(body) < 4:
             return False, (
                 f"{review_artifact} 的 💡 清单外洞察段没内容(还是模板占位符 / 留白)—— "
-                "想不出就**显式写「无 + 为什么没有」**(证明想过,不是跳过)"
+                "想不出就写「无」(不要求凑理由)"
             )
         return True, ""
     return _check
@@ -1251,7 +1266,7 @@ GOAL_SPEC = StageSpec(
         StageEvidenceCheck(
             name="outside_checklist_insight",
             check_fn=_evidence_outside_checklist_insight("PRD-REVIEW.md", "goal"),
-            description="PRD-REVIEW.md 含 💡 清单外洞察段(≥1 条或显式「无+理由」· goal 有冷审路时强制)",
+            description="PRD-REVIEW.md 含 💡 清单外洞察段(有就写 · 没有写「无实质质疑」· goal 有冷审路时强制)",
         ),
         StageEvidenceCheck(
             name="external_coverage_present",
@@ -1316,7 +1331,7 @@ def _diagnose_brief(state: dict) -> str:
 ### 怎么做
 **必读** `stages/diagnose-stage.md`(深读代码方法 + 根因实证 + 修复方案要素 + 用户确认协议)。
 
-### 完成方式(🔴 R5 暂停点:先把 §修复方案 给用户确认 · 用户 ok 才跑)
+### 完成方式(修复改变预期行为 / 契约 / 有取舍 → 🔴 R5 暂停点:先把 §修复方案 给用户确认 · 用户 ok 才跑;只是恢复本该有的行为 → 告知用户 · 不停 · 直接跑)
 ```
 state.py diagnose-complete --feature <path> --auto-commit <hash> --artifacts bugfix/BUG-<id>.md
 ```
@@ -1348,7 +1363,7 @@ DIAGNOSE_SPEC = StageSpec(
     brief_template_fn=_diagnose_brief,
     auto_transition_fn=_diagnose_transition,
     allowed_flow_types=["Bug"],
-    authorized_pause_point="diagnose-complete 前 · 🔴 把 §修复方案 给用户确认(R5)· 用户 ok 才 complete → dev",
+    authorized_pause_point="diagnose-complete 前 · 修复改变预期行为 / 契约 / 有取舍 → 🔴 把 §修复方案 给用户确认(R5)· 恢复本该有的行为 → 告知不停",
 )
 
 
@@ -1364,7 +1379,7 @@ def _check_blueprint_or_alt_done(state: dict, args) -> bool:
     if contracts.get("blueprint", {}).get("output_satisfied") is True:
         return True
     flow = _flow_key(state)
-    if flow == "Bug":
+    if flow == "Bug" and not _dims(state):   # v8.365:Bug 轻档(有计划)无 diagnose · 走下方计划判据
         return contracts.get("diagnose", {}).get("output_satisfied") is True
     if _dims(state):
         # v8.343:blueprint 不在链上 → 前置回落到 goal(有 PRD 时)· goal 也不在链上 → 零前置
@@ -1443,15 +1458,14 @@ def _dev_brief(state: dict) -> str:
     return f"""## Dev Stage
 
 ### 目标
-{spec_line}测试全绿 · auto-commit 锚定证据。🟢 **方法论不设限**:怎么开发(TDD/test-after/骨架先行/重构节奏)全由 AI 自定 —— 框架只收:读取契约(项目 DEV-RULES+ARCHITECTURE+复发防御清单 & teamwork tech-rules 兜底 · 冲突以项目为准)+ 收口自查表 + 结果证据门(每个 TC 有对应实现 · 测试真断言)。
+{_mr_fix_line(state)}{spec_line}测试全绿 · auto-commit 锚定证据。🟢 **方法论不设限**:怎么开发(TDD/test-after/骨架先行/重构节奏)全由 AI 自定 —— 框架只收:读取契约(项目 DEV-RULES+ARCHITECTURE+复发防御清单 & teamwork tech-rules 兜底 · 冲突以项目为准)+ 收口自查表 + 结果证据门(每个 TC 有对应实现 · 测试真断言)。
 
 ### 结果(完成判定)
 - 代码 + 测试一并 commit
 - test exit-code = 0 · test stdout 非空
 - artifacts 在 commit changeset 内
 - 自查通过(规范 / 无回归 / build / linter)
-- (Bug 流程额外)`bugfix/BUG-*.md` 报告
-
+{_bug_dev_line(state)}
 ### 怎么做
 **必读** `stages/dev-stage.md`(四段结构 · 硬规则里最重的是读取契约与证据门 · 手段全自选)。\n🎛️ **主对话 = Orchestrator(默认姿态 · 用户拍板 · 详 stage.md 1.7)**:成块实现**派 subagent** · 主对话留 任务拆解 / 阶段规划 / 子代理调度 / 集成接线 / 提交推送 / 验证门禁 / **小型精准修改**(小/耦合/强串行改动直接做 · 不硬派)。\n🧩 **开工先问「哪些模块可并行」**(dev 是并行红利最大的 stage):多端/多模块/独立文件簇 → 各派 subagent/teammate 并行实现(**ultracode 开启 → workflow 优先** · schema 化产出)· 🔴 派发按 SKILL 🎚️ 全局规则**声明 model + 一句为什么** · 契约层/集成点留主对话 · 子 agent 只写 worktree 内路径。🔴 v8.254 两问补丁:「哪些可并行」**每进新子阶段重问**(实现→测试编写→修复 · 耦合度会变 · 开工一次不够);派发后**等待窗口主对话不闲置**(填 §完工自查既有证据行 / 中途自查依赖消费方 / 剩余工作再拆一刀)—— 实证:集成测试整包塞单 agent + 主对话裸等 · 用户点破才拆三线。
 🔴 **base 即红(共享套件预存在失败)→ 差分基线**:`--test-exit-code` 非 0 时,先 `state.py test-baseline --diff --current "<当前失败 id>"` 对照 `project-specs/test-baseline.md` · 0 新增 → dev-complete 传 `--current-failures` 即放行;有新增 = 回归(修)或新预存在(`test-baseline --add` 登记)· **别人肉 stash-baseline 反复甄别**。
@@ -1474,7 +1488,113 @@ def _dev_transition(state: dict) -> Optional[str]:
     v8.355:review 永远保留(路数由 D4 定 · 0 路仅 micro/floor)· 清单统一,不按角色切分。
     v8.343:有装配计划时按链走 —— floor(评审点全 0)从 dev 直接到 ship。
     """
+    if mr_fix_light(state):
+        return "ship"
     return _next_on_chain(state, "dev") or "review"
+
+
+MR_FIX_LIGHT_MAX_FILES = 3
+MR_FIX_LIGHT_MAX_LINES = 30
+
+
+def _mr_fix_diff(state: dict):
+    """MR 窗口期修复相对上次 push 的代码改动 → (files, lines) · 流程文档不计 · 取不到返 None。"""
+    import subprocess as _sp
+    base = (state.get("ship") or {}).get("feature_head_commit")
+    if not base:
+        return None
+    root = _code_root_for(state, Path(state.get("artifact_root") or "."))
+    try:
+        r = _sp.run(["git", "-C", str(root), "diff", "--numstat", base, "HEAD"],
+                    capture_output=True, text=True, timeout=20)
+    except (OSError, _sp.SubprocessError):
+        return None
+    if r.returncode != 0:
+        return None
+    files = lines = 0
+    for ln in r.stdout.splitlines():
+        parts = ln.split("\t")
+        if len(parts) < 3 or _is_process_doc(parts[2], ""):
+            continue
+        files += 1
+        lines += sum(int(x) if x.isdigit() else 0 for x in parts[:2])
+    return files, lines
+
+
+def mr_fix_light(state: dict) -> bool:
+    """归档后 MR 修复的**轻量通道**:回 dev 修小改动 → dev-complete 直达 ship 重新记录 push。
+
+    实证 GPT-F261014120919:MR CI 红修一行 tsconfig,被迫重走 dev→review→test→browser_e2e→
+    pm_acceptance→ship(且报告门逼 bypass 两次)。验收早已发生、改动只有一行 —— 整条链是空转。
+    条件(全满足):ship 已 pushed · 最近一次回炉目标是 dev 且尚未重新 push ·
+    相对上次 push 的代码改动 ≤3 文件且 ≤30 行。超出 → 照走完整链(大改该被重审)。
+    dev-complete 的测试证据本身仍是硬门(验证档 subagent 跑 + 指纹),配方要求跑 CI 失败的那条命令。
+    """
+    ship = state.get("ship") or {}
+    fixes = ship.get("reopened_fixes") or []
+    if ship.get("phase") != "pushed" or not fixes:
+        return False
+    last = fixes[-1]
+    if last.get("pushed_at") or (last.get("target") or "dev") != "dev":
+        return False
+    d = _mr_fix_diff(state)
+    return bool(d) and d[0] <= MR_FIX_LIGHT_MAX_FILES and d[1] <= MR_FIX_LIGHT_MAX_LINES
+
+
+def _mr_fix_line(state: dict) -> str:
+    ship = state.get("ship") or {}
+    if ship.get("phase") != "pushed" or not ship.get("reopened_fixes"):
+        return ""
+    return ("🩹 **MR 窗口期修复轮**:测试证据跑 **CI 失败的那条命令**(`state.py ci-commands` 查 · 与 CI 同命令本地过)· "
+            f"相对上次 push 的代码改动 ≤{MR_FIX_LIGHT_MAX_FILES} 文件且 ≤{MR_FIX_LIGHT_MAX_LINES} 行 → "
+            "dev-complete **直达 ship**(`ship-phase --action push` 重新记录 · 不重走 review/test/验收);"
+            "超出则照走完整链。\n")
+
+
+def _is_light_bug(state: dict) -> bool:
+    return state.get("flow_type") == "Bug" and bool(_dims(state))
+
+
+def _bug_dev_line(state: dict) -> str:
+    if _is_light_bug(state):
+        return ("- 🐛 **Bug 轻档**:改代码前 `state.py repro-record --cmd '<复现测试>'` 记红(必须失败)· "
+                "修复 commit 后 dev-complete 重跑同一命令必须通过 · 根因 / 修复意图 / 验证方式写进理解卡与 PR 描述"
+                "(不写 BUG 报告)· 复现不出 / 根因不对 / 要改预期行为 → `state.py bug-escalate --evidence '<事实>'`\n")
+    if state.get("flow_type") == "Bug":
+        return "- (Bug 流程额外)`bugfix/BUG-*.md` 报告\n"
+    return ""
+
+
+def _evidence_bug_repro(state: dict, args) -> tuple[bool, str]:
+    """v8.365:Bug 轻档准入的机器证据 —— 修复前红(repro-record)· 修复后同命令绿(此处重跑)。
+
+    非轻档 Bug 直接放行。红必须记在修复 commit 之前(red_head ≠ auto-commit)。
+    """
+    if not _is_light_bug(state):
+        return True, ""
+    rp = state.get("repro") or {}
+    if not rp.get("cmd"):
+        return False, ("Bug 轻档没有复现证据:改代码前跑 `state.py repro-record --feature <path> --cmd '<复现测试>'`"
+                       "(必须失败)· 复现不出 → `state.py bug-escalate --evidence '<事实>'` 升 full 先 diagnose")
+    import subprocess as _sp
+    red_head = rp.get("red_head") or ""
+    _h = _sp.run(["git", "rev-parse", "HEAD"], cwd=rp.get("cwd") or None,
+                 capture_output=True, text=True)
+    now_head = _h.stdout.strip() if _h.returncode == 0 else ""
+    if red_head and now_head and red_head == now_head:
+        return False, ("记红之后没有新 commit —— 红必须在修复 commit **之前**记录 · "
+                       "先 commit 修复再 dev-complete")
+    try:
+        r = _sp.run(rp["cmd"], shell=True, cwd=rp.get("cwd") or None, capture_output=True,
+                    text=True, timeout=900)
+        code = r.returncode
+        tail = ((r.stdout or "") + (r.stderr or ""))[-800:]
+    except _sp.TimeoutExpired:
+        code, tail = None, "超时"
+    rp["green_exit"], rp["green_at"] = code, now_iso()
+    if code != 0:
+        return False, (f"复现命令修复后仍失败(exit {code})· `{rp['cmd']}` 必须通过 · 输出尾:{tail}")
+    return True, ""
 
 
 DEV_SPEC = StageSpec(
@@ -1541,6 +1661,11 @@ DEV_SPEC = StageSpec(
             name="test_stdout_non_empty",
             check_fn=_evidence_test_stdout_non_empty,
             description="--test-stdout 非空 · 证明真跑过测试",
+        ),
+        StageEvidenceCheck(
+            name="bug_repro_red_then_green",
+            check_fn=_evidence_bug_repro,
+            description="Bug 轻档:修复前复现命令失败(repro-record)· 修复后同命令通过(v8.365)",
         ),
     ],
     brief_template_fn=_dev_brief,
@@ -2309,7 +2434,7 @@ BLUEPRINT_SPEC = StageSpec(
         StageEvidenceCheck(
             name="outside_checklist_insight",
             check_fn=_evidence_outside_checklist_insight("TECH-REVIEW.md", "blueprint"),
-            description="TECH-REVIEW.md 含 💡 清单外洞察段(≥1 条或显式「无+理由」· blueprint 有冷审路时强制)",
+            description="TECH-REVIEW.md 含 💡 清单外洞察段(有就写 · 没有写「无实质质疑」· blueprint 有冷审路时强制)",
         ),
         # v8.0+P0-9:TECH-REVIEW.md reviewers 必含 state.stage_review_roles[blueprint]
         StageEvidenceCheck(
@@ -2709,7 +2834,7 @@ def _review_brief(state: dict) -> str:
     if len(rounds) >= 2:
         return _review_verify_round_brief(state, rounds)
     _bug = ("\n🐛 **Bug 流单路评审**(v8.270):roster 默认仅 `[external]` · 覆盖必含 **修复↔diagnose 方案一致性**(Architect 视角并入)+ 外审必覆盖清单照旧 · REVIEW.md 台账/severity/验证轮/预算协议照跑 · 主审路 coverage 申报免(roster 无 architect · `change-review-roles` 可加回)。\n"
-            if state.get("flow_type") == "Bug" else "")
+            if state.get("flow_type") == "Bug" and not _dims(state) else "")
     # v8.342:tiny/lite 单路 architect —— 说清「对照什么审」(两档的规格载体不同),
     # 免得单路 agent 去找一份不存在的 TECH.md。
     _light = ""
@@ -2888,7 +3013,7 @@ REVIEW_SPEC = StageSpec(
         StageEvidenceCheck(
             name="outside_checklist_insight",
             check_fn=_evidence_outside_checklist_insight("REVIEW.md", "review"),
-            description="REVIEW.md 含 💡 清单外洞察段(≥1 条或显式「无+理由」· review 有冷审路时强制)",
+            description="REVIEW.md 含 💡 清单外洞察段(有就写 · 没有写「无实质质疑」· review 有冷审路时强制)",
         ),
         StageEvidenceCheck(
             name="external_review_artifact",

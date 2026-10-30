@@ -4,92 +4,63 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
-## v8.361 · 年检提效:砍掉价值不高的环节(用户拍板「都做」)
+## v8.366 · 读取分层 · 文档单一权威 · 评审不凑数(提效方案第 3 批)
 
-> 数据源:aon-core `PROCESS-LEDGER.md`(2026-08-16 后 128 个 Feature)+ 174 份流程复盘。AI 自主中位 115m、等用户中位 136m(等待占墙钟 ~70%)· **~30% 轮次是协调开销**(781/2564)· 暂停点 71% 按默认放行 · 台账 `rejected_with_feedback` 0 次。外审采纳率 goal 7/7、blueprint 24/24 —— **评审环节保留**,砍的是框架自己制造的开销与重复停等。
+> 起因:开工前要读的规则太多(prepare 前要先读三份规范);同一份测试设计在 TECH 与 TC 各写一遍;冷审「没发现」也必须写理由,单字「无」过不了门。
 
-- **门禁纯开销**:删 goal `prd_review_after_prd`(mtime 顺序门 · 每改 PRD 都得连带碰 PRD-REVIEW · 10 份复盘记过);`must_be_in_commit` 放宽为「本 stage 内已提交且与 auto-commit 一致」也算入账(TEST-REPORT 与代码分两次提交不再被逼重提 · 未提交改动 / 上一轮旧报告仍拦)。
-- **测试证据指纹只算代码**:流程目录(feature 目录 / `docs/features` / `docs/retros` / `project-specs`)下的文档类文件不进指纹 → 提交 TEST-REPORT / 改 PRD 不再让证据作废重跑(76 份复盘提到重跑);feature 目录里的 `e2e/*.py` 照算。新增 `state.py tree-hash` 单源取指纹(配方不再手抄 python 片段);旧口径指纹兼容放行。
-- **验收拍板并入 ship1**:AC 全过 → pm_acceptance 不停,验收结论进 ship1 MR 卡片「✅ 验收」段,**点合并 = 验收通过并发布**;要改回「要改 <问题>」(MR 窗口期放行口加 `goal` / `ui_design`)。AC 没过 / 有阻塞 / 有产品取舍 → 照旧停三选项。
-- **流程复盘文档按需写**:仅协调开销 ≥30% / 有 bypass / review ≥3 轮 / MR 窗口期回炉 / 反思摘要是「判例:」时写;ship brief 直接告诉本单写不写 · 台账行照落。
-- **medium 档不产 TC.md**:测试设计归 TECH §测试策略 · AC↔测试绑定走 `PRD.acceptance_criteria[].test_refs`(与 lite 同载体 · test 阶段校验);引擎 `StageArtifactSpec.skip_if`。
-- 同期已推 dev 的小改(v8.360.5–.8):功能生效闸先问触发条件能否从源头消除 · PRD 终确认待决策项逐项讨论 · 守卫清单「只在绕过时变」必给触发路径证据。
-- 验证:新增 `test_annual_cut_v8361.py` 20 例(真实临时 Git 仓库验指纹与入账判定);全量 **1840 passed, 2 subtests passed**。
+- **读取分层**:SKILL 新增「读取分层」表 —— 入口(每次)/ 当前阶段(进阶段时读 brief 点名的 stage doc)/ 参考(出问题时查)· 不需要读完整套流程才开工。
+- **prepare 按需读**:§0 由「动手前必读三份」改为「最小路径 + 按需读」(conventions 仅偏离默认路径时读 · feature-planning §0 仅命中 §2.1 时读 · 反模式 / 错误处理 / 红线作参考)。
+- **测试设计单一权威**:TECH §测试清单 不再复制 TC 用例表 · full 档权威 = TC.md · medium/lite 绑定在 PRD `test_refs`。
+- **评审不凑数**:⚔️ 对抗 / 💡 清单外洞察「没有就写『无』」· 不再要求「无 + 理由」;💡 门禁接受显式「无」(占位符与留白仍拒)。SKILL 新增「评审先核验关键前提」。评审路数与模型错开**不变**(按方案:有对照数据前不放宽)。
+- 测试口径同步:`test_derole_wiring_v8356` / `test_derole_unified_review_v8355` 原先锁定旧规则(单字「无」必拒 / 必须带理由),按本批决定改写。
+- 验证:新增 `test_slim_reading_v8366.py` 6 例 · 全量通过。
 
-## v8.360.4 · 修复评审证据归属、流程修订与合并后清场
+## v8.365 · Bug 按风险分三档 · 复现证据机器核对(提效方案第 2 批)
 
-- 修正规划收尾的选项编号与执行分支，选 2 仅继续讨论；统一独立冷审的执行规范。
-- 外审结果按阶段筛选，新派发绑定请求 ID 与被审 commit；修复后必须有覆盖最后 fix commit 的实际结果，prompt 不再充当完成证据。
-- `revise-plan` 同步执行位置、合法下一阶段与评审配置；自定义维度的阶段准入与文档要求按实际计划判定。
-- `await-merge --feature` 检测合并后在主工作区实际调用 `ship-finalize`，保留失败、脏文件保护和待决策结果。
-- 验证：新增 20 个回归用例；全量 **1812 passed, 2 subtests passed**；真实临时 Git 仓库验证 worktree 删除与主工作区同步。
+> 起因:Bug 不论大小都固定走 diagnose → dev → review → test → pm_acceptance → ship,且 diagnose 必停等用户确认 —— 根因已经验证过的局部修复也要补一份完整 BUG 报告、再确认一次。
 
-## v8.360 · 防过度防护:先问冗余,再算 ROI(用户拍板)
+- **Bug 接入装配计划 · 只开三档**:`floor`(dev → ship)· `tiny`(dev → review〔external 单路〕→ ship)· `full`(原 diagnose 链 · 不变)。轻档链由 assembly_plan 推导(与 Feature 同一套 `derive_chain` · 不另立 Bug 专用图);其余 preset / `--dims` 对 Bug 拒绝。
+- **轻档准入 = 机器证据**:新增 `state.py repro-record --cmd`(改代码前跑 · 命令必须失败才记录红);dev-complete 新增证据门 `bug_repro_red_then_green` —— 无红记录 / 红之后没有新 commit / 重跑仍失败 → 拒绝。不靠 agent 自述「根因已验证」。
+- **升级**:新增 `state.py bug-escalate --evidence` —— 轻档 → full · 回 diagnose · repro / 阶段合同 / concerns 保留 · 原计划进 `plan_history`。
+- **diagnose 确认改为按决策停**:修复改变预期行为 / 公开契约 / 有取舍 → 照旧停;只是恢复本该有的行为 → 写进 BUG 报告并告知 · 不停。
+- 接线:引擎 `_resolve_flow_graph` / stage-start 链校验 / `reset-prev` / `jump-to-stage` 对 Bug 计划同口径推导;dev 准入对 Bug 轻档走计划判据;`prepare-check --flow-type Bug --preset floor|tiny` 预览对应链;ship 准入沿用「pm_acceptance 不在链上 → 验收在 ship1 MR」。
+- 文档:prepare §2.3 Bug 定档 · FLOWS 三行 · dev-stage 复现证据节 · diagnose-stage 规则 5。
+- 验证:新增 `test_bug_tiers_v8365.py` 12 例(真实临时 Git 仓库跑 init → dev-start → repro-record → 修复 commit → dev-complete → ship-start;升级回 diagnose;三档预览)· 全量通过。
 
-> 起因 case(SVC-CORE payout 两态 · 财务账本):TECH 列了 7 项 DB 守卫。用户「有必要做这个 check 么,是不是代码保障就好了」→「**你看下还有哪些不必要的 check,减少过渡保护**」→ AI 第二轮自己分出三组,**第一组「纯冗余,建议全删」**:up 前置断言「无 `status='failed'` 行」(紧接着重建的列 CHECK 对存量行本来就会 23514)· 三条常驻 grep 门「零引用」(删掉的表和函数编译期就报错)——「它们只是把后面必然发生的失败提前说清楚,**删了行为不变**」。
-> 🔴 **这些冗余是在冷审 26 条全部处置、Round 2 双路 APPROVE 之后,靠用户追问两次才挖出来的。** 框架明明有 ROI 规则(v8.266/v8.279)却没拦住。
+## v8.364 · 清规则冲突 + 确认围绕决策(提效方案第 1 批)
 
-### 三层原因
-- ① 🔴 **分类漏网(决定性)**:ROI 算账的对象定义是「降级兜底/安全兜底(fallback / degradation / 重试熔断 / 防御层)」= **出错时怎么办**(fail-safe);而 DB CHECK / trigger / 前置断言是**不让错发生**(guard)。实证:那份 TECH 白纸黑字写着「🛡️ **兜底清单:无**」,同时挂着 7 项 DB 守卫 —— **逐项算账、填 ROI 表、随暂停点透出**这整条流程从未触发。用户看到的是「变更明细」,而那张表问的是「为何非更简方案不可」= 为什么要**改**它,不是为什么要**有**它。
-- ② **ROI 对守卫天然算得过**:财务账本脏数据后果极高 → 概率×后果永远立得住。v8.279 自己就写了「安全加固/兜底降级**听着最负责任故最难驳**」。而 AI 第二轮用的判据不需要估概率:**「删了行为会变吗」**,当场可判。
-- ③ **冷审拦不住**:冷审的 mandate 是找缺陷,而「多一道无害的断言」读起来是更严谨 —— **防护读起来永远像更负责任**(与 v8.354「限制读起来永远像最小范围」同族)。
+> 起因:Teamwork 提效方案 —— 明确的任务被规则冲突与重复确认拖慢。本批只动「要不要停」与规则文字,不动流程链。
 
-### 变更
-- **清单正名 + 扩容**:§兜底清单 → **§兜底与守卫清单**,显式纳入 **DB CHECK / 约束 / trigger / 前置断言 / 运行时校验 / 常驻门禁(grep 门、lint 门)**。暂停点触发条件、blueprint 透出段、goal/blueprint brief、external 协议**六处消费方一并更新**(先 grep 出全部消费方再改 —— v8.356 的教训)。
-- **前置判据(可判问句 · ❗ 顺序不可换)**:**这道防护删掉之后,行为会变吗?**
-  - **不变**(后面必然有另一道拦住同一件事)→ **纯冗余,直接删** · **不进清单、不用算 ROI**;
-  - **只在绕过正常路径时变**(运维直写 / 迁移脚本 / 将来绕过 service 的函数)→ 有取舍 → 进清单算 ROI,**随暂停点给用户拍板**;
-  - **正常路径就变** → 那不是防护,是**功能**,归各自章节。
-  🔴 **为什么顺序不能换**:ROI 对纯冗余也会算出「保留」—— 成本才十几行、后果却极高,于是永远立得住。三分法正是那个 AI 第二轮自己得出的,**框架里没有这个分法**,所以它第一轮没做。
-- **清单表加「🔴 删了行为会变吗」列**,并写明「答『不变』的**不该出现在本表**」。
-- **blueprint ⚔️ 对抗段补守卫版判据**(复用 v8.354「限制必要性」的形状):**这道守卫是需求要求的,还是我加的?**「我加的」→ 要么说出「不加会出什么事」**且那件事不会被别的机制拦住**,要么删。
-- **external 协议同步**:external 天然偏加防御层 → 其 finding 裁决也是**先问冗余再算 ROI**,答「不变」直接 REJECT。
-- 📎 撞 v8.283 价值门(🔴 规则 39 条 vs 3 处 why = 13.0 > 12)→ **服从门裁**:把新增规则的实证理由显式标成 `why:`(而不是削 🔴),比值回到 7.8。
+- **暂停必须写明要定的决定**:`pause-mark --decision` 必填,空 → 拒绝(说不出用户的回答会定下什么 = 不该停)· decision 随 `pause_log` 留痕。SKILL R5(b) 加确认默认行为表(已授权修复直接推进 / 有配置自动用 / 冲突与产品取舍才问)。
+- **prepare 免停条件**(prepare §4.0):明确指令 + 无补的意图假设 + 4 项配置全取默认 / localconfig + 无异常 + 未触发 §2.1/§2.2 → 卡片照出、不停、直接执行。R-P1 / R-P2 同步。
+- **缺产品规划不再拦执行任务**:cold-start gate 对 mode B 明确的 Feature/Bug 只提一句、不停;bare `/teamwork` / mode D / 规划类任务照旧停。
+- **micro 准入失败不再一律 full**:按「超 micro 白名单怎么定档」在 floor / tiny / full 里选(原 §2.2 首句与定档段自相矛盾)。
+- **起手档清单统一**:prepare 闭集写全 6 档;`prepare-check --preset` 接受全部档(原只认 full/tiny/micro,定 floor 时预览退回全链)。
+- **定档单源按时刻划分**:prepare 起手 = prepare §2 · goal 调研后装配 = goal-stage 3.7 · FLOWS.md 只是视图(原 SKILL 同一处列了三个「权威」)。
+- **floor 入场问句去绝对化**:「测试能完全证明它对」→「测试覆盖本次行为变化和已识别的关键风险」。
+- 验证:新增 `test_decision_pause_v8364.py` 11 例(含真跑 pause-mark / prepare-check floor 预览)· 全量通过。
 
-- test_guard_redundancy_v8360(16 · 含「新判据不吃掉既有 ROI/透出」的回归锁)· 全量 **1792 passed**
+## v8.363 · 计时口径 v2:先把统计做对,再改流程(提效方案第 0 批)
 
-## v8.359 · WS 拆解明细:去「人维护」+ 用户决策事实入槽(用户拍板)
+> 起因:Teamwork 提效方案评审 —— 要验证「明确任务少走手续」是否真提效,得先有可比基线;而现有统计有三处失真,流程改动与口径修正同批上会让效果无法归因。本版**只改统计,流程规则一律不动**。
 
-> 用户(WS-48 财务链路截图):「这个**人维护**去掉,ws 这里 feature 补充一点可以详细一些,**不能丢用户决策的事实**」。
+- **总时长起点**:`_feature_duration_h` 原来只从最早 stage 起算,漏掉 bootstrap/分诊/prepare。v2 起点取 `prepare_check_at`(init-feature 从 prepare-check audit 记录取)/ `created_at` 中最早者。
+- **启动准备耗时单列**:`ledger_timing.startup_min` = 可观测起点 → 首个 stage 开始(prepare-check 之前不可观测 · 是下界)。
+- **pm_acceptance 不再整段算等待**:v8.361 起 AC 全过不停,原口径把验收工作算成「等用户」;v2 下按普通 stage 计,真停时 pause-mark 打点进 `await_minutes`。
+- **暂停次数机器计数**:`close_open_pause` 每次闭合落一条 `pause_log`(stage/label/minutes)· `ledger_timing.pause_count`。
+- **新旧不混比**:init-feature 写 `timing_basis: "v2"`;存量 state 无此字段 → 全部按旧口径算(结果不变)· 台账「时长」格 v2 行追加 `·启 Nm·停 N` 段即口径标记 · `ledger_timing.timing_basis` 显式标注。
+- 未做(留待后续批次按需补):首次有效产出时间、合并后 14 天遗漏缺陷追踪、未归档任务统计。
+- 验证:新增 `test_timing_basis_v8363.py` 14 例(含真跑 prepare-check → init-feature)· 全量通过。
 
-### 两个问题都真
-- ① §拆出的 feature 标着「规划态 · **人维护**」,但这节恰恰是 **feature-planning 流程产出的** —— 标注会让 AI 以为不归它写,于是写薄或不写。
-- ② 槽位只有 范围 / 依赖 / **高层 AC**,**规划期用户拍的板没有落点**:选了哪个方案(税务方案 A 不是 B)、打款 failed 分几态、定了什么口径 —— 全留在规划当时的对话里。
+## v8.362 · 归档后 MR 修复通道 + CI 归因修正(实证 GPT-F261014120919-Offer-Plugin)
 
-> 🔴 **这是 v8.353「已确认意图入 PRD」的上游断点**:v8.353 把 prepare 确认的意图搬进了 PRD,但更早一层(WS 规划期的决策)仍然只活在对话里。换 session / 派 subagent 就没了,下游 PM 只能凭「范围」一句去猜用户当初要什么 —— 而**意图错了是唯一一类下游全部质量门都拦不住的错**。
+> 起因:ship1 归档后 MR CI 红,修一行 tsconfig —— 被迫重走 dev→review→test→browser_e2e→pm_acceptance→ship,test / browser_e2e 各 bypass 一次;同时 await-merge 把本分支新增 `proxy.ts` 导致的 TS2307 连判 8 次「base 预存在」,监控不报警。
 
-### 变更
-- **去掉「人维护」标注**;`ws-lint` 新增一条:存量 WS 仍写该标注 → 报出(否则它会一直被抄下去)。
-- **新增 `features[].user_decisions`(机读)+ 正文 🔒「用户已拍板的」段**:选了什么 / 排除了什么(并标「做不到」还是「我们选的边界」)/ 定了什么口径 · 🔴 **原样搬不润色**(润色 = 二次解释,偏差正是这么进来的)。
-- **`ws-lint` 查槽位存在**(逐件点名缺的那些)· 🔴 **不查非空** —— `[]` 是合法值(该件未经用户单独拍板);强制非空会**逼出编造的「决策」**(与 v8.358 同一判断:必填 + 无出口 = 幻觉配方)。
-- **链条写明**:这些事实是起 feature 时 `init-feature --user-intent` 的**输入**,再落进 PRD §已确认意图 —— 载体到位还不够,不说清往哪传,填了也没人用。
-- **拆解明细改为「宁详勿略」**:原措辞「核心 AC(**高层** · 详细 AC 在 Feature PRD)」会诱导写薄,而这节是下游**唯一**能拿到规划期上下文的地方;AC 可写到具体字段 / 路由 / 状态值。
-- 📎 ws-lint 拿到的是**文本**而既有 `_parse_ws_features` 收 `Path` → 拆出 `_parse_ws_features_text` 两边共用,**没写第二份扫描器**(双实现必漂 · v8.352 `_flow_key` 漏 floor 即实证)。
-
-- test_ws_user_decisions_v8359(13)· 全量 **1776 passed**
-
-## v8.358 · 多轮审查的幻觉风险:范围锁定 + 落点举证(用户提问 → 拍板)
-
-> 用户:「多轮审查是否容易幻觉出来一些不存在的场景」→「落」→「**这个场景在本 feature 的真实输入下会发生吗,这个反问会应用在 goal 和 tech 阶段么**」。
-
-### 查证:防御很完整,但**装反了**
-现有机制相当强:`code_evidence` 明写「防止**猜测式 finding**(reviewer 没读代码就提问题)」· 逐条裁决**质疑 → 确认 → 回读真实代码** · `adversarial_self_check`(ADOPT 前先写这条不成立的最强反方)· 对抗复现「**复现不出降 MINOR**」· rejected 词表含 false positive。年检数据也佐证它在起作用:external 采纳率 **82.3%** —— 每 6 条就有 1 条被判不成立驳回。
-🔴 但 `grep -c "禁全量重扫|范围锁定"` → **review=1 · goal=0 · blueprint=0**,而 goal-stage 原文要求 Round 2+「核实 fix + **找新**」:
-- **review 有代码可 grounding**,finding 能被回读当场证伪 —— 却锁得最严;
-- **goal/blueprint 是纯文档评审**,「这个需求可能有问题」既证实不了也证伪不了 —— 却允许并鼓励找新。Round 1 把真问题找完后仍被要求找新,**剩下能找的只有边角**。
-
-### 📎 v8.355 加剧了这件事(自陈)
-新增的 ⚔️ 对抗段(「不许写 ✅」)与 💡 清单外洞察(「≥1 条」)恰恰是**必填产出 + 零证据要求**的组合 —— `code_evidence` 只管 `technical-consistency`,**够不着 `premise-challenge` 和清单外洞察**;而 💡 那段本就是让人「想出清单上没有的东西」,是幻觉最高发的形态。两条都留了「无 + 理由」出口(这点是对的),但**出口存在 ≠ 压力不存在**:模型面对必填格,倾向填满而不是填「无」。
-
-### 变更
-- **验证轮范围锁定推广到 goal / blueprint**(协议单源 review-stage 规则 5):只核实上轮 finding 处置 + **修订处的连带影响** · ❗ **禁全量重扫**(新 finding 仅限出自修订处、或 BLOCKER 级并附「**为何首轮未发现**」)· rejected 不得复提。goal 原文的「核实 fix + **找新**」删除。
-- **⚔️ 与 💡 必须落地**:① **指认落点** —— 这条质疑/洞察对着 PRD/TECH/代码的**哪一句**?说不出具体落点 = 不成立,撤回;② **可判问句:这个场景在本 feature 的真实输入下会发生吗?** 说不出具体触发条件 → 降级或撤回(与「复现不出降 MINOR」同构)。并明写「**填满不是目的 —— 编一个出来比空着更贵**」。
-
-### 🔴 用户追问逼出的关键分流:goal 是例外
-「真实输入下会发生吗」在 `blueprint`/`review` 成立(有确定的方案/实现作参照),**在 `goal` 不成立**:
-- PRD 阶段**正在定义「什么是真实输入」** → 拿它驳回质疑是**循环论证**;
-- 更危险的是它会给「**悄悄收窄范围**」一个正当理由 —— v8.350 的实证事故正是这个形状(狭义解释某能力并排除另一半,PRD 完全自洽,dev 与 review 都在认真验证一个错误的范围定义)。
-→ **goal 阶段说不出触发条件 = 范围未定 → 进 §待决策项让用户拍板,不许撤回**,与规则 4.5「这个排除是**做不到**还是**我选的边界**」同一判据。**两条规则方向相反,必须显式分流,否则防幻觉会吃掉防范围收窄。**
-
-- test_multi_round_hallucination_v8358(12 · 含「两条规则互不吃掉」的回归锁)· 全量 **1763 passed**
-- 发版三件套 · 🔴 54(门 <55)
+- **P0 · 归档后报告门不再逼 bypass**:`ship.phase ∈ {archived, pushed}` 时 TEST-REPORT / BROWSER-TEST-REPORT 跳过「在 commit 内」检查(需求目录已 `git rm --cached` 出分支 · 永远满足不了)· 文件存在照查 · concerns 记 INFO(设计内豁免)。实证:本单 bypass 2 次。
+- **P0 · MR 修复轻量通道**:回炉目标 dev、相对上次 push 代码改动 ≤3 文件且 ≤30 行 → dev-complete 直达 ship 重录 push(验收早已发生);超出照走完整链 · 重录即关闭通道并回到 completed · dev brief 要求测试证据跑 CI 失败的那条命令。原「bypass_log 区分豁免/逃生」不再需要(这类 bypass 不再发生)。实证:一行修复走完 7 个 stage。
+- **P0 · CI 归因**:GitLab `_mr_ci_status` 原来 `failing` 恒为空 → 归因无 job 名 → 每次落进「预存在」分支(与「未知按自己引入」的设计相反)。改为 API 取失败 job 名(取不到记 `pipeline`)· base 只看 merge_target **最新一条** pipeline · 失败 job 名命中本分支 `git diff origin/<base>...HEAD` 改动目录 → 直接判本 feature 引入 · 依据逐条打日志 · 两边都空时不判预存在。实证:`fe-ember-official-site-build` 连判 8 次。
+- **P1 · ci-commands 跟 GitLab `include: local`**(递归 · 支持 glob)。实证:返回 0 条,CI 对照只能人工。
+- **P1 · test-baseline 不越界写主工作区**:worktree 里没有 project-specs 时 `--add` 返回 PENDING,`--target worktree` 写副本 / `--target main --user-confirmed` 写主工作区 · 读取取各份并集。实证:写到了主工作区未跟踪文件。
+- **P1 · 复发防御清单门禁**:project-specs 在主工作区未跟踪时给两个落点的绝对路径,主工作区那份有条目也算通过。实证:只能 `--no-defense-entry` 跳过。
+- **P1 · 文档**:dev 中途追加范围 → `jump-to-stage --to blueprint`(reason 记停掉 / 待重派的 lane)· 未新增命令(已有能力);blueprint 确认卡对类型/枚举/provider 类字段问「取值集合固定还是会增长」(只问取值集合,不问「将来要不要做 X」)。实证:登录 provider 可扩展性在 dev 中途才追加。
+- 验证:新增 `test_post_archive_mr_fix_v8362.py` 16 例(真实临时 Git 仓库跑「归档后修 1 行 → 不 bypass 重录 push」全流程)· 全量通过。

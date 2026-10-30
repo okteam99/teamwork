@@ -6,12 +6,14 @@
 
 ---
 
-## 0. Must-read(PMO 进 prepare 前必读)
+## 0. 读什么(按需 · 不是开工前通读)
 
-🔴 **必读 spec**(prepare 动手前读):
-- **[conventions.md §9-12](./conventions.md)** — worktree path 规范(`{worktree_root_path}/{Feature-ID}` · 默认 `.worktree/`)
-- **`.teamwork_localconfig.json`** — 项目级 worktree_root_path 配置(读 `worktree_root_path` 字段 · 不存在用 `.worktree`)
-- **[feature-planning.md §0](./feature-planning.md)** — 何时改走 Feature Planning(关键词 + 复杂度双触发)
+**最小路径**(明确的小任务只需要这些):§2 定流程与起手档 → `prepare-check` → §4 卡片(满足 §4.0 免停条件就不停)→ §5 执行。
+
+**按需读**(触发了才读):
+- `.teamwork_localconfig.json` 的 `worktree_root_path`(不存在用 `.worktree`)—— 规范细节在 [conventions.md §9-12](./conventions.md),路径要偏离默认时才读
+- [feature-planning.md §0](./feature-planning.md) —— 命中 §2.1 复杂度信号时才读
+- §0.5 反模式 / §7 错误处理 / §8 红线 —— 参考资料,出问题时查
 
 🔴 **PMO 必先 Read 本 prepare.md(工具调用)再 emit 任何 prepare 内容** —— SKILL.md 只给"移交 prepare 子流程"指针 · 具体 emit 模板(🎯 意图确认 + ⚙️ 配置)/ 准入校验 / prepare-check 用法都在本文件。不读直接 emit = R5 违规(详 §0.5 #1)。
 
@@ -90,14 +92,14 @@ PMO 移交 prepare 后 · **必走以下 4 项准备**(emit 暂停点之前):
 ### 1.5.4 · ID 冲突预检 + stage 评审角色预览(强制)
 
 ```bash
-state.py prepare-check --feature-id-prefix <PROJ> --flow-type <Feature|Bug> [--preset <full|tiny|micro>]
+state.py prepare-check --feature-id-prefix <PROJ> --flow-type <Feature|Bug> [--preset <full|tiny|floor|micro>]
 ```
 
 输出含:
 - `next_available_id_stem` + `existing_ids` + `id_letter`(ID 冲突预检 · 字母 **F/B**〔M 为 legacy 存量〕· 详 conventions.md §1)
 - `stage_chain_preview`(canonical 链回显 · 仅供暂停点「链=」行)—— 🔴 评审面与环节**不在 prepare 装配**(后移 · 见 §1.5.4)
 
-🔴 **定了轻档就把 `--preset` 一起传**(§2.2 判出 tiny/micro 时):预览按该档的链出。漏传 → 暂停点把 11-stage 全链摆给用户看,**刚减掉的流程税又长回去了**(用户看到的链才是他感知到的重量)。`lite` 不传 —— 它是 goal 调研后的装配形态,prepare 预览按 full 出、装配卡再收窄。
+🔴 **定了轻档就把 `--preset` 一起传**(§2.2 判出 tiny/floor/micro 时):预览按该档的链出。漏传 → 暂停点把 11-stage 全链摆给用户看,**刚减掉的流程税又长回去了**(用户看到的链才是他感知到的重量)。`lite` 不传 —— 它是 goal 调研后的装配形态,prepare 预览按 full 出、装配卡再收窄。
 
 🔴 `--flow-type` 必传:Bug → `PREFIX-B{NNN}` · Feature(含 preset=micro)→ `PREFIX-F{NNN}`。漏传退回字母 F · **Bug 会错号**。
 
@@ -124,7 +126,7 @@ PMO 把数据填进暂停点表格:`next_available_id_stem` → artifact ID 默�
 
 ## 2. Step 1 · 流程类型识别(闭集 · R2 红线)
 
-> 🔴 机器层闭集 = `flow_type ∈ {Feature, Bug}` + Feature 重量档 `--preset full|micro`(legacy 别名「Micro」→ preset=micro)· 关键词命中「micro」= 推荐对应 preset 而非独立类型 · 闭集权威视图 [FLOWS.md](../FLOWS.md)。
+> 🔴 机器层闭集 = `flow_type ∈ {Feature, Bug}` + Feature 起手档 `--preset full|medium|lite|tiny|floor|micro`(prepare 只定 micro/floor/tiny 或 full 起手 · lite/medium 由 goal 调研后装配定 · legacy 别名「Micro」→ preset=micro)· 关键词命中「micro」= 推荐对应 preset 而非独立类型 · 闭集权威视图 [FLOWS.md](../FLOWS.md)。
 
 PMO 按以下关键词表判定 user input 落入哪类流程:
 
@@ -180,16 +182,16 @@ PMO 按以下关键词表判定 user input 落入哪类流程:
 
 ### 2.2 · preset=micro 准入校验(覆盖关键词初判)
 
-🔴 **关键词命中「micro / 改文案 / 换图 / 改样式」类轻信号时 · PMO 必验准入硬约束** · 任一不满足 → `preset=full`(关键词只看字面 · 准入硬约束才是真流程边界):
+🔴 **关键词命中「micro / 改文案 / 换图 / 改样式」类轻信号时 · PMO 必验准入硬约束** · 任一不满足 → **不是 micro** · 按下方「超 micro 白名单怎么定档」在 floor / tiny / full 中选(关键词只看字面 · 准入硬约束才是真流程边界):
 
-**micro 准入**(全满足才成立 · 否则 preset=full):
+**micro 准入**(全满足才成立 · 否则按下方定档):
 
 | 准入项 | 不满足的信号 |
 |---|---|
 | 零逻辑变更 | 改动含任何条件 / 分支 / 数据流逻辑 |
 | 改动类型在白名单 | 仅 文案 / 样式 / 资源 / 配置常量 / 注释 · 其它都不算(加组件 / 改页面结构 / 改交互 / 改接口契约 / 动数据结构 → 全部超纲) |
 
-📎 **超 micro 白名单怎么定档**(判**风险的种类**,不判改动大小):有行为面但**测试能完全证明它对**、不动契约面 → **`floor`**(`dev → ship` · 保留全部测试证据门,所以能接真逻辑改动;验收在 ship1 MR diff);**值得一双眼看 diff** → **`tiny`**(用户拍板形态:直接开发、完成后架构师 review 一下、PM 验收盯 staging);**有规格风险**(会不会在做错的东西)→ **`full` 起手进 goal**,是走 lite / medium / full 由调研后的装配定 —— 那一档**不在 prepare 定**(装配后移 · 决策点放在证据出现之后)。
+📎 **超 micro 白名单怎么定档**(判**风险的种类**,不判改动大小):有行为面但**测试覆盖本次行为变化和已识别的关键风险**、不动契约面 → **`floor`**(`dev → ship` · 保留全部测试证据门,所以能接真逻辑改动;验收在 ship1 MR diff);**值得一双眼看 diff** → **`tiny`**(用户拍板形态:直接开发、完成后架构师 review 一下、PM 验收盯 staging);**有规格风险**(会不会在做错的东西)→ **`full` 起手进 goal**,是走 lite / medium / full 由调研后的装配定 —— 那一档**不在 prepare 定**(装配后移 · 决策点放在证据出现之后)。
 🎛️ **档只是起手点**:`init-feature --dims '<JSON>'` 可拧任意一维(custom 装配)· 组合连贯性机器校验。
 
 **为什么校验**:关键词只看字面 · 无法区分"改静态文案"与"改文案渲染逻辑"—— 命中关键词后仍须验准入。
@@ -204,7 +206,7 @@ PMO 按以下关键词表判定 user input 落入哪类流程:
 1. **preset=tiny** 💡 推荐(「直接做」形态 —— 有 review 有验收 · 零文档)
    理由:<准入项> 不满足 micro 零逻辑白名单 · 但测试证得了实现、无契约面 —— 不值得为它起一份 PRD;**值得一双眼看 diff**
    动作:`dev → review〔external 单路〕 → pm_acceptance → ship` · PM 验收盯 staging 部署(await-merge 自动带 CI)
-   📎 连一双眼都不值得(测试完全覆盖 · 不动契约面)→ 说一声改走 **`floor`**(`dev → ship` · 验收在 MR diff)
+   📎 连一双眼都不值得(测试覆盖行为变化与关键风险 · 不动契约面)→ 说一声改走 **`floor`**(`dev → ship` · 验收在 MR diff)
 2. **继续讨论**(说说你的想法/疑虑 —— 聊清楚再定档)
    理由:定档看的是四轴(改动方向 / 契约面 / 影响面 / 验证成本)· 你更清楚这个改动会碰到什么
    动作:聊完再回到本选择题
@@ -214,6 +216,21 @@ PMO 按以下关键词表判定 user input 落入哪类流程:
 4. **坚持 preset=micro**(风险自担 · 记流程例外留痕)
 5. **其他指示**
 ```
+
+### 2.3 · Bug 定档(full / tiny / floor)
+
+Bug 只开三档。判的是**风险的种类**:代码改得少,不等于风险低。
+
+| 档 | 准入(全满足) | 链 |
+|---|---|---|
+| **floor** | ① 有复现证据:修复前会失败的测试(或可复现的命令)· ② 修复不改变预期行为与公开契约 · ③ 影响范围已查清 | dev → ship |
+| **tiny** | 满足 floor 准入 · 但碰**权限 / 支付 / 数据写入**等敏感路径,或改动值得一双眼看 diff | dev → review〔external 单路〕→ ship |
+| **full** | 拿不出复现证据 / 根因不明 / 修复改变行为或契约 / 有需要用户决定的取舍 | diagnose → dev → review → test → pm_acceptance → ship |
+
+- 🔴 **复现证据由机器核对,不靠自述「根因已验证」**:轻档 dev 开工后、改代码前跑 `state.py repro-record --cmd '<测试>'`(必须失败才记录);修复 commit 后 `dev-complete` 重跑同一条命令,必须通过。没有红记录、红之后没有新 commit、修复后仍红 → dev-complete 拒绝。
+- **升级**:实现中发现未知调用方 / 新的兼容影响 / 原判断不成立 / 复现不出 → `state.py bug-escalate --evidence '<新事实>'` 升 full(回 diagnose · 已有记录保留)。只有新事实带来用户决策时才停下问;单纯工作量增加由 agent 自行处理。
+- 轻档的根因 / 修复意图 / 验证方式写进理解卡与 PR 描述 · 不复制成 BUG 报告。
+- `prepare-check --flow-type Bug --preset <floor|tiny>` 预览对应链;`init-feature --flow-type Bug --preset <floor|tiny>`(不传 = full)。
 
 ---
 
@@ -264,12 +281,26 @@ flow=<Feature[·micro] / Bug> · clarity=<normal> · bl=<BL-NNN|无> · 链=<can
 
 flow_type → first_stage 映射:
 - Feature(preset=full)→ `goal`
-- Bug → `diagnose`(根因细查 + 修复方案 · 用户确认后才进 dev · 防修偏)
+- Bug(preset=full)→ `diagnose`(根因细查 + 修复方案 · 改变预期行为时用户确认后才进 dev · 防修偏)
+- Bug(preset=floor / tiny)→ `dev`(先 `repro-record` 记红 · 详 §2.3)
 - Feature(preset=micro)→ `execute`(零门禁自由执行 → ship · 无 dev/pm_acceptance)
+- Feature(preset=tiny / floor)→ `dev`
 - Feature Planning / 问题排查 → 不进状态机 · prepare 在这两个流程上不调用
 
 🔴 **必 1 次完整 emit · 不分多轮**(防 PMO 先建议 + 再"最终确认"的 2 轮交互浪费)。
 🔴 **用户回 `ok`** · PMO 视作"按建议全部默认值" · 不再二次确认 · 立即执行 §5。
+
+### 4.0 · 免停条件(全满足 → 卡片照出 · 不停 · 直接 §5)
+
+暂停的价值在于让用户纠正一个**还没定**的决定。以下**全部**成立时,卡片里没有需要用户定的东西 —— 照出卡片(告知),紧接着执行 §5:
+
+1. 用户给了明确的执行指令(clarity=explicit · 现象 + 期望 + 位置清楚)
+2. 🧩 写的是「请求明确 · 无补」(没有替用户补的意图假设)
+3. 4 项配置全部来自默认值 / `.teamwork_localconfig.json` · 无冲突
+4. 无 ⚠️ 异常行 · 未触发 §2.1 / §2.2 暂停点
+5. 用户没有要求每步确认
+
+任一不成立 → 照旧停。卡片末行写「无待定项 · 直接开始(要改随时说)」。
 
 ### 4.1 · emit 前自查
 
@@ -301,11 +332,11 @@ state.py init-feature \
  --worktree-mode auto \
  --worktree-path <worktree-path> \
  --clarity <explicit|normal|ambiguous>   # §1.7 判定 · 仅记录(台账/年检校准)
- # --preset micro                        # 仅 §2.2 判 micro 时带 · 缺省 full
+ # --preset <micro|floor|tiny>           # 仅 §2.2 判出轻档时带 · 缺省 full
  # --bl BL-NNN                           # 从 ROADMAP BL 启动时必带 · ship 翻牌/台账用
 ```
 
-🔴 **Bug 流程先 diagnose**(不是 dev):根因细查 + 修复方案须经用户 R5 确认后才进 dev 写 fix —— 详见 [stages/diagnose-stage.md](../stages/diagnose-stage.md)。
+🔴 **Bug full 档先 diagnose**(不是 dev):根因细查 + 修复方案 · 改变预期行为 / 契约 / 有取舍时须经用户 R5 确认才进 dev —— 详见 [stages/diagnose-stage.md](../stages/diagnose-stage.md)。Bug 轻档(floor/tiny)直接 dev,见 §2.3。
 
 ---
 
@@ -336,12 +367,12 @@ PMO 识别不准 → 在暂停点列出"我猜是 X · 你确认是 Y/Z?"让用�
 
 ### R-P1 · 必经用户确认
 
-prepare 输出暂停点后 · 必须等用户明确回 4 项配置(或 "all default")。
-**不可** PMO 自己拍板 worktree path / branch / merge_target。
+prepare 输出暂停点后 · 必须等用户明确回 4 项配置(或 "all default")—— §4.0 免停条件全满足时除外(配置全取自默认值 / localconfig · 不是 PMO 拍板)。
+**不可** PMO 自己拍板**偏离**默认值 / localconfig 的 worktree path / branch / merge_target。
 
 ### R-P2 · 用户未确认前不进状态机
 
-PMO 在用户未确认前 · **不可** cd / git worktree add / init-feature。
+PMO 在用户未确认前(§4.0 免停除外)· **不可** cd / git worktree add / init-feature。
 违规 = 主 tree 污染风险。
 
 ### R-P3 · 不可枚举判断留 PMO

@@ -112,7 +112,7 @@ class TestChecklistIsUnified(unittest.TestCase):
         sk = _read("SKILL.md")
         self.assertIn("证否句式", sk)
         self.assertIn("不许写 ✅ 或「查过无发现」", sk)
-        self.assertIn("≥1 条实质,或显式「无实质质疑 + 理由」", sk)
+        self.assertIn("没有就写「无实质质疑」", sk)        # v8.366:不再要求凑理由
         self.assertIn("本条是三段通用要求的单源", sk)
 
     def test_stage_docs_point_at_the_single_source_not_restate_it(self):

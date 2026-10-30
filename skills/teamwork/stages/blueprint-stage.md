@@ -26,7 +26,7 @@
      🔴 **rival 设计强制**(对抗新增结构的执行方式):评审**新增结构**(新表 / 新模块 / 新抽象 / 新服务)时**必须自己先生成 ≥1 个替代形态再裁决** —— 「作者列举的被否方案都输了」**不构成通过条件**。why:checklist 是**验证式**的(作者给的理由成立吗),盲区只有**生成式**才破 —— 实证:「内部运营账户」标记被设计成 singleton 指针表 + 独立审计表(2 张新表),简洁性四问确实跑了,但**参照物由作者的叙事给定**(「能否并入 `monetization_config`」是个冻结面,当然不能),没人问「这个设定的自然归属实体是谁」;用户一句「能不能直接打到 account 表上」→ 6 新表变 4 表 + 2 列。**作者的 rationale 成立 ≠ 方案最简。**
      着力点:**并入宿主实体(加列)/ 现算不存 / 复用既有结构 / 根本不做**。🔴 「全局唯一 / singleton 语义」**不等于**需要单独一张表(部分唯一索引就能表达)。🛡️ **安全加固 / 兜底降级是过度设计最高发区**(听着最负责任故最难驳)—— 这两类 finding 采纳前必过 ROI(概率×后果 vs 成本)。
    - 🔍 **核对**(可写「查过无发现」):**可测试**(TC 质量 / 测试策略 · QA 视角并入)· **方案盲区**(依赖 / 影响面 / 迁移风险);
-   - 💡 **清单外洞察**:清单没问、但你认为该关注的 ≥1 条,或显式「无 + 为什么没有」· **不为凑内容而写**
+   - 💡 **清单外洞察**:清单没问、但你认为该关注的 有就写,没有写「无」· **不为凑内容而写**
    (why:物化门 `cross_review_coverage` —— 申报是冷审没退化成泛谈的最低物证;三段分开是因为**对抗项混进中性核对就会退化成打勾**)。
 9. ⏸️ **方案要素确认(条件暂停点 · 见 ④)**:TECH 涉 **DB 数据结构变更** 或 **🛡️ 兜底与守卫清单非空**(含 DB CHECK/约束/trigger/前置断言/常驻门禁 · 不止 fail-safe) 或 **🚦 功能生效闸非空**(用户拍板:生效闸与 DB 变更同级) → blueprint-complete 前必 emit R5 暂停点等用户拍板(why:schema 与兜底是「高影响且不可轻易回退」的方案要素 · ROI 账与拍板权都归用户 · 不许默默做)。
 9.5 🔴 **功能优先 · 复杂度守恒**(TECH/TC 冷审 finding 准入 · 单源 [review-stage 规则 2.5](./review-stage.md)):方案真缺陷(不可实现 / 契约错 / 关键路径缺 / TC↔AC 断链)**必报**;不推防御式设计与预防性抽象、不泛加测试门(TC 分层已有 `ci_reason` 门)· 修复代价 > 缺陷危害 → REJECT 合法;「更简方案达成同等功能」永远合法。
@@ -55,7 +55,7 @@
 
 - `TC.md` → `{SKILL_ROOT}/templates/tc.md`(🔴 含 **§TC 的职责边界** —— 判据「**换实现就要改的内容不属于 TC**」· 表数/表清单/存储形态归 TECH · TC 只验可观测行为)
 - `TECH.md` → `{SKILL_ROOT}/templates/tech.md`
-- `TECH-REVIEW.md` → 无独立模板 · frontmatter `reviewers`(复数 · 逐路列)+ `verdict` + 🔴 `review_models`(列表 `- <lane>: <实际模型>` · 照实申报 —— 与外审 `review_model` 机器比对错开,各路全同模型 = 盲区相关 → complete 拒)+ 🔴 `outside_checklist_insight`(💡 清单外洞察 · **逐路一条** · ≥1 条或显式「无 + 为什么没有」· 门 `outside_checklist_insight`)· 按 lane 分段(每段都是全清单三段)
+- `TECH-REVIEW.md` → 无独立模板 · frontmatter `reviewers`(复数 · 逐路列)+ `verdict` + 🔴 `review_models`(列表 `- <lane>: <实际模型>` · 照实申报 —— 与外审 `review_model` 机器比对错开,各路全同模型 = 盲区相关 → complete 拒)+ 🔴 `outside_checklist_insight`(💡 清单外洞察 · **逐路一条** · 有就写,没有写「无」· 门 `outside_checklist_insight`)· 按 lane 分段(每段都是全清单三段)
 - `external-cross-review/*.md` → 跑 `state.py external-review --feature ... --stage blueprint` 自动落(**不要手写** · 含 `coverage: [...]`)
 
 📎 **物化拦截**:`verify-ac.py`(每 AC ↔ TC.md `tests[].covers_ac` · blueprint-complete 自动跑 · 漏覆盖 FAIL)· P0-154(`external-cross-review/*.md` 非空 · roster-gated)· `reviewers_match` · `cross_review_coverage`。
@@ -68,6 +68,8 @@
 ⏸️ TECH 方案要素确认(DB 变更 / 兜底策略 / 🚦 功能生效闸 · 命中项如下)· 请确认:
 
 **变更点明细**(🔴 必给 · **照抄 TECH §变更表清单**原样贴出 · 对象级每条一行 —— 分类概括 / 文件指针不算变更点):对象 | 变更 | 解决什么问题 | 为何非更简方案不可 | 破坏性。
+
+**取值会不会增长**(新表 / 新列里有**类型 / 枚举 / 来源 / provider** 类字段时必问 · 每个一行):`<字段> · 当前取值 <…> · 这个集合是固定的还是会增长?· 我的建议:枚举 / 查找表 + 一句理由` —— 🔴 只问取值集合,不问「将来要不要做 X」(后者是诱导过度设计);判据:用户说「会增长」→ 别把取值写死在 CHECK / 代码分支里(实证 GPT-F261014120919:登录 provider 可扩展性在 dev 中途才追加,本可在这里问出)。
 
 **关键迁移策略**(有则必列 · ≤6 行):有损与否 / 唯一约束前历史数据冲突预检 / 历史回填口径 / down migration / 清理周期 / 特殊设计一句话。
 
