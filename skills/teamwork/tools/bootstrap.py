@@ -301,7 +301,7 @@ def maintain_local_env(skill_root: Path, project_root: Path) -> dict:
     用户拍板:统一一个 gitignored 目录放本机敏感配置 · 别散落 · session 初始化自动创建。
     - 缺失 → 自动建目录 + `config.properties` 模板(注释示例 · **无真密钥**)+ 目录内
       `.gitignore`(`*` · 防御纵深:即便项目根 .gitignore 漏 / 子 repo 也不泄密)。
-    - 已存在 → **skip**(绝不覆盖用户真 secret)· 仅补缺失的目录内 .gitignore(历史目录加固)。
+    - 目录已存在 → 补缺失的 config.properties 与 .gitignore;已有文件绝不覆盖。
     - skill 仓自身 → skip(同其他 maintain · 不污染 skill repo · v8.35)。
     - localconfig `local_env_auto_create: false` → disabled(opt-out)。
     根 `.gitignore` 加 `.teamwork-local-env/` 由 `maintain_gitignore_worktree` 负责(双重保险其一)。
@@ -326,25 +326,25 @@ def maintain_local_env(skill_root: Path, project_root: Path) -> dict:
     dir_gitignore = env_dir / ".gitignore"
     created: list = []
     try:
-        if env_dir.exists():
-            # 已存在 → 不覆盖 secret · 仅补目录内 .gitignore(历史目录可能没有 · 加固)
-            if not dir_gitignore.exists():
-                dir_gitignore.write_text(LOCAL_ENV_DIR_GITIGNORE, encoding="utf-8")
-                created.append(".gitignore")
-            return {"status": "existed", "dir": LOCAL_ENV_DIR, "created": created}
+        existed = env_dir.exists()
         env_dir.mkdir(parents=True, exist_ok=True)
         # 目录内 .gitignore(防御纵深 · 先写 · 确保任何后续写入都已被 ignore)
-        dir_gitignore.write_text(LOCAL_ENV_DIR_GITIGNORE, encoding="utf-8")
-        created.append(".gitignore")
-        # config.properties 模板(无真密钥)
-        template = skill_root / "templates" / "local-env-config.properties"
-        if template.exists():
-            shutil.copy(template, cfg_file)
-        else:
-            cfg_file.write_text(
-                "# teamwork 本地敏感配置 · 绝不提交 git(KEY=value)\n", encoding="utf-8")
-        created.append(LOCAL_ENV_CONFIG)
-        return {"status": "created", "dir": LOCAL_ENV_DIR, "created": created}
+        if not dir_gitignore.exists():
+            dir_gitignore.write_text(LOCAL_ENV_DIR_GITIGNORE, encoding="utf-8")
+            created.append(".gitignore")
+        if not cfg_file.exists():
+            # 按文件补缺;独占创建避免并发启动时覆盖其他进程刚写入的配置。
+            template = skill_root / "templates" / "local-env-config.properties"
+            content = (template.read_text(encoding="utf-8") if template.exists() else
+                       "# teamwork 本地敏感配置 · 绝不提交 git(KEY=value)\n")
+            try:
+                with cfg_file.open("x", encoding="utf-8") as f:
+                    f.write(content)
+                created.append(LOCAL_ENV_CONFIG)
+            except FileExistsError:
+                pass
+        return {"status": "existed" if existed else "created",
+                "dir": LOCAL_ENV_DIR, "created": created}
     except OSError as e:
         return {"status": "failed", "dir": LOCAL_ENV_DIR, "error": str(e)}
 
