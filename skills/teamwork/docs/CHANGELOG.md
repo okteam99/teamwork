@@ -4,6 +4,16 @@
 > 🔴 **发版三件套**(同 commit):本文件 entry(细节 · 易逝)+ [RETRO-LEDGER.md](./RETRO-LEDGER.md) 1 行(框架自省蒸馏 · 永久)+ 版本 bump。
 > 🔴 **交付止于 push dev**(v8.143 用户拍板):发版**不** rsync 本机安装副本(`~/.agents/skills/teamwork`)—— 本机消费项目与其他机器同路:bootstrap 升级提示(channel 按各项目 `.teamwork_localconfig.json.update_channel` · 本机项目配 `dev`)→ 用户确认 → `update.py` tarball 覆盖。框架仓工作区 ≠ 交付渠道。
 
+## v8.367 · 测试按风险投放 · 前端测试聚焦(用户拍板)
+
+> 起因:项目里「垃圾测试用例」越来越多 —— 纯文案断言、样式/快照、同一路径换数据重测、浏览器里重复点组件测试已覆盖的交互;用例数量涨、信号不涨,改一行文案挂一片。
+
+- **通用规范新增规则 22「测试按风险投放 · 不按数量」**(`standards/tech-rules.md` §二):入库前先答「它失败时拦住哪个真实缺陷」· 不写纯文案 / 样式布局 / 重复路径 / 凑覆盖率用例 · 优先权限、资金、数据写入与状态流转、关键交互、少量主流程 · 发现垃圾用例删或合并。
+- **前端专项**(§四):保留权限、资金、关键交互与少量主流程(每个核心旅程 1 条);减少纯文案、样式/快照与重复的浏览器检查;覆盖率门禁值不变,但不为凑覆盖率写文案/样式断言。
+- **收口自查表**(§五)加一项:新测试都答得出「拦住哪个真实缺陷」。
+- **browser_e2e 硬规则 8**:浏览器只验真实页面才能证明的事 · 已被组件/集成测试覆盖的交互、文案、样式不在浏览器重复检查。
+- 验证:全量测试通过。
+
 ## v8.366 · 读取分层 · 文档单一权威 · 评审不凑数(提效方案第 3 批)
 
 > 起因:开工前要读的规则太多(prepare 前要先读三份规范);同一份测试设计在 TECH 与 TC 各写一遍;冷审「没发现」也必须写理由,单字「无」过不了门。
@@ -51,16 +61,3 @@
 - **新旧不混比**:init-feature 写 `timing_basis: "v2"`;存量 state 无此字段 → 全部按旧口径算(结果不变)· 台账「时长」格 v2 行追加 `·启 Nm·停 N` 段即口径标记 · `ledger_timing.timing_basis` 显式标注。
 - 未做(留待后续批次按需补):首次有效产出时间、合并后 14 天遗漏缺陷追踪、未归档任务统计。
 - 验证:新增 `test_timing_basis_v8363.py` 14 例(含真跑 prepare-check → init-feature)· 全量通过。
-
-## v8.362 · 归档后 MR 修复通道 + CI 归因修正(实证 GPT-F261014120919-Offer-Plugin)
-
-> 起因:ship1 归档后 MR CI 红,修一行 tsconfig —— 被迫重走 dev→review→test→browser_e2e→pm_acceptance→ship,test / browser_e2e 各 bypass 一次;同时 await-merge 把本分支新增 `proxy.ts` 导致的 TS2307 连判 8 次「base 预存在」,监控不报警。
-
-- **P0 · 归档后报告门不再逼 bypass**:`ship.phase ∈ {archived, pushed}` 时 TEST-REPORT / BROWSER-TEST-REPORT 跳过「在 commit 内」检查(需求目录已 `git rm --cached` 出分支 · 永远满足不了)· 文件存在照查 · concerns 记 INFO(设计内豁免)。实证:本单 bypass 2 次。
-- **P0 · MR 修复轻量通道**:回炉目标 dev、相对上次 push 代码改动 ≤3 文件且 ≤30 行 → dev-complete 直达 ship 重录 push(验收早已发生);超出照走完整链 · 重录即关闭通道并回到 completed · dev brief 要求测试证据跑 CI 失败的那条命令。原「bypass_log 区分豁免/逃生」不再需要(这类 bypass 不再发生)。实证:一行修复走完 7 个 stage。
-- **P0 · CI 归因**:GitLab `_mr_ci_status` 原来 `failing` 恒为空 → 归因无 job 名 → 每次落进「预存在」分支(与「未知按自己引入」的设计相反)。改为 API 取失败 job 名(取不到记 `pipeline`)· base 只看 merge_target **最新一条** pipeline · 失败 job 名命中本分支 `git diff origin/<base>...HEAD` 改动目录 → 直接判本 feature 引入 · 依据逐条打日志 · 两边都空时不判预存在。实证:`fe-ember-official-site-build` 连判 8 次。
-- **P1 · ci-commands 跟 GitLab `include: local`**(递归 · 支持 glob)。实证:返回 0 条,CI 对照只能人工。
-- **P1 · test-baseline 不越界写主工作区**:worktree 里没有 project-specs 时 `--add` 返回 PENDING,`--target worktree` 写副本 / `--target main --user-confirmed` 写主工作区 · 读取取各份并集。实证:写到了主工作区未跟踪文件。
-- **P1 · 复发防御清单门禁**:project-specs 在主工作区未跟踪时给两个落点的绝对路径,主工作区那份有条目也算通过。实证:只能 `--no-defense-entry` 跳过。
-- **P1 · 文档**:dev 中途追加范围 → `jump-to-stage --to blueprint`(reason 记停掉 / 待重派的 lane)· 未新增命令(已有能力);blueprint 确认卡对类型/枚举/provider 类字段问「取值集合固定还是会增长」(只问取值集合,不问「将来要不要做 X」)。实证:登录 provider 可扩展性在 dev 中途才追加。
-- 验证:新增 `test_post_archive_mr_fix_v8362.py` 16 例(真实临时 Git 仓库跑「归档后修 1 行 → 不 bypass 重录 push」全流程)· 全量通过。
